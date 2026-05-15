@@ -1,0 +1,7 @@
+use_gui=no
+boot_rom_uae=min
+quickstart=a500,1
+ntsc=false
+kickstart_rom_file=c:/Amiga/KICK13.rom
+filesystem=rw,dh0:C:\Users\David\.cursor\extensions\bartmanabyss.amiga-debug-1.8.2\bin\dh0
+filesystem2=rw,dh1:dh1:C:\Users\David\Documents\Programa\Amiga\Amiga-C\out,-128

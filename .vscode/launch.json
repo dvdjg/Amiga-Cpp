@@ -1,0 +1,70 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "amiga",
+            "request": "launch",
+            "preLaunchTask": "compile",
+            "name": "Amiga 500",
+            "config": "A500",
+            "program": "${workspaceFolder}/${config:amiga.program}",
+            "kickstart": "${config:amiga.rom-paths.A500}",
+            "stack": "65536",
+            "emuargs": ["-norawinput_mouse"],
+            "internalConsoleOptions": "openOnSessionStart"
+        },
+        {
+            "type": "amiga",
+            "request": "launch",
+            "preLaunchTask": "compile (debug)",
+            "name": "Amiga 500 (debug)",
+            "config": "A500",
+            "program": "${workspaceFolder}/${config:amiga.program}",
+            "kickstart": "${config:amiga.rom-paths.A500}",
+            "stack": "65536",
+            "emuargs": ["-norawinput_mouse"],
+            "internalConsoleOptions": "openOnSessionStart"
+        },
+        {
+            "type": "amiga",
+            "request": "launch",
+            "preLaunchTask": "compile (debug)",
+            "name": "AROS (debug, breakpoints fiables)",
+            "config": "A500",
+            "program": "${workspaceFolder}/${config:amiga.program}",
+            "internalConsoleOptions": "openOnSessionStart"
+        },
+        {
+            "type": "amiga",
+            "request": "launch",
+            "preLaunchTask": "compile",
+            "name": "AROS",
+            "config": "A500",
+            "program": "${workspaceFolder}/${config:amiga.program}",
+            "internalConsoleOptions": "openOnSessionStart"
+        },
+        {
+            "type": "amiga",
+            "request": "launch",
+            "preLaunchTask": "compile",
+            "name": "Amiga 1200",
+            "config": "A1200",
+            "program": "${workspaceFolder}/${config:amiga.program}",
+            "kickstart": "${config:amiga.rom-paths.A1200}",
+            "stack": "65536",
+            "emuargs": ["-norawinput_mouse"],
+            "internalConsoleOptions": "openOnSessionStart"
+        },
+        {
+            "type": "amiga",
+            "request": "launch",
+            "preLaunchTask": "compile",
+            "name": "Amiga 4000",
+            "config": "A4000",
+            "program": "${workspaceFolder}/${config:amiga.program}",
+            "kickstart": "${config:amiga.rom-paths.A4000}",
+            "emuargs": ["-norawinput_mouse"],
+            "internalConsoleOptions": "openOnSessionStart"
+        }
+    ]
+}
