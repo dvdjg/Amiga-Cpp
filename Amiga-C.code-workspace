@@ -1,0 +1,22 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../WinUAE-DBG"
+		},
+		{
+			"path": "../mcp-winuae-emu"
+		},
+		{
+			"path": "../vscode-amiga-debug"
+		}
+	],
+	"settings": {
+		"amiga.program": "out/a",
+		"amiga.rom-paths.A500": "c:/Amiga/KICK13.rom",
+		"amiga.rom-paths.A1200": "c:/Amiga/KICK31.rom",
+		"amiga.rom-paths.A4000": "c:/Amiga/KICK31.rom"
+	}
+}
