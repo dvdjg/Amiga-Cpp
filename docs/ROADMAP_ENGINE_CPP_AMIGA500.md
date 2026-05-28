@@ -1,0 +1,450 @@
+# Roadmap del engine C++ para Amiga 500
+
+Este documento define una hoja de ruta incremental para construir un engine C++ moderno
+para Amiga 500, empezando por escenas EHB ricas y extendiendo despues el soporte a
+otros drivers graficos: 5 bitplanes, fake-DPF, Dual Playfield, fondos por sprites y
+escenas copper-heavy.
+
+La filosofia del proyecto es simple: cada fase debe producir una demo verificable,
+un conjunto de pruebas automatizables y documentacion suficiente para que una IA o
+una persona pueda reproducir el resultado sin conocimiento implicito.
+
+## 1. Objetivos tecnicos
+
+- Usar C++23 en modo `gnu++23` con disciplina freestanding.
+- Soportar Amiga 500 OCS PAL con 1 MB total en configuracion `A500_1MB_Slow`.
+- Tratar la Slow RAM como memoria de capacidad, no como Fast RAM.
+- Mantener todos los recursos DMA en Chip RAM: bitplanes, copperlists, sprites,
+  audio y buffers del blitter.
+- Construir sobre ACE como backend inicial de bajo nivel, sin acoplar el engine a
+  decisiones internas de ACE.
+- Integrar UAF como formato de autoria y exportar un formato runtime cocinado para
+  Amiga.
+- Priorizar escenas tipo aventura grafica EHB, sin cerrar la puerta a juegos de
+  plataformas, shooters y demos tecnicas.
+
+## 2. Organizacion propuesta del repositorio
+
+```text
+engine/
+  include/
+  src/
+  asm/
+  c/
+  cpp/
+  platform/
+    amiga_ace/
+    amiga_registers/
+  memory/
+  graphics/
+    drivers/
+      ehb_scene/
+      standard5/
+      standard4/
+      fake_dpf/
+      dual_playfield/
+      sprite_backdrop/
+      copper_heavy/
+    copper/
+    blitter/
+    sprites/
+    tiles/
+  scene/
+  scripting/
+  audio/
+  debug/
+
+demos/
+  000_toolchain_cpp23/
+  010_chip_slow_memory/
+  020_copper_basic/
+  030_ehb_palette_zones/
+  040_blitter_bobs/
+  050_hardware_sprites/
+  060_tile_scroll/
+  070_uaf_runtime_loader/
+  100_mvp_ehb_room/
+  110_mvp_fake_dpf_platformer/
+  120_mvp_dual_playfield_scroll/
+
+tools/
+  build/
+  run/
+  capture/
+  analyze/
+  uaf_export/
+
+docs/
+  ROADMAP_ENGINE_CPP_AMIGA500.md
+  BUILD_AND_RUN.md
+  CODING_STYLE.md
+  MEMORY_MODEL.md
+  GRAPHICS_DRIVERS.md
+  TESTING_AND_PROFILING.md
+```
+
+## 3. Reglas globales de verificacion
+
+Cada demo debe poder compilarse y ejecutarse con un comando unico, por ejemplo:
+
+```powershell
+.\tools\build\build-demo.ps1 demos\030_ehb_palette_zones
+.\tools\run\run-demo.ps1 demos\030_ehb_palette_zones
+.\tools\capture\capture-demo.ps1 demos\030_ehb_palette_zones
+.\tools\analyze\analyze-demo.ps1 demos\030_ehb_palette_zones
+```
+
+La IA no debe dar una fase por terminada si no ha comprobado:
+
+- build limpio del binario Amiga;
+- arranque correcto en WinUAE-DBG;
+- captura de pantalla o video cuando haya salida visual;
+- analisis automatico de la captura cuando aplique;
+- logs de profiler o contadores cuando haya requisitos de rendimiento;
+- ausencia de regresiones en demos anteriores;
+- README actualizado de la demo;
+- notas tecnicas en codigo solo donde aclaren restricciones reales del hardware.
+
+## 4. Fase 0: base de toolchain y debug
+
+Objetivo: fijar una base reproducible de compilacion, ejecucion y depuracion.
+
+Entregables:
+
+- Demo `000_toolchain_cpp23`.
+- Programa C++23 minimo con `constexpr`, `consteval`, templates y llamada a codigo C.
+- Flags recomendados: `-std=gnu++23`, `-fno-exceptions`, `-fno-rtti`,
+  `-fno-threadsafe-statics`, `-fno-use-cxa-atexit`.
+- Script comun de build/run/capture.
+- Documento `BUILD_AND_RUN.md`.
+
+Pruebas:
+
+- El compilador acepta `c++23` y `gnu++23`.
+- El binario arranca en A500 OCS PAL.
+- El depurador permite breakpoint en C/C++, pausa y stepping por instruccion.
+- La IA captura una pantalla conocida y verifica un color o patron de pixeles.
+
+Criterio de aceptacion:
+
+- Un comando reconstruye y ejecuta la demo desde cero.
+- La sesion de debug normal sigue funcionando.
+
+## 5. Fase 1: modelo de memoria A500_1MB_Slow
+
+Objetivo: tener control explicito de Chip RAM, Slow RAM y memoria temporal.
+
+Entregables:
+
+- Demo `010_chip_slow_memory`.
+- `ChipArena`, `SlowArena`, `FrameScratch` y pools fijos.
+- Reporte en pantalla y por log de uso de memoria.
+- Documento `MEMORY_MODEL.md`.
+
+Pruebas:
+
+- Reservas alineadas a word/longword.
+- Fallos controlados si se agota Chip RAM.
+- Verificacion de que bitplanes, copperlists y sprites se ubican en Chip RAM.
+- Verificacion de que datos no DMA pueden vivir en Slow RAM.
+
+Criterio de aceptacion:
+
+- La demo muestra memoria libre/usada y no hace asignaciones dinamicas durante el frame.
+
+## 6. Fase 2: backend grafico minimo y frame scheduler
+
+Objetivo: establecer el ciclo PAL y las fases del engine.
+
+Entregables:
+
+- Demo `020_copper_basic`.
+- Frame scheduler con fases: input, update, prepare, blit, copper commit, sprite commit,
+  wait VBlank y swap.
+- Contadores de frame, VBlank y tiempo estimado.
+- Copperlist minima con color de fondo cambiante.
+
+Pruebas:
+
+- Captura con bandas de color esperadas.
+- Profiler confirma 50 Hz estable en escena vacia.
+- El cambio de color ocurre en la linea raster esperada con tolerancia documentada.
+
+Criterio de aceptacion:
+
+- El engine tiene una API estable para registrar trabajos por fase.
+
+## 7. Fase 3: driver `EHBScene`
+
+Objetivo: primer driver real, orientado a aventura grafica con fondos ricos.
+
+Entregables:
+
+- Demo `030_ehb_palette_zones`.
+- Inicializacion de 6 bitplanes EHB.
+- Fondo planar EHB precocinado.
+- Zonas copper con cambios parciales de paleta.
+- Color cycling barato para agua, fuego o luces.
+- Documento del driver en `GRAPHICS_DRIVERS.md`.
+
+Pruebas:
+
+- Captura comparada contra imagen de referencia.
+- Verificacion de que los 32 colores base y los 32 half-brite se representan.
+- Analisis de H-BLANK para confirmar que los cambios copper por linea caben.
+- Warning automatico si se solicita un cambio de paleta completo en una linea visible.
+
+Criterio de aceptacion:
+
+- Una escena EHB estatica se ve igual que la referencia dentro de tolerancias RGB444.
+- Los cambios de paleta no generan corrupcion visible ni sobrepasan el presupuesto.
+
+## 8. Fase 4: blitter, BOBs y dirty rects
+
+Objetivo: mover personajes y objetos sobre fondos EHB sin redibujar toda la escena.
+
+Entregables:
+
+- Demo `040_blitter_bobs`.
+- BOB con mascara cookie-cut.
+- Save/restore de fondo.
+- Dirty rects y orden de restauracion/dibujo.
+- Presupuesto por BOB en funcion de ancho, alto y bitplanes.
+
+Pruebas:
+
+- Captura de personaje en varias posiciones.
+- Analisis de diferencia de frames para detectar basura visual.
+- Profiler de blits por frame.
+- Prueba de saturacion: varios BOBs hasta emitir warning.
+
+Criterio de aceptacion:
+
+- Un personaje animado camina sobre una escena EHB sin dejar rastros.
+- El motor sabe rechazar o advertir composiciones que excedan el presupuesto.
+
+## 9. Fase 5: hardware sprites y `VirtualSprite`
+
+Objetivo: abstraer sprites hardware, attached sprites y fallback a BOB.
+
+Entregables:
+
+- Demo `050_hardware_sprites`.
+- Asignador de 8 canales de sprite.
+- Attached pairs para 15 colores.
+- Cursor hardware.
+- `VirtualSprite` con decision hardware/BOB.
+
+Pruebas:
+
+- Captura que valide posiciones y prioridades.
+- Verificacion de canales reservados.
+- Test de fallback: si no quedan canales, el objeto pasa a BOB.
+- Prueba de attached sprites con paleta correcta.
+
+Criterio de aceptacion:
+
+- El engine puede mantener cursor hardware y al menos un actor BOB sin conflictos.
+
+## 10. Fase 6: loader runtime UAF-R
+
+Objetivo: cargar escenas cocinadas desde UAF sin parsing pesado en Amiga.
+
+Entregables:
+
+- Demo `070_uaf_runtime_loader`.
+- Especificacion inicial UAF-R.
+- Chunks: header, palettes, bitplanes, copper templates, patch tables, sprites,
+  BOBs, tile metadata, collision, strings.
+- Conversor desde UAF authoring a UAF-R.
+
+Pruebas:
+
+- Roundtrip de una escena simple.
+- Hash de chunks binarios.
+- Carga en emulador y comparacion visual contra preview/export de UAF.
+- Validacion de offsets, alineacion y ubicacion Chip/Slow RAM.
+
+Criterio de aceptacion:
+
+- Una escena creada/cocinada fuera del engine se carga y renderiza fielmente.
+
+## 11. MVP 1: habitacion EHB de aventura grafica
+
+Objetivo: primera demo jugable tipo aventura moderna.
+
+Entregables:
+
+- Demo `100_mvp_ehb_room`.
+- Habitacion EHB con fondo rico.
+- Zonas copper para cielo/interior/agua/luz.
+- Personaje animado con BOB.
+- Cursor hardware.
+- Walkboxes, profundidad por Y y hotspots.
+- Dialogo o texto basico.
+
+Pruebas:
+
+- Capturas golden de la habitacion en reposo.
+- Capturas con personaje delante/detras de zonas de profundidad.
+- Script de input automatizado: mover cursor, caminar, activar hotspot.
+- Profiler: 50 Hz estable con una carga representativa.
+- Analisis de Chip RAM disponible.
+
+Criterio de aceptacion:
+
+- La demo funciona como una micro-aventura de una pantalla y sirve como plantilla real.
+
+## 12. Fase 7: tiles y scroll
+
+Objetivo: preparar el motor para plataformas y escenas con camara.
+
+Entregables:
+
+- Demo `060_tile_scroll`.
+- Tilemap 16x16.
+- Scroll horizontal fino por `BPLCON1`.
+- Scroll coarse por punteros.
+- Recompuesto incremental de columnas/filas con Blitter.
+- Collision metadata por tile.
+
+Pruebas:
+
+- Captura/video de scroll sin saltos.
+- Verificacion de que solo se redibujan margenes necesarios.
+- Profiler de tiles recompuestos por frame.
+- Prueba de camara con ida/vuelta y ring buffer.
+
+Criterio de aceptacion:
+
+- Scroll suave en A500 sin redibujar pantalla completa por CPU.
+
+## 13. Fase 8: drivers `Standard5`, `Standard4` y `FakeDPF`
+
+Objetivo: soportar modos de accion con menor presion DMA que EHB.
+
+Entregables:
+
+- Demo `110_mvp_fake_dpf_platformer`.
+- Driver `Standard5`.
+- Driver `Standard4`.
+- Driver `FakeDPF`: por ejemplo 4 planos de juego + 1 plano de fondo/marca/sombra.
+- Comparador de presupuesto entre drivers.
+
+Pruebas:
+
+- Misma escena exportada en varios drivers.
+- Capturas comparativas.
+- Profiler de CPU libre estimada.
+- Verificacion de paletas y prioridades.
+
+Criterio de aceptacion:
+
+- El engine permite elegir driver segun necesidades artisticas y rendimiento.
+
+## 14. Fase 9: Dual Playfield real
+
+Objetivo: soportar parallax real y composiciones tipo Mega Typhoon/Jim Power.
+
+Entregables:
+
+- Demo `120_mvp_dual_playfield_scroll`.
+- Driver `DualPlayfield`.
+- PF1/PF2 con scroll independiente.
+- Prioridad configurable por zona.
+- Tiles por playfield.
+
+Pruebas:
+
+- Captura/video con dos playfields desplazandose a velocidades distintas.
+- Validacion de asignacion de bitplanes impares/pares.
+- Validacion de mapa de paleta PF1/PF2.
+- Profiler de DMA con 2+3, 3+3 y variantes.
+
+Criterio de aceptacion:
+
+- Parallax real estable y documentado, con presupuesto comprensible para artistas.
+
+## 15. Fase 10: copper avanzado y fondos por sprites
+
+Objetivo: explotar el caracter propio del Amiga sin romper el presupuesto.
+
+Entregables:
+
+- Driver `SpriteBackdrop`.
+- Driver `CopperHeavyScene`.
+- Multiplexado vertical controlado.
+- Sprite strips y horizontal repeats cuando el presupuesto lo permita.
+- Timeline visual/exportable desde UAF.
+
+Pruebas:
+
+- Analisis H-BLANK por linea.
+- Deteccion de conflictos de registros copper.
+- Capturas de fondos por sprites.
+- Stress test que debe emitir warnings antes de fallar visualmente.
+
+Criterio de aceptacion:
+
+- El engine permite efectos avanzados, pero los trata como recursos presupuestados.
+
+## 16. Fase 11: audio, scripting y herramientas de aventura
+
+Objetivo: convertir el MVP visual en base de juego.
+
+Entregables:
+
+- Reproductor MOD/P61 integrado.
+- Triggers, scripts simples, inventario, dialogos y estados.
+- Sistema de localizacion de textos.
+- Herramientas de exportacion desde UAF.
+
+Pruebas:
+
+- Audio estable sin romper el frame.
+- Script automatizado de una mini escena completa.
+- Captura de texto y UI.
+- Validacion de memoria con varias rooms cargables.
+
+Criterio de aceptacion:
+
+- Se puede crear una aventura corta de varias pantallas.
+
+## 17. Fase 12: regresion continua y QA visual
+
+Objetivo: que cada avance preserve lo anterior.
+
+Entregables:
+
+- Bateria `test-regression`.
+- Golden screenshots por demo.
+- Comparador de imagenes con tolerancia.
+- Parser de logs del profiler.
+- Informe HTML/Markdown de cada ejecucion.
+
+Pruebas:
+
+- Todas las demos compilan.
+- Todas arrancan.
+- Todas generan captura.
+- Las capturas coinciden con referencia o explican diferencias aprobadas.
+- Los presupuestos de DMA/Blitter/Copper no empeoran sin justificacion.
+
+Criterio de aceptacion:
+
+- La IA puede modificar el engine y demostrar que no ha roto demos anteriores.
+
+## 18. Definicion de terminado
+
+Una fase se considera terminada solo si cumple:
+
+- demo funcional;
+- README de demo;
+- documentacion tecnica actualizada;
+- pruebas automatizadas o semiautomatizadas;
+- captura o evidencia profiler archivada;
+- criterios de aceptacion superados;
+- regresion de fases anteriores ejecutada.
+
+No basta con que "se vea bien" una vez. Debe poder repetirse.
+
