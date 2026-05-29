@@ -68,6 +68,9 @@ Demo inicial:
 - `demos/020_copper_basic/src/main.cpp`
 - `demos/020_copper_basic/README.md`
 - `demos/020_copper_basic/analyze-screenshot.ps1`
+- `demos/030_ehb_palette_zones/src/main.cpp`
+- `demos/030_ehb_palette_zones/README.md`
+- `demos/030_ehb_palette_zones/analyze-screenshot.ps1`
 
 Copper:
 
@@ -118,6 +121,9 @@ Resultado verificado:
   emulada actual.
 - `020_copper_basic` valida una copperlist real en Chip RAM, instalada con COP1LC
   y COPJMP1, que genera bandas raster a pantalla completa.
+- `030_ehb_palette_zones` valida 6 bitplanes EHB, punteros BPL1..BPL6, paleta de
+  32 colores base, colores half-brite 32..63 y cambios completos de paleta por
+  zonas Copper.
 - Las demos de regresion ahora usan `run_frames(0xffff)` para que sea el runner
   quien cierre WinUAE y no se capture accidentalmente el prompt tras terminar.
 - `analyze-demo.ps1` soporta analizadores especificos por demo mediante
@@ -146,7 +152,7 @@ Resultado verificado:
 Ultimo informe de regresion conocido:
 
 ```text
-out\regression\20260529-090924\regression-report.md
+out\regression\20260529-103318\regression-report.md
 ```
 
 ## Siguiente paso previsto
@@ -155,7 +161,8 @@ La regresion automatizada ya existe en `tools/test-regression.ps1`.
 
 Siguiente bloque recomendado:
 
-1. Crear `030_ehb_palette_zones`.
+1. Extraer de `030_ehb_palette_zones` un primer helper reutilizable para layout
+   planar EHB y carga de punteros BPL.
 2. Convertir la demo EHB en el primer embrion del driver `EhbScene`.
-3. Validar 6 bitplanes EHB, 32 colores base y half-brite.
-4. Empezar a medir presupuestos Copper por zonas visibles.
+3. Empezar a medir presupuestos Copper por zonas visibles.
+4. Preparar una escena EHB exportable desde UAF-R.

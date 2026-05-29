@@ -28,6 +28,11 @@ Primer objetivo serio. Pensado para aventura grafica moderna:
 - copper por zonas y efectos baratos;
 - cambios completos de paleta solo en zonas seguras o transiciones.
 
+La primera prueba ejecutable es `demos/030_ehb_palette_zones`: genera una reticula
+planar de indices 0..63, activa 6 bitplanes y usa el Copper para cambiar la paleta
+completa en tres zonas verticales. Es todavia una demo de infraestructura, no un
+driver reutilizable completo.
+
 ### `Standard5`
 
 Modo de 5 bitplanes para 32 colores reales. Menos costoso que EHB y util para
@@ -64,4 +69,3 @@ transiciones, cielos, agua o efectos demoscene.
 
 Si una escena necesita romper demasiadas reglas de un driver, probablemente no
 necesita mas excepciones: necesita otro driver.
-

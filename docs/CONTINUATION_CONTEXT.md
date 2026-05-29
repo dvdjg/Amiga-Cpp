@@ -64,3 +64,11 @@ La demo `020_copper_basic` debe:
 - tomar el display a pantalla completa;
 - mostrar bandas horizontales roja, verde, azul, amarilla y cian;
 - superar su analizador especifico `demos\020_copper_basic\analyze-screenshot.ps1`.
+
+La demo `030_ehb_palette_zones` debe:
+
+- compilar en debug;
+- ejecutarse en WinUAE-DBG;
+- mostrar una reticula EHB con tres zonas verticales de paleta;
+- incluir muestras visibles de colores normales 0..31 y half-brite 32..63;
+- superar su analizador especifico `demos\030_ehb_palette_zones\analyze-screenshot.ps1`.

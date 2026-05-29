@@ -33,9 +33,23 @@ enum class Register : u16 {
 	DDFSTRT = 0x092,
 	DDFSTOP = 0x094,
 	DMACON = 0x096,
+	BPL1PTH = 0x0e0,
+	BPL1PTL = 0x0e2,
+	BPL2PTH = 0x0e4,
+	BPL2PTL = 0x0e6,
+	BPL3PTH = 0x0e8,
+	BPL3PTL = 0x0ea,
+	BPL4PTH = 0x0ec,
+	BPL4PTL = 0x0ee,
+	BPL5PTH = 0x0f0,
+	BPL5PTL = 0x0f2,
+	BPL6PTH = 0x0f4,
+	BPL6PTL = 0x0f6,
 	BPLCON0 = 0x100,
 	BPLCON1 = 0x102,
 	BPLCON2 = 0x104,
+	BPL1MOD = 0x108,
+	BPL2MOD = 0x10a,
 	COLOR00 = 0x180,
 };
 
@@ -54,6 +68,20 @@ enum DmaControl : u16 {
 /// Devuelve el offset de un registro COLORxx.
 constexpr u16 color_register(u8 index) {
 	return static_cast<u16>(Register::COLOR00) + static_cast<u16>(index) * 2u;
+}
+
+/// Devuelve el offset del word alto del puntero de un bitplane.
+///
+/// Los punteros BPLxPT son pares de registros `PTH/PTL`. El Copper solo puede
+/// escribir words, asi que cargar un puntero requiere dos MOVEs. `plane` usa base
+/// cero para encajar con arrays C++: 0 = BPL1, 5 = BPL6.
+constexpr u16 bitplane_pointer_high_register(u8 plane) {
+	return static_cast<u16>(Register::BPL1PTH) + static_cast<u16>(plane) * 4u;
+}
+
+/// Devuelve el offset del word bajo del puntero de un bitplane.
+constexpr u16 bitplane_pointer_low_register(u8 plane) {
+	return static_cast<u16>(Register::BPL1PTL) + static_cast<u16>(plane) * 4u;
 }
 
 /// Codifica la primera word de un WAIT sencillo.
@@ -86,6 +114,17 @@ public:
 	/// Escribe un MOVE Copper usando un offset raw.
 	void move(u16 custom_register_offset, u16 value) {
 		write_pair(custom_register_offset, value);
+	}
+
+	/// Escribe los dos MOVEs necesarios para cargar un puntero de bitplane.
+	///
+	/// Esta funcion no valida que la direccion apunte a Chip RAM: esa garantia debe
+	/// venir de la arena usada por el driver. Aqui solo codificamos el formato que
+	/// espera Agnus en BPLxPTH/BPLxPTL.
+	void move_bitplane_pointer(u8 plane, const void* address) {
+		const u32 raw = reinterpret_cast<u32>(address);
+		move(bitplane_pointer_high_register(plane), static_cast<u16>(raw >> 16));
+		move(bitplane_pointer_low_register(plane), static_cast<u16>(raw & 0xffffu));
 	}
 
 	/// Espera a una linea de raster con mascara estandar.
@@ -132,4 +171,3 @@ private:
 };
 
 } // namespace amg::copper
-
