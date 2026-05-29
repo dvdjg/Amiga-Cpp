@@ -6,7 +6,8 @@ Si una IA abre este proyecto sin historial de conversacion, debe empezar leyendo
 2. `docs/ROADMAP_ENGINE_CPP_AMIGA500.md`
 3. `docs/BUILD_AND_RUN.md`
 4. `docs/CODING_STYLE.md`
-5. `demos/000_toolchain_cpp23/README.md`
+5. `docs/HARDWARE_AND_ROM_KERNEL_POLICY.md`
+6. `demos/000_toolchain_cpp23/README.md`
 
 ## Objetivo inmediato
 
@@ -24,6 +25,10 @@ probarse con:
 - No usar asignacion dinamica durante gameplay salvo pruebas controladas.
 - No depender de Amiga en la logica de juego de alto nivel.
 - Conservar evidencias de ejecucion en `out\run` y `out\regression`.
+- Comentar cada unidad de codigo como tutorial, sobre todo cabeceras compartidas.
+- Usar el Hardware Reference Manual local como referencia para registros y timing.
+- Mantener el uso del ROM kernel como politica opcional de backend, no como detalle
+  mezclado en la logica de juego.
 
 ## Estado minimo saludable
 

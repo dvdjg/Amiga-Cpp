@@ -24,6 +24,12 @@ base verificable de toolchain, ejecucion automatizada y captura visual.
 - La logica de juego no debe depender directamente de Amiga; Amiga sera un backend.
 - El perfil inicial de hardware es `A500_1MB_Slow`.
 - La Slow RAM se considera memoria de capacidad, no Fast RAM real.
+- El desarrollo sera close-to-metal, con el Amiga Hardware Reference Manual
+  local como referencia principal.
+- El uso del ROM kernel queda permitido como politica opcional del backend,
+  especialmente para modo OS-friendly, reserva/restauracion y prototipado.
+- Todo codigo fuente nuevo debe comentarse con estilo tutorial, especialmente las
+  cabeceras compartidas.
 - ACE se mantiene como candidato a backend/HAL posterior, pero la base inicial usa
   un backend minimo propio para validar toolchain y flujo.
 - Los "profiles" graficos se han formalizado como drivers graficos: `EhbScene`,
@@ -77,6 +83,7 @@ Documentacion:
 - `docs/MEMORY_MODEL.md`
 - `docs/GRAPHICS_DRIVERS.md`
 - `docs/CONTINUATION_CONTEXT.md`
+- `docs/HARDWARE_AND_ROM_KERNEL_POLICY.md`
 
 ## Comandos verificados
 

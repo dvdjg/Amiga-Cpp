@@ -1,10 +1,26 @@
 #pragma once
 
+/// \file amiga_minimal.hpp
+/// Backend Amiga minimo usado por las primeras demos.
+///
+/// Esta unidad es una pieza didactica: muestra como un backend concreto satisface
+/// las necesidades del engine sin contaminar la logica de juego con detalles Amiga.
+///
+/// Politica actual:
+/// - OS-friendly: usa Exec/AllocMem para reservar bloques.
+/// - Close-to-the-metal: escribe registros custom cuando hace falta.
+/// - Futuro: el backend podra tener modos configurables para usar ROM kernel,
+///   takeover completo o una mezcla de ambos.
+
 #include <amg/core/types.hpp>
 #include <amg/memory/arena.hpp>
 
 namespace amg::amiga {
 
+/// Perfil fisico/logico de la maquina objetivo.
+///
+/// Este perfil describe nuestras expectativas de diseno, no una deteccion dinamica
+/// completa. `A500_1MB_Slow` significa 512 KB Chip + 512 KB trapdoor/bogo.
 struct HardwareProfile {
 	const char* id;
 	u16 chip_kb;
@@ -13,6 +29,7 @@ struct HardwareProfile {
 	bool pal;
 };
 
+/// Perfil inicial realista para la maquina del proyecto.
 constexpr HardwareProfile a500_1mb_slow {
 	"A500_1MB_Slow",
 	512,
@@ -21,6 +38,10 @@ constexpr HardwareProfile a500_1mb_slow {
 	true,
 };
 
+/// Envoltorio del overlay de debug de WinUAE-DBG.
+///
+/// No dibuja en bitplanes Amiga. Es una herramienta de pruebas en host que permite
+/// validar las primeras demos antes de escribir drivers graficos reales.
 struct DebugOverlay {
 	void clear();
 	void text(s16 x, s16 y, const char* value, u32 rgb);
@@ -28,6 +49,14 @@ struct DebugOverlay {
 	void filled_rect(s16 left, s16 top, s16 right, s16 bottom, u32 rgb);
 };
 
+/// Backend Amiga minimo.
+///
+/// Sus responsabilidades actuales son:
+/// - reservar bloques base para las arenas del engine;
+/// - esperar VBlank;
+/// - escribir colores custom simples;
+/// - exponer el overlay de debug;
+/// - dejar claro donde usamos ROM kernel y donde tocamos hardware directo.
 class MinimalBackend {
 public:
 	using Profile = HardwareProfile;
@@ -39,11 +68,26 @@ public:
 	MinimalBackend(const MinimalBackend&) = delete;
 	MinimalBackend& operator=(const MinimalBackend&) = delete;
 
+	/// Inicializacion minima del backend.
 	void boot();
+
+	/// Reserva bloques base y los entrega a `MemorySystem`.
+	///
+	/// Importante: esto no "posee toda la RAM del Amiga". Solo pide al ROM kernel los
+	/// bloques solicitados. En modo takeover futuro, esta misma API podra poblarse
+	/// con rangos fisicos conocidos sin pasar por Exec.
 	bool configure_memory(const MemoryConfig& config);
+
+	/// Libera los bloques reservados con Exec.
 	void release_memory();
+
+	/// Espera al comienzo de VBlank leyendo VPOSR directamente.
 	void wait_vblank();
+
+	/// Escribe un registro COLORxx. `rgb444` usa el formato nativo OCS.
 	void set_color(u8 index, u16 rgb444);
+
+	/// Activa/desactiva warp mode del emulador mediante la ayuda de WinUAE-DBG.
 	void set_warpmode(bool enabled);
 
 	constexpr const Profile& profile() const { return m_profile; }
