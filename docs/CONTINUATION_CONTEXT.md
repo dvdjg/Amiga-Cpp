@@ -1,0 +1,37 @@
+# Contexto para continuar desde cero
+
+Si una IA abre este proyecto sin historial de conversacion, debe empezar leyendo:
+
+1. `docs/DEVELOPMENT_LOG.md`
+2. `docs/ROADMAP_ENGINE_CPP_AMIGA500.md`
+3. `docs/BUILD_AND_RUN.md`
+4. `docs/CODING_STYLE.md`
+5. `demos/000_toolchain_cpp23/README.md`
+
+## Objetivo inmediato
+
+Mantener una base de engine C++23 verificable para Amiga 500. Cada cambio debe poder
+probarse con:
+
+```powershell
+.\tools\test-regression.ps1
+```
+
+## Restricciones importantes
+
+- No romper el proyecto C historico de la raiz.
+- No asumir libc/STL hosted completa.
+- No usar asignacion dinamica durante gameplay salvo pruebas controladas.
+- No depender de Amiga en la logica de juego de alto nivel.
+- Conservar evidencias de ejecucion en `out\run` y `out\regression`.
+
+## Estado minimo saludable
+
+La demo `000_toolchain_cpp23` debe:
+
+- compilar en debug;
+- ejecutarse en WinUAE-DBG;
+- generar captura PNG;
+- superar `analyze-demo.ps1`;
+- mostrar `Memory arenas: OK` en el overlay.
+

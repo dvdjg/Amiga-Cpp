@@ -4,13 +4,10 @@
 			"path": "."
 		},
 		{
-			"path": "../WinUAE-DBG"
+			"path": "../ACE"
 		},
 		{
-			"path": "../mcp-winuae-emu"
-		},
-		{
-			"path": "../vscode-amiga-debug"
+			"path": "../Universal-Asset-Format"
 		}
 	],
 	"settings": {
