@@ -94,6 +94,7 @@ Documentacion:
 - `docs/CONTINUATION_CONTEXT.md`
 - `docs/HARDWARE_AND_ROM_KERNEL_POLICY.md`
 - `docs/MOUSE_AUTOMATION.md`
+- `docs/WINUAE_SIDE_CHANNEL_DEBUG.md`
 
 ## Comandos verificados
 
@@ -137,6 +138,10 @@ Resultado verificado:
 - El tiempo de espera por defecto del runner sube a 18 s porque `020_copper_basic`
   puede arrancar correctamente pero llegar tarde a la primera captura de 12 s en
   algunas ejecuciones; a 18 s la captura ya muestra las bandas Copper.
+- Queda documentado como desarrollo futuro necesario un canal lateral de depuracion
+  para WinUAE-DBG. El GDB server actual sirve para automatizacion controlada, pero
+  no basta para que David depure desde VS Code/Cursor y la IA entre a la misma
+  instancia viva sin coordinarse. Ver `docs/WINUAE_SIDE_CHANNEL_DEBUG.md`.
 
 Ultimo informe de regresion conocido:
 

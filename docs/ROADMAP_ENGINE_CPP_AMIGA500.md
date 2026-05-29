@@ -81,6 +81,7 @@ docs/
   MEMORY_MODEL.md
   GRAPHICS_DRIVERS.md
   TESTING_AND_PROFILING.md
+  WINUAE_SIDE_CHANNEL_DEBUG.md
 ```
 
 ## 3. Reglas globales de verificacion
@@ -434,7 +435,38 @@ Criterio de aceptacion:
 
 - La IA puede modificar el engine y demostrar que no ha roto demos anteriores.
 
-## 18. Definicion de terminado
+## 18. Fase futura: canal lateral de depuracion WinUAE-DBG
+
+Objetivo: permitir que la IA ayude sobre la misma instancia viva de WinUAE que
+esta usando David desde Cursor/VS Code, sin competir por el socket GDB principal.
+
+Entregables:
+
+- Canal lateral localhost en WinUAE-DBG o proceso companion con acceso interno.
+- Protocolo de sesion con modos `observe`, `assist` y `takeover`.
+- Debug lock para operaciones que pausan CPU o modifican estado.
+- Lectura de registros, memoria, disasm, screenshots, input y profiler.
+- Escritura de memoria con auditoria y rollback.
+- Zona scratch para diagnostico y carga de codigo maquina 68k en caliente.
+- Logs de sesion en `out/debug-sessions`.
+- Documento tecnico `WINUAE_SIDE_CHANNEL_DEBUG.md`.
+
+Pruebas:
+
+- VS Code/Cursor mantiene una sesion normal de depuracion.
+- La IA se conecta al canal lateral de esa misma instancia.
+- La IA lee memoria/registros y captura pantalla sin romper la sesion manual.
+- La IA toma debug lock, pausa, inspecciona, reanuda y libera lock.
+- La IA escribe y revierte bytes en una zona segura.
+- La IA carga una rutina 68k pequena en scratch, la ejecuta y restaura estado.
+
+Criterio de aceptacion:
+
+- Cuando David se quede atascado en una sesion manual, la IA puede entrar,
+  diagnosticar con herramientas avanzadas y dejar trazabilidad completa de lo que
+  observa o modifica.
+
+## 19. Definicion de terminado
 
 Una fase se considera terminada solo si cumple:
 
@@ -447,4 +479,3 @@ Una fase se considera terminada solo si cumple:
 - regresion de fases anteriores ejecutada.
 
 No basta con que "se vea bien" una vez. Debe poder repetirse.
-
