@@ -13,6 +13,7 @@ $exe = Join-Path $outDir "$demoName.exe"
 $elf = Join-Path $outDir "$demoName.elf"
 $map = Join-Path $outDir "$demoName.map"
 $screenshot = Join-Path $root "out\run\$demoName\screenshot.png"
+$demoSpecificAnalyzer = Join-Path $demoPath "analyze-screenshot.ps1"
 
 if (!(Test-Path $exe)) { throw "No existe $exe. Ejecuta primero tools/build/build-demo.ps1." }
 if (!(Test-Path $elf)) { throw "No existe $elf." }
@@ -45,7 +46,7 @@ if ($missing.Count -gt 0) {
 } | Format-List
 
 if (Test-Path $screenshot) {
-	$analyzer = Join-Path $PSScriptRoot "analyze-screenshot.ps1"
+	$analyzer = if (Test-Path $demoSpecificAnalyzer) { $demoSpecificAnalyzer } else { Join-Path $PSScriptRoot "analyze-screenshot.ps1" }
 	& powershell -ExecutionPolicy Bypass -File $analyzer $screenshot
 	if ($LASTEXITCODE -ne 0) {
 		throw "La captura existe, pero no supera el analisis visual automatico."

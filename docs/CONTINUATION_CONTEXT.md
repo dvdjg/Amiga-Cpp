@@ -48,3 +48,11 @@ La demo `010_chip_slow_memory` debe:
 - mostrar barras para Chip, Slow y Frame;
 - mostrar una base Chip en rango bajo y una base Slow en zona trapdoor/bogo cuando
   el perfil emulado expone memoria no-chip.
+
+La demo `020_copper_basic` debe:
+
+- compilar en debug;
+- ejecutarse en WinUAE-DBG;
+- tomar el display a pantalla completa;
+- mostrar bandas horizontales roja, verde, azul, amarilla y cian;
+- superar su analizador especifico `demos\020_copper_basic\analyze-screenshot.ps1`.

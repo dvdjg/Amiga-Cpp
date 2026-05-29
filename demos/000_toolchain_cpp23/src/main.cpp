@@ -66,7 +66,7 @@ int main() {
 	amg::amiga::MinimalBackend backend {};
 	DemoGame game {};
 	amg::Engine engine { backend, game };
-	engine.run_frames(1200);
+	engine.run_frames(0xffff);
 
 	return 0;
 }

@@ -74,6 +74,16 @@ El analizador actual verifica dimensiones y presencia de los colores de overlay
 esperados por la demo 000. Las siguientes demos tendran analizadores mas especificos
 para paletas, sprites, scroll y profiler.
 
+Si una demo define:
+
+```text
+demos\<demo>\analyze-screenshot.ps1
+```
+
+`analyze-demo.ps1` usa ese analizador especifico en lugar del generico. Esto permite
+que demos close-to-the-metal, como una prueba de Copper a pantalla completa, validen
+la imagen por criterios propios.
+
 ## Regresion completa
 
 ```powershell

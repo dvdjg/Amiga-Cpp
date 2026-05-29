@@ -87,6 +87,13 @@ public:
 	/// Escribe un registro COLORxx. `rgb444` usa el formato nativo OCS.
 	void set_color(u8 index, u16 rgb444);
 
+	/// Instala una copperlist ya construida en Chip RAM.
+	///
+	/// La lista debe terminar en `0xffff, 0xfffe`. Esta funcion escribe COP1LC,
+	/// dispara COPJMP1 y activa DMA master + Copper. Es close-to-the-metal: el
+	/// sistema operativo no arbitra esta lista.
+	void install_copper_list(const u16* copper_words);
+
 	/// Activa/desactiva warp mode del emulador mediante la ayuda de WinUAE-DBG.
 	void set_warpmode(bool enabled);
 

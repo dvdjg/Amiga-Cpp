@@ -8,8 +8,14 @@ namespace {
 
 volatile unsigned short* const custom_base = reinterpret_cast<volatile unsigned short*>(0xdff000);
 volatile unsigned long* const vpos_long = reinterpret_cast<volatile unsigned long*>(0xdff004);
+volatile unsigned long* const cop1lc = reinterpret_cast<volatile unsigned long*>(0xdff080);
 
 constexpr unsigned short custom_color_offset = 0x180 / 2;
+constexpr unsigned short custom_copjmp1_offset = 0x088 / 2;
+constexpr unsigned short custom_dmacon_offset = 0x096 / 2;
+constexpr unsigned short dma_setclr = 0x8000;
+constexpr unsigned short dma_master = 0x0200;
+constexpr unsigned short dma_copper = 0x0080;
 
 } // namespace
 
@@ -113,6 +119,19 @@ void MinimalBackend::set_color(u8 index, u16 rgb444) {
 	if (index < 32) {
 		custom_base[custom_color_offset + index] = rgb444;
 	}
+}
+
+void MinimalBackend::install_copper_list(const u16* copper_words) {
+	// COP1LC is a 32-bit pointer split over two custom registers. Writing it as a
+	// long mirrors the classic examples and is safe on 68000-aligned addresses.
+	*cop1lc = reinterpret_cast<u32>(copper_words);
+
+	// COPJMP1 forces the Copper to reload COP1LC immediately.
+	custom_base[custom_copjmp1_offset] = 0x7fff;
+
+	// Enable master DMA and Copper DMA. We leave bitplane DMA to the copperlist or
+	// future display driver; this demo starts with zero bitplanes.
+	custom_base[custom_dmacon_offset] = dma_setclr | dma_master | dma_copper;
 }
 
 void MinimalBackend::set_warpmode(bool enabled) {

@@ -65,6 +65,13 @@ Demo inicial:
 - `demos/000_toolchain_cpp23/README.md`
 - `demos/010_chip_slow_memory/src/main.cpp`
 - `demos/010_chip_slow_memory/README.md`
+- `demos/020_copper_basic/src/main.cpp`
+- `demos/020_copper_basic/README.md`
+- `demos/020_copper_basic/analyze-screenshot.ps1`
+
+Copper:
+
+- `engine/include/amg/graphics/copper/copper.hpp`
 
 Tooling:
 
@@ -105,11 +112,17 @@ Resultado verificado:
 - En la captura de `010_chip_slow_memory`, Chip aparece en rango bajo
   `0x00015050` y Slow en zona trapdoor/bogo `0x00C0F830` en la configuracion
   emulada actual.
+- `020_copper_basic` valida una copperlist real en Chip RAM, instalada con COP1LC
+  y COPJMP1, que genera bandas raster a pantalla completa.
+- Las demos de regresion ahora usan `run_frames(0xffff)` para que sea el runner
+  quien cierre WinUAE y no se capture accidentalmente el prompt tras terminar.
+- `analyze-demo.ps1` soporta analizadores especificos por demo mediante
+  `demos\<demo>\analyze-screenshot.ps1`.
 
 Ultimo informe de regresion conocido:
 
 ```text
-out\regression\20260529-014748\regression-report.md
+out\regression\20260529-085158\regression-report.md
 ```
 
 ## Siguiente paso previsto
@@ -118,7 +131,7 @@ La regresion automatizada ya existe en `tools/test-regression.ps1`.
 
 Siguiente bloque recomendado:
 
-1. Separar el analisis visual por demo para no depender solo de colores genericos.
-2. Crear `020_copper_basic`.
-3. Preparar una copperlist minima gestionada por engine.
-4. Empezar a definir el primer driver visual real `EhbScene`.
+1. Crear `030_ehb_palette_zones`.
+2. Convertir la demo EHB en el primer embrion del driver `EhbScene`.
+3. Validar 6 bitplanes EHB, 32 colores base y half-brite.
+4. Empezar a medir presupuestos Copper por zonas visibles.
