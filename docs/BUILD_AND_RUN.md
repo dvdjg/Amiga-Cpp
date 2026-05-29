@@ -56,7 +56,11 @@ El runner:
 - lanza `winuae-gdb.exe`;
 - conecta al servidor GDB de WinUAE-DBG;
 - continua la ejecucion tras el `debugging_trigger`;
-- espera unos segundos;
+- intenta conectar al canal lateral de WinUAE-DBG en `127.0.0.1:2346`;
+- si la demo expone `g_amg_run_status`, espera `READY` leyendo memoria por el
+  canal lateral sin detener el 68000;
+- si el canal no esta disponible, deja constancia en `run-report.json` y usa el
+  timeout de compatibilidad;
 - guarda una captura PNG con el monitor de WinUAE;
 - cierra el emulador y restaura el `startup-sequence` anterior.
 
@@ -64,6 +68,37 @@ La captura queda en:
 
 ```text
 out\run\<demo>\screenshot.png
+out\run\<demo>\run-report.json
+```
+
+## Telemetria de ejecucion
+
+Las demos modernas definen un simbolo global `g_amg_run_status` con magia
+`AMGR`. El runner resuelve su direccion desde el `.map`, consulta las secciones
+runtime que expone WinUAE-DBG por el canal lateral y espera estados cortos:
+
+- `InitStarted`: la demo entro en `init`.
+- `Ready`: la demo instalo sus recursos y ya esta renderizando frames.
+- `Failed`: la demo fallo de forma controlada y deja un codigo `detail`.
+
+Esto evita usar capturas como unica senal de vida. Las capturas siguen siendo la
+evidencia visual final, pero el runner ya sabe si el programa llego a READY antes
+de pedir la imagen.
+
+Opciones utiles:
+
+```powershell
+.\tools\run\run-demo.ps1 demos\030_ehb_palette_zones `
+  -SideChannelTimeoutMs 6000 `
+  -SideChannelPort 2346
+```
+
+Para consultar una instancia viva manualmente:
+
+```powershell
+.\tools\debug\winuae-side-channel.ps1 state
+.\tools\debug\winuae-side-channel.ps1 regs
+.\tools\debug\winuae-side-channel.ps1 mem 0xdff000 32
 ```
 
 ## Automatizar el raton emulado

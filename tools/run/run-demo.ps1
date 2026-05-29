@@ -4,6 +4,16 @@ param(
 
 	[int]$WaitMs = 18000,
 
+	[int]$ReadyTimeoutMs = 4000,
+
+	[int]$SideChannelTimeoutMs = 6000,
+
+	[int]$SideChannelPort = 2346,
+
+	[int]$LoadTimeoutMs = 20000,
+
+	[int]$SettleMs = 500,
+
 	[string]$Screenshot = "",
 
 	[string]$MouseFrom = "",
@@ -28,7 +38,16 @@ param(
 $ErrorActionPreference = "Stop"
 
 $runner = Join-Path $PSScriptRoot "run-demo.mjs"
-$argsList = @($runner, $Demo, "--wait-ms", $WaitMs)
+$argsList = @(
+	$runner,
+	$Demo,
+	"--wait-ms", $WaitMs,
+	"--ready-timeout-ms", $ReadyTimeoutMs,
+	"--side-channel-timeout-ms", $SideChannelTimeoutMs,
+	"--side-channel-port", $SideChannelPort,
+	"--load-timeout-ms", $LoadTimeoutMs,
+	"--settle-ms", $SettleMs
+)
 
 if ($Screenshot -ne "") {
 	$argsList += @("--screenshot", $Screenshot)

@@ -1,11 +1,24 @@
 #include <amg/engine.hpp>
+#include <amg/debug/run_status.hpp>
 #include <amg/graphics/copper/copper.hpp>
 #include <amg/platform/amiga_minimal.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
 
+#include "support/gcc8_c_support.h"
+
 struct ExecBase* SysBase = nullptr;
+
+extern "C" {
+__attribute__((used)) volatile amg::debug::RunStatus g_amg_run_status {
+	amg::debug::run_status_magic,
+	amg::debug::run_status_version,
+	static_cast<amg::u16>(amg::debug::RunState::Cold),
+	0,
+	0,
+};
+}
 
 namespace {
 
@@ -20,6 +33,7 @@ namespace {
 /// solo como texto/tutorial de validacion.
 struct DemoGame {
 	void init(amg::amiga::MinimalBackend& backend, amg::GameContext&) {
+		amg::debug::mark_init_started(g_amg_run_status);
 		m_memory_ok = backend.configure_memory({
 			8u * 1024u,  // Chip: copperlist y futuros recursos DMA pequenos.
 			4u * 1024u,  // Slow: metadatos de la demo.
@@ -73,10 +87,14 @@ struct DemoGame {
 
 		if (m_memory_ok && m_copper_ok) {
 			backend.install_copper_list(m_copper_words_ptr);
+			amg::debug::mark_ready(g_amg_run_status, static_cast<amg::u32>(m_copper_words));
+		} else {
+			amg::debug::mark_failed(g_amg_run_status, 0x00000020u);
 		}
 	}
 
-	void update(amg::amiga::MinimalBackend& backend, amg::GameContext&) {
+	void update(amg::amiga::MinimalBackend& backend, amg::GameContext& context) {
+		amg::debug::mark_frame(g_amg_run_status, context.frame.frame_index);
 		// La demo no anima nada desde CPU. El punto es que el Copper haga el trabajo
 		// de raster sin intervencion por frame.
 		if (m_copper_ok) {
@@ -84,12 +102,13 @@ struct DemoGame {
 		}
 	}
 
-	void render(amg::amiga::MinimalBackend& backend, amg::GameContext&) {
+	void render(amg::amiga::MinimalBackend& backend, amg::GameContext& context) {
 		// No usamos overlay en esta demo: la captura debe validar solo el resultado
 		// de hardware. Si el overlay o AmigaDOS aparecen, el analizador debe fallar.
 		if (m_copper_ok && m_copper_words > 0) {
 			backend.install_copper_list(m_copper_words_ptr);
 		}
+		amg::debug::probe_when_ready(g_amg_run_status, context.frame.frame_index);
 	}
 
 	bool m_memory_ok = false;
@@ -102,6 +121,7 @@ struct DemoGame {
 
 int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
+	amg::debug::reset(g_amg_run_status);
 
 	amg::amiga::MinimalBackend backend {};
 	DemoGame game {};

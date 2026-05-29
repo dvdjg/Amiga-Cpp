@@ -1,11 +1,24 @@
 #include <amg/engine.hpp>
+#include <amg/debug/run_status.hpp>
 #include <amg/graphics/copper/copper.hpp>
 #include <amg/platform/amiga_minimal.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
 
+#include "support/gcc8_c_support.h"
+
 struct ExecBase* SysBase = nullptr;
+
+extern "C" {
+__attribute__((used)) volatile amg::debug::RunStatus g_amg_run_status {
+	amg::debug::run_status_magic,
+	amg::debug::run_status_version,
+	static_cast<amg::u16>(amg::debug::RunState::Cold),
+	0,
+	0,
+};
+}
 
 namespace {
 
@@ -46,25 +59,6 @@ constexpr amg::u16 bottom_palette[32] = {
 	0x224, 0x446, 0x668, 0x88a, 0xaac, 0xcce, 0xeef, 0x112,
 };
 
-/// Escribe un pixel planar de 6 bits.
-///
-/// Esta funcion es deliberadamente sencilla y didactica. No es el camino final de
-/// carga de assets: UAF-R entregara bitplanes ya precocinados. Aqui nos interesa
-/// ver con claridad como un indice chunky 0..63 se descompone en seis planos OCS.
-void plot_index(amg::u8* planes, amg::u16 x, amg::u16 y, amg::u8 index) {
-	const amg::u32 byte_index = static_cast<amg::u32>(y) * bytes_per_row + x / 8u;
-	const amg::u8 mask = static_cast<amg::u8>(0x80u >> (x & 7u));
-
-	for (amg::u8 plane = 0; plane < plane_count; ++plane) {
-		amg::u8* plane_base = planes + static_cast<amg::u32>(plane) * plane_bytes;
-		if (index & (1u << plane)) {
-			plane_base[byte_index] = static_cast<amg::u8>(plane_base[byte_index] | mask);
-		} else {
-			plane_base[byte_index] = static_cast<amg::u8>(plane_base[byte_index] & ~mask);
-		}
-	}
-}
-
 /// Genera una imagen de prueba pensada para analisis automatico.
 ///
 /// La pantalla se divide en una reticula de 8 columnas x 8 filas. Cada celda usa
@@ -73,13 +67,27 @@ void plot_index(amg::u8* planes, amg::u16 x, amg::u16 y, amg::u8 index) {
 /// Copper diferentes, comprobamos dos cosas a la vez: 6 bitplanes EHB y cambios
 /// completos de paleta por zonas.
 void build_ehb_test_pattern(amg::u8* planes) {
+	// Cada celda mide 40 pixeles de ancho, exactamente 5 bytes lowres. Eso nos
+	// permite escribir bytes completos en cada bitplane: 0xff si el bit de color
+	// esta activo para los 8 pixeles de ese byte, 0x00 si no lo esta. Esta version
+	// es mucho mas fiel a como cargaremos assets reales desde UAF-R: el conversor
+	// de PC ya entregara datos planares listos para DMA, y el Amiga solo tendra
+	// que copiarlos o instalarlos.
 	for (amg::u16 y = 0; y < screen_height; ++y) {
-		for (amg::u16 x = 0; x < screen_width; ++x) {
-			const amg::u8 cell_x = static_cast<amg::u8>(x / 40u);
-			const amg::u8 cell_y = static_cast<amg::u8>((y & 0x7fu) / 16u);
+		const amg::u8 cell_y = static_cast<amg::u8>((y & 0x7fu) / 16u);
+		const amg::u8 half_brite_bit = (cell_y >= 4u) ? 32u : 0u;
+		const amg::u32 row_offset = static_cast<amg::u32>(y) * bytes_per_row;
+
+		for (amg::u16 byte_x = 0; byte_x < bytes_per_row; ++byte_x) {
+			const amg::u8 cell_x = static_cast<amg::u8>(byte_x / 5u);
 			const amg::u8 base = static_cast<amg::u8>((cell_y & 3u) * 8u + cell_x);
-			const amg::u8 half_brite_bit = (cell_y >= 4u) ? 32u : 0u;
-			plot_index(planes, x, y, static_cast<amg::u8>(base | half_brite_bit));
+			const amg::u8 index = static_cast<amg::u8>(base | half_brite_bit);
+			const amg::u32 byte_index = row_offset + byte_x;
+
+			for (amg::u8 plane = 0; plane < plane_count; ++plane) {
+				amg::u8* plane_base = planes + static_cast<amg::u32>(plane) * plane_bytes;
+				plane_base[byte_index] = (index & (1u << plane)) ? 0xffu : 0x00u;
+			}
 		}
 	}
 }
@@ -99,6 +107,7 @@ void emit_palette(amg::copper::ListBuilder& copper, const amg::u16* palette) {
 /// auditar.
 struct DemoGame {
 	void init(amg::amiga::MinimalBackend& backend, amg::GameContext&) {
+		amg::debug::mark_init_started(g_amg_run_status);
 		m_memory_ok = backend.configure_memory({
 			68u * 1024u, // Chip: 6 bitplanes EHB + copperlist, sin pedir margen inutil.
 			8u * 1024u,  // Slow: metadatos futuros del driver.
@@ -147,21 +156,26 @@ struct DemoGame {
 
 		if (m_memory_ok && bitplanes.valid() && m_copper_ok) {
 			backend.install_copper_list(m_copper_words_ptr);
+			amg::debug::mark_ready(g_amg_run_status, static_cast<amg::u32>(m_copper_words));
+		} else {
+			amg::debug::mark_failed(g_amg_run_status, 0x00000030u);
 		}
 	}
 
-	void update(amg::amiga::MinimalBackend& backend, amg::GameContext&) {
+	void update(amg::amiga::MinimalBackend& backend, amg::GameContext& context) {
+		amg::debug::mark_frame(g_amg_run_status, context.frame.frame_index);
 		if (m_copper_ok) {
 			backend.install_copper_list(m_copper_words_ptr);
 		}
 	}
 
-	void render(amg::amiga::MinimalBackend& backend, amg::GameContext&) {
+	void render(amg::amiga::MinimalBackend& backend, amg::GameContext& context) {
 		// No dibujamos overlay: el analizador debe leer solo pixeles producidos por
 		// bitplanes EHB y cambios de paleta Copper.
 		if (m_copper_ok && m_copper_words > 0) {
 			backend.install_copper_list(m_copper_words_ptr);
 		}
+		amg::debug::probe_when_ready(g_amg_run_status, context.frame.frame_index);
 	}
 
 	bool m_memory_ok = false;
@@ -175,6 +189,7 @@ struct DemoGame {
 
 int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
+	amg::debug::reset(g_amg_run_status);
 
 	amg::amiga::MinimalBackend backend {};
 	DemoGame game {};

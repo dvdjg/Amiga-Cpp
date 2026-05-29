@@ -1,10 +1,37 @@
 # Canal lateral de depuracion para WinUAE-DBG
 
-Este documento deja especificado un desarrollo futuro que sera necesario cuando el
-engine requiera depuracion profunda y una persona se quede atascada en una sesion
-real de WinUAE. El objetivo es que la IA pueda entrar sobre la misma instancia
-viva, inspeccionar el estado y actuar con herramientas avanzadas sin destruir la
-sesion manual de depuracion.
+Este documento especifica y registra el canal lateral de WinUAE-DBG. El objetivo
+es que la IA pueda observar una instancia viva sin competir por el socket GDB que
+usa Cursor/VS Code, y que las pruebas automaticas no dependan de esperas largas ni
+solo de capturas de pantalla.
+
+## Estado actual
+
+Hay un MVP operativo en `WinUAE-DBG/od-win32/barto_gdbserver.cpp`.
+
+- Escucha en `127.0.0.1:2346`.
+- El puerto puede cambiarse con `WINUAE_SIDE_CHANNEL_PORT`.
+- El protocolo es texto, una orden por linea.
+- Cada respuesta es una unica linea JSON.
+- El runner `tools/run/run-demo.mjs` lo usa para esperar `g_amg_run_status` en
+  memoria mientras el 68000 sigue ejecutando.
+- La regresion `20260529-120303` confirma `side-channel READY` en las demos
+  `000`, `010`, `020` y `030`.
+
+Comandos implementados:
+
+```text
+hello
+state
+regs
+mem <hex-address> <length>
+runstatus <hex-address>
+```
+
+`state` devuelve, entre otros campos, `baseText`, `sections`, `pc`, `sr` y
+`cycles`. `sections` es importante porque un simbolo como `g_amg_run_status` puede
+vivir en `.data`, no en `.text`; el runner resuelve la direccion runtime usando el
+mapa del linker y los hunks reales reportados por WinUAE-DBG.
 
 ## Problema que resuelve
 
@@ -42,7 +69,8 @@ localhost y despues envolverlo con MCP.
 
 ## Capacidades minimas
 
-El primer MVP del canal lateral debe exponer:
+El MVP actual ya cubre una parte de observacion. El objetivo completo del canal
+lateral debe exponer:
 
 - estado de la emulacion: running/stopped, frame, vpos/hpos si esta disponible;
 - pausar y reanudar CPU sin competir con el GDB server;
@@ -118,9 +146,16 @@ El canal lateral es preferible para este proyecto porque:
 - evita que la IA compita por el mismo socket GDB;
 - encaja mejor con futuras operaciones de inspeccion grafica y hot patching.
 
-## Criterio de aceptacion futuro
+## Criterio de aceptacion
 
-Este desarrollo se considerara operativo cuando se pueda demostrar:
+Parte ya demostrada:
+
+- La IA se conecta al canal lateral mientras el runner mantiene la conexion GDB.
+- La IA lee registros, PC/SR, ciclos y memoria sin detener el 68000.
+- El runner espera `RunStatus::Ready` sin usar el timeout largo de captura.
+- La regresion completa conserva las capturas y los analizadores visuales.
+
+Pendiente para depuracion colaborativa profunda:
 
 - David arranca una sesion normal de debug desde Cursor/VS Code.
 - La IA se conecta al canal lateral de esa misma instancia.
@@ -130,6 +165,6 @@ Este desarrollo se considerara operativo cuando se pueda demostrar:
 - La IA carga una rutina 68k pequena en zona scratch, la ejecuta y restaura estado.
 - Todo queda documentado en un log de sesion.
 
-Este canal no es obligatorio para las primeras demos del engine, pero sera necesario
-antes de abordar depuracion profunda de blitter, copper, drivers graficos complejos
-o bugs que solo aparezcan dentro de una sesion manual larga.
+El siguiente incremento natural es anadir modos `observe/assist/takeover`, debug
+lock, auditoria de escrituras y comandos seguros para screenshot/profiler/input
+sin pasar por GDB.

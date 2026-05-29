@@ -1,4 +1,5 @@
 #include <amg/engine.hpp>
+#include <amg/debug/run_status.hpp>
 #include <amg/platform/amiga_minimal.hpp>
 
 #include <proto/exec.h>
@@ -7,6 +8,16 @@
 #include "support/gcc8_c_support.h"
 
 struct ExecBase* SysBase = nullptr;
+
+extern "C" {
+__attribute__((used)) volatile amg::debug::RunStatus g_amg_run_status {
+	amg::debug::run_status_magic,
+	amg::debug::run_status_version,
+	static_cast<amg::u16>(amg::debug::RunState::Cold),
+	0,
+	0,
+};
+}
 
 namespace {
 
@@ -45,6 +56,7 @@ void draw_bar(amg::amiga::DebugOverlay& debug, amg::s16 x, amg::s16 y, amg::s16 
 
 struct DemoGame {
 	void init(amg::amiga::MinimalBackend& backend, amg::GameContext&) {
+		amg::debug::mark_init_started(g_amg_run_status);
 		m_memory_ok = backend.configure_memory({
 			32u * 1024u,
 			32u * 1024u,
@@ -67,14 +79,20 @@ struct DemoGame {
 			&& !m_expected_fail.valid();
 
 		log_memory(backend);
+		if (m_memory_ok) {
+			amg::debug::mark_ready(g_amg_run_status, 0x00000010u);
+		} else {
+			amg::debug::mark_failed(g_amg_run_status, 0x00000011u);
+		}
 	}
 
 	void update(amg::amiga::MinimalBackend& backend, amg::GameContext& context) {
+		amg::debug::mark_frame(g_amg_run_status, context.frame.frame_index);
 		const amg::u16 pulse = static_cast<amg::u16>((context.frame.frame_index >> 2) & 0x0f);
 		backend.set_color(0, static_cast<amg::u16>((pulse << 8) | 0x002));
 	}
 
-	void render(amg::amiga::MinimalBackend& backend, amg::GameContext&) {
+	void render(amg::amiga::MinimalBackend& backend, amg::GameContext& context) {
 		auto& debug = backend.debug();
 		const auto& memory = backend.memory();
 
@@ -100,6 +118,7 @@ struct DemoGame {
 		debug.text(196, 314, chip_base.text, 0x000080ff);
 		debug.text(76, 342, "Slow base:", 0x00ffffff);
 		debug.text(196, 342, slow_base.text, 0x0000ff80);
+		amg::debug::probe_when_ready(g_amg_run_status, context.frame.frame_index);
 	}
 
 	void log_memory(amg::amiga::MinimalBackend& backend) {
@@ -131,6 +150,7 @@ struct DemoGame {
 
 int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
+	amg::debug::reset(g_amg_run_status);
 
 	amg::amiga::MinimalBackend backend {};
 	DemoGame game {};

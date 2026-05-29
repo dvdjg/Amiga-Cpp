@@ -34,9 +34,13 @@ probarse con:
 - Durante pruebas automatizadas, WinUAE no debe capturar ni encerrar el raton de
   Windows. El runner fuerza `win32.absolute_mouse=yes` y las pruebas deben mover
   el raton emulado con `tools\input\mouse-path.ps1`.
-- La colaboracion profunda persona+IA sobre la misma instancia viva de WinUAE no
-  queda resuelta por el GDB server actual; esta documentada como desarrollo futuro
-  en `docs\WINUAE_SIDE_CHANNEL_DEBUG.md`.
+- Las demos deben exponer `g_amg_run_status` y llegar a `Ready` por el canal
+  lateral de WinUAE-DBG antes de la captura. El canal escucha en `127.0.0.1:2346`
+  y el runner lo usa sin detener el 68000.
+- La colaboracion profunda persona+IA sobre la misma instancia viva de WinUAE esta
+  parcialmente resuelta en modo observacion por el canal lateral. Siguen pendientes
+  `observe/assist/takeover`, debug lock y auditoria de escrituras para operaciones
+  peligrosas. Ver `docs\WINUAE_SIDE_CHANNEL_DEBUG.md`.
 
 ## Estado minimo saludable
 
@@ -44,6 +48,7 @@ La demo `000_toolchain_cpp23` debe:
 
 - compilar en debug;
 - ejecutarse en WinUAE-DBG;
+- alcanzar `side-channel READY`;
 - generar captura PNG;
 - superar `analyze-demo.ps1`;
 - mostrar `Memory arenas: OK` en el overlay.
@@ -52,6 +57,7 @@ La demo `010_chip_slow_memory` debe:
 
 - compilar en debug;
 - ejecutarse en WinUAE-DBG;
+- alcanzar `side-channel READY`;
 - mostrar `Arena checks: OK`;
 - mostrar barras para Chip, Slow y Frame;
 - mostrar una base Chip en rango bajo y una base Slow en zona trapdoor/bogo cuando
@@ -61,6 +67,7 @@ La demo `020_copper_basic` debe:
 
 - compilar en debug;
 - ejecutarse en WinUAE-DBG;
+- alcanzar `side-channel READY`;
 - tomar el display a pantalla completa;
 - mostrar bandas horizontales roja, verde, azul, amarilla y cian;
 - superar su analizador especifico `demos\020_copper_basic\analyze-screenshot.ps1`.
@@ -69,6 +76,7 @@ La demo `030_ehb_palette_zones` debe:
 
 - compilar en debug;
 - ejecutarse en WinUAE-DBG;
+- alcanzar `side-channel READY`;
 - mostrar una reticula EHB con tres zonas verticales de paleta;
 - incluir muestras visibles de colores normales 0..31 y half-brite 32..63;
 - superar su analizador especifico `demos\030_ehb_palette_zones\analyze-screenshot.ps1`.

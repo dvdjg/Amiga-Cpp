@@ -104,6 +104,15 @@ void KPrintF(const char* fmt, ...) {
 	}
 }
 
+__attribute__((noinline))
+void amg_debug_ready_probe(void) {
+	__asm volatile ("" ::: "memory");
+}
+
+void amg_debug_write_status_file(const char* text) {
+	debug_save(text, strlen(text), "amg-run-status.txt");
+}
+
 int main();
 
 extern void (*__preinit_array_start[])() __attribute__((weak));

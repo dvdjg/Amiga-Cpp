@@ -85,6 +85,8 @@ Tooling:
 - `tools/analyze/analyze-screenshot.ps1`
 - `tools/input/mouse-path.mjs`
 - `tools/input/mouse-path.ps1`
+- `tools/debug/winuae-side-channel.mjs`
+- `tools/debug/winuae-side-channel.ps1`
 - `tools/test-regression.ps1`
 
 Documentacion:
@@ -141,18 +143,28 @@ Resultado verificado:
   `-MouseControl`, `-MouseClick` y `-MouseDrag`; este camino integrado es el
   recomendado para regresiones porque inyecta entrada antes de cerrar la conexion
   GDB original.
-- El tiempo de espera por defecto del runner sube a 18 s porque `020_copper_basic`
-  puede arrancar correctamente pero llegar tarde a la primera captura de 12 s en
-  algunas ejecuciones; a 18 s la captura ya muestra las bandas Copper.
-- Queda documentado como desarrollo futuro necesario un canal lateral de depuracion
-  para WinUAE-DBG. El GDB server actual sirve para automatizacion controlada, pero
-  no basta para que David depure desde VS Code/Cursor y la IA entre a la misma
-  instancia viva sin coordinarse. Ver `docs/WINUAE_SIDE_CHANNEL_DEBUG.md`.
+- WinUAE-DBG incluye ahora un MVP de canal lateral TCP local en `127.0.0.1:2346`,
+  implementado en `WinUAE-DBG/od-win32/barto_gdbserver.cpp`. Expone `hello`,
+  `state`, `regs`, `mem` y `runstatus` como JSON por linea, separado del socket
+  GDB principal.
+- `tools/run/run-demo.mjs` usa ese canal para esperar `g_amg_run_status` mientras
+  el 68000 sigue corriendo. El timeout largo queda como compatibilidad si se usa
+  un WinUAE antiguo, pero la regresion actual llega a `side-channel READY`.
+- Al integrar el canal se descubrio que `030_ehb_palette_zones` pasaba demasiado
+  tiempo en `InitStarted`: la demo generaba el patron EHB pixel a pixel tras
+  volver a velocidad real. Se optimizo a escritura por bytes de bitplane, que es
+  mas representativo del futuro flujo UAF-R y permite READY en pocos segundos.
+- El canal lateral no sustituye a la captura ni al profiler: sirve como senal de
+  vida/logica; la imagen y el analizador siguen validando el resultado grafico.
+- La colaboracion profunda persona+IA sobre una sesion manual aun requiere los
+  siguientes incrementos del canal: `observe/assist/takeover`, debug lock,
+  auditoria de escrituras y comandos seguros para profiler/screenshot/input.
+  Ver `docs/WINUAE_SIDE_CHANNEL_DEBUG.md`.
 
 Ultimo informe de regresion conocido:
 
 ```text
-out\regression\20260529-103318\regression-report.md
+out\regression\20260529-120303\regression-report.md
 ```
 
 ## Siguiente paso previsto
