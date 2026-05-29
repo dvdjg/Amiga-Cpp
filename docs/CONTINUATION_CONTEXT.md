@@ -7,7 +7,8 @@ Si una IA abre este proyecto sin historial de conversacion, debe empezar leyendo
 3. `docs/BUILD_AND_RUN.md`
 4. `docs/CODING_STYLE.md`
 5. `docs/HARDWARE_AND_ROM_KERNEL_POLICY.md`
-6. `demos/000_toolchain_cpp23/README.md`
+6. `docs/MOUSE_AUTOMATION.md`
+7. `demos/000_toolchain_cpp23/README.md`
 
 ## Objetivo inmediato
 
@@ -29,6 +30,9 @@ probarse con:
 - Usar el Hardware Reference Manual local como referencia para registros y timing.
 - Mantener el uso del ROM kernel como politica opcional de backend, no como detalle
   mezclado en la logica de juego.
+- Durante pruebas automatizadas, WinUAE no debe capturar ni encerrar el raton de
+  Windows. El runner fuerza `win32.absolute_mouse=yes` y las pruebas deben mover
+  el raton emulado con `tools\input\mouse-path.ps1`.
 
 ## Estado minimo saludable
 

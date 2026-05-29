@@ -80,6 +80,8 @@ Tooling:
 - `tools/run/run-demo.mjs`
 - `tools/analyze/analyze-demo.ps1`
 - `tools/analyze/analyze-screenshot.ps1`
+- `tools/input/mouse-path.mjs`
+- `tools/input/mouse-path.ps1`
 - `tools/test-regression.ps1`
 
 Documentacion:
@@ -91,6 +93,7 @@ Documentacion:
 - `docs/GRAPHICS_DRIVERS.md`
 - `docs/CONTINUATION_CONTEXT.md`
 - `docs/HARDWARE_AND_ROM_KERNEL_POLICY.md`
+- `docs/MOUSE_AUTOMATION.md`
 
 ## Comandos verificados
 
@@ -118,11 +121,27 @@ Resultado verificado:
   quien cierre WinUAE y no se capture accidentalmente el prompt tras terminar.
 - `analyze-demo.ps1` soporta analizadores especificos por demo mediante
   `demos\<demo>\analyze-screenshot.ps1`.
+- WinUAE-DBG tiene dos conceptos distintos de raton absoluto: `win32.absolute_mouse`
+  evita el camino Win32 de captura/warping del cursor del sistema, mientras que
+  `absolute_mouse=mousehack` activa un modo Amiga-side que ya estaba documentado
+  como inestable. Para pruebas automatizadas usamos `win32.absolute_mouse=yes`,
+  `win32.active_capture_automatically=no` y `absolute_mouse=none`.
+- `tools/input/mouse-path.ps1` permite mover el raton emulado del Amiga mediante
+  comandos monitor `input mouse abs` y `input mouse button`, incluyendo trayectorias
+  lineales, Bezier cuadraticas/cubicas, click y drag, sin depender del raton fisico
+  de Windows.
+- `tools/run/run-demo.ps1` tambien acepta `-MouseFrom`, `-MouseTo`,
+  `-MouseControl`, `-MouseClick` y `-MouseDrag`; este camino integrado es el
+  recomendado para regresiones porque inyecta entrada antes de cerrar la conexion
+  GDB original.
+- El tiempo de espera por defecto del runner sube a 18 s porque `020_copper_basic`
+  puede arrancar correctamente pero llegar tarde a la primera captura de 12 s en
+  algunas ejecuciones; a 18 s la captura ya muestra las bandas Copper.
 
 Ultimo informe de regresion conocido:
 
 ```text
-out\regression\20260529-085158\regression-report.md
+out\regression\20260529-090924\regression-report.md
 ```
 
 ## Siguiente paso previsto

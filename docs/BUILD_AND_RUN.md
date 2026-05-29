@@ -50,6 +50,8 @@ El runner:
 
 - copia la demo a un directorio temporal como `dh1:a.exe`;
 - genera una configuracion WinUAE temporal basada en `config\mcp-amiga-c-debug.uae`;
+- fuerza opciones anti-captura del raton para que WinUAE no atrape el puntero
+  del sistema durante pruebas automatizadas;
 - escribe un `startup-sequence` temporal;
 - lanza `winuae-gdb.exe`;
 - conecta al servidor GDB de WinUAE-DBG;
@@ -63,6 +65,25 @@ La captura queda en:
 ```text
 out\run\<demo>\screenshot.png
 ```
+
+## Automatizar el raton emulado
+
+Para mover el raton del Amiga sin usar ni capturar el raton fisico de Windows:
+
+```powershell
+.\tools\run\run-demo.ps1 demos\000_toolchain_cpp23 `
+  -WaitMs 3000 `
+  -MouseFrom 32,40 `
+  -MouseTo 280,170 `
+  -MouseControl 160,10 `
+  -MouseClick
+```
+
+La herramienta envia comandos `input mouse abs` e `input mouse button` por el
+monitor de WinUAE-DBG. Soporta trayectorias lineales, Bezier cuadraticas y Bezier
+cubicas. El camino integrado en el runner es el recomendado para regresiones; el
+script `tools\input\mouse-path.ps1` queda disponible para sesiones donde ya haya
+un servidor GDB aceptando conexiones. Ver `docs\MOUSE_AUTOMATION.md`.
 
 ## Analizar una captura
 

@@ -22,6 +22,77 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function parsePoint(text, name) {
+  const match = String(text ?? '').match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
+  if (!match) {
+    throw new Error(`${name} debe tener formato x,y. Ejemplo: ${name} 32,32`);
+  }
+  return { x: Number(match[1]), y: Number(match[2]) };
+}
+
+function clampInt(value, min, max) {
+  return Math.max(min, Math.min(max, Math.round(value)));
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function curvePoint(from, control, to, t) {
+  if (!control) {
+    return { x: lerp(from.x, to.x, t), y: lerp(from.y, to.y, t) };
+  }
+  const ab = { x: lerp(from.x, control.x, t), y: lerp(from.y, control.y, t) };
+  const bc = { x: lerp(control.x, to.x, t), y: lerp(control.y, to.y, t) };
+  return { x: lerp(ab.x, bc.x, t), y: lerp(ab.y, bc.y, t) };
+}
+
+function buildMousePathFromArgs() {
+  const fromText = argValue('--mouse-from');
+  const toText = argValue('--mouse-to');
+  if (!fromText && !toText) {
+    return [];
+  }
+  if (!fromText || !toText) {
+    throw new Error('Para automatizar raton hacen falta --mouse-from y --mouse-to.');
+  }
+
+  const from = parsePoint(fromText, '--mouse-from');
+  const to = parsePoint(toText, '--mouse-to');
+  const control = argValue('--mouse-control') ? parsePoint(argValue('--mouse-control'), '--mouse-control') : null;
+  const steps = Math.max(1, parseInt(argValue('--mouse-steps', '48'), 10));
+  const maxX = parseInt(argValue('--mouse-max-x', '319'), 10);
+  const maxY = parseInt(argValue('--mouse-max-y', '255'), 10);
+  const points = [];
+
+  // These are Amiga display coordinates consumed by WinUAE monitor commands.
+  // The Windows cursor is never moved: the emulated mouse receives synthetic
+  // absolute positions through the debugger channel while the host pointer is
+  // free to remain wherever the user left it.
+  for (let i = 0; i <= steps; i++) {
+    const p = curvePoint(from, control, to, i / steps);
+    points.push({
+      x: clampInt(p.x, 0, maxX),
+      y: clampInt(p.y, 0, maxY),
+    });
+  }
+
+  return points;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function setConfigValue(configText, key, value) {
+  const line = `${key}=${value}`;
+  const re = new RegExp(`^${escapeRegExp(key)}=.*$`, 'm');
+  if (re.test(configText)) {
+    return configText.replace(re, line);
+  }
+  return `${configText.replace(/\s*$/, '')}\r\n${line}\r\n`;
+}
+
 function findExtensionRoot() {
   if (process.env.AMIGA_DEBUG_EXT && fs.existsSync(process.env.AMIGA_DEBUG_EXT)) {
     return path.resolve(process.env.AMIGA_DEBUG_EXT);
@@ -61,6 +132,16 @@ function patchConfig(configText, extensionRoot, stagedOutDir) {
     out += '\r\ndebugging_trigger=:a.exe\r\n';
   }
 
+  // Automated tests must never trap the host pointer.  WinUAE-DBG has a
+  // separate target option (`win32.absolute_mouse`) that disables the classic
+  // relative mouse capture/warping path, while the Amiga-side tablet/mousehack
+  // option (`absolute_mouse=mousehack`) remains disabled because that path is
+  // still documented as problematic in WinUAE-DBG/doc/MOUSE-ABSOLUTE-TODO.md.
+  out = setConfigValue(out, 'win32.start_not_captured', 'yes');
+  out = setConfigValue(out, 'win32.active_capture_automatically', 'no');
+  out = setConfigValue(out, 'win32.absolute_mouse', 'yes');
+  out = setConfigValue(out, 'absolute_mouse', 'none');
+
   return out;
 }
 
@@ -77,7 +158,10 @@ if (!fs.existsSync(builtExe)) {
   throw new Error(`No existe ${builtExe}. Compila la demo antes de ejecutarla.`);
 }
 
-const waitMs = parseInt(argValue('--wait-ms', process.env.AMG_RUN_WAIT_MS || '12000'), 10);
+const waitMs = parseInt(argValue('--wait-ms', process.env.AMG_RUN_WAIT_MS || '18000'), 10);
+const mousePath = buildMousePathFromArgs();
+const mouseDelayMs = Math.max(0, parseInt(argValue('--mouse-duration-ms', '800'), 10)) / Math.max(1, mousePath.length - 1);
+const mouseButton = Math.max(0, parseInt(argValue('--mouse-button', '0'), 10));
 const stopEmulator = !hasArg('--keep-running');
 const outputDir = path.join(root, 'out/run', demoName);
 const stagedDir = path.join(outputDir, 'dh1');
@@ -125,6 +209,35 @@ try {
   console.log(`[run-demo] connected; waiting ${waitMs} ms`);
   await sleep(waitMs);
 
+  if (mousePath.length > 0) {
+    console.log(`[run-demo] injecting mouse path with ${mousePath.length} points`);
+    if (hasArg('--mouse-drag')) {
+      await protocol.sendMonitorCommand(`input mouse button ${mouseButton} 1`, 5000);
+    }
+    for (const [index, point] of mousePath.entries()) {
+      await protocol.sendMonitorCommand(`input mouse abs ${point.x} ${point.y}`, 5000);
+      if (mouseDelayMs > 0 && index + 1 < mousePath.length) {
+        await sleep(mouseDelayMs);
+      }
+    }
+    if (hasArg('--mouse-drag')) {
+      await protocol.sendMonitorCommand(`input mouse button ${mouseButton} 0`, 5000);
+    }
+    if (hasArg('--mouse-click')) {
+      await protocol.sendMonitorCommand(`input mouse button ${mouseButton} 1`, 5000);
+      await sleep(Math.max(20, parseInt(argValue('--mouse-click-ms', '80'), 10)));
+      await protocol.sendMonitorCommand(`input mouse button ${mouseButton} 0`, 5000);
+    }
+    report.mouse = {
+      points: mousePath.length,
+      first: mousePath[0],
+      last: mousePath[mousePath.length - 1],
+      button: mouseButton,
+      clicked: hasArg('--mouse-click'),
+      dragged: hasArg('--mouse-drag'),
+    };
+  }
+
   const winScreenshotPath = screenshotPath.replace(/\//g, '\\');
   const screenshotReply = await protocol.sendMonitorCommand(`screenshot ${winScreenshotPath}`, 30000);
   report.screenshotReply = screenshotReply;
@@ -136,6 +249,9 @@ try {
 } finally {
   try {
     await conn.disconnect(stopEmulator);
+    if (!stopEmulator && conn.process && typeof conn.process.unref === 'function') {
+      conn.process.unref();
+    }
   } catch {
     // Best effort cleanup: a failed disconnect should not hide the run result.
   }
