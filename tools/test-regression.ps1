@@ -45,7 +45,7 @@ foreach ($demoPath in $demoDirs) {
 	}
 
 	try {
-		Write-Host "== $demoName: build =="
+		Write-Host "== ${demoName}: build =="
 		$buildArgs = @("-ExecutionPolicy", "Bypass", "-File", $buildScript, $relativeDemo)
 		if (-not $ReleaseBuild) {
 			$buildArgs += "-DebugBuild"
@@ -55,13 +55,13 @@ foreach ($demoPath in $demoDirs) {
 		$result.build = "ok"
 
 		if (-not $SkipRun) {
-			Write-Host "== $demoName: run =="
+			Write-Host "== ${demoName}: run =="
 			& powershell -ExecutionPolicy Bypass -File $runScript $relativeDemo
 			if ($LASTEXITCODE -ne 0) { throw "Run failed with exit code $LASTEXITCODE" }
 			$result.run = "ok"
 		}
 
-		Write-Host "== $demoName: analyze =="
+		Write-Host "== ${demoName}: analyze =="
 		& powershell -ExecutionPolicy Bypass -File $analyzeScript $relativeDemo
 		if ($LASTEXITCODE -ne 0) { throw "Analyze failed with exit code $LASTEXITCODE" }
 		$result.analyze = "ok"
@@ -99,4 +99,3 @@ if ($failed.Count -gt 0) {
 }
 
 Write-Host "Regression OK: $($results.Count) demo(s)."
-

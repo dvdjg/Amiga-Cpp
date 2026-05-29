@@ -4,7 +4,6 @@
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
-#include <exec/memory.h>
 
 struct ExecBase* SysBase = nullptr;
 
@@ -29,19 +28,11 @@ struct DemoGame {
 	void init(amg::amiga::MinimalBackend& backend, amg::GameContext&) {
 		static_assert(language_level_marker() == 23);
 
-		m_chip_scratch = static_cast<amg::u8*>(
-			AllocMem(4096, MEMF_CHIP | MEMF_CLEAR)
-		);
-		m_slow_scratch = static_cast<amg::u8*>(
-			AllocMem(4096, MEMF_ANY | MEMF_CLEAR)
-		);
-
-		backend.memory().chip.reset(m_chip_scratch, 4096, amg::MemoryKind::Chip);
-		backend.memory().slow.reset(m_slow_scratch, 4096, amg::MemoryKind::Slow);
+		m_memory_ok = backend.configure_memory({4096, 4096, 1024});
 
 		auto chip_block = backend.memory().chip.allocate(128, 16);
 		auto slow_block = backend.memory().slow.allocate(128, 16);
-		m_memory_ok = chip_block.valid() && slow_block.valid();
+		m_memory_ok = m_memory_ok && chip_block.valid() && slow_block.valid();
 	}
 
 	void update(amg::amiga::MinimalBackend& backend, amg::GameContext& context) {
@@ -64,8 +55,6 @@ struct DemoGame {
 		}
 	}
 
-	amg::u8* m_chip_scratch = nullptr;
-	amg::u8* m_slow_scratch = nullptr;
 	bool m_memory_ok = false;
 };
 

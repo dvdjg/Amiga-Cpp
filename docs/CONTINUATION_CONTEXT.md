@@ -35,3 +35,11 @@ La demo `000_toolchain_cpp23` debe:
 - superar `analyze-demo.ps1`;
 - mostrar `Memory arenas: OK` en el overlay.
 
+La demo `010_chip_slow_memory` debe:
+
+- compilar en debug;
+- ejecutarse en WinUAE-DBG;
+- mostrar `Arena checks: OK`;
+- mostrar barras para Chip, Slow y Frame;
+- mostrar una base Chip en rango bajo y una base Slow en zona trapdoor/bogo cuando
+  el perfil emulado expone memoria no-chip.

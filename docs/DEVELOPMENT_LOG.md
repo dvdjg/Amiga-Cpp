@@ -57,6 +57,8 @@ Demo inicial:
 
 - `demos/000_toolchain_cpp23/src/main.cpp`
 - `demos/000_toolchain_cpp23/README.md`
+- `demos/010_chip_slow_memory/src/main.cpp`
+- `demos/010_chip_slow_memory/README.md`
 
 Tooling:
 
@@ -65,6 +67,7 @@ Tooling:
 - `tools/run/run-demo.mjs`
 - `tools/analyze/analyze-demo.ps1`
 - `tools/analyze/analyze-screenshot.ps1`
+- `tools/test-regression.ps1`
 
 Documentacion:
 
@@ -73,6 +76,7 @@ Documentacion:
 - `docs/CODING_STYLE.md`
 - `docs/MEMORY_MODEL.md`
 - `docs/GRAPHICS_DRIVERS.md`
+- `docs/CONTINUATION_CONTEXT.md`
 
 ## Comandos verificados
 
@@ -89,9 +93,25 @@ Resultado verificado:
 - WinUAE arranca y ejecuta la demo;
 - se genera `out\run\000_toolchain_cpp23\screenshot.png`;
 - el analizador visual detecta el overlay y pasa.
+- la regresion completa pasa con `tools\test-regression.ps1`.
+- `010_chip_slow_memory` valida el bootstrap de arenas desde `MinimalBackend`.
+- En la captura de `010_chip_slow_memory`, Chip aparece en rango bajo
+  `0x00015050` y Slow en zona trapdoor/bogo `0x00C0F830` en la configuracion
+  emulada actual.
+
+Ultimo informe de regresion conocido:
+
+```text
+out\regression\20260529-014748\regression-report.md
+```
 
 ## Siguiente paso previsto
 
-Automatizar la regresion de todas las demos mediante un script unico que compile,
-ejecute, capture y analice cada demo, dejando informe reproducible en `out\regression`.
+La regresion automatizada ya existe en `tools/test-regression.ps1`.
 
+Siguiente bloque recomendado:
+
+1. Separar el analisis visual por demo para no depender solo de colores genericos.
+2. Crear `020_copper_basic`.
+3. Preparar una copperlist minima gestionada por engine.
+4. Empezar a definir el primer driver visual real `EhbScene`.

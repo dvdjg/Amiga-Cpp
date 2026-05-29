@@ -1,6 +1,8 @@
 #include <amg/platform/amiga_minimal.hpp>
 
 #include "support/gcc8_c_support.h"
+#include <proto/exec.h>
+#include <exec/memory.h>
 
 namespace {
 
@@ -29,8 +31,73 @@ void DebugOverlay::filled_rect(s16 left, s16 top, s16 right, s16 bottom, u32 rgb
 	debug_filled_rect(left, top, right, bottom, rgb);
 }
 
+MinimalBackend::~MinimalBackend() {
+	release_memory();
+}
+
 void MinimalBackend::boot() {
 	set_warpmode(false);
+}
+
+bool MinimalBackend::configure_memory(const MemoryConfig& config) {
+	release_memory();
+
+	if (config.chip_bytes != 0) {
+		m_chip_alloc = AllocMem(config.chip_bytes, MEMF_CHIP | MEMF_CLEAR);
+		m_chip_alloc_size = m_chip_alloc ? config.chip_bytes : 0;
+	}
+
+	if (config.slow_bytes != 0) {
+		// On an A500 trapdoor expansion AmigaOS exposes this as non-chip memory.
+		// It is still "Slow" from the engine perspective because it is not true
+		// CPU-private Fast RAM.
+		m_slow_alloc = AllocMem(config.slow_bytes, MEMF_FAST | MEMF_CLEAR);
+		if (!m_slow_alloc) {
+			m_slow_alloc = AllocMem(config.slow_bytes, MEMF_ANY | MEMF_CLEAR);
+		}
+		m_slow_alloc_size = m_slow_alloc ? config.slow_bytes : 0;
+	}
+
+	if (config.frame_bytes != 0) {
+		m_frame_alloc = AllocMem(config.frame_bytes, MEMF_CHIP | MEMF_CLEAR);
+		m_frame_alloc_size = m_frame_alloc ? config.frame_bytes : 0;
+	}
+
+	m_memory.chip.reset(m_chip_alloc, m_chip_alloc_size, MemoryKind::Chip);
+	m_memory.slow.reset(m_slow_alloc, m_slow_alloc_size, MemoryKind::Slow);
+	m_memory.frame.reset(m_frame_alloc, m_frame_alloc_size, MemoryKind::Chip);
+
+	m_memory_report.chip = m_memory.chip.snapshot();
+	m_memory_report.slow = m_memory.slow.snapshot();
+	m_memory_report.frame = m_memory.frame.snapshot();
+	m_memory_report.chip_ok = config.chip_bytes == 0 || m_chip_alloc != nullptr;
+	m_memory_report.slow_ok = config.slow_bytes == 0 || m_slow_alloc != nullptr;
+	m_memory_report.frame_ok = config.frame_bytes == 0 || m_frame_alloc != nullptr;
+
+	return m_memory_report.ok();
+}
+
+void MinimalBackend::release_memory() {
+	if (m_frame_alloc) {
+		FreeMem(m_frame_alloc, m_frame_alloc_size);
+		m_frame_alloc = nullptr;
+		m_frame_alloc_size = 0;
+	}
+
+	if (m_slow_alloc) {
+		FreeMem(m_slow_alloc, m_slow_alloc_size);
+		m_slow_alloc = nullptr;
+		m_slow_alloc_size = 0;
+	}
+
+	if (m_chip_alloc) {
+		FreeMem(m_chip_alloc, m_chip_alloc_size);
+		m_chip_alloc = nullptr;
+		m_chip_alloc_size = 0;
+	}
+
+	m_memory = {};
+	m_memory_report = {};
 }
 
 void MinimalBackend::wait_vblank() {

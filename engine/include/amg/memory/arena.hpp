@@ -21,6 +21,15 @@ struct MemoryBlock {
 	}
 };
 
+struct ArenaSnapshot {
+	u32 base = 0;
+	u32 capacity = 0;
+	u32 used = 0;
+	u32 peak = 0;
+	u32 remaining = 0;
+	MemoryKind kind = MemoryKind::Any;
+};
+
 class LinearArena {
 public:
 	constexpr LinearArena() = default;
@@ -73,6 +82,18 @@ public:
 	constexpr u32 peak() const { return m_peak; }
 	constexpr u32 remaining() const { return m_size - m_used; }
 	constexpr MemoryKind kind() const { return m_kind; }
+	constexpr void* base() const { return m_base; }
+
+	constexpr ArenaSnapshot snapshot() const {
+		return {
+			static_cast<u32>(reinterpret_cast<uintptr>(m_base)),
+			m_size,
+			m_used,
+			m_peak,
+			remaining(),
+			m_kind,
+		};
+	}
 
 private:
 	u8* m_base = nullptr;
@@ -86,6 +107,25 @@ struct MemorySystem {
 	LinearArena chip;
 	LinearArena slow;
 	LinearArena frame;
+};
+
+struct MemoryConfig {
+	u32 chip_bytes = 0;
+	u32 slow_bytes = 0;
+	u32 frame_bytes = 0;
+};
+
+struct MemoryReport {
+	ArenaSnapshot chip {};
+	ArenaSnapshot slow {};
+	ArenaSnapshot frame {};
+	bool chip_ok = false;
+	bool slow_ok = false;
+	bool frame_ok = false;
+
+	constexpr bool ok() const {
+		return chip_ok && slow_ok && frame_ok;
+	}
 };
 
 } // namespace amg
