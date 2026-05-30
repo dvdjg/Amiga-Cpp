@@ -183,6 +183,11 @@ Resultado verificado:
   PowerShell. La prueba escribe temporalmente `12345678` en
   `g_amg_run_status.detail`, verifica por `mem`, consulta auditoria y revierte al
   valor original. Verificacion local correcta el 2026-05-30.
+- Se ha añadido `pause`/`resume` lateral bajo lock `takeover`, con
+  `tools/debug/verify-side-channel-pause-resume.mjs`. `pause` se encola en
+  `vsync_pre()`; `resume` es inmediato para poder salir de una emulacion pausada.
+  La prueba verifica pausa, lectura de memoria mientras esta detenido, reanudacion
+  y cierre limpio del runner.
 
 Ultimo informe de regresion conocido:
 

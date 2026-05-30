@@ -110,3 +110,12 @@ El primer takeover reversible debe pasar con:
 Esta prueba toma lock `takeover`, escribe temporalmente cuatro bytes en
 `g_amg_run_status.detail`, verifica el cambio, consulta la auditoria y hace
 rollback al valor original.
+
+La pausa/reanudacion lateral debe pasar con:
+
+```powershell
+.\tools\debug\verify-side-channel-pause-resume.ps1
+```
+
+Esta prueba toma lock `takeover`, pausa la emulacion, lee memoria mientras esta
+detenida, reanuda y deja que el runner complete su captura final.

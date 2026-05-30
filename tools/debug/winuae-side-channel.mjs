@@ -15,6 +15,7 @@ function printUsageAndExit() {
   console.error('          lock status | lock acquire <owner> [observe|assist|takeover] | lock release [owner]');
   console.error('          screenshot <path> | input ... | profile ... | profile-status | action status <id>');
   console.error('          poke <addr> <hex-bytes> [label] | rollback <write-id> | audit writes | audit write <id>');
+  console.error('          pause | resume');
   process.exit(2);
 }
 

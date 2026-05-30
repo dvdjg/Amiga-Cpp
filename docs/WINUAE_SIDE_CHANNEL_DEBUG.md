@@ -42,6 +42,8 @@ poke <addr> <hex-bytes> [label]
 rollback <write-id>
 audit writes
 audit write <write-id>
+pause
+resume
 ```
 
 `state` devuelve, entre otros campos, `baseText`, `sections`, `pc`, `sr` y
@@ -85,6 +87,12 @@ lee primero el valor original, escribe, verifica por lectura posterior y crea un
 entrada de auditoria con `writeId`, direccion, longitud, bytes anteriores, bytes
 nuevos, owner y etiqueta. `rollback <write-id>` restaura los bytes originales y
 marca la auditoria como revertida.
+
+`pause` y `resume` tambien requieren lock `takeover`. `pause` se encola y se
+ejecuta desde `vsync_pre()`. `resume` es la excepcion controlada: se ejecuta de
+forma inmediata porque, una vez pausada la emulacion, la cola de `vsync_pre()` puede
+no volver a procesarse hasta reanudar. La prueba reusable valida que esto no rompe
+el flujo GDB normal.
 
 ## Prueba de contrato
 
@@ -160,6 +168,21 @@ segura. El flujo validado es:
 
 En la verificacion del 2026-05-30 se cambio temporalmente
 `0x00c0d9d4` de `000000f4` a `12345678` y se restauro a `000000f4`.
+
+## Prueba Pause/Resume
+
+La pausa colaborativa minima se valida con:
+
+```powershell
+.\tools\debug\verify-side-channel-pause-resume.ps1
+```
+
+La prueba lanza `030_ehb_palette_zones`, espera `side-channel READY`, comprueba que
+`pause` sin lock falla, toma `takeover`, pausa, verifica `debuggerState=2`, lee
+`g_amg_run_status` mientras la emulacion esta pausada, reanuda y confirma
+`debuggerState=1`. En la verificacion del 2026-05-30, `resume` restauro la
+ejecucion con 4 breakpoints PC activos y el runner pudo completar su screenshot
+final.
 
 ## Problema que resuelve
 
