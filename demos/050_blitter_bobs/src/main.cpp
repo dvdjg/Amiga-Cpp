@@ -36,6 +36,9 @@ constexpr amg::u16 bob_words_per_row = bob_width / 16;
 constexpr amg::u32 bob_plane_bytes = bob_words_per_row * sizeof(amg::u16) * bob_height;
 constexpr amg::u16 bob_x = 112; // Multiplo de 16: esta primera demo no usa shifts.
 constexpr amg::u16 bob_y = 92;
+constexpr amg::u16 blob_left_x = 48;
+constexpr amg::u16 blob_right_x = 224;
+constexpr amg::u16 blob_y = 150;
 
 /// Paleta sencilla para distinguir fondo y BOB.
 ///
@@ -76,7 +79,7 @@ void add_reference_bars(amg::u8* planes) {
 	}
 }
 
-void build_masked_bob(amg::u16* mask, amg::u16* source) {
+void build_masked_bob(amg::u16* mask, amg::u16* source, amg::u8 outer_color, amg::u8 inner_color) {
 	for (amg::u16 y = 0; y < bob_height; ++y) {
 		for (amg::u16 word = 0; word < bob_words_per_row; ++word) {
 			const amg::u16 row_word = static_cast<amg::u16>(y * bob_words_per_row + word);
@@ -93,7 +96,7 @@ void build_masked_bob(amg::u16* mask, amg::u16* source) {
 				}
 
 				const amg::u16 bit_mask = static_cast<amg::u16>(0x8000u >> bit);
-				const amg::u8 color_index = (dx * dx + dy * dy < 70) ? 14u : 4u;
+				const amg::u8 color_index = (dx * dx + dy * dy < 70) ? inner_color : outer_color;
 				mask_word |= bit_mask;
 				for (amg::u8 plane = 0; plane < plane_count; ++plane) {
 					if (color_index & (1u << plane)) {
@@ -109,6 +112,12 @@ void build_masked_bob(amg::u16* mask, amg::u16* source) {
 			}
 		}
 	}
+}
+
+amg::u16* destination_at(amg::u8* planes, amg::u16 x, amg::u16 y) {
+	const amg::u32 destination_offset =
+		static_cast<amg::u32>(y) * bytes_per_row + (x / 8u);
+	return reinterpret_cast<amg::u16*>(planes + destination_offset);
 }
 
 struct DemoGame {
@@ -137,23 +146,57 @@ struct DemoGame {
 
 		m_mask_block = backend.memory().chip.allocate(bob_plane_bytes, 16);
 		m_source_block = backend.memory().chip.allocate(bob_plane_bytes * plane_count, 16);
-		if (!m_mask_block.valid() || !m_source_block.valid()) {
+		m_blob_source_block = backend.memory().chip.allocate(bob_plane_bytes * plane_count, 16);
+		if (!m_mask_block.valid() || !m_source_block.valid() || !m_blob_source_block.valid()) {
 			amg::debug::mark_failed(g_amg_run_status, 0x00000051u);
 			return;
 		}
 
-		build_masked_bob(static_cast<amg::u16*>(m_mask_block.data), static_cast<amg::u16*>(m_source_block.data));
-
-		const amg::u32 destination_offset =
-			static_cast<amg::u32>(bob_y) * bytes_per_row + (bob_x / 8u);
-		amg::u16* destination = reinterpret_cast<amg::u16*>(m_scene.bitplanes() + destination_offset);
+		build_masked_bob(
+			static_cast<amg::u16*>(m_mask_block.data),
+			static_cast<amg::u16*>(m_source_block.data),
+			4,
+			14
+		);
+		build_masked_bob(
+			static_cast<amg::u16*>(m_mask_block.data),
+			static_cast<amg::u16*>(m_blob_source_block.data),
+			5,
+			7
+		);
 
 		m_frame_plan.clear();
-		const amg::graphics::BlitJob job {
+		const amg::graphics::BlitJob bob_job {
 			amg::graphics::BlitJobKind::MaskedBobCookieCut,
 			static_cast<const amg::u16*>(m_mask_block.data),
 			static_cast<const amg::u16*>(m_source_block.data),
-			destination,
+			destination_at(m_scene.bitplanes(), bob_x, bob_y),
+			bob_words_per_row,
+			bob_height,
+			0,
+			static_cast<amg::s16>(bytes_per_row - bob_words_per_row * sizeof(amg::u16)),
+			plane_count,
+			bob_plane_bytes,
+			plane_bytes,
+		};
+		const amg::graphics::BlitJob blob_left_job {
+			amg::graphics::BlitJobKind::MaskedBlobNoSave,
+			static_cast<const amg::u16*>(m_mask_block.data),
+			static_cast<const amg::u16*>(m_blob_source_block.data),
+			destination_at(m_scene.bitplanes(), blob_left_x, blob_y),
+			bob_words_per_row,
+			bob_height,
+			0,
+			static_cast<amg::s16>(bytes_per_row - bob_words_per_row * sizeof(amg::u16)),
+			plane_count,
+			bob_plane_bytes,
+			plane_bytes,
+		};
+		const amg::graphics::BlitJob blob_right_job {
+			amg::graphics::BlitJobKind::MaskedBlobNoSave,
+			static_cast<const amg::u16*>(m_mask_block.data),
+			static_cast<const amg::u16*>(m_blob_source_block.data),
+			destination_at(m_scene.bitplanes(), blob_right_x, blob_y),
 			bob_words_per_row,
 			bob_height,
 			0,
@@ -163,14 +206,24 @@ struct DemoGame {
 			plane_bytes,
 		};
 
-		if (!m_frame_plan.add_masked_bob(job) || !backend.execute_frame_plan(m_frame_plan)) {
+		if (
+			!m_frame_plan.add_masked_bob(bob_job) ||
+			!m_frame_plan.add_masked_blob_no_save(blob_left_job) ||
+			!m_frame_plan.add_masked_blob_no_save(blob_right_job) ||
+			!backend.execute_frame_plan(m_frame_plan)
+		) {
 			amg::debug::mark_failed(g_amg_run_status, 0x00000052u);
 			return;
 		}
 
 		m_blit_ok = true;
 		m_scene.install(backend);
-		amg::debug::mark_ready(g_amg_run_status, 0x05000000u | m_frame_plan.blit_job_count());
+		amg::debug::mark_ready(
+			g_amg_run_status,
+			0x05000000u |
+				(static_cast<amg::u32>(m_frame_plan.blit_budget().no_save_jobs) << 8u) |
+				m_frame_plan.blit_job_count()
+		);
 	}
 
 	void update(amg::amiga::MinimalBackend& backend, amg::GameContext& context) {
@@ -194,6 +247,7 @@ struct DemoGame {
 	amg::graphics::FramePlan m_frame_plan {};
 	amg::MemoryBlock m_mask_block {};
 	amg::MemoryBlock m_source_block {};
+	amg::MemoryBlock m_blob_source_block {};
 };
 
 } // namespace

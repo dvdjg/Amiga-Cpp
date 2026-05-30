@@ -59,10 +59,13 @@ La demo ya usa `engine/include/amg/graphics/frame_plan.hpp`: el efecto genera un
 parche de paleta en `FramePlan` y `StaticEhbScene` actualiza solo los valores de
 los MOVEs `COLORxx` existentes, sin recompilar la copperlist completa.
 
-La primera prueba de Blitter esta en `demos/050_blitter_bobs`. La demo crea un
-`BlitJob` cookie-cut dentro de `FramePlan`; el backend Amiga lo ejecuta con el
-Blitter hardware sobre los 6 bitplanes EHB. Por ahora exige X alineada a 16 pixels
-y no hace clipping ni save/restore.
+La primera prueba de Blitter esta en `demos/050_blitter_bobs`. La demo crea
+trabajos `BlitJob` dentro de `FramePlan`; el backend Amiga los ejecuta con el
+Blitter hardware sobre los 6 bitplanes EHB. Ya existen tipos para copia,
+restore, BOB cookie-cut y `MaskedBlobNoSave`. Este ultimo modela la tecnica tipo
+Mega Typhoon: blobs no solapados que se escriben directamente sobre un playfield
+sin guardar el fondo previo. Por ahora exige X alineada a 16 pixels y no hace
+clipping.
 
 Esta clase todavia no es el driver completo de aventura. Es el nucleo de display
 sobre el que construiremos `EhbRoomDriver`: BOBs, cursor hardware, profundidad por

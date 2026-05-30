@@ -10,9 +10,9 @@
 /// - el driver Amiga decide si las materializa como parches de copperlist, blits,
 ///   sprites hardware, CPU writes o cualquier otro mecanismo.
 ///
-/// La primera version contenia solo parches de paleta. Ahora tambien describe un
-/// BOB planar enmascarado para que la demo 050 pueda pedir trabajo de Blitter sin
-/// escribir registros custom desde el juego.
+/// La primera version contenia solo parches de paleta. Ahora tambien describe
+/// operaciones de Blitter para que las demos puedan pedir copias, save/restore y
+/// BOBs sin escribir registros custom desde el juego.
 
 #include <amg/core/types.hpp>
 
@@ -40,14 +40,40 @@ struct PalettePatch {
 
 /// Tipos de trabajo de Blitter soportados por el plan actual.
 enum class BlitJobKind : u8 {
+	CopyRect,
+	RestoreRect,
 	MaskedBobCookieCut,
+	MaskedBlobNoSave,
 };
 
-/// Trabajo planar de BOB enmascarado.
+/// Presupuesto acumulado de Blitter.
 ///
-/// Esta estructura describe el clasico cookie-cut:
+/// Es una estimacion deliberadamente sencilla: words procesadas por plano. No
+/// intenta predecir todavia ciclos exactos de bus, pero ya permite comparar un BOB
+/// de 16x16 con uno de 64x64 y fallar tests si una escena crece sin control.
+struct BlitBudget {
+	u16 jobs = 0;
+	u32 words = 0;
+	u16 masked_jobs = 0;
+	u16 copy_jobs = 0;
+	u16 no_save_jobs = 0;
+};
+
+/// Trabajo planar de Blitter.
+///
+/// `CopyRect` y `RestoreRect` son copias rectangulares:
+///
+/// `dest = source`
+///
+/// `MaskedBobCookieCut` y `MaskedBlobNoSave` usan el clasico cookie-cut:
 ///
 /// `dest = (mask & source) | (~mask & dest)`
+///
+/// La diferencia entre ambos en esta fase es semantica y de presupuesto:
+/// `MaskedBobCookieCut` representa un actor que normalmente necesitara save/restore
+/// si se mueve; `MaskedBlobNoSave` representa la tecnica tipo Mega Typhoon para
+/// blobs no solapados o regiones de playfield que se pueden sobrescribir sin guardar
+/// el fondo previo.
 ///
 /// Restricciones de esta primera version:
 ///
@@ -55,8 +81,9 @@ enum class BlitJobKind : u8 {
 ///   bitplane de destino;
 /// - no hay shifts de Blitter, asi que X debe ser multiplo de 16 pixels;
 /// - no hay clipping automatico;
-/// - `mask` es un unico plano de 1 bit compartido por todos los bitplanes;
-/// - `source` contiene los planos del BOB en formato planar contiguo.
+/// - si `kind` es enmascarado, `mask` es un unico plano de 1 bit compartido por
+///   todos los bitplanes;
+/// - `source` contiene los planos del BOB/rect en formato planar contiguo.
 ///
 /// Son restricciones intencionadas: nos dan una base verificable antes de meter
 /// scroll fino, clipping, restauracion de fondo y dirty rects.
@@ -88,6 +115,7 @@ public:
 	void clear() {
 		m_palette_patch_count = 0;
 		m_blit_job_count = 0;
+		m_blit_budget = {};
 		m_ok = true;
 	}
 
@@ -102,6 +130,7 @@ public:
 	constexpr bool ok() const { return m_ok; }
 	constexpr u8 palette_patch_count() const { return m_palette_patch_count; }
 	constexpr u8 blit_job_count() const { return m_blit_job_count; }
+	constexpr const BlitBudget& blit_budget() const { return m_blit_budget; }
 
 	constexpr const PalettePatch& palette_patch(u8 index) const {
 		return m_palette_patches[index];
@@ -112,8 +141,35 @@ public:
 	}
 
 	bool add_masked_bob(const BlitJob& job) {
+		BlitJob copy = job;
+		copy.kind = BlitJobKind::MaskedBobCookieCut;
+		return add_blit_job(copy);
+	}
+
+	bool add_masked_blob_no_save(const BlitJob& job) {
+		BlitJob copy = job;
+		copy.kind = BlitJobKind::MaskedBlobNoSave;
+		return add_blit_job(copy);
+	}
+
+	bool add_copy_rect(const BlitJob& job) {
+		BlitJob copy = job;
+		copy.kind = BlitJobKind::CopyRect;
+		return add_blit_job(copy);
+	}
+
+	bool add_restore_rect(const BlitJob& job) {
+		BlitJob copy = job;
+		copy.kind = BlitJobKind::RestoreRect;
+		return add_blit_job(copy);
+	}
+
+private:
+	bool add_blit_job(BlitJob job) {
+		const bool masked =
+			job.kind == BlitJobKind::MaskedBobCookieCut ||
+			job.kind == BlitJobKind::MaskedBlobNoSave;
 		if (
-			job.mask == nullptr ||
 			job.source == nullptr ||
 			job.destination == nullptr ||
 			job.words_per_row == 0 ||
@@ -125,16 +181,32 @@ public:
 			m_ok = false;
 			return false;
 		}
+		if (masked && job.mask == nullptr) {
+			m_ok = false;
+			return false;
+		}
 		if (m_blit_job_count >= max_blit_jobs) {
 			m_ok = false;
 			return false;
 		}
 
 		m_blit_jobs[m_blit_job_count++] = job;
+		m_blit_budget.jobs = m_blit_job_count;
+		m_blit_budget.words +=
+			static_cast<u32>(job.words_per_row) *
+			static_cast<u32>(job.height) *
+			static_cast<u32>(job.bitplane_count);
+		if (masked) {
+			++m_blit_budget.masked_jobs;
+		} else {
+			++m_blit_budget.copy_jobs;
+		}
+		if (job.kind == BlitJobKind::MaskedBlobNoSave) {
+			++m_blit_budget.no_save_jobs;
+		}
 		return true;
 	}
 
-private:
 	bool add_palette_patch(PalettePatch patch) {
 		if (patch.colors == nullptr || patch.first >= 32u || patch.count == 0u) {
 			m_ok = false;
@@ -154,6 +226,7 @@ private:
 
 	PalettePatch m_palette_patches[max_palette_patches] {};
 	BlitJob m_blit_jobs[max_blit_jobs] {};
+	BlitBudget m_blit_budget {};
 	u8 m_palette_patch_count = 0;
 	u8 m_blit_job_count = 0;
 	bool m_ok = true;

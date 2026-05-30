@@ -36,6 +36,8 @@ try {
 		backgroundDeepBlue = 0
 		bobYellow = 0
 		bobWhite = 0
+		blobOrange = 0
+		blobMagenta = 0
 	}
 
 	$stepX = [Math]::Max(1, [int]($bitmap.Width / 190))
@@ -49,10 +51,12 @@ try {
 			elseif (Test-ColorNear $p 0 68 136 28) { $counts.backgroundBlue++ }
 			elseif (Test-ColorNear $p 255 255 0 28) { $counts.bobYellow++ }
 			elseif (Test-ColorNear $p 255 255 255 18) { $counts.bobWhite++ }
+			elseif (Test-ColorNear $p 255 136 0 28) { $counts.blobOrange++ }
+			elseif (Test-ColorNear $p 255 0 255 28) { $counts.blobMagenta++ }
 		}
 	}
 
-	foreach ($name in @("backgroundBlue", "backgroundDeepBlue", "bobYellow", "bobWhite")) {
+	foreach ($name in @("backgroundBlue", "backgroundDeepBlue", "bobYellow", "bobWhite", "blobOrange", "blobMagenta")) {
 		if ($counts[$name] -lt 20) {
 			throw "No se detectan suficientes muestras $name en la captura."
 		}
@@ -68,6 +72,11 @@ try {
 	if (($detail -band 0xff000000) -ne 0x05000000) {
 		throw ("runStatus.detail no contiene la marca de la demo 050: 0x{0:x8}" -f $detail)
 	}
+	$jobCount = $detail -band 0xff
+	$noSaveJobs = ($detail -shr 8) -band 0xff
+	if ($jobCount -lt 3 -or $noSaveJobs -lt 2) {
+		throw ("runStatus.detail no refleja BOB + blobs no-save: 0x{0:x8}" -f $detail)
+	}
 
 	[pscustomobject]@{
 		Image = (Resolve-Path $Image).Path
@@ -77,6 +86,10 @@ try {
 		BackgroundDeepBlueSamples = $counts.backgroundDeepBlue
 		BobYellowSamples = $counts.bobYellow
 		BobWhiteSamples = $counts.bobWhite
+		BlobOrangeSamples = $counts.blobOrange
+		BlobMagentaSamples = $counts.blobMagenta
+		JobCount = $jobCount
+		NoSaveJobs = $noSaveJobs
 		RunDetail = ("0x{0:x8}" -f $detail)
 		Status = "OK"
 	} | Format-List

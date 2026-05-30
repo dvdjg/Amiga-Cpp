@@ -212,12 +212,14 @@ Resultado verificado:
   paleta y `StaticEhbScene` actualiza solo las words de valor de `COLOR01..07`.
   `StaticEhbScene` guarda bindings de paleta base y zonas Copper al construir la
   lista para poder parchearlas despues.
-- `FramePlan` ahora tambien soporta `BlitJobKind::MaskedBobCookieCut`. El backend
-  Amiga ejecuta esos jobs en `MinimalBackend::execute_frame_plan()` programando el
-  Blitter con el minterm cookie-cut `(mask & source) | (~mask & dest)`.
-- Se ha añadido `demos/050_blitter_bobs`: dibuja un BOB de 32x32, X alineada a 16
-  pixels, sobre una escena EHB. La demo valida el camino `FramePlan -> backend ->
-  Blitter` y deja `runStatus.detail = 0x05000001`.
+- `FramePlan` ahora soporta operaciones de Blitter: `CopyRect`, `RestoreRect`,
+  `MaskedBobCookieCut` y `MaskedBlobNoSave`, con presupuesto acumulado por jobs y
+  words. El backend Amiga ejecuta esos jobs en
+  `MinimalBackend::execute_frame_plan()`.
+- Se ha añadido `demos/050_blitter_bobs`: dibuja un BOB de 32x32 y dos blobs
+  no-save no solapados, todos X alineados a 16 pixels, sobre una escena EHB. La
+  demo valida el camino `FramePlan -> backend -> Blitter` y deja
+  `runStatus.detail = 0x05000203`.
 - El roadmap incorpora una seccion de abstracciones futuras: `RenderScene`
   retenido, `FramePlan`, `CopperScheduler`, `BlitterQueue`, `SpriteAllocator`,
   `DmaBudget`, drivers `RoadRaster`, `SpriteBackdrop`, `CopperHeavy` y efectos
@@ -226,7 +228,7 @@ Resultado verificado:
 Ultimo informe de regresion conocido:
 
 ```text
-out\regression\20260531-001058\regression-report.md
+out\regression\20260531-002019\regression-report.md
 ```
 
 ## Siguiente paso previsto
@@ -235,8 +237,10 @@ La regresion automatizada ya existe en `tools/test-regression.ps1`.
 
 Siguiente bloque recomendado:
 
-1. Ampliar `050_blitter_bobs` con save/restore de fondo y dirty rects.
-2. Medir/presupuestar coste de BOB por words, alto y numero de bitplanes.
+1. Ampliar `050_blitter_bobs` con animacion real, save/restore de fondo y dirty
+   rects.
+2. Convertir el presupuesto de Blitter en warnings/criterios de aceptacion por
+   frame.
 3. Añadir clipping y shifts para X no alineada a 16 pixels.
 4. Añadir doble buffer de copperlist cuando un frame necesite cambiar estructura,
    no solo valores de `COLORxx`.

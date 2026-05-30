@@ -37,6 +37,7 @@ constexpr unsigned short blt_use_b = 0x0400;
 constexpr unsigned short blt_use_c = 0x0200;
 constexpr unsigned short blt_use_d = 0x0100;
 constexpr unsigned short blt_minterm_cookie_cut = 0x00ca;
+constexpr unsigned short blt_minterm_copy_a = 0x00f0;
 
 void write_custom_pointer(unsigned short word_offset, const void* pointer) {
 	const amg::u32 raw = reinterpret_cast<amg::u32>(pointer);
@@ -181,7 +182,14 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 
 	for (u8 job_index = 0; job_index < plan.blit_job_count(); ++job_index) {
 		const graphics::BlitJob& job = plan.blit_job(job_index);
-		if (job.kind != graphics::BlitJobKind::MaskedBobCookieCut) {
+		const bool masked =
+			job.kind == graphics::BlitJobKind::MaskedBobCookieCut ||
+			job.kind == graphics::BlitJobKind::MaskedBlobNoSave;
+		const bool copy =
+			job.kind == graphics::BlitJobKind::CopyRect ||
+			job.kind == graphics::BlitJobKind::RestoreRect;
+
+		if (!masked && !copy) {
 			return false;
 		}
 
@@ -197,20 +205,28 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 			const u16* source_plane = job.source + static_cast<u32>(plane) * source_plane_stride_words;
 			u16* destination_plane = job.destination + static_cast<u32>(plane) * destination_plane_stride_words;
 
-			custom_base[custom_bltcon0_offset] = static_cast<u16>(
-				blt_use_a | blt_use_b | blt_use_c | blt_use_d | blt_minterm_cookie_cut
-			);
+			if (masked) {
+				custom_base[custom_bltcon0_offset] = static_cast<u16>(
+					blt_use_a | blt_use_b | blt_use_c | blt_use_d | blt_minterm_cookie_cut
+				);
+			} else {
+				custom_base[custom_bltcon0_offset] = static_cast<u16>(
+					blt_use_a | blt_use_d | blt_minterm_copy_a
+				);
+			}
 			custom_base[custom_bltcon1_offset] = 0x0000;
 			custom_base[custom_bltafwm_offset] = 0xffff;
 			custom_base[custom_bltalwm_offset] = 0xffff;
 			custom_base[custom_bltamod_offset] = static_cast<u16>(job.source_modulo_bytes);
-			custom_base[custom_bltbmod_offset] = static_cast<u16>(job.source_modulo_bytes);
-			custom_base[custom_bltcmod_offset] = static_cast<u16>(job.destination_modulo_bytes);
+			custom_base[custom_bltbmod_offset] = static_cast<u16>(masked ? job.source_modulo_bytes : 0);
+			custom_base[custom_bltcmod_offset] = static_cast<u16>(masked ? job.destination_modulo_bytes : 0);
 			custom_base[custom_bltdmod_offset] = static_cast<u16>(job.destination_modulo_bytes);
 
-			write_custom_pointer(custom_bltapt_offset, job.mask);
-			write_custom_pointer(custom_bltbpt_offset, source_plane);
-			write_custom_pointer(custom_bltcpt_offset, destination_plane);
+			write_custom_pointer(custom_bltapt_offset, masked ? job.mask : source_plane);
+			if (masked) {
+				write_custom_pointer(custom_bltbpt_offset, source_plane);
+				write_custom_pointer(custom_bltcpt_offset, destination_plane);
+			}
 			write_custom_pointer(custom_bltdpt_offset, destination_plane);
 
 			custom_base[custom_bltsize_offset] = static_cast<u16>(

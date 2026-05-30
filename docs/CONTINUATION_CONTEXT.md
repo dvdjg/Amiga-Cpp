@@ -106,11 +106,13 @@ La demo `050_blitter_bobs` debe:
 - compilar en debug;
 - ejecutarse en WinUAE-DBG;
 - alcanzar `side-channel READY`;
-- mostrar un BOB cookie-cut amarillo/blanco sobre fondo EHB azul;
-- crear el trabajo como `BlitJob` dentro de `FramePlan`;
+- mostrar un BOB cookie-cut amarillo/blanco y dos blobs no-save naranja/magenta
+  sobre fondo EHB azul;
+- crear los trabajos como `BlitJob` dentro de `FramePlan`;
 - materializarlo desde `MinimalBackend::execute_frame_plan()` usando Blitter;
 - superar `demos\050_blitter_bobs\analyze-screenshot.ps1`;
-- dejar en `g_amg_run_status.detail` una marca `0x050000xx` con al menos un job.
+- dejar en `g_amg_run_status.detail` una marca `0x0500nnjj`, donde `nn` son jobs
+  no-save y `jj` jobs totales. El estado saludable actual es `0x05000203`.
 
 El contrato del canal lateral seguro debe pasar con:
 
