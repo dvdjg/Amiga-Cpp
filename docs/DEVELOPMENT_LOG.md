@@ -222,7 +222,10 @@ Resultado verificado:
 - `050_blitter_bobs` ahora anima el BOB usando save/restore real por Blitter:
   restaura la posicion anterior, guarda el fondo de la nueva posicion y dibuja el
   BOB cookie-cut. Los blobs no-save quedan fijos como ruta estilo Mega Typhoon. El
-  estado saludable actual deja `runStatus.detail = 0x05020309`.
+  estado saludable actual deja `runStatus.detail = 0x05020311`.
+- `FramePlan` tambien fusiona dirty rects. El 050 publica en `runStatus.detail`
+  un dirty rect final y una fusion, y congela la imagen tras el frame validado para
+  que las capturas automatizadas no caigan en mitad de `restore/save/draw`.
 - El roadmap incorpora una seccion de abstracciones futuras: `RenderScene`
   retenido, `FramePlan`, `CopperScheduler`, `BlitterQueue`, `SpriteAllocator`,
   `DmaBudget`, drivers `RoadRaster`, `SpriteBackdrop`, `CopperHeavy` y efectos
@@ -242,7 +245,6 @@ Siguiente bloque recomendado:
 
 1. Convertir el presupuesto de Blitter en warnings/criterios de aceptacion por
    frame.
-2. Añadir dirty rect merging para agrupar restauraciones y redraws.
-3. Añadir clipping y shifts para X no alineada a 16 pixels.
-4. Añadir doble buffer de copperlist cuando un frame necesite cambiar estructura,
+2. Añadir clipping y shifts para X no alineada a 16 pixels.
+3. Añadir doble buffer de copperlist cuando un frame necesite cambiar estructura,
    no solo valores de `COLORxx`.

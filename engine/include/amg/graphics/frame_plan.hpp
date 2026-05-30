@@ -12,7 +12,9 @@
 ///
 /// La primera version contenia solo parches de paleta. Ahora tambien describe
 /// operaciones de Blitter para que las demos puedan pedir copias, save/restore y
-/// BOBs sin escribir registros custom desde el juego.
+/// BOBs sin escribir registros custom desde el juego. La tercera pieza es la lista
+/// de dirty rects: las areas de pantalla que un frame ha tocado y que, por tanto,
+/// pueden necesitar restauracion, redraw o analisis de presupuesto.
 
 #include <amg/core/types.hpp>
 
@@ -57,6 +59,38 @@ struct BlitBudget {
 	u16 masked_jobs = 0;
 	u16 copy_jobs = 0;
 	u16 no_save_jobs = 0;
+};
+
+/// Rectangulo de pantalla en pixels.
+///
+/// Usamos coordenadas enteras pequenas y bordes exclusivos (`right/bottom`). Es el
+/// formato mas comodo para fusionar rectangulos y para convertir despues a words
+/// de Blitter, tiles o regiones de captura.
+struct DirtyRect {
+	s16 left = 0;
+	s16 top = 0;
+	s16 right = 0;
+	s16 bottom = 0;
+
+	constexpr bool valid() const {
+		return right > left && bottom > top;
+	}
+
+	constexpr u16 width() const {
+		return valid() ? static_cast<u16>(right - left) : 0;
+	}
+
+	constexpr u16 height() const {
+		return valid() ? static_cast<u16>(bottom - top) : 0;
+	}
+};
+
+/// Metricas de dirty rects tras fusionar.
+struct DirtyReport {
+	u8 rects = 0;
+	u16 area = 0;
+	u16 merges = 0;
+	bool overflow = false;
 };
 
 /// Trabajo planar de Blitter.
@@ -111,11 +145,14 @@ class FramePlan {
 public:
 	static constexpr u8 max_palette_patches = 8;
 	static constexpr u8 max_blit_jobs = 8;
+	static constexpr u8 max_dirty_rects = 8;
 
 	void clear() {
 		m_palette_patch_count = 0;
 		m_blit_job_count = 0;
+		m_dirty_rect_count = 0;
 		m_blit_budget = {};
+		m_dirty_report = {};
 		m_ok = true;
 	}
 
@@ -130,7 +167,9 @@ public:
 	constexpr bool ok() const { return m_ok; }
 	constexpr u8 palette_patch_count() const { return m_palette_patch_count; }
 	constexpr u8 blit_job_count() const { return m_blit_job_count; }
+	constexpr u8 dirty_rect_count() const { return m_dirty_rect_count; }
 	constexpr const BlitBudget& blit_budget() const { return m_blit_budget; }
+	constexpr const DirtyReport& dirty_report() const { return m_dirty_report; }
 
 	constexpr const PalettePatch& palette_patch(u8 index) const {
 		return m_palette_patches[index];
@@ -138,6 +177,42 @@ public:
 
 	constexpr const BlitJob& blit_job(u8 index) const {
 		return m_blit_jobs[index];
+	}
+
+	constexpr const DirtyRect& dirty_rect(u8 index) const {
+		return m_dirty_rects[index];
+	}
+
+	/// Anade un rectangulo sucio fusionandolo con los existentes.
+	///
+	/// Dos rectangulos se fusionan si se solapan o se tocan. Esto evita trabajos
+	/// pequenos redundantes cuando un BOB se mueve poco: el area anterior y la nueva
+	/// suelen formar una unica banda que conviene tratar junta a nivel de scheduler,
+	/// aunque internamente el Blitter siga haciendo save/restore/draw concretos.
+	bool add_dirty_rect(DirtyRect rect) {
+		if (!rect.valid()) {
+			m_ok = false;
+			return false;
+		}
+
+		for (u8 i = 0; i < m_dirty_rect_count; ++i) {
+			if (rects_touch_or_overlap(m_dirty_rects[i], rect)) {
+				m_dirty_rects[i] = union_rect(m_dirty_rects[i], rect);
+				++m_dirty_report.merges;
+				rebuild_dirty_report();
+				return true;
+			}
+		}
+
+		if (m_dirty_rect_count >= max_dirty_rects) {
+			m_dirty_report.overflow = true;
+			m_ok = false;
+			return false;
+		}
+
+		m_dirty_rects[m_dirty_rect_count++] = rect;
+		rebuild_dirty_report();
+		return true;
 	}
 
 	bool add_masked_bob(const BlitJob& job) {
@@ -165,6 +240,38 @@ public:
 	}
 
 private:
+	static constexpr s16 min_s16(s16 a, s16 b) { return a < b ? a : b; }
+	static constexpr s16 max_s16(s16 a, s16 b) { return a > b ? a : b; }
+
+	static constexpr bool rects_touch_or_overlap(const DirtyRect& a, const DirtyRect& b) {
+		return !(a.right < b.left || b.right < a.left || a.bottom < b.top || b.bottom < a.top);
+	}
+
+	static constexpr DirtyRect union_rect(const DirtyRect& a, const DirtyRect& b) {
+		return {
+			min_s16(a.left, b.left),
+			min_s16(a.top, b.top),
+			max_s16(a.right, b.right),
+			max_s16(a.bottom, b.bottom),
+		};
+	}
+
+	void rebuild_dirty_report() {
+		const u16 previous_merges = m_dirty_report.merges;
+		const bool previous_overflow = m_dirty_report.overflow;
+		m_dirty_report = {};
+		m_dirty_report.rects = m_dirty_rect_count;
+		m_dirty_report.merges = previous_merges;
+		m_dirty_report.overflow = previous_overflow;
+
+		for (u8 i = 0; i < m_dirty_rect_count; ++i) {
+			m_dirty_report.area = static_cast<u16>(
+				m_dirty_report.area +
+				static_cast<u16>(m_dirty_rects[i].width() * m_dirty_rects[i].height())
+			);
+		}
+	}
+
 	bool add_blit_job(BlitJob job) {
 		const bool masked =
 			job.kind == BlitJobKind::MaskedBobCookieCut ||
@@ -226,9 +333,12 @@ private:
 
 	PalettePatch m_palette_patches[max_palette_patches] {};
 	BlitJob m_blit_jobs[max_blit_jobs] {};
+	DirtyRect m_dirty_rects[max_dirty_rects] {};
 	BlitBudget m_blit_budget {};
+	DirtyReport m_dirty_report {};
 	u8 m_palette_patch_count = 0;
 	u8 m_blit_job_count = 0;
+	u8 m_dirty_rect_count = 0;
 	bool m_ok = true;
 };
 

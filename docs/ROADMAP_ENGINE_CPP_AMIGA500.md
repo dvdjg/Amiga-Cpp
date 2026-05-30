@@ -231,6 +231,8 @@ Pruebas:
 Criterio de aceptacion:
 
 - Un personaje animado camina sobre una escena EHB sin dejar rastros.
+- El frame publica dirty rects fusionados y la prueba automatica valida al menos
+  una fusion real de region anterior/nueva.
 - El motor sabe rechazar o advertir composiciones que excedan el presupuesto.
 - El MVP inicial debe mostrar al menos un BOB cookie-cut sobre EHB usando
   `FramePlan -> backend -> Blitter`, sin registros custom en la demo.

@@ -130,6 +130,15 @@ amg::u16 animated_bob_x(amg::u16 frame) {
 	return static_cast<amg::u16>(bob_start_x + step * 16u);
 }
 
+amg::graphics::DirtyRect bob_dirty_rect(amg::u16 x, amg::u16 y) {
+	return {
+		static_cast<amg::s16>(x),
+		static_cast<amg::s16>(y),
+		static_cast<amg::s16>(x + bob_width),
+		static_cast<amg::s16>(y + bob_height),
+	};
+}
+
 amg::graphics::BlitJob make_copy_job(
 	const amg::u16* source,
 	amg::u16* destination,
@@ -226,6 +235,8 @@ struct DemoGame {
 		);
 
 		m_frame_plan.clear();
+		m_frame_plan.add_dirty_rect(bob_dirty_rect(blob_left_x, blob_y));
+		m_frame_plan.add_dirty_rect(bob_dirty_rect(blob_right_x, blob_y));
 		const amg::graphics::BlitJob blob_left_job = make_masked_job(
 			amg::graphics::BlitJobKind::MaskedBlobNoSave,
 			static_cast<const amg::u16*>(m_mask_block.data),
@@ -258,6 +269,13 @@ struct DemoGame {
 		if (!m_blit_ok || !m_scene.ok()) {
 			return;
 		}
+		// El runner captura la pantalla desde el canal lateral mientras el 68000
+		// podria seguir ejecutando. Al congelar la demo tras el frame validado,
+		// evitamos capturas en mitad de restore/save/draw y convertimos la prueba
+		// visual en una evidencia determinista del resultado final.
+		if (m_validation_frame_ready) {
+			return;
+		}
 
 		const amg::u16 current_x = animated_bob_x(context.frame.frame_index);
 		amg::u16* current_destination = destination_at(m_scene.bitplanes(), current_x, bob_y);
@@ -266,6 +284,10 @@ struct DemoGame {
 		m_frame_plan.clear();
 
 		if (m_has_saved_background) {
+			if (!m_frame_plan.add_dirty_rect(bob_dirty_rect(m_previous_x, bob_y))) {
+				amg::debug::mark_failed(g_amg_run_status, 0x00000055u);
+				return;
+			}
 			const amg::graphics::BlitJob restore = make_copy_job(
 				static_cast<const amg::u16*>(m_saved_background_block.data),
 				destination_at(m_scene.bitplanes(), m_previous_x, bob_y),
@@ -278,6 +300,11 @@ struct DemoGame {
 				amg::debug::mark_failed(g_amg_run_status, 0x00000053u);
 				return;
 			}
+		}
+
+		if (!m_frame_plan.add_dirty_rect(bob_dirty_rect(current_x, bob_y))) {
+			amg::debug::mark_failed(g_amg_run_status, 0x00000056u);
+			return;
 		}
 
 		const amg::graphics::BlitJob save = make_copy_job(
@@ -308,6 +335,8 @@ struct DemoGame {
 		m_has_saved_background = true;
 		m_last_frame_jobs = m_frame_plan.blit_job_count();
 		m_last_frame_words = m_frame_plan.blit_budget().words;
+		m_last_dirty_rects = m_frame_plan.dirty_report().rects;
+		m_last_dirty_merges = m_frame_plan.dirty_report().merges;
 
 		m_scene.install(backend);
 
@@ -317,8 +346,10 @@ struct DemoGame {
 				0x05000000u |
 					(static_cast<amg::u32>(m_static_no_save_jobs) << 16u) |
 					(static_cast<amg::u32>(m_last_frame_jobs) << 8u) |
-					static_cast<amg::u32>(m_last_frame_words / 128u)
+					(static_cast<amg::u32>(m_last_dirty_rects) << 4u) |
+					static_cast<amg::u32>(m_last_dirty_merges & 0x0fu)
 			);
+			m_validation_frame_ready = true;
 		}
 	}
 
@@ -342,7 +373,10 @@ struct DemoGame {
 	amg::u16 m_last_frame_words = 0;
 	amg::u8 m_static_no_save_jobs = 0;
 	amg::u8 m_last_frame_jobs = 0;
+	amg::u8 m_last_dirty_rects = 0;
+	amg::u8 m_last_dirty_merges = 0;
 	bool m_has_saved_background = false;
+	bool m_validation_frame_ready = false;
 };
 
 } // namespace

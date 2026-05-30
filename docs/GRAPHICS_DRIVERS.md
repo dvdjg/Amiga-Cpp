@@ -66,7 +66,9 @@ restore, BOB cookie-cut y `MaskedBlobNoSave`. Este ultimo modela la tecnica tipo
 Mega Typhoon: blobs no solapados que se escriben directamente sobre un playfield
 sin guardar el fondo previo. Por ahora exige X alineada a 16 pixels y no hace
 clipping. El BOB principal ya se mueve con save/restore real: restore anterior,
-save de la nueva zona y draw cookie-cut.
+save de la nueva zona y draw cookie-cut. `FramePlan` tambien fusiona dirty rects
+para que las areas anterior/nueva del BOB se puedan tratar como una region logica
+de redraw aunque el backend siga emitiendo jobs concretos de Blitter.
 
 Esta clase todavia no es el driver completo de aventura. Es el nucleo de display
 sobre el que construiremos `EhbRoomDriver`: BOBs, cursor hardware, profundidad por
