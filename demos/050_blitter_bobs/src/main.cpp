@@ -157,6 +157,7 @@ amg::graphics::BlitJob make_copy_job(
 		source_modulo,
 		destination_modulo,
 		plane_count,
+		0,
 		source_stride,
 		destination_stride,
 	};
@@ -178,6 +179,7 @@ amg::graphics::BlitJob make_masked_job(
 		0,
 		static_cast<amg::s16>(bytes_per_row - bob_words_per_row * sizeof(amg::u16)),
 		plane_count,
+		0,
 		bob_plane_bytes,
 		plane_bytes,
 	};

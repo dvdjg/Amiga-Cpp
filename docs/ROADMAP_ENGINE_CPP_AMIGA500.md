@@ -220,6 +220,10 @@ Entregables:
 - Save/restore de fondo.
 - Dirty rects y orden de restauracion/dibujo.
 - Presupuesto por BOB en funcion de ancho, alto y bitplanes.
+- Shifts de Blitter para X no alineada a 16 pixels.
+- Contribuciones opcionales de Copper asociadas a blobs/playfields: cambios de
+  paleta por franja, shifts por linea, splits de bitplanes y regiones no
+  rectangulares coordinadas por `CopperScheduler`.
 
 Pruebas:
 
@@ -233,6 +237,8 @@ Criterio de aceptacion:
 - Un personaje animado camina sobre una escena EHB sin dejar rastros.
 - El frame publica dirty rects fusionados y la prueba automatica valida al menos
   una fusion real de region anterior/nueva.
+- Un BOB puede dibujarse en X no alineada usando BLTCON shifts y la captura
+  automatica valida que aparece cerca de la coordenada logica esperada.
 - El motor sabe rechazar o advertir composiciones que excedan el presupuesto.
 - El MVP inicial debe mostrar al menos un BOB cookie-cut sobre EHB usando
   `FramePlan -> backend -> Blitter`, sin registros custom en la demo.
@@ -538,7 +544,10 @@ quedar abajo, coordinados por sistemas centrales y no por cada entidad.
 
 - `CopperScheduler`: unico dueno de la copperlist final. Ningun recurso debe
   escribir Copper por libre. Mezcla display setup, zonas de paleta, color cycling,
-  splits, sprites, waits, modulo/punteros y efectos raster.
+  splits, sprites, waits, modulo/punteros y efectos raster. Un blob o recurso
+  grafico podra aportar intenciones Copper asociadas, pero el scheduler seguira
+  siendo quien arbitre si caben en el raster y como se mezclan con el resto de la
+  escena.
 - `CopperTimeline`: slots por linea/H-BLANK con coste estimado. Debe rechazar o
   advertir cambios completos de paleta donde no caben.
 - `BlitterQueue`: trabajos ordenados por prioridad: clear, copy, cookie-cut,

@@ -113,7 +113,7 @@ struct DirtyReport {
 ///
 /// - `destination` debe apuntar a una posicion alineada a word dentro del primer
 ///   bitplane de destino;
-/// - no hay shifts de Blitter, asi que X debe ser multiplo de 16 pixels;
+/// - `source_shift` permite desplazar A/B de 0..15 pixels para X no alineada;
 /// - no hay clipping automatico;
 /// - si `kind` es enmascarado, `mask` es un unico plano de 1 bit compartido por
 ///   todos los bitplanes;
@@ -131,6 +131,7 @@ struct BlitJob {
 	s16 source_modulo_bytes = 0;
 	s16 destination_modulo_bytes = 0;
 	u8 bitplane_count = 0;
+	u8 source_shift = 0;
 	u32 source_plane_stride_bytes = 0;
 	u32 destination_plane_stride_bytes = 0;
 };
@@ -282,6 +283,7 @@ private:
 			job.words_per_row == 0 ||
 			job.height == 0 ||
 			job.bitplane_count == 0 ||
+			job.source_shift >= 16u ||
 			job.source_plane_stride_bytes == 0 ||
 			job.destination_plane_stride_bytes == 0
 		) {

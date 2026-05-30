@@ -118,6 +118,16 @@ La demo `050_blitter_bobs` debe:
   fusionados y `m` son fusiones realizadas. El estado saludable actual es
   `0x05020311`.
 
+La demo `051_blitter_shifted_bobs` debe:
+
+- compilar en debug;
+- ejecutarse en WinUAE-DBG;
+- alcanzar `side-channel READY`;
+- mostrar un BOB cookie-cut amarillo/blanco/cian sobre fondo EHB azul;
+- usar `BlitJob::source_shift` para dibujar en X no alineada a 16 pixels;
+- superar `demos\051_blitter_shifted_bobs\analyze-screenshot.ps1`;
+- dejar en `g_amg_run_status.detail` el estado saludable actual `0x05190301`.
+
 El contrato del canal lateral seguro debe pasar con:
 
 ```powershell

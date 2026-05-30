@@ -70,6 +70,18 @@ save de la nueva zona y draw cookie-cut. `FramePlan` tambien fusiona dirty rects
 para que las areas anterior/nueva del BOB se puedan tratar como una region logica
 de redraw aunque el backend siga emitiendo jobs concretos de Blitter.
 
+`demos/051_blitter_shifted_bobs` valida el siguiente contrato: un `BlitJob`
+enmascarado puede pedir `source_shift` y el backend lo traduce a los shifts A/B
+de `BLTCON0`/`BLTCON1`. Esto permite X no alineada a 16 pixels con una word extra
+por fila de fuente.
+
+Los blobs futuros tambien podran tener una contribucion Copper asociada. Por
+ejemplo: cambiar colores justo en sus franjas, ondular filas mediante scroll/splits
+de bitplanes o crear regiones no rectangulares. Esa informacion no debe escribir
+la copperlist directamente desde el blob; debe entrar como intencion en el
+`CopperScheduler` para resolver conflictos con paletas, playfields, sprites y
+otros efectos raster.
+
 Esta clase todavia no es el driver completo de aventura. Es el nucleo de display
 sobre el que construiremos `EhbRoomDriver`: BOBs, cursor hardware, profundidad por
 Y, hotspots, color cycling y scheduler central de Copper.

@@ -207,14 +207,18 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 
 			if (masked) {
 				custom_base[custom_bltcon0_offset] = static_cast<u16>(
+					(static_cast<u16>(job.source_shift) << 12u) |
 					blt_use_a | blt_use_b | blt_use_c | blt_use_d | blt_minterm_cookie_cut
+				);
+				custom_base[custom_bltcon1_offset] = static_cast<u16>(
+					static_cast<u16>(job.source_shift) << 12u
 				);
 			} else {
 				custom_base[custom_bltcon0_offset] = static_cast<u16>(
 					blt_use_c | blt_use_d | blt_minterm_copy_c
 				);
+				custom_base[custom_bltcon1_offset] = 0x0000;
 			}
-			custom_base[custom_bltcon1_offset] = 0x0000;
 			custom_base[custom_bltafwm_offset] = 0xffff;
 			custom_base[custom_bltalwm_offset] = 0xffff;
 			custom_base[custom_bltamod_offset] = static_cast<u16>(masked ? job.source_modulo_bytes : 0);

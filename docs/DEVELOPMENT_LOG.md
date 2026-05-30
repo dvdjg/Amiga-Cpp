@@ -226,6 +226,14 @@ Resultado verificado:
 - `FramePlan` tambien fusiona dirty rects. El 050 publica en `runStatus.detail`
   un dirty rect final y una fusion, y congela la imagen tras el frame validado para
   que las capturas automatizadas no caigan en mitad de `restore/save/draw`.
+- `BlitJob` incorpora `source_shift` y el backend Amiga lo programa como shift A/B
+  en `BLTCON0`/`BLTCON1`. La demo `051_blitter_shifted_bobs` dibuja un BOB
+  cookie-cut en X no alineada, con fuente de tres words por fila, y el analizador
+  verifica color, `runStatus.detail = 0x05190301` y posicion logica cercana a X=73.
+- Se deja como decision de arquitectura que un blob/playfield pueda aportar
+  intenciones Copper asociadas (paleta, splits, ondulaciones o regiones no
+  rectangulares), pero siempre canalizadas por `CopperScheduler`, no escribiendo
+  registros Copper desde el recurso individual.
 - El roadmap incorpora una seccion de abstracciones futuras: `RenderScene`
   retenido, `FramePlan`, `CopperScheduler`, `BlitterQueue`, `SpriteAllocator`,
   `DmaBudget`, drivers `RoadRaster`, `SpriteBackdrop`, `CopperHeavy` y efectos
@@ -234,7 +242,7 @@ Resultado verificado:
 Ultimo informe de regresion conocido:
 
 ```text
-out\regression\20260531-002553\regression-report.md
+out\regression\20260531-005233\regression-report.md
 ```
 
 ## Siguiente paso previsto
@@ -245,6 +253,6 @@ Siguiente bloque recomendado:
 
 1. Convertir el presupuesto de Blitter en warnings/criterios de aceptacion por
    frame.
-2. Añadir clipping y shifts para X no alineada a 16 pixels.
+2. Añadir clipping de Blitter para bordes de pantalla/camara.
 3. Añadir doble buffer de copperlist cuando un frame necesite cambiar estructura,
    no solo valores de `COLORxx`.
