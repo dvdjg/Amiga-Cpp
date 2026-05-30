@@ -100,3 +100,13 @@ La convivencia de depuracion normal GDB con canal lateral debe pasar con:
 Esta prueba pone un breakpoint GDB en `amg_debug_ready_probe`, continua, se para
 en `T05swbreak`, avanza paso a paso por instrucciones y mantiene lecturas
 laterales `state`/`regs` durante la ejecucion y en cada parada.
+
+El primer takeover reversible debe pasar con:
+
+```powershell
+.\tools\debug\verify-side-channel-takeover.ps1
+```
+
+Esta prueba toma lock `takeover`, escribe temporalmente cuatro bytes en
+`g_amg_run_status.detail`, verifica el cambio, consulta la auditoria y hace
+rollback al valor original.

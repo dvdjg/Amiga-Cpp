@@ -175,6 +175,14 @@ Resultado verificado:
   `amg_debug_ready_probe`, `continue`, parada `T05swbreak`, tres pasos
   instruccion-a-instruccion y lecturas por canal lateral simultaneas durante la
   ejecucion y tras cada parada. Verificacion local correcta el 2026-05-30.
+- Se ha añadido el primer `takeover` reversible: comandos laterales `poke`,
+  `rollback` y `audit`. `poke` exige lock `takeover`, guarda bytes previos, escribe
+  hasta 256 bytes, verifica lectura posterior y deja `writeId`. `rollback` restaura
+  los bytes originales y marca la auditoria como revertida.
+- Se ha añadido `tools/debug/verify-side-channel-takeover.mjs` con wrapper
+  PowerShell. La prueba escribe temporalmente `12345678` en
+  `g_amg_run_status.detail`, verifica por `mem`, consulta auditoria y revierte al
+  valor original. Verificacion local correcta el 2026-05-30.
 
 Ultimo informe de regresion conocido:
 

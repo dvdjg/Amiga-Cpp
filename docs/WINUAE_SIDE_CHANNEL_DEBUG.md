@@ -38,6 +38,10 @@ input key <scancode> <0|1>
 profile <frames> <out-file> [unwind-file]
 profile-status
 action status <id>
+poke <addr> <hex-bytes> [label]
+rollback <write-id>
+audit writes
+audit write <write-id>
 ```
 
 `state` devuelve, entre otros campos, `baseText`, `sections`, `pc`, `sr` y
@@ -75,6 +79,12 @@ El bloqueo es explicito:
 `input` y `profile` rechazan la orden si no existe lock en `assist` o `takeover`.
 `screenshot` se permite desde `observe` porque no modifica el estado Amiga visible;
 aun asi se ejecuta encolado en `vsync_pre()` como el resto de acciones seguras.
+
+`poke` y `rollback` requieren lock `takeover`. `poke` esta limitado a 256 bytes,
+lee primero el valor original, escribe, verifica por lectura posterior y crea una
+entrada de auditoria con `writeId`, direccion, longitud, bytes anteriores, bytes
+nuevos, owner y etiqueta. `rollback <write-id>` restaura los bytes originales y
+marca la auditoria como revertida.
 
 ## Prueba de contrato
 
@@ -125,6 +135,31 @@ La verificacion del 2026-05-30 paro en `amg_debug_ready_probe` runtime
 durante toda la sesion. Esto es el test reusable que debe ejecutarse antes de
 tocar pausa colaborativa, escrituras laterales, rollback o carga de codigo 68k en
 caliente.
+
+## Prueba Takeover Reversible
+
+La primera operacion peligrosa controlada se valida con:
+
+```powershell
+.\tools\debug\verify-side-channel-takeover.ps1
+```
+
+Esta prueba lanza `030_ehb_palette_zones`, espera `side-channel READY`, resuelve
+`g_amg_run_status` en runtime y usa `g_amg_run_status.detail` como zona de prueba
+segura. El flujo validado es:
+
+- `poke` sin lock devuelve `lock_required`;
+- `lock acquire codex takeover`;
+- `poke <detail> 12345678 takeover-test`;
+- `mem` verifica que los bytes cambiaron;
+- `audit write <id>` confirma owner, etiqueta, valor anterior y valor nuevo;
+- `rollback <id>`;
+- `mem` verifica que los bytes originales se restauraron;
+- `audit write <id>` queda con `rolledBack=true`;
+- `lock release codex`.
+
+En la verificacion del 2026-05-30 se cambio temporalmente
+`0x00c0d9d4` de `000000f4` a `12345678` y se restauro a `000000f4`.
 
 ## Problema que resuelve
 

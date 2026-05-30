@@ -14,6 +14,7 @@ function printUsageAndExit() {
   console.error('Comandos: hello | state | regs | mem <addr> <len> | runstatus <addr>');
   console.error('          lock status | lock acquire <owner> [observe|assist|takeover] | lock release [owner]');
   console.error('          screenshot <path> | input ... | profile ... | profile-status | action status <id>');
+  console.error('          poke <addr> <hex-bytes> [label] | rollback <write-id> | audit writes | audit write <id>');
   process.exit(2);
 }
 
