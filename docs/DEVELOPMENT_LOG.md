@@ -195,6 +195,10 @@ Resultado verificado:
 - `030_ehb_palette_zones` ya usa `StaticEhbScene`: la demo solo declara paletas y
   genera el patron planar de prueba. Los registros BPL/DIW/DDF/COLOR y el setup DMA
   quedan encapsulados en el driver.
+- Se ha añadido `engine/include/amg/graphics/copper/scheduler.hpp`. El
+  `CopperScheduler` minimo centraliza el setup EHB y las zonas de paleta, y produce
+  `ScheduleReport` con palabras usadas, waits, movimientos de paleta y avisos de
+  zonas pesadas visibles. Es el primer paso hacia `CopperTimeline`.
 - El roadmap incorpora una seccion de abstracciones futuras: `RenderScene`
   retenido, `FramePlan`, `CopperScheduler`, `BlitterQueue`, `SpriteAllocator`,
   `DmaBudget`, drivers `RoadRaster`, `SpriteBackdrop`, `CopperHeavy` y efectos
@@ -203,7 +207,7 @@ Resultado verificado:
 Ultimo informe de regresion conocido:
 
 ```text
-out\regression\20260529-120303\regression-report.md
+out\regression\20260530-233755\regression-report.md
 ```
 
 ## Siguiente paso previsto
@@ -212,8 +216,7 @@ La regresion automatizada ya existe en `tools/test-regression.ps1`.
 
 Siguiente bloque recomendado:
 
-1. Extraer de `030_ehb_palette_zones` un primer helper reutilizable para layout
-   planar EHB y carga de punteros BPL.
-2. Convertir la demo EHB en el primer embrion del driver `EhbScene`.
-3. Empezar a medir presupuestos Copper por zonas visibles.
+1. Crear `CopperTimeline` para modelar coste por linea/H-BLANK y conflictos.
+2. Añadir `PaletteCycleEffect` como primer efecto reutilizable de alto nivel.
+3. Verificarlo con una demo `040_palette_cycle_effect` y analizador de captura.
 4. Preparar una escena EHB exportable desde UAF-R.

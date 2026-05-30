@@ -41,6 +41,12 @@ El primer bloque reutilizable ya existe en
 - `StaticEhbScene`: reserva bitplanes/copperlist en Chip RAM, programa display
   320x256 EHB, activa bitplane DMA y construye la copperlist final.
 
+La copperlist ya pasa por `engine/include/amg/graphics/copper/scheduler.hpp`.
+Este `CopperScheduler` minimo no resuelve todavia conflictos complejos, pero ya
+centraliza el setup EHB, las paletas y las zonas raster, y devuelve un informe de
+coste para que las pruebas y el futuro exportador UAF-R puedan detectar escenas
+caras antes de que se conviertan en corrupcion visual.
+
 Esta clase todavia no es el driver completo de aventura. Es el nucleo de display
 sobre el que construiremos `EhbRoomDriver`: BOBs, cursor hardware, profundidad por
 Y, hotspots, color cycling y scheduler central de Copper.

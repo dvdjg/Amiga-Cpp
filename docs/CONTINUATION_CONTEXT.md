@@ -39,9 +39,10 @@ probarse con:
   y el runner lo usa sin detener el 68000.
 - La colaboracion profunda persona+IA sobre la misma instancia viva de WinUAE ya
   tiene canal lateral con `observe/assist/takeover`, debug lock y acciones seguras
-  encoladas para `screenshot`, `input` y `profile`. Sigue pendiente la parte
-  peligrosa: auditoria de escrituras, snapshots/rollback, pausa/reanudar por lock
-  y zona scratch para diagnostico 68k. Ver `docs\WINUAE_SIDE_CHANNEL_DEBUG.md`.
+  encoladas para `screenshot`, `input` y `profile`. Tambien existen `poke`,
+  `rollback`, `audit`, `pause` y `resume` bajo lock `takeover`. Sigue pendiente la
+  zona scratch para diagnostico 68k y carga controlada de rutinas temporales. Ver
+  `docs\WINUAE_SIDE_CHANNEL_DEBUG.md`.
 
 ## Estado minimo saludable
 
@@ -83,6 +84,9 @@ La demo `030_ehb_palette_zones` debe:
 - superar su analizador especifico `demos\030_ehb_palette_zones\analyze-screenshot.ps1`.
 - usar `StaticEhbScene` desde `engine\include\amg\graphics\drivers\ehb_scene.hpp`,
   de modo que la demo no programe registros BPL/DIW/DDF/COLOR directamente.
+- construir su copperlist mediante `CopperScheduler` desde
+  `engine\include\amg\graphics\copper\scheduler.hpp`, dejando disponible
+  `ScheduleReport` para presupuestos y diagnostico.
 
 El contrato del canal lateral seguro debe pasar con:
 

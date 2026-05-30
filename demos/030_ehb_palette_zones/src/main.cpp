@@ -62,8 +62,9 @@ constexpr ehb::EhbPalette bottom_palette {{
 /// Zonas de paleta de alto nivel.
 ///
 /// La demo ya no escribe instrucciones `WAIT/MOVE` directamente. El driver copia
-/// estas intenciones a una copperlist real, y mas adelante el `CopperScheduler`
-/// mezclara zonas de varios sistemas: fondo, color cycling, luces, agua o UI.
+/// estas intenciones a una copperlist real mediante el `CopperScheduler`, que es
+/// el punto donde se mezclaran varios sistemas: fondo, color cycling, luces, agua
+/// o UI.
 constexpr ehb::EhbPaletteZone palette_zones[] {
 	{0x70, &middle_palette},
 	{0xb8, &bottom_palette},

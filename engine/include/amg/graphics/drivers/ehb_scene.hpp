@@ -19,7 +19,7 @@
 /// duplicar los registros fisicos de paleta.
 
 #include <amg/core/types.hpp>
-#include <amg/graphics/copper/copper.hpp>
+#include <amg/graphics/copper/scheduler.hpp>
 #include <amg/graphics/driver.hpp>
 #include <amg/memory/arena.hpp>
 
@@ -88,51 +88,24 @@ public:
 			return false;
 		}
 
-		copper::ListBuilder copper { m_copper_block };
-
-		// Aseguramos que el estado de DMA queda bajo control del driver. Demos
-		// anteriores podian depender accidentalmente del estado de AmigaDOS; un
-		// driver reutilizable no debe hacerlo.
-		copper.move(
-			copper::Register::DMACON,
-			static_cast<u16>(copper::DmaSetClear | copper::DmaMaster | copper::DmaCopper | copper::DmaBitplane)
-		);
-
-		// BPU=6 activa seis bitplanes. El bit color mantiene salida color OCS. HAM
-		// queda apagado, por tanto Denise interpreta el sexto bitplane como EHB.
-		copper.move(copper::Register::BPLCON0, 0x6200);
-		copper.move(copper::Register::BPLCON1, 0x0000);
-		copper.move(copper::Register::BPLCON2, 0x0000);
-		copper.move(copper::Register::BPL1MOD, 0x0000);
-		copper.move(copper::Register::BPL2MOD, 0x0000);
-
-		// Ventana PAL lowres 320x256. Estos valores son los mismos que usaban las
-		// demos, ahora encapsulados para que el juego no cargue con ellos.
-		copper.move(copper::Register::DIWSTRT, 0x2c81);
-		copper.move(copper::Register::DIWSTOP, 0x2cc1);
-		copper.move(copper::Register::DDFSTRT, 0x0038);
-		copper.move(copper::Register::DDFSTOP, 0x00d0);
-
-		for (u8 plane = 0; plane < plane_count; ++plane) {
-			copper.move_bitplane_pointer(plane, m_bitplanes + static_cast<u32>(plane) * plane_bytes);
-		}
-
-		emit_palette(copper, *config.base_palette);
+		copper::Scheduler scheduler { m_copper_block };
+		scheduler.emit_ehb_320x256_display(m_bitplanes, plane_bytes);
+		scheduler.emit_palette(config.base_palette->color);
 		for (u8 i = 0; i < config.zone_count; ++i) {
 			const EhbPaletteZone& zone = config.zones[i];
 			if (zone.palette != nullptr) {
-				copper.wait_line(zone.line);
-				emit_palette(copper, *zone.palette);
+				scheduler.emit_palette_zone(zone.line, zone.palette->color);
 			}
 		}
 
-		copper.wait_line(0xf8);
-		copper.move(copper::Register::COLOR00, 0x0000);
-		copper.end();
+		scheduler.wait_line(0xf8);
+		scheduler.move(copper::Register::COLOR00, 0x0000);
+		scheduler.end();
 
-		m_copper_words = copper.words_used();
-		m_copper_words_ptr = copper.data();
-		m_ok = copper.ok();
+		m_copper_words = scheduler.words_used();
+		m_copper_words_ptr = scheduler.data();
+		m_copper_report = scheduler.report();
+		m_ok = scheduler.ok();
 		return m_ok;
 	}
 
@@ -156,18 +129,14 @@ public:
 	constexpr u8* bitplanes() const { return m_bitplanes; }
 	constexpr u16 copper_words() const { return m_copper_words; }
 	constexpr const u16* copper_words_ptr() const { return m_copper_words_ptr; }
+	constexpr const copper::ScheduleReport& copper_report() const { return m_copper_report; }
 
 private:
-	static void emit_palette(copper::ListBuilder& copper, const EhbPalette& palette) {
-		for (u8 i = 0; i < 32; ++i) {
-			copper.move(copper::color_register(i), palette.color[i]);
-		}
-	}
-
 	MemoryBlock m_bitplane_block {};
 	MemoryBlock m_copper_block {};
 	u8* m_bitplanes = nullptr;
 	const u16* m_copper_words_ptr = nullptr;
+	copper::ScheduleReport m_copper_report {};
 	u16 m_copper_words = 0;
 	bool m_ok = false;
 };
