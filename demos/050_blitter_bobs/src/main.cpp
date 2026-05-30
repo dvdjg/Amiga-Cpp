@@ -34,7 +34,7 @@ constexpr amg::u16 bob_width = 32;
 constexpr amg::u16 bob_height = 32;
 constexpr amg::u16 bob_words_per_row = bob_width / 16;
 constexpr amg::u32 bob_plane_bytes = bob_words_per_row * sizeof(amg::u16) * bob_height;
-constexpr amg::u16 bob_x = 112; // Multiplo de 16: esta primera demo no usa shifts.
+constexpr amg::u16 bob_start_x = 48; // Multiplo de 16: esta fase no usa shifts.
 constexpr amg::u16 bob_y = 92;
 constexpr amg::u16 blob_left_x = 48;
 constexpr amg::u16 blob_right_x = 224;
@@ -120,6 +120,60 @@ amg::u16* destination_at(amg::u8* planes, amg::u16 x, amg::u16 y) {
 	return reinterpret_cast<amg::u16*>(planes + destination_offset);
 }
 
+/// Posicion horizontal animada del BOB.
+///
+/// El movimiento se hace en pasos de 16 pixels para no mezclar todavia dos temas:
+/// save/restore por Blitter y shifts de Blitter. Cuando esta base este solida,
+/// anadiremos X arbitraria con BLTCON shifts y mascara de bordes.
+amg::u16 animated_bob_x(amg::u16 frame) {
+	const amg::u16 step = static_cast<amg::u16>((frame / 2u) % 10u);
+	return static_cast<amg::u16>(bob_start_x + step * 16u);
+}
+
+amg::graphics::BlitJob make_copy_job(
+	const amg::u16* source,
+	amg::u16* destination,
+	amg::s16 source_modulo,
+	amg::s16 destination_modulo,
+	amg::u32 source_stride,
+	amg::u32 destination_stride
+) {
+	return {
+		amg::graphics::BlitJobKind::CopyRect,
+		nullptr,
+		source,
+		destination,
+		bob_words_per_row,
+		bob_height,
+		source_modulo,
+		destination_modulo,
+		plane_count,
+		source_stride,
+		destination_stride,
+	};
+}
+
+amg::graphics::BlitJob make_masked_job(
+	amg::graphics::BlitJobKind kind,
+	const amg::u16* mask,
+	const amg::u16* source,
+	amg::u16* destination
+) {
+	return {
+		kind,
+		mask,
+		source,
+		destination,
+		bob_words_per_row,
+		bob_height,
+		0,
+		static_cast<amg::s16>(bytes_per_row - bob_words_per_row * sizeof(amg::u16)),
+		plane_count,
+		bob_plane_bytes,
+		plane_bytes,
+	};
+}
+
 struct DemoGame {
 	void init(amg::amiga::MinimalBackend& backend, amg::GameContext&) {
 		amg::debug::mark_init_started(g_amg_run_status);
@@ -147,7 +201,13 @@ struct DemoGame {
 		m_mask_block = backend.memory().chip.allocate(bob_plane_bytes, 16);
 		m_source_block = backend.memory().chip.allocate(bob_plane_bytes * plane_count, 16);
 		m_blob_source_block = backend.memory().chip.allocate(bob_plane_bytes * plane_count, 16);
-		if (!m_mask_block.valid() || !m_source_block.valid() || !m_blob_source_block.valid()) {
+		m_saved_background_block = backend.memory().chip.allocate(bob_plane_bytes * plane_count, 16);
+		if (
+			!m_mask_block.valid() ||
+			!m_source_block.valid() ||
+			!m_blob_source_block.valid() ||
+			!m_saved_background_block.valid()
+		) {
 			amg::debug::mark_failed(g_amg_run_status, 0x00000051u);
 			return;
 		}
@@ -166,48 +226,20 @@ struct DemoGame {
 		);
 
 		m_frame_plan.clear();
-		const amg::graphics::BlitJob bob_job {
-			amg::graphics::BlitJobKind::MaskedBobCookieCut,
-			static_cast<const amg::u16*>(m_mask_block.data),
-			static_cast<const amg::u16*>(m_source_block.data),
-			destination_at(m_scene.bitplanes(), bob_x, bob_y),
-			bob_words_per_row,
-			bob_height,
-			0,
-			static_cast<amg::s16>(bytes_per_row - bob_words_per_row * sizeof(amg::u16)),
-			plane_count,
-			bob_plane_bytes,
-			plane_bytes,
-		};
-		const amg::graphics::BlitJob blob_left_job {
+		const amg::graphics::BlitJob blob_left_job = make_masked_job(
 			amg::graphics::BlitJobKind::MaskedBlobNoSave,
 			static_cast<const amg::u16*>(m_mask_block.data),
 			static_cast<const amg::u16*>(m_blob_source_block.data),
-			destination_at(m_scene.bitplanes(), blob_left_x, blob_y),
-			bob_words_per_row,
-			bob_height,
-			0,
-			static_cast<amg::s16>(bytes_per_row - bob_words_per_row * sizeof(amg::u16)),
-			plane_count,
-			bob_plane_bytes,
-			plane_bytes,
-		};
-		const amg::graphics::BlitJob blob_right_job {
+			destination_at(m_scene.bitplanes(), blob_left_x, blob_y)
+		);
+		const amg::graphics::BlitJob blob_right_job = make_masked_job(
 			amg::graphics::BlitJobKind::MaskedBlobNoSave,
 			static_cast<const amg::u16*>(m_mask_block.data),
 			static_cast<const amg::u16*>(m_blob_source_block.data),
-			destination_at(m_scene.bitplanes(), blob_right_x, blob_y),
-			bob_words_per_row,
-			bob_height,
-			0,
-			static_cast<amg::s16>(bytes_per_row - bob_words_per_row * sizeof(amg::u16)),
-			plane_count,
-			bob_plane_bytes,
-			plane_bytes,
-		};
+			destination_at(m_scene.bitplanes(), blob_right_x, blob_y)
+		);
 
 		if (
-			!m_frame_plan.add_masked_bob(bob_job) ||
 			!m_frame_plan.add_masked_blob_no_save(blob_left_job) ||
 			!m_frame_plan.add_masked_blob_no_save(blob_right_job) ||
 			!backend.execute_frame_plan(m_frame_plan)
@@ -217,19 +249,76 @@ struct DemoGame {
 		}
 
 		m_blit_ok = true;
+		m_static_no_save_jobs = m_frame_plan.blit_budget().no_save_jobs;
 		m_scene.install(backend);
-		amg::debug::mark_ready(
-			g_amg_run_status,
-			0x05000000u |
-				(static_cast<amg::u32>(m_frame_plan.blit_budget().no_save_jobs) << 8u) |
-				m_frame_plan.blit_job_count()
-		);
 	}
 
 	void update(amg::amiga::MinimalBackend& backend, amg::GameContext& context) {
 		amg::debug::mark_frame(g_amg_run_status, context.frame.frame_index);
-		if (m_scene.ok()) {
-			m_scene.install(backend);
+		if (!m_blit_ok || !m_scene.ok()) {
+			return;
+		}
+
+		const amg::u16 current_x = animated_bob_x(context.frame.frame_index);
+		amg::u16* current_destination = destination_at(m_scene.bitplanes(), current_x, bob_y);
+		amg::u16* saved_background = static_cast<amg::u16*>(m_saved_background_block.data);
+
+		m_frame_plan.clear();
+
+		if (m_has_saved_background) {
+			const amg::graphics::BlitJob restore = make_copy_job(
+				static_cast<const amg::u16*>(m_saved_background_block.data),
+				destination_at(m_scene.bitplanes(), m_previous_x, bob_y),
+				0,
+				static_cast<amg::s16>(bytes_per_row - bob_words_per_row * sizeof(amg::u16)),
+				bob_plane_bytes,
+				plane_bytes
+			);
+			if (!m_frame_plan.add_restore_rect(restore)) {
+				amg::debug::mark_failed(g_amg_run_status, 0x00000053u);
+				return;
+			}
+		}
+
+		const amg::graphics::BlitJob save = make_copy_job(
+			current_destination,
+			saved_background,
+			static_cast<amg::s16>(bytes_per_row - bob_words_per_row * sizeof(amg::u16)),
+			0,
+			plane_bytes,
+			bob_plane_bytes
+		);
+		const amg::graphics::BlitJob draw = make_masked_job(
+			amg::graphics::BlitJobKind::MaskedBobCookieCut,
+			static_cast<const amg::u16*>(m_mask_block.data),
+			static_cast<const amg::u16*>(m_source_block.data),
+			current_destination
+		);
+
+		if (
+			!m_frame_plan.add_copy_rect(save) ||
+			!m_frame_plan.add_masked_bob(draw) ||
+			!backend.execute_frame_plan(m_frame_plan)
+		) {
+			amg::debug::mark_failed(g_amg_run_status, 0x00000054u);
+			return;
+		}
+
+		m_previous_x = current_x;
+		m_has_saved_background = true;
+		m_last_frame_jobs = m_frame_plan.blit_job_count();
+		m_last_frame_words = m_frame_plan.blit_budget().words;
+
+		m_scene.install(backend);
+
+		if (context.frame.frame_index >= 12u) {
+			amg::debug::mark_ready(
+				g_amg_run_status,
+				0x05000000u |
+					(static_cast<amg::u32>(m_static_no_save_jobs) << 16u) |
+					(static_cast<amg::u32>(m_last_frame_jobs) << 8u) |
+					static_cast<amg::u32>(m_last_frame_words / 128u)
+			);
 		}
 	}
 
@@ -248,6 +337,12 @@ struct DemoGame {
 	amg::MemoryBlock m_mask_block {};
 	amg::MemoryBlock m_source_block {};
 	amg::MemoryBlock m_blob_source_block {};
+	amg::MemoryBlock m_saved_background_block {};
+	amg::u16 m_previous_x = bob_start_x;
+	amg::u16 m_last_frame_words = 0;
+	amg::u8 m_static_no_save_jobs = 0;
+	amg::u8 m_last_frame_jobs = 0;
+	bool m_has_saved_background = false;
 };
 
 } // namespace

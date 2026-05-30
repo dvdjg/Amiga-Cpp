@@ -65,7 +65,8 @@ Blitter hardware sobre los 6 bitplanes EHB. Ya existen tipos para copia,
 restore, BOB cookie-cut y `MaskedBlobNoSave`. Este ultimo modela la tecnica tipo
 Mega Typhoon: blobs no solapados que se escriben directamente sobre un playfield
 sin guardar el fondo previo. Por ahora exige X alineada a 16 pixels y no hace
-clipping.
+clipping. El BOB principal ya se mueve con save/restore real: restore anterior,
+save de la nueva zona y draw cookie-cut.
 
 Esta clase todavia no es el driver completo de aventura. Es el nucleo de display
 sobre el que construiremos `EhbRoomDriver`: BOBs, cursor hardware, profundidad por

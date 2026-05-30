@@ -110,9 +110,12 @@ La demo `050_blitter_bobs` debe:
   sobre fondo EHB azul;
 - crear los trabajos como `BlitJob` dentro de `FramePlan`;
 - materializarlo desde `MinimalBackend::execute_frame_plan()` usando Blitter;
+- mover el BOB en pasos de 16 pixels usando save/restore real: restore anterior,
+  save nuevo fondo y draw cookie-cut;
 - superar `demos\050_blitter_bobs\analyze-screenshot.ps1`;
-- dejar en `g_amg_run_status.detail` una marca `0x0500nnjj`, donde `nn` son jobs
-  no-save y `jj` jobs totales. El estado saludable actual es `0x05000203`.
+- dejar en `g_amg_run_status.detail` una marca `0x05nnjjbb`, donde `nn` son jobs
+  no-save estaticos, `jj` jobs de Blitter del frame animado y `bb` unidades de
+  presupuesto. El estado saludable actual es `0x05020309`.
 
 El contrato del canal lateral seguro debe pasar con:
 

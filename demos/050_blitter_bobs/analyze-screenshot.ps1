@@ -72,10 +72,11 @@ try {
 	if (($detail -band 0xff000000) -ne 0x05000000) {
 		throw ("runStatus.detail no contiene la marca de la demo 050: 0x{0:x8}" -f $detail)
 	}
-	$jobCount = $detail -band 0xff
-	$noSaveJobs = ($detail -shr 8) -band 0xff
-	if ($jobCount -lt 3 -or $noSaveJobs -lt 2) {
-		throw ("runStatus.detail no refleja BOB + blobs no-save: 0x{0:x8}" -f $detail)
+	$budgetUnits = $detail -band 0xff
+	$frameJobs = ($detail -shr 8) -band 0xff
+	$noSaveJobs = ($detail -shr 16) -band 0xff
+	if ($frameJobs -lt 3 -or $noSaveJobs -lt 2 -or $budgetUnits -lt 1) {
+		throw ("runStatus.detail no refleja save/restore + blobs no-save: 0x{0:x8}" -f $detail)
 	}
 
 	[pscustomobject]@{
@@ -88,8 +89,9 @@ try {
 		BobWhiteSamples = $counts.bobWhite
 		BlobOrangeSamples = $counts.blobOrange
 		BlobMagentaSamples = $counts.blobMagenta
-		JobCount = $jobCount
+		FrameJobs = $frameJobs
 		NoSaveJobs = $noSaveJobs
+		BudgetUnits = $budgetUnits
 		RunDetail = ("0x{0:x8}" -f $detail)
 		Status = "OK"
 	} | Format-List

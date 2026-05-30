@@ -218,8 +218,11 @@ Resultado verificado:
   `MinimalBackend::execute_frame_plan()`.
 - Se ha añadido `demos/050_blitter_bobs`: dibuja un BOB de 32x32 y dos blobs
   no-save no solapados, todos X alineados a 16 pixels, sobre una escena EHB. La
-  demo valida el camino `FramePlan -> backend -> Blitter` y deja
-  `runStatus.detail = 0x05000203`.
+  demo valida el camino `FramePlan -> backend -> Blitter`.
+- `050_blitter_bobs` ahora anima el BOB usando save/restore real por Blitter:
+  restaura la posicion anterior, guarda el fondo de la nueva posicion y dibuja el
+  BOB cookie-cut. Los blobs no-save quedan fijos como ruta estilo Mega Typhoon. El
+  estado saludable actual deja `runStatus.detail = 0x05020309`.
 - El roadmap incorpora una seccion de abstracciones futuras: `RenderScene`
   retenido, `FramePlan`, `CopperScheduler`, `BlitterQueue`, `SpriteAllocator`,
   `DmaBudget`, drivers `RoadRaster`, `SpriteBackdrop`, `CopperHeavy` y efectos
@@ -228,7 +231,7 @@ Resultado verificado:
 Ultimo informe de regresion conocido:
 
 ```text
-out\regression\20260531-002019\regression-report.md
+out\regression\20260531-002553\regression-report.md
 ```
 
 ## Siguiente paso previsto
@@ -237,10 +240,9 @@ La regresion automatizada ya existe en `tools/test-regression.ps1`.
 
 Siguiente bloque recomendado:
 
-1. Ampliar `050_blitter_bobs` con animacion real, save/restore de fondo y dirty
-   rects.
-2. Convertir el presupuesto de Blitter en warnings/criterios de aceptacion por
+1. Convertir el presupuesto de Blitter en warnings/criterios de aceptacion por
    frame.
+2. Añadir dirty rect merging para agrupar restauraciones y redraws.
 3. Añadir clipping y shifts para X no alineada a 16 pixels.
 4. Añadir doble buffer de copperlist cuando un frame necesite cambiar estructura,
    no solo valores de `COLORxx`.

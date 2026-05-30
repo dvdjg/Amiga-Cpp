@@ -7,10 +7,12 @@ bitplanes. El juego no escribe registros del Blitter directamente: crea trabajos
 `BlitJob` en `FramePlan` y el backend Amiga los materializa con el Blitter
 hardware.
 
-La demo valida dos rutas:
+La demo valida tres rutas:
 
 - `MaskedBobCookieCut`: BOB normal que mas adelante necesitara save/restore si se
   mueve sobre fondo vivo.
+- `CopyRect`/`RestoreRect`: guardar el fondo bajo el BOB, restaurar la posicion
+  anterior y guardar la nueva antes de dibujar.
 - `MaskedBlobNoSave`: blobs no solapados estilo Mega Typhoon, pensados para pintar
   directamente sobre un playfield cuando sabemos que no hace falta conservar el
   contenido previo.
@@ -21,12 +23,12 @@ Restricciones de este MVP:
 - X alineada a 16 pixels, sin shifts;
 - sin clipping;
 - una unica mascara de 1 bit compartida por los 6 bitplanes;
-- save/restore existe como tipo de job copy/restore en `FramePlan`, pero la demo
-  aun no anima ni restaura fondo entre frames.
+- el BOB se mueve en pasos de 16 pixels y se restaura con un buffer de fondo
+  compacto en Chip RAM.
 
-El objetivo es fijar el contrato `FramePlan -> backend -> Blitter` y empezar a
-medir presupuesto por words/bitplanes antes de anadir dirty rects, restauracion de
-fondo y animacion.
+El objetivo es fijar el contrato `FramePlan -> backend -> Blitter`, demostrar
+save/restore real y empezar a medir presupuesto por words/bitplanes antes de
+anadir clipping, shifts y dirty rect merging.
 
 Comandos:
 
