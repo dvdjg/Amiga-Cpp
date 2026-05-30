@@ -479,3 +479,101 @@ Una fase se considera terminada solo si cumple:
 - regresion de fases anteriores ejecutada.
 
 No basta con que "se vea bien" una vez. Debe poder repetirse.
+
+## 20. Abstracciones que no debemos olvidar
+
+Esta seccion es la libreta de diseno del engine. La meta no es escribir demos
+aisladas, sino permitir juegos con ambicion visual tipo `Jim Power`, `Lionheart`,
+`OutRun Europa`, aventuras EHB modernas y, mas adelante, efectos de demoscene
+reutilizables. La logica de juego debe vivir arriba; los coprocesadores deben
+quedar abajo, coordinados por sistemas centrales y no por cada entidad.
+
+### 20.1 Modelo de juego portable
+
+- `GameWorld`: estado logico sin dependencia de Amiga.
+- `EntityId` y componentes ligeros: transform, sprite/actor, collider, trigger,
+  hotspot, script state.
+- `SceneGraph2D` retenido: capas, camaras, nodos visibles y orden de composicion.
+- `Camera2D`: seguimiento, limites, shake, parallax abstracto.
+- `InteractionLayer`: hotspots, walkboxes, zonas de profundidad, dialogos e
+  inventario para aventuras.
+- `Physics2D` simple: colisiones por tiles, slopes, plataformas, sensores y
+  triggers. Debe poder usarse tambien en futuros frontends Mega Drive/Neo Geo.
+
+### 20.2 Backend de plataforma
+
+- `PlatformBackend`: memoria, input, reloj, audio, display y debug.
+- `RenderBackend`: adaptador de driver grafico concreto. En Amiga traduce a
+  bitplanes/Copper/Blitter/sprites; en otra plataforma traducira a VDP/sprites/tilemaps.
+- `MemoryPolicy`: OS-friendly, takeover parcial o takeover completo.
+- `AssetRuntime`: carga recursos cocinados sin parsing pesado.
+- `DebugPort`: trazas, profiler, screenshots, input automatizado y canal lateral.
+
+### 20.3 Render retained-mode
+
+- `RenderScene`: descripcion estable de lo visible; no dibuja directamente.
+- `RenderLayer`: fondo, tilemap, parallax, actores, UI, overlays y efectos.
+- `RenderResourceHandle`: fondos, tilesets, palettes, sprites, BOBs, copper
+  templates y audio, siempre con ownership claro.
+- `RenderCommandBuffer`: comandos de alto nivel generados por el juego.
+- `RenderCompiler`: convierte comandos/layers a trabajos concretos del driver.
+- `FramePlan`: resultado por frame: blits, sprites asignados, copper patches,
+  cambios de paleta, DMA y warnings de presupuesto.
+
+### 20.4 Coprocesadores Amiga como servicios centrales
+
+- `CopperScheduler`: unico dueno de la copperlist final. Ningun recurso debe
+  escribir Copper por libre. Mezcla display setup, zonas de paleta, color cycling,
+  splits, sprites, waits, modulo/punteros y efectos raster.
+- `CopperTimeline`: slots por linea/H-BLANK con coste estimado. Debe rechazar o
+  advertir cambios completos de paleta donde no caben.
+- `BlitterQueue`: trabajos ordenados por prioridad: clear, copy, cookie-cut,
+  mask, restore background, tile column updates, fills y line draws.
+- `BlitterBudget`: coste estimado por job y por frame; si se satura, el engine
+  degrada o emite warning antes de romper la imagen.
+- `SpriteAllocator`: 8 canales hardware, attached pairs, multiplexado vertical,
+  prioridades, cursor reservado y fallback a BOB.
+- `DmaBudget`: bitplanes, sprites, audio, blitter y copper por modo grafico.
+
+### 20.5 Drivers graficos previstos
+
+- `StaticEhbScene`: ya iniciado. Fondo EHB estatico con zonas Copper.
+- `EhbRoomDriver`: aventura EHB retenida con BOBs, cursor, hotspots y color cycling.
+- `TileScrollDriver`: tilemaps 16x16, scroll fino/coarse y columnas recompuestas.
+- `Standard4/Standard5`: accion con menor presion DMA.
+- `FakeDPF`: 4 planos de juego + 1 plano auxiliar para fondo/sombra/marca.
+- `DualPlayfield`: playfields reales con scroll independiente y parallax.
+- `RoadRasterDriver`: carretera/rasters/sprites para pseudo-3D estilo arcade.
+- `SpriteBackdropDriver`: fondos hechos con sprites, strips o multiplexado.
+- `CopperHeavyDriver`: intros, transiciones, cielos, agua, plasma, wipes y efectos
+  de demoscene presupuestados.
+
+### 20.6 Efectos reutilizables
+
+- `PaletteCycleEffect`: agua, fuego, luces, neones.
+- `PaletteZoneEffect`: cambios completos/parciales por bandas.
+- `RasterGradientEffect`: cielos, niebla, horizonte.
+- `RasterDistortionEffect`: ondas, heat haze, agua.
+- `ParallaxEffect`: capas reales, fake-DPF o Copper splits.
+- `SpriteMultiplexEffect`: objetos/fondos por franjas verticales.
+- `BlitterTransitionEffect`: wipes, masks, reveals, page effects.
+- `RoadPerspectiveEffect`: tablas de escala/offset por linea.
+- `CopperScript`: formato portable desde UAF para describir intenciones, no
+  instrucciones raw sin arbitraje.
+
+### 20.7 Herramientas y UAF-R
+
+- Exportador UAF-R con validacion de presupuesto por driver.
+- Preview PC que use la misma descripcion retenida.
+- Reporte de memoria Chip/Slow por escena.
+- Reporte de Copper por linea y Blitter por frame.
+- Golden screenshots y pruebas de input automatizado.
+- Conversores de imagen a planar, sprites attached, BOB masks y tiles.
+
+### 20.8 Criterio arquitectonico
+
+Si un efecto necesita tocar directamente Copper, Blitter o sprites desde la logica
+del juego, falta una abstraccion. El juego debe pedir "agua con ciclo de paleta",
+"actor en capa de profundidad", "carretera con tabla de perspectiva" o "split de
+cielo"; el driver y los schedulers deciden si cabe en el frame y como materializarlo
+en el hardware.

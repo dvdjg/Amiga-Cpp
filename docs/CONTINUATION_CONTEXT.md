@@ -81,6 +81,8 @@ La demo `030_ehb_palette_zones` debe:
 - mostrar una reticula EHB con tres zonas verticales de paleta;
 - incluir muestras visibles de colores normales 0..31 y half-brite 32..63;
 - superar su analizador especifico `demos\030_ehb_palette_zones\analyze-screenshot.ps1`.
+- usar `StaticEhbScene` desde `engine\include\amg\graphics\drivers\ehb_scene.hpp`,
+  de modo que la demo no programe registros BPL/DIW/DDF/COLOR directamente.
 
 El contrato del canal lateral seguro debe pasar con:
 

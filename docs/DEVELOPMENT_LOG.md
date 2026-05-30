@@ -188,6 +188,17 @@ Resultado verificado:
   `vsync_pre()`; `resume` es inmediato para poder salir de una emulacion pausada.
   La prueba verifica pausa, lectura de memoria mientras esta detenido, reanudacion
   y cierre limpio del runner.
+- Se ha retomado el roadmap del engine con el primer nucleo reutilizable del driver
+  EHB: `engine/include/amg/graphics/drivers/ehb_scene.hpp`. `StaticEhbScene`
+  reserva bitplanes/copperlist en Chip RAM, activa 6 bitplanes EHB, habilita DMA de
+  bitplanes y compila paletas/zones de alto nivel a una copperlist real.
+- `030_ehb_palette_zones` ya usa `StaticEhbScene`: la demo solo declara paletas y
+  genera el patron planar de prueba. Los registros BPL/DIW/DDF/COLOR y el setup DMA
+  quedan encapsulados en el driver.
+- El roadmap incorpora una seccion de abstracciones futuras: `RenderScene`
+  retenido, `FramePlan`, `CopperScheduler`, `BlitterQueue`, `SpriteAllocator`,
+  `DmaBudget`, drivers `RoadRaster`, `SpriteBackdrop`, `CopperHeavy` y efectos
+  demoscene reutilizables.
 
 Ultimo informe de regresion conocido:
 

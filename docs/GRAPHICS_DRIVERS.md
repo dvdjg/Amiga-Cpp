@@ -29,9 +29,21 @@ Primer objetivo serio. Pensado para aventura grafica moderna:
 - cambios completos de paleta solo en zonas seguras o transiciones.
 
 La primera prueba ejecutable es `demos/030_ehb_palette_zones`: genera una reticula
-planar de indices 0..63, activa 6 bitplanes y usa el Copper para cambiar la paleta
-completa en tres zonas verticales. Es todavia una demo de infraestructura, no un
-driver reutilizable completo.
+planar de indices 0..63 y usa el Copper para cambiar la paleta completa en tres
+zonas verticales.
+
+El primer bloque reutilizable ya existe en
+`engine/include/amg/graphics/drivers/ehb_scene.hpp`:
+
+- `EhbPalette`: 32 colores fisicos RGB444.
+- `EhbPaletteZone`: cambio de paleta asociado a una linea raster.
+- `StaticEhbSceneConfig`: descripcion de una escena EHB estatica.
+- `StaticEhbScene`: reserva bitplanes/copperlist en Chip RAM, programa display
+  320x256 EHB, activa bitplane DMA y construye la copperlist final.
+
+Esta clase todavia no es el driver completo de aventura. Es el nucleo de display
+sobre el que construiremos `EhbRoomDriver`: BOBs, cursor hardware, profundidad por
+Y, hotspots, color cycling y scheduler central de Copper.
 
 ### `Standard5`
 
@@ -69,3 +81,15 @@ transiciones, cielos, agua o efectos demoscene.
 
 Si una escena necesita romper demasiadas reglas de un driver, probablemente no
 necesita mas excepciones: necesita otro driver.
+
+## Abstraccion central
+
+Los drivers no deben competir entre si por los coprocesadores. El orden previsto es:
+
+1. La logica de juego actualiza un `RenderScene` retenido.
+2. El driver grafico compila esa escena a un `FramePlan`.
+3. `CopperScheduler`, `BlitterQueue` y `SpriteAllocator` arbitran recursos.
+4. El backend Amiga emite registros, DMA y listas ya validadas.
+
+Esto es lo que permitira incorporar efectos de demoscene sin convertir cada juego
+en una coleccion de hacks irrepetibles.

@@ -23,6 +23,12 @@ Esta demo todavia no carga assets UAF-R. Su objetivo es validar los ladrillos
 close-to-the-metal: bitplanes EHB, punteros BPLx, modulo, DMA y cambios de paleta
 por raster.
 
+La demo ya no programa esos registros directamente desde `main.cpp`. Usa
+`StaticEhbScene`, definido en
+`engine/include/amg/graphics/drivers/ehb_scene.hpp`, para reservar bitplanes y
+copperlist en Chip RAM, activar 6 planos EHB y compilar zonas de paleta a Copper.
+El codigo de la demo solo genera el patron planar de prueba y declara las paletas.
+
 La reserva Chip se mantiene deliberadamente ajustada: seis bitplanes ocupan 61.440
 bytes y la copperlist cabe en 1 KB. Pedir bloques grandes en AmigaDOS/Kick 1.3 puede
 fallar por fragmentacion o memoria ya ocupada, asi que la demo no solicita margen
