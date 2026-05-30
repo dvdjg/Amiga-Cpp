@@ -88,6 +88,22 @@ public:
 			return false;
 		}
 
+		return rebuild_copper(config);
+	}
+
+	/// Reconstruye la copperlist sobre la memoria Chip ya reservada.
+	///
+	/// Este metodo es el puente minimo hacia efectos runtime. Un ciclo de paleta,
+	/// una luz o una transicion pueden generar una paleta temporal y pedir al driver
+	/// que regenere la lista sin volver a reservar bitplanes. Es mas caro que un
+	/// parche incremental, pero es perfecto para las primeras pruebas porque deja
+	/// toda la lista final visible y auditable.
+	bool rebuild_copper(const StaticEhbSceneConfig& config) {
+		if (!m_bitplane_block.valid() || !m_copper_block.valid() || config.base_palette == nullptr) {
+			m_ok = false;
+			return false;
+		}
+
 		copper::Scheduler scheduler { m_copper_block };
 		scheduler.emit_ehb_320x256_display(m_bitplanes, plane_bytes);
 		scheduler.emit_palette(config.base_palette->color);

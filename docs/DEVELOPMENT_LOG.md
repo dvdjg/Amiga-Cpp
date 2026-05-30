@@ -199,6 +199,14 @@ Resultado verificado:
   `CopperScheduler` minimo centraliza el setup EHB y las zonas de paleta, y produce
   `ScheduleReport` con palabras usadas, waits, movimientos de paleta y avisos de
   zonas pesadas visibles. Es el primer paso hacia `CopperTimeline`.
+- Se ha añadido `engine/include/amg/graphics/copper/timeline.hpp`. `CopperTimeline`
+  cuenta waits/moves por linea raster y marca lineas visibles que superan un
+  presupuesto conservador de H-BLANK. De momento informa, no prohibe: las escenas
+  Copper-heavy siguen siendo posibles, pero quedan trazadas.
+- Se ha añadido `engine/include/amg/graphics/effects/palette_cycle.hpp` y la demo
+  `040_palette_cycle_effect`. `PaletteCycleEffect` rota un tramo de paleta fisica
+  sin tocar bitplanes; la demo espera varias fases antes de `READY` y el analizador
+  comprueba captura y `runStatus.detail`.
 - El roadmap incorpora una seccion de abstracciones futuras: `RenderScene`
   retenido, `FramePlan`, `CopperScheduler`, `BlitterQueue`, `SpriteAllocator`,
   `DmaBudget`, drivers `RoadRaster`, `SpriteBackdrop`, `CopperHeavy` y efectos
@@ -207,7 +215,7 @@ Resultado verificado:
 Ultimo informe de regresion conocido:
 
 ```text
-out\regression\20260530-233755\regression-report.md
+out\regression\20260530-235232\regression-report.md
 ```
 
 ## Siguiente paso previsto
@@ -216,7 +224,9 @@ La regresion automatizada ya existe en `tools/test-regression.ps1`.
 
 Siguiente bloque recomendado:
 
-1. Crear `CopperTimeline` para modelar coste por linea/H-BLANK y conflictos.
-2. Añadir `PaletteCycleEffect` como primer efecto reutilizable de alto nivel.
-3. Verificarlo con una demo `040_palette_cycle_effect` y analizador de captura.
+1. Convertir la reconstruccion completa de copperlist en parches/paleta doble
+   buffer cuando el efecto solo cambie COLORxx.
+2. Añadir `FramePlan` minimo para que efectos, drivers y scheduler compartan una
+   descripcion por frame.
+3. Empezar `050_blitter_bobs`: BOB con mascara, save/restore y dirty rects.
 4. Preparar una escena EHB exportable desde UAF-R.

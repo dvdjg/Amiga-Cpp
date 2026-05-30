@@ -21,6 +21,7 @@
 
 #include <amg/core/types.hpp>
 #include <amg/graphics/copper/copper.hpp>
+#include <amg/graphics/copper/timeline.hpp>
 
 namespace amg::copper {
 
@@ -35,8 +36,12 @@ struct ScheduleReport {
 	u16 palette_moves = 0;
 	u16 waits = 0;
 	u16 heavy_palette_zones = 0;
+	u16 timeline_over_budget_lines = 0;
+	u8 heaviest_line = 0;
+	u8 heaviest_line_moves = 0;
 	bool ok = false;
 	bool has_visible_heavy_palette_zone = false;
+	bool has_visible_timeline_spill = false;
 };
 
 /// Compositor central de Copper para las primeras escenas.
@@ -65,6 +70,7 @@ public:
 	/// Emite un WAIT de raster sin asociarlo a una paleta.
 	void wait_line(u8 line) {
 		m_builder.wait_line(line);
+		m_timeline.reserve_wait(line);
 		++m_report.waits;
 	}
 
@@ -120,6 +126,7 @@ public:
 	/// medible para que el exportador y las pruebas puedan razonar sobre el coste.
 	void emit_palette_zone(u8 line, const u16* colors, u8 first = 0, u8 count = 32) {
 		wait_line(line);
+		m_timeline.reserve_moves(line, count);
 		if (count >= 16) {
 			++m_report.heavy_palette_zones;
 			if (line >= 0x2c && line <= 0xf0) {
@@ -132,8 +139,13 @@ public:
 	/// Finaliza la lista y congela el informe.
 	void end() {
 		m_builder.end();
+		const TimelineReport timeline = m_timeline.finish();
 		m_report.words_used = m_builder.words_used();
 		m_report.ok = m_builder.ok();
+		m_report.timeline_over_budget_lines = timeline.over_budget_lines;
+		m_report.heaviest_line = timeline.heaviest_line;
+		m_report.heaviest_line_moves = timeline.heaviest_line_moves;
+		m_report.has_visible_timeline_spill = timeline.has_visible_spill;
 	}
 
 	constexpr bool ok() const { return m_builder.ok(); }
@@ -143,6 +155,7 @@ public:
 
 private:
 	ListBuilder m_builder {};
+	Timeline m_timeline {};
 	ScheduleReport m_report {};
 };
 

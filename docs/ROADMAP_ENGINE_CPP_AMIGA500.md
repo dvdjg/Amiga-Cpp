@@ -59,10 +59,11 @@ demos/
   010_chip_slow_memory/
   020_copper_basic/
   030_ehb_palette_zones/
-  040_blitter_bobs/
-  050_hardware_sprites/
-  060_tile_scroll/
-  070_uaf_runtime_loader/
+  040_palette_cycle_effect/
+  050_blitter_bobs/
+  060_hardware_sprites/
+  070_tile_scroll/
+  080_uaf_runtime_loader/
   100_mvp_ehb_room/
   110_mvp_fake_dpf_platformer/
   120_mvp_dual_playfield_scroll/
@@ -182,23 +183,29 @@ Objetivo: primer driver real, orientado a aventura grafica con fondos ricos.
 Entregables:
 
 - Demo `030_ehb_palette_zones`.
+- Demo `040_palette_cycle_effect`.
 - Inicializacion de 6 bitplanes EHB.
 - Fondo planar EHB precocinado.
 - Zonas copper con cambios parciales de paleta.
 - Color cycling barato para agua, fuego o luces.
+- `CopperTimeline` minimo para medir coste por linea visible.
+- `PaletteCycleEffect` reutilizable sin redibujar bitplanes.
 - Documento del driver en `GRAPHICS_DRIVERS.md`.
 
 Pruebas:
 
 - Captura comparada contra imagen de referencia.
 - Verificacion de que los 32 colores base y los 32 half-brite se representan.
+- Verificacion de que un ciclo de paleta avanza varias fases antes de `READY`.
 - Analisis de H-BLANK para confirmar que los cambios copper por linea caben.
 - Warning automatico si se solicita un cambio de paleta completo en una linea visible.
 
 Criterio de aceptacion:
 
 - Una escena EHB estatica se ve igual que la referencia dentro de tolerancias RGB444.
-- Los cambios de paleta no generan corrupcion visible ni sobrepasan el presupuesto.
+- Los cambios de paleta no generan corrupcion visible.
+- Las zonas o efectos que excedan el presupuesto conservador quedan marcados en
+  `ScheduleReport`/`TimelineReport`.
 
 ## 8. Fase 4: blitter, BOBs y dirty rects
 
@@ -206,7 +213,7 @@ Objetivo: mover personajes y objetos sobre fondos EHB sin redibujar toda la esce
 
 Entregables:
 
-- Demo `040_blitter_bobs`.
+- Demo `050_blitter_bobs`.
 - BOB con mascara cookie-cut.
 - Save/restore de fondo.
 - Dirty rects y orden de restauracion/dibujo.
@@ -230,7 +237,7 @@ Objetivo: abstraer sprites hardware, attached sprites y fallback a BOB.
 
 Entregables:
 
-- Demo `050_hardware_sprites`.
+- Demo `060_hardware_sprites`.
 - Asignador de 8 canales de sprite.
 - Attached pairs para 15 colores.
 - Cursor hardware.
@@ -253,7 +260,7 @@ Objetivo: cargar escenas cocinadas desde UAF sin parsing pesado en Amiga.
 
 Entregables:
 
-- Demo `070_uaf_runtime_loader`.
+- Demo `080_uaf_runtime_loader`.
 - Especificacion inicial UAF-R.
 - Chunks: header, palettes, bitplanes, copper templates, patch tables, sprites,
   BOBs, tile metadata, collision, strings.
@@ -302,7 +309,7 @@ Objetivo: preparar el motor para plataformas y escenas con camara.
 
 Entregables:
 
-- Demo `060_tile_scroll`.
+- Demo `070_tile_scroll`.
 - Tilemap 16x16.
 - Scroll horizontal fino por `BPLCON1`.
 - Scroll coarse por punteros.

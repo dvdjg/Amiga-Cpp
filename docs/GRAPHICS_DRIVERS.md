@@ -47,6 +47,15 @@ centraliza el setup EHB, las paletas y las zonas raster, y devuelve un informe d
 coste para que las pruebas y el futuro exportador UAF-R puedan detectar escenas
 caras antes de que se conviertan en corrupcion visual.
 
+El coste por linea empieza en `engine/include/amg/graphics/copper/timeline.hpp`.
+`CopperTimeline` cuenta waits y moves por linea, marca las lineas visibles que
+superan un presupuesto conservador de H-BLANK y alimenta `ScheduleReport`.
+
+El primer efecto reusable esta en
+`engine/include/amg/graphics/effects/palette_cycle.hpp`. `PaletteCycleEffect`
+rota un tramo de paleta fisica sin tocar bitplanes; la demo
+`demos/040_palette_cycle_effect` lo valida con captura y `runStatus.detail`.
+
 Esta clase todavia no es el driver completo de aventura. Es el nucleo de display
 sobre el que construiremos `EhbRoomDriver`: BOBs, cursor hardware, profundidad por
 Y, hotspots, color cycling y scheduler central de Copper.

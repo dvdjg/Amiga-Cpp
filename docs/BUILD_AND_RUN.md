@@ -93,6 +93,10 @@ Opciones utiles:
   -SideChannelPort 2346
 ```
 
+La demo `040_palette_cycle_effect` usa ademas `run-report.json` como evidencia:
+su analizador comprueba que `g_amg_run_status.detail` contiene la marca
+`0x04xxxxxx` y una fase de ciclo distinta de cero.
+
 Para consultar una instancia viva manualmente:
 
 ```powershell

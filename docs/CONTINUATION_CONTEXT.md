@@ -88,6 +88,17 @@ La demo `030_ehb_palette_zones` debe:
   `engine\include\amg\graphics\copper\scheduler.hpp`, dejando disponible
   `ScheduleReport` para presupuestos y diagnostico.
 
+La demo `040_palette_cycle_effect` debe:
+
+- compilar en debug;
+- ejecutarse en WinUAE-DBG;
+- alcanzar `side-channel READY`;
+- mostrar bandas EHB cuya paleta rota sin redibujar bitplanes;
+- mantener una zona inferior Copper fija;
+- superar `demos\040_palette_cycle_effect\analyze-screenshot.ps1`;
+- dejar en `g_amg_run_status.detail` una marca `0x04xxxxxx` con fase distinta de
+  cero para demostrar que el ciclo ya avanzo antes de la captura.
+
 El contrato del canal lateral seguro debe pasar con:
 
 ```powershell
