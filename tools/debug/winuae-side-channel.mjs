@@ -12,6 +12,8 @@ function argValue(name, fallback = undefined) {
 function printUsageAndExit() {
   console.error('Uso: node tools/debug/winuae-side-channel.mjs <comando> [args...] [--port 2346]');
   console.error('Comandos: hello | state | regs | mem <addr> <len> | runstatus <addr>');
+  console.error('          lock status | lock acquire <owner> [observe|assist|takeover] | lock release [owner]');
+  console.error('          screenshot <path> | input ... | profile ... | profile-status | action status <id>');
   process.exit(2);
 }
 

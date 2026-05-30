@@ -160,6 +160,16 @@ Resultado verificado:
   siguientes incrementos del canal: `observe/assist/takeover`, debug lock,
   auditoria de escrituras y comandos seguros para profiler/screenshot/input.
   Ver `docs/WINUAE_SIDE_CHANNEL_DEBUG.md`.
+- El canal lateral ya implementa `observe/assist/takeover`, `lock acquire/release`,
+  acciones encoladas para `screenshot`, `input` y `profile`, `action status` y
+  `profile-status`. `input` y `profile` requieren lock `assist`/`takeover`.
+- Se ha añadido `tools/debug/verify-side-channel-contract.mjs`, que lanza
+  `030_ehb_palette_zones`, entra por el canal lateral mientras GDB sigue vivo,
+  comprueba el debug lock, inyecta raton emulado, captura PNG y genera un perfil
+  de 1 frame. Verificacion local correcta el 2026-05-30.
+- Durante esa validacion se corrigio en WinUAE-DBG el tokenizer del canal lateral:
+  las rutas Windows entrecomilladas conservan `\` y ya no se convierten en rutas
+  mutiladas como `C:Users...`.
 
 Ultimo informe de regresion conocido:
 

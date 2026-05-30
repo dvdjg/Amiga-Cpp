@@ -1,8 +1,8 @@
 param(
-	[Parameter(Mandatory = $true, ValueFromRemainingArguments = $true)]
-	[string[]]$Command,
+	[int]$Port = 2346,
 
-	[int]$Port = 2346
+	[Parameter(Mandatory = $true, Position = 0, ValueFromRemainingArguments = $true)]
+	[string[]]$Command,
 )
 
 $ErrorActionPreference = "Stop"

@@ -37,10 +37,11 @@ probarse con:
 - Las demos deben exponer `g_amg_run_status` y llegar a `Ready` por el canal
   lateral de WinUAE-DBG antes de la captura. El canal escucha en `127.0.0.1:2346`
   y el runner lo usa sin detener el 68000.
-- La colaboracion profunda persona+IA sobre la misma instancia viva de WinUAE esta
-  parcialmente resuelta en modo observacion por el canal lateral. Siguen pendientes
-  `observe/assist/takeover`, debug lock y auditoria de escrituras para operaciones
-  peligrosas. Ver `docs\WINUAE_SIDE_CHANNEL_DEBUG.md`.
+- La colaboracion profunda persona+IA sobre la misma instancia viva de WinUAE ya
+  tiene canal lateral con `observe/assist/takeover`, debug lock y acciones seguras
+  encoladas para `screenshot`, `input` y `profile`. Sigue pendiente la parte
+  peligrosa: auditoria de escrituras, snapshots/rollback, pausa/reanudar por lock
+  y zona scratch para diagnostico 68k. Ver `docs\WINUAE_SIDE_CHANNEL_DEBUG.md`.
 
 ## Estado minimo saludable
 
@@ -80,3 +81,12 @@ La demo `030_ehb_palette_zones` debe:
 - mostrar una reticula EHB con tres zonas verticales de paleta;
 - incluir muestras visibles de colores normales 0..31 y half-brite 32..63;
 - superar su analizador especifico `demos\030_ehb_palette_zones\analyze-screenshot.ps1`.
+
+El contrato del canal lateral seguro debe pasar con:
+
+```powershell
+node .\tools\debug\verify-side-channel-contract.mjs --settle-ms 9000
+```
+
+Esta prueba debe producir `side-channel-shot.png` y `side-channel-profile.bin` en
+`out\run\030_ehb_palette_zones` sin romper la conexion GDB del runner.

@@ -22,16 +22,80 @@ Comandos implementados:
 
 ```text
 hello
+mode
+lock status
+lock acquire <owner> [observe|assist|takeover]
+lock release [owner]
 state
 regs
 mem <hex-address> <length>
 runstatus <hex-address>
+screenshot <windows-path>
+input mouse abs <x> <y>
+input mouse move <dx> <dy>
+input mouse button <0..2> <0|1>
+input key <scancode> <0|1>
+profile <frames> <out-file> [unwind-file]
+profile-status
+action status <id>
 ```
 
 `state` devuelve, entre otros campos, `baseText`, `sections`, `pc`, `sr` y
 `cycles`. `sections` es importante porque un simbolo como `g_amg_run_status` puede
 vivir en `.data`, no en `.text`; el runner resuelve la direccion runtime usando el
 mapa del linker y los hunks reales reportados por WinUAE-DBG.
+
+Las ordenes con efectos laterales no se ejecutan en el hilo TCP. Se encolan y se
+procesan desde `vsync_pre()` dentro del ciclo de emulacion, para no llamar al
+renderer, input ni profiler desde un hilo ajeno a WinUAE. Devuelven primero:
+
+```json
+{"ok":true,"status":"queued","id":1}
+```
+
+El resultado se consulta con `action status <id>`.
+
+## Modos y debug lock
+
+El canal tiene tres modos operativos:
+
+- `observe`: lectura y captura no invasiva. Es el estado por defecto.
+- `assist`: permite acciones auxiliares como input emulado y profiler.
+- `takeover`: reservado para futuras operaciones de escritura, hot patching o
+  ejecucion de codigo 68k inyectado.
+
+El bloqueo es explicito:
+
+```powershell
+.\tools\debug\winuae-side-channel.ps1 lock acquire codex assist
+.\tools\debug\winuae-side-channel.ps1 input mouse abs 80 60
+.\tools\debug\winuae-side-channel.ps1 lock release codex
+```
+
+`input` y `profile` rechazan la orden si no existe lock en `assist` o `takeover`.
+`screenshot` se permite desde `observe` porque no modifica el estado Amiga visible;
+aun asi se ejecuta encolado en `vsync_pre()` como el resto de acciones seguras.
+
+## Prueba de contrato
+
+El contrato colaborativo basico se valida con:
+
+```powershell
+node .\tools\debug\verify-side-channel-contract.mjs --settle-ms 9000
+```
+
+La prueba lanza `030_ehb_palette_zones`, espera `side-channel READY`, comprueba que
+GDB sigue conectado, verifica que `input` falla sin lock, toma `assist`, inyecta
+raton emulado, captura una imagen lateral, ejecuta un perfil de 1 frame y libera el
+lock. En la verificacion del 2026-05-30 genero:
+
+- `out\run\030_ehb_palette_zones\side-channel-shot.png`
+- `out\run\030_ehb_palette_zones\side-channel-profile.bin`
+
+Durante esta prueba se encontro y corrigio un bug importante: el tokenizer del
+servidor consumia las barras `\` dentro de rutas Windows entrecomilladas. Ahora
+solo interpreta `\"` y `\\` como escapes; el resto de barras se conservan como
+separadores de ruta.
 
 ## Problema que resuelve
 
@@ -160,11 +224,11 @@ Pendiente para depuracion colaborativa profunda:
 - David arranca una sesion normal de debug desde Cursor/VS Code.
 - La IA se conecta al canal lateral de esa misma instancia.
 - La IA captura pantalla, lee registros y memoria sin romper la sesion.
+- La IA usa `assist` para input/profiler sin robar el socket GDB.
 - La IA pausa, inspecciona y reanuda con un debug lock visible.
 - La IA escribe un byte de memoria en una zona segura, verifica y revierte.
 - La IA carga una rutina 68k pequena en zona scratch, la ejecuta y restaura estado.
 - Todo queda documentado en un log de sesion.
 
-El siguiente incremento natural es anadir modos `observe/assist/takeover`, debug
-lock, auditoria de escrituras y comandos seguros para screenshot/profiler/input
-sin pasar por GDB.
+El siguiente incremento natural es la parte peligrosa: auditoria de escrituras,
+snapshots/rollback, pausa/reanudar por lock y zona scratch para diagnostico 68k.
