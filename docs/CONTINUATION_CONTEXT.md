@@ -90,3 +90,13 @@ node .\tools\debug\verify-side-channel-contract.mjs --settle-ms 9000
 
 Esta prueba debe producir `side-channel-shot.png` y `side-channel-profile.bin` en
 `out\run\030_ehb_palette_zones` sin romper la conexion GDB del runner.
+
+La convivencia de depuracion normal GDB con canal lateral debe pasar con:
+
+```powershell
+.\tools\debug\verify-gdb-step-side-channel.ps1 -Steps 3
+```
+
+Esta prueba pone un breakpoint GDB en `amg_debug_ready_probe`, continua, se para
+en `T05swbreak`, avanza paso a paso por instrucciones y mantiene lecturas
+laterales `state`/`regs` durante la ejecucion y en cada parada.

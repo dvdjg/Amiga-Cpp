@@ -170,6 +170,11 @@ Resultado verificado:
 - Durante esa validacion se corrigio en WinUAE-DBG el tokenizer del canal lateral:
   las rutas Windows entrecomilladas conservan `\` y ya no se convierten en rutas
   mutiladas como `C:Users...`.
+- Se ha añadido `tools/debug/verify-gdb-step-side-channel.mjs` con wrapper
+  PowerShell. Esta prueba valida la depuracion normal: breakpoint GDB en
+  `amg_debug_ready_probe`, `continue`, parada `T05swbreak`, tres pasos
+  instruccion-a-instruccion y lecturas por canal lateral simultaneas durante la
+  ejecucion y tras cada parada. Verificacion local correcta el 2026-05-30.
 
 Ultimo informe de regresion conocido:
 

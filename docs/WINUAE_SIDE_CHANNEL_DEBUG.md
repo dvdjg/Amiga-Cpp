@@ -97,6 +97,35 @@ servidor consumia las barras `\` dentro de rutas Windows entrecomilladas. Ahora
 solo interpreta `\"` y `\\` como escapes; el resto de barras se conservan como
 separadores de ruta.
 
+## Prueba GDB + canal lateral
+
+La depuracion normal y el canal lateral conviviendo se validan con:
+
+```powershell
+.\tools\debug\verify-gdb-step-side-channel.ps1 -Steps 3
+```
+
+La prueba compila `030_ehb_palette_zones`, lanza WinUAE con el perfil de pruebas,
+conecta GDB como lo haria el runner, mantiene abierto un cliente lateral y:
+
+- pone un breakpoint GDB en `amg_debug_ready_probe`;
+- hace `continue`;
+- consulta `state` por el canal lateral mientras el 68000 sigue corriendo y GDB
+  espera el breakpoint;
+- comprueba que el breakpoint para con `T05swbreak`;
+- lee registros por GDB y por el canal lateral y verifica el mismo PC;
+- ejecuta varios `vCont;s`/step instruction;
+- verifica que el PC avanza y que el canal lateral sigue respondiendo tras cada
+  parada;
+- limpia el breakpoint y confirma que `g_amg_run_status` sigue legible por el
+  canal lateral.
+
+La verificacion del 2026-05-30 paro en `amg_debug_ready_probe` runtime
+`0x00c0d684`, hizo tres pasos de instruccion y mantuvo el canal lateral operativo
+durante toda la sesion. Esto es el test reusable que debe ejecutarse antes de
+tocar pausa colaborativa, escrituras laterales, rollback o carga de codigo 68k en
+caliente.
+
 ## Problema que resuelve
 
 El flujo actual permite que la IA lance WinUAE, conecte por GDB/monitor, lea y
