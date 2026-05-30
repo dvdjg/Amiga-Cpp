@@ -10,10 +10,9 @@
 /// - el driver Amiga decide si las materializa como parches de copperlist, blits,
 ///   sprites hardware, CPU writes o cualquier otro mecanismo.
 ///
-/// De momento solo contiene parches de paleta porque es el siguiente cuello real:
-/// `PaletteCycleEffect` no deberia reconstruir toda una copperlist cuando solo
-/// cambian varios `COLORxx`. El mismo patron se ampliara con BOBs, sprites,
-/// scroll de tiles, prioridades y efectos raster.
+/// La primera version contenia solo parches de paleta. Ahora tambien describe un
+/// BOB planar enmascarado para que la demo 050 pueda pedir trabajo de Blitter sin
+/// escribir registros custom desde el juego.
 
 #include <amg/core/types.hpp>
 
@@ -39,6 +38,42 @@ struct PalettePatch {
 	const u16* colors = nullptr;
 };
 
+/// Tipos de trabajo de Blitter soportados por el plan actual.
+enum class BlitJobKind : u8 {
+	MaskedBobCookieCut,
+};
+
+/// Trabajo planar de BOB enmascarado.
+///
+/// Esta estructura describe el clasico cookie-cut:
+///
+/// `dest = (mask & source) | (~mask & dest)`
+///
+/// Restricciones de esta primera version:
+///
+/// - `destination` debe apuntar a una posicion alineada a word dentro del primer
+///   bitplane de destino;
+/// - no hay shifts de Blitter, asi que X debe ser multiplo de 16 pixels;
+/// - no hay clipping automatico;
+/// - `mask` es un unico plano de 1 bit compartido por todos los bitplanes;
+/// - `source` contiene los planos del BOB en formato planar contiguo.
+///
+/// Son restricciones intencionadas: nos dan una base verificable antes de meter
+/// scroll fino, clipping, restauracion de fondo y dirty rects.
+struct BlitJob {
+	BlitJobKind kind = BlitJobKind::MaskedBobCookieCut;
+	const u16* mask = nullptr;
+	const u16* source = nullptr;
+	u16* destination = nullptr;
+	u16 words_per_row = 0;
+	u16 height = 0;
+	s16 source_modulo_bytes = 0;
+	s16 destination_modulo_bytes = 0;
+	u8 bitplane_count = 0;
+	u32 source_plane_stride_bytes = 0;
+	u32 destination_plane_stride_bytes = 0;
+};
+
 /// Plan de render de un frame.
 ///
 /// Es un contenedor fijo, sin heap y sin STL. Cuando se llene, `ok()` pasa a false
@@ -48,9 +83,11 @@ struct PalettePatch {
 class FramePlan {
 public:
 	static constexpr u8 max_palette_patches = 8;
+	static constexpr u8 max_blit_jobs = 8;
 
 	void clear() {
 		m_palette_patch_count = 0;
+		m_blit_job_count = 0;
 		m_ok = true;
 	}
 
@@ -64,9 +101,37 @@ public:
 
 	constexpr bool ok() const { return m_ok; }
 	constexpr u8 palette_patch_count() const { return m_palette_patch_count; }
+	constexpr u8 blit_job_count() const { return m_blit_job_count; }
 
 	constexpr const PalettePatch& palette_patch(u8 index) const {
 		return m_palette_patches[index];
+	}
+
+	constexpr const BlitJob& blit_job(u8 index) const {
+		return m_blit_jobs[index];
+	}
+
+	bool add_masked_bob(const BlitJob& job) {
+		if (
+			job.mask == nullptr ||
+			job.source == nullptr ||
+			job.destination == nullptr ||
+			job.words_per_row == 0 ||
+			job.height == 0 ||
+			job.bitplane_count == 0 ||
+			job.source_plane_stride_bytes == 0 ||
+			job.destination_plane_stride_bytes == 0
+		) {
+			m_ok = false;
+			return false;
+		}
+		if (m_blit_job_count >= max_blit_jobs) {
+			m_ok = false;
+			return false;
+		}
+
+		m_blit_jobs[m_blit_job_count++] = job;
+		return true;
 	}
 
 private:
@@ -88,7 +153,9 @@ private:
 	}
 
 	PalettePatch m_palette_patches[max_palette_patches] {};
+	BlitJob m_blit_jobs[max_blit_jobs] {};
 	u8 m_palette_patch_count = 0;
+	u8 m_blit_job_count = 0;
 	bool m_ok = true;
 };
 

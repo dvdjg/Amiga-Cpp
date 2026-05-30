@@ -101,6 +101,17 @@ La demo `040_palette_cycle_effect` debe:
 - dejar en `g_amg_run_status.detail` una marca `0x04xxxxxx` con fase distinta de
   cero para demostrar que el ciclo ya avanzo antes de la captura.
 
+La demo `050_blitter_bobs` debe:
+
+- compilar en debug;
+- ejecutarse en WinUAE-DBG;
+- alcanzar `side-channel READY`;
+- mostrar un BOB cookie-cut amarillo/blanco sobre fondo EHB azul;
+- crear el trabajo como `BlitJob` dentro de `FramePlan`;
+- materializarlo desde `MinimalBackend::execute_frame_plan()` usando Blitter;
+- superar `demos\050_blitter_bobs\analyze-screenshot.ps1`;
+- dejar en `g_amg_run_status.detail` una marca `0x050000xx` con al menos un job.
+
 El contrato del canal lateral seguro debe pasar con:
 
 ```powershell

@@ -13,6 +13,7 @@
 ///   takeover completo o una mezcla de ambos.
 
 #include <amg/core/types.hpp>
+#include <amg/graphics/frame_plan.hpp>
 #include <amg/memory/arena.hpp>
 
 namespace amg::amiga {
@@ -93,6 +94,13 @@ public:
 	/// dispara COPJMP1 y activa DMA master + Copper. Es close-to-the-metal: el
 	/// sistema operativo no arbitra esta lista.
 	void install_copper_list(const u16* copper_words);
+
+	/// Ejecuta los trabajos hardware descritos por un `FramePlan`.
+	///
+	/// Por ahora solo materializa BOBs enmascarados mediante Blitter. Los parches de
+	/// paleta pertenecen al driver grafico (`StaticEhbScene`) porque son offsets
+	/// internos de su copperlist.
+	bool execute_frame_plan(const graphics::FramePlan& plan);
 
 	/// Activa/desactiva warp mode del emulador mediante la ayuda de WinUAE-DBG.
 	void set_warpmode(bool enabled);

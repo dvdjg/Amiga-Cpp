@@ -215,6 +215,8 @@ Entregables:
 
 - Demo `050_blitter_bobs`.
 - BOB con mascara cookie-cut.
+- `FramePlan` con trabajos de Blitter.
+- Backend Amiga capaz de materializar un BOB planar enmascarado con el Blitter.
 - Save/restore de fondo.
 - Dirty rects y orden de restauracion/dibujo.
 - Presupuesto por BOB en funcion de ancho, alto y bitplanes.
@@ -230,6 +232,8 @@ Criterio de aceptacion:
 
 - Un personaje animado camina sobre una escena EHB sin dejar rastros.
 - El motor sabe rechazar o advertir composiciones que excedan el presupuesto.
+- El MVP inicial debe mostrar al menos un BOB cookie-cut sobre EHB usando
+  `FramePlan -> backend -> Blitter`, sin registros custom en la demo.
 
 ## 9. Fase 5: hardware sprites y `VirtualSprite`
 
