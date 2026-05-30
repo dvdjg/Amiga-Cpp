@@ -21,6 +21,7 @@
 #include <amg/core/types.hpp>
 #include <amg/graphics/copper/scheduler.hpp>
 #include <amg/graphics/driver.hpp>
+#include <amg/graphics/frame_plan.hpp>
 #include <amg/memory/arena.hpp>
 
 namespace amg::graphics::drivers {
@@ -72,6 +73,7 @@ public:
 	static constexpr u8 plane_count = 6;
 	static constexpr u32 plane_bytes = static_cast<u32>(bytes_per_row) * height;
 	static constexpr u32 bitplane_bytes = plane_bytes * plane_count;
+	static constexpr u8 max_palette_zone_bindings = 8;
 
 	/// Reserva bitplanes y copperlist en Chip RAM y construye la copperlist.
 	///
@@ -104,12 +106,22 @@ public:
 			return false;
 		}
 
+		m_base_palette_value_word = 0;
+		m_zone_binding_count = 0;
+
 		copper::Scheduler scheduler { m_copper_block };
 		scheduler.emit_ehb_320x256_display(m_bitplanes, plane_bytes);
+		m_base_palette_value_word = static_cast<u16>(scheduler.words_used() + 1u);
 		scheduler.emit_palette(config.base_palette->color);
 		for (u8 i = 0; i < config.zone_count; ++i) {
 			const EhbPaletteZone& zone = config.zones[i];
 			if (zone.palette != nullptr) {
+				if (m_zone_binding_count < max_palette_zone_bindings) {
+					m_zone_bindings[m_zone_binding_count++] = {
+						zone.line,
+						static_cast<u16>(scheduler.words_used() + 3u),
+					};
+				}
 				scheduler.emit_palette_zone(zone.line, zone.palette->color);
 			}
 		}
@@ -123,6 +135,35 @@ public:
 		m_copper_report = scheduler.report();
 		m_ok = scheduler.ok();
 		return m_ok;
+	}
+
+	/// Aplica los parches de paleta de un `FramePlan`.
+	///
+	/// Este metodo no cambia la estructura de la copperlist: solo sustituye las
+	/// words de valor de MOVEs `COLORxx` que ya existen. Es el camino barato para
+	/// ciclos de paleta y luces. Si un efecto necesitase anadir nuevos `WAIT` o
+	/// nuevos registros, entonces si habria que recompilar la lista o usar doble
+	/// buffer de copperlists.
+	bool apply_frame_plan(const FramePlan& plan) {
+		if (!m_ok || !plan.ok()) {
+			return false;
+		}
+
+		for (u8 i = 0; i < plan.palette_patch_count(); ++i) {
+			const PalettePatch& patch = plan.palette_patch(i);
+			if (patch.target == PalettePatchTarget::Base) {
+				if (!patch_palette_values(m_base_palette_value_word, patch.first, patch.count, patch.colors)) {
+					return false;
+				}
+			} else {
+				const u16 value_word = find_zone_palette_value_word(patch.line);
+				if (value_word == 0 || !patch_palette_values(value_word, patch.first, patch.count, patch.colors)) {
+					return false;
+				}
+			}
+		}
+
+		return true;
 	}
 
 	/// Instala la copperlist del driver.
@@ -148,12 +189,48 @@ public:
 	constexpr const copper::ScheduleReport& copper_report() const { return m_copper_report; }
 
 private:
+	struct PaletteBinding {
+		u8 line = 0;
+		u16 first_value_word = 0;
+	};
+
+	bool patch_palette_values(u16 first_value_word, u8 first, u8 count, const u16* colors) {
+		if (first_value_word == 0 || colors == nullptr || first >= 32u) {
+			return false;
+		}
+		if (first + count > 32u) {
+			count = static_cast<u8>(32u - first);
+		}
+
+		u16* words = static_cast<u16*>(m_copper_block.data);
+		for (u8 i = 0; i < count; ++i) {
+			const u16 word_index = static_cast<u16>(first_value_word + static_cast<u16>(first + i) * 2u);
+			if (word_index >= m_copper_words) {
+				return false;
+			}
+			words[word_index] = colors[first + i];
+		}
+		return true;
+	}
+
+	u16 find_zone_palette_value_word(u8 line) const {
+		for (u8 i = 0; i < m_zone_binding_count; ++i) {
+			if (m_zone_bindings[i].line == line) {
+				return m_zone_bindings[i].first_value_word;
+			}
+		}
+		return 0;
+	}
+
 	MemoryBlock m_bitplane_block {};
 	MemoryBlock m_copper_block {};
 	u8* m_bitplanes = nullptr;
 	const u16* m_copper_words_ptr = nullptr;
 	copper::ScheduleReport m_copper_report {};
+	PaletteBinding m_zone_bindings[max_palette_zone_bindings] {};
+	u16 m_base_palette_value_word = 0;
 	u16 m_copper_words = 0;
+	u8 m_zone_binding_count = 0;
 	bool m_ok = false;
 };
 

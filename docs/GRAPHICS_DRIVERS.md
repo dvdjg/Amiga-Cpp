@@ -55,6 +55,9 @@ El primer efecto reusable esta en
 `engine/include/amg/graphics/effects/palette_cycle.hpp`. `PaletteCycleEffect`
 rota un tramo de paleta fisica sin tocar bitplanes; la demo
 `demos/040_palette_cycle_effect` lo valida con captura y `runStatus.detail`.
+La demo ya usa `engine/include/amg/graphics/frame_plan.hpp`: el efecto genera un
+parche de paleta en `FramePlan` y `StaticEhbScene` actualiza solo los valores de
+los MOVEs `COLORxx` existentes, sin recompilar la copperlist completa.
 
 Esta clase todavia no es el driver completo de aventura. Es el nucleo de display
 sobre el que construiremos `EhbRoomDriver`: BOBs, cursor hardware, profundidad por

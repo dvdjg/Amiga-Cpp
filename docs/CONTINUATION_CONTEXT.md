@@ -95,6 +95,8 @@ La demo `040_palette_cycle_effect` debe:
 - alcanzar `side-channel READY`;
 - mostrar bandas EHB cuya paleta rota sin redibujar bitplanes;
 - mantener una zona inferior Copper fija;
+- aplicar el ciclo mediante `FramePlan` y parches de paleta, no reconstruyendo toda
+  la copperlist cada frame;
 - superar `demos\040_palette_cycle_effect\analyze-screenshot.ps1`;
 - dejar en `g_amg_run_status.detail` una marca `0x04xxxxxx` con fase distinta de
   cero para demostrar que el ciclo ya avanzo antes de la captura.

@@ -526,6 +526,7 @@ quedar abajo, coordinados por sistemas centrales y no por cada entidad.
 - `RenderCompiler`: convierte comandos/layers a trabajos concretos del driver.
 - `FramePlan`: resultado por frame: blits, sprites asignados, copper patches,
   cambios de paleta, DMA y warnings de presupuesto.
+  Ya existe un primer `FramePlan` con parches de paleta para `040_palette_cycle_effect`.
 
 ### 20.4 Coprocesadores Amiga como servicios centrales
 

@@ -2,6 +2,7 @@
 #include <amg/debug/run_status.hpp>
 #include <amg/graphics/drivers/ehb_scene.hpp>
 #include <amg/graphics/effects/palette_cycle.hpp>
+#include <amg/graphics/frame_plan.hpp>
 #include <amg/platform/amiga_minimal.hpp>
 
 #include <proto/exec.h>
@@ -91,11 +92,12 @@ void build_cycle_test_pattern(amg::u8* planes) {
 
 /// Demo del primer efecto reutilizable.
 ///
-/// La demo no redibuja pixels: modifica una paleta runtime, reconstruye la
-/// copperlist con `StaticEhbScene::rebuild_copper()` y deja que el Copper aplique
-/// los colores nuevos. Es el patron que luego usaremos en drivers mas ambiciosos:
-/// el juego pide un efecto, el driver prepara un estado de render y el scheduler
-/// decide como escribirlo en el hardware.
+/// La demo no redibuja pixels ni recompila toda la copperlist cada frame. Modifica
+/// una paleta runtime, escribe una intencion en `FramePlan` y deja que
+/// `StaticEhbScene` parchee solo las words de valor de los MOVEs `COLOR01..07`.
+/// Ese es el patron que luego usaremos en drivers mas ambiciosos: el juego pide un
+/// efecto, el plan describe el cambio y el driver decide como escribirlo en el
+/// hardware.
 struct DemoGame {
 	void init(amg::amiga::MinimalBackend& backend, amg::GameContext&) {
 		amg::debug::mark_init_started(g_amg_run_status);
@@ -133,16 +135,13 @@ struct DemoGame {
 		m_cycle.update(context.frame.frame_index);
 		m_cycle.apply(source_palette, m_runtime_palette);
 
-		const drivers::StaticEhbSceneConfig scene_config {
-			&m_runtime_palette,
-			palette_zones,
-			static_cast<amg::u8>(sizeof(palette_zones) / sizeof(palette_zones[0])),
-			1024,
-		};
-
-		m_scene_ok = m_scene.rebuild_copper(scene_config);
-		if (!m_scene_ok) {
-			amg::debug::mark_failed(g_amg_run_status, 0x00000041u);
+		m_frame_plan.clear();
+		if (
+			!m_frame_plan.add_base_palette_patch(m_runtime_palette.color, 1, 7) ||
+			!m_scene.apply_frame_plan(m_frame_plan)
+		) {
+			m_scene_ok = false;
+			amg::debug::mark_failed(g_amg_run_status, 0x00000042u);
 			return;
 		}
 
@@ -170,6 +169,7 @@ struct DemoGame {
 	bool m_scene_ok = false;
 	drivers::StaticEhbScene m_scene {};
 	drivers::EhbPalette m_runtime_palette {};
+	amg::graphics::FramePlan m_frame_plan {};
 	effects::PaletteCycleEffect m_cycle {};
 };
 

@@ -207,6 +207,11 @@ Resultado verificado:
   `040_palette_cycle_effect`. `PaletteCycleEffect` rota un tramo de paleta fisica
   sin tocar bitplanes; la demo espera varias fases antes de `READY` y el analizador
   comprueba captura y `runStatus.detail`.
+- Se ha añadido `engine/include/amg/graphics/frame_plan.hpp`. La demo 040 ya no
+  recompila toda la copperlist cada frame: genera un `FramePlan` con un parche de
+  paleta y `StaticEhbScene` actualiza solo las words de valor de `COLOR01..07`.
+  `StaticEhbScene` guarda bindings de paleta base y zonas Copper al construir la
+  lista para poder parchearlas despues.
 - El roadmap incorpora una seccion de abstracciones futuras: `RenderScene`
   retenido, `FramePlan`, `CopperScheduler`, `BlitterQueue`, `SpriteAllocator`,
   `DmaBudget`, drivers `RoadRaster`, `SpriteBackdrop`, `CopperHeavy` y efectos
@@ -215,7 +220,7 @@ Resultado verificado:
 Ultimo informe de regresion conocido:
 
 ```text
-out\regression\20260530-235232\regression-report.md
+out\regression\20260531-000106\regression-report.md
 ```
 
 ## Siguiente paso previsto
@@ -224,9 +229,8 @@ La regresion automatizada ya existe en `tools/test-regression.ps1`.
 
 Siguiente bloque recomendado:
 
-1. Convertir la reconstruccion completa de copperlist en parches/paleta doble
-   buffer cuando el efecto solo cambie COLORxx.
-2. Añadir `FramePlan` minimo para que efectos, drivers y scheduler compartan una
-   descripcion por frame.
-3. Empezar `050_blitter_bobs`: BOB con mascara, save/restore y dirty rects.
+1. Empezar `050_blitter_bobs`: BOB con mascara, save/restore y dirty rects.
+2. Ampliar `FramePlan` con trabajos de blitter y presupuesto por frame.
+3. Añadir doble buffer de copperlist cuando un frame necesite cambiar estructura,
+   no solo valores de `COLORxx`.
 4. Preparar una escena EHB exportable desde UAF-R.
