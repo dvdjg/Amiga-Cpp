@@ -19,15 +19,15 @@ if ($Warp) {
 	& powershell -ExecutionPolicy Bypass -File $runScript `
 		"demos\101_ehb_tile_scroll_driver" `
 		-SettleMs 3500 `
-		-SequenceFrames 8 `
-		-SequenceIntervalMs 80 `
+		-SequenceFrames 12 `
+		-SequenceIntervalMs 120 `
 		-Warp
 } else {
 	& powershell -ExecutionPolicy Bypass -File $runScript `
 		"demos\101_ehb_tile_scroll_driver" `
 		-SettleMs 3500 `
-		-SequenceFrames 8 `
-		-SequenceIntervalMs 80
+		-SequenceFrames 12 `
+		-SequenceIntervalMs 120
 }
 if ($LASTEXITCODE -ne 0) {
 	throw "No se pudo capturar la secuencia animada de 101_ehb_tile_scroll_driver."
@@ -45,7 +45,7 @@ $detail = [uint32]$statusValue.detail
 $cameraX = ($detail -shr 16) -band 0xff
 $cameraY = ($detail -shr 8) -band 0xff
 $prefetchFlags = $detail -band 0x0f
-if ($report.finalSideChannel.frame -lt 160 -or $cameraX -gt 128 -or $cameraY -gt 128 -or (($prefetchFlags -band 0x3) -ne 0x3)) {
+if ($report.finalSideChannel.frame -lt 200 -or $cameraX -gt 128 -or $cameraY -gt 128 -or (($prefetchFlags -band 0x3) -ne 0x3)) {
 	throw ("La secuencia no alcanzo la fase circular con prefetch X/Y valido: frame={0} detail=0x{1:x8}" -f $report.finalSideChannel.frame, $detail)
 }
 
@@ -53,7 +53,12 @@ if ($report.finalSideChannel.frame -lt 160 -or $cameraX -gt 128 -or $cameraY -gt
 	-Source $sequenceDir `
 	-OutDir $frameScopeOut `
 	-Profile amiga-scroll `
+	-GridWidth 64 `
+	-GridHeight 48 `
+	-SearchRadius 12 `
+	-MaxProfileMismatches 0 `
+	-RequireProfileMatch `
 	-ExpectAnimated
 if ($LASTEXITCODE -ne 0) {
-	throw "FrameScope no pudo generar el diagnostico amiga-scroll."
+	throw "FrameScope no pudo validar el diagnostico amiga-scroll."
 }

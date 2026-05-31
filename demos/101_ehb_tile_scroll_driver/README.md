@@ -19,6 +19,11 @@ arriba dos tiles, vuelta abajo y, por ultimo, una orbita de cuatro tiles de radi
 La prueba de secuencia debe detectar movimiento real; una captura estatica solo
 valida que el estado final es coherente.
 
+Los tiles se generan en 64 variantes para que la escena sea visualmente legible y
+para que FrameScope pueda seguir marcas no periodicas entre frames. No es un
+formato artistico final: representa lo que mas adelante llegara desde UAF como
+tiles planarizados, metadatos de prioridad y presupuestos de carga.
+
 El prefetch escribe solo franjas lineales garantizadas fuera del viewport visible,
 incluyendo el caso de fine scroll. En `runStatus.detail` el nibble bajo publica
 flags de prefetch (`0x1` columnas, `0x2` filas).
@@ -31,7 +36,14 @@ Comandos:
 .\tools\analyze\analyze-demo.ps1 demos\101_ehb_tile_scroll_driver
 .\tools\run\run-demo.ps1 demos\101_ehb_tile_scroll_driver -SequenceFrames 4 -SequenceIntervalMs 80
 .\tools\analyze\analyze-frame-sequence.ps1 out\run\101_ehb_tile_scroll_driver\sequence -ExpectAnimated
+.\demos\101_ehb_tile_scroll_driver\analyze-sequence.ps1 -Warp
 ```
+
+`analyze-sequence.ps1` es la prueba reutilizable fuerte: captura 12 frames cada
+120 ms, comprueba que la animacion cambia y ejecuta FrameScope con perfil
+`amiga-scroll`, recorte automatico de viewport y `-RequireProfileMatch`. La prueba
+falla si la telemetria lateral de camara y el movimiento observado dejan de
+coincidir.
 
 Para verla a ritmo real sin que el runner cierre WinUAE:
 

@@ -34,6 +34,13 @@ struct CameraPixels {
 	amg::u16 y = 0;
 };
 
+/// Numero de tiles graficos distintos que compone esta demo.
+///
+/// Aunque el mapa logico sigue siendo una rejilla sencilla, usar 64 patrones evita
+/// que una herramienta de analisis confunda scroll real con repeticion visual.
+/// En un juego normal estos patrones vendrian del exportador UAF; aqui se generan
+/// a mano para que el ejemplo sea autocontenido y facil de depurar.
+constexpr amg::u16 tile_pattern_count = 64;
 constexpr amg::u16 map_tiles_x = 64;
 constexpr amg::u16 map_tiles_y = 32;
 constexpr amg::u16 surface_tiles_x = drivers::EhbTileScrollScene::surface_width / drivers::EhbTileScrollScene::tile_size;
@@ -44,7 +51,8 @@ constexpr amg::u16 route_center_pixels = tile_size * 4u;
 constexpr amg::u16 route_radius_pixels = tile_size * 4u;
 constexpr amg::u16 route_step_pixels = tile_size * 2u;
 constexpr amg::u16 axis_segment_frames = 40;
-constexpr amg::u16 circle_step_frames = 4;
+constexpr amg::u16 circle_entry_frames = 40;
+constexpr amg::u16 circle_step_frames = 2;
 constexpr amg::u16 logical_scroll_columns = map_tiles_x - surface_tiles_x + 1u;
 constexpr amg::u16 logical_scroll_rows = map_tiles_y - surface_tiles_y + 1u;
 
@@ -80,61 +88,89 @@ void clear_bytes(amg::u8* bytes, amg::u32 count) {
 	}
 }
 
+/// Construye el mapa virtual retenido que recorrera la camara.
+///
+/// En el engine final esta funcion desaparecera de la demo: el mapa vendra de UAF
+/// con capas, metadatos y posiblemente reglas de streaming. Mantenerla aqui tiene
+/// valor pedagogico porque separa con claridad "mundo logico" de "superficie
+/// fisica": el mapa mide 64x32 tiles, mientras que el driver solo muestra y
+/// recicla una superficie 480x416.
 void build_virtual_map(tilemap::PackedTileCell* cells) {
 	for (amg::u16 y = 0; y < map_tiles_y; ++y) {
 		for (amg::u16 x = 0; x < map_tiles_x; ++x) {
-			amg::u16 tile = 0;
+			// La demo no quiere parecer un tablero de test. Cada banda conserva una
+			// lectura estetica clara, pero mezcla x/y para introducir marcas
+			// reconocibles: columnas, diagonales y acentos. Esas marcas son las que
+			// FrameScope sigue entre frames para verificar que la camara se mueve
+			// como declara la telemetria lateral.
+			amg::u16 tile = static_cast<amg::u16>((x * 7u + y * 11u + ((x ^ y) & 7u)) & (tile_pattern_count - 1u));
 			if (y < 3) {
-				tile = static_cast<amg::u16>(((x + y * 5u) % 11u) == 0u ? 1u : 0u);
+				tile = static_cast<amg::u16>((tile & 0x30u) | (((x + y * 5u) % 11u) == 0u ? 1u : 0u));
 			} else if (y == 3) {
-				tile = static_cast<amg::u16>(2u + ((x / 3u) & 1u));
+				tile = static_cast<amg::u16>(2u + ((x / 3u) & 1u) + ((tile & 0x18u)));
 			} else if (y < 8) {
-				tile = static_cast<amg::u16>(4u + ((x + y) % 4u));
+				tile = static_cast<amg::u16>(4u + ((x + y) % 4u) + (tile & 0x30u));
 			} else if (y < 12) {
-				tile = static_cast<amg::u16>(8u + (((x / 2u) + y) % 4u));
+				tile = static_cast<amg::u16>(8u + (((x / 2u) + y) % 4u) + (tile & 0x30u));
 			} else {
-				tile = static_cast<amg::u16>(12u + ((x + y * 3u) % 4u));
+				tile = static_cast<amg::u16>(12u + ((x + y * 3u) % 4u) + (tile & 0x30u));
 			}
 			cells[static_cast<amg::u32>(y) * map_tiles_x + x].set_tile(tile);
 		}
 	}
 }
 
+/// Convierte tiles procedurales a formato planar 6bpp listo para Blitter.
+///
+/// Cada tile ocupa 6 planos consecutivos. Dentro de cada plano hay 16 words, una
+/// por fila de 16 pixels. Esa disposicion permite que `TileBlockCopy` copie una
+/// columna/fila offscreen sin transformar datos en runtime. Para assets reales, el
+/// exportador UAF deberia generar exactamente este tipo de cache o una variante
+/// compatible con el driver elegido.
 void build_tile_word_cache(amg::u16* tile_words) {
-	for (amg::u16 tile = 0; tile < 16; ++tile) {
+	for (amg::u16 tile = 0; tile < tile_pattern_count; ++tile) {
 		for (amg::u8 y = 0; y < tile_size; ++y) {
+			// `shape` decide la familia visual principal y `variant` introduce
+			// variacion de color/mascara sin cambiar el formato planar. La idea es
+			// didactica: un tile 16x16 en Amiga es solo una pila de words, uno por
+			// plano y fila, y el color final sale de combinar bits de los 6 planos.
+			const amg::u8 shape = static_cast<amg::u8>(tile & 15u);
+			const amg::u8 variant = static_cast<amg::u8>((tile >> 4u) & 3u);
 			amg::u8 color_a = 2;
 			amg::u8 color_b = 3;
 			amg::u8 color_accent = 5;
 			amg::u16 mask_a = 0xffffu;
 			amg::u16 mask_accent = 0x0000u;
 
-			if (tile <= 1u) {
-				mask_accent = (tile == 1u && y >= 5u && y <= 11u) ? 0x3ffcu : 0x0000u;
-			} else if (tile <= 3u) {
-				color_a = 8;
-				color_b = 9;
-				color_accent = 33;
+			if (shape <= 1u) {
+				color_a = static_cast<amg::u8>(2u + variant);
+				color_b = static_cast<amg::u8>(3u + variant);
+				color_accent = static_cast<amg::u8>(5u + variant * 8u);
+				mask_accent = (shape == 1u && y >= 5u && y <= 11u) ? static_cast<amg::u16>(0x3ffcu ^ (variant * 0x1111u)) : 0x0000u;
+			} else if (shape <= 3u) {
+				color_a = static_cast<amg::u8>(8u + variant);
+				color_b = static_cast<amg::u8>(9u + variant);
+				color_accent = static_cast<amg::u8>(33u + variant * 2u);
 				mask_a = y > 8u ? 0xffffu : static_cast<amg::u16>(0xffffu >> (8u - y));
-				mask_accent = static_cast<amg::u16>(0x8000u >> ((y + tile * 3u) & 15u));
-			} else if (tile <= 7u) {
-				color_a = static_cast<amg::u8>(10u + (tile & 1u));
-				color_b = static_cast<amg::u8>(42u + (tile & 1u));
-				color_accent = (tile & 2u) ? 13u : 7u;
-				mask_a = (y & 4u) ? 0x33ccu : 0xcc33u;
-				mask_accent = static_cast<amg::u16>(0x1111u << (y & 3u));
-			} else if (tile <= 11u) {
-				color_a = 6;
-				color_b = 39;
-				color_accent = (tile & 1u) ? 14u : 15u;
-				mask_a = (y & 4u) ? 0xaaaau : 0x5555u;
-				mask_accent = (y == 0u || y == 15u) ? 0xffffu : static_cast<amg::u16>(0x8001u >> (y & 3u));
+				mask_accent = static_cast<amg::u16>(0x8000u >> ((y + shape * 3u + variant) & 15u));
+			} else if (shape <= 7u) {
+				color_a = static_cast<amg::u8>(10u + (shape & 1u) + variant);
+				color_b = static_cast<amg::u8>(42u + (shape & 1u) + variant);
+				color_accent = (shape & 2u) ? static_cast<amg::u8>(13u + variant) : static_cast<amg::u8>(7u + variant);
+				mask_a = (y & 4u) ? static_cast<amg::u16>(0x33ccu ^ (variant * 0x1111u)) : static_cast<amg::u16>(0xcc33u ^ (variant * 0x1111u));
+				mask_accent = static_cast<amg::u16>(0x1111u << ((y + variant) & 3u));
+			} else if (shape <= 11u) {
+				color_a = static_cast<amg::u8>(6u + variant);
+				color_b = static_cast<amg::u8>(39u + variant);
+				color_accent = (shape & 1u) ? static_cast<amg::u8>(14u + variant) : static_cast<amg::u8>(15u + variant);
+				mask_a = (y & 4u) ? static_cast<amg::u16>(0xaaaau ^ (variant * 0x1111u)) : static_cast<amg::u16>(0x5555u ^ (variant * 0x1111u));
+				mask_accent = (y == 0u || y == 15u) ? 0xffffu : static_cast<amg::u16>(0x8001u >> ((y + variant) & 3u));
 			} else {
-				color_a = 3;
-				color_b = 35;
-				color_accent = (tile & 1u) ? 12u : 5u;
-				mask_a = (y & 2u) ? 0xccccu : 0x3333u;
-				mask_accent = static_cast<amg::u16>(0x00f0u << (y & 3u));
+				color_a = static_cast<amg::u8>(3u + variant);
+				color_b = static_cast<amg::u8>(35u + variant * 2u);
+				color_accent = (shape & 1u) ? static_cast<amg::u8>(12u + variant) : static_cast<amg::u8>(5u + variant);
+				mask_a = (y & 2u) ? static_cast<amg::u16>(0xccccu ^ (variant * 0x1111u)) : static_cast<amg::u16>(0x3333u ^ (variant * 0x1111u));
+				mask_accent = static_cast<amg::u16>(0x00f0u << ((y + variant) & 3u));
 			}
 
 			const amg::u16 mask_b = static_cast<amg::u16>(~(mask_a | mask_accent));
@@ -159,13 +195,25 @@ void build_tile_word_cache(amg::u16* tile_words) {
 	}
 }
 
+/// Devuelve el inicio planar de un tile dentro de la cache Chip RAM.
+///
+/// El indice se enmascara contra `tile_pattern_count - 1` porque esta demo usa una
+/// biblioteca de patrones potencia de dos. En un engine de produccion lo normal
+/// sera validar el indice al cargar la escena y no pagar comprobaciones extra en
+/// cada upload de Blitter.
 const amg::u16* tile_source(const amg::MemoryBlock& block, amg::u16 tile_index) {
 	return reinterpret_cast<const amg::u16*>(
 		static_cast<const amg::u8*>(block.data) +
-		static_cast<amg::u32>(tile_index & 15u) * drivers::EhbTileScrollScene::tile_bytes()
+		static_cast<amg::u32>(tile_index & (tile_pattern_count - 1u)) * drivers::EhbTileScrollScene::tile_bytes()
 	);
 }
 
+/// Estampa un tile por CPU durante la inicializacion.
+///
+/// Esta ruta no es la que queremos para streaming en juego; se usa solo para
+/// poblar la superficie inicial antes de arrancar la animacion. Los cambios
+/// incrementales posteriores pasan por `FramePlan` y Blitter, que es el contrato
+/// relevante para el engine.
 void stamp_tile_cpu(
 	drivers::EhbTileScrollScene& scene,
 	const amg::u16* tile,
@@ -185,6 +233,12 @@ void stamp_tile_cpu(
 }
 
 struct DemoGame {
+	/// Reserva memoria, genera assets procedurales y deja instalada la primera lista Copper.
+	///
+	/// La secuencia de inicializacion refleja el orden que necesitara una room real:
+	/// configurar arenas, reservar bitplanes/copperlist en Chip RAM, cargar tiles,
+	/// preparar la superficie fisica y publicar un primer estado lateral para que
+	/// las pruebas sepan que la demo esta viva.
 	void init(amg::amiga::MinimalBackend& backend, amg::GameContext&) {
 		amg::debug::mark_init_started(g_amg_run_status);
 		if (!backend.configure_memory({180u * 1024u, 16u * 1024u, 8u * 1024u})) {
@@ -203,7 +257,7 @@ struct DemoGame {
 			return;
 		}
 
-		m_tiles = backend.memory().chip.allocate(drivers::EhbTileScrollScene::tile_bytes() * 16u, 16);
+		m_tiles = backend.memory().chip.allocate(drivers::EhbTileScrollScene::tile_bytes() * tile_pattern_count, 16);
 		if (!m_tiles.valid()) {
 			amg::debug::mark_failed(g_amg_run_status, 0x00000112u);
 			return;
@@ -221,9 +275,11 @@ struct DemoGame {
 			}
 		}
 
-		// El anillo arranca con las primeras 24x20 celdas de mundo ya estampadas en
-		// la superficie. Cuando la camara logica avance en X o Y, el planificador 2D
-		// detectara que slots fisicos deben reciclarse y pedira franjas offscreen.
+		// La superficie lineal arranca completamente poblada. El objeto `m_ring`
+		// sigue llevando la contabilidad de que columnas/filas de mundo estan listas
+		// en cada slot fisico porque ese contrato sera el mismo cuando pasemos a una
+		// superficie circular real. En este MVP todavia limitamos la ruta al margen
+		// seguro de 480x416 para poder razonar el Copper y el Blitter por separado.
 		m_scheduler.reset();
 		m_ring.reset(0, 0);
 
@@ -243,6 +299,13 @@ struct DemoGame {
 		m_ready = true;
 	}
 
+	/// Avanza la camara retenida, prepara tiles offscreen y recompila el display.
+	///
+	/// El juego solo decide una posicion de camara. El resto se reparte en capas:
+	/// el scheduler decide que tiles faltan, `FramePlan` convierte esos tiles en
+	/// trabajos de Blitter y `EhbTileScrollScene` traduce la camara a punteros de
+	/// bitplane + `BPLCON1`. Esta separacion es la base para soportar otros drivers
+	/// y, mas adelante, otras maquinas.
 	void update(amg::amiga::MinimalBackend& backend, amg::GameContext& context) {
 		amg::debug::mark_frame(g_amg_run_status, context.frame.frame_index);
 		if (m_ready) {
@@ -260,6 +323,11 @@ struct DemoGame {
 		}
 	}
 
+	/// Reinstala la copperlist vigente y mantiene vivo el probe lateral.
+	///
+	/// En esta demo la lista se recompila en `update`, pero reinstalarla en render
+	/// deja claro el punto de compromiso del frame: lo que llega aqui es lo que el
+	/// Amiga debe mostrar durante el siguiente refresco.
 	void render(amg::amiga::MinimalBackend& backend, amg::GameContext& context) {
 		if (m_ready) {
 			m_scene.install(backend);
@@ -300,33 +368,56 @@ struct DemoGame {
 		return static_cast<amg::u16>(from - ((static_cast<amg::u32>(from - to) * step) / steps));
 	}
 
+	/// Componente X de una circunferencia de 64 pasos y 64 pixels de radio.
+	///
+	/// La tabla evita depender de `sin/cos` o de libm en m68k, y deja una ruta muy
+	/// visible para FrameScope: cada paso es pequeno, continuo y repetible. Los
+	/// valores estan redondeados a pixels enteros, suficiente para una demo de
+	/// scroll de bitplanes.
 	static constexpr amg::s16 circle_offset_x(amg::u8 index) {
 		constexpr amg::s16 offsets[] {
-			64, 63, 59, 53, 45, 36, 24, 12,
-			0, -12, -24, -36, -45, -53, -59, -63,
-			-64, -63, -59, -53, -45, -36, -24, -12,
-			0, 12, 24, 36, 45, 53, 59, 63,
+			64, 64, 63, 61, 59, 56, 53, 49,
+			45, 41, 36, 31, 24, 18, 12, 6,
+			0, -6, -12, -18, -24, -31, -36, -41,
+			-45, -49, -53, -56, -59, -61, -63, -64,
+			-64, -64, -63, -61, -59, -56, -53, -49,
+			-45, -41, -36, -31, -24, -18, -12, -6,
+			0, 6, 12, 18, 24, 31, 36, 41,
+			45, 49, 53, 56, 59, 61, 63, 64,
 		};
-		return offsets[index & 31u];
+		return offsets[index & 63u];
 	}
 
+	/// Componente Y de la misma circunferencia de 64 pasos.
+	///
+	/// Y positivo significa camara mas baja dentro de la superficie. En pantalla el
+	/// contenido se movera hacia arriba, que es justo lo que FrameScope contrasta
+	/// contra la telemetria de camara.
 	static constexpr amg::s16 circle_offset_y(amg::u8 index) {
 		constexpr amg::s16 offsets[] {
-			0, 12, 24, 36, 45, 53, 59, 63,
-			64, 63, 59, 53, 45, 36, 24, 12,
-			0, -12, -24, -36, -45, -53, -59, -63,
-			-64, -63, -59, -53, -45, -36, -24, -12,
+			0, 6, 12, 18, 24, 31, 36, 41,
+			45, 49, 53, 56, 59, 61, 63, 64,
+			64, 64, 63, 61, 59, 56, 53, 49,
+			45, 41, 36, 31, 24, 18, 12, 6,
+			0, -6, -12, -18, -24, -31, -36, -41,
+			-45, -49, -53, -56, -59, -61, -63, -64,
+			-64, -64, -63, -61, -59, -56, -53, -49,
+			-45, -41, -36, -31, -24, -18, -12, -6,
 		};
-		return offsets[index & 31u];
+		return offsets[index & 63u];
 	}
 
 	/// Ruta visible de validacion.
 	///
 	/// La camara empieza en el centro del margen oculto. Primero se mueve dos tiles
 	/// a la derecha, vuelve, sube dos tiles, vuelve, y despues recorre una orbita de
-	/// cuatro tiles de radio. Toda la ruta queda dentro de la superficie lineal, asi
-	/// que los uploads de prefetch pueden escribirse fuera de pantalla sin asomar
-	/// tiles a mitad del viewport.
+	/// cuatro tiles de radio. Hay un tramo de entrada desde el centro al borde
+	/// derecho de la circunferencia para evitar un salto visual justo antes de la
+	/// fase mas importante de la prueba.
+	///
+	/// Toda la ruta queda dentro de la superficie lineal, asi que los uploads de
+	/// prefetch pueden escribirse fuera de pantalla sin asomar tiles a mitad del
+	/// viewport.
 	static constexpr CameraPixels scripted_camera(amg::u32 frame_index) {
 		const amg::u16 base = route_center_pixels;
 		const amg::u16 right = static_cast<amg::u16>(route_center_pixels + route_step_pixels);
@@ -344,7 +435,15 @@ struct DemoGame {
 			return {base, lerp_u16(up, base, static_cast<amg::u16>(frame_index - axis_segment_frames * 3u), axis_segment_frames)};
 		}
 
-		const amg::u8 circle_index = static_cast<amg::u8>(((frame_index - axis_segment_frames * 4u) / circle_step_frames) & 31u);
+		const amg::u32 circle_entry_start = axis_segment_frames * 4u;
+		if (frame_index < circle_entry_start + circle_entry_frames) {
+			return {
+				lerp_u16(base, static_cast<amg::u16>(route_center_pixels + route_radius_pixels), static_cast<amg::u16>(frame_index - circle_entry_start), circle_entry_frames),
+				base,
+			};
+		}
+
+		const amg::u8 circle_index = static_cast<amg::u8>(((frame_index - circle_entry_start - circle_entry_frames) / circle_step_frames) & 63u);
 		return {
 			static_cast<amg::u16>(route_center_pixels + circle_offset_x(circle_index)),
 			static_cast<amg::u16>(route_center_pixels + circle_offset_y(circle_index)),
@@ -359,6 +458,12 @@ struct DemoGame {
 		return static_cast<amg::u16>(camera_tile_y + drivers::EhbBidirectionalRingPrefetch::visible_rows + 1u);
 	}
 
+	/// Encola como mucho una franja horizontal y una vertical cuando la camara cruza tiles.
+	///
+	/// Esta version es deliberadamente conservadora: solo solicita trabajo si no
+	/// hay nada pendiente. Asi se ve con claridad como un presupuesto pequeno de
+	/// Blitter reparte una franja en varios frames, que es la tecnica que queremos
+	/// explotar para scrolls suaves estilo plataformas.
 	void schedule_next_visible_margin(amg::u16 camera_world_column, amg::u16 camera_world_row) {
 		if (m_scheduler.queued_count() != 0 || m_pending_column_tiles != 0 || m_pending_row_tiles != 0) {
 			return;
@@ -392,6 +497,11 @@ struct DemoGame {
 		m_previous_logical_row = camera_world_row;
 	}
 
+	/// Traduce una franja de mundo a jobs elementales de tile.
+	///
+	/// `ProgressiveTileScheduler` descompone una columna o fila en unidades 16x16.
+	/// La demo guarda contadores pendientes para saber cuando toda la franja ha
+	/// quedado lista y entonces marca el slot como reciclado en el anillo 2D.
 	void enqueue_margin_strip(tilemap::TileRect rect, tilemap::TileUpdateEdge edge) {
 		if (rect.left >= surface_tiles_x || rect.top >= surface_tiles_y) {
 			return;
@@ -461,6 +571,11 @@ struct DemoGame {
 		return plan.count;
 	}
 
+	/// Publica un estado compacto para herramientas externas.
+	///
+	/// `runStatus.detail` es nuestro canal barato de observabilidad: no sustituye a
+	/// GDB ni al canal lateral avanzado, pero permite que scripts y FrameScope sepan
+	/// en que frame/camara/prefetch estaba la demo cuando se tomo cada captura.
 	void publish_status(amg::u16 camera_x, amg::u16 camera_y, amg::u8 tile_jobs) {
 		const amg::u8 prefetch_flags = static_cast<amg::u8>(
 			(m_recycled_columns != 0 ? 0x1u : 0u) |

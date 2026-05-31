@@ -175,18 +175,32 @@ async function captureFrameSequence(protocol, sequenceDir, frameCount, intervalM
   for (let i = 0; i < frameCount; ++i) {
     const framePath = path.join(sequenceDir, `frame_${String(i).padStart(3, '0')}.png`);
     const capturedAt = Date.now();
-    const frame = await captureScreenshot(protocol, framePath);
-    frame.capturedAtMs = capturedAt;
+    let runStatusBefore = null;
     if (sideChannel?.runtimeAddress) {
       try {
-        frame.runStatus = await readSideChannelRunStatusOnce(
+        runStatusBefore = await readSideChannelRunStatusOnce(
           sideChannel.port,
           sideChannel.runtimeAddress,
           sideChannel.timeoutMs ?? 1000
         );
       } catch (err) {
-        frame.runStatus = { ok: false, error: err.message };
+        runStatusBefore = { ok: false, error: err.message };
       }
+    }
+    const frame = await captureScreenshot(protocol, framePath);
+    frame.capturedAtMs = capturedAt;
+    frame.runStatusBefore = runStatusBefore;
+    if (sideChannel?.runtimeAddress) {
+      try {
+        frame.runStatusAfter = await readSideChannelRunStatusOnce(
+          sideChannel.port,
+          sideChannel.runtimeAddress,
+          sideChannel.timeoutMs ?? 1000
+        );
+      } catch (err) {
+        frame.runStatusAfter = { ok: false, error: err.message };
+      }
+      frame.runStatus = runStatusBefore?.ok ? runStatusBefore : frame.runStatusAfter;
     }
     frames.push(frame);
     if (intervalMs > 0 && i + 1 < frameCount) {

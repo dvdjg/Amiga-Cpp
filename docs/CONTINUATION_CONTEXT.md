@@ -235,12 +235,25 @@ FrameScope es el nuevo subproyecto generico para diagnostico temporal:
 
 Acepta carpetas de frames o videos locales si `ffmpeg` esta en `PATH`. Genera
 `framescope-report.json`, `framescope-summary.md` y `framescope-contact-sheet.png`.
-El roadmap del subproyecto esta en `docs\FRAMESCOPE_ROADMAP.md`. El siguiente paso
-natural es usar `-Profile amiga-scroll -RequireProfileMatch` para corregir la demo
-101. El perfil ya compara telemetria de `run-report.json` con movimiento observado:
-en el estado actual detecta `profile_mismatch`, especialmente en la fase circular
-final, donde la camara declara componentes verticales/derecha pero la imagen
-observada alterna direcciones horizontales o contradictorias.
+El roadmap del subproyecto esta en `docs\FRAMESCOPE_ROADMAP.md`. El perfil
+`amiga-scroll` compara telemetria de `run-report.json` con movimiento observado,
+recorta automaticamente el viewport activo para ignorar los bordes negros de
+WinUAE y puede fallar con `-RequireProfileMatch`.
+
+La demo 101 ya usa esa prueba fuerte desde:
+
+```powershell
+.\demos\101_ehb_tile_scroll_driver\analyze-sequence.ps1 -Warp
+```
+
+La validacion actual captura 12 frames cada 120 ms, usa rejilla 64x48 y
+`SearchRadius 12`.
+Esto fue necesario porque la rejilla inicial 32x24 detectaba animacion pero
+confundia direcciones durante la orbita. El driver EHB usa ahora coarse X
+redondeado hacia arriba + `BPLCON1 = 16 - fine` para eliminar el diente de sierra
+horizontal, y la demo genera 64 patrones de tile para que FrameScope tenga marcas
+visuales no periodicas. FrameScope conserva direcciones candidatas casi empatadas
+para que la validacion pueda explicar casos ambiguos en vez de ocultarlos.
 
 El contrato del canal lateral seguro debe pasar con:
 

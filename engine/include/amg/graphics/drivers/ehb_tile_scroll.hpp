@@ -1,16 +1,16 @@
 #pragma once
 
 /// \file ehb_tile_scroll.hpp
-/// Driver EHB con superficie de scroll horizontal.
+/// Driver EHB con superficie lineal de scroll por tiles.
 ///
 /// Este driver es el primer paso entre el MVP retenido y el Amiga real. La demo
-/// 100 pintaba un viewport de forma didactica; esta clase ya reserva una superficie
-/// mas ancha que la ventana visible y construye una copperlist que desplaza los
-/// punteros de bitplane y `BPLCON1`.
+/// 100 pintaba un viewport de forma didactica; esta clase ya reserva una
+/// superficie mayor que la ventana visible y construye una copperlist que desplaza
+/// los punteros de bitplane en X/Y y `BPLCON1` para el fine scroll horizontal.
 ///
 /// La politica general sigue siendo la misma:
 ///
-/// - la escena/camara decide `scroll_x`;
+/// - la escena/camara decide `scroll_x/scroll_y`;
 /// - `TileMap16` y `ProgressiveTileScheduler` deciden que tiles offscreen preparar;
 /// - este driver convierte updates aceptados a `TileBlockCopy`;
 /// - el backend ejecuta los blits y el Copper muestra la ventana desplazada.
@@ -72,14 +72,39 @@ public:
 		return rebuild_copper(0, 0);
 	}
 
+	/// Reconstruye la copperlist para mostrar una ventana desplazada.
+	///
+	/// `scroll_x/scroll_y` son coordenadas de camara dentro de la superficie lineal
+	/// en pixels. El desplazamiento vertical es directo: basta con sumar filas al
+	/// puntero de cada bitplane. El horizontal se divide en:
+	///
+	/// - parte coarse: `scroll_x / 16`, que avanza el puntero dos bytes por tile de
+	///   fetch OCS;
+	/// - parte fine: resto 0..15, programado en `BPLCON1`.
+	///
+	/// La convencion de este MVP es que `scroll_x` crece igual que una camara de
+	/// juego: valores mayores muestran columnas mas a la derecha del mundo.
+	///
+	/// En OCS el valor horizontal de `BPLCON1` retrasa el fetch y desplaza el
+	/// contenido hacia la derecha. Para que una camara creciente desplace el mundo
+	/// hacia la izquierda de forma continua, usamos una pareja inseparable:
+	///
+	/// - si hay fine scroll, el puntero coarse se redondea hacia arriba al siguiente
+	///   bloque de 16 pixels;
+	/// - `BPLCON1` recibe `16 - fine`.
+	///
+	/// La posicion efectiva queda `-ceil16(scroll_x) + (16 - fine)`, que equivale a
+	/// `-scroll_x` para fine distinto de cero. Sin ese redondeo hacia arriba aparece
+	/// un diente de sierra visible cada 16 pixels.
 	bool rebuild_copper(u16 scroll_x, u16 scroll_y = 0) {
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || m_config.base_palette == nullptr) {
 			m_ok = false;
 			return false;
 		}
 
-		const u16 coarse_x = static_cast<u16>(scroll_x & 0xfff0u);
 		const u8 fine_x = static_cast<u8>(scroll_x & 15u);
+		const u16 coarse_x = static_cast<u16>((scroll_x + (fine_x == 0 ? 0u : 15u)) & 0xfff0u);
+		const u8 bplcon1_x = fine_x == 0 ? 0 : static_cast<u8>(16u - fine_x);
 		const u32 pointer_offset =
 			static_cast<u32>(scroll_y) * surface_bytes_per_row +
 			coarse_x / 8u;
@@ -89,7 +114,7 @@ public:
 			copper::DmaSetClear | copper::DmaMaster | copper::DmaCopper | copper::DmaBitplane
 		));
 		scheduler.move(copper::Register::BPLCON0, 0x6200);
-		scheduler.move(copper::Register::BPLCON1, static_cast<u16>(fine_x | (fine_x << 4u)));
+		scheduler.move(copper::Register::BPLCON1, static_cast<u16>(bplcon1_x | (bplcon1_x << 4u)));
 		scheduler.move(copper::Register::BPLCON2, 0x0000);
 		scheduler.move(copper::Register::BPL1MOD, display_modulo);
 		scheduler.move(copper::Register::BPL2MOD, display_modulo);
@@ -228,7 +253,8 @@ public:
 	/// Slot fisico que debe contener una columna de mundo.
 	///
 	/// Es modulo la superficie completa. La funcion es deliberadamente pequena para
-/// que sea facil auditarla en pruebas: cada `surface_columns` columnas el slot se recicla.
+	/// que sea facil auditarla en pruebas: cada `surface_columns` columnas el slot
+	/// se recicla.
 	constexpr u16 slot_for_world_column(u16 world_column) const {
 		return static_cast<u16>(world_column % surface_columns);
 	}

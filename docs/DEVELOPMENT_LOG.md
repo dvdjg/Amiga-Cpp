@@ -330,14 +330,21 @@ Resultado verificado:
 - `tools/run/run-demo.mjs` guarda ahora `runStatus` por cada frame de secuencia
   cuando el canal lateral esta disponible. FrameScope incorpora `-Profile
   amiga-scroll`, que decodifica esa telemetria, compara deltas de camara con la
-  direccion visual observada y puede fallar con `-RequireProfileMatch`. En la demo
-  101 actual el perfil diagnostica `profile_mismatch` en la fase circular final,
-  confirmando que la animacion visible no sigue fielmente la ruta programada.
+  direccion visual observada y puede fallar con `-RequireProfileMatch`.
+- La demo `101_ehb_tile_scroll_driver` ya supera `FrameScope -Profile amiga-scroll
+  -RequireProfileMatch` dentro de `analyze-sequence.ps1`. Se corrigio el fine
+  scroll horizontal usando coarse X redondeado hacia arriba + `BPLCON1 = 16 -
+  fine`, se aumento el mapa procedimental a 64 patrones para evitar aliases
+  visuales y FrameScope recorta automaticamente el viewport activo de WinUAE en el
+  perfil Amiga. La prueba fuerte captura 12 frames cada 120 ms con rejilla 64x48,
+  `SearchRadius 12` y correlaciona cada captura con `runStatus` lateral. FrameScope
+  guarda direcciones candidatas cercanas al mejor desplazamiento para explicar
+  empates visuales de tilemaps repetitivos.
 
 Ultimo informe de regresion conocido:
 
 ```text
-out\regression\20260531-161132\regression-report.md
+out\regression\20260531-165301\regression-report.md
 ```
 
 ## Siguiente paso previsto

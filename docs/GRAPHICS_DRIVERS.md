@@ -132,6 +132,12 @@ recorre una orbita de cuatro tiles de radio. Cada frame reconstruye la copperlis
 y los tiles offscreen aceptados por presupuesto se convierten en `TileBlockCopy`
 que el backend ejecuta por Blitter antes de instalar la copperlist final. La
 prueba de secuencia debe detectar animacion, no solo una captura estatica correcta.
+Para evitar un diente de sierra horizontal, el driver redondea el puntero coarse X
+hacia el siguiente bloque de 16 pixels cuando hay fine scroll y programa
+`BPLCON1 = 16 - fine`. Asi la camara de juego puede crecer hacia la derecha
+mientras el contenido visible se desplaza de forma continua hacia la izquierda.
+La prueba fuerte usa FrameScope con `-Profile amiga-scroll -RequireProfileMatch`
+para comparar esa telemetria de camara contra el movimiento observado.
 
 La misma cabecera incluye ahora `EhbBidirectionalRingPrefetch`, un planificador de
 slots de columnas y filas. Todavia no intenta hacer wrap fisico en mitad de la

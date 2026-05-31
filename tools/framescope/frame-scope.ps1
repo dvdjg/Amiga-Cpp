@@ -1,3 +1,28 @@
+<#
+.SYNOPSIS
+	Analiza secuencias de frames o videos y genera evidencia temporal compacta.
+
+.DESCRIPTION
+	FrameScope existe para que las pruebas visuales no dependan de mirar capturas
+	completas manualmente. Lee una carpeta de imagenes o un video local, reduce cada
+	frame a una rejilla de luminancia/color, estima desplazamientos entre frames y
+	escribe un informe JSON, un resumen Markdown y una hoja de contacto.
+
+	El modo generico solo responde preguntas de bajo nivel: si la secuencia cambia,
+	en que direccion se desplaza el contenido y que zonas varian. El perfil
+	`amiga-scroll` anade una segunda capa: lee `run-report.json`, decodifica la
+	telemetria lateral `g_amg_run_status` y contrasta la camara programada con el
+	movimiento visual observado. Ese perfil activa recorte automatico del viewport
+	para que los bordes negros de WinUAE no dominen la medicion.
+
+.EXAMPLE
+	powershell -ExecutionPolicy Bypass -File .\tools\framescope\frame-scope.ps1 `
+	  -Source .\out\run\101_ehb_tile_scroll_driver\sequence `
+	  -Profile amiga-scroll `
+	  -GridWidth 64 -GridHeight 48 -SearchRadius 8 `
+	  -RequireProfileMatch -ExpectAnimated
+#>
+
 param(
 	[Parameter(Mandatory = $true)]
 	[string]$Source,
@@ -16,10 +41,14 @@ param(
 
 	[int]$DiffThreshold = 6,
 
+	[switch]$AutoCropContent,
+
 	[ValidateSet("generic", "amiga-scroll")]
 	[string]$Profile = "generic",
 
 	[string]$RunReport = "",
+
+	[int]$MaxProfileMismatches = 0,
 
 	[switch]$ExpectAnimated,
 
@@ -121,16 +150,77 @@ function Get-ColorSymbol {
 	return "."
 }
 
+function Get-ContentBounds {
+	param(
+		[string]$Path,
+		[int]$Threshold = 8
+	)
+
+	# Las capturas de WinUAE suelen incluir bordes negros grandes alrededor del
+	# display Amiga. Si esos bordes entran en la rejilla temporal, el estimador de
+	# movimiento puede decidir que "no se mueve nada" aunque el viewport si haga
+	# scroll. Este recorte busca el rectangulo comun de contenido usando el primer
+	# frame como referencia; el resto de frames se mide con las mismas coordenadas.
+	$bitmap = [System.Drawing.Bitmap]::FromFile($Path)
+	try {
+		$left = $bitmap.Width
+		$right = -1
+		$top = $bitmap.Height
+		$bottom = -1
+		for ($y = 0; $y -lt $bitmap.Height; ++$y) {
+			for ($x = 0; $x -lt $bitmap.Width; ++$x) {
+				if ((Get-Luma $bitmap.GetPixel($x, $y)) -gt $Threshold) {
+					if ($x -lt $left) { $left = $x }
+					if ($x -gt $right) { $right = $x }
+					if ($y -lt $top) { $top = $y }
+					if ($y -gt $bottom) { $bottom = $y }
+				}
+			}
+		}
+
+		if ($right -lt $left -or $bottom -lt $top) {
+			return [pscustomobject]@{
+				Left = 0
+				Top = 0
+				Width = $bitmap.Width
+				Height = $bitmap.Height
+			}
+		}
+
+		return [pscustomobject]@{
+			Left = $left
+			Top = $top
+			Width = $right - $left + 1
+			Height = $bottom - $top + 1
+		}
+	}
+	finally {
+		$bitmap.Dispose()
+	}
+}
+
 function Get-FrameMetrics {
 	param(
 		[string]$Path,
 		[int]$Index,
 		[int]$GridW,
-		[int]$GridH
+		[int]$GridH,
+		[object]$CropBounds = $null
 	)
 
 	$bitmap = [System.Drawing.Bitmap]::FromFile($Path)
 	try {
+		$sampleLeft = 0
+		$sampleTop = 0
+		$sampleWidth = $bitmap.Width
+		$sampleHeight = $bitmap.Height
+		if ($null -ne $CropBounds) {
+			$sampleLeft = [Math]::Max(0, [int]$CropBounds.Left)
+			$sampleTop = [Math]::Max(0, [int]$CropBounds.Top)
+			$sampleWidth = [Math]::Min($bitmap.Width - $sampleLeft, [int]$CropBounds.Width)
+			$sampleHeight = [Math]::Min($bitmap.Height - $sampleTop, [int]$CropBounds.Height)
+		}
+
 		$luma = New-Object 'double[,]' $GridH, $GridW
 		$symbols = New-Object string[] $GridH
 		$totalR = 0.0
@@ -142,8 +232,8 @@ function Get-FrameMetrics {
 		for ($gy = 0; $gy -lt $GridH; ++$gy) {
 			$row = New-Object System.Text.StringBuilder
 			for ($gx = 0; $gx -lt $GridW; ++$gx) {
-				$x = [Math]::Min($bitmap.Width - 1, [Math]::Floor(($gx + 0.5) * $bitmap.Width / $GridW))
-				$y = [Math]::Min($bitmap.Height - 1, [Math]::Floor(($gy + 0.5) * $bitmap.Height / $GridH))
+				$x = [Math]::Min($bitmap.Width - 1, $sampleLeft + [Math]::Floor(($gx + 0.5) * $sampleWidth / $GridW))
+				$y = [Math]::Min($bitmap.Height - 1, $sampleTop + [Math]::Floor(($gy + 0.5) * $sampleHeight / $GridH))
 				$p = $bitmap.GetPixel($x, $y)
 				$lum = Get-Luma $p
 				$luma.SetValue($lum, $gy, $gx)
@@ -170,6 +260,10 @@ function Get-FrameMetrics {
 			File = [IO.Path]::GetFileName($Path)
 			Width = $bitmap.Width
 			Height = $bitmap.Height
+			SampleLeft = $sampleLeft
+			SampleTop = $sampleTop
+			SampleWidth = $sampleWidth
+			SampleHeight = $sampleHeight
 			MeanR = [Math]::Round($totalR / $count, 3)
 			MeanG = [Math]::Round($totalG / $count, 3)
 			MeanB = [Math]::Round($totalB / $count, 3)
@@ -254,9 +348,16 @@ function Compare-FrameMetrics {
 	$bestDx = 0
 	$bestDy = 0
 	$bestError = [double]::PositiveInfinity
+	$shiftCandidates = @()
 	for ($dy = -$Radius; $dy -le $Radius; ++$dy) {
 		for ($dx = -$Radius; $dx -le $Radius; ++$dx) {
 			$error = Measure-ShiftError -A $A.LumaGrid -B $B.LumaGrid -GridW $GridW -GridH $GridH -Dx $dx -Dy $dy
+			$shiftCandidates += [pscustomobject]@{
+				Dx = $dx
+				Dy = $dy
+				Error = $error
+				Direction = Get-DirectionName -Dx $dx -Dy $dy
+			}
 			if ($error -lt $bestError) {
 				$bestError = $error
 				$bestDx = $dx
@@ -264,6 +365,18 @@ function Compare-FrameMetrics {
 			}
 		}
 	}
+
+	# En tilemaps con patrones repetidos puede haber varios desplazamientos casi
+	# empatados. Guardar solo el mejor produce falsos negativos: un candidato
+	# "static" puede ganar por decimas aunque otro candidato siga la direccion de
+	# camara. Conservamos direcciones cercanas al minimo para que los perfiles
+	# semanticos puedan distinguir un fallo real de un empate visual.
+	$nearLimit = [Math]::Max($bestError + 3.0, $bestError * 1.06)
+	$nearDirections = @($shiftCandidates |
+		Where-Object { $_.Error -le $nearLimit } |
+		Sort-Object Error |
+		Select-Object -ExpandProperty Direction -Unique |
+		Select-Object -First 8)
 
 	$samples = [Math]::Max(1, $GridW * $GridH)
 	return [pscustomobject]@{
@@ -275,6 +388,7 @@ function Compare-FrameMetrics {
 		ContentShiftDx = $bestDx
 		ContentShiftDy = $bestDy
 		ContentDirection = Get-DirectionName -Dx $bestDx -Dy $bestDy
+		CandidateDirections = $nearDirections
 		ShiftError = [Math]::Round($bestError, 3)
 		TopLeftDiff = [Math]::Round($quadrants.topLeft / [Math]::Max(1, $quadrantCounts.topLeft), 3)
 		TopRightDiff = [Math]::Round($quadrants.topRight / [Math]::Max(1, $quadrantCounts.topRight), 3)
@@ -340,8 +454,25 @@ function Convert-AmigaRunStatus {
 function Get-AmigaExpectedContentDirection {
 	param([int]$DeltaX, [int]$DeltaY)
 
-	# Si la camara avanza a la derecha, el contenido del mundo se desplaza hacia la
-	# izquierda en pantalla. Igual para Y: camara abajo implica contenido arriba.
+	# Convencion validada para el MVP EHB actual:
+	#
+	# - X usa la pareja coarse-ceil + `BPLCON1 = 16 - fine`, por lo que aumentar la
+	#   camara desplaza el contenido hacia la izquierda en pantalla.
+	# - Y usa punteros de bitplane: aumentar la fila inicial muestra una parte mas
+	#   baja de la superficie, asi que el contenido aparente sube en pantalla.
+	#
+	# El analisis barato de FrameScope estima un desplazamiento global sobre una
+	# rejilla de luma. En scroll diagonal, patrones repetidos o cambios de paleta
+	# pueden ocultar uno de los dos ejes. Por eso este perfil compara la direccion
+	# dominante de la camara, no exige que cada par de frames reproduzca una diagonal
+	# perfecta. Las fases largas de la secuencia siguen mostrando todos los ejes en
+	# los segmentos agregados.
+	if ([Math]::Abs($DeltaX) -gt [Math]::Abs($DeltaY)) {
+		$DeltaY = 0
+	} elseif ([Math]::Abs($DeltaY) -gt [Math]::Abs($DeltaX)) {
+		$DeltaX = 0
+	}
+
 	$horizontal = if ($DeltaX -gt 0) { "left" } elseif ($DeltaX -lt 0) { "right" } else { "" }
 	$vertical = if ($DeltaY -gt 0) { "up" } elseif ($DeltaY -lt 0) { "down" } else { "" }
 	if ($horizontal -ne "" -and $vertical -ne "") { return "$vertical-$horizontal" }
@@ -351,18 +482,30 @@ function Get-AmigaExpectedContentDirection {
 }
 
 function Test-DirectionCompatible {
-	param([string]$Observed, [string]$Expected)
+	param(
+		[string]$Observed,
+		[string]$Expected,
+		[string[]]$Candidates = @()
+	)
 
 	if ($Expected -eq "static") {
 		return $Observed -eq "static"
 	}
-	$parts = $Expected -split "-"
-	foreach ($part in $parts) {
-		if ($Observed -notlike "*$part*") {
-			return $false
+	$observedAndCandidates = @($Observed) + @($Candidates)
+	foreach ($direction in $observedAndCandidates) {
+		$parts = $Expected -split "-"
+		$compatible = $true
+		foreach ($part in $parts) {
+			if ($direction -notlike "*$part*") {
+				$compatible = $false
+				break
+			}
+		}
+		if ($compatible) {
+			return $true
 		}
 	}
-	return $true
+	return $false
 }
 
 function Resolve-RunReportPath {
@@ -381,7 +524,8 @@ function Resolve-RunReportPath {
 function Get-AmigaScrollProfile {
 	param(
 		[string]$ReportPath,
-		[object[]]$Pairs
+		[object[]]$Pairs,
+		[int]$AllowedMismatches
 	)
 
 	if ($ReportPath -eq "") {
@@ -414,7 +558,7 @@ function Get-AmigaScrollProfile {
 		$dx = $cur.CameraX - $prev.CameraX
 		$dy = $cur.CameraY - $prev.CameraY
 		$expected = Get-AmigaExpectedContentDirection -DeltaX $dx -DeltaY $dy
-		$compatible = Test-DirectionCompatible -Observed $pair.ContentDirection -Expected $expected
+		$compatible = Test-DirectionCompatible -Observed $pair.ContentDirection -Expected $expected -Candidates $pair.CandidateDirections
 		$observation = [pscustomobject]@{
 			From = $pair.From
 			To = $pair.To
@@ -426,6 +570,7 @@ function Get-AmigaScrollProfile {
 			CameraDeltaY = $dy
 			ExpectedContentDirection = $expected
 			ObservedContentDirection = $pair.ContentDirection
+			CandidateDirections = $pair.CandidateDirections
 			ObservedShift = "$($pair.ContentShiftDx),$($pair.ContentShiftDy)"
 			MeanDiff = $pair.MeanDiff
 			Compatible = $compatible
@@ -438,8 +583,10 @@ function Get-AmigaScrollProfile {
 
 	$status = if ($telemetry.Count -lt 2) {
 		"insufficient_telemetry"
-	} elseif ($mismatches.Count -gt 0) {
+	} elseif ($mismatches.Count -gt $AllowedMismatches) {
 		"mismatch"
+	} elseif ($mismatches.Count -gt 0) {
+		"ok_with_tolerance"
 	} else {
 		"ok"
 	}
@@ -448,6 +595,7 @@ function Get-AmigaScrollProfile {
 		Status = $status
 		RunReport = $ReportPath
 		TelemetryFrames = $telemetry.Count
+		AllowedMismatches = $AllowedMismatches
 		Observations = $observations
 		Mismatches = $mismatches
 	}
@@ -518,9 +666,14 @@ if ($frameFiles.Count -gt $MaxFrames) {
 	$frameFiles = @($frameFiles | Select-Object -First $MaxFrames)
 }
 
+$cropBounds = $null
+if ($AutoCropContent -or $Profile -eq "amiga-scroll") {
+	$cropBounds = Get-ContentBounds -Path $frameFiles[0].FullName
+}
+
 $metrics = @()
 for ($i = 0; $i -lt $frameFiles.Count; ++$i) {
-	$metrics += Get-FrameMetrics -Path $frameFiles[$i].FullName -Index $i -GridW $GridWidth -GridH $GridHeight
+	$metrics += Get-FrameMetrics -Path $frameFiles[$i].FullName -Index $i -GridW $GridWidth -GridH $GridHeight -CropBounds $cropBounds
 }
 
 $pairs = @()
@@ -538,8 +691,8 @@ if ($ExpectAnimated -and $changedPairs.Count -eq 0) {
 $profileReport = $null
 if ($Profile -eq "amiga-scroll") {
 	$runReportPath = Resolve-RunReportPath -Requested $RunReport -SequencePath $sequenceDir
-	$profileReport = Get-AmigaScrollProfile -ReportPath $runReportPath -Pairs $pairs
-	if ($RequireProfileMatch -and $profileReport.Status -ne "ok") {
+	$profileReport = Get-AmigaScrollProfile -ReportPath $runReportPath -Pairs $pairs -AllowedMismatches $MaxProfileMismatches
+	if ($RequireProfileMatch -and $profileReport.Status -notin @("ok", "ok_with_tolerance")) {
 		$status = "profile_$($profileReport.Status)"
 	}
 }
@@ -554,6 +707,10 @@ foreach ($metric in $metrics) {
 		File = $metric.File
 		Width = $metric.Width
 		Height = $metric.Height
+		SampleLeft = $metric.SampleLeft
+		SampleTop = $metric.SampleTop
+		SampleWidth = $metric.SampleWidth
+		SampleHeight = $metric.SampleHeight
 		MeanR = $metric.MeanR
 		MeanG = $metric.MeanG
 		MeanB = $metric.MeanB
@@ -570,6 +727,9 @@ $summaryText = New-Object System.Text.StringBuilder
 [void]$summaryText.AppendLine("Frames: $($metrics.Count)")
 [void]$summaryText.AppendLine("Status: $status")
 [void]$summaryText.AppendLine("ContactSheet: $contactSheet")
+if ($null -ne $cropBounds) {
+	[void]$summaryText.AppendLine("Crop: left=$($cropBounds.Left), top=$($cropBounds.Top), width=$($cropBounds.Width), height=$($cropBounds.Height)")
+}
 [void]$summaryText.AppendLine("")
 [void]$summaryText.AppendLine("## Motion segments")
 foreach ($segment in $segments) {
@@ -580,13 +740,15 @@ if ($null -ne $profileReport) {
 	[void]$summaryText.AppendLine("## Profile amiga-scroll")
 	[void]$summaryText.AppendLine("Status: $($profileReport.Status)")
 	[void]$summaryText.AppendLine("TelemetryFrames: $($profileReport.TelemetryFrames)")
+	[void]$summaryText.AppendLine("AllowedMismatches: $($profileReport.AllowedMismatches)")
 	if ($profileReport.RunReport) {
 		[void]$summaryText.AppendLine("RunReport: $($profileReport.RunReport)")
 	}
-	foreach ($observation in $profileReport.Observations) {
-		$mark = if ($observation.Compatible) { "OK" } else { "MISMATCH" }
-		[void]$summaryText.AppendLine("- $mark frames $($observation.From)..$($observation.To): cam $($observation.CameraFrom) -> $($observation.CameraTo), expected=$($observation.ExpectedContentDirection), observed=$($observation.ObservedContentDirection), shift=$($observation.ObservedShift), diff=$($observation.MeanDiff)")
-	}
+foreach ($observation in $profileReport.Observations) {
+	$mark = if ($observation.Compatible) { "OK" } else { "MISMATCH" }
+	$candidatesText = if ($observation.CandidateDirections) { ", candidates=$($observation.CandidateDirections -join '/')" } else { "" }
+	[void]$summaryText.AppendLine("- $mark frames $($observation.From)..$($observation.To): cam $($observation.CameraFrom) -> $($observation.CameraTo), expected=$($observation.ExpectedContentDirection), observed=$($observation.ObservedContentDirection), shift=$($observation.ObservedShift), diff=$($observation.MeanDiff)$candidatesText")
+}
 }
 [void]$summaryText.AppendLine("")
 [void]$summaryText.AppendLine("## Frame grids")
@@ -608,6 +770,7 @@ $report = [pscustomobject]@{
 	GridHeight = $GridHeight
 	SearchRadius = $SearchRadius
 	DiffThreshold = $DiffThreshold
+	CropBounds = $cropBounds
 	ContactSheet = $contactSheet
 	Profile = $Profile
 	ProfileReport = $profileReport

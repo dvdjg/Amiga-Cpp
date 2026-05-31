@@ -63,6 +63,9 @@ Salidas:
 - `framescope-contact-sheet.png`: hoja de contacto anotada;
 - segmentos de movimiento: frame inicial, final, direccion, numero de muestras y
   diferencia media.
+- recorte opcional o automatico del viewport activo. El perfil `amiga-scroll` lo
+  activa para ignorar los bordes negros de WinUAE, que de otro modo pueden ocultar
+  scroll real en el estimador global.
 
 ## Fase 0: MVP determinista
 
@@ -96,7 +99,7 @@ incluir las imagenes completas en la conversacion.
 
 Objetivo: relacionar lo que la demo cree estar haciendo con lo que se ve.
 
-Estado: implementacion inicial disponible mediante `-Profile amiga-scroll`.
+Estado: implementado y usado por la demo `101_ehb_tile_scroll_driver`.
 
 Tareas:
 
@@ -105,6 +108,10 @@ Tareas:
   y flags de prefetch; estado: hecho;
 - comparar direccion esperada del contenido contra direccion visual observada;
   estado: hecho;
+- usar `runStatus` capturado antes de cada screenshot, conservando tambien
+  `runStatusAfter` para diagnosticar desfases de captura; estado: hecho;
+- recortar automaticamente el viewport no negro de WinUAE para medir la escena y
+  no el borde del emulador; estado: hecho;
 - generar un `expected-motion.json` desde la demo o desde un perfil declarativo;
 - comprobar que el movimiento visual observado coincide con la ruta esperada;
 - detectar cambios dentro del rectangulo visible que no sean explicables por
@@ -126,16 +133,20 @@ Uso diagnostico actual:
   -Source .\out\run\101_ehb_tile_scroll_driver\sequence `
   -OutDir .\out\framescope\101_amiga_scroll `
   -Profile amiga-scroll `
+  -GridWidth 64 `
+  -GridHeight 48 `
+  -SearchRadius 12 `
   -RequireProfileMatch `
   -ExpectAnimated
 ```
 
-En la demo 101 actual este modo puede fallar con `profile_mismatch`, que es justo
-la evidencia que buscamos antes de corregir el scroll: la telemetria de camara
-indica una direccion esperada, pero el desplazamiento visual detectado no coincide.
-`analyze-sequence.ps1` ejecuta FrameScope sin `-RequireProfileMatch` para dejar
-siempre el diagnostico generado sin romper la regresion hasta que el driver se
-corrija.
+La demo 101 ejecuta este perfil desde `analyze-sequence.ps1` con
+`-RequireProfileMatch`. Se usa una rejilla 64x48 y radio de busqueda 12 porque el
+scroll de tilemap tiene patrones de alta frecuencia: una rejilla 32x24 era
+suficiente para detectar animacion, pero no siempre para distinguir la direccion
+correcta durante la orbita. FrameScope conserva tambien direcciones candidatas
+cercanas al mejor desplazamiento para diagnosticar empates visuales sin convertir
+un fallo real en aprobado silencioso.
 
 ## Fase 2: video generico y material externo
 
