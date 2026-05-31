@@ -100,6 +100,24 @@ tiles generados como words planares. Todavia no es el driver definitivo: recompo
 el viewport de forma didactica. Su valor es fijar el contrato estetico y de API
 antes de optimizarlo con Blitter, margenes ocultos y `BPLCON1`.
 
+La siguiente pieza ya vive en
+`engine/include/amg/graphics/tilemap/tile_scroll.hpp`: `ProgressiveTileScheduler`.
+Su objetivo es evitar picos de Blitter al entrar en una zona nueva. En vez de
+dibujar toda la columna/fila offscreen de golpe, cada tile puede entrar en cola con
+`frames_until_visible`; el driver consume solo un presupuesto pequeno por frame.
+Esto permite un patron estilo Lionheart: preparar lo que falta antes de que el
+scroll lo haga visible, sin parar la escena cuando aparece una franja nueva.
+
+El API distingue tres rutas de driver:
+
+- horizontal: columnas ocultas, punteros de bitplane/coarse X y `BPLCON1`;
+- vertical: filas ocultas y avance de buffer/modulo;
+- bidireccional: columnas, filas y esquina, con un presupuesto compartido.
+
+La ruta bidireccional debe ser la opcion ergonomica para el juego. El usuario mueve
+una camara 2D; el driver decide si ese frame puede usar la ruta barata horizontal o
+vertical, o si necesita la ruta completa.
+
 Los blobs futuros tambien podran tener una contribucion Copper asociada. Por
 ejemplo: cambiar colores justo en sus franjas, ondular filas mediante scroll/splits
 de bitplanes o crear regiones no rectangulares. Esa informacion no debe escribir

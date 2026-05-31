@@ -267,7 +267,13 @@ Resultado verificado:
   subsuelo. La primera version saturaba la pila al guardar cache de tiles dentro
   del objeto local de `main`; se ha corregido moviendo el juego a almacenamiento
   estatico. El analizador comprueba atractivo visual por muestras de color y
-  telemetria `runStatus.detail = 0x10390901`.
+  telemetria.
+- `TileMap16` incorpora ahora vocabulario para scroll horizontal, vertical y
+  bidireccional, mas `ProgressiveTileScheduler`. Este scheduler encola tiles
+  offscreen con `frames_until_visible` y aplica un presupuesto por frame, siguiendo
+  la idea de preparar tiles poco a poco antes de que crucen el borde visible. La
+  demo 100 ya encola una columna derecha y acepta 4 updates por frame:
+  `runStatus.detail = 0x10390941`.
 - El roadmap incorpora una seccion de abstracciones futuras: `RenderScene`
   retenido, `FramePlan`, `CopperScheduler`, `BlitterQueue`, `SpriteAllocator`,
   `DmaBudget`, drivers `RoadRaster`, `SpriteBackdrop`, `CopperHeavy` y efectos
@@ -276,7 +282,7 @@ Resultado verificado:
 Ultimo informe de regresion conocido:
 
 ```text
-out\regression\20260531-111742\regression-report.md
+out\regression\20260531-131248\regression-report.md
 ```
 
 ## Siguiente paso previsto

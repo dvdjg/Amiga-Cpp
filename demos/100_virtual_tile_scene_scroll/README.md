@@ -13,6 +13,11 @@ La escena usa EHB con cambios completos de paleta por zonas Copper para que el
 mismo vocabulario de tiles produzca cielo, jungla y subsuelo con lecturas
 cromaticas distintas.
 
+Tambien valida una politica de scroll importante: los tiles offscreen no se
+preparan todos de golpe. La demo encola la columna derecha que entrara en pantalla
+y acepta solo cuatro updates logicos en el frame, dejando al futuro driver Amiga la
+traduccion a Blitter real.
+
 Comandos:
 
 ```powershell

@@ -124,6 +124,10 @@ BOBs, redraw parcial o CPU.
   virtual mayor que pantalla, camara retenida con fine scroll, paletas EHB por
   zonas y analisis automatico de captura. Aun usa un raster didactico; el driver
   optimizado queda como siguiente paso.
+- `ProgressiveTileScheduler` fija la politica de preparacion gradual de tiles
+  offscreen: los trabajos se ordenan por `frames_until_visible` y el driver consume
+  solo el presupuesto aceptado por frame. Esto debe reflejarse en UAF como hints de
+  prefetch/margen/presupuesto por layer.
 
 ## Siguiente MVP recomendado
 
@@ -132,6 +136,7 @@ Crear `100_virtual_tile_scene_scroll`:
 - mapa virtual mayor que la pantalla;
 - camara que avanza sincronizada a VBlank;
 - recomposicion solo de columnas/filas ocultas;
+- cola progresiva de tiles offscreen con presupuesto por frame;
 - prueba automatica que verifique por trazas el dirty count y por captura que el
   tile esperado aparece tras varios desplazamientos;
 - export opcional desde un tilemap UAF indexado sencillo.

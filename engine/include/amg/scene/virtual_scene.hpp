@@ -176,9 +176,12 @@ enum class TileFramebufferStrategy : u8 {
 /// debe preparar alrededor del viewport.
 struct TileScrollStrategy {
 	TileFramebufferStrategy framebuffer = TileFramebufferStrategy::HiddenMargins;
+	graphics::tilemap::ScrollAxes axes = graphics::tilemap::ScrollAxes::Both;
 	u8 tile_size = graphics::tilemap::TileMap16::tile_size;
 	u8 margin_tiles_x = 1;
 	u8 margin_tiles_y = 1;
+	u8 max_tile_updates_per_frame = 4;
+	u8 offscreen_lookahead_frames = 6;
 	bool hardware_fine_scroll = true;
 	bool double_buffered = true;
 };

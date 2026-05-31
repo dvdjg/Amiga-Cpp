@@ -225,6 +225,9 @@ Entregables:
   playfield para preparar scroll sin redibujar por CPU.
 - Scroll de tilemap inspirado en `demoscene-repo/effects/tiles16`: dirty bits por
   buffer, coarse scroll por punteros de bitplane y fine scroll por `BPLCON1`.
+- Scheduler progresivo de tiles offscreen: no dibujar una columna/fila completa de
+  golpe, sino repartir el coste por frames segun `frames_until_visible`, al estilo
+  de juegos que preparan el margen antes de que llegue a pantalla.
 - Contribuciones opcionales de Copper asociadas a blobs/playfields: cambios de
   paleta por franja, shifts por linea, splits de bitplanes y regiones no
   rectangulares coordinadas por `CopperScheduler`.
@@ -580,6 +583,8 @@ quedar abajo, coordinados por sistemas centrales y no por cada entidad.
   La base compartida ya existe como `TileMap16`, `TileLayer` y `VirtualScene`;
   falta el driver Amiga que convierta el plan retenido en columnas/filas de
   blitter, punteros de bitplane y `BPLCON1`.
+  Debe exponer una configuracion bidireccional por defecto para que el juego sea
+  sencillo, pero especializar internamente frames de solo X o solo Y.
 - `Standard4/Standard5`: accion con menor presion DMA.
 - `FakeDPF`: 4 planos de juego + 1 plano auxiliar para fondo/sombra/marca.
 - `DualPlayfield`: playfields reales con scroll independiente y parallax.

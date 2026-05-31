@@ -163,8 +163,10 @@ La demo `100_virtual_tile_scene_scroll` debe:
 - usar `VirtualScene`, `Camera2D`, `TileLayer` y `TileMap16`;
 - usar una camara con posicion X no alineada a tile para que `fine_x` sea distinto
   de cero;
+- usar `ProgressiveTileScheduler` para encolar tiles offscreen y aceptar un
+  presupuesto de 4 updates antes de que sean visibles;
 - superar `demos\100_virtual_tile_scene_scroll\analyze-screenshot.ps1`;
-- dejar en `g_amg_run_status.detail` el estado saludable actual `0x10390901`.
+- dejar en `g_amg_run_status.detail` el estado saludable actual `0x10390941`.
 
 El contrato del canal lateral seguro debe pasar con:
 

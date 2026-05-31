@@ -77,8 +77,9 @@ try {
 
 	$cameraX = ($detail -shr 16) -band 0xff
 	$fineX = ($detail -shr 8) -band 0x0f
-	$layers = $detail -band 0xff
-	if ($cameraX -lt 48 -or $fineX -eq 0 -or $layers -ne 1) {
+	$tileUpdates = ($detail -shr 4) -band 0x0f
+	$layers = $detail -band 0x0f
+	if ($cameraX -lt 48 -or $fineX -eq 0 -or $tileUpdates -lt 4 -or $layers -ne 1) {
 		throw ("runStatus.detail no refleja scroll virtual valido: 0x{0:x8}" -f $detail)
 	}
 
@@ -95,6 +96,7 @@ try {
 		WhiteSparkSamples = $counts.whiteSpark
 		CameraX = $cameraX
 		FineX = $fineX
+		TileUpdates = $tileUpdates
 		Layers = $layers
 		RunDetail = ("0x{0:x8}" -f $detail)
 		Status = "OK"

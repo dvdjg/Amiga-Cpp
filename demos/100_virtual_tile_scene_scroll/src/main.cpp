@@ -303,9 +303,12 @@ struct DemoGame {
 			&m_map,
 			{
 				scene::TileFramebufferStrategy::DoubleBufferedHiddenMargins,
+				tilemap::ScrollAxes::Both,
 				tile_size,
 				1,
 				1,
+				4,
+				6,
 				true,
 				true,
 			},
@@ -325,7 +328,8 @@ struct DemoGame {
 			0x10000000u |
 				(static_cast<amg::u32>(m_camera_x & 0xffu) << 16u) |
 				(static_cast<amg::u32>(m_last_fine_x & 0x0fu) << 8u) |
-				static_cast<amg::u32>(m_last_layer_count)
+				(static_cast<amg::u32>(m_last_update_jobs & 0x0fu) << 4u) |
+				static_cast<amg::u32>(m_last_layer_count & 0x0fu)
 		);
 		m_ready_to_run = true;
 	}
@@ -354,6 +358,24 @@ struct DemoGame {
 		scene::VirtualSceneFrame frame = m_virtual_scene.prepare_frame();
 		m_last_layer_count = frame.tile_layer_count;
 		m_last_fine_x = frame.tile_layer_count != 0u ? frame.tile_layers[0].scroll.scroll.fine_x_pixels : 0;
+		m_last_update_jobs = 0;
+		if (frame.tile_layer_count != 0u) {
+			m_tile_scheduler.reset();
+			const amg::u16 right_prefetch_tile = static_cast<amg::u16>(
+				frame.tile_layers[0].scroll.visible_tiles.left + frame.tile_layers[0].scroll.visible_tiles.width
+			);
+			m_tile_scheduler.enqueue_strip(
+				m_map,
+				{right_prefetch_tile, 0, 1, map_tiles_y},
+				tilemap::TileUpdateEdge::Right,
+				m_layer.target_buffer,
+				m_layer.strategy.offscreen_lookahead_frames,
+				1
+			);
+			const tilemap::ProgressiveTileUpdatePlan update_plan =
+				m_tile_scheduler.take_budget(m_layer.strategy.max_tile_updates_per_frame);
+			m_last_update_jobs = update_plan.count;
+		}
 
 		draw_viewport(m_scene.bitplanes(), m_cells, m_tile_words, camera);
 		m_scene.install(backend);
@@ -368,7 +390,9 @@ struct DemoGame {
 	scene::VirtualScene m_virtual_scene {};
 	amg::u16 m_camera_x = 0;
 	amg::u8 m_last_fine_x = 0;
+	amg::u8 m_last_update_jobs = 0;
 	amg::u8 m_last_layer_count = 0;
+	tilemap::ProgressiveTileScheduler m_tile_scheduler {};
 };
 
 DemoGame g_game {};
