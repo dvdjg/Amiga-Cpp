@@ -30,8 +30,8 @@ $results = @()
 $markdown = @()
 $markdown += "# Regression $timestamp"
 $markdown += ""
-$markdown += "| Demo | Build | Run | Analyze | Notes |"
-$markdown += "|---|---:|---:|---:|---|"
+$markdown += "| Demo | Build | Run | Analyze | Sequence | Notes |"
+$markdown += "|---|---:|---:|---:|---:|---|"
 
 foreach ($demoPath in $demoDirs) {
 	$demoName = Split-Path $demoPath -Leaf
@@ -41,6 +41,7 @@ foreach ($demoPath in $demoDirs) {
 		build = "pending"
 		run = if ($SkipRun) { "skipped" } else { "pending" }
 		analyze = "pending"
+		sequence = "none"
 		notes = ""
 	}
 
@@ -65,22 +66,32 @@ foreach ($demoPath in $demoDirs) {
 		& powershell -ExecutionPolicy Bypass -File $analyzeScript $relativeDemo
 		if ($LASTEXITCODE -ne 0) { throw "Analyze failed with exit code $LASTEXITCODE" }
 		$result.analyze = "ok"
+
+		$sequenceScript = Join-Path $demoPath "analyze-sequence.ps1"
+		if ((-not $SkipRun) -and (Test-Path $sequenceScript)) {
+			Write-Host "== ${demoName}: sequence =="
+			$result.sequence = "pending"
+			& powershell -ExecutionPolicy Bypass -File $sequenceScript
+			if ($LASTEXITCODE -ne 0) { throw "Sequence failed with exit code $LASTEXITCODE" }
+			$result.sequence = "ok"
+		}
 	}
 	catch {
 		$result.notes = $_.Exception.Message
 		if ($result.build -eq "pending") { $result.build = "fail" }
 		elseif ($result.run -eq "pending") { $result.run = "fail" }
 		elseif ($result.analyze -eq "pending") { $result.analyze = "fail" }
+		elseif ($result.sequence -eq "pending") { $result.sequence = "fail" }
 
 		if (-not $KeepGoing) {
 			$results += [pscustomobject]$result
-			$markdown += "| $($result.demo) | $($result.build) | $($result.run) | $($result.analyze) | $($result.notes) |"
+			$markdown += "| $($result.demo) | $($result.build) | $($result.run) | $($result.analyze) | $($result.sequence) | $($result.notes) |"
 			break
 		}
 	}
 
 	$results += [pscustomobject]$result
-	$markdown += "| $($result.demo) | $($result.build) | $($result.run) | $($result.analyze) | $($result.notes) |"
+	$markdown += "| $($result.demo) | $($result.build) | $($result.run) | $($result.analyze) | $($result.sequence) | $($result.notes) |"
 }
 
 $jsonPath = Join-Path $reportDir "regression-report.json"
@@ -88,7 +99,7 @@ $mdPath = Join-Path $reportDir "regression-report.md"
 $results | ConvertTo-Json -Depth 5 | Out-File -Encoding ascii $jsonPath
 $markdown | Out-File -Encoding ascii $mdPath
 
-$failed = @($results | Where-Object { $_.build -ne "ok" -or ($_.run -ne "ok" -and $_.run -ne "skipped") -or $_.analyze -ne "ok" })
+$failed = @($results | Where-Object { $_.build -ne "ok" -or ($_.run -ne "ok" -and $_.run -ne "skipped") -or $_.analyze -ne "ok" -or ($_.sequence -ne "ok" -and $_.sequence -ne "none") })
 
 Write-Host ""
 Write-Host "Regression report:"

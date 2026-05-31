@@ -32,7 +32,13 @@ param(
 
 	[switch]$MouseDrag,
 
-	[switch]$KeepRunning
+	[switch]$KeepRunning,
+
+	[int]$SequenceFrames = 0,
+
+	[int]$SequenceIntervalMs = 100,
+
+	[switch]$AllowTimeoutFallback
 )
 
 $ErrorActionPreference = "Stop"
@@ -71,6 +77,14 @@ if ($MouseDrag) {
 
 if ($KeepRunning) {
 	$argsList += "--keep-running"
+}
+
+if ($SequenceFrames -gt 0) {
+	$argsList += @("--sequence-frames", $SequenceFrames, "--sequence-interval-ms", $SequenceIntervalMs)
+}
+
+if ($AllowTimeoutFallback) {
+	$argsList += "--allow-timeout-fallback"
 }
 
 node @argsList

@@ -154,6 +154,35 @@ function decodeMonitorReply(hexReply) {
   return Buffer.from(hexReply, 'hex').toString('utf8').trim();
 }
 
+async function captureScreenshot(protocol, imagePath, timeoutMs = 30000) {
+  const winPath = imagePath.replace(/\//g, '\\');
+  const reply = await protocol.sendMonitorCommand(`screenshot ${winPath}`, timeoutMs);
+  return {
+    path: imagePath,
+    reply,
+    replyText: decodeMonitorReply(reply),
+    exists: fs.existsSync(imagePath),
+  };
+}
+
+async function captureFrameSequence(protocol, sequenceDir, frameCount, intervalMs) {
+  fs.mkdirSync(sequenceDir, { recursive: true });
+  const frames = [];
+  for (let i = 0; i < frameCount; ++i) {
+    const framePath = path.join(sequenceDir, `frame_${String(i).padStart(3, '0')}.png`);
+    frames.push(await captureScreenshot(protocol, framePath));
+    if (intervalMs > 0 && i + 1 < frameCount) {
+      await sleep(intervalMs);
+    }
+  }
+  return {
+    directory: sequenceDir,
+    frames,
+    frameCount,
+    intervalMs,
+  };
+}
+
 function findMapSymbol(mapPath, symbolName) {
   if (!fs.existsSync(mapPath)) {
     return null;
@@ -416,6 +445,16 @@ async function waitForSideChannelRunStatus({ linkedSymbol, mapSections, timeoutM
   }
 }
 
+async function readSideChannelRunStatusOnce(port, runtimeAddress, timeoutMs) {
+  const client = new SideChannelClient(port);
+  await client.connect(timeoutMs);
+  try {
+    return await client.command(`runstatus ${runtimeAddress.toString(16)}`, timeoutMs);
+  } finally {
+    client.close();
+  }
+}
+
 const demoArg = process.argv[2];
 if (!demoArg || demoArg.startsWith('--')) {
   console.error('Uso: node tools/run/run-demo.mjs demos/000_toolchain_cpp23 [--wait-ms 12000] [--screenshot file.png]');
@@ -438,6 +477,8 @@ const settleMs = parseInt(argValue('--settle-ms', process.env.AMG_SETTLE_MS || '
 const sideChannelPort = parseInt(argValue('--side-channel-port', process.env.WINUAE_SIDE_CHANNEL_PORT || '2346'), 10);
 const sideChannelTimeoutMs = parseInt(argValue('--side-channel-timeout-ms', process.env.AMG_SIDE_CHANNEL_TIMEOUT_MS || '6000'), 10);
 const sideChannelPollMs = parseInt(argValue('--side-channel-poll-ms', process.env.AMG_SIDE_CHANNEL_POLL_MS || '50'), 10);
+const sequenceFrames = Math.max(0, parseInt(argValue('--sequence-frames', '0'), 10));
+const sequenceIntervalMs = Math.max(0, parseInt(argValue('--sequence-interval-ms', '100'), 10));
 const mousePath = buildMousePathFromArgs();
 const mouseDelayMs = Math.max(0, parseInt(argValue('--mouse-duration-ms', '800'), 10)) / Math.max(1, mousePath.length - 1);
 const mouseButton = Math.max(0, parseInt(argValue('--mouse-button', '0'), 10));
@@ -486,6 +527,8 @@ const report = {
   readyTimeoutMs,
   sideChannelPort,
   sideChannelTimeoutMs,
+  sequenceFrames,
+  sequenceIntervalMs,
   loadTimeoutMs,
   settleMs,
   status: 'started',
@@ -544,12 +587,22 @@ try {
         fs.writeFileSync(path.join(outputDir, 'run-report.json'), JSON.stringify(report, null, 2), 'utf8');
         throw new Error(`La demo informo FAILED por canal lateral: detail=${side.value?.detail ?? '?'}`);
       } else {
-        console.log(`[run-demo] side-channel ${side.status}; fallback wait ${waitMs} ms`);
+        report.status = `side_channel_${side.status}`;
+        fs.writeFileSync(path.join(outputDir, 'run-report.json'), JSON.stringify(report, null, 2), 'utf8');
+        if (!hasArg('--allow-timeout-fallback')) {
+          throw new Error(`La demo no alcanzo READY por canal lateral en ${sideChannelTimeoutMs} ms: ${side.status}`);
+        }
+        console.log(`[run-demo] side-channel ${side.status}; explicit fallback wait ${waitMs} ms`);
         await sleep(waitMs);
       }
     } catch (err) {
       report.sideChannel = { status: 'unavailable', error: err.message };
-      console.log(`[run-demo] side-channel unavailable (${err.message}); fallback wait ${waitMs} ms`);
+      report.status = 'side_channel_unavailable';
+      fs.writeFileSync(path.join(outputDir, 'run-report.json'), JSON.stringify(report, null, 2), 'utf8');
+      if (!hasArg('--allow-timeout-fallback')) {
+        throw err;
+      }
+      console.log(`[run-demo] side-channel unavailable (${err.message}); explicit fallback wait ${waitMs} ms`);
       await sleep(waitMs);
     }
   } else if (hasArg('--require-ready') && readyProbeSymbol !== null) {
@@ -609,10 +662,26 @@ try {
     };
   }
 
-  const winScreenshotPath = screenshotPath.replace(/\//g, '\\');
-  const screenshotReply = await protocol.sendMonitorCommand(`screenshot ${winScreenshotPath}`, 30000);
-  report.screenshotReply = screenshotReply;
-  report.screenshotReplyText = decodeMonitorReply(screenshotReply);
+  if (sequenceFrames > 0) {
+    console.log(`[run-demo] capturing ${sequenceFrames} sequence frames every ${sequenceIntervalMs} ms`);
+    report.sequence = await captureFrameSequence(
+      protocol,
+      path.join(outputDir, 'sequence'),
+      sequenceFrames,
+      sequenceIntervalMs
+    );
+  }
+
+  const screenshot = await captureScreenshot(protocol, screenshotPath);
+  report.screenshotReply = screenshot.reply;
+  report.screenshotReplyText = screenshot.replyText;
+  if (report.sideChannel?.runtimeAddress) {
+    try {
+      report.finalSideChannel = await readSideChannelRunStatusOnce(sideChannelPort, report.sideChannel.runtimeAddress, 1000);
+    } catch (err) {
+      report.finalSideChannel = { ok: false, error: err.message };
+    }
+  }
   report.status = fs.existsSync(screenshotPath) ? 'ok' : 'missing_screenshot';
 
   fs.writeFileSync(path.join(outputDir, 'run-report.json'), JSON.stringify(report, null, 2), 'utf8');

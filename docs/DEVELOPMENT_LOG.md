@@ -274,6 +274,26 @@ Resultado verificado:
   la idea de preparar tiles poco a poco antes de que crucen el borde visible. La
   demo 100 ya encola una columna derecha y acepta 4 updates por frame:
   `runStatus.detail = 0x10390941`.
+- Se ha añadido `engine/include/amg/graphics/drivers/ehb_tile_scroll.hpp` y la demo
+  `101_ehb_tile_scroll_driver`. Es el primer driver Amiga de tile scroll horizontal:
+  reserva una superficie EHB 384x256, muestra una ventana 320x256, programa
+  `BPLCON1` animado y convierte updates progresivos en `TileBlockCopy` reales
+  ejecutados por Blitter con presupuesto pequeno por frame. Los 64 pixels extra
+  son cuatro columnas de prefetch para predibujar tiles sueltos durante varios
+  VBLANKs, no una unica columna pintada a ultima hora. El analizador valida la
+  marca `0x11......`, camara dentro del margen y `fine_x == camera_x & 15`.
+- El runner `tools/run/run-demo.*` ya no usa fallback largo por defecto cuando el
+  canal lateral no alcanza READY. Si falla READY en pocos segundos, la prueba falla
+  con diagnostico; el fallback queda solo como opcion explicita
+  `--allow-timeout-fallback`.
+- El runner puede capturar secuencias con `-SequenceFrames` y
+  `-SequenceIntervalMs`. `tools/analyze/analyze-frame-sequence.ps1` resume esas
+  secuencias en JSON y una hoja de contacto, con criterios `-ExpectAnimated` o
+  `-ExpectStatic`, para validar movimiento sin revisar muchas imagenes a mano. La
+  demo 101 ya usa `-ExpectAnimated` como prueba temporal real.
+- `tools/test-regression.ps1` detecta `analyze-sequence.ps1` dentro de una demo y
+  añade una columna `Sequence` al informe. `101_ehb_tile_scroll_driver` incluye
+  esa prueba para que el scroll animado quede cubierto por la regresion completa.
 - El roadmap incorpora una seccion de abstracciones futuras: `RenderScene`
   retenido, `FramePlan`, `CopperScheduler`, `BlitterQueue`, `SpriteAllocator`,
   `DmaBudget`, drivers `RoadRaster`, `SpriteBackdrop`, `CopperHeavy` y efectos
@@ -282,7 +302,7 @@ Resultado verificado:
 Ultimo informe de regresion conocido:
 
 ```text
-out\regression\20260531-131248\regression-report.md
+out\regression\20260531-135155\regression-report.md
 ```
 
 ## Siguiente paso previsto

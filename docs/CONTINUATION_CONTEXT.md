@@ -44,6 +44,10 @@ probarse con:
 - Durante pruebas automatizadas, WinUAE no debe capturar ni encerrar el raton de
   Windows. El runner fuerza `win32.absolute_mouse=yes` y las pruebas deben mover
   el raton emulado con `tools\input\mouse-path.ps1`.
+- El runner no debe depender de esperas largas para demos con `g_amg_run_status`.
+  `tools\run\run-demo.*` falla si no hay `side-channel READY` en pocos segundos;
+  el fallback largo solo existe con `--allow-timeout-fallback` para diagnosticos
+  manuales.
 - Las demos deben exponer `g_amg_run_status` y llegar a `Ready` por el canal
   lateral de WinUAE-DBG antes de la captura. El canal escucha en `127.0.0.1:2346`
   y el runner lo usa sin detener el 68000.
@@ -167,6 +171,43 @@ La demo `100_virtual_tile_scene_scroll` debe:
   presupuesto de 4 updates antes de que sean visibles;
 - superar `demos\100_virtual_tile_scene_scroll\analyze-screenshot.ps1`;
 - dejar en `g_amg_run_status.detail` el estado saludable actual `0x10390941`.
+
+La demo `101_ehb_tile_scroll_driver` debe:
+
+- compilar en debug;
+- ejecutarse en WinUAE-DBG;
+- alcanzar `side-channel READY`;
+- mostrar la escena EHB con superficie de 384x256 y ventana visible de 320x256;
+- reservar cuatro columnas ocultas para predibujar tiles sueltos antes de que
+  sean visibles;
+- usar `EhbTileScrollScene` para programar punteros de bitplane y `BPLCON1`;
+- animar el scroll dentro del margen oculto con commit sincronizado a VBlank;
+- convertir updates progresivos de tiles offscreen en `TileBlockCopy` reales, con
+  presupuesto pequeno por frame;
+- superar `demos\101_ehb_tile_scroll_driver\analyze-screenshot.ps1`;
+- dejar en `g_amg_run_status.detail` la marca `0x11......`, con camara/fine X y
+  trabajos de tile actualizados mientras corre.
+
+Las animaciones y scrolls deben validarse con secuencias cuando una captura unica
+no demuestre suficiente comportamiento temporal:
+
+```powershell
+.\tools\run\run-demo.ps1 demos\101_ehb_tile_scroll_driver -SequenceFrames 4 -SequenceIntervalMs 80
+.\tools\analyze\analyze-frame-sequence.ps1 out\run\101_ehb_tile_scroll_driver\sequence -ExpectAnimated
+```
+
+Para demos animadas se usara `-ExpectAnimated`; la herramienta genera
+`sequence-analysis.json` y `contact-sheet.png`, reduciendo el coste de revisar
+frames visualmente.
+
+La regresion ejecuta automaticamente esa comprobacion cuando una demo tiene un
+`analyze-sequence.ps1`. La 101 ya lo usa, por lo que el informe debe mostrar
+`Sequence = ok` ademas de Build/Run/Analyze.
+
+Si mas adelante se quiere una comprobacion semantica de mayor nivel, LM Studio
+puede actuar como segundo observador local sobre la hoja de contacto: primero se
+fallara o aprobara por metricas baratas, y solo cuando haga falta se enviara una
+imagen resumida al modelo de vision local.
 
 El contrato del canal lateral seguro debe pasar con:
 

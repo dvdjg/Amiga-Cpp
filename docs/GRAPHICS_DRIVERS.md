@@ -118,6 +118,20 @@ La ruta bidireccional debe ser la opcion ergonomica para el juego. El usuario mu
 una camara 2D; el driver decide si ese frame puede usar la ruta barata horizontal o
 vertical, o si necesita la ruta completa.
 
+`engine/include/amg/graphics/drivers/ehb_tile_scroll.hpp` implementa el primer
+driver real de esta familia. `EhbTileScrollScene` reserva una superficie EHB de
+384x256, muestra una ventana de 320x256 y reconstruye su copperlist con punteros
+de bitplane desplazados y `BPLCON1` para fine X. El margen de 64 pixels equivale a
+4 columnas ocultas: suficiente para predibujar tiles sueltos en orden de urgencia
+durante varios frames antes de que crucen el borde visible.
+
+`demos/101_ehb_tile_scroll_driver` demuestra la ruta inicial con movimiento real:
+la camara oscila dentro del margen oculto, cada frame reconstruye la copperlist
+con el nuevo `BPLCON1`, y los tiles offscreen aceptados por presupuesto se
+convierten en `TileBlockCopy` que el backend ejecuta por Blitter antes de instalar
+la copperlist final. La prueba de secuencia debe detectar animacion, no solo una
+captura estatica correcta.
+
 Los blobs futuros tambien podran tener una contribucion Copper asociada. Por
 ejemplo: cambiar colores justo en sus franjas, ondular filas mediante scroll/splits
 de bitplanes o crear regiones no rectangulares. Esa informacion no debe escribir

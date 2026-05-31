@@ -252,6 +252,14 @@ Criterio de aceptacion:
   mover una camara logica con fine scroll y validar captura/telemetria. Estado:
   `100_virtual_tile_scene_scroll` cubre la capa retenida y el resultado visual; el
   siguiente paso es reemplazar su raster didactico por `TileScrollDriver` real.
+- El primer driver real de scroll horizontal debe mostrar una superficie mayor que
+  pantalla, usar `BPLCON1` para fine scroll y ejecutar updates de tiles por Blitter.
+  Estado: `101_ehb_tile_scroll_driver` valida una superficie 384x256 con cuatro
+  columnas ocultas, scroll animado y `TileBlockCopy` progresivos con presupuesto
+  por frame.
+- Las demos temporales deben poder capturar secuencias cortas y analizarlas por
+  diferencias/frame hash para comprobar animacion, repeticion o estabilidad sin
+  depender solo de una captura estatica.
 - El commit visible de scroll/copper/bitplanes ocurre sincronizado con VBlank.
 - El motor sabe rechazar o advertir composiciones que excedan el presupuesto.
 - El MVP inicial debe mostrar al menos un BOB cookie-cut sobre EHB usando

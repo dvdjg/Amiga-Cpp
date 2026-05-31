@@ -128,6 +128,9 @@ BOBs, redraw parcial o CPU.
   offscreen: los trabajos se ordenan por `frames_until_visible` y el driver consume
   solo el presupuesto aceptado por frame. Esto debe reflejarse en UAF como hints de
   prefetch/margen/presupuesto por layer.
+- `EhbTileScrollScene` empieza a materializar esa politica en Amiga: superficie
+  384x256, ventana 320x256, 4 columnas ocultas de prefetch, `BPLCON1` para fine X
+  animado y `TileBlockCopy` por Blitter con presupuesto por frame.
 
 ## Siguiente MVP recomendado
 
