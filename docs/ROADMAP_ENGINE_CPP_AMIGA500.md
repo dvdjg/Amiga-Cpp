@@ -221,6 +221,10 @@ Entregables:
 - Dirty rects y orden de restauracion/dibujo.
 - Presupuesto por BOB en funcion de ancho, alto y bitplanes.
 - Shifts de Blitter para X no alineada a 16 pixels.
+- Copia de tiles/metatiles hacia buffers de staging o zonas no visibles del
+  playfield para preparar scroll sin redibujar por CPU.
+- Scroll de tilemap inspirado en `demoscene-repo/effects/tiles16`: dirty bits por
+  buffer, coarse scroll por punteros de bitplane y fine scroll por `BPLCON1`.
 - Contribuciones opcionales de Copper asociadas a blobs/playfields: cambios de
   paleta por franja, shifts por linea, splits de bitplanes y regiones no
   rectangulares coordinadas por `CopperScheduler`.
@@ -239,6 +243,13 @@ Criterio de aceptacion:
   una fusion real de region anterior/nueva.
 - Un BOB puede dibujarse en X no alineada usando BLTCON shifts y la captura
   automatica valida que aparece cerca de la coordenada logica esperada.
+- Un bloque de tiles puede componerse por Blitter en Chip RAM fuera de pantalla y
+  publicarse despues al playfield visible.
+- Un MVP visual de escenario virtual debe cargar un mapa mayor que pantalla,
+  mover una camara logica con fine scroll y validar captura/telemetria. Estado:
+  `100_virtual_tile_scene_scroll` cubre la capa retenida y el resultado visual; el
+  siguiente paso es reemplazar su raster didactico por `TileScrollDriver` real.
+- El commit visible de scroll/copper/bitplanes ocurre sincronizado con VBlank.
 - El motor sabe rechazar o advertir composiciones que excedan el presupuesto.
 - El MVP inicial debe mostrar al menos un BOB cookie-cut sobre EHB usando
   `FramePlan -> backend -> Blitter`, sin registros custom en la demo.
@@ -513,7 +524,10 @@ quedar abajo, coordinados por sistemas centrales y no por cada entidad.
 - `EntityId` y componentes ligeros: transform, sprite/actor, collider, trigger,
   hotspot, script state.
 - `SceneGraph2D` retenido: capas, camaras, nodos visibles y orden de composicion.
-- `Camera2D`: seguimiento, limites, shake, parallax abstracto.
+- `Camera2D`: seguimiento, limites, shake, parallax abstracto. Ya existe una
+  primera version en `engine/include/amg/scene/virtual_scene.hpp`.
+- `VirtualScene`: fachada retenida para capas de tiles y, despues, actores,
+  triggers y regiones Copper sin exponer registros a la logica de juego.
 - `InteractionLayer`: hotspots, walkboxes, zonas de profundidad, dialogos e
   inventario para aventuras.
 - `Physics2D` simple: colisiones por tiles, slopes, plataformas, sensores y
@@ -563,6 +577,9 @@ quedar abajo, coordinados por sistemas centrales y no por cada entidad.
 - `StaticEhbScene`: ya iniciado. Fondo EHB estatico con zonas Copper.
 - `EhbRoomDriver`: aventura EHB retenida con BOBs, cursor, hotspots y color cycling.
 - `TileScrollDriver`: tilemaps 16x16, scroll fino/coarse y columnas recompuestas.
+  La base compartida ya existe como `TileMap16`, `TileLayer` y `VirtualScene`;
+  falta el driver Amiga que convierta el plan retenido en columnas/filas de
+  blitter, punteros de bitplane y `BPLCON1`.
 - `Standard4/Standard5`: accion con menor presion DMA.
 - `FakeDPF`: 4 planos de juego + 1 plano auxiliar para fondo/sombra/marca.
 - `DualPlayfield`: playfields reales con scroll independiente y parallax.
@@ -600,3 +617,7 @@ del juego, falta una abstraccion. El juego debe pedir "agua con ciclo de paleta"
 "actor en capa de profundidad", "carretera con tabla de perspectiva" o "split de
 cielo"; el driver y los schedulers deciden si cabe en el frame y como materializarlo
 en el hardware.
+
+La misma regla aplica a las replicas de `demoscene-repo/effects`: cada efecto se
+reconstruye con APIs limpias del engine, no como port literal. Ver
+`docs/DEMOSCENE_EFFECT_REPLICATION_POLICY.md`.

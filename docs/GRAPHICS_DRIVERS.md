@@ -75,6 +75,31 @@ enmascarado puede pedir `source_shift` y el backend lo traduce a los shifts A/B
 de `BLTCON0`/`BLTCON1`. Esto permite X no alineada a 16 pixels con una word extra
 por fila de fuente.
 
+`demos/052_tile_staging_blits` separa los blits de tiles de los blits de sprites.
+`TileBlockCopy` usa la misma copia rectangular que `CopyRect`, pero representa una
+intencion distinta: preparar columnas, filas o bloques de tilemap en zonas no
+visibles del playfield. La demo compone un bloque 4x4 de tiles en un buffer Chip
+RAM no visible y despues lo publica al playfield EHB con otro blit.
+
+El primer modelo retenido para scroll vive en
+`engine/include/amg/graphics/tilemap/tile_scroll.hpp`. `TileMap16` no sabe nada de
+`BPLCON1` ni `BPLxPT`: solo empaqueta indices de tile con dirty flags por buffer y
+descompone una posicion de scroll en tile/coarse/fine. El driver Amiga futuro sera
+quien traduzca esa intencion a Copper y Blitter.
+
+La primera fachada de escena vive en
+`engine/include/amg/scene/virtual_scene.hpp`. `VirtualScene`, `Camera2D` y
+`TileLayer` describen un escenario virtual en terminos portables: mundo, viewport,
+capas, margenes ocultos y estrategia de scroll. La demo 052 ya pasa por esa capa
+antes de emitir blits, de modo que las proximas demos podran crecer hacia un
+`TileScrollDriver` sin reescribir la logica.
+
+`demos/100_virtual_tile_scene_scroll` es el primer MVP visual sobre esa fachada.
+Muestra un mapa 64x16 con camara X=57, `fine_x=9`, paletas EHB por zonas Copper y
+tiles generados como words planares. Todavia no es el driver definitivo: recompone
+el viewport de forma didactica. Su valor es fijar el contrato estetico y de API
+antes de optimizarlo con Blitter, margenes ocultos y `BPLCON1`.
+
 Los blobs futuros tambien podran tener una contribucion Copper asociada. Por
 ejemplo: cambiar colores justo en sus franjas, ondular filas mediante scroll/splits
 de bitplanes o crear regiones no rectangulares. Esa informacion no debe escribir

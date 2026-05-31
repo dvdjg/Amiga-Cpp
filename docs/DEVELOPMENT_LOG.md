@@ -234,6 +234,40 @@ Resultado verificado:
   intenciones Copper asociadas (paleta, splits, ondulaciones o regiones no
   rectangulares), pero siempre canalizadas por `CopperScheduler`, no escribiendo
   registros Copper desde el recurso individual.
+- `FramePlan` distingue `TileBlockCopy` de `CopyRect`. El backend usa la misma
+  copia C->D, pero el presupuesto cuenta `tile_jobs` para no mezclar cargas de
+  tilemap con BOBs o restores.
+- Se ha añadido `052_tile_staging_blits`: compone un bloque 4x4 de tiles 16x16 en
+  un buffer Chip RAM no visible mediante 16 `TileBlockCopy`, y lo publica despues
+  al playfield visible con un `CopyRect`. El estado saludable deja
+  `runStatus.detail = 0x05210104`.
+- Se ha indexado `C:\Users\David\Documents\Programa\Amiga\demoscene-repo` en
+  `docs/DEMOSCENE_REPO_INDEX.md`. Hallazgos clave: `effects/tiles16` combina dirty
+  flags por doble buffer, blits interleaved de tiles, coarse scroll por `BPLxPT`,
+  fine scroll por `BPLCON1`, doble copperlist y commit en VBlank; `lib/lib3d`
+  aporta una base de 3D fixed-point, culling, luz por cara y ordenacion Z.
+- Se ha fijado `docs/DEMOSCENE_EFFECT_REPLICATION_POLICY.md`: las replicas de
+  efectos de `demoscene-repo/effects` se implementaran como demos propias del
+  engine, con logica limpia y registros custom encapsulados en capas bajas. La
+  primera replica recomendada es `tiles16`.
+- Se ha añadido `engine/include/amg/graphics/tilemap/tile_scroll.hpp` con el primer
+  modelo retenido de tilemap 16x16: celdas con dirty flags por doble buffer,
+  descomposicion de scroll en tile/coarse/fine y preparacion de frame sin conocer
+  registros Amiga. `052_tile_staging_blits` ya lo usa para validar sus 16 tiles
+  sucios antes de lanzar `TileBlockCopy`.
+- Se ha añadido `engine/include/amg/scene/virtual_scene.hpp` con `Camera2D`,
+  `TileLayer`, `TileScrollStrategy` y `VirtualSceneFrame`. La demo 052 ya crea una
+  escena virtual retenida y pasa por ella antes de generar sus blits de staging.
+- Se ha creado `docs/RETRO_ENGINE_API_BENCHMARK.md`, con aprendizajes de ACE,
+  Scorpion Engine publico y UAF, y con el MVP recomendado para escenarios
+  virtuales con scroll.
+- Se ha añadido `100_virtual_tile_scene_scroll`: primer MVP visual de escenario
+  virtual. Usa `VirtualScene`, `Camera2D`, `TileLayer`, mapa 64x16, tiles 16x16,
+  scroll horizontal con fine X=9 y EHB con zonas Copper para cielo, jungla y
+  subsuelo. La primera version saturaba la pila al guardar cache de tiles dentro
+  del objeto local de `main`; se ha corregido moviendo el juego a almacenamiento
+  estatico. El analizador comprueba atractivo visual por muestras de color y
+  telemetria `runStatus.detail = 0x10390901`.
 - El roadmap incorpora una seccion de abstracciones futuras: `RenderScene`
   retenido, `FramePlan`, `CopperScheduler`, `BlitterQueue`, `SpriteAllocator`,
   `DmaBudget`, drivers `RoadRaster`, `SpriteBackdrop`, `CopperHeavy` y efectos
@@ -242,7 +276,7 @@ Resultado verificado:
 Ultimo informe de regresion conocido:
 
 ```text
-out\regression\20260531-005233\regression-report.md
+out\regression\20260531-111742\regression-report.md
 ```
 
 ## Siguiente paso previsto
@@ -254,5 +288,7 @@ Siguiente bloque recomendado:
 1. Convertir el presupuesto de Blitter en warnings/criterios de aceptacion por
    frame.
 2. Añadir clipping de Blitter para bordes de pantalla/camara.
-3. Añadir doble buffer de copperlist cuando un frame necesite cambiar estructura,
+3. Empezar una demo de scroll/tilemap con zona no visible real, dirty bits por
+   doble buffer, scroll fino por `BPLCON1` y commit sincronizado con VBlank.
+4. Añadir doble buffer de copperlist cuando un frame necesite cambiar estructura,
    no solo valores de `COLORxx`.

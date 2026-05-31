@@ -44,6 +44,7 @@ struct PalettePatch {
 enum class BlitJobKind : u8 {
 	CopyRect,
 	RestoreRect,
+	TileBlockCopy,
 	MaskedBobCookieCut,
 	MaskedBlobNoSave,
 };
@@ -59,6 +60,7 @@ struct BlitBudget {
 	u16 masked_jobs = 0;
 	u16 copy_jobs = 0;
 	u16 no_save_jobs = 0;
+	u16 tile_jobs = 0;
 };
 
 /// Rectangulo de pantalla en pixels.
@@ -95,9 +97,14 @@ struct DirtyReport {
 
 /// Trabajo planar de Blitter.
 ///
-/// `CopyRect` y `RestoreRect` son copias rectangulares:
+/// `CopyRect`, `RestoreRect` y `TileBlockCopy` son copias rectangulares:
 ///
 /// `dest = source`
+///
+/// `TileBlockCopy` existe como categoria propia aunque use el mismo minterm de
+/// copia. Su contrato representa cargas de tiles/metatiles hacia zonas no visibles
+/// del playfield: columnas nuevas de scroll, buffers de staging, mapas retenidos o
+/// cualquier region que se puede sobrescribir completa sin save/restore.
 ///
 /// `MaskedBobCookieCut` y `MaskedBlobNoSave` usan el clasico cookie-cut:
 ///
@@ -145,7 +152,7 @@ struct BlitJob {
 class FramePlan {
 public:
 	static constexpr u8 max_palette_patches = 8;
-	static constexpr u8 max_blit_jobs = 8;
+	static constexpr u8 max_blit_jobs = 24;
 	static constexpr u8 max_dirty_rects = 8;
 
 	void clear() {
@@ -240,6 +247,12 @@ public:
 		return add_blit_job(copy);
 	}
 
+	bool add_tile_block_copy(const BlitJob& job) {
+		BlitJob copy = job;
+		copy.kind = BlitJobKind::TileBlockCopy;
+		return add_blit_job(copy);
+	}
+
 private:
 	static constexpr s16 min_s16(s16 a, s16 b) { return a < b ? a : b; }
 	static constexpr s16 max_s16(s16 a, s16 b) { return a > b ? a : b; }
@@ -312,6 +325,9 @@ private:
 		}
 		if (job.kind == BlitJobKind::MaskedBlobNoSave) {
 			++m_blit_budget.no_save_jobs;
+		}
+		if (job.kind == BlitJobKind::TileBlockCopy) {
+			++m_blit_budget.tile_jobs;
 		}
 		return true;
 	}

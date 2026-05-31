@@ -187,7 +187,8 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 			job.kind == graphics::BlitJobKind::MaskedBlobNoSave;
 		const bool copy =
 			job.kind == graphics::BlitJobKind::CopyRect ||
-			job.kind == graphics::BlitJobKind::RestoreRect;
+			job.kind == graphics::BlitJobKind::RestoreRect ||
+			job.kind == graphics::BlitJobKind::TileBlockCopy;
 
 		if (!masked && !copy) {
 			return false;

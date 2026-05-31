@@ -9,7 +9,9 @@ Si una IA abre este proyecto sin historial de conversacion, debe empezar leyendo
 5. `docs/HARDWARE_AND_ROM_KERNEL_POLICY.md`
 6. `docs/MOUSE_AUTOMATION.md`
 7. `docs/WINUAE_SIDE_CHANNEL_DEBUG.md`
-8. `demos/000_toolchain_cpp23/README.md`
+8. `docs/DEMOSCENE_REPO_INDEX.md`
+9. `docs/DEMOSCENE_EFFECT_REPLICATION_POLICY.md`
+10. `demos/000_toolchain_cpp23/README.md`
 
 ## Objetivo inmediato
 
@@ -31,6 +33,14 @@ probarse con:
 - Usar el Hardware Reference Manual local como referencia para registros y timing.
 - Mantener el uso del ROM kernel como politica opcional de backend, no como detalle
   mezclado en la logica de juego.
+- Usar `C:\Users\David\Documents\Programa\Amiga\demoscene-repo` como repositorio
+  externo de referencia tecnica. Consultar `docs\DEMOSCENE_REPO_INDEX.md` antes de
+  reanalizarlo desde cero.
+- Al replicar efectos de `demoscene-repo\effects`, seguir
+  `docs\DEMOSCENE_EFFECT_REPLICATION_POLICY.md`: no portar linea a linea, sino
+  reconstruir el efecto con APIs limpias del engine y pruebas automatizadas.
+- Las demos deben publicar cambios visibles sincronizados con VBlank cuando cambien
+  punteros de bitplane, copperlists, scroll fino o buffers activos.
 - Durante pruebas automatizadas, WinUAE no debe capturar ni encerrar el raton de
   Windows. El runner fuerza `win32.absolute_mouse=yes` y las pruebas deben mover
   el raton emulado con `tools\input\mouse-path.ps1`.
@@ -127,6 +137,34 @@ La demo `051_blitter_shifted_bobs` debe:
 - usar `BlitJob::source_shift` para dibujar en X no alineada a 16 pixels;
 - superar `demos\051_blitter_shifted_bobs\analyze-screenshot.ps1`;
 - dejar en `g_amg_run_status.detail` el estado saludable actual `0x05190301`.
+
+La demo `052_tile_staging_blits` debe:
+
+- compilar en debug;
+- ejecutarse en WinUAE-DBG;
+- alcanzar `side-channel READY`;
+- componer un bloque 4x4 de tiles 16x16 en un buffer Chip RAM no visible usando
+  `TileBlockCopy`;
+- usar `engine\include\amg\graphics\tilemap\tile_scroll.hpp` para validar el modelo
+  retenido de dirty tiles por buffer antes de lanzar los blits;
+- usar `engine\include\amg\scene\virtual_scene.hpp` para atravesar una escena
+  virtual retenida con `Camera2D` y `TileLayer`;
+- publicar ese bloque al playfield EHB visible con `CopyRect`;
+- superar `demos\052_tile_staging_blits\analyze-screenshot.ps1`;
+- dejar en `g_amg_run_status.detail` el estado saludable actual `0x05210104`.
+
+La demo `100_virtual_tile_scene_scroll` debe:
+
+- compilar en debug;
+- ejecutarse en WinUAE-DBG;
+- alcanzar `side-channel READY` sin caer en fallback largo;
+- mostrar un escenario virtual EHB atractivo: cielo, montanas, jungla, ruinas y
+  agua/subsuelo;
+- usar `VirtualScene`, `Camera2D`, `TileLayer` y `TileMap16`;
+- usar una camara con posicion X no alineada a tile para que `fine_x` sea distinto
+  de cero;
+- superar `demos\100_virtual_tile_scene_scroll\analyze-screenshot.ps1`;
+- dejar en `g_amg_run_status.detail` el estado saludable actual `0x10390901`.
 
 El contrato del canal lateral seguro debe pasar con:
 
