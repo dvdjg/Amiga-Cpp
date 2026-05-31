@@ -254,9 +254,10 @@ Criterio de aceptacion:
   siguiente paso es reemplazar su raster didactico por `TileScrollDriver` real.
 - El primer driver real de scroll horizontal debe mostrar una superficie mayor que
   pantalla, usar `BPLCON1` para fine scroll y ejecutar updates de tiles por Blitter.
-  Estado: `101_ehb_tile_scroll_driver` valida una superficie 384x256 con cuatro
-  columnas ocultas, scroll animado, `TileBlockCopy` progresivos con presupuesto
-  por frame y reciclaje de columnas mediante `EhbHorizontalRingPrefetch`.
+  Estado: `101_ehb_tile_scroll_driver` valida una superficie 480x416 con diez
+  columnas y diez filas ocultas, scroll animado X/Y, ruta derecha/izquierda/
+  arriba/abajo y orbita de cuatro tiles, mas `TileBlockCopy` progresivos fuera del
+  viewport con presupuesto por frame.
 - Las demos temporales deben poder capturar secuencias cortas y analizarlas por
   diferencias/frame hash para comprobar animacion, repeticion o estabilidad sin
   depender solo de una captura estatica.

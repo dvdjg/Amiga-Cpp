@@ -55,10 +55,13 @@ try {
 		}
 	}
 
-	foreach ($name in @("skyBlue", "mountainPurple", "jungleGreen", "jungleLight", "ruinGold", "whiteSpark")) {
-		if ($counts[$name] -lt 12) {
-			throw "No se detectan suficientes muestras $name en la captura."
-		}
+	$knownSamples =
+		$counts.skyBlue + $counts.mountainPurple +
+		$counts.jungleGreen + $counts.jungleLight +
+		$counts.ruinGold + $counts.whiteSpark +
+		$counts.underWater + $counts.underCyan
+	if ($knownSamples -lt 100) {
+		throw "No se detectan suficientes muestras de la escena tileada en la captura."
 	}
 	if (($counts.underWater + $counts.underCyan) -lt 12) {
 		throw "No se detectan suficientes muestras de la zona inferior animada en la captura."
@@ -77,11 +80,13 @@ try {
 	}
 
 	$cameraX = ($detail -shr 16) -band 0xff
-	$fineX = ($detail -shr 8) -band 0x0f
+	$cameraY = ($detail -shr 8) -band 0xff
 	$tileUpdates = ($detail -shr 4) -band 0x0f
-	$ringColumns = $detail -band 0x0f
-	if ($cameraX -gt 48 -or $fineX -ne ($cameraX -band 0x0f) -or $tileUpdates -gt 2 -or $ringColumns -lt 1) {
-		throw ("runStatus.detail no refleja driver tile scroll animado valido: 0x{0:x8}" -f $detail)
+	$prefetchFlags = $detail -band 0x0f
+	$hasColumnPrefetch = ($prefetchFlags -band 0x1) -ne 0
+	$hasRowPrefetch = ($prefetchFlags -band 0x2) -ne 0
+	if ($cameraX -gt 128 -or $cameraY -gt 128 -or $tileUpdates -gt 2 -or (!$hasColumnPrefetch -and !$hasRowPrefetch)) {
+		throw ("runStatus.detail no refleja driver tile scroll 2D animado valido: 0x{0:x8}" -f $detail)
 	}
 
 	[pscustomobject]@{
@@ -97,9 +102,9 @@ try {
 		UnderCyanSamples = $counts.underCyan
 		WhiteSparkSamples = $counts.whiteSpark
 		CameraX = $cameraX
-		FineX = $fineX
+		CameraY = $cameraY
 		TileUpdates = $tileUpdates
-		RingColumns = $ringColumns
+		PrefetchFlags = ("0x{0:x1}" -f $prefetchFlags)
 		RunDetail = ("0x{0:x8}" -f $detail)
 		Status = "OK"
 	} | Format-List

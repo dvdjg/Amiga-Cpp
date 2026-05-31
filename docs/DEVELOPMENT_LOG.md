@@ -276,16 +276,18 @@ Resultado verificado:
   `runStatus.detail = 0x10390941`.
 - Se ha añadido `engine/include/amg/graphics/drivers/ehb_tile_scroll.hpp` y la demo
   `101_ehb_tile_scroll_driver`. Es el primer driver Amiga de tile scroll horizontal:
-  reserva una superficie EHB 384x256, muestra una ventana 320x256, programa
+  reserva una superficie EHB mayor que la ventana visible, muestra 320x256, programa
   `BPLCON1` animado y convierte updates progresivos en `TileBlockCopy` reales
-  ejecutados por Blitter con presupuesto pequeno por frame. Los 64 pixels extra
-  son cuatro columnas de prefetch para predibujar tiles sueltos durante varios
-  VBLANKs, no una unica columna pintada a ultima hora. El analizador valida la
-  marca `0x11......`, camara dentro del margen y `fine_x == camera_x & 15`.
-- `EhbHorizontalRingPrefetch` añade el primer contrato de anillo horizontal: cada
-  columna de mundo se mapea a un slot fisico, el driver recuerda que slots estan
-  preparados y la demo 101 recicla columnas futuras por Blitter. El nibble bajo de
-  `runStatus.detail` cuenta columnas recicladas; el analizador exige al menos una.
+  ejecutados por Blitter con presupuesto pequeno por frame. El margen offscreen
+  permite predibujar tiles sueltos durante varios VBLANKs, no una unica columna
+  pintada a ultima hora. Despues se amplio a 480x416 para cubrir tambien prefetch
+  vertical y rutas circulares cortas. El analizador valida la marca
+  `0x11......`, camara dentro del margen y flags de prefetch.
+- `EhbHorizontalRingPrefetch` añadio el primer contrato de anillo horizontal; la
+  ruta actual usa `EhbBidirectionalRingPrefetch` para mapear columnas y filas de
+  mundo a slots fisicos, recordar que franjas estan preparadas y reciclarlas por
+  Blitter. El nibble bajo de `runStatus.detail` expone `0x1` para columnas y `0x2`
+  para filas; el analizador exige ambos bits.
 - El runner `tools/run/run-demo.*` ya no usa fallback largo por defecto cuando el
   canal lateral no alcanza READY. Si falla READY en pocos segundos, la prueba falla
   con diagnostico; el fallback queda solo como opcion explicita
@@ -310,11 +312,32 @@ Resultado verificado:
   retenido, `FramePlan`, `CopperScheduler`, `BlitterQueue`, `SpriteAllocator`,
   `DmaBudget`, drivers `RoadRaster`, `SpriteBackdrop`, `CopperHeavy` y efectos
   demoscene reutilizables.
+- `101_ehb_tile_scroll_driver` pasa de scroll horizontal a prefetch bidireccional:
+  `EhbTileScrollScene` reserva ahora una superficie 480x416, el Copper desplaza
+  punteros por X/Y, y la demo valida una ruta visible derecha/izquierda/arriba/
+  abajo mas orbita de cuatro tiles. El prefetch de esta demo se hace en franjas
+  lineales fuera del viewport visible para no mostrar tiles reciclados a mitad de
+  pantalla; el anillo modulo queda como contrato para un futuro wrap fisico real.
+  La prueba local deja `runStatus.detail = 0x11055823`: camara X/Y dentro del
+  margen, dos tiles ejecutados en el frame y flags `0x3` de columnas+filas.
+- Se crea el subproyecto `FrameScope` para analisis visual temporal generico:
+  `tools/framescope/frame-scope.ps1` acepta carpetas de frames o videos locales
+  mediante `ffmpeg`, genera `framescope-report.json`, `framescope-summary.md` y
+  `framescope-contact-sheet.png`, estima diferencias, direccion de movimiento,
+  segmentos y grids ASCII compactos. Su roadmap propio queda en
+  `docs/FRAMESCOPE_ROADMAP.md`. Se ha verificado sobre la secuencia WinUAE de la
+  demo 101 y sobre un MP4 generado desde esos frames.
+- `tools/run/run-demo.mjs` guarda ahora `runStatus` por cada frame de secuencia
+  cuando el canal lateral esta disponible. FrameScope incorpora `-Profile
+  amiga-scroll`, que decodifica esa telemetria, compara deltas de camara con la
+  direccion visual observada y puede fallar con `-RequireProfileMatch`. En la demo
+  101 actual el perfil diagnostica `profile_mismatch` en la fase circular final,
+  confirmando que la animacion visible no sigue fielmente la ruta programada.
 
 Ultimo informe de regresion conocido:
 
 ```text
-out\regression\20260531-142410\regression-report.md
+out\regression\20260531-161132\regression-report.md
 ```
 
 ## Siguiente paso previsto

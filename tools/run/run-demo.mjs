@@ -169,12 +169,26 @@ async function captureScreenshot(protocol, imagePath, timeoutMs = 30000) {
   };
 }
 
-async function captureFrameSequence(protocol, sequenceDir, frameCount, intervalMs) {
+async function captureFrameSequence(protocol, sequenceDir, frameCount, intervalMs, sideChannel = null) {
   fs.mkdirSync(sequenceDir, { recursive: true });
   const frames = [];
   for (let i = 0; i < frameCount; ++i) {
     const framePath = path.join(sequenceDir, `frame_${String(i).padStart(3, '0')}.png`);
-    frames.push(await captureScreenshot(protocol, framePath));
+    const capturedAt = Date.now();
+    const frame = await captureScreenshot(protocol, framePath);
+    frame.capturedAtMs = capturedAt;
+    if (sideChannel?.runtimeAddress) {
+      try {
+        frame.runStatus = await readSideChannelRunStatusOnce(
+          sideChannel.port,
+          sideChannel.runtimeAddress,
+          sideChannel.timeoutMs ?? 1000
+        );
+      } catch (err) {
+        frame.runStatus = { ok: false, error: err.message };
+      }
+    }
+    frames.push(frame);
     if (intervalMs > 0 && i + 1 < frameCount) {
       await sleep(intervalMs);
     }
@@ -674,7 +688,12 @@ try {
       protocol,
       path.join(outputDir, 'sequence'),
       sequenceFrames,
-      sequenceIntervalMs
+      sequenceIntervalMs,
+      report.sideChannel?.runtimeAddress ? {
+        port: sideChannelPort,
+        runtimeAddress: report.sideChannel.runtimeAddress,
+        timeoutMs: 1000,
+      } : null
     );
   }
 

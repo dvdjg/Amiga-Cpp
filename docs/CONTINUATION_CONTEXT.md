@@ -187,19 +187,21 @@ La demo `101_ehb_tile_scroll_driver` debe:
 - compilar en debug;
 - ejecutarse en WinUAE-DBG;
 - alcanzar `side-channel READY`;
-- mostrar la escena EHB con superficie de 384x256 y ventana visible de 320x256;
-- reservar cuatro columnas ocultas para predibujar tiles sueltos antes de que
-  sean visibles;
+- mostrar la escena EHB con superficie de 480x416 y ventana visible de 320x256;
+- reservar diez columnas y diez filas ocultas para predibujar tiles sueltos
+  antes de que sean visibles;
 - usar `EhbTileScrollScene` para programar punteros de bitplane y `BPLCON1`;
-- usar `EhbHorizontalRingPrefetch` para mapear columnas de mundo a slots fisicos
-  y reciclar columnas futuras con Blitter;
-- animar el scroll dentro del margen oculto con commit sincronizado a VBlank;
+- animar una ruta visible: derecha dos tiles, izquierda, arriba dos tiles, abajo y
+  despues una orbita de cuatro tiles de radio, con commit sincronizado a VBlank;
+- ejecutar el prefetch solo sobre franjas lineales fuera del viewport visible,
+  dejando el anillo modulo para un futuro driver de wrap fisico real;
 - convertir updates progresivos de tiles offscreen en `TileBlockCopy` reales, con
   presupuesto pequeno por frame;
 - superar `demos\101_ehb_tile_scroll_driver\analyze-screenshot.ps1`;
-- dejar en `g_amg_run_status.detail` la marca `0x11......`, con camara/fine X y
-  trabajos de tile actualizados mientras corre. El nibble bajo cuenta columnas
-  recicladas del anillo y debe ser mayor que cero.
+- dejar en `g_amg_run_status.detail` la marca `0x11......`, con camara X/Y y
+  trabajos de tile actualizados mientras corre. El nibble bajo publica flags de
+  prefetch: `0x1` columnas recicladas y `0x2` filas recicladas; el estado valido
+  debe tener ambos bits.
 
 Las animaciones y scrolls deben validarse con secuencias cuando una captura unica
 no demuestre suficiente comportamiento temporal:
@@ -221,6 +223,24 @@ Si mas adelante se quiere una comprobacion semantica de mayor nivel, LM Studio
 puede actuar como segundo observador local sobre la hoja de contacto: primero se
 fallara o aprobara por metricas baratas, y solo cuando haga falta se enviara una
 imagen resumida al modelo de vision local.
+
+FrameScope es el nuevo subproyecto generico para diagnostico temporal:
+
+```powershell
+.\tools\framescope\frame-scope.ps1 `
+  -Source .\out\run\101_ehb_tile_scroll_driver\sequence `
+  -OutDir .\out\framescope\101_latest `
+  -ExpectAnimated
+```
+
+Acepta carpetas de frames o videos locales si `ffmpeg` esta en `PATH`. Genera
+`framescope-report.json`, `framescope-summary.md` y `framescope-contact-sheet.png`.
+El roadmap del subproyecto esta en `docs\FRAMESCOPE_ROADMAP.md`. El siguiente paso
+natural es usar `-Profile amiga-scroll -RequireProfileMatch` para corregir la demo
+101. El perfil ya compara telemetria de `run-report.json` con movimiento observado:
+en el estado actual detecta `profile_mismatch`, especialmente en la fase circular
+final, donde la camara declara componentes verticales/derecha pero la imagen
+observada alterna direcciones horizontales o contradictorias.
 
 El contrato del canal lateral seguro debe pasar con:
 

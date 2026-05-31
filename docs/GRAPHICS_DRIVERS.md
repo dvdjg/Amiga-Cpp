@@ -120,25 +120,26 @@ vertical, o si necesita la ruta completa.
 
 `engine/include/amg/graphics/drivers/ehb_tile_scroll.hpp` implementa el primer
 driver real de esta familia. `EhbTileScrollScene` reserva una superficie EHB de
-384x256, muestra una ventana de 320x256 y reconstruye su copperlist con punteros
-de bitplane desplazados y `BPLCON1` para fine X. El margen de 64 pixels equivale a
-4 columnas ocultas: suficiente para predibujar tiles sueltos en orden de urgencia
-durante varios frames antes de que crucen el borde visible.
+480x416, muestra una ventana de 320x256 y reconstruye su copperlist con punteros
+de bitplane desplazados y `BPLCON1` para fine X. Los margenes de 160 pixels
+equivalen a 10 columnas y 10 filas ocultas: suficiente para predibujar tiles
+sueltos en orden de urgencia durante varios frames antes de que crucen el borde
+visible, incluso con una ruta circular de cuatro tiles de radio.
 
 `demos/101_ehb_tile_scroll_driver` demuestra la ruta inicial con movimiento real:
-la camara oscila dentro del margen oculto, cada frame reconstruye la copperlist
-con el nuevo `BPLCON1`, y los tiles offscreen aceptados por presupuesto se
-convierten en `TileBlockCopy` que el backend ejecuta por Blitter antes de instalar
-la copperlist final. La prueba de secuencia debe detectar animacion, no solo una
-captura estatica correcta.
+la camara se mueve dos tiles a derecha/izquierda, dos tiles arriba/abajo y despues
+recorre una orbita de cuatro tiles de radio. Cada frame reconstruye la copperlist,
+y los tiles offscreen aceptados por presupuesto se convierten en `TileBlockCopy`
+que el backend ejecuta por Blitter antes de instalar la copperlist final. La
+prueba de secuencia debe detectar animacion, no solo una captura estatica correcta.
 
-La misma cabecera incluye ahora `EhbHorizontalRingPrefetch`, un planificador de
-slots de columnas. Todavia no intenta hacer wrap fisico en mitad de la ventana
-visible, porque OCS no puede saltar de final de fila a principio de fila durante
-un unico fetch de bitplanes. Su contrato si es el que necesitaremos para el driver
-completo: mapear columna de mundo a slot fisico, recordar que columna vive en cada
-slot y pedir solo las columnas que faltan. La demo 101 recicla slots y deja el
-contador de columnas recicladas en el nibble bajo de `runStatus.detail`.
+La misma cabecera incluye ahora `EhbBidirectionalRingPrefetch`, un planificador de
+slots de columnas y filas. Todavia no intenta hacer wrap fisico en mitad de la
+ventana visible, porque OCS no puede saltar de final de fila a principio de fila
+durante un unico fetch de bitplanes. Su contrato si es el que necesitaremos para el
+driver completo: mapear columna/fila de mundo a slot fisico, recordar que franja
+vive en cada slot y pedir solo lo que falta. La demo 101 recicla columnas y filas;
+el nibble bajo de `runStatus.detail` publica flags (`0x1` columnas, `0x2` filas).
 
 Los blobs futuros tambien podran tener una contribucion Copper asociada. Por
 ejemplo: cambiar colores justo en sus franjas, ondular filas mediante scroll/splits

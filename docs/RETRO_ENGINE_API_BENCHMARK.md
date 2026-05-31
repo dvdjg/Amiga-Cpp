@@ -129,11 +129,12 @@ BOBs, redraw parcial o CPU.
   solo el presupuesto aceptado por frame. Esto debe reflejarse en UAF como hints de
   prefetch/margen/presupuesto por layer.
 - `EhbTileScrollScene` empieza a materializar esa politica en Amiga: superficie
-  384x256, ventana 320x256, 4 columnas ocultas de prefetch, `BPLCON1` para fine X
-  animado y `TileBlockCopy` por Blitter con presupuesto por frame.
-- `EhbHorizontalRingPrefetch` separa la identidad logica de una columna de mundo
-  del slot fisico donde se prepara. Esta idea debe reflejarse en UAF-R como hints
-  de margen, ventana, orden de prefetch y reciclaje de slots.
+  480x416, ventana 320x256, 10 columnas y 10 filas ocultas de prefetch, `BPLCON1`
+  para fine X, punteros de bitplane para Y y `TileBlockCopy` por Blitter con
+  presupuesto por frame sin escribir dentro del viewport visible.
+- `EhbBidirectionalRingPrefetch` separa la identidad logica de columnas/filas de
+  mundo del slot fisico donde se preparan. Esta idea debe reflejarse en UAF-R como
+  hints de margen, ventana, orden de prefetch y reciclaje de slots.
 
 ## Siguiente MVP recomendado
 

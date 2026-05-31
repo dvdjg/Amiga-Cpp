@@ -29,13 +29,24 @@ namespace drivers = amg::graphics::drivers;
 namespace scene = amg::scene;
 namespace tilemap = amg::graphics::tilemap;
 
+struct CameraPixels {
+	amg::u16 x = 0;
+	amg::u16 y = 0;
+};
+
 constexpr amg::u16 map_tiles_x = 64;
-constexpr amg::u16 map_tiles_y = 16;
+constexpr amg::u16 map_tiles_y = 32;
 constexpr amg::u16 surface_tiles_x = drivers::EhbTileScrollScene::surface_width / drivers::EhbTileScrollScene::tile_size;
+constexpr amg::u16 surface_tiles_y = drivers::EhbTileScrollScene::surface_height / drivers::EhbTileScrollScene::tile_size;
 constexpr amg::u16 tile_size = drivers::EhbTileScrollScene::tile_size;
 constexpr amg::u8 tile_update_budget = 2;
-constexpr amg::u16 animation_span_pixels = drivers::EhbTileScrollScene::prefetch_width - drivers::EhbTileScrollScene::tile_size;
+constexpr amg::u16 route_center_pixels = tile_size * 4u;
+constexpr amg::u16 route_radius_pixels = tile_size * 4u;
+constexpr amg::u16 route_step_pixels = tile_size * 2u;
+constexpr amg::u16 axis_segment_frames = 40;
+constexpr amg::u16 circle_step_frames = 4;
 constexpr amg::u16 logical_scroll_columns = map_tiles_x - surface_tiles_x + 1u;
+constexpr amg::u16 logical_scroll_rows = map_tiles_y - surface_tiles_y + 1u;
 
 constexpr drivers::EhbPalette sky_palette {{
 	0x001, 0x014, 0x06e, 0x0af, 0x7df, 0xfff, 0xfd6, 0xff0,
@@ -176,7 +187,7 @@ void stamp_tile_cpu(
 struct DemoGame {
 	void init(amg::amiga::MinimalBackend& backend, amg::GameContext&) {
 		amg::debug::mark_init_started(g_amg_run_status);
-		if (!backend.configure_memory({112u * 1024u, 16u * 1024u, 8u * 1024u})) {
+		if (!backend.configure_memory({180u * 1024u, 16u * 1024u, 8u * 1024u})) {
 			amg::debug::mark_failed(g_amg_run_status, 0x00000110u);
 			return;
 		}
@@ -203,42 +214,49 @@ struct DemoGame {
 		build_tile_word_cache(static_cast<amg::u16*>(m_tiles.data));
 		m_map.reset(m_cells, map_tiles_x, map_tiles_y);
 
-		for (amg::u16 y = 0; y < map_tiles_y; ++y) {
+		for (amg::u16 y = 0; y < surface_tiles_y; ++y) {
 			for (amg::u16 x = 0; x < surface_tiles_x; ++x) {
 				const amg::u16 tile = m_cells[static_cast<amg::u32>(y) * map_tiles_x + x].tile_index();
 				stamp_tile_cpu(m_scene, tile_source(m_tiles, tile), x, y);
 			}
 		}
 
-		// El anillo arranca con las primeras 24 columnas de mundo ya estampadas en
-		// la superficie. Cuando la camara logica avance, `EhbHorizontalRingPrefetch`
-		// detectara que un slot fisico debe reciclarse y pedira la columna nueva.
+		// El anillo arranca con las primeras 24x20 celdas de mundo ya estampadas en
+		// la superficie. Cuando la camara logica avance en X o Y, el planificador 2D
+		// detectara que slots fisicos deben reciclarse y pedira franjas offscreen.
 		m_scheduler.reset();
-		m_ring.reset(0);
+		m_ring.reset(0, 0);
 
-		if (!m_scene.rebuild_copper(0)) {
+		const CameraPixels initial_camera = scripted_camera(0);
+		m_active_camera_tile_x = camera_tile(initial_camera.x);
+		m_active_camera_tile_y = camera_tile(initial_camera.y);
+		m_previous_logical_column = m_active_camera_tile_x;
+		m_previous_logical_row = m_active_camera_tile_y;
+
+		if (!m_scene.rebuild_copper(initial_camera.x, initial_camera.y)) {
 			amg::debug::mark_failed(g_amg_run_status, 0x00000114u);
 			return;
 		}
 
 		m_scene.install(backend);
-		publish_status(0, 0);
+		publish_status(initial_camera.x, initial_camera.y, 0);
 		m_ready = true;
 	}
 
 	void update(amg::amiga::MinimalBackend& backend, amg::GameContext& context) {
 		amg::debug::mark_frame(g_amg_run_status, context.frame.frame_index);
 		if (m_ready) {
-			const amg::u16 logical_column = logical_camera_column(context.frame.frame_index);
-			schedule_next_ring_column(logical_column);
+			const CameraPixels camera = scripted_camera(context.frame.frame_index);
+			m_active_camera_tile_x = camera_tile(camera.x);
+			m_active_camera_tile_y = camera_tile(camera.y);
+			schedule_next_visible_margin(m_active_camera_tile_x, m_active_camera_tile_y);
 			const amg::u8 tile_jobs = upload_prefetch_tiles(backend);
-			const amg::u16 camera_x = animated_camera_x(context.frame.frame_index);
-			if (!m_scene.rebuild_copper(camera_x)) {
+			if (!m_scene.rebuild_copper(camera.x, camera.y)) {
 				amg::debug::mark_failed(g_amg_run_status, 0x00000115u);
 				return;
 			}
 			m_scene.install(backend);
-			publish_status(camera_x, tile_jobs);
+			publish_status(camera.x, camera.y, tile_jobs);
 		}
 	}
 
@@ -254,57 +272,144 @@ struct DemoGame {
 	tilemap::PackedTileCell m_cells[map_tiles_x * map_tiles_y] {};
 	tilemap::TileMap16 m_map {};
 	tilemap::ProgressiveTileScheduler m_scheduler {};
-	drivers::EhbHorizontalRingPrefetch m_ring {};
+	drivers::EhbBidirectionalRingPrefetch m_ring {};
 	amg::graphics::FramePlan m_frame_plan {};
 	amg::MemoryBlock m_tiles {};
-	amg::u16 m_pending_world_column = drivers::EhbHorizontalRingPrefetch::unknown_column;
-	amg::u16 m_pending_surface_slot = 0;
-	amg::u8 m_pending_rows = 0;
+	amg::u16 m_previous_logical_column = 0;
+	amg::u16 m_previous_logical_row = 0;
+	amg::u16 m_active_camera_tile_x = 0;
+	amg::u16 m_active_camera_tile_y = 0;
+	amg::u16 m_pending_world_column = drivers::EhbBidirectionalRingPrefetch::unknown_index;
+	amg::u16 m_pending_world_row = drivers::EhbBidirectionalRingPrefetch::unknown_index;
+	amg::u16 m_pending_column_slot = 0;
+	amg::u16 m_pending_row_slot = 0;
+	amg::u8 m_pending_column_tiles = 0;
+	amg::u8 m_pending_row_tiles = 0;
 	amg::u8 m_recycled_columns = 0;
+	amg::u8 m_recycled_rows = 0;
 
-	/// Oscila dentro del margen de prefetch.
-	///
-	/// La ventana visible se mueve por `BPLCON1` y punteros de bitplane, no
-	/// redibujando todo el fondo. El limite queda una columna antes del final para
-	/// dejar siempre margen a los tiles que se estan preparando por Blitter.
-	static constexpr amg::u16 animated_camera_x(amg::u32 frame_index) {
-		const amg::u16 period = static_cast<amg::u16>(animation_span_pixels * 2u);
-		const amg::u16 phase = static_cast<amg::u16>(frame_index % period);
-		return phase <= animation_span_pixels ? phase : static_cast<amg::u16>(period - phase);
+	static constexpr amg::u16 camera_tile(amg::u16 pixels) {
+		return static_cast<amg::u16>(pixels / tile_size);
 	}
 
-	/// Camara logica de mundo usada solo para alimentar el anillo de prefetch.
-	///
-	/// El scroll visible de esta demo aun se mantiene en el tramo lineal seguro de
-	/// la superficie; esta camara logica avanza mas lejos para demostrar que el
-	/// driver puede reciclar slots y pedir columnas futuras sin que la capa de juego
-	/// conozca el layout fisico.
-	static constexpr amg::u16 logical_camera_column(amg::u32 frame_index) {
-		return static_cast<amg::u16>((frame_index / tile_size) % logical_scroll_columns);
+	static constexpr amg::u16 lerp_u16(amg::u16 from, amg::u16 to, amg::u16 step, amg::u16 steps) {
+		return static_cast<amg::u16>(from + ((static_cast<amg::u32>(to - from) * step) / steps));
 	}
 
-	void schedule_next_ring_column(amg::u16 camera_world_column) {
-		if (m_pending_world_column != drivers::EhbHorizontalRingPrefetch::unknown_column || m_scheduler.queued_count() != 0) {
+	static constexpr amg::u16 inv_lerp_u16(amg::u16 from, amg::u16 to, amg::u16 step, amg::u16 steps) {
+		return static_cast<amg::u16>(from - ((static_cast<amg::u32>(from - to) * step) / steps));
+	}
+
+	static constexpr amg::s16 circle_offset_x(amg::u8 index) {
+		constexpr amg::s16 offsets[] {
+			64, 63, 59, 53, 45, 36, 24, 12,
+			0, -12, -24, -36, -45, -53, -59, -63,
+			-64, -63, -59, -53, -45, -36, -24, -12,
+			0, 12, 24, 36, 45, 53, 59, 63,
+		};
+		return offsets[index & 31u];
+	}
+
+	static constexpr amg::s16 circle_offset_y(amg::u8 index) {
+		constexpr amg::s16 offsets[] {
+			0, 12, 24, 36, 45, 53, 59, 63,
+			64, 63, 59, 53, 45, 36, 24, 12,
+			0, -12, -24, -36, -45, -53, -59, -63,
+			-64, -63, -59, -53, -45, -36, -24, -12,
+		};
+		return offsets[index & 31u];
+	}
+
+	/// Ruta visible de validacion.
+	///
+	/// La camara empieza en el centro del margen oculto. Primero se mueve dos tiles
+	/// a la derecha, vuelve, sube dos tiles, vuelve, y despues recorre una orbita de
+	/// cuatro tiles de radio. Toda la ruta queda dentro de la superficie lineal, asi
+	/// que los uploads de prefetch pueden escribirse fuera de pantalla sin asomar
+	/// tiles a mitad del viewport.
+	static constexpr CameraPixels scripted_camera(amg::u32 frame_index) {
+		const amg::u16 base = route_center_pixels;
+		const amg::u16 right = static_cast<amg::u16>(route_center_pixels + route_step_pixels);
+		const amg::u16 up = static_cast<amg::u16>(route_center_pixels - route_step_pixels);
+		if (frame_index < axis_segment_frames) {
+			return {lerp_u16(base, right, static_cast<amg::u16>(frame_index), axis_segment_frames), base};
+		}
+		if (frame_index < axis_segment_frames * 2u) {
+			return {inv_lerp_u16(right, base, static_cast<amg::u16>(frame_index - axis_segment_frames), axis_segment_frames), base};
+		}
+		if (frame_index < axis_segment_frames * 3u) {
+			return {base, inv_lerp_u16(base, up, static_cast<amg::u16>(frame_index - axis_segment_frames * 2u), axis_segment_frames)};
+		}
+		if (frame_index < axis_segment_frames * 4u) {
+			return {base, lerp_u16(up, base, static_cast<amg::u16>(frame_index - axis_segment_frames * 3u), axis_segment_frames)};
+		}
+
+		const amg::u8 circle_index = static_cast<amg::u8>(((frame_index - axis_segment_frames * 4u) / circle_step_frames) & 31u);
+		return {
+			static_cast<amg::u16>(route_center_pixels + circle_offset_x(circle_index)),
+			static_cast<amg::u16>(route_center_pixels + circle_offset_y(circle_index)),
+		};
+	}
+
+	static constexpr amg::u16 visible_safe_right_column(amg::u16 camera_tile_x) {
+		return static_cast<amg::u16>(camera_tile_x + drivers::EhbBidirectionalRingPrefetch::visible_columns + 1u);
+	}
+
+	static constexpr amg::u16 visible_safe_bottom_row(amg::u16 camera_tile_y) {
+		return static_cast<amg::u16>(camera_tile_y + drivers::EhbBidirectionalRingPrefetch::visible_rows + 1u);
+	}
+
+	void schedule_next_visible_margin(amg::u16 camera_world_column, amg::u16 camera_world_row) {
+		if (m_scheduler.queued_count() != 0 || m_pending_column_tiles != 0 || m_pending_row_tiles != 0) {
 			return;
 		}
 
-		tilemap::TileRect rect {};
-		amg::u16 slot = 0;
-		if (!m_ring.next_right_prefetch(camera_world_column, map_tiles_y, rect, slot)) {
+		if (camera_world_column > m_previous_logical_column) {
+			enqueue_margin_strip(
+				{visible_safe_right_column(camera_world_column), camera_world_row, 1, drivers::EhbBidirectionalRingPrefetch::visible_rows},
+				tilemap::TileUpdateEdge::Right
+			);
+		} else if (camera_world_column < m_previous_logical_column && camera_world_column != 0) {
+			enqueue_margin_strip(
+				{static_cast<amg::u16>(camera_world_column - 1u), camera_world_row, 1, drivers::EhbBidirectionalRingPrefetch::visible_rows},
+				tilemap::TileUpdateEdge::Left
+			);
+		}
+
+		if (camera_world_row > m_previous_logical_row) {
+			enqueue_margin_strip(
+				{camera_world_column, visible_safe_bottom_row(camera_world_row), drivers::EhbBidirectionalRingPrefetch::visible_columns, 1},
+				tilemap::TileUpdateEdge::Bottom
+			);
+		} else if (camera_world_row < m_previous_logical_row && camera_world_row != 0) {
+			enqueue_margin_strip(
+				{camera_world_column, static_cast<amg::u16>(camera_world_row - 1u), drivers::EhbBidirectionalRingPrefetch::visible_columns, 1},
+				tilemap::TileUpdateEdge::Top
+			);
+		}
+
+		m_previous_logical_column = camera_world_column;
+		m_previous_logical_row = camera_world_row;
+	}
+
+	void enqueue_margin_strip(tilemap::TileRect rect, tilemap::TileUpdateEdge edge) {
+		if (rect.left >= surface_tiles_x || rect.top >= surface_tiles_y) {
 			return;
 		}
 
-		m_scheduler.enqueue_strip(
-			m_map,
-			rect,
-			tilemap::TileUpdateEdge::Right,
-			0,
-			12,
-			1
-		);
-		m_pending_world_column = rect.left;
-		m_pending_surface_slot = slot;
-		m_pending_rows = static_cast<amg::u8>(rect.height);
+		const amg::u8 enqueued = m_scheduler.enqueue_strip(m_map, rect, edge, 0, 12, 1);
+		if (enqueued == 0) {
+			return;
+		}
+		if (edge == tilemap::TileUpdateEdge::Left || edge == tilemap::TileUpdateEdge::Right) {
+			m_pending_world_column = rect.left;
+			m_pending_column_slot = rect.left;
+			m_pending_column_tiles = enqueued;
+		} else {
+			m_pending_world_row = rect.top;
+			m_pending_row_slot = rect.top;
+			m_pending_row_tiles = enqueued;
+		}
 	}
 
 	/// Consume un presupuesto pequeno de tiles y lo ejecuta por Blitter.
@@ -320,7 +425,7 @@ struct DemoGame {
 			const tilemap::TileUpdateJob& job = plan.jobs[i];
 			if (!m_frame_plan.add_tile_block_copy(m_scene.make_tile_upload_job(
 				tile_source(m_tiles, job.tile_index),
-				m_ring.slot_for_world_column(job.x),
+				job.x,
 				job.y
 			))) {
 				amg::debug::mark_failed(g_amg_run_status, 0x00000113u);
@@ -332,25 +437,42 @@ struct DemoGame {
 			amg::debug::mark_failed(g_amg_run_status, 0x00000116u);
 			return 0;
 		}
-		if (m_pending_world_column != drivers::EhbHorizontalRingPrefetch::unknown_column && plan.count <= m_pending_rows) {
-			m_pending_rows = static_cast<amg::u8>(m_pending_rows - plan.count);
-			if (m_pending_rows == 0) {
-				m_ring.mark_slot_ready(m_pending_surface_slot, m_pending_world_column);
-				m_pending_world_column = drivers::EhbHorizontalRingPrefetch::unknown_column;
-				++m_recycled_columns;
+		for (amg::u8 i = 0; i < plan.count; ++i) {
+			const tilemap::TileUpdateJob& job = plan.jobs[i];
+			if ((job.edge == tilemap::TileUpdateEdge::Left || job.edge == tilemap::TileUpdateEdge::Right) &&
+				m_pending_column_tiles != 0 && job.x == m_pending_world_column) {
+				--m_pending_column_tiles;
+				if (m_pending_column_tiles == 0) {
+					m_ring.mark_column_ready(m_pending_column_slot, m_pending_world_column);
+					m_pending_world_column = drivers::EhbBidirectionalRingPrefetch::unknown_index;
+					++m_recycled_columns;
+				}
+			}
+			if ((job.edge == tilemap::TileUpdateEdge::Top || job.edge == tilemap::TileUpdateEdge::Bottom) &&
+				m_pending_row_tiles != 0 && job.y == m_pending_world_row) {
+				--m_pending_row_tiles;
+				if (m_pending_row_tiles == 0) {
+					m_ring.mark_row_ready(m_pending_row_slot, m_pending_world_row);
+					m_pending_world_row = drivers::EhbBidirectionalRingPrefetch::unknown_index;
+					++m_recycled_rows;
+				}
 			}
 		}
 		return plan.count;
 	}
 
-	void publish_status(amg::u16 camera_x, amg::u8 tile_jobs) {
+	void publish_status(amg::u16 camera_x, amg::u16 camera_y, amg::u8 tile_jobs) {
+		const amg::u8 prefetch_flags = static_cast<amg::u8>(
+			(m_recycled_columns != 0 ? 0x1u : 0u) |
+			(m_recycled_rows != 0 ? 0x2u : 0u)
+		);
 		amg::debug::mark_ready(
 			g_amg_run_status,
 			0x11000000u |
 				(static_cast<amg::u32>(camera_x & 0xffu) << 16u) |
-				(static_cast<amg::u32>(camera_x & 0x0fu) << 8u) |
+				(static_cast<amg::u32>(camera_y & 0xffu) << 8u) |
 				(static_cast<amg::u32>(tile_jobs & 0x0fu) << 4u) |
-				static_cast<amg::u32>(m_recycled_columns & 0x0fu)
+				static_cast<amg::u32>(prefetch_flags)
 		);
 	}
 };

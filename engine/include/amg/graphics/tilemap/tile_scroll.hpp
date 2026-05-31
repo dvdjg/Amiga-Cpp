@@ -317,7 +317,13 @@ private:
 /// coste de preparar el area que aun no es visible.
 class ProgressiveTileScheduler {
 public:
-	static constexpr u8 max_queued_jobs = 32;
+	/// Capacidad fija de cola para franjas offscreen.
+	///
+	/// Una superficie bidireccional 480x416 contiene 30 columnas por 26 filas. En
+	/// un movimiento diagonal podemos necesitar encolar una fila completa y una
+	/// columna completa en el mismo VBlank de planificacion. 64 trabajos mantiene
+	/// esa peor combinacion acotada sin recurrir a memoria dinamica.
+	static constexpr u8 max_queued_jobs = 64;
 
 	constexpr void reset() {
 		m_count = 0;
