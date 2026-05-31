@@ -186,4 +186,87 @@ private:
 	bool m_ok = false;
 };
 
+/// Planificador de columnas para una superficie horizontal con margen oculto.
+///
+/// El Amiga no puede hacer que un unico fetch de bitplanes "salte" del final de
+/// una fila al principio en mitad de la ventana visible. Por eso esta clase no
+/// promete todavia un wrap fisico perfecto de pantalla completa. Lo que si fija es
+/// el contrato que necesitamos para llegar ahi:
+///
+/// - la camara habla en columnas de mundo;
+/// - el driver decide que slot fisico de la superficie contiene cada columna;
+/// - cada slot recuerda que columna logica tiene preparada;
+/// - cuando falta una columna, la demo o el engine recibe un trabajo explicito de
+///   prefetch y puede convertirlo en `TileBlockCopy`.
+///
+/// En las primeras demos usamos una ventana lineal de 24 columnas y mantenemos el
+/// scroll visible dentro de un tramo seguro. Mas adelante este mismo contrato
+/// podra alimentar doble superficie, copia de borde, wrap por modulo o una
+/// composicion mas sofisticada sin cambiar la logica de juego.
+class EhbHorizontalRingPrefetch {
+public:
+	static constexpr u16 visible_columns = EhbTileScrollScene::visible_width / EhbTileScrollScene::tile_size;
+	static constexpr u16 surface_columns = EhbTileScrollScene::surface_width / EhbTileScrollScene::tile_size;
+	static constexpr u16 prefetch_column_count = surface_columns - visible_columns;
+	static constexpr u16 unknown_column = 0xffffu;
+
+	constexpr void reset(u16 first_world_column) {
+		m_first_world_column = first_world_column;
+		for (u16 i = 0; i < surface_columns; ++i) {
+			m_world_column_by_slot[i] = static_cast<u16>(first_world_column + i);
+		}
+	}
+
+	/// Slot fisico que debe contener una columna de mundo.
+	///
+	/// Es modulo la superficie completa. La funcion es deliberadamente pequena para
+	/// que sea facil auditarla en pruebas: cada 24 columnas el slot se recicla.
+	constexpr u16 slot_for_world_column(u16 world_column) const {
+		return static_cast<u16>(world_column % surface_columns);
+	}
+
+	constexpr u16 world_column_in_slot(u16 slot) const {
+		return slot < surface_columns ? m_world_column_by_slot[slot] : unknown_column;
+	}
+
+	constexpr bool slot_contains(u16 slot, u16 world_column) const {
+		return slot < surface_columns && m_world_column_by_slot[slot] == world_column;
+	}
+
+	constexpr void mark_slot_ready(u16 slot, u16 world_column) {
+		if (slot < surface_columns) {
+			m_world_column_by_slot[slot] = world_column;
+		}
+	}
+
+	/// Devuelve la siguiente columna derecha que conviene preparar.
+	///
+	/// `camera_world_column` es la columna visible izquierda. La columna objetivo es
+	/// la mas lejana dentro del margen de prefetch derecho; si su slot ya contiene
+	/// esa columna, no hay trabajo nuevo. Si no, devuelve un job de una columna de
+	/// alto completo para que el scheduler lo divida por filas y presupuesto.
+	constexpr bool next_right_prefetch(
+		u16 camera_world_column,
+		u16 map_height,
+		tilemap::TileRect& out_rect,
+		u16& out_surface_slot
+	) const {
+		const u16 world_column = static_cast<u16>(camera_world_column + surface_columns - 1u);
+		const u16 slot = slot_for_world_column(world_column);
+		if (slot_contains(slot, world_column)) {
+			return false;
+		}
+
+		out_rect = {world_column, 0, 1, map_height};
+		out_surface_slot = slot;
+		return true;
+	}
+
+	constexpr u16 first_world_column() const { return m_first_world_column; }
+
+private:
+	u16 m_first_world_column = 0;
+	u16 m_world_column_by_slot[surface_columns] {};
+};
+
 } // namespace amg::graphics::drivers

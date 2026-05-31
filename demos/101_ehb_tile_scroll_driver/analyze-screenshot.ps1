@@ -79,8 +79,8 @@ try {
 	$cameraX = ($detail -shr 16) -band 0xff
 	$fineX = ($detail -shr 8) -band 0x0f
 	$tileUpdates = ($detail -shr 4) -band 0x0f
-	$layers = $detail -band 0x0f
-	if ($cameraX -gt 48 -or $fineX -ne ($cameraX -band 0x0f) -or $tileUpdates -gt 2 -or $layers -ne 1) {
+	$ringColumns = $detail -band 0x0f
+	if ($cameraX -gt 48 -or $fineX -ne ($cameraX -band 0x0f) -or $tileUpdates -gt 2 -or $ringColumns -lt 1) {
 		throw ("runStatus.detail no refleja driver tile scroll animado valido: 0x{0:x8}" -f $detail)
 	}
 
@@ -99,7 +99,7 @@ try {
 		CameraX = $cameraX
 		FineX = $fineX
 		TileUpdates = $tileUpdates
-		Layers = $layers
+		RingColumns = $ringColumns
 		RunDetail = ("0x{0:x8}" -f $detail)
 		Status = "OK"
 	} | Format-List

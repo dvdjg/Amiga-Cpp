@@ -131,6 +131,9 @@ BOBs, redraw parcial o CPU.
 - `EhbTileScrollScene` empieza a materializar esa politica en Amiga: superficie
   384x256, ventana 320x256, 4 columnas ocultas de prefetch, `BPLCON1` para fine X
   animado y `TileBlockCopy` por Blitter con presupuesto por frame.
+- `EhbHorizontalRingPrefetch` separa la identidad logica de una columna de mundo
+  del slot fisico donde se prepara. Esta idea debe reflejarse en UAF-R como hints
+  de margen, ventana, orden de prefetch y reciclaje de slots.
 
 ## Siguiente MVP recomendado
 

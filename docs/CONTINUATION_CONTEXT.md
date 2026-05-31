@@ -41,13 +41,23 @@ probarse con:
   reconstruir el efecto con APIs limpias del engine y pruebas automatizadas.
 - Las demos deben publicar cambios visibles sincronizados con VBlank cuando cambien
   punteros de bitplane, copperlists, scroll fino o buffers activos.
+- El runner debe lanzar WinUAE con `warp=false` por defecto. El engine puede estar
+  correctamente sincronizado a VBlank y aun asi parecer acelerado si el emulador
+  corre en warp. Usar `-Warp` solo para diagnostico/throughput explicito.
+- Para uso humano, preferir `tools\run\demo-menu.ps1`: permite elegir demo,
+  compilar, lanzar a ritmo real, analizar, capturar secuencias o dejar WinUAE
+  abierto para depuracion. Por defecto tampoco usa warp.
+- Para ciclos internos rapidos de IA se permite `tools\test-regression.ps1 -Warp`;
+  esto debe interpretarse como prueba de funcionalidad, no como validacion visual
+  de suavidad.
 - Durante pruebas automatizadas, WinUAE no debe capturar ni encerrar el raton de
   Windows. El runner fuerza `win32.absolute_mouse=yes` y las pruebas deben mover
   el raton emulado con `tools\input\mouse-path.ps1`.
 - El runner no debe depender de esperas largas para demos con `g_amg_run_status`.
-  `tools\run\run-demo.*` falla si no hay `side-channel READY` en pocos segundos;
+  `tools\run\run-demo.*` falla si no hay `side-channel READY` en unos segundos;
   el fallback largo solo existe con `--allow-timeout-fallback` para diagnosticos
-  manuales.
+  manuales. Con `warp=false`, el timeout lateral por defecto es 10000 ms para dar
+  margen al arranque realista de AmigaDOS/WinUAE sin esconder cuelgues de demo.
 - Las demos deben exponer `g_amg_run_status` y llegar a `Ready` por el canal
   lateral de WinUAE-DBG antes de la captura. El canal escucha en `127.0.0.1:2346`
   y el runner lo usa sin detener el 68000.
@@ -181,12 +191,15 @@ La demo `101_ehb_tile_scroll_driver` debe:
 - reservar cuatro columnas ocultas para predibujar tiles sueltos antes de que
   sean visibles;
 - usar `EhbTileScrollScene` para programar punteros de bitplane y `BPLCON1`;
+- usar `EhbHorizontalRingPrefetch` para mapear columnas de mundo a slots fisicos
+  y reciclar columnas futuras con Blitter;
 - animar el scroll dentro del margen oculto con commit sincronizado a VBlank;
 - convertir updates progresivos de tiles offscreen en `TileBlockCopy` reales, con
   presupuesto pequeno por frame;
 - superar `demos\101_ehb_tile_scroll_driver\analyze-screenshot.ps1`;
 - dejar en `g_amg_run_status.detail` la marca `0x11......`, con camara/fine X y
-  trabajos de tile actualizados mientras corre.
+  trabajos de tile actualizados mientras corre. El nibble bajo cuenta columnas
+  recicladas del anillo y debe ser mayor que cero.
 
 Las animaciones y scrolls deben validarse con secuencias cuando una captura unica
 no demuestre suficiente comportamiento temporal:

@@ -132,6 +132,14 @@ convierten en `TileBlockCopy` que el backend ejecuta por Blitter antes de instal
 la copperlist final. La prueba de secuencia debe detectar animacion, no solo una
 captura estatica correcta.
 
+La misma cabecera incluye ahora `EhbHorizontalRingPrefetch`, un planificador de
+slots de columnas. Todavia no intenta hacer wrap fisico en mitad de la ventana
+visible, porque OCS no puede saltar de final de fila a principio de fila durante
+un unico fetch de bitplanes. Su contrato si es el que necesitaremos para el driver
+completo: mapear columna de mundo a slot fisico, recordar que columna vive en cada
+slot y pedir solo las columnas que faltan. La demo 101 recicla slots y deja el
+contador de columnas recicladas en el nibble bajo de `runStatus.detail`.
+
 Los blobs futuros tambien podran tener una contribucion Copper asociada. Por
 ejemplo: cambiar colores justo en sus franjas, ondular filas mediante scroll/splits
 de bitplanes o crear regiones no rectangulares. Esa informacion no debe escribir

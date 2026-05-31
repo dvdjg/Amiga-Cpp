@@ -52,6 +52,8 @@ El runner:
 - genera una configuracion WinUAE temporal basada en `config\mcp-amiga-c-debug.uae`;
 - fuerza opciones anti-captura del raton para que WinUAE no atrape el puntero
   del sistema durante pruebas automatizadas;
+- desactiva `warp` por defecto para que las demos que esperan VBlank se vean a
+  ritmo real y permitan juzgar suavidad de scroll/animacion;
 - escribe un `startup-sequence` temporal;
 - lanza `winuae-gdb.exe`;
 - conecta al servidor GDB de WinUAE-DBG;
@@ -89,9 +91,34 @@ Opciones utiles:
 
 ```powershell
 .\tools\run\run-demo.ps1 demos\030_ehb_palette_zones `
-  -SideChannelTimeoutMs 6000 `
+  -SideChannelTimeoutMs 10000 `
   -SideChannelPort 2346
 ```
+
+Para observar una demo manualmente sin que el runner cierre WinUAE al terminar la
+captura:
+
+```powershell
+.\tools\run\run-demo.ps1 demos\101_ehb_tile_scroll_driver -KeepRunning
+```
+
+Tambien hay un lanzador con menu para uso humano:
+
+```powershell
+.\tools\run\demo-menu.ps1
+```
+
+Desde el menu puedes compilar, lanzar a ritmo real, analizar capturas, ejecutar
+pruebas de secuencia y dejar WinUAE abierto para depuracion. Por defecto no usa
+warp. Para automatizar una accion concreta sin menu:
+
+```powershell
+.\tools\run\demo-menu.ps1 -Demo 101_ehb_tile_scroll_driver -Action Debug
+```
+
+`-Warp` existe solo como opcion explicita para pruebas de rendimiento bruto o
+diagnostico. No se usa por defecto porque acelera los VBlank del emulador y puede
+hacer que una animacion correcta parezca demasiado rapida.
 
 La demo `040_palette_cycle_effect` usa ademas `run-report.json` como evidencia:
 su analizador comprueba que `g_amg_run_status.detail` contiene la marca
@@ -156,6 +183,9 @@ La regresion descubre las carpetas dentro de `demos`, y para cada una ejecuta:
 2. run/captura;
 3. analisis.
 
+Si la demo incluye `analyze-sequence.ps1`, tambien ejecuta esa comprobacion y el
+informe muestra una columna `Sequence`.
+
 El informe queda en:
 
 ```text
@@ -170,4 +200,8 @@ Opciones utiles:
 .\tools\test-regression.ps1 -Demo demos\000_toolchain_cpp23
 .\tools\test-regression.ps1 -ReleaseBuild
 .\tools\test-regression.ps1 -KeepGoing
+.\tools\test-regression.ps1 -Warp
 ```
+
+`-Warp` en regresion es util para ciclos internos rapidos de la IA. Para observar
+suavidad o depurar visualmente, usa el menu o `run-demo.ps1` sin `-Warp`.

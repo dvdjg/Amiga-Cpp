@@ -6,7 +6,7 @@ param(
 
 	[int]$ReadyTimeoutMs = 4000,
 
-	[int]$SideChannelTimeoutMs = 6000,
+	[int]$SideChannelTimeoutMs = 10000,
 
 	[int]$SideChannelPort = 2346,
 
@@ -37,6 +37,8 @@ param(
 	[int]$SequenceFrames = 0,
 
 	[int]$SequenceIntervalMs = 100,
+
+	[switch]$Warp,
 
 	[switch]$AllowTimeoutFallback
 )
@@ -81,6 +83,10 @@ if ($KeepRunning) {
 
 if ($SequenceFrames -gt 0) {
 	$argsList += @("--sequence-frames", $SequenceFrames, "--sequence-interval-ms", $SequenceIntervalMs)
+}
+
+if ($Warp) {
+	$argsList += "--warp"
 }
 
 if ($AllowTimeoutFallback) {

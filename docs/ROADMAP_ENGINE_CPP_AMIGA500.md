@@ -255,8 +255,8 @@ Criterio de aceptacion:
 - El primer driver real de scroll horizontal debe mostrar una superficie mayor que
   pantalla, usar `BPLCON1` para fine scroll y ejecutar updates de tiles por Blitter.
   Estado: `101_ehb_tile_scroll_driver` valida una superficie 384x256 con cuatro
-  columnas ocultas, scroll animado y `TileBlockCopy` progresivos con presupuesto
-  por frame.
+  columnas ocultas, scroll animado, `TileBlockCopy` progresivos con presupuesto
+  por frame y reciclaje de columnas mediante `EhbHorizontalRingPrefetch`.
 - Las demos temporales deben poder capturar secuencias cortas y analizarlas por
   diferencias/frame hash para comprobar animacion, repeticion o estabilidad sin
   depender solo de una captura estatica.

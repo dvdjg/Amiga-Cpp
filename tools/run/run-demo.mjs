@@ -113,7 +113,7 @@ function findExtensionRoot() {
   throw new Error('No se encontro la extension bartmanabyss.amiga-debug-1.8.2.');
 }
 
-function patchConfig(configText, extensionRoot, stagedOutDir) {
+function patchConfig(configText, extensionRoot, stagedOutDir, warpEnabled) {
   const dh0 = path.join(extensionRoot, 'bin/dh0');
   const normalizedDh0 = dh0.replace(/\//g, '\\');
   const normalizedOut = stagedOutDir.replace(/\//g, '\\');
@@ -142,7 +142,11 @@ function patchConfig(configText, extensionRoot, stagedOutDir) {
   out = setConfigValue(out, 'win32.active_capture_automatically', 'no');
   out = setConfigValue(out, 'win32.absolute_mouse', 'yes');
   out = setConfigValue(out, 'absolute_mouse', 'none');
-  out = setConfigValue(out, 'warp', 'true');
+  // The engine demos use `wait_vblank()` as their frame boundary.  Leaving
+  // WinUAE in warp mode makes those VBlank waits complete faster than real time,
+  // which is useful for bulk throughput but terrible for judging smooth motion.
+  // Keep real-time pacing by default; callers can opt into warp explicitly.
+  out = setConfigValue(out, 'warp', warpEnabled ? 'true' : 'false');
 
   return out;
 }
@@ -475,10 +479,11 @@ const readyTimeoutMs = parseInt(argValue('--ready-timeout-ms', process.env.AMG_R
 const loadTimeoutMs = parseInt(argValue('--load-timeout-ms', process.env.AMG_LOAD_TIMEOUT_MS || '20000'), 10);
 const settleMs = parseInt(argValue('--settle-ms', process.env.AMG_SETTLE_MS || '500'), 10);
 const sideChannelPort = parseInt(argValue('--side-channel-port', process.env.WINUAE_SIDE_CHANNEL_PORT || '2346'), 10);
-const sideChannelTimeoutMs = parseInt(argValue('--side-channel-timeout-ms', process.env.AMG_SIDE_CHANNEL_TIMEOUT_MS || '6000'), 10);
+const sideChannelTimeoutMs = parseInt(argValue('--side-channel-timeout-ms', process.env.AMG_SIDE_CHANNEL_TIMEOUT_MS || '10000'), 10);
 const sideChannelPollMs = parseInt(argValue('--side-channel-poll-ms', process.env.AMG_SIDE_CHANNEL_POLL_MS || '50'), 10);
 const sequenceFrames = Math.max(0, parseInt(argValue('--sequence-frames', '0'), 10));
 const sequenceIntervalMs = Math.max(0, parseInt(argValue('--sequence-interval-ms', '100'), 10));
+const warpEnabled = hasArg('--warp');
 const mousePath = buildMousePathFromArgs();
 const mouseDelayMs = Math.max(0, parseInt(argValue('--mouse-duration-ms', '800'), 10)) / Math.max(1, mousePath.length - 1);
 const mouseButton = Math.max(0, parseInt(argValue('--mouse-button', '0'), 10));
@@ -507,7 +512,7 @@ fs.writeFileSync(startupPath, 'cd dh1:\n:a.exe\n', 'utf8');
 const baseConfigPath = path.join(root, 'config/mcp-amiga-c-debug.uae');
 const runnerConfigPath = path.join(outputDir, 'runner.uae');
 const configText = fs.readFileSync(baseConfigPath, 'utf8');
-fs.writeFileSync(runnerConfigPath, patchConfig(configText, extensionRoot, stagedDir), 'utf8');
+fs.writeFileSync(runnerConfigPath, patchConfig(configText, extensionRoot, stagedDir, warpEnabled), 'utf8');
 
 const config = {
   winuaePath,
@@ -529,6 +534,7 @@ const report = {
   sideChannelTimeoutMs,
   sequenceFrames,
   sequenceIntervalMs,
+  warpEnabled,
   loadTimeoutMs,
   settleMs,
   status: 'started',

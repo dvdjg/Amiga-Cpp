@@ -282,10 +282,22 @@ Resultado verificado:
   son cuatro columnas de prefetch para predibujar tiles sueltos durante varios
   VBLANKs, no una unica columna pintada a ultima hora. El analizador valida la
   marca `0x11......`, camara dentro del margen y `fine_x == camera_x & 15`.
+- `EhbHorizontalRingPrefetch` añade el primer contrato de anillo horizontal: cada
+  columna de mundo se mapea a un slot fisico, el driver recuerda que slots estan
+  preparados y la demo 101 recicla columnas futuras por Blitter. El nibble bajo de
+  `runStatus.detail` cuenta columnas recicladas; el analizador exige al menos una.
 - El runner `tools/run/run-demo.*` ya no usa fallback largo por defecto cuando el
   canal lateral no alcanza READY. Si falla READY en pocos segundos, la prueba falla
   con diagnostico; el fallback queda solo como opcion explicita
   `--allow-timeout-fallback`.
+- El runner ya no fuerza `warp=true`: las demos se lanzan a ritmo real por defecto
+  para que `wait_vblank()` produzca scroll/animacion suave en WinUAE. `-Warp`
+  queda como opcion explicita. El timeout lateral por defecto sube a 10000 ms
+  porque el arranque realista de WinUAE/AmigaDOS ya no va acelerado.
+- `tools/run/demo-menu.ps1` proporciona un menu para uso humano: elegir demo,
+  compilar, lanzar, analizar, ejecutar secuencia o dejar WinUAE abierto para
+  depuracion, siempre con warp desactivado salvo que se pida. `tools/test-regression.ps1`
+  acepta `-Warp` para ciclos internos rapidos de IA.
 - El runner puede capturar secuencias con `-SequenceFrames` y
   `-SequenceIntervalMs`. `tools/analyze/analyze-frame-sequence.ps1` resume esas
   secuencias en JSON y una hoja de contacto, con criterios `-ExpectAnimated` o
@@ -302,7 +314,7 @@ Resultado verificado:
 Ultimo informe de regresion conocido:
 
 ```text
-out\regression\20260531-135155\regression-report.md
+out\regression\20260531-142410\regression-report.md
 ```
 
 ## Siguiente paso previsto

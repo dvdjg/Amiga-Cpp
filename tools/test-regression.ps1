@@ -2,7 +2,8 @@ param(
 	[string]$Demo = "",
 	[switch]$ReleaseBuild,
 	[switch]$SkipRun,
-	[switch]$KeepGoing
+	[switch]$KeepGoing,
+	[switch]$Warp
 )
 
 $ErrorActionPreference = "Stop"
@@ -57,7 +58,11 @@ foreach ($demoPath in $demoDirs) {
 
 		if (-not $SkipRun) {
 			Write-Host "== ${demoName}: run =="
-			& powershell -ExecutionPolicy Bypass -File $runScript $relativeDemo
+			$runArgs = @("-ExecutionPolicy", "Bypass", "-File", $runScript, $relativeDemo)
+			if ($Warp) {
+				$runArgs += "-Warp"
+			}
+			& powershell @runArgs
 			if ($LASTEXITCODE -ne 0) { throw "Run failed with exit code $LASTEXITCODE" }
 			$result.run = "ok"
 		}
@@ -71,7 +76,11 @@ foreach ($demoPath in $demoDirs) {
 		if ((-not $SkipRun) -and (Test-Path $sequenceScript)) {
 			Write-Host "== ${demoName}: sequence =="
 			$result.sequence = "pending"
-			& powershell -ExecutionPolicy Bypass -File $sequenceScript
+			$sequenceArgs = @("-ExecutionPolicy", "Bypass", "-File", $sequenceScript)
+			if ($Warp) {
+				$sequenceArgs += "-Warp"
+			}
+			& powershell @sequenceArgs
 			if ($LASTEXITCODE -ne 0) { throw "Sequence failed with exit code $LASTEXITCODE" }
 			$result.sequence = "ok"
 		}

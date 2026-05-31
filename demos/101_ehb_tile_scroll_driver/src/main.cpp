@@ -35,6 +35,7 @@ constexpr amg::u16 surface_tiles_x = drivers::EhbTileScrollScene::surface_width 
 constexpr amg::u16 tile_size = drivers::EhbTileScrollScene::tile_size;
 constexpr amg::u8 tile_update_budget = 2;
 constexpr amg::u16 animation_span_pixels = drivers::EhbTileScrollScene::prefetch_width - drivers::EhbTileScrollScene::tile_size;
+constexpr amg::u16 logical_scroll_columns = map_tiles_x - surface_tiles_x + 1u;
 
 constexpr drivers::EhbPalette sky_palette {{
 	0x001, 0x014, 0x06e, 0x0af, 0x7df, 0xfff, 0xfd6, 0xff0,
@@ -209,19 +210,11 @@ struct DemoGame {
 			}
 		}
 
-		// La cola de prefetch contiene la ultima columna oculta. En una escena real
-		// iriamos rotando columnas/filas de una superficie circular; esta demo la
-		// mantiene fija para que se vea claro el contrato: cada frame acepta pocos
-		// tiles y los convierte en blits antes de mover la ventana visible.
+		// El anillo arranca con las primeras 24 columnas de mundo ya estampadas en
+		// la superficie. Cuando la camara logica avance, `EhbHorizontalRingPrefetch`
+		// detectara que un slot fisico debe reciclarse y pedira la columna nueva.
 		m_scheduler.reset();
-		m_scheduler.enqueue_strip(
-			m_map,
-			{static_cast<amg::u16>(surface_tiles_x - 1u), 0, 1, map_tiles_y},
-			tilemap::TileUpdateEdge::Right,
-			0,
-			12,
-			1
-		);
+		m_ring.reset(0);
 
 		if (!m_scene.rebuild_copper(0)) {
 			amg::debug::mark_failed(g_amg_run_status, 0x00000114u);
@@ -236,6 +229,8 @@ struct DemoGame {
 	void update(amg::amiga::MinimalBackend& backend, amg::GameContext& context) {
 		amg::debug::mark_frame(g_amg_run_status, context.frame.frame_index);
 		if (m_ready) {
+			const amg::u16 logical_column = logical_camera_column(context.frame.frame_index);
+			schedule_next_ring_column(logical_column);
 			const amg::u8 tile_jobs = upload_prefetch_tiles(backend);
 			const amg::u16 camera_x = animated_camera_x(context.frame.frame_index);
 			if (!m_scene.rebuild_copper(camera_x)) {
@@ -259,8 +254,13 @@ struct DemoGame {
 	tilemap::PackedTileCell m_cells[map_tiles_x * map_tiles_y] {};
 	tilemap::TileMap16 m_map {};
 	tilemap::ProgressiveTileScheduler m_scheduler {};
+	drivers::EhbHorizontalRingPrefetch m_ring {};
 	amg::graphics::FramePlan m_frame_plan {};
 	amg::MemoryBlock m_tiles {};
+	amg::u16 m_pending_world_column = drivers::EhbHorizontalRingPrefetch::unknown_column;
+	amg::u16 m_pending_surface_slot = 0;
+	amg::u8 m_pending_rows = 0;
+	amg::u8 m_recycled_columns = 0;
 
 	/// Oscila dentro del margen de prefetch.
 	///
@@ -271,6 +271,40 @@ struct DemoGame {
 		const amg::u16 period = static_cast<amg::u16>(animation_span_pixels * 2u);
 		const amg::u16 phase = static_cast<amg::u16>(frame_index % period);
 		return phase <= animation_span_pixels ? phase : static_cast<amg::u16>(period - phase);
+	}
+
+	/// Camara logica de mundo usada solo para alimentar el anillo de prefetch.
+	///
+	/// El scroll visible de esta demo aun se mantiene en el tramo lineal seguro de
+	/// la superficie; esta camara logica avanza mas lejos para demostrar que el
+	/// driver puede reciclar slots y pedir columnas futuras sin que la capa de juego
+	/// conozca el layout fisico.
+	static constexpr amg::u16 logical_camera_column(amg::u32 frame_index) {
+		return static_cast<amg::u16>((frame_index / tile_size) % logical_scroll_columns);
+	}
+
+	void schedule_next_ring_column(amg::u16 camera_world_column) {
+		if (m_pending_world_column != drivers::EhbHorizontalRingPrefetch::unknown_column || m_scheduler.queued_count() != 0) {
+			return;
+		}
+
+		tilemap::TileRect rect {};
+		amg::u16 slot = 0;
+		if (!m_ring.next_right_prefetch(camera_world_column, map_tiles_y, rect, slot)) {
+			return;
+		}
+
+		m_scheduler.enqueue_strip(
+			m_map,
+			rect,
+			tilemap::TileUpdateEdge::Right,
+			0,
+			12,
+			1
+		);
+		m_pending_world_column = rect.left;
+		m_pending_surface_slot = slot;
+		m_pending_rows = static_cast<amg::u8>(rect.height);
 	}
 
 	/// Consume un presupuesto pequeno de tiles y lo ejecuta por Blitter.
@@ -286,7 +320,7 @@ struct DemoGame {
 			const tilemap::TileUpdateJob& job = plan.jobs[i];
 			if (!m_frame_plan.add_tile_block_copy(m_scene.make_tile_upload_job(
 				tile_source(m_tiles, job.tile_index),
-				static_cast<amg::u16>(surface_tiles_x - 1u),
+				m_ring.slot_for_world_column(job.x),
 				job.y
 			))) {
 				amg::debug::mark_failed(g_amg_run_status, 0x00000113u);
@@ -298,6 +332,14 @@ struct DemoGame {
 			amg::debug::mark_failed(g_amg_run_status, 0x00000116u);
 			return 0;
 		}
+		if (m_pending_world_column != drivers::EhbHorizontalRingPrefetch::unknown_column && plan.count <= m_pending_rows) {
+			m_pending_rows = static_cast<amg::u8>(m_pending_rows - plan.count);
+			if (m_pending_rows == 0) {
+				m_ring.mark_slot_ready(m_pending_surface_slot, m_pending_world_column);
+				m_pending_world_column = drivers::EhbHorizontalRingPrefetch::unknown_column;
+				++m_recycled_columns;
+			}
+		}
 		return plan.count;
 	}
 
@@ -308,7 +350,7 @@ struct DemoGame {
 				(static_cast<amg::u32>(camera_x & 0xffu) << 16u) |
 				(static_cast<amg::u32>(camera_x & 0x0fu) << 8u) |
 				(static_cast<amg::u32>(tile_jobs & 0x0fu) << 4u) |
-				1u
+				static_cast<amg::u32>(m_recycled_columns & 0x0fu)
 		);
 	}
 };
