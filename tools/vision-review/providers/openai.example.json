@@ -1,0 +1,9 @@
+{
+  "name": "openai-example",
+  "kind": "openai-compatible",
+  "baseUrl": "https://api.openai.com/v1",
+  "apiKeyEnv": "OPENAI_API_KEY",
+  "model": "gpt-4.1-mini",
+  "timeoutMs": 60000,
+  "sendMode": "multi-image"
+}

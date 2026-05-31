@@ -340,6 +340,12 @@ Resultado verificado:
   `SearchRadius 12` y correlaciona cada captura con `runStatus` lateral. FrameScope
   guarda direcciones candidatas cercanas al mejor desplazamiento para explicar
   empates visuales de tilemaps repetitivos.
+- Se ha definido `Vision Review` en `docs/VISION_REVIEW_ROADMAP.md` como una capa
+  ligera de inspeccion con IA visual. No analizara videos completos; preparara
+  paquetes pequenos de 4-6 frames relevantes y preguntara a un modelo local/remoto
+  mediante prompts concretos. Ya existen prompts iniciales para transiciones de
+  scroll Amiga, diferencias genericas y animacion de sprites, mas ejemplos de
+  proveedor LM Studio/OpenAI-compatible en `tools/vision-review`.
 
 Ultimo informe de regresion conocido:
 

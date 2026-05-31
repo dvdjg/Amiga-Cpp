@@ -292,3 +292,18 @@ La pausa/reanudacion lateral debe pasar con:
 
 Esta prueba toma lock `takeover`, pausa la emulacion, lee memoria mientras esta
 detenida, reanuda y deja que el runner complete su captura final.
+
+Vision Review queda definido como capa ligera de inspeccion con IA visual:
+
+```text
+docs\VISION_REVIEW_ROADMAP.md
+tools\vision-review\
+```
+
+Su objetivo no es analizar videos completos, sino seleccionar 4-6 frames
+relevantes y preguntarle a un modelo con vision si una hipotesis concreta se ve
+correcta. El primer perfil sera `amiga-scroll-transition`: revisar frames alrededor
+de un cruce de 16 pixels/coarse scroll para detectar salto, tile-pop, tearing,
+cambio de paleta inesperado o corrupcion planar. El proveedor previsto inicialmente
+es LM Studio mediante endpoint OpenAI-compatible; faltan los parametros locales del
+usuario antes de implementar la llamada real.

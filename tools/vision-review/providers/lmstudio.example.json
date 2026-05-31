@@ -1,0 +1,9 @@
+{
+  "name": "lmstudio-local-example",
+  "kind": "openai-compatible",
+  "baseUrl": "http://127.0.0.1:1234/v1",
+  "apiKey": "lm-studio",
+  "model": "qwen2.5-vl-7b-instruct",
+  "timeoutMs": 60000,
+  "sendMode": "multi-image"
+}
