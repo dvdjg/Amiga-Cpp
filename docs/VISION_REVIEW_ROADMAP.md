@@ -192,6 +192,8 @@ Aceptacion:
 
 Objetivo: generar evidencia sin llamar todavia a ninguna IA.
 
+Estado: implementado.
+
 Tareas:
 
 - aceptar `-Source`, `-Frames`, `-OutDir`, `-Profile`;
@@ -206,9 +208,31 @@ Aceptacion:
 - no requiere credenciales ni red;
 - puede verse y entenderse manualmente.
 
+Comandos verificados:
+
+```powershell
+.\tools\vision-review\vision-review.ps1 `
+  -Source .\out\run\101_ehb_tile_scroll_driver\sequence `
+  -Frames 3,4,5,6 `
+  -Profile amiga-scroll-transition `
+  -OutDir .\out\vision-review\101_manual
+
+.\tools\vision-review\vision-review.ps1 `
+  -Source .\out\run\101_ehb_tile_scroll_driver\sequence `
+  -RunReport .\out\run\101_ehb_tile_scroll_driver\run-report.json `
+  -FrameScopeReport .\out\framescope\101_ehb_tile_scroll_driver\framescope-report.json `
+  -Profile amiga-scroll-transition `
+  -OutDir .\out\vision-review\101_auto
+```
+
+La salida de ejemplo queda en `out\vision-review\101_auto`: frames copiados,
+`request.json`, `request.md`, `vision-review-summary.json` y `contact-sheet.png`.
+
 ### Fase 2: proveedor OpenAI-compatible
 
 Objetivo: llamar a LM Studio local o a un proveedor cloud con API compatible.
+
+Estado: implementado para proveedores OpenAI-compatible.
 
 Tareas:
 
@@ -220,9 +244,39 @@ Tareas:
 
 Aceptacion:
 
-- funciona con LM Studio usando el endpoint local que nos pase el usuario;
+- funciona con LM Studio usando `http://legion:1234/` y modelo
+  `qwen2.5-vl-7b-instruct`;
 - no asume un modelo concreto;
-- los timeouts son cortos y configurables.
+- los timeouts son configurables;
+- soporta `multi-image` y `contact-sheet`.
+
+Resultado de pruebas iniciales:
+
+- `contact-sheet` produjo JSON valido y reconocio continuidad en la demo 101, pero
+  no detecto un defecto sintetico de tile-pop dibujado sobre un frame. Se mantiene
+  como fallback para modelos que no acepten varias imagenes.
+- `multi-image` produjo JSON valido, acepto cuatro imagenes simultaneas y detecto
+  correctamente el defecto sintetico con `visibleTilePop=true` y artefacto major.
+  Por tanto queda como modo recomendado para LM Studio/Qwen.
+- El primer prompt `multi-image` fue demasiado estricto con frames muestreados y
+  marco como salto una separacion normal entre capturas. Se ajusto el prompt para
+  aclarar que los frames pueden estar separados por varios frames de juego y que
+  solo debe fallar por discontinuidad estructural, tile-pop o corrupcion. Tras ese
+  ajuste, la demo real paso con `status=ok` y el defecto sintetico siguio
+  detectandose como `suspect` con `visibleTilePop=true`.
+
+Comando verificado:
+
+```powershell
+.\tools\vision-review\vision-review.ps1 `
+  -Source .\out\run\101_ehb_tile_scroll_driver\sequence `
+  -RunReport .\out\run\101_ehb_tile_scroll_driver\run-report.json `
+  -FrameScopeReport .\out\framescope\101_ehb_tile_scroll_driver\framescope-report.json `
+  -Profile amiga-scroll-transition `
+  -Provider .\tools\vision-review\providers\lmstudio.legion.json `
+  -SendMode multi-image `
+  -OutDir .\out\vision-review\101_lmstudio_multi
+```
 
 ### Fase 3: seleccion automatica para demo 101
 

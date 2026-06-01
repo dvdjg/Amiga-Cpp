@@ -346,6 +346,20 @@ Resultado verificado:
   mediante prompts concretos. Ya existen prompts iniciales para transiciones de
   scroll Amiga, diferencias genericas y animacion de sprites, mas ejemplos de
   proveedor LM Studio/OpenAI-compatible en `tools/vision-review`.
+- `Vision Review` ya tiene Fase 1 offline: `tools/vision-review/vision-review.ps1`
+  llama a `vision-review.mjs`, selecciona frames manualmente o por `run-report.json`
+  para `amiga-scroll-transition`, copia las imagenes, genera `request.json`,
+  `request.md`, `vision-review-summary.json` y una `contact-sheet.png` con
+  telemetria. Se verifico con `out\vision-review\101_manual` y
+  `out\vision-review\101_auto`.
+- `Vision Review` ya llama a proveedores OpenAI-compatible. Se probo LM Studio en
+  `http://legion:1234/` con `qwen2.5-vl-7b-instruct`. `contact-sheet` genero JSON
+  valido pero no detecto un defecto sintetico; `multi-image` acepto cuatro imagenes
+  simultaneas y marco correctamente `visibleTilePop=true` sobre
+  `out\vision-review\synthetic_tile_pop_multi_v2`. El prompt se ajusto para no
+  confundir frames muestreados con saltos reales; la demo limpia queda en
+  `out\vision-review\101_lmstudio_multi_v2` con `status=ok`. El proveedor
+  recomendado queda en `tools/vision-review/providers/lmstudio.legion.json`.
 
 Ultimo informe de regresion conocido:
 

@@ -1,0 +1,11 @@
+{
+  "name": "lmstudio-legion-qwen25vl",
+  "kind": "openai-compatible",
+  "baseUrl": "http://legion:1234/",
+  "apiKey": "lm-studio",
+  "model": "qwen2.5-vl-7b-instruct",
+  "timeoutMs": 120000,
+  "temperature": 0.1,
+  "maxTokens": 1200,
+  "sendMode": "multi-image"
+}

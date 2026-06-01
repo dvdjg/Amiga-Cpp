@@ -27,18 +27,18 @@ Ejemplo de hipotesis:
 
 ## Parametros que faltan de LM Studio
 
-Cuando se conecte el proveedor local necesitaremos:
+Proveedor local probado:
 
-- URL base, por ejemplo `http://127.0.0.1:1234/v1`;
-- nombre exacto del modelo cargado en LM Studio;
-- si el modelo acepta varias imagenes por peticion o prefiere una hoja de
-  contacto unica;
-- timeout razonable.
+- URL base: `http://legion:1234/`;
+- modelo: `qwen2.5-vl-7b-instruct`;
+- API: OpenAI-compatible, normalizada internamente a `/v1`;
+- modo recomendado: `multi-image`.
 
-El ejemplo esta en:
+Los proveedores de ejemplo estan en:
 
 ```text
 tools/vision-review/providers/lmstudio.example.json
+tools/vision-review/providers/lmstudio.legion.json
 ```
 
 ## Perfiles iniciales
@@ -68,3 +68,51 @@ Primero se implementara modo offline:
 
 Ese modo debe crear un paquete revisable sin llamar a ningun proveedor. Despues se
 anadira `-Provider` para LM Studio u otros backends OpenAI-compatible.
+
+## Modo offline actual
+
+El modo offline ya genera:
+
+- `frames/`: copias de las imagenes seleccionadas;
+- `contact-sheet.png`: hoja de contacto con indices y telemetria si existe;
+- `request.json`: paquete machine-readable para enviar al proveedor;
+- `request.md`: prompt y contexto legible para revision manual.
+
+Seleccion manual:
+
+```powershell
+.\tools\vision-review\vision-review.ps1 `
+  -Source .\out\run\101_ehb_tile_scroll_driver\sequence `
+  -Frames 3,4,5,6 `
+  -Profile amiga-scroll-transition `
+  -OutDir .\out\vision-review\101_manual
+```
+
+Seleccion automatica para scroll Amiga:
+
+```powershell
+.\tools\vision-review\vision-review.ps1 `
+  -Source .\out\run\101_ehb_tile_scroll_driver\sequence `
+  -RunReport .\out\run\101_ehb_tile_scroll_driver\run-report.json `
+  -FrameScopeReport .\out\framescope\101_ehb_tile_scroll_driver\framescope-report.json `
+  -Profile amiga-scroll-transition `
+  -OutDir .\out\vision-review\101_auto
+```
+
+Revision con LM Studio:
+
+```powershell
+.\tools\vision-review\vision-review.ps1 `
+  -Source .\out\run\101_ehb_tile_scroll_driver\sequence `
+  -RunReport .\out\run\101_ehb_tile_scroll_driver\run-report.json `
+  -FrameScopeReport .\out\framescope\101_ehb_tile_scroll_driver\framescope-report.json `
+  -Profile amiga-scroll-transition `
+  -Provider .\tools\vision-review\providers\lmstudio.legion.json `
+  -SendMode multi-image `
+  -OutDir .\out\vision-review\101_lmstudio_multi
+```
+
+`multi-image` envia cada frame como imagen independiente. En las pruebas con
+`qwen2.5-vl-7b-instruct` detecto correctamente un defecto sintetico de tile-pop.
+`contact-sheet` queda como fallback para modelos que no acepten varias imagenes,
+pero puede perder defectos pequenos al reducir la secuencia a una sola hoja.

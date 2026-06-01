@@ -307,3 +307,40 @@ de un cruce de 16 pixels/coarse scroll para detectar salto, tile-pop, tearing,
 cambio de paleta inesperado o corrupcion planar. El proveedor previsto inicialmente
 es LM Studio mediante endpoint OpenAI-compatible; faltan los parametros locales del
 usuario antes de implementar la llamada real.
+
+La Fase 1 offline ya existe:
+
+```powershell
+.\tools\vision-review\vision-review.ps1 `
+  -Source .\out\run\101_ehb_tile_scroll_driver\sequence `
+  -RunReport .\out\run\101_ehb_tile_scroll_driver\run-report.json `
+  -FrameScopeReport .\out\framescope\101_ehb_tile_scroll_driver\framescope-report.json `
+  -Profile amiga-scroll-transition `
+  -OutDir .\out\vision-review\101_auto
+```
+
+Genera `request.json`, `request.md`, copias de frames y `contact-sheet.png`.
+La prueba actual eligio frames `0,1,2,3` por `coarse-x-change-5-to-6`. El siguiente
+paso era Fase 2.
+
+La Fase 2 OpenAI-compatible ya esta implementada para LM Studio:
+
+```powershell
+.\tools\vision-review\vision-review.ps1 `
+  -Source .\out\run\101_ehb_tile_scroll_driver\sequence `
+  -RunReport .\out\run\101_ehb_tile_scroll_driver\run-report.json `
+  -FrameScopeReport .\out\framescope\101_ehb_tile_scroll_driver\framescope-report.json `
+  -Profile amiga-scroll-transition `
+  -Provider .\tools\vision-review\providers\lmstudio.legion.json `
+  -SendMode multi-image `
+  -OutDir .\out\vision-review\101_lmstudio_multi
+```
+
+LM Studio responde en `http://legion:1234/` con modelo
+`qwen2.5-vl-7b-instruct`. El modo `multi-image` acepta varias imagenes y detecto
+un defecto sintetico de tile-pop. Tras ajustar el prompt para frames muestreados,
+`out\vision-review\101_lmstudio_multi_v2` valida la demo limpia con `status=ok`, y
+`out\vision-review\synthetic_tile_pop_multi_v2` detecta el defecto con
+`visibleTilePop=true`. El modo `contact-sheet` responde rapido y sirve de fallback,
+pero no detecto ese defecto sintetico, probablemente por perdida de detalle al
+reducir la hoja.
