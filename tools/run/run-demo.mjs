@@ -170,6 +170,10 @@ async function captureScreenshot(protocol, imagePath, timeoutMs = 30000) {
 }
 
 async function captureFrameSequence(protocol, sequenceDir, frameCount, intervalMs, sideChannel = null) {
+  // Each sequence must be self-contained. Leaving older frame_XXX.png files in
+  // place made analyzers and contact sheets mix different runs, which is exactly
+  // the kind of false confidence these tools are meant to prevent.
+  fs.rmSync(sequenceDir, { recursive: true, force: true });
   fs.mkdirSync(sequenceDir, { recursive: true });
   const frames = [];
   for (let i = 0; i < frameCount; ++i) {
@@ -212,6 +216,76 @@ async function captureFrameSequence(protocol, sequenceDir, frameCount, intervalM
     frames,
     frameCount,
     intervalMs,
+  };
+}
+
+function decodeCameraFineX(runStatus) {
+  if (!runStatus?.ok) {
+    return null;
+  }
+  const detail = typeof runStatus.detail === 'number'
+    ? runStatus.detail
+    : parseHexNumber(String(runStatus.detail ?? '0'));
+  const cameraX = (detail >>> 16) & 0xff;
+  return cameraX & 15;
+}
+
+function decodeCameraX(runStatus) {
+  if (!runStatus?.ok) {
+    return null;
+  }
+  const detail = typeof runStatus.detail === 'number'
+    ? runStatus.detail
+    : parseHexNumber(String(runStatus.detail ?? '0'));
+  return (detail >>> 16) & 0xff;
+}
+
+async function captureFrameSequenceByRunStatusTarget(protocol, sequenceDir, targets, sideChannel, selector, label) {
+  if (!sideChannel?.runtimeAddress) {
+    throw new Error(`--sequence-${label} requiere canal lateral run status activo.`);
+  }
+
+  fs.rmSync(sequenceDir, { recursive: true, force: true });
+  fs.mkdirSync(sequenceDir, { recursive: true });
+  const frames = [];
+  let targetIndex = 0;
+  let lastCapturedFrame = -1;
+  const deadline = Date.now() + Math.max(2500, targets.length * 1500);
+
+  while (targetIndex < targets.length && Date.now() <= deadline) {
+    const runStatus = await readSideChannelRunStatusOnce(
+      sideChannel.port,
+      sideChannel.runtimeAddress,
+      sideChannel.timeoutMs ?? 1000
+    );
+    const value = selector(runStatus);
+    const frameNumber = Number(runStatus?.frame ?? -1);
+    if (value === targets[targetIndex] && frameNumber !== lastCapturedFrame) {
+      const framePath = path.join(sequenceDir, `frame_${String(frames.length).padStart(3, '0')}_${label}${String(value).padStart(2, '0')}.png`);
+      const capturedAt = Date.now();
+      const frame = await captureScreenshot(protocol, framePath);
+      frame.capturedAtMs = capturedAt;
+      frame.runStatusBefore = runStatus;
+      frame.runStatus = runStatus;
+      frame.target = targets[targetIndex];
+      frame[`target${label[0].toUpperCase()}${label.slice(1)}`] = targets[targetIndex];
+      frames.push(frame);
+      lastCapturedFrame = frameNumber;
+      ++targetIndex;
+    }
+    await sleep(8);
+  }
+
+  if (targetIndex < targets.length) {
+    throw new Error(`No se pudo capturar la secuencia ${label} completa. Capturados ${targetIndex}/${targets.length}.`);
+  }
+
+  return {
+    directory: sequenceDir,
+    frames,
+    frameCount: frames.length,
+    targets,
+    targetKind: label,
   };
 }
 
@@ -511,6 +585,14 @@ const sideChannelTimeoutMs = parseInt(argValue('--side-channel-timeout-ms', proc
 const sideChannelPollMs = parseInt(argValue('--side-channel-poll-ms', process.env.AMG_SIDE_CHANNEL_POLL_MS || '50'), 10);
 const sequenceFrames = Math.max(0, parseInt(argValue('--sequence-frames', '0'), 10));
 const sequenceIntervalMs = Math.max(0, parseInt(argValue('--sequence-interval-ms', '100'), 10));
+const sequenceFineXArg = argValue('--sequence-fine-x', '');
+const sequenceFineX = sequenceFineXArg === ''
+  ? []
+  : sequenceFineXArg.split(',').map((value) => parseInt(value.trim(), 10)).filter((value) => Number.isInteger(value) && value >= 0 && value <= 15);
+const sequenceCameraXArg = argValue('--sequence-camera-x', '');
+const sequenceCameraX = sequenceCameraXArg === ''
+  ? []
+  : sequenceCameraXArg.split(',').map((value) => parseInt(value.trim(), 10)).filter((value) => Number.isInteger(value) && value >= 0 && value <= 255);
 const warpEnabled = hasArg('--warp');
 const mousePath = buildMousePathFromArgs();
 const mouseDelayMs = Math.max(0, parseInt(argValue('--mouse-duration-ms', '800'), 10)) / Math.max(1, mousePath.length - 1);
@@ -696,7 +778,35 @@ try {
     };
   }
 
-  if (sequenceFrames > 0) {
+  if (sequenceCameraX.length > 0) {
+    console.log(`[run-demo] capturing sequence by cameraX targets ${sequenceCameraX.join(',')}`);
+    report.sequence = await captureFrameSequenceByRunStatusTarget(
+      protocol,
+      path.join(outputDir, 'sequence'),
+      sequenceCameraX,
+      {
+        port: sideChannelPort,
+        runtimeAddress: report.sideChannel?.runtimeAddress,
+        timeoutMs: 1000,
+      },
+      decodeCameraX,
+      'cameraX'
+    );
+  } else if (sequenceFineX.length > 0) {
+    console.log(`[run-demo] capturing sequence by fineX targets ${sequenceFineX.join(',')}`);
+    report.sequence = await captureFrameSequenceByRunStatusTarget(
+      protocol,
+      path.join(outputDir, 'sequence'),
+      sequenceFineX,
+      {
+        port: sideChannelPort,
+        runtimeAddress: report.sideChannel?.runtimeAddress,
+        timeoutMs: 1000,
+      },
+      decodeCameraFineX,
+      'fineX'
+    );
+  } else if (sequenceFrames > 0) {
     console.log(`[run-demo] capturing ${sequenceFrames} sequence frames every ${sequenceIntervalMs} ms`);
     report.sequence = await captureFrameSequence(
       protocol,

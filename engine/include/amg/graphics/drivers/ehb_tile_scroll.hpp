@@ -45,6 +45,7 @@ class EhbTileScrollScene {
 public:
 	static constexpr u16 visible_width = 320;
 	static constexpr u16 visible_height = 256;
+	static constexpr u16 fine_scroll_fetch_margin_bytes = 2;
 	static constexpr u16 tile_size = 16;
 	static constexpr u8 prefetch_columns = 10;
 	static constexpr u8 prefetch_rows = 10;
@@ -53,11 +54,12 @@ public:
 	static constexpr u16 surface_width = visible_width + prefetch_width;
 	static constexpr u16 surface_height = visible_height + prefetch_height;
 	static constexpr u16 visible_bytes_per_row = visible_width / 8;
+	static constexpr u16 fetch_bytes_per_row = visible_bytes_per_row + fine_scroll_fetch_margin_bytes;
 	static constexpr u16 surface_bytes_per_row = surface_width / 8;
 	static constexpr u8 plane_count = 6;
 	static constexpr u32 plane_bytes = static_cast<u32>(surface_bytes_per_row) * surface_height;
 	static constexpr u32 bitplane_bytes = plane_bytes * plane_count;
-	static constexpr u16 display_modulo = surface_bytes_per_row - visible_bytes_per_row;
+	static constexpr u16 display_modulo = surface_bytes_per_row - fetch_bytes_per_row;
 
 	bool init(MemorySystem& memory, const EhbTileScrollConfig& config) {
 		m_bitplane_block = memory.chip.allocate(bitplane_bytes, 16);
@@ -85,17 +87,20 @@ public:
 	/// La convencion de este MVP es que `scroll_x` crece igual que una camara de
 	/// juego: valores mayores muestran columnas mas a la derecha del mundo.
 	///
-	/// En OCS el valor horizontal de `BPLCON1` retrasa el fetch y desplaza el
-	/// contenido hacia la derecha. Para que una camara creciente desplace el mundo
-	/// hacia la izquierda de forma continua, usamos una pareja inseparable:
+	/// En OCS el valor horizontal de `BPLCON1` desplaza el playfield dentro del
+	/// word que ya ha sido traido por el fetch DMA. Para que el borde izquierdo no
+	/// se quede sin datos durante `fine != 0`, esta demo siempre pide un word extra
+	/// antes de la ventana visible:
 	///
-	/// - si hay fine scroll, el puntero coarse se redondea hacia arriba al siguiente
-	///   bloque de 16 pixels;
-	/// - `BPLCON1` recibe `16 - fine`.
+	/// - `DDFSTRT` se adelanta de `$38` a `$30`;
+	/// - el modulo se calcula con 42 bytes leidos por linea en vez de 40;
+	/// - el puntero base apunta un word antes de la parte coarse;
+	/// - `BPLCON1` recibe el fine scroll directo.
 	///
-	/// La posicion efectiva queda `-ceil16(scroll_x) + (16 - fine)`, que equivale a
-	/// `-scroll_x` para fine distinto de cero. Sin ese redondeo hacia arriba aparece
-	/// un diente de sierra visible cada 16 pixels.
+	/// La prueba `analyze-fine-scroll.ps1` captura `fineX=14,15,0,1` y comprueba
+	/// que el borde izquierdo se mantiene estable y que el contenido avanza un pixel
+	/// lowres por frame. Esta es la base que despues usaran los drivers con anillos
+	/// reales de tiles offscreen.
 	bool rebuild_copper(u16 scroll_x, u16 scroll_y = 0) {
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || m_config.base_palette == nullptr) {
 			m_ok = false;
@@ -103,11 +108,12 @@ public:
 		}
 
 		const u8 fine_x = static_cast<u8>(scroll_x & 15u);
-		const u16 coarse_x = static_cast<u16>((scroll_x + (fine_x == 0 ? 0u : 15u)) & 0xfff0u);
-		const u8 bplcon1_x = fine_x == 0 ? 0 : static_cast<u8>(16u - fine_x);
+		const u16 coarse_x = static_cast<u16>(scroll_x & 0xfff0u);
+		const u16 fetch_x = static_cast<u16>(coarse_x >= 16u ? coarse_x - 16u : 0u);
+		const u8 bplcon1_x = fine_x;
 		const u32 pointer_offset =
 			static_cast<u32>(scroll_y) * surface_bytes_per_row +
-			coarse_x / 8u;
+			fetch_x / 8u;
 
 		copper::Scheduler scheduler { m_copper_block };
 		scheduler.move(copper::Register::DMACON, static_cast<u16>(
@@ -120,7 +126,7 @@ public:
 		scheduler.move(copper::Register::BPL2MOD, display_modulo);
 		scheduler.move(copper::Register::DIWSTRT, 0x2c81);
 		scheduler.move(copper::Register::DIWSTOP, 0x2cc1);
-		scheduler.move(copper::Register::DDFSTRT, 0x0038);
+		scheduler.move(copper::Register::DDFSTRT, 0x0030);
 		scheduler.move(copper::Register::DDFSTOP, 0x00d0);
 		for (u8 plane = 0; plane < plane_count; ++plane) {
 			scheduler.move(

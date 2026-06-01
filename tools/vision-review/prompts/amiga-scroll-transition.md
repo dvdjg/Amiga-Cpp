@@ -26,7 +26,23 @@ Instructions:
    frames.
 4. Distinguish normal sampled scrolling from artifacts. Position changes of many
    pixels can be normal. A tile suddenly appearing inside the visible area is not.
-5. If you are not sure, use `suspect` and explain what evidence is missing.
+5. Inspect the whole visible playfield, not only the most visually salient band.
+   Look for rectangular blocks, wrong-color patches, duplicated chunks, holes, or
+   areas that appear for only one frame.
+6. Check that newly visible content enters from the screen edge in a way
+   compatible with scrolling. Content that appears in the middle of the visible
+   area should be treated as tile-pop or corruption.
+7. In symbolic tile tests, normal content is made of many small bordered tiles with
+   numbers/letters. A solid rectangle that covers those symbols, even if it has a
+   plausible palette color such as magenta, pink, cyan, white, yellow, or black, is
+   an artifact if it appears only in one frame or interrupts several tile glyphs.
+8. Before answering `ok`, explicitly compare each frame against the previous and
+   next one looking for any local patch that does not move like the surrounding
+   scroll. If such a patch exists, use `suspect` or `fail`.
+9. Check palette stability. Normal EHB colors may be bright or half-brite, but a
+   sudden isolated color patch that is not part of the surrounding pattern is an
+   artifact.
+10. If you are not sure, use `suspect` and explain what evidence is missing.
 
 Answer only with valid JSON, without Markdown:
 
@@ -44,6 +60,13 @@ Answer only with valid JSON, without Markdown:
       "severity": "minor|major"
     }
   ],
+  "checklist": {
+    "edgeOnlyNewContent": true,
+    "noOneFramePatch": true,
+    "noRectangularIntrusion": true,
+    "noPlanarCorruption": true,
+    "noTearing": true
+  },
   "frameByFrameNotes": [
     {
       "frame": 0,

@@ -15,6 +15,10 @@ param(
 	[ValidateSet("", "multi-image", "contact-sheet")]
 	[string]$SendMode = "",
 
+	[switch]$RequireOk,
+
+	[double]$MinConfidence = 0.65,
+
 	[string]$OutDir = ""
 )
 
@@ -140,6 +144,15 @@ if ($Provider -ne "") {
 	}
 	$reviewSummary = $reviewText | ConvertFrom-Json
 	$reviewReport = $reviewSummary.report
+	if ($RequireOk) {
+		$reportObject = Get-Content $reviewReport -Raw | ConvertFrom-Json
+		$result = $reportObject.result
+		$majorArtifacts = @($result.unexpectedArtifacts | Where-Object { $_.severity -eq "major" })
+		$confidence = if ($null -ne $result.confidence) { [double]$result.confidence } else { 0.0 }
+		if ($result.status -ne "ok" -or $majorArtifacts.Count -ne 0 -or $confidence -lt $MinConfidence) {
+			throw ("Vision Review no aprobo: status={0} majorArtifacts={1} confidence={2}" -f $result.status, $majorArtifacts.Count, $confidence)
+		}
+	}
 }
 
 [pscustomobject]@{

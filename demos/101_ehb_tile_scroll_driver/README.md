@@ -19,10 +19,17 @@ arriba dos tiles, vuelta abajo y, por ultimo, una orbita de cuatro tiles de radi
 La prueba de secuencia debe detectar movimiento real; una captura estatica solo
 valida que el estado final es coherente.
 
-Los tiles se generan en 64 variantes para que la escena sea visualmente legible y
-para que FrameScope pueda seguir marcas no periodicas entre frames. No es un
-formato artistico final: representa lo que mas adelante llegara desde UAF como
-tiles planarizados, metadatos de prioridad y presupuestos de carga.
+La camara mantiene cada pixel varios VBlanks. No es una limitacion del driver:
+esta demo prioriza que humanos, capturas automatizadas y el verificador de fine
+scroll puedan observar los cruces criticos sin depender de timeouts largos.
+
+Los tiles se generan en 64 variantes simbolicas: cada uno tiene borde, marcador de
+variante y un glifo hexadecimal `0..F`. La escena sigue siendo una demo tecnica,
+pero ahora las capturas son mas legibles para humanos y para Vision Review: un
+fallo puede describirse como "aparece un parche sobre el tile 7" o "se rompe una
+fila de glifos", no solo como ruido de textura. No es un formato artistico final:
+representa lo que mas adelante llegara desde UAF como tiles planarizados,
+metadatos de prioridad y presupuestos de carga.
 
 El prefetch escribe solo franjas lineales garantizadas fuera del viewport visible,
 incluyendo el caso de fine scroll. En `runStatus.detail` el nibble bajo publica
@@ -43,7 +50,15 @@ Comandos:
 120 ms, comprueba que la animacion cambia y ejecuta FrameScope con perfil
 `amiga-scroll`, recorte automatico de viewport y `-RequireProfileMatch`. La prueba
 falla si la telemetria lateral de camara y el movimiento observado dejan de
-coincidir.
+coincidir. Tambien ejecuta `tools/analyze/assert-no-inner-black.ps1`: esta demo no
+usa negro dentro de sus tiles simbolicos, asi que cualquier mancha negra en el
+playfield suele indicar un `COPJMP1` a media pantalla, un puntero de bitplane
+reiniciado en zona visible o corrupcion planar.
+
+`analyze-fine-scroll.ps1` es la prueba mas especifica para el bug de columnas:
+captura por telemetria `cameraX=94,95,96,97` y `cameraX=112,111,110,109`, y
+comprueba que el borde izquierdo no salta y que cada paso equivale a un pixel
+lowres en la direccion correcta.
 
 Para verla a ritmo real sin que el runner cierre WinUAE:
 

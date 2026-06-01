@@ -47,20 +47,21 @@ constexpr amg::u16 surface_tiles_x = drivers::EhbTileScrollScene::surface_width 
 constexpr amg::u16 surface_tiles_y = drivers::EhbTileScrollScene::surface_height / drivers::EhbTileScrollScene::tile_size;
 constexpr amg::u16 tile_size = drivers::EhbTileScrollScene::tile_size;
 constexpr amg::u8 tile_update_budget = 2;
-constexpr amg::u16 route_center_pixels = tile_size * 4u;
+constexpr amg::u16 route_center_pixels = tile_size * 5u;
 constexpr amg::u16 route_radius_pixels = tile_size * 4u;
 constexpr amg::u16 route_step_pixels = tile_size * 2u;
-constexpr amg::u16 axis_segment_frames = 40;
-constexpr amg::u16 circle_entry_frames = 40;
-constexpr amg::u16 circle_step_frames = 2;
+constexpr amg::u16 camera_hold_frames = 4;
+constexpr amg::u16 axis_segment_frames = route_step_pixels * camera_hold_frames;
+constexpr amg::u16 circle_entry_frames = route_radius_pixels * camera_hold_frames;
+constexpr amg::u16 circle_step_frames = 6;
 constexpr amg::u16 logical_scroll_columns = map_tiles_x - surface_tiles_x + 1u;
 constexpr amg::u16 logical_scroll_rows = map_tiles_y - surface_tiles_y + 1u;
 
 constexpr drivers::EhbPalette sky_palette {{
-	0x001, 0x014, 0x06e, 0x0af, 0x7df, 0xfff, 0xfd6, 0xff0,
-	0x86b, 0xb9d, 0x263, 0x4a5, 0x6d7, 0xd8f, 0xf5b, 0x222,
-	0x002, 0x025, 0x047, 0x069, 0x08b, 0x0ad, 0x4cf, 0x8ef,
-	0x210, 0x431, 0x652, 0x873, 0xa94, 0xcb5, 0xed6, 0x333,
+	0x000, 0x222, 0x08f, 0x0cf, 0xf0c, 0xff0, 0x0f4, 0xf80,
+	0x84f, 0x0a6, 0xf44, 0x6df, 0xf8f, 0xfff, 0x888, 0x444,
+	0x000, 0x111, 0x048, 0x068, 0x806, 0x880, 0x082, 0x840,
+	0x426, 0x053, 0x822, 0x368, 0x846, 0x888, 0x444, 0x222,
 }};
 
 constexpr drivers::EhbPalette jungle_palette {{
@@ -77,10 +78,7 @@ constexpr drivers::EhbPalette under_palette {{
 	0x012, 0x124, 0x236, 0x348, 0x45a, 0x66c, 0x88e, 0x333,
 }};
 
-constexpr drivers::EhbPaletteZone palette_zones[] {
-	{0x74, &jungle_palette},
-	{0xb8, &under_palette},
-};
+constexpr drivers::EhbPaletteZone palette_zones[] {};
 
 void clear_bytes(amg::u8* bytes, amg::u32 count) {
 	for (amg::u32 i = 0; i < count; ++i) {
@@ -98,26 +96,127 @@ void clear_bytes(amg::u8* bytes, amg::u32 count) {
 void build_virtual_map(tilemap::PackedTileCell* cells) {
 	for (amg::u16 y = 0; y < map_tiles_y; ++y) {
 		for (amg::u16 x = 0; x < map_tiles_x; ++x) {
-			// La demo no quiere parecer un tablero de test. Cada banda conserva una
-			// lectura estetica clara, pero mezcla x/y para introducir marcas
-			// reconocibles: columnas, diagonales y acentos. Esas marcas son las que
-			// FrameScope sigue entre frames para verificar que la camara se mueve
-			// como declara la telemetria lateral.
-			amg::u16 tile = static_cast<amg::u16>((x * 7u + y * 11u + ((x ^ y) & 7u)) & (tile_pattern_count - 1u));
-			if (y < 3) {
-				tile = static_cast<amg::u16>((tile & 0x30u) | (((x + y * 5u) % 11u) == 0u ? 1u : 0u));
-			} else if (y == 3) {
-				tile = static_cast<amg::u16>(2u + ((x / 3u) & 1u) + ((tile & 0x18u)));
-			} else if (y < 8) {
-				tile = static_cast<amg::u16>(4u + ((x + y) % 4u) + (tile & 0x30u));
-			} else if (y < 12) {
-				tile = static_cast<amg::u16>(8u + (((x / 2u) + y) % 4u) + (tile & 0x30u));
-			} else {
-				tile = static_cast<amg::u16>(12u + ((x + y * 3u) % 4u) + (tile & 0x30u));
-			}
+			// La demo ya no usa ruido decorativo como patron principal. Cada tile
+			// conserva una identidad legible: un glifo hexadecimal 0..F y un marcador
+			// de variante. Esto ayuda a la IA de Vision Review a explicar errores con
+			// palabras humanas ("aparece el tile 7", "se duplica el bloque A") en vez
+			// de depender solo de textura abstracta. La mezcla x/y evita una repeticion
+			// trivial y mantiene buenas marcas para FrameScope.
+			const amg::u16 symbol = static_cast<amg::u16>((x + y * 3u + ((x >> 1u) ^ y)) & 0x0fu);
+			const amg::u16 variant = static_cast<amg::u16>(((x / 4u) + (y / 3u) * 2u + ((x ^ (y * 5u)) & 1u)) & 0x03u);
+			const amg::u16 tile = static_cast<amg::u16>(symbol | (variant << 4u));
 			cells[static_cast<amg::u32>(y) * map_tiles_x + x].set_tile(tile);
 		}
 	}
+}
+
+/// Fila de un glifo hexadecimal 5x7.
+///
+/// La funcion devuelve los cinco bits visibles de la fila solicitada. Se usa para
+/// generar tiles de prueba con letras/numeros faciles de reconocer por humanos y
+/// por modelos de vision. No pretende ser una fuente general del engine; es un
+/// recurso didactico para validacion visual.
+constexpr amg::u8 hex_glyph_row(amg::u8 glyph, amg::u8 row) {
+	constexpr amg::u8 rows[] {
+		0x0eu, 0x11u, 0x13u, 0x15u, 0x19u, 0x11u, 0x0eu, // 0
+		0x04u, 0x0cu, 0x04u, 0x04u, 0x04u, 0x04u, 0x0eu, // 1
+		0x0eu, 0x11u, 0x01u, 0x02u, 0x04u, 0x08u, 0x1fu, // 2
+		0x1eu, 0x01u, 0x01u, 0x0eu, 0x01u, 0x01u, 0x1eu, // 3
+		0x02u, 0x06u, 0x0au, 0x12u, 0x1fu, 0x02u, 0x02u, // 4
+		0x1fu, 0x10u, 0x10u, 0x1eu, 0x01u, 0x01u, 0x1eu, // 5
+		0x0eu, 0x10u, 0x10u, 0x1eu, 0x11u, 0x11u, 0x0eu, // 6
+		0x1fu, 0x01u, 0x02u, 0x04u, 0x08u, 0x08u, 0x08u, // 7
+		0x0eu, 0x11u, 0x11u, 0x0eu, 0x11u, 0x11u, 0x0eu, // 8
+		0x0eu, 0x11u, 0x11u, 0x0fu, 0x01u, 0x01u, 0x0eu, // 9
+		0x0eu, 0x11u, 0x11u, 0x1fu, 0x11u, 0x11u, 0x11u, // A
+		0x1eu, 0x11u, 0x11u, 0x1eu, 0x11u, 0x11u, 0x1eu, // B
+		0x0eu, 0x11u, 0x10u, 0x10u, 0x10u, 0x11u, 0x0eu, // C
+		0x1eu, 0x11u, 0x11u, 0x11u, 0x11u, 0x11u, 0x1eu, // D
+		0x1fu, 0x10u, 0x10u, 0x1eu, 0x10u, 0x10u, 0x1fu, // E
+		0x1fu, 0x10u, 0x10u, 0x1eu, 0x10u, 0x10u, 0x10u, // F
+	};
+	return rows[static_cast<amg::u16>(glyph & 0x0fu) * 7u + (row % 7u)];
+}
+
+/// Mascara de bits consecutivos dentro de una fila 16px.
+///
+/// El bit mas alto del word representa el pixel izquierdo del tile. Esta utilidad
+/// mantiene legible la construccion de glifos sin pagar una rutina de dibujo pixel
+/// a pixel para cada plano.
+constexpr amg::u16 row_mask_range(amg::u8 left, amg::u8 width) {
+	amg::u16 mask = 0;
+	for (amg::u8 i = 0; i < width; ++i) {
+		mask |= static_cast<amg::u16>(0x8000u >> (left + i));
+	}
+	return mask;
+}
+
+/// Mascara del glifo hexadecimal escalado a 10x14 pixels.
+constexpr amg::u16 glyph_row_mask(amg::u8 glyph, amg::u8 y) {
+	if (y < 1u || y >= 15u) {
+		return 0;
+	}
+	const amg::u8 glyph_y = static_cast<amg::u8>((y - 1u) / 2u);
+	const amg::u8 bits = hex_glyph_row(glyph, glyph_y);
+	amg::u16 mask = 0;
+	for (amg::u8 glyph_x = 0; glyph_x < 5u; ++glyph_x) {
+		if ((bits & (1u << (4u - glyph_x))) != 0u) {
+			mask |= row_mask_range(static_cast<amg::u8>(3u + glyph_x * 2u), 2);
+		}
+	}
+	return mask;
+}
+
+/// Mascara de los marcadores de variante.
+constexpr amg::u16 variant_marker_mask(amg::u8 variant, amg::u8 y) {
+	const amg::u8 marker_size = static_cast<amg::u8>(2u + (variant & 1u));
+	amg::u16 mask = 0;
+	if (y < marker_size) {
+		mask |= row_mask_range(1, marker_size);
+	}
+	if (variant >= 2u && y >= static_cast<amg::u8>(15u - marker_size)) {
+		mask |= row_mask_range(static_cast<amg::u8>(15u - marker_size), marker_size);
+	}
+	return mask;
+}
+
+/// Mascara de textura half-brite suave para que el fondo no sea plano.
+/// Compone una fila planar de un tile simbolico.
+///
+/// Los tiles de test combinan cuatro ideas:
+///
+/// - fondo de color por variante, para que las bandas sigan siendo atractivas;
+/// - borde de alto contraste, para detectar saltos y cortes de tile;
+/// - glifo hexadecimal grande, para que la IA pueda referirse a unidades concretas;
+/// - marcador de esquina, para distinguir variantes del mismo glifo.
+///
+/// Esta claridad visual es intencionada: las pruebas automatizadas deben ser
+/// faciles de explicar. Los juegos reales podran usar arte mas sutil, pero las
+/// demos de infraestructura necesitan señales inequívocas.
+constexpr amg::u16 symbolic_tile_plane_row(amg::u8 glyph, amg::u8 variant, amg::u8 y, amg::u8 plane) {
+	constexpr amg::u8 backgrounds[] {3, 8, 10, 12};
+	constexpr amg::u8 glyph_colors[] {5, 7, 13, 14};
+	constexpr amg::u8 border_colors[] {15, 6, 9, 11};
+	const amg::u8 bg = backgrounds[variant & 3u];
+	const amg::u8 ink = glyph_colors[variant & 3u];
+	const amg::u8 border = border_colors[variant & 3u];
+
+	const amg::u16 border_mask = (y == 0u || y == 15u) ? 0xffffu : 0x8001u;
+	const amg::u16 marker_mask = static_cast<amg::u16>(variant_marker_mask(variant, y) & ~border_mask);
+	const amg::u16 glyph_mask = static_cast<amg::u16>(glyph_row_mask(glyph, y) & ~(border_mask | marker_mask));
+	const amg::u16 bg_mask = static_cast<amg::u16>(~(border_mask | marker_mask | glyph_mask));
+
+	amg::u16 row = 0;
+	if ((bg & (1u << plane)) != 0u) {
+		row |= bg_mask;
+	}
+	if ((border & (1u << plane)) != 0u) {
+		row |= border_mask;
+	}
+	if ((ink & (1u << plane)) != 0u) {
+		row |= static_cast<amg::u16>(marker_mask | glyph_mask);
+	}
+	return row;
 }
 
 /// Convierte tiles procedurales a formato planar 6bpp listo para Blitter.
@@ -129,67 +228,15 @@ void build_virtual_map(tilemap::PackedTileCell* cells) {
 /// compatible con el driver elegido.
 void build_tile_word_cache(amg::u16* tile_words) {
 	for (amg::u16 tile = 0; tile < tile_pattern_count; ++tile) {
+		const amg::u8 glyph = static_cast<amg::u8>(tile & 15u);
+		const amg::u8 variant = static_cast<amg::u8>((tile >> 4u) & 3u);
 		for (amg::u8 y = 0; y < tile_size; ++y) {
-			// `shape` decide la familia visual principal y `variant` introduce
-			// variacion de color/mascara sin cambiar el formato planar. La idea es
-			// didactica: un tile 16x16 en Amiga es solo una pila de words, uno por
-			// plano y fila, y el color final sale de combinar bits de los 6 planos.
-			const amg::u8 shape = static_cast<amg::u8>(tile & 15u);
-			const amg::u8 variant = static_cast<amg::u8>((tile >> 4u) & 3u);
-			amg::u8 color_a = 2;
-			amg::u8 color_b = 3;
-			amg::u8 color_accent = 5;
-			amg::u16 mask_a = 0xffffu;
-			amg::u16 mask_accent = 0x0000u;
-
-			if (shape <= 1u) {
-				color_a = static_cast<amg::u8>(2u + variant);
-				color_b = static_cast<amg::u8>(3u + variant);
-				color_accent = static_cast<amg::u8>(5u + variant * 8u);
-				mask_accent = (shape == 1u && y >= 5u && y <= 11u) ? static_cast<amg::u16>(0x3ffcu ^ (variant * 0x1111u)) : 0x0000u;
-			} else if (shape <= 3u) {
-				color_a = static_cast<amg::u8>(8u + variant);
-				color_b = static_cast<amg::u8>(9u + variant);
-				color_accent = static_cast<amg::u8>(33u + variant * 2u);
-				mask_a = y > 8u ? 0xffffu : static_cast<amg::u16>(0xffffu >> (8u - y));
-				mask_accent = static_cast<amg::u16>(0x8000u >> ((y + shape * 3u + variant) & 15u));
-			} else if (shape <= 7u) {
-				color_a = static_cast<amg::u8>(10u + (shape & 1u) + variant);
-				color_b = static_cast<amg::u8>(42u + (shape & 1u) + variant);
-				color_accent = (shape & 2u) ? static_cast<amg::u8>(13u + variant) : static_cast<amg::u8>(7u + variant);
-				mask_a = (y & 4u) ? static_cast<amg::u16>(0x33ccu ^ (variant * 0x1111u)) : static_cast<amg::u16>(0xcc33u ^ (variant * 0x1111u));
-				mask_accent = static_cast<amg::u16>(0x1111u << ((y + variant) & 3u));
-			} else if (shape <= 11u) {
-				color_a = static_cast<amg::u8>(6u + variant);
-				color_b = static_cast<amg::u8>(39u + variant);
-				color_accent = (shape & 1u) ? static_cast<amg::u8>(14u + variant) : static_cast<amg::u8>(15u + variant);
-				mask_a = (y & 4u) ? static_cast<amg::u16>(0xaaaau ^ (variant * 0x1111u)) : static_cast<amg::u16>(0x5555u ^ (variant * 0x1111u));
-				mask_accent = (y == 0u || y == 15u) ? 0xffffu : static_cast<amg::u16>(0x8001u >> ((y + variant) & 3u));
-			} else {
-				color_a = static_cast<amg::u8>(3u + variant);
-				color_b = static_cast<amg::u8>(35u + variant * 2u);
-				color_accent = (shape & 1u) ? static_cast<amg::u8>(12u + variant) : static_cast<amg::u8>(5u + variant);
-				mask_a = (y & 2u) ? static_cast<amg::u16>(0xccccu ^ (variant * 0x1111u)) : static_cast<amg::u16>(0x3333u ^ (variant * 0x1111u));
-				mask_accent = static_cast<amg::u16>(0x00f0u << ((y + variant) & 3u));
-			}
-
-			const amg::u16 mask_b = static_cast<amg::u16>(~(mask_a | mask_accent));
 			for (amg::u8 plane = 0; plane < drivers::EhbTileScrollScene::plane_count; ++plane) {
-				amg::u16 row = 0;
-				if (color_a & (1u << plane)) {
-					row |= static_cast<amg::u16>(mask_a & ~mask_accent);
-				}
-				if (color_b & (1u << plane)) {
-					row |= mask_b;
-				}
-				if (color_accent & (1u << plane)) {
-					row |= mask_accent;
-				}
 				tile_words[
 					static_cast<amg::u32>(tile) * (drivers::EhbTileScrollScene::tile_bytes() / sizeof(amg::u16)) +
 					static_cast<amg::u32>(plane) * tile_size +
 					y
-				] = row;
+				] = symbolic_tile_plane_row(glyph, variant, y, plane);
 			}
 		}
 	}
@@ -249,7 +296,7 @@ struct DemoGame {
 		const drivers::EhbTileScrollConfig config {
 			&sky_palette,
 			palette_zones,
-			static_cast<amg::u8>(sizeof(palette_zones) / sizeof(palette_zones[0])),
+			0,
 			1536,
 		};
 		if (!m_scene.init(backend.memory(), config)) {
@@ -318,16 +365,16 @@ struct DemoGame {
 				amg::debug::mark_failed(g_amg_run_status, 0x00000115u);
 				return;
 			}
-			m_scene.install(backend);
 			publish_status(camera.x, camera.y, tile_jobs);
 		}
 	}
 
 	/// Reinstala la copperlist vigente y mantiene vivo el probe lateral.
 	///
-	/// En esta demo la lista se recompila en `update`, pero reinstalarla en render
-	/// deja claro el punto de compromiso del frame: lo que llega aqui es lo que el
-	/// Amiga debe mostrar durante el siguiente refresco.
+	/// En esta demo la lista se recompila en `update`, pero se instala aqui, despues
+	/// de que `Engine::run_frames` haya esperado VBlank. Esto evita disparar
+	/// `COPJMP1` en mitad de la zona visible, que partiria la imagen y haria que la
+	/// mitad inferior leyese punteros de bitplane reiniciados.
 	void render(amg::amiga::MinimalBackend& backend, amg::GameContext& context) {
 		if (m_ready) {
 			m_scene.install(backend);

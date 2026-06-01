@@ -60,8 +60,11 @@ public:
 		for (u16 i = 0; i < frame_count; ++i) {
 			context.frame.frame_index = i;
 			m_game.update(m_backend, context);
-			m_game.render(m_backend, context);
+			// `render` es el punto de commit, no de simulacion. En Amiga esto importa:
+			// instalar una copperlist con COPJMP1 fuera de VBlank reinicia el Copper
+			// a media pantalla y parte el frame visible.
 			m_backend.wait_vblank();
+			m_game.render(m_backend, context);
 		}
 	}
 

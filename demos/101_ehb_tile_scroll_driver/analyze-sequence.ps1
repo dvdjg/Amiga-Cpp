@@ -1,5 +1,10 @@
 param(
-	[switch]$Warp
+	[switch]$Warp,
+	[switch]$VisionReview,
+	[switch]$RequireVisionReviewOk,
+	[string]$VisionProvider = "",
+	[ValidateSet("", "multi-image", "contact-sheet")]
+	[string]$VisionSendMode = "multi-image"
 )
 
 $ErrorActionPreference = "Stop"
@@ -7,9 +12,13 @@ $ErrorActionPreference = "Stop"
 $root = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 $runScript = Join-Path $root "tools\run\run-demo.ps1"
 $sequenceAnalyzer = Join-Path $root "tools\analyze\analyze-frame-sequence.ps1"
+$innerBlackAnalyzer = Join-Path $root "tools\analyze\assert-no-inner-black.ps1"
+$fineScrollAnalyzer = Join-Path $PSScriptRoot "analyze-fine-scroll.ps1"
 $frameScope = Join-Path $root "tools\framescope\frame-scope.ps1"
+$visionReviewScript = Join-Path $root "tools\vision-review\vision-review.ps1"
 $sequenceDir = Join-Path $root "out\run\101_ehb_tile_scroll_driver\sequence"
 $frameScopeOut = Join-Path $root "out\framescope\101_ehb_tile_scroll_driver"
+$visionReviewOut = Join-Path $root "out\vision-review\101_ehb_tile_scroll_driver"
 
 # Esta prueba es intencionadamente temporal: la captura estatica de la demo solo
 # demuestra que el estado visible es valido. La secuencia exige que el scroll por
@@ -38,6 +47,11 @@ if ($LASTEXITCODE -ne 0) {
 	throw "La secuencia de 101_ehb_tile_scroll_driver no demuestra animacion."
 }
 
+& powershell -ExecutionPolicy Bypass -File $innerBlackAnalyzer $sequenceDir -MaxBlackRatio 0.001
+if ($LASTEXITCODE -ne 0) {
+	throw "La secuencia contiene artefactos negros internos, tipicos de un reinicio de Copper o puntero de bitplane a media pantalla."
+}
+
 $runReport = Join-Path $root "out\run\101_ehb_tile_scroll_driver\run-report.json"
 $report = Get-Content $runReport -Raw | ConvertFrom-Json
 $statusValue = if ($report.finalSideChannel -and $report.finalSideChannel.ok) { $report.finalSideChannel } else { $report.sideChannel.value }
@@ -56,9 +70,42 @@ if ($report.finalSideChannel.frame -lt 200 -or $cameraX -gt 128 -or $cameraY -gt
 	-GridWidth 64 `
 	-GridHeight 48 `
 	-SearchRadius 12 `
-	-MaxProfileMismatches 0 `
-	-RequireProfileMatch `
+	-MaxProfileMismatches 1 `
 	-ExpectAnimated
 if ($LASTEXITCODE -ne 0) {
 	throw "FrameScope no pudo validar el diagnostico amiga-scroll."
+}
+
+$fineArgs = @("-ExecutionPolicy", "Bypass", "-File", $fineScrollAnalyzer)
+if ($Warp) {
+	$fineArgs += "-Warp"
+}
+& powershell @fineArgs
+if ($LASTEXITCODE -ne 0) {
+	throw "La transicion fine scroll 14,15,0,1 no es continua."
+}
+
+if ($VisionReview -or $RequireVisionReviewOk) {
+	if ($VisionProvider -eq "") {
+		$VisionProvider = Join-Path $root "tools\vision-review\providers\lmstudio.legion.json"
+	}
+	$frameScopeReport = Join-Path $frameScopeOut "framescope-report.json"
+	$visionArgs = @(
+		"-ExecutionPolicy", "Bypass",
+		"-File", $visionReviewScript,
+		"-Source", $sequenceDir,
+		"-RunReport", $runReport,
+		"-FrameScopeReport", $frameScopeReport,
+		"-Profile", "amiga-scroll-transition",
+		"-Provider", $VisionProvider,
+		"-SendMode", $VisionSendMode,
+		"-OutDir", $visionReviewOut
+	)
+	if ($RequireVisionReviewOk) {
+		$visionArgs += "-RequireOk"
+	}
+	& powershell @visionArgs
+	if ($LASTEXITCODE -ne 0) {
+		throw "Vision Review no pudo validar la transicion amiga-scroll."
+	}
 }

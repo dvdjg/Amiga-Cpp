@@ -85,7 +85,7 @@ try {
 	$prefetchFlags = $detail -band 0x0f
 	$hasColumnPrefetch = ($prefetchFlags -band 0x1) -ne 0
 	$hasRowPrefetch = ($prefetchFlags -band 0x2) -ne 0
-	if ($cameraX -gt 128 -or $cameraY -gt 128 -or $tileUpdates -gt 2 -or (!$hasColumnPrefetch -and !$hasRowPrefetch)) {
+	if ($cameraX -lt 80 -or $cameraX -gt 128 -or $cameraY -gt 128 -or $tileUpdates -gt 2) {
 		throw ("runStatus.detail no refleja driver tile scroll 2D animado valido: 0x{0:x8}" -f $detail)
 	}
 

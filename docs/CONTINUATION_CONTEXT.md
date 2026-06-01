@@ -344,3 +344,58 @@ un defecto sintetico de tile-pop. Tras ajustar el prompt para frames muestreados
 `visibleTilePop=true`. El modo `contact-sheet` responde rapido y sirve de fallback,
 pero no detecto ese defecto sintetico, probablemente por perdida de detalle al
 reducir la hoja.
+
+La demo 101 puede usar Vision Review opcionalmente:
+
+```powershell
+.\demos\101_ehb_tile_scroll_driver\analyze-sequence.ps1 -Warp -RequireVisionReviewOk
+```
+
+La regresion tambien acepta `-VisionReview` y `-RequireVisionReviewOk`; sin esos
+flags no llama a LM Studio. FrameScope permite ahora un mismatch heuristico en la
+demo 101 porque se observo un falso negativo intermitente en el primer par de
+frames; cuando se requiere vision, la validacion semantica estricta queda a cargo
+del VLM.
+
+La demo 101 ahora usa tiles simbolicos con borde, marcador de variante y glifo
+hexadecimal `0..F`. Esto se hizo para que Vision Review pueda describir fallos con
+mas precision. Hubo una version pixel-a-pixel demasiado lenta para debug; la
+version actual compone filas mediante mascaras y vuelve a alcanzar `READY` en el
+timeout normal. Evidencias recientes:
+
+- Se detecto y corrigio un bug de sincronizacion: instalar la copperlist con
+  `COPJMP1` desde `update`/`render` antes de VBlank reiniciaba el Copper a media
+  pantalla, generando artefactos en la mitad inferior. El bucle del engine queda
+  en `update -> wait_vblank -> render`; la demo recompila en `update` e instala en
+  `render` ya dentro de VBlank.
+- `tools\run\run-demo.mjs` limpia `out\run\<demo>\sequence` antes de capturar para
+  no mezclar frames viejos con una ejecucion nueva.
+- `tools\analyze\assert-no-inner-black.ps1` valida que los tiles simbolicos de 101
+  no contienen negro interno en la ventana visible. Este detector atrapa el fallo
+  de reinicio de Copper que FrameScope/Vision Review podian pasar por alto.
+- `analyze-sequence.ps1 -Warp`: ok con 12 frames, FrameScope y detector de negro
+  interno.
+- `tools/test-regression.ps1 -Demo demos\101_ehb_tile_scroll_driver -Warp`: ok,
+  informe `out\regression\20260601-011220\regression-report.md`.
+- Defecto sintetico sobre tiles simbolicos:
+  `out\vision-review\synthetic_symbol_tiles_multi_prompt2` falla con
+  `visibleTilePop=true`.
+
+Correccion posterior del salto de columna izquierda:
+
+- La formula inicial de fine scroll arreglaba la mitad inferior, pero todavia
+  dejaba que la columna izquierda apareciese de golpe al cruzar `fine15 -> fine0`.
+- Se comparo con `demoscene-repo\effects\tiles16`, pero la pieza que faltaba en
+  nuestro driver era el fetch extra: solo cambiar `BPLCON1` y puntero no bastaba.
+- `EhbTileScrollScene` usa ahora `DDFSTRT=$30`, `display_modulo=18` porque se
+  leen 42 bytes por linea, puntero un word antes de la parte coarse y
+  `BPLCON1=fine`.
+- La ruta de la demo se centro en `cameraX=80` con radio de 4 tiles para conservar
+  siempre un word valido a la izquierda durante la orbita.
+- `tools\run\run-demo.ps1/mjs` soporta `-SequenceCameraX`, que captura frames
+  cuando la telemetria lateral alcanza valores concretos.
+- `demos\101_ehb_tile_scroll_driver\analyze-fine-scroll.ps1` captura y valida:
+  `cameraX=94,95,96,97` con shifts `-2,-2,-2`, y
+  `cameraX=112,111,110,109` con shifts `+2,+2,+2`.
+- La ultima regresion correcta es
+  `out\regression\20260601-013329\regression-report.md`.

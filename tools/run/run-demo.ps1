@@ -38,6 +38,10 @@ param(
 
 	[int]$SequenceIntervalMs = 100,
 
+	[string]$SequenceFineX = "",
+
+	[string]$SequenceCameraX = "",
+
 	[switch]$Warp,
 
 	[switch]$AllowTimeoutFallback
@@ -83,6 +87,14 @@ if ($KeepRunning) {
 
 if ($SequenceFrames -gt 0) {
 	$argsList += @("--sequence-frames", $SequenceFrames, "--sequence-interval-ms", $SequenceIntervalMs)
+}
+
+if ($SequenceFineX -ne "") {
+	$argsList += @("--sequence-fine-x", $SequenceFineX)
+}
+
+if ($SequenceCameraX -ne "") {
+	$argsList += @("--sequence-camera-x", $SequenceCameraX)
 }
 
 if ($Warp) {

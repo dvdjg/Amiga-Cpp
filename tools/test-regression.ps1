@@ -3,7 +3,12 @@ param(
 	[switch]$ReleaseBuild,
 	[switch]$SkipRun,
 	[switch]$KeepGoing,
-	[switch]$Warp
+	[switch]$Warp,
+	[switch]$VisionReview,
+	[switch]$RequireVisionReviewOk,
+	[string]$VisionProvider = "",
+	[ValidateSet("", "multi-image", "contact-sheet")]
+	[string]$VisionSendMode = "multi-image"
 )
 
 $ErrorActionPreference = "Stop"
@@ -79,6 +84,18 @@ foreach ($demoPath in $demoDirs) {
 			$sequenceArgs = @("-ExecutionPolicy", "Bypass", "-File", $sequenceScript)
 			if ($Warp) {
 				$sequenceArgs += "-Warp"
+			}
+			if ($VisionReview) {
+				$sequenceArgs += "-VisionReview"
+			}
+			if ($RequireVisionReviewOk) {
+				$sequenceArgs += "-RequireVisionReviewOk"
+			}
+			if ($VisionProvider -ne "") {
+				$sequenceArgs += @("-VisionProvider", $VisionProvider)
+			}
+			if ($VisionSendMode -ne "") {
+				$sequenceArgs += @("-VisionSendMode", $VisionSendMode)
 			}
 			& powershell @sequenceArgs
 			if ($LASTEXITCODE -ne 0) { throw "Sequence failed with exit code $LASTEXITCODE" }

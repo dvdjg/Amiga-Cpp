@@ -360,11 +360,42 @@ Resultado verificado:
   confundir frames muestreados con saltos reales; la demo limpia queda en
   `out\vision-review\101_lmstudio_multi_v2` con `status=ok`. El proveedor
   recomendado queda en `tools/vision-review/providers/lmstudio.legion.json`.
+- `Vision Review` queda integrado de forma opcional en
+  `demos/101_ehb_tile_scroll_driver/analyze-sequence.ps1`: `-VisionReview` genera
+  informe y `-RequireVisionReviewOk` exige aprobacion del modelo. La regresion
+  acepta los mismos flags y, sin ellos, no llama a LM Studio. Se verifico
+  `analyze-sequence.ps1 -Warp -RequireVisionReviewOk` y una regresion normal de la
+  demo 101 sin Vision Review.
+- La demo `101_ehb_tile_scroll_driver` sustituye los tiles de textura procedural
+  por tiles simbolicos con borde, marcador de variante y glifo hexadecimal `0..F`.
+  La primera version dibujaba pixel a pixel en runtime y no llegaba a `READY` en
+  debug; se optimizo a mascaras por fila para mantener la inicializacion rapida.
+  Vision Review aprueba la demo limpia y detecta un defecto sintetico sobre estos
+  tiles simbolicos como `visibleTilePop=true`.
+- Se corrigio un fallo visual real de `101_ehb_tile_scroll_driver`: la mitad
+  inferior de la pantalla mostraba artefactos porque `COPJMP1` se disparaba desde
+  `render`/`update` mientras el raster estaba en zona visible. El bucle generico
+  ahora hace `update -> wait_vblank -> render`, y la demo recompila la copperlist
+  en `update` pero la instala tras VBlank. Tambien se limpio la captura de
+  secuencias para no mezclar frames viejos y se anadio
+  `tools/analyze/assert-no-inner-black.ps1`, usado por `analyze-sequence.ps1`, para
+  detectar de forma automatica manchas negras internas tipicas de reinicio de
+  Copper o punteros de bitplane a media pantalla. Evidencia:
+  `out\regression\20260601-011220\regression-report.md`.
+- Se corrigio el salto de columna izquierda en el fine scroll hardware de la demo
+  101. El driver ahora adelanta `DDFSTRT` a `$30`, calcula el modulo con 42 bytes
+  de fetch por linea, mantiene un word oculto a la izquierda de la parte coarse y
+  aplica `BPLCON1=fine`. La ruta de validacion mantiene cada pixel varios VBlanks
+  para que la captura sea determinista. `run-demo` acepta `-SequenceCameraX`, y
+  `analyze-fine-scroll.ps1` verifica los cruces `94,95,96,97` y
+  `112,111,110,109`: borde izquierdo estable y desplazamientos `-2/-2/-2` y
+  `+2/+2/+2` en PNG, equivalentes a un pixel lowres por paso. Evidencia:
+  `out\regression\20260601-013329\regression-report.md`.
 
 Ultimo informe de regresion conocido:
 
 ```text
-out\regression\20260531-165301\regression-report.md
+out\regression\20260601-013329\regression-report.md
 ```
 
 ## Siguiente paso previsto

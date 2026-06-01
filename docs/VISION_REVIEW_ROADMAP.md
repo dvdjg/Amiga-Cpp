@@ -299,10 +299,13 @@ Aceptacion:
 
 Objetivo: permitir validacion IA sin hacer fragil toda la regresion.
 
+Estado: implementado para `101_ehb_tile_scroll_driver`.
+
 Tareas:
 
-- modo `-Optional`: genera informe pero no falla;
-- modo `-RequireOk`: falla si `status != ok`;
+- modo opcional: `-VisionReview` genera informe;
+- modo estricto: `-RequireVisionReviewOk` falla si `status != ok`, hay artefactos
+  major o la confianza queda por debajo del umbral;
 - guardar el informe dentro de `out/vision-review/...`;
 - enlazar el informe desde la documentacion de la demo.
 
@@ -310,6 +313,21 @@ Aceptacion:
 
 - por defecto no bloquea el pipeline local;
 - cuando se active explicitamente puede actuar como verificador externo.
+
+Comandos:
+
+```powershell
+.\demos\101_ehb_tile_scroll_driver\analyze-sequence.ps1 `
+  -Warp `
+  -RequireVisionReviewOk
+
+.\tools\test-regression.ps1 `
+  -Demo demos\101_ehb_tile_scroll_driver `
+  -Warp `
+  -RequireVisionReviewOk
+```
+
+La regresion normal sin esos flags sigue sin llamar al modelo.
 
 ## Riesgos
 
@@ -321,6 +339,24 @@ Aceptacion:
   proveedor debe permitir fallback a hoja de contacto unica.
 - Si se usa nube, las imagenes salen del equipo. Debe ser una decision explicita
   via proveedor, nunca el comportamiento por defecto.
+
+## Reglas para assets de prueba
+
+Las demos que dependan de Vision Review deben usar, cuando sea razonable, assets
+faciles de reconocer:
+
+- tiles con bordes claros;
+- colores de alto contraste;
+- letras, numeros o simbolos simples;
+- marcadores de variante;
+- formas grandes y no puramente texturales;
+- defectos sinteticos que cubran regiones visibles y sean explicables por el
+  prompt.
+
+Esto no significa que el engine final tenga que usar arte "de test". Significa que
+las demos de infraestructura deben tener señales visuales que una IA pueda
+describir con precision. La demo `101_ehb_tile_scroll_driver` ya usa tiles
+simbolicos con glifos `0..F` para validar scroll, tile-pop y corrupcion local.
 
 ## Siguiente paso
 
