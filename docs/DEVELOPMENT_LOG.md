@@ -398,6 +398,11 @@ Resultado verificado:
   ejecutar el Blitter. La regresion de la demo pasa y conserva
   `runStatus.detail = 0x05020311`. Evidencia:
   `out\regression\20260602-000815\regression-report.md`.
+- `101_ehb_tile_scroll_driver` adopta el mismo contrato de presupuesto de Blitter
+  para uploads de prefetch. Cada `TileBlockCopy` 16x16 en 6 planos cuesta 96 words;
+  la demo fija `warning=1 job/128 words` y `max=2 jobs/192 words` por frame.
+  Si el plan supera ese maximo, falla con codigo `0x00000117` antes de ejecutar el
+  Blitter. Esto separa degradacion intencional de regresiones de coste ocultas.
 
 Ultimo informe de regresion conocido:
 
@@ -412,8 +417,6 @@ La regresion automatizada ya existe en `tools/test-regression.ps1`.
 Siguiente bloque recomendado:
 
 1. Añadir clipping de Blitter para bordes de pantalla/camara.
-2. Extender los limites de Blitter a `101_ehb_tile_scroll_driver`, distinguiendo
-   presupuesto de tiles frente a BOBs/restores.
-3. Añadir doble buffer de copperlist cuando un frame necesite cambiar estructura,
+2. Añadir doble buffer de copperlist cuando un frame necesite cambiar estructura,
    no solo valores de `COLORxx`.
-4. Ejecutar una regresion amplia de demos base antes de abrir `060_hardware_sprites`.
+3. Ejecutar una regresion amplia de demos base antes de abrir `060_hardware_sprites`.

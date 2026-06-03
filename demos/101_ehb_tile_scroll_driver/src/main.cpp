@@ -57,6 +57,19 @@ constexpr amg::u16 circle_step_frames = 6;
 constexpr amg::u16 logical_scroll_columns = map_tiles_x - surface_tiles_x + 1u;
 constexpr amg::u16 logical_scroll_rows = map_tiles_y - surface_tiles_y + 1u;
 
+void configure_tile_blit_budget(amg::graphics::FramePlan& plan) {
+	// Esta demo sube como mucho dos tiles de 16x16 por frame. Cada tile ocupa
+	// 1 word x 16 filas x 6 planos = 96 words de trabajo de Blitter.
+	// El contrato queda fijado en 2 jobs / 192 words para detectar regresiones
+	// si alguien aumenta el presupuesto sin ajustar pruebas y documentacion.
+	plan.set_blit_budget_limits({
+		128,
+		192,
+		1,
+		2,
+	});
+}
+
 constexpr drivers::EhbPalette sky_palette {{
 	0x000, 0x222, 0x08f, 0x0cf, 0xf0c, 0xff0, 0x0f4, 0xf80,
 	0x84f, 0x0a6, 0xf44, 0x6df, 0xf8f, 0xfff, 0x888, 0x444,
@@ -578,6 +591,7 @@ struct DemoGame {
 	amg::u8 upload_prefetch_tiles(amg::amiga::MinimalBackend& backend) {
 		const tilemap::ProgressiveTileUpdatePlan plan = m_scheduler.take_budget(tile_update_budget);
 		m_frame_plan.clear();
+		configure_tile_blit_budget(m_frame_plan);
 		for (amg::u8 i = 0; i < plan.count; ++i) {
 			const tilemap::TileUpdateJob& job = plan.jobs[i];
 			if (!m_frame_plan.add_tile_block_copy(m_scene.make_tile_upload_job(
@@ -590,9 +604,15 @@ struct DemoGame {
 			}
 		}
 
-		if (plan.count != 0 && !backend.execute_frame_plan(m_frame_plan)) {
-			amg::debug::mark_failed(g_amg_run_status, 0x00000116u);
-			return 0;
+		if (plan.count != 0) {
+			if (m_frame_plan.blit_budget_report().status == amg::graphics::BlitBudgetStatus::Exceeded) {
+				amg::debug::mark_failed(g_amg_run_status, 0x00000117u);
+				return 0;
+			}
+			if (!backend.execute_frame_plan(m_frame_plan)) {
+				amg::debug::mark_failed(g_amg_run_status, 0x00000116u);
+				return 0;
+			}
 		}
 		for (amg::u8 i = 0; i < plan.count; ++i) {
 			const tilemap::TileUpdateJob& job = plan.jobs[i];

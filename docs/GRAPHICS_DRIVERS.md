@@ -145,6 +145,12 @@ mientras el contenido visible se desplaza de forma continua hacia la izquierda.
 La prueba fuerte usa FrameScope con `-Profile amiga-scroll -RequireProfileMatch`
 para comparar esa telemetria de camara contra el movimiento observado.
 
+La demo 101 tambien fija presupuesto de Blitter en su ruta de prefetch:
+`warning=1 job / 128 words`, `max=2 jobs / 192 words` por frame. Como cada
+`TileBlockCopy` de 16x16 en 6 planos cuesta 96 words, ese contrato permite dos
+tiles por frame y falla de forma controlada si el scheduler o el driver intentan
+subir mas trabajo del esperado en una sola iteracion.
+
 La misma cabecera incluye ahora `EhbBidirectionalRingPrefetch`, un planificador de
 slots de columnas y filas. Todavia no intenta hacer wrap fisico en mitad de la
 ventana visible, porque OCS no puede saltar de final de fila a principio de fila
