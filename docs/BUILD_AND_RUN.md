@@ -186,6 +186,16 @@ La regresion descubre las carpetas dentro de `demos`, y para cada una ejecuta:
 Si la demo incluye `analyze-sequence.ps1`, tambien ejecuta esa comprobacion y el
 informe muestra una columna `Sequence`.
 
+Para validacion determinista por pixel en secuencias (sin IA visual), ver:
+
+```text
+docs\PIXEL_FRAME_ASSERTIONS.md
+```
+
+Ese documento define contratos por ROI/frame y checks como
+`shifted_region_match`, `equal_region` y `forbidden_color_ratio` para decidir
+`pass/fail` con razon explicita.
+
 El informe queda en:
 
 ```text
