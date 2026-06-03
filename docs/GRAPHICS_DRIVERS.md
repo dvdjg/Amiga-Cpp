@@ -70,6 +70,12 @@ save de la nueva zona y draw cookie-cut. `FramePlan` tambien fusiona dirty rects
 para que las areas anterior/nueva del BOB se puedan tratar como una region logica
 de redraw aunque el backend siga emitiendo jobs concretos de Blitter.
 
+`FramePlan` ya convierte el coste acumulado de Blitter en un informe de presupuesto:
+`BlitBudgetLimits`, `BlitBudgetReport` y severidades `Ok`, `Warning` y `Exceeded`.
+La demo 050 usa limites pequenos para fallar de forma controlada si su frame de
+restore/save/draw crece mas alla del contrato esperado, conservando el estado
+saludable `0x05020311`.
+
 `demos/051_blitter_shifted_bobs` valida el siguiente contrato: un `BlitJob`
 enmascarado puede pedir `source_shift` y el backend lo traduce a los shifts A/B
 de `BLTCON0`/`BLTCON1`. Esto permite X no alineada a 16 pixels con una word extra

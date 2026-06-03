@@ -63,6 +63,40 @@ struct BlitBudget {
 	u16 tile_jobs = 0;
 };
 
+/// Severidad del presupuesto de Blitter para un frame.
+///
+/// `Warning` significa que el frame todavia se puede materializar, pero la escena
+/// esta entrando en una zona cara que conviene mostrar en telemetria. `Exceeded`
+/// no descarta jobs automaticamente: el driver o la demo decide si degrada,
+/// difiere trabajo o falla. Separar el diagnostico de la ejecucion permite usar el
+/// mismo `FramePlan` en demos didacticas y en futuros drivers mas agresivos.
+enum class BlitBudgetStatus : u8 {
+	Ok,
+	Warning,
+	Exceeded,
+};
+
+/// Limites configurables de Blitter.
+///
+/// Los limites son intencionadamente abstractos: words procesadas por plano y
+/// cantidad de jobs. Todavia no modelan ciclos exactos del bus Amiga, pero ya
+/// fijan una frontera verificable para evitar que un frame crezca sin control.
+struct BlitBudgetLimits {
+	u32 warning_words = 0xffffffffu;
+	u32 max_words = 0xffffffffu;
+	u16 warning_jobs = 0xffffu;
+	u16 max_jobs = 0xffffu;
+};
+
+/// Informe derivado de comparar `BlitBudget` contra `BlitBudgetLimits`.
+struct BlitBudgetReport {
+	BlitBudgetStatus status = BlitBudgetStatus::Ok;
+	bool words_warning = false;
+	bool words_exceeded = false;
+	bool jobs_warning = false;
+	bool jobs_exceeded = false;
+};
+
 /// Rectangulo de pantalla en pixels.
 ///
 /// Usamos coordenadas enteras pequenas y bordes exclusivos (`right/bottom`). Es el
@@ -160,6 +194,7 @@ public:
 		m_blit_job_count = 0;
 		m_dirty_rect_count = 0;
 		m_blit_budget = {};
+		m_blit_budget_report = {};
 		m_dirty_report = {};
 		m_ok = true;
 	}
@@ -177,7 +212,14 @@ public:
 	constexpr u8 blit_job_count() const { return m_blit_job_count; }
 	constexpr u8 dirty_rect_count() const { return m_dirty_rect_count; }
 	constexpr const BlitBudget& blit_budget() const { return m_blit_budget; }
+	constexpr const BlitBudgetLimits& blit_budget_limits() const { return m_blit_budget_limits; }
+	constexpr const BlitBudgetReport& blit_budget_report() const { return m_blit_budget_report; }
 	constexpr const DirtyReport& dirty_report() const { return m_dirty_report; }
+
+	void set_blit_budget_limits(BlitBudgetLimits limits) {
+		m_blit_budget_limits = limits;
+		rebuild_blit_budget_report();
+	}
 
 	constexpr const PalettePatch& palette_patch(u8 index) const {
 		return m_palette_patches[index];
@@ -329,7 +371,22 @@ private:
 		if (job.kind == BlitJobKind::TileBlockCopy) {
 			++m_blit_budget.tile_jobs;
 		}
+		rebuild_blit_budget_report();
 		return true;
+	}
+
+	void rebuild_blit_budget_report() {
+		m_blit_budget_report = {};
+		m_blit_budget_report.words_warning = m_blit_budget.words > m_blit_budget_limits.warning_words;
+		m_blit_budget_report.words_exceeded = m_blit_budget.words > m_blit_budget_limits.max_words;
+		m_blit_budget_report.jobs_warning = m_blit_budget.jobs > m_blit_budget_limits.warning_jobs;
+		m_blit_budget_report.jobs_exceeded = m_blit_budget.jobs > m_blit_budget_limits.max_jobs;
+
+		if (m_blit_budget_report.words_exceeded || m_blit_budget_report.jobs_exceeded) {
+			m_blit_budget_report.status = BlitBudgetStatus::Exceeded;
+		} else if (m_blit_budget_report.words_warning || m_blit_budget_report.jobs_warning) {
+			m_blit_budget_report.status = BlitBudgetStatus::Warning;
+		}
 	}
 
 	bool add_palette_patch(PalettePatch patch) {
@@ -353,6 +410,8 @@ private:
 	BlitJob m_blit_jobs[max_blit_jobs] {};
 	DirtyRect m_dirty_rects[max_dirty_rects] {};
 	BlitBudget m_blit_budget {};
+	BlitBudgetLimits m_blit_budget_limits {};
+	BlitBudgetReport m_blit_budget_report {};
 	DirtyReport m_dirty_report {};
 	u8 m_palette_patch_count = 0;
 	u8 m_blit_job_count = 0;

@@ -391,11 +391,18 @@ Resultado verificado:
   `112,111,110,109`: borde izquierdo estable y desplazamientos `-2/-2/-2` y
   `+2/+2/+2` en PNG, equivalentes a un pixel lowres por paso. Evidencia:
   `out\regression\20260601-013329\regression-report.md`.
+- `FramePlan` convierte ahora el presupuesto de Blitter en un contrato consultable:
+  `BlitBudgetLimits`, `BlitBudgetReport` y severidades `Ok`, `Warning` y
+  `Exceeded`. La demo `050_blitter_bobs` configura limites para su frame esperado
+  de blobs no-save y BOB animado; si el plan excede el maximo, falla antes de
+  ejecutar el Blitter. La regresion de la demo pasa y conserva
+  `runStatus.detail = 0x05020311`. Evidencia:
+  `out\regression\20260602-000815\regression-report.md`.
 
 Ultimo informe de regresion conocido:
 
 ```text
-out\regression\20260601-013329\regression-report.md
+out\regression\20260602-000948\regression-report.md
 ```
 
 ## Siguiente paso previsto
@@ -404,10 +411,9 @@ La regresion automatizada ya existe en `tools/test-regression.ps1`.
 
 Siguiente bloque recomendado:
 
-1. Convertir el presupuesto de Blitter en warnings/criterios de aceptacion por
-   frame.
-2. Añadir clipping de Blitter para bordes de pantalla/camara.
-3. Empezar una demo de scroll/tilemap con zona no visible real, dirty bits por
-   doble buffer, scroll fino por `BPLCON1` y commit sincronizado con VBlank.
-4. Añadir doble buffer de copperlist cuando un frame necesite cambiar estructura,
+1. Añadir clipping de Blitter para bordes de pantalla/camara.
+2. Extender los limites de Blitter a `101_ehb_tile_scroll_driver`, distinguiendo
+   presupuesto de tiles frente a BOBs/restores.
+3. Añadir doble buffer de copperlist cuando un frame necesite cambiar estructura,
    no solo valores de `COLORxx`.
+4. Ejecutar una regresion amplia de demos base antes de abrir `060_hardware_sprites`.

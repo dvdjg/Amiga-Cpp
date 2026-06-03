@@ -139,6 +139,18 @@ amg::graphics::DirtyRect bob_dirty_rect(amg::u16 x, amg::u16 y) {
 	};
 }
 
+void configure_blit_budget(amg::graphics::FramePlan& plan) {
+	// La demo 050 es pequena a proposito: dos blobs fijos y un BOB animado con
+	// restore/save/draw. Estos limites convierten esa intencion en contrato
+	// verificable sin pretender todavia medir ciclos exactos del bus.
+	plan.set_blit_budget_limits({
+		1300,
+		1600,
+		4,
+		6,
+	});
+}
+
 amg::graphics::BlitJob make_copy_job(
 	const amg::u16* source,
 	amg::u16* destination,
@@ -237,6 +249,7 @@ struct DemoGame {
 		);
 
 		m_frame_plan.clear();
+		configure_blit_budget(m_frame_plan);
 		m_frame_plan.add_dirty_rect(bob_dirty_rect(blob_left_x, blob_y));
 		m_frame_plan.add_dirty_rect(bob_dirty_rect(blob_right_x, blob_y));
 		const amg::graphics::BlitJob blob_left_job = make_masked_job(
@@ -255,6 +268,7 @@ struct DemoGame {
 		if (
 			!m_frame_plan.add_masked_blob_no_save(blob_left_job) ||
 			!m_frame_plan.add_masked_blob_no_save(blob_right_job) ||
+			m_frame_plan.blit_budget_report().status == amg::graphics::BlitBudgetStatus::Exceeded ||
 			!backend.execute_frame_plan(m_frame_plan)
 		) {
 			amg::debug::mark_failed(g_amg_run_status, 0x00000052u);
@@ -284,6 +298,7 @@ struct DemoGame {
 		amg::u16* saved_background = static_cast<amg::u16*>(m_saved_background_block.data);
 
 		m_frame_plan.clear();
+		configure_blit_budget(m_frame_plan);
 
 		if (m_has_saved_background) {
 			if (!m_frame_plan.add_dirty_rect(bob_dirty_rect(m_previous_x, bob_y))) {
@@ -327,6 +342,7 @@ struct DemoGame {
 		if (
 			!m_frame_plan.add_copy_rect(save) ||
 			!m_frame_plan.add_masked_bob(draw) ||
+			m_frame_plan.blit_budget_report().status == amg::graphics::BlitBudgetStatus::Exceeded ||
 			!backend.execute_frame_plan(m_frame_plan)
 		) {
 			amg::debug::mark_failed(g_amg_run_status, 0x00000054u);
