@@ -234,3 +234,47 @@ Notas:
 Con este sistema, la decision "render correcto o incorrecto" deja de depender de
 mirar capturas manualmente. La regresion puede fallar de forma precisa con pruebas
 deterministas por frame y por region, incluso en bugs sutiles de scroll y clipping.
+
+## Estado actual (implementado)
+
+Ya existe un MVP funcional integrado en el repositorio:
+
+- Motor Python: `tools/analyze/assert-pixel-contract.py`
+- Wrapper PowerShell: `tools/analyze/assert-pixel-contract.ps1`
+- Contrato inicial demo 101: `demos/101_ehb_tile_scroll_driver/pixel-contract.json`
+- Integracion opcional en secuencia demo 101:
+  - `-PixelAssert`
+  - `-RequirePixelAssertOk`
+- Integracion en regresion global:
+  - `tools/test-regression.ps1 -PixelAssert -RequirePixelAssertOk`
+  - nueva columna `PixelAssert` en `regression-report.md`
+
+Checks soportados en MVP:
+
+- `forbidden_color_ratio`
+- `equal_region`
+- `shifted_region_match`
+- `telemetry_shift_match`
+- `telemetry_direction_match`
+
+Notas del contrato 101:
+
+- Usa viewport auto (`auto_non_black`) para ignorar borde negro de WinUAE.
+- Escala ROIs de coordenadas logicas Amiga (320x256) al viewport capturado.
+- Valida direccion de movimiento respecto a telemetria (`cameraX/Y`) en lugar de
+  exigir un desplazamiento exacto de 1 px por par, porque la secuencia temporal
+  puede avanzar varios frames de juego entre capturas.
+
+## Troubleshooting rapido
+
+- `compatibleRatio` bajo en `telemetry_direction_match`:
+  - revisar signos `cameraXToContentDx` y `cameraYToContentDy`;
+  - revisar que `runStatus` de secuencia corresponda al frame capturado.
+
+- Falsos positivos por escala de captura:
+  - confirmar `viewport.logicalWidth` y `viewport.logicalHeight` del contrato;
+  - reducir ROIs a zonas de alta textura/identidad visual.
+
+- Fallos intermitentes:
+  - subir `SequenceFrames` para mayor muestra estadistica;
+  - usar `minCompatibleRatio` menos estricto en secuencias con saltos temporales.

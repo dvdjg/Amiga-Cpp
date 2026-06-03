@@ -196,6 +196,14 @@ Ese documento define contratos por ROI/frame y checks como
 `shifted_region_match`, `equal_region` y `forbidden_color_ratio` para decidir
 `pass/fail` con razon explicita.
 
+Uso rapido sobre la demo 101:
+
+```powershell
+.\tools\test-regression.ps1 -Demo demos\101_ehb_tile_scroll_driver -PixelAssert -RequirePixelAssertOk
+```
+
+El informe de regresion incluye columna `PixelAssert`.
+
 El informe queda en:
 
 ```text

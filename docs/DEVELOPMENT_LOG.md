@@ -403,6 +403,12 @@ Resultado verificado:
   la demo fija `warning=1 job/128 words` y `max=2 jobs/192 words` por frame.
   Si el plan supera ese maximo, falla con codigo `0x00000117` antes de ejecutar el
   Blitter. Esto separa degradacion intencional de regresiones de coste ocultas.
+- Se implementa `Pixel Assertions` como capa determinista de validacion por frame:
+  `tools/analyze/assert-pixel-contract.py` + wrapper PowerShell y contrato inicial
+  `demos/101_ehb_tile_scroll_driver/pixel-contract.json`. La demo 101 ya acepta
+  `-PixelAssert`/`-RequirePixelAssertOk` en `analyze-sequence.ps1` y la regresion
+  global anade columna `PixelAssert` en `tools/test-regression.ps1`. Evidencia:
+  `out\regression\20260603-223245\regression-report.md`.
 
 Ultimo informe de regresion conocido:
 
@@ -417,6 +423,7 @@ La regresion automatizada ya existe en `tools/test-regression.ps1`.
 Siguiente bloque recomendado:
 
 1. Añadir clipping de Blitter para bordes de pantalla/camara.
-2. Añadir doble buffer de copperlist cuando un frame necesite cambiar estructura,
+2. Extender `pixel-contract.json` a demos 050/051/052 con ROIs y umbrales propios.
+3. Añadir doble buffer de copperlist cuando un frame necesite cambiar estructura,
    no solo valores de `COLORxx`.
-3. Ejecutar una regresion amplia de demos base antes de abrir `060_hardware_sprites`.
+4. Ejecutar una regresion amplia de demos base antes de abrir `060_hardware_sprites`.

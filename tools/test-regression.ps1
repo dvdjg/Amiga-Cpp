@@ -6,6 +6,8 @@ param(
 	[switch]$Warp,
 	[switch]$VisionReview,
 	[switch]$RequireVisionReviewOk,
+	[switch]$PixelAssert,
+	[switch]$RequirePixelAssertOk,
 	[string]$VisionProvider = "",
 	[ValidateSet("", "multi-image", "contact-sheet")]
 	[string]$VisionSendMode = "multi-image"
@@ -36,8 +38,8 @@ $results = @()
 $markdown = @()
 $markdown += "# Regression $timestamp"
 $markdown += ""
-$markdown += "| Demo | Build | Run | Analyze | Sequence | Notes |"
-$markdown += "|---|---:|---:|---:|---:|---|"
+$markdown += "| Demo | Build | Run | Analyze | Sequence | PixelAssert | Notes |"
+$markdown += "|---|---:|---:|---:|---:|---:|---|"
 
 foreach ($demoPath in $demoDirs) {
 	$demoName = Split-Path $demoPath -Leaf
@@ -48,6 +50,7 @@ foreach ($demoPath in $demoDirs) {
 		run = if ($SkipRun) { "skipped" } else { "pending" }
 		analyze = "pending"
 		sequence = "none"
+		pixelAssert = "none"
 		notes = ""
 	}
 
@@ -81,9 +84,16 @@ foreach ($demoPath in $demoDirs) {
 		if ((-not $SkipRun) -and (Test-Path $sequenceScript)) {
 			Write-Host "== ${demoName}: sequence =="
 			$result.sequence = "pending"
+			$result.pixelAssert = if ($PixelAssert -or $RequirePixelAssertOk) { "pending" } else { "none" }
 			$sequenceArgs = @("-ExecutionPolicy", "Bypass", "-File", $sequenceScript)
 			if ($Warp) {
 				$sequenceArgs += "-Warp"
+			}
+			if ($PixelAssert) {
+				$sequenceArgs += "-PixelAssert"
+			}
+			if ($RequirePixelAssertOk) {
+				$sequenceArgs += "-RequirePixelAssertOk"
 			}
 			if ($VisionReview) {
 				$sequenceArgs += "-VisionReview"
@@ -100,6 +110,9 @@ foreach ($demoPath in $demoDirs) {
 			& powershell @sequenceArgs
 			if ($LASTEXITCODE -ne 0) { throw "Sequence failed with exit code $LASTEXITCODE" }
 			$result.sequence = "ok"
+			if ($PixelAssert -or $RequirePixelAssertOk) {
+				$result.pixelAssert = "ok"
+			}
 		}
 	}
 	catch {
@@ -108,16 +121,17 @@ foreach ($demoPath in $demoDirs) {
 		elseif ($result.run -eq "pending") { $result.run = "fail" }
 		elseif ($result.analyze -eq "pending") { $result.analyze = "fail" }
 		elseif ($result.sequence -eq "pending") { $result.sequence = "fail" }
+		elseif ($result.pixelAssert -eq "pending") { $result.pixelAssert = "fail" }
 
 		if (-not $KeepGoing) {
 			$results += [pscustomobject]$result
-			$markdown += "| $($result.demo) | $($result.build) | $($result.run) | $($result.analyze) | $($result.sequence) | $($result.notes) |"
+			$markdown += "| $($result.demo) | $($result.build) | $($result.run) | $($result.analyze) | $($result.sequence) | $($result.pixelAssert) | $($result.notes) |"
 			break
 		}
 	}
 
 	$results += [pscustomobject]$result
-	$markdown += "| $($result.demo) | $($result.build) | $($result.run) | $($result.analyze) | $($result.sequence) | $($result.notes) |"
+	$markdown += "| $($result.demo) | $($result.build) | $($result.run) | $($result.analyze) | $($result.sequence) | $($result.pixelAssert) | $($result.notes) |"
 }
 
 $jsonPath = Join-Path $reportDir "regression-report.json"
@@ -125,7 +139,7 @@ $mdPath = Join-Path $reportDir "regression-report.md"
 $results | ConvertTo-Json -Depth 5 | Out-File -Encoding ascii $jsonPath
 $markdown | Out-File -Encoding ascii $mdPath
 
-$failed = @($results | Where-Object { $_.build -ne "ok" -or ($_.run -ne "ok" -and $_.run -ne "skipped") -or $_.analyze -ne "ok" -or ($_.sequence -ne "ok" -and $_.sequence -ne "none") })
+$failed = @($results | Where-Object { $_.build -ne "ok" -or ($_.run -ne "ok" -and $_.run -ne "skipped") -or $_.analyze -ne "ok" -or ($_.sequence -ne "ok" -and $_.sequence -ne "none") -or ($_.pixelAssert -ne "ok" -and $_.pixelAssert -ne "none") })
 
 Write-Host ""
 Write-Host "Regression report:"
