@@ -409,6 +409,14 @@ Resultado verificado:
   `-PixelAssert`/`-RequirePixelAssertOk` en `analyze-sequence.ps1` y la regresion
   global anade columna `PixelAssert` en `tools/test-regression.ps1`. Evidencia:
   `out\regression\20260603-223245\regression-report.md`.
+- `Pixel Assertions` se extiende a demos base 050/051/052. Se anaden
+  `pixel-contract.json` y `analyze-sequence.ps1` en cada demo para validar
+  estabilidad post-READY con `equal_region` + detector de negro interno. Las
+  secuencias usan captura con reintento para tolerar fallos transitorios de
+  conexion GDB en WinUAE. Evidencias:
+  `out\regression\20260603-224622\regression-report.md` (050),
+  `out\regression\20260603-224755\regression-report.md` (051),
+  `out\regression\20260603-224832\regression-report.md` (052).
 
 Ultimo informe de regresion conocido:
 
@@ -423,7 +431,8 @@ La regresion automatizada ya existe en `tools/test-regression.ps1`.
 Siguiente bloque recomendado:
 
 1. Añadir clipping de Blitter para bordes de pantalla/camara.
-2. Extender `pixel-contract.json` a demos 050/051/052 con ROIs y umbrales propios.
+2. Añadir overlays de diff por ROI y frame en `assert-pixel-contract.py` para
+   diagnostico visual rapido cuando falle un contrato.
 3. Añadir doble buffer de copperlist cuando un frame necesite cambiar estructura,
    no solo valores de `COLORxx`.
 4. Ejecutar una regresion amplia de demos base antes de abrir `060_hardware_sprites`.

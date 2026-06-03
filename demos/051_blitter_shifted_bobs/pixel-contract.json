@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "viewport": {
+    "mode": "auto_non_black",
+    "threshold": 8,
+    "logicalWidth": 320,
+    "logicalHeight": 256
+  },
+  "defaults": {
+    "rgbTolerance": 8,
+    "maxErrorRatio": 0.01
+  },
+  "globalChecks": [
+    {
+      "name": "no-inner-black",
+      "type": "forbidden_color_ratio",
+      "color": [0, 0, 0],
+      "colorTolerance": 0,
+      "maxRatio": 0.001,
+      "roi": { "x": 0, "y": 0, "w": 320, "h": 256 }
+    }
+  ],
+  "segments": [
+    {
+      "name": "shifted-bob-static",
+      "frames": [1, -1],
+      "checks": [
+        {
+          "name": "full-viewport-static",
+          "type": "equal_region",
+          "roi": { "x": 0, "y": 0, "w": 320, "h": 256 },
+          "rgbTolerance": 8,
+          "maxErrorRatio": 0.01
+        }
+      ]
+    }
+  ]
+}

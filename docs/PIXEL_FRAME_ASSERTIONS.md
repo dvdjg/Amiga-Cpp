@@ -242,9 +242,17 @@ Ya existe un MVP funcional integrado en el repositorio:
 - Motor Python: `tools/analyze/assert-pixel-contract.py`
 - Wrapper PowerShell: `tools/analyze/assert-pixel-contract.ps1`
 - Contrato inicial demo 101: `demos/101_ehb_tile_scroll_driver/pixel-contract.json`
+- Contratos adicionales demos 050/051/052:
+  - `demos/050_blitter_bobs/pixel-contract.json`
+  - `demos/051_blitter_shifted_bobs/pixel-contract.json`
+  - `demos/052_tile_staging_blits/pixel-contract.json`
 - Integracion opcional en secuencia demo 101:
   - `-PixelAssert`
   - `-RequirePixelAssertOk`
+- Integracion en secuencia demos 050/051/052:
+  - `demos/050_blitter_bobs/analyze-sequence.ps1`
+  - `demos/051_blitter_shifted_bobs/analyze-sequence.ps1`
+  - `demos/052_tile_staging_blits/analyze-sequence.ps1`
 - Integracion en regresion global:
   - `tools/test-regression.ps1 -PixelAssert -RequirePixelAssertOk`
   - nueva columna `PixelAssert` en `regression-report.md`
@@ -264,6 +272,13 @@ Notas del contrato 101:
 - Valida direccion de movimiento respecto a telemetria (`cameraX/Y`) en lugar de
   exigir un desplazamiento exacto de 1 px por par, porque la secuencia temporal
   puede avanzar varios frames de juego entre capturas.
+
+Notas contratos 050/051/052:
+
+- 050, 051 y 052 validan estabilidad visual post-READY mediante `equal_region`.
+- 051 y 052 ignoran el primer par para evitar falso positivo por transicion de
+  arranque (`frames: [1, -1]`).
+- Los tres mantienen `forbidden_color_ratio` para detectar corrupcion negra interna.
 
 ## Troubleshooting rapido
 
