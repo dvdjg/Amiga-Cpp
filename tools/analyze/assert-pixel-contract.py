@@ -410,6 +410,7 @@ def run_assertions(
             color = tuple(check.get("color", [0, 0, 0]))
             tolerance = int(check.get("colorTolerance", 0))
             max_ratio = float(check.get("maxRatio", 0.0))
+            ignore_first_frames = max(0, int(check.get("ignoreFirstFrames", 0)))
             roi = check.get("roi", {"x": 0, "y": 0, "w": viewport.w, "h": viewport.h})
             roi_abs = clamp_roi(roi, viewport, frame_size, coords)
 
@@ -430,6 +431,19 @@ def run_assertions(
                     max_seen = ratio
                     max_seen_frame = index
 
+            considered_frames = [
+                frame_item for frame_item in per_frame if frame_item["frame"] >= ignore_first_frames
+            ]
+            if not considered_frames:
+                considered_frames = per_frame
+
+            max_seen = 0.0
+            max_seen_frame = considered_frames[0]["frame"] if considered_frames else 0
+            for frame_item in considered_frames:
+                if frame_item["ratio"] > max_seen:
+                    max_seen = frame_item["ratio"]
+                    max_seen_frame = frame_item["frame"]
+
             passed = max_seen <= max_ratio
             item = {
                 "scope": "global",
@@ -437,15 +451,17 @@ def run_assertions(
                 "name": check.get("name", ctype),
                 "roi": {"x": roi_abs[0], "y": roi_abs[1], "w": roi_abs[2], "h": roi_abs[3]},
                 "maxRatio": max_ratio,
+                "ignoreFirstFrames": ignore_first_frames,
                 "maxSeenRatio": max_seen,
                 "maxSeenFrame": max_seen_frame,
                 "passed": passed,
                 "details": per_frame,
+                "consideredFrameCount": len(considered_frames),
             }
             checks_report.append(item)
             if not passed:
                 failed_frames = []
-                for frame_item in per_frame:
+                for frame_item in considered_frames:
                     if frame_item["ratio"] > max_ratio:
                         failed_frames.append(frame_item["frame"])
                 for frame_index in failed_frames:

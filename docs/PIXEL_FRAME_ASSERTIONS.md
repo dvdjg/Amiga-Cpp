@@ -282,6 +282,8 @@ Notas contratos 050/051/052:
 - Cuando una demo necesita ignorar transiciones de arranque, puede usar
   `ignoreFirstPairs` dentro de cada check para no evaluar los primeros pares
   de frames de un segmento.
+- Para checks globales de tipo `forbidden_color_ratio`, se soporta
+  `ignoreFirstFrames` para excluir los primeros frames de la evaluacion.
 
 ## Troubleshooting rapido
 

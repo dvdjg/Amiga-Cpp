@@ -16,6 +16,7 @@
       "type": "forbidden_color_ratio",
       "color": [0, 0, 0],
       "colorTolerance": 0,
+      "ignoreFirstFrames": 1,
       "maxRatio": 0.001,
       "roi": { "x": 0, "y": 0, "w": 320, "h": 256 }
     }
