@@ -8,6 +8,7 @@ param(
 	[switch]$RequireVisionReviewOk,
 	[switch]$PixelAssert,
 	[switch]$RequirePixelAssertOk,
+	[switch]$PixelAssertSelftest,
 	[string]$VisionProvider = "",
 	[ValidateSet("", "multi-image", "contact-sheet")]
 	[string]$VisionSendMode = "multi-image"
@@ -19,6 +20,7 @@ $root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $buildScript = Join-Path $root "tools\build\build-demo.ps1"
 $runScript = Join-Path $root "tools\run\run-demo.ps1"
 $analyzeScript = Join-Path $root "tools\analyze\analyze-demo.ps1"
+$pixelAssertSelftestScript = Join-Path $root "tools\analyze\verify-pixel-assert.ps1"
 
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $reportDir = Join-Path $root "out\regression\$timestamp"
@@ -32,6 +34,14 @@ if ($Demo) {
 
 if ($demoDirs.Count -eq 0) {
 	throw "No se encontraron demos para ejecutar."
+}
+
+if ($PixelAssertSelftest) {
+	Write-Host "== pixel-assert selftest =="
+	& powershell -ExecutionPolicy Bypass -File $pixelAssertSelftestScript
+	if ($LASTEXITCODE -ne 0) {
+		throw "Pixel Assert selftest failed with exit code $LASTEXITCODE"
+	}
 }
 
 $results = @()

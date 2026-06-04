@@ -30,6 +30,7 @@
           "type": "equal_region",
           "roi": { "x": 0, "y": 0, "w": 320, "h": 256 },
           "rgbTolerance": 8,
+          "ignoreFirstPairs": 1,
           "maxErrorRatio": 0.01
         }
       ]

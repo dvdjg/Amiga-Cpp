@@ -204,6 +204,23 @@ Uso rapido sobre la demo 101:
 
 El informe de regresion incluye columna `PixelAssert`.
 
+Para ejecutar tambien la bateria sintetica (casos positivos/negativos) antes de
+la regresion de demos:
+
+```powershell
+.\tools\test-regression.ps1 `
+  -Demo demos\101_ehb_tile_scroll_driver `
+  -PixelAssert -RequirePixelAssertOk `
+  -PixelAssertSelftest
+```
+
+Para ejecutar tambien el selftest sintetico (casos positivos/negativos) antes de
+la regresion:
+
+```powershell
+.\tools\test-regression.ps1 -Demo demos\101_ehb_tile_scroll_driver -PixelAssert -RequirePixelAssertOk -PixelAssertSelftest
+```
+
 El informe queda en:
 
 ```text

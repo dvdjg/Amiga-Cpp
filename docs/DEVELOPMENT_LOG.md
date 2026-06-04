@@ -417,6 +417,21 @@ Resultado verificado:
   `out\regression\20260603-224622\regression-report.md` (050),
   `out\regression\20260603-224755\regression-report.md` (051),
   `out\regression\20260603-224832\regression-report.md` (052).
+- Se anade bateria sintetica de pruebas para `Pixel Assertions`:
+  `tools/analyze/verify-pixel-assert.ps1`. Incluye casos positivos y negativos
+  (`equal_region`, `shifted_region_match`, `forbidden_color_ratio`) para validar
+  que el sistema aprueba y rechaza correctamente. Evidencia:
+  `out\analysis\pixel-assert-selftest\selftest-summary.md`.
+- `assert-pixel-contract.py` genera ahora overlays de diagnostico por fallo en
+  `<out-dir>\overlays`. Se valida con selftest negativo en
+  `negative_equal_region` y `negative_forbidden_color`, incluyendo archivos
+  `equal-fail_equal_region_f000_f001.png` y
+  `global_forbidden_color_ratio_f001.png`.
+- `tools/test-regression.ps1` incorpora `-PixelAssertSelftest` para ejecutar la
+  bateria sintetica antes de demos reales. El parser JSON de `Pixel Assertions`
+  acepta BOM (`utf-8-sig`) y el contrato permite `ignoreFirstPairs` por check para
+  omitir transiciones iniciales sin relajar el resto del segmento. Evidencia:
+  `out\regression\20260604-000516\regression-report.md`.
 
 Ultimo informe de regresion conocido:
 

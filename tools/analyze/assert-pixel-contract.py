@@ -36,7 +36,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_json(path: Path) -> Dict:
-    with path.open("r", encoding="utf-8") as handle:
+    with path.open("r", encoding="utf-8-sig") as handle:
         return json.load(handle)
 
 
@@ -199,6 +199,46 @@ def shifted_region_error_ratio(
     }
 
 
+def write_mismatch_overlay(
+    image_a: Image.Image,
+    image_b: Image.Image,
+    roi_abs: Tuple[int, int, int, int],
+    dx: int,
+    dy: int,
+    tolerance: int,
+    out_path: Path,
+) -> int:
+    x0, y0, w, h = roi_abs
+    if w <= 0 or h <= 0:
+        return 0
+
+    frame_w, frame_h = image_b.size
+    a_pixels = image_a.convert("RGB").load()
+    b_rgb = image_b.convert("RGB")
+    b_pixels = b_rgb.load()
+
+    overlay = b_rgb.convert("RGBA")
+    o_pixels = overlay.load()
+    mismatches = 0
+
+    for y in range(y0, y0 + h):
+        by = y + dy
+        if by < 0 or by >= frame_h:
+            continue
+        for x in range(x0, x0 + w):
+            bx = x + dx
+            if bx < 0 or bx >= frame_w:
+                continue
+            if pixel_diff_exceeds(a_pixels[x, y], b_pixels[bx, by], tolerance):
+                mismatches += 1
+                r, g, b, _ = o_pixels[bx, by]
+                o_pixels[bx, by] = (255, max(0, g - 80), max(0, b - 80), 255)
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    overlay.save(out_path)
+    return mismatches
+
+
 def best_shift_for_roi(
     pixels_a,
     pixels_b,
@@ -264,6 +304,40 @@ def forbidden_color_ratio(
     return {"total": total, "matches": matches, "ratio": matches / total}
 
 
+def write_forbidden_overlay(
+    image: Image.Image,
+    roi_abs: Tuple[int, int, int, int],
+    color: Tuple[int, int, int],
+    tolerance: int,
+    out_path: Path,
+) -> int:
+    x0, y0, w, h = roi_abs
+    if w <= 0 or h <= 0:
+        return 0
+
+    rgb = image.convert("RGB")
+    pixels = rgb.load()
+    overlay = rgb.convert("RGBA")
+    o_pixels = overlay.load()
+
+    marked = 0
+    for y in range(y0, y0 + h):
+        for x in range(x0, x0 + w):
+            p = pixels[x, y]
+            if (
+                abs(p[0] - color[0]) <= tolerance
+                and abs(p[1] - color[1]) <= tolerance
+                and abs(p[2] - color[2]) <= tolerance
+            ):
+                marked += 1
+                r, g, b, _ = o_pixels[x, y]
+                o_pixels[x, y] = (255, max(0, g - 80), max(0, b - 80), 255)
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    overlay.save(out_path)
+    return marked
+
+
 def pair_range(segment: Dict, frame_count: int) -> Tuple[int, int]:
     frames = segment.get("frames")
     if not isinstance(frames, list) or len(frames) != 2:
@@ -307,6 +381,7 @@ def run_assertions(
     viewport: Viewport,
     coords: CoordinateSpace,
     run_report: Optional[Path],
+    overlays_dir: Path,
 ) -> Dict:
     defaults = contract.get("defaults", {})
     default_tolerance = int(defaults.get("rgbTolerance", 8))
@@ -369,6 +444,24 @@ def run_assertions(
             }
             checks_report.append(item)
             if not passed:
+                failed_frames = []
+                for frame_item in per_frame:
+                    if frame_item["ratio"] > max_ratio:
+                        failed_frames.append(frame_item["frame"])
+                for frame_index in failed_frames:
+                    overlay_name = f"global_{ctype}_f{frame_index:03d}.png"
+                    overlay_path = overlays_dir / overlay_name
+                    write_forbidden_overlay(
+                        frame_images[frame_index],
+                        roi_abs,
+                        color,
+                        tolerance,
+                        overlay_path,
+                    )
+                    for frame_item in per_frame:
+                        if frame_item["frame"] == frame_index:
+                            frame_item["overlay"] = str(overlay_path)
+                            break
                 failures.append({
                     "name": item["name"],
                     "reason": f"maxSeenRatio={max_seen:.6f} > maxRatio={max_ratio:.6f}",
@@ -384,6 +477,7 @@ def run_assertions(
                 roi_abs = clamp_roi(roi, viewport, frame_size, coords)
                 tolerance = int(check.get("rgbTolerance", default_tolerance))
                 max_error_ratio = float(check.get("maxErrorRatio", default_error_ratio))
+                ignore_first_pairs = max(0, int(check.get("ignoreFirstPairs", 0)))
 
                 pair_results = []
                 worst_ratio = 0.0
@@ -482,11 +576,17 @@ def run_assertions(
                         worst_ratio = error_ratio
                         worst_pair = [i, i + 1]
 
-                passed = all(item["errorRatio"] <= max_error_ratio for item in pair_results)
+                considered_pairs = [
+                    item for item in pair_results if item["from"] >= (start + ignore_first_pairs)
+                ]
+                if not considered_pairs:
+                    considered_pairs = pair_results
+
+                passed = all(item["errorRatio"] <= max_error_ratio for item in considered_pairs)
                 if ctype == "telemetry_direction_match":
                     min_compatible_ratio = float(check.get("minCompatibleRatio", 0.7))
-                    compatible_count = sum(1 for item in pair_results if item.get("compatible", False))
-                    pair_count = max(1, len(pair_results))
+                    compatible_count = sum(1 for item in considered_pairs if item.get("compatible", False))
+                    pair_count = max(1, len(considered_pairs))
                     compatible_ratio = compatible_count / pair_count
                     passed = compatible_ratio >= min_compatible_ratio
                 entry = {
@@ -497,14 +597,16 @@ def run_assertions(
                     "roi": {"x": roi_abs[0], "y": roi_abs[1], "w": roi_abs[2], "h": roi_abs[3]},
                     "rgbTolerance": tolerance,
                     "maxErrorRatio": max_error_ratio,
+                    "ignoreFirstPairs": ignore_first_pairs,
                     "worstErrorRatio": worst_ratio,
                     "worstPair": worst_pair,
                     "passed": passed,
                     "pairs": pair_results,
+                    "consideredPairCount": len(considered_pairs),
                 }
                 if ctype == "telemetry_direction_match":
-                    compatible_count = sum(1 for item in pair_results if item.get("compatible", False))
-                    pair_count = max(1, len(pair_results))
+                    compatible_count = sum(1 for item in considered_pairs if item.get("compatible", False))
+                    pair_count = max(1, len(considered_pairs))
                     entry["compatiblePairs"] = compatible_count
                     entry["pairCount"] = pair_count
                     entry["compatibleRatio"] = compatible_count / pair_count
@@ -512,6 +614,23 @@ def run_assertions(
                 checks_report.append(entry)
                 if not passed:
                     if ctype == "telemetry_direction_match":
+                        for pair_item in pair_results:
+                            if pair_item.get("compatible", False):
+                                continue
+                            overlay_name = (
+                                f"{segment_name}_{ctype}_f{pair_item['from']:03d}_f{pair_item['to']:03d}.png"
+                            )
+                            overlay_path = overlays_dir / overlay_name
+                            write_mismatch_overlay(
+                                frame_images[pair_item["from"]],
+                                frame_images[pair_item["to"]],
+                                roi_abs,
+                                int(pair_item["observedDx"]),
+                                int(pair_item["observedDy"]),
+                                tolerance,
+                                overlay_path,
+                            )
+                            pair_item["overlay"] = str(overlay_path)
                         failures.append(
                             {
                                 "name": entry["name"],
@@ -523,6 +642,27 @@ def run_assertions(
                             }
                         )
                         continue
+
+                    for pair_item in pair_results:
+                        if pair_item["from"] < (start + ignore_first_pairs):
+                            continue
+                        if pair_item["errorRatio"] <= max_error_ratio:
+                            continue
+                        overlay_name = (
+                            f"{segment_name}_{ctype}_f{pair_item['from']:03d}_f{pair_item['to']:03d}.png"
+                        )
+                        overlay_path = overlays_dir / overlay_name
+                        write_mismatch_overlay(
+                            frame_images[pair_item["from"]],
+                            frame_images[pair_item["to"]],
+                            roi_abs,
+                            int(pair_item.get("dx", 0)),
+                            int(pair_item.get("dy", 0)),
+                            tolerance,
+                            overlay_path,
+                        )
+                        pair_item["overlay"] = str(overlay_path)
+
                     failures.append(
                         {
                             "name": entry["name"],
@@ -596,7 +736,8 @@ def main() -> None:
     frames = list_frames(sequence_dir)
     viewport = resolve_viewport(contract, frames[0])
     coords = resolve_coordinate_space(contract, viewport)
-    report = run_assertions(frames, contract, viewport, coords, run_report_path)
+    overlays_dir = out_dir / "overlays"
+    report = run_assertions(frames, contract, viewport, coords, run_report_path, overlays_dir)
 
     report_path = out_dir / "pixel-assert-report.json"
     summary_path = out_dir / "pixel-assert-summary.md"

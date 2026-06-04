@@ -279,6 +279,9 @@ Notas contratos 050/051/052:
 - 051 y 052 ignoran el primer par para evitar falso positivo por transicion de
   arranque (`frames: [1, -1]`).
 - Los tres mantienen `forbidden_color_ratio` para detectar corrupcion negra interna.
+- Cuando una demo necesita ignorar transiciones de arranque, puede usar
+  `ignoreFirstPairs` dentro de cada check para no evaluar los primeros pares
+  de frames de un segmento.
 
 ## Troubleshooting rapido
 
@@ -293,3 +296,42 @@ Notas contratos 050/051/052:
 - Fallos intermitentes:
   - subir `SequenceFrames` para mayor muestra estadistica;
   - usar `minCompatibleRatio` menos estricto en secuencias con saltos temporales.
+
+## Selftest (positivo + negativo)
+
+El sistema incluye una bateria sintetica para verificar que el motor detecta tanto
+casos validos como invalidos:
+
+```powershell
+.\tools\analyze\verify-pixel-assert.ps1
+```
+
+Casos actuales:
+
+- `positive_equal_region` (debe pasar)
+- `negative_equal_region` (debe fallar)
+- `positive_shifted_region` (debe pasar)
+- `negative_forbidden_color` (debe fallar)
+
+Salidas:
+
+- `out\analysis\pixel-assert-selftest\selftest-summary.md`
+- `out\analysis\pixel-assert-selftest\selftest-results.json`
+
+El selftest falla con exit code no cero si cualquier caso produce un resultado
+distinto al esperado.
+
+## Overlays de diagnostico
+
+Cuando una regla falla, el motor genera overlays PNG en `<out-dir>/overlays` para
+ver rapidamente la zona del error:
+
+- `equal_region` / `shifted_region_match` / `telemetry_*`: resalta en rojo los
+  pixeles que no cumplen el emparejamiento esperado.
+- `forbidden_color_ratio`: resalta en rojo los pixeles del color prohibido dentro
+  del ROI.
+
+Ejemplo en selftest:
+
+- `out\analysis\pixel-assert-selftest\negative_equal_region\report\overlays\equal-fail_equal_region_f000_f001.png`
+- `out\analysis\pixel-assert-selftest\negative_forbidden_color\report\overlays\global_forbidden_color_ratio_f001.png`
