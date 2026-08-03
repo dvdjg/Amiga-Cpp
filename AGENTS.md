@@ -5,8 +5,8 @@
 - No introducir nuevas frases en español sin corregir (`ejecución`, `análisis`, `depuración`, `diseño`, etc.).
 
 ## Qué es este repositorio
-- El repo mantiene un workspace raíz Amiga C legado (`Makefile`, `out/a.exe`) y un flujo nuevo de demos del engine C++23 en `demos/` + `tools/`; no mezclarlos por error.
-- Para trabajo del engine, usar scripts PowerShell de `tools/` en vez de invocar el `Makefile` raíz.
+- El repo mantiene un proyecto C Amiga legado en `legacy/` (`legacy/Makefile`, `legacy/out/a.exe`) y un flujo nuevo de demos del engine C++23 en `demos/` + `tools/`; no mezclarlos por error.
+- Para trabajo del engine, usar scripts PowerShell de `tools/` en vez de invocar el `legacy/Makefile`.
 
 ## Herramientas locales requeridas
 - Windows + PowerShell + Node.js son obligatorios para el flujo de ejecución automatizada (`tools/run/run-demo.ps1` -> `tools/run/run-demo.mjs`).
@@ -35,8 +35,8 @@
 - Bucle de entrada del engine: `engine/include/amg/engine.hpp` (`update -> wait_vblank -> render`; `render` es el punto de commit).
 - Backend Amiga: `engine/src/platform/amiga_minimal/amiga_minimal.cpp`.
 - Validación temporal fuerte por demo: `demos/101_ehb_tile_scroll_driver/analyze-sequence.ps1`.
-- Detalles operativos build/run: `docs/BUILD_AND_RUN.md`.
+- Detalles operativos build/run: `docs/build/BUILD_AND_RUN.md`.
 
 ## Restricciones de código/diseño que hay que preservar
-- Restricciones intencionales del engine: `gnu++23`, sin exceptions, sin RTTI, sin asignación dinámica en gameplay (`docs/CODING_STYLE.md`).
+- Restricciones intencionales del engine: `gnu++23`, sin exceptions, sin RTTI, sin asignación dinámica en gameplay (`docs/architecture/CODING_STYLE.md`).
 - La lógica de juego debe ser agnóstica del backend; registros/DMA específicos de Amiga van en capas backend/driver, no en lógica de alto nivel.

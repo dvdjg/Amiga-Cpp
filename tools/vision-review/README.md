@@ -2,7 +2,7 @@
 
 Herramienta ligera para pedir una segunda opinion visual a un modelo con vision
 sobre pocos frames seleccionados. Esta carpeta contiene el contrato operativo; el
-roadmap completo esta en `docs/VISION_REVIEW_ROADMAP.md`.
+roadmap completo está en `docs/testing/VISION_REVIEW_ROADMAP.md`.
 
 ## Objetivo
 

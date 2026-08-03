@@ -1,5 +1,7 @@
 /obj/
 /out/
+/legacy/obj/
+/legacy/out/
 *.o
 *.d
 

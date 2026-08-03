@@ -91,15 +91,15 @@ Tooling:
 
 Documentacion:
 
-- `docs/ROADMAP_ENGINE_CPP_AMIGA500.md`
-- `docs/BUILD_AND_RUN.md`
-- `docs/CODING_STYLE.md`
-- `docs/MEMORY_MODEL.md`
-- `docs/GRAPHICS_DRIVERS.md`
+- `docs/architecture/ROADMAP_ENGINE_CPP_AMIGA500.md`
+- `docs/build/BUILD_AND_RUN.md`
+- `docs/architecture/CODING_STYLE.md`
+- `docs/architecture/MEMORY_MODEL.md`
+- `docs/architecture/GRAPHICS_DRIVERS.md`
 - `docs/CONTINUATION_CONTEXT.md`
-- `docs/HARDWARE_AND_ROM_KERNEL_POLICY.md`
-- `docs/MOUSE_AUTOMATION.md`
-- `docs/WINUAE_SIDE_CHANNEL_DEBUG.md`
+- `docs/architecture/HARDWARE_AND_ROM_KERNEL_POLICY.md`
+- `docs/emulation/MOUSE_AUTOMATION.md`
+- `docs/emulation/WINUAE_SIDE_CHANNEL_DEBUG.md`
 
 ## Comandos verificados
 
@@ -159,7 +159,7 @@ Resultado verificado:
 - La colaboracion profunda persona+IA sobre una sesion manual aun requiere los
   siguientes incrementos del canal: `observe/assist/takeover`, debug lock,
   auditoria de escrituras y comandos seguros para profiler/screenshot/input.
-  Ver `docs/WINUAE_SIDE_CHANNEL_DEBUG.md`.
+  Ver `docs/emulation/WINUAE_SIDE_CHANNEL_DEBUG.md`.
 - El canal lateral ya implementa `observe/assist/takeover`, `lock acquire/release`,
   acciones encoladas para `screenshot`, `input` y `profile`, `action status` y
   `profile-status`. `input` y `profile` requieren lock `assist`/`takeover`.
@@ -242,11 +242,11 @@ Resultado verificado:
   al playfield visible con un `CopyRect`. El estado saludable deja
   `runStatus.detail = 0x05210104`.
 - Se ha indexado `C:\Users\David\Documents\Programa\Amiga\demoscene-repo` en
-  `docs/DEMOSCENE_REPO_INDEX.md`. Hallazgos clave: `effects/tiles16` combina dirty
+  `docs/demoscene/DEMOSCENE_REPO_INDEX.md`. Hallazgos clave: `effects/tiles16` combina dirty
   flags por doble buffer, blits interleaved de tiles, coarse scroll por `BPLxPT`,
   fine scroll por `BPLCON1`, doble copperlist y commit en VBlank; `lib/lib3d`
   aporta una base de 3D fixed-point, culling, luz por cara y ordenacion Z.
-- Se ha fijado `docs/DEMOSCENE_EFFECT_REPLICATION_POLICY.md`: las replicas de
+- Se ha fijado `docs/demoscene/DEMOSCENE_EFFECT_REPLICATION_POLICY.md`: las replicas de
   efectos de `demoscene-repo/effects` se implementaran como demos propias del
   engine, con logica limpia y registros custom encapsulados en capas bajas. La
   primera replica recomendada es `tiles16`.
@@ -258,7 +258,7 @@ Resultado verificado:
 - Se ha añadido `engine/include/amg/scene/virtual_scene.hpp` con `Camera2D`,
   `TileLayer`, `TileScrollStrategy` y `VirtualSceneFrame`. La demo 052 ya crea una
   escena virtual retenida y pasa por ella antes de generar sus blits de staging.
-- Se ha creado `docs/RETRO_ENGINE_API_BENCHMARK.md`, con aprendizajes de ACE,
+- Se ha creado `docs/architecture/RETRO_ENGINE_API_BENCHMARK.md`, con aprendizajes de ACE,
   Scorpion Engine publico y UAF, y con el MVP recomendado para escenarios
   virtuales con scroll.
 - Se ha añadido `100_virtual_tile_scene_scroll`: primer MVP visual de escenario
@@ -325,7 +325,7 @@ Resultado verificado:
   mediante `ffmpeg`, genera `framescope-report.json`, `framescope-summary.md` y
   `framescope-contact-sheet.png`, estima diferencias, direccion de movimiento,
   segmentos y grids ASCII compactos. Su roadmap propio queda en
-  `docs/FRAMESCOPE_ROADMAP.md`. Se ha verificado sobre la secuencia WinUAE de la
+  `docs/testing/FRAMESCOPE_ROADMAP.md`. Se ha verificado sobre la secuencia WinUAE de la
   demo 101 y sobre un MP4 generado desde esos frames.
 - `tools/run/run-demo.mjs` guarda ahora `runStatus` por cada frame de secuencia
   cuando el canal lateral esta disponible. FrameScope incorpora `-Profile
@@ -340,7 +340,7 @@ Resultado verificado:
   `SearchRadius 12` y correlaciona cada captura con `runStatus` lateral. FrameScope
   guarda direcciones candidatas cercanas al mejor desplazamiento para explicar
   empates visuales de tilemaps repetitivos.
-- Se ha definido `Vision Review` en `docs/VISION_REVIEW_ROADMAP.md` como una capa
+- Se ha definido `Vision Review` en `docs/testing/VISION_REVIEW_ROADMAP.md` como una capa
   ligera de inspeccion con IA visual. No analizara videos completos; preparara
   paquetes pequenos de 4-6 frames relevantes y preguntara a un modelo local/remoto
   mediante prompts concretos. Ya existen prompts iniciales para transiciones de

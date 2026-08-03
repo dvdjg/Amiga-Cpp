@@ -76,13 +76,19 @@ tools/
   uaf_export/
 
 docs/
-  ROADMAP_ENGINE_CPP_AMIGA500.md
-  BUILD_AND_RUN.md
-  CODING_STYLE.md
-  MEMORY_MODEL.md
-  GRAPHICS_DRIVERS.md
-  TESTING_AND_PROFILING.md
-  WINUAE_SIDE_CHANNEL_DEBUG.md
+  README.md                          # Índice maestro del árbol
+  architecture/                      # Diseño del engine C++ (este repo)
+  c-engine/                          # Histórico del engine C (prior art)
+  hardware/                          # Conocimiento bajo nivel del A500
+  techniques/                        # Fichas de técnicas
+  build/                             # Toolchain y build
+  emulation/                         # WinUAE, MCP, canal lateral
+  debugging/                         # Sistema de depuración WinUAE-DBG
+  testing/                           # Validación (pixel, secuencias, vision)
+  demoscene/                         # Importación de efectos
+  methodology/                       # Procesos y agentes IA
+  reference/                         # Fuentes autoritativas (AHRM, AMC)
+  legacy/                            # Notas históricas sin corregir
 ```
 
 ## 3. Reglas globales de verificacion
@@ -118,7 +124,7 @@ Entregables:
 - Flags recomendados: `-std=gnu++23`, `-fno-exceptions`, `-fno-rtti`,
   `-fno-threadsafe-statics`, `-fno-use-cxa-atexit`.
 - Script comun de build/run/capture.
-- Documento `BUILD_AND_RUN.md`.
+- Documento `docs/build/BUILD_AND_RUN.md`.
 
 Pruebas:
 
@@ -634,4 +640,4 @@ en el hardware.
 
 La misma regla aplica a las replicas de `demoscene-repo/effects`: cada efecto se
 reconstruye con APIs limpias del engine, no como port literal. Ver
-`docs/DEMOSCENE_EFFECT_REPLICATION_POLICY.md`.
+`docs/demoscene/DEMOSCENE_EFFECT_REPLICATION_POLICY.md`.

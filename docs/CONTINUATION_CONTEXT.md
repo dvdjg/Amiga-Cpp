@@ -2,16 +2,17 @@
 
 Si una IA abre este proyecto sin historial de conversacion, debe empezar leyendo:
 
-1. `docs/DEVELOPMENT_LOG.md`
-2. `docs/ROADMAP_ENGINE_CPP_AMIGA500.md`
-3. `docs/BUILD_AND_RUN.md`
-4. `docs/CODING_STYLE.md`
-5. `docs/HARDWARE_AND_ROM_KERNEL_POLICY.md`
-6. `docs/MOUSE_AUTOMATION.md`
-7. `docs/WINUAE_SIDE_CHANNEL_DEBUG.md`
-8. `docs/DEMOSCENE_REPO_INDEX.md`
-9. `docs/DEMOSCENE_EFFECT_REPLICATION_POLICY.md`
-10. `demos/000_toolchain_cpp23/README.md`
+1. `docs/README.md` (índice maestro del árbol documental)
+2. `docs/methodology/DEVELOPMENT_LOG.md`
+3. `docs/architecture/ROADMAP_ENGINE_CPP_AMIGA500.md`
+4. `docs/build/BUILD_AND_RUN.md`
+5. `docs/architecture/CODING_STYLE.md`
+6. `docs/architecture/HARDWARE_AND_ROM_KERNEL_POLICY.md`
+7. `docs/emulation/MOUSE_AUTOMATION.md`
+8. `docs/emulation/WINUAE_SIDE_CHANNEL_DEBUG.md`
+9. `docs/demoscene/DEMOSCENE_REPO_INDEX.md`
+10. `docs/demoscene/DEMOSCENE_EFFECT_REPLICATION_POLICY.md`
+11. `demos/000_toolchain_cpp23/README.md`
 
 ## Objetivo inmediato
 
@@ -24,7 +25,7 @@ probarse con:
 
 ## Restricciones importantes
 
-- No romper el proyecto C historico de la raiz.
+- No romper el proyecto C histórico de `legacy/`.
 - No asumir libc/STL hosted completa.
 - No usar asignacion dinamica durante gameplay salvo pruebas controladas.
 - No depender de Amiga en la logica de juego de alto nivel.
