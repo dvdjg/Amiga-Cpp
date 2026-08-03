@@ -573,11 +573,11 @@ struct DemoGame {
 		}
 		if (edge == tilemap::TileUpdateEdge::Left || edge == tilemap::TileUpdateEdge::Right) {
 			m_pending_world_column = rect.left;
-			m_pending_column_slot = rect.left;
+			m_pending_column_slot = m_ring.slot_for_world_column(rect.left);
 			m_pending_column_tiles = enqueued;
 		} else {
 			m_pending_world_row = rect.top;
-			m_pending_row_slot = rect.top;
+			m_pending_row_slot = m_ring.slot_for_world_row(rect.top);
 			m_pending_row_tiles = enqueued;
 		}
 	}
@@ -594,10 +594,12 @@ struct DemoGame {
 		configure_tile_blit_budget(m_frame_plan);
 		for (amg::u8 i = 0; i < plan.count; ++i) {
 			const tilemap::TileUpdateJob& job = plan.jobs[i];
+			const amg::u16 surface_col = static_cast<amg::u16>(job.x % drivers::EhbBidirectionalRingPrefetch::surface_columns);
+			const amg::u16 surface_row = static_cast<amg::u16>(job.y % drivers::EhbBidirectionalRingPrefetch::surface_rows);
 			if (!m_frame_plan.add_tile_block_copy(m_scene.make_tile_upload_job(
 				tile_source(m_tiles, job.tile_index),
-				job.x,
-				job.y
+				surface_col,
+				surface_row
 			))) {
 				amg::debug::mark_failed(g_amg_run_status, 0x00000113u);
 				return 0;
