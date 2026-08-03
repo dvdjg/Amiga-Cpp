@@ -1,6 +1,8 @@
-# to generate assembler listing with LTO, add to LDFLAGS: -Wa,-adhln=$@.listing,--listing-rhs-width=200
-# for better annotations add -dA -dP
-# to generate assembler source with LTO, add to LDFLAGS: -save-temps=cwd
+# Makefile del proyecto C legado (demo Amiga en C con musica ProTracker).
+# Vive en legacy/ y reutiliza el soporte común de la raíz (../support/).
+# NO usar para el engine C++ (engine/, demos/): ese flujo usa tools/build/build-demo.ps1.
+# Para generar el listing con LTO, añadir a LDFLAGS: -Wa,-adhln=$@.listing,--listing-rhs-width=200
+# Para mejores anotaciones, añadir -dA -dP.
 
 ifdef OS
 	WINDOWS = 1
@@ -10,23 +12,13 @@ else
 	MKDIR_P = @mkdir -p obj out
 endif
 
-subdirs := $(wildcard */)
-VPATH = $(subdirs)
-cpp_sources := $(wildcard *.cpp) $(wildcard $(addsuffix *.cpp,$(subdirs)))
-cpp_objects := $(addprefix obj/,$(patsubst %.cpp,%.o,$(notdir $(cpp_sources))))
-c_sources := $(filter-out support/getvbr.c,$(wildcard *.c) $(wildcard $(addsuffix *.c,$(subdirs))))
-c_objects := $(addprefix obj/,$(patsubst %.c,%.o,$(notdir $(c_sources))))
-s_sources := support/gcc8_a_support.s support/depacker_doynax.s
-s_objects := $(addprefix obj/,$(patsubst %.s,%.o,$(notdir $(s_sources))))
-vasm_sources := $(wildcard *.asm) $(wildcard $(addsuffix *.asm, $(subdirs)))
-vasm_objects := $(addprefix obj/, $(patsubst %.asm,%.o,$(notdir $(vasm_sources))))
-objects := $(cpp_objects) $(c_objects) obj/getvbr.o $(s_objects) $(vasm_objects)
-
-# https://stackoverflow.com/questions/4036191/sources-from-subdirectories-in-makefile/4038459
-# http://www.microhowto.info/howto/automatically_generate_makefile_dependencies.html
-
 program = out/a
 OUT = $(program)
+
+# Objetivo por defecto explícito: las asignaciones target-specific de `debug`
+# aparecen antes que `all` y, sin esto, GNU make tomaría `debug` como objetivo
+# por defecto (limpiaría y compilaría en -O1 en cada `make`).
+.DEFAULT_GOAL := all
 
 ifdef AMIGA_BIN_PATH
 	CC = $(AMIGA_BIN_PATH)\opt\bin\m68k-amiga-elf-gcc.exe
@@ -48,23 +40,29 @@ else
 endif
 endif
 
-# DWARF (-g) for GDB / Amiga Debug; GetVBR lives in support/getvbr.c (compiled without -g)
-CCFLAGS   = -g -MP -MMD -m68000 -Ofast -nostdlib -Wextra -Wno-unused-function -Wno-volatile-register-var -fomit-frame-pointer -fno-tree-loop-distribution -flto -fwhole-program -fno-exceptions -ffunction-sections -fdata-sections
-CPPFLAGS  = $(CCFLAGS) -fno-rtti -fcoroutines -fno-use-cxa-atexit
+# Soporte común en la raíz del repo.
+SUPPORT = ../support
+
+# -I.. para resolver #include "support/gcc8_c_support.h" desde legacy/.
+# DWARF (-g) para GDB / Amiga Debug; GetVBR vive en $(SUPPORT)/getvbr.c (compilado sin -g).
+# Sin -fwhole-program: con LTO elimina símbolos globales que solo se escriben
+# (p. ej. SysBase, usado por getvbr.o, que se compila sin LTO) y rompe el enlazado.
+CCFLAGS   = -g -MP -MMD -m68000 -Ofast -nostdlib -Wextra -Wno-unused-function -Wno-volatile-register-var -fomit-frame-pointer -fno-tree-loop-distribution -flto -fno-exceptions -ffunction-sections -fdata-sections -I..
 ASFLAGS   = -mcpu=68000 -g --register-prefix-optional -I$(SDKDIR)
-# -Ttext=0x400 matches WinUAE-DBG gdbserver ELF_TEXT_BASE for breakpoint relocation
+# -Ttext=0x400 coincide con el ELF_TEXT_BASE del gdbserver de WinUAE-DBG para la relocalización de breakpoints.
 LDFLAGS   = -Wl,--emit-relocs,--gc-sections,-Ttext=0x400,-Map=$(OUT).map
 
 GETVBR_FLAGS = -MP -MMD -m68000 -nostdlib -Wextra -Wno-unused-function -Wno-volatile-register-var -fno-exceptions -ffunction-sections -fdata-sections
 
-# Debug-friendly build (breakpoints + step): make debug
-# -O1: gcc 15 ICE at -O0 on inline-asm (p61Init, doynaxdepack, GetVBR); -O1 keeps DWARF + debuggable C source
-debug: CCFLAGS := -g -MP -MMD -m68000 -O1 -nostdlib -Wextra -Wno-unused-function -Wno-volatile-register-var -fomit-frame-pointer -fno-exceptions -ffunction-sections -fdata-sections
-debug: CPPFLAGS := $(CCFLAGS) -fno-rtti -fcoroutines -fno-use-cxa-atexit
+# Build amigable para depuración (breakpoints + step): make debug
+# -O1: gcc 15 ICE a -O0 en inline-asm (p61Init, doynaxdepack, GetVBR); -O1 conserva DWARF + código C depurable.
+debug: CCFLAGS := -g -MP -MMD -m68000 -O1 -nostdlib -Wextra -Wno-unused-function -Wno-volatile-register-var -fomit-frame-pointer -fno-exceptions -ffunction-sections -fdata-sections -I..
 debug: GETVBR_FLAGS := -MP -MMD -m68000 -O1 -nostdlib -Wextra -Wno-unused-function -Wno-volatile-register-var -fno-exceptions -ffunction-sections -fdata-sections
 debug: LDFLAGS := -Wl,--emit-relocs,--gc-sections,-Ttext=0x400,-Map=$(OUT).map
 debug: clean all
 VASMFLAGS = -m68000 -Felf -opt-fconst -nowarn=62 -dwarf=3 -quiet -x -I. -I$(SDKDIR)
+
+objects := obj/main.o obj/gcc8_c_support.o obj/getvbr.o obj/gcc8_a_support.o obj/depacker_doynax.o obj/depacker_doynax_vasm.o
 
 all: $(OUT).exe
 
@@ -85,30 +83,34 @@ $(OUT).elf: $(objects)
 clean:
 	$(info Cleaning...)
 ifdef WINDOWS
-	@del /q obj\* out\*
+	@if exist obj del /q obj\* & if exist out del /q out\* & cd .
 else
 	@$(RM) obj/* out/*
 endif
 
 -include $(objects:.o=.d)
 
-$(cpp_objects) : obj/%.o : %.cpp
-	$(info Compiling $<)
-	@$(CC) $(CPPFLAGS) -c -o $@ $(CURDIR)/$<
-
-# getvbr.c: no DWARF (gcc 15 ICE); must be listed before the generic %.c rule
-obj/getvbr.o: support/getvbr.c
-	$(info Compiling $< (no debug info))
-	@$(CC) $(GETVBR_FLAGS) -g0 -c -o $@ $(CURDIR)/$<
-
-$(c_objects) : obj/%.o : %.c
+obj/main.o: main.c
 	$(info Compiling $<)
 	@$(CC) $(CCFLAGS) -c -o $@ $(CURDIR)/$<
 
-$(s_objects): obj/%.o : %.s
-	$(info Assembling $<)
-	@$(AS) $(ASFLAGS) --MD $(@D)/$*.d -o $@ $(CURDIR)/$<
+obj/gcc8_c_support.o: $(SUPPORT)/gcc8_c_support.c
+	$(info Compiling $<)
+	@$(CC) $(CCFLAGS) -c -o $@ $(CURDIR)/$<
 
-$(vasm_objects): obj/%.o : %.asm
+# getvbr.c: sin DWARF (gcc 15 ICE).
+obj/getvbr.o: $(SUPPORT)/getvbr.c
+	$(info Compiling $< (no debug info))
+	@$(CC) $(GETVBR_FLAGS) -g0 -c -o $@ $(CURDIR)/$<
+
+obj/gcc8_a_support.o: $(SUPPORT)/gcc8_a_support.s
 	$(info Assembling $<)
-	@$(VASM) $(VASMFLAGS) -dependall=make -depfile $(@D)/$*.d -o $@ $(CURDIR)/$<
+	@$(AS) $(ASFLAGS) --MD $(basename $@).d -o $@ $(CURDIR)/$<
+
+obj/depacker_doynax.o: $(SUPPORT)/depacker_doynax.s
+	$(info Assembling $<)
+	@$(AS) $(ASFLAGS) --MD $(basename $@).d -o $@ $(CURDIR)/$<
+
+obj/depacker_doynax_vasm.o: $(SUPPORT)/depacker_doynax_vasm.asm
+	$(info Assembling $<)
+	@$(VASM) $(VASMFLAGS) -dependall=make -depfile $(basename $@).d -o $@ $(CURDIR)/$<

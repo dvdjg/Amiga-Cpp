@@ -4,7 +4,8 @@
       "name": "windows-gcc-x64",
       "configurationProvider": "BartmanAbyss.amiga-debug",
       "includePath": [
-        "${workspaceFolder}/**"
+        "${workspaceFolder}/**",
+        "${workspaceFolder}/../**"
       ],
       "cStandard": "${default}",
       "cppStandard": "${default}",
