@@ -13,7 +13,7 @@ Hay un MVP operativo en `WinUAE-DBG/od-win32/barto_gdbserver.cpp`.
 - El puerto puede cambiarse con `WINUAE_SIDE_CHANNEL_PORT`.
 - El protocolo es texto, una orden por linea.
 - Cada respuesta es una unica linea JSON.
-- El runner `tools/run/run-demo.mjs` lo usa para esperar `g_amg_run_status` en
+- El runner `tools/run/run-demo.mjs` lo usa para esperar `g_eng_run_status` en
   memoria mientras el 68000 sigue ejecutando.
 - La regresion `20260529-120303` confirma `side-channel READY` en las demos
   `000`, `010`, `020` y `030`.
@@ -47,7 +47,7 @@ resume
 ```
 
 `state` devuelve, entre otros campos, `baseText`, `sections`, `pc`, `sr` y
-`cycles`. `sections` es importante porque un simbolo como `g_amg_run_status` puede
+`cycles`. `sections` es importante porque un simbolo como `g_eng_run_status` puede
 vivir en `.data`, no en `.text`; el runner resuelve la direccion runtime usando el
 mapa del linker y los hunks reales reportados por WinUAE-DBG.
 
@@ -126,7 +126,7 @@ La depuracion normal y el canal lateral conviviendo se validan con:
 La prueba compila `030_ehb_palette_zones`, lanza WinUAE con el perfil de pruebas,
 conecta GDB como lo haria el runner, mantiene abierto un cliente lateral y:
 
-- pone un breakpoint GDB en `amg_debug_ready_probe`;
+- pone un breakpoint GDB en `eng_debug_ready_probe`;
 - hace `continue`;
 - consulta `state` por el canal lateral mientras el 68000 sigue corriendo y GDB
   espera el breakpoint;
@@ -135,10 +135,10 @@ conecta GDB como lo haria el runner, mantiene abierto un cliente lateral y:
 - ejecuta varios `vCont;s`/step instruction;
 - verifica que el PC avanza y que el canal lateral sigue respondiendo tras cada
   parada;
-- limpia el breakpoint y confirma que `g_amg_run_status` sigue legible por el
+- limpia el breakpoint y confirma que `g_eng_run_status` sigue legible por el
   canal lateral.
 
-La verificacion del 2026-05-30 paro en `amg_debug_ready_probe` runtime
+La verificacion del 2026-05-30 paro en `eng_debug_ready_probe` runtime
 `0x00c0d684`, hizo tres pasos de instruccion y mantuvo el canal lateral operativo
 durante toda la sesion. Esto es el test reusable que debe ejecutarse antes de
 tocar pausa colaborativa, escrituras laterales, rollback o carga de codigo 68k en
@@ -153,7 +153,7 @@ La primera operacion peligrosa controlada se valida con:
 ```
 
 Esta prueba lanza `030_ehb_palette_zones`, espera `side-channel READY`, resuelve
-`g_amg_run_status` en runtime y usa `g_amg_run_status.detail` como zona de prueba
+`g_eng_run_status` en runtime y usa `g_eng_run_status.detail` como zona de prueba
 segura. El flujo validado es:
 
 - `poke` sin lock devuelve `lock_required`;
@@ -179,7 +179,7 @@ La pausa colaborativa minima se valida con:
 
 La prueba lanza `030_ehb_palette_zones`, espera `side-channel READY`, comprueba que
 `pause` sin lock falla, toma `takeover`, pausa, verifica `debuggerState=2`, lee
-`g_amg_run_status` mientras la emulacion esta pausada, reanuda y confirma
+`g_eng_run_status` mientras la emulacion esta pausada, reanuda y confirma
 `debuggerState=1`. En la verificacion del 2026-05-30, `resume` restauro la
 ejecucion con 4 breakpoints PC activos y el runner pudo completar su screenshot
 final.

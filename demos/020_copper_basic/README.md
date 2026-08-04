@@ -5,7 +5,7 @@ Objetivo: instalar una copperlist real en Chip RAM y demostrar que el Copper cam
 
 ## Que demuestra
 
-- Construccion de copperlist con `amg::copper::ListBuilder`.
+- Construccion de copperlist con `eng::copper::ListBuilder`.
 - Reserva de la copperlist en `ChipArena`.
 - Instalacion close-to-the-metal mediante `COP1LC` y `COPJMP1`.
 - Activacion de DMA master + Copper.

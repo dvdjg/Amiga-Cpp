@@ -15,7 +15,7 @@ Objetivos verificados:
 - reservar bitplanes y copperlist en Chip RAM;
 - aplicar un ciclo de paleta sin tocar pixels;
 - aplicar el cambio mediante `FramePlan`, sin reconstruir toda la copperlist;
-- exponer `g_amg_run_status.detail` con una marca `0x04xxxxxx` cuando la demo ya
+- exponer `g_eng_run_status.detail` con una marca `0x04xxxxxx` cuando la demo ya
   ha avanzado varias fases;
 - superar analisis automatico de captura y run-report.
 

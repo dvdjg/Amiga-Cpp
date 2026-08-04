@@ -1,0 +1,20 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "NodeNext",
+		"moduleResolution": "NodeNext",
+		"outDir": "dist",
+		"rootDir": ".",
+		"strict": false,
+		"noImplicitAny": false,
+		"useDefineForClassFields": false,
+		"esModuleInterop": true,
+		"allowSyntheticDefaultImports": true,
+		"skipLibCheck": true,
+		"forceConsistentCasingInFileNames": true,
+		"resolveJsonModule": true,
+		"declaration": false,
+		"sourceMap": false
+	},
+	"include": ["tools/**/*.ts", "tests/**/*.ts", "scripts/**/*.ts", "demos/**/*.ts"]
+}

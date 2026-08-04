@@ -16,9 +16,9 @@ en C del repo hermano (`Cursor-Amiga-C`) está en [../c-engine/](../c-engine/REA
 
 ## Puntos de entrada del código
 
-- Bucle del engine: `engine/include/amg/engine.hpp` (`update -> wait_vblank -> render`).
+- Bucle del engine: `engine/include/eng/engine.hpp` (`update -> wait_vblank -> render`).
 - Backend Amiga: `engine/src/platform/amiga_minimal/amiga_minimal.cpp`.
-- Headers del engine: `engine/include/amg/` (core, memory, graphics, scene, platform, debug).
+- Headers del engine: `engine/include/eng/` (core, memory, graphics, scene, platform, debug).
 
 ## Histórico
 

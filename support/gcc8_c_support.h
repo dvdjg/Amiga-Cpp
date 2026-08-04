@@ -23,12 +23,12 @@ void KPrintF(const char* fmt, ...); // output to debugger
 
 // Empty hook used by automated tests. The host runner can set a temporary
 // breakpoint here and know that the program reached a deliberate "ready" point.
-void amg_debug_ready_probe(void);
+void eng_debug_ready_probe(void);
 
 // Writes a small status marker on the mounted DH1: test volume. This is meant for
 // OS-friendly automated demos: the Windows runner can observe the host-side file
 // without polling GDB memory while the 68000 is running.
-void amg_debug_write_status_file(const char* text);
+void eng_debug_write_status_file(const char* text);
 
 void *GetVBR(void);
 

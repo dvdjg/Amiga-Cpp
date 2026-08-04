@@ -1,7 +1,7 @@
-#include <amg/engine.hpp>
-#include <amg/debug/run_status.hpp>
-#include <amg/graphics/drivers/ehb_scene.hpp>
-#include <amg/platform/amiga_minimal.hpp>
+#include <eng/engine.hpp>
+#include <eng/debug/run_status.hpp>
+#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/platform/amiga_minimal.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -11,10 +11,10 @@
 struct ExecBase* SysBase = nullptr;
 
 extern "C" {
-__attribute__((used)) volatile amg::debug::RunStatus g_amg_run_status {
-	amg::debug::run_status_magic,
-	amg::debug::run_status_version,
-	static_cast<amg::u16>(amg::debug::RunState::Cold),
+__attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
+	eng::debug::run_status_magic,
+	eng::debug::run_status_version,
+	static_cast<eng::u16>(eng::debug::RunState::Cold),
 	0,
 	0,
 };
@@ -22,12 +22,12 @@ __attribute__((used)) volatile amg::debug::RunStatus g_amg_run_status {
 
 namespace {
 
-namespace ehb = amg::graphics::drivers;
+namespace ehb = eng::graphics::drivers;
 
-constexpr amg::u16 screen_height = ehb::StaticEhbScene::height;
-constexpr amg::u16 bytes_per_row = ehb::StaticEhbScene::bytes_per_row;
-constexpr amg::u8 plane_count = ehb::StaticEhbScene::plane_count;
-constexpr amg::u32 plane_bytes = ehb::StaticEhbScene::plane_bytes;
+constexpr eng::u16 screen_height = ehb::StaticEhbScene::height;
+constexpr eng::u16 bytes_per_row = ehb::StaticEhbScene::bytes_per_row;
+constexpr eng::u8 plane_count = ehb::StaticEhbScene::plane_count;
+constexpr eng::u32 plane_bytes = ehb::StaticEhbScene::plane_bytes;
 
 /// Paleta RGB444 de 32 colores base para la zona superior.
 ///
@@ -77,26 +77,26 @@ constexpr ehb::EhbPaletteZone palette_zones[] {
 /// las cuatro ultimas son half-brite. Al repetir la reticula bajo tres paletas
 /// Copper diferentes, comprobamos dos cosas a la vez: 6 bitplanes EHB y cambios
 /// completos de paleta por zonas.
-void build_ehb_test_pattern(amg::u8* planes) {
+void build_ehb_test_pattern(eng::u8* planes) {
 	// Cada celda mide 40 pixeles de ancho, exactamente 5 bytes lowres. Eso nos
 	// permite escribir bytes completos en cada bitplane: 0xff si el bit de color
 	// esta activo para los 8 pixeles de ese byte, 0x00 si no lo esta. Esta version
 	// es mucho mas fiel a como cargaremos assets reales desde UAF-R: el conversor
 	// de PC ya entregara datos planares listos para DMA, y el Amiga solo tendra
 	// que copiarlos o instalarlos.
-	for (amg::u16 y = 0; y < screen_height; ++y) {
-		const amg::u8 cell_y = static_cast<amg::u8>((y & 0x7fu) / 16u);
-		const amg::u8 half_brite_bit = (cell_y >= 4u) ? 32u : 0u;
-		const amg::u32 row_offset = static_cast<amg::u32>(y) * bytes_per_row;
+	for (eng::u16 y = 0; y < screen_height; ++y) {
+		const eng::u8 cell_y = static_cast<eng::u8>((y & 0x7fu) / 16u);
+		const eng::u8 half_brite_bit = (cell_y >= 4u) ? 32u : 0u;
+		const eng::u32 row_offset = static_cast<eng::u32>(y) * bytes_per_row;
 
-		for (amg::u16 byte_x = 0; byte_x < bytes_per_row; ++byte_x) {
-			const amg::u8 cell_x = static_cast<amg::u8>(byte_x / 5u);
-			const amg::u8 base = static_cast<amg::u8>((cell_y & 3u) * 8u + cell_x);
-			const amg::u8 index = static_cast<amg::u8>(base | half_brite_bit);
-			const amg::u32 byte_index = row_offset + byte_x;
+		for (eng::u16 byte_x = 0; byte_x < bytes_per_row; ++byte_x) {
+			const eng::u8 cell_x = static_cast<eng::u8>(byte_x / 5u);
+			const eng::u8 base = static_cast<eng::u8>((cell_y & 3u) * 8u + cell_x);
+			const eng::u8 index = static_cast<eng::u8>(base | half_brite_bit);
+			const eng::u32 byte_index = row_offset + byte_x;
 
-			for (amg::u8 plane = 0; plane < plane_count; ++plane) {
-				amg::u8* plane_base = planes + static_cast<amg::u32>(plane) * plane_bytes;
+			for (eng::u8 plane = 0; plane < plane_count; ++plane) {
+				eng::u8* plane_base = planes + static_cast<eng::u32>(plane) * plane_bytes;
 				plane_base[byte_index] = (index & (1u << plane)) ? 0xffu : 0x00u;
 			}
 		}
@@ -111,8 +111,8 @@ void build_ehb_test_pattern(amg::u8* planes) {
 /// en el driver, como ocurrira con futuros drivers `DualPlayfield`, `FakeDPF` o
 /// `CopperHeavy`.
 struct DemoGame {
-	void init(amg::amiga::MinimalBackend& backend, amg::GameContext&) {
-		amg::debug::mark_init_started(g_amg_run_status);
+	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({
 			68u * 1024u, // Chip: 6 bitplanes EHB + copperlist, sin pedir margen inutil.
 			8u * 1024u,  // Slow: metadatos futuros del driver.
@@ -122,7 +122,7 @@ struct DemoGame {
 		const ehb::StaticEhbSceneConfig scene_config {
 			&top_palette,
 			palette_zones,
-			static_cast<amg::u8>(sizeof(palette_zones) / sizeof(palette_zones[0])),
+			static_cast<eng::u8>(sizeof(palette_zones) / sizeof(palette_zones[0])),
 			1024,
 		};
 
@@ -133,26 +133,26 @@ struct DemoGame {
 
 		if (m_memory_ok && m_scene_ok) {
 			m_scene.install(backend);
-			amg::debug::mark_ready(g_amg_run_status, static_cast<amg::u32>(m_scene.copper_words()));
+			eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_scene.copper_words()));
 		} else {
-			amg::debug::mark_failed(g_amg_run_status, 0x00000030u);
+			eng::debug::mark_failed(g_eng_run_status, 0x00000030u);
 		}
 	}
 
-	void update(amg::amiga::MinimalBackend& backend, amg::GameContext& context) {
-		amg::debug::mark_frame(g_amg_run_status, context.frame.frame_index);
+	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (m_scene.ok()) {
 			m_scene.install(backend);
 		}
 	}
 
-	void render(amg::amiga::MinimalBackend& backend, amg::GameContext& context) {
+	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		// No dibujamos overlay: el analizador debe leer solo pixeles producidos por
 		// bitplanes EHB y cambios de paleta Copper.
 		if (m_scene.ok() && m_scene.copper_words() > 0) {
 			m_scene.install(backend);
 		}
-		amg::debug::probe_when_ready(g_amg_run_status, context.frame.frame_index);
+		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
 	bool m_memory_ok = false;
@@ -164,11 +164,11 @@ struct DemoGame {
 
 int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
-	amg::debug::reset(g_amg_run_status);
+	eng::debug::reset(g_eng_run_status);
 
-	amg::amiga::MinimalBackend backend {};
+	eng::amiga::MinimalBackend backend {};
 	DemoGame game {};
-	amg::Engine engine { backend, game };
+	eng::Engine engine { backend, game };
 	engine.run_frames(0xffff);
 
 	return 0;

@@ -30,7 +30,7 @@ El objetivo es fijar el contrato `FramePlan -> backend -> Blitter`, demostrar
 save/restore real y empezar a medir presupuesto por words/bitplanes antes de
 anadir clipping y shifts.
 
-El frame final tambien publica dirty rects fusionados en `g_amg_run_status.detail`.
+El frame final tambien publica dirty rects fusionados en `g_eng_run_status.detail`.
 El estado saludable actual es `0x05020311`: dos blobs no-save iniciales, tres jobs
 de Blitter en el frame animado, un dirty rect final y una fusion de rectangulos.
 La demo se congela tras ese frame para que la captura automatizada no caiga en

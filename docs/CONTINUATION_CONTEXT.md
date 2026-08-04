@@ -54,12 +54,12 @@ probarse con:
 - Durante pruebas automatizadas, WinUAE no debe capturar ni encerrar el raton de
   Windows. El runner fuerza `win32.absolute_mouse=yes` y las pruebas deben mover
   el raton emulado con `tools\input\mouse-path.ps1`.
-- El runner no debe depender de esperas largas para demos con `g_amg_run_status`.
+- El runner no debe depender de esperas largas para demos con `g_eng_run_status`.
   `tools\run\run-demo.*` falla si no hay `side-channel READY` en unos segundos;
   el fallback largo solo existe con `--allow-timeout-fallback` para diagnosticos
   manuales. Con `warp=false`, el timeout lateral por defecto es 10000 ms para dar
   margen al arranque realista de AmigaDOS/WinUAE sin esconder cuelgues de demo.
-- Las demos deben exponer `g_amg_run_status` y llegar a `Ready` por el canal
+- Las demos deben exponer `g_eng_run_status` y llegar a `Ready` por el canal
   lateral de WinUAE-DBG antes de la captura. El canal escucha en `127.0.0.1:2346`
   y el runner lo usa sin detener el 68000.
 - La colaboracion profunda persona+IA sobre la misma instancia viva de WinUAE ya
@@ -123,7 +123,7 @@ La demo `040_palette_cycle_effect` debe:
 - aplicar el ciclo mediante `FramePlan` y parches de paleta, no reconstruyendo toda
   la copperlist cada frame;
 - superar `demos\040_palette_cycle_effect\analyze-screenshot.ps1`;
-- dejar en `g_amg_run_status.detail` una marca `0x04xxxxxx` con fase distinta de
+- dejar en `g_eng_run_status.detail` una marca `0x04xxxxxx` con fase distinta de
   cero para demostrar que el ciclo ya avanzo antes de la captura.
 
 La demo `050_blitter_bobs` debe:
@@ -138,7 +138,7 @@ La demo `050_blitter_bobs` debe:
 - mover el BOB en pasos de 16 pixels usando save/restore real: restore anterior,
   save nuevo fondo y draw cookie-cut;
 - superar `demos\050_blitter_bobs\analyze-screenshot.ps1`;
-- dejar en `g_amg_run_status.detail` una marca `0x05nnjjrm`, donde `nn` son jobs
+- dejar en `g_eng_run_status.detail` una marca `0x05nnjjrm`, donde `nn` son jobs
   no-save estaticos, `jj` jobs de Blitter del frame animado, `r` son dirty rects
   fusionados y `m` son fusiones realizadas. El estado saludable actual es
   `0x05020311`.
@@ -151,7 +151,7 @@ La demo `051_blitter_shifted_bobs` debe:
 - mostrar un BOB cookie-cut amarillo/blanco/cian sobre fondo EHB azul;
 - usar `BlitJob::source_shift` para dibujar en X no alineada a 16 pixels;
 - superar `demos\051_blitter_shifted_bobs\analyze-screenshot.ps1`;
-- dejar en `g_amg_run_status.detail` el estado saludable actual `0x05190301`.
+- dejar en `g_eng_run_status.detail` el estado saludable actual `0x05190301`.
 
 La demo `052_tile_staging_blits` debe:
 
@@ -166,7 +166,7 @@ La demo `052_tile_staging_blits` debe:
   virtual retenida con `Camera2D` y `TileLayer`;
 - publicar ese bloque al playfield EHB visible con `CopyRect`;
 - superar `demos\052_tile_staging_blits\analyze-screenshot.ps1`;
-- dejar en `g_amg_run_status.detail` el estado saludable actual `0x05210104`.
+- dejar en `g_eng_run_status.detail` el estado saludable actual `0x05210104`.
 
 La demo `100_virtual_tile_scene_scroll` debe:
 
@@ -181,7 +181,7 @@ La demo `100_virtual_tile_scene_scroll` debe:
 - usar `ProgressiveTileScheduler` para encolar tiles offscreen y aceptar un
   presupuesto de 4 updates antes de que sean visibles;
 - superar `demos\100_virtual_tile_scene_scroll\analyze-screenshot.ps1`;
-- dejar en `g_amg_run_status.detail` el estado saludable actual `0x10390941`.
+- dejar en `g_eng_run_status.detail` el estado saludable actual `0x10390941`.
 
 La demo `101_ehb_tile_scroll_driver` debe:
 
@@ -199,7 +199,7 @@ La demo `101_ehb_tile_scroll_driver` debe:
 - convertir updates progresivos de tiles offscreen en `TileBlockCopy` reales, con
   presupuesto pequeno por frame;
 - superar `demos\101_ehb_tile_scroll_driver\analyze-screenshot.ps1`;
-- dejar en `g_amg_run_status.detail` la marca `0x11......`, con camara X/Y y
+- dejar en `g_eng_run_status.detail` la marca `0x11......`, con camara X/Y y
   trabajos de tile actualizados mientras corre. El nibble bajo publica flags de
   prefetch: `0x1` columnas recicladas y `0x2` filas recicladas; el estado valido
   debe tener ambos bits.
@@ -271,7 +271,7 @@ La convivencia de depuracion normal GDB con canal lateral debe pasar con:
 .\tools\debug\verify-gdb-step-side-channel.ps1 -Steps 3
 ```
 
-Esta prueba pone un breakpoint GDB en `amg_debug_ready_probe`, continua, se para
+Esta prueba pone un breakpoint GDB en `eng_debug_ready_probe`, continua, se para
 en `T05swbreak`, avanza paso a paso por instrucciones y mantiene lecturas
 laterales `state`/`regs` durante la ejecucion y en cada parada.
 
@@ -282,7 +282,7 @@ El primer takeover reversible debe pasar con:
 ```
 
 Esta prueba toma lock `takeover`, escribe temporalmente cuatro bytes en
-`g_amg_run_status.detail`, verifica el cambio, consulta la auditoria y hace
+`g_eng_run_status.detail`, verifica el cambio, consulta la auditoria y hace
 rollback al valor original.
 
 La pausa/reanudacion lateral debe pasar con:

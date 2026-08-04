@@ -1,4 +1,4 @@
-#include <amg/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga_minimal.hpp>
 
 #include "support/gcc8_c_support.h"
 #include <proto/exec.h>
@@ -40,16 +40,16 @@ constexpr unsigned short blt_minterm_cookie_cut = 0x00ca;
 constexpr unsigned short blt_minterm_copy_c = 0x00aa;
 
 void write_custom_pointer(unsigned short word_offset, const void* pointer) {
-	const amg::u32 raw = reinterpret_cast<amg::u32>(pointer);
-	custom_base[word_offset] = static_cast<amg::u16>(raw >> 16);
-	custom_base[word_offset + 1] = static_cast<amg::u16>(raw & 0xffffu);
+	const eng::u32 raw = reinterpret_cast<eng::u32>(pointer);
+	custom_base[word_offset] = static_cast<eng::u16>(raw >> 16);
+	custom_base[word_offset + 1] = static_cast<eng::u16>(raw & 0xffffu);
 }
 
 bool wait_blitter() {
 	// El bit BBUSY de DMACONR baja cuando el Blitter queda libre. Dejamos un limite
 	// alto para evitar bloqueos infinitos durante pruebas si hemos programado mal un
 	// registro; en una build de juego esto se convertira en diagnostico/profiler.
-	amg::u32 guard = 0x00ffffffu;
+	eng::u32 guard = 0x00ffffffu;
 	while ((custom_base[custom_dmaconr_offset] & dmaconr_blitter_busy) != 0u) {
 		if (--guard == 0u) {
 			return false;
@@ -60,7 +60,7 @@ bool wait_blitter() {
 
 } // namespace
 
-namespace amg::amiga {
+namespace eng::amiga {
 
 void DebugOverlay::clear() {
 	debug_clear();
@@ -249,4 +249,4 @@ void MinimalBackend::set_warpmode(bool enabled) {
 	warpmode(enabled ? 1 : 0);
 }
 
-} // namespace amg::amiga
+} // namespace eng::amiga

@@ -67,16 +67,16 @@ UAF ya tiene mucho vocabulario compatible con esta direccion:
 - Contratos de scroll/runtime para indicar estrategia, viewport y costes.
 
 La siguiente convergencia natural es exportar un formato cocinado UAF-R que
-alimente directamente `amg::scene::VirtualScene`, `TileLayer` y los futuros
+alimente directamente `eng::scene::VirtualScene`, `TileLayer` y los futuros
 drivers de scroll.
 
 ## API objetivo del engine
 
 La API C++ debe quedar en capas:
 
-1. `amg::scene::VirtualScene`: camara, capas, actores, triggers y contratos de
+1. `eng::scene::VirtualScene`: camara, capas, actores, triggers y contratos de
    runtime. No conoce registros Amiga.
-2. `amg::graphics::tilemap::TileMap16`: celdas, dirty flags por buffer y
+2. `eng::graphics::tilemap::TileMap16`: celdas, dirty flags por buffer y
    descomposicion de scroll en tile/coarse/fine.
 3. `TileScrollDriver` Amiga: convierte una capa de tiles en trabajos de blitter,
    punteros de bitplane, `BPLCON1`, invalidaciones y margenes ocultos.
@@ -113,9 +113,9 @@ BOBs, redraw parcial o CPU.
 
 ## Estado implementado
 
-- `engine/include/amg/graphics/tilemap/tile_scroll.hpp` contiene el modelo de
+- `engine/include/eng/graphics/tilemap/tile_scroll.hpp` contiene el modelo de
   tilemap 16x16 con dirty flags por buffer y scroll descompuesto.
-- `engine/include/amg/scene/virtual_scene.hpp` introduce camara 2D, capas de
+- `engine/include/eng/scene/virtual_scene.hpp` introduce camara 2D, capas de
   tiles, estrategia de scroll y plan retenido de escena.
 - `demos/052_tile_staging_blits` ya atraviesa `VirtualScene` antes de compilar
   los blits manuales de la demo. Es una comprobacion minima, pero importante:
