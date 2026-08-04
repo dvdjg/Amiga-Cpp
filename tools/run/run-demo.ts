@@ -1,0 +1,870 @@
+#!/usr/bin/env node
+import * as fs from 'fs';
+import * as net from 'net';
+import * as path from 'path';
+import { fileURLToPath, pathToFileURL } from 'url';
+import { repoRoot } from '../lib/paths.js';
+
+const root = repoRoot(import.meta.url);
+// El conector de WinUAE (repo hermano mcp-winuae-emu) vive junto al repositorio.
+// Se importa dinamicamente desde la raiz para que la ruta valga tanto en el
+// fuente como en dist/ (compilar anade un nivel de directorio).
+const mcpWinuae = await import(
+  pathToFileURL(path.join(path.dirname(root), 'mcp-winuae-emu', 'dist', 'winuae-connection.js')).href
+);
+const { WinUAEConnection } = mcpWinuae as { WinUAEConnection: any };
+
+
+function argValue(name, fallback = undefined) {
+  const index = process.argv.indexOf(name);
+  if (index >= 0 && index + 1 < process.argv.length) {
+    return process.argv[index + 1];
+  }
+  return fallback;
+}
+
+function hasArg(name) {
+  return process.argv.includes(name);
+}
+
+function sleep(ms) {
+  return new Promise<any>((resolve) => setTimeout(resolve, ms));
+}
+
+function parsePoint(text, name) {
+  const match = String(text ?? '').match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
+  if (!match) {
+    throw new Error(`${name} debe tener formato x,y. Ejemplo: ${name} 32,32`);
+  }
+  return { x: Number(match[1]), y: Number(match[2]) };
+}
+
+function clampInt(value, min, max) {
+  return Math.max(min, Math.min(max, Math.round(value)));
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function curvePoint(from, control, to, t) {
+  if (!control) {
+    return { x: lerp(from.x, to.x, t), y: lerp(from.y, to.y, t) };
+  }
+  const ab = { x: lerp(from.x, control.x, t), y: lerp(from.y, control.y, t) };
+  const bc = { x: lerp(control.x, to.x, t), y: lerp(control.y, to.y, t) };
+  return { x: lerp(ab.x, bc.x, t), y: lerp(ab.y, bc.y, t) };
+}
+
+function buildMousePathFromArgs() {
+  const fromText = argValue('--mouse-from');
+  const toText = argValue('--mouse-to');
+  if (!fromText && !toText) {
+    return [];
+  }
+  if (!fromText || !toText) {
+    throw new Error('Para automatizar raton hacen falta --mouse-from y --mouse-to.');
+  }
+
+  const from = parsePoint(fromText, '--mouse-from');
+  const to = parsePoint(toText, '--mouse-to');
+  const control = argValue('--mouse-control') ? parsePoint(argValue('--mouse-control'), '--mouse-control') : null;
+  const steps = Math.max(1, parseInt(argValue('--mouse-steps', '48'), 10));
+  const maxX = parseInt(argValue('--mouse-max-x', '319'), 10);
+  const maxY = parseInt(argValue('--mouse-max-y', '255'), 10);
+  const points = [];
+
+  // These are Amiga display coordinates consumed by WinUAE monitor commands.
+  // The Windows cursor is never moved: the emulated mouse receives synthetic
+  // absolute positions through the debugger channel while the host pointer is
+  // free to remain wherever the user left it.
+  for (let i = 0; i <= steps; i++) {
+    const p = curvePoint(from, control, to, i / steps);
+    points.push({
+      x: clampInt(p.x, 0, maxX),
+      y: clampInt(p.y, 0, maxY),
+    });
+  }
+
+  return points;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function setConfigValue(configText, key, value) {
+  const line = `${key}=${value}`;
+  const re = new RegExp(`^${escapeRegExp(key)}=.*$`, 'm');
+  if (re.test(configText)) {
+    return configText.replace(re, line);
+  }
+  return `${configText.replace(/\s*$/, '')}\r\n${line}\r\n`;
+}
+
+function findExtensionRoot() {
+  if (process.env.AMIGA_DEBUG_EXT && fs.existsSync(process.env.AMIGA_DEBUG_EXT)) {
+    return path.resolve(process.env.AMIGA_DEBUG_EXT);
+  }
+
+  const candidates = [
+    path.join(process.env.USERPROFILE || '', '.cursor/extensions/bartmanabyss.amiga-debug-1.8.2'),
+    path.join(process.env.USERPROFILE || '', '.vscode/extensions/bartmanabyss.amiga-debug-1.8.2'),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(path.join(candidate, 'bin/win32/winuae-gdb.exe'))) {
+      return candidate;
+    }
+  }
+
+  throw new Error('No se encontro la extension bartmanabyss.amiga-debug-1.8.2.');
+}
+
+function patchConfig(configText, extensionRoot, stagedOutDir, warpEnabled) {
+  const dh0 = path.join(extensionRoot, 'bin/dh0');
+  const normalizedDh0 = dh0.replace(/\//g, '\\');
+  const normalizedOut = stagedOutDir.replace(/\//g, '\\');
+
+  let out = configText;
+  out = out.replace(/^filesystem=rw,dh0:.*$/m, `filesystem=rw,dh0:${normalizedDh0}`);
+
+  if (/^filesystem2=rw,dh1:.*$/m.test(out)) {
+    out = out.replace(/^filesystem2=rw,dh1:.*$/m, `filesystem2=rw,dh1:dh1:${normalizedOut},-128`);
+  } else {
+    out += `\r\nfilesystem2=rw,dh1:dh1:${normalizedOut},-128\r\n`;
+  }
+
+  if (/^debugging_trigger=.*$/m.test(out)) {
+    out = out.replace(/^debugging_trigger=.*$/m, 'debugging_trigger=:a.exe');
+  } else {
+    out += '\r\ndebugging_trigger=:a.exe\r\n';
+  }
+
+  // Automated tests must never trap the host pointer.  WinUAE-DBG has a
+  // separate target option (`win32.absolute_mouse`) that disables the classic
+  // relative mouse capture/warping path, while the Amiga-side tablet/mousehack
+  // option (`absolute_mouse=mousehack`) remains disabled because that path is
+  // still documented as problematic in WinUAE-DBG/doc/MOUSE-ABSOLUTE-TODO.md.
+  out = setConfigValue(out, 'win32.start_not_captured', 'yes');
+  out = setConfigValue(out, 'win32.active_capture_automatically', 'no');
+  out = setConfigValue(out, 'win32.absolute_mouse', 'yes');
+  out = setConfigValue(out, 'absolute_mouse', 'none');
+  // The engine demos use `wait_vblank()` as their frame boundary.  Leaving
+  // WinUAE in warp mode makes those VBlank waits complete faster than real time,
+  // which is useful for bulk throughput but terrible for judging smooth motion.
+  // Keep real-time pacing by default; callers can opt into warp explicitly.
+  out = setConfigValue(out, 'warp', warpEnabled ? 'true' : 'false');
+
+  return out;
+}
+
+function decodeMonitorReply(hexReply) {
+  if (!hexReply || !/^[0-9a-fA-F]+$/.test(hexReply)) {
+    return '';
+  }
+  return Buffer.from(hexReply, 'hex').toString('utf8').trim();
+}
+
+async function captureScreenshot(protocol, imagePath, timeoutMs = 30000) {
+  const winPath = imagePath.replace(/\//g, '\\');
+  const reply = await protocol.sendMonitorCommand(`screenshot ${winPath}`, timeoutMs);
+  return {
+    path: imagePath,
+    reply,
+    replyText: decodeMonitorReply(reply),
+    exists: fs.existsSync(imagePath),
+  };
+}
+
+async function captureFrameSequence(protocol, sequenceDir, frameCount, intervalMs, sideChannel = null) {
+  // Each sequence must be self-contained. Leaving older frame_XXX.png files in
+  // place made analyzers and contact sheets mix different runs, which is exactly
+  // the kind of false confidence these tools are meant to prevent.
+  fs.rmSync(sequenceDir, { recursive: true, force: true });
+  fs.mkdirSync(sequenceDir, { recursive: true });
+  const frames = [];
+  for (let i = 0; i < frameCount; ++i) {
+    const framePath = path.join(sequenceDir, `frame_${String(i).padStart(3, '0')}.png`);
+    const capturedAt = Date.now();
+    let runStatusBefore = null;
+    if (sideChannel?.runtimeAddress) {
+      try {
+        runStatusBefore = await readSideChannelRunStatusOnce(
+          sideChannel.port,
+          sideChannel.runtimeAddress,
+          sideChannel.timeoutMs ?? 1000
+        );
+      } catch (err) {
+        runStatusBefore = { ok: false, error: err.message };
+      }
+    }
+    const frame: Record<string, any> = await captureScreenshot(protocol, framePath);
+    frame.capturedAtMs = capturedAt;
+    frame.runStatusBefore = runStatusBefore;
+    if (sideChannel?.runtimeAddress) {
+      try {
+        frame.runStatusAfter = await readSideChannelRunStatusOnce(
+          sideChannel.port,
+          sideChannel.runtimeAddress,
+          sideChannel.timeoutMs ?? 1000
+        );
+      } catch (err) {
+        frame.runStatusAfter = { ok: false, error: err.message };
+      }
+      frame.runStatus = runStatusBefore?.ok ? runStatusBefore : frame.runStatusAfter;
+    }
+    frames.push(frame);
+    if (intervalMs > 0 && i + 1 < frameCount) {
+      await sleep(intervalMs);
+    }
+  }
+  return {
+    directory: sequenceDir,
+    frames,
+    frameCount,
+    intervalMs,
+  };
+}
+
+function decodeCameraFineX(runStatus) {
+  if (!runStatus?.ok) {
+    return null;
+  }
+  const detail = typeof runStatus.detail === 'number'
+    ? runStatus.detail
+    : parseHexNumber(String(runStatus.detail ?? '0'));
+  const cameraX = (detail >>> 16) & 0xff;
+  return cameraX & 15;
+}
+
+function decodeCameraX(runStatus) {
+  if (!runStatus?.ok) {
+    return null;
+  }
+  const detail = typeof runStatus.detail === 'number'
+    ? runStatus.detail
+    : parseHexNumber(String(runStatus.detail ?? '0'));
+  return (detail >>> 16) & 0xff;
+}
+
+async function captureFrameSequenceByRunStatusTarget(protocol, sequenceDir, targets, sideChannel, selector, label) {
+  if (!sideChannel?.runtimeAddress) {
+    throw new Error(`--sequence-${label} requiere canal lateral run status activo.`);
+  }
+
+  fs.rmSync(sequenceDir, { recursive: true, force: true });
+  fs.mkdirSync(sequenceDir, { recursive: true });
+  const frames = [];
+  let targetIndex = 0;
+  let lastCapturedFrame = -1;
+  const deadline = Date.now() + Math.max(2500, targets.length * 1500);
+
+  while (targetIndex < targets.length && Date.now() <= deadline) {
+    const runStatus = await readSideChannelRunStatusOnce(
+      sideChannel.port,
+      sideChannel.runtimeAddress,
+      sideChannel.timeoutMs ?? 1000
+    );
+    const value = selector(runStatus);
+    const frameNumber = Number(runStatus?.frame ?? -1);
+    if (value === targets[targetIndex] && frameNumber !== lastCapturedFrame) {
+      const framePath = path.join(sequenceDir, `frame_${String(frames.length).padStart(3, '0')}_${label}${String(value).padStart(2, '0')}.png`);
+      const capturedAt = Date.now();
+      const frame: Record<string, any> = await captureScreenshot(protocol, framePath);
+      frame.capturedAtMs = capturedAt;
+      frame.runStatusBefore = runStatus;
+      frame.runStatus = runStatus;
+      frame.target = targets[targetIndex];
+      frame[`target${label[0].toUpperCase()}${label.slice(1)}`] = targets[targetIndex];
+      frames.push(frame);
+      lastCapturedFrame = frameNumber;
+      ++targetIndex;
+    }
+    await sleep(8);
+  }
+
+  if (targetIndex < targets.length) {
+    throw new Error(`No se pudo capturar la secuencia ${label} completa. Capturados ${targetIndex}/${targets.length}.`);
+  }
+
+  return {
+    directory: sequenceDir,
+    frames,
+    frameCount: frames.length,
+    targets,
+    targetKind: label,
+  };
+}
+
+function findMapSymbol(mapPath, symbolName) {
+  if (!fs.existsSync(mapPath)) {
+    return null;
+  }
+
+  const lines = fs.readFileSync(mapPath, 'utf8').split(/\r?\n/g);
+  const re = new RegExp(`^\\s*0x([0-9a-fA-F]+)\\s+${symbolName}\\b`);
+  for (const line of lines) {
+    const match = line.match(re);
+    if (match) {
+      return parseInt(match[1], 16);
+    }
+  }
+  return null;
+}
+
+function findMapAllocSections(mapPath) {
+  if (!fs.existsSync(mapPath)) {
+    return [];
+  }
+
+  const wanted = new Set(['.text', '.rodata', '.data', '.bss']);
+  const sections = [];
+  const lines = fs.readFileSync(mapPath, 'utf8').split(/\r?\n/g);
+  for (const line of lines) {
+    const match = line.match(/^(\.[A-Za-z0-9_.]+)\s+0x([0-9a-fA-F]+)\s+0x([0-9a-fA-F]+)/);
+    if (!match || !wanted.has(match[1])) {
+      continue;
+    }
+    const start = parseInt(match[2], 16);
+    const size = parseInt(match[3], 16);
+    if (size === 0) {
+      continue;
+    }
+    sections.push({ name: match[1], start, size, end: start + size });
+  }
+  return sections;
+}
+
+function resolveRuntimeSymbolAddress(linkedSymbol, mapSections, runtimeSections) {
+  if (!Array.isArray(runtimeSections) || runtimeSections.length === 0) {
+    return null;
+  }
+
+  const candidates = mapSections.filter((section) => linkedSymbol >= section.start && linkedSymbol < section.end);
+  if (candidates.length === 0) {
+    return runtimeSections.length > 0 ? parseHexNumber(runtimeSections[0]) + (linkedSymbol - 0x400) : null;
+  }
+
+  const section = candidates[0];
+  const hunkIndex = mapSections.indexOf(section);
+  if (runtimeSections.length <= hunkIndex) {
+    return null;
+  }
+
+  return parseHexNumber(runtimeSections[hunkIndex]) + (linkedSymbol - section.start);
+}
+
+function parseTextOffset(reply) {
+  const match = String(reply || '').match(/(?:^|;)Text=([0-9a-fA-F]+)/);
+  return match ? parseInt(match[1], 16) : 0;
+}
+
+function parseHexNumber(value) {
+  if (typeof value === 'number') {
+    return value;
+  }
+  if (typeof value !== 'string') {
+    return 0;
+  }
+  const trimmed = value.trim();
+  return parseInt(trimmed.startsWith('0x') || trimmed.startsWith('0X') ? trimmed.slice(2) : trimmed, 16);
+}
+
+function decodeRunStatus(buffer) {
+  if (!buffer || buffer.length < 16) {
+    return null;
+  }
+
+  return {
+    magic: buffer.readUInt32BE(0),
+    version: buffer.readUInt16BE(4),
+    state: buffer.readUInt16BE(6),
+    frame: buffer.readUInt32BE(8),
+    detail: buffer.readUInt32BE(12),
+  };
+}
+
+async function waitForRunStatus(protocol, address, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let last = null;
+
+  while (Date.now() <= deadline) {
+    const bytes = await protocol.readMemory(address, 16);
+    const status = decodeRunStatus(bytes);
+    last = status;
+
+    if (status && status.magic === 0x454e4752 && status.version === 1) {
+      if (status.state === 3) {
+        return { status: 'ready', value: status };
+      }
+      if (status.state === 0xffff) {
+        return { status: 'failed', value: status };
+      }
+    }
+
+    await sleep(100);
+  }
+
+  return { status: 'timeout', value: last };
+}
+
+async function waitForStatusFile(filePath, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() <= deadline) {
+    if (fs.existsSync(filePath)) {
+      const text = fs.readFileSync(filePath, 'utf8').trim();
+      if (text.startsWith('READY')) {
+        return { status: 'ready', text };
+      }
+      if (text.startsWith('LAUNCHING')) {
+        return { status: 'launching', text };
+      }
+      if (text.startsWith('FAILED')) {
+        return { status: 'failed', text };
+      }
+      return { status: 'unexpected', text };
+    }
+    await sleep(100);
+  }
+  return { status: 'timeout', text: '' };
+}
+
+class SideChannelClient {
+  // Campos de estado del cliente (socket, buffer de lectura y cola de esperas).
+  port: number;
+  socket: any;
+  pending: string;
+  lines: string[];
+  waiters: any[];
+  constructor(port) {
+    this.port = port;
+    this.socket = null;
+    this.pending = '';
+    this.lines = [];
+    this.waiters = [];
+  }
+
+  async connect(timeoutMs) {
+    await new Promise<any>((resolve, reject) => {
+      const socket = net.createConnection({ host: '127.0.0.1', port: this.port });
+      const timer = setTimeout(() => {
+        socket.destroy();
+        reject(new Error(`timeout connecting to side channel port ${this.port}`));
+      }, timeoutMs);
+
+      socket.once('connect', () => {
+        clearTimeout(timer);
+        this.socket = socket;
+        socket.setEncoding('utf8');
+        socket.on('data', (chunk) => this.onData(chunk));
+        socket.on('error', () => {});
+        resolve(undefined);
+      });
+      socket.once('error', (err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+    });
+
+    // The server sends one greeting line immediately. Consume it so command
+    // replies remain one request -> one JSON object.
+    await this.readJsonLine(timeoutMs);
+  }
+
+  onData(chunk) {
+    this.pending += chunk;
+    for (;;) {
+      const eol = this.pending.indexOf('\n');
+      if (eol < 0) {
+        break;
+      }
+      const line = this.pending.slice(0, eol).trim();
+      this.pending = this.pending.slice(eol + 1);
+      if (this.waiters.length > 0) {
+        this.waiters.shift().resolve(line);
+      } else {
+        this.lines.push(line);
+      }
+    }
+  }
+
+  readLine(timeoutMs) {
+    if (this.lines.length > 0) {
+      return Promise.resolve(this.lines.shift());
+    }
+    return new Promise<any>((resolve, reject) => {
+      const waiter = { resolve, reject, timer: null };
+      waiter.timer = setTimeout(() => {
+        const index = this.waiters.indexOf(waiter);
+        if (index >= 0) {
+          this.waiters.splice(index, 1);
+        }
+        reject(new Error('side channel reply timeout'));
+      }, timeoutMs);
+      waiter.resolve = (line) => {
+        clearTimeout(waiter.timer);
+        resolve(line);
+      };
+      this.waiters.push(waiter);
+    });
+  }
+
+  async readJsonLine(timeoutMs) {
+    const line = await this.readLine(timeoutMs);
+    return JSON.parse(line);
+  }
+
+  async command(command, timeoutMs) {
+    if (!this.socket) {
+      throw new Error('side channel is not connected');
+    }
+    this.socket.write(`${command}\n`);
+    return this.readJsonLine(timeoutMs);
+  }
+
+  close() {
+    if (this.socket) {
+      this.socket.destroy();
+      this.socket = null;
+    }
+  }
+}
+
+async function waitForSideChannelRunStatus({ linkedSymbol, mapSections, timeoutMs, pollMs, port }) {
+  const client = new SideChannelClient(port);
+  const deadline = Date.now() + timeoutMs;
+  await client.connect(Math.min(1000, timeoutMs));
+  try {
+    let runtimeAddress = null;
+    let last = null;
+    while (Date.now() <= deadline) {
+      const state = await client.command('state', 1000);
+      if (state.ok) {
+        runtimeAddress = resolveRuntimeSymbolAddress(linkedSymbol, mapSections, state.sections);
+        if (runtimeAddress !== null && runtimeAddress > 0) {
+          const status = await client.command(`runstatus ${runtimeAddress.toString(16)}`, 1000);
+          last = { state, status, runtimeAddress };
+          if (status.ok && status.magic === '0x454e4752' && status.version === 1) {
+            if (status.state === 3) {
+              return { status: 'ready', value: status, runtimeAddress, state };
+            }
+            if (status.state === 0xffff) {
+              return { status: 'failed', value: status, runtimeAddress, state };
+            }
+          }
+        } else {
+          last = { state, status: null, runtimeAddress: null };
+        }
+      }
+      await sleep(pollMs);
+    }
+    return { status: 'timeout', value: last?.status ?? null, runtimeAddress, state: last?.state ?? null };
+  } finally {
+    client.close();
+  }
+}
+
+async function readSideChannelRunStatusOnce(port, runtimeAddress, timeoutMs) {
+  const client = new SideChannelClient(port);
+  await client.connect(timeoutMs);
+  try {
+    return await client.command(`runstatus ${runtimeAddress.toString(16)}`, timeoutMs);
+  } finally {
+    client.close();
+  }
+}
+
+const demoArg = process.argv[2];
+if (!demoArg || demoArg.startsWith('--')) {
+  console.error('Uso: node tools/run/run-demo.mjs demos/000_toolchain_cpp23 [--wait-ms 12000] [--screenshot file.png]');
+  process.exit(2);
+}
+
+const demoPath = path.resolve(root, demoArg);
+const demoName = path.basename(demoPath);
+const builtExe = path.join(root, 'out/demos', demoName, `${demoName}.exe`);
+const builtMap = path.join(root, 'out/demos', demoName, `${demoName}.map`);
+const builtMapSections = findMapAllocSections(builtMap);
+if (!fs.existsSync(builtExe)) {
+  throw new Error(`No existe ${builtExe}. Compila la demo antes de ejecutarla.`);
+}
+
+const waitMs = parseInt(argValue('--wait-ms', process.env.ENG_RUN_WAIT_MS || '18000'), 10);
+const readyTimeoutMs = parseInt(argValue('--ready-timeout-ms', process.env.ENG_READY_TIMEOUT_MS || '4000'), 10);
+const loadTimeoutMs = parseInt(argValue('--load-timeout-ms', process.env.ENG_LOAD_TIMEOUT_MS || '20000'), 10);
+const settleMs = parseInt(argValue('--settle-ms', process.env.ENG_SETTLE_MS || '500'), 10);
+const sideChannelPort = parseInt(argValue('--side-channel-port', process.env.WINUAE_SIDE_CHANNEL_PORT || '2346'), 10);
+const sideChannelTimeoutMs = parseInt(argValue('--side-channel-timeout-ms', process.env.ENG_SIDE_CHANNEL_TIMEOUT_MS || '10000'), 10);
+const sideChannelPollMs = parseInt(argValue('--side-channel-poll-ms', process.env.ENG_SIDE_CHANNEL_POLL_MS || '50'), 10);
+const sequenceFrames = Math.max(0, parseInt(argValue('--sequence-frames', '0'), 10));
+const sequenceIntervalMs = Math.max(0, parseInt(argValue('--sequence-interval-ms', '100'), 10));
+const sequenceFineXArg = argValue('--sequence-fine-x', '');
+const sequenceFineX = sequenceFineXArg === ''
+  ? []
+  : sequenceFineXArg.split(',').map((value) => parseInt(value.trim(), 10)).filter((value) => Number.isInteger(value) && value >= 0 && value <= 15);
+const sequenceCameraXArg = argValue('--sequence-camera-x', '');
+const sequenceCameraX = sequenceCameraXArg === ''
+  ? []
+  : sequenceCameraXArg.split(',').map((value) => parseInt(value.trim(), 10)).filter((value) => Number.isInteger(value) && value >= 0 && value <= 255);
+const warpEnabled = hasArg('--warp');
+const mousePath = buildMousePathFromArgs();
+const mouseDelayMs = Math.max(0, parseInt(argValue('--mouse-duration-ms', '800'), 10)) / Math.max(1, mousePath.length - 1);
+const mouseButton = Math.max(0, parseInt(argValue('--mouse-button', '0'), 10));
+const stopEmulator = !hasArg('--keep-running');
+const outputDir = path.join(root, 'out/run', demoName);
+const stagedDir = path.join(outputDir, 'dh1');
+fs.mkdirSync(stagedDir, { recursive: true });
+fs.copyFileSync(builtExe, path.join(stagedDir, 'a.exe'));
+const statusFilePath = path.join(stagedDir, 'eng-run-status.txt');
+if (fs.existsSync(statusFilePath)) {
+  fs.unlinkSync(statusFilePath);
+}
+
+const screenshotPath = path.resolve(argValue('--screenshot', path.join(outputDir, 'screenshot.png')));
+fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
+
+const extensionRoot = findExtensionRoot();
+const winuaePath = path.join(extensionRoot, 'bin/win32');
+const dh0 = path.join(extensionRoot, 'bin/dh0');
+const startupPath = path.join(dh0, 's/startup-sequence');
+fs.mkdirSync(path.dirname(startupPath), { recursive: true });
+
+const previousStartup = fs.existsSync(startupPath) ? fs.readFileSync(startupPath, 'utf8') : null;
+fs.writeFileSync(startupPath, 'cd dh1:\n:a.exe\n', 'utf8');
+
+const baseConfigPath = path.join(root, 'config/mcp-amiga-c-debug.uae');
+const runnerConfigPath = path.join(outputDir, 'runner.uae');
+const configText = fs.readFileSync(baseConfigPath, 'utf8');
+fs.writeFileSync(runnerConfigPath, patchConfig(configText, extensionRoot, stagedDir, warpEnabled), 'utf8');
+
+const config = {
+  winuaePath,
+  configFile: runnerConfigPath,
+  gdbPort: parseInt(process.env.WINUAE_GDB_PORT || '2345', 10),
+};
+
+const conn = new WinUAEConnection(config);
+const report: Record<string, any> = {
+  demo: demoName,
+  executable: builtExe,
+  map: builtMap,
+  stagedExecutable: path.join(stagedDir, 'a.exe'),
+  screenshot: screenshotPath,
+  statusFile: statusFilePath,
+  waitMs,
+  readyTimeoutMs,
+  sideChannelPort,
+  sideChannelTimeoutMs,
+  sequenceFrames,
+  sequenceIntervalMs,
+  warpEnabled,
+  loadTimeoutMs,
+  settleMs,
+  status: 'started',
+};
+
+try {
+  console.log(`[run-demo] launching ${demoName}`);
+  await conn.connect({ forceBreak: false, initializeStopped: true });
+  const protocol = conn.getProtocol();
+  const runStatusSymbol = findMapSymbol(builtMap, 'g_eng_run_status');
+
+  if (runStatusSymbol !== null) {
+    report.runStatus = {
+      symbol: `0x${runStatusSymbol.toString(16)}`,
+      readyProbeSymbol: findMapSymbol(builtMap, 'eng_debug_ready_probe') !== null ? `0x${findMapSymbol(builtMap, 'eng_debug_ready_probe').toString(16)}` : null,
+      statusFile: statusFilePath,
+    };
+  }
+
+  const readyProbeSymbol = findMapSymbol(builtMap, 'eng_debug_ready_probe');
+  if (hasArg('--require-ready') && readyProbeSymbol !== null) {
+    console.log(`[run-demo] ready probe breakpoint at linked 0x${readyProbeSymbol.toString(16)}`);
+    await protocol.setBreakpoint(readyProbeSymbol);
+  }
+
+  await protocol.continue();
+  if (hasArg('--require-launch-marker')) {
+    console.log(`[run-demo] waiting for startup launch marker (${loadTimeoutMs} ms)`);
+    const launch = await waitForStatusFile(statusFilePath, loadTimeoutMs);
+    report.launchMarker = launch;
+    if (launch.status === 'timeout') {
+      report.status = 'launch_marker_timeout';
+      fs.writeFileSync(path.join(outputDir, 'run-report.json'), JSON.stringify(report, null, 2), 'utf8');
+      throw new Error('AmigaDOS no llego a lanzar la demo antes del timeout.');
+    }
+  }
+
+  if (!hasArg('--no-side-channel') && runStatusSymbol !== null && !hasArg('--require-ready')) {
+    console.log(`[run-demo] waiting for side-channel run status (${sideChannelTimeoutMs} ms)`);
+    try {
+      const side = await waitForSideChannelRunStatus({
+        linkedSymbol: runStatusSymbol,
+        mapSections: builtMapSections,
+        timeoutMs: sideChannelTimeoutMs,
+        pollMs: sideChannelPollMs,
+        port: sideChannelPort,
+      });
+      report.sideChannel = side;
+      if (side.status === 'ready') {
+        if (settleMs > 0) {
+          console.log(`[run-demo] side-channel READY; settling ${settleMs} ms`);
+          await sleep(settleMs);
+        }
+      } else if (side.status === 'failed') {
+        report.status = 'side_channel_failed';
+        fs.writeFileSync(path.join(outputDir, 'run-report.json'), JSON.stringify(report, null, 2), 'utf8');
+        throw new Error(`La demo informo FAILED por canal lateral: detail=${side.value?.detail ?? '?'}`);
+      } else {
+        report.status = `side_channel_${side.status}`;
+        fs.writeFileSync(path.join(outputDir, 'run-report.json'), JSON.stringify(report, null, 2), 'utf8');
+        if (!hasArg('--allow-timeout-fallback')) {
+          throw new Error(`La demo no alcanzo READY por canal lateral en ${sideChannelTimeoutMs} ms: ${side.status}`);
+        }
+        console.log(`[run-demo] side-channel ${side.status}; explicit fallback wait ${waitMs} ms`);
+        await sleep(waitMs);
+      }
+    } catch (err) {
+      report.sideChannel = { status: 'unavailable', error: err.message };
+      report.status = 'side_channel_unavailable';
+      fs.writeFileSync(path.join(outputDir, 'run-report.json'), JSON.stringify(report, null, 2), 'utf8');
+      if (!hasArg('--allow-timeout-fallback')) {
+        throw err;
+      }
+      console.log(`[run-demo] side-channel unavailable (${err.message}); explicit fallback wait ${waitMs} ms`);
+      await sleep(waitMs);
+    }
+  } else if (hasArg('--require-ready') && readyProbeSymbol !== null) {
+    console.log(`[run-demo] waiting for ready probe breakpoint (${readyTimeoutMs} ms)`);
+    const stopReply = await protocol.waitForStop(readyTimeoutMs);
+    await protocol.clearBreakpoint(readyProbeSymbol);
+    report.runStatus = { ...report.runStatus, result: { status: 'ready', stopReply } };
+    await protocol.continue();
+    if (settleMs > 0) {
+      console.log(`[run-demo] READY; settling ${settleMs} ms`);
+      await sleep(settleMs);
+    }
+  } else if (hasArg('--require-ready') && runStatusSymbol !== null) {
+    console.log(`[run-demo] waiting for debug status file (${readyTimeoutMs} ms)`);
+    const ready = await waitForStatusFile(statusFilePath, readyTimeoutMs);
+    report.runStatus = { ...report.runStatus, result: ready };
+    if (ready.status !== 'ready') {
+      report.status = `run_status_${ready.status}`;
+      fs.writeFileSync(path.join(outputDir, 'run-report.json'), JSON.stringify(report, null, 2), 'utf8');
+      throw new Error(`La demo no alcanzo READY: ${ready.status}`);
+    }
+    if (settleMs > 0) {
+      console.log(`[run-demo] READY; settling ${settleMs} ms`);
+      await sleep(settleMs);
+    }
+  } else {
+    console.log(`[run-demo] fallback wait ${waitMs} ms`);
+    await sleep(waitMs);
+  }
+
+  if (mousePath.length > 0) {
+    console.log(`[run-demo] injecting mouse path with ${mousePath.length} points`);
+    if (hasArg('--mouse-drag')) {
+      await protocol.sendMonitorCommand(`input mouse button ${mouseButton} 1`, 5000);
+    }
+    for (const [index, point] of mousePath.entries()) {
+      await protocol.sendMonitorCommand(`input mouse abs ${point.x} ${point.y}`, 5000);
+      if (mouseDelayMs > 0 && index + 1 < mousePath.length) {
+        await sleep(mouseDelayMs);
+      }
+    }
+    if (hasArg('--mouse-drag')) {
+      await protocol.sendMonitorCommand(`input mouse button ${mouseButton} 0`, 5000);
+    }
+    if (hasArg('--mouse-click')) {
+      await protocol.sendMonitorCommand(`input mouse button ${mouseButton} 1`, 5000);
+      await sleep(Math.max(20, parseInt(argValue('--mouse-click-ms', '80'), 10)));
+      await protocol.sendMonitorCommand(`input mouse button ${mouseButton} 0`, 5000);
+    }
+    report.mouse = {
+      points: mousePath.length,
+      first: mousePath[0],
+      last: mousePath[mousePath.length - 1],
+      button: mouseButton,
+      clicked: hasArg('--mouse-click'),
+      dragged: hasArg('--mouse-drag'),
+    };
+  }
+
+  if (sequenceCameraX.length > 0) {
+    console.log(`[run-demo] capturing sequence by cameraX targets ${sequenceCameraX.join(',')}`);
+    report.sequence = await captureFrameSequenceByRunStatusTarget(
+      protocol,
+      path.join(outputDir, 'sequence'),
+      sequenceCameraX,
+      {
+        port: sideChannelPort,
+        runtimeAddress: report.sideChannel?.runtimeAddress,
+        timeoutMs: 1000,
+      },
+      decodeCameraX,
+      'cameraX'
+    );
+  } else if (sequenceFineX.length > 0) {
+    console.log(`[run-demo] capturing sequence by fineX targets ${sequenceFineX.join(',')}`);
+    report.sequence = await captureFrameSequenceByRunStatusTarget(
+      protocol,
+      path.join(outputDir, 'sequence'),
+      sequenceFineX,
+      {
+        port: sideChannelPort,
+        runtimeAddress: report.sideChannel?.runtimeAddress,
+        timeoutMs: 1000,
+      },
+      decodeCameraFineX,
+      'fineX'
+    );
+  } else if (sequenceFrames > 0) {
+    console.log(`[run-demo] capturing ${sequenceFrames} sequence frames every ${sequenceIntervalMs} ms`);
+    report.sequence = await captureFrameSequence(
+      protocol,
+      path.join(outputDir, 'sequence'),
+      sequenceFrames,
+      sequenceIntervalMs,
+      report.sideChannel?.runtimeAddress ? {
+        port: sideChannelPort,
+        runtimeAddress: report.sideChannel.runtimeAddress,
+        timeoutMs: 1000,
+      } : null
+    );
+  }
+
+  const screenshot = await captureScreenshot(protocol, screenshotPath);
+  report.screenshotReply = screenshot.reply;
+  report.screenshotReplyText = screenshot.replyText;
+  if (report.sideChannel?.runtimeAddress) {
+    try {
+      report.finalSideChannel = await readSideChannelRunStatusOnce(sideChannelPort, report.sideChannel.runtimeAddress, 1000);
+    } catch (err) {
+      report.finalSideChannel = { ok: false, error: err.message };
+    }
+  }
+  report.status = fs.existsSync(screenshotPath) ? 'ok' : 'missing_screenshot';
+
+  fs.writeFileSync(path.join(outputDir, 'run-report.json'), JSON.stringify(report, null, 2), 'utf8');
+  console.log(`[run-demo] screenshot ${screenshotPath}`);
+  console.log(`[run-demo] ${report.status}`);
+} finally {
+  try {
+    await conn.disconnect(stopEmulator);
+    if (!stopEmulator && (conn as any).process && typeof (conn as any).process.unref === 'function') {
+      (conn as any).process.unref();
+    }
+  } catch {
+    // Best effort cleanup: a failed disconnect should not hide the run result.
+  }
+
+  if (previousStartup !== null) {
+    fs.writeFileSync(startupPath, previousStartup, 'utf8');
+  }
+}
+
+if (report.status !== 'ok') {
+  process.exit(1);
+}

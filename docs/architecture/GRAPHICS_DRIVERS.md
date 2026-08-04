@@ -33,7 +33,7 @@ planar de indices 0..63 y usa el Copper para cambiar la paleta completa en tres
 zonas verticales.
 
 El primer bloque reutilizable ya existe en
-`engine/include/amg/graphics/drivers/ehb_scene.hpp`:
+`engine/include/eng/graphics/drivers/ehb_scene.hpp`:
 
 - `EhbPalette`: 32 colores fisicos RGB444.
 - `EhbPaletteZone`: cambio de paleta asociado a una linea raster.
@@ -41,21 +41,21 @@ El primer bloque reutilizable ya existe en
 - `StaticEhbScene`: reserva bitplanes/copperlist en Chip RAM, programa display
   320x256 EHB, activa bitplane DMA y construye la copperlist final.
 
-La copperlist ya pasa por `engine/include/amg/graphics/copper/scheduler.hpp`.
+La copperlist ya pasa por `engine/include/eng/graphics/copper/scheduler.hpp`.
 Este `CopperScheduler` minimo no resuelve todavia conflictos complejos, pero ya
 centraliza el setup EHB, las paletas y las zonas raster, y devuelve un informe de
 coste para que las pruebas y el futuro exportador UAF-R puedan detectar escenas
 caras antes de que se conviertan en corrupcion visual.
 
-El coste por linea empieza en `engine/include/amg/graphics/copper/timeline.hpp`.
+El coste por linea empieza en `engine/include/eng/graphics/copper/timeline.hpp`.
 `CopperTimeline` cuenta waits y moves por linea, marca las lineas visibles que
 superan un presupuesto conservador de H-BLANK y alimenta `ScheduleReport`.
 
 El primer efecto reusable esta en
-`engine/include/amg/graphics/effects/palette_cycle.hpp`. `PaletteCycleEffect`
+`engine/include/eng/graphics/effects/palette_cycle.hpp`. `PaletteCycleEffect`
 rota un tramo de paleta fisica sin tocar bitplanes; la demo
 `demos/040_palette_cycle_effect` lo valida con captura y `runStatus.detail`.
-La demo ya usa `engine/include/amg/graphics/frame_plan.hpp`: el efecto genera un
+La demo ya usa `engine/include/eng/graphics/frame_plan.hpp`: el efecto genera un
 parche de paleta en `FramePlan` y `StaticEhbScene` actualiza solo los valores de
 los MOVEs `COLORxx` existentes, sin recompilar la copperlist completa.
 
@@ -88,13 +88,13 @@ visibles del playfield. La demo compone un bloque 4x4 de tiles en un buffer Chip
 RAM no visible y despues lo publica al playfield EHB con otro blit.
 
 El primer modelo retenido para scroll vive en
-`engine/include/amg/graphics/tilemap/tile_scroll.hpp`. `TileMap16` no sabe nada de
+`engine/include/eng/graphics/tilemap/tile_scroll.hpp`. `TileMap16` no sabe nada de
 `BPLCON1` ni `BPLxPT`: solo empaqueta indices de tile con dirty flags por buffer y
 descompone una posicion de scroll en tile/coarse/fine. El driver Amiga futuro sera
 quien traduzca esa intencion a Copper y Blitter.
 
 La primera fachada de escena vive en
-`engine/include/amg/scene/virtual_scene.hpp`. `VirtualScene`, `Camera2D` y
+`engine/include/eng/scene/virtual_scene.hpp`. `VirtualScene`, `Camera2D` y
 `TileLayer` describen un escenario virtual en terminos portables: mundo, viewport,
 capas, margenes ocultos y estrategia de scroll. La demo 052 ya pasa por esa capa
 antes de emitir blits, de modo que las proximas demos podran crecer hacia un
@@ -107,7 +107,7 @@ el viewport de forma didactica. Su valor es fijar el contrato estetico y de API
 antes de optimizarlo con Blitter, margenes ocultos y `BPLCON1`.
 
 La siguiente pieza ya vive en
-`engine/include/amg/graphics/tilemap/tile_scroll.hpp`: `ProgressiveTileScheduler`.
+`engine/include/eng/graphics/tilemap/tile_scroll.hpp`: `ProgressiveTileScheduler`.
 Su objetivo es evitar picos de Blitter al entrar en una zona nueva. En vez de
 dibujar toda la columna/fila offscreen de golpe, cada tile puede entrar en cola con
 `frames_until_visible`; el driver consume solo un presupuesto pequeno por frame.
@@ -124,7 +124,7 @@ La ruta bidireccional debe ser la opcion ergonomica para el juego. El usuario mu
 una camara 2D; el driver decide si ese frame puede usar la ruta barata horizontal o
 vertical, o si necesita la ruta completa.
 
-`engine/include/amg/graphics/drivers/ehb_tile_scroll.hpp` implementa el primer
+`engine/include/eng/graphics/drivers/ehb_tile_scroll.hpp` implementa el primer
 driver real de esta familia. `EhbTileScrollScene` reserva una superficie EHB de
 480x416, muestra una ventana de 320x256 y reconstruye su copperlist con punteros
 de bitplane desplazados y `BPLCON1` para fine X. Los margenes de 160 pixels

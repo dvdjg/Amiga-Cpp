@@ -1,9 +1,9 @@
-#include <amg/engine.hpp>
-#include <amg/debug/run_status.hpp>
-#include <amg/graphics/drivers/ehb_scene.hpp>
-#include <amg/graphics/effects/palette_cycle.hpp>
-#include <amg/graphics/frame_plan.hpp>
-#include <amg/platform/amiga_minimal.hpp>
+#include <eng/engine.hpp>
+#include <eng/debug/run_status.hpp>
+#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/effects/palette_cycle.hpp>
+#include <eng/graphics/frame_plan.hpp>
+#include <eng/platform/amiga_minimal.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -13,10 +13,10 @@
 struct ExecBase* SysBase = nullptr;
 
 extern "C" {
-__attribute__((used)) volatile amg::debug::RunStatus g_amg_run_status {
-	amg::debug::run_status_magic,
-	amg::debug::run_status_version,
-	static_cast<amg::u16>(amg::debug::RunState::Cold),
+__attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
+	eng::debug::run_status_magic,
+	eng::debug::run_status_version,
+	static_cast<eng::u16>(eng::debug::RunState::Cold),
 	0,
 	0,
 };
@@ -24,13 +24,13 @@ __attribute__((used)) volatile amg::debug::RunStatus g_amg_run_status {
 
 namespace {
 
-namespace drivers = amg::graphics::drivers;
-namespace effects = amg::graphics::effects;
+namespace drivers = eng::graphics::drivers;
+namespace effects = eng::graphics::effects;
 
-constexpr amg::u16 screen_height = drivers::StaticEhbScene::height;
-constexpr amg::u16 bytes_per_row = drivers::StaticEhbScene::bytes_per_row;
-constexpr amg::u8 plane_count = drivers::StaticEhbScene::plane_count;
-constexpr amg::u32 plane_bytes = drivers::StaticEhbScene::plane_bytes;
+constexpr eng::u16 screen_height = drivers::StaticEhbScene::height;
+constexpr eng::u16 bytes_per_row = drivers::StaticEhbScene::bytes_per_row;
+constexpr eng::u8 plane_count = drivers::StaticEhbScene::plane_count;
+constexpr eng::u32 plane_bytes = drivers::StaticEhbScene::plane_bytes;
 
 /// Paleta base pensada para ciclar los colores 1..7.
 ///
@@ -63,27 +63,27 @@ constexpr drivers::EhbPaletteZone palette_zones[] {
 /// La zona superior usa principalmente indices 1..7, justo el tramo que rota
 /// `PaletteCycleEffect`. La zona inferior mantiene una reticula EHB parecida a la
 /// demo 030 para demostrar que las zonas Copper siguen activas bajo el efecto.
-void build_cycle_test_pattern(amg::u8* planes) {
-	for (amg::u16 y = 0; y < screen_height; ++y) {
-		const amg::u32 row_offset = static_cast<amg::u32>(y) * bytes_per_row;
+void build_cycle_test_pattern(eng::u8* planes) {
+	for (eng::u16 y = 0; y < screen_height; ++y) {
+		const eng::u32 row_offset = static_cast<eng::u32>(y) * bytes_per_row;
 
-		for (amg::u16 byte_x = 0; byte_x < bytes_per_row; ++byte_x) {
-			amg::u8 index = 0;
+		for (eng::u16 byte_x = 0; byte_x < bytes_per_row; ++byte_x) {
+			eng::u8 index = 0;
 			if (y < 136u) {
 				// Bandas verticales anchas. Como cada byte son 8 pixels lowres,
 				// dividir por 5 da celdas de 40 pixels: visibles y faciles de
 				// analizar en una captura escalada por WinUAE.
-				index = static_cast<amg::u8>(1u + ((byte_x / 5u) % 7u));
+				index = static_cast<eng::u8>(1u + ((byte_x / 5u) % 7u));
 			} else {
-				const amg::u8 cell_x = static_cast<amg::u8>(byte_x / 5u);
-				const amg::u8 cell_y = static_cast<amg::u8>(((y - 136u) / 15u) & 7u);
-				const amg::u8 half_brite = (cell_y >= 4u) ? 32u : 0u;
-				index = static_cast<amg::u8>(((cell_y & 3u) * 8u + cell_x) | half_brite);
+				const eng::u8 cell_x = static_cast<eng::u8>(byte_x / 5u);
+				const eng::u8 cell_y = static_cast<eng::u8>(((y - 136u) / 15u) & 7u);
+				const eng::u8 half_brite = (cell_y >= 4u) ? 32u : 0u;
+				index = static_cast<eng::u8>(((cell_y & 3u) * 8u + cell_x) | half_brite);
 			}
 
-			const amg::u32 byte_index = row_offset + byte_x;
-			for (amg::u8 plane = 0; plane < plane_count; ++plane) {
-				amg::u8* plane_base = planes + static_cast<amg::u32>(plane) * plane_bytes;
+			const eng::u32 byte_index = row_offset + byte_x;
+			for (eng::u8 plane = 0; plane < plane_count; ++plane) {
+				eng::u8* plane_base = planes + static_cast<eng::u32>(plane) * plane_bytes;
 				plane_base[byte_index] = (index & (1u << plane)) ? 0xffu : 0x00u;
 			}
 		}
@@ -99,8 +99,8 @@ void build_cycle_test_pattern(amg::u8* planes) {
 /// efecto, el plan describe el cambio y el driver decide como escribirlo en el
 /// hardware.
 struct DemoGame {
-	void init(amg::amiga::MinimalBackend& backend, amg::GameContext&) {
-		amg::debug::mark_init_started(g_amg_run_status);
+	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({
 			68u * 1024u,
 			8u * 1024u,
@@ -113,7 +113,7 @@ struct DemoGame {
 		const drivers::StaticEhbSceneConfig scene_config {
 			&m_runtime_palette,
 			palette_zones,
-			static_cast<amg::u8>(sizeof(palette_zones) / sizeof(palette_zones[0])),
+			static_cast<eng::u8>(sizeof(palette_zones) / sizeof(palette_zones[0])),
 			1024,
 		};
 
@@ -122,12 +122,12 @@ struct DemoGame {
 			build_cycle_test_pattern(m_scene.bitplanes());
 			m_scene.install(backend);
 		} else {
-			amg::debug::mark_failed(g_amg_run_status, 0x00000040u);
+			eng::debug::mark_failed(g_eng_run_status, 0x00000040u);
 		}
 	}
 
-	void update(amg::amiga::MinimalBackend& backend, amg::GameContext& context) {
-		amg::debug::mark_frame(g_amg_run_status, context.frame.frame_index);
+	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_memory_ok || !m_scene_ok) {
 			return;
 		}
@@ -141,7 +141,7 @@ struct DemoGame {
 			!m_scene.apply_frame_plan(m_frame_plan)
 		) {
 			m_scene_ok = false;
-			amg::debug::mark_failed(g_amg_run_status, 0x00000042u);
+			eng::debug::mark_failed(g_eng_run_status, 0x00000042u);
 			return;
 		}
 
@@ -150,26 +150,26 @@ struct DemoGame {
 		// Esperamos varias fases antes de declarar READY para que el runner capture
 		// una escena que ya ha demostrado animacion de paleta, no solo setup inicial.
 		if (context.frame.frame_index >= 8u) {
-			const amg::u32 detail =
+			const eng::u32 detail =
 				0x04000000u |
-				(static_cast<amg::u32>(m_cycle.phase()) << 16u) |
+				(static_cast<eng::u32>(m_cycle.phase()) << 16u) |
 				m_scene.copper_words();
-			amg::debug::mark_ready(g_amg_run_status, detail);
+			eng::debug::mark_ready(g_eng_run_status, detail);
 		}
 	}
 
-	void render(amg::amiga::MinimalBackend& backend, amg::GameContext& context) {
+	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		if (m_scene.ok()) {
 			m_scene.install(backend);
 		}
-		amg::debug::probe_when_ready(g_amg_run_status, context.frame.frame_index, 9);
+		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index, 9);
 	}
 
 	bool m_memory_ok = false;
 	bool m_scene_ok = false;
 	drivers::StaticEhbScene m_scene {};
 	drivers::EhbPalette m_runtime_palette {};
-	amg::graphics::FramePlan m_frame_plan {};
+	eng::graphics::FramePlan m_frame_plan {};
 	effects::PaletteCycleEffect m_cycle {};
 };
 
@@ -177,11 +177,11 @@ struct DemoGame {
 
 int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
-	amg::debug::reset(g_amg_run_status);
+	eng::debug::reset(g_eng_run_status);
 
-	amg::amiga::MinimalBackend backend {};
+	eng::amiga::MinimalBackend backend {};
 	DemoGame game {};
-	amg::Engine engine { backend, game };
+	eng::Engine engine { backend, game };
 	engine.run_frames(0xffff);
 
 	return 0;

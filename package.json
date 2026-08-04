@@ -1,0 +1,20 @@
+{
+	"name": "amiga-engine-tools",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "Herramientas de build, run, analisis y verificacion del engine retro multiplataforma (backend Amiga primero). Escritas en TypeScript y orquestadas con GNU bash: no dependen de Windows/PowerShell.",
+	"scripts": {
+		"build": "tsc -p tsconfig.json",
+		"watch": "tsc -w -p tsconfig.json",
+		"check": "tsc -p tsconfig.json --noEmit"
+	},
+	"devDependencies": {
+		"@types/node": "^20.14.0",
+		"@types/pngjs": "^6.0.5",
+		"typescript": "^5.5.4"
+	},
+	"dependencies": {
+		"pngjs": "^7.0.0"
+	}
+}

@@ -483,7 +483,15 @@ Criterio de aceptacion:
 
 - La IA puede modificar el engine y demostrar que no ha roto demos anteriores.
 
-## 18. Fase futura: canal lateral de depuracion WinUAE-DBG
+## 18. Canal lateral de depuración WinUAE-DBG (implementado, MVP)
+
+> **Estado actual:** el canal lateral ya está implementado en WinUAE-DBG y su
+> cliente vive en `tools/debug/winuae-side-channel.{ps1,mjs}`. Comandos disponibles:
+> `state`, `regs`, `mem`, `runstatus`, `screenshot`, `input`, `profile`, `poke`,
+> `rollback`, `audit`, `pause`, `resume`, con locks `observe/assist/takeover`.
+> Ver `docs/emulation/WINUAE_SIDE_CHANNEL_DEBUG.md`. La integración en demos del
+> runner (`run-status` por frame) y los tests de contrato (`verify-side-channel-*`)
+> ya existen. Lo que sigue abajo es la visión completa del objetivo.
 
 Objetivo: permitir que la IA ayude sobre la misma instancia viva de WinUAE que
 esta usando David desde Cursor/VS Code, sin competir por el socket GDB principal.
@@ -543,7 +551,7 @@ quedar abajo, coordinados por sistemas centrales y no por cada entidad.
   hotspot, script state.
 - `SceneGraph2D` retenido: capas, camaras, nodos visibles y orden de composicion.
 - `Camera2D`: seguimiento, limites, shake, parallax abstracto. Ya existe una
-  primera version en `engine/include/amg/scene/virtual_scene.hpp`.
+  primera version en `engine/include/eng/scene/virtual_scene.hpp`.
 - `VirtualScene`: fachada retenida para capas de tiles y, despues, actores,
   triggers y regiones Copper sin exponer registros a la logica de juego.
 - `InteractionLayer`: hotspots, walkboxes, zonas de profundidad, dialogos e
@@ -641,3 +649,79 @@ en el hardware.
 La misma regla aplica a las replicas de `demoscene-repo/effects`: cada efecto se
 reconstruye con APIs limpias del engine, no como port literal. Ver
 `docs/demoscene/DEMOSCENE_EFFECT_REPLICATION_POLICY.md`.
+
+## 21. Batería de tests bare metal por capas de abstracción
+
+Objetivo: reactivar el desarrollo partiendo del conocimiento bare metal del A500 y
+validar cada capa de abstracción del engine por separado. Cada test es un tutorial
+didáctico: código comentado como clase, un `README.md` que explica los pasos y un
+script de verificación determinista (por canal lateral o pixel assertions).
+
+Estructura de `tests/` por nivel de abstracción (un test puede apoyarse en capas
+inferiores, pero ejercita principalmente la suya):
+
+| Carpeta | Capa | Qué ejercita |
+|---------|------|--------------|
+| `tests/l0_bare_metal/` | L0 | Registros custom, bitplanes planares, copperlist a mano, DMA, Blitter. |
+| `tests/l1_backend/` | L1 | APIs de `MinimalBackend` (memoria, VBlank, copper, FramePlan). |
+| `tests/l2_copper_frameplan/` | L2 | `CopperScheduler`, `CopperTimeline`, `FramePlan` y presupuestos. |
+| `tests/l3_drivers/` | L3 | Drivers gráficos (`StaticEhbScene`, futuro `Standard5`, `DualPlayfield`...). |
+| `tests/l4_scene/` | L4 | `VirtualScene`, `Camera2D`, `TileLayer`, escenas retenidas. |
+
+Catálogo inicial de tests:
+
+- **L0-010 `display_320x240`**: modo lowres 320x240, 5 bitplanes (paleta de 32
+  colores), dibujo de líneas por CPU en formato planar, lectura del framebuffer por
+  el canal lateral para verificar las líneas, escritura de figuras por `poke` con
+  captura de pantalla, y restauración del sistema para volver a Workbench.
+- L0-020: copperlist a mano + Blitter cookie-cut con save/restore.
+- L1-010: ciclo de vida de `MinimalBackend` (memoria, VBlank, warpmode, overlay).
+- L2-010: `CopperScheduler` con timeline y aviso de over-budget.
+- L3-010: `StaticEhbScene` como referencia de driver (ya cubierto por demos 030/040,
+  se reutiliza como test formal).
+- L4-010: `VirtualScene` con cámara y tilemap sin registros Amiga.
+
+Criterio de aceptación de cada test:
+
+- build limpio;
+- `g_eng_run_status` llega a `Ready`;
+- el script de verificación valida el contrato por canal lateral o pixel assertions;
+- se archiva al menos una captura de pantalla;
+- el test restaura el sistema y termina (o documenta que no aplica).
+
+## 22. Infraestructura de depuración y profiling asistida
+
+Objetivo: garantizar que David y la IA disponen de todas las herramientas de
+depuración posibles sobre la misma instancia de WinUAE.
+
+Entregables:
+
+- **Depuración desde código fuente**: garantizar que F5/la extensión `amiga-debug`
+  sigue funcionando con breakpoints DWARF en C/C++ sobre el flujo del engine (las
+  demos ya se compilan con `-g -O1` en debug). Punto de entrada:
+  `docs/build/BUILD_AND_RUN.md` y `legacy/.vscode/`.
+- **Profiling `.amigaprofile`**: replicar la salida del Frame Profiler de la
+  extensión desde la línea de comandos. El canal lateral ya expone
+  `profile <frames> <out-file> [unwind-file]`; falta un convertidor del binario
+  resultante al formato `IAmigaProfile`/`IAmigaProfileSplit` que consume la
+  extensión (nodos con `callFrame`, `hitCount`, capturas base64). Herramienta:
+  `tools/profile/capture-profile.ps1` + `tools/profile/parse-profile.mjs`.
+- **Lectura/escritura de memoria y registros por la IA**: ya disponible vía canal
+  lateral (`mem`, `poke`, `regs`, `state`, `pause`, `resume`) y vía GDB RSP de
+  `mcp-winuae-emu`. El primer test L0-010 demuestra el flujo completo
+  leer-verificar-escribir-capturar.
+- **Verificación visual de figuras**: script por test que resuelve símbolos desde
+  el `.map`, lee el framebuffer, verifica el contrato y archiva capturas.
+
+Pruebas:
+
+- La extensión sigue depurando desde fuente (F5) sin romperse por el canal lateral.
+- `profile N out.bin` genera un archivo que `parse-profile.mjs` convierte a
+  `.amigaprofile` válido para la extensión.
+- La IA lee y verifica el framebuffer, escribe figuras y captura sin pausar la
+  sesión manual (lock `observe`/`assist`).
+
+Criterio de aceptación:
+
+- Un flujo documentado y reproducible de build -> run -> depurar -> perfilar ->
+  verificar, ejecutable por persona y por IA.

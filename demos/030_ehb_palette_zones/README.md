@@ -25,7 +25,7 @@ por raster.
 
 La demo ya no programa esos registros directamente desde `main.cpp`. Usa
 `StaticEhbScene`, definido en
-`engine/include/amg/graphics/drivers/ehb_scene.hpp`, para reservar bitplanes y
+`engine/include/eng/graphics/drivers/ehb_scene.hpp`, para reservar bitplanes y
 copperlist en Chip RAM, activar 6 planos EHB y compilar zonas de paleta a Copper.
 El codigo de la demo solo genera el patron planar de prueba y declara las paletas.
 

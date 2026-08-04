@@ -52,11 +52,11 @@ base verificable de toolchain, ejecucion automatizada y captura visual.
 
 Engine base:
 
-- `engine/include/amg/core/types.hpp`
-- `engine/include/amg/engine.hpp`
-- `engine/include/amg/memory/arena.hpp`
-- `engine/include/amg/graphics/driver.hpp`
-- `engine/include/amg/platform/amiga_minimal.hpp`
+- `engine/include/eng/core/types.hpp`
+- `engine/include/eng/engine.hpp`
+- `engine/include/eng/memory/arena.hpp`
+- `engine/include/eng/graphics/driver.hpp`
+- `engine/include/eng/platform/amiga_minimal.hpp`
 - `engine/src/platform/amiga_minimal/amiga_minimal.cpp`
 
 Demo inicial:
@@ -74,7 +74,7 @@ Demo inicial:
 
 Copper:
 
-- `engine/include/amg/graphics/copper/copper.hpp`
+- `engine/include/eng/graphics/copper/copper.hpp`
 
 Tooling:
 
@@ -147,7 +147,7 @@ Resultado verificado:
   implementado en `WinUAE-DBG/od-win32/barto_gdbserver.cpp`. Expone `hello`,
   `state`, `regs`, `mem` y `runstatus` como JSON por linea, separado del socket
   GDB principal.
-- `tools/run/run-demo.mjs` usa ese canal para esperar `g_amg_run_status` mientras
+- `tools/run/run-demo.mjs` usa ese canal para esperar `g_eng_run_status` mientras
   el 68000 sigue corriendo. El timeout largo queda como compatibilidad si se usa
   un WinUAE antiguo, pero la regresion actual llega a `side-channel READY`.
 - Al integrar el canal se descubrio que `030_ehb_palette_zones` pasaba demasiado
@@ -172,7 +172,7 @@ Resultado verificado:
   mutiladas como `C:Users...`.
 - Se ha añadido `tools/debug/verify-gdb-step-side-channel.mjs` con wrapper
   PowerShell. Esta prueba valida la depuracion normal: breakpoint GDB en
-  `amg_debug_ready_probe`, `continue`, parada `T05swbreak`, tres pasos
+  `eng_debug_ready_probe`, `continue`, parada `T05swbreak`, tres pasos
   instruccion-a-instruccion y lecturas por canal lateral simultaneas durante la
   ejecucion y tras cada parada. Verificacion local correcta el 2026-05-30.
 - Se ha añadido el primer `takeover` reversible: comandos laterales `poke`,
@@ -181,7 +181,7 @@ Resultado verificado:
   los bytes originales y marca la auditoria como revertida.
 - Se ha añadido `tools/debug/verify-side-channel-takeover.mjs` con wrapper
   PowerShell. La prueba escribe temporalmente `12345678` en
-  `g_amg_run_status.detail`, verifica por `mem`, consulta auditoria y revierte al
+  `g_eng_run_status.detail`, verifica por `mem`, consulta auditoria y revierte al
   valor original. Verificacion local correcta el 2026-05-30.
 - Se ha añadido `pause`/`resume` lateral bajo lock `takeover`, con
   `tools/debug/verify-side-channel-pause-resume.mjs`. `pause` se encola en
@@ -189,25 +189,25 @@ Resultado verificado:
   La prueba verifica pausa, lectura de memoria mientras esta detenido, reanudacion
   y cierre limpio del runner.
 - Se ha retomado el roadmap del engine con el primer nucleo reutilizable del driver
-  EHB: `engine/include/amg/graphics/drivers/ehb_scene.hpp`. `StaticEhbScene`
+  EHB: `engine/include/eng/graphics/drivers/ehb_scene.hpp`. `StaticEhbScene`
   reserva bitplanes/copperlist en Chip RAM, activa 6 bitplanes EHB, habilita DMA de
   bitplanes y compila paletas/zones de alto nivel a una copperlist real.
 - `030_ehb_palette_zones` ya usa `StaticEhbScene`: la demo solo declara paletas y
   genera el patron planar de prueba. Los registros BPL/DIW/DDF/COLOR y el setup DMA
   quedan encapsulados en el driver.
-- Se ha añadido `engine/include/amg/graphics/copper/scheduler.hpp`. El
+- Se ha añadido `engine/include/eng/graphics/copper/scheduler.hpp`. El
   `CopperScheduler` minimo centraliza el setup EHB y las zonas de paleta, y produce
   `ScheduleReport` con palabras usadas, waits, movimientos de paleta y avisos de
   zonas pesadas visibles. Es el primer paso hacia `CopperTimeline`.
-- Se ha añadido `engine/include/amg/graphics/copper/timeline.hpp`. `CopperTimeline`
+- Se ha añadido `engine/include/eng/graphics/copper/timeline.hpp`. `CopperTimeline`
   cuenta waits/moves por linea raster y marca lineas visibles que superan un
   presupuesto conservador de H-BLANK. De momento informa, no prohibe: las escenas
   Copper-heavy siguen siendo posibles, pero quedan trazadas.
-- Se ha añadido `engine/include/amg/graphics/effects/palette_cycle.hpp` y la demo
+- Se ha añadido `engine/include/eng/graphics/effects/palette_cycle.hpp` y la demo
   `040_palette_cycle_effect`. `PaletteCycleEffect` rota un tramo de paleta fisica
   sin tocar bitplanes; la demo espera varias fases antes de `READY` y el analizador
   comprueba captura y `runStatus.detail`.
-- Se ha añadido `engine/include/amg/graphics/frame_plan.hpp`. La demo 040 ya no
+- Se ha añadido `engine/include/eng/graphics/frame_plan.hpp`. La demo 040 ya no
   recompila toda la copperlist cada frame: genera un `FramePlan` con un parche de
   paleta y `StaticEhbScene` actualiza solo las words de valor de `COLOR01..07`.
   `StaticEhbScene` guarda bindings de paleta base y zonas Copper al construir la
@@ -250,12 +250,12 @@ Resultado verificado:
   efectos de `demoscene-repo/effects` se implementaran como demos propias del
   engine, con logica limpia y registros custom encapsulados en capas bajas. La
   primera replica recomendada es `tiles16`.
-- Se ha añadido `engine/include/amg/graphics/tilemap/tile_scroll.hpp` con el primer
+- Se ha añadido `engine/include/eng/graphics/tilemap/tile_scroll.hpp` con el primer
   modelo retenido de tilemap 16x16: celdas con dirty flags por doble buffer,
   descomposicion de scroll en tile/coarse/fine y preparacion de frame sin conocer
   registros Amiga. `052_tile_staging_blits` ya lo usa para validar sus 16 tiles
   sucios antes de lanzar `TileBlockCopy`.
-- Se ha añadido `engine/include/amg/scene/virtual_scene.hpp` con `Camera2D`,
+- Se ha añadido `engine/include/eng/scene/virtual_scene.hpp` con `Camera2D`,
   `TileLayer`, `TileScrollStrategy` y `VirtualSceneFrame`. La demo 052 ya crea una
   escena virtual retenida y pasa por ella antes de generar sus blits de staging.
 - Se ha creado `docs/architecture/RETRO_ENGINE_API_BENCHMARK.md`, con aprendizajes de ACE,
@@ -274,7 +274,7 @@ Resultado verificado:
   la idea de preparar tiles poco a poco antes de que crucen el borde visible. La
   demo 100 ya encola una columna derecha y acepta 4 updates por frame:
   `runStatus.detail = 0x10390941`.
-- Se ha añadido `engine/include/amg/graphics/drivers/ehb_tile_scroll.hpp` y la demo
+- Se ha añadido `engine/include/eng/graphics/drivers/ehb_tile_scroll.hpp` y la demo
   `101_ehb_tile_scroll_driver`. Es el primer driver Amiga de tile scroll horizontal:
   reserva una superficie EHB mayor que la ventana visible, muestra 320x256, programa
   `BPLCON1` animado y convierte updates progresivos en `TileBlockCopy` reales

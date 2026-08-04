@@ -37,7 +37,7 @@ Para nuestras demos, el criterio sera:
   cambios estructurales de display;
 - evitar capturas en mitad de una secuencia de blits si el resultado visible aun
   no esta estable;
-- usar el canal lateral y `g_amg_run_status` como evidencia logica, y capturas
+- usar el canal lateral y `g_eng_run_status` como evidencia logica, y capturas
   solo despues del estado `Ready`.
 
 `tiles16.c` usa un patron muy interesante: actualiza el buffer no activo, parchea
@@ -102,7 +102,7 @@ Resumen tecnico:
 
 Ideas para nuestro engine:
 
-- Crear mas adelante un modulo `amg::math3d` freestanding con tipos compactos:
+- Crear mas adelante un modulo `eng::math3d` freestanding con tipos compactos:
   `Vec3s`, `Mat3x4`, `Mesh`, `Object3D`, `Face`.
 - Mantener la 3D como productor de comandos de render, no como codigo que escriba
   custom registers.

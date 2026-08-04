@@ -1,6 +1,6 @@
-#include <amg/engine.hpp>
-#include <amg/debug/run_status.hpp>
-#include <amg/platform/amiga_minimal.hpp>
+#include <eng/engine.hpp>
+#include <eng/debug/run_status.hpp>
+#include <eng/platform/amiga_minimal.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -10,10 +10,10 @@
 struct ExecBase* SysBase = nullptr;
 
 extern "C" {
-__attribute__((used)) volatile amg::debug::RunStatus g_amg_run_status {
-	amg::debug::run_status_magic,
-	amg::debug::run_status_version,
-	static_cast<amg::u16>(amg::debug::RunState::Cold),
+__attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
+	eng::debug::run_status_magic,
+	eng::debug::run_status_version,
+	static_cast<eng::u16>(eng::debug::RunState::Cold),
 	0,
 	0,
 };
@@ -25,38 +25,38 @@ struct HexBuffer {
 	char text[11] = {'0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', 0};
 };
 
-constexpr char hex_digit(amg::u8 value) {
+constexpr char hex_digit(eng::u8 value) {
 	return value < 10 ? static_cast<char>('0' + value) : static_cast<char>('A' + value - 10);
 }
 
-HexBuffer hex32(amg::u32 value) {
+HexBuffer hex32(eng::u32 value) {
 	HexBuffer out {};
-	for (amg::u8 i = 0; i < 8; ++i) {
-		const amg::u8 shift = static_cast<amg::u8>((7 - i) * 4);
-		out.text[2 + i] = hex_digit(static_cast<amg::u8>((value >> shift) & 0x0f));
+	for (eng::u8 i = 0; i < 8; ++i) {
+		const eng::u8 shift = static_cast<eng::u8>((7 - i) * 4);
+		out.text[2 + i] = hex_digit(static_cast<eng::u8>((value >> shift) & 0x0f));
 	}
 	return out;
 }
 
-amg::s16 bar_width(amg::u32 used, amg::u32 capacity, amg::s16 max_width) {
+eng::s16 bar_width(eng::u32 used, eng::u32 capacity, eng::s16 max_width) {
 	if (capacity == 0) {
 		return 0;
 	}
-	const amg::u32 scaled = (used * static_cast<amg::u32>(max_width)) / capacity;
-	return static_cast<amg::s16>(scaled);
+	const eng::u32 scaled = (used * static_cast<eng::u32>(max_width)) / capacity;
+	return static_cast<eng::s16>(scaled);
 }
 
-void draw_bar(amg::amiga::DebugOverlay& debug, amg::s16 x, amg::s16 y, amg::s16 width, amg::s16 height, amg::u32 used, amg::u32 capacity, amg::u32 color) {
-	debug.rect(x, y, static_cast<amg::s16>(x + width), static_cast<amg::s16>(y + height), 0x00ffffff);
-	const amg::s16 fill = bar_width(used, capacity, static_cast<amg::s16>(width - 2));
+void draw_bar(eng::amiga::DebugOverlay& debug, eng::s16 x, eng::s16 y, eng::s16 width, eng::s16 height, eng::u32 used, eng::u32 capacity, eng::u32 color) {
+	debug.rect(x, y, static_cast<eng::s16>(x + width), static_cast<eng::s16>(y + height), 0x00ffffff);
+	const eng::s16 fill = bar_width(used, capacity, static_cast<eng::s16>(width - 2));
 	if (fill > 0) {
-		debug.filled_rect(static_cast<amg::s16>(x + 1), static_cast<amg::s16>(y + 1), static_cast<amg::s16>(x + 1 + fill), static_cast<amg::s16>(y + height - 1), color);
+		debug.filled_rect(static_cast<eng::s16>(x + 1), static_cast<eng::s16>(y + 1), static_cast<eng::s16>(x + 1 + fill), static_cast<eng::s16>(y + height - 1), color);
 	}
 }
 
 struct DemoGame {
-	void init(amg::amiga::MinimalBackend& backend, amg::GameContext&) {
-		amg::debug::mark_init_started(g_amg_run_status);
+	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({
 			32u * 1024u,
 			32u * 1024u,
@@ -80,19 +80,19 @@ struct DemoGame {
 
 		log_memory(backend);
 		if (m_memory_ok) {
-			amg::debug::mark_ready(g_amg_run_status, 0x00000010u);
+			eng::debug::mark_ready(g_eng_run_status, 0x00000010u);
 		} else {
-			amg::debug::mark_failed(g_amg_run_status, 0x00000011u);
+			eng::debug::mark_failed(g_eng_run_status, 0x00000011u);
 		}
 	}
 
-	void update(amg::amiga::MinimalBackend& backend, amg::GameContext& context) {
-		amg::debug::mark_frame(g_amg_run_status, context.frame.frame_index);
-		const amg::u16 pulse = static_cast<amg::u16>((context.frame.frame_index >> 2) & 0x0f);
-		backend.set_color(0, static_cast<amg::u16>((pulse << 8) | 0x002));
+	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
+		const eng::u16 pulse = static_cast<eng::u16>((context.frame.frame_index >> 2) & 0x0f);
+		backend.set_color(0, static_cast<eng::u16>((pulse << 8) | 0x002));
 	}
 
-	void render(amg::amiga::MinimalBackend& backend, amg::GameContext& context) {
+	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		auto& debug = backend.debug();
 		const auto& memory = backend.memory();
 
@@ -112,23 +112,23 @@ struct DemoGame {
 		draw_bar(debug, 76, 258, 460, 22, memory.frame.used(), memory.frame.capacity(), 0x00ffff00);
 		debug.text(552, 262, "Frame scratch", 0x00ffffff);
 
-		const HexBuffer chip_base = hex32(static_cast<amg::u32>(reinterpret_cast<amg::uintptr>(memory.chip.base())));
-		const HexBuffer slow_base = hex32(static_cast<amg::u32>(reinterpret_cast<amg::uintptr>(memory.slow.base())));
+		const HexBuffer chip_base = hex32(static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(memory.chip.base())));
+		const HexBuffer slow_base = hex32(static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(memory.slow.base())));
 		debug.text(76, 314, "Chip base:", 0x00ffffff);
 		debug.text(196, 314, chip_base.text, 0x000080ff);
 		debug.text(76, 342, "Slow base:", 0x00ffffff);
 		debug.text(196, 342, slow_base.text, 0x0000ff80);
-		amg::debug::probe_when_ready(g_amg_run_status, context.frame.frame_index);
+		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
-	void log_memory(amg::amiga::MinimalBackend& backend) {
+	void log_memory(eng::amiga::MinimalBackend& backend) {
 		const auto& memory = backend.memory();
 		KPrintF(
 			"AMG010 chip base=%lx used=%ld cap=%ld slow base=%lx used=%ld cap=%ld frame used=%ld cap=%ld ok=%ld\n",
-			static_cast<amg::u32>(reinterpret_cast<amg::uintptr>(memory.chip.base())),
+			static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(memory.chip.base())),
 			memory.chip.used(),
 			memory.chip.capacity(),
-			static_cast<amg::u32>(reinterpret_cast<amg::uintptr>(memory.slow.base())),
+			static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(memory.slow.base())),
 			memory.slow.used(),
 			memory.slow.capacity(),
 			memory.frame.used(),
@@ -137,12 +137,12 @@ struct DemoGame {
 		);
 	}
 
-	amg::MemoryBlock m_copper_template {};
-	amg::MemoryBlock m_bitplane_budget {};
-	amg::MemoryBlock m_entity_pool {};
-	amg::MemoryBlock m_script_blob {};
-	amg::MemoryBlock m_frame_jobs {};
-	amg::MemoryBlock m_expected_fail {};
+	eng::MemoryBlock m_copper_template {};
+	eng::MemoryBlock m_bitplane_budget {};
+	eng::MemoryBlock m_entity_pool {};
+	eng::MemoryBlock m_script_blob {};
+	eng::MemoryBlock m_frame_jobs {};
+	eng::MemoryBlock m_expected_fail {};
 	bool m_memory_ok = false;
 };
 
@@ -150,11 +150,11 @@ struct DemoGame {
 
 int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
-	amg::debug::reset(g_amg_run_status);
+	eng::debug::reset(g_eng_run_status);
 
-	amg::amiga::MinimalBackend backend {};
+	eng::amiga::MinimalBackend backend {};
 	DemoGame game {};
-	amg::Engine engine { backend, game };
+	eng::Engine engine { backend, game };
 	engine.run_frames(0xffff);
 
 	return 0;

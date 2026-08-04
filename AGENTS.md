@@ -27,12 +27,12 @@
 
 ## Comportamiento clave de runner/emulador
 - `run-demo` configura WinUAE con `warp=false` por defecto. Usar `-Warp` solo para throughput/diagnóstico rápido, no para evaluar suavidad visual.
-- Las demos modernas deben exponer `g_amg_run_status`; el runner espera `READY` por canal lateral en `127.0.0.1:2346` y falla rápido si no llega.
+- Las demos modernas deben exponer `g_eng_run_status`; el runner espera `READY` por canal lateral en `127.0.0.1:2346` y falla rápido si no llega.
 - El fallback por timeout es opt-in (`-AllowTimeoutFallback` / `--allow-timeout-fallback`) y es para diagnóstico.
 - Las capturas de secuencia se limpian antes de cada ejecución (`out/run/<demo>/sequence`) para no mezclar frames antiguos.
 
 ## Rutas de alto valor
-- Bucle de entrada del engine: `engine/include/amg/engine.hpp` (`update -> wait_vblank -> render`; `render` es el punto de commit).
+- Bucle de entrada del engine: `engine/include/eng/engine.hpp` (`update -> wait_vblank -> render`; `render` es el punto de commit).
 - Backend Amiga: `engine/src/platform/amiga_minimal/amiga_minimal.cpp`.
 - Validación temporal fuerte por demo: `demos/101_ehb_tile_scroll_driver/analyze-sequence.ps1`.
 - Detalles operativos build/run: `docs/build/BUILD_AND_RUN.md`.

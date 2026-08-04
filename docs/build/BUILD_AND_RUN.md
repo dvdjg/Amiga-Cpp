@@ -59,7 +59,7 @@ El runner:
 - conecta al servidor GDB de WinUAE-DBG;
 - continua la ejecucion tras el `debugging_trigger`;
 - intenta conectar al canal lateral de WinUAE-DBG en `127.0.0.1:2346`;
-- si la demo expone `g_amg_run_status`, espera `READY` leyendo memoria por el
+- si la demo expone `g_eng_run_status`, espera `READY` leyendo memoria por el
   canal lateral sin detener el 68000;
 - si el canal no esta disponible, deja constancia en `run-report.json` y usa el
   timeout de compatibilidad;
@@ -75,8 +75,8 @@ out\run\<demo>\run-report.json
 
 ## Telemetria de ejecucion
 
-Las demos modernas definen un simbolo global `g_amg_run_status` con magia
-`AMGR`. El runner resuelve su direccion desde el `.map`, consulta las secciones
+Las demos modernas definen un simbolo global `g_eng_run_status` con magia
+`ENGR`. El runner resuelve su direccion desde el `.map`, consulta las secciones
 runtime que expone WinUAE-DBG por el canal lateral y espera estados cortos:
 
 - `InitStarted`: la demo entro en `init`.
@@ -121,7 +121,7 @@ diagnostico. No se usa por defecto porque acelera los VBlank del emulador y pued
 hacer que una animacion correcta parezca demasiado rapida.
 
 La demo `040_palette_cycle_effect` usa ademas `run-report.json` como evidencia:
-su analizador comprueba que `g_amg_run_status.detail` contiene la marca
+su analizador comprueba que `g_eng_run_status.detail` contiene la marca
 `0x04xxxxxx` y una fase de ciclo distinta de cero.
 
 Para consultar una instancia viva manualmente:

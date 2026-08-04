@@ -1,9 +1,9 @@
-#include <amg/engine.hpp>
-#include <amg/debug/run_status.hpp>
-#include <amg/graphics/drivers/ehb_scene.hpp>
-#include <amg/graphics/tilemap/tile_scroll.hpp>
-#include <amg/platform/amiga_minimal.hpp>
-#include <amg/scene/virtual_scene.hpp>
+#include <eng/engine.hpp>
+#include <eng/debug/run_status.hpp>
+#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/tilemap/tile_scroll.hpp>
+#include <eng/platform/amiga_minimal.hpp>
+#include <eng/scene/virtual_scene.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -13,10 +13,10 @@
 struct ExecBase* SysBase = nullptr;
 
 extern "C" {
-__attribute__((used)) volatile amg::debug::RunStatus g_amg_run_status {
-	amg::debug::run_status_magic,
-	amg::debug::run_status_version,
-	static_cast<amg::u16>(amg::debug::RunState::Cold),
+__attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
+	eng::debug::run_status_magic,
+	eng::debug::run_status_version,
+	static_cast<eng::u16>(eng::debug::RunState::Cold),
 	0,
 	0,
 };
@@ -24,20 +24,20 @@ __attribute__((used)) volatile amg::debug::RunStatus g_amg_run_status {
 
 namespace {
 
-namespace drivers = amg::graphics::drivers;
-namespace scene = amg::scene;
-namespace tilemap = amg::graphics::tilemap;
+namespace drivers = eng::graphics::drivers;
+namespace scene = eng::scene;
+namespace tilemap = eng::graphics::tilemap;
 
-constexpr amg::u16 screen_width = drivers::StaticEhbScene::width;
-constexpr amg::u16 screen_height = drivers::StaticEhbScene::height;
-constexpr amg::u16 bytes_per_row = drivers::StaticEhbScene::bytes_per_row;
-constexpr amg::u8 plane_count = drivers::StaticEhbScene::plane_count;
-constexpr amg::u32 plane_bytes = drivers::StaticEhbScene::plane_bytes;
-constexpr amg::u16 map_tiles_x = 64;
-constexpr amg::u16 map_tiles_y = 16;
-constexpr amg::u16 tile_size = 16;
-constexpr amg::u16 final_camera_x = 57;
-constexpr amg::u16 screen_words_per_row = bytes_per_row / sizeof(amg::u16);
+constexpr eng::u16 screen_width = drivers::StaticEhbScene::width;
+constexpr eng::u16 screen_height = drivers::StaticEhbScene::height;
+constexpr eng::u16 bytes_per_row = drivers::StaticEhbScene::bytes_per_row;
+constexpr eng::u8 plane_count = drivers::StaticEhbScene::plane_count;
+constexpr eng::u32 plane_bytes = drivers::StaticEhbScene::plane_bytes;
+constexpr eng::u16 map_tiles_x = 64;
+constexpr eng::u16 map_tiles_y = 16;
+constexpr eng::u16 tile_size = 16;
+constexpr eng::u16 final_camera_x = 57;
+constexpr eng::u16 screen_words_per_row = bytes_per_row / sizeof(eng::u16);
 
 /// Paleta base: cielo limpio y colores de lectura alta.
 ///
@@ -72,8 +72,8 @@ constexpr drivers::EhbPaletteZone palette_zones[] {
 	{0xb8, &under_palette},
 };
 
-void clear_bytes(amg::u8* bytes, amg::u32 count) {
-	for (amg::u32 i = 0; i < count; ++i) {
+void clear_bytes(eng::u8* bytes, eng::u32 count) {
+	for (eng::u32 i = 0; i < count; ++i) {
 		bytes[i] = 0;
 	}
 }
@@ -84,21 +84,21 @@ void clear_bytes(amg::u8* bytes, amg::u32 count) {
 /// indices de tile, flips, metadatos de colision y atributos por zona. Aqui lo
 /// generamos en codigo para que el MVP sea autocontenido y facil de compilar.
 void build_virtual_map(tilemap::PackedTileCell* cells) {
-	for (amg::u16 y = 0; y < map_tiles_y; ++y) {
-		for (amg::u16 x = 0; x < map_tiles_x; ++x) {
-			amg::u16 tile = 0;
+	for (eng::u16 y = 0; y < map_tiles_y; ++y) {
+		for (eng::u16 x = 0; x < map_tiles_x; ++x) {
+			eng::u16 tile = 0;
 			if (y < 3) {
-				tile = static_cast<amg::u16>(((x + y * 5u) % 11u) == 0u ? 1u : 0u);
+				tile = static_cast<eng::u16>(((x + y * 5u) % 11u) == 0u ? 1u : 0u);
 			} else if (y == 3) {
-				tile = static_cast<amg::u16>(2u + ((x / 3u) & 1u));
+				tile = static_cast<eng::u16>(2u + ((x / 3u) & 1u));
 			} else if (y < 8) {
-				tile = static_cast<amg::u16>(4u + ((x + y) % 4u));
+				tile = static_cast<eng::u16>(4u + ((x + y) % 4u));
 			} else if (y < 12) {
-				tile = static_cast<amg::u16>(8u + (((x / 2u) + y) % 4u));
+				tile = static_cast<eng::u16>(8u + (((x / 2u) + y) % 4u));
 			} else {
-				tile = static_cast<amg::u16>(12u + ((x + y * 3u) % 4u));
+				tile = static_cast<eng::u16>(12u + ((x + y * 3u) % 4u));
 			}
-			cells[static_cast<amg::u32>(y) * map_tiles_x + x].set_tile(tile);
+			cells[static_cast<eng::u32>(y) * map_tiles_x + x].set_tile(tile);
 		}
 	}
 }
@@ -109,7 +109,7 @@ void build_virtual_map(tilemap::PackedTileCell* cells) {
 /// lectura humana agradable. No robamos codigo de `demoscene-repo/effects/tiles16`,
 /// pero si adoptamos su idea clave: tiles 16x16, mapa virtual y scroll con dirty
 /// flags por buffer.
-amg::u8 tile_pixel(amg::u16 tile, amg::u8 lx, amg::u8 ly) {
+eng::u8 tile_pixel(eng::u16 tile, eng::u8 lx, eng::u8 ly) {
 	const bool checker = (((lx >> 2) + (ly >> 2) + tile) & 1u) != 0;
 	const bool diagonal = ((lx + ly + tile * 3u) & 15u) < 3u;
 	const bool sparkle = (((lx * 5u + ly * 3u + tile * 17u) & 63u) == 0u);
@@ -118,12 +118,12 @@ amg::u8 tile_pixel(amg::u16 tile, amg::u8 lx, amg::u8 ly) {
 		if (tile == 1u && ly > 5u && lx > 2u && lx < 14u) {
 			return checker ? 5u : 38u;
 		}
-		return static_cast<amg::u8>(2u + ((tile + (ly >> 3)) & 1u));
+		return static_cast<eng::u8>(2u + ((tile + (ly >> 3)) & 1u));
 	}
 
 	if (tile <= 3u) {
 		const bool ridge = ly >= ((lx + tile * 5u) & 15u);
-		return ridge ? static_cast<amg::u8>(8u + (tile & 1u)) : 33u;
+		return ridge ? static_cast<eng::u8>(8u + (tile & 1u)) : 33u;
 	}
 
 	if (tile <= 7u) {
@@ -133,7 +133,7 @@ amg::u8 tile_pixel(amg::u16 tile, amg::u8 lx, amg::u8 ly) {
 		if (diagonal) {
 			return 13u;
 		}
-		return checker ? static_cast<amg::u8>(10u + (tile & 1u)) : static_cast<amg::u8>(42u + (tile & 1u));
+		return checker ? static_cast<eng::u8>(10u + (tile & 1u)) : static_cast<eng::u8>(42u + (tile & 1u));
 	}
 
 	if (tile <= 11u) {
@@ -163,20 +163,20 @@ amg::u8 tile_pixel(amg::u16 tile, amg::u8 lx, amg::u8 ly) {
 /// demo genera 16 tiles artisticas y las guarda como 6 planos x 16 filas x 1 word.
 /// Esto hace que el render sea lo bastante rapido para que el canal lateral pueda
 /// confirmar READY en pocos segundos.
-void build_tile_word_cache(amg::u16 words[16][plane_count][tile_size]) {
-	for (amg::u16 tile = 0; tile < 16; ++tile) {
-		for (amg::u8 plane = 0; plane < plane_count; ++plane) {
-			for (amg::u8 y = 0; y < tile_size; ++y) {
+void build_tile_word_cache(eng::u16 words[16][plane_count][tile_size]) {
+	for (eng::u16 tile = 0; tile < 16; ++tile) {
+		for (eng::u8 plane = 0; plane < plane_count; ++plane) {
+			for (eng::u8 y = 0; y < tile_size; ++y) {
 				words[tile][plane][y] = 0;
 			}
 		}
 
-		for (amg::u8 y = 0; y < tile_size; ++y) {
-			amg::u8 color_a = 2;
-			amg::u8 color_b = 3;
-			amg::u8 color_accent = 5;
-			amg::u16 mask_a = (y & 4u) ? 0x0f0fu : 0xf0f0u;
-			amg::u16 mask_accent = 0x0000u;
+		for (eng::u8 y = 0; y < tile_size; ++y) {
+			eng::u8 color_a = 2;
+			eng::u8 color_b = 3;
+			eng::u8 color_accent = 5;
+			eng::u16 mask_a = (y & 4u) ? 0x0f0fu : 0xf0f0u;
+			eng::u16 mask_accent = 0x0000u;
 
 			if (tile <= 1u) {
 				color_a = 2;
@@ -188,33 +188,33 @@ void build_tile_word_cache(amg::u16 words[16][plane_count][tile_size]) {
 				color_a = 8;
 				color_b = 9;
 				color_accent = 33;
-				mask_a = y > 8u ? 0xffffu : static_cast<amg::u16>(0xffffu >> (8u - y));
-				mask_accent = static_cast<amg::u16>(0x8000u >> ((y + tile * 3u) & 15u));
+				mask_a = y > 8u ? 0xffffu : static_cast<eng::u16>(0xffffu >> (8u - y));
+				mask_accent = static_cast<eng::u16>(0x8000u >> ((y + tile * 3u) & 15u));
 			} else if (tile <= 7u) {
-				color_a = static_cast<amg::u8>(10u + (tile & 1u));
-				color_b = static_cast<amg::u8>(42u + (tile & 1u));
+				color_a = static_cast<eng::u8>(10u + (tile & 1u));
+				color_b = static_cast<eng::u8>(42u + (tile & 1u));
 				color_accent = (tile & 2u) ? 13u : 7u;
 				mask_a = (y & 4u) ? 0x33ccu : 0xcc33u;
-				mask_accent = static_cast<amg::u16>(0x1111u << (y & 3u));
+				mask_accent = static_cast<eng::u16>(0x1111u << (y & 3u));
 			} else if (tile <= 11u) {
 				color_a = 6;
 				color_b = 39;
 				color_accent = (tile & 1u) ? 14u : 15u;
 				mask_a = (y & 4u) ? 0xaaaau : 0x5555u;
-				mask_accent = (y == 0u || y == 15u) ? 0xffffu : static_cast<amg::u16>(0x8001u >> (y & 3u));
+				mask_accent = (y == 0u || y == 15u) ? 0xffffu : static_cast<eng::u16>(0x8001u >> (y & 3u));
 			} else {
 				color_a = 3;
 				color_b = 35;
 				color_accent = (tile & 1u) ? 12u : 5u;
 				mask_a = (y & 2u) ? 0xccccu : 0x3333u;
-				mask_accent = static_cast<amg::u16>(0x00f0u << (y & 3u));
+				mask_accent = static_cast<eng::u16>(0x00f0u << (y & 3u));
 			}
 
-			const amg::u16 mask_b = static_cast<amg::u16>(~(mask_a | mask_accent));
-			for (amg::u8 plane = 0; plane < plane_count; ++plane) {
-				amg::u16 row = 0;
+			const eng::u16 mask_b = static_cast<eng::u16>(~(mask_a | mask_accent));
+			for (eng::u8 plane = 0; plane < plane_count; ++plane) {
+				eng::u16 row = 0;
 				if (color_a & (1u << plane)) {
-					row |= static_cast<amg::u16>(mask_a & ~mask_accent);
+					row |= static_cast<eng::u16>(mask_a & ~mask_accent);
 				}
 				if (color_b & (1u << plane)) {
 					row |= mask_b;
@@ -235,38 +235,38 @@ void build_tile_word_cache(amg::u16 words[16][plane_count][tile_size]) {
 /// final no redibujara todo el viewport; solo actualizara margenes ocultos y
 /// cambiara punteros/fine scroll sincronizados con VBlank.
 void draw_viewport(
-	amg::u8* planes,
+	eng::u8* planes,
 	const tilemap::PackedTileCell* cells,
-	const amg::u16 tile_words[16][plane_count][tile_size],
+	const eng::u16 tile_words[16][plane_count][tile_size],
 	const scene::Camera2D& camera
 ) {
 	clear_bytes(planes, drivers::StaticEhbScene::bitplane_bytes);
 
 	const tilemap::ScrollPosition scroll = camera.scroll_position();
-	const amg::u8 fine_x = static_cast<amg::u8>(scroll.x & 15u);
-	const amg::u16 start_tile_x = static_cast<amg::u16>(scroll.x / tile_size);
-	for (amg::u16 sy = 0; sy < screen_height; ++sy) {
-		const amg::u16 wy = static_cast<amg::u16>(scroll.y + sy);
-		const amg::u16 tile_y = static_cast<amg::u16>((wy / tile_size) % map_tiles_y);
-		const amg::u8 local_y = static_cast<amg::u8>(wy & 15u);
-		for (amg::u16 source_col = 0; source_col <= screen_words_per_row; ++source_col) {
-			const amg::u16 tile_x = static_cast<amg::u16>((start_tile_x + source_col) % map_tiles_x);
-			const amg::u16 tile = cells[static_cast<amg::u32>(tile_y) * map_tiles_x + tile_x].tile_index();
-			for (amg::u8 plane = 0; plane < plane_count; ++plane) {
-				amg::u16* row = reinterpret_cast<amg::u16*>(
-					planes + static_cast<amg::u32>(plane) * plane_bytes + static_cast<amg::u32>(sy) * bytes_per_row
+	const eng::u8 fine_x = static_cast<eng::u8>(scroll.x & 15u);
+	const eng::u16 start_tile_x = static_cast<eng::u16>(scroll.x / tile_size);
+	for (eng::u16 sy = 0; sy < screen_height; ++sy) {
+		const eng::u16 wy = static_cast<eng::u16>(scroll.y + sy);
+		const eng::u16 tile_y = static_cast<eng::u16>((wy / tile_size) % map_tiles_y);
+		const eng::u8 local_y = static_cast<eng::u8>(wy & 15u);
+		for (eng::u16 source_col = 0; source_col <= screen_words_per_row; ++source_col) {
+			const eng::u16 tile_x = static_cast<eng::u16>((start_tile_x + source_col) % map_tiles_x);
+			const eng::u16 tile = cells[static_cast<eng::u32>(tile_y) * map_tiles_x + tile_x].tile_index();
+			for (eng::u8 plane = 0; plane < plane_count; ++plane) {
+				eng::u16* row = reinterpret_cast<eng::u16*>(
+					planes + static_cast<eng::u32>(plane) * plane_bytes + static_cast<eng::u32>(sy) * bytes_per_row
 				);
-				const amg::u16 source_word = tile_words[tile & 15u][plane][local_y];
+				const eng::u16 source_word = tile_words[tile & 15u][plane][local_y];
 				if (fine_x == 0u) {
 					if (source_col < screen_words_per_row) {
 						row[source_col] |= source_word;
 					}
 				} else {
 					if (source_col < screen_words_per_row) {
-						row[source_col] |= static_cast<amg::u16>(source_word << fine_x);
+						row[source_col] |= static_cast<eng::u16>(source_word << fine_x);
 					}
 					if (source_col > 0u && source_col - 1u < screen_words_per_row) {
-						row[source_col - 1u] |= static_cast<amg::u16>(source_word >> (16u - fine_x));
+						row[source_col - 1u] |= static_cast<eng::u16>(source_word >> (16u - fine_x));
 					}
 				}
 			}
@@ -275,21 +275,21 @@ void draw_viewport(
 }
 
 struct DemoGame {
-	void init(amg::amiga::MinimalBackend& backend, amg::GameContext&) {
-		amg::debug::mark_init_started(g_amg_run_status);
+	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({80u * 1024u, 16u * 1024u, 8u * 1024u})) {
-			amg::debug::mark_failed(g_amg_run_status, 0x00000100u);
+			eng::debug::mark_failed(g_eng_run_status, 0x00000100u);
 			return;
 		}
 
 		const drivers::StaticEhbSceneConfig scene_config {
 			&sky_palette,
 			palette_zones,
-			static_cast<amg::u8>(sizeof(palette_zones) / sizeof(palette_zones[0])),
+			static_cast<eng::u8>(sizeof(palette_zones) / sizeof(palette_zones[0])),
 			1536,
 		};
 		if (!m_scene.init(backend.memory(), scene_config)) {
-			amg::debug::mark_failed(g_amg_run_status, 0x00000101u);
+			eng::debug::mark_failed(g_eng_run_status, 0x00000101u);
 			return;
 		}
 
@@ -316,40 +316,40 @@ struct DemoGame {
 			0,
 		};
 		if (!m_virtual_scene.reset(camera, &m_layer, 1)) {
-			amg::debug::mark_failed(g_amg_run_status, 0x00000102u);
+			eng::debug::mark_failed(g_eng_run_status, 0x00000102u);
 			return;
 		}
 
 		build_tile_word_cache(m_tile_words);
 		draw_frame(backend, final_camera_x);
 		m_scene.install(backend);
-		amg::debug::mark_ready(
-			g_amg_run_status,
+		eng::debug::mark_ready(
+			g_eng_run_status,
 			0x10000000u |
-				(static_cast<amg::u32>(m_camera_x & 0xffu) << 16u) |
-				(static_cast<amg::u32>(m_last_fine_x & 0x0fu) << 8u) |
-				(static_cast<amg::u32>(m_last_update_jobs & 0x0fu) << 4u) |
-				static_cast<amg::u32>(m_last_layer_count & 0x0fu)
+				(static_cast<eng::u32>(m_camera_x & 0xffu) << 16u) |
+				(static_cast<eng::u32>(m_last_fine_x & 0x0fu) << 8u) |
+				(static_cast<eng::u32>(m_last_update_jobs & 0x0fu) << 4u) |
+				static_cast<eng::u32>(m_last_layer_count & 0x0fu)
 		);
 		m_ready_to_run = true;
 	}
 
-	void update(amg::amiga::MinimalBackend& backend, amg::GameContext& context) {
-		amg::debug::mark_frame(g_amg_run_status, context.frame.frame_index);
+	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_ready_to_run) {
 			return;
 		}
 		m_scene.install(backend);
 	}
 
-	void render(amg::amiga::MinimalBackend& backend, amg::GameContext& context) {
+	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		if (m_scene.ok()) {
 			m_scene.install(backend);
 		}
-		amg::debug::probe_when_ready(g_amg_run_status, context.frame.frame_index);
+		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
-	void draw_frame(amg::amiga::MinimalBackend& backend, amg::u16 camera_x) {
+	void draw_frame(eng::amiga::MinimalBackend& backend, eng::u16 camera_x) {
 		scene::Camera2D& camera = m_virtual_scene.camera();
 		camera.begin_frame();
 		m_camera_x = camera_x;
@@ -361,7 +361,7 @@ struct DemoGame {
 		m_last_update_jobs = 0;
 		if (frame.tile_layer_count != 0u) {
 			m_tile_scheduler.reset();
-			const amg::u16 right_prefetch_tile = static_cast<amg::u16>(
+			const eng::u16 right_prefetch_tile = static_cast<eng::u16>(
 				frame.tile_layers[0].scroll.visible_tiles.left + frame.tile_layers[0].scroll.visible_tiles.width
 			);
 			m_tile_scheduler.enqueue_strip(
@@ -384,14 +384,14 @@ struct DemoGame {
 	bool m_ready_to_run = false;
 	drivers::StaticEhbScene m_scene {};
 	tilemap::PackedTileCell m_cells[map_tiles_x * map_tiles_y] {};
-	amg::u16 m_tile_words[16][plane_count][tile_size] {};
+	eng::u16 m_tile_words[16][plane_count][tile_size] {};
 	tilemap::TileMap16 m_map {};
 	scene::TileLayer m_layer {};
 	scene::VirtualScene m_virtual_scene {};
-	amg::u16 m_camera_x = 0;
-	amg::u8 m_last_fine_x = 0;
-	amg::u8 m_last_update_jobs = 0;
-	amg::u8 m_last_layer_count = 0;
+	eng::u16 m_camera_x = 0;
+	eng::u8 m_last_fine_x = 0;
+	eng::u8 m_last_update_jobs = 0;
+	eng::u8 m_last_layer_count = 0;
 	tilemap::ProgressiveTileScheduler m_tile_scheduler {};
 };
 
@@ -401,10 +401,10 @@ DemoGame g_game {};
 
 int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
-	amg::debug::reset(g_amg_run_status);
+	eng::debug::reset(g_eng_run_status);
 
-	amg::amiga::MinimalBackend backend {};
-	amg::Engine engine { backend, g_game };
+	eng::amiga::MinimalBackend backend {};
+	eng::Engine engine { backend, g_game };
 	engine.run_frames(0xffff);
 
 	return 0;
