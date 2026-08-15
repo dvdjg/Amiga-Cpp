@@ -72,9 +72,9 @@ function checkRunReport(imagePath: string, expectedDemo: string): void {
 function main(): void {
 	const args = process.argv.slice(2);
 	const imageValue = argValue(args, '--image');
-	const demo = argValue(args, '--demo');
-	if (!imageValue || !demo) {
-		fail('Uso: analyze_demo_screenshot.js --image <png> --demo <nombre> [opciones]');
+	const demo = argValue(args, '--demo') ?? '';
+	if (!imageValue) {
+		fail('Uso: analyze_demo_screenshot.js --image <png> [--demo <nombre>] [opciones]');
 	}
 	const imagePath = path.resolve(imageValue);
 	if (!fs.existsSync(imagePath)) {
@@ -92,7 +92,10 @@ function main(): void {
 		fail(`Captura demasiado pequena: ${counts.width}x${counts.height}`);
 	}
 
-	checkRunReport(imagePath, demo);
+	// La validacion del run-report solo aplica cuando se conoce la demo.
+	if (demo) {
+		checkRunReport(imagePath, demo);
+	}
 
 	const failures: string[] = [];
 	if (counts.white < minWhite) failures.push(`white=${counts.white} < ${minWhite}`);

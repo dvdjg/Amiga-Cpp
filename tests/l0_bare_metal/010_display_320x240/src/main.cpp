@@ -353,6 +353,11 @@ struct DemoGame {
 		draw_line(bitplanes, 64, 0, 64, 239, 3);    // linea vertical azul.
 		draw_line(bitplanes, 0, 0, 200, 200, 4);    // diagonal amarilla.
 
+		// DIAGNOSTICO TEMPORAL: patron incremental para medir el desfase de lectura.
+		for (eng::u32 i = 0; i < kBitplaneBytes; ++i) {
+			bitplanes[i] = static_cast<eng::u8>(i & 0xffu);
+		}
+
 		// CAPA 0: construir la copperlist word a word.
 		CopperList list;
 		list.words = static_cast<eng::u16*>(m_copper_block.data);

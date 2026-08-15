@@ -3,4 +3,4 @@
 # Uso: analyze-screenshot.sh <imagen.png>
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-exec python3 "$ROOT/tools/analyze/analyze_demo_screenshot.py" --image "$1" --demo "010_chip_slow_memory" 
+exec node "$ROOT/dist/tools/analyze/analyze_demo_screenshot.js" --image "$1" --demo "010_chip_slow_memory" 
