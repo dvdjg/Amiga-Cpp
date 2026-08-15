@@ -7,6 +7,7 @@
  * queda unificado en Node/TypeScript y funciona en Windows, Linux y macOS.
  */
 import * as fs from 'fs';
+import * as path from 'path';
 import { PNG } from 'pngjs';
 
 /** Imagen RGBA en memoria: filas de arriba a abajo, 4 bytes por pixel. */
@@ -57,11 +58,11 @@ export function createImage(width: number, height: number, fill: [number, number
 }
 
 /** Guarda una imagen RGBA como PNG en el disco. */
-export function savePng(image: RgbaImage, path: string): void {
+export function savePng(image: RgbaImage, outPath: string): void {
 	const png = new PNG({ width: image.width, height: image.height });
 	Buffer.from(image.data.buffer, image.data.byteOffset, image.data.byteLength).copy(png.data);
-	fs.mkdirSync(require('path').dirname(path), { recursive: true });
-	fs.writeFileSync(path, PNG.sync.write(png));
+	fs.mkdirSync(path.dirname(outPath), { recursive: true });
+	fs.writeFileSync(outPath, PNG.sync.write(png));
 }
 
 /** Copia una region rectangular de un origen a un destino. */

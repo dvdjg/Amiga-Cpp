@@ -8,3 +8,4 @@
 # Workspace local del editor. Cada maquina puede tener rutas y carpetas distintas.
 Amiga-C.code-workspace
 *.code-workspace
+.*/

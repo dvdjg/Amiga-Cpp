@@ -60,21 +60,24 @@ extra=()
 	|| { echo "La secuencia contiene artefactos negros internos." >&2; exit 1; }
 
 # 4) Telemetria: la fase circular con prefetch X/Y valido.
-python3 - "$RUN_REPORT" <<'PY'
-import json, sys
-report_path = sys.argv[1]
-report = json.loads(open(report_path, encoding="utf-8").read())
-status = report.get("finalSideChannel") if report.get("finalSideChannel", {}).get("ok") else (report.get("sideChannel") or {}).get("value")
-detail = int(status.get("detail", 0))
-camera_x = (detail >> 16) & 0xff
-camera_y = (detail >> 8) & 0xff
-prefetch = detail & 0x0f
-frame = int(status.get("frame", 0))
-if frame < 200 or camera_x > 128 or camera_y > 128 or (prefetch & 0x3) != 0x3:
-    raise SystemExit(f"La secuencia no alcanzo la fase circular con prefetch X/Y valido: frame={frame} detail=0x{detail:08x}")
-print(f"OK telemetry frame={frame} detail=0x{detail:08x}")
-PY
-[ $? -eq 0 ] || { echo "Telemetria de 101 invalida." >&2; exit 1; }
+node -e '
+const fs = require("fs");
+const report = JSON.parse(fs.readFileSync(process.argv[1], "utf-8"));
+const status = report.finalSideChannel && report.finalSideChannel.ok
+  ? report.finalSideChannel
+  : (report.sideChannel || {}).value;
+const detail = parseInt(status.detail || 0, 10);
+const cameraX = (detail >> 16) & 0xff;
+const cameraY = (detail >> 8) & 0xff;
+const prefetch = detail & 0x0f;
+const frame = parseInt(status.frame || 0, 10);
+if (frame < 200 || cameraX > 128 || cameraY > 128 || (prefetch & 0x3) !== 0x3) {
+  console.error(`La secuencia no alcanzo la fase circular con prefetch X/Y valido: frame=${frame} detail=0x${(detail >>> 0).toString(16).padStart(8, "0")}`);
+  process.exit(1);
+}
+console.log(`OK telemetry frame=${frame} detail=0x${(detail >>> 0).toString(16).padStart(8, "0")}`);
+' "$RUN_REPORT" \
+	|| { echo "Telemetria de 101 invalida." >&2; exit 1; }
 
 # 5) Pixel Assertions (opcional pero exigible).
 if [ "$PA" -eq 1 ]; then

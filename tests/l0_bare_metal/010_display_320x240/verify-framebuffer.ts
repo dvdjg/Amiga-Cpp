@@ -397,6 +397,17 @@ async function main() {
       height: contract.height,
       planes: contract.planes,
     };
+    // DIAG temporal: leer la copperlist (contenido conocido) y el primer bloque
+    // del framebuffer para distinguir direccion publicada incorrecta vs lectura
+    // de chip RAM rota.
+    {
+      const coppHex = await client.command(`mem ${contract.copper_addr.toString(16)} 64`, 3000);
+      const fb0Hex = await client.command(`mem ${contract.framebuffer_addr.toString(16)} 64`, 3000);
+      console.error(`DIAG copper_addr=0x${contract.copper_addr.toString(16)} data=${coppHex.ok ? coppHex.data : JSON.stringify(coppHex)}`);
+      console.error(`DIAG framebuffer_addr=0x${contract.framebuffer_addr.toString(16)} data=${fb0Hex.ok ? fb0Hex.data : JSON.stringify(fb0Hex)}`);
+      const fbOffHex = await client.command(`mem ${(contract.framebuffer_addr + 20480).toString(16)} 64`, 3000);
+      console.error(`DIAG framebuffer+0x5000 data=${fbOffHex.ok ? fbOffHex.data : JSON.stringify(fbOffHex)}`);
+    }
     assertOk(contract.framebuffer_addr > 0, 'El contrato no publico direccion de framebuffer');
     assertOk(contract.width === 320 && contract.height === 240 && contract.planes === 5, 'Geometria inesperada en el contrato');
     const bytesPerRow = contract.width / 8;
@@ -426,6 +437,20 @@ async function main() {
       }
       if (hexParts.every((p) => p !== null)) {
         const fb = Buffer.from(hexParts.join(''), 'hex');
+        // DIAG temporal: buscar en que offsets el byte coincide con i&0xff.
+        {
+          let first = -1;
+          let last = -1;
+          let count = 0;
+          for (let i = 0; i < fb.length; ++i) {
+            if (fb[i] === (i & 0xff)) {
+              if (first < 0) first = i;
+              last = i;
+              ++count;
+            }
+          }
+          console.error(`DIAG coincidencia i&0xff: first=${first} last=${last} count=${count}/${fb.length}`);
+        }
         const expected = buildExpectedFramebuffer(contract.width, contract.height, contract.planes);
         let diffs = 0;
         const first = [];
@@ -502,7 +527,7 @@ async function main() {
     assertOk(fs.existsSync(shotWb), 'No se genero workbench.png');
     report.steps.workbench_shot = { ok: true, path: shotWb };
     // 6) Comparar: si la demo volvio a Workbench, la imagen cambio mucho.
-    const compare = await compareImages(shotFb, shotWb, 0.5, runDir);
+    const compare = await compareImages(shotFb, shotWb, 0.5);
     assertOk(compare.code === 0, `workbench.png no parece el Workbench restaurado (${compare.out})`);
     report.steps.workbench_diff = { ok: true, compareOut: compare.out };
   } finally {

@@ -15,7 +15,7 @@ if [ -z "$IMAGE" ] || [ ! -f "$IMAGE" ]; then
 	exit 1
 fi
 
-if ! python3 "$ROOT/tools/analyze/assert_no_inner_black.py" "$IMAGE" 0.95; then
+if ! node "$ROOT/dist/tools/analyze/assert_no_inner_black.js" "$IMAGE" 0.95; then
 	echo "La captura $IMAGE es (casi) toda negra." >&2
 	exit 1
 fi

@@ -13,8 +13,8 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
-import { readPng } from '../../../../tools/lib/image.js';
-import { fail } from '../../../../tools/lib/cli.js';
+import { readPng } from '../../tools/lib/image.js';
+import { fail } from '../../tools/lib/cli.js';
 
 interface RgbImage {
 	width: number;
