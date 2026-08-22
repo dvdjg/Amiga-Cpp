@@ -8,6 +8,8 @@
 | `tools/run/run-demo.sh` | Lanza WinUAE, espera `READY`, captura y genera `run-report.json`. |
 | `tools/run/demo-menu.sh` | Operación humana: ejecutar, analizar, secuencias o dejar WinUAE abierto. |
 | `tools/debug/winuae-side-channel.ts` | CLI TCP para estado, memoria, registros, captura, perfil, input y hot patch. |
+| `tools/debug/build-current-demo.sh` | Deriva la demo del archivo activo, compila y publica `out/debug-current/`. |
+| `tools/debug/amiga-session.sh` | Consulta la sesión actual y delega órdenes laterales para usuario o IA. |
 | `docs/emulation/WINUAE_SIDE_CHANNEL_DEBUG.md` | Protocolo, locks, niveles de riesgo y rollback. |
 | `tools/debug/verify-side-channel-*.ts` | Contratos de convivencia GDB/canal lateral y takeover reversible. |
 | `tools/framescope/` | Análisis temporal de secuencias y hojas de contacto. |

@@ -21,6 +21,7 @@ perfiles). Es el soporte del flujo `build -> run -> analyze`.
 | [evidence-sequence-and-profiling.md](evidence-sequence-and-profiling.md) | Pipeline de evidencia temporal de frames y profiling. |
 | [coppenheimer-ui.md](coppenheimer-ui.md) | UI alternativa Coppenheimer (vAmigaWeb) y su uso por la IA. |
 | [instalar-mcp-debug-tools-vsix.md](instalar-mcp-debug-tools-vsix.md) | Instalación de MCP Debug Tools desde VSIX. |
+| [WINUAE_CONSOLE_COMMANDS.md](WINUAE_CONSOLE_COMMANDS.md) | Flujo F5 sobre el archivo actual y órdenes de consola reutilizables por personas e IA. |
 
 ## Enlaces relacionados
 
