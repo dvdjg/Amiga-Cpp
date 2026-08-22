@@ -9,7 +9,8 @@ ai-dev-environment/
 ├── README.md                 # mapa, contratos y estado resumido
 ├── project-map.md            # archivos y proyectos de alto valor
 ├── ollama-local.md           # Ollama, modelos, scripts y operación segura
-└── session-evidence.md       # ciclo de sesión WinUAE y evidencias mínimas
+├── session-evidence.md       # ciclo de sesión WinUAE y evidencias mínimas
+└── mcp-debug-tools-audit.md  # utilidad de las modificaciones locales del MCP DAP
 ```
 
 ## Flujo canónico
@@ -72,3 +73,5 @@ editar código
 - `../Universal-Asset-Format`: perfiles OCS, documentación de assets y precedentes de evidencia reproducible.
 - `../ACE`: técnicas y documentación de programación Amiga reusable como referencia.
 - `D:/scripts`: patrón real de operación Ollama, reanudación, watchdog y panel.
+
+La clasificación de vídeos de `D:/scripts` es un proyecto externo y no forma parte del engine. Aquí solo se reutiliza Ollama como servicio local de visión para describir capturas y secuencias de juegos sin enviar imágenes a un proveedor cloud.
