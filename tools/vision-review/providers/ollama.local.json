@@ -1,0 +1,12 @@
+{
+  "name": "ollama-local-qwen3-vl",
+  "kind": "openai-compatible",
+  "baseUrl": "http://127.0.0.1:11434/v1",
+  "apiKey": "ollama",
+  "model": "qwen3-vl:8b-instruct-q8_0",
+  "timeoutMs": 120000,
+  "sendMode": "multi-image",
+  "temperature": 0.1,
+  "maxTokens": 1200,
+  "responseFormatJson": true
+}

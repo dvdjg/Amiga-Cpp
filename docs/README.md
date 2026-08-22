@@ -36,6 +36,7 @@ empezando por Amiga 500. El repositorio mantiene dos flujos claramente separados
 | [methodology/](methodology/README.md) | Metodología de desarrollo, runbooks de agentes IA, prompts y automatización. |
 | [reference/](reference/README.md) | Fuentes autoritativas: Manual de Referencia de Hardware de Amiga (AHRM), fuentes objetivas y curso AMC (Wrobel). |
 | [legacy/](legacy/README.md) | Notas históricas de troubleshooting con ortografía irregular, en cuarentena. |
+| [ai-dev-environment/](ai-dev-environment/README.md) | Mapa del entorno IA: MCP/WinUAE, canal lateral, evidencias y Ollama local. |
 
 ## Procedencia del contenido
 
@@ -69,3 +70,4 @@ batería de pruebas y sistema de depuración WinUAE-DBG). Ese material se incorp
 | Procesos, agentes IA, runbooks | `methodology/` |
 | Fuentes externas (manuales, cursos) | `reference/` |
 | Notas históricas sin limpiar | `legacy/` |
+| Operación IA, Ollama, evidencias y mapa de proyectos | `ai-dev-environment/` |
