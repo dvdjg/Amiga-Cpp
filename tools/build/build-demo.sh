@@ -85,17 +85,19 @@ TOOLCHAIN="$(find_toolchain)"
 tool() {
 	local name="$1"
 	if [ -n "$TOOLCHAIN" ]; then
-		local exe="$TOOLCHAIN/$name"
-		if [ -x "$exe" ]; then
-			echo "$exe"
-			return 0
-		fi
-		# En las extensiones, los compiladores viven en opt/bin/.
-		if [ -x "$TOOLCHAIN/opt/bin/$name" ]; then
-			echo "$TOOLCHAIN/opt/bin/$name"
-			return 0
-		fi
-		echo "$exe"
+		# Las extensiones Windows distribuyen .exe; un toolchain Unix no.
+		local candidate
+		for candidate in \
+			"$TOOLCHAIN/$name" \
+			"$TOOLCHAIN/$name.exe" \
+			"$TOOLCHAIN/opt/bin/$name" \
+			"$TOOLCHAIN/opt/bin/$name.exe"; do
+			if [ -x "$candidate" ]; then
+				echo "$candidate"
+				return 0
+			fi
+		done
+		echo "$TOOLCHAIN/$name"
 		return 0
 	fi
 	echo "$name"

@@ -8,7 +8,7 @@ una conversacion nueva desde cero.
 El workspace activo es:
 
 ```text
-C:\Users\David\Documents\Programa\Amiga\Amiga-C
+C:\Users\dvdjg\Documents\programa\AI\Amiga\Amiga-Cpp
 ```
 
 El objetivo actual es construir un engine C++23 para Amiga 500, empezando por una
@@ -47,6 +47,12 @@ base verificable de toolchain, ejecucion automatizada y captura visual.
   sesion de depuracion.
 - La captura interna del monitor de WinUAE funciona y guarda PNG correctamente.
 - El overlay de debug de WinUAE-DBG sirve como primera salida visual verificable.
+- `C:\Amiga\KICK13.rom` es la ROM A500/Kickstart 1.3 usada por la configuración local; su SHA-256 es `EE05862D8102A08436AC4056DA7D549DB31625C7D47B24DFB7B3C9A5C113CA53`.
+- `WinUAE-DBG\build.bat` compila con Visual Studio 18 y despliega `winuae-gdb.exe` a las extensiones Bartman de Cursor y VS Code mediante `deploy-winuae-to-amiga-debug.ps1`.
+- El toolchain de la extensión VS Code 1.8.2 compila el engine desde Git Bash; `tools/build/build-demo.sh` debe aceptar los nombres `.exe` distribuidos por Windows.
+- La demo `000_toolchain_cpp23` pasó build, lanzamiento, `READY` por `127.0.0.1:2346`, captura y análisis visual.
+- Los contratos de canal lateral de observación, takeover reversible y pausa/reanudación pasan en vivo. La aserción de pausa usaba el magic obsoleto `AMGR` (`414d4752`) y se corrigió a `ENGR` (`454e4752`).
+- Ollama se reserva para Vision Review local de capturas/secuencias; la clasificación de vídeos de `D:\scripts` es un proyecto externo y no forma parte del engine.
 
 ## Artefactos creados
 

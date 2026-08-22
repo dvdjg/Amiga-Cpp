@@ -195,7 +195,7 @@ async function main() {
         assertOk(report.pauseDone.result?.ok, `pause fallo: ${JSON.stringify(report.pauseDone)}`);
         report.statePaused = await waitForState(client, (state) => state.ok && state.debuggerState === 2, 3000);
         report.memWhilePaused = await client.command(`mem ${runStatusRuntime.toString(16)} 16`);
-        assertOk(report.memWhilePaused.ok && report.memWhilePaused.data.startsWith('414d4752'), 'mem debe funcionar mientras esta pausado');
+        assertOk(report.memWhilePaused.ok && report.memWhilePaused.data.startsWith('454e4752'), 'mem debe funcionar mientras esta pausado');
         report.resumeDone = await client.command('resume');
         assertOk(report.resumeDone.ok && (report.resumeDone.status === 'running' || report.resumeDone.status === 'already_running'), `resume fallo: ${JSON.stringify(report.resumeDone)}`);
         report.stateRunning = await waitForState(client, (state) => state.ok && state.debuggerState === 1, 3000);
