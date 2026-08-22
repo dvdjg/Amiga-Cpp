@@ -16,6 +16,31 @@ El tipo de depurador `amiga` lo aporta la extensión **Amiga C/C++ Compile, Debu
 - Si no está instalada o está deshabilitada, Cursor no reconoce `type: "amiga"` y el lanzamiento falla.
 - **Comprobar**: `Ctrl+Shift+X` → buscar "Amiga" o "BartmanAbyss.amiga-debug" → debe estar instalada y habilitada.
 
+### 2.1. Error "Invalid file path" al abrir el desensamblado
+
+La extensión **Amiga Assembly** (`prb28.amiga-assembly`) y Bartman registran el mismo proveedor de contenido para el esquema `disassembly`. Bartman genera documentos `.amigaasm`, mientras que el proveedor de `prb28` espera otro formato y puede producir:
+
+```text
+Error: Invalid file path
+DisassemblyContentProvider.provideTextDocumentContent
+```
+
+Para depurar C/C++ con Bartman, deshabilita **Amiga Assembly** en este workspace (`Ctrl+Shift+P` → **Extensions: Disable (Workspace)**). No es necesario deshabilitar `BartmanAbyss.amiga-debug`. La recomendación de workspace ya marca `prb28.amiga-assembly` como no deseada en `.vscode/extensions.json`.
+
+Si el error persiste tras deshabilitarla, ejecuta **Developer: Reload Window** y vuelve a iniciar F5; no modifiques la instalación global de la extensión.
+
+### 2.2. F5 se detiene en `_start` o en ensamblador sin breakpoint
+
+La dirección inicial puede aparecer como una instrucción ensamblador, por ejemplo:
+
+```text
+0x00c0cb88: movem.l d2-d3/a2,-(sp)
+```
+
+Esto corresponde al punto de entrada `_start` del runtime C, no a un breakpoint de la demo. El ejecutable se enlaza en `0x400` y WinUAE relocaliza esa dirección al cargarlo. El ELF conserva los símbolos de `main.cpp`, por lo que un breakpoint explícito en el código C++ debe resolverse en la fuente.
+
+La configuración del workspace establece `stopOnEntry: false`. Bartman 1.8.2 no declara esta propiedad en su esquema, así que si la sesión permanece detenida en `_start` tras continuar o recargar la ventana, es una limitación del adaptador y no un problema del código de la demo.
+
 ### 3. preLaunchTask "compile" falla
 
 Antes de arrancar el depurador se ejecuta la tarea **compile**, que usa:

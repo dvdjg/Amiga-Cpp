@@ -1,10 +1,10 @@
 # Solución de Breakpoints para Depuración C en Amiga
 
-## ⚠️ ESTADO ACTUAL: NO FUNCIONA
+## Estado actual: recompilado, pendiente de validar en F5
 
 **Fecha:** 2026-02-22
 
-Los breakpoints en código C **no funcionan**. Al depurar con F5, el debugger muestra desensamblado en lugar del código fuente.
+La corrección de relocalización de WinUAE-DBG está compilada y desplegada. La validación pendiente es confirmar una nueva sesión F5 con un breakpoint explícito en código C/C++.
 
 **Causa raíz:** `baseText` siempre es 0. El comando `qOffsets` no devuelve la dirección de carga del programa.
 
@@ -149,11 +149,11 @@ monitor offset set 0xc00400
 
 | Componente | Modificado | Compilado | Funciona |
 |------------|------------|-----------|----------|
-| WinUAE-DBG (barto_gdbserver.cpp) | ✅ | ❌ | ❌ |
+| WinUAE-DBG (barto_gdbserver.cpp) | ✅ | ✅ | Pendiente de validar |
 | vscode-amiga-debug (amigaDebug.ts) | ✅ | ✅ | ❌* |
 | mcp-winuae-emu (gdb-protocol.ts) | ✅ | ✅ | ❌* |
 
-*No funciona porque `baseText` siempre es 0 - el problema está en WinUAE-DBG.
+La sesión anterior confirmó que `qOffsets` llega antes de que `:current.exe` esté cargado. WinUAE-DBG ahora resuelve `baseText` al detectar la entrada del proceso y no envía `S05` por esa parada interna.
 
 ## Problema Pendiente de Resolver
 
