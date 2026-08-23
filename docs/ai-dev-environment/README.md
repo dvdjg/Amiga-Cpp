@@ -47,7 +47,7 @@ editar código
 
 ## Binarios activos
 
-`WinUAE-DBG\build.bat` compila `bin\winuae-gdb.exe` y el target `CopyToAmigaDebug` ejecuta `deploy-winuae-to-amiga-debug.ps1`, que copia el binario construido a todas las instalaciones Bartman encontradas bajo `.cursor\extensions` y `.vscode\extensions`. En esta máquina la copia activa verificada es `C:\Users\dvdjg\.vscode\extensions\bartmanabyss.amiga-debug-1.8.2\bin\win32\winuae-gdb.exe`; no se encontró una instalación Cursor equivalente. El hash de la copia activa es `191B301C38E41B47DDABE640DD8B9315D0068EC11C86C832525E727EC5BE8378`, distinto del binario antiguo que aún queda en `WinUAE-DBG\bin`; recompilar y ejecutar el target de despliegue es la forma correcta de sincronizarlos. La extensión y el ejecutable deben actualizarse como pareja cuando cambie la relocalización o el protocolo.
+`WinUAE-DBG\build.bat` compila `bin\winuae-gdb.exe` y el target `CopyToAmigaDebug` ejecuta `deploy-winuae-to-amiga-debug.ps1`, que copia el binario construido a todas las instalaciones Bartman encontradas bajo `.cursor\extensions` y `.vscode\extensions`. En esta máquina la copia activa verificada es `C:\Users\dvdjg\.vscode\extensions\bartmanabyss.amiga-debug-1.8.1\bin\win32\winuae-gdb.exe`; no se encontró una instalación Cursor equivalente. El hash de la copia activa es `191B301C38E41B47DDABE640DD8B9315D0068EC11C86C832525E727EC5BE8378`, distinto del binario antiguo que aún queda en `WinUAE-DBG\bin`; recompilar y ejecutar el target de despliegue es la forma correcta de sincronizarlos. La extensión y el ejecutable deben actualizarse como pareja cuando cambie la relocalización o el protocolo.
 
 ## Recursos A500
 

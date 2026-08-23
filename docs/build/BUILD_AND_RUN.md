@@ -12,8 +12,8 @@ con el ejemplo C historico del workspace.
 El script busca el toolchain en este orden:
 
 1. Variable de entorno `AMIGA_BIN_PATH`.
-2. Extension de Cursor `bartmanabyss.amiga-debug-1.8.2`.
-3. Extension de VS Code `bartmanabyss.amiga-debug-1.8.2`.
+2. Extension de Cursor `bartmanabyss.amiga-debug-*` (version mas alta instalada).
+3. Extension de VS Code `bartmanabyss.amiga-debug-*` (version mas alta instalada).
 
 ## Compilar una demo
 

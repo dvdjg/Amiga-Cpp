@@ -12,14 +12,26 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC="$SCRIPT_DIR/../WinUAE-DBG/bin/winuae-gdb.exe"
 
 find_extension() {
-	local base
-	for base in "$HOME/.cursor/extensions/bartmanabyss.amiga-debug-1.8.2/bin/win32" \
-		"$HOME/.vscode/extensions/bartmanabyss.amiga-debug-1.8.2/bin/win32"; do
-		if [ -f "$base/winuae-gdb.exe" ]; then
-			echo "$base/winuae-gdb.exe"
-			return 0
-		fi
+	local base entry ver best best_dir
+	best_dir=""
+	best=""
+	for base in "$HOME/.cursor/extensions" "$HOME/.vscode/extensions"; do
+		[ -d "$base" ] || continue
+		for entry in "$base"/bartmanabyss.amiga-debug-*/bin/win32/winuae-gdb.exe; do
+			[ -f "$entry" ] || continue
+			# Version-agnostic: elige la version mas alta instalada.
+			ver="$(basename "$(dirname "$(dirname "$entry")")")"
+			ver="${ver#bartmanabyss.amiga-debug-}"
+			if [ -z "$best" ] || [ "$ver" \> "$best" ]; then
+				best="$ver"
+				best_dir="$entry"
+			fi
+		done
 	done
+	if [ -n "$best_dir" ]; then
+		echo "$best_dir"
+		return 0
+	fi
 	return 1
 }
 

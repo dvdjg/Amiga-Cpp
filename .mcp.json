@@ -6,7 +6,7 @@
         "C:/Users/dvdjg/Documents/programa/AI/Amiga/mcp-winuae-emu/dist/index.js"
       ],
       "env": {
-        "WINUAE_PATH": "C:/Users/dvdjg/.vscode/extensions/bartmanabyss.amiga-debug-1.8.2/bin/win32",
+        "WINUAE_PATH": "C:/Users/dvdjg/.vscode/extensions/bartmanabyss.amiga-debug-1.8.1/bin/win32",
         "WINUAE_CONFIG": "C:/Users/dvdjg/Documents/programa/AI/Amiga/Amiga-Cpp/config/mcp-amiga-c-debug.uae",
         "WINUAE_GDB_PORT": "2345"
       }

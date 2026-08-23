@@ -47,16 +47,25 @@ function findExtensionRoot() {
   if (process.env.AMIGA_DEBUG_EXT && fs.existsSync(process.env.AMIGA_DEBUG_EXT)) {
     return path.resolve(process.env.AMIGA_DEBUG_EXT);
   }
-  const candidates = [
-    path.join(process.env.USERPROFILE || '', '.cursor/extensions/bartmanabyss.amiga-debug-1.8.2'),
-    path.join(process.env.USERPROFILE || '', '.vscode/extensions/bartmanabyss.amiga-debug-1.8.2'),
+  // Version-agnostic: pick the highest bartmanabyss.amiga-debug-* installed.
+  const bases = [
+    path.join(process.env.USERPROFILE || '', '.cursor/extensions'),
+    path.join(process.env.USERPROFILE || '', '.vscode/extensions'),
   ];
-  for (const candidate of candidates) {
-    if (fs.existsSync(path.join(candidate, 'bin/win32/winuae-gdb.exe'))) {
-      return candidate;
+  let best = '';
+  let bestDir = null;
+  for (const base of bases) {
+    if (!fs.existsSync(base)) continue;
+    for (const entry of fs.readdirSync(base)) {
+      const m = /^bartmanabyss\.amiga-debug-(.+)$/.exec(entry);
+      if (!m) continue;
+      const candidate = path.join(base, entry);
+      if (!fs.existsSync(path.join(candidate, 'bin/win32/winuae-gdb.exe'))) continue;
+      if (m[1] > best) { best = m[1]; bestDir = candidate; }
     }
   }
-  throw new Error('No se encontro la extension bartmanabyss.amiga-debug-1.8.2.');
+  if (bestDir) return bestDir;
+  throw new Error('No se encontro la extension bartmanabyss.amiga-debug-*.');
 }
 function patchConfig(configText, extensionRoot, stagedOutDir) {
   const dh0 = path.join(extensionRoot, 'bin/dh0');
