@@ -39,6 +39,20 @@ capturar perfil → extraer frames → analizar con Ollama → informe
 - Para el pre-análisis técnico (`meta`) se usa un modelo de texto rápido
   (`qwen3:8b` por defecto, configurable con `--text-model`).
 
+## `probe-screen.sh` — cómo lanza la demo
+
+`probe-screen.sh` usa el **runner** (`run-demo.sh --keep-running`) para lanzar la
+demo: el runner conecta GDB, alcanza `side-channel READY` y deja la demo
+renderizando. El script espera la marca `READY` en el log del runner, captura el
+perfil por el canal lateral, extrae frames y analiza. Ajustes:
+
+- `SETTLE_MS` (env, por defecto 2000): asentamiento extra tras READY antes de
+  capturar. Si la captura sale con la demo en un estado transitorio (p. ej. un
+  diálogo "No disk present in unit 0" que aparece en algún momento de la
+  ejecución), sube/baja este valor o usa `--wait-cmd/--contains` en `capture-profile`.
+- El emulador debe lanzarse con `WINUAE_GDB_PERSIST_LISTENER=1` (el script lo
+  exporta) para que el perfil no cierre los listeners.
+
 ## Prompts personalizables
 
 El prompt BASE es **genérico** (sin asumir chipset ni contenido). Para cada test

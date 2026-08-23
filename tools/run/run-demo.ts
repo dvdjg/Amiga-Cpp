@@ -27,6 +27,38 @@ function hasArg(name) {
   return process.argv.includes(name);
 }
 
+// --protect <target>,<block|set:VALUE>[,size]  (repetible)
+// target: simbolo del .map o direccion hex 0x... . El simbolo se resuelve a
+// direccion runtime tras READY (relocacion por canal lateral). size: 8|16|32.
+// Tambien lee ENG_PROTECT_SPECS (espacios entre specs) para propagarse desde
+// tools/test-regression.sh a los analyze-sequence.sh sin tocar sus args.
+function parseProtectSpecs() {
+  const specs = [];
+  const envSpecs = (process.env.ENG_PROTECT_SPECS || '').trim();
+  if (envSpecs) {
+    for (const part of envSpecs.split(/\s+/)) specs.push(part);
+  }
+  process.argv.forEach((value, index) => {
+    if (value !== '--protect') return;
+    const spec = process.argv[index + 1];
+    if (spec) specs.push(spec);
+  });
+  const parsed = [];
+  for (const spec of specs) {
+    const parts = spec.split(',').map((part) => part.trim());
+    const target = parts[0];
+    const mode = parts[1] || 'block';
+    const size = parts.length > 2 ? parseInt(parts[2], 10) : 16;
+    if (!target) throw new Error(`--protect target vacio: ${spec}`);
+    if (mode !== 'block' && !/^set:0x[0-9a-fA-F]+$/.test(mode)) {
+      throw new Error(`--protect mode debe ser 'block' o 'set:0xVALUE': ${spec}`);
+    }
+    if (![8, 16, 32].includes(size)) throw new Error(`--protect size debe ser 8|16|32: ${spec}`);
+    parsed.push({ target, mode, size });
+  }
+  return parsed;
+}
+
 function sleep(ms) {
   return new Promise<any>((resolve) => setTimeout(resolve, ms));
 }
@@ -621,6 +653,7 @@ const mousePath = buildMousePathFromArgs();
 const mouseDelayMs = Math.max(0, parseInt(argValue('--mouse-duration-ms', '800'), 10)) / Math.max(1, mousePath.length - 1);
 const mouseButton = Math.max(0, parseInt(argValue('--mouse-button', '0'), 10));
 const stopEmulator = !hasArg('--keep-running');
+const protectSpecs = parseProtectSpecs();
 const outputDir = path.join(root, 'out/run', demoName);
 const stagedDir = path.join(outputDir, 'dh1');
 fs.mkdirSync(stagedDir, { recursive: true });
@@ -770,6 +803,44 @@ try {
   } else {
     console.log(`[run-demo] fallback wait ${waitMs} ms`);
     await sleep(waitMs);
+  }
+
+  // WinUAE-DBG v2.1: aplicar reglas protect (block/set) tras READY
+  if (protectSpecs.length > 0) {
+    report.protects = report.protects || [];
+    const runtimeSections = report.sideChannel?.state?.sections ?? null;
+    for (const spec of protectSpecs) {
+      let addr = null;
+      if (/^0x[0-9a-fA-F]+$/.test(spec.target)) {
+        addr = parseHexNumber(spec.target);
+      } else {
+        const symbol = findMapSymbol(builtMap, spec.target);
+        if (symbol === null) {
+          console.log(`[run-demo] protect: simbolo '${spec.target}' no encontrado en .map; se omite`);
+          continue;
+        }
+        if (!runtimeSections) {
+          console.log(`[run-demo] protect: sin secciones runtime (canal lateral) para relocar '${spec.target}'; se omite`);
+          continue;
+        }
+        addr = resolveRuntimeSymbolAddress(symbol, builtMapSections, runtimeSections);
+      }
+      if (addr === null || addr <= 0) {
+        console.log(`[run-demo] protect: no se pudo resolver '${spec.target}'; se omite`);
+        continue;
+      }
+      const modeCmd = spec.mode === 'block' ? 'block' : `set=0x${parseHexNumber(spec.mode.slice(4)).toString(16)}`;
+      const cmd = `protect ${addr.toString(16)} ${modeCmd} size=${spec.size} src=cpudw`;
+      console.log(`[run-demo] protect ${cmd}`);
+      const reply = await protocol.sendMonitorCommand(cmd, 10000);
+      report.protects.push({
+        target: spec.target,
+        runtimeAddr: `0x${addr.toString(16)}`,
+        size: spec.size,
+        mode: spec.mode,
+        reply: Buffer.from(reply, 'hex').toString('utf8').trim(),
+      });
+    }
   }
 
   if (mousePath.length > 0) {

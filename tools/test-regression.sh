@@ -9,6 +9,7 @@
 #       [--keep-going] [--warp] [--pixel-assert] [--require-pixel-assert-ok]
 #       [--pixel-assert-selftest] [--vision-review] [--require-vision-review-ok]
 #       [--vision-provider <ruta>] [--vision-send-mode multi-image|contact-sheet]
+#       [--protect <target>,<block|set:0xVALUE>,<size>]   (repetible; WinUAE-DBG v2.1)
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
@@ -27,6 +28,7 @@ REQUIRE_PIXEL_ASSERT_OK=0
 PIXEL_ASSERT_SELFTEST=0
 VISION_PROVIDER=""
 VISION_SEND_MODE="multi-image"
+PROTECTS=()
 
 next_arg() {
 	if [ -z "${2:-}" ]; then
@@ -49,6 +51,7 @@ while [ "$#" -gt 0 ]; do
 		--pixel-assert-selftest) PIXEL_ASSERT_SELFTEST=1; shift ;;
 		--vision-provider) next_arg "$1" "$2"; VISION_PROVIDER="$2"; shift 2 ;;
 		--vision-send-mode) next_arg "$1" "$2"; VISION_SEND_MODE="$2"; shift 2 ;;
+		--protect) next_arg "$1" "$2"; PROTECTS+=("$2"); shift 2 ;;
 		*) echo "Argumento desconocido: $1" >&2; exit 2 ;;
 	esac
 done
@@ -61,6 +64,12 @@ PIXEL_SELFTEST="$ROOT/tools/analyze/verify-pixel-assert.sh"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 REPORT_DIR="$ROOT/out/regression/$TIMESTAMP"
 mkdir -p "$REPORT_DIR"
+
+# Propagar reglas protect a run-demo y analyze-sequence (WinUAE-DBG v2.1)
+if [ "${#PROTECTS[@]}" -gt 0 ]; then
+	export ENG_PROTECT_SPECS="${PROTECTS[*]}"
+	echo "Protect specs: $ENG_PROTECT_SPECS"
+fi
 
 if [ -n "$DEMO" ]; then
 	DEMO_DIRS=("$ROOT/$DEMO")
@@ -115,6 +124,8 @@ for demo_path in "${DEMO_DIRS[@]}"; do
 			run="pending"
 			run_args=("$RUN" "$relative_demo")
 			if [ "$WARP" -eq 1 ]; then run_args+=("--warp"); fi
+			# --protect se propaga por env (ENG_PROTECT_SPECS) para que llegue
+			# tambien a analyze-sequence.sh sin tocar sus parsers de args.
 			if "${run_args[@]}"; then
 				run="ok"
 				echo "== ${demo_name}: analyze =="

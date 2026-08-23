@@ -318,6 +318,46 @@ Para **comprobar** que ha salido: poner un breakpoint en la instrucción que sig
 
 ---
 
+## WinUAE-DBG v2.1 — monitor extensions (status / watch / protect / rewind)
+
+El fork `WinUAE-DBG` (build **x86**; el build x64 tiene un problema preexistente
+de handshake GDB) incorpora comandos `monitor` estilo engine9000, expuestos por
+`mcp-winuae-emu` como herramientas MCP:
+
+| Tool MCP | Para qué sirve |
+|---|---|
+| `winuae_emulator_status` | Telemetría: ciclos, frame, vpos/hpos, warp, `baseText`, nº de breakpoints/watchpoints/protects, estado rewind. |
+| `winuae_watchpoint_set_ext` | Watchpoint con predicados y filtro de **origen**: `source=cpu\|cpudw\|copper\|blitter\|bpl0-7\|spr0-7\|audio0-3\|disk\|dma`, `value`, `mask`, `must_change`, `reg`, `pc`, `nobreak`. |
+| `winuae_watchpoint_list` / `winuae_watchpoint_last` / `winuae_watchpoint_clear_ext` | Gestionar watchpoints; `last` da el detalle del último hit (addr, r/w, size, **src**, valor, PC). |
+| `winuae_protect` | Cheat/protect: `block` impide escrituras a una dirección, `set=…` fuerza un valor. Actúa sobre accesos del programa emulado mientras corre. |
+| `winuae_rewind` | `start`/`stop`/`status` gestionan la captura de estados; `rewind` (sin comando) rebobina. **Restore arreglado** (dejó de crashear); la sesión GDB puede quedar inerte tras el restore — reconectar o usar el canal lateral. |
+| `winuae_trace` | Controla el sistema de trazas (`on`/`off`/`status`, activo por defecto). Registra hits de watch/protect/rewind en `%TEMP%\winuae-gdb.log`. |
+
+### Uso clave para depuración autónoma
+
+1. **Confirmar que el emulador corre**: `winuae_emulator_status` (frame
+   avanza, warp, contadores).
+2. **Watchpoint por origen** (el más útil para demos): por ejemplo, ver qué
+   escribe el Copper en un registro custom:
+   `winuae_watchpoint_set_ext { address: "0xdff180", access: "w", size: 16, source: "copper" }`,
+   luego `winuae_continue` + `winuae_wait_stop`, y `winuae_watchpoint_last`
+   devuelve `addr=0x00dff180 rwi=w size=2 src=copper val=…`. Igual con
+   `source: "blitter"` para DMA del blitter.
+3. **Protect/cheat**: `winuae_protect { action: "block", address, size }` para
+   congelar un buffer, o `action: "set", value` para forzar un valor
+   (ej. mantener un estado de vidas/inmunidad). Nota: intercepta accesos del
+   programa emulado **mientras corre** (no las escrituras del propio depurador
+   con el emulador pausado).
+4. **Interceptar escrituras del CPU con `src=cpudw`**: si una rutina pisa
+   memoria que no debe, pon un watch `w size=16 src=cpudw` y mira `watch_last`.
+
+Detalles completos y notas del motor (descomposición de escrituras de 32 bits
+del 68000, requisito de input recording para rewind, issue x64):
+[WinUAE-DBG/docs/WINUAE-MONITOR-EXTENSIONS.md](../../../WinUAE-DBG/docs/WINUAE-MONITOR-EXTENSIONS.md)
+y `mcp-winuae-emu/scripts/verify-monitor-extensions.mjs`.
+
+---
+
 ## Resumen: ¿necesitas algún MCP más?
 
 - **No** hace falta un MCP específico para “Amiga”. El depurador es el de la extensión vscode-amiga-debug (DAP).
