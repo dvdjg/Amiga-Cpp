@@ -151,6 +151,26 @@ cubicas. El camino integrado en el runner es el recomendado para regresiones; el
 script `tools\input\mouse-path.ps1` queda disponible para sesiones donde ya haya
 un servidor GDB aceptando conexiones. Ver `docs\MOUSE_AUTOMATION.md`.
 
+## Protect/cheat de memoria durante el run (`--protect`, WinUAE-DBG v2.1)
+
+El runner aplica reglas `monitor protect` (bloquear escrituras o forzar valor)
+tras alcanzar READY, antes de las capturas. Sintaxis (repetible):
+
+```bash
+./tools/run/run-demo.sh demos/101_ehb_tile_scroll_driver \
+  --protect g_eng_run_status,set:0x5,8 \
+  --protect 0x40000,block,16
+```
+
+- `target`: simbolo del `.map` (se reloca a direccion runtime via canal lateral)
+  o direccion hex `0x...`.
+- `mode`: `block` (impide escrituras) o `set:0xVALUE` (fuerza el valor).
+- `size`: 8|16|32 (default 16).
+
+Las reglas aplicadas quedan en `out/run/<demo>/run-report.json` (`protects[]`
+con `runtimeAddr` y `reply` del emulador). Requiere el build **x86** de
+WinUAE-DBG (el x64 tiene un problema preexistente de handshake GDB).
+
 ## Analizar una captura
 
 ```powershell
