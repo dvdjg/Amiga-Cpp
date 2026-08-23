@@ -98,14 +98,41 @@ Subcomandos: `winuae_debugperiph` (status), `arg <n> <valor>`, `console`,
 
 ### 4.1 Patrón de instrumentación (engine C++ / asm)
 
+La demo `demos/101_ehb_tile_scroll_driver` ya lo usa como ejemplo real
+(`engine/include/eng/debug/peripheral.hpp` + su `update`):
+
 ```cpp
-// En el driver de scroll, en el cambio de tile-set:
+// engine/include/eng/debug/peripheral.hpp — API homogénea del periférico
+eng::debug::DebugPeripheral::checkpoint(0);               // inicio de frame
+if (camera_tile_changed) {
+    eng::debug::DebugPeripheral::console_line("TILE_CHANGE");
+    eng::debug::DebugPeripheral::checkpoint(10);          // antes del upload
+}
+upload_prefetch_tiles(...);
+eng::debug::DebugPeripheral::checkpoint(11);              // después del upload
+```
+
+Tras correr la demo, la IA consulta:
+- `winuae_debugperiph checkpoints` → `[0] cycles=… frame=… count=N`,
+  `[10] cycles=…`, `[11] cycles=…`. El **delta `[10]→[11]` mide el coste de
+  materializar el cambio de tile-set** (upload de prefetch) por frame.
+- `winuae_debugperiph console` / el log → las líneas `DBGPERIPH: TILE_CHANGE`
+  correlacionan el artefacto con el frame/cámara exactos.
+
+Verificación del scroll de la demo (4 direcciones + diagonal a 50fps, con
+ollama): `tools/analyze/verify-scroll-directions.mjs` (usa la secuencia de
+`run-demo.sh`, calcula el vector de scroll por par y valida visualmente).
+La demo 101 verifica su scroll fino horizontal (`cameraX` 94-97 / 112-109) en
+`demos/101_ehb_tile_scroll_driver/analyze-sequence.sh`.
+
+### 4.2 Ejemplo manual bare-metal
+
+```cpp
 volatile char *const DP_CONSOLE = (volatile char *)0xB70000;
 volatile unsigned int *const DP_CP = (volatile unsigned int *)0xB70020;
 volatile unsigned int *const DP_CYCLES = (volatile unsigned int *)0xB7E928;
 
 void tile_set_changed(int camx) {
-    // telemetría: la IA la lee con winuae_debugperiph console
     *DP_CONSOLE = 'T'; *DP_CONSOLE = 'S'; *DP_CONSOLE = ' '; *DP_CONSOLE = 0;
     *DP_CP = 10;                       // checkpoint antes del blit de transición
     // ... blit de transición ...
@@ -113,12 +140,6 @@ void tile_set_changed(int camx) {
     unsigned int cost = *DP_CYCLES;    // si quieres medir en el propio engine
 }
 ```
-
-La IA, tras `winuae_continue` + `winuae_pause`:
-- `winuae_debugperiph console` → `DBGPERIPH: TS ` (o el texto que escribas).
-- `winuae_debugperiph checkpoints` → deltas slot10→slot11 por frame → coste del
-  blit de transición. Un pico (p. ej. 45.000 vs 12.000 ciclos) delata el
-  cuello de botella sin step manual.
 
 ### 4.2 Breakpoint auto-dirigido
 
@@ -142,6 +163,9 @@ if (tile_row_ptr >= bank_end) {
 
 - Batería RSP: `mcp-winuae-emu/scripts/verify-monitor-extensions.mjs` (19 tests).
 - Periférico: `mcp-winuae-emu/scripts/verify-debug-peripheral.mjs` (7 tests).
+- Scroll 4 direcciones + diagonal (pixel-diff + ollama):
+  `Amiga-Cpp/tools/analyze/verify-scroll-directions.mjs` (usa la secuencia de
+  `run-demo.sh`; opcional `--regen`).
 - MCP end-to-end: `mcp-winuae-emu/scripts/verify-monitor-mcp-tools.mjs`.
 - Visual + ollama local: `mcp-winuae-emu/scripts/verify-visual-copper.mjs`
   (configura un cobre magenta y pide a `qwen3-vl`/`gemma3` que describa la
@@ -149,7 +173,7 @@ if (tile_row_ptr >= bank_end) {
 - Rewind + canal lateral: `mcp-winuae-emu/scripts/verify-side-channel-after-rewind.mjs`.
 
 Requieren una config A500 con Kickstart (p. ej. `C:/Amiga/A500-Dev.uae` o una
-con `headless=yes`).
+con `headless=yes`), y la demo compilada.
 
 ---
 

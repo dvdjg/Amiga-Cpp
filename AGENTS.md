@@ -45,6 +45,13 @@ Herramientas MCP disponibles (todos vía `mcp-winuae-emu`):
 - `winuae_side_read` — canal lateral (`state`/`regs`/`mem <addr> <len>`/`runstatus <addr>`), independiente de GDB. Cuando GDB esté inerte o para observar sin intrusión.
 - `winuae_debugperiph` — **periférico de depuración in-Amiga** en `0xB70000` (consola, checkpoints, contador de ciclos, debug args, breakpoints auto-dirigidos). Para telemetría del propio programa y profiling por checkpoints.
 
+**Ejemplo real de periférico**: la demo `demos/101_ehb_tile_scroll_driver` está
+instrumentada (`engine/include/eng/debug/peripheral.hpp`): en cada cambio de
+tile-set escribe `TILE_CHANGE` a la consola y abre checkpoints 10→11 (coste del
+upload). Consulta: `winuae_debugperiph checkpoints` / `console`. Verificación
+de scroll en 4 direcciones + diagonal a 50fps (con ollama):
+`tools/analyze/verify-scroll-directions.mjs`.
+
 Guía "cuándo usar cada herramienta" e instrumentación de demos:
 `docs/debugging/DEBUG-WINUAE-V2-GUIDE.md`.
 

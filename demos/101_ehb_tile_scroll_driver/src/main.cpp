@@ -1,5 +1,6 @@
 #include <eng/engine.hpp>
 #include <eng/debug/run_status.hpp>
+#include <eng/debug/peripheral.hpp>
 #include <eng/graphics/drivers/ehb_tile_scroll.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/tilemap/tile_scroll.hpp>
@@ -369,11 +370,23 @@ struct DemoGame {
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (m_ready) {
+			// Checkpoint 0: inicio de frame (el host mide el delta a otros slots).
+			eng::debug::DebugPeripheral::checkpoint(0);
+
 			const CameraPixels camera = scripted_camera(context.frame.frame_index);
 			m_active_camera_tile_x = camera_tile(camera.x);
 			m_active_camera_tile_y = camera_tile(camera.y);
+			// Telemetría del periférico: cuando la cámara cruza un borde de tile
+			// (cambio de "conjunto" de tiles visibles), lo reportamos a la consola
+			// del host y abrimos un checkpoint para medir el coste del upload.
+			if (m_active_camera_tile_x != m_previous_logical_column ||
+				m_active_camera_tile_y != m_previous_logical_row) {
+				eng::debug::DebugPeripheral::console_line("TILE_CHANGE");
+				eng::debug::DebugPeripheral::checkpoint(10);
+			}
 			schedule_next_visible_margin(m_active_camera_tile_x, m_active_camera_tile_y);
 			const eng::u8 tile_jobs = upload_prefetch_tiles(backend);
+			eng::debug::DebugPeripheral::checkpoint(11); // fin del upload (delta slot10->11)
 			if (!m_scene.rebuild_copper(camera.x, camera.y)) {
 				eng::debug::mark_failed(g_eng_run_status, 0x00000115u);
 				return;
