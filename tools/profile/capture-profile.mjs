@@ -19,6 +19,7 @@
  *   node tools/profile/capture-profile.mjs out/p.bin 1 --wait-ms 3000
  */
 import * as net from 'net';
+import * as path from 'path';
 
 function argValue(name, fallback) {
 	const i = process.argv.indexOf(name);
@@ -69,6 +70,9 @@ async function main() {
 	const contains = argValue('--contains', null);
 	const waitMs = parseInt(argValue('--wait-ms', '0'), 10);
 
+	const fs = await import('fs');
+	fs.mkdirSync(path.dirname(path.resolve(outFile)), { recursive: true });
+
 	// Condicion: espera un comando que contenga un texto (ej. runstatus READY).
 	if (waitCmd && contains) {
 		const deadline = Date.now() + (parseInt(argValue('--wait-timeout', '20000'), 10));
@@ -114,14 +118,12 @@ async function main() {
 		await new Promise((r) => setTimeout(r, 250));
 	}
 
-	const fs = await import('fs');
 	// Libera el lock asistent.
 	try { await command(port, `lock release ${lockOwner}`, 3000); } catch (e) { /* noop */ }
 	if (!fs.existsSync(outFile)) {
 		console.error('[capture-profile] no se genero ' + outFile);
 		process.exit(1);
 	}
-	console.log(`[capture-profile] OK ${fs.statSync(outFile).size} bytes -> ${outFile}`);
-}
+	console.log(`[capture-profile] OK ${fs.statSync(outFile).size} bytes -> ${outFile}`);}
 
 main().catch((e) => { console.error(e); process.exit(1); });

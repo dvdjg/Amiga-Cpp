@@ -40,6 +40,8 @@
 - Historial de fixes de depuración (relocalización de breakpoints, `-O0`, qOffsets): `docs/debugging/HISTORIAL-CAMBIOS.md`.
 - Harness DAP sin VS Code (verifica breakpoints y fuente C++ de la capa DAP): `tools/dap-test/README.md`. Requiere el fork `vscode-amiga-debug` compilado y el stub de `vscode` (ver README). Trazas en `%TEMP%\amiga-debug-trace.log` y `%TEMP%\winuae-gdb.log`.
 - Depuración interactiva: usa `tools/debug/build-current-demo.sh` (compila con `-O0` el archivo en primer plano a `out/debug-current/`) y F5 con la config "Amiga 500: depurar archivo actual".
+- Captura y análisis de perfiles (frames de pantalla + análisis con Ollama local): `tools/profile/README.md` (`capture-profile.mjs`, `profile-extract.mjs`, `ollama-analyze.mjs`, `profile-analyze.sh`). Requiere WinUAE con `WINUAE_GDB_PERSIST_LISTENER=1`.
+- Avanzar por breakpoints y leer memoria/frame buffer en caliente: `tools/debug/step-memory.mjs`.
 
 ## Restricciones de código/diseño que hay que preservar
 - Restricciones intencionales del engine: `gnu++23`, sin exceptions, sin RTTI, sin asignación dinámica en gameplay (`docs/architecture/CODING_STYLE.md`).
