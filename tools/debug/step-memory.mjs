@@ -22,10 +22,11 @@
 import { createRequire } from 'module';
 import * as path from 'path';
 import * as fs from 'fs';
-import { pathToFileURL } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const require = createRequire(import.meta.url);
-const MCP = path.join(path.dirname(new URL(import.meta.url).pathname), '..', '..', '..', 'mcp-winuae-emu', 'dist');
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const MCP = path.resolve(path.join(HERE, '..', '..', '..', 'mcp-winuae-emu', 'dist'));
 
 const { GdbProtocol } = await import(pathToFileURL(path.join(MCP, 'gdb-protocol.js')).href);
 const { decodePlanarBitmap, encodePngRgba } = await import(pathToFileURL(path.join(MCP, 'bitmap-decode.js')).href);
