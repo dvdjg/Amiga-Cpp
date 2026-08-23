@@ -69,6 +69,87 @@ bash ./tools/debug/build-current-demo.sh "demos/050_blitter_bobs/src/main.cpp"
 En VS Code: abre `demos/050_blitter_bobs/src/main.cpp`, pon breakpoints, F5.
 Configuración en `.vscode/launch.json` (`type: "amiga"`, `breakpointRelocation: true`).
 
+### `.vscode/` es local (gitignored)
+
+La carpeta `.vscode/` NO se versiona (`.*/` en `.gitignore`): cada máquina
+tiene su propia config de editor. Al montar un equipo nuevo hay que recrearla:
+
+**`.vscode/launch.json`** (solo la config `amiga`; NO incluir la "C/C++ Runner"
+generada por cpptools, que referencia `outDebug` y rutas absolutas):
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "amiga",
+      "request": "launch",
+      "name": "Amiga 500: depurar archivo actual",
+      "preLaunchTask": "Amiga: compilar archivo actual",
+      "config": "A500",
+      "program": "${workspaceFolder}/out/debug-current/current",
+      "stopOnEntry": false,
+      "breakpointRelocation": true,
+      "kickstart": "C:/Amiga/KICK13.rom",
+      "stack": "65536",
+      "emuargs": ["-norawinput_mouse"],
+      "internalConsoleOptions": "openOnSessionStart"
+    }
+  ]
+}
+```
+
+**`.vscode/tasks.json`**:
+
+```json
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Amiga: compilar archivo actual",
+      "type": "process",
+      "command": "C:\\\\Program Files\\\\Git\\\\bin\\\\bash.exe",
+      "args": ["-lc", "./tools/debug/build-current-demo.sh \"$(cygpath -u '${file}')\""],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    }
+  ]
+}
+```
+
+**`.vscode/c_cpp_properties.json`** (IntelliSense → compilador Amiga m68k, no `gcc`/MSVC):
+
+```json
+{
+  "configurations": [
+    {
+      "name": "Amiga-m68k",
+      "includePath": [
+        "${workspaceFolder}",
+        "${workspaceFolder}/engine/include",
+        "${env:USERPROFILE}/.vscode/extensions/bartmanabyss.amiga-debug-1.8.1/bin/win32/opt/m68k-amiga-elf/sys-include"
+      ],
+      "compilerPath": "${env:USERPROFILE}/.vscode/extensions/bartmanabyss.amiga-debug-1.8.1/bin/win32/opt/bin/m68k-amiga-elf-gcc.exe",
+      "cStandard": "gnu11",
+      "cppStandard": "gnu++23",
+      "intelliSenseMode": "linux-gcc-x64",
+      "compilerArgs": ["-m68000"]
+    }
+  ],
+  "version": 4
+}
+```
+
+**`.vscode/settings.json`** (mínimo; sin bloque `C_Cpp_Runner.*`):
+
+```json
+{
+  "amiga.program": "out/debug-current/current",
+  "amiga.rom-paths.A500": "C:/Amiga/KICK13.rom",
+  "terminal.integrated.defaultProfile.windows": "Git Bash"
+}
+```
+
 ## 6. Ejecución automática y canal lateral
 
 ```bash
