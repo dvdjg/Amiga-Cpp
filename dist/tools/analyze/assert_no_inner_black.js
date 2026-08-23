@@ -32,10 +32,21 @@ function frameHasInnerBlack(framePath, maxBlackRatio) {
     if (xs.length === 0) {
         return { name: path.basename(framePath), kind: 'empty', ratio: 1.0, black: 0, total: 0 };
     }
-    const left = Math.min(...xs);
-    const right = Math.max(...xs);
-    const top = Math.min(...ys);
-    const bottom = Math.max(...ys);
+    // min/max por bucle: Math.min(...xs) revienta la pila con frames grandes
+    // (decenas de miles de pixeles no negros).
+    let left = width, right = 0, top = height, bottom = 0;
+    for (const x of xs) {
+        if (x < left)
+            left = x;
+        if (x > right)
+            right = x;
+    }
+    for (const y of ys) {
+        if (y < top)
+            top = y;
+        if (y > bottom)
+            bottom = y;
+    }
     let black = 0;
     let total = 0;
     for (let y = top; y <= bottom; ++y) {

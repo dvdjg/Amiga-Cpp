@@ -97,7 +97,8 @@ FAILED=0
 
 for demo_path in "${DEMO_DIRS[@]}"; do
 	demo_name="$(basename "$demo_path")"
-	relative_demo="$demo_path"
+	# build/run/analyze esperan rutas relativas a ROOT (demos/<nombre>/).
+	relative_demo="${demo_path#"$ROOT"/}"
 	build="pending"; run="skipped"; analyze="pending"; sequence="none"; pixel_assert="none"; notes=""
 
 	echo "== ${demo_name}: build =="
