@@ -491,4 +491,49 @@ forzar `qOffsets=0`:
 
 ---
 
+## Fase 10: "Step over / step into" no avanza por líneas (2026-08-23)
+
+### Síntoma
+
+- Los breakpoints se detienen (Fase 9), pero al pulsar Step over / Step into el
+  depurador avanza por **instrucciones** (ensamblador), no por líneas de fuente.
+
+### Causa raíz
+
+Cuando GDB conecta antes de cargar el proceso (`qOffsets=0`), su tabla de líneas
+queda sin relocalizar. La extensión compensaba los breakpoints del usuario
+relocalizándolos a direcciones runtime, pero **el step por líneas de GDB usa sus
+propios breakpoints temporales** en la siguiente línea (dirección ELF): WinUAE-DBG
+los relocaliza y se disparan, pero GDB no puede asociarlos (PC runtime ≠ su
+tabla) y **auto-continúa silenciosamente**. Por eso `exec-next` no se detiene.
+
+### Solución (no destructiva)
+
+En la parada de entrada de proceso, la extensión ejecuta:
+
+```
+add-symbol-file <elf> <text_base_runtime>
+```
+
+GDB aprende las direcciones runtime (además de las ELF): los breakpoints `file:line`
+resuelven ahora a **dos ubicaciones** (ELF + runtime), la runtime coincide con el
+PC real → `breakpoint-hit` real, y el step por líneas (`exec-next`) funciona.
+
+Se descartó la reconexión `target remote` porque mata el proceso (`vKill`/`k`).
+`add-symbol-file` es no destructivo.
+
+### Archivos
+
+- `vscode-amiga-debug/src/amigaDebug.ts`: `relocateGdbSymbols()` ahora usa
+  `add-symbol-file` (antes intentaba reconectar); se eliminan los breakpoints
+  viejos y se re-añaden `file:line` (resuelven a runtime).
+
+### Nota
+
+- El handshake GDB↔WinUAE puede fallar intermitentemente ("Invalid hex digit 79" /
+  "Bogus trace status reply") porque WinUAE-DBG emite salida de consola `O`
+  durante la conexión; pendiente de solución aparte.
+
+---
+
 *Actualizado: 2026-08-23*
