@@ -144,6 +144,22 @@ function validate(sequenceDir, runReportPath, expectedCamera, expectedShifts) {
         // concreto de dx se reporta como advertencia, no como fallo.
         console.error(`WARN fine-scroll shifts esperados=${expectedShifts.join(',')}, medidos=${gotShifts.join(',')} (${JSON.stringify(shifts.map((s) => s[1].toFixed(1)))})`);
     }
+    // Invariante de contenido: ningun par debe desalinearse mucho mas que el resto.
+    // Un salto del puntero de fine scroll (p. ej. `fetch_x = coarse_x - 16` en el
+    // cruce de scroll_x == 16) produce un par con error ~4-7x la mediana, mientras
+    // que la revelacion normal de glifos nuevos en el borde del tile la sube a
+    // ~1.5-2x. Si un par supera 3x la mediana, el contenido salto (no scrolleo).
+    if (shifts.length >= 2) {
+        const errors = shifts.map((s) => s[1]).sort((a, b) => a - b);
+        const median = errors.length % 2 === 0 ? (errors[errors.length / 2 - 1] + errors[errors.length / 2]) / 2 : errors[Math.floor(errors.length / 2)];
+        const maxErr = errors[errors.length - 1];
+        if (median > 0 && maxErr > 3 * median) {
+            fail(`Fine-scroll content jump: par con error ${maxErr.toFixed(1)} vs mediana ${median.toFixed(1)} (${errors.map((e) => e.toFixed(1)).join(',')}). El contenido no scrolleo de forma continua en el cruce de tile.`);
+        }
+        if (median <= 5 && maxErr > 120) {
+            fail(`Fine-scroll content jump (sin baseline): par con error ${maxErr.toFixed(1)} cuando el resto de pares son casi identicos (${errors.map((e) => e.toFixed(1)).join(',')}).`);
+        }
+    }
     console.log(`OK fine scroll transition: cameraX=${expectedCamera.join(',')}, shifts=${expectedShifts.join(',')}`);
 }
 function main() {

@@ -89,13 +89,19 @@ public:
 	///
 	/// En OCS el valor horizontal de `BPLCON1` desplaza el playfield dentro del
 	/// word que ya ha sido traido por el fetch DMA. Para que el borde izquierdo no
-	/// se quede sin datos durante `fine != 0`, esta demo siempre pide un word extra
-	/// antes de la ventana visible:
+	/// se quede sin datos durante `fine != 0`, esta demo adelanta el fetch de la
+	/// ventana visible:
 	///
 	/// - `DDFSTRT` se adelanta de `$38` a `$30`;
 	/// - el modulo se calcula con 42 bytes leidos por linea en vez de 40;
-	/// - el puntero base apunta un word antes de la parte coarse;
+	/// - el puntero base apunta al inicio del tile coarse (`fetch_x == coarse_x`),
+	///   avanzando dos bytes en cada cruce de tile;
 	/// - `BPLCON1` recibe el fine scroll directo.
+	///
+	/// Con eso el borde izquierdo visible es continuo en todo el rango:
+	/// `visible == coarse_x + fine_x == scroll_x`. Usar `coarse_x - 16` dejaba el
+	/// puntero sin avanzar en el primer cruce (`scroll_x == 16`) y producia un
+	/// salto de 15px al pasar de fine 15 a 0 (fix documentado en git).
 	///
 	/// La prueba `analyze-fine-scroll.ps1` captura `fineX=14,15,0,1` y comprueba
 	/// que el borde izquierdo se mantiene estable y que el contenido avanza un pixel
@@ -109,7 +115,11 @@ public:
 
 		const u8 fine_x = static_cast<u8>(scroll_x & 15u);
 		const u16 coarse_x = static_cast<u16>(scroll_x & 0xfff0u);
-		const u16 fetch_x = static_cast<u16>(coarse_x >= 16u ? coarse_x - 16u : 0u);
+		// El puntero avanza en cada cruce de tile. `coarse_x - 16` dejaba el puntero
+		// sin avanzar en el primer cruce (scroll_x == 16), mostrando un salto de
+		// 15px al pasar de fine 15 -> 0. Con `coarse_x` el borde visible es continuo:
+		// visible = coarse_x + fine_x == scroll_x en todo el rango.
+		const u16 fetch_x = coarse_x;
 		const u8 bplcon1_x = fine_x;
 		const u32 pointer_offset =
 			static_cast<u32>(scroll_y) * surface_bytes_per_row +

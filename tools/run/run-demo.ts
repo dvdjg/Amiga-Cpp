@@ -312,14 +312,32 @@ async function captureFrameSequenceByRunStatusTarget(protocol, sequenceDir, targ
     if (value === targets[targetIndex] && frameNumber !== lastCapturedFrame) {
       const framePath = path.join(sequenceDir, `frame_${String(frames.length).padStart(3, '0')}_${label}${String(value).padStart(2, '0')}.png`);
       const capturedAt = Date.now();
+      // Captura frame-exacta: congelar la CPU, leer el run status en ese estado
+      // congelado y reanudar. La lectura previa (polling) va 1-2 frames por
+      // delante del display; sin congelar, el label de camara no coincide con el
+      // frame capturado y la deteccion de saltos de contenido pierde fiabilidad.
+      let frozen = runStatus;
+      try {
+        await protocol.pause();
+        await sleep(120);
+        frozen = await readSideChannelRunStatusOnce(
+          sideChannel.port,
+          sideChannel.runtimeAddress,
+          sideChannel.timeoutMs ?? 1000
+        );
+      } catch (err) {
+        frozen = { ok: false, error: err.message };
+      }
       const frame: Record<string, any> = await captureScreenshot(protocol, framePath);
+      try { await protocol.continue(); } catch (err) { /* la captura ya quedo */ }
       frame.capturedAtMs = capturedAt;
       frame.runStatusBefore = runStatus;
-      frame.runStatus = runStatus;
+      frame.runStatus = frozen.ok ? frozen : runStatus;
+      frame.frozenFrame = Number(frozen?.frame ?? runStatus?.frame ?? -1);
       frame.target = targets[targetIndex];
       frame[`target${label[0].toUpperCase()}${label.slice(1)}`] = targets[targetIndex];
       frames.push(frame);
-      lastCapturedFrame = frameNumber;
+      lastCapturedFrame = Number(frozen?.frame ?? frameNumber);
       ++targetIndex;
     }
     await sleep(8);
@@ -636,7 +654,7 @@ const readyTimeoutMs = parseInt(argValue('--ready-timeout-ms', process.env.ENG_R
 const loadTimeoutMs = parseInt(argValue('--load-timeout-ms', process.env.ENG_LOAD_TIMEOUT_MS || '20000'), 10);
 const settleMs = parseInt(argValue('--settle-ms', process.env.ENG_SETTLE_MS || '500'), 10);
 const sideChannelPort = parseInt(argValue('--side-channel-port', process.env.WINUAE_SIDE_CHANNEL_PORT || '2346'), 10);
-const sideChannelTimeoutMs = parseInt(argValue('--side-channel-timeout-ms', process.env.ENG_SIDE_CHANNEL_TIMEOUT_MS || '10000'), 10);
+const sideChannelTimeoutMs = parseInt(argValue('--side-channel-timeout-ms', process.env.ENG_SIDE_CHANNEL_TIMEOUT_MS || '40000'), 10);
 const sideChannelPollMs = parseInt(argValue('--side-channel-poll-ms', process.env.ENG_SIDE_CHANNEL_POLL_MS || '50'), 10);
 const sequenceFrames = Math.max(0, parseInt(argValue('--sequence-frames', '0'), 10));
 const sequenceIntervalMs = Math.max(0, parseInt(argValue('--sequence-interval-ms', '100'), 10));
