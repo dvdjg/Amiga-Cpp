@@ -333,6 +333,7 @@ de handshake GDB) incorpora comandos `monitor` estilo engine9000, expuestos por
 | `winuae_rewind` | `start`/`stop`/`status` gestionan la captura de estados; `rewind` (sin comando) rebobina. **Restore arreglado** (dejó de crashear); la sesión GDB puede quedar inerte tras el restore — reconectar o usar el canal lateral. |
 | `winuae_trace` | Controla el sistema de trazas (`on`/`off`/`status`, activo por defecto). Registra hits de watch/protect/rewind en `%TEMP%\winuae-gdb.log`. |
 | `winuae_side_read` | Lee el canal lateral (puerto 2346, independiente de GDB): `state` / `regs` / `mem <addr> <len>` / `runstatus <addr>`. Útil tras un `winuae_rewind` (el GDB queda inerte pero el canal lateral sigue leyendo el snapshot restaurado). |
+| `winuae_debugperiph` | Periférico de depuración en `0xB70000` (e9k): la demo/driver puede escribir a la consola (`0xB70000`), pedir breakpoints (`0xB70004`), registrar checkpoints (`0xB70020`), leer ciclos (`0xB7E928`) y args (`0xB7E900..`). `arg <n> <valor>` fija un debug arg. |
 
 ### Uso clave para depuración autónoma
 
