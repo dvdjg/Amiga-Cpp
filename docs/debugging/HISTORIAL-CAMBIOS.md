@@ -536,4 +536,41 @@ Se descartó la reconexión `target remote` porque mata el proceso (`vKill`/`k`)
 
 ---
 
+## Fase 11: Fix del handshake intermitente y de la relocalización de breakpoints (2026-08-23)
+
+### 11.1 Handshake GDB↔WinUAE intermitente
+
+**Síntoma**: al conectar GDB fallaba a veces ("Invalid hex digit 79", "Bogus trace
+status reply") por la salida de consola `O` (mensajes de montaje de filesystems,
+KPrintF) intercalada con el handshake inicial (qSupported, qTStatus, qOffsets…).
+
+**Causa**: `barto_gdbserver.cpp` enviaba `$O` en cuanto había conexión, sin esperar
+a que GDB terminara el handshake.
+
+**Fix** (`WinUAE-DBG/od-win32/barto_gdbserver.cpp`): se difiere toda salida `O`
+(buffer `pending_o_output`) hasta que GDB emite el primer `vCont` (continue/step),
+y ahí se vacía. `KPutCharX` y `log_output` usan el mismo gateo.
+
+### 11.2 Relocalización de breakpoints: bug de pendingBreakpoints + offset 0x400
+
+**Síntoma**: tras el fix de `add-symbol-file` (Fase 10), los breakpoints no se
+disparaban como `breakpoint-hit` en el flujo DAP.
+
+**Causa**:
+1. `refreshLoadOffset()` llamaba a `relocateBreakpoints()` que **limpiaba
+   `pendingBreakpoints`** antes de que `relocateGdbSymbols()` los re-añadiera.
+2. `relocateBreakpoints()` usaba `info line` (convención "text base 0" de GDB) y
+   calculaba direcciones **0x400 cortas**.
+
+**Fix** (`vscode-amiga-debug/src/amigaDebug.ts`):
+- `refreshLoadOffset()` ya no llama a `relocateBreakpoints()`; la relocalización
+  la hace `relocateGdbSymbols()` (add-symbol-file) que consume los pendientes.
+- `relocateBreakpoints()` (fallback) suma `0x400` a la dirección de `info line`
+  cuando `gdbSymbolsUnrelocated`.
+
+**Verificado (DAP)**: breakpoint `main.cpp:296` → `breakpoint-hit` + stackTrace
+`main.cpp:296` y `main.cpp:409`; Step over usa `exec-next` (por líneas) y avanza.
+
+---
+
 *Actualizado: 2026-08-23*
