@@ -15,9 +15,48 @@ capturar perfil → extraer frames → analizar con Ollama → informe
 |---|---|
 | `tools/profile/capture-profile.mjs <out.bin> [frames] [--wait-cmd …]` | Pide un perfil por el canal lateral (2346) y guarda el binario. Puede esperar una condición antes de capturar. |
 | `tools/profile/profile-extract.mjs <perfil.bin> <outDir>` | Parsea el binario y extrae `frame_0000.jpg/.png` por frame + `profile-summary.json` (registros, bitplanes, DMA, ciclos). |
-| `tools/profile/ollama-analyze.mjs <outDir> [--model …]` | Envía los frames a Ollama (modelo de visión local) y genera `ollama-report.md` describiendo qué hay en pantalla, frame a frame. |
-| `tools/profile/profile-analyze.sh <outName> [frames] [opciones]` | Pipeline: captura → extrae → analiza en un solo comando. Deja evidencia en `out/profile/<outName>/`. |
-| `tools/debug/step-memory.mjs --bp <simbolo\|0xaddr> …` | Conecta al socket GDB, pone un breakpoint, continua y en cada parada lee/rendera una región (p. ej. el frame buffer). |
+| `tools/profile/ollama-analyze.mjs <outDir> [opciones]` | Analiza con Ollama local: **modo `meta`** (pre-análisis técnico de TODO el perfil, sin imágenes), **modo `frames`** (por frame), **modo `montage`** (secuencia en hoja de contacto). |
+| `tools/profile/profile-analyze.sh <outName> [frames] [opciones]` | Pipeline: captura → extrae → analiza en un solo comando. |
+| `tools/profile/probe-screen.sh <demo> [frames] [opciones]` | Lanza la demo (WinUAE desacoplado), espera, captura, extrae y analiza. |
+| `tools/debug/step-memory.mjs --bp <simbolo\|0xaddr> …` | Conecta a GDB, pone un breakpoint, continua y en cada parada lee/rendera el frame buffer. |
+
+## Modos de `ollama-analyze.mjs`
+
+| Modo | Qué hace | Cuándo usarlo |
+|---|---|---|
+| `--mode meta` | Envía `profile-summary.json` (registros, DMA, bitplanes, ciclos) a un **modelo de texto** (`--text-model`, p. ej. `qwen3:8b`) para un **pre-análisis técnico sin imágenes**. Barato y rápido. | Pre-análisis rápido de todo el perfil; detectar registros sospechosos antes de mirar la pantalla. |
+| `--mode frames` | Analiza cada frame con el modelo de visión, usando la descripción del frame anterior como contexto. Fiable en cualquier modelo. | Detalle frame a frame (más llamadas). |
+| `--mode montage` | Combina los frames en **una sola imagen** (hoja de contacto) con ffmpeg y la analiza en una llamada. | Ver la secuencia/transiciones en una sola llamada. |
+| `--mode all` (por defecto) | `meta` + `montage`. | Informe completo. |
+
+## Sobre el modelo de visión (hallazgo importante)
+
+- **`qwen3-vl` NO analiza bien varias imágenes separadas en un mismo mensaje**:
+  las funde y solo ve una. Por eso el modo secuencia usa **hoja de contacto**
+  (montaje en una imagen), que sí funciona.
+- `gemma3:12b` (instalada) también es multimodal y suele ser más rápido; se
+  elige con `--model gemma3:12b`.
+- Para el pre-análisis técnico (`meta`) se usa un modelo de texto rápido
+  (`qwen3:8b` por defecto, configurable con `--text-model`).
+
+## Prompts personalizables
+
+El prompt BASE es **genérico** (sin asumir chipset ni contenido). Para cada test
+se puede personalizar:
+
+```bash
+# Fichero de prompt específico del test
+node tools/profile/ollama-analyze.mjs <outDir> \
+  --prompt-file tools/profile/prompts/050-blitter-bobs.md
+
+# Texto extra en línea
+node tools/profile/ollama-analyze.mjs <outDir> --prompt "Espero un fondo azul..."
+```
+
+Plantillas de ejemplo en `tools/profile/prompts/`:
+- `generic.md` — descripción genérica.
+- `050-blitter-bobs.md` — invariantes de la demo 050 (BOB cookie-cut, blobs,
+  fondo EHB).
 
 ## Requisitos para capturar
 

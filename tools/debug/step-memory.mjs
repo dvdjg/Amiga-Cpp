@@ -84,6 +84,10 @@ async function main() {
 	await proto.continue();
 	const stop1 = await proto.waitForStop(60000);
 	console.log(`[step-memory] parada: ${stop1}`);
+	try {
+		const regs = await proto.readRegisters();
+		console.log(`[step-memory] PC=0x${regs.PC.toString(16)} A7=0x${regs.A7.toString(16)} SR=0x${regs.SR.toString(16)}`);
+	} catch (e) { console.warn('[step-memory] no se leyeron registros: ' + e.message); }
 
 	fs.mkdirSync(outDir, { recursive: true });
 
@@ -91,9 +95,15 @@ async function main() {
 	const iterations = steps + 1;
 	for (let it = 0; it < iterations; it++) {
 		if (it > 0) {
-			await proto.step();
-			await proto.waitForStop(10000);
-			console.log(`[step-memory] step ${it}`);
+			try {
+				const s = await proto.step();
+				await proto.waitForStop(15000);
+				console.log(`[step-memory] step ${it}: ${s}`);
+			} catch (e) {
+				console.warn(`[step-memory] step ${it} no llego a parar (${e.message}); se continua`);
+				await proto.continue();
+				await proto.waitForStop(15000);
+			}
 		}
 
 		if (renderSpec) {
@@ -106,6 +116,7 @@ async function main() {
 			const rowBytes = Math.ceil(width / 8);
 			const total = layout === 'interleaved' ? height * rowBytes * planesN : planesN * rowBytes * height;
 			const bitmap = await proto.readMemory(addr, total);
+			if (bitmap.length === 0) { console.warn(`[step-memory] lectura de frame buffer vacia en 0x${addr.toString(16)}`); continue; }
 			const decoded = decodePlanarBitmap(bitmap, {
 				width, height, depth: planesN, rowBytes,
 				layout, colorMode: paletteArg ? 'plain' : 'ehb'
