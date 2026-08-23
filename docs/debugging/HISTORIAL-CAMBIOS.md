@@ -391,4 +391,104 @@ Se movieron las declaraciones de `processptr`, `processname`, `gdb_notify_proces
 
 ---
 
-*Actualizado: 2026-05-16*
+## Fase 8: Breakpoints que no se detienen y "pantalla en ensamblador" (2026-08-23)
+
+### Síntoma
+
+- F5 arranca WinUAE-DBG + GDB, pero los breakpoints no se detienen (o la parada no se muestra).
+- Cuando se logra detener, el stack trace muestra desensamblado en vez de código C++.
+
+### Causa raíz
+
+GDB conecta **durante el arranque** de WinUAE, antes de que se cargue el proceso. En ese
+momento `qOffsets` devuelve `0`, así que la tabla de símbolos de GDB queda sin relocalizar
+(direcciones ELF con base `0x400`). Consecuencias:
+
+1. GDB resuelve los breakpoints `file:line` a direcciones ELF y WinUAE-DBG las relocaliza
+   en el servidor (por eso llegan a *romperse*), pero al parar GDB no puede asociar el PC
+   de ejecución con su lista de breakpoints y reporta la parada como `SIGTRAP`
+   (`signal-received`) en vez de `breakpoint-hit`.
+2. La extensión solo refrescaba `loadOffset` en `breakpointEvent`. Como la parada llega como
+   `signal-received`, `loadOffset` quedaba en 0, el fallback `addr2line` nunca se ejecutaba y
+   el frame se mostraba como ensamblador.
+3. `configurationDoneRequest` reanudaba cualquier parada, incluidas las reales, de modo que
+   un breakpoint llegado antes de terminar la configuración se perdía ("no se detiene").
+
+### Cambios en `vscode-amiga-debug` (`src/amigaDebug.ts`)
+
+| Cambio | Efecto |
+|--------|--------|
+| `ensureLoadOffset()` llamado desde todos los manejadores de parada (`breakpointEvent`, `signalStopEvent`, `stopEvent`, `watchpointEvent`, `stepEndEvent`) y desde `stackTraceRequest` | `loadOffset` siempre disponible → el fallback `addr2line` resuelve la fuente y se muestra C++ |
+| `signalStopEvent`: `SIGTRAP` se etiqueta como `breakpoint` | La parada por breakpoint de WinUAE-DBG se muestra como breakpoint real |
+| `relocateBreakpoints()` se re-ejecuta desde `refreshLoadOffset()` cuando GDB quedó sin relocalizar (`gdbSymbolsUnrelocated`) | Los breakpoints pendientes se recrean como direcciones runtime (`break *0xc0f02a`) → paradas siguientes son `breakpoint-hit` de verdad y GDB resuelve la fuente |
+| `gdbSymbolsUnrelocated` distingue qOffsets inicial = 0 (GDB sin relocalizar) | Evita el doble desplazamiento de direcciones al relocalizar breakpoints |
+| `configurationDoneRequest`: solo continúa si el target está corriendo o la parada no se mostró (`stopSurfaced`) | No reanuda un breakpoint real; la parada inicial del servidor se sigue auto-continuando |
+| `getAddressForFileLine`: regex acepta `is at address` (líneas "contains no code") | La relocalización funciona también en líneas sin instrucción propia |
+
+### Archivos implicados
+
+- `vscode-amiga-debug/src/amigaDebug.ts` (fork local, versión 1.8.1).
+
+### Notas
+
+- WinUAE-DBG y el backend GDB+WinUAE ya funcionaban (relocalización y parada correcta);
+  el fallo estaba en la capa DAP de la extensión.
+- `debugAdapter.js` standalone está roto (`s.C is not a function`) porque `EMBED_DEBUG_ADAPTER=true`
+  hace que VSCode use el servidor embebido; no afecta al flujo F5 actual.
+- Tras desplegar el `dist` recompilado hay que recargar la ventana de VSCode.
+
+---
+
+## Fase 9: Causa raíz real — GDB auto-continúa breakpoints no relocalizados (2026-08-23)
+
+### Corrección al diagnóstico de la Fase 8
+
+Las trazas del adaptador (`%TEMP%\amiga-debug-trace.log`) y del RSP
+(`%TEMP%\winuae-gdb.log`) mostraron la causa raíz definitiva:
+
+- Cuando GDB conecta **antes** de que se cargue el proceso, `qOffsets` devuelve `0`
+  y la tabla de símbolos de GDB queda sin relocalizar (direcciones ELF).
+- WinUAE-DBG sí relocaliza los breakpoints y **se disparan** (`T05swbreak`), pero
+  como GDB no puede asociar el PC de ejecución con su lista (sin relocalizar),
+  **GDB no emite ningún `*stopped` y auto-continúa silenciosamente**.
+- La extensión nunca recibe el evento de parada, por lo que los arreglos de la
+  Fase 8 (`ensureLoadOffset`, `SIGTRAP→breakpoint`) no llegaban a ejecutarse.
+
+### Solución (dos partes)
+
+1. **WinUAE-DBG** (`od-win32/barto_gdbserver.cpp`): cuando en la entrada de proceso
+   `offsets_unresolved` estaba activo (GDB conectó antes de cargar), se fuerza un
+   `S05` (parada plana, `signal-received`) en lugar de `T05swbreak`. GDB sí
+   superficie un `S05`, dando a la extensión el momento para relocalizar.
+   Flag nuevo: `gdb_force_s05_at_entry`.
+
+2. **Extensión** (`src/amigaDebug.ts`): en `signalStopEvent` (SIGTRAP) se hace
+   `await ensureLoadOffset()` + `relocateBreakpoints()` y luego se decide:
+   - Si el PC de la parada coincide con un breakpoint relocalizado → se muestra
+     como breakpoint (con fuente C++ vía addr2line).
+   - Si no → es la parada de entrada de proceso forzada → se auto-continúa
+     después de relocalizar (para que los breakpoints del usuario se disparen
+     como `breakpoint-hit` reales).
+   Campos nuevos: `relocatedBreakpointAddresses`, `extractPcFromStop()`.
+
+### Verificación
+
+Con un cliente DAP autónomo (adaptador standalone, `debugAdapter.js` arreglado
+quitando `dependOn` en `webpack.config.js`) y retardo en la startup-sequence para
+forzar `qOffsets=0`:
+
+- `qOffsets` inicial = `0`.
+- Parada `*stopped,reason="signal-received",signal-name="SIGTRAP"`.
+- `EVENT stopped reason=breakpoint` y `stackTrace` → `main.cpp:298` (fuente C++).
+
+### Extra
+
+- `debugAdapter.js` standalone estaba roto (`s.C is not a function`) por el
+  multi-entry `dependOn` de webpack; se arregló el config (entradas independientes).
+- El handshake GDB↔WinUAE puede fallar intermitentemente ("Invalid hex digit 79" /
+  "Bogus trace status reply") cuando WinUAE-DBG emite salida de consola `O`
+  durante la conexión; es un fallo pre-existente, pendiente de solución aparte.
+
+---
+
+*Actualizado: 2026-08-23*

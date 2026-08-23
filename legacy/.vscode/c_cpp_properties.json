@@ -9,7 +9,6 @@
       ],
       "cStandard": "${default}",
       "cppStandard": "${default}",
-      "compilerPath": "C:/msys64/ucrt64/bin/gcc.exe",
       "intelliSenseMode": "windows-gcc-x64"
     }
   ],

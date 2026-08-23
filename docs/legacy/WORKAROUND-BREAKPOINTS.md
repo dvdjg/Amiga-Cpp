@@ -1,10 +1,10 @@
 # Solución de Breakpoints para Depuración C en Amiga
 
-## Estado actual: recompilado, pendiente de validar en F5
+## Estado actual: validado con GDB y WinUAE-DBG
 
 **Fecha:** 2026-02-22
 
-La corrección de relocalización de WinUAE-DBG está compilada y desplegada. La validación pendiente es confirmar una nueva sesión F5 con un breakpoint explícito en código C/C++.
+La corrección de relocalización de WinUAE-DBG y la extensión Bartman personalizada están compiladas y desplegadas. Una prueba automática con GDB confirmó una parada real en `main.cpp:406`, la primera instrucción ejecutable después de establecer el breakpoint en la línea 404.
 
 **Causa raíz:** `baseText` siempre es 0. El comando `qOffsets` no devuelve la dirección de carga del programa.
 
@@ -154,6 +154,14 @@ monitor offset set 0xc00400
 | mcp-winuae-emu (gdb-protocol.ts) | ✅ | ✅ | ❌* |
 
 La sesión anterior confirmó que `qOffsets` llega antes de que `:current.exe` esté cargado. WinUAE-DBG ahora resuelve `baseText` al detectar la entrada del proceso y no envía `S05` por esa parada interna.
+
+La prueba automática también confirmó que, cuando el primer `qOffsets` devuelve `$0`, GDB envía inicialmente la dirección ELF restando `ELF_TEXT_BASE` (`0x12c2` en lugar de `0x16c2`). WinUAE-DBG ahora registra y corrige esa normalización antes de la relocalización diferida:
+
+```text
+Z0: normalized unresolved qOffsets address 0x12c2 -> ELF 0x16c2
+RELOC: BP[0] 0x16c2 -> 0xc0e972
+T05swbreak
+```
 
 ## Problema Pendiente de Resolver
 

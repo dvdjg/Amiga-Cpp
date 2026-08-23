@@ -60,8 +60,8 @@ find_toolchain() {
 	# Fallback Windows (extensiones Cursor/VS Code).
 	local cand
 	for cand in \
-		"$HOME/.cursor/extensions/bartmanabyss.amiga-debug-1.8.2/bin/win32" \
-		"$HOME/.vscode/extensions/bartmanabyss.amiga-debug-1.8.2/bin/win32"; do
+		"$HOME/.cursor/extensions"/bartmanabyss.amiga-debug-*/bin/win32 \
+		"$HOME/.vscode/extensions"/bartmanabyss.amiga-debug-*/bin/win32; do
 		if [ -x "$cand/opt/bin/m68k-amiga-elf-g++.exe" ]; then
 			echo "$cand"
 			return 0
