@@ -320,6 +320,10 @@ Para **comprobar** que ha salido: poner un breakpoint en la instrucción que sig
 
 ## WinUAE-DBG v2.1 — monitor extensions (status / watch / protect / rewind)
 
+> **Guía "cuándo usar" para la IA**: [DEBUG-WINUAE-V2-GUIDE.md](DEBUG-WINUAE-V2-GUIDE.md)
+> (inventario de tools, síntoma→herramienta, periférico `0xB70000` y checkpoint
+> profiler, verificación, limitaciones).
+
 El fork `WinUAE-DBG` (build **x86**; el build x64 tiene un problema preexistente
 de handshake GDB) incorpora comandos `monitor` estilo engine9000, expuestos por
 `mcp-winuae-emu` como herramientas MCP:

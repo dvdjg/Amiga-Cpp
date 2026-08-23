@@ -31,6 +31,23 @@
 - El fallback por timeout es opt-in (`--allow-timeout-fallback`) y es para diagnóstico.
 - Las capturas de secuencia se limpian antes de cada ejecución (`out/run/<demo>/sequence`) para no mezclar frames antiguos.
 
+## Depuración avanzada (WinUAE-DBG v2.x, vía MCP `winuae-emu`)
+Servidor GDB (puerto 2345) + **canal lateral** (2346). Especificación canónica:
+`WinUAE-DBG/docs/WINUAE-MONITOR-EXTENSIONS.md`. **Usar el build x86**
+(`winuae-gdb.exe`); el x64 tiene un bug preexistente de boot congelado.
+
+Herramientas MCP disponibles (todos vía `mcp-winuae-emu`):
+- `winuae_emulator_status` — telemetría (ciclos, frame, vpos/hpos, warp, baseText, contadores). Para confirmar que el emulador corre y estado global.
+- `winuae_watchpoint_set_ext` / `_list` / `_last` / `_clear_ext` — watchpoints con filtro por **origen** (`src=cpu|copper|blitter|bpl0-7|spr0-7|audio0-3|disk|dma`), `value=`, `mask=`, `must_change`, `nobreak`. `watch_last` reporta addr/src/valor/PC del último hit. Para "¿quién/cuándo toca X?" (p. ej. el copper escribe un registro custom).
+- `winuae_protect` — `block`/`set` para congelar memoria o forzar valores. Para cheats y tests de estados.
+- `winuae_rewind` — `start`/`stop`/`status` (captura); el restore **congela la emulación** pero deja el snapshot legible por canal lateral. Sólo para inspeccionar un estado pasado.
+- `winuae_trace` — trazas de eventos watch/protect/rewind en `%TEMP%\winuae-gdb.log` (activo por defecto).
+- `winuae_side_read` — canal lateral (`state`/`regs`/`mem <addr> <len>`/`runstatus <addr>`), independiente de GDB. Cuando GDB esté inerte o para observar sin intrusión.
+- `winuae_debugperiph` — **periférico de depuración in-Amiga** en `0xB70000` (consola, checkpoints, contador de ciclos, debug args, breakpoints auto-dirigidos). Para telemetría del propio programa y profiling por checkpoints.
+
+Guía "cuándo usar cada herramienta" e instrumentación de demos:
+`docs/debugging/DEBUG-WINUAE-V2-GUIDE.md`.
+
 ## Rutas de alto valor
 - Bucle de entrada del engine: `engine/include/eng/engine.hpp` (`update -> wait_vblank -> render`; `render` es el punto de commit).
 - Backend Amiga: `engine/src/platform/amiga_minimal/amiga_minimal.cpp`.
