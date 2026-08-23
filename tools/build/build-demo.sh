@@ -19,10 +19,12 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEMO="${1:-}"
 DEBUG_BUILD=0
 CLEAN=0
+O0_BUILD=0
 for arg in "$@"; do
 	case "$arg" in
 		--debug) DEBUG_BUILD=1 ;;
 		--release) DEBUG_BUILD=0 ;;
+		--o0) O0_BUILD=1 ;;
 		--clean) CLEAN=1 ;;
 		-*)
 			if [ "$arg" = "$DEMO" ]; then :; else :; fi
@@ -128,7 +130,15 @@ mkdir -p "$OBJ_DIR" "$OUT_DIR"
 # --- Flags ------------------------------------------------------------------
 OPT="-Ofast"
 if [ "$DEBUG_BUILD" -eq 1 ]; then
+	# -O1 para la regresion automatica: suficiente para que las demos lleguen a
+	# READY dentro del timeout en el 68000 emulado.
 	OPT="-O1"
+fi
+if [ "$O0_BUILD" -eq 1 ]; then
+	# -O0 para depuracion interactiva fiable: con -O1/-fomit-frame-pointer GDB
+	# optimiza variables (context/synthetic pointer, saved_background
+	# <optimized out>) y rompe el paso a paso fiel.
+	OPT="-O0"
 fi
 COMMON=(
 	"-g" "-MP" "-MMD" "-m68000" "$OPT" "-nostdlib" "-Wextra"

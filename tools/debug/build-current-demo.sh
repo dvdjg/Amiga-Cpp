@@ -37,7 +37,7 @@ if [ ! -d "$ROOT/$TARGET" ]; then
 fi
 
 BUILD_SCRIPT="$ROOT/tools/build/build-demo.sh"
-"$BUILD_SCRIPT" "$TARGET" --debug --clean
+"$BUILD_SCRIPT" "$TARGET" --debug --o0 --clean
 
 TARGET_NAME="$(basename "$TARGET")"
 SOURCE_OUT="$ROOT/out/demos/$TARGET_NAME"
