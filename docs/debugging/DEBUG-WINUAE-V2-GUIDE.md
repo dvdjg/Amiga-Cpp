@@ -121,8 +121,15 @@ if (camera_tile_changed) {
     eng::debug::DebugPeripheral::checkpoint(10);          // antes del upload
 }
 upload_prefetch_tiles(...);
+eng::debug::DebugPeripheral::counter_value(0, total_tiles); // contador acumulado
 eng::debug::DebugPeripheral::checkpoint(11);              // después del upload
 ```
+
+En `init` la demo fija metadatos del periférico (v2.2):
+`checkpoint_description(0/10/11, "frame_start"/"pre_upload"/"post_upload")` y
+`counter_name(0, "tiles_uploaded")`. El host los lee con `debugperiph
+checkpoints` (que ahora muestra `seg_avg/seg_min/seg_max` = coste del tramo en
+ciclos y `scan_*` = scanline del write) y `debugperiph counters`.
 
 Tras correr la demo, la IA consulta:
 - `winuae_debugperiph checkpoints` → `[0] cycles=… frame=… count=N`,
