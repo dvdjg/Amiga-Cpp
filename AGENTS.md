@@ -63,10 +63,10 @@ Prioridad: otras features de engine9000.
 
 Roadmap del port de features de engine9000 (hecho/pendiente, priorizado para
 hilos nuevos): `WinUAE-DBG/docs/WINUAE-MONITOR-EXTENSIONS.md` → sección
-"Roadmap del port desde engine9000". Hechos: punto 1 (periférico Amiga 1:1:
-commit de secciones, descripciones de checkpoint, contadores, `0xDEAD`, smoke),
-punto 2 (checkpoint profiler con stats seg/scan), punto 4 (`monitor train`).
-Siguiente: punto 3 (timeline/rewind: `loop`, `diff` entre frames, frame-step).
+"Roadmap del port desde engine9000". Hechos: punto 1 (periférico Amiga 1:1),
+punto 2 (checkpoint profiler), punto 4 (`train` + `base`), punto 5 (hotspots +
+smoke test). Punto 3 (rewind timeline) bloqueado (captura atada al input-
+recording del GUI). Pendiente: `print` DWARF.
 
 ## Rutas de alto valor
 - Bucle de entrada del engine: `engine/include/eng/engine.hpp` (`update -> wait_vblank -> render`; `render` es el punto de commit).
