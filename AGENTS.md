@@ -55,6 +55,14 @@ de scroll en 4 direcciones + diagonal a 50fps (con ollama):
 Guía "cuándo usar cada herramienta" e instrumentación de demos:
 `docs/debugging/DEBUG-WINUAE-V2-GUIDE.md`.
 
+Fix de scroll fino de la demo 101 (2026-08): el puntero OCS con `DDFSTRT=$30`
+debe apuntar UN WORD ANTES de la parte coarse (`fetch = coarse-16`) para que
+`display_start = camera`; se añadió **doble buffer de la copperlist**
+(`m_copper_block[2]`, rebuild en el bloque inactivo, install hace swap) para que
+reconstruir la lista no corrompa el display activo. Pendiente: confirmar
+visualmente si el salto en el cruce de tile (cada 16px) desaparece; el análisis
+por capturas queda confundido por el timing.
+
 Roadmap del port de features de engine9000 (hecho/pendiente, priorizado para
 hilos nuevos): `WinUAE-DBG/docs/WINUAE-MONITOR-EXTENSIONS.md` → sección
 "Roadmap del port desde engine9000". Hechos: punto 1 (periférico Amiga 1:1:
