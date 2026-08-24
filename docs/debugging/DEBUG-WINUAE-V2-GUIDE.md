@@ -31,6 +31,7 @@ expuestas por `mcp-winuae-emu`. Léela junto a
 | `winuae_debugperiph` | Periférico in-Amiga en `0xB70000` | Telemetría del propio programa + checkpoints — ver §4 |
 | `winuae_base` | Consulta/fija bases runtime de sección (`monitor base`) | Resolución de símbolos / corregir bases de un binario relocalizado |
 | `winuae_train` | Rompe al cambiar un valor `from→to` en cualquier dirección (`monitor train`) + ignore list | "Entrenar" un cheat: encontrar dónde cambia una variable |
+| `winuae_print` | Lee y formatea un valor en memoria (`monitor print`); con `mapPath` resuelve un símbolo del `.map` | Imprimir una variable/símbolo o dereferenciar un puntero |
 | `winuae_run_program` / `winuae_exec_chunk` / `winuae_load` | Cargar/ejecutar binarios | Cargar código y datos |
 
 ### 1.2 Comandos `monitor` (via `qRcmd`)
