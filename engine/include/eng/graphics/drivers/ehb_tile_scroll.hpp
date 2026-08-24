@@ -63,10 +63,9 @@ public:
 
 	bool init(MemorySystem& memory, const EhbTileScrollConfig& config) {
 		m_bitplane_block = memory.chip.allocate(bitplane_bytes, 16);
-		m_copper_block[0] = memory.chip.allocate(config.copper_bytes, 16);
-		m_copper_block[1] = memory.chip.allocate(config.copper_bytes, 16);
+		m_copper_block = memory.chip.allocate(config.copper_bytes, 16);
 		m_bitplanes = static_cast<u8*>(m_bitplane_block.data);
-		if (!m_bitplane_block.valid() || !m_copper_block[0].valid() || !m_copper_block[1].valid() || config.base_palette == nullptr) {
+		if (!m_bitplane_block.valid() || !m_copper_block.valid() || config.base_palette == nullptr) {
 			m_ok = false;
 			return false;
 		}
@@ -109,16 +108,10 @@ public:
 	/// lowres por frame. Esta es la base que despues usaran los drivers con anillos
 	/// reales de tiles offscreen.
 	bool rebuild_copper(u16 scroll_x, u16 scroll_y = 0) {
-		if (!m_bitplane_block.valid() || !m_copper_block[0].valid() || !m_copper_block[1].valid() || m_config.base_palette == nullptr) {
+		if (!m_bitplane_block.valid() || !m_copper_block.valid() || m_config.base_palette == nullptr) {
 			m_ok = false;
 			return false;
 		}
-
-		// Doble buffer: se construye en el bloque que NO se esta mostrando
-		// (el copper esta leyendo m_copper_block[m_copper_front] durante el
-		// frame actual). Reconstruir en el bloque activo corrompia la lista a
-		// mitad de display y producia un salto visible al cruzar cada tile.
-		MemoryBlock& back = m_copper_block[1 - m_copper_front];
 
 		const u8 fine_x = static_cast<u8>(scroll_x & 15u);
 		const u16 coarse_x = static_cast<u16>(scroll_x & 0xfff0u);
@@ -133,7 +126,7 @@ public:
 			static_cast<u32>(scroll_y) * surface_bytes_per_row +
 			fetch_x / 8u;
 
-		copper::Scheduler scheduler { back };
+		copper::Scheduler scheduler { m_copper_block };
 		scheduler.move(copper::Register::DMACON, static_cast<u16>(
 			copper::DmaSetClear | copper::DmaMaster | copper::DmaCopper | copper::DmaBitplane
 		));
@@ -176,12 +169,9 @@ public:
 	}
 
 	template <typename Backend>
-	void install(Backend& backend) {
+	void install(Backend& backend) const {
 		if (m_ok && m_copper_words_ptr != nullptr) {
 			backend.install_copper_list(m_copper_words_ptr);
-			// el bloque recien construido pasa a ser el activo; el anterior
-			// queda libre para el siguiente rebuild (sin corromper el display).
-			m_copper_front = static_cast<u8>(1 - m_copper_front);
 		}
 	}
 
@@ -236,8 +226,7 @@ private:
 
 	EhbTileScrollConfig m_config {};
 	MemoryBlock m_bitplane_block {};
-	MemoryBlock m_copper_block[2] {};
-	u8 m_copper_front = 0;
+	MemoryBlock m_copper_block {};
 	u8* m_bitplanes = nullptr;
 	const u16* m_copper_words_ptr = nullptr;
 	copper::ScheduleReport m_copper_report {};
