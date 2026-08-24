@@ -18,6 +18,7 @@ capturar perfil → extraer frames → analizar con Ollama → informe
 | `tools/profile/ollama-analyze.mjs <outDir> [opciones]` | Analiza con Ollama local: **modo `meta`** (pre-análisis técnico de TODO el perfil, sin imágenes), **modo `frames`** (por frame), **modo `montage`** (secuencia en hoja de contacto). |
 | `tools/profile/profile-analyze.sh <outName> [frames] [opciones]` | Pipeline: captura → extrae → analiza en un solo comando. |
 | `tools/profile/probe-screen.sh <demo> [frames] [opciones]` | Lanza la demo (WinUAE desacoplado), espera, captura, extrae y analiza. |
+| `tools/profile/hotspots.mjs [demo] [--seconds N] [--out archivo.md]` | **Sampler profiler de hotspots** (e9k-style): muestrea el PC del 68000 por el canal lateral, agrupa por símbolo (resuelve el `.map`) y emite un informe "dónde se va el tiempo del CPU". |
 | `tools/debug/step-memory.mjs --bp <simbolo\|0xaddr> …` | Conecta a GDB, pone un breakpoint, continua y en cada parada lee/rendera el frame buffer. |
 
 ## Modos de `ollama-analyze.mjs`
@@ -28,6 +29,21 @@ capturar perfil → extraer frames → analizar con Ollama → informe
 | `--mode frames` | Analiza cada frame con el modelo de visión, usando la descripción del frame anterior como contexto. Fiable en cualquier modelo. | Detalle frame a frame (más llamadas). |
 | `--mode montage` | Combina los frames en **una sola imagen** (hoja de contacto) con ffmpeg y la analiza en una llamada. | Ver la secuencia/transiciones en una sola llamada. |
 | `--mode all` (por defecto) | `meta` + `montage`. | Informe completo. |
+
+## Sampler profiler de hotspots (`hotspots.mjs`)
+
+Muestrea el PC del 68000 por el canal lateral (2346) de forma **no intrusiva**
+durante N segundos, agrupa las muestras por símbolo (resuelve el `.map` de la
+demo contra `baseText`) y emite un informe de "dónde se va el tiempo del CPU".
+
+```
+node tools/profile/hotspots.mjs demos/101_ehb_tile_scroll_driver --seconds 5 [--out out/hotspots.md]
+```
+
+Ejemplo (demo 101): `wait_vblank` ~29%, `rebuild_copper` ~28%, `memset` ~17% —
+revela que reconstruir la copperlist cada frame es costoso. Requiere la demo
+compilada (`.exe` + `.map`). El modelo de visión NO interviene; es puro conteo
+de PC.
 
 ## Sobre el modelo de visión (hallazgo importante)
 
