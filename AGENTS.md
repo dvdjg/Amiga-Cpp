@@ -55,6 +55,13 @@ de scroll en 4 direcciones + diagonal a 50fps (con ollama):
 Guía "cuándo usar cada herramienta" e instrumentación de demos:
 `docs/debugging/DEBUG-WINUAE-V2-GUIDE.md`.
 
+Roadmap del port de features de engine9000 (hecho/pendiente, priorizado para
+hilos nuevos): `WinUAE-DBG/docs/WINUAE-MONITOR-EXTENSIONS.md` → sección
+"Roadmap del port desde engine9000". Punto 1 completado (periférico Amiga 1:1:
+commit de secciones, descripciones de checkpoint, contadores nombre/valor,
+`0xDEAD`, smoke hook). Siguiente: punto 2 (checkpoint profiler con stats
+avg/min/max + scanline).
+
 ## Rutas de alto valor
 - Bucle de entrada del engine: `engine/include/eng/engine.hpp` (`update -> wait_vblank -> render`; `render` es el punto de commit).
 - Backend Amiga: `engine/src/platform/amiga_minimal/amiga_minimal.cpp`.

@@ -12,8 +12,14 @@
 /// Mapa de registros (base `0xB70000`):
 ///   0xB70000  byte write  -> carácter a consola (0, \n o \r flushean la línea)
 ///   0xB70004  long write  -> solicita breakpoint en esa dirección
-///   0xB70008/0C/10 long write -> bases .text/.data/.bss (resolución de símbolos)
+///   0xB70008/0C/10 long write -> bases .text/.data/.bss
+///   0xB70014/18/1C long write -> commit de sección (base / type / size)
 ///   0xB70020  long write  -> checkpoint slot 0-63 (host registra ciclos+frame)
+///   0xB70024  long write  -> 0xDEAD sale del debugger
+///   0xB70028  long write  -> solicita smoke/profiling (hook)
+///   0xB70100  long write  -> descripción de checkpoint (ptr a string, slot*4)
+///   0xB70200  long write  -> nombre de contador (ptr a string, slot*4)
+///   0xB70300  long write  -> valor de contador (slot*4)
 ///   0xB7E900..E924 long read -> debug args 0-9 (host: winuae_debugperiph arg)
 ///   0xB7E928  long read  -> contador de ciclos de CPU
 ///
@@ -81,6 +87,39 @@ public:
 		*reinterpret_cast<volatile u32*>(kBase + kBreakOff) = address;
 	}
 
+	/// Commita una sección (base/type/size) para resolución de símbolos.
+	/// `type`: 0=text, 1=data, 2=bss. Escribir size dispara el commit.
+	static inline void commit_section(u32 base, u8 type, u32 size) {
+		*reinterpret_cast<volatile u32*>(kBase + kSecBaseOff) = base;
+		*reinterpret_cast<volatile u32*>(kBase + kSecTypeOff) = static_cast<u32>(type);
+		*reinterpret_cast<volatile u32*>(kBase + kSecSizeOff) = size;
+	}
+
+	/// Fija la descripción (puntero a string NUL en RAM) de un checkpoint.
+	static inline void checkpoint_description(u8 slot, u32 description_ptr) {
+		*reinterpret_cast<volatile u32*>(kBase + kCpDescOff + static_cast<u32>(slot & 63u) * 4u) = description_ptr;
+	}
+
+	/// Fija el nombre (puntero a string NUL en RAM) de un contador.
+	static inline void counter_name(u8 slot, u32 name_ptr) {
+		*reinterpret_cast<volatile u32*>(kBase + kCntNameOff + static_cast<u32>(slot & 63u) * 4u) = name_ptr;
+	}
+
+	/// Fija el valor de un contador (visible en `debugperiph counters`).
+	static inline void counter_value(u8 slot, u32 value) {
+		*reinterpret_cast<volatile u32*>(kBase + kCntValOff + static_cast<u32>(slot & 63u) * 4u) = value;
+	}
+
+	/// Pide al depurador que salga de la sesión (escribe 0xDEAD).
+	static inline void exit_debugger() {
+		*reinterpret_cast<volatile u32*>(kBase + kDeadOff) = 0xDEADu;
+	}
+
+	/// Solicita el arranque de un smoke test / profiling (hook del host).
+	static inline void request_profile() {
+		*reinterpret_cast<volatile u32*>(kBase + kSmokeOff) = 1u;
+	}
+
 	/// Reporta las bases runtime de .text/.data/.bss para resolución de símbolos.
 	static inline void set_section_bases(u32 text_base, u32 data_base, u32 bss_base) {
 		*reinterpret_cast<volatile u32*>(kBase + kTextOff) = text_base;
@@ -97,7 +136,15 @@ private:
 	static constexpr u32 kTextOff = 0x0008u;
 	static constexpr u32 kDataOff = 0x000Cu;
 	static constexpr u32 kBssOff = 0x0010u;
+	static constexpr u32 kSecBaseOff = 0x0014u;
+	static constexpr u32 kSecTypeOff = 0x0018u;
+	static constexpr u32 kSecSizeOff = 0x001Cu;
 	static constexpr u32 kCheckpointOff = 0x0020u;
+	static constexpr u32 kDeadOff = 0x0024u;
+	static constexpr u32 kSmokeOff = 0x0028u;
+	static constexpr u32 kCpDescOff = 0x0100u;
+	static constexpr u32 kCntNameOff = 0x0200u;
+	static constexpr u32 kCntValOff = 0x0300u;
 	static constexpr u32 kArgsOff = 0xE900u;
 	static constexpr u32 kCyclesOff = 0xE928u;
 };
