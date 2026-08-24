@@ -2,7 +2,8 @@
 
 Referencia práctica de las herramientas de depuración del fork `WinUAE-DBG`
 expuestas por `mcp-winuae-emu`. Léela junto a
-`WinUAE-DBG/docs/WINUAE-MONITOR-EXTENSIONS.md` (spec canónica) y
+`WinUAE-DBG/docs/WINUAE-MONITOR-EXTENSIONS.md` (spec canónica, incluye el
+**Roadmap del port desde engine9000** con lo hecho/pendiente) y
 `WinUAE-DBG/GDB_MONITOR_COMMANDS.md` (comandos monitor base).
 
 > **Regla de oro**: usa el build **x86** (`winuae-gdb.exe`). El build x64 tiene
@@ -89,12 +90,23 @@ direcciones. Es el equivalente de "trazas dentro del Amiga".
 | `0xB70000` | write byte | carácter a consola (flushea con `0`/`\n`/`\r` → `DBGPERIPH: ...` en GDB O + log) |
 | `0xB70004` | write long | solicita breakpoint en esa dirección |
 | `0xB70008`/`0C`/`10` | write long | bases de sección `.text/.data/.bss` (para resolución de símbolos) |
+| `0xB70014`/`18`/`1C` | write long | **commit de sección**: base / type (0=text,1=data,2=bss) / size |
 | `0xB70020` | write long | **checkpoint** slot 0-63 (registra ciclos+frame) |
+| `0xB70024` | write long | `0xDEAD` → sale del debugger |
+| `0xB70028` | write long | solicita smoke/profiling (hook; orquesta el host) |
+| `0xB70100` | write long | **descripción de checkpoint** (ptr a string, `slot*4`) |
+| `0xB70200` | write long | **nombre de contador** (ptr a string, `slot*4`) |
+| `0xB70300` | write long | **valor de contador** (`slot*4`) |
 | `0xB7E900..E924` | read long | debug args 0-9 (`winuae_debugperiph arg <n> <valor>`) |
 | `0xB7E928` | read long | contador de ciclos de CPU |
 
 Subcomandos: `winuae_debugperiph` (status), `arg <n> <valor>`, `console`,
-`checkpoints`, `flush`.
+`checkpoints`, `counters`, `flush`.
+
+El wrapper del engine (`engine/include/eng/debug/peripheral.hpp`) expone todo
+esto: `checkpoint`, `checkpoint_description`, `counter_name/value`,
+`commit_section`, `exit_debugger`, `request_profile`, `set_section_bases`,
+`console_char/text/line`, `debug_arg`, `cycle_counter`, `request_break`.
 
 ### 4.1 Patrón de instrumentación (engine C++ / asm)
 
