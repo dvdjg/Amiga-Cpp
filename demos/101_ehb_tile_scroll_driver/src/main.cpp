@@ -357,6 +357,13 @@ struct DemoGame {
 
 		m_scene.install(backend);
 		publish_status(initial_camera.x, initial_camera.y, 0);
+		// Telemetría del periférico ampliado (e9k): descripciones por slot de
+		// checkpoint y un contador acumulado de tiles subidos. El host los lee
+		// con `debugperiph checkpoints` / `debugperiph counters`.
+		eng::debug::DebugPeripheral::checkpoint_description(0, reinterpret_cast<eng::u32>("frame_start"));
+		eng::debug::DebugPeripheral::checkpoint_description(10, reinterpret_cast<eng::u32>("pre_upload"));
+		eng::debug::DebugPeripheral::checkpoint_description(11, reinterpret_cast<eng::u32>("post_upload"));
+		eng::debug::DebugPeripheral::counter_name(0, reinterpret_cast<eng::u32>("tiles_uploaded"));
 		m_ready = true;
 	}
 
@@ -386,6 +393,8 @@ struct DemoGame {
 			}
 			schedule_next_visible_margin(m_active_camera_tile_x, m_active_camera_tile_y);
 			const eng::u8 tile_jobs = upload_prefetch_tiles(backend);
+			m_total_tiles_uploaded += tile_jobs;
+			eng::debug::DebugPeripheral::counter_value(0, m_total_tiles_uploaded);
 			eng::debug::DebugPeripheral::checkpoint(11); // fin del upload (delta slot10->11)
 			if (!m_scene.rebuild_copper(camera.x, camera.y)) {
 				eng::debug::mark_failed(g_eng_run_status, 0x00000115u);
@@ -420,6 +429,7 @@ struct DemoGame {
 	eng::u16 m_previous_logical_row = 0;
 	eng::u16 m_active_camera_tile_x = 0;
 	eng::u16 m_active_camera_tile_y = 0;
+	eng::u32 m_total_tiles_uploaded = 0;
 	eng::u16 m_pending_world_column = drivers::EhbBidirectionalRingPrefetch::unknown_index;
 	eng::u16 m_pending_world_row = drivers::EhbBidirectionalRingPrefetch::unknown_index;
 	eng::u16 m_pending_column_slot = 0;
