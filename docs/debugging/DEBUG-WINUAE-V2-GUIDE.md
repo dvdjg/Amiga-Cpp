@@ -29,11 +29,13 @@ expuestas por `mcp-winuae-emu`. Léela junto a
 | `winuae_trace` | Trazas host de watch/protect/rewind → `%TEMP%\winuae-gdb.log` | Tener un registro de "qué pasó" durante una temporada |
 | `winuae_side_read` | Canal lateral `state`/`regs`/`mem`/`runstatus` | GDB inerte (tras rewind) u observación no intrusiva |
 | `winuae_debugperiph` | Periférico in-Amiga en `0xB70000` | Telemetría del propio programa + checkpoints — ver §4 |
+| `winuae_base` | Consulta/fija bases runtime de sección (`monitor base`) | Resolución de símbolos / corregir bases de un binario relocalizado |
+| `winuae_train` | Rompe al cambiar un valor `from→to` en cualquier dirección (`monitor train`) + ignore list | "Entrenar" un cheat: encontrar dónde cambia una variable |
 | `winuae_run_program` / `winuae_exec_chunk` / `winuae_load` | Cargar/ejecutar binarios | Cargar código y datos |
 
 ### 1.2 Comandos `monitor` (via `qRcmd`)
 
-`status`, `watch`, `protect`, `rewind`, `trace`, `debugperiph`, `memcfg`,
+`status`, `watch`, `protect`, `train`, `base`, `rewind`, `trace`, `debugperiph`, `memcfg`,
 `disasm`, `screenshot`, `input ...`, `profile`, `offset`, `logfile`.
 Cualquier tool MCP que acabe en `monitor X` es un wrapper de `monitor X`.
 
