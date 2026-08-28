@@ -6,6 +6,7 @@
 #include <eng/graphics/tilemap/tile_scroll.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/scene/virtual_scene.hpp>
+#include <eng/core/span.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -93,12 +94,6 @@ constexpr drivers::EhbPalette under_palette {{
 }};
 
 constexpr drivers::EhbPaletteZone palette_zones[] {};
-
-void clear_bytes(eng::u8* bytes, eng::u32 count) {
-	for (eng::u32 i = 0; i < count; ++i) {
-		bytes[i] = 0;
-	}
-}
 
 /// Construye el mapa virtual retenido que recorrera la camara.
 ///
@@ -240,17 +235,18 @@ constexpr eng::u16 symbolic_tile_plane_row(eng::u8 glyph, eng::u8 variant, eng::
 /// columna/fila offscreen sin transformar datos en runtime. Para assets reales, el
 /// exportador UAF deberia generar exactamente este tipo de cache o una variante
 /// compatible con el driver elegido.
-void build_tile_word_cache(eng::u16* tile_words) {
+void build_tile_word_cache(eng::Span<eng::u16> tile_words) {
+	constexpr eng::u32 words_per_tile = drivers::EhbTileScrollScene::tile_bytes() / sizeof(eng::u16);
 	for (eng::u16 tile = 0; tile < tile_pattern_count; ++tile) {
 		const eng::u8 glyph = static_cast<eng::u8>(tile & 15u);
 		const eng::u8 variant = static_cast<eng::u8>((tile >> 4u) & 3u);
 		for (eng::u8 y = 0; y < tile_size; ++y) {
 			for (eng::u8 plane = 0; plane < drivers::EhbTileScrollScene::plane_count; ++plane) {
-				tile_words[
-					static_cast<eng::u32>(tile) * (drivers::EhbTileScrollScene::tile_bytes() / sizeof(eng::u16)) +
+				tile_words.at(
+					static_cast<eng::u32>(tile) * words_per_tile +
 					static_cast<eng::u32>(plane) * tile_size +
 					y
-				] = symbolic_tile_plane_row(glyph, variant, y, plane);
+				) = symbolic_tile_plane_row(glyph, variant, y, plane);
 			}
 		}
 	}
@@ -262,11 +258,13 @@ void build_tile_word_cache(eng::u16* tile_words) {
 /// biblioteca de patrones potencia de dos. En un engine de produccion lo normal
 /// sera validar el indice al cargar la escena y no pagar comprobaciones extra en
 /// cada upload de Blitter.
-const eng::u16* tile_source(const eng::MemoryBlock& block, eng::u16 tile_index) {
-	return reinterpret_cast<const eng::u16*>(
-		static_cast<const eng::u8*>(block.data) +
-		static_cast<eng::u32>(tile_index & (tile_pattern_count - 1u)) * drivers::EhbTileScrollScene::tile_bytes()
-	);
+eng::Span<const eng::u16> tile_source(const eng::MemoryBlock& block, eng::u16 tile_index) {
+	constexpr eng::u32 words_per_tile = drivers::EhbTileScrollScene::tile_bytes() / sizeof(eng::u16);
+	const eng::u32 word_offset = static_cast<eng::u32>(tile_index & (tile_pattern_count - 1u)) * words_per_tile;
+	return {
+		reinterpret_cast<const eng::u16*>(static_cast<const eng::u8*>(block.data)) + word_offset,
+		words_per_tile,
+	};
 }
 
 /// Estampa un tile por CPU durante la inicializacion.
@@ -277,18 +275,17 @@ const eng::u16* tile_source(const eng::MemoryBlock& block, eng::u16 tile_index) 
 /// relevante para el engine.
 void stamp_tile_cpu(
 	drivers::EhbTileScrollScene& scene,
-	const eng::u16* tile,
+	eng::Span<const eng::u16> tile,
 	eng::u16 surface_tile_x,
 	eng::u16 surface_tile_y
 ) {
 	for (eng::u8 plane = 0; plane < drivers::EhbTileScrollScene::plane_count; ++plane) {
 		for (eng::u16 y = 0; y < tile_size; ++y) {
-			const eng::u32 destination_offset =
-				static_cast<eng::u32>(plane) * drivers::EhbTileScrollScene::plane_bytes +
-				static_cast<eng::u32>(surface_tile_y * tile_size + y) * drivers::EhbTileScrollScene::surface_bytes_per_row +
-				static_cast<eng::u32>(surface_tile_x) * sizeof(eng::u16);
-			reinterpret_cast<eng::u16*>(scene.bitplanes() + destination_offset)[0] =
-				tile[static_cast<eng::u32>(plane) * tile_size + y];
+			const eng::u32 row_offset =
+				static_cast<eng::u32>(surface_tile_y * tile_size + y) *
+				(drivers::EhbTileScrollScene::surface_bytes_per_row / sizeof(eng::u16)) +
+				surface_tile_x;
+			scene.plane_words(plane).at(row_offset) = tile.at(static_cast<eng::u32>(plane) * tile_size + y);
 		}
 	}
 }
@@ -324,9 +321,14 @@ struct DemoGame {
 			return;
 		}
 
-		clear_bytes(m_scene.bitplanes(), drivers::EhbTileScrollScene::bitplane_bytes);
+		// Limpiar la superficie sin parejas puntero/contador que puedan desincronizarse:
+		// la vista lleva el tamaño consigo.
+		m_scene.bitplane_span().clear();
 		build_virtual_map(m_cells);
-		build_tile_word_cache(static_cast<eng::u16*>(m_tiles.data));
+		build_tile_word_cache(eng::Span<eng::u16>::from_raw(
+			static_cast<eng::u16*>(m_tiles.data),
+			m_tiles.size / sizeof(eng::u16)
+		));
 		m_map.reset(m_cells, map_tiles_x, map_tiles_y);
 
 		for (eng::u16 y = 0; y < surface_tiles_y; ++y) {
@@ -430,14 +432,27 @@ struct DemoGame {
 	eng::u16 m_active_camera_tile_x = 0;
 	eng::u16 m_active_camera_tile_y = 0;
 	eng::u32 m_total_tiles_uploaded = 0;
-	eng::u16 m_pending_world_column = drivers::EhbBidirectionalRingPrefetch::unknown_index;
-	eng::u16 m_pending_world_row = drivers::EhbBidirectionalRingPrefetch::unknown_index;
-	eng::u16 m_pending_column_slot = 0;
-	eng::u16 m_pending_row_slot = 0;
-	eng::u8 m_pending_column_tiles = 0;
-	eng::u8 m_pending_row_tiles = 0;
 	eng::u8 m_recycled_columns = 0;
 	eng::u8 m_recycled_rows = 0;
+
+	/// Franja de prefetch en curso (una columna o una fila).
+	///
+	/// El array reemplaza el modelo antiguo de "una franja pendiente por eje": con
+	/// presupuesto pequeno de Blitter una franja tarda varios frames en subirse, y
+	/// si la camara cruza mas tiles mientras tanto hay que poder encolar varias
+	/// franjas del mismo eje sin perder ningun cruce.
+	struct PendingStrip {
+		eng::u16 world_index = drivers::EhbBidirectionalRingPrefetch::unknown_index;
+		eng::u16 slot = 0;
+		eng::u8 remaining = 0;
+		bool is_column = false;
+
+		constexpr bool active() const {
+			return remaining != 0;
+		}
+	};
+	static constexpr eng::u8 max_pending_strips = 4;
+	PendingStrip m_pending_strips[max_pending_strips] {};
 
 	static constexpr eng::u16 camera_tile(eng::u16 pixels) {
 		return static_cast<eng::u16>(pixels / tile_size);
@@ -541,68 +556,104 @@ struct DemoGame {
 		return static_cast<eng::u16>(camera_tile_y + drivers::EhbBidirectionalRingPrefetch::visible_rows + 1u);
 	}
 
-	/// Encola como mucho una franja horizontal y una vertical cuando la camara cruza tiles.
+	/// Encola las franjas de prefetch que la camara ha dejado de cubrir.
 	///
-	/// Esta version es deliberadamente conservadora: solo solicita trabajo si no
-	/// hay nada pendiente. Asi se ve con claridad como un presupuesto pequeno de
-	/// Blitter reparte una franja en varios frames, que es la tecnica que queremos
-	/// explotar para scrolls suaves estilo plataformas.
+	/// La version inicial solo encolaba trabajo si no habia nada pendiente y
+	/// actualizaba `m_previous_logical_*` al final, de modo que si la camara cruzaba
+	/// varios tiles mientras un upload estaba en curso se perdian cruces intermedios
+	/// y quedaban columnas con datos obsoletos. Esta version:
+	///
+	/// - sincroniza la referencia *siempre* (cada frame), asi el sentido del
+	///   movimiento nunca queda desfasado;
+	/// - encola las columnas/filas de margen de todos los cruces (no solo el
+	///   ultimo), de forma que un salto de varios tiles no deja huecos;
+	/// - delega en `enqueue_margin_strip` la deduplicacion contra franjas
+	///   pendientes, por lo que puede encolar una columna y una fila a la vez
+	///   (movimiento diagonal) sin bloquearse.
 	void schedule_next_visible_margin(eng::u16 camera_world_column, eng::u16 camera_world_row) {
-		if (m_scheduler.queued_count() != 0 || m_pending_column_tiles != 0 || m_pending_row_tiles != 0) {
+		const eng::u16 previous_column = m_previous_logical_column;
+		const eng::u16 previous_row = m_previous_logical_row;
+		m_previous_logical_column = camera_world_column;
+		m_previous_logical_row = camera_world_row;
+		if (previous_column == camera_world_column && previous_row == camera_world_row) {
 			return;
 		}
 
-		if (camera_world_column > m_previous_logical_column) {
-			enqueue_margin_strip(
-				{visible_safe_right_column(camera_world_column), camera_world_row, 1, drivers::EhbBidirectionalRingPrefetch::visible_rows},
-				tilemap::TileUpdateEdge::Right
-			);
-		} else if (camera_world_column < m_previous_logical_column && camera_world_column != 0) {
+		if (camera_world_column > previous_column) {
+			// Cada cruce en T encola la columna T+21 (dos tiles de margen por la
+			// derecha). Para un salto de varios tiles se encolan todas las que
+			// habria encolado cada cruce individual.
+			for (eng::u16 column = static_cast<eng::u16>(previous_column + visible_safe_right_column(0) + 1u);
+				 column <= visible_safe_right_column(camera_world_column);
+				 ++column) {
+				enqueue_margin_strip(
+					{column, camera_world_row, 1, drivers::EhbBidirectionalRingPrefetch::visible_rows},
+					tilemap::TileUpdateEdge::Right
+				);
+			}
+		} else if (camera_world_column < previous_column && camera_world_column != 0) {
 			enqueue_margin_strip(
 				{static_cast<eng::u16>(camera_world_column - 1u), camera_world_row, 1, drivers::EhbBidirectionalRingPrefetch::visible_rows},
 				tilemap::TileUpdateEdge::Left
 			);
 		}
 
-		if (camera_world_row > m_previous_logical_row) {
-			enqueue_margin_strip(
-				{camera_world_column, visible_safe_bottom_row(camera_world_row), drivers::EhbBidirectionalRingPrefetch::visible_columns, 1},
-				tilemap::TileUpdateEdge::Bottom
-			);
-		} else if (camera_world_row < m_previous_logical_row && camera_world_row != 0) {
+		if (camera_world_row > previous_row) {
+			// Simetrico al caso horizontal: cada cruce en T encola la fila T+17.
+			for (eng::u16 row = static_cast<eng::u16>(previous_row + visible_safe_bottom_row(0) + 1u);
+				 row <= visible_safe_bottom_row(camera_world_row);
+				 ++row) {
+				enqueue_margin_strip(
+					{camera_world_column, row, drivers::EhbBidirectionalRingPrefetch::visible_columns, 1},
+					tilemap::TileUpdateEdge::Bottom
+				);
+			}
+		} else if (camera_world_row < previous_row && camera_world_row != 0) {
 			enqueue_margin_strip(
 				{camera_world_column, static_cast<eng::u16>(camera_world_row - 1u), drivers::EhbBidirectionalRingPrefetch::visible_columns, 1},
 				tilemap::TileUpdateEdge::Top
 			);
 		}
-
-		m_previous_logical_column = camera_world_column;
-		m_previous_logical_row = camera_world_row;
 	}
 
 	/// Traduce una franja de mundo a jobs elementales de tile.
 	///
 	/// `ProgressiveTileScheduler` descompone una columna o fila en unidades 16x16.
-	/// La demo guarda contadores pendientes para saber cuando toda la franja ha
-	/// quedado lista y entonces marca el slot como reciclado en el anillo 2D.
+	/// Antes de encolar se deduplica contra las franjas pendientes del mismo eje y
+	/// mundo, y solo se admite si queda hueco de trackeo. Cuando la franja se sube
+	/// entera, `upload_prefetch_tiles` marca el slot como reciclado en el anillo 2D.
 	void enqueue_margin_strip(tilemap::TileRect rect, tilemap::TileUpdateEdge edge) {
 		if (rect.left >= surface_tiles_x || rect.top >= surface_tiles_y) {
 			return;
+		}
+
+		const bool is_column = edge == tilemap::TileUpdateEdge::Left || edge == tilemap::TileUpdateEdge::Right;
+		const eng::u16 world_index = is_column ? rect.left : rect.top;
+
+		PendingStrip* free_slot = nullptr;
+		for (PendingStrip& pending : m_pending_strips) {
+			if (pending.active()) {
+				if (pending.is_column == is_column && pending.world_index == world_index) {
+					return; // esa columna/fila ya esta en cola
+				}
+			} else if (free_slot == nullptr) {
+				free_slot = &pending;
+			}
+		}
+		if (free_slot == nullptr) {
+			return; // sin presupuesto de trackeo: no encolar mas franjas
 		}
 
 		const eng::u8 enqueued = m_scheduler.enqueue_strip(m_map, rect, edge, 0, 12, 1);
 		if (enqueued == 0) {
 			return;
 		}
-		if (edge == tilemap::TileUpdateEdge::Left || edge == tilemap::TileUpdateEdge::Right) {
-			m_pending_world_column = rect.left;
-			m_pending_column_slot = m_ring.slot_for_world_column(rect.left);
-			m_pending_column_tiles = enqueued;
-		} else {
-			m_pending_world_row = rect.top;
-			m_pending_row_slot = m_ring.slot_for_world_row(rect.top);
-			m_pending_row_tiles = enqueued;
-		}
+		*free_slot = PendingStrip {
+			world_index,
+			is_column ? m_ring.slot_for_world_column(world_index) : m_ring.slot_for_world_row(world_index),
+			enqueued,
+			is_column,
+		};
 	}
 
 	/// Consume un presupuesto pequeno de tiles y lo ejecuta por Blitter.
@@ -620,7 +671,7 @@ struct DemoGame {
 			const eng::u16 surface_col = static_cast<eng::u16>(job.x % drivers::EhbBidirectionalRingPrefetch::surface_columns);
 			const eng::u16 surface_row = static_cast<eng::u16>(job.y % drivers::EhbBidirectionalRingPrefetch::surface_rows);
 			if (!m_frame_plan.add_tile_block_copy(m_scene.make_tile_upload_job(
-				tile_source(m_tiles, job.tile_index),
+				tile_source(m_tiles, job.tile_index).data(),
 				surface_col,
 				surface_row
 			))) {
@@ -641,23 +692,25 @@ struct DemoGame {
 		}
 		for (eng::u8 i = 0; i < plan.count; ++i) {
 			const tilemap::TileUpdateJob& job = plan.jobs[i];
-			if ((job.edge == tilemap::TileUpdateEdge::Left || job.edge == tilemap::TileUpdateEdge::Right) &&
-				m_pending_column_tiles != 0 && job.x == m_pending_world_column) {
-				--m_pending_column_tiles;
-				if (m_pending_column_tiles == 0) {
-					m_ring.mark_column_ready(m_pending_column_slot, m_pending_world_column);
-					m_pending_world_column = drivers::EhbBidirectionalRingPrefetch::unknown_index;
-					++m_recycled_columns;
+			const bool is_column = job.edge == tilemap::TileUpdateEdge::Left || job.edge == tilemap::TileUpdateEdge::Right;
+			const eng::u16 world_index = is_column ? job.x : job.y;
+			for (PendingStrip& pending : m_pending_strips) {
+				if (!pending.active() || pending.is_column != is_column || pending.world_index != world_index) {
+					continue;
 				}
-			}
-			if ((job.edge == tilemap::TileUpdateEdge::Top || job.edge == tilemap::TileUpdateEdge::Bottom) &&
-				m_pending_row_tiles != 0 && job.y == m_pending_world_row) {
-				--m_pending_row_tiles;
-				if (m_pending_row_tiles == 0) {
-					m_ring.mark_row_ready(m_pending_row_slot, m_pending_world_row);
-					m_pending_world_row = drivers::EhbBidirectionalRingPrefetch::unknown_index;
-					++m_recycled_rows;
+				--pending.remaining;
+				if (pending.remaining == 0) {
+					if (pending.is_column) {
+						m_ring.mark_column_ready(pending.slot, pending.world_index);
+						++m_recycled_columns;
+					} else {
+						m_ring.mark_row_ready(pending.slot, pending.world_index);
+						++m_recycled_rows;
+					}
+					pending.world_index = drivers::EhbBidirectionalRingPrefetch::unknown_index;
+					pending.remaining = 0;
 				}
+				break;
 			}
 		}
 		return plan.count;

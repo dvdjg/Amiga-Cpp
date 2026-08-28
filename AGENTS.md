@@ -55,11 +55,15 @@ de scroll en 4 direcciones + diagonal a 50fps (con ollama):
 Guía "cuándo usar cada herramienta" e instrumentación de demos:
 `docs/debugging/DEBUG-WINUAE-V2-GUIDE.md`.
 
-Estado scroll fino de la demo 101 (2026-08): aparcado. El puntero OCS con
-`DDFSTRT=$30` apunta UN WORD ANTES de la parte coarse (`fetch = coarse-16`);
-no se usa doble buffer de la copperlist. Queda un salto en el cruce de tile
-(16px) sin resolver; el análisis por capturas queda confundido por el timing.
-Prioridad: otras features de engine9000.
+Estado scroll fino de la demo 101 (2026-08): RESUELTO el salto del cruce de tile.
+La causa raíz era el signo de `BPLCON1` (invertido) y el puntero coarse: el driver
+usaba `BPLCON1=fine` con `fetch=coarse-16`, lo que invertía el sentido del scroll
+dentro de cada tile y producía un salto de ~31px en el cruce de 16px. Se sustituyó
+por la fórmula canónica de ACE/HRM: `BPLCON1=(16-fine)&15` y
+`fetch=(scroll_x-1)&~15` (un word antes solo en `fine==0`), que da
+`display_start == scroll_x` continuo en todo el rango. Sigue pendiente el doble
+buffer de la copperlist. Validar con `analyze-fine-scroll.sh --warp` y
+`analyze-sequence.sh --warp`.
 
 Roadmap del port de features de engine9000 (hecho/pendiente, priorizado para
 hilos nuevos): `WinUAE-DBG/docs/WINUAE-MONITOR-EXTENSIONS.md` → sección
@@ -77,7 +81,7 @@ recording del GUI). Pendiente: `print` DWARF.
 - Historial de fixes de depuración (relocalización de breakpoints, `-O0`, qOffsets): `docs/debugging/HISTORIAL-CAMBIOS.md`.
 - Harness DAP sin VS Code (verifica breakpoints y fuente C++ de la capa DAP): `tools/dap-test/README.md`. Requiere el fork `vscode-amiga-debug` compilado y el stub de `vscode` (ver README). Trazas en `%TEMP%\amiga-debug-trace.log` y `%TEMP%\winuae-gdb.log`.
 - Depuración interactiva: usa `tools/debug/build-current-demo.sh` (compila con `-O0` el archivo en primer plano a `out/debug-current/`) y F5 con la config "Amiga 500: depurar archivo actual".
-- Captura y análisis de perfiles (frames de pantalla + análisis con Ollama local): `tools/profile/README.md` (`capture-profile.mjs`, `profile-extract.mjs`, `ollama-analyze.mjs`, `profile-analyze.sh`). Requiere WinUAE con `WINUAE_GDB_PERSIST_LISTENER=1`.
+- Captura y análisis de perfiles (frames de pantalla + análisis con Ollama local): `tools/profile/README.md`. **Para la IA**: `node tools/profile/ai-analyze.mjs <outName> [frames] --prompt "…"` captura por el canal lateral (2346), extrae frames + resumen y analiza con Ollama local, imprimiendo el informe final por stdout (sin gastar tokens de nube). `--demo <demo>` lanza WinUAE directo (como hijo del script), espera READY y lo apaga al terminar; el análisis completo tarda ~2-4 min, `--mode meta` es rápido. Componentes: `capture-profile.mjs`, `profile-extract.mjs`, `ollama-analyze.mjs`, `launch-winuae.mjs`, `profile-analyze.sh`. Requiere WinUAE con `WINUAE_GDB_PERSIST_LISTENER=1` y Ollama en `127.0.0.1:11434`. La tool MCP `winuae_profile_ollama` (en `mcp-winuae-emu`, no registrada aún en opencode) hace lo mismo por MCP.
 - Avanzar por breakpoints y leer memoria/frame buffer en caliente: `tools/debug/step-memory.mjs`.
 
 ## Restricciones de código/diseño que hay que preservar

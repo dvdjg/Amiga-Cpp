@@ -43,3 +43,19 @@ Una abstraccion es buena si:
 - puede verificarse con tests o profiler;
 - no oculta asignaciones ni copias caras;
 - permite cambiar de driver grafico sin reescribir la logica de juego.
+
+## Seguridad de tipos sobre punteros crudos
+
+El runtime Amiga es freestanding (`-nostdlib`, sin STL hosted), asi que el engine
+aporta sus propias piezas de seguridad de C++23 sin depender de `std::span`:
+
+- `eng::Span<T>` (`engine/include/eng/core/span.hpp`): vista contigua con tamaño.
+  Prohibe el fallo clasico de pasar puntero y contador por separado
+  (`clear_bytes(u8*, u32)`): el tamaño viaja con la vista, `operator[]` es de coste
+  cero como en `std::span`, y `at()` verifica el rango disparando `illegal`
+  (0x4afc) en m68k ante una violacion.
+- Regla: los buffers de arenas, bitplanes, caches de tiles y listas de comandos se
+  manipulan mediante `Span`; solo las capas de hardware (Blitter, Copper, DMA)
+  pueden recibir el puntero crudo, y solo el tiempo justo para programar registros.
+- Evitar "puntero + count" en firmas de API; si una funcion necesita memoria
+  propia, pedir `Span` por valor y devolver `Span` (mutable solo si escribe).
