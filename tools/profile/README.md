@@ -16,10 +16,45 @@ capturar perfil → extraer frames → analizar con Ollama → informe
 | `tools/profile/capture-profile.mjs <out.bin> [frames] [--wait-cmd …]` | Pide un perfil por el canal lateral (2346) y guarda el binario. Puede esperar una condición antes de capturar. |
 | `tools/profile/profile-extract.mjs <perfil.bin> <outDir>` | Parsea el binario y extrae `frame_0000.jpg/.png` por frame + `profile-summary.json` (registros, bitplanes, DMA, ciclos). |
 | `tools/profile/ollama-analyze.mjs <outDir> [opciones]` | Analiza con Ollama local: **modo `meta`** (pre-análisis técnico de TODO el perfil, sin imágenes), **modo `frames`** (por frame), **modo `montage`** (secuencia en hoja de contacto). |
+| `tools/profile/ai-analyze.mjs <outName> [frames] [opciones]` | **Orquestador para la IA**: captura → extrae → analiza con Ollama y vuelca el informe final por stdout. Ideal para llamar desde un asistente (opencode, etc.). |
 | `tools/profile/profile-analyze.sh <outName> [frames] [opciones]` | Pipeline: captura → extrae → analiza en un solo comando. |
 | `tools/profile/probe-screen.sh <demo> [frames] [opciones]` | Lanza la demo (WinUAE desacoplado), espera, captura, extrae y analiza. |
 | `tools/profile/hotspots.mjs [demo] [--seconds N] [--out archivo.md]` | **Sampler profiler de hotspots** (e9k-style): muestrea el PC del 68000 por el canal lateral, agrupa por símbolo (resuelve el `.map`) y emite un informe "dónde se va el tiempo del CPU". |
 | `tools/debug/step-memory.mjs --bp <simbolo\|0xaddr> …` | Conecta a GDB, pone un breakpoint, continua y en cada parada lee/rendera el frame buffer. |
+
+## `ai-analyze.mjs` — orquestador para la IA
+
+Un solo comando que encadena captura → extracción → análisis con Ollama y, al
+terminar, **imprime el informe por stdout** para que la IA (o un humano) lo lea
+directamente sin abrir el fichero. Deja la evidencia en `out/profile/<outName>/`.
+
+```bash
+# Verificar que un scroll horizontal fino monta los tiles sin salto de 16px
+node tools/profile/ai-analyze.mjs demo101 6 \
+  --prompt "scroll horizontal fino; comprobar que los tiles se ensamblan sin salto de 16px en el cruce coarse"
+
+# Lanzando la demo directamente (WinUAE como hijo de ai-analyze) y esperando READY
+node tools/profile/ai-analyze.mjs demo050 4 \
+  --demo demos/050_blitter_bobs \
+  --prompt-file tools/profile/prompts/050-blitter-bobs.md
+```
+
+`--demo <demo>` lanza WinUAE **como proceso hijo del propio script** (lo que
+garantiza que el canal lateral siga vivo durante la captura — el runner clásico
+sale y WinUAE muere con su proceso padre), espera READY por `runstatus` y apaga
+WinUAE al terminar aunque algo falle. El módulo `launch-winuae.mjs` reutiliza
+la detección de la extensión Bartman, stagediza el `.exe` en
+`out/run/<demo>/dh1/` y la config `runner.uae`.
+
+> **Tiempo**: el análisis completo (`--mode all` = meta + frames + montaje) con
+> modelos locales tarda ~2-4 minutos. Para un avance rápido usa `--mode meta`
+> (solo técnico, sin imágenes). La captura en sí es cuestión de segundos.
+
+Parámetros: igual que `ollama-analyze.mjs` (`--model`, `--text-model`, `--base`,
+`--mode`, `--prompt`, `--prompt-file`) más los de captura (`--wait-cmd`,
+`--contains`, `--wait-ms`, `--lock-owner`, `--port`) y `--demo` /
+`--demo-timeout-ms`. Requiere WinUAE-DBG con el canal lateral activo
+(`WINUAE_GDB_PERSIST_LISTENER=1`) y Ollama local.
 
 ## Modos de `ollama-analyze.mjs`
 

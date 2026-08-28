@@ -35,33 +35,41 @@ El prefetch escribe solo franjas lineales garantizadas fuera del viewport visibl
 incluyendo el caso de fine scroll. En `runStatus.detail` el nibble bajo publica
 flags de prefetch (`0x1` columnas, `0x2` filas).
 
-Comandos:
+El scroll horizontal usa la tecnica canonica de ACE/HRM: con `DDFSTRT=$30` (un
+word de fetch extra a la izquierda) el puntero avanza un word antes del tile
+coarse solo en `fine == 0`, y `BPLCON1` recibe el *delay* `(16 - fine) & 15`.
+Asi `display_start == scroll_x` es continuo en todo el rango, sin salto en el
+cruce de tile (fine 15 -> 0). Una version anterior usaba `BPLCON1=fine` con
+`fetch=coarse-16`, lo que invertia el sentido del scroll dentro de cada tile y
+producia un salto de ~31px en cada cruce de 16px.
 
-```powershell
-.\tools\build\build-demo.ps1 demos\101_ehb_tile_scroll_driver -DebugBuild
-.\tools\run\run-demo.ps1 demos\101_ehb_tile_scroll_driver
-.\tools\analyze\analyze-demo.ps1 demos\101_ehb_tile_scroll_driver
-.\tools\run\run-demo.ps1 demos\101_ehb_tile_scroll_driver -SequenceFrames 4 -SequenceIntervalMs 80
-.\tools\analyze\analyze-frame-sequence.ps1 out\run\101_ehb_tile_scroll_driver\sequence -ExpectAnimated
-.\demos\101_ehb_tile_scroll_driver\analyze-sequence.ps1 -Warp
+Comandos (wrappers `.sh`, ver `AGENTS.md`):
+
+```bash
+bash ./tools/build/build-demo.sh demos/101_ehb_tile_scroll_driver --debug --clean
+bash ./tools/run/run-demo.sh demos/101_ehb_tile_scroll_driver
+bash ./tools/analyze/analyze-demo.sh demos/101_ehb_tile_scroll_driver
+bash ./tools/run/run-demo.sh demos/101_ehb_tile_scroll_driver --sequence-frames 4 --sequence-interval-ms 80
+bash ./tools/analyze/analyze-frame-sequence.sh out/run/101_ehb_tile_scroll_driver/sequence --expect-animated
+bash ./demos/101_ehb_tile_scroll_driver/analyze-sequence.sh --warp
 ```
 
-`analyze-sequence.ps1` es la prueba reutilizable fuerte: captura 12 frames cada
+`analyze-sequence.sh` es la prueba reutilizable fuerte: captura 12 frames cada
 120 ms, comprueba que la animacion cambia y ejecuta FrameScope con perfil
-`amiga-scroll`, recorte automatico de viewport y `-RequireProfileMatch`. La prueba
-falla si la telemetria lateral de camara y el movimiento observado dejan de
-coincidir. Tambien ejecuta `tools/analyze/assert-no-inner-black.ps1`: esta demo no
+`amiga-scroll`, recorte automatico de viewport y `--require-profile-match`. La
+prueba falla si la telemetria lateral de camara y el movimiento observado dejan de
+coincidir. Tambien ejecuta `tools/analyze/assert-no-inner-black.sh`: esta demo no
 usa negro dentro de sus tiles simbolicos, asi que cualquier mancha negra en el
 playfield suele indicar un `COPJMP1` a media pantalla, un puntero de bitplane
 reiniciado en zona visible o corrupcion planar.
 
-`analyze-fine-scroll.ps1` es la prueba mas especifica para el bug de columnas:
-captura por telemetria `cameraX=94,95,96,97` y `cameraX=112,111,110,109`, y
-comprueba que el borde izquierdo no salta y que cada paso equivale a un pixel
-lowres en la direccion correcta.
+`analyze-fine-scroll.sh` es la prueba mas especifica para el cruce de tile:
+captura por telemetria `cameraX=94,95,96,97` (fine 14,15,0,1) y
+`cameraX=112,111,110,109`, y comprueba que el borde izquierdo no salta y que cada
+paso equivale a un pixel lowres en la direccion correcta.
 
 Para verla a ritmo real sin que el runner cierre WinUAE:
 
-```powershell
-.\tools\run\run-demo.ps1 demos\101_ehb_tile_scroll_driver -KeepRunning
+```bash
+bash ./tools/run/run-demo.sh demos/101_ehb_tile_scroll_driver --keep-running
 ```

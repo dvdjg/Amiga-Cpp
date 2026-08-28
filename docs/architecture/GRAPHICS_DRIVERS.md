@@ -142,7 +142,21 @@ Para evitar un diente de sierra horizontal, el driver redondea el puntero coarse
 hacia el siguiente bloque de 16 pixels cuando hay fine scroll y programa
 `BPLCON1 = 16 - fine`. Asi la camara de juego puede crecer hacia la derecha
 mientras el contenido visible se desplaza de forma continua hacia la izquierda.
-La prueba fuerte usa FrameScope con `-Profile amiga-scroll -RequireProfileMatch`
+En codigo (`EhbTileScrollScene::rebuild_copper`) esto es la formula canonica de
+ACE/HRM:
+
+```cpp
+// BPLCON1 es un *delay*: valores mayores desplazan el playfield a la derecha.
+const u16 bplcon1 = (16 - (scroll_x & 15)) & 15;
+// ACE: puntero en bytes = ((scroll_x - 1) >> 4) << 1. En pixels word-aligned:
+//   fine == 0 -> coarse - 16; fine > 0 -> coarse.
+const u16 fetch_x = (scroll_x - 1) & ~15;
+```
+
+Con `DDFSTRT=$30` (un word extra de fetch a la izquierda) se cumple
+`display_start = fetch_x + 16 - bplcon1 == scroll_x` en todo el rango, sin salto
+en el cruce de tile. La prueba fuerte usa FrameScope con `-Profile amiga-scroll
+-RequireProfileMatch`
 para comparar esa telemetria de camara contra el movimiento observado.
 
 La demo 101 tambien fija presupuesto de Blitter en su ruta de prefetch:

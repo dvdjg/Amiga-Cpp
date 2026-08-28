@@ -386,17 +386,23 @@ Correccion posterior del salto de columna izquierda:
 
 - La formula inicial de fine scroll arreglaba la mitad inferior, pero todavia
   dejaba que la columna izquierda apareciese de golpe al cruzar `fine15 -> fine0`.
-- Se comparo con `demoscene-repo\effects\tiles16`, pero la pieza que faltaba en
-  nuestro driver era el fetch extra: solo cambiar `BPLCON1` y puntero no bastaba.
-- `EhbTileScrollScene` usa ahora `DDFSTRT=$30`, `display_modulo=18` porque se
-  leen 42 bytes por linea, puntero un word antes de la parte coarse y
-  `BPLCON1=fine`.
+- Se comparo con `demoscene-repo\effects\tiles16` y con el engine ACE
+  (`src/ace/managers/viewport/simplebuffer.c`). La pieza que faltaba en nuestro
+  driver era el signo de `BPLCON1`: el HRM define ese registro como un *delay*
+  (cuanto mayor, mas a la derecha se desplaza el playfield). Nuestro codigo usaba
+  `BPLCON1=fine` con `fetch=coarse-16`, lo que invertia el sentido dentro de cada
+  tile y producia un salto de ~31px en el cruce de 16px.
+- `EhbTileScrollScene::rebuild_copper` usa ahora la formula canonica:
+  `BPLCON1=(16-fine)&15` y `fetch=(scroll_x-1)&~15` (un word antes solo en
+  `fine==0`), de modo que `display_start = fetch + 16 - BPLCON1 == scroll_x` de
+  forma continua en todo el rango. Se mantienen `DDFSTRT=$30`, `display_modulo=18`
+  y la lectura de 42 bytes por linea.
 - La ruta de la demo se centro en `cameraX=80` con radio de 4 tiles para conservar
   siempre un word valido a la izquierda durante la orbita.
 - `tools\run\run-demo.ps1/mjs` soporta `-SequenceCameraX`, que captura frames
   cuando la telemetria lateral alcanza valores concretos.
-- `demos\101_ehb_tile_scroll_driver\analyze-fine-scroll.ps1` captura y valida:
+- `demos\101_ehb_tile_scroll_driver\analyze-fine-scroll.sh` captura y valida:
   `cameraX=94,95,96,97` con shifts `-2,-2,-2`, y
   `cameraX=112,111,110,109` con shifts `+2,+2,+2`.
-- La ultima regresion correcta es
+- La regresion anterior a este fix es
   `out\regression\20260601-013329\regression-report.md`.

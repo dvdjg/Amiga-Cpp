@@ -15,6 +15,7 @@
 /// - este driver convierte updates aceptados a `TileBlockCopy`;
 /// - el backend ejecuta los blits y el Copper muestra la ventana desplazada.
 
+#include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/drivers/ehb_scene.hpp>
@@ -87,43 +88,48 @@ public:
 	/// La convencion de este MVP es que `scroll_x` crece igual que una camara de
 	/// juego: valores mayores muestran columnas mas a la derecha del mundo.
 	///
-	/// En OCS el valor horizontal de `BPLCON1` desplaza el playfield dentro del
-	/// word que ya ha sido traido por el fetch DMA. Para que el borde izquierdo no
-	/// se quede sin datos durante `fine != 0`, esta demo adelanta el fetch de la
-	/// ventana visible:
+	/// En OCS/ECS el valor de `BPLCON1` es un *delay*: cuanto mayor es, mas a la
+	/// derecha se desplaza el playfield dentro de la linea (HRM, seccion
+	/// "Specifying Amount of Delay": *for each pixel of delay the on-screen data
+	/// shifts one pixel to the right*). Para que el borde izquierdo tenga datos
+	/// durante `fine != 0`, el fetch se adelanta un word (`DDFSTRT=$30`, 42 bytes
+	/// por linea) y se usa la combinacion canonica de ACE (`simplebuffer.c`) y de
+	/// `demoscene-repo/effects/tiles16`:
 	///
-	/// - `DDFSTRT` se adelanta de `$38` a `$30`;
-	/// - el modulo se calcula con 42 bytes leidos por linea en vez de 40;
-	/// - el puntero base apunta al inicio del tile coarse (`fetch_x == coarse_x`),
-	///   avanzando dos bytes en cada cruce de tile;
-	/// - `BPLCON1` recibe el fine scroll directo.
+	/// - `BPLCON1 = (16 - fine) & 15`, un delay que decrece al avanzar la camara;
+	/// - puntero = `(scroll_x - 1) & ~15`, es decir: en `fine == 0` apunta un word
+	///   antes del tile coarse (protege el arranque del buffer) y en `fine > 0`
+	///   apunta al propio tile.
 	///
 	/// Con eso el borde izquierdo visible es continuo en todo el rango:
-	/// `visible == coarse_x + fine_x == scroll_x`. Usar `coarse_x - 16` dejaba el
-	/// puntero sin avanzar en el primer cruce (`scroll_x == 16`) y producia un
-	/// salto de 15px al pasar de fine 15 a 0 (fix documentado en git).
+	/// `display_start = fetch_x + 16 - BPLCON1 == scroll_x`. La version anterior
+	/// usaba `BPLCON1 = fine` con `fetch_x = coarse - 16`, lo que invertia el
+	/// sentido del scroll dentro de cada tile y producia un salto de ~31px en cada
+	/// cruce de 16px (fine 15 -> 0): era el bug del "cruce de tile".
 	///
-	/// La prueba `analyze-fine-scroll.ps1` captura `fineX=14,15,0,1` y comprueba
-	/// que el borde izquierdo se mantiene estable y que el contenido avanza un pixel
-	/// lowres por frame. Esta es la base que despues usaran los drivers con anillos
-	/// reales de tiles offscreen.
+	/// Limites de la superficie lineal: con `DDFSTRT` adelantado el fetch necesita
+	/// 16px a la izquierda, asi que `scroll_x == 0` no es representable (requeriria
+	/// apuntar antes del buffer) y el pixel 0 de la superficie nunca se muestra. El
+	/// rango valido es `[1, surface_width - visible_width]` en X y
+	/// `[0, surface_height - visible_height]` en Y; los valores fuera de rango se
+	/// recortan al borde mas proximo.
 	bool rebuild_copper(u16 scroll_x, u16 scroll_y = 0) {
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || m_config.base_palette == nullptr) {
 			m_ok = false;
 			return false;
 		}
 
-		const u8 fine_x = static_cast<u8>(scroll_x & 15u);
-		const u16 coarse_x = static_cast<u16>(scroll_x & 0xfff0u);
-		// Con DDFSTRT adelantado ($30) el display lee el word posterior al puntero
-		// (word extra de margen), asi que el puntero base apunta UN WORD ANTES de la
-		// parte coarse: display_start = (coarse-16) + 16 + fine = coarse + fine =
-		// scroll_x, continuo en todo el rango. (scroll_x es la camara, 80..144 en
-		// la demo, siempre >= 16.)
-		const u16 fetch_x = static_cast<u16>(coarse_x >= 16u ? coarse_x - 16u : 0u);
-		const u8 bplcon1_x = fine_x;
+		const u16 cam_x = clamp_scroll(scroll_x, surface_width - visible_width, 1u);
+		const u16 cam_y = clamp_scroll(scroll_y, surface_height - visible_height, 0u);
+		const u8 fine_x = static_cast<u8>(cam_x & 15u);
+		// BPLCON1 es el delay del playfield: valores mayores desplazan el contenido
+		// a la derecha. Para una camara que crece, el delay decrece (16 - fine).
+		const u16 bplcon1_x = static_cast<u16>((16u - fine_x) & 15u);
+		// ACE: puntero en bytes = ((scroll_x - 1) >> 4) << 1. En pixels, word-aligned:
+		//   fine == 0 -> coarse - 16; fine > 0 -> coarse.
+		const u16 fetch_x = static_cast<u16>((cam_x - 1u) & 0xfff0u);
 		const u32 pointer_offset =
-			static_cast<u32>(scroll_y) * surface_bytes_per_row +
+			static_cast<u32>(cam_y) * surface_bytes_per_row +
 			fetch_x / 8u;
 
 		copper::Scheduler scheduler { m_copper_block };
@@ -159,8 +165,8 @@ public:
 		scheduler.move(copper::Register::COLOR00, 0x0000);
 		scheduler.end();
 
-		m_scroll_x = scroll_x;
-		m_scroll_y = scroll_y;
+		m_scroll_x = cam_x;
+		m_scroll_y = cam_y;
 		m_copper_words = scheduler.words_used();
 		m_copper_words_ptr = scheduler.data();
 		m_copper_report = scheduler.report();
@@ -216,7 +222,42 @@ public:
 		return tile_plane_bytes() * plane_count;
 	}
 
+	/// Rango de scroll horizontal representable por la superficie lineal.
+	///
+	/// El minimo es 1 (no 0): con `DDFSTRT` adelantado el puntero necesitaria
+	/// apuntar 16px antes del arranque del buffer, algo imposible sin reservar un
+	/// margen fisico a la izquierda.
+	static constexpr u16 max_scroll_x() {
+		return surface_width - visible_width;
+	}
+
+	/// Rango de scroll vertical representable por la superficie lineal.
+	static constexpr u16 max_scroll_y() {
+		return surface_height - visible_height;
+	}
+
+	/// Vista mutable de todos los bytes de los bitplanes.
+	///
+	/// Remplaza el puntero crudo + contador de `bitplanes()` por un unico objeto
+	/// que lleva el tamaño junto: `span.clear()` no puede equivocarse en el count.
+	[[nodiscard]] Span<u8> bitplane_span() const {
+		return {m_bitplanes, bitplane_bytes};
+	}
+
+	/// Vista mutable de un plano completo en words de 16 bits.
+	[[nodiscard]] Span<u16> plane_words(u8 plane) const {
+		return {
+			reinterpret_cast<u16*>(m_bitplanes + static_cast<u32>(plane) * plane_bytes),
+			plane_bytes / sizeof(u16),
+		};
+	}
+
 private:
+	/// Recorta un scroll al rango representable de la superficie.
+	static constexpr u16 clamp_scroll(u16 value, u16 max_value, u16 min_value) {
+		return value < min_value ? min_value : (value > max_value ? max_value : value);
+	}
+
 	u16* tile_destination(u16 surface_tile_x, u16 surface_tile_y) const {
 		const u32 offset =
 			static_cast<u32>(surface_tile_y) * tile_size * surface_bytes_per_row +

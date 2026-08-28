@@ -4,6 +4,7 @@
 #include <eng/graphics/tilemap/tile_scroll.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/scene/virtual_scene.hpp>
+#include <eng/core/span.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -71,12 +72,6 @@ constexpr drivers::EhbPaletteZone palette_zones[] {
 	{0x74, &jungle_palette},
 	{0xb8, &under_palette},
 };
-
-void clear_bytes(eng::u8* bytes, eng::u32 count) {
-	for (eng::u32 i = 0; i < count; ++i) {
-		bytes[i] = 0;
-	}
-}
 
 /// Construye un mapa virtual procedimental.
 ///
@@ -240,7 +235,8 @@ void draw_viewport(
 	const eng::u16 tile_words[16][plane_count][tile_size],
 	const scene::Camera2D& camera
 ) {
-	clear_bytes(planes, drivers::StaticEhbScene::bitplane_bytes);
+	eng::Span<eng::u8> planes_span { planes, drivers::StaticEhbScene::bitplane_bytes };
+	planes_span.clear();
 
 	const tilemap::ScrollPosition scroll = camera.scroll_position();
 	const eng::u8 fine_x = static_cast<eng::u8>(scroll.x & 15u);
