@@ -124,25 +124,29 @@ La ruta bidireccional debe ser la opcion ergonomica para el juego. El usuario mu
 una camara 2D; el driver decide si ese frame puede usar la ruta barata horizontal o
 vertical, o si necesita la ruta completa.
 
-`engine/include/eng/graphics/drivers/ehb_tile_scroll.hpp` implementa el primer
-driver real de esta familia. `EhbTileScrollScene` reserva una superficie EHB de
-480x416, muestra una ventana de 320x256 y reconstruye su copperlist con punteros
-de bitplane desplazados y `BPLCON1` para fine X. Los margenes de 160 pixels
-equivalen a 10 columnas y 10 filas ocultas: suficiente para predibujar tiles
-sueltos en orden de urgencia durante varios frames antes de que crucen el borde
-visible, incluso con una ruta circular de cuatro tiles de radio.
+`engine/include/eng/graphics/drivers/tile_scroll.hpp` implementa el driver real
+de esta familia: `TileScrollScene<Mode>` es un template sobre el modo grafico y
+reserva una superficie de 480x416, muestra una ventana de 320x256 y reconstruye su
+copperlist con punteros de bitplane desplazados y `BPLCON1` para fine X. Los
+margenes de 160 pixels equivalen a 10 columnas y 10 filas ocultas: suficiente para
+predibujar tiles sueltos en orden de urgencia durante varios frames antes de que
+crucen el borde visible. El mismo template se instancia para:
 
-`demos/101_ehb_tile_scroll_driver` demuestra la ruta inicial con movimiento real:
-la camara se mueve dos tiles a derecha/izquierda, dos tiles arriba/abajo y despues
-recorre una orbita de cuatro tiles de radio. Cada frame reconstruye la copperlist,
-y los tiles offscreen aceptados por presupuesto se convierten en `TileBlockCopy`
-que el backend ejecuta por Blitter antes de instalar la copperlist final. La
-prueba de secuencia debe detectar animacion, no solo una captura estatica correcta.
+- single playfield de 4, 5 o 6 bitplanes (6 = EHB);
+- dual playfield 2+3 y 3+3, con scroll fino/coarse independiente por playfield.
+
+`demos/101_ehb_tile_scroll_driver` demuestra el modo single 6 (EHB) con una ruta
+circular; `demos/102_tile_scroll_dualpf` demuestra el dual 2+3 con un fondo que
+deriva a la derecha y un primer plano de tiles con el 50% de pixels transparentes
+que deriva a la izquierda y bobea. Cada frame se reconstruye la copperlist y los
+tiles offscreen aceptados por presupuesto se convierten en `TileBlockCopy` que el
+backend ejecuta por Blitter antes de instalar la copperlist final.
+
 Para evitar un diente de sierra horizontal, el driver redondea el puntero coarse X
 hacia el siguiente bloque de 16 pixels cuando hay fine scroll y programa
 `BPLCON1 = 16 - fine`. Asi la camara de juego puede crecer hacia la derecha
 mientras el contenido visible se desplaza de forma continua hacia la izquierda.
-En codigo (`EhbTileScrollScene::rebuild_copper`) esto es la formula canonica de
+En codigo (`TileScrollScene::rebuild_copper`) esto es la formula canonica de
 ACE/HRM:
 
 ```cpp
@@ -155,23 +159,34 @@ const u16 fetch_x = (scroll_x - 1) & ~15;
 
 Con `DDFSTRT=$30` (un word extra de fetch a la izquierda) se cumple
 `display_start = fetch_x + 16 - bplcon1 == scroll_x` en todo el rango, sin salto
-en el cruce de tile. La prueba fuerte usa FrameScope con `-Profile amiga-scroll
--RequireProfileMatch`
+en el cruce de tile. En dual playfield cada playfield calcula su propia formula y
+`BPLCON1` combina los dos nibbles (bajo = PF1/impares, alto = PF2/pares). La
+prueba fuerte usa FrameScope con `-Profile amiga-scroll -RequireProfileMatch`
 para comparar esa telemetria de camara contra el movimiento observado.
 
-La demo 101 tambien fija presupuesto de Blitter en su ruta de prefetch:
-`warning=1 job / 128 words`, `max=2 jobs / 192 words` por frame. Como cada
-`TileBlockCopy` de 16x16 en 6 planos cuesta 96 words, ese contrato permite dos
-tiles por frame y falla de forma controlada si el scheduler o el driver intentan
-subir mas trabajo del esperado en una sola iteracion.
+El scroll se pide por playfield con `TileScrollInput`: `playfield[0]` (PF1) y
+`playfield[1]` (PF2), mas `plane[i]` para anadir un offset coarse a un bitplane
+concreto. Ese override por plano es el punto de extension preparado para la
+tecnica de RoboCod (un bitplane de fondo con scroll propio distinto a los demas,
+conseguido por Blitter) y se validara en la proxima demo.
 
-La misma cabecera incluye ahora `EhbBidirectionalRingPrefetch`, un planificador de
-slots de columnas y filas. Todavia no intenta hacer wrap fisico en mitad de la
-ventana visible, porque OCS no puede saltar de final de fila a principio de fila
-durante un unico fetch de bitplanes. Su contrato si es el que necesitaremos para el
-driver completo: mapear columna/fila de mundo a slot fisico, recordar que franja
-vive en cada slot y pedir solo lo que falta. La demo 101 recicla columnas y filas;
-el nibble bajo de `runStatus.detail` publica flags (`0x1` columnas, `0x2` filas).
+La demos fijan presupuesto de Blitter en su ruta de prefetch: la 101 usa
+`warning=1 job / 128 words`, `max=2 jobs / 192 words` (dos tiles EHB de 96 words
+por frame); la 102 usa jobs por plano (`max=6 jobs / 96 words`) porque en dual los
+planos de cada playfield no son contiguos.
+
+La misma cabecera incluye `BidirectionalRingPrefetch` (alias `EhbBidirectionalRingPrefetch`),
+un planificador de slots de columnas y filas. Todavia no intenta hacer wrap fisico
+en mitad de la ventana visible, porque OCS no puede saltar de final de fila a
+principio de fila durante un unico fetch de bitplanes. Su contrato si es el que
+necesitaremos para el driver completo: mapear columna/fila de mundo a slot fisico,
+recordar que franja vive en cada slot y pedir solo lo que falta. Las demos
+reciclan columnas y filas; el nibble bajo de `runStatus.detail` publica flags
+(`0x1` columnas, `0x2` filas).
+
+El test `tools/analyze/verify-tile-scroll-modes.mjs` valida que la descomposicion
+del scroll (BPLCON1, punteros, mapeo plano<->playfield) es correcta y continua
+para single 4/5/6 y dual 2+3/3+3 con la misma ruta de camara.
 
 Los blobs futuros tambien podran tener una contribucion Copper asociada. Por
 ejemplo: cambiar colores justo en sus franjas, ondular filas mediante scroll/splits

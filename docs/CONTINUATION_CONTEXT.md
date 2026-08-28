@@ -406,3 +406,20 @@ Correccion posterior del salto de columna izquierda:
   `cameraX=112,111,110,109` con shifts `+2,+2,+2`.
 - La regresion anterior a este fix es
   `out\regression\20260601-013329\regression-report.md`.
+
+Scroll generico multi-modo (2026-08):
+
+- El driver de scroll por tiles se generalizo a `TileScrollScene<Mode>` en
+  `engine/include/eng/graphics/drivers/tile_scroll.hpp`: template sobre el modo,
+  con scroll por playfield (`TileScrollInput`) y override coarse por bitplane
+  (`plane[i]`, preparado para la tecnica de RoboCod).
+- Modos soportados: single 4/5/6 bitplanes y dual 2+3 / 3+3, con
+  `BPLCON1` por playfield y `DDFSTRT=$30` compartido.
+- `ehb_tile_scroll.hpp` quedo como shim de compatibilidad
+  (`EhbTileScrollScene = TileScrollScene<TileScrollMode::ehb()>`).
+- `demos/102_tile_scroll_dualpf` demuestra dual 2+3: fondo 3 planos (PF1) con
+  glifos y primer plano 2 planos (PF2) con tramado del 50% transparente; cada
+  playfield sigue un patron de movimiento distinto (fondo derecha, primer plano
+  izquierda + bob vertical). Valida con `analyze-sequence.sh --warp`.
+- Test host de descomposicion del mismo scroll en todos los modos:
+  `node tools/analyze/verify-tile-scroll-modes.mjs`.
