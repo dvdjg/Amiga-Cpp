@@ -27,10 +27,11 @@ struct RouteCamera {
 	eng::u16 center_x = 160;
 	eng::u16 center_y = 128;
 	eng::u16 radius_scale = 96;
-	/// Paron (frames) al inicio de cada fase.
-	eng::u16 pause_frames = 10;
+	/// Paron (frames) al inicio de cada fase. 0 = movimiento continuo sin pausas
+	/// (transiciones suaves entre fases).
+	eng::u16 pause_frames = 0;
 	/// A partir de este frame se activa el modo de saltos.
-	eng::u32 jump_start_frames = 1650;
+	eng::u32 jump_start_frames = 1600;
 	/// Cada cuantos frames se vuelven a elegir las direcciones de salto.
 	eng::u32 repattern_frames = 500;
 

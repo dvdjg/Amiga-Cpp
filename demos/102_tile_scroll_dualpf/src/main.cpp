@@ -520,7 +520,11 @@ struct DemoGame {
 		m_scene.bitplane_span().clear();
 		build_tile_cache(tile_span(m_background.tiles), bg_pattern_count, m_background.planes, false);
 		build_tile_cache(tile_span(m_foreground.tiles), fg_pattern_count, m_foreground.planes, true);
-		rebuild_patterns();
+		// Mapa inicial con semilla fija (el mundo NO cambia durante la demo).
+		build_map(m_background.cells, false, 0x13579bdu);
+		build_map(m_foreground.cells, true, 0x2468aceu);
+		m_background.map.reset(m_background.cells, map_tiles_x, map_tiles_y);
+		m_foreground.map.reset(m_foreground.cells, map_tiles_x, map_tiles_y);
 		m_fg_cam.mirror_x = true;
 
 		stamp_layer(m_scene, m_background, pf_background);
@@ -564,16 +568,6 @@ struct DemoGame {
 		}
 
 		const eng::u32 frame = context.frame.frame_index;
-
-		// Los patrones de cada campo cambian cada 10 segundos (500 frames a
-		// 50fps): se regeneran los mapas con una semilla nueva y las franjas de
-		// margen que la camara va revelando se re-suben con el patron nuevo, de
-		// modo que el mundo "muta" de aspecto progresivamente.
-		const eng::u32 epoch = frame / 500u;
-		if (epoch != m_last_epoch) {
-			m_last_epoch = epoch;
-			rebuild_patterns();
-		}
 
 		m_bg_cam.advance(frame);
 		// El primer plano hace SIEMPRE un movimiento senoidal propio (onda de
@@ -649,27 +643,6 @@ private:
 		);
 	}
 
-	/// Regenera los mapas de ambos campos con una semilla pseudoaleatoria nueva y
-	/// vuelve a apuntar los schedulers al mapa regenerado. La superficie no se
-	/// re-estampa: las franjas de margen que la camara va revelando re-suben los
-	/// tiles con el patron nuevo de forma incremental (estilo Lionheart).
-	void rebuild_patterns() {
-		const eng::u32 seed = rng_next();
-		build_map(m_background.cells, false, seed);
-		build_map(m_foreground.cells, true, seed);
-		m_background.map.reset(m_background.cells, map_tiles_x, map_tiles_y);
-		m_foreground.map.reset(m_foreground.cells, map_tiles_x, map_tiles_y);
-	}
-
-	eng::u32 rng_next() {
-		eng::u32 z = m_rng;
-		z ^= z << 13u;
-		z ^= z >> 17u;
-		z ^= z << 5u;
-		m_rng = z;
-		return z;
-	}
-
 	bool m_ready = false;
 	Scene m_scene {};
 	Layer m_background {};
@@ -677,8 +650,6 @@ private:
 	eng::graphics::FramePlan m_frame_plan {};
 	scene::RouteCamera m_bg_cam {};
 	scene::RouteCamera m_fg_cam {};
-	eng::u32 m_last_epoch = 0;
-	eng::u32 m_rng = 0x29a7c0deu;
 	eng::u32 m_total_tiles_uploaded = 0;
 };
 
