@@ -27,14 +27,26 @@ namespace {
 namespace drivers = eng::graphics::drivers;
 
 /// Dual 3+3 con superficie ring 352x288 (viewport 320x256 + 2 tiles de margen).
-/// Los dos playfields comparten el buffer y la camara: el parallax real por
-/// velocidades distintas no es posible con un unico ring (los wraps chocarian),
-/// asi que cada campo tiene su propio patron de tiles (el delantero con
-/// transparencia) y ambos se desplazan juntos reciclando el buffer al cruzar el
-/// borde (estilo Lionheart).
+///
+/// 3+3 significa 6 bitplanes: PF1 (planos 1,3,5) y PF2 (planos 2,4,6). Cada
+/// playfield usa 8 colores (PF1: registros 0-7, PF2: 8-15). En DPF el color 0
+/// de cada playfield es transparente: donde PF1 (delante) es transparente se ve
+/// PF2, asi el buffer compartido muestra dos capas.
+///
+/// El anillo: el buffer fisico solo mide 352x288 (22x18 tiles) y la camara
+/// apunta siempre dentro de los primeros 16 px de cada fila (px en [1,16]); el
+/// fine scroll lo hace BPLCON1. Al cruzar el borde, el contenido se desplaza
+/// 16 px al lado contrario (shift) y se recargan los tiles que entran (estilo
+/// Lionheart). Es la variante ahorradora de RAM frente al buffer lineal grande
+/// de 101/102. Ver README_104.md.
 constexpr auto kMode = drivers::TileScrollMode::dual(3, 3);
 using Scene = drivers::TileScrollScene<kMode, 2, 2>;
 
+// --- Geometria de la superficie (todo constexpr, auditado en compilacion) ----
+//
+//   superficie: 352 px x 288 px  =  44 bytes/fila  =  22 tiles x 18 tiles
+//   visible:    320 px x 256 px  =  window + margen de fetch (42 bytes/fila)
+//   plane_bytes = 44 * 288 = 12.672 bytes  (6 planos -> 76 KB en total)
 constexpr eng::u16 tile_size = Scene::tile_size;
 constexpr eng::u16 surface_tiles_x = Scene::surface_width / tile_size;   // 22
 constexpr eng::u16 surface_tiles_y = Scene::surface_height / tile_size;  // 18
@@ -46,9 +58,14 @@ constexpr eng::u16 map_tiles_y = 128;
 constexpr eng::u8 bg_pattern_count = 64;
 constexpr eng::u8 fg_pattern_count = 64;
 
+// Playfield fisico de cada capa. pf_foreground = 0 (PF1) queda delante
+// (BPLCON2=0); pf_background = 1 (PF2) detras.
 constexpr eng::u8 pf_background = 1; // PF2 (detras, colores 8..15)
 constexpr eng::u8 pf_foreground = 0; // PF1 (delante, colores 0..7, transparencia)
 
+// Paleta OCS (RGB444). PF1 usa registros 0-7 (vivos, para el primer plano);
+// PF2 usa 8-15 (verdes, para el fondo). El color 0 de cada banco es
+// transparente en DPF y se deja a 0x000 (se vera el otro playfield / borde).
 constexpr drivers::EhbPalette dual_palette {{
 	// PF1 (primer plano): registros 0..7. Color 0 = transparente.
 	0x000, 0xf0c, 0x0cf, 0xff0, 0xf80, 0x84f, 0xf44, 0xfff,
@@ -159,7 +176,12 @@ constexpr eng::u16 fg_plane_row(eng::u8 glyph, eng::u8 variant, eng::u8 y, eng::
 	return pf_plane_row(glyph, variant, y, plane, 0, true);
 }
 
-/// Tile del mundo para una capa: hash de (col, row, capa).
+/// Tile del mundo para una capa: hash determinista de (col, row, capa).
+///
+/// El mundo es infinito sin gastar RAM en un mapa: cualquier coordenada de mundo
+/// produce un indice de tile reproducible. Es un hash entero de 32 bits
+/// (multiplicadores primos + xorshift) cortado en glifo (4 bits) y variante
+/// (2 bits). La semilla de capa hace que fg y bg tengan patrones distintos.
 constexpr eng::u16 world_tile(eng::u32 col, eng::u32 row, eng::u32 layer_seed) {
 	const eng::u32 x = col % map_tiles_x;
 	const eng::u32 y = row % map_tiles_y;
@@ -212,8 +234,16 @@ struct TileCache {
 	}
 };
 
-// --- Camara de anillo (igual que la demo 103) --------------------------------
-
+// --- Camara de anillo ---------------------------------------------------------
+//
+// Separa la posicion de mundo (px infinitos) del puntero fisico del buffer:
+//   wx/wy       posicion de mundo en pixeles (crece sin limite)
+//   view_x/y    columna/fila de mundo en el borde del buffer = wx / 16
+//   px/py       puntero fino 1..16 = (wx % 16) + 1  -> lo que recibe el chipset
+//
+// El buffer solo tiene 22 tiles de ancho; el display apunta siempre a px en
+// [1,16] y el fine scroll lo hace BPLCON1. Cuando view_x cambia (cruza un tile),
+// vdx/vdy != 0 avisan al update de que hay que hacer el wrap (shift + recarga).
 struct RingCamera {
 	eng::u32 wx = 1;
 	eng::u32 wy = 1;
@@ -225,6 +255,8 @@ struct RingCamera {
 	eng::s8 vdx = 0;
 	eng::s8 vdy = 0;
 
+	// Fases de la ruta: 30 frames de pausa + duraciones. En cada fase la camara
+	// se recalcula desde el frame_index (determinista, sin deriva).
 	static constexpr eng::u32 pause_frames = 30;
 	static constexpr eng::u32 phase_dur[7] {400, 400, 320, 320, 480, 480, 480};
 	static constexpr eng::u32 jump_start = 30 * 7u + 400 + 400 + 320 + 320 + 480 + 480 + 480;
@@ -335,6 +367,12 @@ private:
 		wy += static_cast<eng::u32>(static_cast<eng::s32>(step) * m_v_dir);
 	}
 
+	// Convierte la posicion de mundo (wx,wy) en el puntero fisico del buffer:
+	//   view_x = wx / 16   -> cuantas veces hemos envuelto el anillo
+	//   px     = wx % 16 + 1 -> posicion fina dentro del tile (1..16)
+	// Si view_x cambio respecto al frame anterior, vdx/vdy (en {-1,0,+1}) marcan
+	// el wrap necesario. Como la camara avanza como mucho ~1 tile por frame en
+	// las fases, nunca hace falta mas de un wrap por eje en un frame.
 	void derive() {
 		const eng::u32 nvx = wx / 16u;
 		const eng::u32 nvy = wy / 16u;
@@ -367,6 +405,8 @@ private:
 struct DemoGame {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
+		// 120 KB de Chip RAM: superficie (76 KB) + tiles (12 KB) + scratch del
+		// shift (12 KB) + copperlist (1.5 KB). Menos de la mitad que 101/102.
 		if (!backend.configure_memory({120u * 1024u, 16u * 1024u, 8u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000410u);
 			return;
@@ -378,6 +418,8 @@ struct DemoGame {
 			return;
 		}
 
+		// Caches de tiles procedurales (64 patrones por playfield, 3 planos cada
+		// uno = 96 bytes/tile). fg usa la paleta 0-7 con transparencia; bg la 8-15.
 		m_bg.build(backend, pf_background, bg_pattern_count, 0x13579bdu, false);
 		m_fg.build(backend, pf_foreground, fg_pattern_count, 0x2468aceu, true);
 		if (!m_bg.block.valid() || !m_fg.block.valid()) {
@@ -385,6 +427,9 @@ struct DemoGame {
 			return;
 		}
 		// Scratch para el shift no-solapado (una fila de un plano: 42x288 bytes).
+		// El shift se hace en dos blits (superficie->scratch, scratch->superficie)
+		// porque el CopyRect solapado no mueve el buffer en WinUAE-DBG; el scratch
+		// se reutiliza plano a plano.
 		m_scratch = backend.memory().chip.allocate(
 			static_cast<eng::u32>(surface_bytes_per_row - (tile_size / 8u)) * Scene::surface_height,
 			16
@@ -394,10 +439,13 @@ struct DemoGame {
 			return;
 		}
 
+		// Limpia y puebla la superficie completa (22x18 tiles por playfield)
+		// directamente por CPU: es la unica vez que se tocan píxeles, en init.
 		m_scene.bitplane_span().clear();
 		stamp_layer(m_bg, pf_background);
 		stamp_layer(m_fg, pf_foreground);
 
+		// Primera copperlist: camara inicial (1,1), ambos playfields.
 		drivers::TileScrollInput input {};
 		input.playfield[pf_background] = {m_cam.px, m_cam.py};
 		input.playfield[pf_foreground] = {m_cam.px, m_cam.py};
@@ -418,16 +466,22 @@ struct DemoGame {
 
 		const eng::u32 frame = context.frame.frame_index;
 
-		// Los patrones cambian cada 10s (500 frames): se regeneran las caches de
-		// tiles; las franjas que la camara revela re-suben el patron nuevo.
+		// Cada 10s (500 frames) se cambia la semilla del hash del mundo: los
+		// tiles que la camara revele se recargaran con el patron nuevo, de modo
+		// que el mundo "muta" de aspecto progresivamente sin tocar RAM extra.
 		const eng::u32 epoch = frame / 500u;
 		if (epoch != m_last_epoch) {
 			m_last_epoch = epoch;
 			rebuild_patterns();
 		}
 
+		// 1) Avanza la camara y detecta si hay wrap (vdx/vdy != 0).
 		m_cam.advance(frame);
 
+		// 2) Si la camara cruzo un borde de tile, el anillo necesita:
+		//      - el SHIFT: mover el contenido 16 px al lado contrario,
+		//      - los EDGES: recargar la columna/fila de tiles que entra.
+		//    Todo se encola en un FramePlan y se ejecuta por Blitter.
 		if (m_cam.vdx != 0 || m_cam.vdy != 0) {
 			m_frame_plan.clear();
 			configure_budget(m_frame_plan);
@@ -444,6 +498,9 @@ struct DemoGame {
 			}
 		}
 
+		// 3) Recompila la copperlist con el puntero fisico actual (px,py): solo
+		//    cambian BPLCON1 y los 12 punteros BPLxPT; el Copper los aplica en el
+		//    VBlank de forma sincronizada con el raster.
 		drivers::TileScrollInput input {};
 		input.playfield[pf_background] = {m_cam.px, m_cam.py};
 		input.playfield[pf_foreground] = {m_cam.px, m_cam.py};
@@ -468,14 +525,29 @@ private:
 		plan.set_blit_budget_limits({16384, 131072, 96, 256});
 	}
 
-	/// Shift del ring en dos blits no-solapados via scratch (el CopyRect solapado
-	/// no mueve el buffer en WinUAE-DBG). El scratch cabe por plano.
+	/// Shift del ring: desplaza el contenido del buffer 16 px al lado contrario.
+	///
+	/// Cuando la camara cruza un tile (px pasa 16->1), el contenido debe moverse
+	/// 16 px para que Denise siga viendo la imagen continua. Geometricamente se
+	/// copia [16px, 352px) -> [0px, 336px) en cada fila:
+	///   ancho = 352-16 = 336 px = 42 bytes = 21 words
+	///   modulo = 44 - 42 = 2   (una fila avanza 44 bytes, el copy cubre 42)
+	///   alto  = 288 filas (272 si tambien hay wrap vertical, se descuenta 16)
+	///
+	/// Se hace en DOS blits no-solapados por plano via un scratch (superficie ->
+	/// scratch -> superficie): el CopyRect solapado no mueve el buffer en
+	/// WinUAE-DBG. El scratch (12 KB) se reutiliza plano a plano.
 	void add_shift(eng::graphics::FramePlan& plan, eng::s8 vdx, eng::s8 vdy) {
 		const eng::u8* base = m_scene.bitplanes();
+		// Desplazamiento de 16 px = 2 bytes. Si avanzamos a la derecha (vdx>0) el
+		// contenido se mueve a la izquierda (origen +2, destino +0); si vamos a la
+		// izquierda, al reves.
 		const eng::u32 src_dx = vdx > 0 ? 2u : 0u;
 		const eng::u32 dst_dx = vdx < 0 ? 2u : 0u;
 		const eng::u32 src_dy = vdy > 0 ? surface_bytes_per_row * 16u : 0u;
 		const eng::u32 dst_dy = vdy < 0 ? surface_bytes_per_row * 16u : 0u;
+		// OJO: 336 son PIXELES = 42 bytes = 21 words. Tratar 336 como bytes daria
+		// 168 words (8x de mas) y corromperia el buffer.
 		const eng::u16 width_bytes = vdx != 0
 			? static_cast<eng::u16>(surface_bytes_per_row - (tile_size / 8u))
 			: surface_bytes_per_row;
@@ -484,7 +556,7 @@ private:
 		const eng::s16 src_mod = static_cast<eng::s16>(surface_bytes_per_row - width_bytes);
 		eng::u8* scratch = static_cast<eng::u8*>(m_scratch.data);
 		for (eng::u8 pl = 0; pl < Scene::plane_count; ++pl) {
-			// superficie -> scratch (contiguo por fila)
+			// superficie -> scratch (scratch contiguo por fila: modulo 0)
 			plan.add_tile_block_copy({
 				eng::graphics::BlitJobKind::CopyRect,
 				nullptr,
@@ -492,15 +564,15 @@ private:
 				reinterpret_cast<eng::u16*>(scratch),
 				words,
 				height,
-				src_mod,
-				0,
+				src_mod,   // filas de la superficie separadas 44 bytes
+				0,         // scratch contiguo (42 bytes por fila)
 				1,
 				0,
 				plane_bytes,
 				width_bytes,
 				false,
 			});
-			// scratch -> superficie
+			// scratch -> superficie (con el desplazamiento inverso)
 			plan.add_tile_block_copy({
 				eng::graphics::BlitJobKind::CopyRect,
 				nullptr,
@@ -519,6 +591,18 @@ private:
 		}
 	}
 
+	/// Recarga los tiles del mundo que entran por el borde tras el wrap.
+	///
+	/// Tras el shift, la columna/fila que queda al descubierto ya no es una copia
+	/// del buffer: es contenido NUEVO del mundo. Para avance a la derecha (vdx>0)
+	/// se dibuja la columna de mundo (view_x + 21) en el slot 21 (el margen
+	/// derecho); para avance a la izquierda, la columna view_x en el slot 0.
+	/// Simetrico en vertical. Cada playfield recarga su propia capa.
+	///
+	/// Usa `make_playfield_upload_jobs`, que emite UN job por tile con stride de
+	/// destino 2*plane_bytes (los planos de un playfield estan intercalados:
+	/// PF1=1,3,5 / PF2=2,4,6). Fusionar los planos reduce el overhead por blit
+	/// (wait_blitter + programacion de registros) de 3x a 1x.
 	void add_edges(eng::graphics::FramePlan& plan, const TileCache& cache, eng::u8 playfield, eng::s8 vdx, eng::s8 vdy) {
 		if (vdx != 0) {
 			const eng::u16 slot_col = vdx > 0 ? static_cast<eng::u16>(surface_tiles_x - 1u) : 0u;
