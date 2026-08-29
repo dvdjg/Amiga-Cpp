@@ -52,6 +52,12 @@ constexpr eng::u16 surface_tiles_x = Scene::surface_width / tile_size;   // 22
 constexpr eng::u16 surface_tiles_y = Scene::surface_height / tile_size;  // 18
 constexpr eng::u16 surface_bytes_per_row = Scene::surface_bytes_per_row; // 44
 constexpr eng::u32 plane_bytes = Scene::plane_bytes;
+// Cruce diagonal: dos copias por plano y las dos franjas de cada playfield.
+constexpr eng::u16 max_ring_blit_jobs = static_cast<eng::u16>(
+	2u * Scene::plane_count +
+	(surface_tiles_x + surface_tiles_y) * Scene::playfield_count()
+);
+static_assert(max_ring_blit_jobs <= eng::graphics::FramePlan::max_blit_jobs);
 
 constexpr eng::u16 map_tiles_x = 256;
 constexpr eng::u16 map_tiles_y = 128;
