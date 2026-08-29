@@ -327,17 +327,23 @@ public:
 
 	constexpr void reset() {
 		m_count = 0;
+		m_head = 0;
 		m_overflow = false;
 	}
 
 	constexpr bool enqueue(const TileUpdateJob& job) {
 		if (m_count >= max_queued_jobs) {
-			m_overflow = true;
-			return false;
+			if (m_head > 0) {
+				compact();
+			} else {
+				m_overflow = true;
+				return false;
+			}
 		}
 
-		u8 insert_at = m_count;
-		while (insert_at > 0 && job.frames_until_visible < m_jobs[insert_at - 1u].frames_until_visible) {
+		// Insercion ordenada dentro del rango vivo [m_head, m_head + m_count).
+		u8 insert_at = static_cast<u8>(m_head + m_count);
+		while (insert_at > m_head && job.frames_until_visible < m_jobs[insert_at - 1u].frames_until_visible) {
 			m_jobs[insert_at] = m_jobs[insert_at - 1u];
 			--insert_at;
 		}
@@ -394,12 +400,16 @@ public:
 		ProgressiveTileUpdatePlan plan {};
 		plan.overflow = m_overflow;
 		const u8 limit = budget < ProgressiveTileUpdatePlan::max_jobs ? budget : ProgressiveTileUpdatePlan::max_jobs;
-		while (plan.count < limit && m_count > 0) {
-			plan.jobs[plan.count++] = m_jobs[0];
-			for (u8 i = 1; i < m_count; ++i) {
-				m_jobs[i - 1u] = m_jobs[i];
-			}
-			--m_count;
+		const u8 take = m_count < limit ? m_count : limit;
+		for (u8 i = 0; i < take; ++i) {
+			plan.jobs[i] = m_jobs[m_head + i];
+		}
+		plan.count = take;
+		m_head = static_cast<u8>(m_head + take);
+		m_count = static_cast<u8>(m_count - take);
+		// Compacta cuando el puntero de cabeza ha consumido la mitad (amortizado O(n)).
+		if (m_head >= (max_queued_jobs / 2u) && m_count > 0) {
+			compact();
 		}
 		plan.remaining = m_count;
 		return plan;
@@ -409,12 +419,21 @@ public:
 	constexpr bool overflow() const { return m_overflow; }
 
 private:
+	/// Mueve el rango vivo al inicio del array y reinicia el puntero de cabeza.
+	constexpr void compact() {
+		for (u8 i = 0; i < m_count; ++i) {
+			m_jobs[i] = m_jobs[m_head + i];
+		}
+		m_head = 0;
+	}
+
 	static constexpr u16 min_u16(u16 a, u16 b) {
 		return a < b ? a : b;
 	}
 
 	TileUpdateJob m_jobs[max_queued_jobs] {};
 	u8 m_count = 0;
+	u8 m_head = 0;
 	bool m_overflow = false;
 };
 
