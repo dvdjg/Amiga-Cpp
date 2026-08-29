@@ -3,12 +3,12 @@
 /// \file route_camera.hpp
 /// Camara de ruta por fases para demos de scroll infinitas.
 ///
-/// Recorre fases de movimiento, cada una precedida de un paron para que el
-/// cambio de patron sea visible: horizontal, vertical, diagonal, circular y
-/// senoidal. En cada fase la camara desplaza una pantalla entera (320x256) por
-/// defecto. Despues de `jump_start_frames` entra en modo de saltos: cada frame
-/// avanza un paso aleatorio de 2..15 px en las direcciones horizontal/vertical,
-/// y cada `repattern_frames` se vuelven a elegir al azar las direcciones.
+/// Recorre fases de movimiento, cada una precedida de un breve paron: horizontal,
+/// vertical, diagonal, circular y senoidal. Cada fase dura pocos segundos (a
+/// 2 px/frame) para que la demo muestre todas las posibilidades rapidamente.
+/// Despues de `jump_start_frames` entra en modo de saltos: cada frame avanza un
+/// paso aleatorio de 2..15 px en las direcciones horizontal/vertical, y cada
+/// `repattern_frames` se vuelven a elegir al azar las direcciones.
 
 #include <eng/core/types.hpp>
 
@@ -26,9 +26,9 @@ struct RouteCamera {
 	eng::u16 center_y = 128;
 	eng::u16 radius_scale = 96;
 	/// Paron (frames) al inicio de cada fase.
-	eng::u16 pause_frames = 40;
+	eng::u16 pause_frames = 10;
 	/// A partir de este frame se activa el modo de saltos.
-	eng::u32 jump_start_frames = 3144;
+	eng::u32 jump_start_frames = 954;
 	/// Cada cuantos frames se vuelven a elegir las direcciones de salto.
 	eng::u32 repattern_frames = 500;
 
@@ -43,8 +43,9 @@ struct RouteCamera {
 	eng::u32 jump_epoch = 0xffffffffu;
 	eng::u32 rng = 0x12345678u;
 
-	/// Duracion (frames) del movimiento de cada fase.
-	static constexpr eng::u32 phase_move_dur[5] {640, 512, 640, 512, 640};
+	/// Duracion (frames) del movimiento de cada fase. Fases de una sola
+	/// direccion a 2 px/frame para un showcase rapido de todas las posibilidades.
+	static constexpr eng::u32 phase_move_dur[5] {160, 128, 160, 256, 200};
 
 	/// Avanza la camara un frame.
 	void advance(eng::u32 frame_index) {
@@ -106,40 +107,30 @@ private:
 		eng::u16 route_x = x;
 		eng::u16 route_y = y;
 		switch (p) {
-		case 0: { // horizontal: min -> max -> min
-			const eng::u32 half = 320;
-			route_x = t < half ? static_cast<eng::u16>(min_x + t)
-			                   : static_cast<eng::u16>(max_x - (t - half));
+		case 0: { // horizontal: min -> max (2 px/frame)
+			route_x = static_cast<eng::u16>(min_x + t * 2u);
 			route_y = center_y;
 			break;
 		}
-		case 1: { // vertical: min -> max -> min
-			const eng::u32 half = 256;
+		case 1: { // vertical: min -> max (2 px/frame)
 			route_x = center_x;
-			route_y = t < half ? static_cast<eng::u16>(min_y + t)
-			                   : static_cast<eng::u16>(max_y - (t - half));
+			route_y = static_cast<eng::u16>(min_y + t * 2u);
 			break;
 		}
-		case 2: { // diagonal: (min,min) -> (max,max) -> vuelta
-			const eng::u32 half = 320;
-			route_x = t < half ? static_cast<eng::u16>(min_x + t)
-			                   : static_cast<eng::u16>(max_x - (t - half));
-			route_y = t < half
-				? static_cast<eng::u16>(min_y + (t * 256u) / 320u)
-				: static_cast<eng::u16>(max_y - ((t - half) * 256u) / 320u);
+		case 2: { // diagonal (2 px/frame en cada eje)
+			route_x = static_cast<eng::u16>(min_x + t * 2u);
+			route_y = static_cast<eng::u16>(min_y + t * 2u);
 			break;
 		}
 		case 3: { // circular: una vuelta
-			const eng::u8 a = static_cast<eng::u8>((t * 64u) / 512u);
+			const eng::u8 a = static_cast<eng::u8>((t * 64u) / phase_move_dur[3]);
 			route_x = static_cast<eng::u16>(center_x + radius_signed(circle_offset_x(a)));
 			route_y = static_cast<eng::u16>(center_y + radius_signed(circle_offset_y(a)));
 			break;
 		}
 		case 4: { // senoidal: x de borde a borde, y oscilando (dos ciclos)
-			const eng::u32 half = 320;
-			const eng::u8 a = static_cast<eng::u8>((t * 128u) / 640u);
-			route_x = t < half ? static_cast<eng::u16>(min_x + t)
-			                   : static_cast<eng::u16>(max_x - (t - half));
+			const eng::u8 a = static_cast<eng::u8>((t * 128u) / phase_move_dur[4]);
+			route_x = static_cast<eng::u16>(min_x + t * 2u);
 			route_y = static_cast<eng::u16>(center_y + radius_signed(circle_offset_y(a)));
 			break;
 		}
