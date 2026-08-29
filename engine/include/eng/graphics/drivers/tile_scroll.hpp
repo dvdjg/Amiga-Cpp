@@ -60,6 +60,15 @@ struct PlaneScrollOffset {
 	s16 y_rows = 0;
 };
 
+/// Physical origin of the 320x256 logical page selected by one playfield.
+///
+/// Origins are tile-aligned physical slots, normally one of (0,0), (22,0),
+/// (0,18) or (22,18) in the 44x36 tile surface used by the page-backed demo.
+struct TilePageOrigin {
+	u16 x = 0;
+	u16 y = 0;
+};
+
 /// Input de scroll de un frame.
 ///
 /// `playfield[0]` es la camara de PF1 (planos impares), `playfield[1]` la de PF2
@@ -67,6 +76,7 @@ struct PlaneScrollOffset {
 /// bitplane i (para parallax dentro de un playfield).
 struct TileScrollInput {
 	ScrollPosition2 playfield[2] {};
+	TilePageOrigin page[2] {};
 	PlaneScrollOffset plane[6] {};
 };
 
@@ -358,6 +368,24 @@ private:
 /// mayor que la ventana visible para que el prefetch pueda escribir fuera de
 /// pantalla, y reconstruye cada frame una copperlist que muestra la ventana
 /// desplazada por playfield.
+/// Estado de display calculado para un frame (valores, sin listas de Copper).
+///
+/// Lo rellena `compute_display` y lo consumen `emit_full_copper` (una vez) y
+/// `patch_copper` (cada frame). Evita recalcular el scroll en dos sitios.
+struct TileDisplayState {
+	u16 dmacon = 0;
+	u16 bplcon0 = 0;
+	u16 bplcon1 = 0;
+	u16 bplcon2 = 0;
+	u16 bpl1mod = 0;
+	u16 bpl2mod = 0;
+	u16 diwstrt = 0x2c81;
+	u16 diwstop = 0x2cc1;
+	u16 ddfstrt = 0x0030;
+	u16 ddfstop = 0x00d0;
+	u32 plane_offsets[6] {};
+};
+
 template <TileScrollMode Mode, u8 PrefetchColumns = 20, u8 PrefetchRows = 16>
 class TileScrollScene {
 public:
@@ -441,9 +469,11 @@ public:
 
 	bool init(MemorySystem& memory, const TileScrollConfig& config) {
 		m_bitplane_block = memory.chip.allocate(bitplane_bytes, 16);
-		m_copper_block = memory.chip.allocate(config.copper_bytes, 16);
+		m_copper_blocks[0] = memory.chip.allocate(config.copper_bytes, 16);
+		m_copper_blocks[1] = memory.chip.allocate(config.copper_bytes, 16);
 		m_bitplanes = static_cast<u8*>(m_bitplane_block.data);
-		if (!m_bitplane_block.valid() || !m_copper_block.valid() || config.base_palette == nullptr) {
+		if (!m_bitplane_block.valid() || !m_copper_blocks[0].valid() ||
+			!m_copper_blocks[1].valid() || config.base_palette == nullptr) {
 			m_ok = false;
 			return false;
 		}
@@ -463,93 +493,37 @@ public:
 	///
 	/// Con `DDFSTRT=$30` se cumple `display_start == scroll_x` de forma continua en
 	/// todo el rango (ver cabecera del archivo).
+	/// Aplica el scroll del frame a la copperlist.
+	///
+	/// SOLO el primer frame emite la lista completa (registros estaticos + paleta
+	/// + punteros) en los dos bloques del doble buffer; los siguientes frame
+	/// "parchean" unicamente las 13 words que cambian (BPLCON1 + 6 punteros x2),
+	/// que es lo unico que depende de la camara. Re-emitir los ~57 movimientos y
+	/// la paleta (32 colores) cada frame costaba ~63K ciclos en el emulador;
+	/// con el parcheo el coste por frame baja a ~3K y queda margen para la logica
+	/// del juego. Ver el layout de la lista en `patch_copper`.
+	///
+	/// Para cada playfield p:
+	/// - fine = `(16 - (scroll_x & 15)) & 15`, en su nibble de `BPLCON1`;
+	/// - coarse = `(scroll_x - 1) & ~15`, como offset del puntero `BPLxPT`.
 	bool rebuild_copper(const TileScrollInput& input) {
-		if (!m_bitplane_block.valid() || !m_copper_block.valid() || m_config.base_palette == nullptr) {
-			m_ok = false;
+		if (!compute_display(input)) {
 			return false;
 		}
-
-		// Scroll recortado por playfield.
-		const u16 cam_x[2] = {
-			clamp_scroll(input.playfield[0].x, max_scroll_x(), 1u),
-			clamp_scroll(input.playfield[1].x, max_scroll_x(), 1u),
-		};
-		const u16 cam_y[2] = {
-			clamp_scroll(input.playfield[0].y, max_scroll_y(), 0u),
-			clamp_scroll(input.playfield[1].y, max_scroll_y(), 0u),
-		};
-		const u8 fine[2] = {
-			static_cast<u8>(cam_x[0] & 15u),
-			static_cast<u8>(cam_x[1] & 15u),
-		};
-		const u8 bplcon1_nibble[2] = {
-			static_cast<u8>((16u - fine[0]) & 15u),
-			static_cast<u8>((16u - fine[1]) & 15u),
-		};
-		const u16 fetch_x[2] = {
-			static_cast<u16>((cam_x[0] - 1u) & 0xfff0u),
-			static_cast<u16>((cam_x[1] - 1u) & 0xfff0u),
-		};
-		const u32 pointer_offset[2] = {
-			static_cast<u32>(cam_y[0]) * surface_bytes_per_row + fetch_x[0] / 8u,
-			static_cast<u32>(cam_y[1]) * surface_bytes_per_row + fetch_x[1] / 8u,
-		};
-
-		const u16 bplcon1 = dual_playfield
-			? static_cast<u16>((bplcon1_nibble[1] << 4u) | bplcon1_nibble[0])
-			: static_cast<u16>(bplcon1_nibble[0] | (bplcon1_nibble[0] << 4u));
-		const u16 bplcon0 = static_cast<u16>(
-			0x0200u |
-			(static_cast<u16>(plane_count) << 12u) |
-			(dual_playfield ? 0x0400u : 0x0000u)
-		);
-		const u16 bplcon2 = dual_playfield && Mode.foreground_is_pf2 ? 0x0040u : 0x0000u;
-
-		copper::Scheduler scheduler { m_copper_block };
-		scheduler.move(copper::Register::DMACON, static_cast<u16>(
-			copper::DmaSetClear | copper::DmaMaster | copper::DmaCopper | copper::DmaBitplane
-		));
-		scheduler.move(copper::Register::BPLCON0, bplcon0);
-		scheduler.move(copper::Register::BPLCON1, bplcon1);
-		scheduler.move(copper::Register::BPLCON2, bplcon2);
-		scheduler.move(copper::Register::BPL1MOD, display_modulo);
-		scheduler.move(copper::Register::BPL2MOD, display_modulo);
-		scheduler.move(copper::Register::DIWSTRT, 0x2c81);
-		scheduler.move(copper::Register::DIWSTOP, 0x2cc1);
-		scheduler.move(copper::Register::DDFSTRT, 0x0030);
-		scheduler.move(copper::Register::DDFSTOP, 0x00d0);
-		for (u8 plane = 0; plane < plane_count; ++plane) {
-			const u8 pf = playfield_of_plane(plane);
-			const u32 extra = plane_extra_offset(plane, input);
-			const u32 plane_offset = pointer_offset[pf] + extra;
-			scheduler.move(
-				copper::bitplane_pointer_high_register(plane),
-				static_cast<u16>((reinterpret_cast<u32>(m_bitplanes + static_cast<u32>(plane) * plane_bytes + plane_offset)) >> 16)
-			);
-			scheduler.move(
-				copper::bitplane_pointer_low_register(plane),
-				static_cast<u16>(reinterpret_cast<u32>(m_bitplanes + static_cast<u32>(plane) * plane_bytes + plane_offset) & 0xffffu)
-			);
+		if (m_copper_initialized) {
+			return patch_copper();
 		}
-		scheduler.emit_palette(m_config.base_palette->color);
-		for (u8 i = 0; i < m_config.zone_count; ++i) {
-			if (m_config.zones[i].palette != nullptr) {
-				scheduler.emit_palette_zone(m_config.zones[i].line, m_config.zones[i].palette->color);
-			}
+		// Primer build: emitir la lista completa en AMBOS bloques (doble buffer)
+		// y activar el 0; la instalacion apuntara a el.
+		if (!emit_full_copper(0)) {
+			return false;
 		}
-		scheduler.wait_line(0xf8);
-		scheduler.move(copper::Register::COLOR00, 0x0000);
-		scheduler.end();
-
-		m_scroll[0] = cam_x[0];
-		m_scroll[1] = cam_x[1];
-		m_scroll_y[0] = cam_y[0];
-		m_scroll_y[1] = cam_y[1];
-		m_copper_words = scheduler.words_used();
-		m_copper_words_ptr = scheduler.data();
-		m_copper_report = scheduler.report();
-		m_ok = scheduler.ok();
-		return m_ok;
+		if (!emit_full_copper(1)) {
+			return false;
+		}
+		m_copper_initialized = true;
+		m_active_copper = 0;
+		return true;
 	}
 
 	/// Conveniencia para single playfield: un solo scroll.
@@ -561,8 +535,8 @@ public:
 
 	template <typename Backend>
 	void install(Backend& backend) const {
-		if (m_ok && m_copper_words_ptr != nullptr) {
-			backend.install_copper_list(m_copper_words_ptr);
+		if (m_ok) {
+			backend.install_copper_list(static_cast<const u16*>(m_copper_blocks[m_active_copper].data));
 		}
 	}
 
@@ -610,12 +584,26 @@ public:
 		u16 surface_tile_y,
 		graphics::BlitJob out[3]
 	) const {
+		return make_playfield_upload_jobs(playfield, tile_planes, surface_tile_x, surface_tile_y, 0, 0, out);
+	}
+
+	/// Page-aware variant: destination coordinates are relative to a physical
+	/// page origin in the tile surface.
+	u8 make_playfield_upload_jobs(
+		u8 playfield,
+		const u16* tile_planes,
+		u16 surface_tile_x,
+		u16 surface_tile_y,
+		u16 page_x,
+		u16 page_y,
+		graphics::BlitJob out[3]
+	) const {
 		const u8 count = playfield_planes(playfield);
 		out[0] = {
 			graphics::BlitJobKind::TileBlockCopy,
 			nullptr,
 			tile_planes,
-			plane_tile_destination(hardware_plane_of(playfield, 0), surface_tile_x, surface_tile_y),
+			plane_tile_destination(hardware_plane_of(playfield, 0), static_cast<u16>(page_x + surface_tile_x), static_cast<u16>(page_y + surface_tile_y)),
 			1,
 			tile_size,
 			0,
@@ -670,15 +658,138 @@ private:
 		return reinterpret_cast<u16*>(m_bitplanes + offset);
 	}
 
+	/// Recalcula el estado de display a partir del input y lo guarda en m_display
+	/// y en m_scroll/m_scroll_y. No toca la copperlist.
+	bool compute_display(const TileScrollInput& input) {
+		if (!m_bitplane_block.valid() || !m_copper_blocks[0].valid() ||
+			!m_copper_blocks[1].valid() || m_config.base_palette == nullptr) {
+			m_ok = false;
+			return false;
+		}
+		const u16 cam_x[2] = {
+			clamp_scroll(input.playfield[0].x, max_scroll_x(), 1u),
+			clamp_scroll(input.playfield[1].x, max_scroll_x(), 1u),
+		};
+		const u16 cam_y[2] = {
+			clamp_scroll(input.playfield[0].y, max_scroll_y(), 0u),
+			clamp_scroll(input.playfield[1].y, max_scroll_y(), 0u),
+		};
+		const u8 fine[2] = {
+			static_cast<u8>(cam_x[0] & 15u),
+			static_cast<u8>(cam_x[1] & 15u),
+		};
+		const u8 bplcon1_nibble[2] = {
+			static_cast<u8>((16u - fine[0]) & 15u),
+			static_cast<u8>((16u - fine[1]) & 15u),
+		};
+		const u16 fetch_x[2] = {
+			static_cast<u16>((cam_x[0] - 1u) & 0xfff0u),
+			static_cast<u16>((cam_x[1] - 1u) & 0xfff0u),
+		};
+		const u32 pointer_offset[2] = {
+			static_cast<u32>(input.page[0].y) * tile_size * surface_bytes_per_row +
+				static_cast<u32>(cam_y[0]) * surface_bytes_per_row + input.page[0].x * sizeof(u16) + fetch_x[0] / 8u,
+			static_cast<u32>(input.page[1].y) * tile_size * surface_bytes_per_row +
+				static_cast<u32>(cam_y[1]) * surface_bytes_per_row + input.page[1].x * sizeof(u16) + fetch_x[1] / 8u,
+		};
+
+		m_display.bplcon1 = dual_playfield
+			? static_cast<u16>((bplcon1_nibble[1] << 4u) | bplcon1_nibble[0])
+			: static_cast<u16>(bplcon1_nibble[0] | (bplcon1_nibble[0] << 4u));
+		m_display.bplcon0 = static_cast<u16>(
+			0x0200u |
+			(static_cast<u16>(plane_count) << 12u) |
+			(dual_playfield ? 0x0400u : 0x0000u)
+		);
+		m_display.bplcon2 = dual_playfield && Mode.foreground_is_pf2 ? 0x0040u : 0x0000u;
+		m_display.bpl1mod = display_modulo;
+		m_display.bpl2mod = display_modulo;
+		m_display.dmacon = static_cast<u16>(
+			copper::DmaSetClear | copper::DmaMaster | copper::DmaCopper | copper::DmaBitplane
+		);
+		for (u8 plane = 0; plane < plane_count; ++plane) {
+			const u8 pf = playfield_of_plane(plane);
+			m_display.plane_offsets[plane] = pointer_offset[pf] + plane_extra_offset(plane, input);
+		}
+		m_scroll[0] = cam_x[0];
+		m_scroll[1] = cam_x[1];
+		m_scroll_y[0] = cam_y[0];
+		m_scroll_y[1] = cam_y[1];
+		return true;
+	}
+
+	/// Emite la lista completa de copper en el bloque indicado del doble buffer.
+	///
+	/// Se llama UNA sola vez (primer rebuild) sobre los dos bloques; a partir de
+	/// ahi `patch_copper` solo sobrescribe las words que dependen de la camara.
+	bool emit_full_copper(u8 block) {
+		copper::Scheduler scheduler { m_copper_blocks[block] };
+		scheduler.move(copper::Register::DMACON, m_display.dmacon);
+		scheduler.move(copper::Register::BPLCON0, m_display.bplcon0);
+		scheduler.move(copper::Register::BPLCON1, m_display.bplcon1);
+		scheduler.move(copper::Register::BPLCON2, m_display.bplcon2);
+		scheduler.move(copper::Register::BPL1MOD, m_display.bpl1mod);
+		scheduler.move(copper::Register::BPL2MOD, m_display.bpl2mod);
+		scheduler.move(copper::Register::DIWSTRT, m_display.diwstrt);
+		scheduler.move(copper::Register::DIWSTOP, m_display.diwstop);
+		scheduler.move(copper::Register::DDFSTRT, m_display.ddfstrt);
+		scheduler.move(copper::Register::DDFSTOP, m_display.ddfstop);
+		for (u8 plane = 0; plane < plane_count; ++plane) {
+			const u32 address =
+				reinterpret_cast<u32>(m_bitplanes + static_cast<u32>(plane) * plane_bytes + m_display.plane_offsets[plane]);
+			scheduler.move(copper::bitplane_pointer_high_register(plane), static_cast<u16>(address >> 16));
+			scheduler.move(copper::bitplane_pointer_low_register(plane), static_cast<u16>(address & 0xffffu));
+		}
+		scheduler.emit_palette(m_config.base_palette->color);
+		for (u8 i = 0; i < m_config.zone_count; ++i) {
+			if (m_config.zones[i].palette != nullptr) {
+				scheduler.emit_palette_zone(m_config.zones[i].line, m_config.zones[i].palette->color);
+			}
+		}
+		scheduler.wait_line(0xf8);
+		scheduler.move(copper::Register::COLOR00, 0x0000);
+		scheduler.end();
+		m_copper_report = scheduler.report();
+		m_copper_words = scheduler.words_used();
+		m_ok = scheduler.ok();
+		return m_ok;
+	}
+
+	/// Parchea en el bloque inactivo las words que dependen de la camara.
+	///
+	/// La lista completa se emitio una sola vez; el scroll solo cambia BPLCON1 y
+	/// los 6 punteros. Layout (words) de la lista:
+	///   0-1 DMACON   2-3 BPLCON0   4-5 BPLCON1   <- 5 = valor de BPLCON1
+	///   6-7 BPLCON2  8-9 BPL1MOD   10-11 BPL2MOD
+	///   12-13 DIWSTRT 14-15 DIWSTOP 16-17 DDFSTRT 18-19 DDFSTOP
+	///   20+ por plano p: [BPLxPTH, valor en 21+4p, BPLxPTL, valor en 23+4p]
+	///   despues: paleta (32), wait 0xf8, COLOR00=0, fin.
+	/// Re-emitir la lista completa cada frame costaba ~63K ciclos; parchear 13
+	/// words cuesta ~3K y deja margen real para la logica del juego.
+	bool patch_copper() {
+		u16* const words = static_cast<u16*>(m_copper_blocks[m_active_copper ^ 1u].data);
+		words[5] = m_display.bplcon1;
+		for (u8 plane = 0; plane < plane_count; ++plane) {
+			const u32 address =
+				reinterpret_cast<u32>(m_bitplanes + static_cast<u32>(plane) * plane_bytes + m_display.plane_offsets[plane]);
+			words[21u + static_cast<u16>(plane) * 4u] = static_cast<u16>(address >> 16);
+			words[23u + static_cast<u16>(plane) * 4u] = static_cast<u16>(address & 0xffffu);
+		}
+		m_active_copper = static_cast<u8>(m_active_copper ^ 1u);
+		return true;
+	}
+
 	TileScrollConfig m_config {};
 	MemoryBlock m_bitplane_block {};
-	MemoryBlock m_copper_block {};
+	MemoryBlock m_copper_blocks[2] {};
 	u8* m_bitplanes = nullptr;
-	const u16* m_copper_words_ptr = nullptr;
+	TileDisplayState m_display {};
 	copper::ScheduleReport m_copper_report {};
 	u16 m_scroll[2] {};
 	u16 m_scroll_y[2] {};
 	u16 m_copper_words = 0;
+	u8 m_active_copper = 0;
+	bool m_copper_initialized = false;
 	bool m_ok = false;
 };
 
