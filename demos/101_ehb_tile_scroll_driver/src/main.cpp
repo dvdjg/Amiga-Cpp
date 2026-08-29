@@ -5,6 +5,7 @@
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/tilemap/tile_scroll.hpp>
 #include <eng/platform/amiga_minimal.hpp>
+#include <eng/scene/route_camera.hpp>
 #include <eng/scene/virtual_scene.hpp>
 #include <eng/core/span.hpp>
 
@@ -31,11 +32,6 @@ namespace drivers = eng::graphics::drivers;
 namespace scene = eng::scene;
 namespace tilemap = eng::graphics::tilemap;
 
-struct CameraPixels {
-	eng::u16 x = 0;
-	eng::u16 y = 0;
-};
-
 /// Numero de tiles graficos distintos que compone esta demo.
 ///
 /// Aunque el mapa logico sigue siendo una rejilla sencilla, usar 64 patrones evita
@@ -49,15 +45,6 @@ constexpr eng::u16 surface_tiles_x = drivers::EhbTileScrollScene::surface_width 
 constexpr eng::u16 surface_tiles_y = drivers::EhbTileScrollScene::surface_height / drivers::EhbTileScrollScene::tile_size;
 constexpr eng::u16 tile_size = drivers::EhbTileScrollScene::tile_size;
 constexpr eng::u8 tile_update_budget = 2;
-constexpr eng::u16 route_center_pixels = tile_size * 5u;
-constexpr eng::u16 route_radius_pixels = tile_size * 4u;
-constexpr eng::u16 route_step_pixels = tile_size * 2u;
-constexpr eng::u16 camera_hold_frames = 1;
-constexpr eng::u16 axis_segment_frames = route_step_pixels * camera_hold_frames;
-constexpr eng::u16 circle_entry_frames = route_radius_pixels * camera_hold_frames;
-constexpr eng::u16 circle_step_frames = 6;
-constexpr eng::u16 logical_scroll_columns = map_tiles_x - surface_tiles_x + 1u;
-constexpr eng::u16 logical_scroll_rows = map_tiles_y - surface_tiles_y + 1u;
 
 void configure_tile_blit_budget(eng::graphics::FramePlan& plan) {
 	// Esta demo sube como mucho dos tiles de 16x16 por frame. Cada tile ocupa
@@ -101,7 +88,7 @@ constexpr drivers::EhbPaletteZone palette_zones[] {};
 /// con capas, metadatos y posiblemente reglas de streaming. Mantenerla aqui tiene
 /// valor pedagogico porque separa con claridad "mundo logico" de "superficie
 /// fisica": el mapa mide 64x32 tiles, mientras que el driver solo muestra y
-/// recicla una superficie 480x416.
+/// recicla una superficie 640x512.
 void build_virtual_map(tilemap::PackedTileCell* cells) {
 	for (eng::u16 y = 0; y < map_tiles_y; ++y) {
 		for (eng::u16 x = 0; x < map_tiles_x; ++x) {
@@ -299,7 +286,7 @@ struct DemoGame {
 	/// las pruebas sepan que la demo esta viva.
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		if (!backend.configure_memory({180u * 1024u, 16u * 1024u, 8u * 1024u})) {
+		if (!backend.configure_memory({280u * 1024u, 16u * 1024u, 8u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000110u);
 			return;
 		}
@@ -346,19 +333,23 @@ struct DemoGame {
 		m_scheduler.reset();
 		m_ring.reset(0, 0);
 
-		const CameraPixels initial_camera = scripted_camera(0);
-		m_active_camera_tile_x = camera_tile(initial_camera.x);
-		m_active_camera_tile_y = camera_tile(initial_camera.y);
+		// La camara arranca en la posicion inicial de la primera fase de la ruta.
+		m_camera.x = 1;
+		m_camera.y = m_camera.center_y;
+		const eng::u16 initial_x = m_camera.x;
+		const eng::u16 initial_y = m_camera.y;
+		m_active_camera_tile_x = camera_tile(initial_x);
+		m_active_camera_tile_y = camera_tile(initial_y);
 		m_previous_logical_column = m_active_camera_tile_x;
 		m_previous_logical_row = m_active_camera_tile_y;
 
-		if (!m_scene.rebuild_copper(initial_camera.x, initial_camera.y)) {
+		if (!m_scene.rebuild_copper(initial_x, initial_y)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000114u);
 			return;
 		}
 
 		m_scene.install(backend);
-		publish_status(initial_camera.x, initial_camera.y, 0);
+		publish_status(initial_x, initial_y, 0);
 		// Telemetría del periférico ampliado (e9k): descripciones por slot de
 		// checkpoint y un contador acumulado de tiles subidos. El host los lee
 		// con `debugperiph checkpoints` / `debugperiph counters`.
@@ -382,9 +373,11 @@ struct DemoGame {
 			// Checkpoint 0: inicio de frame (el host mide el delta a otros slots).
 			eng::debug::DebugPeripheral::checkpoint(0);
 
-			const CameraPixels camera = scripted_camera(context.frame.frame_index);
-			m_active_camera_tile_x = camera_tile(camera.x);
-			m_active_camera_tile_y = camera_tile(camera.y);
+			m_camera.advance(context.frame.frame_index);
+			const eng::u16 camera_x = m_camera.x;
+			const eng::u16 camera_y = m_camera.y;
+			m_active_camera_tile_x = camera_tile(camera_x);
+			m_active_camera_tile_y = camera_tile(camera_y);
 			// Telemetría del periférico: cuando la cámara cruza un borde de tile
 			// (cambio de "conjunto" de tiles visibles), lo reportamos a la consola
 			// del host y abrimos un checkpoint para medir el coste del upload.
@@ -398,11 +391,11 @@ struct DemoGame {
 			m_total_tiles_uploaded += tile_jobs;
 			eng::debug::DebugPeripheral::counter_value(0, m_total_tiles_uploaded);
 			eng::debug::DebugPeripheral::checkpoint(11); // fin del upload (delta slot10->11)
-			if (!m_scene.rebuild_copper(camera.x, camera.y)) {
+			if (!m_scene.rebuild_copper(camera_x, camera_y)) {
 				eng::debug::mark_failed(g_eng_run_status, 0x00000115u);
 				return;
 			}
-			publish_status(camera.x, camera.y, tile_jobs);
+			publish_status(camera_x, camera_y, tile_jobs);
 		}
 	}
 
@@ -427,6 +420,7 @@ struct DemoGame {
 	drivers::EhbBidirectionalRingPrefetch m_ring {};
 	eng::graphics::FramePlan m_frame_plan {};
 	eng::MemoryBlock m_tiles {};
+	scene::RouteCamera m_camera {};
 	eng::u16 m_previous_logical_column = 0;
 	eng::u16 m_previous_logical_row = 0;
 	eng::u16 m_active_camera_tile_x = 0;
@@ -456,96 +450,6 @@ struct DemoGame {
 
 	static constexpr eng::u16 camera_tile(eng::u16 pixels) {
 		return static_cast<eng::u16>(pixels / tile_size);
-	}
-
-	static constexpr eng::u16 lerp_u16(eng::u16 from, eng::u16 to, eng::u16 step, eng::u16 steps) {
-		return static_cast<eng::u16>(from + ((static_cast<eng::u32>(to - from) * step) / steps));
-	}
-
-	static constexpr eng::u16 inv_lerp_u16(eng::u16 from, eng::u16 to, eng::u16 step, eng::u16 steps) {
-		return static_cast<eng::u16>(from - ((static_cast<eng::u32>(from - to) * step) / steps));
-	}
-
-	/// Componente X de una circunferencia de 64 pasos y 64 pixels de radio.
-	///
-	/// La tabla evita depender de `sin/cos` o de libm en m68k, y deja una ruta muy
-	/// visible para FrameScope: cada paso es pequeno, continuo y repetible. Los
-	/// valores estan redondeados a pixels enteros, suficiente para una demo de
-	/// scroll de bitplanes.
-	static constexpr eng::s16 circle_offset_x(eng::u8 index) {
-		constexpr eng::s16 offsets[] {
-			64, 64, 63, 61, 59, 56, 53, 49,
-			45, 41, 36, 31, 24, 18, 12, 6,
-			0, -6, -12, -18, -24, -31, -36, -41,
-			-45, -49, -53, -56, -59, -61, -63, -64,
-			-64, -64, -63, -61, -59, -56, -53, -49,
-			-45, -41, -36, -31, -24, -18, -12, -6,
-			0, 6, 12, 18, 24, 31, 36, 41,
-			45, 49, 53, 56, 59, 61, 63, 64,
-		};
-		return offsets[index & 63u];
-	}
-
-	/// Componente Y de la misma circunferencia de 64 pasos.
-	///
-	/// Y positivo significa camara mas baja dentro de la superficie. En pantalla el
-	/// contenido se movera hacia arriba, que es justo lo que FrameScope contrasta
-	/// contra la telemetria de camara.
-	static constexpr eng::s16 circle_offset_y(eng::u8 index) {
-		constexpr eng::s16 offsets[] {
-			0, 6, 12, 18, 24, 31, 36, 41,
-			45, 49, 53, 56, 59, 61, 63, 64,
-			64, 64, 63, 61, 59, 56, 53, 49,
-			45, 41, 36, 31, 24, 18, 12, 6,
-			0, -6, -12, -18, -24, -31, -36, -41,
-			-45, -49, -53, -56, -59, -61, -63, -64,
-			-64, -64, -63, -61, -59, -56, -53, -49,
-			-45, -41, -36, -31, -24, -18, -12, -6,
-		};
-		return offsets[index & 63u];
-	}
-
-	/// Ruta visible de validacion.
-	///
-	/// La camara empieza en el centro del margen oculto. Primero se mueve dos tiles
-	/// a la derecha, vuelve, sube dos tiles, vuelve, y despues recorre una orbita de
-	/// cuatro tiles de radio. Hay un tramo de entrada desde el centro al borde
-	/// derecho de la circunferencia para evitar un salto visual justo antes de la
-	/// fase mas importante de la prueba.
-	///
-	/// Toda la ruta queda dentro de la superficie lineal, asi que los uploads de
-	/// prefetch pueden escribirse fuera de pantalla sin asomar tiles a mitad del
-	/// viewport.
-	static constexpr CameraPixels scripted_camera(eng::u32 frame_index) {
-		const eng::u16 base = route_center_pixels;
-		const eng::u16 right = static_cast<eng::u16>(route_center_pixels + route_step_pixels);
-		const eng::u16 up = static_cast<eng::u16>(route_center_pixels - route_step_pixels);
-		if (frame_index < axis_segment_frames) {
-			return {lerp_u16(base, right, static_cast<eng::u16>(frame_index), axis_segment_frames), base};
-		}
-		if (frame_index < axis_segment_frames * 2u) {
-			return {inv_lerp_u16(right, base, static_cast<eng::u16>(frame_index - axis_segment_frames), axis_segment_frames), base};
-		}
-		if (frame_index < axis_segment_frames * 3u) {
-			return {base, inv_lerp_u16(base, up, static_cast<eng::u16>(frame_index - axis_segment_frames * 2u), axis_segment_frames)};
-		}
-		if (frame_index < axis_segment_frames * 4u) {
-			return {base, lerp_u16(up, base, static_cast<eng::u16>(frame_index - axis_segment_frames * 3u), axis_segment_frames)};
-		}
-
-		const eng::u32 circle_entry_start = axis_segment_frames * 4u;
-		if (frame_index < circle_entry_start + circle_entry_frames) {
-			return {
-				lerp_u16(base, static_cast<eng::u16>(route_center_pixels + route_radius_pixels), static_cast<eng::u16>(frame_index - circle_entry_start), circle_entry_frames),
-				base,
-			};
-		}
-
-		const eng::u8 circle_index = static_cast<eng::u8>(((frame_index - circle_entry_start - circle_entry_frames) / circle_step_frames) & 63u);
-		return {
-			static_cast<eng::u16>(route_center_pixels + circle_offset_x(circle_index)),
-			static_cast<eng::u16>(route_center_pixels + circle_offset_y(circle_index)),
-		};
 	}
 
 	static constexpr eng::u16 visible_safe_right_column(eng::u16 camera_tile_x) {
@@ -747,7 +651,7 @@ int main() {
 
 	eng::amiga::MinimalBackend backend {};
 	eng::Engine engine { backend, g_game };
-	engine.run_frames(0xffff);
+	engine.run_frames(0xffffffffu);
 
 	return 0;
 }

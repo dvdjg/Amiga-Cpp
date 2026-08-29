@@ -358,7 +358,7 @@ private:
 /// mayor que la ventana visible para que el prefetch pueda escribir fuera de
 /// pantalla, y reconstruye cada frame una copperlist que muestra la ventana
 /// desplazada por playfield.
-template <TileScrollMode Mode>
+template <TileScrollMode Mode, u8 PrefetchColumns = 20, u8 PrefetchRows = 16>
 class TileScrollScene {
 public:
 	static constexpr TileScrollMode mode = Mode;
@@ -368,8 +368,12 @@ public:
 	static constexpr u16 visible_height = 256;
 	static constexpr u16 fine_scroll_fetch_margin_bytes = 2;
 	static constexpr u16 tile_size = 16;
-	static constexpr u8 prefetch_columns = 10;
-	static constexpr u8 prefetch_rows = 10;
+	// La superficie es visible + margen de prefetch. Por defecto 20 columnas y
+	// 16 filas de margen: la camara puede recorrer una pantalla entera (320x256)
+	// con puntero lineal. Los demos de ring wrap-copy usan (2, 2) -> 352x288 y
+	// reciclan el buffer al cruzar el borde (estilo Lionheart).
+	static constexpr u8 prefetch_columns = PrefetchColumns;
+	static constexpr u8 prefetch_rows = PrefetchRows;
 	static constexpr u16 prefetch_width = tile_size * prefetch_columns;
 	static constexpr u16 prefetch_height = tile_size * prefetch_rows;
 	static constexpr u16 surface_width = visible_width + prefetch_width;

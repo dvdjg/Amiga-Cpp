@@ -175,6 +175,10 @@ struct BlitJob {
 	u8 source_shift = 0;
 	u32 source_plane_stride_bytes = 0;
 	u32 destination_plane_stride_bytes = 0;
+	/// Procesa el blit en orden descendente (BLTCON1 DESC): necesario para copias
+	/// de regiones solapadas en las que el destino queda por delante del origen
+	/// (p. ej. desplazar el scroll ring hacia la derecha/abajo).
+	bool descending = false;
 };
 
 /// Plan de render de un frame.
@@ -186,7 +190,7 @@ struct BlitJob {
 class FramePlan {
 public:
 	static constexpr u8 max_palette_patches = 8;
-	static constexpr u8 max_blit_jobs = 24;
+	static constexpr u8 max_blit_jobs = 64;
 	static constexpr u8 max_dirty_rects = 8;
 
 	void clear() {

@@ -5,6 +5,7 @@
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/tilemap/tile_scroll.hpp>
 #include <eng/platform/amiga_minimal.hpp>
+#include <eng/scene/route_camera.hpp>
 #include <eng/scene/virtual_scene.hpp>
 #include <eng/core/span.hpp>
 
@@ -31,9 +32,10 @@ namespace drivers = eng::graphics::drivers;
 namespace scene = eng::scene;
 namespace tilemap = eng::graphics::tilemap;
 
-/// Modo dual 2+3: primer plano 2 planos (PF2, delante, color 0 transparente) y
-/// fondo 3 planos (PF1). Total 5 bitplanes, 320x256 visible.
-constexpr auto kMode = drivers::TileScrollMode::dual(2, 3);
+/// Modo dual 3+3: primer plano 3 planos (PF1, delante, color 0 transparente) y
+/// fondo 3 planos (PF2). Total 6 bitplanes, 320x256 visible. Cada playfield
+/// dispone de sus 8 colores (registros 0-7 para PF1 y 8-15 para PF2).
+constexpr auto kMode = drivers::TileScrollMode::dual(3, 3);
 using Scene = drivers::TileScrollScene<kMode>;
 using Ring = drivers::BidirectionalRingPrefetch<
 	Scene::visible_width / Scene::tile_size,
@@ -48,21 +50,20 @@ constexpr eng::u16 map_tiles_y = 32;
 constexpr eng::u16 surface_tiles_x = Scene::surface_width / tile_size;
 constexpr eng::u16 surface_tiles_y = Scene::surface_height / tile_size;
 constexpr eng::u8 bg_pattern_count = 64;
-constexpr eng::u8 fg_pattern_count = 16;
+constexpr eng::u8 fg_pattern_count = 64;
 constexpr eng::u8 tile_update_budget = 1;
 
-/// Fondo PF1 (3 planos): playfield 0 de la escena.
-constexpr eng::u8 pf_background = 0;
-/// Primer plano PF2 (2 planos): playfield 1 de la escena.
-constexpr eng::u8 pf_foreground = 1;
+/// Fondo PF2 (3 planos): playfield 1 de la escena, colores 8..15.
+constexpr eng::u8 pf_background = 1;
+/// Primer plano PF1 (3 planos): playfield 0 de la escena, colores 0..7.
+/// PF1 queda delante (BPL2PRI=0) y su color 0 es transparente.
+constexpr eng::u8 pf_foreground = 0;
 
 constexpr drivers::EhbPalette dual_palette {{
-	// PF1 (fondo, 3 planos): registros 0..7. Color 0 = borde.
-	0x000, 0x021, 0x063, 0x0a5, 0x2d7, 0xdfa, 0xce7, 0xff0,
-	// PF2 (primer plano, 2 planos): registros 8..11. Color 0 (reg 8) = transparente.
-	0x000, 0xf0c, 0x0cf, 0xfff,
-	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
-	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
+	// PF1 (primer plano, 3 planos): registros 0..7. Color 0 = transparente.
+	0x000, 0xf0c, 0x0cf, 0xff0, 0xf80, 0x84f, 0xf44, 0xfff,
+	// PF2 (fondo, 3 planos): registros 8..15. Color 0 (reg 8) = transparente.
+	0x000, 0x021, 0x063, 0x0a5, 0x2d7, 0xdfa, 0xce7, 0xfff,
 }};
 
 constexpr drivers::EhbPaletteZone palette_zones[] {};
@@ -114,44 +115,86 @@ constexpr eng::u16 glyph_row_mask(eng::u8 glyph, eng::u8 y) {
 	return mask;
 }
 
-// --- Tiles del fondo (3 planos, 8 colores) -----------------------------------
+/// Mascara de los marcadores de variante (esquinas que distinguen patrones).
+constexpr eng::u16 variant_marker_mask(eng::u8 variant, eng::u8 y) {
+	const eng::u8 marker_size = static_cast<eng::u8>(2u + (variant & 1u));
+	eng::u16 mask = 0;
+	if (y < marker_size) {
+		mask |= row_mask_range(1, marker_size);
+	}
+	if (variant >= 2u && y >= static_cast<eng::u8>(15u - marker_size)) {
+		mask |= row_mask_range(static_cast<eng::u8>(15u - marker_size), marker_size);
+	}
+	return mask;
+}
 
-constexpr eng::u16 bg_plane_row(eng::u8 glyph, eng::u8 variant, eng::u8 y, eng::u8 plane) {
-	constexpr eng::u8 background_colors[] {1, 2, 4, 6};
-	constexpr eng::u8 glyph_colors[] {7, 3, 5, 1};
-	constexpr eng::u8 border_colors[] {3, 7, 1, 5};
-	const eng::u8 bg = background_colors[variant & 3u];
-	const eng::u8 ink = glyph_colors[variant & 3u];
-	const eng::u8 border = border_colors[variant & 3u];
+// --- Tiles de 3 planos por playfield (dual) ----------------------------------
+
+/// Compone una fila planar de un tile simbolico de 3 planos para un playfield.
+///
+/// `base` es el indice del primer color del playfield (0 para PF1, 8 para PF2),
+/// asi todos los colores quedan dentro del banco de ese playfield y el color 0
+/// del playfield (`base + 0`) es el transparente del modo dual. Cada tile
+/// combina cuatro ideas:
+///
+/// - fondo (borde de color tramado al 50% si `transparent_bg`, opaco si no);
+/// - borde de alto contraste en los bordes del tile;
+/// - glifo hexadecimal grande;
+/// - marcador de variante en las esquinas.
+///
+/// Los colores cambian por variante para que la capa muestre todo su rango.
+constexpr eng::u16 pf_plane_row(
+	eng::u8 glyph,
+	eng::u8 variant,
+	eng::u8 y,
+	eng::u8 plane,
+	eng::u8 base,
+	bool transparent_bg
+) {
+	// Tablas por variante que cubren TODOS los indices opacos del banco
+	// (1..7 para PF1, 9..15 para PF2) para que cada capa muestre todo su rango.
+	constexpr eng::u8 bg_colors[] {1, 2, 3, 4};
+	constexpr eng::u8 ink_colors[] {7, 6, 5, 7};
+	constexpr eng::u8 border_colors[] {5, 3, 1, 6};
+	const eng::u8 bg = static_cast<eng::u8>(base + bg_colors[variant & 3u]);
+	const eng::u8 ink = static_cast<eng::u8>(base + ink_colors[variant & 3u]);
+	const eng::u8 border = static_cast<eng::u8>(base + border_colors[variant & 3u]);
 
 	const eng::u16 border_mask = (y == 0u || y == 15u) ? 0xffffu : 0x8001u;
-	const eng::u16 glyph_mask = glyph_row_mask(glyph, y);
-	const eng::u16 bg_mask = static_cast<eng::u16>(~(border_mask | glyph_mask));
+	const eng::u16 marker_mask = static_cast<eng::u16>(variant_marker_mask(variant, y) & ~border_mask);
+	const eng::u16 glyph_mask = static_cast<eng::u16>(glyph_row_mask(glyph, y) & ~(border_mask | marker_mask));
+	const eng::u16 bg_mask = static_cast<eng::u16>(~(border_mask | marker_mask | glyph_mask));
 
 	eng::u16 row = 0;
-	if ((bg & (1u << plane)) != 0u) {
+	if (transparent_bg) {
+		// Fondo tramado al 50%: el color del fondo ocupa la mitad de los pixels y
+		// la otra mitad queda en el color 0 del playfield (transparente), asi el
+		// playfield de atras se ve entre medias.
+		const eng::u16 checker = (y & 1u) == 0u ? 0xaaaa : 0x5555;
+		if ((bg & (1u << plane)) != 0u) {
+			row |= static_cast<eng::u16>(bg_mask & checker);
+		}
+	} else if ((bg & (1u << plane)) != 0u) {
 		row |= bg_mask;
 	}
 	if ((border & (1u << plane)) != 0u) {
 		row |= border_mask;
 	}
 	if ((ink & (1u << plane)) != 0u) {
-		row |= glyph_mask;
+		row |= static_cast<eng::u16>(marker_mask | glyph_mask);
 	}
 	return row;
 }
 
-// --- Tiles del primer plano (2 planos, 50% de pixels transparentes) ----------
+/// Tiles del fondo (PF2, 3 planos, colores 8..15): fondo opaco.
+constexpr eng::u16 bg_plane_row(eng::u8 glyph, eng::u8 variant, eng::u8 y, eng::u8 plane) {
+	return pf_plane_row(glyph, variant, y, plane, 8, false);
+}
 
-constexpr eng::u16 fg_plane_row(eng::u8 glyph, eng::u8 y, eng::u8 plane) {
-	// Tramado 50%: la mitad de los pixels del plano 0 estan a 0 (transparentes en
-	// PF2), asi el fondo se ve a traves. El glifo va en el plano 1 (color 2, o 3
-	// donde solapa con el tramado).
-	const eng::u16 checker = (y & 1u) == 0u ? 0xaaaa : 0x5555;
-	if (plane == 0) {
-		return checker;
-	}
-	return glyph_row_mask(glyph, y);
+/// Tiles del primer plano (PF1, 3 planos, colores 0..7): fondo tramado
+/// transparente para que el fondo se vea a traves.
+constexpr eng::u16 fg_plane_row(eng::u8 glyph, eng::u8 variant, eng::u8 y, eng::u8 plane) {
+	return pf_plane_row(glyph, variant, y, plane, 0, true);
 }
 
 // --- Caches y mapas ----------------------------------------------------------
@@ -177,22 +220,42 @@ void build_tile_cache(eng::Span<eng::u16> words, eng::u16 pattern_count, eng::u8
 		const eng::u8 variant = static_cast<eng::u8>((tile >> 4u) & 3u);
 		for (eng::u8 y = 0; y < tile_size; ++y) {
 			for (eng::u8 plane = 0; plane < planes; ++plane) {
-				words.at(static_cast<eng::u32>(tile) * words_per_tile + static_cast<eng::u32>(plane) * tile_size + y) =
-					is_foreground
-						? fg_plane_row(glyph, y, plane)
-						: bg_plane_row(glyph, variant, y, plane);
+			words.at(static_cast<eng::u32>(tile) * words_per_tile + static_cast<eng::u32>(plane) * tile_size + y) =
+				is_foreground
+					? fg_plane_row(glyph, variant, y, plane)
+					: bg_plane_row(glyph, variant, y, plane);
 			}
 		}
 	}
 }
 
-void build_map(tilemap::PackedTileCell* cells, bool is_foreground) {
+/// Hash pseudoaleatorio determinista por celda (x, y, semilla).
+constexpr eng::u32 cell_hash(eng::u16 x, eng::u16 y, eng::u32 seed) {
+	eng::u32 h = seed ^ (static_cast<eng::u32>(x) * 0x9e3779b9u) ^ (static_cast<eng::u32>(y) * 0x85ebca6bu);
+	h ^= h >> 16u;
+	h *= 0x7feb352du;
+	h ^= h >> 15u;
+	h *= 0x846ca68bu;
+	h ^= h >> 16u;
+	return h;
+}
+
+/// Rellena un mapa con patrones pseudoaleatorios derivados de una semilla.
+///
+/// Ambos playfields usan glifo (bajo) + variante (alto). La variante decide los
+/// colores del tile, asi cada capa recorre todos los colores de su banco de
+/// paleta. Cambiar la semilla regenera el patron completo; la demo la cambia
+/// periodicamente para que el mundo "mute" de aspecto.
+void build_map(tilemap::PackedTileCell* cells, bool is_foreground, eng::u32 seed) {
+	const eng::u32 layer_seed = seed ^ (is_foreground ? 0xf0f0f0f0u : 0x0f0f0f0fu);
 	for (eng::u16 y = 0; y < map_tiles_y; ++y) {
 		for (eng::u16 x = 0; x < map_tiles_x; ++x) {
-			const eng::u16 tile = is_foreground
-				? static_cast<eng::u16>((x + y * 3u) & 0x0fu)
-				: static_cast<eng::u16>(((x + y * 3u + ((x >> 1u) ^ y)) & 0x0fu) | (((x / 4u) + (y / 3u) * 2u) & 3u) << 4u);
-			cells[static_cast<eng::u32>(y) * map_tiles_x + x].set_tile(tile);
+			const eng::u32 h = cell_hash(x, y, layer_seed);
+			const eng::u16 symbol = static_cast<eng::u16>(h & 0x0fu);
+			const eng::u16 variant = static_cast<eng::u16>((h >> 4u) & 3u);
+			cells[static_cast<eng::u32>(y) * map_tiles_x + x].set_tile(
+				static_cast<eng::u16>(symbol | (variant << 4u))
+			);
 		}
 	}
 }
@@ -367,53 +430,27 @@ void stamp_layer(Scene& scene, const Layer& layer, eng::u8 playfield) {
 }
 
 void configure_tile_blit_budget(eng::graphics::FramePlan& plan) {
-	// Un tile de fondo = 3 jobs x 16 words; uno de primer plano = 2 jobs x 16.
-	// Con un tile por capa por frame: 5 jobs / 80 words.
+	// Ambos playfields tienen 3 planos: un tile = 3 jobs x 16 words. Con un tile
+	// por capa por frame: 6 jobs / 96 words.
 	plan.set_blit_budget_limits({
 		64,
-		96,
+		128,
 		4,
-		6,
+		8,
 	});
 }
 
-// --- Camaras con patrones de movimiento distintos ------------------------------
-
-static constexpr eng::s16 circle_offset_y(eng::u8 index) {
-	constexpr eng::s16 offsets[] {
-		0, 6, 12, 18, 24, 31, 36, 41,
-		45, 49, 53, 56, 59, 61, 63, 64,
-		64, 64, 63, 61, 59, 56, 53, 49,
-		45, 41, 36, 31, 24, 18, 12, 6,
-		0, -6, -12, -18, -24, -31, -36, -41,
-		-45, -49, -53, -56, -59, -61, -63, -64,
-		-64, -64, -63, -61, -59, -56, -53, -49,
-		-45, -41, -36, -31, -24, -18, -12, -6,
-	};
-	return offsets[index & 63u];
-}
-
-/// Fondo: deriva a la derecha y vuelve, sin movimiento vertical.
-static constexpr drivers::ScrollPosition2 background_camera(eng::u32 frame_index) {
-	const eng::u32 half = 128u;
-	const eng::u32 position = frame_index % (half * 2u);
-	const eng::u16 x = static_cast<eng::u16>(32u + (position < half ? position : half * 2u - position));
-	return {x, 80};
-}
-
-/// Primer plano: deriva a la izquierda (opuesto) y bobea en vertical.
-static constexpr drivers::ScrollPosition2 foreground_camera(eng::u32 frame_index) {
-	const eng::u32 half = 128u;
-	const eng::u32 position = frame_index % (half * 2u);
-	const eng::u16 x = static_cast<eng::u16>(160u - (position < half ? position : half * 2u - position));
-	const eng::u16 y = static_cast<eng::u16>(80u + circle_offset_y(static_cast<eng::u8>(frame_index & 63u)));
-	return {x, y};
-}
+// --- Camaras de ruta por fases (parallax) -------------------------------------
+//
+// El fondo recorre las fases (horizontal, vertical, diagonal, circular y
+// senoidal) con `RouteCamera`. El primer plano usa la misma ruta pero con el
+// espejo horizontal activado, de modo que mientras uno deriva a la derecha el
+// otro lo hace a la izquierda (parallax opuesto) sin tocar el mapa.
 
 struct DemoGame {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		if (!backend.configure_memory({180u * 1024u, 16u * 1024u, 8u * 1024u})) {
+		if (!backend.configure_memory({280u * 1024u, 16u * 1024u, 8u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000210u);
 			return;
 		}
@@ -439,10 +476,8 @@ struct DemoGame {
 		m_scene.bitplane_span().clear();
 		build_tile_cache(tile_span(m_background.tiles), bg_pattern_count, m_background.planes, false);
 		build_tile_cache(tile_span(m_foreground.tiles), fg_pattern_count, m_foreground.planes, true);
-		build_map(m_background.cells, false);
-		build_map(m_foreground.cells, true);
-		m_background.map.reset(m_background.cells, map_tiles_x, map_tiles_y);
-		m_foreground.map.reset(m_foreground.cells, map_tiles_x, map_tiles_y);
+		rebuild_patterns();
+		m_fg_cam.mirror_x = true;
 
 		stamp_layer(m_scene, m_background, pf_background);
 		stamp_layer(m_scene, m_foreground, pf_foreground);
@@ -452,8 +487,13 @@ struct DemoGame {
 		m_background.ring.reset(0, 0);
 		m_foreground.ring.reset(0, 0);
 
-		const auto bg = background_camera(0);
-		const auto fg = foreground_camera(0);
+		// Camaras en la posicion inicial de la primera fase de la ruta.
+		m_bg_cam.x = 1;
+		m_bg_cam.y = m_bg_cam.center_y;
+		m_fg_cam.x = 1;
+		m_fg_cam.y = m_fg_cam.center_y;
+		const drivers::ScrollPosition2 bg {m_bg_cam.x, m_bg_cam.y};
+		const drivers::ScrollPosition2 fg {m_fg_cam.x, m_fg_cam.y};
 		m_background.previous_tile_x = bg.x / tile_size;
 		m_background.previous_tile_y = bg.y / tile_size;
 		m_foreground.previous_tile_x = fg.x / tile_size;
@@ -479,8 +519,22 @@ struct DemoGame {
 			return;
 		}
 
-		const auto bg = background_camera(context.frame.frame_index);
-		const auto fg = foreground_camera(context.frame.frame_index);
+		const eng::u32 frame = context.frame.frame_index;
+
+		// Los patrones de cada campo cambian cada 10 segundos (500 frames a
+		// 50fps): se regeneran los mapas con una semilla nueva y las franjas de
+		// margen que la camara va revelando se re-suben con el patron nuevo, de
+		// modo que el mundo "muta" de aspecto progresivamente.
+		const eng::u32 epoch = frame / 500u;
+		if (epoch != m_last_epoch) {
+			m_last_epoch = epoch;
+			rebuild_patterns();
+		}
+
+		m_bg_cam.advance(frame);
+		m_fg_cam.advance(frame);
+		const drivers::ScrollPosition2 bg {m_bg_cam.x, m_bg_cam.y};
+		const drivers::ScrollPosition2 fg {m_fg_cam.x, m_fg_cam.y};
 
 		layer_schedule(m_background, bg.x / tile_size, bg.y / tile_size);
 		layer_schedule(m_foreground, fg.x / tile_size, fg.y / tile_size);
@@ -549,11 +603,36 @@ private:
 		);
 	}
 
+	/// Regenera los mapas de ambos campos con una semilla pseudoaleatoria nueva y
+	/// vuelve a apuntar los schedulers al mapa regenerado. La superficie no se
+	/// re-estampa: las franjas de margen que la camara va revelando re-suben los
+	/// tiles con el patron nuevo de forma incremental (estilo Lionheart).
+	void rebuild_patterns() {
+		const eng::u32 seed = rng_next();
+		build_map(m_background.cells, false, seed);
+		build_map(m_foreground.cells, true, seed);
+		m_background.map.reset(m_background.cells, map_tiles_x, map_tiles_y);
+		m_foreground.map.reset(m_foreground.cells, map_tiles_x, map_tiles_y);
+	}
+
+	eng::u32 rng_next() {
+		eng::u32 z = m_rng;
+		z ^= z << 13u;
+		z ^= z >> 17u;
+		z ^= z << 5u;
+		m_rng = z;
+		return z;
+	}
+
 	bool m_ready = false;
 	Scene m_scene {};
 	Layer m_background {};
 	Layer m_foreground {};
 	eng::graphics::FramePlan m_frame_plan {};
+	scene::RouteCamera m_bg_cam {};
+	scene::RouteCamera m_fg_cam {};
+	eng::u32 m_last_epoch = 0;
+	eng::u32 m_rng = 0x29a7c0deu;
 	eng::u32 m_total_tiles_uploaded = 0;
 };
 
@@ -567,7 +646,7 @@ int main() {
 
 	eng::amiga::MinimalBackend backend {};
 	eng::Engine engine { backend, g_game };
-	engine.run_frames(0xffff);
+	engine.run_frames(0xffffffffu);
 
 	return 0;
 }
