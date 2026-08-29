@@ -463,9 +463,13 @@ constexpr eng::s16 sin64(eng::u8 index) {
 }
 
 /// Camara del primer plano: onda de Lissajous independiente del fondo.
+///
+/// Periodos largos (frame/8 y frame/6) => ~1 px/frame, pocos cruces de tile:
+/// si la onda fuese rapida (~3 px/frame) cada cruce encola franjas de prefetch
+/// y el update pierde frames (la demo caia de ~50 a ~47 fps).
 constexpr drivers::ScrollPosition2 fg_wave_camera(eng::u32 frame_index) {
-	const eng::u8 ax = static_cast<eng::u8>((frame_index / 4u) & 63u);
-	const eng::u8 ay = static_cast<eng::u8>((frame_index / 3u) & 63u);
+	const eng::u8 ax = static_cast<eng::u8>((frame_index / 8u) & 63u);
+	const eng::u8 ay = static_cast<eng::u8>((frame_index / 6u) & 63u);
 	const eng::u16 x = static_cast<eng::u16>(160 + sin64(ax) * 96 / 64);
 	const eng::u16 y = static_cast<eng::u16>(128 + sin64(ay) * 96 / 64);
 	return {x, y};
