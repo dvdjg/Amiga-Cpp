@@ -396,7 +396,7 @@ static constexpr eng::s16 circle_offset_y(eng::u8 index) {
 /// Fondo: deriva a la derecha y vuelve, sin movimiento vertical.
 static constexpr drivers::ScrollPosition2 background_camera(eng::u32 frame_index) {
 	const eng::u32 half = 128u;
-	const eng::u32 position = (frame_index / 4u) % (half * 2u);
+	const eng::u32 position = frame_index % (half * 2u);
 	const eng::u16 x = static_cast<eng::u16>(32u + (position < half ? position : half * 2u - position));
 	return {x, 80};
 }
@@ -404,9 +404,9 @@ static constexpr drivers::ScrollPosition2 background_camera(eng::u32 frame_index
 /// Primer plano: deriva a la izquierda (opuesto) y bobea en vertical.
 static constexpr drivers::ScrollPosition2 foreground_camera(eng::u32 frame_index) {
 	const eng::u32 half = 128u;
-	const eng::u32 position = (frame_index / 3u) % (half * 2u);
+	const eng::u32 position = frame_index % (half * 2u);
 	const eng::u16 x = static_cast<eng::u16>(160u - (position < half ? position : half * 2u - position));
-	const eng::u16 y = static_cast<eng::u16>(80u + circle_offset_y(static_cast<eng::u8>((frame_index / 6u) & 63u)));
+	const eng::u16 y = static_cast<eng::u16>(80u + circle_offset_y(static_cast<eng::u8>(frame_index & 63u)));
 	return {x, y};
 }
 
