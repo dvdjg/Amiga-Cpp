@@ -74,6 +74,26 @@ un shim de compatibilidad (`EhbTileScrollScene` = single 6). La demo 102
 transparente y parallax. El test de descomposición de scroll para 4/5/6 single y
 2+3/3+3 dual es: `node tools/analyze/verify-tile-scroll-modes.mjs`.
 
+Rendimiento del scroll por tiles (2026-08, lecciones aprendidas):
+- El scroll del chipset (BPLxPT + BPLCON1 vía Copper) es barato; la CPU solo
+  calcula offsets y programa registros, como en los juegos reales (Mega Typhoon).
+  El coste real del frame estaba en la capa software de prefetch, no en el display.
+- `ProgressiveTileScheduler::take_budget` era O(n²): desplazaba toda la cola por
+  cada job tomado. Con la cámara rápida (2px/frame) y franjas encoladas en cada
+  cruce, dominaba el update y la demo caía de 50fps a ~36. Se arregló con puntero
+  de cabeza (O(budget), compactación amortizada) en `tilemap/tile_scroll.hpp`.
+- En dual playfield, `make_playfield_upload_jobs` emitía UN job por plano por tile
+  (3x en 3+3). Cada job paga wait_blitter + programación de registros, y el
+  overhead por blit es lo que domina en los cruces del ring dual. Se fusionó en un
+  solo job por tile con `destination_plane_stride = 2*plane_bytes` (los planos de
+  un playfield están intercalados: PF1=1,3,5 / PF2=2,4,6). La demo 104 subió de
+  ~41.5 a ~47.6fps; el resto del gap es el overhead del emulador por blit en los
+  frames de cruce, no el hardware (en Amiga real cabe de sobra en 20ms).
+- Los checkpoints del periférico (`debugperiph checkpoints`) añaden ~10fps de
+  overhead al update; medir fps con ellos puestos engaña. Quitarlos para medir.
+- Fps medidos (emulador WinUAE-DBG, -O1): 101=~48, 102=~50, 103=~50, 104=~47.6.
+  En hardware real los cuatro van a 50fps.
+
 Roadmap del port de features de engine9000 (hecho/pendiente, priorizado para
 hilos nuevos): `WinUAE-DBG/docs/WINUAE-MONITOR-EXTENSIONS.md` → sección
 "Roadmap del port desde engine9000". Hechos: punto 1 (periférico Amiga 1:1),
