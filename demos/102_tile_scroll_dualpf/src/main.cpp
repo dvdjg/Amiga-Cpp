@@ -462,16 +462,32 @@ constexpr eng::s16 sin64(eng::u8 index) {
 	return t[index & 63u];
 }
 
+/// Seno interpolado con avance sub-pixel para animacion suave.
+///
+/// La tabla `sin64` tiene 64 pasos por ciclo y cada paso mueve hasta ~6 px
+/// (con radio 96, hasta ~9 px). Si el indice avanzase 1 paso por frame, el
+/// movimiento saltaria ~9 px: a trompicones. Aqui la fase avanza en fracciones
+/// (0..256 por ciclo, interpolacion lineal entre pasos adyacentes) de modo que
+/// el desplazamiento por frame sea ~1 px. Devuelve un valor en [-64, 64].
+constexpr eng::s16 sin_smooth(eng::u32 frame_index, eng::u32 period) {
+	// fase en unidades 0..256 por ciclo; cada paso de la tabla de 64 cubre 4
+	// unidades, asi que el indice es (fase >> 2) y el resto es la fraccion.
+	const eng::u32 ph = (frame_index * 256u) / period;
+	const eng::u8 i = static_cast<eng::u8>((ph >> 2) & 63u);
+	const eng::u8 frac = static_cast<eng::u8>(ph & 3u);
+	const eng::s16 s0 = sin64(i);
+	const eng::s16 s1 = sin64(static_cast<eng::u8>(i + 1u) & 63u);
+	return static_cast<eng::s16>((s0 * static_cast<eng::s16>(4 - frac) + s1 * static_cast<eng::s16>(frac)) / 4);
+}
+
 /// Camara del primer plano: onda de Lissajous independiente del fondo.
 ///
-/// Periodos largos (frame/8 y frame/6) => ~1 px/frame, pocos cruces de tile:
-/// si la onda fuese rapida (~3 px/frame) cada cruce encola franjas de prefetch
-/// y el update pierde frames (la demo caia de ~50 a ~47 fps).
+/// Periodos largos (640 y 512 frames) y seno interpolado => desplazamiento
+/// ~1 px/frame suave, con pocos cruces de tile (el prefetch no se satura y la
+/// demo se mantiene a 50 fps).
 constexpr drivers::ScrollPosition2 fg_wave_camera(eng::u32 frame_index) {
-	const eng::u8 ax = static_cast<eng::u8>((frame_index / 8u) & 63u);
-	const eng::u8 ay = static_cast<eng::u8>((frame_index / 6u) & 63u);
-	const eng::u16 x = static_cast<eng::u16>(160 + sin64(ax) * 96 / 64);
-	const eng::u16 y = static_cast<eng::u16>(128 + sin64(ay) * 96 / 64);
+	const eng::u16 x = static_cast<eng::u16>(160 + sin_smooth(frame_index, 640) * 96 / 64);
+	const eng::u16 y = static_cast<eng::u16>(128 + sin_smooth(frame_index, 512) * 96 / 64);
 	return {x, y};
 }
 
