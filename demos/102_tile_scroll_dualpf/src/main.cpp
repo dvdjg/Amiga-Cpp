@@ -447,6 +447,30 @@ void configure_tile_blit_budget(eng::graphics::FramePlan& plan) {
 // espejo horizontal activado, de modo que mientras uno deriva a la derecha el
 // otro lo hace a la izquierda (parallax opuesto) sin tocar el mapa.
 
+/// Seno de 64 pasos (amplitud 64) para el movimiento ondulado del primer plano.
+constexpr eng::s16 sin64(eng::u8 index) {
+	constexpr eng::s16 t[] {
+		0, 6, 12, 18, 24, 31, 36, 41,
+		45, 49, 53, 56, 59, 61, 63, 64,
+		64, 64, 63, 61, 59, 56, 53, 49,
+		45, 41, 36, 31, 24, 18, 12, 6,
+		0, -6, -12, -18, -24, -31, -36, -41,
+		-45, -49, -53, -56, -59, -61, -63, -64,
+		-64, -64, -63, -61, -59, -56, -53, -49,
+		-45, -41, -36, -31, -24, -18, -12, -6,
+	};
+	return t[index & 63u];
+}
+
+/// Camara del primer plano: onda de Lissajous independiente del fondo.
+constexpr drivers::ScrollPosition2 fg_wave_camera(eng::u32 frame_index) {
+	const eng::u8 ax = static_cast<eng::u8>((frame_index / 4u) & 63u);
+	const eng::u8 ay = static_cast<eng::u8>((frame_index / 3u) & 63u);
+	const eng::u16 x = static_cast<eng::u16>(160 + sin64(ax) * 96 / 64);
+	const eng::u16 y = static_cast<eng::u16>(128 + sin64(ay) * 96 / 64);
+	return {x, y};
+}
+
 struct DemoGame {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
@@ -532,9 +556,11 @@ struct DemoGame {
 		}
 
 		m_bg_cam.advance(frame);
-		m_fg_cam.advance(frame);
+		// El primer plano hace SIEMPRE un movimiento senoidal propio (onda de
+		// Lissajous), distinto de la fase que este recorriendo el fondo: si el
+		// fondo va lateral, el primer plano va oblicuo/ondulado.
 		const drivers::ScrollPosition2 bg {m_bg_cam.x, m_bg_cam.y};
-		const drivers::ScrollPosition2 fg {m_fg_cam.x, m_fg_cam.y};
+		const drivers::ScrollPosition2 fg {fg_wave_camera(frame)};
 
 		layer_schedule(m_background, bg.x / tile_size, bg.y / tile_size);
 		layer_schedule(m_foreground, fg.x / tile_size, fg.y / tile_size);
