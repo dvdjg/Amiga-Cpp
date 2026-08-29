@@ -194,6 +194,13 @@ constexpr eng::u16 bg_plane_row(eng::u8 glyph, eng::u8 variant, eng::u8 y, eng::
 /// Tiles del primer plano (PF1, 3 planos, colores 0..7): fondo tramado
 /// transparente para que el fondo se vea a traves.
 constexpr eng::u16 fg_plane_row(eng::u8 glyph, eng::u8 variant, eng::u8 y, eng::u8 plane) {
+	// Tile 63 (glifo F, variante 3): COMPLETAMENTE transparente, todas sus filas
+	// a 0 en los 3 planos -> color 0 del playfield (transparente). El mapa del
+	// primer plano usa este tile en ~50% de sus celdas para que el fondo PF2 se
+	// vea a traves de tiles enteros (no solo del tramado 50%).
+	if (glyph == 15u && variant == 3u) {
+		return 0;
+	}
 	return pf_plane_row(glyph, variant, y, plane, 0, true);
 }
 
@@ -253,9 +260,13 @@ void build_map(tilemap::PackedTileCell* cells, bool is_foreground, eng::u32 seed
 			const eng::u32 h = cell_hash(x, y, layer_seed);
 			const eng::u16 symbol = static_cast<eng::u16>(h & 0x0fu);
 			const eng::u16 variant = static_cast<eng::u16>((h >> 4u) & 3u);
-			cells[static_cast<eng::u32>(y) * map_tiles_x + x].set_tile(
-				static_cast<eng::u16>(symbol | (variant << 4u))
-			);
+			eng::u16 tile = static_cast<eng::u16>(symbol | (variant << 4u));
+			// ~50% de los tiles del primer plano usan el tile 63 (totalmente
+			// transparente) para que el fondo PF2 se vea a traves de tiles enteros.
+			if (is_foreground && ((h >> 7u) & 1u) != 0u) {
+				tile = 63u;
+			}
+			cells[static_cast<eng::u32>(y) * map_tiles_x + x].set_tile(tile);
 		}
 	}
 }
