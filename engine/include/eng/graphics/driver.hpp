@@ -35,7 +35,7 @@ enum class GraphicsDriverId : u8 {
 /// iran alimentando desde blitter, copper y sprites para que las demos puedan fallar
 /// antes de saturar el hardware.
 struct FrameStats {
-	u16 frame_index = 0;
+	u32 frame_index = 0;
 	u16 blit_jobs = 0;
 	u16 copper_patches = 0;
 	u16 hardware_sprites = 0;

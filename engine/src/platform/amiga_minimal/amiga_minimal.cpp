@@ -218,7 +218,9 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 				custom_base[custom_bltcon0_offset] = static_cast<u16>(
 					blt_use_c | blt_use_d | blt_minterm_copy_c
 				);
-				custom_base[custom_bltcon1_offset] = 0x0000;
+				custom_base[custom_bltcon1_offset] = static_cast<u16>(
+					job.descending ? 0x0400 : 0x0000
+				);
 			}
 			custom_base[custom_bltafwm_offset] = 0xffff;
 			custom_base[custom_bltalwm_offset] = 0xffff;

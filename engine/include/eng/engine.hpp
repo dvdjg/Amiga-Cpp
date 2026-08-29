@@ -50,14 +50,14 @@ public:
 	///
 	/// Las demos actuales acaban tras `frame_count` para que el runner pueda capturar
 	/// y cerrar WinUAE de forma determinista. Los juegos reales tendran un bucle
-	/// controlado por estado/salida.
-	void run_frames(u16 frame_count) {
+	/// controlado por estado/salida. `0xffffffff` equivale a duracion indefinida.
+	void run_frames(u32 frame_count) {
 		GameContext context {};
 
 		m_backend.boot();
 		m_game.init(m_backend, context);
 
-		for (u16 i = 0; i < frame_count; ++i) {
+		for (u32 i = 0; i < frame_count; ++i) {
 			context.frame.frame_index = i;
 			m_game.update(m_backend, context);
 			// `render` es el punto de commit, no de simulacion. En Amiga esto importa:
