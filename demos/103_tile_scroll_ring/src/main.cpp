@@ -353,6 +353,14 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000312u);
 			return;
 		}
+		m_scratch = backend.memory().chip.allocate(
+			static_cast<eng::u32>(surface_bytes_per_row - (tile_size / 8u)) * Scene::surface_height,
+			16
+		);
+		if (!m_scratch.valid()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00000313u);
+			return;
+		}
 
 		m_scene.bitplane_span().clear();
 		build_tile_word_cache(eng::Span<eng::u16>::from_raw(
@@ -415,37 +423,59 @@ struct DemoGame {
 
 private:
 	static void configure_budget(eng::graphics::FramePlan& plan) {
-		// Un cruce de borde = 1 shift + hasta 18+22 tiles de borde.
-		plan.set_blit_budget_limits({512, 4096, 32, 64});
+		// Un cruce de borde ejecuta el shift en dos blits por plano via scratch
+		// (2 x 21x288x6 = 72K words) mas los tiles de borde (~3.8K words).
+		plan.set_blit_budget_limits({16384, 131072, 64, 160});
 	}
 
 	/// Blit de desplazamiento del buffer un tile (16px) hacia el lado contrario.
+	/// Shift del ring en dos blits no-solapados via scratch (el CopyRect solapado
+	/// no mueve el buffer en WinUAE-DBG). El scratch cabe por plano.
 	void add_shift(eng::graphics::FramePlan& plan, eng::s8 vdx, eng::s8 vdy) {
+		const eng::u8* base = m_scene.bitplanes();
 		const eng::u32 src_dx = vdx > 0 ? 2u : 0u;
 		const eng::u32 dst_dx = vdx < 0 ? 2u : 0u;
 		const eng::u32 src_dy = vdy > 0 ? surface_bytes_per_row * 16u : 0u;
 		const eng::u32 dst_dy = vdy < 0 ? surface_bytes_per_row * 16u : 0u;
-		const eng::u16 width_bytes = vdx != 0 ? static_cast<eng::u16>(Scene::surface_width - tile_size)
-		                                      : Scene::surface_bytes_per_row;
-		const eng::u16 height = vdy != 0 ? static_cast<eng::u16>(Scene::surface_height - tile_size)
-		                                 : Scene::surface_height;
-		const eng::u8* base = m_scene.bitplanes();
-		const eng::s16 modulo = static_cast<eng::s16>(surface_bytes_per_row - width_bytes);
-		plan.add_copy_rect({
-			eng::graphics::BlitJobKind::CopyRect,
-			nullptr,
-			reinterpret_cast<const eng::u16*>(base + src_dx + src_dy),
-			reinterpret_cast<eng::u16*>(m_scene.bitplanes() + dst_dx + dst_dy),
-			static_cast<eng::u16>(width_bytes / 2u),
-			height,
-			modulo,
-			modulo,
-			Scene::plane_count,
-			0,
-			plane_bytes,
-			plane_bytes,
-			vdx < 0 || vdy < 0,
-		});
+		const eng::u16 width_bytes = vdx != 0
+			? static_cast<eng::u16>(surface_bytes_per_row - (tile_size / 8u))
+			: surface_bytes_per_row;
+		const eng::u16 height = vdy != 0 ? static_cast<eng::u16>(Scene::surface_height - tile_size) : Scene::surface_height;
+		const eng::u16 words = static_cast<eng::u16>(width_bytes / 2u);
+		const eng::s16 src_mod = static_cast<eng::s16>(surface_bytes_per_row - width_bytes);
+		eng::u8* scratch = static_cast<eng::u8*>(m_scratch.data);
+		for (eng::u8 pl = 0; pl < Scene::plane_count; ++pl) {
+			plan.add_tile_block_copy({
+				eng::graphics::BlitJobKind::CopyRect,
+				nullptr,
+				reinterpret_cast<const eng::u16*>(base + pl * plane_bytes + src_dx + src_dy),
+				reinterpret_cast<eng::u16*>(scratch),
+				words,
+				height,
+				src_mod,
+				0,
+				1,
+				0,
+				plane_bytes,
+				width_bytes,
+				false,
+			});
+			plan.add_tile_block_copy({
+				eng::graphics::BlitJobKind::CopyRect,
+				nullptr,
+				reinterpret_cast<const eng::u16*>(scratch),
+				reinterpret_cast<eng::u16*>(m_scene.bitplanes() + pl * plane_bytes + dst_dx + dst_dy),
+				words,
+				height,
+				0,
+				src_mod,
+				1,
+				0,
+				width_bytes,
+				plane_bytes,
+				false,
+			});
+		}
 	}
 
 	/// Recarga los tiles del mundo que entran por los bordes tras el cruce.
@@ -504,6 +534,7 @@ private:
 	Scene m_scene {};
 	eng::graphics::FramePlan m_frame_plan {};
 	eng::MemoryBlock m_tiles {};
+	eng::MemoryBlock m_scratch {};
 	RingCamera m_cam {};
 };
 
