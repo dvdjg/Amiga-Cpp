@@ -594,7 +594,15 @@ public:
 	/// Genera los blits de un tile de `playfield` (uno por plano).
 	///
 	/// El tile debe estar en formato planar contiguo con solo los planos de ese
-	/// playfield. Devuelve el numero de jobs escritos en `out` (maximo 3).
+	/// Genera los jobs de blit de un tile de `playfield`.
+	///
+	/// Emite UN solo job que cubre todos los planos del playfield: en dual los
+	/// bitplanes de un playfield no son contiguos (PF1 = 1,3,5; PF2 = 2,4,6), asi
+	/// que el job usa un stride de destino de `2 * plane_bytes` y el backend avanza
+	/// por el plano de hardware correcto. Fusionar los planos en un job reduce el
+	/// overhead por blit (wait + programacion de registros) de 3x a 1x por tile,
+	/// que es lo que dominaba el frame en los cruces del ring dual. Devuelve el
+	/// numero de jobs escritos en `out` (1).
 	u8 make_playfield_upload_jobs(
 		u8 playfield,
 		const u16* tile_planes,
@@ -603,25 +611,21 @@ public:
 		graphics::BlitJob out[3]
 	) const {
 		const u8 count = playfield_planes(playfield);
-		const u32 plane_stride_words = tile_plane_bytes() / sizeof(u16);
-		for (u8 i = 0; i < count; ++i) {
-			const u8 hw_plane = hardware_plane_of(playfield, i);
-			out[i] = {
-				graphics::BlitJobKind::TileBlockCopy,
-				nullptr,
-				tile_planes + static_cast<u32>(i) * plane_stride_words,
-				plane_tile_destination(hw_plane, surface_tile_x, surface_tile_y),
-				1,
-				tile_size,
-				0,
-				static_cast<s16>(surface_bytes_per_row - sizeof(u16)),
-				1,
-				0,
-				tile_plane_bytes(),
-				plane_bytes,
-			};
-		}
-		return count;
+		out[0] = {
+			graphics::BlitJobKind::TileBlockCopy,
+			nullptr,
+			tile_planes,
+			plane_tile_destination(hardware_plane_of(playfield, 0), surface_tile_x, surface_tile_y),
+			1,
+			tile_size,
+			0,
+			static_cast<s16>(surface_bytes_per_row - sizeof(u16)),
+			count,
+			0,
+			tile_plane_bytes(),
+			dual_playfield ? plane_bytes * 2u : plane_bytes,
+		};
+		return 1;
 	}
 
 	constexpr bool ok() const { return m_ok; }
