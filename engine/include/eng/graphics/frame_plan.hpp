@@ -190,7 +190,10 @@ struct BlitJob {
 class FramePlan {
 public:
 	static constexpr u8 max_palette_patches = 8;
-	static constexpr u8 max_blit_jobs = 64;
+	// A dual-playfield ring crossing both axes needs 12 shift copies plus 80
+	// tile uploads (two playfields), so the former limit of 64 rejected a valid
+	// frame plan before the backend could run it.
+	static constexpr u8 max_blit_jobs = 128;
 	static constexpr u8 max_dirty_rects = 8;
 
 	void clear() {
