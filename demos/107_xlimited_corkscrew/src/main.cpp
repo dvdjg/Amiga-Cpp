@@ -249,9 +249,14 @@ struct DemoGame {
         plan.clear();
         plan.set_blit_budget_limits({8192, 16384, 4, 120});
 
-        // Scroll X infinito: 2 píxeles por frame. Cada píxel es un blit de
-        // un bloque (ver §5). Con 2 px/frame, 2 blits por frame.
-        const int steps = 2;
+        // Scroll X infinito: 1 píxel por frame para 50 fps sin micro-parones.
+        // Cada píxel es exactamente 1 blit de 64 planelíneas (§5). Con 1 px/frame
+        // el fine scroll avanza 1/16 por frame y BPLCON1 cicla 0x00→0xFF sin saltos.
+        // Con 2 px/frame el avance era 2/16, visible como micro-parón cada 8 frames
+        // y como BPLCON1 duplicado; además duplicaba la carga de Blitter y el
+        // riesgo de no terminar antes del siguiente VBlank. Mantener 1 px/frame
+        // es la forma canónica de Steger (ver xlimited.c: main_loop con 1 iter).
+        const int steps = 1;
         for (int i = 0; i < steps; ++i) {
             // Si llegamos al límite del mapa lógico, hacemos wrap a 0 y
             // refilleamos la pantalla para mantener la ilusión de infinito
