@@ -41,7 +41,6 @@ struct ScrollPosition2 {
 /// Globales de depuración (leídos por el host vía GDB).
 const eng::u8* g_dbg_bg_fb = nullptr;
 const eng::u8* g_dbg_fg_fb = nullptr;
-const eng::u16* g_dbg_copper = nullptr;
 
 /// Modo dual 3+3: primer plano 3 planos (PF1, delante, color 0 transparente) y
 /// fondo 3 planos (PF2). Total 6 bitplanes, 320x256 visible. Cada playfield
@@ -182,17 +181,25 @@ constexpr eng::u16 pf_plane_row(eng::u8 glyph, eng::u8 variant, eng::u8 y, eng::
 ///
 /// Layout: [tile][plano][filas]. Cada tile ocupa `tile_planes * tile_size`
 /// words; el controlador lo copia con un único blit `TileBlockCopy`.
+///
+/// El tile 63 del PRIMER PLANO es COMPLETAMENTE transparente (todas las filas a
+/// 0 en todos los planos): en DPF su color 0 deja ver el fondo PF2. El mapa del
+/// fg usa este tile en ~50% de sus celdas (ver `build_map`), así el fondo se ve
+/// a través de tiles enteros.
 void build_tile_cache(eng::Span<eng::u16> words, eng::u8 tile_planes, bool is_foreground) {
 	const eng::u32 words_per_tile = words.size() / kTileCount;
 	for (eng::u16 tile = 0; tile < kTileCount; ++tile) {
 		const eng::u8 glyph = static_cast<eng::u8>(tile & 15u);
 		const eng::u8 variant = static_cast<eng::u8>((tile >> 4u) & 3u);
+		const bool fully_transparent = is_foreground && tile == 63u;
 		for (eng::u8 y = 0; y < kTileSize; ++y) {
 			for (eng::u8 plane = 0; plane < tile_planes; ++plane) {
 				words.at(static_cast<eng::u32>(tile) * words_per_tile + static_cast<eng::u32>(plane) * kTileSize + y) =
-					is_foreground
-						? pf_plane_row(glyph, variant, y, plane, 0, true)
-						: pf_plane_row(glyph, variant, y, plane, 8, false);
+					fully_transparent
+						? 0
+						: (is_foreground
+							? pf_plane_row(glyph, variant, y, plane, 0, true)
+							: pf_plane_row(glyph, variant, y, plane, 8, false));
 			}
 		}
 	}
@@ -214,31 +221,38 @@ constexpr eng::s16 sin64(eng::u8 index) {
 	return t[index & 63u];
 }
 
-/// Seno interpolado de alta resolución (avance sub-pixel).
+/// Seno interpolado con precisión Q16 (escala 65536 = 1.0).
 ///
-/// La onda recorre más de una pantalla (radio 320x256), así que la resolución de
-/// fase es lo que evita los tirones: 4096 unidades de fase por ciclo, con 64
-/// sub-pasos por entrada de la tabla de 64. Devuelve un valor en [-64, 64].
-constexpr eng::s16 sin_smooth(eng::u32 frame_index, eng::u32 period) {
+/// La onda recorre más de una pantalla (radio 320x256). Para que el movimiento no
+/// vaya a trompicones hay que conservar la FRACCIÓN del seno: si se redondea a
+/// entero, un paso del seno (64/64) son 320/64 = 5 px en X y el movimiento salta
+/// 0,0,5,0,5 px en vez de avanzar suave. Aquí se devuelve el seno escalado a Q16
+/// ([-64*65536, 64*65536]) con interpolación lineal de 64 sub-pasos por entrada
+/// de la tabla; el acumulador de resto de `update` convierte a píxeles enteros
+/// sin perder la fracción.
+constexpr eng::s32 sin_smooth(eng::u32 frame_index, eng::u32 period) {
 	const eng::u32 ph = (frame_index * 4096u) / period;
 	const eng::u8 i = static_cast<eng::u8>((ph >> 6) & 63u);
 	const eng::u8 frac = static_cast<eng::u8>(ph & 63u);
-	const eng::s16 s0 = sin64(i);
-	const eng::s16 s1 = sin64(static_cast<eng::u8>(i + 1u) & 63u);
-	return static_cast<eng::s16>((s0 * static_cast<eng::s16>(64 - frac) + s1 * static_cast<eng::s16>(frac)) / 64);
+	const eng::s32 s0 = sin64(i);
+	const eng::s32 s1 = sin64(static_cast<eng::u8>(i + 1u) & 63u);
+	// Interpolación lineal en Q16: (s0*(64-frac)+s1*frac)/64, *65536.
+	return (s0 * static_cast<eng::s32>(64 - frac) + s1 * static_cast<eng::s32>(frac)) * 1024;
 }
 
-/// Camara del primer plano: onda de Lissajous que recorre MÁS de una pantalla en
-/// cada eje (0..640 en X, 0..512 en Y) cruzando páginas en ambas direcciones.
+/// Camara del primer plano: onda de Lissajous en SUB-PÍXELES (Q16).
 ///
-/// Radio 320x256 (2 pantallas), periodos 1280/960 frames. Con fase inicial en 3/4
-/// de ciclo la cámara arranca en (0,0) para continuidad con `begin`.
+/// Recorre más de una pantalla en cada eje (0..640 en X, 0..512 en Y) cruzando
+/// páginas en ambas direcciones. Radio 320x256 (2 pantallas), periodos 640/480
+/// frames (velocidad pico ~3.8px/frame, suave con Q16 y dentro de max_delta=8).
+/// Con fase inicial en 3/4 de ciclo la cámara arranca en (0,0) para continuidad
+/// con `begin`. Los valores devueltos son px * 65536.
 constexpr ScrollPosition2 fg_wave_camera(eng::u32 frame_index) {
-	const eng::s32 sx = static_cast<eng::s32>(sin_smooth(frame_index + 3u * 1280u / 4u, 1280)) * 320 / 64;
-	const eng::s32 sy = static_cast<eng::s32>(sin_smooth(frame_index + 3u * 960u / 4u, 960)) * 256 / 64;
+	const eng::s32 sx = sin_smooth(frame_index + 3u * 640u / 4u, 640) * 320 / 64;
+	const eng::s32 sy = sin_smooth(frame_index + 3u * 480u / 4u, 480) * 256 / 64;
 	return {
-		320 + sx,
-		256 + sy,
+		320 * 65536 + sx,
+		256 * 65536 + sy,
 	};
 }
 
@@ -333,7 +347,6 @@ struct DemoGame {
 		composer.install(backend);
 		g_dbg_bg_fb = bg.bitplanes();
 		g_dbg_fg_fb = fg.bitplanes();
-		g_dbg_copper = static_cast<const eng::u16*>(nullptr);
 
 		eng::debug::DebugPeripheral::counter_name(0, reinterpret_cast<eng::u32>("tiles_uploaded"));
 		ready = true;
@@ -347,28 +360,35 @@ struct DemoGame {
 		}
 
 		const eng::u32 frame = context.frame.frame_index;
-		const ScrollPosition2 fg_pos = fg_wave_camera(frame);
-		const ScrollPosition2 bg_pos = bg_scroll(frame);
+		const ScrollPosition2 fg_q = fg_wave_camera(frame); // Q16
+		const ScrollPosition2 bg_pos = bg_scroll(frame);    // px enteros
 
 		plan.clear();
-		// Presupuesto de Blitter: 2 campos x hasta 6 tiles/frame + margen. Antes
-		// era 4 tiles/frame (justo el límite para redibujar una página de 320
-		// tiles en los 80 frames que da max_delta=4) y cualquier desliz dejaba la
-		// página activa a medio dibujar -> saltos de color al cruzar la página.
-		plan.set_blit_budget_limits({192, 256, 2, 16});
+		// Presupuesto de Blitter: 2 campos x hasta 32 tiles/frame = 64 jobs. Al
+		// cruzar en diagonal se encolan hasta 1280 tiles y el presupuesto debe
+		// cubrir ~20 tiles/frame por campo para no mostrar la página activa a
+		// medio dibujar (negro residual en el cruce de página vertical).
+		plan.set_blit_budget_limits({8192, 16384, 4, 80});
 
 		const field::TileScrollOffset bg_delta {
 			static_cast<eng::s16>(bg_pos.x - bg_last_x),
 			static_cast<eng::s16>(bg_pos.y - bg_last_y),
 		};
-		const field::TileScrollOffset fg_delta {
-			static_cast<eng::s16>(fg_pos.x - fg_last_x),
-			static_cast<eng::s16>(fg_pos.y - fg_last_y),
-		};
 		bg_last_x = bg_pos.x;
 		bg_last_y = bg_pos.y;
-		fg_last_x = fg_pos.x;
-		fg_last_y = fg_pos.y;
+
+		// Delta del fg en sub-píxeles con acumulador de resto: la cámara es Q16
+		// y solo se pasa al controlador la parte entera de la diferencia, pero el
+		// resto se acumula para que el movimiento sea suave (no 0,0,5,0,5 px).
+		fg_rest_x += fg_q.x - fg_last_x;
+		fg_rest_y += fg_q.y - fg_last_y;
+		fg_last_x = fg_q.x;
+		fg_last_y = fg_q.y;
+		const eng::s16 fg_dx = static_cast<eng::s16>(fg_rest_x / 65536);
+		const eng::s16 fg_dy = static_cast<eng::s16>(fg_rest_y / 65536);
+		fg_rest_x -= static_cast<eng::s32>(fg_dx) * 65536;
+		fg_rest_y -= static_cast<eng::s32>(fg_dy) * 65536;
+		const field::TileScrollOffset fg_delta {fg_dx, fg_dy};
 
 		if (!bg.update(bg_config, bg_delta, plan) || !fg.update(fg_config, fg_delta, plan)) {
 			ready = false;
@@ -391,13 +411,31 @@ struct DemoGame {
 			return;
 		}
 
-		const eng::u8 bg_page = bg.state().active_page_x;
-		const eng::u8 fg_page = fg.state().active_page_x;
+		// Telemetría: latch de cruce de página (bits 16-19, se mantiene una vez el
+		// campo cruza una página en ese eje, independiente del instante de lectura)
+		// + página activa actual (bits 12-15) + mundo del fg en tiles (X bits 8-15,
+		// Y bits 0-7).
+		const eng::u8 bg_px = bg.state().active_page_x & 1u;
+		const eng::u8 bg_py = bg.state().active_page_y & 1u;
+		const eng::u8 fg_px = fg.state().active_page_x & 1u;
+		const eng::u8 fg_py = fg.state().active_page_y & 1u;
+		m_crossed_bg_x |= bg_px != m_last_bg_px;
+		m_crossed_bg_y |= bg_py != m_last_bg_py;
+		m_crossed_fg_x |= fg_px != m_last_fg_px;
+		m_crossed_fg_y |= fg_py != m_last_fg_py;
+		m_last_bg_px = bg_px; m_last_bg_py = bg_py;
+		m_last_fg_px = fg_px; m_last_fg_py = fg_py;
 		const eng::u32 marker = 0x10600000u |
-			(static_cast<eng::u32>(bg_page & 1u) << 16u) |
-			(static_cast<eng::u32>(fg_page & 1u) << 17u) |
-			(static_cast<eng::u32>(bg.state().world_x & 0xffu) << 8u) |
-			(static_cast<eng::u32>(fg.state().world_x & 0xffu));
+			(static_cast<eng::u32>(m_crossed_bg_x) << 16u) |
+			(static_cast<eng::u32>(m_crossed_fg_x) << 17u) |
+			(static_cast<eng::u32>(m_crossed_bg_y) << 18u) |
+			(static_cast<eng::u32>(m_crossed_fg_y) << 19u) |
+			(static_cast<eng::u32>(bg_px) << 12u) |
+			(static_cast<eng::u32>(fg_px) << 13u) |
+			(static_cast<eng::u32>(bg_py) << 14u) |
+			(static_cast<eng::u32>(fg_py) << 15u) |
+			(static_cast<eng::u32>((fg.state().world_x >> 4) & 0xffu) << 8u) |
+			static_cast<eng::u32>((fg.state().world_y >> 4) & 0xffu);
 		eng::debug::mark_ready(g_eng_run_status, marker);	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
@@ -432,9 +470,17 @@ private:
 		config.tile_size = kTileSize;
 		config.viewport_w = kViewportW;
 		config.viewport_h = kViewportH;
-		config.max_delta_x = 4;
-		config.max_delta_y = 4;
-		config.max_tiles_per_frame = 6;
+		// max_delta >= pico de velocidad de la cámara (fg: 5px/f X, 4px/f Y) para
+		// que el clamp nunca recorte la trayectoria de la Lissajous.
+		//
+		// Presupuesto: al cruzar en diagonal se encolan a la vez la página X
+		// vacante (20x32=640 tiles) y la Y (40x16=640) = 1280 tiles; hay ~64
+		// frames hasta el siguiente cruce -> ~20 tiles/frame. Con menos, la página
+		// activa se mostraba a medio dibujar (negro residual al cruzar la página
+		// vertical). 32/frame da margen real incluso si ambos campos cruzan juntos.
+		config.max_delta_x = 8;
+		config.max_delta_y = 8;
+		config.max_tiles_per_frame = 32;
 		config.scroll_x = true;
 		config.scroll_y = true;
 		return config;
@@ -444,6 +490,16 @@ private:
 	eng::s32 bg_last_y = 0;
 	eng::s32 fg_last_x = 0;
 	eng::s32 fg_last_y = 0;
+	eng::s32 fg_rest_x = 0;   // resto sub-píxel (Q16) para movimiento suave
+	eng::s32 fg_rest_y = 0;
+	eng::u8 m_crossed_bg_x = 0;
+	eng::u8 m_crossed_bg_y = 0;
+	eng::u8 m_crossed_fg_x = 0;
+	eng::u8 m_crossed_fg_y = 0;
+	eng::u8 m_last_bg_px = 0;
+	eng::u8 m_last_bg_py = 0;
+	eng::u8 m_last_fg_px = 0;
+	eng::u8 m_last_fg_py = 0;
 };
 
 DemoGame g_game {};
