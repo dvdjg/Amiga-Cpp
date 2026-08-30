@@ -38,9 +38,9 @@
 ///   - puntero = fb + página_activa*40 + coarse + y*row_bytes, donde coarse es
 ///     el desplazamiento de 16 px dentro de la página y `BPLCON1` el fine.
 ///
-/// Cuando `world_x - page_base_x` alcanza el viewport, el puntero "salta" a la
-/// otra página (ya preparada) y la página vacante se redibuja con el siguiente
-/// tramo de mundo. `FieldHardwareView` expone todo lo que el compositor necesita.
+/// Cuando `world_x - page_origin[active]` alcanza el viewport, el puntero "salta"
+/// a la otra página (ya preparada) y la página vacante se redibuja con el tramo
+/// siguiente. `FieldHardwareView` expone todo lo que el compositor necesita.
 
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
@@ -135,14 +135,24 @@ struct TilePendingStrip {
 };
 
 /// Estado mutable de un campo (lo mantiene el controlador).
+///
+/// Cada página física (0/1 en cada eje) tiene un `page_origin_x/y` con el mundo
+/// (px) de su borde superior-izquierdo: la página activa contiene
+/// `[page_origin[active], page_origin[active]+viewport)`. En scroll
+/// bidireccional (la cámara va y viene) la página opuesta se rellena con el
+/// tramo que esté en la DIRECCIÓN DE VIAJE, y al invertir se reencola con el
+/// tramo de la nueva dirección (con tiempo suficiente: el punto de inflexión
+/// está lejos del cruce).
 struct TileFieldState {
 	eng::s32 world_x = 0;        // posición de mundo (píxeles), origen = TL
 	eng::s32 world_y = 0;
-	eng::s32 page_base_x = 0;    // mundo en el borde izquierdo del framebuffer
-	eng::s32 page_base_y = 0;
+	eng::s32 page_origin_x[2] = {0, 0};  // mundo del borde de cada página física
+	eng::s32 page_origin_y[2] = {0, 0};
 	eng::u8 active_page_x = 0;   // 0/1: página donde empieza la ventana visible
 	eng::u8 active_page_y = 0;
-	TilePendingStrip pending[4] {};
+	eng::s16 last_dir_x = 0;     // signo de la última velocidad (inversión)
+	eng::s16 last_dir_y = 0;
+	TilePendingStrip pending[8] {};
 	eng::u8 pending_count = 0;
 	bool initialized = false;
 };
@@ -208,16 +218,24 @@ public:
 
 		m_state.world_x = initial.x;
 		m_state.world_y = initial.y;
-		m_state.page_base_x = (initial.x / static_cast<eng::s32>(config.viewport_w)) *
+		// Página 0: mundo alineado a viewport desde el offset inicial. Página 1:
+		// el tramo siguiente (o anterior) según el scroll del eje.
+		const eng::s32 base_x = (initial.x / static_cast<eng::s32>(config.viewport_w)) *
 			static_cast<eng::s32>(config.viewport_w);
-		m_state.page_base_y = (initial.y / static_cast<eng::s32>(config.viewport_h)) *
+		const eng::s32 base_y = (initial.y / static_cast<eng::s32>(config.viewport_h)) *
 			static_cast<eng::s32>(config.viewport_h);
+		m_state.page_origin_x[0] = base_x;
+		m_state.page_origin_x[1] = base_x + (config.scroll_x ? static_cast<eng::s32>(config.viewport_w) : 0);
+		m_state.page_origin_y[0] = base_y;
+		m_state.page_origin_y[1] = base_y + (config.scroll_y ? static_cast<eng::s32>(config.viewport_h) : 0);
 		m_state.active_page_x = static_cast<eng::u8>(
-			(m_state.page_base_x / static_cast<eng::s32>(config.viewport_w)) & 1
+			(initial.x >= base_x + static_cast<eng::s32>(config.viewport_w)) ? 1u : 0u
 		);
 		m_state.active_page_y = static_cast<eng::u8>(
-			(m_state.page_base_y / static_cast<eng::s32>(config.viewport_h)) & 1
+			(initial.y >= base_y + static_cast<eng::s32>(config.viewport_h)) ? 1u : 0u
 		);
+		m_state.last_dir_x = 0;
+		m_state.last_dir_y = 0;
 		m_state.pending_count = 0;
 
 		enqueue_initial_strips();
@@ -256,33 +274,66 @@ public:
 		if (config.scroll_x && !can_scroll_x(dx)) dx = 0;
 		if (config.scroll_y && !can_scroll_y(dy)) dy = 0;
 
-		// 2) Avanza la cámara y detecta cruce de página.
+		// 2) Detecta INVERSIÓN de la cámara: al cambiar de signo, la página
+		//    opuesta se reencola con el tramo de la NUEVA dirección (trasero si
+		//    ahora retrocede, delantero si avanza). La inversión ocurre lejos del
+		//    cruce, así que el redibujado llega a tiempo.
+		if (config.scroll_x && dx != 0) {
+			const eng::s16 dir = dx < 0 ? -1 : 1;
+			if (m_state.last_dir_x != 0 && dir != m_state.last_dir_x) {
+				reprep_page_x(dir);
+			}
+			m_state.last_dir_x = dir;
+		}
+		if (config.scroll_y && dy != 0) {
+			const eng::s16 dir = dy < 0 ? -1 : 1;
+			if (m_state.last_dir_y != 0 && dir != m_state.last_dir_y) {
+				reprep_page_y(dir);
+			}
+			m_state.last_dir_y = dir;
+		}
+
+		// 3) Avanza la cámara y detecta cruce de página.
 		m_state.world_x += dx;
 		m_state.world_y += dy;
 		const eng::s32 half_w = static_cast<eng::s32>(config.viewport_w);
 		const eng::s32 half_h = static_cast<eng::s32>(config.viewport_h);
-		const eng::s32 mod_x = m_state.world_x - m_state.page_base_x;
+		const eng::s32 act_x = m_state.active_page_x;
+		const eng::s32 act_y = m_state.active_page_y;
+		const eng::s32 mod_x = m_state.world_x - m_state.page_origin_x[act_x];
 		if (config.scroll_x && mod_x >= half_w) {
-			m_state.page_base_x += half_w;
-			m_state.active_page_x = static_cast<eng::u8>(m_state.active_page_x ^ 1u);
-			enqueue_vacated_page_x();
+			// Cruzó hacia adelante: la página que queda atrás (la actual) se
+			// rellena con el tramo que estará tras la nueva activa.
+			const eng::u8 vacated = static_cast<eng::u8>(act_x);
+			m_state.active_page_x = static_cast<eng::u8>(act_x ^ 1);
+			m_state.page_origin_x[vacated] =
+				m_state.page_origin_x[m_state.active_page_x] + half_w;
+			enqueue_page_x(vacated, m_state.page_origin_x[vacated]);
 		} else if (config.scroll_x && mod_x < 0) {
-			m_state.page_base_x -= half_w;
-			m_state.active_page_x = static_cast<eng::u8>(m_state.active_page_x ^ 1u);
-			enqueue_vacated_page_x();
+			// Cruzó hacia atrás: la página que queda atrás (la actual) se rellena
+			// con el tramo que estará antes de la nueva activa.
+			const eng::u8 vacated = static_cast<eng::u8>(act_x);
+			m_state.active_page_x = static_cast<eng::u8>(act_x ^ 1);
+			m_state.page_origin_x[vacated] =
+				m_state.page_origin_x[m_state.active_page_x] - half_w;
+			enqueue_page_x(vacated, m_state.page_origin_x[vacated]);
 		}
-		const eng::s32 mod_y = m_state.world_y - m_state.page_base_y;
+		const eng::s32 mod_y = m_state.world_y - m_state.page_origin_y[act_y];
 		if (config.scroll_y && mod_y >= half_h) {
-			m_state.page_base_y += half_h;
-			m_state.active_page_y = static_cast<eng::u8>(m_state.active_page_y ^ 1u);
-			enqueue_vacated_page_y();
+			const eng::u8 vacated = static_cast<eng::u8>(act_y);
+			m_state.active_page_y = static_cast<eng::u8>(act_y ^ 1);
+			m_state.page_origin_y[vacated] =
+				m_state.page_origin_y[m_state.active_page_y] + half_h;
+			enqueue_page_y(vacated, m_state.page_origin_y[vacated]);
 		} else if (config.scroll_y && mod_y < 0) {
-			m_state.page_base_y -= half_h;
-			m_state.active_page_y = static_cast<eng::u8>(m_state.active_page_y ^ 1u);
-			enqueue_vacated_page_y();
+			const eng::u8 vacated = static_cast<eng::u8>(act_y);
+			m_state.active_page_y = static_cast<eng::u8>(act_y ^ 1);
+			m_state.page_origin_y[vacated] =
+				m_state.page_origin_y[m_state.active_page_y] - half_h;
+			enqueue_page_y(vacated, m_state.page_origin_y[vacated]);
 		}
 
-		// 3) Consume el presupuesto: dibuja hasta max_tiles_per_frame por Blitter.
+		// 4) Consume el presupuesto: dibuja hasta max_tiles_per_frame por Blitter.
 		draw_pending(plan, config.max_tiles_per_frame);
 		return true;
 	}
@@ -298,8 +349,8 @@ public:
 		FieldHardwareView v;
 		v.bitplanes = static_cast<const eng::u8*>(m_framebuffer.data);
 		v.plane_stride = m_plane_bytes;
-		const eng::s32 page_x = m_state.world_x - m_state.page_base_x;
-		const eng::s32 page_y = m_state.world_y - m_state.page_base_y;
+		const eng::s32 page_x = m_state.world_x - m_state.page_origin_x[m_state.active_page_x];
+		const eng::s32 page_y = m_state.world_y - m_state.page_origin_y[m_state.active_page_y];
 		// fetch_x = (scroll - 1) & ~15; a scroll=0 se clampa a 0 (el margen de 2
 		// bytes de DDFSTRT=$30 ya cubre la palabra inicial).
 		const eng::s32 fetch_px = page_x > 0 ? ((page_x - 1) & ~15) : 0;
@@ -330,59 +381,79 @@ private:
 	bool can_scroll_x(eng::s16 dx) const {
 		if (m_config.map.wrap_x != 0) return true;
 		const eng::s32 page_cols = static_cast<eng::s32>(m_config.map.width) -
-			m_state.page_base_x / static_cast<eng::s32>(m_config.tile_width);
+			m_state.page_origin_x[m_state.active_page_x] / static_cast<eng::s32>(m_config.tile_width);
 		return dx < 0 || page_cols > static_cast<eng::s32>(m_config.viewport_w / m_config.tile_width);
 	}
 
 	bool can_scroll_y(eng::s16 dy) const {
 		if (m_config.map.wrap_y != 0) return true;
 		const eng::s32 page_rows = static_cast<eng::s32>(m_config.map.height) -
-			m_state.page_base_y / static_cast<eng::s32>(m_config.tile_size);
+			m_state.page_origin_y[m_state.active_page_y] / static_cast<eng::s32>(m_config.tile_size);
 		return dy < 0 || page_rows > static_cast<eng::s32>(m_config.viewport_h / m_config.tile_size);
 	}
 
-	// Cuando la cámara cruza el límite de una página, la página que queda atrás
-	// (slot = active^1) se encola para redibujarse con el siguiente tramo de
-	// mundo: el que empieza en `page_base + viewport`. Es una banda de ancho
-	// viewport y alto fb_h (X) o de ancho fb_w y alto viewport (Y).
-	void enqueue_vacated_page_x() {
-		const eng::s32 slot = static_cast<eng::s32>(m_state.active_page_x ^ 1u);
-		const eng::s32 col = (m_state.page_base_x + static_cast<eng::s32>(m_config.viewport_w)) /
-			static_cast<eng::s32>(m_config.tile_width);
-		const eng::s32 row = m_state.page_base_y / static_cast<eng::s32>(m_config.tile_size);
-		const eng::u16 w = static_cast<eng::u16>(m_config.viewport_w / m_config.tile_width);
-		const eng::u16 h = static_cast<eng::u16>(m_fb_h / m_config.tile_size);
-		enqueue_strip(col, row, slot * w, 0, w, h);
+	/// Reencola la página opuesta con el tramo en la dirección `dir` tras una
+	/// inversión de la cámara. `dir` = +1 (avanza) => tramo delantero;
+	/// `dir` = -1 (retrocede) => tramo trasero.
+	void reprep_page_x(eng::s16 dir) {
+		const eng::u8 other = static_cast<eng::u8>(m_state.active_page_x ^ 1u);
+		m_state.page_origin_x[other] = m_state.page_origin_x[m_state.active_page_x] +
+			static_cast<eng::s32>(dir) * static_cast<eng::s32>(m_config.viewport_w);
+		enqueue_page_x(other, m_state.page_origin_x[other]);
 	}
 
-	void enqueue_vacated_page_y() {
-		const eng::s32 slot = static_cast<eng::s32>(m_state.active_page_y ^ 1u);
-		const eng::s32 row = (m_state.page_base_y + static_cast<eng::s32>(m_config.viewport_h)) /
-			static_cast<eng::s32>(m_config.tile_size);
-		const eng::s32 col = m_state.page_base_x / static_cast<eng::s32>(m_config.tile_width);
-		const eng::u16 w = static_cast<eng::u16>(m_fb_w / m_config.tile_width);
+	void reprep_page_y(eng::s16 dir) {
+		const eng::u8 other = static_cast<eng::u8>(m_state.active_page_y ^ 1u);
+		m_state.page_origin_y[other] = m_state.page_origin_y[m_state.active_page_y] +
+			static_cast<eng::s32>(dir) * static_cast<eng::s32>(m_config.viewport_h);
+		enqueue_page_y(other, m_state.page_origin_y[other]);
+	}
+
+	/// Encola el redibujado de la página física `slot` (X) con el tramo de mundo
+	/// que empieza en `origin` (px).
+	///
+	/// La página X es una banda vertical de ancho viewport que cubre TODO el alto
+	/// del framebuffer, que contiene dos páginas Y (si scroll_y). Cada mitad se
+	/// rellena con su propio `world_y` (el de la página Y correspondiente), así
+	/// que se encolan DOS franjas: una por página Y activa, otra por la opuesta.
+	void enqueue_page_x(eng::u8 slot, eng::s32 origin) {
+		const eng::s32 col = origin / static_cast<eng::s32>(m_config.tile_width);
+		const eng::u16 w = static_cast<eng::u16>(m_config.viewport_w / m_config.tile_width);
+		const eng::u16 ph = static_cast<eng::u16>(m_config.viewport_h / m_config.tile_size);
+		const eng::u16 pw = static_cast<eng::u16>(slot * w);
+		for (eng::u8 sy = 0; sy < (m_config.scroll_y ? 2u : 1u); ++sy) {
+			const eng::u8 py = static_cast<eng::u8>(m_state.active_page_y ^ sy);
+			const eng::s32 row = m_state.page_origin_y[py] / static_cast<eng::s32>(m_config.tile_size);
+			enqueue_strip(col, row, pw, py * ph, w, ph);
+		}
+	}
+
+	/// Encola el redibujado de la página física `slot` (Y) con el tramo de mundo
+	/// que empieza en `origin` (px). Análogo a X: dos franjas, una por página X.
+	void enqueue_page_y(eng::u8 slot, eng::s32 origin) {
+		const eng::s32 row = origin / static_cast<eng::s32>(m_config.tile_size);
 		const eng::u16 h = static_cast<eng::u16>(m_config.viewport_h / m_config.tile_size);
-		enqueue_strip(col, row, 0, slot * h, w, h);
+		const eng::u16 pw = static_cast<eng::u16>(m_config.viewport_w / m_config.tile_width);
+		const eng::u16 ph = static_cast<eng::u16>(slot * h);
+		for (eng::u8 sx = 0; sx < (m_config.scroll_x ? 2u : 1u); ++sx) {
+			const eng::u8 px = static_cast<eng::u8>(m_state.active_page_x ^ sx);
+			const eng::s32 col = m_state.page_origin_x[px] / static_cast<eng::s32>(m_config.tile_width);
+			enqueue_strip(col, row, px * pw, ph, pw, h);
+		}
 	}
 
 	/// Encola el estampado inicial: una franja por página física del framebuffer
 	/// (grid de páginas de viewport x viewport). Cada una cubre un cuadrante.
 	void enqueue_initial_strips() {
-		const eng::s32 base_col = m_state.page_base_x / static_cast<eng::s32>(m_config.tile_width);
-		const eng::s32 base_row = m_state.page_base_y / static_cast<eng::s32>(m_config.tile_size);
 		const eng::u16 pw = static_cast<eng::u16>(m_config.viewport_w / m_config.tile_width);
 		const eng::u16 ph = static_cast<eng::u16>(m_config.viewport_h / m_config.tile_size);
-		const eng::u16 pages_x = static_cast<eng::u16>(m_config.scroll_x ? 2u : 1u);
-		const eng::u16 pages_y = static_cast<eng::u16>(m_config.scroll_y ? 2u : 1u);
-		for (eng::u16 py = 0; py < pages_y && m_state.pending_count < 4; ++py) {
-			for (eng::u16 px = 0; px < pages_x && m_state.pending_count < 4; ++px) {
-				enqueue_strip(
-					base_col + static_cast<eng::s32>(px) * pw,
-					base_row + static_cast<eng::s32>(py) * ph,
-					static_cast<eng::u16>(px * pw),
-					static_cast<eng::u16>(py * ph),
-					pw, ph
-				);
+		for (eng::u16 sy = 0; sy < 2 && m_state.pending_count < 8; ++sy) {
+			if (sy == 1 && !m_config.scroll_y) break;
+			for (eng::u16 sx = 0; sx < 2 && m_state.pending_count < 8; ++sx) {
+				if (sx == 1 && !m_config.scroll_x) break;
+				const eng::s32 col = m_state.page_origin_x[sx] / static_cast<eng::s32>(m_config.tile_width);
+				const eng::s32 row = m_state.page_origin_y[sy] / static_cast<eng::s32>(m_config.tile_size);
+				enqueue_strip(col, row, sx * pw, sy * ph, pw, ph);
 			}
 		}
 	}
@@ -391,26 +462,30 @@ private:
 		if (width == 0 || height == 0) {
 			return;
 		}
-		// Slot libre: reutilizar el primer slot INACTIVO (ya terminado). Antes se
-		// comprobaba `pending_count >= 4` y se descartaba, así que tras el
-		// estampado inicial (4 slots) las franjas del scroll NUNCA se encolaban y
-		// las páginas vacantes mostraban contenido viejo al cruzar -> "salto de
-		// color" ocasional.
+		// Slot libre: reutilizar el primer slot INACTIVO (ya terminado).
+		//
+		// IMPORTANTE: si hay una franja ACTIVA escribiendo al MISMO slot físico
+		// (mismo fb_tile_x/fb_tile_y) pero con DISTINTO tramo de mundo, se
+		// CANCELA: tras una inversión de la cámara el contenido correcto de esa
+		// página es el nuevo tramo, y dejar dos franjas sobre el mismo slot
+		// escribía contenido contradictorio ("petardazo" de plaquetas).
 		eng::u8 free_slot = 0xff;
 		for (eng::u8 i = 0; i < m_state.pending_count; ++i) {
-			if (m_state.pending[i].active) {
-				if (m_state.pending[i].world_tile_x == world_tile_x &&
-					m_state.pending[i].world_tile_y == world_tile_y &&
-					m_state.pending[i].fb_tile_x == fb_tile_x &&
-					m_state.pending[i].fb_tile_y == fb_tile_y) {
-					return; // ya encolada
+			TilePendingStrip& strip = m_state.pending[i];
+			if (!strip.active) {
+				if (free_slot == 0xff) free_slot = i;
+				continue;
+			}
+			if (strip.fb_tile_x == fb_tile_x && strip.fb_tile_y == fb_tile_y) {
+				if (strip.world_tile_x == world_tile_x && strip.world_tile_y == world_tile_y) {
+					return; // ya encolada con el mismo contenido
 				}
-			} else if (free_slot == 0xff) {
-				free_slot = i;
+				// Mismo slot físico, contenido distinto: cancelar la anterior.
+				strip.active = false;
 			}
 		}
 		if (free_slot == 0xff) {
-			if (m_state.pending_count >= 4) {
+			if (m_state.pending_count >= 8) {
 				return; // sin slots libres: se descarta (poco frecuente)
 			}
 			free_slot = m_state.pending_count++;
