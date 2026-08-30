@@ -22,7 +22,7 @@
 ///   BITMAPBLOCKSPERROW = BITMAPWIDTH / 16 = 22 (352) ó 24 (384).
 ///   BITMAPBLOCKSPERCOL = 256 / 16 = 16.
 ///   BLOCKPLANELINES = BLOCKHEIGHT * planes (ej. 16*4 = 64).
-///   BITMAPPLANELINES = BITMAPHEIGHT * planes (altura total en planelíneas).
+///   BITMAPPLANELINES = BITMAPHEIGHT * planes (altura total en planeline).
 ///
 ///   Altura total del bitmap (xlimited.c:68, weiju/xlimited.c:68, xylimited.c:73):
 ///
@@ -31,13 +31,13 @@
 ///                  + 3                               // guarda + fetch ancho
 ///
 ///   El término `map_width / BITMAPBLOCKSPERROW / planes` es el número de
-///   planelíneas extra necesarias para que el desplazamiento horizontal sin fin
+///   planeline extra necesarias para que el desplazamiento horizontal sin fin
 ///   quepa sin salir de Chip RAM. Cada 16 píxeles de scroll horizontal se avanza
 ///   2 bytes (1 word) en el puntero de bitplanes; sin altura extra, ese avance
 ///   dejaría de ser contiguo al envolver el borde derecho del bitmap. Con
-///   interleaved, el wrap es *vertical*: al llegar al final de una planelínea,
-///   el siguiente byte contiguo está 1 planelínea más abajo (ver §§2–3).
-///   `+1` es la planelínea de guarda del Blitter y `+3` es el margen para el
+///   interleaved, el wrap es *vertical*: al llegar al final de una planeline,
+///   el siguiente byte contiguo está 1 planeline más abajo (ver §§2–3).
+///   `+1` es la planeline de guarda del Blitter y `+3` es el margen para el
 ///   fetch ancho de 42/48 bytes (DDFSTRT = $30, ver §4).
 ///
 /// -----------------------------------------------------------------------------
@@ -55,29 +55,29 @@
 ///     línea 0 plano 0, línea 0 plano 1, … línea 0 plano N-1,
 ///     línea 1 plano 0, línea 1 plano 1, …
 ///
-///   Cada planelínea tiene BITMAPBYTESPERROW bytes (44). Desde el punto de
+///   Cada planeline tiene BITMAPBYTESPERROW bytes (44). Desde el punto de
 ///   vista del Blitter, todo el bitmap es *una sola columna* de
-///   BITMAPPLANELINES planelíneas. Un bloque de 16×16 ocupa
-///   BLOCKPLANELINES = 16*planes planelíneas contiguas, de modo que
+///   BITMAPPLANELINES planeline. Un bloque de 16×16 ocupa
+///   BLOCKPLANELINES = 16*planes planeline contiguas, de modo que
 ///   **un único blit** (`bltsize = BLOCKPLANELINES*64 + 1`) copia los 4 planos
 ///   a la vez con un solo setup de registros. Esto es exactamente la mitad de
 ///   coste que Scroller_XUnlimited (que necesitaba doble blit) y elimina casi
 ///   todo el flicker: el Blitter nunca deja los planos a medias.
 ///
-///   Esquema ASCII (4 planos, BITMAPWIDTH=352, 44 bytes por planelínea):
+///   Esquema ASCII (4 planos, BITMAPWIDTH=352, 44 bytes por planeline):
 ///
 ///     dirección 0:   [L0 P0 44B][L0 P1 44B][L0 P2 44B][L0 P3 44B]
 ///     dirección 176: [L1 P0 44B][L1 P1 44B]...
 ///     ...
 ///     La CPU ve el bitmap como `frontbuffer + y*BITMAPBYTESPERROW + x`
-///     donde `y` es índice de planelínea y `x` es byte word-aligned.
-///     Cada incremento de `y` avanza 1 planelínea (44 B), cada incremento de
-///     `x` avanza 2 B (1 word) dentro de la planelínea.
+///     donde `y` es índice de planeline y `x` es byte word-aligned.
+///     Cada incremento de `y` avanza 1 planeline (44 B), cada incremento de
+///     `x` avanza 2 B (1 word) dentro de la planeline.
 ///
 ///   Sin interleaved, la fórmula `frontbuffer + y*BITMAPBYTESPERROW + x`
 ///   sería inválida: `y` tendría que ser fila de píxel y habría que sumar
 ///   `plane*plane_bytes`. El algoritmo de Steger colapsa ambas dimensiones en
-///   una sola coordenada de planelíneas, y eso **solo** funciona si el bitmap
+///   una sola coordenada de planeline, y eso **solo** funciona si el bitmap
 ///   se reservó con `BMF_INTERLEAVED`.
 ///
 /// -----------------------------------------------------------------------------
@@ -98,8 +98,8 @@
 ///
 ///   Cuando el área visible `videoposx … videoposx+320` cruza el borde derecho
 ///   del bitmap (352), el siguiente byte que fetcha el Agnus no es el principio
-///   de la misma planelínea, sino el byte 0 de la **siguiente planelínea**.
-///   Como el bitmap es interleaved, esa siguiente planelínea pertenece al
+///   de la misma planeline, sino el byte 0 de la **siguiente planeline**.
+///   Como el bitmap es interleaved, esa siguiente planeline pertenece al
 ///   siguiente plano de la misma fila de píxel, y el contenido que allí se
 ///   bliteó fue escrito *plane-shifted* (ver §5). El resultado es que el
 ///   wrap se ve continuo sin tocar el Copper: una sola lista, sin wait
@@ -144,21 +144,24 @@
 /// 5. Columna entrante y guarda de 1 word (xlimited.c:448-553)
 /// -----------------------------------------------------------------------------
 ///
-///   Cada píxel de scroll horizontal dibuja *un* bloque (ver §6). La columna
-///   entrante es:
+///   Cada píxel desplazado es como máximo la copia de un tile de 16x16
+///   en la columna (ver §6). Tras 16 px horizontales se habrá dibujado una
+///   columna completa de 16 tiles que entrará visible en offset 16. En
+///   interleaved ese tile son 64 planeline (16 * planes) en un único blit.
+///   La columna entrante es:
 ///
 ///     mapx = mapposx / 16 + BITMAPBLOCKSPERROW   (scroll derecha)
 ///     mapx = mapposx / 16                         (scroll izquierda)
 ///     mapy = mapposx & 15
 ///     x    = BITMAPWIDTH + (videoposx & ~15)     (derecha, plane-shifted)
 ///     x    = videoposx & ~15                      (izquierda)
-///     y    = mapy * BLOCKPLANELINES              // planelíneas
+///     y    = mapy * BLOCKPLANELINES              // planeline
 ///
 ///   El bloque se copia con `BLOCKPLANELINES*64 + words` (words = tile_width/16).
 ///   En scroll a la derecha la copia es plane-shifted: al sumar BITMAPWIDTH al
-///   `x`, el Blitter escribe 1 planelínea más abajo (ver docs/xlimited-uk.html,
+///   `x`, el Blitter escribe 1 planeline más abajo (ver docs/xlimited-uk.html,
 ///   figura xlimited4). Eso deja un hueco de 1 word (2 bytes) que es la primera
-///   planelínea del bloque siguiente. Para evitar tearing al cambiar de dirección,
+///   planeline del bloque siguiente. Para evitar tearing al cambiar de dirección,
 ///   el código guarda esa word antes de blitear y la restaura si la dirección
 ///   cambia:
 ///
@@ -196,6 +199,59 @@
 ///
 ///   Referencias: docs/architecture/AMIGA_8WAY_SCROLLING.md (contraste con el
 ///   modelo circular), ScrollingTricks/Docs/xlimited-uk.html § “overallbitmapheight”
+///
+/// -----------------------------------------------------------------------------
+/// 7. Micro-parones: por qué ocurren y cómo detectarlos (para no repetirlos)
+/// -----------------------------------------------------------------------------
+///
+///   Dos defectos se vieron en la demo 107 antes de la corrección 30-08-2026:
+///
+///   a) **Columna con plaquetas repetidas** — `scroll_right/left` usaban
+///      `map_tile_y = 0` en lugar de `map_tile_y = mapy_blocks` (mapposx &15).
+///      Como X-Limited dibuja un bloque por píxel en `y = mapy*64`, si siempre
+///      se lee la fila 0 del mapa, los 16 pasos de un bloque dejan la columna
+///      con 16 copias del mismo tile. Se detecta visualmente como franja
+///      vertical repetida y en `verify-xlimited.mjs` como `map_tile_y != mapy`.
+///
+///   b) **Micro-parones cada 8 frames con `steps=2`** — 2 px/frame hace que
+///      `BPLCON1` salte de 2 en 2 (`0x00,0xEE,0xCC...`) y que el Blitter haga
+///      2 blits de 64 líneas por frame. Aunque el coste medio cabe en 50 fps,
+///      el segundo blit puede cruzar el VBlank y el Copper publica el siguiente
+///      `planeaddx` con un frame de retraso, visible como tirón cada 8 frames
+///      (cuando `videoposx &15` envuelve). La forma canónica de Steger es
+///      **1 px/frame** y `BPLCON1` cicla `0x00,0x11,0x22...0xFF` sin saltos.
+///
+///   **Cómo detectarlos sin ver la pantalla** (para una IA que revisa):
+///
+///   - **Host:** `tools/analyze/verify-xlimited.mjs` — comprueba que
+///     `draw_block_job` usa `map_tile_y == mapy` y que `steps` es 1.
+///   - **Runtime:** `demos/107_xlimited_corkscrew/analyze-sequence.sh --warp`
+///     analiza `out/run/107_xlimited_corkscrew/sequence/frame_*.png` con
+///     `tools/analyze/analyze-frame-sequence.sh`: `DuplicatePairs` debe ser 0,
+///     `ChangedPairs` 99/100, `MeanDiffAvg` estable (~68) y sin picos de
+///     `MaxDiff`. Un micro-parón deja `DuplicatePairs>0` o `MeanDiff` con
+///     varianza alta (un frame sin avance, siguiente con doble avance).
+///     Además, `BPLCON1` muestreado en el canal lateral debe ciclar 0..15
+///     sin repetir valores (con `steps=2` se ven saltos de 2).
+///   - **Periférico:** `eng/debug/peripheral.hpp` expone `0xB70000` con
+///     contador de ciclos de Blitter; si `blitter_starts` por frame >1 y el
+///     tiempo de Blitter >14 ms, el siguiente `wait_vblank` pierde un VBlank.
+///
+///   **Instrucciones para no repetir el problema** (checklist para otra IA):
+///
+///   1. No fijar `map_tile_y` a constante; usar siempre `mapy_blocks` en
+///      `scroll_right/left` y documentar que el corkscrew usa `mapy` para
+///      mapa y para bitmap.
+///   2. Mantener `steps = 1` en `DemoGame::update` para 50 fps; si se necesita
+///      2 px/frame, desdoblar en dos frames consecutivos, no en un mismo frame.
+///   3. Antes de añadir un segundo campo DPF, medir `m_blitter_starts` y
+///      `blit_budget.words` por frame; si `words > 8192` o `jobs>4`, bajar
+///      `K_FETCH_MODE` a 0 o reducir `K_TILE_WIDTH` a 16.
+///   4. Tras cualquier cambio en `XlimitedConfig`, ejecutar
+///      `node tools/analyze/verify-xlimited.mjs` (host) y
+///      `bash demos/107_xlimited_corkscrew/analyze-sequence.sh --warp` (runtime)
+///      y exigir `OK telemetría`, `OK columna`, `DuplicatePairs==0` y
+///      `green>0` en `analyze-demo.sh`.
 ///
 /// \see eng::field::TileLayerMap
 /// \see eng::field::XlimitedDisplayComposer
@@ -343,11 +399,11 @@ struct XlimitedHardwareView {
 /// Campo XLimited: scroll infinito en X con bitmap interleaved y wrap vertical.
 ///
 /// Mantiene `mapposx`/`videoposx` como en el original y expone `draw_block`
-/// con `y` en planelíneas. El allocation simula `BMF_INTERLEAVED`:
+/// con `y` en planeline. El allocation simula `BMF_INTERLEAVED`:
 ///
 ///   total_bytes = bitmap_bytes_per_row * bitmap_height * planes
 ///   frontbuffer = base + bitmapoffset
-///   addressing  = frontbuffer + y*bitmap_bytes_per_row + x   (y = planelínea)
+///   addressing  = frontbuffer + y*bitmap_bytes_per_row + x   (y = planeline)
 ///
 /// No comparte `surface_origin` ni bandas con `TileFieldController`; sólo
 /// comparte `TileLayerMap` para resolver `tile_at`.
@@ -401,7 +457,7 @@ public:
         if (m_bitmap_height < 260) m_bitmap_height = 260;
 
         // BMF_INTERLEAVED-like: un único bloque Chip contiguo.
-        // total = bytes_por_planelínea * altura * planes  (planelíneas totales)
+        // total = bytes_por_planeline * altura * planes  (planeline totales)
         const u32 total_bytes = static_cast<u32>(m_bitmap_bytes_per_row) *
                                 static_cast<u32>(m_bitmap_height) *
                                 static_cast<u32>(cfg.planes);
@@ -446,7 +502,7 @@ public:
         for (u16 b = 0; b < rows; ++b) {
             for (u16 a = 0; a < cols; ++a) {
                 const u16 x = a * m_cfg.tile_width;
-                const u16 y = b * m_block_planes_lines; // planelíneas
+                const u16 y = b * m_block_planes_lines; // planeline
                 const u16 mapx = a;
                 const u16 mapy = b;
                 auto job = draw_block_job(x, y, mapx, mapy);
@@ -459,7 +515,7 @@ public:
     /// Construye el `BlitJob` de un bloque (contrato de xlimited.c:201).
     ///
     /// \param x  coordenada X en píxeles (será word-aligned)
-    /// \param y  coordenada Y en **planelíneas** (no píxeles)
+    /// \param y  coordenada Y en **planeline** (no píxeles)
     /// \param mapx índice de bloque en X del mapa
     /// \param mapy índice de bloque en Y del mapa
     graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
@@ -470,7 +526,7 @@ public:
         // Resolución del bloque del mapa (wrapping si el mapa es circular)
         const u16 block = m_cfg.map.tile_at(mapx, mapy);
         // Layout del banco de bloques: 20 bloques por fila (320/16), cada
-        // bloque ocupa BLOCKPLANELINES planelíneas de 40 bytes.
+        // bloque ocupa BLOCKPLANELINES planeline de 40 bytes.
         // Para tile_width !=16, el número de words por fila escala.
         const u16 blocks_per_row_src = 20; // BLOCKSWIDTH/BLOCKWIDTH del original
         const u16 src_bytes_per_row = 40;  // BLOCKSWIDTH/8
@@ -532,15 +588,16 @@ public:
 
         const u16 mapx = static_cast<u16>(m_mapposx / m_cfg.tile_width + m_bitmap_blocks_per_row);
         const u16 mapy_blocks = static_cast<u16>(m_mapposx & (m_cfg.tile_width - 1)); // &15 para 16
-        // En scroll derecha, mapy_blocks es el índice de planelínea dentro del bloque.
-        // El mapa Y es 0 para X-Limited puro (scroll solo en X). Si el mapa tiene
-        // altura >1, se podría usar otra coordenada; aquí usamos fila 0.
-        // Para demo 107 con mapa 256x128, la fila del mapa se deriva de una
-        // cámara Y separada; en X-Limited puro mapy del mapa es 0.
-        // Mantenemos compatibilidad con el original: mapy del mapa es el bloque
-        // lógico, no el fine. El fine va en y (planelíneas).
+        // En X-Limited puro el mapa es mucho más alto que la pantalla (128 filas)
+        // y el corkscrew usa `mapy_blocks` tanto para la coordenada Y del
+        // bitmap (`y = mapy*64`) como para la coordenada Y del mapa
+        // (`map_tile_y = mapy`). Así, cada uno de los 16 pasos de un bloque
+        // pinta una fila distinta de la columna entrante y no se repiten
+        // plaquetas. La versión anterior con `map_tile_y=0` dejaba toda la
+        // columna con tiles de la fila 0, visible como repetición vertical.
+        // Ver xlimited.c: `mapy = mapposx &15; DrawBlock(x, y, mapx, mapy)`.
         const u16 map_tile_x = mapx;
-        const u16 map_tile_y = 0; // fila fija para scroll X puro; extensible a Y
+        const u16 map_tile_y = mapy_blocks; // ¡no 0! Ver §5 y docs/CIRCULAR_VS_XLIMITED.md
         const u16 x = static_cast<u16>(m_bitmap_width + (m_videoposx & ~15));
         const u16 y = static_cast<u16>(mapy_blocks * m_block_planes_lines);
 
@@ -591,7 +648,9 @@ public:
             const_cast<u8*>(m_frontbuffer) + save_offset);
         m_saveword = *m_savewordpointer;
 
-        auto job = draw_block_job(x, y, mapx, 0);
+        // Igual que en scroll_right: map_tile_y debe ser mapy_blocks para no
+        // repetir la fila 0 en toda la columna (ver corrección arriba).
+        auto job = draw_block_job(x, y, mapx, mapy_blocks);
         if (!plan.add_tile_block_copy(job)) return false;
 
         m_previous_dir = 1; // DIRECTION_LEFT
