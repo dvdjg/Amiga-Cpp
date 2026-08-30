@@ -72,6 +72,42 @@ El "salto de colores" ocasional que ve el usuario puede ser el cruce de página
 y visión si hay un parpadeo puntual; el análisis estático de frames no lo capta
 si es de 1 frame.
 
+## BUG del "petardazo" al invertir la cámara (RESUELTO: scroll bidireccional)
+
+Síntoma del usuario: la 106 comienza con scroll suave pero "llegado a un punto
+petardea y se enlentece, modificándose plaquetas en áreas visibles".
+
+### Causa raíz (múltiples bugs del scroll bidireccional)
+
+El fg hace una Lissajous que va y viene (0..640 X, 0..512 Y). Con el diseño de
+doble página que rellenaba la página opuesta SIEMPRE con el tramo delantero, al
+INVERTIR la cámara la página que se iba a mostrar había sido sobrescrita con el
+tramo de avance -> contenido incorrecto visible (plaquetas). Además:
+
+1. `enqueue_strip` no reutilizaba slots inactivos -> tras el estampado inicial
+   (4 slots) las franjas del scroll NUNCA se encolaban (bug ya resuelto en otro
+   commit).
+2. Al invertir, la página opuesta se reencolaba con el MISMO slot físico pero
+   DISTINTO tramo: dos franjas activas escribían el mismo slot con contenido
+   contradictorio ("petardazo"). Ahora `enqueue_strip` CANCELA la franja activa
+   del mismo slot físico si el tramo cambia.
+3. `enqueue_page_x` redibujaba la banda X con un SOLO `world_y` (el de la página
+   Y activa), sobrescribiendo la página Y opuesta con tiles incorrectos. Ahora
+   encola DOS franjas por cruce X (una por página Y, cada una con su world_y).
+4. El presupuesto de 32 tiles/frame por campo no vaciaba la cola en el cruce
+   diagonal (1280 tiles encolados): subido a 56/frame (2 campos = 112 jobs,
+   dentro del max_blit_jobs=128 del FramePlan) y budget del plan a 120 jobs.
+
+### Estado final verificado
+
+- `max_pending` (16 bits, bits 20-31 del marker) llega a ~1224 en el cruce
+  diagonal (lo esperado: página X 640 + página Y 640) y la cola se VACÍA a
+  0-1 tiles entre cruces (los frames posteriores muestran pending bajo).
+- Visión local: scroll continuo, sin tile-pop, sin artefactos, confianza 1.0,
+  en secuencias que cubren el cruce de la Lissajous en ambos sentidos.
+- El cambio de `max_blit_jobs` de 128 a 256 ROMPÍA el init (fallo 0x10604):
+  el FramePlan vive en BSS y al crecer colisionaba; se mantuvo en 128.
+
 ## BUG REAL del "salto de color" en el cruce (RESUELTO: enqueue_strip)
 
 Tras instrumentar la demo con telemetría de "máximo de tiles pendientes" se

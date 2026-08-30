@@ -364,11 +364,10 @@ struct DemoGame {
 		const ScrollPosition2 bg_pos = bg_scroll(frame);    // px enteros
 
 		plan.clear();
-		// Presupuesto de Blitter: 2 campos x hasta 32 tiles/frame = 64 jobs. Al
-		// cruzar en diagonal se encolan hasta 1280 tiles y el presupuesto debe
-		// cubrir ~20 tiles/frame por campo para no mostrar la página activa a
-		// medio dibujar (negro residual en el cruce de página vertical).
-		plan.set_blit_budget_limits({8192, 16384, 4, 80});
+		// Presupuesto de Blitter: 2 campos x hasta 56 tiles/frame = 112 jobs,
+		// dentro del max_blit_jobs=128 del FramePlan. El cruce diagonal encola
+		// hasta 1280 tiles; con presupuesto alto la cola se vacía entre cruces.
+		plan.set_blit_budget_limits({8192, 16384, 4, 120});
 
 		const field::TileScrollOffset bg_delta {
 			static_cast<eng::s16>(bg_pos.x - bg_last_x),
@@ -429,18 +428,20 @@ struct DemoGame {
 		const eng::u32 bg_pending = pending_tiles(bg);
 		const eng::u32 fg_pending = pending_tiles(fg);
 		const eng::u32 total_pending = bg_pending + fg_pending;
+		// Latch del MÁXIMO pendiente observado (16 bits, bits 20-31) y del
+		// CURRENT pendiente de cada campo (bits 12-15, saturado a 4 bits).
 		if (total_pending > m_max_pending_after_cross) {
-			m_max_pending_after_cross = static_cast<eng::u8>(total_pending > 0xff ? 0xff : total_pending);
+			m_max_pending_after_cross = static_cast<eng::u16>(total_pending > 0xffff ? 0xffff : total_pending);
 		}
+		const eng::u8 pending_now = static_cast<eng::u8>(
+			((bg_pending + fg_pending) > 0x0f ? 0x0f : (bg_pending + fg_pending)) << 0
+		);
 		const eng::u32 marker = 0x10600000u |
 			(static_cast<eng::u32>(m_crossed_bg_x) << 16u) |
 			(static_cast<eng::u32>(m_crossed_fg_x) << 17u) |
 			(static_cast<eng::u32>(m_crossed_bg_y) << 18u) |
 			(static_cast<eng::u32>(m_crossed_fg_y) << 19u) |
-			(static_cast<eng::u32>(bg_px) << 12u) |
-			(static_cast<eng::u32>(fg_px) << 13u) |
-			(static_cast<eng::u32>(bg_py) << 14u) |
-			(static_cast<eng::u32>(fg_py) << 15u) |
+			(static_cast<eng::u32>(pending_now & 0x0fu) << 12u) |
 			(static_cast<eng::u32>((fg.state().world_x >> 4) & 0xffu) << 8u) |
 			(static_cast<eng::u32>((fg.state().world_y >> 4) & 0xffu)) |
 			(static_cast<eng::u32>(m_max_pending_after_cross) << 20u);
@@ -494,17 +495,20 @@ private:
 		config.tile_size = kTileSize;
 		config.viewport_w = kViewportW;
 		config.viewport_h = kViewportH;
-		// max_delta >= pico de velocidad de la cámara (fg: 5px/f X, 4px/f Y) para
-		// que el clamp nunca recorte la trayectoria de la Lissajous.
-		//
 		// Presupuesto: al cruzar en diagonal se encolan a la vez la página X
-		// vacante (20x32=640 tiles) y la Y (40x16=640) = 1280 tiles; hay ~64
-		// frames hasta el siguiente cruce -> ~20 tiles/frame. Con menos, la página
-		// activa se mostraba a medio dibujar (negro residual al cruzar la página
-		// vertical). 32/frame da margen real incluso si ambos campos cruzan juntos.
+		// vacante (20x16=320 tiles por página Y, 2 páginas Y = 640) y la Y
+		// (40x16=640 por página X). Con scroll en ambos ejes el peor caso son
+		// ~1280 tiles; hay ~64 frames hasta el siguiente cruce => ~20 tiles/frame.
+		// 64/frame da margen para que la cola se vacíe entre cruces y la página
+		// activa nunca se muestre a medio dibujar.
+		// Presupuesto: al cruzar en diagonal se encolan a la vez la página X
+		// vacante (20x16=320 tiles por página Y, 2 páginas Y = 640) y la Y
+		// (40x16=640 por página X). Con scroll en ambos ejes el peor caso son
+		// ~1280 tiles; hay ~64 frames hasta el siguiente cruce => ~20 tiles/frame.
+		// 56/frame x 2 campos = 112 jobs, dentro del max_blit_jobs=128 del plan.
 		config.max_delta_x = 8;
 		config.max_delta_y = 8;
-		config.max_tiles_per_frame = 32;
+		config.max_tiles_per_frame = 56;
 		config.scroll_x = true;
 		config.scroll_y = true;
 		return config;
@@ -516,7 +520,7 @@ private:
 	eng::s32 fg_last_y = 0;
 	eng::s32 fg_rest_x = 0;   // resto sub-píxel (Q16) para movimiento suave
 	eng::s32 fg_rest_y = 0;
-	eng::u8 m_max_pending_after_cross = 0;
+	eng::u16 m_max_pending_after_cross = 0;
 	eng::u8 m_crossed_bg_x = 0;
 	eng::u8 m_crossed_bg_y = 0;
 	eng::u8 m_crossed_fg_x = 0;

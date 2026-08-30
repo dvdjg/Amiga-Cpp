@@ -56,7 +56,7 @@ const bgCrossY = (detail >> 18) & 1;
 const fgCrossY = (detail >> 19) & 1;
 const fgWorldXTiles = (detail >> 8) & 0xff;
 const fgWorldYTiles = detail & 0xff;
-const maxPending = (detail >> 20) & 0xff;
+const maxPending = (detail >> 20) & 0xffff;
 const frame = parseInt(status.frame || 0, 10);
 if (frame < 60) {
   console.error(`Frame demasiado corto: frame=${frame}`);
