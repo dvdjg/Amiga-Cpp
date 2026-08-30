@@ -33,7 +33,10 @@ extra=()
 "$INNER_BLACK" "$SEQ_DIR" 0.001 \
 	|| { echo "La secuencia de 102 contiene artefactos negros internos." >&2; exit 1; }
 
-# 4) Telemetria: dos camaras moviendose en direcciones opuestas + prefetch X/Y.
+# 4) Telemetria: dos camaras independientes (parallax) con movimiento en ambos
+#    ejes. El fondo (RouteCamera por fases) y el primer plano (Lissajous) se
+#    mueven en direcciones/amplitudes distintas, asi sus posiciones X difieren.
+#    Bits 0-3 = latch de movimiento X/Y de bg/fg.
 node -e '
 const fs = require("fs");
 const report = JSON.parse(fs.readFileSync(process.argv[1], "utf-8"));
@@ -43,13 +46,15 @@ const status = report.finalSideChannel && report.finalSideChannel.ok
 const detail = parseInt(status.detail || 0, 10);
 const bgX = (detail >> 16) & 0xff;
 const fgX = (detail >> 8) & 0xff;
-const flags = detail & 0x0f;
+const moved = detail & 0x0f;
 const frame = parseInt(status.frame || 0, 10);
-if (frame < 60 || (flags & 0x3) !== 0x3 || Math.abs(bgX - fgX) < 8) {
-  console.error(`DualPF invalido: frame=${frame} bg_x=${bgX} fg_x=${fgX} flags=${flags}`);
+// Parallax: posiciones distintas. El primer plano (Lissajous) se mueve en ambos
+// ejes (bits 2-3); el fondo por fases se mueve en al menos uno (bits 0-1).
+if (frame < 30 || (moved & 0xc) !== 0xc || (moved & 0x3) === 0 || Math.abs(bgX - fgX) < 8) {
+  console.error(`DualPF invalido: frame=${frame} bg_x=${bgX} fg_x=${fgX} moved=${moved}`);
   process.exit(1);
 }
-console.log(`OK dualpf telemetry frame=${frame} bg_x=${bgX} fg_x=${fgX} flags=${flags}`);
+console.log(`OK dualpf telemetry frame=${frame} bg_x=${bgX} fg_x=${fgX} moved=${moved}`);
 ' "$RUN_REPORT" \
 	|| { echo "Telemetria de 102 invalida." >&2; exit 1; }
 

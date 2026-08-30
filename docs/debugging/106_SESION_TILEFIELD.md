@@ -127,6 +127,25 @@ Consecuencia: el assert `assert-no-inner-black` ve más negro puro (~3%). El
 `analyze-sequence.sh` de la 106 usa umbral 0.05 con la justificación en el
 comentario.
 
+## Migración de la demo 102 a la nueva API (HECHO)
+
+La 102 (`demos/102_tile_scroll_dualpf`) se migró de `TileScrollScene<Mode>` a la
+nueva API: dos `TileFieldController` + `DpfDisplayComposer`.
+
+- Se mantuvo la identidad: modo dual 3+3, paleta, tiles de glifos hex con tile 63
+  transparente, mundo finito 64x32 (sin wrap), parallax por fases (`RouteCamera`)
+  + Lissajous.
+- El movimiento del fg usa precisión Q16 (seno interpolado + acumulador de resto)
+  como en la 106.
+- **Lección**: al migrar, no usar el Lissajous GRANDE de la 106 (0..640) en un
+  mundo FINITO: la cámara se clava en el borde (max scroll Y del mundo 64x32 =
+  256) y aparece un salto visible. Restaurar el rango contenido (64..256 X,
+  32..224 Y) que respeta el mundo.
+- `begin` recibe la posición inicial de la cámara (no (0,0)) para que el primer
+  update no tenga un salto.
+- El analyze-sequence de la 102 valida parallax: posiciones X distintas +
+  movimiento en ambos ejes del fg y al menos uno del bg.
+
 ## Lecciones de herramientas (Windows + Git Bash + WinUAE-DBG)
 
 - El `bash` del PATH (`C:\Windows\System32\bash.exe`) es WSL y **manga las rutas
