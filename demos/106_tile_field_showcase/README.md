@@ -9,7 +9,7 @@ duplicar código:
 
 | Parámetro | Valores | Efecto |
 |---|---|---|
-| `K_TILE_WIDTH` | `16`, `32`, `48` | Anchura de tile en px (múltiplo de 16). |
+| `K_TILE_WIDTH` | `16`, `32` | Anchura de tile en px (múltiplo de 16). |
 | `K_DUAL` | `1` / `0` | `1` = dual playfield 3+3 (6 planos, transparencia PF1); `0` = single playfield 5 planos (32 colores). |
 
 La abstracción es la misma en todos los casos: **un `TileFieldController` por
@@ -23,7 +23,7 @@ los registros compartidos BPLxPT/BPLCON1/módulos/BPLCON2/DPF).
 - **Dual 3+3 (K_DUAL=1, K_TILE_WIDTH=16)**: el modo original de la demo 106.
   Fondo diagonal infinita (PF2) + primer plano Lissajous (PF1, ~50% de tiles
   totalmente transparentes).
-- **Tiles anchos (K_TILE_WIDTH=32/48)**: el tile se copia en UNA pasada del
+- **Tiles anchos (K_TILE_WIDTH=32)**: el tile se copia en UNA pasada del
   Blitter (words_por_fila = tile_width/16). Antes era la demo 107.
 - **Single 5 planos (K_DUAL=0)**: un solo playfield de 32 colores con scroll
   infinito, sin DPF. La API no impone dual.
@@ -60,3 +60,4 @@ argumentos extra. Ajusta según el flujo de build actual del repo.
 
 - Arquitectura de la API: `docs/architecture/TILE_FIELD_API.md`.
 - Notas de sesión y bugs resueltos: `docs/debugging/106_SESION_TILEFIELD.md`.
+- Modelo circular 8-way: `docs/architecture/AMIGA_8WAY_SCROLLING.md`.

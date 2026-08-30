@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
 # Secuencia de verificacion de la demo 106_tile_field_showcase (playfield
-# universal: dual 3+3 o single 5 planos, tiles de 16/32/48px).
+# universal: dual 3+3 o single 5 planos, tiles de 16/32px).
 # Cadena: test unitario del algoritmo -> run-demo (secuencia) -> animada ->
 # sin negro interno -> telemetria con cruce de pagina en ambos ejes.
 # Uso: analyze-sequence.sh [--warp]

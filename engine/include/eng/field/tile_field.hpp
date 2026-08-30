@@ -118,9 +118,17 @@ public:
 		if (!m_state.initialized) return false;
 		m_config = config;
 		if (!valid_config()) return false;
+		// Never expose a band whose Blitter jobs are still pending. It is legal to
+		// spend this frame draining the queue while the logical camera waits.
+		if (has_pending()) {
+			draw_pending(plan, config.max_tiles_per_frame);
+			return true;
+		}
 		const eng::s16 dx = config.scroll_x ? clamp(delta.x, config.max_delta_x) : 0;
 		const eng::s16 dy = config.scroll_y ? clamp(delta.y, config.max_delta_y) : 0;
 		const eng::s32 old_x = m_state.world_x, old_y = m_state.world_y;
+		const eng::u16 old_window_x = m_state.window_x, old_window_y = m_state.window_y;
+		const eng::s32 old_origin_x = m_state.surface_origin_x, old_origin_y = m_state.surface_origin_y;
 		m_state.world_x += dx; m_state.world_y += dy;
 		m_state.window_x = static_cast<eng::u16>(m_state.window_x + dx);
 		m_state.window_y = static_cast<eng::u16>(m_state.window_y + dy);
@@ -137,6 +145,13 @@ public:
 		if (config.scroll_x) recenter_axis(true);
 		if (config.scroll_y) recenter_axis(false);
 		draw_pending(plan, config.max_tiles_per_frame);
+		if (has_pending()) {
+			// The newly exposed band is not visible yet. Keep the previous display
+			// position until its last TileBlockCopy has completed.
+			m_state.world_x = old_x; m_state.world_y = old_y;
+			m_state.window_x = old_window_x; m_state.window_y = old_window_y;
+			m_state.surface_origin_x = old_origin_x; m_state.surface_origin_y = old_origin_y;
+		}
 		return true;
 	}
 
@@ -216,6 +231,28 @@ private:
 			static_cast<eng::s16>(m_row_bytes - words * 2u), m_config.tileset_planes, 0,
 			plane_words * sizeof(eng::u16), m_plane_bytes, false};
 	}
+	eng::graphics::BlitJob horizontal_job(eng::u16 tile, eng::s32 x, eng::s32 y, eng::u16 count) const {
+		const eng::u16 words = static_cast<eng::u16>(m_config.tile_width / 16u);
+		const eng::u32 plane_words = static_cast<eng::u32>(m_config.tile_size) * words;
+		const eng::u32 row_words = static_cast<eng::u32>(m_config.tileset_count) * words;
+		const eng::u16* src = m_config.tileset + static_cast<eng::u32>(tile) * words;
+		eng::u16* dst = reinterpret_cast<eng::u16*>(static_cast<eng::u8*>(m_framebuffer.data) + static_cast<eng::u32>(y) * m_row_bytes + static_cast<eng::u32>(x) / 8u);
+		return {eng::graphics::BlitJobKind::TileBlockCopy, nullptr, src, dst, static_cast<eng::u16>(count * words), m_config.tile_size,
+			static_cast<eng::s16>((row_words - count * words) * sizeof(eng::u16)),
+			static_cast<eng::s16>(m_row_bytes - count * words * 2u), m_config.tileset_planes, 0,
+			row_words * m_config.tile_size * sizeof(eng::u16), m_plane_bytes, false};
+	}
+	eng::graphics::BlitJob vertical_job(eng::u16 tile, eng::s32 x, eng::s32 y, eng::u16 count) const {
+		const eng::u16 words = static_cast<eng::u16>(m_config.tile_width / 16u);
+		const eng::u32 plane_words = static_cast<eng::u32>(m_config.tile_size) * words;
+		const eng::u32 tile_stride = static_cast<eng::u32>(m_config.tileset_count) * plane_words;
+		const eng::u16* src = m_config.tileset + static_cast<eng::u32>(tile) * plane_words;
+		eng::u16* dst = reinterpret_cast<eng::u16*>(static_cast<eng::u8*>(m_framebuffer.data) + static_cast<eng::u32>(y) * m_row_bytes + static_cast<eng::u32>(x) / 8u);
+		return {eng::graphics::BlitJobKind::TileBlockCopy, nullptr, src, dst, words, static_cast<eng::u16>(count * m_config.tile_size),
+			static_cast<eng::s16>(tile_stride * sizeof(eng::u16) - words * sizeof(eng::u16)),
+			static_cast<eng::s16>(m_row_bytes - words * 2u), m_config.tileset_planes, 0,
+			plane_words * sizeof(eng::u16), m_plane_bytes, false};
+	}
 	void draw_pending(eng::graphics::FramePlan& plan, eng::u8 budget) {
 		for (eng::u8 i = 0; i < m_state.pending_count && budget; ++i) {
 			TilePendingStrip& p = m_state.pending[i]; if (!p.active) continue;
@@ -223,8 +260,18 @@ private:
 			while (p.cursor < total && budget) {
 				const eng::u16 x = static_cast<eng::u16>(p.cursor % p.width), y = static_cast<eng::u16>(p.cursor / p.width);
 				const eng::u16 tile = m_config.map.tile_at(p.world_tile_x + x, p.world_tile_y + y);
-				if (!plan.add_tile_block_copy(tile_job(tile, (p.fb_tile_x + x) * m_config.tile_width, (p.fb_tile_y + y) * m_config.tile_size, m_config.tile_width, m_config.tile_size))) return;
-				++p.cursor; --budget;
+				eng::u16 run = 1;
+				while (run < budget && ((p.width > 1 && x + run < p.width) || (p.width == 1 && y + run < p.height)) &&
+					((p.height == 1 && m_config.tileset_row_major) || (p.width == 1 && m_config.tileset_plane_major)) &&
+					m_config.map.tile_at(p.world_tile_x + x + (p.width == 1 ? 0 : run), p.world_tile_y + y + (p.width == 1 ? run : 0)) == static_cast<eng::u16>(tile + run)) ++run;
+				const bool horizontal = run > 1 && p.height == 1;
+				const bool vertical = run > 1 && p.width == 1;
+				const eng::s32 px = (p.fb_tile_x + x) * m_config.tile_width;
+				const eng::s32 py = (p.fb_tile_y + y) * m_config.tile_size;
+				const eng::graphics::BlitJob job = horizontal ? horizontal_job(tile, px, py, run) :
+					vertical ? vertical_job(tile, px, py, run) : tile_job(tile, px, py, m_config.tile_width, m_config.tile_size);
+				if (!plan.add_tile_block_copy(job)) return;
+				p.cursor += run; budget = static_cast<eng::u8>(budget - run);
 			}
 			if (p.cursor == total) p.active = false;
 		}
