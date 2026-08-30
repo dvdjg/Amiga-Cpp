@@ -1,12 +1,18 @@
 #!/usr/bin/env node
 /**
  * Simulación del corkscrew (XYLimited) para verificar el port de xlimited.hpp.
- * Compara el port del engine (scroll_down/scroll_up) contra una réplica fiel
- * de ScrollDown/ScrollUp de Scroller_XYLimited/main.c, en el config de la demo:
- *   320x256, tile 16x16, planes 4, fetch normal (EXTRAWIDTH 32).
+ * Compara el port del engine (scroll_down/up/right/left) contra una réplica de
+ * Scroller_XYLimited/main.c en el config de la demo: 320x256, tile 16x16,
+ * planes 4, fetch normal (EXTRAWIDTH 32).
+ *
+ * DESVIACIÓN deliberada (2026-08-31): block_videoposy se envuelve en
+ * display_height (288), no en bitmap_height (304), para que la fila entrante
+ * nunca caiga en las filas extra del planeaddx walk (bug: tile obsoleto visible
+ * en el área de pantalla). El simulador usa esa elección en ref y eng, de modo
+ * que valida el port con el invariante corregido.
  *
  * No toca hardware: solo comprueba que cada blit emitido (x, y_planeline,
- * mapx, mapy) coincide con el original para una secuencia de scroll.
+ * mapx, mapy) coincide entre ref y eng para una secuencia de scroll.
  */
 const VH = 256, VW = 320, TH = 16, TW = 16, PLANES = 4;
 const EXTRAWIDTH = 32, EXTRAHEIGHT = 32;
@@ -31,10 +37,11 @@ for (let i = 0; i < mapdata.length; ++i) {
 }
 const tileAt = (x, y) => mapdata[((y % MAP_H + MAP_H) % MAP_H) * MAP_W + ((x % MAP_W + MAP_W) % MAP_W)];
 
-// bitmap height runtime (referencia): BITMAPHEIGHT + extra +1+3, luego el engine
-// redondea a múltiplo de TH para el port. Para comparar usamos el mismo valor.
-const extra = Math.floor(MAP_W / BITMAPBLOCKSPERROW / PLANES); // 3
-const BITMAPHEIGHT_RUNTIME = Math.ceil((BITMAPHEIGHT + extra + 1 + 3) / TH) * TH; // 304
+// Nota: el port envuelve block_videoposy en el BUCLE de display
+// (BITMAPHEIGHT = display_height), no en bitmap_height (304), para que la fila
+// entrante nunca caiga en las filas extra del planeaddx walk (bug 2026-08-31:
+// tile visible en el área de pantalla cada 304 px de scroll vertical).
+// El simulador usa la MISMA elección en ref y eng para validar el port.
 
 // ---------------------------------------------------------------------------
 // Réplica fiel del original (Scroller_XYLimited/main.c)
@@ -61,7 +68,7 @@ function refScrollDown(s, blits) {
   }
   s.mapposy++; s.mapblocky = Math.floor(s.mapposy / TH); s.stepy = s.mapposy & (TH - 1);
   s.videoposy++; if (s.videoposy >= BITMAPHEIGHT) s.videoposy -= BITMAPHEIGHT;
-  if (!s.stepy) { s.block_videoposy += TH; if (s.block_videoposy >= BITMAPHEIGHT_RUNTIME) s.block_videoposy -= BITMAPHEIGHT_RUNTIME; }
+  if (!s.stepy) { s.block_videoposy += TH; if (s.block_videoposy >= BITMAPHEIGHT) s.block_videoposy -= BITMAPHEIGHT; }
   if (s.stepy === 0) {
     if (s.stepx) {
       mapx = s.mapblockx; mapy = s.mapblocky; x = ROUND2BLOCKWIDTH(s.videoposx); y = s.block_videoposy * PLANES;
@@ -80,7 +87,7 @@ function refScrollUp(s, blits) {
   if (s.mapposy < 1) return;
   s.mapposy--; s.mapblocky = Math.floor(s.mapposy / TH); s.stepy = s.mapposy & (TH - 1);
   s.videoposy--; if (s.videoposy < 0) s.videoposy += BITMAPHEIGHT;
-  if (s.stepy === TH - 1) { s.block_videoposy -= TH; if (s.block_videoposy < 0) s.block_videoposy += BITMAPHEIGHT_RUNTIME; }
+  if (s.stepy === TH - 1) { s.block_videoposy -= TH; if (s.block_videoposy < 0) s.block_videoposy += BITMAPHEIGHT; }
   if (s.stepy === TH - 1) {
     if (s.stepx) {
       let mapx = s.mapblockx + BITMAPBLOCKSPERROW, mapy = s.mapblocky + 1;
@@ -189,7 +196,7 @@ function refScrollLeft(s, blits) {
 // ---------------------------------------------------------------------------
 function engState() { return { mapposx: 0, mapposy: 0, videoposx: 0, videoposy: 0, prevDir: 0 }; }
 function twoblockstep() { return BITMAPBLOCKSPERROW - TH; }
-function engBlockVideoposy(s) { return (Math.floor(s.mapposy / TH) * TH) % BITMAPHEIGHT_RUNTIME; }
+function engBlockVideoposy(s) { return (Math.floor(s.mapposy / TH) * TH) % BITMAPHEIGHT; }
 function engScrollDown(s, blits) {
   const mapblockx = Math.floor(s.mapposx / TW), mapblocky = Math.floor(s.mapposy / TH);
   const stepx = s.mapposx & (TW - 1), stepy = s.mapposy & (TH - 1);
@@ -363,3 +370,4 @@ for (let i = 0; i < 5000; ++i) randSeq.push(dirs[rnd(4)]);
 cmp(randSeq);
 console.log(failures === 0 ? 'OK: ScrollDown/Up/Right/Left del port coincide con XYLimited (incl. secuencia aleatoria 5000 pasos)' : `FAIL: ${failures} discrepancias`);
 process.exit(failures === 0 ? 0 : 1);
+
