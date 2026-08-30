@@ -37,8 +37,9 @@ namespace demo = eng::field::demo;
 //
 //   CPU: decide mapposx/videoposx y DDF/BPLCON1
 //        |                |
-//        +--> Blitter: 1 blit de 64 líneas por píxel de scroll
-//        +--> Copper: BPLxPT + BPLCON1/BPLMOD sin split
+//        +--> Blitter: 1 blit de BLOCKPLANELINES = kTileSize*kPlanes líneas por píxel de scroll
+//             (ej. 16*3=48, 16*4=64, 16*5=80, 16*6=96 según K_PLANES 3..6)
+//        +--> Copper: BPLxPT + BPLCON1/BPLMOD sin split (genérico bytes*planes)
 //
 // La CPU nunca mueve la ventana manualmente: el wrap vertical del fetch
 // lineal hace que BITMAPWIDTH+ 2 bytes sea la siguiente planelínea.
@@ -50,7 +51,7 @@ namespace demo = eng::field::demo;
 #define K_FETCH_MODE 0
 #endif
 #ifndef K_PLANES
-#define K_PLANES 4
+#define K_PLANES 4 // default 4 planos; válido 3|4|5|6 (8/16/32/64 colores, DPF 3+3 para 6)
 #endif
 
 constexpr eng::u16 kTileWidth = static_cast<eng::u16>(K_TILE_WIDTH);
@@ -92,10 +93,11 @@ struct DemoGame {
         }
 
         // Banco de tiles en formato clásico de Steger: BlocksBitmap interleaved
-        // 320×256×planes (40*256*planes bytes). Cada tile de 16×16 ocupa
-        // BLOCKPLANELINES=64 planelíneas interleaved. No usamos el layout
+        // 320×256×planes (40*256*planes bytes, planes 3..6 → 40*256*3/4/5/6).
+        // Cada tile de 16×16 ocupa BLOCKPLANELINES = kTileSize*kPlanes planelíneas
+        // interleaved (ej. 48/64/80/96 para 3/4/5/6 planos). No usamos el layout
         // TileMajor de build_tile_cache porque X-Limited hace un único blit
-        // interleaved de 64 líneas (ver xlimited.hpp §6). Creamos el
+        // interleaved de BLOCKPLANELINES líneas (ver xlimited.hpp §6). Creamos el
         // BlocksBitmap interleaved y lo rellenamos con pf_plane_row.
         const eng::u32 kBlockSrcWidth = 320;
         const eng::u32 kBlockSrcBytesPerRow = kBlockSrcWidth / 8; // 40
@@ -225,8 +227,8 @@ struct DemoGame {
             }
         }
 
-        // Paleta por defecto de tile_demo (16 colores para 4 planos)
-        // En 4 planos usamos los primeros 16 colores de la paleta de 32.
+        // Paleta por defecto de tile_demo: 2^planes colores (8/16/32/64 para 3/4/5/6 planos)
+        // En 4 planos son 16 colores; genérico usa `1u << kPlanes` entradas de la paleta.
         if (!composer.init(backend.memory(), {demo::kPalette, 1536, kPlanes})) {
             eng::debug::mark_failed(g_eng_run_status, 0x00010707u);
             return;
@@ -250,7 +252,8 @@ struct DemoGame {
         plan.set_blit_budget_limits({8192, 16384, 4, 120});
 
         // Scroll X infinito: 1 píxel por frame para 50 fps sin micro-parones.
-        // Cada píxel es exactamente 1 blit de 64 planelíneas (§5). Con 1 px/frame
+        // Cada píxel es exactamente 1 blit de BLOCKPLANELINES = kTileSize*kPlanes
+        // planelíneas (48/64/80/96 según planes 3..6, §5). Con 1 px/frame
         // el fine scroll avanza 1/16 por frame y BPLCON1 cicla 0x00→0xFF sin saltos.
         // Con 2 px/frame el avance era 2/16, visible como micro-parón cada 8 frames
         // y como BPLCON1 duplicado; además duplicaba la carga de Blitter y el

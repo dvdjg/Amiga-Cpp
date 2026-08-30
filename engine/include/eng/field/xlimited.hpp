@@ -21,7 +21,7 @@
 ///   BLOCKWIDTH/BLOCKHEIGHT = 16.
 ///   BITMAPBLOCKSPERROW = BITMAPWIDTH / 16 = 22 (352) ó 24 (384).
 ///   BITMAPBLOCKSPERCOL = 256 / 16 = 16.
-///   BLOCKPLANELINES = BLOCKHEIGHT * planes (ej. 16*4 = 64).
+///   BLOCKPLANELINES = BLOCKHEIGHT * planes (ej. 16*3=48, 16*4=64, 16*5=80, 16*6=96).
 ///   BITMAPPLANELINES = BITMAPHEIGHT * planes (altura total en planeline).
 ///
 ///   Altura total del bitmap (xlimited.c:68, weiju/xlimited.c:68, xylimited.c:73):
@@ -59,20 +59,24 @@
 ///   vista del Blitter, todo el bitmap es *una sola columna* de
 ///   BITMAPPLANELINES planeline. Un bloque de 16×16 ocupa
 ///   BLOCKPLANELINES = 16*planes planeline contiguas, de modo que
-///   **un único blit** (`bltsize = BLOCKPLANELINES*64 + 1`) copia los 4 planos
-///   a la vez con un solo setup de registros. Esto es exactamente la mitad de
+///   **un único blit** (`bltsize = BLOCKPLANELINES*64 + words`) copia los `planes`
+///   (3..6, ej. 48/64/80/96 planelíneas para 16*3/4/5/6) a la vez con un solo
+///   setup de registros. Esto es exactamente la mitad de
 ///   coste que Scroller_XUnlimited (que necesitaba doble blit) y elimina casi
 ///   todo el flicker: el Blitter nunca deja los planos a medias.
 ///
-///   Esquema ASCII (4 planos, BITMAPWIDTH=352, 44 bytes por planeline):
+///   Esquema ASCII (ej. 4 planos, BITMAPWIDTH=352, 44 bytes por planeline;
+///   genérico: `BITMAPBYTESPERROW*planes` bytes por scanline interleaved, ej. 44*3=132, 44*4=176, 44*5=220, 44*6=264):
 ///
 ///     dirección 0:   [L0 P0 44B][L0 P1 44B][L0 P2 44B][L0 P3 44B]
 ///     dirección 176: [L1 P0 44B][L1 P1 44B]...
 ///     ...
 ///     La CPU ve el bitmap como `frontbuffer + y*BITMAPBYTESPERROW + x`
 ///     donde `y` es índice de planeline y `x` es byte word-aligned.
-///     Cada incremento de `y` avanza 1 planeline (44 B), cada incremento de
-///     `x` avanza 2 B (1 word) dentro de la planeline.
+///     Cada incremento de `y` avanza 1 planeline (`BITMAPBYTESPERROW` bytes:
+///     44 para 352, 48 para 384), cada incremento de `x` avanza 2 B (1 word)
+///     dentro de la planeline. El coste por scanline interleaved es
+///     `BITMAPBYTESPERROW*planes` (ej. 44*3=132, 44*4=176, 44*5=220, 44*6=264).
 ///
 ///   Sin interleaved, la fórmula `frontbuffer + y*BITMAPBYTESPERROW + x`
 ///   sería inválida: `y` tendría que ser fila de píxel y habría que sumar
@@ -119,7 +123,7 @@
 ///   Para DDFSTRT=$30 el Agnus fetcha 42 bytes por línea (20 words + 2 de
 ///   margen). Los módulos son:
 ///
-///     BPL1MOD = BPL2MOD = BITMAPBYTESPERROW * planes - SCREENBYTESPERROW - 2
+///     BPL1MOD = BPL2MOD = BITMAPBYTESPERROW * planes - SCREENBYTESPERROW - modulo_offset
 ///
 ///   (para fetch normal, `modulooffset=2`; para BPL32 es 4 y bitmapoffset 16 B,
 ///   para BPL32+BPAGEM es 8 y 48 B). El compositor usa siempre el caso normal
@@ -147,7 +151,8 @@
 ///   Cada píxel desplazado es como máximo la copia de un tile de 16x16
 ///   en la columna (ver §6). Tras 16 px horizontales se habrá dibujado una
 ///   columna completa de 16 tiles que entrará visible en offset 16. En
-///   interleaved ese tile son 64 planeline (16 * planes) en un único blit.
+///   interleaved ese tile son `BLOCKPLANELINES = BLOCKHEIGHT*planes` planeline
+///   (ej. 16*3=48, 16*4=64, 16*5=80, 16*6=96) en un único blit.
 ///   La columna entrante es:
 ///
 ///     mapx = mapposx / 16 + BITMAPBLOCKSPERROW   (scroll derecha)
@@ -208,14 +213,16 @@
 ///
 ///   a) **Columna con plaquetas repetidas** — `scroll_right/left` usaban
 ///      `map_tile_y = 0` en lugar de `map_tile_y = mapy_blocks` (mapposx &15).
-///      Como X-Limited dibuja un bloque por píxel en `y = mapy*64`, si siempre
+///      Como X-Limited dibuja un bloque por píxel en `y = mapy*BLOCKPLANELINES`
+///      (16*planes → 48/64/80/96 según planes 3..6), si siempre
 ///      se lee la fila 0 del mapa, los 16 pasos de un bloque dejan la columna
 ///      con 16 copias del mismo tile. Se detecta visualmente como franja
 ///      vertical repetida y en `verify-xlimited.mjs` como `map_tile_y != mapy`.
 ///
 ///   b) **Micro-parones cada 8 frames con `steps=2`** — 2 px/frame hace que
 ///      `BPLCON1` salte de 2 en 2 (`0x00,0xEE,0xCC...`) y que el Blitter haga
-///      2 blits de 64 líneas por frame. Aunque el coste medio cabe en 50 fps,
+///      2 blits de `BLOCKPLANELINES` líneas (48/64/80/96 según planes) por frame.
+///      Aunque el coste medio cabe en 50 fps,
 ///      el segundo blit puede cruzar el VBlank y el Copper publica el siguiente
 ///      `planeaddx` con un frame de retraso, visible como tirón cada 8 frames
 ///      (cuando `videoposx &15` envuelve). La forma canónica de Steger es
@@ -305,7 +312,7 @@ constexpr u16 kDiwStop = 0x29C1;
 /// ```text
 /// EXTRA_DEFINES="-DK_TILE_WIDTH=16 -DK_PLANES=4 -DK_FETCH_MODE=0 -DK_DUAL=0"
 ///   K_TILE_WIDTH : 16 | 32           ancho de tile (múltiplo de 16)
-///   K_PLANES     : 4 | 5 | 6          profundidad total (4=OCS 16c, 5=32c, 6=EHB/DPF 3+3)
+///   K_PLANES     : 3 | 4 | 5 | 6      profundidad total (3=8c, 4=OCS 16c, 5=32c, 6=EHB/DPF 3+3 ó 3+2)
 ///   K_TILE_SIZE  : 16 | 32            alto de tile (futuro, para 16×32 / 32×32)
 ///   K_FETCH_MODE : 0 | 1 | 2 | 3      0=352 16px DDF $30 offset 0 mod 2
 ///                                   1=384 32px DDF $28 offset 16 mod 4 (BPL32)
@@ -368,9 +375,9 @@ struct XlimitedConfig {
     TileLayerMap map {};
     const u16* tileset = nullptr;      // banco de bloques (BlocksBitmap->Planes[0])
     u16 tileset_count = 0;
-    u8 planes = 4;                     // BLOCKSDEPTH
+    u8 planes = 4;                     // BLOCKSDEPTH, rango 3..6 (3=8c, 4=16c, 5=32c, 6=EHB/DPF 3+3)
     u16 tile_width = 16;               // múltiplo de 16 (16 ó 32 para la demo)
-    u16 tile_height = 16;
+    u16 tile_height = 16;              // BLOCKHEIGHT; BLOCKPLANELINES = tile_height*planes (48/64/80/96)
     u16 bitmap_width = xlimited_detail::kBitmapW32; // 352 ó 384
     u8 fetch_mode = 0;                 // 0=normal 16px, 1=BPL32, 2=BPAGEM, 3=BPL32+BPAGEM
 };
@@ -471,7 +478,8 @@ public:
         const u16 bitmap_offset = fetch_bitmap_offset(cfg.fetch_mode);
         m_frontbuffer = m_real_base + bitmap_offset;
 
-        // BPLMODs: BITMAPBYTESPERROW*planes - SCREENBYTESPERROW - modulooffset
+        // BPLMODs: BITMAPBYTESPERROW*planes - SCREENBYTESPERROW - modulo_offset
+        // modulo_offset = 2 (normal), 4 (BPL32/BPAGEM), 8 (BPL32+BPAGEM) según fetch_mode
         const u16 modulo_offset = fetch_modulo_offset(cfg.fetch_mode);
         const s32 mod = static_cast<s32>(m_bitmap_bytes_per_row) * cfg.planes -
                         (xlimited_detail::kScreenW / 8) - modulo_offset;
@@ -590,7 +598,7 @@ public:
         const u16 mapy_blocks = static_cast<u16>(m_mapposx & (m_cfg.tile_width - 1)); // &15 para 16
         // En X-Limited puro el mapa es mucho más alto que la pantalla (128 filas)
         // y el corkscrew usa `mapy_blocks` tanto para la coordenada Y del
-        // bitmap (`y = mapy*64`) como para la coordenada Y del mapa
+        // bitmap (`y = mapy*BLOCKPLANELINES`, 16*planes → 48/64/80/96) como para la coordenada Y del mapa
         // (`map_tile_y = mapy`). Así, cada uno de los 16 pasos de un bloque
         // pinta una fila distinta de la columna entrante y no se repiten
         // plaquetas. La versión anterior con `map_tile_y=0` dejaba toda la
@@ -739,8 +747,8 @@ private:
     u16 m_bitmap_width = xlimited_detail::kBitmapW32;
     u16 m_bitmap_bytes_per_row = 44;
     u16 m_bitmap_blocks_per_row = xlimited_detail::kBlocksPerRow32;
-    u16 m_block_planes_lines = 64;
-    u16 m_bitmap_height = 268;
+    u16 m_block_planes_lines = 0; // recalculado en begin(): BLOCKHEIGHT*planes (16*planes → 48/64/80/96)
+    u16 m_bitmap_height = 0; // recalculado en begin(): compute_bitmap_height(mapW, blocksPerRow, planes)
     u16 m_bpl1mod = 0, m_bpl2mod = 0;
     s32 m_mapposx = 0, m_videoposx = 0;
     u16* m_savewordpointer = nullptr;
@@ -768,9 +776,9 @@ private:
 class XlimitedDisplayComposer {
 public:
     struct Config {
-        const u16* palette = nullptr; // 16 ó 32 colores según planes
+        const u16* palette = nullptr; // 2^planes colores (8/16/32/64 según planes 3..6)
         u32 copper_bytes = 1536;
-        u8 planes = 4;
+        u8 planes = 4; // rango 3..6 (3=8c, 4=16c, 5=32c, 6=EHB/DPF 3+3)
         u16 diwstrt = xlimited_detail::kDiwStrt;
         u16 diwstop = xlimited_detail::kDiwStop;
         u16 ddfstrt = xlimited_detail::kDdfStrt;

@@ -35,7 +35,7 @@ recomendada es `xlimited.c` → `xlimited-uk.html` → `xylimited.c` → `xlimit
 |---|---|---|
 | **Objetivo** | 8-way genérico (X e Y) con ventana recentrable | X infinito (Steger *Scroller_XLimited*); Y separado si hace falta |
 | **Geometría** | `VW+2*BW` × `(VH+2*BH)/BH*BH+1` + guarda lineal; recentrado lógico | `352` (22 bloques) ó `384` (24 bloques) × `256+(map_width/blocks_per_row/planes)+1+3` interleaved |
-| **Chip RAM** | `row_bytes*surface_h*planes` (separate); crece con viewport+margen, no con el mapa | `row_bytes*bitmap_height*planes + bitmapoffset`; crece `+1` planelínea cada `blocks_per_row*planes` bloques de mapa (~88 bloques para 352/4) |
+| **Chip RAM** | `row_bytes*surface_h*planes` (separate); crece con viewport+margen, no con el mapa | `row_bytes*bitmap_height*planes + bitmapoffset`; crece `+1` planelínea cada `blocks_per_row*planes` bloques de mapa (ej. 22*3=66, 22*4=88, 22*5=110, 22*6=132 para 352; 24*planes para 384) |
 | **Blitter** | Ráfaga cada 16 px: `0` jobs 15/16 frames, `VISIBLE_Y+2` jobs (~16-18) en el cruce; Y análogo | `1` job por píxel de scroll (`1` bloque, `BLOCKPLANELINES*64+words`); uniforme, sin ráfaga |
 | **Copper** | 1 WAIT de *split* vertical (`split_line≈VH/2`) + 2×`BPLxPT` por plano | Sin *split*; una sola lista: `BPLCON1`+`BPLxPT` lineales |
 | **Direccionamiento** | Separate: `base + n*plane_bytes + y*row_bytes + x`; `BPLMOD=row_bytes-fetch_bytes` | Interleaved: `frontbuffer + y*BITMAPBYTESPERROW + x`; `y` = planelínea (`block*BLOCKPLANELINES`); `BPLMOD=row_bytes*planes-fetch_bytes-offset` |
@@ -62,14 +62,15 @@ XLimited (xlimited.c:45-73,115; xlimited.hpp §1):
   BITMAPBYTESPERROW  = BITMAPWIDTH/8                      // 44 ó 48
   BITMAPBLOCKSPERROW = BITMAPWIDTH / BLOCKWIDTH           // 22 ó 24
   BITMAPBLOCKSPERCOL = BITMAPHEIGHT / BLOCKHEIGHT         // 16
-  BLOCKPLANELINES    = BLOCKHEIGHT * planes               // 16*4=64
-  BITMAPPLANELINES   = BITMAPHEIGHT * planes
+   BLOCKPLANELINES    = BLOCKHEIGHT * planes               // 16*planes → 48/64/80/96 para 3/4/5/6
+   BITMAPPLANELINES   = BITMAPHEIGHT * planes
 
-  bitmapheight = BITMAPHEIGHT
-               + (map_width / BITMAPBLOCKSPERROW / planes)  // desenrollado horizontal en vertical
-               + 1                                          // planelínea de guarda del Blitter
-               + 3                                          // margen fetch ancho (DDFSTRT=$30)
-  // Para XY: 384×(256+32) en xylimited.c:24-38; TWOBLOCKS=BITMAPBLOCKSPERROW-NUMSTEPS_Y
+   bitmapheight = BITMAPHEIGHT
+                + (map_width / BITMAPBLOCKSPERROW / planes)  // desenrollado horizontal en vertical (genérico bytes*planes)
+                + 1                                          // planelínea de guarda del Blitter
+                + 3                                          // margen fetch ancho (DDFSTRT=$30, modulo_offset 2/4/8)
+   // Para XY: 384×(256+32) en xylimited.c:24-38; TWOBLOCKS=BITMAPBLOCKSPERROW-NUMSTEPS_Y
+   // Ejemplos bytes*planes: 22*3=66, 22*4=88, 22*5=110, 22*6=132 bloques por planelínea extra (352)
 ```
 
 Desglose del `+1+3` (xlimited-uk.html § *overallbitmapheight* + xlimited.c:68):
@@ -84,8 +85,8 @@ Desglose del `+1+3` (xlimited-uk.html § *overallbitmapheight* + xlimited.c:68):
 | Parámetro | Circular | XLimited |
 |---|---|---|
 | Ancho físico | `VW + margin*BW` (ej. 320+32=352 con margen 2) | `352` (22 bloques) ó `384` (24 bloques), fijo por `EXTRAWIDTH` |
-| Alto físico | `floor((VH+margin*BH)/BH)*BH+1` (ej. 256+32→288+1=289) | `256 + map_width/22/planes +4` (ej. 256+11+4=271 sin alinear; 268 en xlimited.c con `map_width=1000/22/4`) |
-| Dependencia del mapa | Ninguna (la altura no crece con el mapa) | Sí: cada `22*4=88` bloques de anchura → `+1` planelínea (~1,4 KB en 4 planos) |
+| Alto físico | `floor((VH+margin*BH)/BH)*BH+1` (ej. 256+32→288+1=289) | `256 + map_width/blocks_per_row/planes +4` (ej. 256+ floor(1000/22/4)=11+4=271 sin alinear; Tabla §2.2 para 3..6) |
+| Dependencia del mapa | Ninguna (la altura no crece con el mapa) | Sí: cada `blocks_per_row*planes` bloques de anchura → `+1` planelínea (ej. 22*3=66→+1 cada 66 bl., 22*4=88, 22*5=110, 22*6=132 para 352; 24*planes para 384; genérico bytes*planes) |
 | Guarda | Última scanline completa (`surface_h-1`) a 0 | Última **planelínea** (`y+ BLOCKPLANELINES-1`) solapada; se salva con `saveword` |
 | Wrap | Lógico: `surface_origin` + máscara `VW+2*BW`; Copper *split* en Y | Físico: el *fetch* lineal envuelve a la siguiente planelínea; el Blitter escribe plane-shifted (`+BITMAPWIDTH`) |
 | Múltiplos | `VW% BW==0`, `VH% BH==0`, `BW%16==0` | `BITMAPWIDTH%16==0` y `BITMAPWIDTH% I==0` (`I=16/32/64` según `fetchmode`) |
@@ -155,15 +156,18 @@ XLimited (xlimited.c:117-123; xlimited.hpp:335-346):
   // frontbuffer = Planes[0] + bitmapoffset/8   (xlimited.c:122-123)
 ```
 
-### 2.2 Tabla comparativa (bytes Chip, sin copperlist)
+### 2.2 Tabla comparativa (bytes Chip, sin copperlist) — genérica 3..6 planos, bytes*planes
 
-| Configuración | Circular (separate) | XLimited (interleaved) |
+| Configuración | Circular (separate) | XLimited (interleaved, `total=row_bytes*bitmap_height*planes`) |
 |---|---|---|
-| 320×256, 16×16, 4 planos, `row=44`, `surface_h=289` vs `bitmap_height≈268-271` | `44*289*4 = 50 864` (+ 2 copperlists ~3 KB) | `44*268*4 = 47 168` (+ 0-48 B offset) |
-| Mapa ancho 1000 bloques (16 000 px, 50 pantallas) | idéntico (no depende del mapa) | `256+11+4=271` → `44*271*4=47 696` |
-| Mapa gigante 4000 bloques (64 000 px, 200 pantallas) | idéntico | `256+45+4=305` → `44*305*4=53 680` |
-| 5 planos EHB (320×256, 44×289) | `44*289*5=63 580` | `44*(256+1000/22/5+4)*5 ≈ 59 000` |
-| Validación | `offsets < plane_bytes`; `BPLMOD=row_bytes-fetch_bytes` | `IS_BITMAP_INTERLEAVED` (xlimited.c:129); `BPLMOD=row_bytes*planes-fetch_bytes-modulooffset` |
+| 320×256, 16×16, 3 planos (8c), `row=44`, `surface_h=289` vs `bitmap_height≈269-272` | `44*289*3 = 38 148` | `44*272*3 = 35 904` (256+ floor(256/22/3)=3+4=263 → 44*263*3=34 716 para demo 107) |
+| 320×256, 16×16, 4 planos (16c), `row=44`, `surface_h=289` vs `bitmap_height≈268-271` | `44*289*4 = 50 864` (+ 2 copperlists ~3 KB) | `44*268*4 = 47 168` (+ 0-48 B offset) |
+| 320×256, 16×16, 5 planos (32c), `row=44`, `surface_h=289` vs `bitmap_height≈266-269` | `44*289*5 = 63 580` | `44*267*5 = 58 740` |
+| 320×256, 16×16, 6 planos (EHB 64c / DPF 3+3), `row=44` | `44*289*6 = 76 296` | `44*266*6 = 70 224` (o `44*(256+1000/22/6+4)=267 → 44*267*6=70 488`) |
+| Mapa ancho 1000 bloques (16 000 px, 50 pantallas) 3..6 | idéntico (no depende del mapa) | 3: `256+15+4=275 → 44*275*3=36 300`; 4: `256+11+4=271 → 44*271*4=47 696`; 5: `256+9+4=269 → 44*269*5=59 180`; 6: `256+7+4=267 → 44*267*6=70 488` |
+| Mapa gigante 4000 bloques (64 000 px, 200 pantallas) 3..6 | idéntico | 3: `256+60+4=320 → 44*320*3=42 240`; 4: `256+45+4=305 → 44*305*4=53 680`; 5: `256+36+4=296 → 44*296*5=65 120`; 6: `256+30+4=290 → 44*290*6=76 560` |
+| 384 px fetch ancho 6 planos (DPF 3+3) | `48*289*6=83 232` | `48*266*6=76 608` (24*6=144 bloques por planelínea extra) |
+| Validación | `offsets < plane_bytes`; `BPLMOD=row_bytes-fetch_bytes` | `IS_BITMAP_INTERLEAVED` (xlimited.c:129); `BPLMOD=row_bytes*planes-fetch_bytes-modulo_offset` (genérico bytes*planes, offset 2/4/8) |
 
 Lectura: el circular paga ancho+alto fijos aunque el mapa sea pequeño; XLimited paga
 alto proporcional al mapa pero con un factor `1/(blocks_per_row*planes)` muy pequeño.
