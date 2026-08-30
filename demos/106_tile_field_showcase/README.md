@@ -50,9 +50,9 @@ argumentos extra. Ajusta según el flujo de build actual del repo.
 
 - **Test unitario del algoritmo** (`tools/analyze/verify-tile-field-fill.mjs`):
   replica `begin` (offset absoluto) y `update` (delta relativo) y verifica que
-  el framebuffer de doble página se rellena correctamente (cobertura completa,
-  sin solapes, contenido correcto) en múltiples casuísticas: offset en distintas
-  zonas, cruce de página hacia adelante y atrás, e inversión de la cámara.
+  la superficie circular compacta se rellena correctamente (cobertura por bandas,
+  sin solapes, contenido correcto) en múltiples casuísticas: márgenes 2/3, ejes
+  únicos, cruces, recentrado, wraps e inversión de la cámara.
 - **Análisis visual**: `bash ./demos/106_tile_field_showcase/analyze-sequence.sh --warp`
   (si existe) o `tools/analyze/analyze-demo.sh`.
 

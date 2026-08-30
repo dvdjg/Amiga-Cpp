@@ -91,9 +91,8 @@ struct DemoGame {
 
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		// El anillo 3x3 necesita 276 KiB por campo de 3 planos; dual y single
-		// deben poder reservarse sin recortar la guardia física.
-		if (!backend.configure_memory({1024u * 1024u, 16u * 1024u, 8u * 1024u})) {
+		// La superficie compacta reserva viewport + dos bloques por eje activo.
+		if (!backend.configure_memory({360u * 1024u, 16u * 1024u, 8u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00010601u);
 			return;
 		}
@@ -127,9 +126,11 @@ struct DemoGame {
 
 		// Estampado inicial por Blitter, en lotes hasta terminar.
 		const eng::u8 budget = 120;
-		begin_field(backend, bg, bg_config);
-		if (kDual) {
-			begin_field(backend, fg, fg_config);
+		if (!begin_field(backend, bg, bg_config)) {
+			return;
+		}
+		if (kDual && !begin_field(backend, fg, fg_config)) {
+			return;
 		}
 
 		if (!composer.init(backend.memory(), {
@@ -239,23 +240,28 @@ private:
 		);
 	}
 
-	void begin_field(eng::amiga::MinimalBackend& backend, field::TileFieldController& ctl, const field::TileFieldConfig& cfg) {
+	bool begin_field(eng::amiga::MinimalBackend& backend, field::TileFieldController& ctl, const field::TileFieldConfig& cfg) {
 		const eng::u8 budget = 120;
 		if (!ctl.begin(backend.memory(), cfg, {0, 0})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00010603u);
 			ready = false;
-			return;
+			return false;
 		}
 		while (ctl.busy()) {
 			plan.clear();
-			ctl.pump(plan, budget);
+			if (!ctl.pump(plan, budget)) {
+				eng::debug::mark_failed(g_eng_run_status, 0x00010605u);
+				ready = false;
+				return false;
+			}
 			if (!backend.execute_frame_plan(plan)) {
 				eng::debug::mark_failed(g_eng_run_status, 0x00010604u);
 				ready = false;
-				return;
+				return false;
 			}
 		}
 		plan.clear();
+		return true;
 	}
 
 	field::TileFieldConfig make_config(const eng::MemoryBlock& tiles, eng::u8 planes, bool is_foreground) {
@@ -278,6 +284,7 @@ private:
 		config.max_delta_x = 5;
 		config.max_delta_y = 5;
 		config.max_tiles_per_frame = 56;
+		config.safety_margin_blocks = 2;
 		config.scroll_x = true;
 		config.scroll_y = true;
 		return config;

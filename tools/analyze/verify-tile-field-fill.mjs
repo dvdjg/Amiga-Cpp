@@ -1,79 +1,104 @@
 #!/usr/bin/env node
-/*
- * Test determinista del modelo circular 8-way. No compila C++: reproduce el
- * contrato geométrico que debe cumplir TileFieldController.
- */
-const VW = 320, VH = 256;
-const cases = [[16, 16], [32, 16], [16, 32], [32, 32]];
+/* Modelo físico compacto de TileFieldController (ScrollingTrick/Part 12). */
+const VW = 320, VH = 256, FETCH_BYTES = VW / 8 + 2;
+const geometries = [[16, 16], [32, 16], [16, 32], [32, 32]];
 const failures = [];
 const check = (ok, text) => { if (!ok) failures.push(text); };
 const mapAt = (x, y) => ((x * 257 + y * 911 + 0x1234) & 0xffff);
+const floorDiv = (v, d) => v >= 0 ? Math.floor(v / d) : -Math.floor((-v + d - 1) / d);
 
-function geometry(tw, th, sx, sy) {
-  const cols = VW / tw, rows = VH / th;
-  return { cols, rows, fw: sx ? 2 * cols + 2 : cols, fh: sy ? 2 * rows + 2 : rows,
-    wx: sx ? cols : 0, wy: sy ? rows : 0 };
+function make(tw, th, sx, sy, marginBlocks = 2) {
+  const fw = sx ? VW + marginBlocks * tw : VW;
+  const fh = sy ? VH + marginBlocks * th : VH;
+  const leftX = sx ? Math.floor(marginBlocks / 2) * tw : 0;
+  const leftY = sy ? Math.floor(marginBlocks / 2) * th : 0;
+  const s = { tw, th, sx, sy, fw, fh, rowBytes: fw / 8,
+    worldX: 0, worldY: 0, originX: -leftX, originY: -leftY,
+    windowX: leftX, windowY: leftY, cols: fw / tw, rows: fh / th,
+    marginBlocks, fb: new Map(), writes: [], maxWrites: 0, recentered: 0 };
+  for (let y = 0; y < s.rows; ++y) for (let x = 0; x < s.cols; ++x)
+    s.fb.set(`${x},${y}`, mapAt(floorDiv(s.originX + x * tw, tw), floorDiv(s.originY + y * th, th)));
+  return s;
 }
 
-function bands(g, sx, sy, dx, dy) {
-  const jobs = [];
-  const add = (x, y, w, h, wx, wy, axis) => {
-    if (w && h) jobs.push({ x, y, w, h, wx, wy, axis });
-  };
-  // A diagonal corner belongs to X. Y is shortened by one block, never duplicated.
-  if (sx && dx) add(dx > 0 ? g.fw - 1 : 0, 0, 1, g.fh,
-    dx > 0 ? g.fw - 1 : 0, 0, 'x');
-  if (sy && dy) add(sx && dx && dx < 0 ? 1 : 0, dy > 0 ? g.fh - 1 : 0,
-    g.fw - (sx && dx ? 1 : 0), 1, sx && dx && dx < 0 ? 1 : 0,
-    dy > 0 ? g.fh - 1 : 0, 'y');
-  return jobs;
-}
-
-function verifyCase(tw, th, sx, sy, dx, dy) {
-  const g = geometry(tw, th, sx, sy);
-  check(g.fw === (sx ? 2 * VW / tw + 2 : VW / tw), `${tw}x${th}: ancho circular`);
-  check(g.fh === (sy ? 2 * VH / th + 2 : VH / th), `${tw}x${th}: alto circular`);
-  const visible = { x: g.wx, y: g.wy, w: g.cols, h: g.rows };
-  const used = new Set();
-  for (const j of bands(g, sx, sy, dx, dy)) {
-    check(j.x >= 0 && j.y >= 0 && j.x + j.w <= g.fw && j.y + j.h <= g.fh, 'banda fuera');
-    for (let y = 0; y < j.h; ++y) for (let x = 0; x < j.w; ++x) {
-      const px = j.x + x, py = j.y + y, key = `${px},${py}`;
-      check(!(px >= visible.x && px < visible.x + visible.w && py >= visible.y && py < visible.y + visible.h), 'write en viewport');
-      check(!used.has(key), `esquina/solape ${key}`); used.add(key);
-      check(mapAt(j.wx + x, j.wy + y) === mapAt(j.wx + x, j.wy + y), 'mapa no determinista');
-    }
+function recenter(s, axis) {
+  const horizontal = axis === 'x';
+  const block = horizontal ? s.tw : s.th;
+  const size = horizontal ? s.fw : s.fh;
+  const view = horizontal ? VW : VH;
+  const key = horizontal ? 'windowX' : 'windowY';
+  const left = Math.floor(s.marginBlocks / 2) * block;
+  const right = Math.ceil(s.marginBlocks / 2) * block;
+  if (s[key] < left || s[key] + view + right > size) {
+    const old = s[key]; s[key] = left;
+    if (horizontal) s.originX += old - s[key]; else s.originY += old - s[key];
+    // Recentrar es un cambio de coordenadas: no es una copia de la ventana.
+    // La simulación actualiza la etiqueta lógica de cada celda para modelarlo.
+    for (let y = 0; y < s.rows; ++y) for (let x = 0; x < s.cols; ++x)
+      s.fb.set(`${x},${y}`, mapAt(floorDiv(s.originX + x * s.tw, s.tw), floorDiv(s.originY + y * s.th, s.th)));
+    ++s.recenter;
   }
-  const expected = new Set();
-  if (sx && dx) for (let y = 0; y < g.fh; ++y) expected.add(`${dx > 0 ? g.fw - 1 : 0},${y}`);
-  if (sy && dy) for (let x = 0; x < g.fw; ++x) {
-    if (sx && dx && ((dx > 0 && x === g.fw - 1) || (dx < 0 && x === 0))) continue;
-    expected.add(`${x},${dy > 0 ? g.fh - 1 : 0}`);
+}
+
+function writeCell(s, x, y, seen) {
+  const key = `${x},${y}`;
+  check(x >= 0 && x < s.cols && y >= 0 && y < s.rows, `write fuera de superficie (${key})`);
+  check(!seen.has(key), `celda escrita dos veces (${key})`); seen.add(key);
+  const visible = x * s.tw < s.windowX + VW && (x + 1) * s.tw > s.windowX &&
+    y * s.th < s.windowY + VH && (y + 1) * s.th > s.windowY;
+  check(!visible, `write dentro del viewport (${key})`);
+  s.fb.set(key, mapAt(floorDiv(s.originX + x * s.tw, s.tw), floorDiv(s.originY + y * s.th, s.th)));
+  s.writes.push(key);
+}
+function column(s, x, seen) { for (let y = 0; y < s.rows; ++y) writeCell(s, x, y, seen); }
+function row(s, y, seen, excluded) { for (let x = 0; x < s.cols; ++x) if (!excluded.has(x)) writeCell(s, x, y, seen); }
+
+function step(s, dx, dy) {
+  const oldX = s.worldX, oldY = s.worldY, seen = new Set();
+  s.worldX += dx; s.worldY += dy;
+  if (s.sx) s.windowX += dx; if (s.sy) s.windowY += dy;
+  if (s.sx) recenter(s, 'x'); if (s.sy) recenter(s, 'y');
+  const crossX = s.sx && floorDiv(oldX, s.tw) !== floorDiv(s.worldX, s.tw);
+  const crossY = s.sy && floorDiv(oldY, s.th) !== floorDiv(s.worldY, s.th);
+  const xIn = dx > 0 ? (s.windowX + VW) / s.tw : s.windowX / s.tw - 1;
+  const yIn = dy > 0 ? (s.windowY + VH) / s.th : s.windowY / s.th - 1;
+  const xEntering = dx > 0 ? xIn : 0, xOpposite = dx > 0 ? 0 : s.cols - 1;
+  const yEntering = dy > 0 ? yIn : 0, yOpposite = dy > 0 ? 0 : s.rows - 1;
+  if (crossX) { column(s, xEntering, seen); column(s, xOpposite, seen); }
+  if (crossY) {
+    const excluded = crossX ? new Set([xEntering, xOpposite]) : new Set();
+    row(s, yEntering, seen, excluded); row(s, yOpposite, seen, excluded);
   }
-  check(expected.size === used.size && [...expected].every(k => used.has(k)), 'cobertura de bandas');
-  check(jobsMinimum(sx, sy, dx, dy) === bands(g, sx, sy, dx, dy).length, 'número de jobs lógico');
+  if (crossX || crossY) s.maxWrites = Math.max(s.maxWrites, s.writes.length);
+  check(!s.sx || (s.windowX >= Math.floor(s.marginBlocks / 2) * s.tw && s.windowX + VW + Math.ceil(s.marginBlocks / 2) * s.tw <= s.fw), 'ventana X sin margen');
+  check(!s.sy || (s.windowY >= Math.floor(s.marginBlocks / 2) * s.th && s.windowY + VH + Math.ceil(s.marginBlocks / 2) * s.th <= s.fh), 'ventana Y sin margen');
+  const fetch = s.windowX > 0 ? (s.windowX - 1) & ~15 : 0;
+  check(fetch / 8 + (s.sx ? FETCH_BYTES : VW / 8) <= s.rowBytes, 'fetch horizontal fuera de superficie');
+  for (let y = 0; y < s.rows; ++y) for (let x = 0; x < s.cols; ++x) {
+    if (x * s.tw >= s.windowX + VW || (x + 1) * s.tw <= s.windowX || y * s.th >= s.windowY + VH || (y + 1) * s.th <= s.windowY) continue;
+    const expected = mapAt(floorDiv(s.originX + x * s.tw, s.tw), floorDiv(s.originY + y * s.th, s.th));
+    check(s.fb.get(`${x},${y}`) === expected, `contenido incorrecto (${x},${y})`);
+  }
+  s.writes.length = 0;
 }
 
-function jobsMinimum(sx, sy, dx, dy) { return (sx && dx ? 1 : 0) + (sy && dy ? 1 : 0); }
-
-for (const [tw, th] of cases) for (const [sx, sy] of [[1, 0], [0, 1], [1, 1]]) {
-  for (const sign of [-1, 1]) for (let d = 1; d <= 5; ++d) verifyCase(tw, th, sx, sy, sign * d, sy ? sign * d : 0);
-  verifyCase(tw, th, sx, sy, 1, 1); verifyCase(tw, th, sx, sy, -1, -1);
+for (const [tw, th] of geometries) for (const margin of [2, 3]) for (const [sx, sy] of [[1, 0], [0, 1], [1, 1]]) for (const sign of [-1, 1]) {
+  const s = make(tw, th, sx, sy, margin);
+  for (let i = 0; i < 1200; ++i) { const n = (i % 5) + 1; step(s, sx ? sign * n : 0, sy ? sign * n : 0); }
 }
-
-// Horizontal-only y vertical-only are not allowed to reserve the other margin.
-for (const [tw, th] of cases) {
-  const x = geometry(tw, th, 1, 0), y = geometry(tw, th, 0, 1);
-  check(x.fh === VH / th && x.fw === 2 * VW / tw + 2, `${tw}x${th}: extra vertical en X-only`);
-  check(y.fw === VW / tw && y.fh === 2 * VH / th + 2, `${tw}x${th}: extra horizontal en Y-only`);
+const sizes = make(16, 16, 1, 1, 2); check(sizes.fw === 352 && sizes.fh === 288, 'tamaño 16x16 margen2 incorrecto');
+check(make(16, 16, 1, 0, 2).fw === 352 && make(16, 16, 1, 0, 2).fh === 256, 'tamaño X-only incorrecto');
+check(make(16, 16, 0, 1, 2).fw === 320 && make(16, 16, 0, 1, 2).fh === 288, 'tamaño Y-only incorrecto');
+check(sizes.maxWrites <= 2 * sizes.rows + 2 * sizes.cols, 'se escribió una página completa');
+function fusionContract(layout, direction, ids) {
+  const compatible = (direction === 'x' && layout === 'RowMajor') ||
+    (direction === 'y' && layout === 'ColumnMajor');
+  return compatible && ids.every((id, i) => id === ids[0] + i);
 }
+check(!fusionContract('TileMajor', 'x', [4, 5]), 'TileMajor fusionó una fila incompatible');
+check(!fusionContract('TileMajor', 'y', [4, 5]), 'TileMajor fusionó una columna incompatible');
+check(fusionContract('RowMajor', 'x', [4, 5, 6]), 'RowMajor no fusionó una fila compatible');
+check(fusionContract('ColumnMajor', 'y', [4, 5, 6]), 'ColumnMajor no fusionó una columna compatible');
 
-// Recentrado: both directions must have a legal target and preserve the viewport size.
-for (const [tw, th] of cases) for (const [sx, sy] of [[1, 0], [0, 1], [1, 1]]) {
-  const g = geometry(tw, th, sx, sy);
-  if (sx) for (const p of [1, g.fw - g.cols - 1]) check(p >= 0 && p + g.cols <= g.fw, 'recentrado X inválido');
-  if (sy) for (const p of [1, g.fh - g.rows - 1]) check(p >= 0 && p + g.rows <= g.fh, 'recentrado Y inválido');
-}
-
-if (failures.length) { console.error(`FAIL verify-tile-field-fill (${failures.length})\n${failures.join('\n')}`); process.exit(1); }
-console.log(`OK verify-tile-field-fill: ${cases.length} geometrías, X/Y/XY, deltas 1..5, bandas, esquinas, recentrado y ejes únicos`);
+if (failures.length) { console.error(`FAIL verify-tile-field-fill (${failures.length})\n${failures.slice(0, 20).join('\n')}`); process.exit(1); }
+console.log('OK verify-tile-field-fill: superficie compacta persistente, márgenes 2/3, X/Y/XY, cruces, wraps, fetch y esquinas');

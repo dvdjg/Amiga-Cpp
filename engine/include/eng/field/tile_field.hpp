@@ -3,7 +3,7 @@
 /// Campo de tiles con scroll 8-way sobre una superficie circular/recentrable.
 ///
 /// La superficie no es un conjunto de tres paginas. En cada eje que scrollea
-/// mide 2 * viewport + 2 * bloque. La ventana se mueve dentro de ella y, cuando
+/// mide viewport + margen_en_bloques * bloque. La ventana se mueve dentro de ella y, cuando
 /// alcanza una frontera, se cambia a la copia preparada del otro lado; solo se
 /// modifica metadata y el puntero del display, nunca se copia la pantalla.
 
@@ -30,6 +30,19 @@ struct TileLayerMap {
 
 struct TileScrollOffset { eng::s16 x = 0, y = 0; };
 
+enum class TileSetLayout : eng::u8 {
+	TileMajor,       // [tile][plane][row][word], layout de la demo
+	RowMajor,        // [row][tile][plane][word], permite fusionar filas
+	ColumnMajor,     // [tile][plane][row][word] con contrato de columna contigua
+};
+
+struct TileFieldUpdateResult {
+	bool accepted = false;
+	bool applied = false;
+	bool pending = false;
+	constexpr explicit operator bool() const { return accepted; }
+};
+
 struct TileFieldConfig {
 	TileLayerMap map;
 	const eng::u16* tileset = nullptr;
@@ -39,9 +52,9 @@ struct TileFieldConfig {
 	eng::u16 viewport_w = 320, viewport_h = 256;
 	eng::s16 max_delta_x = 5, max_delta_y = 5;
 	eng::u8 max_tiles_per_frame = 4;
+	eng::u8 safety_margin_blocks = 2; // bloques totales: uno por lado con el mínimo
 	bool scroll_x = true, scroll_y = true;
-	bool tileset_plane_major = false;
-	bool tileset_row_major = false;
+	TileSetLayout tileset_layout = TileSetLayout::TileMajor;
 };
 
 /// Región que se puede consumir en pasos de tiles. Una región nunca cruza la
@@ -71,6 +84,7 @@ struct FieldHardwareView {
 	const eng::u8* bitplanes = nullptr;
 	eng::u32 plane_stride = 0, display_byte_offset = 0;
 	eng::u8 fine_x = 0, plane_count = 0, first_hardware_plane = 0;
+	eng::u16 fetch_bytes = 0;
 	eng::u16 bpl1mod = 0;
 };
 
@@ -88,62 +102,78 @@ public:
 	bool begin(eng::MemorySystem& memory, const TileFieldConfig& config, TileScrollOffset initial) {
 		m_config = config;
 		if (!valid_config()) return false;
-		m_fb_w = config.scroll_x ? static_cast<eng::u16>(2u * config.viewport_w + 2u * config.tile_width) : config.viewport_w;
-		m_fb_h = config.scroll_y ? static_cast<eng::u16>(2u * config.viewport_h + 2u * config.tile_size) : config.viewport_h;
+		const eng::u16 margin_x = config.scroll_x ? static_cast<eng::u16>(config.safety_margin_blocks * config.tile_width) : 0;
+		const eng::u16 margin_y = config.scroll_y ? static_cast<eng::u16>(config.safety_margin_blocks * config.tile_size) : 0;
+		m_fb_w = config.scroll_x ? static_cast<eng::u16>(config.viewport_w + margin_x) : config.viewport_w;
+		m_fb_h = config.scroll_y ? static_cast<eng::u16>(config.viewport_h + margin_y) : config.viewport_h;
 		m_row_bytes = static_cast<eng::u16>(m_fb_w / 8u);
 		m_plane_bytes = static_cast<eng::u32>(m_row_bytes) * m_fb_h;
 		m_framebuffer = memory.chip.allocate(m_plane_bytes * config.tileset_planes, 16);
 		if (!m_framebuffer.valid()) return false;
 		m_state = {};
+		m_pending_state = false;
 		m_state.world_x = initial.x; m_state.world_y = initial.y;
 		m_state.surface_w = m_fb_w; m_state.surface_h = m_fb_h;
 		m_state.viewport_w = config.viewport_w; m_state.viewport_h = config.viewport_h;
-		m_state.window_x = config.scroll_x ? config.viewport_w : 0;
-		m_state.window_y = config.scroll_y ? config.viewport_h : 0;
+		m_state.window_x = config.scroll_x ? left_margin(true) : 0;
+		m_state.window_y = config.scroll_y ? left_margin(false) : 0;
 		m_state.surface_origin_x = initial.x - static_cast<eng::s32>(m_state.window_x);
 		m_state.surface_origin_y = initial.y - static_cast<eng::s32>(m_state.window_y);
+		m_queued_dx = m_queued_dy = 0;
 		enqueue_initial();
 		m_state.initialized = true;
 		return true;
 	}
 
-	bool pump(eng::graphics::FramePlan& plan, eng::u8 budget) {
-		if (!m_state.initialized) return false;
+	TileFieldUpdateResult pump(eng::graphics::FramePlan& plan, eng::u8 budget) {
+		if (!m_state.initialized) return {};
 		draw_pending(plan, budget);
-		return has_pending();
+		commit_pending_state();
+		return {true, !has_pending(), has_pending()};
 	}
 	bool busy() const { return m_state.initialized && has_pending(); }
 
-	bool update(const TileFieldConfig& config, TileScrollOffset delta, eng::graphics::FramePlan& plan) {
-		if (!m_state.initialized) return false;
+	TileFieldUpdateResult update(const TileFieldConfig& config, TileScrollOffset delta, eng::graphics::FramePlan& plan) {
+		if (!m_state.initialized) return {};
 		m_config = config;
-		if (!valid_config()) return false;
+		if (!valid_config()) return {};
 		// Never expose a band whose Blitter jobs are still pending. It is legal to
 		// spend this frame draining the queue while the logical camera waits.
 		if (has_pending()) {
+			if (config.scroll_x) m_queued_dx += clamp(delta.x, config.max_delta_x);
+			if (config.scroll_y) m_queued_dy += clamp(delta.y, config.max_delta_y);
 			draw_pending(plan, config.max_tiles_per_frame);
-			return true;
+			commit_pending_state();
+			return {true, false, has_pending()};
 		}
-		const eng::s16 dx = config.scroll_x ? clamp(delta.x, config.max_delta_x) : 0;
-		const eng::s16 dy = config.scroll_y ? clamp(delta.y, config.max_delta_y) : 0;
+		const eng::s32 requested_x = m_queued_dx + (config.scroll_x ? clamp(delta.x, config.max_delta_x) : 0);
+		const eng::s32 requested_y = m_queued_dy + (config.scroll_y ? clamp(delta.y, config.max_delta_y) : 0);
+		const eng::s16 bounded_x = static_cast<eng::s16>(requested_x > 5 ? 5 : (requested_x < -5 ? -5 : requested_x));
+		const eng::s16 bounded_y = static_cast<eng::s16>(requested_y > 5 ? 5 : (requested_y < -5 ? -5 : requested_y));
+		const eng::s16 dx = config.scroll_x ? clamp(bounded_x, config.max_delta_x) : 0;
+		const eng::s16 dy = config.scroll_y ? clamp(bounded_y, config.max_delta_y) : 0;
+		m_queued_dx = requested_x - dx;
+		m_queued_dy = requested_y - dy;
 		const eng::s32 old_x = m_state.world_x, old_y = m_state.world_y;
 		const eng::u16 old_window_x = m_state.window_x, old_window_y = m_state.window_y;
 		const eng::s32 old_origin_x = m_state.surface_origin_x, old_origin_y = m_state.surface_origin_y;
 		m_state.world_x += dx; m_state.world_y += dy;
 		m_state.window_x = static_cast<eng::u16>(m_state.window_x + dx);
 		m_state.window_y = static_cast<eng::u16>(m_state.window_y + dy);
-		const eng::s32 old_tx = floor_div(old_x, config.tile_width);
-		const eng::s32 old_ty = floor_div(old_y, config.tile_size);
-		const eng::s32 new_tx = floor_div(m_state.world_x, config.tile_width);
-		const eng::s32 new_ty = floor_div(m_state.world_y, config.tile_size);
-		const bool enter_x = config.scroll_x && old_tx != new_tx;
-		const bool enter_y = config.scroll_y && old_ty != new_ty;
-		if (enter_x) enqueue_x_band(dx > 0 ? 1 : -1, new_tx, enter_y);
-		if (enter_y) enqueue_y_band(dy > 0 ? 1 : -1, new_ty, enter_x);
 		// The window is allowed to run across the surface. At an end, select the
 		// already prepared copy on the other side; no pixel move is necessary.
 		if (config.scroll_x) recenter_axis(true);
 		if (config.scroll_y) recenter_axis(false);
+		const eng::s32 new_tx = floor_div(m_state.world_x, config.tile_width);
+		const eng::s32 new_ty = floor_div(m_state.world_y, config.tile_size);
+		const bool enter_x = config.scroll_x && floor_div(old_x, config.tile_width) != new_tx;
+		const bool enter_y = config.scroll_y && floor_div(old_y, config.tile_size) != new_ty;
+		if (enter_x) enqueue_x_band(dx > 0 ? 1 : -1, enter_y);
+		if (enter_y) enqueue_y_band(dy > 0 ? 1 : -1, enter_x, dx > 0 ? 1 : -1);
+		m_pending_world_x = m_state.world_x; m_pending_world_y = m_state.world_y;
+		m_pending_window_x = m_state.window_x; m_pending_window_y = m_state.window_y;
+		m_pending_origin_x = m_state.surface_origin_x; m_pending_origin_y = m_state.surface_origin_y;
+		m_pending_state = has_pending();
 		draw_pending(plan, config.max_tiles_per_frame);
 		if (has_pending()) {
 			// The newly exposed band is not visible yet. Keep the previous display
@@ -152,7 +182,8 @@ public:
 			m_state.window_x = old_window_x; m_state.window_y = old_window_y;
 			m_state.surface_origin_x = old_origin_x; m_state.surface_origin_y = old_origin_y;
 		}
-		return true;
+		commit_pending_state();
+		return {true, !has_pending() && !m_pending_state, has_pending() || m_pending_state};
 	}
 
 	FieldHardwareView hardware_view(eng::u8 first_hardware_plane) const {
@@ -164,7 +195,8 @@ public:
 		const eng::s32 fetch = px > 0 ? ((px - 1) & ~15) : 0;
 		v.display_byte_offset = static_cast<eng::u32>(fetch / 8) + static_cast<eng::u32>(py) * m_row_bytes;
 		v.fine_x = static_cast<eng::u8>((16 - (px & 15)) & 15);
-		v.bpl1mod = static_cast<eng::u16>(m_row_bytes - (m_config.viewport_w / 8u + 2u));
+		v.fetch_bytes = static_cast<eng::u16>(m_config.scroll_x ? m_config.viewport_w / 8u + 2u : m_config.viewport_w / 8u);
+		v.bpl1mod = static_cast<eng::u16>(m_row_bytes - v.fetch_bytes);
 		v.plane_count = m_config.tileset_planes; v.first_hardware_plane = first_hardware_plane;
 		return v;
 	}
@@ -175,30 +207,67 @@ private:
 	static eng::s16 clamp(eng::s16 v, eng::s16 max) { return v > max ? max : (v < -max ? static_cast<eng::s16>(-max) : v); }
 	static eng::s32 floor_div(eng::s32 v, eng::s32 d) { return v >= 0 ? v / d : -static_cast<eng::s32>((-v + d - 1) / d); }
 	bool valid_config() const {
+		const eng::u16 margin_x = m_config.scroll_x ? static_cast<eng::u16>(m_config.safety_margin_blocks * m_config.tile_width) : 0;
+		const eng::u16 margin_y = m_config.scroll_y ? static_cast<eng::u16>(m_config.safety_margin_blocks * m_config.tile_size) : 0;
+		const eng::u16 fb_w = m_config.scroll_x ? static_cast<eng::u16>(m_config.viewport_w + margin_x) : m_config.viewport_w;
+		const eng::u16 fb_h = m_config.scroll_y ? static_cast<eng::u16>(m_config.viewport_h + margin_y) : m_config.viewport_h;
 		return m_config.tileset && m_config.tileset_count && m_config.tileset_planes &&
+			m_config.safety_margin_blocks >= 2u && m_config.safety_margin_blocks <= 3u &&
 			m_config.max_delta_x >= 0 && m_config.max_delta_x <= 5 && m_config.max_delta_y >= 0 && m_config.max_delta_y <= 5 &&
 			m_config.tile_width && m_config.tile_size && !(m_config.tile_width & 15u) &&
-			!(m_config.viewport_w % m_config.tile_width) && !(m_config.viewport_h % m_config.tile_size);
+			!(m_config.viewport_w % m_config.tile_width) && !(m_config.viewport_h % m_config.tile_size) &&
+			(!m_config.scroll_x || (m_config.viewport_w / 8u + 2u <= fb_w / 8u)) &&
+			(!m_config.scroll_y || fb_h >= m_config.viewport_h);
+	}
+	eng::u16 left_margin(bool x) const {
+		const eng::u16 block = x ? m_config.tile_width : m_config.tile_size;
+		return static_cast<eng::u16>((m_config.safety_margin_blocks / 2u) * block);
 	}
 	void enqueue_initial() {
 		const eng::u16 cols = static_cast<eng::u16>(m_fb_w / m_config.tile_width);
 		const eng::u16 rows = static_cast<eng::u16>(m_fb_h / m_config.tile_size);
-		enqueue(m_state.surface_origin_x / m_config.tile_width, m_state.surface_origin_y / m_config.tile_size, 0, 0, cols, rows);
+		enqueue(floor_div(m_state.surface_origin_x, m_config.tile_width), floor_div(m_state.surface_origin_y, m_config.tile_size), 0, 0, cols, rows);
 	}
-	void enqueue_x_band(eng::s16 direction, eng::s32 tx, bool diagonal) {
-		const eng::u16 col = direction > 0 ? static_cast<eng::u16>(m_fb_w / m_config.tile_width - 1u) : 0;
-		const eng::u16 rows = static_cast<eng::u16>(m_fb_h / m_config.tile_size);
-		// The corner belongs to the X band; Y is shortened at the corresponding edge.
-		const eng::u16 height = diagonal ? static_cast<eng::u16>(rows - 1u) : rows;
-		enqueue(tx, m_state.surface_origin_y / m_config.tile_size + (direction > 0 && diagonal ? 1 : 0), col,
-			direction > 0 && diagonal ? 1 : 0, 1, height);
-	}
-	void enqueue_y_band(eng::s16 direction, eng::s32 ty, bool diagonal) {
+	void enqueue_x_band(eng::s16 direction, bool diagonal) {
 		const eng::u16 cols = static_cast<eng::u16>(m_fb_w / m_config.tile_width);
-		const eng::u16 row = direction > 0 ? static_cast<eng::u16>(m_fb_h / m_config.tile_size - 1u) : 0;
-		const eng::u16 width = diagonal ? static_cast<eng::u16>(cols - 1u) : cols;
-		enqueue(m_state.surface_origin_x / m_config.tile_width + (direction > 0 && diagonal ? 1 : 0), ty,
-			direction > 0 && diagonal ? 1 : 0, row, width, 1);
+		const eng::u16 rows = static_cast<eng::u16>(m_fb_h / m_config.tile_size);
+		const eng::u16 entering = direction > 0
+			? static_cast<eng::u16>((m_state.window_x + m_config.viewport_w) / m_config.tile_width)
+			: 0;
+		const eng::u16 opposite = direction > 0 ? 0 : static_cast<eng::u16>(cols - 1u);
+		enqueue_physical(entering, 0, 1, rows);
+		enqueue_physical(opposite, 0, 1, rows);
+	}
+	void enqueue_y_band(eng::s16 direction, bool diagonal, eng::s16 xdirection) {
+		const eng::u16 cols = static_cast<eng::u16>(m_fb_w / m_config.tile_width);
+		const eng::u16 rows = static_cast<eng::u16>(m_fb_h / m_config.tile_size);
+		const eng::u16 entering = direction > 0
+			? static_cast<eng::u16>((m_state.window_y + m_config.viewport_h) / m_config.tile_size)
+			: 0;
+		const eng::u16 opposite = direction > 0 ? 0 : static_cast<eng::u16>(rows - 1u);
+		if (!diagonal) {
+			enqueue_physical(0, entering, cols, 1);
+			enqueue_physical(0, opposite, cols, 1);
+			return;
+		}
+		const eng::u16 x_entering = xdirection > 0
+			? static_cast<eng::u16>((m_state.window_x + m_config.viewport_w) / m_config.tile_width)
+			: 0;
+		const eng::u16 x_opposite = xdirection > 0 ? 0 : static_cast<eng::u16>(cols - 1u);
+		enqueue_y_row(entering, x_entering, x_opposite);
+		enqueue_y_row(opposite, x_entering, x_opposite);
+	}
+	void enqueue_y_row(eng::u16 row, eng::u16 corner_a, eng::u16 corner_b) {
+		if (corner_a > corner_b) { const eng::u16 t = corner_a; corner_a = corner_b; corner_b = t; }
+		if (corner_a) enqueue_physical(0, row, corner_a, 1);
+		if (corner_b > corner_a + 1u) enqueue_physical(static_cast<eng::u16>(corner_a + 1u), row, static_cast<eng::u16>(corner_b - corner_a - 1u), 1);
+		if (corner_b + 1u < static_cast<eng::u16>(m_fb_w / m_config.tile_width)) enqueue_physical(static_cast<eng::u16>(corner_b + 1u), row, static_cast<eng::u16>(m_fb_w / m_config.tile_width - corner_b - 1u), 1);
+	}
+	void enqueue_physical(eng::u16 fx, eng::u16 fy, eng::u16 w, eng::u16 h, eng::u16 x_offset = 0) {
+		const eng::u16 physical_x = static_cast<eng::u16>(fx + x_offset);
+		const eng::s32 wx = floor_div(m_state.surface_origin_x + static_cast<eng::s32>(physical_x) * m_config.tile_width, m_config.tile_width);
+		const eng::s32 wy = floor_div(m_state.surface_origin_y + static_cast<eng::s32>(fy) * m_config.tile_size, m_config.tile_size);
+		enqueue(wx, wy, physical_x, fy, w, h);
 	}
 	void enqueue(eng::s32 wx, eng::s32 wy, eng::u16 fx, eng::u16 fy, eng::u16 w, eng::u16 h) {
 		if (!w || !h || m_state.pending_count >= 64) return;
@@ -212,11 +281,12 @@ private:
 	void recenter_axis(bool x) {
 		const eng::u16 size = x ? m_fb_w : m_fb_h, view = x ? m_config.viewport_w : m_config.viewport_h;
 		eng::u16& pos = x ? m_state.window_x : m_state.window_y;
-		const eng::u16 margin = x ? m_config.tile_width : m_config.tile_size;
-		if (pos < margin || static_cast<eng::u32>(pos) + view + margin > size) {
+		const eng::u16 left = left_margin(x);
+		const eng::u16 right = static_cast<eng::u16>((m_config.safety_margin_blocks - m_config.safety_margin_blocks / 2u) * (x ? m_config.tile_width : m_config.tile_size));
+		if (pos < left || static_cast<eng::u32>(pos) + view + right > size) {
 			// Opposite-side copy is valid because every crossing prepared one block.
 			const eng::u16 old_pos = pos;
-			pos = static_cast<eng::u16>(size - view - margin);
+			pos = left;
 			if (x) m_state.surface_origin_x += static_cast<eng::s32>(old_pos) - pos;
 			else m_state.surface_origin_y += static_cast<eng::s32>(old_pos) - pos;
 			if (x) ++m_state.recenter_x; else ++m_state.recenter_y;
@@ -225,7 +295,7 @@ private:
 	eng::graphics::BlitJob tile_job(eng::u16 tile, eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h) const {
 		const eng::u16 words = static_cast<eng::u16>(w / 16u);
 		const eng::u32 plane_words = static_cast<eng::u32>(m_config.tile_size) * words;
-		const eng::u16* src = m_config.tileset + static_cast<eng::u32>(tile & (m_config.tileset_count - 1u)) * m_config.tileset_planes * plane_words;
+		const eng::u16* src = m_config.tileset + static_cast<eng::u32>(tile % m_config.tileset_count) * m_config.tileset_planes * plane_words;
 		eng::u16* dst = reinterpret_cast<eng::u16*>(static_cast<eng::u8*>(m_framebuffer.data) + static_cast<eng::u32>(y) * m_row_bytes + static_cast<eng::u32>(x) / 8u);
 		return {eng::graphics::BlitJobKind::TileBlockCopy, nullptr, src, dst, words, h, 0,
 			static_cast<eng::s16>(m_row_bytes - words * 2u), m_config.tileset_planes, 0,
@@ -262,7 +332,8 @@ private:
 				const eng::u16 tile = m_config.map.tile_at(p.world_tile_x + x, p.world_tile_y + y);
 				eng::u16 run = 1;
 				while (run < budget && ((p.width > 1 && x + run < p.width) || (p.width == 1 && y + run < p.height)) &&
-					((p.height == 1 && m_config.tileset_row_major) || (p.width == 1 && m_config.tileset_plane_major)) &&
+					((p.height == 1 && m_config.tileset_layout == TileSetLayout::RowMajor) ||
+					 (p.width == 1 && m_config.tileset_layout == TileSetLayout::ColumnMajor)) &&
 					m_config.map.tile_at(p.world_tile_x + x + (p.width == 1 ? 0 : run), p.world_tile_y + y + (p.width == 1 ? run : 0)) == static_cast<eng::u16>(tile + run)) ++run;
 				const bool horizontal = run > 1 && p.height == 1;
 				const bool vertical = run > 1 && p.width == 1;
@@ -276,12 +347,25 @@ private:
 			if (p.cursor == total) p.active = false;
 		}
 	}
+	void commit_pending_state() {
+		if (m_pending_state && !has_pending()) {
+			m_state.world_x = m_pending_world_x; m_state.world_y = m_pending_world_y;
+			m_state.window_x = m_pending_window_x; m_state.window_y = m_pending_window_y;
+			m_state.surface_origin_x = m_pending_origin_x; m_state.surface_origin_y = m_pending_origin_y;
+			m_pending_state = false;
+		}
+	}
 	bool has_pending() const { for (eng::u8 i = 0; i < m_state.pending_count; ++i) if (m_state.pending[i].active) return true; return false; }
 	TileFieldConfig m_config {};
 	TileFieldState m_state {};
 	eng::MemoryBlock m_framebuffer {};
 	eng::u16 m_fb_w = 0, m_fb_h = 0, m_row_bytes = 0;
 	eng::u32 m_plane_bytes = 0;
+	bool m_pending_state = false;
+	eng::s32 m_pending_world_x = 0, m_pending_world_y = 0;
+	eng::s32 m_pending_origin_x = 0, m_pending_origin_y = 0;
+	eng::u16 m_pending_window_x = 0, m_pending_window_y = 0;
+	eng::s32 m_queued_dx = 0, m_queued_dy = 0;
 };
 
 } // namespace eng::field
