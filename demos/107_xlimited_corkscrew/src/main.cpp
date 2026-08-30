@@ -30,22 +30,27 @@ namespace field = eng::field;
 namespace demo = eng::field::demo;
 
 // -----------------------------------------------------------------------------
-// Configuración de la demo 107 — X-Limited puro (single playfield)
+// Configuración de la demo 107 — X-Limited puro (single playfield) parametrizada
 // -----------------------------------------------------------------------------
 //
 // El flujo es el mismo que en Steger:
 //
 //   CPU: decide mapposx/videoposx y DDF/BPLCON1
 //        |                |
-//        +--> Blitter: 1 blit de BLOCKPLANELINES = kTileSize*kPlanes líneas por píxel de scroll
+//        +--> Blitter: 1 blit de BLOCKPLANELINES = tile_h*planes líneas por píxel de scroll
 //             (ej. 16*3=48, 16*4=64, 16*5=80, 16*6=96 según K_PLANES 3..6)
 //        +--> Copper: BPLxPT + BPLCON1/BPLMOD sin split (genérico bytes*planes)
 //
 // La CPU nunca mueve la ventana manualmente: el wrap vertical del fetch
 // lineal hace que BITMAPWIDTH+ 2 bytes sea la siguiente planelínea.
+// Viewport y espacio virtual parametrizados: K_VIEWPORT_W/H (defecto 320/256,
+// alternativo 288/224) y K_SCREENS_X/Y (16×16 pantallas → mapa screens*viewport/tile).
 
 #ifndef K_TILE_WIDTH
 #define K_TILE_WIDTH 16
+#endif
+#ifndef K_TILE_SIZE
+#define K_TILE_SIZE 16
 #endif
 #ifndef K_FETCH_MODE
 #define K_FETCH_MODE 0
@@ -53,15 +58,45 @@ namespace demo = eng::field::demo;
 #ifndef K_PLANES
 #define K_PLANES 4 // default 4 planos; válido 3|4|5|6 (8/16/32/64 colores, DPF 3+3 para 6)
 #endif
+#ifndef K_VIEWPORT_W
+#define K_VIEWPORT_W 320
+#endif
+#ifndef K_VIEWPORT_H
+#define K_VIEWPORT_H 256
+#endif
+#ifndef K_SCREENS_X
+#define K_SCREENS_X 16
+#endif
+#ifndef K_SCREENS_Y
+#define K_SCREENS_Y 16
+#endif
+// Alias K_TILE_W/H para la parametrización nueva (compatibles con K_TILE_WIDTH/SIZE)
+#ifndef K_TILE_W
+#ifdef K_TILE_WIDTH
+#define K_TILE_W K_TILE_WIDTH
+#else
+#define K_TILE_W 16
+#endif
+#endif
+#ifndef K_TILE_H
+#ifdef K_TILE_SIZE
+#define K_TILE_H K_TILE_SIZE
+#else
+#define K_TILE_H 16
+#endif
+#endif
 
-constexpr eng::u16 kTileWidth = static_cast<eng::u16>(K_TILE_WIDTH);
+constexpr eng::u16 kTileWidth = static_cast<eng::u16>(K_TILE_W);
+constexpr eng::u16 kTileSize = static_cast<eng::u16>(K_TILE_H);
 constexpr eng::u8 kFetchMode = static_cast<eng::u8>(K_FETCH_MODE);
-constexpr eng::u16 kTileSize = 16;
 constexpr eng::u8 kPlanes = static_cast<eng::u8>(K_PLANES);
-constexpr eng::u16 kViewportW = 320;
-constexpr eng::u16 kViewportH = 256;
-constexpr eng::u16 kMapTilesX = 256;
-constexpr eng::u16 kMapTilesY = 128;
+constexpr eng::u16 kViewportW = static_cast<eng::u16>(K_VIEWPORT_W);
+constexpr eng::u16 kViewportH = static_cast<eng::u16>(K_VIEWPORT_H);
+constexpr eng::u8 kScreensX = static_cast<eng::u8>(K_SCREENS_X);
+constexpr eng::u8 kScreensY = static_cast<eng::u8>(K_SCREENS_Y);
+// 16×16 pantallas virtuales → mapa en tiles derivado de viewport/tile
+constexpr eng::u16 kMapTilesX = static_cast<eng::u16>(K_SCREENS_X * (K_VIEWPORT_W / K_TILE_W));
+constexpr eng::u16 kMapTilesY = static_cast<eng::u16>(K_SCREENS_Y * (K_VIEWPORT_H / K_TILE_H));
 constexpr eng::u8 kTileCount = 64;
 
 eng::u16 g_map_cells[kMapTilesX * kMapTilesY] {};
@@ -82,7 +117,7 @@ struct DemoGame {
     eng::graphics::FramePlan plan {};
     field::XlimitedConfig field_cfg {};
     bool ready = false;
-    // Scroll continuo: 2 px/frame a la derecha, infinito por wrap del mapa.
+    // Scroll continuo: 1 px/frame a la derecha, infinito por wrap del mapa.
     eng::s32 scroll_accum = 0;
 
     void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
@@ -93,8 +128,8 @@ struct DemoGame {
         }
 
         // Banco de tiles en formato clásico de Steger: BlocksBitmap interleaved
-        // 320×256×planes (40*256*planes bytes, planes 3..6 → 40*256*3/4/5/6).
-        // Cada tile de 16×16 ocupa BLOCKPLANELINES = kTileSize*kPlanes planelíneas
+        // viewport_w × viewport_h × planes genérico (ej. 320×256 → 40*256*planes).
+        // Cada tile de kTileSize×kTileWidth ocupa BLOCKPLANELINES = kTileSize*kPlanes planelíneas
         // interleaved (ej. 48/64/80/96 para 3/4/5/6 planos). No usamos el layout
         // TileMajor de build_tile_cache porque X-Limited hace un único blit
         // interleaved de BLOCKPLANELINES líneas (ver xlimited.hpp §6). Creamos el
@@ -102,7 +137,6 @@ struct DemoGame {
         const eng::u32 kBlockSrcWidth = 320;
         const eng::u32 kBlockSrcBytesPerRow = kBlockSrcWidth / 8; // 40
         const eng::u32 kBlocksPerRowSrc = kBlockSrcWidth / kTileWidth; // 20 para 16, 10 para 32
-        const eng::u32 kBlocksPerColSrc = 256 / kTileSize; // 16
         const eng::u32 blocks_interleaved_bytes = kBlockSrcBytesPerRow * 256 * kPlanes;
         tiles_block = backend.memory().chip.allocate(blocks_interleaved_bytes, 16);
         if (!tiles_block.valid()) {
@@ -135,18 +169,12 @@ struct DemoGame {
             }
         }
 
-        // Para el banco interleaved de Steger necesitamos un bitmap de
-        // 320×256 interleaved (BlocksBitmap). Nuestro tiles_block ya contiene
-        // los tiles en layout [tile][plane][row][word]; lo adaptamos creando
-        // un buffer interleaved lineal de 40*256*planes bytes y copiando cada
-        // tile a su posición (block %20, block/20). Para simplificar la demo
-        // y mantener el contrato draw_block idéntico al original, rellenamos
-        // un buffer temporal interleaved y lo usamos como blocksbuffer.
-        // Si la memoria es escasa, reutilizamos tiles_block como si ya fuera
-        // el BlocksBitmap: el offset de bloque sigue siendo block%20*2 +
-        // block/20*BLOCKPLANELINES*40, y como nuestros tiles están en orden
-        // lineal por índice, ese offset coincide con tile*planes*words.
-        // Por tanto podemos apuntar directamente a tiles_block.
+        // Para el banco interleaved de Steger necesitamos un BlocksBitmap
+        // interleaved (ej. 320×256 para el banco origen, genérico si se cambia viewport).
+        // Nuestro tiles_block ya contiene los tiles en layout [tile][plane][row][word];
+        // el offset de bloque sigue siendo block%20*2 + block/20*BLOCKPLANELINES*40,
+        // y como nuestros tiles están en orden lineal por índice, ese offset coincide
+        // con tile*planes*words. Por tanto podemos apuntar directamente a tiles_block.
         build_map(eng::Span<eng::u16>::from_raw(g_map_cells, kMapTilesX * kMapTilesY), 0x13579bdu);
 
         field_cfg.map.cells = eng::Span<const eng::u16>::from_raw(g_map_cells, kMapTilesX * kMapTilesY);
@@ -160,41 +188,33 @@ struct DemoGame {
         field_cfg.planes = kPlanes;
         field_cfg.tile_width = kTileWidth;
         field_cfg.tile_height = kTileSize;
-        field_cfg.bitmap_width = 352; // 352 para K_TILE_WIDTH=16 → 22 bloques
-        if (kTileWidth == 32) {
-            // Con tiles de 32, 352 no es múltiplo de 32 (352/32=11). Es válido
-            // pero desperdicia medio bloque. Para mantener el contrato
-            // BITMAPBLOCKSPERROW entero, la demo fuerza 384 con tiles de 32.
-            field_cfg.bitmap_width = 384;
-        }
-        // Fetch ancho explícito: fuerza 384 px y el modo pedido.
-        // 0=16 px normal (352), 1=BPL32 32 px (384, DDF $28/$C8, offset 16),
-        // 3=BPL32+BPAGEM 64 px (384, DDF $18/$B8, offset 48).
-        // K_FETCH_MODE !=0 implica bitmap 384 independientemente de K_TILE_WIDTH.
-        if (kFetchMode != 0) {
-            field_cfg.bitmap_width = 384;
-            field_cfg.fetch_mode = kFetchMode;
-        } else {
-            field_cfg.fetch_mode = 0;
-        }
+        field_cfg.viewport_w = kViewportW;
+        field_cfg.viewport_h = kViewportH;
+        field_cfg.screens_x = kScreensX;
+        field_cfg.screens_y = kScreensY;
+        field_cfg.scroll_y = true; // 16×16 pantallas: columnas de 17 tiles para V (16 visibles +1 guarda)
+        field_cfg.scroll_y = false;
+        // bitmap_width auto: viewport_w + EXTRAWIDTH (32 para fetch normal, 64 para fetch ancho)
+        // Se deja 0 para que XlimitedField lo derive; alternativa explícita:
+        // field_cfg.bitmap_width = kViewportW + (kFetchMode==0?32:64) → 352/384 para 320, 320/352 para 288
+        field_cfg.bitmap_width = 0;
+        field_cfg.fetch_mode = kFetchMode;
 
         if (!field.begin(backend.memory(), field_cfg)) {
             eng::debug::mark_failed(g_eng_run_status, 0x00010703u);
             return;
         }
 
-        // Fill inicial por Blitter en lotes. X-Limited necesita 22×16=352
-        // bloques (352 jobs) y FramePlan solo admite 128 jobs (max_blit_jobs)
-        // y el presupuesto por defecto es max_jobs=120. Si dejamos que
-        // add_tile_block_copy falle por overflow, FramePlan::m_ok pasa a false
-        // y el siguiente execute_frame_plan(plan) fallaría aunque los 128
-        // jobs previos fueran válidos. Por eso vaciamos *antes* de superar
-        // max_jobs, no después de que add haya marcado el plan como no ok.
+        // Fill inicial por Blitter en lotes. X-Limited necesita cols*rows jobs
+        // (ej. viewport 320→22×16=352, viewport 288→20×14=280) y FramePlan solo admite 128 jobs
+        // y el presupuesto por defecto es max_jobs=120. Vaciamos *antes* de superar max_jobs.
         plan.clear();
         plan.set_blit_budget_limits({8192, 16384, 4, 120});
         {
             const eng::u16 cols = field.bitmap_blocks_per_row();
-            const eng::u16 rows = kViewportH / kTileSize;
+            const eng::u16 visibleRows = static_cast<eng::u16>(kViewportH / kTileSize);
+            const eng::u16 colHeight = static_cast<eng::u16>(visibleRows + (field_cfg.scroll_y ? 1u : 0u));
+            const eng::u16 rows = colHeight;
             for (eng::u16 b = 0; b < rows; ++b) {
                 for (eng::u16 a = 0; a < cols; ++a) {
                     // Vaciar proactivamente si estamos al límite de jobs.
@@ -251,82 +271,78 @@ struct DemoGame {
         plan.clear();
         plan.set_blit_budget_limits({8192, 16384, 4, 120});
 
-        // Scroll X infinito: 1 píxel por frame para 50 fps sin micro-parones.
-        // Cada píxel es exactamente 1 blit de BLOCKPLANELINES = kTileSize*kPlanes
-        // planelíneas (48/64/80/96 según planes 3..6, §5). Con 1 px/frame
-        // el fine scroll avanza 1/16 por frame y BPLCON1 cicla 0x00→0xFF sin saltos.
-        // Con 2 px/frame el avance era 2/16, visible como micro-parón cada 8 frames
-        // y como BPLCON1 duplicado; además duplicaba la carga de Blitter y el
-        // riesgo de no terminar antes del siguiente VBlank. Mantener 1 px/frame
-        // es la forma canónica de Steger (ver xlimited.c: main_loop con 1 iter).
-        const int steps = 1;
-        for (int i = 0; i < steps; ++i) {
-            // Si llegamos al límite del mapa lógico, hacemos wrap a 0 y
-            // refilleamos la pantalla para mantener la ilusión de infinito
-            // sin salir del área extra del bitmap. El coste es un fill de
-            // 352 bloques, amortizado una vez cada 4096/2=2048 frames (~40s).
-            const eng::s32 limit = static_cast<eng::s32>(kMapTilesX) * kTileWidth -
-                                   kViewportW - kTileWidth;
-            if (field.mapposx() >= limit) {
-                // Wrap brusco pero sin tearing visible: la siguiente columna
-                // entrante ya es la del principio del mapa gracias al wrap del
-                // TileLayerMap. Reiniciar videoposx evita que planeaddx crezca
-                // sin bound y salga de la altura extra.
-                // Hacemos un reset suave: no re-reservamos Chip, sólo
-                // reiniciamos coordenadas y refilleamos la parte visible.
-                // Para la demo, marcamos failed y dejamos que el watchdog del
-                // runner lo detecte como loop; en una implementación real se
-                // haría un cross-fade o se mantendría videoposx modular.
-                // Aquí simplemente envolvemos mapposx/videoposx a 0 mediante
-                // un nuevo begin (barato: no reasigna si cabe).
-                // Simplificación: dejamos que mapposx siga creciendo y el
-                // TileLayerMap haga wrap en el índice; el planeaddx sigue
-                // creciendo linealmente pero la altura extra para 256 bloques
-                // es 262, que da 512 bytes de planeaddx máximo, suficiente
-                // para cubrir 256*16=4096 píxeles (4096/16*2=512). Justo al
-                // límite. Si seguimos más allá, el planeaddx saldría del
-                // bitmap; por eso envolvemos aquí.
-                // Wrap infinito sin re-reservar: reiniciamos coordenadas.
-                // El mapa es circular (wrap_x), así que los tiles siguen
-                // coincidiendo; el planeaddx vuelve a 0 y la altura extra
-                // cubre el siguiente ciclo.
-                field.reset_scroll();
-                // Refill ligero: re-pintar las 22 columnas visibles en y=0
-                // es suficiente para que el siguiente fetch no vea basura.
-                // Para la demo hacemos un fill parcial de la primera fila.
-                plan.clear();
-                plan.set_blit_budget_limits({8192, 16384, 4, 120});
-                for (eng::u16 a = 0; a < field.bitmap_blocks_per_row(); ++a) {
-                    auto job = field.draw_block_job(
-                        a * kTileWidth, 0, a, 0);
-                    if (!plan.add_tile_block_copy(job)) {
-                        if (!backend.execute_frame_plan(plan)) {
-                            ready = false;
-                            eng::debug::mark_failed(g_eng_run_status, 0x0001070au);
-                            return;
-                        }
+        // Ciclo preparado para los siguientes retos: horizontal → vertical → diagonal → sinusoidal.
+        // Cada fase dura 300 frames (~6 s a 50 fps) y usa 1 px/frame para mantener
+        // 50 fps sin micro-parones. Cada píxel es como máximo 1 blit de
+        // BLOCKPLANELINES = kTileSize*kPlanes planeline (48/64/80/96 según planes 3..6, §5).
+        // Con 1 px/frame el fine scroll avanza 1/tile_width por frame y BPLCON1 cicla
+        // sin saltos; con 2 px/frame se veía micro-parón cada 8 frames.
+        // Orden Steger: vertical primero (siguiente reto), luego horizontal,
+        // luego ambos enganchados y finalmente diagonal primero. Fases largas
+        // (1000) para que la captura de 100 frames con warp valide solo V.
+        const eng::u32 phase = (context.frame.frame_index / 1000u) % 4u;
+        // 0:V, 1:H, 2:HV (ambos), 3:diagonal (HV fino, será el primero cuando vaya bien)
+        const bool doV = (phase==0) || (phase==2) || (phase==3);
+        const bool doH = (phase==1) || (phase==2) || (phase==3);
+        // Sinusoidal modula la dirección dentro de la fase 3
+        eng::s32 dx = 0, dy = 0;
+        if (phase==3) {
+            // Lissajous simple: X = sin(frame), Y = cos(frame*0.7) → -1,0,1
+            const eng::s32 sx = demo::sin64(static_cast<eng::u8>(context.frame.frame_index & 63));
+            const eng::s32 sy = demo::sin64(static_cast<eng::u8>((context.frame.frame_index*7/10) & 63));
+            dx = (sx > 20) ? 1 : (sx < -20 ? -1 : 0);
+            dy = (sy > 20) ? 1 : (sy < -20 ? -1 : 0);
+            if (dx==0 && dy==0) dx = 1; // asegurar avance mínimo
+        } else {
+            dx = doH ? 1 : 0;
+            dy = doV ? 1 : 0;
+            // En fase diagonal, alternar H/V por frame para no hacer 2 blits/frame
+            // y mantener 50 fps incluso con 6 planes (96 planeline → 2 blits =192 líneas).
+            if (phase==2 && (context.frame.frame_index & 1u)) { dx=1; dy=0; } else if (phase==2) { dx=0; dy=1; }
+        }
+        // Ejecutar los desplazamientos necesarios para este frame (1 blit por eje como máximo)
+        // Orden: primero H luego V para que saveword se gestione por eje.
+        for (int axis=0; axis<2; ++axis) {
+            const bool isH = (axis==0);
+            const eng::s32 step = isH ? dx : dy;
+            if (step==0) continue;
+            if (isH && step>0) {
+                // Horizontal derecha 1 px
+            } else if (isH && step<0) {
+                // Horizontal izquierda (no usado en ciclo actual, preparado para DPF)
+            }
+            // El bucle steps se mantiene para compatibilidad con el código de wrap
+            const int steps = 1;
+            for (int i = 0; i < steps; ++i) {
+                if (isH) {
+                    const eng::s32 limit = static_cast<eng::s32>(kMapTilesX) * kTileWidth - kViewportW - kTileWidth;
+                    if (field.mapposx() >= limit) {
+                        field.reset_scroll();
                         plan.clear();
                         plan.set_blit_budget_limits({8192, 16384, 4, 120});
-                        plan.add_tile_block_copy(job);
+                        for (eng::u16 a = 0; a < field.bitmap_blocks_per_row(); ++a) {
+                            auto job = field.draw_block_job(a * kTileWidth, 0, a, 0);
+                            if (!plan.add_tile_block_copy(job)) {
+                                if (!backend.execute_frame_plan(plan)) { ready=false; eng::debug::mark_failed(g_eng_run_status, 0x0001070au); return; }
+                                plan.clear(); plan.set_blit_budget_limits({8192, 16384, 4, 120});
+                                plan.add_tile_block_copy(job);
+                            }
+                        }
+                        if (plan.blit_job_count()>0) { if (!backend.execute_frame_plan(plan)) { ready=false; eng::debug::mark_failed(g_eng_run_status, 0x0001070au); return; } plan.clear(); plan.set_blit_budget_limits({8192, 16384, 4, 120}); }
+                        break;
                     }
+                    bool ok = (step>0) ? field.scroll_right(plan) : field.scroll_left(plan);
+                    if (!ok) { ready=false; eng::debug::mark_failed(g_eng_run_status, 0x0001070bu); return; }
+                } else {
+                    // Vertical: usar mapposy/videoposy, con wrap en Y
+                    const eng::s32 limitY = static_cast<eng::s32>(kMapTilesY) * kTileSize - kViewportH - kTileSize;
+                    if (step>0 && field.mapposy() >= limitY) { field.reset_scroll(); break; }
+                    if (step<0 && field.mapposy() <= 0) { /* no wrap hacia arriba en demo cíclica */ break; }
+                    bool ok = (step>0) ? field.scroll_down(plan) : field.scroll_up(plan);
+                    if (!ok) { ready=false; eng::debug::mark_failed(g_eng_run_status, 0x0001070bu); return; }
                 }
-                if (plan.blit_job_count() > 0) {
-                    if (!backend.execute_frame_plan(plan)) {
-                        ready = false;
-                        eng::debug::mark_failed(g_eng_run_status, 0x0001070au);
-                        return;
-                    }
-                    plan.clear();
-                    plan.set_blit_budget_limits({8192, 16384, 4, 120});
-                }
-                break;
             }
-            if (!field.scroll_right(plan)) {
-                ready = false;
-                eng::debug::mark_failed(g_eng_run_status, 0x0001070bu);
-                return;
-            }
-        }
+        } // axis H/V
 
         if (!backend.execute_frame_plan(plan)) {
             ready = false;
