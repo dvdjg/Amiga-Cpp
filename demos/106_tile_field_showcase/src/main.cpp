@@ -91,7 +91,9 @@ struct DemoGame {
 
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		if (!backend.configure_memory({360u * 1024u, 16u * 1024u, 8u * 1024u})) {
+		// El anillo 3x3 necesita 276 KiB por campo de 3 planos; dual y single
+		// deben poder reservarse sin recortar la guardia física.
+		if (!backend.configure_memory({1024u * 1024u, 16u * 1024u, 8u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00010601u);
 			return;
 		}
@@ -273,8 +275,8 @@ private:
 		config.tile_size = kTileSize;
 		config.viewport_w = kViewportW;
 		config.viewport_h = kViewportH;
-		config.max_delta_x = 8;
-		config.max_delta_y = 8;
+		config.max_delta_x = 5;
+		config.max_delta_y = 5;
 		config.max_tiles_per_frame = 56;
 		config.scroll_x = true;
 		config.scroll_y = true;

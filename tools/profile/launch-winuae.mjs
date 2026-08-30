@@ -168,6 +168,12 @@ export async function waitReady(port, runStatusSymbol, mapSections, timeoutMs = 
 
 /** Lanza WinUAE y espera READY. Devuelve { conn, runtimeAddress }. */
 export async function launchDemoAndWaitReady({ demo, port = 2346, readyTimeoutMs = 40000, connectTimeoutMs = 60000 }) {
+  // El canal lateral debe sobrevivir a la desconexión inicial de GDB y a la
+  // conexión posterior del capturador de perfiles.
+  process.env.WINUAE_GDB_PERSIST_LISTENER = '1';
+  // Usar la configuración preparada para la demo; el lanzador extension-style
+  // puede sustituirla por default.uae y arrancar sin el filesystem de dh1.
+  process.env.WINUAE_USE_LEGACY_LAUNCH = '1';
   const { WinUAEConnection } = await import(pathToFileURL(path.join(MCP_WINUAE, 'dist', 'winuae-connection.js')).href);
   const { configPath, runStatusSymbol, mapSections } = prepareDemo(demo);
   const { winuaePath } = detectWinUAE();
@@ -178,6 +184,10 @@ export async function launchDemoAndWaitReady({ demo, port = 2346, readyTimeoutMs
   });
   await conn.connect({ forceBreak: false, initializeStopped: false });
   try {
+    // WinUAE puede aceptar GDB antes de haber terminado de cargar Kickstart y
+    // el startup-sequence. Continuar inmediatamente deja algunas sesiones
+    // detenidas sin llegar a ejecutar la demo ni publicar READY.
+    await SLEEP(parseInt(process.env.WINUAE_GDB_INITIAL_DELAY_MS || '9000', 10));
     await conn.getProtocol().continue();
   } catch { /* puede estar ya en marcha */ }
   const { runtimeAddress } = await waitReady(port, runStatusSymbol, mapSections, readyTimeoutMs);

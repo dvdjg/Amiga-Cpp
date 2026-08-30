@@ -54,14 +54,17 @@ sleep $((SETTLE_MS / 1000))
 
 # 4. Captura el perfil.
 echo "[probe-screen] capturando $FRAMES frame(s)"
-node "$ROOT/tools/profile/capture-profile.mjs" "$BIN" "$FRAMES" --lock-owner probe-screen
+node "$ROOT/tools/profile/capture-profile.mjs" "$BIN" "$FRAMES" --lock-owner probe-screen || {
+  echo "[probe-screen] fallo la captura del perfil" >&2
+  exit 1
+}
 
 # 5. Extrae frames.
 echo "[probe-screen] extrayendo frames"
-node "$ROOT/tools/profile/profile-extract.mjs" "$BIN" "$OUT"
+node "$ROOT/tools/profile/profile-extract.mjs" "$BIN" "$OUT" || exit 1
 
 # 6. Analiza con Ollama (meta + montaje por defecto).
 echo "[probe-screen] analizando con Ollama"
-node "$ROOT/tools/profile/ollama-analyze.mjs" "$OUT" "$@"
+node "$ROOT/tools/profile/ollama-analyze.mjs" "$OUT" "$@" || exit 1
 
 echo "[probe-screen] OK: $OUT (bin + frames + profile-summary.json + ollama-report.md)"

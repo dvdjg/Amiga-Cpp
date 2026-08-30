@@ -273,33 +273,23 @@ public:
 	}
 
 	bool add_masked_bob(const BlitJob& job) {
-		BlitJob copy = job;
-		copy.kind = BlitJobKind::MaskedBobCookieCut;
-		return add_blit_job(copy);
+		return add_blit_job(job, BlitJobKind::MaskedBobCookieCut);
 	}
 
 	bool add_masked_blob_no_save(const BlitJob& job) {
-		BlitJob copy = job;
-		copy.kind = BlitJobKind::MaskedBlobNoSave;
-		return add_blit_job(copy);
+		return add_blit_job(job, BlitJobKind::MaskedBlobNoSave);
 	}
 
 	bool add_copy_rect(const BlitJob& job) {
-		BlitJob copy = job;
-		copy.kind = BlitJobKind::CopyRect;
-		return add_blit_job(copy);
+		return add_blit_job(job, BlitJobKind::CopyRect);
 	}
 
 	bool add_restore_rect(const BlitJob& job) {
-		BlitJob copy = job;
-		copy.kind = BlitJobKind::RestoreRect;
-		return add_blit_job(copy);
+		return add_blit_job(job, BlitJobKind::RestoreRect);
 	}
 
 	bool add_tile_block_copy(const BlitJob& job) {
-		BlitJob copy = job;
-		copy.kind = BlitJobKind::TileBlockCopy;
-		return add_blit_job(copy);
+		return add_blit_job(job, BlitJobKind::TileBlockCopy);
 	}
 
 private:
@@ -335,7 +325,9 @@ private:
 		}
 	}
 
-	bool add_blit_job(BlitJob job) {
+	bool add_blit_job(const BlitJob& input, BlitJobKind kind) {
+		BlitJob job = input;
+		job.kind = kind;
 		const bool masked =
 			job.kind == BlitJobKind::MaskedBobCookieCut ||
 			job.kind == BlitJobKind::MaskedBlobNoSave;

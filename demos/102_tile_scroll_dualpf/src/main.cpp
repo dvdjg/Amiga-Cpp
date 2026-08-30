@@ -456,8 +456,8 @@ private:
 		config.viewport_h = kViewportH;
 		// El movimiento real del fg es ~1.5px/frame y el de la ruta del fondo
 		// tambien pequeno; margen amplio sin recortar trayectorias.
-		config.max_delta_x = 8;
-		config.max_delta_y = 8;
+		config.max_delta_x = 5;
+		config.max_delta_y = 5;
 		config.max_tiles_per_frame = 32;
 		config.scroll_x = true;
 		config.scroll_y = true;
