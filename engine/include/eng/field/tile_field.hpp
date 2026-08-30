@@ -3,7 +3,9 @@
 /// Campo de tiles con scroll 8-way sobre una superficie circular/recentrable.
 ///
 /// La superficie no es un conjunto de tres paginas. En cada eje que scrollea
-/// mide viewport + margen_en_bloques * bloque. La ventana se mueve dentro de ella y, cuando
+/// mide viewport + margen_en_bloques * bloque. Con scroll vertical reserva ademas
+/// una linea fisica de guardia fuera de la reticula de tiles.
+/// La ventana se mueve dentro de ella y, cuando
 /// alcanza una frontera, se cambia a la copia preparada del otro lado; solo se
 /// modifica metadata y el puntero del display, nunca se copia la pantalla.
 
@@ -86,6 +88,11 @@ struct FieldHardwareView {
 	eng::u8 fine_x = 0, plane_count = 0, first_hardware_plane = 0;
 	eng::u16 fetch_bytes = 0;
 	eng::u16 bpl1mod = 0;
+	eng::u16 row_bytes = 0, surface_w = 0, surface_h = 0, visible_h = 0, guard_line = 0xffffu;
+	eng::u32 plane_bytes = 0;
+	bool split_active = false;
+	eng::u16 split_line = 0;
+	eng::u32 split_display_byte_offset = 0;
 };
 
 struct BitmapFieldConfig {
@@ -105,11 +112,22 @@ public:
 		const eng::u16 margin_x = config.scroll_x ? static_cast<eng::u16>(config.safety_margin_blocks * config.tile_width) : 0;
 		const eng::u16 margin_y = config.scroll_y ? static_cast<eng::u16>(config.safety_margin_blocks * config.tile_size) : 0;
 		m_fb_w = config.scroll_x ? static_cast<eng::u16>(config.viewport_w + margin_x) : config.viewport_w;
-		m_fb_h = config.scroll_y ? static_cast<eng::u16>(config.viewport_h + margin_y) : config.viewport_h;
+		const eng::u16 tile_rows = config.scroll_y
+			? static_cast<eng::u16>((config.viewport_h + margin_y) / config.tile_size) : 0;
+		m_fb_h = config.scroll_y
+			? static_cast<eng::u16>(tile_rows * config.tile_size + 1u) : config.viewport_h;
 		m_row_bytes = static_cast<eng::u16>(m_fb_w / 8u);
 		m_plane_bytes = static_cast<eng::u32>(m_row_bytes) * m_fb_h;
 		m_framebuffer = memory.chip.allocate(m_plane_bytes * config.tileset_planes, 16);
 		if (!m_framebuffer.valid()) return false;
+		if (config.scroll_y) {
+			for (eng::u8 plane = 0; plane < config.tileset_planes; ++plane) {
+				auto* guard = static_cast<eng::u8*>(m_framebuffer.data) +
+					static_cast<eng::u32>(plane) * m_plane_bytes +
+					static_cast<eng::u32>(m_fb_h - 1u) * m_row_bytes;
+				for (eng::u16 byte = 0; byte < m_row_bytes; ++byte) guard[byte] = 0;
+			}
+		}
 		m_state = {};
 		m_pending_state = false;
 		m_state.world_x = initial.x; m_state.world_y = initial.y;
@@ -197,6 +215,15 @@ public:
 		v.fine_x = static_cast<eng::u8>((16 - (px & 15)) & 15);
 		v.fetch_bytes = static_cast<eng::u16>(m_config.scroll_x ? m_config.viewport_w / 8u + 2u : m_config.viewport_w / 8u);
 		v.bpl1mod = static_cast<eng::u16>(m_row_bytes - v.fetch_bytes);
+		v.row_bytes = m_row_bytes; v.surface_w = m_fb_w; v.surface_h = m_fb_h; v.visible_h = m_config.viewport_h;
+		v.plane_bytes = m_plane_bytes;
+		if (m_config.scroll_y) {
+			v.guard_line = static_cast<eng::u16>(m_fb_h - 1u);
+			v.split_active = true;
+			v.split_line = static_cast<eng::u16>(m_config.viewport_h / 2u);
+			v.split_display_byte_offset = v.display_byte_offset +
+				static_cast<eng::u32>(v.split_line) * m_row_bytes;
+		}
 		v.plane_count = m_config.tileset_planes; v.first_hardware_plane = first_hardware_plane;
 		return v;
 	}
@@ -210,14 +237,17 @@ private:
 		const eng::u16 margin_x = m_config.scroll_x ? static_cast<eng::u16>(m_config.safety_margin_blocks * m_config.tile_width) : 0;
 		const eng::u16 margin_y = m_config.scroll_y ? static_cast<eng::u16>(m_config.safety_margin_blocks * m_config.tile_size) : 0;
 		const eng::u16 fb_w = m_config.scroll_x ? static_cast<eng::u16>(m_config.viewport_w + margin_x) : m_config.viewport_w;
-		const eng::u16 fb_h = m_config.scroll_y ? static_cast<eng::u16>(m_config.viewport_h + margin_y) : m_config.viewport_h;
+		const eng::u16 tile_rows = m_config.scroll_y
+			? static_cast<eng::u16>((m_config.viewport_h + margin_y) / m_config.tile_size) : 0;
+		const eng::u16 fb_h = m_config.scroll_y
+			? static_cast<eng::u16>(tile_rows * m_config.tile_size + 1u) : m_config.viewport_h;
 		return m_config.tileset && m_config.tileset_count && m_config.tileset_planes &&
 			m_config.safety_margin_blocks >= 2u && m_config.safety_margin_blocks <= 3u &&
 			m_config.max_delta_x >= 0 && m_config.max_delta_x <= 5 && m_config.max_delta_y >= 0 && m_config.max_delta_y <= 5 &&
 			m_config.tile_width && m_config.tile_size && !(m_config.tile_width & 15u) &&
 			!(m_config.viewport_w % m_config.tile_width) && !(m_config.viewport_h % m_config.tile_size) &&
 			(!m_config.scroll_x || (m_config.viewport_w / 8u + 2u <= fb_w / 8u)) &&
-			(!m_config.scroll_y || fb_h >= m_config.viewport_h);
+			(!m_config.scroll_y || (fb_h > m_config.viewport_h && fb_h >= tile_rows * m_config.tile_size + 1u));
 	}
 	eng::u16 left_margin(bool x) const {
 		const eng::u16 block = x ? m_config.tile_width : m_config.tile_size;

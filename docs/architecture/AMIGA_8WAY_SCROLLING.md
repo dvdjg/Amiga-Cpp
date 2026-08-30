@@ -6,8 +6,12 @@ contiene el viewport y dos bloques de margen:
 
 ```text
 X: display_width  + 2*BLOCKWIDTH
-Y: display_height + 2*BLOCKHEIGHT
+Y: floor((display_height + 2*BLOCKHEIGHT) / TILEHEIGHT) * TILEHEIGHT + 1
 ```
+
+La última línea física es una línea de guardia, no una fila adicional del mapa.
+Se inicializa a cero y queda fuera de la retícula de tiles para que un fetch
+vertical especulativo no lea fuera de `plane_bytes`.
 
 No hay tres páginas lineales. La cámara puede moverse hacia delante, atrás o en
 diagonal. Solo cuando una frontera de `BLOCKWIDTH/BLOCKHEIGHT` entra en la
@@ -51,6 +55,11 @@ describe un `TileBlockCopy` lógico con `bitplane_count`; no simula una operaci�
 multi-plano que el OCS no ofrece.
 
 Con solo X, la superficie es `(VW+2*BW) x VH`; con solo Y es
-`VW x (VH+2*BH)`. Esto evita reservar margen inútil. Los tiles deben tener
+`VW x (floor((VH+2*BH)/BH)*BH+1)`. Esto evita reservar margen inútil. Los tiles deben tener
 anchura múltiplo de 16; un mundo no periódico termina en `edge_tile` y un mapa
 con `wrap_x/wrap_y` permite scroll infinito lógico.
+
+Con `scroll_y`, `FieldHardwareView` expone el punto de split y el compositor
+emite un `WAIT` en la mitad del viewport seguido de un segundo juego de `BPLxPT`.
+El tramo inferior comienza en su fila física exacta y ambos offsets se validan
+contra `plane_bytes`. `TileFieldController` no escribe registros del chipset.

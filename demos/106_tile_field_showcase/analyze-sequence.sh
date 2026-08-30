@@ -35,9 +35,12 @@ node "$FILL_TEST" \
 "$SEQ_ANALYZER" "$SEQ_DIR" --expect-animated \
 	|| { echo "La secuencia de 106_tile_field_showcase no demuestra animacion." >&2; exit 1; }
 
-# 3) Sin negro interno en la ventana visible (el tramado 50% del fg y los tiles
-#    transparentes producen algo de negro puro legitimo; umbral generoso).
-"$INNER_BLACK" "$SEQ_DIR" 0.05 \
+# 3) Sin negro interno accidental en la ventana visible. El modo single puede
+#    usar COLOR00 como parte legítima del patrón de tiles, por lo que su límite
+#    debe declararse al ejecutar el análisis (`SHOWCASE_DUAL=0`).
+BLACK_LIMIT=0.05
+[ "${SHOWCASE_DUAL:-1}" = "0" ] && BLACK_LIMIT=0.30
+"$INNER_BLACK" "$SEQ_DIR" "$BLACK_LIMIT" \
 	|| { echo "La secuencia de 106_tile_field_showcase contiene artefactos negros." >&2; exit 1; }
 
 # 4) Telemetria: el fg recorre mas de una pantalla (bits 8-15 X, 0-7 Y en tiles).
@@ -50,13 +53,15 @@ const status = report.finalSideChannel && report.finalSideChannel.ok
 const detail = parseInt(status.detail || 0, 10) - 0x10600000;
 const fgXTiles = (detail >> 8) & 0xff;
 const fgYTiles = detail & 0xff;
+const fineX = (detail >> 16) & 0xf;
+const fineY = (detail >> 20) & 0xf;
 const frame = parseInt(status.frame || 0, 10);
 if (frame < 30) {
   console.error(`Frame demasiado corto: frame=${frame}`);
   process.exit(1);
 }
 // El mundo del fg es s32 creciente; solo se valida el byte bajo (que cambie).
-console.log(`OK showcase telemetry frame=${frame} fg_world=(${fgXTiles},${fgYTiles})`);
+console.log(`OK showcase telemetry frame=${frame} fg_world=(${fgXTiles},${fgYTiles}) fine=(${fineX},${fineY})`);
 ' "$RUN_REPORT" \
 	|| { echo "Telemetria de 106_tile_field_showcase invalida." >&2; exit 1; }
 

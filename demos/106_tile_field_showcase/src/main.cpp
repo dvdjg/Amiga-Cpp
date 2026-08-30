@@ -30,6 +30,29 @@ namespace {
 namespace field = eng::field;
 namespace demo = eng::field::demo;
 
+/// Variantes de compilación del showcase.
+///
+///   # Modo normal: el showcase completo, dual 3+3 y scroll 8-way.
+///   EXTRA_DEFINES="-DK_DUAL=1 -DK_SCROLL_X=1 -DK_SCROLL_Y=1"
+///
+///   # Un solo playfield de 5 bitplanes, sin DPF.
+///   EXTRA_DEFINES="-DK_DUAL=0 -DK_SCROLL_X=1 -DK_SCROLL_Y=1"
+///
+///   # Casos particulares: el controlador no reserva margen del eje inactivo.
+///   EXTRA_DEFINES="-DK_DUAL=1 -DK_SCROLL_X=1 -DK_SCROLL_Y=0"
+///   EXTRA_DEFINES="-DK_DUAL=1 -DK_SCROLL_X=0 -DK_SCROLL_Y=1"
+///
+///   # Tiles anchos: una operación lógica cubre varios words por fila.
+///   EXTRA_DEFINES="-DK_TILE_WIDTH=32 -DK_DUAL=1"
+///
+/// La prueba EHB (single de 6 bitplanes) queda reservada para una variante
+/// posterior: necesita activar EHB en BPLCON0 y proporcionar los 32 colores de
+/// media intensidad. No se debe confundir con single de 5 planos.
+///
+/// Referencia didáctica: docs/architecture/AMIGA_8WAY_SCROLLING.md explica la
+/// superficie circular, las bandas que entran, BPLCON1, el Copper split y por qué
+/// no se copia el viewport completo.
+///
 /// Selección de configuración por parámetros de compilación (-D):
 ///   -DK_TILE_WIDTH=16|32      ancho de tile en px (múltiplo de 16).
 ///   -DK_DUAL=1|0              1 => dual playfield 3+3 (6 planos),
@@ -41,6 +64,12 @@ namespace demo = eng::field::demo;
 #endif
 #ifndef K_DUAL
 #define K_DUAL 1
+#endif
+#ifndef K_SCROLL_X
+#define K_SCROLL_X 1
+#endif
+#ifndef K_SCROLL_Y
+#define K_SCROLL_Y 1
 #endif
 
 constexpr eng::u16 kTileWidth = static_cast<eng::u16>(K_TILE_WIDTH);
@@ -218,10 +247,18 @@ struct DemoGame {
 			return;
 		}
 
-		// Telemetría: mundo del fg/bg en tiles (bits 8-15 X, 0-7 Y).
+		// Telemetría compacta para el runner: las coordenadas enteras ocupan los
+		// bytes bajos y los nibbles de fine scroll los bits 16..23. Así podemos
+		// comparar la trayectoria matemática con las capturas sin tocar memoria de
+		// vídeo desde la CPU ni depender de una inspección visual subjetiva.
+		const field::FieldHardwareView telemetry_view = kDual
+			? fg.hardware_view(kForeground)
+			: bg.hardware_view(kForeground);
 		const eng::u32 marker = 0x10600000u |
 			(static_cast<eng::u32>((fg_q.x >> 16 >> 4) & 0xffu) << 8u) |
-			static_cast<eng::u32>((fg_q.y >> 16 >> 4) & 0xffu);
+			static_cast<eng::u32>((fg_q.y >> 16 >> 4) & 0xffu) |
+			(static_cast<eng::u32>(telemetry_view.fine_x & 15u) << 16u) |
+			(static_cast<eng::u32>((fg_q.y >> 16) & 15u) << 20u);
 		eng::debug::mark_ready(g_eng_run_status, marker);
 	}
 
@@ -285,8 +322,8 @@ private:
 		config.max_delta_y = 5;
 		config.max_tiles_per_frame = 56;
 		config.safety_margin_blocks = 2;
-		config.scroll_x = true;
-		config.scroll_y = true;
+		config.scroll_x = K_SCROLL_X != 0;
+		config.scroll_y = K_SCROLL_Y != 0;
 		return config;
 	}
 
