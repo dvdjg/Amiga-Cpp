@@ -1,7 +1,7 @@
 # API de campos de tiles (TileField) y compositor DPF
 
 **Estado:** implementado en `engine/include/eng/field/` y demostrado en la demo
-`demos/106_tile_field_infinite_dualpf`.
+`demos/106_tile_field_showcase`.
 
 ## 1. Objetivo
 
@@ -50,8 +50,59 @@ Requisitos:
 
 - `engine/include/eng/field/tile_field.hpp`: tipos + `TileFieldController`.
 - `engine/include/eng/field/dpf_composer.hpp`: `DpfDisplayComposer`.
-- `demos/106_tile_field_infinite_dualpf/`: demo de doble página infinita en ambos
-  ejes (fondo diagonal + primer plano Lissajous de 2 pantallas).
+- `engine/include/eng/field/tile_demo.hpp`: utilidades COMUNES de las demos
+  (paleta, glifos, seno Q16, cámaras, `build_tile_cache` con soporte de tiles
+  anchos). Evita duplicar la generación de assets entre demos.
+- `demos/106_tile_field_showcase/`: demo ÚNICA parametrizable (dual 3+3 o
+  single 5 planos, tiles de 16/32/48px). Sustituye a las antiguas 106 y 107.
+- `demos/102_tile_scroll_dualpf/`: ejemplo de migración a la API con parallax
+  por fases.
+- `tools/analyze/verify-tile-field-fill.mjs`: test unitario del ALGORITMO de
+  rellenado (`begin` con offset absoluto y `update` con delta relativo).
+
+### Unificación de demos
+
+Para no tener que adaptar cada demo con cada feature, hay UNA demo de campos de
+tiles parametrizable por macros de compilación (`-D`):
+
+- `K_TILE_WIDTH` = 16/32/48: anchura de tile (múltiplo de 16), el tile ancho se
+  copia en UNA pasada del Blitter.
+- `K_DUAL` = 1/0: dual playfield 3+3 (transparencia PF1) o single playfield
+  5 planos (32 colores, sin DPF).
+
+Ambos parámetros usan la MISMA abstracción de playfield (`TileFieldController`):
+un controlador por playfield, sea dual o single. El `DpfDisplayComposer` une los
+registros compartidos solo en dual; en single el compositor es trivial (un
+campo). Así un videojuego con un solo PF de 5 bitplanes usa exactamente el mismo
+código que uno con dual playfield.
+
+Compilación (el build acepta `EXTRA_DEFINES`):
+
+```bash
+EXTRA_DEFINES="-DK_TILE_WIDTH=32" bash ./tools/build/build-demo.sh demos/106_tile_field_showcase --debug --clean
+EXTRA_DEFINES="-DK_DUAL=0"        bash ./tools/build/build-demo.sh demos/106_tile_field_showcase --debug --clean
+```
+
+## 3.1 Test unitario del algoritmo de rellenado
+
+`tools/analyze/verify-tile-field-fill.mjs` replica la lógica EXACTA de
+`begin` (offset absoluto) y `update` (delta relativo) y verifica invariantes
+sobre el framebuffer de doble página:
+
+- `begin(offset)` en distintas zonas (0,0 / 320,0 / 480,0 / 0,256 / 640,512 /
+  no alineado 160,128): el conjunto de franjas cubre TODAS las celdas del
+  framebuffer exactamente una vez, y cada celda física contiene el tile correcto
+  del mapa virtual (world = page_origin + fb_offset).
+- `update(+N)` sin cruzar página: no encola franjas nuevas (la página opuesta ya
+  está preparada).
+- `update(+320)` cruzando página: encola la página vacante y la cobertura total
+  se mantiene.
+- Inversión (cambio de signo del delta): reencola la página opuesta con el tramo
+  TRASERO y la página que queda atrás con el tramo anterior.
+- `update(+1px)` repetido: nunca encola (el cruce es de página, no de tile).
+
+Uso: `node tools/analyze/verify-tile-field-fill.mjs`. El
+`analyze-sequence.sh` de la showcase lo ejecuta antes de la captura.
 
 ## 4. El framebuffer de doble página y el scroll infinito
 
@@ -178,26 +229,24 @@ struct BitmapFieldConfig {
 - Intercala los planos por playfield: PF1 = hardware 0,2,4; PF2 = 1,3,5. En
   single playfield los planos son consecutivos (stride 1).
 
-## 8. Demo 106 (`demos/106_tile_field_infinite_dualpf`)
+## 8. Demo showcase (`demos/106_tile_field_showcase`)
 
-- Dual playfield 3+3: PF1 primer plano (3 planos, color 0 transparente) y PF2
-  fondo (3 planos opacos). Índices de tile u16, mapa 256x128 con wrap en ambos
-  ejes (mundo infinito periódico).
-- **Fondo**: scroll infinito diagonal constante (2px/frame X, 1px/frame Y) —
-  cruza una pantalla horizontal cada 160 frames y vertical cada 256.
-- **Primer plano**: onda de Lissajous que recorre **más de una pantalla** en
-  ambos ejes (0..640 en X, 0..512 en Y) con radio 320x256. Periodos 1280/960
-  frames, arranca en (0,0) para continuidad con `begin`.
-- **Seno de alta resolución**: tabla de 64 pasos exactos interpolada con 64
-  sub-pasos por entrada = 4096 unidades de fase por ciclo; velocidad pico
-  ~5px/frame (X) y ~4px/frame (Y), dentro de `max_delta=8`.
-- `max_tiles_per_frame = 24` (cubre el cruce diagonal de 1280 tiles en ~64
-  frames). Budget de Blitter del plan: `{4096, 8192, 2, 60}`.
-- Telemetría en `mark_ready`: bits 16-19 = latch de cruce de página X/Y de
-  bg/fg (se mantiene a 1 una vez cruzada); bits 12-15 = página activa actual;
-  bytes = mundo del fg en tiles.
-- `analyze-sequence.sh`: run -> secuencia animada -> sin negro interno ->
-  telemetría (ambos campos cruzan páginas en ambos ejes).
+- Dual playfield 3+3 (por defecto): PF1 primer plano (3 planos, color 0
+  transparente, ~50% de tiles totalmente transparentes) y PF2 fondo (3 planos).
+  Índices de tile u16, mapa 256x128 con wrap en ambos ejes (mundo infinito
+  periódico).
+- **Fondo**: scroll infinito diagonal constante (2px/frame X, 1px/frame Y).
+- **Primer plano**: onda de Lissajous de 2 pantallas (0..640 X, 0..512 Y) con
+  seno Q16 y acumulador de resto (movimiento sub-pixel suave).
+- **Tiles anchos**: `K_TILE_WIDTH=32/48` copia el tile en UNA pasada del
+  Blitter (words_por_fila = tile_width/16).
+- **Single 5 planos**: `K_DUAL=0` usa un solo `TileFieldController` (32
+  colores, sin DPF) con la misma API.
+- `max_tiles_per_frame = 56` (2 campos = 112 jobs, dentro del
+  `max_blit_jobs=128` del FramePlan) para que la cola del cruce diagonal se
+  vacíe entre cruces.
+- `analyze-sequence.sh`: test unitario + secuencia animada + sin negro interno
+  + telemetría.
 
 ## 9. Evaluación de la propuesta original (resumen)
 

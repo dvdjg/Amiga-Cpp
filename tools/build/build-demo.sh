@@ -147,6 +147,12 @@ COMMON=(
 	"-ffunction-sections" "-fdata-sections"
 	"-I$ROOT" "-I$ROOT/engine/include" "-I$SDKDIR"
 )
+# Macros extra reproducibles (p. ej. EXTRA_DEFINES="-DK_TILE_WIDTH=32 -DK_DUAL=0").
+# Se aplican a C++ y C; suelen parametrizar la demo sin tocar el fuente.
+EXTRA_DEFINES="${EXTRA_DEFINES:-}"
+if [ -n "$EXTRA_DEFINES" ]; then
+	COMMON+=($EXTRA_DEFINES)
+fi
 CPP_FLAGS=("${COMMON[@]}" "-std=gnu++23" "-fno-rtti" "-fno-threadsafe-statics" "-fno-use-cxa-atexit")
 C_FLAGS=("${COMMON[@]}" "-std=gnu11" "-fno-tree-loop-distribution")
 
