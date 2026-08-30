@@ -320,6 +320,14 @@ Scroll por píxel (1 px/frame, invariante de 50 fps):
   POST-incremento de `mapblockx/mapblocky` (el port del engine replicó esta asimetría, verificado
   con `node tools/analyze/verify-corkscrew.mjs` host).
 
+**Invariante de la banda de staging (corrección 2026-08-31)**: `block_videoposy` debe envolver en
+`display_height` (0..288), **no** en `bitmap_height` (304). El original (Scroller_XYLimited) lo
+envuelve en `bitmapheight`, y ese wrap hacía que cada `bitmap_height` px de scroll vertical la
+fila entrante se dibujara en las filas extra (288..303) que el *planeaddx walk* del display SÍ
+muestra al scrollear en X: aparecía un tile obsoleto/parcial en el área visible y la banda de
+staging quedaba sin refrescar (banda de tiles antiguos al rotar). El port envuelve en
+`display_height` para mantener la fila entrante siempre en la banda oculta de 32 filas.
+
 Copper: paleta al inicio del frame, punteros principales en `yoffset`, y si `split_active` un
 WAIT en `raster = DIWSTRT_y + split_line` seguido de los punteros a la fila 0
 (`real_base + planeaddx + p*row_bytes`). Límite OCS del encoder actual: WAIT 0..255; si
@@ -334,10 +342,14 @@ compara bloque a bloque contra `Scroller_XYLimited/main.c` en `node tools/analyz
 arriba ~1 px/frame (mediana −1 px nativo), tiles bien formados (análisis determinista +
 qwen3-vl local). Fase H: `analyze-sequence.sh` completa (100 frames derecha, `ChangedPairs=99`,
 `DuplicatePairs=0`, sin hueco de 2 bytes de saveword, telemetría mapposx/videoposx/BPLCON1
-avanzando). Limitación confirmada: el recorte del split a `raster ≤ 255` (cuando
-`display_offset ∈ [33,73]`) deja una banda de 1..41 filas al pie con contenido de las filas
-extra (stale) en lugar del wrap correcto; visualmente sutil (no aparece como negro ni tearing),
-pero pendiente de eliminar con un WAIT de 9 bits en `copper.hpp`.
+avanzando). Bug de la banda de staging (block_videoposy envolviendo en bitmap_height) reproducido
+en mapposy=900 con videoposx=400: comparación antes/después (mismo frame pausado) confirma que el
+bug dejaba una banda de tiles obsoletos en el área visible y que envolver en display_height lo
+elimina (qwen3-vl: "mitad izquierda con banda de tiles obsoletos, derecha corregida").
+Limitación confirmada: el recorte del split a `raster ≤ 255` (cuando `display_offset ∈ [33,73]`)
+deja una banda de 1..41 filas al pie con contenido de las filas extra (stale) en lugar del wrap
+correcto; visualmente sutil (no aparece como negro ni tearing), pendiente de eliminar con un WAIT
+de 9 bits en `copper.hpp`.
 
 ---
 

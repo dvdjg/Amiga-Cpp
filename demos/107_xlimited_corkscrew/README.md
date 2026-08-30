@@ -117,6 +117,15 @@ frames a 20 ms y análisis determinista + visión local (qwen3-vl):
 - La fase H (derecha) pasa `analyze-sequence.sh` completa (100 frames,
   `ChangedPairs=99`, `DuplicatePairs=0`, telemetría mapposx/videoposx/BPLCON1).
 
+**Bug de la banda de staging (corregido 2026-08-31)**: `block_videoposy` se
+envolvía en `bitmap_height` (304) como el original; cada 304 px de scroll
+vertical la fila entrante caía en las filas extra (288..303) que el *planeaddx
+walk* horizontal sí muestra, dejando un tile obsoleto en el área visible y la
+banda de staging sin refrescar. Se reprodujo en mapposy=900 con videoposx=400
+(demo pausada) y la comparación antes/después confirmó el artefacto y su
+eliminación al envolver en `display_height` (288): "mitad izquierda con banda de
+tiles obsoletos, derecha corregida" (qwen3-vl).
+
 ## Limitación OCS conocida
 
 El encoder de WAIT de Copper del engine cubre líneas 0..255. El split vertical

@@ -706,8 +706,16 @@ public:
             ? m_bitmap_blocks_per_row - m_cfg.tile_height : 0);
     }
     constexpr u16 block_videoposy() const {
+        // Banda de staging: SIEMPRE dentro del bucle de display (0..display_height),
+        // nunca en las filas extra (display_height..bitmap_height) que usa el
+        // planeaddx walk horizontal. El original envuelve en bitmap_height; ese
+        // wrap hacía que cada bitmap_height px la fila entrante se dibujara en
+        // las filas extra que el display SÍ muestra al scrollear en X (tile
+        // visible en el área de pantalla y banda de staging sin refrescar).
+        // Corregido 2026-08-31: envolver en display_height mantiene la fila
+        // entrante siempre en la banda oculta de 32 filas.
         return static_cast<u16>(
-            (m_mapposy / m_cfg.tile_height * m_cfg.tile_height) % m_bitmap_height);
+            (m_mapposy / m_cfg.tile_height * m_cfg.tile_height) % m_display_height);
     }
     /// Añade el blit de un bloque y gestiona el fallo de plan.
     bool add_draw(graphics::FramePlan& plan, u16 x, u16 y, u16 mapx, u16 mapy) {
@@ -1042,17 +1050,6 @@ public:
         m_saveword = 0;
     }
 
-    /// TEMP-DEBUG: fija la posición de scroll para reproducir un estado concreto.
-    void debug_set_pos(s32 px, s32 py) {
-        m_mapposx = px;
-        m_videoposx = px;
-        m_mapposy = py;
-        m_videoposy = static_cast<s32>(py % m_display_height);
-        m_previous_xdirection = 0;
-        m_savewordpointer = nullptr;
-        m_saveword = 0;
-    }
-
 private:
     bool valid_config() const {
         if (!m_cfg.tileset || m_cfg.tileset_count == 0 || m_cfg.planes == 0 ||
@@ -1256,3 +1253,6 @@ private:
 };
 
 } // namespace eng::field
+
+
+

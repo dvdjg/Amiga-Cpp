@@ -30,21 +30,112 @@ namespace field = eng::field;
 namespace demo = eng::field::demo;
 
 // -----------------------------------------------------------------------------
-// Configuración de la demo 107 — X-Limited puro (single playfield) parametrizada
+// Demo 107 — xlimited_corkscrew (corkscrew / XYLimited, Georg Steger)
+// -----------------------------------------------------------------------------
+//
+// QUÉ HACE
+// --------
+// Scroll 8-way (horizontal, vertical, HV y diagonal) con el algoritmo corkscrew
+// de ScrollingTricks (Scroller_XYLimited). Un único bitmap interleaved de
+// BITMAPWIDTH×(viewport_h + EXTRAHEIGHT + extra) con el display envolviendo en
+// `display_height = viewport_h + 2*tile_height` (banda de staging de 2 bloques)
+// y un split de Copper para el wrap vertical. Cada píxel es 1-2 blits de
+// BLOCKPLANELINES = tile_h*planes planelíneas; la fila/columna entrante se
+// pre-pinta en la banda de staging (`block_videoposy`, envuelto en
+// `display_height`) y la guarda de 1 word (`saveword`) evita el hueco de 2 bytes
+// al invertir la dirección. Ver docs/architecture/AMIGA_8WAY_SCROLLING.md §13.
+//
+// Ciclo de fases (1000 frames = ~20 s cada una, 1 px/frame):
+//   0: horizontal derecha   1: vertical abajo
+//   2: HV alternando        3: diagonal Lissajous (sin(x), cos(0.7x))
+//
+// -----------------------------------------------------------------------------
+// CÓMO COMPILAR (tools/build/build-demo.sh)
+// -----------------------------------------------------------------------------
+// El toolchain se resuelve en este orden: $AMIGA_BIN_PATH, extensión
+// bartmanabyss.amiga-debug-* (Windows) o m68k-amiga-elf-* en PATH.
+//
+//   # Configuración por defecto (320×256, tile 16, 4 planos, fetch normal):
+//   bash ./tools/build/build-demo.sh demos/107_xlimited_corkscrew --debug --clean
+//
+//   # Tiles de 32 px (misma altura, BITMAPWIDTH=384, 24 bloques/fila):
+//   EXTRA_DEFINES="-DK_TILE_WIDTH=32" bash ./tools/build/build-demo.sh demos/107_xlimited_corkscrew --debug --clean
+//
+//   # Fetch ancho 32 px (BPL32, DDF $28/$C8, offset 16, scroll 32):
+//   EXTRA_DEFINES="-DK_FETCH_MODE=1" bash ./tools/build/build-demo.sh demos/107_xlimited_corkscrew --debug --clean
+//
+//   # Fetch ancho 32 px + tiles 32 px:
+//   EXTRA_DEFINES="-DK_TILE_WIDTH=32 -DK_FETCH_MODE=1" bash ./tools/build/build-demo.sh demos/107_xlimited_corkscrew --debug --clean
+//
+//   # Fetch ancho 64 px (BPL32+BPAGEM, DDF $18/$B8, offset 48, scroll 64):
+//   EXTRA_DEFINES="-DK_FETCH_MODE=3" bash ./tools/build/build-demo.sh demos/107_xlimited_corkscrew --debug --clean
+//
+//   # Viewport alternativo 288×224 (18×14 tiles por pantalla):
+//   EXTRA_DEFINES="-DK_VIEWPORT_W=288 -DK_VIEWPORT_H=224" bash ./tools/build/build-demo.sh demos/107_xlimited_corkscrew --debug --clean
+//
+// Parámetros de compilación (EXTRA_DEFINES="-D..."):
+//   K_TILE_WIDTH (16|32)  ancho de tile (múltiplo de 16; 32 fuerza BITMAPWIDTH=384)
+//   K_TILE_SIZE  (16|32)  alto de tile (K_TILE_H es alias)
+//   K_PLANES     (3|4|5|6) profundidad (8/16/32/64 colores; 6 = EHB/DPF 3+3)
+//   K_FETCH_MODE (0|1|2|3) modo de fetch: 0=16px $30 mod 2 · 1/2=32px $28 mod 4 · 3=64px $18 mod 8
+//   K_VIEWPORT_W/H (320/256 | 288/224)  ventana visible
+//   K_SCREENS_X/Y (16|8...)  pantallas virtuales → mapa = screens*viewport/tile
+//
+// -----------------------------------------------------------------------------
+// CÓMO LANZAR EN WINUAE (tools/run/run-demo.sh -> dist/tools/run/run-demo.js)
+// -----------------------------------------------------------------------------
+// El runner arranca WinUAE-DBG, espera READY por el canal lateral (127.0.0.1:2346,
+// estado g_eng_run_status) y captura screenshot; sin --keep-running apaga WinUAE
+// al terminar. Requiere la demo compilada y Node.js + Git Bash.
+//
+//   # Captura básica (screenshot en out/run/107_xlimited_corkscrew/screenshot.png):
+//   bash ./tools/run/run-demo.sh demos/107_xlimited_corkscrew
+//
+//   # Capturar N frames de secuencia cada M ms (análisis de scroll):
+//   bash ./tools/run/run-demo.sh demos/107_xlimited_corkscrew --sequence-frames 100 --sequence-interval-ms 20
+//
+//   # Asentamiento previo (ms reales tras READY) y warp (throughput, no suavidad):
+//   bash ./tools/run/run-demo.sh demos/107_xlimited_corkscrew --settle-ms 500 --warp
+//
+//   # Dejar WinUAE corriendo al terminar:
+//   bash ./tools/run/run-demo.sh demos/107_xlimited_corkscrew --keep-running
+//
+// -----------------------------------------------------------------------------
+// CÓMO VERIFICAR
+// -----------------------------------------------------------------------------
+//   # Secuencia completa de la demo (H derecha + saveword + columna plane-shifted):
+//   bash ./demos/107_xlimited_corkscrew/analyze-sequence.sh          # tiempo real
+//   bash ./demos/107_xlimited_corkscrew/analyze-sequence.sh --warp   # rápido
+//
+//   # Análisis de artefactos de la captura:
+//   bash ./tools/analyze/analyze-demo.sh demos/107_xlimited_corkscrew
+//
+//   # Modelo host del algoritmo (geometría XLimited + corkscrew):
+//   node tools/analyze/verify-xlimited.mjs
+//
+//   # Port vs original (bloque a bloque contra Scroller_XYLimited/main.c):
+//   node tools/analyze/verify-corkscrew.mjs
+//
+//   # Regresión automática (build -> run -> analyze-sequence):
+//   bash ./tools/test-regression.sh --demo demos/107_xlimited_corkscrew --warp
+//
+// -----------------------------------------------------------------------------
+// Configuración de la demo 107 — corkscrew (single playfield) parametrizada
 // -----------------------------------------------------------------------------
 //
 // El flujo es el mismo que en Steger:
 //
-//   CPU: decide mapposx/videoposx y DDF/BPLCON1
+//   CPU: decide mapposx/videoposx, mapposy/videoposy y DDF/BPLCON1
 //        |                |
-//        +--> Blitter: 1 blit de BLOCKPLANELINES = tile_h*planes líneas por píxel de scroll
+//        +--> Blitter: 1-2 blits de BLOCKPLANELINES = tile_h*planes líneas por píxel de scroll
 //             (ej. 16*3=48, 16*4=64, 16*5=80, 16*6=96 según K_PLANES 3..6)
-//        +--> Copper: BPLxPT + BPLCON1/BPLMOD sin split (genérico bytes*planes)
+//        +--> Copper: BPLxPT + BPLCON1/BPLMOD + split vertical en display_height
 //
 // La CPU nunca mueve la ventana manualmente: el wrap vertical del fetch
 // lineal hace que BITMAPWIDTH+ 2 bytes sea la siguiente planelínea.
 // Viewport y espacio virtual parametrizados: K_VIEWPORT_W/H (defecto 320/256,
 // alternativo 288/224) y K_SCREENS_X/Y (16×16 pantallas → mapa screens*viewport/tile).
+
 
 #ifndef K_TILE_WIDTH
 #define K_TILE_WIDTH 16
@@ -261,24 +352,6 @@ struct DemoGame {
         composer.install(backend);
 
         ready = true;
-        // TEMP-VERIFY: desplazar 400 px a la derecha en init (planeaddx≥44) para que el
-        // planeaddx walk del display alcance las filas extra al llegar a mapposy≡288 mod 304.
-        {
-            plan.clear();
-            plan.set_blit_budget_limits({8192, 16384, 4, 120});
-            for (int i = 0; i < 400; ++i) {
-                if (!field.scroll_right(plan)) { ready = false; eng::debug::mark_failed(g_eng_run_status, 0x000107f1u); return; }
-                if (plan.blit_job_count() >= 120) {
-                    if (!backend.execute_frame_plan(plan)) { ready = false; eng::debug::mark_failed(g_eng_run_status, 0x000107f2u); return; }
-                    plan.clear();
-                    plan.set_blit_budget_limits({8192, 16384, 4, 120});
-                }
-            }
-            if (plan.blit_job_count() > 0) {
-                if (!backend.execute_frame_plan(plan)) { ready = false; eng::debug::mark_failed(g_eng_run_status, 0x000107f3u); return; }
-                plan.clear();
-            }
-        }
         eng::debug::mark_ready(g_eng_run_status, 0x10700000u);
     }
 
@@ -299,9 +372,8 @@ struct DemoGame {
         // entrante se pre-pinta en la banda de staging y el display envuelve en
         // display_height = viewport_h + 2*tile_height con un split de Copper.
         const eng::u32 phase = (context.frame.frame_index / 1000u) % 4u;
-        // TEMP-VERIFY: forzar fase V para reproducir la colisión desde debug_set_pos.
-        const bool doH = false;
-        const bool doV = true;
+        const bool doH = (phase==0) || (phase==2) || (phase==3);
+        const bool doV = (phase==1) || (phase==2) || (phase==3);
         // Sinusoidal modula la dirección dentro de la fase 3
         eng::s32 dx = 0, dy = 0;
         if (phase==3) {
