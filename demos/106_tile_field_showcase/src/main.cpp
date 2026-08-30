@@ -27,6 +27,23 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
+// -----------------------------------------------------------------------------
+// Guía rápida de esta demo
+// -----------------------------------------------------------------------------
+//
+// El flujo de un frame Amiga es deliberadamente asimétrico:
+//
+//   CPU: calcula la cámara y prepara una lista fija de trabajos
+//        |                         |
+//        +--> Blitter: copia       +--> Copper: cambia BPLxPT/BPLCON1
+//
+// La CPU nunca pinta un píxel. `TileFieldController` solo convierte las franjas
+// que entran en `TileBlockCopy`; `MinimalBackend` programa el Blitter y el
+// `DpfDisplayComposer` instala la CopperList. La superficie circular tiene dos
+// bloques de margen, de acuerdo con ScrollingTrick; cuando se alcanza un borde,
+// la cámara se recentra sobre la copia equivalente en lugar de copiar 320x256.
+// Detalles, invariantes y esquemas: `docs/architecture/AMIGA_8WAY_SCROLLING.md`.
+
 namespace field = eng::field;
 namespace demo = eng::field::demo;
 
@@ -92,6 +109,11 @@ eng::u16 bg_map_cells[kMapTilesX * kMapTilesY] {};
 eng::u16 fg_map_cells[kMapTilesX * kMapTilesY] {};
 
 /// Rellena un mapa (índices u16) con patrones derivados de una semilla.
+///
+/// El hash hace que un error de coordenadas sea visible como una plaqueta
+/// inesperada. En un juego real esta función se sustituye por el cargador del
+/// mapa, pero el contrato del controlador no cambia: el mapa devuelve índices,
+/// no direcciones de memoria ni píxeles.
 void build_map(eng::Span<eng::u16> cells, bool is_foreground, eng::u32 seed) {
 	const eng::u32 layer_seed = seed ^ (is_foreground ? 0xf0f0f0f0u : 0x0f0f0f0fu);
 	for (eng::u32 y = 0; y < kMapTilesY; ++y) {
@@ -119,6 +141,9 @@ struct DemoGame {
 	bool ready = false;
 
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+		// Chip RAM es compartida por CPU, Copper, bitplanes y Blitter. Reservamos
+		// primero el pool y dejamos que el arena fijo controle los fallos, en vez de
+		// introducir asignaciones dinámicas durante el juego.
 		eng::debug::mark_init_started(g_eng_run_status);
 		// La superficie compacta reserva viewport + dos bloques por eje activo.
 		if (!backend.configure_memory({360u * 1024u, 16u * 1024u, 8u * 1024u})) {
@@ -126,7 +151,9 @@ struct DemoGame {
 			return;
 		}
 
-		// Tilesets por campo (banco propio de patrones en Chip RAM).
+		// Cada playfield tiene su banco planar. El layout por defecto es
+		// [tile][plano][fila][word], que permite copiar un tile ancho en una pasada
+		// del Blitter, pero no permite fusionar arbitrariamente tiles del mapa.
 		const eng::u32 words_per_tile = kTileSize * (kTileWidth / 16u);
 		tiles_bg = backend.memory().chip.allocate(kTileCount * kBgPlanes * words_per_tile * 2u, 16);
 		if (kDual) {
@@ -153,7 +180,9 @@ struct DemoGame {
 			fg_config = make_config(tiles_fg, kFgPlanes, true);
 		}
 
-		// Estampado inicial por Blitter, en lotes hasta terminar.
+		// Estampado inicial por Blitter, en lotes hasta terminar. Ocurre antes de
+		// publicar READY: así el primer frame visible nunca muestra la superficie a
+		// medio rellenar.
 		const eng::u8 budget = 120;
 		if (!begin_field(backend, bg, bg_config)) {
 			return;
@@ -186,13 +215,17 @@ struct DemoGame {
 	}
 
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+		// `update` se ejecuta antes de `render`. Aquí se decide el trabajo; `render`
+		// solo instala la CopperList que el Copper consumirá durante el raster.
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!ready) {
 			return;
 		}
 		const eng::u32 frame = context.frame.frame_index;
 
-		// Cámaras: fondo diagonal infinita, primer plano Lissajous (Q16).
+		// Cámaras: fondo diagonal infinito, primer plano Lissajous (Q16). El fondo
+		// mueve 2/1 píxeles por frame; el controlador limita cada eje a 5 para que
+		// nunca se salte dos fronteras de tile en una sola actualización.
 		const demo::CameraQ16 fg_q = demo::fg_lissajous_camera(frame, kViewportW, kViewportH, 640, 480);
 		const eng::s32 bg_x = demo::bg_scroll_x(frame);
 		const eng::s32 bg_y = demo::bg_scroll_y(frame);
@@ -207,7 +240,9 @@ struct DemoGame {
 		bg_last_x = bg_x;
 		bg_last_y = bg_y;
 
-		// Delta del fg en sub-píxeles con acumulador de resto (movimiento suave).
+		// Delta del fg en subpíxeles con acumulador de resto (movimiento suave).
+		// La división Q16 solo se hace una vez por eje y frame; el recorrido de tiles
+		// no vuelve a dividir porque TileFieldController usa cursores incrementales.
 		fg_rest_x += fg_q.x - fg_last_x;
 		fg_rest_y += fg_q.y - fg_last_y;
 		fg_last_x = fg_q.x;
@@ -263,6 +298,9 @@ struct DemoGame {
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+		// El Copper se cambia en el punto de commit del frame. No escribimos BPLxPT
+		// desde la lógica del juego: el compositor mantiene esa responsabilidad para
+		// que dual, single y futuras capas compartan la misma disciplina.
 		if (ready) {
 			composer.install(backend);
 		}
@@ -302,6 +340,9 @@ private:
 	}
 
 	field::TileFieldConfig make_config(const eng::MemoryBlock& tiles, eng::u8 planes, bool is_foreground) {
+		// Esta configuración es la frontera entre el juego y el driver: el juego
+		// aporta mapa/tileset y límites de velocidad; el controlador decide las
+		// direcciones físicas y el número de trabajos de Blitter.
 		field::TileFieldConfig config {};
 		config.map.cells = is_foreground
 			? eng::Span<const eng::u16>::from_raw(fg_map_cells, kMapTilesX * kMapTilesY)

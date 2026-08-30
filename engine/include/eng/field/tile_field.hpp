@@ -19,12 +19,21 @@ namespace eng::field {
 struct TileLayerMap {
 	eng::Span<const eng::u16> cells {};
 	eng::u16 width = 0, height = 0, wrap_x = 0, wrap_y = 0, edge_tile = 0;
+	static eng::s32 wrap_coordinate(eng::s32 value, eng::u16 period) {
+		// Los mapas de las demos son potencias de dos (256x128). En el 68000,
+		// sustituir modulo por una máscara evita __modsi3 en cada tile. El camino
+		// general conserva el contrato para mapas reales de cualquier tamaño.
+		if ((period & static_cast<eng::u16>(period - 1u)) == 0u) {
+			return value & static_cast<eng::s32>(period - 1u);
+		}
+		return ((value % static_cast<eng::s32>(period)) + period) % period;
+	}
 	eng::u16 tile_at(eng::s32 tx, eng::s32 ty) const {
 		if (cells.empty() || width == 0 || height == 0) return edge_tile;
 		eng::s32 x = tx, y = ty;
-		if (wrap_x) x = ((x % wrap_x) + wrap_x) % wrap_x;
+		if (wrap_x) x = wrap_coordinate(x, wrap_x);
 		else if (x < 0 || x >= width) return edge_tile;
-		if (wrap_y) y = ((y % wrap_y) + wrap_y) % wrap_y;
+		if (wrap_y) y = wrap_coordinate(y, wrap_y);
 		else if (y < 0 || y >= height) return edge_tile;
 		return cells.at(static_cast<eng::u32>(x) + static_cast<eng::u32>(y) * width);
 	}
@@ -66,6 +75,7 @@ struct TilePendingStrip {
 	eng::s32 world_tile_x = 0, world_tile_y = 0;
 	eng::u16 fb_tile_x = 0, fb_tile_y = 0, width = 0, height = 0;
 	eng::u32 cursor = 0;
+	eng::u16 cursor_x = 0, cursor_y = 0;
 	bool active = false;
 };
 
@@ -305,7 +315,7 @@ private:
 			const TilePendingStrip& p = m_state.pending[i];
 			if (p.active && p.fb_tile_x == fx && p.fb_tile_y == fy && p.width == w && p.height == h && p.world_tile_x == wx && p.world_tile_y == wy) return;
 		}
-		m_state.pending[m_state.pending_count++] = {wx, wy, fx, fy, w, h, 0, true};
+		m_state.pending[m_state.pending_count++] = {wx, wy, fx, fy, w, h, 0, 0, 0, true};
 		++m_state.bands;
 	}
 	void recenter_axis(bool x) {
@@ -358,7 +368,10 @@ private:
 			TilePendingStrip& p = m_state.pending[i]; if (!p.active) continue;
 			const eng::u32 total = static_cast<eng::u32>(p.width) * p.height;
 			while (p.cursor < total && budget) {
-				const eng::u16 x = static_cast<eng::u16>(p.cursor % p.width), y = static_cast<eng::u16>(p.cursor / p.width);
+				// cursor_x/cursor_y recorren la franja sin dividir por cada tile.
+				// En una CPU 68000 las divisiones enteras son mucho más caras que dos
+				// incrementos y una comparación.
+				const eng::u16 x = p.cursor_x, y = p.cursor_y;
 				const eng::u16 tile = m_config.map.tile_at(p.world_tile_x + x, p.world_tile_y + y);
 				eng::u16 run = 1;
 				while (run < budget && ((p.width > 1 && x + run < p.width) || (p.width == 1 && y + run < p.height)) &&
@@ -373,6 +386,11 @@ private:
 					vertical ? vertical_job(tile, px, py, run) : tile_job(tile, px, py, m_config.tile_width, m_config.tile_size);
 				if (!plan.add_tile_block_copy(job)) return;
 				p.cursor += run; budget = static_cast<eng::u8>(budget - run);
+				p.cursor_x = static_cast<eng::u16>(p.cursor_x + run);
+				while (p.cursor_x >= p.width) {
+					p.cursor_x = static_cast<eng::u16>(p.cursor_x - p.width);
+					++p.cursor_y;
+				}
 			}
 			if (p.cursor == total) p.active = false;
 		}
