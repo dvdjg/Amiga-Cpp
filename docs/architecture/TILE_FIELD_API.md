@@ -5,16 +5,20 @@ DPF ni escribe registros del Amiga. Reserva memoria mediante `MemorySystem`,
 
 ## Geometría
 
-Para un bloque de `BW x BH` y viewport `VW x VH`:
+Para un bloque de `BW x BH`, viewport `VW x VH` y `margin_blocks`:
 
 ```text
-surface_w = scroll_x ? 2*VW + 2*BW : VW
-surface_h = scroll_y ? 2*VH + 2*BH : VH
+surface_w = scroll_x ? VW + margin_blocks*BW : VW
+surface_h = scroll_y ? VH + margin_blocks*BH : VH
 ```
 
 Un eje que no scrollea no reserva margen en el otro eje. La ventana parte en
 `(VW, VH)` cuando ambos ejes están activos. La unidad de trabajo es siempre un
 bloque de tiles, no una página lineal de viewport.
+
+`margin_blocks` es explícito, admite 2 o 3 y vale 2 por defecto. Es el margen total:
+con 2 hay un bloque de seguridad a cada lado; 3 es opcional para dar más tolerancia
+a 8-way, velocidad o inversiones, no un requisito geométrico.
 
 La superficie física se interpreta como circular/recentrable. La cámara lógica
 (`world_x/world_y`) es independiente de `window_x/window_y`. Cuando la ventana
@@ -29,6 +33,8 @@ la pantalla.
   antes de mostrar el primer frame.
 - `update(config, delta, plan)`: acepta delta relativo, lo limita a `[-5,5]`,
   detecta cruces de bloque en X, Y o XY y programa solamente las bandas nuevas.
+- El resultado indica `accepted`, `applied` y `pending`; los deltas recibidos
+  mientras el Blitter está ocupado se acumulan, no se pierden.
 - `pump(plan, budget)`: consume bandas en pasos de tiles sin heap, excepciones ni
   RTTI.
 - `hardware_view(first_plane)`: calcula puntero coarse, fine scroll y módulo.
@@ -39,7 +45,10 @@ duplicados ni trabajos para filas o columnas opuestas.
 
 ## Blitter
 
-`TileBlockCopy` usa tiles de anchura múltiplo de 16. Un tile rectangular de
+`TileBlockCopy` usa tiles de anchura múltiplo de 16. El layout por defecto es
+`TileMajor` (`[tile][plane][row][word]`), que no permite fusionar tiles adyacentes
+arbitrarios. Solo layouts `RowMajor`/`ColumnMajor` con stride contratado pueden
+fusionar filas/columnas; el caso genérico conserva un job por tile. Un tile rectangular de
 `32x16`, `16x32` o `32x32` se representa con `words_per_row = width/16` y
 `height = tile_height`. Cuando el layout del tileset permite tiles contiguos,
 el scheduler puede fusionarlos en un rectángulo; si no, conserva jobs por tile.
@@ -51,9 +60,11 @@ fusiona regiones compatibles a nivel lógico, pero no inventa un blit multi-plan
 
 ## Hardware y límites
 
-Con `DDFSTRT=$30`, el fetch es 40 bytes visibles más 2 bytes de margen. La
+Con `DDFSTRT=$30`, el fetch horizontal es 40 bytes visibles más 2 bytes de margen.
 fórmula usada es `fetch=(scroll-1)&~15`, `BPLCON1=(16-fine)&15` y
-`BPL1MOD=row_bytes-42`. Si el fine scroll deja ruido en los primeros 16 píxeles,
+`BPL1MOD=row_bytes-42`. El margen de fetch es adicional al margen lógico y debe
+comprobarse contra el ancho físico. Verticalmente no hay fine scroll hardware:
+se ajusta el puntero por scanline y el módulo avanza al siguiente `row_bytes`. Si el fine scroll deja ruido en los primeros 16 píxeles,
 la configuración visual puede ocultar esa banda; no se corrige escribiendo en
 la ventana visible.
 
