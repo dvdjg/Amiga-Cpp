@@ -411,10 +411,11 @@ struct DemoGame {
 			return;
 		}
 
-		// Telemetría: latch de cruce de página (bits 16-19, se mantiene una vez el
-		// campo cruza una página en ese eje, independiente del instante de lectura)
-		// + página activa actual (bits 12-15) + mundo del fg en tiles (X bits 8-15,
-		// Y bits 0-7).
+		// Telemetría: latch de cruce de página (bits 16-19) + página activa actual
+		// (bits 12-15) + mundo del fg en tiles (X bits 8-15, Y bits 0-7) + máximo
+		// de tiles pendientes observado en cualquier frame (bits 20-27, latch).
+		// Si el máximo es 0, nunca hubo trabajo de redibujado pendiente => no puede
+		// haber parpadeo por página activa a medio dibujar.
 		const eng::u8 bg_px = bg.state().active_page_x & 1u;
 		const eng::u8 bg_py = bg.state().active_page_y & 1u;
 		const eng::u8 fg_px = fg.state().active_page_x & 1u;
@@ -425,6 +426,12 @@ struct DemoGame {
 		m_crossed_fg_y |= fg_py != m_last_fg_py;
 		m_last_bg_px = bg_px; m_last_bg_py = bg_py;
 		m_last_fg_px = fg_px; m_last_fg_py = fg_py;
+		const eng::u32 bg_pending = pending_tiles(bg);
+		const eng::u32 fg_pending = pending_tiles(fg);
+		const eng::u32 total_pending = bg_pending + fg_pending;
+		if (total_pending > m_max_pending_after_cross) {
+			m_max_pending_after_cross = static_cast<eng::u8>(total_pending > 0xff ? 0xff : total_pending);
+		}
 		const eng::u32 marker = 0x10600000u |
 			(static_cast<eng::u32>(m_crossed_bg_x) << 16u) |
 			(static_cast<eng::u32>(m_crossed_fg_x) << 17u) |
@@ -435,7 +442,8 @@ struct DemoGame {
 			(static_cast<eng::u32>(bg_py) << 14u) |
 			(static_cast<eng::u32>(fg_py) << 15u) |
 			(static_cast<eng::u32>((fg.state().world_x >> 4) & 0xffu) << 8u) |
-			static_cast<eng::u32>((fg.state().world_y >> 4) & 0xffu);
+			(static_cast<eng::u32>((fg.state().world_y >> 4) & 0xffu)) |
+			(static_cast<eng::u32>(m_max_pending_after_cross) << 20u);
 		eng::debug::mark_ready(g_eng_run_status, marker);	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
@@ -451,6 +459,22 @@ private:
 			static_cast<eng::u16*>(block.data),
 			block.size / sizeof(eng::u16)
 		);
+	}
+
+	/// Tiles pendientes de dibujar de un campo (suma de lo que falta en cada
+	/// franja activa). 0 => la página activa está completa.
+	static eng::u32 pending_tiles(const field::TileFieldController& field) {
+		eng::u32 total = 0;
+		const field::TileFieldState& s = field.state();
+		for (eng::u8 i = 0; i < s.pending_count; ++i) {
+			const field::TilePendingStrip& strip = s.pending[i];
+			if (!strip.active) continue;
+			const eng::u32 region = static_cast<eng::u32>(strip.width) * strip.height;
+			if (strip.cursor < region) {
+				total += region - strip.cursor;
+			}
+		}
+		return total;
 	}
 
 	field::TileFieldConfig make_config(const eng::MemoryBlock& tiles, eng::u8 planes, bool is_foreground) {
@@ -492,6 +516,7 @@ private:
 	eng::s32 fg_last_y = 0;
 	eng::s32 fg_rest_x = 0;   // resto sub-píxel (Q16) para movimiento suave
 	eng::s32 fg_rest_y = 0;
+	eng::u8 m_max_pending_after_cross = 0;
 	eng::u8 m_crossed_bg_x = 0;
 	eng::u8 m_crossed_bg_y = 0;
 	eng::u8 m_crossed_fg_x = 0;
