@@ -30,7 +30,9 @@ bitmapheight = BITMAPHEIGHT + (level_map.width / BITMAPBLOCKSPERROW / planes) + 
   // ej. 22*3=66, 22*4=88, 22*5=110, 22*6=132 bloques por planelínea extra para 352 (24*planes para 384)
 ```
 Desglose:
-- `BITMAPHEIGHT`: alto visible.
+- `BITMAPHEIGHT`: **depende del algoritmo** (errata corregida 2026-08-31):
+  - **X-Limited puro** (`xlimited.c`): `BITMAPHEIGHT = SCREENHEIGHT` (solo el alto visible).
+  - **Corkscrew/XY** (`XYLimited`, `Scroller_XYLimited/main.c`): `BITMAPHEIGHT = SCREENHEIGHT + EXTRAHEIGHT`, con `EXTRAHEIGHT = 2*BLOCKHEIGHT` (32 para tiles de 16). Ese extra de 2 bloques es la **banda de staging** donde se pre-pinta la fila/columna entrante antes de que el display la alcance al dar la vuelta en `display_height = viewport_h + 2*tile_height`. En el engine esto se parametriza con `scroll_y=true` (ver `docs/architecture/AMIGA_8WAY_SCROLLING.md` §13 y `xlimited.hpp` §1).
 - `level_map.width / BITMAPBLOCKSPERROW / planes`: filas del desenrollado horizontal en vertical (genérico `blocks_per_row*planes`).
 - `+1`: guard line (1 planelínea a 0 en interleaved, 1 línea en separate) absorbe fetch especulativo del Denise.
 - `+3`: reserva vertical para 8-way e inversiones (2 mínimo, 3 cubre diagonal+inversión; en XLimited margen fetch ancho con `modulo_offset` 2/4/8).
@@ -202,6 +204,13 @@ Sin fine vertical: se ajusta BPLxPT. Al cruzar final físico, Copper WAIT a mita
 segundo juego BPLxPT al inicio físico. FieldHardwareView expone split; compositor valida offsets.
 TileFieldController nunca escribe chipset.
 
+En el corkscrew (XYLimited) el split vertical es **obligatorio** y su línea varía con el scroll
+(ver §13): `raster = DIWSTRT_y + (display_height - display_offset)` con
+`display_offset = (videoposy + tile_height) % display_height`. El segundo juego de punteros
+apunta a la fila 0 del bucle de display (`real_base + planeaddx + p*row_bytes`). El encoder de
+WAIT del engine cubre líneas 0..255; si `raster > 255` se recorta a 255 (banda de 1..41 filas al
+pie de la pantalla con el wrap adelantado, pendiente de un WAIT 9 bits en el copper builder).
+
 ## 8. Por qué el wrap horizontal no necesita Copper segmentado
 
 Fetch horizontal es lineal por scanline: fijados BPLxPT+BPLCON1+BPLMOD, Denise recorre row_bytes
@@ -270,10 +279,67 @@ BPLMOD = bitmap_bytes_per_row*planes - viewport_w/8 - modulo_offset
 Casos verificados:
 
 - **320×256** (defecto): 20×16 tiles por pantalla, bitmap 352 (22 bloques) / 384 (24), mapa 16×16 → 320×256 tiles (5120×4096 px con tile 16). Fill `22×16=352` jobs.
-- **288×224** (alternativo): 18×14 tiles por pantalla, bitmap 320 (20 bloques) / 352 (22 con fetch ancho), mapa 16×16 → 288×224 tiles (4608×3584 px). Fill `20×14=280` jobs (sin scroll_y) y con scroll_y `20×15=300`. BPLMOD genérico usa `viewport_w/8` (36 para 288 → 40*planes-36-2). `verify-xlimited.mjs` deriva `SCREEN_W/H`, `BITMAPWIDTH`, `BLOCKSPERROW` de `K_VIEWPORT_W/H` y valida ambos viewports (`K_VIEWPORT_W=288 K_VIEWPORT_H=224 node tools/analyze/verify-xlimited.mjs`). La demo 107 deriva `kMapTilesX/Y = K_SCREENS_X/Y * (K_VIEWPORT_W/H / K_TILE_W/H)` y pasa `viewport_w/h`, `screens_x/y`, `tile_w/h` a `XlimitedConfig` sin literales 320/256.
+- **288×224** (alternativo): 18×14 tiles por pantalla, bitmap 320 (20 bloques) / 352 (22 con fetch ancho), mapa 16×16 → 288×224 tiles (4608×3584 px). Fill `20×14=280` jobs (sin scroll_y) y con scroll_y (corkscrew) `20×16=320` (`display_height=224+32=256 → 16 filas`). BPLMOD genérico usa `viewport_w/8` (36 para 288 → 40*planes-36-2). `verify-xlimited.mjs` deriva `SCREEN_W/H`, `BITMAPWIDTH`, `BLOCKSPERROW` de `K_VIEWPORT_W/H` y valida ambos viewports (`K_VIEWPORT_W=288 K_VIEWPORT_H=224 node tools/analyze/verify-xlimited.mjs`). La demo 107 deriva `kMapTilesX/Y = K_SCREENS_X/Y * (K_VIEWPORT_W/H / K_TILE_W/H)` y pasa `viewport_w/h`, `screens_x/y`, `tile_w/h` a `XlimitedConfig` sin literales 320/256.
 
 Invariantes parametrizados: `viewport_w % tile_w==0`, `viewport_h % tile_h==0`, `bitmap_width % tile_w==0`, `bitmap_width >= viewport_w+tile_w`, `total_bytes = bitmap_bytes_per_row*bitmap_height*planes`.
 
 ---
 
-Documento canónico — 232 líneas + §11 de referencia. No editar sin re-verificar contra ScrollingTrick.lha y Part 12.
+## 13. Corkscrew / XYLimited (demo 107, scroll_y=true) — geometría del 8-way
+
+Port fiel de `Scroller_XYLimited/main.c` (ScrollingTricks). Es el algoritmo con el que la
+demo 107 hace scroll **8-way** real: el display envuelve verticalmente en
+`display_height = viewport_h + 2*tile_height` y la fila/columna entrante se **pre-pinta** en la
+banda de staging de 2 bloques que el display alcanza al dar la vuelta.
+
+Fórmulas (engine, `XlimitedField`, valores por defecto 320×256, tile 16, planes 4, fetch normal):
+
+```text
+display_height      = viewport_h + 2*tile_height                      // 288 para 320×256
+bitmap_height       = redondear_a_tile(display_height
+                        + (map_width / bitmap_blocks_per_row / planes) + 1 + 3)   // 304
+BITMAPBLOCKSPERCOL  = display_height / tile_height                    // 18 (fill = visibleRows+2)
+TWOBLOCKSTEP        = bitmap_blocks_per_row - tile_height             // 22-16 = 6 (NO visible_cols)
+block_videoposy     = (mapposy / tile_height * tile_height) % bitmap_height  // fila física de staging
+display_offset      = (videoposy + tile_height) % display_height      // yoffset de los punteros BPL
+split_line          = display_height - display_offset                 // fila del wrap dentro de la ventana
+split_active        = split_line < viewport_h                         // hace falta el Copper split
+```
+
+Scroll por píxel (1 px/frame, invariante de 50 fps):
+
+- **down/up**: la fila entrante se dibuja en `y = block_videoposy * planes` con
+  `map_tile_y = mapblocky + BITMAPBLOCKSPERCOL` (down) / `mapblocky` (up), y x según
+  TWOBLOCKSTEP (2 bloques si `stepy < TWOBLOCKSTEP`, 1 si no). Al cruzar fila de bloque se ajusta
+  la columna de fillup y la guarda de 1 word.
+- **right/left**: la columna entrante se dibuja en `x = BITMAPWIDTH + ROUND2BLOCKWIDTH(videoposx)`
+  (right, plane-shifted) o `x = ROUND2BLOCKWIDTH(videoposx)` (left), con
+  `y = (block_videoposy + mapy*tile_height) % display_height` y `mapy = stepx+1` (2 bloques si
+  stepx==0). Al completar columna se ajusta la fila de fillup.
+- Todos los blits usan **valores PRE-incremento** del original; los pasos de fillup usan los
+  POST-incremento de `mapblockx/mapblocky` (el port del engine replicó esta asimetría, verificado
+  con `node tools/analyze/verify-corkscrew.mjs` host).
+
+Copper: paleta al inicio del frame, punteros principales en `yoffset`, y si `split_active` un
+WAIT en `raster = DIWSTRT_y + split_line` seguido de los punteros a la fila 0
+(`real_base + planeaddx + p*row_bytes`). Límite OCS del encoder actual: WAIT 0..255; si
+`raster > 255` se recorta a 255 (banda de 1..41 filas al pie con el wrap adelantado; pendiente de
+un WAIT de 9 bits en `copper.hpp` para eliminarlo).
+
+Verificación: `verify-xlimited.mjs` (§11) modela esta geometría; el port de los 4 scrolls se
+compara bloque a bloque contra `Scroller_XYLimited/main.c` en `node tools/analyze/verify-corkscrew.mjs`.
+
+**Evidencia runtime (WinUAE-DBG, 2026-08-31)**: fase V (cámara bajando) capturada 60 frames a
+20 ms — sin banda negra al pie (0 % en la fila inferior e interna), el contenido se desplaza
+arriba ~1 px/frame (mediana −1 px nativo), tiles bien formados (análisis determinista +
+qwen3-vl local). Fase H: `analyze-sequence.sh` completa (100 frames derecha, `ChangedPairs=99`,
+`DuplicatePairs=0`, sin hueco de 2 bytes de saveword, telemetría mapposx/videoposx/BPLCON1
+avanzando). Limitación confirmada: el recorte del split a `raster ≤ 255` (cuando
+`display_offset ∈ [33,73]`) deja una banda de 1..41 filas al pie con contenido de las filas
+extra (stale) en lugar del wrap correcto; visualmente sutil (no aparece como negro ni tearing),
+pero pendiente de eliminar con un WAIT de 9 bits en `copper.hpp`.
+
+---
+
+Documento canónico — corregido 2026-08-31 (errata §3 BITMAPHEIGHT vs EXTRAHEIGHT del corkscrew,
+split vertical de XYLimited y banda de staging). No editar sin re-verificar contra ScrollingTrick.lha y Part 12.

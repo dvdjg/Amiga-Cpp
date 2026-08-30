@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# Secuencia de verificación de la demo 107_xlimited_corkscrew (X-Limited puro).
+# Secuencia de verificación de la demo 107_xlimited_corkscrew (corkscrew/XYLimited).
 #
-# Valida específicamente los tres invariantes de XLimited descritos en
+# Valida los invariantes del port corkscrew descritos en
 # engine/include/eng/field/xlimited.hpp y docs/architecture/AMIGA_8WAY_SCROLLING.md:
 #
 #  1) Scroll continuo a la derecha 100 frames (BPLxPT + BPLCON1 sin salto).
@@ -10,13 +10,16 @@
 #     1 word (saveword/savewordpointer) se restaura sin hueco de 2 bytes,
 #     comparando screenshots y, si el canal lateral está disponible, leyendo
 #     memoria vía periférico de depuración (0xB70000 / side-channel 2346).
-#  3) Columna entrante en y = (mapposx & 15) * BLOCKPLANELINES plane-shifted
-#     (x = BITMAPWIDTH + (videoposx & ~15), y en planelíneas interleaved).
+#  3) Columna entrante plane-shifted del corkscrew:
+#     x = BITMAPWIDTH + ROUND2BLOCKWIDTH(videoposx) (derecha),
+#     y = (block_videoposy + mapy*tile_height) % display_height en planelíneas,
+#     mapy = stepx+1 (2 bloques si stepx==0), dentro del bucle vertical.
 #
 # Herramientas reutilizadas de tools/analyze (las mismas que usa analyze-demo.sh):
 #  - analyze-frame-sequence.sh  (huella + diff, --expect-animated)
 #  - assert-no-inner-black.sh   (negro interno / tear)
-#  - verify-xlimited.mjs        (modelo host de Steger)
+#  - verify-xlimited.mjs        (modelo host de Steger + geometría corkscrew)
+#  - verify-corkscrew.mjs       (port bloque a bloque vs Scroller_XYLimited)
 #
 # Toolchain: no se asume m68k-amiga-elf-* en PATH. La compilación previa vía
 #  tools/build/build-demo.sh resuelve el toolchain en orden AMIGA_BIN_PATH,
@@ -35,6 +38,7 @@ RUN="$ROOT/tools/run/run-demo.sh"
 SEQ_ANALYZER="$ROOT/tools/analyze/analyze-frame-sequence.sh"
 INNER_BLACK="$ROOT/tools/analyze/assert-no-inner-black.sh"
 VERIFY_XLIMITED="$ROOT/tools/analyze/verify-xlimited.mjs"
+VERIFY_CORKSCREW="$ROOT/tools/analyze/verify-corkscrew.mjs"
 ANALYZE_DEMO="$ROOT/tools/analyze/analyze-demo.sh"
 
 SEQ_DIR="$ROOT/out/run/107_xlimited_corkscrew/sequence"
@@ -47,14 +51,23 @@ fi
 extra=()
 [ "$WARP" -eq 1 ] && extra+=(--warp)
 
-# 0) Modelo host del algoritmo X-Limited (Steger) — cubre geometría, altura extra,
-#    addressing interleaved, fetch 42 bytes, draw_block y guarda de 1 word.
+# 0) Modelo host del algoritmo X-Limited/corkscrew (Steger) — cubre geometría, altura extra,
+#    addressing interleaved, fetch 42 bytes, draw_block, guarda de 1 word y geometría corkscrew.
 if [ -f "$VERIFY_XLIMITED" ]; then
 	echo "[107] verify-xlimited.mjs (host) ..."
 	node "$VERIFY_XLIMITED" \
 		|| { echo "El modelo host de X-Limited falló (verify-xlimited.mjs)." >&2; exit 1; }
 else
 	echo "[107] aviso: $VERIFY_XLIMITED no encontrado, se omite test host." >&2
+fi
+
+# 0b) Port del corkscrew vs original (Scroller_XYLimited/main.c), bloque a bloque.
+if [ -f "$VERIFY_CORKSCREW" ]; then
+	echo "[107] verify-corkscrew.mjs (port vs XYLimited) ..."
+	node "$VERIFY_CORKSCREW" \
+		|| { echo "El port corkscrew no coincide con Scroller_XYLimited/main.c." >&2; exit 1; }
+else
+	echo "[107] aviso: $VERIFY_CORKSCREW no encontrado, se omite test del port." >&2
 fi
 
 # 1) Captura la secuencia continua a la derecha: 100 frames, intervalo ~20 ms
@@ -129,33 +142,35 @@ console.log(`OK X-Limited telemetría continua derecha frame=${frame} mapposx=${
 ' "$RUN_REPORT" \
 	|| { echo "Telemetría de 107_xlimited_corkscrew inválida (scroll continuo derecha)." >&2; exit 1; }
 
-# 5) Columna entrante y= (mapposx & 15) * BLOCKPLANELINES plane-shifted.
-#    Se replica aquí el contrato de xlimited.c:526-553 y engine/include/eng/field/xlimited.hpp §5.
-#    Valida: BLOCKPLANELINES=16*planes, y alineado a bloque, x word-aligned, bltsize BLOCKPLANELINES*64+words,
-#    y dentro de bitmapheight*planes. Usa los valores de la demo (352×268 base, 4 planos, tile 16).
+# 5) Columna entrante plane-shifted del corkscrew (ScrollRight, XYLimited).
+#    Replica el contrato del port (engine/include/eng/field/xlimited.hpp):
+#    x = BITMAPWIDTH + ROUND2BLOCKWIDTH(videoposx) (derecha, plane-shifted),
+#    mapy = stepx+1 (2 bloques si stepx==0, 1 si no), y = (block_videoposy +
+#    mapy*tile_height) % display_height en planelíneas, dentro de display_planelines.
+#    Con mapposy=0 (fase H) block_videoposy=0 y display_height=288 para 320×256.
 node -e '
 const BLOCK=16, PLANES=4, BITMAP_W=352;
-const BITMAP_H=262; // para 256 bloques 352/4 → 262 (ver verify-xlimited)
+const DISPLAY_HEIGHT=288, BITMAP_H=304; // corkscrew 320×256: display_height=288, bitmap_height alineado 304
 const BLOCKPLANELINES=BLOCK*PLANES; // 64
-const BYTES_PER_ROW=BITMAP_W/8; //44
-const LINES_TOTAL=BITMAP_H*PLANES; //1048
+const TWOBLOCKSTEP=22-16; // 6
 let ok=true, msg="";
-for(let mapposx=0; mapposx<256; ++mapposx){
-  const mapy=mapposx & 15;
-  const y=mapy*BLOCKPLANELINES;
-  if(y+BLOCKPLANELINES>LINES_TOTAL){ ok=false; msg=`y=${y} excede ${LINES_TOTAL} para mapposx=${mapposx}`; break; }
-  if(y % BLOCKPLANELINES!==0){ ok=false; msg=`y no alineado ${y}`; break;}
-  // x plane-shifted derecha
-  const videoposx=mapposx; // en demo 107 videoposx==mapposx
+// para mapposy=0 (H) y los 16 pasos de una columna (stepx 0..15)
+for(let stepx=0; stepx<16; ++stepx){
+  const mapy=stepx+1;                       // fila del bloque en el bucle vertical
+  const y=((0 + mapy*BLOCK) % DISPLAY_HEIGHT)*PLANES; // planelíneas
+  if(y+BLOCKPLANELINES > BITMAP_H*PLANES){ ok=false; msg=`y=${y} excede ${BITMAP_H*PLANES} stepx=${stepx}`; break; }
+  if(y % BLOCKPLANELINES!==0){ ok=false; msg=`y no alineado a bloque ${y} stepx=${stepx}`; break; }
+  // x plane-shifted derecha (videoposx == mapposx en la demo)
+  const videoposx=stepx;
   const xRight=BITMAP_W + (videoposx & ~15);
   if((xRight &1)!==0){ ok=false; msg=`xRight no word-aligned ${xRight}`; break; }
   const xLeft=videoposx & ~15;
   if((xLeft&1)!==0){ ok=false; msg=`xLeft no word-aligned ${xLeft}`; break; }
 }
-if(!ok){ console.error("Columna entrante plane-shifted inválida: "+msg); process.exit(1); }
-console.log(`OK X-Limited columna entrante y=(mapposx&15)*BLOCKPLANELINES plane-shifted BLOCKPLANELINES=${BLOCKPLANELINES} BITMAP_W=${BITMAP_W} BYTES_PER_ROW=${BYTES_PER_ROW}`);
+if(!ok){ console.error("Columna entrante corkscrew inválida: "+msg); process.exit(1); }
+console.log(`OK corkscrew columna entrante plane-shifted: y=(block_videoposy + mapy*16) % ${DISPLAY_HEIGHT}, x=BITMAP_W+ROUND2BLOCKWIDTH, dentro de ${BITMAP_H}*planes`);
 ' \
-	|| { echo "Validación de columna entrante X-Limited falló (y=mapy*BLOCKPLANELINES plane-shifted)." >&2; exit 1; }
+	|| { echo "Validación de columna entrante corkscrew falló." >&2; exit 1; }
 
 # 6) Inversión brusca a izquierda 1 frame — guarda de 1 word sin hueco de 2 bytes.
 #    6a) Host: simulación fiel de saveword/savewordpointer (ver verify-xlimited.mjs §7).
@@ -279,4 +294,4 @@ if [ -x "$ANALYZE_DEMO" ] || [ -f "$ANALYZE_DEMO" ]; then
 	"$ANALYZE_DEMO" "$DEMO" || echo "[107] aviso: analyze-demo.sh reportó artefactos, revisar screenshot." >&2
 fi
 
-echo "OK 107_xlimited_corkscrew sequence — XLimited verificado (100 derecha, inversión saveword sin hueco 2 bytes, columna y=mapy*BLOCKPLANELINES plane-shifted)"
+echo "OK 107_xlimited_corkscrew sequence — corkscrew verificado (100 derecha, inversión saveword sin hueco 2 bytes, columna plane-shifted del corkscrew)"

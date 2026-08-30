@@ -192,8 +192,7 @@ struct DemoGame {
         field_cfg.viewport_h = kViewportH;
         field_cfg.screens_x = kScreensX;
         field_cfg.screens_y = kScreensY;
-        field_cfg.scroll_y = true; // 16×16 pantallas: columnas de 17 tiles para V (16 visibles +1 guarda)
-        field_cfg.scroll_y = false;
+        field_cfg.scroll_y = true; // corkscrew: bucle vertical de display viewport_h + 2*tile_height
         // bitmap_width auto: viewport_w + EXTRAWIDTH (32 para fetch normal, 64 para fetch ancho)
         // Se deja 0 para que XlimitedField lo derive; alternativa explícita:
         // field_cfg.bitmap_width = kViewportW + (kFetchMode==0?32:64) → 352/384 para 320, 320/352 para 288
@@ -208,13 +207,14 @@ struct DemoGame {
         // Fill inicial por Blitter en lotes. X-Limited necesita cols*rows jobs
         // (ej. viewport 320→22×16=352, viewport 288→20×14=280) y FramePlan solo admite 128 jobs
         // y el presupuesto por defecto es max_jobs=120. Vaciamos *antes* de superar max_jobs.
+        // En corkscrew (scroll_y) se rellenan cols×display_blocks_per_col (22×18=396 para 320×256).
         plan.clear();
         plan.set_blit_budget_limits({8192, 16384, 4, 120});
         {
             const eng::u16 cols = field.bitmap_blocks_per_row();
-            const eng::u16 visibleRows = static_cast<eng::u16>(kViewportH / kTileSize);
-            const eng::u16 colHeight = static_cast<eng::u16>(visibleRows + (field_cfg.scroll_y ? 1u : 0u));
-            const eng::u16 rows = colHeight;
+            const eng::u16 rows = field_cfg.scroll_y
+                ? field.display_blocks_per_col()  // 18: viewport_h/TH + banda de 2 bloques
+                : static_cast<eng::u16>(kViewportH / kTileSize);
             for (eng::u16 b = 0; b < rows; ++b) {
                 for (eng::u16 a = 0; a < cols; ++a) {
                     // Vaciar proactivamente si estamos al límite de jobs.
@@ -261,6 +261,24 @@ struct DemoGame {
         composer.install(backend);
 
         ready = true;
+        // TEMP-VERIFY: desplazar 400 px a la derecha en init (planeaddx≥44) para que el
+        // planeaddx walk del display alcance las filas extra al llegar a mapposy≡288 mod 304.
+        {
+            plan.clear();
+            plan.set_blit_budget_limits({8192, 16384, 4, 120});
+            for (int i = 0; i < 400; ++i) {
+                if (!field.scroll_right(plan)) { ready = false; eng::debug::mark_failed(g_eng_run_status, 0x000107f1u); return; }
+                if (plan.blit_job_count() >= 120) {
+                    if (!backend.execute_frame_plan(plan)) { ready = false; eng::debug::mark_failed(g_eng_run_status, 0x000107f2u); return; }
+                    plan.clear();
+                    plan.set_blit_budget_limits({8192, 16384, 4, 120});
+                }
+            }
+            if (plan.blit_job_count() > 0) {
+                if (!backend.execute_frame_plan(plan)) { ready = false; eng::debug::mark_failed(g_eng_run_status, 0x000107f3u); return; }
+                plan.clear();
+            }
+        }
         eng::debug::mark_ready(g_eng_run_status, 0x10700000u);
     }
 
@@ -271,19 +289,19 @@ struct DemoGame {
         plan.clear();
         plan.set_blit_budget_limits({8192, 16384, 4, 120});
 
-        // Ciclo preparado para los siguientes retos: horizontal → vertical → diagonal → sinusoidal.
-        // Cada fase dura 300 frames (~6 s a 50 fps) y usa 1 px/frame para mantener
-        // 50 fps sin micro-parones. Cada píxel es como máximo 1 blit de
+        // Ciclo corkscrew: horizontal → vertical → HV → diagonal (sinusoidal).
+        // Cada fase dura 1000 frames (~20 s a 50 fps) y usa 1 px/frame para mantener
+        // 50 fps sin micro-parones. Cada píxel es como máximo 1-2 blits de
         // BLOCKPLANELINES = kTileSize*kPlanes planeline (48/64/80/96 según planes 3..6, §5).
         // Con 1 px/frame el fine scroll avanza 1/tile_width por frame y BPLCON1 cicla
         // sin saltos; con 2 px/frame se veía micro-parón cada 8 frames.
-        // Orden actual: H primero para validar sin negro inicial (V deja 17ª fila
-        // con inner-black 0.08→0.38 en los primeros 16 px hasta que la fila se
-        // completa). Tras fijar el pre-fill de la fila 17, se cambia a V primero.
+        // Todas las direcciones usan el port corkscrew (XYLimited): la fila/columna
+        // entrante se pre-pinta en la banda de staging y el display envuelve en
+        // display_height = viewport_h + 2*tile_height con un split de Copper.
         const eng::u32 phase = (context.frame.frame_index / 1000u) % 4u;
-        // 0:H, 1:V, 2:HV, 3:diagonal — tras validar V, cambiar a 0:V
-        const bool doH = (phase==0) || (phase==2) || (phase==3);
-        const bool doV = (phase==1) || (phase==2) || (phase==3);
+        // TEMP-VERIFY: forzar fase V para reproducir la colisión desde debug_set_pos.
+        const bool doH = false;
+        const bool doV = true;
         // Sinusoidal modula la dirección dentro de la fase 3
         eng::s32 dx = 0, dy = 0;
         if (phase==3) {

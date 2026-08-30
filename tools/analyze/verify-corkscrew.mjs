@@ -1,0 +1,365 @@
+#!/usr/bin/env node
+/**
+ * Simulación del corkscrew (XYLimited) para verificar el port de xlimited.hpp.
+ * Compara el port del engine (scroll_down/scroll_up) contra una réplica fiel
+ * de ScrollDown/ScrollUp de Scroller_XYLimited/main.c, en el config de la demo:
+ *   320x256, tile 16x16, planes 4, fetch normal (EXTRAWIDTH 32).
+ *
+ * No toca hardware: solo comprueba que cada blit emitido (x, y_planeline,
+ * mapx, mapy) coincide con el original para una secuencia de scroll.
+ */
+const VH = 256, VW = 320, TH = 16, TW = 16, PLANES = 4;
+const EXTRAWIDTH = 32, EXTRAHEIGHT = 32;
+const BITMAPWIDTH = VW + EXTRAWIDTH;          // 352
+const BPR = BITMAPWIDTH / 8;                  // 44
+const BITMAPBLOCKSPERROW = BITMAPWIDTH / TW;  // 22
+const BITMAPHEIGHT = VH + EXTRAHEIGHT;        // 288 (display loop)
+const BITMAPBLOCKSPERCOL = BITMAPHEIGHT / TH; // 18
+const BLOCKPLANELINES = TH * PLANES;          // 64
+const TWOBLOCKSTEP = BITMAPBLOCKSPERROW - TH; // 6 (pero con W32 = 22-16 = 6)
+const ROUND2BLOCKWIDTH = (x) => x & ~(TW - 1);
+
+// Mapa no-wrapping y grande para que el límite del original (mapheight*TH-VH-TH)
+// nunca se alcance en la secuencia; así la comparación aísla el PORT (blits) de
+// la política de wrap/límite (que en el engine depende de cfg.map.wrap_x/y).
+const MAP_W = 320, MAP_H = 4096;
+const mapdata = new Uint8Array(MAP_W * MAP_H);
+let seed = 0x13579bd;
+for (let i = 0; i < mapdata.length; ++i) {
+  seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+  mapdata[i] = seed & 63;
+}
+const tileAt = (x, y) => mapdata[((y % MAP_H + MAP_H) % MAP_H) * MAP_W + ((x % MAP_W + MAP_W) % MAP_W)];
+
+// bitmap height runtime (referencia): BITMAPHEIGHT + extra +1+3, luego el engine
+// redondea a múltiplo de TH para el port. Para comparar usamos el mismo valor.
+const extra = Math.floor(MAP_W / BITMAPBLOCKSPERROW / PLANES); // 3
+const BITMAPHEIGHT_RUNTIME = Math.ceil((BITMAPHEIGHT + extra + 1 + 3) / TH) * TH; // 304
+
+// ---------------------------------------------------------------------------
+// Réplica fiel del original (Scroller_XYLimited/main.c)
+// ---------------------------------------------------------------------------
+function refState() {
+  return { mapposx: 0, mapposy: 0, videoposx: 0, videoposy: 0,
+    block_videoposy: 0, mapblockx: 0, mapblocky: 0, stepx: 0, stepy: 0,
+    previous_xdirection: 0, savewordpointer: null, saveword: 0 };
+}
+function refDraw(s, blits, x, y, mapx, mapy) {
+  // x en px, y en planeline
+  blits.push({ x, y, mapx, mapy, tile: tileAt(mapx, mapy) });
+}
+function refScrollDown(s, blits) {
+  if (s.mapposy >= MAP_H * TH - VH - TH) return;
+  let mapx, mapy, x, y;
+  mapx = s.stepy; mapy = s.mapblocky + BITMAPBLOCKSPERCOL; y = s.block_videoposy * PLANES;
+  if (mapx >= TWOBLOCKSTEP) {
+    mapx += TWOBLOCKSTEP; x = mapx * TW + ROUND2BLOCKWIDTH(s.videoposx); mapx += s.mapblockx;
+    refDraw(s, blits, x, y, mapx, mapy);
+  } else {
+    mapx *= 2; x = mapx * TW + ROUND2BLOCKWIDTH(s.videoposx); mapx += s.mapblockx;
+    refDraw(s, blits, x, y, mapx, mapy); x += TW; refDraw(s, blits, x, y, mapx + 1, mapy);
+  }
+  s.mapposy++; s.mapblocky = Math.floor(s.mapposy / TH); s.stepy = s.mapposy & (TH - 1);
+  s.videoposy++; if (s.videoposy >= BITMAPHEIGHT) s.videoposy -= BITMAPHEIGHT;
+  if (!s.stepy) { s.block_videoposy += TH; if (s.block_videoposy >= BITMAPHEIGHT_RUNTIME) s.block_videoposy -= BITMAPHEIGHT_RUNTIME; }
+  if (s.stepy === 0) {
+    if (s.stepx) {
+      mapx = s.mapblockx; mapy = s.mapblocky; x = ROUND2BLOCKWIDTH(s.videoposx); y = s.block_videoposy * PLANES;
+      refDraw(s, blits, x, y, mapx, mapy);
+      if (s.previous_xdirection === 1) { /* restore */ }
+      mapy = s.stepx + 1; x += BITMAPWIDTH; y = ((s.block_videoposy + mapy * TH) % BITMAPHEIGHT) * PLANES;
+      let y2 = (y + BLOCKPLANELINES - 1) % (BITMAPHEIGHT * PLANES);
+      s.savewordpointer = y2 * BPR + (x / 8); s.saveword = 0;
+      mapx += BITMAPBLOCKSPERROW; mapy += s.mapblocky;
+      refDraw(s, blits, x, y, mapx, mapy);
+      s.previous_xdirection = 2;
+    }
+  }
+}
+function refScrollUp(s, blits) {
+  if (s.mapposy < 1) return;
+  s.mapposy--; s.mapblocky = Math.floor(s.mapposy / TH); s.stepy = s.mapposy & (TH - 1);
+  s.videoposy--; if (s.videoposy < 0) s.videoposy += BITMAPHEIGHT;
+  if (s.stepy === TH - 1) { s.block_videoposy -= TH; if (s.block_videoposy < 0) s.block_videoposy += BITMAPHEIGHT_RUNTIME; }
+  if (s.stepy === TH - 1) {
+    if (s.stepx) {
+      let mapx = s.mapblockx + BITMAPBLOCKSPERROW, mapy = s.mapblocky + 1;
+      let x = ROUND2BLOCKWIDTH(s.videoposx);
+      let y = ((s.block_videoposy + TH) % BITMAPHEIGHT) * PLANES;
+      refDraw(s, blits, x + BITMAPWIDTH, y, mapx, mapy);
+      if (s.previous_xdirection === 2) { /* restore */ }
+      mapy = s.stepx + 2; y = ((s.block_videoposy + mapy * TH) % BITMAPHEIGHT) * PLANES;
+      s.savewordpointer = y * BPR + (x / 8); s.saveword = 0;
+      mapx -= BITMAPBLOCKSPERROW; mapy += s.mapblocky;
+      refDraw(s, blits, x, y, mapx, mapy);
+      s.previous_xdirection = 1;
+    }
+  }
+  let mapx = s.stepy, mapy = s.mapblocky, x, y = s.block_videoposy * PLANES;
+  if (mapx >= TWOBLOCKSTEP) {
+    mapx += TWOBLOCKSTEP; x = mapx * TW + ROUND2BLOCKWIDTH(s.videoposx); mapx += s.mapblockx;
+    refDraw(s, blits, x, y, mapx, mapy);
+  } else {
+    mapx *= 2; x = mapx * TW + ROUND2BLOCKWIDTH(s.videoposx); mapx += s.mapblockx;
+    refDraw(s, blits, x, y, mapx, mapy); x += TW; refDraw(s, blits, x, y, mapx + 1, mapy);
+  }
+}
+function refScrollRight(s, blits) {
+  if (s.mapposx >= MAP_W * TW - VW - TW) return;
+  let mapx = s.mapblockx + BITMAPBLOCKSPERROW;
+  let mapy = s.stepx + 1;
+  let x = ROUND2BLOCKWIDTH(s.videoposx);
+  if (s.previous_xdirection === 1) { /* restore */ }
+  if (mapy === 1) {
+    mapy += s.mapblocky;
+    let y = ((s.block_videoposy + TH) % BITMAPHEIGHT) * PLANES;
+    refDraw(s, blits, x + BITMAPWIDTH, y, mapx, mapy);
+    y = (y + BLOCKPLANELINES) % (BITMAPHEIGHT * PLANES);
+    let y2 = (y + BLOCKPLANELINES - 1) % (BITMAPHEIGHT * PLANES);
+    s.savewordpointer = y2 * BPR + ((x + BITMAPWIDTH) / 8); s.saveword = 0;
+    refDraw(s, blits, x + BITMAPWIDTH, y, mapx, mapy + 1);
+  } else {
+    mapy++;
+    let y = ((s.block_videoposy + mapy * TH) % BITMAPHEIGHT) * PLANES;
+    let y2 = (y + BLOCKPLANELINES - 1) % (BITMAPHEIGHT * PLANES);
+    mapy += s.mapblocky;
+    s.savewordpointer = y2 * BPR + ((x + BITMAPWIDTH) / 8); s.saveword = 0;
+    refDraw(s, blits, x + BITMAPWIDTH, y, mapx, mapy);
+  }
+  s.mapposx++; s.mapblockx = Math.floor(s.mapposx / TW); s.stepx = s.mapposx & (TW - 1);
+  s.videoposx++;
+  if (s.stepx === 0) {
+    mapx = s.mapblockx + BITMAPBLOCKSPERROW - 1; mapy = s.mapblocky;
+    x = ROUND2BLOCKWIDTH(s.videoposx) + (BITMAPBLOCKSPERROW - 1) * TW;
+    let y = s.block_videoposy * PLANES;
+    refDraw(s, blits, x, y, mapx, mapy);
+    mapx = s.stepy;
+    if (mapx) {
+      if (mapx >= TWOBLOCKSTEP) mapx += (TWOBLOCKSTEP - 1); else mapx = mapx * 2 - 1;
+      x = ROUND2BLOCKWIDTH(s.videoposx) + mapx * TW;
+      y = s.block_videoposy * PLANES;
+      mapx += s.mapblockx;
+      refDraw(s, blits, x, y, mapx, mapy + BITMAPBLOCKSPERCOL);
+    }
+  }
+  s.previous_xdirection = s.stepx ? 2 : 0;
+}
+function refScrollLeft(s, blits) {
+  if (s.mapposx < 1) return;
+  s.mapposx--; s.mapblockx = Math.floor(s.mapposx / TW); s.stepx = s.mapposx & (TW - 1);
+  s.videoposx--;
+  if (s.stepx === TW - 1) {
+    let mapx = s.mapblockx; let mapy = s.mapblocky;
+    if (s.stepy) mapy += BITMAPBLOCKSPERCOL;
+    let x = ROUND2BLOCKWIDTH(s.videoposx);
+    let y = s.block_videoposy * PLANES;
+    refDraw(s, blits, x, y, mapx, mapy);
+    mapx = s.stepy;
+    if (mapx) {
+      if (mapx >= TWOBLOCKSTEP) mapx += TWOBLOCKSTEP; else mapx *= 2;
+      x = ROUND2BLOCKWIDTH(s.videoposx) + mapx * TW;
+      y = s.block_videoposy * PLANES;
+      mapx += s.mapblockx; mapy -= BITMAPBLOCKSPERCOL;
+      refDraw(s, blits, x, y, mapx, mapy);
+    }
+  }
+  let mapx = s.mapblockx;
+  let mapy = s.stepx + 1;
+  let x = ROUND2BLOCKWIDTH(s.videoposx);
+  if (s.previous_xdirection === 2) { /* restore */ }
+  if (mapy === 1) {
+    mapy += s.mapblocky;
+    let y = ((s.block_videoposy + TH) % BITMAPHEIGHT) * PLANES;
+    s.savewordpointer = y * BPR + (x / 8); s.saveword = 0;
+    refDraw(s, blits, x, y, mapx, mapy);
+    y = (y + BLOCKPLANELINES) % (BITMAPHEIGHT * PLANES);
+    refDraw(s, blits, x, y, mapx, mapy + 1);
+  } else {
+    mapy++;
+    let y = ((s.block_videoposy + mapy * TH) % BITMAPHEIGHT) * PLANES;
+    mapy += s.mapblocky;
+    s.savewordpointer = y * BPR + (x / 8); s.saveword = 0;
+    refDraw(s, blits, x, y, mapx, mapy);
+  }
+  s.previous_xdirection = s.stepx ? 1 : 0;
+}
+
+// ---------------------------------------------------------------------------
+// Port del engine (xlimited.hpp) — traducido literal
+// ---------------------------------------------------------------------------
+function engState() { return { mapposx: 0, mapposy: 0, videoposx: 0, videoposy: 0, prevDir: 0 }; }
+function twoblockstep() { return BITMAPBLOCKSPERROW - TH; }
+function engBlockVideoposy(s) { return (Math.floor(s.mapposy / TH) * TH) % BITMAPHEIGHT_RUNTIME; }
+function engScrollDown(s, blits) {
+  const mapblockx = Math.floor(s.mapposx / TW), mapblocky = Math.floor(s.mapposy / TH);
+  const stepx = s.mapposx & (TW - 1), stepy = s.mapposy & (TH - 1);
+  const bvpos = engBlockVideoposy(s);
+  const x0 = s.videoposx & ~(TW - 1);
+  const y_pl = bvpos * PLANES;
+  const mapy = mapblocky + BITMAPBLOCKSPERCOL;
+  if (stepy >= twoblockstep()) {
+    const mx = stepy + twoblockstep() + mapblockx;
+    const x = (stepy + twoblockstep()) * TW + x0;
+    refDraw(s, blits, x, y_pl, mx, mapy);
+  } else {
+    const mx = stepy * 2 + mapblockx;
+    const x = stepy * 2 * TW + x0;
+    refDraw(s, blits, x, y_pl, mx, mapy);
+    refDraw(s, blits, x + TW, y_pl, mx + 1, mapy);
+  }
+  s.mapposy++; s.videoposy = s.mapposy % BITMAPHEIGHT;
+  if (stepy === TH - 1 && stepx) {
+    const nvpos = engBlockVideoposy(s);
+    const nmapblocky = mapblocky + 1;
+    refDraw(s, blits, x0, nvpos * PLANES, mapblockx, nmapblocky);
+    if (s.prevDir === 1) { /* restore */ }
+    const my = stepx + 1;
+    const y2 = ((nvpos + my * TH) % BITMAPHEIGHT) * PLANES;
+    const y2b = (y2 + BLOCKPLANELINES - 1) % (BITMAPHEIGHT * PLANES);
+    refDraw(s, blits, x0 + BITMAPWIDTH, y2, mapblockx + BITMAPBLOCKSPERROW, my + nmapblocky);
+    s.prevDir = 2;
+  }
+}
+function engScrollUp(s, blits) {
+  if (s.mapposy < 1) return;
+  s.mapposy--; s.videoposy = s.mapposy % BITMAPHEIGHT;
+  const mapblockx = Math.floor(s.mapposx / TW), mapblocky = Math.floor(s.mapposy / TH);
+  const stepx = s.mapposx & (TW - 1), stepy = s.mapposy & (TH - 1);
+  const bvpos = engBlockVideoposy(s);
+  const x0 = s.videoposx & ~(TW - 1);
+  const y_pl = bvpos * PLANES;
+  if (stepy === TH - 1 && stepx) {
+    const mx1 = mapblockx + BITMAPBLOCKSPERROW;
+    const y1 = ((bvpos + TH) % BITMAPHEIGHT) * PLANES;
+    refDraw(s, blits, x0 + BITMAPWIDTH, y1, mx1, mapblocky + 1);
+    if (s.prevDir === 2) { /* restore */ }
+    const my2 = stepx + 2;
+    const y2 = ((bvpos + my2 * TH) % BITMAPHEIGHT) * PLANES;
+    refDraw(s, blits, x0, y2, mx1 - BITMAPBLOCKSPERROW, my2 + mapblocky);
+    s.prevDir = 1;
+  }
+  if (stepy >= twoblockstep()) {
+    const mx = stepy + twoblockstep() + mapblockx;
+    const x = (stepy + twoblockstep()) * TW + x0;
+    refDraw(s, blits, x, y_pl, mx, mapblocky);
+  } else {
+    const mx = stepy * 2 + mapblockx;
+    const x = stepy * 2 * TW + x0;
+    refDraw(s, blits, x, y_pl, mx, mapblocky);
+    refDraw(s, blits, x + TW, y_pl, mx + 1, mapblocky);
+  }
+}
+function engScrollRight(s, blits) {
+  if (s.mapposx >= MAP_W * TW - VW - TW) return;
+  const mapblockx = Math.floor(s.mapposx / TW), mapblocky = Math.floor(s.mapposy / TH);
+  const stepx = s.mapposx & (TW - 1), stepy = s.mapposy & (TH - 1);
+  const bvpos = engBlockVideoposy(s);
+  const x0 = s.videoposx & ~(TW - 1);
+  const mapx = mapblockx + BITMAPBLOCKSPERROW;
+  if (s.prevDir === 1) { /* restore */ }
+  let mapy = stepx + 1;
+  if (mapy === 1) {
+    mapy += mapblocky;
+    const y = ((bvpos + TH) % BITMAPHEIGHT) * PLANES;
+    refDraw(s, blits, x0 + BITMAPWIDTH, y, mapx, mapy);
+    const y2 = (y + BLOCKPLANELINES) % (BITMAPHEIGHT * PLANES);
+    refDraw(s, blits, x0 + BITMAPWIDTH, y2, mapx, mapy + 1);
+  } else {
+    mapy++;
+    const y = ((bvpos + mapy * TH) % BITMAPHEIGHT) * PLANES;
+    mapy += mapblocky;
+    refDraw(s, blits, x0 + BITMAPWIDTH, y, mapx, mapy);
+  }
+  s.mapposx++; s.videoposx = s.mapposx;
+  const new_stepx = s.mapposx & (TW - 1);
+  if (new_stepx === 0) {
+    const nx0 = x0 + TW;
+    const nmapblockx = mapblockx + 1;
+    refDraw(s, blits, nx0 + (BITMAPBLOCKSPERROW - 1) * TW, bvpos * PLANES, nmapblockx + BITMAPBLOCKSPERROW - 1, mapblocky);
+    if (stepy) {
+      const mx = stepy >= twoblockstep() ? stepy + (twoblockstep() - 1) : stepy * 2 - 1;
+      refDraw(s, blits, nx0 + mx * TW, bvpos * PLANES, mx + nmapblockx, mapblocky + BITMAPBLOCKSPERCOL);
+    }
+  }
+  s.prevDir = new_stepx ? 2 : 0;
+}
+function engScrollLeft(s, blits) {
+  if (s.mapposx < 1) return;
+  s.mapposx--; s.videoposx = s.mapposx;
+  const mapblockx = Math.floor(s.mapposx / TW), mapblocky = Math.floor(s.mapposy / TH);
+  const stepx = s.mapposx & (TW - 1), stepy = s.mapposy & (TH - 1);
+  const bvpos = engBlockVideoposy(s);
+  const x0 = s.videoposx & ~(TW - 1);
+  if (stepx === TW - 1) {
+    let mx = mapblockx, my = mapblocky;
+    if (stepy) my += BITMAPBLOCKSPERCOL;
+    refDraw(s, blits, x0, bvpos * PLANES, mx, my);
+    mx = stepy;
+    if (mx) {
+      mx = mx >= twoblockstep() ? mx + twoblockstep() : mx * 2;
+      refDraw(s, blits, x0 + mx * TW, bvpos * PLANES, mx + mapblockx, my - BITMAPBLOCKSPERCOL);
+    }
+  }
+  const mapx = mapblockx;
+  let mapy = stepx + 1;
+  if (s.prevDir === 2) { /* restore */ }
+  if (mapy === 1) {
+    mapy += mapblocky;
+    const y = ((bvpos + TH) % BITMAPHEIGHT) * PLANES;
+    refDraw(s, blits, x0, y, mapx, mapy);
+    const y2 = (y + BLOCKPLANELINES) % (BITMAPHEIGHT * PLANES);
+    refDraw(s, blits, x0, y2, mapx, mapy + 1);
+  } else {
+    mapy++;
+    const y = ((bvpos + mapy * TH) % BITMAPHEIGHT) * PLANES;
+    mapy += mapblocky;
+    refDraw(s, blits, x0, y, mapx, mapy);
+  }
+  s.prevDir = stepx ? 1 : 0;
+}
+
+// ---------------------------------------------------------------------------
+// Comparación
+// ---------------------------------------------------------------------------
+function fmt(b) { return `x=${b.x} y=${b.y} mapx=${b.mapx} mapy=${b.mapy} tile=${b.tile}`; }
+let failures = 0;
+function cmp(seq) {
+  const r = refState(), e = engState();
+  const rb = [], eb = [];
+  for (const dir of seq) {
+    rb.length = 0; eb.length = 0;
+    if (dir === 'D') { refScrollDown(r, rb); engScrollDown(e, eb); }
+    else if (dir === 'U') { refScrollUp(r, rb); engScrollUp(e, eb); }
+    else if (dir === 'R') { refScrollRight(r, rb); engScrollRight(e, eb); }
+    else if (dir === 'L') { refScrollLeft(r, rb); engScrollLeft(e, eb); }
+    if (rb.length !== eb.length) { failures++; console.log(`F: ${dir} blits ref=${rb.length} eng=${eb.length} [mapposx=${e.mapposx} mapposy=${e.mapposy}]`); continue; }
+    for (let i = 0; i < rb.length; ++i) {
+      const a = rb[i], b = eb[i];
+      if (a.x !== b.x || a.y !== b.y || a.mapx !== b.mapx || a.mapy !== b.mapy) {
+        failures++;
+        console.log(`F ${dir}[${i}]: ref(${fmt(a)}) vs eng(${fmt(b)}) [mapposx=${e.mapposx} mapposy=${e.mapposy}]`);
+      }
+    }
+  }
+}
+// Secuencia: abajo 300 px, luego arriba 100 px, luego derecha 300, izquierda 100, y XY mezclado
+const seq = [];
+for (let i = 0; i < 300; ++i) seq.push('D');
+for (let i = 0; i < 100; ++i) seq.push('U');
+for (let i = 0; i < 300; ++i) seq.push('R');
+for (let i = 0; i < 100; ++i) seq.push('L');
+const xySeq = [];
+for (let i = 0; i < 600; ++i) xySeq.push(i % 2 === 0 ? 'D' : 'R');
+for (let i = 0; i < 600; ++i) xySeq.push(i % 2 === 0 ? 'U' : 'L');
+cmp(seq);
+cmp(xySeq);
+// Secuencia aleatoria larga (regresión: cualquier cambio en el port debe seguir
+// coincidiendo bloque a bloque con el original en scroll 8-way arbitrario).
+let rng = 42;
+function rnd(n) { rng = (rng * 1103515245 + 12345) & 0x7fffffff; return rng % n; }
+const dirs = ['D', 'U', 'R', 'L'];
+const randSeq = [];
+for (let i = 0; i < 5000; ++i) randSeq.push(dirs[rnd(4)]);
+cmp(randSeq);
+console.log(failures === 0 ? 'OK: ScrollDown/Up/Right/Left del port coincide con XYLimited (incl. secuencia aleatoria 5000 pasos)' : `FAIL: ${failures} discrepancias`);
+process.exit(failures === 0 ? 0 : 1);

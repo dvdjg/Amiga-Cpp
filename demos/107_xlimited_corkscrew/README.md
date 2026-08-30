@@ -1,34 +1,47 @@
 # 107_xlimited_corkscrew
 
-Demo limpia del algoritmo **X-Limited** de Georg Steger (ScrollingTricks) sin
-ruido del controlador circular de `TileFieldController`.
+Demo del algoritmo **XYLimited / corkscrew** de Georg Steger (ScrollingTricks):
+scroll **8-way** con el truco X-Limited extendido a vertical, sin el ruido del
+controlador circular de `TileFieldController`.
 
 ## Qué demuestra
 
-- Un campo **interleaved** (`BMF_INTERLEAVED`) de 352×268 (ó 384×267 con fetch
-  ancho) que hace scroll **horizontal infinito** con un mapa de 256×128 tiles
-  de 16×16 sin tearing y sin Copper segmentado.
-- La columna entrante se dibuja con **un único blit** de `BLOCKPLANELINES`
-  líneas (`16*planes = 64` para 4 planos) en la planelínea
-  `y = (mapposx & 15) * BLOCKPLANELINES`. El `x` es plane-shifted a la derecha
-  (`BITMAPWIDTH + (videoposx & ~15)`) y el wrap vertical es implícito por el
-  fetch lineal de 42 bytes (`DDFSTRT=$30`).
+- Un campo **interleaved** (`BMF_INTERLEAVED`) de 352×304 (ó 384 con fetch
+  ancho) que hace scroll **horizontal y vertical infinito** con un mapa de
+  320×256 tiles de 16×16 sin tearing.
+- **Bucle vertical de display** `display_height = viewport_h + 2*tile_height`
+  (288 para 320×256): el display envuelve al llegar al final y un **split de
+  Copper** vuelve a la fila 0. La fila/columna entrante se **pre-pinta en la
+  banda de staging** de 2 bloques (`block_videoposy`, `y = block_videoposy*planes`)
+  que el display alcanza al dar la vuelta — el invariante "corkscrew" del original.
+- Cada píxel es como máximo 1-2 blits de `BLOCKPLANELINES` líneas
+  (`16*planes = 64` para 4 planos). El `x` de la columna entrante es
+  plane-shifted a la derecha (`BITMAPWIDTH + ROUND2BLOCKWIDTH(videoposx)`) y el
+  `y` de la fila entrante usa `(block_videoposy + mapy*tile_height) % display_height`.
 - La guarda de 1 word (`saveword`/`savewordpointer`) evita el artefacto de
-  2 bytes al invertir la dirección, exactamente como en `xlimited.c`.
+  2 bytes al invertir la dirección, igual que en `xlimited.c`/`XYLimited`.
+- `TWOBLOCKSTEP = bitmap_blocks_per_row - tile_height` (22-16=6 para 352 px):
+  2 bloques por paso mientras `stepy < TWOBLOCKSTEP`, 1 después, para cubrir la
+  fila completa en 16 píxeles de scroll vertical.
 
-La demo es deliberadamente **single playfield de 4 planos** (16 colores) para
-ver el X-Limited puro. No hay `surface_origin` ni bandas: el posicionamiento
-físico es `frontbuffer + y*BITMAPBYTESPERROW + x` con `y` en planelíneas.
+La demo es deliberadamente **single playfield de 4 planos** (16 colores) para ver
+el corkscrew puro. No hay `surface_origin` ni bandas del modelo circular: el
+posicionamiento físico es `frontbuffer + y*BITMAPBYTESPERROW + x` con `y` en
+planelíneas.
 
-## Controles / movimiento
+## Ciclo de fases
 
-La cámara avanza 2 píxeles por frame hacia la derecha de forma indefinida
-(parámetro `K_SCROLL_SPEED`). Cuando alcanza el final del mapa lógico
-(`map_width*16 - SCREEN_W - 16`) hace wrap a 0 y refilla la pantalla; el
-contenido del mapa es circular (`TileLayerMap` con `wrap_x/y`), de modo que el
-scroll se percibe infinito. El cambio de dirección con joystick (si se pulsa
-izquierda) también está soportado y demuestra la restauración de la word de
-guarda.
+El scroll avanza 1 px/frame en un ciclo de 4 fases de 1000 frames (~20 s a 50 fps):
+
+| Fase | Movimiento |
+|---|---|
+| 0 | Horizontal derecha |
+| 1 | Vertical abajo |
+| 2 | HV alternando (derecha/abajo) |
+| 3 | Diagonal Lissajous (sin(x), cos(0.7x)) |
+
+Todas usan el port corkscrew (XYLimited) de `xlimited.hpp` (§ Scroll corkscrew),
+verificado bloque a bloque contra `Scroller_XYLimited/main.c`.
 
 ## Parámetros de compilación
 
@@ -63,15 +76,19 @@ EXTRA_DEFINES="-DK_FETCH_MODE=3" bash ./tools/build/build-demo.sh demos/107_xlim
 ## Verificación
 
 - **Test host**: `node tools/analyze/verify-xlimited.mjs` modela direcciones
-  lineales, fetch contiguo, columna entrante en `y=mapy*BLOCKPLANELINES`,
-  altura extra `256 + (map_width/blocksPerRow/planes)+1+3` y línea de guarda.
+  lineales, fetch contiguo, altura extra `viewport_h+EXTRAHEIGHT? + (map_width/blocksPerRow/planes)+1+3`,
+  guarda de 1 word y la geometría del corkscrew (§11: `display_height`,
+  `BITMAPBLOCKSPERCOL`, `TWOBLOCKSTEP`, `block_videoposy`, split).
+- **Port vs original**: `node tools/analyze/verify-corkscrew.mjs` (test host)
+  compara **bloque a bloque** los 4 scrolls del port (`XlimitedField`) contra una
+  réplica fiel de `Scroller_XYLimited/main.c` para el config de la demo
+  (secuencias D/U/R/L, XY mezclado y 5000 pasos aleatorios). Debe imprimir `OK`.
 - **Análisis visual**: `bash ./tools/analyze/analyze-demo.sh demos/107_xlimited_corkscrew`
   o `analyze-sequence.sh` si existe.
-- **Secuencia XLimited** (`demos/107_xlimited_corkscrew/analyze-sequence.sh`):
+- **Secuencia corkscrew** (`demos/107_xlimited_corkscrew/analyze-sequence.sh`):
   valida 1) scroll continuo a la derecha 100 frames, 2) inversión brusca a la
-  izquierda 1 frame sin hueco de 2 bytes (`saveword`/`savewordpointer` — compara
-  screenshots y, si el canal lateral 2346 está vivo, lee memoria vía periférico
-  `0xB70000`), 3) columna entrante en `y=mapy*BLOCKPLANELINES` plane-shifted.
+  izquierda 1 frame sin hueco de 2 bytes (`saveword`/`savewordpointer`), 3)
+  fila/columna entrante en la banda de staging y split vertical.
 
   ```bash
   # Secuencia completa (requiere WinUAE-DBG; no asume toolchain en PATH salvo AMIGA_BIN_PATH)
@@ -86,16 +103,46 @@ EXTRA_DEFINES="-DK_FETCH_MODE=3" bash ./tools/build/build-demo.sh demos/107_xlim
   En `tools/test-regression.sh` la regresión invoca automáticamente
   `analyze-sequence.sh --warp` cuando existe.
 
+## Evidencia runtime (WinUAE-DBG, 2026-08-31)
+
+Verificado el **scroll vertical** (fase V, cámara bajando) con captura de 60
+frames a 20 ms y análisis determinista + visión local (qwen3-vl):
+
+- **Sin banda negra al pie**: 0 % de negro en la fila inferior e interna del
+  viewport (el bug original dejaba la fila entrante en negro/basura).
+- **Contenido desplazándose arriba ~1 px/frame** (mediana −1 px nativo), que es
+  el signo correcto de una cámara bajando (`scroll_down`).
+- **Tiles bien formados, sin tearing** (qwen3-vl: "no hay filas negras ni
+  tearing, los tiles se ven bien formados").
+- La fase H (derecha) pasa `analyze-sequence.sh` completa (100 frames,
+  `ChangedPairs=99`, `DuplicatePairs=0`, telemetría mapposx/videoposx/BPLCON1).
+
+## Limitación OCS conocida
+
+El encoder de WAIT de Copper del engine cubre líneas 0..255. El split vertical
+del corkscrew puede caer en las líneas 256..296 (cuando
+`display_offset < 74`); en ese caso se recorta a la línea 255, mostrando la
+banda inferior (1..41 filas) con el wrap adelantado unos píxeles. Confirmado en
+emulador: la banda es visualmente sutil (contiene tiles de las filas extra, no
+negro ni tearing). Afecta solo a las fases verticales en ~16% de los frames.
+Para eliminarlo hace falta un WAIT de 9 bits en `copper.hpp` (verificar contra
+WinUAE-DBG antes de aplicar).
+
 ## Arquitectura
 
 - `engine/include/eng/field/xlimited.hpp` — `XlimitedField` + `XlimitedDisplayComposer`.
-  Documenta por qué interleaved es obligatorio y por qué el wrap horizontal no
-  necesita Copper segmentado. Allocation `BMF_INTERLEAVED-like`:
-  `row_bytes*planes*height`, addressing `frontbuffer + y*BITMAPBYTESPERROW + x`.
+  Port del corkscrew (XYLimited): `scroll_right/left/up/down` fieles a
+  `Scroller_XYLimited/main.c`, banda de staging `block_videoposy`, split
+  vertical en `display_height`, paleta al inicio del frame. Allocation
+  `BMF_INTERLEAVED-like`: `row_bytes*planes*height`, addressing
+  `frontbuffer + y*BITMAPBYTESPERROW + x`.
 - `demos/107_xlimited_corkscrew/src/main.cpp` — usa `MinimalBackend`,
-  `g_eng_run_status` y `demo::build_tile_cache` (compartido con 106) pero no
-  reutiliza la lógica circular (`surface_origin`, recentrado, bandas).
+  `g_eng_run_status` y `demo::pf_plane_row`/`cell_hash` para construir el banco
+  de bloques en el layout clásico de Steger (320×256 interleaved, tiles en
+  `(tile%20, tile/20)`) y el mapa; no reutiliza la lógica circular
+  (`surface_origin`, recentrado, bandas).
 
 Referencias: `ScrollingTricks/Docs/xlimited-uk.html`,
-`amiga-stuff/scrolling_tricks/xlimited.c:68,201,448`,
-`docs/architecture/AMIGA_8WAY_SCROLLING.md`.
+`amiga-stuff/scrolling_tricks/xlimited.c`,
+`amiga-stuff/scrolling_tricks/xylimited.c` (corkscrew),
+`docs/architecture/AMIGA_8WAY_SCROLLING.md` (§3 errata, §7.4, §11, §13).

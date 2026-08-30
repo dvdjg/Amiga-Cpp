@@ -388,8 +388,56 @@ for (const tw of [16,32]) {
   check(jobsScroll === BLOCKSPERROW_W32 * (VISIBLE_ROWS+1), `jobs fill con scroll_y ${jobsScroll}`);
 }
 
+// -----------------------------------------------------------------------------
+// 11. Corkscrew / XY (scroll_y=true): EXTRAHEIGHT + display loop + split.
+//     Port fiel de Scroller_XYLimited/main.c (demo 107).
+//     display_height = viewport_h + EXTRAHEIGHT (EXTRAHEIGHT = 2*block_h)
+//     bitmap_height  = round_up(display_height + (map_w/bpr/planes) +1 +3, block_h)
+//     BITMAPBLOCKSPERCOL = display_height / block_h  (fill = visibleRows + 2)
+//     display_offset = (videoposy + block_h) % display_height
+//     split_line = display_height - display_offset ; split_active si < viewport_h
+//     block_videoposy = (mapposy/block_h*block_h) % bitmap_height  (múltiplo, cabe)
+// -----------------------------------------------------------------------------
+{
+  const EXTRAHEIGHT = 2 * BLOCK_H;
+  const displayHeight = SCREEN_H + EXTRAHEIGHT;
+  check(displayHeight === SCREEN_H + 2*BLOCK_H, `corkscrew display_height ${displayHeight} == ${SCREEN_H}+2*${BLOCK_H}`);
+  check(displayHeight % BLOCK_H === 0, `corkscrew display_height múltiplo de block_h`);
+  const bprCol = displayHeight / BLOCK_H;
+  check(bprCol === VISIBLE_ROWS + 2, `corkscrew BITMAPBLOCKSPERCOL ${bprCol} == visibleRows+2`);
+  for (const planes of [3,4,5,6]) {
+    const raw = displayHeight + Math.floor(MAP_W / BLOCKSPERROW_W32 / planes) + 1 + 3;
+    const h = Math.ceil(raw / BLOCK_H) * BLOCK_H;
+    check(h % BLOCK_H === 0, `corkscrew bitmap_height ${h} múltiplo de block_h planes=${planes}`);
+    check(h >= displayHeight, `corkscrew bitmap_height ${h} >= display_height ${displayHeight} planes=${planes}`);
+    // block_videoposy siempre cabe: última banda (h-BLOCK_H .. h-1) dentro del allocation
+    const maxBvpos = h - BLOCK_H;
+    check(maxBvpos % BLOCK_H === 0 && maxBvpos + BLOCK_H <= h,
+      `corkscrew última banda block_videoposy=${maxBvpos}+${BLOCK_H} <= ${h} planes=${planes}`);
+  }
+  // display loop + split
+  for (let videoposy = 0; videoposy < 3*displayHeight; ++videoposy) {
+    const vy = videoposy % displayHeight;
+    const displayOffset = (vy + BLOCK_H) % displayHeight;
+    const splitLine = displayHeight - displayOffset;
+    const splitActive = splitLine < SCREEN_H;
+    check(displayOffset >= 0 && displayOffset < displayHeight, `corkscrew display_offset ${displayOffset} en [0,${displayHeight})`);
+    check(!splitActive || splitLine > 0, `corkscrew split_line ${splitLine} >0 cuando activo`);
+    if (splitActive) {
+      check(splitLine < SCREEN_H, `corkscrew split dentro de viewport ${splitLine}<${SCREEN_H}`);
+    }
+  }
+  // fill rows del corkscrew = bprCol (18 para 320×256), 22×18=396 jobs
+  check(BLOCKSPERROW_W32 * bprCol === BLOCKSPERROW_W32 * (VISIBLE_ROWS + 2),
+    `corkscrew jobs fill ${BLOCKSPERROW_W32*bprCol} == ${BLOCKSPERROW_W32}*${VISIBLE_ROWS+2}`);
+  // TWOBLOCKSTEP = bitmap_blocks_per_row - block_h (corkscrew, no visible_cols)
+  const tw = BLOCKSPERROW_W32 - BLOCK_H;
+  check(tw === BLOCKSPERROW_W32 - BLOCK_H, `corkscrew TWOBLOCKSTEP ${tw} = bpr - block_h`);
+  if (SCREEN_W === 320 && BLOCK === 16) check(tw === 6, `corkscrew TWOBLOCKSTEP 320px = 6 got ${tw}`);
+}
+
 if (failures.length) {
   console.error(`FAIL verify-xlimited (${failures.length}) viewport ${SCREEN_W}×${SCREEN_H} tile ${BLOCK}×${BLOCK_H} screens ${K_SCREENS_X}×${K_SCREENS_Y}\n${failures.slice(0,30).join('\n')}`);
   process.exit(1);
 }
-console.log(`OK verify-xlimited: viewport ${SCREEN_W}×${SCREEN_H} tile ${BLOCK}×${BLOCK_H} screens ${K_SCREENS_X}×${K_SCREENS_Y} BITMAPWIDTH ${BITMAP_W32}/${BITMAP_W64}, BLOCKSPERROW ${BLOCKSPERROW_W32}/${BLOCKSPERROW_W64}, BLOCKPLANELINES, bitmapheight viewport_h+1+3, interleaved frontbuffer+y*BYTES+x, draw_block planelíneas word-aligned BLOCKPLANELINES*64, scroll mapy&(tile-1) planeaddx/BPLCON1(0x4400/0x8800)/BPLMOD DDF $30/$28/$18 fetch ${BLOCK}/32/64 bitmapoffset 16/48, altura extra y guarda 1 word, BPLCON1 0x00..0xFF steps=1, fill visibleRows ${VISIBLE_ROWS} colHeight ${VISIBLE_ROWS}+scroll_y`);
+console.log(`OK verify-xlimited: viewport ${SCREEN_W}×${SCREEN_H} tile ${BLOCK}×${BLOCK_H} screens ${K_SCREENS_X}×${K_SCREENS_Y} BITMAPWIDTH ${BITMAP_W32}/${BITMAP_W64}, BLOCKSPERROW ${BLOCKSPERROW_W32}/${BLOCKSPERROW_W64}, BLOCKPLANELINES, bitmapheight viewport_h+1+3, interleaved frontbuffer+y*BYTES+x, draw_block planelíneas word-aligned BLOCKPLANELINES*64, scroll mapy&(tile-1) planeaddx/BPLCON1(0x4400/0x8800)/BPLMOD DDF $30/$28/$18 fetch ${BLOCK}/32/64 bitmapoffset 16/48, altura extra y guarda 1 word, BPLCON1 0x00..0xFF steps=1, fill visibleRows ${VISIBLE_ROWS} colHeight ${VISIBLE_ROWS}+scroll_y, corkscrew display_height ${SCREEN_H+2*BLOCK_H} EXTRAHEIGHT 2*block_h split/block_videoposy TWOBLOCKSTEP bpr-block_h`);

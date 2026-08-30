@@ -27,9 +27,20 @@
 ///
 ///   Altura total del bitmap (xlimited.c:68, weiju/xlimited.c:68, xylimited.c:73):
 ///
-///     bitmapheight = BITMAPHEIGHT                    // cfg.viewport_h visibles
-///                  + (map_width / BITMAPBLOCKSPERROW / planes) + 1
-///                  + 3                               // guarda + fetch ancho
+///     display_height = viewport_h + (scroll_y ? 2*BLOCKHEIGHT : 0)   // corkscrew: +EXTRAHEIGHT
+///     bitmapheight   = display_height
+///                    + (map_width / BITMAPBLOCKSPERROW / planes) + 1
+///                    + 3                               // guarda + fetch ancho
+///                    (si scroll_y se redondea a múltiplo de BLOCKHEIGHT para que
+///                     la última banda de staging quepa en Chip RAM)
+///
+///   `BITMAPHEIGHT` del original depende del algoritmo (errata corregida):
+///   X-Limited puro usa `BITMAPHEIGHT = SCREENHEIGHT`; el corkscrew/XY usa
+///   `BITMAPHEIGHT = SCREENHEIGHT + EXTRAHEIGHT` (EXTRAHEIGHT = 2*BLOCKHEIGHT),
+///   que es la **banda de staging** de 2 bloques donde se pre-pinta la
+///   fila/columna entrante antes de que el display la alcance al envolver en
+///   `display_height` (ver §13 de docs/architecture/AMIGA_8WAY_SCROLLING.md).
+///   En el engine `cfg.scroll_y` selecciona el corkscrew (demo 107).
 ///
 ///   El término `map_width / BITMAPBLOCKSPERROW / planes` es el número de
 ///   planeline extra necesarias para que el desplazamiento horizontal sin fin
@@ -124,6 +135,12 @@
 ///   wrap vertical automáticamente. El coste es esa columna extra de tiles y
 ///   el blit plane-shifted, mucho más barato que un segundo Copper wait por
 ///   línea.
+///
+///   **El wrap vertical SÍ necesita un split de Copper** (corkscrew/XYLimited):
+///   el display envuelve en `display_height = viewport_h + 2*tile_height`, y al
+///   llegar a `split_line = display_height - display_offset` filas dentro de la
+///   ventana los punteros vuelven a la fila 0 (`real_base + planeaddx + p*row_bytes`).
+///   Ver `scroll_down/up/right/left` y `XlimitedDisplayComposer::emit_full`.
 ///
 /// -----------------------------------------------------------------------------
 /// 4. Fetch y registros del Copper (xlimited.c:389-430, hardware.c)
@@ -319,7 +336,9 @@ constexpr u16 kDiwStop = 0x29C1;
 ///   screens_x/y definen el mundo en pantallas (16×16 por defecto → map_w = screens_x*viewport_w/tile_width).
 ///   Si map.width/height ya viene dado, se respeta; si es 0 se deriva de screens_x/y.
 ///   bitmap_width = viewport_w + EXTRAWIDTH (32/64 según fetch_mode) si no se fuerza.
-///   fill_screen usa visibleRows = viewport_h / tile_height y colHeight = visibleRows + (scroll_y?1:0).
+///   fill_screen usa visibleRows = viewport_h / tile_height y, con scroll_y
+///   (corkscrew), colHeight = BITMAPBLOCKSPERCOL = display_height/tile_height =
+///   visibleRows + 2 (pre-rellena la banda de staging).
 ///
 /// ### Variantes de compilación (parámetros `EXTRA_DEFINES`)
 ///
@@ -348,12 +367,15 @@ constexpr u16 kDiwStop = 0x29C1;
 ///   K_SCREENS_X/Y  : 16 | 8 ...       pantallas virtuales en X/Y (map = screens*viewport/tile)
 /// ```
 ///
-/// DPF (futuro, como en 102/104) usará dos `XlimitedField` + `XlimitedDisplayComposer`
-/// dual: PF1 en planos impares (1,3,5) y PF2 en pares (2,4,6), cada uno con su
-/// BlocksBitmap interleaved y su `frontbuffer` propio pero compartiendo el mismo
-/// `bitmap_height` y `BPLMOD`. El compositor dual programará `BPLCON0` con DPF=1 y
-/// `BPLCON2` con prioridad PF1/PF2, y publicará los 6 punteros interleaved en un
-/// único Copper wait (sin split horizontal, como en X-Limited).
+/// DPF 8-way (futuro, como en 102/104): dos `XlimitedField` con `scroll_y=true`
+/// (corkscrew por playfield), PF1 en planos impares (1,3,5) y PF2 en pares
+/// (2,4,6), cada uno con su BlocksBitmap interleaved y su `frontbuffer`, pero
+/// compartiendo `bitmap_height`/`display_height` y `BPLMOD`. El compositor dual
+/// programará `BPLCON0` con DPF=1, `BPLCON2` con prioridad PF1/PF2 y publicará
+/// los 6 punteros interleaved más **el split vertical de ambos playfields** en
+/// la misma línea (`display_height - display_offset`), de modo que cada playfield
+/// conserva su scroll de 8 vías optimizado (1-2 blits/píxel, banda de staging,
+/// plane-shift y guarda de 1 word por eje) sin Copper segmentado horizontal.
 ///
 /// Ejemplos:
 ///
@@ -408,27 +430,34 @@ struct XlimitedConfig {
     u16 viewport_h = xlimited_detail::kScreenH; // alto visible (256 por defecto, 224 alternativo)
     u8 screens_x = 16;                 // pantallas virtuales en X (map_w = screens_x * viewport_w/tile_width)
     u8 screens_y = 16;                 // pantallas virtuales en Y (map_h = screens_y * viewport_h/tile_height)
-    bool scroll_y = false;             // si true, fill_screen añade 1 fila extra (colHeight = visibleRows+1)
+    bool scroll_y = false;             // true = corkscrew/XY: display_height = viewport_h + 2*tile_height,
+                                       // banda de staging, fill de display_blocks_per_col y split vertical
 };
 
 /// Vista de hardware que el compositor necesita para programar el Copper.
 ///
-/// Es el equivalente interleaved de `FieldHardwareView`, pero sin split:
-/// un único `frontbuffer` base y el desplazamiento fino/coarse derivado de
-/// `videoposx`. No hay `surface_origin` ni guarda vertical: el wrap es
-/// implícito por el fetch lineal + altura extra.
+/// Es el equivalente interleaved de `FieldHardwareView`: un único `frontbuffer`
+/// base, el desplazamiento fino/coarse derivado de `videoposx` y, en el
+/// corkscrew (scroll_y), el split vertical (`display_offset`, `split_line`,
+/// `split_active`) para que el display envuelva en `display_height`. No hay
+/// `surface_origin` ni guarda vertical: el wrap vertical es por split de Copper.
 struct XlimitedHardwareView {
     const u8* bitplanes = nullptr; // frontbuffer (Planes[0] + bitmapoffset)
     const u8* real_base = nullptr; // base real del AllocBitMap (para BPLxPT)
     u32 planeaddx = 0;             // coarse X en bytes
-    u32 planeaddy = 0;             // offset Y interleaved = videoposy*planes*bytes
+    u32 planeaddy = 0;             // offset Y interleaved = display_offset*planes*bytes
     u16 bplcon1 = 0;               // scroll fino duplicado en ambos nibbles
     u16 bpl1mod = 0;
     u16 bpl2mod = 0;
     u16 bitmap_bytes_per_row = 0;  // bytes por fila (ej. viewport_w+32)/8
     u32 plane_bytes = 0;           // bytes totales (para validación)
     u8 planes = 0;
-    u16 bitmap_height = 0;
+    u16 bitmap_height = 0;         // altura física total (allocation)
+    u16 display_height = 0;        // bucle vertical del display (viewport_h + EXTRAHEIGHT si corkscrew)
+    u16 display_offset = 0;        // yoffset = (videoposy + tile_height) % display_height
+    u16 split_line = 0;            // filas dentro de la ventana donde ocurre el wrap
+    bool split_active = false;     // split_line < viewport_h (hace falta Copper split)
+    u32 split_planeaddy = 0;       // offset Y de los punteros del split (fila 0)
     u16 viewport_w = 0;
     u16 viewport_h = 0;
     s32 videoposx = 0;
@@ -663,7 +692,7 @@ public:
     //   block_videoposy = (mapposy / TH * TH) % bitmap_height
     //                    (fila de bloque físico donde se pinta la banda de
     //                     staging; se deriva, no se mantiene incremental)
-    //   TWOBLOCKSTEP = bitmap_blocks_per_row - viewport_w/TW
+    //   TWOBLOCKSTEP = bitmap_blocks_per_row - tile_height
     // La fila/columna entrante se dibuja en la banda de staging
     // `block_videoposy` (2 bloques por encima del display visible, que el
     // display alcanza al dar la vuelta en `display_height`), y las posiciones
@@ -671,9 +700,10 @@ public:
     // dentro del bucle vertical del display (mismo invariante que el original).
 
     constexpr u16 twoblockstep() const {
-        const u16 visible_cols = static_cast<u16>(m_cfg.viewport_w / m_cfg.tile_width);
-        return static_cast<u16>(m_bitmap_blocks_per_row > visible_cols
-            ? m_bitmap_blocks_per_row - visible_cols : 0);
+        // TWOBLOCKS del corkscrew (XYLimited): BITMAPBLOCKSPERROW - NUMSTEPS_Y
+        //   x*2 + (tile_height - x) = bitmap_blocks_per_row  →  x = bpr - TH
+        return static_cast<u16>(m_bitmap_blocks_per_row > m_cfg.tile_height
+            ? m_bitmap_blocks_per_row - m_cfg.tile_height : 0);
     }
     constexpr u16 block_videoposy() const {
         return static_cast<u16>(
@@ -743,19 +773,22 @@ public:
 
         if (new_stepx == 0) {
             // Columna completada: ajustar la fila de fillup (fila del mapa que
-            // entra por abajo y que comparte banda con la columna).
+            // entra por abajo y que comparte banda con la columna). El X usa
+            // videoposx y mapblockx POST-incremento (avanzaron un bloque).
+            const u16 nx0 = static_cast<u16>(x0 + m_cfg.tile_width);
+            const u16 nmapblockx = static_cast<u16>(mapblockx + 1);
             if (!add_draw(plan,
-                static_cast<u16>(x0 + (m_bitmap_blocks_per_row - 1) * m_cfg.tile_width),
+                static_cast<u16>(nx0 + (m_bitmap_blocks_per_row - 1) * m_cfg.tile_width),
                 static_cast<u16>(bvpos * m_cfg.planes),
-                static_cast<u16>(mapblockx + m_bitmap_blocks_per_row - 1), mapblocky)) return false;
+                static_cast<u16>(nmapblockx + m_bitmap_blocks_per_row - 1), mapblocky)) return false;
             if (stepy) {
                 const u16 mx = stepy >= twoblockstep()
                     ? static_cast<u16>(stepy + (twoblockstep() - 1))
                     : static_cast<u16>(stepy * 2 - 1);
                 if (!add_draw(plan,
-                    static_cast<u16>(x0 + mx * m_cfg.tile_width),
+                    static_cast<u16>(nx0 + mx * m_cfg.tile_width),
                     static_cast<u16>(bvpos * m_cfg.planes),
-                    static_cast<u16>(mx + mapblockx),
+                    static_cast<u16>(mx + nmapblockx),
                     static_cast<u16>(mapblocky + m_bitmap_blocks_per_col))) return false;
             }
         }
@@ -865,9 +898,11 @@ public:
         m_videoposy = static_cast<s32>(m_mapposy % m_display_height);
 
         if (stepy == static_cast<u16>(m_cfg.tile_height - 1) && stepx) {
-            // Fila completada: ajustar la columna de fillup.
+            // Fila completada: ajustar la columna de fillup. El Y usa
+            // mapblocky POST-incremento (mapposy cruzó una fila de bloque).
             const u16 nvpos = block_videoposy(); // block_videoposy ya actualizado
-            if (!add_draw(plan, x0, static_cast<u16>(nvpos * m_cfg.planes), mapblockx, mapblocky)) return false;
+            const u16 nmapblocky = static_cast<u16>(mapblocky + 1);
+            if (!add_draw(plan, x0, static_cast<u16>(nvpos * m_cfg.planes), mapblockx, nmapblocky)) return false;
             if (m_previous_xdirection == 1) restore_saveword(); // DIRECTION_LEFT
             const u16 my = static_cast<u16>(stepx + 1);
             const u16 y2 = static_cast<u16>(((nvpos + my * m_cfg.tile_height) % m_display_height) * m_cfg.planes);
@@ -875,7 +910,7 @@ public:
             save_word(static_cast<u32>(y2b) * m_bitmap_bytes_per_row + ((x0 + m_bitmap_width) / 8u));
             if (!add_draw(plan, static_cast<u16>(x0 + m_bitmap_width), y2,
                 static_cast<u16>(mapblockx + m_bitmap_blocks_per_row),
-                static_cast<u16>(my + mapblocky))) return false;
+                static_cast<u16>(my + nmapblocky))) return false;
             m_previous_xdirection = 2; // DIRECTION_RIGHT
         }
         return true;
@@ -956,9 +991,25 @@ public:
         v.bplcon1 = scroll;
         v.bpl1mod = m_bpl1mod;
         v.bpl2mod = m_bpl2mod;
-        // Offset vertical para interleaved: videoposy * planes * bytesPerRow
-        // Con wrap circular: (videoposy % bitmap_height) * planes * bytes
-        v.planeaddy = static_cast<u32>((m_videoposy % m_bitmap_height + m_bitmap_height) % m_bitmap_height) * m_cfg.planes * m_bitmap_bytes_per_row;
+        // Offset vertical del display (corkscrew, UpdateCopperlist xlimited.c):
+        //   yoffset = (videoposy + BLOCKHEIGHT) % BITMAPHEIGHT
+        // el display empieza un bloque por debajo de videoposy, dejando la
+        // banda de staging (2 bloques) por encima de la ventana visible.
+        // En X-only (scroll_y=false) videoposy es 0 y no hay offset ni split.
+        u16 display_offset = 0;
+        if (m_cfg.scroll_y) {
+            const u16 vy = static_cast<u16>((m_videoposy % m_display_height + m_display_height) % m_display_height);
+            display_offset = static_cast<u16>((vy + m_cfg.tile_height) % m_display_height);
+        }
+        v.display_height = m_display_height;
+        v.display_offset = display_offset;
+        v.planeaddy = static_cast<u32>(display_offset) * m_cfg.planes * m_bitmap_bytes_per_row;
+        // Split vertical: la vuelta al inicio del bucle ocurre a
+        // `display_height - display_offset` filas dentro de la ventana. Solo se
+        // necesita si esa vuelta cae dentro del viewport (yoffset + VH > DH).
+        v.split_line = static_cast<u16>(m_display_height - display_offset);
+        v.split_active = m_cfg.scroll_y && v.split_line < m_cfg.viewport_h;
+        v.split_planeaddy = 0; // fila 0 (los punteros del split solo suman planeaddx)
         // plane_bytes para validación: bytes totales
         v.plane_bytes = static_cast<u32>(m_bitmap_bytes_per_row * m_bitmap_height * m_cfg.planes);
         return v;
@@ -973,6 +1024,8 @@ public:
     constexpr u16 bitmap_width() const { return m_bitmap_width; }
     constexpr u16 bitmap_height() const { return m_bitmap_height; }
     constexpr u16 bitmap_blocks_per_row() const { return m_bitmap_blocks_per_row; }
+    constexpr u16 display_height() const { return m_display_height; }
+    constexpr u16 display_blocks_per_col() const { return m_bitmap_blocks_per_col; }
     constexpr u16 block_planes_lines() const { return m_block_planes_lines; }
     constexpr const u8* frontbuffer() const { return m_frontbuffer; }
     constexpr bool initialized() const { return m_initialized; }
@@ -984,7 +1037,18 @@ public:
         m_videoposx = 0;
         m_mapposy = 0;
         m_videoposy = 0;
-        m_previous_dir = 0xff;
+        m_previous_xdirection = 0;
+        m_savewordpointer = nullptr;
+        m_saveword = 0;
+    }
+
+    /// TEMP-DEBUG: fija la posición de scroll para reproducir un estado concreto.
+    void debug_set_pos(s32 px, s32 py) {
+        m_mapposx = px;
+        m_videoposx = px;
+        m_mapposy = py;
+        m_videoposy = static_cast<s32>(py % m_display_height);
+        m_previous_xdirection = 0;
         m_savewordpointer = nullptr;
         m_saveword = 0;
     }
@@ -1031,20 +1095,24 @@ private:
     u16 m_bitmap_blocks_per_row = xlimited_detail::kBlocksPerRow32;
     u16 m_block_planes_lines = 0; // recalculado en begin(): BLOCKHEIGHT*planes
     u16 m_bitmap_height = 0; // recalculado en begin(): compute_bitmap_height(viewport_h, mapW, blocksPerRow, planes)
+    u16 m_display_height = 0; // bucle vertical del display = viewport_h + 2*tile_height (corkscrew)
+    u16 m_display_planelines = 0; // display_height * planes (modulus del split)
+    u16 m_bitmap_blocks_per_col = 0; // BITMAPBLOCKSPERCOL = display_height / tile_height
     u16 m_bpl1mod = 0, m_bpl2mod = 0;
     s32 m_mapposx = 0, m_videoposx = 0;
     s32 m_mapposy = 0, m_videoposy = 0;
     u16* m_savewordpointer = nullptr;
     u16 m_saveword = 0;
-    u8 m_previous_dir = 0xff;
+    u8 m_previous_xdirection = 0; // 0=ignore, 1=left, 2=right (corkscrew)
     bool m_initialized = false;
 };
 
-/// Compositor mínimo para XLimited (single playfield interleaved).
+/// Compositor mínimo para XLimited/corkscrew (single playfield interleaved).
 ///
 /// Es la única capa que toca BPLCON0/BPLCON1/BPLxPT/BPLMOD/DIW/DDF. A
-/// diferencia de `DpfDisplayComposer` no necesita gestionar dos playfields ni
-/// split vertical: una sola vista interleaved, DDFSTRT=$30 fijo (42 bytes) y
+/// diferencia de `DpfDisplayComposer` no gestiona dos playfields; sí emite el
+/// **split vertical** del corkscrew (segundo juego de BPLxPT a la fila 0 del
+/// bucle de display cuando `view.split_active`). Paleta al inicio del frame y
 /// doble buffer de copperlist. Úsalo así:
 ///
 ///   XlimitedDisplayComposer comp;
@@ -1115,10 +1183,13 @@ private:
         if (!v.bitplanes || v.planes == 0 || v.planes > 6) return false;
         if (v.bitmap_bytes_per_row == 0) return false;
         if (v.bitmap_height == 0) return false;
+        if (v.display_height == 0 || v.display_offset >= v.display_height) return false;
         if (v.viewport_w == 0 || v.viewport_h == 0) return false;
         // Validación genérica BPLMOD: debe ser bitmap_bytes_per_row*planes - viewport_w/8 - modulo_offset
         // No se valida con literal 320; se comprueba que bpl1mod no excede el total.
         if (v.plane_bytes < static_cast<u32>(v.bitmap_bytes_per_row * v.bitmap_height * v.planes)) return false;
+        // Split: la fila del wrap cae dentro de la ventana y no sobrepasa el buffer.
+        if (v.split_active && v.split_line >= v.viewport_h) return false;
         return true;
     }
 
@@ -1138,17 +1209,39 @@ private:
         sched.move(copper::Register::DIWSTOP, m_cfg.diwstop);
         sched.move(copper::Register::DDFSTRT, m_cfg.ddfstrt);
         sched.move(copper::Register::DDFSTOP, m_cfg.ddfstop);
+        // Paleta primero: si el split está en una línea alta, los MOVEs de color
+        // deben aplicar al inicio del frame y no tras el WAIT del split.
+        sched.emit_palette(m_cfg.palette);
         for (u8 p = 0; p < view.planes; ++p) {
             const u32 addr = reinterpret_cast<u32>(view.real_base) +
                              view.planeaddx + view.planeaddy +
                              static_cast<u32>(p) * view.bitmap_bytes_per_row;
             // En interleaved, Planes[p] = base + p*BITMAPBYTESPERROW + Y*planes*bytes.
-            // planeaddy aporta el offset vertical (videoposy) y planeaddx el horizontal.
+            // planeaddy aporta el offset vertical (display_offset) y planeaddx el horizontal.
             sched.move_bitplane_pointer(p, reinterpret_cast<const void*>(addr));
         }
-        sched.emit_palette(m_cfg.palette);
-        sched.wait_line(0xf8);
-        sched.move(copper::Register::COLOR00, 0x0000);
+        // Split vertical del corkscrew: al llegar a `split_line` filas dentro de
+        // la ventana, los punteros vuelven a la fila 0 del bucle de display.
+        // Límite OCS: el encoder de WAIT actual cubre líneas 0..255; para
+        // `raster > 255` se recorta a 255 (banda de 1..41 filas al pie de la
+        // pantalla que se muestra con el wrap adelantado; ver doc).
+        u16 raster = 0;
+        if (view.split_active) {
+            raster = static_cast<u16>((m_cfg.diwstrt >> 8u) + view.split_line);
+            const u8 wait = raster > 0xffu ? 0xffu : static_cast<u8>(raster);
+            sched.wait_line(wait);
+            for (u8 p = 0; p < view.planes; ++p) {
+                const u32 addr = reinterpret_cast<u32>(view.real_base) +
+                                 view.planeaddx + view.split_planeaddy +
+                                 static_cast<u32>(p) * view.bitmap_bytes_per_row;
+                sched.move_bitplane_pointer(p, reinterpret_cast<const void*>(addr));
+            }
+        }
+        // El blanking de abajo solo si no estorba con un split en línea alta.
+        if (!view.split_active || raster < 0xf8u) {
+            sched.wait_line(0xf8);
+            sched.move(copper::Register::COLOR00, 0x0000);
+        }
         sched.end();
         m_ok = sched.ok();
         return m_ok;
