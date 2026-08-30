@@ -48,6 +48,55 @@ Invoke-RestMethod http://127.0.0.1:11434/api/ps
 
 El panel existente es `C:/Python314/python.exe D:/scripts/tools/ollama_panel.py`. No es una dependencia del engine; solo sirve como observabilidad de GPU, procesos, cola y progreso.
 
+## Operación local (arrancar, parar, cambiar modelo)
+
+### Arrancar
+
+- **Automático (recomendado):** la tarea programada `ollama_serve` arranca
+  `ollama.exe serve` al iniciar sesión y lo hace en **ventana visible**
+  (registrada sin el wrapper `run_hidden.vbs`). Para forzar el arranque ahora
+  sin esperar al inicio de sesión:
+  ```powershell
+  schtasks /run /tn ollama_serve
+  ```
+- **Manual:** una consola y a correr; idéntico al arranque de la tarea, la
+  ventana permanece abierta mientras viva el servidor:
+  ```powershell
+  & "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe" serve
+  ```
+
+### Parar
+
+- Cerrar la ventana de consola de `ollama serve`, o matarlo directamente:
+  ```powershell
+  Get-Process ollama,llama-server -ErrorAction SilentlyContinue | Stop-Process -Force
+  ```
+- Al reiniciar hay que detener **`ollama` y `llama-server` juntos**: el hijo
+  puede conservar VRAM y forzar una caída a CPU. Si se prefiere el reinicio
+  limpio ya escrito (mata ambos y relanza la tarea `ollama_serve`):
+  ```powershell
+  python D:\scripts\tools\reiniciar_ollama.py
+  ```
+
+### Cambiar el modelo
+
+- Ver los modelos instalados (tamaño y cuantización):
+  ```powershell
+  Invoke-RestMethod http://127.0.0.1:11434/api/tags
+  ```
+- Descargar un modelo nuevo si falta (p. ej. la alternativa de la doc):
+  ```powershell
+  & "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe" pull gemma3:12b
+  ```
+- Seleccionarlo en los consumidores del pipeline:
+  - **Vision Review:** editar `"model"` en
+    `tools/vision-review/providers/ollama.local.json` (por defecto
+    `qwen3-vl:8b-instruct-q8_0`), o crear otro provider apuntando a otro modelo.
+  - **Perfiles (`tools/profile/README.md`):** pasar `--model <modelo>` al
+    orquestador/analizador (también env `OLLAMA_MODEL` / `OLLAMA_BASE`).
+- No hace falta reiniciar el servidor para usar un modelo nuevo: Ollama lo carga
+  bajo demanda y lo mantiene en RAM/VRAM según `OLLAMA_KEEP_ALIVE` (24h).
+
 ## Uso con Vision Review
 
 ```powershell
