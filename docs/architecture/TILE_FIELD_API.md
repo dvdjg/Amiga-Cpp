@@ -1,32 +1,30 @@
 # API de campos de tiles (TileField) y compositor DPF
 
-**Estado:** diseño aprobado para implementar. Base: demos 102/104/105 y el driver
-`TileScrollScene` de `engine/.../tile_scroll.hpp`.
+**Estado:** implementado en `engine/include/eng/field/` y demostrado en la demo
+`demos/106_tile_field_infinite_dualpf`.
 
 ## 1. Objetivo
 
 Evolucionar la demo 102 hacia una API reutilizable y flexible de **campos
 (fields)** de tiles con **scroll infinito**, donde cada playfield se controla de
-forma independiente y el modo DPF es solo una configuracion concreta.
+forma independiente y el modo DPF es solo una configuración concreta.
 
 Requisitos:
 
 1. **Scroll infinito** en un eje si el framebuffer es el doble del viewport en
-   ese eje; si es mas pequeno, el scroll llega hasta ese tamaño (tope).
+   ese eje; si es más pequeño, el scroll llega hasta ese tamaño (tope).
 2. **Dos funciones** por campo:
-   - `begin(offset_inicial)`: dibuja/configura el framebuffer desde un offset
-     (x,y) de la esquina superior izquierda.
+   - `begin(offset_inicial)`: encola el estampado inicial del framebuffer;
    - `update(delta)`: se llama cada frame con el **desplazamiento respecto al
-     frame anterior** (maximo configurable por eje, p. ej. 15px, y a priori).
+     frame anterior** (máximo configurable por eje, a priori).
    - Ambas saben dibujar en el framebuffer (fuera del viewport) los tiles que
      hagan falta.
-3. **Repartir el dibujo**: si el salto maximo es pequeno (p. ej. 2px), el
-   algoritmo puede repartir el dibujo de una columna/fila en varios frames,
-   sabiendo que tiene tiempo antes de que esa zona entre al viewport.
+3. **Repartir el dibujo**: si el salto máximo es pequeño, el algoritmo puede
+   repartir el dibujo de una columna/fila en varios frames.
 4. Cada playfield tiene su **controlador independiente**; el compositor DPF solo
    une los registros compartidos.
-5. La API sirve tambien sin DPF (un solo campo, p. ej. 5 bitplanes / 32 colores).
-6. Indices de tile **u16** en el mapa (tilesets de miles de patrones).
+5. La API sirve también sin DPF (un solo campo, p. ej. 5 bitplanes / 32 colores).
+6. Índices de tile **u16** en el mapa (tilesets de miles de patrones).
 
 ## 2. Modelo mental: capas y compositor
 
@@ -36,210 +34,180 @@ Requisitos:
                 |                          |
                 +------------+-------------+
                              |
-                     FieldHardwareView    <- punteros BPLxPT, scroll, planos
+                     FieldHardwareView    <- punteros BPLxPT, scroll, módulos
                              |
-                     DpfDisplayComposer    <- UNICA capa que toca el hardware DPF
+                     DpfDisplayComposer    <- ÚNICA capa que toca el hardware DPF
                              |
                        registros custom
 ```
 
 - El **controlador de tiles** no conoce al de bitmap ni al compositor.
 - El **compositor** solo combina: punteros `BPLxPT`, nibbles de `BPLCON1`,
-  modulos, prioridad `BPLCON2` y la configuracion DPF (`BPLCON0` bit 10).
-- Para un solo campo (no DPF) el compositor es trivial o no existe: el
-  controlador escribe sus propios registros.
+  módulos, prioridad `BPLCON2` y la configuración DPF (`BPLCON0` bit 10).
+- Para un solo campo (no DPF) el compositor es trivial o no existe.
 
-## 3. El framebuffer de doble pagina y el scroll infinito
+## 3. Archivos de la implementación
 
-La clave del scroll infinito con framebuffer pequeno:
+- `engine/include/eng/field/tile_field.hpp`: tipos + `TileFieldController`.
+- `engine/include/eng/field/dpf_composer.hpp`: `DpfDisplayComposer`.
+- `demos/106_tile_field_infinite_dualpf/`: demo de doble página infinita en ambos
+  ejes (fondo diagonal + primer plano Lissajous de 2 pantallas).
 
-- Framebuffer de **2 x viewport** en el eje infinito (640x288 para un viewport
-  320x256 con doble horizontal; 320x544 para doble vertical; 640x544 ambos).
-- Se divide en **paginas** del tamaño del viewport: A=[0,320), B=[320,640).
-- La camara scrollea dentro del framebuffer hasta el limite
-  (`max_scroll = framebuffer - viewport`). Cuando cruza el **limite de pagina**
-  (x == 320), la camara "da la vuelta" a la otra pagina y la pagina que queda
+## 4. El framebuffer de doble página y el scroll infinito
+
+- Framebuffer de **2 x viewport** en el eje infinito (640x256 para un viewport
+  320x256 con doble horizontal; 320x512 para doble vertical; 640x512 ambos).
+- Se divide en **páginas** del tamaño del viewport: A=[0,320), B=[320,640).
+- La cámara scrollea dentro del framebuffer hasta el límite
+  (`max_scroll = framebuffer - viewport`). Cuando cruza el **límite de página**
+  (x == 320), la cámara "da la vuelta" a la otra página y la página que queda
   vacante se redibuja con los tiles del siguiente tramo de mundo.
 
-Ejemplo horizontal infinito (delta maximo 2px):
+### Geometría del display (fórmula canónica ACE/HRM, probada en 101-104)
 
-- `begin((0,0))`: estampa pagina A (tiles visibles) y pagina B (la que se
-  revelara) con los tiles del mundo.
-- `update(+2)`: avanza la camara; mientras x < 320, la pagina B (offscreen) se
-  va rellenando con los tiles que la camara revelara (repartidos segun presupuesto).
-- x llega a 320: se muestra la pagina B; la camara "salta" a x=0 (el pointer
-  vuelve al inicio) y la pagina A se marca para redibujar con el siguiente
-  tramo. El salto de 320px es invisible porque la pagina B ya tenia el contenido
-  correcto.
+Con `DDFSTRT=$30` se fetchean **42 bytes** por fila (40 visibles + 2 de margen).
+El puntero de cada playfield apunta a su coarse `(scroll_x - 1) & ~15` y programa
+su fine `(16 - fine) & 15`, de modo que `display_start == scroll_x` es continuo
+en todo el rango (sin salto en el cruce de tile fine 15 -> 0).
 
-**Por que el presupuesto y el delta estan acoplados:** redibujar una pagina =
-`viewport_tiles` (p. ej. 20x16 = 320 tiles). Tiempo disponible = `viewport_px /
-max_delta` frames (320/2 = 160 frames con delta 2; 320/15 ≈ 21 con delta 15).
-El presupuesto por frame debe ser `>= pagina_tiles / frames_disponibles`. Por
-eso `max_delta` configurable permite repartir el dibujo.
+En la doble página, `FieldHardwareView` expone:
 
-## 4. Estructuras (evaluacion de la propuesta)
+- `display_byte_offset = página_activa*40 + fetch_px/8 + y*row_bytes`, donde
+  `fetch_px = (scroll-1)&~15` (clamp a 0 en scroll=0) y `row_bytes = 640/8 = 80`;
+- `bpl1mod = row_bytes - 42` (80 - 42 = 38): cada fila del display avanza una
+  fila de mundo completa aunque solo lea 40 bytes;
+- `fine_x` = nibble de `BPLCON1`.
 
-La propuesta original:
+### El presupuesto y el delta están acoplados
 
-```cpp
-struct TileFieldConfig { TileLayerMap map; TileSet tileset; TileScrollBudget budget; bool scrolling; };
-struct TileFieldState  { s32 previous_x; s32 previous_y; TileWindow window; PageState pages; bool initialized; };
-bool tile_field_begin(State&, const Config&, TileScrollOffset initial);
-bool tile_field_update(State&, const Config&, TileScrollOffset offset, FramePlan&);
-```
+Redibujar una página = `viewport_tiles` (p. ej. 20x16 = 320 tiles). Tiempo
+disponible = `viewport_px / max_delta` frames. El presupuesto por frame debe ser
+`>= pagina_tiles / frames_disponibles`.
 
-**Lo que esta bien:**
-- Separar `Config` (estatica) de `State` (mutable): correcto para no-heap.
-- `begin` (offset absoluto) + `update` (delta): encaja con el scroll hw
-  (fine scroll + cruce de tile/pagina).
-- `update` recibe `FramePlan` (los blits van a traves del planificador).
+**Lección del bug de "saltos de color" en la 106:** al cruzar en diagonal se
+encolan a la vez la página X vacante y la Y vacante. Con scroll en ambos ejes
+(framebuffer 640x512) cada página vacante son **640 tiles** (20x32 o 40x16), y el
+peor caso es **1280 tiles pendientes** con ~64 frames disponibles (a ~5px/frame)
+=> ~20 tiles/frame. Un presupuesto de 4-16 tiles/frame dejaba la página activa a
+medio dibujar al cruzar. La 106 usa `max_tiles_per_frame = 24`.
 
-**Mejoras:**
-1. **`scrolling` -> `scroll_x`/`scroll_y`**: un campo puede scrollar solo en X.
-2. **`budget` -> delta + presupuesto explicitos**: `max_delta_x/y` (el limite
-   del salto por frame, que determina cuantos frames hay para redibujar) y
-   `max_tiles_per_frame`. Son dos palancas distintas y hay que fijarlas a priori.
-3. **`State` necesita la posicion de mundo absoluta** (no solo `previous_x/y`)
-   y las **franjas pendientes** (para repartir el dibujo entre frames).
-4. **`begin` debe recibir tambien `FramePlan&`** para poder encolar los blits
-   iniciales (o estampar por CPU en init, que es lo que hacen las demos).
-5. **`PageState pages`**: explicitarlo: que pagina esta visible, que region de
-   mundo tiene cada pagina y si esta "sucia" (pendiente de redibujar).
-
-### 4.1 Estructuras refinadas
+## 5. Estructuras finales
 
 ```cpp
-// Mapa de tiles del mundo: indices u16, ancho/alto, y politica de wrap.
-// wrap_x/wrap_y = 0 significa fin del mundo (no se puede scrollar mas alla);
-// >0 hace que la coordenada de mundo repita cada wrap tiles.
+// Mapa de tiles del mundo: índices u16, ancho/alto, y política de wrap.
+// cells es un Span (vista contigua segura, sin aritmética de punteros).
+// wrap_x/wrap_y = 0 significa fin del mundo; >0 hace la coordenada periódica.
 struct TileLayerMap {
-    const u16* cells;   // indices de tile (u16)
-    u16 width;          // tiles
-    u16 height;         // tiles
-    u16 wrap_x = 0;     // 0 = borde, >0 = mundo periodico cada N tiles
-    u16 wrap_y = 0;
+    Span<const u16> cells;  // at() con trap ante violación de rango
+    u16 width, height;
+    u16 wrap_x = 0, wrap_y = 0;
+    u16 edge_tile = 0;
     u16 tile_at(s32 tx, s32 ty) const;
 };
 
-// Configuracion estatica de un campo de tiles.
+// Configuración estática de un campo de tiles.
 struct TileFieldConfig {
     TileLayerMap map;
-    const u16* tileset;      // patrones en Chip RAM (ya generados)
+    const u16* tileset;      // patrones en Chip RAM (índice u16)
     u16 tileset_count;
-    u8 tileset_planes;
-    // Contrato de rendimiento (a priori, por eje):
-    s16 max_delta_x = 15;    // tope del salto por frame (X)
-    s16 max_delta_y = 15;
-    u8 max_tiles_per_frame = 4;  // presupuesto de dibujo por frame
-    bool scroll_x = true;
-    bool scroll_y = true;
+    u8 tileset_planes;       // 5 => 32 colores (single playfield)
+    u16 tile_width = 16;     // MÚLTIPLO DE 16: 32/48/64px en UNA pasada del Blitter
+    u16 tile_size = 16;
+    u16 viewport_w = 320, viewport_h = 256;
+    s16 max_delta_x = 15, max_delta_y = 15;  // tope del salto por frame
+    u8 max_tiles_per_frame = 4;              // presupuesto de dibujo
+    bool scroll_x = true, scroll_y = true;
 };
 
-// Estado mutable de un campo (lo mantiene el controlador).
+// Estado mutable de un campo.
 struct TileFieldState {
-    s32 world_x = 0;        // posicion de mundo (pixeles), origen = TL
-    s32 world_y = 0;
-    TileWindow window;      // ventana visible en tiles de mundo
-    TilePageState pages;    // paginas del framebuffer (doble) y su contenido
-    TilePendingStrip pending[4]; // franjas pendientes de dibujar (repartidas)
-    bool initialized = false;
+    s32 world_x, world_y;        // posición de mundo (píxeles)
+    s32 page_base_x, page_base_y;// mundo en el borde del framebuffer
+    u8 active_page_x, active_page_y;  // 0/1: página visible
+    TilePendingStrip pending[4]; // franjas pendientes (regiones 2D + cursor)
+    u8 pending_count;
+    bool initialized;
 };
 
-struct TileScrollOffset { s16 x = 0; s16 y = 0; };
-
-bool tile_field_begin(TileFieldState&, const TileFieldConfig&, TileScrollOffset initial, FramePlan&);
-bool tile_field_update(TileFieldState&, const TileFieldConfig&, TileScrollOffset delta, FramePlan&);
-```
-
-### 4.2 El campo bitmap (opcional)
-
-```cpp
-// Lienzo para naves, HUD o BOBs: no conoce tiles.
-struct BitmapFieldConfig {
-    const u8* bitmap;   // framebuffer en Chip RAM
-    u16 width, height;
-    u8 planes;
-    bool scrolling = false;
-};
-```
-
-### 4.3 Vista hardware y compositor
-
-```cpp
-// Lo unico que el compositor necesita de cada campo.
+// Vista hardware para el compositor (módulos y puntero ya calculados).
 struct FieldHardwareView {
     const u8* bitplanes;
     u32 plane_stride;
-    s16 scroll_x;       // posicion de scroll para BPLxPT + BPLCON1
-    s16 scroll_y;
+    u32 display_byte_offset;
+    u8 fine_x;
+    u16 bpl1mod;
     u8 plane_count;
-    u8 first_hardware_plane; // en DPF: 0 (PF1) o 1 (PF2)
+    u8 first_hardware_plane;  // en DPF: 0 (PF1) o 1 (PF2)
 };
 
-struct DpfDisplayComposer {
-    // Emite BPLxPT, BPLCON1, BPL1MOD/BPL2MOD, BPLCON2 y BPLCON0(DPF) a la
-    // copperlist. Solo une; no decide como scrollea cada campo.
-    bool compose(const FieldHardwareView& pf1, const FieldHardwareView& pf2, copper::Scheduler& out) const;
+// Lienzo bitmap opcional (naves, HUD, BOBs).
+struct BitmapFieldConfig {
+    const u8* bitmap; u16 width, height; u8 planes; bool scrolling;
 };
 ```
 
-## 5. Contratos
+## 6. `TileFieldController`
 
-### `tile_field_begin`
-- Dibuja el framebuffer completo (pagina visible + pagina(s) de margen) para el
-  offset inicial.
-- Puede estampar por CPU (init) o encolar blits en `FramePlan`.
-- Deja el estado `initialized`.
+- `begin(memory, config, offset_inicial)`: reserva el framebuffer doble, encola
+  el estampado de todas las páginas como franjas y deja el estado listo. **El
+  dibujo NO ocurre aquí**: la demo bombea `pump(plan, budget)` en un bucle en
+  init hasta que `busy()` es false (no hay límite de tiempo real durante el
+  arranque). El dibujo es SIEMPRE por Blitter (`TileBlockCopy` vía `FramePlan`),
+  nunca por CPU.
+- `pump(plan, budget)`: consume hasta `budget` tiles de las franjas pendientes
+  (estampado inicial o scroll) por Blitter; devuelve si queda algo.
+- `busy()`: ¿queda trabajo de dibujo pendiente?
+- `update(config, delta, plan)`: clampa el delta a `max_delta_x/y` (y a 0 si el
+  eje no scrollea), avanza la cámara, detecta cruce de página, encola la página
+  vacante (`slot = active^1`) con el tramo `[page_base+viewport, ...]`, y consume
+  el presupuesto dibujando parte de las franjas.
+- `hardware_view(first_hardware_plane)`: calcula `display_byte_offset` y
+  `bpl1mod` con la fórmula canónica.
+- Franjas como regiones 2D: `{world_tile_x, world_tile_y, fb_tile_x, fb_tile_y,
+  width, height, cursor}`. `cursor` recorre la región en fila-mayor; una franja
+  de scroll es una banda de `viewport_w x fb_h` (X) o `fb_w x viewport_h` (Y).
 
-### `tile_field_update`
-1. **Clampa el delta** a `max_delta_x/y` (y a 0 si `scroll_x/y` es false; si no
-   hay framebuffer suficiente en ese eje, tope al borde).
-2. **Aplica el delta** a `world_x/y` y detecta cruces de tile y de **pagina**.
-3. **Encola** las columnas/filas de tiles que la camara revelara (en la pagina
-   offscreen), marcadas con su "cuenta atras" de frames hasta ser visibles.
-4. **Consume el presupuesto**: dibuja hasta `max_tiles_per_frame` de las
-   franjas pendientes; el resto queda para el siguiente frame (repaso).
-5. Devuelve la vista hardware actualizada (punteros + fine scroll).
+## 7. `DpfDisplayComposer`
 
-## 6. Indices de tile u16
+- `init(memory, config)`: reserva los dos bloques del doble buffer de copper.
+- `compose(pf1, pf2)`: el primer frame emite la lista completa en ambos bloques
+  (DMACON, BPLCON0/1/2, BPL1MOD/BPL2MOD, DIW/DDF, 6 punteros, paleta, wait,
+  fin); los siguientes **parchean** solo BPLCON1 + los punteros (13 words), que
+  es lo que cambia por frame. Layout fijo documentado en el archivo.
+- `install(backend)`: activa el bloque inactivo.
+- Intercala los planos por playfield: PF1 = hardware 0,2,4; PF2 = 1,3,5. En
+  single playfield los planos son consecutivos (stride 1).
 
-El mapa pasa a `u16` por celda (2 bytes). El tileset puede tener miles de
-patrones; el mapa sigue ocupando `width*height*2` bytes. El tile en Chip RAM se
-indexa con `u16`.
+## 8. Demo 106 (`demos/106_tile_field_infinite_dualpf`)
 
-## 7. Refactor de la 105 en tres capas
+- Dual playfield 3+3: PF1 primer plano (3 planos, color 0 transparente) y PF2
+  fondo (3 planos opacos). Índices de tile u16, mapa 256x128 con wrap en ambos
+  ejes (mundo infinito periódico).
+- **Fondo**: scroll infinito diagonal constante (2px/frame X, 1px/frame Y) —
+  cruza una pantalla horizontal cada 160 frames y vertical cada 256.
+- **Primer plano**: onda de Lissajous que recorre **más de una pantalla** en
+  ambos ejes (0..640 en X, 0..512 en Y) con radio 320x256. Periodos 1280/960
+  frames, arranca en (0,0) para continuidad con `begin`.
+- **Seno de alta resolución**: tabla de 64 pasos exactos interpolada con 64
+  sub-pasos por entrada = 4096 unidades de fase por ciclo; velocidad pico
+  ~5px/frame (X) y ~4px/frame (Y), dentro de `max_delta=8`.
+- `max_tiles_per_frame = 24` (cubre el cruce diagonal de 1280 tiles en ~64
+  frames). Budget de Blitter del plan: `{4096, 8192, 2, 60}`.
+- Telemetría en `mark_ready`: bits 16-19 = latch de cruce de página X/Y de
+  bg/fg (se mantiene a 1 una vez cruzada); bits 12-15 = página activa actual;
+  bytes = mundo del fg en tiles.
+- `analyze-sequence.sh`: run -> secuencia animada -> sin negro interno ->
+  telemetría (ambos campos cruzan páginas en ambos ejes).
 
-1. **`TileFieldController`**: logica de una capa con tilemap (mapa u16,
-   framebuffer, paginas, presupuesto). Vive en el engine
-   (`engine/include/eng/field/tile_field_controller.hpp`).
-2. **`BitmapFieldController`**: capa bitmap opcional (naves, HUD, BOBs) sin
-   tiles.
-3. **`DpfDisplayComposer`**: union final especifica del hardware DPF (registros
-   compartidos).
-
-La demo 105 puede usar dos `TileFieldController`, pero eso es una configuracion
-concreta, no una imposicion de la API.
-
-## 8. Evaluacion de la propuesta original (resumen)
+## 9. Evaluación de la propuesta original (resumen)
 
 | Aspecto | Propuesta | Refinado |
 |---|---|---|
 | Config/State | Correcto | Igual |
-| begin/update | Correcto | `begin` recibe `FramePlan` |
+| begin/update | Correcto | `begin` encola, la demo bombea `pump` |
 | delta | `offset` (delta) | Clamp a `max_delta_x/y` y a `scroll_x/y` |
 | budget | `TileScrollBudget` | `max_delta` + `max_tiles_per_frame` |
 | scrolling | bool | `scroll_x`/`scroll_y` |
-| State | `previous_x/y` | `world_x/y` + franjas pendientes + paginas |
-| indices | (u8) | **u16** |
-
-## 9. Plan de implementacion
-
-1. `engine/include/eng/field/tile_field.hpp`: tipos (map u16, config, state,
-   offset, hardware view, compositor).
-2. `TileFieldController`: framebuffer de doble pagina, `begin`/`update`, reparto
-   de franjas, wrap de pagina.
-3. `BitmapFieldController` y `DpfDisplayComposer`.
-4. Refactor de la 105 a las tres capas (con dos `TileFieldController`).
-5. Migrar 102 a la nueva API (un `TileFieldController` por playfield).
-6. Indices u16 en el mapa y en las caches de tiles.
+| State | `previous_x/y` | `world_x/y` + franjas pendientes + páginas |
+| indices | (u8) | **u16** + `Span` |
+| dibujo | CPU | **Blitter** (`TileBlockCopy` vía `FramePlan`) |
