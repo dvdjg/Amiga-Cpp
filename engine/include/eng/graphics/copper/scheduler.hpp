@@ -67,6 +67,13 @@ public:
 		++m_report.display_moves;
 	}
 
+	/// Carga un puntero BPLxPT desde una intención de display. Mantiene los dos
+	/// MOVEs del puntero en el scheduler, también para los splits verticales.
+	void move_bitplane_pointer(u8 plane, const void* address) {
+		m_builder.move_bitplane_pointer(plane, address);
+		m_report.display_moves = static_cast<u16>(m_report.display_moves + 2u);
+	}
+
 	/// Emite un WAIT de raster sin asociarlo a una paleta.
 	void wait_line(u8 line) {
 		m_builder.wait_line(line);

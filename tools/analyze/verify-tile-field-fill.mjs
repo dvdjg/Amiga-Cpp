@@ -9,12 +9,14 @@ const floorDiv = (v, d) => v >= 0 ? Math.floor(v / d) : -Math.floor((-v + d - 1)
 
 function make(tw, th, sx, sy, marginBlocks = 2) {
   const fw = sx ? VW + marginBlocks * tw : VW;
-  const fh = sy ? VH + marginBlocks * th : VH;
+  const tileRows = sy ? Math.floor((VH + marginBlocks * th) / th) : 0;
+  const fh = sy ? tileRows * th + 1 : VH;
   const leftX = sx ? Math.floor(marginBlocks / 2) * tw : 0;
   const leftY = sy ? Math.floor(marginBlocks / 2) * th : 0;
   const s = { tw, th, sx, sy, fw, fh, rowBytes: fw / 8,
     worldX: 0, worldY: 0, originX: -leftX, originY: -leftY,
-    windowX: leftX, windowY: leftY, cols: fw / tw, rows: fh / th,
+    windowX: leftX, windowY: leftY, cols: fw / tw, rows: tileRows || fh / th,
+    tileRows, guardLine: sy ? fh - 1 : -1,
     marginBlocks, fb: new Map(), writes: [], maxWrites: 0, recentered: 0 };
   for (let y = 0; y < s.rows; ++y) for (let x = 0; x < s.cols; ++x)
     s.fb.set(`${x},${y}`, mapAt(floorDiv(s.originX + x * tw, tw), floorDiv(s.originY + y * th, th)));
@@ -74,6 +76,12 @@ function step(s, dx, dy) {
   check(!s.sy || (s.windowY >= Math.floor(s.marginBlocks / 2) * s.th && s.windowY + VH + Math.ceil(s.marginBlocks / 2) * s.th <= s.fh), 'ventana Y sin margen');
   const fetch = s.windowX > 0 ? (s.windowX - 1) & ~15 : 0;
   check(fetch / 8 + (s.sx ? FETCH_BYTES : VW / 8) <= s.rowBytes, 'fetch horizontal fuera de superficie');
+  if (s.sy) {
+    check(s.guardLine === s.tileRows * s.th, `guardia vertical incorrecta (${s.guardLine})`);
+    check(s.guardLine !== s.rows, 'la guardia se interpreto como fila de tiles');
+    const split = Math.floor(VH / 2);
+    check(s.windowY + split + (VH - split) <= s.guardLine + 1, 'split vertical fuera de plane_bytes');
+  }
   for (let y = 0; y < s.rows; ++y) for (let x = 0; x < s.cols; ++x) {
     if (x * s.tw >= s.windowX + VW || (x + 1) * s.tw <= s.windowX || y * s.th >= s.windowY + VH || (y + 1) * s.th <= s.windowY) continue;
     const expected = mapAt(floorDiv(s.originX + x * s.tw, s.tw), floorDiv(s.originY + y * s.th, s.th));
@@ -86,9 +94,17 @@ for (const [tw, th] of geometries) for (const margin of [2, 3]) for (const [sx, 
   const s = make(tw, th, sx, sy, margin);
   for (let i = 0; i < 1200; ++i) { const n = (i % 5) + 1; step(s, sx ? sign * n : 0, sy ? sign * n : 0); }
 }
-const sizes = make(16, 16, 1, 1, 2); check(sizes.fw === 352 && sizes.fh === 288, 'tamaño 16x16 margen2 incorrecto');
+for (const [tw, th] of geometries) for (const margin of [2, 3]) for (const [dxSign, dySign] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+  const s = make(tw, th, 1, 1, margin);
+  for (let i = 0; i < 1200; ++i) { const n = (i % 5) + 1; step(s, dxSign * n, dySign * n); }
+}
+const sizes = make(16, 16, 1, 1, 2); check(sizes.fw === 352 && sizes.fh === 289 && sizes.rows === 18 && sizes.guardLine === 288, 'tamaño 16x16 margen2 incorrecto');
 check(make(16, 16, 1, 0, 2).fw === 352 && make(16, 16, 1, 0, 2).fh === 256, 'tamaño X-only incorrecto');
-check(make(16, 16, 0, 1, 2).fw === 320 && make(16, 16, 0, 1, 2).fh === 288, 'tamaño Y-only incorrecto');
+check(make(16, 16, 0, 1, 2).fw === 320 && make(16, 16, 0, 1, 2).fh === 289, 'tamaño Y-only incorrecto');
+check(make(32, 16, 1, 1, 2).fw === 384 && make(32, 16, 1, 1, 2).fh === 289, 'tamaño 32x16 incorrecto');
+check(make(16, 32, 1, 1, 2).fw === 352 && make(16, 32, 1, 1, 2).fh === 321, 'tamaño 16x32 incorrecto');
+check(make(32, 32, 1, 1, 2).fw === 384 && make(32, 32, 1, 1, 2).fh === 321, 'tamaño 32x32 incorrecto');
+check(make(16, 16, 1, 1, 3).fh === 305 && make(16, 16, 1, 1, 3).tileRows === 19, 'margen3 vertical incorrecto');
 check(sizes.maxWrites <= 2 * sizes.rows + 2 * sizes.cols, 'se escribió una página completa');
 function fusionContract(layout, direction, ids) {
   const compatible = (direction === 'x' && layout === 'RowMajor') ||

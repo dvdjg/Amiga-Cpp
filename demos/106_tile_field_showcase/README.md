@@ -11,6 +11,8 @@ duplicar código:
 |---|---|---|
 | `K_TILE_WIDTH` | `16`, `32` | Anchura de tile en px (múltiplo de 16). |
 | `K_DUAL` | `1` / `0` | `1` = dual playfield 3+3 (6 planos, transparencia PF1); `0` = single playfield 5 planos (32 colores). |
+| `K_SCROLL_X` | `1` / `0` | Activa/desactiva el scroll horizontal y su margen físico. |
+| `K_SCROLL_Y` | `1` / `0` | Activa/desactiva el scroll vertical y su línea de guardia/split. |
 
 La abstracción es la misma en todos los casos: **un `TileFieldController` por
 playfield** con su propio mapa, framebuffer y cámara. En single playfield solo
@@ -41,6 +43,14 @@ AMIGA_BIN_PATH="..." bash ./tools/build/build-demo.sh demos/106_tile_field_showc
 # Single playfield 5 planos con tiles de 16px
 AMIGA_BIN_PATH="..." bash ./tools/build/build-demo.sh demos/106_tile_field_showcase --debug --clean \
   -DK_DUAL=0
+
+# Caso particular: solo scroll horizontal
+EXTRA_DEFINES="-DK_SCROLL_X=1 -DK_SCROLL_Y=0" \
+  bash ./tools/build/build-demo.sh demos/106_tile_field_showcase --debug --clean
+
+# Caso particular: solo scroll vertical
+EXTRA_DEFINES="-DK_SCROLL_X=0 -DK_SCROLL_Y=1" \
+  bash ./tools/build/build-demo.sh demos/106_tile_field_showcase --debug --clean
 ```
 
 Nota: `build-demo.sh` compila los `*.cpp` de `src/`; las macros se pasan como
@@ -54,7 +64,8 @@ argumentos extra. Ajusta según el flujo de build actual del repo.
   sin solapes, contenido correcto) en múltiples casuísticas: márgenes 2/3, ejes
   únicos, cruces, recentrado, wraps e inversión de la cámara.
 - **Análisis visual**: `bash ./demos/106_tile_field_showcase/analyze-sequence.sh --warp`
-  (si existe) o `tools/analyze/analyze-demo.sh`.
+  (si existe) o `tools/analyze/analyze-demo.sh`. Para la variante single, usar
+  `SHOWCASE_DUAL=0`; sus tiles pueden contener negro legítimo (`COLOR00`).
 
 ## Documentación
 

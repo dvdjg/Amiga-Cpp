@@ -9,7 +9,7 @@ Para un bloque de `BW x BH`, viewport `VW x VH` y `margin_blocks`:
 
 ```text
 surface_w = scroll_x ? VW + margin_blocks*BW : VW
-surface_h = scroll_y ? VH + margin_blocks*BH : VH
+surface_h = scroll_y ? floor((VH + margin_blocks*BH)/BH)*BH + 1 : VH
 ```
 
 Un eje que no scrollea no reserva margen en el otro eje. La ventana parte en
@@ -37,11 +37,17 @@ la pantalla.
   mientras el Blitter está ocupado se acumulan, no se pierden.
 - `pump(plan, budget)`: consume bandas en pasos de tiles sin heap, excepciones ni
   RTTI.
-- `hardware_view(first_plane)`: calcula puntero coarse, fine scroll y módulo.
+- `hardware_view(first_plane)`: calcula puntero coarse, fine scroll, módulo y
+  metadata de guardia y split; la firma existente no cambia.
 
 Cada job tiene destino fuera de la ventana visible. En diagonal la banda X es
 propietaria de la esquina y la banda Y se recorta una celda, por lo que no hay
 duplicados ni trabajos para filas o columnas opuestas.
+
+La línea `surface_h - 1` es `guard_line` cuando `scroll_y` está activo. No forma
+parte de `tile_rows`, no se rellena con una celda del mapa y se inicializa a cero.
+Para 320x256, tiles 16x16 y margen 2, la geometría es `352x289`, con `18` filas
+de tiles y guardia en la línea `288`.
 
 ## Blitter
 
@@ -66,7 +72,8 @@ fórmula usada es `fetch=(scroll-1)&~15`, `BPLCON1=(16-fine)&15` y
 comprobarse contra el ancho físico. Verticalmente no hay fine scroll hardware:
 se ajusta el puntero por scanline y el módulo avanza al siguiente `row_bytes`. Si el fine scroll deja ruido en los primeros 16 píxeles,
 la configuración visual puede ocultar esa banda; no se corrige escribiendo en
-la ventana visible.
+la ventana visible. El compositor Copper espera en `DIWSTRT + split_line` y
+emite un segundo conjunto de `BPLxPT` para el tramo inferior.
 
 La API no implementa clipping de mundo no periódico más allá de `edge_tile`, ni
 tiles con anchura no alineada a palabra. El presupuesto de jobs y tiles sigue

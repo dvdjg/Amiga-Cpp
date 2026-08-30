@@ -130,3 +130,24 @@ recording del GUI). Pendiente: `print` DWARF.
 - Medir los picos con profiling y telemetría en el caso límite, no solo validar
   que el frame nominal funcione; cualquier optimización debe conservar la
   corrección visual y el presupuesto de Chip RAM.
+
+## Comentarios didácticos de código
+- El código nuevo de hardware Amiga debe incluir comentarios breves, en español,
+  con estilo de tutorial: explicar qué registro o mecanismo del chipset interviene,
+  qué invariantes mantiene el algoritmo y por qué una alternativa aparentemente
+  más simple consumiría más CPU, Blitter o Chip RAM.
+- Cuando una decisión sea difícil de inferir, enlazar desde el comentario al MD
+  técnico correspondiente y usar un pequeño esquema ASCII si aclara la geometría
+  de buffers, Copper, bitplanes o zonas visibles.
+
+## Regla de evidencia
+- No afirmar que una funcionalidad funciona sin evidencia reproducible de esa
+  funcionalidad concreta.
+- Distinguir siempre entre indicios, validación parcial y evidencia concluyente;
+  una compilación, un test host o una imagen que cambia no prueban por sí solos
+  continuidad visual ni corrección del hardware.
+- Si faltan herramientas para observar el comportamiento real (por ejemplo,
+  registros Copper efectivos, punteros BPL por frame o ciclos del Blitter),
+  declararlo explícitamente y no presentar una hipótesis como resultado.
+- Probar primero el caso límite relevante y solo después documentar o afirmar
+  que el cambio está resuelto.

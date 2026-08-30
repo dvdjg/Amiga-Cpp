@@ -85,7 +85,10 @@ public:
 			m_active_copper = 0;
 			return true;
 		}
-		return patch(pf1, pf2);
+		const u8 inactive = static_cast<u8>(m_active_copper ^ 1u);
+		if (!emit_full(inactive, pf1, pf2)) return false;
+		m_active_copper = inactive;
+		return true;
 	}
 
 	template <typename Backend>
@@ -120,11 +123,34 @@ private:
 		);
 	}
 
+	/// BPLCON1 contiene dos nibbles independientes: el bajo controla PF1 y el
+	/// alto PF2. El valor no es el desplazamiento directo: el hardware desplaza
+	/// hacia la izquierda, por eso TileFieldController entrega `(16-fine)&15`.
+	/// Mantener esta conversión en la lista Copper permite que la CPU solo cambie
+	/// una word por frame y evita mover píxeles con CPU o Blitter.
+	u16 bplcon1(const FieldHardwareView& pf1, const FieldHardwareView& pf2) const {
+		const eng::u16 fine1 = static_cast<eng::u16>(pf1.fine_x & 15u);
+		const eng::u16 fine2 = static_cast<eng::u16>(pf2.fine_x & 15u);
+		return m_config.dual
+			? static_cast<u16>((fine2 << 4u) | fine1)
+			: static_cast<u16>(fine1 | (fine1 << 4u));
+	}
+
 	/// Dirección del bitplane `plane_in_field` de una vista.
 	u32 plane_address(const FieldHardwareView& v, eng::u8 plane_in_field) const {
 		return reinterpret_cast<eng::u32>(v.bitplanes) +
 			static_cast<eng::u32>(plane_in_field) * v.plane_stride +
 			v.display_byte_offset;
+	}
+
+	bool valid_view(const FieldHardwareView& v) const {
+		if (!v.bitplanes || !v.plane_count || v.plane_count > 6u || !v.row_bytes || !v.plane_bytes ||
+			v.fetch_bytes > v.row_bytes || v.bpl1mod + v.fetch_bytes != v.row_bytes ||
+			v.display_byte_offset + v.fetch_bytes > v.plane_bytes ||
+			v.fetch_bytes != static_cast<u16>((m_config.ddfstop - m_config.ddfstrt) / 4u + 2u)) return false;
+		return !v.split_active || (v.guard_line + 1u == v.surface_h && v.split_line != 0 && v.split_line < v.surface_h &&
+			v.split_line < v.visible_h &&
+			v.split_display_byte_offset + static_cast<u32>(v.visible_h - v.split_line - 1u) * v.row_bytes + v.fetch_bytes <= v.plane_bytes);
 	}
 
 	/// Índice de hardware del bitplane `plane_in_field` de una vista.
@@ -149,13 +175,18 @@ private:
 
 	/// Emite la lista completa en el bloque dado con las dos vistas reales.
 	bool emit_full(u8 block, const FieldHardwareView& pf1, const FieldHardwareView& pf2) {
+		if (!valid_view(pf1) || (m_config.dual && !valid_view(pf2))) return false;
+		if ((!m_config.dual && pf1.plane_count != m_config.plane_count) ||
+			(m_config.dual && pf1.plane_count + pf2.plane_count != m_config.plane_count) ||
+			(m_config.dual && pf1.split_active != pf2.split_active) ||
+			(m_config.dual && pf1.split_active && pf1.split_line != pf2.split_line)) return false;
 		copper::Scheduler scheduler { m_copper_blocks[block] };
 		const eng::u16 dmacon = static_cast<eng::u16>(
 			copper::DmaSetClear | copper::DmaMaster | copper::DmaCopper | copper::DmaBitplane
 		);
 		scheduler.move(copper::Register::DMACON, dmacon);
 		scheduler.move(copper::Register::BPLCON0, bplcon0());
-		scheduler.move(copper::Register::BPLCON1, 0x0000);
+		scheduler.move(copper::Register::BPLCON1, bplcon1(pf1, pf2));
 		scheduler.move(copper::Register::BPLCON2, m_config.foreground_is_pf2 ? 0x0040u : 0x0000u);
 		scheduler.move(copper::Register::BPL1MOD, pf1.bpl1mod);
 		scheduler.move(copper::Register::BPL2MOD, m_config.dual ? pf2.bpl1mod : pf1.bpl1mod);
@@ -163,11 +194,27 @@ private:
 		scheduler.move(copper::Register::DIWSTOP, m_config.diwstop);
 		scheduler.move(copper::Register::DDFSTRT, m_config.ddfstrt);
 		scheduler.move(copper::Register::DDFSTOP, m_config.ddfstop);
-		// Punteros a 0 de momento; patch_pointers los rellena al final (los
-		// offsets coinciden con los que el scheduler acaba de reservar).
 		for (eng::u8 plane = 0; plane < m_config.plane_count; ++plane) {
-			scheduler.move(copper::bitplane_pointer_high_register(plane), 0x0000);
-			scheduler.move(copper::bitplane_pointer_low_register(plane), 0x0000);
+			const bool first = !m_config.dual ? true : ((plane & 1u) == 0u);
+			const FieldHardwareView& view = first ? pf1 : pf2;
+			const eng::u8 local = m_config.dual ? static_cast<eng::u8>(plane / 2u) : plane;
+			const eng::u8 hardware = m_config.dual ? hardware_plane(view, local) : plane;
+			scheduler.move_bitplane_pointer(hardware, reinterpret_cast<const void*>(plane_address(view, local)));
+		}
+		const FieldHardwareView& split_view = pf1.split_active ? pf1 : pf2;
+		if (split_view.split_active) {
+			const eng::u16 raster = static_cast<eng::u16>((m_config.diwstrt >> 8u) + split_view.split_line);
+			if (raster > 0xffu) return false;
+			scheduler.wait_line(static_cast<eng::u8>(raster));
+			for (eng::u8 plane = 0; plane < m_config.plane_count; ++plane) {
+				const bool first = !m_config.dual ? true : ((plane & 1u) == 0u);
+				const FieldHardwareView& view = first ? pf1 : pf2;
+				const eng::u8 local = m_config.dual ? static_cast<eng::u8>(plane / 2u) : plane;
+				const eng::u32 address = plane_address(view, local) +
+					(view.split_display_byte_offset - view.display_byte_offset);
+				const eng::u8 hardware = m_config.dual ? hardware_plane(view, local) : plane;
+				scheduler.move_bitplane_pointer(hardware, reinterpret_cast<const void*>(address));
+			}
 		}
 		scheduler.emit_palette(m_config.palette);
 		scheduler.wait_line(0xf8);
@@ -177,10 +224,6 @@ private:
 		m_ok = scheduler.ok();
 		if (!m_ok) {
 			return false;
-		}
-		patch_pointers(block, pf1);
-		if (m_config.dual) {
-			patch_pointers(block, pf2);
 		}
 		return true;
 	}
