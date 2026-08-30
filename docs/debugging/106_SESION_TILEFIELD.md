@@ -72,6 +72,30 @@ El "salto de colores" ocasional que ve el usuario puede ser el cruce de página
 y visión si hay un parpadeo puntual; el análisis estático de frames no lo capta
 si es de 1 frame.
 
+## BUG REAL del "salto de color" en el cruce (RESUELTO: enqueue_strip)
+
+Tras instrumentar la demo con telemetría de "máximo de tiles pendientes" se
+descubrió la causa real del salto de color ocasional que ve el usuario:
+
+**`TileFieldController::enqueue_strip` nunca reutilizaba slots inactivos.** El
+estampado inicial (`enqueue_initial_strips`) encola 4 franjas (2x2 páginas del
+framebuffer 640x512). Al terminar, `pending_count == 4` aunque todos los strips
+estén `active=false`. La función hacía `if (pending_count >= 4) return;`, así que
+**las franjas del scroll (página vacante) NUNCA se encolaban**: el fondo/el fg se
+quedaban con el tramo de mundo inicial y al cruzar la página el display mostraba
+contenido viejo -> "salto de color" de 1 frame.
+
+Síntoma en telemetría: `max_pending` siempre 0 (nunca había trabajo pendiente),
+a pesar de que el cruce en diagonal encola 640+640 tiles.
+
+Fix: `enqueue_strip` busca el primer slot `active==false` y lo reutiliza
+(`free_slot`); solo si no hay ninguno libre añade un slot nuevo. Tras el fix la
+telemetría muestra `max_pending=249` (trabajo de redibujado en marcha, correcto) y
+el modelo de visión confirma continuidad perfecta.
+
+Regresión del analyze-sequence: exige `max_pending > 0` (si es 0, el bug de
+enqueue_strip ha vuelto) + cruce de página en ambos ejes.
+
 ## Trompicón del movimiento (RESUELTO: precisión Q16 + acumulador de resto)
 
 Síntoma: la Lissajous del fg "iba a trompicones", perdía fluidez.

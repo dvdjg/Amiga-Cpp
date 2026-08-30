@@ -56,6 +56,7 @@ const bgCrossY = (detail >> 18) & 1;
 const fgCrossY = (detail >> 19) & 1;
 const fgWorldXTiles = (detail >> 8) & 0xff;
 const fgWorldYTiles = detail & 0xff;
+const maxPending = (detail >> 20) & 0xff;
 const frame = parseInt(status.frame || 0, 10);
 if (frame < 60) {
   console.error(`Frame demasiado corto: frame=${frame}`);
@@ -67,8 +68,14 @@ if (!(fgCrossX && fgCrossY && (bgCrossX || bgCrossY))) {
   console.error(`No hay cruce de pagina en ambos ejes: bg=(${bgCrossX},${bgCrossY}) fg=(${fgCrossX},${fgCrossY})`);
   process.exit(1);
 }
-// El mundo del fg es s32 creciente (sin wrap): solo se valida el byte bajo.
-console.log(`OK 106 telemetry frame=${frame} bg_cross=(${bgCrossX},${bgCrossY}) fg_cross=(${fgCrossX},${fgCrossY}) fg_world_low=(${fgWorldXTiles},${fgWorldYTiles})`);
+// El maximo de tiles pendientes debe ser > 0: confirma que las franjas del scroll
+// se estan encolando y redibujando (regresion del bug de enqueue_strip que
+// descartaba todas las franjas tras el estampado inicial -> saltos de color).
+if (maxPending === 0) {
+  console.error(`No hay redibujado en marcha: max_pending=0 (bug de enqueue_strip)`);
+  process.exit(1);
+}
+console.log(`OK 106 telemetry frame=${frame} bg_cross=(${bgCrossX},${bgCrossY}) fg_cross=(${fgCrossX},${fgCrossY}) fg_world_low=(${fgWorldXTiles},${fgWorldYTiles}) max_pending=${maxPending}`);
 ' "$RUN_REPORT" \
 	|| { echo "Telemetria de 106 invalida." >&2; exit 1; }
 

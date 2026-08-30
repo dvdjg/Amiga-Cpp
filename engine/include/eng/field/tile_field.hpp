@@ -391,19 +391,31 @@ private:
 		if (width == 0 || height == 0) {
 			return;
 		}
+		// Slot libre: reutilizar el primer slot INACTIVO (ya terminado). Antes se
+		// comprobaba `pending_count >= 4` y se descartaba, así que tras el
+		// estampado inicial (4 slots) las franjas del scroll NUNCA se encolaban y
+		// las páginas vacantes mostraban contenido viejo al cruzar -> "salto de
+		// color" ocasional.
+		eng::u8 free_slot = 0xff;
 		for (eng::u8 i = 0; i < m_state.pending_count; ++i) {
-			if (m_state.pending[i].active &&
-				m_state.pending[i].world_tile_x == world_tile_x &&
-				m_state.pending[i].world_tile_y == world_tile_y &&
-				m_state.pending[i].fb_tile_x == fb_tile_x &&
-				m_state.pending[i].fb_tile_y == fb_tile_y) {
-				return; // ya encolada
+			if (m_state.pending[i].active) {
+				if (m_state.pending[i].world_tile_x == world_tile_x &&
+					m_state.pending[i].world_tile_y == world_tile_y &&
+					m_state.pending[i].fb_tile_x == fb_tile_x &&
+					m_state.pending[i].fb_tile_y == fb_tile_y) {
+					return; // ya encolada
+				}
+			} else if (free_slot == 0xff) {
+				free_slot = i;
 			}
 		}
-		if (m_state.pending_count >= 4) {
-			return;
+		if (free_slot == 0xff) {
+			if (m_state.pending_count >= 4) {
+				return; // sin slots libres: se descarta (poco frecuente)
+			}
+			free_slot = m_state.pending_count++;
 		}
-		m_state.pending[m_state.pending_count++] = {
+		m_state.pending[free_slot] = {
 			world_tile_x, world_tile_y, fb_tile_x, fb_tile_y, width, height, 0, true,
 		};
 	}
