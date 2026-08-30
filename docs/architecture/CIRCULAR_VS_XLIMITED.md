@@ -381,6 +381,33 @@ para casos 8-way genéricos (ver nota de deprecación suave en `TILE_FIELD_API.m
 
 ---
 
+## 9. Parametrización viewport/espacio virtual 16×16 (2026-08-30)
+
+`XlimitedConfig` elimina hardcodes 320/256/352/22/16/17:
+
+```text
+viewport_w/h = K_VIEWPORT_W/H (320/256 por defecto, 288/224 alternativo)
+tile_w/h     = K_TILE_W/H (16)
+screens_x/y  = K_SCREENS_X/Y (16×16 pantallas por defecto)
+map_w = screens_x * (viewport_w / tile_w)  // si map.width==0 se deriva, si !=0 se respeta
+map_h = screens_y * (viewport_h / tile_h)
+bitmap_width  = (bitmap_width==0 ? viewport_w + EXTRAWIDTH : bitmap_width) // 32/64 según fetch_mode
+bitmap_height = viewport_h + floor(map_w / blocks_per_row / planes) +1+3
+visibleRows   = viewport_h / tile_h
+colHeight     = visibleRows + (scroll_y?1:0) // fill_screen sin literales 16/17
+BPLMOD = bitmap_bytes_per_row*planes - viewport_w/8 - modulo_offset
+total_bytes = bitmap_bytes_per_row * bitmap_height * planes
+```
+
+Casos verificados (ver `tools/analyze/verify-xlimited.mjs` y demo 107):
+
+- **320×256**: 20×16 tiles/pantalla, bitmap 352 (22 bloques) / 384 (24), mapa 16×16 → 320×256 tiles (5120×4096 px). Fill 352 jobs (22×16), BPLMOD genérico `44*planes-40-2`.
+- **288×224**: 18×14 tiles/pantalla, bitmap 320 (20 bloques) / 352 (22), mapa 16×16 → 288×224 tiles (4608×3584 px). Fill `20×14=280` jobs (o 300 con `scroll_y=1`), BPLMOD `40*planes-36-2` (viewport 288/8=36). `verify-xlimited.mjs` deriva `BITMAPWIDTH`, `BLOCKSPERROW`, `FETCH_BYTES`, `MAP_W/H` de `K_VIEWPORT_W/H`, `K_TILE_W/H`, `K_SCREENS_X/Y` y valida ambos viewports (`K_VIEWPORT_W=288 K_VIEWPORT_H=224 node tools/analyze/verify-xlimited.mjs` → OK). La demo 107 define `K_VIEWPORT_W/H`, `K_TILE_W/H`, `K_SCREENS_X/Y` (defaults 320/256,16,16/16), deriva `kMapTilesX/Y = K_SCREENS_X/Y * (K_VIEWPORT_W/H / K_TILE_W/H)` y pasa `viewport_w/h`, `screens_x/y`, `tile_w/h` a `XlimitedConfig` (sin literales 320/256 en código).
+
+Actualizar §1.1 con viewport parametrizado: `BITMAPBLOCKSPERCOL = viewport_h / tile_h`, `bitmapheight = viewport_h + …` y `total_chip` usa `viewport_h`/`blocks_per_row` derivados.
+
+---
+
 *Documento verificado contra `xlimited.c`, `xylimited.c`, `xlimited-uk.html`,
-`xlimited.hpp` y `tile_field.hpp` a 2026-08-30. No editar sin re-verificar
+`xlimited.hpp` y `tile_field.hpp` a 2026-08-30 (con parametrización 288×224 y 16×16 pantallas, `tools/analyze/verify-xlimited.mjs` parametrizado). No editar sin re-verificar
 la fórmula de altura y el contrato `saveword`.*

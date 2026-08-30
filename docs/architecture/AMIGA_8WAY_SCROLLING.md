@@ -250,4 +250,30 @@ circular paga ráfaga de `VISIBLE_Y+2` jobs cada 16 px y 1 WAIT de *split* verti
 
 ---
 
+## 12. Parametrización viewport/espacio virtual 16×16 (2026-08-30)
+
+`XlimitedConfig` parametriza sin hardcodes el espacio virtual y el viewport:
+
+```text
+viewport_w/h = K_VIEWPORT_W/H (defecto 320/256, alternativo 288/224)
+tile_w/h     = K_TILE_W/H (defecto 16)
+screens_x/y  = K_SCREENS_X/Y (defecto 16 → 16×16 pantallas)
+map_w = screens_x * (viewport_w / tile_w)   // si map.width==0 se deriva, si !=0 se respeta
+map_h = screens_y * (viewport_h / tile_h)
+bitmap_width  = viewport_w + EXTRAWIDTH (32 normal, 64 ancho) si ==0 → auto
+bitmap_height = viewport_h + floor(map_w / blocks_per_row / planes) +1+3
+visibleRows   = viewport_h / tile_h
+colHeight     = visibleRows + (scroll_y?1:0)   // sin literales 16/17
+BPLMOD = bitmap_bytes_per_row*planes - viewport_w/8 - modulo_offset
+```
+
+Casos verificados:
+
+- **320×256** (defecto): 20×16 tiles por pantalla, bitmap 352 (22 bloques) / 384 (24), mapa 16×16 → 320×256 tiles (5120×4096 px con tile 16). Fill `22×16=352` jobs.
+- **288×224** (alternativo): 18×14 tiles por pantalla, bitmap 320 (20 bloques) / 352 (22 con fetch ancho), mapa 16×16 → 288×224 tiles (4608×3584 px). Fill `20×14=280` jobs (sin scroll_y) y con scroll_y `20×15=300`. BPLMOD genérico usa `viewport_w/8` (36 para 288 → 40*planes-36-2). `verify-xlimited.mjs` deriva `SCREEN_W/H`, `BITMAPWIDTH`, `BLOCKSPERROW` de `K_VIEWPORT_W/H` y valida ambos viewports (`K_VIEWPORT_W=288 K_VIEWPORT_H=224 node tools/analyze/verify-xlimited.mjs`). La demo 107 deriva `kMapTilesX/Y = K_SCREENS_X/Y * (K_VIEWPORT_W/H / K_TILE_W/H)` y pasa `viewport_w/h`, `screens_x/y`, `tile_w/h` a `XlimitedConfig` sin literales 320/256.
+
+Invariantes parametrizados: `viewport_w % tile_w==0`, `viewport_h % tile_h==0`, `bitmap_width % tile_w==0`, `bitmap_width >= viewport_w+tile_w`, `total_bytes = bitmap_bytes_per_row*bitmap_height*planes`.
+
+---
+
 Documento canónico — 232 líneas + §11 de referencia. No editar sin re-verificar contra ScrollingTrick.lha y Part 12.
