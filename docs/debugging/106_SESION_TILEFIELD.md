@@ -127,6 +127,26 @@ Consecuencia: el assert `assert-no-inner-black` ve más negro puro (~3%). El
 `analyze-sequence.sh` de la 106 usa umbral 0.05 con la justificación en el
 comentario.
 
+## Tiles anchos (múltiplos de 16px) — VALIDADO
+
+`TileFieldConfig::tile_width` admite 16/32/48/64px. `make_tile_copy_job` genera
+un ÚNICO job `TileBlockCopy` con `words_per_row = tile_width/16` (2 para 32px,
+3 para 48px, 4 para 64px), cubriendo el tile ancho en una pasada del Blitter.
+
+Validación:
+- **Test host** `tools/analyze/verify-tile-width-jobs.mjs`: replica la geometría
+  exacta del job (words_per_row, modulo, stride de fuente/destino) y la
+  coherencia del layout del tileset ([tile][plano][filas x words_per_row]
+  contiguos, sin solape entre planos ni tiles). Pasa para 16/32/48/64.
+- **Demo runtime** `demos/107_tile_field_wide`: single playfield 4 planos con
+  `tile_width=32` y tileset de 2 words por fila. El modelo de visión confirma
+  scroll continuo sin artefactos, y el análisis de píxeles confirma que las dos
+  mitades de cada tile de 32px difieren (ambos words se copian).
+
+Nota: el `build_tile_cache` de 102/106/107 escribe el layout contiguo; la demo
+107 escribe 2 words por fila con patrones distintos por mitad para verificar
+visualmente que el tile ancho se dibuja completo.
+
 ## Migración de la demo 102 a la nueva API (HECHO)
 
 La 102 (`demos/102_tile_scroll_dualpf`) se migró de `TileScrollScene<Mode>` a la
