@@ -23,8 +23,8 @@ function bands(g, sx, sy, dx, dy) {
   // A diagonal corner belongs to X. Y is shortened by one block, never duplicated.
   if (sx && dx) add(dx > 0 ? g.fw - 1 : 0, 0, 1, g.fh,
     dx > 0 ? g.fw - 1 : 0, 0, 'x');
-  if (sy && dy) add(sx && dx ? 1 : 0, dy > 0 ? g.fh - 1 : 0,
-    g.fw - (sx && dx ? (dx > 0 ? 2 : 1) : 0), 1, sx && dx && dx > 0 ? 1 : 0,
+  if (sy && dy) add(sx && dx && dx < 0 ? 1 : 0, dy > 0 ? g.fh - 1 : 0,
+    g.fw - (sx && dx ? 1 : 0), 1, sx && dx && dx < 0 ? 1 : 0,
     dy > 0 ? g.fh - 1 : 0, 'y');
   return jobs;
 }

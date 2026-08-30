@@ -31,7 +31,7 @@ namespace field = eng::field;
 namespace demo = eng::field::demo;
 
 /// Selección de configuración por parámetros de compilación (-D):
-///   -DK_TILE_WIDTH=16|32|48   ancho de tile en px (múltiplo de 16).
+///   -DK_TILE_WIDTH=16|32      ancho de tile en px (múltiplo de 16).
 ///   -DK_DUAL=1|0              1 => dual playfield 3+3 (6 planos),
 ///                              0 => single playfield 5 planos (32 colores).
 /// La demo es el SHOWCASE del playfield universal: un controlador por campo,
