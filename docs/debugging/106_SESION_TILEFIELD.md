@@ -11,7 +11,8 @@ pierda entre hilos.
   `TileFieldState`, `TilePendingStrip` (región 2D + cursor), `FieldHardwareView`,
   `BitmapFieldConfig`, `TileFieldController`.
 - `engine/include/eng/field/dpf_composer.hpp`: `DpfDisplayComposer`.
-- `demos/106_tile_field_infinite_dualpf/`: demo dual 3+3, scroll infinito en
+- `demos/106_tile_field_showcase/`: demo ÚNICA parametrizable (dual 3+3 o
+  single 5 planos, tiles 16/32/48px). Sustituye a 106 y 107.
   ambos ejes, Lissajous de 2 pantallas, seno de alta resolución.
 - Diseño completo: `docs/architecture/TILE_FIELD_API.md`.
 
@@ -71,6 +72,49 @@ El "salto de colores" ocasional que ve el usuario puede ser el cruce de página
 (el display salta de una página a otra preparada). Verificar con secuencia larga
 y visión si hay un parpadeo puntual; el análisis estático de frames no lo capta
 si es de 1 frame.
+
+## Unificación de demos y test unitario del algoritmo (HECHO)
+
+Para no tener que adaptar cada demo con cada feature, se consolidó en UNA demo
+parametrizable y se añadió un test unitario del algoritmo.
+
+### Demo única parametrizable (`demos/106_tile_field_showcase`)
+
+Sustituye a las antiguas 106 (dual scroll infinito) y 107 (tiles anchos). Se
+configura por macros de compilación:
+
+- `K_TILE_WIDTH` = 16/32/48: anchura de tile (múltiplo de 16), una pasada del
+  Blitter por tile ancho.
+- `K_DUAL` = 1/0: dual 3+3 o single 5 planos (sin DPF).
+
+La abstracción de playfield (`TileFieldController` + `DpfDisplayComposer`) es la
+misma en todos los casos: un controlador por playfield, sea dual o single. Un
+videojuego con un solo PF de 5 bitplanes usa exactamente el mismo código.
+
+`engine/include/eng/field/tile_demo.hpp` centraliza las utilidades comunes de
+las demos (paleta, glifos, seno Q16, cámaras, `build_tile_cache` con tiles
+anchos) para no duplicarlas.
+
+### Test unitario del algoritmo (`tools/analyze/verify-tile-field-fill.mjs`)
+
+Replica la lógica EXACTA de `begin` (offset absoluto) y `update` (delta relativo)
+y verifica invariantes sobre el framebuffer de doble página:
+
+- `begin(offset)` en 7 zonas distintas: cobertura completa, sin solapes, y cada
+  celda física contiene el tile correcto del mapa (world = page_origin + offset).
+- `update(+N)` sin cruzar página: no encola franjas nuevas.
+- `update(+320)` cruzando página: encola la página vacante, cobertura total OK.
+- Inversión (cambio de signo del delta): reencola la página opuesta con el tramo
+  trasero y la página que queda atrás con el tramo anterior.
+- `update(+1px)` repetido: nunca encola (el cruce es de página, no de tile).
+
+El `analyze-sequence.sh` del showcase ejecuta el test antes de la captura.
+
+### Build parametrizable
+
+`tools/build/build-demo.sh` acepta `EXTRA_DEFINES` (p. ej.
+`EXTRA_DEFINES="-DK_TILE_WIDTH=32"`) para compilar la showcase en cualquier
+configuración sin editar el fuente.
 
 ## BUG del "petardazo" al invertir la cámara (RESUELTO: scroll bidireccional)
 
@@ -174,14 +218,14 @@ Validación:
   exacta del job (words_per_row, modulo, stride de fuente/destino) y la
   coherencia del layout del tileset ([tile][plano][filas x words_per_row]
   contiguos, sin solape entre planos ni tiles). Pasa para 16/32/48/64.
-- **Demo runtime** `demos/107_tile_field_wide`: single playfield 4 planos con
-  `tile_width=32` y tileset de 2 words por fila. El modelo de visión confirma
-  scroll continuo sin artefactos, y el análisis de píxeles confirma que las dos
-  mitades de cada tile de 32px difieren (ambos words se copian).
+- **Demo runtime** (showcase `demos/106_tile_field_showcase` con
+  `EXTRA_DEFINES="-DK_TILE_WIDTH=32"`): el modelo de visión confirma scroll
+  continuo sin artefactos y el análisis de píxeles confirma que las dos mitades
+  de cada tile de 32px difieren (ambos words se copian).
 
-Nota: el `build_tile_cache` de 102/106/107 escribe el layout contiguo; la demo
-107 escribe 2 words por fila con patrones distintos por mitad para verificar
-visualmente que el tile ancho se dibuja completo.
+Nota: el `build_tile_cache` del header común `eng/field/tile_demo.hpp` escribe el
+layout contiguo con palabras de variante por mitad para verificar visualmente que
+el tile ancho se dibuja completo.
 
 ## Migración de la demo 102 a la nueva API (HECHO)
 
@@ -211,11 +255,12 @@ nueva API: dos `TileFieldController` + `DpfDisplayComposer`.
 - Los scripts del repo (`tools/build/build-demo.sh`, `tools/run/run-demo.sh`,
   `tools/analyze/*`) se invocan con Git Bash.
 - Captura de secuencia:
-  `bash ./tools/run/run-demo.sh demos/106_tile_field_infinite_dualpf --warp --sequence-frames 8 --sequence-interval-ms 800`.
+  `bash ./tools/run/run-demo.sh demos/106_tile_field_showcase --warp --sequence-frames 8 --sequence-interval-ms 800`.
 - `--warp` está en la config uae pero `MinimalBackend::boot()` llama
   `set_warpmode(false)`, así que el run avanza en tiempo real (~50fps). Para que
   la cámara cruce páginas en la ventana de captura hay que alargar el intervalo
-  (800ms) o el número de frames; el `analyze-sequence.sh` de la 106 usa 8x800ms.
+  (800ms) o el número de frames; el `analyze-sequence.sh` de la showcase usa
+  8x800ms.
 
 ## Lección sobre el análisis de imágenes (PNG)
 
@@ -263,23 +308,30 @@ nueva API: dos `TileFieldController` + `DpfDisplayComposer`.
 - Franjas como regiones 2D con cursor (no columnas simples), para cubrir tanto el
   estampado inicial como la página vacante.
 
-## Comandos canónicos de la demo 106
+## Comandos canónicos de la demo showcase (106)
 
 ```
-# Build
+# Build (dual 3+3, tiles de 16px por defecto)
 AMIGA_BIN_PATH="C:/Users/dvdjg/.vscode/extensions/bartmanabyss.amiga-debug-1.8.1/bin/win32" \
-  bash ./tools/build/build-demo.sh demos/106_tile_field_infinite_dualpf --debug --clean
+  bash ./tools/build/build-demo.sh demos/106_tile_field_showcase --debug --clean
+
+# Build con tiles de 32px o single 5 planos
+EXTRA_DEFINES="-DK_TILE_WIDTH=32" bash ./tools/build/build-demo.sh demos/106_tile_field_showcase --debug --clean
+EXTRA_DEFINES="-DK_DUAL=0"        bash ./tools/build/build-demo.sh demos/106_tile_field_showcase --debug --clean
 
 # Run + secuencia
-bash ./tools/run/run-demo.sh demos/106_tile_field_infinite_dualpf --warp \
+bash ./tools/run/run-demo.sh demos/106_tile_field_showcase --warp \
   --sequence-frames 8 --sequence-interval-ms 800
 
-# Regresión de la demo
-bash ./demos/106_tile_field_infinite_dualpf/analyze-sequence.sh --warp
+# Regresión de la demo (incluye el test unitario del algoritmo)
+bash ./demos/106_tile_field_showcase/analyze-sequence.sh --warp
+
+# Test unitario del algoritmo begin/update (host)
+node tools/analyze/verify-tile-field-fill.mjs
 
 # Visión
 node tools/vision-review/vision-review.ts --root . \
-  --source out/run/106_tile_field_infinite_dualpf/sequence \
+  --source out/run/106_tile_field_showcase/sequence \
   --profile amiga-scroll-transition --outDir out/vision-review/106_x
 node tools/vision-review/vision-review.ts --reviewRequest out/vision-review/106_x/request.json \
   --provider tools/vision-review/providers/ollama.local.json
