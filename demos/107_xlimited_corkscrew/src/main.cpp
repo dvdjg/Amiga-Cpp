@@ -46,11 +46,15 @@ namespace demo = eng::field::demo;
 #ifndef K_TILE_WIDTH
 #define K_TILE_WIDTH 16
 #endif
+#ifndef K_FETCH_MODE
+#define K_FETCH_MODE 0
+#endif
 #ifndef K_PLANES
 #define K_PLANES 4
 #endif
 
 constexpr eng::u16 kTileWidth = static_cast<eng::u16>(K_TILE_WIDTH);
+constexpr eng::u8 kFetchMode = static_cast<eng::u8>(K_FETCH_MODE);
 constexpr eng::u16 kTileSize = 16;
 constexpr eng::u8 kPlanes = static_cast<eng::u8>(K_PLANES);
 constexpr eng::u16 kViewportW = 320;
@@ -87,23 +91,47 @@ struct DemoGame {
             return;
         }
 
-        // Banco de tiles en formato clásico de Steger (320×256, 20×16 bloques).
-        // Reusamos demo::build_tile_cache que genera el mismo patrón que 106
-        // pero lo dejamos en un bloque Chip contiguo para que DrawBlock pueda
-        // calcular mapy_src = (block/20)*BLOCKPLANELINES*40.
-        const eng::u32 words_per_tile = kTileSize * (kTileWidth / 16u);
-        tiles_block = backend.memory().chip.allocate(
-            kTileCount * kPlanes * words_per_tile * 2u, 16);
+        // Banco de tiles en formato clásico de Steger: BlocksBitmap interleaved
+        // 320×256×planes (40*256*planes bytes). Cada tile de 16×16 ocupa
+        // BLOCKPLANELINES=64 planelíneas interleaved. No usamos el layout
+        // TileMajor de build_tile_cache porque X-Limited hace un único blit
+        // interleaved de 64 líneas (ver xlimited.hpp §6). Creamos el
+        // BlocksBitmap interleaved y lo rellenamos con pf_plane_row.
+        const eng::u32 kBlockSrcWidth = 320;
+        const eng::u32 kBlockSrcBytesPerRow = kBlockSrcWidth / 8; // 40
+        const eng::u32 kBlocksPerRowSrc = kBlockSrcWidth / kTileWidth; // 20 para 16, 10 para 32
+        const eng::u32 kBlocksPerColSrc = 256 / kTileSize; // 16
+        const eng::u32 blocks_interleaved_bytes = kBlockSrcBytesPerRow * 256 * kPlanes;
+        tiles_block = backend.memory().chip.allocate(blocks_interleaved_bytes, 16);
         if (!tiles_block.valid()) {
             eng::debug::mark_failed(g_eng_run_status, 0x00010702u);
             return;
         }
-        // Base 0, sin transparencia total: X-Limited puro muestra todos los tiles.
-        demo::build_tile_cache(
-            eng::Span<eng::u16>::from_raw(
-                static_cast<eng::u16*>(tiles_block.data),
-                tiles_block.size / sizeof(eng::u16)),
-            kTileCount, kTileSize, kTileWidth, kPlanes, 0, false, -1);
+        // Inicializar a 0
+        for (eng::u32 i = 0; i < blocks_interleaved_bytes; ++i) static_cast<eng::u8*>(tiles_block.data)[i] = 0;
+        // Rellenar cada tile del tileset (64) en su posición (bx,by) = (tile%20, tile/20)
+        for (eng::u16 tile = 0; tile < kTileCount; ++tile) {
+            const eng::u8 glyph = static_cast<eng::u8>(tile & 15u);
+            const eng::u8 variant = static_cast<eng::u8>((tile >> 4u) & 3u);
+            const eng::u16 bx = tile % kBlocksPerRowSrc;
+            const eng::u16 by = tile / kBlocksPerRowSrc;
+            const eng::u32 base_pl = static_cast<eng::u32>(by) * (kTileSize * kPlanes) * kBlockSrcBytesPerRow;
+            for (eng::u16 row = 0; row < kTileSize; ++row) {
+                for (eng::u8 plane = 0; plane < kPlanes; ++plane) {
+                    const eng::u16 word = demo::pf_plane_row(glyph, variant, static_cast<eng::u8>(row), plane, 0, false);
+                    // Para tiles anchos (>16), replicar patrón en las words siguientes
+                    for (eng::u16 w = 0; w < kTileWidth / 16u; ++w) {
+                        const eng::u16 out_word = (w == 0) ? word : static_cast<eng::u16>(word ^ 0x0ff0u);
+                        const eng::u32 planeline = static_cast<eng::u32>(row) * kPlanes + plane;
+                        const eng::u32 dst_offset = (base_pl + planeline * kBlockSrcBytesPerRow) + bx * (kTileWidth / 8u) + w * 2u;
+                        // Escribir big-endian word en buffer Chip (Amiga es big-endian)
+                        eng::u8* dst = static_cast<eng::u8*>(tiles_block.data) + dst_offset;
+                        dst[0] = static_cast<eng::u8>(out_word >> 8);
+                        dst[1] = static_cast<eng::u8>(out_word & 0xff);
+                    }
+                }
+            }
+        }
 
         // Para el banco interleaved de Steger necesitamos un bitmap de
         // 320×256 interleaved (BlocksBitmap). Nuestro tiles_block ya contiene
@@ -137,59 +165,54 @@ struct DemoGame {
             // BITMAPBLOCKSPERROW entero, la demo fuerza 384 con tiles de 32.
             field_cfg.bitmap_width = 384;
         }
-        field_cfg.fetch_mode = 0;
+        // Fetch ancho explícito: fuerza 384 px y el modo pedido.
+        // 0=16 px normal (352), 1=BPL32 32 px (384, DDF $28/$C8, offset 16),
+        // 3=BPL32+BPAGEM 64 px (384, DDF $18/$B8, offset 48).
+        // K_FETCH_MODE !=0 implica bitmap 384 independientemente de K_TILE_WIDTH.
+        if (kFetchMode != 0) {
+            field_cfg.bitmap_width = 384;
+            field_cfg.fetch_mode = kFetchMode;
+        } else {
+            field_cfg.fetch_mode = 0;
+        }
 
         if (!field.begin(backend.memory(), field_cfg)) {
             eng::debug::mark_failed(g_eng_run_status, 0x00010703u);
             return;
         }
 
-        // Fill inicial por Blitter en lotes (como en 106). El primer frame
-        // visible nunca muestra la superficie a medio rellenar.
-        const eng::u8 budget = 120;
+        // Fill inicial por Blitter en lotes. X-Limited necesita 22×16=352
+        // bloques (352 jobs) y FramePlan solo admite 128 jobs (max_blit_jobs)
+        // y el presupuesto por defecto es max_jobs=120. Si dejamos que
+        // add_tile_block_copy falle por overflow, FramePlan::m_ok pasa a false
+        // y el siguiente execute_frame_plan(plan) fallaría aunque los 128
+        // jobs previos fueran válidos. Por eso vaciamos *antes* de superar
+        // max_jobs, no después de que add haya marcado el plan como no ok.
         plan.clear();
         plan.set_blit_budget_limits({8192, 16384, 4, 120});
-        if (!field.fill_screen(plan)) {
-            eng::debug::mark_failed(g_eng_run_status, 0x00010704u);
-            return;
-        }
-        // Ejecutar todos los jobs de fill en bucle hasta vaciar.
-        // En esta demo fill_screen emite todos de golpe (22*16=352 jobs) y el
-        // FramePlan tiene max 128 jobs, de modo que iteramos por columnas.
-        // Simplificación: rellenamos por bandas de 32 bloques.
         {
-            // Si el plan se llenó, lo ejecutamos y seguimos; como fill_screen
-            // es atómico en esta implementación simple, el caso >128 no ocurre
-            // para 22*16=352 >128. Dividimos en dos pasadas.
-            eng::graphics::FramePlan tmp;
-            tmp.clear();
-            // Pasada 1: primeras 128
-            // Para no complicar, si el plan falló por overflow lo partimos
-            // manualmente: rellenamos fila a fila con pump.
-            if (!plan.ok()) {
-                plan.clear();
-                plan.set_blit_budget_limits({8192, 16384, 4, 120});
-                // Fallback: fill fila a fila
-                const eng::u16 cols = field.bitmap_blocks_per_row();
-                const eng::u16 rows = kViewportH / kTileSize;
-                for (eng::u16 b = 0; b < rows; ++b) {
-                    for (eng::u16 a = 0; a < cols; ++a) {
-                        auto job = field.draw_block_job(
-                            a * kTileWidth,
-                            b * field.block_planes_lines(),
-                            a, b);
-                        if (!plan.add_tile_block_copy(job)) {
-                            if (!backend.execute_frame_plan(plan)) {
-                                eng::debug::mark_failed(g_eng_run_status, 0x00010705u);
-                                return;
-                            }
-                            plan.clear();
-                            plan.set_blit_budget_limits({8192, 16384, 4, 120});
-                            if (!plan.add_tile_block_copy(job)) {
-                                eng::debug::mark_failed(g_eng_run_status, 0x00010706u);
-                                return;
-                            }
+            const eng::u16 cols = field.bitmap_blocks_per_row();
+            const eng::u16 rows = kViewportH / kTileSize;
+            for (eng::u16 b = 0; b < rows; ++b) {
+                for (eng::u16 a = 0; a < cols; ++a) {
+                    // Vaciar proactivamente si estamos al límite de jobs.
+                    if (plan.blit_job_count() >= 120) {
+                        if (!backend.execute_frame_plan(plan)) {
+                            eng::debug::mark_failed(g_eng_run_status, 0x00010705u);
+                            return;
                         }
+                        plan.clear();
+                        plan.set_blit_budget_limits({8192, 16384, 4, 120});
+                    }
+                    auto job = field.draw_block_job(
+                        a * kTileWidth,
+                        b * field.block_planes_lines(),
+                        a, b);
+                    if (!plan.add_tile_block_copy(job)) {
+                        // Fallo inesperado (job inválido) — no es por overflow
+                        // porque ya vaciamos proactivamente.
+                        eng::debug::mark_failed(g_eng_run_status, 0x00010706u);
+                        return;
                     }
                 }
             }
@@ -255,34 +278,28 @@ struct DemoGame {
                 // para cubrir 256*16=4096 píxeles (4096/16*2=512). Justo al
                 // límite. Si seguimos más allá, el planeaddx saldría del
                 // bitmap; por eso envolvemos aquí.
-                field = field::XlimitedField{};
-                field_cfg.map.cells = eng::Span<const eng::u16>::from_raw(g_map_cells, kMapTilesX * kMapTilesY);
-                if (!field.begin(backend.memory(), field_cfg)) {
-                    ready = false;
-                    eng::debug::mark_failed(g_eng_run_status, 0x00010709u);
-                    return;
-                }
+                // Wrap infinito sin re-reservar: reiniciamos coordenadas.
+                // El mapa es circular (wrap_x), así que los tiles siguen
+                // coincidiendo; el planeaddx vuelve a 0 y la altura extra
+                // cubre el siguiente ciclo.
+                field.reset_scroll();
+                // Refill ligero: re-pintar las 22 columnas visibles en y=0
+                // es suficiente para que el siguiente fetch no vea basura.
+                // Para la demo hacemos un fill parcial de la primera fila.
                 plan.clear();
                 plan.set_blit_budget_limits({8192, 16384, 4, 120});
-                // Fill por bandas para no overflowar el plan
-                const eng::u16 cols = field.bitmap_blocks_per_row();
-                const eng::u16 rows = kViewportH / kTileSize;
-                for (eng::u16 b = 0; b < rows; ++b) {
-                    for (eng::u16 a = 0; a < cols; ++a) {
-                        auto job = field.draw_block_job(
-                            a * kTileWidth,
-                            b * field.block_planes_lines(),
-                            a, b);
-                        if (!plan.add_tile_block_copy(job)) {
-                            if (!backend.execute_frame_plan(plan)) {
-                                ready = false;
-                                eng::debug::mark_failed(g_eng_run_status, 0x0001070au);
-                                return;
-                            }
-                            plan.clear();
-                            plan.set_blit_budget_limits({8192, 16384, 4, 120});
-                            plan.add_tile_block_copy(job);
+                for (eng::u16 a = 0; a < field.bitmap_blocks_per_row(); ++a) {
+                    auto job = field.draw_block_job(
+                        a * kTileWidth, 0, a, 0);
+                    if (!plan.add_tile_block_copy(job)) {
+                        if (!backend.execute_frame_plan(plan)) {
+                            ready = false;
+                            eng::debug::mark_failed(g_eng_run_status, 0x0001070au);
+                            return;
                         }
+                        plan.clear();
+                        plan.set_blit_budget_limits({8192, 16384, 4, 120});
+                        plan.add_tile_block_copy(job);
                     }
                 }
                 if (plan.blit_job_count() > 0) {

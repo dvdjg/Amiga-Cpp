@@ -229,4 +229,18 @@ viewport; guard line a 0 nunca escrita por draw_block.
 
 ---
 
-Documento canónico — 232 líneas. No editar sin re-verificar contra ScrollingTrick.lha y Part 12.
+## 11. Comparativa con XLimited (apéndice)
+
+Para scroll X infinito el modelo circular anterior no es canónico. La comparativa
+completa — geometría, memoria Chip, coste Blitter (jobs/*frame*, *words*), Copper
+(*waits*), direccionamiento interleaved vs separate, limitaciones OCS y por qué el
+circular no es canónico — está en `docs/architecture/CIRCULAR_VS_XLIMITED.md`,
+verificado contra `xlimited.c:45-323`, `xlimited-uk.html` y
+`engine/include/eng/field/xlimited.hpp`. En resumen: XLimited usa *bitmap*
+352/384 interleaved, altura `256+(map_width/22/planes)+1+3`, 1 job/*frame* con
+*plane-shifted* y `saveword`, sin *split* de Copper; el circular paga ráfaga de
+`VISIBLE_Y+2` jobs cada 16 px y 1 WAIT de *split* vertical.
+
+---
+
+Documento canónico — 232 líneas + §11 de referencia. No editar sin re-verificar contra ScrollingTrick.lha y Part 12.
