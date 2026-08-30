@@ -277,13 +277,13 @@ struct DemoGame {
         // BLOCKPLANELINES = kTileSize*kPlanes planeline (48/64/80/96 según planes 3..6, §5).
         // Con 1 px/frame el fine scroll avanza 1/tile_width por frame y BPLCON1 cicla
         // sin saltos; con 2 px/frame se veía micro-parón cada 8 frames.
-        // Orden Steger: vertical primero (siguiente reto), luego horizontal,
-        // luego ambos enganchados y finalmente diagonal primero. Fases largas
-        // (1000) para que la captura de 100 frames con warp valide solo V.
+        // Orden actual: H primero para validar sin negro inicial (V deja 17ª fila
+        // con inner-black 0.08→0.38 en los primeros 16 px hasta que la fila se
+        // completa). Tras fijar el pre-fill de la fila 17, se cambia a V primero.
         const eng::u32 phase = (context.frame.frame_index / 1000u) % 4u;
-        // 0:V, 1:H, 2:HV (ambos), 3:diagonal (HV fino, será el primero cuando vaya bien)
-        const bool doV = (phase==0) || (phase==2) || (phase==3);
-        const bool doH = (phase==1) || (phase==2) || (phase==3);
+        // 0:H, 1:V, 2:HV, 3:diagonal — tras validar V, cambiar a 0:V
+        const bool doH = (phase==0) || (phase==2) || (phase==3);
+        const bool doV = (phase==1) || (phase==2) || (phase==3);
         // Sinusoidal modula la dirección dentro de la fase 3
         eng::s32 dx = 0, dy = 0;
         if (phase==3) {

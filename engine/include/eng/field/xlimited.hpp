@@ -458,18 +458,35 @@ public:
 
     /// Calcula la altura total según la fórmula canónica de Steger parametrizada.
     ///
+    /// X-Limited puro (scroll_y=false): `viewport_h + (map_width/…/planes) + 1 + 3`,
+    /// igual que xlimited.c (`BITMAPHEIGHT = SCREENHEIGHT`).
+    /// Corkscrew/XY (scroll_y=true): el bucle vertical del display mide
+    /// `viewport_h + EXTRAHEIGHT` con `EXTRAHEIGHT = 2*tile_height` (banda de
+    /// staging de 2 bloques), igual que XYLimited (`BITMAPHEIGHT =
+    /// SCREENHEIGHT + EXTRAHEIGHT`); además se alinea a `tile_height` para que la
+    /// última banda de staging (`block_videoposy`) quepa sin salir de Chip RAM.
+    ///
     /// \param viewport_h   alto visible (cfg.viewport_h)
+    /// \param tile_height  alto de bloque (cfg.tile_height, 16)
+    /// \param scroll_y     true = corkscrew (XY), false = X-only
     /// \param map_width_blocks  ancho del mapa en bloques (ej. screens_x*viewport_w/tile_width)
     /// \param bitmap_blocks_per_row  BITMAPWIDTH / tile_width
     /// \param planes  profundidad (4)
-    /// \return altura en píxeles (viewport_h + extra +1+3)
+    /// \return altura en píxeles (viewport_h + EXTRAHEIGHT? + extra +1+3)
     static constexpr u16 compute_bitmap_height(u16 viewport_h,
-                                              u16 map_width_blocks,
-                                              u16 bitmap_blocks_per_row,
-                                              u8 planes) {
-        return static_cast<u16>(
-            viewport_h +
-            (map_width_blocks / bitmap_blocks_per_row / planes) + 1 + 3);
+                                               u16 tile_height,
+                                               bool scroll_y,
+                                               u16 map_width_blocks,
+                                               u16 bitmap_blocks_per_row,
+                                               u8 planes) {
+        const u16 display_h = static_cast<u16>(
+            viewport_h + (scroll_y ? static_cast<u16>(2u * tile_height) : 0));
+        u16 h = static_cast<u16>(
+            display_h + (map_width_blocks / bitmap_blocks_per_row / planes) + 1 + 3);
+        if (scroll_y) {
+            h = static_cast<u16>(((h + tile_height - 1u) / tile_height) * tile_height);
+        }
+        return h;
     }
 
     /// Reserva el bitmap interleaved y prepara el estado inicial.
@@ -499,7 +516,7 @@ public:
         // map_h no afecta a bitmap_height en X-Limited puro, pero se valida para scroll_y
         (void)derived_map_h;
         m_bitmap_height = compute_bitmap_height(
-            m_cfg.viewport_h,
+            m_cfg.viewport_h, m_cfg.tile_height, m_cfg.scroll_y,
             map_w_blocks,
             m_bitmap_blocks_per_row, m_cfg.planes);
         // Altura mínima: max(viewport_h+1+3, 16*tile_height) para que los 16 valores de mapy (0..15) quepan.
@@ -508,6 +525,14 @@ public:
         const u16 min_h_blocks = static_cast<u16>(16u * m_cfg.tile_height);
         const u16 min_h = (min_h_viewport > min_h_blocks) ? min_h_viewport : min_h_blocks;
         if (m_bitmap_height < min_h) m_bitmap_height = min_h;
+
+        // Bucle vertical del display (corkscrew): viewport_h + EXTRAHEIGHT
+        // (2 bloques de banda de staging). En X-only coincide con viewport_h.
+        m_display_height = static_cast<u16>(
+            m_cfg.viewport_h + (m_cfg.scroll_y ? static_cast<u16>(2u * m_cfg.tile_height) : 0));
+        m_display_planelines = static_cast<u16>(m_display_height * m_cfg.planes);
+        // BITMAPBLOCKSPERCOL del corkscrew: filas de bloque del bucle vertical.
+        m_bitmap_blocks_per_col = static_cast<u16>(m_display_height / m_cfg.tile_height);
 
         // BMF_INTERLEAVED-like: un único bloque Chip contiguo.
         // total = bytes_por_planeline * altura * planes  (planeline totales)
@@ -537,7 +562,7 @@ public:
         m_videoposx = 0;
         m_mapposy = 0;
         m_videoposy = 0;
-        m_previous_dir = 0xff; // DIRECTION_IGNORE
+        m_previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left, 2=right)
         m_savewordpointer = nullptr;
         m_saveword = 0;
         m_blocks_buffer = reinterpret_cast<const u8*>(m_cfg.tileset);
@@ -548,13 +573,15 @@ public:
     /// Rellena la pantalla inicial (equivalente a FillScreen).
     ///
     /// Emite `BITMAPBLOCKSPERROW * colHeight` jobs de Blitter en el
-    /// `FramePlan` dado, donde colHeight = visibleRows + (scroll_y?1:0) y
-    /// visibleRows = viewport_h / tile_height. Sin literales 16/17.
+    /// `FramePlan` dado, donde colHeight = visibleRows + (scroll_y ? 2 : 0)
+    /// (el corkscrew pre-rellena el bucle vertical completo de display,
+    /// viewport_h + EXTRAHEIGHT, para que la banda de staging de 2 bloques
+    /// tenga contenido coherente desde el primer frame).
     bool fill_screen(graphics::FramePlan& plan) const {
         if (!m_initialized) return false;
         const u16 cols = m_bitmap_blocks_per_row;
         const u16 visibleRows = static_cast<u16>(m_cfg.viewport_h / m_cfg.tile_height);
-        const u16 colHeight = static_cast<u16>(visibleRows + (m_cfg.scroll_y ? 1u : 0u));
+        const u16 colHeight = m_cfg.scroll_y ? m_bitmap_blocks_per_col : visibleRows;
         const u16 rows = colHeight;
         for (u16 b = 0; b < rows; ++b) {
             for (u16 a = 0; a < cols; ++a) {
@@ -627,149 +654,277 @@ public:
         };
     }
 
-    /// Scroll de 1 píxel a la derecha (plane-shifted).
+    // -------------------------------------------------------------------------
+    // Scroll corkscrew (XYLimited) — port fiel de Scroller_XYLimited/main.c
+    // -------------------------------------------------------------------------
+    // Estado derivado del corkscrew:
+    //   mapblockx = mapposx / TW, stepx = mapposx & (TW-1)
+    //   mapblocky = mapposy / TH, stepy = mapposy & (TH-1)
+    //   block_videoposy = (mapposy / TH * TH) % bitmap_height
+    //                    (fila de bloque físico donde se pinta la banda de
+    //                     staging; se deriva, no se mantiene incremental)
+    //   TWOBLOCKSTEP = bitmap_blocks_per_row - viewport_w/TW
+    // La fila/columna entrante se dibuja en la banda de staging
+    // `block_videoposy` (2 bloques por encima del display visible, que el
+    // display alcanza al dar la vuelta en `display_height`), y las posiciones
+    // X/Y usan `% display_height` / `% display_planelines` para quedarse
+    // dentro del bucle vertical del display (mismo invariante que el original).
+
+    constexpr u16 twoblockstep() const {
+        const u16 visible_cols = static_cast<u16>(m_cfg.viewport_w / m_cfg.tile_width);
+        return static_cast<u16>(m_bitmap_blocks_per_row > visible_cols
+            ? m_bitmap_blocks_per_row - visible_cols : 0);
+    }
+    constexpr u16 block_videoposy() const {
+        return static_cast<u16>(
+            (m_mapposy / m_cfg.tile_height * m_cfg.tile_height) % m_bitmap_height);
+    }
+    /// Añade el blit de un bloque y gestiona el fallo de plan.
+    bool add_draw(graphics::FramePlan& plan, u16 x, u16 y, u16 mapx, u16 mapy) {
+        auto job = draw_block_job(x, y, mapx, mapy);
+        return plan.add_tile_block_copy(job);
+    }
+    /// Guarda la word que el blit plane-shifted va a pisar (guarda de 1 word).
+    void save_word(u32 byte_offset) {
+        m_savewordpointer = reinterpret_cast<u16*>(
+            const_cast<u8*>(m_frontbuffer) + byte_offset);
+        m_saveword = *m_savewordpointer;
+    }
+    void restore_saveword() {
+        if (m_savewordpointer) *m_savewordpointer = m_saveword;
+    }
+
+    /// Scroll de 1 píxel a la derecha (plane-shifted) — ScrollRight corkscrew.
     ///
-    /// Implementa fielmente ScrollRight de xlimited.c:526-553:
-    ///   mapx = mapposx/tile_width + BITMAPBLOCKSPERROW
-    ///   mapy = mapposx & (tile_width-1)
-    ///   x = BITMAPWIDTH + (videoposx & ~(tile_width-1))
-    ///   y = mapy * BLOCKPLANELINES
-    /// Guarda la word de solapamiento si la dirección anterior era izquierda.
+    /// Fiel a ScrollRight de Scroller_XYLimited/main.c:869-978:
+    ///   columna entrante en x = BITMAPWIDTH + ROUND2BLOCKWIDTH(videoposx),
+    ///   fila mapy = stepx+1 (2 bloques si stepx==0), y = (block_videoposy +
+    ///   mapy*TH) % display_height, y el ajuste de la fila de fillup al
+    ///   completar columna (stepx==0).
     bool scroll_right(graphics::FramePlan& plan) {
         if (!m_initialized) return false;
-        const u16 map_w_for_limit = m_cfg.map.width ? m_cfg.map.width
-                                    : static_cast<u16>(m_cfg.screens_x * (m_cfg.viewport_w / m_cfg.tile_width));
-        const s32 limit = static_cast<s32>(map_w_for_limit) * m_cfg.tile_width -
+        const u16 map_w_blocks = m_cfg.map.width ? m_cfg.map.width
+                                 : static_cast<u16>(m_cfg.screens_x * (m_cfg.viewport_w / m_cfg.tile_width));
+        const s32 limit = static_cast<s32>(map_w_blocks) * m_cfg.tile_width -
                           m_cfg.viewport_w - m_cfg.tile_width;
-        // Para mapas con wrap, el límite no se aplica: el mapa es circular.
         if (m_cfg.map.wrap_x == 0 && m_mapposx >= limit) return false;
 
-        const u16 mapx = static_cast<u16>(m_mapposx / m_cfg.tile_width + m_bitmap_blocks_per_row);
-        const u16 mapy_blocks = static_cast<u16>(m_mapposx & (m_cfg.tile_width - 1));
-        // En X-Limited puro el mapa es mucho más alto que la pantalla (screens_y * viewport_h/tile_height filas)
-        // y el corkscrew usa `mapy_blocks` tanto para la coordenada Y del
-        // bitmap (`y = mapy*BLOCKPLANELINES`, tile_height*planes) como para la coordenada Y del mapa
-        // (`map_tile_y = mapy`). Así, cada uno de los tile_width pasos de un bloque
-        // pinta una fila distinta de la columna entrante y no se repiten
-        // plaquetas. La versión anterior con `map_tile_y=0` dejaba toda la
-        // columna con tiles de la fila 0, visible como repetición vertical.
-        // Ver xlimited.c: `mapy = mapposx & (tile_width-1); DrawBlock(x, y, mapx, mapy)`.
-        const u16 map_tile_x = mapx;
-        const u16 map_tile_y = 0; // X-Limited puro: columna vertical uniforme (repetición
-        // vertical intencionada para 50 fps; la variación por filas se verá
-        // con scroll vertical/XY donde map_tile_y = mapy_blocks. Ver §5.
-        const u16 x = static_cast<u16>(m_bitmap_width + (m_videoposx & ~(m_cfg.tile_width - 1)));
-        const u16 y = static_cast<u16>(mapy_blocks * m_block_planes_lines);
+        const u16 mapblockx = static_cast<u16>(m_mapposx / m_cfg.tile_width);
+        const u16 mapblocky = static_cast<u16>(m_mapposy / m_cfg.tile_height);
+        const u16 stepx = static_cast<u16>(m_mapposx & (m_cfg.tile_width - 1));
+        const u16 stepy = static_cast<u16>(m_mapposy & (m_cfg.tile_height - 1));
+        const u16 bvpos = block_videoposy();
+        const u16 x0 = static_cast<u16>(m_videoposx & ~(m_cfg.tile_width - 1));
+        const u16 mapx = static_cast<u16>(mapblockx + m_bitmap_blocks_per_row);
 
-        if (m_previous_dir == 1) { // DIRECTION_LEFT
-            // Restaurar la word pisada por el blit anterior no plane-shifted.
-            if (m_savewordpointer) *m_savewordpointer = m_saveword;
+        if (m_previous_xdirection == 1) restore_saveword(); // DIRECTION_LEFT
+
+        u16 mapy = static_cast<u16>(stepx + 1);
+        if (mapy == 1) { // stepx == 0 → dos bloques
+            mapy = static_cast<u16>(mapy + mapblocky);
+            const u16 y = static_cast<u16>(((bvpos + m_cfg.tile_height) % m_display_height) * m_cfg.planes);
+            if (!add_draw(plan, static_cast<u16>(x0 + m_bitmap_width), y, mapx, mapy)) return false;
+            const u16 y2 = static_cast<u16>((y + m_block_planes_lines) % m_display_planelines);
+            save_word(static_cast<u32>(y2 + m_block_planes_lines - 1) * m_bitmap_bytes_per_row +
+                      ((x0 + m_bitmap_width) / 8u));
+            if (!add_draw(plan, static_cast<u16>(x0 + m_bitmap_width), y2, mapx, static_cast<u16>(mapy + 1))) return false;
+        } else { // un bloque
+            ++mapy;
+            const u16 y = static_cast<u16>(((bvpos + mapy * m_cfg.tile_height) % m_display_height) * m_cfg.planes);
+            mapy = static_cast<u16>(mapy + mapblocky);
+            save_word(static_cast<u32>(y + m_block_planes_lines - 1) * m_bitmap_bytes_per_row +
+                      ((x0 + m_bitmap_width) / 8u));
+            if (!add_draw(plan, static_cast<u16>(x0 + m_bitmap_width), y, mapx, mapy)) return false;
         }
-        // Guardar la última word del bloque que vamos a pisar (plane-shifted).
-        const u32 save_offset = static_cast<u32>(y + m_block_planes_lines - 1) *
-                                    m_bitmap_bytes_per_row + (x / 8u);
-        m_savewordpointer = reinterpret_cast<u16*>(
-            const_cast<u8*>(m_frontbuffer) + save_offset);
-        m_saveword = *m_savewordpointer;
-
-        auto job = draw_block_job(x, y, map_tile_x, map_tile_y);
-        if (!plan.add_tile_block_copy(job)) return false;
 
         ++m_mapposx;
         m_videoposx = m_mapposx;
-        m_previous_dir = 0; // DIRECTION_RIGHT
+        const u16 new_stepx = static_cast<u16>(m_mapposx & (m_cfg.tile_width - 1));
+
+        if (new_stepx == 0) {
+            // Columna completada: ajustar la fila de fillup (fila del mapa que
+            // entra por abajo y que comparte banda con la columna).
+            if (!add_draw(plan,
+                static_cast<u16>(x0 + (m_bitmap_blocks_per_row - 1) * m_cfg.tile_width),
+                static_cast<u16>(bvpos * m_cfg.planes),
+                static_cast<u16>(mapblockx + m_bitmap_blocks_per_row - 1), mapblocky)) return false;
+            if (stepy) {
+                const u16 mx = stepy >= twoblockstep()
+                    ? static_cast<u16>(stepy + (twoblockstep() - 1))
+                    : static_cast<u16>(stepy * 2 - 1);
+                if (!add_draw(plan,
+                    static_cast<u16>(x0 + mx * m_cfg.tile_width),
+                    static_cast<u16>(bvpos * m_cfg.planes),
+                    static_cast<u16>(mx + mapblockx),
+                    static_cast<u16>(mapblocky + m_bitmap_blocks_per_col))) return false;
+            }
+        }
+
+        m_previous_xdirection = new_stepx ? 2 : 0;
         return true;
     }
 
-    /// Scroll de 1 píxel a la izquierda (no plane-shifted).
+    /// Scroll de 1 píxel a la izquierda (no plane-shifted) — ScrollLeft corkscrew.
     ///
-    /// Fiel a ScrollLeft de xlimited.c:497-524:
-    ///   mapposx-- ; videoposx=mapposx
-    ///   mapx = mapposx/tile_width
-    ///   mapy = mapposx & (tile_width-1)
-    ///   x = videoposx & ~(tile_width-1)
-    ///   y = mapy*BLOCKPLANELINES
+    /// Fiel a ScrollLeft de Scroller_XYLimited/main.c:751-867:
+    ///   columna entrante en x = ROUND2BLOCKWIDTH(videoposx), fila mapy =
+    ///   stepx+1 (2 bloques si stepx==0), y = (block_videoposy + mapy*TH) %
+    ///   display_height, ajuste de la fila de fillup al completar columna.
     bool scroll_left(graphics::FramePlan& plan) {
-        if (!m_initialized) return false;
-        if (m_mapposx < 1) return false;
+        if (!m_initialized || m_mapposx < 1) return false;
         --m_mapposx;
         m_videoposx = m_mapposx;
 
-        const u16 mapx = static_cast<u16>(m_mapposx / m_cfg.tile_width);
-        const u16 mapy_blocks = static_cast<u16>(m_mapposx & (m_cfg.tile_width - 1));
-        const u16 x = static_cast<u16>(m_videoposx & ~(m_cfg.tile_width - 1));
-        const u16 y = static_cast<u16>(mapy_blocks * m_block_planes_lines);
+        const u16 mapblockx = static_cast<u16>(m_mapposx / m_cfg.tile_width);
+        const u16 mapblocky = static_cast<u16>(m_mapposy / m_cfg.tile_height);
+        const u16 stepx = static_cast<u16>(m_mapposx & (m_cfg.tile_width - 1));
+        const u16 stepy = static_cast<u16>(m_mapposy & (m_cfg.tile_height - 1));
+        const u16 bvpos = block_videoposy();
+        const u16 x0 = static_cast<u16>(m_videoposx & ~(m_cfg.tile_width - 1));
 
-        if (m_previous_dir == 0) { // DIRECTION_RIGHT
-            if (m_savewordpointer) *m_savewordpointer = m_saveword;
+        if (stepx == static_cast<u16>(m_cfg.tile_width - 1)) {
+            // Columna completada: ajustar la fila de fillup.
+            u16 mapx = mapblockx;
+            u16 mapy = mapblocky;
+            if (stepy) mapy = static_cast<u16>(mapy + m_bitmap_blocks_per_col);
+            if (!add_draw(plan, x0, static_cast<u16>(bvpos * m_cfg.planes), mapx, mapy)) return false;
+            mapx = stepy;
+            if (mapx) {
+                mapx = mapx >= twoblockstep()
+                    ? static_cast<u16>(mapx + twoblockstep())
+                    : static_cast<u16>(mapx * 2);
+                if (!add_draw(plan,
+                    static_cast<u16>(x0 + mapx * m_cfg.tile_width),
+                    static_cast<u16>(bvpos * m_cfg.planes),
+                    static_cast<u16>(mapx + mapblockx),
+                    static_cast<u16>(mapy - m_bitmap_blocks_per_col))) return false;
+            }
         }
-        const u32 save_offset = static_cast<u32>(y) * m_bitmap_bytes_per_row + (x / 8u);
-        m_savewordpointer = reinterpret_cast<u16*>(
-            const_cast<u8*>(m_frontbuffer) + save_offset);
-        m_saveword = *m_savewordpointer;
 
-        // X-Limited puro mantiene fila 0 (ver nota arriba).
-        auto job = draw_block_job(x, y, mapx, 0);
-        if (!plan.add_tile_block_copy(job)) return false;
+        const u16 mapx = mapblockx;
+        u16 mapy = static_cast<u16>(stepx + 1);
+        if (m_previous_xdirection == 2) restore_saveword(); // DIRECTION_RIGHT
+        if (mapy == 1) { // stepx == 0 → dos bloques
+            mapy = static_cast<u16>(mapy + mapblocky);
+            const u16 y = static_cast<u16>(((bvpos + m_cfg.tile_height) % m_display_height) * m_cfg.planes);
+            save_word(static_cast<u32>(y) * m_bitmap_bytes_per_row + (x0 / 8u));
+            if (!add_draw(plan, x0, y, mapx, mapy)) return false;
+            const u16 y2 = static_cast<u16>((y + m_block_planes_lines) % m_display_planelines);
+            if (!add_draw(plan, x0, y2, mapx, static_cast<u16>(mapy + 1))) return false;
+        } else { // un bloque
+            ++mapy;
+            const u16 y = static_cast<u16>(((bvpos + mapy * m_cfg.tile_height) % m_display_height) * m_cfg.planes);
+            mapy = static_cast<u16>(mapy + mapblocky);
+            save_word(static_cast<u32>(y) * m_bitmap_bytes_per_row + (x0 / 8u));
+            if (!add_draw(plan, x0, y, mapx, mapy)) return false;
+        }
 
-        m_previous_dir = 1; // DIRECTION_LEFT
+        m_previous_xdirection = stepx ? 1 : 0;
         return true;
     }
 
-    /// Scroll vertical 1 px hacia abajo (preparado para ciclo H/V/diagonal).
+    /// Scroll vertical 1 px hacia abajo — ScrollDown corkscrew.
     ///
-    /// En vertical puro no hay plane-shift horizontal; la fila entrante se
-    /// dibuja en `y = ((videoposy + viewport_h) % bitmap_height) * planes` y
-    /// `map_tile_y = (mapposy + viewport_h)/tile_height + BLOCKSPERROW` análogo al X.
-    /// Para interleaved la fila es `BLOCKPLANELINES` planeline contiguas.
-    /// Ver yunlimited2.c y docs/AMIGA_8WAY_SCROLLING.md § XY.
+    /// Fiel a ScrollDown de Scroller_XYLimited/main.c:639-749. La fila entrante
+    /// se dibuja (con valores PRE-incremento) en la banda de staging
+    /// `y = block_videoposy * planes`, con map row = mapblocky +
+    /// BITMAPBLOCKSPERCOL y x según TWOBLOCKSTEP (2 bloques si stepy <
+    /// TWOBLOCKSTEP, 1 si no). Al cruzar una fila de bloque (stepy==TH-1) se
+    /// ajusta la columna de fillup y se gestiona la guarda de 1 word.
     bool scroll_down(graphics::FramePlan& plan) {
         if (!m_initialized) return false;
-        const u16 map_h_for_limit = m_cfg.map.height ? m_cfg.map.height
-                                    : static_cast<u16>(m_cfg.screens_y * (m_cfg.viewport_h / m_cfg.tile_height));
-        const s32 limitY = static_cast<s32>(map_h_for_limit) * m_cfg.tile_height - m_cfg.viewport_h - m_cfg.tile_height;
-        if (m_cfg.map.wrap_y==0 && m_mapposy >= limitY) return false;
-        ++m_mapposy;
-        m_videoposy = m_mapposy;
-        // Cálculo de TWOBLOCKS como en yunlimited2: para bitmap_blocks_per_row bloques de ancho,
-        // cada tile_width pasos consume BITMAPBLOCKSPERROW bloques.
+        const u16 map_h_blocks = m_cfg.map.height ? m_cfg.map.height
+                                 : static_cast<u16>(m_cfg.screens_y * (m_cfg.viewport_h / m_cfg.tile_height));
+        const s32 limitY = static_cast<s32>(map_h_blocks) * m_cfg.tile_height -
+                           m_cfg.viewport_h - m_cfg.tile_height;
+        if (m_cfg.map.wrap_y == 0 && m_mapposy >= limitY) return false;
+
+        const u16 mapblockx = static_cast<u16>(m_mapposx / m_cfg.tile_width);
+        const u16 mapblocky = static_cast<u16>(m_mapposy / m_cfg.tile_height);
+        const u16 stepx = static_cast<u16>(m_mapposx & (m_cfg.tile_width - 1));
         const u16 stepy = static_cast<u16>(m_mapposy & (m_cfg.tile_height - 1));
-        const u16 twoblocks = static_cast<u16>(m_bitmap_blocks_per_row > (m_cfg.viewport_w / m_cfg.tile_width) ? m_bitmap_blocks_per_row - (m_cfg.viewport_w / m_cfg.tile_width) : 0);
-        const bool two = stepy < twoblocks;
-        const u16 count = two ? 2 : 1;
-        const u16 base_x = two ? static_cast<u16>(stepy * 2 * m_cfg.tile_width) : static_cast<u16>((stepy - twoblocks + twoblocks*2) * m_cfg.tile_width);
-        // Y de la fila entrante en planeline: (videoposy+viewport_h) % height * planes
-        const u16 y_base = static_cast<u16>((m_videoposy + m_cfg.viewport_h) % m_bitmap_height);
-        const u16 y_pl = static_cast<u16>(y_base * m_cfg.planes);
-        const u16 map_tile_y = static_cast<u16>(m_mapposy / m_cfg.tile_height + (m_bitmap_height / m_cfg.tile_height));
-        for (u16 i=0;i<count;++i){
-            const u16 x = static_cast<u16>(base_x + i * m_cfg.tile_width);
-            const u16 map_tile_x = static_cast<u16>(m_mapposx / m_cfg.tile_width + (base_x + i*m_cfg.tile_width)/m_cfg.tile_width);
-            auto job = draw_block_job(x, y_pl, map_tile_x, map_tile_y);
-            if (!plan.add_tile_block_copy(job)) { --m_mapposy; m_videoposy=m_mapposy; return false; }
+        const u16 bvpos = block_videoposy();
+        const u16 x0 = static_cast<u16>(m_videoposx & ~(m_cfg.tile_width - 1));
+        const u16 y_pl = static_cast<u16>(bvpos * m_cfg.planes);
+        const u16 mapy = static_cast<u16>(mapblocky + m_bitmap_blocks_per_col);
+
+        // Fila entrante en la banda de staging (valores PRE-incremento).
+        if (stepy >= twoblockstep()) {
+            const u16 mx = static_cast<u16>(stepy + twoblockstep() + mapblockx);
+            const u16 x = static_cast<u16>((stepy + twoblockstep()) * m_cfg.tile_width + x0);
+            if (!add_draw(plan, x, y_pl, mx, mapy)) return false;
+        } else {
+            const u16 mx = static_cast<u16>(stepy * 2 + mapblockx);
+            const u16 x = static_cast<u16>(stepy * 2 * m_cfg.tile_width + x0);
+            if (!add_draw(plan, x, y_pl, mx, mapy)) return false;
+            if (!add_draw(plan, static_cast<u16>(x + m_cfg.tile_width), y_pl, static_cast<u16>(mx + 1), mapy)) return false;
         }
-        m_previous_dir = 2;
+
+        // POST-incremento. videoposy envuelve en el bucle vertical del display.
+        ++m_mapposy;
+        m_videoposy = static_cast<s32>(m_mapposy % m_display_height);
+
+        if (stepy == static_cast<u16>(m_cfg.tile_height - 1) && stepx) {
+            // Fila completada: ajustar la columna de fillup.
+            const u16 nvpos = block_videoposy(); // block_videoposy ya actualizado
+            if (!add_draw(plan, x0, static_cast<u16>(nvpos * m_cfg.planes), mapblockx, mapblocky)) return false;
+            if (m_previous_xdirection == 1) restore_saveword(); // DIRECTION_LEFT
+            const u16 my = static_cast<u16>(stepx + 1);
+            const u16 y2 = static_cast<u16>(((nvpos + my * m_cfg.tile_height) % m_display_height) * m_cfg.planes);
+            const u16 y2b = static_cast<u16>((y2 + m_block_planes_lines - 1) % m_display_planelines);
+            save_word(static_cast<u32>(y2b) * m_bitmap_bytes_per_row + ((x0 + m_bitmap_width) / 8u));
+            if (!add_draw(plan, static_cast<u16>(x0 + m_bitmap_width), y2,
+                static_cast<u16>(mapblockx + m_bitmap_blocks_per_row),
+                static_cast<u16>(my + mapblocky))) return false;
+            m_previous_xdirection = 2; // DIRECTION_RIGHT
+        }
         return true;
     }
 
+    /// Scroll vertical 1 px hacia arriba — ScrollUp corkscrew.
+    ///
+    /// Fiel a ScrollUp de Scroller_XYLimited/main.c:529-637. Decrementa primero
+    /// (valores POST), dibuja la fila entrante (map row = mapblocky) en la banda
+    /// de staging y ajusta la columna de fillup si stepy==TH-1.
     bool scroll_up(graphics::FramePlan& plan) {
-        if (!m_initialized || m_mapposy <1) return false;
+        if (!m_initialized || m_mapposy < 1) return false;
         --m_mapposy;
-        m_videoposy = m_mapposy;
+        m_videoposy = static_cast<s32>(m_mapposy % m_display_height);
+
+        const u16 mapblockx = static_cast<u16>(m_mapposx / m_cfg.tile_width);
+        const u16 mapblocky = static_cast<u16>(m_mapposy / m_cfg.tile_height);
+        const u16 stepx = static_cast<u16>(m_mapposx & (m_cfg.tile_width - 1));
         const u16 stepy = static_cast<u16>(m_mapposy & (m_cfg.tile_height - 1));
-        const u16 twoblocks = static_cast<u16>(m_bitmap_blocks_per_row > (m_cfg.viewport_w / m_cfg.tile_width) ? m_bitmap_blocks_per_row - (m_cfg.viewport_w / m_cfg.tile_width) : 0);
-        const bool two = stepy < twoblocks;
-        const u16 base_x = two ? static_cast<u16>(stepy * 2 * m_cfg.tile_width) : static_cast<u16>((stepy - twoblocks + twoblocks*2) * m_cfg.tile_width);
-        const u16 y_base = static_cast<u16>(m_videoposy % m_bitmap_height);
-        const u16 y_pl = static_cast<u16>(y_base * m_cfg.planes);
-        const u16 map_tile_y = static_cast<u16>(m_mapposy / m_cfg.tile_height);
-        for (u16 i=0;i<(two?2:1);++i){
-            const u16 x = static_cast<u16>(base_x + i * m_cfg.tile_width);
-            const u16 map_tile_x = static_cast<u16>(m_mapposx / m_cfg.tile_width + (base_x + i*m_cfg.tile_width)/m_cfg.tile_width);
-            auto job = draw_block_job(x, y_pl, map_tile_x, map_tile_y);
-            if (!plan.add_tile_block_copy(job)) { ++m_mapposy; m_videoposy=m_mapposy; return false; }
+        const u16 bvpos = block_videoposy();
+        const u16 x0 = static_cast<u16>(m_videoposx & ~(m_cfg.tile_width - 1));
+        const u16 y_pl = static_cast<u16>(bvpos * m_cfg.planes);
+
+        if (stepy == static_cast<u16>(m_cfg.tile_height - 1) && stepx) {
+            // Columna completada: ajustar la fila de fillup.
+            const u16 mx1 = static_cast<u16>(mapblockx + m_bitmap_blocks_per_row);
+            const u16 y1 = static_cast<u16>(((bvpos + m_cfg.tile_height) % m_display_height) * m_cfg.planes);
+            if (!add_draw(plan, static_cast<u16>(x0 + m_bitmap_width), y1, mx1, static_cast<u16>(mapblocky + 1))) return false;
+            if (m_previous_xdirection == 2) restore_saveword(); // DIRECTION_RIGHT
+            const u16 my2 = static_cast<u16>(stepx + 2);
+            const u16 y2 = static_cast<u16>(((bvpos + my2 * m_cfg.tile_height) % m_display_height) * m_cfg.planes);
+            save_word(static_cast<u32>(y2) * m_bitmap_bytes_per_row + (x0 / 8u));
+            if (!add_draw(plan, x0, y2,
+                static_cast<u16>(mx1 - m_bitmap_blocks_per_row),
+                static_cast<u16>(my2 + mapblocky))) return false;
+            m_previous_xdirection = 1; // DIRECTION_LEFT
         }
-        m_previous_dir=3;
+
+        // Fila entrante en la banda de staging (map row = mapblocky).
+        if (stepy >= twoblockstep()) {
+            const u16 mx = static_cast<u16>(stepy + twoblockstep() + mapblockx);
+            const u16 x = static_cast<u16>((stepy + twoblockstep()) * m_cfg.tile_width + x0);
+            if (!add_draw(plan, x, y_pl, mx, mapblocky)) return false;
+        } else {
+            const u16 mx = static_cast<u16>(stepy * 2 + mapblockx);
+            const u16 x = static_cast<u16>(stepy * 2 * m_cfg.tile_width + x0);
+            if (!add_draw(plan, x, y_pl, mx, mapblocky)) return false;
+            if (!add_draw(plan, static_cast<u16>(x + m_cfg.tile_width), y_pl, static_cast<u16>(mx + 1), mapblocky)) return false;
+        }
         return true;
     }
 
