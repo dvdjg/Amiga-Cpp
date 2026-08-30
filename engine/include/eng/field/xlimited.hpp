@@ -238,6 +238,76 @@ constexpr u16 kDiwStop = 0x29C1;
 /// fila de bloques. Para tiles generados por `demo::build_tile_cache` el
 /// layout es compatible si se usa el mismo stride; la demo 107 usa ese
 /// helper y adapta el offset de origen en `draw_block`.
+///
+/// ### Variantes de compilación (parámetros `EXTRA_DEFINES`)
+///
+/// La demo 107 es el *showcase* del corkscrew y está pensada para crecer
+/// hasta DPF como `demos/106_tile_field_showcase` pero sin el modelo circular.
+/// Los parámetros siguen el mismo patrón que 102/104/106 para que
+/// `tools/test-regression.sh` pueda barrerlos sin tocar el fuente:
+///
+/// ```text
+/// EXTRA_DEFINES="-DK_TILE_WIDTH=16 -DK_PLANES=4 -DK_FETCH_MODE=0 -DK_DUAL=0"
+///   K_TILE_WIDTH : 16 | 32           ancho de tile (múltiplo de 16)
+///   K_PLANES     : 4 | 5 | 6          profundidad total (4=OCS 16c, 5=32c, 6=EHB/DPF 3+3)
+///   K_TILE_SIZE  : 16 | 32            alto de tile (futuro, para 16×32 / 32×32)
+///   K_FETCH_MODE : 0 | 1 | 2 | 3      0=352 16px DDF $30 offset 0 mod 2
+///                                   1=384 32px DDF $28 offset 16 mod 4 (BPL32)
+///                                   2=384 32px DDF $28 offset 16 mod 4 (BPAGEM)
+///                                   3=384 64px DDF $18 offset 48 mod 8 (BPL32+BPAGEM)
+///   K_DUAL       : 0 | 1              0=single playfield, 1=dual 3+3 interleaved (futuro)
+///   K_FG_PLANES  : 3                  planos del primer plano en dual (PF1)
+///   K_BG_PLANES  : 3                  planos del fondo en dual (PF2)
+///   K_SCROLL_X/Y : 0 | 1              ejes activos; X-Limited puro es X=1 Y=0, XY usa xylimited
+///   K_MAP_W/H    : 256 | 128 ...      tamaño lógico del mapa en tiles (para altura extra)
+///   K_WRAP_X/Y   : 0 | 1              1=mapa circular (wrap), 0=borde con edge_tile
+///   K_PALETTE    : 0 | 1              0=demo::kPalette 32c, 1=paleta custom de 64c para 6 planos
+/// ```
+///
+/// DPF (futuro, como en 102/104) usará dos `XlimitedField` + `XlimitedDisplayComposer`
+/// dual: PF1 en planos impares (1,3,5) y PF2 en pares (2,4,6), cada uno con su
+/// BlocksBitmap interleaved y su `frontbuffer` propio pero compartiendo el mismo
+/// `bitmap_height` y `BPLMOD`. El compositor dual programará `BPLCON0` con DPF=1 y
+/// `BPLCON2` con prioridad PF1/PF2, y publicará los 6 punteros interleaved en un
+/// único Copper wait (sin split horizontal, como en X-Limited).
+///
+/// Ejemplos:
+///
+/// ```bash
+/// # 352 px normal (caso base, sin Copper segmentado) — single 4 planos
+/// EXTRA_DEFINES="-DK_TILE_WIDTH=16" AMIGA_BIN_PATH=".../bin/win32" \
+///   bash ./tools/build/build-demo.sh demos/107_xlimited_corkscrew --debug --clean
+/// bash demos/107_xlimited_corkscrew/analyze-sequence.sh --warp
+///
+/// # 384 px con tiles de 32 y fetch normal
+/// EXTRA_DEFINES="-DK_TILE_WIDTH=32" ...
+///
+/// # 384 px fetch ancho 32 px (DDF $28, offset 16) — necesita 384
+/// EXTRA_DEFINES="-DK_TILE_WIDTH=32 -DK_FETCH_MODE=1" ...
+///
+/// # Futuro DPF 3+3 (cuando se añada K_DUAL=1):
+/// EXTRA_DEFINES="-DK_DUAL=1 -DK_TILE_WIDTH=16 -DK_PLANES=6" ...
+/// ```
+///
+/// ### Variantes de ejecución / verificación
+///
+/// ```bash
+/// bash demos/107_xlimited_corkscrew/analyze-sequence.sh --warp
+/// # sin --warp para evaluar suavidad a 50 fps (warp=false por defecto en run-demo)
+/// bash ./tools/test-regression.sh --demo demos/107_xlimited_corkscrew --warp
+/// # Barrido de parámetros (cuando DPF esté implementado):
+/// bash ./tools/test-regression.sh --demo demos/107_xlimited_corkscrew --warp --keep-going
+/// ```
+///
+/// Si `analyze-sequence.sh --warp` informa `FAILED detail=0x10704` (67332),
+/// es el fill inicial desbordando el `FramePlan` (352 jobs >128): el
+/// `XlimitedField::fill_screen` es atómico; la demo debe rellenar en lotes
+/// fila a fila ejecutando el plan cuando se llena (ver `DemoGame::init`).
+/// El canal lateral `dist/tools/run/run-demo.js:701` propaga ese `detail`
+/// como `Error: La demo informó FAILED por canal lateral: detail=67332`.
+/// Tras la corrección, el umbral de telemetría videoposx/mapposx es 64 para
+/// tolerar el muestreo cada 20 ms con warp y el wrap de 8 bits tras 600 frames.
+///
 struct XlimitedConfig {
     TileLayerMap map {};
     const u16* tileset = nullptr;      // banco de bloques (BlocksBitmap->Planes[0])
@@ -568,6 +638,15 @@ public:
     constexpr const u8* frontbuffer() const { return m_frontbuffer; }
     constexpr bool initialized() const { return m_initialized; }
     constexpr u16 bpl1mod() const { return m_bpl1mod; }
+
+    /// Reinicia el scroll a 0 sin re-reservar Chip RAM (para demo infinita).
+    void reset_scroll() {
+        m_mapposx = 0;
+        m_videoposx = 0;
+        m_previous_dir = 0xff;
+        m_savewordpointer = nullptr;
+        m_saveword = 0;
+    }
 
 private:
     bool valid_config() const {

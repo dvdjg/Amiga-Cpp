@@ -1,5 +1,15 @@
 # API de campos de tiles
 
+> **Nota de deprecación suave (2026-08):** para **scroll X infinito** (plataformas,
+> *shooters* horizontales, *parallax* por *playfield*) preferir
+> `engine/include/eng/field/xlimited.hpp` (`XlimitedField` + `XlimitedDisplayComposer`),
+> implementación fiel de *Scroller_XLimited* de Georg Steger con *bitmap* 352/384
+> interleaved, altura `256+(map_width/22/planes)+1+3`, *plane-shifted* y `saveword`
+> sin *split* de Copper. `TileFieldController` se mantiene para casos 8-way genéricos
+> o prototipos con scroll en ambos ejes; no se retirará, pero no es canónico para X
+> infinito. Ver comparativa completa en `docs/architecture/CIRCULAR_VS_XLIMITED.md`
+> y `docs/architecture/AMIGA_8WAY_SCROLLING.md §11`.
+
 `TileFieldController` es un scheduler portable para campos planares. No conoce
 DPF ni escribe registros del Amiga. Reserva memoria mediante `MemorySystem`,
 

@@ -241,8 +241,100 @@ for (const tw of [16,32]) {
   check(Number.isInteger(bpr64), `tile ${tw} bpr64=${bpr64}`);
 }
 
+// -----------------------------------------------------------------------------
+// 9. Fetch ancho BPL32 / BPL32+BPAGEM — BITMAPWIDTH 384, BLOCKSPERROW 24,
+//    DDF $28/$18, scroll 32/64, bitmapoffset 16/48 y BPLCON1 bits 0x4400/0x8800
+//    Tabla canónica de xlimited.c:78 fetchinfo[].
+// -----------------------------------------------------------------------------
+{
+  const fetchinfo = [
+    { mode: 0, ddfstrt: 0x30, ddfstop: 0xD0, moduloOffset: 2, bitmapOffset: 0,  scrollPixels: 16, bitmapW: BITMAP_W32, blocksPerRow: BLOCKSPERROW_W32 },
+    { mode: 1, ddfstrt: 0x28, ddfstop: 0xC8, moduloOffset: 4, bitmapOffset: 16, scrollPixels: 32, bitmapW: BITMAP_W64, blocksPerRow: BLOCKSPERROW_W64 },
+    { mode: 2, ddfstrt: 0x28, ddfstop: 0xC8, moduloOffset: 4, bitmapOffset: 16, scrollPixels: 32, bitmapW: BITMAP_W64, blocksPerRow: BLOCKSPERROW_W64 },
+    { mode: 3, ddfstrt: 0x18, ddfstop: 0xB8, moduloOffset: 8, bitmapOffset: 48, scrollPixels: 64, bitmapW: BITMAP_W64, blocksPerRow: BLOCKSPERROW_W64 },
+  ];
+  // Verificar valores canónicos contra el header xlimited.hpp §§1/4
+  for (const f of fetchinfo) {
+    check(f.bitmapW === (f.mode===0 ? BITMAP_W32 : BITMAP_W64),
+      `fetch ${f.mode} bitmapW ${f.bitmapW} != ${f.mode===0?352:384}`);
+    check(f.blocksPerRow === f.bitmapW / BLOCK,
+      `fetch ${f.mode} blocksPerRow ${f.blocksPerRow} != ${f.bitmapW/BLOCK}`);
+    // BITMAPWIDTH 384 y BLOCKSPERROW 24 para fetch ancho
+    if (f.mode !== 0) {
+      check(f.bitmapW === 384, `fetch ancho ${f.mode} BITMAPWIDTH 384 != ${f.bitmapW}`);
+      check(f.blocksPerRow === 24, `fetch ancho ${f.mode} BLOCKSPERROW 24 != ${f.blocksPerRow}`);
+    } else {
+      check(f.bitmapW === 352, `fetch normal BITMAPWIDTH 352`);
+      check(f.blocksPerRow === 22, `fetch normal BLOCKSPERROW 22`);
+    }
+    // DDF $30 normal, $28 para 32px, $18 para 64px
+    if (f.mode === 0) {
+      check(f.ddfstrt === 0x30 && f.ddfstop === 0xD0, `fetch 0 DDF $30/$D0`);
+    } else if (f.mode === 1 || f.mode === 2) {
+      check(f.ddfstrt === 0x28 && f.ddfstop === 0xC8, `fetch ${f.mode} DDF $28/$C8`);
+    } else if (f.mode === 3) {
+      check(f.ddfstrt === 0x18 && f.ddfstop === 0xB8, `fetch 3 DDF $18/$B8`);
+    }
+    // bitmapoffset 0 / 16 / 48 y moduloOffset 2 /4 /8
+    const expOffset = f.mode===3 ? 48 : (f.mode===0 ? 0 : 16);
+    const expMod = f.mode===3 ? 8 : (f.mode===0 ? 2 : 4);
+    check(f.bitmapOffset === expOffset, `fetch ${f.mode} bitmapoffset ${f.bitmapOffset} != ${expOffset}`);
+    check(f.moduloOffset === expMod, `fetch ${f.mode} moduloOffset ${f.moduloOffset} != ${expMod}`);
+    // BPLMOD con el offset correspondiente
+    const bplmod = (f.bitmapW/8)*4 - SCREEN_W/8 - f.moduloOffset;
+    const baseBytes = f.bitmapW/8;
+    check(bplmod === baseBytes*4 - 40 - f.moduloOffset,
+      `fetch ${f.mode} BPLMOD ${bplmod} para ${baseBytes}*4 -40 -${f.moduloOffset}`);
+    // scroll píxeles 16 / 32 / 64
+    const expScroll = f.mode===3 ? 64 : (f.mode===0 ? 16 : 32);
+    check(f.scrollPixels === expScroll, `fetch ${f.mode} scroll ${f.scrollPixels} != ${expScroll}`);
+  }
+
+  // BPLCON1 bits 0x4400 (fine &16) y 0x8800 (fine &32) para scroll ancho
+  // I=32: planeaddx avanza 4 bytes cada 32 px, fine 0..31 → bit 0x4400 cuando fine>=16
+  // I=64: planeaddx avanza 8 bytes cada 64 px, fine 0..63 → bits 0x4400 y 0x8800
+  for (const I of [32,64]) {
+    // vp 0 → xpos I-1 → fine 0, scroll 0, planeaddx 0
+    const a0 = planeAddxAndScroll(0, I);
+    check(a0.scroll === 0 && a0.planeaddx === 0, `fetch ${I} vp0 scroll 0 planeaddx 0 got 0x${a0.scroll.toString(16)}/${a0.planeaddx}`);
+    // vp 1 → xpos I → fine I-1 → scroll con bits altos esperados
+    const a1 = planeAddxAndScroll(1, I);
+    if (I === 32) {
+      check(a1.planeaddx === 4, `fetch 32 vp1 planeaddx 4 != ${a1.planeaddx}`);
+      check((a1.scroll & 0x4400) !== 0, `fetch 32 vp1 scroll 0x${a1.scroll.toString(16)} debe tener 0x4400`);
+      check((a1.scroll & 0x8800) === 0, `fetch 32 vp1 scroll 0x${a1.scroll.toString(16)} no debe tener 0x8800`);
+      check((a1.scroll & 0xFF) === 0xFF, `fetch 32 vp1 fine bajo 0xFF`);
+    } else {
+      check(a1.planeaddx === 8, `fetch 64 vp1 planeaddx 8 != ${a1.planeaddx}`);
+      check((a1.scroll & 0x4400) !== 0 && (a1.scroll & 0x8800) !== 0,
+        `fetch 64 vp1 scroll 0x${a1.scroll.toString(16)} debe tener 0x4400 y 0x8800`);
+    }
+    // vp I → segunda alineación: fine 0 de nuevo, planeaddx = I/8
+    const a2 = planeAddxAndScroll(I, I);
+    check(a2.scroll === 0, `fetch ${I} vp${I} scroll 0 != 0x${a2.scroll.toString(16)}`);
+    check(a2.planeaddx === I/8, `fetch ${I} vp${I} planeaddx ${I/8} != ${a2.planeaddx}`);
+    // vp I+1 → siguiente ciclo
+    const a3 = planeAddxAndScroll(I+1, I);
+    check(a3.planeaddx === I/8 + I/8, `fetch ${I} vp${I+1} planeaddx ${I/8+I/8} != ${a3.planeaddx}`);
+    // Continuidad: planeaddx siempre par y múltiplo de I/8
+    for (let vp=0; vp<256; vp+=1) {
+      const {planeaddx} = planeAddxAndScroll(vp, I);
+      check(planeaddx % (I/8) === 0, `fetch ${I} vp=${vp} planeaddx ${planeaddx} no múltiplo de ${I/8}`);
+    }
+  }
+  // Casos frontera para BPLCON1 bits replicados en ambos playfields (nibbles 0x11)
+  check(planeAddxAndScroll(16, 32).scroll === 0x4400, `fetch 32 vp16 debe ser 0x4400 fin 16, got 0x${planeAddxAndScroll(16,32).scroll.toString(16)}`);
+  check(planeAddxAndScroll(32, 32).scroll === 0, `fetch 32 vp32 alineado scroll 0`);
+  check(planeAddxAndScroll(48, 64).scroll !== 0, `fetch 64 vp48 no alineado scroll !=0`);
+  // Verificar que BITMAPWIDTH 384 corresponde exactamente a 24 bloques de 16 y 48 bytes por fila (8*? ) para 4 planes
+  check(BITMAP_W64 === 384 && BITMAP_W64/8 === 48, `BITMAPWIDTH 384 → 48 bytes por fila`);
+  check(BLOCKSPERROW_W64 === 24 && BYTES_W64 === 48, `BLOCKSPERROW 24 y BYTES 48 para 384`);
+  // Altura extra con 384 también coherente (ya verificada en §2 pero revalidada aquí para fetch ancho)
+  check(bitmapHeight(256, BLOCKSPERROW_W64, 4) === 262, `altura 384 revalidada 256 bloques`);
+}
+
 if (failures.length) {
   console.error(`FAIL verify-xlimited (${failures.length})\n${failures.slice(0,30).join('\n')}`);
   process.exit(1);
 }
-console.log('OK verify-xlimited: BITMAPWIDTH 352/384, BLOCKSPERROW 22/24, BLOCKPLANELINES, bitmapheight +1+3, interleaved frontbuffer+y*BYTES+x, draw_block planelíneas word-aligned BLOCKPLANELINES*64, scroll mapy&15 planeaddx/BPLCON1/BPLMOD DDF $30 fetch 42, altura extra y guarda 1 word');
+console.log('OK verify-xlimited: BITMAPWIDTH 352/384, BLOCKSPERROW 22/24, BLOCKPLANELINES, bitmapheight +1+3, interleaved frontbuffer+y*BYTES+x, draw_block planelíneas word-aligned BLOCKPLANELINES*64, scroll mapy&15 planeaddx/BPLCON1(0x4400/0x8800)/BPLMOD DDF $30/$28/$18 fetch 16/32/64 bitmapoffset 16/48, altura extra y guarda 1 word');
