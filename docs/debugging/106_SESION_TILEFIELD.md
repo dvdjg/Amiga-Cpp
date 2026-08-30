@@ -1,7 +1,7 @@
-# Sesión de desarrollo: API TileField + demo 106 (scroll infinito doble página)
+# Sesión de desarrollo: API TileField + demo 106 (anillo de tres tramos)
 
 Fecha: 2026-08. Objetivo: evolución de la demo 102 hacia una API reutilizable de
-campos de tiles con scroll infinito por doble página, blits (nunca CPU), índices
+campos de tiles con scroll infinito por anillo lineal de tres tramos, blits (nunca CPU), índices
 u16 con `Span`, y compositor DPF. Esta nota recoge lo aprendido para que no se
 pierda entre hilos.
 
@@ -14,6 +14,36 @@ pierda entre hilos.
 - `demos/106_tile_field_showcase/`: demo ÚNICA parametrizable (dual 3+3 o
   single 5 planos, tiles 16/32/48px). Sustituye a 106 y 107.
   ambos ejes, Lissajous de 2 pantallas, seno de alta resolución.
+
+## Corrección del modelo físico
+
+El modelo anterior de dos páginas era incorrecto: tras activar la segunda página,
+un viewport de 256/320 px que avanzaba 1 px podía hacer que el fetch leyera más
+allá del framebuffer. El controlador actual reserva tres tramos lineales por eje
+con scroll. Las ranuras 0 y 1 son activables y el tramo 2 es guardia contigua;
+`valid_x[]`/`valid_y[]` impiden publicar una página sin relleno completo. Al
+revertir se invalida el tramo que queda detrás y se reconstruye mediante rectángulos
+2D, sin sobrescribir el cuadrante visible. El delta está limitado a 5 px.
+
+La réplica exhaustiva es `tools/analyze/verify-tile-field-fill.mjs`: cubre tiles
+16x16, 32x16, 16x32 y 32x32, viewport 320x256, X/Y/XY, deltas 1..5, ambos
+sentidos, diagonales, fronteras y guardia. Comprueba límites, ausencia de solapes,
+contenido determinista y cobertura exacta.
+
+El backend OCS sigue ejecutando cada job por plano porque no existe una operación
+multi-plano en el hardware actual. `MinimalBackend::blitter_starts()` expone los
+arranques reales de `BLTSIZE`; un `TileBlockCopy` de N planos implica N arranques.
+
+## Bloqueo de ejecución en A500
+
+La geometría solicitada tiene un coste inevitable: 960x768 px por plano. Eso son
+92 KiB por plano, aproximadamente 276 KiB por campo de 3 planos y 460 KiB para
+single de 5 planos, antes de tilesets y copper. La showcase compila en dual y
+single, pero el emulador/perfil A500 configurado con 512 KiB de Chip RAM no puede
+ejecutar dual con dos campos independientes ni reservar el single de 5 planos
+junto con sus recursos. El build de ejecución con 1 MiB de Chip RAM queda como
+prueba de integración cuando se disponga de esa configuración; no se ha ocultado
+el fallo de reserva ni se ha movido el framebuffer a memoria no visible.
 - Diseño completo: `docs/architecture/TILE_FIELD_API.md`.
 
 ## Fórmula canónica del scroll (ACE/HRM) — CRÍTICO

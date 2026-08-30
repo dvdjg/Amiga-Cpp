@@ -109,6 +109,8 @@ public:
 	constexpr MemorySystem& memory() { return m_memory; }
 	constexpr const MemorySystem& memory() const { return m_memory; }
 	constexpr const MemoryReport& memory_report() const { return m_memory_report; }
+	/// Arranques reales de BLTSIZE durante la última ejecución del plan.
+	constexpr u32 blitter_starts() const { return m_blitter_starts; }
 	constexpr DebugOverlay& debug() { return m_debug; }
 
 private:
@@ -122,6 +124,7 @@ private:
 	u32 m_slow_alloc_size = 0;
 	void* m_frame_alloc = nullptr;
 	u32 m_frame_alloc_size = 0;
+	u32 m_blitter_starts = 0;
 };
 
 } // namespace eng::amiga

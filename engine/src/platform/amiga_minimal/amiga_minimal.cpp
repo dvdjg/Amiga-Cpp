@@ -180,6 +180,7 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 		return false;
 	}
 
+	m_blitter_starts = 0;
 	for (u8 job_index = 0; job_index < plan.blit_job_count(); ++job_index) {
 		const graphics::BlitJob& job = plan.blit_job(job_index);
 		const bool masked =
@@ -241,6 +242,7 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 			custom_base[custom_bltsize_offset] = static_cast<u16>(
 				(static_cast<u16>(job.height) << 6) | job.words_per_row
 			);
+			++m_blitter_starts;
 		}
 	}
 

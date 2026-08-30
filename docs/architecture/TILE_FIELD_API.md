@@ -95,11 +95,11 @@ sobre el framebuffer de doble página:
   del mapa virtual (world = page_origin + fb_offset).
 - `update(+N)` sin cruzar página: no encola franjas nuevas (la página opuesta ya
   está preparada).
-- `update(+320)` cruzando página: encola la página vacante y la cobertura total
-  se mantiene.
-- Inversión (cambio de signo del delta): reencola la página opuesta con el tramo
-  TRASERO y la página que queda atrás con el tramo anterior.
-- `update(+1px)` repetido: nunca encola (el cruce es de página, no de tile).
+- `update(+1..5px)` repetido: no encola hasta cruzar un tile; entonces encola
+  solo la columna o fila futura necesaria.
+- Cruce de página: cambia el cuadrante activo; no redibuja páginas completas.
+- Inversión (cambio de signo del delta): prepara el cuadrante opuesto por
+  columnas/filas incrementales, sin escribir el cuadrante visible.
 
 Uso: `node tools/analyze/verify-tile-field-fill.mjs`. El
 `analyze-sequence.sh` de la showcase lo ejecuta antes de la captura.
@@ -165,7 +165,7 @@ struct TileFieldConfig {
     u16 tile_width = 16;     // MÚLTIPLO DE 16: 32/48/64px en UNA pasada del Blitter
     u16 tile_size = 16;
     u16 viewport_w = 320, viewport_h = 256;
-    s16 max_delta_x = 15, max_delta_y = 15;  // tope del salto por frame
+    s16 max_delta_x = 5, max_delta_y = 5;    // tope del salto por frame
     u8 max_tiles_per_frame = 4;              // presupuesto de dibujo
     bool scroll_x = true, scroll_y = true;
 };
@@ -199,7 +199,8 @@ struct BitmapFieldConfig {
 
 ## 6. `TileFieldController`
 
-- `begin(memory, config, offset_inicial)`: reserva el framebuffer doble, encola
+- `begin(memory, config, offset_inicial)`: reserva un framebuffer de **3 × viewport**
+  en cada eje con scroll (9 cuadrantes en XY), encola
   el estampado de todas las páginas como franjas y deja el estado listo. **El
   dibujo NO ocurre aquí**: la demo bombea `pump(plan, budget)` en un bucle en
   init hasta que `busy()` es false (no hay límite de tiempo real durante el
@@ -208,15 +209,30 @@ struct BitmapFieldConfig {
 - `pump(plan, budget)`: consume hasta `budget` tiles de las franjas pendientes
   (estampado inicial o scroll) por Blitter; devuelve si queda algo.
 - `busy()`: ¿queda trabajo de dibujo pendiente?
-- `update(config, delta, plan)`: clampa el delta a `max_delta_x/y` (y a 0 si el
-  eje no scrollea), avanza la cámara, detecta cruce de página, encola la página
-  vacante (`slot = active^1`) con el tramo `[page_base+viewport, ...]`, y consume
-  el presupuesto dibujando parte de las franjas.
+- `update(config, delta, plan)`: exige `max_delta_x/y <= 5`, clampa el delta (y a
+  0 si el eje no scrollea), y reconstruye progresivamente el tramo que queda
+  suficientemente detrás. Las dos páginas activables tienen una tercera guardia
+  física contigua; si la página destino o su guardia no son válidas, no se activa.
+  En XY las esquinas se particionan en rectángulos disjuntos y nunca se toca la
+  ventana visible.
 - `hardware_view(first_hardware_plane)`: calcula `display_byte_offset` y
   `bpl1mod` con la fórmula canónica.
 - Franjas como regiones 2D: `{world_tile_x, world_tile_y, fb_tile_x, fb_tile_y,
-  width, height, cursor}`. `cursor` recorre la región en fila-mayor; una franja
-  de scroll es una banda de `viewport_w x fb_h` (X) o `fb_w x viewport_h` (Y).
+  width, height, cursor}`. `cursor` recorre la región en fila-mayor; el arranque
+  usa cuadrantes completos y el scroll usa rectángulos de tramo. En diagonal la
+  unión se parte alrededor de la esquina para no duplicarla.
+- `TileBlockCopy` fusiona runs horizontales (`words_per_row = run * tile_width/16`)
+  y verticales (`height = run * tile_size`) únicamente con `tileset_row_major` o
+  `tileset_plane_major`; el layout histórico conserva un job por tile. Nunca hay
+  copias de píxeles por CPU.
+
+### Backend y arranques reales
+
+`MinimalBackend::execute_frame_plan()` ejecuta el plan por plano: el hardware OCS
+no ofrece una operación multi-plano para este contrato. Por tanto un job con
+`bitplane_count = N` produce N escrituras de `BLTSIZE`, y
+`MinimalBackend::blitter_starts()` expone ese número por ejecución del plan. No se
+debe confundir `FramePlan::blit_job_count()` con arranques físicos del Blitter.
 
 ## 7. `DpfDisplayComposer`
 

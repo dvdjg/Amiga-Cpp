@@ -117,3 +117,16 @@ recording del GUI). Pendiente: `print` DWARF.
 ## Restricciones de código/diseño que hay que preservar
 - Restricciones intencionales del engine: `gnu++23`, sin exceptions, sin RTTI, sin asignación dinámica en gameplay (`docs/architecture/CODING_STYLE.md`).
 - La lógica de juego debe ser agnóstica del backend; registros/DMA específicos de Amiga van en capas backend/driver, no en lógica de alto nivel.
+
+## Regla permanente de rendimiento
+- Todo código nuevo debe minimizar el trabajo total por frame y reutilizar datos,
+  trabajos, buffers y estados siempre que sea posible.
+- La CPU debe limitarse a decidir cambios y programar hardware; evitar que haga
+  copias, divisiones, módulos, recorridos o reconstrucciones repetidas que puedan
+  resolverse incrementalmente, por lotes o mediante el Blitter/Copper.
+- Antes de aceptar una solución, buscar explícitamente algoritmos O(1) o O(n)
+  frente a colas O(n²), fusionar operaciones compatibles y reducir el número real
+  de accesos al Blitter y de esperas síncronas.
+- Medir los picos con profiling y telemetría en el caso límite, no solo validar
+  que el frame nominal funcione; cualquier optimización debe conservar la
+  corrección visual y el presupuesto de Chip RAM.
