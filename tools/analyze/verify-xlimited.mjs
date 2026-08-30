@@ -46,21 +46,28 @@ function bitmapHeight(mapWidthBlocks, blocksPerRow, planes) {
   return SCREEN_H + Math.floor(mapWidthBlocks / blocksPerRow / planes) + 1 + 3;
 }
 // Caso documentado en xlimited-uk.html (fórmula sin +3 → 268) y
-// código real xlimited.c:115 con +1+3 → 271. Verificamos la fórmula del código.
-check(bitmapHeight(1000, BLOCKSPERROW_W32, 4) === 271,
-  `1000 bloques 352/4 → ${bitmapHeight(1000,BLOCKSPERROW_W32,4)} !=271`);
-check(bitmapHeight(1000, BLOCKSPERROW_W64, 4) === 270,
-  `1000 bloques 384/4 → ${bitmapHeight(1000,BLOCKSPERROW_W64,4)} !=270`);
-// Demo 107: 256 bloques, 352, 4 planes → 256+ (256/22/4=2)+1+3=262
-check(bitmapHeight(256, BLOCKSPERROW_W32, 4) === 262,
-  `256 bloques 352/4 → ${bitmapHeight(256,BLOCKSPERROW_W32,4)} !=262`);
-check(bitmapHeight(256, BLOCKSPERROW_W64, 4) === 262,
-  `256 bloques 384/4 → ${bitmapHeight(256,BLOCKSPERROW_W64,4)} !=262`);
-// 200 pantallas = 64000px /16 =4000 bloques → 256+45+1+3=305 (352), 256+41+4=301 (384)
-check(bitmapHeight(4000, BLOCKSPERROW_W32, 4) === 305,
-  `4000 bloques 352/4 → ${bitmapHeight(4000,BLOCKSPERROW_W32,4)} !=305`);
-check(bitmapHeight(4000, BLOCKSPERROW_W64, 4) === 301,
-  `4000 bloques 384/4 → ${bitmapHeight(4000,BLOCKSPERROW_W64,4)} !=301`);
+// código real xlimited.c:115 con +1+3 → 271. Verificamos la fórmula genérica
+// bitmapheight = 256 + floor(mapW/blocksPerRow/planes)+1+3 para planes 3..6
+for (const planes of [3,4,5,6]) {
+  for (const [mapW, bpr, label] of [[1000,BLOCKSPERROW_W32,'352'],[1000,BLOCKSPERROW_W64,'384'],[256,BLOCKSPERROW_W32,'352'],[256,BLOCKSPERROW_W64,'384'],[4000,BLOCKSPERROW_W32,'352'],[4000,BLOCKSPERROW_W64,'384']]) {
+    const expected = SCREEN_H + Math.floor(mapW / bpr / planes) + 1 + 3;
+    check(bitmapHeight(mapW,bpr,planes) === expected,
+      `${mapW} bloques ${label}/${planes} → ${bitmapHeight(mapW,bpr,planes)} !=${expected}`);
+  }
+}
+// Valores de referencia para 4 planos (compatibilidad con doc)
+check(bitmapHeight(1000, BLOCKSPERROW_W32, 4) === 271, `1000 bloques 352/4 ref 271`);
+check(bitmapHeight(1000, BLOCKSPERROW_W64, 4) === 270, `1000 bloques 384/4 ref 270`);
+check(bitmapHeight(256, BLOCKSPERROW_W32, 4) === 262, `256 bloques 352/4 ref 262`);
+check(bitmapHeight(4000, BLOCKSPERROW_W32, 4) === 305, `4000 bloques 352/4 ref 305`);
+check(bitmapHeight(4000, BLOCKSPERROW_W64, 4) === 301, `4000 bloques 384/4 ref 301`);
+// Tabla de alturas para 256 bloques (demo 107) genérica: 256 + floor(256/22/planes)+4
+for (const planes of [3,4,5,6]) {
+  const exp32 = SCREEN_H + Math.floor(256 / BLOCKSPERROW_W32 / planes) + 4;
+  const exp64 = SCREEN_H + Math.floor(256 / BLOCKSPERROW_W64 / planes) + 4;
+  check(bitmapHeight(256,BLOCKSPERROW_W32,planes) === exp32, `altura 256/22/${planes} 352=${exp32}`);
+  check(bitmapHeight(256,BLOCKSPERROW_W64,planes) === exp64, `altura 256/24/${planes} 384=${exp64}`);
+}
 
 // -----------------------------------------------------------------------------
 // 3. Allocation interleaved y addressing frontbuffer + y*BITMAPBYTESPERROW + x
@@ -69,28 +76,31 @@ check(bitmapHeight(4000, BLOCKSPERROW_W64, 4) === 301,
 function totalBytes(bitmapBytesPerRow, bitmapHeightPx, planes) {
   return bitmapBytesPerRow * bitmapHeightPx * planes;
 }
-for (const [wBytes, h, planes] of [[BYTES_W32, 262, 4],[BYTES_W64, 267, 4],[BYTES_W32, 268, 4]]) {
-  const tot = totalBytes(wBytes, h, planes);
-  check(tot === wBytes * h * planes, `totalBytes ${wBytes}*${h}*${planes}=${tot} ok`);
-  // addressing: y en planelíneas [0, h*planes), x word-aligned [0, wBytes)
-  // El byte más alto direccionable es frontbuffer + (h*planes-1)*wBytes + (wBytes-2)
-  const maxOffset = (h*planes -1)*wBytes + (wBytes-2);
-  check(maxOffset < tot, `max offset ${maxOffset} < total ${tot} para ${wBytes}/${h}/${planes}`);
+for (const planes of [3,4,5,6]) {
+  for (const [wBytes, h] of [[BYTES_W32, bitmapHeight(256,BLOCKSPERROW_W32,planes)],[BYTES_W64, bitmapHeight(256,BLOCKSPERROW_W64,planes)],[BYTES_W32, bitmapHeight(1000,BLOCKSPERROW_W32,planes)]]) {
+    const tot = totalBytes(wBytes, h, planes);
+    check(tot === wBytes * h * planes, `totalBytes ${wBytes}*${h}*${planes}=${tot} ok BYTES*planes`);
+    const maxOffset = (h*planes -1)*wBytes + (wBytes-2);
+    check(maxOffset < tot, `max offset ${maxOffset} < total ${tot} para ${wBytes}/${h}/${planes}`);
+  }
+  // Verificar que BITMAPWIDTH + word no sale de planelínea para cada planes
+  const h256 = bitmapHeight(256,BLOCKSPERROW_W32,planes);
+  check(BYTES_W32 * planes * h256 >= 352/8* h256*planes, `352 interleaved cabe planes=${planes}`);
 }
-// Verificar que BITMAPWIDTH + word no sale de planelínea
-check(BYTES_W32 * 4 * 262 >= 352/8* 262*4, `352 interleaved cabe`);
 
 // -----------------------------------------------------------------------------
 // 4. Fetch contiguo y BPLMOD (xlimited.c:169, UpdateCopperlist)
-//    BPL1MOD = BITMAPBYTESPERROW*planes - SCREENBYTESPERROW - moduloOffset(2)
+//    BPL1MOD = BITMAPBYTESPERROW*planes - SCREENBYTESPERROW - modulo_offset
+//    genérico bytes*planes para planes 3..6 y modulo_offset 2/4/8
 // -----------------------------------------------------------------------------
-for (const [wBytes, planes, modOff] of [[BYTES_W32,4,2],[BYTES_W64,4,8],[BYTES_W32,4,2]]) {
-  const bplmod = wBytes*planes - SCREEN_W/8 - modOff;
-  check(bplmod === wBytes*planes - 40 - modOff, `BPLMOD ${wBytes}*${planes}-40-${modOff}=${bplmod}`);
-  // Validar que display fetch cabe en row
-  check(bplmod >=0, `BPLMOD no negativo`);
-  check(wBytes*planes === bplmod + FETCH_BYTES + (wBytes*planes - bplmod - FETCH_BYTES),
-    `descomposición fetch`);
+for (const planes of [3,4,5,6]) {
+  for (const [wBytes, modOff] of [[BYTES_W32,2],[BYTES_W64,8],[BYTES_W32,2]]) {
+    const bplmod = wBytes*planes - SCREEN_W/8 - modOff;
+    check(bplmod === wBytes*planes - 40 - modOff, `BPLMOD ${wBytes}*${planes}-40-${modOff}=${bplmod} bytes*planes`);
+    check(bplmod >=0, `BPLMOD no negativo planes=${planes}`);
+    check(wBytes*planes === bplmod + FETCH_BYTES + (wBytes*planes - bplmod - FETCH_BYTES),
+      `descomposición fetch planes=${planes}`);
+  }
 }
 // planeaddx y BPLCON1 para I=16 (normal) — ver xlimited.c:298-311
 function planeAddxAndScroll(videoposx, I=16) {
@@ -146,61 +156,61 @@ for (let vp=0; vp< 4096; vp+=1) {
 // -----------------------------------------------------------------------------
 // 5. draw_block contrato y columna entrante y=mapy*BLOCKPLANELINES
 //    mapy = mapposx &15, y = mapy*BLOCKPLANELINES, x word-aligned
+//    BLOCKPLANELINES = 16*planes → 48/64/80/96 para 3/4/5/6
 // -----------------------------------------------------------------------------
-for (const planes of [4]) {
-  const blockLines = BLOCK*planes; // 64
+for (const planes of [3,4,5,6]) {
+  const blockLines = BLOCK*planes; // 48/64/80/96 genérico
   for (let mapposx=0; mapposx< 4096; ++mapposx) {
     const mapy = mapposx & 15;
     const y = mapy * blockLines;
-    check(y < 16*blockLines, `y planelíneas ${y} < ${16*blockLines} para mapposx ${mapposx}`);
-    check(y % blockLines ===0, `y alineado a bloque`);
-    // x word-aligned
+    check(y < 16*blockLines, `y planelíneas ${y} < ${16*blockLines} planes=${planes} mapposx ${mapposx}`);
+    check(y % blockLines ===0, `y alineado a bloque planes=${planes}`);
     const xRight = BITMAP_W32 + ((mapposx) & ~15);
     const xLeft = (mapposx) & ~15;
-    check((xRight &1)===0 && (xLeft &1)===0, `x word-aligned R${xRight} L${xLeft}`);
-    check((xRight/8 &1)===0, `xRight word-aligned a 0xFFFE`);
-    // bltsize
+    check((xRight &1)===0 && (xLeft &1)===0, `x word-aligned R${xRight} L${xLeft} planes=${planes}`);
+    check((xRight/8 &1)===0, `xRight word-aligned a 0xFFFE planes=${planes}`);
     const bltsizeWords = 1, bltsizeHeight = blockLines;
-    check(bltsizeHeight===64 && bltsizeWords===1, `bltsize 64*1`);
+    check(bltsizeHeight===blockLines && bltsizeWords===1, `bltsize ${blockLines}*1 planes=${planes}`);
     if (mapposx> 64) break;
   }
 }
-// Verificar que columna entrante está dentro de bitmapheight*planes
-{
-  const planes=4, h=262, blockLines=64;
-  const linesTotal = h*planes; // 1048
+// Verificar que columna entrante está dentro de bitmapheight*planes para planes 3..6
+for (const planes of [3,4,5,6]) {
+  const h = bitmapHeight(256, BLOCKSPERROW_W32, planes);
+  const blockLines = BLOCK*planes;
+  const linesTotal = h*planes;
   for (let mapposx=0; mapposx< 4096; ++mapposx) {
     const mapy = mapposx &15;
     const y = mapy*blockLines;
-    // El bloque ocupa y .. y+blockLines-1
-    check(y + blockLines <= linesTotal, `bloque y=${y} cabe en ${linesTotal} planelíneas`);
+    check(y + blockLines <= linesTotal, `bloque y=${y} cabe en ${linesTotal} planelíneas planes=${planes}`);
   }
 }
 
 // -----------------------------------------------------------------------------
 // 6. Altura extra cubre wraps — el planeaddx máximo no sale del bitmap
+//     genérico para planes 3..6, fórmula 256+floor(mapW/blocksPerRow/planes)+1+3
 // -----------------------------------------------------------------------------
-for (const [mapW, planes] of [[256,4],[1000,4],[4000,4]]) {
-  const h = bitmapHeight(mapW, BLOCKSPERROW_W32, planes);
-  const tot = totalBytes(BYTES_W32, h, planes);
-  const maxVideoposx = mapW*BLOCK - SCREEN_W - BLOCK; // límite lógico de scroll
-  const {planeaddx} = planeAddxAndScroll(maxVideoposx,16);
-  // planeaddx debe caber en el extra: tot - SCREEN_H*BYTES_W32*planes ??? simplificado
-  // El byte más alto fetchado es planeaddx + FETCH_BYTES + (SCREEN_H-1)*BYTES_W32*planes con modulii
-  // Aproximación: planeaddx + FETCH_BYTES <= BYTES_W32*planes ??? no.
-  // Comprobamos que planeaddx < tot (trivial) y que h calculado cubre mapW
-  const extra = h - SCREEN_H;
-  const needed = Math.floor(mapW / BLOCKSPERROW_W32 / planes);
-  check(extra >= needed +1+3 || extra === h-SCREEN_H, `extra ${extra} cubre ${needed} para map ${mapW}`);
-  check(planeaddx*1 < tot, `planeaddx ${planeaddx} < tot ${tot} para map ${mapW}`);
+for (const planes of [3,4,5,6]) {
+  for (const mapW of [256,1000,4000]) {
+    const h = bitmapHeight(mapW, BLOCKSPERROW_W32, planes);
+    const tot = totalBytes(BYTES_W32, h, planes);
+    const maxVideoposx = mapW*BLOCK - SCREEN_W - BLOCK;
+    const {planeaddx} = planeAddxAndScroll(maxVideoposx,16);
+    const extra = h - SCREEN_H;
+    const needed = Math.floor(mapW / BLOCKSPERROW_W32 / planes);
+    check(extra >= needed +1+3 || extra === h-SCREEN_H, `extra ${extra} cubre ${needed} para map ${mapW} planes=${planes}`);
+    check(planeaddx*1 < tot, `planeaddx ${planeaddx} < tot ${tot} para map ${mapW} planes=${planes}`);
+  }
 }
 
 // -----------------------------------------------------------------------------
 // 7. Guarda de 1 word (saveword) — simulación de cambio de dirección
 // -----------------------------------------------------------------------------
+for (const planes of [3,4,5,6]) {
 {
-  const BYTES = BYTES_W32, planes=4, blockLines=64;
-  const mem = new Uint16Array((BYTES* 262*planes)/2);
+  const BYTES = BYTES_W32, blockLines=BLOCK*planes;
+  const h = bitmapHeight(256, BLOCKSPERROW_W32, planes);
+  const mem = new Uint16Array((BYTES* h*planes)/2);
   let savePtr = null, saveWord = 0, prevDir=null;
   let front = 0; // offset base en words
   function addr(yPlane, xPixel) { return front + yPlane*(BYTES/2) + (xPixel/8)/2; }
@@ -227,7 +237,8 @@ for (const [mapW, planes] of [[256,4],[1000,4],[4000,4]]) {
     prevDir = dir;
     mapposx += isRight ? 1 : -1;
   }
-  check(true, `guarda de 1 word simulada sin crash`);
+  check(true, `guarda de 1 word simulada sin crash planes=${planes}`);
+}
 }
 
 // -----------------------------------------------------------------------------
@@ -280,11 +291,14 @@ for (const tw of [16,32]) {
     const expMod = f.mode===3 ? 8 : (f.mode===0 ? 2 : 4);
     check(f.bitmapOffset === expOffset, `fetch ${f.mode} bitmapoffset ${f.bitmapOffset} != ${expOffset}`);
     check(f.moduloOffset === expMod, `fetch ${f.mode} moduloOffset ${f.moduloOffset} != ${expMod}`);
-    // BPLMOD con el offset correspondiente
-    const bplmod = (f.bitmapW/8)*4 - SCREEN_W/8 - f.moduloOffset;
-    const baseBytes = f.bitmapW/8;
-    check(bplmod === baseBytes*4 - 40 - f.moduloOffset,
-      `fetch ${f.mode} BPLMOD ${bplmod} para ${baseBytes}*4 -40 -${f.moduloOffset}`);
+    // BPLMOD genérico bytes*planes para planes 3..6
+    for (const planes of [3,4,5,6]) {
+      const bplmod = (f.bitmapW/8)*planes - SCREEN_W/8 - f.moduloOffset;
+      const baseBytes = f.bitmapW/8;
+      check(bplmod === baseBytes*planes - 40 - f.moduloOffset,
+        `fetch ${f.mode} BPLMOD planes=${planes} ${bplmod} para ${baseBytes}*${planes} -40 -${f.moduloOffset}`);
+      check(bplmod >=0, `BPLMOD fetch ${f.mode} planes=${planes} no negativo`);
+    }
     // scroll píxeles 16 / 32 / 64
     const expScroll = f.mode===3 ? 64 : (f.mode===0 ? 16 : 32);
     check(f.scrollPixels === expScroll, `fetch ${f.mode} scroll ${f.scrollPixels} != ${expScroll}`);
@@ -326,11 +340,14 @@ for (const tw of [16,32]) {
   check(planeAddxAndScroll(16, 32).scroll === 0x4400, `fetch 32 vp16 debe ser 0x4400 fin 16, got 0x${planeAddxAndScroll(16,32).scroll.toString(16)}`);
   check(planeAddxAndScroll(32, 32).scroll === 0, `fetch 32 vp32 alineado scroll 0`);
   check(planeAddxAndScroll(48, 64).scroll !== 0, `fetch 64 vp48 no alineado scroll !=0`);
-  // Verificar que BITMAPWIDTH 384 corresponde exactamente a 24 bloques de 16 y 48 bytes por fila (8*? ) para 4 planes
-  check(BITMAP_W64 === 384 && BITMAP_W64/8 === 48, `BITMAPWIDTH 384 → 48 bytes por fila`);
+  // Verificar que BITMAPWIDTH 384 corresponde exactamente a 24 bloques de 16 y 48 bytes por fila (genérico bytes*planes aún válido)
+  check(BITMAP_W64 === 384 && BITMAP_W64/8 === 48, `BITMAPWIDTH 384 → 48 bytes por fila base`);
   check(BLOCKSPERROW_W64 === 24 && BYTES_W64 === 48, `BLOCKSPERROW 24 y BYTES 48 para 384`);
-  // Altura extra con 384 también coherente (ya verificada en §2 pero revalidada aquí para fetch ancho)
-  check(bitmapHeight(256, BLOCKSPERROW_W64, 4) === 262, `altura 384 revalidada 256 bloques`);
+  // Altura extra con 384 también coherente para planes 3..6 (genérico bytes*planes)
+  for (const planes of [3,4,5,6]) {
+    const exp = SCREEN_H + Math.floor(256 / BLOCKSPERROW_W64 / planes) + 4;
+    check(bitmapHeight(256, BLOCKSPERROW_W64, planes) === exp, `altura 384 revalidada 256 bloques planes=${planes} exp=${exp}`);
+  }
 }
 
 if (failures.length) {

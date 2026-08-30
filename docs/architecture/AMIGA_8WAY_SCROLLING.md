@@ -11,11 +11,11 @@ Este documento fija geometría y Copper de esa lectura directa.
 - **Viewport**: ventana visible (ej. 320x256). No es la superficie física.
 - **BITMAPWIDTH/HEIGHT**: dimensiones visibles. WIDTH múltiplo de 16 en OCS.
 - **BLOCKWIDTH/HEIGHT**: unidad de reserva/dibujo (16x16 típico), múltiplo de TILE.
-- **BLOCKPLANELINES**: líneas por bloque = BLOCKHEIGHT (stride según layout).
-- **BITMAPBLOCKSPERROW**: bloques por fila = BITMAPWIDTH / BLOCKWIDTH.
-- **BLOCKSDEPTH**: profundidad de bloques en horizontal por plano.
+- **BLOCKPLANELINES**: líneas por bloque = BLOCKHEIGHT * planes (ej. 16*3=48, 16*4=64, 16*5=80, 16*6=96 para 3..6 planos; genérico bytes*planes).
+- **BITMAPBLOCKSPERROW**: bloques por fila = BITMAPWIDTH / BLOCKWIDTH (22 para 352, 24 para 384).
+- **BLOCKSDEPTH**: profundidad de bloques en horizontal por plano (planes 3..6, 2^planes colores).
 - **level_map.width**: anchura lógica del nivel en bloques/tiles.
-- **plane_bytes/row_bytes**: bytes por fila = BITMAPWIDTH/8 + margen fetch (40+2 con DDFSTRT=$30).
+- **plane_bytes/row_bytes**: bytes por fila = BITMAPWIDTH/8 + margen fetch (40+2 con DDFSTRT=$30; interleaved genérico `BITMAPBYTESPERROW*planes`).
 - **surface**: viewport + margen circular (VW+2*BW en X, filas extra en Y).
 - **BPLxPT/BPLCON1/BPLMOD/DDFSTRT**: registros chipset. BPLCON1 fine 0-15, BPLMOD salto de módulo.
 - **Copper**: reprograma registros por scanline (WAIT+MOVE). Solo punteros/scroll.
@@ -23,15 +23,17 @@ Este documento fija geometría y Copper de esa lectura directa.
 Invariantes: TILEWIDTH múltiplo de 16; margen mínimo 2 bloques; wrap_x/wrap_y para scroll infinito;
 edge_tile cierra mundo no periódico; 3 bloques opcional para diagonal/inversión.
 ## 3. Geometría canónica
-Fórmula canónica del alto físico (ScrollingTrick.asm + Part 12):
+Fórmula canónica del alto físico (ScrollingTrick.asm + Part 12, xlimited.c:45-73; genérica planes 3..6, bytes*planes):
 ```text
-bitmapheight = BITMAPHEIGHT + (level_map.width / BITMAPBLOCKSPERROW / BLOCKSDEPTH) + 1 + 3
+bitmapheight = BITMAPHEIGHT + (level_map.width / BITMAPBLOCKSPERROW / planes) + 1 + 3
+  // planes = BLOCKSDEPTH 3..6 (3=8c, 4=16c, 5=32c, 6=EHB/DPF 3+3); genérico bytes*planes
+  // ej. 22*3=66, 22*4=88, 22*5=110, 22*6=132 bloques por planelínea extra para 352 (24*planes para 384)
 ```
 Desglose:
 - `BITMAPHEIGHT`: alto visible.
-- `level_map.width / BITMAPBLOCKSPERROW / BLOCKSDEPTH`: filas del desenrollado horizontal en vertical.
-- `+1`: guard line (1 línea a 0, fuera de retícula) absorbe fetch especulativo del Denise.
-- `+3`: reserva vertical para 8-way e inversiones (2 mínimo, 3 cubre diagonal+inversión).
+- `level_map.width / BITMAPBLOCKSPERROW / planes`: filas del desenrollado horizontal en vertical (genérico `blocks_per_row*planes`).
+- `+1`: guard line (1 planelínea a 0 en interleaved, 1 línea en separate) absorbe fetch especulativo del Denise.
+- `+3`: reserva vertical para 8-way e inversiones (2 mínimo, 3 cubre diagonal+inversión; en XLimited margen fetch ancho con `modulo_offset` 2/4/8).
 Ancho físico:
 ```text
 bitmapwidth = BITMAPWIDTH + 2*BLOCKWIDTH
@@ -46,10 +48,12 @@ Y: floor((VH + 2*BH) / TILEHEIGHT) * TILEHEIGHT + 1
 Última línea = guard line. Con solo X: (VW+2*BW)xVH; con solo Y: VWx(floor((VH+2*BH)/BH)*BH+1).
 La fórmula 2*viewport+2*block era de dos páginas lineales, no del circular mínimo.
 
-Ejemplo 320x256, bloque 16, level_map.width=1024, BITMAPBLOCKSPERROW=20, BLOCKSDEPTH=1:
-- bitmapwidth=352px=44 bytes/fila (40 visibles+2 margen DDFSTRT=$30+2 guarda).
-- bitmapheight=256+(1024/20/1)+1+3=311 -> alineado TILE -> 320.
-- plane_bytes=bitmapwidth/8*bitmapheight por plano; validar offsets < plane_bytes.
+Ejemplos genéricos bytes*planes (planes 3..6, 24*planes para 384 vs 22*planes para 352):
+- level_map.width=1024, BITMAPBLOCKSPERROW=20, planes=1 (ej. didáctico 1 plano): bitmapheight=256+(1024/20/1)+1+3=311 -> 320.
+- 320x256, bloque 16, level_map.width=1024, BITMAPBLOCKSPERROW=22, planes=4: bitmapheight=256+ floor(1024/22/4)=11+4=271 (genérico `blocks_per_row*planes`).
+  Para planes=3: 256+ floor(1024/22/3)=15+4=275; planes=5: 256+9+4=269; planes=6: 256+7+4=267.
+- bitmapwidth=352px=44 bytes/fila base (40 visibles+2 margen DDFSTRT=$30+2 guarda; interleaved total por scanline = 44*planes → 132/176/220/264).
+- plane_bytes=bitmapwidth/8*bitmapheight por plano (separate) o `BITMAPBYTESPERROW*bitmap_height*planes` interleaved; validar offsets < plane_bytes y `BPLMOD=row_bytes*planes-fetch_bytes-modulo_offset`.
 
 ## 4. Layout en Chip RAM: interleaved vs separate
 
@@ -182,13 +186,15 @@ int offset_y=scroll_y*row_bytes; int planeaddx=offset_x+offset_y;
 
 offset_y ya incluye anillo `y = mapy*BLOCKPLANELINES`.
 
-### 7.3 BPLMOD — módulo
+### 7.3 BPLMOD — módulo (genérico bytes*planes, modulo_offset 2/4/8)
 
 ```text
-BPLMOD1/2=row_bytes - BITMAPWIDTH/8 - fetch_extra
+BPLMOD1/2 = BITMAPBYTESPERROW*planes - SCREENBYTESPERROW - modulo_offset
+  // modulo_offset = 2 (normal DDF $30), 4 (BPL32/BPAGEM $28), 8 (BPL32+BPAGEM $18)
+  // SCREENBYTESPERROW = 40 (320/8); FETCH_BYTES = 42 (40+2) normal
 ```
 
-Con 320px y 42 bytes fetch: BPLMOD=row_bytes-40 (interleaved ajusta por bitplane_count).
+Con 320px y fetch 42 bytes: `BPLMOD=row_bytes*planes-40-modulo_offset` (ej. 44*4-40-2=134 normal; 44*3-40-2=90; 44*6-40-2=222). Para 384 fetch ancho: 48*planes-40-4/8.
 
 ### 7.4 Split vertical
 
@@ -237,9 +243,10 @@ completa — geometría, memoria Chip, coste Blitter (jobs/*frame*, *words*), Co
 circular no es canónico — está en `docs/architecture/CIRCULAR_VS_XLIMITED.md`,
 verificado contra `xlimited.c:45-323`, `xlimited-uk.html` y
 `engine/include/eng/field/xlimited.hpp`. En resumen: XLimited usa *bitmap*
-352/384 interleaved, altura `256+(map_width/22/planes)+1+3`, 1 job/*frame* con
-*plane-shifted* y `saveword`, sin *split* de Copper; el circular paga ráfaga de
-`VISIBLE_Y+2` jobs cada 16 px y 1 WAIT de *split* vertical.
+352/384 interleaved, altura `256+(map_width/blocks_per_row/planes)+1+3` genérica
+(22*3=66, 22*4=88, 22*5=110, 22*6=132 para 352; 24*planes para 384; bytes*planes),
+1 job/*frame* con *plane-shifted* y `saveword`, sin *split* de Copper; el
+circular paga ráfaga de `VISIBLE_Y+2` jobs cada 16 px y 1 WAIT de *split* vertical.
 
 ---
 
