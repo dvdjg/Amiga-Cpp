@@ -71,6 +71,7 @@ cualquier fase (`K_START_PHASE`).
 | `K_PRE_SCROLL` | `1024` | Píxeles de pre-scroll hacia delante en init cuando la fase inicial es reversa/diagonal, para que `scroll_left/up` tengan recorrido antes de chocar con el borde 0. |
 | `K_DUAL` | `0` (defecto), `1` | DPF 3+3: dos `XlimitedField` (PF1 planos 1,3,5 / PF2 2,4,6) unidos por `XlimitedDualComposer`. Cada playfield usa 3 planos; PF1 con fondo transparente tramado para que se vea PF2. Ambos scrollean en la misma dirección (`K_EFFECT`) y comparten `videoposy` (mismo split). |
 | `K_PARALLAX` | `0` (defecto), `1` | En `K_DUAL=1`, PF2 (fondo) scrollea a media velocidad en X (parallax); en Y siempre igual para mantener el split. |
+| `K_LINEAR` | `1` (defecto) | **Display lineal sin split** (espejo del bucle): el bitmap duplica el bucle vertical y el wrap se lee de forma contigua. Elimina por completo el artefacto del split en raster 256..296 (el comparador de WAIT del Copper es de 8 bits y no puede esperar esas líneas), a costa de 2× blits (dibujo + espejo). Con `0` se usa el corkscrew clásico con split (misma limitación que el original `XYLimited`). |
 
 Nota: los `-D...` se pasan siempre por la variable `EXTRA_DEFINES` (los argumentos CLI `-DK_*` no los recoge `build-demo.sh`).
 
@@ -185,18 +186,31 @@ tiles obsoletos, derecha corregida" (qwen3-vl).
 
 El comparador de WAIT del Copper (OCS y WinUAE, `custom.cpp coppercomp`) usa
 **8 bits con semántica `>=`**: `vp = vpos & 0xFF >= vcmp`. No hay bit V8 en la
-comparación. Por tanto no se puede esperar a una línea 256..296 (PAL): un WAIT
-para `raster = DIWSTRT_y + split_line` dispara en la primera coincidencia del
-byte bajo (`raster - 256`, en la parte alta del frame).
+comparación, por lo que no se puede esperar a una línea 256..296 (PAL). En el
+**corkscrew clásico con split** (`K_LINEAR=0`, como el `XYLimited` original),
+eso hace que durante `display_offset ∈ [33,73]` el split dispare en la línea 255
+y la banda de staging quede visible (franja inferior detenida + tiles escritos en
+el área visible). **Resuelto por defecto con `K_LINEAR=1`** (display lineal con
+espejo): sin split, el wrap se lee de forma contigua del espejo y la banda de
+staging nunca se muestra. Verificado en WinUAE: captura V de 120 frames
+(mapposy 0..225) con **0/119 pares desincronizados** (antes 12/69).
 
-Cuando `display_offset ∈ [33,73]` el split del corkscrew cae en raster 256..296;
-el WAIT se recorta a la línea 255 y la banda inferior (1..41 filas) muestra el
-wrap adelantado (contenido de la parte alta en vez de las filas correctas). Es
-**inherente al chipset** y el propio `XYLimited` original degrada igual a 255 en
-ese caso (su truco enmascarado `0xFFDF`/`0x0001` también dispara en 255 con la
-semántica `>=`). Verificado en el fuente de WinUAE-DBG (`coppercomp`,
-`vcmp = (ir[0] & (ir[1]|0x8000)) >> 8`). Solo se eliminaría con un hardware con
-bit V8 en la comparación (no disponible en este emulador).
+## Monitorización de carga (frame a frame)
+
+Para supervisar la homogeneidad de CPU/Blitter/bus y detectar picos, la demo
+escribe cada frame un bloque de telemetría en `g_eng_frame_telemetry`
+(`engine/include/eng/debug/run_status.hpp`, struct `FrameTelemetry`):
+`frame`, `blit_jobs`, `blit_words`, `copper_words`, `fillup_extra`. Se lee por el
+canal lateral de WinUAE-DBG:
+
+```bash
+# con la demo viva (run-demo --keep-running), leer 20 muestras:
+node tools/analyze/read-frame-telemetry.mjs demos/107_xlimited_corkscrew 20
+```
+
+El `blit_jobs` debe ser ~constante (2× el scroll en `K_LINEAR=1` por el espejo);
+los picos de `fillup_extra` aparecen solo en los cruces de tile (cada 16 px) y
+son pequeños (2-4 blits) frente al presupuesto de Blitter del frame.
 
 ## Arquitectura (reutilizable como librería)
 

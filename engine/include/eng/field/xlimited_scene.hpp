@@ -105,6 +105,8 @@ struct XlimitedSceneConfig {
     eng::u8 parallax_x_div = 2;      // divisor de la velocidad de PF2 en X (1 = igual)
     eng::u8 parallax_y_div = 1;      // divisor en Y (1 para compartir el split vertical)
     bool scroll_y = true;            // corkscrew: display_height = viewport_h + 2*tile_height
+    bool linear_display = false;     // display LINEAL sin split (espejo del bucle): elimina la
+                                     // limitación del comparador de 8 bits a costa de 2x blits
 
     // --- Camino de scroll (harness de validación) ---------------------------
     eng::u8 effect = 0;              // 0=ciclo, 1..8=dirección única
@@ -163,6 +165,7 @@ public:
             fc.screens_x = 16;
             fc.screens_y = 16;
             fc.scroll_y = cfg.scroll_y;
+            fc.linear_display = cfg.linear_display;
             fc.bitmap_width = cfg.bitmap_width;
             fc.fetch_mode = cfg.fetch_mode;
             if (!m_field[pf].begin(memory, fc)) return false;
@@ -195,9 +198,9 @@ public:
                         plan.clear();
                         plan.set_blit_budget_limits({8192, 16384, 4, 120});
                     }
-                    auto job = m_field[pf].draw_block_job(
-                        a * m_cfg.tile_width, b * m_field[pf].block_planes_lines(), a, b);
-                    if (!plan.add_tile_block_copy(job)) return false;
+                    // add_draw espeja el bloque en modo lineal (2 jobs por bloque).
+                    if (!m_field[pf].add_draw(plan, a * m_cfg.tile_width,
+                        b * m_field[pf].block_planes_lines(), a, b)) return false;
                 }
             }
             if (plan.blit_job_count() > 0) {
@@ -311,6 +314,9 @@ public:
     constexpr bool ok() const { return m_initialized; }
     constexpr eng::u8 fields() const { return m_cfg.dual ? 2u : 1u; }
     constexpr const XlimitedSceneConfig& config() const { return m_cfg; }
+    constexpr u16 copper_words() const {
+        return m_cfg.dual ? m_dual.copper_words() : m_single.copper_words();
+    }
     XlimitedField& field(eng::u8 pf = 0) { return m_field[pf]; }
     const XlimitedField& field(eng::u8 pf = 0) const { return m_field[pf]; }
 
