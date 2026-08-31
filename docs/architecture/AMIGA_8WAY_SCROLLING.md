@@ -398,19 +398,22 @@ de RMW (`fill_rect`/`draw_line` grandes) el emulador muestra scanlines negros pe
 (inanición de bus). El dibujo masivo va por **Blitter**; las primitivas CPU se reservan para
 marcas pequeñas o init (boot, sin competencia).
 
-**HUD en franja inferior como playfield separado (trabajo futuro)**: el escenario de un HUD de 32
-px con configuración distinta (bitplanes/paleta) en la parte inferior es un split-screen de
-Copper (cambiar DIWSTOP/BPLxPT/modulos en el raster `DIWSTRT_y + main`). Se intentó (WAIT en el
-raster + cambio de BPL pointers a un `CanvasPlayfield` con la ventana abierta al total), pero el
-canvas no se mostró en WinUAE; requiere inspección del estado real del Copper (BPLCON0/BPLxPT por
-frame) para depurar por qué el cambio de punteros no surte efecto. La abstracción ya lo soporta a
-nivel de API (escena con varios playfields + roles); falta la zona de Copper.
+**HUD en franja inferior como playfield separado (funciona)**: el escenario de un HUD con
+configuración distinta (bitplanes/paleta) en la parte inferior es un split-screen de Copper: la
+escena mantiene la ventana DIW abierta al total (`main + hud`) y el compositor, en el raster
+`DIWSTRT_y + main`, cambia `BPLCON1` (sin scroll), `BPL1/2MOD` y `BPLxPT` al `CanvasPlayfield`
+del HUD (+ paleta propia). Restricción de raster: `DIWSTRT_y + main <= 255` (comparador de 8
+bits); con `main=192` + `hud=32` (total 224) el WAIT cae en 233. El display aplica un offset de
+fetch horizontal al playfield de la franja (los primeros ~16 px pueden recortarse), así que el
+contenido del lienzo se dibuja en la zona central. El harness de secuencia excluye la franja de
+su check de negro interno (`assert-no-inner-black`), que de lo contrario la marca como artefacto.
 
 **Verificación**: `node tools/analyze/verify-draw-primitives.mjs` modela el contrato (planelínea +
-espejo + walk + objeto fijo + CanvasPlayfield) y valida split, lineal y viewports. En emulador, el
-HUD de la demo 107 (`K_HUD=1`) marca píxeles fijos en pantalla y dibuja un BOB enmascarado de
-mundo (bloque blanco 16×16 con hueco 4×4 que deja ver el mapa, cookie-cut confirmado) sin
-blackouts.
+espejo + walk + objeto fijo + CanvasPlayfield) y valida split, lineal y viewports. En emulador, la
+demo 107 (`K_HUD=1`) muestra un HUD de 32 px con paleta propia en la franja inferior (main 192 +
+hud 32, total 224) mientras el corkscrew scrollea 8-way sin blackouts; además marca píxeles fijos
+en pantalla y dibuja un BOB enmascarado de mundo (bloque blanco con hueco que deja ver el mapa,
+cookie-cut confirmado).
 
 ---
 

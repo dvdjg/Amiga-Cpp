@@ -297,9 +297,14 @@
 #include <eng/field/tile_field.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/frame_plan.hpp>
+#include <eng/graphics/sprite_manager.hpp>
 #include <eng/memory/arena.hpp>
 
 namespace eng::field {
+
+/// Depuración: resultado del `valid()` del compositor dual (0 = OK).
+extern volatile eng::u32 g_dbg_dual_valid;
+
 
 // -----------------------------------------------------------------------------
 // Constantes canónicas del algoritmo original (ver §1) — valores por defecto
@@ -331,6 +336,21 @@ constexpr u16 diwstop_for_viewport(u16 viewport_h) {
     return static_cast<u16>(((vstop & 0xffu) << 8) | 0x00c1u);
 }
 } // namespace xlimited_detail
+
+/// Variante de scroll del playfield XLimited.
+///
+/// Es una ESPECIALIZACIÓN del scroll: la geometría del corkscrew (banda de
+/// staging, walk X, split, saveword) se deriva del modo.
+enum class ScrollMode : u8 {
+    EightWay = 0,      // corkscrew completo: 8 direcciones, banda de staging 2 bloques,
+                       // split vertical, walk X y saveword (direcciones reversas).
+    HorizontalOnly = 1,// solo H: display_height = viewport_h (sin banda de staging),
+                       // sin split, sin walk vertical. Optimización 1 blit/op.
+    VerticalOnly = 2,  // solo V: corkscrew vertical (banda de staging + split), pero
+                       // el X no scrollea (no se ejercita el walk X).
+    OneDirection = 3,  // 8-way pero sin inversión de dirección: se omite la
+                       // restauración de saveword (menos blits en los cruces).
+};
 
 /// Configuración de un campo XLimited.
 ///
@@ -443,6 +463,7 @@ struct XlimitedConfig {
     u8 screens_y = 16;                 // pantallas virtuales en Y (map_h = screens_y * viewport_h/tile_height)
     bool scroll_y = false;             // true = corkscrew/XY: display_height = viewport_h + 2*tile_height,
                                        // banda de staging, fill de display_blocks_per_col y split vertical
+    ScrollMode scroll_mode = ScrollMode::EightWay; // especialización del scroll (deriva scroll_y)
     bool linear_display = false;       // true = display LINEAL sin split: el bitmap duplica el bucle
                                        // (espejo de filas) y el wrap se lee de forma contigua. Elimina la
                                        // limitación del split en raster 256..296 (comparador de 8 bits)
@@ -541,6 +562,10 @@ public:
     /// ancho (16 bytes para BPL32, 48 para 4x). En modo normal offset=0.
     bool begin(MemorySystem& memory, const XlimitedConfig& cfg) {
         m_cfg = cfg;
+        // Especialización del scroll: HorizontalOnly no usa banda de staging ni
+        // split (display_height = viewport_h, X-only). Los demás modos conservan
+        // el valor de scroll_y del config.
+        if (m_cfg.scroll_mode == ScrollMode::HorizontalOnly) m_cfg.scroll_y = false;
         if (!valid_config()) return false;
 
         // Derivar bitmap_width si es 0: viewport_w + EXTRAWIDTH según fetch_mode.
@@ -933,7 +958,7 @@ public:
         const u16 x0 = static_cast<u16>(m_videoposx & ~(m_cfg.tile_width - 1));
         const u16 mapx = static_cast<u16>(mapblockx + m_bitmap_blocks_per_row);
 
-        if (m_previous_xdirection == 1) restore_saveword(); // DIRECTION_LEFT
+        if (m_cfg.scroll_mode != ScrollMode::OneDirection && m_previous_xdirection == 1) restore_saveword(); // DIRECTION_LEFT
 
         u16 mapy = static_cast<u16>(stepx + 1);
         if (mapy == 1) { // stepx == 0 → dos bloques
@@ -1089,7 +1114,7 @@ public:
             const u16 nvpos = block_videoposy(); // block_videoposy ya actualizado
             const u16 nmapblocky = static_cast<u16>(mapblocky + 1);
             if (!add_draw(plan, x0, static_cast<u16>(nvpos * m_cfg.planes), mapblockx, nmapblocky)) return false;
-            if (m_previous_xdirection == 1) restore_saveword(); // DIRECTION_LEFT
+            if (m_cfg.scroll_mode != ScrollMode::OneDirection && m_previous_xdirection == 1) restore_saveword(); // DIRECTION_LEFT
             const u16 my = static_cast<u16>(stepx + 1);
             const u16 y2 = static_cast<u16>(((nvpos + my * m_cfg.tile_height) % m_display_height) * m_cfg.planes);
             const u16 y2b = static_cast<u16>((y2 + m_block_planes_lines - 1) % m_display_planelines);
@@ -1351,6 +1376,7 @@ public:
         u16 diwstop = xlimited_detail::kDiwStop;
         u16 ddfstrt = xlimited_detail::kDdfStrt;
         u16 ddfstop = xlimited_detail::kDdfStop;
+        const graphics::SpriteManager* sprites = nullptr; // opcional
     };
 
     bool init(MemorySystem& memory, const Config& cfg) {
@@ -1434,7 +1460,8 @@ private:
             0x0200u | (static_cast<u16>(view.planes) << 12u));
         sched.move(copper::Register::DMACON,
             static_cast<u16>(copper::DmaSetClear | copper::DmaMaster |
-                             copper::DmaCopper | copper::DmaBitplane));
+                             copper::DmaCopper | copper::DmaBitplane |
+                             (m_cfg.sprites ? m_cfg.sprites->dma_bits() : 0)));
         sched.move(copper::Register::BPLCON0, bplcon0);
         sched.move(copper::Register::BPLCON1, view.bplcon1);
         sched.move(copper::Register::BPLCON2, 0x0000);
@@ -1498,6 +1525,11 @@ private:
         } else if (!view.split_active || raster < 0xf8u) {
             sched.wait_line(0xf8);
             sched.move(copper::Register::COLOR00, 0x0000);
+        }
+        // Sprites hardware (delante de los playfields): SPRxCTL/POS/PT + paleta 16-31.
+        if (m_cfg.sprites != nullptr && m_cfg.sprites->any_enabled()) {
+            sched.emit_palette(m_cfg.palette, 16, 16); // paleta de sprites (COLOR16-31)
+            m_cfg.sprites->emit_into(sched);
         }
         sched.end();
         m_copper_words = sched.words_used();
@@ -1580,13 +1612,19 @@ private:
     }
 
     bool valid(const PlayfieldHardwareView& a, const PlayfieldHardwareView& b) const {
-        if (!a.bitplanes || !b.bitplanes) return false;
-        if (a.planes != m_cfg.planes_per_field || b.planes != m_cfg.planes_per_field) return false;
-        if (a.planes + b.planes > 6) return false;
-        if (a.display_height != b.display_height) return false;
-        // El split debe coincidir: ambos playfields envuelven en la misma línea.
-        if (a.split_active != b.split_active) return false;
-        if (a.split_active && a.split_line != b.split_line) return false;
+        g_dbg_dual_valid = 0;
+        if (!a.bitplanes || !b.bitplanes) { return false; }
+        if (a.planes != m_cfg.planes_per_field || b.planes != m_cfg.planes_per_field) { return false; }
+        if (a.planes + b.planes > 6) { return false; }
+        // El FG (b) puede ser ESTÁTICO (CanvasPlayfield, sin corkscrew): su
+        // display_height es el viewport y no tiene split (no envuelve). El BG (a)
+        // es el corkscrew (bucle + split). Solo si b también envuelve deben
+        // coincidir display_height y split_line.
+        if (b.display_height != a.display_height && b.display_height != a.viewport_h) { return false; }
+        if (b.split_active) {
+            if (a.split_active != b.split_active) { return false; }
+            if (a.split_line != b.split_line) { return false; }
+        }
         return true;
     }
 
@@ -1626,8 +1664,11 @@ private:
             for (u8 i = 0; i < m_cfg.planes_per_field; ++i) {
                 sched.move_bitplane_pointer(hardware_plane(i, true),
                     reinterpret_cast<const void*>(field_plane_address(pf1, i, pf1.split_planeaddy)));
-                sched.move_bitplane_pointer(hardware_plane(i, false),
-                    reinterpret_cast<const void*>(field_plane_address(pf2, i, pf2.split_planeaddy)));
+                // FG estático (lienzo): no envuelve, sus punteros no cambian en el split.
+                if (pf2.split_active) {
+                    sched.move_bitplane_pointer(hardware_plane(i, false),
+                        reinterpret_cast<const void*>(field_plane_address(pf2, i, pf2.split_planeaddy)));
+                }
             }
         }
         if (!pf1.split_active || raster < 0xf8u) {
@@ -1650,6 +1691,9 @@ private:
 };
 
 } // namespace eng::field
+
+/// Depuración: resultado del `valid()` del compositor dual (0 = OK).
+volatile eng::u32 eng::field::g_dbg_dual_valid = 0;
 
 
 

@@ -208,7 +208,8 @@ public:
         m_total_bytes = static_cast<u32>(m_bytes_per_row) * m_height * m_planes;
         m_bitmap_block = memory.chip.allocate(m_total_bytes, 16);
         if (!m_bitmap_block.valid()) return false;
-        m_frontbuffer = static_cast<u8*>(m_bitmap_block.data);
+        m_real_base = static_cast<u8*>(m_bitmap_block.data);
+        m_frontbuffer = m_real_base;
         u8* d = m_frontbuffer;
         for (u32 i = 0; i < m_total_bytes; ++i) d[i] = 0;
         m_initialized = true;
@@ -231,7 +232,7 @@ public:
     PlayfieldHardwareView hardware_view() const override {
         PlayfieldHardwareView v;
         v.bitplanes = m_frontbuffer;
-        v.real_base = m_frontbuffer;
+        v.real_base = m_real_base; // base real del bloque (para BPLxPT)
         v.bitmap_bytes_per_row = m_bytes_per_row;
         v.plane_bytes = m_total_bytes;
         v.planes = m_planes;
@@ -303,6 +304,7 @@ public:
 
 private:
     MemoryBlock m_bitmap_block {};
+    u8* m_real_base = nullptr; // base de fetch del display (block.data)
 };
 
 } // namespace eng::field
