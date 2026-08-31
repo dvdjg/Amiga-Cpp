@@ -198,19 +198,26 @@ semántica `>=`). Verificado en el fuente de WinUAE-DBG (`coppercomp`,
 `vcmp = (ir[0] & (ir[1]|0x8000)) >> 8`). Solo se eliminaría con un hardware con
 bit V8 en la comparación (no disponible en este emulador).
 
-## Arquitectura
+## Arquitectura (reutilizable como librería)
 
-- `engine/include/eng/field/xlimited.hpp` — `XlimitedField` + `XlimitedDisplayComposer`.
-  Port del corkscrew (XYLimited): `scroll_right/left/up/down` fieles a
-  `Scroller_XYLimited/main.c`, banda de staging `block_videoposy`, split
+- `engine/include/eng/field/xlimited.hpp` — `XlimitedField` + `XlimitedDisplayComposer`
+  + `XlimitedDualComposer`. Port del corkscrew (XYLimited): `scroll_right/left/up/down`
+  fieles a `Scroller_XYLimited/main.c`, banda de staging `block_videoposy`, split
   vertical en `display_height`, paleta al inicio del frame. Allocation
   `BMF_INTERLEAVED-like`: `row_bytes*planes*height`, addressing
-  `frontbuffer + y*BITMAPBYTESPERROW + x`.
-- `demos/107_xlimited_corkscrew/src/main.cpp` — usa `MinimalBackend`,
-  `g_eng_run_status` y `demo::pf_plane_row`/`cell_hash` para construir el banco
-  de bloques en el layout clásico de Steger (320×256 interleaved, tiles en
-  `(tile%20, tile/20)`) y el mapa; no reutiliza la lógica circular
-  (`surface_origin`, recentrado, bandas).
+  `frontbuffer + y*BITMAPBYTESPERROW + x`. El dual (DPF 3+3) intercala PF1
+  (planos 1,3,5) y PF2 (2,4,6) con su split compartido.
+- `engine/include/eng/field/xlimited_scene.hpp` — **abstracción de librería**:
+  `XlimitedScene` + `XlimitedSceneConfig` + `xlimited_build_blocks_bitmap`.
+  Encapsula uno/dos `XlimitedField`, el compositor single/dual, el relleno, el
+  pre-scroll, el camino de direcciones (`effect`/`phase`) y la composición, con
+  API declarativa (config) y por-frame (`update_auto`/`update`/`compose`/`install`).
+  `xlimited_build_blocks_bitmap` construye el BlocksBitmap de Steger a partir de
+  un generador de filas (`BlocksRowFn`), independiente del juego.
+- `demos/107_xlimited_corkscrew/src/main.cpp` — **consumidor fino**: define el
+  mapa y dos generadores de filas (`fg_row`/`bg_row`), configura `XlimitedSceneConfig`
+  desde las macros `K_*` y delega en `XlimitedScene`. Sin lógica circular
+  (`surface_origin`, recentrado, bandas) ni glue de hardware.
 
 Referencias: `ScrollingTricks/Docs/xlimited-uk.html`,
 `amiga-stuff/scrolling_tricks/xlimited.c`,

@@ -1,0 +1,338 @@
+#pragma once
+
+/// \file xlimited_scene.hpp
+/// Abstracción reutilizable sobre `XlimitedField` + compositores (single/dual).
+///
+/// Esta capa es la que un programa (o una librería de programación) usa para
+/// montar una escena corkscrew sin re-implementar el orquestado: configuración
+/// declarativa, banco de bloques generado, relleno inicial, pre-scroll, camino
+/// de direcciones para validación y composición single o DPF. El `main.cpp` de
+/// la demo queda como un consumidor fino de esta escena.
+///
+/// Incluye además:
+///   - `xlimited_build_blocks_bitmap`: construye el BlocksBitmap de Steger
+///     (banco interleaved 320px) a partir de un generador de words por fila,
+///     independiente del juego.
+///   - `XlimitedSceneConfig`: configuración declarativa (geometría, mapa,
+///     dual/parallax y camino de scroll).
+///   - `XlimitedScene`: orquesta `update`/`fill`/`pre_scroll`/`compose`/`install`
+///     para uno o dos playfields.
+///
+/// Reglas del engine: sin heap dinámico, sin RTTI, gnu++23. Los mapas y paletas
+/// los aporta la aplicación (arrays estáticos o `MemoryBlock`).
+
+#include <eng/core/span.hpp>
+#include <eng/core/types.hpp>
+#include <eng/field/xlimited.hpp>
+#include <eng/graphics/frame_plan.hpp>
+#include <eng/memory/arena.hpp>
+
+namespace eng::field {
+
+/// Generador de la word de una fila de un tile simbólico (glyph, variant, row,
+/// plane). El caller incrusta su paleta/base/transparencia en el callback.
+using BlocksRowFn = eng::u16 (*)(eng::u8 glyph, eng::u8 variant, eng::u8 row, eng::u8 plane);
+
+/// Construye el banco de bloques interleaved (BlocksBitmap de Steger, 320 px de
+/// ancho, 40 bytes por planelínea) con `tile_count` tiles de
+/// `tile_width`×`tile_height` dispuestos en `(tile % (320/tile_width), tile/...)`.
+/// Devuelve un `MemoryBlock` en Chip RAM (inválido si no hay memoria).
+inline MemoryBlock xlimited_build_blocks_bitmap(
+    MemorySystem& memory,
+    eng::u8 planes,
+    eng::u16 tile_width,
+    eng::u16 tile_height,
+    eng::u16 tile_count,
+    BlocksRowFn row_fn) {
+    const eng::u32 src_bytes_per_row = 320u / 8u; // 40
+    const eng::u32 blocks_per_row = 320u / tile_width;
+    const eng::u32 bytes = src_bytes_per_row * 256u * planes;
+    MemoryBlock block = memory.chip.allocate(bytes, 16);
+    if (!block.valid() || row_fn == nullptr) return block;
+    eng::u8* data = static_cast<eng::u8*>(block.data);
+    for (eng::u32 i = 0; i < bytes; ++i) data[i] = 0;
+    for (eng::u16 tile = 0; tile < tile_count; ++tile) {
+        const eng::u8 glyph = static_cast<eng::u8>(tile & 15u);
+        const eng::u8 variant = static_cast<eng::u8>((tile >> 4u) & 3u);
+        const eng::u16 bx = tile % blocks_per_row;
+        const eng::u16 by = tile / blocks_per_row;
+        const eng::u32 base_pl = static_cast<eng::u32>(by) *
+                                 (static_cast<eng::u32>(tile_height) * planes) * src_bytes_per_row;
+        for (eng::u16 row = 0; row < tile_height; ++row) {
+            for (eng::u8 plane = 0; plane < planes; ++plane) {
+                const eng::u16 word = row_fn(glyph, variant, static_cast<eng::u8>(row), plane);
+                for (eng::u16 w = 0; w < tile_width / 16u; ++w) {
+                    const eng::u16 out_word = (w == 0) ? word
+                        : static_cast<eng::u16>(word ^ 0x0ff0u);
+                    const eng::u32 planeline = static_cast<eng::u32>(row) * planes + plane;
+                    const eng::u32 off = (base_pl + planeline * src_bytes_per_row) +
+                        bx * (tile_width / 8u) + w * 2u;
+                    data[off] = static_cast<eng::u8>(out_word >> 8);
+                    data[off + 1] = static_cast<eng::u8>(out_word & 0xff);
+                }
+            }
+        }
+    }
+    return block;
+}
+
+/// Configuración declarativa de una escena corkscrew.
+///
+/// Un solo campo (single) o dos (DPF 3+3). Para DPF, `planes` es la profundidad
+/// POR playfield (3) y `dual=true`; PF1 usa `fg_row_fn` (fondo transparente) y
+/// PF2 `bg_row_fn` (opaco). El camino de scroll (`effect`/`start_phase`/
+/// `phase_frames`) reproduce las 8 direcciones del harness de la demo 107.
+struct XlimitedSceneConfig {
+    // --- Geometría -----------------------------------------------------------
+    eng::u16 viewport_w = 320;
+    eng::u16 viewport_h = 256;
+    eng::u16 tile_width = 16;
+    eng::u16 tile_height = 16;
+    eng::u8 planes = 4;              // profundidad por playfield (4 single, 3 DPF)
+    eng::u8 fetch_mode = 0;          // 0=normal, 1/2=BPL32, 3=BPL32+BPAGEM
+    eng::u16 bitmap_width = 0;       // 0 = auto: viewport + EXTRAWIDTH
+
+    // --- Mundo ---------------------------------------------------------------
+    TileLayerMap map {};             // mapa de PF1 (cells/wrap/edge)
+    TileLayerMap map2 {};            // mapa de PF2 (si dual y no vacío; si no, reusa map)
+    eng::u16 tileset_count = 64;
+    BlocksRowFn fg_row_fn = nullptr; // generador de filas de PF1 (incrusta base/transparencia)
+    BlocksRowFn bg_row_fn = nullptr; // generador de filas de PF2 (DPF)
+
+    // --- Dual playfield ------------------------------------------------------
+    bool dual = false;               // DPF 3+3 (dos XlimitedField)
+    bool parallax_x = false;         // PF2 a velocidad reducida en X
+    eng::u8 parallax_x_div = 2;      // divisor de la velocidad de PF2 en X (1 = igual)
+    eng::u8 parallax_y_div = 1;      // divisor en Y (1 para compartir el split vertical)
+    bool scroll_y = true;            // corkscrew: display_height = viewport_h + 2*tile_height
+
+    // --- Camino de scroll (harness de validación) ---------------------------
+    eng::u8 effect = 0;              // 0=ciclo, 1..8=dirección única
+    eng::u8 start_phase = 0;         // fase inicial del ciclo (0..7)
+    eng::u32 phase_frames = 1000;    // frames por fase
+    eng::s32 pre_scroll = 1024;      // px de pre-scroll para fases reversas/diagonales
+
+    // --- Paleta --------------------------------------------------------------
+    const eng::u16* palette = nullptr; // 2^planes colores (single) o 16 (DPF: PF1 0..7, PF2 8..15)
+    eng::u32 copper_bytes = 1536;
+};
+
+/// Escena corkscrew reutilizable: uno o dos `XlimitedField` + compositor.
+///
+/// Uso típico:
+///   XlimitedScene scene;
+///   scene.begin(memory, cfg);
+///   scene.fill(backend, plan);          // relleno inicial (lotes)
+///   scene.pre_scroll(backend, px_x, px_y);
+///   // por frame:
+///   scene.update_auto(plan, frame_index);   // o scene.update(plan, dx, dy)
+///   backend.execute_frame_plan(plan);
+///   scene.compose();
+///   scene.install(backend);
+class XlimitedScene {
+public:
+    XlimitedScene() = default;
+    XlimitedScene(const XlimitedScene&) = delete;
+    XlimitedScene& operator=(const XlimitedScene&) = delete;
+
+    bool begin(MemorySystem& memory, const XlimitedSceneConfig& cfg) {
+        m_cfg = cfg;
+        if (cfg.planes == 0 || cfg.planes > 6) return false;
+        if (cfg.fg_row_fn == nullptr) return false;
+        if (cfg.dual && cfg.bg_row_fn == nullptr) return false;
+        if (cfg.palette == nullptr) return false;
+        if (cfg.map.width == 0 && (cfg.map.wrap_x == 0 && cfg.map.wrap_y == 0)) return false;
+        const eng::u8 n = static_cast<eng::u8>(cfg.dual ? 2 : 1);
+        const eng::u16 tw = cfg.tile_width, th = cfg.tile_height;
+        for (eng::u8 pf = 0; pf < n; ++pf) {
+            // Banco de bloques de este playfield.
+            m_tiles[pf] = xlimited_build_blocks_bitmap(
+                memory, cfg.planes, tw, th, cfg.tileset_count,
+                pf == 0 ? cfg.fg_row_fn : cfg.bg_row_fn);
+            if (!m_tiles[pf].valid()) return false;
+            // Config del campo.
+            XlimitedConfig fc;
+            fc.map = (pf == 0) ? cfg.map : (cfg.map2.cells.empty() ? cfg.map : cfg.map2);
+            fc.tileset = static_cast<const eng::u16*>(m_tiles[pf].data);
+            fc.tileset_count = cfg.tileset_count;
+            fc.planes = cfg.planes;
+            fc.tile_width = tw;
+            fc.tile_height = th;
+            fc.viewport_w = cfg.viewport_w;
+            fc.viewport_h = cfg.viewport_h;
+            fc.screens_x = 16;
+            fc.screens_y = 16;
+            fc.scroll_y = cfg.scroll_y;
+            fc.bitmap_width = cfg.bitmap_width;
+            fc.fetch_mode = cfg.fetch_mode;
+            if (!m_field[pf].begin(memory, fc)) return false;
+        }
+        // Compositores.
+        if (cfg.dual) {
+            if (!m_dual.init(memory, {cfg.palette, cfg.copper_bytes, cfg.planes, false})) return false;
+        } else {
+            if (!m_single.init(memory, {cfg.palette, cfg.copper_bytes, cfg.planes})) return false;
+        }
+        m_initialized = true;
+        return true;
+    }
+
+    /// Rellena la pantalla inicial (y el PF2 si dual) en lotes. Devuelve false
+    /// si un plan no se pudo encolar o ejecutar.
+    template <typename Backend>
+    bool fill(Backend& backend, graphics::FramePlan& plan) {
+        const eng::u8 n = fields();
+        for (eng::u8 pf = 0; pf < n; ++pf) {
+            plan.clear();
+            plan.set_blit_budget_limits({8192, 16384, 4, 120});
+            const eng::u16 cols = m_field[pf].bitmap_blocks_per_row();
+            const eng::u16 rows = m_cfg.scroll_y ? m_field[pf].display_blocks_per_col()
+                : static_cast<eng::u16>(m_cfg.viewport_h / m_cfg.tile_height);
+            for (eng::u16 b = 0; b < rows; ++b) {
+                for (eng::u16 a = 0; a < cols; ++a) {
+                    if (plan.blit_job_count() >= 120) {
+                        if (!backend.execute_frame_plan(plan)) return false;
+                        plan.clear();
+                        plan.set_blit_budget_limits({8192, 16384, 4, 120});
+                    }
+                    auto job = m_field[pf].draw_block_job(
+                        a * m_cfg.tile_width, b * m_field[pf].block_planes_lines(), a, b);
+                    if (!plan.add_tile_block_copy(job)) return false;
+                }
+            }
+            if (plan.blit_job_count() > 0) {
+                if (!backend.execute_frame_plan(plan)) return false;
+                plan.clear();
+            }
+        }
+        return true;
+    }
+
+    /// Pre-scrolla los playfields hacia delante (derecha/abajo) para dar
+    /// recorrido a las direcciones reversas. Ejecuta los planes en lotes.
+    template <typename Backend>
+    bool pre_scroll(Backend& backend, graphics::FramePlan& plan, eng::s32 px_x, eng::s32 px_y) {
+        plan.clear();
+        plan.set_blit_budget_limits({8192, 16384, 4, 120});
+        const eng::u8 n = fields();
+        for (eng::s32 i = 0; i < px_x; ++i) {
+            for (eng::u8 pf = 0; pf < n; ++pf) {
+                if (!m_field[pf].scroll_right(plan)) return false;
+            }
+            if (plan.blit_job_count() >= 120) {
+                if (!backend.execute_frame_plan(plan)) return false;
+                plan.clear();
+                plan.set_blit_budget_limits({8192, 16384, 4, 120});
+            }
+        }
+        for (eng::s32 i = 0; i < px_y; ++i) {
+            for (eng::u8 pf = 0; pf < n; ++pf) {
+                if (!m_field[pf].scroll_down(plan)) return false;
+            }
+            if (plan.blit_job_count() >= 120) {
+                if (!backend.execute_frame_plan(plan)) return false;
+                plan.clear();
+                plan.set_blit_budget_limits({8192, 16384, 4, 120});
+            }
+        }
+        if (plan.blit_job_count() > 0) {
+            if (!backend.execute_frame_plan(plan)) return false;
+            plan.clear();
+        }
+        return true;
+    }
+
+    /// Desplazamiento explícito de 1 px (o 0) por eje, para un juego. Aplica el
+    /// parallax configurado al PF2. Devuelve false si un borde bloqueó el avance.
+    bool update(graphics::FramePlan& plan, eng::s32 dx, eng::s32 dy, eng::u32 frame) {
+        const eng::u8 n = fields();
+        const bool pf2_x = !m_cfg.parallax_x || (frame % m_cfg.parallax_x_div) == 0u;
+        for (int axis = 0; axis < 2; ++axis) {
+            const bool isH = (axis == 0);
+            const eng::s32 step = isH ? dx : dy;
+            if (step == 0) continue;
+            for (eng::u8 pf = 0; pf < n; ++pf) {
+                if (isH && pf == 1 && !pf2_x) continue; // parallax en X del PF2
+                bool ok;
+                if (isH) ok = (step > 0) ? m_field[pf].scroll_right(plan) : m_field[pf].scroll_left(plan);
+                else     ok = (step > 0) ? m_field[pf].scroll_down(plan) : m_field[pf].scroll_up(plan);
+                if (!ok) return false; // borde: no se pudo avanzar este eje
+            }
+        }
+        return true;
+    }
+
+    /// Avanza el camino configurado (1 px/frame según `effect`/`phase`). En las
+    /// fases con componente negativa y diagonales el scroll inverso queda
+    /// bloqueado en el borde 0 (no falla). Devuelve el dx/dy aplicados por referencia.
+    bool update_auto(graphics::FramePlan& plan, eng::u32 frame, eng::s32& dx, eng::s32& dy) {
+        dx = 0; dy = 0;
+        const eng::u32 phase = (m_cfg.effect == 0)
+            ? (m_cfg.start_phase + frame / m_cfg.phase_frames) % 8
+            : static_cast<eng::u32>(m_cfg.effect - 1);
+        switch (phase) {
+            case 0: dx = 1; dy = 0; break;
+            case 1: dx = -1; dy = 0; break;
+            case 2: dx = 0; dy = 1; break;
+            case 3: dx = 0; dy = -1; break;
+            case 4: dx = (frame & 1u) ? 1 : 0; dy = (frame & 1u) ? 0 : 1; break;
+            case 5: dx = (frame & 1u) ? -1 : 0; dy = (frame & 1u) ? 0 : -1; break;
+            case 6: case 7: {
+                const eng::u8 fx = static_cast<eng::u8>((phase == 7) ? (frame + 32u) : frame);
+                const eng::s32 sx = sin64_q8(fx);
+                const eng::s32 sy = sin64_q8(static_cast<eng::u8>((fx * 7u / 10u) & 63u));
+                dx = (sx > 20) ? 1 : (sx < -20 ? -1 : 0);
+                dy = (sy > 20) ? 1 : (sy < -20 ? -1 : 0);
+                if (dx == 0 && dy == 0) dx = 1;
+                break;
+            }
+            default: dx = 1; dy = 0; break;
+        }
+        return update(plan, dx, dy, frame);
+    }
+
+    /// Genera la copperlist del frame (single o dual) a partir del estado actual
+    /// de los campos. Llámala tras ejecutar el plan.
+    bool compose() {
+        if (!m_initialized) return false;
+        if (m_cfg.dual) {
+            return m_dual.compose(m_field[0].hardware_view(), m_field[1].hardware_view());
+        }
+        return m_single.compose(m_field[0].hardware_view());
+    }
+
+    template <typename Backend>
+    void install(Backend& backend) const {
+        if (!m_initialized) return;
+        if (m_cfg.dual) m_dual.install(backend);
+        else m_single.install(backend);
+    }
+
+    constexpr bool ok() const { return m_initialized; }
+    constexpr eng::u8 fields() const { return m_cfg.dual ? 2u : 1u; }
+    constexpr const XlimitedSceneConfig& config() const { return m_cfg; }
+    XlimitedField& field(eng::u8 pf = 0) { return m_field[pf]; }
+    const XlimitedField& field(eng::u8 pf = 0) const { return m_field[pf]; }
+
+private:
+    /// Seno Q8 de 64 pasos (independiente de demo::sin64 para que la escena no
+    /// dependa de `tile_demo.hpp`).
+    static constexpr eng::s32 sin64_q8(eng::u8 index) {
+        constexpr eng::s16 t[] {
+            0, 6, 12, 18, 24, 31, 36, 41, 45, 49, 53, 56, 59, 61, 63, 64,
+            64, 64, 63, 61, 59, 56, 53, 49, 45, 41, 36, 31, 24, 18, 12, 6,
+            0, -6, -12, -18, -24, -31, -36, -41, -45, -49, -53, -56, -59, -61, -63, -64,
+            -64, -64, -63, -61, -59, -56, -53, -49, -45, -41, -36, -31, -24, -18, -12, -6,
+        };
+        return t[index & 63u];
+    }
+
+    XlimitedSceneConfig m_cfg {};
+    XlimitedField m_field[2] {};
+    MemoryBlock m_tiles[2] {};
+    XlimitedDisplayComposer m_single {};
+    XlimitedDualComposer m_dual {};
+    bool m_initialized = false;
+};
+
+} // namespace eng::field
