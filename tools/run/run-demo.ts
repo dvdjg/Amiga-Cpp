@@ -716,6 +716,8 @@ const sequenceCameraXArg = argValue('--sequence-camera-x', '');
 const sequenceCameraX = sequenceCameraXArg === ''
   ? []
   : sequenceCameraXArg.split(',').map((value) => parseInt(value.trim(), 10)).filter((value) => Number.isInteger(value) && value >= 0 && value <= 255);
+const telemetrySamples = Math.max(0, parseInt(argValue('--telemetry-samples', '0'), 10));
+const telemetryIntervalMs = Math.max(10, parseInt(argValue('--telemetry-interval-ms', '120'), 10));
 const warpEnabled = hasArg('--warp');
 const mousePath = buildMousePathFromArgs();
 const mouseDelayMs = Math.max(0, parseInt(argValue('--mouse-duration-ms', '800'), 10)) / Math.max(1, mousePath.length - 1);
@@ -983,6 +985,37 @@ try {
         timeoutMs: 1000,
       } : null
     );
+  }
+
+  // Telemetría por frame (opcional): lee `g_eng_frame_telemetry` (u32 frame,
+  // u16 blit_jobs, u16 blit_words, u16 copper_words, u16 fillup_extra) por GDB
+  // durante `telemetrySamples` muestras → permite medir el coste real de jobs
+  // del scrolling (skip-on-equal, fusión, etc.).
+  const telemetrySymbol = findMapSymbol(builtMap, 'g_eng_frame_telemetry');
+  // Las secciones runtime las devuelve el comando `state` del canal lateral y
+  // se guardan en report.sideChannel.state.sections (no en .value.state).
+  const sideSections = report.sideChannel?.state?.sections;
+  if (telemetrySamples > 0 && telemetrySymbol !== null && Array.isArray(sideSections) && sideSections.length > 0) {
+    const telAddr = resolveRuntimeSymbolAddress(telemetrySymbol, builtMapSections, sideSections);
+    if (telAddr !== null) {
+      report.telemetry = [];
+      for (let t = 0; t < telemetrySamples; ++t) {
+        try {
+          const b = await protocol.readMemory(telAddr, 12);
+          // m68k es big-endian: leer los campos del struct en BE.
+          report.telemetry.push({
+            frame: b.readUInt32BE(0),
+            blit_jobs: b.readUInt16BE(4),
+            blit_words: b.readUInt16BE(6),
+            copper_words: b.readUInt16BE(8),
+            fillup_extra: b.readUInt16BE(10),
+          });
+        } catch (err) {
+          report.telemetry.push({ error: err.message });
+        }
+        await sleep(telemetryIntervalMs);
+      }
+    }
   }
 
   const screenshot = await captureScreenshot(protocol, screenshotPath);

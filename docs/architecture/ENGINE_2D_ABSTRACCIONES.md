@@ -110,6 +110,10 @@ Representa "una forma de hardware del framebuffer": un `Bitmap` + el mapeo lógi
    └────────────────────┘            └────────────────────────────────┘
         world row 20                      planeline 80 = fila 20, plano 0
 ```
+ 
+### Auditoría: layout INTERLEAVED y 1 job de Blitter por tile (2026-09)
+ 
+Ambos bitmaps — el BANCO DE BLOQUES (tileset, `xlimited_build_blocks_bitmap`) y el PLAYFIELD (`XLimitedPlayfield::begin` → `Bitmap{layout:Interleaved}`) — son **interleaved**: en una misma línea de píxeles los planos son contiguos (`planeline = row*planes + plane`, dirección `frontbuffer + y_planeline*bytes_per_row + x`). Por eso un tile 16×16×planes es UNA "columna" de `BLOCKPLANELINES = tile_height*planes` líneas y se copia en **UN solo job**: `draw_block_job` emite `words × BLOCKPLANELINES` con `bitplane_count=1` y el backend programa `BLTSIZE = (job.height << 6) | job.words_per_row` (amiga_minimal.cpp:242). Con layout *no interleaved* serían `planes` jobs por tile (inaceptable). Medido (canal lateral): muestrario DPF (K_STEP=2, aleatorio) ≈ **15 jobs/frame** (media), copper_words 108; coherente ≈ 1-2 tras la fusión esperada.
 
 Virtudes:
 - Separa el hardware (memoria + dirección física) de la lógica de dibujo; un playfield es agnóstico de quién pinta.
