@@ -762,7 +762,7 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
     /// \param y  coordenada Y en **planeline** (no píxeles)
     /// \param mapx índice de bloque en X del mapa
     /// \param mapy índice de bloque en Y del mapa
-    graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
+graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
         // x word-aligned como en DrawBlock: (x/8) & 0xFFFE
         const u16 x_word = static_cast<u16>((x / 8u) & 0xFFFEu);
         const u32 dst_offset = static_cast<u32>(y) * m_bytes_per_row + x_word;
@@ -1052,7 +1052,7 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
 
         // Cálculo idéntico a UpdateCopperlist (xlimited.c:579-613) para
         // fetch normal (I=tile_width). Para fetch ancho se generaliza con I.
-        const u16 I = fetch_scroll_pixels(m_cfg.fetch_mode);
+const u16 I = fetch_scroll_pixels(m_cfg.fetch_mode);
         const s32 xpos = m_scroll.state().videoposx + static_cast<s32>(I) - 1;
         const u32 planeaddx = static_cast<u32>(xpos / I) * (I / 8u);
         s32 fine = (static_cast<s32>(I) - 1) - (xpos & (I - 1));

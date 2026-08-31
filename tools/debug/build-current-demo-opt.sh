@@ -31,7 +31,20 @@ case "$RELATIVE" in
 		;;
 	*)
 		echo "El archivo no pertenece a demos/<nombre>/src o tests/<nombre>/src: $RELATIVE" >&2
-		exit 1
+		echo "F5 compila la demo que contiene el archivo ACTIVO. Para ejecutar la demo" >&2
+		echo "107_xlimited_corkscrew abre y enfoca su src/main.cpp antes de pulsar F5:" >&2
+		echo "  demos/107_xlimited_corkscrew/src/main.cpp" >&2
+		CURRENT_OUT="$ROOT/out/debug-current"
+		mkdir -p "$CURRENT_OUT"
+		cat > "$CURRENT_OUT/session_opt.json" <<EOF
+{
+  "status": "failed",
+  "reason": "file_not_in_demo_src",
+  "source": "$SOURCE",
+  "builtAt": "$(date -Iseconds)"
+}
+EOF
+		exit 2
 		;;
 esac
 
@@ -48,17 +61,29 @@ TARGET_NAME="$(basename "$TARGET")"
 SOURCE_OUT="$ROOT/out/demos/$TARGET_NAME"
 CURRENT_OUT="$ROOT/out/debug-current"
 mkdir -p "$CURRENT_OUT"
-cp "$SOURCE_OUT/$TARGET_NAME.exe" "$CURRENT_OUT/current_opt.exe"
+# Build por configuraciones: --debug = -O1 se publica en .../A500_debug/.
+CONFIG_DIRS="$(ls -dt "$SOURCE_OUT"/A500_debug 2>/dev/null)"
+CONFIG_EXE="$(ls -t "$CONFIG_DIRS"/*.exe 2>/dev/null | head -n1)"
+if [ -z "$CONFIG_EXE" ]; then
+	CONFIG_EXE="$(ls -t "$SOURCE_OUT"/*/*.exe 2>/dev/null | head -n1)"
+fi
+if [ -z "$CONFIG_EXE" ]; then
+	echo "No se encontró el .exe de $TARGET_NAME (build por configuraciones)." >&2
+	exit 1
+fi
+CONFIG_BASE="${CONFIG_EXE%.exe}"
+echo "[debug-current] binario: $CONFIG_EXE"
+cp "$CONFIG_BASE.exe" "$CURRENT_OUT/current_opt.exe"
 if command -v cygpath >/dev/null 2>&1; then
-	SOURCE_EXE_WIN="$(cygpath -w "$SOURCE_OUT/$TARGET_NAME.exe")"
+	SOURCE_EXE_WIN="$(cygpath -w "$CONFIG_BASE.exe")"
 	CURRENT_NO_EXT_WIN="$(cygpath -w "$CURRENT_OUT/current_opt")"
 	powershell.exe -NoProfile -Command "Copy-Item -LiteralPath '$SOURCE_EXE_WIN' -Destination '$CURRENT_NO_EXT_WIN' -Force"
 else
-	cp "$SOURCE_OUT/$TARGET_NAME.exe" "$CURRENT_OUT/current_opt"
+	cp "$CONFIG_BASE.exe" "$CURRENT_OUT/current_opt"
 fi
-cp "$SOURCE_OUT/$TARGET_NAME.elf" "$CURRENT_OUT/current_opt.elf"
-cp "$SOURCE_OUT/$TARGET_NAME.map" "$CURRENT_OUT/current_opt.map"
-cp "$SOURCE_OUT/$TARGET_NAME.s" "$CURRENT_OUT/current_opt.s"
+cp "$CONFIG_BASE.elf" "$CURRENT_OUT/current_opt.elf"
+cp "$CONFIG_BASE.map" "$CURRENT_OUT/current_opt.map"
+cp "$CONFIG_BASE.s" "$CURRENT_OUT/current_opt.s"
 
 if command -v cygpath >/dev/null 2>&1; then
 	SOURCE_WIN="$(cygpath -w "$SOURCE")"
