@@ -170,11 +170,17 @@ public:
             fc.fetch_mode = cfg.fetch_mode;
             if (!m_field[pf].begin(memory, fc)) return false;
         }
-        // Compositores.
+        // Compositores. DIWSTOP derivado del viewport: las filas bajo el
+        // viewport quedan fuera del display (borde/negro o HUD).
+        const u16 diwstop = xlimited_detail::diwstop_for_viewport(cfg.viewport_h);
         if (cfg.dual) {
-            if (!m_dual.init(memory, {cfg.palette, cfg.copper_bytes, cfg.planes, false})) return false;
+            if (!m_dual.init(memory, {cfg.palette, cfg.copper_bytes, cfg.planes, false,
+                xlimited_detail::kDiwStrt, diwstop,
+                xlimited_detail::kDdfStrt, xlimited_detail::kDdfStop})) return false;
         } else {
-            if (!m_single.init(memory, {cfg.palette, cfg.copper_bytes, cfg.planes})) return false;
+            if (!m_single.init(memory, {cfg.palette, cfg.copper_bytes, cfg.planes,
+                xlimited_detail::kDiwStrt, diwstop,
+                xlimited_detail::kDdfStrt, xlimited_detail::kDdfStop})) return false;
         }
         m_initialized = true;
         return true;
@@ -316,6 +322,12 @@ public:
     constexpr const XlimitedSceneConfig& config() const { return m_cfg; }
     constexpr u16 copper_words() const {
         return m_cfg.dual ? m_dual.copper_words() : m_single.copper_words();
+    }
+    /// ¿El split es siempre esperable con esta configuración (viewport <= 215)?
+    /// Si es true, `linear_display` es innecesario: el modo split canónico usa
+    /// 1 blit por operación y no tiene artefacto.
+    constexpr bool split_always_waitable() const {
+        return m_field[0].split_always_waitable();
     }
     XlimitedField& field(eng::u8 pf = 0) { return m_field[pf]; }
     const XlimitedField& field(eng::u8 pf = 0) const { return m_field[pf]; }

@@ -319,6 +319,16 @@ constexpr u16 kDdfStrt = 0x0030;
 constexpr u16 kDdfStop = 0x00D0;
 constexpr u16 kDiwStrt = 0x2981;
 constexpr u16 kDiwStop = 0x29C1;
+
+/// DIWSTOP para un viewport de `viewport_h` filas visibles (PAL, inicio en la
+/// línea 41). Codificación OCS: el stop vertical es `(diwstop >> 8)` y si su
+/// bit 7 está a 0 el hardware suma 256 (WinUAE calcvdiw). Así un viewport más
+/// corto (p. ej. 224) deja las filas inferiores FUERA del DIW → se ven como
+/// borde (negro, o un HUD dibujado aparte) y no llegan al DAC como scroll.
+constexpr u16 diwstop_for_viewport(u16 viewport_h) {
+    const u16 vstop = static_cast<u16>(41u + viewport_h);
+    return static_cast<u16>(((vstop & 0xffu) << 8) | 0x00c1u);
+}
 } // namespace xlimited_detail
 
 /// Configuración de un campo XLimited.
@@ -749,6 +759,73 @@ public:
         }
         return true;
     }
+
+    // -------------------------------------------------------------------------
+    // Primitiva de dibujo de framebuffer (sprites/blobs/CPU): abstrae el layout
+    // de memoria real. TODAS las rutinas de dibujo futuras deben pasar por aquí.
+    //   - split (canónico): el destino se envuelve en el bucle y, si el rect
+    //     cruza `display_height`, se parte en dos (regla "split = parte").
+    //   - linear_display (espejo): el destino se dibuja en el bucle y se duplica
+    //     al espejo (regla "espejo = duplica").
+    // Toma COORDENADAS DE MUNDO (wx, wy en píxeles): el display ya resuelve el
+    // desplazamiento de cámara (planeaddx/display_offset), así que un objeto en
+    // el mundo se dibuja aquí y aparece en pantalla scrolleando con el fondo.
+    // Para un objeto fijo en pantalla (HUD), el caller convierte pantalla→mundo
+    // con `mapposx()+x` / `mapposy()+y` cada frame.
+    // -------------------------------------------------------------------------
+
+    /// Emite un rectángulo planar (separate planes) de `seg` filas de pantalla en
+    /// la planelínea `planeline_start` (por plano p: planeline_start+p).
+    bool emit_world_rect(graphics::FramePlan& plan, const u16* src, u16 x_byte,
+                          u32 planeline_start, u16 words, u16 seg_rows,
+                          u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
+        const s16 src_mod = static_cast<s16>(src_row_bytes - words * 2);
+        const s16 dst_mod = static_cast<s16>(m_bitmap_bytes_per_row * planes - words * 2);
+        for (u8 p = 0; p < planes; ++p) {
+            const u16* s = src + static_cast<u32>(p) * (src_plane_stride / 2u);
+            u16* d = reinterpret_cast<u16*>(const_cast<u8*>(m_frontbuffer) +
+                (planeline_start + static_cast<u32>(p)) * m_bitmap_bytes_per_row + x_byte);
+            graphics::BlitJob job {
+                graphics::BlitJobKind::CopyRect, nullptr, s, d,
+                words, seg_rows, src_mod, dst_mod,
+                1, 0, src_plane_stride, static_cast<u32>(m_bitmap_bytes_per_row * planes), false
+            };
+            if (!plan.add_copy_rect(job)) return false;
+        }
+        return true;
+    }
+
+    /// Dibuja un rectángulo planar (separate planes, `planes` planos, cada fila de
+    /// `src_row_bytes`, cada plano separado `src_plane_stride` bytes) en el MUNDO.
+    /// `wx` debe ser múltiplo de 16 (word-aligned). El origen `src` debe estar en
+    /// Chip RAM (el Blitter no lee .rodata). Gestiona la costura y el espejo.
+    bool add_world_bitmap(graphics::FramePlan& plan,
+                          const u16* src, s32 wx, s32 wy, u16 w, u16 h,
+                          u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
+        if (!m_initialized || src == nullptr || planes == 0) return false;
+        if (wx < 0 || (wx & 15) != 0) return false;
+        const s32 loop = ((wy % m_display_height) + m_display_height) % m_display_height;
+        const u16 words = static_cast<u16>(w / 16u);
+        const u16 x_byte = static_cast<u16>((wx / 8u) & 0xfffeu);
+        s32 r = loop;
+        u16 remaining = h;
+        while (remaining > 0) {
+            const u16 seg = static_cast<u16>(
+                (r + remaining > m_display_height) ? (m_display_height - r) : remaining);
+            // Dibujo en el bucle (partido por la costura si cruza display_height).
+            if (!emit_world_rect(plan, src, x_byte, static_cast<u32>(r) * planes,
+                    words, seg, src_row_bytes, src_plane_stride, planes)) return false;
+            // En modo lineal, duplicar al espejo para que el framebuffer quede coherente.
+            if (m_linear_display) {
+                if (!emit_world_rect(plan, src, x_byte,
+                        static_cast<u32>(r + m_display_height) * planes,
+                        words, seg, src_row_bytes, src_plane_stride, planes)) return false;
+            }
+            remaining = static_cast<u16>(remaining - seg);
+            r = 0; // la segunda parte envuelve al inicio del bucle
+        }
+        return true;
+    }
     /// Guarda la word que el blit plane-shifted va a pisar (guarda de 1 word).
     void save_word(u32 byte_offset) {
         m_savewordpointer = reinterpret_cast<u16*>(
@@ -1056,6 +1133,41 @@ public:
     constexpr s32 videoposx() const { return m_videoposx; }
     constexpr s32 mapposy() const { return m_mapposy; }
     constexpr s32 videoposy() const { return m_videoposy; }
+
+    /// Fila (en píxeles) del bucle vertical donde empieza la ventana visible.
+    /// Coincide con `(videoposy + tile_height) % display_height`.
+    constexpr s32 display_offset() const {
+        return static_cast<s32>((m_videoposy + m_cfg.tile_height) % m_display_height);
+    }
+
+    /// ¿El split del corkscrew es SIEMPRE esperable (raster <= 255)?
+    ///
+    /// El raster del split = DIWSTRT_y + (display_height - display_offset). El
+    /// máximo (cuando el split es necesario) es `DIWSTRT_y + viewport_h - 1 =
+    /// viewport_h + 40`. El WAIT del Copper compara solo 8 bits (máx 255), así
+    /// que el split es 100% fiable si `viewport_h + 40 <= 255`, es decir
+    /// `viewport_h <= 215` (208 = 13 filas de tile, 192 = 12 filas). Con eso el
+    /// modo split es CANÓNICO: 1 blit por operación, sin espejo ni artefacto.
+    /// Para viewports más altos (p. ej. 256) el split puede caer en 256..296 y
+    /// hace falta `linear_display` (espejo, 2× blits) para evitarlo.
+    constexpr bool split_always_waitable() const {
+        return static_cast<u16>(m_cfg.viewport_h + 40u) <= 255u;
+    }
+
+    /// Convierte una fila de pantalla (0 = arriba, sy < viewport_h) a la fila
+    /// del bitmap (en píxeles) donde se dibuja. Las rutinas de dibujo de
+    /// framebuffer (sprites/blobs/CPU) deben usar ESTA fila y, si cruzan la
+    /// costura (en modo split), partir el rectángulo.
+    ///
+    ///   - linear_display: devuelve `display_offset + sy` sin envolver (la
+    ///     lectura lineal entra en el espejo; el dibujo se hace en el bucle y
+    ///     se duplica al espejo).
+    ///   - split: devuelve `(display_offset + sy) % display_height` (envuelve en
+    ///     el bucle; si el rect cruza `display_height` hay que partirlo).
+    constexpr s32 screen_to_bitmap_row(s16 sy) const {
+        const s32 row = display_offset() + sy;
+        return m_linear_display ? row : (row % m_display_height);
+    }
     constexpr u16 bitmap_bytes_per_row() const { return m_bitmap_bytes_per_row; }
     constexpr u16 bitmap_width() const { return m_bitmap_width; }
     constexpr u16 bitmap_height() const { return m_bitmap_height; }

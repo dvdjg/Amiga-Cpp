@@ -195,6 +195,64 @@ espejo): sin split, el wrap se lee de forma contigua del espejo y la banda de
 staging nunca se muestra. Verificado en WinUAE: captura V de 120 frames
 (mapposy 0..225) con **0/119 pares desincronizados** (antes 12/69).
 
+## Modo canónico para juegos (viewport corto + split)
+
+El modo que usan los juegos clásicos es el **corkscrew con split** en un
+viewport de **224 px** (defecto de la demo), dejando abajo una franja de 32 px
+de **borde negro** (o un HUD dibujado aparte). La franja inferior **no se envía
+al DAC como scroll**: el compositor deriva `DIWSTOP` del viewport
+(`xlimited_detail::diwstop_for_viewport`, codificación OCS:
+`vstop = (diwstop>>8) | 0x100 si bit 7 claro`), así que las líneas bajo el
+viewport muestran el color de borde (COLOR00 = negro) y no llegan al display
+como bitplanes.
+
+El engine expone `split_always_waitable()` (`XlimitedScene`):
+`viewport_h <= 215` ⇒ el split cae siempre en raster 41..255 y es 100 % fiable.
+Múltiplos de 16 limpios: **208** (13 filas de tile) y **192** (12 filas).
+**224** (14 filas) es la frontera: en ~9 frames por ciclo el split caería en
+raster 256..264, pero en la práctica es inapreciable (verificado 0/119) y la
+franja de 32 px de borde/HUD la cubre. Para viewports mayores (256) el split
+cae en 256..296 y hace falta `linear_display`.
+
+```bash
+# Modo canónico de juego (defecto): 320×224, split, 1 blit por operación, sin espejo
+bash ./tools/build/build-demo.sh demos/107_xlimited_corkscrew --debug --clean
+# Garantizado 100% limpio: 208 (13 filas)
+EXTRA_DEFINES="-DK_VIEWPORT_H=208" bash ...
+# Pantalla completa sin split (espejo, 2× blits): 256
+EXTRA_DEFINES="-DK_VIEWPORT_H=256 -DK_LINEAR=1" bash ...
+```
+
+**Altura de tiles para el scroll horizontal**: con `viewport_h=224`, el scroll
+horizontal muestra **14 filas de tiles** (224/16), no 16; con 208, 13. El mapa
+se deriva de `K_SCREENS_Y * (K_VIEWPORT_H / K_TILE_H)`.
+
+## Implicaciones para las rutinas de dibujo de framebuffer
+
+Ambos modos imponen una regla sobre CUALQUIER dibujo futuro en el framebuffer
+(sprites de Blitter, blobs, escrituras de CPU):
+
+- **`linear_display` (espejo)**: cada operación que escribe en el bucle
+  (filas 0..display_height-1) **debe duplicarse al espejo** (filas +display_height),
+  o el framebuffer queda incoherente. Coste: 2× operaciones (blits o escrituras
+  de CPU) para TODO el dibujo. A cambio, no hay que partir rectángulos: la
+  lectura lineal del display continúa por el espejo.
+- **split (bucle)**: cada operación se hace una sola vez (1×), pero el destino
+  se obtiene con `XlimitedField::screen_to_bitmap_row(sy)`
+  (`(display_offset + sy) % display_height`) y, si el rectángulo cruza la
+  costura del bucle (fila + alto > display_height), **hay que partirlo en dos
+  blits** (final del bucle + inicio).
+
+**Primitiva de dibujo `add_world_bitmap`** (`XlimitedField`): TODAS las rutinas
+de dibujo deben pasar por aquí. Toma **coordenadas de mundo** (`wx`, `wy` en
+píxeles; `wx` múltiplo de 16) y un origen **planar** (planos separados, cada
+fila `src_row_bytes`, cada plano `src_plane_stride` bytes, el origen debe estar
+en **Chip RAM** porque el Blitter no lee `.rodata`). Internamente abstrae la
+regla: **espejo = duplica** (2 blits por plano en modo lineal) o **split =
+parte** (divide en la costura del bucle). Para un objeto fijo en pantalla (HUD),
+el caller pasa `mapposx()+x` / `mapposy()+y` (alineando x a 16) cada frame;
+para un objeto del mundo, la posición fija del mundo.
+
 ## Monitorización de carga (frame a frame)
 
 Para supervisar la homogeneidad de CPU/Blitter/bus y detectar picos, la demo
