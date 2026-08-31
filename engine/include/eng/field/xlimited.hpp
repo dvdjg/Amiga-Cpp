@@ -656,6 +656,69 @@ public:
         return true;
     }
 
+    // -------------------------------------------------------------------------
+    // Primitivas de dibujo POR CPU sobre el framebuffer (mismo mapeo que
+    // add_world_bitmap). Todas las rutinas de dibujo deben pasar por aquí.
+    //  - `world_to_planeline(wy)`: fila del bucle donde vive el píxel (costura).
+    //  - `write_planes`: escribe la máscara en los `planes` bitplanes interleaved.
+    //  - `set_pixel` / `fill_rect` / `draw_line`: coordenadas de MUNDO (wx, wy);
+    //    en modo lineal también escriben al espejo (regla "espejo = duplica").
+    //  Restricción: wx dentro de una fila (byte < bitmap_bytes_per_row). Para
+    //  objetos anchos o plane-shifted usa add_world_bitmap (blits).
+    // -------------------------------------------------------------------------
+
+    /// Fila (en planelíneas) de inicio de la fila de mundo `wy` en el bucle.
+    constexpr u32 world_to_planeline(s32 wy) const {
+        const s32 loop = ((wy % m_display_height) + m_display_height) % m_display_height;
+        return static_cast<u32>(loop) * m_cfg.planes;
+    }
+
+    /// Escribe la máscara (bit del píxel) en los `planes` bitplanes de la
+    /// planelínea `planeline` en el byte `xbyte` (word-aligned).
+    void write_planes(u32 planeline, u32 xbyte, u16 mask, u8 color) {
+        u8* base = m_frontbuffer + planeline * m_bitmap_bytes_per_row;
+        for (u8 p = 0; p < m_cfg.planes; ++p) {
+            u16* w = reinterpret_cast<u16*>(base + static_cast<u32>(p) * m_bitmap_bytes_per_row + xbyte);
+            if ((color & (1u << p)) != 0u) *w |= mask;
+            else *w &= ~mask;
+        }
+    }
+
+    /// Dibuja un píxel de mundo en color (0..2^planes-1). En modo lineal duplica
+    /// al espejo. wx dentro de la fila (byte < bitmap_bytes_per_row).
+    void set_pixel(s32 wx, s32 wy, u8 color) {
+        if (!m_initialized || wx < 0) return;
+        const u32 xbyte = static_cast<u32>(wx / 16) * 2u;
+        if (xbyte >= m_bitmap_bytes_per_row) return;
+        const u16 mask = static_cast<u16>(0x8000u >> (wx & 15));
+        const u32 pl = world_to_planeline(wy);
+        write_planes(pl, xbyte, mask, color);
+        if (m_linear_display) write_planes(pl + static_cast<u32>(m_display_height) * m_cfg.planes, xbyte, mask, color);
+    }
+
+    /// Rellena un rectángulo de mundo (CPU). Para rects grandes usa add_world_bitmap.
+    void fill_rect(s32 wx, s32 wy, u16 w, u16 h, u8 color) {
+        for (u16 dy = 0; dy < h; ++dy)
+            for (u16 dx = 0; dx < w; ++dx)
+                set_pixel(wx + dx, wy + dy, color);
+    }
+
+    /// Línea oblicua de mundo (Bresenham) por CPU, vía set_pixel.
+    void draw_line(s32 wx0, s32 wy0, s32 wx1, s32 wy1, u8 color) {
+        const s32 dx = wx1 > wx0 ? wx1 - wx0 : wx0 - wx1;
+        const s32 dy = wy1 > wy0 ? wy1 - wy0 : wy0 - wy1;
+        const s32 sx = wx0 < wx1 ? 1 : -1;
+        const s32 sy = wy0 < wy1 ? 1 : -1;
+        s32 err = dx - dy;
+        for (;;) {
+            set_pixel(wx0, wy0, color);
+            if (wx0 == wx1 && wy0 == wy1) break;
+            const s32 e2 = 2 * err;
+            if (e2 > -dy) { err -= dy; wx0 += sx; }
+            if (e2 < dx)  { err += dx; wy0 += sy; }
+        }
+    }
+
     /// Construye el `BlitJob` de un bloque (contrato de xlimited.c:201).
     ///
     /// \param x  coordenada X en píxeles (será word-aligned)
