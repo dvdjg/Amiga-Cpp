@@ -681,6 +681,19 @@ if (fs.existsSync(demosRoot)) {
   }
   if (best.exe) { builtExe = best.exe; builtMap = best.map; configId = best.cfg; }
 }
+// `--config <id>` fuerza una config concreta (p. ej. A500_release) sin pasar por
+// la prioridad, útil para validar un perfil concreto (regresión de release).
+const forcedConfig = argValue('--config', '');
+if (forcedConfig) {
+  const forcedDir = path.join(demosRoot, forcedConfig);
+  const forcedExe = path.join(forcedDir, `${demoName}.${forcedConfig}.exe`);
+  if (!fs.existsSync(forcedExe)) {
+    throw new Error(`--config "${forcedConfig}": no existe ${forcedExe}. Compila esa config antes.`);
+  }
+  builtExe = forcedExe;
+  builtMap = path.join(forcedDir, `${demoName}.${forcedConfig}.map`);
+  configId = forcedConfig;
+}
 const builtMapSections = findMapAllocSections(builtMap);
 if (!fs.existsSync(builtExe)) {
   throw new Error(`No existe ${builtExe}. Compila la demo antes de ejecutarla.`);

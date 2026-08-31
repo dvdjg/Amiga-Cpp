@@ -180,7 +180,7 @@ Defectos:
 
 `ScrollEngine` es un strategy: dado un playfield con el layout apropiado, calcula la cámara (mapposx/y, display_offset, split) y emite los blits de tiles al `FramePlan`. `ScrollMode` especializa: corkscrew 8-way, X-only (sin split), V-only, 1-dir (sin saveword), BPLCON1 simple.
 
-**Estado actual (2026-08-31)**: `engine/include/eng/field/scroll_engine.hpp` implementa la separación por fases. La fase 1 hecha — `ScrollEngine` posee el `ScrollState` (mappos/videopos/dirección/saveword) y el driver `step(plan, sink, dx, dy)` que decide el paso y lo delega en `scroll_right/left/up/down` del playfield (layout sink). La fase 2 pendiente — mover los cuerpos de esos 4 scrollear al engine exige un `ScrollSink` fino (geometría + `add_draw` + costura como interfaz) que el corkscrew no tiene aún; está documentado como el acoplamiento fuerte de §7.Defectos.
+**Estado actual (2026-08-31)**: implementado completo. `engine/include/eng/field/scroll_engine.hpp` posee el `ScrollState` (cámara + dirección) y el ALGORITMO de los 4 scrollear (`scroll_right/left/up/down`), consumido por el playfield vía el concepto `ScrollSink` (template, sin virtuals): geometría, límites de mapa, `add_draw` y la costura `save_word`/`restore_saveword` (que es un seam de LAYOUT, viven en el playfield; el engine decide cuándo restaurar según `previous_xdirection`). El playfield delega con `m_scroll.scroll_right(plan, *this)`. La contracción X-only/V-only/OneDirection se resuelve en el `ScrollMode` del sink.
 
 ```
    ScrollEngine<Mode>                    FramePlan
@@ -820,7 +820,7 @@ Defectos:
 10. **Efectos**: pipeline chunky/c2p, `PaletteAnimator`, `CopperScript`, `Font`/texto; luego 3D, filtros y tiles avanzados.
 11. **Escenas data-driven + runtime_params + parcheo de copper dynamic_partial** y **ScriptVM** (aventuras tipo SCUMM: rooms, actores, walkboxes, verbos, diálogos).
 12. **Streaming desde disquetera** (perfil Amiga): StreamLoader/AssetStream + hook de trackdisk.
-13. **Migración de la demo 107** a `Bitmap`/`Surface`/`ScrollEngine` manteniendo la regresión verde como red de seguridad. **Hecho**: M1a (`Surface`), M1b completo (`CanvasPlayfield` y `XLimitedPlayfield` poseen un `Bitmap`; el segundo modela el offset de fetch 0/16/48 y la guardia +64), API segura (§5.1), M2-parcial (`ScrollEngine` posee el estado de cámara + el driver `step`; el playfield es el layout sink que aplica cada paso). **Pendiente**: M2-restante (mover los cuerpos de `scroll_right/left/up/down` al engine exige un `ScrollSink` fino; el corkscrew está fuertemente acoplado al layout, ver §7 Defectos).
+13. **Migración de la demo 107** a `Bitmap`/`Surface`/`ScrollEngine` manteniendo la regresión verde como red de seguridad. **Hecho**: M1a (`Surface`), M1b (`Bitmap` en `CanvasPlayfield` y `XLimitedPlayfield`, con offset de fetch 0/16/48 y guardia +64), API segura (§5.1) y M2 completo (`ScrollEngine` = cámara + algoritmo de los 4 scrollear; el playfield es el `ScrollSink` por template: geometría + `add_draw` + costura saveword como seam de layout; sin virtuals en el hot path). **Demo 107 cerrada como MUESTRARIO**: default DPF 3+3 con tiles, FG con la mitad de tiles transparentes (checkerboard sobre tile 0 ⇒ PF1 deja ver PF2), ciclo 8-way de 8 fases (~48 s), sprite hardware + BOB + HUD; la regresión fuerza la línea base single (`K_DUAL=0`, pixel-exacta) y barre direcciones (`K_EFFECT`) en single, debug y release (`analyze-sequence.sh [--release]`, `EFFECT=2/4/7` verdes).
 
 ---
 
