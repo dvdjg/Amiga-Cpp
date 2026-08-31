@@ -21,6 +21,7 @@
 /// Reglas del engine: sin heap dinámico, sin RTTI, gnu++23. Los mapas y paletas
 /// los aporta la aplicación (arrays estáticos o `MemoryBlock`).
 
+#include <eng/core/sinetable.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/field/playfield.hpp>
@@ -228,6 +229,8 @@ public:
         if (cfg.dual && cfg.fg_canvas) {
             if (!m_fg_canvas.begin(memory, {cfg.viewport_w, cfg.viewport_h, cfg.planes})) return false;
         }
+        m_phase_frame = 0;
+        m_phase = cfg.start_phase; // fase inicial del ciclo (update_auto)
         m_initialized = true;
         return true;
     }
@@ -320,11 +323,22 @@ public:
     /// Avanza el camino configurado (1 px/frame según `effect`/`phase`). En las
     /// fases con componente negativa y diagonales el scroll inverso queda
     /// bloqueado en el borde 0 (no falla). Devuelve el dx/dy aplicados por referencia.
+    /// La fase del ciclo se avanza con un contador incremental (sin `frame /
+    /// phase_frames` por frame) y la tabla de Lissajous es constexpr: el dedo
+    /// principal NO paga divisiones.
     bool update_auto(graphics::FramePlan& plan, eng::u32 frame, eng::s32& dx, eng::s32& dy) {
         dx = 0; dy = 0;
-        const eng::u32 phase = (m_cfg.effect == 0)
-            ? (m_cfg.start_phase + frame / m_cfg.phase_frames) % 8
-            : static_cast<eng::u32>(m_cfg.effect - 1);
+        eng::u32 phase;
+        if (m_cfg.effect != 0) {
+            phase = static_cast<eng::u32>(m_cfg.effect - 1);
+        } else {
+            // Equivalente a floor(frame/phase_frames) módulo 8 (mismo instante de
+            // transición), sin división por frame: contador por fase.
+            const eng::u32 pff = m_cfg.phase_frames ? m_cfg.phase_frames : 1u;
+            if (m_phase_frame >= pff) { m_phase_frame = 0u; m_phase = static_cast<eng::u8>((m_phase + 1u) & 7u); }
+            ++m_phase_frame;
+            phase = m_phase;
+        }
         switch (phase) {
             case 0: dx = 1; dy = 0; break;
             case 1: dx = -1; dy = 0; break;
@@ -333,9 +347,9 @@ public:
             case 4: dx = (frame & 1u) ? 1 : 0; dy = (frame & 1u) ? 0 : 1; break;
             case 5: dx = (frame & 1u) ? -1 : 0; dy = (frame & 1u) ? 0 : -1; break;
             case 6: case 7: {
-                const eng::u8 fx = static_cast<eng::u8>((phase == 7) ? (frame + 32u) : frame);
-                const eng::s32 sx = sin64_q8(fx);
-                const eng::s32 sy = sin64_q8(static_cast<eng::u8>((fx * 7u / 10u) & 63u));
+                const eng::u8 fx = static_cast<eng::u8>((phase == 7u) ? (frame + 32u) : frame);
+                const eng::s32 sx = kSin[fx];
+                const eng::s32 sy = kSin[kLissY.v[fx & 63u]];
                 dx = (sx > 20) ? 1 : (sx < -20 ? -1 : 0);
                 dy = (sy > 20) ? 1 : (sy < -20 ? -1 : 0);
                 if (dx == 0 && dy == 0) dx = 1;
@@ -432,17 +446,21 @@ public:
     constexpr bool has_hud() const { return m_cfg.hud_height != 0; }
 
 private:
-    /// Seno Q8 de 64 pasos (independiente de demo::sin64 para que la escena no
-    /// dependa de `tile_demo.hpp`).
-    static constexpr eng::s32 sin64_q8(eng::u8 index) {
-        constexpr eng::s16 t[] {
-            0, 6, 12, 18, 24, 31, 36, 41, 45, 49, 53, 56, 59, 61, 63, 64,
-            64, 64, 63, 61, 59, 56, 53, 49, 45, 41, 36, 31, 24, 18, 12, 6,
-            0, -6, -12, -18, -24, -31, -36, -41, -45, -49, -53, -56, -59, -61, -63, -64,
-            -64, -64, -63, -61, -59, -56, -53, -49, -45, -41, -36, -31, -24, -18, -12, -6,
-        };
-        return t[index & 63u];
-    }
+    /// Tabla de seno Q8 generada en COMPILE-TIME (patrón `LissYTable`): cambiar
+    /// la amplitud o el número de pasos es solo instanciar otro `SineTable<Amp>`.
+    /// Sustituye al array de 64 valores escritos a mano (mismos valores a ±1).
+    static constexpr eng::SineTable<64> kSin {};
+
+    /// Tabla constexpr de `(i*7/10)&63` para la fase Lissajous: evita la
+    /// división `/10` por frame (se calcula en compile-time).
+    struct LissYTable {
+        eng::u8 v[64];
+        constexpr LissYTable() {
+            for (eng::u8 i = 0; i < 64u; ++i)
+                v[i] = static_cast<eng::u8>((static_cast<eng::u32>(i) * 7u) / 10u) & 63u;
+        }
+    };
+    static constexpr LissYTable kLissY {};
 
     XlimitedSceneConfig m_cfg {};
     XLimitedPlayfield<SC> m_field[2] {};
@@ -453,6 +471,8 @@ private:
     XlimitedDisplayComposer m_single {};
     XlimitedDualComposer m_dual {};
     bool m_initialized = false;
+    eng::u32 m_phase_frame = 0;      // frames transcurridos en la fase actual
+    eng::u8 m_phase = 0;             // fase activa del ciclo (0..7)
 };
 
 } // namespace eng::field

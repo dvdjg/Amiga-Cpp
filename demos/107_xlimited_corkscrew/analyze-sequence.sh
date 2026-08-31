@@ -58,13 +58,17 @@ cfg_name() { # $1 = EXTRA_DEFINES, $2 = modo (debug|release|o0)
 	echo "${c}_${2:-debug}"
 }
 
-# Modo: --release valida el perfil -Os end-to-end; por defecto debug.
+# Modo: --release valida el perfil -Os end-to-end; --showcase verifica el
+# MUESTRARIO DPF (default dual, FG mitad transparente, 8-way) con animación +
+# transparencia en las dos familias de color. Por defecto debug.
 MODE="debug"
+SHOWCASE=0
 WARP=0
 for arg in "$@"; do
 	case "$arg" in
 		--warp) WARP=1 ;;
 		--release) MODE="release" ;;
+		--showcase) SHOWCASE=1 ;;
 	esac
 done
 extra=()
@@ -375,6 +379,23 @@ fi
 if [ -x "$ANALYZE_DEMO" ] || [ -f "$ANALYZE_DEMO" ]; then
 	echo "[107] analyze-demo.sh (artefactos) ..."
 	"$ANALYZE_DEMO" "$DEMO" || echo "[107] aviso: analyze-demo.sh reportó artefactos, revisar screenshot." >&2
+fi
+
+# 8) MUESTRARIO DPF (--showcase): la demo por defecto (dual, FG la mitad
+#    transparente, sprite+HUD+BOB, 8-way en ciclo) debe animar y mostrar PF2 a
+#    través de los tiles transparentes del FG (transparencia en DPF).
+if [ "$SHOWCASE" -eq 1 ]; then
+	SCI_CFG="$(cfg_name "" "$MODE")"
+	echo "[107] build muestrario DPF ($MODE) ..."
+	EXTRA_DEFINES="" "$BUILD" "$DEMO" --$MODE --clean \
+		|| { echo "No se pudo compilar el muestrario DPF." >&2; exit 1; }
+	echo "[107] captura muestrario (animación + transparencia) ..."
+	"$RUN" "$DEMO" --config "$SCI_CFG" --settle-ms 500 --sequence-frames 7 --sequence-interval-ms 40 "${extra[@]}" \
+		|| { echo "No se pudo capturar el muestrario DPF." >&2; exit 1; }
+	node "$ROOT/tools/analyze/verify-107-showcase.mjs" \
+		"$ROOT/out/run/$DEMO_NAME/$SCI_CFG/screenshot.png" \
+		"$ROOT/out/run/$DEMO_NAME/$SCI_CFG/sequence" \
+		|| { echo "El muestrario DPF 8-way no supera la verificación (animación/transparencia)." >&2; exit 1; }
 fi
 
 echo "OK 107_xlimited_corkscrew sequence — corkscrew verificado (100 derecha, inversión saveword sin hueco 2 bytes, columna plane-shifted del corkscrew)"
