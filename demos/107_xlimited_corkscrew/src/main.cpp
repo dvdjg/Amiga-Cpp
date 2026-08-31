@@ -459,7 +459,7 @@ struct DemoGame {
     PatternMode m_pattern = PDualPatterns; // técnica activa (modo de movimiento)
     eng::u8 m_current = 0;              // índice de la técnica activa (0..N-1)
     eng::u8 m_prevIn = 0;               // último estado de entrada (edge)
-    eng::amiga::KeyboardState m_kbd;    // estado del puerto serie del teclado
+    eng::amiga::KeyboardState m_kbd;    // estado del teclado sintético (memory)
 
     /// PARAR la técnica saliente + INICIAR la entrante (ciclo de vida del
     /// efecto): reinicia la cámara de ambos playfields y la fase del auto-ciclo,
@@ -840,8 +840,8 @@ scene_cfg.max_step = kStepMax;
             tel.fillup_extra = 0;
         }
 
-        // Telemetría: mapposx en bytes bajos, videoposx en altos, BPLCON1 en medio;
-        // byte superior: 0x10 (marcador 107) | técnica activa en el nibble bajo.
+        // Telemetría: mapposx en byte0, videoposx en byte2, BPLCON1 en byte1; byte
+        // superior: 0x10 (marcador 107) | técnica activa en el nibble bajo.
         const auto& f = scene.bg();
         auto view = f.hardware_view();
         const eng::u32 marker = ((0x10u | (m_current & 0x0fu)) << 24) |

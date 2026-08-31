@@ -95,6 +95,13 @@ El bloqueo es explicito:
 `screenshot` se permite desde `observe` porque no modifica el estado Amiga visible;
 aun asi se ejecuta encolado en `vsync_pre()` como el resto de acciones seguras.
 
+**Regla operativa (lección de la Fase 12 del historial)**: `input`/`profile` requieren
+lock `assist` y `poke`/`rollback` requieren `takeover`, y las órdenes con side-effects
+deben ir por el socket 2346 (canal lateral), **nunca por qRcmd del GDB (2345)**: por qRcmd
+se rechazan/colgaban y congelaban la emulación ~2 frames después. `run-demo.ts` ya los
+envía con `sendSideChannelCommand()` + `withSideChannelLock()` (automático al usar
+`--inject-commands` o `--automation-key`).
+
 `poke` y `rollback` requieren lock `takeover`. `poke` esta limitado a 256 bytes,
 lee primero el valor original, escribe, verifica por lectura posterior y crea una
 entrada de auditoria con `writeId`, direccion, longitud, bytes anteriores, bytes
