@@ -155,6 +155,7 @@ do {
 | 2026-08-31 | `<cstdint>` | [✗] No existe (toolchain freestanding, sin libstdc++); usar `eng/types.hpp`. |
 | 2026-08-31 | **"Release (-Ofast/-O2/-Os) cuelga la init de la demo 107"** | [✗] **REVISADO: falso.** El cuelgue era del config `A500_o0` (`--o0`), que `run-demo` elegía por el orden de prioridad (rank 0 igual que `A500_debug`, desempate por mtime) cuando se buscaba probar release. Corregido el picker (`A500_debug`=0, `A500_o0`=1, debug con flags=2, release=4…). Con `A500_o0` eliminado, **release `-Os` corre**: READY + screenshot `OK white=4201`. El `-O0` en émulo de 68000 no llega a READY en 40s (init lenta), no es un bug de flags. |
 | 2026-08-31 | Objetos idénticos but release timeout | [✗] **REVISADO**: el "release" que se ejecutaba era el exe `A500_o0` recién compilado (mismo exe bajo nombre debug corría perfecto). No había UB de optimización; era el runner eligiendo config. |
+| 2026-08-31 | Divisiones en `ScrollEngine` (`/ tile_width`, `% display_height`) | [✓] **Mecanismo `eng::fast_div<N>`** (NTTP + `if constexpr` + `consteval`): con la geometría como constantes (tile 16/16, dh 288, dph 1152) el `scroll_right+left` a `-Os` emite **0 `__udivsi3`** (shifts para potencias de dos, multiplicación mágica para 288); con geometría runtime del sink emite **5 `__udivsi3`**. El `ScrollEngine` quedó templado sobre `ScrollConsts{...}` con fallback runtime (0 = preguntar al sink); cablear las constantes a priori en `XLimitedPlayfield` (templatizarlo/`Scene`) es el siguiente paso para que la demo real pague 0 divisiones. |
 
 ---
 
