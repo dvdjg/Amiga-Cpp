@@ -882,4 +882,36 @@ A 8 kHz, 3 canales estándar: A500 ≈ 2,0 %, A1200 ≈ 1,0 %. Referencia del pr
 
 ---
 
+## Anexo C. Sevgi Engine → ideas transferibles
+
+Referencia: Sevgi Engine (Alper Sonmez, 2025), motor C para Amiga + editor nativo, basado en ScrollingTricks (el mismo árbol que la demo 107). Su enfoque es complementario al del UAF: **generador de código C boilerplate** (el editor escribe código compilable) frente al **intérprete de datos horneados**. Ambas ideas se integran en el engine: configuración generada como constexpr (Sevgi) + niveles como binario (UAF).
+
+### C.1 Ideas transferibles y su mapeo
+
+| Idea de Sevgi | Mapeo en el engine | Virtud / Defecto |
+|---|---|---|
+| El editor escribe headers C compilables (`settings.h`/`assets.h`/`palettes.h`) | Configuración generada como **`constexpr`** (validada con `static_assert`); niveles como binario | Virtud: transparente y debuggeable. Defecto: sincronización manual con el motor |
+| IDs de función → tablas de punteros con índice 0 = NULL | Serializar comportamiento por **enum + tabla de punteros/switch constexpr** | Virtud: sin punteros ni RTTI en datos serializados. Defecto: el índice 0 se reserva |
+| `struct LevelData` como contrato declarativo (editor replica el layout) | Contrato de escena con **`static_assert` de offsets** o generación desde una única fuente | Virtud: simple. Defecto: frágil si se sincroniza a mano |
+| **CopOps** (`struct CopOp {wait,size,pointer}`): metadatos reordenables en Fast, instrucciones en Chip | `CopperBuilder`: representar la escena como structs movibles y materializar el buffer final en Chip | Virtud: no ordenar sobre chip RAM. Defecto: dos buffers (control + instrucciones) |
+| Scroll en dos partes (`scroll` + `scrollRemaining` al inicio del siguiente frame) | **Colas de trabajo diferidas al siguiente frame** para presupuestar CPU/blitter | Virtud: sin bloqueos. Defecto: complejidad de timing |
+| Precálculo `consteval` por configuración (`tilesPerStep`, `posPerStep`, fades, BPLXMOD) | Todo lo derivado de Settings se calcula en compile-time | Virtud: cero coste runtime. Defecto: recompilar al cambiar settings |
+| UI declarativa por macros con herencia de layout (`UIOF_INHERIT_*`) y cycle-chain de foco | Árbol de widgets **`consteval`** + layout en compile-time + "métodos" como punteros a función | Virtud: sin `std::function`, navegable por joystick. Defecto: sin reflow dinámico |
+| Smart Sprites (multiplexado vertical, `behindList`/`rasterList`, HSN) | Extiende `SpriteManager`: prioridad y solapamiento por línea | Virtud: 8 sprites cubren más pantalla. Defecto: reprogram por línea cuesta copper |
+| BOBs beam-chasing (`waitVBeam` antes del blit) | Scheduler de blits: esperar al haz para single-buffer sin tearing | Virtud: sin tearing. Defecto: acopla el blit al raster |
+| `ColorTable` de fades no-FPU (punto fijo precalculado, una suma por matiz) | Extiende `PaletteAnimator`: fades de registros/CLP/gradientes | Virtud: barato. Defecto: precisión 8/20 bits a decidir |
+| **CLP (CopperList Palette)**: paleta en la copperlist | `CopperBuilder`/`Palette`: paleta por franja, fades independientes, evita glitches de escritura directa | Virtud: robusto en aceleradoras. Defecto: más words de copper |
+| `ScrollInfo {up,down,left,right}` + `MAX_SCROLL_SPEED` | La API de scroll pide "cuánto por dirección" y el motor clamp/distribuye | Virtud: API mínima y robusta. Defecto: velocidad acotada |
+| "Módulos incluidos textualmente" para el game loop (`#include` de `level_display_loop.c`) | **Evitar**: en C++23 usar un **context object**/lambdas, testable | Defecto de Sevgi: acoplamiento total al `STATIC` |
+| "Fatty structs" (campos comunes duplicados por tipo de widget) | **Evitar**: `std::variant` o base + CRTP en C++23 | Defecto de Sevgi: duplicación |
+| Paleta como `{num_colors-1, R,G,B,...}` (semántica n-1) | Representación plana de paleta (tamaño en un byte) | Virtud: micro-optimización |
+
+### C.2 La filosofía: generador frente a intérprete
+
+- **UAF** (anexo al §17/§18): el ejecutable es un **intérprete de datos horneados** (escenas, params, scripts). Máxima flexibilidad; requiere un contrato binario versionado.
+- **Sevgi**: el editor genera **código compilable** ajustado al juego. Máxima eficiencia y legibilidad; el código generado es parte del proyecto.
+- **Síntesis para el engine**: **configuración y contratos como código constexpr** (lo estático, validado por el compilador) + **niveles/escenas como binario horneado** (lo dinámico, cargado en runtime). Así se combina lo mejor de ambos: la validación estática de Sevgi con la carga de datos del UAF.
+
+---
+
 *Borrador técnico en revisión. Ajustable tras la discusión de enlaces externos.*
