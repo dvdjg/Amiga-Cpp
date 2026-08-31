@@ -85,12 +85,19 @@ inline MemoryBlock xlimited_build_blocks_bitmap(
 struct XlimitedSceneConfig {
     // --- Geometría -----------------------------------------------------------
     eng::u16 viewport_w = 320;
-    eng::u16 viewport_h = 256;
+    eng::u16 viewport_h = 256;       // alto visible del playfield principal
     eng::u16 tile_width = 16;
     eng::u16 tile_height = 16;
     eng::u8 planes = 4;              // profundidad por playfield (4 single, 3 DPF)
     eng::u8 fetch_mode = 0;          // 0=normal, 1/2=BPL32, 3=BPL32+BPAGEM
     eng::u16 bitmap_width = 0;       // 0 = auto: viewport + EXTRAWIDTH
+
+    // --- HUD (playfield separado en la franja inferior) -------------------
+    eng::u16 hud_height = 0;         // 0 = sin franja. El main usa viewport_h -
+                                     // hud_height filas; la franja inferior muestra
+                                     // `m_hud` (config distinta) vía zona de Copper.
+    eng::u8 hud_planes = 4;          // bitplanes del HUD
+    const eng::u16* hud_palette = nullptr; // paleta del HUD (0..2^hud_planes-1)
 
     // --- Mundo ---------------------------------------------------------------
     TileLayerMap map {};             // mapa de PF1 (cells/wrap/edge)
@@ -144,6 +151,16 @@ public:
         if (cfg.dual && cfg.bg_row_fn == nullptr) return false;
         if (cfg.palette == nullptr) return false;
         if (cfg.map.width == 0 && (cfg.map.wrap_x == 0 && cfg.map.wrap_y == 0)) return false;
+        // Main viewport: el HUD se resta del total. El WAIT de la zona HUD cae en
+        // `DIWSTRT_y + main`; el comparador del Copper es de 8 bits, así que debe
+        // ser <= 255. Con HUD la ventana DIW queda abierta al total (main + hud).
+        const eng::u16 main_h = static_cast<eng::u16>(cfg.viewport_h - cfg.hud_height);
+        const bool hud_zone = cfg.hud_height != 0;
+        if (hud_zone) {
+            if (cfg.hud_height > cfg.viewport_h) return false;
+            if (static_cast<eng::u16>(xlimited_detail::kDiwStrt >> 8u) + main_h > 255u) return false;
+            if (!m_hud.begin(memory, {cfg.viewport_w, cfg.hud_height, cfg.hud_planes})) return false;
+        }
         const eng::u8 n = static_cast<eng::u8>(cfg.dual ? 2 : 1);
         const eng::u16 tw = cfg.tile_width, th = cfg.tile_height;
         for (eng::u8 pf = 0; pf < n; ++pf) {
@@ -161,7 +178,7 @@ public:
             fc.tile_width = tw;
             fc.tile_height = th;
             fc.viewport_w = cfg.viewport_w;
-            fc.viewport_h = cfg.viewport_h;
+            fc.viewport_h = main_h; // el campo principal solo ve el main
             fc.screens_x = 16;
             fc.screens_y = 16;
             fc.scroll_y = cfg.scroll_y;
@@ -170,9 +187,11 @@ public:
             fc.fetch_mode = cfg.fetch_mode;
             if (!m_field[pf].begin(memory, fc)) return false;
         }
-        // Compositores. DIWSTOP derivado del viewport: las filas bajo el
-        // viewport quedan fuera del display (borde/negro o HUD).
-        const u16 diwstop = xlimited_detail::diwstop_for_viewport(cfg.viewport_h);
+        // Compositores. Con franja HUD la ventana DIW queda abierta al TOTAL
+        // (main + hud); la zona HUD solo cambia BPLxPT/modulos en su raster.
+        const u16 diwstop = hud_zone
+            ? xlimited_detail::diwstop_for_viewport(cfg.viewport_h)
+            : xlimited_detail::diwstop_for_viewport(main_h);
         if (cfg.dual) {
             if (!m_dual.init(memory, {cfg.palette, cfg.copper_bytes, cfg.planes, false,
                 xlimited_detail::kDiwStrt, diwstop,
@@ -301,11 +320,19 @@ public:
     }
 
     /// Genera la copperlist del frame (single o dual) a partir del estado actual
-    /// de los campos. Llámala tras ejecutar el plan.
+    /// de los campos. Llámala tras ejecutar el plan. Con franja HUD, el
+    /// compositor emite la zona inferior (playfield separado) tras el main.
     bool compose() {
         if (!m_initialized) return false;
         if (m_cfg.dual) {
             return m_dual.compose(m_field[0].hardware_view(), m_field[1].hardware_view());
+        }
+        if (m_cfg.hud_height != 0) {
+            const XlimitedDisplayComposer::HudZone hud {
+                m_hud.hardware_view(),
+                m_cfg.hud_palette,
+            };
+            return m_single.compose(m_field[0].hardware_view(), &hud);
         }
         return m_single.compose(m_field[0].hardware_view());
     }
@@ -323,79 +350,31 @@ public:
     constexpr u16 copper_words() const {
         return m_cfg.dual ? m_dual.copper_words() : m_single.copper_words();
     }
+    /// Depuración: puntero al copper activo y palabras usadas.
+    const u16* debug_active_copper() const {
+        return m_cfg.dual ? nullptr : m_single.debug_active_copper();
+    }
     /// ¿El split es siempre esperable con esta configuración (viewport <= 215)?
     /// Si es true, `linear_display` es innecesario: el modo split canónico usa
     /// 1 blit por operación y no tiene artefacto.
     constexpr bool split_always_waitable() const {
         return m_field[0].split_always_waitable();
     }
-    XlimitedField& field(eng::u8 pf = 0) { return m_field[pf]; }
-    const XlimitedField& field(eng::u8 pf = 0) const { return m_field[pf]; }
 
     // -------------------------------------------------------------------------
-    // Capa de dibujo (API de librería). Todas las rutinas de dibujo futuras
-    // pasan por aquí: delegan en el campo activo y heredan el mapeo físico
-    // (costura del split / espejo del modo lineal). `pf` selecciona el playfield
-    // (0 = PF1, 1 = PF2 en DPF).
-    //
-    // Un objeto FIJO en pantalla (HUD) se dibuja cada frame en la posición de
-    // mundo (mapposx()+sx, screen_to_world_y(sy)): así sigue a la cámara y no se
-    // desliza con el mundo. Un objeto del MUNDO se dibuja en su posición fija
-    // (wx, wy) sin desfase por cámara. `set_pixel`/`fill_rect`/`draw_line` son
-    // escrituras inmediatas de CPU (sin plan); `add_world_bitmap` es un blit que
-    // requiere un `FramePlan` y su ejecución posterior.
+    // Acceso por ROL a los playfields (nunca por índice). Las primitivas de
+    // dibujo pertenecen a cada playfield: `bg().set_pixel(...)`,
+    // `fg().add_world_bitmap(...)`, etc. `fg` solo existe en modo dual.
     // -------------------------------------------------------------------------
-
-    /// Fila de mundo para un objeto FIJO en la fila de pantalla `sy` (0 = arriba).
-    /// La ventana visible NO empieza en videoposy: el corkscrew pone la banda de
-    /// staging un bloque por encima, así que `display_offset = (mapposy +
-    /// tile_height) % display_height`. Usar mapposy()+sy directamente dejaría el
-    /// objeto en la banda de staging (fuera de pantalla). Equivale a
-    /// `(mapposy + tile_height + sy) % display_height` en modo split.
-    eng::s32 screen_to_world_y(eng::s16 sy, eng::u8 pf = 0) const {
-        return m_field[pf].screen_to_bitmap_row(sy);
-    }
-    /// Columna de mundo para un objeto FIJO en la columna de pantalla `sx`.
-    constexpr eng::s32 screen_to_world_x(eng::s16 sx, eng::u8 pf = 0) const {
-        return m_field[pf].mapposx() + sx;
-    }
-
-    /// Píxel de mundo (escritura inmediata de CPU). En modo lineal duplica al espejo.
-    void set_pixel(eng::s32 wx, eng::s32 wy, eng::u8 color, eng::u8 pf = 0) {
-        m_field[pf].set_pixel(wx, wy, color);
-    }
-    /// Rectángulo de mundo relleno (CPU). Para rects grandes usa add_world_bitmap.
-    void fill_rect(eng::s32 wx, eng::s32 wy, eng::u16 w, eng::u16 h, eng::u8 color, eng::u8 pf = 0) {
-        m_field[pf].fill_rect(wx, wy, w, h, color);
-    }
-
-    /// Línea oblicua de mundo (Bresenham, CPU).
-    void draw_line(eng::s32 wx0, eng::s32 wy0, eng::s32 wx1, eng::s32 wy1, eng::u8 color, eng::u8 pf = 0) {
-        m_field[pf].draw_line(wx0, wy0, wx1, wy1, color);
-    }
-
-    /// Blit planar en el mundo (origen en Chip RAM, wx múltiplo de 16). Devuelve
-    /// false si no se pudo encolar; ejecuta el plan con backend.execute_frame_plan.
-    bool add_world_bitmap(graphics::FramePlan& plan,
-                          const eng::u16* src, eng::s32 wx, eng::s32 wy,
-                          eng::u16 w, eng::u16 h,
-                          eng::u16 src_row_bytes, eng::u32 src_plane_stride,
-                          eng::u8 planes, eng::u8 pf = 0) {
-        return m_field[pf].add_world_bitmap(plan, src, wx, wy, w, h,
-                                            src_row_bytes, src_plane_stride, planes);
-    }
-
-    /// BOB con máscara de transparencia (cookie-cut): igual que add_world_bitmap
-    /// pero `mask` es un plano de 1 bit (mismo layout de fila que un plano fuente)
-    /// donde 0 conserva el fondo. Para sprites/objetos móviles con transparencia.
-    bool add_world_bitmap_masked(graphics::FramePlan& plan,
-                                 const eng::u16* src, const eng::u16* mask,
-                                 eng::s32 wx, eng::s32 wy, eng::u16 w, eng::u16 h,
-                                 eng::u16 src_row_bytes, eng::u32 src_plane_stride,
-                                 eng::u8 planes, eng::u8 pf = 0) {
-        return m_field[pf].add_world_bitmap_masked(plan, src, mask, wx, wy, w, h,
-                                                   src_row_bytes, src_plane_stride, planes);
-    }
+    XLimitedPlayfield& bg() { return m_field[0]; }
+    const XLimitedPlayfield& bg() const { return m_field[0]; }
+    XLimitedPlayfield& fg() { return m_field[1]; }
+    const XLimitedPlayfield& fg() const { return m_field[1]; }
+    /// Playfield del HUD (lienzo plano en la franja inferior). Solo válido si
+    /// `cfg.hud_height > 0`. Dibuja aquí (una vez en init) con las primitivas.
+    CanvasPlayfield& hud() { return m_hud; }
+    const CanvasPlayfield& hud() const { return m_hud; }
+    constexpr bool has_hud() const { return m_cfg.hud_height != 0; }
 
 private:
     /// Seno Q8 de 64 pasos (independiente de demo::sin64 para que la escena no
@@ -411,7 +390,8 @@ private:
     }
 
     XlimitedSceneConfig m_cfg {};
-    XlimitedField m_field[2] {};
+    XLimitedPlayfield m_field[2] {};
+    CanvasPlayfield m_hud {};        // franja HUD (lienzo plano, si hud_height>0)
     MemoryBlock m_tiles[2] {};
     XlimitedDisplayComposer m_single {};
     XlimitedDualComposer m_dual {};

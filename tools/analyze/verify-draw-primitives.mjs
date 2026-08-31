@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Verificación host de las primitivas de dibujo del corkscrew
- * (`XlimitedField::set_pixel/fill_rect/draw_line` + `world_to_planeline`/
+ * (`XLimitedPlayfield::set_pixel/fill_rect/draw_line` + `world_to_planeline`/
  * `write_planes`). Modela EXACTAMENTE el contrato de xlimited.hpp:
  *
  *   planelínea = ((wy % display_height) + display_height) % display_height * planes
@@ -183,8 +183,7 @@ section('5. espejo (K_LINEAR=' + K_LINEAR + ')');
 }
 
 // ---- 6. objeto fijo en pantalla: screen_to_world_y ----
-section('6. objeto fijo en pantalla (screen_to_world_y)');
-{
+section('6. objeto fijo en pantalla (screen_to_world_y)');{
   // display_offset = (mapposy + tile_height) % display_height; una fila fija en
   // pantalla sy se dibuja en wy = (mapposy + tile_height + sy) % display_height.
   // Simular dos frames con mapposy distinto: el dibujo debe quedar en el MISMO
@@ -203,6 +202,54 @@ section('6. objeto fijo en pantalla (screen_to_world_y)');
     if (colorAt(160, loop) !== 7) consistent = false;
   }
   check('fila fija consistente en 3 mapposy', consistent);
+}
+
+// ---- 7. CanvasPlayfield (lienzo plano: layout interleaved sin walk) ----
+section('7. CanvasPlayfield (lienzo plano 320x32, 4 planos)');
+{
+  const CW = 320, CH = 32, CP = 4, CROW = CW / 8;
+  const canvas = new Uint8Array(CROW * CH * CP);
+  const cset = (wx, wy, color) => {
+    if (wx < 0 || wy < 0 || wx >= CW || wy >= CH) return;
+    const pl = wy * CP;
+    const byte = (wx / 8) | 0;
+    const mask = 0x8000 >> (wx & 15);
+    for (let p = 0; p < CP; p++) {
+      const i = (pl + p) * CROW + byte;
+      const idx = (i >> 1) | 0;
+      const word = (canvas[idx * 2] << 8) | canvas[idx * 2 + 1];
+      const nw = (color & (1 << p)) ? (word | mask) : (word & ~mask);
+      canvas[idx * 2] = nw >> 8; canvas[idx * 2 + 1] = nw & 0xff;
+    }
+  };
+  const ccolor = (wx, wy) => {
+    let c = 0;
+    for (let p = 0; p < CP; p++) {
+      const i = (wy * CP + p) * CROW + ((wx / 8) | 0);
+      const idx = (i >> 1) | 0;
+      const word = (canvas[idx * 2] << 8) | canvas[idx * 2 + 1];
+      if (word & (0x8000 >> (wx & 15))) c |= 1 << p;
+    }
+    return c;
+  };
+  // rectángulo 8x8 color 5 en (16,4)
+  for (let dy = 0; dy < 8; dy++) for (let dx = 0; dx < 8; dx++) cset(16 + dx, 4 + dy, 5);
+  let ok = true;
+  for (let dy = 0; dy < 8; dy++) for (let dx = 0; dx < 8; dx++) if (ccolor(16 + dx, 4 + dy) !== 5) ok = false;
+  check('rect (16,4) 8x8 color 5 en lienzo', ok);
+  check('lienzo no pinta fuera (0,0)', ccolor(0, 0) === 0);
+  check('lienzo no pinta fuera (200,20)', ccolor(200, 20) === 0);
+  // línea vertical x=2 color 1 (marco) en filas 2..29
+  for (let y = 2; y < 30; y++) cset(2, y, 1);
+  ok = true;
+  for (let y = 2; y < 30; y++) if (ccolor(2, y) !== 1) ok = false;
+  check('línea vertical x=2 color 1 en lienzo', ok);
+  // límite: píxel fuera del lienzo se rechaza (in_bounds)
+  let rejected = false;
+  const before = ccolor(319, 31);
+  cset(320, 31, 7); // fuera de ancho
+  cset(100, 32, 7); // fuera de alto
+  check('lienzo ignora píxeles fuera de rango', ccolor(319, 31) === before);
 }
 
 console.log(fails === 0 ? 'OK verify-draw-primitives (layout corkscrew)' : ('FAILS=' + fails));

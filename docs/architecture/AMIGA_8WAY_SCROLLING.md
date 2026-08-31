@@ -295,7 +295,7 @@ demo 107 hace scroll **8-way** real: el display envuelve verticalmente en
 `display_height = viewport_h + 2*tile_height` y la fila/columna entrante se **pre-pinta** en la
 banda de staging de 2 bloques que el display alcanza al dar la vuelta.
 
-Fórmulas (engine, `XlimitedField`, valores por defecto 320×256, tile 16, planes 4, fetch normal):
+Fórmulas (engine, `XLimitedPlayfield`, valores por defecto 320×256, tile 16, planes 4, fetch normal):
 
 ```text
 display_height      = viewport_h + 2*tile_height                      // 288 para 320×256
@@ -362,34 +362,55 @@ con el wrap adelantado; no es negro ni tearing, y el `XYLimited` original degrad
 
 Toda operación de dibujo sobre el framebuffer debe pasar por una primitiva que conozca el layout
 físico: la planelínea y el byte de un píxel dependen de `display_offset` y del modo (split vs
-espejo). Las rutinas se agrupan en `XlimitedField` y se exponen por `XlimitedScene`:
+espejo). Las primitivas pertenecen al **`Playfield`** (`playfield.hpp`): `Playfield` es la base
+abstracta (framebuffer + geometría + primitivas CPU implementadas vía hooks de mapeo +
+blits virtuales + `update_scroll` + `hardware_view`), `XLimitedPlayfield` es el corkscrew
+(`xlimited.hpp`, especialización del scroll) y `CanvasPlayfield` es un lienzo plano sin scroll.
+La `XlimitedScene` compone los playfields con roles (`bg()`/`fg()`) y las primitivas se llaman
+sobre el playfield:
 
 | Primitiva | Tipo | Coordenadas | Restricciones | Regla del layout |
 |---|---|---|---|---|
-| `set_pixel(wx,wy,color)` | CPU | mundo | — | `word_byte=(wx/8)&~1`, `mask=0x8000>>(wx&15)`, planelínea `(wy%DH)*planes`; espejo en lineal |
-| `fill_rect(wx,wy,w,h,color)` | CPU | mundo | — | vía `set_pixel` (wrap de costura por píxel) |
-| `draw_line(...)` (Bresenham) | CPU | mundo | — | vía `set_pixel` |
-| `add_world_bitmap(src,wx,wy,...)` | Blitter | mundo | `wx` múltiplo de 16, origen Chip RAM | "espejo = duplica, split = parte" |
-| `add_world_bitmap_masked(src,mask,wx,wy,...)` | Blitter | mundo | `wx` múltiplo de 16, origen Chip RAM, máscara 1 bit | cookie-cut `dest=(mask&src)\|(~mask&dest)` |
+| `pf.set_pixel(wx,wy,color)` | CPU | mundo | — | `word_byte=(wx/8)&~1`, `mask=0x8000>>(wx&15)`, planelínea `(wy%DH)*planes`; espejo en lineal |
+| `pf.fill_rect(wx,wy,w,h,color)` | CPU | mundo | — | vía `set_pixel` (wrap de costura por píxel) |
+| `pf.draw_line(...)` (Bresenham) | CPU | mundo | — | vía `set_pixel` |
+| `pf.add_world_bitmap(src,wx,wy,...)` | Blitter | mundo | `wx` múltiplo de 16, origen Chip RAM | "espejo = duplica, split = parte" |
+| `pf.add_world_bitmap_masked(src,mask,wx,wy,...)` | Blitter | mundo | `wx` múltiplo de 16, origen Chip RAM, máscara 1 bit | cookie-cut `dest=(mask&src)\|(~mask&dest)` |
+
+Todas devuelven `bool` y validan límites.
 
 **Walk horizontal**: el byte físico de un píxel de mundo es `(planelínea)*row_bytes + wx/8`, que
 cruza a la siguiente planelínea cuando `wx/8 >= row_bytes` (el *fetch* lineal del Agnus hace lo
-mismo al envolver). Las primitivas CPU lo soportan de forma natural acotando contra el tamaño
-total del bitmap; los blits requieren `wx` word-aligned (por eso los objetos fijos en pantalla van
-por CPU y los del mundo por blit).
+mismo al envolver). Las primitivas CPU lo soportan acotando contra el tamaño total del bitmap; los
+blits requieren `wx` word-aligned (por eso los objetos fijos en pantalla van por CPU y los del
+mundo por blit).
 
 **Objeto fijo en pantalla (HUD)**: la ventana visible NO empieza en `videoposy` — el corkscrew
 deja la banda de staging un bloque por encima, así que `display_offset = (mapposy+tile_height) %
 display_height`. Un objeto en la fila de pantalla `sy` se dibuja en `wy = screen_to_world_y(sy)`
-(`XlimitedScene`, equivale a `(mapposy+tile_height+sy) % DH`) y `wx = screen_to_world_x(sx)`
+(`XLimitedPlayfield`, equivale a `(mapposy+tile_height+sy) % DH`) y `wx = screen_to_world_x(sx)`
 (`mapposx()+sx`). Usar `mapposy()+sy` directamente deja el objeto en la banda de staging, fuera
-de pantalla. Los fijos se redibujan cada frame (siguen a la cámara) con las primitivas CPU.
+de pantalla.
+
+**Limitación de bus (medida 2026-08-31)**: las escrituras CPU al chip RAM durante el frame
+visible roban ciclos al DMA de bitplanes. Con 1-2 `set_pixel` no hay efecto; con decenas-centenas
+de RMW (`fill_rect`/`draw_line` grandes) el emulador muestra scanlines negros periódicos
+(inanición de bus). El dibujo masivo va por **Blitter**; las primitivas CPU se reservan para
+marcas pequeñas o init (boot, sin competencia).
+
+**HUD en franja inferior como playfield separado (trabajo futuro)**: el escenario de un HUD de 32
+px con configuración distinta (bitplanes/paleta) en la parte inferior es un split-screen de
+Copper (cambiar DIWSTOP/BPLxPT/modulos en el raster `DIWSTRT_y + main`). Se intentó (WAIT en el
+raster + cambio de BPL pointers a un `CanvasPlayfield` con la ventana abierta al total), pero el
+canvas no se mostró en WinUAE; requiere inspección del estado real del Copper (BPLCON0/BPLxPT por
+frame) para depurar por qué el cambio de punteros no surte efecto. La abstracción ya lo soporta a
+nivel de API (escena con varios playfields + roles); falta la zona de Copper.
 
 **Verificación**: `node tools/analyze/verify-draw-primitives.mjs` modela el contrato (planelínea +
-espejo + walk + objeto fijo) y valida split, lineal y viewports. En emulador, el HUD de la demo 107
-(`K_HUD=1`) muestra la caja 8×8 fija en pantalla (posición constante en 20 frames mientras el mapa
-scrollea) y un BOB enmascarado de mundo (bloque blanco 16×16 con hueco 4×4 que deja ver el mapa,
-cookie-cut confirmado).
+espejo + walk + objeto fijo + CanvasPlayfield) y valida split, lineal y viewports. En emulador, el
+HUD de la demo 107 (`K_HUD=1`) marca píxeles fijos en pantalla y dibuja un BOB enmascarado de
+mundo (bloque blanco 16×16 con hueco 4×4 que deja ver el mapa, cookie-cut confirmado) sin
+blackouts.
 
 ---
 

@@ -227,65 +227,67 @@ EXTRA_DEFINES="-DK_VIEWPORT_H=256 -DK_LINEAR=1" bash ...
 horizontal muestra **14 filas de tiles** (224/16), no 16; con 208, 13. El mapa
 se deriva de `K_SCREENS_Y * (K_VIEWPORT_H / K_TILE_H)`.
 
-## Implicaciones para las rutinas de dibujo de framebuffer
+## Capa de dibujo: abstracción Playfield
 
-Ambos modos imponen una regla sobre CUALQUIER dibujo futuro en el framebuffer
-(sprites de Blitter, blobs, escrituras de CPU):
+Toda operación de dibujo pasa por un **`Playfield`** (`engine/include/eng/field/
+playfield.hpp`): la capa es un objeto de primera clase que posee su framebuffer
+(Chip RAM), su geometría y sus **primitivas de dibujo**. El scroll es una
+**especialización** del playfield: `XLimitedPlayfield` (corkscrew) o
+`CanvasPlayfield` (lienzo plano sin tiles ni scroll). La `XlimitedScene` compone
+los playfields y expone **roles tipados** — `bg()`/`fg()` — nunca un índice
+crudo. Las primitivas se llaman sobre el playfield:
 
-- **`linear_display` (espejo)**: cada operación que escribe en el bucle
-  (filas 0..display_height-1) **debe duplicarse al espejo** (filas +display_height),
-  o el framebuffer queda incoherente. Coste: 2× operaciones (blits o escrituras
-  de CPU) para TODO el dibujo. A cambio, no hay que partir rectángulos: la
-  lectura lineal del display continúa por el espejo.
-- **split (bucle)**: cada operación se hace una sola vez (1×), pero el destino
-  se obtiene con `XlimitedField::screen_to_bitmap_row(sy)`
-  (`(display_offset + sy) % display_height`) y, si el rectángulo cruza la
-  costura del bucle (fila + alto > display_height), **hay que partirlo en dos
-  blits** (final del bucle + inicio).
+```cpp
+scene.bg().set_pixel(wx, wy, color);            // CPU, coordenadas de mundo
+scene.bg().fill_rect(wx, wy, w, h, color);      // CPU
+scene.bg().draw_line(x0, y0, x1, y1, color);    // CPU (Bresenham)
+scene.bg().add_world_bitmap(plan, src, wx, wy, ...);        // Blitter, mundo
+scene.bg().add_world_bitmap_masked(plan, src, mask, wx, wy, ...); // BOB con transparencia
+```
 
-**Primitiva de dibujo `add_world_bitmap`** (`XlimitedField`): TODAS las rutinas
-de dibujo deben pasar por aquí. Toma **coordenadas de mundo** (`wx`, `wy` en
-píxeles; `wx` **múltiplo de 16**, word-aligned del blit) y un origen **planar**
-(planos separados, cada fila `src_row_bytes`, cada plano `src_plane_stride`
-bytes, el origen debe estar en **Chip RAM** porque el Blitter no lee `.rodata`).
-Internamente abstrae la regla: **espejo = duplica** (2 blits por plano en modo
-lineal) o **split = parte** (divide en la costura del bucle). Para un objeto
-del mundo, el caller pasa la posición fija del mundo (wx alineado a 16). NO se
-usa para objetos fijos en pantalla (ver más abajo).
+Todas devuelven `bool` y **validan límites** (fuera de rango → `false`).
 
-**BOB enmascarado `add_world_bitmap_masked`** (`XlimitedField`): misma geometría
-que `add_world_bitmap` pero con un plano de **máscara de 1 bit** compartido
-(mismo layout de fila que un plano fuente; el backend reutiliza
-`source_modulo_bytes` para el canal A=máscara). Cookie-cut
-`dest = (mask & src) | (~mask & dest)`: donde la máscara es 0 se conserva el
-fondo (transparencia), donde es 1 se escribe el BOB. Es la ruta para sprites y
-objetos móviles **del mundo**. Como los blits requieren `wx` múltiplo de 16,
-un objeto fijo en pantalla NO puede ir por esta vía (su `wx = mapposx+x` solo
-está alineado 1 de cada 16 px): los fijos van por las primitivas CPU.
+**Reglas del layout** (las aplica cada playfield vía hooks de mapeo):
 
-**Primitivas de dibujo POR CPU** (mismo mapeo, escrituras de la CPU al
-framebuffer): `XlimitedField::set_pixel(wx, wy, color)`, `fill_rect(wx, wy, w, h,
-color)` y `draw_line(wx0, wy0, wx1, wy1, color)` (Bresenham). Internamente
-resuelven la geometría del layout: `world_to_planeline(wy)` aplica el módulo del
-bucle (costura del split), `write_planes` escribe la máscara en los `planes`
-bitplanes interleaved, y en modo lineal duplican al espejo (regla "espejo =
-duplica"). Soportan **cualquier `wx` del mundo**: el byte físico `wx/8` cruza a
-la siguiente planelínea cuando `wx/8 >= row_bytes` (el *walk* horizontal del
-corkscrew), acotando contra el tamaño total del bitmap. Verificación host:
-`node tools/analyze/verify-draw-primitives.mjs` (y con `K_LINEAR=1`).
+- **`linear_display` (espejo)**: cada escritura en el bucle (filas
+  0..display_height-1) se **duplica al espejo** (filas +display_height), o el
+  framebuffer queda incoherente. Coste: 2× operaciones para TODO el dibujo.
+- **split (bucle)**: una sola operación (1×); el destino se envuelve con
+  `planeline_for(wy)` (`(wy % display_height) * planes`) y, si un blit cruza la
+  costura, se parte en dos (`add_world_bitmap` lo gestiona).
+- **Walk horizontal**: el byte físico de un píxel de mundo es `(planelínea)*row
+  + wx/8`, que cruza a la siguiente planelínea cuando `wx/8 >= row_bytes`. Las
+  primitivas CPU lo soportan acotando contra el tamaño total; los blits requieren
+  `wx` **múltiplo de 16** (word-aligned) y origen en **Chip RAM**.
+
+**`CanvasPlayfield`**: lienzo plano (interleaved) sin scroll, con las mismas
+primitivas en coordenadas de lienzo. Es la base de un HUD, un fondo estático o
+una capa de actores. El escenario de un HUD en una franja inferior con su propia
+configuración (bitplanes/paleta) requiere un **split de Copper** entre zonas
+(split-screen); está documentado como trabajo futuro (ver AMIGA_8WAY_SCROLLING).
 
 **Objetos fijos en pantalla (HUD)**: se dibujan cada frame en la posición de
-mundo que la cámara muestra, usando `XlimitedScene::screen_to_world_x(sx)` (=
+mundo que la cámara muestra, con `XLimitedPlayfield::screen_to_world_x(sx)` (=
 `mapposx()+sx`) y `screen_to_world_y(sy)` (equivale a
 `(mapposy + tile_height + sy) % display_height`). **IMPORTANTE**: NO es
 `mapposy()+sy` — la ventana visible del corkscrew empieza un bloque por debajo
 de `videoposy` (`display_offset = (mapposy+tile_height) % display_height`), así
 que usar `mapposy()+sy` deja el objeto en la banda de staging, fuera de
-pantalla. Los fijos van por las primitivas CPU (`set_pixel`/`fill_rect`/
-`draw_line`), que aceptan cualquier `wx`. **Toda rutina de dibujo futura debe
-pasar por estas primitivas o por `add_world_bitmap[_masked]`**; nunca escribir a
-`frontbuffer()` a ciegas, porque la planelínea/byte del píxel depende de
-`display_offset` y del modo (split vs espejo).
+pantalla.
+
+**Limitación de bus del Amiga (medida)**: las escrituras CPU al chip RAM durante
+el frame visible roban ciclos al DMA de bitplanes. Con pocas (1-2 `set_pixel`)
+no hay efecto; con decenas–centenas de RMW (`fill_rect`/`draw_line` grandes) el
+emulador muestra scanlines negros periódicos (inanición de bus). Por eso el
+dibujo masivo va por **Blitter** (`add_world_bitmap[_masked]`) y las primitivas
+CPU se reservan para marcas pequeñas o para init (boot, sin competencia). La
+demo usa un HUD mínimo por CPU + un BOB enmascarado por Blitter.
+
+**Toda rutina de dibujo futura debe pasar por estas primitivas**; nunca escribir
+a `frontbuffer()` a ciegas, porque la planelínea/byte del píxel depende de
+`display_offset` y del modo (split vs espejo). Verificación host:
+`node tools/analyze/verify-draw-primitives.mjs` (corkscrew + CanvasPlayfield, y
+con `K_LINEAR=1`).
 
 ## Monitorización de carga (frame a frame)
 
@@ -306,24 +308,27 @@ son pequeños (2-4 blits) frente al presupuesto de Blitter del frame.
 
 ## Arquitectura (reutilizable como librería)
 
-- `engine/include/eng/field/xlimited.hpp` — `XlimitedField` + `XlimitedDisplayComposer`
-  + `XlimitedDualComposer`. Port del corkscrew (XYLimited): `scroll_right/left/up/down`
+- `engine/include/eng/field/playfield.hpp` — **abstracción de capa**: `Playfield`
+  (base abstracta: framebuffer + geometría + primitivas de dibujo CPU validadas
+  vía hooks de mapeo + blits virtuales + `update_scroll` + `hardware_view`) y
+  `CanvasPlayfield` (lienzo plano interleaved sin scroll).
+- `engine/include/eng/field/xlimited.hpp` — `XLimitedPlayfield : Playfield`
+  (corkscrew/XYLimited, especialización del scroll: `scroll_right/left/up/down`
   fieles a `Scroller_XYLimited/main.c`, banda de staging `block_videoposy`, split
-  vertical en `display_height`, paleta al inicio del frame. Allocation
-  `BMF_INTERLEAVED-like`: `row_bytes*planes*height`, addressing
-  `frontbuffer + y*BITMAPBYTESPERROW + x`. El dual (DPF 3+3) intercala PF1
-  (planos 1,3,5) y PF2 (2,4,6) con su split compartido.
-- `engine/include/eng/field/xlimited_scene.hpp` — **abstracción de librería**:
+  vertical, walk horizontal, espejo del modo lineal) + `XlimitedDisplayComposer`
+  + `XlimitedDualComposer`. El dual (DPF 3+3) intercala PF1 (planos 1,3,5) y PF2
+  (2,4,6) con su split compartido.
+- `engine/include/eng/field/xlimited_scene.hpp` — **abstracción de escena**:
   `XlimitedScene` + `XlimitedSceneConfig` + `xlimited_build_blocks_bitmap`.
-  Encapsula uno/dos `XlimitedField`, el compositor single/dual, el relleno, el
-  pre-scroll, el camino de direcciones (`effect`/`phase`) y la composición, con
-  API declarativa (config) y por-frame (`update_auto`/`update`/`compose`/`install`).
-  `xlimited_build_blocks_bitmap` construye el BlocksBitmap de Steger a partir de
-  un generador de filas (`BlocksRowFn`), independiente del juego.
+  Compone uno/dos `XLimitedPlayfield` con **roles** (`bg()`/`fg()`), el compositor
+  single/dual, el relleno, el pre-scroll, el camino de direcciones
+  (`effect`/`phase`) y la composición, con API declarativa (config) y por-frame
+  (`update_auto`/`update`/`compose`/`install`).
 - `demos/107_xlimited_corkscrew/src/main.cpp` — **consumidor fino**: define el
   mapa y dos generadores de filas (`fg_row`/`bg_row`), configura `XlimitedSceneConfig`
-  desde las macros `K_*` y delega en `XlimitedScene`. Sin lógica circular
-  (`surface_origin`, recentrado, bandas) ni glue de hardware.
+  desde las macros `K_*` y delega en `XlimitedScene`. Usa `scene.bg()` para el
+  HUD mínimo por CPU y el BOB enmascarado por Blitter. Sin lógica circular ni
+  glue de hardware.
 
 Referencias: `ScrollingTricks/Docs/xlimited-uk.html`,
 `amiga-stuff/scrolling_tricks/xlimited.c`,
