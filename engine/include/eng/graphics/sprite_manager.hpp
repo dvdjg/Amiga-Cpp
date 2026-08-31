@@ -18,6 +18,7 @@
 /// Reglas del engine: sin heap, sin RTTI, gnu++23. La DATA del sprite la aporta
 /// la aplicación (bloque Chip); el manager solo la referencia y la posición.
 
+#include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/memory/arena.hpp>
@@ -27,7 +28,7 @@ namespace eng::graphics {
 /// Configuración de un sprite hardware.
 struct SpriteConfig {
     bool enabled = false;
-    const u16* data = nullptr;   // Chip RAM: `height*2*width_words` words (DAT/DATB por línea)
+    Span<const u16> data {}; // Chip RAM: `height*2*width_words` words (DAT/DATB)
     u8 width_words = 1;          // 1 = 16 px, 2 = 32 px (SPRxCTL bit doble ancho)
     u8 height = 0;               // líneas (1..128)
     u16 hpos = 0;                // posición horizontal (px)
@@ -50,11 +51,20 @@ public:
         return m_data.valid();
     }
 
-    u8* sprite_data() { return static_cast<u8*>(m_data.data); }
-    const u8* sprite_data() const { return static_cast<const u8*>(m_data.data); }
+    /// Acceso acotado al bloque de DATA (el tamaño viaja con el puntero).
+    Span<u8> sprite_data() { return { static_cast<u8*>(m_data.data), m_data.size }; }
+    Span<const u8> sprite_data() const { return { static_cast<const u8*>(m_data.data), m_data.size }; }
 
     void set(u8 index, const SpriteConfig& cfg) {
-        if (index < 8) m_spr[index] = cfg;
+        if (index >= 8) return;
+        m_spr[index] = cfg;
+        // Contrato de tamaño: un sprite habilitado necesita
+        // `height*width_words*2` words (DAT+DATB por línea). Si la DATA del span
+        // no lo cubre, se descarta (no se emite) en lugar de leer fuera de rango.
+        if (cfg.enabled && !cfg.data.empty()) {
+            const usize need = static_cast<usize>(cfg.height) * cfg.width_words * 2u;
+            if (cfg.data.size() < need) m_spr[index].enabled = false;
+        }
     }
     void disable(u8 index) { if (index < 8) m_spr[index] = SpriteConfig{}; }
     void disable_all() { for (auto& s : m_spr) s = SpriteConfig{}; }
@@ -78,7 +88,7 @@ public:
     void emit_into(copper::Scheduler& sched) const {
         for (u8 i = 0; i < 8; ++i) {
             const SpriteConfig& s = m_spr[i];
-            if (!s.enabled || s.data == nullptr) continue;
+            if (!s.enabled || s.data.empty()) continue;
             const u16 pos = static_cast<u16>((static_cast<u16>(s.hpos) << 8) | (s.vstart & 0xff));
             // SPRxCTL: bits 0-7 = vstop, bit 8 = hpos bit 8, bit 9 = vstart bit 8,
             // bit 12 = doble ancho (VSH8), bit 13 = attach.
@@ -89,7 +99,7 @@ public:
                 (s.width_words == 2 ? 0x1000 : 0));
             sched.move(static_cast<copper::Register>(0x0d0 + i * 8), ctl);     // SPRxCTL
             sched.move(static_cast<copper::Register>(0x0d2 + i * 8), pos);     // SPRxPOS
-            const u32 addr = reinterpret_cast<u32>(s.data);
+            const u32 addr = reinterpret_cast<u32>(s.data.data());
             sched.move(static_cast<copper::Register>(0x120 + i * 4), static_cast<u16>(addr >> 16));
             sched.move(static_cast<copper::Register>(0x122 + i * 4), static_cast<u16>(addr & 0xffff));
         }
@@ -97,7 +107,7 @@ public:
 
     constexpr u16 copper_words() const {
         u16 w = 0;
-        for (const auto& s : m_spr) if (s.enabled && s.data) w += 6; // CTL+POS+PT(2)
+        for (const auto& s : m_spr) if (s.enabled && !s.data.empty()) w += 6; // CTL+POS+PT(2)
         return w;
     }
 

@@ -119,6 +119,29 @@ Defectos:
 - El mapeo corkscrew es complejo y está acoplado al layout interleaved; extraerlo como policy obliga a que cada backend implemente su propia versión.
 - Sin primitivas en `Playfield`, hay una indirección más (todo dibujo pasa por `Surface`); para scripts pequeños puede parecer burocrático.
 
+### 5.1 Política de API segura: "frontera con `Span`, núcleo crudo"
+
+La API pública de dibujo NO expone punteros crudos del framebuffer (`u8*`/`const u8*`): invitan a aritmética de punteros sin tamaño y rompen el invariante "todo se dibuja por primitivas que validan". La política es la misma que en Rust (`&[u8]`/`&mut [u8]`): **el tamaño viaja con la referencia**.
+
+```
+   frontera pública (safe)                 núcleo interno (optimizado)
+   ┌───────────────────────────┐           ┌───────────────────────────────┐
+   │ Bitmap::bytes() -> Span   │           │ u8* m_frontbuffer (Playfield) │
+   │ blit(..., Span<u16> src)  │  in-app   │ BlitJob { const u16* src }    │
+   │ SpriteManager::sprite()   │ ───────►  │ CopperBuilder (BPLxPT crudos) │
+   │   -> Span<u8>             │           │ amiga_minimal (direcciones)   │
+   │ Surface primitivas ->bool │           │ (invariantes conocidos +      │
+   │   (validan y recortan)    │           │  documentados en el código)   │
+   └───────────────────────────┘           └───────────────────────────────┘
+```
+
+Reglas concretas:
+- `Bitmap`/`Playfield`/`XLimitedPlayfield` no tienen `frontbuffer()` público; solo `Span` (`bytes()`, `sprite_data()`) con su tamaño como contrato.
+- Los blits reciben `Span<const u16>` para fuente y máscara; el playfield valida `src.size()` contra `src_plane_stride*planes` y devuelve `false` si el origen no cubre lo pedido (sin UB).
+- `SpriteConfig::data` es un `Span<const u16>` y `set()` descarta el sprite si la DATA no cubre `height*width_words*2` words.
+- Los punteros crudos quedan SOLO dentro del engine (núcleo): `BlitJob`, `CopperBuilder`, backend. Ahí los invariantes (Chip RAM, alineación, layout) son conocidos y están documentados, y el chipset Amiga exige direcciones físicas.
+- No es "C con clases": no se envuelve cada buffer en un blob opaco; un `Span` es un buffer con su tamaño y las primitivas devuelven `bool` + `constexpr`. El anti-patrón a evitar es el setter por doquier que ahoga los casos legítimos de contenido generado por CPU.
+
 ---
 
 ## 6. `Surface` (contexto de dibujo con clip)
@@ -795,7 +818,7 @@ Defectos:
 10. **Efectos**: pipeline chunky/c2p, `PaletteAnimator`, `CopperScript`, `Font`/texto; luego 3D, filtros y tiles avanzados.
 11. **Escenas data-driven + runtime_params + parcheo de copper dynamic_partial** y **ScriptVM** (aventuras tipo SCUMM: rooms, actores, walkboxes, verbos, diálogos).
 12. **Streaming desde disquetera** (perfil Amiga): StreamLoader/AssetStream + hook de trackdisk.
-13. **Migración de la demo 107** a `Bitmap`/`Surface`/`ScrollEngine` manteniendo la regresión verde como red de seguridad. **En curso**: M1a hecho (`Surface`); M1b-parcial hecho (`CanvasPlayfield` posee un `Bitmap`); M1b-restante (`Bitmap` en `XLimitedPlayfield`: su asignación tiene offset de fetch + guardia que `Bitmap` aún no modela); M2 pendiente (`ScrollEngine` separado del corkscrew).
+13. **Migración de la demo 107** a `Bitmap`/`Surface`/`ScrollEngine` manteniendo la regresión verde como red de seguridad. **En curso**: M1a hecho (`Surface`); M1b-parcial hecho (`CanvasPlayfield` posee un `Bitmap`); **API segura hecha** (frontera con `Span` en `Bitmap::bytes()`, blits y `SpriteManager`; sin `frontbuffer()` público, validación de tamaño antes de encolar blits, §5.1); M1b-restante (`Bitmap` en `XLimitedPlayfield`: su asignación tiene offset de fetch + guardia que `Bitmap` aún no modela); M2 pendiente (`ScrollEngine` separado del corkscrew).
 
 ---
 

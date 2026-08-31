@@ -13,6 +13,7 @@
 /// gnu++23. Este header es el punto donde vive la memoria; `Playfield` y
 /// `Surface` la consumen.
 
+#include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/memory/arena.hpp>
 
@@ -64,8 +65,14 @@ public:
     }
 
     constexpr bool valid() const { return m_block.valid(); }
-    constexpr const u8* frontbuffer() const { return m_frontbuffer; }
-    u8* frontbuffer() { return m_frontbuffer; }
+
+    /// Vista acotada del bloque (el tamaño viaja con el puntero). NO es la vía
+    /// de dibujo: toda escritura pública pasa por `Surface`/blits con `Span`.
+    /// `bytes()` existe para generación de contenido por CPU (procedural) y para
+    /// leer el framebuffer; internamente el engine usa la vía cruda optimizada.
+    Span<u8> bytes() { return { m_frontbuffer, m_total }; }
+    Span<const u8> bytes() const { return { m_frontbuffer, m_total }; }
+
     constexpr u16 width() const { return m_cfg.width; }
     constexpr u16 height() const { return m_cfg.height; }
     constexpr u8 planes() const { return m_cfg.planes; }

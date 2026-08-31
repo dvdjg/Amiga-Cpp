@@ -432,7 +432,8 @@ struct DemoGame {
         // DATB=plano1. El interior usa COLOR19 (ambos planos), el borde COLOR17.
         {
             auto& sp = scene.sprites();
-            eng::u16* data = reinterpret_cast<eng::u16*>(sp.sprite_data());
+            eng::Span<eng::u8> sd = sp.sprite_data(); // 64 bytes (16 líneas × 2 words)
+            eng::u16* data = reinterpret_cast<eng::u16*>(sd.data());
             for (int y = 0; y < 16; ++y) {
                 eng::u16 a = 0, b = 0;
                 const int half = (y < 8) ? y : 15 - y; // 0..7..0 (diamante)
@@ -445,7 +446,7 @@ struct DemoGame {
                 data[y * 2] = a;
                 data[y * 2 + 1] = b;
             }
-            sp.set(0, {true, data, 1, 16, 120, 96, 111, 16});
+            sp.set(0, {true, eng::Span<const eng::u16>::from_raw(data, 32), 1, 16, 120, 96, 111, 16});
         }
 #endif
 
@@ -489,7 +490,9 @@ struct DemoGame {
         auto& bg = scene.bg();
         if (m_bob.valid()) {
             const eng::u16* bob = static_cast<const eng::u16*>(m_bob.data);
-            bg.add_world_bitmap_masked(hud_plan, bob, bob + 64,
+            bg.add_world_bitmap_masked(hud_plan,
+                eng::Span<const eng::u16>::from_raw(bob, 64),      // 4 planos × 32 bytes
+                eng::Span<const eng::u16>::from_raw(bob + 64, 16), // máscara 1 bit × 32 bytes
                 160, 100, 16, 16, 2, 32, 4);
         }
 #else
