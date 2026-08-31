@@ -667,4 +667,35 @@ van a +5V (1 = no pulsado), pero el emulador no.
 
 ---
 
+## Fase 13: F5 no ejecutaba el demo del archivo abierto (2026-09-01)
+
+**Síntoma**: con `demos/107_xlimited_corkscrew/src/main.cpp`, pulsar F5 mostraba "otra
+cosa muy distinta" (un churro / pantalla ajena al 107).
+
+**Causa raíz** (doble):
+1. `build-current-demo.sh`/`.opt.sh` infieren el target desde el **archivo ACTIVO**
+   (`${file}` → `TARGET="${RELATIVE%%/src/*}"`): si el archivo abierto es un header del
+   engine o de otra demo, compilan otra demo o fallan.
+2. Los scripts copiaban de `out/demos/<name>/<name>.exe`, pero el build por
+   configuraciones publica en `out/demos/<name>/<CONFIG_ID>/...`; el `cp` fallaba siempre
+   y `out/debug-current/` conservaba binarios **stale** (`current` = demo 102,
+   `current_opt` = demo 106). F5 ejecutaba esas demo viejas.
+
+**Fix** (`build-current-demo.sh`, `build-current-demo-opt.sh`):
+- Publicar desde el directorio de config correcto (`A500_o0` para `--debug --o0`,
+  `A500_debug` para `--debug`), con fallback al `.exe` más reciente del target.
+- Si el archivo activo no es `demos/<demo>/src`, error explícito con la guía
+  "abre y enfoca demos/107_xlimited_corkscrew/src/main.cpp" y `session.json` con
+  `status:"failed"` (para que ninguna herramienta asuma el binario como válido).
+- Los preLaunchTasks al fallar abortan el F5 mostrando el mensaje (ya no corre stale).
+
+**Verificado**: `out/debug-current/current` (107, -O0) y `current_opt` (107, -O1)
+reconstruidos; `session.json` → `targetName: 107_xlimited_corkscrew`.
+
+**Regla operativa**: antes de F5, el archivo activo debe ser el `src/main.cpp` de la demo
+(spoilers del engine compilan otra demo o nada); en el panel de tareas se ve
+`[debug-current] demos/<nombre>`.
+
+---
+
 *Actualizado: 2026-09-01*

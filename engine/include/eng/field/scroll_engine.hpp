@@ -1,26 +1,26 @@
-#pragma once
+﻿#pragma once
 
 /// \file scroll_engine.hpp
-/// Driver + algoritmo del scroll separados del playfield (diseño §7 `ScrollEngine`).
+/// Driver + algoritmo del scroll separados del playfield (diseÃ±o Â§7 `ScrollEngine`).
 ///
-/// `ScrollEngine` posee el ESTADO de cámara (mappos/videopos/dirección), decide
+/// `ScrollEngine` posee el ESTADO de cÃ¡mara (mappos/videopos/direcciÃ³n), decide
 /// el paso de 1 px a partir de `(dx, dy)` y EMITE los blits de los 4 scrollear
 /// del corkscrew/XYLimited (Steger). El playfield es el **layout sink**
 /// (`ScrollSink`, concepto sin virtuals, resuelto en compile-time): aporta la
-/// geometría, los límites del mapa, `add_draw` (blit de bloque + espejo) y la
+/// geometrÃ­a, los lÃ­mites del mapa, `add_draw` (blit de bloque + espejo) y la
 /// costura de la guarda de 1 word (`save_word`/`restore_saveword`).
 ///
 /// La guarda saveword es un concepto del LAYOUT (el blit plane-shifted pisa y
-/// restaura una word del framebuffer de ese layout concreto), así que vive en
-/// el sink, no en el engine: el engine sólo decide CUÁNDO restaurar según su
-/// `previous_xdirection`. El estado del engine queda en cámara + dirección.
+/// restaura una word del framebuffer de ese layout concreto), asÃ­ que vive en
+/// el sink, no en el engine: el engine sÃ³lo decide CUÃNDO restaurar segÃºn su
+/// `previous_xdirection`. El estado del engine queda en cÃ¡mara + direcciÃ³n.
 ///
-/// GEOMETRÍA COMPILE-TIME (fast_div.hpp): los denominadores calientes
+/// GEOMETRÃA COMPILE-TIME (fast_div.hpp): los denominadores calientes
 /// (tile width/height, display_height, display_planelines, planes) se pasan
 /// como NTTP `ScrollConsts`. Si un campo es distinto de 0 el engine usa
-/// `eng::fast_div<>` (potencia de dos → shifts; constante general → multiplicación
-/// mágica) y NUNCA llama a `__udivsi3`. Si es 0, se cae a la geometría runtime del
-/// sink (división nativa completa): es el fallback del peor caso, correcto pero
+/// `eng::fast_div<>` (potencia de dos â†’ shifts; constante general â†’ multiplicaciÃ³n
+/// mÃ¡gica) y NUNCA llama a `__udivsi3`. Si es 0, se cae a la geometrÃ­a runtime del
+/// sink (divisiÃ³n nativa completa): es el fallback del peor caso, correcto pero
 /// lento. Los valores a priori (K_TILE_W=16 etc.) deben entrar como constantes.
 ///
 /// Reglas del engine: sin heap, sin RTTI, sin virtuals en el hot path (sink por
@@ -34,13 +34,13 @@ namespace eng::field {
 
 /// Direcciones del corkscrew (constantes del original Scroller_XYLimited).
 enum ScrollDirection : u8 {
-    ScrollDirNone = 0,  // primer paso, sin dirección previa
+    ScrollDirNone = 0,  // primer paso, sin direcciÃ³n previa
     ScrollDirLeft = 1,
     ScrollDirRight = 2,
 };
 
-/// Estado de cámara del scroll. Lo mueve `ScrollEngine` (paso a paso) y lo lee
-/// el display (`hardware_view`/getters). La guarda saveword NO está aquí: es un
+/// Estado de cÃ¡mara del scroll. Lo mueve `ScrollEngine` (paso a paso) y lo lee
+/// el display (`hardware_view`/getters). La guarda saveword NO estÃ¡ aquÃ­: es un
 /// seam de layout que gestiona el sink.
 struct ScrollState {
     s32 mapposx = 0;
@@ -50,7 +50,7 @@ struct ScrollState {
     u8 previous_xdirection = ScrollDirNone;
 };
 
-/// Constantes de geometría para el hot path (0 = runtime desde el sink). Cuando
+/// Constantes de geometrÃ­a para el hot path (0 = runtime desde el sink). Cuando
 /// se conocen a priori (potencias de dos casi siempre), el engine usa `fast_div`
 /// y evita las divisiones por frame.
 struct ScrollConsts {
@@ -61,7 +61,7 @@ struct ScrollConsts {
     u32 planes = 0;            // 0 = sn.planes()
 };
 
-/// Concepto `ScrollSink` (por convención, sin SFINAE). El playfield que ejecuta
+/// Concepto `ScrollSink` (por convenciÃ³n, sin SFINAE). El playfield que ejecuta
 /// el scroll debe exponer (const, u16 a menos que se indique):
 ///   tile_width, tile_height, planes(u8), viewport_w, viewport_h,
 ///   display_height, display_planelines, bitmap_blocks_per_row,
@@ -78,16 +78,16 @@ public:
     ScrollState& state() { return m_state; }
     const ScrollState& state() const { return m_state; }
 
-    /// Avanza 1 px por eje (0 si no toca). Réplica del driver original: primero
+    /// Avanza 1 px por eje (0 si no toca). RÃ©plica del driver original: primero
     /// X y luego Y en la misma llamada (diagonal posible). Devuelve false si un
-    /// borde del mapa bloqueó el avance en algún eje.
+    /// borde del mapa bloqueÃ³ el avance en algÃºn eje.
     bool step(graphics::FramePlan& plan, Sink& sink, s32 dx, s32 dy) {
         if (dx != 0 && !((dx > 0) ? scroll_right(plan, sink) : scroll_left(plan, sink))) return false;
         if (dy != 0 && !((dy > 0) ? scroll_down(plan, sink) : scroll_up(plan, sink))) return false;
         return true;
     }
 
-    // --- Geometría: constante NTTP si se conoce, runtime del sink si no. -----
+    // --- GeometrÃ­a: constante NTTP si se conoce, runtime del sink si no. -----
     inline u16 tw(const Sink& sn) const {
         return C.tile_width ? static_cast<u16>(C.tile_width) : sn.tile_width();
     }
@@ -130,10 +130,10 @@ public:
         return v % sn.display_planelines();
     }
 
-    /// Fila de bloque del mapa que el display está mostrando (0..display_height).
+    /// Fila de bloque del mapa que el display estÃ¡ mostrando (0..display_height).
     inline u32 block_videoposy(const Sink& sn) const {
-        // (mapposy / th * th) % display_height: el floor a múltiplo usa q_th y el
-        // módulo total usa r_dh (fast si ambos son constantes).
+        // (mapposy / th * th) % display_height: el floor a mÃºltiplo usa q_th y el
+        // mÃ³dulo total usa r_dh (fast si ambos son constantes).
         return r_dh(sn, q_th(sn, m_state.mapposy) * th(sn));
     }
     /// Constante de "dos bloques" del corkscrew (fillup a dos bloques de ancho).
@@ -142,7 +142,7 @@ public:
             ? static_cast<u16>(sn.bitmap_blocks_per_row() - th(sn)) : 0;
     }
 
-    /// Scroll de 1 px a la derecha (plane-shifted) — ScrollRight corkscrew.
+    /// Scroll de 1 px a la derecha (plane-shifted) â€” ScrollRight corkscrew.
     /// Fiel a ScrollRight de Scroller_XYLimited/main.c:869-978:
     ///   columna entrante x = BITMAPWIDTH + ROUND2BLOCKWIDTH(videoposx),
     ///   fila mapy = stepx+1 (2 bloques si stepx==0), y = (block_videoposy +
@@ -163,7 +163,7 @@ public:
         if (!sn.one_direction() && m_state.previous_xdirection == ScrollDirLeft) sn.restore_saveword();
 
         u16 mapy = static_cast<u16>(stepx + 1);
-        if (mapy == 1) { // stepx == 0 → dos bloques
+        if (mapy == 1) { // stepx == 0 â†’ dos bloques
             mapy = static_cast<u16>(mapy + mapblocky);
             const u32 y = r_dh(sn, bvpos + th(sn)) * planes(sn);
             if (!sn.add_draw(plan, static_cast<u16>(x0 + sn.bitmap_width()), static_cast<u16>(y), mapx, mapy)) return false;
@@ -208,7 +208,7 @@ public:
         return true;
     }
 
-    /// Scroll de 1 px a la izquierda (no plane-shifted) — ScrollLeft corkscrew.
+    /// Scroll de 1 px a la izquierda (no plane-shifted) â€” ScrollLeft corkscrew.
     /// Fiel a ScrollLeft de Scroller_XYLimited/main.c:751-867.
     bool scroll_left(graphics::FramePlan& plan, Sink& sn) {
         if (m_state.mapposx < 1) return false;
@@ -244,7 +244,7 @@ public:
         const u16 mapx = mapblockx;
         u16 mapy = static_cast<u16>(stepx + 1);
         if (m_state.previous_xdirection == ScrollDirRight) sn.restore_saveword();
-        if (mapy == 1) { // stepx == 0 → dos bloques
+        if (mapy == 1) { // stepx == 0 â†’ dos bloques
             mapy = static_cast<u16>(mapy + mapblocky);
             const u32 y = r_dh(sn, bvpos + th(sn)) * planes(sn);
             sn.save_word(y * sn.bytes_per_row() + (x0 / 8u));
@@ -263,7 +263,7 @@ public:
         return true;
     }
 
-    /// Scroll vertical 1 px hacia abajo — ScrollDown corkscrew.
+    /// Scroll vertical 1 px hacia abajo â€” ScrollDown corkscrew.
     /// Fiel a ScrollDown de Scroller_XYLimited/main.c:639-749.
     bool scroll_down(graphics::FramePlan& plan, Sink& sn) {
         const s32 limitY = static_cast<s32>(sn.map_height_blocks()) * th(sn) -
@@ -313,7 +313,7 @@ public:
         return true;
     }
 
-    /// Scroll vertical 1 px hacia arriba — ScrollUp corkscrew.
+    /// Scroll vertical 1 px hacia arriba â€” ScrollUp corkscrew.
     /// Fiel a ScrollUp de Scroller_XYLimited/main.c:529-637.
     bool scroll_up(graphics::FramePlan& plan, Sink& sn) {
         if (m_state.mapposy < 1) return false;
