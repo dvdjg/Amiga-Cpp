@@ -320,6 +320,7 @@ Inspirado en el modelo `EffectT` de la demoscene: un efecto (o modo de escena) t
 
 - `Effect`/`SceneMode`: la `Scene` hostea **un efecto activo** (Loader → título → gameplay → créditos). `Load` precalcula en background (tarea propia); `Init` reserva memoria/copper/DMA; `Render` dibuja el frame; `VBlank` actualiza punteros, paleta, música; `Kill`/`UnLoad` liberan.
 - `VBlankBus`: el VBlank es un evento con **múltiples suscriptores** registrables (música, animación de paleta, sprites, efecto). El bucle actual (`update→wait_vblank→render`) gana hooks de VBlank.
+- `HardwareIRQBus`: el sistema no es solo VBlank. Hay que registrar hooks para **todas las interrupciones relevantes**: VBlank (nivel 3), **audio** (vector `$70`, nivel 4 — lo usa un mixer por software para mezclar un chunk por tick), y CIA timers. El `Scheduler` distingue VBlank (música, paleta) de audio (mixer) y de timers.
 - `Scheduler`: gestión de tareas de background (Load/precalc), reparto de CPU entre ellas y el Render, y encaje con el `MachineProfile` (velocidad de CPU). Con `MULTITASK`, `TaskWaitVBlank()` cede CPU; sin multitarea es el VBlank síncrono.
 - `Profiler`: el perfilado por bloques (`PROFILE`) alimenta el `Diagnostics` para medir el coste de cada efecto.
 
@@ -353,13 +354,39 @@ La familia de reproductores de la demoscene (Protracker, AHX, P61, Cinter) es el
                    VBlankBus.tick() cada frame
 ```
 
+### 14.1 Mixer por software (caso de estudio: Amiga Audio Mixer V3.7)
+
+Para juegos con más voces que canales hardware se necesita un **mixer por software** (referencia: Jeroen Knoester, "Audio Mixing for Games", proyecto AmigaAudioMixer). Un mixer mezcla N samples por adición en un buffer de salida que se reproduce en un solo canal hardware (o varios), añadiendo latencia de ~1 buffer. El mixer V3.7 es un caso de estudio perfecto de la filosofía del engine: **decide todo en ensamblado** (`mixer_config.i`) y en runtime solo cambia PAL/NTSC, volumen y qué suena.
+
+```
+   muestras fuente (Fast RAM, pre-procesadas o no)    buffer doble (Chip RAM)
+   ┌────────┐ ┌────────┐ ┌────────┐
+   │ SFX 1  │ │ SFX 2  │ │ SFX 3  │  ── mezcla aditiva ──► ┌──────┐ ┌──────┐
+   └────────┘ └────────┘ └────────┘   (por chunk, en la    │ buf A│ │ buf B│
+     (pueden vivir en Fast; solo el      IRQ de audio $70)  └──────┘ └──────┘
+      buffer de salida necesita Chip)            │              │       │
+                                    Paula reproduce A mientras B se mezcla (doble buffer)
+```
+
+Abstracciones nuevas derivadas del mixer:
+- `AudioMixer<Type, HqMode, SwChannels, CpuClass>`: el mezclador por software. Es una plantilla sobre el tipo (`Single`/`Multi`/`MultiPaired`), el modo (`Standard` con muestras pre-procesadas, o `HQ` con limitador + error-feedback), el nº de voces software por canal HW (1–4) y la CPU (`M68000` bucles desenrollados / `M68020` bucle cache-friendly). La mezcla es **aditiva en longwords** (signed 32-bit); HQ satura (`bvs`) con error feedback. Equivale a mapear `mixer_config.i` a parámetros de plantilla C++23.
+- `MixBuffer`: el buffer doble de salida en Chip RAM, reservado por el `ResourceLedger` con tamaño dependiente de `MachineProfile` (periodo y PAL/NTSC). Latencia intrínseca de ~1 buffer.
+- `AudioChannelPolicy`: el reparto de voces (estado libre/activo/loop, **prioridad + edad** para *channel stealing*, y la regla de que **las voces en loop nunca se sobrescriben**). Extiende el `AudioChannelAllocator`.
+- `AudioPlugin` (init + rutina por tick + *deferred*): DSP por sample dentro de la IRQ (repeat, sync, volume, pitch), con `MIX_PLUGIN_STD` (altera el buffer) y `MIX_PLUGIN_NODATA` (solo sincroniza). Es un "shader" de audio por sample.
+- `SamplePreprocessor` (división o compresión): parte de la pipeline de recursos (§17), se aplica en Load para dar headroom a la suma (el mixer estándar lo exige; el HQ no).
+- `AudioIRQBus`: el mixer **no** se dirige por VBlank sino por la **interrupción de audio** (vector `$70`, nivel 4); el `HardwareIRQBus` (§13) debe soportarlo. La latencia (~1 frame) y el doble buffer son decisiones de diseño documentadas.
+
+Rutinas de referencia del mixer (para mapear): `MixerSetup` (buffer + VBR + PAL/NTSC), `MixerInstallHandler` (vector `$70`), `MixerStart/Stop`, `MixerVolume`, `MixerPlayFX`/`MixerPlayChannelFX` (selección automática por prioridad/edad o canal forzado), `MixerStopFX`, `MixerGetChannelStatus`, callbacks de fin de sample y callbacks externos de IRQ/DMA (integración OS-legal).
+
 Virtudes:
-- Los replayers son componentes estáticos: solo se enlaza el formato que usas (un juego con Protracker no lleva AHX ni P61).
-- El allocator de canales da un presupuesto verificable (como el ledger) y el `Diagnostics` reporta voz cortada.
+- El mixer es estático por composición: solo se instancia el tipo/modo/nº de voces/CPU que usas (igual que `mixer_config.i` elimina código no usado).
+- El triple concepto HW channel / SW channel / voz software da muchas voces (hasta 16) con pocos canales hardware; las muestras fuente pueden vivir en Fast RAM.
+- La política de prioridad+edad y el "loop nunca se sobrescribe" son reglas claras y verificables.
 
 Defectos:
-- Los replayers son código grande y específico por formato; portarlos a C++ constexpr-friendly es trabajo real (tablas, timing de CIA).
-- El reparto música/SFX por canales es un arbitraje dinámico (el ledger es estático); hace falta una política runtime (qué canal cede).
+- La mezcla aditiva sin saturación (modo estándar) distorsiona si el headroom no se respeta; el pre-procesado lo asegura pero baja volumen/calidad.
+- El modo HQ es mucho más caro de CPU (12–18 % del frame en A500); es viable sobre todo en A1200.
+- El buffer doble añade latencia de ~1 frame (intrínseca a la técnica); los bucles muy cortos consumen más CPU.
 
 ---
 
@@ -654,6 +681,7 @@ Defectos:
 | `Diagnostics` + canal lateral | visible para dev e IA; severidad | coste de formato; política release |
 | Ciclo de vida (Effect/VBlankBus) | modos sin fugas; carga en background; hooks desacoplados | estados/transiciones; multitarea delicada; ISR presupuestada |
 | Audio (MusicPlayer + allocator) | solo el formato usado; presupuesto de canales | replayers grandes; arbitraje música/SFX dinámico |
+| Mixer por software (`AudioMixer<Type,Hq,Cpu>`) | muchas voces (hasta 16) con pocos HW; estático por composición; muestras en Fast | aditivo sin saturación distorsiona; HQ caro; latencia ~1 buffer |
 | Input/Periféricos | modelo normalizado; GUI reutiliza Surface | dispositivos parciales; bajo nivel por plataforma |
 | Chunky/c2p | cálculo fácil; portable | conversión cara; copper-chunky no portable |
 | Animación de paleta | declarativo; validado por el builder | PCHG consume words; latencia de tick |
@@ -675,10 +703,95 @@ Defectos:
 4. **Prototipo host del `CopperBuilder` + `Diagnostics`** (zonas, arbitraje, severidad, canal lateral, CopperScript).
 5. **Diseñar el comando `BlitAssist`** con la tabla híbrida (default + calibración + bake) como primer backend condicionado por CPU.
 6. **Ciclo de vida**: `Effect`/`SceneMode` + `VBlankBus` + `Scheduler` (background Load) — la columna vertebral de la demoscene.
-7. **Audio**: `AudioBackend` + `MusicPlayer` (Protracker primero) + `SoundEffect`/allocator de canales.
+7. **Audio**: `AudioBackend` + `MusicPlayer` (Protracker primero) + `SoundEffect`/allocator de canales + **mixer por software** (`AudioMixer`, buffer doble, política de canales, plugins, `AudioIRQBus`).
 8. **Input/Periféricos**: `InputBackend`/`InputManager` (teclado, ratón, joystick) + primer `Widget`/GUI.
 9. **Efectos**: pipeline chunky/c2p, `PaletteAnimator`, `CopperScript`, `Font`/texto; luego 3D, filtros y tiles avanzados.
 10. **Migración de la demo 107** a `Bitmap`/`Surface`/`ScrollEngine` manteniendo la regresión verde como red de seguridad.
+
+---
+
+## Anexo A. Amiga Audio Mixer V3.7 → abstracciones del engine
+
+Referencia: Jeroen Knoester, "Audio Mixing for Games" (Power Programs) y el proyecto `AmigaAudioMixer` (repositorio local). Este anexo mapea 1:1 los símbolos y conceptos del mixer a las abstracciones propuestas en el engine, como guía de implementación y validación del diseño.
+
+### A.1 Correspondencia de conceptos y símbolos
+
+| Concepto / símbolo del mixer | Abstracción del engine |
+|---|---|
+| `MXEffect` (length, sample_ptr, loop, priority, loop_offset, plugin_ptr) | `SoundEffect` (con modos de loop `Once/Loop/LoopOffset` y prioridad) |
+| `MXMixer` / `MXMixerEntry` / `MXChannel` | `AudioMixer<...>` / `MixBuffer` / voz software |
+| `MixerSetup` (buffer + plugin_buffer + VBR + PAL/NTSC) | `AudioMixer::init` + `ResourceLedger` (reserva el buffer) + `MachineProfile` (video system) |
+| `MixerInstallHandler` / `MixerRemoveHandler` (vector `$70`, nivel 4) | `AudioIRQBus` (instalación del hook de audio en el `HardwareIRQBus`) |
+| `MixerStart` / `MixerStop` | `AudioMixer::start/stop` (programa DMA/INTENA) |
+| `MixerVolume` (0–64) | `AudioMixer::set_volume` (volumen HW global) |
+| `MixerPlayFX` (selección automática por prioridad/edad) | `AudioChannelPolicy::play` (channel stealing) |
+| `MixerPlayChannelFX` (canal forzado) | `AudioChannelPolicy::play_on_channel` |
+| `MixerStopFX` (mask de canales) | `AudioChannelPolicy::stop` |
+| `MixerGetChannelStatus` → `MIX_CH_FREE/BUSY` | estado de la voz software |
+| `MIXER_SINGLE` / `MIXER_MULTI` / `MIXER_MULTI_PAIRED` | parámetro de plantilla `AudioMixerType` |
+| `MIXER_HQ_MODE` (0/1) | parámetro de plantilla `AudioMixerMode` (Standard/HQ) |
+| `mixer_sw_channels` (1–4) | parámetro de plantilla `SwChannels` |
+| `mixer_output_channels` / `mixer_period` / `MIXER_PER_IS_NTSC` | `MachineProfile::audio_channels` + `video_system` (PAL/NTSC) |
+| `MIXER_68020` / `MIXER_WORDSIZED` / `MIXER_SIZEX32` / `MIXER_SIZEXBUF` | `CpuClass` + optimizaciones de plantilla (`if constexpr`) |
+| `MXPlugin` + plugins (repeat/sync/volume/pitch) | `AudioPlugin` (init + tick + deferred) |
+| `ConvertSampleDivide` / `SampleConverter` | `SamplePreprocessor` (división/compresión) en la pipeline de recursos |
+| `MixerEnableCallback` (fin de sample, D0/A0, devuelve 0/1) | callback de fin de sample del `AudioMixer` |
+| `MixerSetIRQDMACallbacks` (6 punteros externos) | integración OS-legal: hooks del `HardwareIRQBus`/`AudioBackend` |
+| `MixerCalcTicks` / `MixerResetCounter` / `mixer_ticks_*` | `Diagnostics`/profiler (medición de la IRQ) |
+| `mixer_PAL_buffer_size` / `mixer_NTSC_buffer_size` / doble buffer | `MixBuffer` (tamaño según periodo y PAL/NTSC, latencia ~1 buffer) |
+
+### A.2 Compilación vs runtime (la filosofía del engine, validada)
+
+El mixer decide **en ensamblado** (inmutable en runtime): tipo, modo, canales HW, nº de voces software, periodo, CPU, plugins, optimizaciones y medición. En runtime solo cambian: el sistema de vídeo (PAL/NTSC en `MixerSetup`), el volumen, qué samples suenan y algunos punteros de callback. La doc del mixer lo dice explícitamente: *"la única opción que se puede cambiar en runtime es el sistema de vídeo"*.
+
+Esto es exactamente el modelo del engine: `mixer_config.i` se mapea a **parámetros de plantilla C++23** (`AudioMixer<AudioMixerType::Single, AudioMixerMode::Standard, 4, CpuClass::M68020>`), y el runtime queda para `play/stop/volume/video_system`. Lo que el mixer hace con macros de ensamblado, el engine lo hace con `constexpr`/plantillas y `--gc-sections`.
+
+### A.3 El modelo de canales (HW / SW / voz software)
+
+```
+   canal HW Paula (AUDx)              voces software (mixer_sw_channels)      buffer
+   ┌────────────────────────┐         ┌────────────────────────────────┐
+   │  DMAF_AUD0             │         │  MIX_CH0 ── sample A ──┐       │
+   │  ac_ptr/ac_len/ac_per  │◄────────│  MIX_CH1 ── sample B ──┼─mezcla─► │ buf doble
+   │  ac_vol                │         │  MIX_CH2 ── sample C ──┘         │ (Chip RAM)
+   └────────────────────────┘         │  MIX_CH3 (libre/busy)             │
+        (música usa 3 HW;             └────────────────────────────────┘
+         el 4º HW reproduce el buffer
+         con hasta 4 voces mezcladas)
+```
+
+`mixer_total_channels = mixer_sw_channels × mixer_output_count` (máx. 4×4 = 16). Cada voz es una `MXChannel` con `mch_status` (libre/activo/loop), `mch_priority`, `mch_age`. `MIX_CH0..3` son los canales software virtuales (16/32/64/128 en bitmask).
+
+### A.4 La mezcla (aditiva, longwords)
+
+- **Estándar**: suma **aditiva en longwords signed 32-bit** (opera 4 bytes a la vez). Exige muestras **pre-procesadas** (división de amplitud por nº de canales, o compresión con limitador) para que la suma nunca desborde los 8 bits de Paula. Sin saturación: si falta headroom, distorsión.
+- **HQ**: suma en 16 bits con **saturación en runtime** (`bvs`) y **error feedback rounding** (los bits perdidos al limitar se suman al siguiente resultado). No necesita pre-procesado ni baja el volumen; mucho más CPU.
+
+```
+   estándar (pre-procesado, sin saturar)       HQ (limitador + error feedback)
+   out = s1 + s2 + s3 + s4                     acc(16-bit) = s1 + s2 + s3 + s4
+   (samples ya divididos/limitados)            if (acc > 127) { out = 127; err += acc-127 }
+                                               (los bits sobrantes pasan al siguiente)
+```
+
+### A.5 Rendimiento de referencia (del artículo, CIA ticks ≈ 709 kHz)
+
+| Mixer | Canales @ 11 kHz | A500 (% frame) | A1200 (% frame) |
+|---|---|---|---|
+| Estándar V2.0 | 2 / 3 / 4 | 1,9 / 2,6 / 3,2 | 1,1 / 1,4 / 1,7 |
+| Estándar V1.0 | 2 / 3 / 4 | 4,1 / 5,3 / 6,6 | 3,2 / 4,4 / 5,5 |
+| HQ | 2 / 3 / 4 | 12,2 / 15,1 / 18,0 | 5,4 / 6,5 / 8,3 |
+
+A 8 kHz, 3 canales estándar: A500 ≈ 2,0 %, A1200 ≈ 1,0 %. Referencia del presupuesto de CPU: el estándar es viable en A500 (≤ 6,6 % con 4 voces); el HQ es realista sobre todo en A1200. La nota del autor (como en el CPU blit assist): **medir en hardware real; los emuladores no son fiables para 68020**.
+
+### A.6 Decisiones de diseño que impone el mixer
+
+- **Latencia**: el doble buffer y el tick por interrupción de audio dan latencia intrínseca de ~1 buffer (1/50 s PAL, 1/60 s NTSC). Es aceptable para juegos y hay que documentarla.
+- **IRQ de audio, no VBlank**: el mixer se dirige por el vector `$70` (nivel 4), no por VBlank. El `HardwareIRQBus` (§13) debe distinguir ambas fuentes: VBlank para música/paleta, audio para el mixer.
+- **Muestras fuente en Fast RAM**: la mezcla lee los samples desde cualquier RAM; solo el buffer de salida necesita Chip (reservado por el `ResourceLedger`). Encaja con los dominios Chip/Fast (§4).
+- **Política de canales**: prioridad + edad para *channel stealing*; **las voces en loop nunca se sobrescriben** (solo `Stop`); `MixerPlayFX` devuelve −1 si no hay canal. La `AudioChannelPolicy` replica esta regla.
+- **Tamaño de código**: el autor recomienda eliminar las variantes no usadas (unrolled 68000, HQ, plugins) del build final — el argumento exacto de la composición estática. Con plantillas y `--gc-sections` es automático.
+- **Callbacks/plugins**: fin de sample y callbacks externos de IRQ/DMA (OS-legal) como punteros configurables en runtime; plugins (repeat/sync/volume/pitch) como DSP por sample con init/tick/deferred, evitando *race conditions* en la IRQ.
 
 ---
 
