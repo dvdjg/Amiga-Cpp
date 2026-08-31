@@ -276,8 +276,11 @@ for(const fname of lastFiles){
   // Franja derecha de 18 px (2 bytes fuente ≈4 px escalados, tomamos 18 para robustez)
   const stripW=18;
   const x0=vp.left+vp.width-stripW;
+  // El rect activo puede incluir la franja HUD inferior (32 filas, lienzo negro):
+  // muestrear SOLO el área principal (excluir las ~70 px inferiores a 2x).
+  const mainBottom=vp.top+vp.height-70;
   let black=0, total=0;
-  for(let y=vp.top+4; y<vp.top+vp.height-4; y+=2){
+  for(let y=vp.top+4; y<mainBottom; y+=2){
     for(let x=x0; x<x0+stripW; x+=2){
       const i=(y*img.width+x)*4;
       const l=(img.data[i]+img.data[i+1]+img.data[i+2])/3;

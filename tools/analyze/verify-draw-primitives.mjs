@@ -252,5 +252,57 @@ section('7. CanvasPlayfield (lienzo plano 320x32, 4 planos)');
   check('lienzo ignora píxeles fuera de rango', ccolor(319, 31) === before);
 }
 
+// ---- 8. CanvasPlayfield blit enmascarado (cookie-cut) ----
+section('8. CanvasPlayfield blit enmascarado (cookie-cut)');
+{
+  const CW = 320, CH = 32, CP = 4, CROW = CW / 8;
+  const canvas = new Uint8Array(CROW * CH * CP);
+  const wordAt = (wy, p, byte) => {
+    const i = (wy * CP + p) * CROW + byte;
+    return (canvas[i] << 8) | canvas[i + 1];
+  };
+  const setWord = (wy, p, byte, w) => {
+    const i = (wy * CP + p) * CROW + byte;
+    canvas[i] = w >> 8; canvas[i + 1] = w & 0xff;
+  };
+  const draw = (wx, wy, color) => {
+    const byte = (wx / 8) | 0, mask = 0x8000 >> (wx & 15);
+    for (let p = 0; p < CP; p++) {
+      const w = wordAt(wy, p, byte);
+      setWord(wy, p, byte, (color & (1 << p)) ? (w | mask) : (w & ~mask));
+    }
+  };
+  // fondo: pintar una marca en (40,4)
+  draw(40, 4, 3);
+  // fuente: 1 word (16px) de 2 planos en (64, 8), maska centro 8px
+  const srcP = new Uint8Array(2 * 2);       // 2 planos, 1 fila x 2 bytes (16px)
+  const maskP = new Uint8Array(2);          // 1 plano
+  // src: plano0 = 0x0FF0 (px4..11), plano1 = 0x00FF (px8..15) -> colores mezclados
+  srcP[0] = 0x0f; srcP[1] = 0xf0;           // plano0 word = 0x0FF0
+  srcP[2] = 0x00; srcP[3] = 0xff;           // plano1 word = 0x00FF
+  maskP[0] = 0x0f; maskP[1] = 0xf0;         // mask = 0x0FF0 (px4..11)
+  // cookie-cut por palabra: dest = (mask & src_p) | (~mask & dest)
+  for (let p = 0; p < 2; p++) {
+    const srcW = (srcP[p * 2] << 8) | srcP[p * 2 + 1];
+    const mw = (maskP[0] << 8) | maskP[1];
+    const dw = wordAt(8, p, 8);             // byte 8 (64px/8)
+    setWord(8, p, 8, (mw & srcW) | (~mw & dw));
+  }
+  // verificación: en (64..79, 8), donde mask=1 (px4..11 -> x68..75) debe estar src; resto fondo
+  let ok = true;
+  const mism = [];
+  for (let x = 64; x < 80; x++) {
+    const bit = 0x8000 >> (x & 15);
+    let c = 0;
+    for (let p = 0; p < 2; p++) if (wordAt(8, p, 8) & bit) c |= 1 << p; // palabra del blit (byte 8)
+    const inMask = (x >= 68 && x <= 75);
+    const expColor = inMask ? ((x >= 72 ? 2 : 0) | 1) : 0;
+    if (c !== expColor) mism.push('x=' + x + ' c=' + c + ' exp=' + expColor);
+  }
+  if (mism.length) console.log('  discrepancias blit mask:', mism.slice(0, 8).join(' | '));
+  check('blit enmascarado cookie-cut en lienzo (src en mask, fondo fuera)', mism.length === 0);
+  check('fondo conservado donde mask=0 (x64,8)', (() => { let c = 0; for (let p = 0; p < 2; p++) if (wordAt(8, p, 8) & 0x8000) c |= 1 << p; return c === 0; })());
+}
+
 console.log(fails === 0 ? 'OK verify-draw-primitives (layout corkscrew)' : ('FAILS=' + fails));
 process.exit(fails === 0 ? 0 : 1);

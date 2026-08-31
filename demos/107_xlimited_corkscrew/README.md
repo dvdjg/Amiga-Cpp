@@ -276,12 +276,13 @@ que usar `mapposy()+sy` deja el objeto en la banda de staging, fuera de
 pantalla.
 
 **Limitación de bus del Amiga (medida)**: las escrituras CPU al chip RAM durante
-el frame visible roban ciclos al DMA de bitplanes. Con pocas (1-2 `set_pixel`)
-no hay efecto; con decenas–centenas de RMW (`fill_rect`/`draw_line` grandes) el
-emulador muestra scanlines negros periódicos (inanición de bus). Por eso el
-dibujo masivo va por **Blitter** (`add_world_bitmap[_masked]`) y las primitivas
-CPU se reservan para marcas pequeñas o para init (boot, sin competencia). La
-demo usa un HUD mínimo por CPU + un BOB enmascarado por Blitter.
+el frame visible roban ciclos al DMA de bitplanes. Medido en la demo 107: con 1-2
+`set_pixel` por frame no hay efecto (0 frames negros en 50); con un `fill_rect`
+8×8 (64 RMW) aparecen scanlines negros parciales; con el HUD completo (~450 RMW)
+aparecen frames 100% negros periódicos. El presupuesto seguro ronda pocas decenas
+de RMW por frame. El dibujo masivo va por **Blitter** (`add_world_bitmap[_masked]`);
+las primitivas CPU se reservan para marcas pequeñas o init (boot, sin competencia).
+La demo usa un HUD mínimo por CPU + un BOB enmascarado por Blitter.
 
 **Toda rutina de dibujo futura debe pasar por estas primitivas**; nunca escribir
 a `frontbuffer()` a ciegas, porque la planelínea/byte del píxel depende de
@@ -313,21 +314,24 @@ son pequeños (2-4 blits) frente al presupuesto de Blitter del frame.
   vía hooks de mapeo + blits virtuales + `update_scroll` + `hardware_view`) y
   `CanvasPlayfield` (lienzo plano interleaved sin scroll).
 - `engine/include/eng/field/xlimited.hpp` — `XLimitedPlayfield : Playfield`
-  (corkscrew/XYLimited, especialización del scroll: `scroll_right/left/up/down`
-  fieles a `Scroller_XYLimited/main.c`, banda de staging `block_videoposy`, split
-  vertical, walk horizontal, espejo del modo lineal) + `XlimitedDisplayComposer`
-  + `XlimitedDualComposer`. El dual (DPF 3+3) intercala PF1 (planos 1,3,5) y PF2
-  (2,4,6) con su split compartido.
+  (corkscrew/XYLimited, especialización del scroll con `ScrollMode`: `EightWay`,
+  `HorizontalOnly` [X-only sin split, 1 blit/op], `VerticalOnly`,
+  `OneDirection` [sin inversión → sin saveword]) + `XlimitedDisplayComposer`
+  (con **zona HUD** y **sprites hardware**) + `XlimitedDualComposer` (DPF 3+3,
+  admite un FG estático tipo lienzo).
+- `engine/include/eng/graphics/sprite_manager.hpp` — `SpriteManager`: 8 sprites
+  hardware a nivel de escena (SPRxPT/POS/CTL + DMA + paleta COLOR16-31). En OCS
+  van SIEMPRE delante de los playfields; "detrás" se dibuja en un playfield.
 - `engine/include/eng/field/xlimited_scene.hpp` — **abstracción de escena**:
   `XlimitedScene` + `XlimitedSceneConfig` + `xlimited_build_blocks_bitmap`.
-  Compone uno/dos `XLimitedPlayfield` con **roles** (`bg()`/`fg()`), el compositor
-  single/dual, el relleno, el pre-scroll, el camino de direcciones
-  (`effect`/`phase`) y la composición, con API declarativa (config) y por-frame
-  (`update_auto`/`update`/`compose`/`install`).
+  Compone playfields con **roles** (`bg()`/`fg()`/`canvas_fg()`/`hud()`), el
+  compositor single/dual, el relleno, el pre-scroll, el camino de direcciones
+  (`effect`/`phase`), la composición y los sprites. Modos demo: `K_HUD` (franja
+  inferior con playfield separado), `K_CANVAS_FG` (DPF heterogéneo BG corkscrew
+  + FG lienzo plano) y `K_SPRITE` (sprite hardware).
 - `demos/107_xlimited_corkscrew/src/main.cpp` — **consumidor fino**: define el
   mapa y dos generadores de filas (`fg_row`/`bg_row`), configura `XlimitedSceneConfig`
-  desde las macros `K_*` y delega en `XlimitedScene`. Usa `scene.bg()` para el
-  HUD mínimo por CPU y el BOB enmascarado por Blitter. Sin lógica circular ni
+  desde las macros `K_*` y delega en `XlimitedScene`. Sin lógica circular ni
   glue de hardware.
 
 Referencias: `ScrollingTricks/Docs/xlimited-uk.html`,

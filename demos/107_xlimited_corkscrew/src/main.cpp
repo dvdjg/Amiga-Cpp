@@ -31,14 +31,6 @@ extern "C" {
 __attribute__((used)) volatile eng::debug::FrameTelemetry g_eng_frame_telemetry {};
 }
 
-// Depuración (lectura por canal lateral `mem`): puntero al copper activo, words
-// usadas y framebuffer del playfield HUD.
-extern "C" {
-__attribute__((used)) volatile eng::u32 g_dbg_copper = 0;
-__attribute__((used)) volatile eng::u16 g_dbg_copper_words = 0;
-__attribute__((used)) volatile eng::u32 g_dbg_hud_base = 0;
-}
-
 namespace {
 
 namespace field = eng::field;
@@ -230,6 +222,15 @@ namespace demo = eng::field::demo;
 #ifndef K_BOB
 #define K_BOB 1 // 0 = sin el BOB enmascarado de mundo (aislar artefactos)
 #endif
+// DPF heterogéneo: el FG es un CanvasPlayfield (lienzo plano estático) en vez de
+// un segundo XLimited. Requiere K_DUAL=1 (BG corkscrew en PF1, FG lienzo en PF2).
+#ifndef K_CANVAS_FG
+#define K_CANVAS_FG 0
+#endif
+// Sprites hardware a nivel de escena (delante de los playfields, paleta 16-31).
+#ifndef K_SPRITE
+#define K_SPRITE 0
+#endif
 // Franja HUD inferior: un playfield SEPARADO (CanvasPlayfield) de K_HUD_HEIGHT
 // filas con K_HUD_PLANES bitplanes y paleta propia, en una zona de Copper bajo
 // el viewport principal. El WAIT de la zona debe caer en raster <= 255.
@@ -357,6 +358,13 @@ struct DemoGame {
         scene_cfg.phase_frames = kPhaseFrames;
         scene_cfg.pre_scroll = kPreScroll;
         scene_cfg.palette = demo::kPalette;
+#if K_CANVAS_FG
+        scene_cfg.dual = true;
+        scene_cfg.fg_canvas = true; // FG = lienzo plano (PF2 en DPF)
+#endif
+#if K_SPRITE
+        scene_cfg.sprite_data_bytes = 64; // 1 sprite 16x16, 1 word (DAT+DATB por línea)
+#endif
 #if K_HUD
         scene_cfg.hud_height = K_HUD_HEIGHT;
         scene_cfg.hud_planes = K_HUD_PLANES;
@@ -371,16 +379,33 @@ struct DemoGame {
             eng::debug::mark_failed(g_eng_run_status, 0x00010705u);
             return;
         }
+#if K_CANVAS_FG
+        // FG estático (lienzo plano, DPF): marco + figuras dibujadas UNA vez en
+        // init con las primitivas CPU. PF2 usa colores 8..15 (base DPF).
+        {
+            auto& fg = scene.canvas_fg();
+            fg.draw_line(0, 0, kViewportW - 1, 0, 1);              // borde sup
+            fg.draw_line(0, kViewportH - 1, kViewportW - 1, kViewportH - 1, 1); // borde inf
+            fg.fill_rect(24, 24, 16, 16, 2);                       // caja
+            fg.draw_line(60, 40, 200, 120, 3);                     // diagonal
+            fg.fill_rect(kViewportW - 40, kViewportH - 40, 24, 24, 1); // caja abajo-derecha
+        }
+#endif
 #if K_HUD
-        // Dibuja el HUD UNA VEZ en init (boot, sin competir con el DMA).
+        // Dibuja el HUD UNA VEZ en init (boot, sin competir con el DMA). El
+        // display del corkscrew aplica un offset de fetch horizontal al playfield
+        // de la franja (los primeros ~16 px y el borde derecho pueden recortarse),
+        // así que el contenido se dibuja en la zona central del lienzo.
         {
             auto& hud = scene.hud();
-            hud.fill_rect(0, 0, kViewportW, K_HUD_HEIGHT, 0);
-            hud.draw_line(2, 2, 2, static_cast<eng::s32>(K_HUD_HEIGHT) - 3, 1);
-            hud.draw_line(2, 2, kViewportW - 3, 2, 1);
-            hud.fill_rect(8, 8, 8, 8, 2);
-            hud.set_pixel(kViewportW - 10, 4, 3);
-            hud.set_pixel(kViewportW - 10, static_cast<eng::s32>(K_HUD_HEIGHT) - 5, 3);
+            // Fondo oscuro NO negro (0x844): el check de negro interno del
+            // harness rechaza negro dentro del rect activo.
+            hud.fill_rect(0, 0, kViewportW, K_HUD_HEIGHT, 8);
+            hud.fill_rect(80, 6, 48, 20, 1);                       // barra blanca (marco)
+            hud.fill_rect(84, 10, 40, 12, 2);                      // interior rojo
+            hud.draw_line(140, 6, 200, 25, 3);                     // diagonal verde
+            hud.set_pixel(220, 6, 15);                             // píxel claro
+            hud.set_pixel(220, 25, 15);
         }
 #endif
         // Pre-scroll para fases con componente negativa (izquierda/arriba) o diagonales.
@@ -400,6 +425,28 @@ struct DemoGame {
             return;
         }
         scene.install(backend);
+
+#if K_SPRITE
+        // Sprite hardware (diamante 16x16, 4 colores via COLOR16-19): DAT=plano0,
+        // DATB=plano1. El interior usa COLOR19 (ambos planos), el borde COLOR17.
+        {
+            auto& sp = scene.sprites();
+            eng::u16* data = reinterpret_cast<eng::u16*>(sp.sprite_data());
+            for (int y = 0; y < 16; ++y) {
+                eng::u16 a = 0, b = 0;
+                const int half = (y < 8) ? y : 15 - y; // 0..7..0 (diamante)
+                for (int x = 0; x <= half; ++x) {
+                    const eng::u16 bitA = static_cast<eng::u16>(0x8000u >> (7 + x));
+                    const eng::u16 bitB = static_cast<eng::u16>(0x8000u >> (7 - x));
+                    a |= bitA | bitB;
+                    b |= bitA | bitB;
+                }
+                data[y * 2] = a;
+                data[y * 2 + 1] = b;
+            }
+            sp.set(0, {true, data, 1, 16, 120, 96, 111, 16});
+        }
+#endif
 
 #if K_HUD
         // BOB enmascarado de prueba: 4 planos 16x16 (blanco, origen Chip RAM) +
@@ -520,9 +567,6 @@ struct DemoGame {
         if (ready) {
             scene.install(backend);
             draw_hud_cpu(); // primitivas CPU durante el vblank (seguro)
-            g_dbg_copper = reinterpret_cast<eng::u32>(scene.debug_active_copper());
-            g_dbg_copper_words = scene.copper_words();
-            if (scene.has_hud()) g_dbg_hud_base = reinterpret_cast<eng::u32>(scene.hud().frontbuffer());
         }
         eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
     }

@@ -25,9 +25,11 @@
 #include <eng/core/types.hpp>
 #include <eng/field/xlimited.hpp>
 #include <eng/graphics/frame_plan.hpp>
+#include <eng/graphics/sprite_manager.hpp>
 #include <eng/memory/arena.hpp>
 
 namespace eng::field {
+
 
 /// Generador de la word de una fila de un tile simbólico (glyph, variant, row,
 /// plane). El caller incrusta su paleta/base/transparencia en el callback.
@@ -108,12 +110,15 @@ struct XlimitedSceneConfig {
 
     // --- Dual playfield ------------------------------------------------------
     bool dual = false;               // DPF 3+3 (dos XlimitedField)
+    bool fg_canvas = false;          // DPF heterogéneo: el FG es un CanvasPlayfield
+                                     // (lienzo plano estático, sin tiles ni scroll)
     bool parallax_x = false;         // PF2 a velocidad reducida en X
     eng::u8 parallax_x_div = 2;      // divisor de la velocidad de PF2 en X (1 = igual)
     eng::u8 parallax_y_div = 1;      // divisor en Y (1 para compartir el split vertical)
     bool scroll_y = true;            // corkscrew: display_height = viewport_h + 2*tile_height
     bool linear_display = false;     // display LINEAL sin split (espejo del bucle): elimina la
                                      // limitación del comparador de 8 bits a costa de 2x blits
+    eng::field::ScrollMode scroll_mode = eng::field::ScrollMode::EightWay; // especialización del scroll
 
     // --- Camino de scroll (harness de validación) ---------------------------
     eng::u8 effect = 0;              // 0=ciclo, 1..8=dirección única
@@ -124,6 +129,9 @@ struct XlimitedSceneConfig {
     // --- Paleta --------------------------------------------------------------
     const eng::u16* palette = nullptr; // 2^planes colores (single) o 16 (DPF: PF1 0..7, PF2 8..15)
     eng::u32 copper_bytes = 1536;
+
+    // --- Sprites hardware (a nivel de escena) ------------------------------
+    eng::u32 sprite_data_bytes = 0;   // 0 = sin sprites; si > 0, reserva DATA Chip
 };
 
 /// Escena corkscrew reutilizable: uno o dos `XlimitedField` + compositor.
@@ -161,7 +169,7 @@ public:
             if (static_cast<eng::u16>(xlimited_detail::kDiwStrt >> 8u) + main_h > 255u) return false;
             if (!m_hud.begin(memory, {cfg.viewport_w, cfg.hud_height, cfg.hud_planes})) return false;
         }
-        const eng::u8 n = static_cast<eng::u8>(cfg.dual ? 2 : 1);
+        const eng::u8 n = static_cast<eng::u8>(cfg.dual && !cfg.fg_canvas ? 2 : 1);
         const eng::u16 tw = cfg.tile_width, th = cfg.tile_height;
         for (eng::u8 pf = 0; pf < n; ++pf) {
             // Banco de bloques de este playfield.
@@ -182,6 +190,7 @@ public:
             fc.screens_x = 16;
             fc.screens_y = 16;
             fc.scroll_y = cfg.scroll_y;
+            fc.scroll_mode = cfg.scroll_mode;
             fc.linear_display = cfg.linear_display;
             fc.bitmap_width = cfg.bitmap_width;
             fc.fetch_mode = cfg.fetch_mode;
@@ -192,6 +201,8 @@ public:
         const u16 diwstop = hud_zone
             ? xlimited_detail::diwstop_for_viewport(cfg.viewport_h)
             : xlimited_detail::diwstop_for_viewport(main_h);
+        const graphics::SpriteManager* sprites =
+            (cfg.sprite_data_bytes != 0) ? &m_sprites : nullptr;
         if (cfg.dual) {
             if (!m_dual.init(memory, {cfg.palette, cfg.copper_bytes, cfg.planes, false,
                 xlimited_detail::kDiwStrt, diwstop,
@@ -199,7 +210,16 @@ public:
         } else {
             if (!m_single.init(memory, {cfg.palette, cfg.copper_bytes, cfg.planes,
                 xlimited_detail::kDiwStrt, diwstop,
-                xlimited_detail::kDdfStrt, xlimited_detail::kDdfStop})) return false;
+                xlimited_detail::kDdfStrt, xlimited_detail::kDdfStop,
+                sprites})) return false;
+        }
+        if (cfg.sprite_data_bytes != 0) {
+            if (!m_sprites.init(memory, cfg.sprite_data_bytes)) return false;
+        }
+        // FG como lienzo plano (DPF heterogéneo): el BG es el corkscrew, el FG un
+        // CanvasPlayfield estático de viewport_w × viewport_h y `planes` bitplanes.
+        if (cfg.dual && cfg.fg_canvas) {
+            if (!m_fg_canvas.begin(memory, {cfg.viewport_w, cfg.viewport_h, cfg.planes})) return false;
         }
         m_initialized = true;
         return true;
@@ -325,6 +345,9 @@ public:
     bool compose() {
         if (!m_initialized) return false;
         if (m_cfg.dual) {
+            if (m_cfg.fg_canvas) {
+                return m_dual.compose(m_field[0].hardware_view(), m_fg_canvas.hardware_view());
+            }
             return m_dual.compose(m_field[0].hardware_view(), m_field[1].hardware_view());
         }
         if (m_cfg.hud_height != 0) {
@@ -345,7 +368,9 @@ public:
     }
 
     constexpr bool ok() const { return m_initialized; }
-    constexpr eng::u8 fields() const { return m_cfg.dual ? 2u : 1u; }
+    constexpr eng::u8 fields() const {
+        return (m_cfg.dual && !m_cfg.fg_canvas) ? 2u : 1u;
+    }
     constexpr const XlimitedSceneConfig& config() const { return m_cfg; }
     constexpr u16 copper_words() const {
         return m_cfg.dual ? m_dual.copper_words() : m_single.copper_words();
@@ -368,8 +393,17 @@ public:
     // -------------------------------------------------------------------------
     XLimitedPlayfield& bg() { return m_field[0]; }
     const XLimitedPlayfield& bg() const { return m_field[0]; }
+    /// Segundo XLimited (DPF 3+3 homogéneo). En `fg_canvas` usa `canvas_fg()`.
     XLimitedPlayfield& fg() { return m_field[1]; }
     const XLimitedPlayfield& fg() const { return m_field[1]; }
+    /// FG como lienzo plano (DPF heterogéneo: `dual && fg_canvas`). Dibuja aquí
+    /// (una vez en init) con las primitivas; el contenido es estático.
+    CanvasPlayfield& canvas_fg() { return m_fg_canvas; }
+    const CanvasPlayfield& canvas_fg() const { return m_fg_canvas; }
+    /// Sprites hardware (a nivel de escena): delante de los playfields, paleta
+    /// COLOR16-31. Configura con `set(u8, SpriteConfig)`; la DATA en `sprite_data()`.
+    graphics::SpriteManager& sprites() { return m_sprites; }
+    const graphics::SpriteManager& sprites() const { return m_sprites; }
     /// Playfield del HUD (lienzo plano en la franja inferior). Solo válido si
     /// `cfg.hud_height > 0`. Dibuja aquí (una vez en init) con las primitivas.
     CanvasPlayfield& hud() { return m_hud; }
@@ -392,6 +426,8 @@ private:
     XlimitedSceneConfig m_cfg {};
     XLimitedPlayfield m_field[2] {};
     CanvasPlayfield m_hud {};        // franja HUD (lienzo plano, si hud_height>0)
+    CanvasPlayfield m_fg_canvas {};  // FG lienzo plano (DPF heterogéneo)
+    graphics::SpriteManager m_sprites {};
     MemoryBlock m_tiles[2] {};
     XlimitedDisplayComposer m_single {};
     XlimitedDualComposer m_dual {};
@@ -399,3 +435,4 @@ private:
 };
 
 } // namespace eng::field
+
