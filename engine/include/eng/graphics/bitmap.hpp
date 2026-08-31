@@ -38,9 +38,11 @@ struct BitmapConfig {
     u16 height = 0;
     u8 planes = 4;
     PlaneLayout layout = PlaneLayout::Interleaved;
-    u16 row_bytes = 0;      // 0 = auto (width/8)
+    u16 row_bytes = 0;        // 0 = auto (width/8)
     u16 alignment = 16;
     MemoryDomain domain = MemoryDomain::Chip;
+    u16 frontbase_offset = 0; // bytes del bloque ANTES del frontbuffer (fetch ancho: 0/16/48)
+    u32 guard_bytes = 0;      // reserva extra tras total_bytes (guarda de DMA)
 };
 
 /// Framebuffer hardware: memoria + layout + addressing. SIN dibujo.
@@ -50,21 +52,32 @@ public:
     Bitmap(const Bitmap&) = delete;
     Bitmap& operator=(const Bitmap&) = delete;
 
-    /// Reserva el bloque en el dominio pedido (Chip o Fast).
+    /// Reserva el bloque en el dominio pedido (Chip o Fast). El bloque reservado
+    /// mide `total_bytes + guard_bytes`; `bytes()`/frontbuffer apuntan a
+    /// `base + frontbase_offset` (el offset de fetch ancho del corkscrew:
+    /// normal=0, BPL32=16, 4x=48). La guardia protege las lecturas DMA/blits que
+    /// rebasan el final lógico del framebuffer.
     bool init(MemorySystem& memory, const BitmapConfig& cfg) {
         if (cfg.width == 0 || cfg.height == 0 || cfg.planes == 0 || cfg.planes > 6) return false;
         m_cfg = cfg;
         m_row_bytes = cfg.row_bytes ? cfg.row_bytes : static_cast<u16>(cfg.width / 8u);
         m_total = static_cast<u32>(m_row_bytes) * cfg.height * cfg.planes;
+        const u32 alloc = m_total + cfg.guard_bytes;
         m_block = (cfg.domain == MemoryDomain::Fast)
-            ? memory.slow.allocate(m_total, cfg.alignment)
-            : memory.chip.allocate(m_total, cfg.alignment);
+            ? memory.slow.allocate(alloc, cfg.alignment)
+            : memory.chip.allocate(alloc, cfg.alignment);
         if (!m_block.valid()) return false;
-        m_frontbuffer = static_cast<u8*>(m_block.data);
+        m_real_base = static_cast<u8*>(m_block.data);
+        m_frontbuffer = m_real_base + cfg.frontbase_offset;
         return true;
     }
 
     constexpr bool valid() const { return m_block.valid(); }
+
+    /// Base del bloque completo (AllocBitMap), la que usa el Copper para BPLxPT
+    /// en modos con offset de fetch. USO INTERNO del engine (hardware_view).
+    [[nodiscard]] constexpr u8* allocation_start() const { return m_real_base; }
+    constexpr u16 frontbase_offset() const { return m_cfg.frontbase_offset; }
 
     /// Vista acotada del bloque (el tamaño viaja con el puntero). NO es la vía
     /// de dibujo: toda escritura pública pasa por `Surface`/blits con `Span`.
@@ -97,6 +110,7 @@ public:
 private:
     MemoryBlock m_block {};
     BitmapConfig m_cfg {};
+    u8* m_real_base = nullptr;
     u8* m_frontbuffer = nullptr;
     u16 m_row_bytes = 0;
     u32 m_total = 0;
