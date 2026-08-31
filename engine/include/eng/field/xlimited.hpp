@@ -432,6 +432,10 @@ struct XlimitedConfig {
     u8 screens_y = 16;                 // pantallas virtuales en Y (map_h = screens_y * viewport_h/tile_height)
     bool scroll_y = false;             // true = corkscrew/XY: display_height = viewport_h + 2*tile_height,
                                        // banda de staging, fill de display_blocks_per_col y split vertical
+    bool linear_display = false;       // true = display LINEAL sin split: el bitmap duplica el bucle
+                                       // (espejo de filas) y el wrap se lee de forma contigua. Elimina la
+                                       // limitación del split en raster 256..296 (comparador de 8 bits)
+                                       // a costa de duplicar cada blit (dibujo + espejo).
 };
 
 /// Vista de hardware que el compositor necesita para programar el Copper.
@@ -563,6 +567,18 @@ public:
         // BITMAPBLOCKSPERCOL del corkscrew: filas de bloque del bucle vertical.
         m_bitmap_blocks_per_col = static_cast<u16>(m_display_height / m_cfg.tile_height);
 
+        // Modo display lineal (sin split): se añade un ESpejo del bucle (filas
+        // display_height..2*display_height = copia de 0..display_height). El
+        // display lee de forma contigua display_offset..display_offset+viewport_h
+        // y, al cruzar el final del bucle, continúa por el espejo (que se mantiene
+        // en sincronía con cada blit). Esto elimina el split vertical y su
+        // limitación del comparador de 8 bits (raster 256..296).
+        m_linear_display = m_cfg.linear_display;
+        m_mirror_planelines = static_cast<u32>(m_display_height) * m_cfg.planes;
+        if (m_linear_display) {
+            m_bitmap_height = static_cast<u16>(m_bitmap_height + m_display_height);
+        }
+
         // BMF_INTERLEAVED-like: un único bloque Chip contiguo.
         // total = bytes_por_planeline * altura * planes  (planeline totales)
         const u32 total_bytes = static_cast<u32>(m_bitmap_bytes_per_row) *
@@ -620,6 +636,11 @@ public:
                 const u16 mapy = b;
                 auto job = draw_block_job(x, y, mapx, mapy);
                 if (!plan.add_tile_block_copy(job)) return false;
+                if (m_linear_display) {
+                    const u16 ym = static_cast<u16>(static_cast<u32>(y) + m_mirror_planelines);
+                    auto mjob = draw_block_job(x, ym, mapx, mapy);
+                    if (!plan.add_tile_block_copy(mjob)) return false;
+                }
             }
         }
         return true;
@@ -717,10 +738,16 @@ public:
         return static_cast<u16>(
             (m_mapposy / m_cfg.tile_height * m_cfg.tile_height) % m_display_height);
     }
-    /// Añade el blit de un bloque y gestiona el fallo de plan.
+    /// Añade el blit de un bloque y, en modo lineal (espejo), también el espejo.
+    /// Devuelve false si el plan no admite el/los job(s).
     bool add_draw(graphics::FramePlan& plan, u16 x, u16 y, u16 mapx, u16 mapy) {
-        auto job = draw_block_job(x, y, mapx, mapy);
-        return plan.add_tile_block_copy(job);
+        if (!plan.add_tile_block_copy(draw_block_job(x, y, mapx, mapy))) return false;
+        if (m_linear_display) {
+            // Espejo: mismo bloque en planelínea y + m_mirror_planelines (copia del bucle).
+            const u16 ym = static_cast<u16>(static_cast<u32>(y) + m_mirror_planelines);
+            if (!plan.add_tile_block_copy(draw_block_job(x, ym, mapx, mapy))) return false;
+        }
+        return true;
     }
     /// Guarda la word que el blit plane-shifted va a pisar (guarda de 1 word).
     void save_word(u32 byte_offset) {
@@ -1016,7 +1043,8 @@ public:
         // `display_height - display_offset` filas dentro de la ventana. Solo se
         // necesita si esa vuelta cae dentro del viewport (yoffset + VH > DH).
         v.split_line = static_cast<u16>(m_display_height - display_offset);
-        v.split_active = m_cfg.scroll_y && v.split_line < m_cfg.viewport_h;
+        // En modo lineal no hay split: el wrap lo resuelve el espejo.
+        v.split_active = !m_linear_display && m_cfg.scroll_y && v.split_line < m_cfg.viewport_h;
         v.split_planeaddy = 0; // fila 0 (los punteros del split solo suman planeaddx)
         // plane_bytes para validación: bytes totales
         v.plane_bytes = static_cast<u32>(m_bitmap_bytes_per_row * m_bitmap_height * m_cfg.planes);
@@ -1095,6 +1123,8 @@ private:
     u16 m_display_height = 0; // bucle vertical del display = viewport_h + 2*tile_height (corkscrew)
     u16 m_display_planelines = 0; // display_height * planes (modulus del split)
     u16 m_bitmap_blocks_per_col = 0; // BITMAPBLOCKSPERCOL = display_height / tile_height
+    bool m_linear_display = false;  // display lineal (sin split): espejo del bucle
+    u32 m_mirror_planelines = 0;    // desplazamiento del espejo (display_height*planes)
     u16 m_bpl1mod = 0, m_bpl2mod = 0;
     s32 m_mapposx = 0, m_videoposx = 0;
     s32 m_mapposy = 0, m_videoposy = 0;
@@ -1167,6 +1197,7 @@ public:
     }
 
     constexpr bool ok() const { return m_ok; }
+    constexpr u16 copper_words() const { return m_copper_words; }
 
 private:
     static constexpr u16 pointer_high_word(u8 plane) {
@@ -1244,12 +1275,14 @@ private:
             sched.move(copper::Register::COLOR00, 0x0000);
         }
         sched.end();
+        m_copper_words = sched.words_used();
         m_ok = sched.ok();
         return m_ok;
     }
 
     Config m_cfg {};
     MemoryBlock m_copper_blocks[2] {};
+    u16 m_copper_words = 0;
     u8 m_active = 0;
     bool m_initialized = false;
     bool m_copper_initialized = false;
@@ -1308,6 +1341,7 @@ public:
     }
 
     constexpr bool ok() const { return m_ok; }
+    constexpr u16 copper_words() const { return m_copper_words; }
 
 private:
     static constexpr u8 hardware_plane(u8 pf1_plane, bool is_pf1) {
@@ -1376,12 +1410,14 @@ private:
             sched.move(copper::Register::COLOR00, 0x0000);
         }
         sched.end();
+        m_copper_words = sched.words_used();
         m_ok = sched.ok();
         return m_ok;
     }
 
     Config m_cfg {};
     MemoryBlock m_copper_blocks[2] {};
+    u16 m_copper_words = 0;
     u8 m_active = 0;
     bool m_initialized = false;
     bool m_copper_initialized = false;

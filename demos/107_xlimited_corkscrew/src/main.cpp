@@ -24,6 +24,13 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 };
 }
 
+// Telemetría por frame del coste de render (blits, words, copper): se lee por el
+// canal lateral de WinUAE-DBG (`mem <addr> <len>`) para supervisar la homogeneidad
+// de la carga. Ver docs/debugging/DEBUG-WINUAE-V2-GUIDE.md y run_status.hpp.
+extern "C" {
+__attribute__((used)) volatile eng::debug::FrameTelemetry g_eng_frame_telemetry {};
+}
+
 namespace {
 
 namespace field = eng::field;
@@ -81,6 +88,8 @@ namespace demo = eng::field::demo;
 //   K_PRE_SCROLL  (1024)   px de pre-scroll en init para fases reversas/diagonales
 //   K_DUAL        (0|1)     DPF 3+3: dos XlimitedField + XlimitedDualComposer (PF1 planos 1,3,5 / PF2 2,4,6)
 //   K_PARALLAX    (0|1)     con K_DUAL=1, PF2 scrollea a media velocidad en X
+//   K_LINEAR      (0|1)     display lineal sin split (espejo del bucle); elimina el
+//                           artefacto del split en raster 256..296 a costa de 2× blits
 //   K_TILE_WIDTH (16|32)  ancho de tile (múltiplo de 16; con fetch ancho da BITMAPWIDTH=384,
 //                         con fetch normal 352; bitmap_width auto = viewport + EXTRAWIDTH)
 //   K_TILE_SIZE  (16|32)  alto de tile (K_TILE_H es alias)
@@ -199,6 +208,11 @@ namespace demo = eng::field::demo;
 #ifndef K_PARALLAX
 #define K_PARALLAX 0 // si 1, PF2 (fondo) scrollea a media velocidad en X
 #endif
+// Display lineal sin split (espejo del bucle): elimina la banda del split en
+// raster 256..296 (comparador de 8 bits) a costa de 2x blits (dibujo + espejo).
+#ifndef K_LINEAR
+#define K_LINEAR 1
+#endif
 // Alias K_TILE_W/H para la parametrización nueva (compatibles con K_TILE_WIDTH/SIZE)
 #ifndef K_TILE_W
 #ifdef K_TILE_WIDTH
@@ -230,6 +244,7 @@ constexpr eng::s32 kPreScroll = static_cast<eng::s32>(K_PRE_SCROLL);
 constexpr eng::u8 kPhaseCount = 8;
 constexpr bool kDual = K_DUAL != 0;                                     // DPF 3+3 (dos playfields)
 constexpr bool kParallax = K_PARALLAX != 0;                             // PF2 scrollea a media X
+constexpr bool kLinear = K_LINEAR != 0;                                 // display lineal sin split
 constexpr eng::u8 kEffectivePlanes = kDual ? 3u : kPlanes;              // 3 por playfield en DPF
 // 16×16 pantallas virtuales → mapa en tiles derivado de viewport/tile
 constexpr eng::u16 kMapTilesX = static_cast<eng::u16>(K_SCREENS_X * (K_VIEWPORT_W / K_TILE_W));
@@ -274,6 +289,7 @@ struct DemoGame {
 
     void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
         eng::debug::mark_init_started(g_eng_run_status);
+        eng::debug::reset(g_eng_frame_telemetry);
         // La reserva es el bloque Chip contiguo total; el uso real (~145 KB en DPF,
         // ~100 KB single) cabe en 360 KB sin acercarse al límite del A500.
         if (!backend.configure_memory({360u * 1024u, 16u * 1024u, 8u * 1024u})) {
@@ -301,6 +317,7 @@ struct DemoGame {
         scene_cfg.bg_row_fn = &DemoGame::bg_row;
         scene_cfg.dual = kDual;
         scene_cfg.parallax_x = kParallax;
+        scene_cfg.linear_display = kLinear;
         scene_cfg.effect = kEffectMode;
         scene_cfg.start_phase = kStartPhase;
         scene_cfg.phase_frames = kPhaseFrames;
@@ -357,6 +374,19 @@ struct DemoGame {
             ready = false;
             eng::debug::mark_failed(g_eng_run_status, 0x0001070du);
             return;
+        }
+
+        // Telemetría de carga por frame (leer por canal lateral `mem <addr> <len>`).
+        // Supervisa la homogeneidad: blit_jobs debe ser ~constante salvo los picos
+        // de fillup en los cruces de tile (fillup_extra).
+        {
+            auto& tel = g_eng_frame_telemetry;
+            tel.frame = context.frame.frame_index;
+            const eng::u32 w = plan.blit_budget().words;
+            tel.blit_jobs = plan.blit_job_count();
+            tel.blit_words = static_cast<eng::u16>(w > 0xffffu ? 0xffffu : w);
+            tel.copper_words = scene.copper_words();
+            tel.fillup_extra = 0;
         }
 
         // Telemetría: mapposx en bytes bajos, videoposx en altos, BPLCON1 en medio.

@@ -80,4 +80,39 @@ inline void probe_when_ready(volatile RunStatus& status, u32 frame, u32 min_fram
 	}
 }
 
+/// Telemetría por frame del coste de render, para supervisar que la carga de
+/// CPU/Blitter/bus es homogénea frame a frame (sin picos).
+///
+/// La expone un símbolo global (`g_eng_frame_telemetry`) que el host puede leer
+/// por el canal lateral de WinUAE-DBG (`mem <addr> <len>`, resolviendo el
+/// símbolo desde el `.map`). Es un contrato fijo (sin ABI C++ compleja):
+///
+///   offset 0  frame       frame_index del último update
+///   offset 4  blit_jobs   nº de blits encolados este frame
+///   offset 6  blit_words  words de Blitter este frame (todos los planos)
+///   offset 8  copper_words words de la copperlist emitida
+///   offset 10 fillup_extra blits extra del ajuste de fillup (picos esperados)
+///
+/// El runner/tools pueden usar `g_eng_run_status.frame` y este bloque para
+/// detectar si un frame dispara (jobs>baseline) o si hay micro-parones.
+struct FrameTelemetry {
+	u32 frame;         // 0
+	u16 blit_jobs;     // 4
+	u16 blit_words;    // 6
+	u16 copper_words;  // 8
+	u16 fillup_extra;  // 10
+	u16 reserved[3];   // 12..18 (cero)
+};
+
+inline void reset(volatile FrameTelemetry& t) {
+	t.frame = 0;
+	t.blit_jobs = 0;
+	t.blit_words = 0;
+	t.copper_words = 0;
+	t.fillup_extra = 0;
+	t.reserved[0] = 0;
+	t.reserved[1] = 0;
+	t.reserved[2] = 0;
+}
+
 } // namespace eng::debug
