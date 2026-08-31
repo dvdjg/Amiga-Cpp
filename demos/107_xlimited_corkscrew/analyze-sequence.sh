@@ -34,11 +34,13 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEMO="demos/107_xlimited_corkscrew"
+BUILD="$ROOT/tools/build/build-demo.sh"
 RUN="$ROOT/tools/run/run-demo.sh"
 SEQ_ANALYZER="$ROOT/tools/analyze/analyze-frame-sequence.sh"
 INNER_BLACK="$ROOT/tools/analyze/assert-no-inner-black.sh"
 VERIFY_XLIMITED="$ROOT/tools/analyze/verify-xlimited.mjs"
 VERIFY_CORKSCREW="$ROOT/tools/analyze/verify-corkscrew.mjs"
+VERIFY_SCROLL_DIR="$ROOT/tools/analyze/verify-scroll-direction.mjs"
 ANALYZE_DEMO="$ROOT/tools/analyze/analyze-demo.sh"
 
 SEQ_DIR="$ROOT/out/run/107_xlimited_corkscrew/sequence"
@@ -68,6 +70,36 @@ if [ -f "$VERIFY_CORKSCREW" ]; then
 		|| { echo "El port corkscrew no coincide con Scroller_XYLimited/main.c." >&2; exit 1; }
 else
 	echo "[107] aviso: $VERIFY_CORKSCREW no encontrado, se omite test del port." >&2
+fi
+
+# 0c) Validación por efecto/dirección seleccionado (EFFECT env).
+#     EFFECT=1..8 compila la demo con K_EFFECT=$EFFECT, captura una secuencia y
+#     valida la dirección del contenido y la ausencia de bandas negras; al final
+#     reconstruye el defecto. Sin EFFECT (o 0) se ejecuta la validación H clásica.
+EFFECT="${EFFECT:-0}"
+if [ "$EFFECT" != "0" ]; then
+	echo "[107] efecto K_EFFECT=$EFFECT (dirección aislada) ..."
+	# Ejes/signo esperado del CONTENIDO por efecto (ver main.cpp):
+	#   1 H der → contenido a la izquierda (x,-) · 2 H izq → x,+ · 3 V abajo → y,-
+	#   4 V arriba → y,+ · 5..8 (HV/diagonal) → y,0 (solo movimiento + no negro)
+	case "$EFFECT" in
+		1) AXIS="x"; EXPECT="-1" ;;
+		2) AXIS="x"; EXPECT="1" ;;
+		3) AXIS="y"; EXPECT="-1" ;;
+		4) AXIS="y"; EXPECT="1" ;;
+		*) AXIS="y"; EXPECT="0" ;;
+	esac
+	EXTRA_DEFINES="-DK_EFFECT=$EFFECT" "$BUILD" "$DEMO" --debug --clean \
+		|| { echo "No se pudo compilar la demo con K_EFFECT=$EFFECT." >&2; exit 1; }
+	"$RUN" "$DEMO" --settle-ms 500 --sequence-frames 40 --sequence-interval-ms 20 "${extra[@]}" \
+		|| { echo "No se pudo capturar la secuencia con K_EFFECT=$EFFECT." >&2; exit 1; }
+	node "$VERIFY_SCROLL_DIR" --seq "$SEQ_DIR" --axis "$AXIS" --expect "$EXPECT" \
+		|| { echo "La secuencia K_EFFECT=$EFFECT no cumple la dirección/artefactos esperados." >&2; exit 1; }
+	# Reconstruir el defecto para no dejar la demo en un efecto aislado.
+	EXTRA_DEFINES="" "$BUILD" "$DEMO" --debug --clean >/dev/null 2>&1 \
+		|| { echo "Aviso: no se pudo reconstruir el defecto tras K_EFFECT=$EFFECT." >&2; }
+	echo "OK 107_xlimited_corkscrew effect K_EFFECT=$EFFECT — dirección verificada (axis=$AXIS expect=$EXPECT)."
+	exit 0
 fi
 
 # 1) Captura la secuencia continua a la derecha: 100 frames, intervalo ~20 ms

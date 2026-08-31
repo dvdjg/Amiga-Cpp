@@ -1219,9 +1219,13 @@ private:
         }
         // Split vertical del corkscrew: al llegar a `split_line` filas dentro de
         // la ventana, los punteros vuelven a la fila 0 del bucle de display.
-        // Límite OCS: el encoder de WAIT actual cubre líneas 0..255; para
-        // `raster > 255` se recorta a 255 (banda de 1..41 filas al pie de la
-        // pantalla que se muestra con el wrap adelantado; ver doc).
+        // Limitación OCS: el comparador de WAIT del Copper usa 8 bits con
+        // semántica ">=" (vpos&0xFF), por lo que una línea raster>255 (cuando
+        // display_offset ∈ [33,73]) no se puede esperar con precisión; el WAIT
+        // dispara en la primera coincidencia del byte bajo (línea raster-256,
+        // < 256) y el original (XYLimited) también degrada a 255. Se recorta a
+        // 255: la banda de 1..41 filas al pie muestra el wrap adelantado
+        // (inherente al chipset; ver docs/architecture/AMIGA_8WAY_SCROLLING.md §13).
         u16 raster = 0;
         if (view.split_active) {
             raster = static_cast<u16>((m_cfg.diwstrt >> 8u) + view.split_line);
@@ -1236,6 +1240,138 @@ private:
         }
         // El blanking de abajo solo si no estorba con un split en línea alta.
         if (!view.split_active || raster < 0xf8u) {
+            sched.wait_line(0xf8);
+            sched.move(copper::Register::COLOR00, 0x0000);
+        }
+        sched.end();
+        m_ok = sched.ok();
+        return m_ok;
+    }
+
+    Config m_cfg {};
+    MemoryBlock m_copper_blocks[2] {};
+    u8 m_active = 0;
+    bool m_initialized = false;
+    bool m_copper_initialized = false;
+    bool m_ok = false;
+};
+
+/// Compositor dual playfield (DPF 3+3) para dos `XlimitedField` (corkscrew).
+///
+/// PF1 usa los planos de hardware 1,3,5 y PF2 los 2,4,6 (cada playfield es un
+/// bitmap interleaved independiente de profundidad `planes_per_field`). Ambos
+/// comparten `BPLCON1` (dos nibbles de fine scroll), `BPLCON2` (prioridad) y el
+/// split vertical (misma `display_height` y, si scrollean juntos en Y, misma
+/// `split_line`). Cada playfield conserva su `planeaddx` (parallax en X posible).
+class XlimitedDualComposer {
+public:
+    struct Config {
+        const u16* palette = nullptr;      // 16 colores: PF1 0..7, PF2 8..15
+        u32 copper_bytes = 1536;
+        u8 planes_per_field = 3;           // 3+3 → 6 planos de hardware
+        bool foreground_is_pf2 = false;    // BPLCON2 PF2PRI
+        u16 diwstrt = xlimited_detail::kDiwStrt;
+        u16 diwstop = xlimited_detail::kDiwStop;
+        u16 ddfstrt = xlimited_detail::kDdfStrt;
+        u16 ddfstop = xlimited_detail::kDdfStop;
+    };
+
+    bool init(MemorySystem& memory, const Config& cfg) {
+        m_cfg = cfg;
+        m_copper_blocks[0] = memory.chip.allocate(cfg.copper_bytes, 16);
+        m_copper_blocks[1] = memory.chip.allocate(cfg.copper_bytes, 16);
+        if (!m_copper_blocks[0].valid() || !m_copper_blocks[1].valid() || !cfg.palette) return false;
+        m_initialized = true;
+        return true;
+    }
+
+    bool compose(const XlimitedHardwareView& pf1, const XlimitedHardwareView& pf2) {
+        if (!m_initialized) return false;
+        if (!valid(pf1, pf2)) return false;
+        if (!m_copper_initialized) {
+            if (!emit_full(0, pf1, pf2) || !emit_full(1, pf1, pf2)) return false;
+            m_copper_initialized = true;
+            m_active = 0;
+            return true;
+        }
+        const u8 inactive = static_cast<u8>(m_active ^ 1u);
+        if (!emit_full(inactive, pf1, pf2)) return false;
+        m_active = inactive;
+        return true;
+    }
+
+    template <typename Backend>
+    void install(Backend& backend) const {
+        if (m_initialized && m_copper_initialized) {
+            backend.install_copper_list(static_cast<const u16*>(m_copper_blocks[m_active].data));
+        }
+    }
+
+    constexpr bool ok() const { return m_ok; }
+
+private:
+    static constexpr u8 hardware_plane(u8 pf1_plane, bool is_pf1) {
+        // PF1 → planos 1,3,5 (índices 0,2,4); PF2 → 2,4,6 (índices 1,3,5).
+        return static_cast<u8>(pf1_plane * 2u + (is_pf1 ? 0u : 1u));
+    }
+
+    static u32 field_plane_address(const XlimitedHardwareView& v, u8 plane, u32 y_offset) {
+        return reinterpret_cast<u32>(v.real_base) + v.planeaddx + y_offset +
+               static_cast<u32>(plane) * v.bitmap_bytes_per_row;
+    }
+
+    bool valid(const XlimitedHardwareView& a, const XlimitedHardwareView& b) const {
+        if (!a.bitplanes || !b.bitplanes) return false;
+        if (a.planes != m_cfg.planes_per_field || b.planes != m_cfg.planes_per_field) return false;
+        if (a.planes + b.planes > 6) return false;
+        if (a.display_height != b.display_height) return false;
+        // El split debe coincidir: ambos playfields envuelven en la misma línea.
+        if (a.split_active != b.split_active) return false;
+        if (a.split_active && a.split_line != b.split_line) return false;
+        return true;
+    }
+
+    bool emit_full(u8 block, const XlimitedHardwareView& pf1, const XlimitedHardwareView& pf2) {
+        copper::Scheduler sched { m_copper_blocks[block] };
+        const u8 total = static_cast<u8>(m_cfg.planes_per_field * 2u);
+        const u16 bplcon0 = static_cast<u16>(0x0200u | (static_cast<u16>(total) << 12u) | 0x0400u);
+        // BPLCON1: nibble bajo = fine de PF1, alto = fine de PF2.
+        const u16 bplcon1 = static_cast<u16>(
+            ((pf2.bplcon1 & 0x0f) << 4) | (pf1.bplcon1 & 0x0f));
+        sched.move(copper::Register::DMACON,
+            static_cast<u16>(copper::DmaSetClear | copper::DmaMaster |
+                             copper::DmaCopper | copper::DmaBitplane));
+        sched.move(copper::Register::BPLCON0, bplcon0);
+        sched.move(copper::Register::BPLCON1, bplcon1);
+        sched.move(copper::Register::BPLCON2, m_cfg.foreground_is_pf2 ? 0x0040u : 0x0000u);
+        sched.move(copper::Register::BPL1MOD, pf1.bpl1mod); // planos 1,3,5
+        sched.move(copper::Register::BPL2MOD, pf2.bpl1mod); // planos 2,4,6
+        sched.move(copper::Register::DIWSTRT, m_cfg.diwstrt);
+        sched.move(copper::Register::DIWSTOP, m_cfg.diwstop);
+        sched.move(copper::Register::DDFSTRT, m_cfg.ddfstrt);
+        sched.move(copper::Register::DDFSTOP, m_cfg.ddfstop);
+        sched.emit_palette(m_cfg.palette, 0, 16); // DPF: 16 colores (PF1 0..7, PF2 8..15)
+        for (u8 i = 0; i < m_cfg.planes_per_field; ++i) {
+            const u8 hw1 = hardware_plane(i, true);
+            const u8 hw2 = hardware_plane(i, false);
+            sched.move_bitplane_pointer(hw1, reinterpret_cast<const void*>(
+                field_plane_address(pf1, i, pf1.planeaddy)));
+            sched.move_bitplane_pointer(hw2, reinterpret_cast<const void*>(
+                field_plane_address(pf2, i, pf2.planeaddy)));
+        }
+        u16 raster = 0;
+        if (pf1.split_active) {
+            raster = static_cast<u16>((m_cfg.diwstrt >> 8u) + pf1.split_line);
+            const u8 wait = raster > 0xffu ? 0xffu : static_cast<u8>(raster);
+            sched.wait_line(wait);
+            for (u8 i = 0; i < m_cfg.planes_per_field; ++i) {
+                sched.move_bitplane_pointer(hardware_plane(i, true),
+                    reinterpret_cast<const void*>(field_plane_address(pf1, i, pf1.split_planeaddy)));
+                sched.move_bitplane_pointer(hardware_plane(i, false),
+                    reinterpret_cast<const void*>(field_plane_address(pf2, i, pf2.split_planeaddy)));
+            }
+        }
+        if (!pf1.split_active || raster < 0xf8u) {
             sched.wait_line(0xf8);
             sched.move(copper::Register::COLOR00, 0x0000);
         }
