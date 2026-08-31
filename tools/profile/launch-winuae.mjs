@@ -104,8 +104,36 @@ export function resolveRuntimeSymbolAddress(linkedSymbol, mapSections, runtimeSe
 /** Prepara el directorio dh1 y la config; devuelve rutas y simbolos. */
 export function prepareDemo(demo) {
   const demoName = path.basename(path.resolve(demo));
-  const builtExe = path.join(ROOT, 'out/demos', demoName, `${demoName}.exe`);
-  const builtMap = path.join(ROOT, 'out/demos', demoName, `${demoName}.map`);
+  let builtExe = path.join(ROOT, 'out/demos', demoName, `${demoName}.exe`);
+  let builtMap = path.join(ROOT, 'out/demos', demoName, `${demoName}.map`);
+  // CONFIG_ID-aware: el build nombra los artefactos por config
+  // (out/demos/<demo>/<CONFIG_ID>/<demo>.<CONFIG_ID>.exe). Se elige la config
+  // "por defecto" igual que run-demo (A500_debug=0, A500_o0=1, debug*flags=2,
+  // o0*flags=3, A500_release=4, release*flags=5; desempate por mtime).
+  const demosRoot = path.join(ROOT, 'out/demos', demoName);
+  if (fs.existsSync(demosRoot)) {
+    const configRank = (cfg) => {
+      const noFlags = cfg.split('_').length <= 2;
+      if (cfg.endsWith('_debug')) return noFlags ? 0 : 2;
+      if (cfg.endsWith('_o0')) return noFlags ? 1 : 3;
+      if (cfg.endsWith('_release')) return noFlags ? 4 : 5;
+      return 6;
+    };
+    let best = { rank: 99, mtime: 0, exe: '', map: '' };
+    for (const entry of fs.readdirSync(demosRoot)) {
+      const cfgDir = path.join(demosRoot, entry);
+      const st = fs.statSync(cfgDir);
+      if (!st.isDirectory()) continue;
+      const exe = path.join(cfgDir, `${demoName}.${entry}.exe`);
+      if (!fs.existsSync(exe)) continue;
+      const rank = configRank(entry);
+      const mt = fs.statSync(exe).mtimeMs;
+      if (rank < best.rank || (rank === best.rank && mt > best.mtime)) {
+        best = { rank, mtime: mt, exe, map: path.join(cfgDir, `${demoName}.${entry}.map`) };
+      }
+    }
+    if (best.exe && fs.existsSync(best.map)) { builtExe = best.exe; builtMap = best.map; }
+  }
   if (!fs.existsSync(builtExe)) {
     throw new Error(`No existe ${builtExe}. Compila la demo antes (tools/build/build-demo.sh ${demo} --debug).`);
   }

@@ -380,7 +380,7 @@ public:
             return m_dual.compose(m_field[0].hardware_view(), m_field[1].hardware_view());
         }
         if (m_cfg.hud_height != 0) {
-            const XlimitedDisplayComposer::HudZone hud {
+            const XlimitedDisplayComposer::OverlayZone hud {
                 m_hud.hardware_view(),
                 m_cfg.hud_palette,
             };

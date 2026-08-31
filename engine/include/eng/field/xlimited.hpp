@@ -1274,16 +1274,19 @@ public:
         return compose(view, nullptr);
     }
 
-    /// Zona HUD: un playfield SEPARADO mostrado en la franja inferior de la
-    /// ventana (raster `DIWSTRT_y + view.viewport_h` en adelante). La escena
-    /// mantiene la ventana DIW abierta a su tamaño total y la zona solo cambia
-    /// BPLCON1/BPL1/2MOD/BPLxPT (+ paleta) en el raster de la franja.
-    struct HudZone {
-        PlayfieldHardwareView view;    // playfield del HUD (canvas)
-        const u16* palette = nullptr;  // paleta del HUD (0..2^planes-1), opcional
+    /// Zona OVERLAY genérica: un playfield SEPARADO mostrado en la franja inferior
+    /// de la ventana (raster `DIWSTRT_y + view.viewport_h` en adelante). Es un
+    /// MECANISMO del display (cambiar BPLCON1/BPL1/2MOD/BPLxPT + paleta en un
+    /// raster fijo); no es específico de HUD. El HUD como patrón (texto/marcas)
+    /// se compone a NIVEL DE ESCENA como un `CanvasPlayfield` + `Surface`, y se
+    /// pasa aquí como la zona overlay. La escena mantiene la ventana DIW abierta
+    /// a su tamaño total y la zona solo programa la franja en el raster de corte.
+    struct OverlayZone {
+        PlayfieldHardwareView view;    // playfield del overlay (canvas)
+        const u16* palette = nullptr;  // paleta del overlay (0..2^planes-1), opcional
     };
 
-    bool compose(const PlayfieldHardwareView& view, const HudZone* hud) {
+    bool compose(const PlayfieldHardwareView& view, const OverlayZone* hud) {
         if (!m_initialized || !view.bitplanes) return false;
         if (!valid_view(view)) return false;
         if (!m_copper_initialized) {
@@ -1335,7 +1338,7 @@ private:
         return true;
     }
 
-    bool emit_full(u8 block, const PlayfieldHardwareView& view, const HudZone* hud = nullptr) {
+    bool emit_full(u8 block, const PlayfieldHardwareView& view, const OverlayZone* hud = nullptr) {
         copper::Scheduler sched { m_copper_blocks[block] };
         const u16 bplcon0 = static_cast<u16>(
             0x0200u | (static_cast<u16>(view.planes) << 12u));

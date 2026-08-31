@@ -259,6 +259,13 @@ namespace demo = eng::field::demo;
 #ifndef K_LISSAJOUS_OFF
 #define K_LISSAJOUS_OFF 16 // offset de fase inicial del Lissajous del FG (0..63)
 #endif
+// K_COHERENT: mapa de nivel con REGIONES uniformes (hierba/muro/agua/camino) en
+// lugar de tiles aleatorios. Explota el [skip-on-equal] del engine: cuando la
+// columna/fila entrante repite el tile ya pintado en la banda, se OMITEN los
+// jobs del Blitter (los niveles reales son coherentes → muchos menos jobs).
+#ifndef K_COHERENT
+#define K_COHERENT 0
+#endif
 // Franja HUD inferior: un playfield SEPARADO (CanvasPlayfield) de K_HUD_HEIGHT
 // filas con K_HUD_PLANES bitplanes y paleta propia, en una zona de Copper bajo
 // el viewport principal. El WAIT de la zona debe caer en raster <= 255.
@@ -356,6 +363,23 @@ void build_map(eng::Span<eng::u16> cells, eng::u32 seed) {
     }
 }
 
+// Mapa COHERENTE tipo nivel: bandas horizontales de hierba/muro/agua/camino con
+// pocos tiles repetidos (ideal para medir el skip-on-equal del engine).
+void build_map_coherent(eng::Span<eng::u16> cells) {
+    for (eng::u32 y = 0; y < kMapTilesY; ++y) {
+        const eng::u16 band = static_cast<eng::u16>(y / 16u);
+        for (eng::u32 x = 0; x < kMapTilesX; ++x) {
+            eng::u16 t;
+            if (band < 4u) t = 50;                 // hierba
+            else if (band < 6u) t = 36;            // banda de muro
+            else if (band < 14u) t = 5;            // agua central
+            else t = 22;                           // camino
+            if (((x + y) % 97u) == 0u) t = 41;     // arbusto suelto (variedad)
+            cells.at(y * kMapTilesX + x) = t;
+        }
+    }
+}
+
 // Construye el mapa del FG (PF1) en modo DPF: un checkerboard sobre el mapa de
 // fondo donde la mitad de los tiles son el tile 0 (glyph 0), que `fg_row`
 // devuelve VACÍO → PF1 no escribe nada ahí y PF2 (fondo opaco) se ve a través.
@@ -414,7 +438,11 @@ struct DemoGame {
 // Mapa de fondo (PF2). En DPF, PF1 usa un mapa FG con la mitad de tiles
         // transparentes (g_fg_map_cells, checkerboard sobre tile 0). El mapa FG
         // se reserva en el arena Chip (no en BSS) para no duplicar ~140 KB.
-        build_map(eng::Span<eng::u16>::from_raw(g_map_cells, kMapTilesX * kMapTilesY), 0x13579bdu);
+        if (K_COHERENT != 0) {
+            build_map_coherent(eng::Span<eng::u16>::from_raw(g_map_cells, kMapTilesX * kMapTilesY));
+        } else {
+            build_map(eng::Span<eng::u16>::from_raw(g_map_cells, kMapTilesX * kMapTilesY), 0x13579bdu);
+        }
         if (kDual) {
             const eng::u32 map_bytes = static_cast<eng::u32>(kMapTilesX) * kMapTilesY * 2u;
             m_fg_map = backend.memory().chip.allocate(map_bytes, 2);
