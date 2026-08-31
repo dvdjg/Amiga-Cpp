@@ -648,9 +648,9 @@ public:
         m_scroll.state().videoposx = 0;
         m_scroll.state().mapposy = 0;
         m_scroll.state().videoposy = 0;
-        m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left, 2=right)
-        m_scroll.state().savewordpointer = nullptr;
-        m_scroll.state().saveword = 0;
+m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left, 2=right)
+        m_savewordpointer = nullptr;
+        m_saveword = 0;
         m_blocks_buffer = reinterpret_cast<const u8*>(m_cfg.tileset);
         // Sincronizar los campos de la base `Playfield` (usados por las
         // primitivas CPU y los getters de geometría).
@@ -944,253 +944,40 @@ public:
         return true;
     }
 
-    /// Guarda la word que el blit plane-shifted va a pisar (guarda de 1 word).
+/// Guarda la word que el blit plane-shifted va a pisar (guarda de 1 word).
+    /// Es un SEAM del layout: el algoritmo (ScrollEngine) decide CUÁNDO, el
+    /// playfield (sink) la ejecuta sobre su propio framebuffer.
     void save_word(u32 byte_offset) {
-        m_scroll.state().savewordpointer = reinterpret_cast<u16*>(
+        m_savewordpointer = reinterpret_cast<u16*>(
             const_cast<u8*>(m_frontbuffer) + byte_offset);
-        m_scroll.state().saveword = *m_scroll.state().savewordpointer;
+        m_saveword = *m_savewordpointer;
     }
     void restore_saveword() {
-        if (m_scroll.state().savewordpointer) *m_scroll.state().savewordpointer = m_scroll.state().saveword;
+        if (m_savewordpointer) *m_savewordpointer = m_saveword;
     }
 
-    /// Scroll de 1 píxel a la derecha (plane-shifted) — ScrollRight corkscrew.
-    ///
-    /// Fiel a ScrollRight de Scroller_XYLimited/main.c:869-978:
-    ///   columna entrante en x = BITMAPWIDTH + ROUND2BLOCKWIDTH(videoposx),
-    ///   fila mapy = stepx+1 (2 bloques si stepx==0), y = (block_videoposy +
-    ///   mapy*TH) % display_height, y el ajuste de la fila de fillup al
-    ///   completar columna (stepx==0).
+    // --- ScrollSink: el algoritmo vive en `ScrollEngine` (scroll_engine.hpp);
+    // estos cuatro métodos delegan en él; el playfield solo aporta el layout.
+
+    /// Scroll de 1 px a la derecha (plane-shifted) — ScrollRight corkscrew.
     bool scroll_right(graphics::FramePlan& plan) {
         if (!m_initialized) return false;
-        const u16 map_w_blocks = m_cfg.map.width ? m_cfg.map.width
-                                 : static_cast<u16>(m_cfg.screens_x * (m_cfg.viewport_w / m_cfg.tile_width));
-        const s32 limit = static_cast<s32>(map_w_blocks) * m_cfg.tile_width -
-                          m_cfg.viewport_w - m_cfg.tile_width;
-        if (m_cfg.map.wrap_x == 0 && m_scroll.state().mapposx >= limit) return false;
-
-        const u16 mapblockx = static_cast<u16>(m_scroll.state().mapposx / m_cfg.tile_width);
-        const u16 mapblocky = static_cast<u16>(m_scroll.state().mapposy / m_cfg.tile_height);
-        const u16 stepx = static_cast<u16>(m_scroll.state().mapposx & (m_cfg.tile_width - 1));
-        const u16 stepy = static_cast<u16>(m_scroll.state().mapposy & (m_cfg.tile_height - 1));
-        const u16 bvpos = block_videoposy();
-        const u16 x0 = static_cast<u16>(m_scroll.state().videoposx & ~(m_cfg.tile_width - 1));
-        const u16 mapx = static_cast<u16>(mapblockx + m_bitmap_blocks_per_row);
-
-        if (m_cfg.scroll_mode != ScrollMode::OneDirection && m_scroll.state().previous_xdirection == 1) restore_saveword(); // DIRECTION_LEFT
-
-        u16 mapy = static_cast<u16>(stepx + 1);
-        if (mapy == 1) { // stepx == 0 → dos bloques
-            mapy = static_cast<u16>(mapy + mapblocky);
-            const u16 y = static_cast<u16>(((bvpos + m_cfg.tile_height) % m_display_height) * m_cfg.planes);
-            if (!add_draw(plan, static_cast<u16>(x0 + m_bitmap_width), y, mapx, mapy)) return false;
-            const u16 y2 = static_cast<u16>((y + m_block_planes_lines) % m_display_planelines);
-            save_word(static_cast<u32>(y2 + m_block_planes_lines - 1) * m_bytes_per_row +
-                      ((x0 + m_bitmap_width) / 8u));
-            if (!add_draw(plan, static_cast<u16>(x0 + m_bitmap_width), y2, mapx, static_cast<u16>(mapy + 1))) return false;
-        } else { // un bloque
-            ++mapy;
-            const u16 y = static_cast<u16>(((bvpos + mapy * m_cfg.tile_height) % m_display_height) * m_cfg.planes);
-            mapy = static_cast<u16>(mapy + mapblocky);
-            save_word(static_cast<u32>(y + m_block_planes_lines - 1) * m_bytes_per_row +
-                      ((x0 + m_bitmap_width) / 8u));
-            if (!add_draw(plan, static_cast<u16>(x0 + m_bitmap_width), y, mapx, mapy)) return false;
-        }
-
-        ++m_scroll.state().mapposx;
-        m_scroll.state().videoposx = m_scroll.state().mapposx;
-        const u16 new_stepx = static_cast<u16>(m_scroll.state().mapposx & (m_cfg.tile_width - 1));
-
-        if (new_stepx == 0) {
-            // Columna completada: ajustar la fila de fillup (fila del mapa que
-            // entra por abajo y que comparte banda con la columna). El X usa
-            // videoposx y mapblockx POST-incremento (avanzaron un bloque).
-            const u16 nx0 = static_cast<u16>(x0 + m_cfg.tile_width);
-            const u16 nmapblockx = static_cast<u16>(mapblockx + 1);
-            if (!add_draw(plan,
-                static_cast<u16>(nx0 + (m_bitmap_blocks_per_row - 1) * m_cfg.tile_width),
-                static_cast<u16>(bvpos * m_cfg.planes),
-                static_cast<u16>(nmapblockx + m_bitmap_blocks_per_row - 1), mapblocky)) return false;
-            if (stepy) {
-                const u16 mx = stepy >= twoblockstep()
-                    ? static_cast<u16>(stepy + (twoblockstep() - 1))
-                    : static_cast<u16>(stepy * 2 - 1);
-                if (!add_draw(plan,
-                    static_cast<u16>(nx0 + mx * m_cfg.tile_width),
-                    static_cast<u16>(bvpos * m_cfg.planes),
-                    static_cast<u16>(mx + nmapblockx),
-                    static_cast<u16>(mapblocky + m_bitmap_blocks_per_col))) return false;
-            }
-        }
-
-        m_scroll.state().previous_xdirection = new_stepx ? 2 : 0;
-        return true;
+        return m_scroll.scroll_right(plan, *this);
     }
-
-    /// Scroll de 1 píxel a la izquierda (no plane-shifted) — ScrollLeft corkscrew.
-    ///
-    /// Fiel a ScrollLeft de Scroller_XYLimited/main.c:751-867:
-    ///   columna entrante en x = ROUND2BLOCKWIDTH(videoposx), fila mapy =
-    ///   stepx+1 (2 bloques si stepx==0), y = (block_videoposy + mapy*TH) %
-    ///   display_height, ajuste de la fila de fillup al completar columna.
+    /// Scroll de 1 px a la izquierda (no plane-shifted) — ScrollLeft corkscrew.
     bool scroll_left(graphics::FramePlan& plan) {
-        if (!m_initialized || m_scroll.state().mapposx < 1) return false;
-        --m_scroll.state().mapposx;
-        m_scroll.state().videoposx = m_scroll.state().mapposx;
-
-        const u16 mapblockx = static_cast<u16>(m_scroll.state().mapposx / m_cfg.tile_width);
-        const u16 mapblocky = static_cast<u16>(m_scroll.state().mapposy / m_cfg.tile_height);
-        const u16 stepx = static_cast<u16>(m_scroll.state().mapposx & (m_cfg.tile_width - 1));
-        const u16 stepy = static_cast<u16>(m_scroll.state().mapposy & (m_cfg.tile_height - 1));
-        const u16 bvpos = block_videoposy();
-        const u16 x0 = static_cast<u16>(m_scroll.state().videoposx & ~(m_cfg.tile_width - 1));
-
-        if (stepx == static_cast<u16>(m_cfg.tile_width - 1)) {
-            // Columna completada: ajustar la fila de fillup.
-            u16 mapx = mapblockx;
-            u16 mapy = mapblocky;
-            if (stepy) mapy = static_cast<u16>(mapy + m_bitmap_blocks_per_col);
-            if (!add_draw(plan, x0, static_cast<u16>(bvpos * m_cfg.planes), mapx, mapy)) return false;
-            mapx = stepy;
-            if (mapx) {
-                mapx = mapx >= twoblockstep()
-                    ? static_cast<u16>(mapx + twoblockstep())
-                    : static_cast<u16>(mapx * 2);
-                if (!add_draw(plan,
-                    static_cast<u16>(x0 + mapx * m_cfg.tile_width),
-                    static_cast<u16>(bvpos * m_cfg.planes),
-                    static_cast<u16>(mapx + mapblockx),
-                    static_cast<u16>(mapy - m_bitmap_blocks_per_col))) return false;
-            }
-        }
-
-        const u16 mapx = mapblockx;
-        u16 mapy = static_cast<u16>(stepx + 1);
-        if (m_scroll.state().previous_xdirection == 2) restore_saveword(); // DIRECTION_RIGHT
-        if (mapy == 1) { // stepx == 0 → dos bloques
-            mapy = static_cast<u16>(mapy + mapblocky);
-            const u16 y = static_cast<u16>(((bvpos + m_cfg.tile_height) % m_display_height) * m_cfg.planes);
-            save_word(static_cast<u32>(y) * m_bytes_per_row + (x0 / 8u));
-            if (!add_draw(plan, x0, y, mapx, mapy)) return false;
-            const u16 y2 = static_cast<u16>((y + m_block_planes_lines) % m_display_planelines);
-            if (!add_draw(plan, x0, y2, mapx, static_cast<u16>(mapy + 1))) return false;
-        } else { // un bloque
-            ++mapy;
-            const u16 y = static_cast<u16>(((bvpos + mapy * m_cfg.tile_height) % m_display_height) * m_cfg.planes);
-            mapy = static_cast<u16>(mapy + mapblocky);
-            save_word(static_cast<u32>(y) * m_bytes_per_row + (x0 / 8u));
-            if (!add_draw(plan, x0, y, mapx, mapy)) return false;
-        }
-
-        m_scroll.state().previous_xdirection = stepx ? 1 : 0;
-        return true;
+        if (!m_initialized) return false;
+        return m_scroll.scroll_left(plan, *this);
     }
-
     /// Scroll vertical 1 px hacia abajo — ScrollDown corkscrew.
-    ///
-    /// Fiel a ScrollDown de Scroller_XYLimited/main.c:639-749. La fila entrante
-    /// se dibuja (con valores PRE-incremento) en la banda de staging
-    /// `y = block_videoposy * planes`, con map row = mapblocky +
-    /// BITMAPBLOCKSPERCOL y x según TWOBLOCKSTEP (2 bloques si stepy <
-    /// TWOBLOCKSTEP, 1 si no). Al cruzar una fila de bloque (stepy==TH-1) se
-    /// ajusta la columna de fillup y se gestiona la guarda de 1 word.
     bool scroll_down(graphics::FramePlan& plan) {
         if (!m_initialized) return false;
-        const u16 map_h_blocks = m_cfg.map.height ? m_cfg.map.height
-                                 : static_cast<u16>(m_cfg.screens_y * (m_cfg.viewport_h / m_cfg.tile_height));
-        const s32 limitY = static_cast<s32>(map_h_blocks) * m_cfg.tile_height -
-                           m_cfg.viewport_h - m_cfg.tile_height;
-        if (m_cfg.map.wrap_y == 0 && m_scroll.state().mapposy >= limitY) return false;
-
-        const u16 mapblockx = static_cast<u16>(m_scroll.state().mapposx / m_cfg.tile_width);
-        const u16 mapblocky = static_cast<u16>(m_scroll.state().mapposy / m_cfg.tile_height);
-        const u16 stepx = static_cast<u16>(m_scroll.state().mapposx & (m_cfg.tile_width - 1));
-        const u16 stepy = static_cast<u16>(m_scroll.state().mapposy & (m_cfg.tile_height - 1));
-        const u16 bvpos = block_videoposy();
-        const u16 x0 = static_cast<u16>(m_scroll.state().videoposx & ~(m_cfg.tile_width - 1));
-        const u16 y_pl = static_cast<u16>(bvpos * m_cfg.planes);
-        const u16 mapy = static_cast<u16>(mapblocky + m_bitmap_blocks_per_col);
-
-        // Fila entrante en la banda de staging (valores PRE-incremento).
-        if (stepy >= twoblockstep()) {
-            const u16 mx = static_cast<u16>(stepy + twoblockstep() + mapblockx);
-            const u16 x = static_cast<u16>((stepy + twoblockstep()) * m_cfg.tile_width + x0);
-            if (!add_draw(plan, x, y_pl, mx, mapy)) return false;
-        } else {
-            const u16 mx = static_cast<u16>(stepy * 2 + mapblockx);
-            const u16 x = static_cast<u16>(stepy * 2 * m_cfg.tile_width + x0);
-            if (!add_draw(plan, x, y_pl, mx, mapy)) return false;
-            if (!add_draw(plan, static_cast<u16>(x + m_cfg.tile_width), y_pl, static_cast<u16>(mx + 1), mapy)) return false;
-        }
-
-        // POST-incremento. videoposy envuelve en el bucle vertical del display.
-        ++m_scroll.state().mapposy;
-        m_scroll.state().videoposy = static_cast<s32>(m_scroll.state().mapposy % m_display_height);
-
-        if (stepy == static_cast<u16>(m_cfg.tile_height - 1) && stepx) {
-            // Fila completada: ajustar la columna de fillup. El Y usa
-            // mapblocky POST-incremento (mapposy cruzó una fila de bloque).
-            const u16 nvpos = block_videoposy(); // block_videoposy ya actualizado
-            const u16 nmapblocky = static_cast<u16>(mapblocky + 1);
-            if (!add_draw(plan, x0, static_cast<u16>(nvpos * m_cfg.planes), mapblockx, nmapblocky)) return false;
-            if (m_cfg.scroll_mode != ScrollMode::OneDirection && m_scroll.state().previous_xdirection == 1) restore_saveword(); // DIRECTION_LEFT
-            const u16 my = static_cast<u16>(stepx + 1);
-            const u16 y2 = static_cast<u16>(((nvpos + my * m_cfg.tile_height) % m_display_height) * m_cfg.planes);
-            const u16 y2b = static_cast<u16>((y2 + m_block_planes_lines - 1) % m_display_planelines);
-            save_word(static_cast<u32>(y2b) * m_bytes_per_row + ((x0 + m_bitmap_width) / 8u));
-            if (!add_draw(plan, static_cast<u16>(x0 + m_bitmap_width), y2,
-                static_cast<u16>(mapblockx + m_bitmap_blocks_per_row),
-                static_cast<u16>(my + nmapblocky))) return false;
-            m_scroll.state().previous_xdirection = 2; // DIRECTION_RIGHT
-        }
-        return true;
+        return m_scroll.scroll_down(plan, *this);
     }
-
     /// Scroll vertical 1 px hacia arriba — ScrollUp corkscrew.
-    ///
-    /// Fiel a ScrollUp de Scroller_XYLimited/main.c:529-637. Decrementa primero
-    /// (valores POST), dibuja la fila entrante (map row = mapblocky) en la banda
-    /// de staging y ajusta la columna de fillup si stepy==TH-1.
     bool scroll_up(graphics::FramePlan& plan) {
-        if (!m_initialized || m_scroll.state().mapposy < 1) return false;
-        --m_scroll.state().mapposy;
-        m_scroll.state().videoposy = static_cast<s32>(m_scroll.state().mapposy % m_display_height);
-
-        const u16 mapblockx = static_cast<u16>(m_scroll.state().mapposx / m_cfg.tile_width);
-        const u16 mapblocky = static_cast<u16>(m_scroll.state().mapposy / m_cfg.tile_height);
-        const u16 stepx = static_cast<u16>(m_scroll.state().mapposx & (m_cfg.tile_width - 1));
-        const u16 stepy = static_cast<u16>(m_scroll.state().mapposy & (m_cfg.tile_height - 1));
-        const u16 bvpos = block_videoposy();
-        const u16 x0 = static_cast<u16>(m_scroll.state().videoposx & ~(m_cfg.tile_width - 1));
-        const u16 y_pl = static_cast<u16>(bvpos * m_cfg.planes);
-
-        if (stepy == static_cast<u16>(m_cfg.tile_height - 1) && stepx) {
-            // Columna completada: ajustar la fila de fillup.
-            const u16 mx1 = static_cast<u16>(mapblockx + m_bitmap_blocks_per_row);
-            const u16 y1 = static_cast<u16>(((bvpos + m_cfg.tile_height) % m_display_height) * m_cfg.planes);
-            if (!add_draw(plan, static_cast<u16>(x0 + m_bitmap_width), y1, mx1, static_cast<u16>(mapblocky + 1))) return false;
-            if (m_scroll.state().previous_xdirection == 2) restore_saveword(); // DIRECTION_RIGHT
-            const u16 my2 = static_cast<u16>(stepx + 2);
-            const u16 y2 = static_cast<u16>(((bvpos + my2 * m_cfg.tile_height) % m_display_height) * m_cfg.planes);
-            save_word(static_cast<u32>(y2) * m_bytes_per_row + (x0 / 8u));
-            if (!add_draw(plan, x0, y2,
-                static_cast<u16>(mx1 - m_bitmap_blocks_per_row),
-                static_cast<u16>(my2 + mapblocky))) return false;
-            m_scroll.state().previous_xdirection = 1; // DIRECTION_LEFT
-        }
-
-        // Fila entrante en la banda de staging (map row = mapblocky).
-        if (stepy >= twoblockstep()) {
-            const u16 mx = static_cast<u16>(stepy + twoblockstep() + mapblockx);
-            const u16 x = static_cast<u16>((stepy + twoblockstep()) * m_cfg.tile_width + x0);
-            if (!add_draw(plan, x, y_pl, mx, mapblocky)) return false;
-        } else {
-            const u16 mx = static_cast<u16>(stepy * 2 + mapblockx);
-            const u16 x = static_cast<u16>(stepy * 2 * m_cfg.tile_width + x0);
-            if (!add_draw(plan, x, y_pl, mx, mapblocky)) return false;
-            if (!add_draw(plan, static_cast<u16>(x + m_cfg.tile_width), y_pl, static_cast<u16>(mx + 1), mapblocky)) return false;
-        }
-        return true;
+        if (!m_initialized) return false;
+        return m_scroll.scroll_up(plan, *this);
     }
 
     /// Vista de hardware para el compositor (planeaddx + BPLCON1 + offset Y).
@@ -1296,9 +1083,31 @@ public:
     constexpr u16 bitmap_bytes_per_row() const { return m_bytes_per_row; }
     constexpr u16 bitmap_width() const { return m_bitmap_width; }
     constexpr u16 bitmap_height() const { return m_bitmap_height; }
-    constexpr u16 bitmap_blocks_per_row() const { return m_bitmap_blocks_per_row; }
+constexpr u16 bitmap_blocks_per_row() const { return m_bitmap_blocks_per_row; }
     constexpr u16 display_height() const { return m_display_height; }
     constexpr u16 display_blocks_per_col() const { return m_bitmap_blocks_per_col; }
+
+    // --- ScrollSink (concepto de scroll_engine.hpp): geometría, límites y modo.
+    // El algoritmo del corkscrew vive en `ScrollEngine` y consume estos getters
+    // + add_draw/save_word/restore_saveword (los seams de este layout).
+    constexpr u16 tile_width() const { return m_cfg.tile_width; }
+    constexpr u16 tile_height() const { return m_cfg.tile_height; }
+    constexpr u16 viewport_w() const { return m_cfg.viewport_w; }
+    constexpr u16 viewport_h() const { return m_cfg.viewport_h; }
+    constexpr u16 display_planelines() const { return m_display_planelines; }
+    constexpr u16 bytes_per_row() const { return m_bytes_per_row; }
+    constexpr u16 bitmap_blocks_per_col() const { return m_bitmap_blocks_per_col; }
+    constexpr u16 map_width_blocks() const {
+        return m_cfg.map.width ? m_cfg.map.width
+            : static_cast<u16>(m_cfg.screens_x * (m_cfg.viewport_w / m_cfg.tile_width));
+    }
+    constexpr u16 map_height_blocks() const {
+        return m_cfg.map.height ? m_cfg.map.height
+            : static_cast<u16>(m_cfg.screens_y * (m_cfg.viewport_h / m_cfg.tile_height));
+    }
+    constexpr u16 map_wrap_x() const { return m_cfg.map.wrap_x; }
+    constexpr u16 map_wrap_y() const { return m_cfg.map.wrap_y; }
+    constexpr bool one_direction() const { return m_cfg.scroll_mode == ScrollMode::OneDirection; }
 constexpr u16 block_planes_lines() const { return m_block_planes_lines; }
     constexpr bool initialized() const { return m_initialized; }
     constexpr u16 bpl1mod() const { return m_bpl1mod; }
@@ -1310,8 +1119,8 @@ constexpr u16 block_planes_lines() const { return m_block_planes_lines; }
         m_scroll.state().mapposy = 0;
         m_scroll.state().videoposy = 0;
         m_scroll.state().previous_xdirection = 0;
-        m_scroll.state().savewordpointer = nullptr;
-        m_scroll.state().saveword = 0;
+        m_savewordpointer = nullptr;
+        m_saveword = 0;
     }
 
 private:
@@ -1360,7 +1169,9 @@ private:
     bool m_linear_display = false;  // display lineal (sin split): espejo del bucle
     u32 m_mirror_planelines = 0;    // desplazamiento del espejo (display_height*planes)
     u16 m_bpl1mod = 0, m_bpl2mod = 0;
-    ScrollEngine m_scroll {}; // cámara + driver del scroll (§7 del diseño)
+    ScrollEngine<XLimitedPlayfield> m_scroll {}; // cámara + algoritmo (§7 diseño)
+    u16* m_savewordpointer = nullptr;             // guarda de 1 word plane-shift (sink)
+    u16 m_saveword = 0;
 };
 
 /// Compositor mínimo para XLimited/corkscrew (single playfield interleaved).

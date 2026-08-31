@@ -185,7 +185,8 @@ namespace demo = eng::field::demo;
 //              5 = HV alternando derecha/abajo     6 = HV alternando izquierda/arriba
 //              7 = diagonal Lissajous              8 = diagonal Lissajous inverso
 //   K_START_PHASE   fase inicial del ciclo "todas" (0..7, defecto 0)
-//   K_PHASE_FRAMES  frames por fase en el ciclo (defecto 1000 ≈ 20 s a 50 fps)
+//   K_PHASE_FRAMES  frames por fase en el ciclo (defecto 300 ≈ 6 s a 50 fps:
+//                   las 8 fases del 8-way se recorren en ~48 s; muestrario)
 //   K_PRE_SCROLL    px de pre-scroll hacia delante para que las fases reversas tengan recorrido
 #ifndef K_EFFECT
 #define K_EFFECT 0
@@ -194,7 +195,7 @@ namespace demo = eng::field::demo;
 #define K_START_PHASE 0
 #endif
 #ifndef K_PHASE_FRAMES
-#define K_PHASE_FRAMES 1000
+#define K_PHASE_FRAMES 300
 #endif
 #ifndef K_PRE_SCROLL
 #define K_PRE_SCROLL 1024
@@ -202,8 +203,11 @@ namespace demo = eng::field::demo;
 // DPF 3+3: dos XLimitedPlayfield (PF1 planos 1,3,5 / PF2 2,4,6), cada uno con su
 // bitmap interleaved de K_PLANES=3, unidos por XlimitedDualComposer. Ambos
 // scrollean en la misma dirección (K_EFFECT) y comparten videoposy (mismo split).
+// MUESTRARIO (defecto DUAL=1): PF1 es el FG con la mitad de tiles transparentes
+// (checkerboard sobre tile 0 vacío: PF1 deja ver PF2), PF2 es el fondo opaco con
+// su propio mapa. La regresión fuerza K_DUAL=0 (línea base single pixel-exacta).
 #ifndef K_DUAL
-#define K_DUAL 0
+#define K_DUAL 1
 #endif
 #ifndef K_PARALLAX
 #define K_PARALLAX 0 // si 1, PF2 (fondo) scrollea a media velocidad en X
@@ -229,7 +233,7 @@ namespace demo = eng::field::demo;
 #endif
 // Sprites hardware a nivel de escena (delante de los playfields, paleta 16-31).
 #ifndef K_SPRITE
-#define K_SPRITE 0
+#define K_SPRITE 1 // muestrario: sprite (diamante) delante de los playfields
 #endif
 // Franja HUD inferior: un playfield SEPARADO (CanvasPlayfield) de K_HUD_HEIGHT
 // filas con K_HUD_PLANES bitplanes y paleta propia, en una zona de Copper bajo
@@ -285,6 +289,18 @@ constexpr eng::u16 kHudPalette[16] {
     0x844, 0x884, 0x448, 0x444, 0x222, 0x666, 0xaaa, 0xddd,
 };
 
+// Paleta emergente del muestrario: PF1 (0-7), PF2 (8-15) y sprites 16-19.
+// En single (regresión) los 16 primeros bastan; el sprite usa COLOR16-19.
+constexpr eng::u16 kScenePalette[32] {
+    // PF1 (primer plano): registros 0..7. Color 0 = transparente.
+    0x000, 0xf0c, 0x0cf, 0xff0, 0xf80, 0x84f, 0xf44, 0xfff,
+    // PF2 (fondo): registros 8..15. Color 0 (reg 8) = transparente.
+    0x000, 0x021, 0x063, 0x0a5, 0x2d7, 0xdfa, 0xce7, 0xfff,
+    // Sprite (COLOR16-19): borde(17) ambar, interior(19) blanco, 16 rojo.
+    0xf00, 0xff8, 0x4aa, 0xfff, 0x000, 0x000, 0x000, 0x000,
+    0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
+};
+
 eng::u16 g_map_cells[kMapTilesX * kMapTilesY] {};
 
 void build_map(eng::Span<eng::u16> cells, eng::u32 seed) {
@@ -293,6 +309,18 @@ void build_map(eng::Span<eng::u16> cells, eng::u32 seed) {
             const eng::u32 h = demo::cell_hash(x, y, seed);
             cells.at(y * kMapTilesX + x) = static_cast<eng::u16>(h & 63u);
         }
+    }
+}
+
+// Construye el mapa del FG (PF1) en modo DPF: un checkerboard sobre el mapa de
+// fondo donde la mitad de los tiles son el tile 0 (glyph 0), que `fg_row`
+// devuelve VACÍO → PF1 no escribe nada ahí y PF2 (fondo opaco) se ve a través.
+// Es la "mitad de tiles transparentes" del muestrario DPF con tiles.
+void build_fg_checkerboard_map(eng::Span<eng::u16> fg, const eng::Span<const eng::u16> bg) {
+    for (eng::u32 i = 0; i < fg.size(); ++i) {
+        const eng::u32 x = i % kMapTilesX;
+        const eng::u32 y = i / kMapTilesX;
+        fg[i] = (((x + y) & 1u) != 0u) ? 0u : bg[i];
     }
 }
 
@@ -311,11 +339,16 @@ struct DemoGame {
     field::XlimitedSceneConfig scene_cfg {};
     eng::graphics::FramePlan plan {};
     eng::MemoryBlock m_bob {};           // BOB enmascarado de prueba (1 plano 16x16 + máscara)
+    eng::MemoryBlock m_fg_map {};        // mapa del FG (checkerboard transparente) en el arena
     bool ready = false;
 
-    // Generadores de filas de tile (incrustan base de color y transparencia).
+// Generadores de filas de tile (incrustan base de color y transparencia).
     static eng::u16 fg_row(eng::u8 glyph, eng::u8 variant, eng::u8 row, eng::u8 plane) {
         // PF1: base 0; en DPF fondo transparente (tramado) para que PF2 se vea.
+        // glyph 0 = tile transparente del checkerboard SOLO en DPF: PF1 no
+        // escribe (vacío) y PF2 se ve. En single (regresión) se dibuja normal
+        // para que la línea base no tenga agujeros negros.
+        if (glyph == 0 && kDual) return 0;
         return demo::pf_plane_row(glyph, variant, row, plane, 0, kDual);
     }
     static eng::u16 bg_row(eng::u8 glyph, eng::u8 variant, eng::u8 row, eng::u8 plane) {
@@ -332,8 +365,21 @@ struct DemoGame {
             return;
         }
 
-        // Mapa de PF1 (el PF2 en DPF reusa el mismo mapa con otra semilla).
+// Mapa de fondo (PF2). En DPF, PF1 usa un mapa FG con la mitad de tiles
+        // transparentes (g_fg_map_cells, checkerboard sobre tile 0). El mapa FG
+        // se reserva en el arena Chip (no en BSS) para no duplicar ~140 KB.
         build_map(eng::Span<eng::u16>::from_raw(g_map_cells, kMapTilesX * kMapTilesY), 0x13579bdu);
+        if (kDual) {
+            const eng::u32 map_bytes = static_cast<eng::u32>(kMapTilesX) * kMapTilesY * 2u;
+            m_fg_map = backend.memory().chip.allocate(map_bytes, 2);
+            if (!m_fg_map.valid()) {
+                eng::debug::mark_failed(g_eng_run_status, 0x00010702u);
+                return;
+            }
+            build_fg_checkerboard_map(
+                eng::Span<eng::u16>::from_raw(static_cast<eng::u16*>(m_fg_map.data), kMapTilesX * kMapTilesY),
+                eng::Span<const eng::u16>::from_raw(g_map_cells, kMapTilesX * kMapTilesY));
+        }
 
         scene_cfg.viewport_w = kViewportW;
         scene_cfg.viewport_h = kViewportH;
@@ -341,23 +387,37 @@ struct DemoGame {
         scene_cfg.tile_height = kTileSize;
         scene_cfg.planes = kEffectivePlanes;   // 4 single, 3 por playfield en DPF
         scene_cfg.fetch_mode = kFetchMode;
-        scene_cfg.map.cells = eng::Span<const eng::u16>::from_raw(g_map_cells, kMapTilesX * kMapTilesY);
+        // PF1 (FG) usa el mapa checkerboard en DPF, o el mapa normal en single.
+        {
+            const eng::u16* fg_cells = kDual && m_fg_map.valid()
+                ? static_cast<const eng::u16*>(m_fg_map.data)
+                : static_cast<const eng::u16*>(g_map_cells);
+            scene_cfg.map.cells = eng::Span<const eng::u16>::from_raw(fg_cells, kMapTilesX * kMapTilesY);
+        }
         scene_cfg.map.width = kMapTilesX;
         scene_cfg.map.height = kMapTilesY;
         scene_cfg.map.wrap_x = kMapTilesX;
         scene_cfg.map.wrap_y = kMapTilesY;
-        scene_cfg.map.edge_tile = 0;
+        scene_cfg.map.edge_tile = kDual ? 0 : 0;
         scene_cfg.tileset_count = kTileCount;
         scene_cfg.fg_row_fn = &DemoGame::fg_row;
         scene_cfg.bg_row_fn = &DemoGame::bg_row;
         scene_cfg.dual = kDual;
+        if (kDual) {
+            // PF2 (fondo) opaco con su propio mapa (el completo, sin checkerboard).
+            scene_cfg.map2.cells = eng::Span<const eng::u16>::from_raw(g_map_cells, kMapTilesX * kMapTilesY);
+            scene_cfg.map2.width = kMapTilesX;
+            scene_cfg.map2.height = kMapTilesY;
+            scene_cfg.map2.wrap_x = kMapTilesX;
+            scene_cfg.map2.wrap_y = kMapTilesY;
+        }
         scene_cfg.parallax_x = kParallax;
         scene_cfg.linear_display = kLinear;
         scene_cfg.effect = kEffectMode;
         scene_cfg.start_phase = kStartPhase;
         scene_cfg.phase_frames = kPhaseFrames;
         scene_cfg.pre_scroll = kPreScroll;
-        scene_cfg.palette = demo::kPalette;
+        scene_cfg.palette = kScenePalette;
 #if K_CANVAS_FG
         scene_cfg.dual = true;
         scene_cfg.fg_canvas = true; // FG = lienzo plano (PF2 en DPF)
