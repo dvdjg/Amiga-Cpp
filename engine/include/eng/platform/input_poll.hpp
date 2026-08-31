@@ -36,4 +36,33 @@ inline void poll_input(GameInput& out) {
     out.port1 = static_cast<eng::u8>((~pa1 & 0x7F8u) >> 3u);
 }
 
+// ---------------------------------------------------------------------------
+// TECLADO por automatización de memoria (recomendado frente al port serie de
+// CIAA: leer SDR/ICR con la IRQ de teclado del KS desarmada provoca una
+// excepción (bus/address error → bucle de boot del KS) en WinUAE-DBG al llegar
+// el primer byte; queda documentado como incidencia abierta).
+//
+// El HOST inyecta el scancode Amiga por memoria (`poke` del monitor sobre la
+// variable global `g_automation_keycode`), y la demo la lee cada frame. El
+// edge (cambio de valor + no-idle) produce un make. Scancodes: '1'=0x02,
+// '2'=0x03, ..., '9'=0x0a, '0'=0x0b; 0xff = sin tecla.
+// Enlace C (símbolo sin mangle) para que el runner la resuelva en el .map.
+extern "C" volatile eng::u8 g_automation_keycode;
+
+/// Estado del teclado sintético (edge por memoria).
+struct KeyboardState {
+    eng::u8 prev = 0xffu;   // último valor observado (arranca "sin tecla")
+    eng::u8 pending = 0u;   // make pendiente (0 = ninguno)
+};
+
+/// Lee la tecla sintética inyectada por el host (edge de valor).
+inline void poll_keyboard(KeyboardState& st) {
+    const eng::u8 cur = g_automation_keycode;
+    st.pending = 0u;
+    if (cur != st.prev && cur != 0xffu) {
+        st.pending = cur; // make: valor nuevo y distinto de "sin tecla"
+    }
+    st.prev = cur;
+}
+
 } // namespace eng::amiga

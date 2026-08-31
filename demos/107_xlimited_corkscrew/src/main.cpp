@@ -38,6 +38,13 @@ extern "C" {
 __attribute__((used)) volatile eng::u8 g_tech_new = 0;
 }
 
+// Tecla sintética inyectada por el host (automatización por memoria de WinUAE:
+// scancode Amiga, '1'=0x02..; 0xff = sin tecla). Ámbito global + enlace C (sin
+// mangle) para que el runner resuelva su dirección y le escriba el `poke`.
+extern "C" {
+__attribute__((used)) volatile eng::u8 g_automation_keycode = 0xffu;
+}
+
 namespace {
 
 namespace field = eng::field;
@@ -452,6 +459,7 @@ struct DemoGame {
     PatternMode m_pattern = PDualPatterns; // técnica activa (modo de movimiento)
     eng::u8 m_current = 0;              // índice de la técnica activa (0..N-1)
     eng::u8 m_prevIn = 0;               // último estado de entrada (edge)
+    eng::amiga::KeyboardState m_kbd;    // estado del puerto serie del teclado
 
     /// PARAR la técnica saliente + INICIAR la entrante (ciclo de vida del
     /// efecto): reinicia la cámara de ambos playfields y la fase del auto-ciclo,
@@ -477,16 +485,29 @@ struct DemoGame {
     /// gancho `g_tech_new` 1..9 selecciona una específica) y el auto-ciclo.
     void poll_tech_switch(eng::u32 frame) {
         // Entrada por hardware (CIA): cualquier botón/dirección de un puerto de
-        // juego → siguiente técnica (borde de subida).
+        // juego → siguiente técnica (borde de subida). Ventana de arranque: el
+        // emulador deja las líneas sin joystick a 0 (="pulsado") el primer frame
+        // y avanzaría de técnica espuriamente; se ignoran los bordes hasta que
+        // el puerto haya mostrado al menos un frame en reposo.
         eng::amiga::GameInput gin;
         eng::amiga::poll_input(gin);
         const eng::u8 in = static_cast<eng::u8>(gin.port0 | gin.port1);
-        if (in != 0u && m_prevIn == 0u) {
+        if (frame >= 2u && in != 0u && m_prevIn == 0u) {
             m_current = static_cast<eng::u8>((static_cast<eng::u16>(m_current) + 1u) % (kTechCount ? kTechCount : 1u));
             apply_tech(m_current);
         }
         m_prevIn = in;
-        // Gancho directo 1..9 (future teclado CIAA).
+        // Teclado por puerto serie de CIAA: '1'..'6' (scancodes 0x02..0x07)
+        // seleccionan la técnica concreta, igual que el gancho `g_tech_new`.
+        eng::amiga::poll_keyboard(m_kbd);
+        if (m_kbd.pending != 0u) {
+            const eng::u8 pd = m_kbd.pending;
+            m_kbd.pending = 0u;
+            if (pd >= 0x02u && pd <= (0x02u + kTechCount - 1u)) {
+                apply_tech(static_cast<eng::u8>(pd - 0x02u));
+            }
+        }
+        // Gancho directo 1..9 (herramientas/host).
         const eng::u8 want = g_tech_new;
         if (want != 0u && want <= kTechCount) { g_tech_new = 0; apply_tech(static_cast<eng::u8>(want - 1u)); }
 #if K_AUTOCYCLE
@@ -819,11 +840,12 @@ scene_cfg.max_step = kStepMax;
             tel.fillup_extra = 0;
         }
 
-        // Telemetría: mapposx en bytes bajos, videoposx en altos, BPLCON1 en medio.
+        // Telemetría: mapposx en bytes bajos, videoposx en altos, BPLCON1 en medio;
+        // byte superior: 0x10 (marcador 107) | técnica activa en el nibble bajo.
         const auto& f = scene.bg();
         auto view = f.hardware_view();
-        const eng::u32 marker = 0x10700000u |
-            (static_cast<eng::u32>(f.mapposx() & 0xff) ) |
+        const eng::u32 marker = ((0x10u | (m_current & 0x0fu)) << 24) |
+            (static_cast<eng::u32>(f.mapposx() & 0xff)) |
             (static_cast<eng::u32>(view.bplcon1 & 0xff) << 8) |
             (static_cast<eng::u32>(f.videoposx() & 0xff) << 16);
         eng::debug::mark_ready(g_eng_run_status, marker);
