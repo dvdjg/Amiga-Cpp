@@ -216,6 +216,9 @@ namespace demo = eng::field::demo;
 #ifndef K_LINEAR
 #define K_LINEAR 0
 #endif
+#ifndef K_HUD
+#define K_HUD 1 // 0 = sin HUD de ejemplo (para A/B o regresión)
+#endif
 // Alias K_TILE_W/H para la parametrización nueva (compatibles con K_TILE_WIDTH/SIZE)
 #ifndef K_TILE_W
 #ifdef K_TILE_WIDTH
@@ -279,6 +282,7 @@ struct DemoGame {
     field::XlimitedScene scene {};       // escena reutilizable (campos + compositores + camino)
     field::XlimitedSceneConfig scene_cfg {};
     eng::graphics::FramePlan plan {};
+    eng::MemoryBlock m_bob {};           // BOB enmascarado de prueba (1 plano 16x16 + máscara)
     bool ready = false;
 
     // Generadores de filas de tile (incrustan base de color y transparencia).
@@ -353,8 +357,58 @@ struct DemoGame {
         }
         scene.install(backend);
 
+#if K_HUD
+        // BOB enmascarado de prueba: 4 planos 16x16 (blanco, origen Chip RAM) +
+        // máscara de 1 bit con un agujero central 4x4 (px 6..9). El cookie-cut
+        // escribe blanco donde la máscara es 1 y conserva el mapa donde es 0:
+        // bloque blanco 16x16 con un hueco que deja ver el fondo.
+        m_bob = backend.memory().chip.allocate(160, 16); // 4*32 + 32 (máscara)
+        if (m_bob.valid()) {
+            eng::u8* bob = static_cast<eng::u8*>(m_bob.data);
+            for (eng::u32 i = 0; i < 128; ++i) bob[i] = 0xff;   // 4 planos = blanco
+            for (eng::u16 r = 0; r < 16; ++r) {                 // máscara: hueco px 6..9
+                const eng::u16 mw = (r >= 6 && r < 10) ? static_cast<eng::u16>(0xfc3fu) : static_cast<eng::u16>(0xffffu);
+                bob[128 + r * 2] = static_cast<eng::u8>(mw >> 8);
+                bob[128 + r * 2 + 1] = static_cast<eng::u8>(mw & 0xff);
+            }
+        }
+#endif
+
         ready = true;
         eng::debug::mark_ready(g_eng_run_status, 0x10700000u);
+    }
+
+    // -------------------------------------------------------------------------
+    // HUD de ejemplo: objeto FIJO en pantalla dibujado con la capa de dibujo.
+    // La ventana visible empieza en `display_offset = (mapposy+tile_height)%DH`,
+    // NO en mapposy: por eso la fila de mundo se obtiene con screen_to_world_y
+    // (equivale a mapposy()+tile_height()+sy) y la columna con screen_to_world_x
+    // (= mapposx()+sx). Así el HUD sigue a la cámara y no se desliza con el mundo.
+    // Las primitivas CPU (set_pixel/fill_rect/draw_line) escriben al instante; el
+    // BOB enmascarado es un blit que se encola en `plan` (se ejecuta después).
+    // -------------------------------------------------------------------------
+    void draw_hud(eng::graphics::FramePlan& hud_plan) {
+#if K_HUD
+        const eng::s32 mx = scene.screen_to_world_x(4);
+        const eng::s32 y0 = scene.screen_to_world_y(4);
+        const eng::s32 y1 = scene.screen_to_world_y(12);
+        scene.draw_line(mx, y0, scene.screen_to_world_x(52), y1, 1);  // diagonal magenta
+        scene.fill_rect(scene.screen_to_world_x(64), y0, 8, 8, 3);    // caja amarilla
+        scene.set_pixel(scene.screen_to_world_x(60), y0, 2);          // píxel cian
+        scene.set_pixel(scene.screen_to_world_x(60), y0 + 7, 2);
+        // BOB enmascarado de MUNDO (16x16, 4 planos blancos, wx múltiplo de 16):
+        // bloque blanco con hueco 4x4 en el centro que deja ver el mapa. Es un
+        // objeto del mundo en posición fija (160,100): scrollea con el fondo. Las
+        // primitivas de blit requieren wx word-aligned, así que un objeto FIJO en
+        // pantalla se dibuja con las primitivas CPU (set_pixel/fill_rect/draw_line).
+        if (m_bob.valid()) {
+            const eng::u16* bob = static_cast<const eng::u16*>(m_bob.data);
+            scene.add_world_bitmap_masked(hud_plan, bob, bob + 64,
+                160, 100, 16, 16, 2, 32, 4);
+        }
+#else
+        (void)hud_plan;
+#endif
     }
 
     void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
@@ -367,6 +421,11 @@ struct DemoGame {
         // borde 0 (dirección inversa sin recorrido) simplemente no avanza.
         eng::s32 dx = 0, dy = 0;
         scene.update_auto(plan, context.frame.frame_index, dx, dy);
+
+        // HUD fijo en pantalla (se redibuja cada frame tras el scroll). Los
+        // píxeles CPU se escriben al instante; el BOB enmascarado se encola en
+        // el plan y se ejecuta a continuación.
+        draw_hud(plan);
 
         if (!backend.execute_frame_plan(plan)) {
             ready = false;

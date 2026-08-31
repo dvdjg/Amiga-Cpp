@@ -245,24 +245,45 @@ Ambos modos imponen una regla sobre CUALQUIER dibujo futuro en el framebuffer
 
 **Primitiva de dibujo `add_world_bitmap`** (`XlimitedField`): TODAS las rutinas
 de dibujo deben pasar por aquí. Toma **coordenadas de mundo** (`wx`, `wy` en
-píxeles; `wx` múltiplo de 16) y un origen **planar** (planos separados, cada
-fila `src_row_bytes`, cada plano `src_plane_stride` bytes, el origen debe estar
-en **Chip RAM** porque el Blitter no lee `.rodata`). Internamente abstrae la
-regla: **espejo = duplica** (2 blits por plano en modo lineal) o **split =
-parte** (divide en la costura del bucle). Para un objeto fijo en pantalla (HUD),
-el caller pasa `mapposx()+x` / `mapposy()+y` (alineando x a 16) cada frame;
-para un objeto del mundo, la posición fija del mundo.
+píxeles; `wx` **múltiplo de 16**, word-aligned del blit) y un origen **planar**
+(planos separados, cada fila `src_row_bytes`, cada plano `src_plane_stride`
+bytes, el origen debe estar en **Chip RAM** porque el Blitter no lee `.rodata`).
+Internamente abstrae la regla: **espejo = duplica** (2 blits por plano en modo
+lineal) o **split = parte** (divide en la costura del bucle). Para un objeto
+del mundo, el caller pasa la posición fija del mundo (wx alineado a 16). NO se
+usa para objetos fijos en pantalla (ver más abajo).
+
+**BOB enmascarado `add_world_bitmap_masked`** (`XlimitedField`): misma geometría
+que `add_world_bitmap` pero con un plano de **máscara de 1 bit** compartido
+(mismo layout de fila que un plano fuente; el backend reutiliza
+`source_modulo_bytes` para el canal A=máscara). Cookie-cut
+`dest = (mask & src) | (~mask & dest)`: donde la máscara es 0 se conserva el
+fondo (transparencia), donde es 1 se escribe el BOB. Es la ruta para sprites y
+objetos móviles **del mundo**. Como los blits requieren `wx` múltiplo de 16,
+un objeto fijo en pantalla NO puede ir por esta vía (su `wx = mapposx+x` solo
+está alineado 1 de cada 16 px): los fijos van por las primitivas CPU.
 
 **Primitivas de dibujo POR CPU** (mismo mapeo, escrituras de la CPU al
 framebuffer): `XlimitedField::set_pixel(wx, wy, color)`, `fill_rect(wx, wy, w, h,
 color)` y `draw_line(wx0, wy0, wx1, wy1, color)` (Bresenham). Internamente
 resuelven la geometría del layout: `world_to_planeline(wy)` aplica el módulo del
 bucle (costura del split), `write_planes` escribe la máscara en los `planes`
-bitplanes interleaved (`(planeline+p)*row_bytes + word`), y en modo lineal
-duplican al espejo (regla "espejo = duplica"). Restricción: `wx` dentro de una
-fila (byte < `bitmap_bytes_per_row`); para objetos anchos o plane-shifted sigue
-usándose `add_world_bitmap` (blits). **Toda rutina de dibujo futura debe pasar
-por estas primitivas o por `add_world_bitmap`**; nunca escribir a
+bitplanes interleaved, y en modo lineal duplican al espejo (regla "espejo =
+duplica"). Soportan **cualquier `wx` del mundo**: el byte físico `wx/8` cruza a
+la siguiente planelínea cuando `wx/8 >= row_bytes` (el *walk* horizontal del
+corkscrew), acotando contra el tamaño total del bitmap. Verificación host:
+`node tools/analyze/verify-draw-primitives.mjs` (y con `K_LINEAR=1`).
+
+**Objetos fijos en pantalla (HUD)**: se dibujan cada frame en la posición de
+mundo que la cámara muestra, usando `XlimitedScene::screen_to_world_x(sx)` (=
+`mapposx()+sx`) y `screen_to_world_y(sy)` (equivale a
+`(mapposy + tile_height + sy) % display_height`). **IMPORTANTE**: NO es
+`mapposy()+sy` — la ventana visible del corkscrew empieza un bloque por debajo
+de `videoposy` (`display_offset = (mapposy+tile_height) % display_height`), así
+que usar `mapposy()+sy` deja el objeto en la banda de staging, fuera de
+pantalla. Los fijos van por las primitivas CPU (`set_pixel`/`fill_rect`/
+`draw_line`), que aceptan cualquier `wx`. **Toda rutina de dibujo futura debe
+pasar por estas primitivas o por `add_world_bitmap[_masked]`**; nunca escribir a
 `frontbuffer()` a ciegas, porque la planelínea/byte del píxel depende de
 `display_offset` y del modo (split vs espejo).
 

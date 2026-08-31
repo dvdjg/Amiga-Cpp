@@ -332,6 +332,71 @@ public:
     XlimitedField& field(eng::u8 pf = 0) { return m_field[pf]; }
     const XlimitedField& field(eng::u8 pf = 0) const { return m_field[pf]; }
 
+    // -------------------------------------------------------------------------
+    // Capa de dibujo (API de librería). Todas las rutinas de dibujo futuras
+    // pasan por aquí: delegan en el campo activo y heredan el mapeo físico
+    // (costura del split / espejo del modo lineal). `pf` selecciona el playfield
+    // (0 = PF1, 1 = PF2 en DPF).
+    //
+    // Un objeto FIJO en pantalla (HUD) se dibuja cada frame en la posición de
+    // mundo (mapposx()+sx, screen_to_world_y(sy)): así sigue a la cámara y no se
+    // desliza con el mundo. Un objeto del MUNDO se dibuja en su posición fija
+    // (wx, wy) sin desfase por cámara. `set_pixel`/`fill_rect`/`draw_line` son
+    // escrituras inmediatas de CPU (sin plan); `add_world_bitmap` es un blit que
+    // requiere un `FramePlan` y su ejecución posterior.
+    // -------------------------------------------------------------------------
+
+    /// Fila de mundo para un objeto FIJO en la fila de pantalla `sy` (0 = arriba).
+    /// La ventana visible NO empieza en videoposy: el corkscrew pone la banda de
+    /// staging un bloque por encima, así que `display_offset = (mapposy +
+    /// tile_height) % display_height`. Usar mapposy()+sy directamente dejaría el
+    /// objeto en la banda de staging (fuera de pantalla). Equivale a
+    /// `(mapposy + tile_height + sy) % display_height` en modo split.
+    eng::s32 screen_to_world_y(eng::s16 sy, eng::u8 pf = 0) const {
+        return m_field[pf].screen_to_bitmap_row(sy);
+    }
+    /// Columna de mundo para un objeto FIJO en la columna de pantalla `sx`.
+    constexpr eng::s32 screen_to_world_x(eng::s16 sx, eng::u8 pf = 0) const {
+        return m_field[pf].mapposx() + sx;
+    }
+
+    /// Píxel de mundo (escritura inmediata de CPU). En modo lineal duplica al espejo.
+    void set_pixel(eng::s32 wx, eng::s32 wy, eng::u8 color, eng::u8 pf = 0) {
+        m_field[pf].set_pixel(wx, wy, color);
+    }
+    /// Rectángulo de mundo relleno (CPU). Para rects grandes usa add_world_bitmap.
+    void fill_rect(eng::s32 wx, eng::s32 wy, eng::u16 w, eng::u16 h, eng::u8 color, eng::u8 pf = 0) {
+        m_field[pf].fill_rect(wx, wy, w, h, color);
+    }
+
+    /// Línea oblicua de mundo (Bresenham, CPU).
+    void draw_line(eng::s32 wx0, eng::s32 wy0, eng::s32 wx1, eng::s32 wy1, eng::u8 color, eng::u8 pf = 0) {
+        m_field[pf].draw_line(wx0, wy0, wx1, wy1, color);
+    }
+
+    /// Blit planar en el mundo (origen en Chip RAM, wx múltiplo de 16). Devuelve
+    /// false si no se pudo encolar; ejecuta el plan con backend.execute_frame_plan.
+    bool add_world_bitmap(graphics::FramePlan& plan,
+                          const eng::u16* src, eng::s32 wx, eng::s32 wy,
+                          eng::u16 w, eng::u16 h,
+                          eng::u16 src_row_bytes, eng::u32 src_plane_stride,
+                          eng::u8 planes, eng::u8 pf = 0) {
+        return m_field[pf].add_world_bitmap(plan, src, wx, wy, w, h,
+                                            src_row_bytes, src_plane_stride, planes);
+    }
+
+    /// BOB con máscara de transparencia (cookie-cut): igual que add_world_bitmap
+    /// pero `mask` es un plano de 1 bit (mismo layout de fila que un plano fuente)
+    /// donde 0 conserva el fondo. Para sprites/objetos móviles con transparencia.
+    bool add_world_bitmap_masked(graphics::FramePlan& plan,
+                                 const eng::u16* src, const eng::u16* mask,
+                                 eng::s32 wx, eng::s32 wy, eng::u16 w, eng::u16 h,
+                                 eng::u16 src_row_bytes, eng::u32 src_plane_stride,
+                                 eng::u8 planes, eng::u8 pf = 0) {
+        return m_field[pf].add_world_bitmap_masked(plan, src, mask, wx, wy, w, h,
+                                                   src_row_bytes, src_plane_stride, planes);
+    }
+
 private:
     /// Seno Q8 de 64 pasos (independiente de demo::sin64 para que la escena no
     /// dependa de `tile_demo.hpp`).

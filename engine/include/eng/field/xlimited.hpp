@@ -598,6 +598,7 @@ public:
         const u32 alloc_bytes = total_bytes + 64u;
         m_bitmap_block = memory.chip.allocate(alloc_bytes, 16);
         if (!m_bitmap_block.valid()) return false;
+        m_total_bytes = total_bytes;
 
         m_real_base = static_cast<u8*>(m_bitmap_block.data);
         // Offset de fetch (normal=0, BPL32=16, 4x=48) — ver fetchinfo[]
@@ -674,26 +675,34 @@ public:
     }
 
     /// Escribe la máscara (bit del píxel) en los `planes` bitplanes de la
-    /// planelínea `planeline` en el byte `xbyte` (word-aligned).
-    void write_planes(u32 planeline, u32 xbyte, u16 mask, u8 color) {
-        u8* base = m_frontbuffer + planeline * m_bitmap_bytes_per_row;
+    /// planelínea `planeline` en la word `word_byte` (byte word-aligned del píxel
+    /// de mundo `wx`). `word_byte = (wx/8) & ~1`: el walk horizontal del corkscrew
+    /// (píxel de mundo almacenado en `byte wx/8`, que cruza a la siguiente
+    /// planelínea cuando `wx/8 >= bitmap_bytes_per_row`) queda incluido en la
+    /// dirección y se acota contra el tamaño total del bitmap.
+    void write_planes(u32 planeline, u32 word_byte, u16 mask, u8 color) {
+        const u32 row = static_cast<u32>(m_bitmap_bytes_per_row);
+        u8* base = m_frontbuffer + planeline * row;
         for (u8 p = 0; p < m_cfg.planes; ++p) {
-            u16* w = reinterpret_cast<u16*>(base + static_cast<u32>(p) * m_bitmap_bytes_per_row + xbyte);
+            const u32 b = static_cast<u32>(p) * row + word_byte;
+            if (b >= m_total_bytes) return; // fuera del bitmap (walk excesivo)
+            u16* w = reinterpret_cast<u16*>(base + b);
             if ((color & (1u << p)) != 0u) *w |= mask;
             else *w &= ~mask;
         }
     }
 
     /// Dibuja un píxel de mundo en color (0..2^planes-1). En modo lineal duplica
-    /// al espejo. wx dentro de la fila (byte < bitmap_bytes_per_row).
+    /// al espejo. Soporta wx en todo el mundo (el byte cruza planelíneas por el
+    /// walk horizontal del corkscrew); para HUD fijo en pantalla pasa
+    /// (mapposx()+x, mapposy()+y) cada frame.
     void set_pixel(s32 wx, s32 wy, u8 color) {
         if (!m_initialized || wx < 0) return;
-        const u32 xbyte = static_cast<u32>(wx / 16) * 2u;
-        if (xbyte >= m_bitmap_bytes_per_row) return;
+        const u32 word_byte = (static_cast<u32>(wx / 8)) & ~1u;
         const u16 mask = static_cast<u16>(0x8000u >> (wx & 15));
         const u32 pl = world_to_planeline(wy);
-        write_planes(pl, xbyte, mask, color);
-        if (m_linear_display) write_planes(pl + static_cast<u32>(m_display_height) * m_cfg.planes, xbyte, mask, color);
+        write_planes(pl, word_byte, mask, color);
+        if (m_linear_display) write_planes(pl + m_mirror_planelines, word_byte, mask, color);
     }
 
     /// Rellena un rectángulo de mundo (CPU). Para rects grandes usa add_world_bitmap.
@@ -889,6 +898,64 @@ public:
         }
         return true;
     }
+    /// Emite un rectángulo planar ENMASCARADO (cookie-cut) de `seg` filas en la
+    /// planelínea `planeline_start`. `mask` es un ÚNICO plano de 1 bit compartido
+    /// por todos los bitplanes (regla `dest = (mask & src) | (~mask & dest)`,
+    /// `BlitJobKind::MaskedBobCookieCut`): donde la máscara es 0 se conserva el
+    /// fondo (transparencia), donde es 1 se escribe el plano. El plano de máscara
+    /// tiene el MISMO layout de fila que un plano fuente (el backend reutiliza
+    /// `source_modulo_bytes` para el canal A=masks, ver amiga_minimal.cpp).
+    bool emit_world_rect_masked(graphics::FramePlan& plan, const u16* src, const u16* mask,
+                                u16 x_byte, u32 planeline_start, u16 words, u16 seg_rows,
+                                u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
+        const s16 src_mod = static_cast<s16>(src_row_bytes - words * 2);
+        const s16 dst_mod = static_cast<s16>(m_bitmap_bytes_per_row * planes - words * 2);
+        for (u8 p = 0; p < planes; ++p) {
+            const u16* s = src + static_cast<u32>(p) * (src_plane_stride / 2u);
+            u16* d = reinterpret_cast<u16*>(const_cast<u8*>(m_frontbuffer) +
+                (planeline_start + static_cast<u32>(p)) * m_bitmap_bytes_per_row + x_byte);
+            graphics::BlitJob job {
+                graphics::BlitJobKind::MaskedBobCookieCut, mask, s, d,
+                words, seg_rows, src_mod, dst_mod,
+                1, 0, src_plane_stride, static_cast<u32>(m_bitmap_bytes_per_row * planes), false
+            };
+            if (!plan.add_masked_bob(job)) return false;
+        }
+        return true;
+    }
+
+    /// Dibuja un BOB planar con máscara de transparencia en el MUNDO. Igual que
+    /// `add_world_bitmap` (origen en Chip RAM, `wx` múltiplo de 16, costura y
+    /// espejo gestionados) pero con un plano de máscara de 1 bit compartido con
+    /// el layout de fila de un plano fuente: donde el bit es 0 se conserva el
+    /// fondo, donde es 1 se escribe el BOB.
+    bool add_world_bitmap_masked(graphics::FramePlan& plan,
+                                 const u16* src, const u16* mask, s32 wx, s32 wy,
+                                 u16 w, u16 h, u16 src_row_bytes, u32 src_plane_stride,
+                                 u8 planes) {
+        if (!m_initialized || src == nullptr || mask == nullptr || planes == 0) return false;
+        if (wx < 0 || (wx & 15) != 0) return false;
+        const s32 loop = ((wy % m_display_height) + m_display_height) % m_display_height;
+        const u16 words = static_cast<u16>(w / 16u);
+        const u16 x_byte = static_cast<u16>((wx / 8u) & 0xfffeu);
+        s32 r = loop;
+        u16 remaining = h;
+        while (remaining > 0) {
+            const u16 seg = static_cast<u16>(
+                (r + remaining > m_display_height) ? (m_display_height - r) : remaining);
+            if (!emit_world_rect_masked(plan, src, mask, x_byte, static_cast<u32>(r) * planes,
+                    words, seg, src_row_bytes, src_plane_stride, planes)) return false;
+            if (m_linear_display) {
+                if (!emit_world_rect_masked(plan, src, mask, x_byte,
+                        static_cast<u32>(r + m_display_height) * planes,
+                        words, seg, src_row_bytes, src_plane_stride, planes)) return false;
+            }
+            remaining = static_cast<u16>(remaining - seg);
+            r = 0;
+        }
+        return true;
+    }
+
     /// Guarda la word que el blit plane-shifted va a pisar (guarda de 1 word).
     void save_word(u32 byte_offset) {
         m_savewordpointer = reinterpret_cast<u16*>(
@@ -1289,6 +1356,7 @@ private:
     MemoryBlock m_bitmap_block {};
     u8* m_real_base = nullptr;
     u8* m_frontbuffer = nullptr;
+    u32 m_total_bytes = 0; // bytes del bitmap (row_bytes * bitmap_height * planes)
     const u8* m_blocks_buffer = nullptr;
     u16 m_bitmap_width = xlimited_detail::kBitmapW32;
     u16 m_bitmap_bytes_per_row = 44;

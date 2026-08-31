@@ -358,6 +358,39 @@ Limitación del split confirmada como inherente al chipset: `raster > 255` (cuan
 en la primera coincidencia del byte bajo y el split se recorta a 255 (banda de 1..41 filas al pie
 con el wrap adelantado; no es negro ni tearing, y el `XYLimited` original degrada igual).
 
+## 14. Capa de dibujo sobre el corkscrew (2026-08-31)
+
+Toda operación de dibujo sobre el framebuffer debe pasar por una primitiva que conozca el layout
+físico: la planelínea y el byte de un píxel dependen de `display_offset` y del modo (split vs
+espejo). Las rutinas se agrupan en `XlimitedField` y se exponen por `XlimitedScene`:
+
+| Primitiva | Tipo | Coordenadas | Restricciones | Regla del layout |
+|---|---|---|---|---|
+| `set_pixel(wx,wy,color)` | CPU | mundo | — | `word_byte=(wx/8)&~1`, `mask=0x8000>>(wx&15)`, planelínea `(wy%DH)*planes`; espejo en lineal |
+| `fill_rect(wx,wy,w,h,color)` | CPU | mundo | — | vía `set_pixel` (wrap de costura por píxel) |
+| `draw_line(...)` (Bresenham) | CPU | mundo | — | vía `set_pixel` |
+| `add_world_bitmap(src,wx,wy,...)` | Blitter | mundo | `wx` múltiplo de 16, origen Chip RAM | "espejo = duplica, split = parte" |
+| `add_world_bitmap_masked(src,mask,wx,wy,...)` | Blitter | mundo | `wx` múltiplo de 16, origen Chip RAM, máscara 1 bit | cookie-cut `dest=(mask&src)\|(~mask&dest)` |
+
+**Walk horizontal**: el byte físico de un píxel de mundo es `(planelínea)*row_bytes + wx/8`, que
+cruza a la siguiente planelínea cuando `wx/8 >= row_bytes` (el *fetch* lineal del Agnus hace lo
+mismo al envolver). Las primitivas CPU lo soportan de forma natural acotando contra el tamaño
+total del bitmap; los blits requieren `wx` word-aligned (por eso los objetos fijos en pantalla van
+por CPU y los del mundo por blit).
+
+**Objeto fijo en pantalla (HUD)**: la ventana visible NO empieza en `videoposy` — el corkscrew
+deja la banda de staging un bloque por encima, así que `display_offset = (mapposy+tile_height) %
+display_height`. Un objeto en la fila de pantalla `sy` se dibuja en `wy = screen_to_world_y(sy)`
+(`XlimitedScene`, equivale a `(mapposy+tile_height+sy) % DH`) y `wx = screen_to_world_x(sx)`
+(`mapposx()+sx`). Usar `mapposy()+sy` directamente deja el objeto en la banda de staging, fuera
+de pantalla. Los fijos se redibujan cada frame (siguen a la cámara) con las primitivas CPU.
+
+**Verificación**: `node tools/analyze/verify-draw-primitives.mjs` modela el contrato (planelínea +
+espejo + walk + objeto fijo) y valida split, lineal y viewports. En emulador, el HUD de la demo 107
+(`K_HUD=1`) muestra la caja 8×8 fija en pantalla (posición constante en 20 frames mientras el mapa
+scrollea) y un BOB enmascarado de mundo (bloque blanco 16×16 con hueco 4×4 que deja ver el mapa,
+cookie-cut confirmado).
+
 ---
 
 Documento canónico — corregido 2026-08-31 (errata §3 BITMAPHEIGHT vs EXTRAHEIGHT del corkscrew,
