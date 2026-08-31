@@ -2,33 +2,51 @@
 /**
  * Simulación del corkscrew (XYLimited) para verificar el port de xlimited.hpp.
  * Compara el port del engine (scroll_down/up/right/left) contra una réplica de
- * Scroller_XYLimited/main.c en el config de la demo: 320x256, tile 16x16,
- * planes 4, fetch normal (EXTRAWIDTH 32).
+ * Scroller_XYLimited/main.c en el config parametrizado por env (mismos K que la
+ * demo 107 / XlimitedConfig):
+ *
+ *   K_VIEWPORT_W/H (320/256 | 288/224)   ventana visible
+ *   K_TILE_W / K_TILE_H (o K_TILE_WIDTH/SIZE)  tile (16|32)
+ *   K_FETCH_MODE (0|1|2|3)               EXTRAWIDTH 32 (0) ó 64 (1/2/3)
+ *   K_PLANES (4)                          profundidad (BLOCKPLANELINES)
+ *   K_SCREENS_X/Y (16)                    pantallas virtuales (mapa = screens*viewport/tile)
  *
  * DESVIACIÓN deliberada (2026-08-31): block_videoposy se envuelve en
- * display_height (288), no en bitmap_height (304), para que la fila entrante
- * nunca caiga en las filas extra del planeaddx walk (bug: tile obsoleto visible
- * en el área de pantalla). El simulador usa esa elección en ref y eng, de modo
- * que valida el port con el invariante corregido.
+ * display_height (no bitmap_height) para que la fila entrante nunca caiga en
+ * las filas extra del planeaddx walk (bug: tile obsoleto visible). El simulador
+ * usa esa elección en ref y eng, de modo que valida el port con el invariante
+ * corregido. TWOBLOCKSTEP = max(0, bitmap_blocks_per_row - tile_height) igual
+ * que el engine (para tiles 32 el original daría negativo y no cubriría la fila).
  *
  * No toca hardware: solo comprueba que cada blit emitido (x, y_planeline,
  * mapx, mapy) coincide entre ref y eng para una secuencia de scroll.
  */
-const VH = 256, VW = 320, TH = 16, TW = 16, PLANES = 4;
-const EXTRAWIDTH = 32, EXTRAHEIGHT = 32;
-const BITMAPWIDTH = VW + EXTRAWIDTH;          // 352
-const BPR = BITMAPWIDTH / 8;                  // 44
-const BITMAPBLOCKSPERROW = BITMAPWIDTH / TW;  // 22
-const BITMAPHEIGHT = VH + EXTRAHEIGHT;        // 288 (display loop)
-const BITMAPBLOCKSPERCOL = BITMAPHEIGHT / TH; // 18
-const BLOCKPLANELINES = TH * PLANES;          // 64
-const TWOBLOCKSTEP = BITMAPBLOCKSPERROW - TH; // 6 (pero con W32 = 22-16 = 6)
+const K_VIEWPORT_W = parseInt(process.env.K_VIEWPORT_W ?? '320', 10);
+const K_VIEWPORT_H = parseInt(process.env.K_VIEWPORT_H ?? '256', 10);
+const K_TILE_W = parseInt(process.env.K_TILE_W ?? process.env.K_TILE_WIDTH ?? '16', 10);
+const K_TILE_H = parseInt(process.env.K_TILE_H ?? process.env.K_TILE_SIZE ?? '16', 10);
+const K_FETCH_MODE = parseInt(process.env.K_FETCH_MODE ?? '0', 10);
+const K_PLANES = parseInt(process.env.K_PLANES ?? '4', 10);
+const K_SCREENS_X = parseInt(process.env.K_SCREENS_X ?? '16', 10);
+const K_SCREENS_Y = parseInt(process.env.K_SCREENS_Y ?? '16', 10);
+
+const VH = K_VIEWPORT_H, VW = K_VIEWPORT_W, TH = K_TILE_H, TW = K_TILE_W, PLANES = K_PLANES;
+const EXTRAWIDTH = K_FETCH_MODE === 0 ? 32 : 64;
+const EXTRAHEIGHT = 2 * TH;
+const BITMAPWIDTH = VW + EXTRAWIDTH;
+const BPR = BITMAPWIDTH / 8;
+const BITMAPBLOCKSPERROW = BITMAPWIDTH / TW;
+const BITMAPHEIGHT = VH + EXTRAHEIGHT;        // bucle vertical de display
+const BITMAPBLOCKSPERCOL = BITMAPHEIGHT / TH;
+const BLOCKPLANELINES = TH * PLANES;
+const TWOBLOCKSTEP = BITMAPBLOCKSPERROW > TH ? BITMAPBLOCKSPERROW - TH : 0;
 const ROUND2BLOCKWIDTH = (x) => x & ~(TW - 1);
 
-// Mapa no-wrapping y grande para que el límite del original (mapheight*TH-VH-TH)
+// Mapa no-wrapping y grande para que el límite del original (mapwidth*TW-VW-TW)
 // nunca se alcance en la secuencia; así la comparación aísla el PORT (blits) de
 // la política de wrap/límite (que en el engine depende de cfg.map.wrap_x/y).
-const MAP_W = 320, MAP_H = 4096;
+const MAP_W = Math.max(K_SCREENS_X * (VW / TW), 1024);
+const MAP_H = Math.max(K_SCREENS_Y * (VH / TH), 4096);
 const mapdata = new Uint8Array(MAP_W * MAP_H);
 let seed = 0x13579bd;
 for (let i = 0; i < mapdata.length; ++i) {
@@ -195,7 +213,7 @@ function refScrollLeft(s, blits) {
 // Port del engine (xlimited.hpp) — traducido literal
 // ---------------------------------------------------------------------------
 function engState() { return { mapposx: 0, mapposy: 0, videoposx: 0, videoposy: 0, prevDir: 0 }; }
-function twoblockstep() { return BITMAPBLOCKSPERROW - TH; }
+function twoblockstep() { return TWOBLOCKSTEP; }
 function engBlockVideoposy(s) { return (Math.floor(s.mapposy / TH) * TH) % BITMAPHEIGHT; }
 function engScrollDown(s, blits) {
   const mapblockx = Math.floor(s.mapposx / TW), mapblocky = Math.floor(s.mapposy / TH);
@@ -368,6 +386,8 @@ const dirs = ['D', 'U', 'R', 'L'];
 const randSeq = [];
 for (let i = 0; i < 5000; ++i) randSeq.push(dirs[rnd(4)]);
 cmp(randSeq);
-console.log(failures === 0 ? 'OK: ScrollDown/Up/Right/Left del port coincide con XYLimited (incl. secuencia aleatoria 5000 pasos)' : `FAIL: ${failures} discrepancias`);
+console.log(failures === 0
+  ? `OK verify-corkscrew [viewport ${VW}×${VH} tile ${TW}×${TH} planes ${PLANES} fetch ${K_FETCH_MODE}]: port coincide con XYLimited (incl. secuencia aleatoria 5000 pasos, BITMAPWIDTH=${BITMAPWIDTH}, TWOBLOCKSTEP=${TWOBLOCKSTEP})`
+  : `FAIL: ${failures} discrepancias`);
 process.exit(failures === 0 ? 0 : 1);
 

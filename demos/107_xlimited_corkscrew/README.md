@@ -62,13 +62,15 @@ cualquier fase (`K_START_PHASE`).
 
 | Macro | Valores | Efecto |
 |---|---|---|
-| `K_TILE_WIDTH` | `16`, `32` | Anchura de tile en píxeles (múltiplo de 16). 32 usa 2 words por fila y `BITMAPBLOCKSPERROW` ajustado. Con `32` la demo fuerza `BITMAPWIDTH=384` (`BLOCKSPERROW=24`) para mantener el contrato entero. |
+| `K_TILE_WIDTH` | `16`, `32` | Anchura de tile en píxeles (múltiplo de 16). 32 usa 2 words por fila. `bitmap_width` se deriva de `viewport + EXTRAWIDTH` (352 normal / 384 con fetch ancho); con 32 y fetch normal es 352. |
 | `K_FETCH_MODE` | `0`, `1`, `3` | Modo de fetch del Agnus. `0`=16 px normal (352 px, `DDFSTRT=$30`/`$D0`, `bitmapoffset 0`, `modulo 2`, scroll 16). `1`=BPL32 32 px (384 px, `DDFSTRT=$28`/`$C8`, `bitmapoffset 16`, `modulo 4`, scroll 32). `3`=BPL32+BPAGEM 64 px (384 px, `DDFSTRT=$18`/`$B8`, `bitmapoffset 48`, `modulo 8`, scroll 64). Cuando `K_FETCH_MODE !=0` la demo fuerza `BITMAPWIDTH=384` y `fetch_mode=K_FETCH_MODE` independientemente de `K_TILE_WIDTH`. |
 | `K_PLANES` | `4` (defecto) | Profundidad. 4 es el caso canónico de X-Limited; otros valores sólo para pruebas de altura extra. |
 | `K_EFFECT` | `0` (defecto) | Efecto/dirección a mostrar. `0`=todas en ciclo; `1`=H derecha, `2`=H izquierda, `3`=V abajo, `4`=V arriba, `5`=HV der/abj, `6`=HV izq/arr, `7`=diagonal, `8`=diagonal inverso. Las fases con componente negativa (izquierda/arriba) pre-scrollan `K_PRE_SCROLL` px en init para tener recorrido. |
 | `K_START_PHASE` | `0` | Fase inicial del ciclo `K_EFFECT=0` (0..7). Útil para saltar a una dirección concreta dentro del ciclo. |
 | `K_PHASE_FRAMES` | `1000` | Frames por fase en el ciclo (~20 s a 50 fps). |
 | `K_PRE_SCROLL` | `1024` | Píxeles de pre-scroll hacia delante en init cuando la fase inicial es reversa/diagonal, para que `scroll_left/up` tengan recorrido antes de chocar con el borde 0. |
+| `K_DUAL` | `0` (defecto), `1` | DPF 3+3: dos `XlimitedField` (PF1 planos 1,3,5 / PF2 2,4,6) unidos por `XlimitedDualComposer`. Cada playfield usa 3 planos; PF1 con fondo transparente tramado para que se vea PF2. Ambos scrollean en la misma dirección (`K_EFFECT`) y comparten `videoposy` (mismo split). |
+| `K_PARALLAX` | `0` (defecto), `1` | En `K_DUAL=1`, PF2 (fondo) scrollea a media velocidad en X (parallax); en Y siempre igual para mantener el split. |
 
 Nota: los `-D...` se pasan siempre por la variable `EXTRA_DEFINES` (los argumentos CLI `-DK_*` no los recoge `build-demo.sh`).
 
@@ -88,6 +90,12 @@ EXTRA_DEFINES="-DK_EFFECT=4" bash ./tools/build/build-demo.sh demos/107_xlimited
 
 # Solo horizontal izquierda (K_EFFECT=2) — pre-scroll derecho y composición inversa
 EXTRA_DEFINES="-DK_EFFECT=2" bash ./tools/build/build-demo.sh demos/107_xlimited_corkscrew --debug --clean
+
+# DPF 3+3 (dos capas): PF1 transparente sobre PF2, ambos scrollean
+EXTRA_DEFINES="-DK_DUAL=1" bash ./tools/build/build-demo.sh demos/107_xlimited_corkscrew --debug --clean
+
+# DPF 3+3 con parallax en X (PF2 a media velocidad)
+EXTRA_DEFINES="-DK_DUAL=1 -DK_PARALLAX=1" bash ./tools/build/build-demo.sh demos/107_xlimited_corkscrew --debug --clean
 
 # Ciclo completo empezando por V arriba (fase 3) y 500 frames por fase
 EXTRA_DEFINES="-DK_START_PHASE=3 -DK_PHASE_FRAMES=500" bash ./tools/build/build-demo.sh demos/107_xlimited_corkscrew --debug --clean
@@ -135,6 +143,21 @@ EXTRA_DEFINES="-DK_FETCH_MODE=3" bash ./tools/build/build-demo.sh demos/107_xlim
   En `tools/test-regression.sh` la regresión invoca automáticamente
   `analyze-sequence.sh --warp` cuando existe.
 
+  **Validación por dirección (`EFFECT` env)**: compila la demo con `K_EFFECT=$EFFECT`,
+  captura una secuencia y valida la dirección del contenido (cross-correlación en
+  el eje esperado) + ausencia de bandas negras, reconstruyendo el defecto al final:
+
+  ```bash
+  # Scroll vertical arriba (dirección inversa, la más crítica)
+  EFFECT=4 bash ./demos/107_xlimited_corkscrew/analyze-sequence.sh --warp
+  # Scroll vertical abajo / horizontal izquierda
+  EFFECT=3 bash ./demos/107_xlimited_corkscrew/analyze-sequence.sh --warp
+  EFFECT=2 bash ./demos/107_xlimited_corkscrew/analyze-sequence.sh --warp
+  ```
+
+  Ejes/signo esperados (sobre el contenido en pantalla): `1`→x−, `2`→x+, `3`→y−,
+  `4`→y+, `5..8`→solo movimiento + no-negro (mixto).
+
 ## Evidencia runtime (WinUAE-DBG, 2026-08-31)
 
 Verificado el **scroll vertical** (fase V, cámara bajando) con captura de 60
@@ -158,16 +181,22 @@ banda de staging sin refrescar. Se reprodujo en mapposy=900 con videoposx=400
 eliminación al envolver en `display_height` (288): "mitad izquierda con banda de
 tiles obsoletos, derecha corregida" (qwen3-vl).
 
-## Limitación OCS conocida
+## Limitación OCS conocida (inherente al chipset)
 
-El encoder de WAIT de Copper del engine cubre líneas 0..255. El split vertical
-del corkscrew puede caer en las líneas 256..296 (cuando
-`display_offset < 74`); en ese caso se recorta a la línea 255, mostrando la
-banda inferior (1..41 filas) con el wrap adelantado unos píxeles. Confirmado en
-emulador: la banda es visualmente sutil (contiene tiles de las filas extra, no
-negro ni tearing). Afecta solo a las fases verticales en ~16% de los frames.
-Para eliminarlo hace falta un WAIT de 9 bits en `copper.hpp` (verificar contra
-WinUAE-DBG antes de aplicar).
+El comparador de WAIT del Copper (OCS y WinUAE, `custom.cpp coppercomp`) usa
+**8 bits con semántica `>=`**: `vp = vpos & 0xFF >= vcmp`. No hay bit V8 en la
+comparación. Por tanto no se puede esperar a una línea 256..296 (PAL): un WAIT
+para `raster = DIWSTRT_y + split_line` dispara en la primera coincidencia del
+byte bajo (`raster - 256`, en la parte alta del frame).
+
+Cuando `display_offset ∈ [33,73]` el split del corkscrew cae en raster 256..296;
+el WAIT se recorta a la línea 255 y la banda inferior (1..41 filas) muestra el
+wrap adelantado (contenido de la parte alta en vez de las filas correctas). Es
+**inherente al chipset** y el propio `XYLimited` original degrada igual a 255 en
+ese caso (su truco enmascarado `0xFFDF`/`0x0001` también dispara en 255 con la
+semántica `>=`). Verificado en el fuente de WinUAE-DBG (`coppercomp`,
+`vcmp = (ir[0] & (ir[1]|0x8000)) >> 8`). Solo se eliminaría con un hardware con
+bit V8 en la comparación (no disponible en este emulador).
 
 ## Arquitectura
 

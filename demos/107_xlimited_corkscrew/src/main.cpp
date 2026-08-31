@@ -79,7 +79,10 @@ namespace demo = eng::field::demo;
 //   K_START_PHASE (0..7)   fase inicial del ciclo K_EFFECT=0
 //   K_PHASE_FRAMES (1000)  frames por fase del ciclo (~20 s a 50 fps)
 //   K_PRE_SCROLL  (1024)   px de pre-scroll en init para fases reversas/diagonales
-//   K_TILE_WIDTH (16|32)  ancho de tile (múltiplo de 16; 32 fuerza BITMAPWIDTH=384)
+//   K_DUAL        (0|1)     DPF 3+3: dos XlimitedField + XlimitedDualComposer (PF1 planos 1,3,5 / PF2 2,4,6)
+//   K_PARALLAX    (0|1)     con K_DUAL=1, PF2 scrollea a media velocidad en X
+//   K_TILE_WIDTH (16|32)  ancho de tile (múltiplo de 16; con fetch ancho da BITMAPWIDTH=384,
+//                         con fetch normal 352; bitmap_width auto = viewport + EXTRAWIDTH)
 //   K_TILE_SIZE  (16|32)  alto de tile (K_TILE_H es alias)
 //   K_PLANES     (3|4|5|6) profundidad (8/16/32/64 colores; 6 = EHB/DPF 3+3)
 //   K_FETCH_MODE (0|1|2|3) modo de fetch: 0=16px $30 mod 2 · 1/2=32px $28 mod 4 · 3=64px $18 mod 8
@@ -187,6 +190,15 @@ namespace demo = eng::field::demo;
 #ifndef K_PRE_SCROLL
 #define K_PRE_SCROLL 1024
 #endif
+// DPF 3+3: dos XlimitedField (PF1 planos 1,3,5 / PF2 2,4,6), cada uno con su
+// bitmap interleaved de K_PLANES=3, unidos por XlimitedDualComposer. Ambos
+// scrollean en la misma dirección (K_EFFECT) y comparten videoposy (mismo split).
+#ifndef K_DUAL
+#define K_DUAL 0
+#endif
+#ifndef K_PARALLAX
+#define K_PARALLAX 0 // si 1, PF2 (fondo) scrollea a media velocidad en X
+#endif
 // Alias K_TILE_W/H para la parametrización nueva (compatibles con K_TILE_WIDTH/SIZE)
 #ifndef K_TILE_W
 #ifdef K_TILE_WIDTH
@@ -216,6 +228,9 @@ constexpr eng::u8 kStartPhase = static_cast<eng::u8>(K_START_PHASE);   // fase i
 constexpr eng::u32 kPhaseFrames = static_cast<eng::u32>(K_PHASE_FRAMES);
 constexpr eng::s32 kPreScroll = static_cast<eng::s32>(K_PRE_SCROLL);
 constexpr eng::u8 kPhaseCount = 8;
+constexpr bool kDual = K_DUAL != 0;                                     // DPF 3+3 (dos playfields)
+constexpr bool kParallax = K_PARALLAX != 0;                             // PF2 scrollea a media X
+constexpr eng::u8 kEffectivePlanes = kDual ? 3u : kPlanes;              // 3 por playfield en DPF
 // 16×16 pantallas virtuales → mapa en tiles derivado de viewport/tile
 constexpr eng::u16 kMapTilesX = static_cast<eng::u16>(K_SCREENS_X * (K_VIEWPORT_W / K_TILE_W));
 constexpr eng::u16 kMapTilesY = static_cast<eng::u16>(K_SCREENS_Y * (K_VIEWPORT_H / K_TILE_H));
@@ -244,16 +259,58 @@ constexpr bool phase_needs_pre_y(eng::u8 phase) {
 
 struct DemoGame {
     eng::MemoryBlock tiles_block {};
+    eng::MemoryBlock tiles_block2 {};              // PF2 en DPF
     field::XlimitedField field {};
+    field::XlimitedField field2 {};                // PF2 en DPF
     field::XlimitedDisplayComposer composer {};
+    field::XlimitedDualComposer dual_composer {};  // DPF 3+3
     eng::graphics::FramePlan plan {};
     field::XlimitedConfig field_cfg {};
+    field::XlimitedConfig field_cfg2 {};           // PF2 en DPF
     bool ready = false;
     // Scroll continuo: 1 px/frame a la derecha, infinito por wrap del mapa.
     eng::s32 scroll_accum = 0;
 
+    /// Construye el banco de bloques interleaved (BlocksBitmap de Steger) con
+    /// `kTileCount` tiles de kTileSize×kTileWidth. `base` es el índice del primer
+    /// color del playfield (0=PF1, 8=PF2 en DPF) y `transparent_bg` hace el fondo
+    /// del tile transparente (tramado 50 %) para que PF2 se vea a través en DPF.
+    bool build_tileset(eng::amiga::MinimalBackend& backend, eng::MemoryBlock& block,
+                       eng::u8 base, bool transparent_bg) {
+        const eng::u32 kBlockSrcWidth = 320;
+        const eng::u32 kBlockSrcBytesPerRow = kBlockSrcWidth / 8; // 40
+        const eng::u32 kBlocksPerRowSrc = kBlockSrcWidth / kTileWidth; // 20 para 16, 10 para 32
+        const eng::u32 bytes = kBlockSrcBytesPerRow * 256 * kEffectivePlanes;
+        block = backend.memory().chip.allocate(bytes, 16);
+        if (!block.valid()) return false;
+        for (eng::u32 i = 0; i < bytes; ++i) static_cast<eng::u8*>(block.data)[i] = 0;
+        for (eng::u16 tile = 0; tile < kTileCount; ++tile) {
+            const eng::u8 glyph = static_cast<eng::u8>(tile & 15u);
+            const eng::u8 variant = static_cast<eng::u8>((tile >> 4u) & 3u);
+            const eng::u16 bx = tile % kBlocksPerRowSrc;
+            const eng::u16 by = tile / kBlocksPerRowSrc;
+            const eng::u32 base_pl = static_cast<eng::u32>(by) * (kTileSize * kEffectivePlanes) * kBlockSrcBytesPerRow;
+            for (eng::u16 row = 0; row < kTileSize; ++row) {
+                for (eng::u8 plane = 0; plane < kEffectivePlanes; ++plane) {
+                    const eng::u16 word = demo::pf_plane_row(glyph, variant, static_cast<eng::u8>(row), plane, base, transparent_bg);
+                    for (eng::u16 w = 0; w < kTileWidth / 16u; ++w) {
+                        const eng::u16 out_word = (w == 0) ? word : static_cast<eng::u16>(word ^ 0x0ff0u);
+                        const eng::u32 planeline = static_cast<eng::u32>(row) * kEffectivePlanes + plane;
+                        const eng::u32 dst_offset = (base_pl + planeline * kBlockSrcBytesPerRow) + bx * (kTileWidth / 8u) + w * 2u;
+                        eng::u8* dst = static_cast<eng::u8*>(block.data) + dst_offset;
+                        dst[0] = static_cast<eng::u8>(out_word >> 8);
+                        dst[1] = static_cast<eng::u8>(out_word & 0xff);
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
     void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
         eng::debug::mark_init_started(g_eng_run_status);
+        // La reserva es el bloque Chip contiguo total; el uso real (~145 KB en DPF,
+        // ~100 KB single) cabe en 360 KB sin acercarse al límite del A500.
         if (!backend.configure_memory({360u * 1024u, 16u * 1024u, 8u * 1024u})) {
             eng::debug::mark_failed(g_eng_run_status, 0x00010701u);
             return;
@@ -266,39 +323,13 @@ struct DemoGame {
         // TileMajor de build_tile_cache porque X-Limited hace un único blit
         // interleaved de BLOCKPLANELINES líneas (ver xlimited.hpp §6). Creamos el
         // BlocksBitmap interleaved y lo rellenamos con pf_plane_row.
-        const eng::u32 kBlockSrcWidth = 320;
-        const eng::u32 kBlockSrcBytesPerRow = kBlockSrcWidth / 8; // 40
-        const eng::u32 kBlocksPerRowSrc = kBlockSrcWidth / kTileWidth; // 20 para 16, 10 para 32
-        const eng::u32 blocks_interleaved_bytes = kBlockSrcBytesPerRow * 256 * kPlanes;
-        tiles_block = backend.memory().chip.allocate(blocks_interleaved_bytes, 16);
-        if (!tiles_block.valid()) {
+        if (!build_tileset(backend, tiles_block, 0, kDual)) {
             eng::debug::mark_failed(g_eng_run_status, 0x00010702u);
             return;
         }
-        // Inicializar a 0
-        for (eng::u32 i = 0; i < blocks_interleaved_bytes; ++i) static_cast<eng::u8*>(tiles_block.data)[i] = 0;
-        // Rellenar cada tile del tileset (64) en su posición (bx,by) = (tile%20, tile/20)
-        for (eng::u16 tile = 0; tile < kTileCount; ++tile) {
-            const eng::u8 glyph = static_cast<eng::u8>(tile & 15u);
-            const eng::u8 variant = static_cast<eng::u8>((tile >> 4u) & 3u);
-            const eng::u16 bx = tile % kBlocksPerRowSrc;
-            const eng::u16 by = tile / kBlocksPerRowSrc;
-            const eng::u32 base_pl = static_cast<eng::u32>(by) * (kTileSize * kPlanes) * kBlockSrcBytesPerRow;
-            for (eng::u16 row = 0; row < kTileSize; ++row) {
-                for (eng::u8 plane = 0; plane < kPlanes; ++plane) {
-                    const eng::u16 word = demo::pf_plane_row(glyph, variant, static_cast<eng::u8>(row), plane, 0, false);
-                    // Para tiles anchos (>16), replicar patrón en las words siguientes
-                    for (eng::u16 w = 0; w < kTileWidth / 16u; ++w) {
-                        const eng::u16 out_word = (w == 0) ? word : static_cast<eng::u16>(word ^ 0x0ff0u);
-                        const eng::u32 planeline = static_cast<eng::u32>(row) * kPlanes + plane;
-                        const eng::u32 dst_offset = (base_pl + planeline * kBlockSrcBytesPerRow) + bx * (kTileWidth / 8u) + w * 2u;
-                        // Escribir big-endian word en buffer Chip (Amiga es big-endian)
-                        eng::u8* dst = static_cast<eng::u8*>(tiles_block.data) + dst_offset;
-                        dst[0] = static_cast<eng::u8>(out_word >> 8);
-                        dst[1] = static_cast<eng::u8>(out_word & 0xff);
-                    }
-                }
-            }
+        if (kDual && !build_tileset(backend, tiles_block2, 8, false)) {
+            eng::debug::mark_failed(g_eng_run_status, 0x00010712u);
+            return;
         }
 
         // Para el banco interleaved de Steger necesitamos un BlocksBitmap
@@ -317,7 +348,7 @@ struct DemoGame {
         field_cfg.map.edge_tile = 0;
         field_cfg.tileset = static_cast<const eng::u16*>(tiles_block.data);
         field_cfg.tileset_count = kTileCount;
-        field_cfg.planes = kPlanes;
+        field_cfg.planes = kEffectivePlanes;
         field_cfg.tile_width = kTileWidth;
         field_cfg.tile_height = kTileSize;
         field_cfg.viewport_w = kViewportW;
@@ -334,6 +365,21 @@ struct DemoGame {
         if (!field.begin(backend.memory(), field_cfg)) {
             eng::debug::mark_failed(g_eng_run_status, 0x00010703u);
             return;
+        }
+        if (kDual) {
+            // PF2: mismo mapa/geometría pero otro tileset (colores 8..15, opaco).
+            field_cfg2 = field_cfg;
+            field_cfg2.tileset = static_cast<const eng::u16*>(tiles_block2.data);
+            // El PF2 usa una semilla de mapa distinta para distinguir las capas.
+            build_map(eng::Span<eng::u16>::from_raw(g_map_cells, kMapTilesX * kMapTilesY), 0x2468aceu);
+            field_cfg2.map.cells = eng::Span<const eng::u16>::from_raw(g_map_cells, kMapTilesX * kMapTilesY);
+            if (!field2.begin(backend.memory(), field_cfg2)) {
+                eng::debug::mark_failed(g_eng_run_status, 0x00010713u);
+                return;
+            }
+            // Restaurar el mapa de PF1.
+            build_map(eng::Span<eng::u16>::from_raw(g_map_cells, kMapTilesX * kMapTilesY), 0x13579bdu);
+            field_cfg.map.cells = eng::Span<const eng::u16>::from_raw(g_map_cells, kMapTilesX * kMapTilesY);
         }
 
         // Fill inicial por Blitter en lotes. X-Limited necesita cols*rows jobs
@@ -379,6 +425,38 @@ struct DemoGame {
             }
         }
 
+        // Fill inicial del PF2 (DPF) en lotes.
+        if (kDual) {
+            plan.clear();
+            plan.set_blit_budget_limits({8192, 16384, 4, 120});
+            const eng::u16 cols2 = field2.bitmap_blocks_per_row();
+            const eng::u16 rows2 = field2.display_blocks_per_col();
+            for (eng::u16 b = 0; b < rows2; ++b) {
+                for (eng::u16 a = 0; a < cols2; ++a) {
+                    if (plan.blit_job_count() >= 120) {
+                        if (!backend.execute_frame_plan(plan)) {
+                            eng::debug::mark_failed(g_eng_run_status, 0x00010705u);
+                            return;
+                        }
+                        plan.clear();
+                        plan.set_blit_budget_limits({8192, 16384, 4, 120});
+                    }
+                    auto job = field2.draw_block_job(a * kTileWidth, b * field2.block_planes_lines(), a, b);
+                    if (!plan.add_tile_block_copy(job)) {
+                        eng::debug::mark_failed(g_eng_run_status, 0x00010706u);
+                        return;
+                    }
+                }
+            }
+            if (plan.blit_job_count() > 0) {
+                if (!backend.execute_frame_plan(plan)) {
+                    eng::debug::mark_failed(g_eng_run_status, 0x00010705u);
+                    return;
+                }
+                plan.clear();
+            }
+        }
+
         // Pre-scroll hacia delante si la fase inicial (ciclo o efecto único) tiene
         // componente negativa (izquierda/arriba) o es una diagonal: así el scroll
         // inverso compone tiles correctamente durante K_PRE_SCROLL px.
@@ -396,16 +474,31 @@ struct DemoGame {
 
         // Paleta por defecto de tile_demo: 2^planes colores (8/16/32/64 para 3/4/5/6 planos)
         // En 4 planos son 16 colores; genérico usa `1u << kPlanes` entradas de la paleta.
-        if (!composer.init(backend.memory(), {demo::kPalette, 1536, kPlanes})) {
-            eng::debug::mark_failed(g_eng_run_status, 0x00010707u);
-            return;
+        // En DPF 3+3 (kDual) se usan 16 colores: PF1 0..7 (0 transparente), PF2 8..15.
+        if (kDual) {
+            if (!dual_composer.init(backend.memory(), {demo::kPalette, 1536, 3, false})) {
+                eng::debug::mark_failed(g_eng_run_status, 0x00010717u);
+                return;
+            }
+            auto v1 = field.hardware_view();
+            auto v2 = field2.hardware_view();
+            if (!dual_composer.compose(v1, v2)) {
+                eng::debug::mark_failed(g_eng_run_status, 0x00010718u);
+                return;
+            }
+            dual_composer.install(backend);
+        } else {
+            if (!composer.init(backend.memory(), {demo::kPalette, 1536, kPlanes})) {
+                eng::debug::mark_failed(g_eng_run_status, 0x00010707u);
+                return;
+            }
+            auto view = field.hardware_view();
+            if (!composer.compose(view)) {
+                eng::debug::mark_failed(g_eng_run_status, 0x00010708u);
+                return;
+            }
+            composer.install(backend);
         }
-        auto view = field.hardware_view();
-        if (!composer.compose(view)) {
-            eng::debug::mark_failed(g_eng_run_status, 0x00010708u);
-            return;
-        }
-        composer.install(backend);
 
         ready = true;
         eng::debug::mark_ready(g_eng_run_status, 0x10700000u);
@@ -414,11 +507,13 @@ struct DemoGame {
     /// Pre-scrolla la cámara hacia delante (derecha/abajo) antes de arrancar una
     /// fase con componente negativa, para que el scroll inverso tenga recorrido
     /// antes de chocar con el borde 0 (scroll_left/up devuelven false en 0).
+    /// En DPF mueve ambos playfields para mantener el mismo videoposy (mismo split).
     bool pre_scroll(eng::amiga::MinimalBackend& backend, eng::s32 px_x, eng::s32 px_y) {
         plan.clear();
         plan.set_blit_budget_limits({8192, 16384, 4, 120});
         for (eng::s32 i = 0; i < px_x; ++i) {
             if (!field.scroll_right(plan)) return false;
+            if (kDual && !field2.scroll_right(plan)) return false;
             if (plan.blit_job_count() >= 120) {
                 if (!backend.execute_frame_plan(plan)) return false;
                 plan.clear();
@@ -427,6 +522,7 @@ struct DemoGame {
         }
         for (eng::s32 i = 0; i < px_y; ++i) {
             if (!field.scroll_down(plan)) return false;
+            if (kDual && !field2.scroll_down(plan)) return false;
             if (plan.blit_job_count() >= 120) {
                 if (!backend.execute_frame_plan(plan)) return false;
                 plan.clear();
@@ -518,6 +614,14 @@ struct DemoGame {
                     if (step < 0 && field.mapposx() <= 0) break; // borde izquierdo: no hay más recorrido
                     bool ok = (step>0) ? field.scroll_right(plan) : field.scroll_left(plan);
                     if (!ok) { ready=false; eng::debug::mark_failed(g_eng_run_status, 0x0001070bu); return; }
+                    // DPF: PF2 scrollea igual en X, o a media velocidad si K_PARALLAX.
+                    if (kDual) {
+                        const bool doX = !kParallax || (fr & 1u) == 0u;
+                        if (doX) {
+                            ok = (step>0) ? field2.scroll_right(plan) : field2.scroll_left(plan);
+                            if (!ok) { ready=false; eng::debug::mark_failed(g_eng_run_status, 0x0001070bu); return; }
+                        }
+                    }
                 } else {
                     // Vertical: usar mapposy/videoposy, con wrap en Y
                     const eng::s32 limitY = static_cast<eng::s32>(kMapTilesY) * kTileSize - kViewportH - kTileSize;
@@ -525,6 +629,11 @@ struct DemoGame {
                     if (step < 0 && field.mapposy() <= 0) break; // borde superior: no hay más recorrido
                     bool ok = (step>0) ? field.scroll_down(plan) : field.scroll_up(plan);
                     if (!ok) { ready=false; eng::debug::mark_failed(g_eng_run_status, 0x0001070bu); return; }
+                    // DPF: PF2 scrollea siempre igual en Y (mismo videoposy → mismo split).
+                    if (kDual) {
+                        ok = (step>0) ? field2.scroll_down(plan) : field2.scroll_up(plan);
+                        if (!ok) { ready=false; eng::debug::mark_failed(g_eng_run_status, 0x0001070bu); return; }
+                    }
                 }
             }
         } // axis H/V
@@ -536,7 +645,13 @@ struct DemoGame {
         }
 
         auto view = field.hardware_view();
-        if (!composer.compose(view)) {
+        if (kDual) {
+            if (!dual_composer.compose(view, field2.hardware_view())) {
+                ready = false;
+                eng::debug::mark_failed(g_eng_run_status, 0x0001070du);
+                return;
+            }
+        } else if (!composer.compose(view)) {
             ready = false;
             eng::debug::mark_failed(g_eng_run_status, 0x0001070du);
             return;
@@ -551,7 +666,10 @@ struct DemoGame {
     }
 
     void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
-        if (ready) composer.install(backend);
+        if (ready) {
+            if (kDual) dual_composer.install(backend);
+            else composer.install(backend);
+        }
         eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
     }
 };

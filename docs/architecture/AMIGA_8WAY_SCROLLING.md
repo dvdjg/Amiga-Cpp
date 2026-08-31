@@ -207,9 +207,12 @@ TileFieldController nunca escribe chipset.
 En el corkscrew (XYLimited) el split vertical es **obligatorio** y su línea varía con el scroll
 (ver §13): `raster = DIWSTRT_y + (display_height - display_offset)` con
 `display_offset = (videoposy + tile_height) % display_height`. El segundo juego de punteros
-apunta a la fila 0 del bucle de display (`real_base + planeaddx + p*row_bytes`). El encoder de
-WAIT del engine cubre líneas 0..255; si `raster > 255` se recorta a 255 (banda de 1..41 filas al
-pie de la pantalla con el wrap adelantado, pendiente de un WAIT 9 bits en el copper builder).
+apunta a la fila 0 del bucle de display (`real_base + planeaddx + p*row_bytes`). **Límite del
+chipset**: el comparador de WAIT es de 8 bits con semántica `>=` (`vp = vpos & 0xFF >= vcmp`, sin
+bit V8; verificado en `WinUAE-DBG/custom.cpp coppercomp`), por lo que `raster > 255` (cuando
+`display_offset ∈ [33,73]`) no se puede esperar con precisión: el WAIT dispara en la primera
+coincidencia del byte bajo y el split se recorta a la línea 255 (banda de 1..41 filas al pie con
+el wrap adelantado). Es inherente al chipset; el `XYLimited` original degrada igual a 255.
 
 ## 8. Por qué el wrap horizontal no necesita Copper segmentado
 
@@ -330,9 +333,13 @@ staging quedaba sin refrescar (banda de tiles antiguos al rotar). El port envuel
 
 Copper: paleta al inicio del frame, punteros principales en `yoffset`, y si `split_active` un
 WAIT en `raster = DIWSTRT_y + split_line` seguido de los punteros a la fila 0
-(`real_base + planeaddx + p*row_bytes`). Límite OCS del encoder actual: WAIT 0..255; si
-`raster > 255` se recorta a 255 (banda de 1..41 filas al pie con el wrap adelantado; pendiente de
-un WAIT de 9 bits en `copper.hpp` para eliminarlo).
+(`real_base + planeaddx + p*row_bytes`). **Límite del chipset (confirmado 2026-08-31 en
+`WinUAE-DBG/custom.cpp coppercomp`)**: el comparador de WAIT es de 8 bits con semántica `>=`
+(`vp = vpos & 0xFF >= vcmp`, sin bit V8), así que `raster > 255` (cuando `display_offset ∈
+[33,73]`) dispara en la primera coincidencia del byte bajo y el split se recorta a la línea 255
+(banda de 1..41 filas al pie con el wrap adelantado). Es **inherente al chipset**; el `XYLimited`
+original degrada igual a 255 (su truco enmascarado `0xFFDF`/`0x0001` también dispara en 255 con
+`>=`). No se puede eliminar con un WAIT de 9 bits en este emulador (la comparación no tiene V8).
 
 Verificación: `verify-xlimited.mjs` (§11) modela esta geometría; el port de los 4 scrolls se
 compara bloque a bloque contra `Scroller_XYLimited/main.c` en `node tools/analyze/verify-corkscrew.mjs`.
@@ -346,10 +353,10 @@ avanzando). Bug de la banda de staging (block_videoposy envolviendo en bitmap_he
 en mapposy=900 con videoposx=400: comparación antes/después (mismo frame pausado) confirma que el
 bug dejaba una banda de tiles obsoletos en el área visible y que envolver en display_height lo
 elimina (qwen3-vl: "mitad izquierda con banda de tiles obsoletos, derecha corregida").
-Limitación confirmada: el recorte del split a `raster ≤ 255` (cuando `display_offset ∈ [33,73]`)
-deja una banda de 1..41 filas al pie con contenido de las filas extra (stale) en lugar del wrap
-correcto; visualmente sutil (no aparece como negro ni tearing), pendiente de eliminar con un WAIT
-de 9 bits en `copper.hpp`.
+Limitación del split confirmada como inherente al chipset: `raster > 255` (cuando
+`display_offset ∈ [33,73]`) no se puede esperar con el comparador de 8 bits `>=`, el WAIT dispara
+en la primera coincidencia del byte bajo y el split se recorta a 255 (banda de 1..41 filas al pie
+con el wrap adelantado; no es negro ni tearing, y el `XYLimited` original degrada igual).
 
 ---
 
