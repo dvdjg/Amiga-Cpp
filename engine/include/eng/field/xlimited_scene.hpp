@@ -139,7 +139,7 @@ struct XlimitedSceneConfig {
 /// Escena corkscrew reutilizable: uno o dos `XlimitedField` + compositor.
 ///
 /// Uso típico:
-///   XlimitedScene scene;
+///   XlimitedScene<ScrollConsts{16,16,kDh,kDph,4}> scene;  // geometría NTTP
 ///   scene.begin(memory, cfg);
 ///   scene.fill(backend, plan);          // relleno inicial (lotes)
 ///   scene.pre_scroll(backend, px_x, px_y);
@@ -148,6 +148,11 @@ struct XlimitedSceneConfig {
 ///   backend.execute_frame_plan(plan);
 ///   scene.compose();
 ///   scene.install(backend);
+///
+/// `SC` (constantes a priori) se reenvían a los `XLimitedPlayfield<>` y de ahí
+/// al `ScrollEngine`: hacen que las divisiones calientes del scroll usen
+/// `fast_div` (sin `__udivsi3`). `ScrollConsts{}` (default) = geometría runtime.
+template <ScrollConsts SC = ScrollConsts{}>
 class XlimitedScene {
 public:
     XlimitedScene() = default;
@@ -393,11 +398,11 @@ public:
     // dibujo pertenecen a cada playfield: `bg().set_pixel(...)`,
     // `fg().add_world_bitmap(...)`, etc. `fg` solo existe en modo dual.
     // -------------------------------------------------------------------------
-    XLimitedPlayfield& bg() { return m_field[0]; }
-    const XLimitedPlayfield& bg() const { return m_field[0]; }
+    XLimitedPlayfield<SC>& bg() { return m_field[0]; }
+    const XLimitedPlayfield<SC>& bg() const { return m_field[0]; }
     /// Segundo XLimited (DPF 3+3 homogéneo). En `fg_canvas` usa `canvas_fg()`.
-    XLimitedPlayfield& fg() { return m_field[1]; }
-    const XLimitedPlayfield& fg() const { return m_field[1]; }
+    XLimitedPlayfield<SC>& fg() { return m_field[1]; }
+    const XLimitedPlayfield<SC>& fg() const { return m_field[1]; }
     /// FG como lienzo plano (DPF heterogéneo: `dual && fg_canvas`). Dibuja aquí
     /// (una vez en init) con las primitivas; el contenido es estático.
     CanvasPlayfield& canvas_fg() { return m_fg_canvas; }
@@ -440,7 +445,7 @@ private:
     }
 
     XlimitedSceneConfig m_cfg {};
-    XLimitedPlayfield m_field[2] {};
+    XLimitedPlayfield<SC> m_field[2] {};
     CanvasPlayfield m_hud {};        // franja HUD (lienzo plano, si hud_height>0)
     CanvasPlayfield m_fg_canvas {};  // FG lienzo plano (DPF heterogéneo)
     graphics::SpriteManager m_sprites {};

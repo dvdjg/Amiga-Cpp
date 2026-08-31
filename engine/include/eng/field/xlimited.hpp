@@ -489,6 +489,15 @@ struct XlimitedConfig {
 ///
 /// No comparte `surface_origin` ni bandas con `TileFieldController`; sólo
 /// comparte `TileLayerMap` para resolver `tile_at`.
+///
+/// Plantilla sobre `ScrollConsts` (NTTP): si la geometría caliente (tile
+/// width/height, display_height/planelines, planes) se pasa como constante a
+/// priori, el `ScrollEngine` usa `fast_div` (shifts/máscaras/multiplicación
+/// mágica) y NO paga `__udivsi3` por frame; con `ScrollConsts{}` (0=todo
+/// runtime) se obtiene la geometría del sink en ejecución (fallback correcto,
+/// pero con divisiones). `begin()` valida que los campos de `SC` coincidan
+/// con `cfg` (fallo temprano si se instancia con constantes equivocadas).
+template <ScrollConsts SC = ScrollConsts{}>
 class XLimitedPlayfield : public Playfield {
 public:
     XLimitedPlayfield() = default;
@@ -601,6 +610,14 @@ public:
         m_display_height = static_cast<u16>(
             m_cfg.viewport_h + (m_cfg.scroll_y ? static_cast<u16>(2u * m_cfg.tile_height) : 0));
         m_display_planelines = static_cast<u16>(m_display_height * m_cfg.planes);
+        // Guard de `ScrollConsts` (NTTP): si la escena instancia este playfield
+        // con constantes a priori, deben coincidir con el cfg; si no, el
+        // ScrollEngine usaría geometría equivocada (desincronización silenciosa).
+        if (SC.tile_width != 0u && SC.tile_width != m_cfg.tile_width) return false;
+        if (SC.tile_height != 0u && SC.tile_height != m_cfg.tile_height) return false;
+        if (SC.planes != 0u && SC.planes != m_cfg.planes) return false;
+        if (SC.display_height != 0u && SC.display_height != m_display_height) return false;
+        if (SC.display_planelines != 0u && SC.display_planelines != m_display_planelines) return false;
         // BITMAPBLOCKSPERCOL del corkscrew: filas de bloque del bucle vertical.
         m_bitmap_blocks_per_col = static_cast<u16>(m_display_height / m_cfg.tile_height);
 
@@ -1169,7 +1186,7 @@ private:
     bool m_linear_display = false;  // display lineal (sin split): espejo del bucle
     u32 m_mirror_planelines = 0;    // desplazamiento del espejo (display_height*planes)
     u16 m_bpl1mod = 0, m_bpl2mod = 0;
-    ScrollEngine<XLimitedPlayfield> m_scroll {}; // cámara + algoritmo (§7 diseño)
+    ScrollEngine<XLimitedPlayfield<SC>, SC> m_scroll {}; // cámara + algoritmo (§7)
     u16* m_savewordpointer = nullptr;             // guarda de 1 word plane-shift (sink)
     u16 m_saveword = 0;
 };

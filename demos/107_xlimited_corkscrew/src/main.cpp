@@ -282,6 +282,22 @@ constexpr eng::u16 kMapTilesX = static_cast<eng::u16>(K_SCREENS_X * (K_VIEWPORT_
 constexpr eng::u16 kMapTilesY = static_cast<eng::u16>(K_SCREENS_Y * (K_VIEWPORT_H / K_TILE_H));
 constexpr eng::u8 kTileCount = 64;
 
+// Geometría como constantes a priori (NTTP) para el `ScrollEngine`: los
+// denominadores calientes (tile 16/16, display_height, display_planelines,
+// planes) entran compile-time → `fast_div` (shifts/máscaras/mult-mágica) y cero
+// `__udivsi3` en el scroll por frame. `main_h` resta la franja HUD (solo si K_HUD).
+constexpr eng::u32 kMainH = (K_HUD != 0)
+    ? static_cast<eng::u32>(K_VIEWPORT_H) - static_cast<eng::u32>(K_HUD_HEIGHT)
+    : static_cast<eng::u32>(K_VIEWPORT_H);
+constexpr eng::u32 kMainDisplayH = kMainH + 2u * static_cast<eng::u32>(K_TILE_SIZE);
+constexpr field::ScrollConsts kScrollConsts {
+    /*tile_width=*/        static_cast<eng::u32>(K_TILE_WIDTH),
+    /*tile_height=*/       static_cast<eng::u32>(K_TILE_SIZE),
+    /*display_height=*/    kMainDisplayH,
+    /*display_planelines=*/kMainDisplayH * kEffectivePlanes,
+    /*planes=*/            kEffectivePlanes,
+};
+
 // Paleta del HUD (playfield separado en la franja inferior): 4 planos -> 16
 // colores propios, distintos del mapa (fondo negro, texto blanco, acentos).
 constexpr eng::u16 kHudPalette[16] {
@@ -316,11 +332,13 @@ void build_map(eng::Span<eng::u16> cells, eng::u32 seed) {
 // fondo donde la mitad de los tiles son el tile 0 (glyph 0), que `fg_row`
 // devuelve VACÍO → PF1 no escribe nada ahí y PF2 (fondo opaco) se ve a través.
 // Es la "mitad de tiles transparentes" del muestrario DPF con tiles.
+// SIN divisiones: (x+y)&1 usa dos contadores; el índice es y*W+x (una mult).
 void build_fg_checkerboard_map(eng::Span<eng::u16> fg, const eng::Span<const eng::u16> bg) {
-    for (eng::u32 i = 0; i < fg.size(); ++i) {
-        const eng::u32 x = i % kMapTilesX;
-        const eng::u32 y = i / kMapTilesX;
-        fg[i] = (((x + y) & 1u) != 0u) ? 0u : bg[i];
+    for (eng::u32 y = 0; y < kMapTilesY; ++y) {
+        const eng::u32 row = y * kMapTilesX;
+        for (eng::u32 x = 0; x < kMapTilesX; ++x) {
+            fg[row + x] = (((x + y) & 1u) != 0u) ? 0u : bg[row + x];
+        }
     }
 }
 
@@ -335,7 +353,7 @@ constexpr bool phase_needs_pre_y(eng::u8 phase) {
 }
 
 struct DemoGame {
-    field::XlimitedScene scene {};       // escena reutilizable (campos + compositores + camino)
+    field::XlimitedScene<kScrollConsts> scene {}; // escena reutilizable (geometría NTTP)
     field::XlimitedSceneConfig scene_cfg {};
     eng::graphics::FramePlan plan {};
     eng::MemoryBlock m_bob {};           // BOB enmascarado de prueba (1 plano 16x16 + máscara)
