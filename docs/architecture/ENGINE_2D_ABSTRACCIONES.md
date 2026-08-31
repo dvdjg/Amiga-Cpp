@@ -533,17 +533,97 @@ Loader (carga de módulos/niveles), conversión de datos (obj2c, png2c, generado
      en build: obj2c, png2c, gen-*.py └──► Chip/Fast RAM, presupuesto del ledger
 ```
 
+### 17.1 Datos horneados y contrato binario versionado
+
+El engine debe cargar **niveles y escenas desde archivos distintos al ejecutable** (idea DOOM/WAD y SCUMM). Para eso, una herramienta (el editor UAF u otra) **hornea** cada escena en un **contrato binario versionado** que el runtime interpreta sin reglas implícitas del editor:
+
+```
+[HEADER]        magic, versión, flags de modo, nº de params
+[PARAM_TABLE]   id (hash), tipo (u8/u16/s16), default, offset_en_workarea
+[PALETTE_DATA]  words RGB444 (COLOR00–31)
+[COPPER_STATIC] instrucciones copper estáticas (pre-horneadas)
+[COPPER_TEMPL]  plantilla de secciones dinámicas + tabla de patches
+[BITPLANE_DATA] datos planares (tiles, bitplanes)
+[TILEMAP_PF1]   mapa de tiles PF1 (índices u16, bits 14/15 flip)
+[TILEMAP_PF2]   mapa de tiles PF2
+[SPRITE_DATA]   datos de sprites (formato hardware)
+[SCROLL_META]   tamaños de buffer, offsets, estrategia de blitting
+```
+
+Abstracciones del engine: `AssetLoader`/`ResourceManager` (resuelve `LoadAsset("level1_bg")` por id simbólico, carga en Chip/Fast, presupuestado por el ledger), y `SceneAsset` → instancia la composición de la escena (playfields, scroll, sprites, zonas, copper) **a partir de los datos**, no de código.
+
+### 17.2 Streaming desde disquetera (perfil Amiga)
+
+El Amiga puede **leer de disquetera mientras la CPU sigue con la lógica** (DMA trackdisk a Chip RAM + IRQ). Se quiere explícito para el perfil Amiga: `StreamLoader`/`AssetStream` — el editor declara qué assets se stream-ean (el siguiente nivel/escena) y el runtime los lee en background (hook de trackdisk en el `HardwareIRQBus`) mientras el efecto actual corre. El `ResourceLedger` reserva buffers de streaming y el ciclo de vida del efecto (Load en background) encaja con `AssetStream`.
+
 Virtudes:
-- La carga en background oculta el coste de conversión; el `ResourceLedger` reserva el espacio.
-- Las herramientas de build (obj2c, png2c) generan datos constexpr o estáticos, coherentes con la composición estática.
+- La carga en background oculta el coste de conversión y de disco; el `ResourceLedger` reserva el espacio.
+- El contrato binario versionado hace que el ejecutable sea un **intérprete de datos**: el mismo exe carga cualquier escena horneada (niveles, aventuras).
+- El streaming de disquetera da niveles largos con poca RAM cargando el siguiente mientras se juega el actual.
 
 Defectos:
 - La carga en background necesita un sistema de archivos (disco/ROM) y tareas; en cartucho (MD/NG) no hay disco y hay que pre-cargar.
-- La conversión en build genera headers que hay que versionar y regenerar.
+- La conversión en build genera headers que hay que versionar y regenerar; el contrato binario hay que versionarlo y validarlo (tests golden).
+- El streaming de disquete es lento (~50 KB/s efectivo) y hay que planificar la carga para no interrumpir el frame; el hook de trackdisk y el doble buffer de streaming añaden complejidad.
 
 ---
 
-## 18. Blit híbrido CPU/Blitter (selección por CPU)
+## 18. Escenas data-driven, `runtime_params` y ScriptVM (aventuras tipo SCUMM)
+
+Objetivo intermedio: una **versión hiper-vitaminada de SCUMM** que ejecute aventuras gráficas montadas con un editor externo. Esto exige dos piezas nuevas que convierten al engine en un intérprete de datos.
+
+### 18.1 Escenas data-driven y `runtime_params`
+
+Una escena horneada declara su **estrategia runtime explícita** (`runtime_scroll_contract`: modelo de scroll/framebuffer; `runtime_feature_contract`: modelo de copper/sprites/objetos) y una **tabla de parámetros runtime** (`runtime_params`): `{ id, type (u8/u16/s16), default, range }` que el gameplay o el script escriben cada frame. El Copper se hornea en `static` / `dynamic_partial` / `dynamic_full`:
+
+- `static`: compilada en el baking, inmutable.
+- `dynamic_partial`: el baking exporta una **tabla de patches** `{ copper_list_word_offset, formula, param_ids[] }`; el runtime solo **parchea los words marcados** (sine/linear/table según params) sin regenerar la lista (~100–300 ciclos/frame por efecto en A500).
+- `dynamic_full`: se recalcula toda la lista cada frame (no recomendado en A500).
+
+```
+   runtime_params (workarea, offsets)        copper list horneada (chip RAM)
+   ┌─────────────────────────────┐           ┌───────────────────────────────┐
+   │ water_phase (u8, 0-255)     │──patch──►│ [word 12] BPLCON1 = sine(...)  │
+   │ water_amplitude (u8, 0-15)  │  tabla    │ [word 40] COLOR20 = linear(..) │
+   │ scroll_pf1_x (u16)          │           │ (solo words dynamic_partial)  │
+   └─────────────────────────────┘           └───────────────────────────────┘
+```
+
+Los `CopperEffect` de alto nivel del editor (ColorGradient, WaterEffect, PaletteSwitch, SpriteReprogram, SineScroll, FloorPerspective, ColorCycle, DisplayWindow…) se hornean a **secuencias** y se traducen a instrucciones; el `CopperBuilder` del engine los consume como `CopperScript`/`CopperRule`. El `SpriteStrip` (multiplexado vertical de sprites, con `copper_reprogram_interval`) genera los reprogram automáticos por línea; los `LogicalBob` (operación booleana `ForceSet/ForceClear/Toggle` sobre bitplanes vía Blitter) se traducen a blits con minterm. Y la escena puede exportar su **presupuesto DMA** (`budget_hint`/`DmaBudgetReport` línea a línea) para que el runtime valide contra el hardware real (integración con `ResourceLedger`/`CopperBuilder`/`Diagnostics`).
+
+### 18.2 ScriptVM (aventuras tipo SCUMM)
+
+Para aventuras gráficas se necesita una **capa de scripting** (bytecode) que dirija la escena, separada del engine y de los datos:
+
+- `ScriptVM`: intérprete de bytecode (máquina de pila, sin heap) para la lógica de la aventura. Los scripts viven en el archivo de datos (no en el exe).
+- Modelo de aventura: **rooms** (escenas), **actors** (sprites/bobs), **walkboxes** (regiones convexas por donde camina el actor), **objetos** (interacción), **inventario**, **verbos** (LOOK/USE/PICK UP), **diálogos** (cajas de texto) y **subtítulos**.
+- El `ScriptVM` llama a la escena: mover actores, reproducir diálogos (reutiliza `Font`/`TextRenderer` + `Surface`/GUI), transicionar de habitación (el ciclo de vida de `Effect` §13), disparar triggers (los `Trigger` del Object Layer).
+- El bytecode es generado por el editor externo (como UAF) y horneado en el archivo de datos; el `ScriptVM` es estático por composición (solo se enlaza el opcode set que uses).
+
+```
+   archivo de datos (horneado)                 engine
+   ┌──────────────────────────────┐    Load   ┌──────────────────────────┐
+   │ rooms[].layers/objetos/params│ ────────► │ Scene (instancia)        │
+   │ rooms[].scripts (bytecode)   │ ────────► │ ScriptVM (dirige)        │
+   │ actores, walkboxes, verbos   │           │  └─► actores (sprites)   │
+   │ diálogos, inventario         │           │  └─► diálogo (Font/Surface│
+   └──────────────────────────────┘           │  └─► transición de room  │
+                                              └──────────────────────────┘
+```
+
+Virtudes:
+- El engine es un **intérprete de datos**: el mismo exe ejecuta cualquier aventura montada con el editor, sin recompilar.
+- `runtime_params` + parcheo `dynamic_partial` dan efectos de copper reactivos al juego con coste mínimo.
+- El `ScriptVM` estático por composición y el modelo de aventura (rooms/actores/walkboxes/verbos) reutilizan todas las capas previas.
+
+Defectos:
+- Un bytecode propio es un trabajo grande (compilador/editor + intérprete + depurador) y hay que validarlo en host.
+- El parcheo `dynamic_partial` exige que el baking conozca la posición exacta de los words → acoplamiento editor/runtime por contrato versionado.
+- El streaming y el scripting compiten por CPU en el frame; hay que presupuestar (profiler) para no romper los 50 Hz.
+
+---
+
+## 19. Blit híbrido CPU/Blitter (selección por CPU)
 
 Basado en la técnica de Jeroen Knoester (Power Programs, "CPU Assisted Blitting"): en máquinas con memoria chip de 32 bits y CPU ≥ 68020 (A1200, CD32, A3000, A4000), el Blitter sin `BLTPRI` deja a la CPU ~1 de cada 4 ciclos (o 1 de 3 con canales B&D), y la CPU (que accede a chip de 32 bits, el doble de eficiente que el Blitter de 16) hace una parte del blit (líneas inferiores) mientras el Blitter hace las superiores. ~13% más de bobs/frame; requiere alineación a longword y objetos ≥ 32 px. Nota clave del autor: **los emuladores sobreestiman el 68020**; hay que calibrar en hardware real.
 
@@ -578,7 +658,7 @@ Defectos:
 
 ---
 
-## 19. Composición estática y selección por linker
+## 20. Composición estática y selección por linker
 
 El engine es un conjunto de componentes **independientes, header-only y plantilla** (`TileScrollEngine<Mode>`, `SpriteManager<N>`, `Palette<N>`, `MusicPlayer<Format>`, `Filter<Kind>`, `Rasterizer<Mode>`, etc.). La escena del juego es un **agregado** que declara qué usa:
 
@@ -619,7 +699,7 @@ Defectos:
 
 ---
 
-## 20. Portabilidad a Atari ST / Megadrive / Neo-Geo
+## 21. Portabilidad a Atari ST / Megadrive / Neo-Geo
 
 La frontera es el `FramePlan` (comandos portables) y la interfaz `Backend`:
 
@@ -644,7 +724,7 @@ Defectos:
 
 ---
 
-## 21. Mapeo a juegos y efectos de referencia
+## 22. Mapeo a juegos y efectos de referencia
 
 - **RoboCod** (5 planos sin DPF, fondo animado de 1 plano): un `Playfield` single de 5 planos; el plano 5 declara un `ScrollReq` con offset propio y el `CopperBuilder` emite los re-apuntados de `BPL5PT` por scanline mientras los 4 planos de primer plano comparten el scroll principal. El fondo animado se dibuja con `Surface`/blits.
 
@@ -665,7 +745,7 @@ Defectos:
 
 ---
 
-## 22. Resumen: virtudes y defectos por decisión
+## 23. Resumen: virtudes y defectos por decisión
 
 | Decisión | Virtudes | Defectos |
 |---|---|---|
@@ -682,6 +762,10 @@ Defectos:
 | Ciclo de vida (Effect/VBlankBus) | modos sin fugas; carga en background; hooks desacoplados | estados/transiciones; multitarea delicada; ISR presupuestada |
 | Audio (MusicPlayer + allocator) | solo el formato usado; presupuesto de canales | replayers grandes; arbitraje música/SFX dinámico |
 | Mixer por software (`AudioMixer<Type,Hq,Cpu>`) | muchas voces (hasta 16) con pocos HW; estático por composición; muestras en Fast | aditivo sin saturación distorsiona; HQ caro; latencia ~1 buffer |
+| Contrato horneado + `AssetLoader` | exe = intérprete de datos; niveles/escenas en archivos externos; versionado + tests golden | contrato a versionar/validar; acoplamiento editor/runtime |
+| Escenas data-driven + `runtime_params` | efectos de copper reactivos (parcheo `dynamic_partial` ~100–300 ciclos) | baking conoce los offsets de words; acoplamiento |
+| `ScriptVM` (aventuras SCUMM) | aventuras montadas con editor sin recompilar; reutiliza capas previas | bytecode propio (editor+intérprete+debug); validación en host |
+| Streaming desde disquetera (Amiga) | niveles largos con poca RAM; carga en background sin parar la lógica | disco lento (~50 KB/s); hook de trackdisk; planificación de carga |
 | Input/Periféricos | modelo normalizado; GUI reutiliza Surface | dispositivos parciales; bajo nivel por plataforma |
 | Chunky/c2p | cálculo fácil; portable | conversión cara; copper-chunky no portable |
 | Animación de paleta | declarativo; validado por el builder | PCHG consume words; latencia de tick |
@@ -695,18 +779,21 @@ Defectos:
 
 ---
 
-## 23. Roadmap / puntos abiertos
+## 24. Roadmap / puntos abiertos
 
 1. **Verificar `--gc-sections`** en el toolchain m68k de la extensión.
 2. **Implementar el `CONFIG_ID`** en `build-demo.sh`/`run-demo` (aisla configs y habilita el resto).
 3. **Prototipo host del `ResourceLedger`** (default+override, `static_assert`) con composiciones de ejemplo RoboCod-A500 y DPF-A1200.
 4. **Prototipo host del `CopperBuilder` + `Diagnostics`** (zonas, arbitraje, severidad, canal lateral, CopperScript).
 5. **Diseñar el comando `BlitAssist`** con la tabla híbrida (default + calibración + bake) como primer backend condicionado por CPU.
-6. **Ciclo de vida**: `Effect`/`SceneMode` + `VBlankBus` + `Scheduler` (background Load) — la columna vertebral de la demoscene.
-7. **Audio**: `AudioBackend` + `MusicPlayer` (Protracker primero) + `SoundEffect`/allocator de canales + **mixer por software** (`AudioMixer`, buffer doble, política de canales, plugins, `AudioIRQBus`).
-8. **Input/Periféricos**: `InputBackend`/`InputManager` (teclado, ratón, joystick) + primer `Widget`/GUI.
-9. **Efectos**: pipeline chunky/c2p, `PaletteAnimator`, `CopperScript`, `Font`/texto; luego 3D, filtros y tiles avanzados.
-10. **Migración de la demo 107** a `Bitmap`/`Surface`/`ScrollEngine` manteniendo la regresión verde como red de seguridad.
+6. **Contrato binario horneado + AssetLoader/ResourceManager** (escenas en archivos externos al exe, versionado + tests golden).
+7. **Ciclo de vida**: `Effect`/`SceneMode` + `VBlankBus` + `Scheduler` (background Load) — la columna vertebral de la demoscene.
+8. **Audio**: `AudioBackend` + `MusicPlayer` (Protracker primero) + `SoundEffect`/allocator de canales + **mixer por software** (`AudioMixer`, buffer doble, política de canales, plugins, `AudioIRQBus`).
+9. **Input/Periféricos**: `InputBackend`/`InputManager` (teclado, ratón, joystick) + primer `Widget`/GUI.
+10. **Efectos**: pipeline chunky/c2p, `PaletteAnimator`, `CopperScript`, `Font`/texto; luego 3D, filtros y tiles avanzados.
+11. **Escenas data-driven + runtime_params + parcheo de copper dynamic_partial** y **ScriptVM** (aventuras tipo SCUMM: rooms, actores, walkboxes, verbos, diálogos).
+12. **Streaming desde disquetera** (perfil Amiga): StreamLoader/AssetStream + hook de trackdisk.
+13. **Migración de la demo 107** a `Bitmap`/`Surface`/`ScrollEngine` manteniendo la regresión verde como red de seguridad.
 
 ---
 
