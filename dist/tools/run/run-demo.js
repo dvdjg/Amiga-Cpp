@@ -583,22 +583,24 @@ const demosRoot = path.join(root, 'out/demos', demoName);
 let builtExe = path.join(demosRoot, `${demoName}.exe`);
 let builtMap = path.join(demosRoot, `${demoName}.map`);
 let configId = '';
-// Prioridad de selección: 1) config "por defecto" (sin flags, _debug), 2) otras
-// _debug, 3) _release; desempate por mtime. Así la regresión (A500_debug) gana
-// sobre configs con EXTRA_DEFINES aun siendo estas más recientes.
+// Prioridad de selección (de mejor a peor):
+//   0  A500_debug            (default canónico: máquina + modo _debug, sin flags)
+//   1  A500_o0               (sin flags pero depuración -O0: nunca sombrea el default)
+//   2  A500_<flags>_debug    (debug con EXTRA_DEFINES)
+//   3  A500_<flags>_o0
+//   4  A500_release          (release sin flags)
+//   5  A500_<flags>_release
+// El desempate por mtime solo aplica dentro del mismo rango. Así la regresión
+// (A500_debug) gana siempre y un `--o0` recién compilado no la sombrea.
 function configRank(cfg) {
-    const isDebug = /_debug$/.test(cfg) || /_o0$/.test(cfg);
-    const release = /_release$/.test(cfg);
-    const noFlags = /_[^_]+_(debug|release|o0)$/.test(cfg) && cfg.split('_').length <= 3;
-    if (noFlags && isDebug)
-        return 0;
-    if (isDebug)
-        return 1;
-    if (release && noFlags)
-        return 2;
-    if (release)
-        return 3;
-    return 4;
+    const noFlags = cfg.split('_').length <= 2; // sin token de EXTRA_DEFINES
+    if (cfg.endsWith('_debug'))
+        return noFlags ? 0 : 2;
+    if (cfg.endsWith('_o0'))
+        return noFlags ? 1 : 3;
+    if (cfg.endsWith('_release'))
+        return noFlags ? 4 : 5;
+    return 6;
 }
 if (fs.existsSync(demosRoot)) {
     let best = { rank: 99, mtime: 0, exe: '', map: '', cfg: '' };
