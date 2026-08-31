@@ -599,9 +599,10 @@ lock release <owner>
 
 En `run-demo.ts` se implementó `sendSideChannelCommand()` (socket 2346, protocolo
 saludar → orden → respuesta JSON) y `withSideChannelLock()` (acquire → fn → release). Para
-una tecla sintética (`--automation-key <sc>`) el make y el clear se hacen en dos locks
-`takeover` separados con un `sleep` entre medias: el demo ve el make durante la ventana
-desbloqueada (`readbackAfterMake=05`, `readbackAfterClear=ff`).
+la conmutación de técnica (`--automation-key <1..9>`) basta un único `poke` con lock
+`takeover` sobre `g_tech_new` (el update la consume a 0), sin make/clear: la vía
+`g_automation_keycode` (edge de valor) queda como alternativa si se quisiera el teclado
+auténtico por memoria.
 
 ### 12.2 `pc=0xfe582c` NO es señal de crush
 
@@ -623,16 +624,19 @@ valor; el host la escribe con `poke` bajo lock `takeover`. Ver `input_poll.hpp`.
 auténtica (CIAA serial + `input key`) queda como incidencia abierta: hay que re-probar con
 lock `assist` antes de habilitarla.
 
-### 12.4 Resolución de dirección runtime: fallback incorrecto para símbolos tempranos
+### 12.4 Resolución de dirección runtime: `.data` vs `.bss` y el lock como confusión
 
-`resolveRuntimeSymbolAddress()` cae a un fallback (base del primer hunk + `symbol-0x400`)
-cuando el símbolo no cae en ninguna sección del `.map`; para `g_automation_keycode`
-(0x009578) devolvía `0xc15b70` cuando la dirección real estaba junto a
-`g_eng_run_status` (0x00957a → runtime `0xc15b72`). Escribir con `poke` a una dirección
-errónea corrompe memoria del demo. Solución: anclar el símbolo al **runtimeAddress probado
-de `g_eng_run_status`** (`report.sideChannel.runtimeAddress`) aplicando el **delta del
-`.map`** (mismo hunk de datos para contiguos). No asumir que los `sections` del estado son
-las bases de todo el espacio de datos.
+`resolveRuntimeSymbolAddress()` resuelve bien tanto `.data` (p. ej. `g_automation_keycode`,
+`0x009578` → runtime `0xc15b70`) como `.bss` (p. ej. `g_tech_new`, `0x0002c58a` → runtime
+`0xc38b90`), porque `findMapAllocSections()` incluye `.text`/`.rodata`/`.data`/`.bss` y los
+`sideChannel.state.sections` son las bases de los hunks en el mismo orden. **No usar el
+truco del delta** con `g_eng_run_status`: solo es válido para símbolos del MISMO hunk (o
+`.data` contiguo); para `.bss` el delta da una dirección lejana y el `poke` escribe donde no
+toca. La lección real de este incidente fue la del lock (§12.1): en la primera verificación
+la poke parecía no escribir (readback `ff`) y se atribuyó a la resolución, cuando en realidad
+la poke se rechazaba por `lock_required` (sin lock era un no-op silencioso). Sintomatología
+para distinguirlos: readback del `.mem` tras la poke `== valor` (resolución y poke OK) frente
+a readback `== ff` inalterado (poke no escrita).
 
 ### 12.5 `extern "C"` dentro del namespace anónimo se mangla
 
@@ -656,9 +660,9 @@ van a +5V (1 = no pulsado), pero el emulador no.
 - `run-demo --inject-commands "input key 2 1|sleep:60|input key 2 0" --inject-sample N`:
   envía órdenes del monitor por el canal lateral bajo lock `assist` (registradas en
   `report.inputInjection`).
-- `run-demo --automation-key <scancode> --inject-sample N`: poke/takeover de
-  `g_automation_keycode` (make/clear con `readbackAfterMake`/`readbackAfterClear` en el
-  report y `report.automationKey`).
+- `run-demo --automation-key <1..9> --inject-sample N`: poke con lock `takeover` sobre
+  `g_tech_new` (el hook que el update de la demo ya consume, sin lógica de make/break);
+  la autoría queda en `report.automationKey` (with `readback`).
 - El marcador 107 expone la técnica activa: byte superior `0x10|técnica`.
 
 ---
