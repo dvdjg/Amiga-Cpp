@@ -253,6 +253,19 @@ parte** (divide en la costura del bucle). Para un objeto fijo en pantalla (HUD),
 el caller pasa `mapposx()+x` / `mapposy()+y` (alineando x a 16) cada frame;
 para un objeto del mundo, la posición fija del mundo.
 
+**Primitivas de dibujo POR CPU** (mismo mapeo, escrituras de la CPU al
+framebuffer): `XlimitedField::set_pixel(wx, wy, color)`, `fill_rect(wx, wy, w, h,
+color)` y `draw_line(wx0, wy0, wx1, wy1, color)` (Bresenham). Internamente
+resuelven la geometría del layout: `world_to_planeline(wy)` aplica el módulo del
+bucle (costura del split), `write_planes` escribe la máscara en los `planes`
+bitplanes interleaved (`(planeline+p)*row_bytes + word`), y en modo lineal
+duplican al espejo (regla "espejo = duplica"). Restricción: `wx` dentro de una
+fila (byte < `bitmap_bytes_per_row`); para objetos anchos o plane-shifted sigue
+usándose `add_world_bitmap` (blits). **Toda rutina de dibujo futura debe pasar
+por estas primitivas o por `add_world_bitmap`**; nunca escribir a
+`frontbuffer()` a ciegas, porque la planelínea/byte del píxel depende de
+`display_offset` y del modo (split vs espejo).
+
 ## Monitorización de carga (frame a frame)
 
 Para supervisar la homogeneidad de CPU/Blitter/bus y detectar picos, la demo
