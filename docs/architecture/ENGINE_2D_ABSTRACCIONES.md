@@ -2,6 +2,7 @@
 
 > **Estado**: BORRADOR en revisión. Puede sufrir cambios menores tras discutir enlaces externos (referencias a otros engines y técnicas). Este documento es la especificación técnica interna; de aquí se derivará después una descripción de alto nivel para el gran público con artículos por tema concreto.
 > Normas del engine que condicionan el diseño: gnu++23, sin excepciones, sin RTTI, sin asignación dinámica en gameplay, header-only en lo posible, y composición por tipos (el linker decide qué código viaja al binario).
+> Este documento es también una **lista de deseos**: incorpora capas para audio, periféricos, ciclo de vida de efectos y familias de efectos gráficos (inspiradas en un repositorio de demoscene Amiga). No todo estará implementado en la primera iteración; el orden está en el roadmap.
 
 ---
 
@@ -10,11 +11,11 @@
 - **Portabilidad**: un mismo juego debe poder generarse para Amiga OCS/AGA, Atari ST, Megadrive y Neo-Geo (esta última con concesiones por no tener acceso directo al framebuffer).
 - **Composición estática**: las técnicas que no se usan no deben existir en el binario final; la selección la decide el compilador/linker (no `#ifdef` muertos). Sin DLL ni plugins dinámicos.
 - **Detección prematura de errores**: lo que es estático se valida en compilación (`static_assert`); lo dinámico se advierte en runtime con severidad y es visible para el desarrollador y para la IA (canal lateral).
-- **Soporte a juegos de referencia**: scroll 8-way (corkscrew), fondos por planos independientes (RoboCod: 5 planos sin DPF con plano de fondo animado), DPF + sprites hardware reprogramados a mitad de frame (Jim Powers, Risky Woods), playfields virtuales en Fast RAM, y un futuro GUI (botones, cajas, popups, puntero de ratón).
+- **Soporte a juegos y efectos de referencia**: scroll 8-way (corkscrew), fondos por planos independientes (RoboCod: 5 planos sin DPF con plano de fondo animado), DPF + sprites hardware reprogramados a mitad de frame (Jim Powers, Risky Woods), playfields virtuales en Fast RAM, música y SFX, input (teclado/ratón/joystick), GUI (botones, cajas, popups, puntero de ratón) y la familia de efectos de la demoscene (plasma, fuego, floor, wireframe, texturas 3D, blur, color cycling, copper-chunky…).
 
 ---
 
-## 2. Visión general: las cinco capas
+## 2. Visión general: el núcleo de cinco capas
 
 ```
         ┌─────────────────────────────────────────────────────────────┐
@@ -22,15 +23,15 @@
         │   playfields + scroll engines + surfaces + sprites + copper │
         └──────┬──────────┬───────────┬───────────┬───────────────────┘
                │          │           │           │
-        ┌──────▼───┐ ┌────▼─────┐ ┌───▼─────┐ ┌───▼────────┐
+        ┌──────▼───┐ ┌────▼─────┐ ┌───▼─────┐ ┌──▼─────────┐
         │ Scroll   │ │ Playfield│ │ Surface │ │ Sprite     │
         │ Engine   │ │ (display │ │ (dibujo │ │ Manager<N> │
         │ (algorit.│ │  + mapeo)│ │  + clip)│ │            │
         └──────┬───┘ └────┬─────┘ └───┬─────┘ └────────────┘
                │          │           │
         ┌──────▼──────────▼───────────▼──────────────────────┐
-        │                    Bitmap (memoria)                │
-        │   Chip RAM / Fast RAM · interleaved / separate     │
+        │                    Bitmap (memoria)                 │
+        │   Chip RAM / Fast RAM · interleaved / separate      │
         └────────────────────────────────────────────────────┘
 ```
 
@@ -44,6 +45,8 @@
 
 Regla central: **`Playfield` no dibuja** (hardware + mapeo); **`Surface` es el único contexto de dibujo** (con clip); **`ScrollEngine` es un strategy separado** (no un tipo de playfield); **`Scene` compone** piezas independientes (no un struct de configuración monolítico).
 
+Sobre este núcleo se montan capas de sistema y extensiones: el **ciclo de vida de efecto** (quién orquesta Render/VBlank), **audio**, **input**, y las **familias de efectos gráficos** (chunky, paleta, copper por línea, 3D, filtros, texto). Todas son componentes estáticos adicionales, no parte del núcleo de dibujo.
+
 ---
 
 ## 3. Modelo de propiedad: `Owner` / `Ref` / `Span`
@@ -51,7 +54,7 @@ Regla central: **`Playfield` no dibuja** (hardware + mapeo); **`Surface` es el �
 La API pública no expone punteros crudos (`T*`, `T&`). Se usan:
 - `eng::Ref<T>` — referencia no-propietaria, no-nula, comprobada (rol de `observer_ptr`/`gsl::not_null`). Para relaciones (`Surface→Bitmap`, `Playfield→Bitmap`, `FramePlan→tabla`).
 - `eng::Owner<T>` — propiedad exclusiva, no-copia, movible, **respaldada por arena o valor** (sin `operator new` en gameplay). Para componentes que poseen a otros.
-- `eng::Span<T>` — rango contiguo (ya existe) para paletas, tilesets, datos de sprite, mapas y payloads.
+- `eng::Span<T>` — rango contiguo (ya existe) para paletas, tilesets, datos de sprite, mapas, muestras de audio y payloads.
 
 Virtudes:
 - API sin punteros crudos; el ownership está explícito; no hay fugas ni `delete` a mano; `Ref` no-nula elimina la familia de bugs de punteros colgantes en las relaciones entre capas.
@@ -69,10 +72,10 @@ Defectos:
 El Blitter solo alcanza Chip RAM; la CPU alcanza ambas. `BitmapConfig` declara `MemoryDomain { Chip, Fast, Any }` y `Bitmap` expone `blitter_accessible()`.
 
 ```
-   ┌─────────────── Chip RAM ──────────────┐   ┌─────────── Fast RAM ────────────┐
-   │  Bitmap A (display)   │  Blitter ✓    │   │  Bitmap V (virtual) │ Blitter ✗ │
-   │  interleaved 4 planos │  CPU ✓        │   │  separate 4 planos  │ CPU ✓     │
-   │  BPLxPT -> copper     │               │   │  (solo CPU/software)│           │
+   ┌─────────────── Chip RAM ───────────────┐   ┌─────────── Fast RAM ───────────┐
+   │  Bitmap A (display)    │  Blitter ✓    │   │  Bitmap V (virtual) │ Blitter ✗ │
+   │  interleaved 4 planos │  CPU ✓        │   │  separate 4 planos  │ CPU ✓    │
+   │  BPLxPT -> copper     │               │   │  (solo CPU/software)│          │
    └───────────────────────┴───────────────┘   └──────────────────────┴──────────┘
                           ▲                                        │
                           │   composite(dirty_rect)                │
@@ -82,14 +85,15 @@ El Blitter solo alcanza Chip RAM; la CPU alcanza ambas. `BitmapConfig` declara `
 
 - Un playfield **virtual** vive en Fast RAM: se dibuja por CPU (o con blits si el destino fuese Chip) y **no se puede mostrar directamente** (`hardware_view()` inválida).
 - La `Scene` ofrece `composite(src, dst, region, plan)`: copia una subregión (dirty rect) del virtual al playfield mostrado. El backend ejecuta `blit_copy` si el origen es Chip, o un comando `software_copy` (CPU) si cruza dominios.
+- La misma regla sirve para buffers de audio y de trabajo en general: los datos que consume el DMA (bitplanes, muestras de audio, datos de sprite) viven en Chip; lo que solo toca la CPU puede vivir en Fast.
 
 Virtudes:
-- Permite jugar con la memoria: Fast RAM es abundante (los A500 con expansión) y la CPU puede pintar ahí sin competir con el Blitter.
+- Permite jugar con la memoria: Fast RAM es abundante y la CPU puede pintar ahí sin competir con el Blitter.
 - Los dirty rects hacen que volcar un virtual grande cueste solo lo que cambió.
 
 Defectos:
-- El `software_copy` cruza el bus de forma menos eficiente que el Blitter (la CPU mueve datos de Fast→Chip); para pantallas completas puede ser el cuello de botella.
-- Doble buffer de memoria (virtual + mostrado) duplica el coste de la técnica en RAM y en lógica de sincronización.
+- El `software_copy` cruza el bus de forma menos eficiente que el Blitter; para pantallas completas puede ser el cuello de botella.
+- Doble buffer de memoria (virtual + mostrado) duplica el coste en RAM y en lógica de sincronización.
 
 ---
 
@@ -99,12 +103,12 @@ Representa "una forma de hardware del framebuffer": un `Bitmap` + el mapeo lógi
 
 ```
    mundo lógico (wx, wy)                 memoria física (byte)
-   ┌────────────────────┐   mapeo   ┌────────────────────────────────┐
-   │  tile  tile  tile  │  ───────► │ planelínea = (wy%DH)*planes+p  │
-   │  tile  tile  tile  │  walk X   │ byte = wx/8  (cruza planelínea)│
-   │  tile  tile  tile  │  costura  │ espejo (lineal) +DH*planes     │
-   └────────────────────┘           └────────────────────────────────┘
-        world row 20                  planeline 80 = fila 20, plano 0
+   ┌────────────────────┐   mapeo    ┌────────────────────────────────┐
+   │  tile  tile  tile   │  ───────► │ planelínea = (wy%DH)*planes+p  │
+   │  tile  tile  tile   │  walk X   │ byte = wx/8  (cruza planelínea)│
+   │  tile  tile  tile   │  costura  │ espejo (lineal) +DH*planes     │
+   └────────────────────┘            └────────────────────────────────┘
+        world row 20                      planeline 80 = fila 20, plano 0
 ```
 
 Virtudes:
@@ -112,7 +116,7 @@ Virtudes:
 - El mapeo es una policy del backend/layout: el mismo concepto sirve para Amiga (interleaved+walk), ST (planar), MD/NG (tilemap).
 
 Defectos:
-- El mapeo corkscrew es complejo y está acoplado al layout interleaved; extraerlo como policy obliga a que cada backend implemente su propia versión (no se reutiliza el mismo código).
+- El mapeo corkscrew es complejo y está acoplado al layout interleaved; extraerlo como policy obliga a que cada backend implemente su propia versión.
 - Sin primitivas en `Playfield`, hay una indirección más (todo dibujo pasa por `Surface`); para scripts pequeños puede parecer burocrático.
 
 ---
@@ -135,15 +139,15 @@ Subregión rectangular sobre un playfield: `SurfaceConfig { Ref<Playfield> targe
    └──────────────────────────────────┘
 ```
 
-Es la base del GUI futuro: un `Widget` es una `Surface` + `draw()` + `hit_test(punto)`; un panel/popup es un árbol de `Surface`s anidadas con clips; el puntero de ratón es un sprite + posición de input.
+Es la base del GUI futuro: un `Widget` es una `Surface` + `draw()` + `hit_test(punto)`; un panel/popup es un árbol de `Surface`s anidadas con clips; el puntero de ratón es un sprite + posición de input. `Surface` puede ser planar (núcleo) o **chunky** (ver §16.1) según el `PixelFormat`.
 
 Virtudes:
 - El clip hace que dibujar un widget no salga de su rect: el GUI se construye sin lógica de recorte a mano.
 - Un contexto de dibujo con coordenadas propias desacopla el código de juego del layout físico exacto.
 
 Defectos:
-- La indirección superficie→mapeo→byte físico añade una multiplicación/división por píxel en `set_pixel` (cara si se dibujan muchos píxeles por CPU); para bulk drawing hay que usar `blit` (que sí es por bloque).
-- El recorte por píxel en `fill_rect`/`draw_line` puede ser lento si se dibujan rects grandes con clip pequeño; un recorte por bloque (clip del rect antes de iterar) es la optimización esperada.
+- La indirección superficie→mapeo→byte físico añade coste por píxel en `set_pixel`; para bulk drawing hay que usar `blit`.
+- El recorte por píxel en `fill_rect`/`draw_line` puede ser lento con clips pequeños; un recorte por bloque antes de iterar es la optimización esperada.
 
 ---
 
@@ -153,10 +157,10 @@ Defectos:
 
 ```
    ScrollEngine<Mode>                    FramePlan
-   ┌──────────────────────────┐          ┌───────────────────────────────┐
-   │  mapa + tileset + cámara │  emite   │  blit tile (x, y, mapx, mapy) │
+   ┌──────────────────────────┐          ┌──────────────────────────────┐
+   │  mapa + tileset + cámara │  emite   │  blit tile (x, y, mapx, mapy)│
    │  mapposx/mapposy         │ ───────► │  blit fillup (post-incremento)│
-   │  display_offset / split  │          └───────────────────────────────┘
+   │  display_offset / split  │          └──────────────────────────────┘
    │  ScrollView -> copper    │                └─► Playfield (destino)
    └──────────────────────────┘
 ```
@@ -166,8 +170,8 @@ Virtudes:
 - Un playfield puede no tener scroll (canvas estático) o tenerlo (BG corkscrew); la escena no distingue.
 
 Defectos:
-- El corkscrew y su layout están fuertemente acoplados (banda de staging, walk); separarlos en "algoritmo" y "playfield" requiere que el layout sea configurable, y el conocimiento experto del truco queda en el `ScrollEngine` (no se comparte con otras técnicas).
-- Varios `ScrollMode` significan varias rutas de test (la regresión debe cubrir cada modo).
+- El corkscrew y su layout están fuertemente acoplados (banda de staging, walk); separarlos requiere que el layout sea configurable.
+- Varios `ScrollMode` significan varias rutas de test.
 
 ---
 
@@ -185,12 +189,12 @@ class FramePlan { /* add_copy/add_masked/add_software_copy/add_tile_update/add_p
 
 ```
    módulos                      FramePlan (poseído por la Scene)            Backend
-   ┌─────────────┐   append   ┌────────────────────────────────────┐   ┌───────────────┐
+   ┌─────────────┐   append   ┌────────────────────────────────────┐   ┌──────────────┐
    │ ScrollEngine│ ─────────► │ [BlitCopy | sec=0 | words=12]      │   │ Amiga: Blitter│
    │ Surface/HUD │ ─────────► │ [BlitMasked| sec=1 | words=24]     │──►│ ST: CPU/move  │
    │ SpriteMgr   │ ─────────► │ [SoftwareCopy | sec=2 | words=8]   │   │ MD: VRAM      │
    │ Gameplay    │ ─────────► │ [PalettePatch | sec=3 | words=2]   │   │ NG: planos    │
-   └─────────────┘            │  budget global + por sección · ok()│   └───────────────┘
+   └─────────────┘            │  budget global + por sección · ok()│   └──────────────┘
                               └────────────────────────────────────┘
 ```
 
@@ -201,14 +205,14 @@ Virtudes:
 - Comandos portables: el mismo plan se traduce a Blitter (Amiga), moves de CPU (ST), VRAM (MD) o planos (NG).
 
 Defectos:
-- Un buffer compartido obliga a que la escena arbitre el presupuesto global; si un módulo excede, degradar/fallar es una política que hay que decidir (no es automático).
-- Los comandos portables abstraen mucho: la traducción por backend es trabajo real y puede perder eficiencia si el comando no captura el detalle del hardware (p. ej. canales del Blitter, alineación).
+- Un buffer compartido obliga a que la escena arbitre el presupuesto global; degradar/fallar es una política que hay que decidir.
+- Los comandos portables abstraen mucho: la traducción por backend es trabajo real y puede perder eficiencia si el comando no captura el detalle del hardware.
 
 ---
 
 ## 9. `DisplayRequirements` / `CopperBuilder` (arbitraje del copper)
 
-Los módulos **declaran sus necesidades** al `DisplayRequirements` (listas fijas `FixedVector<T, N>`): `PalettePatch` (línea + colores), `SpriteReq` (sprite + línea inicio/fin), `ScrollReq` (plano + offset + líneas), `CopperRule` (`SyncWithBgY`, `PaletteBand`, `PerPlaneScroll`). El `CopperBuilder` ensambla las **zonas** verticales y **valida contra el hardware**, produciendo `Warning`s con severidad: raster no esperable (comparador de 8 bits), >8 sprites por línea, conflicto de paleta en la misma línea, mezcla DPF con plano único, coppersky pidiendo sincronizar a una Y inexistente.
+Los módulos **declaran sus necesidades** al `DisplayRequirements` (listas fijas `FixedVector<T, N>`): `PalettePatch` (línea + colores), `SpriteReq` (sprite + línea inicio/fin), `ScrollReq` (plano + offset + líneas), `CopperRule` (`SyncWithBgY`, `PaletteBand`, `PerPlaneScroll`, y **`CopperScript`** de registros por línea). El `CopperBuilder` ensambla las **zonas** verticales y **valida contra el hardware**, produciendo `Warning`s con severidad: raster no esperable (comparador de 8 bits), >8 sprites por línea, conflicto de paleta en la misma línea, mezcla DPF con plano único, coppersky pidiendo sincronizar a una Y inexistente.
 
 ```
    raster (líneas del frame PAL)
@@ -219,7 +223,8 @@ Los módulos **declaran sus necesidades** al `DisplayRequirements` (listas fijas
    │  233 ├───────────────────────────────────┤  │  WAIT + DIWSTOP extendido
    │      │ ZONA B · HUD (canvas 4 planos)    │  │  BPLxPT(hud) + paleta HUD
    │      │ (o sprites reprogramados, per-    │  │  per-plane scroll RoboCod
-   │      │  plane scroll, coppersky)         │  │
+   │      │  plane scroll, coppersky,         │  │
+   │      │  CopperScript: BPLCON1 en 150…)   │  │
    │  264 └───────────────────────────────────┘  │
    └─────────────────────────────────────────────┘
    CopperBuilder: valida cada WAIT <= 255 (comparador 8 bits) y cada zona
@@ -227,7 +232,7 @@ Los módulos **declaran sus necesidades** al `DisplayRequirements` (listas fijas
 
 Virtudes:
 - Detección prematura: al ser listas fijas con `N` constexpr, la cota de copper words es **exacta** y parte del arbitraje puede hacerse en compilación; lo dinámico se advierte en runtime.
-- El modelo de zonas + reglas es lo que habilita RoboCod (per-plane scroll), Risky Woods (sprites reprogramados) y el coppersky (sync con la Y del fondo).
+- El modelo de zonas + reglas habilita RoboCod (per-plane scroll), Risky Woods (sprites reprogramados), el coppersky y el floor (BPLCON1 por línea).
 
 Defectos:
 - El `CopperBuilder` concentra mucho conocimiento del chipset (comparador de 8 bits, DMACON, zonas): es la pieza más difícil de portar y de testear.
@@ -237,31 +242,31 @@ Defectos:
 
 ## 10. `ResourceLedger` (asignación estática de recursos)
 
-Cada componente declara su `HwRequirements` (planes, sprites, chip_bytes, copper_words, blitter_words, needs_aga) como constexpr. El ledger **reparte** (`allocate_chip<M>(components...)`): ordena por prioridad (**default**: display > sprites > buffers de scroll > copper; **override** por componente) y empaqueta en el chip budget de la `MachineProfile`, produciendo un `MemoryPlan` constexpr (offsets + tamaños) con `static_assert` si no cabe.
+Cada componente declara su `HwRequirements` (planes, sprites, chip_bytes, copper_words, blitter_words, **audio_channels**, needs_aga) como constexpr. El ledger **reparte** (`allocate_chip<M>(components...)`): ordena por prioridad (**default**: display > sprites > buffers de scroll > copper > **audio**; **override** por componente) y empaqueta en el chip budget de la `MachineProfile`, produciendo un `MemoryPlan` constexpr (offsets + tamaños) con `static_assert` si no cabe.
 
 ```
    chip budget de la máquina (ej. A500 = 512 KB)
    ┌──────────────────────────────────────────────────────────┐
    │ [ 0  display bitmap A  ] [ display B ] [ sprites ]       │
-   │ [ buffers scroll ][ copper ][ virtual (Fast: NO aquí) ]  │
+   │ [ buffers scroll ][ copper ][ audio (muestras DMA) ]     │
    │  total = plan.total  →  static_assert(total <= chip_ram) │
    └──────────────────────────────────────────────────────────┘
    La Scene hace UNA reserva runtime del total y reparte slices (Ref<Bitmap>)
 ```
 
 Virtudes:
-- Un solo bloque chip en runtime (sin fragmentación), tamaños/offsets conocidos en compilación (los BPL pointers pueden derivarse), y el fallo se detecta al compilar, no al ejecutar.
-- El `static_assert` por máquina convierte "no cabe en la A500" en un error de compilación.
+- Un solo bloque chip en runtime (sin fragmentación), tamaños/offsets conocidos en compilación, y el fallo se detecta al compilar, no al ejecutar.
+- El `static_assert` por máquina convierte "no cabe en la A500" en un error de compilación; el presupuesto de canales de audio se valida igual.
 
 Defectos:
-- El empaquetado estático requiere que la geometría sea constexpr (lo es si la composición es un tipo), pero el layout físico final del sistema (dónde cae el bloque chip) no es determinista → los offsets son relativos al bloque, no absolutos.
+- El empaquetado estático requiere geometría constexpr, pero el layout físico final no es determinista → los offsets son relativos al bloque.
 - La prioridad default+override puede dar lugar a escenarios donde el juego fuerza un orden subóptimo sin que el ledger lo advierta.
 
 ---
 
 ## 11. `MachineProfile` + `CONFIG_ID` (perfil de máquina y build)
 
-Cada máquina declara capacidades constexpr: `chip_ram`, `max_planes`, `max_colors`, `max_sprites`, `aga`, `direct_framebuffer`, `tile_planes`, `copper_raster_max`, `max_copper_words`, `max_blitter_words_per_frame`, `cpu` (`CpuClass`), `chip_bus_bits`. Perfiles: A500, A500_ECS, A1200, AtariST, Megadrive, NeoGeo.
+Cada máquina declara capacidades constexpr: `chip_ram`, `max_planes`, `max_colors`, `max_sprites`, `aga`, `direct_framebuffer`, `tile_planes`, `copper_raster_max`, `max_copper_words`, `max_blitter_words_per_frame`, **`audio_channels`**, **`input_devices`**, **`chunky_supported`**, `cpu` (`CpuClass`), `chip_bus_bits`. Perfiles: A500, A500_ECS, A1200, AtariST, Megadrive, NeoGeo.
 
 La build elige el perfil con `-DTARGET_MACHINE=A500` (macro de build). **La macro también determina el `CONFIG_ID`** que nombra el ejecutable y aísla todos los artefactos, de forma que distintas configuraciones conviven sin pisarse:
 
@@ -277,14 +282,14 @@ Virtudes:
 - La macro es simple y encaja con "el linker decide": se enlaza solo el perfil objetivo.
 
 Defectos:
-- Las macros de build son menos "puras" que una selección por tipo; el token del `CONFIG_ID` hay que generarlo canónicamente (orden de flags, sanitización) y mantenerlo consistente entre build/run/analyze.
+- Las macros de build son menos "puras" que una selección por tipo; el token del `CONFIG_ID` hay que generarlo canónicamente y mantenerlo consistente entre build/run/analyze.
 - Cada máquina nueva añade un perfil y una rama de regresión.
 
 ---
 
 ## 12. `Diagnostics` (traza con severidad, visible para dev e IA)
 
-`Severity { Info, Warning, Error }`; la escena posee un `Diagnostics` que rutea los mensajes al periférico de depuración (0xB70000) **y al canal lateral (2346)**, de modo que los leen tanto el tooling del desarrollador como la IA. Reporta: presupuestos del `FramePlan`, warnings del `CopperBuilder`, estado de calibración de la tabla CPU/Blitter.
+`Severity { Info, Warning, Error }`; la escena posee un `Diagnostics` que rutea los mensajes al periférico de depuración (0xB70000) **y al canal lateral (2346)**, de modo que los leen tanto el tooling del desarrollador como la IA. Reporta: presupuestos del `FramePlan`, warnings del `CopperBuilder`, estado de calibración de la tabla CPU/Blitter, **y telemetría de audio/input/efectos**.
 
 ```
    juego ──► Diagnostics.report(severity, msg, module)
@@ -294,16 +299,224 @@ Defectos:
 ```
 
 Virtudes:
-- Los mensajes del juego son observables sin tocar el juego (canal lateral) — es el mecanismo "visible por la IA" que necesitamos para depuración asistida.
-- La severidad permite que la escena distinga info (calibración sin hacer), warning (emulador vs hardware real) y error (conflicto imposible).
+- Los mensajes del juego son observables sin tocar el juego (canal lateral) — es el mecanismo "visible por la IA" para depuración asistida.
+- La severidad permite distinguir info, warning y error; el profiler de efectos (`PROFILE`) y los replayers (voz, canal) reportan por aquí.
 
 Defectos:
-- El formateo de mensajes cuesta ciclos y bytes; debe compilarse fuera en release si no se quiere (pero entonces se pierde la telemetría del canal lateral). Hay que decidir qué niveles viajan a release.
+- El formateo de mensajes cuesta ciclos y bytes; hay que decidir qué niveles viajan a release.
 - Una abstracción de trazas puede crecer en exceso (sinks, filtros, categorías); hay que mantenerla mínima.
 
 ---
 
-## 13. Blit híbrido CPU/Blitter (selección por CPU)
+## 13. Ciclo de vida y sistema (Effect, VBlankBus, Scheduler)
+
+Inspirado en el modelo `EffectT` de la demoscene: un efecto (o modo de escena) tiene **Load, UnLoad, Init, Kill, Render y VBlank**. Es la columna vertebral: casi todo (música, paleta, sprites, efectos) cuelga del ciclo Render/VBlank.
+
+```
+   Load (background) ──► Init ──► [ Render cada frame ] ──► Kill ──► UnLoad
+                                  [ VBlank (ISR)      ]
+   Load puede precalcular tablas/paletas/datos mientras OTRO efecto corre
+```
+
+- `Effect`/`SceneMode`: la `Scene` hostea **un efecto activo** (Loader → título → gameplay → créditos). `Load` precalcula en background (tarea propia); `Init` reserva memoria/copper/DMA; `Render` dibuja el frame; `VBlank` actualiza punteros, paleta, música; `Kill`/`UnLoad` liberan.
+- `VBlankBus`: el VBlank es un evento con **múltiples suscriptores** registrables (música, animación de paleta, sprites, efecto). El bucle actual (`update→wait_vblank→render`) gana hooks de VBlank.
+- `Scheduler`: gestión de tareas de background (Load/precalc), reparto de CPU entre ellas y el Render, y encaje con el `MachineProfile` (velocidad de CPU). Con `MULTITASK`, `TaskWaitVBlank()` cede CPU; sin multitarea es el VBlank síncrono.
+- `Profiler`: el perfilado por bloques (`PROFILE`) alimenta el `Diagnostics` para medir el coste de cada efecto.
+
+Virtudes:
+- El ciclo de vida unifica la demoscene y el juego: cada "modo" es un `Effect`, con recursos que se liberan al salir (sin fugas entre pantallas).
+- La carga en background oculta el tiempo de preparación (tablas, paletas, mallas) detrás del efecto en pantalla.
+- El `VBlankBus` desacopla a los suscriptores (música, paleta, efecto) de la secuencia exacta del frame.
+
+Defectos:
+- El ciclo de vida añade estados (Load/Init/Running/Kill) y transiciones que hay que gestionar y testear (fallos de Init, Load cancelado).
+- La multitarea de background es delicada en 68000 (compilación por registros, stacks propios); hay que medir si compensa frente al precalc síncrono.
+- Múltiples suscriptores al VBlank compiten por el tiempo de la ISR; hay que presupuestar los ticks.
+
+---
+
+## 14. Audio
+
+La familia de reproductores de la demoscene (Protracker, AHX, P61, Cinter) es el gap principal. El diseño:
+
+- `AudioBackend`: hardware de sonido (Paula: 4 canales DMA, registros AUDx/volumen/periodo; ST: 3 canales; MD: FM+PSG; NG: canales propios). Traduce comandos portables a registros.
+- `MusicPlayer` (interfaz: `Play/Stop/Tick(VBlank)/SetPosition/Pause`) con **replayers por formato**, seleccionados por composición estática (`MusicPlayer<Format::Protracker>`, `MusicPlayer<Format::Ahx>`, `MusicPlayer<Format::P61>`, `MusicPlayer<Format::Cinter>`). Cada formato tiene su tabla de instrumentos/muestras.
+- `SoundEffect` + `AudioChannelAllocator`: reparte los `audio_channels` de la máquina entre música y SFX (presupuesto por frame, como el `ResourceLedger` pero para canales). `Diagnostics` avisa si un SFX no encuentra canal.
+- `Sample` (datos de audio en Chip RAM para DMA) y `AudioData` (formatos convertidos a muestras planas en Load).
+
+```
+   MusicPlayer<PT> ──► Paula/4 canales ──► DAC
+   MusicPlayer<AHX> ─┘        │
+   SoundEffect ───────────────┤  AudioChannelAllocator reparte
+   (SFX: disparo, salto…)     │  4 canales (OCS) entre música y SFX
+                              ▼
+                   VBlankBus.tick() cada frame
+```
+
+Virtudes:
+- Los replayers son componentes estáticos: solo se enlaza el formato que usas (un juego con Protracker no lleva AHX ni P61).
+- El allocator de canales da un presupuesto verificable (como el ledger) y el `Diagnostics` reporta voz cortada.
+
+Defectos:
+- Los replayers son código grande y específico por formato; portarlos a C++ constexpr-friendly es trabajo real (tablas, timing de CIA).
+- El reparto música/SFX por canales es un arbitraje dinámico (el ledger es estático); hace falta una política runtime (qué canal cede).
+
+---
+
+## 15. Input y periféricos
+
+- `InputBackend` + `InputManager`: modelo de entrada **normalizado** (botones, ejes, posición) que mapea igual en Amiga (teclado/ratón/joystick/lightpen), ST, MD y NG. El GUI (puntero) y los juegos (joystick) dependen de esto.
+- `Widget`/GUI: botones, cajas, popups son `Surface`s con `hit_test`; el puntero es un sprite + posición de input; el `InputManager` reparte eventos por hit-testing y foco.
+
+```
+   teclado ─┐
+   ratón  ──┼─► InputBackend ──► InputManager (estado normalizado)
+   joystick┘                        ├─► Widgets (hit_test, foco)
+   lightpen                          └─► Gameplay (ejes, botones)
+```
+
+Virtudes:
+- Un modelo normalizado hace que el juego no conozca el dispositivo concreto; el backend por máquina mapea.
+- El GUI reutiliza la `Surface` (clip) y el sprite del puntero, sin capa nueva.
+
+Defectos:
+- Dispositivos con capacidades distintas (lightpen sin botones, joystick sin ratón) requieren que el modelo normalizado tenga "no disponible" y que la escena lo advierta.
+- El polling de ratón en Amiga (control del CIAA) y su conversión a posición por frame es código de bajo nivel que hay que portar por plataforma.
+
+---
+
+## 16. Efectos gráficos (familias)
+
+### 16.1 Pipeline chunky (c2p)
+Plasma, fire-RGB y twister usan un buffer chunky (píxeles consecutivos, `PM_CMAP4/8/RGB12`) y conversión a planar. Abstracción: `Pixmap`/chunky `Surface` con su `PixelFormat`, y `ChunkyToPlanar` (CPU, blitter en pasadas, o tablas dual). Es la primera concesión a "formato de píxel por superficie": el `Surface` pasa de ser solo planar a tener un formato.
+
+```
+   buffer chunky (píxeles consecutivos)          bitplanes (planar)
+   ┌──────────────────────────┐   c2p (CPU/    ┌──────────────────────────┐
+   │  AB CD EF … (un byte px) │   blitter,     │  plano0 │ plano1 │ plano2│
+   │  cálculo de plasma/fuego │   dualtab)     │  reordenación de words  │
+   └──────────────────────────┘                └──────────────────────────┘
+```
+
+Virtudes:
+- Desacopla el cálculo (fácil en chunky) del display (planar); es la base de fuego/plasma/efectos de píxel.
+- El conversor es portable (CPU en ST, VRAM en MD si hay modo planificado).
+
+Defectos:
+- La conversión chunky→planar cuesta CPU/Blitter por frame; para resoluciones altas es el cuello de botella.
+- El modo **copper-chunky** (plasma 8×4) es un display especial del Copper que el `CopperBuilder` debe poder emitir (§16.8).
+
+### 16.2 Animación de paleta
+Color-cycling, PCHG (por línea), neons (rotación en VBlank). `PaletteAnimator` (ciclo, rotación, desplazamiento, PCHG) que emite `PalettePatch` al `CopperBuilder` cada frame y se suscribe al `VBlankBus`.
+
+Virtudes:
+- El animador es declarativo (rangos de la paleta que ciclan, velocidad) y reutilizable.
+- La emisión por `PalettePatch` pasa por el `CopperBuilder`, que valida conflictos de línea.
+
+Defectos:
+- El cycling por línea (PCHG) consume words de copper y puede chocar con otras zonas; hay que validar.
+- La rotación en VBlank depende del tick exacto (latencia de una línea posible).
+
+### 16.3 CopperScript (registros por línea)
+Floor (BPLCON1 por línea), stripes, multipipe escriben registros en scanlines concretas. Abstracción: **programa de Copper declarativo** — `CopperRule{ CopperScript }`: una secuencia de `{ WAIT línea, MOVE registro, valor }` validada por el `CopperBuilder` (raster 8-bit, solapamiento con zonas). Es la generalización de `PerPlaneScroll` y `PaletteBand`.
+
+```
+   CopperScript (declarativo)
+   { línea 120: BPLCON1 = 0x11 }
+   { línea 130: BPLCON1 = 0x22 }
+   { línea 140: BPLCON1 = 0x33 }   ← floor / stripes
+   CopperBuilder: valida cada línea <= 255 y que no pise otras zonas
+```
+
+Virtudes:
+- Un DSL pequeño cubre una familia entera de efectos de copper por línea con la validación centralizada.
+- El `CopperBuilder` arbitra solapamientos entre el script y las zonas de playfield/sprites.
+
+Defectos:
+- La validación de solapamientos entre un script arbitrario y las zonas puede ser compleja (o conservadora).
+- El coste en words crece con el número de líneas; hay que presupuestar.
+
+### 16.4 3D (gfx3d)
+Wireframe, flatshade, textura, UV, bobs3d. Capa de matemáticas fixed-point + `Mesh`/`Object3D` + `Camera/Proyección` + `Rasterizer` (arista, plano, texturizado) que rasteriza en `Surface`/`FramePlan`. La lib3d de la demoscene es la referencia (back-face culling, InvSqrt, SortFaces, painter's algorithm).
+
+```
+   Mesh3D ──► Object3D ──► Transform3D (objectToWorld) ──► Proyección ──► 2D
+                                │                              │
+                        UpdateFaceVisibility (culling+luz)   SortFaces (Z)
+                                │                              │
+                                └──────────► Rasterizer (wireframe | flatshade | textura)
+                                                  │
+                                                  ▼
+                                          Surface / FramePlan
+```
+
+Virtudes:
+- Fixed-point y tablas (sin floats) encajan con el no-heap y el 68000; el pipeline es componible por piezas.
+- El `Rasterizer` es una plantilla por modo (solo se instancia el que usas).
+
+Defectos:
+- Es un módulo grande (matrices, mallas, proyección, ordenación, rasterizadores) con muchas rutas de test.
+- El texturizado y el shading por cara consumen mucho; el presupuesto por frame hay que medirlo con el profiler.
+
+### 16.5 Filtros / post-procesado
+Blurred, darkroom, glitch, magnifying-glass (lente). `FilterChain` sobre surfaces/framebuffer: blur, distorsión, desplazamiento, contraste — el equivalente a un pipeline de shaders 2D. Cada filtro es una plantilla (`Filter<Blur>`, `Filter<Lens>`) que opera sobre un `Bitmap`/`Surface` y emite `blit_copy`/`software_copy`.
+
+Virtudes:
+- Los filtros se componen en cadena y son reutilizables entre efectos.
+- Operan sobre el `FramePlan` (blit o software según dominio), sin tocar el backend.
+
+Defectos:
+- El blur y la distorsión por píxel son caros; hay que decidir resolución de trabajo y presupuesto.
+- La cadena de filtros añade latencia de un frame si es multi-pase.
+
+### 16.6 Fuentes y texto
+Credits, textscroll. `Font` (bitmap, proporcional) + `TextRenderer` (scroll horizontal/vertical, parpadeo, alineación) dibujando en `Surface`. El texto es la base de HUD, menús, créditos y el propio GUI.
+
+Virtudes:
+- El texto reutiliza `Surface` (clip) y `blit`/`software_copy`; no hay capa especial de display.
+- Un `Font` es un `Bitmap` de tiles (reutiliza el banco de tiles del `ScrollEngine`).
+
+Defectos:
+- Las fuentes proporcionales y la justificación añaden lógica de layout que hay que testear.
+- El scroll de texto por línea (efecto clásico) es un caso del `ScrollEngine` con fuente de tiles.
+
+### 16.7 Tiles avanzados
+Tiles8/16, tilezoomer (twist, zoom por tile). Más allá del `ScrollEngine`: manipulación de tiles individuales (rotar, voltear, zoom, paleta por tile). Abstracción: `TileMap` con atributos por tile (flip, paleta, animación) y un `TileTransform` que re-encaja los tiles antes de mostrarlos.
+
+Virtudes:
+- Comparte el banco de tiles y la geometría con el `ScrollEngine`.
+- Los atributos por tile (flip/paleta) son el paso natural hacia plataformas tipo MD/NG (tilemap hardware).
+
+Defectos:
+- El zoom por tile y el twist son costosos si no los hace el hardware (MD/NG sí, Amiga no).
+
+### 16.8 Copper-chunky
+Plasma 8×4: usar el Copper para mostrar datos chunky (re-encaje de palabras por línea). Es un modo de display especial: el `CopperBuilder` debe poder emitirlo (o documentarlo como efecto backend-específico de Amiga). Es la concesión máxima a la técnica: no es portable a ST/MD/NG y se declara en `BackendCapabilities` (`chunky_supported`).
+
+---
+
+## 17. Recursos y loader
+
+Loader (carga de módulos/niveles), conversión de datos (obj2c, png2c, generadores de tablas). Abstracción: `Resource`/`Asset` (datos crudos, paletas, mallas, muestras) + `Loader` en background (tarea del `Scheduler`) + herramientas de conversión en build. El ciclo `Load` del efecto (§13) es el consumidor natural.
+
+```
+   asset crudo (en disco/ROM)  ──► Loader (background)  ──► Resource convertido
+     .mod/.ahx/.p61/.cinter           │                     (malla, paleta, tablas,
+     .obj/.png/.csv (convertidos)     │                      muestras, fuentes)
+     en build: obj2c, png2c, gen-*.py └──► Chip/Fast RAM, presupuesto del ledger
+```
+
+Virtudes:
+- La carga en background oculta el coste de conversión; el `ResourceLedger` reserva el espacio.
+- Las herramientas de build (obj2c, png2c) generan datos constexpr o estáticos, coherentes con la composición estática.
+
+Defectos:
+- La carga en background necesita un sistema de archivos (disco/ROM) y tareas; en cartucho (MD/NG) no hay disco y hay que pre-cargar.
+- La conversión en build genera headers que hay que versionar y regenerar.
+
+---
+
+## 18. Blit híbrido CPU/Blitter (selección por CPU)
 
 Basado en la técnica de Jeroen Knoester (Power Programs, "CPU Assisted Blitting"): en máquinas con memoria chip de 32 bits y CPU ≥ 68020 (A1200, CD32, A3000, A4000), el Blitter sin `BLTPRI` deja a la CPU ~1 de cada 4 ciclos (o 1 de 3 con canales B&D), y la CPU (que accede a chip de 32 bits, el doble de eficiente que el Blitter de 16) hace una parte del blit (líneas inferiores) mientras el Blitter hace las superiores. ~13% más de bobs/frame; requiere alineación a longword y objetos ≥ 32 px. Nota clave del autor: **los emuladores sobreestiman el 68020**; hay que calibrar en hardware real.
 
@@ -333,14 +546,14 @@ Virtudes:
 - El default + calibración + bake cubre desarrollo (rápido), hardware real (preciso) y distribución (sin coste runtime).
 
 Defectos:
-- La técnica es delicada (alineación, reparto por anchos, interrupciones); el beneficio real depende de la máquina exacta y del mix de DMA (la DMA adicional suele mejorar la ganancia).
-- La tabla horneada fija la medición a un hardware: si el juego corre en una variante distinta (p. ej. un A1200 con accelerator), la calibración puede suboptimizar; el fallback constexpr siempre está.
+- La técnica es delicada (alineación, reparto por anchos, interrupciones); el beneficio real depende de la máquina exacta y del mix de DMA.
+- La tabla horneada fija la medición a un hardware: si el juego corre en una variante distinta, la calibración puede suboptimizar; el fallback constexpr siempre está.
 
 ---
 
-## 14. Composición estática y selección por linker
+## 19. Composición estática y selección por linker
 
-El engine es un conjunto de componentes **independientes, header-only y plantilla** (`TileScrollEngine<Mode>`, `SpriteManager<N>`, `Palette<N>`, etc.). La escena del juego es un **agregado** que declara qué usa:
+El engine es un conjunto de componentes **independientes, header-only y plantilla** (`TileScrollEngine<Mode>`, `SpriteManager<N>`, `Palette<N>`, `MusicPlayer<Format>`, `Filter<Kind>`, `Rasterizer<Mode>`, etc.). La escena del juego es un **agregado** que declara qué usa:
 
 ```cpp
 struct MiComposicion {
@@ -348,35 +561,38 @@ struct MiComposicion {
   gfx::TileScrollEngine<ScrollMode::XLimited8Way> scroll;
   gfx::Surface hud;
   gfx::SpriteManager<4> sprites;
+  audio::MusicPlayer<audio::Format::Protracker> music;
+  input::InputManager input;
 };
 using MiEscena = gfx::Scene<MachineProfile<A500>, MiComposicion>;
 ```
 
-Con `-ffunction-sections -fdata-sections -Wl,--gc-sections`, el linker elimina las secciones no referenciadas: si no usas corkscrew, su código no viaja, aunque el header exista. Sin RTTI, sin excepciones, sin heap en gameplay → el binario es pequeño y el `--gc-sections` es efectivo. Las macros solo diferencian hardware del chipset, nunca features de juego.
+Con `-ffunction-sections -fdata-sections -Wl,--gc-sections`, el linker elimina las secciones no referenciadas: si no usas corkscrew, un replayer o un filtro, su código no viaja, aunque el header exista. Sin RTTI, sin excepciones, sin heap en gameplay → el binario es pequeño y el `--gc-sections` es efectivo. Las macros solo diferencian hardware del chipset, nunca features de juego.
 
 ```
    composición del juego                    binario final
-   ┌───────────────────────────┐  instancia  ┌──────────────────────────┐
-   │  bg: Playfield            │ ──────────► │  [Playfield]             │
-   │  scroll: XLimited8Way     │   plantillas│  [ScrollEngine corkscrew]│
-   │  hud: Surface             │             │  [SpriteManager<4>]      │
-   │  sprites: SpriteManager<4>│             │  (lo que se usa)         │
-   └───────────────────────────┘             │  --gc-sections descarta  │
-                                             │  lo no referenciado      │
-                                             └──────────────────────────┘
+   ┌──────────────────────────┐  instancia  ┌──────────────────────────┐
+   │  bg: Playfield           │ ──────────► │  [Playfield]             │
+   │  scroll: XLimited8Way    │   plantillas│  [ScrollEngine corkscrew]│
+   │  hud: Surface            │             │  [SpriteManager<4>]      │
+   │  music: Protracker       │             │  [MusicPlayer<PT>]       │
+   │  sprites: SpriteManager<4>│            │  (lo que se usa)         │
+   └──────────────────────────┘             │  --gc-sections descarta  │
+                                            │  lo no referenciado      │
+                                            └──────────────────────────┘
 ```
 
 Virtudes:
 - "Lo que no se usa no existe": el tamaño del binario refleja la composición, no la biblioteca.
-- La selección de técnica (blit vs CPU, corkscrew vs simple, sprites o no) es estática y verificable por el compilador.
+- La selección de técnica (blit vs CPU, corkscrew vs simple, formato de música, sprites o no) es estática y verificable por el compilador.
 
 Defectos:
-- Las plantillas inflan el tiempo de compilación y los mensajes de error (un `static_assert` fallido puede ser críptico).
-- Requiere que el toolchain soporte `--gc-sections` de forma fiable (hay que verificar en el toolchain m68k de la extensión) y que el código no use registros globales que el linker no pueda descartar.
+- Las plantillas inflan el tiempo de compilación y los mensajes de error.
+- Requiere que el toolchain soporte `--gc-sections` de forma fiable y que el código no use registros globales que el linker no pueda descartar.
 
 ---
 
-## 15. Portabilidad a Atari ST / Megadrive / Neo-Geo
+## 20. Portabilidad a Atari ST / Megadrive / Neo-Geo
 
 La frontera es el `FramePlan` (comandos portables) y la interfaz `Backend`:
 
@@ -386,20 +602,22 @@ La frontera es el `FramePlan` (comandos portables) y la interfaz `Backend`:
 | `blit_masked` | Blitter cookie-cut | CPU | write VRAM + paleta | concesión: plano/tile |
 | `update_tilemap` | n/a | n/a | VDP tile planes | tile planes |
 | `set_display` | Copper | Shifter | VDP registers | video hardware |
+| `audio_play` | Paula (4) | YM2149 (3) | YM2612+PSG (6) | canales propios |
+| `input_poll` | CIAA (teclado/ratón/joystick) | IKBD/joystick | VDP/ports | ports |
 
-El mapeo lógico→físico del `Playfield` es la policy por backend; `BackendCapabilities` (direct_framebuffer, hardware_sprites, tile_planes, max_planes, max_colors) permite que la lógica se adapte: si `!direct_framebuffer`, una `Surface` degrada a actualización de tiles/planos o a un framebuffer interno pequeño (la concesión de Neo-Geo).
+El mapeo lógico→físico del `Playfield` es la policy por backend; `BackendCapabilities` (direct_framebuffer, hardware_sprites, tile_planes, max_planes, max_colors, audio_channels, input_devices, chunky_supported) permite que la lógica se adapte: si `!direct_framebuffer`, una `Surface` degrada a actualización de tiles/planos o a un framebuffer interno pequeño (la concesión de Neo-Geo).
 
 Virtudes:
 - El juego es portable por construcción; solo cambia el backend y la policy de mapeo.
 - `BackendCapabilities` + `ResourceLedger` detectan en compilación si un feature no existe en la plataforma objetivo.
 
 Defectos:
-- Abstraer tanto (de Blitter a planos de NG) obliga a que el `FramePlan` sea el mínimo común; las técnicas específicas de cada plataforma (per-plane scroll de RoboCod, planos de NG) necesitan comandos o reglas adicionales que engordan el modelo.
+- Abstraer tanto obliga a que el `FramePlan` sea el mínimo común; las técnicas específicas (per-plane scroll de RoboCod, copper-chunky de Amiga, planos de NG) necesitan comandos o reglas adicionales que engordan el modelo.
 - El costo de mantener N backends es real: cada uno tiene su regresión, sus limits y sus bugs de emulador.
 
 ---
 
-## 16. Mapeo a juegos de referencia
+## 21. Mapeo a juegos y efectos de referencia
 
 - **RoboCod** (5 planos sin DPF, fondo animado de 1 plano): un `Playfield` single de 5 planos; el plano 5 declara un `ScrollReq` con offset propio y el `CopperBuilder` emite los re-apuntados de `BPL5PT` por scanline mientras los 4 planos de primer plano comparten el scroll principal. El fondo animado se dibuja con `Surface`/blits.
 
@@ -416,10 +634,11 @@ Defectos:
 - **Jim Powers / Risky Woods**: DPF + sprites hardware; el `SpriteManager` reporta `SpriteReq` (reprogramación a mitad de frame) y la escena monta las zonas de sprites y paleta. Los fondos animados usan `Surface` sobre playfield.
 - **Scroll vertical con cambios de color por línea**: un módulo declara `PalettePatch` ligado a la Y; el `CopperBuilder` lo valida contra el raster.
 - **Coppersky**: `CopperRule { SyncWithBgY }` sincroniza la paleta del cielo con la posición Y del fondo; la escena comprueba que la Y existe y es esperable.
+- **Demoscene**: los efectos del catálogo (plasma, fuego, floor, wireframe, texturas, blur, color-cycling, copper-chunky, música) se montan sobre las capas de §13–§17: `Effect` (ciclo), `Pixmap`/c2p (plasma/fuego), `PaletteAnimator` (cycling/neones), `CopperScript` (floor/stripes), `gfx3d` (wireframe/flatshade/UV), `FilterChain` (blur/glitch), `Font`/texto (credits/textscroll), `MusicPlayer` (los 4 formatos) y `InputManager` (kbdtest/GUI).
 
 ---
 
-## 17. Resumen: virtudes y defectos por decisión
+## 22. Resumen: virtudes y defectos por decisión
 
 | Decisión | Virtudes | Defectos |
 |---|---|---|
@@ -433,19 +652,33 @@ Defectos:
 | `ResourceLedger` constexpr | reparto estático; fallo en compilación | offsets relativos; prioridad puede suboptimizar |
 | `MachineProfile` + `CONFIG_ID` | un exe = una validación; configs aisladas | macros; token canónico a mantener |
 | `Diagnostics` + canal lateral | visible para dev e IA; severidad | coste de formato; política release |
+| Ciclo de vida (Effect/VBlankBus) | modos sin fugas; carga en background; hooks desacoplados | estados/transiciones; multitarea delicada; ISR presupuestada |
+| Audio (MusicPlayer + allocator) | solo el formato usado; presupuesto de canales | replayers grandes; arbitraje música/SFX dinámico |
+| Input/Periféricos | modelo normalizado; GUI reutiliza Surface | dispositivos parciales; bajo nivel por plataforma |
+| Chunky/c2p | cálculo fácil; portable | conversión cara; copper-chunky no portable |
+| Animación de paleta | declarativo; validado por el builder | PCHG consume words; latencia de tick |
+| `CopperScript` | DSL cubre familia de efectos; arbitraje central | solapamientos complejos; words por línea |
+| 3D (gfx3d) | fixed-point; pipeline componible | módulo grande; presupuesto a medir |
+| Filtros/post-procesado | componibles; sobre el FramePlan | caros; latencia multi-pase |
+| Fuentes/texto | reutiliza Surface; font = tiles | layout proporcional; scroll a testear |
+| Tiles avanzados | comparte banco; atributos por tile | zoom/twist caros sin HW |
 | Blit híbrido CPU/Blitter | selección por CPU; default+calibración+bake | delicado; horneado fija hardware |
 | Composición por tipos + `--gc-sections` | binario = composición | compilación más lenta; requiere toolchain |
 
 ---
 
-## 18. Roadmap / puntos abiertos
+## 23. Roadmap / puntos abiertos
 
 1. **Verificar `--gc-sections`** en el toolchain m68k de la extensión.
 2. **Implementar el `CONFIG_ID`** en `build-demo.sh`/`run-demo` (aisla configs y habilita el resto).
 3. **Prototipo host del `ResourceLedger`** (default+override, `static_assert`) con composiciones de ejemplo RoboCod-A500 y DPF-A1200.
-4. **Prototipo host del `CopperBuilder` + `Diagnostics`** (zonas, arbitraje, severidad, canal lateral).
+4. **Prototipo host del `CopperBuilder` + `Diagnostics`** (zonas, arbitraje, severidad, canal lateral, CopperScript).
 5. **Diseñar el comando `BlitAssist`** con la tabla híbrida (default + calibración + bake) como primer backend condicionado por CPU.
-6. **Migración de la demo 107** a `Bitmap`/`Surface`/`ScrollEngine` manteniendo la regresión verde como red de seguridad.
+6. **Ciclo de vida**: `Effect`/`SceneMode` + `VBlankBus` + `Scheduler` (background Load) — la columna vertebral de la demoscene.
+7. **Audio**: `AudioBackend` + `MusicPlayer` (Protracker primero) + `SoundEffect`/allocator de canales.
+8. **Input/Periféricos**: `InputBackend`/`InputManager` (teclado, ratón, joystick) + primer `Widget`/GUI.
+9. **Efectos**: pipeline chunky/c2p, `PaletteAnimator`, `CopperScript`, `Font`/texto; luego 3D, filtros y tiles avanzados.
+10. **Migración de la demo 107** a `Bitmap`/`Surface`/`ScrollEngine` manteniendo la regresión verde como red de seguridad.
 
 ---
 
