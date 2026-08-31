@@ -125,6 +125,8 @@ Defectos:
 
 Subregión rectangular sobre un playfield: `SurfaceConfig { Ref<Playfield> target; Point origin; Size size; Rect clip; }`. Primitivas `set_pixel`, `fill_rect`, `draw_line`, `blit`, `blit_masked` — todas recortadas contra `clip` y enrutadas por el mapeo del playfield.
 
+> **Estado (M1a, implementado)**: `engine/include/eng/field/surface.hpp` con `Surface` (tipo valor, `Playfield*` no-propietario por ahora; `Ref` pendiente) + `SurfaceRect`; las primitivas CPU salieron de `Playfield` (que conserva `write_pixel`, el atómico del mapeo). La demo 107 dibuja el HUD, el FG lienzo y los píxeles fijos vía `scene.bg_surface()`/`hud_surface()`/`canvas_fg_surface()`; regresión verde.
+
 ```
    Playfield (mundo)                          Surface (botón)
    ┌──────────────────────────────────┐      ┌──────────────┐
@@ -132,10 +134,10 @@ Subregión rectangular sobre un playfield: `SurfaceConfig { Ref<Playfield> targe
    │        ┌──────────────────┐      │      │  ┌────────┐  │
    │        │  Surface (HUD)   │      │      │  │  draw  │  │
    │        │  ┌────────────┐  │      │      │  │  aquí  │  │
-   │        │  │  widget    │  │      │      │  └────────┘  │
-   │        │  │  (botón)   │  │      │      └──────────────┘
-   │        │  └────────────┘  │      │      hit_test(punto) -> rect
-   │        └──────────────────┘      │
+   │        │  │  widget    │  │      │      │  │        │  │
+   │        │  │  (botón)   │  │      │      │  └────────┘  │
+   │        │  └────────────┘  │      │      └──────────────┘
+   │        └──────────────────┘      │      hit_test(punto) -> rect
    └──────────────────────────────────┘
 ```
 
@@ -793,7 +795,7 @@ Defectos:
 10. **Efectos**: pipeline chunky/c2p, `PaletteAnimator`, `CopperScript`, `Font`/texto; luego 3D, filtros y tiles avanzados.
 11. **Escenas data-driven + runtime_params + parcheo de copper dynamic_partial** y **ScriptVM** (aventuras tipo SCUMM: rooms, actores, walkboxes, verbos, diálogos).
 12. **Streaming desde disquetera** (perfil Amiga): StreamLoader/AssetStream + hook de trackdisk.
-13. **Migración de la demo 107** a `Bitmap`/`Surface`/`ScrollEngine` manteniendo la regresión verde como red de seguridad.
+13. **Migración de la demo 107** a `Bitmap`/`Surface`/`ScrollEngine` manteniendo la regresión verde como red de seguridad. **En curso**: M1a hecho (`Surface` implementada y usada por HUD/FG/píxeles); M1b pendiente (`Bitmap` como capa de memoria); M2 pendiente (`ScrollEngine` separado del corkscrew).
 
 ---
 
