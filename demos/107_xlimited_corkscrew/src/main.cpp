@@ -31,6 +31,14 @@ extern "C" {
 __attribute__((used)) volatile eng::debug::FrameTelemetry g_eng_frame_telemetry {};
 }
 
+// Depuración (lectura por canal lateral `mem`): puntero al copper activo, words
+// usadas y framebuffer del playfield HUD.
+extern "C" {
+__attribute__((used)) volatile eng::u32 g_dbg_copper = 0;
+__attribute__((used)) volatile eng::u16 g_dbg_copper_words = 0;
+__attribute__((used)) volatile eng::u32 g_dbg_hud_base = 0;
+}
+
 namespace {
 
 namespace field = eng::field;
@@ -86,7 +94,7 @@ namespace demo = eng::field::demo;
 //   K_START_PHASE (0..7)   fase inicial del ciclo K_EFFECT=0
 //   K_PHASE_FRAMES (1000)  frames por fase del ciclo (~20 s a 50 fps)
 //   K_PRE_SCROLL  (1024)   px de pre-scroll en init para fases reversas/diagonales
-//   K_DUAL        (0|1)     DPF 3+3: dos XlimitedField + XlimitedDualComposer (PF1 planos 1,3,5 / PF2 2,4,6)
+//   K_DUAL        (0|1)     DPF 3+3: dos XLimitedPlayfield + XlimitedDualComposer (PF1 planos 1,3,5 / PF2 2,4,6)
 //   K_PARALLAX    (0|1)     con K_DUAL=1, PF2 scrollea a media velocidad en X
 //   K_LINEAR      (0|1)     display lineal sin split (espejo del bucle); elimina el
 //                           artefacto del split en raster 256..296 a costa de 2× blits
@@ -199,7 +207,7 @@ namespace demo = eng::field::demo;
 #ifndef K_PRE_SCROLL
 #define K_PRE_SCROLL 1024
 #endif
-// DPF 3+3: dos XlimitedField (PF1 planos 1,3,5 / PF2 2,4,6), cada uno con su
+// DPF 3+3: dos XLimitedPlayfield (PF1 planos 1,3,5 / PF2 2,4,6), cada uno con su
 // bitmap interleaved de K_PLANES=3, unidos por XlimitedDualComposer. Ambos
 // scrollean en la misma dirección (K_EFFECT) y comparten videoposy (mismo split).
 #ifndef K_DUAL
@@ -217,7 +225,19 @@ namespace demo = eng::field::demo;
 #define K_LINEAR 0
 #endif
 #ifndef K_HUD
-#define K_HUD 1 // 0 = sin HUD de ejemplo (para A/B o regresión)
+#define K_HUD 1 // 0 = sin HUD (ni franja inferior ni marcas de ejemplo)
+#endif
+#ifndef K_BOB
+#define K_BOB 1 // 0 = sin el BOB enmascarado de mundo (aislar artefactos)
+#endif
+// Franja HUD inferior: un playfield SEPARADO (CanvasPlayfield) de K_HUD_HEIGHT
+// filas con K_HUD_PLANES bitplanes y paleta propia, en una zona de Copper bajo
+// el viewport principal. El WAIT de la zona debe caer en raster <= 255.
+#ifndef K_HUD_HEIGHT
+#define K_HUD_HEIGHT 32 // total 224 -> main 192 + HUD 32
+#endif
+#ifndef K_HUD_PLANES
+#define K_HUD_PLANES 4
 #endif
 // Alias K_TILE_W/H para la parametrización nueva (compatibles con K_TILE_WIDTH/SIZE)
 #ifndef K_TILE_W
@@ -256,6 +276,13 @@ constexpr eng::u8 kEffectivePlanes = kDual ? 3u : kPlanes;              // 3 por
 constexpr eng::u16 kMapTilesX = static_cast<eng::u16>(K_SCREENS_X * (K_VIEWPORT_W / K_TILE_W));
 constexpr eng::u16 kMapTilesY = static_cast<eng::u16>(K_SCREENS_Y * (K_VIEWPORT_H / K_TILE_H));
 constexpr eng::u8 kTileCount = 64;
+
+// Paleta del HUD (playfield separado en la franja inferior): 4 planos -> 16
+// colores propios, distintos del mapa (fondo negro, texto blanco, acentos).
+constexpr eng::u16 kHudPalette[16] {
+    0x000, 0xfff, 0xf00, 0x0f0, 0x00f, 0xff0, 0x0ff, 0xf0f,
+    0x844, 0x884, 0x448, 0x444, 0x222, 0x666, 0xaaa, 0xddd,
+};
 
 eng::u16 g_map_cells[kMapTilesX * kMapTilesY] {};
 
@@ -330,6 +357,11 @@ struct DemoGame {
         scene_cfg.phase_frames = kPhaseFrames;
         scene_cfg.pre_scroll = kPreScroll;
         scene_cfg.palette = demo::kPalette;
+#if K_HUD
+        scene_cfg.hud_height = K_HUD_HEIGHT;
+        scene_cfg.hud_planes = K_HUD_PLANES;
+        scene_cfg.hud_palette = kHudPalette;
+#endif
 
         if (!scene.begin(backend.memory(), scene_cfg)) {
             eng::debug::mark_failed(g_eng_run_status, 0x00010703u);
@@ -339,6 +371,18 @@ struct DemoGame {
             eng::debug::mark_failed(g_eng_run_status, 0x00010705u);
             return;
         }
+#if K_HUD
+        // Dibuja el HUD UNA VEZ en init (boot, sin competir con el DMA).
+        {
+            auto& hud = scene.hud();
+            hud.fill_rect(0, 0, kViewportW, K_HUD_HEIGHT, 0);
+            hud.draw_line(2, 2, 2, static_cast<eng::s32>(K_HUD_HEIGHT) - 3, 1);
+            hud.draw_line(2, 2, kViewportW - 3, 2, 1);
+            hud.fill_rect(8, 8, 8, 8, 2);
+            hud.set_pixel(kViewportW - 10, 4, 3);
+            hud.set_pixel(kViewportW - 10, static_cast<eng::s32>(K_HUD_HEIGHT) - 5, 3);
+        }
+#endif
         // Pre-scroll para fases con componente negativa (izquierda/arriba) o diagonales.
         {
             const eng::u8 startPhase = (kEffectMode == 0) ? kStartPhase
@@ -387,27 +431,39 @@ struct DemoGame {
     // Las primitivas CPU (set_pixel/fill_rect/draw_line) escriben al instante; el
     // BOB enmascarado es un blit que se encola en `plan` (se ejecuta después).
     // -------------------------------------------------------------------------
-    void draw_hud(eng::graphics::FramePlan& hud_plan) {
-#if K_HUD
-        const eng::s32 mx = scene.screen_to_world_x(4);
-        const eng::s32 y0 = scene.screen_to_world_y(4);
-        const eng::s32 y1 = scene.screen_to_world_y(12);
-        scene.draw_line(mx, y0, scene.screen_to_world_x(52), y1, 1);  // diagonal magenta
-        scene.fill_rect(scene.screen_to_world_x(64), y0, 8, 8, 3);    // caja amarilla
-        scene.set_pixel(scene.screen_to_world_x(60), y0, 2);          // píxel cian
-        scene.set_pixel(scene.screen_to_world_x(60), y0 + 7, 2);
-        // BOB enmascarado de MUNDO (16x16, 4 planos blancos, wx múltiplo de 16):
-        // bloque blanco con hueco 4x4 en el centro que deja ver el mapa. Es un
-        // objeto del mundo en posición fija (160,100): scrollea con el fondo. Las
-        // primitivas de blit requieren wx word-aligned, así que un objeto FIJO en
-        // pantalla se dibuja con las primitivas CPU (set_pixel/fill_rect/draw_line).
+    // BOB enmascarado de MUNDO (16x16, 4 planos blancos, wx múltiplo de 16):
+    // bloque blanco con hueco 4x4 en el centro que deja ver el mapa. Es un
+    // objeto del mundo en posición fija (160,100): scrollea con el fondo. Las
+    // primitivas de blit requieren wx word-aligned, así que un objeto FIJO en
+    // pantalla se dibuja con las primitivas CPU (set_pixel/fill_rect/draw_line).
+    void queue_hud_blits(eng::graphics::FramePlan& hud_plan) {
+#if K_HUD && K_BOB
+        auto& bg = scene.bg();
         if (m_bob.valid()) {
             const eng::u16* bob = static_cast<const eng::u16*>(m_bob.data);
-            scene.add_world_bitmap_masked(hud_plan, bob, bob + 64,
+            bg.add_world_bitmap_masked(hud_plan, bob, bob + 64,
                 160, 100, 16, 16, 2, 32, 4);
         }
 #else
         (void)hud_plan;
+#endif
+    }
+
+    // Primitivas CPU del HUD fijo. IMPORTANTE: se dibujan en `render()` (durante
+    // el vblank, tras wait_vblank) y NO en `update()`: el update corre durante
+    // scanlines visibles y las escrituras CPU al framebuffer compiten con el DMA
+    // de bitplanes, produciendo blackouts periódicos de un frame.
+    // Primitivas CPU del HUD fijo. IMPORTANTE (limitación de bus del Amiga): las
+    // escrituras CPU al chip RAM durante el frame visible roban ciclos al DMA de
+    // bitplanes; con muchas RMW (fill_rect/draw_line grandes) aparecen scanlines
+    // negros periódicos. Por eso aquí SOLO se marcan 2 píxeles; el dibujo masivo
+    // (HUD de la franja inferior) va por Blitter o se dibuja una vez en init.
+    void draw_hud_cpu() {
+#if K_HUD
+        auto& bg = scene.bg(); // playfield de scroll (roles, no índice)
+        const eng::s32 y0 = bg.screen_to_world_y(4);
+        bg.set_pixel(bg.screen_to_world_x(60), y0, 2);      // píxel cian
+        bg.set_pixel(bg.screen_to_world_x(60), y0 + 7, 2);  // píxel cian
 #endif
     }
 
@@ -422,10 +478,9 @@ struct DemoGame {
         eng::s32 dx = 0, dy = 0;
         scene.update_auto(plan, context.frame.frame_index, dx, dy);
 
-        // HUD fijo en pantalla (se redibuja cada frame tras el scroll). Los
-        // píxeles CPU se escriben al instante; el BOB enmascarado se encola en
-        // el plan y se ejecuta a continuación.
-        draw_hud(plan);
+        // HUD: el BOB (blit) se encola en el plan y se ejecuta con el scroll.
+        // Las primitivas CPU van a `render()` (vblank) para no competir con el DMA.
+        queue_hud_blits(plan);
 
         if (!backend.execute_frame_plan(plan)) {
             ready = false;
@@ -452,7 +507,7 @@ struct DemoGame {
         }
 
         // Telemetría: mapposx en bytes bajos, videoposx en altos, BPLCON1 en medio.
-        const auto& f = scene.field(0);
+        const auto& f = scene.bg();
         auto view = f.hardware_view();
         const eng::u32 marker = 0x10700000u |
             (static_cast<eng::u32>(f.mapposx() & 0xff) ) |
@@ -462,7 +517,13 @@ struct DemoGame {
     }
 
     void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
-        if (ready) scene.install(backend);
+        if (ready) {
+            scene.install(backend);
+            draw_hud_cpu(); // primitivas CPU durante el vblank (seguro)
+            g_dbg_copper = reinterpret_cast<eng::u32>(scene.debug_active_copper());
+            g_dbg_copper_words = scene.copper_words();
+            if (scene.has_hud()) g_dbg_hud_base = reinterpret_cast<eng::u32>(scene.hud().frontbuffer());
+        }
         eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
     }
 };

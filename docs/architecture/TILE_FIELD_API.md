@@ -2,7 +2,7 @@
 
 > **Nota de deprecación suave (2026-08):** para **scroll X infinito** (plataformas,
 > *shooters* horizontales, *parallax* por *playfield*) preferir
-> `engine/include/eng/field/xlimited.hpp` (`XlimitedField` + `XlimitedDisplayComposer`),
+> `engine/include/eng/field/xlimited.hpp` (`XLimitedPlayfield` + `XlimitedDisplayComposer`),
 > implementación fiel de *Scroller_XLimited* de Georg Steger con *bitmap* 352/384
 > interleaved, altura `256+(map_width/22/planes)+1+3`, *plane-shifted* y `saveword`
 > sin *split* de Copper. `TileFieldController` se mantiene para casos 8-way genéricos

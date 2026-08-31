@@ -293,6 +293,7 @@
 
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
+#include <eng/field/playfield.hpp>
 #include <eng/field/tile_field.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/frame_plan.hpp>
@@ -377,7 +378,7 @@ constexpr u16 diwstop_for_viewport(u16 viewport_h) {
 ///   K_SCREENS_X/Y  : 16 | 8 ...       pantallas virtuales en X/Y (map = screens*viewport/tile)
 /// ```
 ///
-/// DPF 8-way (futuro, como en 102/104): dos `XlimitedField` con `scroll_y=true`
+/// DPF 8-way (futuro, como en 102/104): dos `XLimitedPlayfield` con `scroll_y=true`
 /// (corkscrew por playfield), PF1 en planos impares (1,3,5) y PF2 en pares
 /// (2,4,6), cada uno con su BlocksBitmap interleaved y su `frontbuffer`, pero
 /// compartiendo `bitmap_height`/`display_height` y `BPLMOD`. El compositor dual
@@ -420,7 +421,7 @@ constexpr u16 diwstop_for_viewport(u16 viewport_h) {
 ///
 /// Si `analyze-sequence.sh --warp` informa `FAILED detail=0x10704` (67332),
 /// es el fill inicial desbordando el `FramePlan` (cols*rows jobs >128): el
-/// `XlimitedField::fill_screen` es atómico; la demo debe rellenar en lotes
+/// `XLimitedPlayfield::fill_screen` es atómico; la demo debe rellenar en lotes
 /// fila a fila ejecutando el plan cuando se llena (ver `DemoGame::init`).
 /// El canal lateral `dist/tools/run/run-demo.js:701` propaga ese `detail`
 /// como `Error: La demo informó FAILED por canal lateral: detail=67332`.
@@ -448,39 +449,14 @@ struct XlimitedConfig {
                                        // a costa de duplicar cada blit (dibujo + espejo).
 };
 
-/// Vista de hardware que el compositor necesita para programar el Copper.
-///
-/// Es el equivalente interleaved de `FieldHardwareView`: un único `frontbuffer`
-/// base, el desplazamiento fino/coarse derivado de `videoposx` y, en el
-/// corkscrew (scroll_y), el split vertical (`display_offset`, `split_line`,
-/// `split_active`) para que el display envuelva en `display_height`. No hay
-/// `surface_origin` ni guarda vertical: el wrap vertical es por split de Copper.
-struct XlimitedHardwareView {
-    const u8* bitplanes = nullptr; // frontbuffer (Planes[0] + bitmapoffset)
-    const u8* real_base = nullptr; // base real del AllocBitMap (para BPLxPT)
-    u32 planeaddx = 0;             // coarse X en bytes
-    u32 planeaddy = 0;             // offset Y interleaved = display_offset*planes*bytes
-    u16 bplcon1 = 0;               // scroll fino duplicado en ambos nibbles
-    u16 bpl1mod = 0;
-    u16 bpl2mod = 0;
-    u16 bitmap_bytes_per_row = 0;  // bytes por fila (ej. viewport_w+32)/8
-    u32 plane_bytes = 0;           // bytes totales (para validación)
-    u8 planes = 0;
-    u16 bitmap_height = 0;         // altura física total (allocation)
-    u16 display_height = 0;        // bucle vertical del display (viewport_h + EXTRAHEIGHT si corkscrew)
-    u16 display_offset = 0;        // yoffset = (videoposy + tile_height) % display_height
-    u16 split_line = 0;            // filas dentro de la ventana donde ocurre el wrap
-    bool split_active = false;     // split_line < viewport_h (hace falta Copper split)
-    u32 split_planeaddy = 0;       // offset Y de los punteros del split (fila 0)
-    u16 viewport_w = 0;
-    u16 viewport_h = 0;
-    s32 videoposx = 0;
-    s32 mapposx = 0;
-    s32 videoposy = 0;
-    s32 mapposy = 0;
-};
-
 /// Campo XLimited: scroll infinito en X con bitmap interleaved y wrap vertical.
+///
+/// Es una ESPECIALIZACIÓN de `Playfield`: implementa el mapeo lógico→físico del
+/// corkscrew (planelínea del bucle, walk horizontal, espejo del modo lineal) y
+/// la variante de scroll (8-way, X-only según `scroll_y`). Las primitivas de
+/// dibujo CPU viven en la base `Playfield` (vía los hooks de mapeo); aquí se
+/// conservan los blits (costura + espejo) y los 4 scrolls fieles a
+/// `Scroller_XYLimited/main.c`.
 ///
 /// Mantiene `mapposx`/`videoposx` como en el original y expone `draw_block`
 /// con `y` en planeline. El allocation simula `BMF_INTERLEAVED`:
@@ -491,13 +467,38 @@ struct XlimitedHardwareView {
 ///
 /// No comparte `surface_origin` ni bandas con `TileFieldController`; sólo
 /// comparte `TileLayerMap` para resolver `tile_at`.
-class XlimitedField {
+class XLimitedPlayfield : public Playfield {
 public:
-    XlimitedField() = default;
+    XLimitedPlayfield() = default;
 
     // No copiable (posee memoria Chip)
-    XlimitedField(const XlimitedField&) = delete;
-    XlimitedField& operator=(const XlimitedField&) = delete;
+    XLimitedPlayfield(const XLimitedPlayfield&) = delete;
+    XLimitedPlayfield& operator=(const XLimitedPlayfield&) = delete;
+
+    /// Fila (en planelíneas) de inicio de la fila de mundo `wy` en el bucle
+    /// vertical (costura del split). Hook del mapeo de la base `Playfield`.
+    u32 planeline_for(s32 wy) const override {
+        const s32 loop = ((wy % m_display_height) + m_display_height) % m_display_height;
+        return static_cast<u32>(loop) * m_cfg.planes;
+    }
+    /// Word byte del píxel de mundo (el *walk* horizontal cruza planelíneas
+    /// cuando `wx/8 >= bitmap_bytes_per_row`; se acota en `write_planes`).
+    u32 byte_for(s32 wx) const override {
+        return static_cast<u32>(wx / 8) & ~1u;
+    }
+    /// Espejo del modo lineal (0 si no hay espejo).
+    u32 mirror_planelines() const override { return m_mirror_planelines; }
+    /// El corkscrew soporta el walk horizontal (los blits y la CPU lo acotan).
+    bool supports_walk() const override { return true; }
+
+    /// Scroll de 1 píxel por eje (especialización del playfield). Devuelve false
+    /// si un borde del mapa bloqueó el avance (dirección inversa sin recorrido).
+    bool update_scroll(graphics::FramePlan& plan, s32 dx, s32 dy) override {
+        if (!m_initialized) return false;
+        if (dx != 0 && !((dx > 0) ? scroll_right(plan) : scroll_left(plan))) return false;
+        if (dy != 0 && !((dy > 0) ? scroll_down(plan) : scroll_up(plan))) return false;
+        return true;
+    }
 
     /// Calcula la altura total según la fórmula canónica de Steger parametrizada.
     ///
@@ -548,7 +549,7 @@ public:
             m_cfg.bitmap_width = static_cast<u16>(m_cfg.viewport_w + extra);
         }
         m_bitmap_width = m_cfg.bitmap_width;
-        m_bitmap_bytes_per_row = static_cast<u16>(m_bitmap_width / 8u);
+        m_bytes_per_row = static_cast<u16>(m_bitmap_width / 8u);
         m_bitmap_blocks_per_row = static_cast<u16>(m_bitmap_width / m_cfg.tile_width);
         m_block_planes_lines = static_cast<u16>(m_cfg.tile_height * m_cfg.planes);
         // Derivar map_w/h si no vienen dados: screens_x/y * (viewport/tile)
@@ -591,7 +592,7 @@ public:
 
         // BMF_INTERLEAVED-like: un único bloque Chip contiguo.
         // total = bytes_por_planeline * altura * planes  (planeline totales)
-        const u32 total_bytes = static_cast<u32>(m_bitmap_bytes_per_row) *
+        const u32 total_bytes = static_cast<u32>(m_bytes_per_row) *
                                 static_cast<u32>(m_bitmap_height) *
                                 static_cast<u32>(m_cfg.planes);
         // Reserva extra para el offset de fetch ancho (hasta 48 B) + guarda.
@@ -609,7 +610,7 @@ public:
         // modulo_offset = 2 (normal), 4 (BPL32/BPAGEM), 8 (BPL32+BPAGEM) según fetch_mode
         // SCREENBYTESPERROW = cfg.viewport_w / 8
         const u16 modulo_offset = fetch_modulo_offset(m_cfg.fetch_mode);
-        const s32 mod = static_cast<s32>(m_bitmap_bytes_per_row) * m_cfg.planes -
+        const s32 mod = static_cast<s32>(m_bytes_per_row) * m_cfg.planes -
                         (m_cfg.viewport_w / 8) - modulo_offset;
         m_bpl1mod = static_cast<u16>(mod);
         m_bpl2mod = static_cast<u16>(mod);
@@ -622,6 +623,11 @@ public:
         m_savewordpointer = nullptr;
         m_saveword = 0;
         m_blocks_buffer = reinterpret_cast<const u8*>(m_cfg.tileset);
+        // Sincronizar los campos de la base `Playfield` (usados por las
+        // primitivas CPU y los getters de geometría).
+        m_planes = m_cfg.planes;
+        m_width = m_bitmap_width;
+        m_height = m_bitmap_height;
         m_initialized = true;
         return true;
     }
@@ -658,75 +664,13 @@ public:
     }
 
     // -------------------------------------------------------------------------
-    // Primitivas de dibujo POR CPU sobre el framebuffer (mismo mapeo que
-    // add_world_bitmap). Todas las rutinas de dibujo deben pasar por aquí.
-    //  - `world_to_planeline(wy)`: fila del bucle donde vive el píxel (costura).
-    //  - `write_planes`: escribe la máscara en los `planes` bitplanes interleaved.
-    //  - `set_pixel` / `fill_rect` / `draw_line`: coordenadas de MUNDO (wx, wy);
-    //    en modo lineal también escriben al espejo (regla "espejo = duplica").
-    //  Restricción: wx dentro de una fila (byte < bitmap_bytes_per_row). Para
-    //  objetos anchos o plane-shifted usa add_world_bitmap (blits).
+    // Primitivas de dibujo: `set_pixel`/`fill_rect`/`draw_line` (CPU) viven en
+    // la base `Playfield` e implementan el mapeo vía los hooks de arriba
+    // (`planeline_for`/`byte_for`/`mirror_planelines`). Aquí se conservan los
+    // blits (`add_world_bitmap`/`add_world_bitmap_masked`) porque la costura del
+    // split y el espejo del modo lineal son específicos del corkscrew. Todas
+    // devuelven bool y validan límites.
     // -------------------------------------------------------------------------
-
-    /// Fila (en planelíneas) de inicio de la fila de mundo `wy` en el bucle.
-    constexpr u32 world_to_planeline(s32 wy) const {
-        const s32 loop = ((wy % m_display_height) + m_display_height) % m_display_height;
-        return static_cast<u32>(loop) * m_cfg.planes;
-    }
-
-    /// Escribe la máscara (bit del píxel) en los `planes` bitplanes de la
-    /// planelínea `planeline` en la word `word_byte` (byte word-aligned del píxel
-    /// de mundo `wx`). `word_byte = (wx/8) & ~1`: el walk horizontal del corkscrew
-    /// (píxel de mundo almacenado en `byte wx/8`, que cruza a la siguiente
-    /// planelínea cuando `wx/8 >= bitmap_bytes_per_row`) queda incluido en la
-    /// dirección y se acota contra el tamaño total del bitmap.
-    void write_planes(u32 planeline, u32 word_byte, u16 mask, u8 color) {
-        const u32 row = static_cast<u32>(m_bitmap_bytes_per_row);
-        u8* base = m_frontbuffer + planeline * row;
-        for (u8 p = 0; p < m_cfg.planes; ++p) {
-            const u32 b = static_cast<u32>(p) * row + word_byte;
-            if (b >= m_total_bytes) return; // fuera del bitmap (walk excesivo)
-            u16* w = reinterpret_cast<u16*>(base + b);
-            if ((color & (1u << p)) != 0u) *w |= mask;
-            else *w &= ~mask;
-        }
-    }
-
-    /// Dibuja un píxel de mundo en color (0..2^planes-1). En modo lineal duplica
-    /// al espejo. Soporta wx en todo el mundo (el byte cruza planelíneas por el
-    /// walk horizontal del corkscrew); para HUD fijo en pantalla pasa
-    /// (mapposx()+x, mapposy()+y) cada frame.
-    void set_pixel(s32 wx, s32 wy, u8 color) {
-        if (!m_initialized || wx < 0) return;
-        const u32 word_byte = (static_cast<u32>(wx / 8)) & ~1u;
-        const u16 mask = static_cast<u16>(0x8000u >> (wx & 15));
-        const u32 pl = world_to_planeline(wy);
-        write_planes(pl, word_byte, mask, color);
-        if (m_linear_display) write_planes(pl + m_mirror_planelines, word_byte, mask, color);
-    }
-
-    /// Rellena un rectángulo de mundo (CPU). Para rects grandes usa add_world_bitmap.
-    void fill_rect(s32 wx, s32 wy, u16 w, u16 h, u8 color) {
-        for (u16 dy = 0; dy < h; ++dy)
-            for (u16 dx = 0; dx < w; ++dx)
-                set_pixel(wx + dx, wy + dy, color);
-    }
-
-    /// Línea oblicua de mundo (Bresenham) por CPU, vía set_pixel.
-    void draw_line(s32 wx0, s32 wy0, s32 wx1, s32 wy1, u8 color) {
-        const s32 dx = wx1 > wx0 ? wx1 - wx0 : wx0 - wx1;
-        const s32 dy = wy1 > wy0 ? wy1 - wy0 : wy0 - wy1;
-        const s32 sx = wx0 < wx1 ? 1 : -1;
-        const s32 sy = wy0 < wy1 ? 1 : -1;
-        s32 err = dx - dy;
-        for (;;) {
-            set_pixel(wx0, wy0, color);
-            if (wx0 == wx1 && wy0 == wy1) break;
-            const s32 e2 = 2 * err;
-            if (e2 > -dy) { err -= dy; wx0 += sx; }
-            if (e2 < dx)  { err += dx; wy0 += sy; }
-        }
-    }
 
     /// Construye el `BlitJob` de un bloque (contrato de xlimited.c:201).
     ///
@@ -737,7 +681,7 @@ public:
     graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
         // x word-aligned como en DrawBlock: (x/8) & 0xFFFE
         const u16 x_word = static_cast<u16>((x / 8u) & 0xFFFEu);
-        const u32 dst_offset = static_cast<u32>(y) * m_bitmap_bytes_per_row + x_word;
+        const u32 dst_offset = static_cast<u32>(y) * m_bytes_per_row + x_word;
 
         // Resolución del bloque del mapa (wrapping si el mapa es circular)
         const u16 block = m_cfg.map.tile_at(mapx, mapy);
@@ -763,7 +707,7 @@ public:
         const u16 words = words_per_block;
         // Módulos del Blitter (ver §6)
         const s16 src_mod = static_cast<s16>(src_bytes_per_row - words * 2);
-        const s16 dst_mod = static_cast<s16>(m_bitmap_bytes_per_row - words * 2);
+        const s16 dst_mod = static_cast<s16>(m_bytes_per_row - words * 2);
 
         // Para que FramePlan::add_tile_block_copy valide, los strides deben
         // ser no nulos. En modo interleaved el stride real es el módulo, pero
@@ -852,15 +796,15 @@ public:
                           u32 planeline_start, u16 words, u16 seg_rows,
                           u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
         const s16 src_mod = static_cast<s16>(src_row_bytes - words * 2);
-        const s16 dst_mod = static_cast<s16>(m_bitmap_bytes_per_row * planes - words * 2);
+        const s16 dst_mod = static_cast<s16>(m_bytes_per_row * planes - words * 2);
         for (u8 p = 0; p < planes; ++p) {
             const u16* s = src + static_cast<u32>(p) * (src_plane_stride / 2u);
             u16* d = reinterpret_cast<u16*>(const_cast<u8*>(m_frontbuffer) +
-                (planeline_start + static_cast<u32>(p)) * m_bitmap_bytes_per_row + x_byte);
+                (planeline_start + static_cast<u32>(p)) * m_bytes_per_row + x_byte);
             graphics::BlitJob job {
                 graphics::BlitJobKind::CopyRect, nullptr, s, d,
                 words, seg_rows, src_mod, dst_mod,
-                1, 0, src_plane_stride, static_cast<u32>(m_bitmap_bytes_per_row * planes), false
+                1, 0, src_plane_stride, static_cast<u32>(m_bytes_per_row * planes), false
             };
             if (!plan.add_copy_rect(job)) return false;
         }
@@ -871,9 +815,9 @@ public:
     /// `src_row_bytes`, cada plano separado `src_plane_stride` bytes) en el MUNDO.
     /// `wx` debe ser múltiplo de 16 (word-aligned). El origen `src` debe estar en
     /// Chip RAM (el Blitter no lee .rodata). Gestiona la costura y el espejo.
-    bool add_world_bitmap(graphics::FramePlan& plan,
+    bool add_world_bitmap(graphics::FramePlan& plan, // override de Playfield
                           const u16* src, s32 wx, s32 wy, u16 w, u16 h,
-                          u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
+                          u16 src_row_bytes, u32 src_plane_stride, u8 planes) override {
         if (!m_initialized || src == nullptr || planes == 0) return false;
         if (wx < 0 || (wx & 15) != 0) return false;
         const s32 loop = ((wy % m_display_height) + m_display_height) % m_display_height;
@@ -909,15 +853,15 @@ public:
                                 u16 x_byte, u32 planeline_start, u16 words, u16 seg_rows,
                                 u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
         const s16 src_mod = static_cast<s16>(src_row_bytes - words * 2);
-        const s16 dst_mod = static_cast<s16>(m_bitmap_bytes_per_row * planes - words * 2);
+        const s16 dst_mod = static_cast<s16>(m_bytes_per_row * planes - words * 2);
         for (u8 p = 0; p < planes; ++p) {
             const u16* s = src + static_cast<u32>(p) * (src_plane_stride / 2u);
             u16* d = reinterpret_cast<u16*>(const_cast<u8*>(m_frontbuffer) +
-                (planeline_start + static_cast<u32>(p)) * m_bitmap_bytes_per_row + x_byte);
+                (planeline_start + static_cast<u32>(p)) * m_bytes_per_row + x_byte);
             graphics::BlitJob job {
                 graphics::BlitJobKind::MaskedBobCookieCut, mask, s, d,
                 words, seg_rows, src_mod, dst_mod,
-                1, 0, src_plane_stride, static_cast<u32>(m_bitmap_bytes_per_row * planes), false
+                1, 0, src_plane_stride, static_cast<u32>(m_bytes_per_row * planes), false
             };
             if (!plan.add_masked_bob(job)) return false;
         }
@@ -929,10 +873,10 @@ public:
     /// espejo gestionados) pero con un plano de máscara de 1 bit compartido con
     /// el layout de fila de un plano fuente: donde el bit es 0 se conserva el
     /// fondo, donde es 1 se escribe el BOB.
-    bool add_world_bitmap_masked(graphics::FramePlan& plan,
+    bool add_world_bitmap_masked(graphics::FramePlan& plan, // override de Playfield
                                  const u16* src, const u16* mask, s32 wx, s32 wy,
                                  u16 w, u16 h, u16 src_row_bytes, u32 src_plane_stride,
-                                 u8 planes) {
+                                 u8 planes) override {
         if (!m_initialized || src == nullptr || mask == nullptr || planes == 0) return false;
         if (wx < 0 || (wx & 15) != 0) return false;
         const s32 loop = ((wy % m_display_height) + m_display_height) % m_display_height;
@@ -997,14 +941,14 @@ public:
             const u16 y = static_cast<u16>(((bvpos + m_cfg.tile_height) % m_display_height) * m_cfg.planes);
             if (!add_draw(plan, static_cast<u16>(x0 + m_bitmap_width), y, mapx, mapy)) return false;
             const u16 y2 = static_cast<u16>((y + m_block_planes_lines) % m_display_planelines);
-            save_word(static_cast<u32>(y2 + m_block_planes_lines - 1) * m_bitmap_bytes_per_row +
+            save_word(static_cast<u32>(y2 + m_block_planes_lines - 1) * m_bytes_per_row +
                       ((x0 + m_bitmap_width) / 8u));
             if (!add_draw(plan, static_cast<u16>(x0 + m_bitmap_width), y2, mapx, static_cast<u16>(mapy + 1))) return false;
         } else { // un bloque
             ++mapy;
             const u16 y = static_cast<u16>(((bvpos + mapy * m_cfg.tile_height) % m_display_height) * m_cfg.planes);
             mapy = static_cast<u16>(mapy + mapblocky);
-            save_word(static_cast<u32>(y + m_block_planes_lines - 1) * m_bitmap_bytes_per_row +
+            save_word(static_cast<u32>(y + m_block_planes_lines - 1) * m_bytes_per_row +
                       ((x0 + m_bitmap_width) / 8u));
             if (!add_draw(plan, static_cast<u16>(x0 + m_bitmap_width), y, mapx, mapy)) return false;
         }
@@ -1082,7 +1026,7 @@ public:
         if (mapy == 1) { // stepx == 0 → dos bloques
             mapy = static_cast<u16>(mapy + mapblocky);
             const u16 y = static_cast<u16>(((bvpos + m_cfg.tile_height) % m_display_height) * m_cfg.planes);
-            save_word(static_cast<u32>(y) * m_bitmap_bytes_per_row + (x0 / 8u));
+            save_word(static_cast<u32>(y) * m_bytes_per_row + (x0 / 8u));
             if (!add_draw(plan, x0, y, mapx, mapy)) return false;
             const u16 y2 = static_cast<u16>((y + m_block_planes_lines) % m_display_planelines);
             if (!add_draw(plan, x0, y2, mapx, static_cast<u16>(mapy + 1))) return false;
@@ -1090,7 +1034,7 @@ public:
             ++mapy;
             const u16 y = static_cast<u16>(((bvpos + mapy * m_cfg.tile_height) % m_display_height) * m_cfg.planes);
             mapy = static_cast<u16>(mapy + mapblocky);
-            save_word(static_cast<u32>(y) * m_bitmap_bytes_per_row + (x0 / 8u));
+            save_word(static_cast<u32>(y) * m_bytes_per_row + (x0 / 8u));
             if (!add_draw(plan, x0, y, mapx, mapy)) return false;
         }
 
@@ -1149,7 +1093,7 @@ public:
             const u16 my = static_cast<u16>(stepx + 1);
             const u16 y2 = static_cast<u16>(((nvpos + my * m_cfg.tile_height) % m_display_height) * m_cfg.planes);
             const u16 y2b = static_cast<u16>((y2 + m_block_planes_lines - 1) % m_display_planelines);
-            save_word(static_cast<u32>(y2b) * m_bitmap_bytes_per_row + ((x0 + m_bitmap_width) / 8u));
+            save_word(static_cast<u32>(y2b) * m_bytes_per_row + ((x0 + m_bitmap_width) / 8u));
             if (!add_draw(plan, static_cast<u16>(x0 + m_bitmap_width), y2,
                 static_cast<u16>(mapblockx + m_bitmap_blocks_per_row),
                 static_cast<u16>(my + nmapblocky))) return false;
@@ -1184,7 +1128,7 @@ public:
             if (m_previous_xdirection == 2) restore_saveword(); // DIRECTION_RIGHT
             const u16 my2 = static_cast<u16>(stepx + 2);
             const u16 y2 = static_cast<u16>(((bvpos + my2 * m_cfg.tile_height) % m_display_height) * m_cfg.planes);
-            save_word(static_cast<u32>(y2) * m_bitmap_bytes_per_row + (x0 / 8u));
+            save_word(static_cast<u32>(y2) * m_bytes_per_row + (x0 / 8u));
             if (!add_draw(plan, x0, y2,
                 static_cast<u16>(mx1 - m_bitmap_blocks_per_row),
                 static_cast<u16>(my2 + mapblocky))) return false;
@@ -1206,11 +1150,11 @@ public:
     }
 
     /// Vista de hardware para el compositor (planeaddx + BPLCON1 + offset Y).
-    XlimitedHardwareView hardware_view() const {
-        XlimitedHardwareView v {};
+    PlayfieldHardwareView hardware_view() const override {
+        PlayfieldHardwareView v {};
         v.bitplanes = m_frontbuffer;
         v.real_base = m_real_base;
-        v.bitmap_bytes_per_row = m_bitmap_bytes_per_row;
+        v.bitmap_bytes_per_row = m_bytes_per_row;
         v.planes = m_cfg.planes;
         v.bitmap_height = m_bitmap_height;
         v.viewport_w = m_cfg.viewport_w;
@@ -1245,7 +1189,7 @@ public:
         }
         v.display_height = m_display_height;
         v.display_offset = display_offset;
-        v.planeaddy = static_cast<u32>(display_offset) * m_cfg.planes * m_bitmap_bytes_per_row;
+        v.planeaddy = static_cast<u32>(display_offset) * m_cfg.planes * m_bytes_per_row;
         // Split vertical: la vuelta al inicio del bucle ocurre a
         // `display_height - display_offset` filas dentro de la ventana. Solo se
         // necesita si esa vuelta cae dentro del viewport (yoffset + VH > DH).
@@ -1254,15 +1198,22 @@ public:
         v.split_active = !m_linear_display && m_cfg.scroll_y && v.split_line < m_cfg.viewport_h;
         v.split_planeaddy = 0; // fila 0 (los punteros del split solo suman planeaddx)
         // plane_bytes para validación: bytes totales
-        v.plane_bytes = static_cast<u32>(m_bitmap_bytes_per_row * m_bitmap_height * m_cfg.planes);
+        v.plane_bytes = static_cast<u32>(m_bytes_per_row * m_bitmap_height * m_cfg.planes);
         return v;
     }
 
     // Accesores para verificación y demo
-    constexpr s32 mapposx() const { return m_mapposx; }
-    constexpr s32 videoposx() const { return m_videoposx; }
-    constexpr s32 mapposy() const { return m_mapposy; }
-    constexpr s32 videoposy() const { return m_videoposy; }
+    constexpr s32 mapposx() const override { return m_mapposx; }
+    constexpr s32 videoposx() const override { return m_videoposx; }
+    constexpr s32 mapposy() const override { return m_mapposy; }
+    constexpr s32 videoposy() const override { return m_videoposy; }
+
+    /// Columna de mundo de un objeto FIJO en la columna de pantalla `sx`.
+    constexpr s32 screen_to_world_x(s16 sx) const { return m_mapposx + sx; }
+    /// Fila de mundo de un objeto FIJO en la fila de pantalla `sy`. La ventana
+    /// visible NO empieza en videoposy (la banda de staging queda un bloque por
+    /// encima): equivale a `(mapposy + tile_height + sy) % display_height`.
+    constexpr s32 screen_to_world_y(s16 sy) const { return screen_to_bitmap_row(sy); }
 
     /// Fila (en píxeles) del bucle vertical donde empieza la ventana visible.
     /// Coincide con `(videoposy + tile_height) % display_height`.
@@ -1298,7 +1249,7 @@ public:
         const s32 row = display_offset() + sy;
         return m_linear_display ? row : (row % m_display_height);
     }
-    constexpr u16 bitmap_bytes_per_row() const { return m_bitmap_bytes_per_row; }
+    constexpr u16 bitmap_bytes_per_row() const { return m_bytes_per_row; }
     constexpr u16 bitmap_width() const { return m_bitmap_width; }
     constexpr u16 bitmap_height() const { return m_bitmap_height; }
     constexpr u16 bitmap_blocks_per_row() const { return m_bitmap_blocks_per_row; }
@@ -1355,11 +1306,8 @@ private:
     XlimitedConfig m_cfg {};
     MemoryBlock m_bitmap_block {};
     u8* m_real_base = nullptr;
-    u8* m_frontbuffer = nullptr;
-    u32 m_total_bytes = 0; // bytes del bitmap (row_bytes * bitmap_height * planes)
     const u8* m_blocks_buffer = nullptr;
     u16 m_bitmap_width = xlimited_detail::kBitmapW32;
-    u16 m_bitmap_bytes_per_row = 44;
     u16 m_bitmap_blocks_per_row = xlimited_detail::kBlocksPerRow32;
     u16 m_block_planes_lines = 0; // recalculado en begin(): BLOCKHEIGHT*planes
     u16 m_bitmap_height = 0; // recalculado en begin(): compute_bitmap_height(viewport_h, mapW, blocksPerRow, planes)
@@ -1374,7 +1322,6 @@ private:
     u16* m_savewordpointer = nullptr;
     u16 m_saveword = 0;
     u8 m_previous_xdirection = 0; // 0=ignore, 1=left, 2=right (corkscrew)
-    bool m_initialized = false;
 };
 
 /// Compositor mínimo para XLimited/corkscrew (single playfield interleaved).
@@ -1416,17 +1363,30 @@ public:
         return true;
     }
 
-    bool compose(const XlimitedHardwareView& view) {
+    bool compose(const PlayfieldHardwareView& view) {
+        return compose(view, nullptr);
+    }
+
+    /// Zona HUD: un playfield SEPARADO mostrado en la franja inferior de la
+    /// ventana (raster `DIWSTRT_y + view.viewport_h` en adelante). La escena
+    /// mantiene la ventana DIW abierta a su tamaño total y la zona solo cambia
+    /// BPLCON1/BPL1/2MOD/BPLxPT (+ paleta) en el raster de la franja.
+    struct HudZone {
+        PlayfieldHardwareView view;    // playfield del HUD (canvas)
+        const u16* palette = nullptr;  // paleta del HUD (0..2^planes-1), opcional
+    };
+
+    bool compose(const PlayfieldHardwareView& view, const HudZone* hud) {
         if (!m_initialized || !view.bitplanes) return false;
         if (!valid_view(view)) return false;
         if (!m_copper_initialized) {
-            if (!emit_full(0, view) || !emit_full(1, view)) return false;
+            if (!emit_full(0, view, hud) || !emit_full(1, view, hud)) return false;
             m_copper_initialized = true;
             m_active = 0;
             return true;
         }
         const u8 inactive = static_cast<u8>(m_active ^ 1u);
-        if (!emit_full(inactive, view)) return false;
+        if (!emit_full(inactive, view, hud)) return false;
         m_active = inactive;
         return true;
     }
@@ -1441,6 +1401,10 @@ public:
 
     constexpr bool ok() const { return m_ok; }
     constexpr u16 copper_words() const { return m_copper_words; }
+    /// Depuración: puntero al bloque de copper activo.
+    const u16* debug_active_copper() const {
+        return m_copper_initialized ? static_cast<const u16*>(m_copper_blocks[m_active].data) : nullptr;
+    }
 
 private:
     static constexpr u16 pointer_high_word(u8 plane) {
@@ -1450,7 +1414,7 @@ private:
         return static_cast<u16>(23u + plane * 4u);
     }
 
-    bool valid_view(const XlimitedHardwareView& v) const {
+    bool valid_view(const PlayfieldHardwareView& v) const {
         if (!v.bitplanes || v.planes == 0 || v.planes > 6) return false;
         if (v.bitmap_bytes_per_row == 0) return false;
         if (v.bitmap_height == 0) return false;
@@ -1464,7 +1428,7 @@ private:
         return true;
     }
 
-    bool emit_full(u8 block, const XlimitedHardwareView& view) {
+    bool emit_full(u8 block, const PlayfieldHardwareView& view, const HudZone* hud = nullptr) {
         copper::Scheduler sched { m_copper_blocks[block] };
         const u16 bplcon0 = static_cast<u16>(
             0x0200u | (static_cast<u16>(view.planes) << 12u));
@@ -1513,7 +1477,25 @@ private:
             }
         }
         // El blanking de abajo solo si no estorba con un split en línea alta.
-        if (!view.split_active || raster < 0xf8u) {
+        if (hud != nullptr) {
+            // Zona HUD: cambia BPLCON1 (sin scroll), modulos y BPLxPT al playfield
+            // del HUD en el raster `DIWSTRT_y + main`. La ventana DIW ya está
+            // abierta al total (la escena la configura así con HUD).
+            const u16 hud_raster = static_cast<u16>((m_cfg.diwstrt >> 8u) + view.viewport_h);
+            sched.wait_line(hud_raster > 0xffu ? 0xffu : static_cast<u8>(hud_raster));
+            sched.move(copper::Register::BPLCON1, 0x0000);
+            sched.move(copper::Register::BPL1MOD, hud->view.bpl1mod);
+            sched.move(copper::Register::BPL2MOD, hud->view.bpl2mod);
+            for (u8 p = 0; p < hud->view.planes; ++p) {
+                const u32 addr = reinterpret_cast<u32>(hud->view.real_base) +
+                                 static_cast<u32>(p) * hud->view.bitmap_bytes_per_row;
+                sched.move_bitplane_pointer(p, reinterpret_cast<const void*>(addr));
+            }
+            if (hud->palette != nullptr) {
+                const u8 count = static_cast<u8>(1u << hud->view.planes);
+                sched.emit_palette(hud->palette, 0, count);
+            }
+        } else if (!view.split_active || raster < 0xf8u) {
             sched.wait_line(0xf8);
             sched.move(copper::Register::COLOR00, 0x0000);
         }
@@ -1532,7 +1514,7 @@ private:
     bool m_ok = false;
 };
 
-/// Compositor dual playfield (DPF 3+3) para dos `XlimitedField` (corkscrew).
+/// Compositor dual playfield (DPF 3+3) para dos `XLimitedPlayfield` (corkscrew).
 ///
 /// PF1 usa los planos de hardware 1,3,5 y PF2 los 2,4,6 (cada playfield es un
 /// bitmap interleaved independiente de profundidad `planes_per_field`). Ambos
@@ -1561,7 +1543,7 @@ public:
         return true;
     }
 
-    bool compose(const XlimitedHardwareView& pf1, const XlimitedHardwareView& pf2) {
+    bool compose(const PlayfieldHardwareView& pf1, const PlayfieldHardwareView& pf2) {
         if (!m_initialized) return false;
         if (!valid(pf1, pf2)) return false;
         if (!m_copper_initialized) {
@@ -1592,12 +1574,12 @@ private:
         return static_cast<u8>(pf1_plane * 2u + (is_pf1 ? 0u : 1u));
     }
 
-    static u32 field_plane_address(const XlimitedHardwareView& v, u8 plane, u32 y_offset) {
+    static u32 field_plane_address(const PlayfieldHardwareView& v, u8 plane, u32 y_offset) {
         return reinterpret_cast<u32>(v.real_base) + v.planeaddx + y_offset +
                static_cast<u32>(plane) * v.bitmap_bytes_per_row;
     }
 
-    bool valid(const XlimitedHardwareView& a, const XlimitedHardwareView& b) const {
+    bool valid(const PlayfieldHardwareView& a, const PlayfieldHardwareView& b) const {
         if (!a.bitplanes || !b.bitplanes) return false;
         if (a.planes != m_cfg.planes_per_field || b.planes != m_cfg.planes_per_field) return false;
         if (a.planes + b.planes > 6) return false;
@@ -1608,7 +1590,7 @@ private:
         return true;
     }
 
-    bool emit_full(u8 block, const XlimitedHardwareView& pf1, const XlimitedHardwareView& pf2) {
+    bool emit_full(u8 block, const PlayfieldHardwareView& pf1, const PlayfieldHardwareView& pf2) {
         copper::Scheduler sched { m_copper_blocks[block] };
         const u8 total = static_cast<u8>(m_cfg.planes_per_field * 2u);
         const u16 bplcon0 = static_cast<u16>(0x0200u | (static_cast<u16>(total) << 12u) | 0x0400u);

@@ -31,7 +31,7 @@ recomendada es `xlimited.c` → `xlimited-uk.html` → `xylimited.c` → `xlimit
 
 ## Resumen ejecutivo
 
-| Dimensión | Circular (`TileFieldController`) | XLimited (`XlimitedField`) |
+| Dimensión | Circular (`TileFieldController`) | XLimited (`XLimitedPlayfield`) |
 |---|---|---|
 | **Objetivo** | 8-way genérico (X e Y) con ventana recentrable | X infinito (Steger *Scroller_XLimited*); Y separado si hace falta |
 | **Geometría** | `VW+2*BW` × `(VH+2*BH)/BH*BH+1` + guarda lineal; recentrado lógico | `352` (22 bloques) ó `384` (24 bloques) × `256+(map_width/blocks_per_row/planes)+1+3` interleaved |
@@ -364,11 +364,11 @@ Blitter, sin *split* de Copper y con *saveword* de 2 B en lugar de bandas duplic
 
 ---
 
-## 8. Guía de migración (de `TileFieldController` a `XlimitedField`)
+## 8. Guía de migración (de `TileFieldController` a `XLimitedPlayfield`)
 
 | Paso | Circular | XLimited |
 |---|---|---|
-| Reserva | `TileFieldController::begin(memory,cfg,offset)` con `viewport+margin` | `XlimitedField::begin(memory,cfg)` — `cfg.bitmap_width=352/384`, `cfg.planes`, `cfg.fetch_mode`; valida interleaved |
+| Reserva | `TileFieldController::begin(memory,cfg,offset)` con `viewport+margin` | `XLimitedPlayfield::begin(memory,cfg)` — `cfg.bitmap_width=352/384`, `cfg.planes`, `cfg.fetch_mode`; valida interleaved |
 | Relleno inicial | `enqueue_initial()` + `pump` hasta `!busy()` | `fill_screen(plan)` → `22*16` jobs; ejecutar con `MinimalBackend` y *budget* (demo 107: 120) |
 | Scroll | `update(cfg,delta,plan)` con clamp `[-5,5]` + `pump` | `scroll_right(plan)` / `scroll_left(plan)` — 1 job por llamada; `mapposx/videoposx` avanzan 1 px |
 | Composición | `hardware_view(first_plane)` → `FieldHardwareView` con `split_*` | `hardware_view()` → `XlimitedHardwareView{planeaddx,bplcon1,bpl1mod/bpl2mod,bitmap_bytes_per_row}` → `XlimitedDisplayComposer::compose/install` |
@@ -376,7 +376,7 @@ Blitter, sin *split* de Copper y con *saveword* de 2 B en lugar de bandas duplic
 | Guarda | Última scanline a 0; no tocar | `saveword` automático; no escribir la guarda manualmente |
 
 Para scroll X infinito, preferir `engine/include/eng/field/xlimited.hpp`
-(`XlimitedField` + `XlimitedDisplayComposer`). `TileFieldController` se mantiene
+(`XLimitedPlayfield` + `XlimitedDisplayComposer`). `TileFieldController` se mantiene
 para casos 8-way genéricos (ver nota de deprecación suave en `TILE_FIELD_API.md`).
 
 ---
