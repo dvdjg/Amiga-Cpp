@@ -95,7 +95,7 @@ namespace demo = eng::field::demo;
 //   K_TILE_SIZE  (16|32)  alto de tile (K_TILE_H es alias)
 //   K_PLANES     (3|4|5|6) profundidad (8/16/32/64 colores; 6 = EHB/DPF 3+3)
 //   K_FETCH_MODE (0|1|2|3) modo de fetch: 0=16px $30 mod 2 · 1/2=32px $28 mod 4 · 3=64px $18 mod 8
-//   K_VIEWPORT_W/H (320/256 | 288/224)  ventana visible
+//   K_VIEWPORT_W/H (320/224 | 288/208 | 256 con K_LINEAR=1)  ventana visible
 //   K_SCREENS_X/Y (16|8...)  pantallas virtuales → mapa = screens*viewport/tile
 //
 // -----------------------------------------------------------------------------
@@ -170,7 +170,7 @@ namespace demo = eng::field::demo;
 #define K_VIEWPORT_W 320
 #endif
 #ifndef K_VIEWPORT_H
-#define K_VIEWPORT_H 256
+#define K_VIEWPORT_H 224 // canónico juegos: 224 filas visibles + 32 de borde/HUD debajo
 #endif
 #ifndef K_SCREENS_X
 #define K_SCREENS_X 16
@@ -210,8 +210,11 @@ namespace demo = eng::field::demo;
 #endif
 // Display lineal sin split (espejo del bucle): elimina la banda del split en
 // raster 256..296 (comparador de 8 bits) a costa de 2x blits (dibujo + espejo).
+// Para el viewport canónico de juego (224) el split cae casi siempre en líneas
+// esperables, así que por defecto se usa el split (1x blits). Usa K_LINEAR=1
+// solo para viewports altos (256) o si quieres eliminar el residuo del split.
 #ifndef K_LINEAR
-#define K_LINEAR 1
+#define K_LINEAR 0
 #endif
 // Alias K_TILE_W/H para la parametrización nueva (compatibles con K_TILE_WIDTH/SIZE)
 #ifndef K_TILE_W
