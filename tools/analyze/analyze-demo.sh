@@ -22,19 +22,22 @@ OUT_DIR="$ROOT/out/demos/$DEMO_NAME"
 SCREENSHOT="$ROOT/out/run/$DEMO_NAME/screenshot.png"
 
 # El build nombra el exe con CONFIG_ID (MACHINE_flags_modo): out/demos/<demo>/<CONFIG_ID>/<demo>.<CONFIG_ID>.exe.
-# Localizamos la config: prioridad por defecto (sin flags, _debug), luego otras _debug,
-# luego release; desempate por mtime. Si no hay config, ruta vieja (pre-CONFIG_ID).
+# Localizamos la config: prioridad 0=A500_debug (default), 1=A500_o0, 2=debug con
+# flags, 3=o0 con flags, 4=A500_release, 5=release con flags; desempate por mtime.
 pick_config() {
 	local cfg best_rank=99 best_mt=0 best=""
 	for cfg in "$OUT_DIR"/*/; do
 		[ -d "$cfg" ] || continue
 		local name; name="$(basename "$cfg")"
 		[ -f "$cfg/$DEMO_NAME.$name.exe" ] || continue
-		local rank
-		if [[ "$name" =~ ^[^_]+_(debug|o0)$ ]]; then rank=0
-		elif [[ "$name" =~ _debug$ ]]; then rank=1
-		elif [[ "$name" =~ ^[^_]+_release$ ]]; then rank=2
-		else rank=3; fi
+		local noflags; noflags=0
+		[ "$(echo "$name" | awk -F_ '{print NF}')" -le 2 ] && noflags=1
+		local rank=6
+		case "$name" in
+			*_debug)   rank=$(( noflags ? 0 : 2 )) ;;
+			*_o0)      rank=$(( noflags ? 1 : 3 )) ;;
+			*_release) rank=$(( noflags ? 4 : 5 )) ;;
+		esac
 		local mt; mt="$(stat -c %Y "$cfg/$DEMO_NAME.$name.exe" 2>/dev/null || echo 0)"
 		if [ "$rank" -lt "$best_rank" ] || { [ "$rank" -eq "$best_rank" ] && [ "$mt" -gt "$best_mt" ]; }; then
 			best_rank=$rank; best_mt=$mt; best="$name"
@@ -48,10 +51,11 @@ if [ -n "$CONFIG_ID" ]; then
 	EXE="$OUT_DIR/$CONFIG_ID/$DEMO_NAME.$CONFIG_ID.exe"
 	ELF="$OUT_DIR/$CONFIG_ID/$DEMO_NAME.$CONFIG_ID.elf"
 	MAP="$OUT_DIR/$CONFIG_ID/$DEMO_NAME.$CONFIG_ID.map"
+	SCREENSHOT="$ROOT/out/run/$DEMO_NAME/$CONFIG_ID/screenshot.png"
 else
 	EXE="$OUT_DIR/$DEMO_NAME.exe"
-	ELF="$OUT_DIR/$DEMO_NAME.elf"
-	MAP="$OUT_DIR/$DEMO_NAME.map"
+ELF="$OUT_DIR/$DEMO_NAME.elf"
+MAP="$OUT_DIR/$DEMO_NAME.map"
 fi
 
 [ -f "$EXE" ] || { echo "No existe $EXE. Ejecuta primero tools/build/build-demo.sh." >&2; exit 1; }

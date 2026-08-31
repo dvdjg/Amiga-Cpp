@@ -31,7 +31,7 @@ La comprobación rápida de cualquier patrón caliente: `m68k-amiga-elf-g++ -m68
 -flto (P: aceptado por el driver; validar el link completo en build-demo.sh)
 ```
 
-- `[✓]` `-mtune=68020` **sí** se acepta (y `68030/68040/68060`). Se usa con `-m68000`: reordena y optimiza para CPUs superiores sin emitir instrucciones no-68000.
+- `[✓/✗]` `-mtune=68020` **sí** se acepta (y `68030/68040/68060`), pero **en este repo a `-O1` cuelga la init de la demo 107** (ver bitácora §8). No usar `-mtune` de momento; si interesase, investigar con UN solo origen optimizado (override `ENGINE_OPT`/`DEMO_OPT`, ver `build-demo.sh`).
 - `[✗]` `-mcpu=68020-60` **no existe** en este fork: `-mcpu=` solo admite `51..` `5202..`, `68000..68060`, `cpu32`, `fidoa`. No usar `-mtune=68020-60` (ese valor no es válido ni para `-mcpu` ni se recomienda).
 - `[✗]` `-O2 -Os` juntos son contradictorios: en GCC gana el ÚLTIMO. Decidir uno: `-Os` (código más compacto, y el único que fuerza `dbra` en bucles countdown, ver §4) o `-O2` (más agresivo, a veces transforma el bucle a límite de puntero en vez de `dbra`).
 - `[✓]` `-fomit-frame-pointer`: libera A6. Con `-mshort` todo cambia el ABI; solo si se controla todo el código.
@@ -146,13 +146,15 @@ do {
 |-------|-------|----------------------|
 | 2026-08-31 | Register params `int f(int* __asm("a0"))` | [✗] Error de sintaxis en `m68k-amiga-elf-g++ 15.1.0`; usar variable local `__asm` o trampolín asm. |
 | 2026-08-31 | `-mcpu=68020-60` | [✗] No es argumento válido (lista: `68000..68060`, `cpu32`, `fidoa`). |
-| 2026-08-31 | `-mtune=68020` sobre `-m68000` | [✓] Aceptado; se puede usar. |
+| 2026-08-31 | `-mtune=68020` sobre `-m68000` | [✓] Aceptado por el driver **pero a `-O1` cuelga la init de la demo 107** (A500_debug real, sin `-O0`/release implicados). No usarlo en este repo. |
 | 2026-08-31 | Truco countdown → `dbra` con `-Os` | [✓] Emite `dbra %d1,.L5` (4 insns). Con `-O2` solo: bucle de límite de puntero. |
 | 2026-08-31 | Mul/div 16-bit | [✓] `muls.w`/`divu.w` nativos (sin `__mulsi3`). |
 | 2026-08-31 | Bitfields vs máscara+shift | [✓] Bitfield más corto y sin spill en el caso sondeado; verificar por patrón. |
 | 2026-08-31 | ICE `-O0` + shift variable | [✓] El fork crashea en `dwarf2` con `lsr.w %dN` a `-O0` (incluso `-g0`). No compilar juegos a `-O0`. |
-| 2026-08-31 | `-flto` | [P] El driver acepta el flag y produce `.o` LTO; validar el enlace completo en `build-demo.sh`. |
+| 2026-08-31 | `-flto` | [✓] El driver acepta el flag y produce `.o` LTO; el enlace completo queda pendiente de validar. |
 | 2026-08-31 | `<cstdint>` | [✗] No existe (toolchain freestanding, sin libstdc++); usar `eng/types.hpp`. |
+| 2026-08-31 | **"Release (-Ofast/-O2/-Os) cuelga la init de la demo 107"** | [✗] **REVISADO: falso.** El cuelgue era del config `A500_o0` (`--o0`), que `run-demo` elegía por el orden de prioridad (rank 0 igual que `A500_debug`, desempate por mtime) cuando se buscaba probar release. Corregido el picker (`A500_debug`=0, `A500_o0`=1, debug con flags=2, release=4…). Con `A500_o0` eliminado, **release `-Os` corre**: READY + screenshot `OK white=4201`. El `-O0` en émulo de 68000 no llega a READY en 40s (init lenta), no es un bug de flags. |
+| 2026-08-31 | Objetos idénticos but release timeout | [✗] **REVISADO**: el "release" que se ejecutaba era el exe `A500_o0` recién compilado (mismo exe bajo nombre debug corría perfecto). No había UB de optimización; era el runner eligiendo config. |
 
 ---
 

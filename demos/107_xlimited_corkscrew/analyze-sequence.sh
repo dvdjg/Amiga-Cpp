@@ -34,6 +34,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEMO="demos/107_xlimited_corkscrew"
+DEMO_NAME="$(basename "$DEMO")"
 BUILD="$ROOT/tools/build/build-demo.sh"
 RUN="$ROOT/tools/run/run-demo.sh"
 SEQ_ANALYZER="$ROOT/tools/analyze/analyze-frame-sequence.sh"
@@ -45,6 +46,19 @@ ANALYZE_DEMO="$ROOT/tools/analyze/analyze-demo.sh"
 
 SEQ_DIR="$ROOT/out/run/107_xlimited_corkscrew/sequence"
 RUN_REPORT="$ROOT/out/run/107_xlimited_corkscrew/run-report.json"
+
+# El runner escribe con CONFIG_ID: out/run/<demo>/<CONFIG_ID>/{sequence,run-report.json}.
+# `cfg_name` reproduce el token de build-demo.sh (MACHINE + EXTRA_DEFINES + _debug)
+# para calcular la ruta exacta donde caen los artefactos de cada rama.
+cfg_name() { # $1 = EXTRA_DEFINES
+	local flags="" 
+	if [ -n "${1:-}" ]; then
+		flags="$(echo "$1" | tr -cd 'A-Za-z0-9_' | tr 'A-Z' 'a-z' | sed 's/^d//; s/_d/_/g')"
+	fi
+	local c="${TARGET_MACHINE:-A500}"
+	if [ -n "$flags" ]; then c="${c}_${flags}"; fi
+	echo "${c}_debug"
+}
 
 WARP=0
 if [ "${1:-}" = "--warp" ]; then
@@ -93,7 +107,9 @@ if [ "$EFFECT" != "0" ]; then
 		|| { echo "No se pudo compilar la demo con K_EFFECT=$EFFECT." >&2; exit 1; }
 	"$RUN" "$DEMO" --settle-ms 500 --sequence-frames 40 --sequence-interval-ms 20 "${extra[@]}" \
 		|| { echo "No se pudo capturar la secuencia con K_EFFECT=$EFFECT." >&2; exit 1; }
-	node "$VERIFY_SCROLL_DIR" --seq "$SEQ_DIR" --axis "$AXIS" --expect "$EXPECT" \
+	# La captura con EXTRA_DEFINES cae en la config A500_k_effectN_debug.
+	EFFECT_CFG="$(cfg_name "-DK_EFFECT=$EFFECT")"
+	node "$VERIFY_SCROLL_DIR" --seq "$ROOT/out/run/$DEMO_NAME/$EFFECT_CFG/sequence" --axis "$AXIS" --expect "$EXPECT" \
 		|| { echo "La secuencia K_EFFECT=$EFFECT no cumple la dirección/artefactos esperados." >&2; exit 1; }
 	# Reconstruir el defecto para no dejar la demo en un efecto aislado.
 	EXTRA_DEFINES="" "$BUILD" "$DEMO" --debug --clean >/dev/null 2>&1 \
@@ -101,6 +117,11 @@ if [ "$EFFECT" != "0" ]; then
 	echo "OK 107_xlimited_corkscrew effect K_EFFECT=$EFFECT — dirección verificada (axis=$AXIS expect=$EXPECT)."
 	exit 0
 fi
+
+# Rama por defecto (EFFECT=0): los artefactos caen en la config A500_debug.
+DEF_CFG="$(cfg_name "")"
+SEQ_DIR="$ROOT/out/run/$DEMO_NAME/$DEF_CFG/sequence"
+RUN_REPORT="$ROOT/out/run/$DEMO_NAME/$DEF_CFG/run-report.json"
 
 # 1) Captura la secuencia continua a la derecha: 100 frames, intervalo ~20 ms
 #    (≈50 fps, 2 px/frame → ~200 px de avance). --settle-ms 500 deja que el
