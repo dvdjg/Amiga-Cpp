@@ -397,6 +397,13 @@ public:
     }
 
     constexpr bool ok() const { return m_initialized; }
+
+    /// Reinicia el auto-ciclo de fases (para el CICLO DE VIDA al conmutar
+    /// técnica: la fase vuelve a start_phase y el contador a 0).
+    void reset_auto() {
+        m_phase_frame = 0;
+        m_phase = m_cfg.start_phase;
+    }
     constexpr eng::u8 fields() const {
         return (m_cfg.dual && !m_cfg.fg_canvas) ? 2u : 1u;
     }

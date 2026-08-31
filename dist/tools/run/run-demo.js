@@ -202,7 +202,7 @@ async function captureScreenshot(protocol, imagePath, timeoutMs = 30000) {
         exists: fs.existsSync(imagePath),
     };
 }
-async function captureFrameSequence(protocol, sequenceDir, frameCount, intervalMs, sideChannel = null) {
+async function captureFrameSequence(protocol, sequenceDir, frameCount, intervalMs, sideChannel = null, onSample = null) {
     // Each sequence must be self-contained. Leaving older frame_XXX.png files in
     // place made analyzers and contact sheets mix different runs, which is exactly
     // the kind of false confidence these tools are meant to prevent.
@@ -236,6 +236,9 @@ async function captureFrameSequence(protocol, sequenceDir, frameCount, intervalM
         frames.push(frame);
         if (intervalMs > 0 && i + 1 < frameCount) {
             await sleep(intervalMs);
+        }
+        if (onSample) {
+            await onSample(i, frame, frames);
         }
     }
     return {
@@ -650,6 +653,11 @@ const sideChannelTimeoutMs = parseInt(argValue('--side-channel-timeout-ms', proc
 const sideChannelPollMs = parseInt(argValue('--side-channel-poll-ms', process.env.ENG_SIDE_CHANNEL_POLL_MS || '50'), 10);
 const sequenceFrames = Math.max(0, parseInt(argValue('--sequence-frames', '0'), 10));
 const sequenceIntervalMs = Math.max(0, parseInt(argValue('--sequence-interval-ms', '100'), 10));
+const injectCommandsArg = argValue('--inject-commands', '');
+const injectCommands = injectCommandsArg === ''
+    ? []
+    : injectCommandsArg.split('|').map((value) => value.trim()).filter((value) => value !== '');
+const injectSample = Math.max(0, parseInt(argValue('--inject-sample', '4'), 10));
 const sequenceFineXArg = argValue('--sequence-fine-x', '');
 const sequenceFineX = sequenceFineXArg === ''
     ? []
@@ -897,11 +905,34 @@ try {
     }
     else if (sequenceFrames > 0) {
         console.log(`[run-demo] capturing ${sequenceFrames} sequence frames every ${sequenceIntervalMs} ms`);
+        const injectionEvents = [];
+        const onSample = injectCommands.length === 0
+            ? null
+            : async (index, frame, frames) => {
+                if (index !== injectSample - 1)
+                    return;
+                console.log(`[run-demo] injecting ${injectCommands.length} monitor commands after sample ${index}`);
+                for (const cmd of injectCommands) {
+                    const sleepMatch = cmd.match(/^sleep:(\d+)$/);
+                    if (sleepMatch) {
+                        const ms = parseInt(sleepMatch[1], 10);
+                        await sleep(ms);
+                        continue;
+                    }
+                    await protocol.sendMonitorCommand(cmd, 5000);
+                    injectionEvents.push(cmd);
+                }
+                frame.injection = { sampleAfter: index, commands: [...injectionEvents] };
+            };
         report.sequence = await captureFrameSequence(protocol, path.join(outputDir, 'sequence'), sequenceFrames, sequenceIntervalMs, report.sideChannel?.runtimeAddress ? {
             port: sideChannelPort,
             runtimeAddress: report.sideChannel.runtimeAddress,
             timeoutMs: 1000,
-        } : null);
+        } : null, onSample);
+        report.inputInjection = injectionEvents.length > 0 ? {
+            sample: injectSample,
+            commands: injectionEvents,
+        } : undefined;
     }
     // Telemetría por frame (opcional): lee `g_eng_frame_telemetry` (u32 frame,
     // u16 blit_jobs, u16 blit_words, u16 copper_words, u16 fillup_extra) por GDB

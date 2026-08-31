@@ -5,6 +5,7 @@
 #include <eng/field/xlimited_scene.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/input_poll.hpp>
 #include <eng/core/span.hpp>
 
 #include <proto/exec.h>
@@ -29,6 +30,12 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 // de la carga. Ver docs/debugging/DEBUG-WINUAE-V2-GUIDE.md y run_status.hpp.
 extern "C" {
 __attribute__((used)) volatile eng::debug::FrameTelemetry g_eng_frame_telemetry {};
+}
+
+// Gancho de conmutación de técnica (1..9). Lo alimenta el input (CIAA, §15
+// input_poll cuando exista) o el auto-ciclo; el update lo consume y lo pone a 0.
+extern "C" {
+__attribute__((used)) volatile eng::u8 g_tech_new = 0;
 }
 
 namespace {
@@ -266,6 +273,16 @@ namespace demo = eng::field::demo;
 #ifndef K_COHERENT
 #define K_COHERENT 0
 #endif
+// Técnicas conmutables en runtime (todas compiladas). K_START_TECH = técnica
+// inicial (0..N-1); K_AUTOCYCLE>0 avanza de técnica cada tantos frames (para
+// verificar el ciclo de vida sin teclado); el teclado real (CIAA, §15 input)
+// alimentará `g_tech_new` (1..N) para conmutar.
+#ifndef K_START_TECH
+#define K_START_TECH 0
+#endif
+#ifndef K_AUTOCYCLE
+#define K_AUTOCYCLE 0 // frames por técnica en modo automático (0 = off)
+#endif
 // Franja HUD inferior: un playfield SEPARADO (CanvasPlayfield) de K_HUD_HEIGHT
 // filas con K_HUD_PLANES bitplanes y paleta propia, en una zona de Copper bajo
 // el viewport principal. El WAIT de la zona debe caer en raster <= 255.
@@ -332,6 +349,27 @@ constexpr field::ScrollConsts kScrollConsts {
     /*display_planelines=*/kMainDisplayH * kEffectivePlanes,
     /*planes=*/            kEffectivePlanes,
 };
+
+// --- Técnicas conmutables (muestrario DPF): todas compiladas; cada una
+//     PARAR/INICIAR su scroll (ciclo de vida) al conmutar con 1..9 (g_tech_new).
+enum PatternMode : eng::u8 { P8Way = 0, PDualPatterns = 1 };
+struct Technique {
+    const char* name;
+    PatternMode pattern; // 0 = auto 8-way (ambos igual) · 1 = dos patrones
+    eng::u8 step;        // px/frame del 8-way
+    eng::u8 stepBg;      // px/frame del BG (diagonal) en patrones
+    eng::u8 stepFg;      // px/frame del FG (Lissajous) en patrones
+};
+static constexpr Technique kTechniques[] {
+    { "DPF · patrones (BG diag + FG Lissajous) 2px", PDualPatterns, 0, 2, 2 },
+    { "DPF · 8-way (ambos mismo paso) 2px",           P8Way,         2, 0, 0 },
+    { "DPF · patrones 4px",                           PDualPatterns, 0, 4, 4 },
+    { "DPF · 8-way 4px",                              P8Way,         4, 0, 0 },
+    { "DPF · patrones 1px",                           PDualPatterns, 0, 1, 1 },
+    { "DPF · 8-way 1px",                              P8Way,         1, 0, 0 },
+};
+static constexpr eng::u8 kTechCount = static_cast<eng::u8>(
+    static_cast<eng::u32>(sizeof(kTechniques) / sizeof(kTechniques[0]) & 0xffu));
 
 // Paleta del HUD (playfield separado en la franja inferior): 4 planos -> 16
 // colores propios, distintos del mapa (fondo negro, texto blanco, acentos).
@@ -410,6 +448,56 @@ struct DemoGame {
     eng::graphics::FramePlan plan {};
     eng::MemoryBlock m_bob {};           // BOB enmascarado de prueba (1 plano 16x16 + máscara)
     eng::MemoryBlock m_fg_map {};        // mapa del FG (checkerboard transparente) en el arena
+    // --- Ciclo de vida del muestrario (técnicas 1..9) -----------------------
+    PatternMode m_pattern = PDualPatterns; // técnica activa (modo de movimiento)
+    eng::u8 m_current = 0;              // índice de la técnica activa (0..N-1)
+    eng::u8 m_prevIn = 0;               // último estado de entrada (edge)
+
+    /// PARAR la técnica saliente + INICIAR la entrante (ciclo de vida del
+    /// efecto): reinicia la cámara de ambos playfields y la fase del auto-ciclo,
+    /// y aplica paso/patrón de la nueva técnica. La geometría (NTTP ScrollConsts)
+    /// no se re-configura: las técnicas son comportamiento (patrón × velocidad).
+    void apply_tech(eng::u8 idx) {
+        if (idx >= kTechCount) return;
+        m_current = idx;
+        const Technique& t = kTechniques[idx];
+        // STOP
+        scene.bg().reset_scroll();
+        if (kDual) scene.fg().reset_scroll();
+        scene.reset_auto();
+        // START
+        m_pattern = t.pattern;
+        const eng::u8 stB = (t.pattern == PDualPatterns) ? t.stepBg : (t.step ? t.step : kStepBg);
+        const eng::u8 stF = (t.pattern == PDualPatterns) ? t.stepFg : (t.step ? t.step : kStepMax);
+        scene.bg().set_scroll_step(stB ? stB : 1u);
+        scene.fg().set_scroll_step(stF ? stF : 1u);
+    }
+
+    /// Consume la entrada (hardware directo: un botón/joystick avanza técnica; el
+    /// gancho `g_tech_new` 1..9 selecciona una específica) y el auto-ciclo.
+    void poll_tech_switch(eng::u32 frame) {
+        // Entrada por hardware (CIA): cualquier botón/dirección de un puerto de
+        // juego → siguiente técnica (borde de subida).
+        eng::amiga::GameInput gin;
+        eng::amiga::poll_input(gin);
+        const eng::u8 in = static_cast<eng::u8>(gin.port0 | gin.port1);
+        if (in != 0u && m_prevIn == 0u) {
+            m_current = static_cast<eng::u8>((static_cast<eng::u16>(m_current) + 1u) % (kTechCount ? kTechCount : 1u));
+            apply_tech(m_current);
+        }
+        m_prevIn = in;
+        // Gancho directo 1..9 (future teclado CIAA).
+        const eng::u8 want = g_tech_new;
+        if (want != 0u && want <= kTechCount) { g_tech_new = 0; apply_tech(static_cast<eng::u8>(want - 1u)); }
+#if K_AUTOCYCLE
+        if (frame != 0u && (frame % K_AUTOCYCLE) == 0u) {
+            const eng::u32 nxt = (frame / K_AUTOCYCLE) % (kTechCount ? kTechCount : 1u);
+            apply_tech(static_cast<eng::u8>(nxt));
+        }
+#else
+        (void)frame;
+#endif
+    }
     bool ready = false;
 
 // Generadores de filas de tile (incrustan base de color y transparencia).
@@ -514,12 +602,10 @@ scene_cfg.max_step = kStepMax;
             eng::debug::mark_failed(g_eng_run_status, 0x00010703u);
             return;
         }
-        // Passo por playfield en dual_patterns (la config solo fija el de ambos).
-        if (kDual && kDualPatterns) {
-            // Recordatorio visual de roles en esta demo: `bg()` = PF1 (transparente),
-            // `fg()` = PF2 (opaco). Aquí PF1=FG: Lissajous; PF2=BG: diagonal.
-            scene.bg().set_scroll_step(kStepMax); // FG visual
-            scene.fg().set_scroll_step(kStepBg);  // BG visual
+        // Técnica inicial del muestrario (ciclo de vida): paso/patrón por técnica.
+        {
+            const eng::u8 start = static_cast<eng::u8>(K_START_TECH % (kTechCount ? kTechCount : 1u));
+            apply_tech(start);
         }
         if (!scene.fill(backend, plan)) {
             eng::debug::mark_failed(g_eng_run_status, 0x00010705u);
@@ -679,10 +765,13 @@ scene_cfg.max_step = kStepMax;
 
         plan.clear();
         plan.set_blit_budget_limits({8192, 16384, 4, 120});
+        // Conmutación de técnica (gancho de entrada / auto-ciclo). Reinicia el
+        // scroll de la técnica saliente e inicia la entrante (ciclo de vida).
+        poll_tech_switch(context.frame.frame_index);
         // Avanza el camino configurado (1 px/frame). Si una fase choca con el
         // borde 0 (dirección inversa sin recorrido) simplemente no avanza.
         eng::s32 dx = 0, dy = 0;
-        if (!(kDual && kDualPatterns)) {
+        if (m_pattern == P8Way || !kDual) {
             scene.update_auto(plan, context.frame.frame_index, dx, dy);
         } else {
             // PATRONES LOCALES de la demo (no viven en el engine):
