@@ -97,6 +97,12 @@ namespace demo = eng::field::demo;
 //   K_FETCH_MODE (0|1|2|3) modo de fetch: 0=16px $30 mod 2 · 1/2=32px $28 mod 4 · 3=64px $18 mod 8
 //   K_VIEWPORT_W/H (320/224 | 288/208 | 256 con K_LINEAR=1)  ventana visible
 //   K_SCREENS_X/Y (16|8...)  pantallas virtuales → mapa = screens*viewport/tile
+//   K_STEP       (1|2..16)   salto máx. px/frame por eje (sub-pasos atómicos de 1 px,
+//                            paint-then-advance: NUNCA a medio pintar). 2 = fluido; 16 =
+//                            columna nueva completa. Coste = nº de jobs de Blitter ∝ salto.
+//   K_STEP_BG    (0|2..)     salto de PF2 (BG) en dual_patterns (0 = igual a K_STEP)
+//   K_PATTERNS   (0|1)       DPF con cada PF en un patrón distinto (BG diagonal / FG Lissajous)
+//   K_LISSAJOUS_OFF (0..63)  offset de fase inicial del Lissajous del FG
 //
 // -----------------------------------------------------------------------------
 // CÓMO LANZAR EN WINUAE (tools/run/run-demo.sh -> dist/tools/run/run-demo.js)
@@ -237,17 +243,21 @@ namespace demo = eng::field::demo;
 #endif
 // Salto configurable: px/frame MÁXIMOS por eje (el scroll se ejecuta como
 // sub-pasos atómicos de 1 px, paint-then-advance → nunca a medio pintar).
-//   K_STEP     salto de PF1 (defecto 1 = clásico)
-//   K_STEP_FG  salto de PF2 (FG) en dual_patterns (0 = igual a K_STEP)
-//   K_PATTERNS DPF con cada playfield en un patrón distinto (PF2: seno-X)
+//   K_STEP       salto máx. de ambos playfields (defecto 8 en el muestrario DPF)
+//   K_STEP_BG    salto máx. del BG (PF2) en dual_patterns (0 = igual a K_STEP)
+//   K_PATTERNS   DPF con cada playfield en un patrón distinto:
+//                BG diagonal (acelera→8px→frena→revierte), FG Lissajous
 #ifndef K_STEP
-#define K_STEP 1
+#define K_STEP 2 // default fluido ~50fps+; subir = más Blitter/frame (el pico 8 exige fusión por tile)
 #endif
-#ifndef K_STEP_FG
-#define K_STEP_FG 2
+#ifndef K_STEP_BG
+#define K_STEP_BG 2
 #endif
 #ifndef K_PATTERNS
 #define K_PATTERNS 1
+#endif
+#ifndef K_LISSAJOUS_OFF
+#define K_LISSAJOUS_OFF 16 // offset de fase inicial del Lissajous del FG (0..63)
 #endif
 // Franja HUD inferior: un playfield SEPARADO (CanvasPlayfield) de K_HUD_HEIGHT
 // filas con K_HUD_PLANES bitplanes y paleta propia, en una zona de Copper bajo
@@ -290,8 +300,9 @@ constexpr eng::u8 kPhaseCount = 8;
 constexpr bool kDual = K_DUAL != 0;                                     // DPF 3+3 (dos playfields)
 constexpr bool kParallax = K_PARALLAX != 0;                             // PF2 scrollea a media X
 constexpr bool kDualPatterns = K_PATTERNS != 0;                         // DPF: patrones por PF
-constexpr eng::u8 kStepMax = static_cast<eng::u8>(K_STEP);              // salto PF1 (px/frame)
-constexpr eng::u8 kStepFg = static_cast<eng::u8>(K_STEP_FG);            // salto PF2 (0 = igual)
+constexpr eng::u8 kStepMax = static_cast<eng::u8>(K_STEP);              // salto máx. (px/frame)
+constexpr eng::u8 kStepBg = static_cast<eng::u8>(K_STEP_BG);            // salto BG (0 = igual)
+constexpr eng::u8 kLissajousOffset = static_cast<eng::u8>(K_LISSAJOUS_OFF);
 constexpr bool kLinear = K_LINEAR != 0;                                 // display lineal sin split
 constexpr eng::u8 kEffectivePlanes = kDual ? 3u : kPlanes;              // 3 por playfield en DPF
 // 16×16 pantallas virtuales → mapa en tiles derivado de viewport/tile
@@ -446,10 +457,11 @@ struct DemoGame {
             scene_cfg.map2.wrap_x = kMapTilesX;
             scene_cfg.map2.wrap_y = kMapTilesY;
         }
-        // Saltos configurables + DPF con patrones distintos por playfield.
-        scene_cfg.max_step = kStepMax;
-        scene_cfg.fg_max_step = kStepFg; // (solo PF2 en dual_patterns)
-        scene_cfg.dual_patterns = kDual && kDualPatterns;
+        // Salto configurable (px/frame máximos por eje; sub-pasos atómicos de 1 px,
+// paint-then-advance → nunca a medio pintar) + DPF con patrones por playfield.
+scene_cfg.max_step = kStepMax;
+        // En dual_patterns se ajusta el paso por playfield (la demo lo hace
+        // justo después de begin con set_scroll_step).
         scene_cfg.parallax_x = kParallax;
         scene_cfg.linear_display = kLinear;
         scene_cfg.effect = kEffectMode;
@@ -473,6 +485,13 @@ struct DemoGame {
         if (!scene.begin(backend.memory(), scene_cfg)) {
             eng::debug::mark_failed(g_eng_run_status, 0x00010703u);
             return;
+        }
+        // Passo por playfield en dual_patterns (la config solo fija el de ambos).
+        if (kDual && kDualPatterns) {
+            // Recordatorio visual de roles en esta demo: `bg()` = PF1 (transparente),
+            // `fg()` = PF2 (opaco). Aquí PF1=FG: Lissajous; PF2=BG: diagonal.
+            scene.bg().set_scroll_step(kStepMax); // FG visual
+            scene.fg().set_scroll_step(kStepBg);  // BG visual
         }
         if (!scene.fill(backend, plan)) {
             eng::debug::mark_failed(g_eng_run_status, 0x00010705u);
@@ -508,8 +527,16 @@ struct DemoGame {
             hud.set_pixel(220, 25, 15);
         }
 #endif
-        // Pre-scroll para fases con componente negativa (izquierda/arriba) o diagonales.
-        {
+// Pre-scroll para fases con componente negativa (izquierda/arriba) o diagonales.
+        if (kDual && kDualPatterns) {
+            // El BG diagonal y el FG Lissajous necesitan recorrido en AMBOS ejes
+            // desde el inicio (podrían mover a la izquierda/arriba de primeras):
+            // pre-scroll a la derecha/abajo deja margen para toda la figura.
+            if (!scene.pre_scroll(backend, plan, 256, 256)) {
+                eng::debug::mark_failed(g_eng_run_status, 0x000107e2u);
+                return;
+            }
+        } else {
             const eng::u8 startPhase = (kEffectMode == 0) ? kStartPhase
                 : static_cast<eng::u8>(kEffectMode - 1);
             const bool needX = phase_needs_pre_x(startPhase);
@@ -627,7 +654,25 @@ struct DemoGame {
         // Avanza el camino configurado (1 px/frame). Si una fase choca con el
         // borde 0 (dirección inversa sin recorrido) simplemente no avanza.
         eng::s32 dx = 0, dy = 0;
-        scene.update_auto(plan, context.frame.frame_index, dx, dy);
+        if (!(kDual && kDualPatterns)) {
+            scene.update_auto(plan, context.frame.frame_index, dx, dy);
+        } else {
+            // PATRONES LOCALES de la demo (no viven en el engine):
+            //   BG visual (PF2, `fg()`): diagonal con velocidad sinusoidal
+            //     (acelera→máx→frena→revierte).  FG visual (PF1, `bg()`): Lissajous
+            //     en X con offset inicial.  La Y es COMPARTIDA (el compositor DPF
+            //     usa un único split de Copper: ambos playfields deben llevar el
+            //     mismo mapposy por frame). Cada campo aplica su max_step como
+            //     sub-pasos atómicos (paint-then-advance).
+            const eng::u32 t  = (context.frame.frame_index >> 2) & 63u;
+            const eng::s32 vy = demo::kSin64[t] / 8;                      // Y compartido
+            const eng::s32 vxBg = demo::kSin64[(t + 8u) & 63u] / 8;      // BG diag.
+            const eng::u32 ph = context.frame.frame_index + kLissajousOffset;
+            const eng::s32 vxFg = demo::kSin64[ph & 63u] / 8;            // FG Lissajous
+            bool ok = scene.fg().update_scroll(plan, vxBg, vy);          // BG visual
+            if (ok) ok = scene.bg().update_scroll(plan, vxFg, vy);       // FG visual
+            if (!ok) { /* borde sin recorrido: no avanza este frame */ }
+        }
 
         // HUD: el BOB (blit) se encola en el plan y se ejecuta con el scroll.
         // Las primitivas CPU van a `render()` (vblank) para no competir con el DMA.
