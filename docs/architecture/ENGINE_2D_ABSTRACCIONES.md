@@ -180,6 +180,8 @@ Defectos:
 
 `ScrollEngine` es un strategy: dado un playfield con el layout apropiado, calcula la cámara (mapposx/y, display_offset, split) y emite los blits de tiles al `FramePlan`. `ScrollMode` especializa: corkscrew 8-way, X-only (sin split), V-only, 1-dir (sin saveword), BPLCON1 simple.
 
+**Estado actual (2026-08-31)**: `engine/include/eng/field/scroll_engine.hpp` implementa la separación por fases. La fase 1 hecha — `ScrollEngine` posee el `ScrollState` (mappos/videopos/dirección/saveword) y el driver `step(plan, sink, dx, dy)` que decide el paso y lo delega en `scroll_right/left/up/down` del playfield (layout sink). La fase 2 pendiente — mover los cuerpos de esos 4 scrollear al engine exige un `ScrollSink` fino (geometría + `add_draw` + costura como interfaz) que el corkscrew no tiene aún; está documentado como el acoplamiento fuerte de §7.Defectos.
+
 ```
    ScrollEngine<Mode>                    FramePlan
    ┌──────────────────────────┐          ┌──────────────────────────────┐
@@ -818,7 +820,7 @@ Defectos:
 10. **Efectos**: pipeline chunky/c2p, `PaletteAnimator`, `CopperScript`, `Font`/texto; luego 3D, filtros y tiles avanzados.
 11. **Escenas data-driven + runtime_params + parcheo de copper dynamic_partial** y **ScriptVM** (aventuras tipo SCUMM: rooms, actores, walkboxes, verbos, diálogos).
 12. **Streaming desde disquetera** (perfil Amiga): StreamLoader/AssetStream + hook de trackdisk.
-13. **Migración de la demo 107** a `Bitmap`/`Surface`/`ScrollEngine` manteniendo la regresión verde como red de seguridad. **En curso**: M1a hecho (`Surface`); M1b-parcial hecho (`CanvasPlayfield` posee un `Bitmap`); **API segura hecha** (frontera con `Span` en `Bitmap::bytes()`, blits y `SpriteManager`; sin `frontbuffer()` público, validación de tamaño antes de encolar blits, §5.1); M1b-restante (`Bitmap` en `XLimitedPlayfield`: su asignación tiene offset de fetch + guardia que `Bitmap` aún no modela); M2 pendiente (`ScrollEngine` separado del corkscrew).
+13. **Migración de la demo 107** a `Bitmap`/`Surface`/`ScrollEngine` manteniendo la regresión verde como red de seguridad. **Hecho**: M1a (`Surface`), M1b completo (`CanvasPlayfield` y `XLimitedPlayfield` poseen un `Bitmap`; el segundo modela el offset de fetch 0/16/48 y la guardia +64), API segura (§5.1), M2-parcial (`ScrollEngine` posee el estado de cámara + el driver `step`; el playfield es el layout sink que aplica cada paso). **Pendiente**: M2-restante (mover los cuerpos de `scroll_right/left/up/down` al engine exige un `ScrollSink` fino; el corkscrew está fuertemente acoplado al layout, ver §7 Defectos).
 
 ---
 

@@ -59,3 +59,7 @@ aporta sus propias piezas de seguridad de C++23 sin depender de `std::span`:
   pueden recibir el puntero crudo, y solo el tiempo justo para programar registros.
 - Evitar "puntero + count" en firmas de API; si una funcion necesita memoria
   propia, pedir `Span` por valor y devolver `Span` (mutable solo si escribe).
+- Referencia de rendimiento para 68000: `docs/architecture/OPTIMIZACION_GPP_68000.md`
+  (documento vivo: [✓] verificado / [✗] corregido / [P] pendiente contra el toolchain,
+  con bitácora de descubrimientos en su §8 y sonda reproducible en
+  `docs/performance/_probe_gpp68000.cpp`).

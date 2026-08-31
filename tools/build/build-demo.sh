@@ -150,10 +150,14 @@ fi
 mkdir -p "$OBJ_DIR" "$OUT_DIR"
 
 # --- Flags ------------------------------------------------------------------
-OPT="-Ofast"
+# Ver docs/architecture/OPTIMIZACION_GPP_68000.md (§1): en 68000 el código
+# compacto suele ser más rápido (sin i-cache útil). -Os es el default release.
+# NO usar -mtune=68020 aquí: verificado (2026-08-31) que a -O1 cuelga la init
+# de la demo 107; queda anotado en la bitácora §8 del doc.
+OPT="-Os"
 if [ "$DEBUG_BUILD" -eq 1 ]; then
 	# -O1 para la regresion automatica: suficiente para que las demos lleguen a
-	# READY dentro del timeout en el 68000 emulado.
+	# READY dentro del timeout en el 68000 emulado. Es el perfil verde conocido.
 	OPT="-O1"
 fi
 if [ "$O0_BUILD" -eq 1 ]; then
@@ -175,8 +179,36 @@ EXTRA_DEFINES="${EXTRA_DEFINES:-}"
 if [ -n "$EXTRA_DEFINES" ]; then
 	COMMON+=($EXTRA_DEFINES)
 fi
-CPP_FLAGS=("${COMMON[@]}" "-std=gnu++23" "-fno-rtti" "-fno-threadsafe-statics" "-fno-use-cxa-atexit")
-C_FLAGS=("${COMMON[@]}" "-std=gnu11" "-fno-tree-loop-distribution")
+
+# --- Flags por origen (override para bisecar un cuelgue de optimizacion) -----
+# ENGINE_OPT / DEMO_OPT / C_OPT permiten compilar el engine, la demo y el
+# soporte C con niveles distintos de $OPT sin cambiar el CONFIG_ID. Default:
+# heredan $OPT (comportamiento normal). Útil para aislar qué unidad crashea
+# a optimización alta (el caso release de la demo 107).
+ENGINE_OPT="${ENGINE_OPT:-$OPT}"
+DEMO_OPT="${DEMO_OPT:-$OPT}"
+C_OPT="${C_OPT:-$OPT}"
+cpp_flags_for() {
+	local opt="$1" f
+	local out=()
+	for f in "${COMMON[@]}"; do
+		if [ "$f" = "$OPT" ]; then out+=("$opt"); else out+=("$f"); fi
+	done
+	out+=("-std=gnu++23" "-fno-rtti" "-fno-threadsafe-statics" "-fno-use-cxa-atexit")
+	printf '%s\n' "${out[@]}"
+}
+ENGINE_CPP_FLAGS="$(cpp_flags_for "$ENGINE_OPT")"
+DEMO_CPP_FLAGS="$(cpp_flags_for "$DEMO_OPT")"
+c_flags_for() {
+	local opt="$1" f
+	local out=()
+	for f in "${COMMON[@]}"; do
+		if [ "$f" = "$OPT" ]; then out+=("$opt"); else out+=("$f"); fi
+	done
+	out+=("-std=gnu11" "-fno-tree-loop-distribution")
+	printf '%s\n' "${out[@]}"
+}
+C_FLAGS="$(c_flags_for "$C_OPT")"
 
 # --- Compilacion ------------------------------------------------------------
 OBJECTS=()
@@ -194,20 +226,20 @@ for src in $(find "$ROOT/engine/src" -name '*.cpp' | sort); do
 	obj="$(object_path "$src")"
 	OBJECTS+=("$obj")
 	echo "  C++   $src"
-	"$GXX" "${CPP_FLAGS[@]}" -c -o "$obj" "$src"
+	"$GXX" ${ENGINE_CPP_FLAGS} -c -o "$obj" "$src"
 done
 for src in $(find "$DEMO_PATH/src" -name '*.cpp' | sort); do
 	obj="$(object_path "$src")"
 	OBJECTS+=("$obj")
 	echo "  C++   $src"
-	"$GXX" "${CPP_FLAGS[@]}" -c -o "$obj" "$src"
+	"$GXX" ${DEMO_CPP_FLAGS} -c -o "$obj" "$src"
 done
 
 SUPPORT_C="$ROOT/support/gcc8_c_support.c"
 SUPPORT_C_OBJ="$OBJ_DIR/support_gcc8_c_support.o"
 OBJECTS+=("$SUPPORT_C_OBJ")
 echo "  C     $SUPPORT_C"
-"$GCC" "${C_FLAGS[@]}" -c -o "$SUPPORT_C_OBJ" "$SUPPORT_C"
+"$GCC" ${C_FLAGS} -c -o "$SUPPORT_C_OBJ" "$SUPPORT_C"
 
 SUPPORT_ASM="$ROOT/support/gcc8_a_support.s"
 SUPPORT_ASM_OBJ="$OBJ_DIR/support_gcc8_a_support.o"
