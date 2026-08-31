@@ -390,12 +390,26 @@ if [ "$SHOWCASE" -eq 1 ]; then
 	EXTRA_DEFINES="" "$BUILD" "$DEMO" --$MODE --clean \
 		|| { echo "No se pudo compilar el muestrario DPF." >&2; exit 1; }
 	echo "[107] captura muestrario (animación + transparencia) ..."
-	"$RUN" "$DEMO" --config "$SCI_CFG" --settle-ms 500 --sequence-frames 7 --sequence-interval-ms 40 "${extra[@]}" \
+	"$RUN" "$DEMO" --config "$SCI_CFG" --settle-ms 500 --sequence-frames 11 --sequence-interval-ms 80 "${extra[@]}" \
 		|| { echo "No se pudo capturar el muestrario DPF." >&2; exit 1; }
 	node "$ROOT/tools/analyze/verify-107-showcase.mjs" \
 		"$ROOT/out/run/$DEMO_NAME/$SCI_CFG/screenshot.png" \
 		"$ROOT/out/run/$DEMO_NAME/$SCI_CFG/sequence" \
 		|| { echo "El muestrario DPF 8-way no supera la verificación (animación/transparencia)." >&2; exit 1; }
+	# Fluidez: fps estimado del emulador (cuadros por instante de captura). En
+	# WinUAE el overhead de Blitter por job es el límite (~5 ms/job); en hardware
+	# real la carga es mucho menor y 50 fps se sostienen con saltos de 2-4 px.
+	node -e '
+const fs=require("fs");
+const j=JSON.parse(fs.readFileSync(process.argv[1],"utf-8"));
+const f=(j.sequence&&j.sequence.frames)||[];
+if(f.length<2){ console.log("[107] fps: no medible (sin frames)"); process.exit(0); }
+const n=x=>{const s=(x.runStatusAfter&&x.runStatusAfter.ok?x.runStatusAfter:x.runStatus); return s?s.frame:0;};
+const dt=(n(f[f.length-1])-n(f[0])), iv=(f.length-1)*0.08;
+const fps=Math.round(dt/iv);
+console.log(`[107] fps estimado = ${fps} (~50=fluidez; por debajo de 40 sonar a stutter en emulador; en A500 real la carga es 50)`);
+if(fps<40) console.log("[107] aviso: estuéril en emulador por overhead de Blitter por job — bajar K_STEP o fusionar por tile (pintar ~1 columna por cruce).");
+' "$ROOT/out/run/$DEMO_NAME/$SCI_CFG/run-report.json" || true
 fi
 
 echo "OK 107_xlimited_corkscrew sequence — corkscrew verificado (100 derecha, inversión saveword sin hueco 2 bytes, columna plane-shifted del corkscrew)"
