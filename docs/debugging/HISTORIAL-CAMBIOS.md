@@ -573,4 +573,94 @@ disparaban como `breakpoint-hit` en el flujo DAP.
 
 ---
 
-*Actualizado: 2026-08-23*
+## Fase 12: Lecciones de inyección de entrada y teclado por automatización (2026-09-01)
+
+### 12.1 Inyección de entrada por el monitor: lock obligatorio y canal correcto
+
+**Síntoma**: inyectar `input mouse …`, `input key …` o `poke …` durante una ejecución
+congelaba la emulación ~2 frames después (el `run-report` mostraba frames repetidos y
+`pc=0xfe582c`), indistintamente del comando.
+
+**Causa**: el canal lateral exige un **lock explícito** con modo; sin él, el stub responde
+`{"ok":false,"error":"lock_required","required":"takeover"}` (o `assist`). El runner los
+enviaba por **qRcmd del GDB (2345)**, cuyas órdenes con side-effects no se encolan a
+`vsync_pre` como las del canal lateral (2346), y al rechazarse/colgarse nunca se liberaba
+nada → emulación muerta en apariencia.
+
+**Regla operativa** (replicada del CLI `winuae-side-channel.sh`):
+`input`/`profile` requieren lock `assist` (la emulación sigue corriendo bajo asistencia) y
+`poke`/`rollback` requieren `takeover`. Patrón correcto:
+
+```text
+lock acquire <owner> assist|takeover
+<input|poke ...>                       # por el canal lateral 2346, NUNCA por qRcmd
+lock release <owner>
+```
+
+En `run-demo.ts` se implementó `sendSideChannelCommand()` (socket 2346, protocolo
+saludar → orden → respuesta JSON) y `withSideChannelLock()` (acquire → fn → release). Para
+una tecla sintética (`--automation-key <sc>`) el make y el clear se hacen en dos locks
+`takeover` separados con un `sleep` entre medias: el demo ve el make durante la ventana
+desbloqueada (`readbackAfterMake=05`, `readbackAfterClear=ff`).
+
+### 12.2 `pc=0xfe582c` NO es señal de crush
+
+El estado final del canal lateral (`sideChannel.state.pc`) suele valer `0xfe582c` (bucle de
+idle de la ROM del Kickstart) incluso en ejecuciones sanas (frames avanzando hasta 140+).
+No interpretarlo como crash; la señal fiable es si `g_eng_run_status.frame` avanza entre
+muestras. El único «crash real» observado fue el de la entrada serie de teclado (§12.3).
+
+### 12.3 El port serie del teclado (SDR/ICR) de CIAA crashea en WinUAE-DBG
+
+**Síntoma**: leer SDR/ICR de CIAA-A (teclado por el flujo serial) al llegar el primer byte
+inyectado lanzaba una excepción (bus/address error → vector a ROM, `pc=0xfe582c`), y el
+demo quedaba en el bucle de boot del KS. Descartado que fuera el `apply_tech` (aislado).
+
+**Conclusión**: para «simular una tecla» robusta se usa **automatización por memoria**,
+la misma diseñada en el repo para entrada (`amiga-automation-input.ts`): la demo define
+`extern "C" volatile eng::u8 g_automation_keycode` y `poll_keyboard()` detecta el edge de
+valor; el host la escribe con `poke` bajo lock `takeover`. Ver `input_poll.hpp`. La vía
+auténtica (CIAA serial + `input key`) queda como incidencia abierta: hay que re-probar con
+lock `assist` antes de habilitarla.
+
+### 12.4 Resolución de dirección runtime: fallback incorrecto para símbolos tempranos
+
+`resolveRuntimeSymbolAddress()` cae a un fallback (base del primer hunk + `symbol-0x400`)
+cuando el símbolo no cae en ninguna sección del `.map`; para `g_automation_keycode`
+(0x009578) devolvía `0xc15b70` cuando la dirección real estaba junto a
+`g_eng_run_status` (0x00957a → runtime `0xc15b72`). Escribir con `poke` a una dirección
+errónea corrompe memoria del demo. Solución: anclar el símbolo al **runtimeAddress probado
+de `g_eng_run_status`** (`report.sideChannel.runtimeAddress`) aplicando el **delta del
+`.map`** (mismo hunk de datos para contiguos). No asumir que los `sections` del estado son
+las bases de todo el espacio de datos.
+
+### 12.5 `extern "C"` dentro del namespace anónimo se mangla
+
+Una definición `extern "C"` colocada dentro de `namespace { }` del demo genera el símbolo
+`_ZN12_GLOBAL__N_1….E` (mangado), y la referencia `extern "C"` global del header queda
+como `U g_automation_keycode` sin resolver → `ld` undefined. Los globals que el runner busca
+por nombre (`g_eng_run_status`, `g_tech_new`, `g_automation_keycode`) deben definirse en
+**ámbito global real** (p. ej. dentro del bloque `extern "C" { }` superior del archivo) para
+conservar el símbolo sin mangle en el `.map`/`nm`.
+
+### 12.6 Edge espurio de arranque del joystick
+
+El emulador deja las líneas del puerto sin joystick a 0 (=«pulsado» tras invertir) durante
+los primeros frames, así que cualquier «avance en cualquier() con edge» dispara una vez al
+arrancar (técnica 0→1). Regla: ignorar los bordes hasta tener una ventana de arranque
+(`frame >= 2` o haber observado al menos un frame en reposo). En hardware real las líneas
+van a +5V (1 = no pulsado), pero el emulador no.
+
+### 12.7 Herramientas resultantes
+
+- `run-demo --inject-commands "input key 2 1|sleep:60|input key 2 0" --inject-sample N`:
+  envía órdenes del monitor por el canal lateral bajo lock `assist` (registradas en
+  `report.inputInjection`).
+- `run-demo --automation-key <scancode> --inject-sample N`: poke/takeover de
+  `g_automation_keycode` (make/clear con `readbackAfterMake`/`readbackAfterClear` en el
+  report y `report.automationKey`).
+- El marcador 107 expone la técnica activa: byte superior `0x10|técnica`.
+
+---
+
+*Actualizado: 2026-09-01*

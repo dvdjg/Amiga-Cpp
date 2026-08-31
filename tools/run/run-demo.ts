@@ -271,6 +271,70 @@ async function captureFrameSequence(protocol, sequenceDir, frameCount, intervalM
   };
 }
 
+/**
+ * Ejecuta `fn` bajo un lock explícito del canal lateral. `input` requiere lock
+ * `assist` y `poke`/`rollback` requieren `takeover` (replican la forma de uso
+ * del CLI: `lock acquire owner MODE` -> acción -> `lock release owner`); sin
+ * lock, el stub responde `lock_required` y por qRcmd además congelaba la
+ * emulación (nunca se liberaba).
+ */
+async function withSideChannelLock(port: number, mode: 'assist' | 'takeover', owner: string, fn: () => Promise<void>): Promise<void> {
+  const acquire = await sendSideChannelCommand(port, `lock acquire ${owner} ${mode}`);
+  if (!String(acquire).includes('"ok":true')) {
+    throw new Error(`lock acquire ${mode} rechazado: ${acquire}`);
+  }
+  try {
+    await fn();
+  } finally {
+    await sendSideChannelCommand(port, `lock release ${owner}`);
+  }
+}
+
+/**
+ * Envía una orden por el socket TCP del canal lateral (2346). Protocolo:
+ * conectar -> saludar -> `<orden>\n` -> una línea de respuesta JSON (3s).
+ */
+function sendSideChannelCommand(port: number, command: string, timeoutMs = 3000): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const socket = net.createConnection({ host: '127.0.0.1', port });
+    socket.setEncoding('utf8');
+    let pending = '';
+    let consumedGreeting = false;
+    let done = false;
+    const timer = setTimeout(() => {
+      if (!done) {
+        socket.destroy();
+        reject(new Error(`timeout del canal lateral (${command})`));
+      }
+    }, timeoutMs);
+    socket.on('data', (chunk: string) => {
+      pending += chunk;
+      for (;;) {
+        const eol = pending.indexOf('\n');
+        if (eol < 0) break;
+        const line = pending.slice(0, eol).trim();
+        pending = pending.slice(eol + 1);
+        if (!consumedGreeting) {
+          consumedGreeting = true;
+          socket.write(`${command}\n`);
+          continue;
+        }
+        done = true;
+        clearTimeout(timer);
+        socket.end();
+        resolve(line);
+        return;
+      }
+    });
+    socket.on('error', (err: Error) => {
+      clearTimeout(timer);
+      done = true;
+      socket.destroy();
+      reject(err);
+    });
+  });
+}
+
 function decodeCameraFineX(runStatus) {
   if (!runStatus?.ok) {
     return null;
@@ -953,13 +1017,22 @@ try {
       // (GDB qRcmd) desincronizan la demo y provocan un bus/address error (pc en
       // ROM, bucle de boot de KS). La secuencia captura el estado POST-tecla.
       console.log(`[run-demo] automation key ${automationKeyValue} -> 0x${automationKeyAddr.toString(16)} (pre-secuencia)`);
-      await protocol.sendMonitorCommand(`poke ${automationKeyAddr.toString(16)} ${automationKeyValue.toString(16)}`, 5000);
-      await sleep(100);
-      await protocol.sendMonitorCommand(`poke ${automationKeyAddr.toString(16)} ff`, 5000);
+      const makeHex = String(automationKeyValue).padStart(2, '0');
+      await withSideChannelLock(sideChannelPort, 'takeover', 'run-demo', async () => {
+        await sendSideChannelCommand(sideChannelPort, `poke ${automationKeyAddr.toString(16)} ${makeHex}`);
+      });
+      const keyAtT0 = await sendSideChannelCommand(sideChannelPort, `mem ${automationKeyAddr.toString(16)} 1`).catch((err) => String(err));
+      await sleep(100); // la demo tiene ventana para ver el make (takeover liberado)
+      await withSideChannelLock(sideChannelPort, 'takeover', 'run-demo', async () => {
+        await sendSideChannelCommand(sideChannelPort, `poke ${automationKeyAddr.toString(16)} ff`);
+      });
+      const keyAtT1 = await sendSideChannelCommand(sideChannelPort, `mem ${automationKeyAddr.toString(16)} 1`).catch((err) => String(err));
       report.automationKey = {
         sample: 'pre-sequence',
         scancode: automationKeyValue,
         address: `0x${automationKeyAddr.toString(16)}`,
+        readbackAfterMake: keyAtT0,
+        readbackAfterClear: keyAtT1,
       };
     }
   }
@@ -1027,18 +1100,22 @@ try {
     const onSample = (injectCommands.length === 0)
       ? null
       : async (index: number, frame: Record<string, any>, frames: unknown[]) => {
-          if (index !== injectSample - 1) return;
+if (index !== injectSample - 1) return;
           console.log(`[run-demo] injecting ${injectCommands.length} monitor commands after sample ${index}`);
-          for (const cmd of injectCommands) {
-            const sleepMatch = cmd.match(/^sleep:(\d+)$/);
-            if (sleepMatch) {
-              const ms = parseInt(sleepMatch[1], 10);
-              await sleep(ms);
-              continue;
+          // `input`/`profile` requieren lock `assist`: se mantiene durante el
+          // lote (la emulación sigue corriendo bajo assist) y se libera al final.
+          await withSideChannelLock(sideChannelPort, 'assist', 'run-demo', async () => {
+            for (const cmd of injectCommands) {
+              const sleepMatch = cmd.match(/^sleep:(\d+)$/);
+              if (sleepMatch) {
+                const ms = parseInt(sleepMatch[1], 10);
+                await sleep(ms);
+                continue;
+              }
+              await sendSideChannelCommand(sideChannelPort, cmd);
+              injectionEvents.push(cmd);
             }
-            await protocol.sendMonitorCommand(cmd, 5000);
-            injectionEvents.push(cmd);
-          }
+          });
           frame.injection = { sampleAfter: index, commands: [...injectionEvents] };
         };
     report.sequence = await captureFrameSequence(
