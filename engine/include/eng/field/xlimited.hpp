@@ -291,6 +291,7 @@
 /// \see eng::field::TileLayerMap
 /// \see eng::field::XlimitedDisplayComposer
 
+#include <eng/core/fast_div.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/field/playfield.hpp>
@@ -509,8 +510,7 @@ public:
     /// Fila (en planelíneas) de inicio de la fila de mundo `wy` en el bucle
     /// vertical (costura del split). Hook del mapeo de la base `Playfield`.
     u32 planeline_for(s32 wy) const override {
-        const s32 loop = ((wy % m_display_height) + m_display_height) % m_display_height;
-        return static_cast<u32>(loop) * m_cfg.planes;
+        return static_cast<u32>(dmod2(wy)) * m_cfg.planes;
     }
     /// Word byte del píxel de mundo (el *walk* horizontal cruza planelíneas
     /// cuando `wx/8 >= bitmap_bytes_per_row`; se acota en `write_planes`).
@@ -521,6 +521,22 @@ public:
     u32 mirror_planelines() const override { return m_mirror_planelines; }
     /// El corkscrew soporta el walk horizontal (los blits y la CPU lo acotan).
     bool supports_walk() const override { return true; }
+
+    // --- Helper de módulo por display_height ---------------------------------
+    // la geometría entra como constante NTTP (SC) si se conoce; si no, runtime.
+    // La doble módulo preserva el original (robusto a negativos).
+    inline s32 dmod2(s32 v) const {
+        if constexpr (SC.display_height != 0u) {
+            const s32 dh = static_cast<s32>(SC.display_height);
+            return (v % dh + dh) % dh;
+        }
+        const s32 dh = static_cast<s32>(m_display_height);
+        return (v % dh + dh) % dh;
+    }
+    inline u32 dmod1(u32 v) const { // v % display_height (no-negativo)
+        if constexpr (SC.display_height != 0u) return fast_div<SC.display_height>::r(v);
+        return v % m_display_height;
+    }
 
     /// Scroll de 1 píxel por eje (especialización del playfield). Devuelve false
     /// si un borde del mapa bloqueó el avance (dirección inversa sin recorrido).
@@ -867,7 +883,7 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
                           u16 src_row_bytes, u32 src_plane_stride, u8 planes) override {
         if (!m_initialized || src.empty() || planes == 0) return false;
         if (wx < 0 || (wx & 15) != 0) return false;
-        const s32 loop = ((wy % m_display_height) + m_display_height) % m_display_height;
+        const s32 loop = dmod2(wy);
         const u16 words = static_cast<u16>(w / 16u);
         const u32 need_src = (planes > 1u ? (static_cast<u32>(planes - 1u) * (src_plane_stride / 2u)) : 0u)
                            + (h > 1u ? (static_cast<u32>(h - 1u) * (src_row_bytes / 2u)) : 0u)
@@ -931,7 +947,7 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
                                  u8 planes) override {
         if (!m_initialized || src.empty() || mask.empty() || planes == 0) return false;
         if (wx < 0 || (wx & 15) != 0) return false;
-        const s32 loop = ((wy % m_display_height) + m_display_height) % m_display_height;
+        const s32 loop = dmod2(wy);
         const u16 words = static_cast<u16>(w / 16u);
         // Contrato de tamaño: el origen cubre los planes; la máscara, una viaje.
         const u32 need_src = (planes > 1u ? (static_cast<u32>(planes - 1u) * (src_plane_stride / 2u)) : 0u)
@@ -1032,8 +1048,8 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
         // En X-only (scroll_y=false) videoposy es 0 y no hay offset ni split.
         u16 display_offset = 0;
         if (m_cfg.scroll_y) {
-            const u16 vy = static_cast<u16>((m_scroll.state().videoposy % m_display_height + m_display_height) % m_display_height);
-            display_offset = static_cast<u16>((vy + m_cfg.tile_height) % m_display_height);
+const u16 vy = static_cast<u16>(dmod2(m_scroll.state().videoposy));
+        display_offset = static_cast<u16>(dmod1(static_cast<u32>(vy) + m_cfg.tile_height));
         }
         v.display_height = m_display_height;
         v.display_offset = display_offset;
@@ -1066,7 +1082,7 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
     /// Fila (en píxeles) del bucle vertical donde empieza la ventana visible.
     /// Coincide con `(videoposy + tile_height) % display_height`.
     constexpr s32 display_offset() const {
-        return static_cast<s32>((m_scroll.state().videoposy + m_cfg.tile_height) % m_display_height);
+        return static_cast<s32>(dmod1(static_cast<u32>(m_scroll.state().videoposy) + m_cfg.tile_height));
     }
 
     /// ¿El split del corkscrew es SIEMPRE esperable (raster <= 255)?
@@ -1095,7 +1111,7 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
     ///     el bucle; si el rect cruza `display_height` hay que partirlo).
     constexpr s32 screen_to_bitmap_row(s16 sy) const {
         const s32 row = display_offset() + sy;
-        return m_linear_display ? row : (row % m_display_height);
+        return m_linear_display ? row : dmod2(row);
     }
     constexpr u16 bitmap_bytes_per_row() const { return m_bytes_per_row; }
     constexpr u16 bitmap_width() const { return m_bitmap_width; }

@@ -135,6 +135,23 @@ BASE_CFG="$(cfg_name "$DEFAULT_DEFINES" "$MODE")"
 echo "[107] build línea base single ($MODE) ..."
 EXTRA_DEFINES="$DEFAULT_DEFINES" "$BUILD" "$DEMO" --$MODE --clean \
 	|| { echo "No se pudo compilar la línea base single." >&2; exit 1; }
+
+# 0d) Host-check: el ScrollEngine con geometría NTTP NO debe dividir por los
+#     tiles (potencias de dos → shifts). Si se revierte el camino fast_div el
+#     ELF vuelve a pagar __udivsi3 y la regresión falla. (skip si no hay objdump).
+{
+	AMIGA_BIN_PATH="${AMIGA_BIN_PATH//\\//}"
+	if [ -n "${AMIGA_BIN_PATH:-}" ] && [ -x "$AMIGA_BIN_PATH/opt/bin/m68k-amiga-elf-objdump.exe" ]; then
+		export AMIGA_OBJDUMP="$AMIGA_BIN_PATH/opt/bin/m68k-amiga-elf-objdump.exe"
+		VERIFY_DIVFREE="$ROOT/tools/analyze/verify-scroll-divfree.mjs"
+		if [ -f "$VERIFY_DIVFREE" ]; then
+			echo "[107] verify-scroll-divfree (host, NTTP) ..."
+			BASE_ELF="$ROOT/out/demos/$DEMO_NAME/$BASE_CFG/$DEMO_NAME.$BASE_CFG.elf"
+			node "$VERIFY_DIVFREE" "$BASE_ELF" \
+				|| { echo "El scroll volvió a dividir por tiles (¿se perdió el camino NTTP/fast_div?)." >&2; exit 1; }
+		fi
+	fi
+}
 echo "[107] captura secuencia continua derecha 100 frames (config $BASE_CFG) ..."
 "$RUN" "$DEMO" --settle-ms 500 --sequence-frames 100 --sequence-interval-ms 20 --config "$BASE_CFG" "${extra[@]}" \
 	|| { echo "No se pudo capturar la secuencia de 107_xlimited_corkscrew (100 frames)." >&2; exit 1; }
