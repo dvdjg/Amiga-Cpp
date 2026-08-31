@@ -95,10 +95,11 @@ public:
     virtual bool in_bounds(s32 wx, s32 wy) const { return wx >= 0 && wy >= 0; }
     virtual u32 total_bytes() const { return m_total_bytes; }
 
-    // --- Primitivas de dibujo POR CPU (implementadas en la base) ----------
-    /// Píxel de mundo. Devuelve false si la posición está fuera de rango. En
-    /// playfields con espejo (linear_display) duplica al espejo.
-    bool set_pixel(s32 wx, s32 wy, u8 color) {
+    // --- Escritura atómica vía el mapeo (lo usa `Surface`) ----------------
+    /// Escribe un píxel de mundo (lo atómico del mapeo lógico→físico). Devuelve
+    /// false si está fuera de rango. En playfields con espejo (linear_display)
+    /// duplica al espejo. `Surface` añade el recorte (clip) por encima de esto.
+    bool write_pixel(s32 wx, s32 wy, u8 color) {
         if (!m_initialized || !in_bounds(wx, wy)) return false;
         const u32 byte = byte_for(wx);
         if (!supports_walk() && byte >= m_bytes_per_row) return false;
@@ -108,33 +109,6 @@ public:
         const u32 mir = mirror_planelines();
         if (mir != 0u) write_planes(pl + mir, byte, mask, color);
         return true;
-    }
-    /// Rectángulo de mundo relleno (CPU). true si todos los píxeles estaban en rango.
-    bool fill_rect(s32 wx, s32 wy, u16 w, u16 h, u8 color) {
-        if (!m_initialized) return false;
-        bool ok = true;
-        for (u16 dy = 0; dy < h; ++dy)
-            for (u16 dx = 0; dx < w; ++dx)
-                if (!set_pixel(wx + dx, wy + dy, color)) ok = false;
-        return ok;
-    }
-    /// Línea oblicua de mundo (Bresenham, CPU). true si todos los píxeles en rango.
-    bool draw_line(s32 wx0, s32 wy0, s32 wx1, s32 wy1, u8 color) {
-        if (!m_initialized) return false;
-        const s32 dx = wx1 > wx0 ? wx1 - wx0 : wx0 - wx1;
-        const s32 dy = wy1 > wy0 ? wy1 - wy0 : wy0 - wy1;
-        const s32 sx = wx0 < wx1 ? 1 : -1;
-        const s32 sy = wy0 < wy1 ? 1 : -1;
-        s32 err = dx - dy;
-        bool ok = true;
-        for (;;) {
-            if (!set_pixel(wx0, wy0, color)) ok = false;
-            if (wx0 == wx1 && wy0 == wy1) break;
-            const s32 e2 = 2 * err;
-            if (e2 > -dy) { err -= dy; wx0 += sx; }
-            if (e2 < dx)  { err += dx; wy0 += sy; }
-        }
-        return ok;
     }
 
     // --- Blits (virtuales; la costura/espejo dependen del layout) ---------

@@ -23,6 +23,8 @@
 
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
+#include <eng/field/playfield.hpp>
+#include <eng/field/surface.hpp>
 #include <eng/field/xlimited.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/sprite_manager.hpp>
@@ -404,6 +406,20 @@ public:
     /// COLOR16-31. Configura con `set(u8, SpriteConfig)`; la DATA en `sprite_data()`.
     graphics::SpriteManager& sprites() { return m_sprites; }
     const graphics::SpriteManager& sprites() const { return m_sprites; }
+    /// Superficie de dibujo sobre el playfield de scroll (coordenadas de mundo;
+    /// para objetos fijos convierte con `screen_to_world_x/y`). Es el contexto de
+    /// dibujo con clip; `Playfield` no dibuja.
+    Surface bg_surface() {
+        return Surface(m_field[0], {0, 0, m_field[0].width(), m_field[0].display_height()});
+    }
+    /// Superficie de dibujo sobre el lienzo HUD (coordenadas de lienzo = pantalla).
+    Surface hud_surface() {
+        return Surface(m_hud, {0, 0, m_hud.width(), m_hud.height()});
+    }
+    /// Superficie de dibujo sobre el FG lienzo (DPF heterogéneo).
+    Surface canvas_fg_surface() {
+        return Surface(m_fg_canvas, {0, 0, m_fg_canvas.width(), m_fg_canvas.height()});
+    }
     /// Playfield del HUD (lienzo plano en la franja inferior). Solo válido si
     /// `cfg.hud_height > 0`. Dibuja aquí (una vez en init) con las primitivas.
     CanvasPlayfield& hud() { return m_hud; }

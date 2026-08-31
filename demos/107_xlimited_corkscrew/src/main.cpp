@@ -381,9 +381,9 @@ struct DemoGame {
         }
 #if K_CANVAS_FG
         // FG estático (lienzo plano, DPF): marco + figuras dibujadas UNA vez en
-        // init con las primitivas CPU. PF2 usa colores 8..15 (base DPF).
+        // init con la superficie del canvas FG. PF2 usa colores 8..15 (base DPF).
         {
-            auto& fg = scene.canvas_fg();
+            auto fg = scene.canvas_fg_surface();
             fg.draw_line(0, 0, kViewportW - 1, 0, 1);              // borde sup
             fg.draw_line(0, kViewportH - 1, kViewportW - 1, kViewportH - 1, 1); // borde inf
             fg.fill_rect(24, 24, 16, 16, 2);                       // caja
@@ -392,12 +392,13 @@ struct DemoGame {
         }
 #endif
 #if K_HUD
-        // Dibuja el HUD UNA VEZ en init (boot, sin competir con el DMA). El
-        // display del corkscrew aplica un offset de fetch horizontal al playfield
-        // de la franja (los primeros ~16 px y el borde derecho pueden recortarse),
-        // así que el contenido se dibuja en la zona central del lienzo.
+        // Dibuja el HUD UNA VEZ en init (boot, sin competir con el DMA) con la
+        // superficie del lienzo HUD. El display del corkscrew aplica un offset de
+        // fetch horizontal al playfield de la franja (los primeros ~16 px y el
+        // borde derecho pueden recortarse), así que el contenido se dibuja en la
+        // zona central del lienzo.
         {
-            auto& hud = scene.hud();
+            auto hud = scene.hud_surface();
             // Fondo oscuro NO negro (0x844): el check de negro interno del
             // harness rechaza negro dentro del rect activo.
             hud.fill_rect(0, 0, kViewportW, K_HUD_HEIGHT, 8);
@@ -508,9 +509,10 @@ struct DemoGame {
     void draw_hud_cpu() {
 #if K_HUD
         auto& bg = scene.bg(); // playfield de scroll (roles, no índice)
+        auto s = scene.bg_surface(); // contexto de dibujo con clip (mundo)
         const eng::s32 y0 = bg.screen_to_world_y(4);
-        bg.set_pixel(bg.screen_to_world_x(60), y0, 2);      // píxel cian
-        bg.set_pixel(bg.screen_to_world_x(60), y0 + 7, 2);  // píxel cian
+        s.set_pixel(bg.screen_to_world_x(60), y0, 2);      // píxel cian
+        s.set_pixel(bg.screen_to_world_x(60), y0 + 7, 2);  // píxel cian
 #endif
     }
 
