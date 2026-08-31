@@ -16,17 +16,18 @@
 /// Reglas del engine: sin heap, sin RTTI, gnu++23. El float vive SOLO en la
 /// evaluación constexpr del compilador; la tabla emitida es entera.
 
+#include <eng/core/ct_array.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng {
 
 template <s32 Amp, u32 Steps = 64>
 struct SineTable {
-    s32 v[Steps];
-
-    constexpr SineTable() {
-        for (u32 i = 0; i < Steps; ++i) v[i] = sample(i);
-    }
+    /// Tabla materializada por `ct_array` (el functor solo se evalúa en
+    /// compile-time; `k[i]` con i runtime lee la tabla, sin float por frame).
+    ct_array<s32, Steps> v {
+        [](usize i) -> s32 { return SineTable::sample(static_cast<u32>(i)); }
+    };
 
     /// Muestra `i & (Steps-1)` (Steps potencia de dos).
     constexpr s32 operator[](u8 i) const { return v[i & (Steps - 1u)]; }
@@ -44,8 +45,8 @@ struct SineTable {
         const double xp = x * (pi - x);
         const double den = 5.0 * pi * pi - 4.0 * xp;
         const double sinv = 16.0 * xp / den;
-        const double scaled = sinv * static_cast<double>(Amp);
-        const double rounded = scaled + (sinv < 0.0 ? -0.5 : 0.5);
+        const double val = (s * sinv) * static_cast<double>(Amp);
+        const double rounded = val + (val < 0.0 ? -0.5 : 0.5);
         return static_cast<s32>(rounded);
     }
 };

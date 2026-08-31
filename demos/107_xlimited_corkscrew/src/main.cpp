@@ -235,6 +235,20 @@ namespace demo = eng::field::demo;
 #ifndef K_SPRITE
 #define K_SPRITE 1 // muestrario: sprite (diamante) delante de los playfields
 #endif
+// Salto configurable: px/frame MÁXIMOS por eje (el scroll se ejecuta como
+// sub-pasos atómicos de 1 px, paint-then-advance → nunca a medio pintar).
+//   K_STEP     salto de PF1 (defecto 1 = clásico)
+//   K_STEP_FG  salto de PF2 (FG) en dual_patterns (0 = igual a K_STEP)
+//   K_PATTERNS DPF con cada playfield en un patrón distinto (PF2: seno-X)
+#ifndef K_STEP
+#define K_STEP 1
+#endif
+#ifndef K_STEP_FG
+#define K_STEP_FG 2
+#endif
+#ifndef K_PATTERNS
+#define K_PATTERNS 1
+#endif
 // Franja HUD inferior: un playfield SEPARADO (CanvasPlayfield) de K_HUD_HEIGHT
 // filas con K_HUD_PLANES bitplanes y paleta propia, en una zona de Copper bajo
 // el viewport principal. El WAIT de la zona debe caer en raster <= 255.
@@ -275,6 +289,9 @@ constexpr eng::s32 kPreScroll = static_cast<eng::s32>(K_PRE_SCROLL);
 constexpr eng::u8 kPhaseCount = 8;
 constexpr bool kDual = K_DUAL != 0;                                     // DPF 3+3 (dos playfields)
 constexpr bool kParallax = K_PARALLAX != 0;                             // PF2 scrollea a media X
+constexpr bool kDualPatterns = K_PATTERNS != 0;                         // DPF: patrones por PF
+constexpr eng::u8 kStepMax = static_cast<eng::u8>(K_STEP);              // salto PF1 (px/frame)
+constexpr eng::u8 kStepFg = static_cast<eng::u8>(K_STEP_FG);            // salto PF2 (0 = igual)
 constexpr bool kLinear = K_LINEAR != 0;                                 // display lineal sin split
 constexpr eng::u8 kEffectivePlanes = kDual ? 3u : kPlanes;              // 3 por playfield en DPF
 // 16×16 pantallas virtuales → mapa en tiles derivado de viewport/tile
@@ -429,6 +446,10 @@ struct DemoGame {
             scene_cfg.map2.wrap_x = kMapTilesX;
             scene_cfg.map2.wrap_y = kMapTilesY;
         }
+        // Saltos configurables + DPF con patrones distintos por playfield.
+        scene_cfg.max_step = kStepMax;
+        scene_cfg.fg_max_step = kStepFg; // (solo PF2 en dual_patterns)
+        scene_cfg.dual_patterns = kDual && kDualPatterns;
         scene_cfg.parallax_x = kParallax;
         scene_cfg.linear_display = kLinear;
         scene_cfg.effect = kEffectMode;

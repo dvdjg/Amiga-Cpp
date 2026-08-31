@@ -6,6 +6,7 @@
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/scene/route_camera.hpp>
+#include <eng/core/sinetable.hpp>
 #include <eng/core/span.hpp>
 
 #include <proto/exec.h>
@@ -217,19 +218,12 @@ void build_tile_cache(eng::Span<eng::u16> words, eng::u8 tile_planes, bool is_fo
 	}
 }
 
-/// Seno de 64 pasos exactos (amplitud 64).
+/// Seno de 64 pasos (amplitud 64) generado en compile-time con `SineTable<64>`
+/// (sustituye al array de 64 valores escritos a mano; el patrón permite
+/// `SineTable<48>`/`SineTable<32>` para otras amplitudes).
+inline constexpr eng::SineTable<64> kSin64 {};
 constexpr eng::s16 sin64(eng::u8 index) {
-	constexpr eng::s16 t[] {
-		0, 6, 12, 18, 24, 31, 36, 41,
-		45, 49, 53, 56, 59, 61, 63, 64,
-		64, 64, 63, 61, 59, 56, 53, 49,
-		45, 41, 36, 31, 24, 18, 12, 6,
-		0, -6, -12, -18, -24, -31, -36, -41,
-		-45, -49, -53, -56, -59, -61, -63, -64,
-		-64, -64, -63, -61, -59, -56, -53, -49,
-		-45, -41, -36, -31, -24, -18, -12, -6,
-	};
-	return t[index & 63u];
+	return static_cast<eng::s16>(kSin64[index]);
 }
 
 /// Seno interpolado con precisión Q16 (escala 65536 = 1.0) para avance

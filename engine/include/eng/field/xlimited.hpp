@@ -466,6 +466,11 @@ struct XlimitedConfig {
     bool scroll_y = false;             // true = corkscrew/XY: display_height = viewport_h + 2*tile_height,
                                        // banda de staging, fill de display_blocks_per_col y split vertical
     ScrollMode scroll_mode = ScrollMode::EightWay; // especialización del scroll (deriva scroll_y)
+    u8 max_step = 1;               // px/frame máximos por eje de AVANCE (salto).
+                                   // El algoritmo pinta cada sub-paso de 1 px ANTES de
+                                   // avanzar videoposx → nunca revela píxeles sin pintar.
+                                   // Un salto de N px equivale a N sub-pasos atómicos
+                                   // (N columnas de tiles pintadas; coste de Blitter ∝ N).
     bool linear_display = false;       // true = display LINEAL sin split: el bitmap duplica el bucle
                                        // (espejo de filas) y el wrap se lee de forma contigua. Elimina la
                                        // limitación del split en raster 256..296 (comparador de 8 bits)
@@ -538,14 +543,30 @@ public:
         return v % m_display_height;
     }
 
-    /// Scroll de 1 píxel por eje (especialización del playfield). Devuelve false
+    /// Scroll de N píxeles por eje (especialización del playfield). Devuelve false
     /// si un borde del mapa bloqueó el avance (dirección inversa sin recorrido).
-    /// La decisión del paso la toma `ScrollEngine` (que posee el estado de
-    /// cámara); el playfield solo aplica el paso con su layout (layout sink).
+    ///
+    /// `max_step` es el SALTO máximo configurable por eje y frame. El avance se
+    /// ejecuta como `|dx|`+`|dy|` sub-pasos ATÓMICOS de 1 px: cada uno pinta su
+    /// columna/fila entrante ANTES de avanzar `videopos` (paint-then-advance) y
+    /// el reveal lo hace el Copper tras ejecutar el plan → NUNCA se muestra un
+    /// píxel sin pintar, para cualquier salto ≤ max_step (16 px = la columna
+    /// completa cada frame; el coste de Blitter crece ∝ salto).
     bool update_scroll(graphics::FramePlan& plan, s32 dx, s32 dy) override {
         if (!m_initialized) return false;
-        return m_scroll.step(plan, *this, dx, dy);
+        const s32 lim = m_max_step;
+        if (dx > lim) dx = lim; else if (dx < -lim) dx = -lim;
+        if (dy > lim) dy = lim; else if (dy < -lim) dy = -lim;
+        if (dx > 0) for (s32 i = 0; i < dx; ++i) { if (!m_scroll.scroll_right(plan, *this)) return false; }
+        else if (dx < 0) for (s32 i = 0; i < -dx; ++i) { if (!m_scroll.scroll_left(plan, *this)) return false; }
+        if (dy > 0) for (s32 i = 0; i < dy; ++i) { if (!m_scroll.scroll_down(plan, *this)) return false; }
+        else if (dy < 0) for (s32 i = 0; i < -dy; ++i) { if (!m_scroll.scroll_up(plan, *this)) return false; }
+        return true;
     }
+
+    /// Salto máximo (px/frame por eje) configurable. 1 = comportamiento 1px clásico.
+    constexpr void set_scroll_step(u8 v) { m_max_step = v; }
+    constexpr u8 scroll_step() const { return m_max_step; }
 
     /// Calcula la altura total según la fórmula canónica de Steger parametrizada.
     ///
@@ -588,6 +609,7 @@ public:
     /// ancho (16 bytes para BPL32, 48 para 4x). En modo normal offset=0.
     bool begin(MemorySystem& memory, const XlimitedConfig& cfg) {
         m_cfg = cfg;
+        m_max_step = m_cfg.max_step ? m_cfg.max_step : 1; // salto configurable (≥1)
         // Especialización del scroll: HorizontalOnly no usa banda de staging ni
         // split (display_height = viewport_h, X-only). Los demás modos conservan
         // el valor de scroll_y del config.
@@ -1205,6 +1227,7 @@ private:
     ScrollEngine<XLimitedPlayfield<SC>, SC> m_scroll {}; // cámara + algoritmo (§7)
     u16* m_savewordpointer = nullptr;             // guarda de 1 word plane-shift (sink)
     u16 m_saveword = 0;
+    u8 m_max_step = 1;                            // salto máx. px/frame por eje (config)
 };
 
 /// Compositor mínimo para XLimited/corkscrew (single playfield interleaved).
