@@ -19,9 +19,13 @@
 ///   - `XLimitedPlayfield`    (xlimited.hpp) corkscrew 8-way con variantes.
 ///
 /// Reglas del engine: sin heap, sin RTTI, gnu++23. Toda escritura al framebuffer
-/// pasa por las primitivas (que devuelven `bool` y validan); nunca se escribe a
-/// `frontbuffer()` a ciegas.
+/// pasa por las primitivas (`Surface` y blits con `Span`), que devuelven `bool`
+/// y validan. La API pública NO expone el puntero crudo del framebuffer: solo
+/// `Surface` (que enruta por el mapeo) y blits con `Span` (el tamaño es el
+/// contrato). El acceso crudo optimizado vive dentro del engine (núcleo), no en
+/// el código de la aplicación.
 
+#include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/graphics/bitmap.hpp>
 #include <eng/graphics/frame_plan.hpp>
@@ -85,7 +89,6 @@ public:
     constexpr u16 height() const { return m_height; }
     constexpr u8 planes() const { return m_planes; }
     constexpr u16 bytes_per_row() const { return m_bytes_per_row; }
-    constexpr const u8* frontbuffer() const { return m_frontbuffer; }
     constexpr bool initialized() const { return m_initialized; }
 
     // --- Hooks de mapeo lógico->físico (implementa cada tipo) -------------
@@ -113,12 +116,15 @@ public:
     }
 
     // --- Blits (virtuales; la costura/espejo dependen del layout) ---------
-    virtual bool add_world_bitmap(graphics::FramePlan& plan, const u16* src,
+    /// Fuente y máscara viajan como `Span<const u16>`: el tamaño que el caller
+    /// declara ES el contrato y el playfield lo valida antes de encolar el job
+    /// (devuelve false si el origen no cubre `src_plane_stride*planes`). 
+    virtual bool add_world_bitmap(graphics::FramePlan& plan, Span<const u16> src,
                                   s32 wx, s32 wy, u16 w, u16 h,
                                   u16 src_row_bytes, u32 src_plane_stride,
                                   u8 planes) = 0;
-    virtual bool add_world_bitmap_masked(graphics::FramePlan& plan, const u16* src,
-                                         const u16* mask, s32 wx, s32 wy,
+    virtual bool add_world_bitmap_masked(graphics::FramePlan& plan, Span<const u16> src,
+                                         Span<const u16> mask, s32 wx, s32 wy,
                                          u16 w, u16 h, u16 src_row_bytes,
                                          u32 src_plane_stride, u8 planes) = 0;
 
@@ -227,21 +233,27 @@ public:
     gfx::Bitmap& bitmap() { return m_bitmap; }
 
     /// Blit planar en el lienzo (coordenadas de lienzo = fila/columna directas,
-    /// sin walk ni costura). `wx` múltiplo de 16, origen en Chip RAM.
-    bool add_world_bitmap(graphics::FramePlan& plan, const u16* src,
+    /// sin walk ni costura). `wx` múltiplo de 16, origen en Chip RAM. Fuente con
+    /// `Span`: se valida que `src.size()` cubra los `planes` planos solicitados.
+    bool add_world_bitmap(graphics::FramePlan& plan, Span<const u16> src,
                           s32 wx, s32 wy, u16 w, u16 h,
                           u16 src_row_bytes, u32 src_plane_stride,
                           u8 planes) override {
-        if (!m_initialized || src == nullptr || planes == 0) return false;
+        if (!m_initialized || src.empty() || planes == 0) return false;
         if (wx < 0 || (wx & 15) != 0 || static_cast<u32>(wx / 8) + (w / 8u) > m_bytes_per_row) return false;
         if (wy < 0 || static_cast<u32>(wy) + h > m_height) return false;
         const u16 words = static_cast<u16>(w / 16u);
+        const u32 need_src = (planes > 1u ? (static_cast<u32>(planes - 1u) * (src_plane_stride / 2u)) : 0u)
+                           + (h > 1u ? (static_cast<u32>(h - 1u) * (src_row_bytes / 2u)) : 0u)
+                           + static_cast<u32>(words);
+        if (src.size() < need_src) return false;
         const u16 x_byte = static_cast<u16>(wx / 8u);
         const u32 pl = static_cast<u32>(wy) * m_planes;
         const s16 src_mod = static_cast<s16>(src_row_bytes - words * 2);
         const s16 dst_mod = static_cast<s16>(m_bytes_per_row * m_planes - words * 2);
+        const u16* sbase = src.data();
         for (u8 p = 0; p < planes; ++p) {
-            const u16* s = src + static_cast<u32>(p) * (src_plane_stride / 2u);
+            const u16* s = sbase + static_cast<u32>(p) * (src_plane_stride / 2u);
             u16* d = reinterpret_cast<u16*>(m_frontbuffer + (pl + static_cast<u32>(p)) * m_bytes_per_row + x_byte);
             graphics::BlitJob job {
                 graphics::BlitJobKind::CopyRect, nullptr, s, d,
@@ -254,23 +266,33 @@ public:
     }
 
     /// BOB enmascarado en el lienzo (cookie-cut, máscara 1 bit compartida).
-    bool add_world_bitmap_masked(graphics::FramePlan& plan, const u16* src,
-                                 const u16* mask, s32 wx, s32 wy,
+    bool add_world_bitmap_masked(graphics::FramePlan& plan, Span<const u16> src,
+                                 Span<const u16> mask, s32 wx, s32 wy,
                                  u16 w, u16 h, u16 src_row_bytes,
                                  u32 src_plane_stride, u8 planes) override {
-        if (!m_initialized || src == nullptr || mask == nullptr || planes == 0) return false;
+        if (!m_initialized || src.empty() || mask.empty() || planes == 0) return false;
         if (wx < 0 || (wx & 15) != 0 || static_cast<u32>(wx / 8) + (w / 8u) > m_bytes_per_row) return false;
         if (wy < 0 || static_cast<u32>(wy) + h > m_height) return false;
         const u16 words = static_cast<u16>(w / 16u);
+        // El origen debe cubrir los `planes` planos; la máscara es UN plano de 1
+        // bit, así que basta con una viaje de fila (h líneas de `src_row_bytes`).
+        const u32 need_src = (planes > 1u ? (static_cast<u32>(planes - 1u) * (src_plane_stride / 2u)) : 0u)
+                           + (h > 1u ? (static_cast<u32>(h - 1u) * (src_row_bytes / 2u)) : 0u)
+                           + static_cast<u32>(words);
+        const u32 need_mask = (h > 1u ? (static_cast<u32>(h - 1u) * (src_row_bytes / 2u)) : 0u)
+                            + static_cast<u32>(words);
+        if (src.size() < need_src || mask.size() < need_mask) return false;
         const u16 x_byte = static_cast<u16>(wx / 8u);
         const u32 pl = static_cast<u32>(wy) * m_planes;
         const s16 src_mod = static_cast<s16>(src_row_bytes - words * 2);
         const s16 dst_mod = static_cast<s16>(m_bytes_per_row * m_planes - words * 2);
+        const u16* sbase = src.data();
+        const u16* mbase = mask.data();
         for (u8 p = 0; p < planes; ++p) {
-            const u16* s = src + static_cast<u32>(p) * (src_plane_stride / 2u);
+            const u16* s = sbase + static_cast<u32>(p) * (src_plane_stride / 2u);
             u16* d = reinterpret_cast<u16*>(m_frontbuffer + (pl + static_cast<u32>(p)) * m_bytes_per_row + x_byte);
             graphics::BlitJob job {
-                graphics::BlitJobKind::MaskedBobCookieCut, mask, s, d,
+                graphics::BlitJobKind::MaskedBobCookieCut, mbase, s, d,
                 words, h, src_mod, dst_mod,
                 1, 0, src_plane_stride, static_cast<u32>(m_bytes_per_row * m_planes), false
             };
@@ -287,7 +309,7 @@ private:
         m_planes = m_bitmap.planes();
         m_bytes_per_row = m_bitmap.row_bytes();
         m_total_bytes = m_bitmap.total_bytes();
-        m_frontbuffer = const_cast<u8*>(m_bitmap.frontbuffer());
+        m_frontbuffer = m_bitmap.bytes().data(); // vía cruda interna (núcleo)
     }
     gfx::Bitmap m_bitmap {};
 };

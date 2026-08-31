@@ -82,8 +82,9 @@ public:
     }
 
     /// Blit planar en el mundo (delega en el playfield; la costura/espejo las
-    /// gestiona el layout). Recorta el rect contra el clip.
-    bool blit(graphics::FramePlan& plan, const u16* src, s32 x, s32 y,
+    /// gestiona el layout). Recorta el rect contra el clip. La fuente viaja como
+    /// `Span` (el tamaño es el contrato que el playfield valida).
+    bool blit(graphics::FramePlan& plan, Span<const u16> src, s32 x, s32 y,
               u16 w, u16 h, u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
         if (!valid() || x < m_clip.x || y < m_clip.y ||
             x + static_cast<s32>(w) > m_clip.x + m_clip.w ||
@@ -93,7 +94,7 @@ public:
     }
 
     /// BOB enmascarado (cookie-cut) en el mundo, recortado contra el clip.
-    bool blit_masked(graphics::FramePlan& plan, const u16* src, const u16* mask,
+    bool blit_masked(graphics::FramePlan& plan, Span<const u16> src, Span<const u16> mask,
                      s32 x, s32 y, u16 w, u16 h,
                      u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
         if (!valid() || x < m_clip.x || y < m_clip.y ||

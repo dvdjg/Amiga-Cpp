@@ -840,13 +840,19 @@ public:
     /// `src_row_bytes`, cada plano separado `src_plane_stride` bytes) en el MUNDO.
     /// `wx` debe ser múltiplo de 16 (word-aligned). El origen `src` debe estar en
     /// Chip RAM (el Blitter no lee .rodata). Gestiona la costura y el espejo.
+    /// La fuente viaja como `Span`: se valida que cubra `src_plane_stride*planes`.
     bool add_world_bitmap(graphics::FramePlan& plan, // override de Playfield
-                          const u16* src, s32 wx, s32 wy, u16 w, u16 h,
+                          Span<const u16> src, s32 wx, s32 wy, u16 w, u16 h,
                           u16 src_row_bytes, u32 src_plane_stride, u8 planes) override {
-        if (!m_initialized || src == nullptr || planes == 0) return false;
+        if (!m_initialized || src.empty() || planes == 0) return false;
         if (wx < 0 || (wx & 15) != 0) return false;
         const s32 loop = ((wy % m_display_height) + m_display_height) % m_display_height;
         const u16 words = static_cast<u16>(w / 16u);
+        const u32 need_src = (planes > 1u ? (static_cast<u32>(planes - 1u) * (src_plane_stride / 2u)) : 0u)
+                           + (h > 1u ? (static_cast<u32>(h - 1u) * (src_row_bytes / 2u)) : 0u)
+                           + static_cast<u32>(words);
+        if (src.size() < need_src) return false;
+        const u16* sbase = src.data();
         const u16 x_byte = static_cast<u16>((wx / 8u) & 0xfffeu);
         s32 r = loop;
         u16 remaining = h;
@@ -854,11 +860,11 @@ public:
             const u16 seg = static_cast<u16>(
                 (r + remaining > m_display_height) ? (m_display_height - r) : remaining);
             // Dibujo en el bucle (partido por la costura si cruza display_height).
-            if (!emit_world_rect(plan, src, x_byte, static_cast<u32>(r) * planes,
+            if (!emit_world_rect(plan, sbase, x_byte, static_cast<u32>(r) * planes,
                     words, seg, src_row_bytes, src_plane_stride, planes)) return false;
             // En modo lineal, duplicar al espejo para que el framebuffer quede coherente.
             if (m_linear_display) {
-                if (!emit_world_rect(plan, src, x_byte,
+                if (!emit_world_rect(plan, sbase, x_byte,
                         static_cast<u32>(r + m_display_height) * planes,
                         words, seg, src_row_bytes, src_plane_stride, planes)) return false;
             }
@@ -899,23 +905,32 @@ public:
     /// el layout de fila de un plano fuente: donde el bit es 0 se conserva el
     /// fondo, donde es 1 se escribe el BOB.
     bool add_world_bitmap_masked(graphics::FramePlan& plan, // override de Playfield
-                                 const u16* src, const u16* mask, s32 wx, s32 wy,
+                                 Span<const u16> src, Span<const u16> mask, s32 wx, s32 wy,
                                  u16 w, u16 h, u16 src_row_bytes, u32 src_plane_stride,
                                  u8 planes) override {
-        if (!m_initialized || src == nullptr || mask == nullptr || planes == 0) return false;
+        if (!m_initialized || src.empty() || mask.empty() || planes == 0) return false;
         if (wx < 0 || (wx & 15) != 0) return false;
         const s32 loop = ((wy % m_display_height) + m_display_height) % m_display_height;
         const u16 words = static_cast<u16>(w / 16u);
+        // Contrato de tamaño: el origen cubre los planes; la máscara, una viaje.
+        const u32 need_src = (planes > 1u ? (static_cast<u32>(planes - 1u) * (src_plane_stride / 2u)) : 0u)
+                           + (h > 1u ? (static_cast<u32>(h - 1u) * (src_row_bytes / 2u)) : 0u)
+                           + static_cast<u32>(words);
+        const u32 need_mask = (h > 1u ? (static_cast<u32>(h - 1u) * (src_row_bytes / 2u)) : 0u)
+                            + static_cast<u32>(words);
+        if (src.size() < need_src || mask.size() < need_mask) return false;
+        const u16* sbase = src.data();
+        const u16* mbase = mask.data();
         const u16 x_byte = static_cast<u16>((wx / 8u) & 0xfffeu);
         s32 r = loop;
         u16 remaining = h;
         while (remaining > 0) {
             const u16 seg = static_cast<u16>(
                 (r + remaining > m_display_height) ? (m_display_height - r) : remaining);
-            if (!emit_world_rect_masked(plan, src, mask, x_byte, static_cast<u32>(r) * planes,
+            if (!emit_world_rect_masked(plan, sbase, mbase, x_byte, static_cast<u32>(r) * planes,
                     words, seg, src_row_bytes, src_plane_stride, planes)) return false;
             if (m_linear_display) {
-                if (!emit_world_rect_masked(plan, src, mask, x_byte,
+                if (!emit_world_rect_masked(plan, sbase, mbase, x_byte,
                         static_cast<u32>(r + m_display_height) * planes,
                         words, seg, src_row_bytes, src_plane_stride, planes)) return false;
             }
@@ -1280,8 +1295,7 @@ public:
     constexpr u16 bitmap_blocks_per_row() const { return m_bitmap_blocks_per_row; }
     constexpr u16 display_height() const { return m_display_height; }
     constexpr u16 display_blocks_per_col() const { return m_bitmap_blocks_per_col; }
-    constexpr u16 block_planes_lines() const { return m_block_planes_lines; }
-    constexpr const u8* frontbuffer() const { return m_frontbuffer; }
+constexpr u16 block_planes_lines() const { return m_block_planes_lines; }
     constexpr bool initialized() const { return m_initialized; }
     constexpr u16 bpl1mod() const { return m_bpl1mod; }
 
