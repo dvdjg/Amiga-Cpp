@@ -23,6 +23,7 @@
 /// `frontbuffer()` a ciegas.
 
 #include <eng/core/types.hpp>
+#include <eng/graphics/bitmap.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/memory/arena.hpp>
 
@@ -175,15 +176,13 @@ public:
     /// Reserva el framebuffer en Chip RAM (interleaved, `width/8*height*planes`).
     bool begin(MemorySystem& memory, const Config& cfg) {
         if (cfg.width == 0 || cfg.height == 0 || cfg.planes == 0 || cfg.planes > 6) return false;
-        m_width = cfg.width;
-        m_height = cfg.height;
-        m_planes = cfg.planes;
-        m_bytes_per_row = static_cast<u16>(m_width / 8u);
-        m_total_bytes = static_cast<u32>(m_bytes_per_row) * m_height * m_planes;
-        m_bitmap_block = memory.chip.allocate(m_total_bytes, 16);
-        if (!m_bitmap_block.valid()) return false;
-        m_real_base = static_cast<u8*>(m_bitmap_block.data);
-        m_frontbuffer = m_real_base;
+        gfx::BitmapConfig bc;
+        bc.width = cfg.width;
+        bc.height = cfg.height;
+        bc.planes = cfg.planes;
+        bc.layout = gfx::PlaneLayout::Interleaved;
+        if (!m_bitmap.init(memory, bc)) return false;
+        sync_from_bitmap();
         u8* d = m_frontbuffer;
         for (u32 i = 0; i < m_total_bytes; ++i) d[i] = 0;
         m_initialized = true;
@@ -206,7 +205,7 @@ public:
     PlayfieldHardwareView hardware_view() const override {
         PlayfieldHardwareView v;
         v.bitplanes = m_frontbuffer;
-        v.real_base = m_real_base; // base real del bloque (para BPLxPT)
+        v.real_base = m_frontbuffer; // base del bloque (para BPLxPT)
         v.bitmap_bytes_per_row = m_bytes_per_row;
         v.plane_bytes = m_total_bytes;
         v.planes = m_planes;
@@ -222,6 +221,10 @@ public:
         v.bpl2mod = v.bpl1mod;
         return v;
     }
+
+    /// El bitmap que posee este lienzo (memoria + layout).
+    const gfx::Bitmap& bitmap() const { return m_bitmap; }
+    gfx::Bitmap& bitmap() { return m_bitmap; }
 
     /// Blit planar en el lienzo (coordenadas de lienzo = fila/columna directas,
     /// sin walk ni costura). `wx` múltiplo de 16, origen en Chip RAM.
@@ -277,8 +280,16 @@ public:
     }
 
 private:
-    MemoryBlock m_bitmap_block {};
-    u8* m_real_base = nullptr; // base de fetch del display (block.data)
+    /// Sincroniza los miembros de la base (mapeo/escritura) desde el Bitmap.
+    void sync_from_bitmap() {
+        m_width = m_bitmap.width();
+        m_height = m_bitmap.height();
+        m_planes = m_bitmap.planes();
+        m_bytes_per_row = m_bitmap.row_bytes();
+        m_total_bytes = m_bitmap.total_bytes();
+        m_frontbuffer = const_cast<u8*>(m_bitmap.frontbuffer());
+    }
+    gfx::Bitmap m_bitmap {};
 };
 
 } // namespace eng::field

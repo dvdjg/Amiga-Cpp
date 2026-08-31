@@ -118,9 +118,31 @@ else
 	SDKDIR="$(dirname "$(command -v m68k-amiga-elf-gcc)")/../m68k-amiga-elf/sys-include"
 fi
 
+# --- Config ID (perfil de máquina + flags + modo) --------------------------
+# El CONFIG_ID nombra el ejecutable y aísla los artefactos, de modo que
+# distintas configuraciones (TARGET_MACHINE + EXTRA_DEFINES + debug/release)
+# conviven sin pisarse. El token es canónico: MACHINE_fLAGS_modo.
+#
+#   TARGET_MACHINE=A500 (defecto) · A1200 · AtariST · Megadrive · NeoGeo
+#   EXTRA_DEFINES="-DK_HUD=0 -DK_DUAL=1" → flags "k_hud_0_k_dual_1"
+#   modo: debug | release
+MACHINE_ID="${TARGET_MACHINE:-A500}"
+GEN_FLAGS=""
+if [ -n "${EXTRA_DEFINES:-}" ]; then
+	# Sanitiza EXTRA_DEFINES a solo [a-z0-9_] y elimina el marcador de "-D"
+	# (que el tr convierte a 'd'): "-DK_HUD=0 -DK_DUAL=1" -> "k_hud0_k_dual1".
+	GEN_FLAGS="$(echo "$EXTRA_DEFINES" | tr -cd 'A-Za-z0-9_' | tr 'A-Z' 'a-z' | sed 's/^d//; s/_d/_/g')"
+fi
+GEN_MODE="release"
+if [ "$DEBUG_BUILD" -eq 1 ]; then GEN_MODE="debug"; fi
+if [ "$O0_BUILD" -eq 1 ]; then GEN_MODE="o0"; fi
+CONFIG_ID="${MACHINE_ID}"
+if [ -n "$GEN_FLAGS" ]; then CONFIG_ID="${CONFIG_ID}_${GEN_FLAGS}"; fi
+CONFIG_ID="${CONFIG_ID}_${GEN_MODE}"
+
 # --- Directorios de salida --------------------------------------------------
-OBJ_DIR="$ROOT/obj/demos/$DEMO_NAME"
-OUT_DIR="$ROOT/out/demos/$DEMO_NAME"
+OBJ_DIR="$ROOT/obj/demos/$DEMO_NAME/$CONFIG_ID"
+OUT_DIR="$ROOT/out/demos/$DEMO_NAME/$CONFIG_ID"
 
 if [ "$CLEAN" -eq 1 ]; then
 	rm -rf "$OBJ_DIR" "$OUT_DIR"
@@ -194,10 +216,10 @@ echo "  ASM   $SUPPORT_ASM"
 "$ASM" -mcpu=68000 -g --register-prefix-optional "-I$SDKDIR" -o "$SUPPORT_ASM_OBJ" "$SUPPORT_ASM"
 
 # --- Enlazado y hunk --------------------------------------------------------
-ELF="$OUT_DIR/$DEMO_NAME.elf"
-EXE="$OUT_DIR/$DEMO_NAME.exe"
-MAP="$OUT_DIR/$DEMO_NAME.map"
-LISTING="$OUT_DIR/$DEMO_NAME.s"
+ELF="$OUT_DIR/$DEMO_NAME.$CONFIG_ID.elf"
+EXE="$OUT_DIR/$DEMO_NAME.$CONFIG_ID.exe"
+MAP="$OUT_DIR/$DEMO_NAME.$CONFIG_ID.map"
+LISTING="$OUT_DIR/$DEMO_NAME.$CONFIG_ID.s"
 
 echo "  LINK  $ELF"
 "$GXX" "${COMMON[@]}" "-Wl,--emit-relocs,--gc-sections,-Ttext=0x400,-Map=$MAP" "${OBJECTS[@]}" -o "$ELF"

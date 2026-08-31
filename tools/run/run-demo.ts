@@ -642,8 +642,42 @@ if (!demoArg || demoArg.startsWith('--')) {
 
 const demoPath = path.resolve(root, demoArg);
 const demoName = path.basename(demoPath);
-const builtExe = path.join(root, 'out/demos', demoName, `${demoName}.exe`);
-const builtMap = path.join(root, 'out/demos', demoName, `${demoName}.map`);
+// El build nombra el ejecutable con un CONFIG_ID (MACHINE_flags_modo) y aísla
+// los artefactos por configuración: out/demos/<demo>/<CONFIG_ID>/<demo>.<CONFIG_ID>.exe.
+// Aquí seleccionamos la configuración más reciente (por mtime) de las presentes.
+const demosRoot = path.join(root, 'out/demos', demoName);
+let builtExe = path.join(demosRoot, `${demoName}.exe`);
+let builtMap = path.join(demosRoot, `${demoName}.map`);
+let configId = '';
+// Prioridad de selección: 1) config "por defecto" (sin flags, _debug), 2) otras
+// _debug, 3) _release; desempate por mtime. Así la regresión (A500_debug) gana
+// sobre configs con EXTRA_DEFINES aun siendo estas más recientes.
+function configRank(cfg: string): number {
+  const isDebug = /_debug$/.test(cfg) || /_o0$/.test(cfg);
+  const release = /_release$/.test(cfg);
+  const noFlags = /_[^_]+_(debug|release|o0)$/.test(cfg) && cfg.split('_').length <= 3;
+  if (noFlags && isDebug) return 0;
+  if (isDebug) return 1;
+  if (release && noFlags) return 2;
+  if (release) return 3;
+  return 4;
+}
+if (fs.existsSync(demosRoot)) {
+  let best = { rank: 99, mtime: 0, exe: '', map: '', cfg: '' };
+  for (const entry of fs.readdirSync(demosRoot)) {
+    const cfgDir = path.join(demosRoot, entry);
+    const st = fs.statSync(cfgDir);
+    if (!st.isDirectory()) continue;
+    const exe = path.join(cfgDir, `${demoName}.${entry}.exe`);
+    if (!fs.existsSync(exe)) continue;
+    const rank = configRank(entry);
+    const mt = fs.statSync(exe).mtimeMs;
+    if (rank < best.rank || (rank === best.rank && mt > best.mtime)) {
+      best = { rank, mtime: mt, exe, map: path.join(cfgDir, `${demoName}.${entry}.map`), cfg: entry };
+    }
+  }
+  if (best.exe) { builtExe = best.exe; builtMap = best.map; configId = best.cfg; }
+}
 const builtMapSections = findMapAllocSections(builtMap);
 if (!fs.existsSync(builtExe)) {
   throw new Error(`No existe ${builtExe}. Compila la demo antes de ejecutarla.`);
@@ -672,7 +706,9 @@ const mouseDelayMs = Math.max(0, parseInt(argValue('--mouse-duration-ms', '800')
 const mouseButton = Math.max(0, parseInt(argValue('--mouse-button', '0'), 10));
 const stopEmulator = !hasArg('--keep-running');
 const protectSpecs = parseProtectSpecs();
-const outputDir = path.join(root, 'out/run', demoName);
+const outputDir = configId
+  ? path.join(root, 'out/run', demoName, configId)
+  : path.join(root, 'out/run', demoName);
 const stagedDir = path.join(outputDir, 'dh1');
 fs.mkdirSync(stagedDir, { recursive: true });
 fs.copyFileSync(builtExe, path.join(stagedDir, 'a.exe'));

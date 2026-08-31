@@ -784,7 +784,7 @@ Defectos:
 ## 24. Roadmap / puntos abiertos
 
 1. **Verificar `--gc-sections`** en el toolchain m68k de la extensión.
-2. **Implementar el `CONFIG_ID`** en `build-demo.sh`/`run-demo` (aisla configs y habilita el resto).
+2. **Implementar el `CONFIG_ID`** en `build-demo.sh`/`run-demo` (aisla configs y habilita el resto). **HECHO**: CONFIG_ID (MACHINE_flags_modo) nombra el exe y aísla intermedios; run-demo elige configuración; `--gc-sections` ya estaba en el link.
 3. **Prototipo host del `ResourceLedger`** (default+override, `static_assert`) con composiciones de ejemplo RoboCod-A500 y DPF-A1200.
 4. **Prototipo host del `CopperBuilder` + `Diagnostics`** (zonas, arbitraje, severidad, canal lateral, CopperScript).
 5. **Diseñar el comando `BlitAssist`** con la tabla híbrida (default + calibración + bake) como primer backend condicionado por CPU.
@@ -795,7 +795,7 @@ Defectos:
 10. **Efectos**: pipeline chunky/c2p, `PaletteAnimator`, `CopperScript`, `Font`/texto; luego 3D, filtros y tiles avanzados.
 11. **Escenas data-driven + runtime_params + parcheo de copper dynamic_partial** y **ScriptVM** (aventuras tipo SCUMM: rooms, actores, walkboxes, verbos, diálogos).
 12. **Streaming desde disquetera** (perfil Amiga): StreamLoader/AssetStream + hook de trackdisk.
-13. **Migración de la demo 107** a `Bitmap`/`Surface`/`ScrollEngine` manteniendo la regresión verde como red de seguridad. **En curso**: M1a hecho (`Surface` implementada y usada por HUD/FG/píxeles); M1b pendiente (`Bitmap` como capa de memoria); M2 pendiente (`ScrollEngine` separado del corkscrew).
+13. **Migración de la demo 107** a `Bitmap`/`Surface`/`ScrollEngine` manteniendo la regresión verde como red de seguridad. **En curso**: M1a hecho (`Surface`); M1b-parcial hecho (`CanvasPlayfield` posee un `Bitmap`); M1b-restante (`Bitmap` en `XLimitedPlayfield`: su asignación tiene offset de fetch + guardia que `Bitmap` aún no modela); M2 pendiente (`ScrollEngine` separado del corkscrew).
 
 ---
 
