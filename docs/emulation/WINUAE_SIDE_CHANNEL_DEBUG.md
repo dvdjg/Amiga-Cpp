@@ -45,9 +45,13 @@ emula el botón del ratón. Para scriptearlo dentro de una ejecución de
 los comandos (separados por `|`, con `sleep:<ms>` para pausas) se envían al
 monitor justo después de capturar la muestra N y quedan registrados en el
 report como `inputInjection`. Movimiento de ratón con curva ya existe vía
-`--mouse-from X,Y --mouse-to X2,Y2 --mouse-click`. Para que la demo reaccione
-a un scancode debe leer el flujo serial de CIAA (`input_poll_key`); el clic de
-ratón llega por la línea POT/FIRE del puerto, no por la de joystick de CIAA.
+`--mouse-from X,Y --mouse-to X2,Y2 --mouse-click`. Para **conmutar la técnica**
+de la demo 107 hay que usar `--automation-key <1..9>`: un `poke` con lock
+`takeover` sobre `g_tech_new` (el update la consume a 0; la técnica activa se
+lee en el byte superior del marcador, `0x10|técnica`). Nota: `input key` (vía
+serial de CIAA) ya inyecta sin congelar bajo lock `assist`, pero la demo lee el
+teclado por memoria; el clic de ratón llega por la línea POT/FIRE del puerto, no
+por la de joystick de CIAA.
 profile <frames> <out-file> [unwind-file]
 profile-status
 action status <id>

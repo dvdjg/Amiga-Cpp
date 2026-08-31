@@ -924,52 +924,43 @@ try {
             });
         }
     }
-    // Tecla sintética por automatización de memoria (recomendada): el runner
-    // resuelve `g_automation_keycode` en runtime y la pruebe por `poke` en la
-    // fase pre-secuencia. Es la vía robusta de "simular una tecla" en WinUAE
-    // (el port serie de CIAA `input key` provoca una excepción en la demo en
-    // WinUAE-DBG al llegar el byte; ver input_poll.hpp).
+    // Conmutación de técnica por `g_tech_new` (1..kTechCount), el hook directo que
+    // el update de la demo ya consume (sin lógica de make/break): un único poke con
+    // lock `takeover` en la fase pre-secuencia selecciona la técnica concreta. Es la
+    // vía robusta y simple de "simular una tecla" en WinUAE (el port serie de CIAA
+    // `input key` provocaba una excepción en la demo; ver input_poll.hpp).
     let automationKeyAddr = null;
     let automationKeyValue = 0;
     if (automationKeyArg !== '') {
         const parsed = parseInt(automationKeyArg, 10);
-        automationKeyValue = Number.isInteger(parsed) && parsed >= 1 && parsed <= 0x7f ? parsed : 0;
-        // Dirección runtime de `g_automation_keycode` anclada al símbolo PROBADO
+        automationKeyValue = Number.isInteger(parsed) && parsed >= 1 && parsed <= 9 ? parsed : 0;
+        // Dirección runtime de `g_tech_new` anclada al símbolo PROBADO
         // `g_eng_run_status` (report.sideChannel.runtimeAddress): ambas viven en el
         // mismo hunk de datos y `resolveRuntimeSymbolAddress` cae en su fallback
         // (incorrecto) para símbolos tempranos, así que se aplica el delta del .map
-        // sobre la base ya verificada. En este demo: key = runStatus - 2.
-        const mapKey = findMapSymbol(builtMap, 'g_automation_keycode');
-        const mapRunStatus = runStatusSymbol;
-        const provenRunStatus = report.sideChannel?.runtimeAddress ?? null;
-        if (mapKey !== null && mapRunStatus !== null && provenRunStatus > 0) {
-            automationKeyAddr = provenRunStatus - (mapRunStatus - mapKey);
+        // sobre la base ya verificada.
+        const mapKey = findMapSymbol(builtMap, 'g_tech_new');
+        const kbdRuntimeSections = report.sideChannel?.state?.sections ?? null;
+        if (mapKey !== null && kbdRuntimeSections) {
+            automationKeyAddr = resolveRuntimeSymbolAddress(mapKey, builtMapSections, kbdRuntimeSections);
         }
         if (automationKeyAddr === null) {
-            console.log('[run-demo] aviso: no se pudo resolver g_automation_keycode; se ignora --automation-key');
+            console.log('[run-demo] aviso: no se pudo resolver g_tech_new; se ignora --automation-key');
         }
         else {
-            // Se inyecta ANTES de la secuencia (fase ratón/protect), nunca en mitad del
-            // bucle de captura: los comandos de monitor concurrentes con el screenshot
-            // (GDB qRcmd) desincronizan la demo y provocan un bus/address error (pc en
-            // ROM, bucle de boot de KS). La secuencia captura el estado POST-tecla.
-            console.log(`[run-demo] automation key ${automationKeyValue} -> 0x${automationKeyAddr.toString(16)} (pre-secuencia)`);
-            const makeHex = String(automationKeyValue).padStart(2, '0');
+            // Se inyecta ANTES de la secuencia (fase ratón/protect); la secuencia captura
+            // el estado POST-conmutación.
+            console.log(`[run-demo] automation key (tecnica) ${automationKeyValue} -> 0x${automationKeyAddr.toString(16)} (pre-secuencia)`);
+            const valueHex = String(automationKeyValue).padStart(2, '0');
             await withSideChannelLock(sideChannelPort, 'takeover', 'run-demo', async () => {
-                await sendSideChannelCommand(sideChannelPort, `poke ${automationKeyAddr.toString(16)} ${makeHex}`);
+                await sendSideChannelCommand(sideChannelPort, `poke ${automationKeyAddr.toString(16)} ${valueHex}`);
             });
-            const keyAtT0 = await sendSideChannelCommand(sideChannelPort, `mem ${automationKeyAddr.toString(16)} 1`).catch((err) => String(err));
-            await sleep(100); // la demo tiene ventana para ver el make (takeover liberado)
-            await withSideChannelLock(sideChannelPort, 'takeover', 'run-demo', async () => {
-                await sendSideChannelCommand(sideChannelPort, `poke ${automationKeyAddr.toString(16)} ff`);
-            });
-            const keyAtT1 = await sendSideChannelCommand(sideChannelPort, `mem ${automationKeyAddr.toString(16)} 1`).catch((err) => String(err));
+            const readback = await sendSideChannelCommand(sideChannelPort, `mem ${automationKeyAddr.toString(16)} 1`).catch((err) => String(err));
             report.automationKey = {
                 sample: 'pre-sequence',
-                scancode: automationKeyValue,
+                technique: automationKeyValue,
                 address: `0x${automationKeyAddr.toString(16)}`,
-                readbackAfterMake: keyAtT0,
-                readbackAfterClear: keyAtT1,
+                readback,
             };
         }
     }
