@@ -74,6 +74,11 @@ namespace demo = eng::field::demo;
 //   EXTRA_DEFINES="-DK_VIEWPORT_W=288 -DK_VIEWPORT_H=224" bash ./tools/build/build-demo.sh demos/107_xlimited_corkscrew --debug --clean
 //
 // Parámetros de compilación (EXTRA_DEFINES="-D..."):
+//   K_EFFECT     (0|1..8)  0=todas en ciclo · 1=H der · 2=H izq · 3=V abajo · 4=V arriba
+//                          · 5=HV der/abj · 6=HV izq/arr · 7=diagonal · 8=diagonal inverso
+//   K_START_PHASE (0..7)   fase inicial del ciclo K_EFFECT=0
+//   K_PHASE_FRAMES (1000)  frames por fase del ciclo (~20 s a 50 fps)
+//   K_PRE_SCROLL  (1024)   px de pre-scroll en init para fases reversas/diagonales
 //   K_TILE_WIDTH (16|32)  ancho de tile (múltiplo de 16; 32 fuerza BITMAPWIDTH=384)
 //   K_TILE_SIZE  (16|32)  alto de tile (K_TILE_H es alias)
 //   K_PLANES     (3|4|5|6) profundidad (8/16/32/64 colores; 6 = EHB/DPF 3+3)
@@ -161,6 +166,27 @@ namespace demo = eng::field::demo;
 #ifndef K_SCREENS_Y
 #define K_SCREENS_Y 16
 #endif
+// Selector de efecto/dirección para verificar la composición de tiles en ambos sentidos.
+//   K_EFFECT   0 = todas las fases en orden (ciclo, ver K_START_PHASE/K_PHASE_FRAMES)
+//              1 = horizontal derecha      2 = horizontal izquierda (pre-scroll derecho)
+//              3 = vertical abajo          4 = vertical arriba   (pre-scroll abajo)
+//              5 = HV alternando derecha/abajo     6 = HV alternando izquierda/arriba
+//              7 = diagonal Lissajous              8 = diagonal Lissajous inverso
+//   K_START_PHASE   fase inicial del ciclo "todas" (0..7, defecto 0)
+//   K_PHASE_FRAMES  frames por fase en el ciclo (defecto 1000 ≈ 20 s a 50 fps)
+//   K_PRE_SCROLL    px de pre-scroll hacia delante para que las fases reversas tengan recorrido
+#ifndef K_EFFECT
+#define K_EFFECT 0
+#endif
+#ifndef K_START_PHASE
+#define K_START_PHASE 0
+#endif
+#ifndef K_PHASE_FRAMES
+#define K_PHASE_FRAMES 1000
+#endif
+#ifndef K_PRE_SCROLL
+#define K_PRE_SCROLL 1024
+#endif
 // Alias K_TILE_W/H para la parametrización nueva (compatibles con K_TILE_WIDTH/SIZE)
 #ifndef K_TILE_W
 #ifdef K_TILE_WIDTH
@@ -185,6 +211,11 @@ constexpr eng::u16 kViewportW = static_cast<eng::u16>(K_VIEWPORT_W);
 constexpr eng::u16 kViewportH = static_cast<eng::u16>(K_VIEWPORT_H);
 constexpr eng::u8 kScreensX = static_cast<eng::u8>(K_SCREENS_X);
 constexpr eng::u8 kScreensY = static_cast<eng::u8>(K_SCREENS_Y);
+constexpr eng::u8 kEffectMode = static_cast<eng::u8>(K_EFFECT);        // 0=ciclo, 1..8=efecto único
+constexpr eng::u8 kStartPhase = static_cast<eng::u8>(K_START_PHASE);   // fase inicial del ciclo (0..7)
+constexpr eng::u32 kPhaseFrames = static_cast<eng::u32>(K_PHASE_FRAMES);
+constexpr eng::s32 kPreScroll = static_cast<eng::s32>(K_PRE_SCROLL);
+constexpr eng::u8 kPhaseCount = 8;
 // 16×16 pantallas virtuales → mapa en tiles derivado de viewport/tile
 constexpr eng::u16 kMapTilesX = static_cast<eng::u16>(K_SCREENS_X * (K_VIEWPORT_W / K_TILE_W));
 constexpr eng::u16 kMapTilesY = static_cast<eng::u16>(K_SCREENS_Y * (K_VIEWPORT_H / K_TILE_H));
@@ -199,6 +230,16 @@ void build_map(eng::Span<eng::u16> cells, eng::u32 seed) {
             cells.at(y * kMapTilesX + x) = static_cast<eng::u16>(h & 63u);
         }
     }
+}
+
+// Necesidad de pre-scroll de cada fase del ciclo (1..7) para que las direcciones
+// con componente negativa (izquierda/arriba) tengan recorrido antes de tocar el
+// borde 0. Fase 0 (H derecha) y 2 (V abajo) arrancan desde 0 sin problema.
+constexpr bool phase_needs_pre_x(eng::u8 phase) {
+    return phase == 1 || phase == 5 || phase == 6 || phase == 7; // H izq, HV izq, diagonales
+}
+constexpr bool phase_needs_pre_y(eng::u8 phase) {
+    return phase == 3 || phase == 5 || phase == 6 || phase == 7; // V arr, HV arr, diagonales
 }
 
 struct DemoGame {
@@ -338,6 +379,21 @@ struct DemoGame {
             }
         }
 
+        // Pre-scroll hacia delante si la fase inicial (ciclo o efecto único) tiene
+        // componente negativa (izquierda/arriba) o es una diagonal: así el scroll
+        // inverso compone tiles correctamente durante K_PRE_SCROLL px.
+        {
+            const eng::u8 startPhase = (kEffectMode == 0) ? kStartPhase
+                : static_cast<eng::u8>(kEffectMode - 1);
+            const bool needX = phase_needs_pre_x(startPhase);
+            const bool needY = phase_needs_pre_y(startPhase);
+            if ((needX || needY) &&
+                !pre_scroll(backend, needX ? kPreScroll : 0, needY ? kPreScroll : 0)) {
+                eng::debug::mark_failed(g_eng_run_status, 0x000107e1u);
+                return;
+            }
+        }
+
         // Paleta por defecto de tile_demo: 2^planes colores (8/16/32/64 para 3/4/5/6 planos)
         // En 4 planos son 16 colores; genérico usa `1u << kPlanes` entradas de la paleta.
         if (!composer.init(backend.memory(), {demo::kPalette, 1536, kPlanes})) {
@@ -355,6 +411,35 @@ struct DemoGame {
         eng::debug::mark_ready(g_eng_run_status, 0x10700000u);
     }
 
+    /// Pre-scrolla la cámara hacia delante (derecha/abajo) antes de arrancar una
+    /// fase con componente negativa, para que el scroll inverso tenga recorrido
+    /// antes de chocar con el borde 0 (scroll_left/up devuelven false en 0).
+    bool pre_scroll(eng::amiga::MinimalBackend& backend, eng::s32 px_x, eng::s32 px_y) {
+        plan.clear();
+        plan.set_blit_budget_limits({8192, 16384, 4, 120});
+        for (eng::s32 i = 0; i < px_x; ++i) {
+            if (!field.scroll_right(plan)) return false;
+            if (plan.blit_job_count() >= 120) {
+                if (!backend.execute_frame_plan(plan)) return false;
+                plan.clear();
+                plan.set_blit_budget_limits({8192, 16384, 4, 120});
+            }
+        }
+        for (eng::s32 i = 0; i < px_y; ++i) {
+            if (!field.scroll_down(plan)) return false;
+            if (plan.blit_job_count() >= 120) {
+                if (!backend.execute_frame_plan(plan)) return false;
+                plan.clear();
+                plan.set_blit_budget_limits({8192, 16384, 4, 120});
+            }
+        }
+        if (plan.blit_job_count() > 0) {
+            if (!backend.execute_frame_plan(plan)) return false;
+            plan.clear();
+        }
+        return true;
+    }
+
     void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
         eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
         if (!ready) return;
@@ -362,34 +447,43 @@ struct DemoGame {
         plan.clear();
         plan.set_blit_budget_limits({8192, 16384, 4, 120});
 
-        // Ciclo corkscrew: horizontal → vertical → HV → diagonal (sinusoidal).
-        // Cada fase dura 1000 frames (~20 s a 50 fps) y usa 1 px/frame para mantener
-        // 50 fps sin micro-parones. Cada píxel es como máximo 1-2 blits de
-        // BLOCKPLANELINES = kTileSize*kPlanes planeline (48/64/80/96 según planes 3..6, §5).
+        // Ciclo corkscrew seleccionable: 8 fases con las dos direcciones de cada eje
+        // para verificar la composición de tiles en ambos sentidos.
+        //   K_EFFECT=0: ciclo (K_START_PHASE + frame/K_PHASE_FRAMES) % 8
+        //   K_EFFECT=1..8: una sola fase fija
+        // Cada fase usa 1 px/frame para mantener 50 fps sin micro-parones. Cada píxel
+        // es como máximo 1-2 blits de BLOCKPLANELINES = kTileSize*kPlanes planeline.
         // Con 1 px/frame el fine scroll avanza 1/tile_width por frame y BPLCON1 cicla
         // sin saltos; con 2 px/frame se veía micro-parón cada 8 frames.
         // Todas las direcciones usan el port corkscrew (XYLimited): la fila/columna
         // entrante se pre-pinta en la banda de staging y el display envuelve en
         // display_height = viewport_h + 2*tile_height con un split de Copper.
-        const eng::u32 phase = (context.frame.frame_index / 1000u) % 4u;
-        const bool doH = (phase==0) || (phase==2) || (phase==3);
-        const bool doV = (phase==1) || (phase==2) || (phase==3);
-        // Sinusoidal modula la dirección dentro de la fase 3
+        const eng::u32 phase = (kEffectMode == 0)
+            ? (kStartPhase + context.frame.frame_index / kPhaseFrames) % kPhaseCount
+            : static_cast<eng::u32>(kEffectMode - 1);
+        const eng::u32 fr = context.frame.frame_index;
+
         eng::s32 dx = 0, dy = 0;
-        if (phase==3) {
-            // Lissajous simple: X = sin(frame), Y = cos(frame*0.7) → -1,0,1
-            const eng::s32 sx = demo::sin64(static_cast<eng::u8>(context.frame.frame_index & 63));
-            const eng::s32 sy = demo::sin64(static_cast<eng::u8>((context.frame.frame_index*7/10) & 63));
-            dx = (sx > 20) ? 1 : (sx < -20 ? -1 : 0);
-            dy = (sy > 20) ? 1 : (sy < -20 ? -1 : 0);
-            if (dx==0 && dy==0) dx = 1; // asegurar avance mínimo
-        } else {
-            dx = doH ? 1 : 0;
-            dy = doV ? 1 : 0;
-            // En fase diagonal, alternar H/V por frame para no hacer 2 blits/frame
-            // y mantener 50 fps incluso con 6 planes (96 planeline → 2 blits =192 líneas).
-            if (phase==2 && (context.frame.frame_index & 1u)) { dx=1; dy=0; } else if (phase==2) { dx=0; dy=1; }
+        switch (phase) {
+            case 0: dx = 1; dy = 0; break;                        // H derecha
+            case 1: dx = -1; dy = 0; break;                       // H izquierda
+            case 2: dx = 0; dy = 1; break;                        // V abajo
+            case 3: dx = 0; dy = -1; break;                       // V arriba
+            case 4: dx = (fr & 1u) ? 1 : 0; dy = (fr & 1u) ? 0 : 1; break;   // HV der/abj (alterna)
+            case 5: dx = (fr & 1u) ? -1 : 0; dy = (fr & 1u) ? 0 : -1; break; // HV izq/arr (alterna)
+            case 6: case 7: {                                     // diagonal Lissajous (y su inverso)
+                const eng::u8 fx = static_cast<eng::u8>((phase == 7) ? (fr + 32u) : fr);
+                const eng::s32 sx = demo::sin64(static_cast<eng::u8>(fx & 63u));
+                const eng::s32 sy = demo::sin64(static_cast<eng::u8>((fx * 7u / 10u) & 63u));
+                dx = (sx > 20) ? 1 : (sx < -20 ? -1 : 0);
+                dy = (sy > 20) ? 1 : (sy < -20 ? -1 : 0);
+                if (dx==0 && dy==0) dx = 1; // asegurar avance mínimo
+                break;
+            }
+            default: dx = 1; dy = 0; break;
         }
+        // En las fases diagonales alternar H/V por frame no es necesario (dx/dy ya
+        // cuantizan a un solo eje por frame con el Lissajous).
         // Ejecutar los desplazamientos necesarios para este frame (1 blit por eje como máximo)
         // Orden: primero H luego V para que saveword se gestione por eje.
         for (int axis=0; axis<2; ++axis) {
@@ -406,7 +500,7 @@ struct DemoGame {
             for (int i = 0; i < steps; ++i) {
                 if (isH) {
                     const eng::s32 limit = static_cast<eng::s32>(kMapTilesX) * kTileWidth - kViewportW - kTileWidth;
-                    if (field.mapposx() >= limit) {
+                    if (step > 0 && field.mapposx() >= limit) {
                         field.reset_scroll();
                         plan.clear();
                         plan.set_blit_budget_limits({8192, 16384, 4, 120});
@@ -421,13 +515,14 @@ struct DemoGame {
                         if (plan.blit_job_count()>0) { if (!backend.execute_frame_plan(plan)) { ready=false; eng::debug::mark_failed(g_eng_run_status, 0x0001070au); return; } plan.clear(); plan.set_blit_budget_limits({8192, 16384, 4, 120}); }
                         break;
                     }
+                    if (step < 0 && field.mapposx() <= 0) break; // borde izquierdo: no hay más recorrido
                     bool ok = (step>0) ? field.scroll_right(plan) : field.scroll_left(plan);
                     if (!ok) { ready=false; eng::debug::mark_failed(g_eng_run_status, 0x0001070bu); return; }
                 } else {
                     // Vertical: usar mapposy/videoposy, con wrap en Y
                     const eng::s32 limitY = static_cast<eng::s32>(kMapTilesY) * kTileSize - kViewportH - kTileSize;
-                    if (step>0 && field.mapposy() >= limitY) { field.reset_scroll(); break; }
-                    if (step<0 && field.mapposy() <= 0) { /* no wrap hacia arriba en demo cíclica */ break; }
+                    if (step > 0 && field.mapposy() >= limitY) { field.reset_scroll(); break; }
+                    if (step < 0 && field.mapposy() <= 0) break; // borde superior: no hay más recorrido
                     bool ok = (step>0) ? field.scroll_down(plan) : field.scroll_up(plan);
                     if (!ok) { ready=false; eng::debug::mark_failed(g_eng_run_status, 0x0001070bu); return; }
                 }
