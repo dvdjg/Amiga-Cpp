@@ -35,6 +35,19 @@ input mouse abs <x> <y>
 input mouse move <dx> <dy>
 input mouse button <0..2> <0|1>
 input key <scancode> <0|1>
+
+La inyección de entrada sintética entra por las CIAs, la misma vía que lee
+`input_poll` en la demo: `input key <scancode> <0|1>` pone un scancode Amiga
+(0..127, p. ej. '1'=0x02) en el flujo serial del teclado; `input mouse button`
+emula el botón del ratón. Para scriptearlo dentro de una ejecución de
+`run-demo`, se puede inyectar **en mitad de la captura de secuencia** con
+`--inject-commands "input key 2 1|sleep:60|input key 2 0" --inject-sample 4`:
+los comandos (separados por `|`, con `sleep:<ms>` para pausas) se envían al
+monitor justo después de capturar la muestra N y quedan registrados en el
+report como `inputInjection`. Movimiento de ratón con curva ya existe vía
+`--mouse-from X,Y --mouse-to X2,Y2 --mouse-click`. Para que la demo reaccione
+a un scancode debe leer el flujo serial de CIAA (`input_poll_key`); el clic de
+ratón llega por la línea POT/FIRE del puerto, no por la de joystick de CIAA.
 profile <frames> <out-file> [unwind-file]
 profile-status
 action status <id>
