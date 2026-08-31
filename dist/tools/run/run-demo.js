@@ -658,6 +658,7 @@ const injectCommands = injectCommandsArg === ''
     ? []
     : injectCommandsArg.split('|').map((value) => value.trim()).filter((value) => value !== '');
 const injectSample = Math.max(0, parseInt(argValue('--inject-sample', '4'), 10));
+const automationKeyArg = argValue('--automation-key', '');
 const sequenceFineXArg = argValue('--sequence-fine-x', '');
 const sequenceFineX = sequenceFineXArg === ''
     ? []
@@ -859,6 +860,46 @@ try {
             });
         }
     }
+    // Tecla sintética por automatización de memoria (recomendada): el runner
+    // resuelve `g_automation_keycode` en runtime y la pruebe por `poke` en la
+    // fase pre-secuencia. Es la vía robusta de "simular una tecla" en WinUAE
+    // (el port serie de CIAA `input key` provoca una excepción en la demo en
+    // WinUAE-DBG al llegar el byte; ver input_poll.hpp).
+    let automationKeyAddr = null;
+    let automationKeyValue = 0;
+    if (automationKeyArg !== '') {
+        const parsed = parseInt(automationKeyArg, 10);
+        automationKeyValue = Number.isInteger(parsed) && parsed >= 1 && parsed <= 0x7f ? parsed : 0;
+        // Dirección runtime de `g_automation_keycode` anclada al símbolo PROBADO
+        // `g_eng_run_status` (report.sideChannel.runtimeAddress): ambas viven en el
+        // mismo hunk de datos y `resolveRuntimeSymbolAddress` cae en su fallback
+        // (incorrecto) para símbolos tempranos, así que se aplica el delta del .map
+        // sobre la base ya verificada. En este demo: key = runStatus - 2.
+        const mapKey = findMapSymbol(builtMap, 'g_automation_keycode');
+        const mapRunStatus = runStatusSymbol;
+        const provenRunStatus = report.sideChannel?.runtimeAddress ?? null;
+        if (mapKey !== null && mapRunStatus !== null && provenRunStatus > 0) {
+            automationKeyAddr = provenRunStatus - (mapRunStatus - mapKey);
+        }
+        if (automationKeyAddr === null) {
+            console.log('[run-demo] aviso: no se pudo resolver g_automation_keycode; se ignora --automation-key');
+        }
+        else {
+            // Se inyecta ANTES de la secuencia (fase ratón/protect), nunca en mitad del
+            // bucle de captura: los comandos de monitor concurrentes con el screenshot
+            // (GDB qRcmd) desincronizan la demo y provocan un bus/address error (pc en
+            // ROM, bucle de boot de KS). La secuencia captura el estado POST-tecla.
+            console.log(`[run-demo] automation key ${automationKeyValue} -> 0x${automationKeyAddr.toString(16)} (pre-secuencia)`);
+            await protocol.sendMonitorCommand(`poke ${automationKeyAddr.toString(16)} ${automationKeyValue.toString(16)}`, 5000);
+            await sleep(100);
+            await protocol.sendMonitorCommand(`poke ${automationKeyAddr.toString(16)} ff`, 5000);
+            report.automationKey = {
+                sample: 'pre-sequence',
+                scancode: automationKeyValue,
+                address: `0x${automationKeyAddr.toString(16)}`,
+            };
+        }
+    }
     if (mousePath.length > 0) {
         console.log(`[run-demo] injecting mouse path with ${mousePath.length} points`);
         if (hasArg('--mouse-drag')) {
@@ -906,7 +947,7 @@ try {
     else if (sequenceFrames > 0) {
         console.log(`[run-demo] capturing ${sequenceFrames} sequence frames every ${sequenceIntervalMs} ms`);
         const injectionEvents = [];
-        const onSample = injectCommands.length === 0
+        const onSample = (injectCommands.length === 0)
             ? null
             : async (index, frame, frames) => {
                 if (index !== injectSample - 1)
