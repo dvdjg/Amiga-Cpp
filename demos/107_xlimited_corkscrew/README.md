@@ -29,19 +29,34 @@ el corkscrew puro. No hay `surface_origin` ni bandas del modelo circular: el
 posicionamiento físico es `frontbuffer + y*BITMAPBYTESPERROW + x` con `y` en
 planelíneas.
 
-## Ciclo de fases
+## Ciclo de fases (seleccionable con `K_EFFECT` / `K_START_PHASE`)
 
-El scroll avanza 1 px/frame en un ciclo de 4 fases de 1000 frames (~20 s a 50 fps):
+El scroll avanza 1 px/frame en un ciclo de **8 fases** (las dos direcciones de
+cada eje, para verificar la composición de tiles en ambos sentidos). Cada fase
+dura `K_PHASE_FRAMES` frames (defecto 1000 ≈ 20 s a 50 fps):
 
 | Fase | Movimiento |
 |---|---|
 | 0 | Horizontal derecha |
-| 1 | Vertical abajo |
-| 2 | HV alternando (derecha/abajo) |
-| 3 | Diagonal Lissajous (sin(x), cos(0.7x)) |
+| 1 | Horizontal izquierda (pre-scroll derecho en init) |
+| 2 | Vertical abajo |
+| 3 | Vertical arriba (pre-scroll abajo en init) |
+| 4 | HV alternando (derecha/abajo por frame) |
+| 5 | HV alternando (izquierda/arriba por frame, pre-scroll ambos) |
+| 6 | Diagonal Lissajous (sin(x), cos(0.7x)) |
+| 7 | Diagonal Lissajous inverso (desfase +32) |
+
+Las fases con componente negativa (1, 3, 5, 6, 7) hacen un **pre-scroll** de
+`K_PRE_SCROLL` px en init para que `scroll_left/up` tengan recorrido antes de
+chocar con el borde 0 (el original devuelve `false` en 0).
 
 Todas usan el port corkscrew (XYLimited) de `xlimited.hpp` (§ Scroll corkscrew),
 verificado bloque a bloque contra `Scroller_XYLimited/main.c`.
+
+Verificado en WinUAE-DBG (2026-08-31): V abajo y V arriba (0 % negro, contenido
+moviéndose ±1 px nativo/frame), H izquierda (columna entrante por el borde
+izquierdo compuesta sin huecos, qwen3-vl), y el ciclo completo arrancando en
+cualquier fase (`K_START_PHASE`).
 
 ## Parámetros de compilación
 
@@ -50,20 +65,37 @@ verificado bloque a bloque contra `Scroller_XYLimited/main.c`.
 | `K_TILE_WIDTH` | `16`, `32` | Anchura de tile en píxeles (múltiplo de 16). 32 usa 2 words por fila y `BITMAPBLOCKSPERROW` ajustado. Con `32` la demo fuerza `BITMAPWIDTH=384` (`BLOCKSPERROW=24`) para mantener el contrato entero. |
 | `K_FETCH_MODE` | `0`, `1`, `3` | Modo de fetch del Agnus. `0`=16 px normal (352 px, `DDFSTRT=$30`/`$D0`, `bitmapoffset 0`, `modulo 2`, scroll 16). `1`=BPL32 32 px (384 px, `DDFSTRT=$28`/`$C8`, `bitmapoffset 16`, `modulo 4`, scroll 32). `3`=BPL32+BPAGEM 64 px (384 px, `DDFSTRT=$18`/`$B8`, `bitmapoffset 48`, `modulo 8`, scroll 64). Cuando `K_FETCH_MODE !=0` la demo fuerza `BITMAPWIDTH=384` y `fetch_mode=K_FETCH_MODE` independientemente de `K_TILE_WIDTH`. |
 | `K_PLANES` | `4` (defecto) | Profundidad. 4 es el caso canónico de X-Limited; otros valores sólo para pruebas de altura extra. |
+| `K_EFFECT` | `0` (defecto) | Efecto/dirección a mostrar. `0`=todas en ciclo; `1`=H derecha, `2`=H izquierda, `3`=V abajo, `4`=V arriba, `5`=HV der/abj, `6`=HV izq/arr, `7`=diagonal, `8`=diagonal inverso. Las fases con componente negativa (izquierda/arriba) pre-scrollan `K_PRE_SCROLL` px en init para tener recorrido. |
+| `K_START_PHASE` | `0` | Fase inicial del ciclo `K_EFFECT=0` (0..7). Útil para saltar a una dirección concreta dentro del ciclo. |
+| `K_PHASE_FRAMES` | `1000` | Frames por fase en el ciclo (~20 s a 50 fps). |
+| `K_PRE_SCROLL` | `1024` | Píxeles de pre-scroll hacia delante en init cuando la fase inicial es reversa/diagonal, para que `scroll_left/up` tengan recorrido antes de chocar con el borde 0. |
+
+Nota: los `-D...` se pasan siempre por la variable `EXTRA_DEFINES` (los argumentos CLI `-DK_*` no los recoge `build-demo.sh`).
 
 `BITMAPWIDTH` es `352` (`BLOCKSPERROW=22`, `44 bytes` por planelínea) en modo normal y `384` (`BLOCKSPERROW=24`, `48 bytes`) con tiles de `32` o con fetch ancho. `BITMAPBYTESPERROW` es `44` ó `48` y `BPL1MOD/BPL2MOD = BITMAPBYTESPERROW*planes - 40 - moduloOffset` (2, 4 ú 8 según el modo).
 
 `BPLCON1` replica el desplazamiento fino en ambos nibbles (`(fine &15)*0x11`) y añade los bits de fetch ancho: `fine &16 → 0x4400`, `fine &32 → 0x8800` (ver `xlimited.c:304-311` y `engine/include/eng/field/xlimited.hpp §4`).
 
 ```bash
-# 352 píxeles, tiles 16, 4 planos (modo por defecto, fetch 16 px)
+# 352 píxeles, tiles 16, 4 planos (modo por defecto, fetch 16 px, ciclo completo)
 bash ./tools/build/build-demo.sh demos/107_xlimited_corkscrew --debug --clean
 
+# Solo vertical abajo (K_EFFECT=3) — para verificar la composición vertical
+EXTRA_DEFINES="-DK_EFFECT=3" bash ./tools/build/build-demo.sh demos/107_xlimited_corkscrew --debug --clean
+
+# Solo vertical arriba (K_EFFECT=4) — composición inversa (columna/fila entrante por arriba)
+EXTRA_DEFINES="-DK_EFFECT=4" bash ./tools/build/build-demo.sh demos/107_xlimited_corkscrew --debug --clean
+
+# Solo horizontal izquierda (K_EFFECT=2) — pre-scroll derecho y composición inversa
+EXTRA_DEFINES="-DK_EFFECT=2" bash ./tools/build/build-demo.sh demos/107_xlimited_corkscrew --debug --clean
+
+# Ciclo completo empezando por V arriba (fase 3) y 500 frames por fase
+EXTRA_DEFINES="-DK_START_PHASE=3 -DK_PHASE_FRAMES=500" bash ./tools/build/build-demo.sh demos/107_xlimited_corkscrew --debug --clean
+
 # Tiles de 32 píxeles (misma altura, doble anchura, fuerza 384)
-bash ./tools/build/build-demo.sh demos/107_xlimited_corkscrew --debug --clean -DK_TILE_WIDTH=32
+EXTRA_DEFINES="-DK_TILE_WIDTH=32" bash ./tools/build/build-demo.sh demos/107_xlimited_corkscrew --debug --clean
 
 # Fetch ancho 32 px (BPL32, 384 px, DDF $28/$C8, offset 16, scroll 32)
-bash ./tools/build/build-demo.sh demos/107_xlimited_corkscrew --debug --clean -DK_FETCH_MODE=1
 EXTRA_DEFINES="-DK_FETCH_MODE=1" bash ./tools/build/build-demo.sh demos/107_xlimited_corkscrew --debug --clean
 
 # Fetch ancho 32 px + tiles 32 px (384 px, 24 bloques por fila)
