@@ -14,6 +14,7 @@
 /// la generación de assets y el movimiento de las demos.
 
 #include <eng/field/tile_field.hpp>
+#include <eng/core/sinetable.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 
@@ -186,19 +187,12 @@ void build_tile_cache(
 	}
 }
 
-/// Seno de 64 pasos exactos (amplitud 64).
+/// Seno de 64 pasos (amplitud 64) generado en compile-time con `SineTable<64>`
+/// (sustituye al array de 64 valores escritos a mano; cambiar la amplitud es
+/// instanciar `SineTable<48>`/`SineTable<32>`...).
+inline constexpr eng::SineTable<64> kSin64 {};
 constexpr eng::s16 sin64(eng::u8 index) {
-	constexpr eng::s16 t[] {
-		0, 6, 12, 18, 24, 31, 36, 41,
-		45, 49, 53, 56, 59, 61, 63, 64,
-		64, 64, 63, 61, 59, 56, 53, 49,
-		45, 41, 36, 31, 24, 18, 12, 6,
-		0, -6, -12, -18, -24, -31, -36, -41,
-		-45, -49, -53, -56, -59, -61, -63, -64,
-		-64, -64, -63, -61, -59, -56, -53, -49,
-		-45, -41, -36, -31, -24, -18, -12, -6,
-	};
-	return t[index & 63u];
+    return static_cast<eng::s16>(kSin64[index]);
 }
 
 /// Seno interpolado con precisión Q16 (escala 65536 = 1.0) para movimiento

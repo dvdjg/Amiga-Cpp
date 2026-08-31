@@ -118,6 +118,13 @@ struct XlimitedSceneConfig {
     bool parallax_x = false;         // PF2 a velocidad reducida en X
     eng::u8 parallax_x_div = 2;      // divisor de la velocidad de PF2 en X (1 = igual)
     eng::u8 parallax_y_div = 1;      // divisor en Y (1 para compartir el split vertical)
+    bool dual_patterns = false;      // DPF: cada PF con PATRÓN de scroll distinto.
+                                     // PF1 sigue el paso del ciclo; PF2 usa un seno
+                                     // suave en X (patrón independiente). Y compartido.
+    eng::u8 max_step = 1;            // salto máx. px/frame por eje (ambos playfields).
+                                     // El scroll se ejecuta como sub-pasos atómicos de
+                                     // 1 px (paint-then-advance): nunca a medio pintar.
+    eng::u8 fg_max_step = 0;         // 0 = igual que max_step (solo PF2 en dual_patterns)
     bool scroll_y = true;            // corkscrew: display_height = viewport_h + 2*tile_height
     bool linear_display = false;     // display LINEAL sin split (espejo del bucle): elimina la
                                      // limitación del comparador de 8 bits a costa de 2x blits
@@ -200,9 +207,14 @@ public:
             fc.scroll_y = cfg.scroll_y;
             fc.scroll_mode = cfg.scroll_mode;
             fc.linear_display = cfg.linear_display;
+            fc.max_step = cfg.max_step;
             fc.bitmap_width = cfg.bitmap_width;
             fc.fetch_mode = cfg.fetch_mode;
             if (!m_field[pf].begin(memory, fc)) return false;
+        }
+        // En DPF con patrones distintos, PF2 (fondo) puede saltar más rápido.
+        if (cfg.dual && cfg.dual_patterns && !cfg.fg_canvas) {
+            m_field[1].set_scroll_step(cfg.fg_max_step ? cfg.fg_max_step : cfg.max_step);
         }
         // Compositores. Con franja HUD la ventana DIW queda abierta al TOTAL
         // (main + hud); la zona HUD solo cambia BPLxPT/modulos en su raster.
@@ -304,6 +316,17 @@ public:
     /// parallax configurado al PF2. Devuelve false si un borde bloqueó el avance.
     bool update(graphics::FramePlan& plan, eng::s32 dx, eng::s32 dy, eng::u32 frame) {
         const eng::u8 n = fields();
+        // DPF con PATRONES DISTINTOS: PF1 sigue el paso del ciclo; PF2 usa un
+        // patrón independiente (seno suave en X, Y=0 → el split vertical queda
+        // regido por PF1 y PF2 nunca avanza en Y). Cada playfield aplica su
+        // salto (≤ su max_step) como sub-pasos atómicos de 1 px (sin pintar a medias).
+        if (m_cfg.dual && m_cfg.dual_patterns && n == 2) {
+            const eng::s32 sx2 = kSin[(frame >> 3) & 63u];
+            const eng::s32 dx2 = (sx2 > 20) ? 1 : (sx2 < -20 ? -1 : 0);
+            if (!m_field[0].update_scroll(plan, dx, dy)) return false;
+            return m_field[1].update_scroll(plan, dx2, 0);
+        }
+        // Ambos playfields con el mismo paso (parallax opcional en X).
         const bool pf2_x = !m_cfg.parallax_x || (frame % m_cfg.parallax_x_div) == 0u;
         for (int axis = 0; axis < 2; ++axis) {
             const bool isH = (axis == 0);
@@ -311,10 +334,9 @@ public:
             if (step == 0) continue;
             for (eng::u8 pf = 0; pf < n; ++pf) {
                 if (isH && pf == 1 && !pf2_x) continue; // parallax en X del PF2
-                bool ok;
-                if (isH) ok = (step > 0) ? m_field[pf].scroll_right(plan) : m_field[pf].scroll_left(plan);
-                else     ok = (step > 0) ? m_field[pf].scroll_down(plan) : m_field[pf].scroll_up(plan);
-                if (!ok) return false; // borde: no se pudo avanzar este eje
+                const eng::s32 ddx = isH ? step : 0;
+                const eng::s32 ddy = isH ? 0 : step;
+                if (!m_field[pf].update_scroll(plan, ddx, ddy)) return false;
             }
         }
         return true;
@@ -349,7 +371,7 @@ public:
             case 6: case 7: {
                 const eng::u8 fx = static_cast<eng::u8>((phase == 7u) ? (frame + 32u) : frame);
                 const eng::s32 sx = kSin[fx];
-                const eng::s32 sy = kSin[kLissY.v[fx & 63u]];
+                const eng::s32 sy = kSin[kLissY[fx & 63u]];
                 dx = (sx > 20) ? 1 : (sx < -20 ? -1 : 0);
                 dy = (sy > 20) ? 1 : (sy < -20 ? -1 : 0);
                 if (dx == 0 && dy == 0) dx = 1;
@@ -452,15 +474,10 @@ private:
     static constexpr eng::SineTable<64> kSin {};
 
     /// Tabla constexpr de `(i*7/10)&63` para la fase Lissajous: evita la
-    /// división `/10` por frame (se calcula en compile-time).
-    struct LissYTable {
-        eng::u8 v[64];
-        constexpr LissYTable() {
-            for (eng::u8 i = 0; i < 64u; ++i)
-                v[i] = static_cast<eng::u8>((static_cast<eng::u32>(i) * 7u) / 10u) & 63u;
-        }
+    /// división `/10` por frame (se calcula en compile-time con `ct_array`).
+    static constexpr eng::ct_array<eng::u8, 64> kLissY {
+        [](eng::usize i) { return static_cast<eng::u8>((static_cast<eng::u32>(i) * 7u) / 10u) & 63u; }
     };
-    static constexpr LissYTable kLissY {};
 
     XlimitedSceneConfig m_cfg {};
     XLimitedPlayfield<SC> m_field[2] {};
