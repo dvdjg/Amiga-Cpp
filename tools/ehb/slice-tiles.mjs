@@ -27,13 +27,24 @@ if (png.width % tile || png.height % tile) { console.error('[slice] dimensiones 
 fs.mkdirSync(outDir, { recursive: true });
 console.log(`[slice] ${png.width}x${png.height} -> ${cols}x${rows} tiles de ${tile}`);
 
-// --- 1) PALETA EHB: base+half desde quantize-ehb (palette.json) --------------
+// --- 1) PALETA: bases (y half si EHB) DESDE quantize-ehb ---------------------
+// Solo se reserva el índice 0 para transparente si la fuente tiene píxeles
+// transparentes. Si es opaca (p. ej. un tileset de suelo): 16 colores = 4 bits/
+// píxel sin desperdiciar slots.
 let bases = [], planes = 6;
 try { const j = JSON.parse(fs.readFileSync(argV('--palette', ''), 'utf8')); bases = Array.isArray(j.bases) ? j.bases : []; if (typeof j.planes === 'number') planes = j.planes; } catch { }
 if (!bases.length) { console.error('[slice] requiere --palette palette.json (corre quantize-ehb primero)'); process.exit(1); }
-const paletteI = [[0, 0, 0]];                       // índice 0 = transparente
+const wantAlpha = !process.argv.includes('--no-alpha');
+const alphaN = (() => { let n = 0; for (let i = 0; i < png.width * png.height; i++) if (png.data[i * 4 + 3] < 128) n++; return n; })();
+// Solo reservar índice 0 para transparente si es significativo y deseado; si el
+// atlas tiene huecos pero los TILES del mapa son opacos, con --no-alpha se usan
+// 16 colores reales y 4 bits/px (los px transparentes van al base más cercano).
+const hasAlphaSrc = wantAlpha && (alphaN * 100) / (png.width * png.height) >= 0.5;
+const paletteI = [];
+if (hasAlphaSrc) paletteI.push([0, 0, 0]); // índice 0 = transparente (si hace falta)
 for (const b of bases) { paletteI.push([b[0] & 255, b[1] & 255, b[2] & 255]); if (planes >= 6) paletteI.push([b[0] >> 1, b[1] >> 1, b[2] >> 1]); }
 const palSize = paletteI.length;
+console.log(`[slice] paleta ${palSize} colores (${palSize <= 16 ? '4 bits/px' : palSize <= 32 ? '5 bits/px' : 'EHB 64'}${hasAlphaSrc ? ', índice 0 transparente' : ' sin transparencia'})`);
 const nearest = (r, g, bl) => { let bi = 0, dmin = Infinity; for (let q = 0; q < palSize; q++) { const p = paletteI[q]; const dr = r - p[0], dg = g - p[1], db = bl - p[2]; const d = dr * dr + dg * dg + db * db; if (d < dmin) { dmin = d; bi = q; } } return bi; };
 
 // --- 2) CUANTIZAR EL ORIGINAL A LA PALETA PRIMERO (origEhb) -------------------
@@ -41,7 +52,10 @@ const rW = png.width, rH = png.height;
 const origEhb = new Uint8Array(rW * rH);
 for (let y = 0; y < rH; y++) for (let x = 0; x < rW; x++) {
   const o = (y * rW + x) * 4;
-  origEhb[y * rW + x] = png.data[o + 3] < 128 ? 0 : nearest(png.data[o], png.data[o + 1], png.data[o + 2]);
+  const a = png.data[o + 3];
+  // Transparencia→slot 0 solo si reservamos slot; con --no-alpha los px del
+  // atlas (huecos) van también al base más próximo (16 colores / 4 bits/px).
+  origEhb[y * rW + x] = (hasAlphaSrc && a < 128) ? 0 : nearest(png.data[o], png.data[o + 1], png.data[o + 2]);
 }
 console.log(`[slice] original cuantizado a EHB (${palSize} colores) listo`);
 
@@ -85,15 +99,43 @@ console.log(`[slice] COMPARAR: original(cuantizado EHB) vs reconstruido = ${pct.
 if (ehbMerge === 1 && pct < 100) { console.error('[slice] FALLO: sin fusiÃ³n la reconstrucciÃ³n debe cuadrar 100%'); process.exit(1); }
 
 // --- 6) Exports: .h + tiles.json + PNG indexados ------------------------------
+const bits = palSize <= 16 ? 4 : palSize <= 32 ? 5 : 6;
+const perByte = bits === 6 ? 1 : 8 / bits; // 16col->2 px/byte, 32col->1 px/byte (5b) ó 6b->1
+const bankBytes = Math.ceil((bank.length * tile * tile) / perByte);
+const bankPacked = new Uint8Array(bankBytes);
+for (let i = 0; i < bank.length; i++) {
+  for (let p = 0; p < tile * tile; p++) {
+    const v = bank[i].pix[p];
+    const idx = i * tile * tile + p;
+    if (perByte === 2) { const b = idx >> 1; bankPacked[b] = (idx & 1) ? ((bankPacked[b] & 0xf0) | (v & 0x0f)) : ((bankPacked[b] & 0x0f) | (((v & 0x0f) << 4))); }
+    else bankPacked[idx] = v;
+  }
+}
 const bankInd = bank.map((b) => ({ x: b.x, y: b.y }));
+// RLE del banco (píxel por píxel): tiles cuantizados tienen zonas planas, así
+// `(count,value)` comprime drásticamente. `kTileBankRleOffset[i]` = comienzo del
+// tile i en `kTileBankRle`; decodificar: pares (len, idx) hasta completar 256 px.
+const rleOff = new Uint16Array(bank.length);
+const rleData = [];
+for (let i = 0; i < bank.length; i++) {
+  rleOff[i] = rleData.length;
+  const p = bank[i].pix;
+  let cur = p[0], cnt = 0;
+  for (let q = 0; q < p.length; q++) { if (p[q] === cur) cnt++; else { rleData.push(cnt, cur); cur = p[q]; cnt = 1; } }
+  rleData.push(cnt, cur);
+}
 const hLines = [];
 hLines.push('// Tiles EHB slice (original cuantizado primero), para carga en el Amiga.');
-hLines.push(`// ${palSize} colores (0=transparente); ${bank.length} tiles de ${tile}x${tile}; mapa ${cols}x${rows}.`);
+hLines.push(`// ${bits} bits/píxel (${palSize} colores${hasAlphaSrc ? ', índice0 transparente' : ''}); ${bank.length} tiles de ${tile}x${tile}; mapa ${cols}x${rows}.`);
+hLines.push(`// BANCO en RLE (${rleData.length} bytes) + offsets (${bank.length}u16). Decodificar por tile: pares (len,índice) hasta 256 px.`);
 hLines.push(`static const unsigned char kTileIndexedPalette[${palSize * 3}] = {`);
 for (let r = 0; r < palSize; r += 12) hLines.push('  ' + paletteI.slice(r, r + 12).map((c) => `${c[0]},${c[1]},${c[2]}`).join(',') + ',');
 hLines.push('};');
-hLines.push(`static const unsigned char kTileIndexedBank[${bank.length * tile * tile}] = {`);
-for (let i = 0; i < bank.length; i += 8) hLines.push('  ' + bank.slice(i, i + 8).map((b) => `{${[...b.pix].join(',')}}`).join(',') + ',');
+hLines.push(`static const unsigned short kTileBankRleOffset[${bank.length}] = {`);
+for (let r = 0; r < bank.length; r += 20) hLines.push('  ' + [...rleOff.slice(r, r + 20)].join(',') + ',');
+hLines.push('};');
+hLines.push(`static const unsigned char kTileBankRle[${rleData.length}] = {`);
+for (let r = 0; r < rleData.length; r += 32) hLines.push('  ' + rleData.slice(r, r + 32).join(',') + ',');
 hLines.push('};');
 hLines.push(`static const unsigned short kTileIndexedMap[${map.length}] = {`);
 for (let i = 0; i < map.length; i += 24) hLines.push('  ' + map.slice(i, i + 24).join(',') + ',');
