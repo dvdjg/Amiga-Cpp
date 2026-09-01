@@ -240,6 +240,14 @@ namespace demo = eng::field::demo;
 #ifndef K_LINEAR
 #define K_LINEAR 0
 #endif
+// K_DIAG_TILES: modo de depuración visual del BANK/colocación de tiles. El banco
+// de bloques se re-rastreriza con el NÚMERO del glyph (0..63, dos dígitos 4x6 +
+// marco + sombra de decenas) y el mapa pasa a ser una SECUENCIA CONOCIDA
+// (glyph = (y*kMapTilesX+x) & 63). Así, tras un scroll de (dx,dy) píxeles se puede
+// comprobar qué tile debe verse en cada posición del viewport.
+#ifndef K_DIAG_TILES
+#define K_DIAG_TILES 0
+#endif
 #ifndef K_HUD
 #define K_HUD 1 // 0 = sin HUD (ni franja inferior ni marcas de ejemplo)
 #endif
@@ -534,6 +542,72 @@ struct DemoGame {
         return demo::pf_plane_row(glyph, variant, row, plane, 8, false); // PF2 opaco
     }
 
+#if K_DIAG_TILES
+    // ---------------------------------------------------------------------------
+    // DEBUG "carta de ajuste" (test card) en el fondo + FG numerado al 20%.
+    //  - BG: cada tile dibuja LA MISMA carta (marco, cruz central para alinear
+    //    costuras, puntos de esquina, escalera de grises de 4 pasos arriba) y el
+    //    número = valor del glyph solo si != 0. El mapa pone en las ESQUINAS de
+    //    cada pantalla repetida (20x14 tiles) el número de la repetición, así se
+    //    sabe a cuál copia pertenece cada zona al desplazarse.
+    //  - FG: tiles numerados (ubicación) PERO solo en un 20% del mapa; el resto
+    //    son el tile 0 "vacío" (no se pintan y no gastan slots del Blitter).
+    // ---------------------------------------------------------------------------
+    // Fuente 4x6: fila = 6 palabras, bit3..0 = columnas izq..der (1 = tinta).
+    static constexpr eng::u8 kDigitFont[10][6] {
+        {0b1111, 0b1001, 0b1001, 0b1001, 0b1001, 0b1111}, // 0
+        {0b0010, 0b0110, 0b0010, 0b0010, 0b0010, 0b0111}, // 1
+        {0b1110, 0b0001, 0b0110, 0b1000, 0b1000, 0b1111}, // 2
+        {0b1110, 0b0001, 0b0110, 0b0001, 0b0001, 0b1110}, // 3
+        {0b1001, 0b1001, 0b1111, 0b0001, 0b0001, 0b0001}, // 4
+        {0b1111, 0b1000, 0b1110, 0b0001, 0b0001, 0b1110}, // 5
+        {0b0111, 0b1000, 0b1111, 0b1001, 0b1001, 0b0111}, // 6
+        {0b1111, 0b0001, 0b0010, 0b0100, 0b0100, 0b0100}, // 7
+        {0b0111, 0b1001, 0b0110, 0b1001, 0b1001, 0b0111}, // 8
+        {0b0111, 0b1001, 0b0111, 0b0001, 0b0001, 0b1110}, // 9
+    };
+    static constexpr bool digit_pixel(eng::u8 d, eng::u8 px, eng::u8 py, eng::u8 ox, eng::u8 oy) {
+        if (px < ox || px >= ox + 4 || py < oy || py >= oy + 6) return false;
+        return (kDigitFont[d][py - oy] & (1u << (3u - (px - ox)))) != 0u;
+    }
+    /// Carta de ajuste de 16x16 (idéntica en todos los tiles para que el grid de
+    /// cruces continúe por las costuras y las esquinas queden alineadas).
+    /// `glyph==0` → solo geometría (sin número). Devolución por plano.
+    static eng::u16 card_row(eng::u8 glyph, eng::u8 row, eng::u8 plane) {
+        const eng::u8 tens = static_cast<eng::u8>(glyph / 10u);
+        const eng::u8 unit = static_cast<eng::u8>(glyph % 10u);
+        const bool numbered = glyph != 0u;
+        eng::u16 v = 0;
+        for (eng::u8 px = 0; px < 16; ++px) {
+            const bool border = (row == 0u || row == 15u || px == 0u || px == 15u);
+            const bool cross = (row == 7u && px >= 2u && px <= 13u) || (px == 7u && row >= 2u && row <= 13u);
+            const bool corner_dot = (px == 1u || px == 14u) && (row == 1u || row == 14u);
+            const eng::u8 bar = static_cast<eng::u8>(px / 4u);          // 0..3 (escala de grises)
+            const bool bar_shade = (row >= 2u && row <= 5u);            // banda superior
+            const bool bar1 = bar_shade && bar >= 1u;                   // plano1
+            const bool bar2 = bar_shade && bar >= 2u;                   // plano2
+            const bool dt = numbered && digit_pixel(tens, px, row, 1, 9);
+            const bool du = numbered && digit_pixel(unit, px, row, 9, 9);
+            bool set = false;
+            if (plane == 0u) set = border || cross;                     // marco + rejilla
+            else if (plane == 1u) set = bar1 || corner_dot || dt;       // grises p1 + esquinas + decenas
+            else set = bar2 || du;                                      // grises p2 + unidades
+            if (set) v = static_cast<eng::u16>(v | (1u << (15u - px)));
+        }
+        return v;
+    }
+    /// FG: tile 0 = vacío (transparente, no se pinta); resto numerado con la carta.
+    static eng::u16 diag_fg_row(eng::u8 glyph, eng::u8, eng::u8 row, eng::u8 plane) {
+        if (glyph == 0u) return 0;
+        return card_row(glyph, row, plane);
+    }
+    /// BG: carta de ajuste + número del glyph si != 0 (las esquinas llevan la
+    /// numeración de la repetición de pantalla).
+    static eng::u16 diag_bg_row(eng::u8 glyph, eng::u8, eng::u8 row, eng::u8 plane) {
+        return card_row(glyph, row, plane);
+    }
+#endif
+
     void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
         eng::debug::mark_init_started(g_eng_run_status);
         eng::debug::reset(g_eng_frame_telemetry);
@@ -547,12 +621,47 @@ struct DemoGame {
 // Mapa de fondo (PF2). En DPF, PF1 usa un mapa FG con la mitad de tiles
         // transparentes (g_fg_map_cells, checkerboard sobre tile 0). El mapa FG
         // se reserva en el arena Chip (no en BSS) para no duplicar ~140 KB.
-        if (K_COHERENT != 0) {
+        if (K_DIAG_TILES != 0) {
+            // CARTA DE AJUSTE + repetidos: every pantalla = 20x14 tiles (24x16px).
+            // BG: las 4 esquinas de cada pantalla repetida llevan el número de la
+            // copia (repeat_id & 63) en el glyph; el interior es glyph 0 (solo la
+            // geometría de la carta, que continúa por las costuras).
+            const eng::u32 n = static_cast<eng::u32>(kMapTilesX) * kMapTilesY;
+            const eng::u16 cols = static_cast<eng::u16>(kViewportW / kTileSize);
+            const eng::u16 rows = static_cast<eng::u16>(kViewportH / kTileSize);
+            {
+                auto sp = eng::Span<eng::u16>::from_raw(g_map_cells, n);
+                for (eng::u32 ty = 0; ty < kMapTilesY; ++ty) {
+                    for (eng::u32 tx = 0; tx < kMapTilesX; ++tx) {
+                        const bool corner = (tx % cols == 0u || tx % cols == cols - 1u) ||
+                                            (ty % rows == 0u || ty % rows == rows - 1u);
+                        eng::u16 g = 0;
+                        if (corner) {
+                            const eng::u32 rep = ((ty / rows) * (kMapTilesX / cols) + (tx / cols)) & 63u;
+                            g = static_cast<eng::u16>(rep & 63u);
+                        }
+                        sp.at(static_cast<eng::u32>(ty * kMapTilesX + tx)) = g;
+                    }
+                }
+            }
+            if (kDual) {
+                // FG numerado al 20%: el 80% resta como tile 0 (vacío, no se pinta).
+                m_fg_map = backend.memory().chip.allocate(static_cast<eng::u32>(n) * 2u, 2);
+                if (!m_fg_map.valid()) { eng::debug::mark_failed(g_eng_run_status, 0x00010702u); return; }
+                auto fp = eng::Span<eng::u16>::from_raw(static_cast<eng::u16*>(m_fg_map.data), n);
+                for (eng::u32 i = 0; i < n; ++i) {
+                    const eng::u32 h = i * 2654435761u + 0x9e3779b9u;
+                    fp.at(i) = (h % 100u) < 20u
+                        ? static_cast<eng::u16>(((h >> 8u) & 63u) | 1u)
+                        : 0;
+                }
+            }
+        } else if (K_COHERENT != 0) {
             build_map_coherent(eng::Span<eng::u16>::from_raw(g_map_cells, kMapTilesX * kMapTilesY));
         } else {
             build_map(eng::Span<eng::u16>::from_raw(g_map_cells, kMapTilesX * kMapTilesY), 0x13579bdu);
         }
-        if (kDual) {
+        if (kDual && K_DIAG_TILES == 0) {
             const eng::u32 map_bytes = static_cast<eng::u32>(kMapTilesX) * kMapTilesY * 2u;
             m_fg_map = backend.memory().chip.allocate(map_bytes, 2);
             if (!m_fg_map.valid()) {
@@ -582,9 +691,17 @@ struct DemoGame {
         scene_cfg.map.wrap_x = kMapTilesX;
         scene_cfg.map.wrap_y = kMapTilesY;
         scene_cfg.map.edge_tile = kDual ? 0 : 0;
-        scene_cfg.tileset_count = kTileCount;
+        // PF1 (capa FG): el tile 0 = "vacío", NO se pinta (ahorra slots de Blitter
+        // en el checkerboard/escenario al 20%). PF2 (BG) lo conserva sin skip.
+        if (kDual) scene_cfg.map.empty_tile = 0;
+scene_cfg.tileset_count = kTileCount;
         scene_cfg.fg_row_fn = &DemoGame::fg_row;
         scene_cfg.bg_row_fn = &DemoGame::bg_row;
+#if K_DIAG_TILES
+        // DEBUG numerado: bancos con el número del glyph (FG y BG distinguibles).
+        scene_cfg.fg_row_fn = &DemoGame::diag_fg_row;
+        scene_cfg.bg_row_fn = &DemoGame::diag_bg_row;
+#endif
         scene_cfg.dual = kDual;
         if (kDual) {
             // PF2 (fondo) opaco con su propio mapa (el completo, sin checkerboard).

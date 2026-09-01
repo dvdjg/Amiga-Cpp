@@ -19,6 +19,10 @@ namespace eng::field {
 struct TileLayerMap {
 	eng::Span<const eng::u16> cells {};
 	eng::u16 width = 0, height = 0, wrap_x = 0, wrap_y = 0, edge_tile = 0;
+	/// Tile valor `empty_tile` (0xFFFF = desactivado) = "no se pinta": las
+	/// rutinas de dibujo de bloques (`fill_screen`, `add_draw`) lo OMITEN, para
+	/// que zonas vacías de un playfield no gasten slots del Blitter.
+	eng::u16 empty_tile = 0xFFFF;
 	static eng::s32 wrap_coordinate(eng::s32 value, eng::u16 period) {
 		// Los mapas de las demos son potencias de dos (256x128). En el 68000,
 		// sustituir modulo por una máscara evita __modsi3 en cada tile. El camino
