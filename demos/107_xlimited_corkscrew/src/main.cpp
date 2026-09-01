@@ -45,6 +45,16 @@ extern "C" {
 __attribute__((used)) volatile eng::u8 g_automation_keycode = 0xffu;
 }
 
+// DIAGNÓSTICO del bug "tile pintado dentro del área visible": el host/DAP puede
+// poner un watchpoint (src=cpu) en `g_eng_diag_hit`; se escribe SÓLO en los frames
+// que pintan un bloque de relleno sobre la ventana visible.
+//   byte0 = ink (1)
+//   byte1 = fila del bucle donde cayó (0..255)
+//   byte2 = display_offset d = (videoposy+16)%display_height
+extern "C" {
+__attribute__((used)) volatile eng::u32 g_eng_diag_hit = 0;
+}
+
 namespace {
 
 namespace field = eng::field;
@@ -173,6 +183,11 @@ namespace demo = eng::field::demo;
 // Viewport y espacio virtual parametrizados: K_VIEWPORT_W/H (defecto 320/256,
 // alternativo 288/224) y K_SCREENS_X/Y (16×16 pantallas → mapa screens*viewport/tile).
 
+//
+// bash ./tools/build/build-demo.sh demos/107_xlimited_corkscrew --release --clean
+// bash ./tools/run/run-demo.sh demos/107_xlimited_corkscrew --config A500_release
+   
+// bash ./tools/run/run-demo.sh demos/107_xlimited_corkscrew --config A500_release --sequence-frames 40 --sequence-interval-ms 250
 
 #ifndef K_TILE_WIDTH
 #define K_TILE_WIDTH 16
@@ -293,10 +308,11 @@ namespace demo = eng::field::demo;
 // verificar el ciclo de vida sin teclado); el teclado real (CIAA, §15 input)
 // alimentará `g_tech_new` (1..N) para conmutar.
 #ifndef K_START_TECH
-#define K_START_TECH 0
+#define K_START_TECH 6 // arranca en la CARTA de ajuste (la última variante); 1..12 teclado
 #endif
 #ifndef K_AUTOCYCLE
-#define K_AUTOCYCLE 0 // frames por técnica en modo automático (0 = off)
+#define K_AUTOCYCLE 0 // frames por técnica (0 = off, estable). Con K_AUTOCYCLE>0 el
+                      // demo cya NORMAL<->CARTA automáticamente; el teclado fuerza.
 #endif
 // Franja HUD inferior: un playfield SEPARADO (CanvasPlayfield) de K_HUD_HEIGHT
 // filas con K_HUD_PLANES bitplanes y paleta propia, en una zona de Copper bajo
@@ -347,7 +363,9 @@ constexpr eng::u8 kEffectivePlanes = kDual ? 3u : kPlanes;              // 3 por
 // 16×16 pantallas virtuales → mapa en tiles derivado de viewport/tile
 constexpr eng::u16 kMapTilesX = static_cast<eng::u16>(K_SCREENS_X * (K_VIEWPORT_W / K_TILE_W));
 constexpr eng::u16 kMapTilesY = static_cast<eng::u16>(K_SCREENS_Y * (K_VIEWPORT_H / K_TILE_H));
-constexpr eng::u8 kTileCount = 64;
+// Banco de bloques DOBLE en el mismo ejecutable: 0..63 = variante NORMAL,
+// 64..127 = variante CARTA (carta de ajuste + números). `scene_cfg.tileset_count`.
+constexpr eng::u8 kTileCount = 128;
 
 // Geometría como constantes a priori (NTTP) para el `ScrollEngine`: los
 // denominadores calientes (tile 16/16, display_height, display_planelines,
@@ -365,23 +383,33 @@ constexpr field::ScrollConsts kScrollConsts {
     /*planes=*/            kEffectivePlanes,
 };
 
-// --- Técnicas conmutables (muestrario DPF): todas compiladas; cada una
-//     PARAR/INICIAR su scroll (ciclo de vida) al conmutar con 1..9 (g_tech_new).
+// --- Técnicas conmutables: todas compiladas (las dos VARIANTES: NORMAL y
+//     CARTA de ajuste). Cada una PARAR/INICIAR su scroll (ciclo de vida).
+// `mode`: 0 = NORMAL (mapa/banco 0..63), 1 = CARTA (banco 64..127: carta de
+// ajuste en BG + FG numerado al 20% el resto vacío). Al conmutar de variante se
+// re-copian los mapas y se re-pinta el bucle (fill) — el MISMO ejecutable.
 enum PatternMode : eng::u8 { P8Way = 0, PDualPatterns = 1 };
 struct Technique {
     const char* name;
     PatternMode pattern; // 0 = auto 8-way (ambos igual) · 1 = dos patrones
+    eng::u8 mode;        // 0 = NORMAL · 1 = CARTA
     eng::u8 step;        // px/frame del 8-way
     eng::u8 stepBg;      // px/frame del BG (diagonal) en patrones
     eng::u8 stepFg;      // px/frame del FG (Lissajous) en patrones
 };
 static constexpr Technique kTechniques[] {
-    { "DPF · patrones (BG diag + FG Lissajous) 2px", PDualPatterns, 0, 2, 2 },
-    { "DPF · 8-way (ambos mismo paso) 2px",           P8Way,         2, 0, 0 },
-    { "DPF · patrones 4px",                           PDualPatterns, 0, 4, 4 },
-    { "DPF · 8-way 4px",                              P8Way,         4, 0, 0 },
-    { "DPF · patrones 1px",                           PDualPatterns, 0, 1, 1 },
-    { "DPF · 8-way 1px",                              P8Way,         1, 0, 0 },
+    { "DPF·patrones (BG diag+FG Liss) 2px", PDualPatterns, 0, 0, 2, 2 },
+    { "DPF·8-way 2px",                       P8Way,         0, 2, 0, 0 },
+    { "DPF·patrones 4px",                    PDualPatterns, 0, 0, 4, 4 },
+    { "DPF·8-way 4px",                       P8Way,         0, 4, 0, 0 },
+    { "DPF·patrones 1px",                    PDualPatterns, 0, 0, 1, 1 },
+    { "DPF·8-way 1px",                       P8Way,         0, 1, 0, 0 },
+    { "CARTA·patrones 2px",                  PDualPatterns, 1, 0, 2, 2 },
+    { "CARTA·8-way 2px",                     P8Way,         1, 2, 0, 0 },
+    { "CARTA·patrones 4px",                  PDualPatterns, 1, 0, 4, 4 },
+    { "CARTA·8-way 4px",                     P8Way,         1, 4, 0, 0 },
+    { "CARTA·patrones 1px",                  PDualPatterns, 1, 0, 1, 1 },
+    { "CARTA·8-way 1px",                     P8Way,         1, 1, 0, 0 },
 };
 static constexpr eng::u8 kTechCount = static_cast<eng::u8>(
     static_cast<eng::u32>(sizeof(kTechniques) / sizeof(kTechniques[0]) & 0xffu));
@@ -468,6 +496,8 @@ struct DemoGame {
     eng::u8 m_current = 0;              // índice de la técnica activa (0..N-1)
     eng::u8 m_prevIn = 0;               // último estado de entrada (edge)
     eng::amiga::KeyboardState m_kbd;    // estado del teclado sintético (memory)
+    eng::u8 m_mode = 0;                 // variante activa (0 = NORMAL, 1 = CARTA)
+    bool m_refillPending = false;       // al conmutar variante: re-pintar el bucle
 
     /// PARAR la técnica saliente + INICIAR la entrante (ciclo de vida del
     /// efecto): reinicia la cámara de ambos playfields y la fase del auto-ciclo,
@@ -477,6 +507,8 @@ struct DemoGame {
         if (idx >= kTechCount) return;
         m_current = idx;
         const Technique& t = kTechniques[idx];
+        // VARIANTE: si cambia NORMAL<->CARTA, regenerar mapas + re-pintar el bucle.
+        if (t.mode != m_mode) switch_variant(t.mode);
         // STOP
         scene.bg().reset_scroll();
         if (kDual) scene.fg().reset_scroll();
@@ -487,6 +519,60 @@ struct DemoGame {
         const eng::u8 stF = (t.pattern == PDualPatterns) ? t.stepFg : (t.step ? t.step : kStepMax);
         scene.bg().set_scroll_step(stB ? stB : 1u);
         scene.fg().set_scroll_step(stF ? stF : 1u);
+    }
+
+    /// Regenera el contenido de los mapas vivos (g_map_cells BG, m_fg_map FG)
+    /// para la variante indicada y marca re-fill. Los Spans del scene apuntan a
+    /// estos arrays, así el cambio es visible sin recablear config.
+    void set_bg_normal() {
+        const eng::u32 n = static_cast<eng::u32>(kMapTilesX) * kMapTilesY;
+        if (K_COHERENT != 0) build_map_coherent(eng::Span<eng::u16>::from_raw(g_map_cells, n));
+        else build_map(eng::Span<eng::u16>::from_raw(g_map_cells, n), 0x13579bdu);
+    }
+    void set_bg_card() {
+        const eng::u32 n = static_cast<eng::u32>(kMapTilesX) * kMapTilesY;
+        const eng::u16 cols = static_cast<eng::u16>(kViewportW / kTileSize);
+        const eng::u16 rows = static_cast<eng::u16>(kViewportH / kTileSize);
+        for (eng::u32 ty = 0; ty < kMapTilesY; ++ty) {
+            for (eng::u32 tx = 0; tx < kMapTilesX; ++tx) {
+                const bool corner = (tx % cols == 0u || tx % cols == cols - 1u) ||
+                                    (ty % rows == 0u || ty % rows == rows - 1u);
+                eng::u16 g = 0;
+                if (corner) {
+                    const eng::u32 rx = tx / cols, ry = ty / rows;
+                    // Color de pantalla (1..8) = combinación rx+ry: cada copia de
+                    // la pantalla tiene esquinas de su color (amarillo/azul/etc).
+                    const eng::u8 colr = static_cast<eng::u8>(1u + ((rx + 3u * ry) & 7u));
+                    g = static_cast<eng::u16>(64u + colr); // 65..72 = esquinas coloreadas
+                }
+                g_map_cells[static_cast<eng::u32>(ty * kMapTilesX + tx)] = g;
+            }
+        }
+    }
+    void set_fg_normal() {
+        if (!kDual) return;
+        const eng::u32 n = static_cast<eng::u32>(kMapTilesX) * kMapTilesY;
+        build_fg_checkerboard_map(
+            eng::Span<eng::u16>::from_raw(static_cast<eng::u16*>(m_fg_map.data), n),
+            eng::Span<const eng::u16>::from_raw(g_map_cells, n));
+    }
+    void set_fg_card() {
+        if (!kDual) return;
+        const eng::u32 n = static_cast<eng::u32>(kMapTilesX) * kMapTilesY;
+        auto fp = eng::Span<eng::u16>::from_raw(static_cast<eng::u16*>(m_fg_map.data), n);
+        for (eng::u32 i = 0; i < n; ++i) {
+            const eng::u32 h = i * 2654435761u + 0x9e3779b9u;
+            fp.at(i) = (h % 100u) < 20u
+                ? static_cast<eng::u16>(64u + (((h >> 8u) & 63u) | 1u)) // FG carta numerado
+                : 0;                                                    // vacío (no se pinta)
+        }
+    }
+    void switch_variant(eng::u8 mode) {
+        if (mode == m_mode) return;
+        m_mode = mode;
+        if (mode == 1u) { set_bg_card(); set_fg_card(); }
+        else { set_bg_normal(); set_fg_normal(); }
+        m_refillPending = true;
     }
 
     /// Consume la entrada (hardware directo: un botón/joystick avanza técnica; el
@@ -542,16 +628,16 @@ struct DemoGame {
         return demo::pf_plane_row(glyph, variant, row, plane, 8, false); // PF2 opaco
     }
 
-#if K_DIAG_TILES
-    // ---------------------------------------------------------------------------
-    // DEBUG "carta de ajuste" (test card) en el fondo + FG numerado al 20%.
-    //  - BG: cada tile dibuja LA MISMA carta (marco, cruz central para alinear
-    //    costuras, puntos de esquina, escalera de grises de 4 pasos arriba) y el
-    //    número = valor del glyph solo si != 0. El mapa pone en las ESQUINAS de
-    //    cada pantalla repetida (20x14 tiles) el número de la repetición, así se
-    //    sabe a cuál copia pertenece cada zona al desplazarse.
-    //  - FG: tiles numerados (ubicación) PERO solo en un 20% del mapa; el resto
-    //    son el tile 0 "vacío" (no se pintan y no gastan slots del Blitter).
+// ---------------------------------------------------------------------------
+    // VARIANTE "CARTA DE AJUSTE" (test card) en el MISMO banco que el NORMAL.
+    //  - BG carta: cada tile dibuja LA MISMA carta (marco, cruz central para
+    //    alinear costuras, puntos de esquina, escalera de grises de 4 pasos
+    //    arriba) y el número = valor del glyph solo si != 0. El mapa pone en las
+    //    ESQUINAS de cada pantalla repetida (20x14 tiles) el número de la copia,
+    //    así se sabe a cuál pertenece cada zona al desplazarse.
+    //  - FG carta: tiles numerados (ubicación) PERO solo ~20% del mapa; el resto
+    //    son el tile 64 (`G0`) "vacío" → no se pintan y no gastan slots del
+    //    Blitter (empty_tile en la capa FG).
     // ---------------------------------------------------------------------------
     // Fuente 4x6: fila = 6 palabras, bit3..0 = columnas izq..der (1 = tinta).
     static constexpr eng::u8 kDigitFont[10][6] {
@@ -596,17 +682,38 @@ struct DemoGame {
         }
         return v;
     }
-    /// FG: tile 0 = vacío (transparente, no se pinta); resto numerado con la carta.
-    static eng::u16 diag_fg_row(eng::u8 glyph, eng::u8, eng::u8 row, eng::u8 plane) {
-        if (glyph == 0u) return 0;
-        return card_row(glyph, row, plane);
+    /// Esquina coloreada de la carta: bloque SÓLIDO en un color del código de
+    /// pantalla (1..8), con marco oscuro, para saber de un vistazo en qué
+    /// pantalla repetida estás (cada screen pinta sus 4 esquinas con su color).
+    static eng::u16 corner_row(eng::u8 color /*1..8*/, eng::u8 row, eng::u8 plane) {
+        const bool bit = ((color - 1u) & (1u << (plane & 7u))) != 0u;
+        eng::u16 v = 0;
+        for (eng::u8 px = 0; px < 16; ++px) {
+            const bool border = (row == 0u || row == 15u || px == 0u || px == 15u);
+            if (bit && !border) v = static_cast<eng::u16>(v | (1u << (15u - px)));
+        }
+        return v;
     }
-    /// BG: carta de ajuste + número del glyph si != 0 (las esquinas llevan la
-    /// numeración de la repetición de pantalla).
-    static eng::u16 diag_bg_row(eng::u8 glyph, eng::u8, eng::u8 row, eng::u8 plane) {
-        return card_row(glyph, row, plane);
+
+    // --- Variante NORMAL (0..63) vs CARTA (64..127) en el MISMO banco ---------
+    // El banco se construye una vez con `kTileCount = 128`: los generadores
+    // despachan por la mitad del glyph. El mapa de cada variante usa la
+    // numeración correspondiente (0..63 o 64..127).
+    static eng::u16 combined_fg_row(eng::u8 glyph, eng::u8 variant, eng::u8 row, eng::u8 plane) {
+        if (glyph >= 64u) {
+            if (glyph == 64u) return 0; // carta: tile 64 (G0) = vacío transparente
+            return card_row(static_cast<eng::u8>(glyph - 64u), row, plane);
+        }
+        return fg_row(glyph, variant, row, plane);
     }
-#endif
+    static eng::u16 combined_bg_row(eng::u8 glyph, eng::u8 variant, eng::u8 row, eng::u8 plane) {
+        if (glyph >= 64u) {
+            const eng::u8 g = static_cast<eng::u8>(glyph - 64u);
+            if (g == 0u) return card_row(0u, row, plane);          // interior: carta sin número
+            return corner_row(g, row, plane);                      // esquinas: color de pantalla
+        }
+        return bg_row(glyph, variant, row, plane);
+    }
 
     void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
         eng::debug::mark_init_started(g_eng_run_status);
@@ -618,59 +725,25 @@ struct DemoGame {
             return;
         }
 
-// Mapa de fondo (PF2). En DPF, PF1 usa un mapa FG con la mitad de tiles
-        // transparentes (g_fg_map_cells, checkerboard sobre tile 0). El mapa FG
-        // se reserva en el arena Chip (no en BSS) para no duplicar ~140 KB.
-        if (K_DIAG_TILES != 0) {
-            // CARTA DE AJUSTE + repetidos: every pantalla = 20x14 tiles (24x16px).
-            // BG: las 4 esquinas de cada pantalla repetida llevan el número de la
-            // copia (repeat_id & 63) en el glyph; el interior es glyph 0 (solo la
-            // geometría de la carta, que continúa por las costuras).
+// Mapa de fondo (PF2) + FG. Las VARIANTES NORMAL/CARTA comparten los arrays
+        // VIVOS (g_map_cells = BG, m_fg_map = FG en DPF): al conmutar se GENERA el
+        // contenido de la variante en esos arrays y se re-pinta el bucle (fill).
+        {
             const eng::u32 n = static_cast<eng::u32>(kMapTilesX) * kMapTilesY;
-            const eng::u16 cols = static_cast<eng::u16>(kViewportW / kTileSize);
-            const eng::u16 rows = static_cast<eng::u16>(kViewportH / kTileSize);
-            {
-                auto sp = eng::Span<eng::u16>::from_raw(g_map_cells, n);
-                for (eng::u32 ty = 0; ty < kMapTilesY; ++ty) {
-                    for (eng::u32 tx = 0; tx < kMapTilesX; ++tx) {
-                        const bool corner = (tx % cols == 0u || tx % cols == cols - 1u) ||
-                                            (ty % rows == 0u || ty % rows == rows - 1u);
-                        eng::u16 g = 0;
-                        if (corner) {
-                            const eng::u32 rep = ((ty / rows) * (kMapTilesX / cols) + (tx / cols)) & 63u;
-                            g = static_cast<eng::u16>(rep & 63u);
-                        }
-                        sp.at(static_cast<eng::u32>(ty * kMapTilesX + tx)) = g;
-                    }
-                }
+            // BG NORMAL (inicial): coherente o hash, como antes.
+            if (K_COHERENT != 0) {
+                build_map_coherent(eng::Span<eng::u16>::from_raw(g_map_cells, n));
+            } else {
+                build_map(eng::Span<eng::u16>::from_raw(g_map_cells, n), 0x13579bdu);
             }
             if (kDual) {
-                // FG numerado al 20%: el 80% resta como tile 0 (vacío, no se pinta).
-                m_fg_map = backend.memory().chip.allocate(static_cast<eng::u32>(n) * 2u, 2);
+                const eng::u32 map_bytes = n * 2u;
+                m_fg_map = backend.memory().chip.allocate(map_bytes, 2);
                 if (!m_fg_map.valid()) { eng::debug::mark_failed(g_eng_run_status, 0x00010702u); return; }
-                auto fp = eng::Span<eng::u16>::from_raw(static_cast<eng::u16*>(m_fg_map.data), n);
-                for (eng::u32 i = 0; i < n; ++i) {
-                    const eng::u32 h = i * 2654435761u + 0x9e3779b9u;
-                    fp.at(i) = (h % 100u) < 20u
-                        ? static_cast<eng::u16>(((h >> 8u) & 63u) | 1u)
-                        : 0;
-                }
+                build_fg_checkerboard_map(
+                    eng::Span<eng::u16>::from_raw(static_cast<eng::u16*>(m_fg_map.data), n),
+                    eng::Span<const eng::u16>::from_raw(g_map_cells, n));
             }
-        } else if (K_COHERENT != 0) {
-            build_map_coherent(eng::Span<eng::u16>::from_raw(g_map_cells, kMapTilesX * kMapTilesY));
-        } else {
-            build_map(eng::Span<eng::u16>::from_raw(g_map_cells, kMapTilesX * kMapTilesY), 0x13579bdu);
-        }
-        if (kDual && K_DIAG_TILES == 0) {
-            const eng::u32 map_bytes = static_cast<eng::u32>(kMapTilesX) * kMapTilesY * 2u;
-            m_fg_map = backend.memory().chip.allocate(map_bytes, 2);
-            if (!m_fg_map.valid()) {
-                eng::debug::mark_failed(g_eng_run_status, 0x00010702u);
-                return;
-            }
-            build_fg_checkerboard_map(
-                eng::Span<eng::u16>::from_raw(static_cast<eng::u16*>(m_fg_map.data), kMapTilesX * kMapTilesY),
-                eng::Span<const eng::u16>::from_raw(g_map_cells, kMapTilesX * kMapTilesY));
         }
 
         scene_cfg.viewport_w = kViewportW;
@@ -694,14 +767,9 @@ struct DemoGame {
         // PF1 (capa FG): el tile 0 = "vacío", NO se pinta (ahorra slots de Blitter
         // en el checkerboard/escenario al 20%). PF2 (BG) lo conserva sin skip.
         if (kDual) scene_cfg.map.empty_tile = 0;
-scene_cfg.tileset_count = kTileCount;
-        scene_cfg.fg_row_fn = &DemoGame::fg_row;
-        scene_cfg.bg_row_fn = &DemoGame::bg_row;
-#if K_DIAG_TILES
-        // DEBUG numerado: bancos con el número del glyph (FG y BG distinguibles).
-        scene_cfg.fg_row_fn = &DemoGame::diag_fg_row;
-        scene_cfg.bg_row_fn = &DemoGame::diag_bg_row;
-#endif
+scene_cfg.tileset_count = kTileCount;   // 128: 0..63 NORMAL + 64..127 CARTA
+        scene_cfg.fg_row_fn = &DemoGame::combined_fg_row;
+        scene_cfg.bg_row_fn = &DemoGame::combined_bg_row;
         scene_cfg.dual = kDual;
         if (kDual) {
             // PF2 (fondo) opaco con su propio mapa (el completo, sin checkerboard).
@@ -749,6 +817,8 @@ scene_cfg.max_step = kStepMax;
             eng::debug::mark_failed(g_eng_run_status, 0x00010705u);
             return;
         }
+        // El fill de init ya cubre la variante inicial; no re-pintar en el 1er update.
+        m_refillPending = false;
 #if K_CANVAS_FG
         // FG estático (lienzo plano, DPF): marco + figuras dibujadas UNA vez en
         // init con la superficie del canvas FG. PF2 usa colores 8..15 (base DPF).
@@ -906,6 +976,14 @@ scene_cfg.max_step = kStepMax;
         // Conmutación de técnica (gancho de entrada / auto-ciclo). Reinicia el
         // scroll de la técnica saliente e inicia la entrante (ciclo de vida).
         poll_tech_switch(context.frame.frame_index);
+        // Al conmutar VARIANTE (NORMAL<->CARTA): re-pintar el bucle completo en ESTE
+        // mismo frame (presupuesto ampliado) antes de seguir scrolleando.
+        if (m_refillPending) {
+            m_refillPending = false;
+            plan.set_blit_budget_limits({100000, 100000, 0, 4096});
+            if (!scene.bg().fill_screen(plan)) { ready = false; eng::debug::mark_failed(g_eng_run_status, 0x0001070bu); return; }
+            if (kDual && !scene.fg().fill_screen(plan)) { ready = false; eng::debug::mark_failed(g_eng_run_status, 0x0001070bu); return; }
+        }
         // Avanza el camino configurado (1 px/frame). Si una fase choca con el
         // borde 0 (dirección inversa sin recorrido) simplemente no avanza.
         eng::s32 dx = 0, dy = 0;
@@ -927,6 +1005,14 @@ scene_cfg.max_step = kStepMax;
             bool ok = scene.fg().update_scroll(plan, vxBg, vy);          // BG visual
             if (ok) ok = scene.bg().update_scroll(plan, vxFg, vy);       // FG visual
             if (!ok) { /* borde sin recorrido: no avanza este frame */ }
+        }
+
+        // DIAG (bug tiles->visible): materializa el hit para watchpoint del host.
+        if (scene.bg().dbg_ink_visible()) {
+            const eng::u32 d = static_cast<eng::u32>(scene.bg().display_offset());
+            g_eng_diag_hit = 0x01000000u |
+                (static_cast<eng::u32>(scene.bg().dbg_ink_visible_row()) << 16u) |
+                (d & 0xffu);
         }
 
         // HUD: el BOB (blit) se encola en el plan y se ejecuta con el scroll.

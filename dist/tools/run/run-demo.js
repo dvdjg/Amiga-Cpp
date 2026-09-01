@@ -592,31 +592,48 @@ class SideChannelClient {
     }
 }
 async function waitForSideChannelRunStatus({ linkedSymbol, mapSections, timeoutMs, pollMs, port }) {
-    const client = new SideChannelClient(port);
     const deadline = Date.now() + timeoutMs;
-    await client.connect(Math.min(1000, timeoutMs));
+    const client = new SideChannelClient(port);
+    // El listener 2346 puede tardar en arrancar (el emulador lo levanta tras el
+    // boot): reconectamos en CADA poll (igual que `readSideChannelRunStatusOnce`
+    // de la captura), en vez de conectar una sola vez al inicio.
+    await client.connect(Math.min(1500, timeoutMs)).catch(() => { });
     try {
         let runtimeAddress = null;
         let last = null;
         while (Date.now() <= deadline) {
-            const state = await client.command('state', 1000);
-            if (state.ok) {
+            let state = null;
+            try {
+                state = await client.command('state', 1500);
+            }
+            catch {
+                state = null;
+            }
+            if (state && state.ok && runtimeAddress === null) {
                 runtimeAddress = resolveRuntimeSymbolAddress(linkedSymbol, mapSections, state.sections);
-                if (runtimeAddress !== null && runtimeAddress > 0) {
-                    const status = await client.command(`runstatus ${runtimeAddress.toString(16)}`, 1000);
-                    last = { state, status, runtimeAddress };
-                    if (status.ok && status.magic === '0x454e4752' && status.version === 1) {
-                        if (status.state === 3) {
-                            return { status: 'ready', value: status, runtimeAddress, state };
-                        }
-                        if (status.state === 0xffff) {
-                            return { status: 'failed', value: status, runtimeAddress, state };
-                        }
+            }
+            if (runtimeAddress !== null && runtimeAddress > 0) {
+                const status = await client.command(`runstatus ${runtimeAddress.toString(16)}`, 1500).catch(() => null);
+                last = { state, status, runtimeAddress };
+                if (status && status.ok && status.magic === '0x454e4752' && status.version === 1) {
+                    if (status.state === 3) {
+                        return { status: 'ready', value: status, runtimeAddress, state };
+                    }
+                    if (status.state === 0xffff) {
+                        return { status: 'failed', value: status, runtimeAddress, state };
                     }
                 }
-                else {
-                    last = { state, status: null, runtimeAddress: null };
-                }
+            }
+            else {
+                last = { state, status: null, runtimeAddress: null };
+            }
+            // Reanudar la conexión si se cayó (el emulador reinicia el listener).
+            try {
+                await client.close();
+            }
+            catch { /* ignore */ }
+            if (Date.now() <= deadline) {
+                await client.connect(Math.min(1500, deadline - Date.now())).catch(() => { });
             }
             await sleep(pollMs);
         }
