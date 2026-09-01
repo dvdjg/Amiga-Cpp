@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Compila la demo o test que contiene el archivo fuente indicado y publica una
 # copia estable para el depurador integrado de Bartman.
+#
+# IMPORTANTE (2026-09-01): compila con `--debug` (-O1, config A500_debug), NO
+# con `--o0`: el binario -O0 (A500_o0) no arranca en el entorno y, con el
+# fallback cruzado antiguo, F5 publicaba/copiaba un .exe de OTRA config o demo
+# (por eso se veía 'versión antigua'). El binario se copia SIEMPRE desde el
+# config A500_debug y se loguea la ruta exacta en `[debug-current] binario:`.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -54,38 +60,50 @@ if [ ! -d "$ROOT/$TARGET" ]; then
 fi
 
 BUILD_SCRIPT="$ROOT/tools/build/build-demo.sh"
-"$BUILD_SCRIPT" "$TARGET" --debug --o0 --clean
+# O1 (--debug): el binario arranca y SIEMPRE incluye los últimos cambios. El
+# --o0 deja un A500_o0 que en este entorno no llega a arrancar (se ve 'versión
+# antigua'/DOS). Para depurar variables con -O0 usa build manual y la config
+# 'depurar archivo actual (optimizado)' no aplica aquí.
+"$BUILD_SCRIPT" "$TARGET" --debug --clean
 
 TARGET_NAME="$(basename "$TARGET")"
 SOURCE_OUT="$ROOT/out/demos/$TARGET_NAME"
 CURRENT_OUT="$ROOT/out/debug-current"
 mkdir -p "$CURRENT_OUT"
 
-# El build por configuraciones publica el binario en out/demos/<name>/<CONFIG_ID>/
-# (para --debug --o0 sin EXTRA_DEFINES: A500_o0). Si no existe, usar el .exe más
-# reciente construido para el target (evita el stale de out/debug-current).
-CONFIG_DIRS="$(ls -dt "$SOURCE_OUT"/A500_o0 2>/dev/null)"
-CONFIG_EXE="$(ls -t "$CONFIG_DIRS"/*.exe 2>/dev/null | head -n1)"
+# El build por configuraciones publica en out/demos/<name>/<CONFIG_ID>/ (para
+# --debug sin EXTRA_DEFINES: A500_debug). Se copia SIEMPRE desde ese config;
+# el fallback 'nuevo .exe' cruzado fue la causa de ejecutar un binario de otra
+# config (versión antigua/incorrecta).
+BUILD_START="$(date +%s)"
+CONFIG_EXE=""
+configs=(A500_debug A500_release A500_o0)
+for c in "${configs[@]}"; do
+	[ -z "$CONFIG_EXE" ] && CONFIG_EXE="$(ls -t "$SOURCE_OUT/$c"/*.exe 2>/dev/null | head -n1 || true)"
+done
+# Última red: el exe más reciente del target (si el config no se encuentra).
 if [ -z "$CONFIG_EXE" ]; then
-	CONFIG_EXE="$(ls -t "$SOURCE_OUT"/*/*.exe 2>/dev/null | head -n1)"
+	CONFIG_EXE="$(ls -t "$SOURCE_OUT"/*/*.exe 2>/dev/null | head -n1 || true)"
 fi
 if [ -z "$CONFIG_EXE" ]; then
-	echo "No se encontró el .exe de $TARGET_NAME (build por configuraciones)." >&2
+	echo "[debug-current] ERROR: no hay .exe para $TARGET_NAME (build por configuraciones)." >&2
 	exit 1
 fi
+CONFIG_INFO_STAT="$(stat -c %Y "$CONFIG_EXE" 2>/dev/null || true)"
 CONFIG_BASE="${CONFIG_EXE%.exe}"
-echo "[debug-current] binario: $CONFIG_EXE"
-cp "$CONFIG_BASE.exe" "$CURRENT_OUT/current.exe"
+echo "[debug-current] binario: $CONFIG_EXE (mtime $(date -d @"$CONFIG_INFO_STAT" 2>/dev/null || echo '?'))"
+cp -f "$CONFIG_BASE.exe" "$CURRENT_OUT/current.exe"
 if command -v cygpath >/dev/null 2>&1; then
 	SOURCE_EXE_WIN="$(cygpath -w "$CONFIG_BASE.exe")"
 	CURRENT_NO_EXT_WIN="$(cygpath -w "$CURRENT_OUT/current")"
 	powershell.exe -NoProfile -Command "Copy-Item -LiteralPath '$SOURCE_EXE_WIN' -Destination '$CURRENT_NO_EXT_WIN' -Force"
 else
-	cp "$CONFIG_BASE.exe" "$CURRENT_OUT/current"
+	cp -f "$CONFIG_BASE.exe" "$CURRENT_OUT/current"
 fi
-cp "$CONFIG_BASE.elf" "$CURRENT_OUT/current.elf"
-cp "$CONFIG_BASE.map" "$CURRENT_OUT/current.map"
-cp "$CONFIG_BASE.s" "$CURRENT_OUT/current.s"
+cp -f "$CONFIG_BASE.elf" "$CURRENT_OUT/current.elf"
+cp -f "$CONFIG_BASE.map" "$CURRENT_OUT/current.map"
+cp -f "$CONFIG_BASE.s" "$CURRENT_OUT/current.s"
+echo "[debug-current] current.exe actualizado -> $(stat -c %Y "$CURRENT_OUT/current.exe" 2>/dev/null || echo 'OK')"
 
 if command -v cygpath >/dev/null 2>&1; then
 	SOURCE_WIN="$(cygpath -w "$SOURCE")"
