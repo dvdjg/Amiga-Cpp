@@ -554,6 +554,7 @@ public:
     /// completa cada frame; el coste de Blitter crece ∝ salto).
     bool update_scroll(graphics::FramePlan& plan, s32 dx, s32 dy) override {
         if (!m_initialized) return false;
+        m_dbg_ink_visible = 0; // DEBUG: reinicio el flag del frame (hipótesis offset)
         const s32 lim = m_max_step;
         if (dx > lim) dx = lim; else if (dx < -lim) dx = -lim;
         if (dy > lim) dy = lim; else if (dy < -lim) dy = -lim;
@@ -567,6 +568,11 @@ public:
     /// Salto máximo (px/frame por eje) configurable. 1 = comportamiento 1px clásico.
     constexpr void set_scroll_step(u8 v) { m_max_step = v; }
     constexpr u8 scroll_step() const { return m_max_step; }
+
+    /// DEBUG: ¿el frame pintó algún bloque de relleno dentro de la zona visible?
+    constexpr u8 dbg_ink_visible() const { return m_dbg_ink_visible; }
+    /// DEBUG: fila del bucle (0..display_height) del último ink visible.
+    constexpr u8 dbg_ink_visible_row() const { return m_dbg_ink_visible_row; }
 
     /// Calcula la altura total según la fórmula canónica de Steger parametrizada.
     ///
@@ -851,6 +857,22 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
     /// Añade el blit de un bloque y, en modo lineal (espejo), también el espejo.
     /// Devuelve false si el plan no admite el/los job(s).
     bool add_draw(graphics::FramePlan& plan, u16 x, u16 y, u16 mapx, u16 mapy) {
+        // DEBUG (hipótesis viewport-offset): ¿este bloque de relleno cae en las
+        // filas del bucle que el display está mostrando AHORA mismo? Si sí, el
+        // indice del viewport respecto al framebuffer hace visibles los tiles.
+        {
+            const s32 vps = m_scroll.state().videoposy;
+            const u32 d = static_cast<u32>(dmod1(static_cast<u32>(vps) + m_cfg.tile_height));
+            const u32 row = static_cast<u32>(y) / m_cfg.planes; // fila real del bucle
+            const u32 rel = (row + m_display_height - (d % m_display_height)) % m_display_height;
+            // Horiz. visible en el framebuffer (ventana que lee el chip a partir de
+            // ROUND2(videoposx)): ignorar la columna derecha (x ≈ x0+bitmap_width).
+            const u32 x0v = static_cast<u32>(m_scroll.state().videoposx & ~(m_cfg.tile_width - 1)) % m_bitmap_width;
+            const u32 xb = static_cast<u32>(x) % m_bitmap_width;
+            const bool xvis = (xb < x0v + m_cfg.viewport_w) && (xb + m_cfg.tile_width > x0v) ||
+                              (x0v + m_cfg.viewport_w > m_bitmap_width && xb < (x0v + m_cfg.viewport_w) % m_bitmap_width);
+            if (rel < m_cfg.viewport_h && xvis) { m_dbg_ink_visible = 1; m_dbg_ink_visible_row = static_cast<u8>(row); }
+        }
         if (!plan.add_tile_block_copy(draw_block_job(x, y, mapx, mapy))) return false;
         if (m_linear_display) {
             // Espejo: mismo bloque en planelínea y + m_mirror_planelines (copia del bucle).
@@ -1228,6 +1250,8 @@ private:
     u16* m_savewordpointer = nullptr;             // guarda de 1 word plane-shift (sink)
     u16 m_saveword = 0;
     u8 m_max_step = 1;                            // salto máx. px/frame por eje (config)
+    u8 m_dbg_ink_visible = 0;                     // DEBUG: ink dentro de la zona visible
+    u8 m_dbg_ink_visible_row = 0;                 // DEBUG: fila del bucle donde cayó el ink
 };
 
 /// Compositor mínimo para XLimited/corkscrew (single playfield interleaved).
