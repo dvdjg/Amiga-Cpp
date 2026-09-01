@@ -34,6 +34,7 @@ empezando por Amiga 500. El repositorio mantiene dos flujos claramente separados
 | [testing/](testing/README.md) | Validación: pixel assertions, secuencias de frames, FrameScope y Vision Review. |
 | [demoscene/](demoscene/README.md) | Importación y réplica de efectos demoscene, índices y análisis de efectos concretos. |
 | [methodology/](methodology/README.md) | Metodología de desarrollo, runbooks de agentes IA, prompts y automatización. |
+| [roadmap/](roadmap/XLIMITED_8WAY_EHB_201.md) | **Roadmaps activos**: scroll 8-way X-Limited + demo 201 EHB (mapa real) y las **reglas de oro del pipeline de tiles/EHB** para no repetir errores. |
 | [reference/](reference/README.md) | Fuentes autoritativas: Manual de Referencia de Hardware de Amiga (AHRM), fuentes objetivas y curso AMC (Wrobel). |
 | [legacy/](legacy/README.md) | Notas históricas de troubleshooting con ortografía irregular, en cuarentena. |
 | [ai-dev-environment/](ai-dev-environment/README.md) | Mapa del entorno IA: MCP/WinUAE, canal lateral, evidencias y Ollama local. |
@@ -71,3 +72,7 @@ batería de pruebas y sistema de depuración WinUAE-DBG). Ese material se incorp
 | Fuentes externas (manuales, cursos) | `reference/` |
 | Notas históricas sin limpiar | `legacy/` |
 | Operación IA, Ollama, evidencias y mapa de proyectos | `ai-dev-environment/` |
+| Roadmaps de desarrollo activos (scroll/tiles/EHB) | `roadmap/` |
+
+> **Documentos nuevos → enlazarlos SIEMPRE aquí (o en ANGELES/AGENTS.md).** Un documento sin
+> enlace desde este índice o desde `AGENTS.md` se pierde para futuras sesiones.
