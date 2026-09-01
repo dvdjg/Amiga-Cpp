@@ -28,11 +28,11 @@ fs.mkdirSync(outDir, { recursive: true });
 console.log(`[slice] ${png.width}x${png.height} -> ${cols}x${rows} tiles de ${tile}`);
 
 // --- 1) PALETA EHB: base+half desde quantize-ehb (palette.json) --------------
-let bases = [];
-try { const j = JSON.parse(fs.readFileSync(argV('--palette', ''), 'utf8')); bases = Array.isArray(j.bases) ? j.bases : []; } catch { }
+let bases = [], planes = 6;
+try { const j = JSON.parse(fs.readFileSync(argV('--palette', ''), 'utf8')); bases = Array.isArray(j.bases) ? j.bases : []; if (typeof j.planes === 'number') planes = j.planes; } catch { }
 if (!bases.length) { console.error('[slice] requiere --palette palette.json (corre quantize-ehb primero)'); process.exit(1); }
-const paletteI = [[0, 0, 0]];                       // Ã­ndice 0 = transparente
-for (const b of bases) { paletteI.push([b[0] & 255, b[1] & 255, b[2] & 255]); paletteI.push([b[0] >> 1, b[1] >> 1, b[2] >> 1]); }
+const paletteI = [[0, 0, 0]];                       // índice 0 = transparente
+for (const b of bases) { paletteI.push([b[0] & 255, b[1] & 255, b[2] & 255]); if (planes >= 6) paletteI.push([b[0] >> 1, b[1] >> 1, b[2] >> 1]); }
 const palSize = paletteI.length;
 const nearest = (r, g, bl) => { let bi = 0, dmin = Infinity; for (let q = 0; q < palSize; q++) { const p = paletteI[q]; const dr = r - p[0], dg = g - p[1], db = bl - p[2]; const d = dr * dr + dg * dg + db * db; if (d < dmin) { dmin = d; bi = q; } } return bi; };
 

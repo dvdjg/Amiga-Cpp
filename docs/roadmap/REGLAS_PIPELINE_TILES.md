@@ -41,3 +41,8 @@ slice-tiles.mjs <origen>.png --palette out/ehb/palette.json [--ehb-merge F]
   # 1) cuantiza el original a EHB  2) extrae únicos  3) (fusión)  4) reconstruye
   # 5) assert COMPARAR == 100% (sin fusión)  6) .h + tiles.json + PNG indexados
 ```
+Estas dos herramientas son las **rutinas reutilizables para extraer tiles de un bitmap
+EN CRUDO (sin metadatos)**: no requieren Tiled ni .tmx; sirven para cualquier asset futuro.
+Los metadatos de Tiled (parse-tmx) son un extra opcional cuando existen. Una nota práctica:
+un PNG de un MAPA RENDERIZADO tiene ~1100 patrones distintos; un TILESET real tiene decenas;
+si se parte la imagen equivocada la única fuente de verdad es este contrato + el assert.

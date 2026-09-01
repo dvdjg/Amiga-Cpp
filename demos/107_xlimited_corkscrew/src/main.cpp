@@ -1043,16 +1043,15 @@ scene_cfg.max_step = kStepMax;
             tel.fillup_extra = 0;
         }
 
-        // Telemetría: mapposx en byte0, videoposx en byte2, BPLCON1 en byte1; byte
-        // superior: 0x10 (marcador 107) | técnica en nibble bajo. DEBUG ink:
-        // bit31 = ¿se pintó un bloque de relleno dentro de la zona visible?
+        // Telemetría (F1): byte0=mapposx · byte1=fila del bucle donde cayó ink · byte2=d
+        // (display_offset) · byte3=0x10|técnica · bit31=¿se pintó en lo visible?
         const auto& f = scene.bg();
         auto view = f.hardware_view();
         const eng::u32 marker = (f.dbg_ink_visible() ? 0x80000000u : 0u) |
             ((0x10u | (m_current & 0x0fu)) << 24) |
             (static_cast<eng::u32>(f.mapposx() & 0xff)) |
-            (static_cast<eng::u32>(view.bplcon1 & 0xff) << 8) |
-            (static_cast<eng::u32>(f.videoposx() & 0xff) << 16);
+            (static_cast<eng::u32>(f.dbg_ink_visible_row() & 0xff) << 8) |
+            (static_cast<eng::u32>(f.display_offset() & 0xff) << 16);
         eng::debug::mark_ready(g_eng_run_status, marker);
     }
 
