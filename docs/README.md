@@ -35,6 +35,7 @@ empezando por Amiga 500. El repositorio mantiene dos flujos claramente separados
 | [demoscene/](demoscene/README.md) | Importación y réplica de efectos demoscene, índices y análisis de efectos concretos. |
 | [methodology/](methodology/README.md) | Metodología de desarrollo, runbooks de agentes IA, prompts y automatización. |
 | [roadmap/](roadmap/XLIMITED_8WAY_EHB_201.md) | **Roadmaps activos**: scroll 8-way X-Limited + demo 201 EHB (mapa real) y las **reglas de oro del pipeline de tiles/EHB** para no repetir errores. |
+| [TILED](roadmap/TILED.md) | **Conocimiento preservado del formato Tiled** (.tmx/.tsx, gids, capas) + nota sobre `png2amiga` como conversor futuro. |
 | [reference/](reference/README.md) | Fuentes autoritativas: Manual de Referencia de Hardware de Amiga (AHRM), fuentes objetivas y curso AMC (Wrobel). |
 | [legacy/](legacy/README.md) | Notas históricas de troubleshooting con ortografía irregular, en cuarentena. |
 | [ai-dev-environment/](ai-dev-environment/README.md) | Mapa del entorno IA: MCP/WinUAE, canal lateral, evidencias y Ollama local. |
