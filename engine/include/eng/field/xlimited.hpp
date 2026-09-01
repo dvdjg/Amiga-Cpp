@@ -737,6 +737,7 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
         const u16 rows = colHeight;
         for (u16 b = 0; b < rows; ++b) {
             for (u16 a = 0; a < cols; ++a) {
+                if (m_cfg.map.tile_at(a, b) == m_cfg.map.empty_tile) continue; // vacío: no pintar
                 const u16 x = a * m_cfg.tile_width;
                 const u16 y = b * m_block_planes_lines; // planeline
                 const u16 mapx = a;
@@ -857,6 +858,8 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
     /// Añade el blit de un bloque y, en modo lineal (espejo), también el espejo.
     /// Devuelve false si el plan no admite el/los job(s).
     bool add_draw(graphics::FramePlan& plan, u16 x, u16 y, u16 mapx, u16 mapy) {
+        // Tile 'vacío' (empty_tile): NO se pinta (no consume slot de Blitter).
+        if (m_cfg.map.tile_at(mapx, mapy) == m_cfg.map.empty_tile) return true;
         // DEBUG (hipótesis viewport-offset): ¿este bloque de relleno cae en las
         // filas del bucle que el display está mostrando AHORA mismo? Si sí, el
         // indice del viewport respecto al framebuffer hace visibles los tiles.
