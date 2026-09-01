@@ -162,7 +162,7 @@ function findExtensionRoot() {
   throw new Error('No se encontro la extension bartmanabyss.amiga-debug-*.');
 }
 
-function patchConfig(configText, extensionRoot, stagedOutDir, warpEnabled) {
+function patchConfig(configText, extensionRoot, stagedOutDir, warpEnabled, immediateBlits) {
   const dh0 = path.join(extensionRoot, 'bin/dh0');
   const normalizedDh0 = dh0.replace(/\//g, '\\');
   const normalizedOut = stagedOutDir.replace(/\//g, '\\');
@@ -196,6 +196,11 @@ function patchConfig(configText, extensionRoot, stagedOutDir, warpEnabled) {
   // which is useful for bulk throughput but terrible for judging smooth motion.
   // Keep real-time pacing by default; callers can opt into warp explicitly.
   out = setConfigValue(out, 'warp', warpEnabled ? 'true' : 'false');
+  // Blitter instantáneo (sin robar ciclos al 68000): mide el COSTE lado-A500 sin
+  // el overhead de emular cada blit. Útil para el gate de fps del harness.
+  if (immediateBlits) {
+    out = setConfigValue(out, 'immediate_blits', 'true');
+  }
 
   return out;
 }
@@ -807,6 +812,7 @@ const sequenceCameraX = sequenceCameraXArg === ''
 const telemetrySamples = Math.max(0, parseInt(argValue('--telemetry-samples', '0'), 10));
 const telemetryIntervalMs = Math.max(10, parseInt(argValue('--telemetry-interval-ms', '120'), 10));
 const warpEnabled = hasArg('--warp');
+  const immediateBlits = hasArg('--immediate-blits');
 const mousePath = buildMousePathFromArgs();
 const mouseDelayMs = Math.max(0, parseInt(argValue('--mouse-duration-ms', '800'), 10)) / Math.max(1, mousePath.length - 1);
 const mouseButton = Math.max(0, parseInt(argValue('--mouse-button', '0'), 10));
@@ -838,7 +844,7 @@ fs.writeFileSync(startupPath, 'cd dh1:\n:a.exe\n', 'utf8');
 const baseConfigPath = path.join(root, 'config/mcp-amiga-c-debug.uae');
 const runnerConfigPath = path.join(outputDir, 'runner.uae');
 const configText = fs.readFileSync(baseConfigPath, 'utf8');
-fs.writeFileSync(runnerConfigPath, patchConfig(configText, extensionRoot, stagedDir, warpEnabled), 'utf8');
+fs.writeFileSync(runnerConfigPath, patchConfig(configText, extensionRoot, stagedDir, warpEnabled, immediateBlits), 'utf8');
 
 const config = {
   winuaePath,
