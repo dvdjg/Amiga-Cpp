@@ -42,7 +42,7 @@ struct DemoGame {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		// Plane EHB (6 planos) + copper.
-		const eng::u32 need = static_cast<eng::u32>(6u) * kPlaneBytes + 4096u;
+    const eng::u32 need = static_cast<eng::u32>(6u) * kPlaneBytes + 4096u + 16u;
 		if (!backend.configure_memory({need, 16 * 1024u, 8 * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020101u);
 			return;
