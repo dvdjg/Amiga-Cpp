@@ -51,13 +51,17 @@ e = (v>>1) | ((v&1) << 5)
    base k (v=2k)   -> e = k       = v>>1
    half k (v=2k+1) -> e = 32+k    = (v>>1) | 0x20
 ```
-Esta conversión es una permutación biyectiva de 0..63: se hace en el HOST dentro de
-`slice-tiles.mjs` (no hay script aparte), es idempotente (re-ejecutar no degrada) y deja el
-banco, la paleta del `.h`, `tiles.json` y los PNG exportados en convención bases-primero. La
-demo lee el byte del banco **directo** como índice EHB (`e = v`) y carga en `COLOR00..31` solo
-las 32 bases (`palette[i] = kEhbPalette[i]`, índices 0..31). Ver el uso real en
-`demos/201_ehb_map/src/main.cpp` (`fill_planes` + carga de paleta) y la implementación del
-reindexado de export en `tools/ehb/slice-tiles.mjs` (paso 6: `expPalette`/`expIndex`).
+Esta conversión es una permutación **biyectiva** (1:1) de 0..63: se hace en el HOST dentro de
+`slice-tiles.mjs` (no hay script aparte — la construcción vive en
+`tools/ehb/ehb-export-map.mjs`) y deja el banco, la paleta del `.h`, `tiles.json` y los PNG
+exportados en convención bases-primero. La demo lee el byte del banco **directo** como índice
+EHB (`e = v`) y carga en `COLOR00..31` solo las 32 bases (`palette[i] = kEhbPalette[i]`,
+índices 0..31). Ver el uso real en `demos/201_ehb_map/src/main.cpp` (`fill_planes` + carga de
+paleta) y la implementación del reindexado de export en `tools/ehb/slice-tiles.mjs` (paso 6:
+`expPalette`/`expIndex`, probado por `tools/ehb/test-expindex.mjs`).
+
+> Nota: `expIndex` es biyectiva pero **NO idempotente** — solo se aplica una vez a los índices
+> intercalados internos en el export; re-ejecutarla sobre datos ya bases-primero degradaría.
 
 ## Pipeline canónico (verificado)
 ```
@@ -66,9 +70,26 @@ slice-tiles.mjs <origen>.png --palette out/ehb/palette.json [--ehb-merge F]
   # 1) cuantiza el original a EHB  2) extrae únicos  3) (fusión)  4) reconstruye
   # 5) assert COMPARAR == 100% (sin fusión)  6) .h + tiles.json + PNG indexados
   #    (el paso 6 exporta ya en convención BASES-PRIMERO, regla 7: expIndex)
+emit-const-201.mjs                     # renombra tilebank_indexed.h -> const_game_201.h
+  # (solo demo 201) ensamblado determinista de una sola fuente: paleta + mapa +
+  #   externs del banco incbin, sin edición manual.
+```
+
+**Regeneración real de la demo 201** (origen: mapa de `The Fan-tasy Tileset`):
+```
+SOURCE="C:/Users/dvdjg/Documents/programa/Assets/2D/The Fan-tasy Tileset (Free)/Tiled/Tilemaps/Beginning Fields.png"
+node tools/ehb/test-expindex.mjs                                    # test host de expIndex
+node tools/ehb/quantize-ehb.mjs "$SOURCE" --out out/ehb          # -> palette.json
+node tools/ehb/slice-tiles.mjs "$SOURCE" --palette out/ehb/palette.json --out out/ehb
+node tools/ehb/emit-const-201.mjs                                 # -> const_game_201.h
+bash ./tools/build/build-demo.sh demos/201_ehb_map --debug --clean
+bash ./tools/run/run-demo.sh demos/201_ehb_map
 ```
 <hr/>
-**Nota (2026-09-02)**: los datos actuales de la demo 201 ya están reindexados a bases-primero
+**Nota (2026-09-02)**: los datos actuales de la demo 201 ya están en bases-primero
 (`out/ehb/tilebank.raw.bin`, `out/ehb/const_game_201.h`). Desde esta fecha el reindexado a
-bases-primero lo hace el propio `slice-tiles.mjs` en su export (paso 6), por lo que cualquier
-regeneración futura respeta la regla 7 de forma automática y no hace falta un paso adicional.
+bases-primero lo hace el propio `slice-tiles.mjs` en su export (paso 6), y `const_game_201.h`
+se genera con `emit-const-201.mjs` (renombrado determinista, sin ensamblado manual), por lo
+que cualquier regeneración futura respeta la regla 7 de forma automática y no hace falta un
+paso adicional. La fuente `Beginning Fields.png` NO se perdió: está en `programa/Assets/2D/...`
+(fuera del repo); conserva la ruta si mueves el equipo.
