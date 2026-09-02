@@ -810,6 +810,21 @@ const report = {
     status: 'started',
 };
 try {
+    if (hasArg('--reset-emulator')) {
+        // Limpieza previa opcional: evita que un WinUAE zombie de un run anterior
+        // tenga tomados los puertos 2345/2346 (causa de "GDB connect timeout" y de
+        // listeners 2346 ausentes). Solo matamos los binarios homónimos del depurador.
+        try {
+            const { spawnSync } = await import('node:child_process');
+            for (const exe of ['winuae-gdb.exe', 'm68k-amiga-elf-gdb.exe', 'amiga-gdb.exe']) {
+                const k = spawnSync('taskkill', ['/IM', exe, '/F', '/T'], { encoding: 'utf8' });
+                if (k.status !== 0) { /* simplemente no estaba corriendo */ }
+            }
+            await new Promise((r) => setTimeout(r, 800));
+            console.log('[run-demo] --reset-emulator: procesos stale finalizados');
+        }
+        catch { /* la limpieza nunca debe bloquear el arranque */ }
+    }
     console.log(`[run-demo] launching ${demoName}`);
     await conn.connect({ forceBreak: false, initializeStopped: true });
     const protocol = conn.getProtocol();
