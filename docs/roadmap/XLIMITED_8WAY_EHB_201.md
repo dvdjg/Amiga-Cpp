@@ -103,6 +103,33 @@ impecable; luego validar 2 y 4px. Nada de lo siguiente depende de 32x32 ni pasos
 reserva de transparencia). El objetivo: elegir 32 bases de forma que
 {base}∪{half(base)} se acerque lo máximo a la imagen minimizando el error total.
 
+## Lección aprendida · convención de índices del tilebank EHB (2026-09-02)
+
+`slice-tiles.mjs` vuelca el banco crudo con los índices **intercalados** `paletteI`:
+`[base₀, half₀, base₁, half₁, ...]`, es decir índice par `2k` = base del color `k` e
+índice impar `2k+1` = half del color `k`, y `palette.json`/`kEhbPalette[64*3]` siguen ese
+orden intercalado. Pero el chipset EHB espera **bases-primero**: los 32 registros `COLOR0..31`
+son las bases y los índices `32..63` (bit 5 = plano 6) generan el half como `base/2`.
+
+El desajuste (sumado a cargar el array intercalado completo en `COLOR0..31`) hacía que la
+demo 201 mostrara el mapa con pocos colores / oscuro y desplazado frente a
+`reconstruct.png`. Corrección en `demos/201_ehb_map/src/main.cpp`:
+
+- **Paleta**: cargar solo las 32 bases en `COLOR0..31`, tomando los términos pares de
+  `kEhbPalette` (`palette[i] = kEhbPalette[2*i]`); el half lo genera el hardware.
+- **Plano half**: convertir el índice intercalado `v` del banco a índice EHB
+  `e = (v>>1) | ((v&1)<<5)` antes de componer las planes (`fill_planes`): la base `2k`
+  va a `k` y el half `2k+1` a `32+k`.
+
+Verificación: histograma de la captura real (`out/run/201_ehb_map/A500_debug/screenshot.png`)
+coincide con `reconstruct.png` (verde dominante `143,213,129` ↔ `136,221,136`, marrón/tan,
+verdes secundarios), confirmado además con ollama (`tools/analyze/ollama-desc.mjs`).
+
+**Ojo para el pipeline en F3/F4**: conviene que el slicer emita los índices ya en convención
+EHB bases-primero (base `k` y half `32+k`) para que el banco crudo sea usable directamente
+(blitter) sin conversión por píxel; la conversión por píxel actual es correcta pero añade
+coste de CPU que no haría falta.
+
 ## Riesgos y decisiones abiertas
 - **Throughput del emulador**: mientras cap ~11fps no se puede exigir `--strict-fps`; hay
   que subirlo (apagar tracing `%TEMP%\winuae-gdb.log`, revisar CPU/máquina) antes de gate

@@ -64,13 +64,20 @@ struct DemoGame {
 		// Componer las planes EHB desde banco+mapa (una Ãºnica vez, CPU).
 		fill_planes();
 
-		// Paleta: los 32 COLORx base en palabras Amiga 444 (EHB genera las 32 half).
+		// Paleta: cargar las 32 BASES en COLOR0-31. kEhbPalette[64] de
+		// const_game_201.h viene INTERCALADO (base0,half0,base1,half1,...), igual
+		// que los indices del tilebank. El hardware EHB espera las 32 bases en
+		// COLOR0-31 y genera los half (indices 32-63) como base/2. Por eso aqui se
+		// toman SOLO los terminos pares (indices 2*i) = las bases. Emitir todo el
+		// array (33..63 tambien) provocaria colores mal mapeados (los half no deben
+		// escribirse; son automaticos).
 		eng::u16 palette[32] {};
 		for (eng::u8 i = 0; i < 32; ++i) {
+			const eng::u8* c = &kEhbPalette[static_cast<eng::u8>(2u * i) * 3u];
 			palette[i] = static_cast<eng::u16>(
-				((kEhbPalette[i * 3] >> 4) << 8) |
-				((kEhbPalette[i * 3 + 1] >> 4) << 4) |
-				(kEhbPalette[i * 3 + 2] >> 4));
+				((c[0] >> 4) << 8) |
+				((c[1] >> 4) << 4) |
+				(c[2] >> 4));
 		}
 
 		eng::copper::Scheduler sched { m_copper };
@@ -94,14 +101,22 @@ struct DemoGame {
 				const int tile = kRenderMap[cy * kBW + cx];
 				// tile es el indice de tile (0..1148); cada tile son kBankTileBytes
 				// (256) dentro del banco. Coordenada (x%16, y%16) dentro del tile.
+				// El tilebank guarda el indice con la convencion INTERCALADA de
+				// slice-tiles.mjs: indice par 2k = base del color k, indice impar
+				// 2k+1 = half del color k. El chipset EHB espera bases-primero:
+				// 0-31 = base, 32-63 = half (generado como base/2). Convertir:
+				//   base k (v=2k)               -> e = k        = v>>1
+				//   half k (v=2k+1)             -> e = 32+k     = (v>>1)|0x20
+				// (1 bit de 'intercalado' se vuelve el bit 5 = plano 6 del EHB.)
 				const int v = g_tilebank_raw[tile * kBankTileBytes +
 					(y % kTileH) * kTileW + (x % kTileW)];
+				const int e = (v >> 1) | ((v & 1) << 5);
 				const int byte = y * (kWidth / 8) + x / 8;
 				const eng::u8 mask = static_cast<eng::u8>(0x80u >> (x & 7));
 				for (int p = 0; p < 5; ++p) {
-					if ((v & (1 << p)) != 0) planes[static_cast<eng::u32>(p) * kPlaneBytes + byte] |= mask;
+					if ((e & (1 << p)) != 0) planes[static_cast<eng::u32>(p) * kPlaneBytes + byte] |= mask;
 				}
-				if ((v & 0x20) != 0) planes[5 * kPlaneBytes + byte] |= mask; // bit half (EHB)
+				if ((e & 0x20) != 0) planes[5 * kPlaneBytes + byte] |= mask; // bit half (EHB)
 			}
 		}
 	}
