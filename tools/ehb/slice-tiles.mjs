@@ -42,6 +42,14 @@ const alphaN = (() => { let n = 0; for (let i = 0; i < png.width * png.height; i
 const hasAlphaSrc = wantAlpha && (alphaN * 100) / (png.width * png.height) >= 0.5;
 const paletteI = [];
 if (hasAlphaSrc) paletteI.push([0, 0, 0]); // índice 0 = transparente (si hace falta)
+// CONVENCIÓN de índices del banco: INTERCALADA [base0, half0, base1, half1, ...].
+// Un píxel "base k" se guarda como índice 2k y un "half k" como 2k+1 (solo con
+// planes>=6 / EHB). La demo que consume este banco (p. ej. demos/201_ehb_map)
+// recodifica cada índice a la convención BASES-PRIMERO del chipset EHB
+// (e = (v>>1) | ((v&1)<<5)) y carga en COLOR00..31 solo las bases; ver
+// fill_planes()+paleta en demos/201_ehb_map/src/main.cpp. Si en el futuro se
+// regenera el atlas desde el ORIGINAL (F3/F4), conviene emitir el banco ya en
+// bases-primero (base k, half 32+k) para usarlo directo con el Blitter.
 for (const b of bases) { paletteI.push([b[0] & 255, b[1] & 255, b[2] & 255]); if (planes >= 6) paletteI.push([b[0] >> 1, b[1] >> 1, b[2] >> 1]); }
 const palSize = paletteI.length;
 console.log(`[slice] paleta ${palSize} colores (${palSize <= 16 ? '4 bits/px' : palSize <= 32 ? '5 bits/px' : 'EHB 64'}${hasAlphaSrc ? ', índice 0 transparente' : ' sin transparencia'})`);
