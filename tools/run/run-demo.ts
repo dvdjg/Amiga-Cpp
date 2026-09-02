@@ -936,8 +936,22 @@ try {
         }
       } else if (side.status === 'failed') {
         report.status = 'side_channel_failed';
+        // Instrumentacion de diagnostico: volcar el estado del canal lateral y la
+        // direccion runtime resuelta ANTES de abortar, para distinguir entre un
+        // "la demo fallo en init real" (detail=0x00XXXXXX codigo de mark_failed, con
+        // state.sections sanas) y un falso positivo de relocalizacion de simbolo
+        // (runtimeAddress sobre seccion equivocada -> detalle basura con magic
+        // coincidente).
+        report.sideChannelFail = {
+          runtimeAddress: side.runtimeAddress ? `0x${side.runtimeAddress.toString(16)}` : null,
+          linkedSymbol: runStatusSymbol !== null ? `0x${runStatusSymbol.toString(16)}` : null,
+          sections: side.state?.sections ?? null,
+          detailHex: typeof side.value?.detail === 'number'
+            ? `0x${side.value.detail.toString(16)}`
+            : side.value?.detail ?? null,
+        };
         fs.writeFileSync(path.join(outputDir, 'run-report.json'), JSON.stringify(report, null, 2), 'utf8');
-        throw new Error(`La demo informo FAILED por canal lateral: detail=${side.value?.detail ?? '?'}`);
+        throw new Error(`La demo informo FAILED por canal lateral: detail=${side.value?.detail ?? '?'} (hex=0x${(side.value?.detail ?? 0).toString(16)})`);
       } else {
         report.status = `side_channel_${side.status}`;
         fs.writeFileSync(path.join(outputDir, 'run-report.json'), JSON.stringify(report, null, 2), 'utf8');
