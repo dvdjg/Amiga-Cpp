@@ -1376,6 +1376,11 @@ private:
         sched.move(copper::Register::BPLCON0, bplcon0);
         sched.move(copper::Register::BPLCON1, view.bplcon1);
         sched.move(copper::Register::BPLCON2, 0x0000);
+        // EHB (HalfBrite): con 6 planos en modo SINGLE, el bit 0 de BPLCON4 activa
+        // el modo EHB — el plano 6 deja de ser un bit de color y actúa como
+        // selector "half": color = base/2. Es la semántica del tilebank BASES-
+        // PRIMERO de la 201 (índices 0..31 base, 32..63 = half automático).
+        if (view.planes == 6u) sched.move(copper::Register::BPLCON4, 0x0001u);
         sched.move(copper::Register::BPL1MOD, view.bpl1mod);
         sched.move(copper::Register::BPL2MOD, view.bpl2mod);
         sched.move(copper::Register::DIWSTRT, m_cfg.diwstrt);

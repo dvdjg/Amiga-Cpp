@@ -51,7 +51,17 @@ inline MemoryBlock xlimited_build_blocks_bitmap(
     BlocksRowFn row_fn) {
     const eng::u32 src_bytes_per_row = 320u / 8u; // 40
     const eng::u32 blocks_per_row = 320u / tile_width;
-    const eng::u32 bytes = src_bytes_per_row * 256u * planes;
+    // El banco crece con `tile_count`, NO con el 256 fijo del original de Steger
+    // (que solo reservaba un area de 320x256 = ~320 tiles a 16px). Con maps reales
+    // de cientos de tiles hay que reservar las planelineas necesarias:
+    //    filas_bloque = ceil(tile_count / blocks_per_row)
+    //    planelineas   = filas_bloque * (tile_height*planes)
+    // `draw_block_job` direcciona `(block/20, block%20)` sin wrap en Y, así que no
+    // hay que tocar el blit: solo el tamaño del buffer fisico.
+    const eng::u32 block_rows = (tile_count + blocks_per_row - 1u) / blocks_per_row;
+    const eng::u32 height =
+        block_rows * (static_cast<eng::u32>(tile_height) * planes); // planelineas totales
+    const eng::u32 bytes = src_bytes_per_row * height;
     MemoryBlock block = memory.chip.allocate(bytes, 16);
     if (!block.valid() || row_fn == nullptr) return block;
     eng::u8* data = static_cast<eng::u8*>(block.data);
@@ -75,6 +85,63 @@ inline MemoryBlock xlimited_build_blocks_bitmap(
                     data[off] = static_cast<eng::u8>(out_word >> 8);
                     data[off + 1] = static_cast<eng::u8>(out_word & 0xff);
                 }
+            }
+        }
+    }
+    return block;
+}
+
+/// Banco a partir de un tilebank INDEXADO REAL (pipeline EHB de 201).
+///
+/// Diferencia clave con `xlimited_build_blocks_bitmap`: la `row_fn` del método
+/// generativo solo admite 64 glyph × 4 variant = 256 tiles, insuficiente para
+/// maps reales de cientos de tiles (201 tiene 1149). Aquí el banco se construye
+/// desde el tilebank crudo `tile_{t}[r*16+c]` (1 byte por píxel, stride fijo
+/// `stride`, índice EHB 0..63 en convención BASES-PRIMERO) leyendo por índice de
+/// tile completo, sin descomponer en glyph/variant.
+///
+/// Conversión EHB -> planos interleaved (mismo mapeo que fill_planes de 201):
+/// el índice `v` ya es el número de color EHB absoluto, así que el bit p (0..5)
+/// del índice es el bit del plano p (bit 5 = half). No hay ningún base-offset
+/// extra que incrustar (a diferencia de pf_plane_row de 107).
+inline MemoryBlock xlimited_build_blocks_bitmap_from_indexed(
+    MemorySystem& memory,
+    eng::u8 planes,
+    eng::u16 tile_width,
+    eng::u16 tile_height,
+    eng::u16 tile_count,
+    const eng::u8* indexed,
+    eng::u32 stride) {
+    const eng::u32 src_bytes_per_row = 320u / 8u; // 40 (BLOCKSWIDTH/8)
+    const eng::u32 blocks_per_row = 320u / tile_width;
+    const eng::u32 block_rows = (tile_count + blocks_per_row - 1u) / blocks_per_row;
+    const eng::u32 height =
+        block_rows * (static_cast<eng::u32>(tile_height) * planes); // planelineas totales
+    const eng::u32 bytes = src_bytes_per_row * height;
+    MemoryBlock block = memory.chip.allocate(bytes, 16);
+    if (!block.valid() || indexed == nullptr) return block;
+    eng::u8* data = static_cast<eng::u8*>(block.data);
+    for (eng::u32 i = 0; i < bytes; ++i) data[i] = 0;
+    const eng::u32 tw8 = tile_width / 8u; // bytes por planelínea de tile (2 a 16px)
+    for (eng::u16 tile = 0; tile < tile_count; ++tile) {
+        const eng::u16 bx = tile % blocks_per_row;
+        const eng::u16 by = tile / blocks_per_row;
+        const eng::u32 base_pl = static_cast<eng::u32>(by) *
+                                 (static_cast<eng::u32>(tile_height) * planes) * src_bytes_per_row;
+        const eng::u8* src = indexed + static_cast<eng::u32>(tile) * stride;
+        for (eng::u16 row = 0; row < tile_height; ++row) {
+            // 16 píxeles = 1 word por plano (bit 15..0, MSB primero como en Amiga).
+            for (eng::u8 plane = 0; plane < planes; ++plane) {
+                const eng::u16 bit = static_cast<eng::u16>(1u << plane);
+                eng::u16 word = 0;
+                for (eng::u16 c = 0; c < tile_width && c < 16u; ++c) {
+                    const eng::u8 v = src[static_cast<eng::u32>(row) * tile_width + c];
+                    if ((v & bit) != 0) word = static_cast<eng::u16>(word | (0x8000u >> c));
+                }
+                const eng::u32 planeline = static_cast<eng::u32>(row) * planes + plane;
+                const eng::u32 off = (base_pl + planeline * src_bytes_per_row) + bx * tw8;
+                data[off] = static_cast<eng::u8>(word >> 8);
+                data[off + 1] = static_cast<eng::u8>(word & 0xff);
             }
         }
     }
@@ -110,6 +177,19 @@ struct XlimitedSceneConfig {
     eng::u16 tileset_count = 64;
     BlocksRowFn fg_row_fn = nullptr; // generador de filas de PF1 (incrusta base/transparencia)
     BlocksRowFn bg_row_fn = nullptr; // generador de filas de PF2 (DPF)
+    // Tilebank INDEXADO REAL (pipeline EHB): si se suministra, el banco se
+    // construye con `xlimited_build_blocks_bitmap_from_indexed` leyendo tile por
+    // tile completo (soporta cientos de tiles), en lugar de `*_row_fn` (que solo
+    // admite 256 tiles por glyph×variant). Requiere planes=6 (EHB).
+    const eng::u8* indexed_tiles = nullptr; // tilebank crudo (stride fijo, 1 B/píxel)
+    eng::u32 indexed_stride = 0;            // bytes POR TILE (201: 16*16 = 256)
+    // Banco de bloques YA interleaved X-Limited, producido en el host
+    // (tools/ehb/emit-xlimited-bank.mjs) e incbinado en .MEMF_CHIP. Evita la
+    // doble copia raw+interleaved en la Chip RAM del A500 (287 KB + 222 KB no
+    // caben con el display en 512 KB). Si se suministra, `m_tiles` lo ALIA sin
+    // reservar arena (no cuenta como copia en Chip RAM). Requiere planes=6.
+    const eng::u8* blocks_prebuilt = nullptr;
+    eng::u32 blocks_prebuilt_size = 0;
 
     // --- Dual playfield ------------------------------------------------------
     bool dual = false;               // DPF 3+3 (dos XlimitedField)
@@ -168,7 +248,7 @@ public:
     bool begin(MemorySystem& memory, const XlimitedSceneConfig& cfg) {
         m_cfg = cfg;
         if (cfg.planes == 0 || cfg.planes > 6) return false;
-        if (cfg.fg_row_fn == nullptr) return false;
+        if (cfg.fg_row_fn == nullptr && cfg.indexed_tiles == nullptr && cfg.blocks_prebuilt == nullptr) return false;
         if (cfg.dual && cfg.bg_row_fn == nullptr) return false;
         if (cfg.palette == nullptr) return false;
         if (cfg.map.width == 0 && (cfg.map.wrap_x == 0 && cfg.map.wrap_y == 0)) return false;
@@ -185,10 +265,25 @@ public:
         const eng::u8 n = static_cast<eng::u8>(cfg.dual && !cfg.fg_canvas ? 2 : 1);
         const eng::u16 tw = cfg.tile_width, th = cfg.tile_height;
         for (eng::u8 pf = 0; pf < n; ++pf) {
-            // Banco de bloques de este playfield.
-            m_tiles[pf] = xlimited_build_blocks_bitmap(
-                memory, cfg.planes, tw, th, cfg.tileset_count,
-                pf == 0 ? cfg.fg_row_fn : cfg.bg_row_fn);
+            // Banco de bloques de este playfield: generativo (row_fn), a partir
+            // del tilebank INDEXADO real (convierte índices EHB a 6 planos) o un
+            // banco interleaved PRE-CONSTRUIDO en el host (solo aliado).
+            if (cfg.blocks_prebuilt != nullptr) {
+                if (cfg.planes != 6) return false;
+                // Alia la región incbin (no propietaria): no reserva Chip RAM.
+                m_tiles[pf].data = const_cast<void*>(static_cast<const void*>(cfg.blocks_prebuilt));
+                m_tiles[pf].size = cfg.blocks_prebuilt_size;
+                m_tiles[pf].kind = eng::MemoryKind::Chip;
+            } else if (cfg.indexed_tiles != nullptr) {
+                if (cfg.planes != 6) return false; // el pipeline EHB es 6 planos
+                m_tiles[pf] = xlimited_build_blocks_bitmap_from_indexed(
+                    memory, cfg.planes, tw, th, cfg.tileset_count,
+                    cfg.indexed_tiles, cfg.indexed_stride);
+            } else {
+                m_tiles[pf] = xlimited_build_blocks_bitmap(
+                    memory, cfg.planes, tw, th, cfg.tileset_count,
+                    pf == 0 ? cfg.fg_row_fn : cfg.bg_row_fn);
+            }
             if (!m_tiles[pf].valid()) return false;
             // Config del campo.
             XlimitedConfig fc;

@@ -48,6 +48,7 @@ enum class Register : u16 {
 	BPLCON0 = 0x100,
 	BPLCON1 = 0x102,
 	BPLCON2 = 0x104,
+	BPLCON4 = 0x106,
 	BPL1MOD = 0x108,
 	BPL2MOD = 0x10a,
 	COLOR00 = 0x180,
