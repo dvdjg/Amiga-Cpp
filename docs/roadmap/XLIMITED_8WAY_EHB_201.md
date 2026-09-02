@@ -5,6 +5,26 @@ commit** (aunque la 1ª versión use tiles generados) y el **mapa real es priori
 Tiles 32x32 y pasos de scroll grandes (8..16px) quedan como **secundarios** (apéndice),
 no bloquean. Al funcionar se extrae lo reusable al engine y luego se hace el DPF en 202.
 
+## Objetivo actual (2026-09): scroll 8-way ROBUSTO con camino cuadrado + circular
+
+El usuario pide un sistema de scroll 8-way (algoritmo X-Limited) robusto y genérico que:
+
+- Haga **scroll cuadrado** (recorrer la periferia del mapa completo: derecha → abajo →
+  izquierda → arriba) para mostrar **todo el mapa**, ya que no cabe en una sola pantalla;
+  y después **scroll circular** (trayectoria circular sobre la región del mapa).
+- Tenga **mucha fluidez a 50fps** y **consuma poca CPU entre frames**.
+- Soporte **tiles de 16x16 y 32x32**.
+- Admita **saltos de scroll de hasta 16px** en cualquier eje.
+
+Nota de diseño clave (verificado en la exploración): el X-Limited ya generaliza el salto
+a `max_step` ≤ 16px ejecutándolo como sub-pasos atómicos de 1 px
+(`xlimited.hpp:555-566`, `update_scroll`), y ya soporta tile 16|32 (`K_TILE_WIDTH`). Lo que
+**falta** es el **camino de cámara**: hoy `update_auto` (`xlimited_scene.hpp:337-369`) solo
+implementa H/V/HV/diagonal Lissajous. Hay que añadir los caminos **cuadrado** y **circular**
+con **clamping en los bordes del mapa** (recorrido acotado, no wrap infinito).
+
+Se trabaja sobre demo 107 (`demos/107_xlimited_corkscrew`, `K_TILE_WIDTH`, `K_STEP`).
+
 ## Objetivo
 Un motor A500 medible: primero el **scroll 8-way X-Limited impecable**, expuesto en la
 demo 201 en **EHB** (32 base + 32 half). EHB va desde el inicio; la 1ª versión muestra los
