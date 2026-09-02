@@ -66,23 +66,22 @@ struct DemoGame {
 
 		// Paleta EHB: cargar las 32 BASES en COLOR00..31.
 		//
-		// kEhbPalette[64] de const_game_201.h viene en la misma convención
-		// INTERCALADA que el tilebank: [base0, half0, base1, half1, ...]. El
-		// chipset EHB, en cambio, espera las 32 bases en COLOR00..31 y genera los
-		// half (índices 32..63) automáticamente como base/2. Por eso aquí se toman
-		// SOLO los términos pares (índices 2*i) = las bases. NO hay que escribir
-		// los half: escribirlos duplicaría/desplazaría colores.
+		// kEhbPalette[64] (const_game_201.h) ya viene en convención BASES-PRIMERO
+		// (índices 0..31 = base, 32..63 = half), listo para el chipset sin
+		// transformación CPU en el Amiga — ver tools/ehb/reindex-ehb-bank.mjs.
+		// El hardware EHB genera los half (índices 32..63) automáticamente como
+		// base/2, así que SOLO hay que escribir las 32 bases en COLOR00..31.
 		//
-		//                kEhbPalette (intercalado)        COLORx (hardware EHB)
-		//                ------------------------         ----------------------
-		//   base0  -> indice 0  -> tomamos como COLOR0    base0  (0..31)
-		//   half0  -> indice 1  -> se DESCARTA            half = COLOR0/2 (autom.)
-		//   base1  -> indice 2  -> tomamos como COLOR1    base1
-		//   half1  -> indice 3  -> se DESCARTA            half = COLOR1/2 (autom.)
-		//   ...                    (2*i)                   ...
+		//                kEhbPalette (bases-primero)        COLORx (hardware EHB)
+		//                ---------------------------        ----------------------
+		//   base0  -> indice 0  -> COLOR0                   base0  (0..31)
+		//   base1  -> indice 1  -> COLOR1                   base1
+		//   ...                  (0..31)                    ...
+		//   half0  -> indice 32 -> NO se escribe            half = COLOR0/2 (autom.)
+		//   half1  -> indice 33 -> NO se escribe            half = COLOR1/2 (autom.)
 		eng::u16 palette[32] {};
 		for (eng::u8 i = 0; i < 32; ++i) {
-			const eng::u8* c = &kEhbPalette[static_cast<eng::u8>(2u * i) * 3u];
+			const eng::u8* c = &kEhbPalette[static_cast<eng::u8>(i) * 3u];
 			palette[i] = static_cast<eng::u16>(
 				((c[0] >> 4) << 8) |
 				((c[1] >> 4) << 4) |
@@ -112,30 +111,20 @@ struct DemoGame {
 				// (256) dentro del banco. Coordenada (x%16, y%16) dentro del tile.
 				//
 				// CONVENCIÓN DE ÍNDICES (pieza clave para el render EHB):
-				// el tilebank guarda el índice con la convención INTERCALADA de
-				// slice-tiles.mjs: índice par 2k = base del color k, índice impar
-				// 2k+1 = half del color k. El chipset EHB espera BASES-PRIMERO:
-				// 0..31 = base, 32..63 = half (generado como base/2). La
-				// conversión de un índice intercalado v a su índice EHB e es:
-				//   base k (v=2k)   -> e = k        = v>>1
-				//   half k (v=2k+1) -> e = 32+k     = (v>>1) | 0x20
-				// Es decir, el bit 0 de la convención intercalada (par/impar)
-				// "salta" al bit 5 de la convención EHB = el plano 6 (half).
+				// el tilebank y kEhbPalette ya vienen en convención BASES-PRIMERO
+				// (índice 0..31 = base, 32..63 = half; bit 5 = plano 6/half).
+				// El reindexado intercalado -> bases-primero se hace en el HOST
+				// (tools/ehb/reindex-ehb-bank.mjs), así que aquí se usa el byte v
+				// DEL BANCO directo como índice EHB: NO hay ninguna conversión de
+				// CPU por píxel. El banco incbinado está listo para el chipset.
 				//
-				//   v (tilebank, intercalado)   base?   e (EHB)   plano6?
-				//   ---------------------------  ------  --------  -------
-				//   2k        = base   k         sí      k          no
-				//   2k+1      = half   k         no      32+k       sí
-				//
-				// NOTA de diseño: este "recodificado" por píxel se paga una sola
-				// vez al arrancar (fill_planes compone los 6 planos desde el banco
-				// por CPU). Si en el futuro el slicer emitiera ya el banco en
-				// convención EHB bases-primero, la demo usaría v directo (e = v) y
-				// el banco quedaría listo para el Blitter sin pasar por CPU; el paso
-				// pendiente es solo regenerar el atlas con el original (F3/F4).
+				//   v (tilebank, ya bases-primero)   base?   plano6 (half)?
+				//   -------------------------------  ------  ----------------
+				//   0..31  = base                     sí      no
+				//   32..63 = half                     no      sí (bit 5)
 				const int v = g_tilebank_raw[tile * kBankTileBytes +
 					(y % kTileH) * kTileW + (x % kTileW)];
-				const int e = (v >> 1) | ((v & 1) << 5);
+				const int e = v;
 				const int byte = y * (kWidth / 8) + x / 8;
 				const eng::u8 mask = static_cast<eng::u8>(0x80u >> (x & 7));
 				for (int p = 0; p < 5; ++p) {
