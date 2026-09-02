@@ -68,7 +68,7 @@ struct DemoGame {
 		//
 		// kEhbPalette[64] (const_game_201.h) ya viene en convención BASES-PRIMERO
 		// (índices 0..31 = base, 32..63 = half), listo para el chipset sin
-		// transformación CPU en el Amiga — ver tools/ehb/reindex-ehb-bank.mjs.
+		// transformación CPU en el Amiga — lo exporta así slice-tiles.mjs.
 		// El hardware EHB genera los half (índices 32..63) automáticamente como
 		// base/2, así que SOLO hay que escribir las 32 bases en COLOR00..31.
 		//
@@ -113,8 +113,8 @@ struct DemoGame {
 				// CONVENCIÓN DE ÍNDICES (pieza clave para el render EHB):
 				// el tilebank y kEhbPalette ya vienen en convención BASES-PRIMERO
 				// (índice 0..31 = base, 32..63 = half; bit 5 = plano 6/half).
-				// El reindexado intercalado -> bases-primero se hace en el HOST
-				// (tools/ehb/reindex-ehb-bank.mjs), así que aquí se usa el byte v
+				// El reindexado intercalado -> bases-primero lo hace el HOST en el
+				// export de slice-tiles.mjs, así que aquí se usa el byte v
 				// DEL BANCO directo como índice EHB: NO hay ninguna conversión de
 				// CPU por píxel. El banco incbinado está listo para el chipset.
 				//

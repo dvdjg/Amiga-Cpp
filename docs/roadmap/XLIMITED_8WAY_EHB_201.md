@@ -114,13 +114,13 @@ son las bases y los índices `32..63` (bit 5 = plano 6) generan el half como `ba
 El desajuste (sumado a cargar el array intercalado completo en `COLOR0..31`) hacía que la
 demo 201 mostrara el mapa con pocos colores / oscuro y desplazado frente a
 `reconstruct.png`. La solución **definitiva** (regla 7 de `REGLAS_PIPELINE_TILES.md`):
-reindexar los datos en el HOST a bases-primero con `tools/ehb/reindex-ehb-bank.mjs`, de modo
-que **el Amiga no hace ninguna transformación de CPU sobre los píxeles**:
+que `slice-tiles.mjs` exporte los datos ya en bases-primero, de modo que **el Amiga no hace
+ninguna transformación de CPU sobre los píxeles**:
 
-- **Reindexado en el host** (`reindex-ehb-bank.mjs`): convierte cada índice intercalado `v`
-  a su índice EHB `e = (v>>1) | ((v&1)<<5)` (base `2k` → `k`, half `2k+1` → `32+k`),
-  biyectiva sobre 0..63, e idempotente. Reordena igualmente la paleta a bases-primero.
-  Ya aplicado a `out/ehb/tilebank.raw.bin` y `out/ehb/const_game_201.h`.
+- **Reindexado en el host** (dentro de `slice-tiles.mjs`, paso 6, `expIndex`): convierte cada
+  índice intercalado `v` a su índice EHB `e = (v>>1) | ((v&1)<<5)` (base `2k` → `k`,
+  half `2k+1` → `32+k`), biyectiva sobre 0..63, e idempotente. Reordena igualmente la paleta a
+  bases-primero. Ya aplicado a `out/ehb/tilebank.raw.bin` y `out/ehb/const_game_201.h`.
 - **Paleta** (`demos/201_ehb_map/src/main.cpp`): cargar solo las 32 bases en `COLOR0..31`,
   `palette[i] = kEhbPalette[i]` (índices 0..31, ya bases-primero); el half lo genera el
   hardware.
@@ -134,8 +134,9 @@ reindexación por-byte del banco quedó verificada con 0 desajustes frente a
 `e=(v>>1)|((v&1)<<5)` en los 294144 bytes.
 
 **Para regenerar a futuro (F3/F4)**: no reintroducir la conversión por píxel en el Amiga.
-Correr `quantize-ehb` → `slice-tiles` → `reindex-ehb-bank.mjs` (pipeline canónico) para que el
-banco incbinado y la paleta vayan en convención bases-primero, listos para el chipset.
+Correr `quantize-ehb` → `slice-tiles` (configuración canónica) para que el banco incbinado y la
+paleta vayan en convención bases-primero, listos para el chipset (el reindexado lo hace el
+propio export de `slice-tiles`).
 
 ## Riesgos y decisiones abiertas
 - **Throughput del emulador**: mientras cap ~11fps no se puede exigir `--strict-fps`; hay

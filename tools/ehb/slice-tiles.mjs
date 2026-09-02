@@ -46,9 +46,9 @@ if (hasAlphaSrc) paletteI.push([0, 0, 0]); // índice 0 = transparente (si hace 
 // Un píxel "base k" se guarda como índice 2k y un "half k" como 2k+1 (solo con
 // planes>=6 / EHB). Es la forma natural de emparejar cada base con su half al
 // cuantizar PERO NO es la que consume el chipset EHB (BASES-PRIMERO: 0..31 base,
-// 32..63 half). Por eso, ANTES de que estos datos lleguen al .h/.bin del Amiga, se
-// reindexan en el HOST con tools/ehb/reindex-ehb-bank.mjs (e=(v>>1)|((v&1)<<5)),
-// de modo que el Amiga NUNCA transforma píxeles en CPU. Ver la regla 7 de
+// 32..63 half). Por eso, aquí dentro, al EXPORTAR (.h/.bin/tiles.json/PNG) se
+// reindexa a bases-primero con el mapa `expIndex` del paso 6, de modo que el Amiga
+// NUNCA transforma píxeles en CPU. Ver la regla 7 de
 // docs/roadmap/REGLAS_PIPELINE_TILES.md y el uso en demos/201_ehb_map/src/main.cpp.
 for (const b of bases) { paletteI.push([b[0] & 255, b[1] & 255, b[2] & 255]); if (planes >= 6) paletteI.push([b[0] >> 1, b[1] >> 1, b[2] >> 1]); }
 const palSize = paletteI.length;
@@ -107,13 +107,36 @@ console.log(`[slice] COMPARAR: original(cuantizado EHB) vs reconstruido = ${pct.
 if (ehbMerge === 1 && pct < 100) { console.error('[slice] FALLO: sin fusiÃ³n la reconstrucciÃ³n debe cuadrar 100%'); process.exit(1); }
 
 // --- 6) Exports: .h + tiles.json + PNG indexados ------------------------------
+// REGLA 7 (docs/roadmap/REGLAS_PIPELINE_TILES.md): el chipset EHB consume colores
+// BASES-PRIMERO (COLOR00..31 = bases, 32..63 = half), y el Amiga NO debe
+// transformar índices en CPU. Internamente slice trabaja con `paletteI`
+// INTERCALADA (pares base/half), que es su forma natural de emparejar al
+// cuantizar; PERO todo lo que se exporta (.h, tilebank.raw.bin, tiles.json, PNG)
+// se reindexa aquí mismo a bases-primero, listo para incbin/Blitter sin
+// transformación posterior. `expIndex` es la permutación biyectiva 0..63:
+//   base k (intercalado 2k)  -> pos k            (T+k si hay slot transparente)
+//   half k (intercalado 2k+1)-> pos nB+k         (T+nB+k con transparente)
+// (equivale a e=(u>>1)|((u&1)<<5) tras restar el slot transparente).
+const expT = hasAlphaSrc ? 1 : 0;
+const expNB = (palSize - expT) / 2;
+const expPalette = new Array(palSize);
+for (let i = 0; i < expT; i++) expPalette[i] = [...paletteI[i]];
+for (let k = 0; k < expNB; k++) {
+  expPalette[expT + k] = [...paletteI[expT + 2 * k]];           // base k
+  expPalette[expT + expNB + k] = [...paletteI[expT + 2 * k + 1]]; // half k
+}
+const expIndex = (v) => {
+  if (v < expT) return v;                       // slot transparente
+  const u = v - expT;                           // 0..2*expNB-1 intercalado
+  return (u & 1) === 0 ? expT + (u >> 1) : expT + expNB + ((u - 1) >> 1);
+};
 const bits = palSize <= 16 ? 4 : palSize <= 32 ? 5 : 6;
 const perByte = bits === 6 ? 1 : 8 / bits; // 16col->2 px/byte, 32col->1 px/byte (5b) ó 6b->1
 const bankBytes = Math.ceil((bank.length * tile * tile) / perByte);
 const bankPacked = new Uint8Array(bankBytes);
 for (let i = 0; i < bank.length; i++) {
   for (let p = 0; p < tile * tile; p++) {
-    const v = bank[i].pix[p];
+    const v = expIndex(bank[i].pix[p]);
     const idx = i * tile * tile + p;
     if (perByte === 2) { const b = idx >> 1; bankPacked[b] = (idx & 1) ? ((bankPacked[b] & 0xf0) | (v & 0x0f)) : ((bankPacked[b] & 0x0f) | (((v & 0x0f) << 4))); }
     else bankPacked[idx] = v;
@@ -122,17 +145,18 @@ for (let i = 0; i < bank.length; i++) {
 const bankInd = bank.map((b) => ({ x: b.x, y: b.y }));
 const encode = argV('--encode', 'raw'); // raw | rle (raw: incbin, zero CPU)
 const hLines = [];
-hLines.push('// Tiles EHB slice (original cuantizado primero), para carga en el Amiga.');
-hLines.push(`// ${bits} bits/píxel (${palSize} colores${hasAlphaSrc ? ', índice0 transparente' : ''}); ${bank.length} tiles de ${tile}x${tile}; mapa ${cols}x${rows}.`);
-hLines.push(`// Modo '${encode}'.`);
+hLines.push('// Tiles EHB slice, para carga en el Amiga. CONVENCION BASES-PRIMERO');
+hLines.push(`// (${bits} bits/píxel, ${palSize} colores${hasAlphaSrc ? ', índice0 transparente' : ''}); ${bank.length} tiles de ${tile}x${tile}; mapa ${cols}x${rows}.`);
+hLines.push(`// Modo '${encode}'. Los índices 0..31 = base, 32..63 = half (bit5=plano6).`);
+hLines.push('// Listo para el chipset EHB sin transformación de CPU (regla 7).');
 hLines.push(`static const unsigned char kTileIndexedPalette[${palSize * 3}] = {`);
-for (let r = 0; r < palSize; r += 12) hLines.push('  ' + paletteI.slice(r, r + 12).map((c) => `${c[0]},${c[1]},${c[2]}`).join(',') + ',');
+for (let r = 0; r < palSize; r += 12) hLines.push('  ' + expPalette.slice(r, r + 12).map((c) => `${c[0]},${c[1]},${c[2]}`).join(',') + ',');
 hLines.push('};');
 if (encode === 'raw') {
   // BINARIO RAW: cada tile = `tile*tile` bytes de índices (stride fijo). El Amiga
   // NO expande nada (incbin a Chip RAM si se quiere); cero CPU en la vía de tiles.
   const bin = Buffer.alloc(bank.length * tile * tile);
-  for (let i = 0; i < bank.length; i++) for (let q = 0; q < tile * tile; q++) bin[i * tile * tile + q] = bank[i].pix[q];
+  for (let i = 0; i < bank.length; i++) for (let q = 0; q < tile * tile; q++) bin[i * tile * tile + q] = expIndex(bank[i].pix[q]);
   const binPath = path.join(outDir, 'tilebank.raw.bin');
   fs.writeFileSync(binPath, bin);
   hLines.push('// Datos en "tilebank.raw.bin" (incbin). El stride de cada tile es constante.');
@@ -145,8 +169,8 @@ if (encode === 'raw') {
   for (let i = 0; i < bank.length; i++) {
     rleOff[i] = rleData.length;
     const p = bank[i].pix;
-    let cur = p[0], cnt = 0;
-    for (let q = 0; q < p.length; q++) { if (p[q] === cur) cnt++; else { rleData.push(cnt, cur); cur = p[q]; cnt = 1; } }
+    let cur = expIndex(p[0]), cnt = 0;
+    for (let q = 0; q < p.length; q++) { if (expIndex(p[q]) === cur) cnt++; else { rleData.push(cnt, cur); cur = expIndex(p[q]); cnt = 1; } }
     rleData.push(cnt, cur);
   }
   hLines.push(`static const unsigned short kTileBankRleOffset[${bank.length}] = {`);
@@ -161,8 +185,8 @@ for (let i = 0; i < map.length; i += 24) hLines.push('  ' + map.slice(i, i + 24)
 hLines.push('};');
 const hPath = path.join(outDir, 'tilebank_indexed.h');
 fs.writeFileSync(hPath, hLines.join('\n') + '\n', 'utf8');
-fs.writeFileSync(path.join(outDir, 'tiles.json'), JSON.stringify({ tile, cols, rows, palette: paletteI, bank: bankInd.map((b, i) => ({ x: b.x, y: b.y, pix: [...bank[i].pix] })), map, stats: { unique: bank.length, cells: cols * rows } }, null, 2), 'utf8');
-console.log(`[slice] export indexado -> ${hPath} (${palSize} colores, ${bank.length} tiles)`);
+fs.writeFileSync(path.join(outDir, 'tiles.json'), JSON.stringify({ tile, cols, rows, palette: expPalette, bank: bankInd.map((b, i) => ({ x: b.x, y: b.y, pix: [...bank[i].pix].map(expIndex) })), map, stats: { unique: bank.length, cells: cols * rows } }, null, 2), 'utf8');
+console.log(`[slice] export indexado -> ${hPath} (${palSize} colores, ${bank.length} tiles, BASES-PRIMERO)`);
 
 // --- 7) PNG indexados (encoder propio) + verify round-trip ---------------------
 function crc32(buf) { let c, t = crc32.table || (crc32.table = new Int32Array(256).map((_, n) => { c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c; })); let crc = -1; for (let i = 0; i < buf.length; i++) crc = (crc >>> 8) ^ t[(crc ^ buf[i]) & 0xff]; return (crc ^ -1) >>> 0; }
@@ -191,8 +215,9 @@ function verifyPng(filePath, palette, indices, w, h) {
   if (!ok) process.exit(1);
 }
 const reconPng = path.join(outDir, 'reconstruct.png');
-writeIndexedPng(reconPng, paletteI, reconIdx, rW, rH);
-verifyPng(reconPng, paletteI, reconIdx, rW, rH);
+const expArr = (arr) => { const o = new Uint8Array(arr.length); for (let i = 0; i < arr.length; i++) o[i] = expIndex(arr[i]); return o; };
+writeIndexedPng(reconPng, expPalette, expArr(reconIdx), rW, rH);
+verifyPng(reconPng, expPalette, expArr(reconIdx), rW, rH);
 console.log(`[slice] reconstruct (del banco) -> ${reconPng} (${palSize} colores)`);
 
 {
@@ -204,13 +229,13 @@ console.log(`[slice] reconstruct (del banco) -> ${reconPng} (${palSize} colores)
     const b = bank[i];
     const ox = (i % perRow) * sw, oy = Math.floor(i / perRow) * sw;
     for (let yy = 0; yy < tile; yy++) for (let xx = 0; xx < tile; xx++) {
-      const v = b.pix[yy * tile + xx];
+      const v = expIndex(b.pix[yy * tile + xx]);
       for (let dy = 0; dy < sheetScale; dy++) for (let dx = 0; dx < sheetScale; dx++) inds[(oy + yy * sheetScale + dy) * cW + (ox + xx * sheetScale + dx)] = v;
     }
   }
   const sheetPath = path.join(outDir, 'tilebank.png');
-  writeIndexedPng(sheetPath, paletteI, inds, cW, cH);
-  verifyPng(sheetPath, paletteI, inds, cW, cH);
+  writeIndexedPng(sheetPath, expPalette, inds, cW, cH);
+  verifyPng(sheetPath, expPalette, inds, cW, cH);
   console.log(`[slice] tilebank (${sheetScale}x) -> ${sheetPath} (${bank.length} tiles, ${cW}x${cH})`);
 }
 
