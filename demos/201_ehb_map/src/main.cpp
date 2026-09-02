@@ -41,7 +41,10 @@ struct DemoGame {
 
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		// Plane EHB (6 planos) + copper.
+		// Planos EHB (6 planos) + copperlist. Los +16 absorben el padding de
+		// alineacion de AllocMem (AmigaOS 1.3 alinea a 8, no 16). Sin estos
+		// bytes, el copperlist falla si el puntero base tiene offset 8-mod-16.
+		// Ver regla detallada en engine/include/eng/memory/arena.hpp allocate().
     const eng::u32 need = static_cast<eng::u32>(6u) * kPlaneBytes + 4096u + 16u;
 		if (!backend.configure_memory({need, 16 * 1024u, 8 * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020101u);
