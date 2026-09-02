@@ -43,20 +43,21 @@ banco incbinado tiene que estar listo para el Blitter/Copper.
 
 El slicer `slice-tiles.mjs` trabaja internamente con índices INTERCALADOS
 `[base0, half0, base1, half1, ...]` (índice par 2k = base k, impar 2k+1 = half k), que es su
-forma natural de emparejar cada base con su half. Antes de que esos datos lleguen al `.h` /
-`.bin` del Amiga hay que reindexarlos a bases-primero con
-`tools/ehb/reindex-ehb-bank.mjs`:
+forma natural de emparejar cada base con su half al cuantizar y comparar (assert COMPARAR al
+100%). Pero **al exportar** (paso 6) el propio slicer reindexa todo a bases-primero con el mapa
+`expIndex`:
 ```
 e = (v>>1) | ((v&1) << 5)
    base k (v=2k)   -> e = k       = v>>1
    half k (v=2k+1) -> e = 32+k    = (v>>1) | 0x20
 ```
-Esta conversión es una permutación biyectiva de 0..63: se hace en el HOST, es idempotente
-(re-ejecutar no degrada) y deja el banco en convención bases-primero. La demo lee el byte
-del banco **directo** como índice EHB (`e = v`) y carga en `COLOR00..31` solo las 32 bases
-(`palette[i] = kEhbPalette[i]`, índices 0..31). Ver el uso real en
-`demos/201_ehb_map/src/main.cpp` (`fill_planes` + carga de paleta) y la implementación de la
-regla en `tools/ehb/reindex-ehb-bank.mjs`.
+Esta conversión es una permutación biyectiva de 0..63: se hace en el HOST dentro de
+`slice-tiles.mjs` (no hay script aparte), es idempotente (re-ejecutar no degrada) y deja el
+banco, la paleta del `.h`, `tiles.json` y los PNG exportados en convención bases-primero. La
+demo lee el byte del banco **directo** como índice EHB (`e = v`) y carga en `COLOR00..31` solo
+las 32 bases (`palette[i] = kEhbPalette[i]`, índices 0..31). Ver el uso real en
+`demos/201_ehb_map/src/main.cpp` (`fill_planes` + carga de paleta) y la implementación del
+reindexado de export en `tools/ehb/slice-tiles.mjs` (paso 6: `expPalette`/`expIndex`).
 
 ## Pipeline canónico (verificado)
 ```
@@ -64,12 +65,10 @@ quantize-ehb.mjs <origen>.png            # -> palette.json (32 bases EHB)
 slice-tiles.mjs <origen>.png --palette out/ehb/palette.json [--ehb-merge F]
   # 1) cuantiza el original a EHB  2) extrae únicos  3) (fusión)  4) reconstruye
   # 5) assert COMPARAR == 100% (sin fusión)  6) .h + tiles.json + PNG indexados
-reindex-ehb-bank.mjs <dir>               # OBLIGATORIO antes del .h/.bin del Amiga:
-  # reindexa tilebank.raw.bin + tiles.json + tilebank_indexed.h de intercalado a
-  # BASES-PRIMERO (regla 7) -> el Amiga lee el banco sin transformación de CPU.
+  #    (el paso 6 exporta ya en convención BASES-PRIMERO, regla 7: expIndex)
 ```
 <hr/>
 **Nota (2026-09-02)**: los datos actuales de la demo 201 ya están reindexados a bases-primero
-(`out/ehb/tilebank.raw.bin`, `out/ehb/const_game_201.h`). El pipeline canónico de arriba ya
-incluye `reindex-ehb-bank.mjs` para que cualquier regeneración futura respete la regla 7 de
-forma automática.
+(`out/ehb/tilebank.raw.bin`, `out/ehb/const_game_201.h`). Desde esta fecha el reindexado a
+bases-primero lo hace el propio `slice-tiles.mjs` en su export (paso 6), por lo que cualquier
+regeneración futura respeta la regla 7 de forma automática y no hace falta un paso adicional.
