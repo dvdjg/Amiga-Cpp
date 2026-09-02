@@ -24,11 +24,15 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 // Datos EHB del mapa render (paleta 64 RGB + mapa 40x40 -> Ã­ndice de banco).
 #include "../../../out/ehb/const_game_201.h"
 
-// EXPERIMENTO mini (banco de 256 B) para discriminar si LoadSeg falla con el
-// exe grande. Stub temporal; se restaura el incbin real cuando se confirme el boot.
-__asm__(".section .rodata\n"
+// Banco raw de 1149 tiles (256 bytes por tile) en seccion `.MEMF_CHIP`:
+// elf2hunk la emite a un hunk HUNKF_CHIP -> LoadSeg lo carga en Chip RAM. El demo
+// lee este banco en la CPU para componer las bitplanes EHB (40x40 tiles, 320x256).
+__asm__(".section tiles.MEMF_CHIP, \"aw\"\n"
 	".globl g_tilebank_raw\ng_tilebank_raw:\n"
-	".fill 256,1,0x33");
+	".align 2\n"
+	".incbin \"out/ehb/tilebank.raw.bin\"\n"
+	".globl g_tilebank_raw_size\ng_tilebank_raw_size:\n"
+	".long . - g_tilebank_raw");
 extern "C" const unsigned char g_tilebank_raw[];
 
 namespace {
@@ -88,7 +92,10 @@ struct DemoGame {
 			for (int x = 0; x < kWidth; ++x) {
 				const int cx = x / kTileW, cy = y / kTileH;
 				const int tile = kRenderMap[cy * kBW + cx];
-				const int v = g_tilebank_raw[(tile >> 4) & 255u]; // mini-test sin banco grande
+				// tile es el indice de tile (0..1148); cada tile son kBankTileBytes
+				// (256) dentro del banco. Coordenada (x%16, y%16) dentro del tile.
+				const int v = g_tilebank_raw[tile * kBankTileBytes +
+					(y % kTileH) * kTileW + (x % kTileW)];
 				const int byte = y * (kWidth / 8) + x / 8;
 				const eng::u8 mask = static_cast<eng::u8>(0x80u >> (x & 7));
 				for (int p = 0; p < 5; ++p) {
