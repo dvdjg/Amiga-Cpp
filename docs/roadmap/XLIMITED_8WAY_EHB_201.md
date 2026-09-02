@@ -119,7 +119,7 @@ ninguna transformación de CPU sobre los píxeles**:
 
 - **Reindexado en el host** (dentro de `slice-tiles.mjs`, paso 6, `expIndex`): convierte cada
   índice intercalado `v` a su índice EHB `e = (v>>1) | ((v&1)<<5)` (base `2k` → `k`,
-  half `2k+1` → `32+k`), biyectiva sobre 0..63, e idempotente. Reordena igualmente la paleta a
+  half `2k+1` → `32+k`), biyectiva sobre 0..63. Reordena igualmente la paleta a
   bases-primero. Ya aplicado a `out/ehb/tilebank.raw.bin` y `out/ehb/const_game_201.h`.
 - **Paleta** (`demos/201_ehb_map/src/main.cpp`): cargar solo las 32 bases en `COLOR0..31`,
   `palette[i] = kEhbPalette[i]` (índices 0..31, ya bases-primero); el half lo genera el

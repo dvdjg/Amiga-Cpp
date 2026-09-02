@@ -11,6 +11,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { deflateSync } from 'node:zlib';
 import { PNG } from 'pngjs';
+import { buildExport } from './ehb-export-map.mjs';
 
 const argV = (n, d) => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : d; };
 const img = process.argv[2];
@@ -117,19 +118,8 @@ if (ehbMerge === 1 && pct < 100) { console.error('[slice] FALLO: sin fusiÃ³n l
 //   base k (intercalado 2k)  -> pos k            (T+k si hay slot transparente)
 //   half k (intercalado 2k+1)-> pos nB+k         (T+nB+k con transparente)
 // (equivale a e=(u>>1)|((u&1)<<5) tras restar el slot transparente).
-const expT = hasAlphaSrc ? 1 : 0;
-const expNB = (palSize - expT) / 2;
-const expPalette = new Array(palSize);
-for (let i = 0; i < expT; i++) expPalette[i] = [...paletteI[i]];
-for (let k = 0; k < expNB; k++) {
-  expPalette[expT + k] = [...paletteI[expT + 2 * k]];           // base k
-  expPalette[expT + expNB + k] = [...paletteI[expT + 2 * k + 1]]; // half k
-}
-const expIndex = (v) => {
-  if (v < expT) return v;                       // slot transparente
-  const u = v - expT;                           // 0..2*expNB-1 intercalado
-  return (u & 1) === 0 ? expT + (u >> 1) : expT + expNB + ((u - 1) >> 1);
-};
+// La construcción vive en tools/ehb/ehb-export-map.mjs (compartida con el test).
+const { expPalette, expIndex } = buildExport(paletteI, hasAlphaSrc);
 const bits = palSize <= 16 ? 4 : palSize <= 32 ? 5 : 6;
 const perByte = bits === 6 ? 1 : 8 / bits; // 16col->2 px/byte, 32col->1 px/byte (5b) ó 6b->1
 const bankBytes = Math.ceil((bank.length * tile * tile) / perByte);
