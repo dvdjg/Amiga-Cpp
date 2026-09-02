@@ -21,7 +21,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 };
 }
 
-// Datos EHB del mapa render (paleta 64 RGB + mapa 40x40 -> Ã­ndice de banco).
+// Datos EHB del mapa render (paleta 64 RGB + mapa 40x40 -> índice de banco).
 #include "../../../out/ehb/const_game_201.h"
 
 // Banco raw de 1149 tiles (256 bytes por tile) en seccion `.MEMF_CHIP`:
@@ -39,7 +39,7 @@ namespace {
 
 struct DemoGame {
 	static constexpr int kTileW = 16, kTileH = 16, kBW = 40, kBH = 40;
-	static constexpr int kWidth = 320, kHeight = 256;   // EHB 320x256 (16x16 tiles â†’ 20x15?)
+	static constexpr int kWidth = 320, kHeight = 256;   // EHB 320x256 (20x16 tiles de 16px)
 	static constexpr int kPlaneBytes = (kWidth / 8) * kHeight;
 	static constexpr int kBankTileBytes = 256;
 
@@ -49,7 +49,7 @@ struct DemoGame {
 		// alineacion de AllocMem (AmigaOS 1.3 alinea a 8, no 16). Sin estos
 		// bytes, el copperlist falla si el puntero base tiene offset 8-mod-16.
 		// Ver regla detallada en engine/include/eng/memory/arena.hpp allocate().
-    const eng::u32 need = static_cast<eng::u32>(6u) * kPlaneBytes + 4096u + 16u;
+		const eng::u32 need = static_cast<eng::u32>(6u) * kPlaneBytes + 4096u + 16u;
 		if (!backend.configure_memory({need, 16 * 1024u, 8 * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020101u);
 			return;
@@ -61,16 +61,25 @@ struct DemoGame {
 			return;
 		}
 
-		// Componer las planes EHB desde banco+mapa (una Ãºnica vez, CPU).
+		// Componer las planes EHB desde banco+mapa (una única vez, CPU).
 		fill_planes();
 
-		// Paleta: cargar las 32 BASES en COLOR0-31. kEhbPalette[64] de
-		// const_game_201.h viene INTERCALADO (base0,half0,base1,half1,...), igual
-		// que los indices del tilebank. El hardware EHB espera las 32 bases en
-		// COLOR0-31 y genera los half (indices 32-63) como base/2. Por eso aqui se
-		// toman SOLO los terminos pares (indices 2*i) = las bases. Emitir todo el
-		// array (33..63 tambien) provocaria colores mal mapeados (los half no deben
-		// escribirse; son automaticos).
+		// Paleta EHB: cargar las 32 BASES en COLOR00..31.
+		//
+		// kEhbPalette[64] de const_game_201.h viene en la misma convención
+		// INTERCALADA que el tilebank: [base0, half0, base1, half1, ...]. El
+		// chipset EHB, en cambio, espera las 32 bases en COLOR00..31 y genera los
+		// half (índices 32..63) automáticamente como base/2. Por eso aquí se toman
+		// SOLO los términos pares (índices 2*i) = las bases. NO hay que escribir
+		// los half: escribirlos duplicaría/desplazaría colores.
+		//
+		//                kEhbPalette (intercalado)        COLORx (hardware EHB)
+		//                ------------------------         ----------------------
+		//   base0  -> indice 0  -> tomamos como COLOR0    base0  (0..31)
+		//   half0  -> indice 1  -> se DESCARTA            half = COLOR0/2 (autom.)
+		//   base1  -> indice 2  -> tomamos como COLOR1    base1
+		//   half1  -> indice 3  -> se DESCARTA            half = COLOR1/2 (autom.)
+		//   ...                    (2*i)                   ...
 		eng::u16 palette[32] {};
 		for (eng::u8 i = 0; i < 32; ++i) {
 			const eng::u8* c = &kEhbPalette[static_cast<eng::u8>(2u * i) * 3u];
@@ -99,15 +108,31 @@ struct DemoGame {
 			for (int x = 0; x < kWidth; ++x) {
 				const int cx = x / kTileW, cy = y / kTileH;
 				const int tile = kRenderMap[cy * kBW + cx];
-				// tile es el indice de tile (0..1148); cada tile son kBankTileBytes
+				// tile es el índice de tile (0..1148); cada tile son kBankTileBytes
 				// (256) dentro del banco. Coordenada (x%16, y%16) dentro del tile.
-				// El tilebank guarda el indice con la convencion INTERCALADA de
-				// slice-tiles.mjs: indice par 2k = base del color k, indice impar
-				// 2k+1 = half del color k. El chipset EHB espera bases-primero:
-				// 0-31 = base, 32-63 = half (generado como base/2). Convertir:
-				//   base k (v=2k)               -> e = k        = v>>1
-				//   half k (v=2k+1)             -> e = 32+k     = (v>>1)|0x20
-				// (1 bit de 'intercalado' se vuelve el bit 5 = plano 6 del EHB.)
+				//
+				// CONVENCIÓN DE ÍNDICES (pieza clave para el render EHB):
+				// el tilebank guarda el índice con la convención INTERCALADA de
+				// slice-tiles.mjs: índice par 2k = base del color k, índice impar
+				// 2k+1 = half del color k. El chipset EHB espera BASES-PRIMERO:
+				// 0..31 = base, 32..63 = half (generado como base/2). La
+				// conversión de un índice intercalado v a su índice EHB e es:
+				//   base k (v=2k)   -> e = k        = v>>1
+				//   half k (v=2k+1) -> e = 32+k     = (v>>1) | 0x20
+				// Es decir, el bit 0 de la convención intercalada (par/impar)
+				// "salta" al bit 5 de la convención EHB = el plano 6 (half).
+				//
+				//   v (tilebank, intercalado)   base?   e (EHB)   plano6?
+				//   ---------------------------  ------  --------  -------
+				//   2k        = base   k         sí      k          no
+				//   2k+1      = half   k         no      32+k       sí
+				//
+				// NOTA de diseño: este "recodificado" por píxel se paga una sola
+				// vez al arrancar (fill_planes compone los 6 planos desde el banco
+				// por CPU). Si en el futuro el slicer emitiera ya el banco en
+				// convención EHB bases-primero, la demo usaría v directo (e = v) y
+				// el banco quedaría listo para el Blitter sin pasar por CPU; el paso
+				// pendiente es solo regenerar el atlas con el original (F3/F4).
 				const int v = g_tilebank_raw[tile * kBankTileBytes +
 					(y % kTileH) * kTileW + (x % kTileW)];
 				const int e = (v >> 1) | ((v & 1) << 5);
@@ -123,7 +148,7 @@ struct DemoGame {
 
 	void update(eng::amiga::MinimalBackend&, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
-		// EstÃ¡tico: sin scroll.
+		// Estático: sin scroll (ventana fija 320x256 del mapa 40x40).
 	}
 
 	void render(eng::amiga::MinimalBackend&, eng::GameContext& context) {
