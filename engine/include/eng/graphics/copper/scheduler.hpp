@@ -89,14 +89,15 @@ public:
 	/// diwstrt=0x2c81, diwstop=0x2cc1, ddfstrt=0x0038, ddfstop=0x00d0.
 	void emit_planes_display(
 		u16 diwstrt, u16 diwstop, u16 ddfstrt, u16 ddfstop,
-		u16 bytes_per_row, u8 planes, const u8* bitplanes, u32 plane_bytes
+		u16 bytes_per_row, u16 bplcon0, u8 planes,
+		const u8* bitplanes, u32 plane_bytes
 	) {
 		move(
 			Register::DMACON,
 			static_cast<u16>(DmaSetClear | DmaMaster | DmaCopper | DmaBitplane)
 		);
 
-		move(Register::BPLCON0, static_cast<u16>(planes << 12u));   // BPU genérico
+		move(Register::BPLCON0, bplcon0);            // BPU + bits modo (EHB/HAM/DPF…)
 		move(Register::BPLCON1, 0x0000);
 		move(Register::BPLCON2, 0x0000);
 		move(Register::BPL1MOD, 0x0000);
