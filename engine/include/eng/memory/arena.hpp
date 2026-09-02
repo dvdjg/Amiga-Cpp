@@ -88,6 +88,7 @@ public:
 		m_kind = kind;
 		m_used = 0;
 		m_peak = 0;
+		m_overflow = false;
 	}
 
 	/// Reinicia la arena sin tocar el contenido.
@@ -95,6 +96,7 @@ public:
 	/// Para `FrameScratch` esto se llamara normalmente una vez por frame.
 	void clear() {
 		m_used = 0;
+		m_overflow = false;
 	}
 
 	/// Reserva bytes alineados dentro de la arena.
@@ -102,6 +104,25 @@ public:
 	/// Si la arena no tiene espacio, devuelve un `MemoryBlock` invalido. La alineacion
 	/// debe ser potencia de dos; en Amiga normalmente usaremos 2, 4, 16 o 64 segun el
 	/// recurso.
+	///
+	/// \warning PEYOTE DE ALINEACION (bug demo 201, septiembre 2026):
+	/// AllocMem de AmigaOS 1.3 solo garantiza 8 bytes de alineacion, no 16. Si la
+	/// base de la arena no esta alineada a `alignment`, se genera padding interno
+	/// que consume espacio real del bloque. Cuando se hacen varias asignaciones
+	/// alineadas a 16 dentro de la misma arena, el padding acumulado puede superar
+	/// el tamano total declarado y la ultima asignacion falla silenciosamente
+	/// (devuelve bloque invalido).
+	///
+	/// Ejemplo real (6 planos EHB + copperlist en chip):
+	///   need = 6*10240 + 4096 = 65536
+	///   1a allocate(61440, 16): padding = 8, used = 61448
+	///   2a allocate(4096, 16):  next = 61448 + 4096 = 65544 > 65536  => FALLA
+	///
+	/// Regla: cuando se pida memoria alineada a 16 dentro de una arena cuyo base
+	/// puede no estar alineada a 16 (como AllocMem de AmigaOS 1.3), incluir
+	/// +16 bytes de headroom en el tamano total pedido al backend.
+	///
+	/// Si overflow, el bloque devuelto es invalido y `overflow_detected()` sera true.
 	MemoryBlock allocate(u32 bytes, u32 alignment = 2) {
 		if (alignment == 0) {
 			alignment = 1;
@@ -113,6 +134,7 @@ public:
 		const u32 next = m_used + padding + bytes;
 
 		if (!m_base || next > m_size) {
+			m_overflow = (m_base != nullptr && bytes != 0);
 			return {};
 		}
 
@@ -141,6 +163,10 @@ public:
 	constexpr MemoryKind kind() const { return m_kind; }
 	constexpr void* base() const { return m_base; }
 
+	/// True si la ultima allocate() fallo por falta de espacio (overflow).
+	/// Util para diagnosticar bug de alineacion sin examinar cada puntero.
+	constexpr bool overflow_detected() const { return m_overflow; }
+
 	constexpr ArenaSnapshot snapshot() const {
 		return {
 			static_cast<u32>(reinterpret_cast<uintptr>(m_base)),
@@ -157,6 +183,7 @@ private:
 	u32 m_size = 0;
 	u32 m_used = 0;
 	u32 m_peak = 0;
+	bool m_overflow = false;
 	MemoryKind m_kind = MemoryKind::Any;
 };
 

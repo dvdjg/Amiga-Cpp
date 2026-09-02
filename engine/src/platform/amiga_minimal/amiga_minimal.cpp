@@ -89,6 +89,12 @@ void MinimalBackend::boot() {
 bool MinimalBackend::configure_memory(const MemoryConfig& config) {
 	release_memory();
 
+	// NOTA: AllocMem de AmigaOS 1.3 solo garantiza alineacion a 8 bytes, no 16.
+	// Si el llamador reserva memoria alineada a 16 dentro de una arena (como los
+	// planos EHB o copperlists), el puntero base puede tener offset 8-mod-16,
+	// generando padding interno en cada allocate() alineado a 16. El tamano total
+	// pedido al backend debe incluir +16 bytes de headroom para absorber este
+	// padding acumulado. Ver regla en arena.hpp allocate().
 	if (config.chip_bytes != 0) {
 		m_chip_alloc = AllocMem(config.chip_bytes, MEMF_CHIP | MEMF_CLEAR);
 		m_chip_alloc_size = m_chip_alloc ? config.chip_bytes : 0;

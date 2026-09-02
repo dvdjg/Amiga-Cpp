@@ -273,6 +273,9 @@ struct DemoGame {
 
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
+		// 280 KB chip: suficiente para tiles + planos + copper. Sin headroom
+		// explicito porque el margen (280 KB vs ~100 KB usados) absorbe el
+		// padding de alineacion de AllocMem (ver arena.hpp allocate()).
 		if (!backend.configure_memory({280u * 1024u, 16u * 1024u, 8u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000210u);
 			return;
