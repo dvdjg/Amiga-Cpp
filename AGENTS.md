@@ -107,7 +107,7 @@ smoke test). Punto 3 (rewind timeline) bloqueado (captura atada al input-
 recording del GUI). Pendiente: `print` DWARF.
 
 ## Rutas de alto valor
-- **Estado actual (2026-09) y plan**: `docs/roadmap/XLIMITED_8WAY_EHB_201.md` (scroll 8-way X-Limited correcto → demo 201 EHB con mapa real → extraer al engine → 202 DPF) y `docs/roadmap/REGLAS_PIPELINE_TILES.md` (reglas de oro: cuantizar el original antes de extraer, comparar en el mismo espacio EHB con assert al 100%, catálogo ≤ original, PNG indexados con encoder propio + round-trip, umbrales con pérdida explícita). **Bloqueante actual**: bug 8-way "tile en el área visible" — depurar con watchpoint `g_eng_diag_hit` y breakpoints en `add_draw`/`draw_block_job`/`scroll_down-up`.
+- **Estado actual (2026-09) y plan**: `docs/roadmap/XLIMITED_8WAY_EHB_201.md` (scroll 8-way X-Limited correcto → demo 201 EHB con mapa real → extraer al engine → 202 DPF) y `docs/roadmap/REGLAS_PIPELINE_TILES.md` (reglas de oro: cuantizar el original antes de extraer, comparar en el mismo espacio EHB con assert al 100%, catálogo ≤ original, PNG indexados con encoder propio + round-trip, umbrales con pérdida explícita). Consulta a IA externa sobre forzar hunk CHIP con este toolchain: `docs/roadmap/CONSULTA_ELF2HUNK_CHIP.md` (**bloqueante actual**: bug 8-way "tile en el área visible" — depurar con watchpoint `g_eng_diag_hit` y breakpoints en `add_draw`/`draw_block_job`/`scroll_down-up`).
 - Pipeline de tiles/EHB (verificado): `node tools/ehb/quantize-ehb.mjs <png>` → `palette.json`; `node tools/ehb/slice-tiles.mjs <png> --palette out/ehb/palette.json [--ehb-merge F]` → `.h` + `tiles.json` + PNG indexados (assert COMPARAR=100% sin fusión).
 - Self-test del harness (canal lateral/READY/fps): `node tools/debug/verify-harness.mjs [--strict-fps --warp]`. Nota: el throughput del emulador ~11fps limita el gate fps absoluto.
 - Bucle de entrada del engine: `engine/include/eng/engine.hpp` (`update -> wait_vblank -> render`; `render` es el punto de commit).
@@ -124,6 +124,7 @@ recording del GUI). Pendiente: `print` DWARF.
 
 ## Restricciones de código/diseño que hay que preservar
 - Restricciones intencionales del engine: `gnu++23`, sin exceptions, sin RTTI, sin asignación dinámica en gameplay (`docs/architecture/CODING_STYLE.md`).
+- **APIs paramétricas, nunca de tamaño fijo**: no generar funciones con geometría/tamaño embebido (p. ej. `emit_ehb_320x256_display`); el engine expone métodos paramétricos (registros/planos/ancho, etc.) y el llamador decide los valores. Los "magic numbers" de un caso concreto viven en la demo/config, no como API.
 - La lógica de juego debe ser agnóstica del backend; registros/DMA específicos de Amiga van en capas backend/driver, no en lógica de alto nivel.
 
 ## Regla permanente de rendimiento

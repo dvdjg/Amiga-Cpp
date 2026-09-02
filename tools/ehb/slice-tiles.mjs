@@ -112,31 +112,42 @@ for (let i = 0; i < bank.length; i++) {
   }
 }
 const bankInd = bank.map((b) => ({ x: b.x, y: b.y }));
-// RLE del banco (píxel por píxel): tiles cuantizados tienen zonas planas, así
-// `(count,value)` comprime drásticamente. `kTileBankRleOffset[i]` = comienzo del
-// tile i en `kTileBankRle`; decodificar: pares (len, idx) hasta completar 256 px.
-const rleOff = new Uint16Array(bank.length);
-const rleData = [];
-for (let i = 0; i < bank.length; i++) {
-  rleOff[i] = rleData.length;
-  const p = bank[i].pix;
-  let cur = p[0], cnt = 0;
-  for (let q = 0; q < p.length; q++) { if (p[q] === cur) cnt++; else { rleData.push(cnt, cur); cur = p[q]; cnt = 1; } }
-  rleData.push(cnt, cur);
-}
+const encode = argV('--encode', 'raw'); // raw | rle (raw: incbin, zero CPU)
 const hLines = [];
 hLines.push('// Tiles EHB slice (original cuantizado primero), para carga en el Amiga.');
 hLines.push(`// ${bits} bits/píxel (${palSize} colores${hasAlphaSrc ? ', índice0 transparente' : ''}); ${bank.length} tiles de ${tile}x${tile}; mapa ${cols}x${rows}.`);
-hLines.push(`// BANCO en RLE (${rleData.length} bytes) + offsets (${bank.length}u16). Decodificar por tile: pares (len,índice) hasta 256 px.`);
+hLines.push(`// Modo '${encode}'.`);
 hLines.push(`static const unsigned char kTileIndexedPalette[${palSize * 3}] = {`);
 for (let r = 0; r < palSize; r += 12) hLines.push('  ' + paletteI.slice(r, r + 12).map((c) => `${c[0]},${c[1]},${c[2]}`).join(',') + ',');
 hLines.push('};');
-hLines.push(`static const unsigned short kTileBankRleOffset[${bank.length}] = {`);
-for (let r = 0; r < bank.length; r += 20) hLines.push('  ' + [...rleOff.slice(r, r + 20)].join(',') + ',');
-hLines.push('};');
-hLines.push(`static const unsigned char kTileBankRle[${rleData.length}] = {`);
-for (let r = 0; r < rleData.length; r += 32) hLines.push('  ' + rleData.slice(r, r + 32).join(',') + ',');
-hLines.push('};');
+if (encode === 'raw') {
+  // BINARIO RAW: cada tile = `tile*tile` bytes de índices (stride fijo). El Amiga
+  // NO expande nada (incbin a Chip RAM si se quiere); cero CPU en la vía de tiles.
+  const bin = Buffer.alloc(bank.length * tile * tile);
+  for (let i = 0; i < bank.length; i++) for (let q = 0; q < tile * tile; q++) bin[i * tile * tile + q] = bank[i].pix[q];
+  const binPath = path.join(outDir, 'tilebank.raw.bin');
+  fs.writeFileSync(binPath, bin);
+  hLines.push('// Datos en "tilebank.raw.bin" (incbin). El stride de cada tile es constante.');
+  hLines.push(`static const unsigned short kTileBankStride = ${tile * tile};`);
+  hLines.push(`static const unsigned int kTileBankBytes = ${bin.length};`);
+} else {
+  // RLE (opt-in para bancos grandes): pares (len,índice) + offsets; scratch 256B.
+  const rleOff = new Uint16Array(bank.length);
+  const rleData = [];
+  for (let i = 0; i < bank.length; i++) {
+    rleOff[i] = rleData.length;
+    const p = bank[i].pix;
+    let cur = p[0], cnt = 0;
+    for (let q = 0; q < p.length; q++) { if (p[q] === cur) cnt++; else { rleData.push(cnt, cur); cur = p[q]; cnt = 1; } }
+    rleData.push(cnt, cur);
+  }
+  hLines.push(`static const unsigned short kTileBankRleOffset[${bank.length}] = {`);
+  for (let r = 0; r < bank.length; r += 20) hLines.push('  ' + [...rleOff.slice(r, r + 20)].join(',') + ',');
+  hLines.push('};');
+  hLines.push(`static const unsigned char kTileBankRle[${rleData.length}] = {`);
+  for (let r = 0; r < rleData.length; r += 32) hLines.push('  ' + rleData.slice(r, r + 32).join(',') + ',');
+  hLines.push('};');
+}
 hLines.push(`static const unsigned short kTileIndexedMap[${map.length}] = {`);
 for (let i = 0; i < map.length; i += 24) hLines.push('  ' + map.slice(i, i + 24).join(',') + ',');
 hLines.push('};');

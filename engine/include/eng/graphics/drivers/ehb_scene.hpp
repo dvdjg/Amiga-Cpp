@@ -110,7 +110,8 @@ public:
 		m_zone_binding_count = 0;
 
 		copper::Scheduler scheduler { m_copper_block };
-		scheduler.emit_ehb_320x256_display(m_bitplanes, plane_bytes);
+		// 320x256 lowres PAL, 6 planos EHB (geometría paramétrica del scheduler).
+		scheduler.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 40u, 6, m_bitplanes, plane_bytes);
 		m_base_palette_value_word = static_cast<u16>(scheduler.words_used() + 1u);
 		scheduler.emit_palette(config.base_palette->color);
 		for (u8 i = 0; i < config.zone_count; ++i) {
