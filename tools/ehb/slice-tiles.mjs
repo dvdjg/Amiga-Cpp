@@ -44,12 +44,12 @@ const paletteI = [];
 if (hasAlphaSrc) paletteI.push([0, 0, 0]); // índice 0 = transparente (si hace falta)
 // CONVENCIÓN de índices del banco: INTERCALADA [base0, half0, base1, half1, ...].
 // Un píxel "base k" se guarda como índice 2k y un "half k" como 2k+1 (solo con
-// planes>=6 / EHB). La demo que consume este banco (p. ej. demos/201_ehb_map)
-// recodifica cada índice a la convención BASES-PRIMERO del chipset EHB
-// (e = (v>>1) | ((v&1)<<5)) y carga en COLOR00..31 solo las bases; ver
-// fill_planes()+paleta en demos/201_ehb_map/src/main.cpp. Si en el futuro se
-// regenera el atlas desde el ORIGINAL (F3/F4), conviene emitir el banco ya en
-// bases-primero (base k, half 32+k) para usarlo directo con el Blitter.
+// planes>=6 / EHB). Es la forma natural de emparejar cada base con su half al
+// cuantizar PERO NO es la que consume el chipset EHB (BASES-PRIMERO: 0..31 base,
+// 32..63 half). Por eso, ANTES de que estos datos lleguen al .h/.bin del Amiga, se
+// reindexan en el HOST con tools/ehb/reindex-ehb-bank.mjs (e=(v>>1)|((v&1)<<5)),
+// de modo que el Amiga NUNCA transforma píxeles en CPU. Ver la regla 7 de
+// docs/roadmap/REGLAS_PIPELINE_TILES.md y el uso en demos/201_ehb_map/src/main.cpp.
 for (const b of bases) { paletteI.push([b[0] & 255, b[1] & 255, b[2] & 255]); if (planes >= 6) paletteI.push([b[0] >> 1, b[1] >> 1, b[2] >> 1]); }
 const palSize = paletteI.length;
 console.log(`[slice] paleta ${palSize} colores (${palSize <= 16 ? '4 bits/px' : palSize <= 32 ? '5 bits/px' : 'EHB 64'}${hasAlphaSrc ? ', índice 0 transparente' : ' sin transparencia'})`);

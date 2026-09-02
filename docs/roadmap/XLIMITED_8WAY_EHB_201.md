@@ -113,22 +113,29 @@ son las bases y los índices `32..63` (bit 5 = plano 6) generan el half como `ba
 
 El desajuste (sumado a cargar el array intercalado completo en `COLOR0..31`) hacía que la
 demo 201 mostrara el mapa con pocos colores / oscuro y desplazado frente a
-`reconstruct.png`. Corrección en `demos/201_ehb_map/src/main.cpp`:
+`reconstruct.png`. La solución **definitiva** (regla 7 de `REGLAS_PIPELINE_TILES.md`):
+reindexar los datos en el HOST a bases-primero con `tools/ehb/reindex-ehb-bank.mjs`, de modo
+que **el Amiga no hace ninguna transformación de CPU sobre los píxeles**:
 
-- **Paleta**: cargar solo las 32 bases en `COLOR0..31`, tomando los términos pares de
-  `kEhbPalette` (`palette[i] = kEhbPalette[2*i]`); el half lo genera el hardware.
-- **Plano half**: convertir el índice intercalado `v` del banco a índice EHB
-  `e = (v>>1) | ((v&1)<<5)` antes de componer las planes (`fill_planes`): la base `2k`
-  va a `k` y el half `2k+1` a `32+k`.
+- **Reindexado en el host** (`reindex-ehb-bank.mjs`): convierte cada índice intercalado `v`
+  a su índice EHB `e = (v>>1) | ((v&1)<<5)` (base `2k` → `k`, half `2k+1` → `32+k`),
+  biyectiva sobre 0..63, e idempotente. Reordena igualmente la paleta a bases-primero.
+  Ya aplicado a `out/ehb/tilebank.raw.bin` y `out/ehb/const_game_201.h`.
+- **Paleta** (`demos/201_ehb_map/src/main.cpp`): cargar solo las 32 bases en `COLOR0..31`,
+  `palette[i] = kEhbPalette[i]` (índices 0..31, ya bases-primero); el half lo genera el
+  hardware.
+- **Plano half** (`fill_planes`): la demo lee el byte del banco **directo** como índice EHB
+  (`e = v`); el bit 5 marca el plano 6/half. Cero conversión por píxel.
 
 Verificación: histograma de la captura real (`out/run/201_ehb_map/A500_debug/screenshot.png`)
 coincide con `reconstruct.png` (verde dominante `143,213,129` ↔ `136,221,136`, marrón/tan,
-verdes secundarios), confirmado además con ollama (`tools/analyze/ollama-desc.mjs`).
+verdes secundarios), confirmado además con ollama (`tools/analyze/ollama-desc.mjs`). La
+reindexación por-byte del banco quedó verificada con 0 desajustes frente a
+`e=(v>>1)|((v&1)<<5)` en los 294144 bytes.
 
-**Ojo para el pipeline en F3/F4**: conviene que el slicer emita los índices ya en convención
-EHB bases-primero (base `k` y half `32+k`) para que el banco crudo sea usable directamente
-(blitter) sin conversión por píxel; la conversión por píxel actual es correcta pero añade
-coste de CPU que no haría falta.
+**Para regenerar a futuro (F3/F4)**: no reintroducir la conversión por píxel en el Amiga.
+Correr `quantize-ehb` → `slice-tiles` → `reindex-ehb-bank.mjs` (pipeline canónico) para que el
+banco incbinado y la paleta vayan en convención bases-primero, listos para el chipset.
 
 ## Riesgos y decisiones abiertas
 - **Throughput del emulador**: mientras cap ~11fps no se puede exigir `--strict-fps`; hay
