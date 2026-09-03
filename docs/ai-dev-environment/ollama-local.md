@@ -3,12 +3,16 @@
 ## Configuración comprobada
 
 - Servicio: `http://127.0.0.1:11434`.
-- Versión comprobada: `0.32.14`.
+- Versión comprobada: `0.32.14` (verificado por `/api/version`).
 - Modelo visual predeterminado: `qwen3-vl:8b-instruct-q8_0`.
 - Modelo alternativo instalado: `gemma3:12b`.
-- Endpoint compatible con el pipeline: `/v1/chat/completions`.
+- Endpoint compatible con el pipeline: `/v1/chat/completions` (comprobado en local con imagen `data:image/...;base64,...`).
 - Endpoint de salud: `/api/version`.
 - Modelos cargados: `/api/ps`.
+- Modelos instalados (verificado por `/api/tags`): `qwen3:8b` (texto, pre-análisis `meta`),
+  `qwen2.5-coder:7b`, `qwen3-vl:8b-instruct-q8_0` (visión) y `gemma3:12b` (visión, alternativa).
+  En la API nativa de Ollama, `qwen3-vl` se reporta con familia `qwen3vl`, 8.8B parámetros,
+  cuantización Q8_0, ~9,9 GB de VRAM y `context_length` 8192.
 
 La configuración `tools/vision-review/providers/ollama.local.json` ya apunta a este proveedor. El script normaliza la URL a `/v1` y envía cada imagen como `data:image/...;base64,...` en modo `multi-image`.
 
@@ -16,7 +20,7 @@ La configuración `tools/vision-review/providers/ollama.local.json` ya apunta a 
 
 Qwen3-VL queda como modelo predeterminado porque la documentación oficial de Ollama destaca comprensión de vídeo dinámico, contexto largo y relaciones espaciales, capacidades directamente útiles para secuencias de frames y perfiles de scroll. Gemma 3 12B también es multimodal y los experimentos de `D:/scripts` le atribuyen mejor clasificación semántica en imágenes estáticas; se conserva como alternativa para una captura aislada, pero no se cambia el proveedor principal.
 
-La mención a una versión “Qwen 3.8” parece mezclar familias o tamaños. Las familias relevantes aquí son `qwen2.5vl` y `qwen3-vl`; el modelo local disponible y probado es `qwen3-vl:8b-instruct-q8_0`.
+La mención a una versión “Qwen 3.8” parece mezclar familias o tamaños. En la instalación local solo está la familia `qwen3vl` (nada de `qwen2.5vl`); el modelo disponible y probado es `qwen3-vl:8b-instruct-q8_0`, que Ollama identifica como familia `qwen3vl`.
 
 ## Patrón heredado de `D:/scripts`
 
@@ -54,9 +58,12 @@ El panel existente es `C:/Python314/python.exe D:/scripts/tools/ollama_panel.py`
 
 - **Automático (recomendado):** la tarea programada `ollama_serve` arranca
   `ollama.exe serve` al iniciar sesión y lo hace en **ventana visible**
-  (registrada sin el wrapper `run_hidden.vbs`). Para forzar el arranque ahora
-  sin esperar al inicio de sesión:
+  (registrada sin el wrapper `run_hidden.vbs`). Comprobar primero que la tarea
+  está **enabled** (`schtasks /query /tn ollama_serve`); si aparece
+  *Deshabilitado* (estado verificado en este entorno), hay que habilitarla antes
+  de poder lanzarla:
   ```powershell
+  schtasks /change /tn ollama_serve /enable
   schtasks /run /tn ollama_serve
   ```
 - **Manual:** una consola y a correr; idéntico al arranque de la tarea, la
@@ -92,8 +99,12 @@ El panel existente es `C:/Python314/python.exe D:/scripts/tools/ollama_panel.py`
   - **Vision Review:** editar `"model"` en
     `tools/vision-review/providers/ollama.local.json` (por defecto
     `qwen3-vl:8b-instruct-q8_0`), o crear otro provider apuntando a otro modelo.
-  - **Perfiles (`tools/profile/README.md`):** pasar `--model <modelo>` al
-    orquestador/analizador (también env `OLLAMA_MODEL` / `OLLAMA_BASE`).
+    Ya existe `tools/vision-review/providers/ollama.local.gemma3.json` listo para
+    `gemma3:12b`.
+  - **Perfiles (`tools/profile/README.md`):** pasar `--model <modelo>` /
+    `--text-model <modelo>` al orquestador/analizador, o usar las env
+    `OLLAMA_MODEL` (visión), `OLLAMA_TEXT_MODEL` (texto para `--mode meta`) y
+    `OLLAMA_BASE` (los tres se leen en `ollama-analyze.mjs`).
 - No hace falta reiniciar el servidor para usar un modelo nuevo: Ollama lo carga
   bajo demanda y lo mantiene en RAM/VRAM según `OLLAMA_KEEP_ALIVE` (24h).
 

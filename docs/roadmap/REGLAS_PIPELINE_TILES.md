@@ -1,5 +1,9 @@
 # Reglas de oro del pipeline de tiles/EHB (para no romper nada)
 
+> La guía completa, verificada y paso a paso (comandos, formatos, embebido en la demo
+> y revisión de que el tile colocado corresponde a la tabla) está en
+> `docs/pipeline/PIPELINE_TILES_EHB.md`. Este fichero es el resumen de las invariantes.
+
 Estas invariantes se deben cumplir SIEMPRE; se verifica cada una en el paso que toca
 (assert; si falla, aborta). Son el "sentido común" que se echó en falta en las primeras
 iteraciones (2026-09-01).
