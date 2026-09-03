@@ -173,7 +173,11 @@ function medianCut(hist, K) {
 		if (which < 0) break;
 		const box = boxes[which];
 		let ch = -1, span = -1;
-		for (let c = 0; c < 3; c++) { const mn = Math.min(...box.map(e => channel(e[0], c))), mx = Math.max(...box.map(e => channel(e[0], c))); if (mx - mn > span) { span = mx - mn; ch = c; } }
+		for (let c = 0; c < 3; c++) {
+			let mn = 255, mx = 0;
+			for (const e of box) { const v = channel(e[0], c); if (v < mn) mn = v; if (v > mx) mx = v; }
+			if (mx - mn > span) { span = mx - mn; ch = c; }
+		}
 		box.sort((a, b) => channel(a[0], ch) - channel(b[0], ch));
 		const halfN = countBox(box) >> 1;
 		let acc = 0, cutIdx = 1;
@@ -189,12 +193,10 @@ function medianCut(hist, K) {
 		return [Math.round(r / n), Math.round(g / n), Math.round(bl / n)];
 	}).filter(c => c !== null);
 }
-function kmeans(hist, K, iters, halfAware) {
+function kmeans(hist, K, iters, halfAware, init) {
 	// k-means sobre {color} o sobre {color, half(color)} (half-aware para EHB).
-	let centers = medianCut(hist, K);
-	// Si median-cut no llegó a K centros (imagen con pocos colores distintos o
-	// cortes degenerados), se rellenan con los colores MÁS FRECUENTES del origen.
-	centers = fillCenters(centers, hist, K);
+	// `init` opcional: centros de partida (NO se re-seedan).
+	let centers = init ? init.slice(0, K) : fillCenters(medianCut(hist, K), hist, K);
 	for (let it = 0; it < iters; it++) {
 		const acc = centers.map(() => [0, 0, 0, 0]);
 		let moved = 0;
@@ -222,7 +224,6 @@ function kmeans(hist, K, iters, halfAware) {
 	return centers;
 }
 function brightSplit(hist, N) {
-	// EHB: cuantiza la mitad MÁS BRILLANTE a N bases; los half cubren lo oscuro.
 	const entries = hist.map(([k, n]) => { const c = keyToRgb(k); return { c, n }; }).sort((a, b) => lum(a.c) - lum(b.c));
 	const total = entries.reduce((s, e) => s + e.n, 0);
 	let acc = 0, cut = entries.length;
@@ -231,6 +232,56 @@ function brightSplit(hist, N) {
 	return medianCut(bright, N);
 }
 function popularityPalette(hist, N) { return hist.slice(0, N).map(([k]) => keyToRgb(k)); }
+
+// EHB con maximización del uso de los HALF-BRIGHTS.
+// El k-means half-aware clásico deja bases en la gama oscura cuyo half (~negro)
+// casi no se usa: con 32 bases "reales" se comporta casi como una paleta de 32
+// colores. Este método, tras converger, mide por cada base qué fracción de sus
+// píxeles eligió el half; si es poca (half desaprovechado) EMPUJA la base hacia
+// los brillos (escala >1, más fuerte cuanto más oscura) y re-hace un paso de
+// k-means. Así los medios tonos pasan a cubrir las sombras y los 64 colores
+// efectivos (base+half) se aprovechan de verdad.
+function ehbPaletteBright(hist, K, iters) {
+	const base0 = kmeans(hist, K, iters, true);           // óptimo half-aware
+	const ehbMSE = (bases) => {
+		let mse = 0, tot = 0;
+		for (const [k, n] of hist) {
+			const c = keyToRgb(k); let bd = Infinity;
+			for (const b of bases) { const d = Math.min(dist2(c, b), dist2(c, half(b))); if (d < bd) bd = d; }
+			mse += bd * n; tot += n;
+		}
+		return mse / tot;
+	};
+	let bases = base0.slice();
+	const useH = new Float64Array(K), useF = new Float64Array(K);
+	for (let round = 0; round < 12; round++) {
+		useH.fill(0); useF.fill(0);
+		for (const [k, n] of hist) {
+			const c = keyToRgb(k);
+			let bi = 0, bd = Infinity;
+			for (let i = 0; i < K; i++) {
+				const d = Math.min(dist2(c, bases[i]), dist2(c, half(bases[i])));
+				if (d < bd) { bd = d; bi = i; }
+			}
+			if (dist2(c, half(bases[bi])) < dist2(c, bases[bi])) useH[bi] += n; else useF[bi] += n;
+		}
+		let moved = false;
+		for (let i = 0; i < K; i++) {
+			const tot = useF[i] + useH[i];
+			if (!tot) continue;
+			if (useH[i] / tot < 0.30) {          // half desaprovechado: subir el brillo
+				const b = bases[i], l = lum(b);
+				const sc = l < 120 ? 1.45 : l < 200 ? 1.30 : 1.18;
+				const nb = [Math.min(255, Math.round(b[0] * sc)), Math.min(255, Math.round(b[1] * sc)), Math.min(255, Math.round(b[2] * sc))];
+				if (nb[0] !== b[0] || nb[1] !== b[1] || nb[2] !== b[2]) { bases[i] = nb; moved = true; }
+			}
+		}
+		if (!moved) break;
+		bases = kmeans(hist, K, 3, true, bases);
+	}
+	// Seguro: nunca ofrecer una paleta PEOR que el óptimo half-aware.
+	return ehbMSE(bases) <= ehbMSE(base0) ? bases : base0;
+}
 
 // ---------------------------------------------------------------------------
 // Tabla efectiva de colores EN ÍNDICE FINAL
@@ -393,14 +444,18 @@ function reconstructAndCompare(indices, W, H, bank, map, cols, tile) {
 // ---------------------------------------------------------------------------
 function crc32(buf) { let c, t = crc32.table || (crc32.table = new Int32Array(256).map((_, n) => { c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c; })); let crc = -1; for (let i = 0; i < buf.length; i++) crc = (crc >>> 8) ^ t[(crc ^ buf[i]) & 0xff]; return (crc ^ -1) >>> 0; }
 function pngChunk(type, data) { const t = Buffer.from(type, 'ascii'), len = Buffer.alloc(4); len.writeUInt32BE(data.length, 0); const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(Buffer.concat([t, data])), 0); return Buffer.concat([len, t, data, crc]); }
-function writeIndexedPng(filePath, palette, indices, w, h) {
+function writeIndexedPng(filePath, palette, indices, w, h, meta) {
 	const sig = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 	const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 3;
 	const plte = Buffer.alloc(palette.length * 3);
 	palette.forEach((c, i) => { plte[i * 3] = c[0]; plte[i * 3 + 1] = c[1]; plte[i * 3 + 2] = c[2]; });
 	const rows = [];
 	for (let y = 0; y < h; y++) { const r = Buffer.alloc(w + 1); r[0] = 0; for (let x = 0; x < w; x++) r[x + 1] = indices[y * w + x]; rows.push(r); }
-	fs.writeFileSync(filePath, Buffer.concat([sig, pngChunk('IHDR', ihdr), pngChunk('PLTE', plte), pngChunk('IDAT', deflateSync(Buffer.concat(rows))), pngChunk('IEND', Buffer.alloc(0))]));
+	const chunks = [pngChunk('IHDR', ihdr)];
+	// Metadatos de la conversión como tEXt (contenido ASCII: técnica/colores/dither/res).
+	if (meta) chunks.push(pngChunk('tEXt', Buffer.from(`conversion\0${meta}`, 'latin1')));
+	chunks.push(pngChunk('PLTE', plte), pngChunk('IDAT', deflateSync(Buffer.concat(rows))), pngChunk('IEND', Buffer.alloc(0)));
+	fs.writeFileSync(filePath, Buffer.concat([sig, ...chunks]));
 }
 function verifyPng(filePath, palette, indices, w, h) {
 	const d = PNG.sync.read(fs.readFileSync(filePath));
@@ -740,8 +795,9 @@ async function main() {
 	// Guarda la imagen de trabajo (post crop/resize) y sale; útil para demostrar
 	// el redimensionado o preparar una región para inspección.
 	if (has('--emit-source')) {
-		fs.writeFileSync(path.join(outDir, 'source_resized.png'), PNG.sync.write(png));
-		console.log(`[amiga-tiles] --emit-source -> ${path.join(outDir, 'source_resized.png')} (${W}x${H})`);
+		const emName = `source_resized_${W}x${H}_${resample}.png`;
+		fs.writeFileSync(path.join(outDir, emName), PNG.sync.write(png));
+		console.log(`[amiga-tiles] --emit-source -> ${path.join(outDir, emName)} (${W}x${H})`);
 		return;
 	}
 
@@ -809,6 +865,10 @@ async function main() {
 		if (!ehb) console.warn('[warn] --palette bright solo tiene sentido en EHB; se usa median-cut');
 		bases = brightSplit(hist, baseCount); palNote = 'mitad brillante → bases';
 	}
+	else if (palSrc === 'ehb') {
+		if (!ehb) console.warn('[warn] --palette ehb solo tiene sentido en EHB; se usa kmeans half-aware');
+		bases = ehbPaletteBright(hist, baseCount, kIters); palNote = 'EHB half-max (brillos ajustados a los half)';
+	}
 	else if (palSrc === 'popularity') { bases = popularityPalette(hist, baseCount); palNote = 'popularity'; }
 	else if (palSrc === 'cube' || palSrc === 'halftone') { bases = fixedCubePalette(baseCount); palNote = 'malla fija RGB444'; }
 	else if (palSrc === 'grays') { bases = fixedGraysPalette(baseCount); palNote = 'grises'; }
@@ -858,38 +918,45 @@ async function main() {
 	// ---- Salidas ------------------------------------------------------------------
 	const baseName = path.basename(input, path.extname(input));
 	// tilebank.bin (1 B/px, stride fijo) + .h
+	const tech = ehb ? 'ehb' : (palSrc === 'adaptive' ? 'kmeans' : palSrc);
+	const suf = `${colors}c_${tech}_${dither}_${W}x${H}`;
+	const label = `colors=${colors} technique=${tech} dither=${dither} resolution=${W}x${H} palette=${palSrc} alpha=${alpha ? 'yes' : 'no'}`;
+
+	// ---- Salidas ------------------------------------------------------------------
 	const bin = Buffer.alloc(bank.length * tile * tile);
 	for (let i = 0; i < bank.length; i++) for (let q = 0; q < tile * tile; q++) bin[i * tile * tile + q] = bank[i].pix[q];
-	const binPath = path.join(outDir, 'tilebank.bin'); fs.writeFileSync(binPath, bin);
+	const binPath = path.join(outDir, `tilebank_${suf}.bin`); fs.writeFileSync(binPath, bin);
 
 	const hLines = [];
 	hLines.push('// Tilebank indexado generado por tools/amiga-tiles/amiga-tiles.mjs.');
+	hLines.push(`// Conversion: ${label}`);
 	hLines.push(`// ${bits} bits/píxel (${colors} colores${ehb ? ' EHB: 0..31 base, 32..63 half' : ''}), ${alpha ? 'índice 0 = transparente' : 'sin transparencia'}.`);
 	hLines.push(`// ${bank.length} tiles de ${tile}x${tile}, mapa ${cols}x${rows}. Paleta: ${palNote}.`);
+	hLines.push('// Metadatos completos en los ficheros palette_' + suf + '.json y en el tEXt de los PNG.');
 	hLines.push(`static const unsigned char kPalette[${colors * 3}] = {`);
 	for (let r = 0; r < colors; r += 12) hLines.push('  ' + paletteFinal.slice(r, r + 12).map((c) => `${c[0]},${c[1]},${c[2]}`).join(',') + ',');
 	hLines.push('};');
-	hLines.push('// Datos en "tilebank.bin" (incbin). Stride de cada tile = tile*tile bytes.');
+	hLines.push(`// Datos en "tilebank_${suf}.bin" (incbin). Stride de cada tile = tile*tile bytes.`);
 	hLines.push(`static const unsigned short kTileBankStride = ${tile * tile};`);
 	hLines.push(`static const unsigned int kTileBankBytes = ${bin.length};`);
 	hLines.push(`static const unsigned short kTileIndexedMap[${map.length}] = {`);
 	for (let i = 0; i < map.length; i += 24) hLines.push('  ' + map.slice(i, i + 24).join(',') + ',');
 	hLines.push('};');
-	fs.writeFileSync(path.join(outDir, 'tilebank.h'), hLines.join('\n') + '\n', 'utf8');
+	fs.writeFileSync(path.join(outDir, `tilebank_${suf}.h`), hLines.join('\n') + '\n', 'utf8');
 
 	// palette.json / palette.h
-	const palJson = JSON.stringify({ tile, cols, rows, colors, bits, ehb, alpha, method: palNote, palette: paletteFinal, bank: bank.map((b, i) => ({ pix: [...b.pix] })), map, stats: { unique: bank.length, cells: cols * rows } }, null, 2);
-	fs.writeFileSync(path.join(outDir, 'palette.json'), palJson, 'utf8');
+	const palJson = JSON.stringify({ name: suf, label: label, tile, cols, rows, colors, bits, ehb, alpha, method: palNote, palette: paletteFinal, bank: bank.map((b, i) => ({ pix: [...b.pix] })), map, stats: { unique: bank.length, cells: cols * rows } }, null, 2);
+	fs.writeFileSync(path.join(outDir, `palette_${suf}.json`), palJson, 'utf8');
 	const words = paletteFinal.map(to444);
-	const phLines = ['// Paleta Amiga (0x0RGB). ' + (ehb ? 'EHB: bases 0..31, half 32..63 generados por hardware.' : `${colors} colores.`)];
+	const phLines = ['// Paleta Amiga (0x0RGB). Conversion: ' + label, '// ' + (ehb ? 'EHB: bases 0..31, half 32..63 generados por hardware.' : `${colors} colores.`)];
 	for (let r = 0; r < colors; r += 8) phLines.push('    ' + words.slice(r, r + 8).map((w) => `0x${w.toString(16).padStart(3, '0')}`).join(', ') + ',');
-	fs.writeFileSync(path.join(outDir, 'palette.h'), phLines.join('\n') + '\n', 'utf8');
+	fs.writeFileSync(path.join(outDir, `palette_${suf}.h`), phLines.join('\n') + '\n', 'utf8');
 
-	// PNG indexados + verificación round-trip
-	const reconPng = path.join(outDir, 'reconstruct.png');
-	writeIndexedPng(reconPng, paletteFinal, cmp.recon, W, H);
+	// PNG indexados + verificación round-trip (con tEXt de conversión)
+	const reconPng = path.join(outDir, `reconstruct_${suf}.png`);
+	writeIndexedPng(reconPng, paletteFinal, cmp.recon, W, H, label);
 	const rv = verifyPng(reconPng, paletteFinal, cmp.recon, W, H);
-	console.log(`[verify] reconstruct.png colorType=${rv.colorType} roundtripDiffs=${rv.dif} -> ${rv.dif === 0 ? 'OK' : 'FALLO'}`);
+	console.log(`[verify] ${path.basename(reconPng)} colorType=${rv.colorType} roundtripDiffs=${rv.dif} -> ${rv.dif === 0 ? 'OK' : 'FALLO'}`);
 
 	const perRow = Math.max(1, Math.floor((W / tile) / sheetScale));
 	const sw = tile * sheetScale;
@@ -902,21 +969,22 @@ async function main() {
 			for (let dy = 0; dy < sheetScale; dy++) for (let dx = 0; dx < sheetScale; dx++) inds[(oy + yy * sheetScale + dy) * cW + (ox + xx * sheetScale + dx)] = v;
 		}
 	}
-	const sheetPath = path.join(outDir, 'tilebank.png');
-	writeIndexedPng(sheetPath, paletteFinal, inds, cW, cH);
+	const sheetPath = path.join(outDir, `tilebank_${suf}.png`);
+	writeIndexedPng(sheetPath, paletteFinal, inds, cW, cH, label);
 	const sv = verifyPng(sheetPath, paletteFinal, inds, cW, cH);
-	console.log(`[verify] tilebank.png colorType=${sv.colorType} roundtripDiffs=${sv.dif} -> ${sv.dif === 0 ? 'OK' : 'FALLO'}`);
+	console.log(`[verify] ${path.basename(sheetPath)} colorType=${sv.colorType} roundtripDiffs=${sv.dif} -> ${sv.dif === 0 ? 'OK' : 'FALLO'}`);
 
 	// Banco X-Limited opcional
 	if (emitXl) {
 		const xl = emitXlimitedBank(bank, tile, colors, 320);
-		const xlPath = path.join(outDir, 'tilebank.xlimited.bin');
+		const xlPath = path.join(outDir, `tilebank_xlimited_${colors}c_${tech}.bin`);
 		fs.writeFileSync(xlPath, xl.data);
 		const xlh = [`// Banco X-Limited interleaved (320 px ancho, ${bits} planos). Generado por amiga-tiles.`,
+			`// Conversion: ${label}`,
 			`// ${bank.length} tiles de ${tile}x${tile}; tile -> (t%${320 / tile}, t/${320 / tile}).`,
 			'extern "C" const unsigned char g_tilebank_xlimited[];',
 			'extern "C" const unsigned int g_tilebank_xlimited_size;', ''].join('\n');
-		fs.writeFileSync(path.join(outDir, 'tilebank.xlimited.h'), xlh, 'utf8');
+		fs.writeFileSync(path.join(outDir, `tilebank_xlimited_${colors}c_${tech}.h`), xlh, 'utf8');
 		console.log(`[amiga-tiles] banco X-Limited -> ${xlPath} (${xl.data.length} B, ${xl.height} planelíneas)`);
 	}
 
@@ -932,7 +1000,7 @@ async function main() {
 	const psnr = 10 * Math.log10(255 * 255 * 3 / (mse + 1e-9));
 	console.log(`[amiga-tiles] OK -> ${outDir}`);
 	console.log(`[amiga-tiles] paleta ${palNote} · ${colors} colores (${bits} bits${ehb ? '/EHB' : ''}) · dither=${dither}(${strength}) · MSE=${mse.toFixed(1)} PSNR=${psnr.toFixed(1)} dB`);
-	console.log(`[amiga-tiles] salidas: tilebank.h/.bin, palette.json/.h, reconstruct.png, tilebank.png${emitXl ? ', tilebank.xlimited.bin/.h' : ''}`);
+	console.log(`[amiga-tiles] salidas (sufijo ${suf}): reconstruct_${suf}.png, tilebank_${suf}.png/.bin/.h, palette_${suf}.json/.h${emitXl ? `, tilebank_xlimited_${colors}c_${tech}.bin/.h` : ''}`);
 
 	// Descripción con ollama local (opcional). Envía la imagen FINAL de trabajo.
 	if (has('--describe')) {

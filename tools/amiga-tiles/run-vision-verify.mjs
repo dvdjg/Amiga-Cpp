@@ -75,7 +75,7 @@ function walkImgs(dir) {
 	return out;
 }
 function isSource(f) { return !f.includes('/') && !/^\./.test(f); }
-function isDest(f) { return /(^|\/)(reconstruct|tilebank|bands_preview)\.png$/.test(f) || /(^|\/)source_resized\.png$/.test(f); }
+function isDest(f) { return /(^|\/)(reconstruct|tilebank|bands_preview|source_resized)[_.]/.test(f); }
 
 // Montaje ORIGEN | RESULTADO (escala §1 a máx 640 px de ancho cada lado; hueco 8 px).
 function makePair(aName, aBytes, bBytes) {
