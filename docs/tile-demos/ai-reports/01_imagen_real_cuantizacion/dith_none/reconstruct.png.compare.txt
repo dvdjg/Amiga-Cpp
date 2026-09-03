@@ -1,0 +1,1 @@
+No, no se corresponden. La derecha muestra evidente banding y pérdida de detalle en la piel y músculos. Los colores son más saturados y uniformes, con menos gradiente natural. Se aprecian artefactos de cuantización en sombras y reflejos. La textura general es más "pixelada" y menos realista.

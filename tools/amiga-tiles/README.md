@@ -1,0 +1,253 @@
+# amiga-tiles — convierte un bitmap o atlas de tiles a tilebank indexado del Amiga
+
+Un único script Node que toma un PNG y produce un **tilebank indexado** listo para
+incbinar/incrustar en un programa de Amiga, junto con su paleta, su tabla de índices
+y una reconstrucción comprobada. Es la evolución (todo en uno) del antiguo conjunto
+`tools/ehb`, generalizada a **2..255 colores (64 = EHB)**, con o sin transparencia,
+con varios dithering, redimensionado de calidad y varios criterios de paleta.
+
+```
+node tools/amiga-tiles/amiga-tiles.mjs <imagen.png> [opciones]
+```
+
+Ejemplos y cada opción abajo. El propio archivo es un tutorial; el código está
+comentado en español.
+
+## Qué hace exactamente
+
+1. **Lee el PNG** y detecta transparencia (píxeles con alfa < 128).
+2. **Decide la profundidad** (auto o `--colors`): 4, 8, 16, 32 o 64 (EHB).
+3. **Elige la paleta** (adaptada a la imagen, externa o fija, ver más abajo).
+4. **Cuantiza** cada píxel al color representable más cercano, **opcionalmente con
+   dithering** (error diffusion o matricial).
+5. **Corta en tiles** (por defecto 16×16), elimina duplicados exactos (dedupe) o
+   fusiona similares (`--merge`).
+6. **Reconstruye la imagen solo con banco+tabla** y la **compara al 100%** con el
+   original ya cuantizado (assert: sin fusión debe cuadrar exacta).
+7. **Exporta**: `tilebank.h` + `tilebank.bin` (incrustables), `palette.json/.h`,
+   `reconstruct.png` y `tilebank.png`, y opcionalmente el banco interleaved
+   X-Limited.
+
+## Uso rápido con el asset de ejemplo
+
+El repositorio incluye `assets/Beginning Fields.png` (un atlas 640×640 = 40×40 tiles
+de 16×16 sacado de *The Fan-tasy Tileset*). Con él:
+
+```bash
+# EHB (64 = 32 base + half), paleta kmeans half-aware, dedupe.
+node tools/amiga-tiles/amiga-tiles.mjs tools/amiga-tiles/assets/Beginning\ Fields.png
+
+# 16 colores con dithering Floyd–Steinberg.
+node tools/amiga-tiles/amiga-tiles.mjs tools/amiga-tiles/assets/Beginning\ Fields.png \
+  --colors 16 --dither floyd --out out/mi_map_16c
+
+# 8 colores, dithering matricial (Bayer) y paleta median-cut.
+node tools/amiga-tiles/amiga-tiles.mjs tools/amiga-tiles/assets/Beginning\ Fields.png \
+  --colors 8 --palette mediancut --dither bayer --out out/mi_map_8c
+
+# Imagen real: redimensionada a ~300 KB de índice y cuantizada a 31 colores.
+node tools/amiga-tiles/amiga-tiles.mjs foto.png --max-ram 300000 --resample lanczos \
+  --colors 31 --dither floyd --out out/foto
+```
+
+Salida por defecto en `out/` junto a la imagen, o donde diga `--out`.
+
+## Salidas
+
+| Archivo | Contenido |
+|---|---|
+| `tilebank.h` | `kPalette[colors·3]`, `kTileBankStride`, `kTileBankBytes`, `kTileIndexedMap[...]` (celda → índice de banco). |
+| `tilebank.bin` | 1 byte por píxel, stride fijo `tile*tile` por tile; listo para `incbin`. |
+| `palette.json` | Metadatos + `palette` (orden final de índices) + `bank` + `map` + `stats`. |
+| `palette.h` | Paleta en palabras Amiga `0x0RGB`. |
+| `reconstruct.png` | La imagen que se obtiene en el Amiga dibujando `banco[kIndexedMap]`. |
+| `tilebank.png` | Hoja de contacto con los tiles únicos (para inspección). |
+| `tilebank.xlimited.bin/.h` | Solo con `--xlimited`: banco interleaved de 320 px para el engine X-Limited. |
+
+## Modos de color y transparencia
+
+- `--colors N` fija el número de colores de la paleta, **N en 2..255** (2, 3, 4, 5 o
+  6 bits por píxel según `ceil(log2 N)`). Casos típicos: 4, 8, 16, 31 (reserva 1
+  slot: 30 usados), 32, 64, 127…
+- Con **`--colors 64`** se activa **EHB**: se eligen 32 bases y el hardware genera
+  los 32 half (base/2 cada componente).
+- Sin `--colors` se elige automáticamente según los colores únicos del original:
+  ≤4 → 4, ≤8 → 8, ≤16 → 16, ≤32 → 32, si no → 64 EHB.
+- `--alpha` / `--no-alpha`: reservan (o no) el **índice 0 para transparencia**. Sin
+  flag se **autodetecta** (reserva si ≥0,5 % de píxeles transparentes).
+  Con alfa, los colores reales son `colors-1` (EHB: bases 1..31 y sus halves).
+
+## Dithering
+
+- `--dither none` (por defecto): estricto, cada píxel va al color más cercano.
+  Es el que **mantiene el dedupe de tiles** (reconstrucción al 100 %).
+- `--dither floyd`: error diffusion de Floyd–Steinberg (bueno para fotos gradadas).
+- `--dither atkinson`: Atkinson (textura con menos valores medios).
+- `--dither bayer`: matricial 4×4 (rápido, patrón regular).
+- `--dither-strength 0..1` escala la difusión (1 = total, 0 = como `none`).
+
+El dithering rompe el "100 %" del dedupe en zonas que eran idénticas en el original
+(cada píxel oscila entre dos índices). Es el compromiso esperado: **dithering para
+fotos o degradados, `none` para tilemaps/pixel-art**.
+
+## Paletas
+
+`--palette <fuente>` acepta cuatro familias:
+
+1. **Adaptativas (a la imagen):**
+   - `kmeans` (por defecto): k-means. En EHB usa la distancia **half-aware**
+     `min(dist(color), dist(half(base)))`, la variante clásica de cuantizar
+     pensando en que existirán las versiones a media intensidad.
+   - `mediancut`: algoritmo de Heckbert (cajas por rango de canal). Sólido para
+     16/32 colores.
+   - `bright`: solo EHB. Cuantiza la **mitad más brillante** de la imagen a las 32
+     bases y deja que los half cubran la parte oscura (excelente para imágenes con
+     alto rango dinámico).
+   - `popularity`: los `N` colores más frecuentes del histograma (rápido, calidad
+     baja).
+2. **Externa:** cualquier archivo JSON `{"colors":[[r,g,b],…]}` (o array directo).
+   Se ajusta a `colors` exactos; si trae más se recorta, si trae menos se rellena
+   con grises.
+   ```
+   node tools/amiga-tiles/amiga-tiles.mjs img.png --colors 16 --palette mi_paleta.json
+   ```
+3. **Fijas** (no dependen de la imagen, tipo "halftone"):
+   - `cube` (alias `halftone`): malla regular en RGB444 (q³ del cubo + grises +
+     primarios), una "web-safe" adaptada a 4 bits por componente.
+   - `grays`: rampa de grises.
+4. `--sort none|luminance` ordena la paleta (por defecto por luminosidad; útil para
+   encontrar índices a simple vista).
+
+### Estrategia EHB en una línea
+
+En EHB conviene elegir los 32 bases sabiendo que también existen sus versiones a
+mitad de brillo. `kmeans` integra esa idea en la distancia; `bright` explota el
+opuesto (bases = zona clara, half = sombras). Para 32/16 colores sin EHB,
+`mediancut` o `kmeans` + `--dither floyd` dan muy buenos resultados.
+
+## Verificación y evidencia
+
+- El paso **COMPARAR** compara el original ya cuantizado contra la reconstrucción
+  `banco[kIndexedMap]` **índice a índice** (mismo espacio). Sin fusión debe dar
+  **100.00 %**; si no, la tool aborta. Con dithering el dato que se compara es la
+  imagen cuantizada **con** dither, que es la que de verdad se dibujará.
+- Los dos PNG se generan con **encoder indexado propio** (PLTE+IDAT+crc32) y se
+  verifican con round-trip (`colorType=3`, 0 diferencias).
+- Depuración visual: abre `reconstruct.png` (lo que verá el Amiga) junto a la
+  fuente original.
+
+## Integración en una demo (mínima)
+
+```cpp
+#include "tilebank.h"                     // kPalette, kTileBankStride, kTileIndexedMap
+extern const unsigned char g_tilebank_bin[];   // incbin de tilebank.bin (o Copyload a Chip)
+
+// Para dibujar la celda (tx,ty): el tile es kTileIndexedMap[ty*cols+tx] y sus
+// índices están en g_tilebank_bin + tile_idx * kTileBankStride.
+```
+Cada start-up en el Amiga carga `kPalette` en los registros de color (0..colors-1;
+en EHB solo las 32 bases porque los half los genera el hardware) y el banco en Chip
+RAM con `incbin` en una sección `.MEMF_CHIP` (receta en `demos/201_ehb_map/src/main.cpp`).
+
+## Redimensionado de calidad y recortes
+
+Antes de cuantizar se puede **ajustar la resolución** y/o **recortar**:
+
+- `--resize WxH` fija el tamaño exacto (se ajusta al múltiplo de tile más próximo).
+- `--max-area N` / `--max-ram N` redimensionan a un ÁREA objetivo preservando el
+  aspecto (para que un buffer de índices a 1 B/píxel quepa en N bytes de RAM, por
+  ejemplo `--max-ram 300000` ≈ 300 KB).
+- `--resample metodo` elige el algoritmo: **lanczos** (mejor calidad, por defecto),
+  **area** (caja, ideal para reducciones), **bilinear** o **nearest**.
+- `--crop X,Y,W,H` recorta una región (útil para trocear un fondo y cuantizar planos).
+- `--emit-source` guarda solo la imagen de trabajo (post crop/resize) en
+  `<out>/source_resized.png` y sale; sirve para inspeccionar/preparar la región.
+
+## Fondo continuo → bandas (Metal Slug)
+
+- `--extract-bands DIR [--band-jump 60] [--band-step 32] [--band-align 16]` parte una
+  imagen en BANDAS horizontales separando por saltos del color medio por fila (los
+  "planos" de un fondo scrolling continuo). Escribe cada banda como PNG, `bands.json`
+  con los rects y `bands_preview.png`. Útil para trocear un fondo largo y cuantizar
+  cada plano por separado (ver `run-demos.mjs` demo 04/05).
+
+## Descripción con ollama local (visión)
+
+- `--describe` envía la imagen final de trabajo a un **modelo de visión local** y
+  guarda la descripción en `<out>/image_description.txt`.
+- `--model MODEL` (defecto `qwen3-vl:8b-instruct-q8_0`), `--ollama-base URL`
+  (defecto `http://127.0.0.1:11434`) y `--ollama-tokens N`.
+
+```bash
+node tools/amiga-tiles/amiga-tiles.mjs imagen.png --colors 64 --describe --model qwen3-vl:8b-instruct-q8_0
+```
+
+## Recortar según propuestas del VLM (`--ops ops.txt`)
+
+Ejecuta las propuestas del modelo de visión: lee el `<origen>.ops.txt` generado por
+`run-vision-verify.mjs`, **extrae cada trozo** que el modelo propuso (coordenadas en %,
+el parser tolera `0-15% (X), 0-30% (Y)` y `35%-65% en X, 15%-45% en Y`) y **aplica el
+color transparente** sugerido (los píxeles de ese color pasan a alfa 0).
+
+```bash
+node tools/amiga-tiles/amiga-tiles.mjs source.png --ops source.png.ops.txt --out out/ops
+# -> out/ops/extract/ops_00_<nombre>.png … + ops.json
+```
+
+## Notas
+
+- Dependencias: `pngjs` y `jpeg-js` (ya en `node_modules` del repo). La entrada puede
+  ser **PNG o JPEG** (la decodificación JPG la hace `jpeg-js`, sin herramientas
+  externas ni .NET).
+- **Atkinson**: implementado con su reparto en 6 vecinos pero NORMALIZADO (suma de
+  pesos = 1, div = nº de taps); el clásico pierde 1/4 del error y, con paletas
+  escasas, puede quedar indistinguible de `none`. Aún así, con 16 colores en una foto
+  compleja su efecto es sutil (reparte el error hacia abajo, poco acoplamiento
+  hacia delante); para fotos usa `floyd`.
+- Todo el código ES6/ESM, sin dependencias de TypeScript ni compilación.
+- El asset `assets/Beginning Fields.png` es solo un ejemplo; la ruta original fuera
+  del repo es `C:/Users/dvdjg/Documents/programa/Assets/2D/The Fan-tasy Tileset
+  (Free)/Tiled/Tilemaps/Beginning Fields.png`.
+
+## Demostraciones
+
+`node tools/amiga-tiles/run-demos.mjs` regenera **`out/tile-demos/`**, una carpeta
+por algoritmo con la imagen fuente, los resultados (imágenes, índices, paletas,
+headers y binarios) y su `README.md`:
+
+- `01_imagen_real_cuantizacion` — imagen real (JPEG) a 16 colores, dither none/floyd/atkinson.
+- `02_redimensionado_calidad` — Lanczos vs area vs bilineal vs vecino.
+- `03_tiling_dedupe` — tilebank por dedupe exacto y fusión 0.95.
+- `04_metalslug_bandas` — extracción de planos del fondo de Metal Slug.
+- `05_metalslug_cuantizacion` — EHB / 31 / 15 / 7 colores sobre dos regiones.
+- `06_descripciones_ollama` — descripciones de los assets con el modelo de visión.
+- `07_tiles_32x32` — tiles 32×32 y detección de "sin patrón de repetición".
+
+## Verificación automática con IA de visión (ollama local)
+
+`node tools/amiga-tiles/run-vision-verify.mjs` **detecta** si hay ollama local con un
+modelo de visión instalado y, si lo hay, por cada demo hace SIEMPRE tres cosas:
+
+1. **Describe** la imagen **origen** y cada **resultado** (`reconstruct.png`,
+   `tilebank.png`, `bands_preview.png`, `source_resized.png`).
+2. **Corresponde origen|resultado**: monta la imagen ORIGEN y el RESULTADO lado a
+   lado y pregunta al modelo si se corresponden y qué diferencias/artefactos ve
+   (el montaje evita que qwen3-vl funda dos imágenes en un solo mensaje).
+3. **Propone operaciones de assets**: pide al modelo qué haría con el ORIGEN para
+   preparar assets de juego — recortar y extraer trozos si ve varios dibujos
+   independientes sobre un fondo común (coordenadas aproximadas en %), color para
+   usar como transparente, paleta/EHB, remuestreo, tamaño de tile, separación de
+   planos, offsets…
+
+Guarda `<imagen>.vision.txt`, `<origen>.ops.txt`, `<resultado>.compare.txt`, un
+`vision_report.md` por carpeta y el resumen global `VISION_SUMMARY.md`.
+
+```bash
+node tools/amiga-tiles/run-vision-verify.mjs            # auto: ollama+visión, describe, compara y propone
+node tools/amiga-tiles/run-vision-verify.mjs --resume   # reusa lo ya generado
+node tools/amiga-tiles/run-vision-verify.mjs --folder 03_tiling_dedupe
+node tools/amiga-tiles/run-vision-verify.mjs --all --limit 20
+```
+
+Si no hay ollama o no tiene modelo de visión, el script avisa y termina sin inventar
+nada (no gasta tokens).
