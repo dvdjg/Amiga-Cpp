@@ -1426,6 +1426,16 @@ private:
             // abierta al total (la escena la configura así con HUD).
             const u16 hud_raster = static_cast<u16>((m_cfg.diwstrt >> 8u) + view.viewport_h);
             sched.wait_line(hud_raster > 0xffu ? 0xffu : static_cast<u8>(hud_raster));
+            // La zona HUD puede tener MENOS planos que el playfield de scroll y
+            // modo EHB distinto (p. ej. scroll EHB de 6 planos + HUD de 4 sin
+            // EHB). Hay que volver a programar BPLCON0 con el nº de planos del
+            // HUD y BPLCON4=0 (sin EHB): si no, los planos sobrantes siguen
+            // escaneando el riñón del mapa y el bit half/EHB mezcla colores en la
+            // franja (se veía el fondo 0x844 a la vez normal y atenuado a la
+            // mitad + colores del mapa filtrando).
+            sched.move(copper::Register::BPLCON0,
+                static_cast<u16>(0x0200u | (static_cast<u16>(hud->view.planes) << 12u)));
+            sched.move(copper::Register::BPLCON4, 0x0000u);
             sched.move(copper::Register::BPLCON1, 0x0000);
             sched.move(copper::Register::BPL1MOD, hud->view.bpl1mod);
             sched.move(copper::Register::BPL2MOD, hud->view.bpl2mod);

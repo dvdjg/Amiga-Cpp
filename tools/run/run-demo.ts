@@ -839,7 +839,10 @@ const startupPath = path.join(dh0, 's/startup-sequence');
 fs.mkdirSync(path.dirname(startupPath), { recursive: true });
 
 const previousStartup = fs.existsSync(startupPath) ? fs.readFileSync(startupPath, 'utf8') : null;
-fs.writeFileSync(startupPath, 'cd dh1:\n:a.exe\n', 'utf8');
+// Las demos pesadas (p. ej. 201 con 6 planos y cientos de tiles) desbordan el
+// stack por defecto del Shell (~8 KB) durante la init y fallan con un fault de
+// CPU (pc=0xffffffff) antes de READY. Fijamos un stack generoso de 128 KB.
+fs.writeFileSync(startupPath, 'stack 131072\ncd dh1:\n:a.exe\n', 'utf8');
 
 const baseConfigPath = path.join(root, 'config/mcp-amiga-c-debug.uae');
 const runnerConfigPath = path.join(outputDir, 'runner.uae');
