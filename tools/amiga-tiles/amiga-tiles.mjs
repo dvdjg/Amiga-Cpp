@@ -336,19 +336,25 @@ function atkinsonCoeffs(w, h, strength) {
 const BAYER4 = [
 	[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5],
 ];
-function quantizeIndexed(png, table, alpha, dither, strength) {
+function quantizeIndexed(png, table, alpha, dither, strength, opts) {
+	const { deadband = 0, clamp = 0, serpentine = false } = opts || {};
 	const W = png.width, H = png.height;
 	const out = new Uint8Array(W * H);
 	const rgb = new Float32Array(W * H * 3); // error buffer
 	const nearest = (c) => { const e = nearestInTable(table, c); return e.transparent ? 0 : e.index; };
 	const mode = dither === 'none' ? null : dither;
+	const serpent = serpentine && (mode === 'floyd' || mode === 'atkinson');
+	const clampErr = (v) => clamp > 0 ? (v < -clamp ? -clamp : v > clamp ? clamp : v) : v;
 	for (let y = 0; y < H; y++) {
-		for (let x = 0; x < W; x++) {
+		// Serpentine: las filas pares van L→R y las impares R→L (se rompen los worms).
+		const ltr = !serpent || (y & 1) === 0;
+		const x0 = ltr ? 0 : W - 1, x1 = ltr ? W : -1, xs = ltr ? 1 : -1;
+		for (let x = x0; x !== x1; x += xs) {
 			const c0 = pixel(png, x, y);
 			const o = y * W + x;
 			if (alpha && c0[3] < 128) { out[o] = 0; continue; } // transparente: no difunde
 			const eo = o * 3;
-			let c = [clamp8(c0[0] + rgb[eo]), clamp8(c0[1] + rgb[eo + 1]), clamp8(c0[2] + rgb[eo + 2])];
+			let c = [clamp8(c0[0] + clampErr(rgb[eo])), clamp8(c0[1] + clampErr(rgb[eo + 1])), clamp8(c0[2] + clampErr(rgb[eo + 2]))];
 			let idx;
 			if (mode === 'bayer') {
 				const th = BAYER4[y & 3][x & 3];
@@ -363,15 +369,24 @@ function quantizeIndexed(png, table, alpha, dither, strength) {
 				idx = eSel.index;
 				const target = eSel.rgb;
 				const err = [c[0] - target[0], c[1] - target[1], c[2] - target[2]];
-				const diff = mode === 'floyd' ? floydCoeffs() : atkinsonCoeffs();
-				for (const [dx, dy, wgt] of diff.dxdy) {
-					const nx = x + dx, ny = y + dy;
-					if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
-					if (alpha && pixel(png, nx, ny)[3] < 128) continue; // no difundir sobre transparente
-					const no = (ny * W + nx) * 3;
-					rgb[no] += err[0] * (wgt / diff.div) * strength;
-					rgb[no + 1] += err[1] * (wgt / diff.div) * strength;
-					rgb[no + 2] += err[2] * (wgt / diff.div) * strength;
+				// DEADBAND: si el error es mínimo (zona plana casi uniforme), NO se
+				// propaga → el cielo/zonas lisas quedan con un color limpio en lugar
+				// de punteado entre dos colores de brillo muy distinto (artefacto
+				// clásico de error diffusion). Solo difumina donde realmente hay
+				// gradiente (error grande).
+				const emag = Math.sqrt(err[0] * err[0] + err[1] * err[1] + err[2] * err[2]);
+				if (deadband <= 0 || emag >= deadband) {
+					const diff = mode === 'floyd' ? floydCoeffs() : atkinsonCoeffs();
+					for (const [dx0, dy, wgt] of diff.dxdy) {
+						const dx = (ltr || !serpent) ? dx0 : -dx0; // serpentina: espejo horizontal
+						const nx = x + dx, ny = y + dy;
+						if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+						if (alpha && pixel(png, nx, ny)[3] < 128) continue; // no difundir sobre transparente
+						const no = (ny * W + nx) * 3;
+						rgb[no] += err[0] * (wgt / diff.div) * strength;
+						rgb[no + 1] += err[1] * (wgt / diff.div) * strength;
+						rgb[no + 2] += err[2] * (wgt / diff.div) * strength;
+					}
 				}
 			}
 			out[o] = idx;
@@ -723,9 +738,20 @@ async function main() {
 
 	const colorsArg = intArg('--colors', 0);
 	const flagsShort = has('--no-alpha') ? 'none' : (has('--alpha') ? 'always' : 'auto');
-	const dither = arg('--dither', 'none');
-	if (!['none', 'floyd', 'atkinson', 'bayer'].includes(dither)) fail(`--dither inválido: ${dither}`);
+	let dither = arg('--dither', 'none');
+	let ditherDeadband = Math.max(0, floatArg('--dither-threshold', 0)); // no difundir errores < umbral (zonas planas)
+	let ditherClamp = Math.max(0, floatArg('--dither-clamp', 0));        // capa el error acumulado por canal
+	let serpentineMode = has('--serpentine');                            // escaneo en zigzag (rompe gusanos)
 	const strength = Math.max(0, Math.min(1, floatArg('--dither-strength', 1)));
+	// 'best' = Floyd + serpentina + deadband + clamp: ideal para fotos continuas
+	// (evita el punteado visible en zonas planas de color casi uniforme, p. ej. cielos).
+	if (dither === 'best') {
+		dither = 'floyd';
+		if (!has('--dither-threshold')) ditherDeadband = 14;
+		if (!has('--dither-clamp')) ditherClamp = 16;
+		if (!has('--serpentine')) serpentineMode = true;
+	}
+	if (!['none', 'floyd', 'atkinson', 'bayer'].includes(dither)) fail(`--dither inválido: ${dither}`);
 	const palSrc = arg('--palette', 'adaptive');
 	const sortPal = arg('--sort', 'luminance');
 	const tile = Math.max(1, intArg('--tile', 16));
@@ -892,7 +918,7 @@ async function main() {
 	const paletteFinal = tableAsPalette(table);
 
 	// ---- Cuantización + dithering ------------------------------------------------
-	const indexed = quantizeIndexed(png, table, alpha, dither, strength);
+	const indexed = quantizeIndexed(png, table, alpha, dither, strength, { deadband: ditherDeadband, clamp: ditherClamp, serpentine: serpentineMode });
 
 	// ---- Slice / dedupe / merge / comparar ---------------------------------------
 	let { bank, map, cols, rows } = sliceTiles(indexed, W, H, tile);
@@ -919,8 +945,14 @@ async function main() {
 	const baseName = path.basename(input, path.extname(input));
 	// tilebank.bin (1 B/px, stride fijo) + .h
 	const tech = ehb ? 'ehb' : (palSrc === 'adaptive' ? 'kmeans' : palSrc);
-	const suf = `${colors}c_${tech}_${dither}_${W}x${H}`;
-	const label = `colors=${colors} technique=${tech} dither=${dither} resolution=${W}x${H} palette=${palSrc} alpha=${alpha ? 'yes' : 'no'}`;
+	let suf = `${colors}c_${tech}_${dither}_${W}x${H}`;
+	if (serpentineMode) suf += '_serp';
+	if (ditherDeadband > 0) suf += `_dth${Math.round(ditherDeadband)}`;
+	if (ditherClamp > 0) suf += `_cl${Math.round(ditherClamp)}`;
+	let label = `colors=${colors} technique=${tech} dither=${dither} resolution=${W}x${H} palette=${palSrc} alpha=${alpha ? 'yes' : 'no'}`;
+	if (serpentineMode) label += ' serpentine=yes';
+	if (ditherDeadband > 0) label += ` threshold=${ditherDeadband.toFixed(1)}`;
+	if (ditherClamp > 0) label += ` clamp=${ditherClamp.toFixed(0)}`;
 
 	// ---- Salidas ------------------------------------------------------------------
 	const bin = Buffer.alloc(bank.length * tile * tile);
