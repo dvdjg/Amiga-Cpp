@@ -510,16 +510,6 @@ public:
     const u16* debug_active_copper() const {
         return m_cfg.dual ? nullptr : m_single.debug_active_copper();
     }
-    /// Depuración: parámetros runtime de la zona HUD (para canal lateral).
-    constexpr u8 debug_hud_planes() const {
-        return m_cfg.dual ? 0 : m_single.debug_hud_planes();
-    }
-    constexpr u16 debug_hud_raster() const {
-        return m_cfg.dual ? 0 : m_single.debug_hud_raster();
-    }
-    constexpr u16 debug_main_h() const {
-        return m_cfg.dual ? 0 : m_single.debug_main_h();
-    }
     /// ¿El split es siempre esperable con esta configuración (viewport <= 215)?
     /// Si es true, `linear_display` es innecesario: el modo split canónico usa
     /// 1 blit por operación y no tiene artefacto.
