@@ -1342,10 +1342,6 @@ public:
     const u16* debug_active_copper() const {
         return m_copper_initialized ? static_cast<const u16*>(m_copper_blocks[m_active].data) : nullptr;
     }
-    /// Depuración: valores runtime que determinan la zona HUD (último emit_full).
-    constexpr u8 debug_hud_planes() const { return m_dbg_hud_planes; }
-    constexpr u16 debug_hud_raster() const { return m_dbg_hud_raster; }
-    constexpr u16 debug_main_h() const { return m_dbg_main_h; }
 
 private:
     static constexpr u16 pointer_high_word(u8 plane) {
@@ -1373,7 +1369,6 @@ private:
         copper::Scheduler sched { m_copper_blocks[block] };
         const u16 bplcon0 = static_cast<u16>(
             0x0200u | (static_cast<u16>(view.planes) << 12u));
-        m_dbg_main_h = view.viewport_h;
         sched.move(copper::Register::DMACON,
             static_cast<u16>(copper::DmaSetClear | copper::DmaMaster |
                              copper::DmaCopper | copper::DmaBitplane |
@@ -1430,8 +1425,6 @@ private:
             // del HUD en el raster `DIWSTRT_y + main`. La ventana DIW ya está
             // abierta al total (la escena la configura así con HUD).
             const u16 hud_raster = static_cast<u16>((m_cfg.diwstrt >> 8u) + view.viewport_h);
-            m_dbg_hud_planes = hud->view.planes;
-            m_dbg_hud_raster = hud_raster;
             sched.wait_line(hud_raster > 0xffu ? 0xffu : static_cast<u8>(hud_raster));
             // La zona HUD puede tener MENOS planos que el playfield de scroll y
             // modo EHB distinto (p. ej. scroll EHB de 6 planos + HUD de 4 sin
@@ -1477,9 +1470,6 @@ private:
     bool m_initialized = false;
     bool m_copper_initialized = false;
     bool m_ok = false;
-    u8 m_dbg_hud_planes = 0;
-    u16 m_dbg_hud_raster = 0;
-    u16 m_dbg_main_h = 0;
 };
 
 /// Compositor dual playfield (DPF 3+3) para dos `XLimitedPlayfield` (corkscrew).

@@ -33,6 +33,57 @@ reusable al engine y luego se hace el DPF en 202.
 > `xlimited_scene.hpp:262`). Pendiente validar explícitamente los dos caminos (cuadrado y
 > circular) con telemetría/captura temporal y confirmar 50 fps en el caso de transición.
 
+> ## Resuelto 2026-09-03 (II) — franja HUD de la 201: fix `hud_planes=6` validado + regresión 107 sin regresión + cierre del caso
+>
+> **Qué se arregló y su evidencia (causa: la 201 es EHB de 6 planos y el `scene_cfg` traía
+> `hud_planes` heredado).** La demo 201 muestra el **mapa EHB** (BPLCON4=1, 6 planes) y
+> dentro de él una **zona HUD de 48 px** (`hud_raster=249`) donde el engine debe **apagar el
+> EHB** para renderizar el HUD con su propia paleta. El `scene_cfg.hud_planes` estaba mal
+> (se heredó de una config de 4 planos) y la zona HUD no cuadraba con el canvas del HUD
+> `draw_hud` (que pinta fondo negro + 3 líneas de texto). El fix es **`hud_planes=6`**
+> (`demos/201_ehb_map/src/main.cpp`, `scene_cfg`), que hace que la zona HUD del copper
+> emigre a planos 1-6 y apague el EHB (BPLCON4=0) correctamente.
+>
+> **Evidencia concluyente (3 vías independientes):** (1) dump real del copper de la zona HUD
+> (`ptrscan.mjs`): `WAIT vpos=249` → `BPLCON0=0x6200` (6 pl), `BPLCON4=0x0000` (EHB off),
+> `BPLCON1=0` y los 6 `BPL1PT..6PT` al canvas HUD `0x4b670..0x4b738`; la zona *main* mantiene
+> `BPLCON4=0x0001` (EHB on). (2) Histograma de la captura (filas de texto del HUD ~480-515
+> negro al 87-100 %, marrón 0). (3) Ollama local `qwen3-vl:8b-instruct-q8_0`: "franja HUD con
+> fondo NEGRO". El marrón `0x844` observado antes en filas 448-479/516-533 es el **borde
+> inferior del mapa EHB** (BPLCON4=1), contenido legítimo, no una fuga de los planos 5-6 del
+> HUD.
+>
+> **Regresión 107: sin regresión.** Build `--clean` OK (solo el warning benigno
+> `sign-compare` en `xlimited_scene.hpp:262`), run+captura OK con fallback. El patrón de la
+> captura fresh de 107 es **idéntico al de la referencia pre-cambio** (`A500_release`,
+> 01/09). La demo 107 usa su propio `K_HUD_PLANES=4`; el cambio solo tocó `scene_cfg` de 201
+> y unas asignaciones debug sin efecto de comportamiento.
+>
+> **Hallazgo: por qué la 107 no muestra su franja HUD (causa raíz confirmada empíricamente):**
+> la 107 por defecto es `K_DUAL=1` (DPF 3+3). `XlimitedScene::compose()`
+> (`xlimited_scene.hpp:469-485`) **solo** emite la `OverlayZone` del HUD en el camino **SINGLE**
+> (`if (m_cfg.hud_height != 0) { … m_single.compose(…, &hud) }`); en **dual** va a
+> `m_dual.compose(pf1,pf2)` → `XlimitedDualComposer` (`dpf_composer.hpp`), que **no tiene ningún
+> parámetro HUD/overlay** (layout fijo sin zona inferior ni apagado de EHB). Por eso el canvas
+> HUD que `draw_hud` pinta en init **nunca se compone en el copper dual** → las líneas
+> inferiores muestran el mapa dual, no el HUD. **Prueba**: compilando la 107 con `K_DUAL=0`
+> (single, 4 planos) la banda HUD SÍ aparece (Ollama: franja marrón `136,68,68`, barra blanca,
+> rect rojo, diagonal verde; histograma marrón+`120,188,188` en filas 446-468), mientras que
+> en dual nunca aparece (todas las variantes/capturas: mapa + negro abajo, sin HUD). Es una
+> **limitación preexistente de configuración**, no una regresión del fix de 201.
+>
+> **Limpieza de instrumentación (tarea del usuario):** se **revertió** la instrumentación
+> debug temporal ajena al objetivo: getters `m_dbg_hud_planes/raster/main_h` + campos y
+> asignaciones en `emit_full` (`xlimited.hpp`) y en `XlimitedScene` (`xlimited_scene.hpp`),
+> así como el volcado `tel.reserved[0..2]` en el `update()` de 201. Se conserva
+> `debug_active_copper()`, utilidad preexistente del engine. Tras la limpieza, build `--clean`
+> de 201 y 107 OK y la captura fresh de 201 sigue mostrando el HUD con fondo negro y texto
+> claro (sin cambio de comportamiento; el marrón sigue siendo solo el borde del mapa).
+>
+> **Trabajo pendiente para "demo 107 con HUD en dual" (fuera de este caso):** añadir soporte
+> de `OverlayZone` a `XlimitedDualComposer`, o fijar 107 en `K_DUAL=0`, o mover el HUD del
+> dual a un plano overlay mediante el propio DPF. No es necesario para el cierre de 201.
+
 ## Objetivo actual (2026-09): scroll 8-way ROBUSTO con camino cuadrado + circular
 
 El usuario pide un sistema de scroll 8-way (algoritmo X-Limited) robusto y genérico que:

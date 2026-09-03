@@ -559,10 +559,6 @@ struct DemoGame {
 		tel.blit_words = static_cast<eng::u16>(w > 0xffffu ? 0xffffu : w);
 		tel.copper_words = scene.copper_words();
 		tel.fillup_extra = 0;
-		// TEMP-DEBUG: expone por el canal lateral la geometría runtime de la zona HUD.
-		tel.reserved[0] = scene.debug_hud_planes();
-		tel.reserved[1] = scene.debug_hud_raster();
-		tel.reserved[2] = scene.debug_main_h();
 		// Acumula en el segmento en curso para reportar el pico en el HUD.
 		driver.note_telemetry(tel.blit_jobs, tel.blit_words, tel.copper_words);
 		++frameOfDay;
