@@ -84,6 +84,34 @@ reusable al engine y luego se hace el DPF en 202.
 > de `OverlayZone` a `XlimitedDualComposer`, o fijar 107 en `K_DUAL=0`, o mover el HUD del
 > dual a un plano overlay mediante el propio DPF. No es necesario para el cierre de 201.
 
+> ## Revisión del dibujo de tiles 2026-09-04 (análisis en host; falta confirmar en WinUAE)
+>
+> **Evidencia validada en host:** el mapa 40x40 reconstruido desde `tiles.json` +
+> `kRenderMap` con paleta EHB bases-primero coincide píxel a píxel con
+> `reconstruct.png` (0 diferencias sobre 409600), y el port de
+> `scroll_engine.hpp` coincide bloque a bloque con `Scroller_XYLimited/main.c`
+> en `verify-corkscrew.mjs` (incluida la geometría 320x208 x6). El gate
+> `analyze-demo.sh` de la 201 estaba roto por la heurística de color del
+> analizador genérico (verde puro `g>160 && r<80`; el verde EHB del mapa es
+> `(143,213,129)` con r=143); se amplió a "verde dominante"
+> (`analyze_demo_screenshot.ts`) y ahora pasa.
+>
+> **Observaciones pendientes de validar en emulador (NO cambiar el engine sin
+> prueba visual):**
+>
+> 1. **Contador de coordenadas virtuales en los bordes.** Con mapa real 40x40
+>    clamped (`wrap=0`), la columna/fila entrante se consulta en
+>    `mapblock±` + `bitmap_blocks_per_row/col` (22/15), que en los últimos 16 px
+>    de cada barrido cae fuera del mapa y `tile_at` devuelve `edge_tile=0`
+>    (`scroll_engine.hpp:161,280`). Puede ser el clamp de borde intencional o una
+>    franja de tile 0 visible; hay que verlo en captura.
+> 2. **El detector `dbg_ink_visible` (`xlimited.hpp:863-878`) es ruidoso**:
+>    la columna entrante legítima (`x = x0+bitmap_width`, `%bitmap_width=0`)
+>    dispara `xvis` con `rel<viewport_h`, así que `g_eng_diag_hit` (demo 107) se
+>    enciende en todo barrido horizontal (~37k/45k draws en sim). Refinar antes de
+>    usar como señal de F1 (cumplir "relleno que pisa ahora la ventana", excluyendo
+>    la columna plane-shift del wrap).
+
 ## Objetivo actual (2026-09): scroll 8-way ROBUSTO con camino cuadrado + circular
 
 El usuario pide un sistema de scroll 8-way (algoritmo X-Limited) robusto y genérico que:

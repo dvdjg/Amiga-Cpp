@@ -41,7 +41,11 @@ function sampleColors(imagePath: string): ColorCounts {
 			const b = data[i + 2];
 			if (r > 210 && g > 210 && b > 210) counts.white++;
 			if (r < 24 && g < 24 && b < 24) counts.dark++;
-			if (g > 160 && r < 80 && b < 180) counts.green++;
+			// Verde DOMINANTE (no solo verde puro): el verde EHB del mapa de la 201
+			// es (143,213,129) con r=143 > 80, que el criterio antiguo no contaba.
+			// Se exige dominancia de canal G sobre los otros dos para no contar
+			// amarillos (r>g) ni cian (g<r ó g<b).
+			if (g > 130 && g - Math.max(r, b) > 40) counts.green++;
 			if (r > 180 && g > 180 && b < 120) counts.yellow++;
 			const isWorkbenchBlue = Math.abs(r - 0) <= 28 && Math.abs(g - 85) <= 28 && Math.abs(b - 170) <= 28;
 			if (!isWorkbenchBlue) counts.nonBlue++;
