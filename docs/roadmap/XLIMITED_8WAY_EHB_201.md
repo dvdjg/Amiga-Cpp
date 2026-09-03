@@ -1,9 +1,37 @@
 # Roadmap: Scroll 8-way X-Limited correcto + demo 201 EHB (mapa real) → engine → 202 DPF
 
-Fecha: 2026-09-01 · Decisión: **el 8-way X-Limited es la base; 201 es EHB DESDE EL PRIMER
-commit** (aunque la 1ª versión use tiles generados) y el **mapa real es prioritario**.
-Tiles 32x32 y pasos de scroll grandes (8..16px) quedan como **secundarios** (apéndice),
-no bloquean. Al funcionar se extrae lo reusable al engine y luego se hace el DPF en 202.
+Fecha: 2026-09-01 (actualizado 2026-09-03 · F1-F3 201 alcanzan READY) · Decisión: **el 8-way
+X-Limited es la base; 201 es EHB DESDE EL PRIMER commit** (aunque la 1ª versión use tiles
+generados) y el **mapa real es prioritario**. Tiles 32x32 y pasos de scroll grandes
+(8..16px) quedan como **secundarios** (apéndice), no bloquean. Al funcionar se extrae lo
+reusable al engine y luego se hace el DPF en 202.
+
+> ## Resuelto 2026-09-03 — la 201 (EHB real, 40x40) alcanza READY y hace scroll 8-way
+>
+> **Causa raíz del bloqueo (no era memoria): overflow de stack en la init.** Con el stack
+> por defecto del Shell (~8 KB) la inicialización completa de los 40x40 bloques × 6 planos
+> desbordaba la pila y la CPU saltaba a direcciones basura (`pc=0xffffff3e`, `a6=0`,
+> `run_status` sin `READY`, comportamiento no determinista). La hipótesis previa de
+> desborde de Chip RAM era **incorrecta**: el código se carga a `0xC00000+` y hay RAM de
+> sobra con `quickstart=a500,1` (512 KB chip, sin fast). El fix operativo es fijar
+> `stack 131072` antes de `:a.exe` en la `startup-sequence` que escribe el runner
+> (`tools/run/run-demo.ts:842`, ya permanente y rebuildeado en `dist`).
+>
+> **Host-prebuild vs converter en el Amiga.** Se eligió el path "banco interleaved
+> pre-construido en el host": `tools/ehb/emit-xlimited-bank.mjs` convierte
+> `out/ehb/tilebank.raw.bin` (1149 tiles × 256 B) a `out/ehb/tilebank.xlimited.bin`
+> (222,720 B, layout 320 px de ancho interleaved por planelínea, 5568 planelíneas,
+> tile→(tile%20, tile/20)) + `tilebank.xlimited.h`. La demo incbina SOLO ese banco
+> (sección `tiles.MEMF_CHIP`) y la escena lo **ALIA sin copia** (`blocks_prebuilt`) en lugar
+> de convertir a mano por píxel en el Amiga (menos Chip y menos init-CPU; coherente con la
+> regla del pipeline EHB de no transformar en el Amiga).
+>
+> **Verificación (evidencia concluyente):** el runner canónico reporta `READY` por canal
+> lateral; la captura muestra el tileset EHB real dominante en `85,68,51` / `136,221,136` y
+> entre dos frames de secuencia difieren **~48.8 %** de los píxeles (hay scroll, no imagen
+> estática). Build limpio (solo el warning `sign-compare` preexistente en
+> `xlimited_scene.hpp:262`). Pendiente validar explícitamente los dos caminos (cuadrado y
+> circular) con telemetría/captura temporal y confirmar 50 fps en el caso de transición.
 
 ## Objetivo actual (2026-09): scroll 8-way ROBUSTO con camino cuadrado + circular
 
@@ -34,10 +62,10 @@ el **mapa real de "The Fan-tasy"** (slicing 16x16, sin duplicados, mapa virtual,
 ## Estado actual (punto de partida)
 - Harness: canal lateral/READY fiable (`verify-harness.mjs`, sin fallback). Throughput del
   emulador ~11fps; fps-gate informativo hasta que el emulador suba (`--strict-fps`).
-- Bug abierto (BLOQUEANTE): tiles de relleno pintados en la zona visible. Diagnóstico:
-  watchpoint `g_eng_diag_hit` + breakpoints en `add_draw`(xlimited.hpp:860/877),
-  `draw_block_job`(:772), `scroll_down/up`(scroll_engine.hpp:268/318).
-- 107 congelada como laboratorio histórico.
+- 107 congelada como laboratorio histórico (ahí vive el path `indexed_tiles`/converter del
+  engine, que la 201 no usa).
+- 2026-09-03: la 201 (EHB real, 40x40) **alcanza READY** y scrolla (ver bloque resuelto
+  arriba). La causa raíz era stack overflow en init, no memoria.
 
 ## Fases (priorización del usuario)
 
