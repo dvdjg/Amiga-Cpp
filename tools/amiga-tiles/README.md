@@ -54,15 +54,22 @@ Salida por defecto en `out/` junto a la imagen, o donde diga `--out`.
 
 ## Salidas
 
+Todos los archivos resultantes llevan **en el nombre las características de la
+conversión** (sufijo `<colores>c_<técnica>_<dither>_<ancho>x<alto>`, p. ej.
+`reconstruct_64c_ehb_floyd_592x496.png`, `tilebank_32c_kmeans_floyd_592x496.bin`),
+y las mismas características quedan guardadas **como metadatos**: chunk `tEXt`
+`conversion` en los PNG, línea `// Conversion:` en los `.h` y el campo `label` en
+`palette_*.json`.
+
 | Archivo | Contenido |
 |---|---|
-| `tilebank.h` | `kPalette[colors·3]`, `kTileBankStride`, `kTileBankBytes`, `kTileIndexedMap[...]` (celda → índice de banco). |
-| `tilebank.bin` | 1 byte por píxel, stride fijo `tile*tile` por tile; listo para `incbin`. |
-| `palette.json` | Metadatos + `palette` (orden final de índices) + `bank` + `map` + `stats`. |
-| `palette.h` | Paleta en palabras Amiga `0x0RGB`. |
-| `reconstruct.png` | La imagen que se obtiene en el Amiga dibujando `banco[kIndexedMap]`. |
-| `tilebank.png` | Hoja de contacto con los tiles únicos (para inspección). |
-| `tilebank.xlimited.bin/.h` | Solo con `--xlimited`: banco interleaved de 320 px para el engine X-Limited. |
+| `reconstruct_<sufijo>.png` | La imagen que se obtiene en el Amiga dibujando `banco[kIndexedMap]`. |
+| `tilebank_<sufijo>.png` | Hoja de contacto con los tiles únicos (para inspección). |
+| `tilebank_<sufijo>.bin/.h` | 1 byte por píxel, stride fijo `tile*tile` por tile + `kPalette`, `kTileBankStride`, `kTileIndexedMap`. |
+| `palette_<sufijo>.json` | Metadatos (`label`) + `palette` + `bank` + `map` + `stats`. |
+| `palette_<sufijo>.h` | Paleta en palabras Amiga `0x0RGB`. |
+| `tilebank.xlimited_*.bin/.h` | Solo con `--xlimited`: banco interleaved de 320 px para el engine X-Limited. |
+| `source_resized_<W>x<H>_<resample>.png` | Con `--emit-source`: el origen redimensionado/recortado. |
 
 ## Modos de color y transparencia
 

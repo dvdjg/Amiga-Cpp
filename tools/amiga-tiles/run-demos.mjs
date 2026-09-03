@@ -305,5 +305,42 @@ function restoreVision() {
 	]);
 }
 
+// ============================================================================
+// 08 · Fotos reales → EHB (64), 32 y 16 colores con el mejor dither (floyd)
+// ============================================================================
+{
+	const dir = O('08_foto_real_ehb_32c');
+	const fotos = ['apple_guy', 'aussie_bum', 'pac_man', 'forgotten_relict', 'landscape_painting'];
+	const rows = [];
+	for (const name of fotos) {
+		const src = path.join(ASSETS, 'real', `${name}.jpg`);
+		for (const [c, label] of [[64, 'EHB (64 = 32 base + half)'], [32, '32 colores'], [16, '16 colores']]) {
+			const o = path.join(dir, name, `${c}c_floyd`);
+			fs.mkdirSync(o, { recursive: true });
+			const pal = c === 64 ? 'ehb' : 'adaptive';
+			const s = run([src, '--max-ram', '300000', '--resample', 'lanczos', '--colors', String(c), '--palette', pal, '--dither', 'floyd', '--out', o]);
+			rows.push(`- \`${name}/${c}c_floyd\` — ${label}: ${statsFrom(s).report} · ${statsFrom(s).warn || 'sin aviso'}`);
+		}
+	}
+	readme(dir, [
+		'# 08 · Fotos reales → EHB (64) / 32 / 16 colores, dither Floyd–Steinberg',
+		'',
+		'Las cinco imágenes foto-realistas (apple_guy, aussie_bum, pac_man,',
+		'forgotten_relict, landscape_painting) reducidas con Lanczos a ~300 KB de',
+		'buffer y cuantizadas a EHB (paleta `ehb` half-max), 32 y 16 colores, todas',
+		'con dither **Floyd–Steinberg** (el mejor para fotos).',
+		'',
+		'- **EHB** (`64c_floyd`): 32 bases + half generado por hardware, paleta que',
+		'  maximiza el uso de los hal‑brite (`--palette ehb`, nunca peor que el óptimo).',
+		'- **32 colores** (`32c_floyd`): 5 bits/píxel, paleta k-means.',
+		'- **16 colores** (`16c_floyd`): 4 bits/píxel, paleta k-means (más pérdida).',
+		'',
+		rows.join('\n'),
+		'',
+		'Cada carpeta lleva `reconstruct.png` (resultado), `palette.json`/`.h` y',
+		'`tilebank.h`/`.bin` listos para incrustar en C/C++.',
+	]);
+}
+
 console.log('[run-demos] OK');
 restoreVision();
