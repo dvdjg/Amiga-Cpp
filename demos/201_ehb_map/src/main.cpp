@@ -91,8 +91,11 @@ namespace field = eng::field;
 //
 // Parámetros de compilación (EXTRA_DEFINES="-D..."):
 //   K_VIEWPORT_H (256) alto TOTAL (incluye la franja HUD). Con HUD el comparador
-//                     de 8 bits del Copper limita main_h = viewport_h - hud ≤ 214.
-//   K_HUD_HEIGHT (48)  franja inferior con los números en vivo (3 líneas a 2x)
+//                     de 8 bits del Copper limita main_h = viewport_h - hud ≤ 214:
+//                     con hud=48 queda main=208 (holgado). No reducir mucho el
+//                     hud con este viewport: un HUD fino (p. ej. 16) baja main a
+//                     240 y el corkscrew solapa la banda de staging con la franja.
+//   K_HUD_HEIGHT (48)  franja inferior con la telemetría en vivo (texto pequeño 1x).
 //   K_SEG_FRAMES (150) frames por segmento (~3 s a 50 fps)
 // -----------------------------------------------------------------------------
 
@@ -428,7 +431,7 @@ struct DemoGame {
 		scene_cfg.viewport_w = kViewportW;
 		scene_cfg.viewport_h = kViewportH;
 		scene_cfg.hud_height = kHudH;       // franja inferior con números
-		scene_cfg.hud_planes = 4;
+		scene_cfg.hud_planes = 6;
 		scene_cfg.hud_palette = g_hudPalette;
 		scene_cfg.tile_width = kTileWidth;
 		scene_cfg.tile_height = kTileHeight;
@@ -486,50 +489,40 @@ struct DemoGame {
 
 	// Redibuja la franja HUD (solo al cambiar de segmento). Se llama desde
 	// render() (durante el vblank) para no competir con el DMA en scanlines
-	// visibles. Muestra step, modo y la carga pico medida del último segmento.
+	// visibles. HUD con texto pequeño (1x): modo/step + carga del segmento
+	// sobre fondo oscuro limpio.
 	void draw_hud() {
 		auto hud = scene.hud_surface();
-		hud.fill_rect(0, 0, kViewportW, kHudH, 8);   // fondo NO negro (harness)
-		// Línea 1: modo y step actuales.  p.ej. "HORIZ  STEP=16"
-		{   char line[24];
-			eng::u8 i = 0;
+		// Fondo negro limpio (color 0); draw_text rellena cada celda con el mismo
+		// fondo, así que cada línea queda borrada al redibujar.
+		hud.fill_rect(0, 0, kViewportW, kHudH, 0);
+		// Línea 1 (cian, ink 6): "HORIZ STEP=16"
+		{   char line[20]; eng::u8 i = 0;
 			const char* mn = driver.mode_name();
-			while (*mn && i < 10) line[i++] = *mn++;
-			const char* n0 = "  STEP=";
-			while (*n0 && i < 23) line[i++] = *n0++;
+			while (*mn && i < 19) line[i++] = *mn++;
+			const char* sp = " STEP=";
+			while (*sp && i < 19) line[i++] = *sp++;
 			const eng::u8 st = driver.step();
 			if (st >= 10) line[i++] = static_cast<char>('0' + st / 10u);
 			line[i++] = static_cast<char>('0' + st % 10u);
 			line[i] = '\0';
-			draw_text(hud, 4, 2, 2, line, 15, 8);
+			draw_text(hud, 2, 3, 1, line, 6, 0);
 		}
-		// Línea 2: mejores blits y words del segmento (carga de Blitter).
-		{   char n1[8], n2[8];
-			u16_to_str(driver.last_blit_max(), n1);
-			u16_to_str(driver.last_words_max(), n2);
-			char l2[28];
-			const char* parts[5] { "BLITS=", n1, "  WORDS=", n2, "" };
-			eng::u8 j = 0;
-			for (eng::u8 p = 0; parts[p][0] != '\0'; ++p) {
-				const char* t = parts[p];
-				while (*t && j < 26) l2[j++] = *t++;
-			}
-			l2[j] = '\0';
-			draw_text(hud, 4, 16, 2, l2, 14, 8);
+		// Línea 2 (gris claro, ink 14): "BLITS=nn WORDS=nnnnn"
+		{   char n1[7], n2[7]; u16_to_str(driver.last_blit_max(), n1); u16_to_str(driver.last_words_max(), n2);
+			char line[28]; eng::u8 i = 0;
+			const char* parts[4] { "BLITS=", n1, " WORDS=", n2 };
+			for (eng::u8 p = 0; p < 4; ++p) { const char* t = parts[p]; while (*t && i < 27) line[i++] = *t++; }
+			line[i] = '\0';
+			draw_text(hud, 2, 17, 1, line, 14, 0);
 		}
-		// Línea 3: copper + fps nominal (la suavidad se ve, la carga se mide).
-		{   char n1[8], n2[8];
-			u16_to_str(driver.last_copper(), n1);
-			u16_to_str(50, n2);
-			char l3[28];
-			const char* parts[5] { "COPPER=", n1, "  FPS=", n2, "" };
-			eng::u8 j = 0;
-			for (eng::u8 p = 0; parts[p][0] != '\0'; ++p) {
-				const char* t = parts[p];
-				while (*t && j < 26) l3[j++] = *t++;
-			}
-			l3[j] = '\0';
-			draw_text(hud, 4, 30, 2, l3, 12, 8);
+		// Línea 3 (azul, ink 4): "COPPER=nnn FPS=50"
+		{   char n1[7], n2[7]; u16_to_str(driver.last_copper(), n1); u16_to_str(50, n2);
+			char line[24]; eng::u8 i = 0;
+			const char* parts[4] { "COPPER=", n1, " FPS=", n2 };
+			for (eng::u8 p = 0; p < 4; ++p) { const char* t = parts[p]; while (*t && i < 23) line[i++] = *t++; }
+			line[i] = '\0';
+			draw_text(hud, 2, 31, 1, line, 4, 0);
 		}
 	}
 
@@ -566,6 +559,10 @@ struct DemoGame {
 		tel.blit_words = static_cast<eng::u16>(w > 0xffffu ? 0xffffu : w);
 		tel.copper_words = scene.copper_words();
 		tel.fillup_extra = 0;
+		// TEMP-DEBUG: expone por el canal lateral la geometría runtime de la zona HUD.
+		tel.reserved[0] = scene.debug_hud_planes();
+		tel.reserved[1] = scene.debug_hud_raster();
+		tel.reserved[2] = scene.debug_main_h();
 		// Acumula en el segmento en curso para reportar el pico en el HUD.
 		driver.note_telemetry(tel.blit_jobs, tel.blit_words, tel.copper_words);
 		++frameOfDay;
