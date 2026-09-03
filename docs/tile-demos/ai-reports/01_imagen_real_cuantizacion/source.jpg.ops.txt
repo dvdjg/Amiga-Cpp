@@ -1,0 +1,17 @@
+1) Recorta:  
+- Pacman (izq. arriba): 0-15% x 0-25%  
+- Fantasma rosa: 15-30% x 10-30%  
+- Fantasma naranja: 65-85% x 10-30%  
+- Fantasma rojo: 75-95% x 35-60%  
+- Fantasma azul: 0-20% x 40-70%  
+- Pared azul (corredores): 10-90% x 20-80%  
+- Pared negra: fondo general (0-100% x 0-100%)  
+
+2) Transparente: Negro (0,0,0) — fondo de pared.  
+
+3) Operaciones:  
+- Paleta: 16 colores EHB (RGB 8-bit, 256 paleta).  
+- Remuestreo: 2x o 4x para pixel art.  
+- Tamaño tile: 16x16 o 32x32.  
+- Separación planos: 1 plano (sprite + fondo).  
+- Offsets: 0 (no necesarios).

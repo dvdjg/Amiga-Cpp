@@ -1,0 +1,5 @@
+No, no se corresponden: la derecha es una versión cuantizada (baja resolución).  
+Se aprecian banding en los músculos y fondos, pérdida de detalle en texturas.  
+El hombre tiene un aspecto más "pixelado" y menos definido.  
+Los colores del fondo Pac-Man son más saturados y menos nítidos.  
+Hay un ligero desplazamiento en la iluminación y sombras.

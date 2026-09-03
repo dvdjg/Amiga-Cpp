@@ -1,0 +1,12 @@
+Esta imagen es un **resultado de demostración (preview) de una imagen cuantizada o procesada con un tilebank**, y presenta una **estética muy fragmentada y estilizada**, con una mezcla de elementos de arte digital y retro.
+
+---
+
+### 🔍 **Descripción visual:**
+
+- **Estilo visual:** La imagen tiene un fuerte carácter **retro-futurista o glitch-art**, con una paleta de colores saturada (azules brillantes, amarillos, marrones y negros).
+- **Elementos visuales:**
+  - **Figuras humanas musculosas (bodybuilders):** Aparecen en ambos lados de la imagen, con músculos definidos, pero **fragmentados y distorsionados** por la cuantización o el tilebank.
+  - **Elementos de Pac-Man:** Se observan claramente el personaje de Pac-Man (en amarillo), fantasmas (uno azul, otro naranja), y el laberinto con paredes azules y puntos.
+  - **Efectos de distorsión:** La imagen está **fragmentada en bloques horizontales y verticales**, como si estuviera compuesta por "tiles" o píxeles desplazados. Esto es típico de una **cuantización de imagen** o de un **tilebank** (un sistema de mosaico de imágenes pequeñas).
+  - **Sobreposición y glitch:** Hay zonas

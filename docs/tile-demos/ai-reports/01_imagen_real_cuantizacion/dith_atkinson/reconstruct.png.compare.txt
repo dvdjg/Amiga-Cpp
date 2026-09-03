@@ -1,0 +1,5 @@
+No, no se corresponden: la derecha es una versión cuantizada.  
+Se aprecia banding en los colores del fondo y piel, pérdida de detalle en texturas.  
+El hombre tiene menos definición muscular y el brillo es más uniforme.  
+Los fantasmas y el laberinto muestran pixelación y bordes menos nítidos.  
+Ruido visual leve en sombras y reflejos del suelo.
