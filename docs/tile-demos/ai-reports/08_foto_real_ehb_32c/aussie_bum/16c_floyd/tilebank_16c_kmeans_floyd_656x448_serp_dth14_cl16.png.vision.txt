@@ -1,0 +1,9 @@
+**Descripción de lo que se ve:**
+
+La imagen muestra una escena de un dormitorio o habitación de gaming, con un hombre musculoso (parecido a un bodybuilder o atleta) de pie frente a una ventana con vista a una ciudad. La habitación está decorada con elementos de videojuegos: se ven cajas de juegos como *Call of Duty: Modern Warfare*, *Red Dead Redemption*, *Grand Theft Auto V*, y *Doom Eternal* en estanterías y sobre una mesa. También hay una figura de acción, una botella de agua, y un peluche de monstruo (posiblemente de *Doom*). En la pared hay carteles con frases motivacionales como “DISCIPLINE DRIVE DOMINATE”.
+
+Sin embargo, **la imagen está severamente dañada por artefactos de compresión o pérdida de datos**. Se observa un patrón de **bloqueo horizontal** (o “striping”) donde la imagen está dividida en franjas horizontales, cada una con una calidad muy diferente. Algunas franjas están completamente pixeladas, otras son más nítidas, y muchas muestran distorsiones, pérdida de detalle y colores desaturados o distorsionados. Esto sugiere que la imagen fue procesada con una compresión agresiva, como una cuantización extrema o una pérdida de información en el proceso de generación del tilebank/preview.
+
+---
+
+**Evaluación de calidad y

@@ -1,0 +1,11 @@
+**Descripción de lo que se ve:**
+
+La imagen muestra una escena de fantasía o aventura, con un barco de madera antiguo, posiblemente un galeón, hundido o varado en un paisaje desértico o montañoso. El barco está parcialmente enterrado en la tierra, con sus mástiles y velas desgarradas y deshilachadas, sugiriendo abandono o destrucción. En el fondo, se ven montañas de tonos ocres y marrones, bajo un cielo azul con nubes blancas. La escena tiene un estilo artístico que recuerda a una ilustración de cómic o un videojuego de aventuras, con colores cálidos y una paleta limitada.
+
+**Evaluación de calidad y artefactos:**
+
+La imagen presenta **muy graves artefactos de compresión o procesamiento**, lo que afecta significativamente su calidad visual:
+
+1.  **Fragmentación horizontal:** La imagen está dividida en franjas horizontales, como si estuviera compuesta por múltiples imágenes o tiles superpuestos. Esto es evidente en el barco, las montañas y el cielo, donde las líneas de separación son visibles y rompen la continuidad de los elementos.
+
+2.  **Pérdida de detalle y textura:** Debido a la fragmentación y la compres

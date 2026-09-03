@@ -87,11 +87,18 @@ y las mismas características quedan guardadas **como metadatos**: chunk `tEXt`
 ## Dithering
 
 - `--dither none` (por defecto): estricto, cada píxel va al color más cercano.
-  Es el que **mantiene el dedupe de tiles** (reconstrucción al 100 %).
+  Es el que **mantiene el dedupe de tiles** (reconstrucción al 100%).
 - `--dither floyd`: error diffusion de Floyd–Steinberg (bueno para fotos gradadas).
 - `--dither atkinson`: Atkinson (textura con menos valores medios).
 - `--dither bayer`: matricial 4×4 (rápido, patrón regular).
-- `--dither-strength 0..1` escala la difusión (1 = total, 0 = como `none`).
+- **`--dither best`**: Floyd + **serpentina** + **deadband 14** + **clamp 16**.
+  Recomendado para **fotos continuas**: en zonas de color casi uniforme (p. ej.
+  cielos) el Floyd clásico oscila entre dos colores de brillo muy distinto y dibuja
+  un punteado feo. `best` no difunde errores pequeños (zonas planas limpias) y limita
+  el error acumulado; medido en un paisaje: cielo con píxeles aislados 9.7 % → 3.5 %
+  y PSNR 25.5 → 27.7 dB frente al Floyd clásico.
+- Fino: `--dither-threshold F` (deadband), `--dither-clamp N` (capa por canal),
+  `--serpentine` (escaneo en zigzag, rompe gusanos) y `--dither-strength 0..1`.
 
 El dithering rompe el "100 %" del dedupe en zonas que eran idénticas en el original
 (cada píxel oscila entre dos índices). Es el compromiso esperado: **dithering para
