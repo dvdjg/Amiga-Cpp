@@ -895,7 +895,7 @@ async function main() {
 	// ---- Verificar divisibilidad y analizar transparencia ------------------------
 	const { pct } = analyze(png);
 	if (W % tile || H % tile) fail(`dimensiones (${W}x${H}) no múltiplo de tile ${tile}; usa --resize/--max-area/--crop o --tile adecuado`);
-	const alpha = flagsShort === 'always' ? true : flagsShort === 'none' ? false : pct >= 0.5;
+	let alpha = flagsShort === 'always' ? true : flagsShort === 'none' ? false : pct >= 0.5;
 	console.log(`[amiga-tiles] ${input} ${W}x${H} tiles ${tile} (transparencia ${pct.toFixed(2)}%)`);
 
 	// Profundidad: auto por nº de colores únicos del original.
@@ -906,10 +906,21 @@ async function main() {
 		colors = uniqueColors <= 4 ? 4 : uniqueColors <= 8 ? 8 : uniqueColors <= 16 ? 16 : uniqueColors <= 32 ? 32 : 64;
 		console.log(`[amiga-tiles] --colors no dado; ${uniqueColors} colores únicos → ${colors}${colors === 64 ? ' (EHB)' : ''}`);
 	}
+	// Deducción de transparencia: si `colors` = 2^n - 1 (3,7,15,31,63…) significa
+	// "quiero `colors` colores reales y un slot 0 transparente", o sea `colors+1`
+	// slots (2^n) con el índice 0 reservado. El programa lo deduce solo (a no ser
+	// que se fuerce --no-alpha). Así `--colors 31` ⇒ 31 colores + transparente.
+	const powMinus1 = colors >= 1 && (colors & (colors + 1)) === 0; // (colors+1) es potencia de 2
+	if (powMinus1 && flagsShort !== 'none') {
+		if (!alpha) console.log(`[amiga-tiles] ${colors} = 2^n−1 ⇒ reservo índice 0 transparente (${colors + 1} slots, ${Math.ceil(Math.log2(colors + 1))} bits/px)`);
+		alpha = true;                 // reservar el índice 0
+		colors = colors + 1;          // slots totales = potencia de 2; colores reales = colors-1
+	}
 	// Recomendación de profundidad basada en el histograma real (ayuda a elegir).
 	{
 		const rec = uniqueColors <= 4 ? 4 : uniqueColors <= 8 ? 8 : uniqueColors <= 16 ? 16 : uniqueColors <= 32 ? 32 : 64;
-		const alternative = rec === 16 && uniqueColors <= 10 ? ' (podrías probar 8 con 3 bits/px)' : '';
+		const isPow2 = rec >= 1 && (rec & (rec - 1)) === 0;
+		const alternative = isPow2 && rec >= 4 ? ` (para transparencia usa ${rec - 1}, es 2^n−1)` : '';
 		console.log(`[amiga-tiles] recomendación: ${rec} colores → ${Math.ceil(Math.log2(rec))} bits/px${alternative}`);
 	}
 	const { bits, ehb } = modeOf(colors);

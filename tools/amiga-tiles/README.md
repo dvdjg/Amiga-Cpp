@@ -86,8 +86,12 @@ y las mismas características quedan guardadas **como metadatos**: chunk `tEXt`
 - `--colors N` fija el número de colores de la paleta, **N en 2..255** (2, 3, 4, 5 o
   6 bits por píxel según `ceil(log2 N)`). Casos típicos: 4, 8, 16, 31 (reserva 1
   slot: 30 usados), 32, 64, 127…
+- **Si `--colors N` es `2^n − 1` (3, 7, 15, 31, 63…)** el programa lo entiende solo:
+  quieres `N` colores REALES con un **índice 0 transparente** (slots = `N+1` = 2^n).
+  Ej.: `--colors 31` ⇒ 31 colores + transparente (5 bits/px). Para desactivar esa
+  deducción usa `--no-alpha`. Con `--alpha` explícito el slot 0 también se reserva.
 - Con **`--colors 64`** se activa **EHB**: se eligen 32 bases y el hardware genera
-  los 32 half (base/2 cada componente).
+  los 32 half (base/2 cada componente). Con `--alpha`, el base 0 es transparente.
 - Sin `--colors` se elige automáticamente según los colores únicos del original:
   ≤4 → 4, ≤8 → 8, ≤16 → 16, ≤32 → 32, si no → 64 EHB.
 - `--alpha` / `--no-alpha`: reservan (o no) el **índice 0 para transparencia**. Sin
@@ -261,7 +265,10 @@ node tools/amiga-tiles/game-assets.mjs arte.png --out out/mi_juego
   Info en `sprites.json` (`chromaBoxes`, `gridFrames`, `merged`). Puedes forzar el
   color con `--background R,G,B`, elegir modelo de visión con `--model` y afinar
   con `--tol`.
-- `--quantize 64` cuantiza cada grupo a EHB con el índice 0 transparente.
+- `--quantize N` cuantiza **cada GRUPO por separado**: cada grupo de frames tiene su
+  **propia paleta** (`<grupo>/palette_*.json/.h`) y todos sus frames comparten esa
+  misma paleta. `N=64` → EHB (32 bases + 32 half, índice 0 transparente); `N=2^n−1`
+  (31, 15, 7…) → `N` colores reales + índice 0 transparente (deducido).
 - Con **`--ai` la herramienta es SEMIAUTÓNOMA** con ollama local: tras la detección
   determinista, la IA **comprende** qué contiene cada caja de croma (nombre/tipo/frames)
   y la organiza en `<out>/<contenido>/` con ese nombre, y además **propone cajas de
