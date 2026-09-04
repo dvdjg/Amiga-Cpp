@@ -153,8 +153,20 @@ fotos o degradados, `none` para tilemaps/pixel-art**.
    - `bright`: solo EHB. Cuantiza la **mitad más brillante** de la imagen a las 32
      bases y deja que los half cubran la parte oscura (excelente para imágenes con
      alto rango dinámico).
+   - `dominant`: **sobremuestreo del cluster dominante**. El k-means global dedica
+     pocos slots a la zona de mayor cobertura (p. ej. el azul del cielo) y muchos a
+     granos sueltos. Este modo construye una **rampa de tonos muy próximos al color
+     dominante** (diferencias mínimas) para que el dithering degradado sucio no
+     "rug", sacrificando los slots de menor masa del resto. En EHB, las bases junto
+     al dominante generan halves útiles en esa misma gama. Fino:
+     `--dominant-frac` (def 0.6, fracción de top-masa intacta) y `--dominant-delta`
+     (def 12, amplitud de la rampa). Medido en una foto de paisaje a 64c EHB con
+     `--dither best`: añade un tono de cielo usado más cerca del dominante y reduce
+     el MSE del dither (PSNR 27.8 vs 27.7 dB). No abusar de la fracción baja:
+     `frac 0.4 / Δ 20` empobrece el resto de la foto (PSNR 25.0 dB).
    - `popularity`: los `N` colores más frecuentes del histograma (rápido, calidad
      baja).
+   - `ehb`: solo EHB, **half-max** (maximiza el uso de los half-brights; ver abajo).
 2. **Externa:** cualquier archivo JSON `{"colors":[[r,g,b],…]}` (o array directo).
    Se ajusta a `colors` exactos; si trae más se recorta, si trae menos se rellena
    con grises.

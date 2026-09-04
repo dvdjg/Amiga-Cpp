@@ -17,7 +17,9 @@
 //   --alpha / --no-alpha  Reservar el índice 0 para transparencia (auto si el PNG la tiene).
 //   --dither MODE         none|floyd|atkinson|bayer   (error diffusión / matricial)
 //   --dither-strength F   Intensidad de la difusión (0..1, defecto 1).
-//   --palette SRC         adaptive|mediancut|kmeans|bright|popularity|cube|grays|<archivo.json>
+//   --palette SRC         adaptive|mediancut|kmeans|bright|popularity|cube|grays|dominant|<archivo.json>
+//   --dominant-frac F     Fracción de top-masa conservada en 'dominant' (def 0.6).
+//   --dominant-delta N    Separación máx. entre los nuevos tonos de 'dominant' (def 12, diferencias mínimas).
 //   --palette-k N         Iteraciones de k-means (defecto 12).
 //   --sort TYPE           none|luminance   Orden de la paleta (defecto luminance).
 //   --tile N              Tamaño de tile en píxeles (defecto 16).
@@ -235,6 +237,76 @@ function brightSplit(hist, N) {
 	return medianCut(bright, N);
 }
 function popularityPalette(hist, N) { return hist.slice(0, N).map(([k]) => keyToRgb(k)); }
+
+// ---------------------------------------------------------------------------
+// Paleta con SOBREMUESTREO DEL DOMINANTE ("--palette dominant").
+// El k-means clásico (MSE global) dedica casi todos los contrastes a colores de
+// masa pequeña (granos sueltos de dithering) y deja pocas variaciones finas en
+// el cluster GIGANTE (p. ej. el cielo azul de una foto). Resultado: muchos slots
+// casi vacíos y el degradado dominante mal capturado, obligando al Floyd a
+// alternar entre 2-3 colores y a "rugir".
+//
+// Este método: tras converger el k-means (half-aware si EHB), mide la masa
+// (nº de píxeles) de cada base y RECOLOCA los slots de menor masa alrededor del
+// color dominante con diferencias MÍNIMAS entre sí. Así se invierte la paleta
+// en favor de la zona de mayor cobertura. Con --dominant-frac (def 0.6) se
+// conserva la fracción de top-masa intacta; con --dominant-delta (def 12) se
+// controla la separación máxima entre los nuevos tonos (diferencias mínimas).
+// En EHB los nuevos bases quedan junto al dominante, y sus halves (base/2)
+// generan tonos útiles de sombra en esa misma gama (se preservan los half).
+// ---------------------------------------------------------------------------
+// detalle: en lugar de perturbar a ciegas (que dejaba los nuevos tonos sin masa),
+// se RE-CLUSTERIZA el cluster dominante: sus píxeles reales se reparten en
+// 'extra' sub-centros (k-means sobre ese subconjunto), de modo que cada nuevo
+// tono cubre una franja real del degradado dominante y queda POBLADO. Los slots
+// que se sacrifican son los de MENOR masa del resto.
+// ---------------------------------------------------------------------------
+function dominantPalette(hist, K, iters, ehb, frac, delta) {
+	const bases = kmeans(hist, K, iters, ehb).slice();
+	const isSame = (a, b) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
+	// masa por base (half-aware si EHB) + píxeles asignados a cada base
+	const mass = new Float64Array(K); const owner = new Array(K).fill(null).map(() => []);
+	for (const [k, n] of hist) {
+		const c = keyToRgb(k); let bi = 0, bd = Infinity;
+		for (let i = 0; i < K; i++) {
+			const d = ehb ? Math.min(dist2(c, bases[i]), dist2(c, half(bases[i]))) : dist2(c, bases[i]);
+			if (d < bd) { bd = d; bi = i; }
+		}
+		mass[bi] += n; if (n) owner[bi].push([k, n]);
+	}
+	// orden por masa descendente: [0] es el dominante
+	const order = range(0, K).sort((a, b) => mass[b] - mass[a]);
+	// tono DOMINANTE = el color exacto más frecuente del cluster dominante (más
+	// "pico" que la media k-means). Sobre él se construye una rampa densa.
+	const domPix = owner[order[0]];
+	let D = bases[order[0]], Dn = -1;
+	for (const [k, n] of domPix.sort((a, b) => b[1] - a[1])) { const c = keyToRgb(k); if (n > Dn) { Dn = n; D = c; } }
+	// cuántos slots extra dedicar al dominante (frac alta => menos extras; delta
+	// alto => más variantes, cada una con amplitud mínima de cobertura)
+	const extra = Math.max(1, Math.round((K - 1) * (1 - frac) * (0.5 + delta / 24)));
+	// RAMPA DENSA en tonos muy próximos al dominante: diferencias MÍNIMAS entre
+	// slots para captar el degradado (cielo) sin ruido de dithering.
+	const dirs = [[1,1,1],[-1,-1,-1],[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1],
+		[1,1,0],[-1,-1,0],[1,0,1],[-1,0,-1],[0,1,1],[0,-1,-1],
+		[1,-1,0],[-1,1,0],[1,0,-1],[-1,0,1],[0,1,-1],[0,-1,1]];
+	const baseStep = Math.max(2, Math.round(delta / 6));
+	const domFinal = [D];
+	for (let q = 0; q < extra; q++) {
+		const dir = dirs[q % dirs.length];
+		const dMul = baseStep + (dir.some((v) => v < 0) ? 0 : Math.floor(q / dirs.length) * baseStep);
+		const cand = [Math.max(0, Math.min(255, D[0] + dir[0] * dMul)), Math.max(0, Math.min(255, D[1] + dir[1] * dMul)), Math.max(0, Math.min(255, D[2] + dir[2] * dMul))];
+		if (!domFinal.some((e) => isSame(e, cand))) domFinal.push(cand);
+		if (domFinal.length === extra + 1) break;
+	}
+	// juntar: [rampa del dominante] + (top-masa del resto, excluyendo ya a D)
+	const restSorted = [];
+	for (let i = 0; i < K; i++) if (i !== order[0]) restSorted.push({ c: bases[i], mass: mass[i] });
+	restSorted.sort((a, b) => b.mass - a.mass);
+	const keepCount = K - domFinal.length;
+	const out = domFinal.concat(restSorted.slice(0, keepCount).map((e) => e.c));
+	if (out.length > K) out.length = K;
+	return out;
+}
 
 // EHB con maximización del uso de los HALF-BRIGHTS.
 // El k-means half-aware clásico deja bases en la gama oscura cuyo half (~negro)
@@ -1044,6 +1116,7 @@ async function main() {
 	// ---- Paleta ------------------------------------------------------------------
 	let bases = null; let palKind = palSrc; let palNote = '';
 	if (['adaptive', 'kmeans'].includes(palSrc)) { bases = kmeans(hist, baseCount, kIters, ehb); palNote = `kmeans${ehb ? ' half-aware' : ''}`; }
+	else if (palSrc === 'dominant') { bases = dominantPalette(hist, baseCount, kIters, ehb, floatArg('--dominant-frac', 0.6), intArg('--dominant-delta', 12)); palNote = `dominante (kmeans + sobremuestreo del cluster mayor, frac=${floatArg('--dominant-frac', 0.6)}, δ=${intArg('--dominant-delta', 12)})`; }
 	else if (palSrc === 'mediancut') { bases = medianCut(hist, baseCount); palNote = 'median-cut'; }
 	else if (palSrc === 'bright') {
 		if (!ehb) console.warn('[warn] --palette bright solo tiene sentido en EHB; se usa median-cut');
