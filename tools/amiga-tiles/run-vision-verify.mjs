@@ -140,7 +140,7 @@ async function main() {
 		process.stdout.write(`  describe ${rel} … `);
 		const prev = cached(f);
 		if (prev !== null) { desc.set(rel, prev); console.log('reusado'); return; }
-		try { const t = await ask(fs.readFileSync(abs), q, model); fs.writeFileSync(f, t + '\n', 'utf8'); desc.set(rel, t); console.log('OK'); }
+		try { const t = await ask(fs.readFileSync(abs), q, model); fs.writeFileSync(f, `Origen: ${path.resolve(abs)}\n\n${t}\n`, 'utf8'); desc.set(rel, t); console.log('OK'); }
 		catch (e) { console.log(`ERROR ${e.message}`); }
 	}
 	for (const s of sources) await describe(s.abs, s.rel, DQ);

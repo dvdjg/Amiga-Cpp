@@ -1283,8 +1283,9 @@ async function main() {
 		const base = arg('--ollama-base', 'http://127.0.0.1:11434');
 		const desc = await ollamaDescribe(png, model, base, intArg('--ollama-tokens', 300));
 		const descPath = path.join(outDir, 'image_description.txt');
-		fs.writeFileSync(descPath, desc + '\n', 'utf8');
-		console.log(`[amiga-tiles] descripción (${model}):\n${desc}\n  -> ${descPath}`);
+		const srcAbs = path.resolve(input);
+		fs.writeFileSync(descPath, `Fuente original: ${srcAbs}\n\n${desc}\n`, 'utf8');
+		console.log(`[amiga-tiles] descripción (${model}) de ${srcAbs}:\n${desc}\n  -> ${descPath}`);
 	}
 }
 
