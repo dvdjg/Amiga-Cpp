@@ -78,6 +78,8 @@ y las mismas características quedan guardadas **como metadatos**: chunk `tEXt`
 | `tilebank_<sufijo>.bin/.h` | Índices por tile (`kTileIndexedMap`), paleta `kPalette` y metadatos `kTileBankStride`/`kTileBankBitsPerPixel`. **Empaquetado** por profundidad (1 B/px si `bits>4`; `ceil(tile²·bits/8)` B/tile en otro caso, bits LSB-first). |
 | `palette_<sufijo>.json` | Metadatos (`label`) + `palette` + `bank` + `map` + `stats`. |
 | `palette_<sufijo>.h` | Paleta en palabras Amiga `0x0RGB`. |
+| `palette_chart_<sufijo>.png` | **Gráfico de uso de la paleta**: tira de rectángulos con todos los colores por slot, y debajo un histograma de barras con la frecuencia relativa de cada color en la imagen convertida. El slot 0 transparente se dibuja como tablero de ajedrez. PNG RGBA de inspección (no un activo de engine). |
+| `palette_chart_<sufijo>.txt` | Métricas por color del gráfico (legibles sin abrir el PNG): `slotN=rgb(r,g,b) n=<píxeles> p=<%>`. |
 | `tilebank.xlimited_*.bin/.h` | Solo con `--xlimited`: banco interleaved de 320 px para el engine X-Limited. |
 | `source_resized_<W>x<H>_<resample>.png` | Con `--emit-source`: el origen redimensionado/recortado. |
 

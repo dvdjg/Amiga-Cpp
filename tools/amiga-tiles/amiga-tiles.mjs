@@ -472,6 +472,108 @@ function writeIndexedPng(filePath, palette, indices, w, h, meta) {
 	chunks.push(pngChunk('PLTE', plte), pngChunk('IDAT', deflateSync(Buffer.concat(rows))), pngChunk('IEND', Buffer.alloc(0)));
 	fs.writeFileSync(filePath, Buffer.concat([sig, ...chunks]));
 }
+// ---------------------------------------------------------------------------
+// Gráfico de uso de la paleta ("palette chart"): dado el histograma real de
+// índices de la imagen convertida, pinta una tira de rectángulos (uno por slot
+// de color) y debajo un histograma de barras con la frecuencia relativa de cada
+// color, más textos ASCII con el slot, el nº de píxeles y el %. Es un PNG RGBA
+// de INSPECCIÓN (no un activo del engine); el slot 0 transparente se muestra
+// con tablero de ajedrez. Emite también las métricas por color como tEXt.
+// ---------------------------------------------------------------------------
+const GLYPHS = {
+	' ': [[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],
+	'0': [[0,1,1,1,0],[1,0,0,0,1],[1,0,0,1,1],[1,0,1,0,1],[1,1,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],
+	'1': [[0,0,1,0,0],[0,1,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0]],
+	'2': [[0,1,1,1,0],[1,0,0,0,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[1,1,1,1,1]],
+	'3': [[1,1,1,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,1,0],[0,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],
+	'4': [[0,0,0,1,0],[0,0,1,1,0],[0,1,0,1,0],[1,0,0,1,0],[1,1,1,1,1],[0,0,0,1,0],[0,0,0,1,0]],
+	'5': [[1,1,1,1,1],[1,0,0,0,0],[1,1,1,1,0],[0,0,0,0,1],[0,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],
+	'6': [[0,0,1,1,0],[0,1,0,0,0],[1,0,0,0,0],[1,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],
+	'7': [[1,1,1,1,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0]],
+	'8': [[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],
+	'9': [[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,1],[0,0,0,0,1],[0,0,0,1,0],[0,1,1,0,0]],
+	'%': [[1,1,0,0,1],[1,1,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[1,0,1,1,0],[1,0,1,1,0]],
+	'.': [[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,1,0,0]],
+	',': [[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,0,1,0,0],[0,1,0,0,0]],
+	'-': [[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[1,1,1,1,1],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],
+	'(': [[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0]],
+	')': [[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],
+	'x': [[0,0,0,0,0],[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[1,0,0,0,1],[0,0,0,0,0]],
+	'=': [[0,0,0,0,0],[0,0,0,0,0],[1,1,1,1,1],[0,0,0,0,0],[1,1,1,1,1],[0,0,0,0,0],[0,0,0,0,0]],
+};
+const FG = [255, 255, 255, 255];
+function chartDrawText(buf, wpx, x, y, text, color) {
+	let cx = x;
+	for (const ch of text) {
+		const g = GLYPHS[ch] || GLYPHS[' '];
+		for (let gy = 0; gy < 7; gy++) for (let gxg = 0; gxg < 5; gxg++) if (g[gy][gxg]) {
+			const px = cx + gxg, py = y + gy;
+			if (px < 0 || px >= wpx || py < 0) continue;
+			const o = (py * wpx + px) * 4;
+			buf.data[o] = color[0]; buf.data[o + 1] = color[1]; buf.data[o + 2] = color[2]; buf.data[o + 3] = color[3];
+		}
+		cx += 6;
+	}
+	return cx;
+}
+function chartRect(buf, wpx, x, y, w, h, color) {
+	for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) {
+		if (xx < 0 || xx >= wpx || yy < 0 || yy >= buf.height) continue;
+		const o = (yy * wpx + xx) * 4;
+		buf.data[o] = color[0]; buf.data[o + 1] = color[1]; buf.data[o + 2] = color[2]; buf.data[o + 3] = color[3];
+	}
+}
+function paletteChartPng(outDir, suf, label, paletteFinal, indexed, alpha, bits, ehb, colors) {
+	const Wpx = (paletteFinal.length || 0) * 40 + 8;
+	const Hpx = 220;
+	const buf = new PNG({ width: Wpx, height: Hpx });
+	// fondo negro con rejilla tenue
+	for (let y = 0; y < Hpx; y++) for (let x = 0; x < Wpx; x++) { const o = (y * Wpx + x) * 4; buf.data[o] = 12; buf.data[o + 1] = 12; buf.data[o + 2] = 14; buf.data[o + 3] = 255; }
+
+	// histograma de índices de la imagen convertida
+	const counts = new Float64Array(colors); let tot = 0;
+	for (let i = 0; i < indexed.length; i++) { const v = indexed[i]; if (v >= 0 && v < colors) { counts[v]++; tot++; } }
+	const max = Math.max(1, ...counts);
+	const barTop = 28, barH = 110, swatchH = 22;
+	const cell = 40, x0 = 4;
+	paletteFinal.forEach((c, i) => {
+		const cx = x0 + i * cell;
+		// swatch
+		if (alpha && i === 0) {
+			// tablero de ajedrez para el slot transparente
+			for (let yy = barTop; yy < barTop + swatchH; yy++) for (let xx = cx; xx < cx + cell; xx++) {
+				const o = (yy * Wpx + xx) * 4;
+				const chk = (((xx >> 2) + (yy >> 2)) & 1) === 0;
+				buf.data[o] = chk ? 220 : 60; buf.data[o + 1] = chk ? 220 : 60; buf.data[o + 2] = 220; buf.data[o + 3] = 255;
+			}
+		} else {
+			chartRect(buf, Wpx, cx, barTop, cell, swatchH, [c[0], c[1], c[2], 255]);
+		}
+		// barra del histograma (frecuencia relativa)
+		const bh = Math.max(1, Math.round((counts[i] / max) * (barH - 4)));
+		chartRect(buf, Wpx, cx + 2, barTop + swatchH + 4 + (barH - bh), cell - 4, bh, [c[0], c[1], c[2], 255]);
+		// borde de la columna
+		chartRect(buf, Wpx, cx, barTop, cell, 1, [90, 90, 90, 255]);
+		// etiquetas: slot y recuento / %
+		const pct = tot ? ((counts[i] / tot) * 100) : 0;
+		const t1 = `${i} (${pct.toFixed(1)}%)`;
+		const ty = barTop + swatchH + 8 + barH;
+		chartDrawText(buf, Wpx, cx + 2, ty, t1, FG);
+		chartDrawText(buf, Wpx, cx + 2, ty + 8, `n=${counts[i]}`, FG);
+	});
+	// cabecera con los metadatos
+	chartDrawText(buf, Wpx, 4, 4, `${label} | ${bits} bits/px${ehb ? ' EHB' : ''}`, FG);
+
+	// texto de los metadatos por color (tEXt) + datos en json para lectura automática
+	const perColor = paletteFinal.map((c, i) => ({ slot: i, rgb: c, count: counts[i], pct: tot ? +(counts[i] / tot * 100).toFixed(2) : 0 }));
+	const meta = `paletteChart;colors=${colors};bits=${bits};ehb=${ehb};alpha=${alpha ? 1 : 0};total=${tot};hist=${perColor.map((p) => p.count).join(',')}`;
+	const pathF = path.join(outDir, `palette_chart_${suf}.png`);
+	fs.writeFileSync(pathF, PNG.sync.write(buf));
+	// incrustamos las métricas por color (tEXt) para que sean legibles sin abrir el png
+	const metaTxt = perColor.map((p) => `slot${p.slot}=rgb(${p.rgb[0]},${p.rgb[1]},${p.rgb[2]}) n=${p.count} p=${p.pct}%`).join(';');
+	fs.writeFileSync(path.join(outDir, `palette_chart_${suf}.txt`), metaTxt + '\n', 'utf8');
+	return { pathF, meta, perColor };
+}
 function verifyPng(filePath, palette, indices, w, h) {
 	const d = PNG.sync.read(fs.readFileSync(filePath));
 	let dif = 0;
@@ -1036,6 +1138,10 @@ async function main() {
 	// palette.json / palette.h
 	const palJson = JSON.stringify({ name: suf, label: label, tile, cols, rows, colors, bits, bitsPerPixel: bits, packed: packMode, stridePerTile: packedPerTile, ehb, alpha, method: palNote, palette: paletteFinal, bank: bank.map((b, i) => ({ pix: [...b.pix] })), map, stats: { unique: bank.length, cells: cols * rows } }, null, 2);
 	fs.writeFileSync(path.join(outDir, `palette_${suf}.json`), palJson, 'utf8');
+
+	// Gráfico de uso de la paleta: tira de rectángulos por color + histograma del
+	// uso real de cada slot en la imagen convertida (PNG de inspección).
+	paletteChartPng(outDir, suf, label, paletteFinal, indexed, alpha, bits, ehb, colors);
 	const words = paletteFinal.map(to444);
 	const phLines = ['// Paleta Amiga (0x0RGB). Conversion: ' + label, '// ' + (ehb ? 'EHB: bases 0..31, half 32..63 generados por hardware.' : `${colors} colores.`)];
 	for (let r = 0; r < colors; r += 8) phLines.push('    ' + words.slice(r, r + 8).map((w) => `0x${w.toString(16).padStart(3, '0')}`).join(', ') + ',');
@@ -1089,7 +1195,7 @@ async function main() {
 	const psnr = 10 * Math.log10(255 * 255 * 3 / (mse + 1e-9));
 	console.log(`[amiga-tiles] OK -> ${outDir}`);
 	console.log(`[amiga-tiles] paleta ${palNote} · ${colors} colores (${bits} bits${ehb ? '/EHB' : ''}) · dither=${dither}(${strength}) · MSE=${mse.toFixed(1)} PSNR=${psnr.toFixed(1)} dB`);
-	console.log(`[amiga-tiles] salidas (sufijo ${suf}): reconstruct_${suf}.png, tilebank_${suf}.png/.bin/.h, palette_${suf}.json/.h${emitXl ? `, tilebank_xlimited_${colors}c_${tech}.bin/.h` : ''} (${bits} bits/px, empaquetado ${packedPerTile} B/tile)`);
+	console.log(`[amiga-tiles] salidas (sufijo ${suf}): reconstruct_${suf}.png, tilebank_${suf}.png/.bin/.h, palette_${suf}.json/.h, palette_chart_${suf}.png/.txt${emitXl ? `, tilebank_xlimited_${colors}c_${tech}.bin/.h` : ''} (${bits} bits/px, empaquetado ${packedPerTile} B/tile)`);
 
 	// Descripción con ollama local (opcional). Envía la imagen FINAL de trabajo.
 	if (has('--describe')) {
