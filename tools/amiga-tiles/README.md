@@ -246,12 +246,21 @@ node tools/amiga-tiles/game-assets.mjs arte.png --out out/mi_juego
 ```
 
 - Los PNG extraídos codifican el fondo como **alfa = 0**; convenio Amiga: índice 0 = transparente.
-- `--background auto` detecta **blanco del borde + cromas interiores**: si hay un
-  rectángulo sólido de color (p. ej. VERDE) que encierra otra entidad (unas frames
-  de explosión), el verde se detecta como fondo aunque el marco sea blanco, y la
-  caja se **fusiona en UN sprite** con transparencia SOLO contra ese color (el
-  blanco del fogonazo se conserva). Info en `sprites.json` (`chromaBoxes`,
-  `merged`). Puedes forzar el color con `--background R,G,B` y afinar con `--tol`.
+- `--background auto` detecta **blanco del borde + colores de croma**: los colores
+  **croma** (saturados, o interiores aunque sean neutros) pueden ser una **hoja de
+  sprites**. La tool es genérica ante cualquier imagen con una región de color sólido
+  que contiene una animación en rejilla (verde, magenta, azul…):
+  - Si dentro del color hay **separadores** (filas/columnas casi 100 % de ese color),
+    `splitChromaGrid` parte la animación en **frames** y extrae CADA celda con
+    transparencia SOLO contra ese color (el blanco del fogonazo se conserva). En la
+    tira verde de Metal Slug saca **15 frames** (9 de la fila superior + 6 de la
+    inferior) separados por la franja de verde.
+  - Si no hay rejilla (una sola maraña), se fusiona en UN sprite con ese color transparente.
+  - Los colores **neutros** del marco (p. ej. blanco) siguen extrayéndose por
+    **componentes individuales** (así el camión no se rompe).
+  Info en `sprites.json` (`chromaBoxes`, `gridFrames`, `merged`). Puedes forzar el
+  color con `--background R,G,B`, elegir modelo de visión con `--model` y afinar
+  con `--tol`.
 - `--quantize 64` cuantiza cada grupo a EHB con el índice 0 transparente.
 - Con **`--ai` la herramienta es SEMIAUTÓNOMA** con ollama local: tras la detección
   determinista, la IA **comprende** qué contiene cada caja de croma (nombre/tipo/frames)
@@ -259,7 +268,9 @@ node tools/amiga-tiles/game-assets.mjs arte.png --out out/mi_juego
   croma** que el determinismo no vio — el script las extrae al instante (crop +
   color refinado por histograma + sprite fusionado con transparencia contra ese
   color). Salidas extra: `chroma_boxes.png` (overlay con las cajas) y
-  `vision_boxes.json` (entendimiento y propuestas de la IA).
+  `vision_boxes.json` (entendimiento y propuestas de la IA). La comprensión de
+  contenido depende del modelo (`--model qwen3-vl:8b-instruct-q8_0` por defecto);
+  con un modelo de visión más capaz (p. ej. `gemma3:12b`) la interpretación mejora.
 - `extract-sprites.mjs` queda como utilidad de bajo nivel (exporta sus funciones y
   solo ejecuta su CLI cuando se invoca directamente).
 

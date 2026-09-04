@@ -51,6 +51,7 @@ export function loadImage(p) {
 	return PNG.sync.read(buf);
 }
 const dist2 = (a, b) => { const dr = a[0] - b[0], dg = a[1] - b[1], db = a[2] - b[2]; return dr * dr + dg * dg + db * db; };
+const sat = (c) => Math.max(c[0], c[1], c[2]) - Math.min(c[0], c[1], c[2]);
 
 // --- 1) Color de fondo automático (borde + familias de croma interiores) ------
 // detectBackground: decide los colores de fondo de una ilustración:
@@ -108,40 +109,67 @@ export function detectBackground(png, tol) {
 	return { mode: 'colors', colors: bgs.map((b) => b.color), bgs };
 }
 
-// --- Rejilla/caja de croma: rectángulo sólido interior -> UN sprite por caja -----
-// chromaBoxes: busca en la imagen rectángulos grandes de un color de fondo CROMA
-// (los elegidos como 'interior' en detectBackground, p. ej. el verde de un marco
-// que encierra una explosión). Cada caja respresenta UN asset: los trozos de
-// contenido separados por los huecos del color se FUSIONAN en un solo sprite, con
-// transparencia SOLO contra el color de la caja.
-// Devuelve [{color, x0,y0,x1,y1, cov}]. Sin cajas claras -> [].
-function chromaBoxes(png, bg, tol) {
-	const list = bg.bgs || [];
-	const chromas = list.filter((b) => b.src === 'interior');
-	if (!chromas.length) return [];
+// --- Rejilla/caja de croma: de la huella del color a la rejilla de frames ---------
+// greenFootprint: la huella (bbox) de un color de croma interior (p. ej. el verde).
+// Primera/última fila-columna donde el color es "huella" (>= minFrac).
+// Devuelve {x0,x1,y0,y1} o null si el color apenas aparece.
+function greenFootprint(png, color, tol, minFrac = 0.06) {
 	const W = png.width, H = png.height;
-	const isC = (x, y, c) => { const o = (y * W + x) * 4; return dist2([png.data[o], png.data[o + 1], png.data[o + 2]], c) <= tol * tol; };
-	// segs: tramos de fila/columna con fracción de color >= th, tolerando huecos gap.
-	const segs = (a, th, gap) => { const out = []; let cur = null;
-		for (let i = 0; i < a.length; i++) { if (a[i] >= th) { if (!cur) cur = { s: i, e: i }; else cur.e = i; }
-			else if (cur && i - cur.e <= gap) cur.e = i; else if (cur) { out.push(cur); cur = null; } }
-		if (cur) out.push(cur); return out; };
-	const boxes = [];
-	for (const ch of chromas) {
-		const colF = [], rowF = [];
-		for (let x = 0; x < W; x++) { let n = 0; for (let y = 0; y < H; y++) if (isC(x, y, ch.color)) n++; colF.push(n / H); }
-		for (let y = 0; y < H; y++) { let n = 0; for (let x = 0; x < W; x++) if (isC(x, y, ch.color)) n++; rowF.push(n / W); }
-		for (const c of segs(colF, 0.30, 3)) for (const r of segs(rowF, 0.30, 3)) {
-			let n = 0; const tot = (c.e - c.s + 1) * (r.e - r.s + 1);
-			for (let y = r.s; y <= r.e; y++) for (let x = c.s; x <= c.e; x++) if (isC(x, y, ch.color)) n++;
-			if (n / tot < 0.30) continue;
-			// fusiona cajas solapadas del mismo color
-			const hit = boxes.find((b) => b.color === ch.color && b.x0 <= c.e && c.s <= b.x1 && b.y0 <= r.e && r.s <= b.y1);
-			if (hit) { hit.x0 = Math.min(hit.x0, c.s); hit.x1 = Math.max(hit.x1, c.e); hit.y0 = Math.min(hit.y0, r.s); hit.y1 = Math.max(hit.y1, r.e); }
-			else boxes.push({ color: ch.color, x0: c.s, y0: r.s, x1: c.e, y1: r.e });
+	const isC = (x, y) => dist2([png.data[(y * W + x) * 4], png.data[(y * W + x) * 4 + 1], png.data[(y * W + x) * 4 + 2]], color) <= tol * tol;
+	const colG = [], rowG = [];
+	for (let x = 0; x < W; x++) { let n = 0; for (let y = 0; y < H; y++) if (isC(x, y)) n++; colG.push(n / H); }
+	for (let y = 0; y < H; y++) { let n = 0; for (let x = 0; x < W; x++) if (isC(x, y)) n++; rowG.push(n / W); }
+	let x0 = -1, x1 = -1, y0 = -1, y1 = -1;
+	for (let x = 0; x < W; x++) if (colG[x] >= minFrac) { if (x0 < 0) x0 = x; x1 = x; }
+	for (let y = 0; y < H; y++) if (rowG[y] >= minFrac) { if (y0 < 0) y0 = y; y1 = y; }
+	if (x0 < 0 || y0 < 0) return null;
+	return { x0, x1, y0, y1 };
+}
+
+// splitChromaGrid: dentro de la huella de un color croma, encuentra la REJILLA de
+// separadores (filas/columnas casi 100% de ese color) y parte la animación en
+// FRAMES. Cada frame = una celda recortada con alfa 0 contra el color croma.
+// Devuelve [{x,y,w,h,data,contentN,cell}], o [] si hay <2 celdas con contenido.
+// Es la clave para extraer "los frames de la explosión" del rectángulo verde.
+export function splitChromaGrid(png, key, tol, minContent) {
+	const W = png.width, H = png.height;
+	const isG = (x, y) => dist2([png.data[(y * W + x) * 4], png.data[(y * W + x) * 4 + 1], png.data[(y * W + x) * 4 + 2]], key) <= tol * tol;
+	const foot = greenFootprint(png, key, tol); if (!foot) return [];
+	const { x0, x1, y0, y1 } = foot;
+	const rowOver = (y) => { let n = 0; for (let x = x0; x <= x1; x++) if (isG(x, y)) n++; return n / (x1 - x0 + 1); };
+	const colOver = (x, by0, by1) => { let n = 0; for (let y = by0; y <= by1; y++) if (isG(x, y)) n++; return n / (by1 - by0 + 1); };
+	// Separadores HORIZONTALES (filas casi todas del color) -> bandas verticales.
+	const gutH = []; for (let y = y0; y <= y1; y++) if (rowOver(y) >= 0.9) gutH.push(y);
+	const bands = []; let cur = null;
+	for (let y = y0; y <= y1; y++) { if (gutH.includes(y)) { if (cur !== null) { bands.push([cur, y - 1]); cur = null; } } else { if (cur === null) cur = y; } }
+	if (cur !== null) bands.push([cur, y1]);
+	const out = [];
+	const cellToSprite = (by0, by1, sx0, sx1) => {
+		let mnX = sx1, mxX = sx0, mnY = by1, mxY = by0, cn = 0;
+		for (let y = by0; y <= by1; y++) for (let x = sx0; x <= sx1; x++) { if (isG(x, y)) continue; cn++; if (x < mnX) mnX = x; if (x > mxX) mxX = x; if (y < mnY) mnY = y; if (y > mxY) mxY = y; }
+		if (cn < minContent) return null;
+		const w = mxX - mnX + 1, h = mxY - mnY + 1;
+		const crop = Buffer.alloc(w * h * 4, 0);
+		for (let y = mnY; y <= mxY; y++) for (let x = mnX; x <= mxX; x++) {
+			const o = (y * W + x) * 4, ci = (y - mnY) * w + (x - mnX);
+			crop[ci * 4] = png.data[o]; crop[ci * 4 + 1] = png.data[o + 1]; crop[ci * 4 + 2] = png.data[o + 2];
+			crop[ci * 4 + 3] = isG(x, y) ? 0 : 255;
+		}
+		return { x: mnX, y: mnY, width: w, height: h, data: crop, contentN: cn, cell: { sx0, sx1, by0, by1 } };
+	};
+	for (const [by0, by1] of bands) {
+		if (by1 - by0 + 1 < 4) continue;                                       // franja muy fina = ruido
+		const gutV = []; for (let x = x0; x <= x1; x++) if (colOver(x, by0, by1) >= 0.9) gutV.push(x);
+		const spans = []; let start = null;
+		for (let x = x0; x <= x1; x++) { if (gutV.includes(x)) { if (start !== null) { spans.push([start, x - 1]); start = null; } } else { if (start === null) start = x; } }
+		if (start !== null) spans.push([start, x1]);
+		for (const [sx0, sx1] of spans) {
+			if (sx1 - sx0 + 1 < 6) continue;                                   // célula muy fina = ruido
+			const s = cellToSprite(by0, by1, sx0, sx1); if (s) out.push(s);
 		}
 	}
-	return boxes;
+	out.sort((a, b) => a.y - b.y || a.x - b.x);                                // orden de lectura
+	return out;
 }
 
 // --- overlay de cajas de croma (para el humano y para la IA) ------------------
@@ -362,8 +390,15 @@ async function main() {
 	console.log(`[sprites] fondo: ${bgLog}`);
 
 	const { label, W, H, comps } = extract(png, bg, tol, minArea);
-	const chroma = chromaBoxes(png, bg, tol);
-	if (chroma.length) console.log(`[sprites] caja(s) de croma: ${chroma.map((b) => `[${b.x0},${b.y0}]-[${b.x1},${b.y1}] rgb(${b.color.join(',')})`).join('  ')}`);
+	// Huellas de los colores de fondo "croma" (saturados, o interiores aunque sean
+	// neutros). Un color croma será una hoja de sprites si su rejilla da >=2 celdas;
+	// los colores neutros (que ocupan el MARCO/tema, p. ej. blanco) siguen yendo por
+	// componentes individuales. Así la tool es genérica ante cualquier imagen con una
+	// región de color sólido con una animación en rejilla (verde, magenta, azul…).
+	const chromaColors = (bg.bgs || []).filter((b) => b.src === 'interior' || sat(b.color) >= 60);
+	const chroma = chromaColors.map((b) => ({ ...b, foot: greenFootprint(png, b.color, tol) })).filter((b) => b.foot);
+	if (chroma.length) console.log(`[sprites] croma(s): ${chroma.map((b) => `[${b.foot.x0},${b.foot.y0}]-[${b.foot.x1},${b.foot.y1}] rgb(${b.color.join(',')})`).join('  ')}`);
+	const chromaBoxes = chroma.map((b) => ({ x0: b.foot.x0, y0: b.foot.y0, x1: b.foot.x1, y1: b.foot.y1, color: b.color }));
 	console.log(`[sprites] componentes: ${comps.length}`);
 	fs.mkdirSync(outDir, { recursive: true });
 	const dir = path.join(outDir, 'sprites'); fs.mkdirSync(dir, { recursive: true });
@@ -371,33 +406,38 @@ async function main() {
 	const sprites = [];
 	const metas = [];
 	const usedInBox = new Uint8Array(comps.length);
-	// 1) Sprites de cada CAJA DE CROMA: los trozos cuyo centro cae dentro del
-	//    rectángulo sólido de color se FUSIONAN en UN solo sprite (p. ej. una
-	//    explosión sobre el rectángulo verde), con alfa 0 SOLO contra el color de la
-	//    caja (lo blanco del fogonazo se conserva, no es fondo aquí).
-	for (const box of chroma) {
-		const members = [];
-		comps.forEach((c, i) => {
+	const gridFrames = [];
+	// 1) FRAMES de la animación del croma: splitChromaGrid parte el rectángulo de
+	//    color (p. ej. verde) por sus separadores (filas/columnas al 100% del color)
+	//    y emite CADA CELDA como un frame con alfa 0 contra ese color. Si solo hay
+	//    una celda, se emite un único sprite (la entidad completa).
+	for (const c of chroma) {
+		const fr = splitChromaGrid(png, c.color, tol, Math.max(20, minArea));
+		if (!fr.length) continue;               // el color aparece pero no hay contenido en celdas
+		// Marcar como usados los componentes del interior de la HUELLA (no solo de las
+		// celdas) para no extraer a la vez los trozos por componentes (evita duplicados).
+		comps.forEach((co, i) => {
 			if (usedInBox[i]) return;
-			const cx = Math.round((c.minX + c.maxX) / 2), cy = Math.round((c.minY + c.maxY) / 2);
-			if (cx >= box.x0 && cx <= box.x1 && cy >= box.y0 && cy <= box.y1) { members.push(c); usedInBox[i] = 2; }
+			const cx = Math.round((co.minX + co.maxX) / 2), cy = Math.round((co.minY + co.maxY) / 2);
+			if (cx >= c.foot.x0 && cx <= c.foot.x1 && cy >= c.foot.y0 && cy <= c.foot.y1) usedInBox[i] = 2;
 		});
-		if (!members.length) continue;
-		const mnX = Math.min(...members.map((c) => c.minX)), mxX = Math.max(...members.map((c) => c.maxX));
-		const mnY = Math.min(...members.map((c) => c.minY)), mxY = Math.max(...members.map((c) => c.maxY));
-		const w = mxX - mnX + 1, h = mxY - mnY + 1;
-		const crop = Buffer.alloc(w * h * 4, 0);
-		for (let y = mnY; y <= mxY; y++) for (let x = mnX; x <= mxX; x++) {
-			const o = (y * W + x) * 4, ci = (y - mnY) * w + (x - mnX);
-			crop[ci * 4] = png.data[o]; crop[ci * 4 + 1] = png.data[o + 1]; crop[ci * 4 + 2] = png.data[o + 2];
-			crop[ci * 4 + 3] = dist2([png.data[o], png.data[o + 1], png.data[o + 2]], box.color) <= tol * tol ? 0 : 255;
+		if (fr.length >= 2) {
+			fr.forEach((f, i) => {
+				const seq = metas.length;
+				const name = `sprite_P${String(seq).padStart(3, '0')}_x${f.x}_y${f.y}_w${f.width}_h${f.height}.png`;
+				fs.writeFileSync(path.join(dir, name), PNG.sync.write(f));
+				sprites.push(f);
+				metas.push({ seq, x: f.x, y: f.y, w: f.width, h: f.height, name, area: f.contentN, frame: i, grid: true, box: { x0: c.foot.x0, y0: c.foot.y0, x1: c.foot.x1, y1: c.foot.y1, color: c.color }, merged: true, center: { x: Math.round((f.x + f.x + f.width) / 2), y: Math.round((f.y + f.y + f.height) / 2) }, anchor: { x: Math.round((f.x + f.x + f.width) / 2), y: f.y + f.height } });
+				gridFrames.push({ frame: i, name, cell: f.cell, color: c.color });
+			});
+		} else if (fr.length === 1) {
+			const f = fr[0];
+			const seq = metas.length;
+			const name = `sprite_P${String(seq).padStart(3, '0')}_x${f.x}_y${f.y}_w${f.width}_h${f.height}.png`;
+			fs.writeFileSync(path.join(dir, name), PNG.sync.write(f));
+			sprites.push(f);
+			metas.push({ seq, x: f.x, y: f.y, w: f.width, h: f.height, name, area: f.contentN, box: { x0: c.foot.x0, y0: c.foot.y0, x1: c.foot.x1, y1: c.foot.y1, color: c.color }, merged: true, center: { x: Math.round((f.x + f.x + f.width) / 2), y: Math.round((f.y + f.y + f.height) / 2) }, anchor: { x: Math.round((f.x + f.x + f.width) / 2), y: f.y + f.height } });
 		}
-		const s = { width: w, height: h, data: crop };
-		const seq = metas.length;
-		const name = `sprite_P${String(seq).padStart(3, '0')}_x${mnX}_y${mnY}_w${w}_h${h}.png`;
-		fs.writeFileSync(path.join(dir, name), PNG.sync.write(s));
-		sprites.push(s);
-		metas.push({ seq, x: mnX, y: mnY, w, h, name, area: members.reduce((a, c) => a + c.area, 0), box: { x0: box.x0, y0: box.y0, x1: box.x1, y1: box.y1, color: box.color }, merged: true, center: { x: Math.round((mnX + mxX) / 2), y: Math.round((mnY + mxY) / 2) }, anchor: { x: Math.round((mnX + mxX) / 2), y: mxY } });
 	}
 	// 2) Resto de componentes (sobre el fondo "tema", p. ej. el blanco): individuales.
 	comps.forEach((c, i) => {
@@ -409,9 +449,9 @@ async function main() {
 		sprites.push(s);
 		metas.push({ seq, x: c.minX, y: c.minY, w: s.width, h: s.height, name, area: c.area, center: { x: Math.round((c.minX + c.maxX) / 2), y: Math.round((c.minY + c.maxY) / 2) }, anchor: { x: Math.round((c.minX + c.maxX) / 2), y: c.maxY } });
 	});
-	fs.writeFileSync(path.join(outDir, 'sprites.json'), JSON.stringify({ image: input, size: `${W}x${H}`, background: bg, chromaBoxes: chroma, sprites: metas }, null, 2), 'utf8');
+	fs.writeFileSync(path.join(outDir, 'sprites.json'), JSON.stringify({ image: input, size: `${W}x${H}`, background: bg, chromaBoxes, gridFrames, sprites: metas }, null, 2), 'utf8');
 	// Overlay de depuración (cajas de croma marcadas) — utilidad y entrada a la IA.
-	if (chroma.length) fs.writeFileSync(path.join(outDir, 'chroma_boxes.png'), PNG.sync.write(drawChromaOverlay(png, chroma)));
+	if (chromaBoxes.length) fs.writeFileSync(path.join(outDir, 'chroma_boxes.png'), PNG.sync.write(drawChromaOverlay(png, chromaBoxes)));
 
 	// Hoja de contacto a tamaño natural (para el humano) + etiquetada (para la IA)
 	const sheet = contactSheet(sprites, false);
