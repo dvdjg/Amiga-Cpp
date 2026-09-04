@@ -8,7 +8,10 @@
 //      agrupación del modelo de visión; fallback 100% determinista si no hay IA.
 //   5. Organiza en <out>/<job>/<grupo>/frame_NN_*.png + group.json (frames + offset
 //      + ancla de alineación) y documenta la convención de transparencia.
-//   6. (opcional --quantize N) cuantiza cada grupo a EHB/32/16 (índice 0 = transparente).
+//   6. (opcional --quantize N) cuantiza CADA GRUPO por separado: cada grupo de
+//      frames tiene SU PROPIA paleta (en <grupo>/palette_*.json/.h) y todos sus
+//      frames comparten esa misma paleta. N = 64 → EHB (32 bases + 32 half, índice
+//      0 transparente); N = 2^n−1 (31,15,7…) → N colores + índice 0 transparente.
 //
 // La IA (ollama local, qwen3-vl) PARTICIPA en las decisiones de agrupar/nombrar y
 // evaluar completitud; si no está disponible, el pipeline decide por heurística.
@@ -21,7 +24,9 @@
 //   --ai           fuerza el paso de agrupación por ollama (def: auto si disponible)
 //   --no-ai        fuerza heurística (sin llamar a ollama)
 //   --tokens N     tokens máx de la IA (def 5000)
-//   --quantize N   además cuantiza cada grupo a N colores (64=EHB) con índice 0 transparente
+//   --quantize N   además cuantiza cada grupo por separado, con SU propia paleta
+//                  compartida por sus frames; N=64 → EHB, N=2^n−1 → colores + índice 0
+//                  transparente (se deduce: 31,15,7…)
 //   --keep-all     no descartar piezas marcadas 'incompletas' por la IA
 //
 // Dónde se llama: es un CLI de entrada directa; internamente DELEGA en
@@ -332,7 +337,7 @@ async function main() {
 			const r = spawnSync(process.execPath, [path.join(ROOT, 'tools', 'amiga-tiles', 'amiga-tiles.mjs'), tmp, '--colors', String(quantize), '--palette', pal, '--alpha', '--tile', '16', '--out', gd], { encoding: 'utf8' });
 			fs.rmSync(tmp, { force: true });
 			if (r.status !== 0) console.log(`   [warn] cuantización falló en ${g.name}: ${(r.stderr || r.stdout).slice(0, 200)}`);
-			else { const m = (r.stdout.match(/reconstruct_[^\s]+\.png/) || [])[0]; console.log(`   [quant] ${g.name} -> ${quantize} colores (${m || 'ok'})`); }
+			else { const m = (r.stdout.match(/reconstruct_[^\s]+\.png/) || [])[0]; const palF = (r.stdout.match(/palette_[^\s]+\.json/) || [])[0]; console.log(`   [quant] ${g.name} -> ${quantize} colores | paleta por grupo: ${palF || gd + '/palette_*.json'} (compartida por sus ${n} frames)`); }
 		}
 		console.log(`[game-assets] grupo '${g.name}': ${n} frames (${g.kind})`);
 	}
