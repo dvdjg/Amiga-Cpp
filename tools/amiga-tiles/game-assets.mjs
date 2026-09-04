@@ -26,7 +26,10 @@
 //   --tokens N     tokens máx de la IA (def 5000)
 //   --quantize N   además cuantiza cada grupo por separado, con SU propia paleta
 //                  compartida por sus frames; N=64 → EHB, N=2^n−1 → colores + índice 0
-//                  transparente (se deduce: 31,15,7…)
+//                  transparente (se deduce: 31,15,7…). Cada grupo emite además su
+//                  palette_chart_<sufijo>.png/.txt (gráfico de uso real de su paleta).
+//   --prune        además, en cada grupo, emitir variantes '_pruned_' con la paleta
+//                  reducida a los colores realmente usados (menos bits/píxel).
 //   --keep-all     no descartar piezas marcadas 'incompletas' por la IA
 //
 // Dónde se llama: es un CLI de entrada directa; internamente DELEGA en
@@ -242,7 +245,7 @@ function spriteToPng(s) {
 //   organiza grupos -> (opcional) subproceso amiga-tiles.mjs --quantize.
 async function main() {
 	const input = process.argv[2];
-	if (!input || hasArg('--help') || hasArg('-h')) { console.log('Uso: node tools/amiga-tiles/game-assets.mjs <imagen> [--out DIR] [--tol N] [--min N] [--split] [--ai|--no-ai] [--tokens N] [--quantize N]'); return; }
+	if (!input || hasArg('--help') || hasArg('-h')) { console.log('Uso: node tools/amiga-tiles/game-assets.mjs <imagen> [--out DIR] [--tol N] [--min N] [--split] [--ai|--no-ai] [--tokens N] [--quantize N] [--prune]'); return; }
 	const tol = Math.max(1, parseInt(argV('--tol', '24'), 10) || 24);
 	const minArea = Math.max(8, parseInt(argV('--min', '30'), 10) || 30);
 	const doSplit = hasArg('--split'); // morfología ligera OPCIONAL (sprites que se tocan) — por defecto apagada: erosionar fragmenta sprites con detalles
@@ -334,7 +337,7 @@ async function main() {
 			const sheetPng = makeGroupSheet(g.frames, cell);
 			const tmp = path.join(gd, '_sheet.png'); fs.writeFileSync(tmp, PNG.sync.write(sheetPng));
 			const pal = quantize === 64 ? 'ehb' : 'adaptive';
-			const r = spawnSync(process.execPath, [path.join(ROOT, 'tools', 'amiga-tiles', 'amiga-tiles.mjs'), tmp, '--colors', String(quantize), '--palette', pal, '--alpha', '--tile', '16', '--out', gd], { encoding: 'utf8' });
+			const r = spawnSync(process.execPath, [path.join(ROOT, 'tools', 'amiga-tiles', 'amiga-tiles.mjs'), tmp, '--colors', String(quantize), '--palette', pal, '--alpha', '--tile', '16', '--out', gd, '--chart-compact', hasArg('--prune') ? '--prune' : ''].filter(Boolean), { encoding: 'utf8' });
 			fs.rmSync(tmp, { force: true });
 			if (r.status !== 0) console.log(`   [warn] cuantización falló en ${g.name}: ${(r.stderr || r.stdout).slice(0, 200)}`);
 			else { const m = (r.stdout.match(/reconstruct_[^\s]+\.png/) || [])[0]; const palF = (r.stdout.match(/palette_[^\s]+\.json/) || [])[0]; console.log(`   [quant] ${g.name} -> ${quantize} colores | paleta por grupo: ${palF || gd + '/palette_*.json'} (compartida por sus ${n} frames)`); }
