@@ -144,6 +144,66 @@ function chromaBoxes(png, bg, tol) {
 	return boxes;
 }
 
+// --- overlay de cajas de croma (para el humano y para la IA) ------------------
+// drawChromaOverlay: clona el PNG y pinta cada caja detectada (contorno magenta +
+// índice amarillo). Es la imagen que recibe ollama en la pasada de VISIÓN para
+// "comprender el contenido" de cada rectángulo de croma y proponer otros.
+export function drawChromaOverlay(png, boxes) {
+	const out = new PNG({ width: png.width, height: png.height });
+	png.data.copy(out.data);
+	const C = [255, 0, 255]; // magenta
+	const set = (x, y, c) => { if (x < 0 || y < 0 || x >= png.width || y >= png.height) return; const o = (y * png.width + x) * 4; out.data[o] = c[0]; out.data[o + 1] = c[1]; out.data[o + 2] = c[2]; out.data[o + 3] = 255; };
+	boxes.forEach((b, i) => {
+		for (let x = b.x0; x <= b.x1; x++) { set(x, b.y0, C); set(x, b.y1, C); }
+		for (let y = b.y0; y <= b.y1; y++) { set(b.x0, y, C); set(b.x1, y, C); }
+		drawLabel(out, b.x0 + 2, Math.max(0, b.y0 - 9), String(i), png.width);
+	});
+	return out;
+}
+
+// dominantInRect: histograma en un rectángulo y devuelve la familia de color más
+// frecuente {color, cov(0..1)}. Se usa para REFINAR el croma que propone la IA.
+function dominantInRect(png, rect, tol) {
+	const W = png.width, H = png.height;
+	const h = new Map();
+	for (let y = Math.max(0, rect.y0); y <= Math.min(H - 1, rect.y1); y++) for (let x = Math.max(0, rect.x0); x <= Math.min(W - 1, rect.x1); x++) {
+		const o = (y * W + x) * 4; const k = (png.data[o] << 16) | (png.data[o + 1] << 8) | png.data[o + 2]; h.set(k, (h.get(k) || 0) + 1);
+	}
+	const out = [];
+	for (const [k, n] of [...h.entries()].sort((a, b) => b[1] - a[1])) {
+		const c = [(k >> 16) & 255, (k >> 8) & 255, k & 255]; const ix = out.findIndex((f) => dist2(f.color, c) <= tol * tol);
+		if (ix >= 0) out[ix].count += n; else out.push({ color: c, count: n });
+	}
+	out.sort((a, b) => b.count - a.count);
+	const tot = (Math.min(H - 1, rect.y1) - Math.max(0, rect.y0) + 1) * (Math.min(W - 1, rect.x1) - Math.max(0, rect.x0) + 1);
+	return out.length ? { color: out[0].color, cov: out[0].count / tot } : null;
+}
+
+// chromaMergeInRect: extrae en un rectángulo el contenido NO-croma como UN sprite
+// fusionado (alfa 0 contra el color key), con bbox ajustado al contenido.
+// Devuelve {width,height,data,bbox:{x,y,w,h}, contentN} o null si casi vacío.
+// Es el motor de la FUSIÓN de cajas (explosión sobre rectángulo verde) y de las
+// cajas EXTRA que propone la IA.
+function chromaMergeInRect(png, key, tol, rect) {
+	const W = png.width, H = png.height;
+	const isK = (x, y) => dist2([png.data[(y * W + x) * 4], png.data[(y * W + x) * 4 + 1], png.data[(y * W + x) * 4 + 2]], key) <= tol * tol;
+	let mnX = rect.x1, mxX = rect.x0, mnY = rect.y1, mxY = rect.y0, contentN = 0;
+	for (let y = Math.max(0, rect.y0); y <= Math.min(H - 1, rect.y1); y++) for (let x = Math.max(0, rect.x0); x <= Math.min(W - 1, rect.x1); x++) {
+		if (isK(x, y)) continue;
+		contentN++;
+		if (x < mnX) mnX = x; if (x > mxX) mxX = x; if (y < mnY) mnY = y; if (y > mxY) mxY = y;
+	}
+	if (mxX < mnX || contentN < 8) return null;
+	const w = mxX - mnX + 1, h = mxY - mnY + 1;
+	const crop = Buffer.alloc(w * h * 4, 0);
+	for (let y = mnY; y <= mxY; y++) for (let x = mnX; x <= mxX; x++) {
+		const o = (y * W + x) * 4, ci = (y - mnY) * w + (x - mnX);
+		crop[ci * 4] = png.data[o]; crop[ci * 4 + 1] = png.data[o + 1]; crop[ci * 4 + 2] = png.data[o + 2];
+		crop[ci * 4 + 3] = isK(x, y) ? 0 : 255;
+	}
+	return { width: w, height: h, data: crop, bbox: { x: mnX, y: mnY, w, h }, contentN };
+}
+
 // --- 2+3) Componentes conexos 4-way sobre máscara NO-fondo --------------------
 export function isBgPx(png, bg, tol, x, y) {
 	const o = (y * png.width + x) * 4;
@@ -350,6 +410,8 @@ async function main() {
 		metas.push({ seq, x: c.minX, y: c.minY, w: s.width, h: s.height, name, area: c.area, center: { x: Math.round((c.minX + c.maxX) / 2), y: Math.round((c.minY + c.maxY) / 2) }, anchor: { x: Math.round((c.minX + c.maxX) / 2), y: c.maxY } });
 	});
 	fs.writeFileSync(path.join(outDir, 'sprites.json'), JSON.stringify({ image: input, size: `${W}x${H}`, background: bg, chromaBoxes: chroma, sprites: metas }, null, 2), 'utf8');
+	// Overlay de depuración (cajas de croma marcadas) — utilidad y entrada a la IA.
+	if (chroma.length) fs.writeFileSync(path.join(outDir, 'chroma_boxes.png'), PNG.sync.write(drawChromaOverlay(png, chroma)));
 
 	// Hoja de contacto a tamaño natural (para el humano) + etiquetada (para la IA)
 	const sheet = contactSheet(sprites, false);
@@ -357,7 +419,72 @@ async function main() {
 	console.log(`[sprites] ${sprites.length} sprites -> ${dir} (sheet: sprites_sheet.png)`);
 	for (const m of metas) console.log(`   #${m.seq} ${m.name}  centro(${m.center.x},${m.center.y}) ancla(${m.anchor.x},${m.anchor.y})`);
 
-	// --- IA: revisar + agrupar (una llamada con la hoja etiquetada) ----------
+	// --- IA: 1) COMPRENDER las cajas de croma + proponer cromas extra ----------
+	// Pasada de VISIÓN: ollama recibe el overlay con las cajas marcadas y devuelve
+	// (a) qué CONTIENE cada caja, (b) OTROS rectángulos de color sólido que vio como
+	// fondo croma y que el determinismo no marcó. Los que propaga se extraen al
+	// instante con chromaMergeInRect (color refinado con dominantInRect).
+	if (aiMode) {
+		const model = argV('--model', 'qwen3-vl:8b-instruct-q8_0');
+		let vision = null;
+		try {
+			const pVision = `Analiza esta hoja de un videojuego. Los rectángulos MAGENTA marcados (índices ${chroma.length ? '0..' + (chroma.length - 1) : 'ninguno'}) son "cajas de croma": fondos de color sólido sobre los que se dibujó contenido (sprites). Devuelve SOLO JSON:
+{"boxes":[{"index":0,"content":"descripción corta del contenido","type":"explosion|personaje|vehiculo|fondo|otro","frames":N o null}],"extraChroma":[{"x0pct":..,"y0pct":..,"x1pct":..,"y1pct":..,"color":[r,g,b],"content":"descripción"}]}
+Para cada caja marcada (según su índice) dime brevemente qué contiene. Si ves OTRO rectángulo GRANDE de color sólido (verde, magenta, azul, negro...) que no está marcado y que se usa como fondo para dibujar otra entidad, propónlo en extraChroma con su rectángulo en % del ancho y alto de la IMAGEN COMPLETA (0..100) y su color aproximado [r,g,b]. No inventes cajas si no hay.`;
+			const ov = drawChromaOverlay(png, chroma);
+			const t1 = await ask(model, base, pVision, ov);
+			vision = extractJson(t1);
+			fs.writeFileSync(path.join(outDir, 'vision_boxes.json'), JSON.stringify({ raw: t1, parsed: vision }, null, 2), 'utf8');
+			console.log(`[sprites] IA cajas: ${vision && Array.isArray(vision.boxes) ? `${vision.boxes.length} comprendidas` : 'sin JSON'}${vision && Array.isArray(vision.extraChroma) && vision.extraChroma.length ? ` + ${vision.extraChroma.length} cromas extra` : ''} -> vision_boxes.json`);
+		} catch (e) { console.error(`[sprites] ollama (cajas) falló: ${e.message}`); }
+
+		// 1b) aplicar cajas EXTRA propuestas por la IA (crop + croma + sprite fusionado).
+		const clampI = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(v)));
+		if (vision && Array.isArray(vision.extraChroma)) {
+			for (const ex of vision.extraChroma.slice(0, 6)) {
+				const rect = { x0: clampI((+ex.x0pct || 0) / 100 * W, 0, W - 1), y0: clampI((+ex.y0pct || 0) / 100 * H, 0, H - 1), x1: clampI((+ex.x1pct || 0) / 100 * W, 0, W - 1), y1: clampI((+ex.y1pct || 0) / 100 * H, 0, H - 1) };
+				if (rect.x1 <= rect.x0 || rect.y1 <= rect.y0) continue;
+				let key = Array.isArray(ex.color) && ex.color.length === 3 ? ex.color.map((v) => clampI(+v, 0, 255)) : null;
+				const dom = dominantInRect(png, rect, tol);
+				if (dom && dom.cov >= 0.05) key = dom.color;            // refinamiento determinista
+				if (!key) continue;
+				const m = chromaMergeInRect(png, key, tol, rect);
+				if (!m) { console.log(`   [visión] caja extra descartada (casi vacía): ${JSON.stringify(rect)}`); continue; }
+				// Anti-duplicado: si el contenido ya lo cubre una caja fusionada previa.
+				const newR = { x: m.bbox.x, y: m.bbox.y, w: m.bbox.w, h: m.bbox.h };
+				const dup = metas.find((mm) => mm.merged && !mm.aiProposed && mm.x <= newR.x + newR.w && newR.x <= mm.x + mm.w && mm.y <= newR.y + newR.h && newR.y <= mm.y + mm.h);
+				if (dup) { console.log(`   [visión] caja extra solapada con sprite #${dup.seq}: ${JSON.stringify(newR)} (se ignora)`); continue; }
+				const seq = metas.length;
+				const name = `sprite_P${String(seq).padStart(3, '0')}_x${m.bbox.x}_y${m.bbox.y}_w${m.bbox.w}_h${m.bbox.h}.png`;
+				fs.writeFileSync(path.join(dir, name), PNG.sync.write(m));
+				sprites.push(m);
+				const content = String(ex.content || 'croma_extra').replace(/[\\/:*?"<>| ]/g, '_');
+				metas.push({ seq, x: m.bbox.x, y: m.bbox.y, w: m.bbox.w, h: m.bbox.h, name, area: m.contentN, box: rect, merged: true, aiProposed: true, content, anchor: { x: 0.5, y: 1 }, center: { x: Math.round((m.bbox.x + m.bbox.x + m.bbox.w) / 2), y: Math.round((m.bbox.y + m.bbox.y + m.bbox.h) / 2) } });
+				console.log(`   [visión] croma extra ok: ${name} (${content}, key rgb(${key.join(',')}))`);
+				if (organize) {
+					const gd = path.join(outDir, content); fs.mkdirSync(gd, { recursive: true });
+					fs.copyFileSync(path.join(dir, name), path.join(gd, `frame_00_${name}`));
+					fs.writeFileSync(path.join(gd, 'group.json'), JSON.stringify({ name: content, kind: 'independiente', anchor: { x: 0.5, y: 1 }, frames: [{ file: `frame_00_${name}`, offset: { x: m.bbox.x, y: m.bbox.y + m.bbox.h } }], count: 1 }, null, 2), 'utf8');
+				}
+			}
+		}
+		// 1c) organizar por CONTENIDO las cajas que la IA comprendió.
+		if (organize && vision && Array.isArray(vision.boxes)) {
+			for (const b of vision.boxes) {
+				const bx = chroma[b.index];
+				if (!bx || !b.content) continue;
+				const mt = metas.find((mm) => mm.merged && mm.box && mm.box.x0 === bx.x0 && mm.box.y0 === bx.y0 && mm.box.x1 === bx.x1 && mm.box.y1 === bx.y1);
+				if (!mt) continue;
+				const content = String(b.content).replace(/[\\/:*?"<>| ]/g, '_');
+				const gd = path.join(outDir, content); fs.mkdirSync(gd, { recursive: true });
+				fs.copyFileSync(path.join(dir, mt.name), path.join(gd, `frame_00_${mt.name}`));
+				fs.writeFileSync(path.join(gd, 'group.json'), JSON.stringify({ name: b.content, kind: b.type || 'otro', anchor: { x: 0.5, y: 1 }, frames: b.frames || (mt ? 1 : 0), files: [mt ? `frame_00_${mt.name}` : ''].filter(Boolean), count: 1 }, null, 2), 'utf8');
+				console.log(`   [visión] caja #${b.index} -> grupo '${content}' (${b.type || 'otro'})`);
+			}
+		}
+	}
+
+	// --- IA: 2) revisar + agrupar (hoja etiquetada completa: N sprites) ---------
 	if (aiMode) {
 		const model = argV('--model', 'qwen3-vl:8b-instruct-q8_0');
 		const prompt = `Hay ${sprites.length} imágenes de sprites extraídas de un videojuego, etiquetadas del 0 al ${sprites.length - 1} en la hoja (los píxeles brillantes cercanos a cada recuadro son su número). Devuelve SOLO JSON con:

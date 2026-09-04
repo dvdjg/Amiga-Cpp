@@ -253,6 +253,13 @@ node tools/amiga-tiles/game-assets.mjs arte.png --out out/mi_juego
   blanco del fogonazo se conserva). Info en `sprites.json` (`chromaBoxes`,
   `merged`). Puedes forzar el color con `--background R,G,B` y afinar con `--tol`.
 - `--quantize 64` cuantiza cada grupo a EHB con el índice 0 transparente.
+- Con **`--ai` la herramienta es SEMIAUTÓNOMA** con ollama local: tras la detección
+  determinista, la IA **comprende** qué contiene cada caja de croma (nombre/tipo/frames)
+  y la organiza en `<out>/<contenido>/` con ese nombre, y además **propone cajas de
+  croma** que el determinismo no vio — el script las extrae al instante (crop +
+  color refinado por histograma + sprite fusionado con transparencia contra ese
+  color). Salidas extra: `chroma_boxes.png` (overlay con las cajas) y
+  `vision_boxes.json` (entendimiento y propuestas de la IA).
 - `extract-sprites.mjs` queda como utilidad de bajo nivel (exporta sus funciones y
   solo ejecuta su CLI cuando se invoca directamente).
 
