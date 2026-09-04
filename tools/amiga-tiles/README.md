@@ -13,6 +13,16 @@ node tools/amiga-tiles/amiga-tiles.mjs <imagen.png> [opciones]
 Ejemplos y cada opción abajo. El propio archivo es un tutorial; el código está
 comentado en español.
 
+## Índice de scripts (¿qué es cada uno y desde dónde se llama?)
+
+| Script | Qué hace | Cómo se invoca | Quién lo llama |
+|---|---|---|---|
+| `amiga-tiles.mjs` | Cuantizador/tilebank (2..255 colores, EHB, dither, paletas, resize, empaquetado por bits) | `node tools/amiga-tiles/amiga-tiles.mjs <img> [opc]` | CLI directo; también **subproceso** desde `game-assets.mjs` (`--quantize`, con `--alpha`) |
+| `extract-sprites.mjs` | Extracción de sprites por componentes (determinista) + agrupación opcional con IA | `node tools/amiga-tiles/extract-sprites.mjs <img> [opc]` | CLI propio; **exporta funciones** (`loadImage`, `detectBackground`, `extract`, `cropSprite`, `contactSheet`, `ask`, `extractJson`) que importa `game-assets.mjs` |
+| `game-assets.mjs` | Pipeline único: fondos multi-zona → sprites → grupos (IA con fallback heurístico) → `--quantize` | `node tools/amiga-tiles/game-assets.mjs <img> [opc]` | CLI directo (entrada recomendada para preparar assets de un juego) |
+| `run-demos.mjs` | Regenera `out/tile-demos/` (8 demos de cada capacidad) | `node tools/amiga-tiles/run-demos.mjs` | CLI directo (verificación/manual) |
+| `run-vision-verify.mjs` | Verifica cada demo con ollama local (describe, corresponde, propone `--ops`) | `node tools/amiga-tiles/run-vision-verify.mjs [--resume] [--folder] [--all]` | CLI directo; sus `.ops.txt` los consume `amiga-tiles.mjs --ops` |
+
 ## Qué hace exactamente
 
 1. **Lee el PNG** y detecta transparencia (píxeles con alfa < 128).
@@ -65,7 +75,7 @@ y las mismas características quedan guardadas **como metadatos**: chunk `tEXt`
 |---|---|
 | `reconstruct_<sufijo>.png` | La imagen que se obtiene en el Amiga dibujando `banco[kIndexedMap]`. |
 | `tilebank_<sufijo>.png` | Hoja de contacto con los tiles únicos (para inspección). |
-| `tilebank_<sufijo>.bin/.h` | 1 byte por píxel, stride fijo `tile*tile` por tile + `kPalette`, `kTileBankStride`, `kTileIndexedMap`. |
+| `tilebank_<sufijo>.bin/.h` | Índices por tile (`kTileIndexedMap`), paleta `kPalette` y metadatos `kTileBankStride`/`kTileBankBitsPerPixel`. **Empaquetado** por profundidad (1 B/px si `bits>4`; `ceil(tile²·bits/8)` B/tile en otro caso, bits LSB-first). |
 | `palette_<sufijo>.json` | Metadatos (`label`) + `palette` + `bank` + `map` + `stats`. |
 | `palette_<sufijo>.h` | Paleta en palabras Amiga `0x0RGB`. |
 | `tilebank.xlimited_*.bin/.h` | Solo con `--xlimited`: banco interleaved de 320 px para el engine X-Limited. |
@@ -183,6 +193,13 @@ Antes de cuantizar se puede **ajustar la resolución** y/o **recortar**:
 - `--crop X,Y,W,H` recorta una región (útil para trocear un fondo y cuantizar planos).
 - `--emit-source` guarda solo la imagen de trabajo (post crop/resize) en
   `<out>/source_resized.png` y sale; sirve para inspeccionar/preparar la región.
+
+## Parámetros finos (los que se usan menos)
+
+- `--tile N` — tamaño de tile en píxeles (defecto 16; 8/32 funcionan igual).
+- `--palette-k N` — K del k-means (defecto 3). Sólo afecta a `--palette kmeans`.
+- `--sheet-scale N` — escala de la hoja de contacto `tilebank_<sufijo>.png` (inspección visual).
+- `--help` / `-h` — imprime el uso y las opciones.
 
 ## Fondo continuo → bandas (Metal Slug)
 

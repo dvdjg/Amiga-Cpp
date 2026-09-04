@@ -733,7 +733,25 @@ function packIndices(indices, bits) {
 }
 
 // ---------------------------------------------------------------------------
-// main
+// ORQUESTACIÓN (main) — este fichero ES el CLI de amiga-tiles (ver README.md).
+// Flujo de llamadas dentro de main(), en orden:
+//   arg()/intArg()/floatArg()      parseo de opciones de la línea de comandos
+//   loadImage()                    PUEDE ser JPEG (jpeg-js) o PNG (pngjs)
+//   crop()                         -> resizeImage()/emit-source (opcionales)
+//   parseOps()                     "recortar según el VLM" (--ops)
+//   quantizeIndexed()              paleta: kmeans/medianCut/brightSplit/
+//                                  popularityPalette/fixedCube/fixedGrays/
+//                                  tabla externa; dither none/floyd/atkinson/
+//                                  bayer/best; EHB half-aware (buildTable)
+//   sliceTiles()+mergeSimilar()    tilebank + dedupe
+//   reconstructAndCompare()        assert al 100% (sin merge)
+//   writeIndexedPng()/verifyPng()  reconstruct/tilebank + round-trip (crc32)
+//   packIndices()                  banco empaquetado por bits (--pack)
+//   emitXlimitedBank()             solo con --xlimited
+//   extractBands()                 solo con --extract-bands DIR
+//   ollamaDescribe()               solo con --describe
+// Este CLI también se lanza COMO SUBPROCESO desde tools/amiga-tiles/game-assets.mjs
+// (paso --quantize, siempre con --alpha para reservar el índice 0).
 // ---------------------------------------------------------------------------
 function fail(msg) { console.error(`[amiga-tiles] ${msg}`); process.exit(1); }
 

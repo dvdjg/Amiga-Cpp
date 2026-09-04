@@ -1,28 +1,32 @@
 #!/usr/bin/env node
-// game-assets.mjs Ã¢â‚¬â€ PIPELINE ÃƒÅ¡NICO e inteligente de sprites/fondos para juegos.
-// Con UNA orden hace todo el flujo que antes hacÃƒÂ­amos a mano:
+// game-assets.mjs — PIPELINE ÚNICO e inteligente de sprites/fondos para juegos.
+// Con UNA orden hace todo el flujo que antes hacíamos a mano:
 //   1. Detecta los fondos (varios colores por zona; o usa el alpha si ya hay).
 //   2. Extrae sprites por componentes conexos (cada pieza con bbox/centro/ancla).
-//   3. (opcional --split) separa sprites que se tocan (erosiÃƒÂ³n 1 px).
-//   4. Agrupa por identidad: heurÃƒÂ­stica de rejilla + (si hay ollama local) json de
-//      agrupaciÃƒÂ³n del modelo de visiÃƒÂ³n; fallback 100% determinista si no hay IA.
+//   3. (opcional --split) separa sprites que se tocan (erosión 1 px).
+//   4. Agrupa por identidad: heurística de rejilla + (si hay ollama local) json de
+//      agrupación del modelo de visión; fallback 100% determinista si no hay IA.
 //   5. Organiza en <out>/<job>/<grupo>/frame_NN_*.png + group.json (frames + offset
-//      + ancla de alineaciÃƒÂ³n) y documenta la convenciÃƒÂ³n de transparencia.
-//   6. (opcional --quantize N) cuantiza cada grupo a EHB/32/16 (ÃƒÂ­ndice 0 = transparente).
+//      + ancla de alineación) y documenta la convención de transparencia.
+//   6. (opcional --quantize N) cuantiza cada grupo a EHB/32/16 (índice 0 = transparente).
 //
 // La IA (ollama local, qwen3-vl) PARTICIPA en las decisiones de agrupar/nombrar y
-// evaluar completitud; si no estÃƒÂ¡ disponible, el pipeline decide por heurÃƒÂ­stica.
+// evaluar completitud; si no está disponible, el pipeline decide por heurística.
 //
 // Uso:
 //   node tools/amiga-tiles/game-assets.mjs <imagen> [opciones]
 //   --out DIR      (def: <imagen>.ass, o ./out/<job>)   --job NOMBRE
-//   --tol N        tolerancia rgb de fondo (def 24)     --min N ÃƒÂ¡rea mÃƒÂ­nima (def 30)
-//   --split        separa sprites que se tocan (morfologÃƒÂ­a ligera)
-//   --ai           fuerza el paso de agrupaciÃƒÂ³n por ollama (def: auto si disponible)
-//   --no-ai        fuerza heurÃƒÂ­stica (sin llamar a ollama)
-//   --tokens N     tokens mÃƒÂ¡x de la IA (def 5000)
-//   --quantize N   ademÃƒÂ¡s cuantiza cada grupo a N colores (64=EHB) con ÃƒÂ­ndice 0 transparente
+//   --tol N        tolerancia rgb de fondo (def 24)     --min N área mínima (def 30)
+//   --split        separa sprites que se tocan (morfología ligera)
+//   --ai           fuerza el paso de agrupación por ollama (def: auto si disponible)
+//   --no-ai        fuerza heurística (sin llamar a ollama)
+//   --tokens N     tokens máx de la IA (def 5000)
+//   --quantize N   además cuantiza cada grupo a N colores (64=EHB) con índice 0 transparente
 //   --keep-all     no descartar piezas marcadas 'incompletas' por la IA
+//
+// Dónde se llama: es un CLI de entrada directa; internamente DELEGA en
+//   ./extract-sprites.mjs (loadImage, contactSheet, ask, extractJson) y, en el paso
+//   --quantize, lanza a su vez ./amiga-tiles.mjs como subproceso.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,13 +41,18 @@ const hasArg = (n) => process.argv.indexOf(n) >= 0;
 const dist2 = (a, b) => { const dr = a[0] - b[0], dg = a[1] - b[1], db = a[2] - b[2]; return dr * dr + dg * dg + db * db; };
 const lum = (c) => 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
 
-// --- 1) DetecciÃƒÂ³n de fondos multi-zona --------------------------------------
+// --- 1) Detección de fondos multi-zona --------------------------------------
 // Recoge los colores dominantes en bordes y en bandas horizontales uniformes.
+// Llamado desde main() (una vez por imagen; decide si hay transparencia 'alpha',
+// varios colores 'colors' o nada 'none').
 function detectBackgrounds(png, tol) {
 	let alphaN = 0;
 	for (let i = 3; i < png.data.length; i += 4) if (png.data[i] < 16) alphaN++;
 	if (alphaN > png.width * png.height * 0.02) return { mode: 'alpha', bgs: [] };
+
 	const W = png.width, H = png.height;
+	// fams(points): histograma de los colores de una lista de píxeles, agrupado por
+	// tolerancia (la "familia" del color dominante se cuenta junta).
 	const fams = (points) => {
 		const h = new Map();
 		for (const [x, y] of points) { const o = (y * W + x) * 4; const k = (png.data[o] << 16) | (png.data[o + 1] << 8) | png.data[o + 2]; h.set(k, (h.get(k) || 0) + 1); }
@@ -56,6 +65,8 @@ function detectBackgrounds(png, tol) {
 		}
 		return out.sort((a, b) => b.count - a.count);
 	};
+	// Bordes de la imagen (todo el marco + 2 bandas superior/inferior): aquí vive
+	// casi siempre el color de fondo principal (cielo, etc.).
 	const edges = [];
 	for (let x = 0; x < W; x++) for (let y = 0; y < H; y += Math.max(1, H >> 3)) { if (y === 0 || y === H - 1) edges.push([x, y]); }
 	for (let y = 0; y < H; y++) { edges.push([0, y]); edges.push([W - 1, y]); if (y < 2 || y >= H - 2) for (let x = 0; x < W; x++) edges.push([x, y]); }
@@ -64,6 +75,8 @@ function detectBackgrounds(png, tol) {
 	const bgs = [];
 	for (const f of edgeFams) { if (f.color && lum(f.color) >= 40 && f.count / totalE >= 0.12) bgs.push(f.color); if (bgs.length >= 4) break; }
 	// Bandas horizontales Y verticales uniformes (zonas separadas): distintos fondos.
+	// scan('h') barre franjas horizontales, scan('v') verticales; cada franja cuyo
+	// color dominante (familia) sea claro y uniforme se añade como fondo.
 	const scan = (axis) => {
 		const step = Math.max(8, Math.round((axis === 'h' ? H : W) / 24));
 		for (let p0 = 0; p0 < (axis === 'h' ? H : W) && bgs.length < 4; p0 += step) {
@@ -85,13 +98,17 @@ function detectBackgrounds(png, tol) {
 	scan('h'); scan('v');
 	return { mode: bgs.length ? 'colors' : 'none', bgs: bgs.slice(0, 4) };
 }
+// Predicado "¿es fondo?" para la lista multi-color bgs. Llamado desde extractMulti,
+// splitTouching y el main() al construir cada sprite (decidir alfa 0).
 function isBgMulti(png, W, bgs, tol, x, y) {
 	if (!bgs.length) return false;
 	const o = (y * W + x) * 4, c = [png.data[o], png.data[o + 1], png.data[o + 2]];
 	for (const b of bgs) if (dist2(c, b) <= tol * tol) return true;
 	return false;
 }
-// Componentes conexos sobre mÃƒÂ¡scara multi-fondo (adaptaciÃƒÂ³n de extract con listas).
+// Componentes conexos sobre máscara multi-fondo (adaptación de extract con listas).
+// Flood-fill iterativo (sin recursión) sobre píxeles NO fondo; devuelve {label, comps}.
+// Llamado desde main() cuando NO hay --split.
 function extractMulti(png, bgs, tol, minArea) {
 	const W = png.width, H = png.height;
 	if (bgs.length === 0) return { comps: [{ minX: 0, minY: 0, maxX: W - 1, maxY: H - 1, area: W * H }], W, H };
@@ -117,12 +134,15 @@ function extractMulti(png, bgs, tol, minArea) {
 	}
 	return { label, W, H, comps: comps.filter((c) => c.area >= minArea) };
 }
-// --- 3) SeparaciÃƒÂ³n morfolÃƒÂ³gica ligera (sprites que se tocan) ----------------
+// --- 3) Separación morfológica ligera (sprites que se tocan) ----------------
+// Opcional (--split). Erosión 1 px sobre la máscara de foreground y etiquetado de
+// los componentes del "núcleo": separa piezas que se tocan por un borde fino.
+// Llamado desde main() SOLO con --split (sustituye a extractMulti).
 function splitTouching(png, bgs, tol, minArea) {
 	const W = png.width, H = png.height;
 	const fg = new Uint8Array(W * H);
 	for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) fg[y * W + x] = isBgMulti(png, W, bgs, tol, x, y) ? 0 : 1;
-	// erosiÃƒÂ³n 1 px: se conserva un pÃƒÂ­xel si sus 4 vecinos tambiÃƒÂ©n son foreground.
+	// erosión 1 px: se conserva un píxel si sus 4 vecinos también son foreground.
 	const core = new Uint8Array(W * H);
 	for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
 		if (!fg[y * W + x]) continue;
@@ -147,7 +167,10 @@ function splitTouching(png, bgs, tol, minArea) {
 	return comps.filter((c) => c.area >= minArea);
 }
 
-// --- 4) HeurÃƒÂ­stica de rejilla (agrupa frames del mismo sprite) --------------
+// --- 4) Heurística de rejilla (agrupa frames del mismo sprite) --------------
+// Agrupa sprites por tamaño igual y su disposición en rejilla (malla completa =
+// animación; filas de varios = animaciones; el resto = independientes).
+// Llamado desde main(): es el fallback si no hay IA o la IA no decide.
 function heuristicGroups(sprites) {
 	const bySize = new Map();
 	sprites.forEach((s, i) => { const k = `${s.w}x${s.h}`; if (!bySize.has(k)) bySize.set(k, []); bySize.get(k).push(i); });
@@ -159,7 +182,7 @@ function heuristicGroups(sprites) {
 		for (const i of sorted) { const r = sprites[i].y; if (!rows.has(r)) rows.set(r, []); rows.get(r).push(i); const c = sprites[i].x; if (!cols.has(c)) cols.set(c, []); cols.get(c).push(i); }
 		const isLattice = rows.size >= 2 && cols.size >= 2 && rows.size * cols.size === idxs.length;
 		if (isLattice) {
-			// malla completa: una animaciÃƒÂ³n (orden por fila-columna)
+			// malla completa: una animación (orden por fila-columna)
 			const order = [];
 			for (const [, v] of rows) for (const i of v) order.push(i);
 			groups.push({ name: `secuencia_${size}`, kind: 'animacion', sprites: order });
@@ -167,7 +190,7 @@ function heuristicGroups(sprites) {
 			continue;
 		}
 		if (rows.size && [...rows.values()].every((v) => v.length > 1)) {
-			// filas: cada fila = animaciÃƒÂ³n del mismo sprite
+			// filas: cada fila = animación del mismo sprite
 			for (const [, v] of rows) { groups.push({ name: `secuencia_${size}_${(v[0] / sprites.length).toFixed(2)}`, kind: 'animacion', sprites: v.slice() }); v.forEach((i) => used.add(i)); }
 			continue;
 		}
@@ -178,6 +201,8 @@ function heuristicGroups(sprites) {
 }
 
 // --- montaje transparente por grupo (para --quantize) ------------------------
+// Pone los sprites del grupo en una sola hoja sobre fondo transparente, del tamaño
+// de la celda más grande. Llamado desde main() en el paso --quantize N.
 function makeGroupSheet(sprites, cell) {
 	const cols = Math.ceil(Math.sqrt(sprites.length));
 	const rows = Math.ceil(sprites.length / cols);
@@ -195,6 +220,8 @@ function makeGroupSheet(sprites, cell) {
 	return out;
 }
 
+// spriteToPng: convierte un sprite {w,h,rgb,alpha} a un PNG pngjs. Llamado desde
+// contactSheet(...) en main() y para colorear la hoja del grupo.
 function spriteToPng(s) {
 	const p = new PNG({ width: s.w, height: s.h });
 	for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) {
@@ -204,6 +231,10 @@ function spriteToPng(s) {
 	return p;
 }
 
+// main(): orquesta el pipeline completo (ver cabecera). Orden de llamadas:
+//   loadImage -> detectBackgrounds -> extractMulti|splitTouching ->
+//   sprites (construcción) -> heuristicGroups -> (IA vía ask/extractJson) ->
+//   organiza grupos -> (opcional) subproceso amiga-tiles.mjs --quantize.
 async function main() {
 	const input = process.argv[2];
 	if (!input || hasArg('--help') || hasArg('-h')) { console.log('Uso: node tools/amiga-tiles/game-assets.mjs <imagen> [--out DIR] [--tol N] [--min N] [--split] [--ai|--no-ai] [--tokens N] [--quantize N]'); return; }
@@ -240,10 +271,13 @@ async function main() {
 		fs.writeFileSync(path.join(outDir, 'sprites', metas[s.idx].name), PNG.sync.write(p));
 	}
 	fs.writeFileSync(path.join(outDir, 'layout.json'), JSON.stringify({ image: input, size: `${png.width}x${png.height}`, background: bg, sprites: metas }, null, 2), 'utf8');
-	// hoja de contact
+	// Hoja de contacto para el humano (sprites_sheet.png).
 	fs.writeFileSync(path.join(outDir, 'sprites_sheet.png'), PNG.sync.write(contactSheet(sprites.map(spriteToPng))));
 
-	// --- 4) AgrupaciÃƒÂ³n: IA determinista con fallback heurÃƒÂ­stico ---------------
+	// --- 4) Agrupación: IA determinista con fallback heurístico ---------------
+	// Regla: sin --no-ai se intenta ollama (qwen3-vl). Si la IA empaqueta TODO en un
+	// solo grupo (o responde sin JSON válido / no disponible), el fallback es la
+	// heurística heuristicGroups (100% determinista).
 	let groups = heuristicGroups(sprites);
 	let aiUsed = false, aiNote = '';
 	const aiForce = hasArg('--ai');
@@ -262,8 +296,8 @@ async function main() {
 				const oneGroupAll = aiGroups.length === 1 && (aiGroups[0].sprites || []).length >= sprites.length * 0.95;
 				if (!oneGroupAll && aiGroups.every((g) => (g.sprites || []).length <= sprites.length)) { groups = aiGroups; aiUsed = true; }
 			}
-			else aiNote = 'IA respondio sin JSON vÃƒÂ¡lido; uso heurÃƒÂ­stica.';
-		} catch (e) { aiNote = `IA no disponible (${e.message}); uso heurÃƒÂ­stica.`; wantAi = false; }
+			else aiNote = 'IA respondió sin JSON válido; uso heurística.';
+		} catch (e) { aiNote = `IA no disponible (${e.message}); uso heurística.`; wantAi = false; }
 	}
 	if (!wantAi && !aiUsed) aiNote = 'IA desactivada por flag.';
 	// Normaliza offsets (coords reales) a cada grupo
@@ -287,7 +321,8 @@ async function main() {
 		}
 		groupMeta.count = n;
 		fs.writeFileSync(path.join(gd, 'group.json'), JSON.stringify(groupMeta, null, 2), 'utf8');
-		// 6) cuantizaciÃƒÂ³n opcional (EHB/32/16, ÃƒÂ­ndice 0 transparente)
+		// 6) cuantización opcional (EHB/32/16, índice 0 transparente): monta la
+		// hoja del grupo y lanza amiga-tiles.mjs como subproceso (--alpha reserva 0).
 		if (quantize && n) {
 			const maxD = g.frames.reduce((m, s) => Math.max(m, s.w, s.h), 16);
 			const cell = Math.ceil(maxD / 16) * 16;
@@ -296,17 +331,17 @@ async function main() {
 			const pal = quantize === 64 ? 'ehb' : 'adaptive';
 			const r = spawnSync(process.execPath, [path.join(ROOT, 'tools', 'amiga-tiles', 'amiga-tiles.mjs'), tmp, '--colors', String(quantize), '--palette', pal, '--alpha', '--tile', '16', '--out', gd], { encoding: 'utf8' });
 			fs.rmSync(tmp, { force: true });
-			if (r.status !== 0) console.log(`   [warn] cuantizaciÃƒÂ³n fallÃƒÂ³ en ${g.name}: ${(r.stderr || r.stdout).slice(0, 200)}`);
+			if (r.status !== 0) console.log(`   [warn] cuantización falló en ${g.name}: ${(r.stderr || r.stdout).slice(0, 200)}`);
 			else { const m = (r.stdout.match(/reconstruct_[^\s]+\.png/) || [])[0]; console.log(`   [quant] ${g.name} -> ${quantize} colores (${m || 'ok'})`); }
 		}
 		console.log(`[game-assets] grupo '${g.name}': ${n} frames (${g.kind})`);
 	}
 	fs.writeFileSync(path.join(outDir, 'TRANSPARENCIA.md'), [
-		'# ConvenciÃƒÂ³n de transparencia (Amiga)','',
-		'- Los PNG extraÃƒÂ­dos codifican el fondo como **alfa = 0** (transparente).','',
-		'- **ÃƒÂndice 0 de la paleta = transparente** en el Amiga (todos los bitplanes a 0; en EHB, base 0).','',
+		'# Convención de transparencia (Amiga)','',
+		'- Los PNG extraídos codifican el fondo como **alfa = 0** (transparente).','',
+		'- **Índice 0 de la paleta = transparente** en el Amiga (todos los bitplanes a 0; en EHB, base 0).','',
 		'- Al cuantizar usar `--alpha` para reservar el slot 0 (lo hace `--quantize`).','',
-		`- Fuente: ${input} Ã‚Â· fondos: ${bg.mode === 'alpha' ? 'alpha' : (bg.bgs.length ? bg.bgs.map((c) => `rgb(${c.join(',')})`).join(' ') : 'none')} Ã‚Â· piezas: ${sprites.length}`,
+		`- Fuente: ${input} · fondos: ${bg.mode === 'alpha' ? 'alpha' : (bg.bgs.length ? bg.bgs.map((c) => `rgb(${c.join(',')})`).join(' ') : 'none')} · piezas: ${sprites.length}`,
 		`- Grupo IA: ${aiUsed ? 'ollama local (qwen3-vl)' : aiNote}`, ''
 	].join('\n'), 'utf8');
 	console.log(`[game-assets] OK -> ${outDir}${aiUsed ? ' (grupo por IA)' : (` (${aiNote})`)}`);
