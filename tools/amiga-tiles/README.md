@@ -149,6 +149,13 @@ fotos o degradados, `none` para tilemaps/pixel-art**.
    - `kmeans` (por defecto): k-means. En EHB usa la distancia **half-aware**
      `min(dist(color), dist(half(base)))`, la variante clásica de cuantizar
      pensando en que existirán las versiones a media intensidad.
+   - `perceptual` (alias del flag `--perceptual`): como `kmeans`, pero el
+     histograma se **pondera perceptualmente** (los píxeles claros con saturación
+     valen más que los oscuros/de poca croma, ignorables) y el clustering y el
+     remap final usan la distancia perceptual por canal
+     `distP = 2·ΔR² + 4·ΔG² + 3·ΔB²`. Reduce el sesgo hacia sombras/vuélco de
+     ruido oscuro e invierte más centros en los gradientes de brillo (cielo,
+     piel, metal). En 64c EHB fuerza `palSrc='ehb'`.
    - `mediancut`: algoritmo de Heckbert (cajas por rango de canal). Sólido para
      16/32 colores.
    - `bright`: solo EHB. Cuantiza la **mitad más brillante** de la imagen a las 32
@@ -196,7 +203,11 @@ desperdicio real (con *none* quedan ociosos y el histograma los pinta <1 %).
 En EHB conviene elegir los 32 bases sabiendo que también existen sus versiones a
 mitad de brillo. `ehb` maximiza el aprovechamiento de esos half; `bright` explota
 el opuesto (bases = zona clara, half = sombras). Para 16/32 colores sin EHB,
-`kmeans` + `--dither floyd` dan muy buenos resultados.
+`kmeans` + `--dither floyd` dan muy buenos resultados. Si la imagen tiene
+muchas sombras o ruido oscuro insignificante (fotografías, escenas con viñeteado),
+`--perceptual` reparte mejor los 32 bases entre los tonos que el ojo distingue de
+verdad (medido: baja tanto el error RGB como el perceptual en un gradiente con
+banda oscura ruidosa).
 
 ## Verificación y evidencia
 
@@ -291,15 +302,20 @@ node tools/amiga-tiles/game-assets.mjs arte.png --out out/mi_juego
 - `--background auto` detecta **blanco del borde + colores de croma**: los colores
   **croma** (saturados, o interiores aunque sean neutros) pueden ser una **hoja de
   sprites**. La tool es genérica ante cualquier imagen con una región de color sólido
-  que contiene una animación en rejilla (verde, magenta, azul…):
-  - Si dentro del color hay **separadores** (filas/columnas casi 100 % de ese color),
-    `splitChromaGrid` parte la animación en **frames** y extrae CADA celda con
-    transparencia SOLO contra ese color (el blanco del fogonazo se conserva). En la
-    tira verde de Metal Slug saca **15 frames** (9 de la fila superior + 6 de la
-    inferior) separados por la franja de verde.
-  - Si no hay rejilla (una sola maraña), se fusiona en UN sprite con ese color transparente.
-  - Los colores **neutros** del marco (p. ej. blanco) siguen extrayéndose por
-    **componentes individuales** (así el camión no se rompe).
+  que contiene contenido dibujado (verde, magenta, azul…). Clasifica cada croma en
+  una de dos estrategias de extracción:
+  - **Rejilla de frames** (una hoja de celdas uniformes, con separadores del color): si
+    `splitChromaGrid` produce celdas del MISMO tamaño (comprobado con `isChromaGridCells`),
+    parte la animación en **frames** y extrae cada celda con transparencia SOLO contra
+    ese color (el blanco del fogonazo se conserva).
+  - **Fondo de croma** (un rectángulo de color tras una o pocas entidades, p. ej. una
+    explosión rodeada/sobre verde, SIN rejilla uniforme): NO se cruza en celdas (eso
+    desmenuzaría la entidad en letras/trozos dispares); en su lugar el color se trata
+    como **fondo** del análisis de componentes conexos y la entidad sale como UNA pieza
+    coherente. Sin esta distinción, una explosión sobre verde se fragmentaba.
+  - Los colores **neutros** del marco (p. ej. blanco) y el croma se extraen por
+    **componentes individuales** sobre el fondo combinado (blanco ∪ croma), de modo que
+    ni el camión ni la explosión se rompen.
   Info en `sprites.json` (`chromaBoxes`, `gridFrames`, `merged`). Puedes forzar el
   color con `--background R,G,B`, elegir modelo de visión con `--model` y afinar
   con `--tol`.

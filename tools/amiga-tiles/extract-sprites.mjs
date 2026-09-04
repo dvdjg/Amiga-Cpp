@@ -10,9 +10,11 @@
 //   2. Etiqueta componentes conexos (4-conexos) de los píxeles NO fondo.
 //   3. Para cada componente: bbox (x,y,w,h) + centro + ancla inferior; recorta y
 //      convierte el color de fondo a TRANSPARENTE (alfa 0).
-//   3b. Si hay una CAJA DE CROMA (rectángulo sólido de color interior), los trozos
-//      cuyo centro cae dentro se FUSIONAN en UN solo sprite (p. ej. la explosión
-//      completa), con transparencia SOLO contra el color de la caja.
+//   3b. Si hay una CAJA DE CROMA (rectángulo sólido de color interior), se decide
+//      si es una REJILLA de frames uniforme (a ver con isChromaGridCells) o un mero
+//      FONDO tras la entidad. Rejilla -> splitChromaGrid parte la animación en
+//      celdas con su color transparente. Fondo -> el color se suma al fondo para el
+//      paso 2, así los componentes conexos sacan la entidad completa (no fragmentada).
 //   4. Guarda cada sprite como
 //      sprite_P<seq>_x<X>_y<Y>_w<W>_h<H>.png (+ sprites.json con metadatos).
 //   5. (opcional --ai) Monta las piezas en una hoja con etiquetas y pide a ollama
@@ -100,7 +102,14 @@ export function detectBackground(png, tol) {
 	for (const f of fams(allPoints)) {
 		if (bgs.length >= 4) break;
 		const cov = f.count / total;
-		if (cov < 0.06) continue;
+		// Un color SATURADO (croma típico, p. ej. verde/magenta/azul) es fondo probable
+		// con mucha menos cobertura que un fondo NEUTRO (blanco/gris). Bajamos el umbral
+		// para los cromáticos: un croma suele aparecer en una franja/rectángulo estrecho
+		// (p. ej. los ~3.5% del verde tras una explosión en Landseek) y no ocupar el 6%
+		// que exigiría un fondo sólido completo. Sin esto, el croma pasa desapercibido y
+		// sus piezas se fragmentan al tratarlas como contenido sobre el fondo neutro.
+		const minCov = sat(f.color) >= 60 ? 0.02 : 0.06;
+		if (cov < minCov) continue;
 		if (bgs.some((b) => dist2(b.color, f.color) <= tol * tol)) continue;
 		if (sat(f.color) >= 60 || cov >= 0.30) bgs.push({ color: f.color, src: 'interior' }); // croma o fondo sólido
 	}
@@ -363,6 +372,24 @@ export function extractJson(text) {
 	try { return JSON.parse(m[0]); } catch { return null; }
 }
 
+// isChromaGridCells: decide si una lista de celdas de croma (resultado de
+// splitChromaGrid) representa una REJILLA de frames de verdad o un despedazado de
+// un fondo de croma. Una rejilla auténtica produce celdas de tamaño SEMEJANTE
+// (mismo frame repetido); un fondo tras una entidad (p. ej. una explosión con
+// letras encima) produce celdas de tamaño muy dispar. Si alguna celda se desvía
+// más de `dev` (de 0..1) de la mediana del ancho o del alto, no aceptamos la
+// rejilla. Devuelve boolean.
+export function isChromaGridCells(cells, dev = 2.2) {
+	if (!cells.length) return false;
+	const ws = cells.map((c) => c.cell.sx1 - c.cell.sx0 + 1).sort((a, b) => a - b);
+	const hs = cells.map((c) => c.cell.by1 - c.cell.by0 + 1).sort((a, b) => a - b);
+	const medW = ws[ws.length >> 1], medH = hs[hs.length >> 1];
+	if (!medW || !medH) return false;
+	for (let i = 0; i < ws.length; i++) if (ws[i] > medW * dev || medW > ws[i] * dev) return false;
+	for (let i = 0; i < hs.length; i++) if (hs[i] > medH * dev || medH > hs[i] * dev) return false;
+	return true;
+}
+
 async function main() {
 	const input = process.argv[2];
 	if (!input || hasArg('--help') || hasArg('-h')) {
@@ -413,7 +440,16 @@ async function main() {
 	//    una celda, se emite un único sprite (la entidad completa).
 	for (const c of chroma) {
 		const fr = splitChromaGrid(png, c.color, tol, Math.max(20, minArea));
-		if (!fr.length) continue;               // el color aparece pero no hay contenido en celdas
+		// Solo tratamos el croma como REJILLA de frames si las celdas son uniformes
+		// (mismo frame repetido). Si no lo son —p. ej. un fondo de croma tras una
+		// explosión con letras encima, que se despedaza en trozos dispares— lo
+		// tratamos como FONDO: no cruzamos en celdas y dejamos que los componentes
+		// conexos (que ya incluyen el croma en el fondo) extraigan piezas coherentes.
+		// Sin esta comprobación, una explosión sobre croma se desmenuzaba en letras.
+		if (!fr.length || !isChromaGridCells(fr)) {
+			console.log(fr.length ? `[sprites] croma [${c.foot.x0},${c.foot.y0}]-[${c.foot.x1},${c.foot.y1}] rgb(${c.color.join(',')}) -> ${fr.length} celdas NO uniformes; se extrae por componentes` : `[sprites] croma [${c.foot.x0},${c.foot.y0}]-[${c.foot.x1},${c.foot.y1}] rgb(${c.color.join(',')}) -> sin celdas; se extrae por componentes`);
+			continue;
+		}
 		// Marcar como usados los componentes del interior de la HUELLA (no solo de las
 		// celdas) para no extraer a la vez los trozos por componentes (evita duplicados).
 		comps.forEach((co, i) => {
