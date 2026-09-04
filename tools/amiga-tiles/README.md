@@ -208,6 +208,24 @@ node tools/amiga-tiles/amiga-tiles.mjs source.png --ops source.png.ops.txt --out
 # -> out/ops/extract/ops_00_<nombre>.png … + ops.json
 ```
 
+## Pipeline único: `game-assets.mjs`
+
+Con **una sola orden** extrae sprites/fondos de una ilustración y decide por sí mismo
+(multi-fondo por bandas, componentes, agrupación con ollama local, transparencia y
+cuantización EHB/32/16 por grupo):
+
+```bash
+node tools/amiga-tiles/game-assets.mjs arte.png --out out/mi_juego
+#   detecta fondos (blanco+verde…), extrae piezas, agrupa (IA con fallback heurístico),
+#   crea grupos/<nombre>/frame_NN_*.png + group.json (frames/offset/ancla) + TRANSPARENCIA.md
+# Opciones: --tol N --min N --split --ai | --no-ai --tokens N --quantize N (64=EHB)
+```
+
+- Los PNG extraídos codifican el fondo como **alfa = 0**; convenio Amiga: índice 0 = transparente.
+- `--quantize 64` cuantiza cada grupo a EHB con el índice 0 transparente.
+- `extract-sprites.mjs` queda como utilidad de bajo nivel (exporta sus funciones y
+  solo ejecuta su CLI cuando se invoca directamente).
+
 ## Notas
 
 - Dependencias: `pngjs` y `jpeg-js` (ya en `node_modules` del repo). La entrada puede
