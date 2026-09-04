@@ -84,6 +84,13 @@ y las mismas características quedan guardadas **como metadatos**: chunk `tEXt`
   flag se **autodetecta** (reserva si ≥0,5 % de píxeles transparentes).
   Con alfa, los colores reales son `colors-1` (EHB: bases 1..31 y sus halves).
 
+**Adaptación de profundidad y empaquetado** (`--pack auto|on|off`, default `auto`):
+si la imagen tiene pocos colores, la tool elige los bits mínimos y **empaqueta el
+banco** (p. ej. 10 colores → 4 bits/px → 2 px/byte; 7 colores → 3 bits/px). `auto`
+empaqueta cuando `ceil(log2 colors) ≤ 4` (16, 8, 4); stride por tile = `ceil(tile²·bits/8)`
+y los bits van **LSB-first**. `palette_*.json` y el `.h` incluyen `kTileBankBitsPerPixel`
+y `kTileBankStride` (desempaquetar antes de usar en el juego).
+
 ## Dithering
 
 - `--dither none` (por defecto): estricto, cada píxel va al color más cercano.

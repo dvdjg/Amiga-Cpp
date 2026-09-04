@@ -723,6 +723,16 @@ function parseOps(text) {
 function sanitizeName(s) { return s.replace(/[^a-z0-9ÁÉÍÓÚáéíóúñÑ_ -]/gi, '').trim().replace(/\s+/g, '_').slice(0, 48); }
 
 // ---------------------------------------------------------------------------
+// EMPAQUETADO POR PROFUNDIDAD (bits/píxel) — índice → flujo de bits LSB-first
+// ---------------------------------------------------------------------------
+function packIndices(indices, bits) {
+	const out = Buffer.alloc(Math.ceil(indices.length * bits / 8), 0);
+	let bitpos = 0;
+	for (const v of indices) { for (let b = 0; b < bits; b++) { if (v & (1 << b)) out[bitpos >> 3] |= (1 << (bitpos & 7)); bitpos++; } }
+	return out;
+}
+
+// ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
 function fail(msg) { console.error(`[amiga-tiles] ${msg}`); process.exit(1); }
@@ -759,6 +769,8 @@ async function main() {
 	const sheetScale = Math.max(1, intArg('--sheet-scale', 1));
 	const emitXl = has('--xlimited');
 	const kIters = Math.max(1, intArg('--palette-k', 12));
+	const packArg = arg('--pack', 'auto');                 // auto|on|off: empaqueta índices a bits(=ceil(log2 colors))
+	if (!['auto', 'on', 'off'].includes(packArg)) fail(`--pack inválido: ${packArg}`);
 	const outDirArg = arg('--out', '');
 	const outDir = outDirArg ? path.resolve(outDirArg) : path.join(path.dirname(path.resolve(input)), 'out');
 	fs.mkdirSync(outDir, { recursive: true });
@@ -872,9 +884,15 @@ async function main() {
 	const hist = histogram(png, alpha);
 	const uniqueColors = hist.length;
 	let colors = colorsArg;
-	if (!colors) {
+	if (!colorsArg) {
 		colors = uniqueColors <= 4 ? 4 : uniqueColors <= 8 ? 8 : uniqueColors <= 16 ? 16 : uniqueColors <= 32 ? 32 : 64;
 		console.log(`[amiga-tiles] --colors no dado; ${uniqueColors} colores únicos → ${colors}${colors === 64 ? ' (EHB)' : ''}`);
+	}
+	// Recomendación de profundidad basada en el histograma real (ayuda a elegir).
+	{
+		const rec = uniqueColors <= 4 ? 4 : uniqueColors <= 8 ? 8 : uniqueColors <= 16 ? 16 : uniqueColors <= 32 ? 32 : 64;
+		const alternative = rec === 16 && uniqueColors <= 10 ? ' (podrías probar 8 con 3 bits/px)' : '';
+		console.log(`[amiga-tiles] recomendación: ${rec} colores → ${Math.ceil(Math.log2(rec))} bits/px${alternative}`);
 	}
 	const { bits, ehb } = modeOf(colors);
 	// Nº de colores REALES que hay que elegir para llenar la tabla efectiva:
@@ -955,21 +973,31 @@ async function main() {
 	if (ditherClamp > 0) label += ` clamp=${ditherClamp.toFixed(0)}`;
 
 	// ---- Salidas ------------------------------------------------------------------
-	const bin = Buffer.alloc(bank.length * tile * tile);
-	for (let i = 0; i < bank.length; i++) for (let q = 0; q < tile * tile; q++) bin[i * tile * tile + q] = bank[i].pix[q];
+	// Empaquetado por profundidad: si bits(=ceil log2 colors) cabe en <1 B se envasa
+	// (auto: packs cuando bits <= 4 => 10 colores -> 4 bits -> 2 px/byte). La regla
+	// del repo está en docs (transparencia+empaquetado). El stride es POR TILE.
+	const packMode = packArg === 'on' ? true : (packArg === 'off' ? false : bits <= 4);
+	const packedPerTile = packMode ? Math.ceil((tile * tile * bits) / 8) : tile * tile;
+	const bin = Buffer.alloc(bank.length * packedPerTile);
+	for (let i = 0; i < bank.length; i++) {
+		if (packMode) packIndices(bank[i].pix, bits).copy(bin, i * packedPerTile);
+		else for (let q = 0; q < tile * tile; q++) bin[i * packedPerTile + q] = bank[i].pix[q];
+	}
 	const binPath = path.join(outDir, `tilebank_${suf}.bin`); fs.writeFileSync(binPath, bin);
 
 	const hLines = [];
 	hLines.push('// Tilebank indexado generado por tools/amiga-tiles/amiga-tiles.mjs.');
 	hLines.push(`// Conversion: ${label}`);
 	hLines.push(`// ${bits} bits/píxel (${colors} colores${ehb ? ' EHB: 0..31 base, 32..63 half' : ''}), ${alpha ? 'índice 0 = transparente' : 'sin transparencia'}.`);
+	hLines.push(`// Empaquetado: ${packMode ? 'SÍ (' + (8 / bits) + ' píxeles/byte, bits LSB-first)' : 'no (1 byte/píxel)'}. Stride por tile = ${packedPerTile} bytes.`);
 	hLines.push(`// ${bank.length} tiles de ${tile}x${tile}, mapa ${cols}x${rows}. Paleta: ${palNote}.`);
 	hLines.push('// Metadatos completos en los ficheros palette_' + suf + '.json y en el tEXt de los PNG.');
 	hLines.push(`static const unsigned char kPalette[${colors * 3}] = {`);
 	for (let r = 0; r < colors; r += 12) hLines.push('  ' + paletteFinal.slice(r, r + 12).map((c) => `${c[0]},${c[1]},${c[2]}`).join(',') + ',');
 	hLines.push('};');
-	hLines.push(`// Datos en "tilebank_${suf}.bin" (incbin). Stride de cada tile = tile*tile bytes.`);
-	hLines.push(`static const unsigned short kTileBankStride = ${tile * tile};`);
+	hLines.push(`// Datos en "tilebank_${suf}.bin" (incbin).`);
+	hLines.push(`static const unsigned char kTileBankBitsPerPixel = ${bits};`);
+	hLines.push(`static const unsigned short kTileBankStride = ${packedPerTile};`);
 	hLines.push(`static const unsigned int kTileBankBytes = ${bin.length};`);
 	hLines.push(`static const unsigned short kTileIndexedMap[${map.length}] = {`);
 	for (let i = 0; i < map.length; i += 24) hLines.push('  ' + map.slice(i, i + 24).join(',') + ',');
@@ -977,7 +1005,7 @@ async function main() {
 	fs.writeFileSync(path.join(outDir, `tilebank_${suf}.h`), hLines.join('\n') + '\n', 'utf8');
 
 	// palette.json / palette.h
-	const palJson = JSON.stringify({ name: suf, label: label, tile, cols, rows, colors, bits, ehb, alpha, method: palNote, palette: paletteFinal, bank: bank.map((b, i) => ({ pix: [...b.pix] })), map, stats: { unique: bank.length, cells: cols * rows } }, null, 2);
+	const palJson = JSON.stringify({ name: suf, label: label, tile, cols, rows, colors, bits, bitsPerPixel: bits, packed: packMode, stridePerTile: packedPerTile, ehb, alpha, method: palNote, palette: paletteFinal, bank: bank.map((b, i) => ({ pix: [...b.pix] })), map, stats: { unique: bank.length, cells: cols * rows } }, null, 2);
 	fs.writeFileSync(path.join(outDir, `palette_${suf}.json`), palJson, 'utf8');
 	const words = paletteFinal.map(to444);
 	const phLines = ['// Paleta Amiga (0x0RGB). Conversion: ' + label, '// ' + (ehb ? 'EHB: bases 0..31, half 32..63 generados por hardware.' : `${colors} colores.`)];
@@ -1032,7 +1060,7 @@ async function main() {
 	const psnr = 10 * Math.log10(255 * 255 * 3 / (mse + 1e-9));
 	console.log(`[amiga-tiles] OK -> ${outDir}`);
 	console.log(`[amiga-tiles] paleta ${palNote} · ${colors} colores (${bits} bits${ehb ? '/EHB' : ''}) · dither=${dither}(${strength}) · MSE=${mse.toFixed(1)} PSNR=${psnr.toFixed(1)} dB`);
-	console.log(`[amiga-tiles] salidas (sufijo ${suf}): reconstruct_${suf}.png, tilebank_${suf}.png/.bin/.h, palette_${suf}.json/.h${emitXl ? `, tilebank_xlimited_${colors}c_${tech}.bin/.h` : ''}`);
+	console.log(`[amiga-tiles] salidas (sufijo ${suf}): reconstruct_${suf}.png, tilebank_${suf}.png/.bin/.h, palette_${suf}.json/.h${emitXl ? `, tilebank_xlimited_${colors}c_${tech}.bin/.h` : ''} (${bits} bits/px, empaquetado ${packedPerTile} B/tile)`);
 
 	// Descripción con ollama local (opcional). Envía la imagen FINAL de trabajo.
 	if (has('--describe')) {
