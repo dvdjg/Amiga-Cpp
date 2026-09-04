@@ -25,6 +25,9 @@
 //   --out DIR             Directorio de salida (defecto: junto a la imagen, en out/).
 //   --xlimited            Emitir además el banco interleaved de 320 px (engine X-Limited).
 //   --sheet-scale 1|2     Escala de inspección del tilebank.png.
+//   --prune               Emitir además variantes '_pruned_' con la paleta reducida a los
+//                          colores REALMENTE usados en la imagen (menos bits/píxel y Chip RAM).
+//   --chart-compact       Gráfico de paleta sin columnas de colores no usados (n=0).
 // Tutorial completo: tools/amiga-tiles/README.md
 // ---------------------------------------------------------------------------
 import fs from 'node:fs';
@@ -523,21 +526,27 @@ function chartRect(buf, wpx, x, y, w, h, color) {
 		buf.data[o] = color[0]; buf.data[o + 1] = color[1]; buf.data[o + 2] = color[2]; buf.data[o + 3] = color[3];
 	}
 }
-function paletteChartPng(outDir, suf, label, paletteFinal, indexed, alpha, bits, ehb, colors) {
-	const Wpx = (paletteFinal.length || 0) * 40 + 8;
+function paletteChartPng(outDir, suf, label, paletteFinal, indexed, alpha, bits, ehb, colors, compact) {
+	const cell = 40;
+	// histograma de índices de la imagen convertida
+	const counts = new Float64Array(colors); let tot = 0;
+	for (let i = 0; i < indexed.length; i++) { const v = indexed[i]; if (v >= 0 && v < colors) { counts[v]++; tot++; } }
+	const max = Math.max(1, ...counts);
+	// en modo "compacto" se omiten las columnas de colores no usados (n=0), salvo
+	// el slot 0 (que en EHB/alpha es el transparente y conviene verlo siempre).
+	const shown = [];
+	for (let i = 0; i < colors; i++) if (!compact || counts[i] > 0 || (alpha && i === 0)) shown.push(i);
+	const Wpx = Math.max(60, shown.length * cell + 8);
 	const Hpx = 220;
 	const buf = new PNG({ width: Wpx, height: Hpx });
 	// fondo negro con rejilla tenue
 	for (let y = 0; y < Hpx; y++) for (let x = 0; x < Wpx; x++) { const o = (y * Wpx + x) * 4; buf.data[o] = 12; buf.data[o + 1] = 12; buf.data[o + 2] = 14; buf.data[o + 3] = 255; }
 
-	// histograma de índices de la imagen convertida
-	const counts = new Float64Array(colors); let tot = 0;
-	for (let i = 0; i < indexed.length; i++) { const v = indexed[i]; if (v >= 0 && v < colors) { counts[v]++; tot++; } }
-	const max = Math.max(1, ...counts);
 	const barTop = 28, barH = 110, swatchH = 22;
-	const cell = 40, x0 = 4;
-	paletteFinal.forEach((c, i) => {
-		const cx = x0 + i * cell;
+	const x0 = 4;
+	shown.forEach((i, col) => {
+		const c = paletteFinal[i];
+		const cx = x0 + col * cell;
 		// swatch
 		if (alpha && i === 0) {
 			// tablero de ajedrez para el slot transparente
@@ -562,7 +571,7 @@ function paletteChartPng(outDir, suf, label, paletteFinal, indexed, alpha, bits,
 		chartDrawText(buf, Wpx, cx + 2, ty + 8, `n=${counts[i]}`, FG);
 	});
 	// cabecera con los metadatos
-	chartDrawText(buf, Wpx, 4, 4, `${label} | ${bits} bits/px${ehb ? ' EHB' : ''}`, FG);
+	chartDrawText(buf, Wpx, 4, 4, `${label} | ${bits} bits/px${ehb ? ' EHB' : ''}${compact ? ' (compacto)' : ''}`, FG);
 
 	// texto de los metadatos por color (tEXt) + datos en json para lectura automática
 	const perColor = paletteFinal.map((c, i) => ({ slot: i, rgb: c, count: counts[i], pct: tot ? +(counts[i] / tot * 100).toFixed(2) : 0 }));
@@ -572,7 +581,7 @@ function paletteChartPng(outDir, suf, label, paletteFinal, indexed, alpha, bits,
 	// incrustamos las métricas por color (tEXt) para que sean legibles sin abrir el png
 	const metaTxt = perColor.map((p) => `slot${p.slot}=rgb(${p.rgb[0]},${p.rgb[1]},${p.rgb[2]}) n=${p.count} p=${p.pct}%`).join(';');
 	fs.writeFileSync(path.join(outDir, `palette_chart_${suf}.txt`), metaTxt + '\n', 'utf8');
-	return { pathF, meta, perColor };
+	return { pathF, meta, perColor, counts, tot, max };
 }
 function verifyPng(filePath, palette, indices, w, h) {
 	const d = PNG.sync.read(fs.readFileSync(filePath));
@@ -1135,13 +1144,14 @@ async function main() {
 	hLines.push('};');
 	fs.writeFileSync(path.join(outDir, `tilebank_${suf}.h`), hLines.join('\n') + '\n', 'utf8');
 
-	// palette.json / palette.h
-	const palJson = JSON.stringify({ name: suf, label: label, tile, cols, rows, colors, bits, bitsPerPixel: bits, packed: packMode, stridePerTile: packedPerTile, ehb, alpha, method: palNote, palette: paletteFinal, bank: bank.map((b, i) => ({ pix: [...b.pix] })), map, stats: { unique: bank.length, cells: cols * rows } }, null, 2);
-	fs.writeFileSync(path.join(outDir, `palette_${suf}.json`), palJson, 'utf8');
-
 	// Gráfico de uso de la paleta: tira de rectángulos por color + histograma del
 	// uso real de cada slot en la imagen convertida (PNG de inspección).
-	paletteChartPng(outDir, suf, label, paletteFinal, indexed, alpha, bits, ehb, colors);
+	const chart = paletteChartPng(outDir, suf, label, paletteFinal, indexed, alpha, bits, ehb, colors, has('--chart-compact'));
+
+	// palette.json / palette.h
+	const palJson = JSON.stringify({ name: suf, label: label, tile, cols, rows, colors, bits, bitsPerPixel: bits, packed: packMode, stridePerTile: packedPerTile, ehb, alpha, method: palNote, palette: paletteFinal, bank: bank.map((b, i) => ({ pix: [...b.pix] })), map, stats: { unique: bank.length, cells: cols * rows }, hist: [...chart.counts] }, null, 2);
+	fs.writeFileSync(path.join(outDir, `palette_${suf}.json`), palJson, 'utf8');
+
 	const words = paletteFinal.map(to444);
 	const phLines = ['// Paleta Amiga (0x0RGB). Conversion: ' + label, '// ' + (ehb ? 'EHB: bases 0..31, half 32..63 generados por hardware.' : `${colors} colores.`)];
 	for (let r = 0; r < colors; r += 8) phLines.push('    ' + words.slice(r, r + 8).map((w) => `0x${w.toString(16).padStart(3, '0')}`).join(', ') + ',');
@@ -1181,6 +1191,76 @@ async function main() {
 			'extern "C" const unsigned int g_tilebank_xlimited_size;', ''].join('\n');
 		fs.writeFileSync(path.join(outDir, `tilebank_xlimited_${colors}c_${tech}.h`), xlh, 'utf8');
 		console.log(`[amiga-tiles] banco X-Limited -> ${xlPath} (${xl.data.length} B, ${xl.height} planelíneas)`);
+	}
+
+	// ---- Podado de la paleta (--prune) ----------------------------------------
+	// Si algunos slots NO se usan en la imagen convertida (histograma = 0) y no son
+	// el slot 0 transparente, se generan variantes `_pruned_` con la paleta reducida
+	// a los colores realmente usados. Menos slots => menos bits/píxel y menos Chip
+	// RAM. El slot 0 se conserva siempre cuando hay alpha (es la marca de transparente).
+	const pruning = has('--prune');
+	if (pruning) {
+		const used = [];
+		for (let i = 0; i < colors; i++) if (chart.counts[i] > 0 || (alpha && i === 0)) used.push(i);
+		if (used.length < colors) {
+			const remap = new Int16Array(colors); remap.fill(-1);
+			used.forEach((old, k) => { remap[old] = k; });
+			const palP = used.map((i) => paletteFinal[i]);
+			const nColors = used.length;
+			const nBits = Math.max(1, Math.ceil(Math.log2(nColors)));
+			const pPack = packArg === 'on' ? true : (packArg === 'off' ? false : nBits <= 4);
+			const pStride = pPack ? Math.ceil((tile * tile * nBits) / 8) : tile * tile;
+			// reindexar píxeles, banco y mapa
+			const idxP = new Uint8Array(indexed.length);
+			for (let i = 0; i < indexed.length; i++) { const v = indexed[i]; idxP[i] = remap[v] >= 0 ? remap[v] : 0; }
+			const bankP = bank.map((b) => ({ pix: Uint8Array.from(b.pix, (v) => (remap[v] >= 0 ? remap[v] : 0)) }));
+			const mapP = map.map((v) => (remap[v] >= 0 ? remap[v] : 0));
+			const pBin = Buffer.alloc(bankP.length * pStride);
+			for (let i = 0; i < bankP.length; i++) {
+				if (pPack) packIndices(bankP[i].pix, nBits).copy(pBin, i * pStride);
+				else for (let q = 0; q < tile * tile; q++) pBin[i * pStride + q] = bankP[i].pix[q];
+			}
+			// reconstrucción con la paleta reducida
+			const reconP = new Uint8Array(W * H);
+			const perRowP = Math.max(1, Math.floor((W / tile) / sheetScale));
+			const swP = tile * sheetScale;
+			const cPW = perRowP * swP, cPH = swP * Math.ceil(bankP.length / perRowP);
+			const indsP = new Uint8Array(cPW * cPH);
+			for (let yy = 0; yy < H; yy++) for (let xx = 0; xx < W; xx++) {
+				const k = Math.floor(yy / tile) * cols + Math.floor(xx / tile);
+				const t = mapP[k] >= 0 && mapP[k] < bankP.length ? mapP[k] : 0;
+				reconP[yy * W + xx] = bankP[t].pix[(yy % tile) * tile + (xx % tile)];
+			}
+			// etiqueta y sufijo
+			const pLabel = `${label} prune=yes (${colors}->${nColors})`;
+			const pSuf = `${nColors}c_${tech}_${dither}_${W}x${H}_pruned`;
+			const pPalJson = JSON.stringify({ name: pSuf, label: pLabel, tile, cols, rows, colors: nColors, bits: nBits, bitsPerPixel: nBits, packed: pPack, stridePerTile: pStride, ehb, alpha, method: `${palNote} (podada de ${colors})`, palette: palP, bank: bankP.map((b) => ({ pix: [...b.pix] })), map: mapP, stats: { unique: bankP.length, cells: cols * rows }, hist: used.map((i) => chart.counts[i]) }, null, 2);
+			fs.writeFileSync(path.join(outDir, `tilebank_${pSuf}.bin`), pBin);
+			fs.writeFileSync(path.join(outDir, `palette_${pSuf}.json`), pPalJson);
+			const pWords = palP.map(to444);
+			const pph = ['// Paleta Amiga podada (0x0RGB). Conversion: ' + pLabel, '// ' + `${nColors} colores`];
+			for (let r = 0; r < nColors; r += 8) pph.push('    ' + pWords.slice(r, r + 8).map((w) => `0x${w.toString(16).padStart(3, '0')}`).join(', ') + ',');
+			fs.writeFileSync(path.join(outDir, `palette_${pSuf}.h`), pph.join('\n') + '\n', 'utf8');
+			const ph = [
+				'// Tilebank podado (solo colores usados). Conversion: ' + pLabel,
+				`// ${nBits} bits/píxel (${nColors} colores de ${colors} originales), ${alpha ? 'índice 0 = transparente' : 'sin transparencia'}.`,
+				`// Empaquetado: ${pPack ? 'SÍ (' + (8 / nBits) + ' píxeles/byte)' : 'no (1 byte/píxel)'}. Stride por tile = ${pStride} bytes.`,
+				`// ${bankP.length} tiles de ${tile}x${tile}, mapa ${cols}x${rows}.`,
+				`static const unsigned char kPalette[${nColors * 3}] = {`,
+			];
+			for (let r = 0; r < nColors; r += 12) ph.push('  ' + palP.slice(r, r + 12).map((c) => `${c[0]},${c[1]},${c[2]}`).join(',') + ',');
+			ph.push('};', `// Datos en "tilebank_${pSuf}.bin" (incbin).`,
+				`static const unsigned char kTileBankBitsPerPixel = ${nBits};`,
+				`static const unsigned short kTileBankStride = ${pStride};`,
+				`static const unsigned int kTileBankBytes = ${pBin.length};`);
+			fs.writeFileSync(path.join(outDir, `tilebank_${pSuf}.h`), ph.join('\n') + '\n', 'utf8');
+			writeIndexedPng(path.join(outDir, `reconstruct_${pSuf}.png`), palP, reconP, W, H, pLabel);
+			writeIndexedPng(path.join(outDir, `tilebank_${pSuf}.png`), palP, indsP, cPW, cPH, pLabel);
+			paletteChartPng(outDir, pSuf, pLabel, palP, idxP, alpha, nBits, false, nColors, has('--chart-compact'));
+			console.log(`[amiga-tiles] PRUNE: ${colors}->${nColors} colores usados (${Math.round((1 - nColors / colors) * 100)}% menos slots, ${bits}->${nBits} bits/px); variantes _pruned_ en ${outDir}`);
+		} else {
+			console.log('[amiga-tiles] PRUNE: todos los slots se usan, sin variante podada');
+		}
 	}
 
 	// métricas

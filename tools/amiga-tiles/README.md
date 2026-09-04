@@ -107,6 +107,19 @@ empaqueta cuando `ceil(log2 colors) ≤ 4` (16, 8, 4); stride por tile = `ceil(t
 y los bits van **LSB-first**. `palette_*.json` y el `.h` incluyen `kTileBankBitsPerPixel`
 y `kTileBankStride` (desempaquetar antes de usar en el juego).
 
+**Gráfico de uso de la paleta** (`palette_chart_<sufijo>.png` + `.txt`): en cada
+conversión se genera un PNG RGBA de inspección con la **tira de rectángulos** de todos
+los colores (por slot) y debajo un **histograma de barras** con la frecuencia relativa
+de cada color en la imagen convertida; cada columna lleva el slot, el `%` y el `n` de
+píxeles. El slot 0 transparente se dibuja como tablero de ajedrez. Con
+`--chart-compact` se omiten las columnas de colores no usados (`n=0`).
+
+**Podado automático** (`--prune`): si el histograma muestra slots sin uso real, se
+generan además variantes `_pruned_` (`tilebank_/palette_/reconstruct_/palette_chart_`)
+con la paleta **reducida a los colores realmente usados**, lo que baja
+`bits/píxel` (y Chip RAM). Ej.: `--colors 31` con solo 8 colores reales →
+`8c_..._pruned` (5→3 bits/px). El slot 0 transparente se conserva siempre.
+
 ## Dithering
 
 - `--dither none` (por defecto): estricto, cada píxel va al color más cercano.
@@ -270,7 +283,10 @@ node tools/amiga-tiles/game-assets.mjs arte.png --out out/mi_juego
 - `--quantize N` cuantiza **cada GRUPO por separado**: cada grupo de frames tiene su
   **propia paleta** (`<grupo>/palette_*.json/.h`) y todos sus frames comparten esa
   misma paleta. `N=64` → EHB (32 bases + 32 half, índice 0 transparente); `N=2^n−1`
-  (31, 15, 7…) → `N` colores reales + índice 0 transparente (deducido).
+  (31, 15, 7…) → `N` colores reales + índice 0 transparente (deducido). Cada grupo
+  emite además su **`palette_chart_*.png/.txt`** (gráfico de uso real de su paleta).
+- Con `--prune` cada grupo emite además variantes **`_pruned_`** con la paleta reducida
+  a los colores realmente usados (menos bits/píxel por grupo).
 - Con **`--ai` la herramienta es SEMIAUTÓNOMA** con ollama local: tras la detección
   determinista, la IA **comprende** qué contiene cada caja de croma (nombre/tipo/frames)
   y la organiza en `<out>/<contenido>/` con ese nombre, y además **propone cajas de
