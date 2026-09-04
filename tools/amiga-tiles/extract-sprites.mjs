@@ -1,17 +1,17 @@
 #!/usr/bin/env node
-// extract-sprites.mjs â€” extrae sprites/fondos de una ilustraciÃ³n o hoja de sprites
-// de forma DETERMINISTA (componentes conexos sobre un color de fondo automÃ¡tico o
-// dado) y, opcionalmente, pide a ollama local que EVALÃšE y AGRUPE los resultados.
+// extract-sprites.mjs — extrae sprites/fondos de una ilustración o hoja de sprites
+// de forma DETERMINISTA (componentes conexos sobre un color de fondo automático o
+// dado) y, opcionalmente, pide a ollama local que EVALÚE y AGRUPE los resultados.
 //
 // Flujo:
 //   1. Detecta el color de fondo (bordes) o usa el alpha si el PNG ya es transparente.
-//   2. Etiqueta componentes conexos (4-conexos) de los pÃ­xeles NO fondo.
+//   2. Etiqueta componentes conexos (4-conexos) de los píxeles NO fondo.
 //   3. Para cada componente: bbox (x,y,w,h) + centro + ancla inferior; recorta y
 //      convierte el color de fondo a TRANSPARENTE (alfa 0).
 //   4. Guarda cada sprite como
 //      sprite_P<seq>_x<X>_y<Y>_w<W>_h<H>.png (+ sprites.json con metadatos).
 //   5. (opcional --ai) Monta las piezas en una hoja con etiquetas y pide a ollama
-//      local un JSON: quÃ© piezas son entidades completas, agrupaciones por identidad
+//      local un JSON: qué piezas son entidades completas, agrupaciones por identidad
 //      animada (mismo personaje/objeto en poses/frames) y, por grupo, el offset de
 //      anclaje para alinear los frames.
 //   6. (opcional --organize) Copia cada pieza a <out>/<grupo>/frame_<n>_<nombre>.png
@@ -21,10 +21,10 @@
 //   node tools/amiga-tiles/extract-sprites.mjs <imagen.png|jpg> [opciones]
 //   --background auto|none|R,G,B   color de fondo (auto = dominante en bordes)
 //   --tol N       tolerancia RGB del color de fondo (def 24)
-//   --min N       ignora componentes menores que N px de Ã¡rea (def 24)
+//   --min N       ignora componentes menores que N px de área (def 24)
 //   --out DIR     salida (def: junto a la imagen en sprites/ o ./out)
-//   --ai [model]  pedir a ollama local evalÃºe/agrupe (hoja etiquetada, 1 llamada)
-//   --ai-strict   ademÃ¡s revisar pieza a pieza (una llamada por pieza, hasta N)
+//   --ai [model]  pedir a ollama local evalúe/agrupe (hoja etiquetada, 1 llamada)
+//   --ai-strict   además revisar pieza a pieza (una llamada por pieza, hasta N)
 //   --organize    volcar en carpetas por grupo (requiere --ai) con group.json
 //   --ollama-base URL   (def 127.0.0.1:11434)  --tokens N  --limit N
 import fs from 'node:fs';
@@ -38,6 +38,8 @@ const ROOT = path.resolve(__dirname, '../..');
 const argV = (n, d) => { const i = process.argv.indexOf(n); return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : d; };
 const hasArg = (n) => process.argv.indexOf(n) >= 0;
 
+// loadImage: lee PNG (pngjs) o JPEG (jpeg-js) a RGBA uniforme {width,height,data}.
+// Llamado desde main() de este fichero y desde game-assets.mjs (vía import).
 export function loadImage(p) {
 	const buf = fs.readFileSync(p);
 	if (/\.jpe?g$/i.test(p)) { const d = jpeg.decode(buf, { useTArray: true, formatAsRGBA: true }); return { width: d.width, height: d.height, data: Buffer.from(d.data) }; }
@@ -45,13 +47,17 @@ export function loadImage(p) {
 }
 const dist2 = (a, b) => { const dr = a[0] - b[0], dg = a[1] - b[1], db = a[2] - b[2]; return dr * dr + dg * dg + db * db; };
 
-// --- 1) Color de fondo automÃ¡tico (dominante en los bordes) ------------------
+// --- 1) Color de fondo automático (dominante en los bordes) ------------------
+// detectBackground: decide el color de fondo de una ilustración (o alpha si el PNG
+// ya es transparente). Vota el color más frecuente del MARCO de la imagen.
+// Llamado desde main() de este fichero; es la base para la variante multi-zona de
+// game-assets.mjs (detectBackgrounds).
 export function detectBackground(png, tol) {
 	// Si el PNG ya tiene transparencia significativa, se usa el alpha y se ignora el color.
 	let alphaN = 0;
 	for (let i = 3; i < png.data.length; i += 4) if (png.data[i] < 16) alphaN++;
 	if (alphaN > png.width * png.height * 0.02) return { mode: 'alpha' };
-	// Muestreo de bordes (1..2 px) y voto del color mÃ¡s frecuente.
+	// Muestreo de bordes (1..2 px) y voto del color más frecuente.
 	const W = png.width, H = png.height;
 	const counts = new Map();
 	const edge = [];
@@ -59,7 +65,7 @@ export function detectBackground(png, tol) {
 	for (let x = 0; x < W; x++) { push(x, 0); push(x, H - 1); }
 	for (let y = 0; y < H; y++) { push(0, y); push(W - 1, y); }
 	for (const [x, y] of edge) { const o = (y * W + x) * 4; const k = (png.data[o] << 16) | (png.data[o + 1] << 8) | png.data[o + 2]; counts.set(k, (counts.get(k) || 0) + 1); }
-	// Agrupar por tolerancia: cuenta "familia" del color mÃ¡s comÃºn.
+	// Agrupar por tolerancia: cuenta "familia" del color más común.
 	const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
 	const [topK, topN] = sorted[0];
 	const family = sorted.filter(([k]) => { const c = [(k >> 16) & 255, (k >> 8) & 255, k & 255], t = [(topK >> 16) & 255, (topK >> 8) & 255, topK & 255]; return dist2(c, t) <= tol * tol; });
@@ -68,7 +74,10 @@ export function detectBackground(png, tol) {
 	return { mode: 'none' };
 }
 
-// --- 2+3) Componentes conexos 4-way sobre mÃ¡scara NO-fondo --------------------
+// --- 2+3) Componentes conexos 4-way sobre máscara NO-fondo --------------------
+// extract: etiqueta componentes conexos 4-way sobre la máscara NO-fondo (flood-fill
+// iterativo con pila, sin recursión). Devuelve {label, W, H, comps:[{bbox,area}]}
+// con los componentes que superan minArea. Llamado desde main() de este fichero.
 export function extract(png, bg, tol, minArea) {
 	const W = png.width, H = png.height;
 	const isBg = (x, y) => {
@@ -111,6 +120,9 @@ export function extract(png, bg, tol, minArea) {
 }
 
 // --- Salida: recorta cada componente a RGBA con fondo transparente -------------
+// cropSprite: recorta un componente a su bbox y convierte el fondo a TRANSPARENTE
+// (alfa 0; convenio Amiga: índice 0 = transparente). Llamado desde main() de este
+// fichero (y era la base del pipeline hoy unificado en game-assets.mjs).
 export function cropSprite(png, label, W, H, comp, tol, bg) {
 	const w = comp.maxX - comp.minX + 1, h = comp.maxY - comp.minY + 1;
 	const crop = Buffer.alloc(w * h * 4, 0);
@@ -143,6 +155,9 @@ function drawLabel(out, ox, oy, text, W) {
 	}
 }
 
+// contactSheet: monta los sprites en una hoja de contacto con etiqueta numérica
+// (mini-fuente 5x7) para que la IA pueda referirse a cada pieza por índice.
+// Llamado desde este fichero, desde game-assets.mjs y desde run-demos.mjs.
 export function contactSheet(sprites, append) {
 	const cell = 96, cols = Math.max(1, Math.min(10, sprites.length));
 	const rows = Math.ceil(sprites.length / cols);
@@ -163,9 +178,12 @@ export function contactSheet(sprites, append) {
 }
 
 // --- ollama local ----------------------------------------------------------
+// ask: una llamada a ollama local (API /v1/chat/completions) con imagen + prompt;
+// max_tokens por defecto 5000 (los JSON de agrupación son largos).
+// Llamado desde main() de este fichero y desde game-assets.mjs (--ai).
 export async function ask(model, base, prompt, png) {
 	const b64 = PNG.sync.write(png).toString('base64');
-	// Tokens por defecto MUY altos (5000): los JSON de agrupaciÃ³n con decenas de
+	// Tokens por defecto MUY altos (5000): los JSON de agrupación con decenas de
 	// piezas son largos y antes se truncaban; ajustable con --tokens N.
 	const body = { model, temperature: 0.1, max_tokens: parseInt(argV('--tokens', '5000'), 10),
 		messages: [{ role: 'user', content: [
@@ -177,6 +195,9 @@ export async function ask(model, base, prompt, png) {
 	const j = await r.json();
 	return (j.choices?.[0]?.message?.content ?? '');
 }
+// extractJson: extrae el primer objeto {...} de la respuesta de la IA (tolera
+// texto envolvente). Devuelve null si no hay JSON parseable.
+// Llamado desde main() de este fichero y desde game-assets.mjs (--ai).
 export function extractJson(text) {
 	const m = text.match(/\{[\s\S]*\}/);
 	if (!m) return null;
@@ -224,7 +245,7 @@ async function main() {
 	});
 	fs.writeFileSync(path.join(outDir, 'sprites.json'), JSON.stringify({ image: input, size: `${W}x${H}`, background: bg, sprites: metas }, null, 2), 'utf8');
 
-	// Hoja de contacto a tamaÃ±o natural (para el humano) + etiquetada (para la IA)
+	// Hoja de contacto a tamaño natural (para el humano) + etiquetada (para la IA)
 	const sheet = contactSheet(sprites, false);
 	fs.writeFileSync(path.join(outDir, 'sprites_sheet.png'), PNG.sync.write(sheet));
 	console.log(`[sprites] ${sprites.length} sprites -> ${dir} (sheet: sprites_sheet.png)`);
@@ -233,12 +254,12 @@ async function main() {
 	// --- IA: revisar + agrupar (una llamada con la hoja etiquetada) ----------
 	if (aiMode) {
 		const model = argV('--model', 'qwen3-vl:8b-instruct-q8_0');
-		const prompt = `Hay ${sprites.length} imÃ¡genes de sprites extraÃ­das de un videojuego, etiquetadas del 0 al ${sprites.length - 1} en la hoja (los pÃ­xeles brillantes cercanos a cada recuadro son su nÃºmero). Devuelve SOLO JSON con:
+		const prompt = `Hay ${sprites.length} imágenes de sprites extraídas de un videojuego, etiquetadas del 0 al ${sprites.length - 1} en la hoja (los píxeles brillantes cercanos a cada recuadro son su número). Devuelve SOLO JSON con:
 {"groups":[{"name":"p. ej. personaje_basico","sprites":[indices],"order":[indices reordenados por secuencia de animacion, si aplica],"anchor":{"x":0,"y":0} o null}], "issues":[{"sprite":i,"reason":"p. ej. incompleto/tapado por otra entidad"}]}
 Agrupa los sprites que representen el MISMO objeto/personaje en distintas poses o frames. anchor en % del propio sprite (0..1) relativo al anclo de animacion (p. ej. pies/bottom-center). Si un sprite parece incompleto, ponlo en issues. Si hay un fondo grande continuo (no un sprite), incluyelo como group "fondo".`;
 		const sheetAI = contactSheet(sprites, false);
 		let txt = '';
-		try { txt = await ask(model, base, prompt, sheetAI); } catch (e) { console.error(`[sprites] ollama fallÃ³: ${e.message}`); }
+		try { txt = await ask(model, base, prompt, sheetAI); } catch (e) { console.error(`[sprites] ollama falló: ${e.message}`); }
 		const res = extractJson(txt);
 		fs.writeFileSync(path.join(outDir, 'ai_group.json'), JSON.stringify({ raw: txt, parsed: res }, null, 2), 'utf8');
 		console.log(`[sprites] IA: ${res ? 'OK' : 'no se pudo parsear JSON'} -> ${path.join(outDir, 'ai_group.json')}`);
