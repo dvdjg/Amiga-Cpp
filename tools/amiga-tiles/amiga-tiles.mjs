@@ -17,8 +17,13 @@
 //   --alpha / --no-alpha  Reservar el índice 0 para transparencia (auto si el PNG la tiene).
 //   --dither MODE         none|floyd|atkinson|bayer   (error diffusión / matricial)
 //   --dither-strength F   Intensidad de la difusión (0..1, defecto 1).
-//   --palette SRC         adaptive|mediancut|kmeans|bright|popularity|cube|grays|<archivo.json>
+//   --palette SRC         adaptive|mediancut|kmeans|bright|ehb|perceptual|popularity|cube|grays|<archivo.json>
 //   --palette-k N         Iteraciones de k-means (defecto 12).
+//   --perceptual          Cuantización perceptual: histograma ponderado por
+//                         luminancia/croma + métrica de distancia perceptual (distP)
+//                         en el clustering y en el remap final. Reduce el sesgo hacia
+//                         píxeles oscuros insignificantes y mejora los gradientes de
+//                         brillo (cielos/piel/metal). Equivale a --palette perceptual.
 //   --sort TYPE           none|luminance   Orden de la paleta (defecto luminance).
 //   --tile N              Tamaño de tile en píxeles (defecto 16).
 //   --merge F             Fusión por similitud (fracción 0..1 de índices iguales; 1 = exacto).
@@ -76,6 +81,23 @@ const dist2 = (a, b) => {
 const half = (c) => [c[0] >> 1, c[1] >> 1, c[2] >> 1];
 
 // ---------------------------------------------------------------------------
+// Métrica perceptual (opt-in, --perceptual).
+// La distancia Euclídea pura en RGB-888 no es perceptual: sobre-representa las
+// diferencias en canales que el ojo nota menos y no pondera la luminancia. Con
+// --perceptual activamos una métrica ponderada por canal (más peso al verde y a
+// la luminancia, que el ojo resuelve mejor). Es una aproximación barata a un
+// espacio perceptual (OKLab) sin coste de conversión ni librerías.
+//   distP  = 2·ΔR² + 4·ΔG² + 3·ΔB²     (verde = 4/9, azul = 3/9, rojo = 2/9 del peso)
+// ---------------------------------------------------------------------------
+let PERCEPTUAL = false;
+const distP = (a, b) => {
+	const dr = a[0] - b[0], dg = a[1] - b[1], db = a[2] - b[2];
+	return 2 * dr * dr + 4 * dg * dg + 3 * db * db;
+};
+// dist() = la métrica activa (perceptual o Euclídea) según la bandera del módulo.
+const dist = (a, b) => PERCEPTUAL ? distP(a, b) : dist2(a, b);
+
+// ---------------------------------------------------------------------------
 // Reconocimiento de PNG: dimensión, transparencia
 // ---------------------------------------------------------------------------
 function analyze(png) {
@@ -103,14 +125,25 @@ function modeOf(colors) {
 // ---------------------------------------------------------------------------
 // Histograma (contando solo píxeles opacos; la transparencia va al slot 0)
 // ---------------------------------------------------------------------------
-function histogram(png, ignoreAlpha) {
+function histogram(png, ignoreAlpha, weighted) {
 	const W = png.width, H = png.height;
 	const counts = new Map();
 	for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
 		const c = pixel(png, x, y);
 		if (ignoreAlpha && c[3] < 128) continue;
 		const k = (c[0] << 16) | (c[1] << 8) | c[2];
-		counts.set(k, (counts.get(k) || 0) + 1);
+		let w = 1;
+		// Ponderación perceptual: se reduce el sesgo hacia los oscuros casi-negros
+		// (píxeles insignificantes de sombras/bordes/ruido) y se favorecen los tonos
+		// medios/claros y algo saturados, que el ojo percibe mejor. La frecuencia pura
+		// hace que el median-cut y el k-means dediquen demasiados centros a clusters
+		// oscuros casi idénticos, dejando pocos slots para cielos/piel/metal.
+		if (weighted) {
+			const L = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; // Rec.709
+			const chroma = Math.max(c[0], c[1], c[2]) - Math.min(c[0], c[1], c[2]);
+			w = 0.35 + 0.55 * (L / 255) + 0.25 * (chroma / 255);
+		}
+		counts.set(k, (counts.get(k) || 0) + w);
 	}
 	return [...counts.entries()].map(([k, n]) => [k, n]).sort((a, b) => b[1] - a[1]);
 }
@@ -207,11 +240,11 @@ function kmeans(hist, K, iters, halfAware, init) {
 			const c = keyToRgb(k);
 			let best = 0, bd = Infinity;
 			for (let i = 0; i < K; i++) {
-				const dF = dist2(c, centers[i]);
-				const dH = halfAware ? Math.min(dF, dist2(c, half(centers[i]))) : dF;
+				const dF = dist(c, centers[i]);
+				const dH = halfAware ? Math.min(dF, dist(c, half(centers[i]))) : dF;
 				if (dH < bd) { bd = dH; best = i; }
 			}
-			const useHalf = halfAware && dist2(c, half(centers[best])) < dist2(c, centers[best]);
+			const useHalf = halfAware && dist(c, half(centers[best])) < dist(c, centers[best]);
 			const r = useHalf ? Math.min(255, c[0] << 1) : c[0];
 			const g = useHalf ? Math.min(255, c[1] << 1) : c[1];
 			const b = useHalf ? Math.min(255, c[2] << 1) : c[2];
@@ -250,7 +283,7 @@ function ehbPaletteBright(hist, K, iters) {
 		let mse = 0, tot = 0;
 		for (const [k, n] of hist) {
 			const c = keyToRgb(k); let bd = Infinity;
-			for (const b of bases) { const d = Math.min(dist2(c, b), dist2(c, half(b))); if (d < bd) bd = d; }
+			for (const b of bases) { const d = Math.min(dist(c, b), dist(c, half(b))); if (d < bd) bd = d; }
 			mse += bd * n; tot += n;
 		}
 		return mse / tot;
@@ -263,10 +296,10 @@ function ehbPaletteBright(hist, K, iters) {
 			const c = keyToRgb(k);
 			let bi = 0, bd = Infinity;
 			for (let i = 0; i < K; i++) {
-				const d = Math.min(dist2(c, bases[i]), dist2(c, half(bases[i])));
+				const d = Math.min(dist(c, bases[i]), dist(c, half(bases[i])));
 				if (d < bd) { bd = d; bi = i; }
 			}
-			if (dist2(c, half(bases[bi])) < dist2(c, bases[bi])) useH[bi] += n; else useF[bi] += n;
+			if (dist(c, half(bases[bi])) < dist(c, bases[bi])) useH[bi] += n; else useF[bi] += n;
 		}
 		let moved = false;
 		for (let i = 0; i < K; i++) {
@@ -324,7 +357,7 @@ function tableAsPalette(table) {
 // ---------------------------------------------------------------------------
 function nearestInTable(table, c) {
 	let best = table[0], bd = Infinity;
-	for (const e of table) { if (e.transparent) continue; const d = dist2(c, e.rgb); if (d < bd) { bd = d; best = e; } }
+	for (const e of table) { if (e.transparent) continue; const d = dist(c, e.rgb); if (d < bd) { bd = d; best = e; } }
 	return best;
 }
 function floydCoeffs(w, h, strength) { return { dxdy: [[1, 0, 7], [-1, 1, 3], [0, 1, 5], [1, 1, 1]], div: 16, strength }; }
@@ -400,13 +433,13 @@ function quantizeIndexed(png, table, alpha, dither, strength, opts) {
 function bayerPick(table, c, th) {
 	// Ordenado: elige el vecino más lejano si el píxel queda bajo el umbral.
 	let best = table[0], bd = Infinity;
-	for (const e of table) { if (e.transparent) continue; const d = dist2(c, e.rgb); if (d < bd) { bd = d; best = e; } }
-	const dC = dist2(c, best.rgb);
+	for (const e of table) { if (e.transparent) continue; const d = dist(c, e.rgb); if (d < bd) { bd = d; best = e; } }
+	const dC = dist(c, best.rgb);
 	const frac = (th + 0.5) / 16;
 	if (frac < 0.5) {
 		// busca el segundo más cercano para puntos por encima del umbral
 		let alt = null, ad = Infinity;
-		for (const e of table) { if (e.transparent || e === best) continue; const d = dist2(c, e.rgb); if (d < ad) { ad = d; alt = e; } }
+		for (const e of table) { if (e.transparent || e === best) continue; const d = dist(c, e.rgb); if (d < ad) { ad = d; alt = e; } }
 		if (alt && frac >= (bd / (bd + ad))) return alt.index;
 	}
 	return best.index;
@@ -891,7 +924,13 @@ async function main() {
 		if (!has('--serpentine')) serpentineMode = true;
 	}
 	if (!['none', 'floyd', 'atkinson', 'bayer'].includes(dither)) fail(`--dither inválido: ${dither}`);
-	const palSrc = arg('--palette', 'adaptive');
+	let palSrc = arg('--palette', 'adaptive');
+	// --perceptual activa la cuantización "half-aware + ponderada" de forma global:
+	// histograma ponderado por luminancia/croma + métrica perceptual (distP) en el
+	// clustering y en el remap final. --palette perceptual es un alias conveniente
+	// que, además, fuerza el refinamiento de half-brights (ehbPaletteBright) en EHB.
+	if (has('--perceptual') || palSrc === 'perceptual') PERCEPTUAL = true;
+	if (palSrc === 'perceptual') palSrc = 'ehb';
 	const sortPal = arg('--sort', 'luminance');
 	const tile = Math.max(1, intArg('--tile', 16));
 	const mergeF = floatArg('--merge', 1);
@@ -1010,7 +1049,7 @@ async function main() {
 	console.log(`[amiga-tiles] ${input} ${W}x${H} tiles ${tile} (transparencia ${pct.toFixed(2)}%)`);
 
 	// Profundidad: auto por nº de colores únicos del original.
-	const hist = histogram(png, alpha);
+	const hist = histogram(png, alpha, PERCEPTUAL);
 	const uniqueColors = hist.length;
 	let colors = colorsArg;
 	if (!colorsArg) {
@@ -1064,7 +1103,7 @@ async function main() {
 		if (bases.length < baseCount) { console.warn(`[warn] paleta externa trae ${bases.length}, se rellena con grises`); const g = fixedGraysPalette(baseCount); for (let i = bases.length; i < baseCount; i++) bases.push(g[i]); }
 		palNote = `externa ${palSrc}`;
 	}
-	else { fail(`--palette desconocido: ${palSrc} (adaptive|kmeans|mediancut|bright|popularity|cube|halftone|grays|<archivo>)`); }
+	else { fail(`--palette desconocido: ${palSrc} (adaptive|kmeans|mediancut|bright|ehb|perceptual|popularity|cube|halftone|grays|<archivo>)`); }
 	// Garantiza el nº exacto de bases (p. ej. bright/mediancut pueden devolver
 	// menos de los pedidos según la imagen): se completa con los colores más
 	// frecuentes y se eliminan casi-duplicados.
@@ -1269,7 +1308,7 @@ async function main() {
 		const t = table.find((e) => e.index === indexed[i]);
 		if (!t || t.transparent) continue;
 		const src = [png.data[i * 4], png.data[i * 4 + 1], png.data[i * 4 + 2]];
-		mse += dist2(src, t.rgb); n++;
+		mse += dist(src, t.rgb); n++;
 	}
 	mse = n ? mse / n : 0;
 	const psnr = 10 * Math.log10(255 * 255 * 3 / (mse + 1e-9));
