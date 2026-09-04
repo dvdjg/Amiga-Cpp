@@ -22,6 +22,7 @@ comentado en español.
 | `game-assets.mjs` | Pipeline único: fondos multi-zona → sprites → grupos (IA con fallback heurístico) → `--quantize` | `node tools/amiga-tiles/game-assets.mjs <img> [opc]` | CLI directo (entrada recomendada para preparar assets de un juego) |
 | `run-demos.mjs` | Regenera `out/tile-demos/` (8 demos de cada capacidad) | `node tools/amiga-tiles/run-demos.mjs` | CLI directo (verificación/manual) |
 | `run-vision-verify.mjs` | Verifica cada demo con ollama local (describe, corresponde, propone `--ops`) | `node tools/amiga-tiles/run-vision-verify.mjs [--resume] [--folder] [--all]` | CLI directo; sus `.ops.txt` los consume `amiga-tiles.mjs --ops` |
+| `compare-palettes.mjs` | Compara píxel a píxel los algoritmos de paleta de un demo (PSNR, percentiles, saltos >60, pares casi-idénticos) | `node tools/amiga-tiles/compare-palettes.mjs <baseDir>` | CLI directo (evidencia para elegir algoritmo; ver "Cuál usar") |
 
 ## Qué hace exactamente
 
@@ -151,21 +152,10 @@ fotos o degradados, `none` para tilemaps/pixel-art**.
    - `mediancut`: algoritmo de Heckbert (cajas por rango de canal). Sólido para
      16/32 colores.
    - `bright`: solo EHB. Cuantiza la **mitad más brillante** de la imagen a las 32
-     bases y deja que los half cubran la parte oscura (excelente para imágenes con
-     alto rango dinámico).
-   - `dominant`: **sobremuestreo del cluster dominante**. El k-means global dedica
-     pocos slots a la zona de mayor cobertura (p. ej. el azul del cielo) y muchos a
-     granos sueltos. Este modo construye una **rampa de tonos muy próximos al color
-     dominante** (diferencias mínimas) para que el dithering degradado sucio no
-     "rug", sacrificando los slots de menor masa del resto. En EHB, las bases junto
-     al dominante generan halves útiles en esa misma gama. Fino:
-     `--dominant-frac` (def 0.6, fracción de top-masa intacta) y `--dominant-delta`
-     (def 12, amplitud de la rampa). Medido en una foto de paisaje a 64c EHB con
-     `--dither best`: añade un tono de cielo usado más cerca del dominante y reduce
-     el MSE del dither (PSNR 27.8 vs 27.7 dB). No abusar de la fracción baja:
-     `frac 0.4 / Δ 20` empobrece el resto de la foto (PSNR 25.0 dB).
+      bases y deja que los half cubran la parte oscura (excelente para imágenes con
+      alto rango dinámico).
    - `popularity`: los `N` colores más frecuentes del histograma (rápido, calidad
-     baja).
+      baja).
    - `ehb`: solo EHB, **half-max** (maximiza el uso de los half-brights; ver abajo).
 2. **Externa:** cualquier archivo JSON `{"colors":[[r,g,b],…]}` (o array directo).
    Se ajusta a `colors` exactos; si trae más se recorta, si trae menos se rellena
@@ -180,12 +170,33 @@ fotos o degradados, `none` para tilemaps/pixel-art**.
 4. `--sort none|luminance` ordena la paleta (por defecto por luminosidad; útil para
    encontrar índices a simple vista).
 
+### Cuál usar (medido, no opinión)
+
+Se comparó píxel a píxel (error de cuantización con dither *none*) entre algoritmos
+sobre cinco fotos truecolor a 64c EHB y 32c, mirando tanto el PSNR como los
+**"saltos"** (píxeles con error cromático >60, que en el torso de los "culturistas"
+se perciben como planos desiguales):
+
+| profundidad | algoritmo ideal | PSNR | p99 | saltos>60 |
+|---|---|---|---|---|
+| 64c EHB | **`ehb`** (half-max) | 29.3 | 47 | **380** ⭐ |
+| 64c EHB | `bright` | 29.7 | 47 | 707 |
+| 64c EHB | `kmeans` | 28.9 | 47 | 958 |
+| 64c EHB | `mediancut` | 28.0 | 57 | 2239 |
+| 32c plano | **`kmeans`** | 26.4–28.8 | 47–53 | menor |
+
+Conclusiones: para **64c EHB** gana `ehb` (half-max): mínimo de saltos y buen PSNR;
+`bright` sube algo el PSNR pero mete más saltos. Para **32c** gana `kmeans`.
+Los "colores casi-idénticos con pocos px" que muestra el histograma de una paleta
+EHB son los **halves**, que con `--dither best` efectivamente se usan — no son un
+desperdicio real (con *none* quedan ociosos y el histograma los pinta <1 %).
+
 ### Estrategia EHB en una línea
 
 En EHB conviene elegir los 32 bases sabiendo que también existen sus versiones a
-mitad de brillo. `kmeans` integra esa idea en la distancia; `bright` explota el
-opuesto (bases = zona clara, half = sombras). Para 32/16 colores sin EHB,
-`mediancut` o `kmeans` + `--dither floyd` dan muy buenos resultados.
+mitad de brillo. `ehb` maximiza el aprovechamiento de esos half; `bright` explota
+el opuesto (bases = zona clara, half = sombras). Para 16/32 colores sin EHB,
+`kmeans` + `--dither floyd` dan muy buenos resultados.
 
 ## Verificación y evidencia
 
