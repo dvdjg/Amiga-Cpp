@@ -4,10 +4,15 @@
 // dado) y, opcionalmente, pide a ollama local que EVALÚE y AGRUPE los resultados.
 //
 // Flujo:
-//   1. Detecta el color de fondo (bordes) o usa el alpha si el PNG ya es transparente.
+//   1. Detecta los colores de fondo: el del MARCO (si existe) y, ADEMÁS, las
+//      familias "de croma" interiores — p. ej. un rectángulo VERDE que encierra una
+//      explosión con margen blanco a su alrededor (el auto elige blanco+verde).
 //   2. Etiqueta componentes conexos (4-conexos) de los píxeles NO fondo.
 //   3. Para cada componente: bbox (x,y,w,h) + centro + ancla inferior; recorta y
 //      convierte el color de fondo a TRANSPARENTE (alfa 0).
+//   3b. Si hay una CAJA DE CROMA (rectángulo sólido de color interior), los trozos
+//      cuyo centro cae dentro se FUSIONAN en UN solo sprite (p. ej. la explosión
+//      completa), con transparencia SOLO contra el color de la caja.
 //   4. Guarda cada sprite como
 //      sprite_P<seq>_x<X>_y<Y>_w<W>_h<H>.png (+ sprites.json con metadatos).
 //   5. (opcional --ai) Monta las piezas en una hoja con etiquetas y pide a ollama
@@ -19,8 +24,8 @@
 //
 // Uso:
 //   node tools/amiga-tiles/extract-sprites.mjs <imagen.png|jpg> [opciones]
-//   --background auto|none|R,G,B   color de fondo (auto = dominante en bordes)
-//   --tol N       tolerancia RGB del color de fondo (def 24)
+//   --background auto|none|R,G,B   color de fondo (auto = borde + cromas interiores)
+//   --tol N       tolerancia RGB de fondo (def 24)
 //   --min N       ignora componentes menores que N px de área (def 24)
 //   --out DIR     salida (def: junto a la imagen en sprites/ o ./out)
 //   --ai [model]  pedir a ollama local evalúe/agrupe (hoja etiquetada, 1 llamada)
@@ -47,45 +52,113 @@ export function loadImage(p) {
 }
 const dist2 = (a, b) => { const dr = a[0] - b[0], dg = a[1] - b[1], db = a[2] - b[2]; return dr * dr + dg * dg + db * db; };
 
-// --- 1) Color de fondo automático (dominante en los bordes) ------------------
-// detectBackground: decide el color de fondo de una ilustración (o alpha si el PNG
-// ya es transparente). Vota el color más frecuente del MARCO de la imagen.
-// Llamado desde main() de este fichero; es la base para la variante multi-zona de
-// game-assets.mjs (detectBackgrounds).
+// --- 1) Color de fondo automático (borde + familias de croma interiores) ------
+// detectBackground: decide los colores de fondo de una ilustración:
+//   - Si el PNG ya tiene transparencia significativa → modo 'alpha'.
+//   - El color dominante del MARCO (si ocupa ≥40 % de los bordes).
+//   - ADEMÁS, familias INTERIORES "de croma": regiones grandes y saturadas que no
+//     están en los bordes. Es el caso típico de una hoja recortada con margen
+//     neutro (blanco) que encierra un rectángulo de color (verde) con frames
+//     dentro: el "auto" elige el VERDE del interior en vez del blanco del marco.
+// Devuelve {mode:'alpha'} | {mode:'color',color} | {mode:'colors',colors:[..]} | {mode:'none'}.
+// Llamado desde main() de este fichero; la variante multi-zona de game-assets.mjs
+// (detectBackgrounds) amplía la misma idea a bandas de la imagen completa.
 export function detectBackground(png, tol) {
 	// Si el PNG ya tiene transparencia significativa, se usa el alpha y se ignora el color.
 	let alphaN = 0;
 	for (let i = 3; i < png.data.length; i += 4) if (png.data[i] < 16) alphaN++;
 	if (alphaN > png.width * png.height * 0.02) return { mode: 'alpha' };
-	// Muestreo de bordes (1..2 px) y voto del color más frecuente.
 	const W = png.width, H = png.height;
-	const counts = new Map();
+	const sat = (c) => Math.max(c[0], c[1], c[2]) - Math.min(c[0], c[1], c[2]);
+	const hMap = new Map();
+	// fams(points): familias de color (colores unidos a distancia <= tol) con recuento.
+	const fams = (points) => {
+		hMap.clear();
+		for (const [x, y] of points) { if (x < 0 || y < 0 || x >= W || y >= H) continue; const o = (y * W + x) * 4; const k = (png.data[o] << 16) | (png.data[o + 1] << 8) | png.data[o + 2]; hMap.set(k, (hMap.get(k) || 0) + 1); }
+		const out = [];
+		for (const [k, n] of [...hMap.entries()].sort((a, b) => b[1] - a[1])) {
+			const c = [(k >> 16) & 255, (k >> 8) & 255, k & 255];
+			const ix = out.findIndex((f) => dist2(f.color, c) <= tol * tol);
+			if (ix >= 0) out[ix].count += n; else out.push({ color: c, count: n });
+		}
+		return out.sort((a, b) => b.count - a.count);
+	};
 	const edge = [];
 	const push = (x, y) => { if (x < 0 || y < 0 || x >= W || y >= H) return; edge.push([x, y]); };
 	for (let x = 0; x < W; x++) { push(x, 0); push(x, H - 1); }
 	for (let y = 0; y < H; y++) { push(0, y); push(W - 1, y); }
-	for (const [x, y] of edge) { const o = (y * W + x) * 4; const k = (png.data[o] << 16) | (png.data[o + 1] << 8) | png.data[o + 2]; counts.set(k, (counts.get(k) || 0) + 1); }
-	// Agrupar por tolerancia: cuenta "familia" del color más común.
-	const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
-	const [topK, topN] = sorted[0];
-	const family = sorted.filter(([k]) => { const c = [(k >> 16) & 255, (k >> 8) & 255, k & 255], t = [(topK >> 16) & 255, (topK >> 8) & 255, topK & 255]; return dist2(c, t) <= tol * tol; });
-	const famN = family.reduce((s, e) => s + e[1], 0);
-	if (famN >= edge.length * 0.4) return { mode: 'color', color: [(topK >> 16) & 255, (topK >> 8) & 255, topK & 255] };
-	return { mode: 'none' };
+	const bgs = [];
+	const edgeFam = fams(edge)[0];
+	// Familia dominante del marco: si cubre >=40 % de los bordes es fondo.
+	if (edgeFam && edgeFam.count >= edge.length * 0.4) bgs.push({ color: edgeFam.color, src: 'edge' });
+	// Familias INTERIORES: histograma global; valen si (a) cubren >=6 % de la imagen,
+	// (b) no repiten un color ya elegido y (c) son de croma (saturadas) o masivas.
+	const allPoints = [];
+	for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) allPoints.push([x, y]);
+	const total = W * H;
+	for (const f of fams(allPoints)) {
+		if (bgs.length >= 4) break;
+		const cov = f.count / total;
+		if (cov < 0.06) continue;
+		if (bgs.some((b) => dist2(b.color, f.color) <= tol * tol)) continue;
+		if (sat(f.color) >= 60 || cov >= 0.30) bgs.push({ color: f.color, src: 'interior' }); // croma o fondo sólido
+	}
+	if (!bgs.length) return { mode: 'none' };
+	if (bgs.length === 1) return { mode: 'color', color: bgs[0].color, bgs };
+	return { mode: 'colors', colors: bgs.map((b) => b.color), bgs };
+}
+
+// --- Rejilla/caja de croma: rectángulo sólido interior -> UN sprite por caja -----
+// chromaBoxes: busca en la imagen rectángulos grandes de un color de fondo CROMA
+// (los elegidos como 'interior' en detectBackground, p. ej. el verde de un marco
+// que encierra una explosión). Cada caja respresenta UN asset: los trozos de
+// contenido separados por los huecos del color se FUSIONAN en un solo sprite, con
+// transparencia SOLO contra el color de la caja.
+// Devuelve [{color, x0,y0,x1,y1, cov}]. Sin cajas claras -> [].
+function chromaBoxes(png, bg, tol) {
+	const list = bg.bgs || [];
+	const chromas = list.filter((b) => b.src === 'interior');
+	if (!chromas.length) return [];
+	const W = png.width, H = png.height;
+	const isC = (x, y, c) => { const o = (y * W + x) * 4; return dist2([png.data[o], png.data[o + 1], png.data[o + 2]], c) <= tol * tol; };
+	// segs: tramos de fila/columna con fracción de color >= th, tolerando huecos gap.
+	const segs = (a, th, gap) => { const out = []; let cur = null;
+		for (let i = 0; i < a.length; i++) { if (a[i] >= th) { if (!cur) cur = { s: i, e: i }; else cur.e = i; }
+			else if (cur && i - cur.e <= gap) cur.e = i; else if (cur) { out.push(cur); cur = null; } }
+		if (cur) out.push(cur); return out; };
+	const boxes = [];
+	for (const ch of chromas) {
+		const colF = [], rowF = [];
+		for (let x = 0; x < W; x++) { let n = 0; for (let y = 0; y < H; y++) if (isC(x, y, ch.color)) n++; colF.push(n / H); }
+		for (let y = 0; y < H; y++) { let n = 0; for (let x = 0; x < W; x++) if (isC(x, y, ch.color)) n++; rowF.push(n / W); }
+		for (const c of segs(colF, 0.30, 3)) for (const r of segs(rowF, 0.30, 3)) {
+			let n = 0; const tot = (c.e - c.s + 1) * (r.e - r.s + 1);
+			for (let y = r.s; y <= r.e; y++) for (let x = c.s; x <= c.e; x++) if (isC(x, y, ch.color)) n++;
+			if (n / tot < 0.30) continue;
+			// fusiona cajas solapadas del mismo color
+			const hit = boxes.find((b) => b.color === ch.color && b.x0 <= c.e && c.s <= b.x1 && b.y0 <= r.e && r.s <= b.y1);
+			if (hit) { hit.x0 = Math.min(hit.x0, c.s); hit.x1 = Math.max(hit.x1, c.e); hit.y0 = Math.min(hit.y0, r.s); hit.y1 = Math.max(hit.y1, r.e); }
+			else boxes.push({ color: ch.color, x0: c.s, y0: r.s, x1: c.e, y1: r.e });
+		}
+	}
+	return boxes;
 }
 
 // --- 2+3) Componentes conexos 4-way sobre máscara NO-fondo --------------------
+export function isBgPx(png, bg, tol, x, y) {
+	const o = (y * png.width + x) * 4;
+	if (bg.mode === 'alpha') return png.data[o + 3] < 16;
+	const c = [png.data[o], png.data[o + 1], png.data[o + 2]];
+	if (bg.colors) return bg.colors.some((b) => dist2(c, b) <= tol * tol);
+	if (bg.color) return dist2(c, bg.color) <= tol * tol;
+	return false;
+}
 // extract: etiqueta componentes conexos 4-way sobre la máscara NO-fondo (flood-fill
 // iterativo con pila, sin recursión). Devuelve {label, W, H, comps:[{bbox,area}]}
 // con los componentes que superan minArea. Llamado desde main() de este fichero.
 export function extract(png, bg, tol, minArea) {
 	const W = png.width, H = png.height;
-	const isBg = (x, y) => {
-		const o = (y * W + x) * 4;
-		if (bg.mode === 'alpha') return png.data[o + 3] < 16;
-		if (bg.mode === 'color') return dist2([png.data[o], png.data[o + 1], png.data[o + 2]], bg.color) <= tol * tol;
-		return false;
-	};
+	const isBg = (x, y) => isBgPx(png, bg, tol, x, y);
 	const label = new Int32Array(W * H).fill(-1);
 	const comps = []; // {bbox}
 	const stack = new Int32Array(W * H * 2);
@@ -131,9 +204,7 @@ export function cropSprite(png, label, W, H, comp, tol, bg) {
 		const o = (sy * W + sx) * 4;
 		const c = (y * w + x) * 4;
 		crop[c] = png.data[o]; crop[c + 1] = png.data[o + 1]; crop[c + 2] = png.data[o + 2];
-		const isBgPx = bg.mode === 'alpha' ? png.data[o + 3] < 16
-			: bg.mode === 'color' ? dist2([png.data[o], png.data[o + 1], png.data[o + 2]], bg.color) <= tol * tol : false;
-		crop[c + 3] = isBgPx ? 0 : 255;
+		crop[c + 3] = isBgPx(png, bg, tol, sx, sy) ? 0 : 255;
 	}
 	return { width: w, height: h, data: crop };
 }
@@ -226,24 +297,59 @@ async function main() {
 	if (bgSpec === 'none') bg = { mode: 'none' };
 	else if (bgSpec !== 'auto') { const g = bgSpec.split(',').map(Number); bg = { mode: 'color', color: [g[0], g[1], g[2]] }; }
 	else bg = detectBackground(png, tol);
-	console.log(`[sprites] fondo: ${bg.mode === 'alpha' ? 'alpha (ya transparente)' : bg.mode === 'color' ? `rgb(${bg.color.join(',')})` : 'ninguno detectable'}`);
+	const bgList = bg.colors || (bg.color ? [bg.color] : []);
+	const bgLog = bg.mode === 'alpha' ? 'alpha (ya transparente)' : bgList.length ? bgList.map((c) => `rgb(${c.join(',')})`).join(' ') : 'ninguno detectable';
+	console.log(`[sprites] fondo: ${bgLog}`);
 
 	const { label, W, H, comps } = extract(png, bg, tol, minArea);
+	const chroma = chromaBoxes(png, bg, tol);
+	if (chroma.length) console.log(`[sprites] caja(s) de croma: ${chroma.map((b) => `[${b.x0},${b.y0}]-[${b.x1},${b.y1}] rgb(${b.color.join(',')})`).join('  ')}`);
 	console.log(`[sprites] componentes: ${comps.length}`);
 	fs.mkdirSync(outDir, { recursive: true });
 	const dir = path.join(outDir, 'sprites'); fs.mkdirSync(dir, { recursive: true });
 
 	const sprites = [];
 	const metas = [];
-	comps.forEach((c, seq) => {
+	const usedInBox = new Uint8Array(comps.length);
+	// 1) Sprites de cada CAJA DE CROMA: los trozos cuyo centro cae dentro del
+	//    rectángulo sólido de color se FUSIONAN en UN solo sprite (p. ej. una
+	//    explosión sobre el rectángulo verde), con alfa 0 SOLO contra el color de la
+	//    caja (lo blanco del fogonazo se conserva, no es fondo aquí).
+	for (const box of chroma) {
+		const members = [];
+		comps.forEach((c, i) => {
+			if (usedInBox[i]) return;
+			const cx = Math.round((c.minX + c.maxX) / 2), cy = Math.round((c.minY + c.maxY) / 2);
+			if (cx >= box.x0 && cx <= box.x1 && cy >= box.y0 && cy <= box.y1) { members.push(c); usedInBox[i] = 2; }
+		});
+		if (!members.length) continue;
+		const mnX = Math.min(...members.map((c) => c.minX)), mxX = Math.max(...members.map((c) => c.maxX));
+		const mnY = Math.min(...members.map((c) => c.minY)), mxY = Math.max(...members.map((c) => c.maxY));
+		const w = mxX - mnX + 1, h = mxY - mnY + 1;
+		const crop = Buffer.alloc(w * h * 4, 0);
+		for (let y = mnY; y <= mxY; y++) for (let x = mnX; x <= mxX; x++) {
+			const o = (y * W + x) * 4, ci = (y - mnY) * w + (x - mnX);
+			crop[ci * 4] = png.data[o]; crop[ci * 4 + 1] = png.data[o + 1]; crop[ci * 4 + 2] = png.data[o + 2];
+			crop[ci * 4 + 3] = dist2([png.data[o], png.data[o + 1], png.data[o + 2]], box.color) <= tol * tol ? 0 : 255;
+		}
+		const s = { width: w, height: h, data: crop };
+		const seq = metas.length;
+		const name = `sprite_P${String(seq).padStart(3, '0')}_x${mnX}_y${mnY}_w${w}_h${h}.png`;
+		fs.writeFileSync(path.join(dir, name), PNG.sync.write(s));
+		sprites.push(s);
+		metas.push({ seq, x: mnX, y: mnY, w, h, name, area: members.reduce((a, c) => a + c.area, 0), box: { x0: box.x0, y0: box.y0, x1: box.x1, y1: box.y1, color: box.color }, merged: true, center: { x: Math.round((mnX + mxX) / 2), y: Math.round((mnY + mxY) / 2) }, anchor: { x: Math.round((mnX + mxX) / 2), y: mxY } });
+	}
+	// 2) Resto de componentes (sobre el fondo "tema", p. ej. el blanco): individuales.
+	comps.forEach((c, i) => {
+		if (usedInBox[i]) return;
 		const s = cropSprite(png, label, W, H, c, tol, bg);
+		const seq = metas.length;
 		const name = `sprite_P${String(seq).padStart(3, '0')}_x${c.minX}_y${c.minY}_w${s.width}_h${s.height}.png`;
 		fs.writeFileSync(path.join(dir, name), PNG.sync.write(s));
 		sprites.push(s);
-		const origin = { x: c.minX, y: c.minY, w: s.width, h: s.height };
-		metas.push({ seq, ...origin, name, area: c.area, center: { x: Math.round((c.minX + c.maxX) / 2), y: Math.round((c.minY + c.maxY) / 2) }, anchor: { x: Math.round((c.minX + c.maxX) / 2), y: c.maxY } });
+		metas.push({ seq, x: c.minX, y: c.minY, w: s.width, h: s.height, name, area: c.area, center: { x: Math.round((c.minX + c.maxX) / 2), y: Math.round((c.minY + c.maxY) / 2) }, anchor: { x: Math.round((c.minX + c.maxX) / 2), y: c.maxY } });
 	});
-	fs.writeFileSync(path.join(outDir, 'sprites.json'), JSON.stringify({ image: input, size: `${W}x${H}`, background: bg, sprites: metas }, null, 2), 'utf8');
+	fs.writeFileSync(path.join(outDir, 'sprites.json'), JSON.stringify({ image: input, size: `${W}x${H}`, background: bg, chromaBoxes: chroma, sprites: metas }, null, 2), 'utf8');
 
 	// Hoja de contacto a tamaño natural (para el humano) + etiquetada (para la IA)
 	const sheet = contactSheet(sprites, false);

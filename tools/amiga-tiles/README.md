@@ -246,6 +246,12 @@ node tools/amiga-tiles/game-assets.mjs arte.png --out out/mi_juego
 ```
 
 - Los PNG extraídos codifican el fondo como **alfa = 0**; convenio Amiga: índice 0 = transparente.
+- `--background auto` detecta **blanco del borde + cromas interiores**: si hay un
+  rectángulo sólido de color (p. ej. VERDE) que encierra otra entidad (unas frames
+  de explosión), el verde se detecta como fondo aunque el marco sea blanco, y la
+  caja se **fusiona en UN sprite** con transparencia SOLO contra ese color (el
+  blanco del fogonazo se conserva). Info en `sprites.json` (`chromaBoxes`,
+  `merged`). Puedes forzar el color con `--background R,G,B` y afinar con `--tol`.
 - `--quantize 64` cuantiza cada grupo a EHB con el índice 0 transparente.
 - `extract-sprites.mjs` queda como utilidad de bajo nivel (exporta sus funciones y
   solo ejecuta su CLI cuando se invoca directamente).
