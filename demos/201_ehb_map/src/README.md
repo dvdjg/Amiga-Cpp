@@ -1,10 +1,12 @@
 # Demo 201 — Mapa EHB con scroll 8-way X-Limited
 
-Esta demo es un **muestreador automático** de scroll 8-way (cuadrado + circular +
-Lissajous) sobre el **mapa real EHB** extraído de *The Fan-tasy Tileset*. Recorre en un
-bucle continuo todos los pasos de salto (1 → 16 px) por eje, en 5 modos de trayectoria,
-mostrando la suavidad a todas las granularidades y la carga real de Blitter/Copper en una
-franja HUD en vivo.
+Esta demo es un **tour continuo** de scroll 8-way X-Limited sobre el **mapa real EHB**
+extraído de *The Fan-tasy Tileset*: barrido horizontal directo hasta el borde derecho,
+luego vertical hasta el borde inferior, luego oblicuo arriba-izquierda hasta tocar de
+nuevo el borde superior y, por último, Lissajous aleatorio indefinido (curvas que se
+re-aleatorizan sin cortes). El **salto máximo es de 4 px/frame por eje** y todo el
+recorrido es continuo, sin esperas intermedias; la franja HUD muestra la carga real de
+Blitter/Copper en vivo.
 
 El archivador del README es `main.cpp`; este documento explica el concepto del algoritmo
 X-Limited, qué mecánicas del chipset Amiga explota y cómo se han generado los assets con el
@@ -70,10 +72,18 @@ El motor no hace un gran blit por salto. Cada avance de `N` px en un eje se desc
 
 Así, para cualquier salto ≤ `max_step` (16 px = la columna completa cada frame), **nunca se
 muestra un píxel sin pintar**, y el coste real del Blitter crece de forma proporcional al
-salto (∝ N). La demo avanza con el paso canónico **1 px/frame** (el que el corkscrew exige
-para 50 fps sin micro-parones, ver §7 de `xlimited.hpp`); el `TourDriver` de `main.cpp`
+salto (∝ N). La demo avanza con **salto máximo de 4 px/frame por eje** (recorrido
+continuo de borde a borde, sin esperas; ver §7 de `xlimited.hpp`); el `TourDriver` de `main.cpp`
 recorre el mapa con la secuencia lineal *H hasta el borde → V hasta el borde → oblicuo
-hasta el borde superior → Lissajous aleatorio*.
+hasta el borde superior → Lissajous aleatorio indefinido*. La fase Lissajous ya no se
+abandona nunca: cada `K_SEG_FRAMES` re-aleatoriza la órbita centrada **dentro** del mapa
+(con margen = radio, para que el target nunca se clampa a un borde y la cámara no se
+detenga contra la pared), y el movimiento curvo continúa sin cortes. La continuidad es
+**garantizada**: como la posición está cuantizada a píxeles y la tabla Q7 tiene mesetas
+en los ápices, el Lissajous descarta las muestras que no cambian de píxel y persigue la
+siguiente, de modo que no existe ningún frame con `(dx,dy)=(0,0)` (cero paradas). Por
+último, el HUD solo se redibuja al **cambiar de fase** (4 veces en todo el tour), nunca
+en cada segmento, para que el redibujado en vblank no se note como una parada.
 
 ### La costura del *wrap* vertical (corkscrew / split)
 
@@ -111,6 +121,53 @@ borde derecho/inferior se repite la última columna/fila de tiles en lugar de le
 equivocado; los mapas con `wrap` no cambian. La verificación host de este comportamiento está
 en `tools/analyze/verify-201-border.mjs` (modela el barrido horizontal contra
 `out/ehb/const_game_201.h` con/sin fix).
+
+### Cómo se monta el framebuffer y el contrato de *qué* se ve
+
+El engine no copia el mapa a pantalla entera: mantiene un **anillo** interleaved
+(`bitmap_blocks_per_row` × `display_blocks_per_col` bloques) que se monta en dos fases y
+luego solo se pinta lo que entra:
+
+- **Fase A — SETUP (relleno):** `XlimitedScene::fill` pinta el anillo entero con el mapa
+  empezando en el bloque (0,0). Es un blit por bloque, en lotes (≤120 jobs por plan).
+- **Fase B — INCREMENTAL (scroll):** `XlimitedScene::update(plan, dx, dy, frame)`
+  descompone el avance en **sub-pasos atómicos de 1 px** (`update_scroll`) y pinta la
+  columna/fila entrante **solo al cruzar** cada límite de 16 px (`scroll_right/left/down/up`),
+  con el ajuste de *fillup* al completarse el bloque.
+
+**Confirmación del reparto de carga (así sigue siendo):** como cada sub-paso es de 1 px, en un
+desplazamiento de `N` px por eje se pinta la columna/fila nueva en los `N` sub-pasos, y el
+*Blitter* ejecuta un único blit interleaved (todos los planos) por bloque. Al avanzar 16 px ya
+está dibujada la fila/columna completa que entra; el coste por frame crece **proporcional al
+salto** (∝ N), no al tamaño de la pantalla. Con el salto máximo de 4 px/frame por eje de la
+demo, a lo sumo hay 1 cruce de bloque por eje y frame (dentro del presupuesto de Blitter,
+`max_step` configurable a 16).
+
+**El contrato de qué mundo se ve (para diagnósticos y objetos fijos):** el engine garantiza el
+invariante de Steger `display_start == scroll_x`, de modo que la pantalla muestra el mundo según
+`screen_to_world_x/y`:
+
+- `world_x(sx) = mapposx + sx` (columnas de mundo).
+- `world_y(sy) = (mapposy + tile_height + sy) % display_height` (filas de mundo).
+
+Ojo con dos consecuencias que suelen confundir al comparar con una imagen de referencia:
+
+1. **Banda de staging vertical:** la ventana visible NO empieza en `mapposy`: el campo
+   principal muestra `world_y = mapposy + tide_height + sy`. Por eso, al arrancar
+   (`mapposy = 0`), la fila **0** del mapa queda **oculta** en la banda de staging y la fila
+   superior visible es la **1** (`y = 16`). Comparar el borde superior de la pantalla con el
+   superior de la referencia exige desplazar una fila.
+2. **Envolvimiento vertical (`% display_height`):** el display es un anillo de
+   `display_height = 240` px; si el mapa es más alto que eso, el contenido se **envuelve**
+   (repite) cada 240 px al bajar. Un mapa de 40×40 = 640 px de alto **no** recorre limpio en Y
+   con este anillo: conviene validar la fase vertical (y el límite `maxY`).
+
+La herramienta host que modela este contrato (y dice **qué tiles deberían verse** para un
+offset arbitrario, recortando la referencia) es `tools/analyze/verify-201-framebuffer.mjs`
+(`--cam x,y`). Para **arrancar en un offset distinto de (0,0)** (p. ej. en el bloque
+`(100,100)`), la receta es `scene.fill(...)` (setup del anillo) y después
+`scene.pre_scroll(backend, plan, 100, 100)` (reutiliza el scroll incremental para mover la
+cámara sin re-pintar); también se ve en el modo `--origin` de la herramienta.
 
 ---
 
