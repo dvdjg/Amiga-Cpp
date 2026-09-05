@@ -54,25 +54,27 @@ namespace {
 namespace field = eng::field;
 
 // -----------------------------------------------------------------------------
-// Demo 201 — MUESTRARIO de scroll 8-WAY X-Limited EHB (512 KB A500)
+// Demo 201 — RECORRIDO de scroll 8-WAY X-Limited EHB (512 KB A500)
 // -----------------------------------------------------------------------------
 //
 // QUÉ HACE
 // --------
-// Convierte la demo en un muestrario automático que recorre en bucle TODAS las
-// posibilidades del scroll 8-way sobre el mapa real EHB (40x40, 6 planos):
+// Recorre el mapa real EHB (40x40, 6 planos) con una secuencia LINEAL de fases
+// que ejercita los 4 movimientos del corkscrew y los límites del mapa:
 //
-//   STEPS  : barrido de jumps 1px -> 2 -> 3 -> 4 -> 6 -> 8 -> 10 -> 12 -> 14 -> 16
-//            (de una columna nueva completa por frame a sub-píxel fluido). Cada
-//            step se mantiene ~3s para ver la suavidad a todas las granularidades.
-//   MODOS  : HORIZONTAL (H en ping-pong), VERTICAL (V), OBLICUO (diagonal que bota
-//            en los 4 bordes), CIRCULAR y LISSAJOUS (dos senos en cuadratura).
-//   MATRIZ : por cada step se recorren los 5 modos; al terminar se vuelve al
-//            step 1. Total = 10 steps x 5 modos = 50 segmentos x ~3 s ≈ 2.5 min.
+//   FASE 1 "H->FIN"  : scroll HORIZONTAL directo (derecha) hasta el borde del mapa.
+//   FASE 2 "V->FIN"  : scroll VERTICAL directo (abajo) desde el borde derecho hasta
+//                      el borde inferior (esquina inferior derecha del mapa).
+//   FASE 3 "OBLIQ^"  : diagonal arriba-izquierda hasta tocar DE NUEVO el borde
+//                      superior (si X choca antes que Y, el resto sube en vertical).
+//   FASE 4 "LISSAJ"  : Lissajous ALEATORIO (centro/radio/fase/frecuencia variables)
+//                      que se re-aleatoriza cada kSegFrames y se queda en bucle.
 //
-// El motor ejecuta CADA jump como sub-pasos ATÓMICOS de 1 px (paint-then-advance
-// en `update_scroll`): nunca se muestra un píxel sin pintar y el coste de
-// Blitter crece ∝ jump (1 columna por frame en el peor caso de 16 px).
+// El motor ejecuta el paso de 1 px como sub-pasos ATÓMICOS (paint-then-advance
+// en `update_scroll`): nunca se muestra un píxel sin pintar. Con el fix de borde
+// (clamp del origen en `add_draw`, xlimited.hpp) los pre-pintados de la pista de
+// 22 bloques no salen del mapa: junto al borde derecho/inferior repiten la última
+// columna/fila en lugar de leer tile 0 (edge_tile) y pintar contenido equivocado.
 //
 //   RAM  : un solo bitmap interleaved de display + el banco incbinado ALIADO
 //          (sin la 2ª copia interleaved) + un lienzo HUD fino -> total < 512 KB.
@@ -96,7 +98,7 @@ namespace field = eng::field;
 //                     hud con este viewport: un HUD fino (p. ej. 16) baja main a
 //                     240 y el corkscrew solapa la banda de staging con la franja.
 //   K_HUD_HEIGHT (48)  franja inferior con la telemetría en vivo (texto pequeño 1x).
-//   K_SEG_FRAMES (150) frames por segmento (~3 s a 50 fps)
+//   K_SEG_FRAMES (150) frames de cada sesión Lissajous aleatoria (~3 s a 50 fps)
 // -----------------------------------------------------------------------------
 
 #ifndef K_VIEWPORT_H
@@ -143,150 +145,136 @@ eng::u16 g_hudPalette[16] {
 };
 
 // -----------------------------------------------------------------------------
-// Modos y steps del muestrario
+// Fases del recorrido (secuencia lineal por el mapa, sin matriz steps x modos):
+//   1) HORIZONTAL directo hasta el borde derecho,
+//   2) VERTICAL directo hasta el borde inferior,
+//   3) OBLICUO arriba-izquierda hasta tocar DE NUEVO el borde superior,
+//   4) LISSAJOUS aleatorio (centro/radio/frecuencia variable) en bucle.
+// Cada fase avanza con el paso canónico de 1 px/frame (el corkscrew exige
+// 1 px para 50 fps sin micro-parones; ver §7 de xlimited.hpp).
 // -----------------------------------------------------------------------------
-enum class ShowcaseMode : eng::u8 { H, V, Oblique, Circle, Lissajous };
-constexpr eng::u8 kModeCount = 5;
-constexpr char const* kModeName[kModeCount] { "HORIZ", "VERT", "OBLIQ", "CIRC", "LISSAJ" };
+enum class TourPhase : eng::u8 { HToEnd, VToEnd, ObliqueToTop, Lissajous };
+constexpr eng::u8 kPhaseCount = 4;
+constexpr char const* kPhaseName[kPhaseCount] { "H->FIN", "V->FIN", "OBLIQ^", "LISSAJ" };
+constexpr eng::s32 kPhaseStep = 1; // 1 px/frame por eje (canónico del corkscrew)
 
-// Steps representativos 1..16 (con intermedios) para ver la suavidad en todo el
-// rango. 16 = columna nueva completa por frame (peor caso de Blitter; misma
-// suavidad porque el motor la hace en sub-pasos de 1 px).
-constexpr eng::u8 kSteps[] { 1, 2, 3, 4, 6, 8, 10, 12, 14, 16 };
-constexpr eng::u32 kStepCount = sizeof(kSteps) / sizeof(kSteps[0]);
-
-// Tabla de seno Q7 (amplitud 127 = 1.0) para círculo / Lissajous, generada en
+// Tabla de seno Q7 (amplitud 127 = 1.0) para el Lissajous, generada en
 // compile-time por el engine (`eng::SineTable`) sin float por frame.
 constexpr eng::SineTable<127, 256> kSin {};
 constexpr eng::u32 kSinSteps = 256;
 
 // -----------------------------------------------------------------------------
-// Conductor del muestrario: avanza la cámara por el modo actual y cambia de
-// (step, modo) cada kSegFrames frames. Produce el (dx, dy) de cada frame.
+// Conductor del recorrido: FSM de 4 fases. Cada fase H/V/oblicua corre hasta
+// cumplir su objetivo (borde del mapa); la fase Lissajous re-aleatoriza el
+// centro/radio/frecuencia cada kSegFrames frames y se queda en bucle. Produce
+// el (dx, dy) de cada frame y la telemetría del segmento para el HUD.
 // -----------------------------------------------------------------------------
-class ShowcaseDriver {
+class TourDriver {
 public:
 	void begin(eng::s32 maxX, eng::s32 maxY) {
 		m_maxX = maxX; m_maxY = maxY;
-		m_cx = maxX / 2; m_cy = maxY / 2;
-		m_radius = (maxX < maxY ? maxX : maxY) / 2 - 8;
-		if (m_radius < 0) m_radius = 0;
 		reset();
 	}
 
 	void reset() {
-		m_stepIdx = 0; m_modeIdx = 0;
+		m_phaseIdx = 0;
 		m_frameInSeg = 0;
-		m_camX = m_cx; m_camY = 0;
-		m_vx = 1; m_vy = 0;
-		m_segBlitMax = 0; m_segWordsMax = 0; m_segCopper = 0;
+		m_camX = 0; m_camY = 0;
+		m_lc = 0x13579bdu; // semilla del LCG (aleatoriedad sin float)
+		m_justChanged = false;
+		randomize_lissajous();
+		report_segment();
 	}
 
-	eng::u8 step() const { return kSteps[m_stepIdx]; }
-	ShowcaseMode mode() const { return static_cast<ShowcaseMode>(m_modeIdx); }
-	const char* mode_name() const { return kModeName[m_modeIdx]; }
-	eng::s32 cam_x() const { return m_camX; }
-	eng::s32 cam_y() const { return m_camY; }
+	TourPhase phase() const { return static_cast<TourPhase>(m_phaseIdx); }
+	const char* phase_name() const { return kPhaseName[m_phaseIdx]; }
 
-	// ¿Se acaba de cruzar a un nuevo segmento este frame? (para el HUD en render)
+	// ¿Se acaba de cruzar a una fase/sesión nueva este frame? (para el HUD)
 	bool just_changed() const { return m_justChanged; }
 
-	// Carga medida del segmento que ACABA de terminar (el que se reporta en el
-	// HUD): el nuevo segmento ya avanzó a su step/modo, pero mostramos los
-	// números del anterior, que están completos.
+	// Telemetría del segmento que ACABA de terminar (reportada en el HUD).
 	eng::u16 last_blit_max() const { return m_lastBlitMax; }
 	eng::u16 last_words_max() const { return m_lastWordsMax; }
 	eng::u16 last_copper() const { return m_lastCopper; }
 
-	// Acumula la telemetría real del frame actual (jobs/words/copper) al
-	// segmento en curso, para reportar el pico al terminar.
+	// Acumula la telemetría real del frame actual al segmento en curso.
 	void note_telemetry(eng::u16 jobs, eng::u16 words, eng::u16 copper) {
 		if (words > m_segWordsMax) m_segWordsMax = words;
 		if (jobs > m_segBlitMax) m_segBlitMax = jobs;
 		m_segCopper = copper;
 	}
 
-	/// Genera (dx,dy) de este frame y actualiza cámara/segmento.
+	/// Genera (dx,dy) de este frame, actualiza cámara y avanza de fase al cumplir.
 	void step(eng::s32& dx, eng::s32& dy) {
 		m_justChanged = false;
-		// Si el segmento en curso agotó sus frames, avanzar al siguiente y avisar
-		// (el HUD se redibuja en render() con los datos del segmento completado).
-		if (m_frameInSeg >= kSegFrames) {
-			advance_segment();
+		compute_motion(dx, dy); // actualiza m_camX/m_camY
+		++m_frameInSeg;
+		bool finished = false;
+		switch (phase()) {
+			case TourPhase::HToEnd:      finished = m_camX >= m_maxX; break;
+			case TourPhase::VToEnd:      finished = m_camY >= m_maxY; break;
+			case TourPhase::ObliqueToTop: finished = m_camY <= 0;     break;
+			case TourPhase::Lissajous:   finished = m_frameInSeg >= kSegFrames; break;
+		}
+		if (finished) {
+			report_segment(); // guarda telemetría del segmento que termina
+			if (phase() == TourPhase::Lissajous) randomize_lissajous();
+			m_phaseIdx = static_cast<eng::u8>((m_phaseIdx + 1u) % kPhaseCount);
+			m_frameInSeg = 0;
+			m_segBlitMax = 0; m_segWordsMax = 0; m_segCopper = 0;
 			m_justChanged = true;
 		}
-		compute_motion(dx, dy);
-		++m_frameInSeg;
 	}
 
 private:
-	void advance_segment() {
-		// Reportar el segmento que termina (guardarlo), y avanzar en la matriz
-		// (step interno, modo externo). Al cerrar el último step se vuelve al 1.
-		m_lastBlitMax = m_segBlitMax; m_lastWordsMax = m_segWordsMax; m_lastCopper = m_segCopper;
-		++m_modeIdx;
-		if (m_modeIdx >= kModeCount) { m_modeIdx = 0; ++m_stepIdx; }
-		if (m_stepIdx >= kStepCount) { m_stepIdx = 0; }
-		m_frameInSeg = 0;
-		m_segBlitMax = 0; m_segWordsMax = 0; m_segCopper = 0;
-		// Inicializar la velocidad del nuevo segmento según su dirección.
-		switch (mode()) {
-			case ShowcaseMode::H: m_vx = 1; m_vy = 0; break;
-			case ShowcaseMode::V: m_vx = 0; m_vy = 1; break;
-			case ShowcaseMode::Oblique: m_vx = 1; m_vy = 1; break;
-			default: break;
-		}
+	// Paso rectilíneo hasta el borde: devuelve el dx que lleva `cam` a `max` sin
+	// pasarse (sub-paso final = resto). 0 si ya está en el borde.
+	static eng::s32 step_to_end(eng::s32 cam, eng::s32 max, eng::s32 step) {
+		if (cam >= max) return 0;
+		const eng::s32 rem = max - cam;
+		return rem < step ? rem : step;
 	}
 
-	// Calcula (dx,dy) <= step por eje según el modo actual.
+	// Calcula (dx,dy) del frame según la fase y actualiza la cámara.
 	void compute_motion(eng::s32& dx, eng::s32& dy) {
 		dx = 0; dy = 0;
-		const eng::s32 step = kSteps[m_stepIdx];
-		switch (mode()) {
-			case ShowcaseMode::H: velocity_move(step, 1, 0, dx, dy); break;
-			case ShowcaseMode::V: velocity_move(step, 0, 1, dx, dy); break;
-			case ShowcaseMode::Oblique: velocity_move(step, m_vx, m_vy, dx, dy); break;
-			case ShowcaseMode::Circle: circle_move(step, dx, dy); break;
-			case ShowcaseMode::Lissajous: lissajous_move(step, dx, dy); break;
+		switch (phase()) {
+			case TourPhase::HToEnd:
+				dx = step_to_end(m_camX, m_maxX, kPhaseStep);
+				m_camX += dx;
+				break;
+			case TourPhase::VToEnd:
+				dy = step_to_end(m_camY, m_maxY, kPhaseStep);
+				m_camY += dy;
+				break;
+			case TourPhase::ObliqueToTop: {
+				// Diagonal arriba-izquierda desde la esquina inferior derecha
+				// ("tocar de nuevo el borde superior"). Si X choca antes que Y,
+				// el resto del recorrido sigue subiendo en vertical hasta Y=0.
+				s32 mx = m_camX - kPhaseStep, my = m_camY - kPhaseStep;
+				if (mx < 0) mx = 0;
+				if (my < 0) my = 0;
+				dx = mx - m_camX; dy = my - m_camY;
+				m_camX = mx; m_camY = my;
+				break;
+			}
+			case TourPhase::Lissajous:
+				lissajous_move(dx, dy);
+				break;
 		}
 	}
 
-	// Movimiento rectilíneo (H/V/oblicuo) que bota en los bordes del mapa.
-	void velocity_move(eng::s32 step, eng::s32 vx, eng::s32 vy, eng::s32& dx, eng::s32& dy) {
-		// Aplica velocidad y refleja el eje cuando choca contra un borde.
-		eng::s32 nx = m_camX + vx * step;
-		if (nx < 0) { nx = -nx; m_vx = -m_vx; }
-		else if (nx > m_maxX) { nx = 2 * m_maxX - nx; m_vx = -m_vx; }
-		if (nx < 0) nx = 0; if (nx > m_maxX) nx = m_maxX;
-		eng::s32 ny = m_camY + vy * step;
-		if (ny < 0) { ny = -ny; m_vy = -m_vy; }
-		else if (ny > m_maxY) { ny = 2 * m_maxY - ny; m_vy = -m_vy; }
-		if (ny < 0) ny = 0; if (ny > m_maxY) ny = m_maxY;
-		dx = nx - m_camX; dy = ny - m_camY;
-		m_camX = nx; m_camY = ny;
-	}
-
-	// Círculo centrado en el mapa (radio fijo dentro de los límites).
-	void circle_move(eng::s32 step, eng::s32& dx, eng::s32& dy) {
+	// Lissajous de centro/radio/fase/frecuencia ALEATORIOS (re-aleatorizado al
+	// terminar cada sesión de kSegFrames): x = sin(t), y = sin(φ + r·t).
+	void lissajous_move(eng::s32& dx, eng::s32& dy) {
 		const eng::u8 t = static_cast<eng::u8>(m_phase);
 		m_phase = (m_phase + 1u) & (kSinSteps - 1u);
 		const eng::s32 c = kSin[t];
-		const eng::s32 s = kSin[static_cast<eng::u8>(t + kSinSteps / 4u)];
+		const eng::s32 s = kSin[static_cast<eng::u8>(
+			(m_phaseStart + (static_cast<eng::u32>(t) * m_ratioB) / 256u)) & (kSinSteps - 1u)];
 		const eng::s32 tx = m_cx + c * m_radius / 127;
 		const eng::s32 ty = m_cy + s * m_radius / 127;
-		approach_target(step, tx, ty, dx, dy);
-	}
-
-	// Lissajous: x = sin(t), y = sin((7/10)*t) -> curva cerrada densa.
-	void lissajous_move(eng::s32 step, eng::s32& dx, eng::s32& dy) {
-		const eng::u8 t = static_cast<eng::u8>(m_phase);
-		m_phase = (m_phase + 1u) & (kSinSteps - 1u);
-		// (7/10)*256 = 179: frecuencia 0.7 en el dominio de 256 pasos.
-		const eng::s32 c = kSin[t];
-		const eng::s32 s = kSin[static_cast<eng::u8>((static_cast<eng::u32>(t) * 179u) / 100u)];
-		const eng::s32 tx = m_cx + c * m_radius / 127;
-		const eng::s32 ty = m_cy + s * m_radius / 127;
-		approach_target(step, tx, ty, dx, dy);
+		approach_target(kPhaseStep, tx, ty, dx, dy);
 	}
 
 	void approach_target(eng::s32 step, eng::s32 tx, eng::s32 ty, eng::s32& dx, eng::s32& dy) {
@@ -301,12 +289,37 @@ private:
 		return d;
 	}
 
+	void report_segment() {
+		m_lastBlitMax = m_segBlitMax; m_lastWordsMax = m_segWordsMax; m_lastCopper = m_segCopper;
+	}
+
+	// LCG (Knuth) para la aleatoriedad de la fase Lissajous: sin float, sin heap.
+	eng::u32 next_rand() {
+		m_lc = m_lc * 1664525u + 1013904223u;
+		return m_lc;
+	}
+
+	// Centro dentro del mapa con margen = radio, radio ~min/2, frecuencia 0.5..0.75
+	// y desfase de fase aleatorios. Todos los targets quedan dentro de los límites.
+	void randomize_lissajous() {
+		const eng::s32 r0 = 48;
+		const eng::s32 rx = (m_maxX - 2 * r0) > 0 ? (m_maxX - 2 * r0) : 0;
+		const eng::s32 ry = (m_maxY - 2 * r0) > 0 ? (m_maxY - 2 * r0) : 0;
+		m_radius = r0 + static_cast<eng::s32>((next_rand() % 56u)); // 48..103
+		eng::s32 cx = r0; eng::s32 cy = r0;
+		if (rx > 0) cx = r0 + static_cast<eng::s32>(next_rand() % static_cast<eng::u32>(rx + 1));
+		if (ry > 0) cy = r0 + static_cast<eng::s32>(next_rand() % static_cast<eng::u32>(ry + 1));
+		m_cx = cx; m_cy = cy;
+		m_ratioB = 128u + (next_rand() & 0x3fu); // 0.50..0.75 (Q8)
+		m_phaseStart = next_rand() & (kSinSteps - 1u);
+	}
+
 	eng::s32 m_maxX = 0, m_maxY = 0;
 	eng::s32 m_cx = 0, m_cy = 0, m_radius = 0;
 	eng::s32 m_camX = 0, m_camY = 0;
-	eng::s32 m_vx = 0, m_vy = 0;
-	eng::u32 m_phase = 0;
-	eng::u8 m_stepIdx = 0, m_modeIdx = 0;
+	eng::u32 m_ratioB = 0, m_phaseStart = 0, m_phase = 0;
+	eng::u32 m_lc = 0;
+	eng::u8 m_phaseIdx = 0;
 	eng::u32 m_frameInSeg = 0;
 	eng::u16 m_segBlitMax = 0, m_segWordsMax = 0, m_segCopper = 0;
 	eng::u16 m_lastBlitMax = 0, m_lastWordsMax = 0, m_lastCopper = 0;
@@ -411,7 +424,7 @@ struct DemoGame {
 	field::XlimitedScene<kScrollConsts> scene {};
 	field::XlimitedSceneConfig scene_cfg {};
 	eng::graphics::FramePlan plan {};
-	ShowcaseDriver driver {};
+	TourDriver driver {};
 	eng::u32 frameOfDay = 0;
 	bool ready = false;
 	bool hudDirty = true;   // redibujar el HUD (inicio + cada segmento)
@@ -480,7 +493,7 @@ struct DemoGame {
 			return;
 		}
 		scene.install(backend);
-		// Pinta el HUD inicial (step 1 / primer modo) con datos en 0.
+		// Pinta el HUD inicial (fase 1, paso canónico 1 px) con datos en 0.
 		draw_hud();
 
 		ready = true;
@@ -496,13 +509,13 @@ struct DemoGame {
 		// Fondo negro limpio (color 0); draw_text rellena cada celda con el mismo
 		// fondo, así que cada línea queda borrada al redibujar.
 		hud.fill_rect(0, 0, kViewportW, kHudH, 0);
-		// Línea 1 (cian, ink 6): "HORIZ STEP=16"
+		// Línea 1 (cian, ink 6): "OBLIQ^ P=1"
 		{   char line[20]; eng::u8 i = 0;
-			const char* mn = driver.mode_name();
+			const char* mn = driver.phase_name();
 			while (*mn && i < 19) line[i++] = *mn++;
-			const char* sp = " STEP=";
+			const char* sp = " P=";
 			while (*sp && i < 19) line[i++] = *sp++;
-			const eng::u8 st = driver.step();
+			const eng::u8 st = static_cast<eng::u8>(kPhaseStep);
 			if (st >= 10) line[i++] = static_cast<char>('0' + st / 10u);
 			line[i++] = static_cast<char>('0' + st % 10u);
 			line[i] = '\0';
@@ -535,9 +548,9 @@ struct DemoGame {
 
 		eng::s32 dx = 0, dy = 0;
 		driver.step(dx, dy);
-		// update_scroll aplica max_step por eje como sub-pasos atómicos de 1 px y
-		// clampa en los bordes (map_wrap=0) sin fallar. El step real del driver
-		// (1..16) es lo que se ejercita aquí.
+		// update_scroll aplica el paso de 1 px como sub-paso atómico y clampa el
+		// avance en los bordes (map_wrap=0). El paso canónico del corkscrew se
+		// mantiene siempre en 1 px/frame para sostener 50 fps sin micro-parones.
 		scene.update(plan, dx, dy, context.frame.frame_index);
 
 		if (!backend.execute_frame_plan(plan)) {

@@ -858,6 +858,22 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
     /// Añade el blit de un bloque y, en modo lineal (espejo), también el espejo.
     /// Devuelve false si el plan no admite el/los job(s).
     bool add_draw(graphics::FramePlan& plan, u16 x, u16 y, u16 mapx, u16 mapy) {
+        // Política de borde en mapa NO envolvente (wrap_x/y = 0): el corkscrew
+        // pre-pinta con bitmaps de margen "bitmap_blocks_per_row" (22) por delante
+        // de la cámara. Al acercarse al borde derecho del mapa (40 columnas),
+        // `mapx = mapblockx + bpr` supera map_width_blocks y `tile_at` devolvería
+        // `edge_tile` (=0 en la demo 201, índice de tile REAL del banco, no
+        // empty_tile 0xFFFF): el Blitter pintaría contenido equivocado que la
+        // ventana revela junto al borde (tiles "top/right" rotos). Como en un mapa
+        // edge-clamped no hay tiles al otro lado, se CLAMPA el origen a la última
+        // columna/fila del mapa: repetición del borde con índice válido (misma
+        // semántica que wrap=0 en tile_at, pero con una celda existente).
+        if (m_cfg.map.wrap_x == 0 && mapx >= map_width_blocks()) {
+            mapx = static_cast<u16>(map_width_blocks() - 1);
+        }
+        if (m_cfg.map.wrap_y == 0 && mapy >= map_height_blocks()) {
+            mapy = static_cast<u16>(map_height_blocks() - 1);
+        }
         // Tile 'vacío' (empty_tile): NO se pinta (no consume slot de Blitter).
         if (m_cfg.map.tile_at(mapx, mapy) == m_cfg.map.empty_tile) return true;
         // DEBUG (hipótesis viewport-offset): ¿este bloque de relleno cae en las
