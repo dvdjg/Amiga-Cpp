@@ -18,7 +18,7 @@ const palette = [...hardwareBases, ...hardwareBases.map(([r, g, b]) => [r >> 1, 
 const scale = 2;
 const fieldX = 76, fieldY = 30;
 const w = expected.width, h = expected.height;
-if (w !== 320 || h !== 208 || screen.width < fieldX + w * scale || screen.height < fieldY + h * scale) {
+if (w !== 320 || (h !== 208 && h !== 256) || screen.width < fieldX + w * scale || screen.height < fieldY + h * scale) {
   throw new Error(`geometría inesperada: captura ${screen.width}x${screen.height}, esperado ${w}x${h}`);
 }
 

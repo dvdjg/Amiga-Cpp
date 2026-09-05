@@ -523,7 +523,7 @@ struct DemoGame {
 		scene_cfg.fetch_mode = 0;
 		scene_cfg.scroll_y = true;
 		scene_cfg.scroll_mode = eng::field::ScrollMode::EightWay;
-		scene_cfg.linear_display = false; // main 208: el split canónico separa el HUD
+		scene_cfg.linear_display = false; // main=208: el split queda dentro del rango WAIT OCS
 		scene_cfg.max_step = 16;
 		scene_cfg.map.cells = eng::Span<const eng::u16>::from_raw(
 			&kRenderMap[0][0], kMapW * kMapH);

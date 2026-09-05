@@ -52,6 +52,7 @@ function arg(name, fallback) {
 const camArg = arg('--cam', null);
 const originArg = arg('--origin', null);
 const screenArg = arg('--screen', null);
+const outArg = arg('--out', path.join(root, 'out/run/_tools/expected-320x208-offset-320-0.png'));
 
 // --- Geometría de la demo 201 (main.cpp) -------------------------------------
 const TW = 16, TH = 16, PLANES = 6;
@@ -146,13 +147,13 @@ function printFillOrigin(tx, ty) {
 if (camArg) {
   const [cx, cy] = camArg.split(',').map(Number);
   const g = gridFor(cx, cy);
-  const [W, H] = writeCrop(cx, cy, path.join(root, 'out/run/_tools/crop.png'));
+  const [W, H] = writeCrop(cx, cy, outArg);
   console.log(`Cámara (mapposx,mapposy)=(${cx},${cy}). Ventana visible (contrato del engine):`);
   console.log(`  cols mundo x = mapposx + sx  (${cx}..${cx + VIEWPORT_W - 1})`);
   console.log(`  filas mundo y = mapposy + sy (wrap toroidal en X/Y)`);
   console.log(`  → la fila 0 del mapa (y 0..15) queda en la BANDA DE STAGING (oculta).`);
   printGrid(`tiles que DEBERÍAN verse (${COLS_VIS}x${ROWS_VIS})`, g);
-  console.log(`Crop de referencia escrito: out/run/_tools/crop.png (${W}x${H})`);
+  console.log(`Crop de referencia escrito: ${outArg} (ventana ${VIEWPORT_W}x${MAIN_H}, fuente ${W}x${H})`);
   console.log(`Rejilla: filas = mundo y [${cy},..], columnas = mundo x [${cx},..].`);
   console.log(`>>> Nota: la fila lógica visible empieza en y=${cy} (bloque ${Math.floor(cy / TH)}); la guarda superior es la fila anterior.`);
 } else if (originArg) {
