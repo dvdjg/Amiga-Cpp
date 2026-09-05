@@ -95,6 +95,12 @@ y las mismas características quedan guardadas **como metadatos**: chunk `tEXt`
   deducción usa `--no-alpha`. Con `--alpha` explícito el slot 0 también se reserva.
 - Con **`--colors 64`** se activa **EHB**: se eligen 32 bases y el hardware genera
   los 32 half (base/2 cada componente). Con `--alpha`, el base 0 es transparente.
+- **`--ehb`** fuerza el modo EHB explícitamente (32 base + half derivado); si
+  `--colors` no es 64 se coacciona a 64 slots. **`--no-ehb`** lo sensu contrario: con
+  `--colors 64` produce una **paleta pura de 64 colores independientes** (6 planos,
+  sin relación base/half) — útil para distinguir EHB de una paleta plana de 64 y para
+  usar los algoritmos EHB (`ehb` half-max, `bright`) con total claridad. La etiqueta
+  de salida lo distingue (`6 bits/EHB` frente a `6 bits`).
 - Sin `--colors` se elige automáticamente según los colores únicos del original:
   ≤4 → 4, ≤8 → 8, ≤16 → 16, ≤32 → 32, si no → 64 EHB.
 - `--alpha` / `--no-alpha`: reservan (o no) el **índice 0 para transparencia**. Sin

@@ -14,6 +14,9 @@
 //
 // Opciones principales:
 //   --colors N            4|8|16|32|64 (64 = EHB: 32 base + half). Auto si se omite.
+//   --ehb / --no-ehb      Forzar / desactivar el modo EHB (32 base + half derivado).
+//                         --ehb coacciona colors a 64. --no-ehb con colors=64 da una
+//                         paleta PURA de 64 colores independientes (6 planos, sin half).
 //   --alpha / --no-alpha  Reservar el índice 0 para transparencia (auto si el PNG la tiene).
 //   --dither MODE         none|floyd|atkinson|bayer   (error diffusión / matricial)
 //   --dither-strength F   Intensidad de la difusión (0..1, defecto 1).
@@ -324,8 +327,7 @@ function ehbPaletteBright(hist, K, iters) {
 //  - sin EHB:  índice 0..N-1  = N colores (0 transparente si --alpha)
 //  - con EHB:  índices 0..31 = base, 32..63 = half; 0 transparente si --alpha
 // ---------------------------------------------------------------------------
-function buildTable(colors, bases, alpha) {
-	const ehb = colors === 64;
+function buildTable(colors, bases, alpha, ehb) {
 	const table = []; // {index, rgb, transparent}
 	if (ehb) {
 		// 32 bases: si hay transparencia, el base 0 (y su half 32) quedan
@@ -755,12 +757,15 @@ function resizeImage(src, W, H, W1, H1, method) {
 // ---------------------------------------------------------------------------
 // OLLAMA LOCAL (visión) — describe la imagen final
 // ---------------------------------------------------------------------------
-async function ollamaDescribe(png, model, base, maxTok) {
+async function ollamaDescribe(png, model, base, maxTok, context) {
 	const pngBytes = PNG.sync.write(png);
 	const b64 = pngBytes.toString('base64');
+	const prompt = context
+		? `Esta imagen es el resultado de cuantizar un bitmap al Amiga. Invocación: ${context}. Describe brevemente la imagen (contenido, estilo, colores dominantes) y confirma que el resultado es coherente con esos parámetros.`
+		: 'Describe brevemente la imagen (contenido, estilo, colores dominantes).';
 	const body = { model, temperature: 0.2, max_tokens: maxTok || 300,
 		messages: [{ role: 'user', content: [
-			{ type: 'text', text: 'Describe brevemente la imagen (contenido, estilo, colores dominantes).' },
+			{ type: 'text', text: prompt },
 			{ type: 'image_url', image_url: { url: `data:image/png;base64,${b64}` } },
 		] }] };
 	const r = await fetch(`${base}/v1/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -1066,6 +1071,16 @@ async function main() {
 		alpha = true;                 // reservar el índice 0
 		colors = colors + 1;          // slots totales = potencia de 2; colores reales = colors-1
 	}
+	// Modo EHB explícito: distinguirlo de una paleta plana de N colores. EHB es
+	// un modo de hardware de 6 planos donde la mitad del brillo de cada base se
+	// deriva (32 bases → 64 slots con half), y sus algoritmos específicos son
+	// `ehb` (half-max) y `bright`. --ehb fuerza ese modo aunque `colors` no sea 64
+	// (se coacciona a 64 slots); --no-ehb lo desactiva aunque `colors` sea 64
+	// (una paleta pura de 64 colores independientes, sin relación base/half).
+	if (has('--ehb') && colors !== 64) {
+		colors = 64;
+		console.log('[amiga-tiles] --ehb: fuerzo colors=64 (32 base + half derivado)');
+	}
 	// Recomendación de profundidad basada en el histograma real (ayuda a elegir).
 	{
 		const rec = uniqueColors <= 4 ? 4 : uniqueColors <= 8 ? 8 : uniqueColors <= 16 ? 16 : uniqueColors <= 32 ? 32 : 64;
@@ -1073,7 +1088,9 @@ async function main() {
 		const alternative = isPow2 && rec >= 4 ? ` (para transparencia usa ${rec - 1}, es 2^n−1)` : '';
 		console.log(`[amiga-tiles] recomendación: ${rec} colores → ${Math.ceil(Math.log2(rec))} bits/px${alternative}`);
 	}
-	const { bits, ehb } = modeOf(colors);
+	const { bits } = modeOf(colors);
+	// EHB = 64 slots con half, salvo que se pida --no-ehb (paleta pura).
+	const ehb = has('--ehb') ? true : has('--no-ehb') ? false : colors === 64;
 	// Nº de colores REALES que hay que elegir para llenar la tabla efectiva:
 	//  - EHB: 32 bases siempre (el base 0 queda reservado si hay transparencia).
 	//  - resto: `colors`, o `colors-1` si el slot 0 es transparencia.
@@ -1111,7 +1128,7 @@ async function main() {
 	bases = bases.slice(0, baseCount);
 	if (sortPal === 'luminance' && !(ehb && palSrc === 'bright')) bases.sort((a, b) => lum(a) - lum(b));
 
-	const table = buildTable(colors, bases, alpha);
+	const table = buildTable(colors, bases, alpha, ehb);
 	const paletteFinal = tableAsPalette(table);
 
 	// ---- Cuantización + dithering ------------------------------------------------
@@ -1146,7 +1163,8 @@ async function main() {
 	if (serpentineMode) suf += '_serp';
 	if (ditherDeadband > 0) suf += `_dth${Math.round(ditherDeadband)}`;
 	if (ditherClamp > 0) suf += `_cl${Math.round(ditherClamp)}`;
-	let label = `colors=${colors} technique=${tech} dither=${dither} resolution=${W}x${H} palette=${palSrc} alpha=${alpha ? 'yes' : 'no'}`;
+	let label = `colors=${colors} mode=${ehb ? 'ehb' : 'palette'} technique=${tech} dither=${dither} resolution=${W}x${H} palette=${palSrc} alpha=${alpha ? 'yes' : 'no'}`;
+	if (PERCEPTUAL) label += ' perceptual=yes';
 	if (serpentineMode) label += ' serpentine=yes';
 	if (ditherDeadband > 0) label += ` threshold=${ditherDeadband.toFixed(1)}`;
 	if (ditherClamp > 0) label += ` clamp=${ditherClamp.toFixed(0)}`;
@@ -1317,13 +1335,16 @@ async function main() {
 	console.log(`[amiga-tiles] salidas (sufijo ${suf}): reconstruct_${suf}.png, tilebank_${suf}.png/.bin/.h, palette_${suf}.json/.h, palette_chart_${suf}.png/.txt${emitXl ? `, tilebank_xlimited_${colors}c_${tech}.bin/.h` : ''} (${bits} bits/px, empaquetado ${packedPerTile} B/tile)`);
 
 	// Descripción con ollama local (opcional). Envía la imagen FINAL de trabajo.
+	// El fichero incluye SIEMPRE la invocación (parámetros) para que la descripción
+	// del modelo de visión quede anclada a cómo se convirtió la imagen.
 	if (has('--describe')) {
 		const model = arg('--model', 'qwen3-vl:8b-instruct-q8_0');
 		const base = arg('--ollama-base', 'http://127.0.0.1:11434');
-		const desc = await ollamaDescribe(png, model, base, intArg('--ollama-tokens', 300));
+		const desc = await ollamaDescribe(png, model, base, intArg('--ollama-tokens', 300), label);
 		const descPath = path.join(outDir, 'image_description.txt');
 		const srcAbs = path.resolve(input);
-		fs.writeFileSync(descPath, `Fuente original: ${srcAbs}\n\n${desc}\n`, 'utf8');
+		const cmd = process.argv.slice(2).join(' ');
+		fs.writeFileSync(descPath, `Fuente original: ${srcAbs}\nInvocación: ${label}\nLínea de comando: node ${path.basename(process.argv[1])} ${cmd}\n\n${desc}\n`, 'utf8');
 		console.log(`[amiga-tiles] descripción (${model}) de ${srcAbs}:\n${desc}\n  -> ${descPath}`);
 	}
 }
