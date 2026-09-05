@@ -113,6 +113,22 @@ namespace field = eng::field;
 #ifndef K_SEG_FRAMES
 #define K_SEG_FRAMES 150
 #endif
+// ORIGEN del juego en el mapa (píxeles de mapa, p. ej. 1000,1000 en un mapa
+// gigante 16000x16000). La demo lo demuestra: tras el `fill` de setup hace un
+// `pre_scroll` hasta ese origen (parte de la banda de staging y va pintando las
+// columnas/filas entrantes) para que la 1ª IMAGEN se muestre correctamente en
+// esa coordenada, sin re-pintar la pantalla. Default 0 = origen (0,0).
+// Notas:
+//  - El orígen es independiente del tamaño del tilebank (128 tiles de base); el
+//    mapa es una rejilla de índices (`kRenderMap`), puede ser gigante.
+//  - El scroll vertical envuelve cada `display_height` (240 px) por el anillo;
+//    para mapas mucho más altos hay que validar el wrap vertical (ver README).
+#ifndef K_START_X
+#define K_START_X 304
+#endif
+#ifndef K_START_Y
+#define K_START_Y 0
+#endif
 // AUTO-VERIFICADOR de framebuffer (diagnóstico). OFF por defecto: como el
 // display lee el anillo a través del *walk* horizontal y el *fine scroll*
 // (BPLCON1), el mapeo "mundo -> dirección" de la CPU (`byte_for`/`planeline_for`)
@@ -121,6 +137,7 @@ namespace field = eng::field;
 // El método fiable es INSTRUMENTAR `add_draw` para rastrear el ORIGEN
 // (mapx,mapy,¿dest?) de cada blit y comparar con el mapa. Compilar con
 // `EXTRA_DEFINES="-DK_FB_SELFCHECK=1"` para activar el contador experimental.
+// En RELEASE se deja 0 → no afecta al rendimiento.
 #ifndef K_FB_SELFCHECK
 #define K_FB_SELFCHECK 0
 #endif
@@ -196,15 +213,16 @@ constexpr eng::u32 kSinSteps = 256;
 // -----------------------------------------------------------------------------
 class TourDriver {
 public:
-	void begin(eng::s32 maxX, eng::s32 maxY) {
+	void begin(eng::s32 maxX, eng::s32 maxY, eng::s32 startX = 0, eng::s32 startY = 0) {
 		m_maxX = maxX; m_maxY = maxY;
+		m_startX = startX; m_startY = startY;
 		reset();
 	}
 
 	void reset() {
 		m_phaseIdx = 0;
 		m_frameInSeg = 0;
-		m_camX = 0; m_camY = 0;
+		m_camX = m_startX; m_camY = m_startY; // se ubica en el origen del juego
 		m_lc = 0x13579bdu; // semilla del LCG (aleatoriedad sin float)
 		m_justChanged = false;
 		randomize_lissajous();
@@ -361,6 +379,7 @@ private:
 	}
 
 	eng::s32 m_maxX = 0, m_maxY = 0;
+	eng::s32 m_startX = 0, m_startY = 0;
 	eng::s32 m_cx = 0, m_cy = 0, m_radius = 0;
 	eng::s32 m_camX = 0, m_camY = 0;
 	eng::u32 m_ratioB = 0, m_phaseStart = 0, m_phase = 0;
@@ -554,11 +573,22 @@ struct DemoGame {
 		// Límites de scroll del motor (el campo ve main_h = viewport - hud).
 		const eng::s32 maxX = kMaxScrollX;
 		const eng::s32 maxY = kMaxScrollY;
-		driver.begin(maxX, maxY);
+		driver.begin(maxX, maxY, K_START_X, K_START_Y);
 
 		if (!scene.fill(backend, plan)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020103u);
 			return;
+		}
+		// ORIGEN ARBITRARIO: si el juego arranca en una coordenada del mapa
+		// distinta de (0,0), el `fill` pinta el anillo desde el bloque 0 y este
+		// `pre_scroll` avanza la cámara hasta el origen pintando incrementalmente
+		// las columnas/filas entrantes (reutiliza el scroll correcto del engine,
+		// sin re-pintar la pantalla). Con K_START_X=K_START_Y=0 no hace nada.
+		if (K_START_X != 0 || K_START_Y != 0) {
+			if (!scene.pre_scroll(backend, plan, K_START_X, K_START_Y)) {
+				eng::debug::mark_failed(g_eng_run_status, 0x00020105u);
+				return;
+			}
 		}
 		if (!scene.compose()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020104u);

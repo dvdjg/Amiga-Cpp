@@ -409,6 +409,16 @@ Parámetros de compilación (`EXTRA_DEFINES="-D…"`):
   del Copper limita `main_h = viewport_h - hud ≤ 214`; con `hud=48` queda `main=208`.
 - `K_HUD_HEIGHT` (48) franja inferior con la telemetría en vivo.
 - `K_SEG_FRAMES` (150) frames por segmento (~3 s a 50 fps).
+- `K_START_X` / `K_START_Y` (0) **origen del juego en el mapa** (píxeles de mapa). Con valor
+  distinto de 0, la demo hace un `pre_scroll` tras el `fill` (pinta incrementalmente las
+  columnas/filas entrantes) para que la **1ª imagen** se muestre en esa coordenada. Sirve para
+  ubicar el origen de un juego en un punto arbitrario de un mapa grande (la rejilla de índices
+  es independiente del tamaño del tilebank). Ojo: el scroll vertical envuelve cada
+  `display_height` (240 px) por el anillo, así que para mapas mucho más altos hay que validar el
+  wrap vertical (ver §1).
+- `K_FB_SELFCHECK` (0) activa un verificador EXPERIMENTAL de framebuffer (lee el anillo y lo
+  compara con `kRenderMap`). **Dejar 0 en release**: su mapeo mundo→dirección no coincide con el
+  *walk* del chip y da falsos positivos (ver §1); no debe activarse para producción.
 
 La demo expone `g_eng_run_status` (READY por canal lateral 127.0.0.1:2346) y
 `g_eng_frame_telemetry` (blit_jobs/blit_words/copper_words por frame) para que el runner
