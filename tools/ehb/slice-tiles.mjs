@@ -170,8 +170,8 @@ if (encode === 'raw') {
   for (let r = 0; r < rleData.length; r += 32) hLines.push('  ' + rleData.slice(r, r + 32).join(',') + ',');
   hLines.push('};');
 }
-hLines.push(`static const unsigned short kTileIndexedMap[${map.length}] = {`);
-for (let i = 0; i < map.length; i += 24) hLines.push('  ' + map.slice(i, i + 24).join(',') + ',');
+hLines.push(`static const unsigned short kTileIndexedMap[${rows}][${cols}] = {`);
+for (let y = 0; y < rows; y++) hLines.push('  { ' + map.slice(y * cols, (y + 1) * cols).join(',') + ' },');
 hLines.push('};');
 const hPath = path.join(outDir, 'tilebank_indexed.h');
 fs.writeFileSync(hPath, hLines.join('\n') + '\n', 'utf8');

@@ -1196,8 +1196,8 @@ async function main() {
 	hLines.push(`static const unsigned char kTileBankBitsPerPixel = ${bits};`);
 	hLines.push(`static const unsigned short kTileBankStride = ${packedPerTile};`);
 	hLines.push(`static const unsigned int kTileBankBytes = ${bin.length};`);
-	hLines.push(`static const unsigned short kTileIndexedMap[${map.length}] = {`);
-	for (let i = 0; i < map.length; i += 24) hLines.push('  ' + map.slice(i, i + 24).join(',') + ',');
+	hLines.push(`static const unsigned short kTileIndexedMap[${rows}][${cols}] = {`);
+	for (let y = 0; y < rows; y++) hLines.push('  { ' + map.slice(y * cols, (y + 1) * cols).join(',') + ' },');
 	hLines.push('};');
 	fs.writeFileSync(path.join(outDir, `tilebank_${suf}.h`), hLines.join('\n') + '\n', 'utf8');
 

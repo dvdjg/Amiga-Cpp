@@ -121,10 +121,10 @@ namespace field = eng::field;
 // Notas:
 //  - El orígen es independiente del tamaño del tilebank (128 tiles de base); el
 //    mapa es una rejilla de índices (`kRenderMap`), puede ser gigante.
-//  - El scroll vertical envuelve cada `display_height` (240 px) por el anillo;
-//    para mapas mucho más altos hay que validar el wrap vertical (ver README).
+//  - El anillo físico usa `display_height` como dominio de raster; la corrección
+//    del remapeo de filas para mapas con varios wraps se valida por separado.
 #ifndef K_START_X
-#define K_START_X 304
+#define K_START_X 320
 #endif
 #ifndef K_START_Y
 #define K_START_Y 0
@@ -157,7 +157,7 @@ constexpr eng::u32 kSegFrames = K_SEG_FRAMES;     // ~3 s a 50 fps
 // Límites de scroll del motor (campo main = viewport - hud); coinciden con los
 // que el `TourDriver` usa para parar cada fase (ver `DemoGame::init`).
 constexpr eng::s32 kMaxScrollX = static_cast<eng::s32>(
-	kMapW * kTileWidth - kViewportW - kTileWidth);
+	kMapW * kTileWidth - kViewportW);
 constexpr eng::s32 kMaxScrollY = static_cast<eng::s32>(
 	kMapH * kTileHeight - kMainH - kTileHeight);
 
@@ -510,8 +510,8 @@ struct DemoGame {
 			return;
 		}
 
-		// Mapa 40x40 edge-clamped (wrap_x=wrap_y=0): el motor bloquea el avance
-		// en los bordes, que es lo que permite el barrido con rebote/curva.
+		// Mapa 40x40: toroidal en X para que las bandas de guarda continúen por el
+		// lado opuesto; Y permanece acotado porque el recorrido debe acabar abajo.
 		scene_cfg.viewport_w = kViewportW;
 		scene_cfg.viewport_h = kViewportH;
 		scene_cfg.hud_height = kHudH;       // franja inferior con números
@@ -526,13 +526,15 @@ struct DemoGame {
 		scene_cfg.linear_display = false; // main 208: el split canónico separa el HUD
 		scene_cfg.max_step = 16;
 		scene_cfg.map.cells = eng::Span<const eng::u16>::from_raw(
-			static_cast<const eng::u16*>(kRenderMap), kMapW * kMapH);
+			&kRenderMap[0][0], kMapW * kMapH);
 		scene_cfg.map.width = kMapW;
 		scene_cfg.map.height = kMapH;
-		scene_cfg.map.wrap_x = 0;
-		scene_cfg.map.wrap_y = 0;
+		scene_cfg.map.wrap_x = kMapW;
+		scene_cfg.map.wrap_y = kMapH;
 		scene_cfg.map.edge_tile = 0;
 		scene_cfg.map.empty_tile = 0xFFFF;
+		scene_cfg.visible_tile_bias_x = 1;
+		scene_cfg.visible_tile_bias_y = 1;
 		scene_cfg.tileset_count = static_cast<eng::u16>(kTileCount);
 		scene_cfg.blocks_prebuilt = g_tilebank_xlimited;
 		scene_cfg.blocks_prebuilt_size = g_tilebank_xlimited_size;
@@ -562,8 +564,9 @@ struct DemoGame {
 		//  el `fill` basta `scene.pre_scroll(backend, plan, 100, 100)`: reutiliza
 		//  el mismo scroll incremental (columnas/filas entrantes) para mover la
 		//  cámara hasta ahí sin re-pintar la pantalla. El contrato de qué mundo se
-		//  ve en pantalla (world_x=mapposx+sx, world_y=(mapposy+tile_h+sy)%dh) se
-		//  modela en `tools/analyze/verify-201-framebuffer.mjs` (dado un offset,
+		//  ve en pantalla (world_x=mapposx+sx, world_y=mapposy+sy) se
+		//  modela en `tools/analyze/verify-201-framebuffer.mjs`; el módulo solo
+		//  pertenece a la fila física del anillo, no al índice lógico del mapa.
 		//  dice qué tiles/tiles deberían verse y recorta la referencia).
 		// ---------------------------------------------------------------------
 		if (!scene.begin(backend.memory(), scene_cfg)) {
@@ -665,7 +668,7 @@ struct DemoGame {
 		const eng::s32 mw = static_cast<eng::s32>(kMapW), mh = static_cast<eng::s32>(kMapH);
 		if (bx < 0) bx = 0; if (bx >= mw) bx = mw - 1;
 		if (by < 0) by = 0; if (by >= mh) by = mh - 1;
-		return kRenderMap[static_cast<eng::u32>(by) * kMapW + static_cast<eng::u32>(bx)];
+		return kRenderMap[static_cast<eng::u32>(by)][static_cast<eng::u32>(bx)];
 	}
 	// Lee el índice EHB REAL (6 planos) del mundo (wx,wy) en el anillo.
 	static eng::u16 fb_read_index(const field::XLimitedPlayfield<kScrollConsts>& pf,

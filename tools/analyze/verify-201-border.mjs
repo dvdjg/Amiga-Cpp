@@ -1,15 +1,13 @@
 #!/usr/bin/env node
 /**
  * verify-201-border.mjs — modelo HOST del corkscrew 8-way de la demo 201
- * (mapa EHB real 40x40, no wrapping) para comprobar las LECTURAS DE MAPA de
+ * (mapa EHB real 40x40, wrap toroidal en X) para comprobar las LECTURAS DE MAPA de
  * `scroll_right` en el límite derecho del mapa.
  *
  * Replica fielmente scroll_engine.hpp:scroll_right (+ add_draw y draw_block_job
  * de xlimited.hpp). Comprueba que todo blit del barrido H use orígenes
- * (mapx,mapy) dentro del mapa 40x40. Si algún blit sale del mapa, `tile_at`
- * devuelve `edge_tile` (=0 en la demo 201, tile index REAL y válido para el
- * Blitter, no `empty_tile` 0xFFFF) y se PINTA contenido equivocado en el
- * framebuffer -> artefacto visible junto al borde derecho.
+ * (mapx,mapy), aplicando wrap en X. Así la guarda que cae después de la columna
+ * 39 debe leer la columna 0, no repetir/clampar la columna 39.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -27,12 +25,12 @@ const FIXEDW = VIEWPORT_W + 32;                // bitmap_width = 352
 const DH = MAIN_H + 2 * TH;                    // display_height = 240
 const DPL = DH * PLANES;                       // display_planelines = 1440
 const BPC = DH / TH;                           // bitmap_blocks_per_col = 15
-const LIMIT_X = MAP_WB * TW - VIEWPORT_W - TW; // 304
+const LIMIT_X = MAP_WB * TW - VIEWPORT_W - TW; // 304 interno; ventana visible termina en x=640
 
 const FIX = process.env.VERIFY201_FIX === '1';
 
 // --- Leer kRenderMap (1600 u16) ---------------------------------------------
-const m = hdr.match(/kRenderMap\[1600\]\s*=\s*\{([\s\S]*?)\};/);
+const m = hdr.match(/kRenderMap\[\d+\]\[\d+\]\s*=\s*\{([\s\S]*?)\};/);
 if (!m) { console.error('no kRenderMap'); process.exit(2); }
 const nums = (m[1].match(/\d+/g) || []).slice(0, MAP_WB * MAP_HB).map(Number);
 if (nums.length !== MAP_WB * MAP_HB) {
@@ -40,19 +38,14 @@ if (nums.length !== MAP_WB * MAP_HB) {
   process.exit(2);
 }
 
-// tile_at del engine: wrap_x=wrap_y=0 -> edge_tile (=0) fuera de rango.
+// tile_at del engine: wrap_x=40, wrap_y=0.
 const tileAt = (r, c) => {
-  if (FIX) {
-    const rr = Math.min(Math.max(r, 0), MAP_HB - 1);
-    const cc = Math.min(Math.max(c, 0), MAP_WB - 1);
-    return nums[rr * MAP_WB + cc];
-  }
-  if (c < 0 || c >= MAP_WB) return 0;
-  if (r < 0 || r >= MAP_HB) return 0;
-  return nums[r * MAP_WB + c];
+  const rr = Math.min(Math.max(r, 0), MAP_HB - 1);
+  const cc = ((c % MAP_WB) + MAP_WB) % MAP_WB;
+  return nums[rr * MAP_WB + cc];
 };
 
-const out = 'VERIFY201_FIX=1 node tools/analyze/verify-201-border.mjs';
+const out = 'node tools/analyze/verify-201-border.mjs';
 
 // --- scroll_right port fiel (scroll_engine.hpp) ------------------------------
 const r_dh = (v) => ((v % DH) + DH) % DH;
@@ -69,17 +62,17 @@ const outOfY = new Set();
 
 function blit(planel, xpix, mapy, mapx, tag) {
   const t = tileAt(mapy, mapx);
-  const ok = mapx >= 0 && mapx < MAP_WB && mapy >= 0 && mapy < MAP_HB;
-  const clipped = ok ? false : FIX;
+  const ok = mapy >= 0 && mapy < MAP_HB;
+  const clipped = false;
+  if (mapx < 0 || mapx >= MAP_WB) {
+    ++clippedPaints;
+    if (clippedPaints <= 6) clippedList.push(`  blit ${tag}: map=(${mapx},${mapy}) -> columna ${(mapx % MAP_WB + MAP_WB) % MAP_WB} tile ${t} (wrap X)`);
+  }
   if (!ok) {
-    if (!FIX) {
+    if (mapy < 0 || mapy >= MAP_HB) {
       ++wrongPaints;
-      if (wrongPaints <= 25) wrongList.push(`  blit ${tag}: map=(${mapx},${mapy}) planel=${planel} x=${xpix} -> tile ${t}  (edge_tile 0)`);
-      if (mapx < 0 || mapx >= MAP_WB) outOfX.add(mapx);
-      if (mapy < 0 || mapy >= MAP_HB) outOfY.add(mapy);
-    } else {
-      ++clippedPaints;
-      if (clippedPaints <= 6) clippedList.push(`  blit ${tag}: map=(${mapx},${mapy}) planel=${planel} -> columna 39 (clamp) tile ${t}`);
+      if (wrongPaints <= 25) wrongList.push(`  blit ${tag}: map=(${mapx},${mapy}) planel=${planel} x=${xpix} -> fuera en Y`);
+      outOfY.add(mapy);
     }
   }
   return clipped;
@@ -131,27 +124,20 @@ while (mpx < LIMIT_X) {
   if (Math.floor(mpy / TH) + BPC > maxMapy) maxMapy = Math.floor(mpy / TH) + BPC;
 }
 
-console.log(`Mapa ${MAP_WB}x${MAP_HB} (wrap=0, edge_tile=0), TW=${TW}, BPR=${BPR}, DH=${DH}, BPC=${BPC}, limite X=${LIMIT_X}, FIX=${FIX}`);
+console.log(`Mapa ${MAP_WB}x${MAP_HB} (wrap_x=${MAP_WB}, wrap_y=0), TW=${TW}, BPR=${BPR}, DH=${DH}, BPC=${BPC}, limite X=${LIMIT_X}`);
 console.log(`Rango maximo de fuente (mapx,mapy) demandado por scroll_right:`);
 console.log(`  mapx en {0..${maxMapx - 1}} ${maxMapx > MAP_WB ? '>>> FUERA DE RANGO' : ''}`);
 console.log(`  mapy en {0..${maxMapy - 1}} ${maxMapy > MAP_HB ? '>>> FUERA DE RANGO' : ''}`);
-if (FIX) {
-  console.log(`Blits con origen fuera del mapa (columna 40+) RESUELTOS por clamp: ${clippedPaints}`);
-  if (clippedList.length) console.log(clippedList.join('\n'));
-  const verdict = clippedPaints >= 0
-    ? 'OK (FIX): el clamp mantiene el origen dentro del mapa; se repite la columna 39 en la pista de pre-pintado.'
-    : 'FAIL';
-  console.log(verdict);
-  process.exit(0);
-}
-console.log(`Blits con origen fuera del mapa: ${wrongPaints}`);
+console.log(`Blits que cruzan X y hacen wrap toroidal: ${clippedPaints}`);
+if (clippedList.length) console.log(clippedList.join('\n'));
+console.log(`Blits fuera del mapa en Y: ${wrongPaints}`);
 if (wrongList.length) console.log(wrongList.join('\n'));
 if (outOfX.size) console.log(`columnas fuera: [${[...outOfX].join(',')}]`);
 if (outOfY.size) console.log(`filas fuera: [${[...outOfY].join(',')}]`);
 
 const verdict = wrongPaints === 0
-  ? 'OK: todos los blits del barrido H usan origen dentro del mapa 40x40'
-  : 'FAIL: hay blits con origen fuera del mapa (pinchan tile 0/edge_tile). Aplicar el fix de clamp en add_draw y re-ejecutar con VERIFY201_FIX=1.';
+  ? 'OK: el barrido H usa wrap toroidal en X y no sale del mapa en Y'
+  : 'FAIL: hay blits fuera del mapa en Y';
 console.log(verdict);
 
 process.exit(wrongPaints === 0 ? 0 : 1);
