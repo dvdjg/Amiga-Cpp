@@ -408,7 +408,7 @@ Parámetros de compilación (`EXTRA_DEFINES="-D…"`):
   columnas/filas entrantes) para que la **1ª imagen** se muestre en esa coordenada. Sirve para
   ubicar el origen de un juego en un punto arbitrario de un mapa grande (la rejilla de índices
   es independiente del tamaño del tilebank). Ojo: el scroll vertical envuelve cada
-  `display_height` (240 px) por el anillo, así que para mapas mucho más altos hay que validar el
+  `display_height` (288 px, ver §1) por el anillo, así que para mapas mucho más altos hay que validar el
   wrap vertical (ver §1).
 - `K_FB_SELFCHECK` (0) activa un verificador EXPERIMENTAL de framebuffer (lee el anillo y lo
   compara con `kRenderMap`). **Dejar 0 en release**: su mapeo mundo→dirección no coincide con el
@@ -418,3 +418,108 @@ La demo expone `g_eng_run_status` (READY por canal lateral 127.0.0.1:2346) y
 `g_eng_frame_telemetry` (blit_jobs/blit_words/copper_words por frame) para que el runner
 verifique 50 fps y el presupuesto. En el emulador WinUAE-DBG va ~48 fps; en hardware real
 va a 50 fps.
+
+
+## 7. Lecciones de implementación (checklist para no repetir errores)
+
+Esta sección condensa lo aprendido al portar y depurar el algoritmo XYLimited/corkscrew de
+Georg Steger al engine C++23 sobre Amiga. Son los invariantes NO obvios que, si se tocan sin
+entenderlos, rompen la imagen de formas que parecen "fallos al azar". Léela completa antes de
+modificar el scroll de cualquier demo corkscrew (101/107/201).
+
+### 7.1 El anillo vertical (display_height) es INDEPENDIENTE del HUD — y debe ser 288, no 240
+
+El corkscrew mantiene un **anillo vertical** de `display_height` píxeles que el display recorre.
+El original de Steger usa `BITMAPHEIGHT = SCREENHEIGHT + 2*BLOCKHEIGHT` = `256 + 32 = 288`
+(18 bloques). El scroll horizontal dibuja la columna entrante con `mapy` de 1 a 17 (por el
+plane-shift "diagonal"), y calcula `y = (block_videoposy + mapy*16) % display_height`.
+
+Si `display_height` es 240 (por restar el HUD: `208 + 32`), entonces `mapy=16 → y=256 % 240 = 16`
+colisiona con `mapy=1 → y=16`, y `mapy=17` con `mapy=2`: el tile de la fila 16/17 **sobrescribe**
+el de la fila 1/2 en la banda de staging, y el display muestra arriba las filas que deben ir
+abajo. Síntoma: "tres filas de tiles en la parte superior incorrectas, que deberían estar abajo".
+
+Regla: el **HUD recorta el área VISIBLE** (`viewport_h` del campo = 208) pero **NO el anillo**.
+El anillo se dimensiona para el viewport TOTAL: `display_height = 256 + 2*16 = 288`. El engine
+lo expone como `cfg.display_height` en `XlimitedConfig` (0 = auto desde `viewport_h`); la escena
+lo fija a `cfg.viewport_h + 2*tile_height`. Las constantes NTTP `ScrollConsts.display_height`
+deben coincidir (validación en `begin()`).
+
+```
+        anillo (288 = 256+32)          HUD (48) overlay
+  ┌──────────────────────────────┐     ┌──────────────────┐
+  │  staging superior (16 px)    │     │   visible main   │ ← viewport_h del campo = 208
+  │  visible main 208 px         │  =  │   208 px (13 bl.) │   (el HUD oculta 208..255)
+  │  staging inferior + HUD 64px │     └──────────────────┘
+  └──────────────────────────────┘
+```
+
+### 7.2 block_videoposy envuelve en display_height, NUNCA en bitmap_height
+
+`block_videoposy` es la fila de bloque donde se pre-pinta la banda entrante. Debe envolver en el
+**bucle del display** (`display_height`, 288), porque `bitmap_height` (304) incluye las filas
+extra del *walk* horizontal (planeaddx). Envolver en `bitmap_height` dibuja la banda entrante en
+las filas extra que el display SÍ muestra al caminar en X → píxeles basura por toda la pantalla
+desde el primer frame. Es un fix documentado "Corregido 2026-08-31: envolver en display_height";
+no volver a cambiarlo a `bitmap_height`.
+
+### 7.3 El offset visible (-16, -16) y el `visible_tile_bias`
+
+El hardware XYLimited **esconde los primeros 16 px** de cada eje: el display lee el anillo con un
+desfase de 1 bloque (vertical, `display_offset = videoposy + 16`) y el fetch de DDFSTRT=$30 se
+adelanta 16 px (horizontal). Sin corrección, `map[0][0]` nunca se ve y, al hacer scroll de 320 px
+(media vuelta de un mapa 40x40), aparece la columna 0 a la derecha: parece un offset (-16,-16).
+
+El `visible_tile_bias (1,1)` desplaza el CONTENIDO del anillo 1 celda: `fill` y `scroll` pintan
+`map[a-1][b-1]` en la celda física `(a,b)`, de modo que en el offset (0,0) la esquina visible es
+`map[0][0]`. El contrato pasa a ser `world_x = mapposx + sx`, `world_y = mapposy + sy` (SIN +16).
+
+Clave para no romperlo: los `mapx/mapy` del scroll (`mapblockx + BPR`, `mapblocky + BPC`, etc.)
+son **celdas físicas del anillo**, NO índices lógicos del mapa. Por eso `map_tile_at(px,py) =
+tile_at(px - bias, py - bias)` es CORRECTO para el fill Y para el scroll: ambos usan el mismo
+convenio de celdas. Si alguien "corrige" el scroll restándole bias dos veces, o revierte el bias
+"por si acaso", reintroduce el offset (-16,-16). El fallo real que rompía la demo con bias=1 era
+el de §7.1/§7.2, no el bias.
+
+### 7.4 La geometría interleaved y el walk plane-shifted
+
+- El bitmap es interleaved: `planeline = pixel_row*planes + plane`, cada planelínea de 44 B
+  (352 px) con 6 planos → 1 scanline = 264 B. Un tile 16x16 es 96 planelíneas y se copia con UN
+  solo blit (`BLTSIZE = 96*64 + 1`, src mod 38, dst mod 42).
+- El scroll horizontal hace un *walk*: `planeaddx` crece 2 B por cada 16 px y el puntero BPLxPT
+  avanza; la columna entrante se dibuja **plane-shifted** en `x = x0 + bitmap_width` (x_word=44 →
+  1 planelínea más abajo). El `saveword` guarda la planelínea que pisa ese blit y se restaura al
+  invertir la dirección.
+- `bitmap_height` debe dar cabida al walk (formula `display_height + (map_width/BPR/planes)+1+3`,
+  redondeado a múltiplo de 16 = 304 en esta demo). El banco incbinado (222 KB) se alia sin copia.
+
+### 7.5 Mapa toroidal y staging
+
+Con `wrap_x = map.width` y `wrap_y = map.height`, `tile_at` resuelve por módulo (no hay
+`edge_tile`). La pista de staging (22 celdas por delante) lee columnas/filas que envuelven al
+lado opuesto; así el scroll puede cruzar el borde sin pintar tiles falsos. Para mapas no
+toroidales (`wrap=0`) el `add_draw` clampa el origen a la última columna/fila.
+
+### 7.6 El split del corkscrew y el Copper
+
+El display envuelve el anillo en `split_line = display_height - display_offset`; el Copper
+reinicia los punteros BPLxPT a la fila 0 en ese raster. El comparador WAIT del Copper es de 8
+bits (raster <= 255), así que el split solo es fiable si `split_line + 41 <= 255`. Con
+`display_height=288` y vista de 208 px, el split activo cae dentro de la ventana y es correcto.
+
+### 7.7 EHB (6 planos) — detalles que no tocar
+
+- `BPLCON4 = 1` activa Half-Bright con 6 planos: solo se cargan 32 registros de color base
+  (COLOR00..31) y el hardware fabrica los half (32..63) como base/2.
+- Convención BASES-PRIMERO: el índice EHB 0..63 ya es el número de color; bit 5 = plano 6 = half.
+- Al cambiar de playfield (zona HUD) hay que reprogramar BPLCON0 con el nº de planos del HUD y
+  `BPLCON4 = 0` (sin EHB), o el bit half/EHB mezcla colores en la franja.
+
+### 7.8 Orden de verificación de cualquier cambio
+
+1. Build + run con `--warp` y comparar varios frames contra `reconstruct.png` recortado al
+   contrato (`world_x = mapposx+sx`, `world_y = mapposy+sy`): esperado ~5-7 % (cuantización EHB).
+2. Comprobar el ORIGEN: `frame_000` debe tener la esquina `map[0][0]` arriba-izquierda.
+3. Comprobar scroll horizontal (fin de fase 1), vertical (fase 2) y diagonal: ~5-7 % en todos.
+4. No tocar a la vez: anillo (`display_height`), `block_videoposy`, y `visible_tile_bias`. Son
+   tres invariantes independientes; cambiar uno sin los otros produce los síntomas de §7.1-§7.3.
