@@ -132,9 +132,11 @@ public:
 
     /// Fila de bloque del mapa que el display estÃ¡ mostrando (0..display_height).
     inline u32 block_videoposy(const Sink& sn) const {
-        // (mapposy / th * th) % display_height: el floor a mÃºltiplo usa q_th y el
-        // mÃ³dulo total usa r_dh (fast si ambos son constantes).
-        return r_dh(sn, q_th(sn, m_state.mapposy) * th(sn));
+        // La fila entrante se reserva en el bitmap físico completo, no en el
+        // bucle visible del display. Si se usa display_height, la guarda cae
+        // dentro de la ventana al completar un wrap vertical.
+        const u32 row = q_th(sn, m_state.mapposy) * th(sn);
+        return sn.bitmap_height() != 0 ? row % sn.bitmap_height() : r_dh(sn, row);
     }
     /// Constante de "dos bloques" del corkscrew (fillup a dos bloques de ancho).
     inline u16 twoblockstep(const Sink& sn) const {

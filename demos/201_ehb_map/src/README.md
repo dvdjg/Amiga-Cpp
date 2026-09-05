@@ -99,10 +99,9 @@ sección "saveword" y la demo `107_xlimited_corkscrew`). La escena usa además u
 vertical** del Copper para que el display dé la vuelta dentro del propio bucle del bitmap
 (banda de staging de 2 tiles).
 
-Con la franja HUD de 48 px, el campo principal mide `256 − 48 = 208` px de alto: el
-comparador de WAIT del Copper es de 8 bits y limita `main_h = viewport_h − hud ≤ 214`, así
-que con `hud = 48` (main 208) la zona HUD cuadra holgada. El bucle de scroll mide
-`kDisplayH = 208 + 2*16 = 240` px.
+Con `K_HUD_HEIGHT=48`, el campo mide 208 px. El split del corkscrew cae entre las líneas raster
+41 y 248, dentro del rango fiable del WAIT OCS; por eso se usa `linear_display=false` y no se
+duplica el bucle físico. El HUD ocupa las 48 líneas inferiores mediante la zona overlay del Copper.
 
 ### El borde del mapa y la pista de pre-pintado
 
@@ -150,8 +149,9 @@ invariante de Steger `display_start == scroll_x`, de modo que la pantalla muestr
 
 Ojo con dos consecuencias que suelen confundir al comparar con una imagen de referencia:
 
-1. **Guardas físicas:** el hardware sigue usando una fila/columna de staging, pero la API de
-   escena expone coordenadas lógicas sencillas. Con `visible_tile_bias_x/y=1`, `(offset_x,offset_y)=(0,0)` muestra `map[0][0]`; las guardas contienen `map[-1]`, resuelto por el toroide.
+1. **Guardas físicas:** el hardware XY usa dos filas/columnas de staging, pero la API de escena
+   expone coordenadas lógicas sencillas. Con `visible_tile_bias_x=1` y `visible_tile_bias_y=1`,
+   `(offset_x,offset_y)=(0,0)` muestra `map[0][0]`; las guardas contienen `map[-1]`, resuelto por el toroide.
 2. **Toroide lógico:** al subir desde `offset_y=0` se muestra la fila 39; al avanzar desde
    `offset_x=320`, la siguiente columna visible es la 0. El módulo físico del anillo no se usa
    como índice lógico del mapa.

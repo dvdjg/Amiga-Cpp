@@ -855,16 +855,11 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
             ? m_bitmap_blocks_per_row - m_cfg.tile_height : 0);
     }
     constexpr u16 block_videoposy() const {
-        // Banda de staging: SIEMPRE dentro del bucle de display (0..display_height),
-        // nunca en las filas extra (display_height..bitmap_height) que usa el
-        // planeaddx walk horizontal. El original envuelve en bitmap_height; ese
-        // wrap hacía que cada bitmap_height px la fila entrante se dibujara en
-        // las filas extra que el display SÍ muestra al scrollear en X (tile
-        // visible en el área de pantalla y banda de staging sin refrescar).
-        // Corregido 2026-08-31: envolver en display_height mantiene la fila
-        // entrante siempre en la banda oculta de 32 filas.
+        // Banda de staging del algoritmo XY-Limited: la posición se deriva en
+        // el bitmap físico completo. Envolver en display_height hace que, tras
+        // cierto desplazamiento vertical, la fila entrante caiga en la ventana.
         return static_cast<u16>(
-            (m_scroll.state().mapposy / m_cfg.tile_height * m_cfg.tile_height) % m_display_height);
+            (m_scroll.state().mapposy / m_cfg.tile_height * m_cfg.tile_height) % m_bitmap_height);
     }
     /// Añade el blit de un bloque y, en modo lineal (espejo), también el espejo.
     /// Devuelve false si el plan no admite el/los job(s).
@@ -1118,12 +1113,13 @@ const u16 I = fetch_scroll_pixels(m_cfg.fetch_mode);
         // Offset vertical del display (corkscrew, UpdateCopperlist xlimited.c):
         //   yoffset = (videoposy + BLOCKHEIGHT) % BITMAPHEIGHT
         // el display empieza un bloque por debajo de videoposy, dejando la
-        // banda de staging (2 bloques) por encima de la ventana visible.
+        // primera fila de staging por encima de la ventana visible.
         // En X-only (scroll_y=false) videoposy es 0 y no hay offset ni split.
         u16 display_offset = 0;
         if (m_cfg.scroll_y) {
 const u16 vy = static_cast<u16>(dmod2(m_scroll.state().videoposy));
-        display_offset = static_cast<u16>(dmod1(static_cast<u32>(vy) + m_cfg.tile_height));
+        display_offset = static_cast<u16>(dmod1(static_cast<u32>(vy) +
+            m_cfg.tile_height));
         }
         v.display_height = m_display_height;
         v.display_offset = display_offset;
@@ -1160,7 +1156,8 @@ const u16 vy = static_cast<u16>(dmod2(m_scroll.state().videoposy));
     /// Fila (en píxeles) del bucle vertical donde empieza la ventana visible.
     /// Coincide con `(videoposy + tile_height) % display_height`.
     constexpr s32 display_offset() const {
-        return static_cast<s32>(dmod1(static_cast<u32>(m_scroll.state().videoposy) + m_cfg.tile_height));
+        return static_cast<s32>(dmod1(static_cast<u32>(m_scroll.state().videoposy) +
+            m_cfg.tile_height));
     }
 
     /// ¿El split del corkscrew es SIEMPRE esperable (raster <= 255)?
