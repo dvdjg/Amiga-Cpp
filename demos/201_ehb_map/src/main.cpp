@@ -536,6 +536,12 @@ struct DemoGame {
 		scene_cfg.map.wrap_y = kMapH;
 		scene_cfg.map.edge_tile = 0;
 		scene_cfg.map.empty_tile = 0xFFFF;
+		// Bias de rejilla visible: con 1,1 el offset visible (0,0) muestra map[0][0].
+		// El hardware XYLimited esconde los primeros 16 px (fila/columna de guarda);
+		// el bias desplaza el contenido del anillo para que la 1ª fila/columna del
+		// mapa SÍ sea visible (offset (0,0) = map[0][0] en la esquina superior).
+		scene_cfg.visible_tile_bias_x = 1;
+		scene_cfg.visible_tile_bias_y = 1;
 		scene_cfg.tileset_count = static_cast<eng::u16>(kTileCount);
 		scene_cfg.blocks_prebuilt = g_tilebank_xlimited;
 		scene_cfg.blocks_prebuilt_size = g_tilebank_xlimited_size;
