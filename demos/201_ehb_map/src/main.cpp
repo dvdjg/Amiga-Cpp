@@ -113,6 +113,17 @@ namespace field = eng::field;
 #ifndef K_SEG_FRAMES
 #define K_SEG_FRAMES 150
 #endif
+// AUTO-VERIFICADOR de framebuffer (diagnóstico). OFF por defecto: como el
+// display lee el anillo a través del *walk* horizontal y el *fine scroll*
+// (BPLCON1), el mapeo "mundo -> dirección" de la CPU (`byte_for`/`planeline_for`)
+// NO coincide con lo que muestra el chip tras un scroll, y el contador daba
+// falsos positivos (p. ej. 4 celdas ya en el estado inicial conocido-correcto).
+// El método fiable es INSTRUMENTAR `add_draw` para rastrear el ORIGEN
+// (mapx,mapy,¿dest?) de cada blit y comparar con el mapa. Compilar con
+// `EXTRA_DEFINES="-DK_FB_SELFCHECK=1"` para activar el contador experimental.
+#ifndef K_FB_SELFCHECK
+#define K_FB_SELFCHECK 0
+#endif
 
 constexpr eng::u32 kTileWidth = 16;
 constexpr eng::u32 kTileHeight = 16;
@@ -125,6 +136,13 @@ constexpr eng::u32 kMapW = 40;                    // tiles (mapa 40x40)
 constexpr eng::u32 kMapH = 40;
 constexpr eng::u32 kTileCount = 1149;             // tiles reales del tilebank
 constexpr eng::u32 kSegFrames = K_SEG_FRAMES;     // ~3 s a 50 fps
+
+// Límites de scroll del motor (campo main = viewport - hud); coinciden con los
+// que el `TourDriver` usa para parar cada fase (ver `DemoGame::init`).
+constexpr eng::s32 kMaxScrollX = static_cast<eng::s32>(
+	kMapW * kTileWidth - kViewportW - kTileWidth);
+constexpr eng::s32 kMaxScrollY = static_cast<eng::s32>(
+	kMapH * kTileHeight - kMainH - kTileHeight);
 
 // Geometría NTTP para el ScrollEngine (división por constantes -> fast_div).
 // Con la franja HUD: display_height = (viewport_h - hud_height) + 2*tile_height.
@@ -456,6 +474,12 @@ struct DemoGame {
 	eng::u32 frameOfDay = 0;
 	bool ready = false;
 	bool hudDirty = true;   // redibujar el HUD (inicio + cada segmento)
+	// Estado del auto-verificador de framebuffer (diagnóstico).
+	bool fbChecked = false;
+	bool fbStartDone = false;
+	eng::u16 fbStart = 0;      // celdas mal JUSTO tras el fill (cámara 0,0)
+	eng::u16 fbMismatch = 0;   // nº de celdas (de 260) con píxeles mal
+	eng::u16 fbFirstBad = 0;   // índice de la primera celda mal (cy*COLS+cx)
 
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
@@ -528,10 +552,8 @@ struct DemoGame {
 			return;
 		}
 		// Límites de scroll del motor (el campo ve main_h = viewport - hud).
-		const eng::s32 maxX = static_cast<eng::s32>(
-			kMapW * kTileWidth - kViewportW - kTileWidth);
-		const eng::s32 maxY = static_cast<eng::s32>(
-			kMapH * kTileHeight - kMainH - kTileHeight);
+		const eng::s32 maxX = kMaxScrollX;
+		const eng::s32 maxY = kMaxScrollY;
 		driver.begin(maxX, maxY);
 
 		if (!scene.fill(backend, plan)) {
@@ -589,12 +611,113 @@ struct DemoGame {
 		}
 	}
 
+	// ---------------------------------------------------------------------
+	// AUTO-VERIFICADOR DEL FRAMEBUFFER (diagnóstico, en-programa): compara lo
+	// que hay REALMENTE en el anillo interleaved en las posiciones de mundo de
+	// la ventana visible contra lo que DEBERÍA haber (mapa `kRenderMap` +
+	// `tilebank_indexed.h`/banco). Si el scroll hubiera blitteado un tile
+	// equivocado (`mapx/mapy` mal) o en la posición equivocada, se detecta aquí
+	// y se publica en `g_eng_frame_telemetry.fillup_extra` (leíble por el canal
+	// lateral con `--telemetry-samples`).
+	//
+	// Contrato (screen_to_world del engine): una fila de mundo se lee en
+	// `planeline_for(wy)*bytes_per_row + byte_for(wx)` (igual que `set_pixel`),
+	// y la fila visible en pantalla `sy` es `(mapposy + tile_height + sy) %
+	// display_height`. Con eso podemos leer un píxel del framebuffer real.
+	// ---------------------------------------------------------------------
+	static eng::u32 w_dmod(eng::s32 v, eng::u32 mod) {
+		const eng::s32 m = static_cast<eng::s32>(mod);
+		return static_cast<eng::u32>(((v % m) + m) % m);
+	}
+	// Índice de tile que DEBERÍA verse en el mundo (wx,wy) [clamp a bordes].
+	static eng::u16 fb_expected_index(eng::s32 wx, eng::s32 wy) {
+		eng::s32 bx = wx / kTileWidth, by = wy / kTileHeight;
+		const eng::s32 mw = static_cast<eng::s32>(kMapW), mh = static_cast<eng::s32>(kMapH);
+		if (bx < 0) bx = 0; if (bx >= mw) bx = mw - 1;
+		if (by < 0) by = 0; if (by >= mh) by = mh - 1;
+		return kRenderMap[static_cast<eng::u32>(by) * kMapW + static_cast<eng::u32>(bx)];
+	}
+	// Lee el índice EHB REAL (6 planos) del mundo (wx,wy) en el anillo.
+	static eng::u16 fb_read_index(const field::XLimitedPlayfield<kScrollConsts>& pf,
+		const eng::u8* fp, eng::u16 bpr, eng::u8 planes, eng::s32 wx, eng::s32 wy) {
+		const eng::u32 base_pl = pf.planeline_for(wy);
+		const eng::u32 byte = pf.byte_for(wx);
+		const eng::u16 bit = static_cast<eng::u16>(15u - (static_cast<eng::u32>(wx) & 15u));
+		eng::u16 idx = 0;
+		for (eng::u8 p = 0; p < planes; ++p) {
+			const eng::u32 off = (base_pl + p) * bpr + byte;
+			const eng::u16 w = *reinterpret_cast<const eng::u16*>(fp + off);
+			if ((w >> bit) & 1u) idx |= static_cast<eng::u16>(1u << p);
+		}
+		return idx;
+	}
+	// Nº de celdas visibles (20x13) con algún píxel que no coincide con lo
+	// esperado. Muestrea 4x4 píxeles por celda (rápido y representativo).
+	eng::u16 framebuffer_mismatch_tiles() {
+		const auto& pf = scene.bg();
+		const auto hw = pf.hardware_view();
+		const eng::u8* fp = hw.bitplanes;
+		const eng::u16 bpr = hw.bitmap_bytes_per_row;
+		const eng::u8 planes = hw.planes;
+		const eng::u16 dh = hw.display_height;
+		const eng::s32 mapposx = pf.mapposx();
+		const eng::s32 mapposy = pf.mapposy();
+		constexpr eng::u16 COLS = kViewportW / kTileWidth;   // 20
+		constexpr eng::u16 ROWS = kMainH / kTileHeight;      // 13
+		eng::u16 bad = 0;
+		for (eng::u16 cy = 0; cy < ROWS; ++cy) {
+			for (eng::u16 cx = 0; cx < COLS; ++cx) {
+				bool cellBad = false;
+				for (eng::u16 py = 2; py < 14 && !cellBad; py += 4) {
+					for (eng::u16 px = 2; px < 14; ++px) {
+						const eng::s32 wx = mapposx + static_cast<eng::s32>(cx * kTileWidth + px);
+						const eng::s32 wy = static_cast<eng::s32>(w_dmod(
+							mapposy + static_cast<eng::s32>(kTileHeight) +
+							static_cast<eng::s32>(cy * kTileHeight + py), dh));
+						if (fb_expected_index(wx, wy) != fb_read_index(pf, fp, bpr, planes, wx, wy)) {
+							cellBad = true; break;
+						}
+					}
+				}
+				if (cellBad) ++bad;
+			}
+		}
+		// Guarda el índice de la primera celda mal (para localizarla).
+		if (bad != 0 && fbFirstBad == 0u) {
+			for (eng::u16 cy2 = 0; cy2 < ROWS; ++cy2)
+				for (eng::u16 cx2 = 0; cx2 < COLS; ++cx2) {
+					// re-testea esa celda (barato, solo para localizar)
+					bool b = false;
+					for (eng::u16 py = 2; py < 14 && !b; py += 4)
+						for (eng::u16 px = 2; px < 14; ++px) {
+							const eng::s32 wx = mapposx + static_cast<eng::s32>(cx2 * kTileWidth + px);
+							const eng::s32 wy = static_cast<eng::s32>(w_dmod(
+								mapposy + static_cast<eng::s32>(kTileHeight) +
+								static_cast<eng::s32>(cy2 * kTileHeight + py), dh));
+							if (fb_expected_index(wx, wy) != fb_read_index(pf, fp, bpr, planes, wx, wy)) { b = true; break; }
+						}
+					if (b) { fbFirstBad = static_cast<eng::u16>(cy2 * COLS + cx2); break; }
+				}
+		}
+		return bad;
+	}
+
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!ready) return;
 
 		plan.clear();
 		plan.set_blit_budget_limits({8192, 16384, 6, 120});
+
+		// Referencia: justo tras el fill la cámara está en (0,0); el anillo debe
+		// coincidir EXACTAMENTE con el mapa (si aquí ya hay mismatch, el propio
+		// índice de dirección del verificador no está bien alineado).
+#if K_FB_SELFCHECK
+		if (!fbStartDone) {
+			fbStart = framebuffer_mismatch_tiles();
+			fbStartDone = true;
+		}
+#endif
 
 		eng::s32 dx = 0, dy = 0;
 		driver.step(dx, dy);
@@ -622,7 +745,19 @@ struct DemoGame {
 		tel.blit_jobs = plan.blit_job_count();
 		tel.blit_words = static_cast<eng::u16>(w > 0xffffu ? 0xffffu : w);
 		tel.copper_words = scene.copper_words();
-		tel.fillup_extra = 0;
+		// Auto-verificador de framebuffer (experimental, ver K_FB_SELFCHECK):
+		// compara lo pintado en el anillo con lo esperado. Como el mapeo
+		// mundo->dirección CPU no refleja el *walk*, el contador NO es fiable;
+		// por eso está OFF por defecto (no publica valores engañosos).
+#if K_FB_SELFCHECK
+		if (!fbChecked && scene.bg().mapposx() >= kMaxScrollX && scene.bg().mapposy() == 0) {
+			fbMismatch = framebuffer_mismatch_tiles();
+			fbChecked = true;
+			g_eng_run_status.detail = 0x00020100u | static_cast<eng::u32>(fbStart) |
+				(static_cast<eng::u32>(fbMismatch) << 8u);
+		}
+#endif
+		tel.fillup_extra = fbMismatch;
 		// Acumula en el segmento en curso para reportar el pico en el HUD.
 		driver.note_telemetry(tel.blit_jobs, tel.blit_words, tel.copper_words);
 		++frameOfDay;
