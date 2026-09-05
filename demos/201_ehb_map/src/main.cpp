@@ -68,10 +68,13 @@ namespace field = eng::field;
 //   FASE 3 "OBLIQ^"  : diagonal arriba-izquierda hasta tocar DE NUEVO el borde
 //                      superior (si X choca antes que Y, el resto sube en vertical).
 //   FASE 4 "LISSAJ"  : Lissajous ALEATORIO (centro/radio/fase/frecuencia variables)
-//                      que se re-aleatoriza cada kSegFrames y se queda en bucle.
+//                      que ya NO abandona nunca: cada kSegFrames re-aleatoriza la
+//                      órbita y continúa indefinidamente (sin cortes ni esperas).
 //
-// El motor ejecuta el paso de 1 px como sub-pasos ATÓMICOS (paint-then-advance
-// en `update_scroll`): nunca se muestra un píxel sin pintar. Con el fix de borde
+// El salto MÁXIMO es de 4 px/frame por eje; el motor descompone cada avance en
+// sub-pasos ATÓMICOS de 1 px (paint-then-advance en `update_scroll`), de modo que
+// aunque se avancen 4 px nunca se muestra un píxel sin pintar y el recorrido es
+// totalmente continuo. Con el fix de borde
 // (clamp del origen en `add_draw`, xlimited.hpp) los pre-pintados de la pista de
 // 22 bloques no salen del mapa: junto al borde derecho/inferior repiten la última
 // columna/fila en lugar de leer tile 0 (edge_tile) y pintar contenido equivocado.
@@ -149,14 +152,17 @@ eng::u16 g_hudPalette[16] {
 //   1) HORIZONTAL directo hasta el borde derecho,
 //   2) VERTICAL directo hasta el borde inferior,
 //   3) OBLICUO arriba-izquierda hasta tocar DE NUEVO el borde superior,
-//   4) LISSAJOUS aleatorio (centro/radio/frecuencia variable) en bucle.
-// Cada fase avanza con el paso canónico de 1 px/frame (el corkscrew exige
-// 1 px para 50 fps sin micro-parones; ver §7 de xlimited.hpp).
+//   4) LISSAJOUS aleatorio (centro/radio/frecuencia variable) en bucle
+//      INDEFINIDO: una vez alcanzada esta fase la demo ya no la abandona
+//      (cada kSegFrames re-aleatoriza la órbita y sigue, sin esperas).
+// Cada fase avanza con salto MÁXIMO de 4 px/frame por eje: el motor descompone
+// ese avance en sub-pasos atómicos de 1 px (paint-then-advance, ver §7 de
+// xlimited.hpp), así el barrido es continuo de borde a borde sin micro-pausas.
 // -----------------------------------------------------------------------------
 enum class TourPhase : eng::u8 { HToEnd, VToEnd, ObliqueToTop, Lissajous };
 constexpr eng::u8 kPhaseCount = 4;
 constexpr char const* kPhaseName[kPhaseCount] { "H->FIN", "V->FIN", "OBLIQ^", "LISSAJ" };
-constexpr eng::s32 kPhaseStep = 1; // 1 px/frame por eje (canónico del corkscrew)
+constexpr eng::s32 kPhaseStep = 4; // SALTO MÁX. 4 px/frame por eje (recorrido continuo)
 
 // Tabla de seno Q7 (amplitud 127 = 1.0) para el Lissajous, generada en
 // compile-time por el engine (`eng::SineTable`) sin float por frame.
@@ -166,8 +172,9 @@ constexpr eng::u32 kSinSteps = 256;
 // -----------------------------------------------------------------------------
 // Conductor del recorrido: FSM de 4 fases. Cada fase H/V/oblicua corre hasta
 // cumplir su objetivo (borde del mapa); la fase Lissajous re-aleatoriza el
-// centro/radio/frecuencia cada kSegFrames frames y se queda en bucle. Produce
-// el (dx, dy) de cada frame y la telemetría del segmento para el HUD.
+// centro/radio/frecuencia cada kSegFrames pero ya NO se va de esa fase: sigue
+// indefinidamente. Produce el (dx, dy) de cada frame (hasta 4 px por eje) y la
+// telemetría del segmento para el HUD.
 // -----------------------------------------------------------------------------
 class TourDriver {
 public:
@@ -218,11 +225,20 @@ public:
 		}
 		if (finished) {
 			report_segment(); // guarda telemetría del segmento que termina
-			if (phase() == TourPhase::Lissajous) randomize_lissajous();
-			m_phaseIdx = static_cast<eng::u8>((m_phaseIdx + 1u) % kPhaseCount);
+			if (phase() == TourPhase::Lissajous) {
+				// Bucle curvo INDEFINIDO: re-aleatoriza la órbita y continúa sin
+				// cortes. NO marca just_changed: el HUD solo se toca al cambiar de
+				// FASE (4 veces en total), nunca por cada segmento, para no pagar
+				// un redibujado del HUD (slow en vblank) que se notaría como una
+				// parada durante el movimiento curvo.
+				randomize_lissajous();
+				m_justChanged = false;
+			} else {
+				m_phaseIdx = static_cast<eng::u8>(m_phaseIdx + 1u);
+				m_justChanged = true;
+			}
 			m_frameInSeg = 0;
 			m_segBlitMax = 0; m_segWordsMax = 0; m_segCopper = 0;
-			m_justChanged = true;
 		}
 	}
 
@@ -251,7 +267,7 @@ private:
 				// Diagonal arriba-izquierda desde la esquina inferior derecha
 				// ("tocar de nuevo el borde superior"). Si X choca antes que Y,
 				// el resto del recorrido sigue subiendo en vertical hasta Y=0.
-				s32 mx = m_camX - kPhaseStep, my = m_camY - kPhaseStep;
+				eng::s32 mx = m_camX - kPhaseStep, my = m_camY - kPhaseStep;
 				if (mx < 0) mx = 0;
 				if (my < 0) my = 0;
 				dx = mx - m_camX; dy = my - m_camY;
@@ -266,15 +282,25 @@ private:
 
 	// Lissajous de centro/radio/fase/frecuencia ALEATORIOS (re-aleatorizado al
 	// terminar cada sesión de kSegFrames): x = sin(t), y = sin(φ + r·t).
+	//
+	// Continuidad garantizada: la posición está cuantizada a píxeles enteros y la
+	// tabla Q7 tiene mesetas en los ápices (mismo valor varias muestras seguidas),
+	// por lo que "perseguir" el target podía dar DX=DY=0 (frame parado). Aquí se
+	// salta la muestra congelada y se persigue la siguiente con el salto ≤ 4, de
+	// modo que NUNCA hay un frame sin movimiento (sin parones, sin esperas).
 	void lissajous_move(eng::s32& dx, eng::s32& dy) {
-		const eng::u8 t = static_cast<eng::u8>(m_phase);
-		m_phase = (m_phase + 1u) & (kSinSteps - 1u);
-		const eng::s32 c = kSin[t];
-		const eng::s32 s = kSin[static_cast<eng::u8>(
-			(m_phaseStart + (static_cast<eng::u32>(t) * m_ratioB) / 256u)) & (kSinSteps - 1u)];
-		const eng::s32 tx = m_cx + c * m_radius / 127;
-		const eng::s32 ty = m_cy + s * m_radius / 127;
-		approach_target(kPhaseStep, tx, ty, dx, dy);
+		for (eng::u32 tries = 0; ; ++tries) {
+			const eng::u8 t = static_cast<eng::u8>(m_phase);
+			m_phase = (m_phase + 1u) & (kSinSteps - 1u);
+			const eng::s32 c = kSin[t];
+			const eng::s32 s = kSin[static_cast<eng::u8>(
+				(m_phaseStart + (static_cast<eng::u32>(t) * m_ratioB) / 256u)) & (kSinSteps - 1u)];
+			const eng::s32 tx = m_cx + c * m_radius / 127;
+			const eng::s32 ty = m_cy + s * m_radius / 127;
+			approach_target(kPhaseStep, tx, ty, dx, dy);
+			if (dx != 0 || dy != 0) break; // ya hay movimiento este frame
+			if (tries >= 12u) break;       // defensa: curva estática un tramo largo
+		}
 	}
 
 	void approach_target(eng::s32 step, eng::s32 tx, eng::s32 ty, eng::s32& dx, eng::s32& dy) {
@@ -299,16 +325,18 @@ private:
 		return m_lc;
 	}
 
-	// Centro dentro del mapa con margen = radio, radio ~min/2, frecuencia 0.5..0.75
-	// y desfase de fase aleatorios. Todos los targets quedan dentro de los límites.
+	// Centro dentro del mapa con margen = RADIO (no un valor fijo): como la órbita
+	// Lissajous barre un círculo de radio m_radius alrededor del centro, exigir
+	// margen = radio garantiza que TODOS los targets caen dentro del mapa. Sin
+	// esto (margen fijo 48 < radio hasta 103) la órbita se salía del borde, el
+	// target quedaba clampado y la cámara se detenía ~1 s pegada a la pared.
 	void randomize_lissajous() {
-		const eng::s32 r0 = 48;
-		const eng::s32 rx = (m_maxX - 2 * r0) > 0 ? (m_maxX - 2 * r0) : 0;
-		const eng::s32 ry = (m_maxY - 2 * r0) > 0 ? (m_maxY - 2 * r0) : 0;
-		m_radius = r0 + static_cast<eng::s32>((next_rand() % 56u)); // 48..103
-		eng::s32 cx = r0; eng::s32 cy = r0;
-		if (rx > 0) cx = r0 + static_cast<eng::s32>(next_rand() % static_cast<eng::u32>(rx + 1));
-		if (ry > 0) cy = r0 + static_cast<eng::s32>(next_rand() % static_cast<eng::u32>(ry + 1));
+		m_radius = 48 + static_cast<eng::s32>(next_rand() % 56u); // 48..103
+		const eng::s32 rx = m_maxX - 2 * m_radius;
+		const eng::s32 ry = m_maxY - 2 * m_radius;
+		eng::s32 cx = m_maxX / 2, cy = m_maxY / 2; // defensivo si el radio no cabe
+		if (rx > 0) cx = m_radius + static_cast<eng::s32>(next_rand() % static_cast<eng::u32>(rx + 1));
+		if (ry > 0) cy = m_radius + static_cast<eng::s32>(next_rand() % static_cast<eng::u32>(ry + 1));
 		m_cx = cx; m_cy = cy;
 		m_ratioB = 128u + (next_rand() & 0x3fu); // 0.50..0.75 (Q8)
 		m_phaseStart = next_rand() & (kSinSteps - 1u);
@@ -473,6 +501,28 @@ struct DemoGame {
 		}
 		scene_cfg.palette = g_palette;
 
+		// ---------------------------------------------------------------------
+		// CÓMO SE MONTA EL FRAMEBUFFER (dos fases, sin re-pintar la pantalla):
+		//
+		//  FASE A (SETUP)  `scene.fill(...)` rellena TODO el anillo del corkscrew
+		//                  (bitmap interleaved de `bitmap_blocks_per_row` x
+		//                  `display_blocks_per_col`) con el mapa empezando en el
+		//                  bloque (0,0); ver `XlimitedScene::fill`.
+		//  FASE B (INCR.)  `scene.update(plan,dx,dy,...)` por frame descompone el
+		//                  avance en sub-pasos de 1 px (`update_scroll`) y pinta
+		//                  la COLUMNA/FILA entrante al cruzar cada límite de 16 px
+		//                  (scroll_right/left/down/up), distribuyendo la carga de
+		//                  Blitter: tras 16 px de desplazamiento ya está dibujada
+		//                  la fila/columna completa que entra.
+		//
+		//  Para ARRANCAR en un offset distinto de (0,0) — p. ej. (100,100) —, tras
+		//  el `fill` basta `scene.pre_scroll(backend, plan, 100, 100)`: reutiliza
+		//  el mismo scroll incremental (columnas/filas entrantes) para mover la
+		//  cámara hasta ahí sin re-pintar la pantalla. El contrato de qué mundo se
+		//  ve en pantalla (world_x=mapposx+sx, world_y=(mapposy+tile_h+sy)%dh) se
+		//  modela en `tools/analyze/verify-201-framebuffer.mjs` (dado un offset,
+		//  dice qué tiles/tiles deberían verse y recorta la referencia).
+		// ---------------------------------------------------------------------
 		if (!scene.begin(backend.memory(), scene_cfg)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020102u);
 			return;
@@ -493,7 +543,7 @@ struct DemoGame {
 			return;
 		}
 		scene.install(backend);
-		// Pinta el HUD inicial (fase 1, paso canónico 1 px) con datos en 0.
+		// Pinta el HUD inicial (fase 1, salto máx. 4 px/frame) con datos en 0.
 		draw_hud();
 
 		ready = true;
@@ -506,10 +556,10 @@ struct DemoGame {
 	// sobre fondo oscuro limpio.
 	void draw_hud() {
 		auto hud = scene.hud_surface();
-		// Fondo negro limpio (color 0); draw_text rellena cada celda con el mismo
-		// fondo, así que cada línea queda borrada al redibujar.
-		hud.fill_rect(0, 0, kViewportW, kHudH, 0);
-		// Línea 1 (cian, ink 6): "OBLIQ^ P=1"
+		// Sin barrido previo del lienzo completo: draw_text rellena cada celda con
+		// el fondo (bg) antes de pintar el glifo, y el resto de la franja quedó
+		// negro desde el init. Así el coste por redibujado es solo texto.
+		// Línea 1 (cian, ink 6): "OBLIQ^ P=4"
 		{   char line[20]; eng::u8 i = 0;
 			const char* mn = driver.phase_name();
 			while (*mn && i < 19) line[i++] = *mn++;
@@ -548,9 +598,10 @@ struct DemoGame {
 
 		eng::s32 dx = 0, dy = 0;
 		driver.step(dx, dy);
-		// update_scroll aplica el paso de 1 px como sub-paso atómico y clampa el
-		// avance en los bordes (map_wrap=0). El paso canónico del corkscrew se
-		// mantiene siempre en 1 px/frame para sostener 50 fps sin micro-parones.
+		// update_scroll descompone el avance (hasta 4 px/frame por eje) en
+		// sub-pasos atómicos de 1 px (paint-then-advance) y clampa el avance en
+		// los bordes (map_wrap=0): el barrido es continuo, sin esperas ni
+		// píxeles sin pintar.
 		scene.update(plan, dx, dy, context.frame.frame_index);
 
 		if (!backend.execute_frame_plan(plan)) {
