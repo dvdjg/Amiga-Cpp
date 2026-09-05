@@ -114,13 +114,10 @@ final del mapa ese origen puede apuntar **a una columna que ya no existe** (mapa
 motor habría leído `edge_tile` (0 en esta demo) y pintado el tile 0 real del banco en la pista
 de staging, que la ventana muestra junto al borde derecho/inferior.
 
-El engine lo resuelve con una **política de borde-clamp** en el punto de entrada de blits
-(`add_draw`, `xlimited.hpp`): si el mapa no hace *wrap*, el origen `mapx ≥ map_width_blocks()`
-se clampa a `map_width_blocks() − 1` (idéntico para `mapy`/`map_height_blocks()`). Junto al
-borde derecho/inferior se repite la última columna/fila de tiles en lugar de leer contenido
-equivocado; los mapas con `wrap` no cambian. La verificación host de este comportamiento está
-en `tools/analyze/verify-201-border.mjs` (modela el barrido horizontal contra
-`out/ehb/const_game_201.h` con/sin fix).
+En esta demo el mapa es toroidal (`wrap_x=40`, `wrap_y=40`), por lo que un origen fuera de la
+rejilla se resuelve mediante el lado opuesto: `mapx=40` lee la columna 0 y `mapy=40` lee la fila
+0. La pista de pre-pintado puede cruzar ambos bordes sin introducir `edge_tile`. La verificación
+host está en `tools/analyze/verify-201-border.mjs`.
 
 ### Cómo se monta el framebuffer y el contrato de *qué* se ve
 
@@ -129,7 +126,8 @@ El engine no copia el mapa a pantalla entera: mantiene un **anillo** interleaved
 luego solo se pinta lo que entra:
 
 - **Fase A — SETUP (relleno):** `XlimitedScene::fill` pinta el anillo entero con el mapa
-  empezando en el bloque (0,0). Es un blit por bloque, en lotes (≤120 jobs por plan).
+  empezando una celda física antes del offset lógico; esa celda es la guarda toroidal superior
+  e izquierda. Es un blit por bloque, en lotes (≤120 jobs por plan).
 - **Fase B — INCREMENTAL (scroll):** `XlimitedScene::update(plan, dx, dy, frame)`
   descompone el avance en **sub-pasos atómicos de 1 px** (`update_scroll`) y pinta la
   columna/fila entrante **solo al cruzar** cada límite de 16 px (`scroll_right/left/down/up`),
@@ -147,20 +145,16 @@ demo, a lo sumo hay 1 cruce de bloque por eje y frame (dentro del presupuesto de
 invariante de Steger `display_start == scroll_x`, de modo que la pantalla muestra el mundo según
 `screen_to_world_x/y`:
 
-- `world_x(sx) = mapposx + sx` (columnas de mundo).
-- `world_y(sy) = (mapposy + tile_height + sy) % display_height` (filas de mundo).
+- `world_x(sx) = offset_x + sx` (columnas de mundo).
+- `world_y(sy) = offset_y + sy` (filas de mundo).
 
 Ojo con dos consecuencias que suelen confundir al comparar con una imagen de referencia:
 
-1. **Banda de staging vertical:** la ventana visible NO empieza en `mapposy`: el campo
-   principal muestra `world_y = mapposy + tide_height + sy`. Por eso, al arrancar
-   (`mapposy = 0`), la fila **0** del mapa queda **oculta** en la banda de staging y la fila
-   superior visible es la **1** (`y = 16`). Comparar el borde superior de la pantalla con el
-   superior de la referencia exige desplazar una fila.
-2. **Envolvimiento vertical (`% display_height`):** el display es un anillo de
-   `display_height = 240` px; si el mapa es más alto que eso, el contenido se **envuelve**
-   (repite) cada 240 px al bajar. Un mapa de 40×40 = 640 px de alto **no** recorre limpio en Y
-   con este anillo: conviene validar la fase vertical (y el límite `maxY`).
+1. **Guardas físicas:** el hardware sigue usando una fila/columna de staging, pero la API de
+   escena expone coordenadas lógicas sencillas. Con `visible_tile_bias_x/y=1`, `(offset_x,offset_y)=(0,0)` muestra `map[0][0]`; las guardas contienen `map[-1]`, resuelto por el toroide.
+2. **Toroide lógico:** al subir desde `offset_y=0` se muestra la fila 39; al avanzar desde
+   `offset_x=320`, la siguiente columna visible es la 0. El módulo físico del anillo no se usa
+   como índice lógico del mapa.
 
 La herramienta host que modela este contrato (y dice **qué tiles deberían verse** para un
 offset arbitrario, recortando la referencia) es `tools/analyze/verify-201-framebuffer.mjs`

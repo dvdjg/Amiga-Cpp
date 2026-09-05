@@ -163,6 +163,8 @@ struct XlimitedSceneConfig {
     eng::u8 planes = 4;              // profundidad por playfield (4 single, 3 DPF)
     eng::u8 fetch_mode = 0;          // 0=normal, 1/2=BPL32, 3=BPL32+BPAGEM
     eng::u16 bitmap_width = 0;       // 0 = auto: viewport + EXTRAWIDTH
+    eng::u16 visible_tile_bias_x = 0; // 1 = offset visible (0,0) empieza en map[0][0]
+    eng::u16 visible_tile_bias_y = 0; // 1 = la guarda superior usa la última fila
 
     // --- HUD (playfield separado en la franja inferior) -------------------
     eng::u16 hud_height = 0;         // 0 = sin franja. El main usa viewport_h -
@@ -302,6 +304,8 @@ public:
             fc.linear_display = cfg.linear_display;
             fc.max_step = cfg.max_step;
             fc.bitmap_width = cfg.bitmap_width;
+            fc.visible_tile_bias_x = cfg.visible_tile_bias_x;
+            fc.visible_tile_bias_y = cfg.visible_tile_bias_y;
             fc.fetch_mode = cfg.fetch_mode;
             if (!m_field[pf].begin(memory, fc)) return false;
         }
@@ -581,4 +585,3 @@ private:
 };
 
 } // namespace eng::field
-

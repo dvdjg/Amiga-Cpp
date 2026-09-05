@@ -18,7 +18,8 @@
  *     visible en la pantalla `sy` corresponde al mundo:
  *
  *         world_x = mapposx + sx                       (columnas)
- *         world_y = (mapposy + tile_height + sy) % display_height   (filas)
+ *         world_y = mapposy + sy                       (filas)
+ *         bitmap_y = world_y % display_height                        (anillo físico)
  *
  *     (es el mismo mapeo `screen_to_world_x/y` que usan los objetos fijos).
  *
@@ -63,16 +64,15 @@ const ROWS_VIS = MAIN_H / TH;        // 13
 
 // --- Leer kRenderMap (1600 u16) ---------------------------------------------
 const hdr = fs.readFileSync(path.join(root, 'out/ehb/const_game_201.h'), 'utf8');
-const m = hdr.match(/kRenderMap\[1600\]\s*=\s*\{([\s\S]*?)\};/);
+const m = hdr.match(/kRenderMap\[\d+\]\[\d+\]\s*=\s*\{([\s\S]*?)\};/);
 const nums = (m[1].match(/\d+/g) || []).slice(0, MAP_W * MAP_H).map(Number);
 
-// dmod2: el mapeo Y del engine envuelve en display_height.
 const dmod = (v, mod) => ((v % mod) + mod) % mod;
 
 function tileIndexAt(wx, wy) {
   const bx = Math.floor(wx / TW), by = Math.floor(wy / TH);
-  const cc = Math.max(0, Math.min(MAP_W - 1, bx));
-  const rr = Math.max(0, Math.min(MAP_H - 1, by));
+  const cc = dmod(bx, MAP_W);
+  const rr = dmod(by, MAP_H);
   return nums[rr * MAP_W + cc];
 }
 
@@ -83,7 +83,7 @@ function gridFor(mapposx, mapposy) {
     const row = [];
     for (let sx = 0; sx < COLS_VIS; sx++) {
       const wx = mapposx + sx * TW;
-      const wy = dmod(mapposy + TH + sy * TH, DISPLAY_H);
+      const wy = mapposy + sy * TH;
       row.push(tileIndexAt(wx, wy));
     }
     g.push(row);
@@ -99,12 +99,11 @@ function writeCrop(mapposx, mapposy, outFile) {
   const cropW = VIEWPORT_W, cropH = MAIN_H;
   const out = new PNG({ width: cropW, height: cropH });
   for (let sy = 0; sy < cropH; sy++) {
-    const wy = dmod(mapposy + TH + sy, DISPLAY_H);
+    const wy = mapposy + sy;
     for (let sx = 0; sx < cropW; sx++) {
       const wx = mapposx + sx;
-      // clamp a la imagen (repetir borde, igual que el clamp del engine en wrap=0)
-      const cx = Math.max(0, Math.min(W - 1, wx));
-      const cy = Math.max(0, Math.min(H - 1, wy));
+      const cx = dmod(wx, W);
+      const cy = dmod(wy, H);
       const si = (cy * W + cx) * 4;
       const di = (sy * cropW + sx) * 4;
       out.data[di] = ref.data[si]; out.data[di + 1] = ref.data[si + 1];
@@ -149,13 +148,13 @@ if (camArg) {
   const g = gridFor(cx, cy);
   const [W, H] = writeCrop(cx, cy, path.join(root, 'out/run/_tools/crop.png'));
   console.log(`Cámara (mapposx,mapposy)=(${cx},${cy}). Ventana visible (contrato del engine):`);
-  console.log(`  cols mundo x = mapposx + sx  (${cx}..${cx + VIEWPORT_W})`);
-  console.log(`  filas mundo y = (mapposy + ${TH} + sy) % ${DISPLAY_H}`);
+  console.log(`  cols mundo x = mapposx + sx  (${cx}..${cx + VIEWPORT_W - 1})`);
+  console.log(`  filas mundo y = mapposy + sy (wrap toroidal en X/Y)`);
   console.log(`  → la fila 0 del mapa (y 0..15) queda en la BANDA DE STAGING (oculta).`);
   printGrid(`tiles que DEBERÍAN verse (${COLS_VIS}x${ROWS_VIS})`, g);
   console.log(`Crop de referencia escrito: out/run/_tools/crop.png (${W}x${H})`);
-  console.log(`Rejilla: filas = mundo y [${cx},..], columnas = mundo x [${cx},..].`);
-  console.log(`>>> Nota: la fila del mapa que se ve arriba es la y=${dmod(cy + TH, DISPLAY_H)} (bloque ${Math.floor(dmod(cy + TH, DISPLAY_H) / TH)}), NO la 0.`);
+  console.log(`Rejilla: filas = mundo y [${cy},..], columnas = mundo x [${cx},..].`);
+  console.log(`>>> Nota: la fila lógica visible empieza en y=${cy} (bloque ${Math.floor(cy / TH)}); la guarda superior es la fila anterior.`);
 } else if (originArg) {
   const [tx, ty] = originArg.split(',').map(Number);
   printGrid(`rejilla visible para cámara (${tx * TW},${ty * TW}) [contrato]`, gridFor(tx * TW, ty * TW));

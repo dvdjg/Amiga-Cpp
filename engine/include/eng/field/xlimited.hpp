@@ -474,7 +474,12 @@ struct XlimitedConfig {
     bool linear_display = false;       // true = display LINEAL sin split: el bitmap duplica el bucle
                                        // (espejo de filas) y el wrap se lee de forma contigua. Elimina la
                                        // limitación del split en raster 256..296 (comparador de 8 bits)
-                                       // a costa de duplicar cada blit (dibujo + espejo).
+                                        // a costa de duplicar cada blit (dibujo + espejo).
+    // Desplazamiento lógico de la rejilla respecto a la pista física. Con 1,1
+    // la celda visible en offset (0,0) es map[0][0] y las guardas superior e
+    // izquierda contienen map[-1], resuelto por el wrap del mapa.
+    u16 visible_tile_bias_x = 0;
+    u16 visible_tile_bias_y = 0;
 };
 
 /// Campo XLimited: scroll infinito en X con bitmap interleaved y wrap vertical.
@@ -729,6 +734,12 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
     /// (el corkscrew pre-rellena el bucle vertical completo de display,
     /// viewport_h + EXTRAHEIGHT, para que la banda de staging de 2 bloques
     /// tenga contenido coherente desde el primer frame).
+    constexpr u16 map_tile_at(u16 physical_x, u16 physical_y) const {
+        const s32 map_x = static_cast<s32>(physical_x) - m_cfg.visible_tile_bias_x;
+        const s32 map_y = static_cast<s32>(physical_y) - m_cfg.visible_tile_bias_y;
+        return m_cfg.map.tile_at(map_x, map_y);
+    }
+
     bool fill_screen(graphics::FramePlan& plan) const {
         if (!m_initialized) return false;
         const u16 cols = m_bitmap_blocks_per_row;
@@ -737,7 +748,7 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
         const u16 rows = colHeight;
         for (u16 b = 0; b < rows; ++b) {
             for (u16 a = 0; a < cols; ++a) {
-                if (m_cfg.map.tile_at(a, b) == m_cfg.map.empty_tile) continue; // vacío: no pintar
+                if (map_tile_at(a, b) == m_cfg.map.empty_tile) continue; // vacío: no pintar
                 const u16 x = a * m_cfg.tile_width;
                 const u16 y = b * m_block_planes_lines; // planeline
                 const u16 mapx = a;
@@ -775,7 +786,7 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
         const u32 dst_offset = static_cast<u32>(y) * m_bytes_per_row + x_word;
 
         // Resolución del bloque del mapa (wrapping si el mapa es circular)
-        const u16 block = m_cfg.map.tile_at(mapx, mapy);
+        const u16 block = map_tile_at(mapx, mapy);
         // Layout del banco de bloques: BLOCKSWIDTH/BLOCKWIDTH del original
         // Para tile_width !=16, el número de words por fila escala.
         const u16 blocks_per_row_src = 20; // BLOCKSWIDTH/BLOCKWIDTH del original (320/16)
@@ -875,7 +886,7 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
             mapy = static_cast<u16>(map_height_blocks() - 1);
         }
         // Tile 'vacío' (empty_tile): NO se pinta (no consume slot de Blitter).
-        if (m_cfg.map.tile_at(mapx, mapy) == m_cfg.map.empty_tile) return true;
+        if (map_tile_at(mapx, mapy) == m_cfg.map.empty_tile) return true;
         // DEBUG (hipótesis viewport-offset): ¿este bloque de relleno cae en las
         // filas del bucle que el display está mostrando AHORA mismo? Si sí, el
         // indice del viewport respecto al framebuffer hace visibles los tiles.
@@ -1136,11 +1147,15 @@ const u16 vy = static_cast<u16>(dmod2(m_scroll.state().videoposy));
     constexpr s32 videoposy() const override { return m_scroll.state().videoposy; }
 
     /// Columna de mundo de un objeto FIJO en la columna de pantalla `sx`.
-    constexpr s32 screen_to_world_x(s16 sx) const { return m_scroll.state().mapposx + sx; }
+    constexpr s32 screen_to_world_x(s16 sx) const {
+        return m_scroll.state().mapposx + (m_cfg.visible_tile_bias_x ? 0 : m_cfg.tile_width) + sx;
+    }
     /// Fila de mundo de un objeto FIJO en la fila de pantalla `sy`. La ventana
     /// visible NO empieza en videoposy (la banda de staging queda un bloque por
     /// encima): equivale a `(mapposy + tile_height + sy) % display_height`.
-    constexpr s32 screen_to_world_y(s16 sy) const { return screen_to_bitmap_row(sy); }
+    constexpr s32 screen_to_world_y(s16 sy) const {
+        return m_scroll.state().mapposy + (m_cfg.visible_tile_bias_y ? 0 : m_cfg.tile_height) + sy;
+    }
 
     /// Fila (en píxeles) del bucle vertical donde empieza la ventana visible.
     /// Coincide con `(videoposy + tile_height) % display_height`.

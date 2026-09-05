@@ -316,7 +316,10 @@ public:
     /// Scroll vertical 1 px hacia arriba â€” ScrollUp corkscrew.
     /// Fiel a ScrollUp de Scroller_XYLimited/main.c:529-637.
     bool scroll_up(graphics::FramePlan& plan, Sink& sn) {
-        if (m_state.mapposy < 1) return false;
+        if (m_state.mapposy < 1) {
+            if (sn.map_wrap_y() == 0) return false;
+            m_state.mapposy = static_cast<s32>(sn.map_height_blocks()) * th(sn);
+        }
         --m_state.mapposy;
         m_state.videoposy = static_cast<s32>(r_dh(sn, static_cast<u32>(m_state.mapposy)));
 
