@@ -461,6 +461,12 @@ struct XlimitedConfig {
     u8 fetch_mode = 0;                 // 0=normal 16px, 1=BPL32, 2=BPAGEM, 3=BPL32+BPAGEM
     u16 viewport_w = xlimited_detail::kScreenW; // ancho visible (320 por defecto, 288 alternativo)
     u16 viewport_h = xlimited_detail::kScreenH; // alto visible (256 por defecto, 224 alternativo)
+    u16 display_height = 0;             // 0 = auto: viewport_h + (scroll_y ? 2*tile_height : 0).
+                                        // Si !=0, define el bucle vertical del corkscrew (anillo) con
+                                        // INDEPENDENCIA del alto visible. Es imprescindible cuando una
+                                        // franja (p. ej. HUD) reduce `viewport_h`: el walk plane-shifted
+                                        // del scroll horizontal necesita el anillo completo (SCREENHEIGHT +
+                                        // 2*tile_height, 18 bloques) para que `mapy` (hasta 17) no colisione.
     u8 screens_x = 16;                 // pantallas virtuales en X (map_w = screens_x * viewport_w/tile_width)
     u8 screens_y = 16;                 // pantallas virtuales en Y (map_h = screens_y * viewport_h/tile_height)
     bool scroll_y = false;             // true = corkscrew/XY: display_height = viewport_h + 2*tile_height,
@@ -589,23 +595,22 @@ public:
     /// SCREENHEIGHT + EXTRAHEIGHT`); además se alinea a `tile_height` para que la
     /// última banda de staging (`block_videoposy`) quepa sin salir de Chip RAM.
     ///
-    /// \param viewport_h   alto visible (cfg.viewport_h)
+    /// \param display_height  alto del bucle vertical del corkscrew (anillo; ya
+    ///                        incluye el EXTRAHEIGHT de 2 bloques si scroll_y)
     /// \param tile_height  alto de bloque (cfg.tile_height, 16)
     /// \param scroll_y     true = corkscrew (XY), false = X-only
     /// \param map_width_blocks  ancho del mapa en bloques (ej. screens_x*viewport_w/tile_width)
     /// \param bitmap_blocks_per_row  BITMAPWIDTH / tile_width
     /// \param planes  profundidad (4)
-    /// \return altura en píxeles (viewport_h + EXTRAHEIGHT? + extra +1+3)
-    static constexpr u16 compute_bitmap_height(u16 viewport_h,
+    /// \return altura en píxeles (display_height + extra +1+3)
+    static constexpr u16 compute_bitmap_height(u16 display_height,
                                                u16 tile_height,
                                                bool scroll_y,
                                                u16 map_width_blocks,
                                                u16 bitmap_blocks_per_row,
                                                u8 planes) {
-        const u16 display_h = static_cast<u16>(
-            viewport_h + (scroll_y ? static_cast<u16>(2u * tile_height) : 0));
         u16 h = static_cast<u16>(
-            display_h + (map_width_blocks / bitmap_blocks_per_row / planes) + 1 + 3);
+            display_height + (map_width_blocks / bitmap_blocks_per_row / planes) + 1 + 3);
         if (scroll_y) {
             h = static_cast<u16>(((h + tile_height - 1u) / tile_height) * tile_height);
         }
@@ -643,22 +648,26 @@ public:
                                : (m_cfg.map.wrap_x ? static_cast<u16>(m_cfg.map.wrap_x) : derived_map_w);
         // map_h no afecta a bitmap_height en X-Limited puro, pero se valida para scroll_y
         (void)derived_map_h;
+        // Bucle vertical del display (corkscrew): display_height es el ANILLO
+        // que el display recorre. Por defecto viewport_h + 2 bloques de staging;
+        // `cfg.display_height` permite un anillo MAYOR que el alto visible (p. ej.
+        // con HUD: visible 208, anillo 256+32=288) para que el walk plane-shifted
+        // del scroll horizontal no colisione `mapy` (hasta 17).
+        m_display_height = m_cfg.display_height ? m_cfg.display_height : static_cast<u16>(
+            m_cfg.viewport_h + (m_cfg.scroll_y ? static_cast<u16>(2u * m_cfg.tile_height) : 0));
+        m_display_planelines = static_cast<u16>(m_display_height * m_cfg.planes);
+
         m_bitmap_height = compute_bitmap_height(
-            m_cfg.viewport_h, m_cfg.tile_height, m_cfg.scroll_y,
+            m_display_height, m_cfg.tile_height, m_cfg.scroll_y,
             map_w_blocks,
             m_bitmap_blocks_per_row, m_cfg.planes);
-        // Altura mínima: max(viewport_h+1+3, 16*tile_height) para que los 16 valores de mapy (0..15) quepan.
-        // Para viewport 224×16 con tile 16 → 224+4=228 <256, se eleva a 256 para acomodar y=15*BLOCKPLANELINES.
-        const u16 min_h_viewport = static_cast<u16>(m_cfg.viewport_h + 1 + 3);
+        // Altura mínima: max(display_height+1+3, 16*tile_height) para que los
+        // valores de mapy quepan sin que el blit desborde el bitmap.
+        const u16 min_h_viewport = static_cast<u16>(m_display_height + 1 + 3);
         const u16 min_h_blocks = static_cast<u16>(16u * m_cfg.tile_height);
         const u16 min_h = (min_h_viewport > min_h_blocks) ? min_h_viewport : min_h_blocks;
         if (m_bitmap_height < min_h) m_bitmap_height = min_h;
 
-        // Bucle vertical del display (corkscrew): viewport_h + EXTRAHEIGHT
-        // (2 bloques de banda de staging). En X-only coincide con viewport_h.
-        m_display_height = static_cast<u16>(
-            m_cfg.viewport_h + (m_cfg.scroll_y ? static_cast<u16>(2u * m_cfg.tile_height) : 0));
-        m_display_planelines = static_cast<u16>(m_display_height * m_cfg.planes);
         // Guard de `ScrollConsts` (NTTP): si la escena instancia este playfield
         // con constantes a priori, deben coincidir con el cfg; si no, el
         // ScrollEngine usaría geometría equivocada (desincronización silenciosa).
@@ -855,11 +864,14 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
             ? m_bitmap_blocks_per_row - m_cfg.tile_height : 0);
     }
     constexpr u16 block_videoposy() const {
-        // Banda de staging del algoritmo XY-Limited: la posición se deriva en
-        // el bitmap físico completo. Envolver en display_height hace que, tras
-        // cierto desplazamiento vertical, la fila entrante caiga en la ventana.
+        // Banda de staging: SIEMPRE dentro del bucle de display (0..display_height),
+        // nunca en las filas extra (display_height..bitmap_height) que usa el
+        // planeaddx walk horizontal. Envolver en bitmap_height hacía que cada
+        // map_width px la fila entrante se dibujara en las filas extra que el
+        // display SÍ muestra al scrollear en X (tile visible en el área de
+        // pantalla y banda de staging sin refrescar).
         return static_cast<u16>(
-            (m_scroll.state().mapposy / m_cfg.tile_height * m_cfg.tile_height) % m_bitmap_height);
+            (m_scroll.state().mapposy / m_cfg.tile_height * m_cfg.tile_height) % m_display_height);
     }
     /// Añade el blit de un bloque y, en modo lineal (espejo), también el espejo.
     /// Devuelve false si el plan no admite el/los job(s).
@@ -1144,13 +1156,13 @@ const u16 vy = static_cast<u16>(dmod2(m_scroll.state().videoposy));
 
     /// Columna de mundo de un objeto FIJO en la columna de pantalla `sx`.
     constexpr s32 screen_to_world_x(s16 sx) const {
-        return m_scroll.state().mapposx + (m_cfg.visible_tile_bias_x ? 0 : m_cfg.tile_width) + sx;
+        return m_scroll.state().mapposx + sx;
     }
     /// Fila de mundo de un objeto FIJO en la fila de pantalla `sy`. La ventana
     /// visible NO empieza en videoposy (la banda de staging queda un bloque por
     /// encima): equivale a `(mapposy + tile_height + sy) % display_height`.
     constexpr s32 screen_to_world_y(s16 sy) const {
-        return m_scroll.state().mapposy + (m_cfg.visible_tile_bias_y ? 0 : m_cfg.tile_height) + sy;
+        return screen_to_bitmap_row(sy);
     }
 
     /// Fila (en píxeles) del bucle vertical donde empieza la ventana visible.

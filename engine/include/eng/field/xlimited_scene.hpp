@@ -297,6 +297,12 @@ public:
             fc.tile_height = th;
             fc.viewport_w = cfg.viewport_w;
             fc.viewport_h = main_h; // el campo principal solo ve el main
+            // El ANILLO del corkscrew se dimensiona para el viewport TOTAL (más el
+            // staging de 2 bloques), NO para `main_h`: el HUD reduce solo el área
+            // VISIBLE, pero el walk plane-shifted del scroll horizontal necesita el
+            // anillo completo (18 bloques) para no colisionar `mapy` (hasta 17).
+            fc.display_height = static_cast<eng::u16>(
+                cfg.viewport_h + 2u * th);
             fc.screens_x = 16;
             fc.screens_y = 16;
             fc.scroll_y = cfg.scroll_y;

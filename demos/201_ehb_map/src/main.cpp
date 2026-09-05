@@ -124,7 +124,7 @@ namespace field = eng::field;
 //  - El anillo físico usa `display_height` como dominio de raster; la corrección
 //    del remapeo de filas para mapas con varios wraps se valida por separado.
 #ifndef K_START_X
-#define K_START_X 320
+#define K_START_X 0
 #endif
 #ifndef K_START_Y
 #define K_START_Y 0
@@ -162,8 +162,11 @@ constexpr eng::s32 kMaxScrollY = static_cast<eng::s32>(
 	kMapH * kTileHeight - kMainH - kTileHeight);
 
 // Geometría NTTP para el ScrollEngine (división por constantes -> fast_div).
-// Con la franja HUD: display_height = (viewport_h - hud_height) + 2*tile_height.
-constexpr eng::u32 kDisplayH = kMainH + 2u * kTileHeight;
+// El ANILLO del corkscrew se dimensiona para el viewport TOTAL (256) + 2 tiles,
+// no para el main (208): el HUD reduce el área visible, pero el walk
+// plane-shifted del scroll horizontal necesita el anillo completo de 18 bloques
+// para que `mapy` (hasta 17) no colisione en el módulo del bucle.
+constexpr eng::u32 kDisplayH = kViewportH + 2u * kTileHeight;
 constexpr field::ScrollConsts kScrollConsts {
 	/*tile_width=*/        kTileWidth,
 	/*tile_height=*/       kTileHeight,
@@ -533,8 +536,6 @@ struct DemoGame {
 		scene_cfg.map.wrap_y = kMapH;
 		scene_cfg.map.edge_tile = 0;
 		scene_cfg.map.empty_tile = 0xFFFF;
-		scene_cfg.visible_tile_bias_x = 1;
-		scene_cfg.visible_tile_bias_y = 1;
 		scene_cfg.tileset_count = static_cast<eng::u16>(kTileCount);
 		scene_cfg.blocks_prebuilt = g_tilebank_xlimited;
 		scene_cfg.blocks_prebuilt_size = g_tilebank_xlimited_size;

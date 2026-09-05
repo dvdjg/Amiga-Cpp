@@ -132,11 +132,10 @@ public:
 
     /// Fila de bloque del mapa que el display estÃ¡ mostrando (0..display_height).
     inline u32 block_videoposy(const Sink& sn) const {
-        // La fila entrante se reserva en el bitmap físico completo, no en el
-        // bucle visible del display. Si se usa display_height, la guarda cae
-        // dentro de la ventana al completar un wrap vertical.
-        const u32 row = q_th(sn, m_state.mapposy) * th(sn);
-        return sn.bitmap_height() != 0 ? row % sn.bitmap_height() : r_dh(sn, row);
+        // La banda de staging debe envolver SIEMPRE en el bucle vertical del
+        // display (display_height = viewport_h + 2*tile_height), nunca en el
+        // bitmap físico (bitmap_height incluye las filas extra del walk X).
+        return r_dh(sn, q_th(sn, m_state.mapposy) * th(sn));
     }
     /// Constante de "dos bloques" del corkscrew (fillup a dos bloques de ancho).
     inline u16 twoblockstep(const Sink& sn) const {
