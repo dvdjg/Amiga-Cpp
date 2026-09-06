@@ -24,16 +24,17 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 }
 
 extern "C" {
-__attribute__((used)) volatile eng::debug::FrameTelemetry g_eng_frame_telemetry {};
+// Inicializador no-cero: fuerza el símbolo a .data (no .bss) para que el runner
+// resuelva su dirección runtime igual que g_eng_run_status (el mapeo de
+// secciones del canal lateral no es 1:1 en .bss).
+__attribute__((used)) volatile eng::debug::FrameTelemetry g_eng_frame_telemetry = { 0xFFFFFFFFu };
 }
 
 // Mapa real "Beginning Fields" a 8 colores (BG / PF2) + plaquettes (FG / PF1):
 // paletas, mapas y conteos generados por tools/demo202/emit-202.mjs.
 #include "../../../out/demo202/const_202.h"
 
-// Bancos X-Limited interleaved YA listos (incbin en .MEMF_CHIP → hunk HUNKF_CHIP):
-//   - FG (PF1, planos 1,3,5): plaquettes 7 colores + transparencia (1920 B).
-//   - BG (PF2, planos 2,4,6): "Beginning Fields" a 8 colores (149760 B).
+// Bancos X-Limited interleaved YA listos (incbin en .MEMF_CHIP → hunk HUNKF_CHIP).
 __asm__(".section bank_fg.MEMF_CHIP, \"aw\"\n"
 	".globl g_bank_fg\ng_bank_fg:\n"
 	".align 2\n"
@@ -57,26 +58,37 @@ namespace field = eng::field;
 // -----------------------------------------------------------------------------
 // Demo 202 — DPF 3+3 (dual playfield) sobre el corkscrew X-Limited.
 //
-// DOS playfields con banco/mapa/paleta propios, cada uno con su scroll:
-//   - BG (PF2, planos de HW 2,4,6): el MISMO mundo real de la 201 ("Beginning
-//     Fields"), cuantizado a 8 colores (3 planos). Mapa FINITO 40x40.
-//   - FG (PF1, planos de HW 1,3,5): plaquettes decorativas, 7 colores + índice 0
-//     transparente (deja ver el BG a través). Mapa finito 48x40.
-// RECORRIDO (visualiza todo el mapa): fases LINEALES (H hasta el borde derecho,
-// V hasta el borde inferior, diagonal arriba-izquierda a (0,0)) y después
-// LISSAJOUS curvo indefinido. El FG de plaquettes lleva el X a media velocidad
-// del BG (parallax 2:1) y comparte la Y: ambos siguen la curva (elipse).
-// Todo el scroll fino es hardware (BPLCON1 + BPLxPT vía Copper); el Blitter solo
-// pinta la columna/fila entrante en cada cruce de 16 px: CPU mínima a 50 fps.
-// display LINEAL (mirror) para que el recorrido vertical no dependa del split.
+//   - BG (PF2, planos HW 2,4,6): el mundo real de la 201 a 8 colores (3 planos).
+//   - FG (PF1, planos HW 1,3,5): plaquettes, 7 colores + índice 0 transparente.
+//
+// Viewport RECORTADO a 320×208 (13 filas): el split vertical del corkscrew cae
+// siempre en raster ≤ 248 (comparador de 8 bits) → NO hace falta linear_display.
+// Anillo = display_height = 208 + 2·16 = 240.
+//
+// MAPAS SIEMPRE TOROIDALES (wrap): el scroll es un único algoritmo de bucle
+// vertical/horizontal (sin modos de borde). El recorrido se limita a un
+// PASO COMPLETO por el mundo (320 px en X, 432 en Y) para ver cada columna/fila
+// una vez; al estar dentro del primer paso del toro, la costura nunca se ve.
+//
+// RECORRIDO (visualiza todo el mapa real):
+//   1) LINEAL derecha (offset 1 px/frame)  → x = kBgMaxX (320),
+//   2) LINEAL abajo   (offset 1 px/frame)  → y = kBgMaxY (432),
+//   3) diagonal arriba-izquierda a (0,0),
+//   4) hacia el centro,
+//   5) LISSAJOUS con la amplitud COMPLETA del mundo (x∈[0,320], y∈[0,432]) que
+//      desplaza todo el mapa de un lado a otro; el salto por frame ≤ 2 px.
+//
+// El FG de plaquettes está DESACOPLADO del BG: barre su propio mundo en X de un
+// lado a otro (patrulla 0..160 a 1 px/frame) de forma continua, y solo comparte
+// la Y con el BG porque el compositor DPF usa un único split de Copper.
 // -----------------------------------------------------------------------------
 
 constexpr eng::u32 kViewportW = 320;
-constexpr eng::u32 kViewportH = 256;      // viewport TOTAL del corkscrew (16 filas)
+constexpr eng::u32 kViewportH = 208;      // recorte: 13 filas (split canónico ≤215)
 constexpr eng::u32 kTileW = 16;
 constexpr eng::u32 kTileH = 16;
 constexpr eng::u8  kPlanes = 3;           // planos POR playfield (DPF 3+3 = 6 HW)
-constexpr eng::u32 kDisplayH = kViewportH + 2u * kTileH; // anillo = 288 (NO 208+32)
+constexpr eng::u32 kDisplayH = kViewportH + 2u * kTileH; // anillo del corkscrew 240
 
 constexpr field::ScrollConsts kScrollConsts {
 	/*tile_width=*/       kTileW,
@@ -92,19 +104,20 @@ constexpr eng::u16 kDpfPalette[16] {
 	0x664, 0x5a6, 0xb95, 0xa98, 0x8cd, 0x9d8, 0xeb5, 0xdc9,
 };
 
-// Recorrido de la cámara del BG (el mapa real 40x40 = 640x640 px):
-//   1) LINEAL derecha  hasta el borde derecho  (se ve la fila superior),
-//   2) LINEAL abajo     hasta el borde inferior (se ve la columna derecha),
-//   3) LINEAL diagonal  arriba-izquierda hasta (0,0) (cruza y ve todo el mapa),
-//   4) hacia el centro  y, a partir de ahí,
-//   5) LISSAJOUS curvo indefinido (AMBOS playfields siguen curvas: el FG de
-//      plaquettes lleva el X a media velocidad del BG → elipse sobre la curva).
+// Límites del recorrido sobre el mundo toroidal (visible al completo, sin
+// mostrar la costura): última columna/fila completamente visibles en pantalla.
 constexpr eng::s32 kBgMaxX = static_cast<eng::s32>(kBgCols) * static_cast<eng::s32>(kTileW) - static_cast<eng::s32>(kViewportW);
 constexpr eng::s32 kBgMaxY = static_cast<eng::s32>(kBgRows) * static_cast<eng::s32>(kTileH) - static_cast<eng::s32>(kViewportH);
-constexpr eng::s32 kCenterX = kBgMaxX / 2;   // 160
-constexpr eng::s32 kCenterY = kBgMaxY / 2;   // 192
-constexpr eng::s32 kRadiusX = 100;           // órbita Lissajous contenida en el mapa
-constexpr eng::s32 kRadiusY = 140;
+// Centro/radio de la órbita Lissajous del BG: amplitud COMPLETA del mundo para
+// que las curvas desplacen todo el mapa de un lado a otro (x∈[0,320], y∈[0,432])
+// sin salir del primer paso del toro (no se ve la costura).
+constexpr eng::s32 kCx = kBgMaxX / 2;     // 160
+constexpr eng::s32 kCy = kBgMaxY / 2;     // 216
+constexpr eng::s32 kRx = kBgMaxX / 2;     // 160 → x ∈ [0, 320]
+constexpr eng::s32 kRy = kBgMaxY / 2;     // 216 → y ∈ [0, 432]
+// El FG es INDEPENDIENTE del BG: patrulla su mundo en X entre kFgLo..kFgHi a
+// 1 px/frame (barrido de un lado a otro) y comparte la Y (requisito del split).
+constexpr eng::s32 kFgLo = 0, kFgHi = 160;
 
 enum class TourPhase : eng::u8 { HToEnd = 0, VToEnd, ObToOrigin, ToCenter, Lissajous };
 
@@ -114,12 +127,12 @@ struct DemoGame {
 	eng::graphics::FramePlan plan {};
 	TourPhase m_phase = TourPhase::HToEnd;
 	eng::u32 m_frameOfDay = 0;
+	eng::s32 m_fgTX = kFgHi;   // objetivo actual de la patrulla en X del FG
 	bool ready = false;
 
 	static constexpr eng::SineTable<255, 128> kSin {};
 
-	// Paso hacia `target` (≤ max_step px por eje) manteniendo 1-2 px/frame
-	// constantes (scroll suave); devuelve el avance a aplicar en este eje.
+	// Paso hacia `target` (≤ maxStep px por eje): devuelve el avance a aplicar.
 	static eng::s32 step_toward(eng::s32 cur, eng::s32 target, eng::s32 maxStep) {
 		if (cur == target) return 0;
 		const eng::s32 d = target > cur ? 1 : -1;
@@ -130,8 +143,7 @@ struct DemoGame {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		eng::debug::reset(g_eng_frame_telemetry);
-		// Arena Chip: dos anillos 3p con MIRROR (linear_display) + copper.
-		if (!backend.configure_memory({260u * 1024u, 16u * 1024u, 8u * 1024u})) {
+		if (!backend.configure_memory({200u * 1024u, 16u * 1024u, 8u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020201u);
 			return;
 		}
@@ -144,28 +156,26 @@ struct DemoGame {
 		scene_cfg.fetch_mode = 0;
 		scene_cfg.scroll_y = true;
 		scene_cfg.scroll_mode = eng::field::ScrollMode::EightWay;
-		// display LINEAL (espejo del bucle, sin split): con viewport 256 el split
-		// del corkscrew caería en raster 256..296 (no esperable con el comparador
-		// de 8 bits) al recorrer en vertical; el espejo lo evita a costa de 2×
-		// blits por tile (el recorrido usa pasos ≤2, cabe holgado en 50 fps).
-		scene_cfg.linear_display = true;
-		scene_cfg.max_step = 2;
-		// Igual que la 201: el hardware oculta la columna/fila de guarda (16 px),
-		// así que con bias 1,1 el offset visible (0,0) muestra map[0][0].
+		scene_cfg.linear_display = false; // viewport 208 → split canónico (sin espejo)
+		scene_cfg.max_step = 2;           // tope del engine; la demo limita a 1 px en H/V
 		scene_cfg.visible_tile_bias_x = 1;
 		scene_cfg.visible_tile_bias_y = 1;
 
-		// FG (PF1, delante): plaquettes transparentes. Mapa FINITO (wrap 0):
-		// es decoración, el recorrido del BG no lo saca de sus límites.
+		// FG (PF1, delante): plaquettes transparentes. Mundo TOROIDAL (siempre el
+		// mismo algoritmo de scroll; su patrulla en X se mantiene dentro de un
+		// primer paso del toro).
 		scene_cfg.map.cells = eng::Span<const eng::u16>::from_raw(kFgMap, kFgCols * kFgRows);
 		scene_cfg.map.width = kFgCols;
 		scene_cfg.map.height = kFgRows;
-		scene_cfg.map.edge_tile = 0; // fuera de límites: transparente
-		// BG (PF2, detrás): el mundo real a 8 colores, FINITO 40x40 (el recorrido
-		// va de borde a borde para visualizar todo el mapa).
+		scene_cfg.map.wrap_x = kFgCols;
+		scene_cfg.map.wrap_y = kFgRows;
+		scene_cfg.map.edge_tile = 0;
+		// BG (PF2, detrás): mundo real a 8 colores, toroidal.
 		scene_cfg.map2.cells = eng::Span<const eng::u16>::from_raw(kBgMap, kBgCols * kBgRows);
 		scene_cfg.map2.width = kBgCols;
 		scene_cfg.map2.height = kBgRows;
+		scene_cfg.map2.wrap_x = kBgCols;
+		scene_cfg.map2.wrap_y = kBgRows;
 		scene_cfg.map2.edge_tile = 0;
 
 		scene_cfg.tileset_count = kBgTiles > kFgTiles ? kBgTiles : kFgTiles;
@@ -174,15 +184,13 @@ struct DemoGame {
 		scene_cfg.blocks_prebuilt2 = g_bank_bg;     // PF2 (mapa real 8c)
 		scene_cfg.blocks_prebuilt2_size = g_bank_bg_size;
 		scene_cfg.dpf.enabled = true;               // DPF 3+3 homogéneo
-		scene_cfg.dpf.parallax_x = false;           // el parallax lo impone la demo
+		scene_cfg.dpf.parallax_x = false;           // cada campo se mueve por su cuenta
 		scene_cfg.palette = kDpfPalette;
 
 		if (!scene.begin(backend.memory(), scene_cfg)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020202u);
 			return;
 		}
-		// El FG necesita paso 2 en Y (comparte el recorrido vertical del BG) pero
-		// solo ~1 en X (parallax 2:1). update_scroll clampa por eje a max_step.
 		scene.fg().set_scroll_step(2);   // BG visual (PF2, el mapa real)
 		scene.bg().set_scroll_step(2);   // FG visual (PF1, plaquettes)
 
@@ -207,45 +215,48 @@ struct DemoGame {
 		plan.clear();
 		plan.set_blit_budget_limits({8192, 16384, 4, 120});
 
-		// Posición actual de la cámara del mapa (el BG visual es PF2 = `fg()`).
-		const eng::s32 bgX = scene.fg().mapposx();
+		// Posición actual de cada campo.
+		const eng::s32 bgX = scene.fg().mapposx();   // BG visual (mapa)
 		const eng::s32 bgY = scene.fg().mapposy();
+		const eng::s32 fgX = scene.bg().mapposx();   // FG visual (plaquettes)
+		const eng::s32 fgY = scene.bg().mapposy();
 
-		// Target del BG según la fase del recorrido.
+		// Target del BG según la fase del recorrido (mapa TOROIDAL: las fases
+		// acotan el recorrido a un primer paso del mundo, sin casos de borde).
 		eng::s32 tX = 0, tY = 0;
 		switch (m_phase) {
 			case TourPhase::HToEnd: tX = kBgMaxX; tY = 0; break;
 			case TourPhase::VToEnd: tX = kBgMaxX; tY = kBgMaxY; break;
 			case TourPhase::ObToOrigin: tX = 0; tY = 0; break;
-			case TourPhase::ToCenter: tX = kCenterX; tY = kCenterY; break;
+			case TourPhase::ToCenter: tX = kCx; tY = kCy; break;
 			case TourPhase::Lissajous: {
+				// Amplitud COMPLETA del mundo: las curvas desplazan todo el mapa
+				// de un lado a otro; el salto por frame se limita a ≤2 px abajo.
 				const eng::u32 f = m_frameOfDay;
-				const eng::u8 a = static_cast<eng::u8>((f * 2u) & 127u);
-				const eng::u8 b = static_cast<eng::u8>((f * 3u) & 127u);
-				tX = kCenterX + (kSin[a] * kRadiusX) / 255;
-				tY = kCenterY + (kSin[b] * kRadiusY) / 255;
+				tX = kCx + (kSin[static_cast<eng::u8>((f * 2u) & 127u)] * kRx) / 255;
+				tY = kCy + (kSin[static_cast<eng::u8>((f * 3u) & 127u)] * kRy) / 255;
 				break;
 			}
 		}
 		if (m_phase != TourPhase::Lissajous && bgX == tX && bgY == tY) {
 			m_phase = static_cast<TourPhase>(static_cast<eng::u8>(m_phase) + 1u);
 		}
-		// Movimiento por campo INDEPENDIENTE:
-		//   BG (mapa): recorre las fases a ≤2 px/frame por eje.
-		//   FG (plaquettes): X = BG/2 (parallax 2:1, curva en elipse) y Y = BG
-		//     (comparte el recorrido vertical). Ambos scroll HW (BPLCON1/BPLxPT
-		//     vía Copper); el Blitter solo pinta la columna/fila entrante.
-		const eng::s32 dxBg = step_toward(bgX, tX, 2);
-		const eng::s32 dyBg = step_toward(bgY, tY, 2);
-		const eng::s32 fgX = scene.bg().mapposx();
-		const eng::s32 fgY = scene.bg().mapposy();
-		const eng::s32 tFgX = bgX / 2;
-		const eng::s32 dxFg = step_toward(fgX, tFgX, 1);
-		const eng::s32 dyFg = step_toward(fgY, bgY, 2);
 
-		bool ok = scene.fg().update_scroll(plan, dxBg, dyBg);   // BG visual (PF2)
-		if (ok) ok = scene.bg().update_scroll(plan, dxFg, dyFg); // FG visual (PF1)
-		if (!ok) { /* borde de mapa sin recorrido: no avanza este frame */ }
+		// Los scrolles LINEALES (H/V) usan offset 1 px/frame; las demás fases
+		// (diagonal/centro/Lissajous) usan como mucho 2 px/frame por eje.
+		const eng::s32 stepLim = (m_phase == TourPhase::HToEnd || m_phase == TourPhase::VToEnd) ? 1 : 2;
+		const eng::s32 dxBg = step_toward(bgX, tX, stepLim);
+		const eng::s32 dyBg = step_toward(bgY, tY, stepLim);
+
+		// FG DESACOPLADO: patrulla en X entre kFgLo..kFgHi (1 px/frame), ajena al
+		// recorrido del BG; la Y es COMPARTIDA (un único split de Copper en DPF).
+		if (fgX >= kFgHi && m_fgTX == kFgHi) m_fgTX = kFgLo;
+		else if (fgX <= kFgLo && m_fgTX == kFgLo) m_fgTX = kFgHi;
+		const eng::s32 dxFg = step_toward(fgX, m_fgTX, 1);
+		const eng::s32 dyFg = step_toward(fgY, tY, stepLim);
+
+		bool ok = scene.fg().update_scroll(plan, dxBg, dyBg);
+		if (ok) ok = scene.bg().update_scroll(plan, dxFg, dyFg);
 
 		if (!backend.execute_frame_plan(plan)) {
 			ready = false;
@@ -265,10 +276,6 @@ struct DemoGame {
 		tel.blit_words = static_cast<eng::u16>(w > 0xffffu ? 0xffffu : w);
 		tel.copper_words = scene.copper_words();
 		tel.fillup_extra = static_cast<eng::u16>(bgX & 0xffffu);
-		// DEBUG TEMPORAL: fase + posición del BG en el detail (leer al final).
-		g_eng_run_status.detail = (static_cast<eng::u32>(m_phase) << 24) |
-			((static_cast<eng::u32>(bgY) & 0x3ffu) << 12) |
-			(static_cast<eng::u32>(bgX) & 0x3ffu);
 		++m_frameOfDay;
 	}
 

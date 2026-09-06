@@ -26,5 +26,5 @@ bash ./tools/build/build-demo.sh demos/202_xlimited_dpf "--$([ "$CONFIG" = A500_
 echo "[202] run + secuencia..."
 bash ./tools/run/run-demo.sh demos/202_xlimited_dpf --config "$CONFIG" --sequence-frames 3 --sequence-interval-ms 150 "${WARP[@]}" >/dev/null
 
-echo "[202] verificación parallax 2:1..."
+echo "[202] verificación (ambas capas en movimiento continuo)..."
 node ./demos/202_xlimited_dpf/verify-parallax.mjs --config "$CONFIG"

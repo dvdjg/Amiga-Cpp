@@ -4,12 +4,16 @@
 
 Una escena de **dual playfield (DPF 3+3)** sobre el corkscrew X-Limited del engine, con dos capas con su propio scroll y un **recorrido que visualiza todo el mapa**:
 
-- **BG (PF2, planos de hardware 2,4,6)** — el MISMO mundo real de la demo 201 («Beginning Fields», 40×40 tiles) pero **cuantizado a 8 colores** (3 planos por playfield, 8 registros de la paleta DPF). Mapa **finito** 40×40.
-- **FG (PF1, planos de hardware 1,3,5)** — plaquettes sintéticas (7 colores + índice 0 transparente, deja ver el BG). Mapa finito 48×40 (casi todo transparente).
-- **Recorrido por fases** (`TourDriver` en `main.cpp`): primero **lineal** — H derecha al borde del mapa, V abajo al borde inferior, diagonal arriba-izquierda a (0,0) — que pasa por los cuatro bordes y visualiza todo el mundo; después **Lissajous curvo indefinido**. El FG lleva el X a **media velocidad** del BG (parallax 2:1) y comparte la Y, así que **ambos playfields siguen curvas** (el FG traza la misma órbita comprimida en X, una elipse).
-- **Suavidad/vsync**: el bucle del engine ejecuta `update → wait_vblank → render` (1 update por vblank, 50 Hz) y el Copper se instala en el vblank. Con viewport 256 y recorrido vertical se usa **`linear_display` (mirror, sin split)**, porque el split del corkscrew en raster 256..296 no es esperable con el comparador de 8 bits; el espejo lo evita (2× blits por tile, holgado con pasos ≤2 px). El scroll fino lo hace el hardware (BPLCON1 + BPLxPT vía Copper); el Blitter solo pinta la columna/fila entrante en cada cruce de 16 px → CPU mínima a 50 fps.
+- **BG (PF2, planos de hardware 2,4,6)** — el MISMO mundo real de la demo 201 («Beginning Fields», 40×40 tiles) pero **cuantizado a 8 colores** (3 planos por playfield, 8 registros de la paleta DPF).
+- **FG (PF1, planos de hardware 1,3,5)** — plaquettes sintéticas (7 colores + índice 0 transparente, deja ver el BG). **Desacoplado del BG**: patrulla su propio mundo en X de un lado a otro (barrido continuo 0..160 a 1 px/frame) mientras comparte la Y (el compositor DPF usa un único split de Copper).
+- **Recorrido por fases** (`TourDriver` en `main.cpp`): fases **lineales** con **offset 1 px/frame** — H derecha (320 px), V abajo (432 px) — luego diagonal a (0,0) y hacia el centro; después **Lissajous con la amplitud COMPLETA del mundo** (x∈[0,320], y∈[0,432]) que desplaza todo el mapa de un lado a otro con **salto ≤ 2 px/frame**.
+- **Mapas SIEMPRE toroidales (wrap)**: el scroll es un único algoritmo de bucle
+  (sin modos de borde ni recortes); el recorrido se limita a un primer paso del
+  mundo (320/432 px), así la costura del toro nunca se ve.
+- **Sin linear_display**: viewport **recortado a 320×208** (13 filas) → el split vertical del corkscrew cae en raster ≤ 248 (comparador de 8 bits) → split canónico.
+- Todo el scroll fino es hardware (BPLCON1 + BPLxPT vía Copper); el Blitter solo pinta la columna/fila entrante en cada cruce de 16 px → CPU mínima a 50 fps.
 
-Verificación automática del parallax: `analyze-sequence.sh` captura una secuencia al inicio (fase H, velocidad constante 2:1) y `verify-parallax.mjs` mide que el BG se mueve ~2× el FG (máscaras de color estrictas de las dos paletas DPF).
+Verificación automática: `analyze-sequence.sh` captura una secuencia y `verify-parallax.mjs` comprueba que ambas capas están en movimiento continuo.
 
 ## Cómo se mapea DPF en OCS (por qué PF1 y PF2 así)
 
@@ -53,11 +57,11 @@ bash ./demos/202_xlimited_dpf/analyze-sequence.sh --release
 ```
 
 Notas:
-- Geometría: **viewport TOTAL `320×256`** y anillo corkscrew `display_height = 256 + 2·16 = 288`
-  (18 bloques), 3 planos por playfield. Igual que en la 201 (§7), el anillo NO se
-  dimensiona para un visible menor (p. ej. `208+32=240`): con 240 el `mapy` 16/17 del
-  walk plane-shift colisiona con 1/2 y aparecen arriba filas que deben ir abajo.
+- Geometría: viewport **recortado** `320×208`; anillo corkscrew `display_height = 208 + 2·16 = 240`.
+  La 201 (§7) exige que el anillo se dimensione para el viewport que el algoritmo
+  recorre (ahí, 256 + HUD); en 202 el viewport ES 208 y el anillo 240, ambos
+  consistentes, y el split queda en raster ≤ 248 (canónico, sin linear_display).
   `visible_tile_bias_x/y = 1` para que `map[0][0]` quede arriba-izquierda.
-- El recorrido recorre en vertical con viewport 256: por eso `linear_display = true`
-  (mirror, sin split); es lo que permite Y sin el artefacto del comparador de 8 bits.
-- `g_eng_frame_telemetry` (jobs/words/copper) se publica por frame; la lectura por el runner/harness está degradada en esta rama (devuelve `0xffff`) para todas las demos, no es específica de la 202.
+- `g_eng_frame_telemetry` se publica por frame y se lee con normalidad: el símbolo
+  se declara con inicializador no-cero para que viva en `.data` (no `.bss`) y el
+  runner resuelva su dirección igual que `g_eng_run_status`.
