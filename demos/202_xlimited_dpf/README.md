@@ -15,6 +15,30 @@ Una escena de **dual playfield (DPF 3+3)** sobre el corkscrew X-Limited del engi
 
 Verificación automática: `analyze-sequence.sh` captura una secuencia y `verify-parallax.mjs` comprueba que ambas capas están en movimiento continuo.
 
+## Modo DPF MIXTO (BG=split, FG=linear) — Y independiente
+
+Por defecto el DPF usa un único split de Copper → la Y es común. La demo incluye
+un modo `K_MIX` que demuestra el **DPF mixto**: el FG se pone en `linear_display`
+(mirror, sin split) y el BG conserva el corkscrew/split, de modo que **las dos Y
+pueden ser independientes** (el FG lleva su propia Y ~0..64 mientras el BG recorre
+el mundo completo 0..432).
+
+```
+EXTRA_DEFINES="-DK_MIX=1" bash ./tools/build/build-demo.sh demos/202_xlimited_dpf --debug --clean
+bash ./tools/run/run-demo.sh demos/202_xlimited_dpf --config A500_k_mix1_debug --warp --settle-ms 40000
+```
+
+El `detail` del run-status publica `phase<<24 | fgY<<12 | bgY`. Evidencia en fase
+Lissajous: `bgY≈172` con `fgY≈4` → ambas Y desacopladas.
+
+El soporte del engine es `XlimitedSceneConfig.dual_linear_field` (0=ambos según
+`linear_display`; 1=lineal field0; 2=lineal field1) y la generalización del split
+por campo en `XlimitedDualComposer`. Ver
+`docs/architecture/DPF_MIXTO_SPLIT_LINEAL.md` (repartos posibles, coste de memoria
+2× en el campo lineal, y usos futuros: varias capas de parallax, BG mero fondo +
+FG con el mapa de plataformas estilo Jim Powers 8-way, o una capa de bobs
+optimizada tipo Megatyphoon que evite releer pantalla).
+
 ## Cómo se mapea DPF en OCS (por qué PF1 y PF2 así)
 
 En dual playfield el compositor reparte los 6 planos: PF1 = planos 1,3,5 y PF2 = 2,4,6. La paleta es de 16 registros: **PF1 → registros 0..7, PF2 → registros 8..15**. Con `BPLCON2` sin `PF2PRI`, PF1 es la capa delantera; su **color 0 es el «transparente»** y deja ver PF2. Por eso:

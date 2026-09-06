@@ -1590,15 +1590,14 @@ private:
         if (!a.bitplanes || !b.bitplanes) { return false; }
         if (a.planes != m_cfg.planes_per_field || b.planes != m_cfg.planes_per_field) { return false; }
         if (a.planes + b.planes > 6) { return false; }
-        // El FG (b) puede ser ESTÁTICO (CanvasPlayfield, sin corkscrew): su
-        // display_height es el viewport y no tiene split (no envuelve). El BG (a)
-        // es el corkscrew (bucle + split). Solo si b también envuelve deben
-        // coincidir display_height y split_line.
+        // Un campo puede ser ESTÁTICO (CanvasPlayfield) o LINEAL (mirror, sin
+        // split): su display_height es el viewport o el anillo, sin envolver.
         if (b.display_height != a.display_height && b.display_height != a.viewport_h) { return false; }
-        if (b.split_active) {
-            if (a.split_active != b.split_active) { return false; }
-            if (a.split_line != b.split_line) { return false; }
-        }
+        if (a.display_height != b.display_height && a.display_height != b.viewport_h) { return false; }
+        // DPF MIXTO: cada campo puede llevar split O no, de forma INDEPENDIENTE
+        // (el campo lineal/mirror no envuelve y su Y es libre). Solo si AMBOS
+        // tienen split activo deben compartir la misma línea (mismo Y).
+        if (a.split_active && b.split_active && a.split_line != b.split_line) { return false; }
         return true;
     }
 
@@ -1631,21 +1630,28 @@ private:
                 field_plane_address(pf2, i, pf2.planeaddy)));
         }
         u16 raster = 0;
-        if (pf1.split_active) {
-            raster = static_cast<u16>((m_cfg.diwstrt >> 8u) + pf1.split_line);
+        // Split vertical POR CAMPO: re-apunta al inicio del bucle SOLO el campo
+        // que envuelve (split_active). En DPF MIXTO un campo puede ser corkscrew
+        // (split) y el otro lineal/mirror (sin split, Y independiente): el lineal
+        // nunca se re-apunta, su display lee contiguo su mirror.
+        const bool aS = pf1.split_active, bS = pf2.split_active;
+        if (aS || bS) {
+            const u16 split_line = aS ? pf1.split_line : pf2.split_line;
+            raster = static_cast<u16>((m_cfg.diwstrt >> 8u) + split_line);
             const u8 wait = raster > 0xffu ? 0xffu : static_cast<u8>(raster);
             sched.wait_line(wait);
             for (u8 i = 0; i < m_cfg.planes_per_field; ++i) {
-                sched.move_bitplane_pointer(hardware_plane(i, true),
-                    reinterpret_cast<const void*>(field_plane_address(pf1, i, pf1.split_planeaddy)));
-                // FG estático (lienzo): no envuelve, sus punteros no cambian en el split.
-                if (pf2.split_active) {
+                if (aS) {
+                    sched.move_bitplane_pointer(hardware_plane(i, true),
+                        reinterpret_cast<const void*>(field_plane_address(pf1, i, pf1.split_planeaddy)));
+                }
+                if (bS) {
                     sched.move_bitplane_pointer(hardware_plane(i, false),
                         reinterpret_cast<const void*>(field_plane_address(pf2, i, pf2.split_planeaddy)));
                 }
             }
         }
-        if (!pf1.split_active || raster < 0xf8u) {
+        if (!aS || raster < 0xf8u) {
             sched.wait_line(0xf8);
             sched.move(copper::Register::COLOR00, 0x0000);
         }

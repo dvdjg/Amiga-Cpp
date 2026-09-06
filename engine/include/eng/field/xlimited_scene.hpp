@@ -242,7 +242,14 @@ struct XlimitedSceneConfig {
                                      //  XLimitedPlayfield::set_scroll_step)
     bool scroll_y = true;            // corkscrew: display_height = viewport_h + 2*tile_height
     bool linear_display = false;     // display LINEAL sin split (espejo del bucle): elimina la
-                                     // limitación del comparador de 8 bits a costa de 2x blits
+                                     // limitación del comparador de 8 bits a costa de 2x blits.
+                                     // Aplica a AMBOS playfields salvo que `dual_linear_field` los
+                                     // seleccione por separado (DPF MIXTO: un campo corkscrew/split
+                                     // + el otro lineal con Y independiente).
+    eng::u8 dual_linear_field = 0;   // DPF: 0 = `linear_display` para ambos · 1 = lineal solo
+                                     // field0 (PF1/map) · 2 = lineal solo field1 (PF2/map2).
+                                     // El campo lineal (mirror) NO tiene split → su Y es libre;
+                                     // el otro conserva el corkscrew (ring + split de Copper).
     eng::field::ScrollMode scroll_mode = eng::field::ScrollMode::EightWay; // especialización del scroll
 
     // --- Conductor de validación (harness de las 8 direcciones) -------------
@@ -358,7 +365,11 @@ public:
             fc.screens_y = 16;
             fc.scroll_y = cfg.scroll_y;
             fc.scroll_mode = cfg.scroll_mode;
-            fc.linear_display = cfg.linear_display;
+            // DPF MIXTO: `dual_linear_field` selecciona qué playfield usa el
+            // mirror (lineal, sin split → Y independiente); el otro conserva el
+            // corkscrew (ring + split). Fuera de DPF se aplica `linear_display`.
+            fc.linear_display = (cfg.dual_linear_field != 0u)
+                ? (pf == (cfg.dual_linear_field - 1u)) : cfg.linear_display;
             fc.max_step = cfg.max_step;
             fc.bitmap_width = cfg.bitmap_width;
             fc.visible_tile_bias_x = cfg.visible_tile_bias_x;
