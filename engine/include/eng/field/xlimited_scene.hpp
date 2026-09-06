@@ -221,12 +221,16 @@ struct XlimitedSceneConfig {
     const eng::u8* indexed_tiles = nullptr; // tilebank crudo (stride fijo, 1 B/píxel)
     eng::u32 indexed_stride = 0;            // bytes POR TILE (201: 16*16 = 256)
     // Banco de bloques YA interleaved X-Limited, producido en el host
-    // (tools/ehb/emit-xlimited-bank.mjs) e incbinado en .MEMF_CHIP. Evita la
-    // doble copia raw+interleaved en la Chip RAM del A500 (287 KB + 222 KB no
-    // caben con el display en 512 KB). Si se suministra, `m_tiles` lo ALIA sin
-    // reservar arena (no cuenta como copia en Chip RAM). Requiere planes=6.
+    // (tools/amiga-tiles/amiga-tiles.mjs --xlimited) e incbinado en .MEMF_CHIP.
+    // Evita la doble copia raw+interleaved en la Chip RAM del A500. Si se
+    // suministra, `m_tiles[0]` (PF1) lo ALIA sin reservar arena (no cuenta como
+    // copia en Chip RAM). El banco debe estar generado para `planes` (p. ej. 3
+    // en DPF 8+8); ya no se exige planes==6 (EHB). En DPF homogéneo, PF2 usa su
+    // propio `blocks_prebuilt2` si se da; si no, reutiliza `blocks_prebuilt`.
     const eng::u8* blocks_prebuilt = nullptr;
     eng::u32 blocks_prebuilt_size = 0;
+    const eng::u8* blocks_prebuilt2 = nullptr;   // PF2 (DPF) si difiere del PF1
+    eng::u32 blocks_prebuilt2_size = 0;
 
     // --- Composición (dual playfield / capas) -------------------------------
     XlimitedDualConfig dpf {};
@@ -278,8 +282,8 @@ public:
     bool begin(MemorySystem& memory, const XlimitedSceneConfig& cfg) {
         m_cfg = cfg;
         if (cfg.planes == 0 || cfg.planes > 6) return false;
-        if (cfg.fg_row_fn == nullptr && cfg.indexed_tiles == nullptr && cfg.blocks_prebuilt == nullptr) return false;
-        if (cfg.dpf.enabled && cfg.bg_row_fn == nullptr) return false;
+        if (cfg.blocks_prebuilt == nullptr && cfg.blocks_prebuilt2 == nullptr &&
+            cfg.fg_row_fn == nullptr && cfg.indexed_tiles == nullptr) return false;
         if (cfg.palette == nullptr) return false;
         if (cfg.map.width == 0 && (cfg.map.wrap_x == 0 && cfg.map.wrap_y == 0)) return false;
         // Main viewport: el HUD se resta del total. El WAIT de la zona HUD cae en
@@ -305,24 +309,33 @@ public:
         const eng::u8 n = static_cast<eng::u8>(cfg.dpf.enabled && !cfg.dpf.fg_canvas ? 2 : 1);
         const eng::u16 tw = cfg.tile_width, th = cfg.tile_height;
         for (eng::u8 pf = 0; pf < n; ++pf) {
-            // Banco de bloques de este playfield: generativo (row_fn), a partir
-            // del tilebank INDEXADO real (convierte índices EHB a 6 planos) o un
-            // banco interleaved PRE-CONSTRUIDO en el host (solo aliado).
-            if (cfg.blocks_prebuilt != nullptr) {
-                if (cfg.planes != 6) return false;
-                // Alia la región incbin (no propietaria): no reserva Chip RAM.
-                m_tiles[pf].data = const_cast<void*>(static_cast<const void*>(cfg.blocks_prebuilt));
-                m_tiles[pf].size = cfg.blocks_prebuilt_size;
+            // Banco de bloques de este playfield (PF0/PF1 o PF2 según `pf`):
+            //   - PRE-CONSTRUIDO real (aliado, sin copia): `blocks_prebuilt` para
+            //     PF0 y `blocks_prebuilt2` para PF1 (si falta, PF1 reusa PF0).
+            //   - tilebank INDEXADO real (convierte índices a `planes` planos).
+            //   - generativo (row_fn simbólico, ≤256 tiles por glyph×variant).
+            const bool isPf0 = (pf == 0u);
+            const eng::u8* pb = isPf0 ? cfg.blocks_prebuilt
+                : (cfg.blocks_prebuilt2 != nullptr ? cfg.blocks_prebuilt2 : cfg.blocks_prebuilt);
+            const eng::u32 pbSize = (pb == cfg.blocks_prebuilt2)
+                ? cfg.blocks_prebuilt2_size : cfg.blocks_prebuilt_size;
+            if (pb != nullptr) {
+                // Alia la región incbin (no propietaria): no reserva Chip RAM. El
+                // banco se generó en el host para `cfg.planes` planos (DPF: 3) con
+                // layout X-Limited de 320 px; el engine solo lo direcciona.
+                m_tiles[pf].data = const_cast<void*>(static_cast<const void*>(pb));
+                m_tiles[pf].size = pbSize;
                 m_tiles[pf].kind = eng::MemoryKind::Chip;
-            } else if (cfg.indexed_tiles != nullptr) {
+            } else if (isPf0 && cfg.indexed_tiles != nullptr) {
                 if (cfg.planes != 6) return false; // el pipeline EHB es 6 planos
                 m_tiles[pf] = xlimited_build_blocks_bitmap_from_indexed(
                     memory, cfg.planes, tw, th, cfg.tileset_count,
                     cfg.indexed_tiles, cfg.indexed_stride);
             } else {
+                const BlocksRowFn fn = isPf0 ? cfg.fg_row_fn : cfg.bg_row_fn;
+                if (fn == nullptr) return false; // cada campo necesita una fuente
                 m_tiles[pf] = xlimited_build_blocks_bitmap(
-                    memory, cfg.planes, tw, th, cfg.tileset_count,
-                    pf == 0 ? cfg.fg_row_fn : cfg.bg_row_fn);
+                    memory, cfg.planes, tw, th, cfg.tileset_count, fn);
             }
             if (!m_tiles[pf].valid()) return false;
             // Config del campo.
