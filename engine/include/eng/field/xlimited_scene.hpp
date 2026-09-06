@@ -3,6 +3,14 @@
 /// \file xlimited_scene.hpp
 /// Abstracción reutilizable sobre `XlimitedField` + compositores (single/dual).
 ///
+/// RESPONSABILIDAD: es una ESCENA de composición para la familia x-limited
+/// (corkscrew/XYLimited): posee UNO O DOS playfields de scroll (`XLimitedPlayfield`),
+/// un lienzo HUD opcional (`CanvasPlayfield`), sprites y los compositores que
+/// emiten el Copper. NO es el algoritmo: ese vive en `ScrollEngine`/playfield.
+/// Ver `docs/architecture/XYLIMITED_ALGORITMO_GENERICO.md` (crítica: el HUD y el
+/// par fg/bg son conceptos de composición; el algoritmo debería poder aplicarse
+/// a cualquier `Playfield`, incluido el HUD si se quisiera un panel con scroll).
+///
 /// Esta capa es la que un programa (o una librería de programación) usa para
 /// montar una escena corkscrew sin re-implementar el orquestado: configuración
 /// declarativa, banco de bloques generado, relleno inicial, pre-scroll, camino
