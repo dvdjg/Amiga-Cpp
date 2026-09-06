@@ -13,6 +13,8 @@ en C del repo hermano (`Cursor-Amiga-C`) está en [../c-engine/](../c-engine/REA
 | [MEMORY_MODEL.md](MEMORY_MODEL.md) | Modelo de memoria del perfil `A500_1MB_Slow`: arenas Chip/Slow/Frame. |
 | [HARDWARE_AND_ROM_KERNEL_POLICY.md](HARDWARE_AND_ROM_KERNEL_POLICY.md) | Política close-to-metal: cuándo usar hardware directo y cuándo el ROM kernel. |
 | [RETRO_ENGINE_API_BENCHMARK.md](RETRO_ENGINE_API_BENCHMARK.md) | Benchmark de APIs retro (ACE, Scorpion, UAF) para orientar la API objetivo del engine. |
+| [XYLIMITED_ALGORITMO_GENERICO.md](XYLIMITED_ALGORITMO_GENERICO.md) | Algoritmo XYLimited/corkscrew en términos de plataforma (independiente de Amiga), invariantes del anillo y crítica del diseño del API (scroll vs Scene vs HUD). |
+| [CIRCULAR_VS_XLIMITED.md](CIRCULAR_VS_XLIMITED.md) | Comparativa canónica del modelo circular frente al XLimited interleaved (geometría 352/384, plane-shift, saveword). |
 
 ## Puntos de entrada del código
 
