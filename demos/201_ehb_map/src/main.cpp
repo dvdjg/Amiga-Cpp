@@ -30,7 +30,7 @@ extern "C" {
 // Inicializador no-cero: fuerza el símbolo a .data (no .bss) para que el runner
 // resuelva su dirección runtime igual que g_eng_run_status (el mapeo de
 // secciones del canal lateral no es 1:1 en .bss).
-__attribute__((used)) volatile eng::debug::FrameTelemetry g_eng_frame_telemetry = { 0xFFFFFFFFu };
+__attribute__((used)) volatile eng::debug::FrameTelemetry g_eng_frame_telemetry = { 0xFFFFFFFFu, 0, 0, 0, 0, {0, 0, 0} };
 }
 
 // Datos EHB del mapa render (paleta 64 RGB + mapa 40x40 -> índice de banco).

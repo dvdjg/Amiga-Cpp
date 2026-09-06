@@ -5,8 +5,8 @@
 Una escena de **dual playfield (DPF 3+3)** sobre el corkscrew X-Limited del engine, con dos capas con su propio scroll y un **recorrido que visualiza todo el mapa**:
 
 - **BG (PF2, planos de hardware 2,4,6)** — el MISMO mundo real de la demo 201 («Beginning Fields», 40×40 tiles) pero **cuantizado a 8 colores** (3 planos por playfield, 8 registros de la paleta DPF).
-- **FG (PF1, planos de hardware 1,3,5)** — plaquettes sintéticas (7 colores + índice 0 transparente, deja ver el BG). **Desacoplado del BG**: patrulla su propio mundo en X de un lado a otro (barrido continuo 0..160 a 1 px/frame) mientras comparte la Y (el compositor DPF usa un único split de Copper).
-- **Recorrido por fases** (`TourDriver` en `main.cpp`): fases **lineales** con **offset 1 px/frame** — H derecha (320 px), V abajo (432 px) — luego diagonal a (0,0) y hacia el centro; después **Lissajous con la amplitud COMPLETA del mundo** (x∈[0,320], y∈[0,432]) que desplaza todo el mapa de un lado a otro con **salto ≤ 2 px/frame**.
+- **FG (PF1, planos de hardware 1,3,5)** — plaquettes sintéticas (7 colores + índice 0 transparente, deja ver el BG). **Desacoplado del BG**: su X oscila con un oscilador propio e independiente (centro/radio propios), y su Y es compartida con el BG (el compositor DPF usa un único split de Copper) → en conjunto recorre en 8-way (ambos sentidos de X + el movimiento vertical/diagonal compartido).
+- **Recorrido por fases** (`TourDriver` en `main.cpp`): fases **lineales** con **offset 1 px/frame** — H derecha (320 px), V abajo (432 px) — luego diagonal a (0,0) y hacia el centro; después **Lissajous con la amplitud COMPLETA del mundo** (x∈[0,320], y∈[0,432]) que desplaza todo el mapa de un lado a otro. Los índices del seno avanzan **lentos** (sub-muestreo) para que el **salto por frame sea ≤ 2 px** (si variaran 1 índice/frame el salto sería ~4-6 px y la cámara se quedaría rezagada sin llegar a los extremos).
 - **Mapas SIEMPRE toroidales (wrap)**: el scroll es un único algoritmo de bucle
   (sin modos de borde ni recortes); el recorrido se limita a un primer paso del
   mundo (320/432 px), así la costura del toro nunca se ve.
