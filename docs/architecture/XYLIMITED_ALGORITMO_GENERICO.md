@@ -224,3 +224,24 @@ una capa independiente: ninguno de los tres bugs de §1.2 vuelve a ocurrir por a
 > "split" como concepto reutilizable (ya está en `PlayfieldHardwareView`); (c) si conviene una
 > interfaz formal de "sink de scroll" (hoy es por convención) para que `ScrollEngine` sea
 > portabilidad explícita.
+
+### 5.1 Estado de implementación (2026-09-06)
+
+Pasos ya aplicados y verificados (build 201+107; demo 201 correcta, 107 single OK):
+
+- **Contrato del algoritmo explícito**: `concept ScrollSink` en `scroll_engine.hpp` +
+  `static_assert` en `XLimitedPlayfield::begin`. El scroll es una función genérica de una
+  superficie (anillo+staging), portable a otra plataforma.
+- **Config de la escena separada por concepto**: `XlimitedSceneConfig` deja de ser un
+  god-object plano. Ahora expresa `hud` (XlimitedOverlayConfig: overlay compuesto),
+  `dpf` (XlimitedDualConfig: composición de capas/parallax) y `path` (XlimitedPathConfig:
+  conductor de VALIDACIÓN del harness) como sub-configs con nombre, separadas del scroll
+  (geometría+algoritmo, que queda plano).
+- **Geometría corregida en la demo 107**: su `kMainDisplayH` (anillo NTTP) pasa a
+  `viewport TOTAL + 2*tile`, alineado con la escena y la validación de `begin` (arregla el
+  `0x10703`). Pendiente: la ruta DUAL de la 107 no alcanza READY en 40s en el emulador
+  (init 3+3 pesado; la ruta single sí).
+
+Trabajo futuro para una separación total: mover `update_auto`/`effect` fuera de
+`XlimitedScene` a un driver de demo, y una `Scene` genérica que componga capas arbitrarias
+(ver §4). Requiere re-autorar la demo 107 como consumidor de capas y validar su ruta dual.
