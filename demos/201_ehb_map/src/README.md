@@ -523,3 +523,18 @@ bits (raster <= 255), así que el split solo es fiable si `split_line + 41 <= 25
 3. Comprobar scroll horizontal (fin de fase 1), vertical (fase 2) y diagonal: ~5-7 % en todos.
 4. No tocar a la vez: anillo (`display_height`), `block_videoposy`, y `visible_tile_bias`. Son
    tres invariantes independientes; cambiar uno sin los otros produce los síntomas de §7.1-§7.3.
+
+### 7.9 Limitación conocida: el wrap toroidal INVERSO (cámara cruzando el borde 0)
+
+La demo 201 es toroidal en las LECTURAS (`tile_at` resuelve por módulo en X e Y, así la pista
+de staging cruza los bordes sin `edge_tile`) y la CÁMARA está acotada a `[0, max]` por el tour.
+Los scrolls hacia delante (`scroll_right`/`scroll_down`) no bloquean cuando el mapa es toroidal:
+`mappos` crece y las lecturas envuelven. Los scrolls hacia atrás (`scroll_left` y `scroll_up`)
+BLOQUEAN en `mappos < 1` (no saltan al borde opuesto).
+
+No implementar el salto de wrap inverso como `mappos = map_height*16 - 1`: un salto discreto
+deja el anillo con contenido obsoleto (el corkscrew mantiene la ventana deslizante SOLO para
+avances continuos de 1 px) y se vería ~una pantalla de basura hasta que el fillup redibuje.
+Para un toroide completamente navegable (cruzando el borde 0 en X/Y) hace falta re-hacer el
+`fill` del anillo al cruzar el borde, o permitir `mappos` negativo con aritmética modular
+cuidadosa en `q_th`/`r_th`/`block_videoposy`. Es trabajo futuro; la demo actual no lo necesita.
