@@ -134,6 +134,13 @@ enum class TourPhase : eng::u8 { HToEnd = 0, VToEnd, ObToOrigin, ToCenter, Lissa
 //     split → Y COMPARTIDA; sin mirror, menos Chip RAM).
 static constexpr bool kShareY = false;
 
+// --- Variante rápida «Sonic» (medición E1, paramétrica sin macros) ----------
+// kFastStep > 0 → todas las fases usan ese salto máximo por eje (p. ej. 6 px/
+// frame, varios límites de 16 px cruzados por segundo) para medir el coste real
+// de Blitter con telemetría y comprobar si hace falta «draw-ahead». Con 0 se
+// mantiene el comportamiento por defecto (H/V a 1 px, resto ≤2 px).
+static constexpr int kFastStep = 0;
+
 struct DemoGame {
 	field::XlimitedScene<kScrollConsts> scene {};
 	field::XlimitedSceneConfig scene_cfg {};
@@ -180,7 +187,7 @@ struct DemoGame {
 		// Con `kShareY=true` se usa el corkscrew dual clásico (Y compartida).
 		if constexpr (kShareY) scene_cfg.dual_linear_field = 0;
 		else scene_cfg.dual_linear_field = 1;
-		scene_cfg.max_step = 2;           // tope del engine; la demo limita a 1 px en H/V
+		scene_cfg.max_step = kFastStep > 0 ? kFastStep : 2;
 		scene_cfg.visible_tile_bias_x = 1;
 		scene_cfg.visible_tile_bias_y = 1;
 
@@ -214,8 +221,8 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020202u);
 			return;
 		}
-		scene.fg().set_scroll_step(2);   // BG visual (PF2, el mapa real)
-		scene.bg().set_scroll_step(2);   // FG visual (PF1, plaquettes)
+		scene.fg().set_scroll_step(kFastStep > 0 ? static_cast<eng::u8>(kFastStep) : 2);
+		scene.bg().set_scroll_step(kFastStep > 0 ? static_cast<eng::u8>(kFastStep) : 2);
 
 		if (!scene.fill(backend, plan)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020203u);
@@ -274,7 +281,7 @@ struct DemoGame {
 		}
 
 		// Los scrolles LINEALES (H/V) usan offset 1 px/frame; el resto ≤2 px/frame.
-		const eng::s32 stepLim = (m_phase == TourPhase::HToEnd || m_phase == TourPhase::VToEnd) ? 1 : 2;
+		const eng::s32 stepLim = kFastStep > 0 ? kFastStep : ((m_phase == TourPhase::HToEnd || m_phase == TourPhase::VToEnd) ? 1 : 2);
 		const eng::s32 dxBg = step_toward(bgX, tX, stepLim);
 		const eng::s32 dyBg = step_toward(bgY, tY, stepLim);
 

@@ -40,6 +40,27 @@ independencia: no depende del instante en que se lee). Evidencia en el build por
 defecto (fase Lissajous): p. ej. un instante con `bgY=272` y `fgY=115` (Δ grande),
 y en la variante compartida `maxΔY≈0`.
 
+## Variante rápida «Sonic» (medición E1)
+
+El corkscrew ya permite pasos >2 px por frame (`paint-then-advance`, cada cruce de
+16 px pinta su fila/columna entrante dentro del mismo frame, antes de instalar el
+Copper). Para medir el coste real, `kFastStep` (constante paramétrica en
+`main.cpp`, sin macros; `0` = comportamiento por defecto) fuerza el salto en todas
+las fases:
+
+```
+// en main.cpp:
+static constexpr int kFastStep = 6;   // ej. Sonic (por defecto 0)
+```
+
+Medición con `kFastStep=6` (warp, telemetría real): `blit_jobs` máx 27 (media 12),
+`blit_words` máx 1296 (media 570) → carga muy baja para 50 fps. No hace falta
+«draw-ahead» por coste a estas velocidades; la garantía de que la columna/fila
+entrante queda dibujada la da el propio cruce de 16 px dentro del frame. Pendiente
+(variante «Sonic» en el engine): verificar/arreglar el camino de tiles **32×32**
+y decidir si a saltos mucho mayores (≥ 2 cruces/frame) conviene pre-dibujar N
+columnas/filas por velocidad.
+
 Ver `docs/architecture/DPF_MIXTO_SPLIT_LINEAL.md` (repartos posibles, coste de
 memoria/blits 2× en cada campo lineal, y usos futuros: varias capas de parallax,
 BG mero fondo + FG con el mapa de plataformas estilo Jim Powers 8-way, o una capa
