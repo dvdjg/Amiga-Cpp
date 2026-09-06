@@ -27,7 +27,7 @@ extern "C" {
 // Inicializador no-cero: fuerza el símbolo a .data (no .bss) para que el runner
 // resuelva su dirección runtime igual que g_eng_run_status (el mapeo de
 // secciones del canal lateral no es 1:1 en .bss).
-__attribute__((used)) volatile eng::debug::FrameTelemetry g_eng_frame_telemetry = { 0xFFFFFFFFu };
+__attribute__((used)) volatile eng::debug::FrameTelemetry g_eng_frame_telemetry = { 0xFFFFFFFFu, 0, 0, 0, 0, {0, 0, 0} };
 }
 
 // Mapa real "Beginning Fields" a 8 colores (BG / PF2) + plaquettes (FG / PF1):
@@ -108,16 +108,17 @@ constexpr eng::u16 kDpfPalette[16] {
 // mostrar la costura): última columna/fila completamente visibles en pantalla.
 constexpr eng::s32 kBgMaxX = static_cast<eng::s32>(kBgCols) * static_cast<eng::s32>(kTileW) - static_cast<eng::s32>(kViewportW);
 constexpr eng::s32 kBgMaxY = static_cast<eng::s32>(kBgRows) * static_cast<eng::s32>(kTileH) - static_cast<eng::s32>(kViewportH);
-// Centro/radio de la órbita Lissajous del BG: amplitud COMPLETA del mundo para
-// que las curvas desplacen todo el mapa de un lado a otro (x∈[0,320], y∈[0,432])
-// sin salir del primer paso del toro (no se ve la costura).
+// Centro/radio de la órbita Lissajous del BG: amplitud COMPLETA del mundo
+// (x∈[0,320], y∈[0,432]) para que las curvas desplacen todo el mapa de un lado
+// a otro. Los índices avanzan LENTO (cada 2-3 frames) para que el salto por
+// frame sea ≤ 2 px (si el target variara 1 índice/frame, ~4-6 px/frame).
 constexpr eng::s32 kCx = kBgMaxX / 2;     // 160
 constexpr eng::s32 kCy = kBgMaxY / 2;     // 216
 constexpr eng::s32 kRx = kBgMaxX / 2;     // 160 → x ∈ [0, 320]
 constexpr eng::s32 kRy = kBgMaxY / 2;     // 216 → y ∈ [0, 432]
-// El FG es INDEPENDIENTE del BG: patrulla su mundo en X entre kFgLo..kFgHi a
-// 1 px/frame (barrido de un lado a otro) y comparte la Y (requisito del split).
-constexpr eng::s32 kFgLo = 0, kFgHi = 160;
+// El FG es INDEPENDIENTE: su propio oscilador en X (centro/radio propios, salto
+// ≤2 px/frame) y comparte la Y con el BG (requisito del split único del DPF).
+constexpr eng::s32 kFgCx = 96, kFgR = 80; // x ∈ [16, 176]
 
 enum class TourPhase : eng::u8 { HToEnd = 0, VToEnd, ObToOrigin, ToCenter, Lissajous };
 
@@ -127,10 +128,13 @@ struct DemoGame {
 	eng::graphics::FramePlan plan {};
 	TourPhase m_phase = TourPhase::HToEnd;
 	eng::u32 m_frameOfDay = 0;
-	eng::s32 m_fgTX = kFgHi;   // objetivo actual de la patrulla en X del FG
+	// Fases lentas de los osciladores (índice de la tabla seno de 256 + contador
+	// de sub-muestreo para acotar el salto por frame ≤ 2 px).
+	eng::u8 m_sx = 0, m_sy = 0, m_sf = 0;
+	eng::u8 m_sxAcc = 0, m_syAcc = 0;
 	bool ready = false;
 
-	static constexpr eng::SineTable<255, 128> kSin {};
+	static constexpr eng::SineTable<255, 256> kSin {};
 
 	// Paso hacia `target` (≤ maxStep px por eje): devuelve el avance a aplicar.
 	static eng::s32 step_toward(eng::s32 cur, eng::s32 target, eng::s32 maxStep) {
@@ -221,8 +225,16 @@ struct DemoGame {
 		const eng::s32 fgX = scene.bg().mapposx();   // FG visual (plaquettes)
 		const eng::s32 fgY = scene.bg().mapposy();
 
-		// Target del BG según la fase del recorrido (mapa TOROIDAL: las fases
-		// acotan el recorrido a un primer paso del mundo, sin casos de borde).
+		// Osciladores lentos: el del BG solo avanza en la fase Lissajous; el del
+		// FG avanza SIEMPRE (independiente del recorrido del BG). Sub-muestreo
+		// para que el desplazamiento por frame sea ≤ 2 px.
+		if (m_phase == TourPhase::Lissajous) {
+			if (++m_sxAcc >= 2) { m_sxAcc = 0; ++m_sx; }  // X: un índice cada 2 f.
+			if (++m_syAcc >= 3) { m_syAcc = 0; ++m_sy; }  // Y: un índice cada 3 f.
+		}
+		++m_sf;
+
+		// Target del BG según la fase (mapa TOROIDAL: se recorre un primer paso).
 		eng::s32 tX = 0, tY = 0;
 		switch (m_phase) {
 			case TourPhase::HToEnd: tX = kBgMaxX; tY = 0; break;
@@ -230,11 +242,10 @@ struct DemoGame {
 			case TourPhase::ObToOrigin: tX = 0; tY = 0; break;
 			case TourPhase::ToCenter: tX = kCx; tY = kCy; break;
 			case TourPhase::Lissajous: {
-				// Amplitud COMPLETA del mundo: las curvas desplazan todo el mapa
-				// de un lado a otro; el salto por frame se limita a ≤2 px abajo.
-				const eng::u32 f = m_frameOfDay;
-				tX = kCx + (kSin[static_cast<eng::u8>((f * 2u) & 127u)] * kRx) / 255;
-				tY = kCy + (kSin[static_cast<eng::u8>((f * 3u) & 127u)] * kRy) / 255;
+				// Amplitud COMPLETA del mundo: desplaza todo el mapa de un lado a
+				// otro; los índices lentos acotan el salto por frame a ≤ 2 px.
+				tX = kCx + (kSin[m_sx] * kRx) / 255;
+				tY = kCy + (kSin[m_sy] * kRy) / 255;
 				break;
 			}
 		}
@@ -242,17 +253,17 @@ struct DemoGame {
 			m_phase = static_cast<TourPhase>(static_cast<eng::u8>(m_phase) + 1u);
 		}
 
-		// Los scrolles LINEALES (H/V) usan offset 1 px/frame; las demás fases
-		// (diagonal/centro/Lissajous) usan como mucho 2 px/frame por eje.
+		// Los scrolles LINEALES (H/V) usan offset 1 px/frame; el resto ≤2 px/frame.
 		const eng::s32 stepLim = (m_phase == TourPhase::HToEnd || m_phase == TourPhase::VToEnd) ? 1 : 2;
 		const eng::s32 dxBg = step_toward(bgX, tX, stepLim);
 		const eng::s32 dyBg = step_toward(bgY, tY, stepLim);
 
-		// FG DESACOPLADO: patrulla en X entre kFgLo..kFgHi (1 px/frame), ajena al
-		// recorrido del BG; la Y es COMPARTIDA (un único split de Copper en DPF).
-		if (fgX >= kFgHi && m_fgTX == kFgHi) m_fgTX = kFgLo;
-		else if (fgX <= kFgLo && m_fgTX == kFgLo) m_fgTX = kFgHi;
-		const eng::s32 dxFg = step_toward(fgX, m_fgTX, 1);
+		// FG DESACOPLADO: su X oscila de forma independiente (8-way: ambos
+		// sentidos del eje) y su Y es COMPARTIDA con el BG (único split de Copper
+		// del DPF), así que en las fases con movimiento vertical el FG también
+		// se mueve arriba/abajo y en diagonal.
+		const eng::s32 tFgX = kFgCx + (kSin[m_sf] * kFgR) / 255;
+		const eng::s32 dxFg = step_toward(fgX, tFgX, 2);
 		const eng::s32 dyFg = step_toward(fgY, tY, stepLim);
 
 		bool ok = scene.fg().update_scroll(plan, dxBg, dyBg);
