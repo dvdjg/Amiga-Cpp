@@ -193,14 +193,22 @@ eng::u16 g_hudPalette[16] {
 //   4) LISSAJOUS aleatorio (centro/radio/frecuencia variable) en bucle
 //      INDEFINIDO: una vez alcanzada esta fase la demo ya no la abandona
 //      (cada kSegFrames re-aleatoriza la órbita y sigue, sin esperas).
-// Cada fase avanza con salto MÁXIMO de 4 px/frame por eje: el motor descompone
-// ese avance en sub-pasos atómicos de 1 px (paint-then-advance, ver §7 de
+// Cada fase avanza con un salto MÁXIMO por eje y frame: el motor descompone ese
+// avance en sub-pasos atómicos de 1 px (paint-then-advance, ver §7 de
 // xlimited.hpp), así el barrido es continuo de borde a borde sin micro-pausas.
+// El coste de Blitter por frame crece ∝ salto (1 tile-blit por px), así que para
+// dar MARGEN al emulador y garantizar 50 fps en el caso límite (diagonal: 2 ejes
+// a la vez) se usa K_PHASE_STEP=2 por defecto (2 sub-pasos/eje/frame ≈ 2-4
+// tile-blits). Sube a 4 solo si el host/hardware va holgado; el canónico de
+// Steger es 1 px/frame.
 // -----------------------------------------------------------------------------
 enum class TourPhase : eng::u8 { HToEnd, VToEnd, ObliqueToTop, Lissajous };
 constexpr eng::u8 kPhaseCount = 4;
 constexpr char const* kPhaseName[kPhaseCount] { "H->FIN", "V->FIN", "OBLIQ^", "LISSAJ" };
-constexpr eng::s32 kPhaseStep = 4; // SALTO MÁX. 4 px/frame por eje (recorrido continuo)
+#ifndef K_PHASE_STEP
+#define K_PHASE_STEP 2
+#endif
+constexpr eng::s32 kPhaseStep = K_PHASE_STEP; // SALTO MÁX. px/frame por eje (recorrido continuo)
 
 // Tabla de seno Q7 (amplitud 127 = 1.0) para el Lissajous, generada en
 // compile-time por el engine (`eng::SineTable`) sin float por frame.

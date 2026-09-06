@@ -403,6 +403,9 @@ Parámetros de compilación (`EXTRA_DEFINES="-D…"`):
   del Copper limita `main_h = viewport_h - hud ≤ 214`; con `hud=48` queda `main=208`.
 - `K_HUD_HEIGHT` (48) franja inferior con la telemetría en vivo.
 - `K_SEG_FRAMES` (150) frames por segmento (~3 s a 50 fps).
+- `K_PHASE_STEP` (2) salto máximo en px/frame por eje del tour. El coste de Blitter por
+  frame crece ∝ salto (1 tile-blit por px); 2 px/frame da margen de sobra para 50 fps en el
+  emulador incluso en la diagonal (2 ejes). Sube a 4 solo si el host/hardware va holgado.
 - `K_START_X` / `K_START_Y` (0) **origen del juego en el mapa** (píxeles de mapa). Con valor
   distinto de 0, la demo hace un `pre_scroll` tras el `fill` (pinta incrementalmente las
   columnas/filas entrantes) para que la **1ª imagen** se muestre en esa coordenada. Sirve para
@@ -538,3 +541,22 @@ avances continuos de 1 px) y se vería ~una pantalla de basura hasta que el fill
 Para un toroide completamente navegable (cruzando el borde 0 en X/Y) hace falta re-hacer el
 `fill` del anillo al cruzar el borde, o permitir `mappos` negativo con aritmética modular
 cuidadosa en `q_th`/`r_th`/`block_videoposy`. Es trabajo futuro; la demo actual no lo necesita.
+
+### 7.10 Rendimiento y fluidez (50 fps): lo que NO es culpa del algoritmo
+
+El bucle del engine es `update → wait_vblank → render`: la demo está SÍNCRONA al vblank PAL
+(50 fps EMULADOS) por construcción, y el trabajo por frame es pequeño (1 tile-blit por px de
+movimiento + la copperlist). Tres matices al medir/ver fluidez:
+
+1. **El coste crece con el salto.** `update_scroll` descompone el avance en sub-pasos de 1 px y
+   cada uno pinta el tile entrante. A 4 px/frame por eje, la diagonal hace 8 sub-pasos y en el
+   emulador el `update` puede sobrepasar el vblank → el frame real cae a ~25 fps. Con
+   `K_PHASE_STEP=2` el coste se parte por la mitad y el margen sobra. Es un parámetro de la demo
+   (no del motor); el canónico de Steger es 1 px/frame.
+2. **WinUAE-DBG con gdbserver tiene un techo.** El harness de depuración (canal lateral 2346 +
+   capturas) ataca el servidor GDB y limita el throughput a ~11-32 fps independientemente de la
+   demo. Para ver 50 fps FLUIDOS hay que correr SIN el depurador (WinUAE limpio o hardware real),
+   o aceptar que el techo del harness es menor. No es un bug del scroll.
+3. **Medir fps por el canal lateral con capturas engaña** (la captura de pantalla pausa/raleiza
+   la emulación). Si solo interesa verificar que el frame avanza, usa el contador de
+   `g_eng_run_status.frame` sin screenshots.
