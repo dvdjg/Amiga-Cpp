@@ -158,12 +158,43 @@ inline MemoryBlock xlimited_build_blocks_bitmap_from_indexed(
 
 /// Configuración declarativa de una escena corkscrew.
 ///
-/// Un solo campo (single) o dos (DPF 3+3). Para DPF, `planes` es la profundidad
-/// POR playfield (3) y `dual=true`; PF1 usa `fg_row_fn` (fondo transparente) y
-/// PF2 `bg_row_fn` (opaco). El camino de scroll (`effect`/`start_phase`/
-/// `phase_frames`) reproduce las 8 direcciones del harness de la demo 107.
+/// Overlay compuesto encima del campo de scroll (p. ej. un HUD o un panel).
+/// Es una capa INDEPENDIENTE (`CanvasPlayfield`) recortada por el Copper en una
+/// zona; NO forma parte del algoritmo de scroll. Por eso vive en la config de la
+/// ESCENA (composición), no en la del playfield.
+struct XlimitedOverlayConfig {
+    eng::u16 height = 0;              // 0 = sin overlay. Resta filas al área VISIBLE
+    eng::u8 planes = 4;               //   del campo, pero NO al anillo del scroll.
+    const eng::u16* palette = nullptr; // paleta del overlay (0..2^planes-1)
+};
+
+/// Composición de DOS playfields (dual playfield / DPF) o de un scroll + un
+/// lienzo plano (`fg_canvas`). Son ROLES de composición (profundidad/parallax),
+/// no del algoritmo: el scroll XYLimited se aplica a cada playfield por separado.
+struct XlimitedDualConfig {
+    bool enabled = false;             // DPF: dos playfields (3+3 o con lienzo)
+    bool fg_canvas = false;           // DPF heterogéneo: el "fg" es un CanvasPlayfield
+    bool parallax_x = false;          // el segundo playfield a velocidad reducida en X
+    eng::u8 parallax_x_div = 2;
+    eng::u8 parallax_y_div = 1;       // 1 = comparte el split vertical
+};
+
+/// Conductor de VALIDACIÓN (recorrido de las 8 direcciones del harness). Es un
+/// andamiaje de demo/test, no un servicio del scroll; vive separado para que la
+/// escena reutilizable no dependa de un "camino" concreto.
+struct XlimitedPathConfig {
+    eng::u8 effect = 0;               // 0=ciclo, 1..8=dirección única
+    eng::u8 start_phase = 0;          // fase inicial del ciclo (0..7)
+    eng::u32 phase_frames = 1000;     // frames por fase
+    eng::s32 pre_scroll = 1024;       // px de pre-scroll para fases reversas/diagonales
+};
+
+/// Un solo campo (single) o dos (DPF). Para DPF, `planes` es la profundidad POR
+/// playfield (3) y `dual.enabled=true`. Las tres sub-configs separan conceptos:
+/// `hud` (overlay de composición), `dpf` (composición de capas), `path`
+/// (validación). El scroll (geometría+algoritmo) es lo que queda plano.
 struct XlimitedSceneConfig {
-    // --- Geometría -----------------------------------------------------------
+    // --- Geometría del campo de scroll (intrínseca del playfield) -----------
     eng::u16 viewport_w = 320;
     eng::u16 viewport_h = 256;       // alto visible del playfield principal
     eng::u16 tile_width = 16;
@@ -174,12 +205,8 @@ struct XlimitedSceneConfig {
     eng::u16 visible_tile_bias_x = 0; // 1 = offset visible (0,0) empieza en map[0][0]
     eng::u16 visible_tile_bias_y = 0; // 1 = la guarda superior usa la última fila
 
-    // --- HUD (playfield separado en la franja inferior) -------------------
-    eng::u16 hud_height = 0;         // 0 = sin franja. El main usa viewport_h -
-                                     // hud_height filas; la franja inferior muestra
-                                     // `m_hud` (config distinta) vía zona de Copper.
-    eng::u8 hud_planes = 4;          // bitplanes del HUD
-    const eng::u16* hud_palette = nullptr; // paleta del HUD (0..2^hud_planes-1)
+    // --- Overlay (HUD/panel) compuesto encima ------------------------------
+    XlimitedOverlayConfig hud {};
 
     // --- Mundo ---------------------------------------------------------------
     TileLayerMap map {};             // mapa de PF1 (cells/wrap/edge)
@@ -201,13 +228,9 @@ struct XlimitedSceneConfig {
     const eng::u8* blocks_prebuilt = nullptr;
     eng::u32 blocks_prebuilt_size = 0;
 
-    // --- Dual playfield ------------------------------------------------------
-    bool dual = false;               // DPF 3+3 (dos XlimitedField)
-    bool fg_canvas = false;          // DPF heterogéneo: el FG es un CanvasPlayfield
-                                     // (lienzo plano estático, sin tiles ni scroll)
-bool parallax_x = false;         // PF2 a velocidad reducida en X
-    eng::u8 parallax_x_div = 2;      // divisor de la velocidad de PF2 en X (1 = igual)
-    eng::u8 parallax_y_div = 1;      // divisor en Y (1 para compartir el split vertical)
+    // --- Composición (dual playfield / capas) -------------------------------
+    XlimitedDualConfig dpf {};
+    // --- Algoritmo (parámetros del scroll del playfield) --------------------
     eng::u8 max_step = 1;            // salto máx. px/frame por eje (ambos playfields).
                                      // El scroll se ejecuta como sub-pasos atómicos de
                                      // 1 px (paint-then-advance): nunca a medio pintar.
@@ -218,11 +241,8 @@ bool parallax_x = false;         // PF2 a velocidad reducida en X
                                      // limitación del comparador de 8 bits a costa de 2x blits
     eng::field::ScrollMode scroll_mode = eng::field::ScrollMode::EightWay; // especialización del scroll
 
-    // --- Camino de scroll (harness de validación) ---------------------------
-    eng::u8 effect = 0;              // 0=ciclo, 1..8=dirección única
-    eng::u8 start_phase = 0;         // fase inicial del ciclo (0..7)
-    eng::u32 phase_frames = 1000;    // frames por fase
-    eng::s32 pre_scroll = 1024;      // px de pre-scroll para fases reversas/diagonales
+    // --- Conductor de validación (harness de las 8 direcciones) -------------
+    XlimitedPathConfig path {};
 
     // --- Paleta --------------------------------------------------------------
     const eng::u16* palette = nullptr; // 2^planes colores (single) o 16 (DPF: PF1 0..7, PF2 8..15)
@@ -259,20 +279,20 @@ public:
         m_cfg = cfg;
         if (cfg.planes == 0 || cfg.planes > 6) return false;
         if (cfg.fg_row_fn == nullptr && cfg.indexed_tiles == nullptr && cfg.blocks_prebuilt == nullptr) return false;
-        if (cfg.dual && cfg.bg_row_fn == nullptr) return false;
+        if (cfg.dpf.enabled && cfg.bg_row_fn == nullptr) return false;
         if (cfg.palette == nullptr) return false;
         if (cfg.map.width == 0 && (cfg.map.wrap_x == 0 && cfg.map.wrap_y == 0)) return false;
         // Main viewport: el HUD se resta del total. El WAIT de la zona HUD cae en
         // `DIWSTRT_y + main`; el comparador del Copper es de 8 bits, así que debe
         // ser <= 255. Con HUD la ventana DIW queda abierta al total (main + hud).
-        const eng::u16 main_h = static_cast<eng::u16>(cfg.viewport_h - cfg.hud_height);
-        const bool hud_zone = cfg.hud_height != 0;
+        const eng::u16 main_h = static_cast<eng::u16>(cfg.viewport_h - cfg.hud.height);
+        const bool hud_zone = cfg.hud.height != 0;
         if (hud_zone) {
-            if (cfg.hud_height > cfg.viewport_h) return false;
+            if (cfg.hud.height > cfg.viewport_h) return false;
             if (static_cast<eng::u16>(xlimited_detail::kDiwStrt >> 8u) + main_h > 255u) return false;
-            if (!m_hud.begin(memory, {cfg.viewport_w, cfg.hud_height, cfg.hud_planes})) return false;
+            if (!m_hud.begin(memory, {cfg.viewport_w, cfg.hud.height, cfg.hud.planes})) return false;
         }
-        const eng::u8 n = static_cast<eng::u8>(cfg.dual && !cfg.fg_canvas ? 2 : 1);
+        const eng::u8 n = static_cast<eng::u8>(cfg.dpf.enabled && !cfg.dpf.fg_canvas ? 2 : 1);
         const eng::u16 tw = cfg.tile_width, th = cfg.tile_height;
         for (eng::u8 pf = 0; pf < n; ++pf) {
             // Banco de bloques de este playfield: generativo (row_fn), a partir
@@ -330,7 +350,7 @@ public:
             : xlimited_detail::diwstop_for_viewport(main_h);
         const graphics::SpriteManager* sprites =
             (cfg.sprite_data_bytes != 0) ? &m_sprites : nullptr;
-        if (cfg.dual) {
+        if (cfg.dpf.enabled) {
             if (!m_dual.init(memory, {cfg.palette, cfg.copper_bytes, cfg.planes, false,
                 xlimited_detail::kDiwStrt, diwstop,
                 xlimited_detail::kDdfStrt, xlimited_detail::kDdfStop})) return false;
@@ -345,11 +365,11 @@ public:
         }
         // FG como lienzo plano (DPF heterogéneo): el BG es el corkscrew, el FG un
         // CanvasPlayfield estático de viewport_w × viewport_h y `planes` bitplanes.
-        if (cfg.dual && cfg.fg_canvas) {
+        if (cfg.dpf.enabled && cfg.dpf.fg_canvas) {
             if (!m_fg_canvas.begin(memory, {cfg.viewport_w, cfg.viewport_h, cfg.planes})) return false;
         }
         m_phase_frame = 0;
-        m_phase = cfg.start_phase; // fase inicial del ciclo (update_auto)
+        m_phase = cfg.path.start_phase; // fase inicial del ciclo (update_auto)
         m_initialized = true;
         return true;
     }
@@ -426,7 +446,7 @@ public:
         // Ambos playfields con el mismo paso (parallax opcional en X).
         // Cada playfield aplica su salto (≤ su max_step) como sub-pasos atómicos
         // de 1 px (paint-then-advance) → nunca muestra columnas/filas a medias.
-        const bool pf2_x = !m_cfg.parallax_x || (frame % m_cfg.parallax_x_div) == 0u;
+        const bool pf2_x = !m_cfg.dpf.parallax_x || (frame % m_cfg.dpf.parallax_x_div) == 0u;
         for (int axis = 0; axis < 2; ++axis) {
             const bool isH = (axis == 0);
             const eng::s32 step = isH ? dx : dy;
@@ -450,12 +470,12 @@ public:
     bool update_auto(graphics::FramePlan& plan, eng::u32 frame, eng::s32& dx, eng::s32& dy) {
         dx = 0; dy = 0;
         eng::u32 phase;
-        if (m_cfg.effect != 0) {
-            phase = static_cast<eng::u32>(m_cfg.effect - 1);
+        if (m_cfg.path.effect != 0) {
+            phase = static_cast<eng::u32>(m_cfg.path.effect - 1);
         } else {
             // Equivalente a floor(frame/phase_frames) módulo 8 (mismo instante de
             // transición), sin división por frame: contador por fase.
-            const eng::u32 pff = m_cfg.phase_frames ? m_cfg.phase_frames : 1u;
+            const eng::u32 pff = m_cfg.path.phase_frames ? m_cfg.path.phase_frames : 1u;
             if (m_phase_frame >= pff) { m_phase_frame = 0u; m_phase = static_cast<eng::u8>((m_phase + 1u) & 7u); }
             ++m_phase_frame;
             phase = m_phase;
@@ -486,16 +506,16 @@ public:
     /// compositor emite la zona inferior (playfield separado) tras el main.
     bool compose() {
         if (!m_initialized) return false;
-        if (m_cfg.dual) {
-            if (m_cfg.fg_canvas) {
+        if (m_cfg.dpf.enabled) {
+            if (m_cfg.dpf.fg_canvas) {
                 return m_dual.compose(m_field[0].hardware_view(), m_fg_canvas.hardware_view());
             }
             return m_dual.compose(m_field[0].hardware_view(), m_field[1].hardware_view());
         }
-        if (m_cfg.hud_height != 0) {
+        if (m_cfg.hud.height != 0) {
             const XlimitedDisplayComposer::OverlayZone hud {
                 m_hud.hardware_view(),
-                m_cfg.hud_palette,
+                m_cfg.hud.palette,
             };
             return m_single.compose(m_field[0].hardware_view(), &hud);
         }
@@ -505,7 +525,7 @@ public:
     template <typename Backend>
     void install(Backend& backend) const {
         if (!m_initialized) return;
-        if (m_cfg.dual) m_dual.install(backend);
+        if (m_cfg.dpf.enabled) m_dual.install(backend);
         else m_single.install(backend);
     }
 
@@ -515,18 +535,18 @@ public:
     /// técnica: la fase vuelve a start_phase y el contador a 0).
     void reset_auto() {
         m_phase_frame = 0;
-        m_phase = m_cfg.start_phase;
+        m_phase = m_cfg.path.start_phase;
     }
     constexpr eng::u8 fields() const {
-        return (m_cfg.dual && !m_cfg.fg_canvas) ? 2u : 1u;
+        return (m_cfg.dpf.enabled && !m_cfg.dpf.fg_canvas) ? 2u : 1u;
     }
     constexpr const XlimitedSceneConfig& config() const { return m_cfg; }
     constexpr u16 copper_words() const {
-        return m_cfg.dual ? m_dual.copper_words() : m_single.copper_words();
+        return m_cfg.dpf.enabled ? m_dual.copper_words() : m_single.copper_words();
     }
     /// Depuración: puntero al copper activo y palabras usadas.
     const u16* debug_active_copper() const {
-        return m_cfg.dual ? nullptr : m_single.debug_active_copper();
+        return m_cfg.dpf.enabled ? nullptr : m_single.debug_active_copper();
     }
     /// ¿El split es siempre esperable con esta configuración (viewport <= 215)?
     /// Si es true, `linear_display` es innecesario: el modo split canónico usa
@@ -568,10 +588,10 @@ public:
         return Surface(m_fg_canvas, {0, 0, m_fg_canvas.width(), m_fg_canvas.height()});
     }
     /// Playfield del HUD (lienzo plano en la franja inferior). Solo válido si
-    /// `cfg.hud_height > 0`. Dibuja aquí (una vez en init) con las primitivas.
+    /// `cfg.hud.height > 0`. Dibuja aquí (una vez en init) con las primitivas.
     CanvasPlayfield& hud() { return m_hud; }
     const CanvasPlayfield& hud() const { return m_hud; }
-    constexpr bool has_hud() const { return m_cfg.hud_height != 0; }
+    constexpr bool has_hud() const { return m_cfg.hud.height != 0; }
 
 private:
     /// Tabla de seno Q8 generada en COMPILE-TIME (patrón `LissYTable`): cambiar
