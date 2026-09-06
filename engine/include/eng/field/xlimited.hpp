@@ -1361,6 +1361,7 @@ public:
     struct OverlayZone {
         PlayfieldHardwareView view;    // playfield del overlay (canvas)
         const u16* palette = nullptr;  // paleta del overlay (0..2^planes-1), opcional
+        u8 palette_colors = 0;         // nº de colores a emitir (0 = ninguno)
     };
 
     bool compose(const PlayfieldHardwareView& view, const OverlayZone* hud) {
@@ -1471,32 +1472,29 @@ private:
         }
         // El blanking de abajo solo si no estorba con un split en línea alta.
         if (hud != nullptr) {
-            // Zona HUD: cambia BPLCON1 (sin scroll), modulos y BPLxPT al playfield
-            // del HUD en el raster `DIWSTRT_y + main`. La ventana DIW ya está
-            // abierta al total (la escena la configura así con HUD).
+            // Zona HUD como SPLIT DE PUNTEROS con geometría IDÉNTICA al campo
+            // corkscrew: en el raster `DIWSTRT_y + view.viewport_h` solo se
+            // cambian BPLxPT (+ BPLCON1=0 para anular el fine scroll y, si hay
+            // paleta propia, sus colores). El lienzo del HUD COMPARTE el layout
+            // del campo (planos EHB, filas de viewport_w + guarda, DDFSTRT $30 y
+            // BPLMOD del campo), por lo que NO se reprograman BPLCON0/DDF/BPLMOD
+            // a mitad de frame: en OCS cambiar la geometría de fetch en mitad de
+            // un frame visible no se aplica de forma fiable por línea (la primera
+            // línea toma el puntero nuevo, pero el avance posterior sigue el
+            // fetch/mod viejo y deriva leyendo memoria contigua: el HUD mostrando
+            // "zonas del framebuffer"). El split vertical del corkscrew ya conmuta
+            // punteros a mitad de frame con la MISMA geometría y funciona; esta
+            // zona replica ese patrón conmutando al lienzo del HUD.
             const u16 hud_raster = static_cast<u16>((m_cfg.diwstrt >> 8u) + view.viewport_h);
             sched.wait_line(hud_raster > 0xffu ? 0xffu : static_cast<u8>(hud_raster));
-            // La zona HUD puede tener MENOS planos que el playfield de scroll y
-            // modo EHB distinto (p. ej. scroll EHB de 6 planos + HUD de 4 sin
-            // EHB). Hay que volver a programar BPLCON0 con el nº de planos del
-            // HUD y BPLCON4=0 (sin EHB): si no, los planos sobrantes siguen
-            // escaneando el riñón del mapa y el bit half/EHB mezcla colores en la
-            // franja (se veía el fondo 0x844 a la vez normal y atenuado a la
-            // mitad + colores del mapa filtrando).
-            sched.move(copper::Register::BPLCON0,
-                static_cast<u16>(0x0200u | (static_cast<u16>(hud->view.planes) << 12u)));
-            sched.move(copper::Register::BPLCON4, 0x0000u);
             sched.move(copper::Register::BPLCON1, 0x0000);
-            sched.move(copper::Register::BPL1MOD, hud->view.bpl1mod);
-            sched.move(copper::Register::BPL2MOD, hud->view.bpl2mod);
             for (u8 p = 0; p < hud->view.planes; ++p) {
                 const u32 addr = reinterpret_cast<u32>(hud->view.real_base) +
                                  static_cast<u32>(p) * hud->view.bitmap_bytes_per_row;
                 sched.move_bitplane_pointer(p, reinterpret_cast<const void*>(addr));
             }
             if (hud->palette != nullptr) {
-                const u8 count = static_cast<u8>(1u << hud->view.planes);
-                sched.emit_palette(hud->palette, 0, count);
+                sched.emit_palette(hud->palette, 0, hud->palette_colors);
             }
         } else if (!view.split_active || raster < 0xf8u) {
             sched.wait_line(0xf8);

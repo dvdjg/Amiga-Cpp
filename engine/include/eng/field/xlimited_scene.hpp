@@ -290,7 +290,17 @@ public:
         if (hud_zone) {
             if (cfg.hud.height > cfg.viewport_h) return false;
             if (static_cast<eng::u16>(xlimited_detail::kDiwStrt >> 8u) + main_h > 255u) return false;
-            if (!m_hud.begin(memory, {cfg.viewport_w, cfg.hud.height, cfg.hud.planes})) return false;
+            // El lienzo del HUD se reserva con el layout de DISPLAY del campo
+            // corkscrew (misma profundidad `cfg.planes` y filas de viewport_w +
+            // guarda de fetch), para que la zona overlay del Copper solo conmute
+            // BPLxPT a mitad de frame sin reprogramar BPLCON0/DDF/BPLMOD (ver
+            // XlimitedDisplayComposer::emit_full). La guarda izquierda de fetch
+            // (16 px con fetch normal) queda fuera de la ventana visible; el HUD
+            // dibuja su contenido desplazado esa guarda.
+            const eng::u16 hud_w = static_cast<eng::u16>(
+                cfg.viewport_w + (cfg.fetch_mode == 0u ? xlimited_detail::kExtraW32
+                                                       : xlimited_detail::kExtraW64));
+            if (!m_hud.begin(memory, {hud_w, cfg.hud.height, cfg.planes})) return false;
         }
         const eng::u8 n = static_cast<eng::u8>(cfg.dpf.enabled && !cfg.dpf.fg_canvas ? 2 : 1);
         const eng::u16 tw = cfg.tile_width, th = cfg.tile_height;
@@ -516,6 +526,7 @@ public:
             const XlimitedDisplayComposer::OverlayZone hud {
                 m_hud.hardware_view(),
                 m_cfg.hud.palette,
+                static_cast<eng::u8>(1u << m_cfg.hud.planes),
             };
             return m_single.compose(m_field[0].hardware_view(), &hud);
         }
