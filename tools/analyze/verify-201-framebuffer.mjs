@@ -13,15 +13,17 @@
  *   - El chip lee un bitmap INTERLEAVED que es un anillo; la cámara se mueve
  *     con `mapposx/mapposy` y el engine garantiza el invariante de Steger
  *     `display_start == scroll_x` (la pantalla muestra el mundo exacto).
- *   - La ventana visible NO empieza en (mapposx, mapposy): el engine desfasó
- *     un bloque (BANDA DE STAGING) sobre la parte superior, de modo que la fila
- *     visible en la pantalla `sy` corresponde al mundo:
+ *   - Con `visible_tile_bias=1` (demo 201) la esquina visible en el offset
+ *     (0,0) es `map[0][0]`: la fila/columna de mundo en pantalla `(sx,sy)`
+ *     corresponde a:
  *
  *         world_x = mapposx + sx                       (columnas)
  *         world_y = mapposy + sy                       (filas)
- *         bitmap_y = world_y % display_height                        (anillo físico)
+ *         bitmap_y = world_y % display_height          (anillo físico, 288)
  *
  *     (es el mismo mapeo `screen_to_world_x/y` que usan los objetos fijos).
+ *     Sin bias (0,0) el hardware XYLimited esconde los primeros 16 px y el
+ *     offset visible sería (mapposx+16, mapposy+16); el bias lo compensa.
  *
  * USO:
  *   node tools/analyze/verify-201-framebuffer.mjs --cam 304,0
@@ -59,7 +61,7 @@ const TW = 16, TH = 16, PLANES = 6;
 const VIEWPORT_W = 320, VIEWPORT_H = 256, HUD_H = 48;
 const MAIN_H = VIEWPORT_H - HUD_H;   // 208
 const MAP_W = 40, MAP_H = 40;
-const DISPLAY_H = MAIN_H + 2 * TH;   // 240 (display_height del corkscrew)
+const DISPLAY_H = VIEWPORT_H + 2 * TH; // 288 (anillo del corkscrew: se dimensiona para el viewport TOTAL, no para main-HUD; ver README §7.1)
 const COLS_VIS = VIEWPORT_W / TW;    // 20
 const ROWS_VIS = MAIN_H / TH;        // 13
 
@@ -126,7 +128,7 @@ function printFillOrigin(tx, ty) {
   // (tx,ty) del mapa: el framebuffer (anillo de BPR bloques x BPC bloques) se
   // rellena con el mapa desplazado ese origen, ANTES de que el scroll incremente.
   const BPR = (VIEWPORT_W + 32) / TW;      // 22 (pista de staging)
-  const BPC = DISPLAY_H / TH;              // 15 (alto del anillo)
+  const BPC = DISPLAY_H / TH;              // 18 (alto del anillo = 288/16)
   console.log(`\n=== Relleno de SETUP con origen de mapa (${tx},${ty}) bloques ===`);
   console.log(`El framebuffer es un anillo de BPR=${BPR} x BPC=${BPC} bloques.`);
   console.log(`Para arrancar mostrando el bloque (${tx},${ty}) arriba-izquierda, el`);
@@ -148,14 +150,14 @@ if (camArg) {
   const [cx, cy] = camArg.split(',').map(Number);
   const g = gridFor(cx, cy);
   const [W, H] = writeCrop(cx, cy, outArg);
-  console.log(`Cámara (mapposx,mapposy)=(${cx},${cy}). Ventana visible (contrato del engine):`);
+  console.log(`Cámara (mapposx,mapposy)=(${cx},${cy}). Ventana visible (contrato del engine, bias=1):`);
   console.log(`  cols mundo x = mapposx + sx  (${cx}..${cx + VIEWPORT_W - 1})`);
   console.log(`  filas mundo y = mapposy + sy (wrap toroidal en X/Y)`);
-  console.log(`  → la fila 0 del mapa (y 0..15) queda en la BANDA DE STAGING (oculta).`);
+  console.log(`  → con visible_tile_bias=1, map[0][0] es visible en (0,0); la guarda (map[-1]) queda fuera.`);
   printGrid(`tiles que DEBERÍAN verse (${COLS_VIS}x${ROWS_VIS})`, g);
   console.log(`Crop de referencia escrito: ${outArg} (ventana ${VIEWPORT_W}x${MAIN_H}, fuente ${W}x${H})`);
   console.log(`Rejilla: filas = mundo y [${cy},..], columnas = mundo x [${cx},..].`);
-  console.log(`>>> Nota: la fila lógica visible empieza en y=${cy} (bloque ${Math.floor(cy / TH)}); la guarda superior es la fila anterior.`);
+  console.log(`>>> Nota: la fila superior visible es la y=${cy} (bloque ${Math.floor(cy / TH)}); la guarda superior es la fila anterior (resuelta por el toroide).`);
 } else if (originArg) {
   const [tx, ty] = originArg.split(',').map(Number);
   printGrid(`rejilla visible para cámara (${tx * TW},${ty * TW}) [contrato]`, gridFor(tx * TW, ty * TW));

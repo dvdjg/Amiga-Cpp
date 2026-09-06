@@ -316,11 +316,16 @@ public:
 
     /// Scroll vertical 1 px hacia arriba â€” ScrollUp corkscrew.
     /// Fiel a ScrollUp de Scroller_XYLimited/main.c:529-637.
+    ///
+    /// NOTA sobre el toroide vertical INVERSO: NO se salta `mapposy` al borde
+    /// inferior cuando mapposy<1 (un salto 0->map_height deja el anillo con
+    /// contenido obsoleto -> ~una pantalla de basura hasta que el fillup lo
+    /// redibuja). El corkscrew mantiene el anillo como ventana deslizante SOLO
+    /// para avances continuos de 1 px; cruzar el borde del toroide requiere un
+    /// re-fill del anillo (ver README §7.9). Por eso aquí se BLOQUEA en
+    /// mapposy<1 (igual que ScrollLeft): la demo 201 acota la cámara a [0,max].
     bool scroll_up(graphics::FramePlan& plan, Sink& sn) {
-        if (m_state.mapposy < 1) {
-            if (sn.map_wrap_y() == 0) return false;
-            m_state.mapposy = static_cast<s32>(sn.map_height_blocks()) * th(sn);
-        }
+        if (m_state.mapposy < 1) return false;
         --m_state.mapposy;
         m_state.videoposy = static_cast<s32>(r_dh(sn, static_cast<u32>(m_state.mapposy)));
 
