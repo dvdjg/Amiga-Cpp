@@ -527,9 +527,9 @@ struct DemoGame {
 		// lado opuesto; Y permanece acotado porque el recorrido debe acabar abajo.
 		scene_cfg.viewport_w = kViewportW;
 		scene_cfg.viewport_h = kViewportH;
-		scene_cfg.hud_height = kHudH;       // franja inferior con números
-		scene_cfg.hud_planes = 6;
-		scene_cfg.hud_palette = g_hudPalette;
+		scene_cfg.hud.height = kHudH;       // franja inferior con números
+		scene_cfg.hud.planes = 6;
+		scene_cfg.hud.palette = g_hudPalette;
 		scene_cfg.tile_width = kTileWidth;
 		scene_cfg.tile_height = kTileHeight;
 		scene_cfg.planes = kPlanes;

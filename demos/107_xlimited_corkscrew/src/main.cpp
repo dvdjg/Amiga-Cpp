@@ -370,11 +370,13 @@ constexpr eng::u8 kTileCount = 128;
 // Geometría como constantes a priori (NTTP) para el `ScrollEngine`: los
 // denominadores calientes (tile 16/16, display_height, display_planelines,
 // planes) entran compile-time → `fast_div` (shifts/máscaras/mult-mágica) y cero
-// `__udivsi3` en el scroll por frame. `main_h` resta la franja HUD (solo si K_HUD).
-constexpr eng::u32 kMainH = (K_HUD != 0)
-    ? static_cast<eng::u32>(K_VIEWPORT_H) - static_cast<eng::u32>(K_HUD_HEIGHT)
-    : static_cast<eng::u32>(K_VIEWPORT_H);
-constexpr eng::u32 kMainDisplayH = kMainH + 2u * static_cast<eng::u32>(K_TILE_SIZE);
+// `__udivsi3` en el scroll por frame. El ANILLO (`display_height`) se dimensiona
+// para el viewport TOTAL + 2*tile (NUNCA restando el HUD): la franja HUD reduce
+// solo el área VISIBLE (`viewport_h` del campo), no el bucle del corkscrew. La
+// escena fija `fc.display_height = viewport_h + 2*tile`; esta constante NTTP debe
+// coincidir (validación en `XLimitedPlayfield::begin`).
+constexpr eng::u32 kMainDisplayH =
+    static_cast<eng::u32>(K_VIEWPORT_H) + 2u * static_cast<eng::u32>(K_TILE_SIZE);
 constexpr field::ScrollConsts kScrollConsts {
     /*tile_width=*/        static_cast<eng::u32>(K_TILE_WIDTH),
     /*tile_height=*/       static_cast<eng::u32>(K_TILE_SIZE),
@@ -770,7 +772,7 @@ struct DemoGame {
 scene_cfg.tileset_count = kTileCount;   // 128: 0..63 NORMAL + 64..127 CARTA
         scene_cfg.fg_row_fn = &DemoGame::combined_fg_row;
         scene_cfg.bg_row_fn = &DemoGame::combined_bg_row;
-        scene_cfg.dual = kDual;
+        scene_cfg.dpf.enabled = kDual;
         if (kDual) {
             // PF2 (fondo) opaco con su propio mapa (el completo, sin checkerboard).
             scene_cfg.map2.cells = eng::Span<const eng::u16>::from_raw(g_map_cells, kMapTilesX * kMapTilesY);
@@ -784,24 +786,24 @@ scene_cfg.tileset_count = kTileCount;   // 128: 0..63 NORMAL + 64..127 CARTA
 scene_cfg.max_step = kStepMax;
         // En dual_patterns se ajusta el paso por playfield (la demo lo hace
         // justo después de begin con set_scroll_step).
-        scene_cfg.parallax_x = kParallax;
+        scene_cfg.dpf.parallax_x = kParallax;
         scene_cfg.linear_display = kLinear;
-        scene_cfg.effect = kEffectMode;
-        scene_cfg.start_phase = kStartPhase;
-        scene_cfg.phase_frames = kPhaseFrames;
-        scene_cfg.pre_scroll = kPreScroll;
+        scene_cfg.path.effect = kEffectMode;
+        scene_cfg.path.start_phase = kStartPhase;
+        scene_cfg.path.phase_frames = kPhaseFrames;
+        scene_cfg.path.pre_scroll = kPreScroll;
         scene_cfg.palette = kScenePalette;
 #if K_CANVAS_FG
-        scene_cfg.dual = true;
-        scene_cfg.fg_canvas = true; // FG = lienzo plano (PF2 en DPF)
+        scene_cfg.dpf.enabled = true;
+        scene_cfg.dpf.fg_canvas = true; // FG = lienzo plano (PF2 en DPF)
 #endif
 #if K_SPRITE
         scene_cfg.sprite_data_bytes = 64; // 1 sprite 16x16, 1 word (DAT+DATB por línea)
 #endif
 #if K_HUD
-        scene_cfg.hud_height = K_HUD_HEIGHT;
-        scene_cfg.hud_planes = K_HUD_PLANES;
-        scene_cfg.hud_palette = kHudPalette;
+        scene_cfg.hud.height = K_HUD_HEIGHT;
+        scene_cfg.hud.planes = K_HUD_PLANES;
+        scene_cfg.hud.palette = kHudPalette;
 #endif
 
         if (!scene.begin(backend.memory(), scene_cfg)) {
