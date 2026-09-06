@@ -13,7 +13,10 @@ Una escena de **dual playfield (DPF 3+3)** sobre el corkscrew X-Limited del engi
 - **Sin linear_display**: viewport **recortado a 320×208** (13 filas) → el split vertical del corkscrew cae en raster ≤ 248 (comparador de 8 bits) → split canónico.
 - Todo el scroll fino es hardware (BPLCON1 + BPLxPT vía Copper); el Blitter solo pinta la columna/fila entrante en cada cruce de 16 px → CPU mínima a 50 fps.
 
-Verificación automática: `analyze-sequence.sh` captura una secuencia y `verify-parallax.mjs` comprueba que ambas capas están en movimiento continuo.
+Verificación automática: `analyze-sequence.sh` 1) comprueba que ambas capas están
+en movimiento continuo (`verify-parallax.mjs`) y 2) corre una **regresión de la Y
+independiente** (warp con settle largo) leyendo el `detail`: falla si `maxΔY≈0`
+(es decir, si las Y quedaron compartidas, p. ej. con `kShareY=true`).
 
 ## Y por campo: tres modos DPF seleccionables (engine flexible)
 
@@ -24,15 +27,18 @@ campo). La demo 202 los expone como modos de compilación:
 - **Por defecto (independencia):** FG (field0/PF1) en `linear_display`/mirror (sin
   split → **Y propia**, oscila 0..128) y BG (field1/PF2, el mapa real) en
   corkscrew/split recorriendo 0..432. Las dos Y quedan desacopladas.
-- **`-DK_DUAL_SHARE_Y=1`:** corkscrew DUAL clásico (un único split de Copper → Y
-  compartida; sin mirror, menos Chip RAM). Variante cuando quieres ambos campos
-  con el anillo barato y no necesitas Y distinta.
+- **Corkscrew dual (Y compartida):** sin macros: se elige con una constante
+  paramétrica del código, `static constexpr bool kShareY = true;` en `main.cpp`
+  (y `if constexpr` elige la rama). Variante cuando quieres ambos campos con el
+  anillo barato y no necesitas Y distinta.
 - **Linear dual:** los dos campos con mirror (`linear_display=true`) → ambos con Y
   totalmente independiente (2× buffer vertical por campo).
 
-El `detail` del run-status publica `phase<<24 | fgY<<12 | bgY` para verificar la
-independencia. Evidencia en el build por defecto (fase Lissajous): `fgY=115` con
-`bgY=272` en el mismo frame → las dos Y se mueven por separado.
+El `detail` del run-status publica `phase<<24 | maxΔY<<12 | bgY`, donde `maxΔY` es
+el máximo `|fgY-bgY|` acumulado en toda la ejecución (regresión robusta de la
+independencia: no depende del instante en que se lee). Evidencia en el build por
+defecto (fase Lissajous): p. ej. un instante con `bgY=272` y `fgY=115` (Δ grande),
+y en la variante compartida `maxΔY≈0`.
 
 Ver `docs/architecture/DPF_MIXTO_SPLIT_LINEAL.md` (repartos posibles, coste de
 memoria/blits 2× en cada campo lineal, y usos futuros: varias capas de parallax,
