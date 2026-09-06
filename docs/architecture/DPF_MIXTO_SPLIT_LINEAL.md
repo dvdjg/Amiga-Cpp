@@ -50,14 +50,22 @@ Otras posibilidades (documentadas, no implementadas en la demo):
   optimizador que **evite releer lo que hay en pantalla** y escriba solo donde el
   bob no solape a otros (sprite/colisión) reduciría el coste real por frame.
 
-## Verificación (demo 202, modo K_MIX)
+## Verificación (demo 202)
+
+La demo 202 trae **por defecto** el modo de independencia (FG field0/PF1 lineal,
+BG field1/PF2 corkscrew/split) para que se vea Y desacoplada:
 
 ```
-EXTRA_DEFINES="-DK_MIX=1" bash ./tools/build/build-demo.sh demos/202_xlimited_dpf --debug --clean
-bash ./tools/run/run-demo.sh demos/202_xlimited_dpf --config A500_k_mix1_debug --warp --settle-ms 40000
+bash ./tools/run/run-demo.sh demos/202_xlimited_dpf --warp --settle-ms 50000
 ```
 
-El modo `K_MIX` pone **BG=split** (recorre el mundo completo, Y hasta 432) y
-**FG=linear** con Y propia (oscila 0..64). El `detail` del run-status publica
-`phase<<24 | fgY<<12 | bgY`: en fase Lissajous se observa, por ejemplo,
-`bgY≈172` mientras `fgY≈4`, lo que demuestra que **las dos Y son independientes**.
+El `detail` del run-status publica `phase<<24 | fgY<<12 | bgY`. En fase Lissajous
+se observa, por ejemplo, `bgY≈272` mientras `fgY≈115`, lo que demuestra que **las
+dos Y son independientes**.
+
+Variante corkscrew dual clásico (Y compartida):
+
+```
+EXTRA_DEFINES="-DK_DUAL_SHARE_Y=1" bash ./tools/build/build-demo.sh demos/202_xlimited_dpf --debug --clean
+bash ./tools/run/run-demo.sh demos/202_xlimited_dpf --config A500_k_ual_share_y1_debug --warp --settle-ms 45000
+```

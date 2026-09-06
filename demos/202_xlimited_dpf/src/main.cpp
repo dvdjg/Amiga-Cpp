@@ -118,16 +118,20 @@ constexpr eng::s32 kRx = kBgMaxX / 2;     // 160 → x ∈ [0, 320]
 constexpr eng::s32 kRy = kBgMaxY / 2;     // 216 → y ∈ [0, 432]
 // El FG es INDEPENDIENTE: su propio oscilador en X (centro/radio propios, salto
 // ≤2 px/frame) y comparte la Y con el BG (requisito del split único del DPF).
-constexpr eng::s32 kFgCx = 96, kFgR = 80; // x ∈ [16, 176]
+constexpr eng::s32 kFgCx = 96, kFgR = 80;   // FG X ∈ [16, 176]
+constexpr eng::s32 kFgYC = 64, kFgYR = 64;  // FG Y propia ∈ [0, 128] (lineal)
 
 enum class TourPhase : eng::u8 { HToEnd = 0, VToEnd, ObToOrigin, ToCenter, Lissajous };
 
-// K_MIX=1: modo DPF MIXTO — BG (field1/PF2, el mapa real) en corkscrew+split y
-// FG (field0/PF1, plaquettes) en LINEAR/mirror (sin split) → ambas Y pueden ser
-// INDEPENDIENTES: el FG lleva su propia Y (oscila 0..64) mientras el BG recorre
-// el mundo entero verticalmente. Demuestra el uso de `dual_linear_field`.
-#ifndef K_MIX
-#define K_MIX 0
+// Modo de Y en DPF (flexible, para elegir en cada juego):
+//   K_DUAL_SHARE_Y=1 → corkscrew DUAL clásico: AMBOS campos con split de Copper
+//     (un único split → la Y es COMPARTIDA; sin mirror, menos Chip RAM).
+//   Por defecto (0) → DPF MIXTO: el FG (field0/PF1, plaquettes) en LINEAR/mirror
+//     (sin split, Y PROPIA e independiente) y el BG (field1/PF2, el mapa real) en
+//     corkscrew+split. Demuestra `dual_linear_field`. Para los dos campos con Y
+//     independiente, basta `linear_display=true` (linear dual, 2× mirror).
+#ifndef K_DUAL_SHARE_Y
+#define K_DUAL_SHARE_Y 0
 #endif
 
 struct DemoGame {
@@ -140,7 +144,7 @@ struct DemoGame {
 	// de sub-muestreo para acotar el salto por frame ≤ 2 px).
 	eng::u8 m_sx = 0, m_sy = 0, m_sf = 0;
 	eng::u8 m_sxAcc = 0, m_syAcc = 0;
-	eng::u8 m_sfY = 0;                 // fase Y propia del FG (K_MIX)
+	eng::u8 m_sfY = 0;                 // fase Y propia del FG (oscilador)
 	bool ready = false;
 
 	static constexpr eng::SineTable<255, 256> kSin {};
@@ -170,7 +174,9 @@ struct DemoGame {
 		scene_cfg.scroll_y = true;
 		scene_cfg.scroll_mode = eng::field::ScrollMode::EightWay;
 		scene_cfg.linear_display = false; // viewport 208 → split canónico (sin espejo)
-#if K_MIX
+#if K_DUAL_SHARE_Y
+		scene_cfg.dual_linear_field = 0;  // corkscrew dual: un split → Y compartida
+#else
 		// DPF MIXTO: el FG (field0/PF1) en lineal/mirror (sin split, Y libre) y el
 		// BG (field1/PF2, el mapa real) conserva el corkscrew + split.
 		scene_cfg.dual_linear_field = 1;
@@ -247,7 +253,7 @@ struct DemoGame {
 			if (++m_syAcc >= 3) { m_syAcc = 0; ++m_sy; }  // Y: un índice cada 3 f.
 		}
 		++m_sf;
-		++m_sfY;   // fase Y propia del FG (solo relevante en K_MIX)
+		++m_sfY;   // fase Y propia del FG (oscilador independiente)
 
 		// Target del BG según la fase (mapa TOROIDAL: se recorre un primer paso).
 		eng::s32 tX = 0, tY = 0;
@@ -273,16 +279,18 @@ struct DemoGame {
 		const eng::s32 dxBg = step_toward(bgX, tX, stepLim);
 		const eng::s32 dyBg = step_toward(bgY, tY, stepLim);
 
-		// FG DESACOPLADO: su X oscila de forma independiente (8-way en X); su Y en
-		// el modo normal es COMPARTIDA con el BG (único split de Copper del DPF),
-		// y en K_MIX (FG lineal/mirror) es PROPIA e independiente.
+		// FG DESACOPLADO: su X oscila de forma independiente (ambos sentidos). Su Y
+		// en corkscrew dual (K_DUAL_SHARE_Y) es COMPARTIDA con el BG (único split
+		// de Copper del DPF); por defecto (FG lineal/mirror) es PROPIA e
+		// independiente del recorrido del BG.
 		const eng::s32 tFgX = kFgCx + (kSin[m_sf] * kFgR) / 255;
 		const eng::s32 dxFg = step_toward(fgX, tFgX, 2);
-#if K_MIX
-		const eng::s32 tFgY = 32 + (kSin[m_sfY] * 32) / 255; // oscila 0..64
-		const eng::s32 dyFg = step_toward(fgY, tFgY, 1);
-#else
+#if K_DUAL_SHARE_Y
 		const eng::s32 dyFg = step_toward(fgY, tY, stepLim); // Y compartida (split)
+#else
+		// FG lineal: Y PROPIA (oscila 0..128), desacoplada del BG.
+		const eng::s32 tFgY = kFgYC + (kSin[m_sfY] * kFgYR) / 255;
+		const eng::s32 dyFg = step_toward(fgY, tFgY, 1);
 #endif
 
 		bool ok = scene.fg().update_scroll(plan, dxBg, dyBg);
@@ -306,14 +314,12 @@ struct DemoGame {
 		tel.blit_words = static_cast<eng::u16>(w > 0xffffu ? 0xffffu : w);
 		tel.copper_words = scene.copper_words();
 		tel.fillup_extra = static_cast<eng::u16>(bgX & 0xffffu);
-#if K_MIX
 		// Telemetría de la independencia Y (leer el detail final del run):
-		// phase<<24 | fgY<<12 | bgY. Con el FG lineal su Y debe quedar ~0..64
-		// mientras el BG (split) recorre 0..432.
+		// phase<<24 | fgY<<12 | bgY. Con el FG lineal su Y (0..128) no debe seguir
+		// a la del BG (split), que recorre 0..432 en las fases verticales.
 		g_eng_run_status.detail = (static_cast<eng::u32>(m_phase) << 24) |
 			((static_cast<eng::u32>(fgY) & 0x3ffu) << 12) |
 			(static_cast<eng::u32>(bgY) & 0x3ffu);
-#endif
 		++m_frameOfDay;
 	}
 

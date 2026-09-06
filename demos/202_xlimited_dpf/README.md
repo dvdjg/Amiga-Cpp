@@ -15,29 +15,29 @@ Una escena de **dual playfield (DPF 3+3)** sobre el corkscrew X-Limited del engi
 
 Verificación automática: `analyze-sequence.sh` captura una secuencia y `verify-parallax.mjs` comprueba que ambas capas están en movimiento continuo.
 
-## Modo DPF MIXTO (BG=split, FG=linear) — Y independiente
+## Y por campo: tres modos DPF seleccionables (engine flexible)
 
-Por defecto el DPF usa un único split de Copper → la Y es común. La demo incluye
-un modo `K_MIX` que demuestra el **DPF mixto**: el FG se pone en `linear_display`
-(mirror, sin split) y el BG conserva el corkscrew/split, de modo que **las dos Y
-pueden ser independientes** (el FG lleva su propia Y ~0..64 mientras el BG recorre
-el mundo completo 0..432).
+El DPF del engine permite elegir cómo se relacionan las Y de los dos playfields
+(`XlimitedSceneConfig.dual_linear_field` + `XlimitedDualComposer` con split por
+campo). La demo 202 los expone como modos de compilación:
 
-```
-EXTRA_DEFINES="-DK_MIX=1" bash ./tools/build/build-demo.sh demos/202_xlimited_dpf --debug --clean
-bash ./tools/run/run-demo.sh demos/202_xlimited_dpf --config A500_k_mix1_debug --warp --settle-ms 40000
-```
+- **Por defecto (independencia):** FG (field0/PF1) en `linear_display`/mirror (sin
+  split → **Y propia**, oscila 0..128) y BG (field1/PF2, el mapa real) en
+  corkscrew/split recorriendo 0..432. Las dos Y quedan desacopladas.
+- **`-DK_DUAL_SHARE_Y=1`:** corkscrew DUAL clásico (un único split de Copper → Y
+  compartida; sin mirror, menos Chip RAM). Variante cuando quieres ambos campos
+  con el anillo barato y no necesitas Y distinta.
+- **Linear dual:** los dos campos con mirror (`linear_display=true`) → ambos con Y
+  totalmente independiente (2× buffer vertical por campo).
 
-El `detail` del run-status publica `phase<<24 | fgY<<12 | bgY`. Evidencia en fase
-Lissajous: `bgY≈172` con `fgY≈4` → ambas Y desacopladas.
+El `detail` del run-status publica `phase<<24 | fgY<<12 | bgY` para verificar la
+independencia. Evidencia en el build por defecto (fase Lissajous): `fgY=115` con
+`bgY=272` en el mismo frame → las dos Y se mueven por separado.
 
-El soporte del engine es `XlimitedSceneConfig.dual_linear_field` (0=ambos según
-`linear_display`; 1=lineal field0; 2=lineal field1) y la generalización del split
-por campo en `XlimitedDualComposer`. Ver
-`docs/architecture/DPF_MIXTO_SPLIT_LINEAL.md` (repartos posibles, coste de memoria
-2× en el campo lineal, y usos futuros: varias capas de parallax, BG mero fondo +
-FG con el mapa de plataformas estilo Jim Powers 8-way, o una capa de bobs
-optimizada tipo Megatyphoon que evite releer pantalla).
+Ver `docs/architecture/DPF_MIXTO_SPLIT_LINEAL.md` (repartos posibles, coste de
+memoria/blits 2× en cada campo lineal, y usos futuros: varias capas de parallax,
+BG mero fondo + FG con el mapa de plataformas estilo Jim Powers 8-way, o una capa
+de bobs optimizada tipo Megatyphoon que evite releer pantalla).
 
 ## Cómo se mapea DPF en OCS (por qué PF1 y PF2 así)
 
