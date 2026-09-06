@@ -528,7 +528,7 @@ struct DemoGame {
 		scene_cfg.viewport_w = kViewportW;
 		scene_cfg.viewport_h = kViewportH;
 		scene_cfg.hud.height = kHudH;       // franja inferior con números
-		scene_cfg.hud.planes = 6;
+		scene_cfg.hud.planes = 4;           // 4 planos = 16 colores (g_hudPalette); el campo es EHB 6p
 		scene_cfg.hud.palette = g_hudPalette;
 		scene_cfg.tile_width = kTileWidth;
 		scene_cfg.tile_height = kTileHeight;
@@ -628,6 +628,10 @@ struct DemoGame {
 	// sobre fondo oscuro limpio.
 	void draw_hud() {
 		auto hud = scene.hud_surface();
+		// Guarda izquierda de fetch del corkscrew (DDFSTRT $30): el display lee el
+		// lienzo del HUD con esa guarda oculta a la izquierda, así que el texto se
+		// dibuja desplazado kHudFetchGuard para quedar alineado a la ventana.
+		constexpr eng::s32 kHudFetchGuard = 16;
 		// Sin barrido previo del lienzo completo: draw_text rellena cada celda con
 		// el fondo (bg) antes de pintar el glifo, y el resto de la franja quedó
 		// negro desde el init. Así el coste por redibujado es solo texto.
@@ -641,7 +645,7 @@ struct DemoGame {
 			if (st >= 10) line[i++] = static_cast<char>('0' + st / 10u);
 			line[i++] = static_cast<char>('0' + st % 10u);
 			line[i] = '\0';
-			draw_text(hud, 2, 3, 1, line, 6, 0);
+			draw_text(hud, 2 + kHudFetchGuard, 3, 1, line, 6, 0);
 		}
 		// Línea 2 (gris claro, ink 14): "BLITS=nn WORDS=nnnnn"
 		{   char n1[7], n2[7]; u16_to_str(driver.last_blit_max(), n1); u16_to_str(driver.last_words_max(), n2);
@@ -649,7 +653,7 @@ struct DemoGame {
 			const char* parts[4] { "BLITS=", n1, " WORDS=", n2 };
 			for (eng::u8 p = 0; p < 4; ++p) { const char* t = parts[p]; while (*t && i < 27) line[i++] = *t++; }
 			line[i] = '\0';
-			draw_text(hud, 2, 17, 1, line, 14, 0);
+			draw_text(hud, 2 + kHudFetchGuard, 17, 1, line, 14, 0);
 		}
 		// Línea 3 (azul, ink 4): "COPPER=nnn FPS=50"
 		{   char n1[7], n2[7]; u16_to_str(driver.last_copper(), n1); u16_to_str(50, n2);
@@ -657,7 +661,7 @@ struct DemoGame {
 			const char* parts[4] { "COPPER=", n1, " FPS=", n2 };
 			for (eng::u8 p = 0; p < 4; ++p) { const char* t = parts[p]; while (*t && i < 23) line[i++] = *t++; }
 			line[i] = '\0';
-			draw_text(hud, 2, 31, 1, line, 4, 0);
+			draw_text(hud, 2 + kHudFetchGuard, 31, 1, line, 4, 0);
 		}
 	}
 

@@ -222,8 +222,13 @@ public:
         v.split_active = false;
         v.viewport_w = m_width;
         v.viewport_h = m_height;
-        // Interleaved: BPL1MOD = row*planes - fetch(viewport_w/8) - modulo_offset(2).
-        v.bpl1mod = static_cast<u16>(static_cast<u32>(m_bytes_per_row) * m_planes - (m_width / 8u) - 2u);
+        // Interleaved, fetch ESTÁNDAR (DDFSTRT=$38, 40 B/fila en 320 px): cada
+        // scanline interleaved = row_bytes*planes, así BPLMOD = planes*row - row.
+        // Nótese que NO lleva el "-2" del corkscrew (DDF $30, fetch 42 B): un
+        // canvas plano se muestra con fetch estándar (el compositor lo programa
+        // así en su zona overlay); si se mostrara bajo el DDF $30 del corkscrew,
+        // el offset de 16 px lo descuadraría (ver XlimitedDisplayComposer).
+        v.bpl1mod = static_cast<u16>(static_cast<u32>(m_bytes_per_row) * m_planes - (m_width / 8u));
         v.bpl2mod = v.bpl1mod;
         return v;
     }
