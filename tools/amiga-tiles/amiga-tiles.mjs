@@ -1159,7 +1159,7 @@ async function main() {
 	const baseName = path.basename(input, path.extname(input));
 	// tilebank.bin (1 B/px, stride fijo) + .h
 	const tech = ehb ? 'ehb' : (palSrc === 'adaptive' ? 'kmeans' : palSrc);
-	let suf = `${colors}c_${tech}_${dither}_${W}x${H}`;
+	let suf = `${colors}c_t${tile}_${tech}_${dither}_${W}x${H}`;
 	if (serpentineMode) suf += '_serp';
 	if (ditherDeadband > 0) suf += `_dth${Math.round(ditherDeadband)}`;
 	if (ditherClamp > 0) suf += `_cl${Math.round(ditherClamp)}`;
@@ -1239,7 +1239,7 @@ async function main() {
 	// Banco X-Limited opcional
 	if (emitXl) {
 		const xl = emitXlimitedBank(bank, tile, colors, 320);
-		const xlPath = path.join(outDir, `tilebank_xlimited_${colors}c_${tech}.bin`);
+		const xlPath = path.join(outDir, `tilebank_xlimited_${colors}c_t${tile}_${tech}_${dither}.bin`);
 		fs.writeFileSync(xlPath, xl.data);
 		const xlh = [`// Banco X-Limited interleaved (320 px ancho, ${bits} planos). Generado por amiga-tiles.`,
 			`// Conversion: ${label}`,
@@ -1290,7 +1290,7 @@ async function main() {
 			}
 			// etiqueta y sufijo
 			const pLabel = `${label} prune=yes (${colors}->${nColors})`;
-			const pSuf = `${nColors}c_${tech}_${dither}_${W}x${H}_pruned`;
+			const pSuf = `${nColors}c_t${tile}_${tech}_${dither}_${W}x${H}_pruned`;
 			const pPalJson = JSON.stringify({ name: pSuf, label: pLabel, tile, cols, rows, colors: nColors, bits: nBits, bitsPerPixel: nBits, packed: pPack, stridePerTile: pStride, ehb, alpha, method: `${palNote} (podada de ${colors})`, palette: palP, bank: bankP.map((b) => ({ pix: [...b.pix] })), map: mapP, stats: { unique: bankP.length, cells: cols * rows }, hist: used.map((i) => chart.counts[i]) }, null, 2);
 			fs.writeFileSync(path.join(outDir, `tilebank_${pSuf}.bin`), pBin);
 			fs.writeFileSync(path.join(outDir, `palette_${pSuf}.json`), pPalJson);

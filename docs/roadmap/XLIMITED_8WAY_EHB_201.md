@@ -1,5 +1,10 @@
 # Roadmap: Scroll 8-way X-Limited correcto + demo 201 EHB (mapa real) → engine → 202 DPF
 
+> [!NOTE] ROADMAP HISTÓRICO (superado 2026-09). Este roadmap se completó (F1-F4 de
+> 201 y F5 = 202 DPF + features del 107). El roadmap VIGENTE es
+> `docs/roadmap/ROADMAP_UNIFICADO.md`; no usar este fichero como guía de trabajo
+> nueva, solo como histórico/diagnóstico.
+
 Fecha: 2026-09-01 (actualizado 2026-09-03 · F1-F3 201 alcanzan READY) · Decisión: **el 8-way
 X-Limited es la base; 201 es EHB DESDE EL PRIMER commit** (aunque la 1ª versión use tiles
 generados) y el **mapa real es prioritario**. Tiles 32x32 y pasos de scroll grandes

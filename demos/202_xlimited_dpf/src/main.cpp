@@ -44,7 +44,7 @@ __asm__(".section bank_fg.MEMF_CHIP, \"aw\"\n"
 __asm__(".section bank_bg.MEMF_CHIP, \"aw\"\n"
 	".globl g_bank_bg\ng_bank_bg:\n"
 	".align 2\n"
-	".incbin \"out/demo202/bg/tilebank_xlimited_8c_kmeans.bin\"\n"
+	".incbin \"out/demo202/bg/tilebank_xlimited_8c_t16_kmeans_floyd.bin\"\n"
 	".globl g_bank_bg_size\ng_bank_bg_size:\n"
 	".long . - g_bank_bg");
 extern "C" const unsigned char g_bank_fg[];

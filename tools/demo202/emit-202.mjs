@@ -134,3 +134,34 @@ L.push('};');
 L.push('');
 fs.writeFileSync(path.join(OUT_DIR, 'const_202.h'), L.join('\n') + '\n', 'utf8');
 console.log('OK -> out/demo202/const_202.h');
+
+// Variante 32×32 del BG (mismo mapa/atlas, tiles de 32 px): si existe la salida
+// de amiga-tiles en out/demo202/bg32, emitir const_202_32.h (kBg32*) para tener
+// BOTH tile sizes (16 y 32) a disposición del engine/demos.
+const BG32_DIR = path.join(OUT_DIR, 'bg32');
+if (fs.existsSync(BG32_DIR)) {
+  const j32path = fs.readdirSync(BG32_DIR).find((f) => /^palette_.*\.json$/.test(f));
+  if (j32path) {
+    const j32 = JSON.parse(fs.readFileSync(path.join(BG32_DIR, j32path), 'utf8'));
+    const p32 = j32.palette.map(to444);
+    const M = [];
+    M.push('// out/demo202/const_202_32.h — BG 32×32 (mismo atlas) · generado por tools/demo202/emit-202.mjs');
+    M.push('// No editar a mano. Variante de tile 32 px del mapa real a 8 colores.');
+    M.push('#pragma once');
+    M.push('#include <eng/core/types.hpp>');
+    M.push('');
+    M.push('// --- BG (PF2) tiles 32×32 ---');
+    M.push('static constexpr eng::u16 kBg32Palette[8] {');
+    for (let r = 0; r < 8; r += 4) M.push('    ' + p32.slice(r, r + 4).map((w) => '0x' + w.toString(16).padStart(3, '0')).join(', ') + ',');
+    M.push('};');
+    M.push(`static constexpr eng::u16 kBg32Cols = ${j32.cols};`);
+    M.push(`static constexpr eng::u16 kBg32Rows = ${j32.rows};`);
+    M.push(`static constexpr eng::u16 kBg32Tiles = ${j32.stats ? j32.stats.unique : 0};`);
+    M.push('static constexpr eng::u16 kBg32Map[' + j32.cols * j32.rows + '] {');
+    for (let y = 0; y < j32.rows; y++) M.push('    ' + j32.map.slice(y * j32.cols, (y + 1) * j32.cols).join(', ') + ',');
+    M.push('};');
+    M.push('');
+    fs.writeFileSync(path.join(OUT_DIR, 'const_202_32.h'), M.join('\n') + '\n', 'utf8');
+    console.log('OK -> out/demo202/const_202_32.h (BG 32×32, ' + j32.cols + 'x' + j32.rows + ')');
+  }
+}

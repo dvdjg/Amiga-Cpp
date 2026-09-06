@@ -61,6 +61,38 @@ entrante queda dibujada la da el propio cruce de 16 px dentro del frame. Pendien
 y decidir si a saltos mucho mayores (≥ 2 cruces/frame) conviene pre-dibujar N
 columnas/filas por velocidad.
 
+## Nombres de archivo (tiling) y variante 32×32
+
+Los nombres generados por `tools/amiga-tiles/amiga-tiles.mjs` ahora incluyen el
+tamaño de tile y el dither: `…c_t16_<paleta>_<dither>_<W>x<H>…` (p. ej.
+`tilebank_xlimited_8c_t16_kmeans_floyd.bin`). El BG de la 202 usa la variante
+`t16` (`out/demo202/bg/tilebank_xlimited_8c_t16_kmeans_floyd.bin`). También se
+genera la variante **32×32 del mismo mapa** (`out/demo202/bg32` +
+`out/demo202/const_202_32.h` con `kBg32*`, mundo 20×20) para tener ambos tamaños
+a disposición del engine/demos (la validación del camino 32×32 en el engine sigue
+pendiente).
+
+## Calidad de cuantización a 8 colores (tejados) — búsqueda con ollama
+
+`tools/demo202/roof-quant-search.mjs` localiza por textura cálida el recorte de
+las casitas/tejados, genera variantes a 8 colores y pregunta a un modelo de
+visión local (ollama) cuál conserva mejor el detalle fino:
+
+```
+node tools/demo202/roof-quant-search.mjs [--tile 16|32] [--model <vision>]
+```
+
+Resultado (no concluyente, dos modelos discrepan): `qwen3-vl` → **adaptive/none**;
+`gemma3:12b` → **mediancut/atkinson**. Para re-cuantizar el BG con la combinación
+elegida (la 202 usa por defecto `adaptive/floyd`):
+
+```
+node tools/amiga-tiles/amiga-tiles.mjs "tools/amiga-tiles/assets/Beginning Fields.png" \
+     --colors 8 --xlimited --palette <adaptive|mediancut> --dither <none|atkinson|floyd> \
+     --tile 16 --out out/demo202/bg
+node tools/demo202/emit-202.mjs
+```
+
 Ver `docs/architecture/DPF_MIXTO_SPLIT_LINEAL.md` (repartos posibles, coste de
 memoria/blits 2× en cada campo lineal, y usos futuros: varias capas de parallax,
 BG mero fondo + FG con el mapa de plataformas estilo Jim Powers 8-way, o una capa
