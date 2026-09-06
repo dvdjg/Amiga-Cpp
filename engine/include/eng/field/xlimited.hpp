@@ -1,9 +1,15 @@
 #pragma once
 
 /// \file xlimited.hpp
-/// Implementación fiel del algoritmo **X-Limited** de Georg Steger
-/// (ScrollingTricks / Scroller_XLimited) sin arrastrar la máquina circular
-/// de `TileFieldController`.
+/// Implementación fiel de la FAMILIA **x-limited** de Georg Steger
+/// (ScrollingTricks) sin arrastrar la máquina circular de `TileFieldController`.
+///
+/// NOMENCLATURA: "x-limited" es la familia. La variante SÓLO horizontal es
+/// `Scroller_XLimited` (sin split); la variante 8-way con anillo vertical,
+/// staging y split es `Scroller_XYLimited` (el "corkscrew"). En este engine la
+/// variante se elige con `cfg.scroll_y` (o `ScrollMode::EightWay`); cuando está
+/// activa, el algoritmo correcto es **XYLimited**, no XLimited. La demo 201
+/// (`scroll_y=true`) es XYLimited.
 ///
 /// Este header es *didáctico*: cada sección explica el invariante del
 /// hardware que mantiene y por qué una alternativa aparentemente más simple
@@ -624,6 +630,10 @@ public:
     /// `frontbuffer` apunta a `base + bitmapoffset` para los modos de fetch
     /// ancho (16 bytes para BPL32, 48 para 4x). En modo normal offset=0.
     bool begin(MemorySystem& memory, const XlimitedConfig& cfg) {
+        // Verifica en compile-time que este playfield cumple el contrato del
+        // algoritmo (`ScrollEngine`); hace el scroll portátil y explícito.
+        static_assert(eng::field::ScrollSink<XLimitedPlayfield<SC>>,
+            "XLimitedPlayfield debe cumplir el sink del ScrollEngine (corkscrew/XYLimited).");
         m_cfg = cfg;
         m_max_step = m_cfg.max_step ? m_cfg.max_step : 1; // salto configurable (≥1)
         // Especialización del scroll: HorizontalOnly no usa banda de staging ni

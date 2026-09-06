@@ -3,6 +3,11 @@
 /// \file scroll_engine.hpp
 /// Driver + algoritmo del scroll separados del playfield (diseÃ±o Â§7 `ScrollEngine`).
 ///
+/// RESPONSABILIDAD: es el ALGORITMO (cámara + movimientos 1 px del
+/// corkscrew/XYLimited de Steger), independiente de la superficie concreta:
+/// opera sobre un *sink* genérico (concepto `ScrollSink`, ver abajo). No posee
+/// memoria ni geometría: el sink (p. ej. `XLimitedPlayfield`) aporta el layout.
+///
 /// `ScrollEngine` posee el ESTADO de cÃ¡mara (mappos/videopos/direcciÃ³n), decide
 /// el paso de 1 px a partir de `(dx, dy)` y EMITE los blits de los 4 scrollear
 /// del corkscrew/XYLimited (Steger). El playfield es el **layout sink**
@@ -61,15 +66,36 @@ struct ScrollConsts {
     u32 planes = 0;            // 0 = sn.planes()
 };
 
-/// Concepto `ScrollSink` (por convenciÃ³n, sin SFINAE). El playfield que ejecuta
-/// el scroll debe exponer (const, u16 a menos que se indique):
-///   tile_width, tile_height, planes(u8), viewport_w, viewport_h,
-///   display_height, display_planelines, bitmap_blocks_per_row,
-///   bitmap_blocks_per_col, block_planes_lines, bytes_per_row, bitmap_width,
-///   map_width_blocks, map_height_blocks, map_wrap_x, map_wrap_y,
-///   bool one_direction(),
-///   bool add_draw(FramePlan&, u16 x, u16 y, u16 mapx, u16 mapy),
-///   void save_word(u32 byte_offset), void restore_saveword().
+/// Concepto `ScrollSink` (C++20): contrato EXPLÍCITO que una superficie debe
+/// cumplir para que `ScrollEngine` le aplique el corkscrew/XYLimited. Hace el
+/// algoritmo PORTABLE: cualquier playfield que exponga este "anillo con banda
+/// de staging + blit de bloque + costura" sirve de sink (en Amiga,
+/// `XLimitedPlayfield`). Se comprueba en compile-time con un `static_assert`
+/// en el playfield (no por convención). El `ScrollConsts` NTTP permite además
+/// saltarse el sink cuando la geometría se conoce a priori.
+template <class S>
+concept ScrollSink = requires(graphics::FramePlan& plan, S& s, u16 x, u32 o) {
+    s.tile_width();
+    s.tile_height();
+    s.planes();
+    s.viewport_w();
+    s.viewport_h();
+    s.display_height();
+    s.display_planelines();
+    s.bitmap_blocks_per_row();
+    s.bitmap_blocks_per_col();
+    s.block_planes_lines();
+    s.bytes_per_row();
+    s.bitmap_width();
+    s.map_width_blocks();
+    s.map_height_blocks();
+    s.map_wrap_x();
+    s.map_wrap_y();
+    s.one_direction();
+    s.add_draw(plan, x, x, x, x);  // bool (el uso lo valida con `!sn.add_draw(...)`)
+    s.save_word(o);
+    s.restore_saveword();
+};
 
 /// Driver del scroll: estado + algoritmo de los 4 movimientos.
 template <class Sink, ScrollConsts C = ScrollConsts{}>
