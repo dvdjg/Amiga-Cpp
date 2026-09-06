@@ -210,9 +210,11 @@ constexpr char const* kPhaseName[kPhaseCount] { "H->FIN", "V->FIN", "OBLIQ^", "L
 #endif
 constexpr eng::s32 kPhaseStep = K_PHASE_STEP; // SALTO MÁX. px/frame por eje (recorrido continuo)
 
-// Tabla de seno Q7 (amplitud 127 = 1.0) para el Lissajous, generada en
-// compile-time por el engine (`eng::SineTable`) sin float por frame.
-constexpr eng::SineTable<127, 256> kSin {};
+// Tabla de seno Q7 (amplitud 128 = potencia de dos) para el Lissajous, generada
+// en compile-time por el engine (`eng::SineTable`) sin float por frame. Con
+// amplitud 128, normalizar (÷amplitud) es un `>> 7` (ver lissajous_move), sin
+// división runtime ni multiplicación mágica.
+constexpr eng::SineTable<128, 256> kSin {};
 constexpr eng::u32 kSinSteps = 256;
 
 // -----------------------------------------------------------------------------
@@ -342,8 +344,8 @@ private:
 			const eng::s32 c = kSin[t];
 			const eng::s32 s = kSin[static_cast<eng::u8>(
 				(m_phaseStart + (static_cast<eng::u32>(t) * m_ratioB) / 256u)) & (kSinSteps - 1u)];
-			const eng::s32 tx = m_cx + c * m_radius / 127;
-			const eng::s32 ty = m_cy + s * m_radius / 127;
+			const eng::s32 tx = m_cx + ((c * m_radius) >> 7);
+			const eng::s32 ty = m_cy + ((s * m_radius) >> 7);
 			approach_target(kPhaseStep, tx, ty, dx, dy);
 			if (dx != 0 || dy != 0) break; // ya hay movimiento este frame
 			if (tries >= 12u) break;       // defensa: curva estática un tramo largo

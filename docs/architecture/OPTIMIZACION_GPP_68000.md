@@ -163,3 +163,89 @@ do {
 ---
 
 Cada vez que una fase de optimización confirme o contradiga una recomendación, se apunta aquí con una fila nueva (fecha + claim + evidencia) y se ajusta la sección correspondiente.
+---
+
+## 9. Auditoría de divisiones/multiplicaciones en el hot path (demo 201 EHB, corkscrew 8-way)
+
+Proveniencia: respuesta de una IA externa a la pregunta "¿qué divisiones/multiplicaciones quedan en
+el hot path del scroll de la demo 201 y cómo eliminarlas con el patrón `fast_div`/NTTP?". Se anexa
+tal cual (con la numeración original) y después §9.1 la evaluación contra el código real de este
+repo, con las marcas `[✓]/[✗]/[P]` de este documento.
+
+### Respuesta de la IA
+
+**1. Lo que ya haces bien (y debes generalizar).** En `scroll_engine.hpp` ya tienes el mecanismo
+ideal (`template<class Sink, ScrollConsts C>` con `fast_div<C.tile_width>`), y en `main.cpp`
+instancias `ScrollConsts{kTileWidth,kTileHeight,kDisplayH,kDisplayH*kPlanes,kPlanes}`: es
+especialización total por NTTP (potencia de 2 → shift; constante genérica → multiplicación mágica;
+0 → runtime). Recomendación: extender el mismo contrato a todos los denominadores/factores
+calientes del layout (`tile_width`, `planes`, `bytes_per_row`, `bitmap_blocks_per_row`,
+`display_height/planelines`, `viewport_w`), o un `LayoutConsts` separado, propagados por el sink.
+
+**2. Divisiones/multiplicaciones que aún quedan en hot path.**
+- En `TourDriver::lissajous_move`: `s = kSin[(m_phaseStart + t*m_ratioB)/256u]`, `tx = m_cx +
+  c*m_radius/127`, `ty = m_cy + s*m_radius/127`. `/256` es potencia de 2 (verificar u32). `/127`
+  no es potencia de 2 → se sugiere amplitud 128 y `>>7`, o tabla preescalada, o `fast_div<127>`.
+- `randomize_lissajous`: `m_radius = 48 + next_rand()%56`, `cx = m_maxX/2`, `next_rand()%(rx+1)`
+  con divisor runtime → caro; para rangos pequeños usar rechazo o máscara+ajuste.
+- Verificador de framebuffer (aunque OFF): `bx = wx/kTileWidth` (signed) y doble módulo → forzar u32.
+- `draw_block`: `block%20` y `block/20` (20 no es potencia de 2) → encapsular en
+  `BlockBankLayout<BlocksPerRow=20>` con `fast_div`.
+
+**3. Recomendaciones generales.** Preferir `u16/s16` cuando el rango quepa (`MULS.W`/`DIVS.W`
+nativos); `mapposx` como `s32` está bien pero dividir sobre `u32` con `fast_div`. Argumentos en
+registros (`__asm("a0")`) si el ABI lo permite. Mantener bucles countdown (`do{}while(--n!=0xffff)`
+para `dbra`). `draw_hud()` solo en cambio de fase → bien. Acotar los `tries` de `lissajous_move`.
+
+**4. Patrón genérico recomendado.** Un `LayoutConsts<TW,TH,Planes,BPR,DH,DPH>` NTTP con
+`if constexpr` para que cada operación sea shift/mul nativa cuando el valor se conoce, dejando el
+algoritmo de Steger idéntico; otra demo (288×224, tiles 32) solo instancia otra especialización.
+
+**5. Checklist concreto.** (1) extender `ScrollConsts` con `bytes_per_row`,
+`bitmap_blocks_per_row`, `block_planes_lines`; (2) amplitud del seno 128 para eliminar `/127`;
+(3) forzar `u32`+`fast_div` en el verificador y driver; (4) marcar `scroll_*`/`add_draw` con
+parámetros en registros si el toolchain lo soporta; (5) compilar `-m68000 -Os
+-fomit-frame-pointer` y revisar el `.s` de `scroll_right` y `lissajous_move` (no debe aparecer
+`jsr ___divsi3`/`___mulsi3` en el bucle de 1 px); (6) si aparece, el valor no llegó como NTTP o se
+perdió por conversión signed.
+
+### 9.1 Evaluación contra el código real (2026-09-06)
+
+- `[✓]` El mecanismo `fast_div` + `ScrollConsts` NTTP ya está implementado y verificado: con la
+  geometría como constantes, `scroll_right/left` a `-Os` emite **0 `__udivsi3`** (bitácora §8,
+  2026-08-31). El checklist (5) de la IA ya se cumple en el motor.
+- `[✓]` Extender el contrato a `bytes_per_row`/`bitmap_blocks_per_row`/`block_planes_lines` es
+  correcto como arquitectura (`LayoutConsts`), pero en la demo actual esos valores llegan por NTTP
+  o se pliegan por ser constantes; no hay `__udivsi3` en el scroll. Refactor mayor → futuro
+  (sin objetivo de fps medible no tocar, regla de rendimiento de AGENTS).
+- `[✗→✓]` La afirmación "`c*m_radius/127` → `__divsi3`" es INCORRECTA tal cual: `/127` con
+  divisor CONSTANTE se pliega a multiplicación mágica (no llama a `__divsi3`). El coste real por
+  frame es la multiplicación 32-bit `c*m_radius` (2 `__mulsi3` en Lissajous), <1 % de CPU.
+  **Aplicado 2026-09-06**: `kSin` pasa a `SineTable<128,256>` y el cálculo a `(c*m_radius)>>7`
+  (amplitud potencia de 2, sin división ni multiplicación mágica). Demo verificada correcta.
+  Beneficio marginal (la demo NO está CPU-bound: el fps del harness lo limita el gdbserver,
+  ver §7.10 del README de la 201).
+- `[✓]` `/256u` en `lissajous_move` ya es potencia de 2 sobre `u32` → `lsr` nativo. Nada que hacer.
+- `[P]` `randomize_lissajous`: `%56` y `m_maxX/2` son constantes (plegadas). `% (rx+1)` con
+  divisor runtime es real pero corre CADA 150 frames (cambio de segmento), no por frame →
+  no merece la pena optimizarlo ahora. Rechazo/máscara si algún día se vuelve caliente.
+- `[✓]` `wx/kTileWidth` del auto-verificador: `kTileWidth` es `constexpr`, divisor constante →
+  plegado; además `K_FB_SELFCHECK=0` (OFF) no se compila. Si se activa, usar `u32`. Pendiente menor.
+- `[✓]` `block%20`/`block/20` en `draw_block_job`: `20` constante → multiplicación mágica (no
+  `__divsi3`); se ejecuta por blit pero ya es plegado. Encapsular en `BlockBankLayout` es higiene
+  opcional, no elimina ninguna llamada runtime.
+- `[✗]` La recomendación de parámetros en registros `int f(int* __asm("a0"))` NO compila en este
+  fork (ya documentado §3: usar variable local `__asm("reg")` o trampolín). La sugerencia de la IA
+  es incorrecta para `m68k-amiga-elf-g++ 15.1.0`.
+- `[✗]` `-mtune=68020-60` no es un valor válido en este fork (ya documentado §1: `-mcpu=`/`-mtune=`
+  admiten `68000..68060`, `cpu32`, `fidoa`). Además `-mtune=68020` a `-O1` cuelga la init de la 107.
+- `[✓]` Bucles countdown para `dbra`, `draw_hud()` solo en cambio de fase, y acotar los `tries` de
+  `lissajous_move`: ya se cumplen (el bucle de `tries` rompe en la primera muestra no nula y tiene
+  tope de 12).
+
+**Veredicto (2026-09-06).** La demo 201 NO está CPU-bound: corre a 50 fps emulados (vblank-gated)
+y el límite visible es el harness/gdbserver de WinUAE-DBG (ver §7.10 del README de la demo). Las
+micro-optimizaciones propuestas son higiene para margen en hardware real, no cambian el fps del
+emulador. Se implementó la única limpia y de bajo riesgo (amplitud 128 + `>>7` en el Lissajous).
+El resto (extender `ScrollConsts`/`LayoutConsts`, forzar u32 en el verificador, encapsular
+`block%20`) queda documentado como futuro y solo se abordará si hay un objetivo de CPU medible.
