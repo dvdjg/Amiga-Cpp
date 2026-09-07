@@ -15,7 +15,7 @@ La tarea compila el target padre, copia `.exe`, `.elf`, `.map` y `.s` a `out/deb
 También se puede ejecutar desde Git Bash:
 
 ```bash
-./tools/debug/build-current-demo.sh "C:/Users/dvdjg/Documents/programa/AI/Amiga/Amiga-Cpp/demos/050_blitter_bobs/src/main.cpp"
+./tools/debug/build-current-demo.sh "C:/Users/dvdjg/Documents/programa/AI/Amiga/Amiga-Cpp/demos/amiga/050_blitter_bobs/src/main.cpp"
 ./tools/debug/amiga-session.sh info
 ```
 

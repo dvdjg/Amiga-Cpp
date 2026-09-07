@@ -5,7 +5,7 @@ frames, FrameScope (análisis temporal sin IA visual) y Vision Review (inspecci�
 OpenAI-compatible, opcional). La regresión completa las encadena por demo.
 
 > La batería de pruebas y la taxonomía de tests del **engine C** (histórico) están en
-> [../c-engine/](../c-engine/README.md), no en esta carpeta.
+> [../engine/c-engine/](../engine/c-engine/README.md), no en esta carpeta.
 
 ## Documentos
 
@@ -27,4 +27,4 @@ OpenAI-compatible, opcional). La regresión completa las encadena por demo.
 ## Enlaces relacionados
 
 - Operativa completa: [../build/BUILD_AND_RUN.md](../build/BUILD_AND_RUN.md).
-- Invariantes de hardware que validan los tests: [../hardware/amiga-hardware-invariants-microtests.md](../hardware/amiga-hardware-invariants-microtests.md).
+- Invariantes de hardware que validan los tests: [../reference/amiga/hardware/amiga-hardware-invariants-microtests.md](../reference/amiga/hardware/amiga-hardware-invariants-microtests.md).

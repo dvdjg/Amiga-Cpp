@@ -13,17 +13,50 @@
 - El repo mantiene un proyecto C Amiga legado en `legacy/` (`legacy/Makefile`, `legacy/out/a.exe`) y un flujo nuevo de demos del engine C++23 en `demos/` + `tools/`; no mezclarlos por error.
 - Para trabajo del engine, usar los wrappers shell de `tools/` en vez de invocar el `legacy/Makefile`.
 
+## Estructura del repositorio (obligatorio)
+La organización de directorios es canónica y está especificada en
+**`docs/STRUCTURE.md`**. Antes de crear cualquier archivo o directorio, definir
+dónde debe vivir según esa especificación. Resumen de las áreas raíz:
+
+| Área | Contenido |
+|---|---|
+| `engine/` | Código del engine: `include/eng/` (API, algoritmos, librerías, capas de abstracción) + `src/platform/` (implementaciones backend por máquina). |
+| `demos/` | Demos por plataforma: `demos/<plataforma>/<NNN>_<tema>/`. Hoy todas en `demos/amiga/`. Los assets que usa una demo no viven en ella: fuente en `assets/`, generados en `out/assets/<pipeline>/`, incrustados por `incbin`/include. |
+| `assets/` | Assets fuente (raw, con licencia): `assets/<plataforma>/<dominio>/` (tiles-reference/, sprites/, audio/, maps/). Solo lectura por pipelines. |
+| `tools/` | Herramientas host del pipeline (TypeScript/bash, compiladas a `dist/`); `scripts/` = scripts de entorno; `support/` = ASM/C de apoyo al linkado. |
+| `host-tools/` | Programas de apoyo independientes del engine (Go/C++ para PC). |
+| `playground/` | Experimentos de algoritmos/calidad; salida siempre en `out/playground/<experimento>/`. |
+| `games/` | Juegos generados con el engine (primeros en este repo, no en repos separados). |
+| `docs/` | Documentación: `engine/` (arquitectura), `demos/` (efectos y tile-pipeline), `tools/`, `reference/<plataforma>/` (hardware/técnicas), `guides/` (roadmap, optimización, metodología), `debugging/`, `build/`, `emulation/`, `testing/`. |
+| `out/` | Todo lo generado (gitignored); reglas canónicas en `out/README.md`. Prohibido crear directorios ad-hoc sueltos aquí. |
+| `obj/`, `dist/` | Intermedios de compilación y TypeScript compilado (gitignored; regenerables). |
+| `artifacts/` | Resultados/evidencia canónicos commiteados y congelados (no regenerables por defecto). |
+| `legacy/` | Proyecto C Amiga congelado. |
+
+Reglas críticas:
+- Los assets **generados** por pipelines van a `out/assets/<pipeline>/…` (nunca a
+  `assets/`), y cada tool debe aceptar `--out` con un defecto ya canónico.
+- La salida de experimentos/medidas va a `out/playground/<experimento>/`.
+- Los juegos en `games/` usan el mismo flujo build/run/analyze que las demos.
+- Cualquier salida temporal va a `out/tmp/`; si ves un directorio suelto en
+  `out/`, muévelo al área canónica correspondiente y corrige la tool que lo crea.
+- **Nada de binarios/media en git**: no añadir archivos binarios ni media masiva
+  (PNG/JPG/audio/vídeo/archivos compilados). `.gitignore` los excluye por
+  defecto; sólo se versionan los assets fuente de `assets/`. Si un pipeline o una
+  IA genera imágenes/`.bin`, la salida va a `out/` (ignorado) y el resultado
+  "canónico" de texto (informes/README) a `docs/` o `artifacts/`.
+
 ## Herramientas locales requeridas
 - Windows + Git Bash + Node.js son obligatorios para el flujo de ejecución automatizada (`tools/run/run-demo.sh` -> `dist/tools/run/run-demo.js`). No usar el `bash.exe` de WSL para invocar los binarios `.exe` del toolchain; PowerShell solo se usa cuando el script o la integración con Visual Studio lo exige.
 - El toolchain Amiga se resuelve en este orden: `AMIGA_BIN_PATH`, extensión de Cursor y luego extensión de VS Code `bartmanabyss.amiga-debug-*` (versión más alta instalada; el fork local es 1.8.1).
 - `tools/run/run-demo.ts` importa dinámicamente `../mcp-winuae-emu/dist/winuae-connection.js` desde el repositorio hermano; si falta, el runner falla antes de abrir WinUAE.
 
 ## Comandos canónicos
-- Compilar una demo: `bash ./tools/build/build-demo.sh demos/000_toolchain_cpp23 --debug --clean`
-- Ejecutar una demo y capturar: `bash ./tools/run/run-demo.sh demos/000_toolchain_cpp23`
-- Analizar una demo: `bash ./tools/analyze/analyze-demo.sh demos/000_toolchain_cpp23`
+- Compilar una demo: `bash ./tools/build/build-demo.sh demos/amiga/000_toolchain_cpp23 --debug --clean`
+- Ejecutar una demo y capturar: `bash ./tools/run/run-demo.sh demos/amiga/000_toolchain_cpp23`
+- Analizar una demo: `bash ./tools/analyze/analyze-demo.sh demos/amiga/000_toolchain_cpp23`
 - Regresión completa: `bash ./tools/test-regression.sh`
-- Bucle de regresión de una demo: `bash ./tools/test-regression.sh --demo demos/101_ehb_tile_scroll_driver --warp`
+- Bucle de regresión de una demo: `bash ./tools/test-regression.sh --demo demos/amiga/101_ehb_tile_scroll_driver --warp`
 
 ## Orden de verificación (no saltar)
 - Orden por defecto: `build -> run -> analyze`; `analyze-demo.sh` espera `.exe/.elf/.map` y valida `out/run/<demo>/screenshot.png` si existe.
@@ -50,7 +83,7 @@ Herramientas MCP disponibles (todos vía `mcp-winuae-emu`):
 - `winuae_side_read` — canal lateral (`state`/`regs`/`mem <addr> <len>`/`runstatus <addr>`), independiente de GDB. Cuando GDB esté inerte o para observar sin intrusión.
 - `winuae_debugperiph` — **periférico de depuración in-Amiga** en `0xB70000` (consola, checkpoints, contador de ciclos, debug args, breakpoints auto-dirigidos). Para telemetría del propio programa y profiling por checkpoints.
 
-**Ejemplo real de periférico**: la demo `demos/101_ehb_tile_scroll_driver` está
+**Ejemplo real de periférico**: la demo `demos/amiga/101_ehb_tile_scroll_driver` está
 instrumentada (`engine/include/eng/debug/peripheral.hpp`): en cada cambio de
 tile-set escribe `TILE_CHANGE` a la consola y abre checkpoints 10→11 (coste del
 upload). Consulta: `winuae_debugperiph checkpoints` / `console`. Verificación
@@ -75,7 +108,7 @@ Scroll genérico multi-modo (2026-08): el driver de scroll por tiles vive ahora 
 (template sobre el modo), con scroll por playfield (`TileScrollInput`) y override
 coarse por bitplane (`plane[i]`, preparado para RoboCod). `ehb_tile_scroll.hpp` es
 un shim de compatibilidad (`EhbTileScrollScene` = single 6). La demo 102
-(`demos/102_tile_scroll_dualpf`) demuestra dual 2+3 con primer plano 50%
+(`demos/amiga/102_tile_scroll_dualpf`) demuestra dual 2+3 con primer plano 50%
 transparente y parallax. El test de descomposición de scroll para 4/5/6 single y
 2+3/3+3 dual es: `node tools/analyze/verify-tile-scroll-modes.mjs`.
 
@@ -107,15 +140,15 @@ smoke test). Punto 3 (rewind timeline) bloqueado (captura atada al input-
 recording del GUI). Pendiente: `print` DWARF.
 
 ## Rutas de alto valor
-- **Herramienta de tiles/sprites para juegos (todo-en-uno)**: `tools/amiga-tiles/README.md` — *tutorial y entrada* para `amiga-tiles.mjs` (quantizer/tilebank/EHB/dither/paletas), `run-demos.mjs` (genera `out/tile-demos`), `run-vision-verify.mjs` (verificación con ollama), `extract-sprites.mjs` (extracción de sprites por componentes) y `game-assets.mjs` (pipeline único con IA). Ver también `docs/roadmap/REGLAS_PIPELINE_TILES.md` y `docs/pipeline/PIPELINE_TILES_EHB.md`.
-- **Estado actual (2026-09) y plan — ROADMAP VIGENTE**: `docs/roadmap/ROADMAP_UNIFICADO.md` (reunifica los roadmaps: estado del engine/demos, decisiones tomadas y próximas direcciones; incluye la variante rápida «Sonic» F6). Históricos superados (con banner interno): `docs/roadmap/XLIMITED_8WAY_EHB_201.md` (roadmap 201→202, F1-F4 cerradas y F5 202 DPF completado). Reglas de pipeline vigentes: `docs/roadmap/REGLAS_PIPELINE_TILES.md`. DPF (Y por campo / split / lineal / mixto): `docs/architecture/DPF_MIXTO_SPLIT_LINEAL.md`. y `docs/roadmap/REGLAS_PIPELINE_TILES.md` (reglas de oro: cuantizar el original antes de extraer, comparar en el mismo espacio EHB con assert al 100%, catálogo ≤ original, PNG indexados con encoder propio + round-trip, umbrales con pérdida explícita). El bug 8-way "tile en el área visible" se depura con watchpoint `g_eng_diag_hit` y breakpoints en `add_draw`/`draw_block_job`/`scroll_down-up` (ver `demos/107_xlimited_corkscrew/src/main.cpp`). Enunciado para IA externa sobre el runner que no ejecuta demos NUEVAS (queda en AmigaDOS): `docs/roadmap/PROBLEMA_LAUNCHER_DEMOS_NUEVAS.md`.
-- **Checklist imprescindible del corkscrew XYLimited (201, lecciones 2026-09)**: ver §7 de `demos/201_ehb_map/src/README.md`. Tres invariantes NO obvios que rompen la imagen si se tocan sin entenderlos: (1) el ANILLO vertical `display_height` se dimensiona para el viewport TOTAL (256+2*16=288), NO `(viewport−HUD)+32`; si es 240, `mapy=16/17` colisiona con `mapy=1/2` en el módulo y aparecen arriba las filas que deben ir abajo. (2) `block_videoposy` envuelve en `display_height`, nunca en `bitmap_height` (304, incluye las filas extra del walk X) → basura por toda la pantalla. (3) `visible_tile_bias_x/y=1` es OBLIGATORIO para que `map[0][0]` sea visible (el hardware esconde los 16 px de guarda; sin bias hay un offset aparente −16,−16). El `mapx/mapy` del scroll son celdas FÍSICAS del anillo, no índices lógicos, por eso `map_tile_at` restándoles bias es correcto para fill y scroll. Constantes NTTP `ScrollConsts.display_height` deben coincidir con el anillo real.
-- Pipeline de tiles/EHB (verificado): `node tools/ehb/quantize-ehb.mjs <png>` → `palette.json`; `node tools/ehb/slice-tiles.mjs <png> --palette out/ehb/palette.json [--ehb-merge F]` → `tilebank_indexed.h` + **`tilebank.raw.bin`** (modo `--encode raw` por defecto; datos de índices 0..63, 256 bytes/tile, stride fijo) + `tiles.json`/PNG (assert COMPARAR=100% sin fusión). La demo 201 incrusta el `.bin` por incbin en sección `tiles.MEMF_CHIP` (hunk HUNKF_CHIP; receta documentada en el asm de `demos/201_ehb_map/src/main.cpp:30-36`). **Explicación completa del pipeline y del concepto X-Limited (qué engine usa, qué mecánicas del chipset explota: EHB, scroll HW con BPLCON1/BPLxPT, split de Copper, Blitter interleaved): `demos/201_ehb_map/src/README.md`**; ahí se detallan y verifican las invocaciones de `quantize-ehb` → `slice-tiles` → `emit-const-201` → `emit-xlimited-bank` y su correspondencia con los 1149 tiles / mapa 40×40 / banco 222,720 B de la demo.
+- **Herramienta de tiles/sprites para juegos (todo-en-uno)**: `tools/amiga-tiles/README.md` — *tutorial y entrada* para `amiga-tiles.mjs` (quantizer/tilebank/EHB/dither/paletas), `run-demos.mjs` (genera `out/assets/tile-demos`), `run-vision-verify.mjs` (verificación con ollama), `extract-sprites.mjs` (extracción de sprites por componentes) y `game-assets.mjs` (pipeline único con IA). Ver también `docs/guides/roadmap/REGLAS_PIPELINE_TILES.md` y `docs/demos/tile-pipeline/PIPELINE_TILES_EHB.md`.
+- **Estado actual (2026-09) y plan — ROADMAP VIGENTE**: `docs/guides/roadmap/ROADMAP_UNIFICADO.md` (reunifica los roadmaps: estado del engine/demos, decisiones tomadas y próximas direcciones; incluye la variante rápida «Sonic» F6). Históricos superados (con banner interno): `docs/guides/roadmap/XLIMITED_8WAY_EHB_201.md` (roadmap 201→202, F1-F4 cerradas y F5 202 DPF completado). Reglas de pipeline vigentes: `docs/guides/roadmap/REGLAS_PIPELINE_TILES.md`. DPF (Y por campo / split / lineal / mixto): `docs/engine/architecture/DPF_MIXTO_SPLIT_LINEAL.md`. y `docs/guides/roadmap/REGLAS_PIPELINE_TILES.md` (reglas de oro: cuantizar el original antes de extraer, comparar en el mismo espacio EHB con assert al 100%, catálogo ≤ original, PNG indexados con encoder propio + round-trip, umbrales con pérdida explícita). El bug 8-way "tile en el área visible" se depura con watchpoint `g_eng_diag_hit` y breakpoints en `add_draw`/`draw_block_job`/`scroll_down-up` (ver `demos/amiga/107_xlimited_corkscrew/src/main.cpp`). Enunciado para IA externa sobre el runner que no ejecuta demos NUEVAS (queda en AmigaDOS): `docs/guides/roadmap/PROBLEMA_LAUNCHER_DEMOS_NUEVAS.md`.
+- **Checklist imprescindible del corkscrew XYLimited (201, lecciones 2026-09)**: ver §7 de `demos/amiga/201_ehb_map/src/README.md`. Tres invariantes NO obvios que rompen la imagen si se tocan sin entenderlos: (1) el ANILLO vertical `display_height` se dimensiona para el viewport TOTAL (256+2*16=288), NO `(viewport−HUD)+32`; si es 240, `mapy=16/17` colisiona con `mapy=1/2` en el módulo y aparecen arriba las filas que deben ir abajo. (2) `block_videoposy` envuelve en `display_height`, nunca en `bitmap_height` (304, incluye las filas extra del walk X) → basura por toda la pantalla. (3) `visible_tile_bias_x/y=1` es OBLIGATORIO para que `map[0][0]` sea visible (el hardware esconde los 16 px de guarda; sin bias hay un offset aparente −16,−16). El `mapx/mapy` del scroll son celdas FÍSICAS del anillo, no índices lógicos, por eso `map_tile_at` restándoles bias es correcto para fill y scroll. Constantes NTTP `ScrollConsts.display_height` deben coincidir con el anillo real.
+- Pipeline de tiles/EHB (verificado): `node tools/ehb/quantize-ehb.mjs <png>` → `palette.json`; `node tools/ehb/slice-tiles.mjs <png> --palette out/assets/ehb/palette.json [--ehb-merge F]` → `tilebank_indexed.h` + **`tilebank.raw.bin`** (modo `--encode raw` por defecto; datos de índices 0..63, 256 bytes/tile, stride fijo) + `tiles.json`/PNG (assert COMPARAR=100% sin fusión). La demo 201 incrusta el `.bin` por incbin en sección `tiles.MEMF_CHIP` (hunk HUNKF_CHIP; receta documentada en el asm de `demos/amiga/201_ehb_map/src/main.cpp:30-36`). **Explicación completa del pipeline y del concepto X-Limited (qué engine usa, qué mecánicas del chipset explota: EHB, scroll HW con BPLCON1/BPLxPT, split de Copper, Blitter interleaved): `demos/amiga/201_ehb_map/src/README.md`**; ahí se detallan y verifican las invocaciones de `quantize-ehb` → `slice-tiles` → `emit-const-201` → `emit-xlimited-bank` y su correspondencia con los 1149 tiles / mapa 40×40 / banco 222,720 B de la demo.
 - Self-test del harness (canal lateral/READY/fps): `node tools/debug/verify-harness.mjs [--strict-fps --warp]`. Nota: el throughput del emulador ~11fps limita el gate fps absoluto.
 - Bucle de entrada del engine: `engine/include/eng/engine.hpp` (`update -> wait_vblank -> render`; `render` es el punto de commit).
 - Backend Amiga: `engine/src/platform/amiga_minimal/amiga_minimal.cpp`.
-- Validación temporal fuerte por demo: `demos/101_ehb_tile_scroll_driver/analyze-sequence.sh`.
-- Scroll multi-modo: demo dual `demos/102_tile_scroll_dualpf/analyze-sequence.sh` y test host `node tools/analyze/verify-tile-scroll-modes.mjs`.
+- Validación temporal fuerte por demo: `demos/amiga/101_ehb_tile_scroll_driver/analyze-sequence.sh`.
+- Scroll multi-modo: demo dual `demos/amiga/102_tile_scroll_dualpf/analyze-sequence.sh` y test host `node tools/analyze/verify-tile-scroll-modes.mjs`.
 - Detalles operativos build/run: `docs/build/BUILD_AND_RUN.md`.
 - Reinstalar el entorno en otro equipo: `docs/debugging/SETUP_NUEVO_EQUIPO.md` (repos, build de WinUAE-DBG, instalación del fork de la extensión, `.mcp.json`).
 - Historial de fixes de depuración (relocalización de breakpoints, `-O0`, qOffsets): `docs/debugging/HISTORIAL-CAMBIOS.md`.
@@ -125,7 +158,7 @@ recording del GUI). Pendiente: `print` DWARF.
 - Avanzar por breakpoints y leer memoria/frame buffer en caliente: `tools/debug/step-memory.mjs`.
 
 ## Restricciones de código/diseño que hay que preservar
-- Restricciones intencionales del engine: `gnu++23`, sin exceptions, sin RTTI, sin asignación dinámica en gameplay (`docs/architecture/CODING_STYLE.md`).
+- Restricciones intencionales del engine: `gnu++23`, sin exceptions, sin RTTI, sin asignación dinámica en gameplay (`docs/engine/architecture/CODING_STYLE.md`).
 - **APIs paramétricas, nunca de tamaño fijo**: no generar funciones con geometría/tamaño embebido (p. ej. `emit_ehb_320x256_display`); el engine expone métodos paramétricos (registros/planos/ancho, etc.) y el llamador decide los valores. Los "magic numbers" de un caso concreto viven en la demo/config, no como API.
 - La lógica de juego debe ser agnóstica del backend; registros/DMA específicos de Amiga van en capas backend/driver, no en lógica de alto nivel.
 

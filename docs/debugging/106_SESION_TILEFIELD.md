@@ -11,7 +11,7 @@ pierda entre hilos.
   `TileFieldState`, `TilePendingStrip` (región 2D + cursor), `FieldHardwareView`,
   `BitmapFieldConfig`, `TileFieldController`.
 - `engine/include/eng/field/dpf_composer.hpp`: `DpfDisplayComposer`.
-- `demos/106_tile_field_showcase/`: demo ÚNICA parametrizable (dual 3+3 o
+- `demos/amiga/106_tile_field_showcase/`: demo ÚNICA parametrizable (dual 3+3 o
   single 5 planos, tiles 16/32/48px). Sustituye a 106 y 107.
   ambos ejes, Lissajous de 2 pantallas, seno de alta resolución.
 
@@ -44,7 +44,7 @@ ejecutar dual con dos campos independientes ni reservar el single de 5 planos
 junto con sus recursos. El build de ejecución con 1 MiB de Chip RAM queda como
 prueba de integración cuando se disponga de esa configuración; no se ha ocultado
 el fallo de reserva ni se ha movido el framebuffer a memoria no visible.
-- Diseño completo: `docs/architecture/TILE_FIELD_API.md`.
+- Diseño completo: `docs/engine/architecture/TILE_FIELD_API.md`.
 
 ## Fórmula canónica del scroll (ACE/HRM) — CRÍTICO
 
@@ -108,7 +108,7 @@ si es de 1 frame.
 Para no tener que adaptar cada demo con cada feature, se consolidó en UNA demo
 parametrizable y se añadió un test unitario del algoritmo.
 
-### Demo única parametrizable (`demos/106_tile_field_showcase`)
+### Demo única parametrizable (`demos/amiga/106_tile_field_showcase`)
 
 Sustituye a las antiguas 106 (dual scroll infinito) y 107 (tiles anchos). Se
 configura por macros de compilación:
@@ -248,7 +248,7 @@ Validación:
   exacta del job (words_per_row, modulo, stride de fuente/destino) y la
   coherencia del layout del tileset ([tile][plano][filas x words_per_row]
   contiguos, sin solape entre planos ni tiles). Pasa para 16/32/48/64.
-- **Demo runtime** (showcase `demos/106_tile_field_showcase` con
+- **Demo runtime** (showcase `demos/amiga/106_tile_field_showcase` con
   `EXTRA_DEFINES="-DK_TILE_WIDTH=32"`): el modelo de visión confirma scroll
   continuo sin artefactos y el análisis de píxeles confirma que las dos mitades
   de cada tile de 32px difieren (ambos words se copian).
@@ -259,7 +259,7 @@ el tile ancho se dibuja completo.
 
 ## Migración de la demo 102 a la nueva API (HECHO)
 
-La 102 (`demos/102_tile_scroll_dualpf`) se migró de `TileScrollScene<Mode>` a la
+La 102 (`demos/amiga/102_tile_scroll_dualpf`) se migró de `TileScrollScene<Mode>` a la
 nueva API: dos `TileFieldController` + `DpfDisplayComposer`.
 
 - Se mantuvo la identidad: modo dual 3+3, paleta, tiles de glifos hex con tile 63
@@ -285,7 +285,7 @@ nueva API: dos `TileFieldController` + `DpfDisplayComposer`.
 - Los scripts del repo (`tools/build/build-demo.sh`, `tools/run/run-demo.sh`,
   `tools/analyze/*`) se invocan con Git Bash.
 - Captura de secuencia:
-  `bash ./tools/run/run-demo.sh demos/106_tile_field_showcase --warp --sequence-frames 8 --sequence-interval-ms 800`.
+  `bash ./tools/run/run-demo.sh demos/amiga/106_tile_field_showcase --warp --sequence-frames 8 --sequence-interval-ms 800`.
 - `--warp` está en la config uae pero `MinimalBackend::boot()` llama
   `set_warpmode(false)`, así que el run avanza en tiempo real (~50fps). Para que
   la cámara cruce páginas en la ventana de captura hay que alargar el intervalo
@@ -343,18 +343,18 @@ nueva API: dos `TileFieldController` + `DpfDisplayComposer`.
 ```
 # Build (dual 3+3, tiles de 16px por defecto)
 AMIGA_BIN_PATH="C:/Users/dvdjg/.vscode/extensions/bartmanabyss.amiga-debug-1.8.1/bin/win32" \
-  bash ./tools/build/build-demo.sh demos/106_tile_field_showcase --debug --clean
+  bash ./tools/build/build-demo.sh demos/amiga/106_tile_field_showcase --debug --clean
 
 # Build con tiles de 32px o single 5 planos
-EXTRA_DEFINES="-DK_TILE_WIDTH=32" bash ./tools/build/build-demo.sh demos/106_tile_field_showcase --debug --clean
-EXTRA_DEFINES="-DK_DUAL=0"        bash ./tools/build/build-demo.sh demos/106_tile_field_showcase --debug --clean
+EXTRA_DEFINES="-DK_TILE_WIDTH=32" bash ./tools/build/build-demo.sh demos/amiga/106_tile_field_showcase --debug --clean
+EXTRA_DEFINES="-DK_DUAL=0"        bash ./tools/build/build-demo.sh demos/amiga/106_tile_field_showcase --debug --clean
 
 # Run + secuencia
-bash ./tools/run/run-demo.sh demos/106_tile_field_showcase --warp \
+bash ./tools/run/run-demo.sh demos/amiga/106_tile_field_showcase --warp \
   --sequence-frames 8 --sequence-interval-ms 800
 
 # Regresión de la demo (incluye el test unitario del algoritmo)
-bash ./demos/106_tile_field_showcase/analyze-sequence.sh --warp
+bash ./demos/amiga/106_tile_field_showcase/analyze-sequence.sh --warp
 
 # Test unitario del algoritmo begin/update (host)
 node tools/analyze/verify-tile-field-fill.mjs

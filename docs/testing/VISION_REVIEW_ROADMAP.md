@@ -317,12 +317,12 @@ Aceptacion:
 Comandos:
 
 ```powershell
-.\demos\101_ehb_tile_scroll_driver\analyze-sequence.ps1 `
+.\demos\amiga\101_ehb_tile_scroll_driver\analyze-sequence.ps1 `
   -Warp `
   -RequireVisionReviewOk
 
 .\tools\test-regression.ps1 `
-  -Demo demos\101_ehb_tile_scroll_driver `
+  -Demo demos\amiga\101_ehb_tile_scroll_driver `
   -Warp `
   -RequireVisionReviewOk
 ```

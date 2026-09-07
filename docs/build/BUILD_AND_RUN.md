@@ -18,7 +18,7 @@ El script busca el toolchain en este orden:
 ## Compilar una demo
 
 ```powershell
-.\tools\build\build-demo.ps1 demos\000_toolchain_cpp23 -Clean
+.\tools\build\build-demo.ps1 demos\amiga\000_toolchain_cpp23 -Clean
 ```
 
 La salida queda en:
@@ -33,7 +33,7 @@ out\demos\<demo>\<demo>.s
 ## Analizar una demo
 
 ```powershell
-.\tools\analyze\analyze-demo.ps1 demos\000_toolchain_cpp23
+.\tools\analyze\analyze-demo.ps1 demos\amiga\000_toolchain_cpp23
 ```
 
 Esta primera version comprueba que existen los artefactos y que el mapa contiene
@@ -43,7 +43,7 @@ ejecuta un analisis visual automatico de la imagen.
 ## Ejecutar una demo
 
 ```powershell
-.\tools\run\run-demo.ps1 demos\000_toolchain_cpp23
+.\tools\run\run-demo.ps1 demos\amiga\000_toolchain_cpp23
 ```
 
 El runner:
@@ -90,7 +90,7 @@ de pedir la imagen.
 Opciones utiles:
 
 ```powershell
-.\tools\run\run-demo.ps1 demos\030_ehb_palette_zones `
+.\tools\run\run-demo.ps1 demos\amiga\030_ehb_palette_zones `
   -SideChannelTimeoutMs 10000 `
   -SideChannelPort 2346
 ```
@@ -99,7 +99,7 @@ Para observar una demo manualmente sin que el runner cierre WinUAE al terminar l
 captura:
 
 ```powershell
-.\tools\run\run-demo.ps1 demos\101_ehb_tile_scroll_driver -KeepRunning
+.\tools\run\run-demo.ps1 demos\amiga\101_ehb_tile_scroll_driver -KeepRunning
 ```
 
 Tambien hay un lanzador con menu para uso humano:
@@ -137,7 +137,7 @@ Para consultar una instancia viva manualmente:
 Para mover el raton del Amiga sin usar ni capturar el raton fisico de Windows:
 
 ```powershell
-.\tools\run\run-demo.ps1 demos\000_toolchain_cpp23 `
+.\tools\run\run-demo.ps1 demos\amiga\000_toolchain_cpp23 `
   -WaitMs 3000 `
   -MouseFrom 32,40 `
   -MouseTo 280,170 `
@@ -157,7 +157,7 @@ El runner aplica reglas `monitor protect` (bloquear escrituras o forzar valor)
 tras alcanzar READY, antes de las capturas. Sintaxis (repetible):
 
 ```bash
-./tools/run/run-demo.sh demos/101_ehb_tile_scroll_driver \
+./tools/run/run-demo.sh demos/amiga/101_ehb_tile_scroll_driver \
   --protect g_eng_run_status,set:0x5,8 \
   --protect 0x40000,block,16
 ```
@@ -219,7 +219,7 @@ Ese documento define contratos por ROI/frame y checks como
 Uso rapido sobre la demo 101:
 
 ```powershell
-.\tools\test-regression.ps1 -Demo demos\101_ehb_tile_scroll_driver -PixelAssert -RequirePixelAssertOk
+.\tools\test-regression.ps1 -Demo demos\amiga\101_ehb_tile_scroll_driver -PixelAssert -RequirePixelAssertOk
 ```
 
 El informe de regresion incluye columna `PixelAssert`.
@@ -229,7 +229,7 @@ la regresion de demos:
 
 ```powershell
 .\tools\test-regression.ps1 `
-  -Demo demos\101_ehb_tile_scroll_driver `
+  -Demo demos\amiga\101_ehb_tile_scroll_driver `
   -PixelAssert -RequirePixelAssertOk `
   -PixelAssertSelftest
 ```
@@ -238,7 +238,7 @@ Para ejecutar tambien el selftest sintetico (casos positivos/negativos) antes de
 la regresion:
 
 ```powershell
-.\tools\test-regression.ps1 -Demo demos\101_ehb_tile_scroll_driver -PixelAssert -RequirePixelAssertOk -PixelAssertSelftest
+.\tools\test-regression.ps1 -Demo demos\amiga\101_ehb_tile_scroll_driver -PixelAssert -RequirePixelAssertOk -PixelAssertSelftest
 ```
 
 El informe queda en:
@@ -252,7 +252,7 @@ Opciones utiles:
 
 ```powershell
 .\tools\test-regression.ps1 -SkipRun
-.\tools\test-regression.ps1 -Demo demos\000_toolchain_cpp23
+.\tools\test-regression.ps1 -Demo demos\amiga\000_toolchain_cpp23
 .\tools\test-regression.ps1 -ReleaseBuild
 .\tools\test-regression.ps1 -KeepGoing
 .\tools\test-regression.ps1 -Warp

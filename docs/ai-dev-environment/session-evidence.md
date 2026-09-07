@@ -57,4 +57,4 @@ Una sesión se considera útil cuando tiene:
 - resultado determinista (analizador, FrameScope o pixel assertions);
 - snapshot/postmortem si hubo fallo;
 - análisis visual Ollama solo como segunda opinión, con JSON bruto conservado;
-- una nota en `docs/methodology/DEVELOPMENT_LOG.md` o en el documento de la técnica.
+- una nota en `docs/guides/methodology/DEVELOPMENT_LOG.md` o en el documento de la técnica.

@@ -3,16 +3,16 @@
 Si una IA abre este proyecto sin historial de conversacion, debe empezar leyendo:
 
 1. `docs/README.md` (índice maestro del árbol documental)
-2. `docs/methodology/DEVELOPMENT_LOG.md`
-3. `docs/architecture/ROADMAP_ENGINE_CPP_AMIGA500.md`
+2. `docs/guides/methodology/DEVELOPMENT_LOG.md`
+3. `docs/engine/architecture/ROADMAP_ENGINE_CPP_AMIGA500.md`
 4. `docs/build/BUILD_AND_RUN.md`
-5. `docs/architecture/CODING_STYLE.md`
-6. `docs/architecture/HARDWARE_AND_ROM_KERNEL_POLICY.md`
+5. `docs/engine/architecture/CODING_STYLE.md`
+6. `docs/engine/architecture/HARDWARE_AND_ROM_KERNEL_POLICY.md`
 7. `docs/emulation/MOUSE_AUTOMATION.md`
 8. `docs/emulation/WINUAE_SIDE_CHANNEL_DEBUG.md`
-9. `docs/demoscene/DEMOSCENE_REPO_INDEX.md`
-10. `docs/demoscene/DEMOSCENE_EFFECT_REPLICATION_POLICY.md`
-11. `demos/000_toolchain_cpp23/README.md`
+9. `docs/demos/effects/DEMOSCENE_REPO_INDEX.md`
+10. `docs/demos/effects/DEMOSCENE_EFFECT_REPLICATION_POLICY.md`
+11. `demos/amiga/000_toolchain_cpp23/README.md`
 
 ## Objetivo inmediato
 
@@ -97,7 +97,7 @@ La demo `020_copper_basic` debe:
 - alcanzar `side-channel READY`;
 - tomar el display a pantalla completa;
 - mostrar bandas horizontales roja, verde, azul, amarilla y cian;
-- superar su analizador especifico `demos\020_copper_basic\analyze-screenshot.ps1`.
+- superar su analizador especifico `demos\amiga\020_copper_basic\analyze-screenshot.ps1`.
 
 La demo `030_ehb_palette_zones` debe:
 
@@ -106,7 +106,7 @@ La demo `030_ehb_palette_zones` debe:
 - alcanzar `side-channel READY`;
 - mostrar una reticula EHB con tres zonas verticales de paleta;
 - incluir muestras visibles de colores normales 0..31 y half-brite 32..63;
-- superar su analizador especifico `demos\030_ehb_palette_zones\analyze-screenshot.ps1`.
+- superar su analizador especifico `demos\amiga\030_ehb_palette_zones\analyze-screenshot.ps1`.
 - usar `StaticEhbScene` desde `engine\include\amg\graphics\drivers\ehb_scene.hpp`,
   de modo que la demo no programe registros BPL/DIW/DDF/COLOR directamente.
 - construir su copperlist mediante `CopperScheduler` desde
@@ -122,7 +122,7 @@ La demo `040_palette_cycle_effect` debe:
 - mantener una zona inferior Copper fija;
 - aplicar el ciclo mediante `FramePlan` y parches de paleta, no reconstruyendo toda
   la copperlist cada frame;
-- superar `demos\040_palette_cycle_effect\analyze-screenshot.ps1`;
+- superar `demos\amiga\040_palette_cycle_effect\analyze-screenshot.ps1`;
 - dejar en `g_eng_run_status.detail` una marca `0x04xxxxxx` con fase distinta de
   cero para demostrar que el ciclo ya avanzo antes de la captura.
 
@@ -137,7 +137,7 @@ La demo `050_blitter_bobs` debe:
 - materializarlo desde `MinimalBackend::execute_frame_plan()` usando Blitter;
 - mover el BOB en pasos de 16 pixels usando save/restore real: restore anterior,
   save nuevo fondo y draw cookie-cut;
-- superar `demos\050_blitter_bobs\analyze-screenshot.ps1`;
+- superar `demos\amiga\050_blitter_bobs\analyze-screenshot.ps1`;
 - dejar en `g_eng_run_status.detail` una marca `0x05nnjjrm`, donde `nn` son jobs
   no-save estaticos, `jj` jobs de Blitter del frame animado, `r` son dirty rects
   fusionados y `m` son fusiones realizadas. El estado saludable actual es
@@ -150,7 +150,7 @@ La demo `051_blitter_shifted_bobs` debe:
 - alcanzar `side-channel READY`;
 - mostrar un BOB cookie-cut amarillo/blanco/cian sobre fondo EHB azul;
 - usar `BlitJob::source_shift` para dibujar en X no alineada a 16 pixels;
-- superar `demos\051_blitter_shifted_bobs\analyze-screenshot.ps1`;
+- superar `demos\amiga\051_blitter_shifted_bobs\analyze-screenshot.ps1`;
 - dejar en `g_eng_run_status.detail` el estado saludable actual `0x05190301`.
 
 La demo `052_tile_staging_blits` debe:
@@ -165,7 +165,7 @@ La demo `052_tile_staging_blits` debe:
 - usar `engine\include\amg\scene\virtual_scene.hpp` para atravesar una escena
   virtual retenida con `Camera2D` y `TileLayer`;
 - publicar ese bloque al playfield EHB visible con `CopyRect`;
-- superar `demos\052_tile_staging_blits\analyze-screenshot.ps1`;
+- superar `demos\amiga\052_tile_staging_blits\analyze-screenshot.ps1`;
 - dejar en `g_eng_run_status.detail` el estado saludable actual `0x05210104`.
 
 La demo `100_virtual_tile_scene_scroll` debe:
@@ -180,7 +180,7 @@ La demo `100_virtual_tile_scene_scroll` debe:
   de cero;
 - usar `ProgressiveTileScheduler` para encolar tiles offscreen y aceptar un
   presupuesto de 4 updates antes de que sean visibles;
-- superar `demos\100_virtual_tile_scene_scroll\analyze-screenshot.ps1`;
+- superar `demos\amiga\100_virtual_tile_scene_scroll\analyze-screenshot.ps1`;
 - dejar en `g_eng_run_status.detail` el estado saludable actual `0x10390941`.
 
 La demo `101_ehb_tile_scroll_driver` debe:
@@ -198,7 +198,7 @@ La demo `101_ehb_tile_scroll_driver` debe:
   dejando el anillo modulo para un futuro driver de wrap fisico real;
 - convertir updates progresivos de tiles offscreen en `TileBlockCopy` reales, con
   presupuesto pequeno por frame;
-- superar `demos\101_ehb_tile_scroll_driver\analyze-screenshot.ps1`;
+- superar `demos\amiga\101_ehb_tile_scroll_driver\analyze-screenshot.ps1`;
 - dejar en `g_eng_run_status.detail` la marca `0x11......`, con camara X/Y y
   trabajos de tile actualizados mientras corre. El nibble bajo publica flags de
   prefetch: `0x1` columnas recicladas y `0x2` filas recicladas; el estado valido
@@ -208,7 +208,7 @@ Las animaciones y scrolls deben validarse con secuencias cuando una captura unic
 no demuestre suficiente comportamiento temporal:
 
 ```powershell
-.\tools\run\run-demo.ps1 demos\101_ehb_tile_scroll_driver -SequenceFrames 4 -SequenceIntervalMs 80
+.\tools\run\run-demo.ps1 demos\amiga\101_ehb_tile_scroll_driver -SequenceFrames 4 -SequenceIntervalMs 80
 .\tools\analyze\analyze-frame-sequence.ps1 out\run\101_ehb_tile_scroll_driver\sequence -ExpectAnimated
 ```
 
@@ -244,7 +244,7 @@ WinUAE y puede fallar con `-RequireProfileMatch`.
 La demo 101 ya usa esa prueba fuerte desde:
 
 ```powershell
-.\demos\101_ehb_tile_scroll_driver\analyze-sequence.ps1 -Warp
+.\demos\amiga\101_ehb_tile_scroll_driver\analyze-sequence.ps1 -Warp
 ```
 
 La validacion actual captura 12 frames cada 120 ms, usa rejilla 64x48 y
@@ -349,7 +349,7 @@ reducir la hoja.
 La demo 101 puede usar Vision Review opcionalmente:
 
 ```powershell
-.\demos\101_ehb_tile_scroll_driver\analyze-sequence.ps1 -Warp -RequireVisionReviewOk
+.\demos\amiga\101_ehb_tile_scroll_driver\analyze-sequence.ps1 -Warp -RequireVisionReviewOk
 ```
 
 La regresion tambien acepta `-VisionReview` y `-RequireVisionReviewOk`; sin esos
@@ -376,7 +376,7 @@ timeout normal. Evidencias recientes:
   de reinicio de Copper que FrameScope/Vision Review podian pasar por alto.
 - `analyze-sequence.ps1 -Warp`: ok con 12 frames, FrameScope y detector de negro
   interno.
-- `tools/test-regression.ps1 -Demo demos\101_ehb_tile_scroll_driver -Warp`: ok,
+- `tools/test-regression.ps1 -Demo demos\amiga\101_ehb_tile_scroll_driver -Warp`: ok,
   informe `out\regression\20260601-011220\regression-report.md`.
 - Defecto sintetico sobre tiles simbolicos:
   `out\vision-review\synthetic_symbol_tiles_multi_prompt2` falla con
@@ -401,7 +401,7 @@ Correccion posterior del salto de columna izquierda:
   siempre un word valido a la izquierda durante la orbita.
 - `tools\run\run-demo.ps1/mjs` soporta `-SequenceCameraX`, que captura frames
   cuando la telemetria lateral alcanza valores concretos.
-- `demos\101_ehb_tile_scroll_driver\analyze-fine-scroll.sh` captura y valida:
+- `demos\amiga\101_ehb_tile_scroll_driver\analyze-fine-scroll.sh` captura y valida:
   `cameraX=94,95,96,97` con shifts `-2,-2,-2`, y
   `cameraX=112,111,110,109` con shifts `+2,+2,+2`.
 - La regresion anterior a este fix es
@@ -417,7 +417,7 @@ Scroll generico multi-modo (2026-08):
   `BPLCON1` por playfield y `DDFSTRT=$30` compartido.
 - `ehb_tile_scroll.hpp` quedo como shim de compatibilidad
   (`EhbTileScrollScene = TileScrollScene<TileScrollMode::ehb()>`).
-- `demos/102_tile_scroll_dualpf` demuestra dual 2+3: fondo 3 planos (PF1) con
+- `demos/amiga/102_tile_scroll_dualpf` demuestra dual 2+3: fondo 3 planos (PF1) con
   glifos y primer plano 2 planos (PF2) con tramado del 50% transparente; cada
   playfield sigue un patron de movimiento distinto (fondo derecha, primer plano
   izquierda + bob vertical). Valida con `analyze-sequence.sh --warp`.

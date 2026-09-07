@@ -140,7 +140,7 @@ Notas:
   - deteccion viewport `auto_non_black`;
   - checks `shifted_region_match`, `equal_region`, `forbidden_color_ratio`;
   - salida JSON + Markdown + exit code.
-- Integrar en `demos/101_ehb_tile_scroll_driver/analyze-sequence.ps1` con flag
+- Integrar en `demos/amiga/101_ehb_tile_scroll_driver/analyze-sequence.ps1` con flag
   `-PixelAssert` y opcion estricta `-RequirePixelAssertOk`.
 
 ### Fase 2 (robustez)
@@ -169,7 +169,7 @@ Notas:
 ### Ejecucion manual de secuencia
 
 ```powershell
-.\tools\run\run-demo.ps1 demos\101_ehb_tile_scroll_driver `
+.\tools\run\run-demo.ps1 demos\amiga\101_ehb_tile_scroll_driver `
   -SequenceFrames 16 `
   -SequenceIntervalMs 120
 ```
@@ -179,7 +179,7 @@ Notas:
 ```powershell
 .\tools\analyze\assert-pixel-contract.ps1 `
   -SequenceDir .\out\run\101_ehb_tile_scroll_driver\sequence `
-  -Contract .\demos\101_ehb_tile_scroll_driver\pixel-contract.json `
+  -Contract .\demos\amiga\101_ehb_tile_scroll_driver\pixel-contract.json `
   -RunReport .\out\run\101_ehb_tile_scroll_driver\run-report.json `
   -OutDir .\out\analysis\101_pixel_assert
 ```
@@ -187,7 +187,7 @@ Notas:
 ### Integracion en analizador de demo
 
 ```powershell
-.\demos\101_ehb_tile_scroll_driver\analyze-sequence.ps1 `
+.\demos\amiga\101_ehb_tile_scroll_driver\analyze-sequence.ps1 `
   -RequirePixelAssertOk
 ```
 
@@ -241,18 +241,18 @@ Ya existe un MVP funcional integrado en el repositorio:
 
 - Motor Python: `tools/analyze/assert-pixel-contract.py`
 - Wrapper PowerShell: `tools/analyze/assert-pixel-contract.ps1`
-- Contrato inicial demo 101: `demos/101_ehb_tile_scroll_driver/pixel-contract.json`
+- Contrato inicial demo 101: `demos/amiga/101_ehb_tile_scroll_driver/pixel-contract.json`
 - Contratos adicionales demos 050/051/052:
-  - `demos/050_blitter_bobs/pixel-contract.json`
-  - `demos/051_blitter_shifted_bobs/pixel-contract.json`
-  - `demos/052_tile_staging_blits/pixel-contract.json`
+  - `demos/amiga/050_blitter_bobs/pixel-contract.json`
+  - `demos/amiga/051_blitter_shifted_bobs/pixel-contract.json`
+  - `demos/amiga/052_tile_staging_blits/pixel-contract.json`
 - Integracion opcional en secuencia demo 101:
   - `-PixelAssert`
   - `-RequirePixelAssertOk`
 - Integracion en secuencia demos 050/051/052:
-  - `demos/050_blitter_bobs/analyze-sequence.ps1`
-  - `demos/051_blitter_shifted_bobs/analyze-sequence.ps1`
-  - `demos/052_tile_staging_blits/analyze-sequence.ps1`
+  - `demos/amiga/050_blitter_bobs/analyze-sequence.ps1`
+  - `demos/amiga/051_blitter_shifted_bobs/analyze-sequence.ps1`
+  - `demos/amiga/052_tile_staging_blits/analyze-sequence.ps1`
 - Integracion en regresion global:
   - `tools/test-regression.ps1 -PixelAssert -RequirePixelAssertOk`
   - nueva columna `PixelAssert` en `regression-report.md`

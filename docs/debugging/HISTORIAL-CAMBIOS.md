@@ -669,7 +669,7 @@ van a +5V (1 = no pulsado), pero el emulador no.
 
 ## Fase 13: F5 no ejecutaba el demo del archivo abierto (2026-09-01)
 
-**Síntoma**: con `demos/107_xlimited_corkscrew/src/main.cpp`, pulsar F5 mostraba "otra
+**Síntoma**: con `demos/amiga/107_xlimited_corkscrew/src/main.cpp`, pulsar F5 mostraba "otra
 cosa muy distinta" (un churro / pantalla ajena al 107).
 
 **Causa raíz** (doble):
@@ -685,7 +685,7 @@ cosa muy distinta" (un churro / pantalla ajena al 107).
 - Publicar desde el directorio de config correcto (`A500_o0` para `--debug --o0`,
   `A500_debug` para `--debug`), con fallback al `.exe` más reciente del target.
 - Si el archivo activo no es `demos/<demo>/src`, error explícito con la guía
-  "abre y enfoca demos/107_xlimited_corkscrew/src/main.cpp" y `session.json` con
+  "abre y enfoca demos/amiga/107_xlimited_corkscrew/src/main.cpp" y `session.json` con
   `status:"failed"` (para que ninguna herramienta asuma el binario como válido).
 - Los preLaunchTasks al fallar abortan el F5 mostrando el mensaje (ya no corre stale).
 

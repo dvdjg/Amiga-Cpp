@@ -113,7 +113,7 @@ esto: `checkpoint`, `checkpoint_description`, `counter_name/value`,
 
 ### 4.1 Patrón de instrumentación (engine C++ / asm)
 
-La demo `demos/101_ehb_tile_scroll_driver` ya lo usa como ejemplo real
+La demo `demos/amiga/101_ehb_tile_scroll_driver` ya lo usa como ejemplo real
 (`engine/include/eng/debug/peripheral.hpp` + su `update`):
 
 ```cpp
@@ -145,7 +145,7 @@ Verificación del scroll de la demo (4 direcciones + diagonal a 50fps, con
 ollama): `tools/analyze/verify-scroll-directions.mjs` (usa la secuencia de
 `run-demo.sh`, calcula el vector de scroll por par y valida visualmente).
 La demo 101 verifica su scroll fino horizontal (`cameraX` 94-97 / 112-109) en
-`demos/101_ehb_tile_scroll_driver/analyze-sequence.sh`.
+`demos/amiga/101_ehb_tile_scroll_driver/analyze-sequence.sh`.
 
 ### 4.2 Ejemplo manual bare-metal
 

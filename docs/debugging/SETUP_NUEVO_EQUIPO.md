@@ -63,10 +63,10 @@ La extensión usa **modo embebido** (`EMBED_DEBUG_ADAPTER=true`); no depende de
 ```bash
 # Compila la demo del archivo en primer plano y deja el ejecutable en
 # out/debug-current/current (.elf/.exe). Usa -O0 (variables fiables).
-bash ./tools/debug/build-current-demo.sh "demos/050_blitter_bobs/src/main.cpp"
+bash ./tools/debug/build-current-demo.sh "demos/amiga/050_blitter_bobs/src/main.cpp"
 ```
 
-En VS Code: abre `demos/050_blitter_bobs/src/main.cpp`, pon breakpoints, F5.
+En VS Code: abre `demos/amiga/050_blitter_bobs/src/main.cpp`, pon breakpoints, F5.
 Configuración en `.vscode/launch.json` (`type: "amiga"`, `breakpointRelocation: true`).
 
 ### `.vscode/` es local (gitignored)
@@ -153,8 +153,8 @@ generada por cpptools, que referencia `outDebug` y rutas absolutas):
 ## 6. Ejecución automática y canal lateral
 
 ```bash
-bash ./tools/run/run-demo.sh demos/050_blitter_bobs        # ejecuta + captura
-bash ./tools/test-regression.sh --demo demos/101_ehb_tile_scroll_driver --warp
+bash ./tools/run/run-demo.sh demos/amiga/050_blitter_bobs        # ejecuta + captura
+bash ./tools/test-regression.sh --demo demos/amiga/101_ehb_tile_scroll_driver --warp
 ```
 
 El **canal lateral** de WinUAE-DBG escucha en `127.0.0.1:2346`:

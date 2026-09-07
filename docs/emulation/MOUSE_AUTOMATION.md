@@ -54,7 +54,7 @@ coordenadas se expresan en pantalla Amiga low-res y se limitan por defecto a
 Ejemplo de arranque, trayectoria y cierre manual:
 
 ```powershell
-.\tools\run\run-demo.ps1 demos\000_toolchain_cpp23 `
+.\tools\run\run-demo.ps1 demos\amiga\000_toolchain_cpp23 `
   -WaitMs 3000 `
   -MouseFrom 24,24 `
   -MouseTo 300,220 `
