@@ -63,7 +63,7 @@ Los artefactos se generan en `out/demos/<leaf>/` (build) y `out/run/<leaf>/` (ej
 3. Añade `README.md` con los pasos y el contrato de verificación.
 4. Añade el `verify-*.mjs` si el test debe leerse/verificarse por canal lateral.
 5. Regístralo en el catálogo del roadmap:
-   `docs/architecture/ROADMAP_ENGINE_CPP_AMIGA500.md` (sección 21).
+   `docs/engine/architecture/ROADMAP_ENGINE_CPP_AMIGA500.md` (sección 21).
 
 ## Catálogo
 

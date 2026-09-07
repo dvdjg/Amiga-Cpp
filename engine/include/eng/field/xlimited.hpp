@@ -45,7 +45,7 @@
 ///   `BITMAPHEIGHT = SCREENHEIGHT + EXTRAHEIGHT` (EXTRAHEIGHT = 2*BLOCKHEIGHT),
 ///   que es la **banda de staging** de 2 bloques donde se pre-pinta la
 ///   fila/columna entrante antes de que el display la alcance al envolver en
-///   `display_height` (ver §13 de docs/architecture/AMIGA_8WAY_SCROLLING.md).
+///   `display_height` (ver §13 de docs/engine/architecture/AMIGA_8WAY_SCROLLING.md).
 ///   En el engine `cfg.scroll_y` selecciona el corkscrew (demo 107).
 ///
 ///   El término `map_width / BITMAPBLOCKSPERROW / planes` es el número de
@@ -236,7 +236,7 @@
 ///   `surface_origin`, ni bandas, ni recentrado. Puede compartir `TileLayerMap`
 ///   (índice → tile) pero el posicionamiento físico es el de Steger.
 ///
-///   Referencias: docs/architecture/AMIGA_8WAY_SCROLLING.md (contraste con el
+///   Referencias: docs/engine/architecture/AMIGA_8WAY_SCROLLING.md (contraste con el
 ///   modelo circular), ScrollingTricks/Docs/xlimited-uk.html § “overallbitmapheight”
 ///
 /// -----------------------------------------------------------------------------
@@ -266,7 +266,7 @@
 ///
 ///   - **Host:** `tools/analyze/verify-xlimited.mjs` — comprueba que
 ///     `draw_block_job` usa `map_tile_y == mapy` y que `steps` es 1.
-///   - **Runtime:** `demos/107_xlimited_corkscrew/analyze-sequence.sh --warp`
+///   - **Runtime:** `demos/amiga/107_xlimited_corkscrew/analyze-sequence.sh --warp`
 ///     analiza `out/run/107_xlimited_corkscrew/sequence/frame_*.png` con
 ///     `tools/analyze/analyze-frame-sequence.sh`: `DuplicatePairs` debe ser 0,
 ///     `ChangedPairs` 99/100, `MeanDiffAvg` estable (~68) y sin picos de
@@ -290,7 +290,7 @@
 ///      `K_FETCH_MODE` a 0 o reducir `K_TILE_WIDTH` a 16.
 ///   4. Tras cualquier cambio en `XlimitedConfig`, ejecutar
 ///      `node tools/analyze/verify-xlimited.mjs` (host) y
-///      `bash demos/107_xlimited_corkscrew/analyze-sequence.sh --warp` (runtime)
+///      `bash demos/amiga/107_xlimited_corkscrew/analyze-sequence.sh --warp` (runtime)
 ///      y exigir `OK telemetría`, `OK columna`, `DuplicatePairs==0` y
 ///      `green>0` en `analyze-demo.sh`.
 ///
@@ -382,7 +382,7 @@ enum class ScrollMode : u8 {
 /// ### Variantes de compilación (parámetros `EXTRA_DEFINES`)
 ///
 /// La demo 107 es el *showcase* del corkscrew y está pensada para crecer
-/// hasta DPF como `demos/106_tile_field_showcase` pero sin el modelo circular.
+/// hasta DPF como `demos/amiga/106_tile_field_showcase` pero sin el modelo circular.
 /// Los parámetros siguen el mismo patrón que 102/104/106 para que
 /// `tools/test-regression.sh` pueda barrerlos sin tocar el fuente:
 ///
@@ -421,8 +421,8 @@ enum class ScrollMode : u8 {
 /// ```bash
 /// # viewport 320×256 normal (caso base, sin Copper segmentado) — single 4 planos
 /// EXTRA_DEFINES="-DK_TILE_WIDTH=16" AMIGA_BIN_PATH=".../bin/win32" \
-///   bash ./tools/build/build-demo.sh demos/107_xlimited_corkscrew --debug --clean
-/// bash demos/107_xlimited_corkscrew/analyze-sequence.sh --warp
+///   bash ./tools/build/build-demo.sh demos/amiga/107_xlimited_corkscrew --debug --clean
+/// bash demos/amiga/107_xlimited_corkscrew/analyze-sequence.sh --warp
 ///
 /// # viewport 288×224 (18×14 tiles) con 16×16 pantallas → mapa 288×224 tiles
 /// EXTRA_DEFINES="-DK_VIEWPORT_W=288 -DK_VIEWPORT_H=224 -DK_SCREENS_X=16 -DK_SCREENS_Y=16" ...
@@ -440,11 +440,11 @@ enum class ScrollMode : u8 {
 /// ### Variantes de ejecución / verificación
 ///
 /// ```bash
-/// bash demos/107_xlimited_corkscrew/analyze-sequence.sh --warp
+/// bash demos/amiga/107_xlimited_corkscrew/analyze-sequence.sh --warp
 /// # sin --warp para evaluar suavidad a 50 fps (warp=false por defecto en run-demo)
-/// bash ./tools/test-regression.sh --demo demos/107_xlimited_corkscrew --warp
+/// bash ./tools/test-regression.sh --demo demos/amiga/107_xlimited_corkscrew --warp
 /// # Barrido de parámetros (cuando DPF esté implementado):
-/// bash ./tools/test-regression.sh --demo demos/107_xlimited_corkscrew --warp --keep-going
+/// bash ./tools/test-regression.sh --demo demos/amiga/107_xlimited_corkscrew --warp --keep-going
 /// ```
 ///
 /// Si `analyze-sequence.sh --warp` informa `FAILED detail=0x10704` (67332),
@@ -806,9 +806,12 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
 
         // Resolución del bloque del mapa (wrapping si el mapa es circular)
         const u16 block = map_tile_at(mapx, mapy);
-        // Layout del banco de bloques: BLOCKSWIDTH/BLOCKWIDTH del original
-        // Para tile_width !=16, el número de words por fila escala.
-        const u16 blocks_per_row_src = 20; // BLOCKSWIDTH/BLOCKWIDTH del original (320/16)
+        // Layout del banco de bloques: el banco X-Limited es SIEMPRE de 320 px de
+        // ancho (40 B/planelínea), con `320/tile_width` bloques por fila y cada
+        // tile de `tile_width/8` bytes por planelínea. Antes estaba fijado a 20
+        // bloques/fila y words de 16 px (solo tiles de 16); así se soportan tiles
+        // de 32×32 (10 bloques por fila, 2 words por tile).
+        const u16 blocks_per_row_src = static_cast<u16>(320u / m_cfg.tile_width);
         const u16 src_bytes_per_row = 40;  // BLOCKSWIDTH/8 (320/8)
         const u16 words_per_block = static_cast<u16>(m_cfg.tile_width / xlimited_detail::kBlock);
         const u32 src_row = static_cast<u32>(block / blocks_per_row_src) *
@@ -1457,7 +1460,7 @@ private:
         // dispara en la primera coincidencia del byte bajo (línea raster-256,
         // < 256) y el original (XYLimited) también degrada a 255. Se recorta a
         // 255: la banda de 1..41 filas al pie muestra el wrap adelantado
-        // (inherente al chipset; ver docs/architecture/AMIGA_8WAY_SCROLLING.md §13).
+        // (inherente al chipset; ver docs/engine/architecture/AMIGA_8WAY_SCROLLING.md §13).
         u16 raster = 0;
         if (view.split_active) {
             raster = static_cast<u16>((m_cfg.diwstrt >> 8u) + view.split_line);

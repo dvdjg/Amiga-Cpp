@@ -7,7 +7,7 @@
 /// (corkscrew/XYLimited): posee UNO O DOS playfields de scroll (`XLimitedPlayfield`),
 /// un lienzo HUD opcional (`CanvasPlayfield`), sprites y los compositores que
 /// emiten el Copper. NO es el algoritmo: ese vive en `ScrollEngine`/playfield.
-/// Ver `docs/architecture/XYLIMITED_ALGORITMO_GENERICO.md` (crítica: el HUD y el
+/// Ver `docs/engine/architecture/XYLIMITED_ALGORITMO_GENERICO.md` (crítica: el HUD y el
 /// par fg/bg son conceptos de composición; el algoritmo debería poder aplicarse
 /// a cualquier `Playfield`, incluido el HUD si se quisiera un panel con scroll).
 ///
@@ -241,6 +241,11 @@ struct XlimitedSceneConfig {
                                      // (por-playfield se ajusta con
                                      //  XLimitedPlayfield::set_scroll_step)
     bool scroll_y = true;            // corkscrew: display_height = viewport_h + 2*tile_height
+    eng::u16 display_height = 0;     // 0 = auto: viewport_h + 2*tile_height. Override del
+                                     // ANILLO vertical (invariante §7 201): puede ser mayor
+                                     // que el visible (p. ej. anillo 288 con visible 208) para
+                                     // evitar la colisión de mapy y mantener el split en raster
+                                     // esperable (≤ 255). Debe coincidir con ScrollConsts.
     bool linear_display = false;     // display LINEAL sin split (espejo del bucle): elimina la
                                      // limitación del comparador de 8 bits a costa de 2x blits.
                                      // Aplica a AMBOS playfields salvo que `dual_linear_field` los
@@ -359,8 +364,9 @@ public:
             // staging de 2 bloques), NO para `main_h`: el HUD reduce solo el área
             // VISIBLE, pero el walk plane-shifted del scroll horizontal necesita el
             // anillo completo (18 bloques) para no colisionar `mapy` (hasta 17).
-            fc.display_height = static_cast<eng::u16>(
-                cfg.viewport_h + 2u * th);
+            fc.display_height = cfg.display_height != 0u
+                ? cfg.display_height
+                : static_cast<eng::u16>(cfg.viewport_h + 2u * th);
             fc.screens_x = 16;
             fc.screens_y = 16;
             fc.scroll_y = cfg.scroll_y;
