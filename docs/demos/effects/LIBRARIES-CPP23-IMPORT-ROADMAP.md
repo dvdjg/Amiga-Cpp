@@ -106,9 +106,12 @@ hardware.
   sin MSVC). Ver `tests/host/README.md`.
 
 Pendiente de `libmisc` en esta oleada: `console` (depende de `libgfx`, pasa a
-Oleada 1), `sync`, `file`; y de `libc`: `qsort` (ya superado por
-`eng::core::quick_sort`, no duplicar), `string`/`stdio` (kvprintf/snprintf)
-según necesidad (builtins del toolchain ya cubren mem*/str* básicos).
+Oleada 1), `sync`, `file`. De `libc`: `qsort` ya está superado por
+`eng::core::quick_sort` (no duplicar). `string`/`stdio` (kvprintf/snprintf) NO
+se portan en esta oleada: el engine usa su `Span`/builtins y `debug.text()`
+acepta `const char*` fijo (sin formatos variables); si en el futuro una API
+necesita volcado/formatos, portar entonces `kvprintf`/`snprintf` (con test
+host). Criterio: solo se porta lo que realmente hace falta.
 
 ### Oleada 1 — libgfx (display base)
 
@@ -207,7 +210,7 @@ Estado por librería (actualizarlo en cada cambio de estado):
 | Librería | Inventario | Portado | Validado por efecto | En engine | Efectos validadores | Notas |
 |---|---|---|---|---|---|---|
 | `libmisc` (fx/sort/crc32) | ✅ | ✅ | ✅ (host) · demo 060 creada (build OK, pendiente corrida WinUAE) | ✅ | 060 | `isqrt` (isqrt.hpp), `sort` (sort.hpp) y `crc32` (crc32.hpp) en `eng/core`; validados por test HOST-000 y compilados en la demo 060. `sintab`→`core::sinetable`; `random`→`core::random.hpp` (xoroshiro64++, equivalente al `random.c` de libc). Pendientes: `console` (→Oleada 1), `sync`, `file`. |
-| `libc` (string/stdlib/stdio) | ✅ | 🔄 | ✅ (random) | 🔄 | 04, 14 | `random` portado. `qsort`→`eng::core::quick_sort` (no duplicar). `string`/`stdio` (kvprintf/snprintf): eval. contra builtins del toolchain; si se necesitan helpers (strlen/strlcpy) portar en `eng/core/str`. Pendiente. |
+| `libc` (string/stdlib/stdio) | ✅ | 🔄 (random) | ✅ (random) | 🔄 | 04, 14 | `random` portado. `qsort`→`eng::core::quick_sort` (no duplicar). `string`/`stdio` (kvprintf/snprintf): no se portan ahora (sin necesidad real; `debug.text()` es `const char*` fijo). Recomendado: portar cuando una API lo exija. |
 | `libgfx` (bitmaps/copper/sprites/c2p) | ❌ | ❌ | ❌ | ❌ | 01, 02, 03, 04, 50, 53 | contra `graphics::copper`, `bitmap.hpp`, `frame_plan` |
 | `libblit` (blitter) | ❌ | ❌ | ❌ | ❌ | 11, 14, 58, 59, 67 | contra `frame_plan` (BlitJob) |
 | `lib2d` | ❌ | ❌ | ❌ | ❌ | 06, 30, 56 | host tests |
