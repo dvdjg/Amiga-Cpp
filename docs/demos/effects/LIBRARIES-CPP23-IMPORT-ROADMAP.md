@@ -96,13 +96,19 @@ hardware.
 - `engine/include/eng/core/sort.hpp` — `eng::quick_sort` (quick + inserción,
   genérico sobre `Span<T>` con comparador) y `eng::sort_items` (equivalent de
   `SortItemArray`); validado por el mismo test HOST-000.
+- `engine/include/eng/core/crc32.hpp` — CRC-32 IEEE de `libmisc/crc32.c`;
+  validado por equivalencia (incluye el valor canónico `0xCBF43926`).
+- `engine/include/eng/core/random.hpp` — xoroshiro64++ de `libc/stdlib/random.c`.
+  El `rol` del original (por rangos + `swap16`) equivale a `rotl32` estándar
+  (verificado); se expone la forma limpia.
 - Infraestructura de **test unitario host**: `tests/host/` con
   `tools/run-host-tests.sh` (usa el `g++` del entorno del toolchain, sin WSL,
   sin MSVC). Ver `tests/host/README.md`.
 
-Pendiente de `libmisc` en esta oleada: `crc32`, `console` (depende de
-`libgfx`, pasa a Oleada 1), `sync`, `file`; y de `libc`: `string`/`stdlib`
-(qsort/random)/`stdio` (kvprintf/snprintf).
+Pendiente de `libmisc` en esta oleada: `console` (depende de `libgfx`, pasa a
+Oleada 1), `sync`, `file`; y de `libc`: `qsort` (ya superado por
+`eng::core::quick_sort`, no duplicar), `string`/`stdio` (kvprintf/snprintf)
+según necesidad (builtins del toolchain ya cubren mem*/str* básicos).
 
 ### Oleada 1 — libgfx (display base)
 
@@ -200,8 +206,8 @@ Estado por librería (actualizarlo en cada cambio de estado):
 
 | Librería | Inventario | Portado | Validado por efecto | En engine | Efectos validadores | Notas |
 |---|---|---|---|---|---|---|
-| `libmisc` (fx/sort) | ✅ | ✅ | ✅ (host) | ✅ | (sin efecto aún) | `isqrt` y `sort` en `eng/core` (isqrt.hpp, sort.hpp); validados por test HOST-000. `sintab`→`core::sinetable`. Pendientes: crc32, console (→Oleada 1), sync, file. |
-| `libc` (string/stdlib/stdio) | ✅ | 🔄 | ❌ | 🔄 | 04, 14 | sustituir por `eng::core::*`; no portar lo que el engine ya da. Inventariado; pendiente de portar/mapear. |
+| `libmisc` (fx/sort/crc32) | ✅ | ✅ | ✅ (host) | ✅ | (sin efecto aún) | `isqrt` (isqrt.hpp), `sort` (sort.hpp) y `crc32` (crc32.hpp) en `eng/core`; validados por test HOST-000. `sintab`→`core::sinetable`; `random`→`core::random.hpp` (xoroshiro64++, equivalente al `random.c` de libc). Pendientes: `console` (→Oleada 1), `sync`, `file`. |
+| `libc` (string/stdlib/stdio) | ✅ | 🔄 | ✅ (random) | 🔄 | 04, 14 | `random` portado. `qsort`→`eng::core::quick_sort` (no duplicar). `string`/`stdio` (kvprintf/snprintf): eval. contra builtins del toolchain; si se necesitan helpers (strlen/strlcpy) portar en `eng/core/str`. Pendiente. |
 | `libgfx` (bitmaps/copper/sprites/c2p) | ❌ | ❌ | ❌ | ❌ | 01, 02, 03, 04, 50, 53 | contra `graphics::copper`, `bitmap.hpp`, `frame_plan` |
 | `libblit` (blitter) | ❌ | ❌ | ❌ | ❌ | 11, 14, 58, 59, 67 | contra `frame_plan` (BlitJob) |
 | `lib2d` | ❌ | ❌ | ❌ | ❌ | 06, 30, 56 | host tests |

@@ -196,6 +196,13 @@ recording del GUI). Pendiente: `print` DWARF.
   Directrices operativas y bitácora de descubrimientos en
   `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` (leer antes de optimizar
   o portar código caliente).
+- **Comprobar el ensamblador generado**: al portar o escribir APIs, revisar con
+  `-S`/`-fverbose-asm` que el código que emite el toolchain no sea peor que el
+  original (o que el asm a mano del repo de origen). Un port 100 % "fiel pero
+  lento" pierde contra el original 68k optimizado; si el original usaba una
+  optimización en asm (p. ej. `swap` para rotar, `lsl.l #8; add` para `<<9`,
+  `divs/divu` de 16 bits), verificar que nuestra versión C++ produce algo al
+  menos igual de eficiente y anotarlo en la bitácora del doc de optimización.
 
 ## Comentarios didácticos de código
 - El código nuevo de hardware Amiga debe incluir comentarios breves, en español,

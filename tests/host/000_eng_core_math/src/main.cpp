@@ -25,7 +25,9 @@
 
 #include <cstdio>
 
+#include <eng/core/crc32.hpp>
 #include <eng/core/isqrt.hpp>
+#include <eng/core/random.hpp>
 #include <eng/core/sort.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
@@ -81,6 +83,69 @@ void test_isqrt_matches_original() {
     }
 }
 
+void test_crc32_matches_original() {
+    std::printf("crc32: equivalencia con el C original (muestras autenticadas)\n");
+
+    // (buffer, len, crc32 del C original compilado). El valor de "123456789"
+    // (0xCBF43926) es el CRC-32 estándar de la spec, y el resto se autenticaron
+    // compilando libmisc/crc32.c contra estos buffers.
+    const eng::u8 b1[] = { '1','2','3','4','5','6','7','8','9' };
+    const eng::u8 b2[] = { 0x00 };
+    const eng::u8 b3[] = { 0x00, 0x00, 0x00, 0x00 };
+    const eng::u8 b4a[] = { 'a','b','c','d','e','f','g','h','i','j','k','l','m',
+                            'n','o','p','q','r','s','t','u','v','w','x','y','z' };
+    const eng::u8 b5[] = { 0x41 };
+    const eng::u8 b6[] = { 'T','h','e',' ','q','u','i','c','k',' ','b','r','o','w','n',
+                           ' ','f','o','x',' ','j','u','m','p','s',' ','o','v','e','r',' ',
+                           't','h','e',' ','l','a','z','y',' ','d','o','g' };
+
+    struct {
+        const eng::u8* data;
+        eng::u32 len;
+        eng::u32 expect;
+    } const cases[] = {
+        { b1, sizeof(b1), 0xCBF43926u },
+        { b2, sizeof(b2), 0xD202EF8Du },
+        { b3, sizeof(b3), 0x2144DF1Cu },
+        { b4a, sizeof(b4a), 0x4C2750BDu },
+        { b5, sizeof(b5), 0xD3D99E8Bu },
+        { b6, sizeof(b6), 0x414FA339u },
+    };
+
+    for (const auto& c : cases) {
+        const eng::u32 got = eng::crc32(c.data, c.len);
+        if (got != c.expect) {
+            std::printf("  [FAIL] crc32(len=%lu) == 0x%08lx, se esperaba 0x%08lx\n",
+                        static_cast<unsigned long>(c.len),
+                        static_cast<unsigned long>(got),
+                        static_cast<unsigned long>(c.expect));
+            ++g_failures;
+        }
+    }
+}
+
+void test_random_matches_original() {
+    std::printf("random: xoroshiro64++ (equivalente al random.c del demoscene con swap)\n");
+
+    // Estado inicial s0=1,s1=0, primeros 10 outputs. La secuencia coincide con
+    // la del random.c original (cuyo rol por rangos+swap16 equivale a rotl32),
+    // autenticada compilando el C del origen.
+    eng::Xoroshiro64pp rng{1u, 0u};
+    const eng::u32 expect[] = {
+        0x48020a01u, 0x81662931u, 0xcd2b5253u, 0xd3e6cbe6u, 0xcd5af43du,
+        0x860aa4bau, 0xb7bea7fbu, 0x63dcaff3u, 0x762d74c9u, 0x3e7d7e8fu,
+    };
+    for (const eng::u32 e : expect) {
+        const eng::u32 got = rng.next();
+        if (got != e) {
+            std::printf("  [FAIL] random() == 0x%08lx, se esperaba 0x%08lx\n",
+                        static_cast<unsigned long>(got),
+                        static_cast<unsigned long>(e));
+            ++g_failures;
+        }
+    }
+}
+
 void test_sort_ints() {
     std::printf("sort: quick_sort sobre ints\n");
 
@@ -120,6 +185,8 @@ int main() {
     std::printf("==========================================\n");
 
     test_isqrt_matches_original();
+    test_crc32_matches_original();
+    test_random_matches_original();
     test_sort_ints();
     test_sort_items();
 
