@@ -2,21 +2,21 @@
 // Demo 060: self-check de eng::core (isqrt, sort, crc32, random) en hardware.
 // ============================================================================
 //
-// Purpose: validar en WinUAE (evidencia viva de hardware) los cuatro ports de
-// libmisc/libc que ya cubre el test host HOST-000. La demo ejecuta las mismas
-// comprobaciones por FASES y publica el resultado en `g_eng_run_status.detail`:
+// Valida en WinUAE los ports de libmisc/libc que cubre el test host HOST-000,
+// dibujando el resultado en BITPLANES REALES (no solo overlay del depurador):
+// la demo es visible en la ventana del Amiga normal (WinUAE, Coppenheimer,
+// hardware real), porque el texto se rasteriza con una fuente 8x8 en la
+// superficie EHB.
 //
-//   detalle | fase
-//   --------|----------------------------------------------
-//   0x06000101  isqrt OK (muestras autenticadas del C original)
-//   0x06000102  crc32 OK (muestras autenticadas)
-//   0x06000103  random OK (xoroshiro64++)
-//   0x06000104  quick_sort / sort_items OK
+// Fases (las mismas que HOST-000) ejecutadas en init, resultado publicado en
+// `g_eng_run_status.detail`:
+//
 //   0x060100FF  todas las fases OK (self-check completo)
+//   0x06000201  isqrt fallo  ·  0x06000202  crc32 fallo
+//   0x06000203  random fallo  ·  0x06000204  sort fallo
 //
-// Si una fase falla, `g_eng_run_status.state = Failed` y `detail` codifica la
-// fase, de modo que el runner detecta el fallo sin analisis visual. En el
-// overlay se dibuja un resumen (identico a las lineas del test host).
+// En pantalla (bitplanes EHB): titulo, cuatro lineas con OK/FAIL a color, y un
+// cartel SELF-CHECK: ALL PHASES OK / FAILED.
 //
 // Build/run/analyze:
 //   tools/build/build-demo.sh demos/amiga/060_eng_core_selfcheck --clean
@@ -31,6 +31,8 @@
 #include <eng/core/types.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
+#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/font8.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 #include <exec/execbase.h>
@@ -52,8 +54,22 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-// Resultado del self-check por fases. `detail()` publica 0x060100FF si todas
-// las fases pasan, o codifica la primera fase fallida para depuracion.
+namespace drivers = eng::graphics::drivers;
+
+constexpr eng::u16 kScreenW = drivers::StaticEhbScene::width;      // 320
+constexpr eng::u16 kScreenH = drivers::StaticEhbScene::height;     // 256
+constexpr eng::u16 kBytesPerRow = drivers::StaticEhbScene::bytes_per_row; // 40
+constexpr eng::u8 kPlanes = drivers::StaticEhbScene::plane_count;  // 6
+constexpr eng::u32 kPlaneBytes = drivers::StaticEhbScene::plane_bytes;
+
+// Indices EHB (0..63). El 6.º plano suma 32 (half-brite). Usamos base 0..31 y
+// texto en 31 (blanco) / 30 (amarillo), fondo 1 (azul).
+constexpr eng::u8 kBgIndex = 1;
+constexpr eng::u8 kTextWhite = 31;
+constexpr eng::u8 kTextYellow = 30;
+constexpr eng::u8 kTextFail = 26; // rojo
+
+// Resultado del self-check.
 struct SelfCheck {
 	bool isqrt_ok = false;
 	bool crc32_ok = false;
@@ -62,9 +78,7 @@ struct SelfCheck {
 
 	bool ok() const { return isqrt_ok && crc32_ok && random_ok && sort_ok; }
 	eng::u32 detail() const {
-		if (ok()) {
-			return 0x060100FFu;
-		}
+		if (ok()) return 0x060100FFu;
 		if (!isqrt_ok) return 0x06000201u;
 		if (!crc32_ok) return 0x06000202u;
 		if (!random_ok) return 0x06000203u;
@@ -75,7 +89,6 @@ struct SelfCheck {
 SelfCheck g_check;
 
 // --- Fase 1: isqrt ----------------------------------------------------------
-// Mismas muestras autenticadas del C original que el test host.
 void check_isqrt() {
 	const struct { eng::u32 n; eng::u32 expect; } cases[] = {
 		{ 0u, 0u }, { 1u, 1u }, { 4u, 2u }, { 9u, 2u }, { 16u, 4u },
@@ -150,23 +163,101 @@ void check_sort() {
 	}
 }
 
-// Etiquetas legibles para el overlay (const char* estaticos).
-const char* kLabelOk = "OK";
-const char* kLabelFail = "FAIL";
+// --- Rasterizacion de texto en bitplanes EHB -------------------------------
+// `color_index` es el indice EHB 0..63. Cada pixel del glifo 8x8 pone a 1 los
+// bits de los planos que forman ese indice en el byte correspondiente.
+void draw_text(eng::u8* planes, eng::u16 x, eng::u16 y, const char* text, eng::u8 color_index) {
+	while (*text) {
+		const char ch = *text++;
+		if (ch >= 32) {
+			for (eng::u8 row = 0; row < eng::Font8::kRowBytes; ++row) {
+				const eng::u8 glyph_row = eng::Font8::row(static_cast<eng::u16>(ch), row);
+				if (glyph_row == 0) {
+					continue;
+				}
+				const eng::u16 py = static_cast<eng::u16>(y + row);
+				const eng::u32 base = static_cast<eng::u32>(py) * kBytesPerRow + (x / 8u);
+				const eng::u8 shift = static_cast<eng::u8>(x & 7u);
+				for (eng::u8 plane = 0; plane < kPlanes; ++plane) {
+					if ((color_index & (1u << plane)) == 0) {
+						continue;
+					}
+					eng::u8* p = planes + static_cast<eng::u32>(plane) * kPlaneBytes + base;
+					if (shift == 0) {
+						*p |= glyph_row;
+					} else {
+						// Desplazado: pinta en el byte actual y el siguiente.
+						*p |= static_cast<eng::u8>(glyph_row >> shift);
+						*(p + 1) |= static_cast<eng::u8>(glyph_row << (8u - shift));
+					}
+				}
+			}
+		}
+		x = static_cast<eng::u16>(x + 8);
+	}
+}
+
+const char* ok_fail(bool ok) {
+	return ok ? "OK" : "FAIL";
+}
 
 struct CoreSelfcheckDemo {
 	static consteval int language_level_marker() { return 23; }
 
-	void init(eng::amiga::MinimalBackend&, eng::GameContext&) {
+	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		static_assert(language_level_marker() == 23);
 
-		// Ejecuta las cuatro fases una sola vez en init.
+		m_memory_ok = backend.configure_memory({
+			80u * 1024u, // Chip: bitplanes EHB + copperlist
+			8u * 1024u,  // Slow: metadatos
+			4u * 1024u,  // Frame scratch
+		});
+
+		const drivers::EhbPalette palette {
+			// 0 negro, 1 azul fondo, 26 rojo, 30 amarillo, 31 blanco.
+			0x000, 0x088, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
+			0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
+			0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
+			0x000, 0x000, 0xf00, 0x000, 0x000, 0x000, 0xff0, 0xfff,
+		};
+		const drivers::StaticEhbSceneConfig scene_config {
+			&palette, nullptr, 0, 1024,
+		};
+
+		m_scene_ok = m_scene.init(backend.memory(), scene_config);
+		if (!m_memory_ok || !m_scene_ok) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00000050u);
+			return;
+		}
+
+		// Ejecuta las cuatro fases.
 		check_isqrt();
 		check_crc32();
 		check_random();
 		check_sort();
 
+		// Dibuja en bitplanes reales (indices EHB).
+		eng::u8* planes = m_scene.bitplanes();
+		draw_text(planes, 16, 16, "Demo 060 - eng::core self-check", kTextWhite);
+		draw_text(planes, 16, 40, "isqrt  : ", kTextWhite);
+		draw_text(planes, 100, 40, ok_fail(g_check.isqrt_ok),
+		          g_check.isqrt_ok ? kTextYellow : kTextFail);
+		draw_text(planes, 16, 56, "crc32  : ", kTextWhite);
+		draw_text(planes, 100, 56, ok_fail(g_check.crc32_ok),
+		          g_check.crc32_ok ? kTextYellow : kTextFail);
+		draw_text(planes, 16, 72, "random : ", kTextWhite);
+		draw_text(planes, 100, 72, ok_fail(g_check.random_ok),
+		          g_check.random_ok ? kTextYellow : kTextFail);
+		draw_text(planes, 16, 88, "sort   : ", kTextWhite);
+		draw_text(planes, 100, 88, ok_fail(g_check.sort_ok),
+		          g_check.sort_ok ? kTextYellow : kTextFail);
+		draw_text(planes, 16, 120,
+		          g_check.ok() ? "SELF-CHECK: ALL PHASES OK" : "SELF-CHECK: FAILED",
+		          g_check.ok() ? kTextYellow : kTextFail);
+		draw_text(planes, 16, 240, "eng::core ports from libmisc/libc", 0x1a);
+
+		// Publica el resultado.
 		if (g_check.ok()) {
 			eng::debug::mark_ready(g_eng_run_status, g_check.detail());
 		} else {
@@ -180,29 +271,17 @@ struct CoreSelfcheckDemo {
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
-		auto& debug = backend.debug();
-		debug.clear();
-
-		// Fondo: verde si todo bien, rojo oscuro si falla (detectable por el
-		// analizador: verde dominante / no-azul / oscuro).
-		const bool all_ok = g_check.ok();
-		debug.filled_rect(0, 0, 700, 540, all_ok ? 0x00206010 : 0x00600010);
-
-		debug.text(20, 20, "Demo 060 - eng::core self-check (isqrt/sort/crc32/random)", 0x00ffffff);
-		debug.text(20, 56, "isqrt  : ", 0x00ffffff);
-		debug.text(100, 56, g_check.isqrt_ok ? kLabelOk : kLabelFail, g_check.isqrt_ok ? 0x0000ff80 : 0x00ff4040);
-		debug.text(20, 92, "crc32  : ", 0x00ffffff);
-		debug.text(100, 92, g_check.crc32_ok ? kLabelOk : kLabelFail, g_check.crc32_ok ? 0x0000ff80 : 0x00ff4040);
-		debug.text(20, 128, "random : ", 0x00ffffff);
-		debug.text(100, 128, g_check.random_ok ? kLabelOk : kLabelFail, g_check.random_ok ? 0x0000ff80 : 0x00ff4040);
-		debug.text(20, 164, "sort   : ", 0x00ffffff);
-		debug.text(100, 164, g_check.sort_ok ? kLabelOk : kLabelFail, g_check.sort_ok ? 0x0000ff80 : 0x00ff4040);
-
-		debug.rect(20, 190, 560, 220, 0x00ffff80);
-		debug.text(30, 200, all_ok ? "SELF-CHECK: ALL PHASES OK" : "SELF-CHECK: FAILED", 0x00ffff00);
-
+		// La superficie EHB se muestra desde init (0-bit no, 6 planos). El
+		// contenido ya está escrito; solo hay que asegurar la copperlist. "commit"
+		// del engine ocurre en render (ver AGENTS: update->wait_vblank->render).
+		m_scene.install(backend);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
+
+private:
+	drivers::StaticEhbScene m_scene {};
+	bool m_memory_ok = false;
+	bool m_scene_ok = false;
 };
 
 } // namespace

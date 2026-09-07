@@ -31,6 +31,7 @@
 #include <eng/core/sort.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
+#include <eng/graphics/font8.hpp>
 
 namespace {
 
@@ -146,6 +147,42 @@ void test_random_matches_original() {
     }
 }
 
+void test_font8() {
+    std::printf("font8: glifos presentes para caracteres usados por la demo 060\n");
+
+    // La demo dibuja "Demo 060 - eng::core self-check OK/FAIL isqrt crc32
+    // random sort SELF-CHECK : ALL PHASES" — verifica que esos glifos tienen
+    // al menos un pixel (no estan vacios). El espacio (0x20) se excluye: es
+    // legítimamente todo ceros.
+    const char* needed = "Demo060-eng::coreself-checkOK/FAILisqrtcrc32random"
+                         "sortSELF-CHECK:ALLPHASES123456789!.";
+    for (const char* p = needed; *p; ++p) {
+        const eng::u16 ch = static_cast<eng::u16>(static_cast<unsigned char>(*p));
+        bool any = false;
+        for (eng::u8 row = 0; row < eng::Font8::kRowBytes; ++row) {
+            if (eng::Font8::row(ch, row) != 0) {
+                any = true;
+                break;
+            }
+        }
+        if (!any) {
+            std::printf("  [FAIL] fuente sin glifo para '%c' (0x%02X)\n", *p, ch);
+            ++g_failures;
+        }
+    }
+}
+
+void test_row_bytes_consistency() {
+    std::printf("font8: tamano de la tabla coherente\n");
+    // kGlyphs debe tener kCount*kRowBytes bytes (compilacion lo garantiza),
+    // pero comprobamos que extremos del rango no esten vacios (una letra, un
+    // digito y el guion).
+    CHECK(eng::Font8::row(' ', 0) == 0u);          // espacio en blanco
+    CHECK(eng::Font8::row('A', 0) != 0u);          // 'A' con pixels
+    CHECK(eng::Font8::row('0', 0) != 0u);          // '0'
+    CHECK(eng::Font8::row('-', 3) != 0u);          // '-' en fila central
+}
+
 void test_sort_ints() {
     std::printf("sort: quick_sort sobre ints\n");
 
@@ -187,6 +224,8 @@ int main() {
     test_isqrt_matches_original();
     test_crc32_matches_original();
     test_random_matches_original();
+    test_font8();
+    test_row_bytes_consistency();
     test_sort_ints();
     test_sort_items();
 

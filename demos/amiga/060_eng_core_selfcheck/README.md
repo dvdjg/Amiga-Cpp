@@ -1,7 +1,10 @@
-# Demo 060: self-check de eng::core en hardware
+# Demo 060: self-check de eng::core en hardware (visible en pantalla real)
 
-Valida en WinUAE los four ports de `libmisc`/`libc` que cubre el test host
-`HOST-000` y los promueve de "validado por test host" a "validado en hardware":
+Valida en WinUAE los ports de `libmisc`/`libc` que cubre el test host
+`HOST-000`. A diferencia de un overlay de depurador, **la demo dibuja en
+bitplanes reales** (320x256 EHB) con una fuente 8x8 propia, de modo que el
+resultado es visible en la ventana del Amiga normal (WinUAE, Coppenheimer,
+hardware real), no solo en el overlay WinUAE-DBG.
 
 | Fase | Cabecera | Origen | Validación |
 |------|----------|--------|------------|
@@ -10,15 +13,20 @@ Valida en WinUAE los four ports de `libmisc`/`libc` que cubre el test host
 | 3 | `eng::core::Xoroshiro64pp` | `libc/stdlib/random.c` | 10 primeras salidas con estado {1,0} |
 | 4 | `eng::core::quick_sort` + `sort_items` | `libmisc/sort.c` | orden ascendente + extremos |
 
-Las cuatro fases se ejecutan en `init`. El resultado se publica en
-`g_eng_run_status`,
+Las fases se ejecutan en `init`. El resultado se publica en `g_eng_run_status`:
 
 - estado `Ready` y `detail = 0x060100FF` si todas las fases pasan;
 - estado `Failed` y `detail = 0x06000203` (etc.) codificando la primera fase
   fallida.
 
-De ese modo el runner valida la correción sin depender del análisis visual: si
-la demo llega a `Ready` con el detail esperado, el self-check pasó.
+Así el runner valida la corrección sin depender del análisis visual, y la
+pantalla muestra el `OK/FAIL` de cada fase + el cartel final.
+
+## Dependencias nuevas
+
+- `engine/include/eng/graphics/font8.hpp` — fuente bitmap 8x8 (glifos
+  `0x20..0x7e`) para rasterizar texto por CPU en bitplanes; reusable en futuras
+  demos/HUDs sin depender del overlay.
 
 ## Build & run & analyze
 
@@ -32,15 +40,23 @@ tools/analyze/analyze-demo.sh demos/amiga/060_eng_core_selfcheck
 
 - Compila y llega a `Ready` por canal lateral (estado 3).
 - `out/run/060_eng_core_selfcheck/run-report.json` reporta el detalle
-  `0x060100FF` (o se lee el símbolo `g_eng_run_status.detail` por GDB).
-- En la captura se ve fondo verde y las cuatro líneas `OK`.
-- El analizador `analyze-demo` pasa (fondo verde dominante + texto blanco).
+  `0x060100FF`.
+- En la captura se ve (bitplanes EHB): título, cuatro líneas `OK` y el cartel
+  `SELF-CHECK: ALL PHASES OK` en texto blanco/amarillo sobre fondo azul.
+- El analizador `analyze-demo` pasa (texto blanco + fondo no-Workbench).
+
+## Por qué bitplanes reales y no solo overlay
+
+El overlay `debug_*` (`debug_cmd` → `UaeLib` en `0xf0ff60`) solo existe en
+WinUAE-DBG y no se ve en la ventana Amiga normal ni en hardware real
+(ver `docs/debugging/diagnostico-adf-negro.md`). Una demo que debe "verse
+ejecutándose" dibuja en el playfield; el overlay queda como complemento de
+depuración, no como salida principal. Esta demo demuestra el patrón.
 
 ## Nota de portabilidad
 
-Los `eng::u32` del engine son `unsigned long`: de 32 bits en m68k pero de 64
-en el host GCC x86. Por eso `crc32`, `isqrt` y el PRNG internamente operan con
-`__UINT32_TYPE__` (uint32_t GNU freestanding) y enmascaran/truncan a 32 bits;
-así los mismos headers dan el mismo resultado en host (tests) y en el cruce
-(demo). La demo, al compilar con el cruce m68k, verifica el resultado real de
-32 bits tal y como correrá en A500.
+`eng::u32` = `unsigned long`: 32 bits en m68k, 64 en host GCC x86. Por eso
+`crc32`/`isqrt`/PRNG operan internamente con `__UINT32_TYPE__` y enmascaran a
+32 bits; así los mismos headers dan el mismo resultado en host (tests) y en el
+cruce (demo). La demo compila con el cruce m68k y verifica el resultado real de
+32 bits tal como correrá en A500.
