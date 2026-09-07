@@ -14,6 +14,7 @@ inferiores (eso es lo realista), pero ejercita principalmente la suya:
 
 | Carpeta | Capa | Qué ejercita |
 |---------|------|--------------|
+| [host/](host/README.md) | HOST | Algoritmos/APIs puras de `eng/core` (isqrt, sort, tablas…) compilados con g++ del host, sin WinUAE. |
 | [l0_bare_metal/](l0_bare_metal/README.md) | L0 | Registros custom, bitplanes planares, copperlist a mano, DMA y Blitter. |
 | `l1_backend/` | L1 | APIs de `MinimalBackend` (memoria, VBlank, copper, FramePlan). |
 | `l2_copper_frameplan/` | L2 | `CopperScheduler`, `CopperTimeline`, `FramePlan` y presupuestos. |
@@ -69,7 +70,14 @@ Los artefactos se generan en `out/demos/<leaf>/` (build) y `out/run/<leaf>/` (ej
 
 | ID | Test | Capa | Estado |
 |----|------|------|--------|
+| HOST-000 | [eng_core_math](host/000_eng_core_math/README.md) — `eng::core::isqrt` y `eng::core::sort` (port de `libmisc` de demoscene-repo-orig), validados contra el C original con g++ del host. | HOST | implementado |
 | L0-010 | [display_320x240](l0_bare_metal/010_display_320x240/README.md) — modo 320x240, 5 bitplanes, paleta 32, líneas, verificación framebuffer y vuelta a Workbench. | L0/L1 | implementado |
+
+> **Tests HOST** (`tests/host/`): algoritmos y APIs puras que no dependen de
+> hardware se compilan con g++ del entorno (el mismo GCC del toolchain, sin
+> MSVC) y corren como binario nativo; son la validación más rápida y
+> determinista para APIs reutilizables sin abrir WinUAE. Ver
+> [host/README.md](host/README.md).
 
 ## Herramientas de verificación usadas
 

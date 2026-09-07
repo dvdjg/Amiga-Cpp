@@ -88,6 +88,22 @@ hardware.
 - Mapear contra `eng::core`: `SIN/COS` → `core::sinetable`, div/mod → `core::fast_div`.
 - Validadores: efectos que usan solo tablas/fx (p. ej. `04-plasma`, `52-sea-anemone`, `14-metaballs` por su generación de valores).
 
+**Piloto hecho (2026-09):** portados y validados con test host:
+
+- `engine/include/eng/core/isqrt.hpp` — port fiel de `libmisc/fx.c` (`isqrt`
+  tabla + nlz, sin división/floats); validado por equivalencia con el C
+  original compilado (test HOST-000).
+- `engine/include/eng/core/sort.hpp` — `eng::quick_sort` (quick + inserción,
+  genérico sobre `Span<T>` con comparador) y `eng::sort_items` (equivalent de
+  `SortItemArray`); validado por el mismo test HOST-000.
+- Infraestructura de **test unitario host**: `tests/host/` con
+  `tools/run-host-tests.sh` (usa el `g++` del entorno del toolchain, sin WSL,
+  sin MSVC). Ver `tests/host/README.md`.
+
+Pendiente de `libmisc` en esta oleada: `crc32`, `console` (depende de
+`libgfx`, pasa a Oleada 1), `sync`, `file`; y de `libc`: `string`/`stdlib`
+(qsort/random)/`stdio` (kvprintf/snprintf).
+
 ### Oleada 1 — libgfx (display base)
 
 Objetivo: portar la capa de bitmaps, copper lists y sprites.
@@ -184,8 +200,8 @@ Estado por librería (actualizarlo en cada cambio de estado):
 
 | Librería | Inventario | Portado | Validado por efecto | En engine | Efectos validadores | Notas |
 |---|---|---|---|---|---|---|
-| `libmisc` (sintab/fx/sort/crc32/console) | ❌ | ❌ | ❌ | ❌ | 04, 52, 14 | mapear a `core::sinetable`/`fast_div` |
-| `libc` (string/stdlib/stdio) | ❌ | ❌ | ❌ | ❌ | 04, 14 | sustituir por `eng::core::*`; no portar lo que el engine ya da |
+| `libmisc` (fx/sort) | ✅ | ✅ | ✅ (host) | ✅ | (sin efecto aún) | `isqrt` y `sort` en `eng/core` (isqrt.hpp, sort.hpp); validados por test HOST-000. `sintab`→`core::sinetable`. Pendientes: crc32, console (→Oleada 1), sync, file. |
+| `libc` (string/stdlib/stdio) | ✅ | 🔄 | ❌ | 🔄 | 04, 14 | sustituir por `eng::core::*`; no portar lo que el engine ya da. Inventariado; pendiente de portar/mapear. |
 | `libgfx` (bitmaps/copper/sprites/c2p) | ❌ | ❌ | ❌ | ❌ | 01, 02, 03, 04, 50, 53 | contra `graphics::copper`, `bitmap.hpp`, `frame_plan` |
 | `libblit` (blitter) | ❌ | ❌ | ❌ | ❌ | 11, 14, 58, 59, 67 | contra `frame_plan` (BlitJob) |
 | `lib2d` | ❌ | ❌ | ❌ | ❌ | 06, 30, 56 | host tests |
@@ -195,25 +211,26 @@ Estado por librería (actualizarlo en cada cambio de estado):
 
 Leyenda: ❌ pendiente · 🔄 en curso · ✅ hecho.
 
-## 6. Primera pieza recomendada (piloto)
+## 6. Piloto de la Oleada 0 (hecho)
 
-**Oleada 0, `libmisc` (fx + sintab) mapeada a `eng::core`.**
+**`libmisc` (fx + sort) mapeada a `eng::core`** — primera pieza portada y
+validada con test host.
 
-Justificación:
+Del flujo del piloto:
 
-- Sin hardware: valida todo el flujo de portación con riesgo mínimo.
-- Ejercita el mapeo real de `SIN/COS` → `core::sinetable` y de las divisiones →
-  `core::fast_div`, que es el patrón que se repetirá en todas las librerías.
-- Los efectos que la usan (04-plasma, 52-sea-anemone) se adaptan luego con la
-  infraestructura ya validada.
+1. ✅ Inventariado: `libmisc` (`sintab`, `fx`, `sort`, `crc32`, `console`,
+   `checksum`, `sync`, `file`) y `libc` (`string`, `stdlib`, `stdio`).
+2. ✅ Mapeo: `SIN/COS` → `core::sinetable` (ya existe), `fast_div` → `core::fast_div`;
+   `isqrt` y sort se portaron a `eng/core/isqrt.hpp` y `eng/core/sort.hpp`.
+3. ✅ Test host: `tests/host/000_eng_core_math` + `tools/run-host-tests.sh`
+   (usa el `g++` del entorno del toolchain; sin WSL, sin MSVC).
+4. 🔄 Validación con demo mínima en WinUAE: pendiente (el test host ya cubre la
+   corrección; falta un efecto/demo que lo use como validación visual).
+5. ✅ Índice de cobertura actualizado (ver §5, fila `libmisc`).
 
-Pasos del piloto:
-
-1. Inventariar funciones de `libmisc` (`sintab`, `fx`, `sort`, `crc32`, `console`) y su uso real.
-2. Decidir qué vive en `engine/include/eng/core/` (lo genérico) y qué diferencia merece namespace propio.
-3. Portar el mínimo con estilo C++23; añadir host test en `tests/` para las tablas/fx.
-4. Validar con una demo mínima (p. ej. un `04-plasma` simplificado o un test de sintab en pantalla) con `build -> run -> analyze`.
-5. Actualizar la fila de `libmisc` en el índice de cobertura y revisar este roadmap con lo aprendido.
+Siguiente paso recomendado: portar/mapear el resto de `libmisc`/`libc`
+(`crc32`, `string`, `stdlib`, `stdio`) con su test host, o saltar a `libgfx`
+(Oleada 1) cuando se necesite un efecto validado en WinUAE.
 
 ## 7. Referencias
 
