@@ -9,7 +9,7 @@
 //   nearPairs pares de colores de la paleta a dist <=12 ("casi idénticos")
 //
 // Uso (desde la raíz del repo, para que pngjs resuelva):
-//   node tools/amiga-tiles/compare-palettes.mjs out/tile-demos/08_foto_real_ehb_32c
+//   node tools/amiga-tiles/compare-palettes.mjs out/assets/tile-demos/amiga/08_foto_real_ehb_32c
 //
 // Espera la estructura:
 //   <base>/<imagen>/{64,32}c_floyd/<algoritmo>/{reconstruct_*.png,palette_*.json}

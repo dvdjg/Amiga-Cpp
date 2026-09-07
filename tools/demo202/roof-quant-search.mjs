@@ -14,8 +14,8 @@ import { fileURLToPath } from 'node:url';
 import { PNG } from 'pngjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const SRC = path.join(ROOT, 'tools/amiga-tiles/assets/Beginning Fields.png');
-const OUT = path.join(ROOT, 'out/demo202/roofsearch');
+const SRC = path.join(ROOT, 'assets/amiga/tiles-reference/Beginning Fields.png');
+const OUT = path.join(ROOT, 'out/assets/demo202/roofsearch');
 fs.mkdirSync(OUT, { recursive: true });
 const tile = process.argv.includes('--tile') ? parseInt(process.argv[process.argv.indexOf('--tile') + 1], 10) : 16;
 const model = process.argv.includes('--model') ? process.argv[process.argv.indexOf('--model') + 1] : 'qwen3-vl:8b-instruct-q8_0';

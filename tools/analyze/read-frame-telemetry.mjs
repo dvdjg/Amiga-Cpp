@@ -19,7 +19,7 @@
  * Uso:
  *   node tools/analyze/read-frame-telemetry.mjs <demo> [samples] [--port 2346]
  *   # p. ej. con la demo viva:
- *   node tools/analyze/read-frame-telemetry.mjs demos/107_xlimited_corkscrew 20
+ *   node tools/analyze/read-frame-telemetry.mjs demos/amiga/107_xlimited_corkscrew 20
  *
  * Salida: una línea por frame con frame, blit_jobs, blit_words, copper_words.
  * Permite comprobar que la carga es homogénea (blit_jobs ~constante salvo los

@@ -66,7 +66,7 @@ const COLS_VIS = VIEWPORT_W / TW;    // 20
 const ROWS_VIS = MAIN_H / TH;        // 13
 
 // --- Leer kRenderMap (1600 u16) ---------------------------------------------
-const hdr = fs.readFileSync(path.join(root, 'out/ehb/const_game_201.h'), 'utf8');
+const hdr = fs.readFileSync(path.join(root, 'out/assets/ehb/const_game_201.h'), 'utf8');
 const m = hdr.match(/kRenderMap\[\d+\]\[\d+\]\s*=\s*\{([\s\S]*?)\};/);
 const nums = (m[1].match(/\d+/g) || []).slice(0, MAP_W * MAP_H).map(Number);
 
@@ -97,7 +97,7 @@ function gridFor(mapposx, mapposy) {
 // Recorte de la imagen de referencia (reconstruct.png = mapa 640x640) para el
 // offset de cámara, con el MISMO mapeo del engine. Escribe crop.png.
 function writeCrop(mapposx, mapposy, outFile) {
-  const ref = PNG.sync.read(fs.readFileSync(path.join(root, 'out/ehb/reconstruct.png')));
+  const ref = PNG.sync.read(fs.readFileSync(path.join(root, 'out/assets/ehb/reconstruct.png')));
   const W = ref.width, H = ref.height;
   const cropW = VIEWPORT_W, cropH = MAIN_H;
   const out = new PNG({ width: cropW, height: cropH });

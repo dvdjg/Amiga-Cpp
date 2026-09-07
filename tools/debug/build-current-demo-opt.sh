@@ -33,7 +33,7 @@ case "$RELATIVE" in
 		echo "El archivo no pertenece a demos/<nombre>/src o tests/<nombre>/src: $RELATIVE" >&2
 		echo "F5 compila la demo que contiene el archivo ACTIVO. Para ejecutar la demo" >&2
 		echo "107_xlimited_corkscrew abre y enfoca su src/main.cpp antes de pulsar F5:" >&2
-		echo "  demos/107_xlimited_corkscrew/src/main.cpp" >&2
+		echo "  demos/amiga/107_xlimited_corkscrew/src/main.cpp" >&2
 		CURRENT_OUT="$ROOT/out/debug-current"
 		mkdir -p "$CURRENT_OUT"
 		cat > "$CURRENT_OUT/session_opt.json" <<EOF

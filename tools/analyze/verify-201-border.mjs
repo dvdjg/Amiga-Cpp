@@ -14,7 +14,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.dirname(path.dirname(path.dirname(fileURLToPath(import.meta.url))));
-const hdr = fs.readFileSync(path.join(root, 'out/ehb/const_game_201.h'), 'utf8');
+const hdr = fs.readFileSync(path.join(root, 'out/assets/ehb/const_game_201.h'), 'utf8');
 
 // --- Geometría de la demo 201 (main.cpp) -----------------------------------
 const TW = 16, TH = 16, PLANES = 6;

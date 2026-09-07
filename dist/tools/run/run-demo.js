@@ -660,7 +660,7 @@ async function readSideChannelRunStatusOnce(port, runtimeAddress, timeoutMs) {
 }
 const demoArg = process.argv[2];
 if (!demoArg || demoArg.startsWith('--')) {
-    console.error('Uso: node tools/run/run-demo.mjs demos/000_toolchain_cpp23 [--wait-ms 12000] [--screenshot file.png]');
+    console.error('Uso: node tools/run/run-demo.mjs demos/amiga/000_toolchain_cpp23 [--wait-ms 12000] [--screenshot file.png]');
     process.exit(2);
 }
 const demoPath = path.resolve(root, demoArg);

@@ -19,7 +19,7 @@ import path from 'path';
 
 const ROOT = path.resolve(process.argv[1] ? path.dirname(process.argv[1]) : '.', '..', '..');
 const args = process.argv.slice(2);
-const demoArg = args.find(a => a.startsWith('demos/') || a.includes('_driver')) || 'demos/101_ehb_tile_scroll_driver';
+const demoArg = args.find(a => a.startsWith('demos/') || a.includes('_driver')) || 'demos/amiga/101_ehb_tile_scroll_driver';
 const secondsIdx = args.indexOf('--seconds');
 const seconds = parseInt(secondsIdx >= 0 ? (args[secondsIdx + 1] ?? '5') : '5', 10) || 5;
 const outIdx = args.indexOf('--out');

@@ -251,7 +251,8 @@ async function main() {
 	const doSplit = hasArg('--split'); // morfología ligera OPCIONAL (sprites que se tocan) — por defecto apagada: erosionar fragmenta sprites con detalles
 	const quantize = parseInt(argV('--quantize', '0'), 10);
 	const job = argV('--job', path.basename(input, path.extname(input)));
-	const outDir = path.resolve(argV('--out', path.join(ROOT, 'out', job)));
+	// Defecto canónico (docs/STRUCTURE.md §6.1): out/assets/game-assets/<job>/.
+	const outDir = path.resolve(argV('--out', path.join(ROOT, 'out', 'assets', 'game-assets', job)));
 	fs.mkdirSync(outDir, { recursive: true });
 
 	const png = loadImage(input);

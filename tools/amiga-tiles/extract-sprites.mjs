@@ -396,7 +396,8 @@ async function main() {
 		console.log('Uso: node tools/amiga-tiles/extract-sprites.mjs <imagen> [--background auto|none|R,G,B] [--tol N] [--min N] [--ai] [--organize] [--out DIR]');
 		return;
 	}
-	const outDir = path.resolve(argV('--out', path.join(path.dirname(path.resolve(input)), 'sprites_out')));
+	// Defecto canónico (docs/STRUCTURE.md §6.1): out/assets/amiga-tiles/<imagen>.sprites/.
+	const outDir = path.resolve(argV('--out', path.join(ROOT, 'out', 'assets', 'amiga-tiles', `${path.basename(input, path.extname(input))}.sprites`)));
 	const tol = Math.max(1, parseInt(argV('--tol', '24'), 10) || 24);
 	const minArea = Math.max(4, parseInt(argV('--min', '24'), 10) || 24);
 	const bgSpec = argV('--background', 'auto').toLowerCase();

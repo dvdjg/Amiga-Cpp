@@ -18,7 +18,7 @@
 //                         --ehb coacciona colors a 64. --no-ehb con colors=64 da una
 //                         paleta PURA de 64 colores independientes (6 planos, sin half).
 //   --alpha / --no-alpha  Reservar el índice 0 para transparencia (auto si el PNG la tiene).
-//   --dither MODE         none|floyd|atkinson|bayer   (error diffusión / matricial)
+//   --dither MODE         none|floyd|atkinson|bayer|checker|checker50   (checker50: 2 de cada 4, checkerboard clásico)
 //   --dither-strength F   Intensidad de la difusión (0..1, defecto 1).
 //   --palette SRC         adaptive|mediancut|kmeans|bright|ehb|perceptual|popularity|cube|grays|<archivo.json>
 //   --palette-k N         Iteraciones de k-means (defecto 12).
@@ -398,6 +398,30 @@ function quantizeIndexed(png, table, alpha, dither, strength, opts) {
 				const th = BAYER4[y & 3][x & 3];
 				idx = bayerPick(table, c, th);
 				// matrícial: sin propagación de error a vecinos
+			} else if (mode === 'checker50') {
+				// checker50: en la banda intermedia (frac 0.28..0.72) fuerza SIEMPRE
+				// 2 de cada 4 (checkerboard clásico diagonal), más visible que el
+				// densidad gradual de 'checker'.
+				const mix50 = checkerPick(table, c);
+				if (mix50.over < 0 || mix50.frac < 0.28 || mix50.frac > 0.72) idx = mix50.base;
+				else {
+					const p50 = (x & 1) + 2 * (y & 1);
+					idx = (p50 === 0 || p50 === 3) ? mix50.over : mix50.base;
+				}
+			} else if (mode === 'checker') {
+				// CHECKERBOARD clásico (estilo core-design): busca el PAR de colores
+				// de la paleta cuyo segmento mejor interpola el color original y lo
+				// alterna en patrón de tablero → sintetiza el color perdido por la
+				// cuantización con dos colores cercanos. Sin propagación de error.
+				const mix = checkerPick(table, c);
+				if (mix.over < 0) idx = mix.base;
+				else {
+					// 2×2 ordenado entre base/over: densidad = frac (el checker clásico
+					// aparece en la banda intermedia; los extremos quedan limpios).
+					const cnt = mix.frac <= 0.06 ? 0 : mix.frac >= 0.94 ? 4 : Math.round(mix.frac * 4);
+					const seq = [0, 3, 1, 2]; // (0,0),(1,1),(1,0),(0,1): cnt=2 => diagonal
+					idx = (seq.indexOf((x & 1) + 2 * (y & 1)) < cnt) ? mix.over : mix.base;
+				}
 			} else if (mode === null) {
 				// NONE: vecino más próximo puro, SIN difusión de error.
 				const e = nearestInTable(table, c);
@@ -447,7 +471,57 @@ function bayerPick(table, c, th) {
 	return best.index;
 }
 
-// ---------------------------------------------------------------------------
+function checkerPick(table, c) {
+	// Ordena los colores de la paleta por luminancia y busca el PAR CONSECUTIVO
+	// que enmarca el tono del píxel (proyección sobre ese segmento). El píxel
+	// «intermedio» entre dos colores se dibuja como banda de tablero entre ambos
+	// (2×2 con densidad = t). Así un degradado (p. ej. 3 verdes de copas) cruza
+	// pares consecutivos y USA todos los colores, con el aspecto clásico del
+	// checkerboard entre dos tonos, en lugar de ruido multicolor.
+	const entries = [];
+	for (const e of table) if (!e.transparent) entries.push({ i: e.index, rgb: e.rgb });
+	if (!entries.length) return { base: 0, over: -1, frac: 0 };
+	const lum = (p) => 0.299 * p[0] + 0.587 * p[1] + 0.114 * p[2];
+	entries.sort((a, b) => lum(a.rgb) - lum(b.rgb));
+	// color más cercano (fallback para zonas planas / sin par cercano)
+	let ni = 0, nd = Infinity;
+	for (let k = 0; k < entries.length; k++) {
+		const d = dist(c, entries[k].rgb);
+		if (d < nd) { nd = d; ni = k; }
+	}
+	if (nd < 8) return { base: entries[ni].i, over: -1, frac: 0 };
+	// mejor par consecutivo (en luminancia) cuya línea pase cerca del píxel
+	let best = -1, be = Infinity, bt = 0;
+	for (let k = 0; k + 1 < entries.length; k++) {
+		const a = entries[k].rgb, b = entries[k + 1].rgb;
+		const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
+		const l2 = dx * dx + dy * dy + dz * dz;
+		if (l2 === 0) continue;
+		let t = ((c[0] - a[0]) * dx + (c[1] - a[1]) * dy + (c[2] - a[2]) * dz) / l2;
+		t = t < 0 ? 0 : t > 1 ? 1 : t;
+		const e = Math.abs(c[0] - (a[0] + dx * t)) + Math.abs(c[1] - (a[1] + dy * t)) + Math.abs(c[2] - (a[2] + dz * t));
+		if (e < be) { be = e; best = k; bt = t; }
+	}
+	if (best < 0 || be > 70) return { base: entries[ni].i, over: -1, frac: 0 };
+	// No mezclar pares cromáticamente lejanos (p. ej. gris de muro con amarillo de
+	// tejado, con luminancia parecida): si los dos colores del par están lejos se
+	// usa solo el más cercano, para no cambiar el color original.
+	const cpa = entries[best].rgb, cpb = entries[best + 1].rgb;
+	if (Math.abs(cpa[0] - cpb[0]) + Math.abs(cpa[1] - cpb[1]) + Math.abs(cpa[2] - cpb[2]) > 110) {
+		return { base: entries[ni].i, over: -1, frac: 0 };
+	}
+	// Los dos colores del par deben compartir TONO (dos sombras del mismo matiz),
+	// no solo luminancia: comparo el vector de croma (R−G, G−B). Así el tan-gris
+	// de los muros no se empareja con el verde claro (aunque estén a ≤110), pero
+	// los verdes de las copas entre sí sí.
+	const ca0 = cpa[0] - cpa[1], ca1 = cpa[1] - cpa[2];
+	const cb0 = cpb[0] - cpb[1], cb1 = cpb[1] - cpb[2];
+	if (Math.abs(ca0 - cb0) + Math.abs(ca1 - cb1) > 60) {
+		return { base: entries[ni].i, over: -1, frac: 0 };
+	}
+	return { base: entries[best].i, over: entries[best + 1].i, frac: bt };
+}
+
 // SLICE: tiles únicos, fusión opcional, mapa de índices y comparación
 // ---------------------------------------------------------------------------
 function sliceTiles(indices, W, H, tile) {
@@ -928,7 +1002,7 @@ async function main() {
 		if (!has('--dither-clamp')) ditherClamp = 16;
 		if (!has('--serpentine')) serpentineMode = true;
 	}
-	if (!['none', 'floyd', 'atkinson', 'bayer'].includes(dither)) fail(`--dither inválido: ${dither}`);
+	if (!['none', 'floyd', 'atkinson', 'bayer', 'checker', 'checker50'].includes(dither)) fail(`--dither inválido: ${dither}`);
 	let palSrc = arg('--palette', 'adaptive');
 	// --perceptual activa la cuantización "half-aware + ponderada" de forma global:
 	// histograma ponderado por luminancia/croma + métrica perceptual (distP) en el
@@ -945,7 +1019,11 @@ async function main() {
 	const packArg = arg('--pack', 'auto');                 // auto|on|off: empaqueta índices a bits(=ceil(log2 colors))
 	if (!['auto', 'on', 'off'].includes(packArg)) fail(`--pack inválido: ${packArg}`);
 	const outDirArg = arg('--out', '');
-	const outDir = outDirArg ? path.resolve(outDirArg) : path.join(path.dirname(path.resolve(input)), 'out');
+	// Defecto canónico (docs/STRUCTURE.md §6.1): out/assets/<pipeline>/<imagen>/,
+	// consistente sea quien lo invoque (humano o IA).
+	const outDir = outDirArg
+		? path.resolve(outDirArg)
+		: path.join(ROOT, 'out', 'assets', 'amiga-tiles', path.basename(input, path.extname(input)));
 	fs.mkdirSync(outDir, { recursive: true });
 
 	let png = loadImage(input);

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // run-demos.mjs Ã¢â‚¬â€ genera la carpeta de demostraciones de amiga-tiles en
-// out/tile-demos. Cada demo crea una carpeta con la imagen fuente, los
+// out/assets/tile-demos. Cada demo crea una carpeta con la imagen fuente, los
 // resultados (reconstruct/tilebank/paletas/headers/binarios) y su README.
 // Uso: node tools/amiga-tiles/run-demos.mjs
 import fs from 'node:fs';
@@ -11,9 +11,9 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../..');
 const TOOL = path.join(ROOT, 'tools', 'amiga-tiles', 'amiga-tiles.mjs');
-const ASSETS = path.join(ROOT, 'tools', 'amiga-tiles', 'assets');
+const ASSETS = path.join(ROOT, 'assets', 'amiga', 'tiles-reference');
 const METAL = 'C:/Users/dvdjg/Downloads/Neo Geo _ NGCD - Metal Slug - Backgrounds - Mission 2.png';
-const OUT = path.join(ROOT, 'out', 'tile-demos');
+const OUT = path.join(ROOT, 'out', 'assets', 'tile-demos');
 const NODE = process.execPath;
 
 function rm(dir) { fs.rmSync(dir, { recursive: true, force: true }); }
@@ -37,7 +37,7 @@ function readme(folder, lines) { fs.writeFileSync(path.join(folder, 'README.md')
 
 console.log(`[run-demos] salida -> ${OUT}`);
 // Preserva los artefactos de visión (los genera run-vision-verify dentro de
-// out/tile-demos y no deben perderse al regenerar las demos).
+// out/assets/tile-demos y no deben perderse al regenerar las demos).
 const stash = [];
 function stashVision() {
 	const stack = [OUT];

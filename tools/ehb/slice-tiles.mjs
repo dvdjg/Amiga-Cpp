@@ -4,7 +4,7 @@
 // compara la versiÃ³n cuantizada del ORIGINAL con la reconstruida (debe dar 100%
 // sin fusiÃ³n). Emite PNG indexados (encoder propio PLTE+IDAT) y el .h para Amiga.
 //
-// Uso: node tools/ehb/slice-tiles.mjs <png> --palette out/ehb/palette.json
+// Uso: node tools/ehb/slice-tiles.mjs <png> --palette out/assets/ehb/palette.json
 //      [--ehb-merge 0.0..1.0] [--sheet-scale 1|2] [--classify] [--out dir]
 import fs from 'node:fs';
 import path from 'node:path';
@@ -17,7 +17,7 @@ const argV = (n, d) => { const i = process.argv.indexOf(n); return i >= 0 ? proc
 const img = process.argv[2];
 if (!img) { console.error('Uso: slice-tiles.mjs <png> --palette palette.json [--ehb-merge F]'); process.exit(2); }
 const tile = parseInt(argV('--tile', '16'), 10);
-const outDir = argV('--out', 'out/ehb');
+const outDir = argV('--out', 'out/assets/ehb');
 const ehbMerge = parseFloat(argV('--ehb-merge', '1'));
 const sheetScale = parseInt(argV('--sheet-scale', '1'), 10);
 const classify = process.argv.includes('--classify');
@@ -50,7 +50,7 @@ if (hasAlphaSrc) paletteI.push([0, 0, 0]); // índice 0 = transparente (si hace 
 // 32..63 half). Por eso, aquí dentro, al EXPORTAR (.h/.bin/tiles.json/PNG) se
 // reindexa a bases-primero con el mapa `expIndex` del paso 6, de modo que el Amiga
 // NUNCA transforma píxeles en CPU. Ver la regla 7 de
-// docs/roadmap/REGLAS_PIPELINE_TILES.md y el uso en demos/201_ehb_map/src/main.cpp.
+// docs/guides/roadmap/REGLAS_PIPELINE_TILES.md y el uso en demos/amiga/201_ehb_map/src/main.cpp.
 for (const b of bases) { paletteI.push([b[0] & 255, b[1] & 255, b[2] & 255]); if (planes >= 6) paletteI.push([b[0] >> 1, b[1] >> 1, b[2] >> 1]); }
 const palSize = paletteI.length;
 console.log(`[slice] paleta ${palSize} colores (${palSize <= 16 ? '4 bits/px' : palSize <= 32 ? '5 bits/px' : 'EHB 64'}${hasAlphaSrc ? ', índice 0 transparente' : ' sin transparencia'})`);
@@ -108,7 +108,7 @@ console.log(`[slice] COMPARAR: original(cuantizado EHB) vs reconstruido = ${pct.
 if (ehbMerge === 1 && pct < 100) { console.error('[slice] FALLO: sin fusiÃ³n la reconstrucciÃ³n debe cuadrar 100%'); process.exit(1); }
 
 // --- 6) Exports: .h + tiles.json + PNG indexados ------------------------------
-// REGLA 7 (docs/roadmap/REGLAS_PIPELINE_TILES.md): el chipset EHB consume colores
+// REGLA 7 (docs/guides/roadmap/REGLAS_PIPELINE_TILES.md): el chipset EHB consume colores
 // BASES-PRIMERO (COLOR00..31 = bases, 32..63 = half), y el Amiga NO debe
 // transformar índices en CPU. Internamente slice trabaja con `paletteI`
 // INTERCALADA (pares base/half), que es su forma natural de emparejar al

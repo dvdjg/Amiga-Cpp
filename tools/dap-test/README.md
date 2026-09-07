@@ -33,7 +33,7 @@ lanza el adaptador en modo servidor y `dap-client.js` actúa de cliente DAP.
    (En Windows, crear antes la carpeta `node_modules\vscode`).
 3. **Ejecutable a depurar**:
    ```bash
-   bash ./tools/debug/build-current-demo.sh "demos/050_blitter_bobs/src/main.cpp"
+   bash ./tools/debug/build-current-demo.sh "demos/amiga/050_blitter_bobs/src/main.cpp"
    ```
    Genera `out/debug-current/current.elf` y `current.exe`.
 4. **Kickstart** en `C:/Amiga/KICK13.rom` (o ajustar en `dap-client.js`).
@@ -44,12 +44,12 @@ lanza el adaptador en modo servidor y `dap-client.js` actúa de cliente DAP.
 # Linux/macOS
 node tools/dap-test/dap-client.js 4711 \
   out/debug-current/current \
-  demos/050_blitter_bobs/src/main.cpp 296
+  demos/amiga/050_blitter_bobs/src/main.cpp 296
 
 # Windows (rutas absolutas)
 node tools/dap-test/dap-client.js 4711 \
   "C:/.../Amiga-Cpp/out/debug-current/current" \
-  "C:/.../Amiga-Cpp/demos/050_blitter_bobs/src/main.cpp" 296
+  "C:/.../Amiga-Cpp/demos/amiga/050_blitter_bobs/src/main.cpp" 296
 ```
 
 Salida esperada (caso correcto):

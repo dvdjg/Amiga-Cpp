@@ -16,7 +16,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
-const DEMO_ARG = process.argv[2] || 'demos/101_ehb_tile_scroll_driver';
+const DEMO_ARG = process.argv[2] || 'demos/amiga/101_ehb_tile_scroll_driver';
 const DEMO = DEMO_ARG.replace(/^demos\//, '');
 const THRESHOLD = parseFloat(process.argv.find(a => a.startsWith('--threshold'))?.split('=')[1] ?? '8') || 8;
 const OUT = path.join(ROOT, 'out', 'run', DEMO);

@@ -122,7 +122,7 @@ pero puede perder defectos pequenos al reducir la secuencia a una sola hoja.
 La prueba temporal de la demo 101 puede invocar Vision Review cuando se pida:
 
 ```powershell
-.\demos\101_ehb_tile_scroll_driver\analyze-sequence.ps1 `
+.\demos\amiga\101_ehb_tile_scroll_driver\analyze-sequence.ps1 `
   -Warp `
   -RequireVisionReviewOk
 ```
@@ -131,7 +131,7 @@ Tambien se puede activar desde la regresion:
 
 ```powershell
 .\tools\test-regression.ps1 `
-  -Demo demos\101_ehb_tile_scroll_driver `
+  -Demo demos\amiga\101_ehb_tile_scroll_driver `
   -Warp `
   -RequireVisionReviewOk
 ```

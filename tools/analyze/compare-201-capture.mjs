@@ -11,7 +11,7 @@ if (!screenFile || !expectedFile) {
 
 const screen = PNG.sync.read(fs.readFileSync(screenFile));
 const expected = PNG.sync.read(fs.readFileSync(expectedFile));
-const paletteJson = JSON.parse(fs.readFileSync('out/ehb/palette.json', 'utf8'));
+const paletteJson = JSON.parse(fs.readFileSync('out/assets/ehb/palette.json', 'utf8'));
 const toAmiga = ([r, g, b]) => [(r >> 4) * 17, (g >> 4) * 17, (b >> 4) * 17];
 const hardwareBases = paletteJson.bases.map(toAmiga);
 const palette = [...hardwareBases, ...hardwareBases.map(([r, g, b]) => [r >> 1, g >> 1, b >> 1])];

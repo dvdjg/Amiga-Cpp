@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Convierte el tilebank INDEXADO del pipeline EHB (out/ehb/tilebank.raw.bin,
+// Convierte el tilebank INDEXADO del pipeline EHB (out/assets/ehb/tilebank.raw.bin,
 // 1 B/píxel por tile, índice EHB 0..63 BASES-PRIMERO, stride tile*tile bytes)
 // al BANCO DE BLOQUES INTERLEAVED que consume el motor X-Limited
 // (`draw_block_job`): un bitmap de 320 px de ancho (40 B/planelínea) donde cada
@@ -13,9 +13,9 @@
 // listo; el Amiga no carga el raw y el scroll no paga ninguna transformación.
 //
 // Uso: node tools/ehb/emit-xlimited-bank.mjs [--tw 16] [--th 16] [--planes 6]
-//                                           [--in out/ehb/tilebank.raw.bin]
-//                                           [--out-bin out/ehb/tilebank.xlimited.bin]
-//                                           [--out-h out/ehb/tilebank.xlimited.h]
+//                                           [--in out/assets/ehb/tilebank.raw.bin]
+//                                           [--out-bin out/assets/ehb/tilebank.xlimited.bin]
+//                                           [--out-h out/assets/ehb/tilebank.xlimited.h]
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -30,9 +30,9 @@ if (tw % 16 !== 0 || th !== 16 || planes !== 6) {
   process.exit(1);
 }
 
-const inBin = path.resolve(argV('--in', 'out/ehb/tilebank.raw.bin'));
-const outBin = path.resolve(argV('--out-bin', 'out/ehb/tilebank.xlimited.bin'));
-const outH = path.resolve(argV('--out-h', 'out/ehb/tilebank.xlimited.h'));
+const inBin = path.resolve(argV('--in', 'out/assets/ehb/tilebank.raw.bin'));
+const outBin = path.resolve(argV('--out-bin', 'out/assets/ehb/tilebank.xlimited.bin'));
+const outH = path.resolve(argV('--out-h', 'out/assets/ehb/tilebank.xlimited.h'));
 
 const raw = fs.readFileSync(inBin);
 const stride = tw * th;                       // 256 B/tile (16x16, 1 B/píxel)

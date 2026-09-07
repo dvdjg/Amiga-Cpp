@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // run-vision-verify.mjs — verificación por IA de visión LOCAL (ollama) de
-// out/tile-demos. Sin vision model instalado no hace nada (no inventa).
+// out/assets/tile-demos. Sin vision model instalado no hace nada (no inventa).
 //
 // Flujo automático (por demo), SIEMPRE que haya ollama+visión:
 //   1. DESCRIBE la imagen ORIGEN y cada RESULTADO (reconstruct, tilebank,
@@ -23,7 +23,7 @@ import jpeg from 'jpeg-js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../..');
-const DEMOS = path.join(ROOT, 'out', 'tile-demos');
+const DEMOS = path.join(ROOT, 'out', 'assets', 'tile-demos');
 const BASE = 'http://127.0.0.1:11434';
 
 // Normaliza PNG o JPEG a {width,height,data:Buffer RGBA}.
@@ -191,7 +191,7 @@ async function main() {
 		fs.writeFileSync(path.join(DEMOS, folder, 'vision_report.md'), lines.join('\n'), 'utf8');
 		byFolder.set(folder, lines);
 	}
-	const summary = [`# Resumen IA de visión — out/tile-demos`, '', `Modelo: ${model} · fecha 2026-09-04`, '', `Orígenes+resultados: ${sources.length}+${results.length} · ops: ${ops.size} · comparaciones: ${compare.size}`, ''];
+	const summary = [`# Resumen IA de visión — out/assets/tile-demos`, '', `Modelo: ${model} · fecha 2026-09-04`, '', `Orígenes+resultados: ${sources.length}+${results.length} · ops: ${ops.size} · comparaciones: ${compare.size}`, ''];
 	// VISION_SUMMARY global SIEMPRE se reconstruye desde los informes por carpeta.
 	const foldersAll = fs.readdirSync(DEMOS).filter((n) => { try { return fs.statSync(path.join(DEMOS, n)).isDirectory() && !isNaN(parseInt(n, 10)); } catch { return false; } }).sort();
 	for (const folder of foldersAll) {

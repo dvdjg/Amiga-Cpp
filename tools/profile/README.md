@@ -35,7 +35,7 @@ node tools/profile/ai-analyze.mjs demo101 6 \
 
 # Lanzando la demo directamente (WinUAE como hijo de ai-analyze) y esperando READY
 node tools/profile/ai-analyze.mjs demo050 4 \
-  --demo demos/050_blitter_bobs \
+  --demo demos/amiga/050_blitter_bobs \
   --prompt-file tools/profile/prompts/050-blitter-bobs.md
 ```
 
@@ -72,7 +72,7 @@ durante N segundos, agrupa las muestras por símbolo (resuelve el `.map` de la
 demo contra `baseText`) y emite un informe de "dónde se va el tiempo del CPU".
 
 ```
-node tools/profile/hotspots.mjs demos/101_ehb_tile_scroll_driver --seconds 5 [--out out/hotspots.md]
+node tools/profile/hotspots.mjs demos/amiga/101_ehb_tile_scroll_driver --seconds 5 [--out out/hotspots.md]
 ```
 
 Ejemplo (demo 101): `wait_vblank` ~29%, `rebuild_copper` ~28%, `memset` ~17% —

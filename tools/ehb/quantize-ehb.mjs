@@ -111,7 +111,7 @@ const pal444 = pal.map(to444);
 
 // Emitir también la paleta en JSON (32 bases RGB) para slice-tiles con --palette.
 const palJson = pal.map((c) => [(c >> 16) & 255, (c >> 8) & 255, c & 255]);
-const outDirP = argV('--out', 'out/ehb');
+const outDirP = argV('--out', 'out/assets/ehb');
 fs.mkdirSync(outDirP, { recursive: true });
 fs.writeFileSync(path.join(outDirP, 'palette.json'), JSON.stringify({ planes, bases: palJson }, null, 2), 'utf8');
 console.log(`[ehb] palette.json (${K} bases) -> ${path.join(outDirP, 'palette.json')}`);
@@ -127,7 +127,7 @@ mse /= total;
 const psnr = 10 * Math.log10(255 * 255 * 3 / (mse + eps));
 
 // --- emitir C y preview ---
-const outDir = argV('--out', 'out/ehb');
+const outDir = argV('--out', 'out/assets/ehb');
 fs.mkdirSync(outDir, { recursive: true });
 const lines = ['// Paleta EHB generada (32 bases; half = c>>1 en el hardware).', '// base 0 = transparencia. Ordenada por luminosidad.', 'constexpr eng::u16 kEhbPalette[32] {'];
 for (let r = 0; r < Math.ceil(K / 8); r++) {

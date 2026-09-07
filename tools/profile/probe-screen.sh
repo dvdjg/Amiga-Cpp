@@ -8,7 +8,7 @@
 #   tools/profile/probe-screen.sh <demo> [frames] [opciones de ollama-analyze]
 #
 # Ejemplo:
-#   tools/profile/probe-screen.sh demos/050_blitter_bobs 4 \
+#   tools/profile/probe-screen.sh demos/amiga/050_blitter_bobs 4 \
 #       --model qwen3-vl:8b-instruct-q8_0 \
 #       --prompt-file tools/profile/prompts/050-blitter-bobs.md
 # ---------------------------------------------------------------------------

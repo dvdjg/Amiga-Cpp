@@ -150,7 +150,7 @@ fi
 mkdir -p "$OBJ_DIR" "$OUT_DIR"
 
 # --- Flags ------------------------------------------------------------------
-# Ver docs/architecture/OPTIMIZACION_GPP_68000.md (§1): en 68000 el código
+# Ver docs/guides/optimization/OPTIMIZACION_GPP_68000.md (§1): en 68000 el código
 # compacto suele ser más rápido (sin i-cache útil). -Os es el default release.
 # NO usar -mtune=68020 aquí: verificado (2026-08-31) que a -O1 cuelga la init
 # de la demo 107; queda anotado en la bitácora §8 del doc.

@@ -1,17 +1,17 @@
 #!/usr/bin/env node
-// Genera `out/ehb/const_game_201.h` (assetes estáticos de la demo 201) a partir
+// Genera `out/assets/ehb/const_game_201.h` (assetes estáticos de la demo 201) a partir
 // del `.h` que emite slice-tiles (tilebank_indexed.h) y de tiles.json. Así el
 // ensamblado manual deja de existir: es un renombrado determinista de una sola
 // fuente (pipeline canónico, regla 7).
 //
-// Uso: node tools/ehb/emit-const-201.mjs [--in out/ehb/tilebank_indexed.h] [--out out/ehb/const_game_201.h]
+// Uso: node tools/ehb/emit-const-201.mjs [--in out/assets/ehb/tilebank_indexed.h] [--out out/assets/ehb/const_game_201.h]
 import fs from 'node:fs';
 import path from 'node:path';
 
 const argV = (n, d) => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : d; };
-const inH = path.resolve(argV('--in', 'out/ehb/tilebank_indexed.h'));
-const outH = path.resolve(argV('--out', 'out/ehb/const_game_201.h'));
-const json = JSON.parse(fs.readFileSync(path.resolve(argV('--json', 'out/ehb/tiles.json')), 'utf8'));
+const inH = path.resolve(argV('--in', 'out/assets/ehb/tilebank_indexed.h'));
+const outH = path.resolve(argV('--out', 'out/assets/ehb/const_game_201.h'));
+const json = JSON.parse(fs.readFileSync(path.resolve(argV('--json', 'out/assets/ehb/tiles.json')), 'utf8'));
 
 const hdr = fs.readFileSync(inH, 'utf8');
 const body = (id) => { const m = hdr.match(new RegExp(id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:\\[\\d+\\])+\\s*=\\s*\\{([\\s\\S]*?)\\};')); return m ? m[1] : null; };

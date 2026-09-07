@@ -16,7 +16,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
-const DEMO = 'demos/101_ehb_tile_scroll_driver';
+const DEMO = 'demos/amiga/101_ehb_tile_scroll_driver';
 const SEQ = path.join(ROOT, 'out/run/101_ehb_tile_scroll_driver/sequence');
 const REPORT = path.join(ROOT, 'out/run/101_ehb_tile_scroll_driver/run-report.json');
 const MODEL = process.argv.includes('--ollama-model') ? process.argv[process.argv.indexOf('--ollama-model') + 1] : 'qwen3-vl:8b-instruct-q8_0';

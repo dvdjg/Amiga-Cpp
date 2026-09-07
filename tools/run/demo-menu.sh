@@ -12,7 +12,8 @@ ANALYZE="$ROOT/tools/analyze/analyze-demo.sh"
 CHANNEL="$ROOT/tools/debug/winuae-side-channel.sh"
 
 echo "Demos disponibles:"
-mapfile -t DEMOS < <(find "$ROOT/demos" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
+# Las demos se agrupan por plataforma: demos/<plataforma>/<demo>/ (docs/STRUCTURE.md §4).
+mapfile -t DEMOS < <(find "$ROOT/demos" -mindepth 2 -maxdepth 2 -type d -printf '%P\n' | sort)
 i=0
 for d in "${DEMOS[@]}"; do
 	echo "  $i) $d"

@@ -75,8 +75,13 @@ if [ -n "$DEMO" ]; then
 	DEMO_DIRS=("$ROOT/$DEMO")
 else
 	DEMO_DIRS=()
-	for d in "$ROOT"/demos/*/; do
-		DEMO_DIRS+=("$d")
+	# Las demos se agrupan por plataforma: demos/<plataforma>/<demo>/ (docs/STRUCTURE.md §4).
+	for p in "$ROOT"/demos/*/; do
+		[ -d "$p" ] || continue
+		for d in "$p"*/; do
+			[ -d "$d" ] || continue
+			DEMO_DIRS+=("$d")
+		done
 	done
 fi
 

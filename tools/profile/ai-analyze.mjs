@@ -59,7 +59,7 @@ function usage() {
   --demo-timeout-ms MS   Timeout esperando READY con --demo (def: 90000)
 Ejemplos:
   node tools/profile/ai-analyze.mjs demo101 6 --prompt "scroll horizontal fino; verificar que los tiles se ensamblan sin salto de 16px"
-  node tools/profile/ai-analyze.mjs demo101 6 --demo demos/101_ehb_tile_scroll_driver --prompt "scroll horizontal fino; verificar que los tiles se ensamblan sin salto de 16px"
+  node tools/profile/ai-analyze.mjs demo101 6 --demo demos/amiga/101_ehb_tile_scroll_driver --prompt "scroll horizontal fino; verificar que los tiles se ensamblan sin salto de 16px"
   node tools/profile/ai-analyze.mjs demo050 4 --prompt-file tools/profile/prompts/050-blitter-bobs.md`);
 	process.exit(2);
 }

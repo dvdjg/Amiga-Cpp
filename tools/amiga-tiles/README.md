@@ -20,7 +20,7 @@ comentado en español.
 | `amiga-tiles.mjs` | Cuantizador/tilebank (2..255 colores, EHB, dither, paletas, resize, empaquetado por bits) | `node tools/amiga-tiles/amiga-tiles.mjs <img> [opc]` | CLI directo; también **subproceso** desde `game-assets.mjs` (`--quantize`, con `--alpha`) |
 | `extract-sprites.mjs` | Extracción de sprites por componentes (determinista) + agrupación opcional con IA | `node tools/amiga-tiles/extract-sprites.mjs <img> [opc]` | CLI propio; **exporta funciones** (`loadImage`, `detectBackground`, `extract`, `cropSprite`, `contactSheet`, `ask`, `extractJson`) que importa `game-assets.mjs` |
 | `game-assets.mjs` | Pipeline único: fondos multi-zona → sprites → grupos (IA con fallback heurístico) → `--quantize` | `node tools/amiga-tiles/game-assets.mjs <img> [opc]` | CLI directo (entrada recomendada para preparar assets de un juego) |
-| `run-demos.mjs` | Regenera `out/tile-demos/` (8 demos de cada capacidad) | `node tools/amiga-tiles/run-demos.mjs` | CLI directo (verificación/manual) |
+| `run-demos.mjs` | Regenera `out/assets/tile-demos/` (8 demos de cada capacidad) | `node tools/amiga-tiles/run-demos.mjs` | CLI directo (verificación/manual) |
 | `run-vision-verify.mjs` | Verifica cada demo con ollama local (describe, corresponde, propone `--ops`) | `node tools/amiga-tiles/run-vision-verify.mjs [--resume] [--folder] [--all]` | CLI directo; sus `.ops.txt` los consume `amiga-tiles.mjs --ops` |
 | `compare-palettes.mjs` | Compara píxel a píxel los algoritmos de paleta de un demo (PSNR, percentiles, saltos >60, pares casi-idénticos) | `node tools/amiga-tiles/compare-palettes.mjs <baseDir>` | CLI directo (evidencia para elegir algoritmo; ver "Cuál usar") |
 
@@ -46,22 +46,23 @@ de 16×16 sacado de *The Fan-tasy Tileset*). Con él:
 
 ```bash
 # EHB (64 = 32 base + half), paleta kmeans half-aware, dedupe.
-node tools/amiga-tiles/amiga-tiles.mjs tools/amiga-tiles/assets/Beginning\ Fields.png
+node tools/amiga-tiles/amiga-tiles.mjs assets/amiga/tiles-reference/Beginning\ Fields.png
 
 # 16 colores con dithering Floyd–Steinberg.
-node tools/amiga-tiles/amiga-tiles.mjs tools/amiga-tiles/assets/Beginning\ Fields.png \
-  --colors 16 --dither floyd --out out/mi_map_16c
+node tools/amiga-tiles/amiga-tiles.mjs assets/amiga/tiles-reference/Beginning\ Fields.png \
+  --colors 16 --dither floyd --out out/assets/amiga-tiles/mi_map_16c
 
 # 8 colores, dithering matricial (Bayer) y paleta median-cut.
-node tools/amiga-tiles/amiga-tiles.mjs tools/amiga-tiles/assets/Beginning\ Fields.png \
-  --colors 8 --palette mediancut --dither bayer --out out/mi_map_8c
+node tools/amiga-tiles/amiga-tiles.mjs assets/amiga/tiles-reference/Beginning\ Fields.png \
+  --colors 8 --palette mediancut --dither bayer --out out/assets/amiga-tiles/mi_map_8c
 
 # Imagen real: redimensionada a ~300 KB de índice y cuantizada a 31 colores.
 node tools/amiga-tiles/amiga-tiles.mjs foto.png --max-ram 300000 --resample lanczos \
-  --colors 31 --dither floyd --out out/foto
+  --colors 31 --dither floyd --out out/assets/amiga-tiles/foto
 ```
 
-Salida por defecto en `out/` junto a la imagen, o donde diga `--out`.
+Salida por defecto en `out/assets/amiga-tiles/<imagen>/` (regla canónica de
+`docs/STRUCTURE.md` §6.1), o donde diga `--out`.
 
 ## Salidas
 
@@ -237,7 +238,7 @@ extern const unsigned char g_tilebank_bin[];   // incbin de tilebank.bin (o Copy
 ```
 Cada start-up en el Amiga carga `kPalette` en los registros de color (0..colors-1;
 en EHB solo las 32 bases porque los half los genera el hardware) y el banco en Chip
-RAM con `incbin` en una sección `.MEMF_CHIP` (receta en `demos/201_ehb_map/src/main.cpp`).
+RAM con `incbin` en una sección `.MEMF_CHIP` (receta en `demos/amiga/201_ehb_map/src/main.cpp`).
 
 ## Redimensionado de calidad y recortes
 
@@ -287,8 +288,8 @@ el parser tolera `0-15% (X), 0-30% (Y)` y `35%-65% en X, 15%-45% en Y`) y **apli
 color transparente** sugerido (los píxeles de ese color pasan a alfa 0).
 
 ```bash
-node tools/amiga-tiles/amiga-tiles.mjs source.png --ops source.png.ops.txt --out out/ops
-# -> out/ops/extract/ops_00_<nombre>.png … + ops.json
+node tools/amiga-tiles/amiga-tiles.mjs source.png --ops source.png.ops.txt --out out/assets/amiga-tiles/ops
+# -> out/assets/amiga-tiles/ops/extract/ops_00_<nombre>.png … + ops.json
 ```
 
 ## Pipeline único: `game-assets.mjs`
@@ -298,7 +299,7 @@ Con **una sola orden** extrae sprites/fondos de una ilustración y decide por s�
 cuantización EHB/32/16 por grupo):
 
 ```bash
-node tools/amiga-tiles/game-assets.mjs arte.png --out out/mi_juego
+node tools/amiga-tiles/game-assets.mjs arte.png --out out/assets/game-assets/mi_juego
 #   detecta fondos (blanco+verde…), extrae piezas, agrupa (IA con fallback heurístico),
 #   crea grupos/<nombre>/frame_NN_*.png + group.json (frames/offset/ancla) + TRANSPARENCIA.md
 # Opciones: --tol N --min N --split --ai | --no-ai --tokens N --quantize N (64=EHB)
@@ -361,7 +362,7 @@ node tools/amiga-tiles/game-assets.mjs arte.png --out out/mi_juego
 
 ## Demostraciones
 
-`node tools/amiga-tiles/run-demos.mjs` regenera **`out/tile-demos/`**, una carpeta
+`node tools/amiga-tiles/run-demos.mjs` regenera **`out/assets/tile-demos/`**, una carpeta
 por algoritmo con la imagen fuente, los resultados (imágenes, índices, paletas,
 headers y binarios) y su `README.md`:
 

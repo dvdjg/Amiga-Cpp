@@ -7,7 +7,7 @@
 //   Ejemplo:
 //   node tools/dap-test/dap-client.js 4711 \
 //     C:/.../Amiga-Cpp/out/debug-current/current \
-//     C:/.../Amiga-Cpp/demos/050_blitter_bobs/src/main.cpp 296
+//     C:/.../Amiga-Cpp/demos/amiga/050_blitter_bobs/src/main.cpp 296
 //
 // Requisitos: ver tools/dap-test/README.md (stub de 'vscode' + debugAdapter
 // standalone).
@@ -17,7 +17,7 @@ const path = require('path');
 
 const PORT = parseInt(process.argv[2] || '4711', 10);
 const PROGRAM = process.argv[3] || 'C:/Users/dvdjg/Documents/programa/AI/Amiga/Amiga-Cpp/out/debug-current/current';
-const SOURCE = process.argv[4] || 'C:/Users/dvdjg/Documents/programa/AI/Amiga/Amiga-Cpp/demos/050_blitter_bobs/src/main.cpp';
+const SOURCE = process.argv[4] || 'C:/Users/dvdjg/Documents/programa/AI/Amiga/Amiga-Cpp/demos/amiga/050_blitter_bobs/src/main.cpp';
 const LINE = parseInt(process.argv[5] || '296', 10);
 const FORK = process.env.AMIGA_FORK || 'C:/Users/dvdjg/Documents/programa/AI/Amiga/vscode-amiga-debug';
 

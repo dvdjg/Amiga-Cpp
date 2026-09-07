@@ -35,7 +35,7 @@ case "$RELATIVE" in
 		echo "El archivo no pertenece a demos/<nombre>/src o tests/<nombre>/src: $RELATIVE" >&2
 		echo "F5 compila la demo que contiene el archivo ACTIVO. Para ejecutar la demo" >&2
 		echo "107_xlimited_corkscrew abre y enfoca su src/main.cpp antes de pulsar F5:" >&2
-		echo "  demos/107_xlimited_corkscrew/src/main.cpp" >&2
+		echo "  demos/amiga/107_xlimited_corkscrew/src/main.cpp" >&2
 		echo "(los headers del engine y de otras demos compilan OTRA demo o nada)." >&2
 		# Marcar la sesión como no válida para que ninguna herramienta asuma que
 		# out/debug-current/current es el demo esperado (evita 'churro' por stale).
