@@ -206,7 +206,7 @@ Estado por librería (actualizarlo en cada cambio de estado):
 
 | Librería | Inventario | Portado | Validado por efecto | En engine | Efectos validadores | Notas |
 |---|---|---|---|---|---|---|
-| `libmisc` (fx/sort/crc32) | ✅ | ✅ | ✅ (host) | ✅ | (sin efecto aún) | `isqrt` (isqrt.hpp), `sort` (sort.hpp) y `crc32` (crc32.hpp) en `eng/core`; validados por test HOST-000. `sintab`→`core::sinetable`; `random`→`core::random.hpp` (xoroshiro64++, equivalente al `random.c` de libc). Pendientes: `console` (→Oleada 1), `sync`, `file`. |
+| `libmisc` (fx/sort/crc32) | ✅ | ✅ | ✅ (host) · demo 060 creada (build OK, pendiente corrida WinUAE) | ✅ | 060 | `isqrt` (isqrt.hpp), `sort` (sort.hpp) y `crc32` (crc32.hpp) en `eng/core`; validados por test HOST-000 y compilados en la demo 060. `sintab`→`core::sinetable`; `random`→`core::random.hpp` (xoroshiro64++, equivalente al `random.c` de libc). Pendientes: `console` (→Oleada 1), `sync`, `file`. |
 | `libc` (string/stdlib/stdio) | ✅ | 🔄 | ✅ (random) | 🔄 | 04, 14 | `random` portado. `qsort`→`eng::core::quick_sort` (no duplicar). `string`/`stdio` (kvprintf/snprintf): eval. contra builtins del toolchain; si se necesitan helpers (strlen/strlcpy) portar en `eng/core/str`. Pendiente. |
 | `libgfx` (bitmaps/copper/sprites/c2p) | ❌ | ❌ | ❌ | ❌ | 01, 02, 03, 04, 50, 53 | contra `graphics::copper`, `bitmap.hpp`, `frame_plan` |
 | `libblit` (blitter) | ❌ | ❌ | ❌ | ❌ | 11, 14, 58, 59, 67 | contra `frame_plan` (BlitJob) |
