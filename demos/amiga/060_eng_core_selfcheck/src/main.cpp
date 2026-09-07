@@ -164,31 +164,31 @@ void check_sort() {
 }
 
 // --- Rasterizacion de texto en bitplanes EHB -------------------------------
-// `color_index` es el indice EHB 0..63. Cada pixel del glifo 8x8 pone a 1 los
-// bits de los planos que forman ese indice en el byte correspondiente.
+// `color_index` es el indice EHB 0..63. La fuente 8x8 esta en formato FILAS
+// (byte r = fila r, bit k = pixel en la columna k desde la izquierda). Para
+// cada fila del glifo, recorremos los 8 bits y encendemos el pixel (x+k, y+r),
+// poniendo el bit correspondiente en los planos del color.
 void draw_text(eng::u8* planes, eng::u16 x, eng::u16 y, const char* text, eng::u8 color_index) {
 	while (*text) {
 		const char ch = *text++;
 		if (ch >= 32) {
-			for (eng::u8 row = 0; row < eng::Font8::kRowBytes; ++row) {
+			for (eng::u8 row = 0; row < eng::Font8::kRows; ++row) {
 				const eng::u8 glyph_row = eng::Font8::row(static_cast<eng::u16>(ch), row);
 				if (glyph_row == 0) {
 					continue;
 				}
 				const eng::u16 py = static_cast<eng::u16>(y + row);
-				const eng::u32 base = static_cast<eng::u32>(py) * kBytesPerRow + (x / 8u);
-				const eng::u8 shift = static_cast<eng::u8>(x & 7u);
-				for (eng::u8 plane = 0; plane < kPlanes; ++plane) {
-					if ((color_index & (1u << plane)) == 0) {
+				for (eng::u8 k = 0; k < 8u; ++k) {
+					if ((glyph_row & (1u << k)) == 0) {
 						continue;
 					}
-					eng::u8* p = planes + static_cast<eng::u32>(plane) * kPlaneBytes + base;
-					if (shift == 0) {
-						*p |= glyph_row;
-					} else {
-						// Desplazado: pinta en el byte actual y el siguiente.
-						*p |= static_cast<eng::u8>(glyph_row >> shift);
-						*(p + 1) |= static_cast<eng::u8>(glyph_row << (8u - shift));
+					const eng::u16 px = static_cast<eng::u16>(x + k);
+					const eng::u32 base = static_cast<eng::u32>(py) * kBytesPerRow + (px / 8u);
+					const eng::u8 bit = static_cast<eng::u8>(0x80u >> (px & 7u));
+					for (eng::u8 plane = 0; plane < kPlanes; ++plane) {
+						if (color_index & (1u << plane)) {
+							planes[static_cast<eng::u32>(plane) * kPlaneBytes + base] |= bit;
+						}
 					}
 				}
 			}

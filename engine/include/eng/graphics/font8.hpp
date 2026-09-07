@@ -8,13 +8,16 @@
 /// real copiando el glifo a un plano, de modo que se vea en la ventana Amiga
 /// normal (WinUAE, Coppenheimer, A500 real).
 ///
-/// Formato: cada glifo son 8 bytes (una fila por byte); el bit 0x80 es el
-/// píxel más a la izquierda. `data()` devuelve el array completo apuntando a
-/// `Font8x8::kGlyphs`.
+/// Formato (FILAS con bit0 = izquierda): cada glifo son 8 bytes, UNO POR FILA.
+/// En cada byte, el bit `k` (0..7, LSB..MSB) es el píxel en la columna `k`
+/// desde la IZQUIERDA de esa fila; el bit 0 es el píxel más a la izquierda.
+/// `row(ch, r)` devuelve el byte de la fila `r` (0 = arriba). Para volcarlo a
+/// un bitplane Amiga (MSB = izquierda) basta tomar el bit `k` de la fila y
+/// ponerlo en el bit `0x80 >> ((x+k) & 7)` del byte `(x+k)/8`.
 ///
 /// Uso (ver demo 060):
-///   const eng::u8* glyph = eng::Font8::glyph('A');
-///   // para cada fila de 8: bit set → bitplane[x/8] |= bit (o ningún blit).
+///   const u8 fila = eng::Font8::row('A', 0);   // fila 0 del glifo
+///   // si (fila & (1u << k)) para k 0..7, píxel encendido en (x+k, y+0).
 
 #include <eng/core/types.hpp>
 
@@ -25,23 +28,24 @@ struct Font8 {
     static constexpr u16 kFirst = 0x20;
     static constexpr u16 kCount = 0x5f; // 32..126
     static constexpr u16 kGlyphsPerRow = 16;
-    static constexpr u8 kRowBytes = 8;
+    static constexpr u8 kRows = 8;
 
-    /// Byte de la fila `row` del glifo `ch` (0 = fila superior).
+    /// Byte de la fila `row` del glifo `ch` (0 = arriba).
+    /// Bit `k` = píxel en la columna `k` desde la izquierda (bit 0 = izquierda).
     static constexpr u8 row(u16 ch, u8 row) {
         const u16 idx = static_cast<u16>(ch - kFirst);
         if (idx >= kCount) {
             return 0;
         }
-        return kGlyphs[idx * kRowBytes + row];
+        return kGlyphs[idx * kRows + row];
     }
 
-    /// Puntero a la tabla completa (kCount*kRowBytes bytes).
+    /// Puntero a la tabla completa (kCount*kRows bytes).
     static constexpr const u8* data() { return kGlyphs; }
 
-    // Tabla generada por filas (8 bytes por glifo, bit 0x80 = izquierda).
-    // Uso interno; se accede mediante `row()`.
-    static constexpr u8 kGlyphs[kCount * kRowBytes] = {
+    // Tabla en formato FILAS: 8 bytes por glifo, byte r = fila r, bit k = píxel
+    // en la columna k desde la izquierda (bit 0 = izquierda).
+    static constexpr u8 kGlyphs[kCount * kRows] = {
         // 0x20 ' '
         0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
         // 0x21 '!'

@@ -152,14 +152,14 @@ void test_font8() {
 
     // La demo dibuja "Demo 060 - eng::core self-check OK/FAIL isqrt crc32
     // random sort SELF-CHECK : ALL PHASES" — verifica que esos glifos tienen
-    // al menos un pixel (no estan vacios). El espacio (0x20) se excluye: es
-    // legítimamente todo ceros.
+    // al menos un bit encendido (no estan vacios). El espacio (0x20) se
+    // excluye: es legítimamente todo ceros.
     const char* needed = "Demo060-eng::coreself-checkOK/FAILisqrtcrc32random"
                          "sortSELF-CHECK:ALLPHASES123456789!.";
     for (const char* p = needed; *p; ++p) {
         const eng::u16 ch = static_cast<eng::u16>(static_cast<unsigned char>(*p));
         bool any = false;
-        for (eng::u8 row = 0; row < eng::Font8::kRowBytes; ++row) {
+        for (eng::u8 row = 0; row < eng::Font8::kRows; ++row) {
             if (eng::Font8::row(ch, row) != 0) {
                 any = true;
                 break;
@@ -174,13 +174,12 @@ void test_font8() {
 
 void test_row_bytes_consistency() {
     std::printf("font8: tamano de la tabla coherente\n");
-    // kGlyphs debe tener kCount*kRowBytes bytes (compilacion lo garantiza),
-    // pero comprobamos que extremos del rango no esten vacios (una letra, un
-    // digito y el guion).
-    CHECK(eng::Font8::row(' ', 0) == 0u);          // espacio en blanco
-    CHECK(eng::Font8::row('A', 0) != 0u);          // 'A' con pixels
-    CHECK(eng::Font8::row('0', 0) != 0u);          // '0'
-    CHECK(eng::Font8::row('-', 3) != 0u);          // '-' en fila central
+    // La fuente esta en formato FILAS (byte r = fila r, bit k = pixel en la
+    // columna k desde la izquierda). Comprobamos extremos del rango.
+    CHECK(eng::Font8::row(' ', 0) == 0u);       // espacio en blanco
+    CHECK(eng::Font8::row('A', 0) != 0u);       // 'A' fila superior
+    CHECK(eng::Font8::row('0', 0) != 0u);       // '0'
+    CHECK(eng::Font8::row('-', 3) != 0u);       // '-' en fila central
 }
 
 void test_sort_ints() {
