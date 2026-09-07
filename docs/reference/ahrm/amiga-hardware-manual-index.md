@@ -2,13 +2,13 @@
 
 Índice para consultas rápidas del manual completo. El texto completo está en:
 
-**`doc/Amiga Hardware Reference Manual 3rd edition (Commodore Amiga Inc.) (Z-Library).cat.md`**
+**`Amiga Hardware Reference Manual 3rd edition (Commodore Amiga Inc.) (Z-Library).cat.md`**
 
 ## Cómo usar este índice
 
 - **Ir a una sección:** abre el `.cat.md` y salta a la línea indicada (Ctrl+G en la mayoría de editores).
 - **Buscar en el manual:** usa búsqueda por texto (Ctrl+F) con los términos de la tabla "Términos de búsqueda" o los nombres de registros.
-- **Referencia de registros:** Appendix A = orden alfabético; Appendix B = orden por dirección. Para un registro concreto (p. ej. `BPLCON0`), busca el nombre en el .cat.md o ve al Appendix A (~línea 10148).
+- **Referencia de registros:** Appendix A = orden alfabético; Appendix B = orden por dirección. Para un registro concreto (p. ej. `BPLCON0`), busca el nombre en el .cat.md o ve al Appendix A (~línea 7706).
 
 ---
 
@@ -17,13 +17,13 @@
 | Capítulo | Líneas aprox. | Contenido |
 |----------|----------------|-----------|
 | **1. Introduction** | 1–482 | Componentes (68000, Agnus, Denise, Paula), Chip RAM, periféricos, memoria, guías de programación (no tocar hardware sin arbitraje OS, MEMF_CHIP, no delay loops, 68020/30 compat). |
-| **2. Coprocessor (Copper)** | 482–1090 | Instrucciones MOVE, WAIT, SKIP; posición del haz; registros COP1LC, COP2LC, COPJMP; bucles; uso con Blitter e interlaced. |
-| **3. Playfield** | 1090–2911 | Bitplanes, resolución, ventana de display (DIWSTRT/DIWSTOP), data fetch (DDFSTRT/DDFSTOP), módulo, dual playfield, HAM, EHB, scroll, color registers. |
-| **4. Sprite** | 2911–3943 | Posición (SPR0POS…), forma, colores, end-of-data, reutilización de canales DMA, sprites unidos, prioridad. |
-| **5. Audio** | 3943–4973 | Canales DMA, waveform, volumen, periodo (AUDxPER), modulación, calidad, tabla temperada, decibelios. |
-| **6. Blitter** | 4973–8628 | DMA, minterms, máscaras, relleno, líneas; BLTCON0/BLTCON1, BLTSIZE; prioridad (BLITHOG); ejemplos ClearMem, SimpleLine. |
-| **7. System Control** | 8628–9175 | Prioridad de objetos (BPLCON2, BPLCON3), colisiones (CLXDAT, CLXCON), DMACON, INTENA, interrupciones. |
-| **8. Interface** | 9175–10148 | Puertos de control, teclado, audio, serie/paralelo, disco, expansión. |
+| **2. Coprocessor (Copper)** | 482–1110 | Instrucciones MOVE, WAIT, SKIP; posición del haz; registros COP1LC, COP2LC, COPJMP; bucles; uso con Blitter e interlaced. |
+| **3. Playfield** | 1110–2932 | Bitplanes, resolución, ventana de display (DIWSTRT/DIWSTOP), data fetch (DDFSTRT/DDFSTOP), módulo, dual playfield, HAM, EHB, scroll, color registers. |
+| **4. Sprite** | 2932–3967 | Posición (SPR0POS…), forma, colores, end-of-data, reutilización de canales DMA, sprites unidos, prioridad. |
+| **5. Audio** | 3967–4995 | Canales DMA, waveform, volumen, periodo (AUDxPER), modulación, calidad, tabla temperada, decibelios. |
+| **6. Blitter** | 4995–6228 | DMA, minterms, máscaras, relleno, líneas; BLTCON0/BLTCON1, BLTSIZE; prioridad (BLITHOG); ejemplos ClearMem, SimpleLine. Incluye la **Figura 6-9 reconstruida** (asignación de slots DMA, ~5725). |
+| **7. System Control** | 6228–6784 | Prioridad de objetos (BPLCON2, BPLCON3), colisiones (CLXDAT, CLXCON), DMACON, INTENA, interrupciones. |
+| **8. Interface** | 6784–9140 | Puertos de control, teclado, audio, serie/paralelo, disco, expansión. |
 
 ---
 
@@ -31,17 +31,18 @@
 
 | Apéndice | Líneas aprox. | Contenido |
 |----------|----------------|-----------|
-| **A. Register Summary – Alphabetical** | 10148–11077 | Todos los registros por nombre (descripción y bits). |
-| **B. Register Summary – Address Order** | 11077–11457 | Registros por dirección ($DFF000…). |
-| **C. Enhanced Chip Set (ECS)** | 11457–12053 | ECS: más Chip RAM, nuevos registros, DENISEID, COPCON, etc. |
-| **D. System Memory Maps** | 12053–12142 | Mapa de memoria A1000/A500/A2000 y A3000 (evitar depender de direcciones fijas). |
-| **E. I/O Connectors and Interfaces** | 12142–13151 | Pines RS232, paralelo, teclado, vídeo, disco externo, SCSI (A3000), expansión 86 pines. |
-| **F. 8520 CIA** | 13151–13628 | Puertos y temporizadores de las CIAs. |
-| **G. Keyboard Interface** | 13628–13850 | Protocolo teclado. |
-| **H. External Disk Connector** | 13850–14016 | Interfaz disco externo. |
-| **I. Hardware Example Include File** | 14016–14363 | Listado de `hw_examples.i` (y referencia a `hardware/custom.i`). |
-| **J. Custom Chip Pin Allocation** | 14363–14507 | Asignación de pines de los custom chips. |
-| **K. Zorro Expansion Bus** | 14507–fin | Bus Zorro II/III para expansión. |
+| **A. Register Summary – Alphabetical** | 7706–8635 | Todos los registros por nombre (descripción y bits). |
+| **B. Register Summary – Address Order** | 8635–9015 | Registros por dirección ($DFF000…). |
+| **C. Enhanced Chip Set (ECS)** | 9015–9611 | ECS: más Chip RAM, nuevos registros, DENISEID, COPCON, etc. |
+| **D. System Memory Maps** | 9611–9700 | Mapa de memoria A1000/A500/A2000 y A3000 (evitar depender de direcciones fijas). |
+| **E. I/O Connectors and Interfaces** | 9700–10709 | Pines RS232, paralelo, teclado, vídeo, disco externo, SCSI (A3000), expansión. |
+| **F. 8520 CIA** | 10709–11186 | Puertos y temporizadores de las CIAs. |
+| **G. Keyboard Interface** | 11186–11408 | Protocolo teclado. |
+| **H. External Disk Connector** | 11408–11574 | Interfaz disco externo. |
+| **I. Hardware Example Include File** | 11574–11921 | Listado de `hw_examples.i` (y referencia a `hardware/custom.i`). |
+| **J. Custom Chip Pin Allocation** | 11921–12065 | Asignación de pines de los custom chips. |
+| **K. Zorro Expansion Bus** | 12065–13433 | Bus Zorro II/III para expansión. |
+| **Glossary** | 13433–fin | Glosario de términos. |
 
 ---
 

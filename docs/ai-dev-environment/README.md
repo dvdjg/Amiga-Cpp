@@ -7,6 +7,7 @@ Este árbol documenta las piezas que permiten trabajar sobre el engine Amiga 500
 ```text
 ai-dev-environment/
 ├── README.md                 # mapa, contratos y estado resumido
+├── DOC-MAP-PRINCIPAL.md      # navegación IA → documentación (leer primero)
 ├── project-map.md            # archivos y proyectos de alto valor
 ├── ollama-local.md           # Ollama, modelos, scripts y operación segura
 ├── session-evidence.md       # ciclo de sesión WinUAE y evidencias mínimas
@@ -55,6 +56,7 @@ editar código
 
 ## Lectura inicial para una nueva IA
 
+0. `docs/ai-dev-environment/DOC-MAP-PRINCIPAL.md` (navegación → documentación)
 1. `AGENTS.md`
 2. `docs/README.md`
 3. `docs/CONTINUATION_CONTEXT.md`

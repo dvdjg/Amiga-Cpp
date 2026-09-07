@@ -20,10 +20,11 @@ repositorio mantiene dos flujos claramente separados:
 ## Cómo empezar
 
 1. **Organización del repo (obligatorio)**: [STRUCTURE.md](STRUCTURE.md).
-2. **Para continuar el trabajo**: [CONTINUATION_CONTEXT.md](CONTINUATION_CONTEXT.md)
+2. **Navegación IA → documentación (leer primero como IA)**: [ai-dev-environment/DOC-MAP-PRINCIPAL.md](ai-dev-environment/DOC-MAP-PRINCIPAL.md).
+3. **Para continuar el trabajo**: [CONTINUATION_CONTEXT.md](CONTINUATION_CONTEXT.md)
    (estado del proyecto y orden de lectura).
-3. **Para operar build/run/analyze**: [build/BUILD_AND_RUN.md](build/BUILD_AND_RUN.md).
-4. **Para entender el engine**: [engine/README.md](engine/README.md).
+4. **Para operar build/run/analyze**: [build/BUILD_AND_RUN.md](build/BUILD_AND_RUN.md).
+5. **Para entender el engine**: [engine/README.md](engine/README.md).
 
 ## Estructura del árbol
 
@@ -33,13 +34,13 @@ repositorio mantiene dos flujos claramente separados:
 | [engine/](engine/README.md) | Diseño del engine C++ actual: estilo, drivers gráficos, memoria, política de hardware/ROM, benchmarks de API y roadmap (en `engine/architecture/`) + histórico del engine C (`engine/c-engine/`). |
 | [demos/](demos/README.md) | Efectos demoscene (`demos/effects/`) y pipeline de tiles/EHB (`demos/tile-pipeline/`, con informes IA en `ai-reports/`). |
 | [tools/](tools/README.md) | Documentación de las herramientas de desarrollo (build/run/analyze/debug/profile/verify/pipeline). |
-| [reference/](reference/README.md) | Referencia por plataforma: `reference/amiga/` (hardware + técnicas), `reference/ahrm/`, `reference/amc-wrobel/`, y áreas futuras `atarist/` y `megadrive/`. |
+| [reference/](reference/README.md) | Referencia por plataforma: `reference/amiga/` (hardware + técnicas), `reference/ahrm/` (AHRM 3.ª edición), `reference/amc-wrobel/`, y áreas futuras `atarist/` y `megadrive/`. |
 | [guides/](guides/README.md) | Roadmaps vigentes (`guides/roadmap/`), guías de optimización (`guides/optimization/`) y metodología/agentes (`guides/methodology/`). |
 | [build/](build/README.md) | Toolchain, build CLI, artefactos y formatos de disco. |
 | [emulation/](emulation/README.md) | WinUAE, extensión amiga-debug, MCP, canal lateral, perfiles y automatización del emulador. |
 | [debugging/](debugging/README.md) | Sistema de depuración WinUAE-DBG (arquitectura, arreglos) y guías de depuración con IA. |
 | [testing/](testing/README.md) | Validación: pixel assertions, secuencias de frames, FrameScope y Vision Review. |
-| [ai-dev-environment/](ai-dev-environment/README.md) | Mapa del entorno IA: MCP/WinUAE, canal lateral, evidencias y Ollama local. |
+| [ai-dev-environment/](ai-dev-environment/README.md) | Mapa del entorno IA: MCP/WinUAE, canal lateral, evidencias, Ollama local y **doc-map principal de navegación IA → documentación** ([DOC-MAP-PRINCIPAL.md](ai-dev-environment/DOC-MAP-PRINCIPAL.md)). |
 | [legacy/](legacy/README.md) | Notas históricas de troubleshooting con ortografía irregular, en cuarentena. |
 
 ## Procedencia del contenido
@@ -83,6 +84,7 @@ incorporó **por tema**:
 | Fuentes externas (manuales, cursos) | `reference/` |
 | Notas históricas sin limpiar | `legacy/` |
 | Operación IA, Ollama, evidencias y mapa de proyectos | `ai-dev-environment/` |
+| Navegación IA → documentación (qué leer antes de cada tarea) | `ai-dev-environment/DOC-MAP-PRINCIPAL.md` |
 
 > **Documentos nuevos → enlazarlos SIEMPRE aquí (o en AGENTS.md).** Un documento
 > sin enlace desde este índice o desde `AGENTS.md` se pierde para futuras sesiones.

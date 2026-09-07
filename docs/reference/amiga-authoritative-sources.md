@@ -9,10 +9,11 @@ Documento de referencia para justificar cambios de hardware/kernel en engine y t
 
 ## Fuentes primarias recomendadas
 
-1. **Amiga Hardware Reference Manual (AHRM, 3rd ed.)**
-   - Indice local: [amiga-hardware-manual-index.md](/C:/Users/dvdjg/Documents/programa/AI/Cursor-Amiga-C/doc/amiga-hardware-manual-index.md)
-   - Texto local completo: [AHRM cat](/C:/Users/dvdjg/Documents/programa/AI/Cursor-Amiga-C/doc/Amiga Hardware Reference Manual 3rd edition (Commodore Amiga Inc.) (Z-Library).cat.md)
+1. **Amiga Hardware Reference Manual (AHRM, 3.ª ed., 1990)** — referencia canónica
+   - Índice local: [ahrm/amiga-hardware-manual-index.md](ahrm/amiga-hardware-manual-index.md)
+   - Texto local completo: [ahrm/Amiga Hardware Reference Manual 3rd edition (Commodore Amiga Inc.) (Z-Library).cat.md](ahrm/Amiga%20Hardware%20Reference%20Manual%203rd%20edition%20%28Commodore%20Amiga%20Inc.%29%20%28Z-Library%29.cat.md)
    - Uso: custom registers (`BPLCONx`, `DDF*`, `DIW*`, `BPLxPT`, `DMACON`, `INTENA`, `BLT*`, `SPR*`, `AUD*`), timing de video y DMA.
+   - Cubre OCS/ECS/AGA y A3000, con apéndices de registros por nombre y por dirección.
 
 2. **RKM / NDK autodocs e includes oficiales**
    - Uso: Exec/DOS/Intuition/devices, contrato de APIs del sistema, loader y ciclo de vida de proceso.
