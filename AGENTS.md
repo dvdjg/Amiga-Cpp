@@ -15,6 +15,13 @@
 - **No incluir metainformación de proceso en los documentos de referencia**: fechas de edición/limpieza, "OCR corregido", "actualizado en <fecha>" o decisiones de ingesta no van en el contenido de la referencia ni de su índice; van en el mensaje de commit o, si procede, en una bitácora separada (`docs/guides/roadmap/`, `docs/debugging/`).
 - Los índices y README de `docs/` deben apuntar solo a lo que existe y es canónico; si se elimina un documento, actualizar todos los enlaces en la misma pasada.
 
+## Regla de tests unitarios (obligatoria)
+- **Toda API reutilizable del engine debe tener tests que la respalden.** No se promueve código a `engine/` sin una forma de verificar su corrección.
+- Forma preferida: ejecutar la validación dentro de una **demo** (aunque sea paramétrica o por fases, recorriendo variantes del API con `g_eng_run_status.detail` y aserciones). Las demos ya se ejecutan en el pipeline `build -> run -> analyze`, así que ofrecen evidencia viva de hardware.
+- Si la API no tiene demo que la ejercite, **crear una** o, como mínimo, **un test unitario** en `tests/` que la respalde y que corra en la regresión.
+- Las APIs de matemáticas/algoritmos puros (sin hardware) deben tener además **test unitario host** (`tests/host/`, compilado con el `g++` del entorno del toolchain del proyecto) para validarlas rápido y de forma determinista, sin depender de MSVC ni de WSL.
+- Regla de cierre: una API sin test (demo o unitario) no se considera terminada.
+
 ## Qué es este repositorio
 - El repo mantiene un proyecto C Amiga legado en `legacy/` (`legacy/Makefile`, `legacy/out/a.exe`) y un flujo nuevo de demos del engine C++23 en `demos/` + `tools/`; no mezclarlos por error.
 - Para trabajo del engine, usar los wrappers shell de `tools/` en vez de invocar el `legacy/Makefile`.
@@ -181,6 +188,14 @@ recording del GUI). Pendiente: `print` DWARF.
 - Medir los picos con profiling y telemetría en el caso límite, no solo validar
   que el frame nominal funcione; cualquier optimización debe conservar la
   corrección visual y el presupuesto de Chip RAM.
+- **Criterio retro del chipset (68000)**: preferir algoritmos **rápidos y
+  exactos** a lentos y precisos. Un algoritmo que subestima ~6 en `isqrt` pero
+  cuesta 10 ciclos gana a uno exacto que paga `__divsi3`/`__mulsi3`. Para el
+  hot path, lo deseable es aritmética 16-bit nativa (`muls.w`/`divs.w`), bucles
+  countdown que emiten `dbra`, cero divisiones runtime, cero floats y cero STL.
+  Directrices operativas y bitácora de descubrimientos en
+  `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` (leer antes de optimizar
+  o portar código caliente).
 
 ## Comentarios didácticos de código
 - El código nuevo de hardware Amiga debe incluir comentarios breves, en español,
