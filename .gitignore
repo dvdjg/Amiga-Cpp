@@ -1,9 +1,79 @@
+# ===== Dependencias ==========================================================
+/node_modules/
+
+# ===== Compilados / binarios ==============================================
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.obj
+*.exe
+*.elf
+*.map
+*.d
+*.bin
+*.pyc
+__pycache__/
+
+# ===== Media grande / generada ============================================
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tga
+*.webp
+*.ico
+*.ilbm
+*.iff
+*.lbm
+*.mod
+*.xm
+*.s3m
+*.it
+*.p61
+*.wav
+*.mp3
+*.ogg
+*.flac
+*.avi
+*.mp4
+*.mov
+*.webm
+*.zip
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.adf
+*.hdf
+
+# ===== Excepciones: assets FUENTE del pipeline (sí se versionan) ===========
+# Los assets de referencia/editables bajo assets/ sí entran en git; la media
+# GENERADA (out/assets/, artefacts) no.
+!/assets/
+!/assets/**
+
+# ===== Directorios de salida / intermedios ==================================
 /obj/
-/out/
+/out/*
+!/out/README.md
 /legacy/obj/
 /legacy/out/
-*.o
-*.d
+
+# ===== Ficheros temporales, logs y editor ===================================
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
 
 # Workspace local del editor. Cada maquina puede tener rutas y carpetas distintas.
 Amiga-C.code-workspace
