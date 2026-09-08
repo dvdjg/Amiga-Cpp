@@ -225,7 +225,10 @@ struct CoreSelfcheckDemo {
 		          g_check.ok() ? kTextYellow : kTextFail);
 		draw_text(planes, 16, 240, "optica: eng::core ports", 20);
 
-		m_scene.install(backend);
+		// Toma el control del display una sola vez (apaga interrupciones/DMA
+		// del sistema y arranca la primera copperlist alineada al VBL). La
+		// pantalla es estatica, asi que no hay swaps por frame.
+		backend.takeover_display(m_scene.copper_words_ptr());
 
 		if (g_check.ok()) {
 			eng::debug::mark_ready(g_eng_run_status, g_check.detail());

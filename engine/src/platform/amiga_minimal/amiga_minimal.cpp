@@ -171,59 +171,66 @@ void MinimalBackend::set_color(u8 index, u16 rgb444) {
 	}
 }
 
-void MinimalBackend::install_copper_list(const u16* copper_words) {
-	if (!m_display_taken) {
-		// ---- TOMA DE CONTROL COMPLETA DEL DISPLAY (una sola vez) ----
-		// Al arrancar, Kickstart/AmigaDOS dejan viva toda la maquina de
-		// interrupciones y DMA: exec/graphics/intuition tienen sus handlers
-		// de VBL/ports/CIAA armados, y Agnus sigue fetchando el sprite del
-		// puntero del Workbench (SPREN activo). Si solo instalamos nuestra
-		// copperlist por encima, el sistema sigue "vivo" debajo: handlers de
-		// VBL cada frame y un canal de sprite apuntando a datos stale que,
-		// cuando se apaga/recarga a media pantalla, deja una barra vertical
-		// de un color de paleta (AHRM cap. 4: sprite DMA apagado a mitad de
-		// listado -> ultima linea fetchada -> barra vertical). Por eso aqui
-		// congelamos TODO antes de arrancar nuestra lista. A partir de este
-		// punto el engine NO vuelve a usar exec: el bucle es espera activa
-		// por VPOSR y la depuracion usa el canal lateral 0xf0ff60.
+void MinimalBackend::takeover_display(const u16* copper_words) {
+	// Al arrancar, Kickstart/AmigaDOS dejan viva toda la maquina de
+	// interrupciones y DMA: exec/graphics/intuition tienen sus handlers
+	// de VBL/ports/CIAA armados, y Agnus sigue fetchando el sprite del
+	// puntero del Workbench (SPREN activo). Si solo instalamos nuestra
+	// copperlist por encima, el sistema sigue "vivo" debajo: handlers de
+	// VBL cada frame y un canal de sprite apuntando a datos stale que,
+	// cuando se apaga/recarga a media pantalla, deja una barra vertical
+	// de un color de paleta (AHRM cap. 4: sprite DMA apagado a mitad de
+	// listado -> ultima linea fetchada -> barra vertical). Por eso aqui
+	// congelamos TODO antes de arrancar nuestra lista. A partir de este
+	// punto el engine NO vuelve a usar exec: el bucle es espera activa
+	// por VPOSR y la depuracion usa el canal lateral 0xf0ff60.
 
-		// 1) Apagar interrupciones del sistema y limpiar peticiones.
-		custom_base[custom_intena_offset] = dma_clear_all;   // INTENA=0x7FFF
-		custom_base[custom_intreq_offset] = dma_clear_all;   // INTREQ=0x7FFF
+	// 1) Apagar interrupciones del sistema y limpiar peticiones.
+	custom_base[custom_intena_offset] = dma_clear_all;   // INTENA=0x7FFF
+	custom_base[custom_intreq_offset] = dma_clear_all;   // INTREQ=0x7FFF
 
-		// 2) Higiene: esperar un blit que el sistema pudiera tener en vuelo.
-		wait_blitter();
+	// 2) Higiene: esperar un blit que el sistema pudiera tener en vuelo.
+	wait_blitter();
 
-		// 3) Apagar TODO el DMA: sprites, disco, audio, blitter, bitplane y
-		//    copper. La pantalla queda a COLOR00 un instante, pero nadie lo
-		//    ve porque esto esta en el blanking del arranque.
-		custom_base[custom_dmacon_offset] = dma_clear_all;   // DMACON=0x7FFF
+	// 3) Apagar TODO el DMA: sprites, disco, audio, blitter, bitplane y
+	//    copper. La pantalla queda a COLOR00 un instante, pero nadie lo
+	//    ve porque esto esta en el blanking del arranque.
+	custom_base[custom_dmacon_offset] = dma_clear_all;   // DMACON=0x7FFF
 
-		// 4) Programar nuestra copperlist (puntero COP1LC como LONG).
-		*cop1lc = reinterpret_cast<u32>(copper_words);
+	// 4) Programar nuestra copperlist (puntero COP1LC como LONG).
+	*cop1lc = reinterpret_cast<u32>(copper_words);
 
-		// 5) Esperar el arranque de VBlank (linea 311 -> 0) para que el Copper
-		//    arranque ALINEADO al frame y no a media pantalla. Misma espera
-		//    activa que wait_vblank() sobre VPOSR (sin interrupciones).
-		while ((*vpos_long & 0x1ff00u) == (311u << 8)) {
-		}
-		while ((*vpos_long & 0x1ff00u) != (311u << 8)) {
-		}
-
-		// 6) Arrancar master + copper y forzar el inicio de la lista ya (aun
-		//    linea 0-2). Los MOVEs de setup terminan mucho antes de DIWSTRT,
-		//    asi que el primer frame sale limpio.
-		custom_base[custom_dmacon_offset] = dma_setclr | dma_master | dma_copper;
-		custom_base[custom_copjmp1_offset] = 0x7fff;         // COPJMP1
-
-		m_display_taken = true;
-		return;
+	// 5) Esperar el arranque de VBlank (linea 311 -> 0) para que el Copper
+	//    arranque ALINEADO al frame y no a media pantalla. Misma espera
+	//    activa que wait_vblank() sobre VPOSR (sin interrupciones).
+	while ((*vpos_long & 0x1ff00u) == (311u << 8)) {
+	}
+	while ((*vpos_long & 0x1ff00u) != (311u << 8)) {
 	}
 
-	// ---- SWAP de copperlist (doble buffer; la 201 reinstala cada frame) ----
+	// 6) Arrancar master + copper y forzar el inicio de la lista ya (aun
+	//    linea 0-2). Los MOVEs de setup terminan mucho antes de DIWSTRT,
+	//    asi que el primer frame sale limpio.
+	custom_base[custom_dmacon_offset] = dma_setclr | dma_master | dma_copper;
+	custom_base[custom_copjmp1_offset] = 0x7fff;         // COPJMP1
+
+	m_display_taken = true;
+}
+
+void MinimalBackend::install_copper_list(const u16* copper_words) {
+	// SWAP de copperlist (doble buffer; la 201 reinstala cada frame).
 	// Solo actualizamos el puntero: el Copper recarga COP1LC solo al comienzo
 	// del proximo VBlank. NUNCA COPJMP1 aqui: reiniciaria el Copper a media
 	// pantalla (ver bug "banda de 1 frame").
+	//
+	// Retrocompatibilidad: drivers antiguos que solo conocian este metodo
+	// (nunca llaman a takeover_display) siguen funcionando: la primera llamada
+	// delega en la toma de control completa. Asi los compositores que ya
+	// llaman a install_copper_list por frame no necesitan cambios inmediatos.
+	if (!m_display_taken) {
+		takeover_display(copper_words);
+		return;
+	}
 	*cop1lc = reinterpret_cast<u32>(copper_words);
 }
 

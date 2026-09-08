@@ -88,11 +88,27 @@ public:
 	/// Escribe un registro COLORxx. `rgb444` usa el formato nativo OCS.
 	void set_color(u8 index, u16 rgb444);
 
-	/// Instala una copperlist ya construida en Chip RAM.
+	/// Toma el control completo del display y arranca la primera copperlist.
 	///
-	/// La lista debe terminar en `0xffff, 0xfffe`. Esta funcion escribe COP1LC,
-	/// dispara COPJMP1 y activa DMA master + Copper. Es close-to-the-metal: el
-	/// sistema operativo no arbitra esta lista.
+	/// Debe llamarse UNA sola vez, al iniciar la demo (tipicamente desde
+	/// `init()`/la primera composicion). Congela el sistema que AmigaDOS dejo
+	/// vivo (interrupciones y DMA de exec/graphics/intuition, sprite del
+	/// puntero y disco), programa `copper_words` en COP1LC, espera el arranque
+	/// de VBlank para que el Copper no parta a media pantalla, y arranca
+	/// master+copper con un COPJMP1 alineado al inicio de linea. A partir de
+	/// aqui el engine no vuelve a usar exec: el bucle es espera activa por
+	/// VPOSR. Es close-to-the-metal: el sistema operativo no arbitra esta lista.
+	void takeover_display(const u16* copper_words);
+
+	/// Cambia la copperlist activa por otra ya construida en Chip RAM (swap).
+	///
+	/// NO toma el control del display ni dispara COPJMP1: solo actualiza
+	/// COP1LC. El Copper recarga el puntero solo al comienzo del proximo
+	/// VBlank, asi que es seguro llamarla en cualquier punto del frame (doble
+	/// buffer: la 201 la llama cada frame). Requiere que `takeover_display`
+	/// se haya llamado al menos una vez; en caso contrario se comporta como
+	/// una toma de control de un solo intento (compatibilidad con drivers
+	/// antiguos que solo conocian `install_copper_list`).
 	void install_copper_list(const u16* copper_words);
 
 	/// Ejecuta los trabajos hardware descritos por un `FramePlan`.

@@ -86,7 +86,10 @@ struct DemoGame {
 		m_copper_words_ptr = copper.data();
 
 		if (m_memory_ok && m_copper_ok) {
-			backend.install_copper_list(m_copper_words_ptr);
+			// Toma el control del display una sola vez: apaga las
+			// interrupciones/dma del sistema y arranca la copperlist alineada
+			// al VBL. En update/render solo se hace swap de puntero.
+			backend.takeover_display(m_copper_words_ptr);
 			eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_copper_words));
 		} else {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000020u);

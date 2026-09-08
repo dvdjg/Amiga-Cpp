@@ -407,7 +407,7 @@ Los cuatro bugs se corrigieron en el engine y en la demo 060. Evidencia reproduc
 | A | `engine/include/eng/field/surface.hpp` (`Surface::draw_text`) | El bucle corta ahora en `cp == 0` (NUL o byte inválido), no en `cp == 0 && before != 0`. Antes rasterizaba la `.rodata` posterior a la cadena. |
 | A | `demos/amiga/060_eng_core_selfcheck/src/main.cpp` (`draw_text` local) | Ídem: `if (cp == 0u) break;`. |
 | B + C | `engine/src/platform/amiga_minimal/amiga_minimal.cpp` (`install_copper_list`) | Toma de control del display una sola vez: `INTENA=0x7FFF`, `INTREQ=0x7FFF`, `wait_blitter()`, `DMACON=0x7FFF`, programar `COP1LC`, espera activa de VBL (línea 311→0) y arranque `DMACON=SETCLR|DMAEN|COPEN` + `COPJMP1` alineado al inicio de línea. Instalaciones posteriores (doble buffer, la 201 reinstala por frame) hacen **solo swap de puntero `COP1LC`**, sin `COPJMP1`. |
-| B + C | `engine/include/eng/platform/amiga_minimal.hpp` | Nuevo miembro `m_display_taken` para distinguir toma de control de swap. |
+| B + C | `engine/include/eng/platform/amiga_minimal.hpp` | Nuevo miembro `m_display_taken` para distinguir toma de control de swap. API separada en dos métodos con nombre propio: `takeover_display()` (toma de control, una sola vez en `init`) e `install_copper_list()` (swap de puntero por frame con retrocompatibilidad de toma de control en la primera llamada). |
 | D | `demos/amiga/060_eng_core_selfcheck/src/main.cpp` | `0x0aa` movido de índice 19 a índice 20, para que el pie dibujado con color 20 sea visible. |
 
 ### 11.2 Evidencia de verificación (criterios de §10)
@@ -425,7 +425,6 @@ Los cuatro bugs se corrigieron en el engine y en la demo 060. Evidencia reproduc
 - `out/tmp/band-fix-verify/probe-state.mjs` — lanza la demo, espera READY y vuelca DMACONR/INTENAR/SPR0PT/COP1LC + captura sin warp con detector de banda.
 
 ### 11.4 Aclaraciones finales
-
 - El «texto del sistema» que leía el VLM en las capturas 1-8 era el desbordamiento de `draw_text` rasterizando `.rodata` (bug A) y el frame de instalación a media pantalla (bug C); no era el CLI de AmigaDOS. Tras A+B+C no asoma ningún texto ajeno (verificado).
 - El fondo azul diseñado (`kBgIndex=1`) sigue sin pintarse (el fondo es COLOR00 negro). Es una decisión pendiente con el usuario que no bloquea este fix; si se quiere el fondo azul, rellenar el plano 0 con `0xFF` en `init()`.
 - La paleta ahora deja `0x0aa` en COLOR20; el detector de banda por color RGB (0,170,170) y no por índice sigue siendo válido.
