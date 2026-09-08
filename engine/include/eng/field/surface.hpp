@@ -22,6 +22,7 @@
 /// dibuja igual sobre un playfield EHB, single 4p o DPF, recortado contra su
 /// clip, con independencia del modo (el mapeo lo gestiona el `Playfield`).
 
+#include <eng/core/utf8.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/graphics/font8.hpp>
 
@@ -90,24 +91,31 @@ public:
 
     /// Texto en una fuente 8×8, a nivel de contexto (sin punteros ni planos).
     ///
-    /// Escribe la cadena `text` empezando en el píxel `(x, y)` (esquina superior
-    /// izquierda del primer glifo), con el color de playfield `color` (índice en
-    /// la paleta del backend). Cada glifo ocupa 8x8 píxeles; los glifos fuera del
-    /// clip se recortan. Devuelve `false` si el contexto no es válido; una cadena
-    /// vacía es válida (no pinta nada) y devuelve `true`.
+    /// Escribe la cadena `text` (UTF-8) empezando en el píxel `(x, y)` (esquina
+    /// superior izquierda del primer glifo), con el color de playfield `color`
+    /// (índice en la paleta del backend). Cada glifo ocupa 8x8 píxeles; los
+    /// glifos fuera del clip se recortan. Devuelve `false` si el contexto no es
+    /// válido; una cadena vacía es válida (no pinta nada) y devuelve `true`.
     ///
-    /// La fuente se enruta por `set_pixel`, así que funciona igual sobre un
-    /// playfield EHB, single o dual playfield: el mapeo y los colores dependen
-    /// del `Playfield`, no de esta llamada.
+    /// El texto se decodifica UTF-8 (ver `eng/core/utf8.hpp`) y la fuente cubre
+    /// ASCII + LATIN-1 (acentos, diéresis, ñ/Ñ…); los puntos fuera de ese
+    /// subconjunto no se pintan. La fuente se enruta por `set_pixel`, así que
+    /// funciona igual sobre un playfield EHB, single o dual playfield: el mapeo
+    /// y los colores dependen del `Playfield`, no de esta llamada.
     bool draw_text(s32 x, s32 y, const char* text, u8 color) {
         if (!valid()) return false;
         if (text == nullptr) return true;
-        while (const char ch = *text++) {
-            if (ch < 32) {
-                continue; // no imprimible: no avanza
+        const u8* p = reinterpret_cast<const u8*>(text);
+        for (;;) {
+            const u32 cp = eng::utf8::decode(p);
+            if (cp == 0) {
+                break;
+            }
+            if (static_cast<u16>(cp) < 32u) {
+                continue; // control: no se pinta
             }
             for (u8 row = 0; row < eng::Font8::kRows; ++row) {
-                const u8 glyph_row = eng::Font8::row(static_cast<u16>(ch), row);
+                const u8 glyph_row = eng::Font8::row(static_cast<u16>(cp), row);
                 if (glyph_row == 0) {
                     continue;
                 }

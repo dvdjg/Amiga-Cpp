@@ -3,10 +3,13 @@
 // ============================================================================
 //
 // Valida en WinUAE los ports de libmisc/libc que cubre el test host HOST-000,
-// dibujando el resultado en BITPLANES REALES (no solo overlay del depurador):
-// la demo es visible en la ventana del Amiga normal (WinUAE, Coppenheimer,
-// hardware real), porque el texto se rasteriza con una fuente 8x8 en la
-// superficie EHB.
+// dibujando el resultado en BITPLANES REALES con el API de alto nivel:
+//
+//   CanvasPlayfield (lienzo EHB) -> Surface (contexto de dibujo) -> draw_text
+//
+// El programador NO ve punteros a bitplanes ni planos: dibuja sobre una
+// `Surface` (contexto de dispositivo, como un RastPort de la ROM) y el texto
+// se enruta por el mapeo del playfield. Entradas en UTF-8 (fuente LATIN-1).
 //
 // Fases (las mismas que HOST-000) ejecutadas en init, resultado publicado en
 // `g_eng_run_status.detail`:
@@ -14,9 +17,6 @@
 //   0x060100FF  todas las fases OK (self-check completo)
 //   0x06000201  isqrt fallo  ·  0x06000202  crc32 fallo
 //   0x06000203  random fallo  ·  0x06000204  sort fallo
-//
-// En pantalla (bitplanes EHB): titulo, cuatro lineas con OK/FAIL a color, y un
-// cartel SELF-CHECK: ALL PHASES OK / FAILED.
 //
 // Build/run/analyze:
 //   tools/build/build-demo.sh demos/amiga/060_eng_core_selfcheck --clean
@@ -31,8 +31,9 @@
 #include <eng/core/types.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
-#include <eng/graphics/drivers/ehb_scene.hpp>
-#include <eng/graphics/font8.hpp>
+#include <eng/field/playfield.hpp>
+#include <eng/field/surface.hpp>
+#include <eng/graphics/copper/scheduler.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 #include <exec/execbase.h>
@@ -54,20 +55,19 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-namespace drivers = eng::graphics::drivers;
+namespace field = eng::field;
+namespace copper = eng::copper;
 
-constexpr eng::u16 kScreenW = drivers::StaticEhbScene::width;      // 320
-constexpr eng::u16 kScreenH = drivers::StaticEhbScene::height;     // 256
-constexpr eng::u16 kBytesPerRow = drivers::StaticEhbScene::bytes_per_row; // 40
-constexpr eng::u8 kPlanes = drivers::StaticEhbScene::plane_count;  // 6
-constexpr eng::u32 kPlaneBytes = drivers::StaticEhbScene::plane_bytes;
+constexpr eng::u16 kScreenW = 320;
+constexpr eng::u16 kScreenH = 256;
+constexpr eng::u8 kPlanes = 6; // EHB
 
-// Indices EHB (0..63). El 6.º plano suma 32 (half-brite). Usamos base 0..31 y
-// texto en 31 (blanco) / 30 (amarillo), fondo 1 (azul).
+// Índices EHB (0..63): fondo 1 (azul), texto blanco 31, amarillo 30, rojo 26,
+// cian 20 (pie).
 constexpr eng::u8 kBgIndex = 1;
 constexpr eng::u8 kTextWhite = 31;
 constexpr eng::u8 kTextYellow = 30;
-constexpr eng::u8 kTextFail = 26; // rojo
+constexpr eng::u8 kTextFail = 26;
 
 // Resultado del self-check.
 struct SelfCheck {
@@ -163,40 +163,6 @@ void check_sort() {
 	}
 }
 
-// --- Rasterizacion de texto en bitplanes EHB -------------------------------
-// `color_index` es el indice EHB 0..63. La fuente 8x8 esta en formato FILAS
-// (byte r = fila r, bit k = pixel en la columna k desde la izquierda). Para
-// cada fila del glifo, recorremos los 8 bits y encendemos el pixel (x+k, y+r),
-// poniendo el bit correspondiente en los planos del color.
-void draw_text(eng::u8* planes, eng::u16 x, eng::u16 y, const char* text, eng::u8 color_index) {
-	while (*text) {
-		const char ch = *text++;
-		if (ch >= 32) {
-			for (eng::u8 row = 0; row < eng::Font8::kRows; ++row) {
-				const eng::u8 glyph_row = eng::Font8::row(static_cast<eng::u16>(ch), row);
-				if (glyph_row == 0) {
-					continue;
-				}
-				const eng::u16 py = static_cast<eng::u16>(y + row);
-				for (eng::u8 k = 0; k < 8u; ++k) {
-					if ((glyph_row & (1u << k)) == 0) {
-						continue;
-					}
-					const eng::u16 px = static_cast<eng::u16>(x + k);
-					const eng::u32 base = static_cast<eng::u32>(py) * kBytesPerRow + (px / 8u);
-					const eng::u8 bit = static_cast<eng::u8>(0x80u >> (px & 7u));
-					for (eng::u8 plane = 0; plane < kPlanes; ++plane) {
-						if (color_index & (1u << plane)) {
-							planes[static_cast<eng::u32>(plane) * kPlaneBytes + base] |= bit;
-						}
-					}
-				}
-			}
-		}
-		x = static_cast<eng::u16>(x + 8);
-	}
-}
-
 const char* ok_fail(bool ok) {
 	return ok ? "OK" : "FAIL";
 }
@@ -209,55 +175,96 @@ struct CoreSelfcheckDemo {
 		static_assert(language_level_marker() == 23);
 
 		m_memory_ok = backend.configure_memory({
-			80u * 1024u, // Chip: bitplanes EHB + copperlist
+			96u * 1024u, // Chip: bitplanes EHB + copperlist
 			8u * 1024u,  // Slow: metadatos
 			4u * 1024u,  // Frame scratch
 		});
 
-		const drivers::EhbPalette palette {
-			// 0 negro, 1 azul fondo, 26 rojo, 30 amarillo, 31 blanco.
-			0x000, 0x088, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
-			0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
-			0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
-			0x000, 0x000, 0xf00, 0x000, 0x000, 0x000, 0xff0, 0xfff,
-		};
-		const drivers::StaticEhbSceneConfig scene_config {
-			&palette, nullptr, 0, 1024,
-		};
-
-		m_scene_ok = m_scene.init(backend.memory(), scene_config);
-		if (!m_memory_ok || !m_scene_ok) {
+		// Lienzo EHB 320x256, 6 planos.
+		field::CanvasPlayfield::Config canvas_cfg;
+		canvas_cfg.width = kScreenW;
+		canvas_cfg.height = kScreenH;
+		canvas_cfg.planes = kPlanes;
+		m_canvas_ok = m_canvas.begin(backend.memory(), canvas_cfg);
+		if (!m_memory_ok || !m_canvas_ok) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000050u);
 			return;
 		}
 
-		// Ejecuta las cuatro fases.
+		// Paleta EHB (32 físicas; half-brite usa el 6.º plano -> +32).
+		const eng::u16 palette[32] = {
+			0x000, 0x06a, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
+			0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
+			0x000, 0x000, 0x000, 0x0aa, 0x000, 0x000, 0xf00, 0x000,
+			0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0xff0, 0xfff,
+		};
+
+		// Copper de display en Chip RAM.
+		eng::MemoryBlock copper_block = backend.memory().chip.allocate(1024, 16);
+		if (!copper_block.valid()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00000051u);
+			return;
+		}
+		copper::Scheduler scheduler { copper_block };
+		const auto& view = m_canvas.hardware_view();
+		scheduler.emit_planes_display(
+			0x2c81, 0x2cc1, 0x0038, 0x00d0,   // 320x256 lowres
+			m_canvas.bytes_per_row(), 0x6200, kPlanes,
+			view.bitplanes, view.plane_bytes
+		);
+		scheduler.emit_palette(palette);
+		scheduler.end();
+		m_copper_ok = scheduler.ok();
+
+		if (!m_copper_ok) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00000052u);
+			return;
+		}
+
+		// Fondo azul (índice 1) en TODOS los píxeles del lienzo.
+		eng::Span<eng::u8> b = m_canvas.bitmap().bytes();
+		for (eng::u16 p = 0; p < kPlanes; ++p) {
+			eng::u8* plane = b.data() + static_cast<eng::u32>(p) * m_canvas.bytes_per_row() * kScreenH;
+			const eng::u8 value = (kBgIndex & (1u << p)) ? 0xffu : 0x00u;
+			for (eng::u32 i = 0; i < static_cast<eng::u32>(m_canvas.bytes_per_row()) * kScreenH; ++i) {
+				plane[i] = value;
+			}
+		}
+
+		// Texto a través de la API (Surface + draw_text, UTF-8/LATIN-1).
+		field::SurfaceRect full_clip { 0, 0, kScreenW, kScreenH };
+		field::Surface surf { m_canvas, full_clip };
+
 		check_isqrt();
 		check_crc32();
 		check_random();
 		check_sort();
 
-		// Dibuja en bitplanes reales (indices EHB).
-		eng::u8* planes = m_scene.bitplanes();
-		draw_text(planes, 16, 16, "Demo 060 - eng::core self-check", kTextWhite);
-		draw_text(planes, 16, 40, "isqrt  : ", kTextWhite);
-		draw_text(planes, 100, 40, ok_fail(g_check.isqrt_ok),
-		          g_check.isqrt_ok ? kTextYellow : kTextFail);
-		draw_text(planes, 16, 56, "crc32  : ", kTextWhite);
-		draw_text(planes, 100, 56, ok_fail(g_check.crc32_ok),
-		          g_check.crc32_ok ? kTextYellow : kTextFail);
-		draw_text(planes, 16, 72, "random : ", kTextWhite);
-		draw_text(planes, 100, 72, ok_fail(g_check.random_ok),
-		          g_check.random_ok ? kTextYellow : kTextFail);
-		draw_text(planes, 16, 88, "sort   : ", kTextWhite);
-		draw_text(planes, 100, 88, ok_fail(g_check.sort_ok),
-		          g_check.sort_ok ? kTextYellow : kTextFail);
-		draw_text(planes, 16, 120,
-		          g_check.ok() ? "SELF-CHECK: ALL PHASES OK" : "SELF-CHECK: FAILED",
-		          g_check.ok() ? kTextYellow : kTextFail);
-		draw_text(planes, 16, 240, "eng::core ports from libmisc/libc", 0x1a);
+		surf.draw_text(16, 16, "Demo 060 - eng::core self-check", kTextWhite);
+		surf.draw_text(16, 40, "isqrt  : ", kTextWhite);
+		surf.draw_text(100, 40, ok_fail(g_check.isqrt_ok),
+		               g_check.isqrt_ok ? kTextYellow : kTextFail);
+		surf.draw_text(16, 56, "crc32  : ", kTextWhite);
+		surf.draw_text(100, 56, ok_fail(g_check.crc32_ok),
+		               g_check.crc32_ok ? kTextYellow : kTextFail);
+		surf.draw_text(16, 72, "random : ", kTextWhite);
+		surf.draw_text(100, 72, ok_fail(g_check.random_ok),
+		               g_check.random_ok ? kTextYellow : kTextFail);
+		surf.draw_text(16, 88, "sort   : ", kTextWhite);
+		surf.draw_text(100, 88, ok_fail(g_check.sort_ok),
+		               g_check.sort_ok ? kTextYellow : kTextFail);
+		surf.draw_text(16, 120,
+		               g_check.ok() ? "SELF-CHECK: ALL PHASES OK" : "SELF-CHECK: FAILED",
+		               g_check.ok() ? kTextYellow : kTextFail);
+		surf.draw_text(16, 240, "óptica: eng::core ports (Surface API)", 20);
 
-		// Publica el resultado.
+		m_copper_words = scheduler.words_used();
+		m_copper_ptr = scheduler.data();
+
+		if (m_copper_ptr != nullptr) {
+			backend.install_copper_list(m_copper_ptr);
+		}
+
 		if (g_check.ok()) {
 			eng::debug::mark_ready(g_eng_run_status, g_check.detail());
 		} else {
@@ -271,17 +278,18 @@ struct CoreSelfcheckDemo {
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
-		// La superficie EHB se muestra desde init (0-bit no, 6 planos). El
-		// contenido ya está escrito; solo hay que asegurar la copperlist. "commit"
-		// del engine ocurre en render (ver AGENTS: update->wait_vblank->render).
-		m_scene.install(backend);
+		// El contenido ya se escribió en init; aquí solo publicar la copperlist.
+		// "commit" del engine ocurre en render (ver AGENTS: update->wait_vblank->render).
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
 private:
-	drivers::StaticEhbScene m_scene {};
+	field::CanvasPlayfield m_canvas {};
 	bool m_memory_ok = false;
-	bool m_scene_ok = false;
+	bool m_canvas_ok = false;
+	bool m_copper_ok = false;
+	eng::u16 m_copper_words = 0;
+	const eng::u16* m_copper_ptr = nullptr;
 };
 
 } // namespace

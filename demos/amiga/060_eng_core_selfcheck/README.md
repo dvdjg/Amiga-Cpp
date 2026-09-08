@@ -24,9 +24,16 @@ pantalla muestra el `OK/FAIL` de cada fase + el cartel final.
 
 ## Dependencias nuevas
 
-- `engine/include/eng/graphics/font8.hpp` — fuente bitmap 8x8 (glifos
-  `0x20..0x7e`) para rasterizar texto por CPU en bitplanes; reusable en futuras
-  demos/HUDs sin depender del overlay.
+- `engine/include/eng/core/utf8.hpp` — decodificador UTF-8 freestanding (ASCI+1..4 bytes) para las funciones de texto.
+- `engine/include/eng/graphics/font8.hpp` — fuente 8x8 con LATIN-1 completo (acentos/diéresis/ñ/Ñ/símbolos).
+- API de texto: `Surface::draw_text(x, y, text, color)` (contexto de dispositivo sobre `Playfield`) + `CanvasPlayfield`.
+
+## Cómo se dibuja (API, no punteros)
+
+La demo usa `CanvasPlayfield` (320x256 EHB) como lienzo y dibuja TODO el texto a
+través del contexto `Surface` (`surface.draw_text(...)`); el programador no ve
+punteros a bitplanes, planos ni layouts. La cadena se pasa en UTF-8 y la fuente
+cubre LATIN-1, así que acentos/diéresis/ñ se pintan igual que el resto.
 
 ## Build & run & analyze
 

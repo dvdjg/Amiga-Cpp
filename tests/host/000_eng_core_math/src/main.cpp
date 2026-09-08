@@ -31,6 +31,7 @@
 #include <eng/core/sort.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
+#include <eng/core/utf8.hpp>
 #include <eng/graphics/font8.hpp>
 
 namespace {
@@ -172,6 +173,42 @@ void test_font8() {
     }
 }
 
+void test_utf8() {
+    std::printf("utf8: decodificacion de secuencias LATIN-1 (acentos/ñ/ü)\n");
+
+    // Literales UTF-8: "á é í ó ú ñ ü ç" con sus code points LATIN-1.
+    const char* s1 = "\xC3\xA1"; // á UTF-8 (0xE1)
+    const char* s2 = "\xC3\xA9"; // é (0xE9)
+    const char* s3 = "\xC3\xAD"; // í (0xED)
+    const char* s4 = "\xC3\xB1"; // ñ (0xF1)
+    const char* s5 = "\xC3\x9C"; // Ü (0xDC)
+    const char* s6 = "\xC3\xBC"; // ü (0xFC)
+    const char* s7 = "\xC3\x87"; // Ç (0xC7)
+    const char* s8 = "Hola";     // ASCII puro
+
+    const eng::u8* p = reinterpret_cast<const eng::u8*>(s1);
+    CHECK(eng::utf8::decode(p) == 0xE1u);
+    const eng::u8* q = reinterpret_cast<const eng::u8*>(s2);
+    CHECK(eng::utf8::decode(q) == 0xE9u);
+    const eng::u8* r = reinterpret_cast<const eng::u8*>(s3);
+    CHECK(eng::utf8::decode(r) == 0xEDu);
+    const eng::u8* t = reinterpret_cast<const eng::u8*>(s4);
+    CHECK(eng::utf8::decode(t) == 0xF1u);
+    const eng::u8* u = reinterpret_cast<const eng::u8*>(s5);
+    CHECK(eng::utf8::decode(u) == 0xDCu);
+    const eng::u8* v = reinterpret_cast<const eng::u8*>(s6);
+    CHECK(eng::utf8::decode(v) == 0xFCu);
+    const eng::u8* w = reinterpret_cast<const eng::u8*>(s7);
+    CHECK(eng::utf8::decode(w) == 0xC7u);
+    const eng::u8* x = reinterpret_cast<const eng::u8*>(s8);
+    CHECK(eng::utf8::decode(x) == 'H');
+
+    // Y que esos code points tienen glifo en Font8 (no vacíos).
+    CHECK(eng::Font8::row(0xE1u, 2) != 0u); // á
+    CHECK(eng::Font8::row(0xF1u, 2) != 0u); // ñ
+    CHECK(eng::Font8::row(0xFCu, 2) != 0u); // ü
+}
+
 void test_row_bytes_consistency() {
     std::printf("font8: tamano de la tabla coherente\n");
     // La fuente esta en formato FILAS (byte r = fila r, bit k = pixel en la
@@ -224,6 +261,7 @@ int main() {
     test_crc32_matches_original();
     test_random_matches_original();
     test_font8();
+    test_utf8();
     test_row_bytes_consistency();
     test_sort_ints();
     test_sort_items();
