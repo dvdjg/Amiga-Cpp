@@ -111,10 +111,13 @@ public:
         if (text == nullptr) return true;
         const u8* p = reinterpret_cast<const u8*>(text);
         for (;;) {
-            const u8 before = *p;
             const u32 cp = eng::utf8::decode(p);
-            if (cp == 0u && before != 0u) {
-                break; // byte inválido o fuera de LATIN-1
+            // decode() devuelve 0 tanto al final de cadena (NUL) como ante un
+            // byte inválido/fuera de LATIN-1; en ambos casos hay que cortar,
+            // porque seguir leería la .rodata posterior a la cadena y rasterizaría
+            // basura (doble texto solapado con el color de la llamada anterior).
+            if (cp == 0u) {
+                break;
             }
             if (cp >= 32u) {
                 draw_code_point(x, y, cp, color);

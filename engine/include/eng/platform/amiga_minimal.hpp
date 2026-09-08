@@ -125,6 +125,10 @@ private:
 	void* m_frame_alloc = nullptr;
 	u32 m_frame_alloc_size = 0;
 	u32 m_blitter_starts = 0;
+	/// true una vez que la primera copperlist ha tomado el control completo del
+	/// display (INTENA/INTREQ/DMACON apagados e interrupciones del sistema
+	/// congeladas). Las instalaciones posteriores son solo swaps de puntero.
+	bool m_display_taken = false;
 };
 
 } // namespace eng::amiga

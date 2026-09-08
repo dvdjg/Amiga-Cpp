@@ -187,7 +187,7 @@ struct CoreSelfcheckDemo {
 		const drivers::EhbPalette palette {
 			0x000, 0x06a, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
 			0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
-			0x000, 0x000, 0x000, 0x0aa, 0x000, 0x000, 0xf00, 0x000,
+			0x000, 0x000, 0x000, 0x000, 0x0aa, 0x000, 0xf00, 0x000,
 			0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0xff0, 0xfff,
 		};
 		const drivers::StaticEhbSceneConfig scene_config {
@@ -258,10 +258,9 @@ private:
     void draw_text(eng::u8* planes, eng::s32 x, eng::s32 y, const char* text, eng::u8 color) {
         const eng::u8* p = reinterpret_cast<const eng::u8*>(text);
         for (;;) {
-            const eng::u8 before = *p;
             const eng::u32 cp = eng::utf8::decode(p);
-            if (cp == 0u && before != 0u) {
-                break; // inválido / fuera de LATIN-1
+            if (cp == 0u) {
+                break; // NUL (fin de cadena) o byte inválido/fuera de LATIN-1
             }
             if (cp >= 32u) {
                 for (eng::u8 row = 0; row < eng::Font8::kRows; ++row) {

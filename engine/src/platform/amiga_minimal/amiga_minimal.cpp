@@ -27,10 +27,13 @@ constexpr unsigned short custom_bltdmod_offset = 0x066 / 2;
 constexpr unsigned short custom_color_offset = 0x180 / 2;
 constexpr unsigned short custom_copjmp1_offset = 0x088 / 2;
 constexpr unsigned short custom_dmacon_offset = 0x096 / 2;
+constexpr unsigned short custom_intena_offset = 0x09a / 2;
+constexpr unsigned short custom_intreq_offset = 0x09c / 2;
 constexpr unsigned short dma_setclr = 0x8000;
 constexpr unsigned short dma_master = 0x0200;
 constexpr unsigned short dma_copper = 0x0080;
 constexpr unsigned short dma_blitter = 0x0040;
+constexpr unsigned short dma_clear_all = 0x7fff;
 constexpr unsigned short dmaconr_blitter_busy = 0x4000;
 constexpr unsigned short blt_use_a = 0x0800;
 constexpr unsigned short blt_use_b = 0x0400;
@@ -169,16 +172,59 @@ void MinimalBackend::set_color(u8 index, u16 rgb444) {
 }
 
 void MinimalBackend::install_copper_list(const u16* copper_words) {
-	// COP1LC is a 32-bit pointer split over two custom registers. Writing it as a
-	// long mirrors the classic examples and is safe on 68000-aligned addresses.
+	if (!m_display_taken) {
+		// ---- TOMA DE CONTROL COMPLETA DEL DISPLAY (una sola vez) ----
+		// Al arrancar, Kickstart/AmigaDOS dejan viva toda la maquina de
+		// interrupciones y DMA: exec/graphics/intuition tienen sus handlers
+		// de VBL/ports/CIAA armados, y Agnus sigue fetchando el sprite del
+		// puntero del Workbench (SPREN activo). Si solo instalamos nuestra
+		// copperlist por encima, el sistema sigue "vivo" debajo: handlers de
+		// VBL cada frame y un canal de sprite apuntando a datos stale que,
+		// cuando se apaga/recarga a media pantalla, deja una barra vertical
+		// de un color de paleta (AHRM cap. 4: sprite DMA apagado a mitad de
+		// listado -> ultima linea fetchada -> barra vertical). Por eso aqui
+		// congelamos TODO antes de arrancar nuestra lista. A partir de este
+		// punto el engine NO vuelve a usar exec: el bucle es espera activa
+		// por VPOSR y la depuracion usa el canal lateral 0xf0ff60.
+
+		// 1) Apagar interrupciones del sistema y limpiar peticiones.
+		custom_base[custom_intena_offset] = dma_clear_all;   // INTENA=0x7FFF
+		custom_base[custom_intreq_offset] = dma_clear_all;   // INTREQ=0x7FFF
+
+		// 2) Higiene: esperar un blit que el sistema pudiera tener en vuelo.
+		wait_blitter();
+
+		// 3) Apagar TODO el DMA: sprites, disco, audio, blitter, bitplane y
+		//    copper. La pantalla queda a COLOR00 un instante, pero nadie lo
+		//    ve porque esto esta en el blanking del arranque.
+		custom_base[custom_dmacon_offset] = dma_clear_all;   // DMACON=0x7FFF
+
+		// 4) Programar nuestra copperlist (puntero COP1LC como LONG).
+		*cop1lc = reinterpret_cast<u32>(copper_words);
+
+		// 5) Esperar el arranque de VBlank (linea 311 -> 0) para que el Copper
+		//    arranque ALINEADO al frame y no a media pantalla. Misma espera
+		//    activa que wait_vblank() sobre VPOSR (sin interrupciones).
+		while ((*vpos_long & 0x1ff00u) == (311u << 8)) {
+		}
+		while ((*vpos_long & 0x1ff00u) != (311u << 8)) {
+		}
+
+		// 6) Arrancar master + copper y forzar el inicio de la lista ya (aun
+		//    linea 0-2). Los MOVEs de setup terminan mucho antes de DIWSTRT,
+		//    asi que el primer frame sale limpio.
+		custom_base[custom_dmacon_offset] = dma_setclr | dma_master | dma_copper;
+		custom_base[custom_copjmp1_offset] = 0x7fff;         // COPJMP1
+
+		m_display_taken = true;
+		return;
+	}
+
+	// ---- SWAP de copperlist (doble buffer; la 201 reinstala cada frame) ----
+	// Solo actualizamos el puntero: el Copper recarga COP1LC solo al comienzo
+	// del proximo VBlank. NUNCA COPJMP1 aqui: reiniciaria el Copper a media
+	// pantalla (ver bug "banda de 1 frame").
 	*cop1lc = reinterpret_cast<u32>(copper_words);
-
-	// COPJMP1 forces the Copper to reload COP1LC immediately.
-	custom_base[custom_copjmp1_offset] = 0x7fff;
-
-	// Enable master DMA and Copper DMA. We leave bitplane DMA to the copperlist or
-	// future display driver; this demo starts with zero bitplanes.
-	custom_base[custom_dmacon_offset] = dma_setclr | dma_master | dma_copper;
 }
 
 bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
