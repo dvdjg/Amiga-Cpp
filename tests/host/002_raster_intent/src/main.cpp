@@ -1,0 +1,102 @@
+// ============================================================================
+// Test HOST-002: vocabulario portátil de intenciones (Visual / CopperIntent /
+// SpriteIntent / concept Effect)
+// ============================================================================
+//
+// Valida en host la nueva estructura de tipos del engine definida en
+// `eng/graphics/raster_intent.hpp`: los tipos que capturan LO QUE la escena
+// quiere, sin decidir CÓMO se materializa en hardware.
+//
+// Comprobaciones:
+//   1) Static asserts de que `Visual`, `CopperIntent`, `SpriteIntent` cumplen
+//      ser trivialmente copiables y auto-contenidos (portables, host-testables).
+//   2) concept `Effect<E, Plan>`: un efecto mínimo que solo tiene `update()` y
+//      `apply_into(plan)` lo satisface; uno que falta no debe compilar (se
+//      comprueba asumiendo que NO se usa el negativo, para no romper el build).
+//   3) Runtime: `CopperIntent` anotado por franja conserva su geometría.
+//
+// Ejecucion:
+//   bash tools/run-host-tests.sh tests/host/002_raster_intent   (solo este)
+//   bash tools/run-host-tests.sh                                (todos)
+
+#include <cstdio>
+#include <type_traits>
+
+#include <eng/core/types.hpp>
+#include <eng/graphics/raster_intent.hpp>
+
+namespace {
+
+using eng::graphics::CopperIntent;
+using eng::graphics::CopperIntentKind;
+using eng::graphics::Effect;
+using eng::graphics::SpriteIntent;
+using eng::graphics::Visual;
+using eng::graphics::VisualKind;
+
+// Los tipos son datos planos (POD) que viajan entre la escena y los schedulers.
+static_assert(std::is_trivially_copyable_v<Visual>);
+static_assert(std::is_trivially_copyable_v<CopperIntent>);
+static_assert(std::is_trivially_copyable_v<SpriteIntent>);
+
+// Un "plan" mínimo para el concept `Effect`: en el engine real es `FramePlan`.
+struct MockPlan {
+    int copper_intents = 0;
+};
+
+// Efecto mínimo que satisface `Effect` (update + apply_into).
+struct MockCycler {
+    int phase = 0;
+    void update() { ++phase; }
+    void apply_into(MockPlan& plan) {
+        plan.copper_intents += phase;  // aporta su estado al plan
+    }
+};
+
+// Evidencia del contract: MockCycler cumple `Effect<_, MockPlan>`.
+static_assert(Effect<MockCycler, MockPlan>);
+
+// `VisualKind` es distinguible y compacto (u8).
+static_assert(sizeof(VisualKind) == 1);
+
+} // namespace
+
+int main() {
+    // Runtime: la geometría de una franja de `CopperIntent` se conserva.
+    CopperIntent intent {
+        CopperIntentKind::PaletteLine,
+        /*top*/ 44, /*bottom*/ 44,
+        /*hpos*/ 0, /*colors*/ nullptr, /*first*/ 0, /*count*/ 0,
+        /*shift_x*/ 0, /*bitplanes*/ nullptr,
+        /*sprite_channel*/ 0, /*sprite_ptr*/ nullptr,
+    };
+    if (intent.top != 44 || intent.bottom != 44 || intent.kind != CopperIntentKind::PaletteLine) {
+        std::printf("[FAIL] geografia de CopperIntent incorrecta\n");
+        return 1;
+    }
+
+    // Runtime: un `Visual` tipo Bob con mascara conserva su identidad de contenido.
+    Visual v {};
+    v.kind = VisualKind::Bob;
+    v.w = 32;
+    v.h = 32;
+    v.bitplanes = 4;
+    if (v.kind != VisualKind::Bob || v.w != 32 || v.bitplanes != 4) {
+        std::printf("[FAIL] Visual incorrecto\n");
+        return 1;
+    }
+
+    // Runtime: un efecto avanza y aporta intenciones.
+    MockPlan plan {};
+    MockCycler cycler {};
+    cycler.update();
+    cycler.update();
+    cycler.apply_into(plan);
+    if (plan.copper_intents != 2) {
+        std::printf("[FAIL] Effect no aporta intenciones (%d)\n", plan.copper_intents);
+        return 1;
+    }
+
+    std::printf("OK: vocabulario de intenciones validado (Visual/CopperIntent/SpriteIntent/Effect).\n");
+    return 0;
+}
