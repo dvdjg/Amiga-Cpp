@@ -62,7 +62,7 @@ Cuando termine la lectura contextual, puede abrir solo los enlaces que necesite.
 | **Pipeline tiles/EHB/assets** | [PIPELINE_TILES_EHB.md](../demos/tile-pipeline/PIPELINE_TILES_EHB.md), [REGLAS_PIPELINE_TILES.md](../guides/roadmap/REGLAS_PIPELINE_TILES.md), `tools/amiga-tiles/README.md` | demos 201, 202 |
 | **Juego sobre el engine** | [STRUCTURE §9](../../STRUCTURE.md), roadmap, técnicas | `games/` |
 | **Optimización de un path** | Regla permanente de rendimiento de `AGENTS.md`, perfilado (`tools/profile/README.md`) | — |
-| **Depurar un bug de visual** | [DEBUG-WINUAE-V2-GUIDE.md](../debugging/DEBUG-WINUAE-V2-GUIDE.md), invariantes microtests | — |
+| **Depurar un bug de visual** | [DEBUG-WINUAE-V2-GUIDE.md](../debugging/DEBUG-WINUAE-V2-GUIDE.md), invariantes microtests, y para arranque/display+doble texto/banda: [DEBUG_DEMO_ARRANQUE_DOBLE_TEXTO_BANDA.md](../debugging/DEBUG_DEMO_ARRANQUE_DOBLE_TEXTO_BANDA.md) | — |
 | **Nueva referencia/documento externo** | §6 de este mapa, [amiga-authoritative-sources.md](../reference/amiga-authoritative-sources.md) | — |
 
 ---

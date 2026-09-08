@@ -14,6 +14,7 @@ Esta carpeta contiene documentación técnica sobre el sistema de depuración Am
 | [DEBUGGING-ARCHITECTURE.md](DEBUGGING-ARCHITECTURE.md) | Arquitectura general del sistema: componentes, protocolos, flujos de datos |
 | [RELOCATION-FIX.md](RELOCATION-FIX.md) | Explicación detallada del problema de relocalización de direcciones y su solución |
 | [HISTORIAL-CAMBIOS.md](HISTORIAL-CAMBIOS.md) | Registro de todos los cambios realizados desde el código original de Bartman |
+| [DEBUG_DEMO_ARRANQUE_DOBLE_TEXTO_BANDA.md](DEBUG_DEMO_ARRANQUE_DOBLE_TEXTO_BANDA.md) | Prompt autocontenido para depurar el arranque de demos: doble texto (amarillo/blanco) y banda azul intermitente, sospecha de bug de engine/boot y estado del Workbench. |
 
 ## Resumen del Sistema
 
