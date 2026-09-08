@@ -176,6 +176,13 @@ recording del GUI). Pendiente: `print` DWARF.
 - **APIs paramétricas, nunca de tamaño fijo**: no generar funciones con geometría/tamaño embebido (p. ej. `emit_ehb_320x256_display`); el engine expone métodos paramétricos (registros/planos/ancho, etc.) y el llamador decide los valores. Los "magic numbers" de un caso concreto viven en la demo/config, no como API.
 - La lógica de juego debe ser agnóstica del backend; registros/DMA específicos de Amiga van en capas backend/driver, no en lógica de alto nivel.
 
+## Regla de API del engine (obligatoria)
+- **El programador no debe ver funciones de bajo nivel** (p. ej. `draw_text` que recibe puntero a bitplanes, índices de planos o `u8*`). Todo dibujo y acceso a la imagen pasa por **una abstracción de alto nivel** (tipo **contexto de dispositivo**), análoga al `RastPort` de la ROM de Amiga (graphics.library) o a un device-context de Windows: la app pide «surface/contexto» y dibuja sobre él, sin conocer la memoria subyacente.
+- **Sin punteros ni mecanismos inseguros en el API**: no exponer `u8*`, offsets crudos, layouts, planos, registros custom ni direcciones DMA en la interfaz pública. Esas decisiones viven dentro de la implementación (driver/surface), nunca en la firma que consume la lógica de juego.
+- **Versátil para cualquier configuración**: el API debe funcionar igual para EHB, single/double playfield, 4/5/6 planos, interleaved/separate, cualquier resolución. No diseñar funciones o clases que solo funcionen en EHB o en DPF o en un tamaño concreto; la abstracción expone un «pincel/contexto» que el propio contexto (superficie) configura internamente según sus parámetros.
+- Prueba de diseño: una función de dibujo debe poder expresarse igualmente sobre un contexto EHB 6 planos, un contexto single 4 planos y un contexto DPF, con la misma llamada y solo cambiando la configuración del contexto; el llamador nunca ve qué modo es.
+- Lo que sí puede ser específico de un modo (registros, cobre, DMA) queda **dentro del driver/surface** o en capas backend, nunca filtrado al llamador.
+
 ## Regla permanente de rendimiento
 - Todo código nuevo debe minimizar el trabajo total por frame y reutilizar datos,
   trabajos, buffers y estados siempre que sea posible.

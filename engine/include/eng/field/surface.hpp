@@ -6,8 +6,9 @@
 /// Según el diseño del engine, `Playfield` NO dibuja: representa el framebuffer
 /// hardware + su mapeo lógico→físico. `Surface` es el único contexto de dibujo:
 /// una subregión rectangular (origen + tamaño + clip) sobre un playfield, con
-/// las primitivas (`set_pixel`, `fill_rect`, `draw_line`, `blit`, `blit_masked`)
-/// recortadas contra su clip y enrutadas por el mapeo del playfield.
+/// las primitivas (`set_pixel`, `fill_rect`, `draw_line`, `draw_text`, `blit`,
+/// `blit_masked`) recortadas contra su clip y enrutadas por el mapeo del
+/// playfield.
 ///
 /// Es la base del GUI: un `Widget` es una `Surface` + `draw()` + `hit_test(punto)`.
 ///
@@ -15,8 +16,14 @@
 /// apuntando a un playfield (`Playfield*` no-propietario; `Ref` es un
 /// refactor pendiente). La escena expone superficies listas (`bg_surface()`,
 /// `hud_surface()`) para el código de juego.
+///
+/// Regla de API del engine: el programador NO ve punteros a bitplanes, índices
+/// de planos, layouts ni registros. `Surface` es el contexto de dispositivo:
+/// dibuja igual sobre un playfield EHB, single 4p o DPF, recortado contra su
+/// clip, con independencia del modo (el mapeo lo gestiona el `Playfield`).
 
 #include <eng/field/playfield.hpp>
+#include <eng/graphics/font8.hpp>
 
 namespace eng::field {
 
@@ -79,6 +86,41 @@ public:
             if (e2 < dx)  { err += dx; y0 += sy; }
         }
         return ok;
+    }
+
+    /// Texto en una fuente 8×8, a nivel de contexto (sin punteros ni planos).
+    ///
+    /// Escribe la cadena `text` empezando en el píxel `(x, y)` (esquina superior
+    /// izquierda del primer glifo), con el color de playfield `color` (índice en
+    /// la paleta del backend). Cada glifo ocupa 8x8 píxeles; los glifos fuera del
+    /// clip se recortan. Devuelve `false` si el contexto no es válido; una cadena
+    /// vacía es válida (no pinta nada) y devuelve `true`.
+    ///
+    /// La fuente se enruta por `set_pixel`, así que funciona igual sobre un
+    /// playfield EHB, single o dual playfield: el mapeo y los colores dependen
+    /// del `Playfield`, no de esta llamada.
+    bool draw_text(s32 x, s32 y, const char* text, u8 color) {
+        if (!valid()) return false;
+        if (text == nullptr) return true;
+        while (const char ch = *text++) {
+            if (ch < 32) {
+                continue; // no imprimible: no avanza
+            }
+            for (u8 row = 0; row < eng::Font8::kRows; ++row) {
+                const u8 glyph_row = eng::Font8::row(static_cast<u16>(ch), row);
+                if (glyph_row == 0) {
+                    continue;
+                }
+                for (u8 k = 0; k < 8u; ++k) {
+                    if ((glyph_row & (1u << k)) == 0) {
+                        continue;
+                    }
+                    set_pixel(x + static_cast<s32>(k), y + static_cast<s32>(row), color);
+                }
+            }
+            x += 8;
+        }
+        return true;
     }
 
     /// Blit planar en el mundo (delega en el playfield; la costura/espejo las
