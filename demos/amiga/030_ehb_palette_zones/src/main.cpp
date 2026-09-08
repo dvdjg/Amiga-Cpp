@@ -132,7 +132,7 @@ struct DemoGame {
 		}
 
 		if (m_memory_ok && m_scene_ok) {
-			m_scene.install(backend);
+			m_scene.takeover(backend);
 			eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_scene.copper_words()));
 		} else {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000030u);

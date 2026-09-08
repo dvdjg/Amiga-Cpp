@@ -167,7 +167,20 @@ public:
 		return true;
 	}
 
-	/// Instala la copperlist del driver.
+	/// Toma el control del display e instala la primera copperlist (una vez).
+	///
+	/// Debe llamarse desde `init()`/la primera composicion, antes del bucle de
+	/// frames. Congela el sistema que AmigaDOS dejo vivo (interrupciones, DMA
+	/// de sprites/disco) y arranca la lista alineada al VBlank. Ver
+	/// `MinimalBackend::takeover_display`.
+	template <typename Backend>
+	void takeover(Backend& backend) const {
+		if (m_ok && m_copper_words_ptr != nullptr) {
+			backend.takeover_display(m_copper_words_ptr);
+		}
+	}
+
+	/// Instala la copperlist del driver (swap de puntero; no toma el control).
 	///
 	/// Es un template para no introducir una interfaz virtual de backend. Cualquier
 	/// plataforma futura que quiera ejecutar este driver debera exponer un metodo

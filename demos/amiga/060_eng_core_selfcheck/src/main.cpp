@@ -65,9 +65,18 @@ constexpr eng::u16 kBytesPerRow = drivers::StaticEhbScene::bytes_per_row;
 constexpr eng::u8 kPlanes = drivers::StaticEhbScene::plane_count;
 constexpr eng::u32 kPlaneBytes = drivers::StaticEhbScene::plane_bytes;
 
-// Índices EHB (0..63): fondo azul 1, texto blanco 31, amarillo 30, rojo 26,
-// cian 20 (pie). Con EHB el 6.º plano suma 32 (half-brite); los índices aquí
-// son de la paleta base 0..31.
+// Índices EHB (0..63): texto blanco 31, amarillo 30, rojo 26, cian 20 (pie).
+// Con EHB el 6.º plano suma 32 (half-brite); los índices aquí son de la paleta
+// base 0..31.
+//
+// NOTA sobre el fondo: `kBgIndex = 1` (0x06a) define un azul de fondo que NO se
+// pinta. El texto se rasteriza por OR bit a bit sobre los planos; el amarillo
+// (30 = 0b11110) no pone el bit 0 (que es el bit del color de fondo 1), así que
+// se dibuja "hueco" por ese bit. Si rellenáramos el plano 0 con 0xFF, el fondo
+// azul asomaría a través de cada glifo amarillo (manchándolo). Para un fondo de
+// color correcto habría que rasterizar el texto con máscara (clear+set) en vez
+// de OR; como esto es un self-check de algoritmos, dejamos el fondo negro
+// (COLOR00 = 0x000) intencionadamente.
 constexpr eng::u8 kBgIndex = 1;
 constexpr eng::u8 kTextWhite = 31;
 constexpr eng::u8 kTextYellow = 30;

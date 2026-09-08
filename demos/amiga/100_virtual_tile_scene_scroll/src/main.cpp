@@ -318,7 +318,7 @@ struct DemoGame {
 
 		build_tile_word_cache(m_tile_words);
 		draw_frame(backend, final_camera_x);
-		m_scene.install(backend);
+		m_scene.takeover(backend);
 		eng::debug::mark_ready(
 			g_eng_run_status,
 			0x10000000u |

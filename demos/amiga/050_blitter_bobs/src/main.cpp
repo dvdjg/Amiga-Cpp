@@ -277,7 +277,7 @@ struct DemoGame {
 
 		m_blit_ok = true;
 		m_static_no_save_jobs = m_frame_plan.blit_budget().no_save_jobs;
-		m_scene.install(backend);
+		m_scene.takeover(backend);
 	}
 
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {

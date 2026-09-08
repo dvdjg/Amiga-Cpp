@@ -142,7 +142,7 @@ struct DemoGame {
 			fields[pf].configure(config);
 			if (!fields[pf].begin(scene)) { eng::debug::mark_failed(g_eng_run_status, 0x00010501u); return; }
 		}
-		set_copper(); scene.install(backend); ready = true;
+		set_copper(); scene.takeover(backend); ready = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x10500000u);
 	}
 

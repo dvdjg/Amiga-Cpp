@@ -426,5 +426,5 @@ Los cuatro bugs se corrigieron en el engine y en la demo 060. Evidencia reproduc
 
 ### 11.4 Aclaraciones finales
 - El «texto del sistema» que leía el VLM en las capturas 1-8 era el desbordamiento de `draw_text` rasterizando `.rodata` (bug A) y el frame de instalación a media pantalla (bug C); no era el CLI de AmigaDOS. Tras A+B+C no asoma ningún texto ajeno (verificado).
-- El fondo azul diseñado (`kBgIndex=1`) sigue sin pintarse (el fondo es COLOR00 negro). Es una decisión pendiente con el usuario que no bloquea este fix; si se quiere el fondo azul, rellenar el plano 0 con `0xFF` en `init()`.
+- El fondo de la 060 queda **negro** (COLOR00) de forma intencionada: el texto se rasteriza por OR y el amarillo (30) no pone el bit 0, por lo que rellenar el plano 0 con el azul de `kBgIndex=1` mancharía los glifos amarillos. Para un fondo de color haría falta rasterizar con máscara (fuera del alcance de este self-check). Decisión documentada en `demos/amiga/060_eng_core_selfcheck/src/main.cpp`.
 - La paleta ahora deja `0x0aa` en COLOR20; el detector de banda por color RGB (0,170,170) y no por índice sigue siendo válido.

@@ -1059,7 +1059,7 @@ scene_cfg.max_step = kStepMax;
 
     void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
         if (ready) {
-            scene.install(backend);
+        scene.takeover(backend);
             draw_hud_cpu(); // primitivas CPU durante el vblank (seguro)
         }
         eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);

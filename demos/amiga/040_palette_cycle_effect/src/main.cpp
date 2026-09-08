@@ -120,7 +120,7 @@ struct DemoGame {
 		m_scene_ok = m_scene.init(backend.memory(), scene_config);
 		if (m_scene.ok()) {
 			build_cycle_test_pattern(m_scene.bitplanes());
-			m_scene.install(backend);
+			m_scene.takeover(backend);
 		} else {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000040u);
 		}

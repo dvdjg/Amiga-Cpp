@@ -348,7 +348,7 @@ struct DemoGame {
 			return;
 		}
 
-		m_scene.install(backend);
+		m_scene.takeover(backend);
 		publish_status(initial_x, initial_y, 0);
 		// Telemetría del periférico ampliado (e9k): descripciones por slot de
 		// checkpoint y un contador acumulado de tiles subidos. El host los lee

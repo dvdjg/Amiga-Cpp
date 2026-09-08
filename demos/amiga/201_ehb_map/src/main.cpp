@@ -617,7 +617,7 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020104u);
 			return;
 		}
-		scene.install(backend);
+		scene.takeover(backend);
 		// Pinta el HUD inicial (fase 1, salto máx. 4 px/frame) con datos en 0.
 		draw_hud();
 

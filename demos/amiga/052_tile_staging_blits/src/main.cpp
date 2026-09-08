@@ -227,7 +227,7 @@ struct DemoGame {
 			return;
 		}
 
-		m_scene.install(backend);
+		m_scene.takeover(backend);
 		m_ready = true;
 	}
 

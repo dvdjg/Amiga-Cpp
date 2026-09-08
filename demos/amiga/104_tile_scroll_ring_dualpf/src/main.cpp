@@ -459,7 +459,7 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000414u);
 			return;
 		}
-		m_scene.install(backend);
+		m_scene.takeover(backend);
 		publish_status(0);
 		m_ready = true;
 	}

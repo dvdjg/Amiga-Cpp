@@ -351,7 +351,7 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000217u);
 			return;
 		}
-		composer.install(backend);
+		composer.takeover(backend);
 
 		publish_status();
 		eng::debug::DebugPeripheral::counter_name(0, reinterpret_cast<eng::u32>("tiles_uploaded"));

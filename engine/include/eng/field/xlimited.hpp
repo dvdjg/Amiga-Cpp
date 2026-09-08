@@ -1382,6 +1382,15 @@ public:
         return true;
     }
 
+    /// Toma el control del display e instala la primera copperlist (una vez).
+    template <typename Backend>
+    void takeover(Backend& backend) const {
+        if (m_initialized && m_copper_initialized) {
+            backend.takeover_display(
+                static_cast<const u16*>(m_copper_blocks[m_active].data));
+        }
+    }
+
     template <typename Backend>
     void install(Backend& backend) const {
         if (m_initialized && m_copper_initialized) {
@@ -1565,6 +1574,14 @@ public:
         if (!emit_full(inactive, pf1, pf2)) return false;
         m_active = inactive;
         return true;
+    }
+
+    /// Toma el control del display e instala la primera copperlist (una vez).
+    template <typename Backend>
+    void takeover(Backend& backend) const {
+        if (m_initialized && m_copper_initialized) {
+            backend.takeover_display(static_cast<const u16*>(m_copper_blocks[m_active].data));
+        }
     }
 
     template <typename Backend>

@@ -254,7 +254,7 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020204u);
 			return;
 		}
-		scene.install(backend);
+		scene.takeover(backend);
 
 		ready = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x00020200u);

@@ -570,6 +570,14 @@ public:
         else m_single.install(backend);
     }
 
+    /// Toma el control del display e instala la primera copperlist (una vez).
+    template <typename Backend>
+    void takeover(Backend& backend) const {
+        if (!m_initialized) return;
+        if (m_cfg.dpf.enabled) m_dual.takeover(backend);
+        else m_single.takeover(backend);
+    }
+
     constexpr bool ok() const { return m_initialized; }
 
     /// Reinicia el auto-ciclo de fases (para el CICLO DE VIDA al conmutar

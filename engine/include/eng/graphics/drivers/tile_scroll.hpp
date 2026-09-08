@@ -533,6 +533,14 @@ public:
 		return rebuild_copper(input);
 	}
 
+	/// Toma el control del display e instala la primera copperlist (una vez).
+	template <typename Backend>
+	void takeover(Backend& backend) const {
+		if (m_ok && m_copper_initialized) {
+			backend.takeover_display(static_cast<const u16*>(m_copper_blocks[m_active_copper].data));
+		}
+	}
+
 	template <typename Backend>
 	void install(Backend& backend) const {
 		if (m_ok) {
