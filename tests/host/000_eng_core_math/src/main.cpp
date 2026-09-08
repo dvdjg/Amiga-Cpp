@@ -209,6 +209,21 @@ void test_utf8() {
     CHECK(eng::Font8::row(0xFCu, 2) != 0u); // ü
 }
 
+void test_utf8_literal_constexpr() {
+    std::printf("utf8: fixed_string NTTP decodifica en compile-time\n");
+
+    // "Hola" + á é ñ ü (8 code points). El fuente es UTF-8.
+    constexpr auto d1 = eng::utf8::decode_fixed<"Holaáéñü">();
+    static_assert(d1.count == 8u, "Hola+áéñü = 8 code points");
+    static_assert(d1.cp[0] == 'H', "H");
+    static_assert(d1.cp[4] == 0xE1u, "á");
+    static_assert(d1.cp[5] == 0xE9u, "é");
+    static_assert(d1.cp[6] == 0xF1u, "ñ");
+    static_assert(d1.cp[7] == 0xFCu, "ü");
+    CHECK(eng::utf8::decode_fixed<"Você">().count == 4u);
+    CHECK(eng::utf8::decode_fixed<"Você">().cp[3] == 0xEAu); // ê
+}
+
 void test_row_bytes_consistency() {
     std::printf("font8: tamano de la tabla coherente\n");
     // La fuente esta en formato FILAS (byte r = fila r, bit k = pixel en la
@@ -262,6 +277,7 @@ int main() {
     test_random_matches_original();
     test_font8();
     test_utf8();
+    test_utf8_literal_constexpr();
     test_row_bytes_consistency();
     test_sort_ints();
     test_sort_items();

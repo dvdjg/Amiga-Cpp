@@ -53,6 +53,21 @@ tools/analyze/analyze-demo.sh demos/amiga/060_eng_core_selfcheck
   `SELF-CHECK: ALL PHASES OK` en texto blanco/amarillo sobre fondo azul.
 - El analizador `analyze-demo` pasa (texto blanco + fondo no-Workbench).
 
+## Artefacto de banda azul esporádica (diagnóstico 2026-09)
+
+En secuencias sin warp se observa ocasionalmente **un frame con una banda
+vertical cian (~29 px) a gran altura**. Verificado por hashes de secuencia
+(frame_N cambia 1 frame y vuelve) y por diff de píxeles (color `0x0AA`, de la
+paleta de la demo): **no es un defecto del contenido** — la pantalla estática
+es idéntica en todos los demás frames, incluida la corrida con `--warp`. La
+banda es un artefacto del **sampling GDB/WinUAE-DBG durante la captura**
+(pausa del 68000 entre muestras con warp=false y ciclos exactos), y también
+aparece al tomar perfiles con el **Frame Profiler** de la extensión. En
+ejecución normal (sin depurador capturando) la demo se muestra estable.
+
+Para validar visualmente basta una `screenshot` tras READY (o `--warp`); una
+secuencia larga con GDB activo puede mostrar la banda de 1 frame.
+
 ## Por qué bitplanes reales y no solo overlay
 
 El overlay `debug_*` (`debug_cmd` → `UaeLib` en `0xf0ff60`) solo existe en

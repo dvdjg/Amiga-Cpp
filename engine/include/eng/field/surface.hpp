@@ -103,29 +103,51 @@ public:
     /// subconjunto no se pintan. La fuente se enruta por `set_pixel`, así que
     /// funciona igual sobre un playfield EHB, single o dual playfield: el mapeo
     /// y los colores dependen del `Playfield`, no de esta llamada.
+    /// Cadenas RUNTIME: decodifica UTF-8 (1-2 bytes por code point). Para
+    /// literales, usar `draw_text_literal` (compile-time). La fuente cubre
+    /// ASCII + LATIN-1 (acentos, diéresis, ñ/Ñ…); lo demás no se pinta.
     bool draw_text(s32 x, s32 y, const char* text, u8 color) {
         if (!valid()) return false;
         if (text == nullptr) return true;
         const u8* p = reinterpret_cast<const u8*>(text);
         for (;;) {
+            const u8 before = *p;
             const u32 cp = eng::utf8::decode(p);
-            if (cp == 0) {
-                break;
+            if (cp == 0u && before != 0u) {
+                break; // byte inválido o fuera de LATIN-1
             }
-            if (static_cast<u16>(cp) < 32u) {
-                continue; // control: no se pinta
+            if (cp >= 32u) {
+                draw_code_point(x, y, cp, color);
             }
-            for (u8 row = 0; row < eng::Font8::kRows; ++row) {
-                const u8 glyph_row = eng::Font8::row(static_cast<u16>(cp), row);
-                if (glyph_row == 0) {
-                    continue;
-                }
-                for (u8 k = 0; k < 8u; ++k) {
-                    if ((glyph_row & (1u << k)) == 0) {
-                        continue;
-                    }
-                    set_pixel(x + static_cast<s32>(k), y + static_cast<s32>(row), color);
-                }
+            x += 8;
+        }
+        return true;
+    }
+
+    /// Texto a partir de un literal de cadena, decodificado EN COMPILE-TIME.
+    ///
+    /// Uso: `surf.draw_text_literal<"Você">(x, y, color);` — el literal viaja
+    /// como NTTP (`eng::utf8::fixed_string`), se decodifica en compile-time y en
+    /// runtime solo se pintan los code points (cero procesamiento de cadena).
+    template <eng::utf8::fixed_string Str>
+    bool draw_text_literal(s32 x, s32 y, u8 color) {
+        if (!valid()) return false;
+        for (eng::usize i = 0; i < eng::utf8::lit<Str>::count; ++i) {
+            const u32 cp = eng::utf8::lit<Str>::cp[i];
+            if (cp >= 32u) {
+                draw_code_point(x, y, cp, color);
+            }
+            x += 8;
+        }
+        return true;
+    }
+
+    /// Texto desde code points ya decodificados (sin volver a decodificar).
+    bool draw_codepoints(s32 x, s32 y, const u32* cps, eng::usize count, u8 color) {
+        if (!valid() || cps == nullptr) return false;
+        for (eng::usize i = 0; i < count; ++i) {
+            if (cps[i] >= 32u) {
+                draw_code_point(x, y, cps[i], color);
             }
             x += 8;
         }
@@ -191,6 +213,22 @@ public:
     }
 
 private:
+    /// Pinta un code point con la fuente 8x8 (enrutado por `set_pixel`).
+    void draw_code_point(s32 x, s32 y, u32 cp, u8 color) {
+        for (u8 row = 0; row < eng::Font8::kRows; ++row) {
+            const u8 glyph_row = eng::Font8::row(static_cast<u16>(cp), row);
+            if (glyph_row == 0) {
+                continue;
+            }
+            for (u8 k = 0; k < 8u; ++k) {
+                if ((glyph_row & (1u << k)) == 0) {
+                    continue;
+                }
+                set_pixel(x + static_cast<s32>(k), y + static_cast<s32>(row), color);
+            }
+        }
+    }
+
     Playfield* m_target = nullptr; // no-propietario; Ref es un refactor pendiente
     SurfaceRect m_clip {};
 };
