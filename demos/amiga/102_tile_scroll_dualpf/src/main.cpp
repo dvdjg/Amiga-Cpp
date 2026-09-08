@@ -491,6 +491,9 @@ private:
 
 DemoGame g_game {};
 
+// Evidencia del contrato de compositor de display (driver.hpp).
+static_assert(eng::DisplayDriver<field::DpfDisplayComposer, eng::amiga::MinimalBackend>);
+
 } // namespace
 
 int main() {

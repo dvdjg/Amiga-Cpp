@@ -645,6 +645,10 @@ DemoGame g_game {};
 
 } // namespace
 
+// Evidencia del contrato de compositor de display (driver.hpp): el driver y el
+// backend concretos deben exponer takeover (una sola vez) + install (swap).
+static_assert(eng::DisplayDriver<drivers::EhbTileScrollScene, eng::amiga::MinimalBackend>);
+
 int main() {
 	SysBase = *reinterpret_cast<struct ExecBase**>(4UL);
 	eng::debug::reset(g_eng_run_status);

@@ -831,6 +831,9 @@ struct DemoGame {
 	}
 };
 
+// Evidencia del contrato de compositor de display (driver.hpp).
+static_assert(eng::DisplayDriver<field::XlimitedScene<kScrollConsts>, eng::amiga::MinimalBackend>);
+
 } // namespace
 
 int main() {

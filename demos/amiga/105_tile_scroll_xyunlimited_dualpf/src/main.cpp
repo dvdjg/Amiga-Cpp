@@ -26,6 +26,8 @@ using Scene = drivers::TileScrollScene<drivers::TileScrollMode::dual(3, 3), 24, 
 using Field = eng::graphics::TileFieldController<Scene>;
 
 static_assert(Scene::surface_width == 704 && Scene::surface_height == 576);
+// Evidencia del contrato de compositor de display (driver.hpp).
+static_assert(eng::DisplayDriver<Scene, eng::amiga::MinimalBackend>);
 constexpr eng::u16 kTileSize = Scene::tile_size;
 constexpr eng::u16 kMapWidth = 256;
 constexpr eng::u16 kMapHeight = 128;

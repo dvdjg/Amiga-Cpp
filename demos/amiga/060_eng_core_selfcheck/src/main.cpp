@@ -305,6 +305,13 @@ private:
 	bool m_scene_ok = false;
 };
 
+// Evidencia viva de los contratos del driver (driver.hpp): el driver y el backend
+// concretos deben exponer el ciclo de instalacion del display completo (takeover
+// una sola vez + install como swap) y, por ser un driver grafico, su identidad y
+// los hooks de frame. Si una pieza pierde uno de los metodos, falla en compilacion.
+static_assert(eng::DisplayDriver<drivers::StaticEhbScene, eng::amiga::MinimalBackend>);
+static_assert(eng::GraphicsDriver<drivers::StaticEhbScene, eng::amiga::MinimalBackend>);
+
 } // namespace
 
 int main() {
