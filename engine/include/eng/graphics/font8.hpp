@@ -1,50 +1,91 @@
 #pragma once
 
 /// \file font8.hpp
-/// Fuente bitmap 8×8 (1 plano) para dibujar texto por CPU en bitplanes.
+/// Fuente bitmap 8×8 con ASCII (0x20..0x7e) + LATIN-1 (0xA0..0xFF) para dibujar
+/// texto por CPU en bitplanes.
 ///
-/// Es una utilidad reusable para demos/overlays que NO dependa del overlay del
-/// depurador de WinUAE: cualquier demo puede escribir texto en el playfield
-/// real copiando el glifo a un plano, de modo que se vea en la ventana Amiga
-/// normal (WinUAE, Coppenheimer, A500 real).
+/// Es la utilidad de texto de propósito general del engine: cubre todo
+/// imprimible de ISO-8859-1 (vocales acentuadas, diéresis, ñ/Ñ, Ç/ç, Æ/æ, Ø/ø,
+/// Ð/ð, Þ/þ, ß, y los símbolos 0xA0..0xBF). No depende del overlay del
+/// depurador: cualquier demo puede escribir texto en el playfield real y verse
+/// en la ventana Amiga normal.
 ///
-/// Formato (FILAS con bit0 = izquierda): cada glifo son 8 bytes, UNO POR FILA.
-/// En cada byte, el bit `k` (0..7, LSB..MSB) es el píxel en la columna `k`
-/// desde la IZQUIERDA de esa fila; el bit 0 es el píxel más a la izquierda.
-/// `row(ch, r)` devuelve el byte de la fila `r` (0 = arriba). Para volcarlo a
-/// un bitplane Amiga (MSB = izquierda) basta tomar el bit `k` de la fila y
-/// ponerlo en el bit `0x80 >> ((x+k) & 7)` del byte `(x+k)/8`.
+/// Formato (FILAS, bit 0 = izquierda): cada glifo son 8 bytes, UNO POR FILA.
+/// En cada byte el bit `k` (0..7) es el píxel en la columna `k` desde la
+/// izquierda de esa fila. Para volcarlo a un bitplane Amiga (MSB = izquierda)
+/// basta tomar el bit `k` de la fila y ponerlo en `0x80 >> ((x+k) & 7)` del
+/// byte `(x+k)/8`.
 ///
-/// Uso (ver demo 060):
-///   const u8 fila = eng::Font8::row('A', 0);   // fila 0 del glifo
-///   // si (fila & (1u << k)) para k 0..7, píxel encendido en (x+k, y+0).
+/// `row(ch, r)` devuelve el byte de la fila `r` (0 = arriba) para cualquier
+/// código `ch` en ASCII imprimible o en LATIN-1 (0xA0..0xFF). Los acentos y
+/// diéresis se generan por composición (base + marca de diacrítico) y el resto
+/// de símbolos LATIN-1 son glifos explícitos.
 
 #include <eng/core/types.hpp>
 
 namespace eng {
 
-/// Fuente 8×8 estándar (glifos ASCII 0x20..0x7e a 8 bytes cada uno).
+/// Fuente 8×8 (ASCII 0x20..0x7e + LATIN-1 0xA0..0xFF).
 struct Font8 {
     static constexpr u16 kFirst = 0x20;
-    static constexpr u16 kCount = 0x5f; // 32..126
+    static constexpr u16 kCount = 0x5f;       // 32..126 (ASCII imprimible)
+    static constexpr u16 kLatinFirst = 0xA0;
+    static constexpr u16 kLatinCount = 0x60;  // 0xA0..0xFF (LATIN-1)
     static constexpr u16 kGlyphsPerRow = 16;
     static constexpr u8 kRows = 8;
 
-    /// Byte de la fila `row` del glifo `ch` (0 = arriba).
-    /// Bit `k` = píxel en la columna `k` desde la izquierda (bit 0 = izquierda).
+    /// Byte de la fila `row` del glifo `ch` (0 = arriba), despachando ASCII
+    /// imprimible y LATIN-1. Fuera de esos rangos devuelve 0.
     static constexpr u8 row(u16 ch, u8 row) {
-        const u16 idx = static_cast<u16>(ch - kFirst);
-        if (idx >= kCount) {
-            return 0;
+        if (ch >= kFirst && ch < kFirst + kCount) {
+            return kGlyphs[(ch - kFirst) * kRows + row];
         }
-        return kGlyphs[idx * kRows + row];
+        if (ch >= kLatinFirst && ch < kLatinFirst + kLatinCount) {
+            return latin1(ch, row);
+        }
+        return 0;
     }
 
-    /// Puntero a la tabla completa (kCount*kRows bytes).
+    /// Glifo LATIN-1 `ch` (0xA0..0xFF): compone base+diacrítico o usa el glifo
+    /// explícito de `kLatin1Special` según `kLatin1Meta`.
+    static constexpr u8 latin1(u16 ch, u8 row) {
+        const u16 off = static_cast<u16>(ch - kLatinFirst);
+        const Meta& m = kLatin1Meta[off];
+        if (m.special != 0u) {
+            // `special` es un contador 1..N: índice en kLatin1Special.
+            return kLatin1Special[(m.special - 1u) * kRows + row];
+        }
+        // Composición base + marca de diacrítico (ambas en espacio filas,
+        // bit 0 = izquierda). La base siempre está en ASCII (0x20..0x7e).
+        const u8 base = kGlyphs[(m.base - kFirst) * kRows + row];
+        const u8 mark = diacritic_row(m.mark, row);
+        return static_cast<u8>(base | mark);
+    }
+
+    /// Puntero a la tabla ASCII completa (kCount*kRows bytes).
     static constexpr const u8* data() { return kGlyphs; }
 
-    // Tabla en formato FILAS: 8 bytes por glifo, byte r = fila r, bit k = píxel
-    // en la columna k desde la izquierda (bit 0 = izquierda).
+private:
+    /// Describe un glifo LATIN-1: bien un símbolo explícito (`special` = offset
+    /// ch-0xA0 +1), bien una letra base ASCII (`base`) con una marca de
+    /// diacrítico (`mark`).
+    struct Meta {
+        u16 special = 0; // offset en kLatin1Special (1..); 0 = compuesto
+        u16 base = 0;    // código ASCII de la letra base (si special == 0)
+        u8 mark = 0;     // marca de diacrítico (id 1..7)
+    };
+
+    /// Byte de diacrítico `id` (`mark`) en la fila `row` (0 si vacía).
+    static constexpr u8 diacritic_row(u8 id, u8 row) {
+        if (id == 0u || row >= kRows) {
+            return 0;
+        }
+        return kDiacritics[id * kRows + row];
+    }
+
+public:
+    // Tabla ASCII (FILAS: byte r = fila r, bit k = píxel columna k desde la
+    // izquierda, bit 0 = izquierda).
     static constexpr u8 kGlyphs[kCount * kRows] = {
         // 0x20 ' '
         0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
@@ -236,6 +277,225 @@ struct Font8 {
         0x07,0x0c,0x0c,0x38,0x0c,0x0c,0x07,0x00,
         // 0x7e '~'
         0x6e,0x3b,0x00,0x00,0x00,0x00,0x00,0x00,
+    };
+
+    // Marcas de diacrítico (id 1..7): cada una 8 bytes, formato filas
+    // (bit 0 = izquierda). Se componen con OR sobre la letra base. id 0
+    // no se usa.
+    static constexpr u8 kDiacritics[8 * kRows] = {
+        // id 0 (reservado)
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        // id 1: acento agudo (´)
+        0x06,0x0c,0x18,0x00,0x00,0x00,0x00,0x00,
+        // id 2: acento grave (`)
+        0x18,0x0c,0x06,0x00,0x00,0x00,0x00,0x00,
+        // id 3: circunflejo (^)
+        0x08,0x1c,0x36,0x00,0x00,0x00,0x00,0x00,
+        // id 4: tilde (~)
+        0x00,0x00,0x0e,0x1c,0x00,0x00,0x00,0x00,
+        // id 5: diéresis (¨)
+        0x36,0x36,0x00,0x00,0x00,0x00,0x00,0x00,
+        // id 6: anillo (°)
+        0x14,0x2a,0x14,0x00,0x00,0x00,0x00,0x00,
+        // id 7: cedilla (¸)
+        0x00,0x00,0x00,0x00,0x00,0x0c,0x18,0x10,
+    };
+
+    // Meta LATIN-1 (96 entradas; ch-0xA0 = índice). `special` != 0 → índice en
+    // kLatin1Special (1..N). `special` == 0 → base ASCII (`base`) + marca
+    // (`mark`).
+    static constexpr Meta kLatin1Meta[kLatinCount] = {
+        // 0xA0..0xBF (símbolos) — special 1..32
+        {1,0,0},  // A0 NBSP
+        {2,0,0},  // A1 ¡
+        {3,0,0},  // A2 ¢
+        {4,0,0},  // A3 £
+        {5,0,0},  // A4 ¤
+        {6,0,0},  // A5 ¥
+        {7,0,0},  // A6 ¦
+        {8,0,0},  // A7 §
+        {9,0,0},  // A8 ¨
+        {10,0,0}, // A9 ©
+        {11,0,0}, // AA ª
+        {12,0,0}, // AB «
+        {13,0,0}, // AC ¬
+        {14,0,0}, // AD soft hyphen
+        {15,0,0}, // AE ®
+        {16,0,0}, // AF ¯
+        {17,0,0}, // B0 °
+        {18,0,0}, // B1 ±
+        {19,0,0}, // B2 ²
+        {20,0,0}, // B3 ³
+        {21,0,0}, // B4 ´
+        {22,0,0}, // B5 µ
+        {23,0,0}, // B6 ¶
+        {24,0,0}, // B7 ·
+        {25,0,0}, // B8 ¸
+        {26,0,0}, // B9 ¹
+        {27,0,0}, // BA º
+        {28,0,0}, // BB »
+        {29,0,0}, // BC ¼
+        {30,0,0}, // BD ½
+        {31,0,0}, // BE ¾
+        {32,0,0}, // BF ¿
+        // 0xC0..0xDF
+        {0,'A',2}, // C0 À
+        {0,'A',1}, // C1 Á
+        {0,'A',3}, // C2 Â
+        {0,'A',4}, // C3 Ã
+        {0,'A',5}, // C4 Ä
+        {0,'A',6}, // C5 Å
+        {33,0,0},  // C6 Æ
+        {0,'C',7}, // C7 Ç
+        {0,'E',2}, // C8 È
+        {0,'E',1}, // C9 É
+        {0,'E',3}, // CA Ê
+        {0,'E',5}, // CB Ë
+        {0,'I',2}, // CC Ì
+        {0,'I',1}, // CD Í
+        {0,'I',3}, // CE Î
+        {0,'I',5}, // CF Ï
+        {34,0,0},  // D0 Ð
+        {0,'N',4}, // D1 Ñ
+        {0,'O',2}, // D2 Ò
+        {0,'O',1}, // D3 Ó
+        {0,'O',3}, // D4 Ô
+        {0,'O',4}, // D5 Õ
+        {0,'O',5}, // D6 Ö
+        {35,0,0},  // D7 ×
+        {36,0,0},  // D8 Ø
+        {0,'U',2}, // D9 Ù
+        {0,'U',1}, // DA Ú
+        {0,'U',3}, // DB Û
+        {0,'U',5}, // DC Ü
+        {0,'Y',1}, // DD Ý
+        {37,0,0},  // DE Þ
+        {38,0,0},  // DF ß
+        // 0xE0..0xFF
+        {0,'a',2}, // E0 à
+        {0,'a',1}, // E1 á
+        {0,'a',3}, // E2 â
+        {0,'a',4}, // E3 ã
+        {0,'a',5}, // E4 ä
+        {0,'a',6}, // E5 å
+        {39,0,0},  // E6 æ
+        {0,'c',7}, // E7 ç
+        {0,'e',2}, // E8 è
+        {0,'e',1}, // E9 é
+        {0,'e',3}, // EA ê
+        {0,'e',5}, // EB ë
+        {0,'i',2}, // EC ì
+        {0,'i',1}, // ED í
+        {0,'i',3}, // EE î
+        {0,'i',5}, // EF ï
+        {40,0,0},  // F0 ð
+        {0,'n',4}, // F1 ñ
+        {0,'o',2}, // F2 ò
+        {0,'o',1}, // F3 ó
+        {0,'o',3}, // F4 ô
+        {0,'o',4}, // F5 õ
+        {0,'o',5}, // F6 ö
+        {41,0,0},  // F7 ÷
+        {42,0,0},  // F8 ø
+        {0,'u',2}, // F9 ù
+        {0,'u',1}, // FA ú
+        {0,'u',3}, // FB û
+        {0,'u',5}, // FC ü
+        {0,'y',1}, // FD ý
+        {43,0,0},  // FE þ
+        {0,'y',5}, // FF ÿ
+    };
+
+    // Glifos LATIN-1 explícitos (42 bloques, formato FILAS bit 0 = izquierda),
+    // en el orden de los `special` 1..43 (el id 0 no se usa). Índice =
+    // (special-1)*8.
+    static constexpr u8 kLatin1Special[43 * kRows] = {
+        // 1 A0 NBSP
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        // 2 A1 ¡
+        0x0c,0x00,0x0c,0x0c,0x0c,0x0c,0x0c,0x00,
+        // 3 A2 ¢
+        0x0c,0x3e,0x63,0x03,0x03,0x63,0x3e,0x0c,
+        // 4 A3 £
+        0x1c,0x36,0x26,0x0e,0x06,0x06,0x3f,0x00,
+        // 5 A4 ¤
+        0x00,0x3e,0x41,0x5d,0x41,0x3e,0x00,0x00,
+        // 6 A5 ¥
+        0x63,0x63,0x36,0x1c,0x08,0x08,0x08,0x00,
+        // 7 A6 ¦
+        0x0c,0x0c,0x0c,0x00,0x0c,0x0c,0x0c,0x00,
+        // 8 A7 §
+        0x0e,0x11,0x10,0x0c,0x02,0x11,0x0e,0x00,
+        // 9 A8 ¨
+        0x36,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        // 10 A9 ©
+        0x3e,0x41,0x5d,0x49,0x5d,0x41,0x3e,0x00,
+        // 11 AA ª
+        0x1e,0x21,0x21,0x3f,0x00,0x3f,0x00,0x00,
+        // 12 AB «
+        0x1b,0x36,0x0c,0x36,0x1b,0x00,0x00,0x00,
+        // 13 AC ¬
+        0x00,0x00,0x7f,0x03,0x03,0x00,0x00,0x00,
+        // 14 AD soft hyphen
+        0x0e,0x0e,0x00,0x00,0x00,0x00,0x00,0x00,
+        // 15 AE ®
+        0x3e,0x41,0x59,0x55,0x59,0x41,0x3e,0x00,
+        // 16 AF ¯
+        0x7f,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        // 17 B0 °
+        0x0c,0x12,0x12,0x0c,0x00,0x00,0x00,0x00,
+        // 18 B1 ±
+        0x00,0x0c,0x0c,0x3f,0x0c,0x0c,0x3f,0x00,
+        // 19 B2 ²
+        0x0f,0x11,0x08,0x04,0x1f,0x00,0x00,0x00,
+        // 20 B3 ³
+        0x1f,0x01,0x0e,0x01,0x1e,0x00,0x00,0x00,
+        // 21 B4 ´
+        0x06,0x0c,0x18,0x00,0x00,0x00,0x00,0x00,
+        // 22 B5 µ
+        0x33,0x33,0x33,0x3b,0x1f,0x03,0x00,0x00,
+        // 23 B6 ¶
+        0x3f,0x77,0x77,0x37,0x07,0x07,0x07,0x00,
+        // 24 B7 ·
+        0x00,0x00,0x00,0x0c,0x0c,0x00,0x00,0x00,
+        // 25 B8 ¸
+        0x00,0x00,0x00,0x00,0x00,0x0c,0x18,0x10,
+        // 26 B9 ¹
+        0x0c,0x0e,0x0c,0x0c,0x1e,0x00,0x00,0x00,
+        // 27 BA º
+        0x1e,0x21,0x21,0x1e,0x00,0x3f,0x00,0x00,
+        // 28 BB »
+        0x36,0x1b,0x0c,0x1b,0x36,0x00,0x00,0x00,
+        // 29 BC ¼
+        0x10,0x31,0x12,0x1e,0x12,0x3e,0x00,0x00,
+        // 30 BD ½
+        0x31,0x32,0x14,0x0c,0x13,0x1e,0x00,0x00,
+        // 31 BE ¾
+        0x38,0x29,0x3a,0x1e,0x12,0x3e,0x00,0x00,
+        // 32 BF ¿
+        0x18,0x00,0x0c,0x18,0x30,0x33,0x1e,0x00,
+        // 33 C6 Æ
+        0x3f,0x26,0x26,0x3f,0x26,0x26,0x67,0x00,
+        // 34 D0 Ð
+        0x1f,0x36,0x66,0x7e,0x66,0x36,0x1f,0x00,
+        // 35 D7 ×
+        0x00,0x63,0x36,0x1c,0x1c,0x36,0x63,0x00,
+        // 36 D8 Ø
+        0x1c,0x36,0x63,0x6b,0x77,0x36,0x1c,0x00,
+        // 37 DE Þ
+        0x0f,0x06,0x1e,0x36,0x36,0x1e,0x06,0x00,
+        // 38 DF ß
+        0x1c,0x36,0x36,0x1c,0x36,0x36,0x36,0x00,
+        // 39 E6 æ
+        0x00,0x00,0x3e,0x2b,0x3b,0x2b,0x2e,0x00,
+        // 40 F0 ð
+        0x00,0x36,0x0c,0x1e,0x33,0x36,0x1c,0x00,
+        // 41 F7 ÷
+        0x00,0x0c,0x00,0x3f,0x00,0x0c,0x00,0x00,
+        // 42 F8 ø
+        0x00,0x00,0x1e,0x33,0x3b,0x2e,0x33,0x1e,
+        // 43 FE þ
+        0x00,0x06,0x1e,0x36,0x36,0x1e,0x06,0x06,
     };
 };
 

@@ -82,7 +82,7 @@ Cuando termine la lectura contextual, puede abrir solo los enlaces que necesite.
 | Blitter creativo | 11-game-of-life, 67-weave, 14-metaballs | AHRM cap. 6 (minterms/línea) |
 | 3D | 06-wireframe, 30-flatshade, 55-stencil3d, 56-texobj, 65-uvmap | `demoscene-repo` §lib3d |
 | Audio | 44-playahx, 45-playcinter, 46-playp61, 47-playpt | `audio-mixing.md` |
-| Texto / UI | 09-textscroll, 27-credits, 37-gui | técnicas de texto |
+| Texto / UI | 09-textscroll, 27-credits, 37-gui | Texto vía API: `Surface::draw_text` (`eng/field/surface.hpp`) + `Font8` (LATIN-1, `eng/graphics/font8.hpp`); fuente 5x7 de HUD en la demo 201. Regla: no reimplementar `draw_text` — usar estas utilidades. |
 
 **Demos propias del engine que ya cubren técnicas base** (leer su README para
 invariantes y comandos de validación): `000`… `052` (toolchain/copper/blitter/

@@ -183,6 +183,13 @@ recording del GUI). Pendiente: `print` DWARF.
 - Prueba de diseño: una función de dibujo debe poder expresarse igualmente sobre un contexto EHB 6 planos, un contexto single 4 planos y un contexto DPF, con la misma llamada y solo cambiando la configuración del contexto; el llamador nunca ve qué modo es.
 - Lo que sí puede ser específico de un modo (registros, cobre, DMA) queda **dentro del driver/surface** o en capas backend, nunca filtrado al llamador.
 
+## Regla de «buscar antes de implementar» (obligatoria)
+- **Nunca implementar una utilidad o API del engine sin antes comprobar que no existe ya.** Antes de escribir `draw_text`, una fuente, un blit, un driver o cualquier ayuda reusable, buscar en `engine/include/`, `demos/` y `tools/` (grep por nombre y por concepto: «text», «font», «blit», «surface», «scene», «palette»…) y en los índices de `docs/` (`DOC-MAP-PRINCIPAL.md`, READMEs, roadmaps).
+- Si ya existe (incluso en una demo): **reutilizar, generalizar o subir al engine**, nunca duplicar. Una implementación local en una demo que sirve a otras debe promoverse a `engine/` como utilidad reutilizable.
+- Antes de añadir un archivo nuevo en `engine/`, listar los helpers existentes del dominio y decidir explícitamente: ¿esto ya lo cubre `X`? ¿Puedo extender `X` en vez de crear `Y`?
+- Esto aplica también a **fuentes, tablas y glifos**: buscar si el carácter/glifo ya está antes de redibujarlo.
+- Un commit que añade algo que ya existía como duplicado se considera un error de proceso.
+
 ## Regla permanente de rendimiento
 - Todo código nuevo debe minimizar el trabajo total por frame y reutilizar datos,
   trabajos, buffers y estados siempre que sea posible.
