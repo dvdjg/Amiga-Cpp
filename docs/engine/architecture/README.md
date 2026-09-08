@@ -15,6 +15,8 @@ en C del repo hermano (`Cursor-Amiga-C`) está en [../c-engine/](../c-engine/REA
 | [RETRO_ENGINE_API_BENCHMARK.md](RETRO_ENGINE_API_BENCHMARK.md) | Benchmark de APIs retro (ACE, Scorpion, UAF) para orientar la API objetivo del engine. |
 | [XYLIMITED_ALGORITMO_GENERICO.md](XYLIMITED_ALGORITMO_GENERICO.md) | Algoritmo XYLimited/corkscrew en términos de plataforma (independiente de Amiga), invariantes del anillo y crítica del diseño del API (scroll vs Scene vs HUD). |
 | [CIRCULAR_VS_XLIMITED.md](CIRCULAR_VS_XLIMITED.md) | Comparativa canónica del modelo circular frente al XLimited interleaved (geometría 352/384, plane-shift, saveword). |
+| [ENGINE_DESIGN.md](ENGINE_DESIGN.md) | Diseño integral del engine: capas, entidades y dependencias para un juego completo (gráficos, E/S, sonido, música, escena, assets, ciclo de vida), encaje de demoscene-repo/amiga-bootcamp/ACE/Sevgi y plan de conversión del sistema actual. |
+| [VISUAL_EFFECT_SPRITE_DESIGN.md](VISUAL_EFFECT_SPRITE_DESIGN.md) | Parte gráfica/efectos del diseño: `Visual`, `CopperIntent`, `SpriteTemplate` y concept `Effect`; mapa de layers de display, simetría actor/playfield. |
 
 ## Puntos de entrada del código
 
