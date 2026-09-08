@@ -33,7 +33,7 @@
 #include <eng/engine.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/field/surface.hpp>
-#include <eng/graphics/copper/scheduler.hpp>
+#include <eng/field/xlimited.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 #include <exec/execbase.h>
@@ -56,7 +56,6 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 namespace {
 
 namespace field = eng::field;
-namespace copper = eng::copper;
 
 constexpr eng::u16 kScreenW = 320;
 constexpr eng::u16 kScreenH = 256;
@@ -199,24 +198,19 @@ struct CoreSelfcheckDemo {
 			0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0xff0, 0xfff,
 		};
 
-		// Copper de display en Chip RAM.
-		eng::MemoryBlock copper_block = backend.memory().chip.allocate(1024, 16);
-		if (!copper_block.valid()) {
+		// Compositor del display: monta BPLCON/BPLxPT/MOD/paleta desde el
+		// `hardware_view()` del CanvasPlayfield (el único que toca registros).
+		field::XlimitedDisplayComposer::Config display_cfg;
+		display_cfg.palette = palette;
+		display_cfg.copper_bytes = 1536;
+		display_cfg.planes = kPlanes;
+		m_composer_ok = m_composer.init(backend.memory(), display_cfg);
+		if (!m_composer_ok) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000051u);
 			return;
 		}
-		copper::Scheduler scheduler { copper_block };
-		const auto& view = m_canvas.hardware_view();
-		scheduler.emit_planes_display(
-			0x2c81, 0x2cc1, 0x0038, 0x00d0,   // 320x256 lowres
-			m_canvas.bytes_per_row(), 0x6200, kPlanes,
-			view.bitplanes, view.plane_bytes
-		);
-		scheduler.emit_palette(palette);
-		scheduler.end();
-		m_copper_ok = scheduler.ok();
-
-		if (!m_copper_ok) {
+		m_composer_ok = m_composer.compose(m_canvas.hardware_view());
+		if (!m_composer_ok) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000052u);
 			return;
 		}
@@ -258,12 +252,7 @@ struct CoreSelfcheckDemo {
 		               g_check.ok() ? kTextYellow : kTextFail);
 		surf.draw_text(16, 240, "óptica: eng::core ports (Surface API)", 20);
 
-		m_copper_words = scheduler.words_used();
-		m_copper_ptr = scheduler.data();
-
-		if (m_copper_ptr != nullptr) {
-			backend.install_copper_list(m_copper_ptr);
-		}
+		m_composer.install(backend);
 
 		if (g_check.ok()) {
 			eng::debug::mark_ready(g_eng_run_status, g_check.detail());
@@ -278,18 +267,20 @@ struct CoreSelfcheckDemo {
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
-		// El contenido ya se escribió en init; aquí solo publicar la copperlist.
-		// "commit" del engine ocurre en render (ver AGENTS: update->wait_vblank->render).
+		// El contenido ya se escribió en init; aquí solo asegurar que la
+		// copperlist del compositor queda instalada (commit en render).
+		// El compositor doble-bufferiza y parchea punteros si cambia; para una
+		// superficie estática basta la instalación inicial.
+		m_composer.install(backend);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
 private:
 	field::CanvasPlayfield m_canvas {};
+	field::XlimitedDisplayComposer m_composer {};
 	bool m_memory_ok = false;
 	bool m_canvas_ok = false;
-	bool m_copper_ok = false;
-	eng::u16 m_copper_words = 0;
-	const eng::u16* m_copper_ptr = nullptr;
+	bool m_composer_ok = false;
 };
 
 } // namespace

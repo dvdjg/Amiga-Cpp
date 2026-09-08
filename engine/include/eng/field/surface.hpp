@@ -24,6 +24,7 @@
 
 #include <eng/core/utf8.hpp>
 #include <eng/field/playfield.hpp>
+#include <eng/graphics/font5x7.hpp>
 #include <eng/graphics/font8.hpp>
 
 namespace eng::field {
@@ -127,6 +128,41 @@ public:
                 }
             }
             x += 8;
+        }
+        return true;
+    }
+
+    /// Texto compacto en la fuente 5x7 (HUD), a nivel de contexto.
+    ///
+    /// Igual que `draw_text` pero con la fuente compacta `Font5x7` (7 filas, 5
+    /// columnas, bit4=izquierda). Útil para HUDs y texto denso. Acepta UTF-8 y
+    /// cubre las mayúsculas LATIN-1 (acentos, diéresis, Ñ/Ç).
+    bool draw_text5(s32 x, s32 y, const char* text, u8 color) {
+        if (!valid()) return false;
+        if (text == nullptr) return true;
+        const u8* p = reinterpret_cast<const u8*>(text);
+        for (;;) {
+            const u32 cp = eng::utf8::decode(p);
+            if (cp == 0) {
+                break;
+            }
+            if (static_cast<u16>(cp) < 32u) {
+                continue;
+            }
+            for (u8 r = 0; r < eng::Font5x7::kRows; ++r) {
+                const u8 glyph_row = eng::Font5x7::row(static_cast<u16>(cp), r);
+                if (glyph_row == 0) {
+                    continue;
+                }
+                // 5x7: bit (4-k) es la columna k desde la izquierda.
+                for (u8 k = 0; k < 5u; ++k) {
+                    if ((glyph_row & (1u << (4u - k))) == 0) {
+                        continue;
+                    }
+                    set_pixel(x + static_cast<s32>(k), y + static_cast<s32>(r), color);
+                }
+            }
+            x += 5; // avance de 5 px (sin espacio extra entre glifos)
         }
         return true;
     }
