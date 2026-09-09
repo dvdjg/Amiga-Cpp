@@ -71,7 +71,7 @@ namespace field = eng::field;
 //   - FG (PF1, planos HW 1,3,5): plaquettes, 7 colores + índice 0 transparente.
 //
 // Viewport RECORTADO a 320×208 (13 filas): el split vertical del corkscrew cae
-// siempre en raster ≤ 248 (comparador de 8 bits) → NO hace falta linear_display.
+// siempre en raster ≤ 248 (comparador de 8 bits, sin V8) → NO hace falta linear_display.
 // Anillo = display_height = 208 + 2·16 = 240.
 //
 // MAPAS SIEMPRE TOROIDALES (wrap): el scroll es un único algoritmo de bucle
@@ -93,14 +93,16 @@ namespace field = eng::field;
 // -----------------------------------------------------------------------------
 
 constexpr eng::u32 kViewportW = 320;
-constexpr eng::u32 kViewportH = 208;      // ventana VISIBLE (13 filas de 16, igual que el
-                                          // main de la 201: split siempre esperable ≤248)
+constexpr eng::u32 kViewportH = 208;      // ventana VISIBLE (13 filas de 16). El split
+                                          // vertical del corkscrew NO puede caer en raster > 255
+                                          // (comparador de 8 bits sin V8, inherente al chipset), así
+                                          // que 208 mantiene el split siempre ≤ 248. Ver
+                                          // AMIGA_8WAY_SCROLLING.md §12.
 constexpr eng::u32 kTileW = 16;
 constexpr eng::u32 kTileH = 16;
 constexpr eng::u8  kPlanes = 3;           // planos POR playfield (DPF 3+3 = 6 HW)
-constexpr eng::u32 kDisplayH = 288;       // ANILLO (override, invariante §7 201 = 256+32):
-                                          // NO se reduce con el visible → sin colisión de
-                                          // mapy y sin defectos de split en raster 256..296.
+constexpr eng::u32 kDisplayH = 288;       // ANILLO = 256 + 2·16 (invariante §7 201): el
+                                          // anillo NO se reduce con el visible.
 
 constexpr field::ScrollConsts kScrollConsts {
 	/*tile_width=*/       kTileW,

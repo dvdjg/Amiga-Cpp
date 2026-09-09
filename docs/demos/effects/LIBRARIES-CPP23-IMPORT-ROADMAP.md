@@ -203,6 +203,100 @@ Para cada librería, en cada oleada, seguir este pipeline:
    - Añadir ficha técnica si aplica (`docs/reference/amiga/techniques/`) y
      actualizar el coverage-index y este roadmap.
 
+## 4-bis. Lecciones aprendidas de la conversión asm/C (bitácora de errores a evitar)
+
+Registradas durante la portación de `libgfx` (c2p) para que un hilo nuevo no repita
+los fallos. Cada lección es un error real ya cometido y corregido.
+
+### A. Asm de demoscene → GAS (no es vasm)
+
+El origen (`demoscene-repo-orig`) escribe asm para vasm/asm-one con convenciones que
+**GNU as (m68k-amiga-elf-as)** no comparte. Al portar un `.asm`:
+
+1. **Comentarios**: vasm usa `;`; GAS lo interpreta como separador de statements.
+   Usar `/* ... */` de bloque. OJO: un `/* ... */` ANIDADO (comentario que menciona
+   otro `/* */`) cierra el comentario antes y rompe todo el fichero — no escribir
+   las marcas de comentario dentro del texto del comentario.
+2. **Directivas**: `xdef` → `.globl`; `section '.text',code` → `.section .text.nombre,"ax",@progbits`.
+3. **Literales hex**: `#$0f0f0f0f` (Motorola `$`) NO es reconocido como inmediato en
+   GAS; usar `#0x0f0f0f0f`. El `$` en GAS Motorola puede tratarse como parte de un
+   identificador (produce "undefined reference to `$0f0f0f0f`" en el link).
+4. **`lea (An,Dn.L),Am`**: exige 68020+ en GNU as. Sustituir por
+   `move.l An,Am` + `add.l Dn,Am` (semánticamente idéntico en 68000).
+5. **`movem.l (sp)+,d2-d7/a2-a6`** y los mnésmicos de la familia Motorola son válidos
+   con `--register-prefix-optional` (que ya usa `build-demo.sh`).
+
+### B. ABI por pila en el asm del repo
+
+El asm de `support/` usa la ABI C del objetivo m68k: argumentos por pila, de izquierda
+a derecha, cada uno como `unsigned long` (word/long según tipo). Tras un
+`movem.l d2-d7/a2-a6,-(sp)` (48 bytes), los args viven en `sp@(52)`, `sp@(56)`, ...
+Ver `support/gcc8_a_support.s` (`__mulsi3`/`__udivsi3`) como plantilla exacta.
+
+Peligro: el asm de demoscene ACCEDE a sus argumentos por **registros**, no por pila
+(convención interna propia, no ABI-C). El port debe AÑADIR el prefijo que cargue los
+args de la pila a los registros que la rutina espera (d0/a0/a1/...), o envolver la
+rutina con un `jsr` desde un wrapper que los coloque.
+
+### C. Algoritmos de bits (c2p/desintercalado): no reinventar, validar por equivalencia
+
+El c2p de Kalms usa un desintercalado por máscaras (tres fases + $33333333) que NO se
+puede "simplificar" a mano sin romper la semántica: el orden de escritura
+(plano0/2/1/3 intercalados) es parte del contrato. Lección: ante un algoritmo así,
+
+1. primera implementación correcta por construcción (naive, host-testable);
+2. si se quiere optimizar, portar el asm EXACTO (cargando args por pila) o replicar
+   las operaciones bit a bit en C++, y **validar equivalencia contra (1)** (test host
+   o demo que compare byte a byte).
+
+No validar "que enlaza" como prueba de corrección: el asm puede enlazar y aún buclear
+o producir basura. La evidencia es la imagen/captura o un test de equivalencia.
+
+### C-bis. En 68000, no acceder byte a byte en el hot path (inspeccionar `-S`)
+
+Regla de `AGENTS.md` ("comprobar el ensamblador generado") confirmada con el c2p: si el
+C++ construye un `u32` byte a byte (p. ej. `load_be` con 4 shifts para "portabilidad"),
+g++ NO lo fusiona en un `move.l (a0)+` y emite ~15 instrucciones por longword en vez de
+1. Lo mismo al escribir: `move.b` sueltos en vez de `move.w`.
+
+- Para código m68k, usar `u32`/`u16` NATIVOS en las cargas/escrituras, y aislar el
+  byte-swap de endianness con `#if defined(__m68k__)` (ruta nativa) vs host (swap).
+- DESPUÉS de portar, regenerar `-S -O1 -m68000` y confirmar que las cargas son
+  `move.l (an)` y las escrituras `move.w d0,(an)+`, no `move.b`.
+- Un port "fiel" que g++ compila a código byte-a-byte pierde contra el asm a mano del
+  repo; la regla de rendimiento exige revisar el asm generado y anotarlo.
+
+### D. Emulador vs build: el READY timeout no siempre es el código
+
+Cuando una demo nueva no llega a READY: (1) revisar el `startup-sequence` de dh0
+(puede quedar pisado por una sesión F5, arrancando `:current.exe` en vez de `a.exe`);
+(2) sondear `state`/`regs` por canal lateral para ver si el 68000 está vivo (PC cambiando)
+y dónde se queda; (3) confirmar `configure_memory` (un mark_failed también deja READY
+sin alcanzar). Un bucle infinito en rutina portada se distingue por el PC estancado.
+
+### E. El build debe ensamblar TODO `support/*.s`
+
+`tools/build/build-demo.sh` ahora itera sobre todos los `*.s` de `support/` (antes solo
+`gcc8_a_support.s`). Para añadir otra rutina asm (p61, pt, ahx...) no hay que tocar el
+script: basta colocar el `.s`. Cada `.s` produce un objeto `support_<nombre>.o`.
+
+### F. `wait_line_pal` para líneas raster > 255 (overflow PAL)
+
+El comparador de WAIT del Copper tiene 8 bits verticales con semántica `>=` y **SIN
+bit V8** (verificado en `WinUAE-DBG/custom.cpp coppercomp`; ver
+`AMIGA_8WAY_SCROLLING.md` §12). Una línea >= 256 no se puede esperar con precisión:
+cualquier WAIT (incluido el doble-WAIT `0xffdf/0xfffe` de `CopWaitSafe`, portado como
+`ListBuilder::wait_line_pal`) dispara en la primera coincidencia del byte bajo.
+
+- El `wait_line_pal` (port de `CopWaitSafe`) NO resuelve el split vertical del
+  corkscrew: se intentó aplicar a `XlimitedDisplayComposer` y produjo recortes
+  incorrectos. Se revirtió. La limitación es del comparador, no del overflow.
+- Antes de "arreglar" un split/banda con una espera a línea >= 256, releer
+  `AMIGA_8WAY_SCROLLING.md` §12: ya documenta que es inherente al chipset y que el
+  `XYLimited` original degrada igual a 255.
+- `wait_line_pal` sigue siendo útil para otras esperas (p. ej. sincronizar a final
+  de frame) pero NO para posicionar un split con precisión a una línea >= 256.
+
 ## 5. Índice de cobertura (seguimiento por librería)
 
 Estado por librería (actualizarlo en cada cambio de estado):
@@ -211,7 +305,7 @@ Estado por librería (actualizarlo en cada cambio de estado):
 |---|---|---|---|---|---|---|
 | `libmisc` (fx/sort/crc32) | ✅ | ✅ | ✅ (host) · demo 060 creada (build OK, pendiente corrida WinUAE) | ✅ | 060 | `isqrt` (isqrt.hpp), `sort` (sort.hpp) y `crc32` (crc32.hpp) en `eng/core`; validados por test HOST-000 y compilados en la demo 060. `sintab`→`core::sinetable`; `random`→`core::random.hpp` (xoroshiro64++, equivalente al `random.c` de libc). Pendientes: `console` (→Oleada 1), `sync`, `file`. |
 | `libc` (string/stdlib/stdio) | ✅ | 🔄 (random) | ✅ (random) | 🔄 | 04, 14 | `random` portado. `qsort`→`eng::core::quick_sort` (no duplicar). `string`/`stdio` (kvprintf/snprintf): no se portan ahora (sin necesidad real; `debug.text()` es `const char*` fijo). Recomendado: portar cuando una API lo exija. |
-| `libgfx` (bitmaps/copper/sprites/c2p) | ❌ | ❌ | ❌ | ❌ | 01, 02, 03, 04, 50, 53 | contra `graphics::copper`, `bitmap.hpp`, `frame_plan` |
+| `libgfx` (bitmaps/copper/sprites/c2p) | 🔄 | 🔄 (c2p) | 🔄 (c2p demo 061) | 🔄 | 03, 04, 50, 53 | `c2p_1x1_4` portado: version C++ naive en `eng/graphics/c2p.hpp` (validada por demo 061) + asm de Kalms en `support/c2p_1x1_4.s` (pendiente equivalencia). `CopWaitSafe`→`wait_line_pal`. Bitmap portable pendiente. Ver `OLEADA1_LIBGFX_INVENTARIO.md`. |
 | `libblit` (blitter) | ❌ | ❌ | ❌ | ❌ | 11, 14, 58, 59, 67 | contra `frame_plan` (BlitJob) |
 | `lib2d` | ❌ | ❌ | ❌ | ❌ | 06, 30, 56 | host tests |
 | `lib3d` | ❌ | ❌ | ❌ | ❌ | 06, 30, 56, 65 | host tests |

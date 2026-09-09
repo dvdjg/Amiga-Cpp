@@ -1464,12 +1464,15 @@ private:
         // Split vertical del corkscrew: al llegar a `split_line` filas dentro de
         // la ventana, los punteros vuelven a la fila 0 del bucle de display.
         // Limitación OCS: el comparador de WAIT del Copper usa 8 bits con
-        // semántica ">=" (vpos&0xFF), por lo que una línea raster>255 (cuando
-        // display_offset ∈ [33,73]) no se puede esperar con precisión; el WAIT
-        // dispara en la primera coincidencia del byte bajo (línea raster-256,
-        // < 256) y el original (XYLimited) también degrada a 255. Se recorta a
-        // 255: la banda de 1..41 filas al pie muestra el wrap adelantado
-        // (inherente al chipset; ver docs/engine/architecture/AMIGA_8WAY_SCROLLING.md §13).
+        // semántica ">=" (vpos&0xFF >= vcmp, SIN bit V8; verificado en
+        // WinUAE-DBG/custom.cpp coppercomp), por lo que una línea raster>255 no se
+        // puede esperar con precisión: el WAIT dispara en la primera coincidencia
+        // del byte bajo (línea raster-256) y el original (XYLimited) también
+        // degrada a 255. Se recorta a 255: la banda de 1..41 filas al pie muestra
+        // el wrap adelantado (inherente al chipset; ver AMIGA_8WAY_SCROLLING.md §12).
+        // NOTA: NO usar wait_line_safe aquí (port de CopWaitSafe, par 0xffdf/0xfffe):
+        // ese doble-WAIT tampoco compara V8 en este emulador y produce recortes
+        // incorrectos. La limitación es del comparador, no del overflow.
         u16 raster = 0;
         if (view.split_active) {
             raster = static_cast<u16>((m_cfg.diwstrt >> 8u) + view.split_line);

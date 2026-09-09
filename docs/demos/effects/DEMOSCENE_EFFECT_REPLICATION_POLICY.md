@@ -55,6 +55,23 @@ herramientas o efectos combinables.
    bitplanes, copperlist activa, scroll fino `BPLCON1`, cambio de buffer visible,
    sprites hardware o paletas globales visibles.
 
+6. Fidelidad visual al original (regla obligatoria).
+
+   Al importar un efecto, la replica debe verse **como el original**: misma
+   resolucion, geometria, proporciones, tamano de los buffers de trabajo y colores.
+   Las optimizaciones al pasar a C++23 o al adaptar al engine son bienvenidas, pero
+   **nunca deben empeorar la apariencia**: si la replica se ve peor que el original,
+   es una señal de que algo se hizo mal (se cambio un parametro de tamano, se perdio
+   un truco de hardware, se degradó una tecnica sin querer, etc.).
+
+   - No cambiar de forma arbitraria constantes de tamano (p. ej. `WIDTH`/`HEIGHT` de
+     un efecto) sin justificar la equivalencia visual.
+   - Si el original usa un escalado de hardware (line-quadrupling por `BPLMOD`, fetch
+     ancho, sprites como overlay...), la replica debe reproducirlo o reemplazarlo por
+     un mecanismo equivalente que produzca la MISMA imagen.
+   - Antes de dar por buena una replica, comparar la captura con el original (o con
+     una descripcion precisa del efecto) y anotar cualquier desviacion.
+
 ## Flujo por efecto
 
 Para cada efecto de `demoscene-repo/effects`:
