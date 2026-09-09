@@ -24,6 +24,7 @@
 
 #include <eng/core/types.hpp>
 #include <eng/graphics/raster_intent.hpp>
+#include <eng/graphics/sprite.hpp>
 
 namespace {
 
@@ -31,6 +32,7 @@ using eng::graphics::CopperIntent;
 using eng::graphics::CopperIntentKind;
 using eng::graphics::Effect;
 using eng::graphics::SpriteIntent;
+using eng::graphics::SpriteTemplate;
 using eng::graphics::Visual;
 using eng::graphics::VisualKind;
 
@@ -38,22 +40,23 @@ using eng::graphics::VisualKind;
 static_assert(std::is_trivially_copyable_v<Visual>);
 static_assert(std::is_trivially_copyable_v<CopperIntent>);
 static_assert(std::is_trivially_copyable_v<SpriteIntent>);
+static_assert(std::is_trivially_copyable_v<SpriteTemplate<4, 4>>);
 
 // Un "plan" mínimo para el concept `Effect`: en el engine real es `FramePlan`.
 struct MockPlan {
     int copper_intents = 0;
 };
 
-// Efecto mínimo que satisface `Effect` (update + apply_into).
+// Efecto mínimo que satisface `Effect` (update(tick) + apply_into).
 struct MockCycler {
     int phase = 0;
-    void update() { ++phase; }
+    void update(eng::u16 frame_index) { phase = static_cast<int>(frame_index) + 1; }
     void apply_into(MockPlan& plan) {
         plan.copper_intents += phase;  // aporta su estado al plan
     }
 };
 
-// Evidencia del contract: MockCycler cumple `Effect<_, MockPlan>`.
+// Evidencia del contract: MockCycler cumple `Effect<_, MockPlan>` (Tick = u16 por defecto).
 static_assert(Effect<MockCycler, MockPlan>);
 
 // `VisualKind` es distinguible y compacto (u8).
@@ -89,14 +92,29 @@ int main() {
     // Runtime: un efecto avanza y aporta intenciones.
     MockPlan plan {};
     MockCycler cycler {};
-    cycler.update();
-    cycler.update();
+    cycler.update(1);
+    cycler.update(3);
     cycler.apply_into(plan);
-    if (plan.copper_intents != 2) {
+    if (plan.copper_intents != 4) {
         std::printf("[FAIL] Effect no aporta intenciones (%d)\n", plan.copper_intents);
         return 1;
     }
 
-    std::printf("OK: vocabulario de intenciones validado (Visual/CopperIntent/SpriteIntent/Effect).\n");
+    // Runtime: una SpriteTemplate trocea la imagen y respeta su límite fijo sin heap.
+    SpriteTemplate<4, 4> tpl {};
+    tpl.width_words = 1;
+    tpl.add_segment({0, 8, 0});
+    tpl.add_segment({16, 8, 8});
+    if (tpl.segment_count != 2 || tpl.segments[1].height != 8) {
+        std::printf("[FAIL] SpriteTemplate no trocea la imagen\n");
+        return 1;
+    }
+    for (int i = 0; i < 10; ++i) tpl.add_segment({0, 1, 0});
+    if (tpl.segment_count != 4) {
+        std::printf("[FAIL] SpriteTemplate no respeta MaxSegments (segment_count=%d)\n", (int)tpl.segment_count);
+        return 1;
+    }
+
+    std::printf("OK: vocabulario de intenciones validado (Visual/CopperIntent/SpriteIntent/SpriteTemplate/Effect).\n");
     return 0;
 }

@@ -108,10 +108,11 @@ struct DemoGame {
 		});
 
 		m_cycle.configure({1, 7, 1});
-		m_cycle.apply(source_palette, m_runtime_palette);
+		// Enlaza la paleta cocinada al efecto y usa su paleta runtime para la escena.
+		m_cycle.bind_source(source_palette);
 
 		const drivers::StaticEhbSceneConfig scene_config {
-			&m_runtime_palette,
+			&m_cycle.runtime_palette(),
 			palette_zones,
 			static_cast<eng::u8>(sizeof(palette_zones) / sizeof(palette_zones[0])),
 			1024,
@@ -133,13 +134,11 @@ struct DemoGame {
 		}
 
 		m_cycle.update(context.frame.frame_index);
-		m_cycle.apply(source_palette, m_runtime_palette);
 
 		m_frame_plan.clear();
-		if (
-			!m_frame_plan.add_base_palette_patch(m_runtime_palette.color, 1, 7) ||
-			!m_scene.apply_frame_plan(m_frame_plan)
-		) {
+		// apply_into: rota la paleta runtime y registra el parche base en el plan.
+		m_cycle.apply_into(m_frame_plan);
+		if (!m_scene.apply_frame_plan(m_frame_plan)) {
 			m_scene_ok = false;
 			eng::debug::mark_failed(g_eng_run_status, 0x00000042u);
 			return;
@@ -168,7 +167,6 @@ struct DemoGame {
 	bool m_memory_ok = false;
 	bool m_scene_ok = false;
 	drivers::StaticEhbScene m_scene {};
-	drivers::EhbPalette m_runtime_palette {};
 	eng::graphics::FramePlan m_frame_plan {};
 	effects::PaletteCycleEffect m_cycle {};
 };

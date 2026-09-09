@@ -106,14 +106,14 @@ namespace eng::graphics {
 ///
 /// Un efecto no escribe hardware: `apply_into` solo registra intenciones
 /// (`CopperIntent`, `SpriteIntent`, parches de paleta). El tipo `Plan` queda generico
-/// (normalmente `FramePlan`, definido en `frame_plan.hpp`): aqui no dependemos de el
-/// para mantener este header autocontenido y host-testable. Es el punto por el que
-/// `PaletteCycleEffect` (ya existente) y los futuros efectos pasan a ser ciudadanos de
-/// primer orden del engine.
-template <typename E, typename Plan>
-concept Effect = requires(E e, Plan& plan) {
-    e.update();          // avanza el estado temporal del efecto (un tick)
-    e.apply_into(plan);  // aporta intenciones (CopperIntent/SpriteIntent/paleta) al plan
+/// (normalmente `FramePlan`, definido en `frame_plan.hpp`) y `Tick` es normalmente
+/// `u16` (el indice de frame), para no acoplar este header a tipos concretos. Es el
+/// punto por el que `PaletteCycleEffect` y los futuros efectos pasan a ser ciudadanos
+/// de primer orden del engine.
+template <typename E, typename Plan, typename Tick = u16>
+concept Effect = requires(E e, Plan& plan, Tick tick) {
+    e.update(tick);       // avanza el estado temporal con el tick (indice de frame)
+    e.apply_into(plan);   // aporta intenciones (CopperIntent/SpriteIntent/paleta)
 };
 
 } // namespace eng::graphics

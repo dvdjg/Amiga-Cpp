@@ -16,6 +16,8 @@
 
 #include <eng/core/types.hpp>
 #include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/frame_plan.hpp>
+#include <eng/graphics/raster_intent.hpp>
 
 namespace eng::graphics::effects {
 
@@ -31,6 +33,11 @@ struct PaletteCycleRange {
 };
 
 /// Efecto de ciclo de paleta sin asignaciones dinamicas.
+///
+/// Cumple el concepto `eng::graphics::Effect<E, FramePlan>` (ver `raster_intent.hpp`):
+/// el juego llama `update(frame)` y `apply_into(plan)`; el efecto aporta al plan un
+/// parche base de paleta con el tramo rotado, y el driver decide como materializarlo
+/// (parche de copperlist, CPU, doble buffer...). No escribe registros.
 class PaletteCycleEffect {
 public:
 	constexpr PaletteCycleEffect() = default;
@@ -85,12 +92,51 @@ public:
 		}
 	}
 
+	/// Vincula la paleta fuente cocinada (inmutable) que este efecto rota.
+	///
+	/// El efecto produce su propia paleta runtime (ver `runtime_palette()`) y, al
+	/// llamar a `apply_into`, aporta el parche al plan. Asi la demo no coordina
+	/// paletas a mano: solo enlaza el asset una vez y llama `update`+`apply_into`.
+	void bind_source(const drivers::EhbPalette& source) {
+		m_source = source.color;
+		m_runtime = source;
+	}
+
+	/// Paleta runtime derivada (la rota respecto a la fuente vinculada).
+	constexpr const drivers::EhbPalette& runtime_palette() const { return m_runtime; }
+
+	/// Aporta este efecto al plan: rota la fuente vinculada en la paleta runtime y
+	/// registra un parche base de paleta con el tramo `first/count`. Es el metodo del
+	/// concepto `Effect<PaletteCycleEffect, FramePlan>`.
+	void apply_into(FramePlan& plan) {
+		apply_fixed();
+		plan.add_base_palette_patch(m_runtime.color, m_range.first, m_range.count);
+	}
+
 	constexpr PaletteCycleRange range() const { return m_range; }
 	constexpr u8 phase() const { return m_phase; }
 
 private:
+	/// Rota `m_source` en `m_runtime` con el tramo y fase actuales.
+	void apply_fixed() {
+		for (u8 i = 0; i < 32u; ++i) {
+			m_runtime.color[i] = m_source[i];
+		}
+		for (u8 i = 0; i < m_range.count; ++i) {
+			const u8 source_index = static_cast<u8>(
+				m_range.first + ((i + m_phase) % m_range.count)
+			);
+			m_runtime.color[m_range.first + i] = m_source[source_index];
+		}
+	}
+
 	PaletteCycleRange m_range { 0, 1, 1 };
 	u8 m_phase = 0;
+	const u16* m_source = nullptr;
+	drivers::EhbPalette m_runtime {};
 };
+
+// Evidencia del contrato: el primer efecto reutilizable cumple `Effect<E, FramePlan>`.
+static_assert(Effect<PaletteCycleEffect, FramePlan>);
 
 } // namespace eng::graphics::effects
