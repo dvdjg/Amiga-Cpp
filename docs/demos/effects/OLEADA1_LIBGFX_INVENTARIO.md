@@ -41,7 +41,7 @@ Fuentes inventariadas:
 1. **`CopWaitSafe` al `Scheduler`** (portar el manejo de overflow PAL). Es la pieza de
    bajo nivel que el engine no tiene y que rompe listas en PAL si falta. Se porta como
    mejora de `wait_line` (que ya usa `m_builder`), no como `CopListT`.
-2. **`c2p_1x1_4`** a `support/c2p_1x1_4.s` + wrapper `eng::graphics::c2p` freestanding.
+2. **`c2p_1x1_4` a `support/c2p_1x1_4.s` + wrapper `eng::graphics::c2p` freestanding.**
    Es la pieza que permite meter píxeles de efectos CPU (chunky) a los bitplanes, que
    era el vacío claro de `PixmapT`.
 3. **`Bitmap` portable** (`eng/graphics/bitmap.hpp`): `Bitmap` parametrico
@@ -50,6 +50,19 @@ Fuentes inventariadas:
    reutilizable de forma agnostica (regla de API parametrica).
 4. `math2d` (del `gfx.h`) y los `Effect` de paleta quedan para Oleada 3 (son puros y
    host-testables; no bloquean display base).
+
+## 3-bis. Estado actual (2026-09)
+
+| Pieza | Estado | Evidencia |
+|---|---|---|
+| `CopWaitSafe` / `wait_line_pal` | HECHO | `ListBuilder::wait_line_pal(u16)` emite el par `0xffdf/0xfffe` antes de un WAIT a linea >=256 (solo la primera vez por lista). `Scheduler::wait_line_safe(u16)` delega y reserva timeline solo en 0..255. Validado por compilacion del toolchain. |
+| `c2p_1x1_4` (C++ naive) | HECHO + demo | `eng::graphics::c2p_1x1_4` en `c2p.hpp` (version naive correcta por construccion, O(4·w·h)). Demo `061_c2p_chunky_4bpl` valida en hardware: READY + rampa de grises `i·0x111` en indices 0..15, con 16 tonos verticales y degradado por fila (pixel-assert determinista). |
+| `c2p_1x1_4.asm` (Kalms) | ASM PORTADO, optimizacion pendiente | `support/c2p_1x1_4.s` (GAS, ABI por pila del repo) mantiene la rutina original. El build ya ensambla todos los `support/*.s`. Pendiente: validar equivalencia con la version C++ (la rutina naive muestra el comportamiento correcto; el asm queda como hot path cuando se necesite). |
+| `Bitmap` portable | PENDIENTE | — |
+
+Nota sobre el build: `tools/build/build-demo.sh` ahora ensambla TODOS los `*.s` de
+`support/` (antes solo `gcc8_a_support.s`), habilitando la incorporacion de mas asm del
+repo (p61, pt, ahx...) sin tocar el script cada vez.
 
 ## 4. Validacion
 

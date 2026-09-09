@@ -241,11 +241,15 @@ OBJECTS+=("$SUPPORT_C_OBJ")
 echo "  C     $SUPPORT_C"
 "$GCC" ${C_FLAGS} -c -o "$SUPPORT_C_OBJ" "$SUPPORT_C"
 
-SUPPORT_ASM="$ROOT/support/gcc8_a_support.s"
-SUPPORT_ASM_OBJ="$OBJ_DIR/support_gcc8_a_support.o"
-OBJECTS+=("$SUPPORT_ASM_OBJ")
-echo "  ASM   $SUPPORT_ASM"
-"$ASM" -mcpu=68000 -g --register-prefix-optional "-I$SDKDIR" -o "$SUPPORT_ASM_OBJ" "$SUPPORT_ASM"
+# Ensambla TODOS los .s de support/ (gcc8_a_support.s + asm de demoscene como
+# c2p_1x1_4.s). Un .s por objeto, con el nombre derivado para evitar colisiones.
+for SUPPORT_ASM in $(find "$ROOT/support" -maxdepth 1 -name '*.s' | sort); do
+	SUPPORT_ASM_NAME="$(basename "$SUPPORT_ASM" .s)"
+	SUPPORT_ASM_OBJ="$OBJ_DIR/support_${SUPPORT_ASM_NAME}.o"
+	OBJECTS+=("$SUPPORT_ASM_OBJ")
+	echo "  ASM   $SUPPORT_ASM"
+	"$ASM" -mcpu=68000 -g --register-prefix-optional "-I$SDKDIR" -o "$SUPPORT_ASM_OBJ" "$SUPPORT_ASM"
+done
 
 # --- Enlazado y hunk --------------------------------------------------------
 ELF="$OUT_DIR/$DEMO_NAME.$CONFIG_ID.elf"

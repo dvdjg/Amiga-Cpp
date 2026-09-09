@@ -83,6 +83,19 @@ public:
 		++m_report.waits;
 	}
 
+	/// Emite un WAIT a una linea PAL completa (0..311) manejando el overflow.
+	///
+	/// Delega en `ListBuilder::wait_line_pal` (port de `CopWaitSafe` de libgfx). El
+	/// timeline solo reserva las lineas 0..255 (zona visible); las lineas del borde
+	/// inferior/VBlank no compiten por H-BLANK y no se presupuestan aqui.
+	void wait_line_safe(u16 line) {
+		m_builder.wait_line_pal(line);
+		if (line <= 255u) {
+			m_timeline.reserve_wait(static_cast<u8>(line & 0xffu));
+		}
+		++m_report.waits;
+	}
+
 	/// Emite un WAIT a una posicion concreta (V y H): para "copper bars" a mitad de
 	/// scanline.
 	void wait_position(u8 line, u8 hpos) {
@@ -181,13 +194,17 @@ public:
 			const graphics::CopperIntent& intent = intents[i];
 			switch (intent.kind) {
 				case graphics::CopperIntentKind::PaletteLine:
-					wait_line(static_cast<u8>(intent.top & 0xffu));
-					m_timeline.reserve_moves(static_cast<u8>(intent.top & 0xffu), intent.count);
+					wait_line_safe(intent.top);
+					if (intent.top <= 255u) {
+						m_timeline.reserve_moves(static_cast<u8>(intent.top & 0xffu), intent.count);
+					}
 					emit_palette(intent.colors, intent.first, intent.count);
 					break;
 				case graphics::CopperIntentKind::PaletteSpan:
 					wait_position(static_cast<u8>(intent.top & 0xffu), static_cast<u8>(intent.hpos & 0xfeu));
-					m_timeline.reserve_moves(static_cast<u8>(intent.top & 0xffu), intent.count);
+					if (intent.top <= 255u) {
+						m_timeline.reserve_moves(static_cast<u8>(intent.top & 0xffu), intent.count);
+					}
 					emit_palette(intent.colors, intent.first, intent.count);
 					break;
 				default:

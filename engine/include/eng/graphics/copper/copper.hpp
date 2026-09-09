@@ -136,6 +136,27 @@ public:
 		write_pair(wait_word(vpos), 0xff00);
 	}
 
+	/// Espera a una linea PAL completa (0..311) manejando el overflow del contador V.
+	///
+	/// Port de `CopWaitSafe` de demoscene-repo (libgfx, `include/copper.h`). El
+	/// contador vertical del Copper (VPOS) tiene 9 bits pero el campo VP del WAIT solo
+	/// 8: al esperar una linea >= 256 el byte bajo "wraps". La tecnica clasica es
+	/// insertar ANTES el par `0xffdf/0xfffe` (esperar al final del campo V=255 justo
+	/// antes de que VPOS haga wrap), y luego el WAIT morir con el byte bajo de `vpos`.
+	/// El par de overflow solo se emite la primera vez por lista (`m_overflow_sent`).
+	void wait_line_pal(u16 vpos) {
+		if (vpos <= 255u) {
+			wait_line(static_cast<u8>(vpos & 0xffu));
+			return;
+		}
+		if (!m_overflow_sent) {
+			m_overflow_sent = true;
+			// Espera al final de la linea 255: fuerza el wrap del bit 8 de VPOS.
+			write_pair(0xffdf, 0xfffe);
+		}
+		write_pair(wait_word(static_cast<u8>(vpos & 0xffu)), 0xfffe);
+	}
+
 	/// Espera a una posicion concreta de la linea (V y H).
 	///
 	/// Usa la mascara `0xfffe`: compara tambien los bits horizontales, lo que permite
@@ -149,6 +170,7 @@ public:
 	/// Finaliza la lista. El Copper se detiene en este par especial.
 	void end() {
 		write_pair(0xffff, 0xfffe);
+		m_overflow_sent = false;
 	}
 
 	constexpr bool ok() const {
@@ -182,6 +204,7 @@ private:
 	u16 m_capacity_words = 0;
 	u16 m_used_words = 0;
 	bool m_ok = false;
+	bool m_overflow_sent = false;
 };
 
 } // namespace eng::copper
