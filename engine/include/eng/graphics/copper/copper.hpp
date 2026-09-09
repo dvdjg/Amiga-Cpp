@@ -64,6 +64,9 @@ enum DmaControl : u16 {
 	DmaMaster = 0x0200,
 	DmaBitplane = 0x0100,
 	DmaCopper = 0x0080,
+	DmaBlitter = 0x0040,
+	DmaSprite = 0x0020,   // SPREN: habilita el DMA de todos los sprites
+	DmaDisk = 0x0010,
 };
 
 /// Devuelve el offset de un registro COLORxx.
