@@ -124,14 +124,10 @@ public:
                 0, // palette_base: los sprites usan COLOR16+; para multiplexar por par
                    // hay que respetar que el switch cambia el COLORxx del par (ver abajo)
             };
-            if (i > 0) {
-                // Rearmar UNA línea antes del VSTART. El DMA del sprite arma al
-                // inicio de la línea: si escribimos VSTART en la propia línea del
-                // segmento, el write llega tarde y se pierde el segmento. El primer
-                // segmento NO espera: se programa al inicio de la lista, de modo que
-                // el sprite nunca arma con los registros basura que dejó AmigaDOS.
-                sched.wait_line(static_cast<u8>((line - 1u) & 0xffu));
-            }
+            // WAIT en la línea VSTART del segmento (mismo patrón que el bootcamp:
+            // WAIT + MOVE SPRxPOS/CTL). El primer segmento también espera; el gap
+            // de 1 línea (`line += height + 1`) garantiza que el anterior terminó.
+            sched.wait_line(static_cast<u8>(line & 0xffu));
             emit_config(sched, channel, cfg, data);
 
             // Cambios de paleta asociados a este segmento (color multiplexing).
@@ -159,22 +155,28 @@ public:
     }
 
 private:
-    /// Codifica y emite un sprite (CTL/POS/PT) en el canal dado.
+    /// Codifica y emite un sprite (POS/CTL/PT) en el canal dado.
     ///
-    /// Offsets de registros custom (base $dff000):
-    ///   SPRxPOS = 0x140 + x*8, SPRxCTL = 0x142 + x*8, SPRxPTH = 0x120 + x*4,
-    ///   SPRxPTL = 0x122 + x*4.
+    /// Offsets de registros custom (base $dff000): SPRxPOS = 0x140 + x*8,
+    /// SPRxCTL = 0x142 + x*8, SPRxPTH = 0x120 + x*4, SPRxPTL = 0x122 + x*4.
+    ///
+    /// Layout de bits (AHRM cap. 5, verificado contra amiga-bootcamp
+    /// `08_graphics/sprites.md`):
+    ///   SPRxPOS: bits 15-8 = VSTART[7:0], bits 7-0 = HSTART[8:1]
+    ///            (la posición horizontal va en low-res pixels ÷ 2: los sprites
+    ///            solo se colocan en posiciones pares).
+    ///   SPRxCTL: bits 15-8 = VSTOP[7:0], bit 3 = VSTART[8], bit 2 = VSTOP[8],
+    ///            bit 1 = HSTART[0], bit 0 = ATTACH.
     static void emit_config(copper::Scheduler& sched, u8 channel, const SpriteConfig& s, Span<const u16> data) {
-        const u16 pos = static_cast<u16>((static_cast<u16>(s.hpos) << 8) | (s.vstart & 0xff));
-        // SPRxCTL: bits 0-7 = vstop, bit 8 = hpos bit 8, bit 9 = vstart bit 8,
-        // bit 12 = doble ancho (VSH8), bit 13 = attach.
+        const u16 pos = static_cast<u16>(((s.vstart & 0xff) << 8) | ((s.hpos >> 1) & 0xff));
         const u16 ctl = static_cast<u16>(
-            (s.vstop & 0xff) |
-            (s.hpos & 0x100) |            // SH1: bit 8 de HSTART
-            ((s.vstart >> 8) & 0x200) |
-            (s.width_words == 2 ? 0x1000 : 0));
-        sched.move(static_cast<copper::Register>(0x140 + channel * 8), pos);     // SPRxPOS (VSTART) primero
-        sched.move(static_cast<copper::Register>(0x142 + channel * 8), ctl);     // SPRxCTL (VSTOP) después
+            ((s.vstop & 0xff) << 8) |
+            (((s.vstart >> 8) & 0x1u) << 3) |
+            (((s.vstop >> 8) & 0x1u) << 2) |
+            ((s.hpos & 0x1u) << 1)
+        );
+        sched.move(static_cast<copper::Register>(0x140 + channel * 8), pos);     // SPRxPOS
+        sched.move(static_cast<copper::Register>(0x142 + channel * 8), ctl);     // SPRxCTL
         const u32 addr = reinterpret_cast<u32>(data.data());
         sched.move(static_cast<copper::Register>(0x120 + channel * 4), static_cast<u16>(addr >> 16));   // SPRxPTH
         sched.move(static_cast<copper::Register>(0x122 + channel * 4), static_cast<u16>(addr & 0xffff)); // SPRxPTL

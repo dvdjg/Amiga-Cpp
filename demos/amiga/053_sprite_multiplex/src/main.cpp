@@ -108,8 +108,15 @@ struct SpriteMultiplexDemo {
 		eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_copper_words));
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
-		if (m_copper_ok) {
+	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+		// Rebote horizontal suave (onda triangular): los seis sprites se desplazan en
+		// bloque, demostrando el reposicionado por Copper sin tocar los bitplanes.
+		const eng::u16 frame = context.frame.frame_index;
+		const eng::u16 period = 64u;
+		const eng::u16 phase = static_cast<eng::u16>(frame & (2u * period - 1u));
+		const eng::u16 t = (phase < period) ? phase : static_cast<eng::u16>(2u * period - 1u - phase);
+		m_hpos = static_cast<eng::u16>(40u + t * 3u);  // 40..229 px
+		if (build_copper()) {
 			backend.install_copper_list(m_copper_ptr);
 		}
 	}
@@ -159,9 +166,13 @@ private:
 			0x2c81, 0x2cc1, 0x0038, 0x00d0,
 			kBytesPerRow, 0x6200, kPlanes, m_bitplanes, kPlaneBytes
 		);
-		// Reset del sprite 0 (VSTART/VSTOP=0) mientras su DMA todavía está limpio
-		// (`emit_planes_display` lo apagó): evita que, al habilitar SPREN abajo, el
-		// sprite arme con los registros basura que dejó AmigaDOS.
+		// Reset del sprite 0 (VSTART/VSTOP=0 + puntero a datos válidos) mientras su
+		// DMA todavía está limpio (`emit_planes_display` lo apagó): evita que, al
+		// habilitar SPREN abajo, el sprite arme con los registros basura de AmigaDOS
+		// y haga una lectura DMA de un puntero inválido.
+		const eng::u32 sprite_addr = reinterpret_cast<eng::u32>(m_sprite_block.data);
+		sched.move(0x120, static_cast<eng::u16>(sprite_addr >> 16));   // SPR0PTH
+		sched.move(0x122, static_cast<eng::u16>(sprite_addr & 0xffff)); // SPR0PTL
 		sched.move(0x142, 0x0000); // SPR0CTL (VSTOP=0)
 		sched.move(0x140, 0x0000); // SPR0POS (VSTART=0)
 		// `emit_planes_display` no activa el DMA de sprites: lo habilitamos aquí.
@@ -173,7 +184,7 @@ private:
 			)
 		);
 		sched.emit_palette(kBasePalette.color);
-		m_sprites.emit_template_into(sched, m_template, 0, kBaseY, kSpriteHpos);
+		m_sprites.emit_template_into(sched, m_template, 0, kBaseY, m_hpos);
 		sched.wait_line(0xf8);
 		sched.move(eng::copper::Register::COLOR00, 0x0000);
 		sched.end();
@@ -194,6 +205,7 @@ private:
 	eng::MemoryBlock m_sprite_block {};
 	eng::graphics::SpriteTemplate<kInstances, kInstances> m_template {};
 	eng::graphics::SpriteManager m_sprites {};
+	eng::u16 m_hpos = kSpriteHpos;   // posición horizontal animada en update()
 };
 
 } // namespace
