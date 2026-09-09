@@ -128,9 +128,22 @@ public:
 		move(bitplane_pointer_low_register(plane), static_cast<u16>(raw & 0xffffu));
 	}
 
-	/// Espera a una linea de raster con mascara estandar.
+	/// Espera a una linea de raster con mascara estandar (solo V).
+	///
+	/// Usa la mascara `0xff00`: compara los 8 bits verticales e ignora la posicion
+	/// horizontal. Es la espera mas comun (cambios al principio de linea).
 	void wait_line(u8 vpos) {
 		write_pair(wait_word(vpos), 0xff00);
+	}
+
+	/// Espera a una posicion concreta de la linea (V y H).
+	///
+	/// Usa la mascara `0xfffe`: compara tambien los bits horizontales, lo que permite
+	/// "copper bars" que cambian un registro a mitad de scanline. `hpos` debe ser par
+	/// (los ejemplos clasicos usan 1 con la mascara estandar; para H real se codifica
+	/// el valor par que compara).
+	void wait_position(u8 vpos, u8 hpos) {
+		write_pair(wait_word(vpos, static_cast<u8>(hpos & 0xfe)), 0xfffe);
 	}
 
 	/// Finaliza la lista. El Copper se detiene en este par especial.

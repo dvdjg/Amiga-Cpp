@@ -22,6 +22,7 @@
 #include <eng/core/types.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/timeline.hpp>
+#include <eng/graphics/raster_intent.hpp>
 
 namespace eng::copper {
 
@@ -39,6 +40,7 @@ struct ScheduleReport {
 	u16 timeline_over_budget_lines = 0;
 	u8 heaviest_line = 0;
 	u8 heaviest_line_moves = 0;
+	u8 unhandled_intents = 0;   // intents que el scheduler base no materializa (ver emit_copper_intents)
 	bool ok = false;
 	bool has_visible_heavy_palette_zone = false;
 	bool has_visible_timeline_spill = false;
@@ -77,6 +79,14 @@ public:
 	/// Emite un WAIT de raster sin asociarlo a una paleta.
 	void wait_line(u8 line) {
 		m_builder.wait_line(line);
+		m_timeline.reserve_wait(line);
+		++m_report.waits;
+	}
+
+	/// Emite un WAIT a una posicion concreta (V y H): para "copper bars" a mitad de
+	/// scanline.
+	void wait_position(u8 line, u8 hpos) {
+		m_builder.wait_position(line, hpos);
 		m_timeline.reserve_wait(line);
 		++m_report.waits;
 	}
@@ -146,6 +156,47 @@ public:
 			}
 		}
 		emit_palette(colors, first, count);
+	}
+
+	/// Emite una lista de `CopperIntent` (vocabulario portable de la escena).
+	///
+	/// Es el punto de entrada que materializa el vocabulario de `raster_intent.hpp`:
+	/// la escena/efecto describe qué quiere (un cambio de paleta en una franja, un
+	/// shift, un split...), y el scheduler lo traduce a WAIT/MOVE de su copperlist.
+	///
+	/// Contrato:
+	///   - `intents` DEBE venir ordenado por `top` ascendente (el llamador garantiza
+	///     el orden; aqui no hay heap para ordenar). Se emite cada franja en su linea.
+	///   - Soportados por el scheduler base: `PaletteLine` y `PaletteSpan` (solo
+	///     necesitan `colors/first/count/top/hpos`, que viajan en la intent).
+	///   - `ShiftLines`, `BitplaneSplit`, `SpriteRearm` y `Priority` necesitan conocer
+	///     el layout del display (planos, punteros, canal), que el scheduler base no
+	///     tiene; se cuentan en `report().unhandled_intents` y NO se emiten (el driver
+	///     que conoce el layout debe materializarlos por otra via).
+	void emit_copper_intents(const graphics::CopperIntent* intents, u8 count) {
+		if (intents == nullptr) {
+			return;
+		}
+		for (u8 i = 0; i < count; ++i) {
+			const graphics::CopperIntent& intent = intents[i];
+			switch (intent.kind) {
+				case graphics::CopperIntentKind::PaletteLine:
+					wait_line(static_cast<u8>(intent.top & 0xffu));
+					m_timeline.reserve_moves(static_cast<u8>(intent.top & 0xffu), intent.count);
+					emit_palette(intent.colors, intent.first, intent.count);
+					break;
+				case graphics::CopperIntentKind::PaletteSpan:
+					wait_position(static_cast<u8>(intent.top & 0xffu), static_cast<u8>(intent.hpos & 0xfeu));
+					m_timeline.reserve_moves(static_cast<u8>(intent.top & 0xffu), intent.count);
+					emit_palette(intent.colors, intent.first, intent.count);
+					break;
+				default:
+					// Requiere contexto de display (planos/stride/puntero/canal) que
+					// el scheduler base no posee: lo registramos para telemetria.
+					m_report.unhandled_intents = static_cast<u8>(m_report.unhandled_intents + 1u);
+					break;
+			}
+		}
 	}
 
 	/// Finaliza la lista y congela el informe.

@@ -21,6 +21,7 @@
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
+#include <eng/graphics/sprite.hpp>
 #include <eng/memory/arena.hpp>
 
 namespace eng::graphics {
@@ -89,19 +90,60 @@ public:
         for (u8 i = 0; i < 8; ++i) {
             const SpriteConfig& s = m_spr[i];
             if (!s.enabled || s.data.empty()) continue;
-            const u16 pos = static_cast<u16>((static_cast<u16>(s.hpos) << 8) | (s.vstart & 0xff));
-            // SPRxCTL: bits 0-7 = vstop, bit 8 = hpos bit 8, bit 9 = vstart bit 8,
-            // bit 12 = doble ancho (VSH8), bit 13 = attach.
-            const u16 ctl = static_cast<u16>(
-                (s.vstop & 0xff) |
-                ((s.hpos >> 1) & 0x100) |
-                ((s.vstart >> 8) & 0x200) |
-                (s.width_words == 2 ? 0x1000 : 0));
-            sched.move(static_cast<copper::Register>(0x0d0 + i * 8), ctl);     // SPRxCTL
-            sched.move(static_cast<copper::Register>(0x0d2 + i * 8), pos);     // SPRxPOS
-            const u32 addr = reinterpret_cast<u32>(s.data.data());
-            sched.move(static_cast<copper::Register>(0x120 + i * 4), static_cast<u16>(addr >> 16));
-            sched.move(static_cast<copper::Register>(0x122 + i * 4), static_cast<u16>(addr & 0xffff));
+            emit_config(sched, i, s, s.data);
+        }
+    }
+
+    /// Emite un `SpriteTemplate` con multiplexado vertical y cambios de paleta.
+    ///
+    /// Toma UNA imagen fuente troceada en segmentos (`SpriteTemplate::segments`) y la
+    /// sirve por el MISMO canal hardware: cada segmento se rearma en su linea (técnica
+    /// "chasing the raster" / multiplexado vertical). Además aplica los cambios de
+    /// paleta por franja (`switches`) escribiendo COLORxx entre medias.
+    ///
+    /// `channel` es el canal 0..7; `base_y` la primera linea del primer segmento.
+    /// Requiere que la `SpriteTemplate` describa segmentos con `data_offset` creciente
+    /// (words desde el inicio de `bitmap`); cada linea de sprite ocupa
+    /// `width_words*2` words (DAT y DATB intercalados).
+    template <u8 MS, u8 MP>
+    void emit_template_into(
+        copper::Scheduler& sched,
+        const SpriteTemplate<MS, MP>& tpl,
+        u8 channel,
+        u16 base_y
+    ) const {
+        if (channel >= 8) return;
+        u16 line = base_y;
+        for (u8 i = 0; i < tpl.segment_count; ++i) {
+            const SpriteSegment& seg = tpl.segments[i];
+            const Span<const u16> data = tpl.bitmap.subspan(seg.data_offset, seg.height * (tpl.width_words * 2u));
+            SpriteConfig cfg {
+                true, data, tpl.width_words, static_cast<u8>(seg.height & 0xffu),
+                0, line, static_cast<u16>(line + seg.height - 1u),
+                0, // palette_base: los sprites usan COLOR16+; para multiplexar por par
+                   // hay que respetar que el switch cambia el COLORxx del par (ver abajo)
+            };
+            if (line > 0) {
+                // Rearm: esperar la linea del segmento y emitir el nuevo puntero/POS/CTL.
+                sched.wait_line(static_cast<u8>(line & 0xffu));
+            }
+            emit_config(sched, channel, cfg, data);
+
+            // Cambios de paleta asociados a este segmento (color multiplexing).
+            // Un switch con `line` dentro de [line, line+height) pertenece al segmento
+            // que estamos servir: lo aplicamos aqui (el Copper ya espero a esa linea).
+            const u16 seg_end = static_cast<u16>(line + seg.height);
+            for (u8 s = 0; s < tpl.switch_count; ++s) {
+                const SpritePaletteSwitch& sw = tpl.switches[s];
+                if (sw.line < line || sw.line >= seg_end) continue;
+                for (u8 c = 0; c < sw.count; ++c) {
+                    sched.move(
+                        static_cast<copper::Register>(0x180 + (sw.first + c) * 2u),
+                        sw.colors[c]
+                    );
+                }
+            }
+            line = static_cast<u16>(line + seg.height + 1u); // +1 gap requerido por el DMA
         }
     }
 
@@ -112,6 +154,23 @@ public:
     }
 
 private:
+    /// Codifica y emite un sprite (CTL/POS/PT) en el canal dado.
+    static void emit_config(copper::Scheduler& sched, u8 channel, const SpriteConfig& s, Span<const u16> data) {
+        const u16 pos = static_cast<u16>((static_cast<u16>(s.hpos) << 8) | (s.vstart & 0xff));
+        // SPRxCTL: bits 0-7 = vstop, bit 8 = hpos bit 8, bit 9 = vstart bit 8,
+        // bit 12 = doble ancho (VSH8), bit 13 = attach.
+        const u16 ctl = static_cast<u16>(
+            (s.vstop & 0xff) |
+            ((s.hpos >> 1) & 0x100) |
+            ((s.vstart >> 8) & 0x200) |
+            (s.width_words == 2 ? 0x1000 : 0));
+        sched.move(static_cast<copper::Register>(0x0d0 + channel * 8), ctl);     // SPRxCTL
+        sched.move(static_cast<copper::Register>(0x0d2 + channel * 8), pos);     // SPRxPOS
+        const u32 addr = reinterpret_cast<u32>(data.data());
+        sched.move(static_cast<copper::Register>(0x120 + channel * 4), static_cast<u16>(addr >> 16));
+        sched.move(static_cast<copper::Register>(0x122 + channel * 4), static_cast<u16>(addr & 0xffff));
+    }
+
     SpriteConfig m_spr[8] {};
     MemoryBlock m_data {};
 };

@@ -25,6 +25,7 @@
 #include <eng/core/types.hpp>
 #include <eng/graphics/raster_intent.hpp>
 #include <eng/graphics/sprite.hpp>
+#include <eng/graphics/copper/scheduler.hpp>
 
 namespace {
 
@@ -35,6 +36,8 @@ using eng::graphics::SpriteIntent;
 using eng::graphics::SpriteTemplate;
 using eng::graphics::Visual;
 using eng::graphics::VisualKind;
+using eng::memory::MemoryBlock;
+using eng::memory::MemoryKind;
 
 // Los tipos son datos planos (POD) que viajan entre la escena y los schedulers.
 static_assert(std::is_trivially_copyable_v<Visual>);
@@ -115,6 +118,43 @@ int main() {
         return 1;
     }
 
-    std::printf("OK: vocabulario de intenciones validado (Visual/CopperIntent/SpriteIntent/SpriteTemplate/Effect).\n");
+    // Runtime: el scheduler base materializa las intents de paleta y marca las que
+    // requieren contexto de display como "sin manejar" (telemetria honrada).
+    {
+        eng::u16 copper_words[128] {};
+        MemoryBlock copper_block { copper_words, sizeof(copper_words), MemoryKind::Chip };
+        eng::copper::Scheduler sched { copper_block };
+
+        eng::u16 fake_palette[32] {};
+        fake_palette[1] = 0xf00;
+        CopperIntent intents[3] {
+            { CopperIntentKind::PaletteLine,  44,  44,  0, fake_palette, 1, 7, 0, nullptr, 0, nullptr },
+            { CopperIntentKind::ShiftLines,  100, 100,  0,      nullptr, 0, 0, 4, nullptr, 0, nullptr },
+            { CopperIntentKind::PaletteLine,  90,  90,  0, fake_palette, 0, 1, 0, nullptr, 0, nullptr },
+        };
+
+        sched.emit_copper_intents(intents, 3);
+        sched.end();
+
+        const auto& rep = sched.report();
+        if (!rep.ok) {
+            std::printf("[FAIL] scheduler no ok con plan de paleta\n");
+            return 1;
+        }
+        // 7 + 1 movimientos de color emitidos y WAITs: la paleta se materializo.
+        if (rep.palette_moves < 8u || rep.waits < 2u) {
+            std::printf("[FAIL] scheduler no emitio paleta/aciertos (moves=%d waits=%d)\n",
+                        (int)rep.palette_moves, (int)rep.waits);
+            return 1;
+        }
+        // ShiftLines requiere contexto de display: se marca, no se emite falsamente.
+        if (rep.unhandled_intents != 1u) {
+            std::printf("[FAIL] scheduler no marco ShiftLines como sin manejar (%d)\n",
+                        (int)rep.unhandled_intents);
+            return 1;
+        }
+    }
+
+    std::printf("OK: vocabulario de intenciones validado (Visual/CopperIntent/SpriteIntent/SpriteTemplate/Effect/scheduler).\n");
     return 0;
 }
