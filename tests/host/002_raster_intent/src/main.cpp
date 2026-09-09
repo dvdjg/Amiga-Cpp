@@ -36,8 +36,8 @@ using eng::graphics::SpriteIntent;
 using eng::graphics::SpriteTemplate;
 using eng::graphics::Visual;
 using eng::graphics::VisualKind;
-using eng::memory::MemoryBlock;
-using eng::memory::MemoryKind;
+using eng::MemoryBlock;
+using eng::MemoryKind;
 
 // Los tipos son datos planos (POD) que viajan entre la escena y los schedulers.
 static_assert(std::is_trivially_copyable_v<Visual>);

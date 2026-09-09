@@ -1454,7 +1454,7 @@ private:
         // deben aplicar al inicio del frame y no tras el WAIT del split.
         sched.emit_palette(m_cfg.palette);
         for (u8 p = 0; p < view.planes; ++p) {
-            const u32 addr = reinterpret_cast<u32>(view.real_base) +
+            const u32 addr = static_cast<u32>(reinterpret_cast<uintptr>(view.real_base)) +
                              view.planeaddx + view.planeaddy +
                              static_cast<u32>(p) * view.bitmap_bytes_per_row;
             // En interleaved, Planes[p] = base + p*BITMAPBYTESPERROW + Y*planes*bytes.
@@ -1479,7 +1479,7 @@ private:
             const u8 wait = raster > 0xffu ? 0xffu : static_cast<u8>(raster);
             sched.wait_line(wait);
             for (u8 p = 0; p < view.planes; ++p) {
-                const u32 addr = reinterpret_cast<u32>(view.real_base) +
+                const u32 addr = static_cast<u32>(reinterpret_cast<uintptr>(view.real_base)) +
                                  view.planeaddx + view.split_planeaddy +
                                  static_cast<u32>(p) * view.bitmap_bytes_per_row;
                 sched.move_bitplane_pointer(p, reinterpret_cast<const void*>(addr));
@@ -1504,7 +1504,7 @@ private:
             sched.wait_line(hud_raster > 0xffu ? 0xffu : static_cast<u8>(hud_raster));
             sched.move(copper::Register::BPLCON1, 0x0000);
             for (u8 p = 0; p < hud->view.planes; ++p) {
-                const u32 addr = reinterpret_cast<u32>(hud->view.real_base) +
+                const u32 addr = static_cast<u32>(reinterpret_cast<uintptr>(hud->view.real_base)) +
                                  static_cast<u32>(p) * hud->view.bitmap_bytes_per_row;
                 sched.move_bitplane_pointer(p, reinterpret_cast<const void*>(addr));
             }
@@ -1604,7 +1604,7 @@ private:
     }
 
     static u32 field_plane_address(const PlayfieldHardwareView& v, u8 plane, u32 y_offset) {
-        return reinterpret_cast<u32>(v.real_base) + v.planeaddx + y_offset +
+        return static_cast<u32>(reinterpret_cast<uintptr>(v.real_base)) + v.planeaddx + y_offset +
                static_cast<u32>(plane) * v.bitmap_bytes_per_row;
     }
 

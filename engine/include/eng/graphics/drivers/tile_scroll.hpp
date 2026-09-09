@@ -743,8 +743,8 @@ private:
 		scheduler.move(copper::Register::DDFSTRT, m_display.ddfstrt);
 		scheduler.move(copper::Register::DDFSTOP, m_display.ddfstop);
 		for (u8 plane = 0; plane < plane_count; ++plane) {
-			const u32 address =
-				reinterpret_cast<u32>(m_bitplanes + static_cast<u32>(plane) * plane_bytes + m_display.plane_offsets[plane]);
+			const uintptr address =
+				reinterpret_cast<uintptr>(m_bitplanes + static_cast<u32>(plane) * plane_bytes + m_display.plane_offsets[plane]);
 			scheduler.move(copper::bitplane_pointer_high_register(plane), static_cast<u16>(address >> 16));
 			scheduler.move(copper::bitplane_pointer_low_register(plane), static_cast<u16>(address & 0xffffu));
 		}
@@ -778,8 +778,8 @@ private:
 		u16* const words = static_cast<u16*>(m_copper_blocks[m_active_copper ^ 1u].data);
 		words[5] = m_display.bplcon1;
 		for (u8 plane = 0; plane < plane_count; ++plane) {
-			const u32 address =
-				reinterpret_cast<u32>(m_bitplanes + static_cast<u32>(plane) * plane_bytes + m_display.plane_offsets[plane]);
+			const uintptr address =
+				reinterpret_cast<uintptr>(m_bitplanes + static_cast<u32>(plane) * plane_bytes + m_display.plane_offsets[plane]);
 			words[21u + static_cast<u16>(plane) * 4u] = static_cast<u16>(address >> 16);
 			words[23u + static_cast<u16>(plane) * 4u] = static_cast<u16>(address & 0xffffu);
 		}

@@ -126,7 +126,7 @@ public:
 	/// venir de la arena usada por el driver. Aqui solo codificamos el formato que
 	/// espera Agnus en BPLxPTH/BPLxPTL.
 	void move_bitplane_pointer(u8 plane, const void* address) {
-		const u32 raw = reinterpret_cast<u32>(address);
+		const uintptr raw = reinterpret_cast<uintptr>(address);
 		move(bitplane_pointer_high_register(plane), static_cast<u16>(raw >> 16));
 		move(bitplane_pointer_low_register(plane), static_cast<u16>(raw & 0xffffu));
 	}

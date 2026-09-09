@@ -31,6 +31,25 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
 - Sin `linear_display` por defecto en 202: viewport recortado 320×208 para split
   canónico; mapas toroidales.
 
+## Sprites hardware — estado (2026-09)
+
+- **Hecho**: `SpriteTemplate` + `SpriteManager::emit_template_into` (multiplexado
+  vertical "chasing the raster" + color multiplexing) validados por la demo 053.
+  Se corrigió la codificación de `SPRxPOS`/`SPRxCTL` (VSTART byte alto, HSTART÷2 en
+  byte bajo; ver `amiga-bootcamp/08_graphics/sprites.md`) y los offsets de registro
+  (antes caían en registros de audio).
+- **Pendiente (mejoras apuntadas)**:
+  - `SpriteAllocator` (paso 4 de `ENGINE_DESIGN.md` §5): asignar canales a
+    `SpriteIntent` con multiplexado y decidir el overflow → BOB (transición
+    sprite→BOB transparente). Es el siguiente paso.
+  - Diagnosticar por qué **rellenar bitplanes rompe el rearm** del sprite en modo
+    6 planos (solo dibuja el primer segmento); bloquea fondos reales en demos de
+    sprites. Alternativa segura: fondo por copper-gradient (`COLOR00` por línea).
+  - Materializar los `CopperIntent` que faltan (`ShiftLines`, `BitplaneSplit`,
+    `SpriteRearm`, `Priority`) en el driver que conoce el layout (paso 2/3).
+  - Embellecer la demo 053 (fondo, animación de colores) siguiendo la regla
+    «Demos atractivas» de `AGENTS.md`.
+
 ## Decisiones tomadas en 202 (a respetar)
 
 1. El scroll debe ser **un único algoritmo toroidal** (sin modos de borde finito);

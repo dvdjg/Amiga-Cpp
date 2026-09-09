@@ -146,7 +146,7 @@ private:
 
 	/// Dirección del bitplane `plane_in_field` de una vista.
 	u32 plane_address(const FieldHardwareView& v, eng::u8 plane_in_field) const {
-		return reinterpret_cast<eng::u32>(v.bitplanes) +
+		return static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(v.bitplanes)) +
 			static_cast<eng::u32>(plane_in_field) * v.plane_stride +
 			v.display_byte_offset;
 	}

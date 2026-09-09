@@ -177,7 +177,7 @@ private:
         );
         sched.move(static_cast<copper::Register>(0x140 + channel * 8), pos);     // SPRxPOS
         sched.move(static_cast<copper::Register>(0x142 + channel * 8), ctl);     // SPRxCTL
-        const u32 addr = reinterpret_cast<u32>(data.data());
+        const uintptr addr = reinterpret_cast<uintptr>(data.data());
         sched.move(static_cast<copper::Register>(0x120 + channel * 4), static_cast<u16>(addr >> 16));   // SPRxPTH
         sched.move(static_cast<copper::Register>(0x122 + channel * 4), static_cast<u16>(addr & 0xffff)); // SPRxPTL
     }
