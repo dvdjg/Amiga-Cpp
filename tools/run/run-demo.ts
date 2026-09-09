@@ -486,6 +486,43 @@ function resolveRuntimeSymbolAddress(linkedSymbol, mapSections, runtimeSections)
   return parseHexNumber(runtimeSections[hunkIndex]) + (linkedSymbol - section.start);
 }
 
+/// Resuelve la dirección runtime de `g_eng_run_status` de forma robusta.
+///
+/// El mapeo por índice de `resolveRuntimeSymbolAddress` falla cuando el orden de
+/// las secciones runtime (devuelto por `state` del canal lateral) no coincide con
+/// el del `.map` (p. ej. al enlazar un `.s` adicional de `support/` que añade
+/// sub-secciones). Por eso se valida el magic y, si no coincide, se escanea cada
+/// sección runtime buscando el magic de `g_eng_run_status` (0x454e4752).
+async function resolveRunStatusAddress(client, linkedSymbol, mapSections, runtimeSections) {
+  const resolved = resolveRuntimeSymbolAddress(linkedSymbol, mapSections, runtimeSections);
+  if (resolved !== null && resolved > 0) {
+    try {
+      const status = await client.command(`runstatus ${resolved.toString(16)}`, 1500);
+      if (status && status.ok && status.magic === '0x454e4752' && status.version === 1) {
+        return resolved;
+      }
+    } catch { /* noop */ }
+  }
+
+  // Fallback: escanear las secciones runtime buscando el magic.
+  if (Array.isArray(runtimeSections)) {
+    for (const sec of runtimeSections) {
+      const addr = parseHexNumber(sec);
+      if (!addr) continue;
+      try {
+        const status = await client.command(`runstatus ${addr.toString(16)}`, 1500);
+        if (status && status.ok && status.magic === '0x454e4752' && status.version === 1) {
+          return addr;
+        }
+      } catch { /* noop */ }
+    }
+  }
+
+  // Sin match: devuelve la resolución exacta (aunque su magic no haya validado)
+  // para no romper el resto del flujo.
+  return resolved;
+}
+
 function parseTextOffset(reply) {
   const match = String(reply || '').match(/(?:^|;)Text=([0-9a-fA-F]+)/);
   return match ? parseInt(match[1], 16) : 0;
@@ -680,7 +717,7 @@ async function waitForSideChannelRunStatus({ linkedSymbol, mapSections, timeoutM
         state = null;
       }
       if (state && state.ok && runtimeAddress === null) {
-        runtimeAddress = resolveRuntimeSymbolAddress(linkedSymbol, mapSections, state.sections);
+        runtimeAddress = await resolveRunStatusAddress(client, linkedSymbol, mapSections, state.sections);
       }
       if (runtimeAddress !== null && runtimeAddress > 0) {
         const status = await client.command(`runstatus ${runtimeAddress.toString(16)}`, 1500).catch(() => null);
@@ -1000,6 +1037,17 @@ try {
   } else {
     console.log(`[run-demo] fallback wait ${waitMs} ms`);
     await sleep(waitMs);
+  }
+
+  // WinUAE-DBG v2.1: leer el periférico de depuración tras READY (opt-in).
+  // `--read-debugperiph [sub]` envía `monitor debugperiph [sub]` y vuelca la
+  // respuesta. Útil para leer los contadores del benchmark de una demo (p. ej.
+  // la 063: `--read-debugperiph counters`) o su consola/checkpoints.
+  const debugPeriphSub = argValue('--read-debugperiph', null);
+  if (debugPeriphSub !== null) {
+    const cmd = debugPeriphSub ? `debugperiph ${debugPeriphSub}` : 'debugperiph';
+    const reply = await protocol.sendMonitorCommand(cmd, 10000);
+    console.log(`[run-demo] ${cmd}:\n${Buffer.from(reply, 'hex').toString('utf8').trim()}`);
   }
 
   // WinUAE-DBG v2.1: aplicar reglas protect (block/set) tras READY

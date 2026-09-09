@@ -4,17 +4,19 @@
 
    ABI (argumentos por pila, como el resto de support/):
      fire_asm(u16* fire, u16 width, u16 height)
-   Tras `movem d2-d7/a2-a6,-(sp)` (48 bytes):
-     sp@(52) = fire   (puntero, u16*)
-     sp@(56) = width  (word baja del int)
-     sp@(60) = height (word baja del int)
+   Los argumentos se empujan de derecha a izquierda como long (4 bytes): el
+   compilador emite `pea height; pea width; move.l fire,-(sp); jsr`. Tras
+   `movem d2-d7/a2-a6,-(sp)` (11 registros = 44 bytes):
+     sp@(48) = fire   (puntero, u16*)
+     sp@(52) = width  (word baja del long)
+     sp@(56) = height (word baja del long)
 
    Algoritmo (identico a la version C++ de la demo 063):
      de arriba (y=0) a abajo (y=H-3):
        fire[y][x] = (fire[y+2][x] + fire[y+1][x-1] + fire[y+1][x+1] + fire[y+1][x]) >> 2
    Usa punteros en registros y post-incremento (sin recalcular offsets y*W),
    que es la optimizacion clave frente al codigo que emite g++ para el bucle C++.
-*/
+ */
 
 	.section .text.fire_asm,"ax",@progbits
 	.type fire_asm, function
@@ -23,14 +25,15 @@
 
 fire_asm:
 	movem.l	d2-d7/a2-a6,-(sp)
-	.cfi_adjust_cfa_offset 48
+	.cfi_adjust_cfa_offset 44
 
-	move.l	sp@(52), a0	/* fire */
-	move.w	sp@(56), d0	/* width */
-	move.w	sp@(60), d1	/* height */
+	move.l	sp@(48), a0	/* fire */
+	move.l	sp@(52), d0	/* width (long, word baja = valor) */
+	move.l	sp@(56), d1	/* height (long, word baja = valor) */
 
-	/* d1 = filas a procesar = height - 2 (filas 0 .. H-3) */
-	subq.w	#2, d1
+	/* d1 = contador del bucle exterior: `dbra` ejecuta d1+1 veces, así que
+	   partimos de height-3 para recorrer exactamente height-2 filas (0 .. H-3). */
+	subq.w	#3, d1
 
 	/* d2 = W*2 (bytes por fila, u16 = 2 bytes) */
 	move.w	d0, d2

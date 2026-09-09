@@ -4,12 +4,12 @@
      - comentarios en bloque (`,;` no es comentario en este as).
      - los lea con indice .l se sustituyen por move.l/add.l (equivalente en
        68000, porque GNU as exige 68020 para lea (An,Dn.L)).
-   ABI: argumentos por pila. Tras movem d2-d7/a2-a6 de 48 bytes:
-     sp+52 = chunkyx (px, multiplo de 16)
-     sp+56 = chunkyy (lineas)
-     sp+60 = bplsize (bytes de salto entre planos consecutivos)
-     sp+64 = chunkybuffer (entrada, 1 byte/pixel, nibble bajo)
-     sp+68 = bitplanes (destino: 4 planos)
+   ABI: argumentos por pila. Tras movem d2-d7/a2-a6 (11 registros = 44 bytes):
+     sp+48 = chunkyx (px, multiplo de 16)
+     sp+52 = chunkyy (lineas)
+     sp+56 = bplsize (bytes de salto entre planos consecutivos)
+     sp+60 = chunkybuffer (entrada, 1 byte/pixel, nibble bajo)
+     sp+64 = bitplanes (destino: 4 planos)
 */
 
 	.section .text.c2p_1x1_4,"ax",@progbits
@@ -19,14 +19,14 @@
 
 c2p_1x1_4:
 	movem.l	d2-d7/a2-a6,-(sp)
-	.cfi_adjust_cfa_offset 48
+	.cfi_adjust_cfa_offset 44
 
 	/* Carga de los 5 argumentos por pila (ABI del repo). */
-	move.l	sp@(52), d0	/* chunkyx (la rutina usa solo la word baja via lsr.w) */
-	move.l	sp@(56), d1	/* chunkyy */
-	move.l	sp@(60), d5	/* bplsize */
-	move.l	sp@(64), a0	/* chunkybuffer */
-	move.l	sp@(68), a1	/* bitplanes */
+	move.l	sp@(48), d0	/* chunkyx (la rutina usa solo la word baja via lsr.w) */
+	move.l	sp@(52), d1	/* chunkyy */
+	move.l	sp@(56), d5	/* bplsize */
+	move.l	sp@(60), a0	/* chunkybuffer */
+	move.l	sp@(64), a1	/* bitplanes */
 
 	lsr.w	#3, d0	/* chunkyx / 8 = bytes por fila de entrada */
 

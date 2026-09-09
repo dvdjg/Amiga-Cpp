@@ -101,6 +101,35 @@ export function resolveRuntimeSymbolAddress(linkedSymbol, mapSections, runtimeSe
   return parseHexNumber(runtimeSections[hunkIndex]) + (linkedSymbol - section.start);
 }
 
+/** Resuelve la dirección runtime de `g_eng_run_status` de forma robusta.
+ *  El mapeo por índice de `resolveRuntimeSymbolAddress` falla cuando el orden de
+ *  las secciones runtime no coincide con el del `.map` (p. ej. al enlazar un `.s`
+ *  extra de `support/`). Igual que `resolveRunStatusAddress` de run-demo.ts:
+ *  valida el magic (0x454e4752) y, si no coincide, escanea cada sección runtime
+ *  buscándolo. */
+async function resolveRunStatusAddress(port, sideChannelCommand, linkedSymbol, mapSections, runtimeSections) {
+  const resolved = resolveRuntimeSymbolAddress(linkedSymbol, mapSections, runtimeSections);
+  if (resolved !== null && resolved > 0) {
+    try {
+      const st = await sideChannelCommand(`runstatus ${resolved.toString(16)}`, port, 2000);
+      const v = st.reply;
+      if (v && v.magic === '0x454e4752' && v.version === 1) return resolved;
+    } catch { /* noop */ }
+  }
+  if (Array.isArray(runtimeSections)) {
+    for (const sec of runtimeSections) {
+      const addr = parseHexNumber(sec);
+      if (!addr) continue;
+      try {
+        const st = await sideChannelCommand(`runstatus ${addr.toString(16)}`, port, 2000);
+        const v = st.reply;
+        if (v && v.magic === '0x454e4752' && v.version === 1) return addr;
+      } catch { /* noop */ }
+    }
+  }
+  return resolved;
+}
+
 /** Prepara el directorio dh1 y la config; devuelve rutas y simbolos. */
 export function prepareDemo(demo) {
   const demoName = path.basename(path.resolve(demo));
@@ -176,7 +205,9 @@ export async function waitReady(port, runStatusSymbol, mapSections, timeoutMs = 
       const r = await sideChannelCommand('state', port, 2000);
       if (r.ok && r.reply) state = r.reply;
     } catch { /* reintenta */ }
-    runtimeAddress = state ? resolveRuntimeSymbolAddress(runStatusSymbol, mapSections, state.sections) : null;
+    if (runtimeAddress === null && state) {
+      runtimeAddress = await resolveRunStatusAddress(port, sideChannelCommand, runStatusSymbol, mapSections, state.sections);
+    }
     if (runtimeAddress !== null && runtimeAddress > 0) {
       try {
         const st = await sideChannelCommand(`runstatus ${runtimeAddress.toString(16)}`, port, 2000);
