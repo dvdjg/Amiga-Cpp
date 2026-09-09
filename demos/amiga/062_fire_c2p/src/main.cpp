@@ -57,6 +57,27 @@ constexpr eng::u8  kScale = 4;            // escalado 4x4
 constexpr eng::u32 kDispPlaneBytes = drivers::StaticEhbScene::plane_bytes; // 10240
 constexpr eng::u16 kDispRowBytes = drivers::StaticEhbScene::bytes_per_row; // 40
 
+/// LUT de pixel-doubling 4x horizontal: un byte (8 píxeles, bit 7 = el de más a
+/// la izquierda) se expande a un u32 (32 píxeles) repitiendo CADA BIT 4 veces.
+/// Esto es lo que el `dualtab` del original resolvía para el color; aquí el
+/// escalado horizontal se hace en el plano ya convertido, expandiendo bits.
+/// Generada en compile-time (constexpr), sin coste en runtime.
+template <eng::usize N>
+struct Expand4Table {
+	eng::u32 data[N] {};
+	constexpr Expand4Table() {
+		for (eng::usize i = 0; i < N; ++i) {
+			eng::u32 r = 0;
+			for (int k = 0; k < 8; ++k) {
+				if (i & (0x80u >> k)) r |= 0xFu << (28 - 4 * k);
+			}
+			data[i] = r;
+		}
+	}
+	constexpr eng::u32 operator[](eng::u8 b) const { return data[b]; }
+};
+constexpr Expand4Table<256> kExpand4 {};
+
 /// Paleta de fuego de 32 colores: negro -> rojo -> naranja -> amarillo -> blanco.
 void build_fire_palette(drivers::EhbPalette& pal) {
 	const eng::u16 fire[32] = {
@@ -129,33 +150,40 @@ struct FireC2pDemo {
 	}
 
 private:
-	/// Fuego (indice 0..31): randomiza la fila inferior y promedia vecinos de abajo
-	/// a arriba (in-place; la fila de abajo ya calculada, el propio pixel intacto).
+	/// Fuego (índice 0..31): reproduce la algorítmica del original `fire-rgb`.
+	///   - Randomiza las 2 filas inferiores (que no se muestran).
+	///   - Recorre de ARRIBA a ABAJO y calcula cada píxel como el promedio de 4
+	///     vecinos de ABAJO (dos-filas-arriba de su fila de destino, es decir
+	///     fire[y+2][x], fire[y+1][x-1], fire[y+1][x+1], fire[y+1][x]) >> 2. Al
+	///     recorrer de arriba a abajo, los vecinos de abajo son los del frame
+	///     anterior (doble buffer implícito, sin copiar nada).
 	void generate_fire() {
-		const eng::u32 last = static_cast<eng::u32>(kFireH - 1u) * kFireW;
+		// Dos filas inferiores aleatorias (chispas), no mostradas.
 		for (eng::u16 x = 0; x < kFireW; ++x) {
-			m_fire[last + x] = static_cast<eng::u8>(m_rng.next() & 31u);
+			m_fire[(kFireH - 1u) * kFireW + x] = static_cast<eng::u8>(m_rng.next() & 31u);
+			m_fire[(kFireH - 2u) * kFireW + x] = static_cast<eng::u8>(m_rng.next() & 31u);
 		}
 
-		for (eng::u16 y = kFireH - 2u; ; --y) {
+		// De arriba (y=0) a abajo (y=H-3): lee las filas de abajo (aún no sobrescritas).
+		for (eng::u16 y = 0; y < kFireH - 2u; ++y) {
 			const eng::u32 row = static_cast<eng::u32>(y) * kFireW;
-			const eng::u32 below = row + kFireW;
+			const eng::u32 r1 = row + kFireW;      // fila y+1
+			const eng::u32 r2 = r1 + kFireW;       // fila y+2
 			for (eng::u16 x = 1; x < kFireW - 1u; ++x) {
 				const eng::u32 v = (
-					static_cast<eng::u32>(m_fire[below + x - 1u]) +
-					static_cast<eng::u32>(m_fire[below + x]) +
-					static_cast<eng::u32>(m_fire[below + x + 1u]) +
-					static_cast<eng::u32>(m_fire[row + x])
+					static_cast<eng::u32>(m_fire[r2 + x]) +
+					static_cast<eng::u32>(m_fire[r1 + x - 1u]) +
+					static_cast<eng::u32>(m_fire[r1 + x + 1u]) +
+					static_cast<eng::u32>(m_fire[r1 + x])
 				) >> 2u;
-				m_fire[row + x] = v > 31u ? 31u : static_cast<eng::u8>(v);
+				m_fire[row + x] = static_cast<eng::u8>(v & 31u);
 			}
-			if (y == 0u) break;
 		}
 	}
 
 	/// Expande el planar 80x64 (kPlanes planos) a 320x256 (planos 0..kPlanes-1 del
-	/// display EHB), replicando cada byte 4x en horizontal y cada linea 4x en
-	/// vertical. Escribe u32 nativos (4 bytes iguales) para que g++ emita move.l.
+	/// display EHB). Horizontal: pixel-doubling 4x (cada bit expandido a 4, via
+	/// `kExpand4`). Vertical: line-quadrupling (cada linea repetida 4 veces).
 	void scale4x(const eng::u8* src, eng::u8* dst_planes) {
 		for (eng::u8 p = 0; p < kPlanes; ++p) {
 			const eng::u8* sp = src + static_cast<eng::u32>(p) * kPlaneBytes;
@@ -165,9 +193,8 @@ private:
 				for (eng::u8 rep = 0; rep < kScale; ++rep) {
 					eng::u8* drow = dp + (static_cast<eng::u32>(y) * kScale + rep) * kDispRowBytes;
 					for (eng::u16 x = 0; x < kRowBytes; ++x) {
-						const eng::u32 b = static_cast<eng::u32>(srow[x]);
 						*reinterpret_cast<eng::u32*>(drow + static_cast<eng::u32>(x) * 4u) =
-							(b * 0x01010101u);
+							kExpand4[srow[x]];
 					}
 				}
 			}

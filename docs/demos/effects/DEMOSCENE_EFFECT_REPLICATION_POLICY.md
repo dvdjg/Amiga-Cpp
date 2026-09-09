@@ -72,6 +72,29 @@ herramientas o efectos combinables.
    - Antes de dar por buena una replica, comparar la captura con el original (o con
      una descripcion precisa del efecto) y anotar cualquier desviacion.
 
+7. Analisis exhaustivo ANTES de importar (regla obligatoria).
+
+   Antes de escribir cualquier codigo de una replica, hay que analizar el efecto
+   original EN PROFUNDIDAD, hasta el detalle mas pequeno, y entenderlo a la
+   perfeccion. No se adapta "a ojo" ni se lee solo el bucle principal. Concretamente:
+
+   - **Algoritmica exacta**: que suma, que promedia, que constantes magicas usa,
+     que tablas precalculadas (LUT) indexa y con que rango de valores, en que orden
+     se recorre el buffer, que bordes se tratan y como.
+   - **Tecnicas de hardware**: modo de video (HAM/EHB/planar), c2p (CPU o Blitter),
+     uso de Blitter (minterms, fases), Copper (BPLMOD, BPLCON1, per-line), sprites,
+     DMA habilitado, interrupciones.
+   - **Optimizaciones**: procesar N pixels por iteracion (u32 = 2 u16), asm inline,
+     doble/triple buffer, registro de punteros, desenrollado, evitar divisiones.
+   - **Trucos**: LUT que combina color + escalado, line-quadrupling, fetch ancho,
+     offsets de puntero para "espejo" o "wrap", reutilizacion de un mismo buffer.
+
+   Ese conocimiento se debe ABSORBER (entender por que funciona), DOCUMENTAR (ficha
+   tecnica de la replica o del efecto) y, si es reutilizable, INCORPORAR al engine
+   (nueva primitiva, efecto, utilidad o mejora de un scheduler/driver). Solo despues
+   de ese analisis se escribe la replica, reproduciendo la algoritmica exacta y
+   optimizando encima de ella, no en su lugar.
+
 ## Flujo por efecto
 
 Para cada efecto de `demoscene-repo/effects`:
