@@ -138,4 +138,47 @@ inline void c2p_1x1_4(
 	}
 }
 
+/// c2p naive para N bitplanes (1..6). Correcto por construcción, para profundidades
+/// que no cubre `c2p_1x1_4` (5 planos = 32 colores, 6 = 64). O(planes·w·h): para
+/// buffers pequeños (p. ej. fuego 80x64) es rápido; para pantalla completa, portar
+/// el `c2p_1x1_5`/`c2p_1x1_6` de Kalms (merge). Convención igual que `c2p_1x1_4`:
+/// chunky 1 byte/pixel, bits 0..planes-1 = índice; salida planar, filas contiguas
+/// (`row_bytes = width/8`), planos a `planes + p*plane_stride_bytes`.
+inline void c2p_1x1_naive(
+	unsigned long width_px,
+	unsigned long height_px,
+	unsigned long planes_n,
+	unsigned long plane_stride_bytes,
+	const void* chunky,
+	void* out_planes
+) {
+	const u32 width = static_cast<u32>(width_px);
+	const u32 height = static_cast<u32>(height_px);
+	const u32 planes = static_cast<u32>(planes_n);
+	const u32 stride = static_cast<u32>(plane_stride_bytes);
+	const u32 row_bytes = width >> 3u;
+	const u8* src = static_cast<const u8*>(chunky);
+	u8* base = static_cast<u8*>(out_planes);
+
+	for (u32 y = 0; y < height; ++y) {
+		const u8* srow = src + y * width;
+		for (u32 x = 0; x < width; x += 8) {
+			u8 out[6] = { 0, 0, 0, 0, 0, 0 };
+			for (u32 k = 0; k < 8; ++k) {
+				const u8 index = static_cast<u8>(srow[x + k] & 0x3fu);
+				const u8 bit = static_cast<u8>(1u << (7u - k));
+				for (u32 p = 0; p < planes; ++p) {
+					if ((index & (1u << p)) != 0u) {
+						out[p] = static_cast<u8>(out[p] | bit);
+					}
+				}
+			}
+			const u32 off = y * row_bytes + (x >> 3u);
+			for (u32 p = 0; p < planes; ++p) {
+				base[p * stride + off] = out[p];
+			}
+		}
+	}
+}
+
 } // namespace eng::graphics

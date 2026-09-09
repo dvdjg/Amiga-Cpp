@@ -27,8 +27,8 @@ Fuentes inventariadas:
 | `CopSetupBitplanes` / `CopUpdateBitplanes` | BPLxPT por bitmap | **MAPEAR** | `Scheduler::emit_planes_display` (punteros) |
 | `CopSetupSprites` / `MakeSprite` / `EndSprite` | SPRxPT/POS/CTL | **MAPEAR** | `SpriteManager` + `SpriteTemplate` (nueva) |
 | `CopWaitSafe` | Overflow de V>255 en PAL (lineas 256..311) | **PORTAR**: el engine aun no lo modela y es un bug real | `Scheduler::wait_line` (anadir el doble-WAIT) |
-| `NewBitmap` / `DeleteBitmap` / `BitmapMakeDisplayable` | Bitmap planar generico reutilizable | **PORTAR** (API parametrica) | `eng::graphics::bitmap.hpp` (nuevo) |
-| `BitmapSetPointers` / `InitSharedBitmap` | Layout interleave / compartir planos | **MAPEAR/absorber** en el bitmap portable | `eng::graphics::bitmap.hpp` |
+| `NewBitmap` / `DeleteBitmap` / `BitmapMakeDisplayable` | Bitmap planar generico reutilizable | **MAPEAR** (ya existe `eng::gfx::Bitmap`) | `eng/graphics/bitmap.hpp` |
+| `BitmapSetPointers` / `InitSharedBitmap` | Layout interleave / compartir planos | **MAPEAR/absorber** en el bitmap portable | `eng/graphics/bitmap.hpp` |
 | `c2p_1x1_4.asm` | Conversion chunky 4bpp -> planar | **PORTAR ASM** | `support/c2p_1x1_4.s` + wrapper `eng::graphics::c2p` |
 | `PixmapT` + `PixmapScramble_4_1/_4_2` | Buffer chunky + reordenado | **MAPEAR** parcialmente | `eng::core::span` + helper de c2p |
 | `NewPixmap`/`DeletePixmap` | Alloc chunky | **DESCARTAR** (se usa arena del engine) | — |
@@ -44,10 +44,10 @@ Fuentes inventariadas:
 2. **`c2p_1x1_4` a `support/c2p_1x1_4.s` + wrapper `eng::graphics::c2p` freestanding.**
    Es la pieza que permite meter píxeles de efectos CPU (chunky) a los bitplanes, que
    era el vacío claro de `PixmapT`.
-3. **`Bitmap` portable** (`eng/graphics/bitmap.hpp`): `Bitmap` parametrico
-   (`width/height/depth/bytes_per_row/planes[]` via `MemorySystem`), con
-   `BitmapMakeDisplayable`. Lo que hoy esta interno en `StaticEhbScene` pasaria a ser
-   reutilizable de forma agnostica (regla de API parametrica).
+3. **`Bitmap` portable** (`eng/graphics/bitmap.hpp`): YA EXISTE (`eng::gfx::Bitmap`), con
+   `BitmapConfig` parametrico (width/height/planes/layout/row_bytes/alignment/domain/
+   frontbase_offset/guard_bytes) y `byte_offset`/`bytes()`. Lo usan `Playfield` y
+   `XLimitedPlayfield`. No hay que crearlo; solo reutilizarlo donde haga falta.
 4. `math2d` (del `gfx.h`) y los `Effect` de paleta quedan para Oleada 3 (son puros y
    host-testables; no bloquean display base).
 
@@ -59,7 +59,7 @@ Fuentes inventariadas:
 | `c2p_1x1_4` (C++) | HECHO + demo + asm verificado | Port FIEL del merge/butterfly de Kalms en `eng/graphics/c2p.hpp`. Cargas/escrituras `u32`/`u16` NATIVAS con `#if __m68k__` (byte-swap solo en host), por lo que g++ -O1 emite `move.l (a0)` + `move.w d0,(an)` (verificado con `-S`); no byte-a-byte. Demo `061_c2p_chunky_4bpl`: rampa de grises `i·0x111`, 15 tonos, 100% en rampa. |
 | `c2p_1x1_4.asm` (Kalms) | ASM PORTADO | `support/c2p_1x1_4.s` conserva la rutina original (GAS). La version C++ es ya equivalente en rendimiento (mismo merge, cargas nativas); el asm queda como referencia de hot path / documentacion del desintercalado. |
 | `prototypes/c2p/*.py` | NO importar | Son scripts Python de la demoscene que VISUALIZAN el bit-shuffle (colorean bits ANSI) para DERIVAR el asm, no para generarlo. Las "variantes" (1x1/2x1, 4/8bpl/ham6, CPU/blitter/sprites/mangled) son cada layout chunky→planar y cada coprocesador. No aportan como tool del engine; el porqué de las máscaras ya está documentado en `pixel_conversion.md` y en `c2p.hpp`. |
-| `Bitmap` portable | PENDIENTE | — |
+| `Bitmap` portable | HECHO (ya existia) | `eng/graphics/bitmap.hpp` (`eng::gfx::Bitmap`) YA era el Bitmap portable parametrico: `BitmapConfig` (width/height/planes/layout/row_bytes/alignment/domain/frontbase_offset/guard_bytes), `byte_offset`, `bytes()`, `blitter_accessible()`. Lo usan `Playfield` (`playfield.hpp`) y `XLimitedPlayfield` (`xlimited.hpp`). No habia que crearlo; correccion del inventario (regla: buscar antes de implementar). |
 
 Nota sobre el build: `tools/build/build-demo.sh` ahora ensambla TODOS los `*.s` de
 `support/` (antes solo `gcc8_a_support.s`), habilitando la incorporacion de mas asm del

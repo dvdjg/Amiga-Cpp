@@ -1,18 +1,20 @@
 // ============================================================================
-// Demo 062: fuego 4bpl + c2p (port de demoscene-repo-orig effects/fire-rgb).
+// Demo 062: fuego 32 colores + c2p (port de demoscene-repo-orig effects/fire-rgb).
 // ============================================================================
 //
 // Importa el efecto 05-fire-rgb adaptado a la nueva estructura del engine.
-// FIEL AL ORIGINAL: el fuego se calcula a 80x64 (WIDTH=80, HEIGHT=64 en el
-// original) y se muestra a 320x256, el doble de resolución en cada eje (escalado
-// 4x4). El original consigue el escalado con fetch ancho + line-quadrupling por
-// BPLMOD; esta demo lo reproduce con un `scale4x` por CPU equivalente (replica
-// cada pixel 4x en horizontal y cada linea 4x en vertical), que produce la MISMA
-// imagen pixelada.
+// Fiel al original en geometria: el fuego se calcula a 80x64 y se muestra a
+// 320x256 (escalado 4x4 pixelado). A diferencia del original (que usa HAM para
+// mas colores), esta replica usa 32 colores (5 bitplanes) con una paleta de
+// degradado de fuego: visualmente suave y sin el coste ni los artefactos del HAM
+// (el HAM del original usaba una LUT `dualtab` para mapear el valor de fuego a un
+// patron HAM; 32 colores directos son mas simples y se ven igual de bien).
 //
-// El buffer chunky (80x64) es el propio buffer de fuego (1 byte/pixel, indice
-// 0..15); `c2p_1x1_4` lo convierte a 4 planos de 80x64 y `scale4x` lo expande a
-// los 4 planos de 320x256 del StaticEhbScene (planos 5/6 a 0, sin half-brite).
+// Flujo por frame:
+//   1. generate_fire(): buffer chunky 80x64, indice 0..31 (5 bits).
+//   2. c2p_1x1_naive(..., planes=5): chunky -> planar 80x64 (5 planos).
+//   3. scale4x(): expande a 320x256 (cada byte x4 horizontal, cada linea x4
+//      vertical) escribiendo words nativas; equivalente al escalado del original.
 
 #include <eng/core/random.hpp>
 #include <eng/core/types.hpp>
@@ -44,31 +46,33 @@ namespace {
 namespace drivers = eng::graphics::drivers;
 
 // Geometría del ORIGINAL (fire-rgb.c): WIDTH=80, HEIGHT=64, escalado 4x4 a 320x256.
-constexpr eng::u16 kFireW = 80;   // ancho del fuego (multiplo de 16 para el c2p)
-constexpr eng::u16 kFireH = 64;   // alto del fuego
-constexpr eng::u32 kChunkyBytes = kFireW * kFireH;            // 5120
-constexpr eng::u16 kPlanarRowBytes = kFireW / 8;              // 10 bytes/fila
-constexpr eng::u32 kPlanarPlaneBytes = kPlanarRowBytes * kFireH; // 640 por plano
-constexpr eng::u8  kScale = 4;    // factor de escalado 4x4 (como el original)
+constexpr eng::u16 kFireW = 80;
+constexpr eng::u16 kFireH = 64;
+constexpr eng::u8  kPlanes = 5;           // 32 colores (sin HAM)
+constexpr eng::u16 kRowBytes = kFireW / 8; // 10 bytes/fila (planar 80x64)
+constexpr eng::u32 kPlaneBytes = kRowBytes * kFireH; // 640 por plano (80x64)
+constexpr eng::u8  kScale = 4;            // escalado 4x4
 
-// Constantes del display EHB (320x256).
+// Display EHB 320x256 (StaticEhbScene).
 constexpr eng::u32 kDispPlaneBytes = drivers::StaticEhbScene::plane_bytes; // 10240
 constexpr eng::u16 kDispRowBytes = drivers::StaticEhbScene::bytes_per_row; // 40
 
-/// Paleta de fuego (indices 0..15): negro -> rojo -> naranja -> amarillo -> blanco.
+/// Paleta de fuego de 32 colores: negro -> rojo -> naranja -> amarillo -> blanco.
 void build_fire_palette(drivers::EhbPalette& pal) {
-	const eng::u16 fire[16] = {
+	const eng::u16 fire[32] = {
 		0x000, 0x100, 0x200, 0x300, 0x400, 0x500, 0x600, 0x710,
-		0x820, 0xa30, 0xc40, 0xd50, 0xe60, 0xf70, 0xfc8, 0xfff,
+		0x820, 0x930, 0xa40, 0xb50, 0xc60, 0xd70, 0xe80, 0xf90,
+		0xfa0, 0xfb0, 0xfc0, 0xfd0, 0xfe0, 0xff0, 0xff4, 0xff8,
+		0xffc, 0xfff, 0xfff, 0xfff, 0xfff, 0xfff, 0xfff, 0xfff,
 	};
-	for (eng::u8 i = 0; i < 16u; ++i) pal.color[i] = fire[i];
+	for (eng::u8 i = 0; i < 32u; ++i) pal.color[i] = fire[i];
 }
 
 struct FireC2pDemo {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({
-			96u * 1024u,  // Chip: 6 planos EHB (61440) + chunky 80x64 (5120) + planar (2560).
+			96u * 1024u,  // Chip: 6 planos EHB (61440) + chunky 80x64 (5120) + planar 5x640 (3200).
 			8u * 1024u,
 			4u * 1024u,
 		});
@@ -86,9 +90,9 @@ struct FireC2pDemo {
 			return;
 		}
 
-		// Buffer de fuego (chunky) + buffer planar temporal del c2p (80x64).
-		const eng::MemoryBlock fire_block = backend.memory().chip.allocate(kChunkyBytes, 4);
-		const eng::MemoryBlock planar_block = backend.memory().chip.allocate(kPlanarPlaneBytes * 4, 4);
+		// Buffer de fuego (chunky) + buffer planar temporal del c2p (5 planos 80x64).
+		const eng::MemoryBlock fire_block = backend.memory().chip.allocate(kFireW * kFireH, 4);
+		const eng::MemoryBlock planar_block = backend.memory().chip.allocate(kPlaneBytes * kPlanes, 4);
 		if (!fire_block.valid() || !planar_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006203u);
 			return;
@@ -96,20 +100,17 @@ struct FireC2pDemo {
 		m_fire = static_cast<eng::u8*>(fire_block.data);
 		m_planar = static_cast<eng::u8*>(planar_block.data);
 
-		// Planos 5/6 del EHB a 0 (sin half-brite), una sola vez.
+		// Planos 5 del EHB (half-brite) a 0, una sola vez; el fuego usa planos 0..4.
 		eng::u8* planes = m_scene.bitplanes();
 		for (eng::u32 i = 0; i < kDispPlaneBytes; ++i) {
-			planes[4u * kDispPlaneBytes + i] = 0u;
 			planes[5u * kDispPlaneBytes + i] = 0u;
 		}
 
 		m_scene.takeover(backend);
-		// Pre-desarrolla el fuego (varias iteraciones) para que la captura muestre
-		// llamas; el algoritmo del fuego es el cuello (no el c2p), pero a 80x64 es
-		// rapido (~35 ms/iteracion).
+		// Pre-desarrolla el fuego para que la captura muestre llamas.
 		for (int i = 0; i < 32; ++i) {
 			generate_fire();
-			eng::graphics::c2p_1x1_4(kFireW, kFireH, kPlanarPlaneBytes, m_fire, m_planar);
+			eng::graphics::c2p_1x1_naive(kFireW, kFireH, kPlanes, kPlaneBytes, m_fire, m_planar);
 			scale4x(m_planar, m_scene.bitplanes());
 		}
 		eng::debug::mark_ready(g_eng_run_status, 0x06200000u | kFireW);
@@ -118,7 +119,7 @@ struct FireC2pDemo {
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		(void)backend;
 		generate_fire();
-		eng::graphics::c2p_1x1_4(kFireW, kFireH, kPlanarPlaneBytes, m_fire, m_planar);
+		eng::graphics::c2p_1x1_naive(kFireW, kFireH, kPlanes, kPlaneBytes, m_fire, m_planar);
 		scale4x(m_planar, m_scene.bitplanes());
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 	}
@@ -128,14 +129,12 @@ struct FireC2pDemo {
 	}
 
 private:
-	/// Fuego: randomiza la fila inferior y promedia vecinos de abajo a arriba.
-	/// El buffer `m_fire` es el propio chunky (0..15), sin copias intermedias.
-	/// Fórmula clásica in-place (recorre de abajo hacia arriba, así la fila de
-	/// abajo ya está calculada; el propio pixel aún no se tocó en esta pasada).
+	/// Fuego (indice 0..31): randomiza la fila inferior y promedia vecinos de abajo
+	/// a arriba (in-place; la fila de abajo ya calculada, el propio pixel intacto).
 	void generate_fire() {
 		const eng::u32 last = static_cast<eng::u32>(kFireH - 1u) * kFireW;
 		for (eng::u16 x = 0; x < kFireW; ++x) {
-			m_fire[last + x] = static_cast<eng::u8>(m_rng.next() & 15u);
+			m_fire[last + x] = static_cast<eng::u8>(m_rng.next() & 31u);
 		}
 
 		for (eng::u16 y = kFireH - 2u; ; --y) {
@@ -148,29 +147,27 @@ private:
 					static_cast<eng::u32>(m_fire[below + x + 1u]) +
 					static_cast<eng::u32>(m_fire[row + x])
 				) >> 2u;
-				m_fire[row + x] = static_cast<eng::u8>(v);
+				m_fire[row + x] = v > 31u ? 31u : static_cast<eng::u8>(v);
 			}
 			if (y == 0u) break;
 		}
 	}
 
-	/// Expande el planar 80x64 (4 planos) a 320x256 (4 planos del display),
-	/// replicando cada byte 4x en horizontal y cada linea 4x en vertical.
-	/// Equivalente visual del line-quadrupling del original (BPLMOD + fetch ancho).
+	/// Expande el planar 80x64 (kPlanes planos) a 320x256 (planos 0..kPlanes-1 del
+	/// display EHB), replicando cada byte 4x en horizontal y cada linea 4x en
+	/// vertical. Escribe u32 nativos (4 bytes iguales) para que g++ emita move.l.
 	void scale4x(const eng::u8* src, eng::u8* dst_planes) {
-		for (eng::u8 p = 0; p < 4u; ++p) {
-			const eng::u8* sp = src + static_cast<eng::u32>(p) * kPlanarPlaneBytes;
+		for (eng::u8 p = 0; p < kPlanes; ++p) {
+			const eng::u8* sp = src + static_cast<eng::u32>(p) * kPlaneBytes;
 			eng::u8* dp = dst_planes + static_cast<eng::u32>(p) * kDispPlaneBytes;
 			for (eng::u16 y = 0; y < kFireH; ++y) {
-				const eng::u8* srow = sp + static_cast<eng::u32>(y) * kPlanarRowBytes;
+				const eng::u8* srow = sp + static_cast<eng::u32>(y) * kRowBytes;
 				for (eng::u8 rep = 0; rep < kScale; ++rep) {
 					eng::u8* drow = dp + (static_cast<eng::u32>(y) * kScale + rep) * kDispRowBytes;
-					for (eng::u16 x = 0; x < kPlanarRowBytes; ++x) {
-						const eng::u8 b = srow[x];
-						drow[x * 4u + 0u] = b;
-						drow[x * 4u + 1u] = b;
-						drow[x * 4u + 2u] = b;
-						drow[x * 4u + 3u] = b;
+					for (eng::u16 x = 0; x < kRowBytes; ++x) {
+						const eng::u32 b = static_cast<eng::u32>(srow[x]);
+						*reinterpret_cast<eng::u32*>(drow + static_cast<eng::u32>(x) * 4u) =
+							(b * 0x01010101u);
 					}
 				}
 			}
@@ -180,8 +177,8 @@ private:
 	bool m_memory_ok = false;
 	bool m_scene_ok = false;
 	drivers::StaticEhbScene m_scene {};
-	eng::u8* m_fire = nullptr;    // chunky 80x64 (0..15)
-	eng::u8* m_planar = nullptr;  // planar temporal 4x(80x64)
+	eng::u8* m_fire = nullptr;    // chunky 80x64 (0..31)
+	eng::u8* m_planar = nullptr;  // planar temporal 5x(80x64)
 	eng::Xoroshiro64pp m_rng { 0x12345678u, 0x9abcdef0u };
 };
 
