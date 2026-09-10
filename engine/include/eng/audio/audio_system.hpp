@@ -11,6 +11,13 @@
 /// El juego no necesita conocer estos backends: llama a `play_sfx`/`play_music`
 /// y el sistema se encarga de arrancar/parar/detener. La memoria contigua se
 /// expresa con `Span` (`SfxSample`, `MusicModule`), sin punteros crudos.
+///
+/// NOTA DE CAPAS (apuntado, no urgente): `SfxMixer`/`P61Player`/`PtPlayer` y sus
+/// wrappers `*_amiga` son backend Amiga (inline asm `jsr _MixerXxx`, VASM). Hoy
+/// viven en `eng/audio/` junto al vocabulario portable (`audio.hpp`); lo correcto
+/// a medio plazo es mover estos tres headers a `eng/platform/` (o
+/// `eng/audio/amiga/`) y dejar en `eng/audio/` solo las intenciones. Solo paga
+/// hacerlo cuando haya segunda plataforma o se reutilice `eng/audio` en host.
 
 #include <eng/audio/music_player.hpp>
 #include <eng/audio/sfx_mixer.hpp>
@@ -110,6 +117,14 @@ public:
 
 	bool music_playing() const { return m_format != MusicFormat::None; }
 	MusicFormat music_format() const { return m_format; }
+
+	/// Volumen maestro (0..64): afecta a SFX y música a la vez. Útil para un
+	/// control global (mute/fade). Para volúmenes independientes, usar
+	/// `set_sfx_volume`/`set_music_volume`.
+	void set_master_volume(u8 volume) {
+		set_sfx_volume(volume);
+		set_music_volume(volume);
+	}
 
 	// ---- Subsistemas (uso avanzado) ----------------------------------------
 

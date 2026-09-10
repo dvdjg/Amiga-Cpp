@@ -17,6 +17,9 @@ en C del repo hermano (`Cursor-Amiga-C`) está en [../c-engine/](../c-engine/REA
 | [CIRCULAR_VS_XLIMITED.md](CIRCULAR_VS_XLIMITED.md) | Comparativa canónica del modelo circular frente al XLimited interleaved (geometría 352/384, plane-shift, saveword). |
 | [ENGINE_DESIGN.md](ENGINE_DESIGN.md) | Diseño integral del engine: capas, entidades y dependencias para un juego completo (gráficos, E/S, sonido, música, escena, assets, ciclo de vida), encaje de demoscene-repo/amiga-bootcamp/ACE/Sevgi y plan de conversión del sistema actual. |
 | [VISUAL_EFFECT_SPRITE_DESIGN.md](VISUAL_EFFECT_SPRITE_DESIGN.md) | Parte gráfica/efectos del diseño: `Visual`, `CopperIntent`, `SpriteTemplate` y concept `Effect`; mapa de layers de display, simetría actor/playfield. |
+| [AUDIO_MIXER.md](AUDIO_MIXER.md) | Audio Mixer 3.7 de Photon integrado de forma nativa: requisitos de muestras preprocesadas, capacidades, configuración, API, preprocesado y rendimiento. |
+| [MUSIC_PLAYER.md](MUSIC_PLAYER.md) | Reproductores de música (ptplayer/P61/AHX): estado de importación, API y convenio mixer+música. |
+| [GAME_AUDIO.md](GAME_AUDIO.md) | Capa de audio de juego (`GameAudio`/`SampleBank`): política de voces y ducking, y guía para generar música y sonidos desde herramientas externas. |
 
 ## Puntos de entrada del código
 

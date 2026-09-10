@@ -120,17 +120,25 @@ struct InputAggregatorDemo {
 
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		// 1) Entrada: el backend rellena el agregador (joystick + fuego) y el
-		//    teclado sintético se sondea aparte.
+		//    teclado sintético se sondea aparte; el ratón se lee por delta.
 		eng::input::InputAggregator agg;
 		eng::amiga::poll_input(agg);
 		eng::amiga::KeyboardState kbd;
 		eng::amiga::poll_keyboard(kbd);
+		eng::amiga::MousePollState mps = m_mouse_poll;
+		eng::input::MouseState mouse;
+		eng::amiga::poll_mouse(mouse, mps);
+		m_mouse_poll = mps;
 
-		// 2) Lógica: mover la cruz con el pad 0.
+		// 2) Lógica: mover la cruz con el pad 0 y con el ratón (delta).
 		if (agg.pad0.left)  { if (m_cx > 4u) m_cx -= 2u; }
 		if (agg.pad0.right) { if (m_cx < kScreenW - 4u) m_cx += 2u; }
 		if (agg.pad0.up)    { if (m_cy > 4u) m_cy -= 2u; }
 		if (agg.pad0.down)  { if (m_cy < kScreenH - 4u) m_cy += 2u; }
+		if (mouse.dx > 0 && m_cx < kScreenW - 4u) m_cx += 2u;
+		if (mouse.dx < 0 && m_cx > 4u) m_cx -= 2u;
+		if (mouse.dy < 0 && m_cy > 4u) m_cy -= 2u;
+		if (mouse.dy > 0 && m_cy < kScreenH - 4u) m_cy += 2u;
 
 		// Color: tecla 1..9 selecciona un color determinista; FIRE = rojo.
 		if (kbd.pending >= 0x02u && kbd.pending <= 0x0au) {
@@ -235,6 +243,7 @@ private:
 	eng::u8 m_color_idx = 0;
 	eng::u16 m_cx = kScreenW / 2u;
 	eng::u16 m_cy = kScreenH / 2u;
+	eng::amiga::MousePollState m_mouse_poll {};
 	eng::u16 m_palette[32] {};
 	const eng::u16* m_copper_ptr = nullptr;
 	eng::u8* m_bitplanes = nullptr;

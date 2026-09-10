@@ -90,6 +90,7 @@ public:
         for (u8 i = 0; i < 8; ++i) {
             const SpriteConfig& s = m_spr[i];
             if (!s.enabled || s.data.empty()) continue;
+            sched.wait_line_safe(s.vstart);
             emit_config(sched, i, s, s.data);
         }
     }
@@ -150,7 +151,8 @@ public:
 
     constexpr u16 copper_words() const {
         u16 w = 0;
-        for (const auto& s : m_spr) if (s.enabled && !s.data.empty()) w += 6; // CTL+POS+PT(2)
+        // Por sprite: 1 WAIT (2 words) + POS + CTL + PTH + PTL (4 MOVEs = 8 words).
+        for (const auto& s : m_spr) if (s.enabled && !s.data.empty()) w += 10;
         return w;
     }
 

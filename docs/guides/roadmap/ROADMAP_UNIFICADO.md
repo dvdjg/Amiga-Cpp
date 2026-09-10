@@ -42,10 +42,14 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   - `SpriteAllocator` (paso 4 de `ENGINE_DESIGN.md` §5): asignar canales a
     `SpriteIntent` con multiplexado y decidir el overflow → BOB (transición
     sprite→BOB transparente). Es el siguiente paso. **Hecho**: la lógica pura
-    (`sprite_allocator.hpp`) está validada por el test host HOST-003. **Pendiente**:
-    arreglar `SpriteManager::emit_into` (camino de 8 canales, destapado por la demo
-    054): emite los sprites (`copper_words` correcto) pero el DMA no los dibuja;
-    el `emit_template_into` de la 053 (con `wait_line` por segmento) sí funciona.
+    (`sprite_allocator.hpp`) está validada por el test host HOST-003.
+    `SpriteManager::emit_into` (camino de 8 canales, demo 054): **arreglado el
+    "no dibuja"** añadiendo `wait_line_safe(vstart)` antes de cada sprite (el
+    sprite debe programarse en su VSTART, no arriba del frame); también corregido
+    `copper_words()` (6→10 words/sprite). **Pendiente (bug secundario)**: los
+    sprites dibujan pero TODOS en azul (COLOR25) y agrupados, en vez de
+    rojo/verde/azul/amarillo en fila; queda por diagnosticar (paleta/posición con
+    8 sprites en el mismo VSTART).
   - Diagnosticar por qué **rellenar bitplanes rompe el rearm** del sprite en modo
     6 planos (solo dibuja el primer segmento); bloquea fondos reales en demos de
     sprites. Alternativa segura: fondo por copper-gradient (`COLOR00` por línea).
@@ -97,7 +101,13 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   `eng::audio::AudioSystem` (`engine/include/eng/audio/audio_system.hpp`): fachada
   única que compone `SfxMixer` + `P61Player`/`PtPlayer`; demo `061_audio_system`
   demuestra coexistencia SFX (AUD0) + música (AUD1) con el orden canónico
-  música→canal reservado→mixer. **Pendiente**: `libahx` (necesita `.BIN` + libc).
+  música→canal reservado→mixer. Añadido `set_master_volume` (volumen global SFX+
+  música). **Capa de juego** `eng::audio::GameAudio` (`game_audio.hpp`) +
+  `SampleBank`/`allow_trigger` (puros, `sfx_bank.hpp`): banco de sonidos por `id`,
+  política de voces (cooldown, límite de instancias, prioridad) y ducking; validado
+  por HOST-008 y demo `062_game_audio`. Guía completa (API + generación de música
+  y sonidos desde herramientas externas) en `docs/engine/architecture/GAME_AUDIO.md`.
+  **Pendiente**: `libahx` (necesita `.BIN` + libc).
   Ver `docs/engine/architecture/MUSIC_PLAYER.md`.
 - **Regla de API aplicada**: la capa de audio no expone punteros crudos al
   programador; las áreas de memoria contigua se representan con `eng::Span`
