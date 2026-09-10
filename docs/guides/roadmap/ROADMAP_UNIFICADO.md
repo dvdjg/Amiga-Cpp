@@ -79,9 +79,19 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   (`AUD0EN`+`DMAEN`) y `MixerGetTotalChannelCount()`=4. Documentado en
   `docs/engine/architecture/AUDIO_MIXER.md` (requisitos de muestras preprocesadas,
   capacidades, configuración, API, preprocesado, rendimiento).
-  **Pendiente**: `MusicPlayer` (envoltorio de los reproductores asm
-  `libp61`/`libpt`/`libahx` de `demoscene-repo-orig`; ver
-  `docs/engine/architecture/MUSIC_PLAYER.md`).
+- **Hecho (música, `MusicPlayer`)**: reproductor **P61** (Photon/Scoopex) importado
+  de `demoscene-repo-orig/lib/libp61` a `support/music/` (`p61.asm` +
+  `P6112-Play.i`, ensamblado con VASM). Envoltura de juego `eng::audio::P61Player`
+  en `engine/include/eng/audio/music_player.hpp` (API sin punteros: `MusicModule`
+  = `Span<const u8>`). Demo `059_music_player` enlaza SFX mixer + P61 y llega a
+  READY (`P61_Init` falla limpiamente sin módulo). **Pendiente**: demo con un
+  módulo `.p61` incrustado y coexistencia real SFX+música (canales separados);
+  reproductores `libpt`/`libahx` (mismo patrón). Ver
+  `docs/engine/architecture/MUSIC_PLAYER.md`.
+- **Regla de API aplicada**: la capa de audio no expone punteros crudos al
+  programador; las áreas de memoria contigua se representan con `eng::Span`
+  (`SfxSample` y `MusicModule`). Los punteros quedan en la capa interna
+  (`MixerEffect`/wrappers `jsr`).
 
 ## Tests host — estado (2026-09)
 

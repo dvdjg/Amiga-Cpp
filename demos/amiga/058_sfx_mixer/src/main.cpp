@@ -168,10 +168,10 @@ struct SfxMixerDemo {
 
 private:
 	eng::audio::SfxSample beep_sample() {
-		return { static_cast<const eng::u8*>(m_beep_block.data), kBeepLen };
+		return { eng::Span<const eng::u8>(static_cast<const eng::u8*>(m_beep_block.data), kBeepLen) };
 	}
 	eng::audio::SfxSample alarm_sample() {
-		return { static_cast<const eng::u8*>(m_alarm_block.data), kAlarmLen };
+		return { eng::Span<const eng::u8>(static_cast<const eng::u8*>(m_alarm_block.data), kAlarmLen) };
 	}
 
 	/// Genera una onda cuadrada con signo (8 bits) de amplitud ±24.

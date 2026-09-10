@@ -19,6 +19,7 @@
 /// El código ASM vive en `support/audio_mixer/` y se ensambla con VASM a ELF en
 /// `tools/build/build-demo.sh`. Es Amiga-only (usa VBR/interrupciones/DMACON).
 
+#include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/memory/arena.hpp>
 
@@ -160,10 +161,11 @@ inline u32 sample_min_size() {
 
 } // namespace mixer_amiga
 
-/// Una muestra preprocesada lista para el mixer.
+/// Una muestra preprocesada lista para el mixer. Expone la memoria como
+/// `Span<const u8>` (tamaño viaja con la vista): el programador de juego nunca
+/// ve un puntero crudo. El puntero solo aparece en `MixerEffect` (capa interna).
 struct SfxSample {
-	const u8* data = nullptr; // puntero a la muestra (cualquier RAM, alineada a 4 si 68020+)
-	u32 length_bytes = 0;     // múltiplo del tamaño mínimo del mixer
+	Span<const u8> data {}; // vista a la muestra (cualquier RAM, múltiplo del mínimo)
 };
 
 /// Canal de efecto devuelto por `play()` (combinación hw+mixer). -1 = sin canal.
@@ -220,12 +222,12 @@ public:
 	/// Reproduce una muestra en el mejor canal libre. `priority` mayor gana.
 	/// Devuelve el canal (>=0) o -1 si no hay canal libre.
 	SfxChannel play(const SfxSample& sample, s16 priority, LoopMode mode, u32 loop_offset = 0) {
-		if (!m_ready || sample.data == nullptr) {
+		if (!m_ready || sample.data.empty()) {
 			return -1;
 		}
 		mixer_amiga::MixerEffect fx;
-		fx.length = static_cast<s32>(sample.length_bytes);
-		fx.sample = sample.data;
+		fx.length = static_cast<s32>(sample.data.size());
+		fx.sample = sample.data.data();
 		fx.loop = static_cast<s16>(mode);
 		fx.priority = priority;
 		fx.loop_offset = static_cast<s32>(loop_offset);
@@ -235,12 +237,12 @@ public:
 
 	/// Reproduce en un canal software concreto (MixCh0..MixCh3).
 	SfxChannel play_on(u16 mixer_channel, const SfxSample& sample, s16 priority, LoopMode mode, u32 loop_offset = 0) {
-		if (!m_ready || sample.data == nullptr) {
+		if (!m_ready || sample.data.empty()) {
 			return -1;
 		}
 		mixer_amiga::MixerEffect fx;
-		fx.length = static_cast<s32>(sample.length_bytes);
-		fx.sample = sample.data;
+		fx.length = static_cast<s32>(sample.data.size());
+		fx.sample = sample.data.data();
 		fx.loop = static_cast<s16>(mode);
 		fx.priority = priority;
 		fx.loop_offset = static_cast<s32>(loop_offset);

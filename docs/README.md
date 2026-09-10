@@ -62,6 +62,45 @@ incorporó **por tema**:
 > del repo original (p. ej. `app/`, `tests/amiga-battery/`, `scripts/`). Trátalos
 > como referencia histórica; la fuente de verdad operativa es este repositorio.
 
+## Créditos y atribución
+
+Código e ideas tomadas de terceros, con su licencia. Si incorporas código de una
+fuente nueva, añádela aquí en la misma pasada.
+
+### Audio
+
+- **Jeroen Knoester (Photon)** — *Audio Mixer 3.7* (motor SFX por software,
+  `support/audio_mixer/`; powerprograms.nl). Integrado de forma nativa. Ver
+  `engine/architecture/AUDIO_MIXER.md`.
+- **Photon/Scoopex** — *P61* (formato y playroutine 6.1), `demoscene-repo-orig/lib/libp61`.
+- **Frank Wille (phx)** — *ProTracker playroutine 6.4* (`ptplayer`), dominio público.
+- **Arnaud Carré (Leonard/Oxygene)** — *LightSpeedPlayer (LSP)*.
+- **agermose** — división sin signo 32/32 usada por los plugins del mixer.
+- **h0ffman, nivrig, KaiN, Jobbo, McGeezer** — AmigaGameDev Discord (apoyo al mixer).
+
+### Input
+
+- **ACE (Amiga C Engine)** — referencia de decodificación del joystick
+  (`eng/platform/input_poll.hpp`).
+- **Sevgi_Engine** — referencia de entrada/CD32 (protocolo `POTGO`).
+
+### Gráficos / efectos demoscene
+
+- **demoscene-repo / demoscene-repo-orig** — rutinas asm portadas (`support/`:
+  c2p, fuego, depacker) y librerías de referencia. Procedencia detallada en
+  `demos/effects/`.
+
+### Ejemplos y assets del mixer original
+
+- **Roald Strauss** — música de los ejemplos del mixer.
+- **freesound.org** — efectos de sonido de ejemplo.
+- **Henrik Erlandsson** — código de arranque de los ejemplos.
+
+### Referencia técnica
+
+- **Commodore Amiga Hardware Reference Manual** (3.ª ed., `reference/ahrm/`).
+- **amiga-bootcamp** (técnicas y hardware, repo hermano).
+
 ## Dónde va cada documento nuevo
 
 | Si el documento trata de... | va en... |

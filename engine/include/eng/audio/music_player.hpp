@@ -1,0 +1,127 @@
+#pragma once
+
+/// \file music_player.hpp
+/// Música de tracker: envoltura C++23 del reproductor P61 (Photon/Scoopex),
+/// integrado en el engine desde `demoscene-repo-orig/lib/libp61`.
+///
+/// El reproductor es un único `.asm` (`support/music/p61.asm` + `P6112-Play.i`),
+/// ensamblado con VASM a ELF en `build-demo.sh`. Expone la API `P61_Init`,
+/// `P61_Music` (por frame), `P61_End`, `P61_SetPosition` y el bloque de control
+/// `P61_ControlBlock` (volumen maestro, flag de reproducción, posición).
+///
+/// Diseño: el programador de juego usa `MusicModule` (vista `Span` a la memoria
+/// del módulo) y `P61Player`; los punteros de registro (`A0/A1/A2`) quedan en la
+/// capa interna `p61_amiga`. Los reproductores pt/ahx seguirán el mismo patrón.
+
+#include <eng/core/span.hpp>
+#include <eng/core/types.hpp>
+
+namespace eng::audio {
+
+/// Módulo de música (vista contigua a la memoria del módulo, sin puntero crudo).
+struct MusicModule {
+	Span<const u8> data {}; // datos del módulo (.p61 / .mod)
+};
+
+namespace p61_amiga {
+
+/// Bloque de control de P61 (espejo de `p61.h`). Vive en el símbolo global
+/// `_P61_ControlBlock` exportado por el ASM; aquí se referencia con su nombre
+/// exacto (el identificador con guion bajo coincide con el símbolo VASM).
+extern "C" struct P61ControlBlock {
+	u16 Master;      // volumen maestro (0..64)
+	u16 UseTempo;    // ¿usar tempo?
+	u16 Play;        // 0 = parado, 1 = reproduciendo
+	u16 E8;          // nybble tras comando E8
+	const void* VBR; // base de vectores (si execbase no es válida)
+	u16 Pos;         // posición actual (solo lectura)
+	u16 Pattern;     // patrón actual (solo lectura)
+	u16 Row;         // fila actual (solo lectura)
+	s32 ChannelOffset[4];
+} _P61_ControlBlock;
+
+/// Envolturas de bajo nivel (convención de registros Amiga, vía `jsr _P61Xxx`).
+
+inline s32 init(const void* module, const void* samples, const void* buffer) {
+	register volatile const void* m __asm("a0") = module;
+	register volatile const void* s __asm("a1") = samples;
+	register volatile const void* b __asm("a2") = buffer;
+	register volatile u32 result __asm("d0");
+	__asm__ volatile("jsr _P61_Init" : "=r"(result) : "r"(m), "r"(s), "r"(b) : "cc", "memory");
+	return static_cast<s32>(result);
+}
+
+inline void music() {
+	__asm__ volatile("jsr _P61_Music" : : : "cc", "memory");
+}
+
+inline void end() {
+	__asm__ volatile("jsr _P61_End" : : : "cc", "memory");
+}
+
+inline void set_position(u8 position) {
+	register volatile u8 p __asm("d0") = position;
+	__asm__ volatile("jsr _P61_SetPosition" : : "r"(p) : "cc", "memory");
+}
+
+} // namespace p61_amiga
+
+/// Reproductor de música P61 orientado a juego.
+///
+/// Uso (tras tomar el display y arrancar el SFX mixer si lo hay):
+///   P61Player music;
+///   music.play(module);        // P61_Init
+///   // cada frame, en update():
+///   music.update();            // P61_Music
+///   music.set_master_volume(48);
+class P61Player {
+public:
+	/// Inicia la reproducción del módulo. Devuelve true si P61_Init tuvo éxito.
+	bool play(const MusicModule& module) {
+		if (module.data.empty()) {
+			return false;
+		}
+		m_playing = (p61_amiga::init(module.data.data(), nullptr, nullptr) == 0);
+		return m_playing;
+	}
+
+	/// Detiene la música.
+	void stop() {
+		if (m_playing) {
+			p61_amiga::end();
+			m_playing = false;
+		}
+	}
+
+	/// Avanza la reproducción (llamar una vez por frame, en update/VBlank).
+	void update() {
+		if (m_playing) {
+			p61_amiga::music();
+		}
+	}
+
+	/// Volumen maestro (0..64).
+	void set_master_volume(u8 volume) {
+		p61_amiga::_P61_ControlBlock.Master = static_cast<u16>(volume & 0x7fu);
+	}
+
+	/// Salta a una posición concreta del módulo.
+	void set_position(u8 position) {
+		if (m_playing) {
+			p61_amiga::set_position(position);
+		}
+	}
+
+	/// ¿Hay música reproduciéndose?
+	constexpr bool is_playing() const { return m_playing; }
+
+	/// Posición actual del módulo (0..n).
+	u8 position() const {
+		return static_cast<u8>(p61_amiga::_P61_ControlBlock.Pos);
+	}
+
+private:
+	bool m_playing = false;
+};
+
+} // namespace eng::audio

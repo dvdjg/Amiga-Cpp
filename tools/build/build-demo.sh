@@ -252,16 +252,17 @@ for SUPPORT_ASM in $(find "$ROOT/support" -maxdepth 1 -name '*.s' | sort); do
 	"$ASM" -mcpu=68000 -g --register-prefix-optional "-I$SDKDIR" -o "$SUPPORT_ASM_OBJ" "$SUPPORT_ASM"
 done
 
-# Ensambla el Audio Mixer 3.7 (Photon) con VASM a ELF (compatible con el linker
-# de GNU). mixer.asm incluye mixer_config.i; las opciones se fijan en ese archivo.
-# Plugins (plugins.asm) solo se ensamblan si MIXER_ENABLE_PLUGINS=1 en
-# mixer_config.i (no se ensamblan aquí por defecto).
-for MIXER_ASM in $(find "$ROOT/support/audio_mixer" -maxdepth 1 -name 'mixer.asm' | sort); do
-	MIXER_ASM_NAME="$(basename "$MIXER_ASM" .asm)"
-	MIXER_ASM_OBJ="$OBJ_DIR/audio_mixer_${MIXER_ASM_NAME}.o"
-	OBJECTS+=("$MIXER_ASM_OBJ")
-	echo "  VASM  $MIXER_ASM"
-	"$VASM" -quiet -Felf -m68000 -allmp -I"$SDKDIR" -I"$ROOT/support/audio_mixer" -DBUILD_MIXER -o "$MIXER_ASM_OBJ" "$MIXER_ASM"
+# Ensambla los fuentes VASM a ELF (compatibles con el linker de GNU):
+#   - support/audio_mixer/mixer.asm  : Audio Mixer 3.7 (Photon).
+#   - support/music/*.asm            : reproductores de música (p61, pt, ahx).
+# Cada fuente usa sus includes propios (mixer_config.i, P6112-Play.i, ...).
+for VASM_SRC in $(find "$ROOT/support/audio_mixer" -maxdepth 1 -name 'mixer.asm'; find "$ROOT/support/music" -maxdepth 1 -name '*.asm' | sort); do
+	VASM_SRC_NAME="$(basename "$VASM_SRC" .asm)"
+	VASM_SRC_DIR="$(basename "$(dirname "$VASM_SRC")")"
+	VASM_OBJ="$OBJ_DIR/vasm_${VASM_SRC_DIR}_${VASM_SRC_NAME}.o"
+	OBJECTS+=("$VASM_OBJ")
+	echo "  VASM  $VASM_SRC"
+	"$VASM" -quiet -Felf -m68000 -allmp -I"$SDKDIR" -I"$(dirname "$VASM_SRC")" -DBUILD_MIXER -o "$VASM_OBJ" "$VASM_SRC"
 done
 
 # --- Enlazado y hunk --------------------------------------------------------
