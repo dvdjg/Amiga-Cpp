@@ -41,7 +41,11 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
 - **Pendiente (mejoras apuntadas)**:
   - `SpriteAllocator` (paso 4 de `ENGINE_DESIGN.md` §5): asignar canales a
     `SpriteIntent` con multiplexado y decidir el overflow → BOB (transición
-    sprite→BOB transparente). Es el siguiente paso.
+    sprite→BOB transparente). Es el siguiente paso. **Hecho**: la lógica pura
+    (`sprite_allocator.hpp`) está validada por el test host HOST-003. **Pendiente**:
+    arreglar `SpriteManager::emit_into` (camino de 8 canales, destapado por la demo
+    054): emite los sprites (`copper_words` correcto) pero el DMA no los dibuja;
+    el `emit_template_into` de la 053 (con `wait_line` por segmento) sí funciona.
   - Diagnosticar por qué **rellenar bitplanes rompe el rearm** del sprite en modo
     6 planos (solo dibuja el primer segmento); bloquea fondos reales en demos de
     sprites. Alternativa segura: fondo por copper-gradient (`COLOR00` por línea).
@@ -49,6 +53,21 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
     `SpriteRearm`, `Priority`) en el driver que conoce el layout (paso 2/3).
   - Embellecer la demo 053 (fondo, animación de colores) siguiendo la regla
     «Demos atractivas» de `AGENTS.md`.
+
+## Tests host — estado (2026-09)
+
+- **g++ nativo instalado** (WinLibs GCC 16.2.0, mingw-w64 ucrt) en
+  `C:\Users\dvdjg\Documents\programa\AI\Amiga\mingw64`. No está en el PATH: para
+  correr `tools/run-host-tests.sh` usar
+  `CXX="C:\...\Amiga\mingw64\bin\g++.exe" bash tools/run-host-tests.sh`.
+- **Corregido** el cast puntero→`u32` (portabilidad 32/64 bits): las cabeceras de
+  gráficos/field ahora usan `eng::uintptr` para extraer direcciones de punteros
+  (`copper.hpp`, `sprite_manager.hpp`, `tile_scroll.hpp`, `dpf_composer.hpp`,
+  `xlimited.hpp`). En m68k `uintptr == u32` (no-op).
+- Tests host: HOST-000 (math), HOST-002 (raster_intent) y HOST-003
+  (sprite_allocator) **pasan**. HOST-001 (`graphics_driver_contract`) falla con
+  **ICE de gcc 16.2.0** en `xlimited_scene.hpp:649` (bug del compilador, pendiente
+  aislar el constructo o probar gcc 15.x).
 
 ## Decisiones tomadas en 202 (a respetar)
 

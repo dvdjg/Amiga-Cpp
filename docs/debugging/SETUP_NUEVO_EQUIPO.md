@@ -168,6 +168,23 @@ bash ./tools/debug/amiga-session.sh state|regs|pause|resume|mem|screenshot|...
 Ver `tools/dap-test/README.md`: lanza el adaptador standalone y verifica que un
 breakpoint se detiene y resuelve fuente C++.
 
+## 8. Compilador nativo `g++` para los tests host
+
+Los tests host (`tests/host/`, `tools/run-host-tests.sh`) compilan las APIs puras
+del engine (matemáticas, ordenación, `SpriteAllocator`…) con un **g++ nativo** de
+Windows (mingw), no con el cruce m68k. No viene con la extensión de VS Code.
+
+Instalar WinLibs (GCC mingw-w64, ucrt, posix-seh) y descomprimir en
+`C:\Users\dvdjg\Documents\programa\AI\Amiga\mingw64` (u otra ruta), y luego correr:
+
+```bash
+CXX="C:/Users/dvdjg/Documents/programa/AI/Amiga/mingw64/bin/g++.exe" \
+  bash tools/run-host-tests.sh
+```
+
+Sin `CXX`, el script busca `g++` en el `PATH`. Requiere gcc ≥ 15 para C++23 (el
+toolchain m68k del proyecto es 15.1).
+
 ## Notas sobre versiones
 
 - La extensión instalada en este equipo es el **fork 1.8.1** (con los fixes de
