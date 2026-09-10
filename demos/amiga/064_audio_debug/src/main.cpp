@@ -60,7 +60,12 @@ constexpr eng::u32 kBitplaneBytes = kPlaneBytes * kPlanes;
 
 constexpr eng::u32 kSampleBytes = 64;   // un ciclo de seno (64 muestras)
 constexpr eng::u16 kSampleWords = kSampleBytes / 2u;
-constexpr eng::u16 kPeriod = 127;       // ~440 Hz con un ciclo de 64 muestras
+constexpr eng::u16 kPeriod = 214;       // C-4 (~259 Hz) con un ciclo de 64 muestras
+
+// Escala de Do mayor (C D E F G A), una nota cada kNoteFrames frames. Períodos
+// C-3..A-3 con un ciclo de 64 muestras suenan ~C4..A4 (259..436 Hz).
+constexpr eng::u16 kScale[6] = { 214, 190, 170, 160, 143, 127 };
+constexpr eng::u32 kNoteFrames = 20;    // frames por nota
 
 struct AudioDebugDemo {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
@@ -125,8 +130,13 @@ struct AudioDebugDemo {
 	}
 
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+		// Cambia el tono cada kNoteFrames frames: una escala de Do mayor. Esto
+		// demuestra que el tono de UN canal de Paula cambia (sin ptplayer ni mixer).
+		const eng::u8 note = static_cast<eng::u8>((context.frame.frame_index / kNoteFrames) % 6u);
+		const eng::u16 period = kScale[note];
+		*reinterpret_cast<volatile eng::u16*>(0xdff0a6u) = period; // AUD0PER
+		g_audio_dbg.aud0_per = period;
 		(void)backend;
-		(void)context;
 	}
 
 	void render(eng::amiga::MinimalBackend&, eng::GameContext& context) {

@@ -115,8 +115,9 @@ public:
 	void stop_music() { m_audio->stop_music(); }
 	void update_music() { m_audio->update_music(); }
 
-	/// Reserva canales de música para el SFX (solo Protracker). P. ej.
-	/// `set_music_channel_mask(1)` deja AUD0 libre para el mixer.
+	/// Máscara de canales de música (solo Protracker). Semántica: bit a 1 = canal
+	/// audible, bit a 0 = silenciado. P. ej. `set_music_channel_mask(0x0E)` silencia
+	/// AUD0 (para el mixer) y mantiene AUD1..AUD3 sonando.
 	void set_music_channel_mask(u8 mask) {
 		m_audio->set_music_channel_mask(mask);
 	}

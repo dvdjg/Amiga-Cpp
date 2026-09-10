@@ -156,8 +156,8 @@ private:
 		for (eng::u32 row = 0; row < 64; ++row) {
 			const eng::u32 base = 1084 + row * 16 + 4; // canal 1 (AUD1)
 			m[base + 0] = 0x01;
-			m[base + 1] = 0x1A;
-			m[base + 2] = 0xC0;
+			m[base + 1] = 0xAC;
+			m[base + 2] = 0x10;
 			m[base + 3] = 0x00;
 		}
 		for (eng::u32 i = 0; i < kSampleLen; ++i) {

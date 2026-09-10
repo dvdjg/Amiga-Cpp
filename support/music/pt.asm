@@ -48,6 +48,7 @@ _PtEnd:
 
         xdef    _PtGetPos
         xdef    _PtGetPeriod
+        xdef    _PtGetPeriodCh
 
 ; Devuelve en D0 la fila actual (mt_PatternPos) y en D1 el patrón (mt_SongPos),
 ; para diagnosticar si la música avanza (o se queda en un tono fijo).
@@ -58,9 +59,18 @@ _PtGetPos:
         move.b  mt_SongPos(a0),d1
         rts
 
-; Devuelve en D0 el período actual del canal 1 (mt_chan1+n_period), para
-; diagnosticar si el tono cambia al avanzar la melodía.
+; Devuelve en D0 el período actual del canal 2 (AUD1, la melodía; mt_chan2+n_period),
+; para diagnosticar si el tono cambia al avanzar la melodía.
 _PtGetPeriod:
         lea     mt_data(pc),a0
+        move.w  n_sizeof+n_period(a0),d0
+        rts
+
+; Devuelve en D0 el período del canal indicado en D0 (0=canal 1/AUD0 ...
+; 3=canal 4/AUD3). Permite diagnosticar cada voz de una pieza polifónica.
+_PtGetPeriodCh:
+        lea     mt_data(pc),a0
+        mulu    #n_sizeof,d0
+        adda.w  d0,a0
         move.w  n_period(a0),d0
         rts

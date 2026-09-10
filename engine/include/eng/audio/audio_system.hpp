@@ -107,8 +107,10 @@ public:
 		}
 	}
 
-	/// Reserva canales de música para el SFX (solo Protracker: máscara de canales
-	/// a excluir). P. ej. `set_music_channel_mask(1)` deja AUD0 libre para el mixer.
+	/// Máscara de canales de música (solo Protracker). Semántica: bit a 1 = canal
+	/// audible, bit a 0 = canal silenciado (bit 0 = AUD0 ... bit 3 = AUD3). P. ej.
+	/// `set_music_channel_mask(0x0E)` silencia AUD0 (lo deja libre para el mixer)
+	/// y mantiene AUD1..AUD3 sonando.
 	void set_music_channel_mask(u8 mask) {
 		if (m_format == MusicFormat::Protracker) {
 			m_pt.set_channel_mask(mask);

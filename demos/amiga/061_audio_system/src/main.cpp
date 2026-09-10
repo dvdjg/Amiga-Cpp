@@ -79,7 +79,7 @@ struct AudioSystemDemo {
 		// reserva AUD0 para el mixer y solo entonces se arranca el mixer.
 		eng::audio::MusicModule mod { eng::Span<const eng::u8>(static_cast<const eng::u8*>(m_mod_block.data), kModSize) };
 		m_music_ok = m_audio.play_music(mod, eng::audio::MusicFormat::Protracker);
-		m_audio.set_music_channel_mask(0x01u); // AUD0 libre para el mixer
+		m_audio.set_music_channel_mask(0x0Eu); // silencia AUD0 (mixer), deja AUD1..AUD3
 
 		if (!m_audio.init(backend.memory())) { eng::debug::mark_failed(g_eng_run_status, 0x00006104u); return; }
 		m_alarm_ch = m_audio.play_sfx_on(eng::audio::MixCh0, alarm_sample(), 1, eng::audio::LoopMode::Loop);
@@ -144,8 +144,8 @@ private:
 		for (eng::u32 row = 0; row < 64; ++row) {
 			const eng::u32 base = 1084 + row * 16 + 4; // canal 1 (AUD1)
 			m[base + 0] = 0x01;
-			m[base + 1] = 0x1A;
-			m[base + 2] = 0xC0;
+			m[base + 1] = 0xAC;
+			m[base + 2] = 0x10;
 			m[base + 3] = 0x00;
 		}
 		for (eng::u32 i = 0; i < kSampleLen; ++i) {

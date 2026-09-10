@@ -51,7 +51,7 @@ backend.audio_init();                       // o audio.init(backend.memory())
 audio.play_music(modulo, eng::audio::MusicFormat::Protracker);
 audio.set_music_volume(40);      // volumen de música en reposo
 audio.set_duck_volume(12);       // volumen de música cuando hay ducking
-audio.set_music_channel_mask(1); // AUD0 libre para el mixer (Protracker)
+audio.set_music_channel_mask(0x0E); // silencia AUD0 (mixer) y deja AUD1..AUD3 (Protracker)
 
 // 3) Por frame.
 audio.play(kSfxDisparo, frame);  // aplica cooldown + límite + grupo + prioridad
@@ -112,10 +112,30 @@ La música es un **módulo de tracker** incrustado en la demo/juego (por `incbin
    ProTracker original). **4 canales**, 31 muestras máximo.
 2. Exporta como **.mod (ProTracker M.K.)**, no como .xm/.it.
 3. **Reserva un canal para el SFX**: deja el canal 0 (el del mixer, `AUD0`) sin
-   notas, o usa `set_music_channel_mask(1)` para silenciarlo en el reproductor.
+   notas, o usa `set_music_channel_mask(0x0E)` para silenciarlo en el reproductor.
    La música efectiva irá por `AUD1..AUD3`.
+
+> **Semántica de la máscara**: bit a 1 = canal audible, bit a 0 = canal silenciado
+> (bit 0 = `AUD0` ... bit 3 = `AUD3`). `0x0E` silencia `AUD0` y mantiene `AUD1..AUD3`;
+> `0x02` deja sonar solo `AUD1`.
 4. Incrusta el `.mod` (el `incbin` de `support/`) y pásalo como
    `MusicModule { Span(module, len) }`.
+
+> **¡Ojo con el formato de nota del ptplayer!** No es el estándar M.K.: el
+> período de 12 bits va en `byte0` (bits 11-8, nibble bajo) + `byte1` (bits 7-0),
+> y la muestra en `byte2` (nibble alto) + el efecto en `byte2` (nibble bajo).
+> Para una nota de período `P` con la muestra 1:
+>   `byte0 = P >> 8`, `byte1 = P & 0xFF`, `byte2 = 0x10`, `byte3 = 0`.
+> Si se usa la codificación M.K. estándar (período repartido en 3 nibbles) el
+> reproductor lee un período erróneo y suena un **tono fijo**. Las demos 060-063
+> generan el `.mod` con esta codificación (`write_note`).
+
+> **Límite de tesitura (3 octavas)**: `mt_PeriodTable` cubre solo `C-1..B-3`
+> (períodos `856..113`). Una nota más aguda (período menor que 113, p. ej. C-4=107)
+> queda fuera de la tabla y el reproductor la clava en B-3 (113) en vez de sonar.
+> Todas las voces deben caber en ese rango; para más tesitura, transpón la pieza
+> o usa un sample grabado en la octava deseada. Demo de referencia: `066_polyphony`
+> (3 voces independientes en C-1..B-3).
 
 ### P61 (.p61)
 

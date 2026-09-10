@@ -144,8 +144,8 @@ private:
 		for (eng::u32 row = 0; row < 64; ++row) {
 			const eng::u32 base = 1084 + row * 16;
 			m[base + 0] = 0x01; // sample high nibble 0, period high nibble 1
-			m[base + 1] = 0x1A; // sample low nibble 1, period 0xA
-			m[base + 2] = 0xC0; // period low nibble 0xC, efecto 0
+			m[base + 1] = 0xAC; // sample low nibble 1, period 0xA
+			m[base + 2] = 0x10; // period low nibble 0xC, efecto 0
 			m[base + 3] = 0x00;
 		}
 

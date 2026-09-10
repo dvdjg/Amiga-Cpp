@@ -179,6 +179,14 @@ inline u16 get_period() {
 	return static_cast<u16>(p & 0xffffu);
 }
 
+/// Período actual del canal `channel` (0 = AUD0 ... 3 = AUD3), para diagnosticar
+/// cada voz de una pieza polifónica por separado.
+inline u16 get_channel_period(u8 channel) {
+	register volatile u32 p __asm("d0") = channel;
+	__asm__ volatile("jsr _PtGetPeriodCh" : "+d"(p) : : "cc", "memory");
+	return static_cast<u16>(p & 0xffffu);
+}
+
 } // namespace pt_amiga
 
 /// Reproductor de música Protracker (`.mod`), orientado a juego.
@@ -217,7 +225,9 @@ public:
 		}
 	}
 
-	/// Reserva canales para el SFX mixer (p. ej. `channel_mask(1)` deja AUD0 libre).
+	/// Máscara de canales de música: bit a 1 = canal audible, bit a 0 = silenciado
+	/// (bit 0 = AUD0 ... bit 3 = AUD3). P. ej. `channel_mask(0x0E)` silencia AUD0
+	/// para el SFX mixer y mantiene AUD1..AUD3 sonando.
 	void set_channel_mask(u8 mask) {
 		if (m_playing) {
 			pt_amiga::channel_mask(mask);
@@ -234,6 +244,12 @@ public:
 	/// Período actual del canal 1 (melodía) para diagnosticar si el tono cambia.
 	u16 period() const {
 		return m_playing ? pt_amiga::get_period() : 0u;
+	}
+
+	/// Período actual del canal `channel` (0 = AUD0 ... 3 = AUD3) para diagnosticar
+	/// cada voz por separado.
+	u16 channel_period(u8 channel) const {
+		return m_playing ? pt_amiga::get_channel_period(channel) : 0u;
 	}
 
 private:
