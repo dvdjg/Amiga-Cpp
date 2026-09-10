@@ -180,39 +180,32 @@ public:
 	/// Contrato:
 	///   - `intents` DEBE venir ordenado por `top` ascendente (el llamador garantiza
 	///     el orden; aqui no hay heap para ordenar). Se emite cada franja en su linea.
-	///   - Soportados por el scheduler base: `PaletteLine` y `PaletteSpan` (solo
-	///     necesitan `colors/first/count/top/hpos`, que viajan en la intent).
-	///   - `ShiftLines`, `BitplaneSplit`, `SpriteRearm` y `Priority` necesitan conocer
-	///     el layout del display (planos, punteros, canal), que el scheduler base no
-	///     tiene; se cuentan en `report().unhandled_intents` y NO se emiten (el driver
-	///     que conoce el layout debe materializarlos por otra via).
+	///   - Soportados: `PaletteLine` y `PaletteSpan`. Los de layout (`ShiftLines`,
+	///     `BitplaneSplit`) los materializa `emit_copper_intents_full` (que conoce el
+	///     display); `SpriteRearm`/`Priority` aún requieren contexto de canal/prioridad
+	///     y se cuentan en `report().unhandled_intents`.
 	void emit_copper_intents(const graphics::CopperIntent* intents, u8 count) {
 		if (intents == nullptr) {
 			return;
 		}
 		for (u8 i = 0; i < count; ++i) {
-			const graphics::CopperIntent& intent = intents[i];
-			switch (intent.kind) {
-				case graphics::CopperIntentKind::PaletteLine:
-					wait_line_safe(intent.top);
-					if (intent.top <= 255u) {
-						m_timeline.reserve_moves(static_cast<u8>(intent.top & 0xffu), intent.count);
-					}
-					emit_palette(intent.colors, intent.first, intent.count);
-					break;
-				case graphics::CopperIntentKind::PaletteSpan:
-					wait_position(static_cast<u8>(intent.top & 0xffu), static_cast<u8>(intent.hpos & 0xfeu));
-					if (intent.top <= 255u) {
-						m_timeline.reserve_moves(static_cast<u8>(intent.top & 0xffu), intent.count);
-					}
-					emit_palette(intent.colors, intent.first, intent.count);
-					break;
-				default:
-					// Requiere contexto de display (planos/stride/puntero/canal) que
-					// el scheduler base no posee: lo registramos para telemetria.
-					m_report.unhandled_intents = static_cast<u8>(m_report.unhandled_intents + 1u);
-					break;
-			}
+			emit_single_intent(intents[i], nullptr, 0, 0);
+		}
+	}
+
+	/// Igual que `emit_copper_intents`, pero con el layout del display para
+	/// materializar también `BitplaneSplit` (re-pointa los bitplanes a
+	/// `intent.bitplanes`) y `ShiftLines` (re-pointa a `bitplane_base + shift_x`
+	/// bytes). `plane_bytes` es el stride entre planos y `planes` cuántos re-pointar.
+	void emit_copper_intents_full(
+		const graphics::CopperIntent* intents, u8 count,
+		const u8* bitplane_base, u32 plane_bytes, u8 planes
+	) {
+		if (intents == nullptr) {
+			return;
+		}
+		for (u8 i = 0; i < count; ++i) {
+			emit_single_intent(intents[i], bitplane_base, plane_bytes, planes);
 		}
 	}
 
@@ -234,6 +227,53 @@ public:
 	constexpr const ScheduleReport& report() const { return m_report; }
 
 private:
+	/// Materializa UNA intent. `bitplane_base != nullptr` habilita los intents de
+	/// layout (BitplaneSplit/ShiftLines); si es null, se marcan como sin manejar.
+	void emit_single_intent(
+		const graphics::CopperIntent& intent, const u8* bitplane_base, u32 plane_bytes, u8 planes
+	) {
+		switch (intent.kind) {
+			case graphics::CopperIntentKind::PaletteLine:
+				wait_line_safe(intent.top);
+				if (intent.top <= 255u) {
+					m_timeline.reserve_moves(static_cast<u8>(intent.top & 0xffu), intent.count);
+				}
+				emit_palette(intent.colors, intent.first, intent.count);
+				break;
+			case graphics::CopperIntentKind::PaletteSpan:
+				wait_position(static_cast<u8>(intent.top & 0xffu), static_cast<u8>(intent.hpos & 0xfeu));
+				if (intent.top <= 255u) {
+					m_timeline.reserve_moves(static_cast<u8>(intent.top & 0xffu), intent.count);
+				}
+				emit_palette(intent.colors, intent.first, intent.count);
+				break;
+			case graphics::CopperIntentKind::BitplaneSplit:
+				if (bitplane_base == nullptr || intent.bitplanes == nullptr) {
+					m_report.unhandled_intents = static_cast<u8>(m_report.unhandled_intents + 1u);
+					break;
+				}
+				wait_line_safe(intent.top);
+				for (u8 p = 0; p < planes; ++p) {
+					move_bitplane_pointer(p, intent.bitplanes + static_cast<u32>(p) * plane_bytes);
+				}
+				break;
+			case graphics::CopperIntentKind::ShiftLines:
+				if (bitplane_base == nullptr) {
+					m_report.unhandled_intents = static_cast<u8>(m_report.unhandled_intents + 1u);
+					break;
+				}
+				wait_line_safe(intent.top);
+				for (u8 p = 0; p < planes; ++p) {
+					const s32 offset = static_cast<s32>(static_cast<u32>(p) * plane_bytes) + static_cast<s32>(intent.shift_x);
+					move_bitplane_pointer(p, bitplane_base + offset);
+				}
+				break;
+			default:
+				m_report.unhandled_intents = static_cast<u8>(m_report.unhandled_intents + 1u);
+				break;
+		}
+	}
+
 	ListBuilder m_builder {};
 	Timeline m_timeline {};
 	ScheduleReport m_report {};

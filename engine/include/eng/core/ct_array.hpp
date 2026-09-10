@@ -24,7 +24,8 @@ struct ct_array {
     T v[N];
 
     /// Construye la tabla en compile-time llamando a `fn(i)` para i in [0,N).
-    constexpr explicit ct_array(auto fn) {
+    template <typename Fn>
+    constexpr explicit ct_array(Fn fn) {
         for (usize i = 0; i < N; ++i) v[i] = static_cast<T>(fn(i));
     }
 

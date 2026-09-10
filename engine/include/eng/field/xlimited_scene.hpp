@@ -646,7 +646,12 @@ private:
     /// Tabla de seno Q8 generada en COMPILE-TIME (patrón `LissYTable`): cambiar
     /// la amplitud o el número de pasos es solo instanciar otro `SineTable<Amp>`.
     /// Sustituye al array de 64 valores escritos a mano (mismos valores a ±1).
-    static constexpr eng::SineTable<64> kSin {};
+    ///
+    /// Definida FUERA de la clase (no `inline constexpr`): el `inline constexpr`
+    /// con el `ct_array`+lambda de `SineTable` dispara un ICE de gcc 16.x en
+    /// x86_64 (`tsubst_expr`); la definición out-of-class lo evita y es
+    /// equivalente (constant-initialized).
+    static eng::SineTable<64> kSin;
 
     /// Tabla constexpr de `(i*7/10)&63` para la fase Lissajous: evita la
     /// división `/10` por frame (se calcula en compile-time con `ct_array`).
@@ -666,5 +671,11 @@ private:
     eng::u32 m_phase_frame = 0;      // frames transcurridos en la fase actual
     eng::u8 m_phase = 0;             // fase activa del ciclo (0..7)
 };
+
+// Definición out-of-class de la tabla de seno (constant-initialized). Ver la
+// nota del miembro `kSin`: evita el ICE de gcc 16.x con `inline constexpr` en
+// x86_64; es equivalente a la inicialización en la clase.
+template <ScrollConsts SC>
+eng::SineTable<64> XlimitedScene<SC>::kSin{};
 
 } // namespace eng::field

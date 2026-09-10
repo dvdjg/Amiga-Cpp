@@ -155,6 +155,38 @@ int main() {
         }
     }
 
+    // Runtime: `emit_copper_intents_full` materializa los intents de layout
+    // (BitplaneSplit y ShiftLines) re-pointando BPLxPT, sin marcarlos como "sin
+    // manejar".
+    {
+        eng::u16 copper_words[256] {};
+        MemoryBlock copper_block { copper_words, sizeof(copper_words), MemoryKind::Chip };
+        eng::copper::Scheduler sched { copper_block };
+
+        eng::u8 base[6 * 10240] {};
+        eng::u8 split[6 * 10240] {};
+        CopperIntent intents[2] {
+            { CopperIntentKind::BitplaneSplit, 100, 100, 0, nullptr, 0, 0, 0, split, 0, nullptr },
+            { CopperIntentKind::ShiftLines,    150, 150, 0, nullptr, 0, 0, 4, nullptr, 0, nullptr },
+        };
+
+        sched.emit_copper_intents_full(intents, 2, base, 10240u, 6u);
+        sched.end();
+
+        const auto& rep = sched.report();
+        if (!rep.ok || rep.unhandled_intents != 0u) {
+            std::printf("[FAIL] emit_copper_intents_full no materializo BitplaneSplit/ShiftLines (unhandled=%d)\n",
+                        (int)rep.unhandled_intents);
+            return 1;
+        }
+        // 6 planos re-pointados × 2 intents = 12 pointers × 2 MOVEs = 24 moves.
+        if (rep.display_moves < 24u) {
+            std::printf("[FAIL] emit_copper_intents_full no emitio los BPLxPT (display_moves=%d)\n",
+                        (int)rep.display_moves);
+            return 1;
+        }
+    }
+
     std::printf("OK: vocabulario de intenciones validado (Visual/CopperIntent/SpriteIntent/SpriteTemplate/Effect/scheduler).\n");
     return 0;
 }
