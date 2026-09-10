@@ -12,6 +12,7 @@
 /// - Futuro: el backend podra tener modos configurables para usar ROM kernel,
 ///   takeover completo o una mezcla de ambos.
 
+#include <eng/audio/audio_system.hpp>
 #include <eng/core/types.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/memory/arena.hpp>
@@ -118,6 +119,19 @@ public:
 	/// internos de su copperlist.
 	bool execute_frame_plan(const graphics::FramePlan& plan);
 
+	/// Inicializa el subsistema de audio (SFX mixer + reproductores de música).
+	/// Debe llamarse después de `configure_memory` (necesita el bloque Chip para el
+	/// buffer del mixer) y después de `takeover_display` (el mixer instala su
+	/// interrupción de audio).
+	bool audio_init() {
+		return m_audio.init(m_memory);
+	}
+
+	/// Acceso al subsistema de audio (SFX + música). Úsalo desde el juego para
+	/// `play_sfx`/`play_music` sin instanciar un `AudioSystem` por demo.
+	eng::audio::AudioSystem& audio() { return m_audio; }
+	const eng::audio::AudioSystem& audio() const { return m_audio; }
+
 	/// Activa/desactiva warp mode del emulador mediante la ayuda de WinUAE-DBG.
 	void set_warpmode(bool enabled);
 
@@ -134,6 +148,7 @@ private:
 	MemorySystem m_memory {};
 	MemoryReport m_memory_report {};
 	DebugOverlay m_debug {};
+	eng::audio::AudioSystem m_audio {};
 	void* m_chip_alloc = nullptr;
 	u32 m_chip_alloc_size = 0;
 	void* m_slow_alloc = nullptr;

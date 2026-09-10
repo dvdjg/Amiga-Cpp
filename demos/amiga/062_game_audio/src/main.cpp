@@ -78,6 +78,9 @@ struct GameAudioDemo {
 
 		backend.takeover_display(m_copper_ptr);
 
+		// El audio lo posee el backend; el GameAudio (capa de juego) se enlaza a él.
+		m_audio.attach(backend.audio());
+
 		// Música primero, luego reservar AUD0 para el mixer, luego el mixer.
 		eng::audio::MusicModule mod { eng::Span<const eng::u8>(static_cast<const eng::u8*>(m_mod_block.data), kModSize) };
 		m_music_ok = m_audio.play_music(mod, eng::audio::MusicFormat::Protracker);

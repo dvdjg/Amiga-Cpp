@@ -103,10 +103,13 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   demuestra coexistencia SFX (AUD0) + música (AUD1) con el orden canónico
   música→canal reservado→mixer. Añadido `set_master_volume` (volumen global SFX+
   música). **Capa de juego** `eng::audio::GameAudio` (`game_audio.hpp`) +
-  `SampleBank`/`allow_trigger` (puros, `sfx_bank.hpp`): banco de sonidos por `id`,
-  política de voces (cooldown, límite de instancias, prioridad) y ducking; validado
-  por HOST-008 y demo `062_game_audio`. Guía completa (API + generación de música
-  y sonidos desde herramientas externas) en `docs/engine/architecture/GAME_AUDIO.md`.
+  `SampleBank`/`allow_trigger`/`allow_group` (puros, `sfx_bank.hpp`): banco de
+  sonidos por `id`, política de voces (cooldown, límite de instancias, agrupación,
+  prioridad) y ducking; validado por HOST-008 y demo `062_game_audio`. **El audio
+  lo posee ahora el backend** (`MinimalBackend::audio()`/`audio_init()`); el
+  `GameAudio` se enlaza con `attach(backend.audio())`. Guía completa (API +
+  generación de música y sonidos desde herramientas externas) en
+  `docs/engine/architecture/GAME_AUDIO.md`.
   **Pendiente**: `libahx` (necesita `.BIN` + libc).
   Ver `docs/engine/architecture/MUSIC_PLAYER.md`.
 - **Regla de API aplicada**: la capa de audio no expone punteros crudos al

@@ -30,18 +30,25 @@ namespace eng::audio {
 ///   audio.update_music();   // avanza música (solo P61)
 class GameAudio {
 public:
+	/// Referencia al `AudioSystem` subyacente (típicamente el del backend).
+	explicit GameAudio(AudioSystem& system) : m_audio(&system) {}
+
+	/// Sin sistema: se enlaza después con `attach`.
 	GameAudio() = default;
 	GameAudio(const GameAudio&) = delete;
 	GameAudio& operator=(const GameAudio&) = delete;
 
-	/// Inicializa el SFX mixer (buffer Chip + handler). La música se arranca con
-	/// `play_music`.
+	/// Enlaza este `GameAudio` a un `AudioSystem` (p. ej. `backend.audio()`).
+	void attach(AudioSystem& system) { m_audio = &system; }
+
+	/// Inicializa el SFX mixer del `AudioSystem` referenciado (buffer Chip +
+	/// handler). La música se arranca con `play_music`.
 	bool init(MemorySystem& memory) {
-		return m_audio.init(memory);
+		return m_audio->init(memory);
 	}
 
 	void shutdown() {
-		m_audio.shutdown();
+		m_audio->shutdown();
 	}
 
 	/// Acceso al banco para registrar sonidos (antes de `play`).
@@ -50,19 +57,30 @@ public:
 
 	// ---- SFX --------------------------------------------------------------
 
-	/// Dispara el sonido `id` aplicando la política (cooldown, límite, prioridad).
-	/// Devuelve el canal (>=0) o -1 si se rechazó (cooldown/límite/sin voz).
+	/// Dispara el sonido `id` aplicando la política (cooldown, límite, grupo,
+	/// prioridad). Devuelve el canal (>=0) o -1 si se rechazó.
 	SfxChannel play(u8 id, u32 frame) {
 		const SfxDef* def = m_bank.find(id);
 		if (def == nullptr || !allow_trigger(frame, *def, m_voices[id])) {
 			return -1;
 		}
-		SfxChannel ch = m_audio.play_sfx({def->data}, def->priority, LoopMode::Once);
+		if (!allow_group(def->group, m_group_max[def->group], m_group_active[def->group])) {
+			return -1;
+		}
+		SfxChannel ch = m_audio->play_sfx({def->data}, def->priority, LoopMode::Once);
 		if (ch >= 0) {
 			m_voices[id].last_frame = frame;
 			track(id, ch);
 		}
 		return ch;
+	}
+
+	/// Presupuesto de voces compartido por un grupo (0 = sin límite). Los sonidos
+	/// con `SfxDef::group == group` comparten este límite de instancias.
+	void set_group_budget(u8 group, u8 max) {
+		if (group < kMaxGroups) {
+			m_group_max[group] = max;
+		}
 	}
 
 	/// Número de instancias activas del sonido `id` (telemetría).
@@ -76,6 +94,9 @@ public:
 		return n;
 	}
 
+	/// ¿El ducking está activo ahora? (telemetría).
+	constexpr bool is_ducking() const { return m_ducking; }
+
 	/// Poda las voces acabadas y aplica el ducking de la música. Llamar una vez
 	/// por frame (en `update`), antes de `update_music`.
 	void update(u32) {
@@ -86,28 +107,28 @@ public:
 	// ---- Música (delegación) ----------------------------------------------
 
 	bool play_music(const MusicModule& module, MusicFormat format) {
-		return m_audio.play_music(module, format);
+		return m_audio->play_music(module, format);
 	}
-	void stop_music() { m_audio.stop_music(); }
-	void update_music() { m_audio.update_music(); }
+	void stop_music() { m_audio->stop_music(); }
+	void update_music() { m_audio->update_music(); }
 
 	/// Reserva canales de música para el SFX (solo Protracker). P. ej.
 	/// `set_music_channel_mask(1)` deja AUD0 libre para el mixer.
 	void set_music_channel_mask(u8 mask) {
-		m_audio.set_music_channel_mask(mask);
+		m_audio->set_music_channel_mask(mask);
 	}
 
 	// ---- Volumen -----------------------------------------------------------
 
 	/// Volumen maestro global (SFX + música), 0..64.
 	void set_master_volume(u8 volume) {
-		m_audio.set_master_volume(volume);
+		m_audio->set_master_volume(volume);
 	}
 	/// Volumen de la música en reposo (sin ducking), 0..64.
 	void set_music_volume(u8 volume) {
 		m_normal_volume = static_cast<u8>(volume & 0x7fu);
 		if (!m_ducking) {
-			m_audio.set_music_volume(m_normal_volume);
+			m_audio->set_music_volume(m_normal_volume);
 		}
 	}
 	/// Volumen de la música durante el ducking, 0..64.
@@ -116,11 +137,11 @@ public:
 	}
 	/// Volumen del SFX, 0..64.
 	void set_sfx_volume(u8 volume) {
-		m_audio.set_sfx_volume(volume);
+		m_audio->set_sfx_volume(volume);
 	}
 
 	/// Acceso al `AudioSystem` subyacente (uso avanzado).
-	AudioSystem& system() { return m_audio; }
+	AudioSystem& system() { return *m_audio; }
 
 private:
 	struct ActiveVoice {
@@ -131,7 +152,7 @@ private:
 	/// Registra una voz activa (id + canal) en una ranura libre o acabada.
 	void track(u8 id, SfxChannel channel) {
 		for (u8 i = 0; i < m_active_count; ++i) {
-			if (!m_audio.sfx().is_playing(m_active[i].channel)) {
+			if (!m_audio->sfx().is_playing(m_active[i].channel)) {
 				m_active[i] = {id, channel};
 				return;
 			}
@@ -142,11 +163,11 @@ private:
 	}
 
 	/// Compacta la lista de voces activas (quita las acabadas) y recalcula los
-	/// contadores por sonido.
+	/// contadores por sonido y por grupo.
 	void prune() {
 		u8 w = 0;
 		for (u8 i = 0; i < m_active_count; ++i) {
-			if (m_audio.sfx().is_playing(m_active[i].channel)) {
+			if (m_audio->sfx().is_playing(m_active[i].channel)) {
 				m_active[w++] = m_active[i];
 			}
 		}
@@ -155,8 +176,15 @@ private:
 		for (u8 i = 0; i < kMaxSfx; ++i) {
 			m_voices[i].active = 0;
 		}
+		for (u8 g = 0; g < kMaxGroups; ++g) {
+			m_group_active[g] = 0;
+		}
 		for (u8 i = 0; i < m_active_count; ++i) {
 			++m_voices[m_active[i].id].active;
+			const SfxDef* def = m_bank.find(m_active[i].id);
+			if (def != nullptr && def->group != 0u) {
+				++m_group_active[def->group];
+			}
 		}
 	}
 
@@ -173,14 +201,16 @@ private:
 		}
 		if (duck != m_ducking) {
 			m_ducking = duck;
-			m_audio.set_music_volume(duck ? m_duck_volume : m_normal_volume);
+			m_audio->set_music_volume(duck ? m_duck_volume : m_normal_volume);
 		}
 	}
 
-	AudioSystem m_audio {};
+	AudioSystem* m_audio = nullptr;
 	SampleBank m_bank {};
 	VoiceState m_voices[kMaxSfx] {};
 	ActiveVoice m_active[kMaxActiveVoices] {};
+	u8 m_group_active[kMaxGroups] {};
+	u8 m_group_max[kMaxGroups] {};
 	u8 m_active_count = 0;
 	u8 m_normal_volume = 48;
 	u8 m_duck_volume = 20;

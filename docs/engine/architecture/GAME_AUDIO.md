@@ -38,19 +38,23 @@ todo desde el punto de vista del juego.
 ```cpp
 eng::audio::GameAudio audio;
 
+// El audio lo posee el backend; el GameAudio (capa de juego) se enlaza a él.
+audio.attach(backend.audio());
+
 // 1) Registrar sonidos en el banco (id + metadato de política).
 audio.bank().add(kSfxDisparo, { disparo_data, /*prio*/2, /*max_inst*/3, /*cooldown*/4, /*duck*/false });
 audio.bank().add(kSfxExplosion, { explosion_data, 3, 2, 10, true }); // ducking
+audio.set_group_budget(kGrupoArmas, 4); // las armas comparten 4 voces
 
 // 2) Arrancar.
-audio.init(backend.memory());
+backend.audio_init();                       // o audio.init(backend.memory())
 audio.play_music(modulo, eng::audio::MusicFormat::Protracker);
 audio.set_music_volume(40);      // volumen de música en reposo
 audio.set_duck_volume(12);       // volumen de música cuando hay ducking
 audio.set_music_channel_mask(1); // AUD0 libre para el mixer (Protracker)
 
 // 3) Por frame.
-audio.play(kSfxDisparo, frame);  // aplica cooldown + límite + prioridad
+audio.play(kSfxDisparo, frame);  // aplica cooldown + límite + grupo + prioridad
 audio.update(frame);             // poda voces acabadas + aplica ducking
 audio.update_music();            // avanza música (solo P61; Protracker es por CIA)
 ```
@@ -62,6 +66,7 @@ audio.update_music();            // avanza música (solo P61; Protracker es por 
 | `priority` | Mayor gana una voz ocupada (el mixer roba la voz de menor prioridad). |
 | `max_instances` | Instancias simultáneas máximas de ese sonido (0 = sin límite). |
 | `cooldown_frames` | Frames mínimos entre dos disparos del mismo sonido (evita spam). |
+| `group` | Grupo (0 = ninguno); los sonidos del mismo grupo comparten un presupuesto de voces (`set_group_budget`). |
 | `duck_music` | Si `true`, baja la música (`duck_volume`) mientras suena. |
 
 `play()` devuelve el canal (>=0) o -1 si se rechazó (cooldown/límite/sin voz libre).

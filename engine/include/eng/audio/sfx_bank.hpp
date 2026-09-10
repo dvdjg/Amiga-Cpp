@@ -21,6 +21,9 @@ constexpr u8 kMaxSfx = 64;
 /// mixer (4 por canal, típicamente 4..8).
 constexpr u8 kMaxActiveVoices = 16;
 
+/// Número máximo de grupos de sonido (presupuesto compartido de voces).
+constexpr u8 kMaxGroups = 16;
+
 /// Sentinela "nunca disparado" para el cooldown.
 constexpr u32 kNever = 0xFFFFFFFFu;
 
@@ -31,6 +34,7 @@ struct SfxDef {
 	u8  max_instances = 1;    // instancias simultáneas máximas (0 = sin límite)
 	u16 cooldown_frames = 0;  // frames mínimos entre disparos (0 = sin cooldown)
 	bool duck_music = false;  // bajar el volumen de la música mientras suena
+	u8  group = 0;            // grupo (0 = sin grupo); comparte presupuesto de voces
 };
 
 /// Catálogo fijo de sonidos (sin heap). Indexa `SfxDef` por `id` (0..kMaxSfx-1).
@@ -74,6 +78,15 @@ constexpr bool allow_trigger(u32 frame, const SfxDef& def, const VoiceState& st)
 		return false;
 	}
 	return true;
+}
+
+/// Política pura de grupo: ¿el grupo `group` admite una voz más? `group=0` o
+/// `group_max=0` significan "sin límite de grupo". Host-testable.
+constexpr bool allow_group(u8 group, u8 group_max, u8 group_active) {
+	if (group == 0u || group_max == 0u) {
+		return true;
+	}
+	return group_active < group_max;
 }
 
 } // namespace eng::audio

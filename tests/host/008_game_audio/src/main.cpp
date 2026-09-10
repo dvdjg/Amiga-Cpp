@@ -17,6 +17,7 @@ using eng::audio::SfxDef;
 using eng::audio::SampleBank;
 using eng::audio::VoiceState;
 using eng::audio::allow_trigger;
+using eng::audio::allow_group;
 using eng::audio::kNever;
 
 int g_failures = 0;
@@ -86,6 +87,15 @@ void test_max_instances() {
 	CHECK(allow_trigger(50, def, st) == true);
 }
 
+void test_group_budget() {
+	std::printf("audio: presupuesto de grupo compartido\n");
+	CHECK(allow_group(1, 3, 0) == true);  // grupo 1, máx 3, 0 activas
+	CHECK(allow_group(1, 3, 2) == true);  // 2 activas < 3
+	CHECK(allow_group(1, 3, 3) == false); // 3 activas = límite
+	CHECK(allow_group(0, 3, 99) == true); // grupo 0 = sin límite
+	CHECK(allow_group(1, 0, 99) == true); // máx 0 = sin límite
+}
+
 } // namespace
 
 int main() {
@@ -96,6 +106,7 @@ int main() {
 	test_first_trigger_always_allowed();
 	test_cooldown();
 	test_max_instances();
+	test_group_budget();
 
 	if (g_failures == 0) {
 		std::printf("OK: capa de audio de juego validada (SampleBank + politica de voces).\n");
