@@ -51,8 +51,37 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
     sprites. Alternativa segura: fondo por copper-gradient (`COLOR00` por línea).
   - Materializar los `CopperIntent` que faltan (`ShiftLines`, `BitplaneSplit`,
     `SpriteRearm`, `Priority`) en el driver que conoce el layout (paso 2/3).
+    **Hecho**: `CopperScheduler::emit_copper_intents_full`/`emit_single_intent`
+    materializan ya `PaletteLine/PaletteSpan/BitplaneSplit/ShiftLines/
+    SpriteRearm/Priority`; HOST-002 ampliado y en verde. `StaticEhbScene::
+    rebuild_copper` emite las zonas de paleta como `PaletteLine` (demos 030/040
+    llegan a READY).
   - Embellecer la demo 053 (fondo, animación de colores) siguiendo la regla
     «Demos atractivas» de `AGENTS.md`.
+
+## Input y audio — estado (2026-09)
+
+- **Hecho (input, paso 6 de `ENGINE_DESIGN.md` §5)**: `eng::input::InputAggregator`
+  (`PadState`, `MouseState`, `KeyState`) en `engine/include/eng/input/input.hpp`,
+  validado por HOST-004. Backend de lectura corregido en `eng/platform/input_poll.hpp`:
+  direcciones por `JOY0DAT`/`JOY1DAT` (código de Gray por eje; arriba/abajo con XOR),
+  fuego por `CIAAPRA` bits 6/7, y `poll_input(InputAggregator&)`. Decodificación pura
+  validada por HOST-006 (mismo mapeo que los motores ACE/Sevgi y el AHRM). Demo
+  `056_input_aggregator` (cruz móvil + fuego + tecla) compila/ejecuta a READY.
+  **Pendiente**: ratón (deltas por contadores) y botones CD32 (protocolo POTGO).
+- **Hecho (audio SFX, paso 7 de `ENGINE_DESIGN.md` §5)**: `eng::audio::SampleEvent`,
+  `MusicEvent`, `AudioPlan` y `AudioMixer` en `engine/include/eng/audio/audio.hpp`,
+  validado por HOST-005. **Integrado de forma nativa el Audio Mixer 3.7 (Photon)**:
+  código ASM en `support/audio_mixer/` (ensamblado con VASM a ELF en `build-demo.sh`),
+  envoltura de juego `eng::audio::SfxMixer` en `engine/include/eng/audio/sfx_mixer.hpp`.
+  Config actual: `MIXER_SINGLE`, salida `DMAF_AUD0`, 4 voces software, 11 kHz,
+  `MIXER_C_DEFS=1`. Demo `058_sfx_mixer` reproduce un bucle + beep; `DMACONR`=0x381
+  (`AUD0EN`+`DMAEN`) y `MixerGetTotalChannelCount()`=4. Documentado en
+  `docs/engine/architecture/AUDIO_MIXER.md` (requisitos de muestras preprocesadas,
+  capacidades, configuración, API, preprocesado, rendimiento).
+  **Pendiente**: `MusicPlayer` (envoltorio de los reproductores asm
+  `libp61`/`libpt`/`libahx` de `demoscene-repo-orig`; ver
+  `docs/engine/architecture/MUSIC_PLAYER.md`).
 
 ## Tests host — estado (2026-09)
 
@@ -64,10 +93,11 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   gráficos/field ahora usan `eng::uintptr` para extraer direcciones de punteros
   (`copper.hpp`, `sprite_manager.hpp`, `tile_scroll.hpp`, `dpf_composer.hpp`,
   `xlimited.hpp`). En m68k `uintptr == u32` (no-op).
-- Tests host: HOST-000 (math), HOST-002 (raster_intent) y HOST-003
-  (sprite_allocator) **pasan**. HOST-001 (`graphics_driver_contract`) falla con
-  **ICE de gcc 16.2.0** en `xlimited_scene.hpp:649` (bug del compilador, pendiente
-  aislar el constructo o probar gcc 15.x).
+- Tests host: HOST-000 (math), HOST-001 (graphics_driver_contract), HOST-002
+  (raster_intent), HOST-003 (sprite_allocator), HOST-004 (input), HOST-005
+  (audio) y HOST-006 (input_decode) **pasan**. El **ICE de gcc 16.2.0** de
+  HOST-001 quedó resuelto moviendo `SineTable` a definición out-of-class en
+  `xlimited_scene.hpp` (bug del compilador, no del código).
 
 ## Decisiones tomadas en 202 (a respetar)
 

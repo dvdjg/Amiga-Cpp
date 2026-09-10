@@ -111,6 +111,7 @@ GXX="$(tool m68k-amiga-elf-g++)"
 ASM="$(tool m68k-amiga-elf-as)"
 ELF2HUNK="$(tool elf2hunk)"
 OBJDUMP="$(tool m68k-amiga-elf-objdump)"
+VASM="$(tool vasmm68k_mot)"
 SDKDIR=""
 if [ -n "$TOOLCHAIN" ]; then
 	SDKDIR="$TOOLCHAIN/opt/m68k-amiga-elf/sys-include"
@@ -249,6 +250,18 @@ for SUPPORT_ASM in $(find "$ROOT/support" -maxdepth 1 -name '*.s' | sort); do
 	OBJECTS+=("$SUPPORT_ASM_OBJ")
 	echo "  ASM   $SUPPORT_ASM"
 	"$ASM" -mcpu=68000 -g --register-prefix-optional "-I$SDKDIR" -o "$SUPPORT_ASM_OBJ" "$SUPPORT_ASM"
+done
+
+# Ensambla el Audio Mixer 3.7 (Photon) con VASM a ELF (compatible con el linker
+# de GNU). mixer.asm incluye mixer_config.i; las opciones se fijan en ese archivo.
+# Plugins (plugins.asm) solo se ensamblan si MIXER_ENABLE_PLUGINS=1 en
+# mixer_config.i (no se ensamblan aquí por defecto).
+for MIXER_ASM in $(find "$ROOT/support/audio_mixer" -maxdepth 1 -name 'mixer.asm' | sort); do
+	MIXER_ASM_NAME="$(basename "$MIXER_ASM" .asm)"
+	MIXER_ASM_OBJ="$OBJ_DIR/audio_mixer_${MIXER_ASM_NAME}.o"
+	OBJECTS+=("$MIXER_ASM_OBJ")
+	echo "  VASM  $MIXER_ASM"
+	"$VASM" -quiet -Felf -m68000 -allmp -I"$SDKDIR" -I"$ROOT/support/audio_mixer" -DBUILD_MIXER -o "$MIXER_ASM_OBJ" "$MIXER_ASM"
 done
 
 # --- Enlazado y hunk --------------------------------------------------------
