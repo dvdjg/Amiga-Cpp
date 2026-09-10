@@ -45,3 +45,22 @@ _PtEnd:
         section '.text.ptplayer',code
 
         include 'ptplayer.i'
+
+        xdef    _PtGetPos
+        xdef    _PtGetPeriod
+
+; Devuelve en D0 la fila actual (mt_PatternPos) y en D1 el patrón (mt_SongPos),
+; para diagnosticar si la música avanza (o se queda en un tono fijo).
+_PtGetPos:
+        lea     mt_data(pc),a0
+        move.w  mt_PatternPos(a0),d0
+        moveq   #0,d1
+        move.b  mt_SongPos(a0),d1
+        rts
+
+; Devuelve en D0 el período actual del canal 1 (mt_chan1+n_period), para
+; diagnosticar si el tono cambia al avanzar la melodía.
+_PtGetPeriod:
+        lea     mt_data(pc),a0
+        move.w  n_period(a0),d0
+        rts

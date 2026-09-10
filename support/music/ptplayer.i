@@ -3971,4 +3971,4 @@ _mt_SongEnd:
 
 	endc	; SDATA/!SDATA
 
-	end
+	; NOTA: sin `end` aquí para que pt.asm pueda añadir shims después del include.

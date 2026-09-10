@@ -16,6 +16,7 @@
 // activos (AUD0 mixer + AUD1..AUD3 música).
 
 #include <eng/audio/game_audio.hpp>
+#include <eng/audio/wave_tables.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/debug/run_status.hpp>
@@ -104,13 +105,8 @@ struct HarmonyDemo {
 
 		if (!m_audio.init(backend.memory())) { eng::debug::mark_failed(g_eng_run_status, 0x00006304u); return; }
 
-		// Bajo continuo del mixer (onda cuadrada grave preprocesada ±24).
-		gen_bass(static_cast<eng::u8*>(m_bass_block.data));
-		m_audio.bank().add(kSfxBass, {
-			eng::Span<const eng::u8>(static_cast<const eng::u8*>(m_bass_block.data), kBassBytes),
-			1, 1, 0, false, 0, true // loop
-		});
-		m_bass_ch = m_audio.play(kSfxBass, 0); // bucle continuo por el mixer
+		// NOTA: sin SFX continuo del mixer aquí; el bajo lo da el canal 3 de la
+		// música (AUD3). El mixer (AUD0) queda libre para SFX discretos.
 
 		m_init_ok = true;
 	}
@@ -124,8 +120,11 @@ struct HarmonyDemo {
 
 		if (context.frame.frame_index == 100u) {
 			const eng::u16 dmaconr = *reinterpret_cast<volatile eng::u16*>(0xdff002u);
+			const eng::u16 period = m_audio.system().protracker().period();   // período canal 1
+			const eng::u32 pos = m_audio.system().protracker().position();    // fila | patrón<<16
 			if ((dmaconr & 0x0Fu) == 0x0Fu) { // AUD0..AUD3 activos
-				eng::debug::mark_ready(g_eng_run_status, (static_cast<eng::u32>(dmaconr) << 16u) | 1u);
+				// bits 31-16 = período del canal 1, bits 15-0 = fila actual.
+				eng::debug::mark_ready(g_eng_run_status, (static_cast<eng::u32>(period) << 16u) | (pos & 0xFFFFu));
 			} else {
 				eng::debug::mark_failed(g_eng_run_status, 0x00006305u);
 			}
@@ -183,9 +182,9 @@ private:
 			write_note(m, row, 3, kBass[i]);    // AUD3
 		}
 
-		// Datos de la muestra (offset 2108): onda cuadrada ±64.
+		// Datos de la muestra (offset 2108): seno ±63 (más limpio que la cuadrada).
 		for (eng::u32 i = 0; i < kSampleBytes; ++i) {
-			m[2108 + i] = (i < kSampleBytes / 2) ? 64u : static_cast<eng::u8>(256u - 64u);
+			m[2108 + i] = static_cast<eng::u8>(eng::audio::sine_byte(i) / 2);
 		}
 	}
 

@@ -163,6 +163,22 @@ inline void channel_mask(u8 mask) {
 	__asm__ volatile("jsr _mt_channelmask" : : "r"(m) : "cc", "memory");
 }
 
+/// Posición actual del reproductor: D0=fila, D1=patrón. Devuelve
+/// `(patrón << 16) | fila` para diagnosticar si la música avanza.
+inline u32 get_pos() {
+	register volatile u32 row __asm("d0");
+	register volatile u32 song __asm("d1");
+	__asm__ volatile("jsr _PtGetPos" : "=d"(row), "=d"(song) : : "cc", "memory");
+	return (row & 0xffffu) | ((song & 0xffu) << 16u);
+}
+
+/// Período actual del canal 1 (melodía), para diagnosticar si el tono cambia.
+inline u16 get_period() {
+	register volatile u32 p __asm("d0");
+	__asm__ volatile("jsr _PtGetPeriod" : "=d"(p) : : "cc", "memory");
+	return static_cast<u16>(p & 0xffffu);
+}
+
 } // namespace pt_amiga
 
 /// Reproductor de música Protracker (`.mod`), orientado a juego.
@@ -209,6 +225,16 @@ public:
 	}
 
 	constexpr bool is_playing() const { return m_playing; }
+
+	/// Posición actual (fila | patrón<<16) para diagnosticar si la música avanza.
+	u32 position() const {
+		return m_playing ? pt_amiga::get_pos() : 0u;
+	}
+
+	/// Período actual del canal 1 (melodía) para diagnosticar si el tono cambia.
+	u16 period() const {
+		return m_playing ? pt_amiga::get_period() : 0u;
+	}
 
 private:
 	bool m_playing = false;

@@ -14,6 +14,7 @@
 // `detail`): puntero de muestra, AUD0LEN/PER/VOL (espejo RAM, son write-only),
 // y checksum/mín/máx/media del seno para comparar con el generador host.
 
+#include <eng/audio/wave_tables.hpp>
 #include <eng/core/types.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
@@ -61,19 +62,6 @@ constexpr eng::u32 kSampleBytes = 64;   // un ciclo de seno (64 muestras)
 constexpr eng::u16 kSampleWords = kSampleBytes / 2u;
 constexpr eng::u16 kPeriod = 127;       // ~440 Hz con un ciclo de 64 muestras
 
-/// Seno 8-bit con signo por tabla de cuarto de onda (entero, sin float). Un ciclo
-/// completo = 64 muestras; `i` en [0, 64) se envuelve.
-constexpr eng::s8 sine_byte(eng::u32 i) {
-	static constexpr eng::s8 kQuarter[17] = {
-		0, 12, 25, 37, 49, 60, 71, 81, 90, 98, 106, 112, 117, 122, 125, 126, 127,
-	};
-	i &= 63u; // 64 muestras por ciclo
-	if (i < 16) return kQuarter[i];
-	if (i < 32) return kQuarter[32 - i];
-	if (i < 48) return static_cast<eng::s8>(-kQuarter[i - 32]);
-	return static_cast<eng::s8>(-kQuarter[64 - i]);
-}
-
 struct AudioDebugDemo {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
@@ -98,7 +86,7 @@ struct AudioDebugDemo {
 		eng::s16 mn = 0, mx = 0;
 		eng::s32 mean_sum = 0;
 		for (eng::u32 i = 0; i < kSampleBytes; ++i) {
-			const eng::s8 v = sine_byte(i);
+			const eng::s8 v = eng::audio::sine_byte(i);
 			sample[i] = static_cast<eng::u8>(v);
 			sum += static_cast<eng::u8>(v);
 			mean_sum += v;
