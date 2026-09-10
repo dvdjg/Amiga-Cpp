@@ -123,7 +123,16 @@ public:
 						static_cast<u16>(scheduler.words_used() + 3u),
 					};
 				}
-				scheduler.emit_palette_zone(zone.line, zone.palette->color);
+				// La zona es una `CopperIntent` (PaletteLine): el driver describe el
+				// cambio y el scheduler lo materializa, en vez de un MOVE directo
+				// (simetría con los efectos del engine; paso 5 de ENGINE_DESIGN §5).
+				const CopperIntent zone_intent {
+					CopperIntentKind::PaletteLine,
+					zone.line, zone.line, 0,
+					zone.palette->color, 0, 32,
+					0, nullptr, 0, nullptr,
+				};
+				scheduler.emit_copper_intents(&zone_intent, 1);
 			}
 		}
 

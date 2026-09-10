@@ -187,6 +187,36 @@ int main() {
         }
     }
 
+    // Runtime: `SpriteRearm` y `Priority` se materializan (sin marcar "sin
+    // manejar"): re-pointan SPRxPT y escriben BPLCON2.
+    {
+        eng::u16 copper_words[128] {};
+        MemoryBlock copper_block { copper_words, sizeof(copper_words), MemoryKind::Chip };
+        eng::copper::Scheduler sched { copper_block };
+
+        eng::u16 sprite_data[2] { 0xFFFF, 0x0000 };
+        CopperIntent intents[2] {
+            { CopperIntentKind::SpriteRearm, 100, 100, 0, nullptr, 0, 0, 0, nullptr, 0, sprite_data },
+            { CopperIntentKind::Priority,    150, 150, 0, nullptr, 0, 0, 0x0040, nullptr, 0, nullptr },
+        };
+
+        sched.emit_copper_intents(intents, 2);
+        sched.end();
+
+        const auto& rep = sched.report();
+        if (!rep.ok || rep.unhandled_intents != 0u) {
+            std::printf("[FAIL] emit_copper_intents no materializo SpriteRearm/Priority (unhandled=%d)\n",
+                        (int)rep.unhandled_intents);
+            return 1;
+        }
+        // SpriteRearm (2 MOVEs) + Priority (1 MOVE) = 3 moves, 2 WAITs.
+        if (rep.display_moves < 3u || rep.waits < 2u) {
+            std::printf("[FAIL] SpriteRearm/Priority no emitidos (moves=%d waits=%d)\n",
+                        (int)rep.display_moves, (int)rep.waits);
+            return 1;
+        }
+    }
+
     std::printf("OK: vocabulario de intenciones validado (Visual/CopperIntent/SpriteIntent/SpriteTemplate/Effect/scheduler).\n");
     return 0;
 }

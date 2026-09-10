@@ -268,6 +268,27 @@ private:
 					move_bitplane_pointer(p, bitplane_base + offset);
 				}
 				break;
+			case graphics::CopperIntentKind::SpriteRearm:
+				if (intent.sprite_ptr == nullptr) {
+					m_report.unhandled_intents = static_cast<u8>(m_report.unhandled_intents + 1u);
+					break;
+				}
+				wait_line_safe(intent.top);
+				{
+					// Re-pointa el puntero de DATA del sprite (SPRxPT) para el rearm
+					// vertical ("chasing the raster"). No toca SPRxPOS/CTL: el
+					// `SpriteManager` los programa por separado.
+					const uintptr addr = reinterpret_cast<uintptr>(intent.sprite_ptr);
+					move(static_cast<u16>(0x120u + static_cast<u16>(intent.sprite_channel) * 4u), static_cast<u16>(addr >> 16));
+					move(static_cast<u16>(0x122u + static_cast<u16>(intent.sprite_channel) * 4u), static_cast<u16>(addr & 0xffffu));
+				}
+				break;
+			case graphics::CopperIntentKind::Priority:
+				wait_line_safe(intent.top);
+				// `shift_x` transporta el valor de BPLCON2 (bit 6 = sprites detrás
+				// del playfield, 0x0040; 0 = sprites delante).
+				move(Register::BPLCON2, static_cast<u16>(intent.shift_x));
+				break;
 			default:
 				m_report.unhandled_intents = static_cast<u8>(m_report.unhandled_intents + 1u);
 				break;
