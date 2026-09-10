@@ -67,7 +67,10 @@ public:
 		if (!allow_group(def->group, m_group_max[def->group], m_group_active[def->group])) {
 			return -1;
 		}
-		SfxChannel ch = m_audio->play_sfx({def->data}, def->priority, LoopMode::Once);
+		SfxChannel ch = m_audio->play_sfx(
+			{def->data}, def->priority,
+			def->loop ? LoopMode::Loop : LoopMode::Once
+		);
 		if (ch >= 0) {
 			m_voices[id].last_frame = frame;
 			track(id, ch);

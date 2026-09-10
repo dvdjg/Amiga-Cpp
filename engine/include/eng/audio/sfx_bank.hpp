@@ -35,6 +35,7 @@ struct SfxDef {
 	u16 cooldown_frames = 0;  // frames mínimos entre disparos (0 = sin cooldown)
 	bool duck_music = false;  // bajar el volumen de la música mientras suena
 	u8  group = 0;            // grupo (0 = sin grupo); comparte presupuesto de voces
+	bool loop = false;        // reproducir en bucle (Loop) en vez de una vez (Once)
 };
 
 /// Catálogo fijo de sonidos (sin heap). Indexa `SfxDef` por `id` (0..kMaxSfx-1).

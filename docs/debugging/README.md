@@ -15,6 +15,7 @@ Esta carpeta contiene documentación técnica sobre el sistema de depuración Am
 | [RELOCATION-FIX.md](RELOCATION-FIX.md) | Explicación detallada del problema de relocalización de direcciones y su solución |
 | [HISTORIAL-CAMBIOS.md](HISTORIAL-CAMBIOS.md) | Registro de todos los cambios realizados desde el código original de Bartman |
 | [DEBUG_DEMO_ARRANQUE_DOBLE_TEXTO_BANDA.md](DEBUG_DEMO_ARRANQUE_DOBLE_TEXTO_BANDA.md) | Diagnóstico y RESOLUCIÓN de los artefactos de arranque de las demos 060/201: doble texto (desbordamiento de `draw_text` por falta de corte en NUL), banda cian 0x0AA (sprite DMA del sistema vivo, causalidad probada A/B), instalación de copperlist fuera de VBL (COPJMP1 a media pantalla) y paleta del pie. Incluye fixes aplicados, sondas y evidencia de verificación (§11). |
+| [AUDIO_DEBUG.md](AUDIO_DEBUG.md) | Procedimiento de depuración de sonido: analizar la onda en host (generador/analizador), puente a C++, y verificación del hardware por canal lateral (DMACONR, registros AUDx, volcado de muestra). |
 
 ## Resumen del Sistema
 
