@@ -19,22 +19,25 @@ namespace eng::input {
 
 /// Estado de un pad/joystick (direcciones + botones CD32). `fire` es el botón
 /// rojo (el fire clásico); `fire2` el azul. Los botones de color se exponen como
-/// `yellow`/`green` (y `play` para el Play/Pause).
+/// `yellow`/`green`, `play` para Play/Pause y `reverse`/`forward` para los
+/// hombros del CD32.
 struct PadState {
 	bool up = false;
 	bool down = false;
 	bool left = false;
 	bool right = false;
-	bool fire = false;   // rojo
-	bool fire2 = false;  // azul
-	bool play = false;   // play/pause
-	bool yellow = false;
-	bool green = false;
+	bool fire = false;    // rojo (CD32_RED)
+	bool fire2 = false;   // azul (CD32_BLUE)
+	bool play = false;    // play/pause (CD32_PAUSE)
+	bool yellow = false;  // CD32_YELLOW
+	bool green = false;   // CD32_GREEN
+	bool reverse = false; // CD32_REVERSE (hombro izquierdo)
+	bool forward = false; // CD32_FORWARD (hombro derecho)
 
 	/// ¿Alguna dirección pulsada?
 	bool any_direction() const { return up || down || left || right; }
 	/// ¿Algún botón pulsado?
-	bool any_button() const { return fire || fire2 || play || yellow || green; }
+	bool any_button() const { return fire || fire2 || play || yellow || green || reverse || forward; }
 	/// ¿Alguna entrada del pad?
 	bool any() const { return any_direction() || any_button(); }
 };

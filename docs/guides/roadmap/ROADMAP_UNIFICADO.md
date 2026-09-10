@@ -68,7 +68,11 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   fuego por `CIAAPRA` bits 6/7, y `poll_input(InputAggregator&)`. Decodificación pura
   validada por HOST-006 (mismo mapeo que los motores ACE/Sevgi y el AHRM). Demo
   `056_input_aggregator` (cruz móvil + fuego + tecla) compila/ejecuta a READY.
-  **Pendiente**: ratón (deltas por contadores) y botones CD32 (protocolo POTGO).
+- **Hecho (input, ratón + CD32)**: `poll_mouse` (delta por `JOY0DAT` + botones por
+  `CIAAPRA`/`POTINP`), `read_cd32_buttons` (protocolo serie `POTGO`) y
+  `decode_cd32_buttons` (puro) en `input_poll.hpp`. `PadState` ampliado con
+  `reverse`/`forward`. Decodificación CD32 validada por HOST-007 (mismo mapeo que
+  Sevgi). **Pendiente**: validar la lectura serie en emulador (sensible a timing).
 - **Hecho (audio SFX, paso 7 de `ENGINE_DESIGN.md` §5)**: `eng::audio::SampleEvent`,
   `MusicEvent`, `AudioPlan` y `AudioMixer` en `engine/include/eng/audio/audio.hpp`,
   validado por HOST-005. **Integrado de forma nativa el Audio Mixer 3.7 (Photon)**:
@@ -78,15 +82,18 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   `MIXER_C_DEFS=1`. Demo `058_sfx_mixer` reproduce un bucle + beep; `DMACONR`=0x381
   (`AUD0EN`+`DMAEN`) y `MixerGetTotalChannelCount()`=4. Documentado en
   `docs/engine/architecture/AUDIO_MIXER.md` (requisitos de muestras preprocesadas,
-  capacidades, configuración, API, preprocesado, rendimiento).
+  capacidades, configuración, API, preprocesado, rendimiento). Herramienta host
+  `tools/audio/sample-converter.ts` (+ test) para preprocesar muestras (±32, múlt. 4).
 - **Hecho (música, `MusicPlayer`)**: reproductor **P61** (Photon/Scoopex) importado
   de `demoscene-repo-orig/lib/libp61` a `support/music/` (`p61.asm` +
   `P6112-Play.i`, ensamblado con VASM). Envoltura de juego `eng::audio::P61Player`
   en `engine/include/eng/audio/music_player.hpp` (API sin punteros: `MusicModule`
   = `Span<const u8>`). Demo `059_music_player` enlaza SFX mixer + P61 y llega a
-  READY (`P61_Init` falla limpiamente sin módulo). **Pendiente**: demo con un
-  módulo `.p61` incrustado y coexistencia real SFX+música (canales separados);
-  reproductores `libpt`/`libahx` (mismo patrón). Ver
+  READY (`P61_Init` falla limpiamente sin módulo). **Importado** también
+  **ptplayer** (Frank Wille): `support/music/pt.asm` + `ptplayer.i` + `support/vbr.s`
+  (`_ExcVecBase=0`), ensambla y enlaza. **Pendiente**: demo con módulo incrustado
+  (`.p61`/`.mod` en `assets/amiga/audio/`) + coexistencia real SFX+música; envoltura
+  `PtPlayer`; `libahx` (necesita `.BIN` + libc). Ver
   `docs/engine/architecture/MUSIC_PLAYER.md`.
 - **Regla de API aplicada**: la capa de audio no expone punteros crudos al
   programador; las áreas de memoria contigua se representan con `eng::Span`
@@ -105,9 +112,9 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   `xlimited.hpp`). En m68k `uintptr == u32` (no-op).
 - Tests host: HOST-000 (math), HOST-001 (graphics_driver_contract), HOST-002
   (raster_intent), HOST-003 (sprite_allocator), HOST-004 (input), HOST-005
-  (audio) y HOST-006 (input_decode) **pasan**. El **ICE de gcc 16.2.0** de
-  HOST-001 quedó resuelto moviendo `SineTable` a definición out-of-class en
-  `xlimited_scene.hpp` (bug del compilador, no del código).
+  (audio), HOST-006 (input_decode) y HOST-007 (input_cd32) **pasan**. El **ICE de
+  gcc 16.2.0** de HOST-001 quedó resuelto moviendo `SineTable` a definición
+  out-of-class en `xlimited_scene.hpp` (bug del compilador, no del código).
 
 ## Decisiones tomadas en 202 (a respetar)
 

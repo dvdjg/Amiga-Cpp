@@ -1,32 +1,37 @@
-# MusicPlayer — reproductores de música (plan de integración)
+# MusicPlayer — reproductores de música
 
 El `MusicPlayer` de `ENGINE_DESIGN.md` §2.6 envuelve los reproductores de música
 asm del demoscene-repo como backends de la intención `eng::audio::MusicEvent`
-(música de tracker). Aquí se fija el plan y el estado.
+(música de tracker). Aquí se fija el estado y el plan.
 
-## Reproductores disponibles (`demoscene-repo-orig`)
+## Estado (2026-09)
 
-| Formato | Fuente | API | Notas |
-|---|---|---|---|
-| Protracker (MOD) | `lib/libpt/pt.asm` + `ptplayer.asm` (95 KB) | `mt_init`/`mt_music`/`mt_end` (`mt_EnableChannelMask` para reservar canales) | Frank Wille ptplayer 6.x; compat con el Audio Mixer (canal por máscara) |
-| P61 | `lib/libp61/p61.asm` + `P6112-Play.i` (88 KB) | `P61_Init`/`P61_Music`/`P61_End`/`P61_SetPosition`/`P61_MasterVolume` | Jazzcat; un solo `.asm` |
-| AHX | `lib/libahx/ahx.asm` + `AHX-Replayer000.BIN` | init/play | Necesita un blob binario precompilado (`.BIN`) |
+| Formato | Fuente | Estado |
+|---|---|---|
+| P61 | `lib/libp61/p61.asm` + `P6112-Play.i` | **Importado**: `support/music/p61.asm`; envoltura `eng::audio::P61Player` en `music_player.hpp`. Demo `059` lo enlaza. |
+| Protracker (MOD) | `lib/libpt/pt.asm` + `ptplayer.i` (95 KB) | **Importado**: `support/music/pt.asm` (+ `ptplayer.i`, `vbr.s` con `_ExcVecBase=0`). Ensambla y enlaza. **Pendiente**: envoltura + demo. |
+| AHX | `lib/libahx/ahx.asm` + `AHX-Replayer000.BIN` | **Pendiente**: necesita el blob `.BIN` y la libc del demoscene-repo (`MemAlloc`/`OpenFile`/`FileRead`/`FileClose`). |
 
-Cabeceras C: `include/p61.h`, `include/ptplayer.h`, `include/ahx.h`. Ejemplos de
-uso: `effects/playp61/playp61.c`, `effects/playahx/playahx.c`. Tutoriales:
-`docs/tutoriales/46-playp61.md`, `47-playprotracker.md`, `44-playahx.md`.
+## API de los reproductores
 
-## Pasos de integración (pendiente)
+- **P61** (`p61.h`): `P61_Init(module,samples,buffer)` / `P61_Music` (por frame) /
+  `P61_End` / `P61_SetPosition`; `P61_ControlBlock` (volumen `Master`, flag `Play`,
+  posición `Pos`). Es frame-driven (llamar `P61_Music` una vez por frame).
+- **PTPlayer** (`ptplayer.h`): `mt_init`/`mt_music`/`mt_end` (frame-driven) y
+  `mt_install`/`mt_remove` (opcional, por CIA). Para coexistir con el mixer usa
+  `mt_EnableChannelMask` (Frank Wille, dominio público). El wrapper `pt.asm` del
+  demoscene-repo expone `PtInit`/`PtEnd`/`PtInstallCIA`/`PtRemoveCIA`/`PtEnable`.
 
-1. Copiar el `.asm` (+ `.i`/`.BIN`) del reproductor elegido a `support/music/`.
-2. Ensamblar con VASM a ELF (mismo mecanismo que `support/audio_mixer/` en
-   `tools/build/build-demo.sh`).
-3. Crear `eng/audio/music_player.hpp`: envoltura C++23 con
-   `play(MusicModule)`/`stop()`/`update()` (por frame, en VBlank)/`set_volume()`.
-   `MusicEvent` (ya en `eng/audio/audio.hpp`) alimenta esta capa.
-4. Demo con un módulo incrustado (`.mod`/`.p61`), reservando el canal del mixer:
-   el mixer usa `DMAF_AUD0`; la música usa `AUD1..AUD3` (o viceversa), y el
-   módulo no debe tocar el canal del mixer.
+## Pasos pendientes
+
+1. Envoltura `eng::audio::PtPlayer` (frame-driven: `mt_init` + `mt_music` por
+   frame, `mt_end`), siguiendo el patrón de `P61Player` (punteros solo en la capa
+   interna, `MusicModule` = `Span<const u8>`).
+2. Demo con un módulo incrustado (`.p61`/`.mod` en `assets/amiga/audio/`),
+   reservando el canal del mixer: el mixer usa `DMAF_AUD0`; la música usa
+   `AUD1..AUD3`, y el módulo no toca el canal del mixer.
+3. AHX: incbin del `AHX-Replayer000.BIN` + shims de `MemAlloc`/`MemFree`/`OpenFile`/
+   `FileRead`/`FileClose`.
 
 ## Convenio mixer + música
 
@@ -40,3 +45,9 @@ documentación del mixer.
 
 Arrancar la música primero y el mixer después (muchos reproductores inicializan
 todos los canales al arrancar, incluso los vacíos).
+
+## Referencias
+
+- Cabeceras: `demoscene-repo-orig/include/p61.h`, `ptplayer.h`, `ahx.h`.
+- Ejemplos: `effects/playp61/playp61.c`, `effects/playahx/playahx.c`.
+- Tutoriales: `docs/tutoriales/46-playp61.md`, `47-playprotracker.md`, `44-playahx.md`.

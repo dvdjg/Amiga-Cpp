@@ -129,4 +129,121 @@ inline void poll_keyboard(KeyboardState& st) {
 	st.prev = cur;
 }
 
+// ---------------------------------------------------------------------------
+// RATÓN: deltas por el contador de Denise (JOY0DAT) + botones.
+// ---------------------------------------------------------------------------
+
+/// Estado interno del ratón (contador previo para calcular deltas).
+struct MousePollState {
+	eng::u16 prev_joy0 = 0;
+	bool started = false;
+};
+
+/// Lee el ratón del puerto 0 (ratón): delta por contador y botones.
+///
+/// El contador `JOY0DAT` ($DFF00A) acumula el movimiento en X (byte bajo) e Y
+/// (byte alto); el delta se obtiene restando el valor del frame anterior. El
+/// botón izquierdo está en `CIAAPRA` bit 6 y el derecho en `POTINP` bit 10
+/// (pin 9), ambos con 0 = pulsado (AHRM cap. 8 y Sevgi).
+inline void poll_mouse(eng::input::MouseState& out, MousePollState& st) {
+	const eng::u16 joy0 = *reinterpret_cast<volatile eng::u16*>(0xDFF00Au);
+	const eng::u8 x = static_cast<eng::u8>(joy0 & 0xffu);
+	const eng::u8 y = static_cast<eng::u8>(joy0 >> 8);
+	if (!st.started) {
+		st.prev_joy0 = joy0;
+		st.started = true;
+		out.dx = 0;
+		out.dy = 0;
+	} else {
+		out.dx = static_cast<eng::s16>(x - static_cast<eng::u8>(st.prev_joy0 & 0xffu));
+		out.dy = static_cast<eng::s16>(y - static_cast<eng::u8>(st.prev_joy0 >> 8));
+		st.prev_joy0 = joy0;
+	}
+
+	const eng::u8 pa = *reinterpret_cast<volatile eng::u8*>(0xBFE001u);
+	out.left_button = (pa & 0x40u) == 0u; // bit 6, 0 = pulsado
+	const eng::u16 potinp = *reinterpret_cast<volatile eng::u16*>(0xDFF016u);
+	out.right_button = (potinp & 0x0400u) == 0u; // bit 10 (pin 9), 0 = pulsado
+}
+
+// ---------------------------------------------------------------------------
+// CD32: botones extra por protocolo serie (POTGO/POTINP).
+// ---------------------------------------------------------------------------
+
+/// Bits de botones CD32 (espejo de los CD32_* de Sevgi).
+enum Cd32Buttons : eng::u16 {
+	kCd32Blue = 0x01,
+	kCd32Red = 0x02,
+	kCd32Yellow = 0x04,
+	kCd32Green = 0x08,
+	kCd32Forward = 0x10,
+	kCd32Reverse = 0x20,
+	kCd32Play = 0x40,
+};
+
+/// Decodifica el flujo serie de 9 bits del CD32 en una máscara de botones.
+///
+/// Es pura (host-testable). El pad responde con 9 bits: 7 botones + 2 bits de
+/// identificación. La firma de CD32 es `bits 7-8 == 0b10` (bit 8 = 1, bit 7 = 0);
+/// si no coincide, el pad es un joystick "tonto" de 1/2 botones y solo se
+/// conservan los dos primeros bits (azul/rojo). Orden (LSB primero, de Sevgi):
+///   bit0=azul, bit1=rojo, bit2=amarillo, bit3=verde, bit4=adelante,
+///   bit5=atrás, bit6=play, bit7=ID0, bit8=ID1.
+inline eng::u16 decode_cd32_buttons(eng::u16 raw) {
+	eng::u16 buttons = raw & 0x7fu;
+	if ((raw & 0x180u) != 0x100u) {
+		// No es un CD32: joystick normal → azul (bit0) y rojo (bit1).
+		buttons &= 0x01u;
+		if (raw & 0x02u) {
+			buttons |= 0x02u;
+		}
+	}
+	return buttons;
+}
+
+/// Lee los botones CD32 de un puerto (protocolo serie).
+///
+/// Pone el puerto en modo CD32 (pin 6 bajo vía CIA, pin 5 vía POTGO), lee 9 bits
+/// serie y restaura el modo joystick. Port de `readCD32JoyPadButtons` de Sevgi;
+/// es sensible al timing (busy-wait por `ECLOCK`) y no se valida en host.
+inline eng::u16 read_cd32_buttons(eng::u8 port) {
+	volatile eng::u8* ciaapra = reinterpret_cast<volatile eng::u8*>(0xBFE001u);
+	volatile eng::u8* ciaaddra = reinterpret_cast<volatile eng::u8*>(0xBFE201u);
+	volatile eng::u16* potgo = reinterpret_cast<volatile eng::u16*>(0xDFF034u);
+	volatile eng::u16* potinp = reinterpret_cast<volatile eng::u16*>(0xDFF016u);
+
+	const eng::u8 gameport = (port == 0u) ? 0x40u : 0x80u; // CIAF_GAMEPORT0/1
+	const eng::u16 potin_bit = (port == 0u) ? 0x0400u : 0x4000u;
+
+	const eng::u8 dumb = (*ciaapra & gameport) == 0u ? 1u : 0u; // botón 1 (rojo) del joystick normal
+
+	// Modo CD32: pin 6 a salida y a 0; pin 5 a 0 vía POTGO.
+	*ciaaddra |= gameport;
+	*ciaapra &= static_cast<eng::u8>(~gameport);
+	*potgo = (port == 0u) ? 0xF200u : 0x2F00u;
+
+	eng::u16 buttons = 0u;
+	for (eng::u8 i = 0; i < 9; ++i) {
+		for (volatile eng::u32 d = 0; d < 6; ++d) { (void)*ciaapra; } // ECLOCK_DELAY
+		if ((*potinp & potin_bit) == 0u) {
+			buttons |= static_cast<eng::u16>(1u << i);
+		}
+		// pulso de reloj en el pin 6
+		*ciaapra |= gameport;
+		*ciaapra &= static_cast<eng::u8>(~gameport);
+	}
+
+	*potgo = 0xFF00u; // volver a modo joystick
+	*ciaaddra &= static_cast<eng::u8>(~gameport);
+
+	// Si no tiene firma CD32, degradar a joystick de 1/2 botones.
+	if ((buttons & 0x180u) != 0x100u) {
+		buttons &= 0x01u;
+		if (dumb != 0u) {
+			buttons |= 0x02u;
+		}
+	}
+	return buttons;
+}
+
 } // namespace eng::amiga
