@@ -91,10 +91,14 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   = `Span<const u8>`). Demo `059_music_player` enlaza SFX mixer + P61 y llega a
   READY (`P61_Init` falla limpiamente sin módulo). **Importado** también
   **ptplayer** (Frank Wille): `support/music/pt.asm` + `ptplayer.i` + `support/vbr.s`
-  (`_ExcVecBase=0`), ensambla y enlaza. **Pendiente**: demo con módulo incrustado
-  (`.p61`/`.mod` en `assets/amiga/audio/`) + coexistencia real SFX+música; envoltura
-  `PtPlayer`; `libahx` (necesita `.BIN` + libc). Ver
-  `docs/engine/architecture/MUSIC_PLAYER.md`.
+  (`_ExcVecBase=0`). Envoltura `eng::audio::PtPlayer` (modo CIA) y demo
+  `060_music_pt`: genera un `.mod` mínimo en memoria y reproduce música real
+  (`DMACONR` con `AUD0EN` activo tras ~100 frames). **Consolidado** en
+  `eng::audio::AudioSystem` (`engine/include/eng/audio/audio_system.hpp`): fachada
+  única que compone `SfxMixer` + `P61Player`/`PtPlayer`; demo `061_audio_system`
+  demuestra coexistencia SFX (AUD0) + música (AUD1) con el orden canónico
+  música→canal reservado→mixer. **Pendiente**: `libahx` (necesita `.BIN` + libc).
+  Ver `docs/engine/architecture/MUSIC_PLAYER.md`.
 - **Regla de API aplicada**: la capa de audio no expone punteros crudos al
   programador; las áreas de memoria contigua se representan con `eng::Span`
   (`SfxSample` y `MusicModule`). Los punteros quedan en la capa interna

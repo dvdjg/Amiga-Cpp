@@ -124,4 +124,94 @@ private:
 	bool m_playing = false;
 };
 
+// ---------------------------------------------------------------------------
+// PTPlayer (Protracker .mod, Frank Wille) — modo CIA (el reproductor usa la
+// interrupción CIA-B Timer-A para el timing; no requiere update por frame).
+// ---------------------------------------------------------------------------
+
+namespace pt_amiga {
+
+/// Flag de reproducción `_mt_Enable` (byte, 0 = pausa, no-0 = reproducir).
+extern "C" volatile u8 _mt_Enable;
+
+inline void init(const void* module, const void* samples, u8 pos) {
+	register volatile const void* m __asm("a0") = module;
+	register volatile const void* s __asm("a1") = samples;
+	register volatile u8 p __asm("d0") = pos;
+	__asm__ volatile("jsr _PtInit" : : "r"(m), "r"(s), "r"(p) : "cc", "memory");
+}
+
+inline void install_cia() {
+	__asm__ volatile("jsr _PtInstallCIA" : : : "cc", "memory");
+}
+
+inline void remove_cia() {
+	__asm__ volatile("jsr _PtRemoveCIA" : : : "cc", "memory");
+}
+
+inline void end() {
+	__asm__ volatile("jsr _PtEnd" : : : "cc", "memory");
+}
+
+inline void master_volume(u8 volume) {
+	register volatile u8 v __asm("d0") = volume;
+	__asm__ volatile("jsr _mt_mastervol" : : "r"(v) : "cc", "memory");
+}
+
+inline void channel_mask(u8 mask) {
+	register volatile u8 m __asm("d0") = mask;
+	__asm__ volatile("jsr _mt_channelmask" : : "r"(m) : "cc", "memory");
+}
+
+} // namespace pt_amiga
+
+/// Reproductor de música Protracker (`.mod`), orientado a juego.
+///
+/// Usa el modo CIA (la interrupción CIA-B se encarga del timing), así que no hay
+/// `update()` por frame: solo `play`/`stop`/`set_master_volume`. Arranca la música
+/// primero y el SFX mixer después (ver MUSIC_PLAYER.md).
+class PtPlayer {
+public:
+	/// Inicia la reproducción del módulo (devuelve true si hay módulo).
+	bool play(const MusicModule& module) {
+		if (module.data.empty()) {
+			return false;
+		}
+		pt_amiga::init(module.data.data(), nullptr, 0);
+		pt_amiga::install_cia();
+		pt_amiga::_mt_Enable = 1;
+		m_playing = true;
+		return true;
+	}
+
+	/// Detiene la música y desinstala la interrupción.
+	void stop() {
+		if (m_playing) {
+			pt_amiga::_mt_Enable = 0;
+			pt_amiga::remove_cia();
+			pt_amiga::end();
+			m_playing = false;
+		}
+	}
+
+	/// Volumen maestro (0..64).
+	void set_master_volume(u8 volume) {
+		if (m_playing) {
+			pt_amiga::master_volume(static_cast<u8>(volume & 0x7fu));
+		}
+	}
+
+	/// Reserva canales para el SFX mixer (p. ej. `channel_mask(1)` deja AUD0 libre).
+	void set_channel_mask(u8 mask) {
+		if (m_playing) {
+			pt_amiga::channel_mask(mask);
+		}
+	}
+
+	constexpr bool is_playing() const { return m_playing; }
+
+private:
+	bool m_playing = false;
+};
+
 } // namespace eng::audio
