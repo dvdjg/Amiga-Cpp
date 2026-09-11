@@ -30,6 +30,14 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
 - **Telemetría por frame** leíble (símbolo en `.data`), lectura arreglada.
 - Sin `linear_display` por defecto en 202: viewport recortado 320×208 para split
   canónico; mapas toroidales.
+- **Matemática y assets (import demoscene, 2026-09)**: `eng/core/math2d.hpp`
+  (lib2d: matrices 2×2 4.12 + `clip_line`/`clip_polygon`) y `eng/core/math3d.hpp`
+  (lib3d: `Mat3x3`, rotaciones, `compose`, `face_visible`) — tests HOST-010/011.
+  Base del contenedor de assets UAF-R: `eng/assets/uaf.hpp` (`Blob` valida
+  header/chunks por offset, test HOST-012). La cola de blits/presupuesto ya existía
+  (`frame_plan.hpp`); las ops hardware de `libblit` van al backend. **Pendiente**:
+  consumidores de los chunks (paletas/bitplanes/samples) y el modelo de objeto/malla
+  de `lib3d` (que depende de esta capa).
 
 ## Sprites hardware — estado (2026-09)
 

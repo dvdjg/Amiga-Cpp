@@ -83,6 +83,18 @@ int main() {
 	near(r180.m10, 0, 2, "Rz90*Rz90 (1,0)");
 	near(r180.m11, -4096, 2, "Rz90*Rz90 (1,1)");
 
+	// Visibilidad de cara (back-face culling) y claves de orden Z.
+	{
+		const Vec3 a {0, 0, 0}, b {100, 0, 0}, c {0, 100, 0};
+		check(face_visible(a, b, c, {50, 50, 200}), "cara visible desde +z");
+		check(!face_visible(a, b, c, {50, 50, -200}), "cara no visible desde -z");
+	}
+	{
+		const Vec3 a {0, 0, 10}, b {0, 0, 20}, c {0, 0, 30};
+		check(face_z_sum(a, b, c) == 60, "face_z_sum");
+		check(face_z_min(a, b, c) == 10, "face_z_min");
+	}
+
 	if (failures == 0) {
 		std::printf("OK: math3d (lib3d 4.12) validado.\n");
 		return 0;

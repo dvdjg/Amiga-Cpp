@@ -136,4 +136,39 @@ inline void transform(const Mat3x3& m, Vec3* out, const Vec3* in, u32 n) {
 	}
 }
 
+/// Cara triangular: 3 índices sobre el array de vértices.
+struct Face {
+	u16 a = 0;
+	u16 b = 0;
+	u16 c = 0;
+};
+
+/// Producto mixto `(B-A)·[(C-A)×(cam-A)]` en 32 bits (signo = visibilidad de la
+/// cara `(A,B,C)` desde `cam`). Es el test de back-face culling de `UpdateFaceVisibility`
+/// sin normalizar (solo importa el signo). Coords moderadas (≤ ~320) no desbordan.
+constexpr s32 face_signed_area(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& cam) {
+	const s32 ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
+	const s32 vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
+	const s32 nx = uy * vz - uz * vy;
+	const s32 ny = uz * vx - ux * vz;
+	const s32 nz = ux * vy - uy * vx;
+	return nx * (cam.x - a.x) + ny * (cam.y - a.y) + nz * (cam.z - a.z);
+}
+
+/// ¿Es visible la cara `(a,b,c)` desde `cam`? (`>= 0`, como el origen).
+constexpr bool face_visible(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& cam) {
+	return face_signed_area(a, b, c, cam) >= 0;
+}
+
+/// Clave de orden Z por SUMA de los z de la cara (como `SortFaces`).
+constexpr s16 face_z_sum(const Vec3& a, const Vec3& b, const Vec3& c) {
+	return static_cast<s16>(a.z + b.z + c.z);
+}
+
+/// Clave de orden Z por MÍNIMO de los z de la cara (como `SortFacesMinZ`).
+constexpr s16 face_z_min(const Vec3& a, const Vec3& b, const Vec3& c) {
+	const s16 ab = a.z < b.z ? a.z : b.z;
+	return ab < c.z ? ab : c.z;
+}
+
 } // namespace eng::math3d
