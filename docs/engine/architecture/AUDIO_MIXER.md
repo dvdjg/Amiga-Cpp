@@ -74,6 +74,14 @@ Para música + SFX simultáneos, el convenio es: el mixer en AUD0 y el
 reproductor de música en AUD1..AUD3 (o viceversa), y la pista no usa el canal
 del mixer.
 
+> **Buffers de plugin obligatorios (aunque los plugins estén OFF)**: `MixerSetup`
+> y el handler esperan punteros **no nulos** para el buffer de plugins (A1) y el
+> de datos (A2), incluso con `MIXER_ENABLE_PLUGINS=0`. Pasar `nullptr` deja la
+> mezcla en **silencio** (salida ≈ 0). Además, `MixerGetPluginsBufferSize()` es
+> un **no-op** en ese caso (no escribe D0 y devuelve basura), así que hay que
+> reservar un bloque fijo (p. ej. 896 B). `SfxMixer::init` ya lo hace; si se
+> integra el mixer a mano, replicar el patrón de `demos/amiga/068_mixer_ref`.
+
 ## API de juego (`eng::audio::SfxMixer`)
 
 ```cpp

@@ -186,7 +186,7 @@ MIXER_CIA_KBOARD_RES	EQU	1
 ; counter increases by one every time the mixer interrupt has been executed
 ; and can be accessed using the routines MixerResetCounter() and
 ; MixerGetCounter()
-MIXER_COUNTER			EQU 0
+MIXER_COUNTER			EQU 1
 
 
 ;-----------------------------------------------------------------------------

@@ -54,6 +54,15 @@ constexpr u8 DmaAud1 = 2;  // DMAF_AUD1
 constexpr u8 DmaAud2 = 4;  // DMAF_AUD2
 constexpr u8 DmaAud3 = 8;  // DMAF_AUD3
 
+/// Longitud (bytes) del bloque ficticio de datos de plugin que se pasa a
+/// `MixerSetup`. Aunque los plugins estén desactivados, el mixer espera
+/// punteros no nulos y un tamaño; con `nullptr`/0 la mezcla queda en silencio.
+constexpr u32 kPluginDataBytes = 64;
+
+/// Tamaño por defecto del buffer de plugins cuando `MIXER_ENABLE_PLUGINS=0`
+/// (el mixer no lo usa, solo necesita un puntero válido).
+constexpr u32 kPluginBufferBytes = 896;
+
 namespace mixer_amiga {
 
 /// Estructura de efecto: define una muestra a reproducir. Debe coincidir
@@ -159,6 +168,18 @@ inline u32 sample_min_size() {
 	return result;
 }
 
+/// Reinicia el contador de interrupciones del mixer (requiere MIXER_COUNTER=1).
+inline void reset_counter() {
+	__asm__ volatile("jsr _MixerResetCounter" : : : "cc", "memory");
+}
+
+/// Nº de interrupciones del mixer desde el último reset (requiere MIXER_COUNTER=1).
+inline u16 get_counter() {
+	register volatile u32 result __asm("d0");
+	__asm__ volatile("jsr _MixerGetCounter" : "=r"(result) : : "cc", "memory");
+	return static_cast<u16>(result & 0xffffu);
+}
+
 } // namespace mixer_amiga
 
 /// Una muestra preprocesada lista para el mixer. Expone la memoria como
@@ -188,13 +209,34 @@ public:
 	/// Reserva el buffer Chip requerido, configura el mixer y arranca el handler
 	/// (VBR=0, propio de un 68000). Asume que el sistema ya no usa interrupciones
 	/// de audio (el engine hace takeover del display antes).
+	///
+	/// NOTA: aunque los plugins estén desactivados en `mixer_config.i`, el mixer
+	/// espera punteros NO nulos para el buffer de plugins y el de datos (como en
+	/// el ejemplo `CMixer.c`); pasar `nullptr` deja la mezcla en silencio. Por eso
+	/// se reservan aquí (Chip RAM) y se pasan a `MixerSetup`.
 	bool init(MemorySystem& memory) {
 		m_buffer_size = mixer_amiga::get_buffer_size();
 		m_buffer = memory.chip.allocate(m_buffer_size, 4);
 		if (!m_buffer.valid()) {
 			return false;
 		}
-		mixer_amiga::setup(m_buffer.data, nullptr, nullptr, MixPal, 0);
+
+		// Plugins desactivados (MIXER_ENABLE_PLUGINS=0 en mixer_config.i):
+		// MixerGetPluginsBufferSize() es un no-op y deja D0 con basura, así que
+		// no se puede usar. El mixer NO usa estos buffers, pero MixerSetup y el
+		// handler esperan punteros válidos -> reservamos bloques fijos. Pasar
+		// nullptr deja la mezcla en silencio (bug corregido con la demo 068).
+		m_plugin_buffer_size = kPluginBufferBytes;
+		m_plugin_buffer = memory.chip.allocate(m_plugin_buffer_size, 4);
+		if (!m_plugin_buffer.valid()) m_plugin_buffer = memory.slow.allocate(m_plugin_buffer_size, 4);
+		m_plugin_data = memory.chip.allocate(kPluginDataBytes, 4);
+		if (!m_plugin_data.valid()) m_plugin_data = memory.slow.allocate(kPluginDataBytes, 4);
+		if (!m_plugin_buffer.valid() || !m_plugin_data.valid()) {
+			return false;
+		}
+
+		mixer_amiga::setup(m_buffer.data, m_plugin_buffer.data, m_plugin_data.data,
+			MixPal, static_cast<u16>(kPluginDataBytes));
 		mixer_amiga::install_handler(nullptr, 0); // VBR=0 (68000), guardar vector
 		mixer_amiga::start();
 		m_ready = true;
@@ -277,10 +319,23 @@ public:
 
 	constexpr bool ready() const { return m_ready; }
 
+	/// Buffer Chip que el mixer rellena cada interrupción y que Paula reproduce
+	/// por DMA (diagnóstico; no usar en gameplay).
+	const u8* buffer() const { return static_cast<const u8*>(m_buffer.data); }
+	u32 buffer_bytes() const { return m_buffer.size; }
+
+	/// Reinicia el contador de interrupciones del mixer (diagnóstico).
+	void reset_counter() { if (m_ready) mixer_amiga::reset_counter(); }
+	/// Nº de interrupciones del mixer desde el último reset (diagnóstico).
+	u16 counter() const { return m_ready ? mixer_amiga::get_counter() : 0u; }
+
 private:
 	bool m_ready = false;
 	u32 m_buffer_size = 0;
+	u32 m_plugin_buffer_size = 0;
 	MemoryBlock m_buffer {};
+	MemoryBlock m_plugin_buffer {};
+	MemoryBlock m_plugin_data {};
 };
 
 } // namespace eng::audio
