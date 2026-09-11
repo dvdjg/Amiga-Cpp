@@ -24,6 +24,18 @@
 
 #include "support/gcc8_c_support.h"
 
+// Ruta de relleno de caras: 0 = CPU por tramos de byte/word (por defecto,
+// verificado), 1 = Blitter-asistido (mascara por CPU + cookie-cut del Blitter a
+// los planos de color). Se conservan AMBAS rutinas; elegir con -DK_FILL_BLITTER=1.
+//
+// NOTA (WIP): la ruta Blitter dibuja pero el resultado aun sale RAYADO (tanto el
+// area-fill directo `fill_triangles_blitter` como el cookie-cut
+// `blit_fill_from_mask`), sintoma de alineacion/carry de los canales A/C-D del
+// Blitter. Por eso el DEFECTO es la CPU (solida y verificada).
+#ifndef K_FILL_BLITTER
+#define K_FILL_BLITTER 0
+#endif
+
 struct ExecBase* SysBase = nullptr;
 
 extern "C" {
@@ -71,6 +83,7 @@ constexpr ehb::EhbPalette kPalette {{
 /// solido se borra por Blitter a 0 antes de pintarla).
 struct Canvas {
 	eng::u8* planes = nullptr;
+	eng::u8 plane_count = kPlanes;
 
 	void px(eng::s32 x, eng::s32 y, eng::u8 color) {
 		if (x < 0 || y < 0 || x >= static_cast<eng::s32>(kWidth) || y >= static_cast<eng::s32>(kHeight)) {
@@ -78,9 +91,9 @@ struct Canvas {
 		}
 		const eng::u32 off = static_cast<eng::u32>(y) * kRowBytes + static_cast<eng::u32>(x >> 3);
 		const eng::u8 mask = static_cast<eng::u8>(0x80u >> (x & 7));
-		// Los colores < 8 (rampa del solido) usan solo los planos 0..2; el marco (8)
-		// y las estrellas (9/10) usan el plano 3, asi que esos escriben los 6.
-		const eng::u8 np = (color < 8u) ? 3u : kPlanes;
+		// Colores < 8 (rampa) usan hasta 3 planos; el resto, todos los del canvas.
+		eng::u8 np = plane_count;
+		if (color < 8u && np > 3u) np = 3u;
 		for (eng::u8 p = 0; p < np; ++p) {
 			eng::u8* base = planes + static_cast<eng::u32>(p) * kPlaneBytes;
 			if (color & (1u << p)) {
@@ -122,7 +135,7 @@ struct Canvas {
 		const eng::u8 first_mask = static_cast<eng::u8>(0xffu >> (xl & 7));
 		const eng::u8 last_mask = static_cast<eng::u8>(0xffu << (7 - (xr & 7)));
 
-		for (eng::u8 p = 0; p < 3u; ++p) {
+		for (eng::u8 p = 0; p < plane_count; ++p) {
 			eng::u8* row = planes + static_cast<eng::u32>(p) * kPlaneBytes +
 				       static_cast<eng::u32>(y) * kRowBytes;
 			const eng::u8 v = (color & (1u << p)) ? 0xffu : 0x00u;
@@ -146,6 +159,25 @@ struct Canvas {
 			for (eng::u32 w = 0; w < words; ++w) wp[w] = vw;
 			i += words * 2u;
 			for (; i < end; ++i) row[i] = v;
+		}
+	}
+
+	/// Borra (a 0) el bbox alineado a byte de los planos del canvas (CPU). Se usa
+	/// para limpiar la mascara antes de pintar cada cara.
+	void clear_rect(eng::s32 x0, eng::s32 y0, eng::s32 x1, eng::s32 y1) {
+		if (x0 < 0) x0 = 0;
+		if (y0 < 0) y0 = 0;
+		if (x1 > static_cast<eng::s32>(kWidth) - 1) x1 = static_cast<eng::s32>(kWidth) - 1;
+		if (y1 > static_cast<eng::s32>(kHeight) - 1) y1 = static_cast<eng::s32>(kHeight) - 1;
+		if (x0 > x1 || y0 > y1) return;
+		const eng::u32 b0 = static_cast<eng::u32>(x0) >> 3;
+		const eng::u32 b1 = static_cast<eng::u32>(x1) >> 3;
+		for (eng::u8 p = 0; p < plane_count; ++p) {
+			eng::u8* base = planes + static_cast<eng::u32>(p) * kPlaneBytes;
+			for (eng::s32 y = y0; y <= y1; ++y) {
+				eng::u8* row = base + static_cast<eng::u32>(y) * kRowBytes;
+				for (eng::u32 i = b0; i <= b1; ++i) row[i] = 0u;
+			}
 		}
 	}
 };
@@ -203,8 +235,9 @@ struct Dda {
 };
 
 /// Rellena un triangulo por scanline (dos tramos: arriba->medio, medio->abajo),
-/// con DDAs enteros (sin divisiones ni floats).
-void fill_tri(Canvas& c, eng::s32 x0, eng::s32 y0, eng::s32 x1, eng::s32 y1,
+/// con DDAs enteros (sin divisiones ni floats). Ruta CPU; se conserva aunque
+/// K_FILL_BLITTER use el Blitter.
+[[maybe_unused]] void fill_tri(Canvas& c, eng::s32 x0, eng::s32 y0, eng::s32 x1, eng::s32 y1,
 	      eng::s32 x2, eng::s32 y2, eng::u8 color) {
 	eng::s32 xa = x0, ya = y0, xb = x1, yb = y1, xc = x2, yc = y2;
 	if (ya > yb) { const eng::s32 t = xa; xa = xb; xb = t; const eng::s32 u = ya; ya = yb; yb = u; }
@@ -253,9 +286,21 @@ struct DemoGame {
 			for (eng::u32 i = 0; i < kBlankBytes; ++i) b[i] = 0u;
 			m_blank = static_cast<const eng::u16*>(m_blank_block.data);
 		}
+#if K_FILL_BLITTER
+		// Plano-mascara 1 bit (Chip RAM) para el relleno por Blitter.
+		m_mask_block = backend.memory().chip.allocate(kPlaneBytes, 16);
+		if (m_mask_block.valid()) {
+			m_mask = static_cast<eng::u8*>(m_mask_block.data);
+		}
+#endif
 
 		m_mesh_ok = load_mesh();
-		if (m_memory_ok && m_scene_ok && m_blank_block.valid() && m_mesh_ok) {
+#if K_FILL_BLITTER
+		const bool mask_ok = m_mask_block.valid();
+#else
+		const bool mask_ok = true;
+#endif
+		if (m_memory_ok && m_scene_ok && m_blank_block.valid() && mask_ok && m_mesh_ok) {
 			draw_static();
 			m_scene.takeover(backend);
 			if (!verify_mesh()) {
@@ -301,7 +346,6 @@ struct DemoGame {
 		backend.execute_frame_plan(plan);
 
 		// 2) Rasterizado del solido: rotacion + culling + orden painter + relleno.
-		Canvas c {m_scene.bitplanes()};
 		const eng::u32 f = context.frame.frame_index;
 		eng::math3d::Mat3x3 m;
 		eng::math3d::load_rotate(m, static_cast<eng::u16>(f * 17u), static_cast<eng::u16>(f * 11u),
@@ -315,13 +359,44 @@ struct DemoGame {
 		const eng::u32 visible = eng::math3d::mesh_painter_order(
 			m_mesh, eng::Span<const Vec3>(world, 8), cam, eng::Span<eng::math3d::FaceOrder>(order, 12));
 
+#if K_FILL_BLITTER
+		Canvas mc {m_mask, 1}; // mascara 1 bit (Chip)
+#else
+		Canvas c {m_scene.bitplanes()};
+#endif
 		for (eng::u32 i = 0; i < visible; ++i) {
 			const Face& fc = m_faces[order[i].index];
 			const eng::u8 col = shade_of(eng::math3d::face_z_sum(world[fc.a], world[fc.b], world[fc.c]));
-			fill_tri(c,
-				 kCX + world[fc.a].x, kCY - world[fc.a].y,
-				 kCX + world[fc.b].x, kCY - world[fc.b].y,
-				 kCX + world[fc.c].x, kCY - world[fc.c].y, col);
+			const eng::s16 ax = static_cast<eng::s16>(kCX + world[fc.a].x);
+			const eng::s16 ay = static_cast<eng::s16>(kCY - world[fc.a].y);
+			const eng::s16 bx = static_cast<eng::s16>(kCX + world[fc.b].x);
+			const eng::s16 by = static_cast<eng::s16>(kCY - world[fc.b].y);
+			const eng::s16 cx = static_cast<eng::s16>(kCX + world[fc.c].x);
+			const eng::s16 cy = static_cast<eng::s16>(kCY - world[fc.c].y);
+#if K_FILL_BLITTER
+			// Ruta robusta: la CPU dibuja la mascara (1 plano, por tramos) y el
+			// Blitter hace el cookie-cut de la mascara a los planos de color.
+			eng::s16 xmin = ax, xmax = ax, ymin = ay, ymax = ay;
+			if (bx < xmin) xmin = bx;
+			if (bx > xmax) xmax = bx;
+			if (cx < xmin) xmin = cx;
+			if (cx > xmax) xmax = cx;
+			if (by < ymin) ymin = by;
+			if (by > ymax) ymax = by;
+			if (cy < ymin) ymin = cy;
+			if (cy > ymax) ymax = cy;
+			mc.clear_rect(xmin, ymin, xmax, ymax);
+			fill_tri(mc, ax, ay, bx, by, cx, cy, 1u);
+			if (!backend.blit_fill_from_mask(m_mask, m_scene.bitplanes(), kPlanes, kRowBytes,
+							 kPlaneBytes, xmin, ymin,
+							 static_cast<eng::u16>(xmax - xmin + 1),
+							 static_cast<eng::u16>(ymax - ymin + 1), col)) {
+				eng::debug::mark_failed(g_eng_run_status, 0x00007804u);
+				return;
+			}
+#else
+			fill_tri(c, ax, ay, bx, by, cx, cy, col);
+#endif
 		}
 
 		m_scene.install(backend);
@@ -411,6 +486,8 @@ private:
 	bool m_mesh_ok = false;
 	eng::MemoryBlock m_blank_block {};
 	const eng::u16* m_blank = nullptr;
+	eng::MemoryBlock m_mask_block {};
+	eng::u8* m_mask = nullptr;
 	ehb::StaticEhbScene m_scene {};
 };
 

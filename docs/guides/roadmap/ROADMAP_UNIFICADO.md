@@ -45,6 +45,12 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   `077_math3d_cube` (alambre) y `078_math3d_solid` (relleno por tramos de byte/word,
   malla cargada desde un blob UAF-R incbinado y borrado por Blitter). `mesh_painter_order`
   soporta caras de doble cara; gate visual `tools/analyze/verify-math3d-cube.mjs`.
+  Relleno por Blitter en `MinimalBackend::fill_triangles_blitter` (line + area fill
+  en máscara + cookie-cut, portado de `libblit`/amiga-bootcamp) y `blit_fill_from_mask`
+  (máscara CPU + cookie-cut Blitter) tras `-DK_FILL_BLITTER=1`. WIP: ambas rutas Blitter
+  dibujan pero el resultado sale rayado (alineación/carry de los canales A/C-D), así que
+  el relleno por CPU (tramos de byte/word) es el defecto y las de Blitter quedan en
+  depuración. Para depurar se usan capturas + `tools/analyze/ollama-desc.mjs` (visión).
 
 ## Sprites hardware — estado (2026-09)
 

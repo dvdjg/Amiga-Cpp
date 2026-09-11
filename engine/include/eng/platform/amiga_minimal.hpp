@@ -51,6 +51,17 @@ struct DebugOverlay {
 	void filled_rect(s16 left, s16 top, s16 right, s16 bottom, u32 rgb);
 };
 
+/// Triangulo plano (coordenadas de pantalla) para el relleno por Blitter.
+struct FlatTriangle {
+	s16 x0 = 0;
+	s16 y0 = 0;
+	s16 x1 = 0;
+	s16 y1 = 0;
+	s16 x2 = 0;
+	s16 y2 = 0;
+	u8 color = 0;
+};
+
 /// Backend Amiga minimo.
 ///
 /// Sus responsabilidades actuales son:
@@ -118,6 +129,25 @@ public:
 	/// paleta pertenecen al driver grafico (`StaticEhbScene`) porque son offsets
 	/// internos de su copperlist.
 	bool execute_frame_plan(const graphics::FramePlan& plan);
+
+	/// Rellena triangulos planos con el **Blitter**: por cada triangulo dibuja el
+	/// contorno (line mode XOR, ONEDOT) + area fill inclusivo en un plano-mascara
+	/// de 1 bit y luego hace cookie-cut de la mascara a cada bitplane segun el
+	/// color. `mask` es un plano 1 bit en Chip RAM con el mismo `row_bytes` y
+	/// tamano que el destino. Es la ruta rapida de hardware; el llamador conserva
+	/// las rutinas CPU por tramos de byte como alternativa (p. ej. `fill_span`).
+	bool fill_triangles_blitter(const FlatTriangle* tris, u32 count,
+				    u8* dst, u8 planes, u16 row_bytes, u32 plane_bytes,
+				    u8* mask);
+
+	/// Ruta robusta de relleno con Blitter: el llamador construye con la CPU una
+	/// **máscara** de 1 bit (por tramos, `fill_span`) y el Blitter hace el
+	/// **cookie-cut** de la máscara a cada bitplane de color (`D=A|D` si el bit del
+	/// color esta a 1, `D=~A&D` si a 0). Combina lo mejor de ambos: la CPU escribe 1
+	/// plano y el Blitter (en paralelo) materializa los planos de color. La region
+	/// se ajusta a palabra automaticamente.
+	bool blit_fill_from_mask(const u8* mask, u8* dst, u8 planes, u16 row_bytes,
+				 u32 plane_bytes, s16 x, s16 y, u16 w, u16 h, u8 color);
 
 	/// Inicializa el subsistema de audio (SFX mixer + reproductores de música).
 	/// Debe llamarse después de `configure_memory` (necesita el bloque Chip para el

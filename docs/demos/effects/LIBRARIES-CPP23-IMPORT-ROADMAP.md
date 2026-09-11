@@ -348,3 +348,5 @@ Siguiente paso recomendado: portar/mapear el resto de `libmisc`/`libc`
 - Roadmap previo de importación (oleadas por efecto, ahora superado por este
   enfoque por librerías): [`demoscene-repo-import-roadmap.md`](demoscene-repo-import-roadmap.md).
 - Catálogo de técnicas del origen: `docs/06-catalogo-efectos.md` y `docs/07-referencia-apis.md` en el repo origen.
+- **Método de porte 1:1** (prompt reutilizable + flujo + oráculo con el `.exe` original): [`../../../guides/roadmap/PORT_PROMPT_1A1.md`](../../../guides/roadmap/PORT_PROMPT_1A1.md).
+- **Plan de huecos del primer porte** (`wireframe`): [`WIREFRAME_PORT_PLAN.md`](WIREFRAME_PORT_PLAN.md).

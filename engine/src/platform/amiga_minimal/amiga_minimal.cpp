@@ -24,6 +24,8 @@ constexpr unsigned short custom_bltcmod_offset = 0x060 / 2;
 constexpr unsigned short custom_bltbmod_offset = 0x062 / 2;
 constexpr unsigned short custom_bltamod_offset = 0x064 / 2;
 constexpr unsigned short custom_bltdmod_offset = 0x066 / 2;
+constexpr unsigned short custom_bltadat_offset = 0x074 / 2; // BLTADAT
+constexpr unsigned short custom_bltbdat_offset = 0x072 / 2; // BLTBDAT
 constexpr unsigned short custom_color_offset = 0x180 / 2;
 constexpr unsigned short custom_copjmp1_offset = 0x088 / 2;
 constexpr unsigned short custom_dmacon_offset = 0x096 / 2;
@@ -59,6 +61,138 @@ bool wait_blitter() {
 		}
 	}
 	return true;
+}
+
+// --- Blitter: linea (line mode) y relleno de area (area fill) ------------------
+//
+// Portado de la API `libblit` del demoscene (`BlitterLine.c`, `BlitterFillArea.c`)
+// y de `amiga-bootcamp/08_graphics/blitter_programming.md` (seccion "Area Fill").
+// Tecnica para poligonos convexos:
+//   1) dibujar el contorno con line mode (minterm XOR, SING=ONEDOT);
+//   2) rellenar con area fill inclusivo (BLTCON1 = DESC|FILL_OR), descendente.
+// El relleno funciona bit a bit por plano; para colorear 3 planos con painter se
+// usa un plano-mascara 1 bit y luego un cookie-cut por plano (ver fill_triangles).
+constexpr unsigned short blt_line_xor = 0x0bca;   // BC0F_LINE_OR (contorno cerrado)
+constexpr unsigned short blt_linemode = 0x0001;
+constexpr unsigned short blt_onedot = 0x0002;
+constexpr unsigned short blt_sud = 0x0010;
+constexpr unsigned short blt_sul = 0x0008;
+constexpr unsigned short blt_aul = 0x0004;
+constexpr unsigned short blt_signflag = 0x0040;
+constexpr unsigned short blt_fill_or = 0x0008;
+constexpr unsigned short blt_reverse = 0x0002;
+constexpr unsigned short blt_minterm_a_or_c = 0x00fa;       // D = A | C
+constexpr unsigned short blt_minterm_not_a_and_c = 0x000a;  // D = ~A & C
+
+unsigned short ror16(unsigned short value, unsigned short n) {
+	return static_cast<unsigned short>((value >> n) | (value << (16u - n)));
+}
+
+/// Borra una region de palabras (D=0) en un plano planar.
+void blit_clear_region(eng::u8* plane, eng::u16 row_bytes, eng::u16 wx0, eng::s16 y,
+		       eng::u16 words, eng::u16 h) {
+	eng::u8* d = plane + static_cast<eng::u32>(y) * row_bytes + (wx0 >> 3);
+	const eng::u16 mod = static_cast<eng::u16>(row_bytes - words * 2u);
+	wait_blitter();
+	custom_base[custom_bltcon0_offset] = blt_use_d; // minterm 0 => D = 0
+	custom_base[custom_bltcon1_offset] = 0;
+	custom_base[custom_bltafwm_offset] = 0xffff;
+	custom_base[custom_bltalwm_offset] = 0xffff;
+	custom_base[custom_bltdmod_offset] = mod;
+	write_custom_pointer(custom_bltdpt_offset, d);
+	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((h << 6) | words);
+}
+
+/// Dibuja una linea con el Blitter (Bresenham hardware, line mode ONEDOT).
+void blit_line(eng::u8* plane, eng::u16 row_bytes, eng::s16 x1, eng::s16 y1,
+	       eng::s16 x2, eng::s16 y2) {
+	if (y1 > y2) {
+		eng::s16 t = x1; x1 = x2; x2 = t;
+		t = y1; y1 = y2; y2 = t;
+	}
+	eng::u8* data = plane + static_cast<eng::u32>(y1) * row_bytes + ((x1 >> 3) & ~1);
+	eng::s16 dx = static_cast<eng::s16>(x2 - x1);
+	eng::s16 dy = static_cast<eng::s16>(y2 - y1);
+	eng::u16 con1 = static_cast<eng::u16>(blt_linemode | blt_onedot);
+	if (dx < 0) {
+		dx = static_cast<eng::s16>(-dx);
+		if (dx >= dy) {
+			con1 = static_cast<eng::u16>(con1 | blt_aul | blt_sud);
+		} else {
+			con1 = static_cast<eng::u16>(con1 | blt_sul);
+			const eng::s16 t = dx; dx = dy; dy = t;
+		}
+	} else {
+		if (dx >= dy) {
+			con1 = static_cast<eng::u16>(con1 | blt_sud);
+		} else {
+			const eng::s16 t = dx; dx = dy; dy = t;
+		}
+	}
+	eng::s16 derr = static_cast<eng::s16>(dy + dy - dx);
+	if (derr < 0) {
+		con1 = static_cast<eng::u16>(con1 | blt_signflag);
+	}
+	const eng::u16 con0 = static_cast<eng::u16>(ror16(static_cast<eng::u16>(x1 & 15), 4) | blt_line_xor);
+	const eng::u16 amod = static_cast<eng::u16>(derr - dx);
+	const eng::u16 bmod = static_cast<eng::u16>(dy + dy);
+	wait_blitter();
+	custom_base[custom_bltcon0_offset] = con0;
+	custom_base[custom_bltcon1_offset] = con1;
+	custom_base[custom_bltafwm_offset] = 0xffff;
+	custom_base[custom_bltalwm_offset] = 0xffff;
+	custom_base[custom_bltadat_offset] = 0x8000;
+	custom_base[custom_bltbdat_offset] = 0xffff;
+	custom_base[custom_bltamod_offset] = amod;
+	custom_base[custom_bltbmod_offset] = bmod;
+	custom_base[custom_bltcmod_offset] = row_bytes;
+	custom_base[custom_bltdmod_offset] = row_bytes;
+	write_custom_pointer(custom_bltapt_offset,
+			     reinterpret_cast<void*>(static_cast<eng::u32>(static_cast<eng::s32>(derr))));
+	write_custom_pointer(custom_bltcpt_offset, data);
+	write_custom_pointer(custom_bltdpt_offset, data);
+	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((static_cast<eng::u16>(dx) << 6) + 66u);
+}
+
+/// Rellena (area fill inclusivo) el interior del contorno ya dibujado en `plane`.
+/// Descendente y bit a bit: requiere que el contorno sea de 1 pixel (ONEDOT).
+void blit_fill_region(eng::u8* plane, eng::u16 row_bytes, eng::u16 wx0, eng::s16 y,
+		      eng::u16 words, eng::u16 h) {
+	// Relleno ASCENDENTE desde la primera palabra de la region.
+	eng::u8* first = plane + static_cast<eng::u32>(y) * row_bytes + (wx0 >> 3);
+	const eng::u16 mod = static_cast<eng::u16>(row_bytes - words * 2u);
+	wait_blitter();
+	custom_base[custom_bltcon0_offset] = static_cast<eng::u16>(blt_use_a | blt_use_d | 0x00f0); // A_TO_D
+	custom_base[custom_bltcon1_offset] = blt_fill_or;
+	custom_base[custom_bltafwm_offset] = 0xffff;
+	custom_base[custom_bltalwm_offset] = 0xffff;
+	custom_base[custom_bltamod_offset] = mod;
+	custom_base[custom_bltdmod_offset] = mod;
+	write_custom_pointer(custom_bltapt_offset, first);
+	write_custom_pointer(custom_bltdpt_offset, first);
+	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((h << 6) | words);
+}
+
+/// Cookie-cut de la mascara 1 bit a un plano de color: `set` -> D = A | D (pone a
+/// 1 donde la mascara), `!set` -> D = ~A & D (borra donde la mascara).
+void blit_mask_to_plane(eng::u8* dst, eng::u16 row_bytes, const eng::u8* mask,
+			eng::u16 wx0, eng::s16 y, eng::u16 words, eng::u16 h, bool set) {
+	eng::u8* d = dst + static_cast<eng::u32>(y) * row_bytes + (wx0 >> 3);
+	const eng::u8* m = mask + static_cast<eng::u32>(y) * row_bytes + (wx0 >> 3);
+	const eng::u16 mod = static_cast<eng::u16>(row_bytes - words * 2u);
+	wait_blitter();
+	custom_base[custom_bltcon0_offset] = static_cast<eng::u16>(
+		blt_use_a | blt_use_c | blt_use_d | (set ? blt_minterm_a_or_c : blt_minterm_not_a_and_c));
+	custom_base[custom_bltcon1_offset] = 0;
+	custom_base[custom_bltafwm_offset] = 0xffff;
+	custom_base[custom_bltalwm_offset] = 0xffff;
+	custom_base[custom_bltamod_offset] = mod;
+	custom_base[custom_bltcmod_offset] = mod;
+	custom_base[custom_bltdmod_offset] = mod;
+	write_custom_pointer(custom_bltapt_offset, m);
+	write_custom_pointer(custom_bltcpt_offset, d);
+	write_custom_pointer(custom_bltdpt_offset, d);
+	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((h << 6) | words);
 }
 
 } // namespace
@@ -305,6 +439,80 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 		}
 	}
 
+	return wait_blitter();
+}
+
+bool MinimalBackend::fill_triangles_blitter(const FlatTriangle* tris, u32 count,
+					    u8* dst, u8 planes, u16 row_bytes, u32 plane_bytes,
+					    u8* mask) {
+	if (tris == nullptr || dst == nullptr || mask == nullptr || planes == 0u) {
+		return false;
+	}
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
+
+	for (u32 i = 0; i < count; ++i) {
+		const FlatTriangle& t = tris[i];
+		s16 xmin = t.x0, xmax = t.x0, ymin = t.y0, ymax = t.y0;
+		if (t.x1 < xmin) xmin = t.x1;
+		if (t.x1 > xmax) xmax = t.x1;
+		if (t.x2 < xmin) xmin = t.x2;
+		if (t.x2 > xmax) xmax = t.x2;
+		if (t.y1 < ymin) ymin = t.y1;
+		if (t.y1 > ymax) ymax = t.y1;
+		if (t.y2 < ymin) ymin = t.y2;
+		if (t.y2 > ymax) ymax = t.y2;
+		if (xmax < 0 || ymax < 0 || xmin > 319 || ymin > 255) {
+			continue;
+		}
+		if (xmin < 0) xmin = 0;
+		if (ymin < 0) ymin = 0;
+		if (xmax > 319) xmax = 319;
+		if (ymax > 255) ymax = 255;
+
+		const u16 wx0 = static_cast<u16>(xmin) & 0xfff0u;
+		const u16 wx1 = static_cast<u16>(xmax) | 0x000fu;
+		const u16 words = static_cast<u16>((static_cast<u16>(wx1 - wx0) + 16u) >> 4);
+		const u16 h = static_cast<u16>(ymax - ymin + 1);
+
+		// 1) mascara limpia, 2) contorno, 3) area fill, 4) cookie-cut a color.
+		blit_clear_region(mask, row_bytes, wx0, ymin, words, h);
+		blit_line(mask, row_bytes, t.x0, t.y0, t.x1, t.y1);
+		blit_line(mask, row_bytes, t.x1, t.y1, t.x2, t.y2);
+		blit_line(mask, row_bytes, t.x2, t.y2, t.x0, t.y0);
+		blit_fill_region(mask, row_bytes, wx0, ymin, words, h);
+		for (u8 p = 0; p < planes; ++p) {
+			blit_mask_to_plane(dst + static_cast<u32>(p) * plane_bytes, row_bytes, mask,
+					   wx0, ymin, words, h, ((t.color >> p) & 1u) != 0u);
+		}
+	}
+	return wait_blitter();
+}
+
+bool MinimalBackend::blit_fill_from_mask(const u8* mask, u8* dst, u8 planes, u16 row_bytes,
+					 u32 plane_bytes, s16 x, s16 y, u16 w, u16 h, u8 color) {
+	if (mask == nullptr || dst == nullptr || planes == 0u || w == 0u || h == 0u) {
+		return false;
+	}
+	s16 x0 = x, y0 = y;
+	s16 x1 = static_cast<s16>(x + static_cast<s16>(w) - 1);
+	s16 y1 = static_cast<s16>(y + static_cast<s16>(h) - 1);
+	if (x0 < 0) x0 = 0;
+	if (y0 < 0) y0 = 0;
+	if (x1 > 319) x1 = 319;
+	if (y1 > 255) y1 = 255;
+	if (x0 > x1 || y0 > y1) {
+		return true;
+	}
+	const u16 wx0 = static_cast<u16>(x0) & 0xfff0u;
+	const u16 wx1 = static_cast<u16>(x1) | 0x000fu;
+	const u16 words = static_cast<u16>((static_cast<u16>(wx1 - wx0) + 16u) >> 4);
+	const u16 hh = static_cast<u16>(y1 - y0 + 1);
+
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
+	for (u8 p = 0; p < planes; ++p) {
+		blit_mask_to_plane(dst + static_cast<u32>(p) * plane_bytes, row_bytes, mask,
+				   wx0, y0, words, hh, ((color >> p) & 1u) != 0u);
+	}
 	return wait_blitter();
 }
 
