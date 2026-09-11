@@ -38,6 +38,7 @@ export enum UafChunkType {
 	Strings = 9,
 	Samples = 10,
 	Modules = 11,
+	Mesh = 12,
 }
 
 /** Chunk lógico antes de empaquetar. */
@@ -311,13 +312,35 @@ function buildDemo(): Buffer {
 	]);
 }
 
+/** Blob de demostración centrado en una **malla 3D** (cubo `obj2c`) + varios chunks. */
+function buildMeshDemo(): Buffer {
+	const R = 30;
+	const verts = [
+		[-R, -R, -R], [R, -R, -R], [R, R, -R], [-R, R, -R],
+		[-R, -R, R], [R, -R, R], [R, R, R], [-R, R, R],
+	];
+	const faces = [
+		[4, 5, 6], [4, 6, 7], [0, 3, 2], [0, 2, 1],
+		[7, 6, 2], [7, 2, 3], [0, 1, 5], [0, 5, 4],
+		[1, 2, 6], [1, 6, 5], [0, 4, 7], [0, 7, 3],
+	];
+	return packUaf([
+		{ type: UafChunkType.Palette, count: 4, data: paletteChunkData([0x000, 0x888, 0xf00, 0xfff]) },
+		{ type: UafChunkType.CopperTemplates, count: 4, data: copperChunkData([0x2c81, 0x2cc1, 0xffff, 0xfffe]) },
+		{ type: UafChunkType.Sprites, count: 1, data: spritesChunkData([Uint16Array.from([0x1234, 0x5678])]) },
+		{ type: UafChunkType.Strings, count: 2, data: stringsChunkData(['cube', 'uaf-r']) },
+		{ type: UafChunkType.Tiles, count: 2, data: tilesChunkData([Uint8Array.from([1, 2, 3, 4]), Uint8Array.from([5, 6, 7, 8])]) },
+		{ type: UafChunkType.Mesh, count: 1, data: meshChunkData(verts, faces) },
+	]);
+}
+
 function main() {
 	const out = process.argv[2];
-	if (!out) {
-		console.error('Uso: uaf-pack.js <out.uafr>');
+	if (!out || out.startsWith('--')) {
+		console.error('Uso: uaf-pack.js <out.uafr> [--mesh]');
 		process.exit(2);
 	}
-	const blob = buildDemo();
+	const blob = process.argv.includes('--mesh') ? buildMeshDemo() : buildDemo();
 	const chunks = parseUaf(blob); // auto-validación: el contenedor debe re-parsearse
 	fs.writeFileSync(out, blob);
 	console.log(`OK uaf-pack: ${blob.length} bytes -> ${out} (${chunks.length} chunks)`);

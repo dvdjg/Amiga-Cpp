@@ -10,6 +10,8 @@ dinámica (`engine/include/eng/core/mesh3d.hpp`).
 - `mesh_transform`: aplica `Mat3x3` a todos los vértices (identidad y por lotes).
 - `mesh_painter_order`: descarta caras ocultas (`face_visible`) y ordena las
   visibles de lejos a cerca por `face_z_min` (shell sort in-place).
+- Doble cara (`double_sided = true`): incluye todas las caras sin culling
+  (`AllFacesDoubleSided`).
 - Robustez: cara con índice fuera de rango descartada; capacidad de salida menor
   que las caras visibles se acota sin desbordar.
 

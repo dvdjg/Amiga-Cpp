@@ -46,6 +46,7 @@ enum class ChunkType : u16 {
 	Strings = 9,
 	Samples = 10,
 	Modules = 11,
+	Mesh = 12,
 };
 
 /// Referencia validada a un chunk dentro del blob.

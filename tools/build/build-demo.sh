@@ -150,6 +150,16 @@ if [ "$CLEAN" -eq 1 ]; then
 fi
 mkdir -p "$OBJ_DIR" "$OUT_DIR"
 
+# --- Hook de assets (prebuild) ---------------------------------------------
+# Si la demo trae `src/prebuild.sh`, se ejecuta ANTES de compilar para regenerar
+# sus assets (p. ej. un blob UAF-R que luego se incbina). Se lanza desde la raiz
+# del repo para que las rutas `out/assets/...` sean las canonicas. Es el gancho
+# que hace reproducible el flujo exportador -> incbin -> runtime (como la 078).
+if [ -f "$DEMO_PATH/src/prebuild.sh" ]; then
+	echo "[build-demo] prebuild $DEMO_NAME"
+	( cd "$ROOT" && bash "$DEMO_PATH/src/prebuild.sh" )
+fi
+
 # --- Flags ------------------------------------------------------------------
 # Ver docs/guides/optimization/OPTIMIZACION_GPP_68000.md (§1): en 68000 el código
 # compacto suele ser más rápido (sin i-cache útil). -Os es el default release.

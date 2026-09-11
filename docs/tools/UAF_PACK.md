@@ -11,7 +11,7 @@ header  { u32 magic="UAFR", u16 version, u16 chunk_count }
 chunk[] { u16 type, u16 count, u32 size, <size bytes>, pad a 4 }
 ```
 
-Tipos de chunk (alineados con `eng::assets::ChunkType`): `Palette=1`, `Bitplanes=2`, `CopperTemplates=3`, `PatchTables=4`, `Sprites=5`, `Bobs=6`, `Tiles=7`, `Collision=8`, `Strings=9`, `Samples=10`, `Modules=11`.
+Tipos de chunk (alineados con `eng::assets::ChunkType`): `Palette=1`, `Bitplanes=2`, `CopperTemplates=3`, `PatchTables=4`, `Sprites=5`, `Bobs=6`, `Tiles=7`, `Collision=8`, `Strings=9`, `Samples=10`, `Modules=11`, `Mesh=12`.
 
 - **Palette**: N colores RGB444 en `u16` big-endian.
 - **Bitplanes**: cabecera de geometría (`u16 width, u16 height, u16 row_bytes, u8 planes, u8 layout, u8 flags, u8 resv`) seguida de los planos.
@@ -29,7 +29,7 @@ El módulo exporta funciones puras (host-testables) y una CLI:
 - `packUaf(chunks)` / `parseUaf(buf)` — empaqueta y valida (offset/size en rango).
 - `bitplanesFromIndexed(width, height, planes, pixels)` — **chunky indexado → bitplanes separados** (el paso "amiga convert" del core UAF), con `width` múltiplo de 8.
 - `paletteChunkData(colors)` / `bitplanesChunkData(...)` / `sampleChunkData(bytes)` / `stringsChunkData(strings)` / `tilesChunkData(tiles)` / `spritesChunkData(sprites)` / `copperChunkData(words)` / `meshChunkData(vertices, faces)` — datos de cada chunk. Los consumidores runtime equivalentes son `eng::assets::{PaletteView, BitplanesView, SampleView, StringsView, TilesView, SpritesView, CopperView, MeshAssetView}`; `MeshAssetView` entrega `math3d::Vec3`/`math3d::Face` para construir un `math3d::MeshView`.
-- CLI: `node dist/tools/assets/uaf-pack.js <out.uafr>` genera un blob de demostración (paleta + bitplanes 16×16 + sample) y **auto-valida** la salida con `parseUaf`.
+- CLI: `node dist/tools/assets/uaf-pack.js <out.uafr>` genera un blob de demostración (paleta + bitplanes 16×16 + sample) y **auto-valida** la salida con `parseUaf`. Con `--mesh` genera un blob centrado en una **malla** (cubo `obj2c`) + sprites/copper/tiles/strings; es el que consume la demo `078_math3d_solid` (generado por su `src/prebuild.sh` e incbinado).
 
 ## Ejecutar y probar
 

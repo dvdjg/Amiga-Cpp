@@ -30,6 +30,17 @@ out\demos\<demo>\<demo>.map
 out\demos\<demo>\<demo>.s
 ```
 
+## Hook de assets (`src/prebuild.sh`)
+
+Si la demo incluye `src/prebuild.sh`, `tools/build/build-demo.sh` lo ejecuta **antes de compilar** (con cwd = raíz del repo). Es el gancho para regenerar assets derivados de forma reproducible, por ejemplo un blob UAF-R que luego se incbina:
+
+```text
+demos/amiga/078_math3d_solid/src/prebuild.sh
+  -> node dist/tools/assets/uaf-pack.js out/assets/uaf/cube.uafr --mesh
+```
+
+Así el flujo `exportador -> incbin -> runtime` se reconstruye en cada build sin pasos manuales.
+
 ## Analizar una demo
 
 ```powershell

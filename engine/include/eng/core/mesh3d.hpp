@@ -54,12 +54,18 @@ struct FaceOrder {
 /// caras visibles caben. `verts` son los vértices ya transformados (mismo tamaño
 /// que `mesh.vertices`).
 ///
+/// Con `double_sided = false` (por defecto) se descartan las caras ocultas
+/// (`face_visible`). Con `double_sided = true` se incluyen TODAS las caras válidas
+/// (equivalente a `AllFacesDoubleSided`): útil para mallas abiertas como suelos o
+/// paredes, donde la cara trasera también debe verse.
+///
 /// Ordenación por **shell sort** in-place (sin memoria extra): para mallas de
 /// juego (decenas/cientos de caras) evita el coste O(n²) de una inserción y se
 /// mantiene 100 % aritmética entera. Las caras con índices fuera de rango se
 /// descartan silenciosamente (malla corrupta no rompe el frame).
 inline u32 mesh_painter_order(const MeshView& mesh, Span<const Vec3> verts,
-			      const Vec3& cam, Span<FaceOrder> out) {
+			      const Vec3& cam, Span<FaceOrder> out,
+			      bool double_sided = false) {
 	const u32 nv = mesh.vertex_count();
 	const u32 cap = static_cast<u32>(out.size());
 	u32 n = 0;
@@ -71,7 +77,7 @@ inline u32 mesh_painter_order(const MeshView& mesh, Span<const Vec3> verts,
 		const Vec3& a = verts[f.a];
 		const Vec3& b = verts[f.b];
 		const Vec3& c = verts[f.c];
-		if (face_visible(a, b, c, cam)) {
+		if (double_sided || face_visible(a, b, c, cam)) {
 			out[n].index = static_cast<u16>(i);
 			out[n].z = face_z_min(a, b, c);
 			++n;

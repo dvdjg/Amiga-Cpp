@@ -41,6 +41,14 @@ int main() {
 	check(order[0].index == 0 && order[1].index == 1, "orden lejos->cerca (z 0 antes que 50)");
 	check(order[0].z == 0 && order[1].z == 50, "claves z");
 
+	// Doble cara (`AllFacesDoubleSided`): se incluyen TODAS las caras, sin culling.
+	{
+		FaceOrder all[3];
+		const eng::u32 m = mesh_painter_order(mesh, eng::Span<const Vec3>(world, 6), cam,
+						      eng::Span<FaceOrder>(all, 3), true);
+		check(m == 3, "doble cara incluye las 3 caras");
+	}
+
 	// Cara con indice fuera de rango se descarta sin fallar.
 	{
 		const Face bad[1] = {{0, 1, 99}};

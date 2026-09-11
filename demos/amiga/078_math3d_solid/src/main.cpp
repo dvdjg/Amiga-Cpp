@@ -9,6 +9,7 @@
 // Cadena validada en hardware (68000, sin soft-float):
 //   math3d (rotacion 4.12) -> mesh3d (transform + culling + orden painter)
 //   -> rasterizado de triangulos (scanline entero, sin division) -> Blitter clear.
+#include <eng/assets/uaf.hpp>
 #include <eng/core/math3d.hpp>
 #include <eng/core/mesh3d.hpp>
 #include <eng/debug/run_status.hpp>
@@ -34,6 +35,19 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 	0,
 };
 }
+
+// Blob UAF-R de la MALLA, producido por el exportador host
+// (`node dist/tools/assets/uaf-pack.js out/assets/uaf/cube.uafr --mesh`, hook
+// `src/prebuild.sh`) e incbinado aqui. En runtime se carga con
+// `eng::assets::Blob` + `MeshAssetView`, cerrando el ciclo exportador -> runtime
+// tambien en 3D (la geometria ya no son constantes de C++). Va a `.text` (solo
+// lectura, no necesita Chip RAM).
+__asm__(".globl g_cube_uafr\ng_cube_uafr:\n"
+	".align 2\n"
+	".incbin \"out/assets/uaf/cube.uafr\"\n"
+	".globl g_cube_uafr_end\ng_cube_uafr_end:\n");
+extern "C" const unsigned char g_cube_uafr[];
+extern "C" const unsigned char g_cube_uafr_end[];
 
 namespace {
 
@@ -91,29 +105,61 @@ struct Canvas {
 			if (e2 < dx)  { err += dx; y0 += sy; }
 		}
 	}
+
+	/// Rellena una fila [xl, xr] de un color PLANO escribiendo bytes/words
+	/// completos, no píxel a píxel. Es LA diferencia de rendimiento del relleno:
+	/// un tramo de 120 px pasa de ~120 RMW por plano a ~4 escrituras por plano.
+	/// Solo toca los planos 0..2 (la rampa del sólido usa índices < 8).
+	void fill_span(eng::s32 xl, eng::s32 xr, eng::s32 y, eng::u8 color) {
+		if (y < 0 || y >= static_cast<eng::s32>(kHeight)) return;
+		if (xl > xr) { const eng::s32 t = xl; xl = xr; xr = t; }
+		if (xl < 0) xl = 0;
+		if (xr > static_cast<eng::s32>(kWidth) - 1) xr = static_cast<eng::s32>(kWidth) - 1;
+		if (xl > xr) return;
+
+		const eng::u32 b0 = static_cast<eng::u32>(xl) >> 3;
+		const eng::u32 b1 = static_cast<eng::u32>(xr) >> 3;
+		const eng::u8 first_mask = static_cast<eng::u8>(0xffu >> (xl & 7));
+		const eng::u8 last_mask = static_cast<eng::u8>(0xffu << (7 - (xr & 7)));
+
+		for (eng::u8 p = 0; p < 3u; ++p) {
+			eng::u8* row = planes + static_cast<eng::u32>(p) * kPlaneBytes +
+				       static_cast<eng::u32>(y) * kRowBytes;
+			const eng::u8 v = (color & (1u << p)) ? 0xffu : 0x00u;
+			if (b0 == b1) {
+				const eng::u8 m = static_cast<eng::u8>(first_mask & last_mask);
+				row[b0] = v ? static_cast<eng::u8>(row[b0] | m)
+					    : static_cast<eng::u8>(row[b0] & static_cast<eng::u8>(~m));
+				continue;
+			}
+			row[b0] = v ? static_cast<eng::u8>(row[b0] | first_mask)
+				    : static_cast<eng::u8>(row[b0] & static_cast<eng::u8>(~first_mask));
+			row[b1] = v ? static_cast<eng::u8>(row[b1] | last_mask)
+				    : static_cast<eng::u8>(row[b1] & static_cast<eng::u8>(~last_mask));
+			// Bytes completos b0+1 .. b1-1, con words en el tramo alineado.
+			eng::u32 i = b0 + 1u;
+			const eng::u32 end = b1;
+			for (; i < end && (i & 1u) != 0u; ++i) row[i] = v;
+			eng::u16* wp = reinterpret_cast<eng::u16*>(row + i);
+			const eng::u16 vw = static_cast<eng::u16>((static_cast<eng::u16>(v) << 8) | v);
+			const eng::u32 words = (end - i) / 2u;
+			for (eng::u32 w = 0; w < words; ++w) wp[w] = vw;
+			i += words * 2u;
+			for (; i < end; ++i) row[i] = v;
+		}
+	}
 };
 
 using eng::math3d::Face;
 using eng::math3d::MeshView;
 using eng::math3d::Vec3;
 
-constexpr eng::s16 kR = 30;
-constexpr Vec3 kVertices[8] = {
-	{-kR, -kR, -kR}, {kR, -kR, -kR}, {kR, kR, -kR}, {-kR, kR, -kR},
-	{-kR, -kR,  kR}, {kR, -kR,  kR}, {kR, kR,  kR}, {-kR, kR,  kR},
-};
-constexpr Face kFaces[12] = {
-	{4, 5, 6}, {4, 6, 7}, {0, 3, 2}, {0, 2, 1},
-	{7, 6, 2}, {7, 2, 3}, {0, 1, 5}, {0, 5, 4},
-	{1, 2, 6}, {1, 6, 5}, {0, 4, 7}, {0, 7, 3},
-};
-
 constexpr eng::s32 kCX = 160;
 constexpr eng::s32 kCY = 126;
 constexpr eng::s16 kCamZ = 200;
 
 // Region de borrado por Blitter: debe quedar alineada a word y cubrir el cubo en
-// cualquier rotacion (|x|,|y| <= kR*sqrt(3) ~ 52). 96..224 x 62..190 = 128x128.
+// cualquier rotacion (|x|,|y| <= R*sqrt(3), con R=30 -> ~52). 96..224 x 62..190.
 constexpr eng::s32 kClearX = 96;
 constexpr eng::s32 kClearY = 62;
 constexpr eng::s32 kClearW = 128;
@@ -156,13 +202,6 @@ struct Dda {
 	}
 };
 
-void fill_span(Canvas& c, eng::s32 xl, eng::s32 xr, eng::s32 y, eng::u8 color) {
-	if (xl > xr) { const eng::s32 t = xl; xl = xr; xr = t; }
-	for (eng::s32 x = xl; x <= xr; ++x) {
-		c.px(x, y, color);
-	}
-}
-
 /// Rellena un triangulo por scanline (dos tramos: arriba->medio, medio->abajo),
 /// con DDAs enteros (sin divisiones ni floats).
 void fill_tri(Canvas& c, eng::s32 x0, eng::s32 y0, eng::s32 x1, eng::s32 y1,
@@ -179,12 +218,12 @@ void fill_tri(Canvas& c, eng::s32 x0, eng::s32 y0, eng::s32 x1, eng::s32 y1,
 	bc.init(xb, yb, xc, yc);
 
 	for (eng::s32 y = ya; y < yb; ++y) {
-		fill_span(c, ab.x, ac.x, y, color);
+		c.fill_span(ab.x, ac.x, y, color);
 		ab.step();
 		ac.step();
 	}
 	for (eng::s32 y = yb; y < yc; ++y) {
-		fill_span(c, bc.x, ac.x, y, color);
+		c.fill_span(bc.x, ac.x, y, color);
 		bc.step();
 		ac.step();
 	}
@@ -192,21 +231,6 @@ void fill_tri(Canvas& c, eng::s32 x0, eng::s32 y0, eng::s32 x1, eng::s32 y1,
 
 /// Auto-test en hardware (igual que HOST-013): con rotacion identidad solo la
 /// cara +Z (triangulos 0 y 1) es visible.
-bool verify_mesh() {
-	eng::math3d::Mat3x3 id;
-	eng::math3d::load_identity(id);
-	Vec3 w[8];
-	const MeshView mesh {eng::Span<const Vec3>(kVertices, 8), eng::Span<const Face>(kFaces, 12)};
-	eng::math3d::mesh_transform(mesh.vertices, id, eng::Span<Vec3>(w, 8));
-
-	eng::math3d::FaceOrder order[12];
-	const Vec3 cam {0, 0, kCamZ};
-	const eng::u32 n = eng::math3d::mesh_painter_order(
-		mesh, eng::Span<const Vec3>(w, 8), cam, eng::Span<eng::math3d::FaceOrder>(order, 12));
-
-	return n == 2u && order[0].index == 0u && order[1].index == 1u &&
-	       eng::math3d::face_z_sum(w[4], w[5], w[6]) > 0;
-}
 
 struct DemoGame {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
@@ -230,7 +254,8 @@ struct DemoGame {
 			m_blank = static_cast<const eng::u16*>(m_blank_block.data);
 		}
 
-		if (m_memory_ok && m_scene_ok && m_blank_block.valid()) {
+		m_mesh_ok = load_mesh();
+		if (m_memory_ok && m_scene_ok && m_blank_block.valid() && m_mesh_ok) {
 			draw_static();
 			m_scene.takeover(backend);
 			if (!verify_mesh()) {
@@ -239,7 +264,7 @@ struct DemoGame {
 			}
 			eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_scene.copper_words()));
 		} else {
-			eng::debug::mark_failed(g_eng_run_status, 0x00000078u);
+			eng::debug::mark_failed(g_eng_run_status, m_mesh_ok ? 0x00000078u : 0x00007803u);
 		}
 	}
 
@@ -283,16 +308,15 @@ struct DemoGame {
 					 static_cast<eng::u16>(f * 7u));
 
 		Vec3 world[8];
-		const MeshView mesh {eng::Span<const Vec3>(kVertices, 8), eng::Span<const Face>(kFaces, 12)};
-		eng::math3d::mesh_transform(mesh.vertices, m, eng::Span<Vec3>(world, 8));
+		eng::math3d::mesh_transform(m_mesh.vertices, m, eng::Span<Vec3>(world, 8));
 
 		eng::math3d::FaceOrder order[12];
 		const Vec3 cam {0, 0, kCamZ};
 		const eng::u32 visible = eng::math3d::mesh_painter_order(
-			mesh, eng::Span<const Vec3>(world, 8), cam, eng::Span<eng::math3d::FaceOrder>(order, 12));
+			m_mesh, eng::Span<const Vec3>(world, 8), cam, eng::Span<eng::math3d::FaceOrder>(order, 12));
 
 		for (eng::u32 i = 0; i < visible; ++i) {
-			const Face& fc = kFaces[order[i].index];
+			const Face& fc = m_faces[order[i].index];
 			const eng::u8 col = shade_of(eng::math3d::face_z_sum(world[fc.a], world[fc.b], world[fc.c]));
 			fill_tri(c,
 				 kCX + world[fc.a].x, kCY - world[fc.a].y,
@@ -305,6 +329,54 @@ struct DemoGame {
 	}
 
 private:
+	/// Carga la malla del blob UAF-R incbinado: `Blob::bind` -> `find(Mesh)` ->
+	/// `MeshAssetView` -> copia a buffers del llamador -> `MeshView`. Es el mismo
+	/// camino que usaria cualquier asset cocinado (sin parsing pesado en Amiga).
+	bool load_mesh() {
+		const eng::Span<const eng::u8> bytes(reinterpret_cast<const eng::u8*>(g_cube_uafr),
+						     static_cast<eng::u32>(g_cube_uafr_end - g_cube_uafr));
+		eng::assets::Blob blob;
+		if (!blob.bind(bytes)) {
+			return false;
+		}
+		eng::u32 index = 0;
+		bool found = false;
+		for (eng::u32 i = 0; i < blob.chunk_count(); ++i) {
+			if (blob.chunk(i).type == eng::assets::ChunkType::Mesh) {
+				index = i;
+				found = true;
+				break;
+			}
+		}
+		if (!found) {
+			return false;
+		}
+		const eng::assets::MeshAssetView mv {blob.data(index)};
+		if (!mv.valid() || mv.vertex_count() != 8u || mv.face_count() != 12u) {
+			return false;
+		}
+		for (eng::u32 i = 0; i < 8u; ++i) m_verts[i] = mv.vertex(i);
+		for (eng::u32 i = 0; i < 12u; ++i) m_faces[i] = mv.face(i);
+		m_mesh = MeshView {eng::Span<const Vec3>(m_verts, 8), eng::Span<const Face>(m_faces, 12)};
+		return true;
+	}
+
+	/// Auto-test en hardware: con rotacion identidad solo la cara +Z (triangulos 0
+	/// y 1) es visible. Si la matematica entera o la lectura UAF-R fallaran, la demo
+	/// iria a Failed en vez de Ready.
+	bool verify_mesh() const {
+		eng::math3d::Mat3x3 id;
+		eng::math3d::load_identity(id);
+		Vec3 w[8];
+		eng::math3d::mesh_transform(m_mesh.vertices, id, eng::Span<Vec3>(w, 8));
+		eng::math3d::FaceOrder order[12];
+		const Vec3 cam {0, 0, kCamZ};
+		const eng::u32 n = eng::math3d::mesh_painter_order(
+			m_mesh, eng::Span<const Vec3>(w, 8), cam, eng::Span<eng::math3d::FaceOrder>(order, 12));
+		return n == 2u && order[0].index == 0u && order[1].index == 1u &&
+		       eng::math3d::face_z_sum(w[4], w[5], w[6]) > 0;
+	}
+
 	void draw_static() {
 		Canvas c {m_scene.bitplanes()};
 		for (eng::s32 i = 0; i < 2; ++i) {
@@ -333,6 +405,10 @@ private:
 
 	bool m_memory_ok = false;
 	bool m_scene_ok = false;
+	Vec3 m_verts[8] {};
+	Face m_faces[12] {};
+	MeshView m_mesh {};
+	bool m_mesh_ok = false;
 	eng::MemoryBlock m_blank_block {};
 	const eng::u16* m_blank = nullptr;
 	ehb::StaticEhbScene m_scene {};

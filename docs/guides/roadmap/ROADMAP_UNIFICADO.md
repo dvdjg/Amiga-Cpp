@@ -42,8 +42,9 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   `obj2c`, `packUaf`/`parseUaf`, doc `docs/tools/UAF_PACK.md`). La cola de
   blits/presupuesto ya existía (`frame_plan.hpp`); el borrado del sólido la usa vía
   `MinimalBackend::execute_frame_plan` (Blitter). Validación en hardware con las demos
-  `077_math3d_cube` (alambre) y `078_math3d_solid` (relleno, borrado por Blitter),
-  con gate visual `tools/analyze/verify-math3d-cube.mjs`.
+  `077_math3d_cube` (alambre) y `078_math3d_solid` (relleno por tramos de byte/word,
+  malla cargada desde un blob UAF-R incbinado y borrado por Blitter). `mesh_painter_order`
+  soporta caras de doble cara; gate visual `tools/analyze/verify-math3d-cube.mjs`.
 
 ## Sprites hardware — estado (2026-09)
 
