@@ -72,7 +72,7 @@ bool wait_blitter() {
 //   2) rellenar con area fill inclusivo (BLTCON1 = DESC|FILL_OR), descendente.
 // El relleno funciona bit a bit por plano; para colorear 3 planos con painter se
 // usa un plano-mascara 1 bit y luego un cookie-cut por plano (ver fill_triangles).
-constexpr unsigned short blt_line_xor = 0x0bca;   // BC0F_LINE_OR (contorno cerrado)
+constexpr unsigned short blt_line_or = 0x0bca;    // BC0F_LINE_OR (contorno/línea)
 constexpr unsigned short blt_linemode = 0x0001;
 constexpr unsigned short blt_onedot = 0x0002;
 constexpr unsigned short blt_sud = 0x0010;
@@ -133,7 +133,7 @@ void blit_line(eng::u8* plane, eng::u16 row_bytes, eng::s16 x1, eng::s16 y1,
 	if (derr < 0) {
 		con1 = static_cast<eng::u16>(con1 | blt_signflag);
 	}
-	const eng::u16 con0 = static_cast<eng::u16>(ror16(static_cast<eng::u16>(x1 & 15), 4) | blt_line_xor);
+	const eng::u16 con0 = static_cast<eng::u16>(ror16(static_cast<eng::u16>(x1 & 15), 4) | blt_line_or);
 	const eng::u16 amod = static_cast<eng::u16>(derr - dx);
 	const eng::u16 bmod = static_cast<eng::u16>(dy + dy);
 	wait_blitter();
@@ -512,6 +512,79 @@ bool MinimalBackend::blit_fill_from_mask(const u8* mask, u8* dst, u8 planes, u16
 	for (u8 p = 0; p < planes; ++p) {
 		blit_mask_to_plane(dst + static_cast<u32>(p) * plane_bytes, row_bytes, mask,
 				   wx0, y0, words, hh, ((color >> p) & 1u) != 0u);
+	}
+	return wait_blitter();
+}
+
+bool MinimalBackend::blitter_line(u8* plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1) {
+	if (plane == nullptr) {
+		return false;
+	}
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
+
+	wait_blitter();
+	custom_base[custom_bltafwm_offset] = 0xffff;
+	custom_base[custom_bltalwm_offset] = 0xffff;
+	custom_base[custom_bltadat_offset] = 0x8000;
+	custom_base[custom_bltbdat_offset] = 0xffff;
+	custom_base[custom_bltcmod_offset] = row_bytes;
+	custom_base[custom_bltdmod_offset] = row_bytes;
+
+	if (y0 > y1) {
+		s16 t = x0; x0 = x1; x1 = t;
+		t = y0; y0 = y1; y1 = t;
+	}
+
+	s16 dmax = static_cast<s16>(x1 - x0);
+	s16 dmin = static_cast<s16>(y1 - y0);
+	u16 bltcon1 = blt_linemode;
+	if (dmax < 0) {
+		dmax = static_cast<s16>(-dmax);
+	}
+	if (dmax >= dmin) {
+		bltcon1 = static_cast<u16>(bltcon1 | (x0 >= x1 ? (blt_aul | blt_sud) : blt_sud));
+	} else {
+		if (x0 >= x1) {
+			bltcon1 = static_cast<u16>(bltcon1 | blt_sul);
+		}
+		const s16 t = dmax; dmax = dmin; dmin = t;
+	}
+
+	u8* data = plane + static_cast<u32>(y0) * row_bytes + (static_cast<u32>(x0) >> 3);
+	data = reinterpret_cast<u8*>(reinterpret_cast<u32>(data) & ~1u);
+
+	dmin = static_cast<s16>(dmin << 1);
+	s16 derr = static_cast<s16>(dmin - dmax);
+	if (derr < 0) {
+		bltcon1 = static_cast<u16>(bltcon1 | blt_signflag);
+	}
+	bltcon1 = static_cast<u16>(bltcon1 | ror16(static_cast<u16>(x0 & 15), 4));
+	const u16 bltcon0 = static_cast<u16>(ror16(static_cast<u16>(x0 & 15), 4) | blt_line_or);
+	const u16 bltamod = static_cast<u16>(derr - dmax);
+	const u16 bltbmod = static_cast<u16>(dmin);
+	const u16 bltsize = static_cast<u16>((static_cast<u16>(dmax) << 6) + 66u);
+
+	wait_blitter();
+	custom_base[custom_bltcon0_offset] = bltcon0;
+	custom_base[custom_bltcon1_offset] = bltcon1;
+	custom_base[custom_bltamod_offset] = bltamod;
+	custom_base[custom_bltbmod_offset] = bltbmod;
+	write_custom_pointer(custom_bltapt_offset,
+			     reinterpret_cast<void*>(static_cast<u32>(static_cast<s32>(derr))));
+	write_custom_pointer(custom_bltcpt_offset, data);
+	write_custom_pointer(custom_bltdpt_offset, data);
+	custom_base[custom_bltsize_offset] = bltsize;
+	return wait_blitter();
+}
+
+bool MinimalBackend::blitter_clear(u8* dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w, u16 h) {
+	if (dst == nullptr || planes == 0u || w < 16u || h == 0u) {
+		return false;
+	}
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
+	const u16 words = static_cast<u16>(w / 16u);
+	for (u8 p = 0; p < planes; ++p) {
+		blit_clear_region(dst + static_cast<u32>(p) * plane_bytes, row_bytes, 0, 0, words, h);
 	}
 	return wait_blitter();
 }

@@ -53,3 +53,18 @@ system/*         (arranque, bucle de efecto, vblank, allocator)
 ## Respuesta a "si lib3d está importado, no debería haber problema"
 
 Correcto, con un matiz: lo que hay que importar es **`lib3d` tal cual** (modelo `obj2c` + object model), no sustituirlo por `mesh3d`. Nuestras `math3d`/`math2d` ya cubren las primitivas (matrices 4.12, `normfx`, `div16`, `isqrt`), así que los ficheros de `lib3d` quedan como wrappers finos sobre ellas. Con eso + la línea por Blitter literal + un playfield parametrizable y doble-buffer, `wireframe` entra 1:1. La palanca de optimización posterior (comparar con `fire-rgb`) será cambiar **solo las fronteras** y medir dónde cae la calidad/velocidad.
+
+## Estado del porte (hecho)
+
+- ✅ **Modelo `obj2c` + `Object3D`** portado 1:1 en `engine/include/eng/core/object3d.hpp` (`Node3D/Edge/Face/Mesh3D/Object3D`, macros de offset, `new_object3d`, `update_object_transformation` sobre `math2d`/`math3d`). Test **HOST-014**. `div16`/`normfx` del engine coinciden con el original (comprobado).
+- ✅ **Línea por Blitter** en `MinimalBackend::blitter_line` (secuencia idéntica a `DrawObject`: `BC0F_LINE_OR`, `bltapt=derr`, `bltsize=(dmax<<6)+66`, sin ONEDOT) + `blitter_clear`.
+- ✅ **Demo `079_wireframe`**: `pilka.c`/paleta copiados tal cual, recorrido (`UpdateFaceVisibilityFast`/`UpdateEdgeVisibility`/`TransformVertices`/`DrawObject`) portado verbatim; arranca (READY) y **visión (qwen3-vl) confirma el balón de alambre** centrado. Adaptaciones (versión B): display 320×256×4 del engine y sin doble buffer.
+
+## Pendiente (para 1:1 exacto)
+
+1. **Display 256×256×4 exacto** del original (`SetupPlayfield(MODE_LORES,4,X(32),Y(0),256,256)` → DDFSTRT=0, DDFSTOP=0x78, BPLCON1=0xCC, DIWSTRT/STOP de `SetupDisplayWindow`) en vez del 320×256×4 de la versión B.
+2. **Doble buffer**: 5 planos (`DEPTH+1`) con `active` rotando y parcheo de `BPLxPT` por frame (`CopInsSet32`).
+3. **Diff 1:1** contra `effects/wireframe/wireframe.exe` (mismos frames, `readPng` + `ollama-desc.mjs`).
+4. **Investigar** por qué la captura de *secuencia* sale vacía (el `screenshot.png` sí muestra el balón): probablemente captura a mitad de `blitter_clear`/redibujo.
+5. Luego `fire-rgb` con el mismo método.
+

@@ -149,6 +149,18 @@ public:
 	bool blit_fill_from_mask(const u8* mask, u8* dst, u8 planes, u16 row_bytes,
 				 u32 plane_bytes, s16 x, s16 y, u16 w, u16 h, u8 color);
 
+	/// Dibuja una linea por hardware con el Blitter, en la secuencia EXACTA de
+	/// `DrawObject` de la demo `wireframe` del demoscene (line mode OR, sin ONEDOT):
+	/// `bltcon0 = rorw(x0&15,4)|BC0F_LINE_OR`, `bltcon1 = LINEMODE|SUD/AUL/SUL|
+	/// SIGNFLAG|rorw(x0&15,4)`, `bltamod = derr-dmax`, `bltbmod = dmin*2`,
+	/// `bltapt = (void*)derr`, `bltsize = (dmax<<6)+66`. `row_bytes` = bytes por
+	/// fila del plano (el original usa WIDTH/8). Linea OR sobre el destino.
+	bool blitter_line(u8* plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1);
+
+	/// Borra (D=0) una region de `w`x`h` en `planes` planos contiguos con separacion
+	/// `plane_bytes`, alineando a palabra. Equivale a `BlitterClear` del demoscene.
+	bool blitter_clear(u8* dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w, u16 h);
+
 	/// Inicializa el subsistema de audio (SFX mixer + reproductores de música).
 	/// Debe llamarse después de `configure_memory` (necesita el bloque Chip para el
 	/// buffer del mixer) y después de `takeover_display` (el mixer instala su
