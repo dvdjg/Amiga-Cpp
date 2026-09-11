@@ -143,6 +143,20 @@ La música es un **módulo de tracker** incrustado en la demo/juego (por `incbin
 2. Incrusta el `.p61` y reprodúcelo con `MusicFormat::P61` (recuerda
    `update_music()` por frame).
 
+### Samples y utilidades (recursos)
+
+Las voces del mixer se pre-renderizan en muestras 8-bit (ver `AUDIO_MIXER.md`
+§"Melodías y polifonía…"). Fuentes de samples/tools:
+
+- **AKWF FREE**: https://github.com/KristofferKarlAxelEkstrand/AKWF-FREE ·
+  https://www.adventurekid.se/akrt/waveforms/adventure-kid-waveforms/
+- **AmigaPal**: https://github.com/echolevel/AmigaPal
+- **Amiga Music Preservation (AMP)**: https://amp.dascene.net
+- **The Mod Archive**: https://modarchive.org
+- **Amiga Soundtracker Sample Packs (st-xx)**:
+  https://archive.org/details/AmigaSoundtrackerSamplePacksst-xx · copia local en
+  `C:\Users\dvdjg\Documents\programa\Assets\Sound\Samples\st-xx`.
+
 ### Notas de mezcla música+SFX
 
 - Arranca la música **primero** y el mixer **después** (los reproductores

@@ -116,6 +116,43 @@ engine, lo más cómodo es generarlas ya conformes (amplitud ±32 para 4 voces,
 múltiplo de 4) o convertir en el host antes de incrustarlas. Ejemplo en
 `demos/amiga/058_sfx_mixer/src/main.cpp` (`gen_square`).
 
+## Melodías y polifonía con muestras pre-renderizadas
+
+El mixer reproduce cada muestra a un ritmo fijo (el `mixer_period`), sin control
+de tono por voz (el plugin de pitch está desactivado). Para tocar una **melodía**
+por una voz hay dos caminos: pre-renderizar la secuencia en la propia muestra, o
+activar el plugin de pitch. El patrón usado en el engine es el primero: cada
+"instrumento" es una muestra que ya contiene su línea (notas a distintas
+frecuencias concatenadas) y que se reproduce en bucle en una voz del mixer.
+
+Serie incremental (una voz por demo, amplitudes escaladas a `120/N` para que la
+suma no desborde el rango de Paula):
+
+| Demo | Voces | Contenido |
+|---|---|---|
+| `067_mixer_melody` | 1 (MixCh0) | melodía del Himno a la Alegría |
+| `069_mixer_two_voices` | 2 (MixCh0-1) | melodía + bajo |
+| `070_mixer_three_voices` | 3 (MixCh0-2) | + contramelodía |
+| `071_mixer_four_voices` | 4 (MixCh0-3) | + línea aguda (máximo single) |
+
+Reglas del patrón:
+
+- **Amplitud**: `±120 / nº_voces`. Con 1 voz ±120; con 4 voces ±30 (la suma de
+  las cuatro nunca pasa de ±120). Es más fuerte que el ±32 fijo "para 4 voces"
+  cuando suenan menos voces.
+- **Misma longitud de bucle** en todas las voces para que se mantengan en fase
+  (p. ej. 12800 B: `N` notas × duración fija). El mixer loopea cada voz por
+  separado.
+- **Síntesis por acumulador de fase**: la tabla `sine_byte` tiene 64 entradas, así
+  que una vuelta de tabla = `64 << 16 = 2^22` unidades de fase y
+  `inc = (f << 22) / sample_rate` por muestra (con `f << 16` cada nota sonaría
+  ~64× más grave, casi DC). Ver `demos/amiga/067_mixer_melody/src/main.cpp`.
+- **Fundido** corto (32 muestras) al inicio y al final de cada muestra para que el
+  punto de bucle no chasquee.
+- **Chip RAM**: cada voz cuesta su longitud en Chip RAM más los buffers internos
+  del mixer (672 B de mezcla + buffer/datos de plugin). Con 4 voces de 12800 B y
+  4 planos de bitplane se roza el límite de 96 KB de Chip RAM.
+
 ## Rendimiento (referencia, 11 kHz / 4 voces, sin optimizaciones)
 
 | Sistema | CPU |
@@ -131,6 +168,27 @@ Con `MIXER_SIZEXBUF` + `MIXER_WORDSIZED` se baja a ~3,4% en A500. En HQ mode
 El `MusicPlayer` (reproductores de tracker) es una capa separada: ver
 `docs/engine/architecture/MUSIC_PLAYER.md`. Ambos conviven reservando canales
 de Paula distintos.
+
+## Recursos: samples y herramientas
+
+Muestras 8-bit libres (compatibles con Paula) y utilidades:
+
+- **AKWF FREE** (Adventure Kid Waveforms):
+  https://github.com/KristofferKarlAxelEkstrand/AKWF-FREE y
+  https://www.adventurekid.se/akrt/waveforms/adventure-kid-waveforms/ — miles de
+  formas de onda de un ciclo (ideales para el acumulador de fase).
+- **AmigaPal** (echolevel): https://github.com/echolevel/AmigaPal — utilidad para
+  preparar imágenes/sonido para Amiga.
+- **Amiga Music Preservation (AMP)**: https://amp.dascene.net — módulos de música
+  Amiga (ptplayer/P61).
+- **The Mod Archive**: https://modarchive.org — repositorio de módulos.
+- **Amiga Soundtracker Sample Packs (st-xx)**:
+  https://archive.org/details/AmigaSoundtrackerSamplePacksst-xx — packs ST-01..ST-xx.
+  Copia local: `C:\Users\dvdjg\Documents\programa\Assets\Sound\Samples\st-xx`.
+
+Los samples son fuentes 8-bit con signo; para el mixer hay que escalar la
+amplitud a `±120/N` y dejar la longitud en múltiplo de 4 (o del mínimo que
+devuelve `MixerGetSampleMinSize()`).
 
 ## Referencias
 
