@@ -116,6 +116,22 @@ engine, lo más cómodo es generarlas ya conformes (amplitud ±32 para 4 voces,
 múltiplo de 4) o convertir en el host antes de incrustarlas. Ejemplo en
 `demos/amiga/058_sfx_mixer/src/main.cpp` (`gen_square`).
 
+**Pipeline host listo**: `tools/audio/prep-sample.ts` (con test en
+`test-prep-sample.ts`) hace el camino completo de una muestra real a un `.raw`
+para el mixer:
+
+```
+node dist/tools/audio/prep-sample.js <in.wav> <out.raw> [rate=11025] [voices=4] [peak=120]
+```
+
+- Lee WAV PCM 8/16-bit mono/estéreo → **8-bit con signo**.
+- **Remuestrea** a la tasa del mixer (decimación con promedio).
+- **Normaliza** al pico `peak` y divide por `voices` (suma sin desbordar).
+- Rellena a múltiplo de 4.
+
+Luego el `.raw` se incrusta con `incbin` en una sección `.MEMF_CHIP` (ver
+`demos/amiga/072_sample_channel` y `073_sample_mixer`).
+
 ## Melodías y polifonía con muestras pre-renderizadas
 
 El mixer reproduce cada muestra a un ritmo fijo (el `mixer_period`), sin control
@@ -147,6 +163,15 @@ Reglas del patrón:
   que una vuelta de tabla = `64 << 16 = 2^22` unidades de fase y
   `inc = (f << 22) / sample_rate` por muestra (con `f << 16` cada nota sonaría
   ~64× más grave, casi DC). Ver `demos/amiga/067_mixer_melody/src/main.cpp`.
+
+  > **AÚN MÁS IMPORTANTE**: NO usar `(f << 22) / rate` como acumulador. Para
+  > `f > 1024` el desplazamiento **desborda `u32`** (2400·2²² ≈ 10¹⁰ > 2³²) y el
+  > tono sale mal (con un "petardeo" cada bucle). Usar el helper del engine:
+  > `eng::audio::synth_tone<Len>(dst, freq, rate, amplitude)` /
+  > `synth_sequence<NoteLen>(...)` (en `eng/audio/wave_tables.hpp`), que calcula la
+  > fase como posición exacta dentro del ciclo (`p = (i*cycles) % Len`) y cierra el
+  > bucle **en fase 0**, sin clic. `Len` debe ser constante (el compilador optimiza
+  > las divisiones). `cycles` se redondea, así que hay un detune despreciable.
 - **Fundido** corto (32 muestras) al inicio y al final de cada muestra para que el
   punto de bucle no chasquee.
 - **Chip RAM**: los samples del mixer y los bitplanes del display comparten la
@@ -167,6 +192,51 @@ Reglas del patrón:
 
 Con `MIXER_SIZEXBUF` + `MIXER_WORDSIZED` se baja a ~3,4% en A500. En HQ mode
 (muestras 8-bit sin preprocesar) el coste sube a ~13%.
+
+### Rendimiento medido en el emulador (a revisar)
+
+Medición directa con WinUAE-DBG (misma sesión, mismas condiciones):
+
+| Demo | Actividad | Tiempo hasta READY |
+|---|---|---|
+| `072_sample_channel` | DMA de Paula directo (AUD0 @ ~44 kHz), sin mixer | ~6,9 s |
+| `067_mixer_melody` | mixer, 1 voz | ~33,3 s |
+| `071_mixer_four_voices` | mixer, 4 voces | no llega al frame 60 en 40 s |
+
+Es decir, el **DMA de audio no es el cuello de botella** (la 072, que también
+reproduce por DMA, va rápido): lo que frena el bucle principal es la
+**interrupción software del mixer**, y el coste **escala con el número de voces**.
+Con el mixer activo el bucle cae a ~2-3 fps emulados (medido también con el
+contador del mixer: ~947 interrupciones por 60 frames a ~49 Hz, frente a ~1 si el
+bucle fuera a 50 fps).
+
+La referencia del propio Photon (3,7 % en A500) sugiere que **gran parte del
+coste medido es del emulador** (WinUAE emulando el mezclador a nivel de
+instrucción), no del hardware real; aun así hay que verificarlo.
+
+**Cómo cerrarlo**:
+
+1. Medir el coste real de la interrupción con `MIXER_CIA_TIMER=1` +
+   `MixerCalcTicks()` (deja la media de ticks CIA en `mixer_ticks_average`) o con
+   los checkpoints del periférico de depuración.
+2. **Usar el modo de IRQ/DMA opcional**: `MIXER_EXTERNAL_IRQ_DMA=1` hace que el
+   mixer NO instale su propio handler de interrupción ni toque `DMACON`
+   directamente, sino que use callbacks (`MixerSetIRQDMACallbacks`) para que el
+   motor (o el OS, ejemplo `OSLegalExample`) lleven IRQ/DMA. La doc del mixer lo
+   describe como "optional support for callbacks to handle IRQ and DMA
+   registers". La mezcla sigue ejecutándose a la tasa del buffer, pero este camino
+   puede ser más barato que el handler propio (evita la conmutación de `INTENA`
+   por escritura de canal y el nivel 4 autovector).
+3. Probar `MIXER_WORDSIZED=1` (longitudes en word, muestras ≤ 65532 B) y/o
+   `MIXER_SIZEX32`/`MIXER_SIZEXBUF` (muestras y buffer múltiplos de 32 B).
+   **Medido**: ninguno mejora (33,5 s y 33,2 s frente a 33,3 s de base). Es decir,
+   el coste **no está en el bucle de mezcla** (el tamaño de bloque no influye)
+   sino **por interrupción** (el IRQ de audio de nivel 4 + la reprogramación de
+   DMA en cada handler, que WinUAE emula caro).
+4. Considerar el reparto canónico: **música por ptplayer en AUD1..AUD3** (barato)
+   y el **mixer en AUD0 solo para SFX cortos**, en vez de música por el mixer.
+5. Confirmar en hardware real (A500) o en un emulador con perfil de CPU más
+   rápido antes de dar el rendimiento por bueno.
 
 ## Música
 

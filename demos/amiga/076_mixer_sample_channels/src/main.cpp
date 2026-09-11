@@ -1,19 +1,21 @@
 // ============================================================================
-// Demo 074: "mixer drums" — caja de ritmos con 4 samples reales (st-xx).
+// Demo 076: "mixer sample channels" — un sample REAL por cada voz del mixer.
 // ============================================================================
 //
-// 4 voces del mixer, cada una un instrumento de percusión real de ST-xx:
-//   MixCh0 bombo · MixCh1 caja · MixCh2 hi-hat · MixCh3 palmas
+// Prueba DEFINITIVA de que el mixer reproduce un sample distinto en cada una de
+// sus 4 voces software. Igual que la demo 075 (contador binario de 4 bits que
+// cambia cada ~0.5 s), pero en vez de tonos puros cada voz reproduce un sample
+// de percusión real de ST-xx en LOOP:
+//   Voz 0 (MixCh0): bombo · Voz 1 (MixCh1): caja
+//   Voz 2 (MixCh2): hi-hat · Voz 3 (MixCh3): palmas
 //
-// Patrón de 16 pasos (semicorcheas de un compás). El tempo NO se marca por
-// frames (el bucle va a pocos fps con el mixer) ni por cada tick del mixer
-// (~49 Hz daría ~368 BPM): se avanza un paso cada `kStepTicks` ticks del mixer
-// (~6 → ~122 BPM).
+// La voz k está ACTIVA cuando el bit k del contador está a 1. Recorre 0..15, de
+// modo que se oye cada voz por separado (1, 2, 4, 8) y las combinaciones. Como
+// los samples van en LOOP, para apagar una voz se usa `stop()` (una FX en loop
+// no se puede sobrescribir con play; hay que pararla).
 //
-// Cada golpe usa el enfoque validado en la demo 076: se reproduce el sample en
-// LOOP y se PARA tras su duración natural (en ticks). Así suena un golpe corto
-// aunque el sample sea más largo que el paso (y se pueden re-disparar, cosa que
-// un loop no permite sin `stop`).
+// El contador avanza con el reloj de audio del mixer (~49 Hz), independiente de
+// los fps del bucle.
 
 #include <eng/audio/sfx_mixer.hpp>
 #include <eng/core/span.hpp>
@@ -28,7 +30,8 @@
 
 #include "support/gcc8_c_support.h"
 
-__asm__(".section snd_drums.MEMF_CHIP, \"aw\"\n"
+// 4 samples de percusión reales (ya normalizados/escalados a ±30 para el mixer).
+__asm__(".section snd_ch.MEMF_CHIP, \"aw\"\n"
 	".balign 4\n"
 	".globl g_kick\ng_kick:\n.incbin \"out/assets/audio/kick_mix.raw\"\n"
 	".globl g_kick_end\ng_kick_end:\n"
@@ -62,30 +65,27 @@ constexpr eng::u16 kBytesPerRow = 40;
 constexpr eng::u8  kPlanes = 6;
 constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * 256u;
 constexpr eng::u32 kBitplaneBytes = kPlaneBytes * kPlanes;
+constexpr eng::u16 kTicksPerStep = 25; // ~0.5 s a ~49 Hz
 
-constexpr eng::u16 kStepTicks = 6;   // ~122 BPM (semicorcheas) a ~49 Hz
-constexpr eng::u16 kTickHz = 49;     // aprox., para la duración de cada golpe
-constexpr eng::u32 kSampleRate = 11025;
-
-struct DrumsDemo {
+struct SampleChannelsDemo {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({ 96u * 1024u, 8u * 1024u, 4u * 1024u });
-		if (!m_memory_ok) { eng::debug::mark_failed(g_eng_run_status, 0x00007401u); return; }
+		if (!m_memory_ok) { eng::debug::mark_failed(g_eng_run_status, 0x00007601u); return; }
 
 		m_bitplane_block = backend.memory().chip.allocate(kBitplaneBytes, 16);
 		m_copper_block = backend.memory().chip.allocate(2048, 16);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid()) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00007402u);
+			eng::debug::mark_failed(g_eng_run_status, 0x00007602u);
 			return;
 		}
 		m_bitplanes = static_cast<eng::u8*>(m_bitplane_block.data);
 
-		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00007403u); return; }
+		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00007603u); return; }
 		backend.takeover_display(m_copper_ptr);
 
 		if (!m_sfx.init(backend.memory())) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00007404u);
+			eng::debug::mark_failed(g_eng_run_status, 0x00007604u);
 			return;
 		}
 		m_sfx.set_master_volume(64);
@@ -94,11 +94,6 @@ struct DrumsDemo {
 		m_data[1] = g_snare; m_len[1] = static_cast<eng::u32>(g_snare_end - g_snare);
 		m_data[2] = g_hihat; m_len[2] = static_cast<eng::u32>(g_hihat_end - g_hihat);
 		m_data[3] = g_claps; m_len[3] = static_cast<eng::u32>(g_claps_end - g_claps);
-		for (eng::u32 k = 0; k < 4u; ++k) {
-			// Duración natural del sample en ticks del mixer (mínimo 1).
-			eng::u32 g = (m_len[k] * kTickHz) / kSampleRate;
-			m_gate_len[k] = static_cast<eng::u16>(g == 0u ? 1u : g);
-		}
 
 		m_init_ok = true;
 	}
@@ -111,26 +106,18 @@ struct DrumsDemo {
 		eng::u16 elapsed = static_cast<eng::u16>(now - m_last);
 		if (elapsed > 32u) elapsed = 32u;
 		for (eng::u16 i = 0; i < elapsed; ++i) {
-			// Avanza un paso cada kStepTicks.
-			if (++m_tick >= kStepTicks) {
+			if (++m_tick >= kTicksPerStep) {
 				m_tick = 0;
-				const eng::u32 s = m_step % 16u;
-				// Bombo a negras (4x4), caja en 2 y 4, hi-hat a corcheas, palmas
-				// con la caja: los golpes coinciden y se solapan.
-				if ((s & 3u) == 0u)      hit(0, eng::audio::MixCh0); // 0,4,8,12
-				if (s == 4u || s == 12u) hit(1, eng::audio::MixCh1);
-				if ((s & 1u) == 0u)      hit(2, eng::audio::MixCh2);
-				if (s == 12u)            hit(3, eng::audio::MixCh3);
-				++m_step;
+				m_step = static_cast<eng::u8>((m_step + 1u) & 0x0fu);
+				apply_step(m_step);
 			}
 		}
 		m_last = now;
 
 		if (!m_confirmed && context.frame.frame_index >= 60u) {
-			eng::debug::mark_ready(g_eng_run_status, m_triggers);
-			g_eng_run_status.frame =
-				((m_count[0] & 0xffu) << 24u) | ((m_count[1] & 0xffu) << 16u) |
-				((m_count[2] & 0xffu) << 8u) | (m_count[3] & 0xffu);
+			eng::debug::mark_ready(g_eng_run_status,
+				static_cast<eng::u32>(m_step) | (static_cast<eng::u32>(m_on_count) << 8u));
+			g_eng_run_status.frame = m_ticks_total;
 			m_confirmed = true;
 		}
 		(void)backend;
@@ -143,14 +130,20 @@ struct DrumsDemo {
 	}
 
 private:
-	void hit(eng::u32 k, eng::u16 channel) {
-		// One-shot: cada sample suena su duración natural (no se loopea, que
-		// sonaría a "ametralladora" porque dura ~25-50 ms).
-		eng::audio::SfxSample s { eng::Span<const eng::u8>(m_data[k], m_len[k]) };
-		const eng::audio::SfxChannel ch = m_sfx.play_on(channel, s, 1, eng::audio::LoopMode::Once);
-		if (ch >= 0) {
-			++m_triggers;
-			++m_count[k];
+	void apply_step(eng::u8 value) {
+		m_on_count = 0;
+		for (eng::u32 k = 0; k < 4u; ++k) {
+			const bool want = (value & (1u << k)) != 0u;
+			if (want && !m_on[k]) {
+				eng::audio::SfxSample s { eng::Span<const eng::u8>(m_data[k], m_len[k]) };
+				m_ch[k] = m_sfx.play_on(static_cast<eng::u16>(eng::audio::MixCh0 << k), s, 1, eng::audio::LoopMode::Loop);
+				m_on[k] = true;
+			} else if (!want && m_on[k]) {
+				if (m_ch[k] >= 0) m_sfx.stop(m_ch[k]);
+				m_ch[k] = -1;
+				m_on[k] = false;
+			}
+			if (m_on[k]) ++m_on_count;
 		}
 	}
 
@@ -198,15 +191,13 @@ private:
 	bool m_copper_ok = false;
 	bool m_init_ok = false;
 	bool m_confirmed = false;
-	eng::u32 m_triggers = 0;
-	eng::u32 m_step = 0;
-	eng::u32 m_count[4] = { 0, 0, 0, 0 };
+	eng::u8 m_step = 0;
+	eng::u8 m_on_count = 0;
 	eng::u16 m_tick = 0;
 	eng::u16 m_last = 0;
+	eng::u32 m_ticks_total = 0;
 	eng::u16 m_copper_words = 0;
 	bool m_on[4] = { false, false, false, false };
-	eng::u16 m_gate[4] = { 0, 0, 0, 0 };
-	eng::u16 m_gate_len[4] = { 1, 1, 1, 1 };
 	eng::audio::SfxChannel m_ch[4] = { -1, -1, -1, -1 };
 	const eng::u8* m_data[4] = { nullptr, nullptr, nullptr, nullptr };
 	eng::u32 m_len[4] = { 0, 0, 0, 0 };
@@ -224,7 +215,7 @@ int main() {
 	eng::debug::reset(g_eng_run_status);
 
 	eng::amiga::MinimalBackend backend {};
-	DrumsDemo game {};
+	SampleChannelsDemo game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames(0xffff);
 

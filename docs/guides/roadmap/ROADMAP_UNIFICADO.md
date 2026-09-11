@@ -116,6 +116,23 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   programador; las áreas de memoria contigua se representan con `eng::Span`
   (`SfxSample` y `MusicModule`). Los punteros quedan en la capa interna
   (`MixerEffect`/wrappers `jsr`).
+- **Pendiente (audio, parado 2026-09 por tiempo)**: el mixer de 4 voces con
+  **samples one-shot** solo deja oír ~2 voces al mezclar una caja de ritmos
+  (`074_mixer_drums`). El **loop** sí se oye en las 4 (`076_mixer_sample_channels`,
+  estilo 075 de tonos). Los 4 canales reciben disparos (contadores 4:2:8:1), así que
+  se sospecha del camino **one-shot** del mixer (o del balance perceptual); siguiente
+  prueba: disparar los 4 samples one-shot a la vez, y si falla, pasar 074 a
+  loop+`stop()`. Otros arreglos ya hechos y documentados en `AUDIO_MIXER.md`:
+  buffers de plugin no nulos (o el mixer queda en silencio), desbordamiento de
+  `(f<<22)` para f>1024, generación de tono sin discontinuidad de bucle
+  (`synth_tone`/`synth_sequence`) y tool `tools/audio/prep-sample.ts`
+  (WAV→raw→remuestreo→normalizar/escalar, con test).
+  **Rendimiento**: con el mixer activo el bucle cae a ~2-5 fps emulados (vs ~normal
+  sin mixer); `MIXER_WORDSIZED`/`MIXER_SIZEX32` NO mejoran → el coste es
+  por-interrupción (IRQ de audio + reprogramación de DMA), probablemente exagerado
+  por WinUAE; **validar en hardware real**. Opción a probar: `MIXER_EXTERNAL_IRQ_DMA`
+  (la doc permite que el IRQ/DMA los lleve el motor/OS). Ver `AUDIO_MIXER.md`
+  §"Rendimiento medido en el emulador".
 
 ## Tests host — estado (2026-09)
 
