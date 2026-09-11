@@ -10,6 +10,8 @@ la parte pura de **`lib2d`** de `demoscene-repo-orig`.
 - `rotate` 90° y 180° en coordenadas de pantalla (`(x,y) -> (y,-x)` y negación).
 - Tabla de seno/coseno 4.12 (`sin(π/2)=1.0`, `sin(π)=0`, `cos(0)=1.0`).
 - `point_flags` (lados de la ventana de recorte).
+- `clip_line` (Liang-Barsky): segmento que cruza, fuera y dentro.
+- `clip_polygon` (Sutherland-Hodgman): cuadrado que envuelve la ventana.
 
 ## Formato
 

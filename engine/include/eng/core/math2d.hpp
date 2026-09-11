@@ -132,4 +132,155 @@ constexpr u8 point_flags(const Vec2& p, const Rect& win) {
 	return f;
 }
 
+// Lados de la ventana de recorte (bits, igual que `PF_LEFT..PF_BOTTOM`).
+constexpr u8 PF_LEFT = 1u;
+constexpr u8 PF_RIGHT = 2u;
+constexpr u8 PF_TOP = 4u;
+constexpr u8 PF_BOTTOM = 8u;
+
+/// División entera con cociente a 16 bits (equivale al `div16` del origen, `divs.w`).
+/// Requiere `b != 0` y cociente representable en `s16`.
+inline s16 div16(s32 a, s16 b) { return static_cast<s16>(a / b); }
+
+/// Recorta el segmento `a`–`b` contra `win` (algoritmo de Liang-Barsky, igual que
+/// `ClipLine2D`). Actualiza `a`/`b` si hace falta y devuelve `true` si queda parte
+/// visible. Los `t` están en 8.8 (0..256).
+inline bool clip_line(const Rect& win, Vec2& a, Vec2& b) {
+	constexpr s32 kBits = 8;
+	constexpr s32 kOne = 1 << kBits;
+	constexpr s32 kHalf = 1 << (kBits - 1);
+
+	s16 t0 = 0;
+	s16 t1 = static_cast<s16>(kOne);
+	const s16 xd = static_cast<s16>(b.x - a.x);
+	const s16 yd = static_cast<s16>(b.y - a.y);
+
+	struct Edge { s16 p, q1, q2; };
+	const Edge edge[2] = {
+		{ static_cast<s16>(-xd), static_cast<s16>(a.x - win.minX), static_cast<s16>(win.maxX - a.x) },
+		{ static_cast<s16>(-yd), static_cast<s16>(a.y - win.minY), static_cast<s16>(win.maxY - a.y) },
+	};
+
+	for (u32 i = 0; i < 2u; ++i) {
+		const s16 p = edge[i].p;
+		if (p == 0) {
+			continue;
+		}
+		if (p < 0) {
+			s16 r = div16(static_cast<s32>(edge[i].q1) << kBits, p);
+			if (r > t1) return false;
+			if (r > t0) t0 = r;
+			r = div16(static_cast<s32>(edge[i].q2) << kBits, static_cast<s16>(-p));
+			if (r < t0) return false;
+			if (r < t1) t1 = r;
+		} else {
+			s16 r = div16(static_cast<s32>(edge[i].q1) << kBits, p);
+			if (r < t0) return false;
+			if (r < t1) t1 = r;
+			r = div16(static_cast<s32>(edge[i].q2) << kBits, static_cast<s16>(-p));
+			if (r > t1) return false;
+			if (r > t0) t0 = r;
+		}
+	}
+
+	if (t0 > 0) {
+		a.x = static_cast<s16>(a.x + ((static_cast<s32>(t0) * xd + kHalf) >> kBits));
+		a.y = static_cast<s16>(a.y + ((static_cast<s32>(t0) * yd + kHalf) >> kBits));
+	}
+	if (t1 < kOne) {
+		const s16 t1r = static_cast<s16>(kOne - t1);
+		b.x = static_cast<s16>(b.x - ((static_cast<s32>(t1r) * xd + kHalf) >> kBits));
+		b.y = static_cast<s16>(b.y - ((static_cast<s32>(t1r) * yd + kHalf) >> kBits));
+	}
+	return true;
+}
+
+/// ¿Está `p` dentro del semi-plano `plane` respecto a `win`? (`CheckInside`).
+constexpr bool clip_inside(const Vec2& p, const Rect& win, u16 plane) {
+	if (plane & PF_LEFT) return p.x >= win.minX;
+	if (plane & PF_RIGHT) return p.x < win.maxX;
+	if (plane & PF_TOP) return p.y >= win.minY;
+	if (plane & PF_BOTTOM) return p.y < win.maxY;
+	return false;
+}
+
+/// Intersección de la arista `s`–`e` con el semi-plano `plane` (`ClipEdge`).
+inline void clip_edge(const Rect& win, Vec2& o, const Vec2& s, const Vec2& e, u16 plane) {
+	const s16 dx = static_cast<s16>(s.x - e.x);
+	const s16 dy = static_cast<s16>(s.y - e.y);
+	if (plane & PF_LEFT) {
+		const s16 n = static_cast<s16>(win.minX - e.x);
+		o.x = win.minX;
+		o.y = static_cast<s16>(e.y + div16(static_cast<s32>(dy) * n, dx));
+	} else if (plane & PF_RIGHT) {
+		const s16 n = static_cast<s16>(win.maxX - e.x);
+		o.x = win.maxX;
+		o.y = static_cast<s16>(e.y + div16(static_cast<s32>(dy) * n, dx));
+	} else if (plane & PF_TOP) {
+		const s16 n = static_cast<s16>(win.minY - e.y);
+		o.x = static_cast<s16>(e.x + div16(static_cast<s32>(dx) * n, dy));
+		o.y = win.minY;
+	} else if (plane & PF_BOTTOM) {
+		const s16 n = static_cast<s16>(win.maxY - e.y);
+		o.x = static_cast<s16>(e.x + div16(static_cast<s32>(dx) * n, dy));
+		o.y = win.maxY;
+	}
+}
+
+/// Una pasada de Sutherland-Hodgman (recorta contra un solo semi-plano).
+/// `src`/`dst` deben tener capacidad >= n+1. Devuelve los vértices escritos en `dst`.
+inline u32 clip_polygon_pass(const Rect& win, const Vec2* src, Vec2* dst, u32 n, u16 plane) {
+	if (n == 0u) return 0u;
+	const Vec2* s = src;
+	const Vec2* e = src + 1;
+	bool s_in = clip_inside(*s, win, plane);
+	bool need_close = true;
+	u32 m = 0;
+	if (s_in) {
+		need_close = false;
+		dst[m++] = *s;
+	}
+	while (--n) {
+		const bool e_in = clip_inside(*e, win, plane);
+		if (s_in && e_in) {
+			dst[m++] = *e;
+		} else if (s_in && !e_in) {
+			clip_edge(win, dst[m++], *s, *e, plane);
+		} else if (!s_in && e_in) {
+			clip_edge(win, dst[m++], *e, *s, plane);
+			dst[m++] = *e;
+		}
+		s_in = e_in;
+		++s;
+		++e;
+	}
+	if (need_close) {
+		dst[m++] = dst[0];
+	}
+	return m;
+}
+
+/// Recorta el polígono `in` (n vértices) contra `win` con las aristas `clip_flags`
+/// (en orden LEFT, TOP, RIGHT, BOTTOM, como `ClipPolygon2D`). `tmp` es un buffer de
+/// trabajo; `in` y `tmp` deben tener capacidad >= n+1. El resultado queda en `in`
+/// y se devuelve su número de vértices.
+inline u32 clip_polygon(const Rect& win, Vec2* in, Vec2* tmp, u32 n, u8 clip_flags) {
+	Vec2* src = in;
+	Vec2* dst = tmp;
+	auto pass = [&](u16 plane) {
+		n = clip_polygon_pass(win, src, dst, n, plane);
+		Vec2* t = src;
+		src = dst;
+		dst = t;
+	};
+	if (clip_flags & PF_LEFT) pass(PF_LEFT);
+	if (clip_flags & PF_TOP) pass(PF_TOP);
+	if (clip_flags & PF_RIGHT) pass(PF_RIGHT);
+	if (clip_flags & PF_BOTTOM) pass(PF_BOTTOM);
+	if (src != in) {
+		for (u32 i = 0; i < n; ++i) in[i] = src[i];
+	}
+	return n;
+}
+
 } // namespace eng::math2d

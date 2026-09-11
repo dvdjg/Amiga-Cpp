@@ -86,6 +86,36 @@ int main() {
 	check(point_flags({10, -1}, win) == 4, "punto arriba");
 	check(point_flags({10, 256}, win) == 8, "punto abajo");
 
+	// Recorte de línea (Liang-Barsky).
+	{
+		Vec2 a {-100, 100}, b {400, 100};
+		check(clip_line(win, a, b), "clip_line cruza -> true");
+		check(a.x >= 0 && a.x < 320 && b.x > 0 && b.x <= 320, "clip_line extremos dentro");
+	}
+	{
+		Vec2 a {-100, -100}, b {-50, -50};
+		check(!clip_line(win, a, b), "clip_line fuera -> false");
+	}
+	{
+		Vec2 a {50, 50}, b {100, 100};
+		check(clip_line(win, a, b) && a.x == 50 && a.y == 50 && b.x == 100 && b.y == 100,
+			"clip_line dentro sin cambios");
+	}
+
+	// Recorte de polígono (Sutherland-Hodgman): un cuadrado que envuelve la ventana
+	// debe quedar dentro de ella.
+	{
+		Vec2 poly[8] = { {-10, -10}, {330, -10}, {330, 266}, {-10, 266} };
+		Vec2 tmpb[8];
+		const eng::u32 n = clip_polygon(win, poly, tmpb, 4, PF_LEFT | PF_TOP | PF_RIGHT | PF_BOTTOM);
+		check(n >= 3, "clip_polygon devuelve >= 3 vertices");
+		bool all_in = true;
+		for (eng::u32 i = 0; i < n; ++i) {
+			if (poly[i].x < 0 || poly[i].x > 320 || poly[i].y < 0 || poly[i].y > 256) all_in = false;
+		}
+		check(all_in, "clip_polygon vertices dentro");
+	}
+
 	if (failures == 0) {
 		std::printf("OK: math2d (lib2d 4.12) validado.\n");
 		return 0;
