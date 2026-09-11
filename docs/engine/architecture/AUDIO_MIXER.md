@@ -149,9 +149,14 @@ Reglas del patrón:
   ~64× más grave, casi DC). Ver `demos/amiga/067_mixer_melody/src/main.cpp`.
 - **Fundido** corto (32 muestras) al inicio y al final de cada muestra para que el
   punto de bucle no chasquee.
-- **Chip RAM**: cada voz cuesta su longitud en Chip RAM más los buffers internos
-  del mixer (672 B de mezcla + buffer/datos de plugin). Con 4 voces de 12800 B y
-  4 planos de bitplane se roza el límite de 96 KB de Chip RAM.
+- **Chip RAM**: los samples del mixer y los bitplanes del display comparten la
+  misma memoria Chip. El mixer en sí cuesta `N × longitud_de_muestra` (en Chip o
+  cualquier RAM) más sus buffers internos (672 B de mezcla + buffer/datos de
+  plugin). El número de planos de bitplane es una decisión **de display**,
+  independiente del mixer, pero compite por el mismo Chip RAM: con `configure_memory`
+  de 96 KB, 4 voces de 12800 B (51200 B) + buffers (~1,6 KB) + 6 planos (61440 B)
+  se pasa del límite, por eso la demo `071_mixer_four_voices` usa 4 planos
+  (40960 B).
 
 ## Rendimiento (referencia, 11 kHz / 4 voces, sin optimizaciones)
 
