@@ -14,6 +14,7 @@ capa `eng::assets` (UAF-R, `ENGINE_DESIGN.md` §2.7).
   `take`) — la primitiva segura para parsear chunks.
 - `BitplanesView`: cabecera de geometría + datos planares validados.
 - `StringsView` (textos NUL-separados) y `TilesView` (banco de tiles de tamaño fijo).
+- `SpritesView` (sprites hardware de tamaño fijo), `CopperView` (palabras `WAIT`/`MOVE`) y `MeshAssetView` (malla `obj2c` → `math3d::Vec3`/`Face`).
 
 > Nota: los métodos del `Reader` se llaman `read_u8/16/32` (no `u8/16/32`) porque un
 > método con el mismo nombre que el tipo `eng::u8/16/32` lo **sombrea** dentro de la

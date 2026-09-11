@@ -18,6 +18,7 @@
 /// Endianness: el blob está en **big-endian** (nativo m68k). Los lectores `read_be16/32`
 /// funcionan igual en host (x86) que en Amiga.
 
+#include <eng/core/math3d.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 
@@ -333,6 +334,98 @@ public:
 private:
 	Span<const u8> m_bytes {};
 	u16 m_tile = 0;
+};
+
+/// Vista tipada de un chunk de **sprites hardware**: cabecera `u16 words_per_sprite`
+/// y `count` sprites de palabras big-endian. `word(i, w)` da la palabra `w` del
+/// sprite `i` (los mismos 16 bits que copiaría el Copper/agnus a SPRxDATA).
+class SpritesView {
+public:
+	constexpr SpritesView() = default;
+	explicit constexpr SpritesView(Span<const u8> bytes) : m_bytes(bytes) {}
+
+	u16 words_per_sprite() const {
+		return m_bytes.size() >= 2u ? read_be16(m_bytes.data()) : 0u;
+	}
+	u32 count() const {
+		const u16 w = words_per_sprite();
+		if (w == 0u || m_bytes.size() < 2u) {
+			return 0u;
+		}
+		return static_cast<u32>(m_bytes.size() - 2u) / (static_cast<u32>(w) * 2u);
+	}
+	u16 word(u32 i, u32 w) const {
+		if (w >= words_per_sprite() || i >= count()) {
+			return 0u;
+		}
+		const u32 off = 2u + (i * words_per_sprite() + w) * 2u;
+		return read_be16(m_bytes.data() + off);
+	}
+
+private:
+	Span<const u8> m_bytes {};
+};
+
+/// Vista tipada de un chunk de **copperlist** portátil: `count` palabras `u16`
+/// big-endian (`WAIT`/`MOVE`). El backend decide cómo materializarla.
+class CopperView {
+public:
+	constexpr CopperView() = default;
+	explicit constexpr CopperView(Span<const u8> bytes) : m_bytes(bytes) {}
+
+	constexpr u32 count() const { return static_cast<u32>(m_bytes.size()) / 2u; }
+	u16 word(u32 i) const {
+		return i < count() ? read_be16(m_bytes.data() + i * 2u) : 0u;
+	}
+
+private:
+	Span<const u8> m_bytes {};
+};
+
+/// Vista tipada de un chunk de **malla 3D** (formato `obj2c`):
+///
+///   header { u16 vertex_count, u16 face_count }
+///   vertex[] { s16 x, s16 y, s16 z }   (big-endian)
+///   face[]   { u16 a, u16 b, u16 c }   (big-endian, índices de vértice)
+///
+/// `vertex(i)`/`face(i)` decodifican big-endian, así que funcionan igual en host
+/// (x86) que en Amiga; el llamador copia los vértices a su buffer y construye un
+/// `math3d::MeshView` (ver `eng/core/mesh3d.hpp`).
+class MeshAssetView {
+public:
+	constexpr MeshAssetView() = default;
+	explicit constexpr MeshAssetView(Span<const u8> bytes) : m_bytes(bytes) {}
+
+	u32 vertex_count() const {
+		return m_bytes.size() >= 2u ? read_be16(m_bytes.data()) : 0u;
+	}
+	u32 face_count() const {
+		return m_bytes.size() >= 4u ? read_be16(m_bytes.data() + 2u) : 0u;
+	}
+	/// ¿El chunk contiene cabecera + todos los vértices y caras declarados?
+	bool valid() const {
+		const u32 needed = 4u + vertex_count() * 6u + face_count() * 6u;
+		return m_bytes.size() >= needed;
+	}
+	math3d::Vec3 vertex(u32 i) const {
+		const u32 off = 4u + i * 6u;
+		return {
+			static_cast<s16>(read_be16(m_bytes.data() + off)),
+			static_cast<s16>(read_be16(m_bytes.data() + off + 2u)),
+			static_cast<s16>(read_be16(m_bytes.data() + off + 4u)),
+		};
+	}
+	math3d::Face face(u32 i) const {
+		const u32 off = 4u + vertex_count() * 6u + i * 6u;
+		return {
+			read_be16(m_bytes.data() + off),
+			read_be16(m_bytes.data() + off + 2u),
+			read_be16(m_bytes.data() + off + 4u),
+		};
+	}
+
+private:
+	Span<const u8> m_bytes {};
 };
 
 /// Ensambla un blob UAF-R en un buffer del llamador (exportador host o tests).

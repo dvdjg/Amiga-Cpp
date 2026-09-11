@@ -223,6 +223,71 @@ export function tilesChunkData(tiles: readonly Uint8Array[], tileBytes?: number)
 	return out;
 }
 
+/** Datos del chunk de copperlist: palabras `u16` big-endian (`WAIT`/`MOVE`). */
+export function copperChunkData(words: readonly number[]): Uint8Array {
+	const out = Buffer.alloc(words.length * 2);
+	words.forEach((w, i) => out.writeUInt16BE(w & 0xffff, i * 2));
+	return out;
+}
+
+/**
+ * Datos del chunk de sprites hardware: cabecera `u16 words_per_sprite` + `count`
+ * sprites de tamaño fijo, todo big-endian. Consumido por `eng::assets::SpritesView`.
+ */
+export function spritesChunkData(sprites: readonly Uint16Array[]): Uint8Array {
+	if (sprites.length === 0) {
+		return new Uint8Array(0);
+	}
+	const w = sprites[0].length;
+	if (sprites.some((s) => s.length !== w)) {
+		throw new Error('sprites de tamaño distinto');
+	}
+	const out = Buffer.alloc(2 + sprites.length * w * 2);
+	out.writeUInt16BE(w, 0);
+	let o = 2;
+	for (const s of sprites) {
+		for (let i = 0; i < w; i++) {
+			out.writeUInt16BE(s[i] & 0xffff, o);
+			o += 2;
+		}
+	}
+	return out;
+}
+
+/**
+ * Datos del chunk de malla 3D (formato `obj2c`): cabecera (nº de vértices/caras) +
+ * vértices `s16` big-endian + caras `u16` big-endian. Consumido por
+ * `eng::assets::MeshAssetView`.
+ */
+export function meshChunkData(
+	vertices: readonly (readonly number[])[],
+	faces: readonly (readonly number[])[],
+): Uint8Array {
+	const out = Buffer.alloc(4 + vertices.length * 6 + faces.length * 6);
+	out.writeUInt16BE(vertices.length, 0);
+	out.writeUInt16BE(faces.length, 2);
+	let o = 4;
+	for (const v of vertices) {
+		if (v.length !== 3) {
+			throw new Error('vértice debe tener 3 componentes');
+		}
+		for (let i = 0; i < 3; i++) {
+			out.writeInt16BE(v[i] | 0, o);
+			o += 2;
+		}
+	}
+	for (const f of faces) {
+		if (f.length !== 3) {
+			throw new Error('cara debe tener 3 índices');
+		}
+		for (let i = 0; i < 3; i++) {
+			out.writeUInt16BE(f[i] & 0xffff, o);
+			o += 2;
+		}
+	}
+	return out;
+}
+
 function buildDemo(): Buffer {
 	// Paleta de 4 colores (negro, gris, rojo, blanco) RGB444.
 	const palette = [0x000, 0x888, 0xf00, 0xfff];

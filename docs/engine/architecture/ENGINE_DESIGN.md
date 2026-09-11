@@ -137,8 +137,9 @@ PlatformBackend (Amiga: potgo/ciaa/ciab + joyport + teclado)
   tilemap/tileset/palette) y en el formato de autoría de UAF.
 - Estado (2026-09): contenedor + vistas tipadas en `eng/assets/uaf.hpp` (`Blob`,
   `Reader`, `PaletteView`, `BitplanesView`, `SampleView`, `StringsView`, `TilesView`,
-  `BlobWriter`; test HOST-012) y exportador host `tools/assets/uaf-pack.ts`
-  (chunky→planar, `packUaf`/`parseUaf`; doc `docs/tools/UAF_PACK.md`).
+  `SpritesView`, `CopperView`, `MeshAssetView` (malla `obj2c`), `BlobWriter`;
+  test HOST-012) y exportador host `tools/assets/uaf-pack.ts` (chunky→planar,
+  sprites/copper/malla, `packUaf`/`parseUaf`; doc `docs/tools/UAF_PACK.md`).
 
 ### 2.8 Ciclo de vida y framework (`eng::engine`)
 - `Engine<Backend, Game>` ya existe: `init -> (update -> wait_vblank -> render) x N`.

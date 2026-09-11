@@ -4,7 +4,8 @@
  */
 import {
 	packUaf, parseUaf, bitplanesFromIndexed, paletteChunkData,
-	bitplanesChunkData, stringsChunkData, tilesChunkData, UafChunkType, UAF_MAGIC,
+	bitplanesChunkData, stringsChunkData, tilesChunkData,
+	copperChunkData, spritesChunkData, meshChunkData, UafChunkType, UAF_MAGIC,
 } from './uaf-pack.js';
 
 let failures = 0;
@@ -77,6 +78,17 @@ function testConsumers() {
 	let threw = false;
 	try { tilesChunkData([Uint8Array.from([1, 2]), Uint8Array.from([3])]); } catch { threw = true; }
 	check(threw, 'tile de tamaño distinto lanza');
+
+	const cop = copperChunkData([0x2c81, 0x2cc1, 0xffff, 0xfffe]);
+	check(cop.length === 8 && cop[0] === 0x2c && cop[1] === 0x81 && cop[7] === 0xfe, 'copper BE');
+
+	const spr = Buffer.from(spritesChunkData([Uint16Array.from([0x1234, 0x5678]), Uint16Array.from([0x9abc, 0xdef0])]));
+	check(spr.length === 2 + 2 * 2 * 2 && spr.readUInt16BE(0) === 2, 'sprites cabecera words_per_sprite');
+	check(spr.readUInt16BE(2) === 0x1234 && spr.readUInt16BE(6) === 0x9abc && spr.readUInt16BE(8) === 0xdef0, 'sprites datos BE');
+
+	const mesh = Buffer.from(meshChunkData([[-48, -48, -48], [48, -48, -48]], [[0, 1, 1]]));
+	check(mesh.length === 4 + 2 * 6 + 6 && mesh.readUInt16BE(0) === 2 && mesh.readUInt16BE(2) === 1, 'mesh cabecera');
+	check(mesh.readInt16BE(4) === -48 && mesh.readInt16BE(6) === -48 && mesh.readUInt16BE(16) === 0, 'mesh datos BE');
 }
 
 testRoundtrip();

@@ -170,6 +170,49 @@ int main() {
 		check(none.count() == 0, "TilesView tile_bytes=0 -> count 0");
 	}
 
+	// SpritesView: cabecera + sprites de tamano fijo.
+	{
+		eng::u8 sprites[2 + 2 * 2 * 2]; // words_per_sprite=2, 2 sprites
+		write_be16(sprites, 2);
+		write_be16(sprites + 2, 0x1234); write_be16(sprites + 4, 0x5678);
+		write_be16(sprites + 6, 0x9abc); write_be16(sprites + 8, 0xdef0);
+		const SpritesView sv {eng::Span<const eng::u8>(sprites, sizeof(sprites))};
+		check(sv.words_per_sprite() == 2 && sv.count() == 2, "SpritesView count");
+		check(sv.word(0, 0) == 0x1234 && sv.word(1, 0) == 0x9abc && sv.word(1, 1) == 0xdef0, "SpritesView datos");
+		check(sv.word(2, 0) == 0 && sv.word(0, 5) == 0, "SpritesView fuera de rango -> 0");
+	}
+
+	// CopperView: palabras big-endian (WAIT/MOVE).
+	{
+		eng::u8 cop[8];
+		write_be16(cop, 0x2c81); write_be16(cop + 2, 0x2cc1);
+		write_be16(cop + 4, 0xffff); write_be16(cop + 6, 0xfffe);
+		const CopperView cv {eng::Span<const eng::u8>(cop, 8)};
+		check(cv.count() == 4 && cv.word(0) == 0x2c81 && cv.word(3) == 0xfffe, "CopperView");
+		check(cv.word(4) == 0, "CopperView fuera de rango -> 0");
+	}
+
+	// MeshAssetView: cabecera + vertices + caras (formato obj2c).
+	{
+		eng::u8 mesh[4 + 2 * 6 + 6];
+		write_be16(mesh, 2); write_be16(mesh + 2, 1); // 2 vertices, 1 cara
+		write_be16(mesh + 4, static_cast<eng::u16>(-48));
+		write_be16(mesh + 6, static_cast<eng::u16>(-48));
+		write_be16(mesh + 8, static_cast<eng::u16>(-48));
+		write_be16(mesh + 10, 48);
+		write_be16(mesh + 12, static_cast<eng::u16>(-48));
+		write_be16(mesh + 14, static_cast<eng::u16>(-48));
+		write_be16(mesh + 16, 0); write_be16(mesh + 18, 1); write_be16(mesh + 20, 1);
+		const MeshAssetView mv {eng::Span<const eng::u8>(mesh, sizeof(mesh))};
+		check(mv.valid() && mv.vertex_count() == 2 && mv.face_count() == 1, "MeshAssetView cabecera");
+		const eng::math3d::Vec3 v0 = mv.vertex(0);
+		check(v0.x == -48 && v0.y == -48 && v0.z == -48, "MeshAssetView vertex 0");
+		const eng::math3d::Face f0 = mv.face(0);
+		check(f0.a == 0 && f0.b == 1 && f0.c == 1, "MeshAssetView face 0");
+		const MeshAssetView bad {eng::Span<const eng::u8>(mesh, 8)};
+		check(!bad.valid(), "MeshAssetView truncado -> !valid");
+	}
+
 	if (failures == 0) {
 		std::printf("OK: contenedor UAF-R validado (bind/find/data + errores).\n");
 		return 0;

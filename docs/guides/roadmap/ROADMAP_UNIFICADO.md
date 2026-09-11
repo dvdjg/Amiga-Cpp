@@ -37,12 +37,13 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   culling y shell sort) — tests HOST-010/011/013.
   Base del contenedor de assets UAF-R: `eng/assets/uaf.hpp` (`Blob` valida
   header/chunks por offset; consumidores `PaletteView`/`BitplanesView`/`SampleView`/
-  `StringsView`/`TilesView`, test HOST-012) con exportador host `tools/assets/uaf-pack.ts`
-  (chunky→planar, `packUaf`/`parseUaf`, doc `docs/tools/UAF_PACK.md`). La cola de
-  blits/presupuesto ya existía (`frame_plan.hpp`); las ops hardware de `libblit` van al
-  backend. **Pendiente**: consumidores de sprites/copper y el formato binario de malla
-  de `obj2c`. Validación en hardware con la demo `077_math3d_cube` (cubo 3D con
-  `math3d`+`mesh3d` sobre EHB).
+  `StringsView`/`TilesView`/`SpritesView`/`CopperView`/`MeshAssetView`, test HOST-012)
+  con exportador host `tools/assets/uaf-pack.ts` (chunky→planar, sprites/copper/malla
+  `obj2c`, `packUaf`/`parseUaf`, doc `docs/tools/UAF_PACK.md`). La cola de
+  blits/presupuesto ya existía (`frame_plan.hpp`); el borrado del sólido la usa vía
+  `MinimalBackend::execute_frame_plan` (Blitter). Validación en hardware con las demos
+  `077_math3d_cube` (alambre) y `078_math3d_solid` (relleno, borrado por Blitter),
+  con gate visual `tools/analyze/verify-math3d-cube.mjs`.
 
 ## Sprites hardware — estado (2026-09)
 
