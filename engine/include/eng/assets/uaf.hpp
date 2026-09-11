@@ -77,6 +77,56 @@ constexpr void write_be32(u8* p, u32 v) {
 	p[3] = static_cast<u8>(v);
 }
 
+/// Cursor tipado de LECTURA sobre un `Span<const u8>` (big-endian), con
+/// comprobación de límites. Si una lectura agota los datos, `ok()` pasa a `false`
+/// y las lecturas siguientes devuelven 0 (no se sale del buffer). Es la primitiva
+/// segura sobre la que se construyen las vistas de chunk.
+class Reader {
+public:
+	constexpr Reader() = default;
+	explicit constexpr Reader(Span<const u8> data) : m_data(data) {}
+
+	constexpr bool ok() const { return m_ok; }
+	constexpr u32 position() const { return m_pos; }
+	constexpr u32 remaining() const { return m_ok ? static_cast<u32>(m_data.size()) - m_pos : 0u; }
+
+	u8 read_u8() {
+		if (remaining() < 1u) { m_ok = false; return 0u; }
+		return m_data.data()[m_pos++];
+	}
+	s8 read_s8() { return static_cast<s8>(read_u8()); }
+	u16 read_u16() {
+		if (remaining() < 2u) { m_ok = false; m_pos = static_cast<u32>(m_data.size()); return 0u; }
+		const u16 v = read_be16(m_data.data() + m_pos);
+		m_pos += 2u;
+		return v;
+	}
+	u32 read_u32() {
+		if (remaining() < 4u) { m_ok = false; m_pos = static_cast<u32>(m_data.size()); return 0u; }
+		const u32 v = read_be32(m_data.data() + m_pos);
+		m_pos += 4u;
+		return v;
+	}
+	/// Salta `n` bytes (false si no quedan).
+	bool skip(u32 n) {
+		if (remaining() < n) { m_ok = false; return false; }
+		m_pos += n;
+		return true;
+	}
+	/// Toma `n` bytes como sub-vista (vacía si no quedan).
+	Span<const u8> take(u32 n) {
+		if (remaining() < n) { m_ok = false; return {}; }
+		Span<const u8> s { m_data.data() + m_pos, n };
+		m_pos += n;
+		return s;
+	}
+
+private:
+	Span<const u8> m_data {};
+	u32 m_pos = 0;
+	bool m_ok = true;
+};
+
 /// Vista validada sobre un blob UAF-R. No copia: apunta a la memoria del asset.
 class Blob {
 public:
@@ -90,35 +140,31 @@ public:
 		if (blob.data() == nullptr || blob.size() < kContainerHeaderSize) {
 			return false;
 		}
-		const u8* base = blob.data();
-		if (read_be32(base) != kUafMagic) {
+		Reader r {blob};
+		if (r.read_u32() != kUafMagic || r.read_u16() != kUafVersion) {
 			return false;
 		}
-		if (read_be16(base + 4u) != kUafVersion) {
+		const u32 n = r.read_u16();
+		if (!r.ok() || n > kMaxChunks) {
 			return false;
 		}
-		const u32 n = read_be16(base + 6u);
-		if (n > kMaxChunks) {
-			return false;
-		}
-		u32 off = kContainerHeaderSize;
 		for (u32 i = 0; i < n; ++i) {
-			if (off + kChunkHeaderSize > blob.size()) {
+			ChunkRef ref {};
+			ref.type = static_cast<ChunkType>(r.read_u16());
+			ref.count = r.read_u16();
+			ref.size = r.read_u32();
+			if (!r.ok()) {
 				return false;
 			}
-			const u8* c = base + off;
-			ChunkRef r {};
-			r.type = static_cast<ChunkType>(read_be16(c));
-			r.count = read_be16(c + 2u);
-			r.size = read_be32(c + 4u);
-			off += kChunkHeaderSize;
-			if (off + r.size > blob.size()) {
+			ref.offset = r.position();
+			if (!r.skip(ref.size)) {
 				return false;
 			}
-			r.offset = off;
-			m_chunks[m_count++] = r;
-			off += r.size;
-			off = (off + 3u) & ~3u; // padding a 4 bytes
+			const u32 pad = (4u - (ref.size & 3u)) & 3u; // los datos van 4-alineados
+			if (!r.skip(pad)) {
+				return false;
+			}
+			m_chunks[m_count++] = ref;
 		}
 		m_ok = true;
 		return true;
@@ -182,6 +228,46 @@ public:
 
 private:
 	Span<const u8> m_bytes {};
+};
+
+/// Vista tipada de un chunk de **bitplanes**: cabecera de geometría + datos
+/// planares contiguos. Formato del chunk de datos:
+///
+///   u16 width, u16 height, u16 row_bytes, u8 planes, u8 layout, u8 flags, u8 resv
+///   <row_bytes * height * planes bytes>
+///
+/// `read()` valida la longitud con el `Reader` y deja una vista acotada (sin copia),
+/// lista para inicializar un `gfx::Bitmap`.
+class BitplanesView {
+public:
+	bool read(Span<const u8> bytes) {
+		Reader r {bytes};
+		m_width = r.read_u16();
+		m_height = r.read_u16();
+		m_row_bytes = r.read_u16();
+		m_planes = r.read_u8();
+		m_layout = r.read_u8();
+		r.read_u8(); // flags
+		r.read_u8(); // reservado
+		const u32 plane_bytes = static_cast<u32>(m_row_bytes) * m_height * m_planes;
+		m_data = r.take(plane_bytes);
+		return r.ok();
+	}
+
+	constexpr u16 width() const { return m_width; }
+	constexpr u16 height() const { return m_height; }
+	constexpr u16 row_bytes() const { return m_row_bytes; }
+	constexpr u8 planes() const { return m_planes; }
+	constexpr u8 layout() const { return m_layout; }
+	constexpr Span<const u8> data() const { return m_data; }
+
+private:
+	u16 m_width = 0;
+	u16 m_height = 0;
+	u16 m_row_bytes = 0;
+	u8 m_planes = 0;
+	u8 m_layout = 0;
+	Span<const u8> m_data {};
 };
 
 /// Ensambla un blob UAF-R en un buffer del llamador (exportador host o tests).

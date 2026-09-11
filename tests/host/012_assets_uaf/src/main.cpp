@@ -116,6 +116,38 @@ int main() {
 		check(sv.bytes()[0] == 0x80 && sv.bytes()[2] == 0xC0, "SampleView datos");
 	}
 
+	// Reader tipado + BitplanesView (cabecera + datos planares).
+	{
+		eng::u8 bp[14];
+		write_be16(bp, 16);
+		write_be16(bp + 2, 2);
+		write_be16(bp + 4, 2);
+		bp[6] = 1; bp[7] = 0; bp[8] = 0; bp[9] = 0; // planes, layout, flags, resv
+		bp[10] = 0xAA; bp[11] = 0x55; bp[12] = 0x11; bp[13] = 0x22;
+
+		eng::u8 store[128];
+		BlobWriter w {eng::Span<eng::u8>(store, sizeof(store))};
+		w.begin();
+		check(w.add_chunk(ChunkType::Bitplanes, 1, eng::Span<const eng::u8>(bp, 14)), "writer add bitplanes");
+		Blob bb;
+		check(bb.bind(w.finish()), "bitplanes bind");
+
+		BitplanesView bv;
+		check(bv.read(bb.data(0)), "BitplanesView read");
+		check(bv.width() == 16 && bv.height() == 2 && bv.row_bytes() == 2 && bv.planes() == 1,
+			"BitplanesView geometria");
+		check(bv.data().size() == 4 && bv.data()[0] == 0xAA, "BitplanesView datos");
+	}
+
+	// Reader: comprobacion de limites.
+	{
+		const eng::u8 d[2] = {0x12, 0x34};
+		Reader r {eng::Span<const eng::u8>(d, 2)};
+		check(r.read_u16() == 0x1234, "Reader u16 big-endian");
+		check(r.remaining() == 0 && r.ok(), "Reader agotado sigue ok");
+		check(r.read_u8() == 0 && !r.ok(), "Reader underflow -> !ok");
+	}
+
 	if (failures == 0) {
 		std::printf("OK: contenedor UAF-R validado (bind/find/data + errores).\n");
 		return 0;

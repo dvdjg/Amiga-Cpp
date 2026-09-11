@@ -10,6 +10,13 @@ capa `eng::assets` (UAF-R, `ENGINE_DESIGN.md` §2.7).
 - Errores: magic inválido, chunk que se sale del blob y blob demasiado corto → `false`.
 - `BlobWriter` round-trip: `begin`/`add_chunk`/`finish` → `bind` → vistas tipadas
   `PaletteView` (colores RGB444 big-endian) y `SampleView` (bytes con signo).
+- `Reader` tipado big-endian con comprobación de límites (`read_u8/16/32`, `skip`,
+  `take`) — la primitiva segura para parsear chunks.
+- `BitplanesView`: cabecera de geometría + datos planares validados.
+
+> Nota: los métodos del `Reader` se llaman `read_u8/16/32` (no `u8/16/32`) porque un
+> método con el mismo nombre que el tipo `eng::u8/16/32` lo **sombrea** dentro de la
+> clase y rompe las firmas que lo usan.
 
 ## Formato
 
