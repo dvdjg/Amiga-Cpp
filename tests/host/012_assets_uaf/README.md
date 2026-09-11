@@ -8,6 +8,8 @@ capa `eng::assets` (UAF-R, `ENGINE_DESIGN.md` §2.7).
 - `bind` de un blob válido (magic `UAFR`, versión, chunks con offset/size en rango).
 - `chunk_count`, `chunk(i)`, `find(type)` y `data(i)` (vista acotada).
 - Errores: magic inválido, chunk que se sale del blob y blob demasiado corto → `false`.
+- `BlobWriter` round-trip: `begin`/`add_chunk`/`finish` → `bind` → vistas tipadas
+  `PaletteView` (colores RGB444 big-endian) y `SampleView` (bytes con signo).
 
 ## Formato
 

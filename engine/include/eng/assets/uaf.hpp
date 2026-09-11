@@ -64,6 +64,18 @@ constexpr u32 read_be32(const u8* p) {
 	return (static_cast<u32>(p[0]) << 24u) | (static_cast<u32>(p[1]) << 16u) |
 	       (static_cast<u32>(p[2]) << 8u) | static_cast<u32>(p[3]);
 }
+/// Escritor big-endian (2 bytes).
+constexpr void write_be16(u8* p, u16 v) {
+	p[0] = static_cast<u8>(v >> 8u);
+	p[1] = static_cast<u8>(v);
+}
+/// Escritor big-endian (4 bytes).
+constexpr void write_be32(u8* p, u32 v) {
+	p[0] = static_cast<u8>(v >> 24u);
+	p[1] = static_cast<u8>(v >> 16u);
+	p[2] = static_cast<u8>(v >> 8u);
+	p[3] = static_cast<u8>(v);
+}
 
 /// Vista validada sobre un blob UAF-R. No copia: apunta a la memoria del asset.
 class Blob {
@@ -140,6 +152,103 @@ private:
 	Span<const u8> m_blob {};
 	ChunkRef m_chunks[kMaxChunks] {};
 	u32 m_count = 0;
+	bool m_ok = false;
+};
+
+/// Vista tipada de un chunk de **paleta**: N colores RGB444 (u16 big-endian).
+/// Interfaz segura: no expone punteros crudos y valida que el tamaño sea par.
+class PaletteView {
+public:
+	constexpr PaletteView() = default;
+	explicit constexpr PaletteView(Span<const u8> bytes) : m_bytes(bytes) {}
+	constexpr u32 count() const { return static_cast<u32>(m_bytes.size() / 2u); }
+	constexpr bool valid() const { return (m_bytes.size() & 1u) == 0u; }
+	/// Color `i` en RGB444 (big-endian; válido en host y m68k).
+	constexpr u16 color(u32 i) const { return read_be16(m_bytes.data() + i * 2u); }
+	constexpr Span<const u8> bytes() const { return m_bytes; }
+
+private:
+	Span<const u8> m_bytes {};
+};
+
+/// Vista tipada de un chunk de **sample**: N bytes 8-bit con signo.
+class SampleView {
+public:
+	constexpr SampleView() = default;
+	explicit constexpr SampleView(Span<const u8> bytes) : m_bytes(bytes) {}
+	constexpr u32 size() const { return static_cast<u32>(m_bytes.size()); }
+	constexpr bool empty() const { return m_bytes.size() == 0u; }
+	constexpr Span<const u8> bytes() const { return m_bytes; }
+
+private:
+	Span<const u8> m_bytes {};
+};
+
+/// Ensambla un blob UAF-R en un buffer del llamador (exportador host o tests).
+/// No posee memoria; `finish()` fija el nº de chunks y devuelve la vista escrita.
+class BlobWriter {
+public:
+	explicit constexpr BlobWriter(Span<u8> buffer) : m_buffer(buffer) {}
+
+	/// Escribe la cabecera (chunk_count se fija en `finish`).
+	bool begin() {
+		if (m_buffer.data() == nullptr || m_buffer.size() < kContainerHeaderSize) {
+			m_ok = false;
+			return false;
+		}
+		write_be32(m_buffer.data(), kUafMagic);
+		write_be16(m_buffer.data() + 4u, kUafVersion);
+		write_be16(m_buffer.data() + 6u, 0u);
+		m_used = kContainerHeaderSize;
+		m_count = 0;
+		m_ok = true;
+		return true;
+	}
+
+	/// Añade un chunk (los datos se rellenan a múltiplo de 4).
+	bool add_chunk(ChunkType type, u16 count, Span<const u8> data) {
+		if (!m_ok) {
+			return false;
+		}
+		const u32 n = static_cast<u32>(data.size());
+		const u32 need = kChunkHeaderSize + n;
+		if (m_used + need > m_buffer.size()) {
+			m_ok = false;
+			return false;
+		}
+		u8* c = m_buffer.data() + m_used;
+		write_be16(c, static_cast<u16>(type));
+		write_be16(c + 2u, count);
+		write_be32(c + 4u, n);
+		for (u32 i = 0; i < n; ++i) {
+			c[kChunkHeaderSize + i] = data[i];
+		}
+		m_used += need;
+		const u32 pad = (4u - (m_used & 3u)) & 3u;
+		for (u32 i = 0; i < pad; ++i) {
+			m_buffer.data()[m_used + i] = 0u;
+		}
+		m_used += pad;
+		++m_count;
+		return true;
+	}
+
+	/// Fija el nº de chunks y devuelve la vista escrita.
+	Span<const u8> finish() {
+		if (!m_ok) {
+			return {};
+		}
+		write_be16(m_buffer.data() + 6u, static_cast<u16>(m_count));
+		return { m_buffer.data(), m_used };
+	}
+
+	constexpr bool ok() const { return m_ok; }
+	constexpr u32 size() const { return m_used; }
+
+private:
+	Span<u8> m_buffer {}; // buffer completo del llamador (capacidad = size())
+	u32 m_used = 0;       // bytes ya escritos (cursor de escritura)
+	u32 m_count = 0;      // chunks añadidos
 	bool m_ok = false;
 };
 

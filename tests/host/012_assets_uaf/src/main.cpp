@@ -86,6 +86,36 @@ int main() {
 		check(!bb.bind({buf, 4}), "blob demasiado corto -> false");
 	}
 
+	// BlobWriter -> Blob -> vistas tipadas (round-trip).
+	{
+		eng::u8 store[128];
+		BlobWriter w {eng::Span<eng::u8>(store, sizeof(store))};
+		check(w.begin(), "writer begin");
+
+		const eng::u8 pal[4] = {0x0F, 0x00, 0x00, 0xF0}; // 2 colores RGB444
+		check(w.add_chunk(ChunkType::Palette, 2, eng::Span<const eng::u8>(pal, 4)), "writer add palette");
+
+		const eng::u8 snd[3] = {0x80, 0x40, 0xC0};
+		check(w.add_chunk(ChunkType::Samples, 3, eng::Span<const eng::u8>(snd, 3)), "writer add sample");
+
+		const eng::Span<const eng::u8> out = w.finish();
+		check(w.ok(), "writer ok");
+
+		Blob bb;
+		check(bb.bind(out), "writer -> bind");
+		check(bb.chunk_count() == 2, "writer 2 chunks");
+
+		const PaletteView pv {bb.data(0)};
+		check(pv.valid() && pv.count() == 2, "PaletteView count");
+		check(pv.color(0) == 0x0F00 && pv.color(1) == 0x00F0, "PaletteView colores");
+
+		const ChunkRef* sr = bb.find(ChunkType::Samples);
+		check(sr != nullptr, "writer find Samples");
+		const SampleView sv {bb.data(1)};
+		check(sv.size() == 3 && !sv.empty(), "SampleView size");
+		check(sv.bytes()[0] == 0x80 && sv.bytes()[2] == 0xC0, "SampleView datos");
+	}
+
 	if (failures == 0) {
 		std::printf("OK: contenedor UAF-R validado (bind/find/data + errores).\n");
 		return 0;
