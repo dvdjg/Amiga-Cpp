@@ -77,8 +77,8 @@ struct TwoVoicesDemo {
 			return;
 		}
 		m_bitplanes = static_cast<eng::u8*>(m_bitplane_block.data);
-		synth(static_cast<eng::u8*>(m_melody_block.data), kMelodyFreq, kMelodyCount, kMelodyNote);
-		synth(static_cast<eng::u8*>(m_bass_block.data), kBassFreq, kBassCount, kBassNote);
+		eng::audio::synth_sequence<kMelodyNote>(static_cast<eng::u8*>(m_melody_block.data), kMelodyFreq, kMelodyCount, kSampleRate, static_cast<eng::s16>(kAmplitude));
+		eng::audio::synth_sequence<kBassNote>(static_cast<eng::u8*>(m_bass_block.data), kBassFreq, kBassCount, kSampleRate, static_cast<eng::s16>(kAmplitude));
 
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00006903u); return; }
 		backend.takeover_display(m_copper_ptr);
@@ -135,35 +135,6 @@ struct TwoVoicesDemo {
 private:
 	eng::audio::SfxSample sample(eng::MemoryBlock& block, eng::u32 len) {
 		return { eng::Span<const eng::u8>(static_cast<const eng::u8*>(block.data), len) };
-	}
-
-	/// Sintetiza una secuencia de notas a `sample_rate`. Una vuelta de la tabla de
-	/// 64 entradas = 2^22 unidades de fase; inc = (f << 22) / sample_rate.
-	void synth(eng::u8* dst, const eng::u16* freqs, eng::u32 count, eng::u32 note_samples) {
-		eng::u32 phase = 0;
-		eng::u32 out = 0;
-		for (eng::u32 n = 0; n < count; ++n) {
-			const eng::u32 inc = (static_cast<eng::u32>(freqs[n]) << 22u) / kSampleRate;
-			for (eng::u32 i = 0; i < note_samples; ++i) {
-				const eng::u32 idx = (phase >> 16u) & 63u;
-				const eng::u32 frac = (phase >> 8u) & 0xffu;
-				const eng::s16 a = eng::audio::sine_byte(idx);
-				const eng::s16 b = eng::audio::sine_byte(idx + 1u);
-				const eng::s16 v = static_cast<eng::s16>(a + (((b - a) * static_cast<eng::s32>(frac)) >> 8));
-				dst[out++] = static_cast<eng::u8>(static_cast<eng::s8>((static_cast<eng::s32>(v) * kAmplitude) / 127));
-				phase += inc;
-			}
-		}
-		fade(dst, 0, true);
-		fade(dst, out - 32u, false);
-	}
-
-	void fade(eng::u8* dst, eng::u32 offset, bool in) {
-		for (eng::u32 i = 0; i < 32u; ++i) {
-			const eng::s32 s = static_cast<eng::s8>(dst[offset + i]);
-			const eng::s32 g = in ? static_cast<eng::s32>(i) : static_cast<eng::s32>(31u - i);
-			dst[offset + i] = static_cast<eng::u8>(static_cast<eng::s8>((s * g) / 32));
-		}
 	}
 
 	void draw_scope() {

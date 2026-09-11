@@ -73,7 +73,7 @@ struct MixerMelodyDemo {
 			return;
 		}
 		m_bitplanes = static_cast<eng::u8*>(m_bitplane_block.data);
-		build_melody(static_cast<eng::u8*>(m_melody_block.data));
+		eng::audio::synth_sequence<kNoteSamples>(static_cast<eng::u8*>(m_melody_block.data), kFreq, kNoteCount, kSampleRate, static_cast<eng::s16>(kAmplitude));
 
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00006703u); return; }
 
@@ -160,40 +160,6 @@ private:
 	}
 	eng::audio::SfxSample melody_sample() {
 		return { eng::Span<const eng::u8>(static_cast<const eng::u8*>(m_melody_block.data), kSampleLen) };
-	}
-
-	/// Sintetiza la melodía: por cada nota, un seno a su frecuencia usando un
-	/// acumulador de fase 16.16 (solo aritmética entera, sin float ni 64 bits).
-	/// La fase NO se reinicia entre notas (legato): solo cambia la pendiente, así
-	/// no hay clics en los cambios de nota.
-	void build_melody(eng::u8* dst) {
-		eng::u32 phase = 0;
-		eng::u32 out = 0;
-		for (eng::u32 n = 0; n < kNoteCount; ++n) {
-			// Una vuelta de tabla (64 entradas) = 64<<16 = 2^22 unidades de fase.
-			// inc = (f / 11025 ciclos-por-muestra) * 2^22 = (f << 22) / 11025.
-			const eng::u32 inc = (static_cast<eng::u32>(kFreq[n]) << 22u) / kSampleRate;
-			for (eng::u32 i = 0; i < kNoteSamples; ++i) {
-				const eng::u32 idx = (phase >> 16u) & 63u;
-				const eng::u32 frac = (phase >> 8u) & 0xffu;
-				const eng::s16 a = eng::audio::sine_byte(idx);
-				const eng::s16 b = eng::audio::sine_byte(idx + 1u);
-				const eng::s16 v = static_cast<eng::s16>(a + (((b - a) * static_cast<eng::s32>(frac)) >> 8));
-				dst[out++] = static_cast<eng::u8>(static_cast<eng::s8>((static_cast<eng::s32>(v) * kAmplitude) / 127));
-				phase += inc;
-			}
-		}
-		// Fundido corto al inicio y al final para que el punto de bucle no chasque.
-		fade(dst, 0, true);
-		fade(dst, kSampleLen - 32u, false);
-	}
-
-	void fade(eng::u8* dst, eng::u32 offset, bool in) {
-		for (eng::u32 i = 0; i < 32u; ++i) {
-			const eng::s32 s = static_cast<eng::s8>(dst[offset + i]);
-			const eng::s32 g = in ? static_cast<eng::s32>(i) : static_cast<eng::s32>(31u - i);
-			dst[offset + i] = static_cast<eng::u8>(static_cast<eng::s8>((s * g) / 32));
-		}
 	}
 
 	bool build_copper() {
