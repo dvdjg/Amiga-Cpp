@@ -41,7 +41,8 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   (chunky→planar, `packUaf`/`parseUaf`, doc `docs/tools/UAF_PACK.md`). La cola de
   blits/presupuesto ya existía (`frame_plan.hpp`); las ops hardware de `libblit` van al
   backend. **Pendiente**: consumidores de sprites/copper y el formato binario de malla
-  de `obj2c`; demo de validación de `math2d`/`math3d` en hardware.
+  de `obj2c`. Validación en hardware con la demo `077_math3d_cube` (cubo 3D con
+  `math3d`+`mesh3d` sobre EHB).
 
 ## Sprites hardware — estado (2026-09)
 

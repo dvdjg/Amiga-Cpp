@@ -35,6 +35,8 @@ estructura: `docs/STRUCTURE.md` §4. Clasificación por concepto:
   - `074_mixer_drums` — caja de ritmos con 4 samples de percusión reales.
   - `075_mixer_tones` — tonos puros 300/600/1200/2400 Hz activados por un contador binario de 4 bits (diagnóstico; destapó el desbordamiento de `f << 22`).
   - `076_mixer_sample_channels` — un sample real en loop por cada voz del mixer, activado por el contador de 4 bits (verificación de las 4 voces).
+- **Matemática 2D/3D (`077`)** — ports de `lib2d`/`lib3d` de demoscene (tests host HOST-010/011/013; índice `docs/demos/effects/LIBRARIES-CPP23-IMPORT-ROADMAP.md` §5):
+  - `077_math3d_cube` — cubo 3D en alambre con `math3d` (rotación 4.12) + `mesh3d` (`mesh_transform`, back-face culling y orden painter) sobre EHB. Valida la matemática entera (sin soft-float) en hardware; dibujo CPU durante el vblank.
 - **Scroll y tile fields (`1xx`)**:
   - `100_virtual_tile_scene_scroll` — escena virtual con scroll.
   - `101_ehb_tile_scroll_driver`, `102_tile_scroll_dualpf`, `103_tile_scroll_ring`,

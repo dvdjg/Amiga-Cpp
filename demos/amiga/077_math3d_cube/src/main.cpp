@@ -68,7 +68,11 @@ struct Canvas {
 		}
 		const eng::u32 off = static_cast<eng::u32>(y) * kRowBytes + static_cast<eng::u32>(x >> 3);
 		const eng::u8 mask = static_cast<eng::u8>(0x80u >> (x & 7));
-		for (eng::u8 p = 0; p < kPlanes; ++p) {
+		// Los colores < 8 (toda la rampa del cubo) solo usan los planos 0..2. Como
+		// la zona del cubo se borra a 0 antes de pintarlo, los planos 3..5 son 0 y
+		// saltarlos ahorra la mitad de los accesos a Chip RAM (regla de rendimiento).
+		const eng::u8 np = (color < 8u) ? 3u : kPlanes;
+		for (eng::u8 p = 0; p < np; ++p) {
 			eng::u8* base = planes + static_cast<eng::u32>(p) * kPlaneBytes;
 			if (color & (1u << p)) {
 				base[off] = static_cast<eng::u8>(base[off] | mask);
@@ -98,7 +102,9 @@ struct Canvas {
 
 	/// Borra (a 0 = fondo) una zona alineada a byte. `x` se redondea a la baja y
 	/// `x1` al alza para cubrir el borde redondeado sin dejar restos del frame
-	/// anterior.
+	/// anterior. Usa stores de 32 bits en el tramo alineado: escribir 4 bytes de
+	/// golpe cuesta ~lo mismo que 1 byte en Chip RAM, así que el borrado baja a
+	/// ~1/4 de accesos (clave para que el redibujado quepa en el frame).
 	void clear_rect(eng::s32 x0, eng::s32 y0, eng::s32 x1, eng::s32 y1) {
 		if (x0 < 0) x0 = 0;
 		if (y0 < 0) y0 = 0;
@@ -107,14 +113,15 @@ struct Canvas {
 		if (x0 > x1 || y0 > y1) return;
 		const eng::u32 bx0 = static_cast<eng::u32>(x0) >> 3;
 		const eng::u32 bx1 = static_cast<eng::u32>(x1) >> 3;
-		const eng::u32 n = bx1 - bx0 + 1u;
 		for (eng::u8 p = 0; p < kPlanes; ++p) {
 			eng::u8* base = planes + static_cast<eng::u32>(p) * kPlaneBytes;
 			for (eng::s32 y = y0; y <= y1; ++y) {
-				eng::u8* row = base + static_cast<eng::u32>(y) * kRowBytes + bx0;
-				for (eng::u32 i = 0; i < n; ++i) {
-					row[i] = 0u;
-				}
+				eng::u8* row = base + static_cast<eng::u32>(y) * kRowBytes;
+				eng::u32 i = bx0;
+				for (; i <= bx1 && (i & 3u) != 0u; ++i) row[i] = 0u; // cabeza hasta alinear
+				eng::u32* lp = reinterpret_cast<eng::u32*>(row + i);
+				for (; i + 4u <= bx1 + 1u; i += 4u) *lp++ = 0u;      // cuerpo alineado
+				for (; i <= bx1; ++i) row[i] = 0u;                    // cola
 			}
 		}
 	}
@@ -147,6 +154,24 @@ constexpr eng::s32 kCY = 118;
 constexpr eng::s16 kCamZ = 200;
 constexpr eng::s32 kHalfSpan = 92; // media anchura de la zona a borrar (> kR*sqrt(3))
 
+/// Aristas REALES del cubo (pares de vertices). El mesh esta formado por
+/// triangulos, y cada cuadro tiene una diagonal de triangulacion que NO es una
+/// arista del cubo: filtrandola se obtiene un alambre limpio.
+constexpr eng::u16 kEdges[12][2] = {
+	{0, 1}, {1, 2}, {2, 3}, {3, 0}, // cara -Z
+	{4, 5}, {5, 6}, {6, 7}, {7, 4}, // cara +Z
+	{0, 4}, {1, 5}, {2, 6}, {3, 7}, // aristas verticales
+};
+
+constexpr bool is_cube_edge(eng::u16 a, eng::u16 b) {
+	for (const auto& e : kEdges) {
+		if ((e[0] == a && e[1] == b) || (e[0] == b && e[1] == a)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 /// Brillo segun la profundidad de la cara (suma de z de sus 3 vertices): las
 /// caras mas cercanas (z alta, hacia la camara) se pintan mas claras. Sin
 /// division: umbrales enteros fijos.
@@ -157,6 +182,36 @@ eng::u8 shade_of(eng::s16 zsum) {
 	if (zsum > -50) return 4;
 	if (zsum > -100) return 3;
 	return 2;
+}
+
+/// Dibuja una arista de una cara SI es una de las 12 aristas del cubo (descarta
+/// las diagonales de triangulacion).
+void draw_edge(Canvas& c, const Vec3* w, eng::u16 p, eng::u16 q, eng::u8 col) {
+	if (!is_cube_edge(p, q)) {
+		return;
+	}
+	c.line(kCX + w[p].x, kCY - w[p].y, kCX + w[q].x, kCY - w[q].y, col);
+}
+
+/// Auto-test EN HARDWARE (misma comprobacion que HOST-013, sobre el 68000): con
+/// la rotacion identidad, la camara en +Z debe ver UNICAMENTE la cara +Z, que son
+/// los triangulos 0 y 1 del mesh. Si la matematica entera fallara en m68k (por
+/// ejemplo por overflow de 16 bits en `normfx`), el conteo o el orden cambiarian
+/// y la demo iria a Failed en vez de Ready.
+bool verify_mesh() {
+	eng::math3d::Mat3x3 id;
+	eng::math3d::load_identity(id);
+	Vec3 w[8];
+	const MeshView mesh {eng::Span<const Vec3>(kVertices, 8), eng::Span<const Face>(kFaces, 12)};
+	eng::math3d::mesh_transform(mesh.vertices, id, eng::Span<Vec3>(w, 8));
+
+	eng::math3d::FaceOrder order[12];
+	const Vec3 cam {0, 0, kCamZ};
+	const eng::u32 n = eng::math3d::mesh_painter_order(
+		mesh, eng::Span<const Vec3>(w, 8), cam, eng::Span<eng::math3d::FaceOrder>(order, 12));
+
+	return n == 2u && order[0].index == 0u && order[1].index == 1u &&
+	       eng::math3d::face_z_sum(w[4], w[5], w[6]) > 0;
 }
 
 struct DemoGame {
@@ -180,6 +235,10 @@ struct DemoGame {
 		if (m_memory_ok && m_scene_ok) {
 			draw_static();
 			m_scene.takeover(backend);
+			if (!verify_mesh()) {
+				eng::debug::mark_failed(g_eng_run_status, 0x00007701u);
+				return;
+			}
 			eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_scene.copper_words()));
 		} else {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000077u);
@@ -200,11 +259,13 @@ struct DemoGame {
 		Canvas c {m_scene.bitplanes()};
 		const eng::u32 f = context.frame.frame_index;
 
-		// Rotacion compuesta Rx(f*3)·Ry(f*2)·Rz(f) en 4.12. Angulos de 12 bits:
-		// el seno/coseno vienen de la tabla de `math2d` (enteros, sin libm).
+		// Rotacion compuesta Rx(f*17)·Ry(f*11)·Rz(f*7) en 4.12. Los angulos son de
+		// 12 bits (4096 = vuelta completa), asi que el cubo da una vuelta cada
+		// ~240 frames (~5 s a 50 fps): lo bastante rapido para "tumbar" el cubo y
+		// ver 3 caras, lo bastante lento para leer la geometria.
 		eng::math3d::Mat3x3 m;
-		eng::math3d::load_rotate(m, static_cast<eng::u16>(f * 3u), static_cast<eng::u16>(f * 2u),
-					 static_cast<eng::u16>(f));
+		eng::math3d::load_rotate(m, static_cast<eng::u16>(f * 17u), static_cast<eng::u16>(f * 11u),
+					 static_cast<eng::u16>(f * 7u));
 
 		Vec3 world[8];
 		const MeshView mesh {eng::Span<const Vec3>(kVertices, 8), eng::Span<const Face>(kFaces, 12)};
@@ -221,12 +282,9 @@ struct DemoGame {
 		for (eng::u32 i = 0; i < visible; ++i) {
 			const Face& fc = kFaces[order[i].index];
 			const eng::u8 col = shade_of(eng::math3d::face_z_sum(world[fc.a], world[fc.b], world[fc.c]));
-			const eng::s32 ax = kCX + world[fc.a].x, ay = kCY - world[fc.a].y;
-			const eng::s32 bx = kCX + world[fc.b].x, by = kCY - world[fc.b].y;
-			const eng::s32 dx = kCX + world[fc.c].x, dy = kCY - world[fc.c].y;
-			c.line(ax, ay, bx, by, col);
-			c.line(bx, by, dx, dy, col);
-			c.line(dx, dy, ax, ay, col);
+			draw_edge(c, world, fc.a, fc.b, col);
+			draw_edge(c, world, fc.b, fc.c, col);
+			draw_edge(c, world, fc.c, fc.a, col);
 		}
 
 		m_scene.install(backend);
