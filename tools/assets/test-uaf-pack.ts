@@ -4,7 +4,7 @@
  */
 import {
 	packUaf, parseUaf, bitplanesFromIndexed, paletteChunkData,
-	bitplanesChunkData, UafChunkType, UAF_MAGIC,
+	bitplanesChunkData, stringsChunkData, tilesChunkData, UafChunkType, UAF_MAGIC,
 } from './uaf-pack.js';
 
 let failures = 0;
@@ -64,12 +64,28 @@ function testErrors() {
 	check(threw, 'width no múltiplo de 8 lanza');
 }
 
+function testConsumers() {
+	console.log('uaf-pack: consumidores strings/tiles');
+	const s = stringsChunkData(['hola', 'mundo']);
+	check(s.length === 11, `strings total (${s.length})`); // 4+1+5+1
+	check(s[4] === 0 && s[10] === 0, 'strings NUL-terminadas');
+	check(Buffer.from(s).toString('latin1').split('\0').slice(0, 2).join('|') === 'hola|mundo',
+		'strings contenido');
+
+	const t = tilesChunkData([Uint8Array.from([1, 2]), Uint8Array.from([3, 4])]);
+	check(t.length === 4 && t[0] === 1 && t[3] === 4, 'tiles concatenados');
+	let threw = false;
+	try { tilesChunkData([Uint8Array.from([1, 2]), Uint8Array.from([3])]); } catch { threw = true; }
+	check(threw, 'tile de tamaño distinto lanza');
+}
+
 testRoundtrip();
 testChunkyToPlanar();
+testConsumers();
 testErrors();
 
 if (failures === 0) {
-	console.log('OK: uaf-pack validado (contenedor + chunky→planar + errores).');
+	console.log('OK: uaf-pack validado (contenedor + chunky→planar + strings/tiles + errores).');
 	process.exit(0);
 }
 console.error(`FAIL: ${failures} comprobacion(es) fallaron`);

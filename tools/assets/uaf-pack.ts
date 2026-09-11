@@ -189,6 +189,40 @@ export function sampleChunkData(bytes: Uint8Array): Uint8Array {
 	return bytes;
 }
 
+/**
+ * Datos del chunk de textos: cadenas UTF-8 separadas por NUL (cada una con su
+ * terminador). Es el formato que consume `eng::assets::StringsView` (C++).
+ */
+export function stringsChunkData(strings: readonly string[]): Uint8Array {
+	const parts = strings.map((s) => Buffer.from(s, 'utf8'));
+	const out = Buffer.alloc(parts.reduce((n, p) => n + p.length + 1, 0));
+	let o = 0;
+	for (const p of parts) {
+		p.copy(out, o);
+		o += p.length + 1; // el byte NUL queda a 0 (Buffer.alloc)
+	}
+	return out;
+}
+
+/**
+ * Datos del chunk de tiles: concatena tiles de tamaño fijo `tileBytes` (por
+ * defecto, el del primer tile). Consumido por `eng::assets::TilesView` (C++).
+ */
+export function tilesChunkData(tiles: readonly Uint8Array[], tileBytes?: number): Uint8Array {
+	if (tiles.length === 0) {
+		return new Uint8Array(0);
+	}
+	const t = tileBytes ?? tiles[0].length;
+	const out = Buffer.alloc(tiles.length * t);
+	tiles.forEach((tile, i) => {
+		if (tile.length !== t) {
+			throw new Error(`tile ${i}: ${tile.length} bytes != ${t}`);
+		}
+		Buffer.from(tile).copy(out, i * t);
+	});
+	return out;
+}
+
 function buildDemo(): Buffer {
 	// Paleta de 4 colores (negro, gris, rojo, blanco) RGB444.
 	const palette = [0x000, 0x888, 0xf00, 0xfff];

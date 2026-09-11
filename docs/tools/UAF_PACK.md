@@ -23,7 +23,7 @@ El módulo exporta funciones puras (host-testables) y una CLI:
 
 - `packUaf(chunks)` / `parseUaf(buf)` — empaqueta y valida (offset/size en rango).
 - `bitplanesFromIndexed(width, height, planes, pixels)` — **chunky indexado → bitplanes separados** (el paso "amiga convert" del core UAF), con `width` múltiplo de 8.
-- `paletteChunkData(colors)` / `bitplanesChunkData(...)` / `sampleChunkData(bytes)` — datos de cada chunk.
+- `paletteChunkData(colors)` / `bitplanesChunkData(...)` / `sampleChunkData(bytes)` / `stringsChunkData(strings)` / `tilesChunkData(tiles)` — datos de cada chunk. Los consumidores runtime equivalentes son `eng::assets::{PaletteView, BitplanesView, SampleView, StringsView, TilesView}`.
 - CLI: `node dist/tools/assets/uaf-pack.js <out.uafr>` genera un blob de demostración (paleta + bitplanes 16×16 + sample) y **auto-valida** la salida con `parseUaf`.
 
 ## Ejecutar y probar

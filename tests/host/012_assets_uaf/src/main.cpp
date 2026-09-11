@@ -148,6 +148,28 @@ int main() {
 		check(r.read_u8() == 0 && !r.ok(), "Reader underflow -> !ok");
 	}
 
+	// StringsView: chunk de textos NUL-separados.
+	{
+		const char txt[] = "hola\0mundo\0\0"; // 3 cadenas (la ultima vacia)
+		StringsView sv {eng::Span<const eng::u8>(reinterpret_cast<const eng::u8*>(txt), sizeof(txt) - 1)};
+		check(sv.count() == 3, "StringsView count");
+		check(sv.string(0) != nullptr && std::strcmp(sv.string(0), "hola") == 0, "StringsView[0]");
+		check(sv.string(1) != nullptr && std::strcmp(sv.string(1), "mundo") == 0, "StringsView[1]");
+		check(sv.string(2) != nullptr && sv.string(2)[0] == '\0', "StringsView[2] vacia");
+		check(sv.string(3) == nullptr, "StringsView fuera de rango -> null");
+	}
+
+	// TilesView: banco de tiles de tamano fijo.
+	{
+		const eng::u8 tiles[6] = {1, 2, 3, 4, 5, 6};
+		TilesView tv {eng::Span<const eng::u8>(tiles, 6), 2};
+		check(tv.count() == 3, "TilesView count");
+		check(tv.tile(1).size() == 2 && tv.tile(1)[0] == 3 && tv.tile(1)[1] == 4, "TilesView tile 1");
+		check(tv.tile(3).empty(), "TilesView fuera de rango -> vacio");
+		TilesView none {eng::Span<const eng::u8>(tiles, 6), 0};
+		check(none.count() == 0, "TilesView tile_bytes=0 -> count 0");
+	}
+
 	if (failures == 0) {
 		std::printf("OK: contenedor UAF-R validado (bind/find/data + errores).\n");
 		return 0;

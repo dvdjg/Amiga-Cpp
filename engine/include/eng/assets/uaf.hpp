@@ -270,6 +270,71 @@ private:
 	Span<const u8> m_data {};
 };
 
+/// Vista tipada de un chunk de **textos**: `count` cadenas C separadas por NUL
+/// (UTF-8), la última terminada en NUL. `string(i)` devuelve un `const char*`
+/// apuntando dentro del chunk (o `nullptr` si el índice no es válido).
+class StringsView {
+public:
+	constexpr StringsView() = default;
+	explicit constexpr StringsView(Span<const u8> bytes) : m_bytes(bytes) {}
+
+	/// Nº de cadenas (cada NUL cierra una).
+	u32 count() const {
+		u32 n = 0;
+		for (const u8 b : m_bytes) {
+			if (b == 0u) {
+				++n;
+			}
+		}
+		return n;
+	}
+
+	/// Cadena `i` como C-string dentro del chunk (o `nullptr`). El NUL que cierra
+	/// la cadena vive en el propio chunk, así que el puntero es válido mientras lo
+	/// sea el blob.
+	const char* string(u32 i) const {
+		u32 seen = 0;
+		u32 start = 0;
+		const u8* p = m_bytes.data();
+		for (u32 k = 0; k < m_bytes.size(); ++k) {
+			if (p[k] == 0u) {
+				if (seen == i) {
+					return reinterpret_cast<const char*>(p + start);
+				}
+				++seen;
+				start = k + 1u;
+			}
+		}
+		return nullptr;
+	}
+
+private:
+	Span<const u8> m_bytes {};
+};
+
+/// Vista tipada de un banco de **tiles** de tamaño fijo (`tile_bytes`). El tamaño
+/// del tile lo conoce el llamador (formato del banco); `tile(i)` devuelve el
+/// sub-`Span` del tile `i` (vacío si el índice no es válido).
+class TilesView {
+public:
+	constexpr TilesView() = default;
+	constexpr TilesView(Span<const u8> bytes, u16 tile_bytes) : m_bytes(bytes), m_tile(tile_bytes) {}
+
+	constexpr u32 count() const {
+		return m_tile == 0u ? 0u : static_cast<u32>(m_bytes.size()) / m_tile;
+	}
+	Span<const u8> tile(u32 i) const {
+		if (m_tile == 0u || i >= count()) {
+			return {};
+		}
+		return { m_bytes.data() + i * m_tile, m_tile };
+	}
+
+private:
+	Span<const u8> m_bytes {};
+	u16 m_tile = 0;
+};
+
 /// Ensambla un blob UAF-R en un buffer del llamador (exportador host o tests).
 /// No posee memoria; `finish()` fija el nº de chunks y devuelve la vista escrita.
 class BlobWriter {

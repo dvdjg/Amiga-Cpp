@@ -135,6 +135,10 @@ PlatformBackend (Amiga: potgo/ciaa/ciab + joyport + teclado)
 - El exportador host genera chunks cocinados a `out/assets/<pipeline>/`; el runtime los
   mapea. Inspirado en la generación de cocinados de Sevgi Editor (bobsheet/spritebank/
   tilemap/tileset/palette) y en el formato de autoría de UAF.
+- Estado (2026-09): contenedor + vistas tipadas en `eng/assets/uaf.hpp` (`Blob`,
+  `Reader`, `PaletteView`, `BitplanesView`, `SampleView`, `StringsView`, `TilesView`,
+  `BlobWriter`; test HOST-012) y exportador host `tools/assets/uaf-pack.ts`
+  (chunky→planar, `packUaf`/`parseUaf`; doc `docs/tools/UAF_PACK.md`).
 
 ### 2.8 Ciclo de vida y framework (`eng::engine`)
 - `Engine<Backend, Game>` ya existe: `init -> (update -> wait_vblank -> render) x N`.
@@ -202,7 +206,8 @@ Orden de conversión (cada paso valida con `build -> run -> analyze` y, si es pu
    hardware; test con música + sfx a 50 fps.
 8. **Assets UAF-R** (`AssetRuntime` + exportador host por chunks): cerrar el ciclo
    editor→cocinado→runtime. Es el habilitador de importar escenas completas de demoscene.
-9. **Matemática 2D/3D** (`math2d`/`math3d`) desde demoscene `lib2d/lib3d`, con test host.
+9. **Matemática 2D/3D** (`math2d`/`math3d` + malla `mesh3d`) desde demoscene `lib2d/lib3d`,
+   con tests host HOST-010/011/013.
 
 Cada paso respeta la regla de oro: si un efecto/actor/playfield toca un registro fuera del
 scheduler, falta abstracción.

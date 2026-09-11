@@ -32,12 +32,16 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   canónico; mapas toroidales.
 - **Matemática y assets (import demoscene, 2026-09)**: `eng/core/math2d.hpp`
   (lib2d: matrices 2×2 4.12 + `clip_line`/`clip_polygon`) y `eng/core/math3d.hpp`
-  (lib3d: `Mat3x3`, rotaciones, `compose`, `face_visible`) — tests HOST-010/011.
+  (lib3d: `Mat3x3`, rotaciones, `compose`, `face_visible`); modelo de malla en
+  `eng/core/mesh3d.hpp` (`MeshView` + `mesh_transform` + `mesh_painter_order` con
+  culling y shell sort) — tests HOST-010/011/013.
   Base del contenedor de assets UAF-R: `eng/assets/uaf.hpp` (`Blob` valida
-  header/chunks por offset, test HOST-012). La cola de blits/presupuesto ya existía
-  (`frame_plan.hpp`); las ops hardware de `libblit` van al backend. **Pendiente**:
-  consumidores de los chunks (paletas/bitplanes/samples) y el modelo de objeto/malla
-  de `lib3d` (que depende de esta capa).
+  header/chunks por offset; consumidores `PaletteView`/`BitplanesView`/`SampleView`/
+  `StringsView`/`TilesView`, test HOST-012) con exportador host `tools/assets/uaf-pack.ts`
+  (chunky→planar, `packUaf`/`parseUaf`, doc `docs/tools/UAF_PACK.md`). La cola de
+  blits/presupuesto ya existía (`frame_plan.hpp`); las ops hardware de `libblit` van al
+  backend. **Pendiente**: consumidores de sprites/copper y el formato binario de malla
+  de `obj2c`; demo de validación de `math2d`/`math3d` en hardware.
 
 ## Sprites hardware — estado (2026-09)
 
