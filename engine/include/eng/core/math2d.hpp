@@ -18,7 +18,7 @@
 /// sin libm en runtime) los valores; aquí se materializa la tabla 4.12 de 4096
 /// entradas reutilizando `SineTable<4096, 4096>::sample`.
 
-#include <eng/core/sinetable.hpp>
+#include <eng/core/sintab.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::math2d {
@@ -64,12 +64,14 @@ struct Mat2x2 {
 	fix y = 0;
 };
 
-/// Tabla de seno 4.12 (4096 pasos = 2π), generada en compile-time.
+/// Tabla de seno 4.12 (4096 pasos = 2 pi). Es la **exacta del original**
+/// (`eng/core/sintab.hpp`, `libmisc/sintab.c`), no la aproximacion de Bhaskara de
+/// `sinetable.hpp` (que difiere hasta +-8): los efectos portados 1:1 la necesitan.
 struct SinTableQ12 {
 	s16 v[kAngleSteps] {};
 	constexpr SinTableQ12() {
 		for (u32 i = 0; i < kAngleSteps; ++i) {
-			v[i] = static_cast<s16>(SineTable<4096, kAngleSteps>::sample(i));
+			v[i] = kSinTab[i];
 		}
 	}
 };
