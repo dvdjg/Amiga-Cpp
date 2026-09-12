@@ -53,8 +53,8 @@ constexpr eng::u16 kZeroPalette[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
 } // namespace
 
-// --- Datos (copiados TAL CUAL) ----------------------------------------------
-#include "data/dualtab.c"
+// --- Datos: tabla de color del fuego generada en C++23 constexpr -------------
+#include "data/dualtab.hpp"
 
 namespace {
 
@@ -107,7 +107,7 @@ void MainLoop(void) {
 	uint32_t* Cptr = reinterpret_cast<uint32_t *>(&fire[kWidth]);
 	uint32_t* Dptr = reinterpret_cast<uint32_t *>(&fire[kWidth + 1]);
 	uint32_t* Eptr = reinterpret_cast<uint32_t *>(&fire[kWidth * 2]);
-	uint32_t* dt = dualtab;
+	const uint32_t* dt = fire_rgb::kDualTab.v;
 
 	for (i = 0; i < (kWidth * kHeight - 2 * kWidth) / 8; ++i) {
 		uint32_t vl, hi, lo;

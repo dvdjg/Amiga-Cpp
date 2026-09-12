@@ -8,6 +8,7 @@ static constexpr int W = 80;
 static constexpr int H = 64;
 
 #include "dualtab.c" // static uint32_t dualtab[256]
+#include "../../../../demos/amiga/080_fire_rgb/src/data/dualtab.hpp" // fire_rgb::kDualTab
 
 alignas(4) static int16_t fire[W * H];
 alignas(4) static uint8_t chunky[20480];
@@ -58,9 +59,10 @@ static void main_loop() {
 	for (int i = 0; i < (W * H - 2 * W) / 8; ++i) {
 		for (int n = 0; n < 4; ++n) {
 			const uint32_t vl = LDW(sE) + LDW(sB) + LDW(sD) + LDW(sC);
-			// Original: dt[(int16)vl]. Acotado a 0..255 en el modelo host (evita OOB).
-			const uint32_t lo = dualtab[static_cast<uint16_t>(vl) & 0xFFu];
-			const uint32_t hi = dualtab[(static_cast<uint16_t>(vl >> 16)) & 0xFFu];
+			// DIAG: indice = media de los 4 vecinos (suma>>2). El original indexa
+			// con (int16)vl (la suma); probamos la media por si acota a 0..255.
+			const uint32_t lo = dualtab[(static_cast<uint16_t>(vl) >> 2) & 0xFFu];
+			const uint32_t hi = dualtab[(static_cast<uint16_t>(vl >> 16) >> 2) & 0xFFu];
 			*chunkyPtr++ = static_cast<uint16_t>(hi);
 			*chunkyPtr++ = static_cast<uint16_t>(lo);
 			const uint32_t hifb = (hi & 0xFFFF0000u) | ((lo >> 16) & 0xFFFFu);
@@ -112,5 +114,13 @@ int main() {
 	const bool ok = mx > 0 && nz > W && bottom_hot > top_hot;
 	std::printf("%s: fuego %s (bottom_hot=%d top_hot=%d)\n", ok ? "OK" : "FAIL",
 		    ok ? "generado (abajo caliente)" : "NO valido", bottom_hot, top_hot);
-	return ok ? 0 : 1;
+
+	// La tabla C++23 constexpr debe ser identica a la generada por gen-dualtab.py.
+	int tab_bad = 0;
+	for (int i = 0; i < 256; ++i) {
+		if (fire_rgb::kDualTab.v[i] != dualtab[i]) ++tab_bad;
+	}
+	std::printf("%s: dualtab C++23 constexpr vs original (%d diferencias)\n",
+		    tab_bad == 0 ? "OK" : "FAIL", tab_bad);
+	return (ok && tab_bad == 0) ? 0 : 1;
 }
