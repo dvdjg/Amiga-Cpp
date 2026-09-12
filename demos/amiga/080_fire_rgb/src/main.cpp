@@ -51,6 +51,10 @@ constexpr eng::u32 kChunkyBuffer = kChunkyBytes * 2u;                           
 /// bits de modificacion (planos 4/5), no de la paleta base.
 constexpr eng::u16 kZeroPalette[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
+/// DIAG usado: saltar el C2P confirma que el display esta bien (pantalla negra
+/// con planos a 0) y que el patron lo mete el C2P (su mascara `bltcdat`).
+constexpr bool kDiagSkipC2p = false;
+
 } // namespace
 
 // --- Datos: tabla de color del fuego generada en C++23 constexpr -------------
@@ -114,18 +118,13 @@ void MainLoop(void) {
 
 #define FIREITER() \
 		vl = (*Eptr++) + (*Bptr++) + (*Dptr++) + (*Cptr++); \
-		asm volatile( \
-			"movel (%3,%2:w),%1\n" \
-			"swap  %2\n" \
-			"movel (%3,%2:w),%0\n" \
-			: "=r" (hi), "=r" (lo) \
-			: "d" (vl), "a" (dt)); \
+		/* Indice = MEDIA de los 4 vecinos (suma>>2): la suma cruda llega a ~992 */ \
+		/* y dualtab tiene 256 entradas (el literal lee fuera de la tabla). */ \
+		hi = dt[(static_cast<uint16_t>(vl >> 16) >> 2) & 0xFFu]; \
+		lo = dt[(static_cast<uint16_t>(vl) >> 2) & 0xFFu]; \
 		*chunkyPtr++ = static_cast<uint16_t>(hi); \
 		*chunkyPtr++ = static_cast<uint16_t>(lo); \
-		asm volatile( \
-			"swap   %1\n" \
-			"move.w %1,%0\n" \
-			: "+d" (hi), "+d" (lo)); \
+		hi = (hi & 0xFFFF0000u) | ((lo >> 16) & 0xFFFFu); \
 		*Aptr++ = hi;
 
 		FIREITER();
@@ -188,13 +187,23 @@ struct FireDemo {
 		RandomizeBottom();
 		MainLoop();
 
+		{	// DIAG: suma del buffer de fuego (comprobar que se forma).
+			eng::u32 s = 0;
+			for (eng::u32 i = 0; i < static_cast<eng::u32>(kWidth) * kHeight; ++i) {
+				s += static_cast<eng::u16>(m_fire[i]);
+			}
+			g_eng_run_status.detail = s;
+		}
+
 		// C2P: 13 fases (sincrono) del plano `active` a sus bitplanes.
-		amiga::MinimalBackend::C2p4State s {};
-		s.chunky = m_chunky[active];
-		s.bytes = kChunkyBytes;
-		for (eng::u8 pl = 0; pl < kPlanes; ++pl) s.planes[pl] = m_planes[active][pl];
-		for (eng::u8 ph = 0; ph < 13; ++ph) {
-			if (!backend.c2p_4bpp_step(s)) { eng::debug::mark_failed(g_eng_run_status, 0x00008004u); return; }
+		if (!kDiagSkipC2p) {
+			amiga::MinimalBackend::C2p4State s {};
+			s.chunky = m_chunky[active];
+			s.bytes = kChunkyBytes;
+			for (eng::u8 pl = 0; pl < kPlanes; ++pl) s.planes[pl] = m_planes[active][pl];
+			for (eng::u8 ph = 0; ph < 13; ++ph) {
+				if (!backend.c2p_4bpp_step(s)) { eng::debug::mark_failed(g_eng_run_status, 0x00008004u); return; }
+			}
 		}
 
 		// Swap de buffer (la copperlist apunta a los 4 planos de `active`).

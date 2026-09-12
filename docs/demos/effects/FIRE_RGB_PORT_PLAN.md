@@ -57,10 +57,19 @@ system/*        (bucle de efecto, vectores de interrupcion/VBR, memoria)
 
 ## Estado (hito actual)
 
-- ✅ **Datos** `dualtab.c` copiados tal cual.
-- ✅ **Backend**: `MinimalBackend::c2p_4bpp_step` (C2P 4bpp de 13 fases, portado de `ChunkyToPlanar`) y `set_bitplane_dat` (BLTxDAT para los bits HAM de planos 4/5). Son reutilizables.
-- ✅ **Demo `080_fire_rgb`**: `MainLoop`/`fastrand`/`RandomizeBottom` copiados (se quitaron los `register asm("aN")`, que no compilan con `-O1` por presión de registros en `ADDR_REGS`; mismo algoritmo, menos "a mano"). Compila y arranca (READY).
-- ❌ **Display**: sale un bloque relleno con colores erróneos, **no fuego**. Faltan: (1) el **bucle de Copper de 256 líneas** (`bpl1mod/bpl2mod = -40/0` cada 4 + `bplcon1` alterno) para el cuadruplicado; (2) revisar el HAM (BPLCON0/base/paleta y el orden de `BPLxPT`). Sin eso, no hay 1:1.
+- ✅ **Datos**: `dualtab` generado en **C++23 `constexpr`** (`data/dualtab.hpp`), elegante y documentado; verificado **byte a byte** contra la tabla de `gen-dualtab.py` (0 diferencias). Sustituye al `.c` copiado.
+- ✅ **Backend**: `c2p_4bpp_step` (C2P 4bpp, 13 fases) y `set_bitplane_dat` (HAM). Reutilizables.
+- ✅ **Fuego**: la simulacion (`MainLoop`/`fastrand`/`RandomizeBottom`) produce una llama correcta. **Clave**: el indice de `dualtab` debe ser la **media** de los 4 vecinos (`suma>>2`); la suma cruda llega a ~992 y la tabla tiene 256 entradas.
+- ✅ **C2P**: corregido el **minterm** `(A&C)|(B&~C)` = **`0xE4`** (estaba `0xE2`, que escribia la mascara `bltcdat` donde la fuente era 0 -> patron de rayas).
+- ✅ **Display** (HAM `bpldat[4/5]` + cuadruplicado + `bplcon1`): verificado correcto (con los planos a 0 la pantalla es negra).
+- ✅ **Resultado**: `080_fire_rgb` muestra el **fuego** (gradiente naranja/amarillo sobre negro, confirmado por vision); `detail` = suma del buffer de fuego.
+
+## Pendiente (pulido y fidelidad)
+
+1. **`FIREITER`**: ahora en **C puro** (el asm a mano con el nuevo indice se colgaba por presion de registros en `ADDR_ REGS` con `-O1`); recuperar el asm (o compilar la demo a `-O2`) cuando interese el rendimiento fiel.
+2. **Alcance del fuego**: revisar si debe ocupar mas pantalla / la "linea verde" en el borde inferior (artefacto).
+3. **C2P en interrupcion de blit** (fidelidad de rendimiento) y **diff** contra `fire-rgb.exe`.
+4. Portar al engine la escena **HAM + cuadruplicado** y el hook de interrupcion de blit.
 
 ## Siguiente (para completar)
 

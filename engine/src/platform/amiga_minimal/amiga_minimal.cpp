@@ -87,8 +87,8 @@ constexpr unsigned short blt_minterm_a_or_c = 0x00fa;       // D = A | C
 constexpr unsigned short blt_minterm_not_a_and_c = 0x000a;  // D = ~A & C
 // C2P 4bpp (portado de fire-rgb): interleave de bytes (A>>8 | B&~0xFF) y su inverso.
 constexpr unsigned short blt_c2p_abd = static_cast<unsigned short>(blt_use_a | blt_use_b | blt_use_d);
-constexpr unsigned short blt_minterm_c2p_out = 0x00e2;  // ABC|ANBC|ABNC|NABNC
-constexpr unsigned short blt_minterm_c2p_out2 = 0x00d8; // ABNC|ANBNC|ABC|NABC
+constexpr unsigned short blt_minterm_c2p_out = 0x00e4;  // (A&C)|(B&~C) = ABC|ANBC|ABNC|NABNC
+constexpr unsigned short blt_minterm_c2p_out2 = 0x00d8; // (A&~C)|(B&C) = ABNC|ANBNC|ABC|NABC
 constexpr unsigned short blt_shift8 = 0x8000;           // ASHIFT(8)
 constexpr unsigned short blt_shift4 = 0x4000;           // ASHIFT(4)
 
