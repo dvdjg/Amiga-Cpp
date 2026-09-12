@@ -59,3 +59,4 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-016 | [ham_scene](016_ham_scene/README.md) | `eng::graphics::drivers::HamScene`: display planar con repetición de filas (cuadruplicado) — geometría de la copperlist y parametricidad. |
 | HOST-017 | [background_task](017_background_task/README.md) | `eng::task::BackgroundQueue`: tareas de fondo cooperativas (progreso/rendimiento, adaptación por `vpos`, prioridad al bucle principal). |
 | HOST-018 | [rtc](018_rtc/README.md) | `eng::time::from_tod`: reloj de tiempo real desde el contador TOD de la CIA-A (50/60 Hz, wrap 24 h). |
+| HOST-019 | [copper_ext](019_copper_ext/README.md) | Extensiones de Copper para *copper chunky*: `SKIP` (máscara `0xffff`), `MOVE32` (orden `reg+2`/`reg`) y parcheo de instrucciones (`move_at`/`patch_data`). |

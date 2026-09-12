@@ -27,7 +27,10 @@ namespace eng::copper {
 enum class Register : u16 {
 	COP1LCH = 0x080,
 	COP1LCL = 0x082,
+	COP2LCH = 0x084,
+	COP2LCL = 0x086,
 	COPJMP1 = 0x088,
+	COPJMP2 = 0x08a,
 	DIWSTRT = 0x08e,
 	DIWSTOP = 0x090,
 	DDFSTRT = 0x092,
@@ -174,6 +177,59 @@ public:
 	void end() {
 		write_pair(0xffff, 0xfffe);
 		m_overflow_sent = false;
+	}
+
+	// --- Extensiones para efectos tipo "copper chunky" (p. ej. plasma) ----------
+
+	/// Emite un MOVE y devuelve el **indice en words de la instruccion** (word0), para
+	/// poder parchear luego su word de valor con `patch_data` (equivale a guardar el
+	/// `CopInsT*` del original y hacer `CopSetColor` por frame).
+	u16 move_at(u16 custom_register_offset, u16 value) {
+		const u16 index = m_used_words;
+		write_pair(custom_register_offset, value);
+		return index;
+	}
+	u16 move_at(Register reg, u16 value) { return move_at(static_cast<u16>(reg), value); }
+
+	/// Parchea el word de valor de un MOVE emitido antes (indice devuelto por `move_at`).
+	void patch_data(u16 instruction_word, u16 value) {
+		if (m_ok && (instruction_word + 1u) < m_used_words) {
+			m_words[instruction_word + 1u] = value;
+		}
+	}
+
+	/// SKIP: WAIT con mascara `0xffff` (bit 0 = 1 => salta la instruccion siguiente si el
+	/// beam ya paso por (vpos, hpos)). Codificacion de `CopSkip` de libgfx (verbatim).
+	/// `hpos` en unidades de color-clock (se divide por 2 como en el original).
+	u16 skip(u16 vpos, u16 hpos) {
+		const u16 index = m_used_words;
+		write_pair(wait_word(static_cast<u8>(vpos & 0xffu), static_cast<u8>((hpos >> 1) | 1u)), 0xffff);
+		return index;
+	}
+
+	/// MOVE de 32 bits (puntero) con el **orden del original** (libgfx `CopMove32`):
+	/// primero `reg+2` (word bajo) y luego `reg` (word alto). Devuelve el indice.
+	u16 move32(Register reg, const void* address) {
+		const uintptr raw = reinterpret_cast<uintptr>(address);
+		const u16 index = m_used_words;
+		write_pair(static_cast<u16>(static_cast<u16>(reg) + 2u), static_cast<u16>(raw & 0xffffu));
+		write_pair(static_cast<u16>(reg), static_cast<u16>(raw >> 16));
+		return index;
+	}
+
+	/// Parchea un MOVE32 emitido con `move32` (indice) con otra direccion (equivale a
+	/// `CopInsSet32` del original; p. ej. apuntar `COP2LC` al label de una fila).
+	void patch_move32(u16 instruction_word, const void* address) {
+		const uintptr raw = reinterpret_cast<uintptr>(address);
+		patch_data(instruction_word, static_cast<u16>(raw & 0xffffu));
+		if (m_ok && (instruction_word + 3u) < m_used_words) {
+			m_words[instruction_word + 3u] = static_cast<u16>(raw >> 16);
+		}
+	}
+
+	/// Word de la direccion de una instruccion (para calcular labels de copper).
+	constexpr const void* instruction_address(u16 instruction_word) const {
+		return reinterpret_cast<const void*>(reinterpret_cast<uintptr>(m_words) + instruction_word * 2u);
 	}
 
 	constexpr bool ok() const {
