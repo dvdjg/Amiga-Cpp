@@ -16,6 +16,7 @@ por igual a tests, engine y juegos, y es la base para las fichas de técnicas
 | [amiga-hardware-invariants-microtests.md](amiga-hardware-invariants-microtests.md) | Microtests por invariante hardware (MI01-MI08). |
 | [amiga-postmortems-to-rules.md](amiga-postmortems-to-rules.md) | Postmortems convertidos en reglas (assets DMA fuera de CHIP, WAIT inseguro, COP1LC vs COPJMP1). |
 | [amiga-chipset-matrix.md](amiga-chipset-matrix.md) | Matriz rápida OCS/ECS/AGA/CD32 y registros a revisar primero. |
+| [amiga-blitter-priority-bltpri.md](amiga-blitter-priority-bltpri.md) | `BLTPRI` (bit 10 de `DMACON`, `DMAF_BLITHOG`): cuándo el Blitter tiene prioridad sobre la CPU, el bucle de `WaitBlit`, y cuándo NO usarlo. |
 | [m68k-stack-and-calling-notes.md](m68k-stack-and-calling-notes.md) | ABI GCC/m68k: registros scratch vs callee-saved, convención de llamada, excepciones 68000. |
 | [amiga-kernel-loader-notes.md](amiga-kernel-loader-notes.md) | Modelo de Exec + AmigaDOS para cargar binarios en A500/Kick 1.3. |
 | [input-device-rkm.md](input-device-rkm.md) | Resumen del `input.device` según RKM: handlers, IECLASS_RAWMOUSE/RAWKEY. |

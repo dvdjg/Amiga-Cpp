@@ -70,6 +70,7 @@ system/*        (bucle de efecto, vectores de interrupcion/VBR, memoria)
    - ✅ `FIREITER` recuperado en **asm** (`support/fire_loop.s`): reproduce el bucle del original (4 vecinos B/C/D/E, doble lookup `(a5,d1.w)` = media, realimentacion a `fire`). Medido: **asm ≈ 12.4 fps vs C++ ≈ 7.2 fps** (~1.7×) en el emulador.
    - ✅ **C2P encadenado por IRQ de blit (fiel)**: `MinimalBackend::set_blit_service` (nivel 3, mismo autovector que el VBlank) + `FireDemo::on_blit` programan la fase siguiente al terminar cada blit (mecanismo del original). El fuego crece correctamente. Medido: suelo sin C2P **16.6 fps (3.0 vblanks)**; cadena **13.55 (3.7)**; con **BLTPRI** (*nasty*) **12.44 (4.0)** → el C2P cuesta ~0.7 vblanks y BLTPRI **empeora** (el bus de Chip es el cuello).
    - **Diagnostico (corregido)**: la caida a ~11 fps que se observo **no** era la cadena por IRQ, sino el `BackgroundPump` llamando a la cola de fondo en **cada iteracion** del bucle de espera (vacia). Ahora solo bombea si hay tareas → el suelo vuelve a 3.0 vblanks. **Medir antes de atribuir.**
+   - ✅ **Tearing (corregido)**: se instalaba la copperlist del buffer convertido en el `update` **siguiente** (latencia 2 frames) → con 2 buffers el display mostraba el que el C2P estaba escribiendo (borde dentado + manchas en la zona caliente). Fix: instalar la copperlist **al completar el C2P** (en la IRQ de blit).
    - **Causa raiz del "cuelgue" del asm** (no era un crash): `fire_loop.s` usaba `.cfi_startproc/.cfi_endproc`, que generan una seccion **`.eh_frame` no vacia**. El canal lateral enumera todas las secciones del hunk (`text, rodata, .eh_frame, data, bss`), pero el `.map` del runner filtraba `.eh_frame`, asi que los indices se desplazaban y `g_eng_run_status` se resolvia a una direccion equivocada (la demo "no alcanzaba READY" pese a ejecutarse bien). Arreglado en dos frentes: (a) `support/fire_loop.s`/`fire_asm.s` sin CFI; (b) `tools/run/run-demo.ts` incluye `.eh_frame` en las secciones del `.map` para que el orden coincida siempre.
 2. **"Pantalla dividida"**: era el desfase vertical — se usaba `wait_line(i)` (VPOS 0..255) en vez de `CopWaitSafe(Y(i))` con `Y(i)=i+0x2c`; corregido con `wait_line_safe(i+0x2c)`. El cuadruplicado ya cuadra (angosto del original: DDFSTOP `0xD1`, DIWSTOP `0x2CC3` por el `+2`).
 3. **Diff 1:1** contra `fire-rgb.exe` (frames + `readPng` + vision). Nota: el original usa un **bootloader propio** (`.adf` con `addchip.bootblock`), no corre como `a.exe` bajo AmigaDOS.
@@ -77,6 +78,10 @@ system/*        (bucle de efecto, vectores de interrupcion/VBR, memoria)
    (`engine/include/eng/graphics/drivers/ham_scene.hpp`) + test host HOST-016. La demo
    ya no escribe DIW/DDF ni palabras de Copper. ✅ **C2P encadenado por la IRQ de blit**
    (`FireDemo::on_blit`), el mecanismo fiel del original.
+
+## Abierto (rendimiento vs original)
+
+El original se ve **mas fluido** que nuestro port. Nuestro frame es **~4 vblanks (~12.4 fps, sin tearing)**; el original declara **788–968 lineas de raster** en su `MainLoop` (~3 vblanks) pero **no hemos medido su fps real**: su `.exe` arranca por un **bootloader propio** (`.adf`) y no expone contador de frames que el GDB pueda resolver (la region de la CIA no es legible por GDB). Hipotesis a cerrar: (a) si ejecuta codigo/datos en **memoria mas rapida** (ojo: sus buffers de fuego/chunky piden `MEMF_CHIP`); (b) su **scheduling C2P/IRQ**; (c) el **display** (HAM + cuadruplicado). **Pendiente**: medirlo en igualdad (p. ej. *watchpoint* en su `MainLoop` para contar ciclos/pasadas) y comparar. Palanca de diagnostico disponible: `-DK_BLIT_NASTY=1` (`BLTPRI`) — ver `docs/reference/amiga/hardware/amiga-blitter-priority-bltpri.md`.
 
 ## Siguiente (para completar)
 

@@ -254,14 +254,9 @@ struct FireDemo {
 		MainLoop();
 
 #if K_FIRE_ASM
-		// La cadena del C2P la lleva la **IRQ de blit** (nivel 3): cada blit terminado
-		// programa la fase siguiente (el mecanismo fiel del original). Si ya termino,
-		// muestra su buffer (swap de copperlist).
-		if (m_c2p_done) {
-			m_scene[m_c2p_buf].install(backend);
-			m_c2p_done = false;
-		} else if (m_c2p_pending) {
-			// Salvaguarda: si por lo que sea no termino (no deberia), completalo aqui.
+		// El C2P lo encadena la IRQ de blit, que instala la copperlist al completar.
+		// Si por lo que sea no llego a completarse (raro), completalo aqui.
+		if (m_c2p_pending) {
 			FinishC2p(backend);
 			m_scene[m_c2p_buf].install(backend);
 			m_c2p_pending = false;
@@ -335,7 +330,11 @@ struct FireDemo {
 		if (self->m_c2p.phase >= 13u) {
 			self->m_c2p_irq = false;
 			self->m_c2p_pending = false;
-			self->m_c2p_done = true;
+			// Instala la copperlist del buffer recien convertido AQUI (no en el proximo
+			// update): el Copper la recarga en el siguiente VBlank, asi que el display
+			// muestra el buffer ya convertido y NUNCA el que se esta convirtiendo (evita
+			// el tearing de la zona caliente).
+			self->m_scene[self->m_c2p_buf].install(*self->m_backend);
 		}
 	}
 
@@ -368,7 +367,6 @@ private:
 	amiga::MinimalBackend::C2p4State m_c2p {};
 	bool m_c2p_pending = false;
 	bool m_c2p_irq = false;
-	bool m_c2p_done = false;
 	eng::u8 m_c2p_buf = 0;
 };
 
