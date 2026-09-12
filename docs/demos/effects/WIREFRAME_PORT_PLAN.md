@@ -62,9 +62,17 @@ Correcto, con un matiz: lo que hay que importar es **`lib3d` tal cual** (modelo 
 
 ## Pendiente (para 1:1 exacto)
 
-1. **Display 256×256×4 exacto** del original (`SetupPlayfield(MODE_LORES,4,X(32),Y(0),256,256)` → DDFSTRT=0, DDFSTOP=0x78, BPLCON1=0xCC, DIWSTRT/STOP de `SetupDisplayWindow`) en vez del 320×256×4 de la versión B.
-2. **Doble buffer**: 5 planos (`DEPTH+1`) con `active` rotando y parcheo de `BPLxPT` por frame (`CopInsSet32`).
+1. ~~**Display 256×256×4 exacto**~~ ✅ hecho: `DDFSTRT=0x48, DDFSTOP=0xC0, BPLCON1=0, DIWSTRT=DIWSTOP=0x2CA1` (recalculado de `SetupBitplaneFetchImpl.c`/`SetupDisplayWindowImpl.c` para `X(32),Y(0),256×256`).
+2. ~~**Doble buffer**~~ ✅ hecho: 2 buffers de 4 planos + 2 copperlists, swap por frame (`install_copper_list`). (El original rota 5 planos y parchea `BPLxPT`; equivalente sin tearing.)
 3. **Diff 1:1** contra `effects/wireframe/wireframe.exe` (mismos frames, `readPng` + `ollama-desc.mjs`).
 4. **Investigar** por qué la captura de *secuencia* sale vacía (el `screenshot.png` sí muestra el balón): probablemente captura a mitad de `blitter_clear`/redibujo.
 5. Luego `fire-rgb` con el mismo método.
+
+## Resultado (1:1)
+
+Con los registros del original y doble buffer, el `screenshot` muestra el balón de **~241×241 px Amiga** (caja 482×482 en la captura ~2×), **centrado y entero**, confirmado por visión (`qwen3-vl`: "outline of a soccer ball"). Geometría, proyección, culling, línea por Blitter y display son los del original; solo el doble buffer es 2×4 planos en vez del anillo de 5 (misma imagen).
+
+**Color de la línea (corregido)**: el original dibuja la línea en `screen->planes[active]`, que su copperlist sitúa como **bit 3** → color 8 (`#0088ff`, brillante). Dibujar en el plano 0 daba color 1 (`#001133`), casi idéntico al fondo `#001122` → **invisible**. Ahora se dibuja en el plano 3 → verificado objetivo (`#0088ff`, 6168 px de trazo) y por visión.
+
+**Diferencia pendiente**: el original limpia SOLO `planes[active]` y rota 5 planos → el balón deja un **rastro** (colores 8/4/2/1 según el frame); la versión actual limpia los 4 planos → balón brillante limpio, sin rastro. Para el 1:1 exacto falta el anillo de 5 planos con parche de `BPLxPT` por frame.
 

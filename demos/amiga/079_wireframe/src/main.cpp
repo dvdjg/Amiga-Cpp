@@ -3,16 +3,13 @@
 // Dibuja el objeto `pilka` (malla `obj2c`) en ALAMBRE con la LINEA POR BLITTER, tal
 // cual la demo original. El modelo de objeto (formato `obj2c` + `Object3D`) se ha
 // portado fiel a `lib3d` en `eng/core/object3d.hpp`; la matematica 4.12 viene de
-// `math2d`/`math3d` (ya validada por HOST-010/011), y la secuencia de registros de
-// la linea vive en `MinimalBackend::blitter_line` (identica a `DrawObject`).
+// `math2d`/`math3d` (HOST-010/011), y la secuencia de registros de la linea vive en
+// `MinimalBackend::blitter_line` (identica a `DrawObject`).
 //
-// ADAPTACIONES (version B, para disipar dudas mas tarde):
-//   - Display: usamos la ventana 320x256x4 ya conocida del engine (el original era
-//     256x256x4 con BPLCON1=0xCC). El OBJETO se centra igual (el efecto proyecta a
-//     WIDTH/2, asi que con WIDTH=320 queda centrado); cambia el encuadre, no la
-//     geometria.
-//   - Sin doble buffer: el original rota 5 planos y parchea BPLxPT por frame; aqui
-//     se limpia y dibuja sobre los mismos 4 planos (misma imagen, puede rasgar).
+// Display y doble buffer: ventana 256x256x4 con los registros del original
+// (`SetupPlayfield(MODE_LORES,4,X(32),Y(0),256,256)` + `SetupBitplaneFetch`) y doble
+// buffer con swap de copperlist por frame (el original rota 5 planos y parchea
+// BPLxPT; aqui se usan 2 buffers de 4 planos, equivalente sin tearing).
 #include <eng/core/object3d.hpp>
 #include <eng/core/types.hpp>
 #include <eng/debug/run_status.hpp>
@@ -51,12 +48,27 @@ namespace {
 namespace obj = eng::object3d;
 namespace copper = eng::copper;
 
-constexpr eng::u16 kWidth = 320;          // ver nota (version B)
+// Geometria del original (256x256, 4 planos).
+constexpr eng::u16 kWidth = 256;
 constexpr eng::u16 kHeight = 256;
 constexpr eng::u8 kPlanes = 4;
-constexpr eng::u16 kBytesPerRow = kWidth / 8; // 40
+constexpr eng::u16 kBytesPerRow = kWidth / 8; // 32
 constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * kHeight;
-constexpr eng::u32 kBitmapBytes = kPlaneBytes * kPlanes;
+constexpr eng::u8 kRing = static_cast<eng::u8>(kPlanes + 1); // anillo de 5 (DEPTH+1)
+constexpr eng::u32 kBitmapBytes = kPlaneBytes * kRing;
+constexpr eng::u32 kCopperPerList = 512;
+
+// Registros del display del original (SetupMode/BitplaneFetch/DisplayWindow para
+// MODE_LORES, X(32), Y(0), 256x256). Recalculado de SetupBitplaneFetchImpl.c:
+// xs = (0x81+32)<<2 - 4 = 640; fetchstart=64,prefetch=64,w=1024; ddfstrt=(640&-64)-64=576;
+// ddfstop=576+1024-64=1536; BPLCON1=(xs&15)*0x11=0. DIW: xs=161, xe=(161+256)&0xff=161
+// (ventana de 256 por wrap), ys=0x2c, ye=(0x2c+256)&0xff=0x2c.
+constexpr eng::u16 kDiwstrt = 0x2ca1;
+constexpr eng::u16 kDiwstop = 0x2ca1;
+constexpr eng::u16 kDdfstrt = 0x0048;
+constexpr eng::u16 kDdfstop = 0x00c0;
+constexpr eng::u16 kBplcon0 = 0x4000;    // 4 planos, color
+constexpr eng::u16 kBplcon1 = 0x0000;    // fine scroll 0 (calculado)
 
 // --- Recorrido del object model (PORTADO VERBATIM de wireframe.c) ------------
 
@@ -199,25 +211,25 @@ void draw_object(obj::Object3D& object, eng::u8* bplpt, eng::amiga::MinimalBacke
 struct WireframeDemo {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		m_memory_ok = backend.configure_memory({48u * 1024u, 4u * 1024u, 4u * 1024u});
+		m_memory_ok = backend.configure_memory({96u * 1024u, 4u * 1024u, 4u * 1024u});
 		if (!m_memory_ok) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00007901u);
 			return;
 		}
 
 		m_bitplane_block = backend.memory().chip.allocate(kBitmapBytes, 16);
-		m_copper_block = backend.memory().chip.allocate(1024, 16);
+		m_copper_block = backend.memory().chip.allocate(2048, 16);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00007902u);
 			return;
 		}
 		m_bitplanes = static_cast<eng::u8*>(m_bitplane_block.data);
 
-		if (!build_copper()) {
+		if (!build_copper(0) || !build_copper(1)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00007903u);
 			return;
 		}
-		backend.takeover_display(m_copper_ptr);
+		backend.takeover_display(m_copper_ptrs[0]);
 
 		obj::new_object3d(m_object, pilka);
 		// fx4i(-250) = -250 * 16 = -4000 (4.12).
@@ -228,10 +240,14 @@ struct WireframeDemo {
 
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
-		if (!m_bitplanes) {
+		if (m_bitplanes == nullptr) {
 			return;
 		}
-		backend.blitter_clear(m_bitplanes, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight);
+
+		const eng::u8 back = static_cast<eng::u8>(m_active ^ 1u);
+		eng::u8* plane = m_bitplanes + static_cast<eng::u32>(back) * kBufferBytes;
+
+		backend.blitter_clear(plane, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight);
 
 		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z =
 			static_cast<eng::s16>(context.frame.frame_index * 8u);
@@ -240,11 +256,14 @@ struct WireframeDemo {
 		update_face_visibility_fast(m_object);
 		update_edge_visibility(m_object);
 		transform_vertices(m_object);
-		draw_object(m_object, m_bitplanes, backend);
+		// El original dibuja en el plano que la copperlist situa como BIT 3
+		// (bplptr[3] = planes[active]) -> color 8 (brillante). Dibujamos en el plano
+		// 3 del buffer para que el alambre sea visible (color 8, no el bit 0 oscuro).
+		draw_object(m_object, plane + static_cast<eng::u32>(3) * kPlaneBytes, backend);
 
-		if (m_copper_ptr != nullptr) {
-			backend.install_copper_list(m_copper_ptr);
-		}
+		// Swap: muestra el buffer recien dibujado.
+		backend.install_copper_list(m_copper_ptrs[back]);
+		m_active = back;
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
@@ -252,25 +271,29 @@ struct WireframeDemo {
 	}
 
 private:
-	bool build_copper() {
-		copper::Scheduler sched {m_copper_block};
-		sched.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, kBytesPerRow, 0x4000, kPlanes,
-					  m_bitplanes, kPlaneBytes);
+	bool build_copper(eng::u8 buffer) {
+		eng::MemoryBlock block = m_copper_block.valid() ? m_copper_block : eng::MemoryBlock {};
+		// Cada copperlist ocupa su mitad del bloque.
+		eng::u8* base = static_cast<eng::u8*>(block.data) + static_cast<eng::u32>(buffer) * 1024u;
+		copper::Scheduler sched {eng::MemoryBlock {base, 1024, block.kind}};
+		eng::u8* planes = m_bitplanes + static_cast<eng::u32>(buffer) * kBufferBytes;
+		sched.emit_planes_display(kDiwstrt, kDiwstop, kDdfstrt, kDdfstop, kBytesPerRow, kBplcon0,
+					  kPlanes, planes, kPlaneBytes);
+		sched.move(copper::Register::BPLCON1, kBplcon1);
 		sched.emit_palette(wireframe_colors, 0, 16);
 		sched.end();
-		m_copper_ok = sched.ok();
-		m_copper_words = sched.words_used();
-		m_copper_ptr = sched.data();
-		return m_copper_ok;
+		m_copper_ptr_ok[buffer] = sched.ok();
+		m_copper_ptrs[buffer] = sched.data();
+		return m_copper_ptr_ok[buffer];
 	}
 
 	bool m_memory_ok = false;
-	bool m_copper_ok = false;
-	eng::u32 m_copper_words = 0;
-	const eng::u16* m_copper_ptr = nullptr;
+	bool m_copper_ptr_ok[2] = {false, false};
+	eng::u8 m_active = 0;
 	eng::u8* m_bitplanes = nullptr;
 	eng::MemoryBlock m_bitplane_block {};
 	eng::MemoryBlock m_copper_block {};
+	const eng::u16* m_copper_ptrs[2] = {nullptr, nullptr};
 	eng::object3d::Object3D m_object {};
 };
 
