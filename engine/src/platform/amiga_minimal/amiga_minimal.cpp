@@ -448,6 +448,13 @@ void MinimalBackend::clear_blit_service() {
 	level3_sync();
 }
 
+void MinimalBackend::set_blitter_priority(bool enabled) {
+	// DMACON bit 10 (BLTPRI) = "blitter nasty": el Blitter no deja slots libres a la CPU.
+	// SETCLR (0x8000) activa; sin SETCLR, el bit se limpia. No toca MASTER/BLITTER.
+	custom_base[custom_dmacon_offset] = enabled ? static_cast<unsigned short>(0x8400u)
+						    : static_cast<unsigned short>(0x0400u);
+}
+
 // Despachador de la IRQ de la CIA-A (nivel 2): lo llama `support/cia_irq.s`.
 extern "C" void cia_dispatch() {
 	(void)*ciaa_reg(0x0du);                        // leer ICR reconoce la IRQ de la CIA

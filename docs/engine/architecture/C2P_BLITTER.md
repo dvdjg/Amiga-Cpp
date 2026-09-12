@@ -55,9 +55,10 @@ El minterm es una función de **A/B/C** (8 combinaciones); cada bit dice si D=1.
 ## 5. Síncrono vs interrupción de blit
 
 - **Original**: la IRQ de blit llama a `ChunkyToPlanar`; cada llamada ejecuta la siguiente fase → el C2P avanza **en background** mientras la CPU calcula el fuego del siguiente frame.
-- **Cadena por IRQ de blit (implementada, fiel)**: `MinimalBackend::set_blit_service` instala el handler en el autovector de **nivel 3** (compartido con el VBlank, despacho por `INTREQR`) y `080_fire_rgb::on_blit` programa la fase siguiente al terminar cada blit (fases 1..12; la 12 marca `done`). El fuego crece correctamente (verificado) pero el C2P solapa con el fuego del frame siguiente → el Blitter le roba bus a la CPU: **~11.1 fps**.
-- **Solape cooperativo (alternativa, mas rapido en este efecto)**: `c2p_4bpp_program` programado desde `Game::idle()` durante el VBlank (CPU ociosa, bus libre) → **~12.4–13.9 fps**. Mismo resultado visual, scheduling distinto.
-- **Conclusión**: para un C2P *bus-bound* como este, servirlo en el VBlank (CPU ociosa) rinde mas que la cadena por IRQ; pero la cadena por IRQ es el mecanismo fiel del original y el que iguala su comportamiento (tambien solapa).
+- **Cadena por IRQ de blit (implementada, fiel, por defecto en 080)**: `MinimalBackend::set_blit_service` instala el handler en el autovector de **nivel 3** (compartido con el VBlank, despacho por `INTREQR`) y `080_fire_rgb::on_blit` programa la fase siguiente al terminar cada blit (fases 1..12; la 12 marca `done`). El fuego crece correctamente (verificado).
+- **Medido (080, emulador)**: suelo sin C2P **16.6 fps (3.0 vblanks)**; cadena por IRQ **13.55 (3.7)**; cadena con **BLTPRI** (blitter *nasty*, `DMACON` bit 10) **12.44 (4.0)**. El C2P cuesta ~0.7 vblanks; BLTPRI lo **empeora**: el **bus de Chip RAM es el cuello** (fuego *bus-bound* + DMA del Blitter), dar prioridad al Blitter solo **para** a la CPU sin reducir el trabajo total.
+- **Leccion de proceso (2026-09)**: la caida a ~11 fps **no** era la cadena por IRQ, sino el `BackgroundPump` llamando a la cola de fondo en **cada iteracion** del bucle de espera (aunque estuviera vacia). Ahora solo se bombea si hay tareas → el suelo vuelve a 3.0 vblanks (13.55 con la cadena). **Medir antes de atribuir.**
+
 
 ### 5.1 `c2p_4bpp_program` (programar sin esperar)
 

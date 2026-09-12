@@ -181,10 +181,17 @@ public:
 			m_game.update(m_backend, context);
 			// `render` es el punto de commit, no de simulacion. En Amiga esto importa:
 			// instalar una copperlist con COPJMP1 fuera de VBlank reinicia el Copper
-			// a media pantalla y parte el frame visible. El trabajo de fondo se drena
-			// mientras se espera el VBlank (prioridad al bucle principal).
-			BackgroundPump<Backend, Game> pump {&m_background, &context, &m_backend, &m_game};
-			m_backend.wait_vblank(&BackgroundPump<Backend, Game>::run, &pump);
+			// a media pantalla y parte el frame visible. El fondo se drena en el hueco de
+			// VBlank, pero **solo** se instala el callback si hay algo que drenar (o el
+			// juego expone `idle`): con la cola vacia, `wait_vblank` queda como bucle
+			// apretado, sin coste por iteracion.
+			const bool needs_pump = (m_background.live_count() != 0u) || GameIdle<Game, Backend>;
+			if (needs_pump) {
+				BackgroundPump<Backend, Game> pump {&m_background, &context, &m_backend, &m_game};
+				m_backend.wait_vblank(&BackgroundPump<Backend, Game>::run, &pump);
+			} else {
+				m_backend.wait_vblank();
+			}
 			m_game.render(m_backend, context);
 		}
 	}

@@ -137,6 +137,12 @@ public:
 	/// Desinstala el servicio de blit.
 	void clear_blit_service();
 
+	/// Activa/desactiva la prioridad del Blitter sobre la CPU (`DMACON` bit 10, BLTPRI,
+	/// el "blitter nasty" de OCS). Con `true`, el Blitter NO cede sus slots a la CPU: el
+	/// DMA avanza a plena velocidad aunque la CPU tenga trabajo (esta se detiene). Util
+	/// para cadenas de blits que deben terminar cuanto antes (p. ej. el C2P encadenado).
+	void set_blitter_priority(bool enabled);
+
 	/// Arranca un motor de fondo por **timer A de la CIA-A** (IRQ nivel 2). El timer
 	/// corre **continuo** a `latch / 709379` s por tic y llama a `task(user, vpos)` en
 	/// cada uno (una rebanada corta), de forma independiente al frame. Tambien sirve

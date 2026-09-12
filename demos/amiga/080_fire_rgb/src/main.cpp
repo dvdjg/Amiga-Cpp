@@ -60,6 +60,14 @@ constexpr eng::u16 kZeroPalette[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 #endif
 constexpr bool kDiagSkipC2p = (K_DIAG_SKIP_C2P != 0);
 
+/// DIAG/experimento: activa el "blitter nasty" (`DMACON` BLTPRI) para que el Blitter
+/// tenga **prioridad de bus sobre la CPU**: el DMA del C2P avanza a plena velocidad
+/// aunque el fuego este corriendo (la CPU se detiene y luego recupera). `-DK_BLIT_NASTY=1`.
+#ifndef K_BLIT_NASTY
+#define K_BLIT_NASTY 0
+#endif
+constexpr bool kBlitNasty = (K_BLIT_NASTY != 0);
+
 } // namespace
 
 // --- Datos: tabla de color del fuego generada en C++23 constexpr -------------
@@ -230,6 +238,9 @@ struct FireDemo {
 		// fase siguiente al terminar cada blit.
 		m_backend = &backend;
 		backend.set_blit_service(&FireDemo::on_blit, this);
+		if (kBlitNasty) {
+			backend.set_blitter_priority(true);   // Blitter con prioridad sobre la CPU.
+		}
 
 		m_init_ok = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x0080u);
