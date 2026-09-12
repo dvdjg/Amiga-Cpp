@@ -123,6 +123,25 @@ public:
 	/// Desinstala la IRQ de VBlank (restaura el vector de nivel 3 y `INTENA`).
 	void clear_vblank_service();
 
+	/// Servicio de **blit** por IRQ (nivel 3, `BLIT`): `task(user, vpos)` se ejecuta cada
+	/// vez que el Blitter termina. Comparte el autovector de nivel 3 con el VBlank, asi
+	/// que el backend usa un **unico** handler que despacha por `INTREQR`. Util para
+	/// encadenar blits (el handler programa el siguiente) sin *polling* de `BBUSY`.
+	bool set_blit_service(void (*task)(void*, u16 vpos), void* user);
+
+	/// Desinstala el servicio de blit.
+	void clear_blit_service();
+
+	/// Arranca un motor de fondo por **timer A de la CIA-A** (IRQ nivel 2). El timer
+	/// corre **continuo** a `latch / 709379` s por tic y llama a `task(user, vpos)` en
+	/// cada uno (una rebanada corta), de forma independiente al frame. Tambien sirve
+	/// como base de un **reloj de tiempo real** (la CIA tiene TOD por hardware). Ver
+	/// `BACKGROUND_TASKS.md`.
+	bool background_timer_start(u16 latch, void (*task)(void*, u16 vpos), void* user);
+
+	/// Detiene el motor por timer (para el timer, enmascara la CIA y restaura el vector).
+	void background_timer_stop();
+
 	/// Escribe un registro COLORxx. `rgb444` usa el formato nativo OCS.
 	void set_color(u8 index, u16 rgb444);
 

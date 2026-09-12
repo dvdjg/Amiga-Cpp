@@ -133,12 +133,16 @@ struct BackgroundDemo {
 		// hueco de VBlank; el bucle principal sigue teniendo prioridad.
 		m_fill.plane = m_plane0;
 		m_fill.row = 0;
+		m_context = &context;
 		if (context.background != nullptr) {
 			m_task = context.background->add(&fill_bar_step, &m_fill, kBarRows, /*slice*/ 1u);
 			// En modo interrupt-driven el fondo corre en el bucle principal (la IRQ de
 			// VBlank lo preempta); el cupo por frame acota cuanto fondo por frame.
 			context.background->set_max_slices_per_frame(4u);
 		}
+		// Motor de fondo por IRQ del timer A de la CIA-A (nivel 2), continuo: avanza el
+		// fondo a su propio ritmo, sin depender del frame.
+		backend.background_timer_start(0x2000u, &BackgroundDemo::on_timer, this);
 
 		m_init_ok = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x0081u);
@@ -164,11 +168,10 @@ struct BackgroundDemo {
 
 		if (context.background == nullptr) return;
 		const task::TaskProgress p = context.background->progress(m_task);
-		// Evidencia por canal lateral: progreso (permille) + frame.
-		// Evidencia por canal lateral: progreso (permille) en los bits altos y el coste
-		// del tick del juego en lineas de raster (bits bajos).
+		// Evidencia por canal lateral: progreso (permille) en los bits altos y numero de
+		// IRQs del timer de CIA (bits bajos). El coste del tick esta en context.irq.
 		g_eng_run_status.detail =
-			(static_cast<eng::u32>(p.permille) << 16) | (context.irq.last_lines & 0xffffu);
+			(static_cast<eng::u32>(p.permille) << 16) | (m_irq_count & 0xffffu);
 
 		if (p.finished()) {
 			// Terminado: libera el slot (estaba en `Done`) y reinicia la barra para
@@ -187,12 +190,24 @@ struct BackgroundDemo {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
+	/// Tarea del timer de CIA-A: drena una rebanada de la cola de fondo. Cuenta las
+	/// IRQs para evidenciar que el timer recarga (se publica en `detail`).
+	static void on_timer(void* user, eng::u16 vpos) {
+		auto* self = static_cast<BackgroundDemo*>(user);
+		++self->m_irq_count;
+		if (self->m_context != nullptr && self->m_context->background != nullptr) {
+			self->m_context->background->run_slice(self->m_context->frame.frame_index, vpos);
+		}
+	}
+
 private:
 	drivers::HamScene m_scene {};
 	eng::u8* m_plane0 = nullptr;
 	eng::u8* m_plane1 = nullptr;
 	FillTask m_fill {};
 	task::TaskHandle m_task {};
+	eng::GameContext* m_context = nullptr;
+	eng::u32 m_irq_count = 0;
 	eng::u8 m_hue = 0;
 	eng::u16 m_line_y = 0;
 	bool m_init_ok = false;

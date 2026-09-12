@@ -210,9 +210,18 @@ public:
 		if constexpr (requires { m_backend.set_vblank_service(nullptr, nullptr); }) {
 			InterruptTick<Backend, Game> tick {&m_game, &m_backend, &context, 0u, frame_count};
 			if (m_backend.set_vblank_service(&InterruptTick<Backend, Game>::run, &tick)) {
+				// El servicio de blit (nivel 3, mismo vector que el VBlank) drena el
+				// fondo mientras el juego espera a un blit.
+				BackgroundBlitterService blitter_service {&m_background, &context};
+				if constexpr (requires { m_backend.set_blit_service(nullptr, nullptr); }) {
+					m_backend.set_blit_service(&BackgroundBlitterService::run, &blitter_service);
+				}
 				// Bucle principal = fondo cooperativo continuo (la IRQ lo preempta).
 				while (tick.frames < frame_count) {
 					m_background.run_slice(tick.frames, 0u);
+				}
+				if constexpr (requires { m_backend.clear_blit_service(); }) {
+					m_backend.clear_blit_service();
 				}
 				m_backend.clear_vblank_service();
 				return;

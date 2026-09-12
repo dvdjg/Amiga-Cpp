@@ -96,49 +96,49 @@ lleva el trabajo del juego (avanzar animación, actualizar el Copper, input) con
 dura**: preempta al fondo. El bucle principal ejecuta el trabajo de fondo cooperativo; cuando
 la IRQ no tiene nada más que hacer, vuelve (`RTE`) y el fondo continúa.
 
-Implementación del tick de VBlank (nivel 3, autovector `0x6C` en 68000 / `VBR+0x6C`):
-`support/vbl_irq.s` (trampoline: salva registros, despacha a C++, `RTE`) +
-`MinimalBackend::set_vblank_service(task, user)`, que limpia `INTREQ VERTB` y llama a
-`Engine::InterruptTick` (`update` + `render`). El fondo del bucle principal usa
-`BackgroundQueue::run_slice`, con la **guarda de reentrada** (`in_slice`) por si la IRQ lo
-preempta a mitad de rebanada.
+Implementación: `support/level3_irq.s` es el **handler único del autovector de nivel 3**
+(`0x6C` en 68000 / `VBR+0x6C`), porque `VERTB`, `BLIT` y `COPER` **comparten vector**. Salva
+registros, despacha a C++ y hace `RTE`; el despacho lee `INTREQR` y atiende cada fuente
+limpiando su bit:
 
-`BackgroundQueue::run_slice` tiene esa guarda de reentrada: si una IRQ dispara mientras el
-bucle principal ya está dentro de una rebanada, se salta (evita corromper el estado). Así
-VBlank, espera de Blitter e IRQ pueden coexistir.
+- `set_vblank_service(task, user)` → tick del juego (`Engine::InterruptTick`: `update`+`render`).
+- `set_blit_service(task, user)` → servicio de blit (encadenar blits / drenar el fondo).
+
+El fondo del bucle principal usa `BackgroundQueue::run_slice`, con la **guarda de reentrada**
+(`in_slice`) por si una IRQ lo preempta a mitad de rebanada.
 
 ## ¿VBlank, blit o timer?
 
 | Fuente | Qué da | Uso |
 |---|---|---|
-| **VBlank IRQ** (`VERTB`, nivel 3) | tick 50 Hz | **latido del juego** en el modo interrupt-driven: garantiza la cadencia del juego aunque el fondo sea pesado |
-| **Blit IRQ** (`BLIT`, nivel 3) | evento "blit terminado" | encadenar blits (paralelismo CPU↔Blitter); mañana, mejor punto de drenado que el *polling* de `BBUSY` |
-| **Timer CIA-A** | reloj propio (o reloj de tiempo real TOD) | motor de fondo independiente del frame (pendiente) |
+| **VBlank IRQ** (`VERTB`, nivel 3) | tick 50 Hz | **latido del juego**: garantiza la cadencia aunque el fondo sea pesado |
+| **Blit IRQ** (`BLIT`, nivel 3, mismo vector) | evento "blit terminado" | encadenar blits / drenar el fondo sin *polling* de `BBUSY` |
+| **Timer CIA-A** (nivel 2) | **reloj propio** (o reloj de tiempo real TOD) | **motor de fondo** independiente del frame |
 
-Notas de implementación:
+El tick del juego mide su coste en **líneas de raster** (`GameContext::irq`), no en ciclos: es
+lo que hay en hardware real.
 
-- **`VERTB`, `BLIT` y `COPER` comparten el autovector de nivel 3** (`0x6C`). Por eso un driver
-  de blit debe instalarse como un **único handler de nivel 3** que lea `INTREQR` y despache a
-  cada servicio (VBlank / blit) limpiando su bit. Hoy `set_vblank_service` instala en `0x6C`;
-  al añadir el blit hay que **unificar** el handler.
-- El **timer de CIA-A** no es solo un motor de fondo: la CIA tiene además un **reloj de
-  tiempo real** en hardware (TOD, *time-of-day*) y el timer A/B es un **tick programable** →
-  es la fuente natural de un **reloj de juego/tiempo real**. Reintentarlo con instrumentación
-  visible al CPU (un contador en Chip RAM incrementado dentro del handler).
+### Timer de CIA-A (implementado)
 
-Matiz importante: la IRQ de VBlank **no** es un buen motor de *fondo* (es la misma cadencia
-de 50 Hz y roba tiempo al bucle); su sitio es el **latido del juego**. Para fondo puro de CPU
-el driver natural es el timer de CIA (avanza a su ritmo); se intentó y se retiró (el timer no
-recargaba de forma fiable en el emulador y la región de la CIA no es legible por GDB).
+`MinimalBackend::background_timer_start(latch, task, user)` programa el **timer A continuo**
+(reloj E), enmascara su IRQ en la CIA (`ICR`) y monta el handler de **nivel 2** (`0x68`).
+Corre a `latch / 709379` s por tic. La demo 081 lo usa con `latch = 0x2000` → **~86 IRQ/s**
+(medido). Sirve también de base para un **reloj de tiempo real**: la CIA tiene **TOD** por
+hardware y el timer A/B es un tick programable.
 
-## Estado y siguientes pasos
+> Lección (referencia `amiga-bootcamp/01_hardware/common/cia_chips.md`): en el **CRA**,
+> `bit 3 RUNMODE` es **0 = continuo, 1 = one-shot**. Poner one-shot hace que el timer dispare
+> **una sola vez** y parezca "no recargar". Ese era el bug del primer intento.
 
-- ✅ Cola cooperativa (progreso/rendimiento/adaptación, indicadores bidireccionales). Test
-  host HOST-017.
-- ✅ **Drenado en las esperas de Blitter** (`set_blitter_service`), compartiendo el cupo por
-  frame con el VBlank.
-- ✅ **Modo interrupt-driven** (`run_frames_interrupt_driven`): la IRQ de VBlank lleva
-  `update`/`render` y el bucle principal el fondo.
-- ✅ **Demo `081_background_tasks`**: juego en la IRQ (pulso de fondo + línea por Blitter) y
-  fondo en el bucle principal (barra progresiva que se adapta a `vpos`).
-- Pendiente: **timer de CIA-A** como motor de fondo independiente del frame (ver arriba).
+## Estado
+
+- ✅ Cola cooperativa (`BackgroundQueue`): progreso/rendimiento/adaptación e indicadores
+  bidireccionales. Test host **HOST-017**.
+- ✅ **Drenado en las esperas de Blitter** (`set_blitter_service`, *polling* de `BBUSY`).
+- ✅ **Modo interrupt-driven por defecto** (`Engine::run_frames`): la IRQ de VBlank lleva
+  `update`/`render` (con telemetría de líneas de raster) y el bucle principal el fondo. El
+  modo *polling* queda como `run_frames_polling`.
+- ✅ **Handler único de nivel 3** (`support/level3_irq.s`) con **servicio de blit** por IRQ.
+- ✅ **Motor de fondo por timer de CIA-A** (`background_timer_start`, ~86 Hz medido).
+- ✅ **Demo `081_background_tasks`**: juego en la IRQ de VBlank (pulso + línea por Blitter),
+  fondo en el bucle principal + drenado por blit IRQ + timer de CIA.

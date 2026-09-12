@@ -33,6 +33,7 @@ constexpr unsigned short custom_copjmp1_offset = 0x088 / 2;
 constexpr unsigned short custom_dmacon_offset = 0x096 / 2;
 constexpr unsigned short custom_intena_offset = 0x09a / 2;
 constexpr unsigned short custom_intreq_offset = 0x09c / 2;
+constexpr unsigned short custom_intreqr_offset = 0x01e / 2; // INTREQR (lectura)
 constexpr unsigned short dma_setclr = 0x8000;
 constexpr unsigned short dma_master = 0x0200;
 constexpr unsigned short dma_copper = 0x0080;
@@ -56,12 +57,28 @@ void write_custom_pointer(unsigned short word_offset, const void* pointer) {
 void (*g_blitter_service)(void*, unsigned short) = nullptr;
 void* g_blitter_service_user = nullptr;
 
-// Tick del juego por IRQ de VBlank (nivel 3, INTB_VERTB). El bucle principal queda para
-// el trabajo de fondo cooperativo; la IRQ lo preempta cada frame.
-extern "C" void vbl_irq();
+// Motor de fondo por IRQ de CIA-A (nivel 2, peticion PORTS): timer A programable.
+extern "C" void cia_irq();
+void (*g_cia_task)(void*, unsigned short) = nullptr;
+void* g_cia_task_user = nullptr;
+unsigned long g_cia_old_vector = 0;
+bool g_cia_installed = false;
+
+// CIA-A: registros a 0xBFE001 + reg*0x100 (ver <hardware/cia.h> y cia_chips.md).
+volatile unsigned char* ciaa_reg(unsigned short index) {
+	return reinterpret_cast<volatile unsigned char*>(0xbfe001)
+	     + static_cast<unsigned long>(index) * 0x100u;
+}
+
+// Handler UNICO del autovector de nivel 3 (VERTB/BLIT/COPER comparten vector). El
+// engine lo usa para el tick del juego (VBlank) y para el servicio de blit.
+extern "C" void level3_irq();
 void (*g_vbl_task)(void*, unsigned short) = nullptr;
 void* g_vbl_task_user = nullptr;
-unsigned long g_vbl_old_vector = 0;
+void (*g_blit_task)(void*, unsigned short) = nullptr;
+void* g_blit_task_user = nullptr;
+bool g_level3_installed = false;
+unsigned long g_level3_old_vector = 0;
 
 bool wait_blitter() {
 	// El bit BBUSY de DMACONR baja cuando el Blitter queda libre. Dejamos un limite
@@ -340,13 +357,46 @@ u16 MinimalBackend::current_raster_line() const {
 	return static_cast<u16>((*vpos_long & 0x1ff00u) >> 8);
 }
 
-// Despachador de la IRQ de VBlank: lo llama el trampoline asm (`support/vbl_irq.s`)
-// con todos los registros salvados. Limpia el request y ejecuta el tick del juego.
-extern "C" void vbl_irq_dispatch() {
-	custom_base[custom_intreq_offset] = 0x0020u;   // INTREQ: limpiar VERTB
-	if (g_vbl_task != nullptr) {
-		g_vbl_task(g_vbl_task_user,
-			   static_cast<unsigned short>((*vpos_long & 0x1ff00u) >> 8));
+// Despacha el nivel 3: lee INTREQR y atiende VERTB (tick del juego) y BLIT (servicio de
+// blit). Cada fuente limpia su propio bit antes de llamar a su tarea.
+extern "C" void level3_dispatch() {
+	const unsigned short req = custom_base[custom_intreqr_offset];
+	const unsigned short vpos = static_cast<unsigned short>((*vpos_long & 0x1ff00u) >> 8);
+	if ((req & 0x0020u) != 0u) {                    // VERTB
+		custom_base[custom_intreq_offset] = 0x0020u;
+		if (g_vbl_task != nullptr) {
+			g_vbl_task(g_vbl_task_user, vpos);
+		}
+	}
+	if ((req & 0x0040u) != 0u) {                    // BLIT
+		custom_base[custom_intreq_offset] = 0x0040u;
+		if (g_blit_task != nullptr) {
+			g_blit_task(g_blit_task_user, vpos);
+		}
+	}
+}
+
+// Instala/restaura el handler unico segun los servicios activos. Solo toca INTEN/VERTB/
+// BLIT; no desarma otros bits de INTENA (p. ej. el audio del mixer).
+void level3_sync() {
+	const bool need = (g_vbl_task != nullptr) || (g_blit_task != nullptr);
+	if (need && !g_level3_installed) {
+		volatile eng::u32* const vector3 = reinterpret_cast<volatile eng::u32*>(0x6cu);
+		g_level3_old_vector = *vector3;
+		*vector3 = reinterpret_cast<eng::u32>(&level3_irq);
+		g_level3_installed = true;
+	}
+	if (need) {
+		unsigned short bits = 0x4000u;              // INTEN (master)
+		if (g_vbl_task != nullptr) bits |= 0x0020u; // VERTB
+		if (g_blit_task != nullptr) bits |= 0x0040u;// BLIT
+		custom_base[custom_intena_offset] = static_cast<unsigned short>(0x8000u | bits);
+	} else {
+		custom_base[custom_intena_offset] = 0x0060u; // desarmar VERTB|BLIT (INTEN se deja)
+		if (g_level3_installed) {
+			*reinterpret_cast<volatile eng::u32*>(0x6cu) = g_level3_old_vector;
+			g_level3_installed = false;
+		}
 	}
 }
 
@@ -356,14 +406,7 @@ bool MinimalBackend::set_vblank_service(void (*task)(void*, u16), void* user) {
 	}
 	g_vbl_task = task;
 	g_vbl_task_user = user;
-
-	// Instala el handler en el autovector de nivel 3 (VBR=0 en 68000 -> 0x6C).
-	volatile eng::u32* const vector3 = reinterpret_cast<volatile eng::u32*>(0x6cu);
-	g_vbl_old_vector = *vector3;
-	*vector3 = reinterpret_cast<eng::u32>(&vbl_irq);
-
-	// Master interrupt + VERTB (nivel 3). `takeover_display` los habia apagado.
-	custom_base[custom_intena_offset] = 0xc020u;   // SETCLR | INTEN | VERTB
+	level3_sync();
 	return true;
 }
 
@@ -371,11 +414,85 @@ void MinimalBackend::clear_vblank_service() {
 	if (g_vbl_task == nullptr) {
 		return;
 	}
-	custom_base[custom_intena_offset] = 0x4020u;   // desarmar INTEN | VERTB
-	*reinterpret_cast<volatile eng::u32*>(0x6cu) = g_vbl_old_vector;
-	custom_base[custom_intreq_offset] = 0x0020u;   // limpiar pendiente
+	custom_base[custom_intreq_offset] = 0x0020u;
 	g_vbl_task = nullptr;
 	g_vbl_task_user = nullptr;
+	level3_sync();
+}
+
+bool MinimalBackend::set_blit_service(void (*task)(void*, u16), void* user) {
+	if (g_blit_task != nullptr) {
+		return false;
+	}
+	g_blit_task = task;
+	g_blit_task_user = user;
+	level3_sync();
+	return true;
+}
+
+void MinimalBackend::clear_blit_service() {
+	if (g_blit_task == nullptr) {
+		return;
+	}
+	custom_base[custom_intreq_offset] = 0x0040u;
+	g_blit_task = nullptr;
+	g_blit_task_user = nullptr;
+	level3_sync();
+}
+
+// Despachador de la IRQ de la CIA-A (nivel 2): lo llama `support/cia_irq.s`.
+extern "C" void cia_dispatch() {
+	(void)*ciaa_reg(0x0du);                        // leer ICR reconoce la IRQ de la CIA
+	custom_base[custom_intreq_offset] = 0x0008u;   // limpiar PORTS (por si acaso)
+	if (g_cia_task != nullptr) {
+		g_cia_task(g_cia_task_user, static_cast<unsigned short>((*vpos_long & 0x1ff00u) >> 8));
+	}
+}
+
+bool MinimalBackend::background_timer_start(u16 latch, void (*task)(void*, u16), void* user) {
+	if (g_cia_task != nullptr) {
+		return false;
+	}
+	g_cia_task = task;
+	g_cia_task_user = user;
+
+	// Autovector de nivel 2 (VBR=0 en 68000 -> 0x68).
+	volatile eng::u32* const vector2 = reinterpret_cast<volatile eng::u32*>(0x68u);
+	g_cia_old_vector = *vector2;
+	*vector2 = reinterpret_cast<eng::u32>(&cia_irq);
+	g_cia_installed = true;
+
+	// Timer A **continuo** (CRA RUNMODE=0), reloj E (INMODE=0). El orden importa:
+	// parar, cargar el latch, LOAD (stroby se autolimpia) y START.
+	volatile unsigned char* const lo = ciaa_reg(4u);   // TALO
+	volatile unsigned char* const hi = ciaa_reg(5u);   // TAHI
+	volatile unsigned char* const cra = ciaa_reg(0x0eu);
+	*cra = 0x00u;
+	*lo = static_cast<unsigned char>(latch & 0xffu);
+	*hi = static_cast<unsigned char>((latch >> 8) & 0xffu);
+	*cra = 0x10u;                                      // LOAD
+	*cra = 0x11u;                                      // LOAD|START (continuo)
+
+	// Enmascara la IRQ del timer A y arma INTEN|PORTS.
+	*ciaa_reg(0x0du) = 0x81u;                          // ICR: SETCLR | TA
+	custom_base[custom_intena_offset] = 0xc008u;       // SETCLR | INTEN | PORTS
+	return true;
+}
+
+void MinimalBackend::background_timer_stop() {
+	if (g_cia_task == nullptr) {
+		return;
+	}
+	*ciaa_reg(0x0eu) = 0x00u;                          // CRA: parar
+	*ciaa_reg(0x0du) = 0x01u;                          // ICR: CLR | TA
+	custom_base[custom_intena_offset] = 0x0008u;       // desarmar PORTS
+	if (g_cia_installed) {
+		*reinterpret_cast<volatile eng::u32*>(0x68u) = g_cia_old_vector;
+		g_cia_installed = false;
+	}
+	(void)*ciaa_reg(0x0du);
+	g_cia_task = nullptr;
+	g_cia_task_user = nullptr;
 }
 
 void MinimalBackend::set_color(u8 index, u16 rgb444) {

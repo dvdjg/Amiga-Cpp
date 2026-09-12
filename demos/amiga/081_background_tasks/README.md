@@ -25,6 +25,12 @@ de **fondo** cooperativo, que la IRQ preempta.
   dura (preempta al fondo); cuando no hay más juego que hacer, vuelve (`RTE`) y el fondo sigue.
 - La tarea **se adapta al barrido del CRT**: si `vpos > 220`, procesa la mitad por rebanada.
   El cupo por frame (`max_slices_per_frame`) acota cuánto fondo se hace por frame.
+- **Drenado por blit IRQ** (`MinimalBackend::set_blit_service`): la IRQ de blit (nivel 3,
+  mismo autovector que el VBlank → handler único que despacha por `INTREQR`) drena el fondo
+  mientras el juego espera a un blit.
+- **Motor de fondo por timer A de la CIA-A** (`background_timer_start`): timer **continuo**
+  (CRA `RUNMODE=0`), nivel 2, que avanza el fondo a su propio ritmo; con `latch = 0x2000`
+  corre a **~86 IRQ/s**. `runStatus.detail` (bits bajos) publica el contador de IRQs del timer.
 
 ## Validación
 
