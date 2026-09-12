@@ -34,6 +34,11 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 	0,
 	0,
 };
+
+// Bucle caliente del plasma en ASM (ver support/plasma_chunky.s). Argumentos por
+// memoria: [0]=dst [1]=xbuf [2]=ybuf[y] [3]=cmap [4]=cols.
+eng::u32 g_plasma_chunky_args[5];
+void plasma_chunky_row();
 }
 
 namespace {
@@ -44,7 +49,7 @@ namespace drivers = eng::graphics::drivers;
 constexpr eng::u8 kCols = 36; // HTILES = WIDTH/8
 constexpr eng::u8 kRows = 64; // VTILES = HEIGHT/4
 
-/// Simulacion del plasma (verbsatim de `UpdateXBUF`/`UpdateYBUF`/`UpdateChunky`).
+/// Simulacion del plasma (verbatim de `UpdateXBUF`/`UpdateYBUF`/`UpdateChunky`).
 struct Plasma {
 	eng::u8 a0 = 0, a1 = 0, a2 = 0, a3 = 0, a4 = 0;
 	eng::u8 xbuf[kCols] {};
@@ -63,11 +68,6 @@ struct Plasma {
 			_a3 += 2; _a4 += 3;
 		}
 		a0 += 1; a1 += 3; a2 += 2; a3 += 1; a4 -= 1;
-	}
-
-	eng::u16 color(eng::u8 x, eng::u8 y) const {
-		const eng::u8 v = static_cast<eng::u8>(xbuf[x] + ybuf[y]);
-		return plasma_data::kColors[v];
 	}
 };
 
@@ -104,15 +104,23 @@ struct PlasmaDemo {
 	}
 
 	void render(amiga::MinimalBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
 private:
 	void draw_into(drivers::CopperChunkyScene& scene) {
+		g_plasma_chunky_args[1] = reinterpret_cast<eng::u32>(m_plasma.xbuf);
+		g_plasma_chunky_args[3] = reinterpret_cast<eng::u32>(plasma_data::kColors);
+		g_plasma_chunky_args[4] = kCols;
 		for (eng::u8 y = 0; y < kRows; ++y) {
-			for (eng::u8 x = 0; x < kCols; ++x) {
-				scene.set(y, x, m_plasma.color(x, y));
+			eng::u16* p = scene.chunky_row(y);
+			if (p == nullptr) {
+				return;
 			}
+			g_plasma_chunky_args[0] = reinterpret_cast<eng::u32>(p);
+			g_plasma_chunky_args[2] = m_plasma.ybuf[y];
+			plasma_chunky_row();
 		}
 	}
 

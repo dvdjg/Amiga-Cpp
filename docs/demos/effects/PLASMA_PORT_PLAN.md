@@ -77,6 +77,19 @@ Método: `docs/guides/roadmap/PORT_PROMPT_1A1.md`. Técnica: `docs/reference/ami
   lienzo completo y es **1:1** con el original. Lección: en el copper chunky la HP del `WAIT`
   del label **forma parte de la geometría** (es la posición del bloque dentro de la línea); no
   es un valor libre. Ver `docs/reference/amiga/techniques/copper-chunky.md`.
+- ✅ **RENDIMIENTO — bucle caliente portado a ASM** (`support/plasma_chunky.s`). El plasma iba
+  a **12.7 fps** (573 338 ciclos/frame): el `draw_into` C hacía `scene.set(row,col)`/píxel, con
+  **dos comprobaciones de rango + búsqueda en `m_slot[]` + multiplicación** por bloque (~18
+  instrucciones/iteración) y el compilador además emitía un `andi.l #255` redundante y no
+  generaba `dbra`. El original usa **asm con puntero incremental y direccionamiento `(An,Dn.w)`**
+  (6 instrucciones) y escribe la fila de una pasada. Se sustituyó por un bucle gas idéntico al
+  del original (`support/plasma_chunky.s`) alimentado con **punteros de fila** del driver
+  (`CopperChunkyScene::chunky_row`, análogo a `HamScene::bitplanes()`), de modo que no hay
+  indirección por píxel. Resultado: **36.5 fps (194 185 ciclos/frame)**, ~3x. El coste restante
+  es el propio 68000 sobre RAM lenta (~78 ciclos/iteración con las 6 instrucciones); el original
+  enlace a VMA 0x0 con `.datachip` aparte, pero en A500 sin fast RAM corre en el mismo tipo de
+  RAM, así que queda a la par. Instrumentación de la medición: contador de ciclos del periférico
+  (`0xB7E928`), expuesto temporalmente en `g_eng_run_status.detail` (retirado del código final).
 
 ## 6. Notas de fidelidad
 

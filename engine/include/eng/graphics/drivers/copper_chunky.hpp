@@ -94,6 +94,18 @@ public:
 		m_words[m_slot[static_cast<u16>(row) * max_cols + col] + 1u] = rgb12;
 	}
 
+	/// Puntero al word `data` de la instruccion `COLOR00` del bloque 0 de la fila `row`
+	/// (equivale a `&chunky[active][y]->move.data` del original). Para rellenar la fila
+	/// de golpe se escriben los `cols` colores con **paso de 2 words** (cada `COLOR00`
+	/// son `[registro, data]`): `p[0] = c; p += 2;`. Evita la indireccion `m_slot[]` y
+	/// las comprobaciones de `set()` en el bucle caliente (es la via que usa el efecto).
+	u16* chunky_row(u8 row) {
+		if (row >= m_config.rows || m_words == nullptr) {
+			return nullptr;
+		}
+		return &m_words[m_slot[static_cast<u16>(row) * max_cols] + 1u];
+	}
+
 	template <typename Backend>
 	void takeover(Backend& backend) const {
 		if (m_ok && m_words != nullptr) backend.takeover_display(m_words);

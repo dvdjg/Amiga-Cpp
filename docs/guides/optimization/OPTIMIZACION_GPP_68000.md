@@ -261,5 +261,27 @@ Lecciones del bucle de fuego de `fire-rgb` (demo 080), que en el original fija *
 - **Truco de direccionamiento reutilizable**: `move.l (0,a5,d1.w),d2` — el modo indexado `(An,Dn.w)` suma el índice como **offset en BYTES**. Con una tabla de `u32`, `dt + idx == dt[idx/4]`: el original lo usa para indexar por la **media** (suma/4) sin `shift` ni `división`. Si el índice debe ir escalado por 4 (índice de elemento), hay que usar `lea`+`add` o `.w*4` (solo 68020+); en 68000 el byte-offset es la opción gratis.
 - **Cómo inspeccionar lo que genera G++**: el build deja un `.s` con el **desensamblado** (`objdump`); para un objeto suelto, `m68k-amiga-elf-objdump -d obj/demos/<demo>/<cfg>/support_<x>.o`. Útil para confirmar instrucciones y asignación antes de culpar al compilador.
 - **Regla práctica**: antes de pelear con el optimizador, **mirar el `.s`**. Si G++ no produce lo del original (o no compila), escribir la rutina en asm aparte y **mantener la de C++** como fallback.
-- **[P] Pendiente**: `support/fire_loop.s` ensambla **idéntico** al original (verificado con `objdump -d`), pero **crashea en runtime** (no alcanza READY); a depurar con el debugger. La ruta C++ (`MainLoopC`) es el default y funciona.
+- **[R] Resuelto**: `support/fire_loop.s` ensambla **idéntico** al original (verificado con `objdump -d`) y funcionaba pero no alcanzaba READY por una causa **ajena al asm**: `.cfi_startproc/.cfi_endproc` generaban una sección `.eh_frame` **no vacía** que el canal lateral enumeraba pero el `.map` del runner filtraba, desplazando los índices y resolviendo mal `g_eng_run_status`. Sin CFI en los `.s` (y con `.eh_frame` incluido en `findMapAllocSections`) queda resuelto; `K_FIRE_ASM=1` es el default.
+
+### 9.1 Bucle caliente de `plasma` (copper chunky, demo 082): indirección por píxel
+
+- **Síntoma**: el plasma iba a **12.7 fps** (573 338 ciclos/frame). Ni el modo IRQ ni la
+  copperlist eran la causa (medido con `K_DIAG_NO_COPPER`): todo el coste estaba en `update`.
+- **Causa**: `draw_into` llamaba `scene.set(row,col)` por **bloque** (2304/frame), y `set()` hacía
+  **dos comprobaciones de rango + `m_slot[row*max_cols+col]` + multiplicación**; g++ además
+  emitía `andi.l #255` redundante (por el `move.b` a registro de datos) y **no** generaba `dbra`.
+  ~18 instrucciones/iteración. El original usa **asm con puntero incremental y paso de 2 words**
+  (`movew cmap@(d0:w),ins@+ ; addql #2,ins`) = 6 instrucciones y **escribe en orden inverso**
+  (x de `cols-1` a 0, así que el bloque 0 recibe `xbuf[cols-1]`).
+- **Solución**: bucle gas aparte `support/plasma_chunky.s` (idéntico al del original, con
+  `moveq #0,d0` para zero-extender y `dbra`), alimentado con **punteros de fila** del driver
+  (`CopperChunkyScene::chunky_row`, análogo a `HamScene::bitplanes()`). Sin indirección por píxel.
+- **Resultado**: **36.5 fps** (194 185 ciclos/frame), ~3x. El resto es el 68000 sobre RAM lenta
+  (~78 ciclos con las 6 instrucciones); no hay más margen sin fast RAM en A500.
+- **Método de medida reutilizable**: contador de ciclos del periférico (`0xB7E928`) leído dentro
+  del `update` y volcado temporalmente a `g_eng_run_status.detail`; se aísla cada parte con flags
+  de diagnóstico (`K_DIAG_SKIP_DRAW`, `K_DIAG_FASTBUF`, `K_DIAG_NO_COPPER`) y se mide con
+  `out/tmp/fps.mjs <demo> <config>`. **Medir antes de atribuir**: las tres hipótesis iniciales
+  (modo IRQ, copper, build -O0) se descartaron con datos.
+
 
