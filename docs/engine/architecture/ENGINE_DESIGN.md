@@ -84,7 +84,7 @@ Ya existe y se irá ampliando desde demoscene `libmisc`/`libc`.
 - `frame_plan.hpp`: `FramePlan` (blits, paleta, dirty rects, presupuesto). Crece para
   admitir `SpriteIntent` (asignación de canales) y más presupuestos (DMA unificado).
 - `blit/` (nuevo): `BlitterQueue`, `BlitterBudget`, minterms reutilizables. Mapea demoscene `libblit`.
-- `drivers/`: `StaticEhbScene`, `TileScrollScene`, `Standard4/5`, `FakeDPF`,
+- `drivers/`: `StaticEhbScene`, `HamScene`, `TileScrollScene`, `Standard4/5`, `FakeDPF`,
   `DualPlayfield`, `SpriteBackdrop`, `CopperHeavy` (roadmap §20.5).
 - `effects/`: `Effect` concept + `PaletteCycleEffect`, `RasterGradientEffect`,
   `RasterDistortionEffect`, `CopperScript`, etc. (roadmap §20.6).
@@ -146,6 +146,11 @@ PlatformBackend (Amiga: potgo/ciaa/ciab + joyport + teclado)
 - Añadir fases explícitas (roadmap Fase 2): `input`, `update fijo`, `prepare render`,
   `blit jobs`, `copper commit`, `sprite commit`, `audio mix`, `swap`. El punto de commit
   visible sigue siendo `render` (sincronizado a VBlank).
+- **Tarea ociosa opcional** (`GameIdle` + `IdleBridge`, `engine.hpp`): si el juego expone
+  `idle(backend, context)`, el engine lo llama mientras espera el VBlank (la CPU está
+  ociosa). Sirve para encadenar trabajo de hardware que **no debe competir por el bus con
+  el CPU del frame** (p. ej. las fases del C2P de `fire-rgb`), sustituyendo de forma
+  cooperativa a una interrupción. `MinimalBackend::wait_vblank(task, user)` es el hook.
 
 ### 2.9 Debug y telemetría (`eng::debug`)
 `RunStatus`, `DebugPeripheral` (consola/checkpoints/counters) ya existen. Se usan para la

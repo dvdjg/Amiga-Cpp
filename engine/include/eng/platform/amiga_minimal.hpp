@@ -95,7 +95,13 @@ public:
 	void release_memory();
 
 	/// Espera al comienzo de VBlank leyendo VPOSR directamente.
-	void wait_vblank();
+	///
+	/// `task`/`user` son un **hook de tarea ociosa** opcional: se ejecuta repetidamente
+	/// mientras la CPU espera (no hay trabajo de juego que hacer). Sirve para avanzar
+	/// trabajos de hardware que no deben competir por el bus con el CPU del frame
+	/// (p. ej. encadenar fases del C2P, que asi corre a bus completo mientras el CPU
+	/// solo sondea VPOSR). Ver `Engine::run_frames`.
+	void wait_vblank(void (*task)(void*) = nullptr, void* user = nullptr);
 
 	/// Escribe un registro COLORxx. `rgb444` usa el formato nativo OCS.
 	void set_color(u8 index, u16 rgb444);
@@ -179,6 +185,17 @@ public:
 	/// Devuelve false si el Blitter no responde. La fase 12 (parcheo de BPLxPT) la
 	/// gestiona el llamador (aqui solo se avanza).
 	bool c2p_4bpp_step(C2p4State& state);
+
+	/// Programa la fase actual del C2P 4 bpp **sin esperar** al Blitter y avanza el
+	/// contador de fase. Es la mitad "arranca y sigue" de `c2p_4bpp_step`, pensada
+	/// para solapar el C2P con el trabajo de CPU del frame siguiente (lo que el
+	/// original hacia por **interrupcion de blit**). El llamador debe comprobar
+	/// `blitter_busy()` antes de programar la fase siguiente.
+	bool c2p_4bpp_program(C2p4State& state);
+
+	/// `true` mientras el Blitter esta ocupado (bit BBUSY de DMACONR). Permite
+	/// encadenar las fases del C2P por sondeo sin bloquear la CPU.
+	bool blitter_busy() const;
 
 	/// Inicializa el subsistema de audio (SFX mixer + reproductores de música).
 	/// Debe llamarse después de `configure_memory` (necesita el bloque Chip para el

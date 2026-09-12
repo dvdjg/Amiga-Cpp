@@ -66,11 +66,18 @@ system/*        (bucle de efecto, vectores de interrupcion/VBR, memoria)
 
 ## Pendiente (pulido y fidelidad)
 
-1. **Fluidez / rendimiento**: ✅ `FIREITER` recuperado en **asm** (`support/fire_loop.s`), reproduciendo el bucle del original (4 vecinos B/C/D/E, doble lookup `(a5,d1.w)` = media, realimentacion a `fire`). Medido en el emulador: **asm ≈ 12.5 fps vs C++ ≈ 7.2 fps** (~1.7×). Queda pendiente el **C2P en interrupcion de blit** (el original lo encadena para solaparlo con el fuego; hoy es sincrono con `wait_blitter`).
+1. **Fluidez / rendimiento**:
+   - ✅ `FIREITER` recuperado en **asm** (`support/fire_loop.s`): reproduce el bucle del original (4 vecinos B/C/D/E, doble lookup `(a5,d1.w)` = media, realimentacion a `fire`). Medido: **asm ≈ 12.4 fps vs C++ ≈ 7.2 fps** (~1.7×) en el emulador.
+   - ✅ **C2P solapado** (equivalente cooperativo de la interrupcion de blit del original): el engine expone un **hook de tarea ociosa** (`MinimalBackend::wait_vblank(task,user)` + `Game::idle()`; ver `engine/include/eng/engine.hpp`) y la demo encadena las fases del C2P ahi, mientras la CPU espera al VBlank y el Blitter dispone del bus completo. Sube de **12.4 → 13.9 fps** (~+12%). Suelo sin C2P: **16.6 fps** (3 vblanks).
+   - **Diagnostico**: el frame de ~3.6 vblanks = fuego (~3 vblanks, intensivo en Chip RAM) + C2P (~0.6). Solapar el C2P **con el fuego** casi no ayuda: el Blitter le roba ancho de bus a la CPU (ambos compiten por Chip RAM). Por eso se sirve en el VBlank (CPU ociosa). El fuego llena ya ~3 vblanks, asi que el C2P no se oculta del todo.
    - **Causa raiz del "cuelgue" del asm** (no era un crash): `fire_loop.s` usaba `.cfi_startproc/.cfi_endproc`, que generan una seccion **`.eh_frame` no vacia**. El canal lateral enumera todas las secciones del hunk (`text, rodata, .eh_frame, data, bss`), pero el `.map` del runner filtraba `.eh_frame`, asi que los indices se desplazaban y `g_eng_run_status` se resolvia a una direccion equivocada (la demo "no alcanzaba READY" pese a ejecutarse bien). Arreglado en dos frentes: (a) `support/fire_loop.s`/`fire_asm.s` sin CFI; (b) `tools/run/run-demo.ts` incluye `.eh_frame` en las secciones del `.map` para que el orden coincida siempre.
 2. **"Pantalla dividida"**: era el desfase vertical — se usaba `wait_line(i)` (VPOS 0..255) en vez de `CopWaitSafe(Y(i))` con `Y(i)=i+0x2c`; corregido con `wait_line_safe(i+0x2c)`. El cuadruplicado ya cuadra (angosto del original: DDFSTOP `0xD1`, DIWSTOP `0x2CC3` por el `+2`).
-3. **C2P en interrupcion de blit** (rendimiento fiel) y **diff** contra `fire-rgb.exe`.
-4. Portar al engine la escena **HAM + cuadruplicado** y el hook de interrupcion de blit.
+3. **Diff 1:1** contra `fire-rgb.exe` (frames + `readPng` + vision). Nota: el original usa un **bootloader propio** (`.adf` con `addchip.bootblock`), no corre como `a.exe` bajo AmigaDOS.
+4. ✅ **Escena HAM + cuadruplicado promovida al engine**: `drivers::HamScene`
+   (`engine/include/eng/graphics/drivers/ham_scene.hpp`) + test host HOST-016. La demo
+   ya no escribe DIW/DDF ni palabras de Copper. Queda pendiente, si se busca el 1:1
+   exacto de rendimiento, la **interrupcion de blit real** (hoy el solape del C2P es
+   cooperativo via `Game::idle()`).
 
 ## Siguiente (para completar)
 

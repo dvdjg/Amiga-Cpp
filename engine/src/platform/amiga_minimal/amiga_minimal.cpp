@@ -298,11 +298,13 @@ void MinimalBackend::release_memory() {
 	m_memory_report = {};
 }
 
-void MinimalBackend::wait_vblank() {
+void MinimalBackend::wait_vblank(void (*task)(void*), void* user) {
 	debug_start_idle();
 	while ((*vpos_long & 0x1ff00u) == (311u << 8)) {
+		if (task != nullptr) task(user);
 	}
 	while ((*vpos_long & 0x1ff00u) != (311u << 8)) {
+		if (task != nullptr) task(user);
 	}
 	debug_stop_idle();
 }
@@ -603,7 +605,7 @@ void MinimalBackend::set_bitplane_dat(u8 plane, u16 value) {
 	}
 }
 
-bool MinimalBackend::c2p_4bpp_step(C2p4State& s) {
+bool MinimalBackend::c2p_4bpp_program(C2p4State& s) {
 	if (s.chunky == nullptr) {
 		return false;
 	}
@@ -690,7 +692,18 @@ bool MinimalBackend::c2p_4bpp_step(C2p4State& s) {
 		break;
 	}
 	s.phase++;
+	return true;
+}
+
+bool MinimalBackend::c2p_4bpp_step(C2p4State& s) {
+	if (!c2p_4bpp_program(s)) {
+		return false;
+	}
 	return wait_blitter();
+}
+
+bool MinimalBackend::blitter_busy() const {
+	return (custom_base[custom_dmaconr_offset] & dmaconr_blitter_busy) != 0u;
 }
 
 void MinimalBackend::set_warpmode(bool enabled) {

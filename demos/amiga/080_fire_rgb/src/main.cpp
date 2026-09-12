@@ -8,6 +8,7 @@
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
+#include <eng/graphics/drivers/ham_scene.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
@@ -74,6 +75,7 @@ void fire_loop(void);
 namespace {
 
 namespace amiga = eng::amiga;
+namespace drivers = eng::graphics::drivers;
 
 short *chunky[2];
 short *fire;
@@ -170,26 +172,44 @@ void MainLoop(void) {
 struct FireDemo {
 	void init(amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		m_memory_ok = backend.configure_memory({96u * 1024u, 4u * 1024u, 4u * 1024u});
+		// Chip RAM: chunky (x2) + fuego + bitplanes y copperlist del driver (x2).
+		m_memory_ok = backend.configure_memory({128u * 1024u, 4u * 1024u, 4u * 1024u});
 		if (!m_memory_ok) { eng::debug::mark_failed(g_eng_run_status, 0x00008001u); return; }
 
 		m_block = backend.memory().chip.allocate(
-			kChunkyBuffer * 2u + kBitmapBytes * 2u + static_cast<eng::u32>(kWidth) * kHeight * 2u + 16384u, 16);
+			kChunkyBuffer * 2u + static_cast<eng::u32>(kWidth) * kHeight * 2u, 16);
 		if (!m_block.valid()) { eng::debug::mark_failed(g_eng_run_status, 0x00008002u); return; }
 
 		eng::u8* p = static_cast<eng::u8*>(m_block.data);
 		m_chunky[0] = p; p += kChunkyBuffer;
 		m_chunky[1] = p; p += kChunkyBuffer;
-		for (int b = 0; b < 2; ++b) {
-			for (eng::u8 pl = 0; pl < kPlanes; ++pl) { m_planes[b][pl] = p + pl * kPlaneBytes; }
-			p += kBitmapBytes;
-		}
-		m_fire = reinterpret_cast<short*>(p); p += static_cast<eng::u32>(kWidth) * kHeight * 2u;
-		m_copper = p;
+		m_fire = reinterpret_cast<short*>(p);
 		// Enlaza los globales que usan las funciones copiadas.
 		chunky[0] = reinterpret_cast<short*>(m_chunky[0]);
 		chunky[1] = reinterpret_cast<short*>(m_chunky[1]);
 		fire = m_fire;
+
+		// Display HAM + cuadruplicado: una instancia del driver por buffer (doble
+		// buffer). El driver reserva los bitplanes y la copperlist y expone los
+		// punteros; la demo ya no calcula DIW/DDF ni palabras de Copper.
+		drivers::HamSceneConfig scene_cfg {};
+		scene_cfg.rows = kHeight;
+		scene_cfg.planes = kPlanes;
+		scene_cfg.bytes_per_row = kBytesPerRow;
+		scene_cfg.bplcon0 = 0x7a00u;         // HAM6 (BPU=7, COLOR, HAM)
+		scene_cfg.first_line = 0x2cu;
+		scene_cfg.row_repeat = 4u;           // cuadruplicado de lineas
+		scene_cfg.bplcon1_shift = 0x0022u;   // dither fino alterno del original
+		scene_cfg.palette = kZeroPalette;    // CopLoadColor(0,15,0)
+		scene_cfg.palette_count = 16u;
+		scene_cfg.reverse_plane_ptrs = true; // BPLxPT como el original (bpl[3..0])
+		for (eng::u8 b = 0; b < 2; ++b) {
+			if (!m_scene[b].init(backend.memory(), scene_cfg)) {
+				eng::debug::mark_failed(g_eng_run_status, 0x00008003u);
+				return;
+			}
+			for (eng::u8 pl = 0; pl < kPlanes; ++pl) m_planes[b][pl] = m_scene[b].plane(pl);
+		}
 
 		for (eng::u8 b = 0; b < 2; ++b) {
 			for (eng::u8 pl = 0; pl < kPlanes; ++pl) {
@@ -200,8 +220,7 @@ struct FireDemo {
 		}
 		for (eng::u32 i = 0; i < static_cast<eng::u32>(kWidth) * kHeight; ++i) m_fire[i] = 0;
 
-		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00008003u); return; }
-		backend.takeover_display(m_copper_ptr);
+		m_scene[0].takeover(backend);
 
 		// Bits HAM fijos de los planos 4/5 (rgbb: 0111 / 1100), como el original.
 		backend.set_bitplane_dat(4, 0x7777);
@@ -223,7 +242,7 @@ struct FireDemo {
 		// sus fases durante el VBlank) y muestra su buffer (swap de copperlist).
 		FinishC2p(backend);
 		if (m_show_buf_valid) {
-			backend.install_copper_list(m_copper_ptrs[m_show_buf]);
+			m_scene[m_show_buf].install(backend);
 			m_show_buf_valid = false;
 		}
 
@@ -270,8 +289,8 @@ struct FireDemo {
 			}
 		}
 
-		// Swap de buffer (la copperlist apunta a los 4 planos de `active`).
-		backend.install_copper_list(m_copper_ptrs[active]);
+		// Swap de buffer (la copperlist del driver apunta a los 4 planos de `active`).
+		m_scene[active].install(backend);
 		active ^= 1;
 #endif
 	}
@@ -313,46 +332,14 @@ private:
 	}
 #endif
 
-	bool build_copper() {
-		// BPLCON0 = BPU(7)|COLOR|HAM (como SetupMode(MODE_HAM, 7) del original).
-		constexpr eng::u16 kBplcon0 = 0x7a00;
-		constexpr eng::u32 kPerList = 8192;
-		eng::u8* base = m_copper;
-		for (eng::u8 b = 0; b < 2; ++b) {
-			copper::Scheduler sched {eng::MemoryBlock {base + static_cast<eng::u32>(b) * kPerList, kPerList, eng::MemoryKind::Chip}};
-			sched.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, kBytesPerRow, kBplcon0,
-						  kPlanes, m_planes[b][0], kPlaneBytes);
-			// Reordena BPLxPT como el original (bpl[3..0]).
-			for (eng::u8 n = 0; n < kPlanes; ++n) {
-				sched.move_bitplane_pointer(n, m_planes[b][kPlanes - 1 - n]);
-			}
-			sched.emit_palette(kZeroPalette, 0, 16); // CopLoadColor(0,15,0)
-			// Cuadruplicado de lineas + bplcon1 alterno (MakeCopperList del original).
-			// `CopWaitSafe(Y(i), HP(0))` con Y(i) = i + 0x2c (VPOS), no `wait_line(i)`.
-			for (eng::u16 i = 0; i < kScreenH; ++i) {
-				sched.wait_line_safe(static_cast<eng::u16>(i + 0x2cu));
-				const eng::u16 mod = ((i & 3u) != 3u) ? 0xffd8u : 0x0000u; // -40 repite fila
-				sched.move(copper::Register::BPL1MOD, mod);
-				sched.move(copper::Register::BPL2MOD, mod);
-				sched.move(copper::Register::BPLCON1, (i & 1u) ? 0x0022u : 0x0000u);
-			}
-			sched.end();
-			m_copper_ptrs[b] = sched.data();
-			if (!sched.ok()) return false;
-		}
-		m_copper_ptr = m_copper_ptrs[0];
-		return true;
-	}
-
 	bool m_memory_ok = false;
 	bool m_init_ok = false;
 	eng::MemoryBlock m_block {};
 	eng::u8* m_chunky[2] = {nullptr, nullptr};
 	eng::u8* m_planes[2][kPlanes] = {};
 	short* m_fire = nullptr;
-	eng::u8* m_copper = nullptr;
-	const eng::u16* m_copper_ptr = nullptr;
-	const eng::u16* m_copper_ptrs[2] = {nullptr, nullptr};
+	// Display HAM + cuadruplicado (una instancia del driver por buffer).
+	drivers::HamScene m_scene[2] {};
 	// Pipeline del C2P asincrono (solape del Blitter con el fuego del frame siguiente).
 	amiga::MinimalBackend::C2p4State m_c2p {};
 	bool m_c2p_pending = false;

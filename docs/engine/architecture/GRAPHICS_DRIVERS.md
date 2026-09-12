@@ -87,6 +87,25 @@ intencion distinta: preparar columnas, filas o bloques de tilemap en zonas no
 visibles del playfield. La demo compone un bloque 4x4 de tiles en un buffer Chip
 RAM no visible y despues lo publica al playfield EHB con otro blit.
 
+### `HamScene`
+
+`engine/include/eng/graphics/drivers/ham_scene.hpp` cubre displays **HAM/planos con
+repeticion de filas** (cuadruplicado), extraido del porte 1:1 de `effects/fire-rgb`:
+
+- `HamSceneConfig`: geometria (DIW/DDF, ancho de fila), numero de planos, `BPLCON0`,
+  filas logicas, factor de repeticion, `BPLCON1` alterno, paleta y reordenado de
+  `BPLxPT` (el original usa `bpl[3..0]`).
+- `HamScene`: reserva bitplanes + copperlist en Chip RAM y construye la lista: setup
+  del display, paleta opcional, y `rows * row_repeat` lineas con
+  `BPL1MOD/BPL2MOD = -ancho_de_fila` en todas las lineas del grupo menos la ultima
+  (que avanza con modulo 0) y `BPLCON1` alterno.
+
+Es **parametrico** (no hay un "320x256 HAM6" cableado): sirve igual para EHB, HAM4/6
+o cualquier planar, y con `row_repeat = 1` es un display normal. La demo
+`demos/amiga/080_fire_rgb` lo usa con dos instancias (una por buffer de doble buffer,
+para el C2P) y el test host `tests/host/016_ham_scene` verifica la geometria de la
+copperlist resultante.
+
 El primer modelo retenido para scroll vive en
 `engine/include/eng/graphics/tilemap/tile_scroll.hpp`. `TileMap16` no sabe nada de
 `BPLCON1` ni `BPLxPT`: solo empaqueta indices de tile con dirty flags por buffer y

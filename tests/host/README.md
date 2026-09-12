@@ -50,3 +50,10 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-007 | [input_cd32](007_input_cd32/README.md) | `eng::amiga::decode_cd32_buttons`: decodificación del flujo serie CD32 (9 bits → botones) — backend de entrada. |
 | HOST-008 | [game_audio](008_game_audio/README.md) | `eng::audio::SampleBank` + `allow_trigger`: banco de muestras y política de voces (cooldown + límite de instancias) — capa de audio de juego. |
 | HOST-009 | [wave_tables](009_wave_tables/README.md) | `eng::audio::sine_byte`/`triangle_byte`/`square_byte`: tablas de forma de onda 8-bit (enteras, sin float). |
+| HOST-010 | [math2d](010_math2d/README.md) | `eng::math2d`: primitivas 2D (port de `lib2d`) — MUL/DIV/seno/coseno/atan2 fijos. |
+| HOST-011 | [math3d](011_math3d/README.md) | `eng::math3d`: primitivas 3D (port de `lib3d`) — matrices, rotaciones, proyección. |
+| HOST-012 | [assets_uaf](012_assets_uaf/README.md) | `eng/assets/uaf.hpp`: contenedor UAF-R (`Blob`/`Reader`/vistas) — bind/find/data + errores. |
+| HOST-013 | [math3d_mesh](013_math3d_mesh/README.md) | `eng::math3d` mesh: `mesh_transform`, `mesh_painter_order` (culling + painter). |
+| HOST-014 | [object3d](014_object3d/README.md) | `eng::object3d`: port 1:1 de `lib3d` (`Object3D`, transform, aristas/caras). |
+| HOST-015 | [fire_sim](015_fire_sim/README.md) | Fuego de `fire-rgb`: simulación (abajo caliente) + `dualtab` C++23 `constexpr` verificado contra el original. |
+| HOST-016 | [ham_scene](016_ham_scene/README.md) | `eng::graphics::drivers::HamScene`: display planar con repetición de filas (cuadruplicado) — geometría de la copperlist y parametricidad. |

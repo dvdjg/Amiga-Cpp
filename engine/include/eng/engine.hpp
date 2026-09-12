@@ -34,6 +34,27 @@ concept GameModule = requires(Game game, Backend& backend, GameContext& context)
 	game.render(backend, context);
 };
 
+/// Contrato OPCIONAL: un juego puede exponer `idle(backend, context)` para avanzar
+/// trabajo de hardware mientras el engine espera el VBlank (la CPU esta ociosa y el
+/// Blitter puede usar el bus completo). Ver `Engine::run_frames`.
+template <typename Game, typename Backend>
+concept GameIdle = requires(Game game, Backend& backend, GameContext& context) {
+	game.idle(backend, context);
+};
+
+/// Puente sin asignacion dinamica para pasar `game.idle` al backend como `void(*)(void*)`.
+template <typename Backend, typename Game>
+struct IdleBridge {
+	Backend* backend;
+	Game* game;
+	GameContext* context;
+
+	static void run(void* self) {
+		auto* bridge = static_cast<IdleBridge*>(self);
+		bridge->game->idle(*bridge->backend, *bridge->context);
+	}
+};
+
 /// Engine generico parametrizado por backend y juego.
 ///
 /// Esta clase es el primer paso para evitar que el juego sea "codigo Amiga". El
@@ -63,7 +84,12 @@ public:
 			// `render` es el punto de commit, no de simulacion. En Amiga esto importa:
 			// instalar una copperlist con COPJMP1 fuera de VBlank reinicia el Copper
 			// a media pantalla y parte el frame visible.
-			m_backend.wait_vblank();
+			if constexpr (GameIdle<Game, Backend>) {
+				IdleBridge<Backend, Game> bridge {&m_backend, &m_game, &context};
+				m_backend.wait_vblank(&IdleBridge<Backend, Game>::run, &bridge);
+			} else {
+				m_backend.wait_vblank();
+			}
 			m_game.render(m_backend, context);
 		}
 	}
