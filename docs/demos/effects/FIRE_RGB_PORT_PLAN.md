@@ -68,20 +68,18 @@ system/*        (bucle de efecto, vectores de interrupcion/VBR, memoria)
 
 1. **Fluidez / rendimiento**:
    - ✅ `FIREITER` recuperado en **asm** (`support/fire_loop.s`): reproduce el bucle del original (4 vecinos B/C/D/E, doble lookup `(a5,d1.w)` = media, realimentacion a `fire`). Medido: **asm ≈ 12.4 fps vs C++ ≈ 7.2 fps** (~1.7×) en el emulador.
-   - ✅ **C2P solapado** (equivalente cooperativo de la interrupcion de blit del original): el engine expone un **hook de tarea ociosa** (`MinimalBackend::wait_vblank(task,user)` + `Game::idle()`; ver `engine/include/eng/engine.hpp`) y la demo encadena las fases del C2P ahi, mientras la CPU espera al VBlank y el Blitter dispone del bus completo. Baja el coste del C2P (~1 → ~0.6 vblank). Medido **~12.4–13.9 fps** segun la ejecucion: el efecto esta justo en el limite de 3/4 vblanks, asi que el valor oscila. Suelo sin C2P: **16.6 fps** (3 vblanks).
-   - **Diagnostico**: el frame de ~3.6 vblanks = fuego (~3 vblanks, intensivo en Chip RAM) + C2P (~0.6). Solapar el C2P **con el fuego** casi no ayuda: el Blitter le roba ancho de bus a la CPU (ambos compiten por Chip RAM). Por eso se sirve en el VBlank (CPU ociosa). El fuego llena ya ~3 vblanks, asi que el C2P no se oculta del todo.
+   - ✅ **C2P encadenado por IRQ de blit (fiel)**: `MinimalBackend::set_blit_service` (nivel 3, mismo autovector que el VBlank) + `FireDemo::on_blit` programan la fase siguiente al terminar cada blit (mecanismo del original). El fuego crece correctamente. Medido **~11.1 fps**: la cadena solapa el C2P con el fuego del frame siguiente (el Blitter le roba bus a la CPU). El **solape cooperativo** previo (durante el VBlank, CPU ociosa) daba **~12.4–13.9 fps**. Por eso el C2P de la demo usa ahora la cadena por IRQ (fiel) y los docs anotan el *trade-off*.
+   - **Diagnostico**: el frame = fuego (~3 vblanks, intensivo en Chip RAM) + C2P (~0.6–1). Solapar el C2P **con el fuego** (cadena por IRQ) compite por el bus; servirlo en el VBlank (cooperativo) es mas rapido pero no es el mecanismo del original.
    - **Causa raiz del "cuelgue" del asm** (no era un crash): `fire_loop.s` usaba `.cfi_startproc/.cfi_endproc`, que generan una seccion **`.eh_frame` no vacia**. El canal lateral enumera todas las secciones del hunk (`text, rodata, .eh_frame, data, bss`), pero el `.map` del runner filtraba `.eh_frame`, asi que los indices se desplazaban y `g_eng_run_status` se resolvia a una direccion equivocada (la demo "no alcanzaba READY" pese a ejecutarse bien). Arreglado en dos frentes: (a) `support/fire_loop.s`/`fire_asm.s` sin CFI; (b) `tools/run/run-demo.ts` incluye `.eh_frame` en las secciones del `.map` para que el orden coincida siempre.
 2. **"Pantalla dividida"**: era el desfase vertical — se usaba `wait_line(i)` (VPOS 0..255) en vez de `CopWaitSafe(Y(i))` con `Y(i)=i+0x2c`; corregido con `wait_line_safe(i+0x2c)`. El cuadruplicado ya cuadra (angosto del original: DDFSTOP `0xD1`, DIWSTOP `0x2CC3` por el `+2`).
 3. **Diff 1:1** contra `fire-rgb.exe` (frames + `readPng` + vision). Nota: el original usa un **bootloader propio** (`.adf` con `addchip.bootblock`), no corre como `a.exe` bajo AmigaDOS.
 4. ✅ **Escena HAM + cuadruplicado promovida al engine**: `drivers::HamScene`
    (`engine/include/eng/graphics/drivers/ham_scene.hpp`) + test host HOST-016. La demo
-   ya no escribe DIW/DDF ni palabras de Copper. Queda pendiente, si se busca el 1:1
-   exacto de rendimiento, la **interrupcion de blit real** (hoy el solape del C2P es
-   cooperativo via `Game::idle()`).
+   ya no escribe DIW/DDF ni palabras de Copper. ✅ **C2P encadenado por la IRQ de blit**
+   (`FireDemo::on_blit`), el mecanismo fiel del original.
 
 ## Siguiente (para completar)
 
 1. **Diff 1:1** contra `fire-rgb.exe` (frames + `readPng` + vision).
-2. **C2P en interrupcion de blit** (rendimiento fiel) y portar al engine la escena **HAM + cuadruplicado** con ese hook.
-3. Actualizar el indice de portes (`docs/guides/roadmap/`) con `fire-rgb` cerrado y pasar al siguiente efecto.
+2. **Portar el siguiente efecto** y actualizar el indice de portes (`docs/guides/roadmap/`).
 

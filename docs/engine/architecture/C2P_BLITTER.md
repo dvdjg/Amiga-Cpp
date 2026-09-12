@@ -55,8 +55,14 @@ El minterm es una función de **A/B/C** (8 combinaciones); cada bit dice si D=1.
 ## 5. Síncrono vs interrupción de blit
 
 - **Original**: la IRQ de blit llama a `ChunkyToPlanar`; cada llamada ejecuta la siguiente fase → el C2P avanza **en background** mientras la CPU calcula el fuego del siguiente frame.
-- **Port (actual)**: `c2p_4bpp_program(state)` **programa una fase sin esperar** al Blitter y `blitter_busy()` permite encadenarlas. La demo las avanza desde `Game::idle()`, que el engine llama **durante la espera de VBlank** (`MinimalBackend::wait_vblank(task, user)`): mientras la CPU solo sondea `VPOSR`, el Blitter dispone del bus completo y el fuego del frame corre **sin competir** con el Blitter. Es el solape del original, hecho de forma **cooperativa** (sin IRQ).
-- **Por qué NO solapar con el fuego**: **medido** — el fuego es intensivo en Chip RAM y el Blitter le roba ancho de bus; solapar el C2P *con el fuego* (por IRQ o troceando el bucle) apenas mejora (~12.4 fps) e incluso puede empeorar. Servirlo en el VBlank (CPU ociosa) es mejor para efectos *bus-bound* (~12.4–13.9 fps; oscila porque el efecto esta en el limite de 3/4 vblanks).
+- **Cadena por IRQ de blit (implementada, fiel)**: `MinimalBackend::set_blit_service` instala el handler en el autovector de **nivel 3** (compartido con el VBlank, despacho por `INTREQR`) y `080_fire_rgb::on_blit` programa la fase siguiente al terminar cada blit (fases 1..12; la 12 marca `done`). El fuego crece correctamente (verificado) pero el C2P solapa con el fuego del frame siguiente → el Blitter le roba bus a la CPU: **~11.1 fps**.
+- **Solape cooperativo (alternativa, mas rapido en este efecto)**: `c2p_4bpp_program` programado desde `Game::idle()` durante el VBlank (CPU ociosa, bus libre) → **~12.4–13.9 fps**. Mismo resultado visual, scheduling distinto.
+- **Conclusión**: para un C2P *bus-bound* como este, servirlo en el VBlank (CPU ociosa) rinde mas que la cadena por IRQ; pero la cadena por IRQ es el mecanismo fiel del original y el que iguala su comportamiento (tambien solapa).
+
+### 5.1 `c2p_4bpp_program` (programar sin esperar)
+
+`c2p_4bpp_program(state)` programa la fase actual y avanza el contador **sin esperar** al Blitter; combinado con `blitter_busy()` (o con la IRQ de blit) permite encadenar las 13 fases sin bloquear la CPU. `c2p_4bpp_step` es el envoltorio sincrono (program + wait).
+
 
 
 ## 5.1 Como opción para juegos (CPU-heavy) — IRQ vs polling

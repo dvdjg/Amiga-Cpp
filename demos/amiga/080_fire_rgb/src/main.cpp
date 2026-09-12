@@ -226,6 +226,11 @@ struct FireDemo {
 		backend.set_bitplane_dat(4, 0x7777);
 		backend.set_bitplane_dat(5, 0xcccc);
 
+		// El C2P se encadena por la **IRQ de blit** (nivel 3): `on_blit` programa la
+		// fase siguiente al terminar cada blit.
+		m_backend = &backend;
+		backend.set_blit_service(&FireDemo::on_blit, this);
+
 		m_init_ok = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x0080u);
 	}
@@ -238,18 +243,21 @@ struct FireDemo {
 		MainLoop();
 
 #if K_FIRE_ASM
-		// Cierra el C2P del frame anterior (deberia estar ya hecho: `idle()` avanzo
-		// sus fases durante el VBlank) y muestra su buffer (swap de copperlist).
-		FinishC2p(backend);
-		if (m_show_buf_valid) {
-			m_scene[m_show_buf].install(backend);
-			m_show_buf_valid = false;
+		// La cadena del C2P la lleva la **IRQ de blit** (nivel 3): cada blit terminado
+		// programa la fase siguiente (el mecanismo fiel del original). Si ya termino,
+		// muestra su buffer (swap de copperlist).
+		if (m_c2p_done) {
+			m_scene[m_c2p_buf].install(backend);
+			m_c2p_done = false;
+		} else if (m_c2p_pending) {
+			// Salvaguarda: si por lo que sea no termino (no deberia), completalo aqui.
+			FinishC2p(backend);
+			m_scene[m_c2p_buf].install(backend);
+			m_c2p_pending = false;
 		}
 
-		// Arranca el C2P del buffer recien simulado (fase 0, sin esperar): sus fases
-		// las encadenara `idle()` durante el VBlank, cuando la CPU esta ociosa y el
-		// Blitter dispone del bus completo. Es el solape que el original consigue por
-		// interrupcion de blit, hecho aqui de forma cooperative.
+		// Arranca el C2P del buffer recien simulado (fase 0, sin esperar); la IRQ de
+		// blit encadena las fases 1..12 y marca `m_c2p_done`.
 		if (!kDiagSkipC2p) {
 			m_c2p.chunky = m_chunky[active];
 			m_c2p.bytes = kChunkyBytes;
@@ -260,8 +268,10 @@ struct FireDemo {
 				return;
 			}
 			m_c2p_pending = true;
-			m_show_buf = active;
-			m_show_buf_valid = true;
+			m_c2p_irq = true;
+			m_c2p_buf = active;
+		} else {
+			m_scene[active].install(backend);
 		}
 		active ^= 1;
 #else
@@ -299,30 +309,31 @@ struct FireDemo {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
-	/// Tarea ociosa del engine (se ejecuta mientras se espera el VBlank). Encadena
-	/// la fase siguiente del C2P pendiente cuando el Blitter queda libre, de modo que
-	/// el C2P avanza sin competir por el bus con el fuego. Es el solape que el
-	/// original consigue con la interrupcion de blit.
-	void idle(amiga::MinimalBackend& backend, eng::GameContext&) {
-#if K_FIRE_ASM
-		ServiceC2p(backend);
-#else
-		(void)backend;
-#endif
+	/// Tarea de la **IRQ de blit** (nivel 3): cada blit terminado programa la fase
+	/// siguiente del C2P. Es el mecanismo fiel del original (`ChunkyToPlanar` en la IRQ
+	/// de blit), sin que la CPU espere al Blitter.
+	static void on_blit(void* user, eng::u16 vpos) {
+		(void)vpos;
+		auto* self = static_cast<FireDemo*>(user);
+		if (!self->m_c2p_irq || self->m_backend == nullptr) {
+			return;
+		}
+		if (self->m_c2p.phase < 13u) {
+			self->m_backend->c2p_4bpp_program(self->m_c2p);
+		}
+		if (self->m_c2p.phase >= 13u) {
+			self->m_c2p_irq = false;
+			self->m_c2p_pending = false;
+			self->m_c2p_done = true;
+		}
 	}
 
 private:
 #if K_FIRE_ASM
-	/// Sirve la fase siguiente del C2P pendiente si el Blitter esta libre. No
-	/// bloquea: se llama desde `idle()` (durante la espera de VBlank).
-	void ServiceC2p(amiga::MinimalBackend& backend) {
-		if (!m_c2p_pending || m_c2p.phase >= 13u || backend.blitter_busy()) return;
-		backend.c2p_4bpp_program(m_c2p);
-	}
-
-	/// Completa el C2P pendiente (bloqueando lo que falte, ya raro) y lo da por hecho.
+	/// Salvaguarda: completa el C2P pendiente bloqueando (si la IRQ no llego a cerrarlo).
 	void FinishC2p(amiga::MinimalBackend& backend) {
 		if (!m_c2p_pending) return;
+		m_c2p_irq = false;
 		while (m_c2p.phase < 13u) {
 			while (backend.blitter_busy()) {}
 			backend.c2p_4bpp_program(m_c2p);
@@ -340,11 +351,14 @@ private:
 	short* m_fire = nullptr;
 	// Display HAM + cuadruplicado (una instancia del driver por buffer).
 	drivers::HamScene m_scene[2] {};
-	// Pipeline del C2P asincrono (solape del Blitter con el fuego del frame siguiente).
+	amiga::MinimalBackend* m_backend = nullptr;
+	// Pipeline del C2P: la fase 0 la arranca `update`; las fases 1..12 las encadena la
+	// IRQ de blit (`on_blit`), que marca `m_c2p_done` al terminar.
 	amiga::MinimalBackend::C2p4State m_c2p {};
 	bool m_c2p_pending = false;
-	bool m_show_buf_valid = false;
-	eng::u8 m_show_buf = 0;
+	bool m_c2p_irq = false;
+	bool m_c2p_done = false;
+	eng::u8 m_c2p_buf = 0;
 };
 
 } // namespace
