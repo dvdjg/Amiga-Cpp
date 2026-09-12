@@ -317,5 +317,83 @@ importa, uno por píxel/frame sí. Es un **filtro** para dirigir la medición, n
 positivo**; sin él habríamos concluido lo contrario. Todo verificador necesita su caso que **debe
 fallar/detectar**.
 
+## 11. Divisiones y multiplicaciones en el engine: auditoría y qué se puede reducir (2026-09)
+
+### 11.1 La realidad del 68000 (y por qué `-Os` no basta)
+
+- **No hay multiplicación 32×32.** Para dividir/módulo de `u32` por una constante **no potencia de
+  dos**, GCC necesitaría la "multiplicación mágica" con un producto de 64 bits; al no poder, emite
+  un **libcall** `__udivsi3`/`__umodsi3` (~150 ciclos) **incluso a `-Os`** (donde además prefiere el
+  libcall por tamaño). Verificado: `v % 768u` a `-Os` → `jsr __umodsi3`; `__attribute__((optimize("O2")))`
+  **no** lo cambia.
+- **Potencia de dos es gratis**: `v / 2^k` → `lsr`, `v % 2^k` → `and`. Verificado: `v % 256u` a `-Os`
+  → `moveq #0,d0; move.b 7(sp),d0` (¡un solo byte!).
+- **`-O0` (build `--debug`, el que usa la regresión/pipeline) convierte TODA división/módulo
+  constante en libcall**, incluso `v / 8`. De ahí que el auditor sobre ELFs `--debug` infle los
+  conteos: mide lo que *podría* ejecutarse, no lo que se ejecuta en release.
+- **Conclusión operativa**: el lever real es (a) que la geometría sea **potencia de dos**, (b) que
+  los denominadores lleguen como **constante de compilación (NTTP)**, o (c) **evitar el `%`/`/` en el
+  bucle** (envolver de forma incremental). El truco de la constante mágica **no** está disponible
+  como asumíamos.
+
+### 11.2 Auditoría (inventario real, `asm-audit.mjs`)
+
+`node tools/analyze/asm-audit.mjs --all --engine` agrega 90 ELFs. Antes de optimizar:
+`mul32=981 div32=279 mod32=554` sitios estáticos, dominados por `eng::field` (`TileFieldController`,
+`XLimitedPlayfield`, `ScrollEngine`). Se reparten en tres clases:
+
+| Clase | Ejemplos | Coste real |
+|---|---|---|
+| **Init/una vez** | `TileFieldController::begin/valid_config`, `XlimitedScene::begin`, `main` (setup) | Irrelevante (una vez) |
+| **Per-frame, denominador runtime** | `TileFieldController::update/enqueue_*` (`m_config.tile_width/size`), `XLimitedPlayfield::dmod*`/`add_draw` (`m_cfg.*`) | Unos pocos por frame → pequeño % |
+| **Per-frame, denominador constante NTTP** | `ScrollEngine::r_dh/r_dph` (`fast_div<C.display_height>`) con 224/768 (no pow2) | libcall en el camino tomado |
+
+**Medición de magnitud**: en `scroll_*` de 107 (release) hay ~1 `__umodsi3` por llamada, y se llama
+≤ `max_step` veces/frame → <2 % del frame (141 876 ciclos). **No es el cuello** (las demos de tiles
+van a 48-50 fps, *vblank-gated*); reducirlo es **margen** para hardware real, no un cambio de fps.
+
+### 11.3 Qué se ha hecho
+
+- **`eng/core/fast_div.hpp`**: se añaden utilidades **runtime** `is_pow2`, `ilog2`, `asr_floor`
+  (shift aritmético = floor) — antes solo existían las `consteval` (`ct_*`), inservibles para
+  geometría que llega por config. Test host **HOST-022**.
+- **`TileFieldController` (field/tile_field.hpp)**: precálculo de `m_tw/th_shift`, `m_ts_mask` en
+  `update_pow2()` (llamado en `begin`/`update`) y helpers `div_tw/div_th/mul_tw/mul_th/tile_mod/
+  fb_cols/fb_rows`. Si `tile_width`/`tile_size`/`tileset_count` son potencia de dos (16/32, el caso
+  real) el **camino ejecutado** usa shift/máscara; si no, cae en el camino general exacto (mismo
+  resultado). Sustituye `floor_div(...)` + `/ tile_width` + `* tile_size` + `% tileset_count` en
+  `update`/`enqueue_*`/`draw_pending`/`tile_job`. Precedente idéntico ya existente:
+  `TileLayerMap::wrap_coordinate` (máscara si `period` es pow2).
+  **Caveat de evidencia**: a `-O0`/`-Os` el auditor estático sigue contando el libcall del
+  **fallback** (rama no tomada); la mejora es de camino ejecutado, no del binario. Verificado que
+  102/106 compilan, corren y analizan OK, y que la suite host queda verde.
+
+### 11.4 Qué queda (ordenado por valor)
+
+1. **Geometría potencia de dos por diseño** (lo más barato y lo que pedía el encargo): donde la IA
+   elige tamaños (viewport, `display_height`, `bitmap_width`, mapas, `screens_*`), **encajar a la
+   potencia de dos más cercana**. `display_height = viewport_h + 2*tile_height` (224/256/288…) es
+   el principal sospechoso: 224 y 288 **no** son potencias de dos → `% 224`/`% 288` = libcall.
+2. **`XLimitedPlayfield`: usar los NTTP `SC.*` en TODO el hot path** (hoy `dmod1/dmod2` sí, pero
+   `draw_block_job`/`planeline_for`/`hardware_view` siguen leyendo `m_cfg.*` runtime). Es el mismo
+   patrón `if constexpr (SC.x != 0)` que ya usa `ScrollEngine`; `begin()` valida que coincidan.
+3. **Metafunción `TileFieldController<Config>` (NTTP)**: llevar `tile_width/size/planes/count` a
+   constante elimina el `if constexpr` runtime y el fallback del binario (auditor a 0).
+4. **`divu.w`/`divs.w` nativos (16 bits)** para denominadores no potencia de dos: un `divu.w` hace
+   cociente+resto en una instrucción (si el cociente cabe en 16 bits); `runtime_div::qr` ya evita el
+   doble libcall.
+5. **Evitar el `%`/`/` en el bucle** envolviendo de forma incremental (como ya hace
+   `draw_pending` con `cursor_x/cursor_y`, y `ScrollEngine` con `videopos`).
+
+### 11.5 Regla de diseño (para que el compilador sí optimice)
+
+- Toda **dimensión de geometría** que se pueda elegir libremente → **potencia de dos** (y como
+  NTTP si es posible). Evita el libcall y el truco mágico imposible en 68000.
+- Todo **divisor conocido a priori** → NTTP + `fast_div<N>` (no `u16` runtime).
+- Todo **`%`/`/` por un valor runtime** dentro de un bucle → reducir a incrementos/compases.
+- Antes de tocar: `asm-audit.mjs` para localizar, y **medir** el camino ejecutado (el conteo
+  estático incluye ramas no tomadas).
+
+
 
 

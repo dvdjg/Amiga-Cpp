@@ -9,6 +9,7 @@
 /// alcanza una frontera, se cambia a la copia preparada del otro lado; solo se
 /// modifica metadata y el puntero del display, nunca se copia la pantalla.
 
+#include <eng/core/fast_div.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/graphics/frame_plan.hpp>
@@ -122,6 +123,7 @@ public:
 
 	bool begin(eng::MemorySystem& memory, const TileFieldConfig& config, TileScrollOffset initial) {
 		m_config = config;
+		update_pow2();
 		if (!valid_config()) return false;
 		const eng::u16 margin_x = config.scroll_x ? static_cast<eng::u16>(config.safety_margin_blocks * config.tile_width) : 0;
 		const eng::u16 margin_y = config.scroll_y ? static_cast<eng::u16>(config.safety_margin_blocks * config.tile_size) : 0;
@@ -168,6 +170,7 @@ public:
 	TileFieldUpdateResult update(const TileFieldConfig& config, TileScrollOffset delta, eng::graphics::FramePlan& plan) {
 		if (!m_state.initialized) return {};
 		m_config = config;
+		update_pow2();
 		if (!valid_config()) return {};
 		// Never expose a band whose Blitter jobs are still pending. It is legal to
 		// spend this frame draining the queue while the logical camera waits.
@@ -196,10 +199,10 @@ public:
 		// already prepared copy on the other side; no pixel move is necessary.
 		if (config.scroll_x) recenter_axis(true);
 		if (config.scroll_y) recenter_axis(false);
-		const eng::s32 new_tx = floor_div(m_state.world_x, config.tile_width);
-		const eng::s32 new_ty = floor_div(m_state.world_y, config.tile_size);
-		const bool enter_x = config.scroll_x && floor_div(old_x, config.tile_width) != new_tx;
-		const bool enter_y = config.scroll_y && floor_div(old_y, config.tile_size) != new_ty;
+		const eng::s32 new_tx = div_tw(m_state.world_x);
+		const eng::s32 new_ty = div_th(m_state.world_y);
+		const bool enter_x = config.scroll_x && div_tw(old_x) != new_tx;
+		const bool enter_y = config.scroll_y && div_th(old_y) != new_ty;
 		if (enter_x) enqueue_x_band(dx > 0 ? 1 : -1, enter_y);
 		if (enter_y) enqueue_y_band(dy > 0 ? 1 : -1, enter_x, dx > 0 ? 1 : -1);
 		m_pending_world_x = m_state.world_x; m_pending_world_y = m_state.world_y;
@@ -247,6 +250,28 @@ public:
 private:
 	static eng::s16 clamp(eng::s16 v, eng::s16 max) { return v > max ? max : (v < -max ? static_cast<eng::s16>(-max) : v); }
 	static eng::s32 floor_div(eng::s32 v, eng::s32 d) { return v >= 0 ? v / d : -static_cast<eng::s32>((-v + d - 1) / d); }
+
+	// --- Geometría potencia de dos: shift/máscara en vez de división/módulo ----
+	// `tile_width`/`tile_size` llegan runtime (config), pero en la práctica son
+	// potencias de dos (16, 32). En 68000 `v / N` con N constante NO potencia de
+	// dos acaba en `__udivsi3` (no hay mul 32x32 para el truco de la constante
+	// mágica); con N potencia de dos es un `lsr`/`lsl`. Se precálculo el shift y
+	// se usa solo si de verdad es potencia de dos (si no, camino general exacto).
+	void update_pow2() {
+		m_tw_pow2 = eng::is_pow2(m_config.tile_width);
+		m_tw_shift = m_tw_pow2 ? static_cast<eng::u8>(eng::ilog2(m_config.tile_width)) : 0u;
+		m_th_pow2 = eng::is_pow2(m_config.tile_size);
+		m_th_shift = m_th_pow2 ? static_cast<eng::u8>(eng::ilog2(m_config.tile_size)) : 0u;
+		m_ts_pow2 = eng::is_pow2(m_config.tileset_count);
+		m_ts_mask = static_cast<eng::u16>(m_config.tileset_count - 1u);
+	}
+	eng::s32 div_tw(eng::s32 v) const { return m_tw_pow2 ? eng::asr_floor(v, m_tw_shift) : floor_div(v, m_config.tile_width); }
+	eng::s32 div_th(eng::s32 v) const { return m_th_pow2 ? eng::asr_floor(v, m_th_shift) : floor_div(v, m_config.tile_size); }
+	eng::s32 mul_tw(eng::s32 v) const { return m_tw_pow2 ? static_cast<eng::s32>(static_cast<eng::u32>(v) << m_tw_shift) : v * static_cast<eng::s32>(m_config.tile_width); }
+	eng::s32 mul_th(eng::s32 v) const { return m_th_pow2 ? static_cast<eng::s32>(static_cast<eng::u32>(v) << m_th_shift) : v * static_cast<eng::s32>(m_config.tile_size); }
+	eng::u16 tile_mod(eng::u16 tile) const { return m_ts_pow2 ? static_cast<eng::u16>(tile & m_ts_mask) : static_cast<eng::u16>(tile % m_config.tileset_count); }
+	eng::u16 fb_cols() const { return m_tw_pow2 ? static_cast<eng::u16>(m_fb_w >> m_tw_shift) : static_cast<eng::u16>(m_fb_w / m_config.tile_width); }
+	eng::u16 fb_rows() const { return m_th_pow2 ? static_cast<eng::u16>(m_fb_h >> m_th_shift) : static_cast<eng::u16>(m_fb_h / m_config.tile_size); }
 	bool valid_config() const {
 		const eng::u16 margin_x = m_config.scroll_x ? static_cast<eng::u16>(m_config.safety_margin_blocks * m_config.tile_width) : 0;
 		const eng::u16 margin_y = m_config.scroll_y ? static_cast<eng::u16>(m_config.safety_margin_blocks * m_config.tile_size) : 0;
@@ -268,25 +293,25 @@ private:
 		return static_cast<eng::u16>((m_config.safety_margin_blocks / 2u) * block);
 	}
 	void enqueue_initial() {
-		const eng::u16 cols = static_cast<eng::u16>(m_fb_w / m_config.tile_width);
-		const eng::u16 rows = static_cast<eng::u16>(m_fb_h / m_config.tile_size);
-		enqueue(floor_div(m_state.surface_origin_x, m_config.tile_width), floor_div(m_state.surface_origin_y, m_config.tile_size), 0, 0, cols, rows);
+		const eng::u16 cols = fb_cols();
+		const eng::u16 rows = fb_rows();
+		enqueue(div_tw(m_state.surface_origin_x), div_th(m_state.surface_origin_y), 0, 0, cols, rows);
 	}
 	void enqueue_x_band(eng::s16 direction, bool diagonal) {
-		const eng::u16 cols = static_cast<eng::u16>(m_fb_w / m_config.tile_width);
-		const eng::u16 rows = static_cast<eng::u16>(m_fb_h / m_config.tile_size);
+		const eng::u16 cols = fb_cols();
+		const eng::u16 rows = fb_rows();
 		const eng::u16 entering = direction > 0
-			? static_cast<eng::u16>((m_state.window_x + m_config.viewport_w) / m_config.tile_width)
+			? static_cast<eng::u16>(div_tw(static_cast<eng::s32>(m_state.window_x) + m_config.viewport_w))
 			: 0;
 		const eng::u16 opposite = direction > 0 ? 0 : static_cast<eng::u16>(cols - 1u);
 		enqueue_physical(entering, 0, 1, rows);
 		enqueue_physical(opposite, 0, 1, rows);
 	}
 	void enqueue_y_band(eng::s16 direction, bool diagonal, eng::s16 xdirection) {
-		const eng::u16 cols = static_cast<eng::u16>(m_fb_w / m_config.tile_width);
-		const eng::u16 rows = static_cast<eng::u16>(m_fb_h / m_config.tile_size);
+		const eng::u16 cols = fb_cols();
+		const eng::u16 rows = fb_rows();
 		const eng::u16 entering = direction > 0
-			? static_cast<eng::u16>((m_state.window_y + m_config.viewport_h) / m_config.tile_size)
+			? static_cast<eng::u16>(div_th(static_cast<eng::s32>(m_state.window_y) + m_config.viewport_h))
 			: 0;
 		const eng::u16 opposite = direction > 0 ? 0 : static_cast<eng::u16>(rows - 1u);
 		if (!diagonal) {
@@ -295,7 +320,7 @@ private:
 			return;
 		}
 		const eng::u16 x_entering = xdirection > 0
-			? static_cast<eng::u16>((m_state.window_x + m_config.viewport_w) / m_config.tile_width)
+			? static_cast<eng::u16>(div_tw(static_cast<eng::s32>(m_state.window_x) + m_config.viewport_w))
 			: 0;
 		const eng::u16 x_opposite = xdirection > 0 ? 0 : static_cast<eng::u16>(cols - 1u);
 		enqueue_y_row(entering, x_entering, x_opposite);
@@ -305,12 +330,13 @@ private:
 		if (corner_a > corner_b) { const eng::u16 t = corner_a; corner_a = corner_b; corner_b = t; }
 		if (corner_a) enqueue_physical(0, row, corner_a, 1);
 		if (corner_b > corner_a + 1u) enqueue_physical(static_cast<eng::u16>(corner_a + 1u), row, static_cast<eng::u16>(corner_b - corner_a - 1u), 1);
-		if (corner_b + 1u < static_cast<eng::u16>(m_fb_w / m_config.tile_width)) enqueue_physical(static_cast<eng::u16>(corner_b + 1u), row, static_cast<eng::u16>(m_fb_w / m_config.tile_width - corner_b - 1u), 1);
+		const eng::u16 cols = fb_cols();
+		if (corner_b + 1u < cols) enqueue_physical(static_cast<eng::u16>(corner_b + 1u), row, static_cast<eng::u16>(cols - corner_b - 1u), 1);
 	}
 	void enqueue_physical(eng::u16 fx, eng::u16 fy, eng::u16 w, eng::u16 h, eng::u16 x_offset = 0) {
 		const eng::u16 physical_x = static_cast<eng::u16>(fx + x_offset);
-		const eng::s32 wx = floor_div(m_state.surface_origin_x + static_cast<eng::s32>(physical_x) * m_config.tile_width, m_config.tile_width);
-		const eng::s32 wy = floor_div(m_state.surface_origin_y + static_cast<eng::s32>(fy) * m_config.tile_size, m_config.tile_size);
+		const eng::s32 wx = div_tw(m_state.surface_origin_x + mul_tw(static_cast<eng::s32>(physical_x)));
+		const eng::s32 wy = div_th(m_state.surface_origin_y + mul_th(static_cast<eng::s32>(fy)));
 		enqueue(wx, wy, physical_x, fy, w, h);
 	}
 	void enqueue(eng::s32 wx, eng::s32 wy, eng::u16 fx, eng::u16 fy, eng::u16 w, eng::u16 h) {
@@ -339,7 +365,7 @@ private:
 	eng::graphics::BlitJob tile_job(eng::u16 tile, eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h) const {
 		const eng::u16 words = static_cast<eng::u16>(w / 16u);
 		const eng::u32 plane_words = static_cast<eng::u32>(m_config.tile_size) * words;
-		const eng::u16* src = m_config.tileset + static_cast<eng::u32>(tile % m_config.tileset_count) * m_config.tileset_planes * plane_words;
+		const eng::u16* src = m_config.tileset + static_cast<eng::u32>(tile_mod(tile)) * m_config.tileset_planes * plane_words;
 		eng::u16* dst = reinterpret_cast<eng::u16*>(static_cast<eng::u8*>(m_framebuffer.data) + static_cast<eng::u32>(y) * m_row_bytes + static_cast<eng::u32>(x) / 8u);
 		return {eng::graphics::BlitJobKind::TileBlockCopy, nullptr, src, dst, words, h, 0,
 			static_cast<eng::s16>(m_row_bytes - words * 2u), m_config.tileset_planes, 0,
@@ -384,8 +410,8 @@ private:
 					m_config.map.tile_at(p.world_tile_x + x + (p.width == 1 ? 0 : run), p.world_tile_y + y + (p.width == 1 ? run : 0)) == static_cast<eng::u16>(tile + run)) ++run;
 				const bool horizontal = run > 1 && p.height == 1;
 				const bool vertical = run > 1 && p.width == 1;
-				const eng::s32 px = (p.fb_tile_x + x) * m_config.tile_width;
-				const eng::s32 py = (p.fb_tile_y + y) * m_config.tile_size;
+				const eng::s32 px = mul_tw(static_cast<eng::s32>(p.fb_tile_x) + x);
+				const eng::s32 py = mul_th(static_cast<eng::s32>(p.fb_tile_y) + y);
 				const eng::graphics::BlitJob job = horizontal ? horizontal_job(tile, px, py, run) :
 					vertical ? vertical_job(tile, px, py, run) : tile_job(tile, px, py, m_config.tile_width, m_config.tile_size);
 				if (!plan.add_tile_block_copy(job)) return;
@@ -414,6 +440,10 @@ private:
 	eng::u16 m_fb_w = 0, m_fb_h = 0, m_row_bytes = 0;
 	eng::u32 m_plane_bytes = 0;
 	bool m_pending_state = false;
+	bool m_tw_pow2 = false, m_th_pow2 = false;
+	eng::u8 m_tw_shift = 0, m_th_shift = 0;
+	bool m_ts_pow2 = false;
+	eng::u16 m_ts_mask = 0;
 	eng::s32 m_pending_world_x = 0, m_pending_world_y = 0;
 	eng::s32 m_pending_origin_x = 0, m_pending_origin_y = 0;
 	eng::u16 m_pending_window_x = 0, m_pending_window_y = 0;

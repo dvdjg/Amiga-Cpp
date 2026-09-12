@@ -38,6 +38,21 @@ consteval u32 ct_ilog2(u32 n) {
 /// ¿`n` es potencia de dos? `consteval`.
 consteval bool ct_is_pow2(u32 n) { return n != 0u && (n & (n - 1u)) == 0u; }
 
+/// Version RUNTIME de `ct_is_pow2` (denominador que no llega como NTTP).
+/// En 68000 no hay multiplicacion 32x32, asi que la division/módulo por una
+/// constante NO potencia de dos acaba en `__udivsi3`/`__umodsi3` (libcall, ~150
+/// ciclos) incluso a `-Os`; por una POTENCIA de dos es un `lsr`/`and` (1-2
+/// ciclos). Cuando una geometria es potencia de dos "casi siempre" pero llega
+/// runtime (config), detectarlo y usar shift/mask evita el libcall.
+constexpr bool is_pow2(u32 n) { return n != 0u && (n & (n - 1u)) == 0u; }
+
+/// `log2` entero RUNTIME (solo valido si `n` es potencia de dos).
+constexpr u32 ilog2(u32 n) { u32 e = 0; while (n > 1u) { n >>= 1u; ++e; } return e; }
+
+/// Cociente `v / (1<<shift)` con signo, redondeando hacia abajo (floor). El
+/// desplazamiento aritmetico de `s32` es floor por definicion en C++20.
+constexpr s32 asr_floor(s32 v, u32 shift) { return v >> shift; }
+
 /// División/módulo por un denominador CONSTANTE `N` (NTTP).
 ///
 ///   q = fast_div<N>::q(v)    cociente  v / N
