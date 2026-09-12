@@ -52,8 +52,12 @@ constexpr eng::u32 kChunkyBuffer = kChunkyBytes * 2u;                           
 constexpr eng::u16 kZeroPalette[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
 /// DIAG usado: saltar el C2P confirma que el display esta bien (pantalla negra
-/// con planos a 0) y que el patron lo mete el C2P (su mascara `bltcdat`).
-constexpr bool kDiagSkipC2p = false;
+/// con planos a 0) y que el patron lo mete el C2P (su mascara `bltcdat`). Se puede
+/// forzar desde el build con `-DK_DIAG_SKIP_C2P=1` para medir su coste.
+#ifndef K_DIAG_SKIP_C2P
+#define K_DIAG_SKIP_C2P 0
+#endif
+constexpr bool kDiagSkipC2p = (K_DIAG_SKIP_C2P != 0);
 
 } // namespace
 
@@ -151,19 +155,13 @@ void MainLoopC(void) {
 /// C++ evita el problema de GCC-15, que **ignora los pins** `register asm("aN")` y
 /// no puede asignar los 7 registros de direccion (a0..a6) que exige el bucle.
 /// Los punteros se pasan por MEMORIA (`g_fire_args`), no por pila: evita dudas de ABI.
+void MainLoop(void) {
 #if K_FIRE_ASM
-void MainLoopAsm(void) {
 	g_fire_args[0] = reinterpret_cast<eng::u32>(chunky[active]);
 	g_fire_args[1] = reinterpret_cast<eng::u32>(fire);
 	g_fire_args[2] = reinterpret_cast<eng::u32>(fire_rgb::kDualTab.v);
 	g_fire_args[3] = static_cast<eng::u32>((kWidth * kHeight - 2 * kWidth) / 8);
 	fire_loop();
-}
-#endif // K_FIRE_ASM
-
-void MainLoop(void) {
-#if K_FIRE_ASM
-	MainLoopAsm();
 #else
 	MainLoopC();
 #endif
@@ -220,7 +218,36 @@ struct FireDemo {
 		RandomizeBottom();
 		MainLoop();
 
-#if !K_FIRE_ASM
+#if K_FIRE_ASM
+		// Cierra el C2P del frame anterior (deberia estar ya hecho: `idle()` avanzo
+		// sus fases durante el VBlank) y muestra su buffer (swap de copperlist).
+		FinishC2p(backend);
+		if (m_show_buf_valid) {
+			backend.install_copper_list(m_copper_ptrs[m_show_buf]);
+			m_show_buf_valid = false;
+		}
+
+		// Arranca el C2P del buffer recien simulado (fase 0, sin esperar): sus fases
+		// las encadenara `idle()` durante el VBlank, cuando la CPU esta ociosa y el
+		// Blitter dispone del bus completo. Es el solape que el original consigue por
+		// interrupcion de blit, hecho aqui de forma cooperative.
+		if (!kDiagSkipC2p) {
+			m_c2p.chunky = m_chunky[active];
+			m_c2p.bytes = kChunkyBytes;
+			for (eng::u8 pl = 0; pl < kPlanes; ++pl) m_c2p.planes[pl] = m_planes[active][pl];
+			m_c2p.phase = 0;
+			if (!backend.c2p_4bpp_program(m_c2p)) {
+				eng::debug::mark_failed(g_eng_run_status, 0x00008004u);
+				return;
+			}
+			m_c2p_pending = true;
+			m_show_buf = active;
+			m_show_buf_valid = true;
+		}
+		active ^= 1;
+#else
+		MainLoop();
+
 		{	// DIAG: suma del buffer de fuego (comprobar que se forma).
 			eng::u32 s = 0;
 			for (eng::u32 i = 0; i < static_cast<eng::u32>(kWidth) * kHeight; ++i) {
@@ -228,7 +255,6 @@ struct FireDemo {
 			}
 			g_eng_run_status.detail = s;
 		}
-#endif
 
 		// C2P: 13 fases (sincrono) del plano `active` a sus bitplanes.
 		if (!kDiagSkipC2p) {
@@ -247,13 +273,46 @@ struct FireDemo {
 		// Swap de buffer (la copperlist apunta a los 4 planos de `active`).
 		backend.install_copper_list(m_copper_ptrs[active]);
 		active ^= 1;
+#endif
 	}
 
 	void render(amiga::MinimalBackend& backend, eng::GameContext& context) {
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
+	/// Tarea ociosa del engine (se ejecuta mientras se espera el VBlank). Encadena
+	/// la fase siguiente del C2P pendiente cuando el Blitter queda libre, de modo que
+	/// el C2P avanza sin competir por el bus con el fuego. Es el solape que el
+	/// original consigue con la interrupcion de blit.
+	void idle(amiga::MinimalBackend& backend, eng::GameContext&) {
+#if K_FIRE_ASM
+		ServiceC2p(backend);
+#else
+		(void)backend;
+#endif
+	}
+
 private:
+#if K_FIRE_ASM
+	/// Sirve la fase siguiente del C2P pendiente si el Blitter esta libre. No
+	/// bloquea: se llama desde `idle()` (durante la espera de VBlank).
+	void ServiceC2p(amiga::MinimalBackend& backend) {
+		if (!m_c2p_pending || m_c2p.phase >= 13u || backend.blitter_busy()) return;
+		backend.c2p_4bpp_program(m_c2p);
+	}
+
+	/// Completa el C2P pendiente (bloqueando lo que falte, ya raro) y lo da por hecho.
+	void FinishC2p(amiga::MinimalBackend& backend) {
+		if (!m_c2p_pending) return;
+		while (m_c2p.phase < 13u) {
+			while (backend.blitter_busy()) {}
+			backend.c2p_4bpp_program(m_c2p);
+		}
+		while (backend.blitter_busy()) {}
+		m_c2p_pending = false;
+	}
+#endif
+
 	bool build_copper() {
 		// BPLCON0 = BPU(7)|COLOR|HAM (como SetupMode(MODE_HAM, 7) del original).
 		constexpr eng::u16 kBplcon0 = 0x7a00;
@@ -294,6 +353,11 @@ private:
 	eng::u8* m_copper = nullptr;
 	const eng::u16* m_copper_ptr = nullptr;
 	const eng::u16* m_copper_ptrs[2] = {nullptr, nullptr};
+	// Pipeline del C2P asincrono (solape del Blitter con el fuego del frame siguiente).
+	amiga::MinimalBackend::C2p4State m_c2p {};
+	bool m_c2p_pending = false;
+	bool m_show_buf_valid = false;
+	eng::u8 m_show_buf = 0;
 };
 
 } // namespace
