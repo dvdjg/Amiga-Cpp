@@ -129,6 +129,12 @@ public:
     inline u8 planes(const Sink& sn) const {
         return C.planes ? static_cast<u8>(C.planes) : sn.planes();
     }
+    /// ¿El eje X es lineal acotado (sin anillo)? Opcional en el sink (false por
+    /// defecto = XLimited de anillo, comportamiento histórico).
+    inline bool finite_x(const Sink& sn) const {
+        if constexpr (requires { sn.finite_x(); }) return sn.finite_x();
+        else return false;
+    }
     // Cociente/resto por tile_width: shift/mask si C.tile_width es potencia de 2.
     inline u32 q_tw(const Sink& sn, s32 v) const {
         if constexpr (C.tile_width != 0u) return fast_div<C.tile_width>::q(static_cast<u32>(v));
@@ -175,6 +181,15 @@ public:
     ///   fila mapy = stepx+1 (2 bloques si stepx==0), y = (block_videoposy +
     ///   mapy*TH) % display_height, ajuste de la fila de fillup al completar.
     bool scroll_right(graphics::FramePlan& plan, Sink& sn) {
+        if (finite_x(sn)) {
+            // Eje X lineal acotado: solo mueve el puntero (el contenido ya está;
+            // sin creep, sin banda entrante, sin guardas laterales).
+            const s32 limit = static_cast<s32>(sn.map_width_blocks()) * tw(sn) - sn.viewport_w();
+            if (sn.map_wrap_x() == 0 && m_state.mapposx >= limit) return false;
+            ++m_state.mapposx;
+            m_state.videoposx = m_state.mapposx;
+            return true;
+        }
         const s32 limit = static_cast<s32>(sn.map_width_blocks()) * tw(sn) -
                           sn.viewport_w() - tw(sn);
         if (sn.map_wrap_x() == 0 && m_state.mapposx >= limit) return false;
@@ -238,6 +253,12 @@ public:
     /// Scroll de 1 px a la izquierda (no plane-shifted) â€” ScrollLeft corkscrew.
     /// Fiel a ScrollLeft de Scroller_XYLimited/main.c:751-867.
     bool scroll_left(graphics::FramePlan& plan, Sink& sn) {
+        if (finite_x(sn)) {
+            if (m_state.mapposx < 1) return false;
+            --m_state.mapposx;
+            m_state.videoposx = m_state.mapposx;
+            return true;
+        }
         if (m_state.mapposx < 1) return false;
         --m_state.mapposx;
         m_state.videoposx = m_state.mapposx;
@@ -270,7 +291,7 @@ public:
 
         const u16 mapx = mapblockx;
         u16 mapy = static_cast<u16>(stepx + 1);
-        if (m_state.previous_xdirection == ScrollDirRight) sn.restore_saveword();
+        if (!sn.one_direction() && m_state.previous_xdirection == ScrollDirRight) sn.restore_saveword();
         if (mapy == 1) { // stepx == 0 â†’ dos bloques
             mapy = static_cast<u16>(mapy + mapblocky);
             const u32 y = r_dh(sn, bvpos + th(sn)) * planes(sn);
@@ -293,6 +314,21 @@ public:
     /// Scroll vertical 1 px hacia abajo â€” ScrollDown corkscrew.
     /// Fiel a ScrollDown de Scroller_XYLimited/main.c:639-749.
     bool scroll_down(graphics::FramePlan& plan, Sink& sn) {
+        if (finite_x(sn)) {
+            // Y corkscrew con X lineal: la fila entrante ocupa TODO el ancho del
+            // bitmap (no hay desplazamiento plane-shifted del anillo X).
+            const s32 limitY = static_cast<s32>(sn.map_height_blocks()) * th(sn) - sn.viewport_h();
+            if (sn.map_wrap_y() == 0 && m_state.mapposy >= limitY) return false;
+            const u32 y_pl = block_videoposy(sn) * planes(sn);
+            const u16 mapy = static_cast<u16>(q_th(sn, m_state.mapposy) + sn.bitmap_blocks_per_col());
+            const u16 cols = sn.bitmap_blocks_per_row();
+            for (u16 c = 0; c < cols; ++c) {
+                if (!sn.add_draw(plan, static_cast<u16>(c * tw(sn)), static_cast<u16>(y_pl), c, mapy)) return false;
+            }
+            ++m_state.mapposy;
+            m_state.videoposy = static_cast<s32>(r_dh(sn, static_cast<u32>(m_state.mapposy)));
+            return true;
+        }
         const s32 limitY = static_cast<s32>(sn.map_height_blocks()) * th(sn) -
                            sn.viewport_h() - th(sn);
         if (sn.map_wrap_y() == 0 && m_state.mapposy >= limitY) return false;
@@ -351,6 +387,18 @@ public:
     /// re-fill del anillo (ver README §7.9). Por eso aquí se BLOQUEA en
     /// mapposy<1 (igual que ScrollLeft): la demo 201 acota la cámara a [0,max].
     bool scroll_up(graphics::FramePlan& plan, Sink& sn) {
+        if (finite_x(sn)) {
+            if (m_state.mapposy < 1) return false;
+            --m_state.mapposy;
+            m_state.videoposy = static_cast<s32>(r_dh(sn, static_cast<u32>(m_state.mapposy)));
+            const u32 y_pl = block_videoposy(sn) * planes(sn);
+            const u16 mapy = static_cast<u16>(q_th(sn, m_state.mapposy));
+            const u16 cols = sn.bitmap_blocks_per_row();
+            for (u16 c = 0; c < cols; ++c) {
+                if (!sn.add_draw(plan, static_cast<u16>(c * tw(sn)), static_cast<u16>(y_pl), c, mapy)) return false;
+            }
+            return true;
+        }
         if (m_state.mapposy < 1) return false;
         --m_state.mapposy;
         m_state.videoposy = static_cast<s32>(r_dh(sn, static_cast<u32>(m_state.mapposy)));
@@ -368,7 +416,7 @@ public:
             const u16 mx1 = static_cast<u16>(mapblockx + sn.bitmap_blocks_per_row());
             const u32 y1 = r_dh(sn, bvpos + th(sn)) * planes(sn);
             if (!sn.add_draw(plan, static_cast<u16>(x0 + sn.bitmap_width()), static_cast<u16>(y1), mx1, static_cast<u16>(mapblocky + 1))) return false;
-            if (m_state.previous_xdirection == ScrollDirRight) sn.restore_saveword();
+            if (!sn.one_direction() && m_state.previous_xdirection == ScrollDirRight) sn.restore_saveword();
             const u16 my2 = static_cast<u16>(stepx + 2);
             const u32 y2 = r_dh(sn, bvpos + my2 * th(sn)) * planes(sn);
             sn.save_word(y2 * sn.bytes_per_row() + (x0 / 8u));

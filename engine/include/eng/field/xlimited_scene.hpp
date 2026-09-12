@@ -256,6 +256,9 @@ struct XlimitedSceneConfig {
                                      // El campo lineal (mirror) NO tiene split → su Y es libre;
                                      // el otro conserva el corkscrew (ring + split de Copper).
     eng::field::ScrollMode scroll_mode = eng::field::ScrollMode::EightWay; // especialización del scroll
+    eng::field::AxisMode x_mode = eng::field::AxisMode::Ring; // eje X: Ring (XLimited) o
+                                       // Finite (lineal acotado, sin guardas). Para un
+                                       // juego de scroll Y largo con X corto (shooter).
 
     // --- Conductor de validación (harness de las 8 direcciones) -------------
     XlimitedPathConfig path {};
@@ -371,6 +374,7 @@ public:
             fc.screens_y = 16;
             fc.scroll_y = cfg.scroll_y;
             fc.scroll_mode = cfg.scroll_mode;
+            fc.x_mode = cfg.x_mode;
             // DPF MIXTO: `dual_linear_field` selecciona qué playfield usa el
             // mirror (lineal, sin split → Y independiente); el otro conserva el
             // corkscrew (ring + split). Fuera de DPF se aplica `linear_display`.

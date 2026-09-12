@@ -360,6 +360,19 @@ enum class ScrollMode : u8 {
                        // restauración de saveword (menos blits en los cruces).
 };
 
+/// Modo de un EJE de scroll (independiente por eje). Permite la familia:
+///   - `Ring`: anillo con banda de staging (XLimited/XYLimited). El motor escribe
+///     la banda entrante (creep).
+///   - `Finite`: rango acotado `[0, mundo - viewport]`, bitmap = ancho de mundo,
+///     **sin anillo ni bandas de guarda**; el puntero se mueve directamente y el
+///     contenido ya está (lo pinta `fill_screen`). Para el eje corto de un shooter
+///     (p. ej. 400 px de ancho con ventana de 320).
+///   - `Off`: el eje no scrollea.
+///
+/// El Y de un juego de scroll largo vertical usa `scroll_y` (corkscrew = Ring);
+/// el X corto usa `Finite`. `ScrollMode::OneDirection` aplica a ambos.
+enum class AxisMode : u8 { Ring = 0, Finite = 1, Off = 2 };
+
 /// Configuración de un campo XLimited.
 ///
 /// `map` puede ser cualquier `TileLayerMap` (wrapping opcional). `tileset`
@@ -476,6 +489,9 @@ struct XlimitedConfig {
     u8 screens_y = 16;                 // pantallas virtuales en Y (map_h = screens_y * viewport_h/tile_height)
     bool scroll_y = false;             // true = corkscrew/XY: display_height = viewport_h + 2*tile_height,
                                        // banda de staging, fill de display_blocks_per_col y split vertical
+    AxisMode x_mode = AxisMode::Ring;  // Ring = XLimited (anillo X, por defecto);
+                                       // Finite = X lineal acotado [0, mundo-viewport] sin guardas;
+                                       // Off = sin scroll X. Ver `AxisMode`.
     ScrollMode scroll_mode = ScrollMode::EightWay; // especialización del scroll (deriva scroll_y)
     u8 max_step = 1;               // px/frame máximos por eje de AVANCE (salto).
                                    // El algoritmo pinta cada sub-paso de 1 px ANTES de
@@ -651,9 +667,16 @@ public:
         if (!valid_config()) return false;
 
         // Derivar bitmap_width si es 0: viewport_w + EXTRAWIDTH según fetch_mode.
+        // Con X `Finite` el bitmap contiene TODO el ancho de mundo (+ margen de
+        // fetch): no hay anillo ni guardas laterales.
         if (m_cfg.bitmap_width == 0) {
             const u16 extra = (m_cfg.fetch_mode == 0) ? xlimited_detail::kExtraW32 : xlimited_detail::kExtraW64;
-            m_cfg.bitmap_width = static_cast<u16>(m_cfg.viewport_w + extra);
+            if (m_cfg.x_mode == AxisMode::Finite && m_cfg.map.width != 0) {
+                const u16 world_w = static_cast<u16>(m_cfg.map.width * m_cfg.tile_width);
+                m_cfg.bitmap_width = static_cast<u16>(world_w + extra);
+            } else {
+                m_cfg.bitmap_width = static_cast<u16>(m_cfg.viewport_w + extra);
+            }
         }
         m_bitmap_width = m_cfg.bitmap_width;
         m_bytes_per_row = static_cast<u16>(m_bitmap_width / 8u);
@@ -1249,13 +1272,27 @@ constexpr u16 bitmap_blocks_per_row() const { return m_bitmap_blocks_per_row; }
     constexpr u16 map_wrap_x() const { return m_cfg.map.wrap_x; }
     constexpr u16 map_wrap_y() const { return m_cfg.map.wrap_y; }
     constexpr bool one_direction() const { return m_cfg.scroll_mode == ScrollMode::OneDirection; }
+    /// Eje X lineal acotado (sin anillo ni bandas de guarda). Lo consulta el
+    /// `ScrollEngine` para mover el puntero sin creep.
+    constexpr bool finite_x() const { return m_cfg.x_mode == AxisMode::Finite; }
 constexpr u16 block_planes_lines() const { return m_block_planes_lines; }
     constexpr bool initialized() const { return m_initialized; }
     constexpr u16 bpl1mod() const { return m_bpl1mod; }
 
+    /// Fija la posición de la cámara (píxeles de mundo) y sincroniza los punteros
+    /// de display. Necesario para arrancar a media altura/ancho (p. ej. un shooter
+    /// vertical de 10000 px que empieza abajo y sube). Debe llamarse tras `begin`
+    /// y antes del `fill_screen`/primer frame.
+    void set_camera(s32 x, s32 y) {
+        m_scroll.state().mapposx = x;
+        m_scroll.state().videoposx = x;
+        m_scroll.state().mapposy = y;
+        m_scroll.state().videoposy = static_cast<s32>(dmod2(y));
+        m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE
+    }
+
     /// Reinicia el scroll a 0 sin re-reservar Chip RAM (para demo infinita).
-    void reset_scroll() {
-        m_scroll.state().mapposx = 0;
+    void reset_scroll() {        m_scroll.state().mapposx = 0;
         m_scroll.state().videoposx = 0;
         m_scroll.state().mapposy = 0;
         m_scroll.state().videoposy = 0;
