@@ -59,18 +59,26 @@ struct BackgroundPump {
 	GameContext* context = nullptr;
 	Backend* backend = nullptr;
 	Game* game = nullptr;
-	u8 slices = 0u;
-	bool active = false;   // hay tareas registradas (si no, no se toca el bucle ocioso)
 
 	static void run(void* self, u16 vpos) {
 		auto* pump = static_cast<BackgroundPump*>(self);
-		if (pump->active && pump->slices < pump->queue->max_slices_per_frame()) {
-			pump->queue->run_slice(pump->context->frame.frame_index, vpos);
-			++pump->slices;
-		}
+		pump->queue->run_slice(pump->context->frame.frame_index, vpos);
 		if constexpr (GameIdle<Game, Backend>) {
 			pump->game->idle(*pump->backend, *pump->context);
 		}
+	}
+};
+
+/// Servicio de Blitter: drena el fondo mientras el backend gira en `BBUSY` (una
+/// espera sincrona de blit, p. ej. `wait_blitter`). No llama a `game.idle` (no es un
+/// hueco de frame) y comparte el mismo cupo por frame que el bombeo de VBlank.
+struct BackgroundBlitterService {
+	task::BackgroundQueue* queue = nullptr;
+	GameContext* context = nullptr;
+
+	static void run(void* self, u16 vpos) {
+		auto* service = static_cast<BackgroundBlitterService*>(self);
+		service->queue->run_slice(service->context->frame.frame_index, vpos);
 	}
 };
 
@@ -98,6 +106,13 @@ public:
 		m_backend.boot();
 		m_game.init(m_backend, context);
 
+		// Si el backend sabe ejecutar tareas durante las esperas de Blitter, drena
+		// ahi el fondo (comparte el cupo por frame con el bombeo de VBlank).
+		BackgroundBlitterService blitter_service {&m_background, &context};
+		if constexpr (requires { m_backend.set_blitter_service(nullptr, nullptr); }) {
+			m_backend.set_blitter_service(&BackgroundBlitterService::run, &blitter_service);
+		}
+
 		for (u32 i = 0; i < frame_count; ++i) {
 			context.frame.frame_index = i;
 			m_game.update(m_backend, context);
@@ -105,8 +120,7 @@ public:
 			// instalar una copperlist con COPJMP1 fuera de VBlank reinicia el Copper
 			// a media pantalla y parte el frame visible. El trabajo de fondo se drena
 			// mientras se espera el VBlank (prioridad al bucle principal).
-			BackgroundPump<Backend, Game> pump {&m_background, &context, &m_backend, &m_game, 0u,
-							    m_background.live_count() != 0u};
+			BackgroundPump<Backend, Game> pump {&m_background, &context, &m_backend, &m_game};
 			m_backend.wait_vblank(&BackgroundPump<Backend, Game>::run, &pump);
 			m_game.render(m_backend, context);
 		}

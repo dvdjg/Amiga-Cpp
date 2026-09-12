@@ -6,8 +6,9 @@ principal no tiene nada que hacer, con indicadores baratos de progreso/rendimien
 
 ## Qué cubre
 
-- **Tarea finita**: avanza por rebanadas, `permille` crece, termina (`Done`), libera
-  el slot y el handle viejo queda invalidado (generación del handle).
+- **Tarea finita**: avanza por rebanadas, `permille` crece y termina quedando en `Done`
+  (consultable) hasta que el juego la cancela; entonces el slot se libera y el handle
+  queda invalidado (por la generación).
 - **Tarea continua** (`total_units = 0`): no termina sola; `cancel()` la libera.
 - **Contexto bidireccional**: la tarea recibe `vpos`/`frame`/`budget`/progreso/`avg` y
   **adapta su carga** (el test consume la mitad si el raster va tarde); el juego lee

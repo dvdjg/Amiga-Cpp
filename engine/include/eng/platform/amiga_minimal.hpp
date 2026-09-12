@@ -104,6 +104,11 @@ public:
 	/// `Engine::run_frames`.
 	void wait_vblank(void (*task)(void*, u16 vpos) = nullptr, void* user = nullptr);
 
+	/// Tarea opcional que el backend ejecuta mientras **espera al Blitter** (`BBUSY`).
+	/// El engine la usa para drenar las tareas de fondo (`eng::task::BackgroundQueue`)
+	/// en vez de girar en vacio. Recibe la linea de raster (`vpos`). `nullptr` la apaga.
+	void set_blitter_service(void (*task)(void*, u16 vpos), void* user);
+
 	/// Escribe un registro COLORxx. `rgb444` usa el formato nativo OCS.
 	void set_color(u8 index, u16 rgb444);
 

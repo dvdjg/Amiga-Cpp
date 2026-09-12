@@ -93,17 +93,19 @@ int main() {
 			return 1;
 		}
 
-		// 6 rebanadas mas -> completa; el slot se libera y el handle viejo ya no vale.
+		// 6 rebanadas mas (frames distintos) -> completa. Queda en `Done` hasta cancelarla.
 		for (int i = 0; i < 6; ++i) {
-			q.run_slice(50u, 100u);
+			q.run_slice(10u + static_cast<u32>(i), 100u);
 		}
-		if (q.live_count() != 0u) {
-			std::printf("[FAIL] la tarea finita no libero el slot (live=%u)\n", (unsigned)q.live_count());
+		const TaskProgress done = q.progress(h);
+		if (done.state != TaskState::Done || done.permille != 1000u || q.live_count() != 1u) {
+			std::printf("[FAIL] tarea completada no queda en Done (state=%d permille=%u live=%u)\n",
+				    (int)done.state, (unsigned)done.permille, (unsigned)q.live_count());
 			return 1;
 		}
-		const TaskProgress gone = q.progress(h);
-		if (gone.state != TaskState::Free) {
-			std::printf("[FAIL] handle de tarea terminada sigue valido (state=%d)\n", (int)gone.state);
+		// `cancel()` libera el slot; a partir de ahi el handle ya no es valido.
+		if (!q.cancel(h) || q.live_count() != 0u || q.progress(h).state != TaskState::Free) {
+			std::printf("[FAIL] cancel() no libera la tarea terminada\n");
 			return 1;
 		}
 	}
@@ -114,7 +116,7 @@ int main() {
 		CountingTask t {};
 		const TaskHandle h = q.add(&count_up, &t, /*total*/ 0u, /*slice*/ 50u);
 		for (int i = 0; i < 20; ++i) {
-			q.run_slice(1u, 100u);
+			q.run_slice(100u + static_cast<u32>(i), 100u);
 		}
 		const TaskProgress p = q.progress(h);
 		if (p.state != TaskState::Running || p.total_units != 0u || p.permille != 0u) {

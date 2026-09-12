@@ -155,7 +155,7 @@ public:
 			return p;
 		}
 		p.state = e->failed ? TaskState::Failed
-			  : (e->done >= e->total && e->total != 0u) ? TaskState::Done
+			  : e->completed ? TaskState::Done
 			  : TaskState::Running;
 		p.done_units = e->done;
 		p.total_units = e->total;
@@ -169,16 +169,23 @@ public:
 
 	/// Ejecuta una rebanada de cada tarea viva (presupuesto por tarea = `slice_units`).
 	/// Devuelve las unidades totales consumidas en la rebanada. Coste cero si no hay
-	/// tareas (el caso comun): el engine lo llama en el bucle ocioso de VBlank.
+	/// tareas o si ya se agoto el cupo de rebanadas del frame (`max_slices_per_frame`).
+	/// Lo llaman los puntos ociosos del engine (VBlank, espera de Blitter) con el
+	/// `frame` actual, de modo que el cupo se aplica de forma global por frame.
 	u16 run_slice(u32 frame, u16 vpos) {
-		if (m_live == 0u) {
+		if (frame != m_frame) {
+			m_frame = frame;
+			m_frame_slices = 0u;
+		}
+		if (m_live == 0u || m_frame_slices >= m_max_slices) {
 			m_slice_units = 0u;
 			return 0u;
 		}
+		++m_frame_slices;
 		u32 total_units = 0u;
 		for (u8 i = 0; i < max_tasks; ++i) {
 			Entry& e = m_entries[i];
-			if (!e.live || e.failed) {
+			if (!e.live || e.failed || e.completed) {
 				continue;
 			}
 			TaskSlice slice {};
@@ -208,8 +215,9 @@ public:
 			}
 			if (e.total != 0u && e.done >= e.total) {
 				e.done = e.total;
-				// Tarea finita completada: libera el slot (el handle queda invalidado).
-				release(e);
+				// Tarea finita completada: queda en `Done` hasta que el juego la
+				// cancele (asi el juego puede consultar que termino y su progreso).
+				e.completed = true;
 			}
 		}
 		m_slice_units = static_cast<u16>(total_units > 0xffffu ? 0xffffu : total_units);
@@ -239,6 +247,7 @@ private:
 		u8 generation = 0u;
 		bool live = false;
 		bool failed = false;
+		bool completed = false;
 	};
 
 	Entry* find(TaskHandle handle) {
@@ -259,6 +268,7 @@ private:
 	void release(Entry& e) {
 		e.live = false;
 		e.failed = false;
+		e.completed = false;
 		e.step = nullptr;
 		e.data = nullptr;
 		e.slice_units = 0u;
@@ -272,6 +282,8 @@ private:
 	u16 m_slice_units = 0u;
 	u8 m_live = 0u;
 	u8 m_max_slices = 4u;
+	u32 m_frame = 0xffffffffu;   // frame actual (para resetear el cupo por frame)
+	u8 m_frame_slices = 0u;      // rebanadas ya consumidas en este frame
 };
 
 } // namespace eng::task

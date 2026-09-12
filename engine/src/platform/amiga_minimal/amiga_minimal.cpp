@@ -52,12 +52,22 @@ void write_custom_pointer(unsigned short word_offset, const void* pointer) {
 	custom_base[word_offset + 1] = static_cast<eng::u16>(raw & 0xffffu);
 }
 
+// Servicio opcional que se ejecuta mientras se espera al Blitter (drenado de fondo).
+void (*g_blitter_service)(void*, unsigned short) = nullptr;
+void* g_blitter_service_user = nullptr;
+
 bool wait_blitter() {
 	// El bit BBUSY de DMACONR baja cuando el Blitter queda libre. Dejamos un limite
 	// alto para evitar bloqueos infinitos durante pruebas si hemos programado mal un
 	// registro; en una build de juego esto se convertira en diagnostico/profiler.
+	// Mientras gira, si hay un servicio de fondo registrado, lo ejecuta (no perder el
+	// tiempo de espera en trabajo util).
 	eng::u32 guard = 0x00ffffffu;
 	while ((custom_base[custom_dmaconr_offset] & dmaconr_blitter_busy) != 0u) {
+		if (g_blitter_service != nullptr) {
+			g_blitter_service(g_blitter_service_user,
+					  static_cast<unsigned short>((*vpos_long & 0x1ff00u) >> 8));
+		}
 		if (--guard == 0u) {
 			return false;
 		}
@@ -312,6 +322,11 @@ void MinimalBackend::wait_vblank(void (*task)(void*, u16), void* user) {
 		vposr = *vpos_long;
 	}
 	debug_stop_idle();
+}
+
+void MinimalBackend::set_blitter_service(void (*task)(void*, u16), void* user) {
+	g_blitter_service = task;
+	g_blitter_service_user = user;
 }
 
 void MinimalBackend::set_color(u8 index, u16 rgb444) {

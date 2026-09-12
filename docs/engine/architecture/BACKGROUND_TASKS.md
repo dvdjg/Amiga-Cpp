@@ -79,10 +79,14 @@ u16 prepare_level_step(void* data, const eng::task::TaskSlice& s) {
 
 ## Estado y siguientes pasos
 
-- ✅ Cola cooperativa con progreso/rendimiento/adaptación, integrada en el engine
-  (drenada en el hueco de VBlank). Test host HOST-017.
-- Pendiente (cuando haga falta más margen): **drenar también en las esperas de
-  Blitter** (`wait_blitter`) para aprovechar el spin de `BBUSY`, y un **driver por
-  IRQ** (timer de CIA o IRQ de blit nivel 3) para que el fondo avance **sin** depender
-  del *polling* de VBlank. El diseño de IRQ está en `C2P_BLITTER.md` §5.1.
-- Pendiente: una demo que lo ejercite en hardware (barra de progreso + `vpos`).
+- ✅ Cola cooperativa con progreso/rendimiento/adaptación e indicadores bidireccionales,
+  integrada en el engine (drenada en el hueco de VBlank). Test host HOST-017.
+- ✅ **Drenado en las esperas de Blitter**: `MinimalBackend::set_blitter_service(task,user)`
+  ejecuta la cola mientras el backend gira en `BBUSY` (`wait_blitter`), compartiendo el
+  mismo cupo por frame que el VBlank (`BackgroundQueue::max_slices_per_frame`). El engine
+  lo conecta automáticamente si el backend lo soporta.
+- ✅ **Demo `081_background_tasks`**: un proceso pesado (barra progresiva) avanza mientras
+  el bucle principal pulsa el fondo y traza una línea por Blitter (cuyas esperas drenan el
+  fondo); la tarea adapta su carga a `vpos`.
+- Pendiente: **driver por IRQ** (timer de CIA o IRQ de blit nivel 3) para que el fondo
+  avance **sin** depender del *polling* de VBlank. Diseño en `C2P_BLITTER.md` §5.1.
