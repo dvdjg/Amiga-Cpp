@@ -153,6 +153,10 @@ PlatformBackend (Amiga: potgo/ciaa/ciab + joyport + teclado)
   el juego expone `idle(backend, context)`, también se le llama ahí (p. ej. las fases del
   C2P de `fire-rgb`). `MinimalBackend::wait_vblank(task, user)` entrega la línea de raster
   (`vpos`) como hook. Ver `BACKGROUND_TASKS.md`.
+- **Modo interrupt-driven** (`Engine::run_frames_interrupt_driven`): la IRQ de VBlank corre
+  `update`/`render` (latido del juego, deadline de 1 frame) y el bucle principal ejecuta el
+  fondo cooperativo, que la IRQ preempta. Backend via `set_vblank_service` (+
+  `support/vbl_irq.s`). Ver `BACKGROUND_TASKS.md`.
 
 ### 2.9 Debug y telemetría (`eng::debug`)
 `RunStatus`, `DebugPeripheral` (consola/checkpoints/counters) ya existen. Se usan para la

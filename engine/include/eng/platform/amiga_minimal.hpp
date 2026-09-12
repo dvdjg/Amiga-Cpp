@@ -109,6 +109,16 @@ public:
 	/// en vez de girar en vacio. Recibe la linea de raster (`vpos`). `nullptr` la apaga.
 	void set_blitter_service(void (*task)(void*, u16 vpos), void* user);
 
+	/// Instala la IRQ de **VBlank** (nivel 3) y hace que el backend ejecute
+	/// `task(user, vpos)` en cada VBlank. Es el **latido del juego**: `Engine` la usa en
+	/// modo interrupt-driven para correr `update`/`render` con deadline de un frame,
+	/// dejando el bucle principal al trabajo de fondo cooperativo (que la IRQ preempta).
+	/// `task` debe ser corta. Devuelve false si ya habia una instalada.
+	bool set_vblank_service(void (*task)(void*, u16 vpos), void* user);
+
+	/// Desinstala la IRQ de VBlank (restaura el vector de nivel 3 y `INTENA`).
+	void clear_vblank_service();
+
 	/// Escribe un registro COLORxx. `rgb444` usa el formato nativo OCS.
 	void set_color(u8 index, u16 rgb444);
 

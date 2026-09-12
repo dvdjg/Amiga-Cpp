@@ -77,16 +77,52 @@ u16 prepare_level_step(void* data, const eng::task::TaskSlice& s) {
 }
 ```
 
+## Dos modos de bucle
+
+El engine soporta dos organizaciones, segun dónde viva el **juego** y dónde el **fondo**:
+
+| Modo | Juego (`update`/`render`) | Fondo | API |
+|---|---|---|---|
+| **Cooperativo** (por defecto) | bucle principal (`update → wait_vblank → render`) | drenado en el hueco de VBlank y en las esperas de Blitter | `Engine::run_frames` |
+| **Interrupt-driven** | **IRQ de VBlank** (latido del juego, *deadline* de 1 frame) | bucle principal (`while (frames < N) background.run_slice(...)`) | `Engine::run_frames_interrupt_driven` |
+
+En el modo **interrupt-driven** (el más fiel al estilo Amiga clásico) la IRQ de VBlank
+lleva el trabajo del juego (avanzar animación, actualizar el Copper, input) con **prioridad
+dura**: preempta al fondo. El bucle principal ejecuta el trabajo de fondo cooperativo; cuando
+la IRQ no tiene nada más que hacer, vuelve (`RTE`) y el fondo continúa.
+
+Implementación del tick de VBlank (nivel 3, autovector `0x6C` en 68000 / `VBR+0x6C`):
+`support/vbl_irq.s` (trampoline: salva registros, despacha a C++, `RTE`) +
+`MinimalBackend::set_vblank_service(task, user)`, que limpia `INTREQ VERTB` y llama a
+`Engine::InterruptTick` (`update` + `render`). El fondo del bucle principal usa
+`BackgroundQueue::run_slice`, con la **guarda de reentrada** (`in_slice`) por si la IRQ lo
+preempta a mitad de rebanada.
+
+`BackgroundQueue::run_slice` tiene esa guarda de reentrada: si una IRQ dispara mientras el
+bucle principal ya está dentro de una rebanada, se salta (evita corromper el estado). Así
+VBlank, espera de Blitter e IRQ pueden coexistir.
+
+## ¿VBlank, blit o timer?
+
+| Fuente | Qué da | Uso |
+|---|---|---|
+| **VBlank IRQ** (`VERTB`, nivel 3) | tick 50 Hz | **latido del juego** en el modo interrupt-driven: garantiza la cadencia del juego aunque el fondo sea pesado |
+| **Blit IRQ** (`BLIT`, nivel 3) | evento "blit terminado" | encadenar blits (paralelismo CPU↔Blitter); mañana, mejor punto de drenado que el *polling* de `BBUSY` |
+| **Timer CIA-A** | reloj propio | motor de fondo independiente del frame (pendiente) |
+
+Matiz importante: la IRQ de VBlank **no** es un buen motor de *fondo* (es la misma cadencia
+de 50 Hz y roba tiempo al bucle); su sitio es el **latido del juego**. Para fondo puro de CPU
+el driver natural es el timer de CIA (avanza a su ritmo); se intentó y se retiró (el timer no
+recargaba de forma fiable en el emulador y la región de la CIA no es legible por GDB).
+
 ## Estado y siguientes pasos
 
-- ✅ Cola cooperativa con progreso/rendimiento/adaptación e indicadores bidireccionales,
-  integrada en el engine (drenada en el hueco de VBlank). Test host HOST-017.
-- ✅ **Drenado en las esperas de Blitter**: `MinimalBackend::set_blitter_service(task,user)`
-  ejecuta la cola mientras el backend gira en `BBUSY` (`wait_blitter`), compartiendo el
-  mismo cupo por frame que el VBlank (`BackgroundQueue::max_slices_per_frame`). El engine
-  lo conecta automáticamente si el backend lo soporta.
-- ✅ **Demo `081_background_tasks`**: un proceso pesado (barra progresiva) avanza mientras
-  el bucle principal pulsa el fondo y traza una línea por Blitter (cuyas esperas drenan el
-  fondo); la tarea adapta su carga a `vpos`.
-- Pendiente: **driver por IRQ** (timer de CIA o IRQ de blit nivel 3) para que el fondo
-  avance **sin** depender del *polling* de VBlank. Diseño en `C2P_BLITTER.md` §5.1.
+- ✅ Cola cooperativa (progreso/rendimiento/adaptación, indicadores bidireccionales). Test
+  host HOST-017.
+- ✅ **Drenado en las esperas de Blitter** (`set_blitter_service`), compartiendo el cupo por
+  frame con el VBlank.
+- ✅ **Modo interrupt-driven** (`run_frames_interrupt_driven`): la IRQ de VBlank lleva
+  `update`/`render` y el bucle principal el fondo.
+- ✅ **Demo `081_background_tasks`**: juego en la IRQ (pulso de fondo + línea por Blitter) y
+  fondo en el bucle principal (barra progresiva que se adapta a `vpos`).
+- Pendiente: **timer de CIA-A** como motor de fondo independiente del frame (ver arriba).

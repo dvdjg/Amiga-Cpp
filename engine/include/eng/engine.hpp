@@ -82,6 +82,32 @@ struct BackgroundBlitterService {
 	}
 };
 
+/// Tick del juego por IRQ de VBlank (modo interrupt-driven).
+///
+/// La IRQ lleva el **latido del juego**: `update` + `render` con deadline de un frame.
+/// El bucle principal queda libre para el trabajo de fondo cooperativo, que la IRQ
+/// preempta. `frames` lo lee/escribe el bucle principal y lo incrementa la IRQ.
+template <typename Backend, typename Game>
+struct InterruptTick {
+	Game* game = nullptr;
+	Backend* backend = nullptr;
+	GameContext* context = nullptr;
+	volatile u32 frames = 0u;
+	u32 frame_count = 0u;
+
+	static void run(void* self, u16 vpos) {
+		auto* tick = static_cast<InterruptTick*>(self);
+		if (tick->frames >= tick->frame_count) {
+			return;
+		}
+		tick->context->frame.frame_index = tick->frames;
+		(void)vpos;
+		tick->game->update(*tick->backend, *tick->context);
+		tick->game->render(*tick->backend, *tick->context);
+		++tick->frames;
+	}
+};
+
 /// Engine generico parametrizado por backend y juego.
 ///
 /// Esta clase es el primer paso para evitar que el juego sea "codigo Amiga". El
@@ -128,6 +154,29 @@ public:
 
 	/// Cola de tareas de fondo (el juego la usa via `GameContext::background`).
 	task::BackgroundQueue& background() { return m_background; }
+
+	/// Modo **interrupt-driven**: la IRQ de VBlank ejecuta `update`/`render` (el latido
+	/// del juego, con deadline de un frame) y el bucle principal es el trabajo de fondo
+	/// cooperativo, que la IRQ preempta. Requiere un backend con `set_vblank_service`.
+	void run_frames_interrupt_driven(u32 frame_count) {
+		GameContext context {};
+		context.background = &m_background;
+
+		m_backend.boot();
+		m_game.init(m_backend, context);
+
+		if constexpr (requires { m_backend.set_vblank_service(nullptr, nullptr); }) {
+			InterruptTick<Backend, Game> tick {&m_game, &m_backend, &context, 0u, frame_count};
+			if (!m_backend.set_vblank_service(&InterruptTick<Backend, Game>::run, &tick)) {
+				return;
+			}
+			// Bucle principal = fondo cooperativo continuo (la IRQ lo preempta).
+			while (tick.frames < frame_count) {
+				m_background.run_slice(tick.frames, 0u);
+			}
+			m_backend.clear_vblank_service();
+		}
+	}
 
 private:
 	Backend& m_backend;

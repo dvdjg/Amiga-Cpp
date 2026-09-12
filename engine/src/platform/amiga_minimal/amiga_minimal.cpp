@@ -56,6 +56,13 @@ void write_custom_pointer(unsigned short word_offset, const void* pointer) {
 void (*g_blitter_service)(void*, unsigned short) = nullptr;
 void* g_blitter_service_user = nullptr;
 
+// Tick del juego por IRQ de VBlank (nivel 3, INTB_VERTB). El bucle principal queda para
+// el trabajo de fondo cooperativo; la IRQ lo preempta cada frame.
+extern "C" void vbl_irq();
+void (*g_vbl_task)(void*, unsigned short) = nullptr;
+void* g_vbl_task_user = nullptr;
+unsigned long g_vbl_old_vector = 0;
+
 bool wait_blitter() {
 	// El bit BBUSY de DMACONR baja cuando el Blitter queda libre. Dejamos un limite
 	// alto para evitar bloqueos infinitos durante pruebas si hemos programado mal un
@@ -327,6 +334,44 @@ void MinimalBackend::wait_vblank(void (*task)(void*, u16), void* user) {
 void MinimalBackend::set_blitter_service(void (*task)(void*, u16), void* user) {
 	g_blitter_service = task;
 	g_blitter_service_user = user;
+}
+
+// Despachador de la IRQ de VBlank: lo llama el trampoline asm (`support/vbl_irq.s`)
+// con todos los registros salvados. Limpia el request y ejecuta el tick del juego.
+extern "C" void vbl_irq_dispatch() {
+	custom_base[custom_intreq_offset] = 0x0020u;   // INTREQ: limpiar VERTB
+	if (g_vbl_task != nullptr) {
+		g_vbl_task(g_vbl_task_user,
+			   static_cast<unsigned short>((*vpos_long & 0x1ff00u) >> 8));
+	}
+}
+
+bool MinimalBackend::set_vblank_service(void (*task)(void*, u16), void* user) {
+	if (g_vbl_task != nullptr) {
+		return false;
+	}
+	g_vbl_task = task;
+	g_vbl_task_user = user;
+
+	// Instala el handler en el autovector de nivel 3 (VBR=0 en 68000 -> 0x6C).
+	volatile eng::u32* const vector3 = reinterpret_cast<volatile eng::u32*>(0x6cu);
+	g_vbl_old_vector = *vector3;
+	*vector3 = reinterpret_cast<eng::u32>(&vbl_irq);
+
+	// Master interrupt + VERTB (nivel 3). `takeover_display` los habia apagado.
+	custom_base[custom_intena_offset] = 0xc020u;   // SETCLR | INTEN | VERTB
+	return true;
+}
+
+void MinimalBackend::clear_vblank_service() {
+	if (g_vbl_task == nullptr) {
+		return;
+	}
+	custom_base[custom_intena_offset] = 0x4020u;   // desarmar INTEN | VERTB
+	*reinterpret_cast<volatile eng::u32*>(0x6cu) = g_vbl_old_vector;
+	custom_base[custom_intreq_offset] = 0x0020u;   // limpiar pendiente
+	g_vbl_task = nullptr;
+	g_vbl_task_user = nullptr;
 }
 
 void MinimalBackend::set_color(u8 index, u16 rgb444) {

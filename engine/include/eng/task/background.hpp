@@ -181,6 +181,13 @@ public:
 			m_slice_units = 0u;
 			return 0u;
 		}
+		// Guarda de reentrada: una IRQ (timer de CIA / blit) puede dispararse mientras
+		// el bucle principal ya esta dentro de una rebanada; en ese caso se salta.
+		if (m_in_slice != 0u) {
+			m_slice_units = 0u;
+			return 0u;
+		}
+		m_in_slice = 1u;
 		++m_frame_slices;
 		u32 total_units = 0u;
 		for (u8 i = 0; i < max_tasks; ++i) {
@@ -221,6 +228,7 @@ public:
 			}
 		}
 		m_slice_units = static_cast<u16>(total_units > 0xffffu ? 0xffffu : total_units);
+		m_in_slice = 0u;
 		return m_slice_units;
 	}
 
@@ -284,6 +292,7 @@ private:
 	u8 m_max_slices = 4u;
 	u32 m_frame = 0xffffffffu;   // frame actual (para resetear el cupo por frame)
 	u8 m_frame_slices = 0u;      // rebanadas ya consumidas en este frame
+	volatile u8 m_in_slice = 0u; // guarda de reentrada (IRQ vs bucle principal)
 };
 
 } // namespace eng::task
