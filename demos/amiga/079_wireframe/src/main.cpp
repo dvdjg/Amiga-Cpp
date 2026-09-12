@@ -218,16 +218,18 @@ struct WireframeDemo {
 		}
 
 		m_bitplane_block = backend.memory().chip.allocate(kBitmapBytes, 16);
-		m_copper_block = backend.memory().chip.allocate(2048, 16);
+		m_copper_block = backend.memory().chip.allocate(kRing * kCopperPerList, 16);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00007902u);
 			return;
 		}
 		m_bitplanes = static_cast<eng::u8*>(m_bitplane_block.data);
 
-		if (!build_copper(0) || !build_copper(1)) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00007903u);
-			return;
+		for (eng::u8 a = 0; a < kRing; ++a) {
+			if (!build_copper(a)) {
+				eng::debug::mark_failed(g_eng_run_status, 0x00007903u);
+				return;
+			}
 		}
 		backend.takeover_display(m_copper_ptrs[0]);
 
@@ -244,10 +246,13 @@ struct WireframeDemo {
 			return;
 		}
 
-		const eng::u8 back = static_cast<eng::u8>(m_active ^ 1u);
-		eng::u8* plane = m_bitplanes + static_cast<eng::u32>(back) * kBufferBytes;
+		// Anillo de 5 planos (como el original): limpia y dibuja SOLO el plano
+		// `active`; la copperlist lo muestra como bit 3 y deja el rastro de los 3
+		// frames anteriores en los bits 2..0 (colores 8/4/2/1).
+		const eng::u8 active = m_active;
+		eng::u8* plane = m_bitplanes + static_cast<eng::u32>(active) * kPlaneBytes;
 
-		backend.blitter_clear(plane, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight);
+		backend.blitter_clear(plane, 1, kBytesPerRow, kPlaneBytes, kWidth, kHeight);
 
 		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z =
 			static_cast<eng::s16>(context.frame.frame_index * 8u);
@@ -256,14 +261,10 @@ struct WireframeDemo {
 		update_face_visibility_fast(m_object);
 		update_edge_visibility(m_object);
 		transform_vertices(m_object);
-		// El original dibuja en el plano que la copperlist situa como BIT 3
-		// (bplptr[3] = planes[active]) -> color 8 (brillante). Dibujamos en el plano
-		// 3 del buffer para que el alambre sea visible (color 8, no el bit 0 oscuro).
-		draw_object(m_object, plane + static_cast<eng::u32>(3) * kPlaneBytes, backend);
+		draw_object(m_object, plane, backend);
 
-		// Swap: muestra el buffer recien dibujado.
-		backend.install_copper_list(m_copper_ptrs[back]);
-		m_active = back;
+		backend.install_copper_list(m_copper_ptrs[active]);
+		m_active = static_cast<eng::u8>((active + 1u) % kRing);
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
@@ -271,29 +272,33 @@ struct WireframeDemo {
 	}
 
 private:
-	bool build_copper(eng::u8 buffer) {
-		eng::MemoryBlock block = m_copper_block.valid() ? m_copper_block : eng::MemoryBlock {};
-		// Cada copperlist ocupa su mitad del bloque.
-		eng::u8* base = static_cast<eng::u8*>(block.data) + static_cast<eng::u32>(buffer) * 1024u;
-		copper::Scheduler sched {eng::MemoryBlock {base, 1024, block.kind}};
-		eng::u8* planes = m_bitplanes + static_cast<eng::u32>(buffer) * kBufferBytes;
+	/// Construye la copperlist para el plano `active`: bit3=planes[active],
+	/// bit2=planes[active-1], bit1=planes[active-2], bit0=planes[active-3] (mod 5),
+	/// como el parcheo de `BPLxPT` del original.
+	bool build_copper(eng::u8 active) {
+		const eng::MemoryBlock& block = m_copper_block;
+		eng::u8* base = static_cast<eng::u8*>(block.data) +
+				static_cast<eng::u32>(active) * kCopperPerList;
+		copper::Scheduler sched {eng::MemoryBlock {base, kCopperPerList, block.kind}};
 		sched.emit_planes_display(kDiwstrt, kDiwstop, kDdfstrt, kDdfstop, kBytesPerRow, kBplcon0,
-					  kPlanes, planes, kPlaneBytes);
+					  kPlanes, m_bitplanes, kPlaneBytes);
+		for (eng::u8 n = 0; n < kPlanes; ++n) {
+			const eng::u8 idx = static_cast<eng::u8>((active + 2u + n) % kRing);
+			sched.move_bitplane_pointer(n, m_bitplanes + static_cast<eng::u32>(idx) * kPlaneBytes);
+		}
 		sched.move(copper::Register::BPLCON1, kBplcon1);
 		sched.emit_palette(wireframe_colors, 0, 16);
 		sched.end();
-		m_copper_ptr_ok[buffer] = sched.ok();
-		m_copper_ptrs[buffer] = sched.data();
-		return m_copper_ptr_ok[buffer];
+		m_copper_ptrs[active] = sched.data();
+		return sched.ok();
 	}
 
 	bool m_memory_ok = false;
-	bool m_copper_ptr_ok[2] = {false, false};
 	eng::u8 m_active = 0;
 	eng::u8* m_bitplanes = nullptr;
 	eng::MemoryBlock m_bitplane_block {};
 	eng::MemoryBlock m_copper_block {};
-	const eng::u16* m_copper_ptrs[2] = {nullptr, nullptr};
+	const eng::u16* m_copper_ptrs[kRing] = {nullptr, nullptr, nullptr, nullptr, nullptr};
 	eng::object3d::Object3D m_object {};
 };
 

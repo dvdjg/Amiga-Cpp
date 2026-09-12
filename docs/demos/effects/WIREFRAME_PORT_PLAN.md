@@ -76,3 +76,5 @@ Con los registros del original y doble buffer, el `screenshot` muestra el balón
 
 **Diferencia pendiente**: el original limpia SOLO `planes[active]` y rota 5 planos → el balón deja un **rastro** (colores 8/4/2/1 según el frame); la versión actual limpia los 4 planos → balón brillante limpio, sin rastro. Para el 1:1 exacto falta el anillo de 5 planos con parche de `BPLxPT` por frame.
 
+**✅ Rastro (1:1 completo)**: implementado el **anillo de 5 planos**: cada frame se limpia y dibuja SOLO `planes[active]`, y se instala una de las 5 copperlists (bit3=active, bit2=active-1, bit1=active-2, bit0=active-3, mod 5). Resultado: trazo actual en color 8 (`#0088ff`) y rastro de los 3 frames previos en 4/2/1 (`#004488`/`#002255`/`#001133`), con combinaciones por solape (hasta `#cceeff`). Verificado objetivo (17 colores en la captura) y por visión ("líneas con doble trazo"). El original y este porte ya coinciden en geometría, línea, display, doble buffer y rastro.
+

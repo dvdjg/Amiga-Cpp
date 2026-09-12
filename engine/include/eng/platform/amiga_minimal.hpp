@@ -161,6 +161,25 @@ public:
 	/// `plane_bytes`, alineando a palabra. Equivale a `BlitterClear` del demoscene.
 	bool blitter_clear(u8* dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w, u16 h);
 
+	/// Escribe el registro de datos de un bitplane (`BLTxDAT`, $110 + 2*plane). Lo
+	/// usa fire-rgb para los bits HAM fijos de los planos 4/5 (`0x7777`/`0xcccc`).
+	void set_bitplane_dat(u8 plane, u16 value);
+
+	/// Estado del C2P 4 bpp por Blitter (portado de `ChunkyToPlanar` de fire-rgb).
+	/// `chunky` es el buffer (su segunda mitad es el destino planar). `planes` son
+	/// los 4 punteros de bitplane; `bytes` = `BLTSIZE` del original (10240).
+	struct C2p4State {
+		u8 phase = 0;
+		u8* chunky = nullptr;
+		u8* planes[4] = {nullptr, nullptr, nullptr, nullptr};
+		u16 bytes = 0;
+	};
+
+	/// Ejecuta UNA fase del C2P 4 bpp (0..12, como el original) y espera al Blitter.
+	/// Devuelve false si el Blitter no responde. La fase 12 (parcheo de BPLxPT) la
+	/// gestiona el llamador (aqui solo se avanza).
+	bool c2p_4bpp_step(C2p4State& state);
+
 	/// Inicializa el subsistema de audio (SFX mixer + reproductores de música).
 	/// Debe llamarse después de `configure_memory` (necesita el bloque Chip para el
 	/// buffer del mixer) y después de `takeover_display` (el mixer instala su

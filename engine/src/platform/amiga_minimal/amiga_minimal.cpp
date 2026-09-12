@@ -26,6 +26,8 @@ constexpr unsigned short custom_bltamod_offset = 0x064 / 2;
 constexpr unsigned short custom_bltdmod_offset = 0x066 / 2;
 constexpr unsigned short custom_bltadat_offset = 0x074 / 2; // BLTADAT
 constexpr unsigned short custom_bltbdat_offset = 0x072 / 2; // BLTBDAT
+constexpr unsigned short custom_bltcdat_offset = 0x070 / 2; // BLTCDAT
+constexpr unsigned short custom_bpldat_offset = 0x110 / 2;  // BPL1DAT (+2 por plano)
 constexpr unsigned short custom_color_offset = 0x180 / 2;
 constexpr unsigned short custom_copjmp1_offset = 0x088 / 2;
 constexpr unsigned short custom_dmacon_offset = 0x096 / 2;
@@ -83,6 +85,12 @@ constexpr unsigned short blt_fill_or = 0x0008;
 constexpr unsigned short blt_reverse = 0x0002;
 constexpr unsigned short blt_minterm_a_or_c = 0x00fa;       // D = A | C
 constexpr unsigned short blt_minterm_not_a_and_c = 0x000a;  // D = ~A & C
+// C2P 4bpp (portado de fire-rgb): interleave de bytes (A>>8 | B&~0xFF) y su inverso.
+constexpr unsigned short blt_c2p_abd = static_cast<unsigned short>(blt_use_a | blt_use_b | blt_use_d);
+constexpr unsigned short blt_minterm_c2p_out = 0x00e2;  // ABC|ANBC|ABNC|NABNC
+constexpr unsigned short blt_minterm_c2p_out2 = 0x00d8; // ABNC|ANBNC|ABC|NABC
+constexpr unsigned short blt_shift8 = 0x8000;           // ASHIFT(8)
+constexpr unsigned short blt_shift4 = 0x4000;           // ASHIFT(4)
 
 unsigned short ror16(unsigned short value, unsigned short n) {
 	return static_cast<unsigned short>((value >> n) | (value << (16u - n)));
@@ -586,6 +594,102 @@ bool MinimalBackend::blitter_clear(u8* dst, u8 planes, u16 row_bytes, u32 plane_
 	for (u8 p = 0; p < planes; ++p) {
 		blit_clear_region(dst + static_cast<u32>(p) * plane_bytes, row_bytes, 0, 0, words, h);
 	}
+	return wait_blitter();
+}
+
+void MinimalBackend::set_bitplane_dat(u8 plane, u16 value) {
+	if (plane < 8u) {
+		custom_base[custom_bpldat_offset + plane] = value;
+	}
+}
+
+bool MinimalBackend::c2p_4bpp_step(C2p4State& s) {
+	if (s.chunky == nullptr) {
+		return false;
+	}
+	u8* src = s.chunky;
+	u8* dst = s.chunky + s.bytes;
+	const u16 h = static_cast<u16>((static_cast<u32>(s.bytes) / 16u) << 6);
+	const u16 bplsize = static_cast<u16>(s.bytes / 4u);
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
+	switch (s.phase) {
+	case 0:
+		custom_base[custom_bltamod_offset] = 4;
+		custom_base[custom_bltbmod_offset] = 4;
+		custom_base[custom_bltdmod_offset] = 4;
+		custom_base[custom_bltcdat_offset] = 0x00ff;
+		custom_base[custom_bltafwm_offset] = 0xffff;
+		custom_base[custom_bltalwm_offset] = 0xffff;
+		write_custom_pointer(custom_bltapt_offset, src + 4);
+		write_custom_pointer(custom_bltbpt_offset, src);
+		write_custom_pointer(custom_bltdpt_offset, dst);
+		custom_base[custom_bltcon0_offset] = static_cast<u16>(blt_c2p_abd | blt_minterm_c2p_out | blt_shift8);
+		custom_base[custom_bltcon1_offset] = 0;
+		custom_base[custom_bltsize_offset] = static_cast<u16>(2 | h);
+		break;
+	case 1:
+		custom_base[custom_bltsize_offset] = static_cast<u16>(2 | h);
+		break;
+	case 2:
+		write_custom_pointer(custom_bltapt_offset, src + s.bytes - 6);
+		write_custom_pointer(custom_bltbpt_offset, src + s.bytes - 2);
+		write_custom_pointer(custom_bltdpt_offset, dst + s.bytes - 2);
+		custom_base[custom_bltcon0_offset] = static_cast<u16>(blt_c2p_abd | blt_minterm_c2p_out2 | blt_shift8);
+		custom_base[custom_bltcon1_offset] = blt_reverse;
+		custom_base[custom_bltsize_offset] = static_cast<u16>(2 | h);
+		break;
+	case 3:
+		custom_base[custom_bltsize_offset] = static_cast<u16>(2 | h);
+		break;
+	case 4:
+		custom_base[custom_bltamod_offset] = 6;
+		custom_base[custom_bltbmod_offset] = 6;
+		custom_base[custom_bltdmod_offset] = 0;
+		custom_base[custom_bltcdat_offset] = 0x0f0f;
+		write_custom_pointer(custom_bltapt_offset, dst + 2);
+		write_custom_pointer(custom_bltbpt_offset, dst);
+		write_custom_pointer(custom_bltdpt_offset, s.planes[0]);
+		custom_base[custom_bltcon0_offset] = static_cast<u16>(blt_c2p_abd | blt_minterm_c2p_out | blt_shift4);
+		custom_base[custom_bltcon1_offset] = 0;
+		custom_base[custom_bltsize_offset] = static_cast<u16>(1 | h);
+		break;
+	case 5:
+		custom_base[custom_bltsize_offset] = static_cast<u16>(1 | h);
+		break;
+	case 6:
+		write_custom_pointer(custom_bltapt_offset, dst + 6);
+		write_custom_pointer(custom_bltbpt_offset, dst + 4);
+		write_custom_pointer(custom_bltdpt_offset, s.planes[2]);
+		custom_base[custom_bltsize_offset] = static_cast<u16>(1 | h);
+		break;
+	case 7:
+		custom_base[custom_bltsize_offset] = static_cast<u16>(1 | h);
+		break;
+	case 8:
+		write_custom_pointer(custom_bltapt_offset, dst + s.bytes - 8);
+		write_custom_pointer(custom_bltbpt_offset, dst + s.bytes - 6);
+		write_custom_pointer(custom_bltdpt_offset, s.planes[1] + bplsize - 2);
+		custom_base[custom_bltcon0_offset] = static_cast<u16>(blt_c2p_abd | blt_minterm_c2p_out2 | blt_shift4);
+		custom_base[custom_bltcon1_offset] = blt_reverse;
+		custom_base[custom_bltsize_offset] = static_cast<u16>(1 | h);
+		break;
+	case 9:
+		custom_base[custom_bltsize_offset] = static_cast<u16>(1 | h);
+		break;
+	case 10:
+		write_custom_pointer(custom_bltapt_offset, dst + s.bytes - 4);
+		write_custom_pointer(custom_bltbpt_offset, dst + s.bytes - 2);
+		write_custom_pointer(custom_bltdpt_offset, s.planes[3] + bplsize - 2);
+		custom_base[custom_bltsize_offset] = static_cast<u16>(1 | h);
+		break;
+	case 11:
+		custom_base[custom_bltsize_offset] = static_cast<u16>(1 | h);
+		break;
+	case 12: // parcheo de BPLxPT: lo hace el llamador
+	default:
+		break;
+	}
+	s.phase++;
 	return wait_blitter();
 }
 
