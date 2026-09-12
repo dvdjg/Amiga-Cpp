@@ -284,4 +284,38 @@ Lecciones del bucle de fuego de `fire-rgb` (demo 080), que en el original fija *
   `out/tmp/fps.mjs <demo> <config>`. **Medir antes de atribuir**: las tres hipótesis iniciales
   (modo IRQ, copper, build -O0) se descartaron con datos.
 
+## 10. Auditor de codegen: `tools/analyze/asm-audit.mjs` (2026-09)
+
+Antes de bajar a asm "a mano" conviene saber **dónde** el compilador emite código caro. El auditor
+desensambla un ELF (o un `.o`) y reporta, **por función**, cuántas llamadas a rutinas de soporte
+emite:
+
+```
+node tools/analyze/asm-audit.mjs --demo demos/amiga/107_xlimited_corkscrew [--ext] [--top N] [--json] [--strict]
+node tools/analyze/asm-audit.mjs out/demos/<demo>/<cfg>/<demo>.<cfg>.elf
+```
+
+Cuenta `__mulsi3`/`__umulsi3` (mul32), `__divsi3`/`__udivsi3` (div32), `__modsi3`/`__umodsi3`
+(mod32), helpers soft-float y `__ashlsi3`/`__ashrsi3`/`__lshrsi3`, más el nº de `jsr`/`jbsr` como
+contexto (y `--ext` añade `andi #255` redundantes). Ordena por peso y suma totales. **Caveat
+importante**: no sabe la **frecuencia de llamada**; un `__mulsi3` en un `fill_screen` de init no
+importa, uno por píxel/frame sí. Es un **filtro** para dirigir la medición, no un veredicto.
+
+- **Control positivo**: un `.o` con `a*b`, `a/b`, `a%b` y `(float)a*2.5f` (compilado con el
+  toolchain) reporta `mul32/div32/mod32/float` correctamente. `-r` en el `objdump` hace que
+  también funcione con `.o` sin enlazar (relocaciones).
+- **Hallazgo 2026-09**: `061_c2p` y `082_plasma` (los efectos puros) → **0 helpers caros**: el
+  optimizador no es el problema ahí. En cambio `107_xlimited_corkscrew`, `201_ehb_map` y
+  `104_tile_scroll_ring_dualpf` **sí** tienen mul32/div32/mod32 en `XLimitedPlayfield::add_draw`,
+  `fill_screen`, `scroll_*` y `main` (vienen de config de geometría **runtime**, no NTTP: `a *
+  m_cfg.tile_width`, `viewport_h / tile_height`). Son **candidatos** a verificar con medida (la 107
+  corre a ~48 fps, así que los de init/ocasionales no son cuello); si alguno cae en el camino por
+  bloque/frame, la vía es llevar la geometría a NTTP (como `ScrollConsts`).
+
+**Lección de proceso**: el primer resultado del auditor fue "todo 0" y era **falso negativo**
+(objdump Windows emite CRLF y el regex de cabecera anclaba en `$`). Se detectó con un **control
+positivo**; sin él habríamos concluido lo contrario. Todo verificador necesita su caso que **debe
+fallar/detectar**.
+
+
 
