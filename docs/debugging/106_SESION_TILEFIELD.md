@@ -366,3 +366,50 @@ node tools/vision-review/vision-review.ts --root . \
 node tools/vision-review/vision-review.ts --reviewRequest out/vision-review/106_x/request.json \
   --provider tools/vision-review/providers/ollama.local.json
 ```
+
+## 2026-09 — Los playfields no se mueven: recentrado con recorrido NULO
+
+**Síntoma**: en `106_tile_field_showcase` (y 102) los PF no avanzan. Evidencia: dos
+frames consecutivos de una secuencia son casi idénticos (`seqtiming.mjs` da
+`diff_medio_R≈0.2` en un par; ~20 en los demás, que es solo el fine-scroll de 1 px),
+y el contenido de los tiles no se desplaza.
+
+**Causa raíz** (en `engine/include/eng/field/tile_field.hpp`, `recenter_axis`): el
+margen total es `room = size - view = safety_margin_blocks * bloque` (32 px para
+16×16 margen 2). La condición de recentrado usa `[left, size-view-right]` con
+`left = floor(m/2)*bloque` y `right = ceil(m/2)*bloque`, de modo que
+`left + right == room`. Resultado: el rango de la ventana es **un punto** (`[16,16]`
+para X e Y). Como el update hace `window += dx` y luego recentra a `left`, cada
+frame `surface_origin += dx` **cancela** el avance y `px = world - origin` queda
+constante ⇒ no hay scroll. El mismo error está en el modelo
+`tools/analyze/verify-tile-field-fill.mjs` (que por eso "pasaba": nunca comprobaba
+que la ventana se moviese).
+
+**Evidencia secundaria**: `px` se define como `world_x - surface_origin_x` y el
+invariante `px == window_x` se mantiene; con el recentrado por frame, ambos son
+constantes.
+
+**Por qué un parche no basta** (y por eso NO se aplicó): dar recorrido real a la
+ventana (`[0, room]`, con signo porque `dx<0` desborda el `u16`) hace que
+`enqueue_x_band`/`enqueue_y_band` pidan columnas/filas fuera de la rejilla
+(`entering = (window+VH)/TH` llega a `tileRows`, p. ej. fila 18 con
+`fh=289`), y `draw_block_job` escribiría 16 líneas **fuera del bitmap** (OOB en el
+framebuffer). Además, el recentrado debe dejar el anillo coherente: al envolver por
+`room`, cada celda física cambia de tile de mundo, y el contenido de relleno por
+delante/por detrás debe dibujarse con el `origin` correcto (el modelo re-etiqueta
+todas las celdas; el engine solo pinta bandas, así que no coinciden). Corregirlo
+bien exige rehacer el recentrado y las bandas (columna/fila entrante con `origin`
+futuro), no solo el límite.
+
+**Opciones**
+1. **Rehacer el modelo circular** en `TileFieldController`: ventana `s32` en
+   `[0, room]`, recentrado por `room` conservando `origin` alineado a bloque, y
+   bandas que dibujen la columna/fila entrante y la de envoltura con el `origin`
+   futuro, con cota de rejilla. Añadir al modelo la aserción "la ventana se mueve".
+2. **Migrar 106/102 a `XLimitedPlayfield`** (X infinito canónico, interleaved), que
+   es lo que la propia doc recomienda (`TILE_FIELD_API.md` nota de deprecación,
+   `CIRCULAR_VS_XLIMITED.md`). `TileFieldController` quedaría para Y-only/prototipos.
+
+Hasta decidir, se dejó el código **sin cambios** (evita introducir OOB). El modelo
+`verify-tile-field-fill.mjs` lleva una nota del bug; cuando se arregle, debe añadir
+`check(s.winX.size > 1, 'la ventana X no se mueve')`.

@@ -1,5 +1,19 @@
 # API de campos de tiles
 
+> **RETIRADO (2026-09).** `field::TileFieldController` (modelo circular, "superficie
+> recentrable") y `DpfDisplayComposer` se **eliminaron** del engine, junto con las demos
+> `102_tile_scroll_dualpf` y `106_tile_field_showcase`. Su modelo de dos bandas de guarda +
+> recentrado **no puede funcionar**: al recentrar, todas las celdas físicas cambian de tile de
+> mundo y el contenido solo cuadraría si ya estuviera pintado el viewport futuro, que no cabe
+> en el margen (para `left+right == margen == size-viewport` la ventana no tiene recorrido). Ver
+> `docs/debugging/106_SESION_TILEFIELD.md` y `docs/engine/architecture/CIRCULAR_VS_XLIMITED.md`.
+>
+> **Canónico**: **XYLimited** (`XLimitedPlayfield` + `XlimitedScene` + `ScrollEngine` +
+> `XlimitedDisplayComposer`/`XlimitedDualComposer`), bitmap de scroll acotado con anillo+staging,
+> coste ∝ salto, mapa toroidal/acotado solo en índices. Ver
+> `docs/engine/architecture/XYLIMITED_ALGORITMO_GENERICO.md`. Este documento se conserva solo
+> como referencia histórica del modelo retirado.
+
 > **Nota de deprecación suave (2026-08):** para **scroll X infinito** (plataformas,
 > *shooters* horizontales, *parallax* por *playfield*) preferir
 > `engine/include/eng/field/xlimited.hpp` (`XLimitedPlayfield` + `XlimitedDisplayComposer`),

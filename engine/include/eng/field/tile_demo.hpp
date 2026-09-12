@@ -3,17 +3,17 @@
 /// \file tile_demo.hpp
 /// Utilidades COMUNES para demos de campos de tiles.
 ///
-/// Unifica el código que las demos de `TileFieldController` duplicaban (106,
-/// 102, 107): paleta, glifos, seno Q16, cámaras, generación de tileset (con
-/// soporte de tiles ANCHOS múltiplo de 16) y construcción de config.
+/// Unifica el código que las demos de scroll duplicaban (107, 201): paleta,
+/// glifos, seno Q16, cámaras, generación de tileset (con soporte de tiles
+/// ANCHOS múltiplo de 16) y construcción de config.
 ///
-/// La abstracción de playfield en sí (el "código común de cualquier juego") es
-/// `TileFieldController` + `DpfDisplayComposer` (ver `tile_field.hpp` y
-/// `dpf_composer.hpp`): un controlador por playfield, dual o single, con su
-/// mapa, framebuffer y cámara independientes. Este header solo evita duplicar
-/// la generación de assets y el movimiento de las demos.
+/// La abstracción de scroll es **XYLimited** (`XLimitedPlayfield` +
+/// `XlimitedDisplayComposer`/`XlimitedDualComposer`, ver `xlimited.hpp` y
+/// `xlimited_scene.hpp`): bitmap de scroll acotado con anillo+staging; el mapa
+/// (`TileLayerMap`) solo aporta índices (no ocupa framebuffer). Este header solo
+/// evita duplicar la generación de assets y el movimiento de las demos.
 
-#include <eng/field/tile_field.hpp>
+#include <eng/field/tile_map.hpp>
 #include <eng/core/sinetable.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>

@@ -302,7 +302,7 @@
 #include <eng/core/types.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/field/scroll_engine.hpp>
-#include <eng/field/tile_field.hpp>
+#include <eng/field/tile_map.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/sprite_manager.hpp>
@@ -381,9 +381,8 @@ enum class ScrollMode : u8 {
 ///
 /// ### Variantes de compilación (parámetros `EXTRA_DEFINES`)
 ///
-/// La demo 107 es el *showcase* del corkscrew y está pensada para crecer
-/// hasta DPF como `demos/amiga/106_tile_field_showcase` pero sin el modelo circular.
-/// Los parámetros siguen el mismo patrón que 102/104/106 para que
+/// La demo 107 es el *showcase* del corkscrew y la 202 el de DPF (dual) sobre
+/// XYLimited. Los parámetros siguen el mismo patrón que 104/202 para que
 /// `tools/test-regression.sh` pueda barrerlos sin tocar el fuente:
 ///
 /// ```text

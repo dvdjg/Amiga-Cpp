@@ -44,9 +44,10 @@ estructura: `docs/STRUCTURE.md` §4. Clasificación por concepto:
   - `081_background_tasks` — **tareas de fondo + modo interrupt-driven (por defecto)**: la **IRQ de VBlank** corre el juego (update/render: pulso de fondo + línea por Blitter) y el **bucle principal** ejecuta el fondo cooperativo (`eng::task::BackgroundQueue`, test HOST-017), que la IRQ preempta. La tarea (barra progresiva) se adapta al `vpos`; el tick mide su coste en líneas de raster. Ver `docs/engine/architecture/BACKGROUND_TASKS.md`.
 - **Scroll y tile fields (`1xx`)**:
   - `100_virtual_tile_scene_scroll` — escena virtual con scroll.
-  - `101_ehb_tile_scroll_driver`, `102_tile_scroll_dualpf`, `103_tile_scroll_ring`,
-    `104_tile_scroll_ring_dualpf`, `105_tile_scroll_xyunlimited_dualpf`,
-    `106_tile_field_showcase`, `107_xlimited_corkscrew` — drivers de scroll y tiles.
+  - `101_ehb_tile_scroll_driver`, `103_tile_scroll_ring`, `104_tile_scroll_ring_dualpf`,
+    `105_tile_scroll_xyunlimited_dualpf`, `107_xlimited_corkscrew` — drivers de scroll y tiles.
+    (`102_tile_scroll_dualpf` y `106_tile_field_showcase` se retiraron: usaban el modelo circular
+    `TileFieldController`, sustituido por **XYLimited**, ver `docs/engine/architecture/XYLIMITED_ALGORITMO_GENERICO.md`.)
 - **Escenas con pipeline de assets (`2xx`)**:
   - `201_ehb_map` — mapa real EHB X-Limited con el pipeline completo.
   - `202_xlimited_dpf` — dual playfield parallax 2:1.

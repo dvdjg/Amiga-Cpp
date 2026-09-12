@@ -123,10 +123,10 @@ Scroll genérico multi-modo (2026-08): el driver de scroll por tiles vive ahora 
 `engine/include/eng/graphics/drivers/tile_scroll.hpp` como `TileScrollScene<Mode>`
 (template sobre el modo), con scroll por playfield (`TileScrollInput`) y override
 coarse por bitplane (`plane[i]`, preparado para RoboCod). `ehb_tile_scroll.hpp` es
-un shim de compatibilidad (`EhbTileScrollScene` = single 6). La demo 102
-(`demos/amiga/102_tile_scroll_dualpf`) demuestra dual 2+3 con primer plano 50%
-transparente y parallax. El test de descomposición de scroll para 4/5/6 single y
-2+3/3+3 dual es: `node tools/analyze/verify-tile-scroll-modes.mjs`.
+un shim de compatibilidad (`EhbTileScrollScene` = single 6). Las demos 103/104
+(`demos/amiga/103_tile_scroll_ring`, `104_tile_scroll_ring_dualpf`) demuestran el
+scroll por tiles single y dual. El test de descomposición de scroll para 4/5/6
+single y 2+3/3+3 dual es: `node tools/analyze/verify-tile-scroll-modes.mjs`.
 
 Rendimiento del scroll por tiles (2026-08, lecciones aprendidas):
 - El scroll del chipset (BPLxPT + BPLCON1 vía Copper) es barato; la CPU solo
@@ -165,7 +165,7 @@ recording del GUI). Pendiente: `print` DWARF.
 - Bucle de entrada del engine: `engine/include/eng/engine.hpp` (`update -> wait_vblank -> render`; `render` es el punto de commit).
 - Backend Amiga: `engine/src/platform/amiga_minimal/amiga_minimal.cpp`.
 - Validación temporal fuerte por demo: `demos/amiga/101_ehb_tile_scroll_driver/analyze-sequence.sh`.
-- Scroll multi-modo: demo dual `demos/amiga/102_tile_scroll_dualpf/analyze-sequence.sh` y test host `node tools/analyze/verify-tile-scroll-modes.mjs`.
+- Scroll multi-modo (XYLimited, canónico): demos `demos/amiga/201_ehb_map` (8-way EHB) y `202_xlimited_dpf`; test host `node tools/analyze/verify-tile-scroll-modes.mjs`.
 - Detalles operativos build/run: `docs/build/BUILD_AND_RUN.md`.
 - Reinstalar el entorno en otro equipo: `docs/debugging/SETUP_NUEVO_EQUIPO.md` (repos, build de WinUAE-DBG, instalación del fork de la extensión, `.mcp.json`).
 - Historial de fixes de depuración (relocalización de breakpoints, `-O0`, qOffsets): `docs/debugging/HISTORIAL-CAMBIOS.md`.

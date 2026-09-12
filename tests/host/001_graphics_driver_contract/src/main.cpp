@@ -31,7 +31,6 @@
 #include <eng/graphics/drivers/ehb_scene.hpp>
 #include <eng/graphics/drivers/ehb_tile_scroll.hpp>
 #include <eng/graphics/drivers/tile_scroll.hpp>
-#include <eng/field/dpf_composer.hpp>
 #include <eng/field/xlimited.hpp>
 #include <eng/field/xlimited_scene.hpp>
 
@@ -58,10 +57,9 @@ static_assert(DisplayDriver<eng::graphics::drivers::EhbTileScrollScene, MockBack
 static_assert(DisplayDriver<eng::graphics::drivers::TileScrollScene<eng::graphics::drivers::TileScrollMode::ehb()>, MockBackend>);
 static_assert(DisplayDriver<eng::graphics::drivers::TileScrollScene<eng::graphics::drivers::TileScrollMode::dual(3, 3)>, MockBackend>);
 
-// 3) Compositores de campo (X-Limited y DPF): solo ciclo de display.
+// 3) Compositores de campo (X-Limited/XYLimited): solo ciclo de display.
 static_assert(DisplayDriver<eng::field::XlimitedDisplayComposer, MockBackend>);
 static_assert(DisplayDriver<eng::field::XlimitedDualComposer, MockBackend>);
-static_assert(DisplayDriver<eng::field::DpfDisplayComposer, MockBackend>);
 
 // 4) Escena X-Limited (wrapper) y sus constantes de scroll de ejemplo.
 static_assert(DisplayDriver<eng::field::XlimitedScene<eng::field::ScrollConsts{16, 16, 256, 768, 3}>, MockBackend>);

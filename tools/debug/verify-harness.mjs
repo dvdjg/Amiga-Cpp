@@ -6,7 +6,7 @@
 // 100% en cada entorno. Si falla, el problema está en el harness, no en la demo.
 //
 // Uso:
-//   node tools/debug/verify-harness.mjs [--demo demos/amiga/102_tile_scroll_dualpf] [--min-fps 45] [--build]
+//   node tools/debug/verify-harness.mjs [--demo demos/amiga/202_xlimited_dpf] [--min-fps 45] [--build]
 //
 // Asserts:
 //  1. El runner conecta y alcanza READY por el canal lateral (sin fallback).
@@ -22,7 +22,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const arg = (name, dflt) => { const i = process.argv.indexOf(name); return i >= 0 ? (process.argv[i + 1] ?? dflt) : dflt; };
 const has = (name) => process.argv.includes(name);
 
-const demo = arg('--demo', 'demos/amiga/102_tile_scroll_dualpf');
+const demo = arg('--demo', 'demos/amiga/202_xlimited_dpf');
 const minFps = parseInt(arg('--min-fps', '45'), 10);
 const maxJobs = parseInt(arg('--max-jobs', '80'), 10);
 // El gate absoluto de fps depende del throughput de la EMULACIÓN A500 (medido
