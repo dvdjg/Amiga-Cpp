@@ -20,6 +20,7 @@ en C del repo hermano (`Cursor-Amiga-C`) está en [../c-engine/](../c-engine/REA
 | [AUDIO_MIXER.md](AUDIO_MIXER.md) | Audio Mixer 3.7 de Photon integrado de forma nativa: requisitos de muestras preprocesadas, capacidades, configuración, API, preprocesado y rendimiento. |
 | [MUSIC_PLAYER.md](MUSIC_PLAYER.md) | Reproductores de música (ptplayer/P61/AHX): estado de importación, API y convenio mixer+música. |
 | [GAME_AUDIO.md](GAME_AUDIO.md) | Capa de audio de juego (`GameAudio`/`SampleBank`): política de voces y ducking, y guía para generar música y sonidos desde herramientas externas. |
+| [C2P_BLITTER.md](C2P_BLITTER.md) | C2P (chunky→planar) por Blitter: las 13 fases del C2P 4bpp de `fire-rgb`, minterms (`0xE4`/`0xD8`), máscaras `BLTCDAT`, síncrono vs interrupción de blit y API del engine. |
 
 ## Puntos de entrada del código
 

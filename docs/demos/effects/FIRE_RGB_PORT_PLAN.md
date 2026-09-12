@@ -66,9 +66,9 @@ system/*        (bucle de efecto, vectores de interrupcion/VBR, memoria)
 
 ## Pendiente (pulido y fidelidad)
 
-1. **`FIREITER`**: ahora en **C puro** (el asm a mano con el nuevo indice se colgaba por presion de registros en `ADDR_ REGS` con `-O1`); recuperar el asm (o compilar la demo a `-O2`) cuando interese el rendimiento fiel.
-2. **Alcance del fuego**: revisar si debe ocupar mas pantalla / la "linea verde" en el borde inferior (artefacto).
-3. **C2P en interrupcion de blit** (fidelidad de rendimiento) y **diff** contra `fire-rgb.exe`.
+1. **Fluidez / rendimiento**: (a) `FIREITER` esta en **C** porque el asm del original se **cuelga con GCC-15** (presion de registros en `ADDR_REGS` al fijar `a0..a6`); recuperarlo (p. ej. `#pragma GCC optimize("O2")` por archivo o un asm sin fijar registros) da la velocidad del original. (b) El **C2P es sincrono** (13 fases con `wait_blitter`); el original lo encadena por **interrupcion de blit** para solaparlo con el fuego. Hoy ~7-8 fps en el emulador.
+2. **"Pantalla dividida"**: era el desfase vertical — se usaba `wait_line(i)` (VPOS 0..255) en vez de `CopWaitSafe(Y(i))` con `Y(i)=i+0x2c`; corregido con `wait_line_safe(i+0x2c)`. El cuadruplicado ya cuadra (angosto del original: DDFSTOP `0xD1`, DIWSTOP `0x2CC3` por el `+2`).
+3. **C2P en interrupcion de blit** (rendimiento fiel) y **diff** contra `fire-rgb.exe`.
 4. Portar al engine la escena **HAM + cuadruplicado** y el hook de interrupcion de blit.
 
 ## Siguiente (para completar)

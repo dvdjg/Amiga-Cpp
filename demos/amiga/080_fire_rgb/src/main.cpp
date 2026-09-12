@@ -103,7 +103,27 @@ void RandomizeBottom(void) {
 	}
 }
 
-void MainLoop(void) {
+// Rutas del bucle de fuego: C++ (default, siempre disponible) y ASM (la del original).
+// El ASM inline del original fija `a0..a6` para los 6 punteros + `dt`; GCC-15
+// **ignora esos pins** y no puede asignar los 7 registros de direccion, asi que no
+// compila (el original lo hacia con un GCC mas antiguo que si los respetaba). Para
+// recuperarlo habria que escribir el bucle como rutina .s/asm aparte (el build
+// ensambla `support/*.s` con gas y `support/{audio_mixer,music}/*.asm` con VASM).
+#ifndef K_FIRE_ASM
+#define K_FIRE_ASM 0
+#endif
+
+#define FIRE_ITER_C() \
+		vl = (*Eptr++) + (*Bptr++) + (*Dptr++) + (*Cptr++); \
+		hi = dt[(static_cast<uint16_t>(vl >> 16) >> 2) & 0xFFu]; \
+		lo = dt[(static_cast<uint16_t>(vl) >> 2) & 0xFFu]; \
+		*chunkyPtr++ = static_cast<uint16_t>(hi); \
+		*chunkyPtr++ = static_cast<uint16_t>(lo); \
+		hi = (hi & 0xFFFF0000u) | ((lo >> 16) & 0xFFFFu); \
+		*Aptr++ = hi;
+
+/// Version C++ (default seguro; misma matematica, sin asm fragil).
+void MainLoopC(void) {
 	short i;
 	uint16_t* chunkyPtr = reinterpret_cast<uint16_t *>(chunky[active]);
 	uint32_t* Aptr = reinterpret_cast<uint32_t *>(fire);
@@ -115,25 +135,29 @@ void MainLoop(void) {
 
 	for (i = 0; i < (kWidth * kHeight - 2 * kWidth) / 8; ++i) {
 		uint32_t vl, hi, lo;
-
-#define FIREITER() \
-		vl = (*Eptr++) + (*Bptr++) + (*Dptr++) + (*Cptr++); \
-		/* Indice = MEDIA de los 4 vecinos (suma>>2): la suma cruda llega a ~992 */ \
-		/* y dualtab tiene 256 entradas (el literal lee fuera de la tabla). */ \
-		hi = dt[(static_cast<uint16_t>(vl >> 16) >> 2) & 0xFFu]; \
-		lo = dt[(static_cast<uint16_t>(vl) >> 2) & 0xFFu]; \
-		*chunkyPtr++ = static_cast<uint16_t>(hi); \
-		*chunkyPtr++ = static_cast<uint16_t>(lo); \
-		hi = (hi & 0xFFFF0000u) | ((lo >> 16) & 0xFFFFu); \
-		*Aptr++ = hi;
-
-		FIREITER();
-		FIREITER();
-		FIREITER();
-		FIREITER();
+		FIRE_ITER_C(); FIRE_ITER_C(); FIRE_ITER_C(); FIRE_ITER_C();
 	}
-#undef FIREITER
-	(void)i;
+}
+#undef FIRE_ITER_C
+
+/// Version ASM del original: rutina .s aparte (`support/fire_loop.s`). Sacarla del
+/// C++ evita el problema de GCC-15, que **ignora los pins** `register asm("aN")` y
+/// no puede asignar los 7 registros de direccion (a0..a6) que exige el bucle.
+extern "C" void fire_loop(eng::u16* chunky, eng::u32* fire, const eng::u32* dt, int iters);
+
+#if K_FIRE_ASM
+void MainLoopAsm(void) {
+	fire_loop(reinterpret_cast<eng::u16 *>(chunky[active]), reinterpret_cast<eng::u32 *>(fire),
+		  fire_rgb::kDualTab.v, (kWidth * kHeight - 2 * kWidth) / 8);
+}
+#endif // K_FIRE_ASM
+
+void MainLoop(void) {
+#if K_FIRE_ASM
+	MainLoopAsm();
+#else
+	MainLoopC();
+#endif
 }
 
 struct FireDemo {
@@ -201,6 +225,9 @@ struct FireDemo {
 			s.chunky = m_chunky[active];
 			s.bytes = kChunkyBytes;
 			for (eng::u8 pl = 0; pl < kPlanes; ++pl) s.planes[pl] = m_planes[active][pl];
+			// 13 fases (todas): las impares NO son redundantes (saltarlas rompe el
+			// C2P). Probablemente el Blitter deja los punteros avanzados y la impar
+			// procesa el bloque siguiente con el mismo bltsize.
 			for (eng::u8 ph = 0; ph < 13; ++ph) {
 				if (!backend.c2p_4bpp_step(s)) { eng::debug::mark_failed(g_eng_run_status, 0x00008004u); return; }
 			}
@@ -231,8 +258,9 @@ private:
 			}
 			sched.emit_palette(kZeroPalette, 0, 16); // CopLoadColor(0,15,0)
 			// Cuadruplicado de lineas + bplcon1 alterno (MakeCopperList del original).
+			// `CopWaitSafe(Y(i), HP(0))` con Y(i) = i + 0x2c (VPOS), no `wait_line(i)`.
 			for (eng::u16 i = 0; i < kScreenH; ++i) {
-				sched.wait_line(i);
+				sched.wait_line_safe(static_cast<eng::u16>(i + 0x2cu));
 				const eng::u16 mod = ((i & 3u) != 3u) ? 0xffd8u : 0x0000u; // -40 repite fila
 				sched.move(copper::Register::BPL1MOD, mod);
 				sched.move(copper::Register::BPL2MOD, mod);

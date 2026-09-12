@@ -249,3 +249,17 @@ micro-optimizaciones propuestas son higiene para margen en hardware real, no cam
 emulador. Se implementó la única limpia y de bajo riesgo (amplitud 128 + `>>7` en el Lissajous).
 El resto (extender `ScrollConsts`/`LayoutConsts`, forzar u32 en el verificador, encapsular
 `block%20`) queda documentado como futuro y solo se abordará si hay un objetivo de CPU medible.
+
+## 9. Registros fijados y asm inline: cuándo sacar la rutina a `.s` (2026-09)
+
+Lecciones del bucle de fuego de `fire-rgb` (demo 080), que en el original fija **los 7 registros de dirección** (`a0..a6`: 6 punteros + `dt`).
+
+- **Síntoma**: con `m68k-amiga-elf-g++ 15.1.0` a `-O1` el bucle no compila: `unable to find a register to spill in class 'ADDR_REGS'`.
+- **Causa 1 — GCC-15 ignora los pins**: `register T* p asm("a0")` **no** obliga a usar `a0`; el compilador asignó uno de esos punteros a `d0`. Con 6 punteros + `dt` no caben en los 7 registros de dirección.
+- **Causa 2 — frame pointer en `a6`**: a `-O1` G++ usa `a6` como frame pointer, justo el que quiere `Eptr`. `#pragma GCC push_options` + `#pragma GCC optimize("O2","omit-frame-pointer")` por función libera `a6`, pero **sigue sin respetar los pins** → no basta.
+- **Solución**: sacar el bucle a una **rutina `.s` aparte**. El build ensambla `support/*.s` con `m68k-amiga-elf-as` (gas) y `support/{audio_mixer,music}/*.asm` con VASM; así se **salta por completo la asignación de registros de G++**. Conservar además la versión C++ (flag `K_FIRE_ASM`) como ruta segura.
+- **Truco de direccionamiento reutilizable**: `move.l (0,a5,d1.w),d2` — el modo indexado `(An,Dn.w)` suma el índice como **offset en BYTES**. Con una tabla de `u32`, `dt + idx == dt[idx/4]`: el original lo usa para indexar por la **media** (suma/4) sin `shift` ni `división`. Si el índice debe ir escalado por 4 (índice de elemento), hay que usar `lea`+`add` o `.w*4` (solo 68020+); en 68000 el byte-offset es la opción gratis.
+- **Cómo inspeccionar lo que genera G++**: el build deja un `.s` con el **desensamblado** (`objdump`); para un objeto suelto, `m68k-amiga-elf-objdump -d obj/demos/<demo>/<cfg>/support_<x>.o`. Útil para confirmar instrucciones y asignación antes de culpar al compilador.
+- **Regla práctica**: antes de pelear con el optimizador, **mirar el `.s`**. Si G++ no produce lo del original (o no compila), escribir la rutina en asm aparte y **mantener la de C++** como fallback.
+- **[P] Pendiente**: `support/fire_loop.s` ensambla **idéntico** al original (verificado con `objdump -d`), pero **crashea en runtime** (no alcanza READY); a depurar con el debugger. La ruta C++ (`MainLoopC`) es el default y funciona.
+
