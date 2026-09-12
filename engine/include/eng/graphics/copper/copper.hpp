@@ -207,6 +207,23 @@ public:
 		return index;
 	}
 
+	/// WAIT crudo (equivale a `CopInsWait`): `word0 = (vp&0xff)<<8 | ((hp>>1)|1)`,
+	/// `word1 = mask`. `hp` en color-clock. Devuelve el indice.
+	u16 wait_raw(u16 vp, u16 hp, u16 mask) {
+		const u16 index = m_used_words;
+		write_pair(static_cast<u16>(((vp & 0xffu) << 8) | (((hp >> 1) | 1u) & 0xffu)), mask);
+		return index;
+	}
+
+	/// WAIT con mascaras de V/H (equivale a `CopWaitMask`): `word0 = (vp&0xff)<<8 |
+	/// ((hp>>1)|1)`, `word1 = ((0x80|vpmask)<<8) | ((hpmask>>1)&0xfe)`.
+	u16 wait_masked(u16 vp, u16 hp, u16 vpmask, u16 hpmask) {
+		const u16 index = m_used_words;
+		write_pair(static_cast<u16>(((vp & 0xffu) << 8) | (((hp >> 1) | 1u) & 0xffu)),
+			   static_cast<u16>((((0x80u | (vpmask & 0x7fu)) & 0xffu) << 8) | ((hpmask >> 1) & 0xfeu)));
+		return index;
+	}
+
 	/// MOVE de 32 bits (puntero) con el **orden del original** (libgfx `CopMove32`):
 	/// primero `reg+2` (word bajo) y luego `reg` (word alto). Devuelve el indice.
 	u16 move32(Register reg, const void* address) {

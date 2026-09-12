@@ -59,6 +59,25 @@ Método: `docs/guides/roadmap/PORT_PROMPT_1A1.md`. Técnica: `docs/reference/ami
 4. **Demo `082_plasma`**: READY, doble buffer, `install_copper_list` cada frame; `analyze` + visión.
 5. **Diff 1:1** contra `plasma.exe` (mismos frames + `readPng` + `ollama-desc`); ajustar hasta 1:1.
 
+## 7. Estado (2026-09)
+
+- ✅ **Capa Copper ampliada** (`eng/graphics/copper/copper.hpp`): `skip` (máscara `0xffff`),
+  `move32` (orden `reg+2`/`reg`), `patch_move32`/`patch_data`, `instruction_address`,
+  `wait_raw`/`wait_masked` (CopWait/CopWaitMask), `move_at`; `COP2LCH/L`/`COPJMP2`. Test
+  host HOST-019.
+- ✅ **Sintab exacta** (`eng/core/sintab.hpp`, constexpr) reutilizada por `math2d` (HOST-020).
+- ✅ **Datos del plasma** (tablas `tab1/2/3` verbatim + paleta 256) — HOST-021.
+- ✅ **Driver `CopperChunkyScene`** (`eng/graphics/drivers/copper_chunky.hpp`) y **demo
+  `082_plasma`** (doble buffer, `set(row,col,color)`, `takeover/install`).
+- ✅ **BUG RESUELTO — HP del label del bucle de fila**: el plasma se dibujaba pero con
+  **franjas/zonas negras** porque `CopperChunkyConfig.label_hpos` estaba en `0x7d` en lugar de
+  `0x84` (`X(-4)` con `DIWHP=0x88`). La HP del `WAIT` del label desplazaba el mapeo de la
+  re-ejecución de la "línea de color" (4 veces por fila vía `COPJMP2`) respecto al barrido real,
+  de modo que el patrón caía en zonas/franjas. Con `label_hpos = 0x84` el plasma llena el
+  lienzo completo y es **1:1** con el original. Lección: en el copper chunky la HP del `WAIT`
+  del label **forma parte de la geometría** (es la posición del bloque dentro de la línea); no
+  es un valor libre. Ver `docs/reference/amiga/techniques/copper-chunky.md`.
+
 ## 6. Notas de fidelidad
 
 - El `SKIP` debe colocarse **al final de la línea** (`Y(y*4+3)`, `LASTHP`) para que siempre dispare; el comentario del original explica el cruce 255→256.

@@ -22,6 +22,7 @@ namespace eng {
 enum class GraphicsDriverId : u8 {
 	EhbScene,
 	HamScene,
+	CopperChunky,
 	Standard5,
 	Standard4,
 	FakeDualPlayfield,
