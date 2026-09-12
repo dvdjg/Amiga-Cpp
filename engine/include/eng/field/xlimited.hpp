@@ -1688,8 +1688,15 @@ private:
         sched.move(copper::Register::BPLCON0, bplcon0);
         sched.move(copper::Register::BPLCON1, bplcon1);
         sched.move(copper::Register::BPLCON2, m_cfg.foreground_is_pf2 ? 0x0040u : 0x0000u);
+        // Módulos: en DPF AMBOS playfields se muestran con el MISMO DDF/fetch, así
+        // que el módulo de cada uno debe usar el fetch real de PF1 (no el suyo
+        // propio, que puede diferir: un CanvasPlayfield asume fetch estándar -40
+        // mientras el corkscrew usa -42). `fetch = row_bytes*planes - bpl1mod`.
+        const u16 fetch1 = static_cast<u16>(
+            static_cast<u32>(pf1.bitmap_bytes_per_row) * m_cfg.planes_per_field - pf1.bpl1mod);
         sched.move(copper::Register::BPL1MOD, pf1.bpl1mod); // planos 1,3,5
-        sched.move(copper::Register::BPL2MOD, pf2.bpl1mod); // planos 2,4,6
+        sched.move(copper::Register::BPL2MOD, static_cast<u16>(
+            static_cast<u32>(pf2.bitmap_bytes_per_row) * m_cfg.planes_per_field - fetch1)); // 2,4,6
         sched.move(copper::Register::DIWSTRT, m_cfg.diwstrt);
         sched.move(copper::Register::DIWSTOP, m_cfg.diwstop);
         sched.move(copper::Register::DDFSTRT, m_cfg.ddfstrt);

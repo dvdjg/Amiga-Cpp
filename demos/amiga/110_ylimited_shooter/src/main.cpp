@@ -90,6 +90,8 @@ struct DemoGame {
 	struct Bullet { eng::s16 x = 0, y = 0, py = 0; bool live = false; };
 	Bullet m_bullets[6] {};
 	eng::s16 m_ship_x = 152;
+	eng::s16 m_ship_px = 152;
+	eng::u8 m_ship_dir = 0;
 	eng::u8 m_fire = 0;
 
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
@@ -184,32 +186,37 @@ struct DemoGame {
 			return;
 		}
 
-		// --- FG: objetos (nave + balas) dibujados en el lienzo plano (PF2). -----
-		// Dirty-rect: se borra lo anterior y se pinta lo nuevo (el color 0 de PF2
-		// es transparente, deja ver el BG).
-		const eng::s16 ship_y = 200;
+		// --- FG: objetos (nave + balas) en el lienzo plano (PF2). --------------
+		// Dirty-rect: se borra lo del frame anterior y se pinta lo nuevo. El color
+		// 0 de PF2 es transparente (deja ver el BG).
+		const eng::s16 ship_y = 208;
 		{
 			auto fg = scene.canvas_fg_surface();
-			// Borra nave y balas previas.
-			fg.fill_rect(m_ship_x, ship_y, 16, 14, 0);
+			// Borra nave (posición previa) y balas (posición previa).
+			fg.fill_rect(m_ship_px, ship_y, 16, 14, 0);
 			for (auto& b : m_bullets) if (b.live) fg.fill_rect(b.x, b.py, 2, 6, 0);
-			// Dispara cada 8 frames a una bala libre.
+
+			// Avanza la nave en X (vaivén 40..200) y dispara.
+			if (m_ship_dir == 0) { ++m_ship_x; if (m_ship_x >= 200) m_ship_dir = 1; }
+			else { --m_ship_x; if (m_ship_x <= 40) m_ship_dir = 0; }
 			if ((++m_fire & 7u) == 0u) {
 				for (auto& b : m_bullets) {
-					if (!b.live) { b.live = true; b.x = static_cast<eng::s16>(m_ship_x + 7); b.y = static_cast<eng::s16>(ship_y - 6); break; }
+					if (!b.live) { b.live = true; b.x = static_cast<eng::s16>(m_ship_x + 7); b.y = static_cast<eng::s16>(ship_y - 8); break; }
 				}
 			}
-			// Avanza balas hacia arriba.
 			for (auto& b : m_bullets) {
 				if (!b.live) continue;
-				b.y = static_cast<eng::s16>(b.y - 5);
+				b.y = static_cast<eng::s16>(b.y - 6);
 				if (b.y < 2) b.live = false;
 			}
-			// Pinta nave (triángulo aproximado) y balas. Colores 1..7 = regs 8..15.
-			fg.fill_rect(static_cast<eng::s16>(m_ship_x + 6), ship_y, 4, 8, 2);
-			fg.fill_rect(static_cast<eng::s16>(m_ship_x + 2), static_cast<eng::s16>(ship_y + 8), 12, 4, 1);
-			fg.fill_rect(m_ship_x, static_cast<eng::s16>(ship_y + 12), 16, 2, 3);
-			for (auto& b : m_bullets) if (b.live) { fg.fill_rect(b.x, b.y, 2, 6, 7); b.py = b.y; }
+
+			// Pinta nave (silueta) y balas. Color 0 = transparente; 1..7 = regs 9..15.
+			fg.fill_rect(static_cast<eng::s16>(m_ship_x + 7), static_cast<eng::s16>(ship_y - 4), 2, 4, 2);  // morro
+			fg.fill_rect(static_cast<eng::s16>(m_ship_x + 5), ship_y, 6, 4, 1);
+			fg.fill_rect(static_cast<eng::s16>(m_ship_x + 3), static_cast<eng::s16>(ship_y + 4), 10, 4, 1);
+			fg.fill_rect(m_ship_x, static_cast<eng::s16>(ship_y + 8), 16, 4, 3);                          // base
+			for (auto& b : m_bullets) if (b.live) { fg.fill_rect(b.x, b.y, 2, 5, 2); b.py = b.y; }
+			m_ship_px = m_ship_x;
 		}
 
 		// Telemetría: cámara X/Y para el assert de movimiento en regresión.

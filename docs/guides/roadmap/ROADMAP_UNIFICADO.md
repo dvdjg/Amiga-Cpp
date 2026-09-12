@@ -298,9 +298,15 @@ desarrolla en varios turnos; el orden es 1→2→3.
   de objetos (PF2, delante) dibujando nave y disparos; cámara inicial abajo,
   telemetría de cámara en `detail`, `analyze` OK. (Falta pulido visual de los
   objetos.)
-- ✅ Engine: `XlimitedDualConfig.foreground_is_pf2` (PF2 delante) y validación del
-  compositor DPF relajada para permitir corkscrew + lienzo estático.
-- ⏳ Parte 2: `y_mode` + demo `111_xlimited_sidescroller`.
+- ✅ Engine: `XlimitedDualConfig.foreground_is_pf2` (PF2 delante), validación del
+  compositor DPF relajada (corkscrew + lienzo estático) y **módulo de PF2 corregido**
+  (usaba fetch 40 estándar en vez del 42 del corkscrew → el lienzo se descuadraba en
+  líneas).
+- ✅ Parte 2: demo **`111_xlimited_sidescroller`** (4096×320, 256×20 tiles, tileset
+  128, **X `Ring`** con mapa toroidal, **Y fijo** `scroll_y=false`, DPF con FG de
+  objetos: nave con barrido vertical + balas), `analyze` OK y telemetría de cámara.
+  Pendiente fino: `y_mode` `Finite` para un Y corto *con* scroll (hoy Y fijo), si un
+  juego lo necesita.
 - ⏳ Parte 3: parallax por plano (RoboCod) + patrón/tileset del plano de fondo.
-- ⏳ Transversal: soporte de **tileset de 128 tiles** (ya usado en 110) y de tiles
+- ⏳ Transversal: soporte de **tileset de 128 tiles** (ya usado en 110/111) y de tiles
   grandes (64×64) en el pipeline/`BlocksBitmap`; matriz de memoria Chip por modo DPF.
