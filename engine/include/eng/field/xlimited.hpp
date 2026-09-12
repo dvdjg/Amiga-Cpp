@@ -1658,10 +1658,16 @@ private:
         if (!a.bitplanes || !b.bitplanes) { return false; }
         if (a.planes != m_cfg.planes_per_field || b.planes != m_cfg.planes_per_field) { return false; }
         if (a.planes + b.planes > 6) { return false; }
-        // Un campo puede ser ESTÁTICO (CanvasPlayfield) o LINEAL (mirror, sin
-        // split): su display_height es el viewport o el anillo, sin envolver.
-        if (b.display_height != a.display_height && b.display_height != a.viewport_h) { return false; }
-        if (a.display_height != b.display_height && a.display_height != b.viewport_h) { return false; }
+        // Un campo puede ser ESTÁTICO (CanvasPlayfield, display_height == su
+        // viewport) o LINEAL (mirror, sin split). Un campo ESTÁTICO es compatible
+        // con cualquier otro (no comparte bucle vertical). Solo cuando AMBOS
+        // envuelven hay que exigir un `display_height` compatible.
+        const bool a_static = (a.display_height == a.viewport_h);
+        const bool b_static = (b.display_height == b.viewport_h);
+        if (!a_static && !b_static) {
+            if (b.display_height != a.display_height && b.display_height != a.viewport_h) { return false; }
+            if (a.display_height != b.display_height && a.display_height != b.viewport_h) { return false; }
+        }
         // DPF MIXTO: cada campo puede llevar split O no, de forma INDEPENDIENTE
         // (el campo lineal/mirror no envuelve y su Y es libre). Solo si AMBOS
         // tienen split activo deben compartir la misma línea (mismo Y).

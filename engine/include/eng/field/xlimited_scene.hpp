@@ -174,6 +174,8 @@ struct XlimitedOverlayConfig {
 struct XlimitedDualConfig {
     bool enabled = false;             // DPF: dos playfields (3+3 o con lienzo)
     bool fg_canvas = false;           // DPF heterogéneo: el "fg" es un CanvasPlayfield
+    bool foreground_is_pf2 = false;   // true = PF2 (2º campo / lienzo fg) DELANTE
+                                      // (BPLCON2.PF2PRI). Para objetos sobre el BG.
     bool parallax_x = false;          // el segundo playfield a velocidad reducida en X
     eng::u8 parallax_x_div = 2;
     eng::u8 parallax_y_div = 1;       // 1 = comparte el split vertical
@@ -395,7 +397,8 @@ public:
         const graphics::SpriteManager* sprites =
             (cfg.sprite_data_bytes != 0) ? &m_sprites : nullptr;
         if (cfg.dpf.enabled) {
-            if (!m_dual.init(memory, {cfg.palette, cfg.copper_bytes, cfg.planes, false,
+            if (!m_dual.init(memory, {cfg.palette, cfg.copper_bytes, cfg.planes,
+                cfg.dpf.foreground_is_pf2,
                 xlimited_detail::kDiwStrt, diwstop,
                 xlimited_detail::kDdfStrt, xlimited_detail::kDdfStop})) return false;
         } else {

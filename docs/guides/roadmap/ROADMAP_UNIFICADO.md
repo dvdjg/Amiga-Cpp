@@ -247,3 +247,60 @@ Recomendación inicial: **D** (caso de uso concreto, p. ej. plataformas con BG
 fondo + FG mapa 8-way, reutilizando 202/DPF) para cerrar el F5 y forzar el resto
 de decisiones (bobs, Tiled, memoria) con un objetivo real; en paralelo **E**
 ligero (gate 50 fps + tabla de memoria) para no perder el presupuesto.
+
+## Plan — Shooter/side-scroller con ejes limitados + RoboCod (2026-09)
+
+Decisión (usuario): la familia de scroll es **XYLimited** con **modo por eje**
+(`Ring` / `Finite` / `Off`, `ScrollMode::OneDirection`). Un juego usa un eje
+**largo** (anillo) y el otro **corto** (finito, sin guardas). DPF siempre, con el
+FG dedicado a **objetos** (naves, disparos) y el BG al tilemap de scroll. Se
+desarrolla en varios turnos; el orden es 1→2→3.
+
+### Parte 1 — Shooter vertical puro (primero)
+- Mundo **400 px de ancho × 2048 px de alto**; tiles 16×16 → **25×128** celdas.
+- **Tileset de 128 tiles**. Mapa = índices `u16` (25·128 = 3200 words ≈ 6.3 KB); el
+  framebuffer de scroll sigue **acotado** (solo índices/tileset crecen).
+- **X `Finite`** (recorrido 0..80, sin anillo ni guardas laterales), **Y `Ring`
+  one-direction** (solo la fila entrante; la nave no vuelve a bajar),
+  `display_height = 256+32`, cámara inicial a media altura (`set_camera`).
+- **DPF**: BG = tilemap XYLimited; FG = capa de objetos (planos pares) para
+  naves/disparos.
+- Demo prevista: `demos/amiga/110_ylimited_shooter`.
+
+### Parte 2 — Side-scroller horizontal (después)
+- Mundo **4096 px de ancho × 320 px de alto**; tiles 16×16 → **256×20** celdas.
+- **Tileset de 128 tiles**. **X `Ring`** (XLimited, scroll largo), **Y `Finite`/
+  `Off`** (alto corto). **DPF** con FG de objetos.
+- Requiere simetría de ejes: `y_mode` (`Finite`/`Off`) y X `Ring` largo (hoy X
+  `Ring` ya existe; falta el `y_mode`).
+- Demo prevista: `demos/amiga/111_xlimited_sidescroller`.
+
+### Parte 3 — XYLimited 5 planos con fondo estilo RoboCod
+- Escena **XYLimited de 5 bitplanes**; el **fondo** usa el truco **RoboCod**
+  (un plano con offset de scroll propio), **mapeando las paletas para que queden
+  16 colores** visibles.
+- Trabajo de engine: **parallax por plano** (offset por plano sumado en
+  `draw_block_job` **y** en la emisión de `BPLxPT`, con la cámara como fuente y
+  envolviendo en el anillo) + **patrón de tiles propio** del plano de fondo
+  (admite tiles grandes, p. ej. 64×64; el Blitter y el tileset ya soportan
+  múltiplos de 16).
+
+### Estado del engine para este plan (2026-09)
+- ✅ `AxisMode` (`Ring`/`Finite`/`Off`) en `XlimitedConfig` y `XLimitedPlayfield`.
+- ✅ X `Finite`: bitmap = ancho de mundo, puntero directo, sin creep ni guardas
+  (`ScrollEngine::scroll_right/left`); `set_camera(x,y)`; `one_direction` corregido
+  en `scroll_left`/`scroll_up`.
+- ✅ `x_mode` reenviado por `XlimitedSceneConfig`; `bg().set_camera(...)` disponible.
+- ✅ Test host **`023_limited_axes`** (scenario del shooter: X finito + Y anillo
+  one-direction).
+- ✅ Parte 1: demo **`110_ylimited_shooter`** (400×2048, tileset 128, X `Finite`,
+  Y anillo one-direction) **con DPF**: BG = corkscrew XYLimited (PF1) + FG = lienzo
+  de objetos (PF2, delante) dibujando nave y disparos; cámara inicial abajo,
+  telemetría de cámara en `detail`, `analyze` OK. (Falta pulido visual de los
+  objetos.)
+- ✅ Engine: `XlimitedDualConfig.foreground_is_pf2` (PF2 delante) y validación del
+  compositor DPF relajada para permitir corkscrew + lienzo estático.
+- ⏳ Parte 2: `y_mode` + demo `111_xlimited_sidescroller`.
+- ⏳ Parte 3: parallax por plano (RoboCod) + patrón/tileset del plano de fondo.
+- ⏳ Transversal: soporte de **tileset de 128 tiles** (ya usado en 110) y de tiles
+  grandes (64×64) en el pipeline/`BlocksBitmap`; matriz de memoria Chip por modo DPF.

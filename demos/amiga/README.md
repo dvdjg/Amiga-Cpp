@@ -48,6 +48,8 @@ estructura: `docs/STRUCTURE.md` §4. Clasificación por concepto:
     `105_tile_scroll_xyunlimited_dualpf`, `107_xlimited_corkscrew` — drivers de scroll y tiles.
     (`102_tile_scroll_dualpf` y `106_tile_field_showcase` se retiraron: usaban el modelo circular
     `TileFieldController`, sustituido por **XYLimited**, ver `docs/engine/architecture/XYLIMITED_ALGORITMO_GENERICO.md`.)
+  - `110_ylimited_shooter` — shooter vertical (Y-limited): mundo 400×2048, tileset 128, X `Finite`,
+    Y anillo one-direction (DPF con FG de objetos, en curso).
 - **Escenas con pipeline de assets (`2xx`)**:
   - `201_ehb_map` — mapa real EHB X-Limited con el pipeline completo.
   - `202_xlimited_dpf` — dual playfield parallax 2:1.
