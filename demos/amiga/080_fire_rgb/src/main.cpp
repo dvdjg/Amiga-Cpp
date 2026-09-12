@@ -144,7 +144,7 @@ struct FireDemo {
 		if (!m_memory_ok) { eng::debug::mark_failed(g_eng_run_status, 0x00008001u); return; }
 
 		m_block = backend.memory().chip.allocate(
-			kChunkyBuffer * 2u + kBitmapBytes * 2u + static_cast<eng::u32>(kWidth) * kHeight * 2u + 8192u, 16);
+			kChunkyBuffer * 2u + kBitmapBytes * 2u + static_cast<eng::u32>(kWidth) * kHeight * 2u + 16384u, 16);
 		if (!m_block.valid()) { eng::debug::mark_failed(g_eng_run_status, 0x00008002u); return; }
 
 		eng::u8* p = static_cast<eng::u8*>(m_block.data);
@@ -210,9 +210,10 @@ private:
 	bool build_copper() {
 		// BPLCON0 = BPU(7)|COLOR|HAM (como SetupMode(MODE_HAM, 7) del original).
 		constexpr eng::u16 kBplcon0 = 0x7a00;
+		constexpr eng::u32 kPerList = 8192;
 		eng::u8* base = m_copper;
 		for (eng::u8 b = 0; b < 2; ++b) {
-			copper::Scheduler sched {eng::MemoryBlock {base + static_cast<eng::u32>(b) * 2048u, 2048u, eng::MemoryKind::Chip}};
+			copper::Scheduler sched {eng::MemoryBlock {base + static_cast<eng::u32>(b) * kPerList, kPerList, eng::MemoryKind::Chip}};
 			sched.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, kBytesPerRow, kBplcon0,
 						  kPlanes, m_planes[b][0], kPlaneBytes);
 			// Reordena BPLxPT como el original (bpl[3..0]).
@@ -220,6 +221,14 @@ private:
 				sched.move_bitplane_pointer(n, m_planes[b][kPlanes - 1 - n]);
 			}
 			sched.emit_palette(kZeroPalette, 0, 16); // CopLoadColor(0,15,0)
+			// Cuadruplicado de lineas + bplcon1 alterno (MakeCopperList del original).
+			for (eng::u16 i = 0; i < kScreenH; ++i) {
+				sched.wait_line(i);
+				const eng::u16 mod = ((i & 3u) != 3u) ? 0xffd8u : 0x0000u; // -40 repite fila
+				sched.move(copper::Register::BPL1MOD, mod);
+				sched.move(copper::Register::BPL2MOD, mod);
+				sched.move(copper::Register::BPLCON1, (i & 1u) ? 0x0022u : 0x0000u);
+			}
 			sched.end();
 			m_copper_ptrs[b] = sched.data();
 			if (!sched.ok()) return false;

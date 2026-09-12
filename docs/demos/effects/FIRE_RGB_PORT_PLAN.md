@@ -64,8 +64,7 @@ system/*        (bucle de efecto, vectores de interrupcion/VBR, memoria)
 
 ## Siguiente (para completar)
 
-1. Emitir el **bucle de 256 líneas** de Copper (cuadruplicado + `bplcon1` alterno) tras `emit_planes_display`.
-2. Revisar el **HAM**: BPLCON0 (`0x7A00`), `bpldat[4/5]`, `CopLoadColor(0,15,0)` y el orden `bpl[3..0]` de `BPLxPT`.
-3. Verificar **contraste/visión** (fuego rojo/naranja/amarillo en la parte inferior), no "hay píxeles".
-4. C2P en **interrupción de blit** (rendimiento) y **diff** contra `fire-rgb.exe`.
-5. Portar al engine lo reaprovechable: escena **HAM + cuadruplicado** y el hook de interrupción de blit.
+1. **Diagnóstico clave**: se probó también un display **no-HAM** (4 planos + paleta de fuego) y sigue saliendo un **bloque de colores**, no fuego → el problema está en el **C2P o en la simulación**, no solo en el HAM. Antes de más iteraciones a ciegas: **reproducir fuego + C2P en host** (modelo C fiel de `MainLoop` + las fases del C2P) e inspeccionar `chunky`/planos para localizar el bug de mapeo.
+2. Con el C2P correcto, afinar **HAM + cuadruplicado** (BPLCON0/base/orden `BPLxPT`).
+3. C2P en **interrupción de blit** (rendimiento) y **diff** contra `fire-rgb.exe`.
+4. Portar al engine la escena **HAM + cuadruplicado** y el hook de interrupción de blit.
