@@ -258,6 +258,14 @@ private:
 	// mágica); con N potencia de dos es un `lsr`/`lsl`. Se precálculo el shift y
 	// se usa solo si de verdad es potencia de dos (si no, camino general exacto).
 	void update_pow2() {
+#ifdef K_FIELD_FORCE_RUNTIME
+		// Diagnostico A/B: forzar el camino runtime (division/módulo) para medir
+		// cuanto ahorra el camino potencia-de-dos. No usar en produccion.
+		m_tw_pow2 = m_th_pow2 = m_ts_pow2 = false;
+		m_tw_shift = m_th_shift = 0;
+		m_ts_mask = 0;
+		return;
+#endif
 		m_tw_pow2 = eng::is_pow2(m_config.tile_width);
 		m_tw_shift = m_tw_pow2 ? static_cast<eng::u8>(eng::ilog2(m_config.tile_width)) : 0u;
 		m_th_pow2 = eng::is_pow2(m_config.tile_size);

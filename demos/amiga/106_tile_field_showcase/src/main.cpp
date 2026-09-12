@@ -232,6 +232,9 @@ struct DemoGame {
 
 		plan.clear();
 		plan.set_blit_budget_limits({8192, 16384, 4, 120});
+#ifdef K_DIAG_FIELD_CYCLES
+		const eng::u32 m_t0 = eng::debug::DebugPeripheral::cycle_counter();
+#endif
 
 		const field::TileScrollOffset bg_delta {
 			static_cast<eng::s16>(bg_x - bg_last_x),
@@ -263,6 +266,10 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x0001060au);
 			return;
 		}
+#ifdef K_DIAG_FIELD_CYCLES
+		const eng::u32 t1 = eng::debug::DebugPeripheral::cycle_counter();
+		const eng::u32 field_cycles = t1 - m_t0;
+#endif
 		tiles_uploaded += plan.blit_budget().tile_jobs;
 		eng::debug::DebugPeripheral::counter_value(0, tiles_uploaded);
 
@@ -295,6 +302,9 @@ struct DemoGame {
 			(static_cast<eng::u32>(telemetry_view.fine_x & 15u) << 16u) |
 			(static_cast<eng::u32>((fg_q.y >> 16) & 15u) << 20u);
 		eng::debug::mark_ready(g_eng_run_status, marker);
+#ifdef K_DIAG_FIELD_CYCLES
+		g_eng_run_status.detail = field_cycles;
+#endif
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {

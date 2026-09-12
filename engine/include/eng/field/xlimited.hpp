@@ -532,7 +532,7 @@ public:
     /// Fila (en planelíneas) de inicio de la fila de mundo `wy` en el bucle
     /// vertical (costura del split). Hook del mapeo de la base `Playfield`.
     u32 planeline_for(s32 wy) const override {
-        return static_cast<u32>(dmod2(wy)) * m_cfg.planes;
+        return static_cast<u32>(dmod2(wy)) * cplanes();
     }
     /// Word byte del píxel de mundo (el *walk* horizontal cruza planelíneas
     /// cuando `wx/8 >= bitmap_bytes_per_row`; se acota en `write_planes`).
@@ -559,6 +559,15 @@ public:
         if constexpr (SC.display_height != 0u) return fast_div<SC.display_height>::r(v);
         return v % m_display_height;
     }
+
+    // --- Geometría como CONSTANTE cuando `SC` la conoce ----------------------
+    // `begin()` valida que SC coincida con la config. Leer SC en vez de `m_cfg.*`
+    // deja que el compilador pliegue `320/tile_width`, `block%blocks_per_row`,
+    // `tile_width/16`... (con `m_cfg` son división/módulo runtime → libcall en
+    // 68000). Si SC no trae el valor, se cae al campo runtime (mismo resultado).
+    constexpr u16 ctw() const { return SC.tile_width ? static_cast<u16>(SC.tile_width) : m_cfg.tile_width; }
+    constexpr u16 cth() const { return SC.tile_height ? static_cast<u16>(SC.tile_height) : m_cfg.tile_height; }
+    constexpr u8 cplanes() const { return SC.planes ? static_cast<u8>(SC.planes) : m_cfg.planes; }
 
     /// Scroll de N píxeles por eje (especialización del playfield). Devuelve false
     /// si un borde del mapa bloqueó el avance (dirección inversa sin recorrido).
@@ -762,13 +771,13 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
     bool fill_screen(graphics::FramePlan& plan) const {
         if (!m_initialized) return false;
         const u16 cols = m_bitmap_blocks_per_row;
-        const u16 visibleRows = static_cast<u16>(m_cfg.viewport_h / m_cfg.tile_height);
+        const u16 visibleRows = static_cast<u16>(m_cfg.viewport_h / cth());
         const u16 colHeight = m_cfg.scroll_y ? m_bitmap_blocks_per_col : visibleRows;
         const u16 rows = colHeight;
         for (u16 b = 0; b < rows; ++b) {
             for (u16 a = 0; a < cols; ++a) {
                 if (map_tile_at(a, b) == m_cfg.map.empty_tile) continue; // vacío: no pintar
-                const u16 x = a * m_cfg.tile_width;
+                const u16 x = a * ctw();
                 const u16 y = b * m_block_planes_lines; // planeline
                 const u16 mapx = a;
                 const u16 mapy = b;
@@ -811,9 +820,9 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
         // tile de `tile_width/8` bytes por planelínea. Antes estaba fijado a 20
         // bloques/fila y words de 16 px (solo tiles de 16); así se soportan tiles
         // de 32×32 (10 bloques por fila, 2 words por tile).
-        const u16 blocks_per_row_src = static_cast<u16>(320u / m_cfg.tile_width);
+        const u16 blocks_per_row_src = static_cast<u16>(320u / ctw());
         const u16 src_bytes_per_row = 40;  // BLOCKSWIDTH/8 (320/8)
-        const u16 words_per_block = static_cast<u16>(m_cfg.tile_width / xlimited_detail::kBlock);
+        const u16 words_per_block = static_cast<u16>(ctw() / xlimited_detail::kBlock);
         const u32 src_row = static_cast<u32>(block / blocks_per_row_src) *
                             static_cast<u32>(m_block_planes_lines) * src_bytes_per_row;
         const u32 src_col = static_cast<u32>(block % blocks_per_row_src) *
@@ -873,8 +882,8 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
     constexpr u16 twoblockstep() const {
         // TWOBLOCKS del corkscrew (XYLimited): BITMAPBLOCKSPERROW - NUMSTEPS_Y
         //   x*2 + (tile_height - x) = bitmap_blocks_per_row  →  x = bpr - TH
-        return static_cast<u16>(m_bitmap_blocks_per_row > m_cfg.tile_height
-            ? m_bitmap_blocks_per_row - m_cfg.tile_height : 0);
+        return static_cast<u16>(m_bitmap_blocks_per_row > cth()
+            ? m_bitmap_blocks_per_row - cth() : 0);
     }
     constexpr u16 block_videoposy() const {
         // Banda de staging: SIEMPRE dentro del bucle de display (0..display_height),
@@ -883,8 +892,8 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
         // map_width px la fila entrante se dibujara en las filas extra que el
         // display SÍ muestra al scrollear en X (tile visible en el área de
         // pantalla y banda de staging sin refrescar).
-        return static_cast<u16>(
-            (m_scroll.state().mapposy / m_cfg.tile_height * m_cfg.tile_height) % m_display_height);
+        return static_cast<u16>(dmod1(
+            (static_cast<u32>(m_scroll.state().mapposy) / cth()) * cth()));
     }
     /// Añade el blit de un bloque y, en modo lineal (espejo), también el espejo.
     /// Devuelve false si el plan no admite el/los job(s).
@@ -912,14 +921,14 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
         // indice del viewport respecto al framebuffer hace visibles los tiles.
         {
             const s32 vps = m_scroll.state().videoposy;
-            const u32 d = static_cast<u32>(dmod1(static_cast<u32>(vps) + m_cfg.tile_height));
-            const u32 row = static_cast<u32>(y) / m_cfg.planes; // fila real del bucle
-            const u32 rel = (row + m_display_height - (d % m_display_height)) % m_display_height;
+            const u32 d = static_cast<u32>(dmod1(static_cast<u32>(vps) + cth()));
+            const u32 row = static_cast<u32>(y) / cplanes(); // fila real del bucle
+            const u32 rel = dmod1(row + m_display_height - dmod1(d));
             // Horiz. visible en el framebuffer (ventana que lee el chip a partir de
             // ROUND2(videoposx)): ignorar la columna derecha (x ≈ x0+bitmap_width).
-            const u32 x0v = static_cast<u32>(m_scroll.state().videoposx & ~(m_cfg.tile_width - 1)) % m_bitmap_width;
+            const u32 x0v = static_cast<u32>(m_scroll.state().videoposx & ~(ctw() - 1)) % m_bitmap_width;
             const u32 xb = static_cast<u32>(x) % m_bitmap_width;
-            const bool xvis = (xb < x0v + m_cfg.viewport_w) && (xb + m_cfg.tile_width > x0v) ||
+            const bool xvis = (xb < x0v + m_cfg.viewport_w) && (xb + ctw() > x0v) ||
                               (x0v + m_cfg.viewport_w > m_bitmap_width && xb < (x0v + m_cfg.viewport_w) % m_bitmap_width);
             if (rel < m_cfg.viewport_h && xvis) { m_dbg_ink_visible = 1; m_dbg_ink_visible_row = static_cast<u8>(row); }
         }
@@ -1113,7 +1122,7 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
         v.bitplanes = m_frontbuffer;
         v.real_base = m_real_base;
         v.bitmap_bytes_per_row = m_bytes_per_row;
-        v.planes = m_cfg.planes;
+        v.planes = cplanes();
         v.bitmap_height = m_bitmap_height;
         v.viewport_w = m_cfg.viewport_w;
         v.viewport_h = m_cfg.viewport_h;
@@ -1144,11 +1153,11 @@ const u16 I = fetch_scroll_pixels(m_cfg.fetch_mode);
         if (m_cfg.scroll_y) {
 const u16 vy = static_cast<u16>(dmod2(m_scroll.state().videoposy));
         display_offset = static_cast<u16>(dmod1(static_cast<u32>(vy) +
-            m_cfg.tile_height));
+            cth()));
         }
         v.display_height = m_display_height;
         v.display_offset = display_offset;
-        v.planeaddy = static_cast<u32>(display_offset) * m_cfg.planes * m_bytes_per_row;
+        v.planeaddy = static_cast<u32>(display_offset) * cplanes() * m_bytes_per_row;
         // Split vertical: la vuelta al inicio del bucle ocurre a
         // `display_height - display_offset` filas dentro de la ventana. Solo se
         // necesita si esa vuelta cae dentro del viewport (yoffset + VH > DH).
@@ -1157,7 +1166,7 @@ const u16 vy = static_cast<u16>(dmod2(m_scroll.state().videoposy));
         v.split_active = !m_linear_display && m_cfg.scroll_y && v.split_line < m_cfg.viewport_h;
         v.split_planeaddy = 0; // fila 0 (los punteros del split solo suman planeaddx)
         // plane_bytes para validación: bytes totales
-        v.plane_bytes = static_cast<u32>(m_bytes_per_row * m_bitmap_height * m_cfg.planes);
+        v.plane_bytes = static_cast<u32>(m_bytes_per_row * m_bitmap_height * cplanes());
         return v;
     }
 
@@ -1182,7 +1191,7 @@ const u16 vy = static_cast<u16>(dmod2(m_scroll.state().videoposy));
     /// Coincide con `(videoposy + tile_height) % display_height`.
     constexpr s32 display_offset() const {
         return static_cast<s32>(dmod1(static_cast<u32>(m_scroll.state().videoposy) +
-            m_cfg.tile_height));
+            cth()));
     }
 
     /// ¿El split del corkscrew es SIEMPRE esperable (raster <= 255)?
@@ -1223,8 +1232,8 @@ constexpr u16 bitmap_blocks_per_row() const { return m_bitmap_blocks_per_row; }
     // --- ScrollSink (concepto de scroll_engine.hpp): geometría, límites y modo.
     // El algoritmo del corkscrew vive en `ScrollEngine` y consume estos getters
     // + add_draw/save_word/restore_saveword (los seams de este layout).
-    constexpr u16 tile_width() const { return m_cfg.tile_width; }
-    constexpr u16 tile_height() const { return m_cfg.tile_height; }
+    constexpr u16 tile_width() const { return ctw(); }
+    constexpr u16 tile_height() const { return cth(); }
     constexpr u16 viewport_w() const { return m_cfg.viewport_w; }
     constexpr u16 viewport_h() const { return m_cfg.viewport_h; }
     constexpr u16 display_planelines() const { return m_display_planelines; }
@@ -1232,11 +1241,11 @@ constexpr u16 bitmap_blocks_per_row() const { return m_bitmap_blocks_per_row; }
     constexpr u16 bitmap_blocks_per_col() const { return m_bitmap_blocks_per_col; }
     constexpr u16 map_width_blocks() const {
         return m_cfg.map.width ? m_cfg.map.width
-            : static_cast<u16>(m_cfg.screens_x * (m_cfg.viewport_w / m_cfg.tile_width));
+            : static_cast<u16>(m_cfg.screens_x * (m_cfg.viewport_w / ctw()));
     }
     constexpr u16 map_height_blocks() const {
         return m_cfg.map.height ? m_cfg.map.height
-            : static_cast<u16>(m_cfg.screens_y * (m_cfg.viewport_h / m_cfg.tile_height));
+            : static_cast<u16>(m_cfg.screens_y * (m_cfg.viewport_h / cth()));
     }
     constexpr u16 map_wrap_x() const { return m_cfg.map.wrap_x; }
     constexpr u16 map_wrap_y() const { return m_cfg.map.wrap_y; }

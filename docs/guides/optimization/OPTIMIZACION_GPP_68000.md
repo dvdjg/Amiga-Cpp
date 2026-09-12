@@ -364,26 +364,44 @@ van a 48-50 fps, *vblank-gated*); reducirlo es **margen** para hardware real, no
   resultado). Sustituye `floor_div(...)` + `/ tile_width` + `* tile_size` + `% tileset_count` en
   `update`/`enqueue_*`/`draw_pending`/`tile_job`. Precedente idéntico ya existente:
   `TileLayerMap::wrap_coordinate` (máscara si `period` es pow2).
-  **Caveat de evidencia**: a `-O0`/`-Os` el auditor estático sigue contando el libcall del
-  **fallback** (rama no tomada); la mejora es de camino ejecutado, no del binario. Verificado que
-  102/106 compilan, corren y analizan OK, y que la suite host queda verde.
+  **MEDIDO (2026-09)**: en la demo 106 (`K_DIAG_FIELD_CYCLES`) los dos `update` de campo cuestan
+  **46 310 vs 373 464 ciclos** forzando el camino runtime (`K_FIELD_FORCE_RUNTIME=1`) → **−87 %
+  (8×)**; el frame global en ese caso pesado sube 12.2 → 13.2 fps. A `-O0` (build `--debug`) es
+  donde más se nota, porque toda división constante es libcall.
+- **`XLimitedPlayfield` (field/xlimited.hpp)**: accesores `ctw()/cth()/cplanes()` que devuelven la
+  constante `SC` si se conoce (validada igual a `cfg` en `begin`) y si no el campo runtime; usados
+  en el hot path (`draw_block_job`, `block_videoposy`, `planeline_for`, `hardware_view`,
+  `fill_screen`, `tile_width()/tile_height()`, `map_*_blocks()`). Además el bloque de depuración
+  `dbg_ink_visible` de `add_draw` usa `ctw/cth/cplanes` y `dmod1`.
+  **Resultado modesto**: los divisores que dominan en el corkscrew (`display_height=288`,
+  `display_planelines=1728`, `planes=6`, `bitmap_width=352`) son **todos no potencia de dos**, así
+  que siguen siendo libcall. Verificado visualmente: 107 (secuencia), 201 y 202 OK.
 
 ### 11.4 Qué queda (ordenado por valor)
 
-1. **Geometría potencia de dos por diseño** (lo más barato y lo que pedía el encargo): donde la IA
-   elige tamaños (viewport, `display_height`, `bitmap_width`, mapas, `screens_*`), **encajar a la
-   potencia de dos más cercana**. `display_height = viewport_h + 2*tile_height` (224/256/288…) es
-   el principal sospechoso: 224 y 288 **no** son potencias de dos → `% 224`/`% 288` = libcall.
-2. **`XLimitedPlayfield`: usar los NTTP `SC.*` en TODO el hot path** (hoy `dmod1/dmod2` sí, pero
-   `draw_block_job`/`planeline_for`/`hardware_view` siguen leyendo `m_cfg.*` runtime). Es el mismo
-   patrón `if constexpr (SC.x != 0)` que ya usa `ScrollEngine`; `begin()` valida que coincidan.
+0. **OJO — `display_height` NO es negociable**: `display_height = viewport_h + 2*tile_height` es
+   un **invariante del corkscrew** (ver AGENTS §checklist 201 y `201_ehb_map/README` §7): el anillo
+   vertical se dimensiona para el viewport TOTAL, y `block_videoposy`/`mapy` colisionan si se
+   cambia. **No se puede "encajar a potencia de dos"** sin romper la imagen. Para 320×256 → 288, y
+   288 = 32·9 **no** es potencia de dos → `% 288` seguirá siendo libcall. La vía real para ese
+   divisor es **evitar el módulo** (punto 4).
+1. **Geometría potencia de dos donde SÍ es libre**: `tile_width/tile_size` (16/32, ya),
+   `tileset_count` (64, ya), mapas (256×128, ya). Para tamaños nuevos que la IA elija, preferir
+   potencia de dos. `bitmap_width` (352/384) y `planes` (3/6) son no-potencia-de-dos por diseño.
+2. **[HECHO] `XLimitedPlayfield` usa `SC` (NTTP) en el hot path** (`ctw/cth/cplanes`,
+   `block_videoposy`→`dmod1`, `planeline_for`, `hardware_view`, `fill_screen`, `draw_block_job`).
+   Beneficio modesto por los divisores no-potencia-de-dos del punto 0.
 3. **Metafunción `TileFieldController<Config>` (NTTP)**: llevar `tile_width/size/planes/count` a
    constante elimina el `if constexpr` runtime y el fallback del binario (auditor a 0).
-4. **`divu.w`/`divs.w` nativos (16 bits)** para denominadores no potencia de dos: un `divu.w` hace
-   cociente+resto en una instrucción (si el cociente cabe en 16 bits); `runtime_div::qr` ya evita el
-   doble libcall.
-5. **Evitar el `%`/`/` en el bucle** envolviendo de forma incremental (como ya hace
-   `draw_pending` con `cursor_x/cursor_y`, y `ScrollEngine` con `videopos`).
+4. **Evitar `%`/`/` en el bucle por envolvimiento incremental** (LA palanca real para 288/1728):
+   mantener `mapposy % display_height` (y `videopos` por eje) como estado, actualizándolo con el
+   delta (`if (m >= DH) m -= DH; if (m < 0) m += DH;`) en vez de recalcular `%` cada paso. Ya se
+   hace análogamente en `draw_pending` (cursores) y en `TileFieldController` (bandas).
+5. **`divu.w`/`divs.w` nativos (16 bits)** para denominadores no-potencia-de-dos cuando el cociente
+   cabe en 16 bits; `runtime_div::qr` ya evita el doble libcall.
+6. **`dbg_ink_visible`**: el bloque de depuración de `add_draw` corre **por bloque y frame** (varias
+   divisiones) aunque solo lo use la 107. Candidato a flag de compilación por instancia
+   (`bool InkDetect` como parámetro de plantilla) con default OFF y ON solo en 107.
 
 ### 11.5 Regla de diseño (para que el compilador sí optimice)
 
