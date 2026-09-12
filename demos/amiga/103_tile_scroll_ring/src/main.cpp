@@ -548,7 +548,7 @@ int main() {
 
 	eng::amiga::MinimalBackend backend {};
 	eng::Engine engine { backend, g_game };
-	engine.run_frames(0xffffffffu);
+	engine.run_frames_polling(0xffffffffu);
 
 	return 0;
 }

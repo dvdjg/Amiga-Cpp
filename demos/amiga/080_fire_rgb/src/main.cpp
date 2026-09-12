@@ -356,7 +356,7 @@ int main() {
 	amiga::MinimalBackend backend {};
 	FireDemo game {};
 	eng::Engine engine {backend, game};
-	engine.run_frames(0xffff);
+	engine.run_frames_polling(0xffff);
 
 	return 0;
 }

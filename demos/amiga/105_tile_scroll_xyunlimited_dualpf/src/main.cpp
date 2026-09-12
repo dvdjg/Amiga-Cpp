@@ -192,6 +192,6 @@ int main() {
 	eng::debug::reset(g_eng_run_status);
 	eng::amiga::MinimalBackend backend {};
 	eng::Engine engine {backend, game};
-	engine.run_frames(0xffffffffu);
+	engine.run_frames_polling(0xffffffffu);
 	return 0;
 }

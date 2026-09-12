@@ -142,10 +142,19 @@ PlatformBackend (Amiga: potgo/ciaa/ciab + joyport + teclado)
   sprites/copper/malla, `packUaf`/`parseUaf`; doc `docs/tools/UAF_PACK.md`).
 
 ### 2.8 Ciclo de vida y framework (`eng::engine`)
-- `Engine<Backend, Game>` ya existe: `init -> (update -> wait_vblank -> render) x N`.
+- **Modelo por defecto: interrupt-driven** (`Engine::run_frames`). La **IRQ de VBlank**
+  ejecuta `update` + `render` (el latido del juego, con *deadline* de 1 frame, medido en
+  líneas de raster en `GameContext::irq`) y el **bucle principal** ejecuta el trabajo de
+  fondo cooperativo, que la IRQ preempta. Es lo más natural en Amiga y **no quema ciclos en
+  *polling*** de VBlank. La IRQ se instala con `MinimalBackend::set_vblank_service`
+  (`support/vbl_irq.s`).
+- **Modelo alternativo: *polling*** (`Engine::run_frames_polling`): `update -> wait_vblank
+  -> render` en el bucle principal, con el fondo drenado en el hueco de VBlank y en las
+  esperas de Blitter. Es el que usan las demos con trabajo pesado en `update`.
 - Añadir fases explícitas (roadmap Fase 2): `input`, `update fijo`, `prepare render`,
   `blit jobs`, `copper commit`, `sprite commit`, `audio mix`, `swap`. El punto de commit
-  visible sigue siendo `render` (sincronizado a VBlank).
+  visible sigue siendo `render` (en el modo por defecto, dentro de la IRQ de VBlank).
+
 - **Trabajo de fondo y tarea ociosa** (`engine.hpp`, `eng/task/background.hpp`): el
   engine posee una `task::BackgroundQueue` (expuesta en `GameContext::background`) y la
   drena durante el hueco de VBlank (`BackgroundPump`, como máximo

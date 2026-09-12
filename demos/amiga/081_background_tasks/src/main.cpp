@@ -165,10 +165,10 @@ struct BackgroundDemo {
 		if (context.background == nullptr) return;
 		const task::TaskProgress p = context.background->progress(m_task);
 		// Evidencia por canal lateral: progreso (permille) + frame.
-		// Evidencia por canal lateral: progreso (permille) en los bits altos y frame en
-		// los bajos (para ver que el bucle principal sigue corriendo).
+		// Evidencia por canal lateral: progreso (permille) en los bits altos y el coste
+		// del tick del juego en lineas de raster (bits bajos).
 		g_eng_run_status.detail =
-			(static_cast<eng::u32>(p.permille) << 16) | (context.frame.frame_index & 0xffffu);
+			(static_cast<eng::u32>(p.permille) << 16) | (context.irq.last_lines & 0xffffu);
 
 		if (p.finished()) {
 			// Terminado: libera el slot (estaba en `Done`) y reinicia la barra para
@@ -209,7 +209,7 @@ int main() {
 	eng::Engine engine {backend, game};
 	// Modo interrupt-driven: la IRQ de VBlank lleva el juego (update/render) y el bucle
 	// principal es el trabajo de fondo (la barra progresiva), que la IRQ preempta.
-	engine.run_frames_interrupt_driven(0xffff);
+	engine.run_frames(0xffff);
 
 	return 0;
 }

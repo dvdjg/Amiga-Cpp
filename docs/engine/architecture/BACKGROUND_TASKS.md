@@ -83,8 +83,13 @@ El engine soporta dos organizaciones, segun dónde viva el **juego** y dónde el
 
 | Modo | Juego (`update`/`render`) | Fondo | API |
 |---|---|---|---|
-| **Cooperativo** (por defecto) | bucle principal (`update → wait_vblank → render`) | drenado en el hueco de VBlank y en las esperas de Blitter | `Engine::run_frames` |
-| **Interrupt-driven** | **IRQ de VBlank** (latido del juego, *deadline* de 1 frame) | bucle principal (`while (frames < N) background.run_slice(...)`) | `Engine::run_frames_interrupt_driven` |
+| **Interrupt-driven** (por defecto) | **IRQ de VBlank** (latido del juego, *deadline* de 1 frame) | bucle principal (`while (frames < N) background.run_slice(...)`) | `Engine::run_frames` |
+| **Polling** (alternativo) | bucle principal (`update -> wait_vblank -> render`) | drenado en el hueco de VBlank y en las esperas de Blitter | `Engine::run_frames_polling` |
+
+El modo **por defecto** es el más natural en Amiga y el que **no quema ciclos en *polling***:
+la CPU nunca espera al VBlank, solo trabaja (el juego en la IRQ, el fondo en el bucle). El
+tick del juego mide su coste en **líneas de raster** (`GameContext::irq`: `last_lines`,
+`max_lines`, `overruns`, `budget_lines`) para vigilar el presupuesto.
 
 En el modo **interrupt-driven** (el más fiel al estilo Amiga clásico) la IRQ de VBlank
 lleva el trabajo del juego (avanzar animación, actualizar el Copper, input) con **prioridad
@@ -108,7 +113,18 @@ VBlank, espera de Blitter e IRQ pueden coexistir.
 |---|---|---|
 | **VBlank IRQ** (`VERTB`, nivel 3) | tick 50 Hz | **latido del juego** en el modo interrupt-driven: garantiza la cadencia del juego aunque el fondo sea pesado |
 | **Blit IRQ** (`BLIT`, nivel 3) | evento "blit terminado" | encadenar blits (paralelismo CPU↔Blitter); mañana, mejor punto de drenado que el *polling* de `BBUSY` |
-| **Timer CIA-A** | reloj propio | motor de fondo independiente del frame (pendiente) |
+| **Timer CIA-A** | reloj propio (o reloj de tiempo real TOD) | motor de fondo independiente del frame (pendiente) |
+
+Notas de implementación:
+
+- **`VERTB`, `BLIT` y `COPER` comparten el autovector de nivel 3** (`0x6C`). Por eso un driver
+  de blit debe instalarse como un **único handler de nivel 3** que lea `INTREQR` y despache a
+  cada servicio (VBlank / blit) limpiando su bit. Hoy `set_vblank_service` instala en `0x6C`;
+  al añadir el blit hay que **unificar** el handler.
+- El **timer de CIA-A** no es solo un motor de fondo: la CIA tiene además un **reloj de
+  tiempo real** en hardware (TOD, *time-of-day*) y el timer A/B es un **tick programable** →
+  es la fuente natural de un **reloj de juego/tiempo real**. Reintentarlo con instrumentación
+  visible al CPU (un contador en Chip RAM incrementado dentro del handler).
 
 Matiz importante: la IRQ de VBlank **no** es un buen motor de *fondo* (es la misma cadencia
 de 50 Hz y roba tiempo al bucle); su sitio es el **latido del juego**. Para fondo puro de CPU

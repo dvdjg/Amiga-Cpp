@@ -104,6 +104,10 @@ public:
 	/// `Engine::run_frames`.
 	void wait_vblank(void (*task)(void*, u16 vpos) = nullptr, void* user = nullptr);
 
+	/// Linea de raster actual (VPOSR). Barata; el tick del juego la usa para medir su
+	/// presupuesto (cuanto raster consume cada frame).
+	u16 current_raster_line() const;
+
 	/// Tarea opcional que el backend ejecuta mientras **espera al Blitter** (`BBUSY`).
 	/// El engine la usa para drenar las tareas de fondo (`eng::task::BackgroundQueue`)
 	/// en vez de girar en vacio. Recibe la linea de raster (`vpos`). `nullptr` la apaga.

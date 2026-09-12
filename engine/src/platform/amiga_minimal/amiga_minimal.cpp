@@ -336,6 +336,10 @@ void MinimalBackend::set_blitter_service(void (*task)(void*, u16), void* user) {
 	g_blitter_service_user = user;
 }
 
+u16 MinimalBackend::current_raster_line() const {
+	return static_cast<u16>((*vpos_long & 0x1ff00u) >> 8);
+}
+
 // Despachador de la IRQ de VBlank: lo llama el trampoline asm (`support/vbl_irq.s`)
 // con todos los registros salvados. Limpia el request y ejecuta el tick del juego.
 extern "C" void vbl_irq_dispatch() {
