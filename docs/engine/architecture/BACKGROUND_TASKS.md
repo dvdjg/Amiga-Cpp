@@ -123,8 +123,12 @@ lo que hay en hardware real.
 `MinimalBackend::background_timer_start(latch, task, user)` programa el **timer A continuo**
 (reloj E), enmascara su IRQ en la CIA (`ICR`) y monta el handler de **nivel 2** (`0x68`).
 Corre a `latch / 709379` s por tic. La demo 081 lo usa con `latch = 0x2000` → **~86 IRQ/s**
-(medido). Sirve también de base para un **reloj de tiempo real**: la CIA tiene **TOD** por
-hardware y el timer A/B es un tick programable.
+(medido).
+
+- ✅ **Reloj de tiempo real**: la misma CIA-A tiene **TOD** por hardware.
+  `MinimalBackend::cia_tod_ticks()` lo lee (24 bits, `TODHI→TODMID→TODLO`) y
+  `eng::time::from_tod` (`eng/core/rtc.hpp`, test host **HOST-018**) lo convierte a hora del
+  día; la demo 081 publica los segundos del RTC (avanzan a 1 Hz, verificado).
 
 > Lección (referencia `amiga-bootcamp/01_hardware/common/cia_chips.md`): en el **CRA**,
 > `bit 3 RUNMODE` es **0 = continuo, 1 = one-shot**. Poner one-shot hace que el timer dispare

@@ -12,6 +12,7 @@
 //     es el progreso (`progress().permille`), expuesto tambien en runStatus.detail.
 //   - La tarea se adapta al barrido del CRT: si el raster ya va tarde (vpos > 220),
 //     procesa la mitad por rebanada.
+#include <eng/core/rtc.hpp>
 #include <eng/core/types.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
@@ -168,10 +169,11 @@ struct BackgroundDemo {
 
 		if (context.background == nullptr) return;
 		const task::TaskProgress p = context.background->progress(m_task);
-		// Evidencia por canal lateral: progreso (permille) en los bits altos y numero de
-		// IRQs del timer de CIA (bits bajos). El coste del tick esta en context.irq.
+		// Reloj de tiempo real: lee el TOD de la CIA-A (24 bits, 50 Hz PAL).
+		m_clock = eng::time::from_tod(backend.cia_tod_ticks(), 50u);
+		// Evidencia por canal lateral: progreso (permille) arriba y segundos del RTC abajo.
 		g_eng_run_status.detail =
-			(static_cast<eng::u32>(p.permille) << 16) | (m_irq_count & 0xffffu);
+			(static_cast<eng::u32>(p.permille) << 16) | (m_clock.seconds & 0xffffu);
 
 		if (p.finished()) {
 			// Terminado: libera el slot (estaba en `Done`) y reinicia la barra para
@@ -208,6 +210,7 @@ private:
 	task::TaskHandle m_task {};
 	eng::GameContext* m_context = nullptr;
 	eng::u32 m_irq_count = 0;
+	eng::time::TimeOfDay m_clock {};
 	eng::u8 m_hue = 0;
 	eng::u16 m_line_y = 0;
 	bool m_init_ok = false;

@@ -193,6 +193,13 @@ recording del GUI). Pendiente: `print` DWARF.
 - Esto aplica también a **fuentes, tablas y glifos**: buscar si el carácter/glifo ya está antes de redibujarlo.
 - Un commit que añade algo que ya existía como duplicado se considera un error de proceso.
 
+## Regla de contexto técnico (obligatoria)
+- **Antes de implementar cualquier mecanismo técnico** (registro o comportamiento de hardware, protocolo, formato, peculiaridad del toolchain o del chipset), **localizar y leer la documentación de referencia relevante**. No inventar ni descubrir por prueba y error.
+- Fuentes preferentes: `docs/reference/ahrm/` (AHRM 3.ª), el repo hermano `../amiga-bootcamp/` (p. ej. `01_hardware/common/cia_chips.md`, `video_timing.md`, `dma_architecture.md`), los headers del SDK (`…/opt/m68k-amiga-elf/sys-include/hardware/*.h`) y los datasheets.
+- Si no existe doc en el repo, **traerla o crearla antes de programar** (regla de ingesta de referencias: buscar, comparar calidad, componer/sustituir).
+- **Citar la referencia** (ruta del doc, datasheet, sección) en el comentario del código y en el commit.
+- Ejemplo (2026-09): el timer de CIA no recargaba por poner `CRA bit3 RUNMODE=1` (one-shot); leer `cia_chips.md` lo documenta como "0 = continuo" y fue la corrección directa.
+
 ## Regla permanente de rendimiento
 - Todo código nuevo debe minimizar el trabajo total por frame y reutilizar datos,
   trabajos, buffers y estados siempre que sea posible.

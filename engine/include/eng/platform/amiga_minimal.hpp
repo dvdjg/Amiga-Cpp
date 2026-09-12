@@ -108,6 +108,11 @@ public:
 	/// presupuesto (cuanto raster consume cada frame).
 	u16 current_raster_line() const;
 
+	/// Lee el contador **TOD** (tiempo del dia) de la CIA-A: 24 bits a 50/60 Hz, con el
+	/// orden de latch `TODHI -> TODMID -> TODLO` (leer TODHI lo congela). Ver
+	/// `eng/core/rtc.hpp` y `amiga-bootcamp/01_hardware/common/cia_chips.md`.
+	u32 cia_tod_ticks() const;
+
 	/// Tarea opcional que el backend ejecuta mientras **espera al Blitter** (`BBUSY`).
 	/// El engine la usa para drenar las tareas de fondo (`eng::task::BackgroundQueue`)
 	/// en vez de girar en vacio. Recibe la linea de raster (`vpos`). `nullptr` la apaga.

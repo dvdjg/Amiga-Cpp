@@ -357,6 +357,14 @@ u16 MinimalBackend::current_raster_line() const {
 	return static_cast<u16>((*vpos_long & 0x1ff00u) >> 8);
 }
 
+u32 MinimalBackend::cia_tod_ticks() const {
+	// Orden de latch de la CIA: TODHI congela TODMID/TODLO (ver cia_chips.md).
+	const u32 hi = *ciaa_reg(0x0au);   // TODHI
+	const u32 mid = *ciaa_reg(0x09u);  // TODMID
+	const u32 lo = *ciaa_reg(0x08u);   // TODLO
+	return (hi << 16) | (mid << 8) | lo;
+}
+
 // Despacha el nivel 3: lee INTREQR y atiende VERTB (tick del juego) y BLIT (servicio de
 // blit). Cada fuente limpia su propio bit antes de llamar a su tarea.
 extern "C" void level3_dispatch() {

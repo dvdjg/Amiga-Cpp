@@ -30,7 +30,9 @@ de **fondo** cooperativo, que la IRQ preempta.
   mientras el juego espera a un blit.
 - **Motor de fondo por timer A de la CIA-A** (`background_timer_start`): timer **continuo**
   (CRA `RUNMODE=0`), nivel 2, que avanza el fondo a su propio ritmo; con `latch = 0x2000`
-  corre a **~86 IRQ/s**. `runStatus.detail` (bits bajos) publica el contador de IRQs del timer.
+  corre a **~86 IRQ/s**.
+- **Reloj de tiempo real**: lee el **TOD** de la CIA-A (`cia_tod_ticks` +
+  `eng::time::from_tod`) y publica los segundos en `runStatus.detail` (bits bajos).
 
 ## Validación
 
