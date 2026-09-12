@@ -56,7 +56,7 @@ El minterm es una función de **A/B/C** (8 combinaciones); cada bit dice si D=1.
 
 - **Original**: la IRQ de blit llama a `ChunkyToPlanar`; cada llamada ejecuta la siguiente fase → el C2P avanza **en background** mientras la CPU calcula el fuego del siguiente frame.
 - **Port (actual)**: `c2p_4bpp_program(state)` **programa una fase sin esperar** al Blitter y `blitter_busy()` permite encadenarlas. La demo las avanza desde `Game::idle()`, que el engine llama **durante la espera de VBlank** (`MinimalBackend::wait_vblank(task, user)`): mientras la CPU solo sondea `VPOSR`, el Blitter dispone del bus completo y el fuego del frame corre **sin competir** con el Blitter. Es el solape del original, hecho de forma **cooperativa** (sin IRQ).
-- **Por qué NO solapar con el fuego**: **medido** — el fuego es intensivo en Chip RAM y el Blitter le roba ancho de bus; solapar el C2P *con el fuego* (por IRQ o troceando el bucle) apenas mejora (~12.4 fps) e incluso puede empeorar. Servirlo en el VBlank (CPU ociosa) es mejor para efectos *bus-bound* (~13.9 fps).
+- **Por qué NO solapar con el fuego**: **medido** — el fuego es intensivo en Chip RAM y el Blitter le roba ancho de bus; solapar el C2P *con el fuego* (por IRQ o troceando el bucle) apenas mejora (~12.4 fps) e incluso puede empeorar. Servirlo en el VBlank (CPU ociosa) es mejor para efectos *bus-bound* (~12.4–13.9 fps; oscila porque el efecto esta en el limite de 3/4 vblanks).
 
 
 ## 5.1 Como opción para juegos (CPU-heavy) — IRQ vs polling
@@ -95,7 +95,7 @@ El buffer `chunky` se usa como **origen y destino** (la segunda mitad es el inte
 
 - El C2P son **12 blits** de 2 palabras × 640 líneas cada uno (`bltsize = 2|(640<<6)`), más la fase de parcheo. El Blitter los hace en paralelo a la CPU, pero el port síncrono los **espera**.
 - **Hallazgo (medido)**: los pares (fase par = configura+arranca, impar = re-escribe `bltsize`) **NO son redundantes**. Saltarse las impares rompe el C2P (salida con 4 colores, sin fuego): muy probablemente el Blitter deja sus registros de puntero **avanzados** y la fase impar procesa el **bloque siguiente** con el mismo `bltsize`. Por eso hay 12 blits, no 6.
-- **Coste medido del C2P (fire-rgb, emulador, tiempo emulado)**: en modo síncrono el C2P añade **~1 vblank** al frame (~25%). Servido en el VBlank el añadido baja a **~0.6 vblanks**: la demo pasa de **12.4 → 13.9 fps**; el suelo sin C2P es **16.6 fps** (3 vblanks). El fuego llena ya ~3 vblanks, por eso el C2P no se oculta del todo.
+- **Coste medido del C2P (fire-rgb, emulador, tiempo emulado)**: en modo síncrono el C2P añade **~1 vblank** al frame (~25%). Servido en el VBlank el añadido baja a **~0.6 vblanks** y la demo queda en **~12.4–13.9 fps** (oscila: el efecto está justo en el límite de 3/4 vblanks); el suelo sin C2P es **16.6 fps** (3 vblanks). El fuego llena ya ~3 vblanks, por eso el C2P no se oculta del todo.
 - Optimizaciones: (a) ✅ **solape cooperativo del C2P en el VBlank** (`Game::idle()` + `wait_vblank(task,user)`) → +12%; (b) ✅ **bucle de fuego en asm** (`support/fire_loop.s`) → 7.2 → 12.4 fps; (c) **IRQ de blit real** (nivel 3 + VBR): documentada pero **no implementada**, porque su única ventaja sobre el solape cooperativo sería solapar con el fuego, y aquí el fuego es *bus-bound* (peor); (d) `c2p_1x1_4.s` (Kalms/Scout, en `support/`) para el caso genérico 4bpp/1byte.
 
 ## 8. Referencias

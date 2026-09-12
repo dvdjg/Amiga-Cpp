@@ -146,11 +146,13 @@ PlatformBackend (Amiga: potgo/ciaa/ciab + joyport + teclado)
 - Añadir fases explícitas (roadmap Fase 2): `input`, `update fijo`, `prepare render`,
   `blit jobs`, `copper commit`, `sprite commit`, `audio mix`, `swap`. El punto de commit
   visible sigue siendo `render` (sincronizado a VBlank).
-- **Tarea ociosa opcional** (`GameIdle` + `IdleBridge`, `engine.hpp`): si el juego expone
-  `idle(backend, context)`, el engine lo llama mientras espera el VBlank (la CPU está
-  ociosa). Sirve para encadenar trabajo de hardware que **no debe competir por el bus con
-  el CPU del frame** (p. ej. las fases del C2P de `fire-rgb`), sustituyendo de forma
-  cooperativa a una interrupción. `MinimalBackend::wait_vblank(task, user)` es el hook.
+- **Trabajo de fondo y tarea ociosa** (`engine.hpp`, `eng/task/background.hpp`): el
+  engine posee una `task::BackgroundQueue` (expuesta en `GameContext::background`) y la
+  drena durante el hueco de VBlank (`BackgroundPump`, como máximo
+  `max_slices_per_frame` rebanadas/frame), con prioridad estricta al bucle principal. Si
+  el juego expone `idle(backend, context)`, también se le llama ahí (p. ej. las fases del
+  C2P de `fire-rgb`). `MinimalBackend::wait_vblank(task, user)` entrega la línea de raster
+  (`vpos`) como hook. Ver `BACKGROUND_TASKS.md`.
 
 ### 2.9 Debug y telemetría (`eng::debug`)
 `RunStatus`, `DebugPeripheral` (consola/checkpoints/counters) ya existen. Se usan para la

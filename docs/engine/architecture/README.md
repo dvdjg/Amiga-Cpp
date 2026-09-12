@@ -21,6 +21,7 @@ en C del repo hermano (`Cursor-Amiga-C`) está en [../c-engine/](../c-engine/REA
 | [MUSIC_PLAYER.md](MUSIC_PLAYER.md) | Reproductores de música (ptplayer/P61/AHX): estado de importación, API y convenio mixer+música. |
 | [GAME_AUDIO.md](GAME_AUDIO.md) | Capa de audio de juego (`GameAudio`/`SampleBank`): política de voces y ducking, y guía para generar música y sonidos desde herramientas externas. |
 | [C2P_BLITTER.md](C2P_BLITTER.md) | C2P (chunky→planar) por Blitter: las 13 fases del C2P 4bpp de `fire-rgb`, minterms (`0xE4`/`0xD8`), máscaras `BLTCDAT`, síncrono vs interrupción de blit y API del engine. |
+| [BACKGROUND_TASKS.md](BACKGROUND_TASKS.md) | Tareas de fondo cooperativas (`eng::task::BackgroundQueue`): progreso/rendimiento baratos, adaptación de carga por `vpos`, prioridad al bucle principal y drenado en el hueco de VBlank. |
 
 ## Puntos de entrada del código
 

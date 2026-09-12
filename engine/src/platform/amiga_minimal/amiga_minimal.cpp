@@ -298,13 +298,18 @@ void MinimalBackend::release_memory() {
 	m_memory_report = {};
 }
 
-void MinimalBackend::wait_vblank(void (*task)(void*), void* user) {
+void MinimalBackend::wait_vblank(void (*task)(void*, u16), void* user) {
 	debug_start_idle();
-	while ((*vpos_long & 0x1ff00u) == (311u << 8)) {
-		if (task != nullptr) task(user);
+	// Una sola lectura de VPOSR por iteracion: la condicion y el `vpos` que recibe
+	// la tarea comparten el mismo valor (no anade accesos al bus en el bucle caliente).
+	u32 vposr = *vpos_long;
+	while ((vposr & 0x1ff00u) == (311u << 8)) {
+		if (task != nullptr) task(user, static_cast<u16>((vposr & 0x1ff00u) >> 8));
+		vposr = *vpos_long;
 	}
-	while ((*vpos_long & 0x1ff00u) != (311u << 8)) {
-		if (task != nullptr) task(user);
+	while ((vposr & 0x1ff00u) != (311u << 8)) {
+		if (task != nullptr) task(user, static_cast<u16>((vposr & 0x1ff00u) >> 8));
+		vposr = *vpos_long;
 	}
 	debug_stop_idle();
 }

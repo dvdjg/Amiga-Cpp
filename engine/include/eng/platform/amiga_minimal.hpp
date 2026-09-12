@@ -97,11 +97,12 @@ public:
 	/// Espera al comienzo de VBlank leyendo VPOSR directamente.
 	///
 	/// `task`/`user` son un **hook de tarea ociosa** opcional: se ejecuta repetidamente
-	/// mientras la CPU espera (no hay trabajo de juego que hacer). Sirve para avanzar
-	/// trabajos de hardware que no deben competir por el bus con el CPU del frame
-	/// (p. ej. encadenar fases del C2P, que asi corre a bus completo mientras el CPU
-	/// solo sondea VPOSR). Ver `Engine::run_frames`.
-	void wait_vblank(void (*task)(void*) = nullptr, void* user = nullptr);
+	/// mientras la CPU espera (no hay trabajo de juego que hacer). `task` recibe la
+	/// **linea de raster actual** (`vpos`) para que adapte su carga. Sirve para avanzar
+	/// trabajo de fondo que no debe competir por el bus con el CPU del frame (p. ej.
+	/// las tareas de `eng::task::BackgroundQueue` y las fases del C2P). Ver
+	/// `Engine::run_frames`.
+	void wait_vblank(void (*task)(void*, u16 vpos) = nullptr, void* user = nullptr);
 
 	/// Escribe un registro COLORxx. `rgb444` usa el formato nativo OCS.
 	void set_color(u8 index, u16 rgb444);
