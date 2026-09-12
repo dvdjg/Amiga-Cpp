@@ -31,10 +31,18 @@ fire_loop:
 	movem.l	d2-d7/a2-a6,-(sp)
 	.cfi_adjust_cfa_offset 44
 
-	move.l	sp@(48), a0	/* chunky (salida) */
-	move.l	sp@(52), a1	/* fire   (A) */
-	move.l	sp@(56), a5	/* dt     (tabla) */
-	move.l	sp@(60), d7	/* iters  (620) */
+	/* Checkpoint de depuracion: se escribe en g_eng_run_status.detail (offset 12),
+	   que el runner lee por el canal lateral. 0x11=entrada, 0x12=punteros,
+	   0x13=tras bucle, 0x14=fin. */
+	move.l	#0x11, g_eng_run_status+12
+
+	/* Punteros por MEMORIA (g_fire_args), no por pila: [0]=chunky [1]=fire
+	   [2]=dt [3]=iters. Evita dudas de ABI. */
+	movea.l	g_fire_args+0, a0
+	movea.l	g_fire_args+4, a1
+	movea.l	g_fire_args+8, a5
+	move.l	g_fire_args+12, d7
+	move.l	#0x12, g_eng_run_status+12
 
 	/* Punteros: A=a1 (fire+0), B=a2 (fire+W-1), C=a3 (fire+W),
 	   D=a4 (fire+W+1), E=a6 (fire+2W). En bytes: (W-1)*2=158, 160, 162, 320. */
@@ -68,8 +76,11 @@ fire_loop:
 
 	dbra	d7, .Lloop
 
+	move.l	#0x13, g_eng_run_status+12
+
 	movem.l	sp@+, d2-d7/a2-a6
 	.cfi_adjust_cfa_offset -44
+	move.l	#0x14, g_eng_run_status+12
 	rts
 	.cfi_endproc
 	.size	fire_loop, .-fire_loop

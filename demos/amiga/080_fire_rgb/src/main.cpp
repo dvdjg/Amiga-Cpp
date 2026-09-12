@@ -60,6 +60,13 @@ constexpr bool kDiagSkipC2p = false;
 // --- Datos: tabla de color del fuego generada en C++23 constexpr -------------
 #include "data/dualtab.hpp"
 
+// Buffer de argumentos para la rutina asm del fuego. GLOBAL y `extern "C"` (fuera
+// del namespace anonimo) para que `support/fire_loop.s` lo referencie.
+extern "C" {
+eng::u32 g_fire_args[4] = {0, 0, 0, 0}; // [0]=chunky, [1]=fire, [2]=dt, [3]=iters
+void fire_loop(void);
+}
+
 namespace {
 
 namespace amiga = eng::amiga;
@@ -143,12 +150,14 @@ void MainLoopC(void) {
 /// Version ASM del original: rutina .s aparte (`support/fire_loop.s`). Sacarla del
 /// C++ evita el problema de GCC-15, que **ignora los pins** `register asm("aN")` y
 /// no puede asignar los 7 registros de direccion (a0..a6) que exige el bucle.
-extern "C" void fire_loop(eng::u16* chunky, eng::u32* fire, const eng::u32* dt, int iters);
-
+/// Los punteros se pasan por MEMORIA (`g_fire_args`), no por pila: evita dudas de ABI.
 #if K_FIRE_ASM
 void MainLoopAsm(void) {
-	fire_loop(reinterpret_cast<eng::u16 *>(chunky[active]), reinterpret_cast<eng::u32 *>(fire),
-		  fire_rgb::kDualTab.v, (kWidth * kHeight - 2 * kWidth) / 8);
+	g_fire_args[0] = reinterpret_cast<eng::u32>(chunky[active]);
+	g_fire_args[1] = reinterpret_cast<eng::u32>(fire);
+	g_fire_args[2] = reinterpret_cast<eng::u32>(fire_rgb::kDualTab.v);
+	g_fire_args[3] = static_cast<eng::u32>((kWidth * kHeight - 2 * kWidth) / 8);
+	fire_loop();
 }
 #endif // K_FIRE_ASM
 
@@ -211,6 +220,7 @@ struct FireDemo {
 		RandomizeBottom();
 		MainLoop();
 
+#if !K_FIRE_ASM
 		{	// DIAG: suma del buffer de fuego (comprobar que se forma).
 			eng::u32 s = 0;
 			for (eng::u32 i = 0; i < static_cast<eng::u32>(kWidth) * kHeight; ++i) {
@@ -218,6 +228,7 @@ struct FireDemo {
 			}
 			g_eng_run_status.detail = s;
 		}
+#endif
 
 		// C2P: 13 fases (sincrono) del plano `active` a sus bitplanes.
 		if (!kDiagSkipC2p) {

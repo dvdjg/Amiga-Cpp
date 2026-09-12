@@ -57,6 +57,23 @@ El minterm es una función de **A/B/C** (8 combinaciones); cada bit dice si D=1.
 - **Original**: la IRQ de blit llama a `ChunkyToPlanar`; cada llamada ejecuta la siguiente fase → el C2P avanza **en background** mientras la CPU calcula el fuego del siguiente frame (solape → más fps).
 - **Port (actual)**: `MinimalBackend::c2p_4bpp_step(state)` ejecuta **una fase y espera** al Blitter. La demo llama las 13 fases en bucle → **síncrono** (misma imagen, sin solape). El hook de IRQ queda pendiente.
 
+## 5.1 Como opción para juegos (CPU-heavy) — IRQ vs polling
+
+**VBlank** (polling o IRQ) solo da **pacing** de frame (50 Hz); no involucra al Blitter. La **IRQ de blit** es otra cosa: **paralelismo CPU↔Blitter**. Tras cada blit, si se hace *polling* de `BBUSY` la CPU queda **esperando**; con la IRQ, el blit completado arranca el siguiente **solo** y la CPU puede estar haciendo **trabajo útil**.
+
+Esto es una **palanca de diseño para juegos con mucha CPU de fondo poco prioritaria**: si el juego tiene trabajo que no tiene que terminar dentro del frame estricto (algoritmos de visibilidad, mezcla/síntesis de audio, simulación de físicas, pathfinding, precarga de tiles), se puede **desacoplar del bucle principal** y dejarlo correr mientras el Blitter trabaja. Ejemplos:
+
+- **C2P de un fondo/tilemap** grande: el CPU calcula la lógica del frame siguiente mientras el Blitter convierte el chunky.
+- **Música/SFX**: la mezcla del mixer es un candidato aún mejor (corre en su propia IRQ de audio, independiente del frame).
+- **Físicas/visibilidad**: si se permite 1 frame de latencia, se pueden solapar con blits grandes.
+
+**Cómo se implementaría en el engine** (documentado, no implementado):
+1. Hook en el backend: `set_blit_handler(handler, data)` que escribe el **autovector de nivel 3** (en 68000, la dirección `0x6C`) y activa el bit de blit en `INTENA` (`0x8040`), con el handler limpiando `INTREQ` (`0x0040`) y un **trampoline asm** que salva registros + `RTE`.
+2. El handler avanza la **cadena de blits** (una fase del C2P o el siguiente `bltsize`) y vuelve.
+3. El bucle principal **no espera** el blit: lanza la cadena y sigue con el trabajo CPU; al cerrar el frame, espera (`wait_blitter`) solo lo imprescindible.
+
+**Cuándo NO merece la pena**: si el trabajo del Blitter es pequeño frente al de la CPU (como en `fire-rgb`, donde el C2P es **~15% medido del frame**), la ganancia es marginal y la complejidad (trampoline, vectores, `INTENA/INTREQ`) no compensa. Va bien cuando el Blitter tiene **mucho** trabajo por frame (C2P de pantalla completa, muchos BOBs grandes, tiles) y la CPU tiene trabajo de sobra que solapar.
+
 ## 6. API del engine
 
 ```
