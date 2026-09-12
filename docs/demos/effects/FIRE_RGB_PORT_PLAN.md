@@ -51,7 +51,7 @@ system/*        (bucle de efecto, vectores de interrupcion/VBR, memoria)
 
 ## Notas de fidelidad
 
-- El C2P y el fuego son **asm a mano**: se portan tal cual (los `asm volatile` compilan en el toolchain m68k).
+- El C2P y el fuego son **asm a mano**. El bucle de fuego va en `support/fire_loop.s` (GAS), no como `asm volatile` en C++: GCC-15 **ignora los pins** `register asm("aN")` y no puede asignar los 7 registros de dirección que exige el `MainLoop` original. La ruta C++ (`MainLoopC`) queda como respaldo y se selecciona con `-DK_FIRE_ASM=0`.
 - La display HAM + cuadruplicado es la parte más delicada; conviene construirla desde `MakeCopperList` (256 waits) y validar por contraste/visión, no por "hay píxeles".
 - Primer paso verificable: **el fuego en chunky** (sin HAM ni C2P), para validar la simulación antes de meter display.
 
@@ -66,14 +66,15 @@ system/*        (bucle de efecto, vectores de interrupcion/VBR, memoria)
 
 ## Pendiente (pulido y fidelidad)
 
-1. **Fluidez / rendimiento**: (a) `FIREITER` esta en **C** porque el asm del original se **cuelga con GCC-15** (presion de registros en `ADDR_REGS` al fijar `a0..a6`); recuperarlo (p. ej. `#pragma GCC optimize("O2")` por archivo o un asm sin fijar registros) da la velocidad del original. (b) El **C2P es sincrono** (13 fases con `wait_blitter`); el original lo encadena por **interrupcion de blit** para solaparlo con el fuego. Hoy ~7-8 fps en el emulador.
+1. **Fluidez / rendimiento**: ✅ `FIREITER` recuperado en **asm** (`support/fire_loop.s`), reproduciendo el bucle del original (4 vecinos B/C/D/E, doble lookup `(a5,d1.w)` = media, realimentacion a `fire`). Medido en el emulador: **asm ≈ 12.5 fps vs C++ ≈ 7.2 fps** (~1.7×). Queda pendiente el **C2P en interrupcion de blit** (el original lo encadena para solaparlo con el fuego; hoy es sincrono con `wait_blitter`).
+   - **Causa raiz del "cuelgue" del asm** (no era un crash): `fire_loop.s` usaba `.cfi_startproc/.cfi_endproc`, que generan una seccion **`.eh_frame` no vacia**. El canal lateral enumera todas las secciones del hunk (`text, rodata, .eh_frame, data, bss`), pero el `.map` del runner filtraba `.eh_frame`, asi que los indices se desplazaban y `g_eng_run_status` se resolvia a una direccion equivocada (la demo "no alcanzaba READY" pese a ejecutarse bien). Arreglado en dos frentes: (a) `support/fire_loop.s`/`fire_asm.s` sin CFI; (b) `tools/run/run-demo.ts` incluye `.eh_frame` en las secciones del `.map` para que el orden coincida siempre.
 2. **"Pantalla dividida"**: era el desfase vertical — se usaba `wait_line(i)` (VPOS 0..255) en vez de `CopWaitSafe(Y(i))` con `Y(i)=i+0x2c`; corregido con `wait_line_safe(i+0x2c)`. El cuadruplicado ya cuadra (angosto del original: DDFSTOP `0xD1`, DIWSTOP `0x2CC3` por el `+2`).
 3. **C2P en interrupcion de blit** (rendimiento fiel) y **diff** contra `fire-rgb.exe`.
 4. Portar al engine la escena **HAM + cuadruplicado** y el hook de interrupcion de blit.
 
 ## Siguiente (para completar)
 
-1. **Diagnóstico clave**: se probó también un display **no-HAM** (4 planos + paleta de fuego) y sigue saliendo un **bloque de colores**, no fuego → el problema está en el **C2P o en la simulación**, no solo en el HAM. Antes de más iteraciones a ciegas: **reproducir fuego + C2P en host** (modelo C fiel de `MainLoop` + las fases del C2P) e inspeccionar `chunky`/planos para localizar el bug de mapeo.
-2. Con el C2P correcto, afinar **HAM + cuadruplicado** (BPLCON0/base/orden `BPLxPT`).
-3. C2P en **interrupción de blit** (rendimiento) y **diff** contra `fire-rgb.exe`.
-4. Portar al engine la escena **HAM + cuadruplicado** y el hook de interrupción de blit.
+1. **Diff 1:1** contra `fire-rgb.exe` (frames + `readPng` + vision).
+2. **C2P en interrupcion de blit** (rendimiento fiel) y portar al engine la escena **HAM + cuadruplicado** con ese hook.
+3. Actualizar el indice de portes (`docs/guides/roadmap/`) con `fire-rgb` cerrado y pasar al siguiente efecto.
+

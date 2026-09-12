@@ -110,14 +110,14 @@ void RandomizeBottom(void) {
 	}
 }
 
-// Rutas del bucle de fuego: C++ (default, siempre disponible) y ASM (la del original).
+// Rutas del bucle de fuego: ASM (la del original, por defecto) y C++ (respaldo).
 // El ASM inline del original fija `a0..a6` para los 6 punteros + `dt`; GCC-15
 // **ignora esos pins** y no puede asignar los 7 registros de direccion, asi que no
-// compila (el original lo hacia con un GCC mas antiguo que si los respetaba). Para
-// recuperarlo habria que escribir el bucle como rutina .s/asm aparte (el build
-// ensambla `support/*.s` con gas y `support/{audio_mixer,music}/*.asm` con VASM).
+// compila (el original lo hacia con un GCC mas antiguo que si los respetaba). El
+// bucle vive ahora en `support/fire_loop.s` (GAS), que el build ensambla junto al
+// resto de `support/*.s`. La ruta C++ (`MainLoopC`) queda como respaldo/DIAG.
 #ifndef K_FIRE_ASM
-#define K_FIRE_ASM 0
+#define K_FIRE_ASM 1
 #endif
 
 #define FIRE_ITER_C() \

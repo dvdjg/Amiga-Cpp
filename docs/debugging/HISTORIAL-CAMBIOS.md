@@ -698,4 +698,21 @@ reconstruidos; `session.json` → `targetName: 107_xlimited_corkscrew`.
 
 ---
 
-*Actualizado: 2026-09-01*
+## Fase 14: `g_eng_run_status` mal resuelto al enlazar asm con CFI (2026-09-12)
+
+**Síntoma**: la demo `080_fire_rgb` con el bucle de fuego en asm (`-DK_FIRE_ASM=1`, `support/fire_loop.s`) "no alcanzaba READY" por canal lateral (timeout), aunque la demo funcionaba: un breakpoint en `fire_loop` entraba y el fuego se renderizaba.
+
+**Causa raíz**: `fire_loop.s` declaraba `.cfi_startproc/.cfi_endproc`, generando una sección **`.eh_frame` no vacía** (48 bytes = 1 FDE). El canal lateral (`state`) enumera **todas** las secciones del hunk (`text, rodata, .eh_frame, data, bss`), pero `findMapAllocSections` de `run-demo.ts` filtraba a `.text/.rodata/.data/.bss`. El desfase de índice hacía que `resolveRuntimeSymbolAddress('g_eng_run_status')` (que mapea por índice de sección) devolviera una dirección sin el magic → el runner nunca veía READY. En la build C++ el `.eh_frame` medía 0, por eso funcionaba.
+
+**Diagnóstico**: `tools/run/run-demo.ts` ya avisaba del riesgo ("enlazar un `.s` adicional… rompe el mapeo por índice"). Se confirmó comparando el magic real (`0xc0e5e0`, hallado por búsqueda de `0x454e4752` en RAM) con la dirección resuelta (`0xc105b4`, basura).
+
+**Fix** (doble):
+1. Quitar CFI de `support/fire_loop.s`/`fire_asm.s` (asm hoja: no necesita unwind y así `.eh_frame` queda vacío).
+2. `tools/run/run-demo.ts`: incluir `.eh_frame` en `findMapAllocSections` para que el orden de secciones del `.map` coincida siempre con el runtime (robusto ante futuros `support/*.s` con CFI, p. ej. `c2p_1x1_4.s`).
+
+**Regla**: un `.s` de `support/` que conserve `.cfi_*` añade `.eh_frame` al hunk y desplaza los índices de sección; o no usar CFI, o confiar en que el runner ya incluye `.eh_frame` en el mapeo.
+
+---
+
+*Actualizado: 2026-09-12*
+

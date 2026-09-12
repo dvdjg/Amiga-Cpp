@@ -213,3 +213,37 @@ con `headless=yes`), y la demo compilada.
 - Los periféricos de `0xB70000` sobrescriben el banco que había ahí (zona
   reservada de expansión en A500); es intencional y no afecta a la CIA
   (0xBF) ni a la renderización.
+
+---
+
+## 7. Uso autónomo por la IA (driver Node) — para hilos nuevos
+
+Las tools de `winuae-emu` **no son exclusivas de un cliente MCP**: el servidor vive en
+`C:\Users\dvdjg\Documents\programa\AI\Amiga\mcp-winuae-emu` y su código (`dist/`) se **importa
+directamente desde un script Node**. La IA puede así **lanzar WinUAE, poner breakpoints,
+hacer step a step, leer/escribir memoria y registros, y capturar pantalla**, sin depender de que
+las tools estén cargadas como tools del asistente.
+
+- **API por código** (`import` desde `mcp-winuae-emu/dist/`):
+  - `WinUAEConnection` (`winuae-connection.js`): `connect()` (lanza WinUAE + conecta GDB),
+    `connectExisting()` (adjunta a WinUAE ya corriendo), `disconnect()`, `healthCheck()`.
+  - `GdbProtocol` (`gdb-protocol.js`): `connect(host,port)`, `readRegisters()`,
+    `writeRegisters()`, `setBreakpoint(addr)`, `clearBreakpoint(addr)`,
+    `setWatchpoint(addr,len,type)`, `step()`, `continue()`, `waitForStop(ms)`, `pause()`,
+    `readMemory(addr,len)`, `writeMemory(addr,buf)`, `sendMonitorCommand(cmd)`.
+  - Ejemplos reales de uso: `mcp-winuae-emu/scripts/*.mjs` (p. ej. `test-step.mjs`,
+    `verify-mcp-tools.mjs`, `test-full-bp.mjs`).
+- **Puertos**: GDB RSP en **2345**; **canal lateral** en **2346** (`side-channel`), independiente
+  de GDB para leer `state`/`regs`/`mem`/`runstatus`/`screenshot` cuando GDB esté inerte.
+- **Símbolos**: resolver la dirección runtime de un símbolo (p. ej. `fire_loop`) desde el `.map`
+  del build (`out/demos/<demo>/<cfg>/<demo>.<cfg>.map`) o con `winuae_print` + `mapPath` (DWARF).
+- **Patrón típico de depuración** (equivalente a paso a paso manual):
+  1. Lanzar/adjuntar (`WinUAEConnection`) y esperar READY por el canal lateral.
+  2. `setBreakpoint(addr_de_fire_loop)`; `continue()`; `waitForStop()`.
+  3. `readRegisters()` → inspeccionar `sp`/`a0`/`a1`/`d7` al ENTRAR.
+  4. `step()` N veces leyendo registros/memoria en cada parada.
+  5. `readMemory(addr,len)` para volcar el chunky/fire y comparar con lo esperado.
+  6. `postmortem_capture` tras un cuelgue/exception.
+- **Atajo por GDB RSP crudo** (si el import no procede): abrir socket a `127.0.0.1:2345` y
+  enviar paquetes `$… #cs` (`g`=registros, `vCont;s`=step, `Z0,addr,2`=breakpoint, `m addr,len`=
+  leer, `M addr,len:hex`=escribir). Ver `scripts/test-step.mjs` como plantilla.

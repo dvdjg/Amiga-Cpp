@@ -12,37 +12,35 @@
  * offset en BYTES; como `dualtab` es de uint32, `dt + idx` = `dt[idx/4]` -> el
  * indice es la MEDIA de los 4 vecinos (la suma / 4), no la suma.
  *
- * ABI del repo: argumentos por pila. Tras `movem d2-d7/a2-a6` (44 bytes) + retorno:
- *   sp+48 = chunky  (uint16_t*, salida: palabras de color HAM)
- *   sp+52 = fire    (uint32_t*, base del buffer de fuego = A)
- *   sp+56 = dt      (uint32_t*, tabla de color/calor)
- *   sp+60 = iters   (nº de iteraciones externas; 4 FIREITER por iteracion)
+ * Argumentos por MEMORIA en un global `extern "C"` (g_fire_args), no por pila:
+ *   [0] = chunky  (uint16_t*, salida: palabras de color HAM)
+ *   [1] = fire    (uint32_t*, base del buffer de fuego = A)
+ *   [2] = dt      (uint32_t*, tabla de color/calor = dualtab)
+ *   [3] = iters   (nº de iteraciones externas; 4 FIREITER por iteracion)
  *
  * Ancho del fuego = 80 (constante del original): W-1=79, W=80, W+1=81, 2W=160
  * (en shorts; los punteros son uint32 -> offset en bytes = short*2).
+ *
+ * IMPORTANTE: nada de `.cfi_startproc`/`.cfi_adjust_cfa_offset` aqui. Generan una
+ * seccion `.eh_frame` NO vacia; el canal lateral enumera las secciones del hunk
+ * (text, rodata, .eh_frame, data, bss) pero el `.map` del runner filtra `.eh_frame`,
+ * de modo que los indices se desplazan y `g_eng_run_status` se resuelve a una
+ * direccion equivocada (la demo "no alcanza READY" aunque funcione). Sin CFI,
+ * `.eh_frame` queda de 0 bytes y ambas listas coinciden.
  */
 
 	.section .text.fire_loop,"ax",@progbits
 	.type fire_loop, function
 	.globl	fire_loop
-	.cfi_startproc
 
 fire_loop:
 	movem.l	d2-d7/a2-a6,-(sp)
-	.cfi_adjust_cfa_offset 44
 
-	/* Checkpoint de depuracion: se escribe en g_eng_run_status.detail (offset 12),
-	   que el runner lee por el canal lateral. 0x11=entrada, 0x12=punteros,
-	   0x13=tras bucle, 0x14=fin. */
-	move.l	#0x11, g_eng_run_status+12
-
-	/* Punteros por MEMORIA (g_fire_args), no por pila: [0]=chunky [1]=fire
-	   [2]=dt [3]=iters. Evita dudas de ABI. */
+	/* Punteros por MEMORIA (g_fire_args): [0]=chunky [1]=fire [2]=dt [3]=iters. */
 	movea.l	g_fire_args+0, a0
 	movea.l	g_fire_args+4, a1
 	movea.l	g_fire_args+8, a5
 	move.l	g_fire_args+12, d7
-	move.l	#0x12, g_eng_run_status+12
 
 	/* Punteros: A=a1 (fire+0), B=a2 (fire+W-1), C=a3 (fire+W),
 	   D=a4 (fire+W+1), E=a6 (fire+2W). En bytes: (W-1)*2=158, 160, 162, 320. */
@@ -76,11 +74,6 @@ fire_loop:
 
 	dbra	d7, .Lloop
 
-	move.l	#0x13, g_eng_run_status+12
-
 	movem.l	sp@+, d2-d7/a2-a6
-	.cfi_adjust_cfa_offset -44
-	move.l	#0x14, g_eng_run_status+12
 	rts
-	.cfi_endproc
 	.size	fire_loop, .-fire_loop

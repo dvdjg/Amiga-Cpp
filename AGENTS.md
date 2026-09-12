@@ -96,6 +96,8 @@ Herramientas MCP disponibles (todos vía `mcp-winuae-emu`):
 - `winuae_trace` — trazas de eventos watch/protect/rewind en `%TEMP%\winuae-gdb.log` (activo por defecto).
 - `winuae_side_read` — canal lateral (`state`/`regs`/`mem <addr> <len>`/`runstatus <addr>`), independiente de GDB. Cuando GDB esté inerte o para observar sin intrusión.
 - `winuae_debugperiph` — **periférico de depuración in-Amiga** en `0xB70000` (consola, checkpoints, contador de ciclos, debug args, breakpoints auto-dirigidos). Para telemetría del propio programa y profiling por checkpoints.
+- **Control de CPU, memoria y ejecución** (para depurar paso a paso de forma autónoma): `winuae_registers_get`/`_set` (D0-D7/A0-A7/SR/PC), `winuae_step`/`_continue`/`_pause`/`_wait_stop`, `winuae_breakpoint_set`/`_clear`, `winuae_memory_read`/`_write`/`_dump`, `winuae_connect`/`_connect_existing`, `winuae_screenshot`, `winuae_postmortem_capture`, `winuae_machine_snapshot`, `winuae_bitmap_decode`, `winuae_load`/`_run_program`/`_exec_chunk`, `winuae_print` (símbolos del `.map` + campos DWARF del `.elf`).
+- **La IA puede usarlas de forma autónoma**, sin que estén cargadas como tools del asistente: `mcp-winuae-emu` es un **módulo Node importable** (`mcp-winuae-emu/dist/`: `WinUAEConnection` para lanzar/adjuntar, `GdbProtocol` para `readRegisters`/`step`/`setBreakpoint`/`continue`/`readMemory`/`writeMemory`) y también habla **GDB RSP crudo** en el puerto 2345 + **canal lateral** en 2346. Guía completa con el patrón de depuración autónoma: `docs/debugging/DEBUG-WINUAE-V2-GUIDE.md` §7.
 
 **Ejemplo real de periférico**: la demo `demos/amiga/101_ehb_tile_scroll_driver` está
 instrumentada (`engine/include/eng/debug/peripheral.hpp`): en cada cambio de

@@ -21,11 +21,9 @@
 	.section .text.fire_asm,"ax",@progbits
 	.type fire_asm, function
 	.globl	fire_asm
-	.cfi_startproc
 
 fire_asm:
 	movem.l	d2-d7/a2-a6,-(sp)
-	.cfi_adjust_cfa_offset 44
 
 	move.l	sp@(48), a0	/* fire */
 	move.l	sp@(52), d0	/* width (long, word baja = valor) */
@@ -87,7 +85,5 @@ fire_asm:
 	dbra	d1, .outer
 
 	movem.l	(sp)+, d2-d7/a2-a6
-	.cfi_adjust_cfa_offset -48
 	rts
-	.cfi_endproc
 	.size fire_asm, .-fire_asm

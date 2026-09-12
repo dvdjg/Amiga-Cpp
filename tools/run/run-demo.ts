@@ -449,7 +449,14 @@ function findMapAllocSections(mapPath) {
     return [];
   }
 
-  const wanted = new Set(['.text', '.rodata', '.data', '.bss']);
+  // `.eh_frame` se incluye adrede: el canal lateral enumera TODAS las secciones del
+  // hunk en orden (text, rodata, .eh_frame, data, bss), mientras que el `.map` antes
+  // filtraba `.eh_frame`. Cuando una rutina asm (`support/*.s`) conserva CFI, su
+  // `.eh_frame` deja de medir 0 y aparece en la lista runtime: sin esta seccion, los
+  // indices se desplazan y `g_eng_run_status` se resuelve a una direccion erronea
+  // (la demo "no alcanza READY" pese a funcionar). Con `.eh_frame` presente, el
+  // orden coincide y el mapeo por indice es correcto.
+  const wanted = new Set(['.text', '.rodata', '.eh_frame', '.data', '.bss']);
   const sections = [];
   const lines = fs.readFileSync(mapPath, 'utf8').split(/\r?\n/g);
   for (const line of lines) {
