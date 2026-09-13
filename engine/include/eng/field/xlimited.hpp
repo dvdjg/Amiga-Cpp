@@ -302,6 +302,7 @@
 #include <eng/core/types.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/field/scroll_engine.hpp>
+#include <eng/field/scroll_profile.hpp>
 #include <eng/field/tile_map.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/frame_plan.hpp>
@@ -668,7 +669,7 @@ using XlimitedConfig = XlimitedConfigT<TileLayerMap>;
 /// runtime) se obtiene la geometría del sink en ejecución (fallback correcto,
 /// pero con divisiones). `begin()` valida que los campos de `SC` coincidan
 /// con `cfg` (fallo temprano si se instancia con constantes equivocadas).
-template <ScrollConsts SC = ScrollConsts{}, class MapT = TileLayerMap>
+template <ScrollConsts SC = ScrollConsts{}, class MapT = TileLayerMap, class Profile = ScrollProgressive>
 class XLimitedPlayfield : public Playfield {
 public:
     XLimitedPlayfield() = default;
@@ -743,6 +744,11 @@ public:
     constexpr void set_scroll_step(u8 v) { m_max_step = v; }
     constexpr u8 scroll_step() const { return m_max_step; }
 
+    /// Perfil de scroll estático elegido (ver `scroll_profile.hpp`).
+    using scroll_profile = Profile;
+    static constexpr u8 profile_fill_tiles() { return Profile::fill_tiles; }
+    static constexpr u8 profile_guard_tiles() { return Profile::guard_tiles; }
+
     /// DEBUG: ¿el frame pintó algún bloque de relleno dentro de la zona visible?
     constexpr u8 dbg_ink_visible() const { return m_dbg_ink_visible; }
     /// DEBUG: fila del bucle (0..display_height) del último ink visible.
@@ -789,10 +795,15 @@ public:
     bool begin(MemorySystem& memory, const XlimitedConfigT<MapT>& cfg) {
         // Verifica en compile-time que este playfield cumple el contrato del
         // algoritmo (`ScrollEngine`); hace el scroll portátil y explícito.
-        static_assert(eng::field::ScrollSink<XLimitedPlayfield<SC, MapT>>,
+        static_assert(eng::field::ScrollSink<XLimitedPlayfield<SC, MapT, Profile>>,
             "XLimitedPlayfield debe cumplir el sink del ScrollEngine (corkscrew/XYLimited).");
         m_cfg = cfg;
         m_max_step = m_cfg.max_step ? m_cfg.max_step : 1; // salto configurable (≥1)
+        // Perfil estático: si impone paso (perfiles rápidos), su valor gana; la
+        // selección se hace con un tipo (ver `scroll_profile.hpp`/`FAST_SCROLL.md`).
+        if constexpr (Profile::fill_tiles != 0u) {
+            m_max_step = static_cast<u8>(Profile::max_step_px(m_cfg.tile_width));
+        }
         // Especialización del scroll: HorizontalOnly no usa banda de staging ni
         // split (display_height = viewport_h, X-only). Los demás modos conservan
         // el valor de scroll_y del config.
@@ -801,9 +812,14 @@ public:
 
         // Derivar bitmap_width si es 0: viewport_w + EXTRAWIDTH según fetch_mode.
         // Con X `Finite` el bitmap contiene TODO el ancho de mundo (+ margen de
-        // fetch): no hay anillo ni guardas laterales.
+        // fetch): no hay anillo ni guardas laterales. El perfil puede pedir una
+        // guarda MÁS ancha (pre-pintado por delante) que gana sobre el fetch.
         if (m_cfg.bitmap_width == 0) {
-            const u16 extra = (m_cfg.fetch_mode == 0) ? xlimited_detail::kExtraW32 : xlimited_detail::kExtraW64;
+            u16 extra = (m_cfg.fetch_mode == 0) ? xlimited_detail::kExtraW32 : xlimited_detail::kExtraW64;
+            if constexpr (Profile::guard_tiles != 0u) {
+                const u16 guard_w = static_cast<u16>(Profile::guard_px(m_cfg.tile_width));
+                if (guard_w > extra) extra = guard_w;
+            }
             if (m_cfg.x_mode == AxisMode::Finite && m_cfg.map.width != 0) {
                 const u16 world_w = static_cast<u16>(m_cfg.map.width * m_cfg.tile_width);
                 m_cfg.bitmap_width = static_cast<u16>(world_w + extra);
@@ -1607,7 +1623,7 @@ private:
     bool m_linear_display = false;  // display lineal (sin split): espejo del bucle
     u32 m_mirror_planelines = 0;    // desplazamiento del espejo (display_height*planes)
     u16 m_bpl1mod = 0, m_bpl2mod = 0;
-    ScrollEngine<XLimitedPlayfield<SC, MapT>, SC> m_scroll {}; // cámara + algoritmo (§7)
+    ScrollEngine<XLimitedPlayfield<SC, MapT, Profile>, SC> m_scroll {}; // cámara + algoritmo (§7)
     u16* m_savewordpointer = nullptr;             // guarda de 1 word plane-shift (sink)
     u16 m_saveword = 0;
     u8 m_max_step = 1;                            // salto máx. px/frame por eje (config)

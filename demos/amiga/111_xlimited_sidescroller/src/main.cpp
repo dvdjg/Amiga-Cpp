@@ -73,6 +73,15 @@ constexpr field::ScrollConsts kScrollConsts {
 	/*planes=*/            kPlanes,
 };
 
+// Selección ESTÁTICA del perfil de scroll (ver engine/include/eng/field/scroll_profile.hpp
+// y docs/engine/architecture/FAST_SCROLL.md). El desarrollador cambia el comportamiento
+// editando esta única línea: `ScrollProgressive` (2 px/frame, clásico), `ScrollFast1`
+// (16 px/frame), `ScrollFast2` (32 px/frame), `ScrollFast4` (64 px/frame).
+using ScrollProfile_t = field::ScrollProgressive;
+// Paso de cámara por frame: el perfil rápido lo fija a N tiles; el progresivo conserva 2 px.
+constexpr eng::s32 kStepX = ScrollProfile_t::fill_tiles
+	? static_cast<eng::s32>(ScrollProfile_t::fill_tiles) * kTileW : 2;
+
 eng::u16 side_row(eng::u8 glyph, eng::u8 variant, eng::u8 row, eng::u8 plane) {
 	return field::demo::pf_plane_row(glyph, static_cast<eng::u8>(variant & 3u), row, plane, 0, false);
 }
@@ -110,7 +119,7 @@ field::LoadResult load_chunk(void*, eng::s32 cx, eng::s32 cy, eng::u16* cells) {
 }
 
 struct DemoGame {
-	field::XlimitedScene<kScrollConsts, MapView> scene {};
+	field::XlimitedScene<kScrollConsts, MapView, ScrollProfile_t> scene {};
 	field::XlimitedSceneConfigT<MapView> scene_cfg {};
 	WorldMap m_world {};
 	eng::graphics::FramePlan plan {};
@@ -198,9 +207,10 @@ struct DemoGame {
 		plan.clear();
 		plan.set_blit_budget_limits({8192, 16384, 4, 160});
 
-		// Avance X hacia la derecha (+2 px/frame). El mapa es toroidal, no se topea.
+		// Avance X hacia la derecha (paso del perfil; por defecto 2 px/frame). El mapa
+		// es toroidal, no se topea.
 		prefetch_band();
-		if (!scene.bg().update_scroll(plan, 2, 0)) {
+		if (!scene.bg().update_scroll(plan, kStepX, 0)) {
 			scene.bg().set_camera(0, 0);
 		}
 		if (!backend.execute_frame_plan(plan)) {

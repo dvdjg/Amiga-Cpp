@@ -67,6 +67,10 @@ RingScroll<Axis, Direction, Fill, Guard>
 Invariante: `guard_tiles >= ceil(max_px_por_frame / tile) + 1`. Detalle, regímenes, tear-free y
 presupuesto en `FAST_SCROLL.md`.
 
+Selección estática implementada: `eng::field::ScrollProfile`/`ScrollProgressive`/`ScrollFastN`
+(`engine/include/eng/field/scroll_profile.hpp`) se pasa como parámetro de tipo a
+`XLimitedPlayfield`/`XlimitedScene` (default `ScrollProgressive` = comportamiento clásico).
+
 ## 3. Playfields (superficies)
 
 `Playfield<N>` es la base: memoria + geometría + mapeo lógico→físico + primitivas (`write_pixel`,

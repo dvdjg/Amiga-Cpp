@@ -308,7 +308,7 @@ using XlimitedSceneConfig = XlimitedSceneConfigT<TileLayerMap>;
 /// `SC` (constantes a priori) se reenvían a los `XLimitedPlayfield<>` y de ahí
 /// al `ScrollEngine`: hacen que las divisiones calientes del scroll usen
 /// `fast_div` (sin `__udivsi3`). `ScrollConsts{}` (default) = geometría runtime.
-template <ScrollConsts SC = ScrollConsts{}, class MapT = TileLayerMap>
+template <ScrollConsts SC = ScrollConsts{}, class MapT = TileLayerMap, class Profile = ScrollProgressive>
 class XlimitedScene {
 public:
     XlimitedScene() = default;
@@ -638,11 +638,11 @@ public:
     // dibujo pertenecen a cada playfield: `bg().set_pixel(...)`,
     // `fg().add_world_bitmap(...)`, etc. `fg` solo existe en modo dual.
     // -------------------------------------------------------------------------
-    XLimitedPlayfield<SC, MapT>& bg() { return m_field[0]; }
-    const XLimitedPlayfield<SC, MapT>& bg() const { return m_field[0]; }
+    XLimitedPlayfield<SC, MapT, Profile>& bg() { return m_field[0]; }
+    const XLimitedPlayfield<SC, MapT, Profile>& bg() const { return m_field[0]; }
     /// Segundo XLimited (DPF 3+3 homogéneo). En `fg_canvas` usa `canvas_fg()`.
-    XLimitedPlayfield<SC, MapT>& fg() { return m_field[1]; }
-    const XLimitedPlayfield<SC, MapT>& fg() const { return m_field[1]; }
+    XLimitedPlayfield<SC, MapT, Profile>& fg() { return m_field[1]; }
+    const XLimitedPlayfield<SC, MapT, Profile>& fg() const { return m_field[1]; }
     /// FG como lienzo plano (DPF heterogéneo: `dual && fg_canvas`). Dibuja aquí
     /// (una vez en init) con las primitivas; el contenido es estático.
     CanvasPlayfield& canvas_fg() { return m_fg_canvas; }
@@ -689,7 +689,7 @@ private:
     };
 
     XlimitedSceneConfigT<MapT> m_cfg {};
-    XLimitedPlayfield<SC, MapT> m_field[2] {};
+    XLimitedPlayfield<SC, MapT, Profile> m_field[2] {};
     CanvasPlayfield m_hud {};        // franja HUD (lienzo plano, si hud_height>0)
     CanvasPlayfield m_fg_canvas {};  // FG lienzo plano (DPF heterogéneo)
     graphics::SpriteManager m_sprites {};
@@ -704,7 +704,7 @@ private:
 // Definición out-of-class de la tabla de seno (constant-initialized). Ver la
 // nota del miembro `kSin`: evita el ICE de gcc 16.x con `inline constexpr` en
 // x86_64; es equivalente a la inicialización en la clase.
-template <ScrollConsts SC, class MapT>
-eng::SineTable<64> XlimitedScene<SC, MapT>::kSin{};
+template <ScrollConsts SC, class MapT, class Profile>
+eng::SineTable<64> XlimitedScene<SC, MapT, Profile>::kSin{};
 
 } // namespace eng::field

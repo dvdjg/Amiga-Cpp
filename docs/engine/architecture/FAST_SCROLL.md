@@ -66,6 +66,34 @@ ScrollEmitter
 `ScrollTarget` reporta la geometría de guarda (`guard_tiles`) y el `ScrollStrategy::step` decide,
 según `Fill`, cuántas columnas pre-pintar y cuánto avanzar la cámara.
 
+### 3.1 Cómo lo selecciona el desarrollador (implementado)
+
+La selección es un **tipo** (`engine/include/eng/field/scroll_profile.hpp`); una línea en la demo:
+
+```cpp
+using Scroll = eng::field::ScrollFast2;   // o ScrollProgressive, ScrollFast1, ScrollFast4...
+eng::field::XlimitedScene<kScrollConsts, eng::field::TileLayerMap, Scroll> scene {};
+```
+
+| Alias | Relleno | Paso | Guarda (tiles) |
+|---|---|---|---|
+| `ScrollProgressive` (defecto) | progresivo (1 px/sub-paso) | `max_step` de la config | la del fetch (32/64 px) |
+| `ScrollFast1` | 1 tile/frame | 1 tile | 2 |
+| `ScrollFast2` | 2 tiles/frame | 2 tiles | 3 |
+| `ScrollFast4` | 4 tiles/frame | 4 tiles | 5 |
+
+Un perfil a medida: `ScrollProfile<TileBurstFill<3>, GuardTiles<4>, /*DirectionLatched=*/true>`; el
+`static_assert` del perfil exige `guarda >= relleno + 1`. El perfil por defecto **no impone** paso
+ni guarda, así que reproduce exactamente el comportamiento clásico.
+
+**Estado de implementación.** La selección, el paso por frame (`max_step = fill_tiles * tile`) y
+la guarda X (el perfil puede pedir más ancho que el fetch) están implementados y verificados
+(HOST-032; demo 111 en perfiles `ScrollFast1`/`ScrollFast2` avanza 16/32 px por frame sin huecos).
+`prefill`/`direction_latched` quedan declarados para la fase de **pre-pintado por ráfagas** (menos
+blits por cruce) y dirección laceda; hoy el avance rápido usa los sub-pasos atómicos de 1 px del
+núcleo (coste ∝ salto, correcto pero no optimizado). Guarda en **Y** sigue limitada por el staging
+de 2 bloques del corkscrew (válida para `TileBurst(1)`).
+
 ## 4. Corrección: qué invariantes hay que preservar
 
 1. **Nunca mostrar un píxel sin pintar.** La franja debe estar pintada en la guarda **antes** de
@@ -139,6 +167,8 @@ overhead, que es justo lo que limita al engine en los cruces (ver F6 del roadmap
 
 1. **Política y contrato**: `Fill`/`Guard` en el modelo objetivo y en `ScrollTarget`/`ScrollEmitter`
    (`PLAYFIELD_SCROLL_ARCHITECTURE.md`), con `Progressive` = actual.
+   **Hecho (selección estática)**: `scroll_profile.hpp` (`ScrollProfile`, `ScrollProgressive`,
+   `ScrollFastN`) conectado a `XLimitedPlayfield`/`XlimitedScene` (paso + guarda X); HOST-032.
 2. **`TileBurst(1)`**: pre-pintar 1 columna/fila y avanzar 1 tile; guarda de 1 bloque; dirección
    laceda a frontera. Validar continuidad a 16 px/frame en 112/202 (o demo nueva) sin huecos.
 3. **Guarda ampliada + `TileBurst(N)`**: parametrizar `EXTRAWIDTH`/`EXTRAHEIGHT` por `guard_tiles`
