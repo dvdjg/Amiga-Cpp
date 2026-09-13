@@ -72,7 +72,7 @@ struct MixerMelodyDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006702u);
 			return;
 		}
-		m_bitplanes = static_cast<eng::u8*>(m_bitplane_block.data);
+		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
 		eng::audio::synth_sequence<kNoteSamples>(static_cast<eng::u8*>(m_melody_block.data), kFreq, kNoteCount, kSampleRate, static_cast<eng::s16>(kAmplitude));
 
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00006703u); return; }
@@ -150,7 +150,7 @@ private:
 			if (y + 1u < 256u) set_pixel(m_bitplanes, x, static_cast<eng::u16>(y + 1u));
 		}
 		// Línea central de referencia (silencio = 128 -> y = 127), en verde.
-		for (eng::u16 x = 0; x < 320u; ++x) set_pixel(m_bitplanes + kPlaneBytes, x, 127u);
+		for (eng::u16 x = 0; x < 320u; ++x) set_pixel(m_bitplanes.data() + kPlaneBytes, x, 127u);
 	}
 
 	void set_pixel(eng::u8* plane, eng::u16 x, eng::u16 y) {
@@ -190,7 +190,7 @@ private:
 	eng::u16 m_copper_words = 0;
 	eng::audio::SfxChannel m_channel = -1;
 	const eng::u16* m_copper_ptr = nullptr;
-	eng::u8* m_bitplanes = nullptr;
+	eng::PlaneBytes m_bitplanes {};
 	eng::MemoryBlock m_melody_block {};
 	eng::MemoryBlock m_bitplane_block {};
 	eng::MemoryBlock m_copper_block {};

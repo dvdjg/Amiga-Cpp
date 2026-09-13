@@ -67,7 +67,7 @@ struct SampleMixerDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00007302u);
 			return;
 		}
-		m_bitplanes = static_cast<eng::u8*>(m_bitplane_block.data);
+		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
 
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00007303u); return; }
 		backend.takeover_display(m_copper_ptr);
@@ -170,7 +170,7 @@ private:
 	eng::u32 m_len = 0;
 	eng::audio::SfxChannel m_ch = -1;
 	const eng::u16* m_copper_ptr = nullptr;
-	eng::u8* m_bitplanes = nullptr;
+	eng::PlaneBytes m_bitplanes {};
 	eng::MemoryBlock m_bitplane_block {};
 	eng::MemoryBlock m_copper_block {};
 	eng::audio::SfxMixer m_sfx {};

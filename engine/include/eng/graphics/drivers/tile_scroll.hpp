@@ -471,7 +471,7 @@ public:
 		m_bitplane_block = memory.chip.allocate(bitplane_bytes, 16);
 		m_copper_blocks[0] = memory.chip.allocate(config.copper_bytes, 16);
 		m_copper_blocks[1] = memory.chip.allocate(config.copper_bytes, 16);
-		m_bitplanes = static_cast<u8*>(m_bitplane_block.data);
+		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
 		if (!m_bitplane_block.valid() || !m_copper_blocks[0].valid() ||
 			!m_copper_blocks[1].valid() || config.base_palette == nullptr) {
 			m_ok = false;
@@ -625,7 +625,7 @@ public:
 	}
 
 	constexpr bool ok() const { return m_ok; }
-	constexpr u8* bitplanes() const { return m_bitplanes; }
+	constexpr eng::PlaneBytes bitplanes() const { return m_bitplane_block.buffer<eng::PlaneTag>(); }
 	constexpr u16 scroll_x() const { return m_scroll[0]; }
 	constexpr u16 scroll_y() const { return m_scroll_y[0]; }
 	constexpr u16 copper_words() const { return m_copper_words; }
@@ -633,13 +633,13 @@ public:
 
 	/// Vista mutable de todos los bytes de los bitplanes.
 	[[nodiscard]] Span<u8> bitplane_span() const {
-		return {m_bitplanes, bitplane_bytes};
+		return { m_bitplanes.data(), bitplane_bytes };
 	}
 
 	/// Vista mutable de un plano completo en words de 16 bits.
 	[[nodiscard]] Span<u16> plane_words(u8 plane) const {
 		return {
-			reinterpret_cast<u16*>(m_bitplanes + static_cast<u32>(plane) * plane_bytes),
+			reinterpret_cast<u16*>(m_bitplanes.data() + static_cast<u32>(plane) * plane_bytes),
 			plane_bytes / sizeof(u16),
 		};
 	}
@@ -663,7 +663,7 @@ private:
 			static_cast<u32>(plane) * plane_bytes +
 			static_cast<u32>(surface_tile_y) * tile_size * surface_bytes_per_row +
 			static_cast<u32>(surface_tile_x) * sizeof(u16);
-		return reinterpret_cast<u16*>(m_bitplanes + offset);
+		return reinterpret_cast<u16*>(m_bitplanes.data() + offset);
 	}
 
 	/// Recalcula el estado de display a partir del input y lo guarda en m_display
@@ -744,7 +744,7 @@ private:
 		scheduler.move(copper::Register::DDFSTOP, m_display.ddfstop);
 		for (u8 plane = 0; plane < plane_count; ++plane) {
 			const uintptr address =
-				reinterpret_cast<uintptr>(m_bitplanes + static_cast<u32>(plane) * plane_bytes + m_display.plane_offsets[plane]);
+				reinterpret_cast<uintptr>(m_bitplanes.data() + static_cast<u32>(plane) * plane_bytes + m_display.plane_offsets[plane]);
 			scheduler.move(copper::bitplane_pointer_high_register(plane), static_cast<u16>(address >> 16));
 			scheduler.move(copper::bitplane_pointer_low_register(plane), static_cast<u16>(address & 0xffffu));
 		}
@@ -779,7 +779,7 @@ private:
 		words[5] = m_display.bplcon1;
 		for (u8 plane = 0; plane < plane_count; ++plane) {
 			const uintptr address =
-				reinterpret_cast<uintptr>(m_bitplanes + static_cast<u32>(plane) * plane_bytes + m_display.plane_offsets[plane]);
+				reinterpret_cast<uintptr>(m_bitplanes.data() + static_cast<u32>(plane) * plane_bytes + m_display.plane_offsets[plane]);
 			words[21u + static_cast<u16>(plane) * 4u] = static_cast<u16>(address >> 16);
 			words[23u + static_cast<u16>(plane) * 4u] = static_cast<u16>(address & 0xffffu);
 		}
@@ -790,7 +790,7 @@ private:
 	TileScrollConfig m_config {};
 	MemoryBlock m_bitplane_block {};
 	MemoryBlock m_copper_blocks[2] {};
-	u8* m_bitplanes = nullptr;
+	eng::PlaneBytes m_bitplanes {};
 	TileDisplayState m_display {};
 	copper::ScheduleReport m_copper_report {};
 	u16 m_scroll[2] {};

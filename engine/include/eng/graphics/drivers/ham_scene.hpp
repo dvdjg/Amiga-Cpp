@@ -87,7 +87,7 @@ public:
 		// +16 de headroom por el peyote de alineacion de la arena (ver arena.hpp).
 		m_bitplane_block = memory.chip.allocate(bitplane_bytes + 16u, 16);
 		m_copper_block = memory.chip.allocate(config.copper_bytes, 16);
-		m_bitplanes = static_cast<u8*>(m_bitplane_block.data);
+		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
 		m_plane_bytes = plane_bytes;
 
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || config.planes == 0u || plane_bytes == 0u) {
@@ -112,7 +112,7 @@ public:
 		if (config.reverse_plane_ptrs) {
 			for (u8 plane = 0; plane < config.planes; ++plane) {
 				scheduler.move_bitplane_pointer(
-					plane, m_bitplanes + static_cast<u32>(config.planes - 1u - plane) * m_plane_bytes);
+					plane, m_bitplanes.address(static_cast<eng::s32>(config.planes - 1u - plane) * static_cast<eng::s32>(m_plane_bytes)));
 			}
 		}
 
@@ -166,7 +166,7 @@ public:
 	void end_frame(RenderContext&) {}
 
 	constexpr bool ok() const { return m_ok; }
-	constexpr eng::PlaneBytes bitplanes() const { return { m_bitplanes, m_plane_bytes * m_config.planes }; }
+	constexpr eng::PlaneBytes bitplanes() const { return m_bitplane_block.buffer<eng::PlaneTag>(); }
 	constexpr eng::PlaneBytes plane(u8 index) const {
 		return (index < m_config.planes)
 			? bitplanes().subspan(static_cast<eng::u32>(index) * m_plane_bytes, m_plane_bytes)
@@ -186,7 +186,7 @@ private:
 	HamSceneConfig m_config {};
 	MemoryBlock m_bitplane_block {};
 	MemoryBlock m_copper_block {};
-	u8* m_bitplanes = nullptr;
+	eng::PlaneBytes m_bitplanes {};
 	u32 m_plane_bytes = 0;
 	const u16* m_copper_words_ptr = nullptr;
 	copper::ScheduleReport m_report {};

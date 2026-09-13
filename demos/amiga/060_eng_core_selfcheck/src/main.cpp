@@ -215,7 +215,7 @@ struct CoreSelfcheckDemo {
 		check_random();
 		check_sort();
 
-		eng::u8* planes = m_scene.bitplanes();
+		eng::u8* planes = m_scene.bitplanes().data();
 		draw_text(planes, 16, 16, "Demo 060 - eng::core self-check", kTextWhite);
 		draw_text(planes, 16, 40, "isqrt  : ", kTextWhite);
 		draw_text(planes, 100, 40, ok_fail(g_check.isqrt_ok),

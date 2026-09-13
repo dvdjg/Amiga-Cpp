@@ -90,7 +90,7 @@ public:
 	bool init(MemorySystem& memory, const StaticEhbSceneConfig& config) {
 		m_bitplane_block = memory.chip.allocate(bitplane_bytes, 16);
 		m_copper_block = memory.chip.allocate(config.copper_bytes, 16);
-		m_bitplanes = static_cast<u8*>(m_bitplane_block.data);
+		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
 
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || config.base_palette == nullptr) {
 			m_ok = false;
@@ -137,7 +137,7 @@ public:
 					CopperIntentKind::PaletteLine,
 					zone.line, zone.line, 0,
 					*zone.palette, 0, 32,
-					0, nullptr, 0, nullptr,
+					0, {}, 0, nullptr,
 				};
 				scheduler.emit_copper_intents(&zone_intent, 1);
 			}
@@ -256,7 +256,7 @@ private:
 
 	MemoryBlock m_bitplane_block {};
 	MemoryBlock m_copper_block {};
-	u8* m_bitplanes = nullptr;
+	eng::PlaneBytes m_bitplanes {};
 	const u16* m_copper_words_ptr = nullptr;
 	copper::ScheduleReport m_copper_report {};
 	PaletteBinding m_zone_bindings[max_palette_zone_bindings] {};

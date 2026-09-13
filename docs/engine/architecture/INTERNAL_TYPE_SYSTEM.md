@@ -22,9 +22,9 @@ compilador rechaza mezclar dominios, invertir roles o pasar una geometría por o
 criterio:
 
 - **Tipos de dominio, no `T*`**: cada buffer/registro tiene su tipo (`Pattern`, `AudioSample`,
-  `Palette`, `CopperList`…) y no son intercambiables.
+  `PaletteWords`, `CopperWords`…) y no son intercambiables.
 - **Semántica en el tipo**: `BitmapBase` (base de `BPLxPT`) ≠ `FrontBase` (buffer de escritura)
-  ≠ `PlaneBase` (vista de un plano) ≠ `ChipAddress` (dirección DMA).
+  ≠ `PlaneBytes`/`PlaneViewBytes` (buffer de un plano) ≠ `ChipAddress` (dirección DMA).
 - **Solo se tipan buffers/punteros, no escalares**: los tipos de dominio envuelven rangos de
   memoria (`Bytes`/`Words`), direcciones/base y roles. **No** se envuelven enteros sueltos
   (ancho/alto/stride/planes): no aportan seguridad real, ensucian las llamadas y obligan a casts.
@@ -52,7 +52,7 @@ criterio:
   ┌───────────────────────────────────────────┐       ┌──────────────────────────────┐
   │ Surface / PlaneView / SoftDpfComposition  │       │ BlitJob { const u16* ... }    │
   │ Pattern, PaletteWords, PatternWords       │──────►│ CopperBuilder (BPLxPT)        │
-  │ BitmapBase, FrontBase, PlaneIndex         │  raw()│ amiga_minimal (registros)     │
+  │ BitmapBase, FrontBase, ChipAddress        │  raw()│ amiga_minimal (registros)     │
   │ SpriteWords, AudioSample, CopperWords     │       │ c2p / blitter / audio_paula   │
   └───────────────────────────────────────────┘       └──────────────────────────────┘
         el error de dominio no compila                       el invariante está documentado
@@ -91,12 +91,14 @@ Tags (structs vacíos, cero coste) y alias de dominio:
 | Alias | Envuelve | Sustituye a | Riesgo que elimina |
 |---|---|---|---|
 | `Pattern` / `PatternWords` | bytes / words | `const u8*` + `pattern_row_bytes` | copiar un patrón a un destino que no es fondo |
-| `TileIndexed` | bytes | `const u8* indexed` | pasar un tilebank como sample |
-| `PlanarRegion` / `PlanarPlane` | bytes | `u8* m_frontbuffer`, `bitplanes` | escribir fuera del plano/layout |
-| `ChunkyBuffer` | bytes | `const void* chunky` | alimentar el C2P con datos planares |
+| `IndexedTiles` | bytes | `const u8* indexed` | pasar un tilebank como sample |
+| `TileBankBytes` / `TileBankWords` / `TileBankBuffer` | bytes / words | `TileBankBuffer` | mezclar celdas de chunk con un sample |
+| `PlaneBytes` / `PlaneViewBytes` | bytes | `u8* m_frontbuffer`, `bitplanes` | escribir fuera del plano/layout |
+| `ChunkyBuffer` / `ChunkyView` | bytes | `const void* chunky` | alimentar el C2P con datos planares |
 | `PaletteWords` | words | `const u16* palette` | usar un tileset como paleta |
 | `SpriteWords` | words | `const u16* sprite_data` | pasar palabras de tile a un sprite |
 | `CopperWords` | words | `const u16* copper` | programar el Copper con datos que no son listas |
+| `MaskBytes` / `MaskBuffer` | bytes | `const u8* mask` | usar una máscara como patrón |
 | `AudioSample` | bytes | `const u8* sample` | **pasar audio como origen de un Blitter** |
 | `MusicModule` | bytes | `const void* module` | dar un sample a un replayer |
 | `UafPayload` | bytes | `const u8*` en `Blob` | leer offsets sobre un buffer cualquiera |
@@ -107,13 +109,11 @@ Tags (structs vacíos, cero coste) y alias de dominio:
 |---|---|---|
 | `BitmapBase` | `u8*` | `Bitmap::allocation_start()` (lo que va a `BPLxPT`) |
 | `FrontBase` | `u8*` | `bytes().data()` (con `frontbase_offset`) |
-| `PlaneBase` | `const u8*` | base del plano `p` dentro de un bitmap (solo lectura para el mapper) |
 | `ChipAddress` | `uintptr` | dirección DMA-visible (chip RAM) |
-| `CpuAddress` | `uintptr` | dirección solo-CPU |
-| `ByteOffset` / `WordOffset` | `u32` | desplazamiento (no mezclable con `PlaneIndex`) |
 
 `BitmapBase` y `FrontBase` son **distintos a propósito**: el bug "usar el frontbuffer como base
-de `BPLxPT`" deja de compilar.
+de `BPLxPT`" deja de compilar. Para señalar la base de un plano concreto basta `PlaneViewBytes`
+(solo lectura) o `PlaneBytes` (mutable), que ya llevan el tag de plano.
 
 ### 3.3 Escalares: **no** se envuelven
 
@@ -281,7 +281,11 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
   usan `eng::PaletteWords`, `CopperScheduler::emit_palette`/`emit_palette_zone` también, y los
   campos `palette` de las configs (`XlimitedConfig`/`XlimitedSceneConfig`/`HamSceneConfig`) son
   `PaletteWords` (los arrays de las demos conectan con el constructor de array). Verificado:
-  030/040/107/201/202 READY y 111/112 sin regresión.
+  030/040/107/201/202 READY y 111/112 sin regresión. **Copper/mapper tipados**:
+  `CopperScheduler::emit_planes_display`/`emit_copper_intents_full` reciben `eng::PlaneBytes`,
+  `Copper::move_bitplane_pointer`/`move32`/`patch_move32`/`instruction_address` usan
+  `eng::ChipAddress` y `CopperIntent::bitplanes`/`colors` son `PlaneBytes`/`PaletteWords`; las
+  escenas y demos pasan sus vistas (`bitplanes()`, `EhbPalette` con `operator PaletteWords`).
 - **Fase 4 — hecha**: `Blob`/`Reader`/`BlobWriter`, las vistas UAF y `WorldView::read` usan
   `eng::UafPayload` (`ByteView<UafTag>`); `ChunkCache::Loader`, `StreamingWorldMap::Source`,
   `WorldMapChunkLoader` y `WorldView::decode_chunk<Tag>` usan `eng::TileBankBuffer`; el **pool** de
@@ -291,8 +295,9 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
 - **Fase 5 — hecha**: audio puro (`SampleEvent`/`AudioPlan::Channel` → `eng::AudioSample`,
   `MusicEvent` → `eng::MusicModule`) y backend blitter/C2P en su firma interna
   (`blitter_clear`/`blitter_line`/`blit_fill_from_mask`/`fill_triangles_blitter` con
-  `PlaneBytes`/`PlaneCount`/`RowBytes`/`ByteSize`/`PixelWidth/Height`/`MaskBytes`; `c2p_1x1_*` con
-  `ChunkyView`/`PlaneBytes`); la conversión a crudo (`data()`/`value`) queda dentro del backend.
+  `PlaneBytes`/`MaskBytes` y escalares a secas (`u8 planes`, `u16 row_bytes`, `u32 plane_bytes`,
+  `u16 w`, `u16 h`); `c2p_1x1_*` con `ChunkyView`/`PlaneBytes`); la conversión a crudo
+  (`data()`/`value`) queda dentro del backend.
   Demos 057/061/062/063/078/079/081 y `audio_paula` migradas; `C2p4State` (staging del C2P) sigue
   crudo por ser punteros de hardware. HOST-005 y demos alcanzan READY.
 - **Fase 6 — hecha**: `BackgroundQueue` con tareas tipadas `TaskToken<T>` / `TaskFn<T>` (firma
@@ -311,8 +316,9 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
 
 1. Ninguna interfaz interna nueva acepta `T*`/`void*` si existe (o puede crearse) un tipo de
    dominio; los buffers van por `Bytes<Tag>`/`Words<Tag>`.
-2. Nunca dos parámetros del mismo tipo escalar que signifiquen cosas distintas (`width`/`height`):
-   usar unidades fuertes.
+2. Los escalares de geometría van a secas (`u8 planes`, `u16 row_bytes`, `u32 plane_bytes`, `u16 w`,
+   `u16 h`): se distinguen por nombre y orden, no con envoltorios (§3.3). Lo que un buffer **es** se
+   distingue por su tipo de dominio.
 3. `from_raw`/`raw()` son explícitos y documentados; solo el backend los usa.
 4. Un tipo nuevo solo entra si su invariante es comprobable (test host o `static_assert`).
 

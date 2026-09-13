@@ -167,7 +167,7 @@ struct DemoGame {
 		const eng::graphics::BlitJob draw = make_shifted_bob_job(
 			static_cast<const eng::u16*>(m_mask_block.data),
 			static_cast<const eng::u16*>(m_source_block.data),
-			destination_at(m_scene.bitplanes(), bob_x, bob_y)
+			destination_at(m_scene.bitplanes().data(), bob_x, bob_y)
 		);
 
 		if (!m_frame_plan.add_dirty_rect({

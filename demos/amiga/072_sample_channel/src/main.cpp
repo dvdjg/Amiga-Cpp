@@ -65,7 +65,7 @@ struct SampleChannelDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00007202u);
 			return;
 		}
-		m_bitplanes = static_cast<eng::u8*>(m_bitplane_block.data);
+		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
 
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00007203u); return; }
 		backend.takeover_display(m_copper_ptr);
@@ -126,7 +126,7 @@ private:
 	bool m_confirmed = false;
 	eng::u16 m_copper_words = 0;
 	const eng::u16* m_copper_ptr = nullptr;
-	eng::u8* m_bitplanes = nullptr;
+	eng::PlaneBytes m_bitplanes {};
 	eng::MemoryBlock m_bitplane_block {};
 	eng::MemoryBlock m_copper_block {};
 };

@@ -141,7 +141,7 @@ struct FireBenchDemo {
 		m_chunky = chunky_block.buffer<eng::ChunkyTag>();
 		m_planar = planar_block.buffer<eng::PlaneTag>();
 
-		eng::PlaneBytes planes = m_scene.bitplanes();
+		eng::PlaneBytes planes = m_scene.bitplanes().data();
 		for (eng::u32 i = 0; i < kDispPlaneBytes; ++i) planes[5u * kDispPlaneBytes + i] = 0u;
 
 		// Pre-desarrolla el fuego (siembra + propagación) para que la captura

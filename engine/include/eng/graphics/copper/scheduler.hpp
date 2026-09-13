@@ -71,7 +71,7 @@ public:
 
 	/// Carga un puntero BPLxPT desde una intención de display. Mantiene los dos
 	/// MOVEs del puntero en el scheduler, también para los splits verticales.
-	void move_bitplane_pointer(u8 plane, const void* address) {
+	void move_bitplane_pointer(u8 plane, eng::ChipAddress address) {
 		m_builder.move_bitplane_pointer(plane, address);
 		m_report.display_moves = static_cast<u16>(m_report.display_moves + 2u);
 	}
@@ -113,7 +113,7 @@ public:
 	void emit_planes_display(
 		u16 diwstrt, u16 diwstop, u16 ddfstrt, u16 ddfstop,
 		u16 bytes_per_row, u16 bplcon0, u8 planes,
-		const u8* bitplanes, u32 plane_bytes
+		eng::PlaneBytes bitplanes, u32 plane_bytes
 	) {
 		move(
 			Register::DMACON,
@@ -131,7 +131,7 @@ public:
 		move(Register::DDFSTOP, ddfstop);
 
 		for (u8 plane = 0; plane < planes; ++plane) {
-			m_builder.move_bitplane_pointer(plane, bitplanes + static_cast<u32>(plane) * plane_bytes);
+			m_builder.move_bitplane_pointer(plane, bitplanes.address(static_cast<eng::s32>(plane) * static_cast<eng::s32>(plane_bytes)));
 			m_report.display_moves += 2;
 		}
 	}
@@ -192,7 +192,7 @@ public:
 			return;
 		}
 		for (u8 i = 0; i < count; ++i) {
-			emit_single_intent(intents[i], nullptr, 0, 0);
+			emit_single_intent(intents[i], {}, 0, 0);
 		}
 	}
 
@@ -202,7 +202,7 @@ public:
 	/// bytes). `plane_bytes` es el stride entre planos y `planes` cuántos re-pointar.
 	void emit_copper_intents_full(
 		const graphics::CopperIntent* intents, u8 count,
-		const u8* bitplane_base, u32 plane_bytes, u8 planes
+		eng::PlaneBytes bitplane_base, u32 plane_bytes, u8 planes
 	) {
 		if (intents == nullptr) {
 			return;
@@ -233,7 +233,7 @@ private:
 	/// Materializa UNA intent. `bitplane_base != nullptr` habilita los intents de
 	/// layout (BitplaneSplit/ShiftLines); si es null, se marcan como sin manejar.
 	void emit_single_intent(
-		const graphics::CopperIntent& intent, const u8* bitplane_base, u32 plane_bytes, u8 planes
+		const graphics::CopperIntent& intent, eng::PlaneBytes bitplane_base, u32 plane_bytes, u8 planes
 	) {
 		switch (intent.kind) {
 			case graphics::CopperIntentKind::PaletteLine:
@@ -251,24 +251,24 @@ private:
 				emit_palette(intent.colors, intent.first, intent.count);
 				break;
 			case graphics::CopperIntentKind::BitplaneSplit:
-				if (bitplane_base == nullptr || intent.bitplanes == nullptr) {
+				if (bitplane_base.empty() || intent.bitplanes.empty()) {
 					m_report.unhandled_intents = static_cast<u8>(m_report.unhandled_intents + 1u);
 					break;
 				}
 				wait_line_safe(intent.top);
 				for (u8 p = 0; p < planes; ++p) {
-					move_bitplane_pointer(p, intent.bitplanes + static_cast<u32>(p) * plane_bytes);
+					move_bitplane_pointer(p, intent.bitplanes.address(static_cast<eng::s32>(p) * static_cast<eng::s32>(plane_bytes)));
 				}
 				break;
 			case graphics::CopperIntentKind::ShiftLines:
-				if (bitplane_base == nullptr) {
+				if (bitplane_base.empty()) {
 					m_report.unhandled_intents = static_cast<u8>(m_report.unhandled_intents + 1u);
 					break;
 				}
 				wait_line_safe(intent.top);
 				for (u8 p = 0; p < planes; ++p) {
 					const s32 offset = static_cast<s32>(static_cast<u32>(p) * plane_bytes) + static_cast<s32>(intent.shift_x);
-					move_bitplane_pointer(p, bitplane_base + offset);
+					move_bitplane_pointer(p, bitplane_base.address(offset));
 				}
 				break;
 			case graphics::CopperIntentKind::SpriteRearm:

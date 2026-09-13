@@ -544,7 +544,7 @@ private:
 	/// scratch -> superficie): el CopyRect solapado no mueve el buffer en
 	/// WinUAE-DBG. El scratch (12 KB) se reutiliza plano a plano.
 	void add_shift(eng::graphics::FramePlan& plan, eng::s8 vdx, eng::s8 vdy) {
-		const eng::u8* base = m_scene.bitplanes();
+		const eng::u8* base = m_scene.bitplanes().data();
 		// Desplazamiento de 16 px = 2 bytes. Si avanzamos a la derecha (vdx>0) el
 		// contenido se mueve a la izquierda (origen +2, destino +0); si vamos a la
 		// izquierda, al reves.
@@ -583,7 +583,7 @@ private:
 				eng::graphics::BlitJobKind::CopyRect,
 				nullptr,
 				reinterpret_cast<const eng::u16*>(scratch),
-				reinterpret_cast<eng::u16*>(m_scene.bitplanes() + pl * plane_bytes + dst_dx + dst_dy),
+				reinterpret_cast<eng::u16*>(m_scene.bitplanes().data() + pl * plane_bytes + dst_dx + dst_dy),
 				words,
 				height,
 				0,

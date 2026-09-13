@@ -73,7 +73,7 @@ int main() {
         CopperIntentKind::PaletteLine,
         /*top*/ 44, /*bottom*/ 44,
         /*hpos*/ 0, /*colors*/ {}, /*first*/ 0, /*count*/ 0,
-        /*shift_x*/ 0, /*bitplanes*/ nullptr,
+        /*shift_x*/ 0, /*bitplanes*/ {},
         /*sprite_channel*/ 0, /*sprite_ptr*/ nullptr,
     };
     if (intent.top != 44 || intent.bottom != 44 || intent.kind != CopperIntentKind::PaletteLine) {
@@ -128,9 +128,9 @@ int main() {
         eng::u16 fake_palette[32] {};
         fake_palette[1] = 0xf00;
         CopperIntent intents[3] {
-            { CopperIntentKind::PaletteLine,  44,  44,  0, fake_palette, 1, 7, 0, nullptr, 0, nullptr },
-            { CopperIntentKind::ShiftLines,  100, 100,  0,          {}, 0, 0, 4, nullptr, 0, nullptr },
-            { CopperIntentKind::PaletteLine,  90,  90,  0, fake_palette, 0, 1, 0, nullptr, 0, nullptr },
+            { CopperIntentKind::PaletteLine,  44,  44,  0, fake_palette, 1, 7, 0, {}, 0, nullptr },
+            { CopperIntentKind::ShiftLines,  100, 100,  0,          {}, 0, 0, 4, {}, 0, nullptr },
+            { CopperIntentKind::PaletteLine,  90,  90,  0, fake_palette, 0, 1, 0, {}, 0, nullptr },
         };
 
         sched.emit_copper_intents(intents, 3);
@@ -167,7 +167,7 @@ int main() {
         eng::u8 split[6 * 10240] {};
         CopperIntent intents[2] {
             { CopperIntentKind::BitplaneSplit, 100, 100, 0, {}, 0, 0, 0, split, 0, nullptr },
-            { CopperIntentKind::ShiftLines,    150, 150, 0, {}, 0, 0, 4, nullptr, 0, nullptr },
+            { CopperIntentKind::ShiftLines,    150, 150, 0, {}, 0, 0, 4, {}, 0, nullptr },
         };
 
         sched.emit_copper_intents_full(intents, 2, base, 10240u, 6u);
@@ -196,8 +196,8 @@ int main() {
 
         eng::u16 sprite_data[2] { 0xFFFF, 0x0000 };
         CopperIntent intents[2] {
-            { CopperIntentKind::SpriteRearm, 100, 100, 0, {}, 0, 0, 0, nullptr, 0, sprite_data },
-            { CopperIntentKind::Priority,    150, 150, 0, {}, 0, 0, 0x0040, nullptr, 0, nullptr },
+            { CopperIntentKind::SpriteRearm, 100, 100, 0, {}, 0, 0, 0, {}, 0, sprite_data },
+            { CopperIntentKind::Priority,    150, 150, 0, {}, 0, 0, 0x0040, {}, 0, nullptr },
         };
 
         sched.emit_copper_intents(intents, 2);

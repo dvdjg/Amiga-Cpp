@@ -8,9 +8,12 @@
 ///
 /// - `Bytes<Tag>` / `ByteView<Tag>`: rango de bytes de un dominio concreto.
 /// - `Words<Tag>` / `WordView<Tag>`: rango de words (u16) de un dominio concreto.
-/// - Vocabulario: `PlaneIndex`/`PlaneCount`, `RowBytes`, `PlaneBytes`,
-///   `PixelWidth`/`PixelHeight`, `WordCount`, `ColorCount`, `ByteStride`.
+/// - `Block<Tag>`: resultado tipado de una reserva de arena.
 /// - Direcciones/base: `BitmapBase`, `FrontBase`, `ChipAddress`.
+///
+/// Vocabulario deliberadamente **sin escalares fuertes**: ancho, alto, `row_bytes`,
+/// `plane_bytes` y número de planos van como enteros a secas (ver §3.3 de
+/// `INTERNAL_TYPE_SYSTEM.md`); solo se tipan buffers, punteros, direcciones y roles.
 ///
 /// Coste: envoltorios trivialmente copiables del mismo tamaño que `Span`; sin
 /// virtuals, sin heap, `constexpr`. `raw()` es la frontera explícita hacia la capa
@@ -27,6 +30,16 @@ namespace detail {
 } // namespace detail
 
 // --- Vistas de bytes con TAG de dominio --------------------------------------
+
+// Direcciones con semántica distinta (antes de las vistas, para que `Bytes::address`
+// pueda devolver `ChipAddress`). Nota: NO se envuelven escalares (ancho/alto/stride/
+// planes); solo se tipan buffers/punteros, direcciones y roles.
+/// Base de la reserva de un bitmap (lo que va a `BPLxPT`).
+struct BitmapBase { eng::u8* value = nullptr; };
+/// Buffer de escritura de un bitmap (con `frontbase_offset`).
+struct FrontBase { eng::u8* value = nullptr; };
+/// Dirección DMA-visible (chip RAM), en formato entero.
+struct ChipAddress { eng::uintptr value = 0; };
 
 // Declaraciones adelantadas: las vistas se convierten entre sí (`as_words`/`as_bytes`).
 template <class Tag> class Bytes;
@@ -53,6 +66,11 @@ public:
 
 	/// Frontera explícita hacia la capa unsafe.
 	[[nodiscard]] constexpr Span<eng::u8> raw() const noexcept { return m_span; }
+	/// Dirección DMA-visible del inicio (o de `off`, que puede ser negativo), como
+	/// `ChipAddress`.
+	[[nodiscard]] constexpr ChipAddress address(eng::s32 off = 0) const noexcept {
+		return ChipAddress { reinterpret_cast<eng::uintptr>(m_span.data() + off) };
+	}
 	[[nodiscard]] constexpr eng::u8* data() const noexcept { return m_span.data(); }
 	[[nodiscard]] constexpr size_type size() const noexcept { return m_span.size(); }
 	[[nodiscard]] constexpr bool empty() const noexcept { return m_span.empty(); }
@@ -241,17 +259,6 @@ struct Block {
 	[[nodiscard]] constexpr const Bytes<Tag>* operator->() const noexcept { return &view; }
 };
 
-// --- Direcciones y bases (semántica distinta a propósito) --------------------
-//
-// Nota de estilo: NO se envuelven escalares (ancho/alto/stride/planes…) en tipos
-// fuertes. Solo se tipan buffers/punteros y direcciones: envolver enteros no aporta
-// seguridad real y ensucia las llamadas. Los escalares van como `u8`/`u16`/`u32`.
-
-/// Base de la reserva de un bitmap (lo que va a `BPLxPT`).
-struct BitmapBase { eng::u8* value = nullptr; };
-/// Buffer de escritura de un bitmap (con `frontbase_offset`).
-struct FrontBase { eng::u8* value = nullptr; };
-/// Dirección DMA-visible (chip RAM), en formato entero.
-struct ChipAddress { eng::uintptr value = 0; };
+// --- Direcciones y bases: definidas arriba (antes de las vistas) -------------
 
 } // namespace eng

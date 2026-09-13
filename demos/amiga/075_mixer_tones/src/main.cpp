@@ -66,7 +66,7 @@ struct TonesDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00007502u);
 			return;
 		}
-		m_bitplanes = static_cast<eng::u8*>(m_bitplane_block.data);
+		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
 		for (eng::u32 k = 0; k < 4u; ++k) {
 			gen_tone(static_cast<eng::u8*>(m_tone_block.data) + k * kToneLen, kFreq[k]);
 		}
@@ -218,7 +218,7 @@ private:
 	bool m_on[4] = { false, false, false, false };
 	eng::audio::SfxChannel m_ch[4] = { -1, -1, -1, -1 };
 	const eng::u16* m_copper_ptr = nullptr;
-	eng::u8* m_bitplanes = nullptr;
+	eng::PlaneBytes m_bitplanes {};
 	eng::MemoryBlock m_tone_block {};
 	eng::MemoryBlock m_bitplane_block {};
 	eng::MemoryBlock m_copper_block {};

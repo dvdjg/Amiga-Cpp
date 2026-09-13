@@ -90,7 +90,7 @@ struct SfxMixerDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00005802u);
 			return;
 		}
-		m_bitplanes = static_cast<eng::u8*>(m_bitplane_block.data);
+		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
 
 		// Muestras preprocesadas (amplitud ±24, múltiplos de 4).
 		m_beep_block = backend.memory().chip.allocate(kBeepLen, 4);
@@ -154,7 +154,7 @@ struct SfxMixerDemo {
 		// Dibujo: barra cian cuya altura refleja el volumen maestro.
 		clear_plane0();
 		const eng::u16 bar_h = static_cast<eng::u16>((static_cast<eng::u32>(m_volume) * 200u) / 64u + 16u);
-		fill_rect(m_bitplanes, 156, static_cast<eng::s16>(kScreenH - bar_h), 9, static_cast<eng::s16>(bar_h));
+		fill_rect(m_bitplanes.data(), 156, static_cast<eng::s16>(kScreenH - bar_h), 9, static_cast<eng::s16>(bar_h));
 
 		if (build_copper()) {
 			backend.install_copper_list(m_copper_ptr);
@@ -195,7 +195,7 @@ private:
 	}
 
 	void clear_plane0() {
-		eng::u16* words = reinterpret_cast<eng::u16*>(m_bitplanes);
+		eng::u16* words = reinterpret_cast<eng::u16*>(m_bitplanes.data());
 		for (eng::u32 i = 0; i < kPlaneBytes / 2u; ++i) words[i] = 0;
 	}
 
@@ -206,7 +206,7 @@ private:
 			it.top = static_cast<eng::u16>(kBandTop0 + static_cast<eng::u16>(b) * kBandHeight);
 			it.bottom = it.top;
 			it.hpos = 0;
-			it.colors = &kRainbow[(static_cast<eng::u8>(b * 2u)) & (kRainbowLen - 1u)];
+			it.colors = kRainbow; it.first = static_cast<eng::u8>((static_cast<eng::u8>(b * 2u)) & (kRainbowLen - 1u));
 			it.first = 0;
 			it.count = 1;
 		}
@@ -239,7 +239,7 @@ private:
 	eng::audio::SfxChannel m_alarm_channel = -1;
 	eng::u16 m_palette[32] {};
 	const eng::u16* m_copper_ptr = nullptr;
-	eng::u8* m_bitplanes = nullptr;
+	eng::PlaneBytes m_bitplanes {};
 	eng::MemoryBlock m_beep_block {};
 	eng::MemoryBlock m_alarm_block {};
 	eng::MemoryBlock m_bitplane_block {};

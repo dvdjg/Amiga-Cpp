@@ -110,7 +110,7 @@ struct PolyphonyDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006602u);
 			return;
 		}
-		m_bitplanes = static_cast<eng::u8*>(m_bitplane_block.data);
+		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
 		build_mod(static_cast<eng::u8*>(m_mod_block.data));
 
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00006603u); return; }
@@ -271,7 +271,7 @@ private:
 	eng::u16 m_copper_words = 0;
 	eng::u16 m_lead_early = 0;
 	const eng::u16* m_copper_ptr = nullptr;
-	eng::u8* m_bitplanes = nullptr;
+	eng::PlaneBytes m_bitplanes {};
 	eng::MemoryBlock m_mod_block {};
 	eng::MemoryBlock m_bitplane_block {};
 	eng::MemoryBlock m_copper_block {};

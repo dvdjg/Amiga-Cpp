@@ -69,7 +69,7 @@ struct MixerRefDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006802u);
 			return;
 		}
-		m_bitplanes = static_cast<eng::u8*>(m_bitplane_block.data);
+		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
 		build_square(static_cast<eng::u8*>(m_sample_block.data));
 
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00006803u); return; }
@@ -197,7 +197,7 @@ private:
 	eng::u16 m_copper_words = 0;
 	eng::s32 m_channel = -1;
 	const eng::u16* m_copper_ptr = nullptr;
-	eng::u8* m_bitplanes = nullptr;
+	eng::PlaneBytes m_bitplanes {};
 	eng::MemoryBlock m_sample_block {};
 	eng::MemoryBlock m_buffer_block {};
 	eng::MemoryBlock m_plugin_buffer_block {};

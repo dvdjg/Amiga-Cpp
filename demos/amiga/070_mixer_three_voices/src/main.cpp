@@ -85,7 +85,7 @@ struct ThreeVoicesDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00007002u);
 			return;
 		}
-		m_bitplanes = static_cast<eng::u8*>(m_bitplane_block.data);
+		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
 		eng::audio::synth_sequence<kMelodyNote>(static_cast<eng::u8*>(m_melody_block.data), kMelodyFreq, kMelodyCount, kSampleRate, static_cast<eng::s16>(kAmplitude));
 		eng::audio::synth_sequence<kBassNote>(static_cast<eng::u8*>(m_bass_block.data), kBassFreq, kBassCount, kSampleRate, static_cast<eng::s16>(kAmplitude));
 		eng::audio::synth_sequence<kCounterNote>(static_cast<eng::u8*>(m_counter_block.data), kCounterFreq, kCounterCount, kSampleRate, static_cast<eng::s16>(kAmplitude));
@@ -199,7 +199,7 @@ private:
 	eng::audio::SfxChannel m_ch1 = -1;
 	eng::audio::SfxChannel m_ch2 = -1;
 	const eng::u16* m_copper_ptr = nullptr;
-	eng::u8* m_bitplanes = nullptr;
+	eng::PlaneBytes m_bitplanes {};
 	eng::MemoryBlock m_melody_block {};
 	eng::MemoryBlock m_bass_block {};
 	eng::MemoryBlock m_counter_block {};

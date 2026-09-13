@@ -79,7 +79,7 @@ struct CopperIntent {
     u8  first = 0;
     u8  count = 0;
     s16 shift_x = 0;              // ShiftLines
-    const u8* bitplanes = nullptr;// BitplaneSplit (base del primer plano)
+    eng::PlaneBytes bitplanes {};  // BitplaneSplit (base del primer plano)
     u8  sprite_channel = 0;       // SpriteRearm
     const u16* sprite_ptr = nullptr; // SpriteRearm (nueva DATA del canal)
 };

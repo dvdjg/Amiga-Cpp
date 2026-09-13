@@ -69,7 +69,7 @@ struct GameAudioDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006202u);
 			return;
 		}
-		m_bitplanes = static_cast<eng::u8*>(m_bitplane_block.data);
+		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
 		build_mod(static_cast<eng::u8*>(m_mod_block.data));
 		gen_square(static_cast<eng::u8*>(m_alarm_block.data), kAlarmLen, 64);
 		gen_square(static_cast<eng::u8*>(m_beep_block.data), kBeepLen, 4);
@@ -191,7 +191,7 @@ private:
 	eng::u16 m_copper_words = 0;
 	eng::audio::SfxChannel m_alarm_ch = -1;
 	const eng::u16* m_copper_ptr = nullptr;
-	eng::u8* m_bitplanes = nullptr;
+	eng::PlaneBytes m_bitplanes {};
 	eng::MemoryBlock m_mod_block {};
 	eng::MemoryBlock m_alarm_block {};
 	eng::MemoryBlock m_beep_block {};

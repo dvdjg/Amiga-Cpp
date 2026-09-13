@@ -432,7 +432,7 @@ private:
 	/// Shift del ring en dos blits no-solapados via scratch (el CopyRect solapado
 	/// no mueve el buffer en WinUAE-DBG). El scratch cabe por plano.
 	void add_shift(eng::graphics::FramePlan& plan, eng::s8 vdx, eng::s8 vdy) {
-		const eng::u8* base = m_scene.bitplanes();
+		const eng::u8* base = m_scene.bitplanes().data();
 		const eng::u32 src_dx = vdx > 0 ? 2u : 0u;
 		const eng::u32 dst_dx = vdx < 0 ? 2u : 0u;
 		const eng::u32 src_dy = vdy > 0 ? surface_bytes_per_row * 16u : 0u;
@@ -464,7 +464,7 @@ private:
 				eng::graphics::BlitJobKind::CopyRect,
 				nullptr,
 				reinterpret_cast<const eng::u16*>(scratch),
-				reinterpret_cast<eng::u16*>(m_scene.bitplanes() + pl * plane_bytes + dst_dx + dst_dy),
+				reinterpret_cast<eng::u16*>(m_scene.bitplanes().data() + pl * plane_bytes + dst_dx + dst_dy),
 				words,
 				height,
 				0,

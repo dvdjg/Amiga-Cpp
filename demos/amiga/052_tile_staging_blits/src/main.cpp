@@ -220,7 +220,7 @@ struct DemoGame {
 
 		const eng::graphics::BlitJob present_job = make_present_staging_job(
 			static_cast<const eng::u16*>(m_staging_block.data),
-			screen_at(m_scene.bitplanes(), present_x, present_y)
+			screen_at(m_scene.bitplanes().data(), present_x, present_y)
 		);
 		if (!m_frame_plan.add_copy_rect(present_job) || !backend.execute_frame_plan(m_frame_plan)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000056u);

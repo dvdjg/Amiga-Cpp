@@ -373,7 +373,7 @@ struct DemoGame {
 			m_last_update_jobs = update_plan.count;
 		}
 
-		draw_viewport(m_scene.bitplanes(), m_cells, m_tile_words, camera);
+		draw_viewport(m_scene.bitplanes().data(), m_cells, m_tile_words, camera);
 		m_scene.install(backend);
 	}
 

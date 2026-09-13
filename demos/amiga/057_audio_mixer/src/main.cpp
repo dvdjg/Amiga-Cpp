@@ -92,7 +92,7 @@ struct AudioMixerDemo {
 			return;
 		}
 		m_sample = static_cast<eng::u8*>(m_sample_block.data);
-		m_bitplanes = static_cast<eng::u8*>(m_bitplane_block.data);
+		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
 
 		// Tono cuadrado: primera mitad +127, segunda mitad -128 (8 bits con signo).
 		for (eng::u32 i = 0; i < kSampleBytes; ++i) {
@@ -142,7 +142,7 @@ struct AudioMixerDemo {
 			(static_cast<eng::u32>(kPeriodMax - m_period) * 200u) / (kPeriodMax - kPeriodMin) + 16u
 		);
 		if (m_volume != 0u) {
-			fill_rect(m_bitplanes, 156, static_cast<eng::s16>(kScreenH - bar_h), 9, static_cast<eng::s16>(bar_h));
+			fill_rect(m_bitplanes.data(), 156, static_cast<eng::s16>(kScreenH - bar_h), 9, static_cast<eng::s16>(bar_h));
 		}
 
 		if (build_copper()) {
@@ -188,7 +188,7 @@ private:
 	}
 
 	void clear_plane0() {
-		eng::u16* words = reinterpret_cast<eng::u16*>(m_bitplanes);
+		eng::u16* words = reinterpret_cast<eng::u16*>(m_bitplanes.data());
 		for (eng::u32 i = 0; i < kPlaneBytes / 2u; ++i) {
 			words[i] = 0;
 		}
@@ -201,7 +201,7 @@ private:
 			it.top = static_cast<eng::u16>(kBandTop0 + static_cast<eng::u16>(b) * kBandHeight);
 			it.bottom = it.top;
 			it.hpos = 0;
-			it.colors = &kRainbow[(static_cast<eng::u8>(b * 2u)) & (kRainbowLen - 1u)];
+			it.colors = kRainbow; it.first = static_cast<eng::u8>((static_cast<eng::u8>(b * 2u)) & (kRainbowLen - 1u));
 			it.first = 0;
 			it.count = 1;
 		}
@@ -234,7 +234,7 @@ private:
 	eng::u16 m_palette[32] {};
 	const eng::u16* m_copper_ptr = nullptr;
 	eng::u8* m_sample = nullptr;
-	eng::u8* m_bitplanes = nullptr;
+	eng::PlaneBytes m_bitplanes {};
 	eng::MemoryBlock m_sample_block {};
 	eng::MemoryBlock m_bitplane_block {};
 	eng::MemoryBlock m_copper_block {};
