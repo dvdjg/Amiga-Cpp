@@ -38,6 +38,7 @@ export var UafChunkType;
     UafChunkType[UafChunkType["Samples"] = 10] = "Samples";
     UafChunkType[UafChunkType["Modules"] = 11] = "Modules";
     UafChunkType[UafChunkType["Mesh"] = 12] = "Mesh";
+    UafChunkType[UafChunkType["WorldMap"] = 13] = "WorldMap";
 })(UafChunkType || (UafChunkType = {}));
 /** Cabecera de bitplanes (igual que `eng::assets::BitplanesView`). */
 export const BITPLANES_HEADER_BYTES = 10;
@@ -157,6 +158,14 @@ export function bitplanesChunkData(width, height, planes, layout, planar) {
 /** Datos del chunk de sample (bytes tal cual). */
 export function sampleChunkData(bytes) {
     return bytes;
+}
+/**
+ * Datos del chunk de **mundo**: el payload `WorldMap` tal cual (generado por
+ * `tools/ehb/pack-world.mjs`; ver `docs/engine/architecture/WORLD_FORMAT.md`).
+ * El runtime lo lee con `eng::assets::WorldView`.
+ */
+export function worldChunkData(payload) {
+    return payload;
 }
 /**
  * Datos del chunk de textos: cadenas UTF-8 separadas por NUL (cada una con su
@@ -295,10 +304,23 @@ function buildMeshDemo() {
 function main() {
     const out = process.argv[2];
     if (!out || out.startsWith('--')) {
-        console.error('Uso: uaf-pack.js <out.uafr> [--mesh]');
+        console.error('Uso: uaf-pack.js <out.uafr> [--mesh | --world <world.bin>]');
         process.exit(2);
     }
-    const blob = process.argv.includes('--mesh') ? buildMeshDemo() : buildDemo();
+    const worldIdx = process.argv.indexOf('--world');
+    let blob;
+    if (worldIdx >= 0) {
+        const worldPath = process.argv[worldIdx + 1];
+        if (!worldPath || worldPath.startsWith('--')) {
+            console.error('Uso: uaf-pack.js <out.uafr> --world <world.bin>');
+            process.exit(2);
+        }
+        const payload = new Uint8Array(fs.readFileSync(worldPath));
+        blob = packUaf([{ type: UafChunkType.WorldMap, count: 1, data: worldChunkData(payload) }]);
+    }
+    else {
+        blob = process.argv.includes('--mesh') ? buildMeshDemo() : buildDemo();
+    }
     const chunks = parseUaf(blob); // auto-validación: el contenedor debe re-parsearse
     fs.writeFileSync(out, blob);
     console.log(`OK uaf-pack: ${blob.length} bytes -> ${out} (${chunks.length} chunks)`);

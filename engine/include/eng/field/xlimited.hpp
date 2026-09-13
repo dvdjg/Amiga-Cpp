@@ -301,6 +301,7 @@
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/field/playfield.hpp>
+#include <eng/field/plane_view.hpp>
 #include <eng/field/scroll_engine.hpp>
 #include <eng/field/scroll_profile.hpp>
 #include <eng/field/tile_map.hpp>
@@ -923,16 +924,12 @@ public:
         m_total_bytes = m_bitmap.total_bytes();
         m_real_base = m_bitmap.allocation_start(); // base del bloque (BPLxPT)
         m_frontbuffer = m_bitmap.bytes().data();   // vía cruda interna (núcleo)
-        // Soft DPF: doble buffer del plano de fondo. El buffer 0 es el plano del
-        // bitmap principal; el buffer 1 es UN bitmap extra con el mismo layout
-        // interleaved (stride compartido). Coste: 1 bitmap extra.
+        // Soft DPF (RoboCod): vista del plano de fondo con doble buffer opcional.
+        // El buffer 0 es el propio bitmap principal; `enable_double_buffer` reserva
+        // UN bitmap extra con el mismo layout interleaved (coste: 1 bitmap extra).
+        m_bg_view.bind_single(m_real_base, m_frontbuffer);
         if (m_cfg.parallax_plane < m_cfg.planes) {
-            if (!m_bg_extra.init(memory, bc)) return false;
-            m_bg_real_base[0] = m_real_base;
-            m_bg_front[0] = m_frontbuffer;
-            m_bg_real_base[1] = m_bg_extra.allocation_start();
-            m_bg_front[1] = m_bg_extra.bytes().data();
-            m_bg_db = true;
+            if (!m_bg_view.enable_double_buffer(memory, bc)) return false;
         }
 
         // BPLMODs: BITMAPBYTESPERROW*planes - SCREENBYTESPERROW - modulo_offset
@@ -1037,8 +1034,8 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
         const BgShift bs = bg_shift_for(src_x_pixels);
         const u8* src = pattern + static_cast<u32>(src_y) * pat_row + bs.word_bytes;
         // Soft DPF: el blit de fondo escribe el buffer TRASERO (el display lee el
-        // delantero, `m_bg_active`), eliminando el tearing.
-        u8* dst_base = m_bg_db ? m_bg_front[m_bg_active ^ 1u] : m_frontbuffer;
+        // delantero), eliminando el tearing.
+        u8* dst_base = m_bg_view.write_base();
         u16* dst = reinterpret_cast<u16*>(dst_base +
             (static_cast<u32>(dest_row) * cplanes() + bgp) * row + dest_byte_off);
         const u16 width_bytes = static_cast<u16>(words * 2u);
@@ -1062,8 +1059,8 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
 
     /// Soft DPF: conmuta el buffer de fondo delantero/trasero. Llamar TRAS escribir
     /// el blit de fondo (que va al buffer trasero) y ANTES de `compose()`.
-    void bg_flip() { if (m_bg_db) m_bg_active ^= 1u; }
-    constexpr bool bg_double_buffered() const { return m_bg_db; }
+    void bg_flip() { m_bg_view.flip(); }
+    constexpr bool bg_double_buffered() const { return m_bg_view.double_buffered(); }
 
     bool fill_screen(graphics::FramePlan& plan) const {
         if (!m_initialized) return false;
@@ -1443,7 +1440,7 @@ const u16 I = fetch_scroll_pixels(m_cfg.fetch_mode);
             // buffer delantero (`bg_plane_base`); `parallax_planeaddx` solo se usa en
             // el modo antiguo de puntero por plano (parallax_div != 0).
             v.parallax_plane = m_cfg.parallax_plane;
-            v.bg_plane_base = m_bg_db ? m_bg_real_base[m_bg_active] : nullptr;
+            v.bg_plane_base = m_bg_view.double_buffered() ? m_bg_view.display_base() : nullptr;
             if (m_cfg.parallax_div != 0u) {
                 const s32 ppos = (m_scroll.state().mapposx / m_cfg.parallax_div) +
                                  static_cast<s32>(I) - 1;
@@ -1626,16 +1623,9 @@ private:
     XlimitedConfigT<MapT> m_cfg {};
     gfx::Bitmap m_bitmap {};   // capa de memoria (posee el bloque Chip)
     u8* m_real_base = nullptr;
-    // Soft DPF: doble buffer SOLO del plano de fondo (`parallax_plane`). Un buffer
-    // es el propio plano del bitmap principal (buffer 0) y el otro es UN bitmap extra
-    // (buffer 1) con el mismo stride interleaved (el modulo BPL1MOD/BPL2MOD es
-    // compartido). El compositor lee el FRONT (`m_bg_active`) y el blit escribe el
-    // BACK. Coste minimo: 1 bitmap extra (~72 KB), no 2.
-    gfx::Bitmap m_bg_extra {};
-    u8* m_bg_real_base[2] = {nullptr, nullptr};
-    u8* m_bg_front[2] = {nullptr, nullptr};
-    u8 m_bg_active = 0;
-    bool m_bg_db = false;
+    // Soft DPF (RoboCod): la vista del plano de fondo con doble buffer (ver
+    // `plane_view.hpp`). El compositor lee el FRONT y el blit escribe el BACK.
+    PlaneView m_bg_view {};
     const u8* m_blocks_buffer = nullptr;
     u16 m_bitmap_width = xlimited_detail::kBitmapW32;
     u16 m_bitmap_blocks_per_row = xlimited_detail::kBlocksPerRow32;

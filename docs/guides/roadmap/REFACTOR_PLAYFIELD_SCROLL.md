@@ -30,10 +30,14 @@ en el proceso.
   `ScrollStrategy` opcional. `CanvasPlayfield` pasa a ser `Playfield<N>` con `Layout=Flat` y sin
   scroll (no una clase aparte).
 - Introducir `PlaneView` (superficie que referencia N planos de otro playfield, no posee memoria).
+  **Hecho**: `eng::field::PlaneView` (`plane_view.hpp`), extraído de `XLimitedPlayfield`
+  (`display_base`/`write_base`/`flip`); HOST-038; 112 sin regresión.
 - Introducir `SoftDpfComposition`: FG (`Playfield<4>`) + BG (`PlaneView` de 1 plano sobre el
-  bitmap del FG) con **doble buffer del plano de fondo** y puntero alterno.
+  bitmap del FG) con **doble buffer del plano de fondo** y puntero alterno. **Pendiente** (hoy la
+  composición sigue siendo el compositor single/dual leyendo `bg_plane_base`).
 - Mover fuera de `XLimitedPlayfield`: `parallax_plane`, `bg_flip`, `fill_parallax_pattern`,
-  `make_bg_plane_copy_rect_job`/`bg_window_for`/`bg_split_rects`.
+  `make_bg_plane_copy_rect_job`/`bg_window_for`/`bg_split_rects`. **Parcial**: el doble buffer ya
+  vive en `PlaneView`; el resto (patrón y jobs) sigue en el playfield.
 - **Piloto: demo 112.** Reducir a: FG scroll + BG (vista/doble buffer) + su cámara propia.
 - Verificación: `K_DIAG_YONLY`+`K_DIAG_BG_FIXED` (borde constante), `analyze-sequence` (marcador y
   movimiento), `112_BG_FLICKER.md` sigue siendo la evidencia del flashing.

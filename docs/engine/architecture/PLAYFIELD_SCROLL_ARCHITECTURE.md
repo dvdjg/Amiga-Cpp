@@ -126,6 +126,12 @@ Un `PlaneView` es una superficie que **no posee memoria**: referencia N planos d
 
 `Playfield<N>` puede poseer memoria o ser una vista; la composición decide a qué bitmap apunta.
 
+Implementado como `eng::field::PlaneView` (`engine/include/eng/field/plane_view.hpp`): vista del
+plano de fondo con **doble buffer opcional** (`bind_single`/`enable_double_buffer`, `display_base`,
+`write_base`, `flip`), extraída de `XLimitedPlayfield`; la composición soft DPF usa `display_base`
+como `bg_plane_base`. Test HOST-038; demo 112 sin regresión. El renombrado de la composición a
+`SoftDpfComposition` (contenedor con nombre propio) queda pendiente.
+
 ## 4. Composición (DisplayComposition)
 
 Contiene la lista de **capas** (cada una un `Playfield` + su estrategia o ninguna), su rol y

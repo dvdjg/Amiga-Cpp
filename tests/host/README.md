@@ -77,3 +77,5 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-034 | [scroll_burst_equiv](034_scroll_burst_equiv/README.md) | `burst_right` equivalente bit a bit a los sub-pasos de 1 px (dibujos, `save_word`, estado) en varios escenarios. |
 | HOST-035 | [world_layer](035_world_layer/README.md) | `WorldLayerSource` (capa de `WorldView` como `TileMap`) y `WorldMapChunkLoader` (Loader-RAM): WorldMap → `StreamingWorldMap` → `TileMapView`. |
 | HOST-036 | [scroll_target_emitter](036_scroll_target_emitter/README.md) | Contrato del scroll dividido: `ScrollTarget` (layout) + `ScrollEmitter` (dibujo/costura) = `ScrollSink`; `XLimitedPlayfield` cumple las tres. |
+| HOST-037 | [world_uaf](037_world_uaf/README.md) | Cadena UAF-R → `WorldView`: ensamblar blob con chunk `WorldMap` (`BlobWriter`), validar con `Blob` y leer el mundo. |
+| HOST-038 | [plane_view](038_plane_view/README.md) | `PlaneView`: soft DPF (front/back/`flip`) con doble buffer opcional de planos; base del `SoftDpfComposition`. |

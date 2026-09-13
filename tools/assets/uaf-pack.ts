@@ -39,6 +39,7 @@ export enum UafChunkType {
 	Samples = 10,
 	Modules = 11,
 	Mesh = 12,
+	WorldMap = 13,
 }
 
 /** Chunk lógico antes de empaquetar. */
@@ -191,6 +192,15 @@ export function sampleChunkData(bytes: Uint8Array): Uint8Array {
 }
 
 /**
+ * Datos del chunk de **mundo**: el payload `WorldMap` tal cual (generado por
+ * `tools/ehb/pack-world.mjs`; ver `docs/engine/architecture/WORLD_FORMAT.md`).
+ * El runtime lo lee con `eng::assets::WorldView`.
+ */
+export function worldChunkData(payload: Uint8Array): Uint8Array {
+	return payload;
+}
+
+/**
  * Datos del chunk de textos: cadenas UTF-8 separadas por NUL (cada una con su
  * terminador). Es el formato que consume `eng::assets::StringsView` (C++).
  */
@@ -337,10 +347,22 @@ function buildMeshDemo(): Buffer {
 function main() {
 	const out = process.argv[2];
 	if (!out || out.startsWith('--')) {
-		console.error('Uso: uaf-pack.js <out.uafr> [--mesh]');
+		console.error('Uso: uaf-pack.js <out.uafr> [--mesh | --world <world.bin>]');
 		process.exit(2);
 	}
-	const blob = process.argv.includes('--mesh') ? buildMeshDemo() : buildDemo();
+	const worldIdx = process.argv.indexOf('--world');
+	let blob: Buffer;
+	if (worldIdx >= 0) {
+		const worldPath = process.argv[worldIdx + 1];
+		if (!worldPath || worldPath.startsWith('--')) {
+			console.error('Uso: uaf-pack.js <out.uafr> --world <world.bin>');
+			process.exit(2);
+		}
+		const payload = new Uint8Array(fs.readFileSync(worldPath));
+		blob = packUaf([{ type: UafChunkType.WorldMap, count: 1, data: worldChunkData(payload) }]);
+	} else {
+		blob = process.argv.includes('--mesh') ? buildMeshDemo() : buildDemo();
+	}
 	const chunks = parseUaf(blob); // auto-validación: el contenedor debe re-parsearse
 	fs.writeFileSync(out, blob);
 	console.log(`OK uaf-pack: ${blob.length} bytes -> ${out} (${chunks.length} chunks)`);
