@@ -55,6 +55,9 @@ enum class Register : u16 {
 	BPL1MOD = 0x108,
 	BPL2MOD = 0x10a,
 	COLOR00 = 0x180,
+	COLOR08 = 0x190,
+	COLOR14 = 0x19c,
+	COLOR15 = 0x19e,
 };
 
 /// Flags basicos de DMACON.

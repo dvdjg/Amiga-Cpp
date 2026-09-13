@@ -315,10 +315,20 @@ desarrolla en varios turnos; el orden es 1→2→3.
   `analyze` OK.
   Ajuste visual (2026-09): **XYLimited 8-way** con movimiento en X e Y (rebote sobre
   el área extra), **X `Finite`** (el patrón de fondo no choca con el *unroll* del
-  X-Limited largo), tilemap **ralo** (cuadrícula) para que el fondo domine, y
-  **paleta corregida** (17..31 = mismo tono oscurecido; el grid ya no sale teal).
-  Pendiente: **raster colors** (copper) para aparentar más de 1 bitplane, como el
-  RoboCod original.
-- ⏳ Transversal: **tiles 64×64** en `BlocksBitmap`/pipeline (128 tiles ya se usa);
+  X-Limited largo), **FG de plataformas (~15%)** sobre **85% de fondo**, paleta con
+  el **truco RoboCod** (`palette[c]==palette[c+16]` para que el plano de fondo no
+  tiña el FG; solo el índice 0/16 pasa de negro a patrón). El fondo son **bandas
+  diagonales** geométricas procedurales con `parallax_div=2`. `analyze` OK.
+  **Rediseño final (2026-09)**: el plano de fondo en un **mismo playfield no
+  funciona** — el blit del FG escribe el 5.º plano a 0 y **borra el fondo** en las
+  filas que entran al scrollear (el Blitter interleaved no salta un plano; haría
+  falta blit por plano). Solución limpia: **DPF de 2 capas** (`112` reescrita, 3+3):
+  FG = plataformas (PF1, delante) + BG = patrón geométrico (PF2) a **mitad de
+  velocidad** (parallax); cada capa con su bitmap, sin borrados. Ollama lo valida
+  (“plataformas naranjas sobre fondo de bandas diagonales azules, limpio”).
+  **Raster colors HECHAS**: el color del patrón de fondo (`COLOR14`) cambia por banda
+  de raster a **tonos pastel** que contrastan con el negro (compositor dual: `ColorZone`
+  + `linear_display`, sin split), más un **motivo de puntos** en los tiles (se ve el
+  tileado). Pendiente: **tileset artístico** y más motivos.- ⏳ Transversal: **tiles 64×64** en `BlocksBitmap`/pipeline (128 tiles ya se usa);
   matriz de memoria Chip por modo DPF.
 - ⏳ Fino: `y_mode` `Finite` (Y corto con scroll); pulido de objetos de 110/111.

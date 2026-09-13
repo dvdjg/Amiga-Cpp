@@ -179,6 +179,10 @@ struct XlimitedDualConfig {
     bool parallax_x = false;          // el segundo playfield a velocidad reducida en X
     eng::u8 parallax_x_div = 2;
     eng::u8 parallax_y_div = 1;       // 1 = comparte el split vertical
+    // Raster colors opcionales (gradiente del color del patron de fondo). Orden
+    // ASCENDENTE de linea. Requieren linear_display (sin split de Copper).
+    const eng::field::XlimitedDualComposer::ColorZone* color_zones = nullptr;
+    eng::u8 color_zone_count = 0;
 };
 
 /// Conductor de VALIDACIÓN (recorrido de las 8 direcciones del harness). Es un
@@ -404,7 +408,8 @@ public:
             if (!m_dual.init(memory, {cfg.palette, cfg.copper_bytes, cfg.planes,
                 cfg.dpf.foreground_is_pf2,
                 xlimited_detail::kDiwStrt, diwstop,
-                xlimited_detail::kDdfStrt, xlimited_detail::kDdfStop})) return false;
+                xlimited_detail::kDdfStrt, xlimited_detail::kDdfStop,
+                cfg.dpf.color_zones, cfg.dpf.color_zone_count})) return false;
         } else {
             if (!m_single.init(memory, {cfg.palette, cfg.copper_bytes, cfg.planes,
                 xlimited_detail::kDiwStrt, diwstop,

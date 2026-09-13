@@ -52,17 +52,17 @@ Cuando termine la lectura contextual, puede abrir solo los enlaces que necesite.
 | Tipo de tarea | Documentos a consultar primero | Demos/APIs de referencia |
 |---|---|---|
 | **Nuevo efecto demoscene** | §4 de este mapa, [DEMOSCENE_EFFECT_REPLICATION_POLICY.md](../demos/effects/DEMOSCENE_EFFECT_REPLICATION_POLICY.md), [demoscene-repo-coverage-index.md](../demos/effects/demoscene-repo-coverage-index.md), [demoscene-repo-import-roadmap.md](../demos/effects/demoscene-repo-import-roadmap.md), §5 para registros | `engine/` y `demos/` de la técnica base más cercana |
-| **Scroll / tiles por playfield** | [DEMOSCENE_REPO_INDEX.md](../demos/effects/DEMOSCENE_REPO_INDEX.md) (tiles16), técnicas de scroll, §5 (BPLCON1/BPLxPT) | `engine/include/eng/graphics/drivers/tile_scroll.hpp`, demos 100–107, 201–202 |
+| **Scroll / tiles por playfield** | [DEMOSCENE_REPO_INDEX.md](../demos/effects/DEMOSCENE_REPO_INDEX.md) (tiles16), técnicas de scroll, [XYLIMITED_ALGORITMO_GENERICO.md](../engine/architecture/XYLIMITED_ALGORITMO_GENERICO.md), [robocod-layered-scroll.md](../reference/amiga/techniques/robocod-layered-scroll.md), §5 (BPLCON1/BPLxPT) | `engine/include/eng/graphics/drivers/tile_scroll.hpp`, `engine/include/eng/field/xlimited.hpp`, demos 100–107, 110–112, 201–202 |
 | **Copper / paleta / per-line** | [amiga-a500-dma-copper-state-rules.md](../reference/amiga/hardware/amiga-a500-dma-copper-state-rules.md), técnicas `copper-chunky.md`, `dx39...analysis.md` | `engine/.../copper/`, demos 020, 030, 040 |
 | **Blitter / BOBs / minterms** | [DEMOSCENE_REPO_INDEX.md](../demos/effects/DEMOSCENE_REPO_INDEX.md) (blitter interleaved), técnicas `dual-playfield-fastbobs.md`, AHRM cap. 6 | demos 050, 051, 052, 200s |
-| **Dual playfield / prioridad** | `dual-layer.md`, DPF_MIXTO_SPLIT_LINEAL.md, dx39-layers analysis | demos 102, 104, 105, 106, 107, 202 |
+| **Dual playfield / prioridad / parallax por capas** | `dual-layer.md`, `robocod-layered-scroll.md`, DPF_MIXTO_SPLIT_LINEAL.md, dx39-layers analysis | demos 102, 104, 105, 107, 110, 111, 112, 202 |
 | **Sprites / overlays** | `sprite-layer.md`, AHRM cap. 4 | — (ver coverage) |
 | **Audio / Paula** | `audio-mixing.md`, AHRM cap. 5 | — |
 | **3D fixed-point / wireframe** | DEMOSCENE §lib3d, técnicas genéricas | — |
 | **Pipeline tiles/EHB/assets** | [PIPELINE_TILES_EHB.md](../demos/tile-pipeline/PIPELINE_TILES_EHB.md), [REGLAS_PIPELINE_TILES.md](../guides/roadmap/REGLAS_PIPELINE_TILES.md), `tools/amiga-tiles/README.md` | demos 201, 202 |
 | **Juego sobre el engine** | [STRUCTURE §9](../../STRUCTURE.md), roadmap, técnicas | `games/` |
 | **Optimización de un path** | Regla permanente de rendimiento de `AGENTS.md`, perfilado (`tools/profile/README.md`) | — |
-| **Depurar un bug de visual** | [DEBUG-WINUAE-V2-GUIDE.md](../debugging/DEBUG-WINUAE-V2-GUIDE.md), invariantes microtests, y para arranque/display+doble texto/banda: [DEBUG_DEMO_ARRANQUE_DOBLE_TEXTO_BANDA.md](../debugging/DEBUG_DEMO_ARRANQUE_DOBLE_TEXTO_BANDA.md) | — |
+| **Depurar un bug de visual** | [DEMO_VISUAL_DEBUG.md](../guides/methodology/DEMO_VISUAL_DEBUG.md) (diseño + depuración visual con Ollama/secuencias), [DEBUG-WINUAE-V2-GUIDE.md](../debugging/DEBUG-WINUAE-V2-GUIDE.md), invariantes microtests, y para arranque/display+doble texto/banda: [DEBUG_DEMO_ARRANQUE_DOBLE_TEXTO_BANDA.md](../debugging/DEBUG_DEMO_ARRANQUE_DOBLE_TEXTO_BANDA.md) | — |
 | **Nueva referencia/documento externo** | §6 de este mapa, [amiga-authoritative-sources.md](../reference/amiga-authoritative-sources.md) | — |
 
 ---

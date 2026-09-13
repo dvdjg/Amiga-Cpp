@@ -13,6 +13,7 @@ Resúmenes operativos para la IA y el desarrollador: **qué problema resuelve**,
 |-------|------|
 | [modulo-tricks.md](modulo-tricks.md) | Módulos de bitplane (`BPL1MOD`, `BPL2MOD`) para efectos y límites de fetch |
 | [dual-layer.md](dual-layer.md) | Dos capas gráficas (dual playfield vs otras composiciones) |
+| [robocod-layered-scroll.md](robocod-layered-scroll.md) | Fondo más lento tras un primer plano (parallax por capas, DPF 2 campos) + raster colors |
 | [copper-chunky.md](copper-chunky.md) | “Chunky” vía copper / cambios por línea |
 | [cpu-blit-assist.md](cpu-blit-assist.md) | CPU + blitter en paralelo (A1200+) |
 | [audio-mixing.md](audio-mixing.md) | Mezcla de audio para juegos |

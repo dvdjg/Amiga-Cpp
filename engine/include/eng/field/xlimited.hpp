@@ -809,11 +809,9 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
         for (u32 y = 0; y < h; ++y) {
             u8* pl = m_frontbuffer + (y * cplanes() + p) * row;
             for (u32 x = 0; x < w; ++x) {
-                // Motivo geometrico GRUESO: bandas diagonales de 24 px (periodo 64)
-                // combinadas con una rejilla de rombos de 32x32 (XOR).
-                const u32 diag = (x + y) & 63u;
-                const u32 romb = ((x & 31u) < 16u) ^ ((y & 31u) < 16u);
-                const bool on = (diag < 24u) ^ romb;
+                // Bandas diagonales limpias (periodo 64, ancho 32): un fondo
+                // geometrico claro y periodico que scrollea a otra velocidad.
+                const bool on = ((x + y) & 63u) < 32u;
                 if (!on) continue;
                 const u32 wb = (x / 8u) & ~1u;
                 const u16 m = static_cast<u16>(0x8000u >> (x & 15u));
@@ -1633,6 +1631,14 @@ private:
 /// `split_line`). Cada playfield conserva su `planeaddx` (parallax en X posible).
 class XlimitedDualComposer {
 public:
+    /// Zona de color por raster (raster colors): en la linea `line` el registro
+    /// `reg` pasa a `color`. Las zonas deben venir en orden ASCENDENTE de linea.
+    struct ColorZone {
+        eng::u16 line = 0;
+        copper::Register reg = copper::Register::COLOR00;
+        eng::u16 color = 0;
+    };
+
     struct Config {
         const u16* palette = nullptr;      // 16 colores: PF1 0..7, PF2 8..15
         u32 copper_bytes = 1536;
@@ -1642,6 +1648,9 @@ public:
         u16 diwstop = xlimited_detail::kDiwStop;
         u16 ddfstrt = xlimited_detail::kDdfStrt;
         u16 ddfstop = xlimited_detail::kDdfStop;
+        // Raster colors opcionales (gradiente del color del patron de fondo).
+        const ColorZone* color_zones = nullptr;
+        u8 color_zone_count = 0;
     };
 
     bool init(MemorySystem& memory, const Config& cfg) {
@@ -1755,6 +1764,14 @@ private:
                 field_plane_address(pf2, i, pf2.planeaddy)));
         }
         u16 raster = 0;
+        // Raster colors: WAIT en cada linea + MOVE del color (orden ascendente).
+        // Se emiten tras los punteros; requieren que el campo NO use split de
+        // Copper (linear_display) para no desordenar el raster.
+        for (u8 z = 0; z < m_cfg.color_zone_count; ++z) {
+            const ColorZone& zone = m_cfg.color_zones[z];
+            sched.wait_line(zone.line);
+            sched.move(zone.reg, zone.color);
+        }
         // Split vertical POR CAMPO: re-apunta al inicio del bucle SOLO el campo
         // que envuelve (split_active). En DPF MIXTO un campo puede ser corkscrew
         // (split) y el otro lineal/mirror (sin split, Y independiente): el lineal
