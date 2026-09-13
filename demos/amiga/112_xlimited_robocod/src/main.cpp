@@ -264,7 +264,7 @@ struct DemoGame {
 		//    Ver robocod-layered-scroll.md §3.1/§3.3.
 #ifndef K_DIAG_SKIP_BGCOPY
 		if (m_bg_pattern.valid()) {
-			const eng::u8* pat = static_cast<const eng::u8*>(m_bg_pattern.data);
+			const eng::Pattern pat { static_cast<const eng::u8*>(m_bg_pattern.data), m_bg_pattern.size };
 			const eng::s32 camx = scene.bg().videoposx();
 			// Ventana horizontal del blit (helper puro y testeado): [planeaddx-2,
 			// planeaddx+fetch) = guarda + visible, y src_x para que quede FIJA.
@@ -290,9 +290,9 @@ struct DemoGame {
 			bg_plan.set_blit_budget_limits({8192, 16384, 4, 200});
 			for (eng::u8 i = 0; i < rects.count; ++i) {
 				if (!bg_plan.add_tile_block_copy(scene.bg().make_bg_plane_copy_rect_job(
-					pat, kPatRowBytes, win.src_x,
+					pat, eng::RowBytes { kPatRowBytes }, win.src_x,
 					rects.src_y[i], rects.dest_row[i], rects.rows[i],
-					win.dest_byte_off, win.words))) {
+					win.dest_byte_off, eng::WordCount { win.words }))) {
 					ready = false; eng::debug::mark_failed(g_eng_run_status, 0x00011212u); return;
 				}
 			}

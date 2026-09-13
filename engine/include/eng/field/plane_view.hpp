@@ -23,7 +23,7 @@ class PlaneView {
 public:
 	/// Enlaza el bitmap principal (sin doble buffer): display y escritura apuntan
 	/// al mismo bloque.
-	void bind_single(eng::u8* main_real, eng::u8* main_front) {
+	void bind_single(eng::BitmapBase main_real, eng::FrontBase main_front) {
 		m_main_real = main_real;
 		m_main_front = main_front;
 		m_db = false;
@@ -31,19 +31,19 @@ public:
 	}
 
 	/// Enlace crudo (tests o memoria ya gestionada por el llamador).
-	void bind_raw(eng::u8* main_real, eng::u8* main_front,
-	              eng::u8* extra_real, eng::u8* extra_front) {
+	void bind_raw(eng::BitmapBase main_real, eng::FrontBase main_front,
+	              eng::BitmapBase extra_real, eng::FrontBase extra_front) {
 		bind_single(main_real, main_front);
 		m_extra_real = extra_real;
 		m_extra_front = extra_front;
-		m_db = extra_real != nullptr && extra_front != nullptr;
+		m_db = extra_real.value != nullptr && extra_front.value != nullptr;
 	}
 
 	/// Reserva el bloque extra con el MISMO layout que el principal (doble buffer).
 	bool enable_double_buffer(eng::MemorySystem& memory, const eng::gfx::BitmapConfig& bc) {
 		if (!m_extra.init(memory, bc)) return false;
-		m_extra_real = m_extra.allocation_start();
-		m_extra_front = m_extra.bytes().data();
+		m_extra_real = { m_extra.allocation_start() };
+		m_extra_front = { m_extra.bytes().data() };
 		m_db = true;
 		m_active = 0;
 		return true;
@@ -52,12 +52,12 @@ public:
 	constexpr bool double_buffered() const { return m_db; }
 
 	/// Base del buffer DELANTERO (la que usa `BPLxPT` del display).
-	eng::u8* display_base() const {
+	[[nodiscard]] eng::BitmapBase display_base() const {
 		if (!m_db) return m_main_real;
 		return m_active ? m_extra_real : m_main_real;
 	}
 	/// Base del buffer TRASERO (destino del Blit de fondo, con `frontbase_offset`).
-	eng::u8* write_base() const {
+	[[nodiscard]] eng::FrontBase write_base() const {
 		if (!m_db) return m_main_front;
 		return m_active ? m_main_front : m_extra_front;
 	}
@@ -68,10 +68,10 @@ public:
 
 private:
 	eng::gfx::Bitmap m_extra {};
-	eng::u8* m_main_real = nullptr;
-	eng::u8* m_main_front = nullptr;
-	eng::u8* m_extra_real = nullptr;
-	eng::u8* m_extra_front = nullptr;
+	eng::BitmapBase m_main_real {};
+	eng::FrontBase m_main_front {};
+	eng::BitmapBase m_extra_real {};
+	eng::FrontBase m_extra_front {};
 	bool m_db = false;
 	eng::u8 m_active = 0;
 };

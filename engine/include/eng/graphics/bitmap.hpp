@@ -14,6 +14,7 @@
 /// `Surface` la consumen.
 
 #include <eng/core/span.hpp>
+#include <eng/core/typed.hpp>
 #include <eng/core/types.hpp>
 #include <eng/memory/arena.hpp>
 
@@ -77,6 +78,11 @@ public:
     /// Base del bloque completo (AllocBitMap), la que usa el Copper para BPLxPT
     /// en modos con offset de fetch. USO INTERNO del engine (hardware_view).
     [[nodiscard]] constexpr u8* allocation_start() const { return m_real_base; }
+    /// Base del bloque como `BitmapBase` (lo que va a `BPLxPT`). Preferente en
+    /// interfaces internas tipadas; `allocation_start()` queda como frontera cruda.
+    [[nodiscard]] constexpr BitmapBase base() const { return { m_real_base }; }
+    /// Buffer de escritura (con `frontbase_offset`) como `FrontBase`.
+    [[nodiscard]] constexpr FrontBase front() const { return { m_frontbuffer }; }
     constexpr u16 frontbase_offset() const { return m_cfg.frontbase_offset; }
 
     /// Vista acotada del bloque (el tamaño viaja con el puntero). NO es la vía

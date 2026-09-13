@@ -144,7 +144,7 @@ struct PlaneIndex {
 };
 
 struct RowBytes { eng::u16 value = 0; constexpr explicit RowBytes(eng::u16 v) noexcept : value(v) {} };
-struct PlaneBytes { eng::u32 value = 0; constexpr explicit PlaneBytes(eng::u32 v) noexcept : value(v) {} };
+struct ByteSize { eng::u32 value = 0; constexpr explicit ByteSize(eng::u32 v) noexcept : value(v) {} };
 struct PixelWidth { eng::u16 value = 0; constexpr explicit PixelWidth(eng::u16 v) noexcept : value(v) {} };
 struct PixelHeight { eng::u16 value = 0; constexpr explicit PixelHeight(eng::u16 v) noexcept : value(v) {} };
 struct WordCount { eng::u16 value = 0; constexpr explicit WordCount(eng::u16 v) noexcept : value(v) {} };

@@ -889,16 +889,16 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
     /// emite DOS rects con el mismo `src_x`: el superior con `src_y = bg_y`, y el
     /// inferior con `src_y = bg_y + split` (las filas del patrón contiguas), de forma
     /// que el fondo queda continuo y fijo aunque el FG haga wrap vertical (§3).
-    graphics::BlitJob make_bg_plane_copy_rect_job(const u8* pattern, u16 pattern_row_bytes,
+    graphics::BlitJob make_bg_plane_copy_rect_job(eng::Pattern pattern, eng::RowBytes pattern_row_bytes,
                                                   u16 src_x_pixels, u16 src_y,
                                                   u16 dest_row, u16 rows,
-                                                  u16 dest_byte_off, u16 words) const {
+                                                  u16 dest_byte_off, eng::WordCount words) const {
         return m_soft_dpf.make_copy_rect_job(pattern, pattern_row_bytes, src_x_pixels, src_y,
                                              dest_row, rows, dest_byte_off, words);
     }
 
     /// Compatibilidad: copia la fila completa del anillo (`display_height` filas).
-    graphics::BlitJob make_bg_plane_copy_job(const u8* pattern, u16 pattern_row_bytes,
+    graphics::BlitJob make_bg_plane_copy_job(eng::Pattern pattern, eng::RowBytes pattern_row_bytes,
                                              u16 src_x_pixels, u16 src_y) const {
         return m_soft_dpf.make_copy_job(pattern, pattern_row_bytes, src_x_pixels, src_y);
     }
@@ -1286,7 +1286,7 @@ const u16 I = fetch_scroll_pixels(m_cfg.fetch_mode);
             // buffer delantero (`bg_plane_base`); `parallax_planeaddx` solo se usa en
             // el modo antiguo de puntero por plano (parallax_div != 0).
             v.parallax_plane = m_cfg.parallax_plane;
-            v.bg_plane_base = m_soft_dpf.double_buffered() ? m_soft_dpf.display_base() : nullptr;
+            v.bg_plane_base = m_soft_dpf.double_buffered() ? m_soft_dpf.display_base().value : nullptr;
             if (m_cfg.parallax_div != 0u) {
                 const s32 ppos = (m_scroll.state().mapposx / m_cfg.parallax_div) +
                                  static_cast<s32>(I) - 1;

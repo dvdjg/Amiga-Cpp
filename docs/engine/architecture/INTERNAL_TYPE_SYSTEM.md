@@ -108,7 +108,7 @@ de `BPLxPT`" deja de compilar.
 |---|---|---|
 | `PixelWidth`, `PixelHeight` | `u16` | no se pueden intercambiar |
 | `RowBytes` | `u16` | bytes por planelínea |
-| `PlaneBytes` | `u32` | tamaño de un plano |
+| `ByteSize` | `u32` | tamaño de un bloque |
 | `PlaneCount` | `u8` | 1..6 |
 | `PlaneIndex` | `u8` | validado contra `PlaneCount` al construir |
 | `WordCount` | `u16` | nº de words de un blit/copia |
@@ -257,6 +257,20 @@ El productor (`SoftDpfComposition::copy`) recibe `PatternWords` y `PlaneIndex`, 
 
 Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/202 analizan OK, y
 `-S` sin regresión. Ningún cambio de comportamiento visual.
+
+### 8.1 Estado de implementación
+
+- **Fase 1 — hecha**: `eng/core/typed.hpp` (vistas con tag + unidades + bases) y
+  `eng/core/domains.hpp` (tags/alias de dominio). Test HOST-040.
+- **Fase 2 — hecha**: `Bitmap::base()`/`front()`; `PlaneView` y `SoftDpfComposition` usan
+  `BitmapBase`/`FrontBase` en `bind*`/`display_base`/`write_base` (`XLimitedPlayfield` cruza a
+  crudo solo en `hardware_view`). HOST-038/039 actualizados; 112 sin regresión.
+- **Fase 3 — parcial**: `SoftDpfComposition::make_copy_*` recibe `Pattern` (vista **con tamaño**),
+  `RowBytes` y `WordCount`, y **valida el rango** del patrón (violación → `illegal`). `BlitJob`
+  sigue crudo; faltan `BlitSource`/`BlitDest` y tipar el resto de productores (`Surface`,
+  `FramePlan`).
+- **Fases 4-7 — pendientes**.
+
 
 ## 9. Reglas para `CODING_STYLE.md` (resumen)
 
