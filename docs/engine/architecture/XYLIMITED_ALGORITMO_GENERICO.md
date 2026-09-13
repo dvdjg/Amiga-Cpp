@@ -1,5 +1,12 @@
 # XYLimited (corkscrew 8-way): algoritmo genérico y diseño del API
 
+> **Modelo objetivo vigente**: este documento conserva el vocabulario y los invariantes del
+> algoritmo y su crítica del estado actual (2026-09-06). El **contrato de refactor canónico** que
+> sucede a esta crítica es
+> [PLAYFIELD_SCROLL_ARCHITECTURE.md](PLAYFIELD_SCROLL_ARCHITECTURE.md), con el plan por fases en
+> `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md`. Cuando ambos difieran, prevalece el modelo
+> objetivo.
+
 > Documento de diseño (2026-09-06). Dos cosas en uno: (1) la referencia canónica del
 > ALGORITMO XYLimited de Steger expresado en términos de plataforma (independiente de Amiga),
 > y (2) un análisis objetivo del diseño interno del API del engine tal como quedó al portarlo,

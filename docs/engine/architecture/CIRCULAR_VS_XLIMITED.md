@@ -1,5 +1,10 @@
 # Circular vs XLimited — comparativa canónica
 
+> **Modelo objetivo**: el contrato de refactor vigente (separación algoritmo ↔ superficie ↔
+> composición ↔ mapping Amiga) está en `PLAYFIELD_SCROLL_ARCHITECTURE.md`. Esta comparativa
+> preserva la geometría y las diferencias del modelo circular frente al interleaved; sus nombres
+> (`XLimitedPlayfield`, etc.) se migran según `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md`.
+
 > Documento de referencia (2026-08). Compara el modelo circular anterior
 > (`TileFieldController` con `surface_origin`, margen `2*BLOCK`, recentrado y
 > Copper con *split*) frente al modelo **XLimited interleaved** de Georg Steger

@@ -1,5 +1,10 @@
 # Demo 201 — Mapa EHB con scroll 8-way X-Limited
 
+> **Refactor en curso**: el modelo objetivo (algoritmo ↔ superficie ↔ composición ↔ máquina) está
+> en `docs/engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md` y el plan (esta demo se migra a
+> `DisplayComposition` de capas) en `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md`. Las
+> invariantes del anillo de §7 de esta demo siguen siendo válidas.
+
 Esta demo es un **tour continuo** de scroll 8-way X-Limited sobre el **mapa real EHB**
 extraído de *The Fan-tasy Tileset*: barrido horizontal directo hasta el borde derecho,
 luego vertical hasta el borde inferior, luego oblicuo arriba-izquierda hasta tocar de

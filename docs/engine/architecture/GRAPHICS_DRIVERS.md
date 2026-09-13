@@ -1,5 +1,9 @@
 # Drivers graficos
 
+> **Modelo objetivo**: la composición por capas/estrategias y su separación del algoritmo y del
+> mapping Amiga están en `PLAYFIELD_SCROLL_ARCHITECTURE.md`. Un "driver" aquí es la
+> `DisplayComposition` (single/EHB/DPF/soft-DPF) del modelo objetivo.
+
 Un driver grafico es una estrategia de composicion para un hardware concreto. No es
 solo un modo de pantalla: tambien define presupuestos, memoria, reglas de paleta,
 uso de sprites, copper, blitter y restricciones artisticas.

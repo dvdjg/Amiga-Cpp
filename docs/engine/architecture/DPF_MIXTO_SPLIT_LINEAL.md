@@ -1,5 +1,10 @@
 # DPF mixto: corkscrew/split + linear/mirror (Y independiente por campo)
 
+> **Modelo objetivo**: el DPF es una `DpfComposition` (dos `PlanarPlayfield<N>` con bitmaps
+> propios) del modelo `PLAYFIELD_SCROLL_ARCHITECTURE.md`; el fino por nibble de `BPLCON1` y el
+> split por campo son recursos de la composición. Nombres actuales (`XLimitedPlayfield`,
+> `XlimitedDualComposer`) se migran según `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md`.
+
 ## El problema
 
 En DPF con dos `XLimitedPlayfield` corkscrew, el compositor usa **un único split

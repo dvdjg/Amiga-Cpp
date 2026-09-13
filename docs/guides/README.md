@@ -8,6 +8,7 @@ metodología de trabajo y plantillas. Organización canónica en
 docs/guides/
 ├── roadmap/             → ROADMAP_VIGENTE (ROADMAP_UNIFICADO.md), planes y decisiones
 │   ├── ROADMAP_UNIFICADO.md          → estado del engine/demos y próximas direcciones
+│   ├── REFACTOR_PLAYFIELD_SCROLL.md  → plan por fases del refactor playfield/scroll
 │   ├── REGLAS_PIPELINE_TILES.md      → reglas de oro del pipeline de tiles
 │   ├── PROBLEMA_LAUNCHER_DEMOS_NUEVAS.md → enunciado de un problema conocido
 │   └── …

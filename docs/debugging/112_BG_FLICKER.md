@@ -114,9 +114,10 @@ Con el fondo ya estable, se le da **cámara propia** (`m_bgscroll`, avanza 1 px/
 independiente del FG (±2 px/frame). El offset de contenido es
 `src_x = m_bgscroll - camx (+dest*8)`, con la misma ventana (`bg_window_for`) y el mismo
 barrel shifter; el doble buffer elimina el tearing. Esto es un **DPF soft con scroll independiente**
-sobre un solo bitmap de 5 planos. Siguiente paso: sustituir la muestra del patrón por un
-**tilemap XYLimited completo** (mapa + tileset + anillo/staging) para el plano de fondo,
-reutilizando `ScrollEngine`.
+sobre un solo bitmap de 5 planos. El soft DPF se extraerá a dos playfields
+(`PlanarPlayfield<4>` FG + `PlaneViewPlayfield<1>` BG) según el modelo objetivo
+(`docs/engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md`, fase 1 de
+`docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md`).
 
 ## 8. Referencias
 

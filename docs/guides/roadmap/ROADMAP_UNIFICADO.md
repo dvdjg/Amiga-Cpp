@@ -13,11 +13,16 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
 | `docs/guides/roadmap/PROBLEMA_LAUNCHER_DEMOS_NUEVAS.md` | RESUELTO | Demos nuevas que quedaban en AmigaDOS |
 | `docs/guides/roadmap/TILED.md` | conocimiento preservado | Formato Tiled (.tmx/.tsx), a usar cuando haya metadatos |
 | `docs/engine/architecture/DPF_MIXTO_SPLIT_LINEAL.md` | (nuevo) | DPF: modos de Y por campo (split/lineal/mixto) |
+| `docs/engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md` | **(nuevo) modelo objetivo** | Separación algoritmo/superficie/composición/máquina de playfields y scroll (contrato de refactor) |
+| `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md` | **(nuevo) roadmap vigente** | Fases para llevar el código actual al modelo objetivo; demos a adaptar (107/110/111/112/201/202) |
 
 ## Estado real del engine y las demos (2026-09)
 
 - **Scroll**: corkscrew 8-way X-Limited (`XLimitedPlayfield` + `ScrollEngine` +
-  `ScrollSink`), tiles interleaved de 320 px, wrap toroidal, anillo vertical.
+  `ScrollSink`), tiles interleaved de 320 px, wrap toroidal, anillo vertical. **En refactor**:
+  el modelo objetivo separa algoritmo/superficie/composición/máquina
+  (`docs/engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md`) con plan en
+  `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md`.
 - **DPF 3+3** (`XlimitedDualComposer` + `XlimitedScene`): dos playfields con
   banco/mapa/paso propios, transparencia del FG (PF1 color 0), `BPLCON1` por
   campo; bancos reales por campo a 3..6 planos (`blocks_prebuilt`, `blocks_prebuilt2`).

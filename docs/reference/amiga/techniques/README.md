@@ -7,6 +7,10 @@
 
 Resúmenes operativos para la IA y el desarrollador: **qué problema resuelve**, **coste** (CPU, DMA, chip RAM), **límites**, **registros AHRM** y enlace al tutorial externo. **No** se reproducen listados largos de terceros (copyright).
 
+> **Cómo se implementan estas técnicas en el engine**: el modelo objetivo que separa algoritmo,
+> superficie, composición y mapping Amiga es `docs/engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md`;
+> el plan por fases, `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md`.
+
 **Laboratorio compilable en el repo:** menú fallback (sin Intuition) → opción **2. Technique lab** — overlay con `BPL1MOD`/`BPL2MOD` y frame counter; código en `app/effects/technique_lab/technique_lab.c`.
 
 | Ficha | Tema |

@@ -1,4 +1,7 @@
 # Scroll 8-way circular en Amiga OCS — Buffer anular (ScrollingTrick)
+> **Modelo objetivo**: la aplicación de este algoritmo como estrategia (`RingScroll`, axis X/Y/XY)
+> sobre una superficie, separada de la máquina, está en `PLAYFIELD_SCROLL_ARCHITECTURE.md`.
+> Este documento es la referencia de la técnica/geometría original.
 > Documento canónico verificado (232 líneas). Restaura el contenido del task ses_fac017869ffelOf6QnKXHpgf88.
 > No editar sin re-verificar contra ScrollingTrick.lha y Part 12.
 ## 1. Fuentes primarias
