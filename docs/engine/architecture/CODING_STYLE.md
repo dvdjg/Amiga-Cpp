@@ -78,6 +78,9 @@ aporta sus propias piezas de seguridad de C++23 sin depender de `std::span`:
 - **Los productores devuelven tipos de dominio**: quien entrega un buffer (p. ej. `bitplanes()`,
   `MemoryBlock::buffer<Tag>()`) lo devuelve ya tipado, de modo que el consumidor conecta **sin
   casts**; forzar un cast explícito anula la detección del compilador y hay que evitarlo.
+- **El tipo dueño expone la conversión al dominio**: si un tipo posee el array/puntero (p. ej.
+  `EhbPalette` con `color[32]`), ofrece la vista (`operator PaletteWords`, `words()`) para que el
+  llamador pase el objeto; no se escribe `PaletteWords{ arr }` a mano.
 - **Frontera `unsafe`**: `from_raw()`/`raw()` son explícitos y solo los usa la capa de
   backend/`BlitJob`; el resto del engine consume tipos de dominio.
 - Referencia de rendimiento para 68000: `docs/guides/optimization/OPTIMIZACION_GPP_68000.md`

@@ -34,6 +34,12 @@ namespace eng::graphics::drivers {
 /// hardware usando el sexto bitplane.
 struct EhbPalette {
 	u16 color[32] {};
+
+	/// Vista de dominio de la paleta. Permite pasar un `EhbPalette` directamente a
+	/// las APIs que piden `PaletteWords` (p. ej. `emit_palette`), sin casts.
+	constexpr operator eng::PaletteWords() const noexcept {
+		return eng::PaletteWords { color, 32u };
+	}
 };
 
 /// Cambio de paleta en una linea concreta.
@@ -114,7 +120,7 @@ public:
 		// 320x256 lowres PAL, 6 planos EHB (geometrÃ­a paramÃ©trica del scheduler).
 		scheduler.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 40u, 0x6200, 6, m_bitplanes, plane_bytes);
 		m_base_palette_value_word = static_cast<u16>(scheduler.words_used() + 1u);
-		scheduler.emit_palette(eng::PaletteWords { config.base_palette->color });
+		scheduler.emit_palette(*config.base_palette);
 		for (u8 i = 0; i < config.zone_count; ++i) {
 			const EhbPaletteZone& zone = config.zones[i];
 			if (zone.palette != nullptr) {
@@ -130,7 +136,7 @@ public:
 				const CopperIntent zone_intent {
 					CopperIntentKind::PaletteLine,
 					zone.line, zone.line, 0,
-					eng::PaletteWords { zone.palette->color }, 0, 32,
+					*zone.palette, 0, 32,
 					0, nullptr, 0, nullptr,
 				};
 				scheduler.emit_copper_intents(&zone_intent, 1);

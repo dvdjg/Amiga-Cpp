@@ -31,6 +31,11 @@ criterio:
 - **El valor está en los valores devueltos**: los productores devuelven tipos de dominio
   (p. ej. `Bitmap::bitplanes() -> PlaneBytes`, `MemoryBlock::buffer<Tag>()`), de modo que los
   consumidores se conectan **sin casts** y el compilador rechaza mezclas de dominio.
+- **El tipo dueño expone la conversión**: quien posee un array/puntero (p. ej. `EhbPalette` con su
+  `color[32]` o una escena con su banco) ofrece la vista de dominio (operador/método), de modo que
+  el llamador pasa **el objeto**, no `Dominio{ ptr, size }`. Escribir `PaletteWords{ arr }` u otra
+  conversión manual desde un primitivo/array/puntero es un punto donde se pierde la comprobación:
+  se evita salvo en el origen real (una arena, el backend o un fixture con vista parcial).
 - **Conversión explícita**: cambiar de dominio (`Pattern` → `PatternWords`) o de vista
   (`Bytes<Tag>` → `Words<Tag>`) requiere un método con nombre; nunca hay conversiones implícitas
   entre dominios.

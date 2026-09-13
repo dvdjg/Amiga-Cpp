@@ -748,10 +748,10 @@ private:
 			scheduler.move(copper::bitplane_pointer_high_register(plane), static_cast<u16>(address >> 16));
 			scheduler.move(copper::bitplane_pointer_low_register(plane), static_cast<u16>(address & 0xffffu));
 		}
-		scheduler.emit_palette(eng::PaletteWords { m_config.base_palette->color });
+		scheduler.emit_palette(*m_config.base_palette);
 		for (u8 i = 0; i < m_config.zone_count; ++i) {
 			if (m_config.zones[i].palette != nullptr) {
-			scheduler.emit_palette_zone(m_config.zones[i].line, eng::PaletteWords { m_config.zones[i].palette->color });
+			scheduler.emit_palette_zone(m_config.zones[i].line, *m_config.zones[i].palette);
 			}
 		}
 		scheduler.wait_line(0xf8);
