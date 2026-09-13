@@ -87,6 +87,27 @@ int main() {
 	check(!eng::PlaneIndex {3}.valid(eng::PlaneCount {3}), "PlaneIndex fuera de rango");
 	check(eng::RowBytes {66}.value == 66u && eng::PixelWidth {320}.value == 320u, "unidades");
 
+	// Ergonomia tipo Span: array nativo (deduce tamano), iteradores y conversiones.
+	{
+		eng::u8 arr[5] = {5, 6, 7, 8, 9};
+		PatternBytes ab {arr};                 // deduce N = 5
+		check(ab.size() == 5u && ab.back() == 9u && ab.front() == 5u, "array deduce tamano");
+		eng::u32 sum = 0;
+		for (eng::u8 v : ab) sum += v;          // range-for via begin/end
+		check(sum == 35u, "range-for itera");
+		check(*ab.begin() == 5u && ab.end() == ab.begin() + 5, "begin/end");
+
+		const Pattern cab = ab.as_const();
+		check(cab.size() == 5u && cab[2] == 7u, "as_const");
+
+		eng::u16 w[2] = {0x1111, 0x2222};
+		eng::Words<PaletteTag> wv {w};          // array deduce N = 2
+		check(wv.size() == 2u && wv.front() == 0x1111u, "Words array");
+		check(wv.as_bytes().size() == 4u, "as_bytes");
+		auto words_from_bytes = wv.as_bytes().as_words();
+		check(words_from_bytes.size() == 2u && words_from_bytes[1] == 0x2222u, "bytes<->words redondo");
+	}
+
 	// Direcciones con semantica distinta.
 	eng::BitmapBase bb {data};
 	eng::FrontBase fb {data};

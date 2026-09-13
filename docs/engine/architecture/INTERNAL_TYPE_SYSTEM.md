@@ -69,8 +69,12 @@ template <class Tag> class WordView;   // Span<const u16>
 
 - Cada una envuelve un `Span<u8>`/`Span<u16>` y **solo** expone operaciones del dominio
   (`size`, `subspan`, `at` con `illegal`, `fill`).
+- **Ergonomía tipo `Span`**: constructor de array nativo que **deduce el tamaño**
+  (`Pattern p{arr};`), iteradores `begin/end/cbegin/cend` (range-for y algoritmos), `front`/`back`,
+  `subspan(off)` y typedefs `value_type`/`iterator`/`size_type`. Todo `constexpr` y a coste cero.
 - `Bytes<Tag>::words<Tag>()` / `WordView<Tag>::bytes()` hacen la reinterpretación **explícita**
-  (alineación y tamaño comprobados con `static_assert`/runtime).
+  (alineación y tamaño comprobados con `static_assert`/runtime); `as_const()` pasa de mutable a
+  vista de solo lectura **conservando el tag**.
 - `raw()` es el único camino a `Span<u8>`/`Span<const u16>` y se documenta como frontera.
 
 Tags (structs vacíos, cero coste) y alias de dominio:
