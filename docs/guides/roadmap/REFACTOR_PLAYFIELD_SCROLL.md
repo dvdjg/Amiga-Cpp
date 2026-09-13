@@ -49,9 +49,15 @@ en el proceso.
 - Añadir a la composición la capacidad de **cambiar la geometría de vídeo en una línea**
   (`BPLCON0`/`DDF`/`BPLxMOD` + punteros) para tramos con distinto número de planos.
 - Caso de uso: juego de 5 planos arriba + HUD de 4/3/2 planos abajo, sin arrastrar la geometría.
-- Verificar con **microtests** (invariante MI09 en `docs/reference/amiga/hardware/amiga-hardware-invariants-microtests.md`): HUD de 2/3/4 planos
-  bajo un split sobre campo de 4/5/6; documentar el orden exacto de los MOVE del Copper.
-- Mantener el modo conservador “misma geometría, conmutar punteros/paleta” como opción.
+- **Hecho (API + microtest)**: `eng::graphics::ModeSwitchZone` (`mode_switch.hpp`) y
+  `copper::Scheduler::emit_mode_switch_zone` con el orden canónico `BPLCON0`→`BPLCON4`→
+  `DDF`→módulos→`BPLxPT` (HOST-042). Microtest hardware de campo 5 planos + HUD 2 planos:
+  demo `113_mode_switch`, verificación determinista `tools/analyze/verify-113-mode-switch.mjs`
+  y control negativo `-DK_NO_MODE_SWITCH=1`; **MI09 verificado**.
+- Pendiente: integrarlo en la composición (`XlimitedScene`/compositores) para que el HUD
+  anuncie su propio número de planos; mantener el modo conservador
+  `CopperIntentKind::BitplaneSplit` (misma geometría, conmutar punteros/paleta) como opción
+  por defecto cuando las geometrías coinciden.
 
 ### Fase 2 — Algoritmo: estrategias y contrato target/emitter
 - Oficializar `ScrollTarget` (layout del anillo) y `ScrollEmitter` (dibujo + seam) como conceptos.
@@ -200,6 +206,9 @@ compositores, `tile_scroll.hpp` (103/104) y `TileLayerMap`/`tile_map.hpp`.
 
 ## Estado
 
-- 2026-09: **propuesta**. Fase 1 (piloto 112) implementada parcialmente dentro de
-  `XLimitedPlayfield` (doble buffer del plano de fondo con 1 bitmap extra + `bg_flip`) — a extraer
-  a `PlaneView`/`SoftDpfComposition` en la fase 1 formal.
+- Fase 1: `PlaneView` y `SoftDpfComposition` extraídos (`plane_view.hpp`/`soft_dpf.hpp`,
+  HOST-038/039); la demo 112 es el piloto del soft DPF con doble buffer mínimo.
+- Fase 1b: `ModeSwitchZone` implementado y verificado (HOST-042 + demo `113_mode_switch`,
+  MI09); pendiente integrarlo en la composición de capas.
+- Fase 2: `ScrollTarget`/`ScrollEmitter`/`ScrollSink` y `ScrollProfile` hechos (HOST-032/033/
+  034/036); pendiente el vocabulario `AxisPolicy`/`DirectionPolicy` y `BigBufferScroll`.

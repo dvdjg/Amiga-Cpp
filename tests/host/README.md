@@ -82,3 +82,4 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-039 | [soft_dpf](039_soft_dpf/README.md) | `SoftDpfComposition`: composición soft DPF (doble buffer + blit de copia del patrón) extraída del playfield. |
 | HOST-040 | [internal_types](040_internal_types/README.md) | `eng/core/typed.hpp`: vistas con tag de dominio (`Bytes`/`Words`), unidades fuertes y bases; dominios no intercambiables (fallo de compilación). |
 | HOST-041 | [block](041_block/README.md) | `Block<Tag>`: reserva de arena tipada (`LinearArena::allocate_block`, `MemoryBlock::block`); dominios no intercambiables. |
+| HOST-042 | [mode_switch](042_mode_switch/README.md) | `ModeSwitchZone`: conmutación de geometría de vídeo a mitad de frame con el orden canónico MI09 (`BPLCON0`→`DDF`→mods→`BPLxPT`). |

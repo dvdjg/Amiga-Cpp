@@ -168,7 +168,9 @@ punteros): un tramo con más planos para el juego y otro con menos para el HUD/m
 - Una **variante** de la zona conmuta sólo punteros/paleta manteniendo la geometría del campo.
 - La conmutación de geometría **requiere microtests** (HUD de 2/3/4 planos bajo un split sobre un
   campo de 4/5/6) porque la primera línea del tramo toma el puntero nuevo pero puede conservar la
-  geometría de fetch anterior hasta que el pipeline se recarga.
+  geometría de fetch anterior hasta que el pipeline se recarga. El API es
+  `eng::graphics::ModeSwitchZone` + `Scheduler::emit_mode_switch_zone` (HOST-042); la demo
+  `113_mode_switch` verifica el caso 5→2 planos (MI09).
 
 ### 4.2 Modos de display
 

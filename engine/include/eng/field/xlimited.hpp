@@ -1710,15 +1710,14 @@ private:
             // corkscrew: en el raster `DIWSTRT_y + view.viewport_h` solo se
             // cambian BPLxPT (+ BPLCON1=0 para anular el fine scroll y, si hay
             // paleta propia, sus colores). El lienzo del HUD COMPARTE el layout
-            // del campo (planos EHB, filas de viewport_w + guarda, DDFSTRT $30 y
-            // BPLMOD del campo), por lo que NO se reprograman BPLCON0/DDF/BPLMOD
-            // a mitad de frame: en OCS cambiar la geometría de fetch en mitad de
-            // un frame visible no se aplica de forma fiable por línea (la primera
-            // línea toma el puntero nuevo, pero el avance posterior sigue el
-            // fetch/mod viejo y deriva leyendo memoria contigua: el HUD mostrando
-            // "zonas del framebuffer"). El split vertical del corkscrew ya conmuta
-            // punteros a mitad de frame con la MISMA geometría y funciona; esta
-            // zona replica ese patrón conmutando al lienzo del HUD.
+            // del campo (planos, filas de viewport_w + guarda, DDFSTRT y BPLMOD
+            // del campo), por lo que NO se reprograman BPLCON0/DDF/BPLMOD a mitad
+            // de frame. Cambiar la geometría de fetch exige reprogramar BPLCON0,
+            // DDF y módulos JUNTOS antes de los punteros: el orden canónico es
+            // `ModeSwitchZone` (demo 113_mode_switch, invariante MI09), y se usará
+            // cuando el HUD tenga su propio número de planos. El split vertical del
+            // corkscrew ya conmuta punteros a mitad de frame con la MISMA geometría
+            // y funciona; esta zona replica ese patrón conmutando al lienzo del HUD.
             const u16 hud_raster = static_cast<u16>((m_cfg.diwstrt >> 8u) + view.viewport_h);
             sched.wait_line(hud_raster > 0xffu ? 0xffu : static_cast<u8>(hud_raster));
             sched.move(copper::Register::BPLCON1, 0x0000);

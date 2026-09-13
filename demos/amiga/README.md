@@ -54,6 +54,9 @@ estructura: `docs/STRUCTURE.md` §4. Clasificación por concepto:
     X `Ring` (toroidal), Y fijo (DPF con FG de objetos).
   - `112_xlimited_robocod` — XYLimited 5 planos con **fondo geométrico y parallax RoboCod** (plano 4 a
     media velocidad; paleta de 32 índices mapeada a 16 tonos).
+  - `113_mode_switch` — microtest de **`ModeSwitchZone`**: campo de 5 planos + HUD de 2 planos con
+    conmutación de geometría a mitad de frame (invariante MI09; verificación
+    `tools/analyze/verify-113-mode-switch.mjs`).
 - **Escenas con pipeline de assets (`2xx`)**:
   - `201_ehb_map` — mapa real EHB X-Limited con el pipeline completo.
   - `202_xlimited_dpf` — dual playfield parallax 2:1.

@@ -22,6 +22,7 @@
 #include <eng/core/types.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/timeline.hpp>
+#include <eng/graphics/mode_switch.hpp>
 #include <eng/graphics/raster_intent.hpp>
 
 namespace eng::copper {
@@ -134,6 +135,43 @@ public:
 			m_builder.move_bitplane_pointer(plane, bitplanes.address(static_cast<eng::s32>(plane) * static_cast<eng::s32>(plane_bytes)));
 			m_report.display_moves += 2;
 		}
+	}
+
+	/// Emite una zona de conmutación de geometría (`ModeSwitchZone`).
+	///
+	/// En el WAIT de `zone.top` reprograma, en orden canónico MI09:
+	/// `BPLCON0` -> `BPLCON4` (opcional) -> `DDFSTRT`/`DDFSTOP` ->
+	/// `BPL1MOD`/`BPL2MOD` -> `BPLxPT` (par por plano) -> paleta (opcional).
+	/// Devuelve `false` si la zona no es utilizable (DDF desalineado, planos fuera de
+	/// rango o falta la base cuando `planes > 0`); en ese caso no emite nada.
+	bool emit_mode_switch_zone(const graphics::ModeSwitchZone& zone) {
+		if (!zone.ddf_aligned() || zone.planes > 6u) {
+			return false;
+		}
+		if (zone.planes > 0u && zone.bitplanes.empty()) {
+			return false;
+		}
+		wait_line_safe(zone.top);
+		move(Register::BPLCON0, zone.bplcon0);
+		if (zone.set_bplcon4) {
+			move(Register::BPLCON4, zone.bplcon4);
+		}
+		move(Register::DDFSTRT, zone.ddfstrt);
+		move(Register::DDFSTOP, zone.ddfstop);
+		move(Register::BPL1MOD, zone.bpl1mod);
+		move(Register::BPL2MOD, zone.bpl2mod);
+		for (u8 p = 0; p < zone.planes; ++p) {
+			move_bitplane_pointer(
+				p,
+				zone.bitplanes.address(
+					static_cast<eng::s32>(static_cast<eng::u32>(p) * zone.plane_bytes)
+				)
+			);
+		}
+		if (!zone.palette.empty() && zone.palette_colors != 0u) {
+			emit_palette(zone.palette, 0, zone.palette_colors);
+		}
+		return true;
 	}
 
 	/// Emite una paleta base completa o parcial.

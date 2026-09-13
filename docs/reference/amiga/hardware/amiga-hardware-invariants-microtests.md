@@ -17,7 +17,7 @@ que la respalda, o "pendiente" si aún no hay un caso que la aísle.
 | MI06 | El wrap vertical se consigue con `BPL1MOD`/`BPL2MOD`; el cambio de módulo debe ocurrir en la línea correcta y sin franja. | `DPF_MIXTO_SPLIT_LINEAL.md`; demo `202`; `modulo-tricks.md`. |
 | MI07 | Un sprite hardware se puede **reprogramar varias veces en el mismo frame** (mismo canal, distintas líneas). | Demo `053`; `sprite-layer.md`; `SpriteManager`/`SpriteAllocator`. |
 | MI08 | Cambiar `SPRxPOS`/`SPRxCTL` o el puntero de sprite durante el scanout reutiliza el canal como "ventana temporal", no como sprite fijo. | Demos `053`/`054`; `sprite-layer.md`. |
-| MI09 | Cambiar la **geometría de vídeo** (`BPLCON0`/`DDF`/`BPLxMOD`) en un `WAIT` permite tramos con distinto número de planos, reprogramando en orden `BPLCON0`→`DDF`→modulos→`BPLxPT` y con el `DDF` alineado. | **pendiente** de microtest (HUD de 2/3/4 planos bajo split); `ModeSwitchZone` en `PLAYFIELD_SCROLL_ARCHITECTURE.md` §4.1. |
+| MI09 | Cambiar la **geometría de vídeo** (`BPLCON0`/`DDF`/`BPLxMOD`) en un `WAIT` permite tramos con distinto número de planos, reprogramando en orden `BPLCON0`→`DDF`→modulos→`BPLxPT` y con el `DDF` alineado. | Demo `113_mode_switch` (campo 5 planos + HUD 2 planos; chequeo determinista `tools/analyze/verify-113-mode-switch.mjs` y control negativo `-DK_NO_MODE_SWITCH=1`); orden fijado por HOST-042. `ModeSwitchZone` en `PLAYFIELD_SCROLL_ARCHITECTURE.md` §4.1. |
 | MI10 | En HAM, el **cuadruplicado de líneas** (mismo par de planos leído 4 veces con `BPLxMOD`/`BPLCON1` alternos) y los cambios de `COLORxx` por línea son listas de Copper válidas. | **pendiente**; `FIRE_RGB_PORT_PLAN.md`, `C2P_BLITTER.md`. |
 
 ## Cómo añadir una invariante
