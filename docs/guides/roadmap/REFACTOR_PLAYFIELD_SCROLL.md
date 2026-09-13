@@ -87,6 +87,12 @@ en el proceso.
   herramientas de diagnóstico.
 - Principios y ejemplos: `docs/engine/architecture/PUBLIC_API.md`. Regla en `CODING_STYLE.md`
   (frontera de API pública).
+- **Escena retenida y recursos** (`SCENE_AND_RESOURCES.md`): `World` como fuente única de recursos,
+  **modelo de ocupación** (`used`/`available`/`headroom`/`can_add`) e **introspección** de depuración.
+- **Representación de actores** (`RepresentationAllocator`): sprite / BOB / CPU / **playfield** (capa
+  de un DPF, patrón Jim Power), elegida por el engine y reasignable sin tocar la app.
+- **Composición en compile-time**: capacities como tipos/policies; sin `switch` runtime sobre modos
+  ni virtuals (evitar código no usado).
 
 ## Mapa de migración (código actual → objetivo)
 

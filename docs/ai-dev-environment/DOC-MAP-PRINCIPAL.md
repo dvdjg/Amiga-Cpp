@@ -39,7 +39,7 @@ Cuando termine la lectura contextual, puede abrir solo los enlaces que necesite.
 | Estructura del repo (dónde va cada cosa) | [docs/STRUCTURE.md](../STRUCTURE.md) |
 | Arquitectura del engine C++ | [docs/engine/architecture/](../engine/README.md) y sus subcarpetas |
 | Modelo objetivo playfield/scroll (contrato de refactor) | [PLAYFIELD_SCROLL_ARCHITECTURE.md](../engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md) + [REFACTOR_PLAYFIELD_SCROLL.md](../guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md) |
-| API pública (la app no ve hardware) | [PUBLIC_API.md](../engine/architecture/PUBLIC_API.md) |
+| API pública (la app no ve hardware) | [PUBLIC_API.md](../engine/architecture/PUBLIC_API.md) + [SCENE_AND_RESOURCES.md](../engine/architecture/SCENE_AND_RESOURCES.md) (escena retenida y ocupación de recursos) |
 | Estilo/restricciones del engine | [CODING_STYLE.md](../engine/architecture/CODING_STYLE.md), [HARDWARE_AND_ROM_KERNEL_POLICY.md](../engine/architecture/HARDWARE_AND_ROM_KERNEL_POLICY.md) |
 | Contrato de bajo nivel Amiga (contrato técnico) | [amiga-lowlevel-agent-prompt.md](../guides/methodology/amiga-lowlevel-agent-prompt.md) y [amiga-lowlevel-technique-contract-template.md](../guides/methodology/amiga-lowlevel-technique-contract-template.md) |
 | Bucles de entrada/backend | [engine.hpp](../../../engine/include/eng/engine.hpp), `amiga_minimal.cpp` (ver AGENTS.md §Rutas) |

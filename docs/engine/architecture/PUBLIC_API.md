@@ -102,14 +102,32 @@ Las demos consultan directamente la superficie y el display (`hardware_view()`, 
 - **`[[likely]]`/`[[unlikely]]`** en ramas del frame.
 - **Sin** STL hosted, `std::function`, contenedores dinámicos ni virtuals en el hot path.
 
-## 10. Qué NO debe aparecer nunca en la app
+## 10. Escena retenida, recursos e introspección
+
+La app trabaja sobre una **escena persistente** (`World`: capas, actores, cámaras, efectos) que es
+la fuente única de verdad de los recursos y que el engine compila a display. El engine lleva la
+**ocupación** de cada recurso del chipset y la expone (`used`/`available`/`headroom`/`can_add`) para
+saber dónde hay hueco antes de saturar; y ofrece **introspección de depuración** (`world.inspect()`,
+overlay, telemetría) de la composición elegida y del presupuesto.
+
+La **representación de un actor** (sprite hardware / BOB / playfield de un DPF / CPU) la decide el
+engine, no la app: el dev describe el actor y su preferencia, y el engine la materializa y la puede
+reasignar si el presupuesto cambia (p. ej. un enemigo grande con scroll propio → capa, patrón Jim
+Power). Detalle: `SCENE_AND_RESOURCES.md`.
+
+El motor se compone en **compile-time** (templates/concepts/policies): solo se instancia lo que la
+app usa y el linker descarta el resto; no hay `switch` runtime sobre modos ni virtuals, para no
+arrastrar código no usado.
+
+## 11. Qué NO debe aparecer nunca en la app
 
 `Bitplane`, `Playfield`, `BPLCON*`, `Copper`/`CopperList`, `Blitter`, `DMACON`, `planes`, `split`,
 `DPF`/`HAM`/`chunky` como flags, punteros, offsets de memoria, ni la elección de modo de display.
 
-## 11. Referencias
+## 12. Referencias
 
 - Modelo interno: `PLAYFIELD_SCROLL_ARCHITECTURE.md`.
+- Escena retenida y recursos: `SCENE_AND_RESOURCES.md`.
 - Efectos (intenciones): `VISUAL_EFFECT_SPRITE_DESIGN.md`.
 - Estilo y restricciones: `CODING_STYLE.md`.
 - Assets cocinados: `docs/tools/UAF_PACK.md`.
