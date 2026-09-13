@@ -9,8 +9,8 @@
 // Blitter proporcional al salto; el framebuffer esta acotado (el mapa solo
 // ocupa indices y el tileset).
 //
-//   X: AxisMode::Finite  (puntero directo; no repinta)
-//   Y: scroll_y = true   (anillo corkscrew) + ScrollMode::OneDirection
+//   X: AxisPolicy::Finite  (puntero directo; no repinta)
+//   Y: y_mode = Ring       (anillo corkscrew) + DirectionPolicy::OneWay
 //
 // El FG de objetos (DPF) se anade en una fase posterior; esta demo es el BG.
 
@@ -118,9 +118,9 @@ struct DemoGame {
 		scene_cfg.tile_height = kTileH;
 		scene_cfg.planes = kPlanes;
 		scene_cfg.fetch_mode = 0;
-		scene_cfg.scroll_y = true;                                  // anillo corkscrew (Y)
-		scene_cfg.x_mode = field::AxisMode::Finite;                 // X lineal acotado
-		scene_cfg.scroll_mode = field::ScrollMode::OneDirection;    // solo fila entrante
+		scene_cfg.y_mode = eng::field::AxisPolicy::Ring;                                  // anillo corkscrew (Y)
+		scene_cfg.x_mode = eng::field::AxisPolicy::Finite;                 // X lineal acotado
+		scene_cfg.direction = eng::field::DirectionPolicy::OneWay;    // solo fila entrante
 		scene_cfg.display_height = kDisplayH;
 		scene_cfg.max_step = 4;
 

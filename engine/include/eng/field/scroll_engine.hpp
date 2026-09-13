@@ -55,7 +55,32 @@ struct ScrollState {
     u8 previous_xdirection = ScrollDirNone;
 };
 
-/// Constantes de geometrÃ­a para el hot path (0 = runtime desde el sink). Cuando
+/// Estrategia de scroll trivial para una escena YA dibujada ("big buffer"): no hay
+/// anillo ni banda de staging que rellenar; el único estado es el offset de cámara
+/// y el display resuelve moviendo el puntero/BPLxPT sobre el buffer completo. Es la
+/// estrategia base para contenido que cabe entero (o se pinta por otro medio) y
+/// sirve de contraste con `ScrollEngine` (corkscrew/XYLimited, que sí emite blits).
+///
+/// No conoce hardware: solo lleva la cámara acotada al rango del buffer.
+struct BigBufferScroll {
+    s32 position = 0;   // offset de cámara en X (px)
+    s32 min_pos = 0;    // límite inferior
+    s32 max_pos = 0;    // límite superior (mundo - viewport)
+    bool clamp = true;  // false = anillo (envuelve sin recortar)
+
+    /// Avanza el offset `dx` px (clamp opcional al rango) y devuelve la posición.
+    s32 step(s32 dx) {
+        position += dx;
+        if (clamp) {
+            if (position < min_pos) position = min_pos;
+            if (position > max_pos) position = max_pos;
+        }
+        return position;
+    }
+    constexpr void reset(s32 p = 0) { position = p; }
+};
+
+/// Constantes de geometría para el hot path (0 = runtime desde el sink). Cuando
 /// se conocen a priori (potencias de dos casi siempre), el engine usa `fast_div`
 /// y evita las divisiones por frame.
 struct ScrollConsts {

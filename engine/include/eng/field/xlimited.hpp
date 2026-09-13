@@ -7,9 +7,9 @@
 /// NOMENCLATURA: "x-limited" es la familia. La variante SÓLO horizontal es
 /// `Scroller_XLimited` (sin split); la variante 8-way con anillo vertical,
 /// staging y split es `Scroller_XYLimited` (el "corkscrew"). En este engine la
-/// variante se elige con `cfg.scroll_y` (o `ScrollMode::EightWay`); cuando está
+/// variante se elige con `AxisPolicy::Ring` en `y_mode` (corkscrew); cuando está
 /// activa, el algoritmo correcto es **XYLimited**, no XLimited. La demo 201
-/// (`scroll_y=true`) es XYLimited.
+/// (`y_mode = Ring`) es XYLimited.
 ///
 /// Este header es *didáctico*: cada sección explica el invariante del
 /// hardware que mantiene y por qué una alternativa aparentemente más simple
@@ -351,22 +351,14 @@ constexpr u16 diwstop_for_viewport(u16 viewport_h) {
 }
 } // namespace xlimited_detail
 
-/// Variante de scroll del playfield XLimited.
-///
-/// Es una ESPECIALIZACIÓN del scroll: la geometría del corkscrew (banda de
-/// staging, walk X, split, saveword) se deriva del modo.
-enum class ScrollMode : u8 {
-    EightWay = 0,      // corkscrew completo: 8 direcciones, banda de staging 2 bloques,
-                       // split vertical, walk X y saveword (direcciones reversas).
-    HorizontalOnly = 1,// solo H: display_height = viewport_h (sin banda de staging),
-                       // sin split, sin walk vertical. Optimización 1 blit/op.
-    VerticalOnly = 2,  // solo V: corkscrew vertical (banda de staging + split), pero
-                       // el X no scrollea (no se ejercita el walk X).
-    OneDirection = 3,  // 8-way pero sin inversión de dirección: se omite la
-                       // restauración de saveword (menos blits en los cruces).
-};
+/// Política de DIRECCIÓN del scroll (vocabulario objetivo, `AxisPolicy` +
+/// `DirectionPolicy`). `Bidirectional`: el scroll puede invertirse, así que en los
+/// cruces hay que restaurar la costura saveword. `OneWay`: avance en un solo
+/// sentido; se omite esa restauración (menos blits).
+enum class DirectionPolicy : u8 { Bidirectional = 0, OneWay = 1 };
 
-/// Modo de un EJE de scroll (independiente por eje). Permite la familia:
+/// Política de un EJE de scroll (independiente por eje, `x_mode`/`y_mode`). Permite
+/// la familia:
 ///   - `Ring`: anillo con banda de staging (XLimited/XYLimited). El motor escribe
 ///     la banda entrante (creep).
 ///   - `Finite`: rango acotado `[0, mundo - viewport]`, bitmap = ancho de mundo,
@@ -375,9 +367,9 @@ enum class ScrollMode : u8 {
 ///     (p. ej. 400 px de ancho con ventana de 320).
 ///   - `Off`: el eje no scrollea.
 ///
-/// El Y de un juego de scroll largo vertical usa `scroll_y` (corkscrew = Ring);
-/// el X corto usa `Finite`. `ScrollMode::OneDirection` aplica a ambos.
-enum class AxisMode : u8 { Ring = 0, Finite = 1, Off = 2 };
+/// El Y de un juego de scroll largo vertical usa `y_mode = Ring` (corkscrew); el X
+/// corto usa `Finite`. `DirectionPolicy::OneWay` aplica a ambos ejes.
+enum class AxisPolicy : u8 { Ring = 0, Finite = 1, Off = 2 };
 
 /// Configuración de un campo XLimited.
 ///
@@ -495,17 +487,18 @@ struct XlimitedConfigT {
                                         // 2*tile_height, 18 bloques) para que `mapy` (hasta 17) no colisione.
     u8 screens_x = 16;                 // pantallas virtuales en X (map_w = screens_x * viewport_w/tile_width)
     u8 screens_y = 16;                 // pantallas virtuales en Y (map_h = screens_y * viewport_h/tile_height)
-    bool scroll_y = false;             // true = corkscrew/XY: display_height = viewport_h + 2*tile_height,
-                                       // banda de staging, fill de display_blocks_per_col y split vertical
-    AxisMode x_mode = AxisMode::Ring;  // Ring = XLimited (anillo X, por defecto);
-                                       // Finite = X lineal acotado [0, mundo-viewport] sin guardas;
-                                       // Off = sin scroll X. Ver `AxisMode`.
+    AxisPolicy x_mode = AxisPolicy::Ring;  // Ring = XLimited (anillo X, por defecto);
+                                           // Finite = X lineal acotado [0, mundo-viewport] sin guardas;
+                                           // Off = sin scroll X. Ver `AxisPolicy`.
+    AxisPolicy y_mode = AxisPolicy::Off;   // Off = X-only (sin corkscrew); Ring = corkscrew/XY
+                                           // (display_height = viewport_h + 2*tile_height,
+                                           // banda de staging, fill de display_blocks_per_col, split).
     // Parallax por plano (RoboCod): el plano `parallax_plane` (p. ej. 4) scrollea
     // a `1/parallax_div` de la velocidad del resto, leyendo su propio patrón de
     // fondo. 0xff = desactivado.
     u8 parallax_plane = 0xffu;
     u8 parallax_div = 2u;
-    ScrollMode scroll_mode = ScrollMode::EightWay; // especialización del scroll (deriva scroll_y)
+    DirectionPolicy direction = DirectionPolicy::Bidirectional; // política de dirección
     u8 max_step = 1;               // px/frame máximos por eje de AVANCE (salto).
                                    // El algoritmo pinta cada sub-paso de 1 px ANTES de
                                    // avanzar videoposx → nunca revela píxeles sin pintar.
@@ -709,10 +702,8 @@ public:
         if constexpr (Profile::fill_tiles != 0u) {
             m_max_step = static_cast<u8>(Profile::max_step_px(m_cfg.tile_width));
         }
-        // Especialización del scroll: HorizontalOnly no usa banda de staging ni
-        // split (display_height = viewport_h, X-only). Los demás modos conservan
-        // el valor de scroll_y del config.
-        if (m_cfg.scroll_mode == ScrollMode::HorizontalOnly) m_cfg.scroll_y = false;
+        // El eje Y se controla con `y_mode` (Off = X-only, sin banda de staging ni
+        // split).
         if (!valid_config()) return false;
 
         // Derivar bitmap_width si es 0: viewport_w + EXTRAWIDTH según fetch_mode.
@@ -725,7 +716,7 @@ public:
                 const u16 guard_w = static_cast<u16>(Profile::guard_px(m_cfg.tile_width));
                 if (guard_w > extra) extra = guard_w;
             }
-            if (m_cfg.x_mode == AxisMode::Finite && m_cfg.map.width != 0) {
+            if (m_cfg.x_mode == AxisPolicy::Finite && m_cfg.map.width != 0) {
                 const u16 world_w = static_cast<u16>(m_cfg.map.width * m_cfg.tile_width);
                 m_cfg.bitmap_width = static_cast<u16>(world_w + extra);
             } else {
@@ -750,12 +741,12 @@ public:
         // que el alto visible (p. ej. con HUD: visible 208, anillo 256+32=288)
         // para que el walk plane-shifted del scroll horizontal no colisione `mapy`.
         m_display_height = m_cfg.display_height ? m_cfg.display_height : static_cast<u16>(
-            m_cfg.viewport_h + (m_cfg.scroll_y
+            m_cfg.viewport_h + (scroll_y()
                 ? static_cast<u16>(Profile::y_staging_tiles() * m_cfg.tile_height) : 0));
         m_display_planelines = static_cast<u16>(m_display_height * m_cfg.planes);
 
         m_bitmap_height = compute_bitmap_height(
-            m_display_height, m_cfg.tile_height, m_cfg.scroll_y,
+            m_display_height, m_cfg.tile_height, scroll_y(),
             map_w_blocks,
             m_bitmap_blocks_per_row, m_cfg.planes);
         // Altura mínima: max(display_height+1+3, 16*tile_height) para que los
@@ -912,7 +903,7 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
         if (!m_initialized) return false;
         const u16 cols = m_bitmap_blocks_per_row;
         const u16 visibleRows = static_cast<u16>(m_cfg.viewport_h / cth());
-        const u16 colHeight = m_cfg.scroll_y ? m_bitmap_blocks_per_col : visibleRows;
+        const u16 colHeight = scroll_y() ? m_bitmap_blocks_per_col : visibleRows;
         const u16 rows = colHeight;
         for (u16 b = 0; b < rows; ++b) {
             for (u16 a = 0; a < cols; ++a) {
@@ -1302,7 +1293,7 @@ const u16 I = fetch_scroll_pixels(m_cfg.fetch_mode);
         // primera fila de staging por encima de la ventana visible.
         // En X-only (scroll_y=false) videoposy es 0 y no hay offset ni split.
         u16 display_offset = 0;
-        if (m_cfg.scroll_y) {
+        if (scroll_y()) {
 const u16 vy = static_cast<u16>(dmod2(m_scroll.state().videoposy));
         display_offset = static_cast<u16>(dmod1(static_cast<u32>(vy) +
             cth()));
@@ -1315,7 +1306,7 @@ const u16 vy = static_cast<u16>(dmod2(m_scroll.state().videoposy));
         // necesita si esa vuelta cae dentro del viewport (yoffset + VH > DH).
         v.split_line = static_cast<u16>(m_display_height - display_offset);
         // En modo lineal no hay split: el wrap lo resuelve el espejo.
-        v.split_active = !m_linear_display && m_cfg.scroll_y && v.split_line < m_cfg.viewport_h;
+        v.split_active = !m_linear_display && scroll_y() && v.split_line < m_cfg.viewport_h;
         v.split_planeaddy = 0; // fila 0 (los punteros del split solo suman planeaddx)
         // plane_bytes para validación: bytes totales
         v.plane_bytes = static_cast<u32>(m_bytes_per_row * m_bitmap_height * cplanes());
@@ -1404,11 +1395,15 @@ constexpr u16 bitmap_blocks_per_row() const { return m_bitmap_blocks_per_row; }
     }
     constexpr u16 map_wrap_x() const { return m_cfg.map.wrap_x; }
     constexpr u16 map_wrap_y() const { return m_cfg.map.wrap_y; }
-    constexpr bool one_direction() const { return m_cfg.scroll_mode == ScrollMode::OneDirection; }
+    constexpr bool one_direction() const { return m_cfg.direction == DirectionPolicy::OneWay; }
+    /// true = corkscrew/XY: el eje Y usa anillo con banda de staging y split.
+    /// Deriva de `y_mode == Ring`; lo consultan el display y `hardware_view`.
+    constexpr bool scroll_y() const { return m_cfg.y_mode == AxisPolicy::Ring; }
+
     /// Eje X lineal acotado (sin anillo ni bandas de guarda). Lo consulta el
     /// `ScrollEngine` para mover el puntero sin creep.
-    constexpr bool finite_x() const { return m_cfg.x_mode == AxisMode::Finite; }
-constexpr u16 block_planes_lines() const { return m_block_planes_lines; }
+    constexpr bool finite_x() const { return m_cfg.x_mode == AxisPolicy::Finite; }
+    constexpr u16 block_planes_lines() const { return m_block_planes_lines; }
     constexpr bool initialized() const { return m_initialized; }
     constexpr u16 bpl1mod() const { return m_bpl1mod; }
 
@@ -1566,6 +1561,12 @@ public:
         PlayfieldHardwareView view;    // playfield del overlay (canvas)
         eng::PaletteWords palette {};  // paleta del overlay (0..2^planes-1), opcional
         u8 palette_colors = 0;         // nº de colores a emitir (0 = ninguno)
+        // Si el overlay NO comparte geometría con el campo (distinto nº de planos),
+        // esta zona conmuta BPLCON0/BPLCON4/BPLMOD + punteros en un WAIT (MI09). Si
+        // comparte geometría se usa el split de punteros conservador (BitplaneSplit),
+        // que no reprograma BPLCON0/DDF/BPLMOD a mitad de frame.
+        bool use_mode_switch = false;
+        graphics::ModeSwitchZone mode_switch {};
     };
 
     bool compose(const PlayfieldHardwareView& view, const OverlayZone* hud) {
@@ -1706,18 +1707,21 @@ private:
         }
         // El blanking de abajo solo si no estorba con un split en línea alta.
         if (hud != nullptr) {
+            if (hud->use_mode_switch) {
+                // Geometría DISTINTA (p. ej. HUD con menos planos que el campo):
+                // `ModeSwitchZone` reprograma BPLCON0/BPLCON4/BPLCON1/DDF/BPLMOD y
+                // los punteros en un WAIT, en el orden canónico (MI09).
+                sched.emit_mode_switch_zone(hud->mode_switch);
+            } else {
             // Zona HUD como SPLIT DE PUNTEROS con geometría IDÉNTICA al campo
             // corkscrew: en el raster `DIWSTRT_y + view.viewport_h` solo se
             // cambian BPLxPT (+ BPLCON1=0 para anular el fine scroll y, si hay
             // paleta propia, sus colores). El lienzo del HUD COMPARTE el layout
             // del campo (planos, filas de viewport_w + guarda, DDFSTRT y BPLMOD
             // del campo), por lo que NO se reprograman BPLCON0/DDF/BPLMOD a mitad
-            // de frame. Cambiar la geometría de fetch exige reprogramar BPLCON0,
-            // DDF y módulos JUNTOS antes de los punteros: el orden canónico es
-            // `ModeSwitchZone` (demo 113_mode_switch, invariante MI09), y se usará
-            // cuando el HUD tenga su propio número de planos. El split vertical del
-            // corkscrew ya conmuta punteros a mitad de frame con la MISMA geometría
-            // y funciona; esta zona replica ese patrón conmutando al lienzo del HUD.
+            // de frame. El split vertical del corkscrew ya conmuta punteros a mitad
+            // de frame con la MISMA geometría y funciona; esta zona replica ese
+            // patrón conmutando al lienzo del HUD.
             const u16 hud_raster = static_cast<u16>((m_cfg.diwstrt >> 8u) + view.viewport_h);
             sched.wait_line(hud_raster > 0xffu ? 0xffu : static_cast<u8>(hud_raster));
             sched.move(copper::Register::BPLCON1, 0x0000);
@@ -1728,6 +1732,7 @@ private:
             }
             if (!hud->palette.empty()) {
                 sched.emit_palette(hud->palette, 0, hud->palette_colors);
+            }
             }
         } else if (!view.split_active || raster < 0xf8u) {
             sched.wait_line(0xf8);

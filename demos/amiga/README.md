@@ -57,6 +57,10 @@ estructura: `docs/STRUCTURE.md` §4. Clasificación por concepto:
   - `113_mode_switch` — microtest de **`ModeSwitchZone`**: campo de 5 planos + HUD de 2 planos con
     conmutación de geometría a mitad de frame (invariante MI09; verificación
     `tools/analyze/verify-113-mode-switch.mjs`).
+  - `114_mode_switch_bands` — microtest MI09 ampliado: campo de 5 planos + **franjas apiladas de
+    4/3/2 planos** (`verify-114-mode-switch-bands.mjs`).
+  - `115_mode_switch_ehb_hud` — microtest MI09 EHB: campo **EHB** (6 planos) + HUD de 4 planos
+    **sin EHB** (BPLCON4=0 por zona; es el uso real de 201); `verify-115-mode-switch-ehb.mjs`.
 - **Escenas con pipeline de assets (`2xx`)**:
   - `201_ehb_map` — mapa real EHB X-Limited con el pipeline completo.
   - `202_xlimited_dpf` — dual playfield parallax 2:1.

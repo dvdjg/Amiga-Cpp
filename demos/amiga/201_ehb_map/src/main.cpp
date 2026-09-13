@@ -537,8 +537,8 @@ struct DemoGame {
 		scene_cfg.tile_height = kTileHeight;
 		scene_cfg.planes = kPlanes;
 		scene_cfg.fetch_mode = 0;
-		scene_cfg.scroll_y = true;
-		scene_cfg.scroll_mode = eng::field::ScrollMode::EightWay;
+		scene_cfg.y_mode = eng::field::AxisPolicy::Ring;
+		scene_cfg.direction = eng::field::DirectionPolicy::Bidirectional;
 		scene_cfg.linear_display = false; // main=208: el split queda dentro del rango WAIT OCS
 		scene_cfg.max_step = 16;
 		scene_cfg.map.cells = eng::Span<const eng::u16>::from_raw(

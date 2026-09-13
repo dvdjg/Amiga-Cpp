@@ -124,6 +124,11 @@ public:
 
 	[[nodiscard]] constexpr Span<const eng::u8> raw() const noexcept { return m_span; }
 	[[nodiscard]] constexpr const eng::u8* data() const noexcept { return m_span.data(); }
+	/// Dirección DMA-visible del inicio (o de `off`, que puede ser negativo), como
+	/// `ChipAddress`. Simétrico a `Bytes::address`.
+	[[nodiscard]] constexpr ChipAddress address(eng::s32 off = 0) const noexcept {
+		return ChipAddress { reinterpret_cast<eng::uintptr>(m_span.data() + off) };
+	}
 	[[nodiscard]] constexpr size_type size() const noexcept { return m_span.size(); }
 	[[nodiscard]] constexpr bool empty() const noexcept { return m_span.empty(); }
 

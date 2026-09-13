@@ -49,21 +49,25 @@ en el proceso.
 - Añadir a la composición la capacidad de **cambiar la geometría de vídeo en una línea**
   (`BPLCON0`/`DDF`/`BPLxMOD` + punteros) para tramos con distinto número de planos.
 - Caso de uso: juego de 5 planos arriba + HUD de 4/3/2 planos abajo, sin arrastrar la geometría.
-- **Hecho (API + microtest)**: `eng::graphics::ModeSwitchZone` (`mode_switch.hpp`) y
-  `copper::Scheduler::emit_mode_switch_zone` con el orden canónico `BPLCON0`→`BPLCON4`→
-  `DDF`→módulos→`BPLxPT` (HOST-042). Microtest hardware de campo 5 planos + HUD 2 planos:
-  demo `113_mode_switch`, verificación determinista `tools/analyze/verify-113-mode-switch.mjs`
-  y control negativo `-DK_NO_MODE_SWITCH=1`; **MI09 verificado**.
-- Pendiente: integrarlo en la composición (`XlimitedScene`/compositores) para que el HUD
-  anuncie su propio número de planos; mantener el modo conservador
-  `CopperIntentKind::BitplaneSplit` (misma geometría, conmutar punteros/paleta) como opción
-  por defecto cuando las geometrías coinciden.
+- **Hecho (API + microtests + integración)**: `eng::graphics::ModeSwitchZone` (`mode_switch.hpp`)
+  y `copper::Scheduler::emit_mode_switch_zone`, con el orden estricto
+  `BPLCON0`→`DDF`→módulos→`BPLxPT`→(`BPLCON4`/`BPLCON1`/paleta) (HOST-042). Microtests hardware:
+  113 (5→2), 114 (campo 5 + franjas 4/3/2 apiladas) y 115 (EHB 6 → HUD 4 sin EHB); verificación
+  determinista `verify-113/114/115`. **MI09 verificado** (detalle en
+  `amiga-hardware-invariants-microtests.md`).
+- **Integrado en la composición**: `XlimitedOverlayConfig::planes` (0 = hereda el campo) construye
+  el lienzo del HUD con **su propio número de planos**; `XlimitedScene::compose` emite la
+  `ModeSwitchZone` solo cuando difiere del campo y, si coincide, mantiene el split de punteros
+  conservador (`BitplaneSplit`). `XlimitedDisplayComposer::OverlayZone` gana `use_mode_switch` +
+  `mode_switch`. 201 (EHB 6 + HUD 4) usa ya la ruta de geometría.
 
 ### Fase 2 — Algoritmo: estrategias y contrato target/emitter
 - Oficializar `ScrollTarget` (layout del anillo) y `ScrollEmitter` (dibujo + seam) como conceptos.
   **Hecho** (`scroll_engine.hpp`: `ScrollTarget`/`ScrollEmitter`/`ScrollSink`, HOST-036).
-- `RingScroll` con `AxisPolicy` (X/Y/XY) y `DirectionPolicy` (bi/one-way), sustituyendo
-  `ScrollMode`/`AxisMode`.
+- **`AxisPolicy` y `DirectionPolicy` hechos**: `AxisPolicy` (Ring/Finite/Off) sustituye a
+  `AxisMode` en `x_mode`/`y_mode` (el bool `scroll_y` pasa a `y_mode = Ring`), y `DirectionPolicy`
+  (Bidirectional/OneWay) sustituye a `ScrollMode`. Actualizado en `xlimited.hpp`/`xlimited_scene.hpp`
+  y demos 110/111/112/201/202.
 - `FillPolicy` (velocidad) y `GuardPolicy` (ancho de guarda): `Progressive` | `TileBurst<N>` |
   `StripPrerender<C>`; `Progressive` = comportamiento actual. **Hecha la selección estática**
   (`scroll_profile.hpp`: `ScrollProfile`/`ScrollProgressive`/`ScrollFastN`), el avance por tiles
@@ -71,7 +75,8 @@ en el proceso.
   el **avance en ráfaga por X** (`ScrollEngine::burst_right`, equivalente a 1 px); HOST-032/033/034.
   Parked: fusión de tiles en el burst, `StripPrerender`, burst en el resto de sentidos y tear-free.
   Diseño: `FAST_SCROLL.md` §3.1.
-- `BigBufferScroll`: estrategia trivial (solo puntero) para “escena ya dibujada”.
+- **`BigBufferScroll` hecho**: estrategia trivial (offset de cámara acotado/anillo) para "escena ya
+  dibujada"; HOST-044.
 - Mantener `ScrollEngine` como implementación de `RingScroll` (o renombrarlo) sin cambiar su
   aritmética (invariantes §1.2 de `XYLIMITED_ALGORITMO_GENERICO.md`).
 - Verificación: `HOST-023` + `verify-tile-scroll-modes.mjs` + demos 201/202.
@@ -208,7 +213,8 @@ compositores, `tile_scroll.hpp` (103/104) y `TileLayerMap`/`tile_map.hpp`.
 
 - Fase 1: `PlaneView` y `SoftDpfComposition` extraídos (`plane_view.hpp`/`soft_dpf.hpp`,
   HOST-038/039); la demo 112 es el piloto del soft DPF con doble buffer mínimo.
-- Fase 1b: `ModeSwitchZone` implementado y verificado (HOST-042 + demo `113_mode_switch`,
-  MI09); pendiente integrarlo en la composición de capas.
-- Fase 2: `ScrollTarget`/`ScrollEmitter`/`ScrollSink` y `ScrollProfile` hechos (HOST-032/033/
-  034/036); pendiente el vocabulario `AxisPolicy`/`DirectionPolicy` y `BigBufferScroll`.
+- Fase 1b: `ModeSwitchZone` implementado, verificado e **integrado** en la composición (HOST-042 +
+  demos 113/114/115, MI09; `XlimitedOverlayConfig::planes` + `OverlayZone::use_mode_switch`).
+- Fase 2: `ScrollTarget`/`ScrollEmitter`/`ScrollSink`, `ScrollProfile` y el vocabulario
+  `AxisPolicy`/`DirectionPolicy` hechos (HOST-032/033/034/036 y HOST-044 `BigBufferScroll`).
+  Parked: fusión de tiles en el burst, `StripPrerender`, burst en otros sentidos y tear-free.

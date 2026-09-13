@@ -9,12 +9,15 @@
 /// ascendente de `top`; el `Scheduler` los materializa en un único `WAIT` de raster
 /// reprogramando, en este orden canónico:
 ///
-///   BPLCON0 (BPU + bits de modo) -> [BPLCON4] -> DDFSTRT/DDFSTOP
-///     -> BPL1MOD/BPL2MOD -> BPLxPT (par alto/bajo por plano) -> [paleta]
+///   BPLCON0 (BPU + bits de modo) -> DDFSTRT/DDFSTOP -> BPL1MOD/BPL2MOD
+///     -> BPLxPT (par alto/bajo por plano) -> [BPLCON4] -> [BPLCON1] -> [paleta]
 ///
 /// El orden importa: el `DDF` y los módulos deben quedar reprogramados **antes** de
 /// los punteros para que la línea del corte empiece a leer el tramo nuevo con su
-/// geometría. Es el invariante MI09 de
+/// geometría, y los registros de modo que no son geometría (`BPLCON4`/`BPLCON1`)
+/// van **después** de los punteros: intercalarlos entre `BPLCON0` y los punteros
+/// hace que el DMA pierda el último plano del tramo (verificado en WinUAE-DBG con
+/// 4/5 planos; ver `OPTIMIZACION_GPP_68000.md`). Es el invariante MI09 de
 /// `docs/reference/amiga/hardware/amiga-hardware-invariants-microtests.md`.
 ///
 /// La variante que **no** cambia geometría (sólo reapunta planos/paleta manteniendo
@@ -38,13 +41,15 @@ struct ModeSwitchZone {
 	u16 bplcon0 = 0;              // BPU + bits de modo (HIRES/EHB/DBLPF...) del tramo
 	bool set_bplcon4 = false;     // true = emitir BPLCON4 (p. ej. 0 para salir de EHB)
 	u16 bplcon4 = 0;
+	bool set_bplcon1 = false;     // true = emitir BPLCON1 (p. ej. 0 para anular el fino)
+	u16 bplcon1 = 0;
 	u16 ddfstrt = 0;
 	u16 ddfstop = 0;
 	u16 bpl1mod = 0;
 	u16 bpl2mod = 0;
 	u8  planes = 0;               // cuántos BPLxPT reapuntar (0..6)
 	u32 plane_bytes = 0;          // stride entre planos del tramo (bytes)
-	eng::PlaneBytes bitplanes {}; // base del plano 0 del tramo
+	eng::PlaneViewBytes bitplanes {}; // base del plano 0 del tramo (solo lectura)
 	/// Paleta opcional del tramo (HUD con sus propios colores). `palette_colors`
 	/// marca cuántos COLORxx emitir; 0 = no emitir ninguno.
 	eng::PaletteWords palette {};

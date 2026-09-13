@@ -178,8 +178,11 @@ struct XlimitedTileBank {
 /// ESCENA (composición), no en la del playfield.
 struct XlimitedOverlayConfig {
     eng::u16 height = 0;              // 0 = sin overlay. Resta filas al área VISIBLE
-    eng::u8 planes = 4;               //   del campo, pero NO al anillo del scroll.
-    eng::PaletteWords palette {}; // paleta del overlay (0..2^planes-1)
+    eng::u8 planes = 0;               //   del campo, pero NO al anillo del scroll.
+                                      // 0 = hereda `cfg.planes` (misma geometría ->
+                                      // split de punteros conservador). Si != campo, la
+                                      // zona conmuta la geometría (ModeSwitchZone/MI09).
+    eng::PaletteWords palette {};     // paleta del overlay (0..2^planes-1)
 };
 
 /// Composición de DOS playfields (dual playfield / DPF) o de un scroll + un
@@ -267,7 +270,8 @@ struct XlimitedSceneConfigT {
                                      // 1 px (paint-then-advance): nunca a medio pintar.
                                      // (por-playfield se ajusta con
                                      //  XLimitedPlayfield::set_scroll_step)
-    bool scroll_y = true;            // corkscrew: display_height = viewport_h + 2*tile_height
+    eng::field::AxisPolicy y_mode = eng::field::AxisPolicy::Ring; // eje Y: Ring = corkscrew
+                                     // (display_height = viewport_h + 2*tile_height); Off = X-only.
     eng::u16 display_height = 0;     // 0 = auto: viewport_h + 2*tile_height. Override del
                                      // ANILLO vertical (invariante §7 201): puede ser mayor
                                      // que el visible (p. ej. anillo 288 con visible 208) para
@@ -282,8 +286,8 @@ struct XlimitedSceneConfigT {
                                      // field0 (PF1/map) · 2 = lineal solo field1 (PF2/map2).
                                      // El campo lineal (mirror) NO tiene split → su Y es libre;
                                      // el otro conserva el corkscrew (ring + split de Copper).
-    eng::field::ScrollMode scroll_mode = eng::field::ScrollMode::EightWay; // especialización del scroll
-    eng::field::AxisMode x_mode = eng::field::AxisMode::Ring; // eje X: Ring (XLimited) o
+    eng::field::DirectionPolicy direction = eng::field::DirectionPolicy::Bidirectional; // política de dirección
+    eng::field::AxisPolicy x_mode = eng::field::AxisPolicy::Ring; // eje X: Ring (XLimited) o
                                        // Finite (lineal acotado, sin guardas). Para un
                                        // juego de scroll Y largo con X corto (shooter).
     eng::u8 parallax_plane = 0xff;    // plano con parallax (RoboCod); 0xff = off
@@ -322,6 +326,37 @@ using XlimitedSceneConfig = XlimitedSceneConfigT<TileLayerMap>;
 /// `SC` (constantes a priori) se reenvían a los `XLimitedPlayfield<>` y de ahí
 /// al `ScrollEngine`: hacen que las divisiones calientes del scroll usen
 /// `fast_div` (sin `__udivsi3`). `ScrollConsts{}` (default) = geometría runtime.
+/// Construye la `ModeSwitchZone` para un HUD cuya profundidad difiere del campo.
+///
+/// Mantiene el mismo `DDF` (la ventana de fetch no depende del nº de planos) y el
+/// mismo ancho de fila, y recalcula `BPL1/2MOD` para `hud.planes`: como
+/// `field.bpl1mod = row*field_planes - viewport/8 - modulo_offset`, el del HUD es
+/// `field.bpl1mod - row*(field_planes - hud.planes)`. Si el campo es EHB (6 planos)
+/// y el HUD no, emite `BPLCON4=0` para salir del modo half-brite.
+inline graphics::ModeSwitchZone make_hud_mode_switch_zone(
+    const PlayfieldHardwareView& field, const PlayfieldHardwareView& hud,
+    eng::PaletteWords palette) {
+    graphics::ModeSwitchZone z {};
+    z.top = static_cast<eng::u16>((xlimited_detail::kDiwStrt >> 8u) + field.viewport_h);
+    z.bplcon0 = static_cast<eng::u16>(0x0200u | (static_cast<eng::u16>(hud.planes) << 12u));
+    if (field.planes == 6u) { z.set_bplcon4 = true; z.bplcon4 = 0u; } // salir de EHB
+    z.set_bplcon1 = true; z.bplcon1 = 0u;
+    z.ddfstrt = xlimited_detail::kDdfStrt;
+    z.ddfstop = xlimited_detail::kDdfStop;
+    const eng::s32 row = static_cast<eng::s32>(field.bitmap_bytes_per_row);
+    const eng::s32 mod = static_cast<eng::s32>(field.bpl1mod) -
+                         row * static_cast<eng::s32>(field.planes) +
+                         row * static_cast<eng::s32>(hud.planes);
+    z.bpl1mod = static_cast<eng::u16>(mod);
+    z.bpl2mod = z.bpl1mod;
+    z.planes = hud.planes;
+    z.plane_bytes = field.bitmap_bytes_per_row; // interleaved: plano p a base + p*row
+    z.bitplanes = eng::PlaneViewBytes { hud.real_base, hud.plane_bytes };
+    z.palette = palette;
+    z.palette_colors = static_cast<eng::u8>(1u << hud.planes);
+    return z;
+}
+
 template <ScrollConsts SC = ScrollConsts{}, class MapT = TileLayerMap, class Profile = ScrollProgressive>
 class XlimitedScene {
 public:
@@ -341,20 +376,23 @@ public:
         // ser <= 255. Con HUD la ventana DIW queda abierta al total (main + hud).
         const eng::u16 main_h = static_cast<eng::u16>(cfg.viewport_h - cfg.hud.height);
         const bool hud_zone = cfg.hud.height != 0;
+        const eng::u8 hud_planes = cfg.hud.planes != 0u ? cfg.hud.planes : cfg.planes;
         if (hud_zone) {
             if (cfg.hud.height > cfg.viewport_h) return false;
+            if (hud_planes == 0u || hud_planes > 6u) return false;
             if (static_cast<eng::u16>(xlimited_detail::kDiwStrt >> 8u) + main_h > 255u) return false;
             // El lienzo del HUD se reserva con el layout de DISPLAY del campo
-            // corkscrew (misma profundidad `cfg.planes` y filas de viewport_w +
-            // guarda de fetch), para que la zona overlay del Copper solo conmute
-            // BPLxPT a mitad de frame sin reprogramar BPLCON0/DDF/BPLMOD (ver
+            // corkscrew (filas de viewport_w + guarda de fetch) pero con SU propia
+            // profundidad `hud_planes`. Si coincide con el campo, la zona overlay
+            // solo conmuta BPLxPT; si difiere, el compositor emite una
+            // `ModeSwitchZone` que reprograma BPLCON0/BPLMOD (ver
             // XlimitedDisplayComposer::emit_full). La guarda izquierda de fetch
             // (16 px con fetch normal) queda fuera de la ventana visible; el HUD
             // dibuja su contenido desplazado esa guarda.
             const eng::u16 hud_w = static_cast<eng::u16>(
                 cfg.viewport_w + (cfg.fetch_mode == 0u ? xlimited_detail::kExtraW32
                                                        : xlimited_detail::kExtraW64));
-            if (!m_hud.begin(memory, {hud_w, cfg.hud.height, cfg.planes})) return false;
+            if (!m_hud.begin(memory, {hud_w, cfg.hud.height, hud_planes})) return false;
         }
         const eng::u8 n = static_cast<eng::u8>(cfg.dpf.enabled && !cfg.dpf.fg_canvas ? 2 : 1);
         const eng::u16 tw = cfg.tile_width, th = cfg.tile_height;
@@ -407,8 +445,8 @@ public:
                 : static_cast<eng::u16>(cfg.viewport_h + Profile::y_staging_tiles() * th);
             fc.screens_x = 16;
             fc.screens_y = 16;
-            fc.scroll_y = cfg.scroll_y;
-            fc.scroll_mode = cfg.scroll_mode;
+            fc.y_mode = cfg.y_mode;
+            fc.direction = cfg.direction;
             fc.x_mode = cfg.x_mode;
             fc.parallax_plane = cfg.parallax_plane;
             fc.parallax_div = cfg.parallax_div;
@@ -466,7 +504,7 @@ public:
             plan.clear();
             plan.set_blit_budget_limits({8192, 16384, 4, 120});
             const eng::u16 cols = m_field[pf].bitmap_blocks_per_row();
-            const eng::u16 rows = m_cfg.scroll_y ? m_field[pf].display_blocks_per_col()
+            const eng::u16 rows = eng::field::AxisPolicy::Ring == m_cfg.y_mode ? m_field[pf].display_blocks_per_col()
                 : static_cast<eng::u16>(m_cfg.viewport_h / m_cfg.tile_height);
             for (eng::u16 b = 0; b < rows; ++b) {
                 for (eng::u16 a = 0; a < cols; ++a) {
@@ -596,12 +634,18 @@ public:
             return m_dual.compose(m_field[0].hardware_view(), m_field[1].hardware_view());
         }
         if (m_cfg.hud.height != 0) {
-            const XlimitedDisplayComposer::OverlayZone hud {
-                m_hud.hardware_view(),
+            const PlayfieldHardwareView field_view = m_field[0].hardware_view();
+            const PlayfieldHardwareView hud_view = m_hud.hardware_view();
+            XlimitedDisplayComposer::OverlayZone hud {
+                hud_view,
                 m_cfg.hud.palette,
-                static_cast<eng::u8>(1u << m_cfg.hud.planes),
+                static_cast<eng::u8>(1u << hud_view.planes),
             };
-            return m_single.compose(m_field[0].hardware_view(), &hud);
+            if (hud_view.planes != field_view.planes) {
+                hud.use_mode_switch = true;
+                hud.mode_switch = make_hud_mode_switch_zone(field_view, hud_view, m_cfg.hud.palette);
+            }
+            return m_single.compose(field_view, &hud);
         }
         return m_single.compose(m_field[0].hardware_view());
     }

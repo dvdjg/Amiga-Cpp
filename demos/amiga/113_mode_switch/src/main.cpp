@@ -118,7 +118,7 @@ struct DemoGame {
 		zone.bpl2mod = 0x0000u;
 		zone.planes = hud_planes_count;
 		zone.plane_bytes = plane_bytes;
-		zone.bitplanes = eng::PlaneBytes { planes + hud_off, static_cast<eng::usize>(hud_planes_count) * plane_bytes };
+		zone.bitplanes = eng::PlaneViewBytes { planes + hud_off, static_cast<eng::usize>(hud_planes_count) * plane_bytes };
 		zone.palette = eng::PaletteWords { hud_palette, 4u };
 		zone.palette_colors = 4u;
 		zone_ok = sched.emit_mode_switch_zone(zone);

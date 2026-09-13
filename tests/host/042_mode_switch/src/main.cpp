@@ -56,7 +56,9 @@ int main() {
 	zone.bpl2mod = 0x0000u;
 	zone.planes = 2u;
 	zone.plane_bytes = 40u;
-	zone.bitplanes = eng::PlaneBytes { g_planes, sizeof(g_planes) };
+	zone.bitplanes = eng::PlaneViewBytes { g_planes, sizeof(g_planes) };
+	zone.set_bplcon1 = true;
+	zone.bplcon1 = 0x0000u;
 	zone.palette = eng::PaletteWords { g_pal, 2u };
 	zone.palette_colors = 2u;
 
@@ -68,10 +70,8 @@ int main() {
 	// WAIT de la linea del corte (mascara V-only 0xff00).
 	check(w[i] == 0x5001u && w[i + 1u] == 0xff00u, "WAIT top");
 	i = static_cast<u16>(i + 2u);
-	// BPLCON0, luego BPLCON4.
+	// BPLCON0 primero.
 	check(w[i] == static_cast<u16>(Register::BPLCON0) && w[i + 1u] == 0x2200u, "BPLCON0");
-	i = static_cast<u16>(i + 2u);
-	check(w[i] == static_cast<u16>(Register::BPLCON4) && w[i + 1u] == 0x0000u, "BPLCON4");
 	i = static_cast<u16>(i + 2u);
 	// DDF antes que modulos.
 	check(w[i] == static_cast<u16>(Register::DDFSTRT) && w[i + 1u] == 0x0038u, "DDFSTRT");
@@ -92,13 +92,19 @@ int main() {
 	i = static_cast<u16>(i + 2u);
 	check(w[i] == static_cast<u16>(Register::BPL2PTL) && w[i + 1u] == lo(base + 40u), "BPL2PTL");
 	i = static_cast<u16>(i + 2u);
+	// Modo (BPLCON4/BPLCON1) DESPUES de los punteros: no intercalarlo en la
+	// geometria (el DMA perderia el ultimo plano; ver scheduler.hpp).
+	check(w[i] == static_cast<u16>(Register::BPLCON4) && w[i + 1u] == 0x0000u, "BPLCON4 tras punteros");
+	i = static_cast<u16>(i + 2u);
+	check(w[i] == static_cast<u16>(Register::BPLCON1) && w[i + 1u] == 0x0000u, "BPLCON1 tras punteros");
+	i = static_cast<u16>(i + 2u);
 	// Paleta al final.
 	check(w[i] == static_cast<u16>(Register::COLOR00) && w[i + 1u] == 0x0f00u, "COLOR00");
 	i = static_cast<u16>(i + 2u);
 	check(w[i] == 0x0182u && w[i + 1u] == 0x00f0u, "COLOR01");
 
 	const auto& rep = sched.report();
-	check(rep.display_moves == 10u, "display_moves = 6 + 2*2");
+	check(rep.display_moves == 11u, "display_moves = 7 + 2*2");
 	check(rep.palette_moves == 2u, "palette_moves = 2");
 	check(rep.waits == 1u, "un WAIT");
 

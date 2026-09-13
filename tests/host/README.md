@@ -84,3 +84,4 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-041 | [block](041_block/README.md) | `Block<Tag>`: reserva de arena tipada (`LinearArena::allocate_block`, `MemoryBlock::block`); dominios no intercambiables. |
 | HOST-042 | [mode_switch](042_mode_switch/README.md) | `ModeSwitchZone`: conmutación de geometría de vídeo a mitad de frame con el orden canónico MI09 (`BPLCON0`→`DDF`→mods→`BPLxPT`). |
 | HOST-043 | [xlimited_tile_bank](043_xlimited_tile_bank/README.md) | `XlimitedTileBank`: banco de bloques propio o aliaseado (vista + `MemoryKind`); `Block<Tag>` propaga el `kind` de la reserva. |
+| HOST-044 | [big_buffer_scroll](044_big_buffer_scroll/README.md) | `BigBufferScroll`: estrategia de scroll trivial (offset de cámara acotado / anillo); contraste con `ScrollEngine`. |

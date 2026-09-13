@@ -4,12 +4,12 @@
 //
 // Escenario: mundo 4096 px de ancho x 320 px de alto, tiles 16x16 -> 256x20
 // celdas, tileset de 128 tiles. Es un X-limited: la camara avanza en X (scroll
-// largo, anillo XLimited) y el Y es CORTO (aqui fijo, `scroll_y=false`, mundo de
+// largo, anillo XLimited) y el Y es CORTO (aqui fijo, `y_mode = Off`, mundo de
 // 320 px con ventana de 256 -> 64 px de recorrido vertical potencial). Coste de
 // Blitter proporcional al salto; framebuffer acotado.
 //
-//   X: AxisMode::Ring   (XLimited, anillo con banda entrante)
-//   Y: scroll_y = false (sin corkscrew; el Y del mundo cabe casi entero)
+//   X: AxisPolicy::Ring   (XLimited, anillo con banda entrante)
+//   Y: y_mode = Off       (sin corkscrew; el Y del mundo cabe casi entero)
 //
 // DPF: BG = tilemap XLimited (PF1) + FG = lienzo plano de objetos (PF2, delante).
 
@@ -49,7 +49,7 @@ constexpr eng::u16 kTileH = 16;
 constexpr eng::u16 kViewportW = 320;
 constexpr eng::u16 kViewportH = 256;
 constexpr eng::u8  kPlanes = 3;            // DPF 3+3
-constexpr eng::u16 kDisplayH = 256;        // scroll_y=false -> display = viewport
+constexpr eng::u16 kDisplayH = 256;        // y_mode=Off -> display = viewport
 
 // Mundo: 4096 x 320 px -> 256 x 20 tiles.
 constexpr eng::u16 kMapCols = 256;
@@ -157,8 +157,8 @@ struct DemoGame {
 		scene_cfg.tile_height = kTileH;
 		scene_cfg.planes = kPlanes;
 		scene_cfg.fetch_mode = 0;
-		scene_cfg.scroll_y = false;                                 // X-limited (Y fijo)
-		scene_cfg.scroll_mode = eng::field::ScrollMode::EightWay;
+		scene_cfg.y_mode = eng::field::AxisPolicy::Off;                                 // X-limited (Y fijo)
+		scene_cfg.direction = eng::field::DirectionPolicy::Bidirectional;
 		scene_cfg.display_height = kDisplayH;
 		scene_cfg.max_step = 4;
 

@@ -181,9 +181,9 @@ struct DemoGame {
 		scene_cfg.tile_height = kTileH;
 		scene_cfg.planes = kPlanes;
 		scene_cfg.fetch_mode = 0;
-		scene_cfg.scroll_y = true;                                  // corkscrew (Y)
-		scene_cfg.x_mode = eng::field::AxisMode::Finite;            // X lineal acotado
-		scene_cfg.scroll_mode = eng::field::ScrollMode::EightWay;
+		scene_cfg.y_mode = eng::field::AxisPolicy::Ring;                                  // corkscrew (Y)
+		scene_cfg.x_mode = eng::field::AxisPolicy::Finite;            // X lineal acotado
+		scene_cfg.direction = eng::field::DirectionPolicy::Bidirectional;
 		scene_cfg.display_height = kDisplayH;
 		scene_cfg.max_step = 4;
 		scene_cfg.parallax_plane = kParallaxPlane;                  // plano de fondo RoboCod

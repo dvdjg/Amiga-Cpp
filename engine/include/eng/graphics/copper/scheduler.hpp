@@ -144,8 +144,9 @@ public:
 	/// Emite una zona de conmutación de geometría (`ModeSwitchZone`).
 	///
 	/// En el WAIT de `zone.top` reprograma, en orden canónico MI09:
-	/// `BPLCON0` -> `BPLCON4` (opcional) -> `DDFSTRT`/`DDFSTOP` ->
-	/// `BPL1MOD`/`BPL2MOD` -> `BPLxPT` (par por plano) -> paleta (opcional).
+	/// `BPLCON0` -> `DDFSTRT`/`DDFSTOP` -> `BPL1MOD`/`BPL2MOD` -> `BPLxPT` (par por
+	/// plano) -> `BPLCON4`/`BPLCON1` (opcionales) -> paleta (opcional). Los registros
+	/// de modo van DESPUÉS de los punteros (intercalarlos pierde el último plano).
 	/// Devuelve `false` si la zona no es utilizable (DDF desalineado, planos fuera de
 	/// rango o falta la base cuando `planes > 0`); en ese caso no emite nada.
 	bool emit_mode_switch_zone(const graphics::ModeSwitchZone& zone) {
@@ -157,9 +158,6 @@ public:
 		}
 		wait_line_safe(zone.top);
 		move(Register::BPLCON0, zone.bplcon0);
-		if (zone.set_bplcon4) {
-			move(Register::BPLCON4, zone.bplcon4);
-		}
 		move(Register::DDFSTRT, zone.ddfstrt);
 		move(Register::DDFSTOP, zone.ddfstop);
 		move(Register::BPL1MOD, zone.bpl1mod);
@@ -171,6 +169,17 @@ public:
 					static_cast<eng::s32>(static_cast<eng::u32>(p) * zone.plane_bytes)
 				)
 			);
+		}
+		// Las escrituras de modo que NO son geometría (BPLCON4, BPLCON1) van DESPUES
+		// de los punteros: intercalarlas entre BPLCON0 y DDF/módulos/punteros hace
+		// que el DMA pierda el ultimo plano del tramo (verificado en WinUAE-DBG con
+		// 4/5 planos; ver OPTIMIZACION_GPP_68000.md). Orden canónico estricto:
+		// BPLCON0 -> DDF -> módulos -> BPLxPT -> (modo/paleta).
+		if (zone.set_bplcon4) {
+			move(Register::BPLCON4, zone.bplcon4);
+		}
+		if (zone.set_bplcon1) {
+			move(Register::BPLCON1, zone.bplcon1);
 		}
 		if (!zone.palette.empty() && zone.palette_colors != 0u) {
 			emit_palette(zone.palette, 0, zone.palette_colors);

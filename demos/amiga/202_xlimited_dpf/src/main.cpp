@@ -192,9 +192,9 @@ struct DemoGame {
 		scene_cfg.tile_height = static_cast<eng::u16>(kTileH);
 		scene_cfg.planes = kPlanes;
 		scene_cfg.fetch_mode = 0;
-		scene_cfg.scroll_y = true;
+		scene_cfg.y_mode = eng::field::AxisPolicy::Ring;
 		scene_cfg.display_height = static_cast<eng::u16>(kDisplayH); // anillo 288 (visible 208)
-		scene_cfg.scroll_mode = eng::field::ScrollMode::EightWay;
+		scene_cfg.direction = eng::field::DirectionPolicy::Bidirectional;
 		scene_cfg.linear_display = false; // viewport 208 → split canónico (sin espejo)
 		// DPF MIXTO (defecto): el FG (field0/PF1) en lineal/mirror (sin split,
 		// Y libre) y el BG (field1/PF2, el mapa real) conserva el corkscrew+split.
