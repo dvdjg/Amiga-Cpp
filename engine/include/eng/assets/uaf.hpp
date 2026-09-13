@@ -18,6 +18,7 @@
 /// Endianness: el blob está en **big-endian** (nativo m68k). Los lectores `read_be16/32`
 /// funcionan igual en host (x86) que en Amiga.
 
+#include <eng/core/domains.hpp>
 #include <eng/core/fast_div.hpp>
 #include <eng/core/math3d.hpp>
 #include <eng/core/span.hpp>
@@ -89,7 +90,7 @@ constexpr void write_be32(u8* p, u32 v) {
 class Reader {
 public:
 	constexpr Reader() = default;
-	explicit constexpr Reader(Span<const u8> data) : m_data(data) {}
+	explicit constexpr Reader(eng::UafPayload data) : m_data(data.raw()) {}
 
 	constexpr bool ok() const { return m_ok; }
 	constexpr u32 position() const { return m_pos; }
@@ -138,8 +139,8 @@ public:
 	static constexpr u32 kMaxChunks = 32;
 
 	/// Valida el header y recorre los chunks. Devuelve true si el blob es válido.
-	bool bind(Span<const u8> blob) {
-		m_blob = blob;
+	bool bind(eng::UafPayload blob) {
+		m_blob = blob.raw();
 		m_count = 0;
 		m_ok = false;
 		if (blob.data() == nullptr || blob.size() < kContainerHeaderSize) {
@@ -178,10 +179,10 @@ public:
 	constexpr bool ok() const { return m_ok; }
 	constexpr u32 chunk_count() const { return m_count; }
 	constexpr const ChunkRef& chunk(u32 i) const { return m_chunks[i]; }
-	constexpr Span<const u8> blob() const { return m_blob; }
+	constexpr eng::UafPayload blob() const { return eng::UafPayload { m_blob.data(), m_blob.size() }; }
 
 	/// Datos de un chunk (vacío si el índice no es válido).
-	Span<const u8> data(u32 i) const {
+	eng::UafPayload data(u32 i) const {
 		if (i >= m_count) {
 			return {};
 		}
@@ -211,7 +212,7 @@ private:
 class PaletteView {
 public:
 	constexpr PaletteView() = default;
-	explicit constexpr PaletteView(Span<const u8> bytes) : m_bytes(bytes) {}
+	explicit constexpr PaletteView(eng::UafPayload bytes) : m_bytes(bytes.raw()) {}
 	constexpr u32 count() const { return static_cast<u32>(m_bytes.size() / 2u); }
 	constexpr bool valid() const { return (m_bytes.size() & 1u) == 0u; }
 	/// Color `i` en RGB444 (big-endian; válido en host y m68k).
@@ -226,7 +227,7 @@ private:
 class SampleView {
 public:
 	constexpr SampleView() = default;
-	explicit constexpr SampleView(Span<const u8> bytes) : m_bytes(bytes) {}
+	explicit constexpr SampleView(eng::UafPayload bytes) : m_bytes(bytes.raw()) {}
 	constexpr u32 size() const { return static_cast<u32>(m_bytes.size()); }
 	constexpr bool empty() const { return m_bytes.size() == 0u; }
 	constexpr Span<const u8> bytes() const { return m_bytes; }
@@ -245,7 +246,7 @@ private:
 /// lista para inicializar un `gfx::Bitmap`.
 class BitplanesView {
 public:
-	bool read(Span<const u8> bytes) {
+	bool read(eng::UafPayload bytes) {
 		Reader r {bytes};
 		m_width = r.read_u16();
 		m_height = r.read_u16();
@@ -281,7 +282,7 @@ private:
 class StringsView {
 public:
 	constexpr StringsView() = default;
-	explicit constexpr StringsView(Span<const u8> bytes) : m_bytes(bytes) {}
+	explicit constexpr StringsView(eng::UafPayload bytes) : m_bytes(bytes.raw()) {}
 
 	/// Nº de cadenas (cada NUL cierra una).
 	u32 count() const {
@@ -323,7 +324,7 @@ private:
 class TilesView {
 public:
 	constexpr TilesView() = default;
-	constexpr TilesView(Span<const u8> bytes, u16 tile_bytes) : m_bytes(bytes), m_tile(tile_bytes) {}
+	constexpr TilesView(eng::UafPayload bytes, u16 tile_bytes) : m_bytes(bytes.raw()), m_tile(tile_bytes) {}
 
 	constexpr u32 count() const {
 		return m_tile == 0u ? 0u : static_cast<u32>(m_bytes.size()) / m_tile;
@@ -346,7 +347,7 @@ private:
 class SpritesView {
 public:
 	constexpr SpritesView() = default;
-	explicit constexpr SpritesView(Span<const u8> bytes) : m_bytes(bytes) {}
+	explicit constexpr SpritesView(eng::UafPayload bytes) : m_bytes(bytes.raw()) {}
 
 	u16 words_per_sprite() const {
 		return m_bytes.size() >= 2u ? read_be16(m_bytes.data()) : 0u;
@@ -375,7 +376,7 @@ private:
 class CopperView {
 public:
 	constexpr CopperView() = default;
-	explicit constexpr CopperView(Span<const u8> bytes) : m_bytes(bytes) {}
+	explicit constexpr CopperView(eng::UafPayload bytes) : m_bytes(bytes.raw()) {}
 
 	constexpr u32 count() const { return static_cast<u32>(m_bytes.size()) / 2u; }
 	u16 word(u32 i) const {
@@ -398,7 +399,7 @@ private:
 class MeshAssetView {
 public:
 	constexpr MeshAssetView() = default;
-	explicit constexpr MeshAssetView(Span<const u8> bytes) : m_bytes(bytes) {}
+	explicit constexpr MeshAssetView(eng::UafPayload bytes) : m_bytes(bytes.raw()) {}
 
 	u32 vertex_count() const {
 		return m_bytes.size() >= 2u ? read_be16(m_bytes.data()) : 0u;
@@ -453,8 +454,8 @@ public:
 		u16 type = 0, x = 0, y = 0, a = 0, b = 0, c = 0;
 	};
 
-	bool read(Span<const u8> bytes) {
-		m_bytes = bytes;
+	bool read(eng::UafPayload bytes) {
+		m_bytes = bytes.raw();
 		m_ok = false;
 		m_layers = 0;
 		if (bytes.data() == nullptr || bytes.size() < kHeaderSize) return false;
@@ -650,7 +651,7 @@ public:
 	}
 
 	/// Añade un chunk (los datos se rellenan a múltiplo de 4).
-	bool add_chunk(ChunkType type, u16 count, Span<const u8> data) {
+	bool add_chunk(ChunkType type, u16 count, eng::UafPayload data) {
 		if (!m_ok) {
 			return false;
 		}
@@ -678,7 +679,7 @@ public:
 	}
 
 	/// Fija el nº de chunks y devuelve la vista escrita.
-	Span<const u8> finish() {
+	eng::UafPayload finish() {
 		if (!m_ok) {
 			return {};
 		}

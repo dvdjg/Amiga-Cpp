@@ -64,7 +64,7 @@ int main() {
 	eng::u8 buf[1200] {};
 	build_world(buf, sizeof(buf));
 	WorldView w {};
-	check(w.read(eng::Span<const u8>(buf, kTotal)), "read WorldMap");
+	check(w.read(eng::UafPayload(buf, kTotal)), "read WorldMap");
 
 	// 1) Capa entera residente como TileMap.
 	eng::field::WorldLayerSource ws {};

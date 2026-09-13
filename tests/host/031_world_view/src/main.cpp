@@ -93,7 +93,7 @@ int main() {
 	write_be16(buf + kMeta1 + 10u, 5u);
 
 	WorldView w {};
-	check(w.read(eng::Span<const u8>(buf, kTotal)), "read valido");
+	check(w.read(eng::UafPayload(buf, kTotal)), "read valido");
 	check(w.valid() && w.version() == 1u, "version");
 	check(w.chunk_log2() == 2u && w.chunk_size() == 4u && w.chunk_cell_count() == 16u,
 	      "geometria de chunk");
@@ -126,15 +126,15 @@ int main() {
 	check(w.meta_entry(1, 5).type == 0u, "meta fuera de rango");
 
 	// Validacion: payload corto y version invalida.
-	check(!WorldView {}.read(eng::Span<const u8>(buf, 10u)), "payload corto");
+	check(!WorldView {}.read(eng::UafPayload(buf, 10u)), "payload corto");
 	eng::u8 bad[256] {};
 	for (u32 i = 0; i < kTotal; ++i) bad[i] = buf[i];
 	write_be16(bad + 0u, 2u); // version 2
-	check(!WorldView {}.read(eng::Span<const u8>(bad, kTotal)), "version invalida");
+	check(!WorldView {}.read(eng::UafPayload(bad, kTotal)), "version invalida");
 	// cells_off fuera de rango en la capa 1.
 	for (u32 i = 0; i < kTotal; ++i) bad[i] = buf[i];
 	write_be32(bad + kDesc1 + 24u, 0xFFFFu);
-	check(!WorldView {}.read(eng::Span<const u8>(bad, kTotal)), "cells_off fuera de rango");
+	check(!WorldView {}.read(eng::UafPayload(bad, kTotal)), "cells_off fuera de rango");
 
 	if (g_fail != 0) { std::printf("%d fallo(s)\n", g_fail); return 1; }
 	std::printf("OK: WorldView (chunks, wrap, ausentes, meta y validacion) validado.\n");

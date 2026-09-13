@@ -59,9 +59,9 @@ int main() {
 	u8 blob_buf[1024] {};
 	BlobWriter writer {eng::Span<u8>(blob_buf, sizeof(blob_buf))};
 	check(writer.begin(), "BlobWriter::begin");
-	check(writer.add_chunk(ChunkType::WorldMap, 1u, eng::Span<const u8>(world, kWorld)),
+	check(writer.add_chunk(ChunkType::WorldMap, 1u, eng::UafPayload(world, kWorld)),
 	      "add_chunk WorldMap");
-	const eng::Span<const u8> out = writer.finish();
+	const eng::UafPayload out = writer.finish();
 	check(out.size() == writer.size() && out.size() > kWorld, "finish");
 
 	// Valida el contenedor y localiza el chunk.
@@ -75,7 +75,7 @@ int main() {
 	check(blob.find(ChunkType::WorldMap) != nullptr, "Blob::find WorldMap");
 
 	// Lee el mundo desde el chunk.
-	const eng::Span<const u8> data = blob.data(idx);
+	const eng::UafPayload data = blob.data(idx);
 	check(data.size() == kWorld, "tamano del payload");
 	WorldView world_view {};
 	check(world_view.read(data) && world_view.valid(), "WorldView::read desde UAF-R");

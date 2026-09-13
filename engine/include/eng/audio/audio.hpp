@@ -12,13 +12,14 @@
 ///
 /// Es puro (solo `eng::core`): host-testable. Sin heap, sin RTTI.
 
+#include <eng/core/domains.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::audio {
 
 /// Evento de sonido (sfx): reproduce una muestra en un canal de Paula.
 struct SampleEvent {
-	const u8* sample = nullptr;   // puntero a la muestra (Chip RAM)
+	eng::AudioSample sample {};   // muestra 8-bit (Chip RAM) con su tamaño
 	u16 length_words = 0;         // longitud en palabras
 	u16 period = 0;               // período de Paula (determina la frecuencia)
 	u8  volume = 0;               // 0..64
@@ -27,7 +28,7 @@ struct SampleEvent {
 
 /// Evento de música (tracker): reproducir o parar un módulo.
 struct MusicEvent {
-	const void* module = nullptr; // módulo del tracker (p61/pt/ahx)
+	eng::MusicModule module {};   // módulo del tracker (p61/pt/ahx)
 	bool play = false;
 	bool stop = false;
 };
@@ -35,7 +36,7 @@ struct MusicEvent {
 /// Plan de audio compilado: el estado de los 4 canales de Paula.
 struct AudioPlan {
 	struct Channel {
-		const u8* sample = nullptr;
+		eng::AudioSample sample {};
 		u16 length_words = 0;
 		u16 period = 0;
 		u8  volume = 0;
@@ -61,7 +62,7 @@ public:
 	/// Añade un sfx al plan: usa el `channel_hint` si es válido, si no el primer
 	/// canal libre. Devuelve `true` si cupo (falso si los 4 canales están ocupados).
 	bool play(const SampleEvent& ev) {
-		if (ev.sample == nullptr || ev.length_words == 0) {
+		if (ev.sample.empty() || ev.length_words == 0) {
 			return false;
 		}
 		u8 channel = ev.channel_hint;

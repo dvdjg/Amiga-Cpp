@@ -46,7 +46,7 @@ public:
 				set_volume(c, 0u);
 				continue;
 			}
-			set_pointer(c, ch.sample);
+			set_pointer(c, ch.sample.data());
 			set_length(c, ch.length_words);
 			set_volume(c, ch.volume);
 			set_period(c, ch.period);

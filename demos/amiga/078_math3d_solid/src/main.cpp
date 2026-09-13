@@ -408,8 +408,8 @@ private:
 	/// `MeshAssetView` -> copia a buffers del llamador -> `MeshView`. Es el mismo
 	/// camino que usaria cualquier asset cocinado (sin parsing pesado en Amiga).
 	bool load_mesh() {
-		const eng::Span<const eng::u8> bytes(reinterpret_cast<const eng::u8*>(g_cube_uafr),
-						     static_cast<eng::u32>(g_cube_uafr_end - g_cube_uafr));
+		const eng::UafPayload bytes {reinterpret_cast<const eng::u8*>(g_cube_uafr),
+		                             static_cast<eng::u32>(g_cube_uafr_end - g_cube_uafr)};
 		eng::assets::Blob blob;
 		if (!blob.bind(bytes)) {
 			return false;
