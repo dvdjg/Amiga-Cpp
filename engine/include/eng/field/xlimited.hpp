@@ -347,6 +347,94 @@ constexpr s32 fixed_bg_offset_px(s32 camx, u16 period_px) {
     return off;
 }
 
+/// Descomposición del blit de fondo en **1 o 2 rectángulos** para compensar el
+/// Copper split vertical del corkscrew (ver `robocod-layered-scroll.md` §3.1).
+///
+/// La ventana visible (`viewport_h` filas) es un solo tramo del bitmap si
+/// `d + viewport_h <= display_h` (d = `display_offset`); si no, son DOS tramos: el
+/// superior `[d, display_h)` y el inferior `[0, viewport_h - split)` con
+/// `split = display_h - d`. El fondo se muestrea SIEMPRE en filas contiguas
+/// `[bg_y, bg_y + viewport_h)`, repartidas entre los dos tramos, de forma que el
+/// corte queda sin costura.
+///
+///   sin split:  rect0 = { dest_row=d,         src_y=bg_y,         rows=viewport_h }
+///   con split:  rect0 = { dest_row=d,         src_y=bg_y,         rows=split      }
+///               rect1 = { dest_row=0,         src_y=bg_y+split,   rows=viewport_h-split }
+///
+/// El llamador envuelve `src_y` en el patrón; `count` dice cuántos rectángulos usar.
+struct BgSplitRects {
+    u16 dest_row[2] = {0u, 0u};
+    u16 src_y[2] = {0u, 0u};
+    u16 rows[2] = {0u, 0u};
+    u8 count = 1u;
+};
+
+constexpr BgSplitRects bg_split_rects(u16 d, u16 display_h, u16 viewport_h, u16 bg_y) {
+    BgSplitRects r {};
+    if (display_h == 0u || viewport_h == 0u) { r.count = 0u; return r; }
+    d = static_cast<u16>(d % display_h);
+    const u16 split = static_cast<u16>(display_h - d);   // > 0 (d < display_h)
+    if (split >= viewport_h) {
+        r.dest_row[0] = d;
+        r.src_y[0] = bg_y;
+        r.rows[0] = viewport_h;
+        r.count = 1u;
+    } else {
+        r.dest_row[0] = d;
+        r.src_y[0] = bg_y;
+        r.rows[0] = split;
+        r.dest_row[1] = 0u;
+        r.src_y[1] = static_cast<u16>(bg_y + split);
+        r.rows[1] = static_cast<u16>(viewport_h - split);
+        r.count = 2u;
+    }
+    return r;
+}
+
+/// Reparto de un offset horizontal (en píxeles) al **barrel shifter** del Blitter.
+/// Geometría AHRM 6 (modo ascendente): `destino[d] = patrón[q + d - S]`; para que
+/// `destino[0]` lea el píxel `src_x` se apunta el canal A a la word `q = src_x + S`
+/// con `S = (-src_x) & 15`. Devuelve el offset en bytes de esa word (múltiplo de 2)
+/// y `S`; `word_bytes` es lo que consume `make_bg_plane_copy_rect_job`.
+struct BgShift {
+    u16 word_bytes = 0;   // offset en bytes de la word donde apuntar el canal A
+    u8 shift = 0;         // 0..15
+};
+
+constexpr BgShift bg_shift_for(u16 src_x_pixels) {
+    const u16 s = static_cast<u16>((16u - (src_x_pixels & 15u)) & 15u);
+    const u16 q = static_cast<u16>(src_x_pixels + s);
+    return { static_cast<u16>((q / 16u) * 2u), static_cast<u8>(s) };
+}
+
+/// Ventana horizontal del blit de fondo: en vez de copiar la fila completa, copia
+/// solo lo que el display puede leer + 1 word de guarda. El display fetcha
+/// `fetch_bytes` desde `planeaddx = ceil(camx/16)*2`; el blit cubre
+/// `[planeaddx - 2, planeaddx + fetch_bytes)` empezando en `dest_byte_off` con
+/// `words` words. `src_x` es el píxel de patrón que debe verse en el píxel 0 del
+/// blit, de forma que la imagen quede FIJA: `src_x = dest_pixel0 - camx (mod P)`.
+/// La guarda del barrel shifter (<=15 px) cae justo antes de `camx` (no visible).
+struct BgWindow {
+    u16 dest_byte_off = 0;
+    u16 words = 0;
+    u16 src_x = 0;
+};
+
+constexpr BgWindow bg_window_for(s32 camx, u16 period_px, u16 fetch_bytes) {
+    BgWindow w {};
+    if (period_px == 0u || fetch_bytes < 2u) return w;
+    const u16 pa = static_cast<u16>(((camx + 15) / 16) * 2); // planeaddx (bytes)
+    const u16 dest = pa >= 2u ? static_cast<u16>(pa - 2u) : 0u;
+    w.dest_byte_off = dest;
+    w.words = static_cast<u16>((pa + fetch_bytes - dest) / 2u);
+    s32 base = fixed_bg_offset_px(camx, period_px) + static_cast<s32>(dest) * 8;
+    base %= static_cast<s32>(period_px);
+    if (base < 0) base += static_cast<s32>(period_px);
+    w.src_x = static_cast<u16>(base);
+    return w;
+}
+
+
 
 // -----------------------------------------------------------------------------
 // Constantes canónicas del algoritmo original (ver §1) — valores por defecto
@@ -871,7 +959,10 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
     /// que el llamador debe mantener fuera de la ventana (cámara X >= 16).
     ///
     /// `src_y` es la fila del patrón; `dest_row` la fila de display destino y `rows`
-    /// la altura del rectángulo. El paso entre filas del destino es `planes*bytes`.
+    /// la altura del rectángulo. `dest_byte_off`/`words` permiten copiar solo una
+    /// VENTANA de la fila (p. ej. el ancho visible + 1 word de guarda) en vez de la
+    /// fila completa: reduce el Blitter y permite que el blit de filas visibles quepa
+    /// en el blanking vertical (§3.3). El paso entre filas del destino es `planes*bytes`.
     ///
     /// **Copper split (corkscrew)**: la ventana visible del playfield son DOS trozos
     /// del bitmap (arriba `[display_offset, display_height)`, abajo `[0, viewport-split)`).
@@ -881,34 +972,33 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
     /// que el fondo queda continuo y fijo aunque el FG haga wrap vertical (§3).
     graphics::BlitJob make_bg_plane_copy_rect_job(const u8* pattern, u16 pattern_row_bytes,
                                                   u16 src_x_pixels, u16 src_y,
-                                                  u16 dest_row, u16 rows) const {
+                                                  u16 dest_row, u16 rows,
+                                                  u16 dest_byte_off, u16 words) const {
         const u8 bgp = m_cfg.parallax_plane;
-        const u16 width_bytes = m_bytes_per_row; // fila completa (el display lee [planeaddx, +fetch])
         const u16 row = m_bytes_per_row;
-        const u16 pat_row = pattern_row_bytes ? pattern_row_bytes : width_bytes;
-        const u16 shift = static_cast<u16>((16u - (src_x_pixels & 15u)) & 15u);
-        const u16 q = static_cast<u16>(src_x_pixels + shift);
-        const u16 word_off = static_cast<u16>((q / 16u) * 2u);
-        const u8* src = pattern + static_cast<u32>(src_y) * pat_row + word_off;
-        // Plano `bgp` del bitmap interleaved: base + (fila*planes + bgp)*row.
+        const u16 pat_row = pattern_row_bytes ? pattern_row_bytes : row;
+        const BgShift bs = bg_shift_for(src_x_pixels);
+        const u8* src = pattern + static_cast<u32>(src_y) * pat_row + bs.word_bytes;
+        // Plano `bgp` del bitmap interleaved: base + (fila*planes + bgp)*row + offset X.
         u16* dst = reinterpret_cast<u16*>(m_frontbuffer +
-            (static_cast<u32>(dest_row) * cplanes() + bgp) * row);
+            (static_cast<u32>(dest_row) * cplanes() + bgp) * row + dest_byte_off);
+        const u16 width_bytes = static_cast<u16>(words * 2u);
         return {
             graphics::BlitJobKind::TileBlockCopy, nullptr,
             reinterpret_cast<const u16*>(src), dst,
-            static_cast<u16>(width_bytes / 2u), rows,
+            words, rows,
             static_cast<s16>(pat_row - width_bytes),
             static_cast<s16>(row * cplanes() - width_bytes),
-            1, static_cast<u8>(shift), 2, 2, false
+            1, bs.shift, 2, 2, false
         };
     }
 
-    /// Compatibilidad: copia TODO el anillo (`display_height` filas) desde `src_y`.
-    /// Útil sin split (display lineal) o para pintar el fondo completo de una vez.
+    /// Compatibilidad: copia la fila completa del anillo (`display_height` filas).
     graphics::BlitJob make_bg_plane_copy_job(const u8* pattern, u16 pattern_row_bytes,
                                              u16 src_x_pixels, u16 src_y) const {
         return make_bg_plane_copy_rect_job(pattern, pattern_row_bytes, src_x_pixels,
-                                           src_y, 0, m_display_height);
+                                           src_y, 0, m_display_height, 0,
+                                           static_cast<u16>(m_bytes_per_row / 2u));
     }
 
     bool fill_screen(graphics::FramePlan& plan) const {

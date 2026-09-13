@@ -98,7 +98,7 @@ con el mismo `src_x` y las filas del patrón **contiguas**:
 
 Así el fondo queda continuo (las dos mitades muestrean filas consecutivas) y, con `bg_y`
 constante, **fijo** aunque el FG haga wrap. API:
-`XLimitedPlayfield::make_bg_plane_copy_rect_job(pattern, row_bytes, src_x, src_y, dest_row, rows)`.
+`XLimitedPlayfield::make_bg_plane_copy_rect_job(pattern, row_bytes, src_x, src_y, dest_row, rows, dest_byte_off, words)`.
 Cuando no hay split (`split >= viewport`) basta un solo rect en `[d, d+viewport)`.
 
 ### 3.2 LÍMITE de altura (Amiga 500 / OCS)
@@ -110,7 +110,55 @@ se dimensiona para el viewport TOTAL + 2 bloques de staging. Canónico: **campo 
 de tile) con **anillo 288** (invariante §7 de `201_ehb_map`). **NO usar 256**: el split se sale
 del rango de 8 bits y aparece el wrap adelantado (síntoma: banda incorrecta en el pie). Si se
 quiere ocupar las 256 líneas, añadir un HUD (201: campo 208 + HUD 48 sobre un viewport total de
-256 y anillo 288).
+256 y anillo 288). El compositor **falla rápido** si el campo con split supera 214.
+
+### 3.3 Tearing: el blit de filas VISIBLES va en el blanking
+
+Un bitmap **único** no admite reescribir filas visibles mientras el haz las está mostrando: la
+zona ya reescrita se ve desplazada por el delta de cámara respecto a la aún no reescrita
+(tearing de ~2 px). El FG no lo sufre porque escribe solo la zona de *staging*; el fondo FIJO
+sí, porque debe reescribir las filas visibles cada frame (su contenido compensa la cámara).
+
+Solución (sin doble buffer, siguiendo la recomendación de reorganizar la programación temporal):
+**ejecutar el blit de fondo FIJO dentro del blanking vertical** (fin de la ventana visible →
+inicio de la siguiente), de forma que el haz nunca lea una fila a medio escribir:
+
+1. En `update`: scroll + blits del FG (staging) + `compose()` de la copperlist.
+2. Esperar al inicio del blanking: `while (backend.current_raster_line() != kBlankStart);`
+   con `kBlankStart = DIWSTRT_y + viewport_h = 41 + 208 = 249`.
+3. Ejecutar el plan de fondo (solo las filas visibles, dos rects del split) + `install` de la
+   copperlist.
+
+Además se **reduce el ancho** del blit a la ventana que el display puede leer más una word de
+guarda: `bg_window_for(camx, period, fetch_bytes)` copia
+`[planeaddx-2, planeaddx+fetch_bytes)` (21 words en vez de 25) y devuelve el `src_x` que deja la
+imagen fija; la guarda del barrel shifter (≤15 px) cae justo antes de la cámara. Con esto el
+blit visible (~103 líneas de raster) cabe en el blanking (~105 líneas).
+
+> Aviso de margen: el blit visible ocupa casi todo el blanking; si se necesita holgura, reducir
+> el campo visible (p. ej. 192) para ampliar el blanco, o usar doble buffer **solo del plano de
+> fondo**. Medición en 112: el reordenamiento bajó las diferencias de fondo entre frames de
+> ~185k a ~13-25k píxeles (el residuo es en su mayoría capturas hechas durante el blanking, que
+> no se ven en pantalla).
+
+### 3.4 Verificación (112, release/debug)
+
+- **Compensación EXACTA**: con la cámara congelada (`K_DIAG_SKIP_SCROLL`) y `K_INIT_CAMX` =
+  16, 17, 32 y 80, el borde de banda del fondo es idéntico (43,38,33,28,8) → no hay off-by-one
+  ni dependencia con `d`/`camx`. El residuo observado no es de cálculo.
+- **El blit cabe holgadamente en el blanking**: medido con `K_DIAG_BG` (contador de ciclos
+  alrededor del `execute_frame_plan` del fondo), **25–31k ciclos ≈ 55–68 líneas** de raster;
+  el blanco disponible es ~105 líneas. No hay overrun hacia la zona visible.
+- Por tanto, el residuo de 1–2 px que aparece en **capturas** es la instantánea leyendo el
+  bitmap a medio actualizar dentro del blanking (invisible en el haz). Para una medida
+  concluyente hace falta captura sincronizada al haz o comprobar el bitmap tras el blit.
+- Aun con 208 filas el blit cabe (76 líneas para 256 filas), pero el **WAIT de 8 bits** impide
+  un split móvil con campo >214. Si se quiere 256 visibles con fondo estable y bitmap único,
+  la alternativa del engine es `linear_display` (espejo, sin split), que cabe en el blanking;
+  el coste es duplicar los blits de Y (amortizados).
+- **Límite real del bitmap único**: con fondo FIJO el contenido se reescribe cada frame y no hay
+  conmutación atómica; queda un jitter de 1 px no resuelto. Análisis completo, diagnósticos y
+  decisión de pasar a doble buffer: `docs/debugging/112_BG_FLICKER.md`.
 
 ## 4. Patrón de fondo
 

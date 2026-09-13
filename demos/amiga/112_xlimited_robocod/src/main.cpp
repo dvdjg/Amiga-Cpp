@@ -29,6 +29,9 @@
 #ifdef K_DIAG_CYCLES
 #include <eng/debug/peripheral.hpp>
 #endif
+#if defined(K_DIAG_BG) || defined(K_DIAG_TOTAL)
+#include <eng/debug/peripheral.hpp>
+#endif
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/graphics/frame_plan.hpp>
@@ -76,6 +79,14 @@ constexpr eng::u16 kTilesetCount = 32;
 // fondo (shift-in enmascarado a cero). La cámara nunca baja de 16 px para que esa
 // guarda quede fuera de la ventana visible.
 constexpr eng::s32 kGuardX = 16;
+// Timing: la ventana visible ocupa las líneas raster [DIWSTRT_y, DIWSTRT_y+viewport).
+// Las escrituras al fondo VISIBLE deben caer en el blanking (fin de visible -> inicio
+// del siguiente). DIWSTRT_y = 41 (kDiwStrt 0x2981), así que el blank empieza en 249.
+constexpr eng::u16 kDiwStrtY = 41;
+constexpr eng::u16 kBlankStart = static_cast<eng::u16>(kDiwStrtY + kViewportH);
+#ifndef K_INIT_CAMX
+#define K_INIT_CAMX (kViewportW / 4)
+#endif
 
 constexpr field::ScrollConsts kScrollConsts {
 	/*tile_width=*/        kTileW,
@@ -113,6 +124,7 @@ struct DemoGame {
 	field::XlimitedScene<kScrollConsts> scene {};
 	field::XlimitedSceneConfig scene_cfg {};
 	eng::graphics::FramePlan plan {};
+	eng::graphics::FramePlan bg_plan {};   // blit de fondo (filas VISIBLES) -> en blanking
 	eng::MemoryBlock m_bg_pattern {};
 	eng::s16 m_dx = 1, m_dy = 1;
 	bool ready = false;
@@ -191,7 +203,7 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011202u);
 			return;
 		}
-		scene.bg().set_camera(kViewportW / 4, 0);
+		scene.bg().set_camera(static_cast<eng::s32>(K_INIT_CAMX), 0);
 		if (!scene.fill(backend, plan)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011203u);
 			return;
@@ -221,58 +233,117 @@ struct DemoGame {
 		if (camx <= kGuardX) m_dx = 1;
 		if (camy >= static_cast<eng::s32>(kMapRows * kTileH) - kViewportH) m_dy = -1;
 		if (camy <= 0) m_dy = 1;
-		const eng::s32 dx = (m_dx > 0) ? 2 : -2;
-		const eng::s32 dy = (m_dy > 0) ? 1 : -1;
+		eng::s32 dx = (m_dx > 0) ? 2 : -2;
+		eng::s32 dy = (m_dy > 0) ? 1 : -1;
+#ifdef K_DIAG_XONLY
+		dy = 0;   // diagnóstico: solo scroll horizontal
+#endif
+#ifdef K_DIAG_YONLY
+		dx = 0;   // diagnóstico: solo scroll vertical
+#endif
 #ifndef K_DIAG_SKIP_SCROLL
 		if (!scene.bg().update_scroll(plan, dx, dy)) {
 			m_dx = -m_dx; m_dy = -m_dy;
 		}
 #endif
-		// Soft DPF con **fondo FIJO** y compensación del Copper split.
-		//
-		// El plano de fondo comparte el scroll hardware del FG (los punteros BPLxPT
-		// son comunes), así que para que la imagen quede FIJA en pantalla hay que
-		// anular TODO el scroll X (grueso+grueso) desplazando el CONTENIDO:
-		//   src_x = -videoposx  (desired_bg = 0)
-		// El barrel shifter del Blitter da la posición de píxel exacta.
-		//
-		// El corkscrew usa un SPLIT vertical de Copper: la ventana visible son DOS
-		// trozos del bitmap (arriba [d, display_height), abajo [0, viewport-split)).
-		// Para que el fondo sea continuo a través del corte se emiten DOS rects con
-		// el mismo src_x y con las filas del patrón contiguas: el superior con
-		// src_y=0, el inferior con src_y=split. Así el fondo se ve fijo y sin costura
-		// aunque el FG haga wrap. Ver robocod-layered-scroll.md §3.
-#ifndef K_DIAG_SKIP_BGCOPY
-		if (m_bg_pattern.valid()) {
-			const eng::u8* pat = static_cast<const eng::u8*>(m_bg_pattern.data);
-			const eng::s32 src_px = field::fixed_bg_offset_px(
-				scene.bg().videoposx(), kPatPeriodPx);
-			const eng::s32 d = scene.bg().display_offset();
-			const eng::s32 split = static_cast<eng::s32>(kDisplayH) - d;
-			if (split < static_cast<eng::s32>(kViewportH)) {
-				// Superior: bitmap [d, display_height) -> pantalla [0, split).
-				plan.add_tile_block_copy(scene.bg().make_bg_plane_copy_rect_job(
-					pat, kPatRowBytes, static_cast<eng::u16>(src_px), 0,
-					static_cast<eng::u16>(d), static_cast<eng::u16>(split)));
-				// Inferior: bitmap [0, viewport-split) -> pantalla [split, viewport).
-				plan.add_tile_block_copy(scene.bg().make_bg_plane_copy_rect_job(
-					pat, kPatRowBytes, static_cast<eng::u16>(src_px),
-					static_cast<eng::u16>(split), 0,
-					static_cast<eng::u16>(static_cast<eng::s32>(kViewportH) - split)));
-			} else {
-				// Sin split: un solo rect cubre [d, d+viewport).
-				plan.add_tile_block_copy(scene.bg().make_bg_plane_copy_rect_job(
-					pat, kPatRowBytes, static_cast<eng::u16>(src_px), 0,
-					static_cast<eng::u16>(d), kViewportH));
-			}
-		}
-#endif
+		// 1) FG (tiles del anillo/staging): NO toca filas visibles -> puede ejecutarse
+		//    en cualquier momento del frame.
 		if (!backend.execute_frame_plan(plan)) {
 			ready = false; eng::debug::mark_failed(g_eng_run_status, 0x00011210u); return;
 		}
 		if (!scene.compose()) {
 			ready = false; eng::debug::mark_failed(g_eng_run_status, 0x00011211u); return;
 		}
+
+		// 2) Fondo FIJO: se copia SOLO la ventana visible (21 words/fila) y se ejecuta
+		//    en el BLANKING vertical (fin de visible -> inicio del siguiente), de modo
+		//    que el haz nunca lea una fila visible a medio reescribir (evita el
+		//    tearing). El display fetcha desde planeaddx = ceil(camx/16)*2; se copia
+		//    [planeaddx-2, planeaddx+40) = 1 word de guarda + 20 visibles. El barrel
+		//    shifter deja la guarda (<=15 px) justo antes de la cámara (no visible).
+		//    Ver robocod-layered-scroll.md §3.1/§3.3.
+#ifndef K_DIAG_SKIP_BGCOPY
+		if (m_bg_pattern.valid()) {
+			const eng::u8* pat = static_cast<const eng::u8*>(m_bg_pattern.data);
+			const eng::s32 camx = scene.bg().videoposx();
+			// Ventana horizontal del blit (helper puro y testeado): [planeaddx-2,
+			// planeaddx+fetch) = guarda + visible, y src_x para que quede FIJA.
+			// fetch = viewport/8 + 1 word: el DDFSTRT=0x30 ya incluye la word extra
+			// que el scroll fino coloca a la izquierda, así que el display lee 21
+			// words (42 B) desde planeaddx -> la ventana necesita 22 words.
+			const field::BgWindow win = field::bg_window_for(
+				camx, kPatPeriodPx, static_cast<eng::u16>(kViewportW / 8u + 2u));
+			const field::BgSplitRects rects = field::bg_split_rects(
+				scene.bg().display_offset(), kDisplayH, kViewportH, /*bg_y=*/0u);
+			bg_plan.clear();
+			bg_plan.set_blit_budget_limits({8192, 16384, 4, 200});
+			for (eng::u8 i = 0; i < rects.count; ++i) {
+				if (!bg_plan.add_tile_block_copy(scene.bg().make_bg_plane_copy_rect_job(
+					pat, kPatRowBytes, win.src_x,
+					rects.src_y[i], rects.dest_row[i], rects.rows[i],
+					win.dest_byte_off, win.words))) {
+					ready = false; eng::debug::mark_failed(g_eng_run_status, 0x00011212u); return;
+				}
+			}
+			// Espera al inicio del blanking vertical (línea kBlankStart). Se entra
+			// lo antes posible: si el primer valor ya está muy avanzado, se espera
+			// al siguiente frame (mejor eso que empezar tarde y derramar al visible).
+			for (;;) {
+				const eng::u16 ln = backend.current_raster_line();
+				if (ln == kBlankStart) break;
+			}
+#ifdef K_DIAG_BG
+			const eng::u32 tb0 = eng::debug::DebugPeripheral::cycle_counter();
+#endif
+			if (!backend.execute_frame_plan(bg_plan)) {
+				ready = false; eng::debug::mark_failed(g_eng_run_status, 0x00011213u); return;
+			}
+#ifdef K_DIAG_BG
+			const eng::u32 tb1 = eng::debug::DebugPeripheral::cycle_counter();
+			const eng::u16 ln1 = backend.current_raster_line();
+			g_eng_run_status.detail = (static_cast<eng::u32>(kBlankStart) << 24) |
+				(static_cast<eng::u32>(ln1) << 16) | ((tb1 - tb0) & 0xffffu);
+			return;
+#endif
+		}
+#endif
+#ifdef K_EARLY_INSTALL
+		// Instala la copperlist YA, dentro del blanking y ANTES del VBlank, de modo
+		// que el swap (COP1LC) sea determinista respecto al bitmap (ya escrito): la
+		// copperlist mostrada siempre es la de la cámara del bitmap.
+		scene.install(backend);
+#endif
+#ifdef K_DIAG_FBCHECK
+		// Auto-comprobación del FRAMEBUFFER (no de capturas): lee el plano 4 en las
+		// posiciones que el display mostrará (fila (d+ay), píxel (camx+x)) y lo compara
+		// con el patrón esperado de un fondo FIJO. Si `mism==0`, el dibujo es correcto.
+		{
+			const auto hw = scene.bg().hardware_view();
+			const eng::u8* fb = hw.real_base ? hw.real_base : hw.bitplanes;
+			const eng::u16 row = hw.bitmap_bytes_per_row;
+			const eng::u16 npl = hw.planes;
+			const eng::u16 d = hw.display_offset;
+			const eng::s32 cx = hw.videoposx;
+			int mism = 0, total = 0;
+			for (eng::s32 ay = 0; ay < static_cast<eng::s32>(kViewportH); ay += 5) {
+				const eng::u16 R = static_cast<eng::u16>((d + ay) % kDisplayH);
+				for (eng::s32 x = 0; x < 320; x += 17) {
+					const eng::s32 P = cx + x;
+					if (P < 0) continue;
+					const eng::u32 off = (static_cast<eng::u32>(R) * npl + 4u) * row +
+					                     static_cast<eng::u32>(P >> 3);
+					const int bit = (fb[off] >> (7 - (P & 7))) & 1;
+					const bool dot = ((x & 7) == 0) && ((ay & 7) == 0);
+					const bool band = (((x + ay) & 63) < 32);
+					const int pat = (dot || band) ? 1 : 0;
+					if (bit != pat) ++mism;
+					++total;
+				}
+			}
+			g_eng_run_status.detail = 0xFBFBu | (static_cast<eng::u32>(mism) << 16);
+			return;
+		}
+#endif
 #ifdef K_DIAG_CYCLES
 		const eng::u32 t2 = eng::debug::DebugPeripheral::cycle_counter();
 		g_eng_run_status.detail = t2 - t0; // ciclos del update completo
