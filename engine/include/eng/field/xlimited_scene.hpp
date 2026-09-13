@@ -118,7 +118,7 @@ inline MemoryBlock xlimited_build_blocks_bitmap_from_indexed(
     eng::u16 tile_width,
     eng::u16 tile_height,
     eng::u16 tile_count,
-    const eng::u8* indexed,
+    eng::TileBankBytes indexed,
     eng::u32 stride) {
     const eng::u32 src_bytes_per_row = 320u / 8u; // 40 (BLOCKSWIDTH/8)
     const eng::u32 blocks_per_row = 320u / tile_width;
@@ -127,7 +127,7 @@ inline MemoryBlock xlimited_build_blocks_bitmap_from_indexed(
         block_rows * (static_cast<eng::u32>(tile_height) * planes); // planelineas totales
     const eng::u32 bytes = src_bytes_per_row * height;
     MemoryBlock block = memory.chip.allocate(bytes, 16);
-    if (!block.valid() || indexed == nullptr) return block;
+    if (!block.valid() || indexed.empty()) return block;
     eng::u8* data = static_cast<eng::u8*>(block.data);
     for (eng::u32 i = 0; i < bytes; ++i) data[i] = 0;
     const eng::u32 tw8 = tile_width / 8u; // bytes por planelínea de tile (2 a 16px)
@@ -136,7 +136,7 @@ inline MemoryBlock xlimited_build_blocks_bitmap_from_indexed(
         const eng::u16 by = tile / blocks_per_row;
         const eng::u32 base_pl = static_cast<eng::u32>(by) *
                                  (static_cast<eng::u32>(tile_height) * planes) * src_bytes_per_row;
-        const eng::u8* src = indexed + static_cast<eng::u32>(tile) * stride;
+        const eng::u8* src = indexed.data() + static_cast<eng::u32>(tile) * stride;
         for (eng::u16 row = 0; row < tile_height; ++row) {
             // 16 píxeles = 1 word por plano (bit 15..0, MSB primero como en Amiga).
             for (eng::u8 plane = 0; plane < planes; ++plane) {
@@ -231,7 +231,7 @@ struct XlimitedSceneConfigT {
     // construye con `xlimited_build_blocks_bitmap_from_indexed` leyendo tile por
     // tile completo (soporta cientos de tiles), en lugar de `*_row_fn` (que solo
     // admite 256 tiles por glyph×variant). Requiere planes=6 (EHB).
-    const eng::u8* indexed_tiles = nullptr; // tilebank crudo (stride fijo, 1 B/píxel)
+    eng::TileBankBytes indexed_tiles {}; // tilebank crudo (stride fijo, 1 B/píxel)
     eng::u32 indexed_stride = 0;            // bytes POR TILE (201: 16*16 = 256)
     // Banco de bloques YA interleaved X-Limited, producido en el host
     // (tools/amiga-tiles/amiga-tiles.mjs --xlimited) e incbinado en .MEMF_CHIP.
@@ -319,7 +319,7 @@ public:
         m_cfg = cfg;
         if (cfg.planes == 0 || cfg.planes > 6) return false;
         if (cfg.blocks_prebuilt == nullptr && cfg.blocks_prebuilt2 == nullptr &&
-            cfg.fg_row_fn == nullptr && cfg.indexed_tiles == nullptr) return false;
+            cfg.fg_row_fn == nullptr && cfg.indexed_tiles.empty()) return false;
         if (cfg.palette == nullptr) return false;
         if (cfg.map.width == 0 && (cfg.map.wrap_x == 0 && cfg.map.wrap_y == 0)) return false;
         // Main viewport: el HUD se resta del total. El WAIT de la zona HUD cae en
@@ -362,7 +362,7 @@ public:
                 m_tiles[pf].data = const_cast<void*>(static_cast<const void*>(pb));
                 m_tiles[pf].size = pbSize;
                 m_tiles[pf].kind = eng::MemoryKind::Chip;
-            } else if (isPf0 && cfg.indexed_tiles != nullptr) {
+            } else if (isPf0 && !cfg.indexed_tiles.empty()) {
                 if (cfg.planes != 6) return false; // el pipeline EHB es 6 planos
                 m_tiles[pf] = xlimited_build_blocks_bitmap_from_indexed(
                     memory, cfg.planes, tw, th, cfg.tileset_count,

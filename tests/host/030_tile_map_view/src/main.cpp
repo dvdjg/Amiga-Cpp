@@ -43,7 +43,7 @@ int main() {
 
 	u16 pool[Map::kPoolCells] {};
 	Map world {};
-	check(world.init({ &load_chunk, nullptr }, eng::Span<u16>(pool, Map::kPoolCells), kEmpty), "init");
+	check(world.init({ &load_chunk, nullptr }, eng::TileBankBuffer{pool}, kEmpty), "init");
 
 	eng::field::TileMapView<Map> view {};
 	check(!view.has_data(), "vista sin src -> sin datos");

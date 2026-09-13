@@ -31,7 +31,7 @@ public:
 		void* user = nullptr;
 	};
 
-	bool init(Source src, eng::Span<eng::u16> pool, eng::u16 empty_tile = 0xFFFFu) {
+	bool init(Source src, eng::TileBankBuffer pool, eng::u16 empty_tile = 0xFFFFu) {
 		m_src = src;
 		m_empty = empty_tile;
 		return m_cache.init({ &StreamingWorldMap::load_trampoline, this }, pool);

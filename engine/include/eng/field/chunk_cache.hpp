@@ -40,8 +40,10 @@ public:
 		void* user = nullptr;
 	};
 
-	/// `pool` debe tener al menos `kPoolCells` u16 (Chip RAM del llamador).
-	bool init(Loader loader, eng::Span<eng::u16> pool) {
+	/// `pool` debe tener al menos `kPoolCells` words (Chip RAM del llamador). Es un
+	/// `TileBankBuffer`: el llamador lo obtiene de su arena (`MemoryBlock::buffer`)
+	/// o de un array, sin casts.
+	bool init(Loader loader, eng::TileBankBuffer pool) {
 		if (loader.load == nullptr || pool.size() < kPoolCells) return false;
 		m_loader = loader;
 		m_pool = pool;
@@ -83,8 +85,8 @@ public:
 			if (m_slots[i].stamp < oldest) { oldest = m_slots[i].stamp; victim = i; }
 		}
 		Slot& s = m_slots[victim];
-		eng::u16* dst = m_pool.data() + static_cast<eng::u32>(victim) * kCells;
-		const LoadResult r = m_loader.load(m_loader.user, cx, cy, eng::TileBankBuffer { dst, kCells });
+		eng::TileBankBuffer dst = m_pool.subspan(static_cast<eng::u32>(victim) * kCells, kCells);
+		const LoadResult r = m_loader.load(m_loader.user, cx, cy, dst);
 		if (r == LoadResult::Pending) {
 			++m_pendings; // no se toca el slot: se reintentará en la próxima petición
 			return nullptr;
@@ -96,7 +98,7 @@ public:
 		s.stamp = ++m_clock;
 		++m_loads;
 		if (r == LoadResult::Empty) ++m_empties;
-		return dst;
+		return dst.data();
 	}
 
 	constexpr eng::u32 loads() const { return m_loads; }
@@ -112,7 +114,7 @@ private:
 		bool valid = false;
 	};
 	Loader m_loader {};
-	eng::Span<eng::u16> m_pool {};
+	eng::TileBankBuffer m_pool {};
 	Slot m_slots[Capacity] {};
 	eng::u32 m_clock = 0;
 	eng::u32 m_loads = 0;

@@ -163,7 +163,7 @@ struct DemoGame {
 		scene_cfg.max_step = 4;
 
 		if (!m_world.init({&load_chunk, nullptr},
-		                  eng::Span<eng::u16>(g_world_pool, WorldMap::kPoolCells), 0xFFFFu)) {
+		                  eng::TileBankBuffer{g_world_pool}, 0xFFFFu)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011105u);
 			return;
 		}

@@ -38,7 +38,7 @@ int main() {
 	Src src {0};
 	Map map {};
 
-	check(map.init({ &load_chunk, &src }, eng::Span<eng::u16>(pool, Map::kPoolCells)), "init");
+	check(map.init({ &load_chunk, &src }, eng::TileBankBuffer{pool}), "init");
 	check(map.is_empty(map.tile_at(4, 0)), "no residente -> empty antes de prefetch");
 
 	// prefetch de la ventana que cubre el chunk (1,0).

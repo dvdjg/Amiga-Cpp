@@ -50,9 +50,9 @@ int main() {
 	LoaderData ld {0};
 	Cache cache {};
 
-	check(cache.init({ &fake_load, &ld }, eng::Span<eng::u16>(pool, Cache::kPoolCells)),
+	check(cache.init({ &fake_load, &ld }, eng::TileBankBuffer{pool}),
 	      "init");
-	check(!cache.init({ nullptr, nullptr }, eng::Span<eng::u16>(pool, Cache::kPoolCells)),
+	check(!cache.init({ nullptr, nullptr }, eng::TileBankBuffer{pool}),
 	      "init sin loader falla");
 
 	const eng::u16* a = cache.get(0, 0);
@@ -79,7 +79,7 @@ int main() {
 	eng::u16 pool2[Cache2::kPoolCells] {};
 	LoaderData ld2 {0};
 	Cache2 c2 {};
-	check(c2.init({ &special_load, &ld2 }, eng::Span<eng::u16>(pool2, Cache2::kPoolCells)), "init c2");
+	check(c2.init({ &special_load, &ld2 }, eng::TileBankBuffer{pool2}), "init c2");
 	check(c2.get(9, 0) == nullptr && c2.pendings() == 1 && c2.loads() == 0,
 	      "Pending: sin residente ni load");
 	check(c2.get(9, 0) == nullptr && c2.pendings() == 2, "Pending se reintenta");

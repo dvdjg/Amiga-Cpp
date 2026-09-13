@@ -276,8 +276,10 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
   **validación de rango** (violación → `illegal`). Falta tipar `Surface`/`FramePlan` (paleta/copper).
 - **Fase 4 — hecha**: `Blob`/`Reader`/`BlobWriter`, las vistas UAF y `WorldView::read` usan
   `eng::UafPayload` (`ByteView<UafTag>`); `ChunkCache::Loader`, `StreamingWorldMap::Source`,
-  `WorldMapChunkLoader` y `WorldView::decode_chunk<Tag>` usan `eng::TileBankBuffer`. HOST-012/031/
-  035/037 y la demo 078 migrados; 111 (streaming) sin regresión.
+  `WorldMapChunkLoader` y `WorldView::decode_chunk<Tag>` usan `eng::TileBankBuffer`; el **pool** de
+  `ChunkCache`/`StreamingWorldMap` es `TileBankBuffer` (el llamador lo entrega de su arena/array,
+  sin casts). El builder de tilebank indexado y `XlimitedSceneConfig::indexed_tiles` usan
+  `eng::TileBankBytes`. HOST-012/026/029/030/031/035/037 y 078/111 migrados.
 - **Fase 5 — hecha**: audio puro (`SampleEvent`/`AudioPlan::Channel` → `eng::AudioSample`,
   `MusicEvent` → `eng::MusicModule`) y backend blitter/C2P en su firma interna
   (`blitter_clear`/`blitter_line`/`blit_fill_from_mask`/`fill_triangles_blitter` con

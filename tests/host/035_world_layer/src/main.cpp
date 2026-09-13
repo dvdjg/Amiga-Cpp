@@ -85,7 +85,7 @@ int main() {
 	World world {};
 	eng::field::WorldMapChunkLoader loader {&w, 0u, 16u};
 	check(world.init({&eng::field::WorldMapChunkLoader::load, &loader},
-	                 eng::Span<eng::u16>(pool, World::kPoolCells), 0xFFFFu), "init streaming");
+	                 eng::TileBankBuffer{pool}, 0xFFFFu), "init streaming");
 
 	View view {};
 	view.src = &world;
