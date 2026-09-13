@@ -51,14 +51,16 @@ WorldMap (disperso)
 - El mundo puede ser **toroidal** (wrap) o **acotado**; el `TileSource` declara el modo.
 - Implementación: `SparseTileMap<Chunk>` (`tile_source.hpp`), `ChunkCache<ChunkSize,Capacity>`
   (`chunk_cache.hpp`, pool de Chip RAM del llamador + LRU) y `StreamingWorldMap<ChunkSize,Capacity>`
-  (`streaming_map.hpp`: `prefetch` de la ventana + acceso solo-residente). El scroll consume un
-  `TileMapView<Src>` (`tile_source.hpp`): un `TileSource` (disperso o streaming) más los límites/wrap
-  del mundo, de modo que el playfield no depende del almacén. Tests:
+  (`streaming_map.hpp`: `prefetch` de la ventana + acceso solo-residente). El `Loader` devuelve
+  `LoadResult` (`Ready`/`Empty`/`Pending`): un chunk no listo no se marca residente y se reintenta.
+  El scroll consume un `TileMapView<Src>` (`tile_source.hpp`): un `TileSource` (disperso o streaming)
+  más los límites/wrap del mundo, de modo que el playfield no depende del almacén. Tests:
   `tests/host/025_tile_source`, `tests/host/026_chunk_cache`, `tests/host/029_streaming_map`,
   `tests/host/030_tile_map_view`. Demo de hardware: `demos/amiga/111_xlimited_sidescroller`
   (`StreamingWorldMap` + `prefetch` de la banda por frame).
 - **Formato**: el mundo se empaqueta como chunk `WorldMap` sobre UAF-R (directorio de chunks
-  ordenado + celdas de índice de banco, con `gid` ya resuelto en el host). Ver
+  ordenado + celdas de índice de banco, con `gid` ya resuelto en el host) y se lee con
+  `eng::assets::WorldView` (`tests/host/031_world_view`). Ver
   `docs/engine/architecture/WORLD_FORMAT.md`. La procedencia de los bytes (RAM, `trackdisk.device`
   o trackloader de hardware) es responsabilidad del `Loader`: `docs/engine/architecture/STREAMING_LOADER.md`.
 

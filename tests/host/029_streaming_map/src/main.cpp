@@ -21,15 +21,15 @@ struct Src { int calls; };
 namespace {
 using Map = eng::field::StreamingWorldMap<4, 2>;
 
-bool load_chunk(void* user, eng::s32 cx, eng::s32 cy, eng::u16* cells) {
+eng::field::LoadResult load_chunk(void* user, eng::s32 cx, eng::s32 cy, eng::u16* cells) {
 	++static_cast<Src*>(user)->calls;
 	if (cx >= 1 && cx <= 4) {   // chunks poblados (0,0)
 		for (eng::u32 i = 0; i < Map::kCells; ++i) {
 			cells[i] = static_cast<eng::u16>(cx * 100 + cy * 10 + static_cast<eng::s32>(i));
 		}
-		return true;
+		return eng::field::LoadResult::Ready;
 	}
-	return false;   // ausente -> rellena empty
+	return eng::field::LoadResult::Empty;   // ausente
 }
 } // namespace
 

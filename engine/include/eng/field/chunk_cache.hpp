@@ -8,11 +8,23 @@
 ///
 /// No posee memoria (el pool es del llamador) -> el coste de Chip RAM entra en el
 /// modelo de recursos. Ver `docs/engine/architecture/CONTENT_AND_TILEMAP.md` §2.
+///
+/// El `Loader` devuelve `LoadResult`: `Ready` (datos escritos), `Empty` (chunk
+/// ausente de verdad; el `Loader` rellena `empty_tile` y queda residente para no
+/// reintentar) o `Pending` (carga asíncrona aún no lista: NO se marca residente y
+/// se reintentará). El detalle se diseña en `docs/engine/architecture/STREAMING_LOADER.md`.
 
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::field {
+
+/// Resultado de una petición de carga al `Loader`.
+enum class LoadResult : eng::u8 {
+	Ready = 0,   ///< chunk escrito en el destino; se marca residente.
+	Empty = 1,   ///< chunk ausente; el `Loader` rellenó `empty_tile`; residente.
+	Pending = 2, ///< aún no disponible; no se marca residente (se reintenta).
+};
 
 template <eng::u16 ChunkSize, eng::u8 Capacity>
 class ChunkCache {
@@ -20,9 +32,9 @@ public:
 	static constexpr eng::u32 kCells = static_cast<eng::u32>(ChunkSize) * ChunkSize;
 	static constexpr eng::u32 kPoolCells = static_cast<eng::u32>(Capacity) * kCells;
 
-	/// Carga el chunk `(cx,cy)` en `dst` (kCells u16) y devuelve true si tuvo éxito.
+	/// Carga el chunk `(cx,cy)` en `dst` (kCells u16). Ver `LoadResult`.
 	struct Loader {
-		bool (*load)(void* user, eng::s32 cx, eng::s32 cy, eng::u16* dst) = nullptr;
+		LoadResult (*load)(void* user, eng::s32 cx, eng::s32 cy, eng::u16* dst) = nullptr;
 		void* user = nullptr;
 	};
 
@@ -36,6 +48,8 @@ public:
 		m_loads = 0;
 		m_evictions = 0;
 		m_hits = 0;
+		m_empties = 0;
+		m_pendings = 0;
 		return true;
 	}
 
@@ -49,7 +63,8 @@ public:
 		return nullptr;
 	}
 
-	/// Devuelve las celdas del chunk (residente o recién cargado); nullptr si falla.
+	/// Devuelve las celdas del chunk (residente o recién cargado). `nullptr` si el
+	/// `Loader` devolvió `Pending` (no queda residente) o si no hay fuente.
 	const eng::u16* get(eng::s32 cx, eng::s32 cy) {
 		for (eng::u8 i = 0; i < Capacity; ++i) {
 			if (m_slots[i].valid && m_slots[i].cx == cx && m_slots[i].cy == cy) {
@@ -66,20 +81,27 @@ public:
 			if (m_slots[i].stamp < oldest) { oldest = m_slots[i].stamp; victim = i; }
 		}
 		Slot& s = m_slots[victim];
-		if (s.valid && !any_free) ++m_evictions;
 		eng::u16* dst = m_pool.data() + static_cast<eng::u32>(victim) * kCells;
-		if (!m_loader.load(m_loader.user, cx, cy, dst)) return nullptr;
+		const LoadResult r = m_loader.load(m_loader.user, cx, cy, dst);
+		if (r == LoadResult::Pending) {
+			++m_pendings; // no se toca el slot: se reintentará en la próxima petición
+			return nullptr;
+		}
+		if (s.valid && !any_free) ++m_evictions;
 		s.cx = cx;
 		s.cy = cy;
 		s.valid = true;
 		s.stamp = ++m_clock;
 		++m_loads;
+		if (r == LoadResult::Empty) ++m_empties;
 		return dst;
 	}
 
 	constexpr eng::u32 loads() const { return m_loads; }
 	constexpr eng::u32 evictions() const { return m_evictions; }
 	constexpr eng::u32 hits() const { return m_hits; }
+	constexpr eng::u32 empties() const { return m_empties; }
+	constexpr eng::u32 pendings() const { return m_pendings; }
 
 private:
 	struct Slot {
@@ -94,6 +116,8 @@ private:
 	eng::u32 m_loads = 0;
 	eng::u32 m_evictions = 0;
 	eng::u32 m_hits = 0;
+	eng::u32 m_empties = 0;
+	eng::u32 m_pendings = 0;
 };
 
 } // namespace eng::field

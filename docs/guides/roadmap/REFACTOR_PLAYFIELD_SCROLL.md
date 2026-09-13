@@ -121,9 +121,10 @@ en el proceso.
      arena y disparar el `prefetch` desde una `BackgroundQueue`, con telemetría `loads/evictions`
      en `g_eng_run_status.detail`.
   2. **`gid`→banco incrustable**: cerrar `parse-tmx` (ya con chunks/base64) → `gid-to-bank` →
-     `TileMapView`/`SparseTileMap`, para que el mundo no dependa del PNG derivado. **Formato
-     definido**: `docs/engine/architecture/WORLD_FORMAT.md` (chunk `WorldMap` sobre UAF-R +
-     directorio de chunks). Falta la tool `pack-world.mjs` y el consumidor `WorldView`.
+     `TileMapView`/`SparseTileMap`, para que el mundo no dependa del PNG derivado. **Formato y
+     consumidor hechos**: `docs/engine/architecture/WORLD_FORMAT.md` (chunk `WorldMap` sobre UAF-R +
+     directorio de chunks) y `eng::assets::WorldView` (`ChunkType::WorldMap=13`, HOST-031). Falta la
+     tool `pack-world.mjs` y el adaptador `WorldView`→`SparseTileMap`.
   3. **Extender el patrón al PF2/DPF**: permitir un `map2` de tipo distinto al `map` (p. ej. denso
      BG + streaming FG) y validarlo en 112/202.
   4. **Test de equivalencia denso↔streaming**: comparación determinista por frame (mismo `camX`)

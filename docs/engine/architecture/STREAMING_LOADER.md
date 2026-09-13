@@ -24,14 +24,18 @@ Reglas que el `Loader` debe respetar:
 - Devuelve `true` cuando el chunk queda escrito y listo; el `ChunkCache` lo marca residente.
 - No debe bloquear el frame más de lo imprescindible: el dibujo depende de él.
 
-**Corrección necesaria para cargas asíncronas.** Hoy `StreamingWorldMap::load_trampoline`
-devuelve `true` incluso cuando la fuente falla y rellena `empty_tile`, de modo que el
-`ChunkCache` marca el chunk como residente-vacío y **nunca reintenta**. Para disco (donde
-un chunk puede no estar aún decodificado) el contrato debe distinguir tres estados:
-disponible, ausente-de-verdad (rellena `empty_tile` y queda residente) y **todavía no
-listo** (no queda residente; se reintenta). El cambio es acotado: el `Loader` devuelve un
-resultado de tres estados (p. ej. `LoadResult { Ready, Empty, Pending }`) y `ChunkCache::get`
-solo marca residente en `Ready`/`Empty`.
+**Contrato de tres estados (implementado).** El `Loader` devuelve
+`eng::field::LoadResult` (`engine/include/eng/field/chunk_cache.hpp`):
+
+| Valor | Significado | Efecto en el `ChunkCache` |
+|---|---|---|
+| `Ready` | el `Loader` escribió los datos del chunk | queda residente |
+| `Empty` | el chunk está ausente de verdad (celdas a `empty_tile`) | queda residente (no reintenta) |
+| `Pending` | carga asíncrona aún no lista | **no** queda residente; se reintenta |
+
+`ChunkCache::get` solo marca residente en `Ready`/`Empty` y expone los contadores
+`empties()`/`pendings()` (además de `loads`/`evictions`/`hits`). Sin este contrato, un chunk
+no listo se marcaría como residente-vacío y nunca se reintentaría.
 
 ## 2. Restricción clave: el takeover apaga el disco y las interrupciones
 
@@ -200,7 +204,7 @@ Paula entrega **MFM en crudo**; la CPU (o un rutina rápida) decodifica:
 ## 7. Fases de implementación
 
 1. **Loader-RAM** (paso A): directorio + copia sin decode. Cubre el paso 5 sin hardware.
-2. **Contrato de tres estados** en `ChunkCache`/`StreamingWorldMap` (sin él no hay async).
+2. **Contrato de tres estados** en `ChunkCache`/`StreamingWorldMap` (**hecho**: `LoadResult`).
 3. **Trackloader**: motor/seek + lectura de una pista + decode MFM + checksum (una pista
    aislada, verificada contra `DSKBYTR`).
 4. **Doble buffer + cola** y `prefetch` con margen de pistas.

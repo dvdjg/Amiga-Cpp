@@ -23,10 +23,11 @@ public:
 	static constexpr eng::u32 kCells = static_cast<eng::u32>(ChunkSize) * ChunkSize;
 	static constexpr eng::u32 kPoolCells = static_cast<eng::u32>(Capacity) * kCells;
 
-	/// Fuente de chunks: rellena `cells` (kCells) o devuelve false si no está poblado
-	/// (entonces se rellena con `empty_tile`).
+	/// Fuente de chunks: rellena `cells` (kCells) y devuelve el resultado de la
+	/// carga (`Ready`/`Empty`/`Pending`). En `Empty` las celdas quedan como
+	/// `empty_tile`; en `Pending` no se marcan residentes (se reintenta).
 	struct Source {
-		bool (*load)(void* user, eng::s32 cx, eng::s32 cy, eng::u16* cells) = nullptr;
+		LoadResult (*load)(void* user, eng::s32 cx, eng::s32 cy, eng::u16* cells) = nullptr;
 		void* user = nullptr;
 	};
 
@@ -65,15 +66,21 @@ public:
 	eng::u32 loads() const { return m_cache.loads(); }
 	eng::u32 evictions() const { return m_cache.evictions(); }
 	eng::u32 hits() const { return m_cache.hits(); }
+	eng::u32 empties() const { return m_cache.empties(); }
+	eng::u32 pendings() const { return m_cache.pendings(); }
 
 private:
-	static bool load_trampoline(void* user, eng::s32 cx, eng::s32 cy, eng::u16* cells) {
+	static LoadResult load_trampoline(void* user, eng::s32 cx, eng::s32 cy, eng::u16* cells) {
 		auto* self = static_cast<StreamingWorldMap*>(user);
-		if (self->m_src.load == nullptr) return false;
-		if (!self->m_src.load(self->m_src.user, cx, cy, cells)) {
+		if (self->m_src.load == nullptr) {
+			for (eng::u32 i = 0; i < kCells; ++i) cells[i] = self->m_empty;
+			return LoadResult::Empty;
+		}
+		const LoadResult r = self->m_src.load(self->m_src.user, cx, cy, cells);
+		if (r == LoadResult::Empty) {
 			for (eng::u32 i = 0; i < kCells; ++i) cells[i] = self->m_empty;
 		}
-		return true;   // residente aunque vacío (no se recarga cada prefetch)
+		return r;
 	}
 
 	ChunkCache<ChunkSize, Capacity> m_cache {};

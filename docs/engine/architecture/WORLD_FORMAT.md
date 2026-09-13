@@ -38,11 +38,12 @@ puntero. Los bancos de tiles se generan con el pipeline actual
 WorldHeader (16 B)
   u16 version          // 1
   u16 flags            // bit0 = payload comprimido; resto reservado a 0
-  u8  chunk_log2       // 4 => chunks de 16x16 (potencia de dos)
+  u8  chunk_log2       // 2 => chunks de 4x4; 4 => 16x16 (potencia de dos)
   u8  layer_count
   u16 tiles_chunk      // indice del chunk Tiles en el UAF-R
   u16 palette_chunk    // indice del chunk Palette en el UAF-R
-  u16 reserved
+  u32 reserved
+  u16 reserved2
 
 LayerDesc[layer_count] (32 B cada uno)
   u16 id               // id de capa (Ground=0, ...)
@@ -52,13 +53,11 @@ LayerDesc[layer_count] (32 B cada uno)
   u16 wrap_x           // 0 = acotado; !=0 = periodo toroidal en X (celdas)
   u16 wrap_y           // 0 = acotado; !=0 = periodo toroidal en Y (celdas)
   u16 empty_tile       // centinela "no se pinta" (por defecto 0xFFFF)
-  u16 reserved
+  u16 meta_count
   u32 dir_off          // offset del array ChunkEntry (relativo al inicio del payload)
   u32 dir_count        // numero de chunks presentes
   u32 cells_off        // offset del bloque de celdas empaquetadas
   u32 meta_off         // 0 si no hay metadatos
-  u32 meta_count
-  u32 reserved2
 
 ChunkEntry[dir_count] (4 B cada uno, ordenado por (cy,cx) ascendente)
   s16 cx               // indice de chunk (coordenada de chunk, no de celda)
@@ -150,13 +149,15 @@ Reglas:
 
 ## 6. Consumidor runtime y validación
 
-- Nueva vista `eng::assets::WorldView` (o `WorldMapView`) sobre el `Span<const u8>` del chunk:
-  valida `version`, `chunk_log2` y que `dir_off`/`cells_off`/`meta_off` caigan dentro del
-  payload (reutiliza `eng::assets::Reader`, sin punteros crudos en la API).
-- Test host (`tests/host/`) que carga un `WorldMap` de fixture, monta un `SparseTileMap`
-  equivalente y comprueba celdas, wrap, chunks ausentes y el round-trip denso↔chunked.
-- Test de equivalencia en hardware/demo: el mundo empaquetado debe dar la misma imagen que el
-  mapa denso equivalente (paso 4 del roadmap).
+- Vista `eng::assets::WorldView` (`engine/include/eng/assets/uaf.hpp`, `ChunkType::WorldMap = 13`)
+  sobre el `Span<const u8>` del chunk: valida `version`, `chunk_log2` y que
+  `dir_off`/`cells_off`/`meta_off` caigan dentro del payload (reutiliza `eng::assets::Reader`), y
+  expone cabecera, descriptores de capa, `find_chunk` (búsqueda binaria), `cell`, `chunk_bytes`,
+  `tile_at` (con wrap/borde) y `meta_entry`.
+- Test host `tests/host/031_world_view`: fixture de `WorldMap` con varias capas, cruce de chunk,
+  wrap, chunk ausente, metadatos y validación de bloques.
+- Pendiente: adaptador `WorldView` → `SparseTileMap`/`TileMapView` (montaje directo) y el test de
+  equivalencia en demo (mismo resultado que el mapa denso, paso 4 del roadmap).
 
 ## 7. Versionado y compresión
 

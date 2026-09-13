@@ -35,13 +35,9 @@ struct TileLayerMap {
 		use_sparse = true;
 	}
 	static eng::s32 wrap_coordinate(eng::s32 value, eng::u16 period) {
-		// Los mapas de las demos son potencias de dos (256x128). En el 68000,
-		// sustituir modulo por una máscara evita __modsi3 en cada tile. El camino
-		// general conserva el contrato para mapas reales de cualquier tamaño.
-		if ((period & static_cast<eng::u16>(period - 1u)) == 0u) {
-			return value & static_cast<eng::s32>(period - 1u);
-		}
-		return ((value % static_cast<eng::s32>(period)) + period) % period;
+		// Comparte `wrap_period` (core): máscara con period potencia de dos
+		// (evita `__modsi3` en el 68000) y camino general con negativos.
+		return wrap_period(value, period);
 	}
 	/// Cumple `TileSource`: un tile es "vacío" si es `empty_tile`.
 	constexpr bool is_empty(eng::u16 g) const { return g == empty_tile; }

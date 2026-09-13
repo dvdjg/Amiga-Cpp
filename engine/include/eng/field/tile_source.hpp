@@ -10,10 +10,14 @@
 /// Compatible con los "mapas infinitos" de Tiled (`<chunk x y>`); ver
 /// `docs/engine/architecture/CONTENT_AND_TILEMAP.md` §2.
 
+#include <eng/core/fast_div.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::field {
+
+/// `eng::wrap_period` (core) disponible como `eng::field::wrap_period`.
+using eng::wrap_period;
 
 /// Contrato del accesor de tiles: `tile_at(celda)->u16` e `is_empty(tile)->bool`.
 template <class T>
@@ -33,16 +37,6 @@ concept TileMap = TileSource<T> && requires(const T& m) {
 	static_cast<eng::u16>(m.wrap_y);
 	m.has_data();
 };
-
-/// Envuelve `value` en `[0, period)`. Con `period` potencia de dos usa máscara
-/// (evita `__modsi3`); `period == 0` = sin wrap (devuelve `value`).
-constexpr eng::s32 wrap_period(eng::s32 value, eng::u16 period) {
-	if (period == 0) return value;
-	if ((period & static_cast<eng::u16>(period - 1u)) == 0u) {
-		return value & static_cast<eng::s32>(period - 1u);
-	}
-	return ((value % static_cast<eng::s32>(period)) + period) % period;
-}
 
 /// División entera hacia abajo (correcta con coordenadas negativas), sin `%`.
 constexpr eng::s32 floor_div(eng::s32 a, eng::s32 b) {

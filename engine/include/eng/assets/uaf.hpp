@@ -18,6 +18,7 @@
 /// Endianness: el blob está en **big-endian** (nativo m68k). Los lectores `read_be16/32`
 /// funcionan igual en host (x86) que en Amiga.
 
+#include <eng/core/fast_div.hpp>
 #include <eng/core/math3d.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
@@ -47,6 +48,7 @@ enum class ChunkType : u16 {
 	Samples = 10,
 	Modules = 11,
 	Mesh = 12,
+	WorldMap = 13,
 };
 
 /// Referencia validada a un chunk dentro del blob.
@@ -427,6 +429,189 @@ public:
 
 private:
 	Span<const u8> m_bytes {};
+};
+
+/// Vista tipada de un chunk **WorldMap**: mapa de tiles en chunks. Formato en
+/// `docs/engine/architecture/WORLD_FORMAT.md`. Valida cabecera, descriptores de
+/// capa y bloques (directorio/celdas/meta) contra el tamaño del chunk, y resuelve
+/// el acceso por celda con wrap/borde sin decodificar el mapa.
+///
+/// El `gid` ya viene convertido a índice de banco por el pipeline host; aquí solo
+/// se leen índices listos para el motor de tiles (`SparseTileMap`/`TileMapView`).
+class WorldView {
+public:
+	static constexpr u16 kVersion = 1u;
+	static constexpr u8 kMaxLayers = 8u;
+	static constexpr u32 kHeaderSize = 16u;
+	static constexpr u32 kLayerDescSize = 32u;
+	static constexpr u32 kChunkEntrySize = 4u;
+	static constexpr u32 kMetaEntrySize = 12u;
+
+	/// Entrada de metadatos por capa (spawns/triggers/colisión).
+	struct Meta {
+		u16 type = 0, x = 0, y = 0, a = 0, b = 0, c = 0;
+	};
+
+	bool read(Span<const u8> bytes) {
+		m_bytes = bytes;
+		m_ok = false;
+		m_layers = 0;
+		if (bytes.data() == nullptr || bytes.size() < kHeaderSize) return false;
+		Reader r {bytes};
+		m_version = r.read_u16();
+		m_flags = r.read_u16();
+		m_chunk_log2 = r.read_u8();
+		const u8 layers = r.read_u8();
+		m_tiles_chunk = r.read_u16();
+		m_palette_chunk = r.read_u16();
+		r.read_u32(); // reservado
+		r.read_u16(); // reservado
+		if (!r.ok() || m_version != kVersion) return false;
+		if (m_chunk_log2 == 0u || m_chunk_log2 > 8u) return false;
+		if (layers > kMaxLayers) return false;
+		Reader lr {bytes};
+		if (!lr.skip(kHeaderSize)) return false;
+		const u32 chunk_cells = 1u << (2u * m_chunk_log2);
+		for (u8 i = 0; i < layers; ++i) {
+			Layer& L = m_layer[i];
+			L = Layer {};
+			L.id = lr.read_u16();
+			L.kind = lr.read_u16();
+			L.width = lr.read_u16();
+			L.height = lr.read_u16();
+			L.wrap_x = lr.read_u16();
+			L.wrap_y = lr.read_u16();
+			L.empty_tile = lr.read_u16();
+			L.meta_count = lr.read_u16();
+			L.dir_off = lr.read_u32();
+			L.dir_count = lr.read_u32();
+			L.cells_off = lr.read_u32();
+			L.meta_off = lr.read_u32();
+			if (!lr.ok()) return false;
+			if (!block_fits(L.dir_off, L.dir_count, kChunkEntrySize, bytes.size())) return false;
+			if (!block_fits(L.cells_off, L.dir_count, chunk_cells * 2u, bytes.size())) return false;
+			if (L.meta_count != 0u) {
+				if (L.meta_off == 0u) return false;
+				if (!block_fits(L.meta_off, L.meta_count, kMetaEntrySize, bytes.size())) return false;
+			}
+		}
+		m_layers = layers;
+		m_ok = true;
+		return true;
+	}
+
+	constexpr bool valid() const { return m_ok; }
+	constexpr u16 version() const { return m_version; }
+	constexpr u16 flags() const { return m_flags; }
+	constexpr u8 chunk_log2() const { return m_chunk_log2; }
+	constexpr u32 chunk_size() const { return 1u << m_chunk_log2; }
+	constexpr u32 chunk_cell_count() const { return 1u << (2u * m_chunk_log2); }
+	constexpr u8 layer_count() const { return m_layers; }
+	constexpr u16 tiles_chunk() const { return m_tiles_chunk; }
+	constexpr u16 palette_chunk() const { return m_palette_chunk; }
+
+	constexpr u16 layer_id(u32 i) const { return m_layer[i].id; }
+	constexpr u16 layer_kind(u32 i) const { return m_layer[i].kind; }
+	constexpr u16 layer_width(u32 i) const { return m_layer[i].width; }
+	constexpr u16 layer_height(u32 i) const { return m_layer[i].height; }
+	constexpr u16 layer_wrap_x(u32 i) const { return m_layer[i].wrap_x; }
+	constexpr u16 layer_wrap_y(u32 i) const { return m_layer[i].wrap_y; }
+	constexpr u16 layer_empty_tile(u32 i) const { return m_layer[i].empty_tile; }
+	constexpr u32 layer_dir_count(u32 i) const { return m_layer[i].dir_count; }
+	constexpr u16 layer_meta_count(u32 i) const { return m_layer[i].meta_count; }
+
+	/// Índice en el directorio del chunk `(cx,cy)`, o -1 si está ausente.
+	/// Búsqueda binaria sobre el directorio ordenado por `(cy,cx)`.
+	s32 find_chunk(u32 i, s32 cx, s32 cy) const {
+		if (i >= m_layers) return -1;
+		const Layer& L = m_layer[i];
+		s32 lo = 0, hi = static_cast<s32>(L.dir_count) - 1;
+		while (lo <= hi) {
+			const s32 mid = lo + (hi - lo) / 2;
+			const u8* e = entry(i, static_cast<u32>(mid));
+			const s32 ecx = static_cast<s16>(read_be16(e));
+			const s32 ecy = static_cast<s16>(read_be16(e + 2u));
+			if (ecy == cy && ecx == cx) return mid;
+			if (ecy < cy || (ecy == cy && ecx < cx)) lo = mid + 1;
+			else hi = mid - 1;
+		}
+		return -1;
+	}
+
+	/// Celda `cell_index` de la capa (en orden de directorio). Fuera de rango ->
+	/// `empty_tile`.
+	u16 cell(u32 i, u32 cell_index) const {
+		if (i >= m_layers) return 0xFFFFu;
+		const Layer& L = m_layer[i];
+		if (cell_index >= L.dir_count * chunk_cell_count()) return L.empty_tile;
+		return read_be16(m_bytes.data() + L.cells_off + cell_index * 2u);
+	}
+
+	/// Bloque crudo de celdas (big-endian) del chunk `dir_index` de la capa.
+	Span<const u8> chunk_bytes(u32 i, u32 dir_index) const {
+		if (i >= m_layers) return {};
+		const Layer& L = m_layer[i];
+		if (dir_index >= L.dir_count) return {};
+		return { m_bytes.data() + L.cells_off + dir_index * chunk_cell_count() * 2u,
+		         chunk_cell_count() * 2u };
+	}
+
+	/// Tile de la capa en coordenadas de mundo `(x,y)`, con wrap/borde. Los chunks
+	/// ausentes y las celdas fuera de `width`/`height` devuelven `empty_tile`.
+	u16 tile_at(u32 i, s32 x, s32 y) const {
+		if (i >= m_layers) return 0xFFFFu;
+		const Layer& L = m_layer[i];
+		if (L.wrap_x != 0u) x = eng::wrap_period(x, L.wrap_x);
+		else if (L.width != 0u && (x < 0 || x >= static_cast<s32>(L.width))) return L.empty_tile;
+		if (L.wrap_y != 0u) y = eng::wrap_period(y, L.wrap_y);
+		else if (L.height != 0u && (y < 0 || y >= static_cast<s32>(L.height))) return L.empty_tile;
+		const s32 cx = x >> m_chunk_log2;
+		const s32 cy = y >> m_chunk_log2;
+		const s32 idx = find_chunk(i, cx, cy);
+		if (idx < 0) return L.empty_tile;
+		const u32 mask = chunk_size() - 1u;
+		const u32 lx = static_cast<u32>(x) & mask;
+		const u32 ly = static_cast<u32>(y) & mask;
+		return cell(i, static_cast<u32>(idx) * chunk_cell_count() + ly * chunk_size() + lx);
+	}
+
+	/// Entrada de metadatos `idx` de la capa (cero si no existe).
+	Meta meta_entry(u32 i, u32 idx) const {
+		Meta m {};
+		if (i >= m_layers) return m;
+		const Layer& L = m_layer[i];
+		if (L.meta_off == 0u || idx >= L.meta_count) return m;
+		const u8* p = m_bytes.data() + L.meta_off + idx * kMetaEntrySize;
+		m.type = read_be16(p);
+		m.x = read_be16(p + 2u);
+		m.y = read_be16(p + 4u);
+		m.a = read_be16(p + 6u);
+		m.b = read_be16(p + 8u);
+		m.c = read_be16(p + 10u);
+		return m;
+	}
+
+private:
+	struct Layer {
+		u16 id = 0, kind = 0, width = 0, height = 0;
+		u16 wrap_x = 0, wrap_y = 0, empty_tile = 0xFFFFu, meta_count = 0;
+		u32 dir_off = 0, dir_count = 0, cells_off = 0, meta_off = 0;
+	};
+
+	static bool block_fits(u32 off, u32 count, u32 elem, u32 size) {
+		if (count == 0u) return true;
+		if (off > size) return false;
+		return count <= (size - off) / elem;
+	}
+	const u8* entry(u32 i, u32 idx) const {
+		return m_bytes.data() + m_layer[i].dir_off + idx * kChunkEntrySize;
+	}
+
+	Span<const u8> m_bytes {};
+	Layer m_layer[kMaxLayers] {};
+	u16 m_version = 0, m_flags = 0, m_tiles_chunk = 0, m_palette_chunk = 0;
+	u8 m_chunk_log2 = 0, m_layers = 0;
+	bool m_ok = false;
 };
 
 /// Ensambla un blob UAF-R en un buffer del llamador (exportador host o tests).

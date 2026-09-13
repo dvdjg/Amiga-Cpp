@@ -94,7 +94,7 @@ constexpr eng::s32 kChunkCols = kMapCols / kChunkTiles; // 16 chunks en X
 // Carga el chunk `(cx,cy)`: rellena `kChunkTiles*kChunkTiles` celdas desde `g_map`.
 // El wrap de X es a nivel de chunks (potencia de dos -> máscara). Las filas fuera
 // del mundo se dejan a 0 (nunca se consultan: `wrap_y=0`).
-bool load_chunk(void*, eng::s32 cx, eng::s32 cy, eng::u16* cells) {
+field::LoadResult load_chunk(void*, eng::s32 cx, eng::s32 cy, eng::u16* cells) {
 	const eng::s32 ccx = cx & (kChunkCols - 1);
 	for (eng::u16 ly = 0; ly < kChunkTiles; ++ly) {
 		const eng::s32 wy = cy * kChunkTiles + ly;
@@ -106,7 +106,7 @@ bool load_chunk(void*, eng::s32 cx, eng::s32 cy, eng::u16* cells) {
 					: 0;
 		}
 	}
-	return true;
+	return field::LoadResult::Ready;
 }
 
 struct DemoGame {

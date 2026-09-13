@@ -49,6 +49,17 @@ constexpr bool is_pow2(u32 n) { return n != 0u && (n & (n - 1u)) == 0u; }
 /// `log2` entero RUNTIME (solo valido si `n` es potencia de dos).
 constexpr u32 ilog2(u32 n) { u32 e = 0; while (n > 1u) { n >>= 1u; ++e; } return e; }
 
+/// Envuelve `value` en `[0, period)` (módulo con signo, correcto con negativos).
+/// Con `period` potencia de dos usa máscara (evita `__modsi3` en el 68000);
+/// `period == 0` = sin wrap (devuelve `value`). Lo comparten el campo de tiles
+/// (`eng::field`) y el visor de mundo (`eng::assets`).
+constexpr s32 wrap_period(s32 value, u16 period) {
+    if (period == 0u) return value;
+    if (is_pow2(period)) return value & static_cast<s32>(period - 1u);
+    const s32 p = static_cast<s32>(period);
+    return ((value % p) + p) % p;
+}
+
 /// Cociente `v / (1<<shift)` con signo, redondeando hacia abajo (floor). El
 /// desplazamiento aritmetico de `s32` es floor por definicion en C++20.
 constexpr s32 asr_floor(s32 v, u32 shift) { return v >> shift; }
