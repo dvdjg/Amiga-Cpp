@@ -301,9 +301,9 @@
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/field/playfield.hpp>
-#include <eng/field/plane_view.hpp>
 #include <eng/field/scroll_engine.hpp>
 #include <eng/field/scroll_profile.hpp>
+#include <eng/field/soft_dpf.hpp>
 #include <eng/field/tile_map.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/frame_plan.hpp>
@@ -315,127 +315,9 @@ namespace eng::field {
 /// Depuración: resultado del `valid()` del compositor dual (0 = OK).
 extern volatile eng::u32 g_dbg_dual_valid;
 
-/// Offset **en píxeles** de la ventana del patrón de fondo para un parallax
-/// horizontal "soft DPF" (RoboCod). El plano de fondo comparte el scroll del FG
-/// (el display lee el bitmap desde `camx`), así que para que el fondo avance a
-/// `1/div` de la velocidad del FG hay que desfasar el CONTENIDO del patrón:
-///
-///   patron_visible(screen_x) = src + camx + screen_x
-///   queremos                  = camx/div + screen_x
-///   => src = camx/div - camx = -camx*(div-1)/div
-///
-/// El resultado se envuelve en `[0, period_px)`. `div=1` devuelve 0 (mismo
-/// fondo: no hay que copiar); `div=0` se trata como 1. Con pasos de cámara
-/// múltiplos de `div` el offset avanza 1 píxel por frame y `make_bg_plane_copy_job`
-/// reparte los 4 bits bajos al barrel shifter del Blitter -> continuidad sin
-/// saltos de columna.
-constexpr s32 parallax_pattern_offset_px(s32 camx, u8 div, u16 period_px) {
-    if (period_px == 0u || div <= 1u) return 0;
-    s32 off = -(camx * static_cast<s32>(div - 1u) / static_cast<s32>(div));
-    off %= static_cast<s32>(period_px);
-    if (off < 0) off += static_cast<s32>(period_px);
-    return off;
-}
-
-/// Offset en píxeles de la ventana del patrón para un fondo **FIJO** en pantalla
-/// (velocidad 0): anula TODO el scroll X del playfield, tanto el grueso como el
-/// fino. `src = -camx` envuelto en `[0, period_px)`. Es el caso `desired_bg = 0`
-/// de la fórmula `source = main_scroll - desired_bg`, útil para comprobar la
-/// compensación del Copper split con una imagen estática (demo 112).
-constexpr s32 fixed_bg_offset_px(s32 camx, u16 period_px) {
-    if (period_px == 0u) return 0;
-    s32 off = -camx % static_cast<s32>(period_px);
-    if (off < 0) off += static_cast<s32>(period_px);
-    return off;
-}
-
-/// Descomposición del blit de fondo en **1 o 2 rectángulos** para compensar el
-/// Copper split vertical del corkscrew (ver `robocod-layered-scroll.md` §3.1).
-///
-/// La ventana visible (`viewport_h` filas) es un solo tramo del bitmap si
-/// `d + viewport_h <= display_h` (d = `display_offset`); si no, son DOS tramos: el
-/// superior `[d, display_h)` y el inferior `[0, viewport_h - split)` con
-/// `split = display_h - d`. El fondo se muestrea SIEMPRE en filas contiguas
-/// `[bg_y, bg_y + viewport_h)`, repartidas entre los dos tramos, de forma que el
-/// corte queda sin costura.
-///
-///   sin split:  rect0 = { dest_row=d,         src_y=bg_y,         rows=viewport_h }
-///   con split:  rect0 = { dest_row=d,         src_y=bg_y,         rows=split      }
-///               rect1 = { dest_row=0,         src_y=bg_y+split,   rows=viewport_h-split }
-///
-/// El llamador envuelve `src_y` en el patrón; `count` dice cuántos rectángulos usar.
-struct BgSplitRects {
-    u16 dest_row[2] = {0u, 0u};
-    u16 src_y[2] = {0u, 0u};
-    u16 rows[2] = {0u, 0u};
-    u8 count = 1u;
-};
-
-constexpr BgSplitRects bg_split_rects(u16 d, u16 display_h, u16 viewport_h, u16 bg_y) {
-    BgSplitRects r {};
-    if (display_h == 0u || viewport_h == 0u) { r.count = 0u; return r; }
-    d = static_cast<u16>(d % display_h);
-    const u16 split = static_cast<u16>(display_h - d);   // > 0 (d < display_h)
-    if (split >= viewport_h) {
-        r.dest_row[0] = d;
-        r.src_y[0] = bg_y;
-        r.rows[0] = viewport_h;
-        r.count = 1u;
-    } else {
-        r.dest_row[0] = d;
-        r.src_y[0] = bg_y;
-        r.rows[0] = split;
-        r.dest_row[1] = 0u;
-        r.src_y[1] = static_cast<u16>(bg_y + split);
-        r.rows[1] = static_cast<u16>(viewport_h - split);
-        r.count = 2u;
-    }
-    return r;
-}
-
-/// Reparto de un offset horizontal (en píxeles) al **barrel shifter** del Blitter.
-/// Geometría AHRM 6 (modo ascendente): `destino[d] = patrón[q + d - S]`; para que
-/// `destino[0]` lea el píxel `src_x` se apunta el canal A a la word `q = src_x + S`
-/// con `S = (-src_x) & 15`. Devuelve el offset en bytes de esa word (múltiplo de 2)
-/// y `S`; `word_bytes` es lo que consume `make_bg_plane_copy_rect_job`.
-struct BgShift {
-    u16 word_bytes = 0;   // offset en bytes de la word donde apuntar el canal A
-    u8 shift = 0;         // 0..15
-};
-
-constexpr BgShift bg_shift_for(u16 src_x_pixels) {
-    const u16 s = static_cast<u16>((16u - (src_x_pixels & 15u)) & 15u);
-    const u16 q = static_cast<u16>(src_x_pixels + s);
-    return { static_cast<u16>((q / 16u) * 2u), static_cast<u8>(s) };
-}
-
-/// Ventana horizontal del blit de fondo: en vez de copiar la fila completa, copia
-/// solo lo que el display puede leer + 1 word de guarda. El display fetcha
-/// `fetch_bytes` desde `planeaddx = ceil(camx/16)*2`; el blit cubre
-/// `[planeaddx - 2, planeaddx + fetch_bytes)` empezando en `dest_byte_off` con
-/// `words` words. `src_x` es el píxel de patrón que debe verse en el píxel 0 del
-/// blit, de forma que la imagen quede FIJA: `src_x = dest_pixel0 - camx (mod P)`.
-/// La guarda del barrel shifter (<=15 px) cae justo antes de `camx` (no visible).
-struct BgWindow {
-    u16 dest_byte_off = 0;
-    u16 words = 0;
-    u16 src_x = 0;
-};
-
-constexpr BgWindow bg_window_for(s32 camx, u16 period_px, u16 fetch_bytes) {
-    BgWindow w {};
-    if (period_px == 0u || fetch_bytes < 2u) return w;
-    const u16 pa = static_cast<u16>(((camx + 15) / 16) * 2); // planeaddx (bytes)
-    const u16 dest = pa >= 2u ? static_cast<u16>(pa - 2u) : 0u;
-    w.dest_byte_off = dest;
-    w.words = static_cast<u16>((pa + fetch_bytes - dest) / 2u);
-    s32 base = fixed_bg_offset_px(camx, period_px) + static_cast<s32>(dest) * 8;
-    base %= static_cast<s32>(period_px);
-    if (base < 0) base += static_cast<s32>(period_px);
-    w.src_x = static_cast<u16>(base);
-    return w;
-}
-
+// Los helpers puros del soft DPF (offsets de parallax/fijo, `bg_shift_for`,
+// `bg_window_for`, `bg_split_rects`) y `SoftDpfComposition` viven en
+// `soft_dpf.hpp` (incluido arriba).
 
 
 // -----------------------------------------------------------------------------
@@ -924,13 +806,11 @@ public:
         m_total_bytes = m_bitmap.total_bytes();
         m_real_base = m_bitmap.allocation_start(); // base del bloque (BPLxPT)
         m_frontbuffer = m_bitmap.bytes().data();   // vía cruda interna (núcleo)
-        // Soft DPF (RoboCod): vista del plano de fondo con doble buffer opcional.
-        // El buffer 0 es el propio bitmap principal; `enable_double_buffer` reserva
-        // UN bitmap extra con el mismo layout interleaved (coste: 1 bitmap extra).
-        m_bg_view.bind_single(m_real_base, m_frontbuffer);
-        if (m_cfg.parallax_plane < m_cfg.planes) {
-            if (!m_bg_view.enable_double_buffer(memory, bc)) return false;
-        }
+        // Soft DPF (RoboCod): configurar la composición y enlazar el bitmap
+        // principal; si está activa reserva UN bitmap extra (doble buffer del plano
+        // de fondo). Ver `soft_dpf.hpp`.
+        m_soft_dpf.configure({m_bytes_per_row, m_display_height, m_cfg.planes, m_cfg.parallax_plane});
+        if (!m_soft_dpf.init(memory, bc, m_bitmap)) return false;
 
         // BPLMODs: BITMAPBYTESPERROW*planes - SCREENBYTESPERROW - modulo_offset
         // modulo_offset = 2 (normal), 4 (BPL32/BPAGEM), 8 (BPL32+BPAGEM) según fetch_mode
@@ -978,23 +858,8 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
     /// El scroll de ese plano lo da su `BPLxPT` (no se repinta por frame). Sustituir
     /// por un tileset artístico es cambiar esta función.
     void fill_parallax_pattern() {
-        if (m_frontbuffer == nullptr || m_cfg.parallax_plane >= cplanes()) return;
-        const u8 p = m_cfg.parallax_plane;
-        const u32 row = m_bytes_per_row;
-        const u32 w = m_bitmap_width, h = m_bitmap_height;
-        for (u32 y = 0; y < h; ++y) {
-            u8* pl = m_frontbuffer + (y * cplanes() + p) * row;
-            for (u32 x = 0; x < w; ++x) {
-                // Bandas diagonales limpias (periodo 64, ancho 32): un fondo
-                // geometrico claro y periodico que scrollea a otra velocidad.
-                const bool on = ((x + y) & 63u) < 32u;
-                if (!on) continue;
-                const u32 wb = (x / 8u) & ~1u;
-                const u16 m = static_cast<u16>(0x8000u >> (x & 15u));
-                pl[wb] = static_cast<u8>(pl[wb] | (m >> 8));
-                pl[wb + 1u] = static_cast<u8>(pl[wb + 1u] | (m & 0xffu));
-            }
-        }
+        eng::field::fill_parallax_pattern(m_frontbuffer, m_bytes_per_row, m_cfg.planes,
+                                          m_cfg.parallax_plane, m_bitmap_width, m_bitmap_height);
     }
 
     /// Técnica **"soft DPF"** (RoboCod), REUTILIZABLE para cualquier playfield y
@@ -1028,39 +893,20 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
                                                   u16 src_x_pixels, u16 src_y,
                                                   u16 dest_row, u16 rows,
                                                   u16 dest_byte_off, u16 words) const {
-        const u8 bgp = m_cfg.parallax_plane;
-        const u16 row = m_bytes_per_row;
-        const u16 pat_row = pattern_row_bytes ? pattern_row_bytes : row;
-        const BgShift bs = bg_shift_for(src_x_pixels);
-        const u8* src = pattern + static_cast<u32>(src_y) * pat_row + bs.word_bytes;
-        // Soft DPF: el blit de fondo escribe el buffer TRASERO (el display lee el
-        // delantero), eliminando el tearing.
-        u8* dst_base = m_bg_view.write_base();
-        u16* dst = reinterpret_cast<u16*>(dst_base +
-            (static_cast<u32>(dest_row) * cplanes() + bgp) * row + dest_byte_off);
-        const u16 width_bytes = static_cast<u16>(words * 2u);
-        return {
-            graphics::BlitJobKind::TileBlockCopy, nullptr,
-            reinterpret_cast<const u16*>(src), dst,
-            words, rows,
-            static_cast<s16>(pat_row - width_bytes),
-            static_cast<s16>(row * cplanes() - width_bytes),
-            1, bs.shift, 2, 2, false
-        };
+        return m_soft_dpf.make_copy_rect_job(pattern, pattern_row_bytes, src_x_pixels, src_y,
+                                             dest_row, rows, dest_byte_off, words);
     }
 
     /// Compatibilidad: copia la fila completa del anillo (`display_height` filas).
     graphics::BlitJob make_bg_plane_copy_job(const u8* pattern, u16 pattern_row_bytes,
                                              u16 src_x_pixels, u16 src_y) const {
-        return make_bg_plane_copy_rect_job(pattern, pattern_row_bytes, src_x_pixels,
-                                           src_y, 0, m_display_height, 0,
-                                           static_cast<u16>(m_bytes_per_row / 2u));
+        return m_soft_dpf.make_copy_job(pattern, pattern_row_bytes, src_x_pixels, src_y);
     }
 
     /// Soft DPF: conmuta el buffer de fondo delantero/trasero. Llamar TRAS escribir
     /// el blit de fondo (que va al buffer trasero) y ANTES de `compose()`.
-    void bg_flip() { m_bg_view.flip(); }
-    constexpr bool bg_double_buffered() const { return m_bg_view.double_buffered(); }
+    void bg_flip() { m_soft_dpf.flip(); }
+    constexpr bool bg_double_buffered() const { return m_soft_dpf.double_buffered(); }
 
     bool fill_screen(graphics::FramePlan& plan) const {
         if (!m_initialized) return false;
@@ -1440,7 +1286,7 @@ const u16 I = fetch_scroll_pixels(m_cfg.fetch_mode);
             // buffer delantero (`bg_plane_base`); `parallax_planeaddx` solo se usa en
             // el modo antiguo de puntero por plano (parallax_div != 0).
             v.parallax_plane = m_cfg.parallax_plane;
-            v.bg_plane_base = m_bg_view.double_buffered() ? m_bg_view.display_base() : nullptr;
+            v.bg_plane_base = m_soft_dpf.double_buffered() ? m_soft_dpf.display_base() : nullptr;
             if (m_cfg.parallax_div != 0u) {
                 const s32 ppos = (m_scroll.state().mapposx / m_cfg.parallax_div) +
                                  static_cast<s32>(I) - 1;
@@ -1623,9 +1469,9 @@ private:
     XlimitedConfigT<MapT> m_cfg {};
     gfx::Bitmap m_bitmap {};   // capa de memoria (posee el bloque Chip)
     u8* m_real_base = nullptr;
-    // Soft DPF (RoboCod): la vista del plano de fondo con doble buffer (ver
-    // `plane_view.hpp`). El compositor lee el FRONT y el blit escribe el BACK.
-    PlaneView m_bg_view {};
+    // Soft DPF (RoboCod): la composición (vista del plano de fondo + doble buffer)
+    // vive en `soft_dpf.hpp`; el playfield solo la configura y la consulta.
+    SoftDpfComposition m_soft_dpf {};
     const u8* m_blocks_buffer = nullptr;
     u16 m_bitmap_width = xlimited_detail::kBitmapW32;
     u16 m_bitmap_blocks_per_row = xlimited_detail::kBlocksPerRow32;

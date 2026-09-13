@@ -33,11 +33,13 @@ en el proceso.
   **Hecho**: `eng::field::PlaneView` (`plane_view.hpp`), extraído de `XLimitedPlayfield`
   (`display_base`/`write_base`/`flip`); HOST-038; 112 sin regresión.
 - Introducir `SoftDpfComposition`: FG (`Playfield<4>`) + BG (`PlaneView` de 1 plano sobre el
-  bitmap del FG) con **doble buffer del plano de fondo** y puntero alterno. **Pendiente** (hoy la
-  composición sigue siendo el compositor single/dual leyendo `bg_plane_base`).
+  bitmap del FG) con **doble buffer del plano de fondo** y puntero alterno. **Hecho**:
+  `eng::field::SoftDpfComposition` (`soft_dpf.hpp`) con la geometría, la vista y los blits de
+  copia; HOST-039. Falta la variante "FG `Playfield<4>` + BG" como una composición con nombre
+  (hoy el playfield sigue siendo único y el BG es su plano de parallax).
 - Mover fuera de `XLimitedPlayfield`: `parallax_plane`, `bg_flip`, `fill_parallax_pattern`,
-  `make_bg_plane_copy_rect_job`/`bg_window_for`/`bg_split_rects`. **Parcial**: el doble buffer ya
-  vive en `PlaneView`; el resto (patrón y jobs) sigue en el playfield.
+  `make_bg_plane_copy_rect_job`/`bg_window_for`/`bg_split_rects`. **Hecho**: los helpers puros y
+  `fill_parallax_pattern` viven en `soft_dpf.hpp`; el playfield solo delega.
 - **Piloto: demo 112.** Reducir a: FG scroll + BG (vista/doble buffer) + su cámara propia.
 - Verificación: `K_DIAG_YONLY`+`K_DIAG_BG_FIXED` (borde constante), `analyze-sequence` (marcador y
   movimiento), `112_BG_FLICKER.md` sigue siendo la evidencia del flashing.
