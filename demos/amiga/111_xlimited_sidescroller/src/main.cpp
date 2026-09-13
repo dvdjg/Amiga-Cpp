@@ -19,6 +19,8 @@
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/field/xlimited_scene.hpp>
+#include <eng/field/streaming_map.hpp>
+#include <eng/field/tile_source.hpp>
 #include <eng/field/tile_demo.hpp>
 
 #include <proto/exec.h>
@@ -54,6 +56,15 @@ constexpr eng::u16 kMapCols = 256;
 constexpr eng::u16 kMapRows = 20;
 constexpr eng::u16 kTilesetCount = 128;
 
+// El scroll consume un ACCESOR de tiles, no la matriz: aquí el mundo vive en un
+// `StreamingWorldMap` (chunks residentes en un pool del llamador) y el playfield
+// solo ve una `TileMapView` (límites/wrap + `tile_at`). El `prefetch` de cada
+// frame mantiene residentes los chunks que cubren la banda entrante.
+constexpr eng::u16 kChunkTiles = 16;
+constexpr eng::u8  kChunkCapacity = 12;
+using WorldMap = field::StreamingWorldMap<kChunkTiles, kChunkCapacity>;
+using MapView = field::TileMapView<WorldMap>;
+
 constexpr field::ScrollConsts kScrollConsts {
 	/*tile_width=*/        kTileW,
 	/*tile_height=*/       kTileH,
@@ -74,9 +85,34 @@ constexpr eng::u16 kPalette[16] {
 
 eng::u16 g_map[kMapCols * kMapRows] {};
 
+// Pool de chunks residentes (del llamador). Son índices de tile (no DMA), así que
+// basta con memoria estática.
+eng::u16 g_world_pool[WorldMap::kPoolCells] {};
+
+constexpr eng::s32 kChunkCols = kMapCols / kChunkTiles; // 16 chunks en X
+
+// Carga el chunk `(cx,cy)`: rellena `kChunkTiles*kChunkTiles` celdas desde `g_map`.
+// El wrap de X es a nivel de chunks (potencia de dos -> máscara). Las filas fuera
+// del mundo se dejan a 0 (nunca se consultan: `wrap_y=0`).
+bool load_chunk(void*, eng::s32 cx, eng::s32 cy, eng::u16* cells) {
+	const eng::s32 ccx = cx & (kChunkCols - 1);
+	for (eng::u16 ly = 0; ly < kChunkTiles; ++ly) {
+		const eng::s32 wy = cy * kChunkTiles + ly;
+		for (eng::u16 lx = 0; lx < kChunkTiles; ++lx) {
+			const eng::s32 wx = ccx * kChunkTiles + lx;
+			cells[static_cast<eng::u32>(ly) * kChunkTiles + lx] =
+				(wy >= 0 && wy < kMapRows)
+					? g_map[static_cast<eng::u32>(wy) * kMapCols + static_cast<eng::u32>(wx)]
+					: 0;
+		}
+	}
+	return true;
+}
+
 struct DemoGame {
-	field::XlimitedScene<kScrollConsts> scene {};
-	field::XlimitedSceneConfig scene_cfg {};
+	field::XlimitedScene<kScrollConsts, MapView> scene {};
+	field::XlimitedSceneConfigT<MapView> scene_cfg {};
+	WorldMap m_world {};
 	eng::graphics::FramePlan plan {};
 	eng::s16 m_ship_y = 200;
 	eng::s16 m_ship_py = 200;
@@ -84,6 +120,14 @@ struct DemoGame {
 	Bullet m_bullets[6] {};
 	eng::u8 m_fire = 0;
 	bool ready = false;
+
+	// Precarga los chunks que cubren la banda visible + margen de avance. El
+	// scroll solo consulta residentes (`TileMapView::tile_at`), así que sin esto
+	// aparecerían huecos al entrar en un chunk aún no cargado.
+	void prefetch_band() {
+		const eng::s32 tx0 = (scene.bg().mapposx() / kTileW) - 2;
+		m_world.prefetch(tx0, 0, tx0 + (kViewportW / kTileW) + 20, kMapRows);
+	}
 
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
@@ -109,7 +153,12 @@ struct DemoGame {
 		scene_cfg.display_height = kDisplayH;
 		scene_cfg.max_step = 4;
 
-		scene_cfg.map.cells = eng::Span<const eng::u16>::from_raw(g_map, kMapCols * kMapRows);
+		if (!m_world.init({&load_chunk, nullptr},
+		                  eng::Span<eng::u16>(g_world_pool, WorldMap::kPoolCells), 0xFFFFu)) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00011105u);
+			return;
+		}
+		scene_cfg.map.src = &m_world;
 		scene_cfg.map.width = kMapCols;
 		scene_cfg.map.height = kMapRows;
 		scene_cfg.map.wrap_x = kMapCols;    // X toroidal (scroll largo continuo)
@@ -129,6 +178,7 @@ struct DemoGame {
 			return;
 		}
 		scene.bg().set_camera(0, 0);
+		prefetch_band();
 		if (!scene.fill(backend, plan)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011103u);
 			return;
@@ -149,6 +199,7 @@ struct DemoGame {
 		plan.set_blit_budget_limits({8192, 16384, 4, 160});
 
 		// Avance X hacia la derecha (+2 px/frame). El mapa es toroidal, no se topea.
+		prefetch_band();
 		if (!scene.bg().update_scroll(plan, 2, 0)) {
 			scene.bg().set_camera(0, 0);
 		}

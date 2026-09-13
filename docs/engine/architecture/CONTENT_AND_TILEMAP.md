@@ -41,14 +41,21 @@ WorldMap (disperso)
   `tile_at` resuelve chunk + offset; los chunks ausentes devuelven `empty_tile` (fondo).
 - **Streaming**: los chunks se cargan/descargan al **cache de chunks residentes** (Chip RAM) bajo
   presupuesto, típicamente desde una `BackgroundQueue` (ver `BACKGROUND_TASKS.md`). El
-  `SCENE_AND_RESOURCES` controla el hueco de Chip RAM.
+  `SCENE_AND_RESOURCES` controla el hueco de Chip RAM. El acceso durante el dibujo se hace **solo
+  sobre lo residente**: `prefetch` precarga por adelantado los chunks que cubren la banda entrante
+  y el `tile_at` nunca dispara una carga.
 - **Coste**: el scroll recorre la banda entrante y pinta sólo tiles poblados; los tramos vacíos se
   saltan sin tocar el Blitter. El índice de chunks debe ser O(1) por consulta (sin `%`/`/` caros;
   potencias de dos).
 - El mundo puede ser **toroidal** (wrap) o **acotado**; el `TileSource` declara el modo.
-- Implementación: `SparseTileMap<Chunk>` (`tile_source.hpp`) y `ChunkCache<ChunkSize,Capacity>`
-  (`chunk_cache.hpp`, pool de Chip RAM del llamador + LRU). Tests: `tests/host/025_tile_source`,
-  `tests/host/026_chunk_cache`.
+- Implementación: `SparseTileMap<Chunk>` (`tile_source.hpp`), `ChunkCache<ChunkSize,Capacity>`
+  (`chunk_cache.hpp`, pool de Chip RAM del llamador + LRU) y `StreamingWorldMap<ChunkSize,Capacity>`
+  (`streaming_map.hpp`: `prefetch` de la ventana + acceso solo-residente). El scroll consume un
+  `TileMapView<Src>` (`tile_source.hpp`): un `TileSource` (disperso o streaming) más los límites/wrap
+  del mundo, de modo que el playfield no depende del almacén. Tests:
+  `tests/host/025_tile_source`, `tests/host/026_chunk_cache`, `tests/host/029_streaming_map`,
+  `tests/host/030_tile_map_view`. Demo de hardware: `demos/amiga/111_xlimited_sidescroller`
+  (`StreamingWorldMap` + `prefetch` de la banda por frame).
 
 ### 2.1 Compatibilidad con Tiled (.tmx/.tsx)
 
@@ -61,8 +68,11 @@ El mundo disperso se define de forma compatible con el formato del editor **Tile
   material.
 - **Object layers** (`<objectgroup>`): spawns, triggers y colisiones van a los **metadatos del
   chunk** (`Meta`), no son tiles.
-- El importador es `tools/ehb/parse-tmx.mjs` (CSV o `<tile>`, `--resolve-tsx`); se amplía a mapas
-  infinitos y a la conversión de `gid` a índice de banco.
+- El importador es `tools/ehb/parse-tmx.mjs`: acepta las codificaciones de Tiled (CSV, XML
+  `<tile>` y base64 con gzip/zlib), mapas **finitos** (matriz `gids`) e **infinitos**
+  (`<chunk x y width height>`, con coordenadas posibles negativas), limpia los bits de flip y
+  resuelve `.tsx` externos con `--resolve-tsx`. La conversión de `gid` a índice de banco la hace
+  `tools/ehb/gid-to-bank.mjs`.
 - Referencia del formato: `docs/guides/roadmap/TILED.md`.
 
 ## 3. Sprites y animaciones

@@ -68,3 +68,6 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-025 | [tile_source](025_tile_source/README.md) | Concepto `TileSource`: mapa denso (`TileLayerMap`) y **disperso por chunks** (`SparseTileMap`); skip de `empty_tile`. |
 | HOST-026 | [chunk_cache](026_chunk_cache/README.md) | `ChunkCache`: chunks residentes con carga bajo demanda y evicción LRU (mundo disperso sin todo el mapa en RAM). |
 | HOST-027 | [animation](027_animation/README.md) | `Animation`/`Frame`: avance determinista por ticks de juego, loop/one-shot, desacoplado de la representación. |
+| HOST-028 | [representation](028_representation/README.md) | `choose_representation`/`RepresentationAllocator`: elección de sprite/BOB/CPU/playfield por tamaño, preferencia y presupuesto, con reasignación al agotarse. |
+| HOST-029 | [streaming_map](029_streaming_map/README.md) | `StreamingWorldMap`: prefetch de la ventana, lectura de solo-residentes, chunk ausente como `empty_tile` y evicciones LRU. |
+| HOST-030 | [tile_map_view](030_tile_map_view/README.md) | `TileMapView`: accesor de scroll con límites/wrap sobre un `TileSource` (streaming/disperso); `wrap_period`. |

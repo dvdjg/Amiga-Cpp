@@ -22,10 +22,55 @@ concept TileSource = requires(const T& t, eng::s32 x, eng::s32 y, eng::u16 g) {
 	t.is_empty(g);
 };
 
+/// Contrato que consume el scroll: un `TileSource` más los límites del mundo
+/// (ancho/alto/wrap/edge) y el indicador `has_data`. Permite que el playfield no
+/// dependa del almacén concreto (denso, disperso o streaming).
+template <class T>
+concept TileMap = TileSource<T> && requires(const T& m) {
+	static_cast<eng::u16>(m.width);
+	static_cast<eng::u16>(m.height);
+	static_cast<eng::u16>(m.wrap_x);
+	static_cast<eng::u16>(m.wrap_y);
+	m.has_data();
+};
+
+/// Envuelve `value` en `[0, period)`. Con `period` potencia de dos usa máscara
+/// (evita `__modsi3`); `period == 0` = sin wrap (devuelve `value`).
+constexpr eng::s32 wrap_period(eng::s32 value, eng::u16 period) {
+	if (period == 0) return value;
+	if ((period & static_cast<eng::u16>(period - 1u)) == 0u) {
+		return value & static_cast<eng::s32>(period - 1u);
+	}
+	return ((value % static_cast<eng::s32>(period)) + period) % period;
+}
+
 /// División entera hacia abajo (correcta con coordenadas negativas), sin `%`.
 constexpr eng::s32 floor_div(eng::s32 a, eng::s32 b) {
 	return (a >= 0) ? (a / b) : -(((-a) + b - 1) / b);
 }
+
+/// Vista de un mundo disperso/streaming con los límites que necesita el scroll.
+/// El almacén (`Src`, p. ej. `SparseTileMap` o `StreamingWorldMap`) lo posee el
+/// llamador y aquí se referencia: así el `prefetch` se hace sobre ESA instancia
+/// (mientras el playfield solo consulta residentes). El wrap y el borde se
+/// resuelven aquí, de modo que `Src` no necesita conocerlos.
+template <class Src>
+struct TileMapView {
+	static_assert(TileSource<Src>, "Src debe cumplir TileSource");
+	Src* src = nullptr;
+	eng::u16 width = 0, height = 0, wrap_x = 0, wrap_y = 0, edge_tile = 0;
+
+	constexpr bool has_data() const { return src != nullptr; }
+	constexpr bool is_empty(eng::u16 g) const { return src != nullptr && src->is_empty(g); }
+	eng::u16 tile_at(eng::s32 x, eng::s32 y) const {
+		if (src == nullptr) return edge_tile;
+		if (wrap_x) x = wrap_period(x, wrap_x);
+		else if (width != 0 && (x < 0 || x >= static_cast<eng::s32>(width))) return edge_tile;
+		if (wrap_y) y = wrap_period(y, wrap_y);
+		else if (height != 0 && (y < 0 || y >= static_cast<eng::s32>(height))) return edge_tile;
+		return src->tile_at(x, y);
+	}
+};
 
 /// Mapa DISPERSO por chunks: sólo se almacenan las regiones pobladas. Cada chunk es
 /// una rejilla `ChunkSize*ChunkSize` de tiles; `ChunkSize` es potencia de dos (la

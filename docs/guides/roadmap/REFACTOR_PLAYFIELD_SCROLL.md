@@ -105,10 +105,16 @@ en el proceso.
   recursos.
 - Assets por **UAF-R** (vistas `Span`, sin copia) y pipelines de tiles/sprites/audio.
 - Detalle: `docs/engine/architecture/CONTENT_AND_TILEMAP.md`.
-- **Estado**: piezas puras implementadas y testeadas (HOST-025/026/027): `TileSource` +
+- **Estado**: piezas puras implementadas y testeadas (HOST-025/026/027/028/029/030): `TileSource` +
   `SparseTileMap` (`tile_source.hpp`), `ChunkCache` (`chunk_cache.hpp`), `Animation`/`Frame`/
-  `SpriteSheet` (`animation.hpp`). Pendiente: que el scroll/escena consuman el `TileSource` (hoy
-  `TileLayerMap` denso) y el streaming bajo presupuesto en una demo.
+  `SpriteSheet` (`animation.hpp`), `RepresentationAllocator` (`representation.hpp`),
+  `StreamingWorldMap` (`streaming_map.hpp`) y `TileMapView` (`tile_source.hpp`). El importador
+  `tools/ehb/parse-tmx.mjs` soporta mapas finitos e infinitos (`<chunk>`) y las codificaciones
+  CSV/XML/base64(gzip/zlib). El scroll ya consume el accesor abstracto: `XLimitedPlayfield`/
+  `XlimitedScene` están templados sobre el tipo de mapa (`TileMap`), con `TileLayerMap` por defecto
+  (denso/disperso) y `TileMapView<StreamingWorldMap>` en el piloto `111_xlimited_sidescroller`
+  (prefetch de la banda por frame). Pendiente: streaming bajo presupuesto real (background queue)
+  y `gid`→índice de banco incrustable desde el world map.
 
 ## Mapa de migración (código actual → objetivo)
 

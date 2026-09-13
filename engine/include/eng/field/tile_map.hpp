@@ -13,6 +13,7 @@
 
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
+#include <eng/field/tile_source.hpp>
 
 namespace eng::field {
 
@@ -21,6 +22,18 @@ struct TileLayerMap {
 	eng::u16 width = 0, height = 0, wrap_x = 0, wrap_y = 0, edge_tile = 0;
 	/// Tile valor `empty_tile` (0xFFFF = desactivado) = "no se pinta".
 	eng::u16 empty_tile = 0xFFFF;
+	/// Modo DISPERSO opcional: si `use_sparse`, los tiles se leen por chunks
+	/// (compatible con los "mapas infinitos" de Tiled). `width/height/wrap_*` siguen
+	/// describiendo los límites del mundo para el scroll.
+	SparseTileMap<16> sparse {};
+	bool use_sparse = false;
+
+	/// Activa el modo disperso con el directorio de chunks dado (sincroniza `empty`).
+	void set_sparse(eng::Span<const typename SparseTileMap<16>::Chunk> chunks) {
+		sparse.chunks = chunks;
+		sparse.empty_tile = empty_tile;
+		use_sparse = true;
+	}
 	static eng::s32 wrap_coordinate(eng::s32 value, eng::u16 period) {
 		// Los mapas de las demos son potencias de dos (256x128). En el 68000,
 		// sustituir modulo por una máscara evita __modsi3 en cada tile. El camino
@@ -32,7 +45,12 @@ struct TileLayerMap {
 	}
 	/// Cumple `TileSource`: un tile es "vacío" si es `empty_tile`.
 	constexpr bool is_empty(eng::u16 g) const { return g == empty_tile; }
+	/// Cumple `TileMap`: hay datos si el modo activo tiene celdas o chunks.
+	constexpr bool has_data() const {
+		return use_sparse ? !sparse.chunks.empty() : !cells.empty();
+	}
 	eng::u16 tile_at(eng::s32 tx, eng::s32 ty) const {
+		if (use_sparse) return sparse.tile_at(tx, ty);
 		if (cells.empty() || width == 0 || height == 0) return edge_tile;
 		eng::s32 x = tx, y = ty;
 		if (wrap_x) x = wrap_coordinate(x, wrap_x);

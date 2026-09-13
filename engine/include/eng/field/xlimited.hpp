@@ -590,8 +590,10 @@ enum class AxisMode : u8 { Ring = 0, Finite = 1, Off = 2 };
 /// Tras la corrección, el umbral de telemetría videoposx/mapposx es 64 para
 /// tolerar el muestreo cada 20 ms con warp y el wrap de 8 bits tras 600 frames.
 ///
-struct XlimitedConfig {
-    TileLayerMap map {};
+template <class MapT = TileLayerMap>
+struct XlimitedConfigT {
+    static_assert(TileMap<MapT>, "MapT debe cumplir TileMap");
+    MapT map {};
     const u16* tileset = nullptr;      // banco de bloques (BlocksBitmap->Planes[0])
     u16 tileset_count = 0;
     u8 planes = 4;                     // BLOCKSDEPTH, rango 3..6 (3=8c, 4=16c, 5=32c, 6=EHB/DPF 3+3)
@@ -636,6 +638,10 @@ struct XlimitedConfig {
     u16 visible_tile_bias_y = 0;
 };
 
+/// Alias del caso denso/disperso (`TileLayerMap`), retrocompatible.
+using XlimitedConfig = XlimitedConfigT<TileLayerMap>;
+
+
 /// Campo XLimited: scroll infinito en X con bitmap interleaved y wrap vertical.
 ///
 /// Es una ESPECIALIZACIÓN de `Playfield`: implementa el mapeo lógico→físico del
@@ -662,7 +668,7 @@ struct XlimitedConfig {
 /// runtime) se obtiene la geometría del sink en ejecución (fallback correcto,
 /// pero con divisiones). `begin()` valida que los campos de `SC` coincidan
 /// con `cfg` (fallo temprano si se instancia con constantes equivocadas).
-template <ScrollConsts SC = ScrollConsts{}>
+template <ScrollConsts SC = ScrollConsts{}, class MapT = TileLayerMap>
 class XLimitedPlayfield : public Playfield {
 public:
     XLimitedPlayfield() = default;
@@ -780,10 +786,10 @@ public:
     /// RAM con alineación 16 (como `AllocBitMap(..., BMF_INTERLEAVED|BMF_CLEAR)`).
     /// `frontbuffer` apunta a `base + bitmapoffset` para los modos de fetch
     /// ancho (16 bytes para BPL32, 48 para 4x). En modo normal offset=0.
-    bool begin(MemorySystem& memory, const XlimitedConfig& cfg) {
+    bool begin(MemorySystem& memory, const XlimitedConfigT<MapT>& cfg) {
         // Verifica en compile-time que este playfield cumple el contrato del
         // algoritmo (`ScrollEngine`); hace el scroll portátil y explícito.
-        static_assert(eng::field::ScrollSink<XLimitedPlayfield<SC>>,
+        static_assert(eng::field::ScrollSink<XLimitedPlayfield<SC, MapT>>,
             "XLimitedPlayfield debe cumplir el sink del ScrollEngine (corkscrew/XYLimited).");
         m_cfg = cfg;
         m_max_step = m_cfg.max_step ? m_cfg.max_step : 1; // salto configurable (≥1)
@@ -1027,7 +1033,7 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
         const u16 rows = colHeight;
         for (u16 b = 0; b < rows; ++b) {
             for (u16 a = 0; a < cols; ++a) {
-                if (map_tile_at(a, b) == m_cfg.map.empty_tile) continue; // vacío: no pintar
+                if (m_cfg.map.is_empty(map_tile_at(a, b))) continue; // vacío: no pintar
                 const u16 x = a * ctw();
                 const u16 y = b * m_block_planes_lines; // planeline
                 const u16 mapx = a;
@@ -1166,7 +1172,7 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
             mapy = static_cast<u16>(map_height_blocks() - 1);
         }
         // Tile 'vacío' (empty_tile): NO se pinta (no consume slot de Blitter).
-        if (map_tile_at(mapx, mapy) == m_cfg.map.empty_tile) return true;
+        if (m_cfg.map.is_empty(map_tile_at(mapx, mapy))) return true;
         // DEBUG (hipótesis viewport-offset): ¿este bloque de relleno cae en las
         // filas del bucle que el display está mostrando AHORA mismo? Si sí, el
         // indice del viewport respecto al framebuffer hace visibles los tiles.
@@ -1499,6 +1505,9 @@ constexpr u16 bitmap_blocks_per_row() const { return m_bitmap_blocks_per_row; }
     constexpr u16 tile_height() const { return cth(); }
     constexpr u16 viewport_w() const { return m_cfg.viewport_w; }
     constexpr u16 viewport_h() const { return m_cfg.viewport_h; }
+    /// Acceso al accesor de tiles (p. ej. para `prefetch` de un mundo con streaming).
+    MapT& map_source() { return m_cfg.map; }
+    const MapT& map_source() const { return m_cfg.map; }
     constexpr u16 display_planelines() const { return m_display_planelines; }
     constexpr u16 bytes_per_row() const { return m_bytes_per_row; }
     constexpr u16 bitmap_blocks_per_col() const { return m_bitmap_blocks_per_col; }
@@ -1557,7 +1566,7 @@ private:
         }
         if (m_cfg.screens_x == 0 || m_cfg.screens_y == 0) return false;
         // Si el mapa no trae celdas ni dimensiones, se derivará de screens_x/y → válido
-        if (m_cfg.map.cells.empty() && m_cfg.map.width == 0 && m_cfg.screens_x == 0) return false;
+        if (!m_cfg.map.has_data() && m_cfg.map.width == 0 && m_cfg.screens_x == 0) return false;
         return true;
     }
 
@@ -1574,7 +1583,7 @@ private:
         return mode == 3 ? 8 : (mode == 0 ? 2 : 4);
     }
 
-    XlimitedConfig m_cfg {};
+    XlimitedConfigT<MapT> m_cfg {};
     gfx::Bitmap m_bitmap {};   // capa de memoria (posee el bloque Chip)
     u8* m_real_base = nullptr;
     // Soft DPF: doble buffer SOLO del plano de fondo (`parallax_plane`). Un buffer
@@ -1598,7 +1607,7 @@ private:
     bool m_linear_display = false;  // display lineal (sin split): espejo del bucle
     u32 m_mirror_planelines = 0;    // desplazamiento del espejo (display_height*planes)
     u16 m_bpl1mod = 0, m_bpl2mod = 0;
-    ScrollEngine<XLimitedPlayfield<SC>, SC> m_scroll {}; // cámara + algoritmo (§7)
+    ScrollEngine<XLimitedPlayfield<SC, MapT>, SC> m_scroll {}; // cámara + algoritmo (§7)
     u16* m_savewordpointer = nullptr;             // guarda de 1 word plane-shift (sink)
     u16 m_saveword = 0;
     u8 m_max_step = 1;                            // salto máx. px/frame por eje (config)

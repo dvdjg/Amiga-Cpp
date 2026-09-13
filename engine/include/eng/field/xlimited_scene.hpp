@@ -199,7 +199,9 @@ struct XlimitedPathConfig {
 /// playfield (3) y `dual.enabled=true`. Las tres sub-configs separan conceptos:
 /// `hud` (overlay de composición), `dpf` (composición de capas), `path`
 /// (validación). El scroll (geometría+algoritmo) es lo que queda plano.
-struct XlimitedSceneConfig {
+template <class MapT = TileLayerMap>
+struct XlimitedSceneConfigT {
+    static_assert(TileMap<MapT>, "MapT debe cumplir TileMap");
     // --- Geometría del campo de scroll (intrínseca del playfield) -----------
     eng::u16 viewport_w = 320;
     eng::u16 viewport_h = 256;       // alto visible del playfield principal. CON split
@@ -220,8 +222,8 @@ struct XlimitedSceneConfig {
     XlimitedOverlayConfig hud {};
 
     // --- Mundo ---------------------------------------------------------------
-    TileLayerMap map {};             // mapa de PF1 (cells/wrap/edge)
-    TileLayerMap map2 {};            // mapa de PF2 (si dual y no vacío; si no, reusa map)
+    MapT map {};                     // mapa de PF1 (cells/wrap/edge)
+    MapT map2 {};                    // mapa de PF2 (si dual y no vacío; si no, reusa map)
     eng::u16 tileset_count = 64;
     BlocksRowFn fg_row_fn = nullptr; // generador de filas de PF1 (incrusta base/transparencia)
     BlocksRowFn bg_row_fn = nullptr; // generador de filas de PF2 (DPF)
@@ -287,6 +289,9 @@ struct XlimitedSceneConfig {
     eng::u32 sprite_data_bytes = 0;   // 0 = sin sprites; si > 0, reserva DATA Chip
 };
 
+/// Alias del caso denso/disperso (`TileLayerMap`), retrocompatible.
+using XlimitedSceneConfig = XlimitedSceneConfigT<TileLayerMap>;
+
 /// Escena corkscrew reutilizable: uno o dos `XlimitedField` + compositor.
 ///
 /// Uso típico:
@@ -303,14 +308,14 @@ struct XlimitedSceneConfig {
 /// `SC` (constantes a priori) se reenvían a los `XLimitedPlayfield<>` y de ahí
 /// al `ScrollEngine`: hacen que las divisiones calientes del scroll usen
 /// `fast_div` (sin `__udivsi3`). `ScrollConsts{}` (default) = geometría runtime.
-template <ScrollConsts SC = ScrollConsts{}>
+template <ScrollConsts SC = ScrollConsts{}, class MapT = TileLayerMap>
 class XlimitedScene {
 public:
     XlimitedScene() = default;
     XlimitedScene(const XlimitedScene&) = delete;
     XlimitedScene& operator=(const XlimitedScene&) = delete;
 
-    bool begin(MemorySystem& memory, const XlimitedSceneConfig& cfg) {
+    bool begin(MemorySystem& memory, const XlimitedSceneConfigT<MapT>& cfg) {
         m_cfg = cfg;
         if (cfg.planes == 0 || cfg.planes > 6) return false;
         if (cfg.blocks_prebuilt == nullptr && cfg.blocks_prebuilt2 == nullptr &&
@@ -370,8 +375,8 @@ public:
             }
             if (!m_tiles[pf].valid()) return false;
             // Config del campo.
-            XlimitedConfig fc;
-            fc.map = (pf == 0) ? cfg.map : (cfg.map2.cells.empty() ? cfg.map : cfg.map2);
+            XlimitedConfigT<MapT> fc;
+            fc.map = (pf == 0) ? cfg.map : (cfg.map2.has_data() ? cfg.map2 : cfg.map);
             fc.tileset = static_cast<const eng::u16*>(m_tiles[pf].data);
             fc.tileset_count = cfg.tileset_count;
             fc.planes = cfg.planes;
@@ -613,7 +618,7 @@ public:
     constexpr eng::u8 fields() const {
         return (m_cfg.dpf.enabled && !m_cfg.dpf.fg_canvas) ? 2u : 1u;
     }
-    constexpr const XlimitedSceneConfig& config() const { return m_cfg; }
+    constexpr const XlimitedSceneConfigT<MapT>& config() const { return m_cfg; }
     constexpr u16 copper_words() const {
         return m_cfg.dpf.enabled ? m_dual.copper_words() : m_single.copper_words();
     }
@@ -633,11 +638,11 @@ public:
     // dibujo pertenecen a cada playfield: `bg().set_pixel(...)`,
     // `fg().add_world_bitmap(...)`, etc. `fg` solo existe en modo dual.
     // -------------------------------------------------------------------------
-    XLimitedPlayfield<SC>& bg() { return m_field[0]; }
-    const XLimitedPlayfield<SC>& bg() const { return m_field[0]; }
+    XLimitedPlayfield<SC, MapT>& bg() { return m_field[0]; }
+    const XLimitedPlayfield<SC, MapT>& bg() const { return m_field[0]; }
     /// Segundo XLimited (DPF 3+3 homogéneo). En `fg_canvas` usa `canvas_fg()`.
-    XLimitedPlayfield<SC>& fg() { return m_field[1]; }
-    const XLimitedPlayfield<SC>& fg() const { return m_field[1]; }
+    XLimitedPlayfield<SC, MapT>& fg() { return m_field[1]; }
+    const XLimitedPlayfield<SC, MapT>& fg() const { return m_field[1]; }
     /// FG como lienzo plano (DPF heterogéneo: `dual && fg_canvas`). Dibuja aquí
     /// (una vez en init) con las primitivas; el contenido es estático.
     CanvasPlayfield& canvas_fg() { return m_fg_canvas; }
@@ -683,8 +688,8 @@ private:
         [](eng::usize i) { return static_cast<eng::u8>((static_cast<eng::u32>(i) * 7u) / 10u) & 63u; }
     };
 
-    XlimitedSceneConfig m_cfg {};
-    XLimitedPlayfield<SC> m_field[2] {};
+    XlimitedSceneConfigT<MapT> m_cfg {};
+    XLimitedPlayfield<SC, MapT> m_field[2] {};
     CanvasPlayfield m_hud {};        // franja HUD (lienzo plano, si hud_height>0)
     CanvasPlayfield m_fg_canvas {};  // FG lienzo plano (DPF heterogéneo)
     graphics::SpriteManager m_sprites {};
@@ -699,7 +704,7 @@ private:
 // Definición out-of-class de la tabla de seno (constant-initialized). Ver la
 // nota del miembro `kSin`: evita el ICE de gcc 16.x con `inline constexpr` en
 // x86_64; es equivalente a la inicialización en la clase.
-template <ScrollConsts SC>
-eng::SineTable<64> XlimitedScene<SC>::kSin{};
+template <ScrollConsts SC, class MapT>
+eng::SineTable<64> XlimitedScene<SC, MapT>::kSin{};
 
 } // namespace eng::field

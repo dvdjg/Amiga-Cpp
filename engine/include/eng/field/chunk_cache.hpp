@@ -39,6 +39,16 @@ public:
 		return true;
 	}
 
+	/// Devuelve las celdas del chunk si ESTÁ RESIDENTE (sin cargar ni tocar stats).
+	const eng::u16* find(eng::s32 cx, eng::s32 cy) const {
+		for (eng::u8 i = 0; i < Capacity; ++i) {
+			if (m_slots[i].valid && m_slots[i].cx == cx && m_slots[i].cy == cy) {
+				return m_pool.data() + static_cast<eng::u32>(i) * kCells;
+			}
+		}
+		return nullptr;
+	}
+
 	/// Devuelve las celdas del chunk (residente o recién cargado); nullptr si falla.
 	const eng::u16* get(eng::s32 cx, eng::s32 cy) {
 		for (eng::u8 i = 0; i < Capacity; ++i) {

@@ -25,8 +25,10 @@ particularidades por tile. El orden de los tiles del sheet (row-major) es el ord
 gids dentro de su `firstgid`.
 
 ## Herramientas del repo
-- `tools/ehb/parse-tmx.mjs <mapa.tmx>`: extrae mapa/tilesets/capas (CSV o `<tile>`),
-  limpia flips; con `--resolve-tsx` lee los `.tsx` para resolver la imagen de cada tileset.
+- `tools/ehb/parse-tmx.mjs <mapa.tmx>`: extrae mapa/tilesets/capas soportando las
+  codificaciones de Tiled (CSV, XML `<tile>` y base64 con gzip/zlib), mapas finitos e
+  infinitos por `<chunk>` (coordenadas negativas incluidas) y limpia los flips;
+  con `--resolve-tsx` lee los `.tsx` para resolver la imagen de cada tileset.
   Esto habilita: gid → (imagen, índice) → índice en el banco EHB (si se corta el sheet con
   `slice-tiles.mjs`).
 - El extractor "bitmap en crudo" (`quantize-ehb.mjs` + `slice-tiles.mjs`) NO necesita Tiled.
