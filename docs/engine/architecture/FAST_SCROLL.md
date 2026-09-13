@@ -86,13 +86,25 @@ Un perfil a medida: `ScrollProfile<TileBurstFill<3>, GuardTiles<4>, /*DirectionL
 `static_assert` del perfil exige `guarda >= relleno + 1`. El perfil por defecto **no impone** paso
 ni guarda, así que reproduce exactamente el comportamiento clásico.
 
-**Estado de implementación.** La selección, el paso por frame (`max_step = fill_tiles * tile`) y
-la guarda X (el perfil puede pedir más ancho que el fetch) están implementados y verificados
-(HOST-032; demo 111 en perfiles `ScrollFast1`/`ScrollFast2` avanza 16/32 px por frame sin huecos).
-`prefill`/`direction_latched` quedan declarados para la fase de **pre-pintado por ráfagas** (menos
-blits por cruce) y dirección laceda; hoy el avance rápido usa los sub-pasos atómicos de 1 px del
-núcleo (coste ∝ salto, correcto pero no optimizado). Guarda en **Y** sigue limitada por el staging
-de 2 bloques del corkscrew (válida para `TileBurst(1)`).
+**Estado de implementación.**
+
+- **Hecho**: selección estática (`ScrollProgressive`/`ScrollFastN`, `scroll_profile.hpp`); paso por
+  frame (`max_step = fill_tiles * tile`); guarda X (el perfil pide más ancho que el fetch);
+  **avance por tiles completos** (`snap_to_tiles`) con la **dirección laceda a frontera**
+  (`direction_latched`, seguro gracias a que el paso es múltiplo de tile); **staging vertical por
+  perfil** (`y_staging_tiles`: 2 en el clásico, `guard_tiles` en los rápidos). Tests HOST-032/033;
+  demos 111 en `ScrollFast1`/`ScrollFast2` avanzan 16/32 px por frame sin huecos y la 111 por
+  defecto no cambia.
+- **Alcance del "burst"**: en el corkscrew cada fila del anillo es un **blit de bloque** distinto.
+  Pintar una columna completa por frame (`TileBurst`) y pintarla por los sub-pasos de 1 px que ya
+  existen producen **el mismo número de blits** (uno por fila de bloque); lo que cambia con
+  `prefill`/`direction_latched` es que la cámara avanza por tiles completos y la dirección solo
+  cambia en frontera, no que se reduzca el conteo de blits. La reducción real (fusionar filas de
+  bloque, `StripPrerender`) queda pendiente y no es trivial con el modelo de blit por tile.
+- **Pendiente**: coalescer blits por ráfaga (si aporta), `StripPrerender` (anillo de estrips),
+  tear-free por doble buffer, y una demo corkscrew con Y rápido (`display_height=0` para que el
+  perfil derive el staging y `ScrollConsts.display_height` coherente). La guarda en Y solo aplica
+  cuando no se fuerza `cfg.display_height` (p. ej. 202 fija 288 por el split/HUD).
 
 ## 4. Corrección: qué invariantes hay que preservar
 

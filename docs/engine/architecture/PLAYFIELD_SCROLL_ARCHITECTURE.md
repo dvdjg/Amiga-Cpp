@@ -69,7 +69,9 @@ presupuesto en `FAST_SCROLL.md`.
 
 Selección estática implementada: `eng::field::ScrollProfile`/`ScrollProgressive`/`ScrollFastN`
 (`engine/include/eng/field/scroll_profile.hpp`) se pasa como parámetro de tipo a
-`XLimitedPlayfield`/`XlimitedScene` (default `ScrollProgressive` = comportamiento clásico).
+`XLimitedPlayfield`/`XlimitedScene` (default `ScrollProgressive` = comportamiento clásico). Incluye
+paso por frame, guarda X/Y, avance por tiles completos (dirección laceda a frontera) y staging
+vertical por perfil.
 
 ## 3. Playfields (superficies)
 

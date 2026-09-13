@@ -390,7 +390,7 @@ public:
             // anillo completo (18 bloques) para no colisionar `mapy` (hasta 17).
             fc.display_height = cfg.display_height != 0u
                 ? cfg.display_height
-                : static_cast<eng::u16>(cfg.viewport_h + 2u * th);
+                : static_cast<eng::u16>(cfg.viewport_h + Profile::y_staging_tiles() * th);
             fc.screens_x = 16;
             fc.screens_y = 16;
             fc.scroll_y = cfg.scroll_y;

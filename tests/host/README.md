@@ -73,3 +73,4 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-030 | [tile_map_view](030_tile_map_view/README.md) | `TileMapView`: accesor de scroll con límites/wrap sobre un `TileSource` (streaming/disperso); `wrap_period`. |
 | HOST-031 | [world_view](031_world_view/README.md) | `WorldView`: chunk `WorldMap` (cabecera, directorio ordenado, celdas, wrap, chunks ausentes, metadatos y validación de bloques). |
 | HOST-032 | [scroll_profile](032_scroll_profile/README.md) | `ScrollProfile`: selección estática del scroll (paso por frame, guarda de lookahead, prefill, invariante) con alias `ScrollProgressive`/`ScrollFastN`. |
+| HOST-033 | [scroll_burst](033_scroll_burst/README.md) | `snap_to_tiles` y `y_staging_tiles`: avance por tiles completos (dirección laceda) y staging vertical del corkscrew por perfil. |

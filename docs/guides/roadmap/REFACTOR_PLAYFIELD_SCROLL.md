@@ -53,8 +53,9 @@ en el proceso.
   `ScrollMode`/`AxisMode`.
 - `FillPolicy` (velocidad) y `GuardPolicy` (ancho de guarda): `Progressive` | `TileBurst<N>` |
   `StripPrerender<C>`; `Progressive` = comportamiento actual. **Hecha la selección estática**
-  (`scroll_profile.hpp`: `ScrollProfile`/`ScrollProgressive`/`ScrollFastN`, HOST-032); pendiente el
-  pre-pintado por ráfagas y la dirección laceda. Diseño: `FAST_SCROLL.md`.
+  (`scroll_profile.hpp`: `ScrollProfile`/`ScrollProgressive`/`ScrollFastN`), el avance por tiles
+  completos (`snap_to_tiles`, dirección laceda) y el **staging Y por perfil** (`y_staging_tiles`);
+  HOST-032/033. Pendiente: coalescer blits por ráfaga y `StripPrerender`. Diseño: `FAST_SCROLL.md`.
 - `BigBufferScroll`: estrategia trivial (solo puntero) para “escena ya dibujada”.
 - Mantener `ScrollEngine` como implementación de `RingScroll` (o renombrarlo) sin cambiar su
   aritmética (invariantes §1.2 de `XYLIMITED_ALGORITMO_GENERICO.md`).

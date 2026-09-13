@@ -19,6 +19,15 @@
 
 namespace eng::field {
 
+/// Redondea `v` hacia cero a múltiplos de `tile` (avance en fronteras de tile).
+/// Lo usan los perfiles con `prefill`: la cámara solo se detiene en límites de
+/// tile, así el cambio de dirección (`direction_latched`) cae siempre en frontera.
+constexpr eng::s32 snap_to_tiles(eng::s32 v, eng::u32 tile) {
+	if (tile == 0u) return v;
+	const eng::s32 t = static_cast<eng::s32>(tile);
+	return (v / t) * t;
+}
+
 /// Relleno progresivo (clásico): sub-pasos de 1 px; la guarda la fija el modo de
 /// fetch. `tiles == 0` = "no impone paso" (se usa el `max_step` de la config).
 struct ProgressiveFill {
@@ -59,6 +68,8 @@ template <class FillT = ProgressiveFill, class GuardT = GuardTiles<0>, bool Dire
 struct ScrollProfile {
 	static_assert(FillT::tiles == 0u || GuardT::tiles >= FillT::tiles + 1u,
 	              "guarda insuficiente: necesita al menos fill+1 tiles de lookahead");
+	static_assert(!DirectionLatched || FillT::tiles != 0u,
+	              "direction_latched requiere un perfil con relleno por tiles (prefill)");
 
 	using Fill = FillT;
 	using Guard = GuardT;
@@ -76,12 +87,18 @@ struct ScrollProfile {
 	static constexpr eng::u32 guard_px(eng::u32 tile) {
 		return static_cast<eng::u32>(guard_tiles) * tile;
 	}
+	/// Staging vertical del corkscrew en bloques. El clásico usa 2; un perfil
+	/// rápido pide `guard_tiles` (>=2) para pre-pintar varias filas por delante.
+	static constexpr eng::u8 y_staging_tiles() {
+		return guard_tiles < 2u ? 2u : guard_tiles;
+	}
 };
 
-/// Selecciones listas para usar (una línea en la demo).
+/// Selecciones listas para usar (una línea en la demo). Los perfiles rápidos
+/// llevan la dirección laceda a frontera de tile (avance por tiles completos).
 using ScrollProgressive = ScrollProfile<ProgressiveFill, GuardTiles<0>>;
-using ScrollFast1 = ScrollProfile<TileBurstFill<1>, GuardTiles<2>>;
-using ScrollFast2 = ScrollProfile<TileBurstFill<2>, GuardTiles<3>>;
-using ScrollFast4 = ScrollProfile<TileBurstFill<4>, GuardTiles<5>>;
+using ScrollFast1 = ScrollProfile<TileBurstFill<1>, GuardTiles<2>, true>;
+using ScrollFast2 = ScrollProfile<TileBurstFill<2>, GuardTiles<3>, true>;
+using ScrollFast4 = ScrollProfile<TileBurstFill<4>, GuardTiles<5>, true>;
 
 } // namespace eng::field

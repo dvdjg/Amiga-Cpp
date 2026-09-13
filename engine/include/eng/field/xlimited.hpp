@@ -730,6 +730,14 @@ public:
     bool update_scroll(graphics::FramePlan& plan, s32 dx, s32 dy) override {
         if (!m_initialized) return false;
         m_dbg_ink_visible = 0; // DEBUG: reinicio el flag del frame (hipótesis offset)
+        // Perfil con `prefill`: la cámara avanza por TILES completos. Garantiza
+        // que el cambio de dirección caiga en frontera de tile (`direction_latched`)
+        // y que la franja entre alineada (plane-shift 0 al terminar). El perfil
+        // progresivo conserva el paso exacto de la config (1 px/sub-paso).
+        if constexpr (Profile::prefill) {
+            dx = eng::field::snap_to_tiles(dx, ctw());
+            dy = eng::field::snap_to_tiles(dy, cth());
+        }
         const s32 lim = m_max_step;
         if (dx > lim) dx = lim; else if (dx < -lim) dx = -lim;
         if (dy > lim) dy = lim; else if (dy < -lim) dy = -lim;
@@ -748,6 +756,8 @@ public:
     using scroll_profile = Profile;
     static constexpr u8 profile_fill_tiles() { return Profile::fill_tiles; }
     static constexpr u8 profile_guard_tiles() { return Profile::guard_tiles; }
+    static constexpr bool profile_prefill() { return Profile::prefill; }
+    static constexpr bool profile_direction_latched() { return Profile::direction_latched; }
 
     /// DEBUG: ¿el frame pintó algún bloque de relleno dentro de la zona visible?
     constexpr u8 dbg_ink_visible() const { return m_dbg_ink_visible; }
@@ -839,12 +849,14 @@ public:
         // map_h no afecta a bitmap_height en X-Limited puro, pero se valida para scroll_y
         (void)derived_map_h;
         // Bucle vertical del display (corkscrew): display_height es el ANILLO
-        // que el display recorre. Por defecto viewport_h + 2 bloques de staging;
-        // `cfg.display_height` permite un anillo MAYOR que el alto visible (p. ej.
-        // con HUD: visible 208, anillo 256+32=288) para que el walk plane-shifted
-        // del scroll horizontal no colisione `mapy` (hasta 17).
+        // que el display recorre. Por defecto viewport_h + staging (2 bloques en
+        // el perfil clásico; `guard_tiles` en un perfil rápido, para pre-pintar
+        // varias filas por delante). `cfg.display_height` permite un anillo MAYOR
+        // que el alto visible (p. ej. con HUD: visible 208, anillo 256+32=288)
+        // para que el walk plane-shifted del scroll horizontal no colisione `mapy`.
         m_display_height = m_cfg.display_height ? m_cfg.display_height : static_cast<u16>(
-            m_cfg.viewport_h + (m_cfg.scroll_y ? static_cast<u16>(2u * m_cfg.tile_height) : 0));
+            m_cfg.viewport_h + (m_cfg.scroll_y
+                ? static_cast<u16>(Profile::y_staging_tiles() * m_cfg.tile_height) : 0));
         m_display_planelines = static_cast<u16>(m_display_height * m_cfg.planes);
 
         m_bitmap_height = compute_bitmap_height(
