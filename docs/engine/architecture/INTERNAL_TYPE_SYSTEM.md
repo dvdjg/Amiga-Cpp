@@ -287,7 +287,12 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
   `ChunkyView`/`PlaneBytes`); la conversión a crudo (`data()`/`value`) queda dentro del backend.
   Demos 057/061/062/063/078/079/081 y `audio_paula` migradas; `C2p4State` (staging del C2P) sigue
   crudo por ser punteros de hardware. HOST-005 y demos alcanzan READY.
-- **Fases 6-7 — pendientes** (`Service<Context>`/`TaskToken<T>`, `Block<Tag>`).
+- **Fase 6 — parcial**: `BackgroundQueue` usa tareas **tipadas** `TaskToken<T>` /
+  `TaskFn<T>` (el engine copia el token en el slot y lo invoca con la firma de `T`; sin `void*`
+  en la API). HOST-017 y demo 081 migrados. Pendiente: `Service<Context>` en los servicios del
+  backend (`wait_vblank`/`set_vblank_service`/`set_blit_service`/`background_timer_start`), que
+  hoy pasan `void (*)(void*, u16) + void*`.
+- **Fase 7 — pendiente**: `Block<Tag>` en `LinearArena::allocate`.
 
 
 ## 9. Reglas para `CODING_STYLE.md` (resumen)

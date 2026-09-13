@@ -88,6 +88,19 @@ struct TaskSlice {
 /// (<= `slice.budget_units`), o `task_abort` para fallar. `data` es del llamador.
 using TaskStep = u16 (*)(void* data, const TaskSlice& slice);
 
+/// Firma **tipada** de una tarea (sin `void*`).
+template <class T>
+using TaskFn = u16 (*)(T* data, const TaskSlice& slice);
+
+/// Token de tarea tipado: datos del llamador + rutina. El engine copia el token
+/// en su slot (bytes) y lo invoca con la firma de `T`; el llamador conserva sus
+/// datos. Sustituye a `add(TaskStep, void* data)`.
+template <class T>
+struct TaskToken {
+	T* data = nullptr;
+	TaskFn<T> fn = nullptr;
+};
+
 /// Foto barata del estado/progreso de una tarea (para el juego).
 struct TaskProgress {
 	TaskState state = TaskState::Free;
@@ -112,29 +125,27 @@ class BackgroundQueue {
 public:
 	static constexpr u8 max_tasks = 8;
 
-	/// Registra una tarea. `total_units = 0` la hace continua (nunca termina sola;
-	/// el juego la cancela). `slice_units` es el presupuesto por rebanada (la tarea
-	/// puede consumir menos). Devuelve un handle invalido si no hay slot libre.
-	TaskHandle add(TaskStep step, void* data, u32 total_units = 0u, u16 slice_units = 64u) {
-		if (step == nullptr) {
+	/// Registra una tarea **tipada**. `total_units = 0` la hace continua (nunca
+	/// termina sola; el juego la cancela). `slice_units` es el presupuesto por
+	/// rebanada (la tarea puede consumir menos). Devuelve un handle inválido si no
+	/// hay slot libre. El engine copia el token; los datos siguen siendo del llamador.
+	template <class T>
+	TaskHandle add(TaskToken<T> token, u32 total_units = 0u, u16 slice_units = 64u) {
+		static_assert(sizeof(TaskToken<T>) <= kTokenBytes, "TaskToken demasiado grande");
+		if (token.fn == nullptr) {
 			return {};
 		}
-		for (u8 i = 0; i < max_tasks; ++i) {
-			Entry& e = m_entries[i];
-			if (!e.live) {
-				e.step = step;
-				e.data = data;
-				e.done = 0u;
-				e.total = total_units;
-				e.slice_units = (slice_units == 0u) ? 1u : slice_units;
-				e.avg = 0u;
-				e.slices = 0u;
-				e.live = true;
-				++m_live;
-				return { i, e.generation };
-			}
+		Entry* e = alloc_entry();
+		if (e == nullptr) {
+			return {};
 		}
-		return {};
+		e->step = &thunk<T>;
+		for (u32 i = 0; i < sizeof(TaskToken<T>); ++i) {
+			e->token[i] = reinterpret_cast<const u8*>(&token)[i];
+		}
+		e->total = total_units;
+		e->slice_units = (slice_units == 0u) ? 1u : slice_units;
+		return { static_cast<u8>(e - m_entries), e->generation };
 	}
 
 	/// Cancela una tarea (libera el slot). Devuelve false si el handle no es valido.
@@ -203,7 +214,7 @@ public:
 			slice.total_units = e.total;
 			slice.avg_units_per_slice = e.avg;
 
-			const u16 used = e.step(e.data, slice);
+			const u16 used = e.step(e.token, slice);
 			if (used == task_abort) {
 				e.failed = true;
 				continue;
@@ -244,9 +255,11 @@ public:
 	constexpr u8 max_slices_per_frame() const { return m_max_slices; }
 
 private:
+	static constexpr u32 kTokenBytes = 2u * sizeof(void*);
+
 	struct Entry {
 		TaskStep step = nullptr;
-		void* data = nullptr;
+		alignas(void*) u8 token[kTokenBytes] {};
 		u32 done = 0u;
 		u32 total = 0u;
 		u16 slice_units = 0u;
@@ -257,6 +270,36 @@ private:
 		bool failed = false;
 		bool completed = false;
 	};
+
+	/// Thunk por tipo: recupera el `TaskToken<T>` guardado y llama a la rutina.
+	template <class T>
+	static u16 thunk(void* token_bytes, const TaskSlice& slice) {
+		const TaskToken<T> tok = *reinterpret_cast<const TaskToken<T>*>(token_bytes);
+		return tok.fn(tok.data, slice);
+	}
+
+	/// Reserva el primer slot libre y lo deja limpio (sin `total`/`slice`, los fija
+	/// el llamador). Devuelve `nullptr` si no hay hueco.
+	Entry* alloc_entry() {
+		for (u8 i = 0; i < max_tasks; ++i) {
+			Entry& e = m_entries[i];
+			if (!e.live) {
+				e.step = nullptr;
+				for (u32 k = 0; k < kTokenBytes; ++k) e.token[k] = 0u;
+				e.done = 0u;
+				e.total = 0u;
+				e.slice_units = 0u;
+				e.avg = 0u;
+				e.slices = 0u;
+				e.failed = false;
+				e.completed = false;
+				e.live = true;
+				++m_live;
+				return &e;
+			}
+		}
+		return nullptr;
+	}
 
 	Entry* find(TaskHandle handle) {
 		if (!handle.valid()) {
@@ -278,7 +321,6 @@ private:
 		e.failed = false;
 		e.completed = false;
 		e.step = nullptr;
-		e.data = nullptr;
 		e.slice_units = 0u;
 		e.generation = static_cast<u8>(e.generation + 1u); // invalida handles viejos
 		if (m_live != 0u) {
