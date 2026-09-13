@@ -77,7 +77,7 @@ constexpr ehb::EhbPaletteZone palette_zones[] {
 /// las cuatro ultimas son half-brite. Al repetir la reticula bajo tres paletas
 /// Copper diferentes, comprobamos dos cosas a la vez: 6 bitplanes EHB y cambios
 /// completos de paleta por zonas.
-void build_ehb_test_pattern(eng::u8* planes) {
+void build_ehb_test_pattern(eng::PlaneBytes planes) {
 	// Cada celda mide 40 pixeles de ancho, exactamente 5 bytes lowres. Eso nos
 	// permite escribir bytes completos en cada bitplane: 0xff si el bit de color
 	// esta activo para los 8 pixeles de ese byte, 0x00 si no lo esta. Esta version
@@ -96,7 +96,7 @@ void build_ehb_test_pattern(eng::u8* planes) {
 			const eng::u32 byte_index = row_offset + byte_x;
 
 			for (eng::u8 plane = 0; plane < plane_count; ++plane) {
-				eng::u8* plane_base = planes + static_cast<eng::u32>(plane) * plane_bytes;
+				eng::u8* plane_base = planes.data() + static_cast<eng::u32>(plane) * plane_bytes;
 				plane_base[byte_index] = (index & (1u << plane)) ? 0xffu : 0x00u;
 			}
 		}

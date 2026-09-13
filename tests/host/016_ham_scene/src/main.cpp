@@ -174,7 +174,7 @@ int main() {
 		cfg.bplcon0 = 0x5000u;   // 5 planos, sin modos especiales
 		cfg.row_repeat = 1;
 		cfg.bplcon1_shift = 0u;
-		cfg.palette = nullptr;
+		cfg.palette = {};
 		cfg.palette_count = 0;
 
 		HamScene scene;

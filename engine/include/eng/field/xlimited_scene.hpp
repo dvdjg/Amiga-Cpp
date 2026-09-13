@@ -165,7 +165,7 @@ inline MemoryBlock xlimited_build_blocks_bitmap_from_indexed(
 struct XlimitedOverlayConfig {
     eng::u16 height = 0;              // 0 = sin overlay. Resta filas al área VISIBLE
     eng::u8 planes = 4;               //   del campo, pero NO al anillo del scroll.
-    const eng::u16* palette = nullptr; // paleta del overlay (0..2^planes-1)
+    eng::PaletteWords palette {}; // paleta del overlay (0..2^planes-1)
 };
 
 /// Composición de DOS playfields (dual playfield / DPF) o de un scroll + un
@@ -279,7 +279,7 @@ struct XlimitedSceneConfigT {
     XlimitedPathConfig path {};
 
     // --- Paleta --------------------------------------------------------------
-    const eng::u16* palette = nullptr; // 2^planes colores (single) o 16 (DPF: PF1 0..7, PF2 8..15)
+    eng::PaletteWords palette {}; // 2^planes colores (single) o 16 (DPF: PF1 0..7, PF2 8..15)
     eng::u32 copper_bytes = 1536;
     // Raster colors del display single (en DPF se usan `dpf.color_zones`).
     const eng::field::RasterColorZone* color_zones = nullptr;
@@ -320,7 +320,7 @@ public:
         if (cfg.planes == 0 || cfg.planes > 6) return false;
         if (cfg.blocks_prebuilt == nullptr && cfg.blocks_prebuilt2 == nullptr &&
             cfg.fg_row_fn == nullptr && cfg.indexed_tiles.empty()) return false;
-        if (cfg.palette == nullptr) return false;
+        if (cfg.palette.empty()) return false;
         if (cfg.map.width == 0 && (cfg.map.wrap_x == 0 && cfg.map.wrap_y == 0)) return false;
         // Main viewport: el HUD se resta del total. El WAIT de la zona HUD cae en
         // `DIWSTRT_y + main`; el comparador del Copper es de 8 bits, así que debe

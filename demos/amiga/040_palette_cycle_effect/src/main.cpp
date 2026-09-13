@@ -63,7 +63,7 @@ constexpr drivers::EhbPaletteZone palette_zones[] {
 /// La zona superior usa principalmente indices 1..7, justo el tramo que rota
 /// `PaletteCycleEffect`. La zona inferior mantiene una reticula EHB parecida a la
 /// demo 030 para demostrar que las zonas Copper siguen activas bajo el efecto.
-void build_cycle_test_pattern(eng::u8* planes) {
+void build_cycle_test_pattern(eng::PlaneBytes planes) {
 	for (eng::u16 y = 0; y < screen_height; ++y) {
 		const eng::u32 row_offset = static_cast<eng::u32>(y) * bytes_per_row;
 
@@ -83,7 +83,7 @@ void build_cycle_test_pattern(eng::u8* planes) {
 
 			const eng::u32 byte_index = row_offset + byte_x;
 			for (eng::u8 plane = 0; plane < plane_count; ++plane) {
-				eng::u8* plane_base = planes + static_cast<eng::u32>(plane) * plane_bytes;
+				eng::u8* plane_base = planes.data() + static_cast<eng::u32>(plane) * plane_bytes;
 				plane_base[byte_index] = (index & (1u << plane)) ? 0xffu : 0x00u;
 			}
 		}

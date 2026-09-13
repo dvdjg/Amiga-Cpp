@@ -138,15 +138,18 @@ public:
 
 	/// Emite una paleta base completa o parcial.
 	///
-	/// `colors` apunta siempre a una paleta fisica completa de 32 entradas. Los
-	/// parametros `first/count` permiten que un efecto futuro actualice solo un
-	/// tramo sin que el llamador tenga que recalcular registros COLORxx.
-	void emit_palette(const u16* colors, u8 first = 0, u8 count = 32) {
-		if (colors == nullptr || first >= 32) {
+	/// `colors` es la paleta de dominio (`PaletteWords`, con su tamaño). Los
+	/// parametros `first/count` permiten que un efecto actualice solo un tramo sin
+	/// que el llamador tenga que recalcular registros COLORxx.
+	void emit_palette(eng::PaletteWords colors, u8 first = 0, u8 count = 32) {
+		if (colors.empty() || first >= 32) {
 			return;
 		}
 		if (first + count > 32) {
 			count = static_cast<u8>(32 - first);
+		}
+		if (static_cast<eng::u32>(first) + count > colors.size()) {
+			count = static_cast<u8>(colors.size() - first);
 		}
 		for (u8 i = 0; i < count; ++i) {
 			m_builder.move(color_register(static_cast<u8>(first + i)), colors[first + i]);
@@ -159,7 +162,7 @@ public:
 	/// Un cambio de 32 colores en una linea visible es caro: no lo prohibimos porque
 	/// muchas escenas EHB lo necesitan en zonas seleccionadas, pero dejamos un aviso
 	/// medible para que el exportador y las pruebas puedan razonar sobre el coste.
-	void emit_palette_zone(u8 line, const u16* colors, u8 first = 0, u8 count = 32) {
+	void emit_palette_zone(u8 line, eng::PaletteWords colors, u8 first = 0, u8 count = 32) {
 		wait_line(line);
 		m_timeline.reserve_moves(line, count);
 		if (count >= 16) {

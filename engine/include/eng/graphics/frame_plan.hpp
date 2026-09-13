@@ -16,6 +16,7 @@
 /// de dirty rects: las areas de pantalla que un frame ha tocado y que, por tanto,
 /// pueden necesitar restauracion, redraw o analisis de presupuesto.
 
+#include <eng/core/domains.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::graphics {
@@ -28,16 +29,15 @@ enum class PalettePatchTarget : u8 {
 
 /// Cambio de uno o varios colores fisicos RGB444.
 ///
-/// `colors` apunta a una paleta completa de 32 entradas; `first/count` selecciona
-/// el tramo que se quiere aplicar. La razon de apuntar a la paleta completa es
-/// mantener el contrato igual que `CopperScheduler::emit_palette()`: un efecto
-/// puede pedir "actualiza colores 1..7" sin crear arrays temporales.
+/// `colors` es la paleta de dominio (`PaletteWords`, con su tamaño); `first/count`
+/// selecciona el tramo que se quiere aplicar. Un efecto puede pedir "actualiza
+/// colores 1..7" pasando su paleta completa sin crear arrays temporales.
 struct PalettePatch {
 	PalettePatchTarget target = PalettePatchTarget::Base;
 	u8 line = 0;
 	u8 first = 0;
 	u8 count = 0;
-	const u16* colors = nullptr;
+	eng::PaletteWords colors {};
 };
 
 /// Tipos de trabajo de Blitter soportados por el plan actual.
@@ -223,11 +223,11 @@ public:
 		m_ok = true;
 	}
 
-	bool add_base_palette_patch(const u16* colors, u8 first = 0, u8 count = 32) {
+	bool add_base_palette_patch(eng::PaletteWords colors, u8 first = 0, u8 count = 32) {
 		return add_palette_patch({PalettePatchTarget::Base, 0, first, count, colors});
 	}
 
-	bool add_zone_palette_patch(u8 line, const u16* colors, u8 first = 0, u8 count = 32) {
+	bool add_zone_palette_patch(u8 line, eng::PaletteWords colors, u8 first = 0, u8 count = 32) {
 		return add_palette_patch({PalettePatchTarget::Zone, line, first, count, colors});
 	}
 
@@ -406,7 +406,12 @@ private:
 	}
 
 	bool add_palette_patch(PalettePatch patch) {
-		if (patch.colors == nullptr || patch.first >= 32u || patch.count == 0u) {
+		if (patch.colors.empty() || patch.first >= 32u || patch.count == 0u) {
+			m_ok = false;
+			return false;
+		}
+		// La vista debe cubrir el tramo pedido.
+		if (static_cast<eng::u32>(patch.first) + patch.count > patch.colors.size()) {
 			m_ok = false;
 			return false;
 		}

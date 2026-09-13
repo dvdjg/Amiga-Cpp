@@ -114,7 +114,7 @@ public:
 		// 320x256 lowres PAL, 6 planos EHB (geometrÃ­a paramÃ©trica del scheduler).
 		scheduler.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 40u, 0x6200, 6, m_bitplanes, plane_bytes);
 		m_base_palette_value_word = static_cast<u16>(scheduler.words_used() + 1u);
-		scheduler.emit_palette(config.base_palette->color);
+		scheduler.emit_palette(eng::PaletteWords { config.base_palette->color });
 		for (u8 i = 0; i < config.zone_count; ++i) {
 			const EhbPaletteZone& zone = config.zones[i];
 			if (zone.palette != nullptr) {
@@ -130,7 +130,7 @@ public:
 				const CopperIntent zone_intent {
 					CopperIntentKind::PaletteLine,
 					zone.line, zone.line, 0,
-					zone.palette->color, 0, 32,
+					eng::PaletteWords { zone.palette->color }, 0, 32,
 					0, nullptr, 0, nullptr,
 				};
 				scheduler.emit_copper_intents(&zone_intent, 1);
@@ -163,12 +163,12 @@ public:
 		for (u8 i = 0; i < plan.palette_patch_count(); ++i) {
 			const PalettePatch& patch = plan.palette_patch(i);
 			if (patch.target == PalettePatchTarget::Base) {
-				if (!patch_palette_values(m_base_palette_value_word, patch.first, patch.count, patch.colors)) {
+				if (!patch_palette_values(m_base_palette_value_word, patch.first, patch.count, patch.colors.data())) {
 					return false;
 				}
 			} else {
 				const u16 value_word = find_zone_palette_value_word(patch.line);
-				if (value_word == 0 || !patch_palette_values(value_word, patch.first, patch.count, patch.colors)) {
+				if (value_word == 0 || !patch_palette_values(value_word, patch.first, patch.count, patch.colors.data())) {
 					return false;
 				}
 			}

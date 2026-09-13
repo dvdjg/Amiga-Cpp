@@ -19,6 +19,7 @@
 /// coprocesadores y los compilan a `FramePlan`. Esta separacion es la regla de oro:
 /// la logica de juego emite intenciones; el engine arbitra.
 
+#include <eng/core/domains.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 
@@ -74,7 +75,7 @@ struct CopperIntent {
     u16 top = 0;    // linea raster de inicio (inclusiva)
     u16 bottom = 0; // linea raster de fin (exclusiva), o igual a `top` si es puntual
     u16 hpos = 0;   // para PaletteSpan (posicion horizontal, unidades de WAIT)
-    const u16* colors = nullptr;  // Palette* (los valores dependen del backend)
+    eng::PaletteWords colors {};  // paleta de dominio (PaletteLine/PaletteSpan)
     u8  first = 0;
     u8  count = 0;
     s16 shift_x = 0;              // ShiftLines

@@ -110,7 +110,7 @@ public:
 	/// concepto `Effect<PaletteCycleEffect, FramePlan>`.
 	void apply_into(FramePlan& plan) {
 		apply_fixed();
-		plan.add_base_palette_patch(m_runtime.color, m_range.first, m_range.count);
+		plan.add_base_palette_patch(eng::PaletteWords { m_runtime.color }, m_range.first, m_range.count);
 	}
 
 	constexpr PaletteCycleRange range() const { return m_range; }

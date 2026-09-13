@@ -56,7 +56,7 @@ struct HamSceneConfig {
 	u16 bplcon1_shift = 0x0022;
 
 	/// Paleta opcional cargada al principio de la lista (HAM base o paleta plana).
-	const u16* palette = nullptr;
+	eng::PaletteWords palette {};   // paleta base (opcional)
 	u8 palette_first = 0;
 	u8 palette_count = 0;
 
@@ -116,7 +116,7 @@ public:
 			}
 		}
 
-		if (config.palette != nullptr && config.palette_count != 0u) {
+		if (!config.palette.empty() && config.palette_count != 0u) {
 			scheduler.emit_palette(config.palette, config.palette_first, config.palette_count);
 		}
 

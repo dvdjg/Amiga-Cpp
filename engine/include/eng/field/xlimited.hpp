@@ -1528,7 +1528,7 @@ public:
     using ColorZone = RasterColorZone;
 
     struct Config {
-        const u16* palette = nullptr; // 2^planes colores (8/16/32/64 según planes 3..6)
+        eng::PaletteWords palette {}; // 2^planes colores (8/16/32/64 segun planes 3..6)
         u32 copper_bytes = 1536;
         u8 planes = 4; // rango 3..6 (3=8c, 4=16c, 5=32c, 6=EHB/DPF 3+3)
         u16 diwstrt = xlimited_detail::kDiwStrt;
@@ -1546,7 +1546,7 @@ public:
         m_copper_blocks[0] = memory.chip.allocate(cfg.copper_bytes, 16);
         m_copper_blocks[1] = memory.chip.allocate(cfg.copper_bytes, 16);
         if (!m_copper_blocks[0].valid() || !m_copper_blocks[1].valid() ||
-            !cfg.palette) return false;
+            cfg.palette.empty()) return false;
         m_initialized = true;
         return true;
     }
@@ -1564,7 +1564,7 @@ public:
     /// a su tamaño total y la zona solo programa la franja en el raster de corte.
     struct OverlayZone {
         PlayfieldHardwareView view;    // playfield del overlay (canvas)
-        const u16* palette = nullptr;  // paleta del overlay (0..2^planes-1), opcional
+        eng::PaletteWords palette {};  // paleta del overlay (0..2^planes-1), opcional
         u8 palette_colors = 0;         // nº de colores a emitir (0 = ninguno)
     };
 
@@ -1727,7 +1727,7 @@ private:
                                  static_cast<u32>(p) * hud->view.bitmap_bytes_per_row;
                 sched.move_bitplane_pointer(p, reinterpret_cast<const void*>(addr));
             }
-            if (hud->palette != nullptr) {
+            if (!hud->palette.empty()) {
                 sched.emit_palette(hud->palette, 0, hud->palette_colors);
             }
         } else if (!view.split_active || raster < 0xf8u) {
@@ -1766,7 +1766,7 @@ public:
     using ColorZone = RasterColorZone;
 
     struct Config {
-        const u16* palette = nullptr;      // 16 colores: PF1 0..7, PF2 8..15
+        eng::PaletteWords palette {};      // 16 colores: PF1 0..7, PF2 8..15
         u32 copper_bytes = 1536;
         u8 planes_per_field = 3;           // 3+3 → 6 planos de hardware
         bool foreground_is_pf2 = false;    // BPLCON2 PF2PRI
@@ -1783,7 +1783,7 @@ public:
         m_cfg = cfg;
         m_copper_blocks[0] = memory.chip.allocate(cfg.copper_bytes, 16);
         m_copper_blocks[1] = memory.chip.allocate(cfg.copper_bytes, 16);
-        if (!m_copper_blocks[0].valid() || !m_copper_blocks[1].valid() || !cfg.palette) return false;
+        if (!m_copper_blocks[0].valid() || !m_copper_blocks[1].valid() || cfg.palette.empty()) return false;
         m_initialized = true;
         return true;
     }

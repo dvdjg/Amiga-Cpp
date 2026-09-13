@@ -271,9 +271,12 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
   crudo solo en `hardware_view`). HOST-038/039 actualizados; 112 sin regresión.
   **Productores tipados**: `MemoryBlock::buffer<Tag>()`/`view<Tag>()`, y escenas/bitmaps devuelven
   `PlaneBytes` (`bitplanes()`, `plane(i)`); los consumidores conectan sin cast.
-- **Fase 3 — hecha (roles)**: `BlitSource`/`BlitDest` en `BlitJob` (el backend lee `job.source.words`);
-  `SoftDpfComposition::make_copy_*` recibe `Pattern` (vista **con tamaño**) y escalares `u16`, con
-  **validación de rango** (violación → `illegal`). Falta tipar `Surface`/`FramePlan` (paleta/copper).
+- **Fase 3 — hecha**: `BlitSource`/`BlitDest` en `BlitJob`; `SoftDpfComposition::make_copy_*` con
+  `Pattern` (con tamaño) + validación; **paleta/copper tipados**: `PalettePatch`/`CopperIntent`
+  usan `eng::PaletteWords`, `CopperScheduler::emit_palette`/`emit_palette_zone` también, y los
+  campos `palette` de las configs (`XlimitedConfig`/`XlimitedSceneConfig`/`HamSceneConfig`) son
+  `PaletteWords` (los arrays de las demos conectan con el constructor de array). Verificado:
+  030/040/107/201/202 READY y 111/112 sin regresión.
 - **Fase 4 — hecha**: `Blob`/`Reader`/`BlobWriter`, las vistas UAF y `WorldView::read` usan
   `eng::UafPayload` (`ByteView<UafTag>`); `ChunkCache::Loader`, `StreamingWorldMap::Source`,
   `WorldMapChunkLoader` y `WorldView::decode_chunk<Tag>` usan `eng::TileBankBuffer`; el **pool** de
