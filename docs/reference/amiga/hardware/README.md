@@ -13,7 +13,7 @@ por igual a tests, engine y juegos, y es la base para las fichas de técnicas
 | Documento | Contenido |
 |-----------|-----------|
 | [amiga-a500-dma-copper-state-rules.md](amiga-a500-dma-copper-state-rules.md) | Reglas reutilizables del A500: DMA en CHIP, ciclo de copper, WAIT seguro, dual playfield, scroll fino/coarse. |
-| [amiga-hardware-invariants-microtests.md](amiga-hardware-invariants-microtests.md) | Microtests por invariante hardware (MI01-MI08). |
+| [amiga-hardware-invariants-microtests.md](amiga-hardware-invariants-microtests.md) | Índice de invariantes hardware (MI01–MI10) y su evidencia (demo/test/doc) o pendiente. |
 | [amiga-postmortems-to-rules.md](amiga-postmortems-to-rules.md) | Postmortems convertidos en reglas (assets DMA fuera de CHIP, WAIT inseguro, COP1LC vs COPJMP1). |
 | [amiga-chipset-matrix.md](amiga-chipset-matrix.md) | Matriz rápida OCS/ECS/AGA/CD32 y registros a revisar primero. |
 | [amiga-blitter-priority-bltpri.md](amiga-blitter-priority-bltpri.md) | `BLTPRI` (bit 10 de `DMACON`, `DMAF_BLITHOG`): cuándo el Blitter tiene prioridad sobre la CPU, el bucle de `WaitBlit`, y cuándo NO usarlo. |

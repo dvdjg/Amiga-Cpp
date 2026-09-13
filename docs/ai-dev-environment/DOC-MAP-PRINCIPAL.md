@@ -39,6 +39,7 @@ Cuando termine la lectura contextual, puede abrir solo los enlaces que necesite.
 | Estructura del repo (dónde va cada cosa) | [docs/STRUCTURE.md](../STRUCTURE.md) |
 | Arquitectura del engine C++ | [docs/engine/architecture/](../engine/README.md) y sus subcarpetas |
 | Modelo objetivo playfield/scroll (contrato de refactor) | [PLAYFIELD_SCROLL_ARCHITECTURE.md](../engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md) + [REFACTOR_PLAYFIELD_SCROLL.md](../guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md) |
+| API pública (la app no ve hardware) | [PUBLIC_API.md](../engine/architecture/PUBLIC_API.md) |
 | Estilo/restricciones del engine | [CODING_STYLE.md](../engine/architecture/CODING_STYLE.md), [HARDWARE_AND_ROM_KERNEL_POLICY.md](../engine/architecture/HARDWARE_AND_ROM_KERNEL_POLICY.md) |
 | Contrato de bajo nivel Amiga (contrato técnico) | [amiga-lowlevel-agent-prompt.md](../guides/methodology/amiga-lowlevel-agent-prompt.md) y [amiga-lowlevel-technique-contract-template.md](../guides/methodology/amiga-lowlevel-technique-contract-template.md) |
 | Bucles de entrada/backend | [engine.hpp](../../../engine/include/eng/engine.hpp), `amiga_minimal.cpp` (ver AGENTS.md §Rutas) |
@@ -62,6 +63,7 @@ Cuando termine la lectura contextual, puede abrir solo los enlaces que necesite.
 | **3D fixed-point / wireframe** | DEMOSCENE §lib3d, técnicas genéricas | — |
 | **Pipeline tiles/EHB/assets** | [PIPELINE_TILES_EHB.md](../demos/tile-pipeline/PIPELINE_TILES_EHB.md), [REGLAS_PIPELINE_TILES.md](../guides/roadmap/REGLAS_PIPELINE_TILES.md), `tools/amiga-tiles/README.md` | demos 201, 202 |
 | **Juego sobre el engine** | [STRUCTURE §9](../../STRUCTURE.md), roadmap, técnicas | `games/` |
+| **API pública / nueva abstracción** | [PUBLIC_API.md](../engine/architecture/PUBLIC_API.md) (la app no ve hardware), [PLAYFIELD_SCROLL_ARCHITECTURE.md](../engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md), [CODING_STYLE.md](../engine/architecture/CODING_STYLE.md) | `engine/include/eng/api/` (objetivo) |
 | **Optimización de un path** | Regla permanente de rendimiento de `AGENTS.md`, perfilado (`tools/profile/README.md`) | — |
 | **Depurar un bug de visual** | [DEMO_VISUAL_DEBUG.md](../guides/methodology/DEMO_VISUAL_DEBUG.md) (diseño + depuración visual con Ollama/secuencias), [DEBUG-WINUAE-V2-GUIDE.md](../debugging/DEBUG-WINUAE-V2-GUIDE.md), invariantes microtests, y para arranque/display+doble texto/banda: [DEBUG_DEMO_ARRANQUE_DOBLE_TEXTO_BANDA.md](../debugging/DEBUG_DEMO_ARRANQUE_DOBLE_TEXTO_BANDA.md) | — |
 | **Nueva referencia/documento externo** | §6 de este mapa, [amiga-authoritative-sources.md](../reference/amiga-authoritative-sources.md) | — |
@@ -101,7 +103,7 @@ tiles) y `100`–`107` (scroll/tile-field/dual-playfield/x-limited) y `201`–`2
 | **Fuentes autoritativas y reglas** | [amiga-authoritative-sources.md](../reference/amiga-authoritative-sources.md) | Qué fuente es primaria, cuáles didácticas, cuándo contrastar. |
 | **Reglas reutilizables A500** | [amiga-a500-dma-copper-state-rules.md](../reference/amiga/hardware/amiga-a500-dma-copper-state-rules.md) | Invariantes DMA/copper/scroll probadas. |
 | **Matriz chipsets** | [amiga-chipset-matrix.md](../reference/amiga/hardware/amiga-chipset-matrix.md) | OCS/ECS/AGA: qué registros revisar primero. |
-| **Chipset invariantes microtests** | [amiga-hardware-invariants-microtests.md](../reference/amiga/hardware/amiga-hardware-invariants-microtests.md) | Microtests MI01–MI08. |
+| **Chipset invariantes (índice)** | [amiga-hardware-invariants-microtests.md](../reference/amiga/hardware/amiga-hardware-invariants-microtests.md) | Invariantes MI01–MI10 y su evidencia (demo/test/doc) o pendiente. |
 
 ---
 

@@ -43,7 +43,7 @@ en el proceso.
 - Añadir a la composición la capacidad de **cambiar la geometría de vídeo en una línea**
   (`BPLCON0`/`DDF`/`BPLxMOD` + punteros) para tramos con distinto número de planos.
 - Caso de uso: juego de 5 planos arriba + HUD de 4/3/2 planos abajo, sin arrastrar la geometría.
-- Verificar con **microtests** (flag `amiga-hardware-invariants-microtests`): HUD de 2/3/4 planos
+- Verificar con **microtests** (invariante MI09 en `docs/reference/amiga/hardware/amiga-hardware-invariants-microtests.md`): HUD de 2/3/4 planos
   bajo un split sobre campo de 4/5/6; documentar el orden exacto de los MOVE del Copper.
 - Mantener el modo conservador “misma geometría, conmutar punteros/paleta” como opción.
 
@@ -75,6 +75,18 @@ en el proceso.
 - Renombrar de forma inequívoca: `XLimitedPlayfield` → `Playfield<N>` (Layout=Ring)+`RingScroll`;
   `XlimitedScene` → `DisplayComposition`/escena de capas; `…Xlimited…` 8-way → `XYLimited`.
 - Retirar adaptadores de compatibilidad creados en fases 1–4.
+
+### Fase 6 — API pública y planner (la app no ve hardware)
+- Introducir `engine/include/eng/api/`: `App`/`World`/`Layer`/`Camera`/`Actor`/`Effect` con tipos
+  fuertes, handles y `eng::Span`; `init` asigna, `frame` no.
+- Añadir el **planner** (`RenderCompiler`): de la descripción de capas/efectos deduce la composición
+  (single/EHB/DPF/soft-DPF/HAM/chunky + `ModeSwitchZone`) y **falla rápido en init** si no cabe.
+- **Eliminar las fugas** actuales en las demos: `hardware_view()`, `mapposx()`, `display_offset()`,
+  `make_bg_plane_copy_*` pasan a ser internos o de `eng::debug::`; la app usa la cámara.
+- Migrar las demos al API público (una a modo de ejemplo), manteniendo acceso interno para las
+  herramientas de diagnóstico.
+- Principios y ejemplos: `docs/engine/architecture/PUBLIC_API.md`. Regla en `CODING_STYLE.md`
+  (frontera de API pública).
 
 ## Mapa de migración (código actual → objetivo)
 

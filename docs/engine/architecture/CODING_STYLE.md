@@ -34,6 +34,17 @@ Separaciones importantes:
 - `PlatformBackend`: hardware, input, audio, reloj, display y debug.
 - `UAF-R`: datos cocinados de runtime.
 
+## Frontera de API publica
+
+- La aplicacion (juego/demo) **no conoce hardware**: no incluye `<hardware/*.h>`, no nombra
+  registros, planos, bitplanes, punteros, Copper ni modos de display, y **no elige** la composicion
+  (single/DPF/HAM/chunky): la deduce el planner interno.
+- El codigo de aplicacion usa solo `engine/include/eng/api/` (mas tipos de valor de `eng/core/`).
+- El acceso a la vista de hardware (`hardware_view()` y similares) es **interno** (composicion) o
+  de **debug**; nunca de la logica de juego.
+- Si una funcion nueva obliga a la app a conocer el hardware, falta una abstraccion.
+- Detalle y ejemplos: `PUBLIC_API.md`.
+
 ## Criterio de diseno
 
 Una abstraccion es buena si:

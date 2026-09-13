@@ -20,7 +20,7 @@ Punto de entrada a la documentación del motor de juegos.
 | [dx39-layers-original-analysis.md](dx39-layers-original-analysis.md) | Despiece tecnico del efecto `layers`: init, dual playfield, scroll, cambios de modulo, gradientes por raster y plan de recreacion por fases en el repo local. |
 | [amiga-a500-dma-copper-state-rules.md](amiga-a500-dma-copper-state-rules.md) | Reglas generales de estado A500 para DMA, copper, dual playfield, scroll y ciclo de frame; base reusable para futuros efectos y juegos. |
 | [amiga-postmortems-to-rules.md](amiga-postmortems-to-rules.md) | Bugs reales convertidos en reglas reusables y guardrails del proyecto. |
-| [amiga-hardware-invariants-microtests.md](amiga-hardware-invariants-microtests.md) | Plan de microtests por invariante hardware para acumular conocimiento low-level sin depender solo de demos compuestas. |
+| [amiga-hardware-invariants-microtests.md](../../reference/amiga/hardware/amiga-hardware-invariants-microtests.md) | Índice de invariantes hardware (MI01–MI10) y su evidencia (demo/test/doc) o pendiente. |
 | [engine-architecture.md](engine-architecture.md) | Visión, alcance (3D blitter, multi-plataforma), estructura del proyecto, conceptos (utils/managers, view/viewport, estados, debug/release), API actual, roadmap de capacidades. |
 | [engine-roadmap.md](engine-roadmap.md) | **Roadmap de fases** con tests en emulador: estructura app/ vs engine, menú de demos, efectos, automatización Coppenheimer/Playwright, preparación para juego. |
 | [engine-implementation-plan.md](engine-implementation-plan.md) | **Plan de implementación ejecutable**: pasos por fase, tests reproducibles (verify-build.sh), criterios de éxito. Fase 1 implementada. |

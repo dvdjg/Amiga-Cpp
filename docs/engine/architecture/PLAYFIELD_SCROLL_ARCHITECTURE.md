@@ -134,6 +134,50 @@ punteros): un tramo con más planos para el juego y otro con menos para el HUD/m
   campo de 4/5/6) porque la primera línea del tramo toma el puntero nuevo pero puede conservar la
   geometría de fetch anterior hasta que el pipeline se recarga.
 
+### 4.2 Modos de display
+
+El modo de display es una propiedad de la composición; puede ocupar toda la pantalla o un tramo
+(`ModeSwitchZone`). No cambia el modelo de las superficies ni de las estrategias de scroll.
+
+```text
+Planar     SingleComposition<N>   1..6 planos (EHB = 6 con bit de half-brite).
+           DpfComposition         PF1 + PF2, bitmaps propios, fino por nibble.
+           SoftDpfComposition     FG(N) + BG(1 vista) sobre un bitmap, fino compartido.
+HAMDisp    HamComposition         6 planos en modo HAM; el Copper cambia COLORxx por línea.
+Chunky     CopperChunkyComposition color/registros por línea sin framebuffer planar; lista densa.
+```
+
+- **HAM** y **copper chunky** no son `Playfield<N>`: son **modos de la composición** que el Copper
+  materializa con cambios por línea. Un `Effect` aporta esas líneas (ver §4.3).
+- Un modo puede **convivir** con otro en la misma pantalla (p. ej. juego planar arriba, franja de
+  copper chunky o HUD HAM abajo) mediante `ModeSwitchZone`.
+- El **cuadruplicado de líneas** del HAM (mismo par de planos leído 4 veces con `BPLxMOD`/`BPLCON1`
+  alternos cada 4 líneas) es una lista de Copper generada, no una superficie nueva.
+
+### 4.3 Capas efectistas (Copper / Blitter / Sprites)
+
+Además de las capas `Playfield`, la composición acepta **capas efectistas** que emiten
+**intenciones** sobre ventanas de líneas raster. El vocabulario y los schedulers están en
+`VISUAL_EFFECT_SPRITE_DESIGN.md` (`CopperIntent`, `BlitIntent`, `SpriteIntent`, `PaletteIntent` →
+`FramePlan`); aquí sólo se fija cómo encajan con playfields y modos:
+
+- **Copper chunky / degradados / raster colors**: capa de `CopperIntent` (WAIT+MOVE por línea) que
+  modifica `COLORxx` u otros registros; puede cubrir todo el playfield o una franja. Ver
+  `copper-chunky.md` y la zona de color del compositor single.
+- **HAM por líneas**: capa que emite `PaletteIntent`/cambios de registros por línea (y, si aplica,
+  el offset de `BPL1MOD`/`BPLCON1` del cuadruplicado). Ver `FIRE_RGB_PORT_PLAN.md`.
+- **Reflejos y efectos de Blitter**: capa de `BlitIntent` (copia espejada, máscaras, áreas) que
+  reescribe regiones de un bitmap; combinable con cambios de Copper por línea.
+- **Sprites avanzados**: capa de `SpriteIntent` resuelta por el `SpriteAllocator` (multiplexado,
+  reutilización de canales por raster). Ver `sprite-layer.md`.
+- **Conversión CPU→planar**: el C2P por Blitter (`C2P_BLITTER.md`) es el puente entre una capa
+  efectista que escribe **chunky** (CPU) y el display **planar**; puede hacerse síncrono o por
+  interrupción de blit.
+
+Regla: el `Effect` no ve registros ni punteros; emite intenciones con su ventana de líneas. El
+scheduler dueño del recurso (Copper/Blitter/Sprites) las compila al `FramePlan` y resuelve
+conflictos (presupuesto de DMA, dueño único, orden vertical).
+
 ## 5. Mapping de máquina (Amiga)
 
 El playfield/algoritmo exponen una **vista neutral** (`ScrollView`: cámara, viewport, geometría
@@ -159,6 +203,10 @@ calculan registros.
 - Algoritmo y vocabulario (invariantes del anillo): `XYLIMITED_ALGORITMO_GENERICO.md`.
 - Modelo circular vs interleaved y saveword: `CIRCULAR_VS_XLIMITED.md`.
 - DPF: Y por campo, split, lineal, mixto: `DPF_MIXTO_SPLIT_LINEAL.md`.
+- Efectos de Copper/Blitter/Sprites (intenciones y schedulers): `VISUAL_EFFECT_SPRITE_DESIGN.md`.
+- Copper chunky: `docs/reference/amiga/techniques/copper-chunky.md`; C2P por Blitter: `C2P_BLITTER.md`.
+- HAM del fuego (cuadruplicado + por-línea): `docs/demos/effects/FIRE_RGB_PORT_PLAN.md`.
 - Técnica RoboCod (soft DPF): `docs/reference/amiga/techniques/robocod-layered-scroll.md`.
 - Drivers gráficos por estrategia de composición: `GRAPHICS_DRIVERS.md`.
+- API pública (la aplicación no ve hardware): `PUBLIC_API.md`.
 - Plan de adopción: `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md`.
