@@ -92,19 +92,23 @@ ni guarda, así que reproduce exactamente el comportamiento clásico.
   frame (`max_step = fill_tiles * tile`); guarda X (el perfil pide más ancho que el fetch);
   **avance por tiles completos** (`snap_to_tiles`) con la **dirección laceda a frontera**
   (`direction_latched`, seguro gracias a que el paso es múltiplo de tile); **staging vertical por
-  perfil** (`y_staging_tiles`: 2 en el clásico, `guard_tiles` en los rápidos). Tests HOST-032/033;
-  demos 111 en `ScrollFast1`/`ScrollFast2` avanzan 16/32 px por frame sin huecos y la 111 por
-  defecto no cambia.
+  perfil** (`y_staging_tiles`: 2 en el clásico, `guard_tiles` en los rápidos); **avance en ráfaga
+  por X** (`ScrollEngine::burst_right`: calcula la geometría del cruce UNA vez en lugar de por cada
+  píxel → menos procesamiento por px). Tests HOST-032/033/034; demos 111 en `ScrollFast1`/
+  `ScrollFast2` avanzan 16/32 px por frame sin huecos y la 111 por defecto no cambia.
 - **Alcance del "burst"**: en el corkscrew cada fila del anillo es un **blit de bloque** distinto.
-  Pintar una columna completa por frame (`TileBurst`) y pintarla por los sub-pasos de 1 px que ya
-  existen producen **el mismo número de blits** (uno por fila de bloque); lo que cambia con
-  `prefill`/`direction_latched` es que la cámara avanza por tiles completos y la dirección solo
-  cambia en frontera, no que se reduzca el conteo de blits. La reducción real (fusionar filas de
-  bloque, `StripPrerender`) queda pendiente y no es trivial con el modelo de blit por tile.
-- **Pendiente**: coalescer blits por ráfaga (si aporta), `StripPrerender` (anillo de estrips),
-  tear-free por doble buffer, y una demo corkscrew con Y rápido (`display_height=0` para que el
-  perfil derive el staging y `ScrollConsts.display_height` coherente). La guarda en Y solo aplica
-  cuando no se fuerza `cfg.display_height` (p. ej. 202 fija 288 por el split/HUD).
+  `burst_right` emite **el mismo número de blits** que los sub-pasos de 1 px (probado equivalente en
+  HOST-034: dibujos, `save_word` y estado); su valor es (a) **menos cálculo por px** (geometría del
+  cruce una vez) y (b) ser el **punto donde vivirá la fusión de tiles** (un blit por varias filas).
+- **Pendiente (parked)**:
+  1. **Fusión de tiles** en `burst_right`: emitir un blit por varias filas de bloque cuando el
+     origen/destino son contiguos (requiere resolver el salto de bloque en el banco/interleave).
+  2. **`StripPrerender`**: anillo de estrips pre-renderizados y solo punteros (>2-3 tiles/frame).
+  3. **Burst en el resto de sentidos**: `burst_left` y burst vertical (hoy la ráfaga es solo X
+     derecha; izquierda/arriba/abajo siguen en sub-pasos de 1 px, correctos).
+  4. **Demo corkscrew con Y rápido** (`display_height=0` para que el perfil derive el staging y
+     `ScrollConsts.display_height` coherente): única vía de validar en hardware la guarda Y.
+  5. **Tear-free** a alta velocidad (pre-relleno en blanking o doble buffer del fondo).
 
 ## 4. Corrección: qué invariantes hay que preservar
 

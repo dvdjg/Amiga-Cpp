@@ -250,6 +250,80 @@ public:
         return true;
     }
 
+    /// Avanza hasta `tiles` TILES a la derecha (anillo XLimited) en una sola
+    /// pasada: calcula la geometría del cruce UNA vez en lugar de por cada píxel
+    /// (menos procesamiento por px en los perfiles con `prefill`). Emite
+    /// exactamente los mismos blits y ajustes que `tiles*tile_width` pasos de
+    /// `scroll_right` (verificado en HOST-034 con un sink de registro). Requiere
+    /// `mapposx` alineado a tile al entrar (lo garantiza `snap_to_tiles`).
+    ///
+    /// La FUSIÓN de tiles (un blit por varias filas de bloque) viviría aquí en el
+    /// futuro; hoy el nº de blits es el mismo y el ahorro es de cálculo por px.
+    bool burst_right(graphics::FramePlan& plan, Sink& sn, u8 tiles) {
+        if (finite_x(sn)) {
+            const u16 n = static_cast<u16>(tiles) * tw(sn);
+            for (u16 i = 0; i < n; ++i) if (!scroll_right(plan, sn)) return false;
+            return true;
+        }
+        const u16 twv = tw(sn);
+        const u16 thv = th(sn);
+        const u8 pl = planes(sn);
+        const u16 bpr = sn.bitmap_blocks_per_row();
+        const u16 bw = sn.bitmap_width();
+        const u16 bpll = sn.block_planes_lines();
+        const u16 bpr_bytes = sn.bytes_per_row();
+        const u16 tbs = twoblockstep(sn);
+        for (u8 t = 0; t < tiles; ++t) {
+            if (sn.map_wrap_x() == 0) {
+                const s32 limit = static_cast<s32>(sn.map_width_blocks()) * twv - sn.viewport_w() - twv;
+                if (m_state.mapposx > limit) return false;
+            }
+            const u16 mapblockx = static_cast<u16>(q_tw(sn, m_state.mapposx));
+            const u16 mapblocky = static_cast<u16>(q_th(sn, m_state.mapposy));
+            const u16 stepy = static_cast<u16>(r_th(sn, m_state.mapposy));
+            const u32 bvpos = block_videoposy(sn);
+            const u16 x0 = static_cast<u16>(m_state.videoposx & ~(twv - 1));
+            const u16 mapx = static_cast<u16>(mapblockx + bpr);
+
+            if (!sn.one_direction() && m_state.previous_xdirection == ScrollDirLeft) sn.restore_saveword();
+
+            // Pixel k=0 (stepx=0): dos bloques de la columna entrante.
+            {
+                const u32 y = r_dh(sn, bvpos + thv) * pl;
+                if (!sn.add_draw(plan, static_cast<u16>(x0 + bw), static_cast<u16>(y), mapx,
+                        static_cast<u16>(mapblocky + 1))) return false;
+                const u32 y2 = r_dph(sn, y + bpll);
+                sn.save_word((y2 + bpll - 1u) * bpr_bytes + ((x0 + bw) / 8u));
+                if (!sn.add_draw(plan, static_cast<u16>(x0 + bw), static_cast<u16>(y2), mapx,
+                        static_cast<u16>(mapblocky + 2))) return false;
+            }
+            // Pixels k=1..tw-1: un bloque cada uno (mapy = k+2).
+            for (u16 k = 1; k < twv; ++k) {
+                const u16 mapy = static_cast<u16>(k + 2u);
+                const u32 y = r_dh(sn, bvpos + mapy * thv) * pl;
+                sn.save_word((y + bpll - 1u) * bpr_bytes + ((x0 + bw) / 8u));
+                if (!sn.add_draw(plan, static_cast<u16>(x0 + bw), static_cast<u16>(y), mapx,
+                        static_cast<u16>(mapy + mapblocky))) return false;
+            }
+            // Avance + ajuste de la fila de fillup (post stepx == 0).
+            m_state.mapposx += twv;
+            m_state.videoposx = m_state.mapposx;
+            const u16 nx0 = static_cast<u16>(x0 + twv);
+            const u16 nmapblockx = static_cast<u16>(mapblockx + 1u);
+            if (!sn.add_draw(plan, static_cast<u16>(nx0 + (bpr - 1u) * twv), static_cast<u16>(bvpos * pl),
+                    static_cast<u16>(nmapblockx + bpr - 1u), mapblocky)) return false;
+            if (stepy) {
+                const u16 mx = stepy >= tbs ? static_cast<u16>(stepy + (tbs - 1u))
+                                            : static_cast<u16>(stepy * 2u - 1u);
+                if (!sn.add_draw(plan, static_cast<u16>(nx0 + mx * twv), static_cast<u16>(bvpos * pl),
+                        static_cast<u16>(mx + nmapblockx),
+                        static_cast<u16>(mapblocky + sn.bitmap_blocks_per_col()))) return false;
+            }
+            m_state.previous_xdirection = ScrollDirNone;
+        }
+        return true;
+    }
+
     /// Scroll de 1 px a la izquierda (no plane-shifted) â€” ScrollLeft corkscrew.
     /// Fiel a ScrollLeft de Scroller_XYLimited/main.c:751-867.
     bool scroll_left(graphics::FramePlan& plan, Sink& sn) {

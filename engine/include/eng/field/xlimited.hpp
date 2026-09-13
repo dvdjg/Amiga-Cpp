@@ -741,8 +741,20 @@ public:
         const s32 lim = m_max_step;
         if (dx > lim) dx = lim; else if (dx < -lim) dx = -lim;
         if (dy > lim) dy = lim; else if (dy < -lim) dy = -lim;
-        if (dx > 0) for (s32 i = 0; i < dx; ++i) { if (!m_scroll.scroll_right(plan, *this)) return false; }
-        else if (dx < 0) for (s32 i = 0; i < -dx; ++i) { if (!m_scroll.scroll_left(plan, *this)) return false; }
+        if (dx > 0) {
+            // Perfil rápido: avance en ráfaga (geometría del cruce una sola vez).
+            // El resto de ejes/direcciones conservan los sub-pasos de 1 px.
+            if constexpr (Profile::prefill) {
+                const s32 twv = static_cast<s32>(ctw());
+                if (twv > 0 && (dx % twv) == 0) {
+                    if (!m_scroll.burst_right(plan, *this, static_cast<u8>(dx / twv))) return false;
+                } else {
+                    for (s32 i = 0; i < dx; ++i) { if (!m_scroll.scroll_right(plan, *this)) return false; }
+                }
+            } else {
+                for (s32 i = 0; i < dx; ++i) { if (!m_scroll.scroll_right(plan, *this)) return false; }
+            }
+        } else if (dx < 0) for (s32 i = 0; i < -dx; ++i) { if (!m_scroll.scroll_left(plan, *this)) return false; }
         if (dy > 0) for (s32 i = 0; i < dy; ++i) { if (!m_scroll.scroll_down(plan, *this)) return false; }
         else if (dy < 0) for (s32 i = 0; i < -dy; ++i) { if (!m_scroll.scroll_up(plan, *this)) return false; }
         return true;
