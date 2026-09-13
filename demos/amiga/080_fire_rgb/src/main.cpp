@@ -237,7 +237,7 @@ struct FireDemo {
 		// El C2P se encadena por la **IRQ de blit** (nivel 3): `on_blit` programa la
 		// fase siguiente al terminar cada blit.
 		m_backend = &backend;
-		backend.set_blit_service(&FireDemo::on_blit, this);
+		backend.set_blit_service(&FireDemo::on_blit, *this);
 		if (kBlitNasty) {
 			backend.set_blitter_priority(true);   // Blitter con prioridad sobre la CPU.
 		}
@@ -318,23 +318,22 @@ struct FireDemo {
 	/// Tarea de la **IRQ de blit** (nivel 3): cada blit terminado programa la fase
 	/// siguiente del C2P. Es el mecanismo fiel del original (`ChunkyToPlanar` en la IRQ
 	/// de blit), sin que la CPU espere al Blitter.
-	static void on_blit(void* user, eng::u16 vpos) {
+	static void on_blit(FireDemo& self, eng::u16 vpos) {
 		(void)vpos;
-		auto* self = static_cast<FireDemo*>(user);
-		if (!self->m_c2p_irq || self->m_backend == nullptr) {
+		if (!self.m_c2p_irq || self.m_backend == nullptr) {
 			return;
 		}
-		if (self->m_c2p.phase < 13u) {
-			self->m_backend->c2p_4bpp_program(self->m_c2p);
+		if (self.m_c2p.phase < 13u) {
+			self.m_backend->c2p_4bpp_program(self.m_c2p);
 		}
-		if (self->m_c2p.phase >= 13u) {
-			self->m_c2p_irq = false;
-			self->m_c2p_pending = false;
+		if (self.m_c2p.phase >= 13u) {
+			self.m_c2p_irq = false;
+			self.m_c2p_pending = false;
 			// Instala la copperlist del buffer recien convertido AQUI (no en el proximo
 			// update): el Copper la recarga en el siguiente VBlank, asi que el display
 			// muestra el buffer ya convertido y NUNCA el que se esta convirtiendo (evita
 			// el tearing de la zona caliente).
-			self->m_scene[self->m_c2p_buf].install(*self->m_backend);
+			self.m_scene[self.m_c2p_buf].install(*self.m_backend);
 		}
 	}
 

@@ -74,11 +74,10 @@ struct BackgroundPump {
 	Backend* backend = nullptr;
 	Game* game = nullptr;
 
-	static void run(void* self, u16 vpos) {
-		auto* pump = static_cast<BackgroundPump*>(self);
-		pump->queue->run_slice(pump->context->frame.frame_index, vpos);
+	static void run(BackgroundPump& pump, u16 vpos) {
+		pump.queue->run_slice(pump.context->frame.frame_index, vpos);
 		if constexpr (GameIdle<Game, Backend>) {
-			pump->game->idle(*pump->backend, *pump->context);
+			pump.game->idle(*pump.backend, *pump.context);
 		}
 	}
 };
@@ -90,9 +89,8 @@ struct BackgroundBlitterService {
 	task::BackgroundQueue* queue = nullptr;
 	GameContext* context = nullptr;
 
-	static void run(void* self, u16 vpos) {
-		auto* service = static_cast<BackgroundBlitterService*>(self);
-		service->queue->run_slice(service->context->frame.frame_index, vpos);
+	static void run(BackgroundBlitterService& service, u16 vpos) {
+		service.queue->run_slice(service.context->frame.frame_index, vpos);
 	}
 };
 
@@ -109,35 +107,34 @@ struct InterruptTick {
 	volatile u32 frames = 0u;
 	u32 frame_count = 0u;
 
-	static u16 raster_line(InterruptTick* tick, u16 fallback) {
-		if constexpr (requires { tick->backend->current_raster_line(); }) {
-			return tick->backend->current_raster_line();
+	static u16 raster_line(InterruptTick& tick, u16 fallback) {
+		if constexpr (requires { tick.backend->current_raster_line(); }) {
+			return tick.backend->current_raster_line();
 		} else {
 			return fallback;
 		}
 	}
 
-	static void run(void* self, u16 vpos) {
-		auto* tick = static_cast<InterruptTick*>(self);
-		if (tick->frames >= tick->frame_count) {
+	static void run(InterruptTick& tick, u16 vpos) {
+		if (tick.frames >= tick.frame_count) {
 			return;
 		}
-		tick->context->frame.frame_index = tick->frames;
+		tick.context->frame.frame_index = tick.frames;
 
 		// Presupuesto: cuanto raster consume el tick (update+render). Si se pasa del
 		// objetivo, `overruns` avisa de que el juego invade el frame/el fondo.
 		const u16 start = raster_line(tick, vpos);
-		tick->game->update(*tick->backend, *tick->context);
-		tick->game->render(*tick->backend, *tick->context);
+		tick.game->update(*tick.backend, *tick.context);
+		tick.game->render(*tick.backend, *tick.context);
 		const u16 end = raster_line(tick, vpos);
 
-		IrqTelemetry& tel = tick->context->irq;
+		IrqTelemetry& tel = tick.context->irq;
 		tel.last_lines = static_cast<u16>((end - start) & 0x1ffu);
 		if (tel.last_lines > tel.max_lines) tel.max_lines = tel.last_lines;
 		if (tel.last_lines > tel.budget_lines) ++tel.overruns;
 		++tel.ticks;
 
-		++tick->frames;
+		++tick.frames;
 	}
 };
 
@@ -172,8 +169,8 @@ public:
 		// Si el backend sabe ejecutar tareas durante las esperas de Blitter, drena
 		// ahi el fondo (comparte el cupo por frame con el bombeo de VBlank).
 		BackgroundBlitterService blitter_service {&m_background, &context};
-		if constexpr (requires { m_backend.set_blitter_service(nullptr, nullptr); }) {
-			m_backend.set_blitter_service(&BackgroundBlitterService::run, &blitter_service);
+		if constexpr (requires { m_backend.set_blitter_service(&BackgroundBlitterService::run, blitter_service); }) {
+			m_backend.set_blitter_service(&BackgroundBlitterService::run, blitter_service);
 		}
 
 		for (u32 i = 0; i < frame_count; ++i) {
@@ -188,7 +185,7 @@ public:
 			const bool needs_pump = (m_background.live_count() != 0u) || GameIdle<Game, Backend>;
 			if (needs_pump) {
 				BackgroundPump<Backend, Game> pump {&m_background, &context, &m_backend, &m_game};
-				m_backend.wait_vblank(&BackgroundPump<Backend, Game>::run, &pump);
+				m_backend.wait_vblank(&BackgroundPump<Backend, Game>::run, pump);
 			} else {
 				m_backend.wait_vblank();
 			}
@@ -214,14 +211,14 @@ public:
 		m_backend.boot();
 		m_game.init(m_backend, context);
 
-		if constexpr (requires { m_backend.set_vblank_service(nullptr, nullptr); }) {
-			InterruptTick<Backend, Game> tick {&m_game, &m_backend, &context, 0u, frame_count};
-			if (m_backend.set_vblank_service(&InterruptTick<Backend, Game>::run, &tick)) {
+		InterruptTick<Backend, Game> tick {&m_game, &m_backend, &context, 0u, frame_count};
+		if constexpr (requires { m_backend.set_vblank_service(&InterruptTick<Backend, Game>::run, tick); }) {
+			if (m_backend.set_vblank_service(&InterruptTick<Backend, Game>::run, tick)) {
 				// El servicio de blit (nivel 3, mismo vector que el VBlank) drena el
 				// fondo mientras el juego espera a un blit.
 				BackgroundBlitterService blitter_service {&m_background, &context};
-				if constexpr (requires { m_backend.set_blit_service(nullptr, nullptr); }) {
-					m_backend.set_blit_service(&BackgroundBlitterService::run, &blitter_service);
+				if constexpr (requires { m_backend.set_blit_service(&BackgroundBlitterService::run, blitter_service); }) {
+					m_backend.set_blit_service(&BackgroundBlitterService::run, blitter_service);
 				}
 				// Bucle principal = fondo cooperativo continuo (la IRQ lo preempta).
 				while (tick.frames < frame_count) {

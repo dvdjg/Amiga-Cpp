@@ -334,25 +334,25 @@ void MinimalBackend::release_memory() {
 	m_memory_report = {};
 }
 
-void MinimalBackend::wait_vblank(void (*task)(void*, u16), void* user) {
+void MinimalBackend::wait_vblank_run(void (*thunk)(void*, u16), void* user) {
 	debug_start_idle();
 	// Una sola lectura de VPOSR por iteracion: la condicion y el `vpos` que recibe
 	// la tarea comparten el mismo valor (no anade accesos al bus en el bucle caliente).
 	u32 vposr = *vpos_long;
 	while ((vposr & 0x1ff00u) == (311u << 8)) {
-		if (task != nullptr) task(user, static_cast<u16>((vposr & 0x1ff00u) >> 8));
+		if (thunk != nullptr) thunk(user, static_cast<u16>((vposr & 0x1ff00u) >> 8));
 		vposr = *vpos_long;
 	}
 	while ((vposr & 0x1ff00u) != (311u << 8)) {
-		if (task != nullptr) task(user, static_cast<u16>((vposr & 0x1ff00u) >> 8));
+		if (thunk != nullptr) thunk(user, static_cast<u16>((vposr & 0x1ff00u) >> 8));
 		vposr = *vpos_long;
 	}
 	debug_stop_idle();
 }
 
-void MinimalBackend::set_blitter_service(void (*task)(void*, u16), void* user) {
-	g_blitter_service = task;
-	g_blitter_service_user = user;
+void MinimalBackend::install_blitter_service(ServiceSlot& slot) {
+	g_blitter_service = slot.thunk;
+	g_blitter_service_user = &slot;
 }
 
 u16 MinimalBackend::current_raster_line() const {
@@ -410,12 +410,12 @@ void level3_sync() {
 	}
 }
 
-bool MinimalBackend::set_vblank_service(void (*task)(void*, u16), void* user) {
+bool MinimalBackend::install_vblank_service(ServiceSlot& slot) {
 	if (g_vbl_task != nullptr) {
 		return false;
 	}
-	g_vbl_task = task;
-	g_vbl_task_user = user;
+	g_vbl_task = slot.thunk;
+	g_vbl_task_user = &slot;
 	level3_sync();
 	return true;
 }
@@ -430,12 +430,12 @@ void MinimalBackend::clear_vblank_service() {
 	level3_sync();
 }
 
-bool MinimalBackend::set_blit_service(void (*task)(void*, u16), void* user) {
+bool MinimalBackend::install_blit_service(ServiceSlot& slot) {
 	if (g_blit_task != nullptr) {
 		return false;
 	}
-	g_blit_task = task;
-	g_blit_task_user = user;
+	g_blit_task = slot.thunk;
+	g_blit_task_user = &slot;
 	level3_sync();
 	return true;
 }
@@ -466,12 +466,12 @@ extern "C" void cia_dispatch() {
 	}
 }
 
-bool MinimalBackend::background_timer_start(u16 latch, void (*task)(void*, u16), void* user) {
+bool MinimalBackend::install_timer_service(u16 latch, ServiceSlot& slot) {
 	if (g_cia_task != nullptr) {
 		return false;
 	}
-	g_cia_task = task;
-	g_cia_task_user = user;
+	g_cia_task = slot.thunk;
+	g_cia_task_user = &slot;
 
 	// Autovector de nivel 2 (VBR=0 en 68000 -> 0x68).
 	volatile eng::u32* const vector2 = reinterpret_cast<volatile eng::u32*>(0x68u);

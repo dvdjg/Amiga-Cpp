@@ -287,11 +287,13 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
   `ChunkyView`/`PlaneBytes`); la conversión a crudo (`data()`/`value`) queda dentro del backend.
   Demos 057/061/062/063/078/079/081 y `audio_paula` migradas; `C2p4State` (staging del C2P) sigue
   crudo por ser punteros de hardware. HOST-005 y demos alcanzan READY.
-- **Fase 6 — parcial**: `BackgroundQueue` usa tareas **tipadas** `TaskToken<T>` /
-  `TaskFn<T>` (firma `u16(T& data, const TaskSlice&)`, **referencia**, no puntero) y fábrica
-  `task_token(data, fn)`; el engine copia el token en el slot y lo invoca con la firma de `T`
-  (sin `void*` en la API). HOST-017 y demo 081 migrados. Pendiente: `Service<Context>` en los
-  servicios del backend.
+- **Fase 6 — hecha**: `BackgroundQueue` con tareas tipadas `TaskToken<T>` / `TaskFn<T>` (firma
+  `u16(T&, const TaskSlice&)`, **referencia**) y fábrica `task_token(data, fn)` (HOST-017, 081).
+  Servicios del backend tipados: `Service<C> = void(*)(C&, u16)` con `ServiceSlot` (thunk + bytes +
+  ctx) en `MinimalBackend` para `wait_vblank`/`set_blitter_service`/`set_vblank_service`/
+  `set_blit_service`/`background_timer_start`; sin `void*` en la API. `engine.hpp` pasa sus
+  callbacks por referencia (`BackgroundPump&`, `BackgroundBlitterService&`, `InterruptTick&`).
+  Verificado: 080/081/111/112 alcanzan READY y 111/112 siguen animando sin regresión.
 - **Fase 7 — hecha (API)**: `eng::Block<Tag>` (`typed.hpp`) y reservas tipadas
   `LinearArena::allocate_block<Tag>()` / `MemoryBlock::block<Tag>()`; HOST-041. Pendiente: migrar
   consumidores de arena a `allocate_block` donde simplifique.

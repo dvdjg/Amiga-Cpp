@@ -142,7 +142,7 @@ struct BackgroundDemo {
 		}
 		// Motor de fondo por IRQ del timer A de la CIA-A (nivel 2), continuo: avanza el
 		// fondo a su propio ritmo, sin depender del frame.
-		backend.background_timer_start(0x2000u, &BackgroundDemo::on_timer, this);
+		backend.background_timer_start(0x2000u, &BackgroundDemo::on_timer, *this);
 
 		m_init_ok = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x0081u);
@@ -193,11 +193,10 @@ struct BackgroundDemo {
 
 	/// Tarea del timer de CIA-A: drena una rebanada de la cola de fondo. Cuenta las
 	/// IRQs para evidenciar que el timer recarga (se publica en `detail`).
-	static void on_timer(void* user, eng::u16 vpos) {
-		auto* self = static_cast<BackgroundDemo*>(user);
-		++self->m_irq_count;
-		if (self->m_context != nullptr && self->m_context->background != nullptr) {
-			self->m_context->background->run_slice(self->m_context->frame.frame_index, vpos);
+	static void on_timer(BackgroundDemo& self, eng::u16 vpos) {
+		++self.m_irq_count;
+		if (self.m_context != nullptr && self.m_context->background != nullptr) {
+			self.m_context->background->run_slice(self.m_context->frame.frame_index, vpos);
 		}
 	}
 

@@ -97,13 +97,61 @@ public:
 
 	/// Espera al comienzo de VBlank leyendo VPOSR directamente.
 	///
+	/// Firma de un servicio del backend: recibe el contexto por **referencia** y la
+	/// línea de raster. Sustituye al par `void (*)(void*, u16) + void*`.
+	template <class C>
+	using Service = void (*)(C& ctx, u16 vpos);
+
+	/// Almacenamiento de un servicio tipado: el thunk (instanciado por `C`) recupera
+	/// la rutina y el contexto. El llamador conserva vivo su contexto.
+	struct ServiceSlot {
+		void (*thunk)(void* slot, u16 vpos) = nullptr;
+		alignas(void*) eng::u8 fn[sizeof(void*)] {};
+		void* ctx = nullptr;
+	};
+
+	template <class C>
+	static void service_thunk(void* slot_bytes, u16 vpos) {
+		auto* s = static_cast<ServiceSlot*>(slot_bytes);
+		Service<C> fn {};
+		for (eng::u32 i = 0; i < sizeof(fn); ++i) reinterpret_cast<eng::u8*>(&fn)[i] = s->fn[i];
+		fn(*static_cast<C*>(s->ctx), vpos);
+	}
+
+	template <class C>
+	static void fill_slot(ServiceSlot& slot, Service<C> fn, C& ctx) {
+		slot.thunk = &MinimalBackend::service_thunk<C>;
+		for (eng::u32 i = 0; i < sizeof(fn); ++i) {
+			reinterpret_cast<eng::u8*>(&slot.fn)[i] = reinterpret_cast<const eng::u8*>(&fn)[i];
+		}
+		slot.ctx = &ctx;
+	}
+
+	/// Token para `wait_vblank` (la rutina no se almacena: se pasa al bucle directo).
+	template <class C>
+	struct DirectToken {
+		C* ctx = nullptr;
+		Service<C> fn = nullptr;
+	};
+
+	template <class C>
+	static void direct_thunk(void* token_bytes, u16 vpos) {
+		auto* t = static_cast<DirectToken<C>*>(token_bytes);
+		t->fn(*t->ctx, vpos);
+	}
+
 	/// `task`/`user` son un **hook de tarea ociosa** opcional: se ejecuta repetidamente
 	/// mientras la CPU espera (no hay trabajo de juego que hacer). `task` recibe la
 	/// **linea de raster actual** (`vpos`) para que adapte su carga. Sirve para avanzar
 	/// trabajo de fondo que no debe competir por el bus con el CPU del frame (p. ej.
 	/// las tareas de `eng::task::BackgroundQueue` y las fases del C2P). Ver
 	/// `Engine::run_frames`.
-	void wait_vblank(void (*task)(void*, u16 vpos) = nullptr, void* user = nullptr);
+	template <class C>
+	void wait_vblank(Service<C> task, C& ctx) {
+		DirectToken<C> token { &ctx, task };
+		wait_vblank_run(&MinimalBackend::direct_thunk<C>, &token);
+	}
+	void wait_vblank() { wait_vblank_run(nullptr, nullptr); }
 
 	/// Linea de raster actual (VPOSR). Barata; el tick del juego la usa para medir su
 	/// presupuesto (cuanto raster consume cada frame).
@@ -117,14 +165,23 @@ public:
 	/// Tarea opcional que el backend ejecuta mientras **espera al Blitter** (`BBUSY`).
 	/// El engine la usa para drenar las tareas de fondo (`eng::task::BackgroundQueue`)
 	/// en vez de girar en vacio. Recibe la linea de raster (`vpos`). `nullptr` la apaga.
-	void set_blitter_service(void (*task)(void*, u16 vpos), void* user);
+	template <class C>
+	void set_blitter_service(Service<C> task, C& user) {
+		fill_slot(m_blitter_slot, task, user);
+		install_blitter_service(m_blitter_slot);
+	}
 
 	/// Instala la IRQ de **VBlank** (nivel 3) y hace que el backend ejecute
 	/// `task(user, vpos)` en cada VBlank. Es el **latido del juego**: `Engine` la usa en
 	/// modo interrupt-driven para correr `update`/`render` con deadline de un frame,
 	/// dejando el bucle principal al trabajo de fondo cooperativo (que la IRQ preempta).
 	/// `task` debe ser corta. Devuelve false si ya habia una instalada.
-	bool set_vblank_service(void (*task)(void*, u16 vpos), void* user);
+	template <class C>
+	bool set_vblank_service(Service<C> task, C& user) {
+		if (task == nullptr) return false;
+		fill_slot(m_vblank_slot, task, user);
+		return install_vblank_service(m_vblank_slot);
+	}
 
 	/// Desinstala la IRQ de VBlank (restaura el vector de nivel 3 y `INTENA`).
 	void clear_vblank_service();
@@ -133,7 +190,12 @@ public:
 	/// vez que el Blitter termina. Comparte el autovector de nivel 3 con el VBlank, asi
 	/// que el backend usa un **unico** handler que despacha por `INTREQR`. Util para
 	/// encadenar blits (el handler programa el siguiente) sin *polling* de `BBUSY`.
-	bool set_blit_service(void (*task)(void*, u16 vpos), void* user);
+	template <class C>
+	bool set_blit_service(Service<C> task, C& user) {
+		if (task == nullptr) return false;
+		fill_slot(m_blit_slot, task, user);
+		return install_blit_service(m_blit_slot);
+	}
 
 	/// Desinstala el servicio de blit.
 	void clear_blit_service();
@@ -149,7 +211,12 @@ public:
 	/// cada uno (una rebanada corta), de forma independiente al frame. Tambien sirve
 	/// como base de un **reloj de tiempo real** (la CIA tiene TOD por hardware). Ver
 	/// `BACKGROUND_TASKS.md`.
-	bool background_timer_start(u16 latch, void (*task)(void*, u16 vpos), void* user);
+	template <class C>
+	bool background_timer_start(u16 latch, Service<C> task, C& user) {
+		if (task == nullptr) return false;
+		fill_slot(m_timer_slot, task, user);
+		return install_timer_service(latch, m_timer_slot);
+	}
 
 	/// Detiene el motor por timer (para el timer, enmascara la CIA y restaura el vector).
 	void background_timer_stop();
@@ -273,11 +340,23 @@ public:
 	constexpr DebugOverlay& debug() { return m_debug; }
 
 private:
+	// Instaladores (no-plantilla): enlazan el slot con los globales del ISR y arman
+	// los vectores de interrupción. El API público es tipado (referencias).
+	void wait_vblank_run(void (*thunk)(void*, u16), void* user);
+	void install_blitter_service(ServiceSlot& slot);
+	bool install_vblank_service(ServiceSlot& slot);
+	bool install_blit_service(ServiceSlot& slot);
+	bool install_timer_service(u16 latch, ServiceSlot& slot);
+
 	Profile m_profile;
 	MemorySystem m_memory {};
 	MemoryReport m_memory_report {};
 	DebugOverlay m_debug {};
 	eng::audio::AudioSystem m_audio {};
+	ServiceSlot m_blitter_slot {};
+	ServiceSlot m_vblank_slot {};
+	ServiceSlot m_blit_slot {};
+	ServiceSlot m_timer_slot {};
 	void* m_chip_alloc = nullptr;
 	u32 m_chip_alloc_size = 0;
 	void* m_slow_alloc = nullptr;
