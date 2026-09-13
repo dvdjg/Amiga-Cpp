@@ -26,6 +26,8 @@ struct AudioTag {};
 struct MusicTag {};
 struct IndexedTilesTag {};
 struct UafTag {};
+struct MapCellsTag {};     // celdas de un mapa (indices de tile, u16)
+struct BobTag {};          // BOB planar: planos de color + mascara de cookie-cut
 
 // Aliases de dominio.
 using Pattern = ByteView<PatternTag>;           // patrón de fondo (bytes)
@@ -47,5 +49,9 @@ using AudioSample = ByteView<AudioTag>;         // muestra 8-bit con signo
 using MusicModule = ByteView<MusicTag>;         // módulo de tracker
 using IndexedTiles = ByteView<IndexedTilesTag>; // tilebank indexado del pipeline
 using UafPayload = ByteView<UafTag>;            // payload UAF-R
+using MapCells = Words<MapCellsTag>;            // celdas de mapa (escritura)
+using MapCellsView = WordView<MapCellsTag>;     // celdas de mapa (lectura)
+using BobBytes = Bytes<BobTag>;                 // BOB planar (planos + mascara)
+using BobView = ByteView<BobTag>;               // BOB planar (solo lectura)
 
 } // namespace eng

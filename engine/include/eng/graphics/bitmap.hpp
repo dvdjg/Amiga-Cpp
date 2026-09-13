@@ -13,6 +13,7 @@
 /// gnu++23. Este header es el punto donde vive la memoria; `Playfield` y
 /// `Surface` la consumen.
 
+#include <eng/core/domains.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/typed.hpp>
 #include <eng/core/types.hpp>
@@ -65,10 +66,10 @@ public:
         m_total = static_cast<u32>(m_row_bytes) * cfg.height * cfg.planes;
         const u32 alloc = m_total + cfg.guard_bytes;
         m_block = (cfg.domain == MemoryDomain::Fast)
-            ? memory.slow.allocate(alloc, cfg.alignment)
-            : memory.chip.allocate(alloc, cfg.alignment);
+            ? memory.slow.allocate_block<eng::PlaneTag>(alloc, cfg.alignment)
+            : memory.chip.allocate_block<eng::PlaneTag>(alloc, cfg.alignment);
         if (!m_block.valid()) return false;
-        m_real_base = static_cast<u8*>(m_block.data);
+        m_real_base = m_block.view.data();
         m_frontbuffer = m_real_base + cfg.frontbase_offset;
         return true;
     }
@@ -114,7 +115,7 @@ public:
     }
 
 private:
-    MemoryBlock m_block {};
+    eng::Block<eng::PlaneTag> m_block {};
     BitmapConfig m_cfg {};
     u8* m_real_base = nullptr;
     u8* m_frontbuffer = nullptr;

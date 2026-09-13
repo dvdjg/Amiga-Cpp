@@ -280,11 +280,11 @@ struct DemoGame {
 
 		// Buffer en blanco (Chip RAM: el Blitter solo direcciona Chip) para el
 		// CopyRect que borra la zona del solido cada frame.
-		m_blank_block = backend.memory().chip.allocate(kBlankBytes, 16);
+		m_blank_block = backend.memory().chip.allocate_block<eng::PatternTag>(kBlankBytes, 16);
 		if (m_blank_block.valid()) {
-			eng::u8* b = static_cast<eng::u8*>(m_blank_block.data);
+			eng::u8* b = m_blank_block.view.data();
 			for (eng::u32 i = 0; i < kBlankBytes; ++i) b[i] = 0u;
-			m_blank = static_cast<const eng::u16*>(m_blank_block.data);
+			m_blank = reinterpret_cast<const eng::u16*>(m_blank_block.view.data());
 		}
 #if K_FILL_BLITTER
 		// Plano-mascara 1 bit (Chip RAM) para el relleno por Blitter.
@@ -486,7 +486,7 @@ private:
 	Face m_faces[12] {};
 	MeshView m_mesh {};
 	bool m_mesh_ok = false;
-	eng::MemoryBlock m_blank_block {};
+	eng::Block<eng::PatternTag> m_blank_block {};
 	const eng::u16* m_blank = nullptr;
 	eng::Block<eng::MaskTag> m_mask_block {};
 	eng::u8* m_mask = nullptr;

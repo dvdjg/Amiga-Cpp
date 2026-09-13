@@ -491,8 +491,8 @@ struct DemoGame {
     field::XlimitedScene<kScrollConsts> scene {}; // escena reutilizable (geometría NTTP)
     field::XlimitedSceneConfig scene_cfg {};
     eng::graphics::FramePlan plan {};
-    eng::MemoryBlock m_bob {};           // BOB enmascarado de prueba (1 plano 16x16 + máscara)
-    eng::MemoryBlock m_fg_map {};        // mapa del FG (checkerboard transparente) en el arena
+    eng::Block<eng::BobTag> m_bob {};           // BOB enmascarado de prueba (1 plano 16x16 + máscara)
+    eng::Block<eng::MapCellsTag> m_fg_map {};        // mapa del FG (checkerboard transparente) en el arena
     // --- Ciclo de vida del muestrario (técnicas 1..9) -----------------------
     PatternMode m_pattern = PDualPatterns; // técnica activa (modo de movimiento)
     eng::u8 m_current = 0;              // índice de la técnica activa (0..N-1)
@@ -555,13 +555,13 @@ struct DemoGame {
         if (!kDual) return;
         const eng::u32 n = static_cast<eng::u32>(kMapTilesX) * kMapTilesY;
         build_fg_checkerboard_map(
-            eng::Span<eng::u16>::from_raw(static_cast<eng::u16*>(m_fg_map.data), n),
+            eng::Span<eng::u16>::from_raw(m_fg_map.view.as_words().data(), n),
             eng::Span<const eng::u16>::from_raw(g_map_cells, n));
     }
     void set_fg_card() {
         if (!kDual) return;
         const eng::u32 n = static_cast<eng::u32>(kMapTilesX) * kMapTilesY;
-        auto fp = eng::Span<eng::u16>::from_raw(static_cast<eng::u16*>(m_fg_map.data), n);
+        auto fp = eng::Span<eng::u16>::from_raw(m_fg_map.view.as_words().data(), n);
         for (eng::u32 i = 0; i < n; ++i) {
             const eng::u32 h = i * 2654435761u + 0x9e3779b9u;
             fp.at(i) = (h % 100u) < 20u
@@ -740,10 +740,10 @@ struct DemoGame {
             }
             if (kDual) {
                 const eng::u32 map_bytes = n * 2u;
-                m_fg_map = backend.memory().chip.allocate(map_bytes, 2);
+                m_fg_map = backend.memory().chip.allocate_block<eng::MapCellsTag>(map_bytes, 2);
                 if (!m_fg_map.valid()) { eng::debug::mark_failed(g_eng_run_status, 0x00010702u); return; }
                 build_fg_checkerboard_map(
-                    eng::Span<eng::u16>::from_raw(static_cast<eng::u16*>(m_fg_map.data), n),
+                    eng::Span<eng::u16>::from_raw(m_fg_map.view.as_words().data(), n),
                     eng::Span<const eng::u16>::from_raw(g_map_cells, n));
             }
         }
@@ -757,7 +757,7 @@ struct DemoGame {
         // PF1 (FG) usa el mapa checkerboard en DPF, o el mapa normal en single.
         {
             const eng::u16* fg_cells = kDual && m_fg_map.valid()
-                ? static_cast<const eng::u16*>(m_fg_map.data)
+                ? m_fg_map.view.as_words().data()
                 : static_cast<const eng::u16*>(g_map_cells);
             scene_cfg.map.cells = eng::Span<const eng::u16>::from_raw(fg_cells, kMapTilesX * kMapTilesY);
         }
@@ -905,9 +905,9 @@ scene_cfg.max_step = kStepMax;
         // máscara de 1 bit con un agujero central 4x4 (px 6..9). El cookie-cut
         // escribe blanco donde la máscara es 1 y conserva el mapa donde es 0:
         // bloque blanco 16x16 con un hueco que deja ver el fondo.
-        m_bob = backend.memory().chip.allocate(160, 16); // 4*32 + 32 (máscara)
+        m_bob = backend.memory().chip.allocate_block<eng::BobTag>(160, 16); // 4*32 + 32 (máscara)
         if (m_bob.valid()) {
-            eng::u8* bob = static_cast<eng::u8*>(m_bob.data);
+            eng::u8* bob = m_bob.view.data();
             for (eng::u32 i = 0; i < 128; ++i) bob[i] = 0xff;   // 4 planos = blanco
             for (eng::u16 r = 0; r < 16; ++r) {                 // máscara: hueco px 6..9
                 const eng::u16 mw = (r >= 6 && r < 10) ? static_cast<eng::u16>(0xfc3fu) : static_cast<eng::u16>(0xffffu);
@@ -939,7 +939,7 @@ scene_cfg.max_step = kStepMax;
 #if K_HUD && K_BOB
         auto& bg = scene.bg();
         if (m_bob.valid()) {
-            const eng::u16* bob = static_cast<const eng::u16*>(m_bob.data);
+            const eng::u16* bob = m_bob.view.as_words().data();
             bg.add_world_bitmap_masked(hud_plan,
                 eng::Span<const eng::u16>::from_raw(bob, 64),      // 4 planos × 32 bytes
                 eng::Span<const eng::u16>::from_raw(bob + 64, 16), // máscara 1 bit × 32 bytes

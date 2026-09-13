@@ -45,9 +45,10 @@ criterio:
   la conversión posterior y hace que un uso indebido no compile. `Block<Tag>` lleva **dominio +
   `MemoryKind`**, así que el mismo tipo sirve para la copperlist (`Block<CopperTag>`): el builder
   valida Chip y el dueño ya no necesita un `MemoryBlock`. Excepciones justificadas (se documentan
-  en el sitio): los buffers que consume **asm/backend crudo** (mezclador), el **núcleo de memoria**
-  (`Bitmap`), descriptores que alternan memoria **propia y aliaseada** (`XlimitedScene::m_tiles`),
-  **scratch genérico** y los tests de `MemoryKind`.
+  en el sitio): los buffers que consume **asm/backend crudo** (mezclador), el **scratch genérico**
+  y los tests de `MemoryKind`. Incluso el **núcleo de memoria** (`Bitmap` → `Block<PlaneTag>`) y
+  los descriptores **propio/aliaseado** (`XlimitedScene::m_tiles` → `XlimitedTileBank`) nacen
+  tipados.
 - **`unsafe` en una capa**: solo el backend Amiga (Blitter/Copper/DMA) y `BlitJob` manejan lo
   crudo, y lo hacen a través de un único conversor documentado.
 - **Coste**: las **vistas** (`Bytes`/`ByteView`/`Words`/`WordView`) son `struct` trivialmente
@@ -323,8 +324,11 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
   (drivers `ehb_scene`/`ham_scene`/`tile_scroll`; demos de planos, sprites, patrón, máscaras,
   chunky, audio y **copperlist**). `Block<Tag>` lleva dominio + `MemoryKind`, así que la
   copperlist es `Block<CopperTag>` (el builder valida Chip) y el medio queda separado del dato
-  (permite construir/copiar la lista con el Blitter). Quedan como reserva cruda justificada (ver
-  §1): buffers de asm del mezclador, `Bitmap`, `XlimitedScene::m_tiles` y scratch genérico.
+  (permite construir/copiar la lista con el Blitter). También nacen tipados `Bitmap`
+  (`Block<PlaneTag>`), `SpriteManager` (`Block<SpriteTag>`), el banco propio/aliaseado de la escena
+  (`XlimitedTileBank`) y los bloques de la 107 (`BobTag`/`MapCellsTag`). Únicos crudos que quedan
+  (ver §1): buffers de asm del mezclador y scratch genérico. Comprobación automática:
+  `node tools/check/type-tagging.mjs` (integrada en `tools/test-regression.sh`).
 
 
 ## 9. Reglas para `CODING_STYLE.md` (resumen)

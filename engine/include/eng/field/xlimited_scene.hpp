@@ -50,7 +50,7 @@ using BlocksRowFn = eng::u16 (*)(eng::u8 glyph, eng::u8 variant, eng::u8 row, en
 /// ancho, 40 bytes por planelínea) con `tile_count` tiles de
 /// `tile_width`×`tile_height` dispuestos en `(tile % (320/tile_width), tile/...)`.
 /// Devuelve un `MemoryBlock` en Chip RAM (inválido si no hay memoria).
-inline MemoryBlock xlimited_build_blocks_bitmap(
+inline eng::Block<eng::TileBankTag> xlimited_build_blocks_bitmap(
     MemorySystem& memory,
     eng::u8 planes,
     eng::u16 tile_width,
@@ -70,9 +70,9 @@ inline MemoryBlock xlimited_build_blocks_bitmap(
     const eng::u32 height =
         block_rows * (static_cast<eng::u32>(tile_height) * planes); // planelineas totales
     const eng::u32 bytes = src_bytes_per_row * height;
-    MemoryBlock block = memory.chip.allocate(bytes, 16);
+    eng::Block<eng::TileBankTag> block = memory.chip.allocate_block<eng::TileBankTag>(bytes, 16);
     if (!block.valid() || row_fn == nullptr) return block;
-    eng::u8* data = static_cast<eng::u8*>(block.data);
+    eng::u8* data = block.view.data();
     for (eng::u32 i = 0; i < bytes; ++i) data[i] = 0;
     for (eng::u16 tile = 0; tile < tile_count; ++tile) {
         const eng::u8 glyph = static_cast<eng::u8>(tile & 15u);
@@ -112,7 +112,7 @@ inline MemoryBlock xlimited_build_blocks_bitmap(
 /// el índice `v` ya es el número de color EHB absoluto, así que el bit p (0..5)
 /// del índice es el bit del plano p (bit 5 = half). No hay ningún base-offset
 /// extra que incrustar (a diferencia de pf_plane_row de 107).
-inline MemoryBlock xlimited_build_blocks_bitmap_from_indexed(
+inline eng::Block<eng::TileBankTag> xlimited_build_blocks_bitmap_from_indexed(
     MemorySystem& memory,
     eng::u8 planes,
     eng::u16 tile_width,
@@ -126,9 +126,9 @@ inline MemoryBlock xlimited_build_blocks_bitmap_from_indexed(
     const eng::u32 height =
         block_rows * (static_cast<eng::u32>(tile_height) * planes); // planelineas totales
     const eng::u32 bytes = src_bytes_per_row * height;
-    MemoryBlock block = memory.chip.allocate(bytes, 16);
+    eng::Block<eng::TileBankTag> block = memory.chip.allocate_block<eng::TileBankTag>(bytes, 16);
     if (!block.valid() || indexed.empty()) return block;
-    eng::u8* data = static_cast<eng::u8*>(block.data);
+    eng::u8* data = block.view.data();
     for (eng::u32 i = 0; i < bytes; ++i) data[i] = 0;
     const eng::u32 tw8 = tile_width / 8u; // bytes por planelínea de tile (2 a 16px)
     for (eng::u16 tile = 0; tile < tile_count; ++tile) {
@@ -155,6 +155,20 @@ inline MemoryBlock xlimited_build_blocks_bitmap_from_indexed(
     }
     return block;
 }
+
+/// Referencia a un banco de bloques X-Limited: puede ser **propio** (reservado en
+/// Chip RAM por los builders) o **aliaseado** a un `incbin` de solo lectura
+/// (`blocks_prebuilt`). Transporta la vista del dominio y el `MemoryKind`, de modo
+/// que el campo nunca guarda un `MemoryBlock` crudo. Solo lectura: el banco, una
+/// vez construido o incrustado, no se escribe.
+struct XlimitedTileBank {
+    eng::TileBankBytes view {};
+    eng::MemoryKind kind = eng::MemoryKind::Any;
+
+    [[nodiscard]] constexpr bool valid() const { return !view.empty(); }
+    /// Las words interleaved del banco (lo que consume el blit `draw_block`).
+    [[nodiscard]] constexpr const eng::u16* words() const { return view.as_words().data(); }
+};
 
 /// Configuración declarativa de una escena corkscrew.
 ///
@@ -359,25 +373,25 @@ public:
                 // Alia la región incbin (no propietaria): no reserva Chip RAM. El
                 // banco se generó en el host para `cfg.planes` planos (DPF: 3) con
                 // layout X-Limited de 320 px; el engine solo lo direcciona.
-                m_tiles[pf].data = const_cast<void*>(static_cast<const void*>(pb));
-                m_tiles[pf].size = pbSize;
-                m_tiles[pf].kind = eng::MemoryKind::Chip;
+                m_tiles[pf] = { eng::TileBankBytes { pb, pbSize }, eng::MemoryKind::Chip };
             } else if (isPf0 && !cfg.indexed_tiles.empty()) {
                 if (cfg.planes != 6) return false; // el pipeline EHB es 6 planos
-                m_tiles[pf] = xlimited_build_blocks_bitmap_from_indexed(
+                const eng::Block<eng::TileBankTag> bank = xlimited_build_blocks_bitmap_from_indexed(
                     memory, cfg.planes, tw, th, cfg.tileset_count,
                     cfg.indexed_tiles, cfg.indexed_stride);
+                m_tiles[pf] = { bank.view.as_const(), bank.kind };
             } else {
                 const BlocksRowFn fn = isPf0 ? cfg.fg_row_fn : cfg.bg_row_fn;
                 if (fn == nullptr) return false; // cada campo necesita una fuente
-                m_tiles[pf] = xlimited_build_blocks_bitmap(
+                const eng::Block<eng::TileBankTag> bank = xlimited_build_blocks_bitmap(
                     memory, cfg.planes, tw, th, cfg.tileset_count, fn);
+                m_tiles[pf] = { bank.view.as_const(), bank.kind };
             }
             if (!m_tiles[pf].valid()) return false;
             // Config del campo.
             XlimitedConfigT<MapT> fc;
             fc.map = (pf == 0) ? cfg.map : (cfg.map2.has_data() ? cfg.map2 : cfg.map);
-            fc.tileset = static_cast<const eng::u16*>(m_tiles[pf].data);
+            fc.tileset = m_tiles[pf].words();
             fc.tileset_count = cfg.tileset_count;
             fc.planes = cfg.planes;
             fc.tile_width = tw;
@@ -693,7 +707,7 @@ private:
     CanvasPlayfield m_hud {};        // franja HUD (lienzo plano, si hud_height>0)
     CanvasPlayfield m_fg_canvas {};  // FG lienzo plano (DPF heterogéneo)
     graphics::SpriteManager m_sprites {};
-    MemoryBlock m_tiles[2] {};
+    XlimitedTileBank m_tiles[2] {};
     XlimitedDisplayComposer m_single {};
     XlimitedDualComposer m_dual {};
     bool m_initialized = false;

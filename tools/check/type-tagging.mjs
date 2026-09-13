@@ -14,14 +14,9 @@ const ROOTS = process.argv.slice(2).length
 
 // Excepciones documentadas (fragmento-de-ruta, campo): reserva cruda justificada.
 const ALLOW = [
-  'bitmap.hpp:block',                   // nucleo de memoria (base/bytes)
   'sfx_mixer.hpp:buffer',               // buffers de asm del mezclador
   'sfx_mixer.hpp:plugin_buffer',
   'sfx_mixer.hpp:plugin_data',
-  'xlimited_scene.hpp:tiles',           // descriptor propio + aliaseado
-  '078_math3d_solid/src/main.cpp:blank_block', // blit source generico
-  '107_xlimited_corkscrew/src/main.cpp:bob',   // BOB compuesto (plano+mascara)
-  '107_xlimited_corkscrew/src/main.cpp:fg_map',// celdas vivas de mapa
   '068_mixer_ref/src/main.cpp:buffer_block',   // buffers de asm del mezclador
   '068_mixer_ref/src/main.cpp:plugin_buffer_block',
   '068_mixer_ref/src/main.cpp:plugin_data_block',

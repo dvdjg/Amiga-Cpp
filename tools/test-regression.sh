@@ -60,6 +60,7 @@ BUILD="$ROOT/tools/build/build-demo.sh"
 RUN="$ROOT/tools/run/run-demo.sh"
 ANALYZE="$ROOT/tools/analyze/analyze-demo.sh"
 PIXEL_SELFTEST="$ROOT/tools/analyze/verify-pixel-assert.sh"
+TYPE_CHECK="$ROOT/tools/check/type-tagging.mjs"
 
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 REPORT_DIR="$ROOT/out/regression/$TIMESTAMP"
@@ -95,6 +96,21 @@ if [ "$PIXEL_ASSERT_SELFTEST" -eq 1 ]; then
 	if ! "$PIXEL_SELFTEST"; then
 		echo "Pixel Assert selftest fallo." >&2
 		exit 1
+	fi
+fi
+
+# --- Sistema de tipos: "el campo nace etiquetado" (INTERNAL_TYPE_SYSTEM.md §1) ---
+# Falla si aparece un MemoryBlock crudo convertido a dominio (salvo excepciones
+# documentadas en el propio script). Es una comprobacion estatica y barata.
+if [ -f "$TYPE_CHECK" ]; then
+	if command -v node >/dev/null 2>&1; then
+		echo "== type-tagging =="
+		if ! node "$TYPE_CHECK"; then
+			echo "type-tagging fallo: hay MemoryBlock crudo convertido a dominio." >&2
+			exit 1
+		fi
+	else
+		echo "node no disponible; se omite type-tagging." >&2
 	fi
 fi
 
