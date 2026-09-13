@@ -76,6 +76,21 @@ en el proceso.
   `XlimitedScene` → `DisplayComposition`/escena de capas; `…Xlimited…` 8-way → `XYLimited`.
 - Retirar adaptadores de compatibilidad creados en fases 1–4.
 
+## Mapa de migración (código actual → objetivo)
+
+| Actual | Objetivo |
+|---|---|
+| `Playfield` (base) | `Playfield<N>` (base unificada: memoria/vista + layout) |
+| `XLimitedPlayfield<N>` | `Playfield<N>` (Layout=Ring) + `RingScroll` + `RingLayout`/`Emitter` |
+| `ScrollEngine`/`ScrollSink` | `RingScroll`/`BigBufferScroll` + `ScrollTarget`/`ScrollEmitter` |
+| `ScrollMode`/`AxisMode` | `AxisPolicy` + `DirectionPolicy` |
+| `CanvasPlayfield` | `Playfield<N>` (Layout=Flat, ScrollStrategy=None) |
+| `parallax_plane` + `bg_flip` + `make_bg_plane_copy_*` (en `XLimitedPlayfield`) | `PlaneView` (1 plano) + `SoftDpfComposition` (doble buffer) |
+| `XlimitedScene` (`m_field[2]`, `bg()/fg()`, `hud`) | `DisplayComposition` con lista de capas con rol (+ `ModeSwitchZone`) |
+| `XlimitedDisplayComposer`/`XlimitedDualComposer` | `SingleComposition`/`EhbComposition`/`DpfComposition`/`SoftDpfComposition` |
+| `hardware_view` (planeaddx/bplcon1/bplmod) | `ScrollView` neutral + `AmigaDisplayMapper` |
+| `XlimitedPathConfig` (`update_auto`/`effect`) | driver de la **demo** (`TourDriver`) |
+
 ## Inventario de consumidores a adaptar
 
 | Demo | Uso actual | Fase de migración |

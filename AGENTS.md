@@ -8,6 +8,7 @@
 - No poner saltos de línea a mitad de párrafo: cada párrafo es una línea lógica y el texto se adapta a la anchura del editor con *word wrap*.
 - Se permiten saltos de línea explícitos solo para estructuras (listas, código, tablas, diagramas ASCII).
 - Añadir diagramas ASCII para ilustrar conceptos (capas, flujos, geometrías de buffers, zonas del Copper, etc.) cuando aclaren el texto.
+- **Escribir para un lector sin conocimiento histórico.** Los documentos de referencia describen el estado/objetivo **vigente**, no su evolución: no usar «antes/ahora/desaparece/hoy/ya no», no narrar el proceso ni las alternativas descartadas. Las notas de transición, decisiones descartadas, estado de fases y bitácoras van a `docs/debugging/` o `docs/guides/roadmap/`, nunca al documento de referencia. La misma regla aplica a los **comentarios del código**: describen el comportamiento actual, no la historia de sus cambios.
 
 ## Política de documentación y referencias (obligatoria)
 - **Preservar e indexar solo la mejor información**: ante un documento, manual o fuente que duplique contenido ya cubierto, comparar la calidad de ambos y quedarse solo con la mejor versión (o sintetizar en un único documento). No mantener dos fuentes que digan lo mismo.
