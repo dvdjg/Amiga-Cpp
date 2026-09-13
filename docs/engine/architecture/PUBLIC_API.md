@@ -128,6 +128,7 @@ arrastrar código no usado.
 
 - Modelo interno: `PLAYFIELD_SCROLL_ARCHITECTURE.md`.
 - Escena retenida y recursos: `SCENE_AND_RESOURCES.md`.
+- Contenido (tiles/mundo disperso/sprites/audio): `CONTENT_AND_TILEMAP.md`.
 - Efectos (intenciones): `VISUAL_EFFECT_SPRITE_DESIGN.md`.
 - Estilo y restricciones: `CODING_STYLE.md`.
 - Assets cocinados: `docs/tools/UAF_PACK.md`.

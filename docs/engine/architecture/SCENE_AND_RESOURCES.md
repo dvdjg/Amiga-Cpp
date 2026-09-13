@@ -96,6 +96,7 @@ scroll: es una representación más del `RepresentationAllocator`.
 ## 7. Relación con el resto
 
 - API pública (la app no ve hardware): `PUBLIC_API.md`.
+- Contenido (tiles/mundo disperso/sprites/audio): `CONTENT_AND_TILEMAP.md`.
 - Intenciones de efectos y schedulers: `VISUAL_EFFECT_SPRITE_DESIGN.md`.
 - Modelo de playfields/scroll/composición: `PLAYFIELD_SCROLL_ARCHITECTURE.md`.
 - Presupuestos por recurso y telemetría: `BACKGROUND_TASKS.md`, `docs/testing/`.

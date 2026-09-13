@@ -94,6 +94,18 @@ en el proceso.
 - **Composición en compile-time**: capacities como tipos/policies; sin `switch` runtime sobre modos
   ni virtuals (evitar código no usado).
 
+### Fase 7 — Contenido de alto nivel
+- **Motor de tiles**: `Tileset`/`TileId`/`TileSource` (accesor con `empty_tile`) desacoplado de la
+  matriz; el scroll consume el accesor.
+- **Mundo disperso**: `WorldMap` por **chunks** poblados (no matriz densa), índice barato y **cache
+  de chunks residentes** con streaming bajo presupuesto de Chip RAM (background queue).
+- **Sprites/animaciones**: `SpriteSheet`/`Frame`/`Animation` + `ActorTemplate`, con representación
+  elegida por el engine.
+- **Audio**: `Sound`/`Music` como handles; `SampleBank`/`GameAudio`; presupuesto en el modelo de
+  recursos.
+- Assets por **UAF-R** (vistas `Span`, sin copia) y pipelines de tiles/sprites/audio.
+- Detalle: `docs/engine/architecture/CONTENT_AND_TILEMAP.md`.
+
 ## Mapa de migración (código actual → objetivo)
 
 | Actual | Objetivo |
