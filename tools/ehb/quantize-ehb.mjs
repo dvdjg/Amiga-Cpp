@@ -1,11 +1,11 @@
 ﻿#!/usr/bin/env node
-// F3-tools Â· Cuantizador EHB (k-means modificado, half-aware).
+// F3-tools · Cuantizador EHB (k-means modificado, half-aware).
 //
-// Elige 32 colores base de forma que {base} âˆª {half(base)} (half = c>>1 por
-// componente, half de $FFF = $777) se acerque lo mÃ¡ximo a la imagen fuente.
+// Elige 32 colores base de forma que {base} ∪ {half(base)} (half = c>>1 por
+// componente, half de $FFF = $777) se acerque lo máximo a la imagen fuente.
 // Reserva el color base 0 para transparencia. Emite:
 //   - la paleta como `constexpr u16 kEhbPalette[32]` (palabras Amiga 0x0RGB)
-//   - una preview PNG (bases + half + reconstrucciÃ³n de una franja)
+//   - una preview PNG (bases + half + reconstrucción de una franja)
 //   - el error MSE del remapeo {base,half}
 //
 // Uso: node tools/ehb/quantize-ehb.mjs <imagen.png> [--tile 16] [--out direc]
@@ -26,17 +26,17 @@ console.log(`[ehb] ${imgPath} ${W}x${H}, tile ${tile}`);
 const counts = new Map();
 for (let i = 0; i < W * H; i++) {
   const o = i * 4, a = png.data[o + 3];
-  if (a < 128) continue; // transparente: fuera de la estadÃ­stica (reservamos base 0)
+  if (a < 128) continue; // transparente: fuera de la estadística (reservamos base 0)
   const k = (png.data[o] << 16) | (png.data[o + 1] << 8) | png.data[o + 2];
   counts.set(k, (counts.get(k) || 0) + 1);
 }
 const entries = [...counts.entries()].sort((a, b) => b[1] - a[1]);
 const uid = entries.length;
-console.log(`[ehb] ${uid} colores Ãºnicos (sin transparencia)`);
+console.log(`[ehb] ${uid} colores únicos (sin transparencia)`);
 
-// --- DecisiÃ³n de modo segÃºn colores Ãºnicos del ORIGINAL -------------------
-//   <=16 -> 4 planes (sin EHB) Â· <=32 -> 5 planes (sin EHB) Â· >32 -> 6 planes EHB.
-// Con pocos colores NO se gastan 6 bits por pÃ­xel; se reserva color 0 siempre.
+// --- Decisión de modo según colores únicos del ORIGINAL -------------------
+//   <=16 -> 4 planes (sin EHB) · <=32 -> 5 planes (sin EHB) · >32 -> 6 planes EHB.
+// Con pocos colores NO se gastan 6 bits por píxel; se reserva color 0 siempre.
 const force = argV('--force', '');
 let planes = 6, K = 32, useEHB = true, modeNote = '';
 try {
@@ -86,7 +86,7 @@ for (let it = 0; it < 60; it++) {
       if (d < bestDU) { bestDU = d; best = i; }
     }
     const isHalf = useEHB && dist2(c, half(centers[best])) < dist2(c, centers[best]);
-    // Subida Ã—2 POR COMPONENTE con clamp (un carry cruzarÃ­a el canal superior).
+    // Subida ×2 POR COMPONENTE con clamp (un carry cruzaría el canal superior).
     chans[best][0].push(isHalf ? Math.min(255, ((c >> 16) & 255) << 1) : (c >> 16) & 255);
     chans[best][1].push(isHalf ? Math.min(255, ((c >> 8) & 255) << 1) : (c >> 8) & 255);
     chans[best][2].push(isHalf ? Math.min(255, (c & 255) << 1) : c & 255);
@@ -103,7 +103,7 @@ for (let it = 0; it < 60; it++) {
   if (moved === 0) break;
 }
 
-// --- ordenar por luminosidad y pasar a RGB444 (mÃ¡scara 0xF0 para no colisionar con half) ---
+// --- ordenar por luminosidad y pasar a RGB444 (máscara 0xF0 para no colisionar con half) ---
 const order = centers.map((c, i) => ({ c, i })).sort((a, b) => lum(a.c) - lum(b.c));
 const pal = order.map((o) => o.c);
 function to444(c) { return ((((c >> 16) & 255) >> 4) << 8) | ((((c >> 8) & 255) >> 4) << 4) | ((c & 255) >> 4); }

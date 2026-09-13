@@ -61,6 +61,7 @@ RUN="$ROOT/tools/run/run-demo.sh"
 ANALYZE="$ROOT/tools/analyze/analyze-demo.sh"
 PIXEL_SELFTEST="$ROOT/tools/analyze/verify-pixel-assert.sh"
 TYPE_CHECK="$ROOT/tools/check/type-tagging.mjs"
+ENCODING_CHECK="$ROOT/tools/check/encoding.mjs"
 
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 REPORT_DIR="$ROOT/out/regression/$TIMESTAMP"
@@ -111,6 +112,19 @@ if [ -f "$TYPE_CHECK" ]; then
 		fi
 	else
 		echo "node no disponible; se omite type-tagging." >&2
+	fi
+fi
+
+# --- Encoding: todo archivo de texto debe ser UTF-8 valido y sin mojibake ---
+if [ -f "$ENCODING_CHECK" ]; then
+	if command -v node >/dev/null 2>&1; then
+		echo "== encoding =="
+		if ! node "$ENCODING_CHECK"; then
+			echo "encoding fallo: hay archivos no-UTF8 o con mojibake." >&2
+			exit 1
+		fi
+	else
+		echo "node no disponible; se omite encoding." >&2
 	fi
 fi
 

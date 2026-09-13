@@ -8,7 +8,7 @@
 
 ---
 
-*ActualizaciÃ³n posterior: A-MCP-02 queda en HECHO tras validar en vivo `winuae_machine_snapshot` con una sesiÃ³n WinUAE visible y guardar evidencia en `out/a-mcp-02-live-machine-snapshot.json`.*
+*Actualización posterior: A-MCP-02 queda en HECHO tras validar en vivo `winuae_machine_snapshot` con una sesión WinUAE visible y guardar evidencia en `out/a-mcp-02-live-machine-snapshot.json`.*
 
 ## Leyenda de estados
 

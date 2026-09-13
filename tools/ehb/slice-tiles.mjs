@@ -1,8 +1,8 @@
 ﻿#!/usr/bin/env node
-// F3-tools Â· Slicer EHB-first: convierte el ORIGINAL a la paleta EHB, extrae los
-// tiles Ãºnicos (dedupe exacto + fusiÃ³n por similitud opcional), reconstruye y
-// compara la versiÃ³n cuantizada del ORIGINAL con la reconstruida (debe dar 100%
-// sin fusiÃ³n). Emite PNG indexados (encoder propio PLTE+IDAT) y el .h para Amiga.
+// F3-tools · Slicer EHB-first: convierte el ORIGINAL a la paleta EHB, extrae los
+// tiles únicos (dedupe exacto + fusión por similitud opcional), reconstruye y
+// compara la versión cuantizada del ORIGINAL con la reconstruida (debe dar 100%
+// sin fusión). Emite PNG indexados (encoder propio PLTE+IDAT) y el .h para Amiga.
 //
 // Uso: node tools/ehb/slice-tiles.mjs <png> --palette out/assets/ehb/palette.json
 //      [--ehb-merge 0.0..1.0] [--sheet-scale 1|2] [--classify] [--out dir]
@@ -24,7 +24,7 @@ const classify = process.argv.includes('--classify');
 
 const png = PNG.sync.read(fs.readFileSync(img));
 const cols = png.width / tile, rows = png.height / tile;
-if (png.width % tile || png.height % tile) { console.error('[slice] dimensiones no mÃºltiplo de tile'); process.exit(1); }
+if (png.width % tile || png.height % tile) { console.error('[slice] dimensiones no múltiplo de tile'); process.exit(1); }
 fs.mkdirSync(outDir, { recursive: true });
 console.log(`[slice] ${png.width}x${png.height} -> ${cols}x${rows} tiles de ${tile}`);
 
@@ -68,7 +68,7 @@ for (let y = 0; y < rH; y++) for (let x = 0; x < rW; x++) {
 }
 console.log(`[slice] original cuantizado a EHB (${palSize} colores) listo`);
 
-// --- 3) EXTRAER tiles Ãºnicos EXACTOS desde origEhb ----------------------------
+// --- 3) EXTRAER tiles únicos EXACTOS desde origEhb ----------------------------
 const bank = [];          // {x,y,pix:Uint8Array(256)}
 const map = new Array(cols * rows);
 const seen = new Map();
@@ -79,9 +79,9 @@ for (let ty = 0; ty < rows; ty++) for (let tx = 0; tx < cols; tx++) {
   if (seen.has(key)) { map[ty * cols + tx] = seen.get(key); }
   else { seen.set(key, bank.length); map[ty * cols + tx] = bank.length; bank.push({ x: tx, y: ty, pix }); }
 }
-console.log(`[slice] tiles Ãºnicos (EHB exacto): ${bank.length} de ${cols * rows}`);
+console.log(`[slice] tiles únicos (EHB exacto): ${bank.length} de ${cols * rows}`);
 
-// --- 4) FUSIÃ“N por similitud en Ã­ndices EHB (--ehb-merge) ----------------------
+// --- 4) FUSIÓN por similitud en índices EHB (--ehb-merge) ----------------------
 if (ehbMerge < 1) {
   const repsA = []; const rem = new Map(); let absorbed = 0;
   const eqFrac = (a, b) => { let eq = 0; for (let i = 0; i < a.pix.length; i++) if (a.pix[i] === b.pix[i]) eq++; return eq / a.pix.length; };
@@ -92,7 +92,7 @@ if (ehbMerge < 1) {
   }
   bank.length = 0; bank.push(...repsA);
   for (let t = 0; t < map.length; t++) map[t] = rem.get(map[t]);
-  console.log(`[slice] fusiÃ³n EHB (>=${ehbMerge} Ã­ndices iguales): ${bank.length} Ãºnicos (${absorbed} absorbidos)`);
+  console.log(`[slice] fusión EHB (>=${ehbMerge} índices iguales): ${bank.length} únicos (${absorbed} absorbidos)`);
 }
 
 // --- 5) RECONSTRUIR y COMPARAR con el original cuantizado (origEhb) ------------
@@ -104,8 +104,8 @@ for (let ty = 0; ty < rows; ty++) for (let tx = 0; tx < cols; tx++) {
 let eq = 0;
 for (let i = 0; i < reconIdx.length; i++) if (origEhb[i] === reconIdx[i]) eq++;
 const pct = (eq / reconIdx.length) * 100;
-console.log(`[slice] COMPARAR: original(cuantizado EHB) vs reconstruido = ${pct.toFixed(2)}% Ã­ndices iguales (${reconIdx.length})`);
-if (ehbMerge === 1 && pct < 100) { console.error('[slice] FALLO: sin fusiÃ³n la reconstrucciÃ³n debe cuadrar 100%'); process.exit(1); }
+console.log(`[slice] COMPARAR: original(cuantizado EHB) vs reconstruido = ${pct.toFixed(2)}% índices iguales (${reconIdx.length})`);
+if (ehbMerge === 1 && pct < 100) { console.error('[slice] FALLO: sin fusión la reconstrucción debe cuadrar 100%'); process.exit(1); }
 
 // --- 6) Exports: .h + tiles.json + PNG indexados ------------------------------
 // REGLA 7 (docs/guides/roadmap/REGLAS_PIPELINE_TILES.md): el chipset EHB consume colores
@@ -232,6 +232,6 @@ console.log(`[slice] reconstruct (del banco) -> ${reconPng} (${palSize} colores)
 if (classify) {
   const d = path.join(outDir, '_vk'); fs.mkdirSync(d, { recursive: true });
   fs.copyFileSync(path.join(outDir, 'tilebank.png'), path.join(d, 'frame_000.png'));
-  const r = spawn('node', [path.join(process.cwd(), 'tools', 'analyze', 'ollama-desc.mjs'), d, '0', 'Banco de tiles de un juego: describe QUÃ‰ materiales se ven (hierba, tierra, agua, muro, camino, roca, decoraciÃ³n). MÃ¡x 50 palabras.']);
+  const r = spawn('node', [path.join(process.cwd(), 'tools', 'analyze', 'ollama-desc.mjs'), d, '0', 'Banco de tiles de un juego: describe QUÉ materiales se ven (hierba, tierra, agua, muro, camino, roca, decoración). Máx 50 palabras.']);
   r.stdout.pipe(process.stdout); r.stderr.pipe(process.stderr);
 }

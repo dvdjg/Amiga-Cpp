@@ -116,7 +116,7 @@ public:
 		m_zone_binding_count = 0;
 
 		copper::Scheduler scheduler { m_copper_block };
-		// 320x256 lowres PAL, 6 planos EHB (geometrÃ­a paramÃ©trica del scheduler).
+		// 320x256 lowres PAL, 6 planos EHB (geometría paramétrica del scheduler).
 		scheduler.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 40u, 0x6200, 6, m_bitplane_block.view, plane_bytes);
 		m_base_palette_value_word = static_cast<u16>(scheduler.words_used() + 1u);
 		scheduler.emit_palette(*config.base_palette);

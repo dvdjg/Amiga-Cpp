@@ -58,6 +58,11 @@ if [ "$#" -eq 0 ]; then
 		echo "== type-tagging =="
 		node "$TYPE_CHECK"
 	fi
+	ENCODING_CHECK="$ROOT/tools/check/encoding.mjs"
+	if [ -f "$ENCODING_CHECK" ] && command -v node >/dev/null 2>&1; then
+		echo "== encoding =="
+		node "$ENCODING_CHECK"
+	fi
 fi
 
 # Selección de tests.

@@ -68,7 +68,7 @@ Cursor-Amiga-C/
 
 **Estado**: demo funcional y engine básico.
 
-**Regla de diseÃ±o**: al promover capacidad reusable, separar cuando haga falta:
+**Regla de diseño**: al promover capacidad reusable, separar cuando haga falta:
 
 - primitivas low-level parametricas
 - wrappers retained o scene-level

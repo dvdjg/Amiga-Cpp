@@ -1,0 +1,21 @@
+# Normaliza los finales de línea a LF en todo el repo (las fuentes/docs usan LF).
+# Evita que herramientas de Windows (p. ej. Set-Content) introduzcan CRLF.
+* text=auto eol=lf
+
+# Referencia externa ingerida (Amiga Hardware Reference Manual): conservar tal cual.
+docs/reference/ahrm/** -text -eol
+
+# Media y binarios: sin conversión de finales de línea.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.bmp binary
+*.bin binary
+*.raw binary
+*.mod binary
+*.adf binary
+*.exe binary
+*.elf binary
+*.o binary
+*.a binary
