@@ -84,15 +84,15 @@ struct FillTask {
 
 /// Rutina de fondo: rellena hasta `budget` filas (o la mitad si el raster va tarde)
 /// y devuelve las filas hechas (1 fila = 1 unidad).
-eng::u16 fill_bar_step(FillTask* t, const task::TaskSlice& slice) {
+eng::u16 fill_bar_step(FillTask& t, const task::TaskSlice& slice) {
 	const eng::u16 cap = (slice.vpos > 220u) ? static_cast<eng::u16>(slice.budget_units / 2u) : slice.budget_units;
 	eng::u16 done = 0;
-	while (done < cap && t->row < kBarRows) {
-		eng::u8* p = t->plane + static_cast<eng::u32>(kBarTop + t->row) * kBytesPerRow;
+	while (done < cap && t.row < kBarRows) {
+		eng::u8* p = t.plane + static_cast<eng::u32>(kBarTop + t.row) * kBytesPerRow;
 		for (eng::u16 i = 0; i < kBytesPerRow; ++i) {
 			p[i] = 0xffu;
 		}
-		++t->row;
+		++t.row;
 		++done;
 	}
 	return done;
@@ -135,7 +135,7 @@ struct BackgroundDemo {
 		m_fill.row = 0;
 		m_context = &context;
 		if (context.background != nullptr) {
-			m_task = context.background->add(task::TaskToken<FillTask>{&m_fill, &fill_bar_step}, kBarRows, /*slice*/ 1u);
+			m_task = context.background->add(task::task_token(m_fill, &fill_bar_step), kBarRows, /*slice*/ 1u);
 			// En modo interrupt-driven el fondo corre en el bucle principal (la IRQ de
 			// VBlank lo preempta); el cupo por frame acota cuanto fondo por frame.
 			context.background->set_max_slices_per_frame(4u);
@@ -183,7 +183,7 @@ struct BackgroundDemo {
 				band[i] = 0u;
 			}
 			m_fill.row = 0;
-			m_task = context.background->add(task::TaskToken<FillTask>{&m_fill, &fill_bar_step}, kBarRows, 1u);
+			m_task = context.background->add(task::task_token(m_fill, &fill_bar_step), kBarRows, 1u);
 		}
 	}
 

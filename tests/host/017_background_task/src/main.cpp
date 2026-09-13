@@ -35,6 +35,7 @@ using eng::task::TaskProgress;
 using eng::task::TaskSlice;
 using eng::task::TaskState;
 using eng::task::permille_of;
+using eng::task::task_token;
 
 /// Tarea de prueba: acumula `budget` unidades mientras el raster va por debajo de
 /// `late_vpos`; si ya es tarde, consume la mitad (adaptacion de carga).
@@ -45,18 +46,16 @@ struct CountingTask {
 	u8 slices = 0;
 };
 
-u16 count_up(CountingTask* t, const TaskSlice& slice) {
-	t->last_budget = slice.budget_units;
-	t->last_vpos = slice.vpos;
-	++t->slices;
+u16 count_up(CountingTask& t, const TaskSlice& slice) {
+	t.last_budget = slice.budget_units;
+	t.last_vpos = slice.vpos;
+	++t.slices;
 	const u16 consume = (slice.vpos >= 200u) ? static_cast<u16>(slice.budget_units / 2u) : slice.budget_units;
-	t->units += consume;
+	t.units += consume;
 	return consume;
 }
 
-using CountingToken = eng::task::TaskToken<CountingTask>;
-
-u16 abort_task(CountingTask*, const TaskSlice&) { return eng::task::task_abort; }
+u16 abort_task(CountingTask&, const TaskSlice&) { return eng::task::task_abort; }
 
 } // namespace
 
@@ -65,7 +64,7 @@ int main() {
 	{
 		BackgroundQueue q;
 		CountingTask t {};
-		const TaskHandle h = q.add(CountingToken{&t, &count_up}, /*total*/ 1000u, /*slice*/ 100u);
+		const TaskHandle h = q.add(task_token(t, &count_up), /*total*/ 1000u, /*slice*/ 100u);
 		if (!h.valid() || q.live_count() != 1u) {
 			std::printf("[FAIL] add() de tarea finita\n");
 			return 1;
@@ -115,7 +114,7 @@ int main() {
 	{
 		BackgroundQueue q;
 		CountingTask t {};
-		const TaskHandle h = q.add(CountingToken{&t, &count_up}, /*total*/ 0u, /*slice*/ 50u);
+		const TaskHandle h = q.add(task_token(t, &count_up), /*total*/ 0u, /*slice*/ 50u);
 		for (int i = 0; i < 20; ++i) {
 			q.run_slice(100u + static_cast<u32>(i), 100u);
 		}
@@ -138,7 +137,7 @@ int main() {
 	{
 		BackgroundQueue q;
 		CountingTask t {};
-		const TaskHandle h = q.add(CountingToken{&t, &count_up}, 0u, 100u);
+		const TaskHandle h = q.add(task_token(t, &count_up), 0u, 100u);
 		q.run_slice(7u, 50u);            // raster temprano -> consume 100
 		const u32 after_early = t.units;
 		q.run_slice(8u, 250u);           // raster tarde   -> consume 50
@@ -157,7 +156,8 @@ int main() {
 	// --- 4) task_abort -> Failed ----------------------------------------------
 	{
 		BackgroundQueue q;
-		const TaskHandle h = q.add(CountingToken{nullptr, &abort_task}, 0u, 10u);
+		CountingTask dummy {};
+		const TaskHandle h = q.add(task_token(dummy, &abort_task), 0u, 10u);
 		q.run_slice(0u, 0u);
 		const TaskProgress p = q.progress(h);
 		if (p.state != TaskState::Failed) {
@@ -171,12 +171,12 @@ int main() {
 		BackgroundQueue q;
 		CountingTask t {};
 		for (eng::u8 i = 0; i < BackgroundQueue::max_tasks; ++i) {
-			if (!q.add(CountingToken{&t, &count_up}).valid()) {
+			if (!q.add(task_token(t, &count_up)).valid()) {
 				std::printf("[FAIL] add() fallo dentro del pool (i=%u)\n", (unsigned)i);
 				return 1;
 			}
 		}
-		if (q.add(CountingToken{&t, &count_up}).valid()) {
+		if (q.add(task_token(t, &count_up)).valid()) {
 			std::printf("[FAIL] add() acepto mas alla de max_tasks\n");
 			return 1;
 		}

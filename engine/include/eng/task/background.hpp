@@ -88,18 +88,26 @@ struct TaskSlice {
 /// (<= `slice.budget_units`), o `task_abort` para fallar. `data` es del llamador.
 using TaskStep = u16 (*)(void* data, const TaskSlice& slice);
 
-/// Firma **tipada** de una tarea (sin `void*`).
+/// Firma **tipada** de una tarea (sin `void*` ni punteros: recibe los datos por
+/// referencia).
 template <class T>
-using TaskFn = u16 (*)(T* data, const TaskSlice& slice);
+using TaskFn = u16 (*)(T& data, const TaskSlice& slice);
 
-/// Token de tarea tipado: datos del llamador + rutina. El engine copia el token
-/// en su slot (bytes) y lo invoca con la firma de `T`; el llamador conserva sus
-/// datos. Sustituye a `add(TaskStep, void* data)`.
+/// Token de tarea tipado: almacena el puntero a los datos + la rutina. El puntero
+/// es **solo almacenamiento** (una referencia no es copiable); la interfaz usa
+/// referencias. Construir con `task_token(datos, fn)`.
 template <class T>
 struct TaskToken {
 	T* data = nullptr;
 	TaskFn<T> fn = nullptr;
 };
+
+/// Fábrica de token: enlaza los datos por **referencia** (el llamador los conserva
+/// vivos) con la rutina. Evita escribir `&` en la llamada.
+template <class T>
+constexpr TaskToken<T> task_token(T& data, TaskFn<T> fn) noexcept {
+	return { &data, fn };
+}
 
 /// Foto barata del estado/progreso de una tarea (para el juego).
 struct TaskProgress {
@@ -132,7 +140,7 @@ public:
 	template <class T>
 	TaskHandle add(TaskToken<T> token, u32 total_units = 0u, u16 slice_units = 64u) {
 		static_assert(sizeof(TaskToken<T>) <= kTokenBytes, "TaskToken demasiado grande");
-		if (token.fn == nullptr) {
+		if (token.fn == nullptr || token.data == nullptr) {
 			return {};
 		}
 		Entry* e = alloc_entry();
@@ -271,11 +279,12 @@ private:
 		bool completed = false;
 	};
 
-	/// Thunk por tipo: recupera el `TaskToken<T>` guardado y llama a la rutina.
+	/// Thunk por tipo: recupera el `TaskToken<T>` guardado y llama a la rutina por
+	/// referencia.
 	template <class T>
 	static u16 thunk(void* token_bytes, const TaskSlice& slice) {
 		const TaskToken<T> tok = *reinterpret_cast<const TaskToken<T>*>(token_bytes);
-		return tok.fn(tok.data, slice);
+		return tok.fn(*tok.data, slice);
 	}
 
 	/// Reserva el primer slot libre y lo deja limpio (sin `total`/`slice`, los fija
