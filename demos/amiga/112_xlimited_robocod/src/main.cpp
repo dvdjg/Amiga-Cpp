@@ -137,9 +137,8 @@ struct DemoGame {
 
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		// El doble buffer del fondo (soft DPF) usa 2 buffers con el stride interleaved
-		// (2 * display_height * planes * row), por eso se pide más Chip RAM.
-		if (!backend.configure_memory({400u * 1024u, 16u * 1024u, 8u * 1024u})) {
+		// Doble buffer del fondo = 1 bitmap extra (~72 KB con stride interleaved).
+		if (!backend.configure_memory({300u * 1024u, 16u * 1024u, 8u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011201u);
 			return;
 		}
@@ -279,6 +278,9 @@ struct DemoGame {
 			// offset de contenido es `src_x = m_bgscroll - camx (+dest*8)`.
 			m_bgscroll += m_bgdx;
 			if (m_bgscroll >= static_cast<eng::s32>(kPatPeriodPx)) { m_bgscroll = 0; }
+#ifdef K_DIAG_BG_FIXED
+			m_bgscroll = 0;   // diagnóstico: fondo FIJO (verificar ausencia de flicker)
+#endif
 			win.src_x = static_cast<eng::u16>(
 				(static_cast<eng::s32>(win.src_x) + m_bgscroll) %
 				static_cast<eng::s32>(kPatPeriodPx));

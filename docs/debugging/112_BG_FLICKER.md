@@ -92,19 +92,21 @@ diagnósticos opcionales en la demo para volver a medir tras el cambio a doble b
 
 ## 7.1 Resolución (implementada)
 
-Se implementó la opción 1:
+Se implementó un doble buffer **mínimo** (1 buffer extra, no 2):
 
-- `XLimitedPlayfield` reserva **dos `gfx::Bitmap` de fondo** con el mismo layout interleaved
-  (`m_bg_bitmap[2]`) y expone `bg_flip()` / `bg_double_buffered()`.
-- `PlayfieldHardwareView` incorpora `bg_plane_base`; el compositor single lee el plano
-  `parallax_plane` de ese buffer (y los demás de `real_base`), tanto en el bloque principal como
-  en el reload del split.
+- `XLimitedPlayfield` reserva **un único `gfx::Bitmap` extra** (`m_bg_extra`). El **buffer 0 es el
+  propio plano `parallax_plane` del bitmap principal**; el buffer 1 es el extra. Así el coste
+  adicional es ~72 KB (stride interleaved) en vez de ~144 KB.
+- `bg_flip()` / `bg_double_buffered()` conmutan el buffer delantero; el compositor lee el plano
+  `parallax_plane` de `PlayfieldHWView::bg_plane_base` (los demás de `real_base`).
 - `make_bg_plane_copy_rect_job` escribe el buffer **trasero**; la demo llama `bg_flip()` tras el
-  blit y **antes** de `compose()`, de modo que la copperlist del frame apunta al buffer recién
-  escrito.
-- **Resultado**: en solo-Y el borde del fondo pasa de oscilar 43/44 a ser **constante (43,38)** en
-  los 14 frames → el flicker de 1 px **desaparece**. La causa confirmada era el tearing/fase de la
-  reescritura sobre un único buffer.
+  blit y **antes** de `compose()`.
+- Es seguro que el blit del FG (interleaved) escriba 0 en el plano de fondo del bitmap principal:
+  cuando ese plano es el trasero, lo restaura la copia; cuando es el delantero, el FG solo toca
+  filas de *staging* (no visibles) y la copia ya las reescribió antes de pasar a delantero.
+- **Resultado**: en solo-Y (`K_DIAG_YONLY`) con fondo FIJO (`K_DIAG_BG_FIXED`) el borde del fondo
+  es **constante (43,38)** en los 14 frames → el flicker de 1 px **desaparece**. Reserva de Chip
+  de la demo: **300 KB** (antes 400 KB), uso real ~215 KB.
 
 ## 7.2 Scroll independiente del fondo (soft DPF)
 

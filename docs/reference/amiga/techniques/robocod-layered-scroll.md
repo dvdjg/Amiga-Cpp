@@ -158,8 +158,9 @@ blit visible (~103 líneas de raster) cabe en el blanking (~105 líneas).
   el coste es duplicar los blits de Y (amortizados).
 - **Doble buffer del plano de fondo (soft DPF, IMPLEMENTADO)**: con fondo FIJO/scroll propio el
   contenido se reescribe cada frame y no hay conmutación atómica → jitter de 1 px. Se resuelve
-  doble-bufferizando SOLO el plano 4 (`m_bg_bitmap[2]` + `bg_flip()`): el blit escribe el buffer
-  trasero y el compositor lee el delantero (`PlayfieldHardwareView::bg_plane_base`). Verificado:
+  doble-bufferizando SOLO el plano 4 con **un único bitmap extra** (`m_bg_extra`; el otro buffer es
+  el propio plano del bitmap principal) + `bg_flip()`: el blit escribe el buffer trasero y el
+  compositor lee el delantero (`PlayfieldHardwareView::bg_plane_base`). Coste ~72 KB. Verificado:
   el borde pasa de oscilar 43/44 a constante. Análisis y diagnóstico completo:
   `docs/debugging/112_BG_FLICKER.md`. Con esto el plano de fondo es una capa con su **propia
   cámara** (soft DPF con scroll independiente); el siguiente paso es un tilemap XYLimited completo

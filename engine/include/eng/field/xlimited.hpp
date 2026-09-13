@@ -877,14 +877,15 @@ public:
         m_total_bytes = m_bitmap.total_bytes();
         m_real_base = m_bitmap.allocation_start(); // base del bloque (BPLxPT)
         m_frontbuffer = m_bitmap.bytes().data();   // vía cruda interna (núcleo)
-        // Soft DPF: doble buffer del plano de fondo (mismo layout interleaved para
-        // que el modulo compartido siga valiendo). Solo se usa el slot de ese plano.
+        // Soft DPF: doble buffer del plano de fondo. El buffer 0 es el plano del
+        // bitmap principal; el buffer 1 es UN bitmap extra con el mismo layout
+        // interleaved (stride compartido). Coste: 1 bitmap extra.
         if (m_cfg.parallax_plane < m_cfg.planes) {
-            for (u8 i = 0; i < 2u; ++i) {
-                if (!m_bg_bitmap[i].init(memory, bc)) return false;
-                m_bg_real_base[i] = m_bg_bitmap[i].allocation_start();
-                m_bg_front[i] = m_bg_bitmap[i].bytes().data();
-            }
+            if (!m_bg_extra.init(memory, bc)) return false;
+            m_bg_real_base[0] = m_real_base;
+            m_bg_front[0] = m_frontbuffer;
+            m_bg_real_base[1] = m_bg_extra.allocation_start();
+            m_bg_front[1] = m_bg_extra.bytes().data();
             m_bg_db = true;
         }
 
@@ -1576,11 +1577,12 @@ private:
     XlimitedConfig m_cfg {};
     gfx::Bitmap m_bitmap {};   // capa de memoria (posee el bloque Chip)
     u8* m_real_base = nullptr;
-    // Soft DPF: doble buffer SOLO del plano de fondo (`parallax_plane`). Dos buffers
-    // con el MISMO stride interleaved (el modulo BPL1MOD/BPL2MOD es compartido); el
-    // compositor lee el FRONT (`m_bg_active`) y el blit escribe el BACK. Elimina el
-    // tearing del fondo (el unico que se reescribe en zona visible).
-    gfx::Bitmap m_bg_bitmap[2] {};
+    // Soft DPF: doble buffer SOLO del plano de fondo (`parallax_plane`). Un buffer
+    // es el propio plano del bitmap principal (buffer 0) y el otro es UN bitmap extra
+    // (buffer 1) con el mismo stride interleaved (el modulo BPL1MOD/BPL2MOD es
+    // compartido). El compositor lee el FRONT (`m_bg_active`) y el blit escribe el
+    // BACK. Coste minimo: 1 bitmap extra (~72 KB), no 2.
+    gfx::Bitmap m_bg_extra {};
     u8* m_bg_real_base[2] = {nullptr, nullptr};
     u8* m_bg_front[2] = {nullptr, nullptr};
     u8 m_bg_active = 0;
