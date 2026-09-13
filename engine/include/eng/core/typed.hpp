@@ -224,7 +224,22 @@ private:
 	Span<const eng::u16> m_span {};
 };
 
-// --- Unidades fuertes (evitan intercambiar parámetros) -----------------------
+// --- Bloque tipado (resultado de una reserva de arena) -----------------------
+
+/// Bloque de memoria tipado: vista `Bytes<Tag>` de la reserva. Lo devuelven las
+/// arenas (`LinearArena::allocate_block<Tag>()`, `MemoryBlock::block<Tag>()`) para
+/// que el consumidor reciba ya el dominio, sin casts. `valid()` = reserva con datos.
+template <class Tag>
+struct Block {
+	Bytes<Tag> view {};
+	constexpr Block() noexcept = default;
+	constexpr explicit Block(Bytes<Tag> v) noexcept : view(v) {}
+	[[nodiscard]] constexpr bool valid() const noexcept { return !view.empty(); }
+	[[nodiscard]] constexpr Bytes<Tag>& operator*() noexcept { return view; }
+	[[nodiscard]] constexpr const Bytes<Tag>& operator*() const noexcept { return view; }
+	[[nodiscard]] constexpr Bytes<Tag>* operator->() noexcept { return &view; }
+	[[nodiscard]] constexpr const Bytes<Tag>* operator->() const noexcept { return &view; }
+};
 
 // --- Direcciones y bases (semántica distinta a propósito) --------------------
 //

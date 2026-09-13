@@ -292,7 +292,9 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
   en la API). HOST-017 y demo 081 migrados. Pendiente: `Service<Context>` en los servicios del
   backend (`wait_vblank`/`set_vblank_service`/`set_blit_service`/`background_timer_start`), que
   hoy pasan `void (*)(void*, u16) + void*`.
-- **Fase 7 — pendiente**: `Block<Tag>` en `LinearArena::allocate`.
+- **Fase 7 — hecha (API)**: `eng::Block<Tag>` (`typed.hpp`) y reservas tipadas
+  `LinearArena::allocate_block<Tag>()` / `MemoryBlock::block<Tag>()`; HOST-041. Pendiente: migrar
+  consumidores de arena a `allocate_block` donde simplifique.
 
 
 ## 9. Reglas para `CODING_STYLE.md` (resumen)

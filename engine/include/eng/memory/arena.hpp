@@ -59,6 +59,11 @@ struct MemoryBlock {
 	[[nodiscard]] constexpr ByteView<Tag> view() const noexcept {
 		return ByteView<Tag> { static_cast<const u8*>(data), size };
 	}
+	/// Bloque tipado (mutable) del dominio.
+	template <class Tag>
+	[[nodiscard]] constexpr Block<Tag> block() const noexcept {
+		return Block<Tag> { buffer<Tag>() };
+	}
 };
 
 /// Foto inmutable de una arena.
@@ -159,8 +164,14 @@ public:
 		return {reinterpret_cast<void*>(aligned), bytes, m_kind};
 	}
 
+	/// Reserva tipada: devuelve el bloque ya como `Block<Tag>` (vista del dominio),
+	/// de modo que el consumidor no necesite casts ni `reinterpret_cast`.
+	template <class Tag>
+	[[nodiscard]] Block<Tag> allocate_block(u32 bytes, u32 alignment = 2) {
+		return Block<Tag> { allocate(bytes, alignment).buffer<Tag>() };
+	}
+
 	/// Reserva un array de objetos triviales.
-	///
 	/// De momento no llama constructores. Esta funcion esta pensada para PODs,
 	/// tablas, comandos y estructuras de runtime controladas.
 	template <typename T>
