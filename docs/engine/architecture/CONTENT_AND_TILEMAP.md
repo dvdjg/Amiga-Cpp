@@ -21,6 +21,8 @@ TileSource     ACCESOR de tiles: `tile_at(x, y)` + `empty_tile`. El scroll consu
 - El `Tileset` lo emite el pipeline de assets (cuantización + corte + EHB); ver
   `docs/demos/tile-pipeline/PIPELINE_TILES_EHB.md` y `tools/amiga-tiles/README.md`.
 - Geometría (tamaño de tile, potencia de dos) entra como NTTP para evitar divisiones en el hot path.
+- Implementación: `engine/include/eng/field/tile_source.hpp` (concepto + `SparseTileMap`) y
+  `tile_map.hpp` (`TileLayerMap`). Test: `tests/host/025_tile_source`.
 
 ## 2. Mundo disperso
 
@@ -44,6 +46,24 @@ WorldMap (disperso)
   saltan sin tocar el Blitter. El índice de chunks debe ser O(1) por consulta (sin `%`/`/` caros;
   potencias de dos).
 - El mundo puede ser **toroidal** (wrap) o **acotado**; el `TileSource` declara el modo.
+- Implementación: `SparseTileMap<Chunk>` (`tile_source.hpp`) y `ChunkCache<ChunkSize,Capacity>`
+  (`chunk_cache.hpp`, pool de Chip RAM del llamador + LRU). Tests: `tests/host/025_tile_source`,
+  `tests/host/026_chunk_cache`.
+
+### 2.1 Compatibilidad con Tiled (.tmx/.tsx)
+
+El mundo disperso se define de forma compatible con el formato del editor **Tiled**:
+- **Tilesets** (`firstgid`): `gid - firstgid` da el índice en el `Tileset`; los bits de flip de Tiled
+  (29–31: horizontal/vertical/diagonal) se limpian antes de indexar.
+- **Mapas infinitos por chunks**: los `<chunk x y width height>` de Tiled, con el mismo tamaño de
+  chunk que `WorldMap`, se cargan tal cual; los chunks ausentes son `empty_tile`.
+- **Capas** (`<layer>` Ground/Road/Water): cada capa es un `TileSource` de la escena; separan
+  material.
+- **Object layers** (`<objectgroup>`): spawns, triggers y colisiones van a los **metadatos del
+  chunk** (`Meta`), no son tiles.
+- El importador es `tools/ehb/parse-tmx.mjs` (CSV o `<tile>`, `--resolve-tsx`); se amplía a mapas
+  infinitos y a la conversión de `gid` a índice de banco.
+- Referencia del formato: `docs/guides/roadmap/TILED.md`.
 
 ## 3. Sprites y animaciones
 
@@ -62,6 +82,8 @@ ActorTemplate  Visual (Animation) + tamaño + anclaje + preferencia de represent
   reasignar (sprite→BOB) al cambiar el presupuesto, sin tocar el contenido.
 - El enemigo grande con scroll propio puede declararse con preferencia `Layer` (playfield de un
   DPF, patrón Jim Power).
+- Implementación: `engine/include/eng/graphics/animation.hpp` (`Frame`/`Animation`/`SpriteSheet`).
+  Test: `tests/host/027_animation`.
 
 ## 4. Audio
 

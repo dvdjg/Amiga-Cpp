@@ -30,6 +30,8 @@ struct TileLayerMap {
 		}
 		return ((value % static_cast<eng::s32>(period)) + period) % period;
 	}
+	/// Cumple `TileSource`: un tile es "vacío" si es `empty_tile`.
+	constexpr bool is_empty(eng::u16 g) const { return g == empty_tile; }
 	eng::u16 tile_at(eng::s32 tx, eng::s32 ty) const {
 		if (cells.empty() || width == 0 || height == 0) return edge_tile;
 		eng::s32 x = tx, y = ty;

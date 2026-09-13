@@ -105,6 +105,10 @@ en el proceso.
   recursos.
 - Assets por **UAF-R** (vistas `Span`, sin copia) y pipelines de tiles/sprites/audio.
 - Detalle: `docs/engine/architecture/CONTENT_AND_TILEMAP.md`.
+- **Estado**: piezas puras implementadas y testeadas (HOST-025/026/027): `TileSource` +
+  `SparseTileMap` (`tile_source.hpp`), `ChunkCache` (`chunk_cache.hpp`), `Animation`/`Frame`/
+  `SpriteSheet` (`animation.hpp`). Pendiente: que el scroll/escena consuman el `TileSource` (hoy
+  `TileLayerMap` denso) y el streaming bajo presupuesto en una demo.
 
 ## Mapa de migración (código actual → objetivo)
 
