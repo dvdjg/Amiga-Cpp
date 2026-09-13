@@ -274,6 +274,9 @@ struct XlimitedSceneConfig {
     // --- Paleta --------------------------------------------------------------
     const eng::u16* palette = nullptr; // 2^planes colores (single) o 16 (DPF: PF1 0..7, PF2 8..15)
     eng::u32 copper_bytes = 1536;
+    // Raster colors del display single (en DPF se usan `dpf.color_zones`).
+    const eng::field::RasterColorZone* color_zones = nullptr;
+    eng::u8 color_zone_count = 0;
 
     // --- Sprites hardware (a nivel de escena) ------------------------------
     eng::u32 sprite_data_bytes = 0;   // 0 = sin sprites; si > 0, reserva DATA Chip
@@ -414,7 +417,7 @@ public:
             if (!m_single.init(memory, {cfg.palette, cfg.copper_bytes, cfg.planes,
                 xlimited_detail::kDiwStrt, diwstop,
                 xlimited_detail::kDdfStrt, xlimited_detail::kDdfStop,
-                sprites})) return false;
+                sprites, cfg.color_zones, cfg.color_zone_count})) return false;
         }
         if (cfg.sprite_data_bytes != 0) {
             if (!m_sprites.init(memory, cfg.sprite_data_bytes)) return false;

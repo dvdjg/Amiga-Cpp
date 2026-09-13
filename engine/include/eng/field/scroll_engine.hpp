@@ -316,14 +316,17 @@ public:
     bool scroll_down(graphics::FramePlan& plan, Sink& sn) {
         if (finite_x(sn)) {
             // Y corkscrew con X lineal: la fila entrante ocupa TODO el ancho del
-            // bitmap (no hay desplazamiento plane-shifted del anillo X).
+            // bitmap (no hay desplazamiento plane-shifted del anillo X). Se pinta
+            // UNA vez por fila de mapa (no por pixel): la banda se revela luego.
             const s32 limitY = static_cast<s32>(sn.map_height_blocks()) * th(sn) - sn.viewport_h();
             if (sn.map_wrap_y() == 0 && m_state.mapposy >= limitY) return false;
-            const u32 y_pl = block_videoposy(sn) * planes(sn);
-            const u16 mapy = static_cast<u16>(q_th(sn, m_state.mapposy) + sn.bitmap_blocks_per_col());
-            const u16 cols = sn.bitmap_blocks_per_row();
-            for (u16 c = 0; c < cols; ++c) {
-                if (!sn.add_draw(plan, static_cast<u16>(c * tw(sn)), static_cast<u16>(y_pl), c, mapy)) return false;
+            if (r_th(sn, m_state.mapposy) == 0u) {
+                const u32 y_pl = block_videoposy(sn) * planes(sn);
+                const u16 mapy = static_cast<u16>(q_th(sn, m_state.mapposy) + sn.bitmap_blocks_per_col());
+                const u16 cols = sn.bitmap_blocks_per_row();
+                for (u16 c = 0; c < cols; ++c) {
+                    if (!sn.add_draw(plan, static_cast<u16>(c * tw(sn)), static_cast<u16>(y_pl), c, mapy)) return false;
+                }
             }
             ++m_state.mapposy;
             m_state.videoposy = static_cast<s32>(r_dh(sn, static_cast<u32>(m_state.mapposy)));
@@ -389,13 +392,17 @@ public:
     bool scroll_up(graphics::FramePlan& plan, Sink& sn) {
         if (finite_x(sn)) {
             if (m_state.mapposy < 1) return false;
+            const u16 row_before = static_cast<u16>(q_th(sn, m_state.mapposy));
             --m_state.mapposy;
             m_state.videoposy = static_cast<s32>(r_dh(sn, static_cast<u32>(m_state.mapposy)));
-            const u32 y_pl = block_videoposy(sn) * planes(sn);
-            const u16 mapy = static_cast<u16>(q_th(sn, m_state.mapposy));
-            const u16 cols = sn.bitmap_blocks_per_row();
-            for (u16 c = 0; c < cols; ++c) {
-                if (!sn.add_draw(plan, static_cast<u16>(c * tw(sn)), static_cast<u16>(y_pl), c, mapy)) return false;
+            // Pintar la fila entrante UNA vez al cruzar de fila de mapa.
+            if (static_cast<u16>(q_th(sn, m_state.mapposy)) != row_before) {
+                const u32 y_pl = block_videoposy(sn) * planes(sn);
+                const u16 mapy = static_cast<u16>(q_th(sn, m_state.mapposy));
+                const u16 cols = sn.bitmap_blocks_per_row();
+                for (u16 c = 0; c < cols; ++c) {
+                    if (!sn.add_draw(plan, static_cast<u16>(c * tw(sn)), static_cast<u16>(y_pl), c, mapy)) return false;
+                }
             }
             return true;
         }

@@ -1,100 +1,145 @@
-# RoboCod — scroll por capas con fondo más lento (parallax) en Amiga OCS
+# RoboCod — plano de fondo con scroll propio (parallax) en Amiga OCS
 
-Técnica de **dos (o más) capas de scroll independientes**: un **primer plano de juego**
-(p. ej. plataformas) que ocupa poco de la pantalla y **deja ver por transparencia** un
-**fondo más grande que scrollea más lento** (*parallax*). Referencia de estilo: *James Pond 2:
-Codename RoboCod*. En el original el fondo era un plano de 1 bit con áreas amplias y se
-enriquecía con **cambios de color por raster (Copper)** para "aparentar" más de un bitplane.
+Técnica del *James Pond 2: Codename RoboCod*: **un solo playfield de 5 bitplanes**. Los
+**4 primeros planos (16 colores) son el FG de juego** (plataformas, etc.); el **5.º plano es el
+FONDO**, que **scrollea a distinta velocidad** y se pinta con el **Blitter** con su propio
+offset. No usa dual playfield. El plano de fondo **"duplica la paleta"** para que, al moverse
+bajo el FG, no se note un cambio de color en el FG.
 
 ## 1. Idea y por qué funciona
 
 ```text
-  ┌───────────────────────────────────────────────┐
-  │ FG (poca cobertura, ~15%): plataformas/bloques │  scroll RÁPIDO (velocidad de juego)
-  │   transparente el 85% restante                 │
-  ├───────────────────────────────────────────────┤
-  │ BG (áreas amplias): patrón/motivo de fondo      │  scroll LENTO (p. ej. 1/2, 1/4…)
-  └───────────────────────────────────────────────┘
+   5 bitplanes -> 32 indices de paleta, PERO mapeados a 16 colores:
+
+   indice = (FG[3:0])            + 16*BG        color index 0..31
+            \____ 4 planos FG ___/   \_ 1 plano fondo _/
+   palette[c] == palette[c+16] para c=1..15   -> el plano de fondo NO tinta el FG
+   palette[0] = negro (fondo off) ; palette[16] = color del patron (fondo on)
+
+   ┌───────────────────────────────────────────────┐
+   │ FG (planos 0..3, 16 colores, poca cobertura)   │  scroll RÁPIDO (juego)
+   │   transparente donde no hay plataformas         │
+   ├───────────────────────────────────────────────┤
+   │ BG (plano 4): patron/motivo, áreas amplias      │  scroll LENTO (p. ej. 1/2)
+   └───────────────────────────────────────────────┘
 ```
 
-- El **movimiento relativo** entre capas crea la sensación de profundidad (el fondo "está
-  más lejos"). No hace falta que el fondo sea más pequeño: basta que **scrollee más lento**.
-- El FG **ocupa poco** y es **transparente** donde no hay nada; así el fondo domina la imagen.
-- Los **colores deben contrastar** entre capas (p. ej. FG cálido naranja/amarillo sobre BG
-  frío azul) para distinguirlas de un vistazo.
+- El **movimiento relativo** entre el FG (planos 0..3) y el plano de fondo (4) crea profundidad.
+- El FG deja ver por **transparencia** (color 0) el patrón del plano de fondo.
+- La **duplicación de paleta** evita el "salto de color" del plano de fondo bajo el FG.
 
-## 2. Implementación en el engine (canónica): DPF de 2 capas
+## 2. Implementación en el engine ("soft DPF")
 
-Se implementa con **dual playfield** (dos `XLimitedPlayfield`, cada uno con su bitmap) en
-`XlimitedScene`:
+`XLimitedPlayfield` con `planes = 5` y `parallax_plane = 4` (el ÚLTIMO), `parallax_div = N`:
 
-- `scene_cfg.dpf.enabled = true` y `planes = 3` (DPF 3+3 = 6 planos HW; 8 colores por capa,
-  **16 en total**). Roles: `bg()` = `field[0]` = **PF1** (delante), `fg()` = `field[1]` = **PF2**
-  (detrás). Pon el **primer plano de juego en PF1** (delante).
-- **Paleta de 16 registros**: PF1 usa 0..7, PF2 usa 8..15.
-- **Parallax**: cada campo tiene **su propia cámara** (`set_camera`) y se avanza con
-  `update_scroll` a distinta velocidad:
-  ```cpp
-  scene.bg().update_scroll(plan, dx, dy);          // FG (PF1): velocidad de juego
-  scene.fg().update_scroll(plan, dx / 2, dy / 2);  // BG (PF2): mitad (parallax)
-  ```
-- **Dos bitmaps separados** ⇒ el blit del FG **no borra** el BG (ver §3).
-- Transparencia: el color 0 de **cada** playfield es transparente; el FG deja ver el BG.
+- **FG (planos 0..3)**: el tilemap normal. Su blit (`draw_block_job`) es un `TileBlockCopy`
+  **interleaved** que cubre los 5 planos y por tanto **escribe 0 en el plano de fondo**. No se
+  puede saltar el 5.º plano en un blit interleaved (§3).
+- **BG (plano 4)**: un patrón 1bpp en Chip RAM (fuente del Blitter). En cada frame, **después**
+  del blit del FG, se **re-copia por Blitter** la ventana del patrón al plano 4 con
+  `XLimitedPlayfield::make_bg_plane_copy_job(pattern, pattern_row_bytes, src_x_pixels, src_y)`:
+  una copia A→D de `display_height` filas × el ancho de la fila del bitmap.
+- El movimiento del fondo lo da el **contenido** (qué ventana se copia), **no un puntero
+  propio**: el display lee el plano 4 con el `BPLxPT` **normal** (compartido con el FG), así el
+  split del corkscrew sigue cuadrando.
+- **Paleta de 32** (5 planos): `palette[c] == palette[c+16]` para c=1..15; `palette[0]` negro,
+  `palette[16]` color del patrón.
 
-## 3. Bloqueo del "5.º plano" en un solo playfield (por qué NO)
+Ventajas frente a un blit por-planos del FG: una sola pasada interleaved para el tilemap y una
+copia plana del fondo (barata en Blitter), sin tocar la emisión del tilemap.
 
-La tentación es un **único playfield de 5 planos** (4 = FG, 1 = patrón de fondo). **No
-funciona bien**: el blit del tilemap FG es un **TileBlockCopy interleaved** que cubre los 5
-planos y escribe 0 en el plano del fondo, **borrando el patrón en cada fila/columna que entra
-al scrollear** (el fondo solo sobrevive donde el FG no ha vuelto a pintar). El Blitter
-**no puede saltar un plano intermedio** en un blit interleaved (el layout es
-`[scanline][plano][bytes]`); harían falta **blits por plano** (4 blits en vez de 1), más lentos
-y que el engine no emitía. Conclusión: usa **DPF** (bitmaps separados) para capas de scroll.
+## 3. Scroll del fondo a `1/div` y **compensación sub-píxel**
 
-## 4. Motivo de fondo con **tiles** (no una imagen fija)
+El display ya suma `+camx` al plano de fondo (lo lee desde `camx`), así que para que el fondo
+avance a `1/div` de la velocidad del FG hay que desfasar el CONTENIDO del patrón:
 
-El fondo es un **tilemap** normal (`map2` + `bg_row_fn`). Un patrón de **bandas diagonales
-sin costura** se logra con un tile cuyo contenido depende de `(x_local + row)`:
-
-```cpp
-eng::u16 bg_row(glyph, variant, row, plane) {
-  eng::u16 mask = 0;
-  for (u8 x = 0; x < 16; ++x)          // tile 16x16
-    if (((x + row) & 15u) < 8u) mask |= 0x8000u >> x;   // franja diagonal, periodo 16
-  const u8 c = 6;                       // color del patrón (índice 1..7 de PF2)
-  return (c & (1u << plane)) ? mask : 0;
-}
+```text
+patron_visible(screen_x) = src + camx + screen_x
+queremos                 = camx/div + screen_x
+=> src = camx/div - camx = -camx*(div-1)/div     (helper parallax_pattern_offset_px)
 ```
 
-Como el patrón depende de `(x_local + row)` y se repite cada 16 px, **no hay costura** entre
-tiles contiguos y el motivo "tilea" — lo que demuestra que el fondo **usa tiles**. Un motivo
-extra (rombos, cruces) es cuestión de añadir más `glyphs` al tileset.
+`src` es entero en píxeles, pero no siempre múltiplo de 16. La parte no alineada a word la
+resuelve el **barrel shifter del Blitter** (solo actúa sobre A/B; AHRM 6, "Copying Arbitrary
+Regions"):
 
-## 5. Raster colors (Copper) para "aparentar" más de 1 bitplane
+- Copia **A→D** con minterm `$F0`, canal A como fuente.
+- En modo **ascendente** el Blitter desplaza a la derecha: `destino[d] = patrón[q + d - S]`.
+  Para que `destino[0] == src` se apunta A a la word `q = src + S` con `S = (-src) & 15`.
+- El registro de desplazamiento arrastra bits entre filas. Para que no aparezcan datos de la
+  fila anterior, se enmascara la **última word de cada fila** con `BLTALWM = 0xFFFF << S`: los
+  bits desplazados hacia fuera quedan a cero y forman una **guarda de hasta 15 px** al principio
+  del bitmap. El llamador debe mantener esa guarda fuera de la ventana visible (p. ej. cámara
+  `X >= 16` en la demo 112).
 
-El plano de fondo solo tiene 2 estados (patrón on/off). Para dar riqueza, se cambia el **color
-del patrón** (`COLORxx` del registro del BG) **por línea de raster** con el Copper: cada zona
-de líneas usa un **color pastel distinto**, siempre contrastando con el color de "off"
-(normalmente negro/transparente). Así el mismo bit de fondo aparenta varios tonos.
+> Nota de hardware: el modo descendente del Blitter se activa con `BLTCON1` bit 1
+> (`BLITREVERSE = $0002`), no con `$0400` (AHRM 6, "Descending Mode"). El backend usaba
+> `$0400`, un bit no usado de `BLTCON1`; era inocuo porque ningún driver activaba `descending`.
+> Se corrigió al implementar la copia con shift.
 
-- El engine expone el `copper::Scheduler` para emitir `MOVE COLORxx` precedidos de `WAIT` en
-  la línea de la zona (`wait_line` + `move`).
-- Regla: los colores de zona deben **contrastar** entre sí y con el "off" (si dos zonas
-  contiguas usan colores parecidos, el degradado no se percibe).
+## 4. Patrón de fondo
 
-## 6. Parámetros y límites (A500/OCS)
+- 1 bit por píxel en Chip RAM, generado una vez (procedimental o desde un tileset). Para que la
+  ventana copiada no invada la fila siguiente al desplazarse en X, el patrón se genera con **dos
+  periodos** de ancho (margen ≥ ancho de ventana + 16 px).
+- Un motivo diagonal sin costura usa `(x + y) & 63 < 32`; rombos, cruces y puntos son más
+  variantes de `glyph`.
 
-- DPF 3+3: **6 planos HW**, 8 colores/capa, **más DMA y Chip RAM** que single.
-- **Nº de planos del fondo**: aquí el fondo es **PF2 con 3 planos (8 colores)**, NO 1 bit. El patrón usa 2 (bandas + puntos) de esos 8; el resto queda libre. El RoboCod original usaba **1 bit** (2 colores); reproducirlo literal exige DPF **asimétrico** (p. ej. 3+1 o 4+1), que el compositor dual actual **no** soporta: usa un `planes_per_field` **simétrico** (3+3). Añadir 3+1/4+1 es una extensión pendiente.
-- Paleta DPF: PF1 = registros 0..7, PF2 = 8..15. `BPLCON2` decide prioridad (`PF2PRI`).
-- Scroll por capa: cada `XLimitedPlayfield` conserva su `planeaddx`/`bplcon1`; el compositor
-  dual programa `BPLCON1` (nibble bajo = PF1, alto = PF2) y los `BPLxPT` de ambos.
-- Split vertical (corkscrew) compartido si ambos campos envuelven en Y; en DPF MIXTO un campo
-  puede ser lineal/mirror (sin split, Y libre).
+## 5. Raster colors (Copper)
 
-## 7. Demo de referencia
+El plano de fondo usa 2 estados (patrón on/off). Para dar riqueza, se cambia el **color del
+patrón** (`COLORxx` del registro del plano 4 → índice 16, `COLOR16`) **por línea** con
+`WAIT`+`MOVE` del Copper: cada banda de raster usa un **color pastel distinto**, contrastando
+con el "off" (negro). Ambas rutas de composición (single y dual) comparten
+`eng::field::RasterColorZone { line, reg, color }` (orden ascendente; se construye con
+`raster_color(line, color_index, color)`), configurable desde `XlimitedSceneConfig.color_zones`
+o `dpf.color_zones`.
 
-`demos/amiga/112_xlimited_robocod`: DPF 3+3, FG plataformas naranjas (~15%) sobre BG de bandas
-diagonales azules a mitad de velocidad, con rebote diagonal (X: 1024 px, Y: 512 px → se ve el
-área mayor). Verificación visual: `analyze-sequence.sh` + `ollama-desc.mjs` (ver
-`docs/guides/methodology/DEMO_VISUAL_DEBUG.md`).
+Requisito práctico: usar `linear_display` (sin split de Copper) para que el orden del raster no
+se rompa. Limitación OCS: el comparador de `WAIT` es de 8 bits, así que conviene mantener las
+líneas ≤ 255. La demo 112 usa 7 zonas de `COLOR16` (de cian claro a azul).
+
+## 6. Alternativa: DPF de 2 capas
+
+Si se quiere separar en **dos bitmaps** (no un solo playfield), se puede hacer con **DPF 3+3**:
+FG = PF1 (delante), BG = PF2 con su propia cámara/velocidad. Cada capa tiene su bitmap (el
+blit del FG no pisa el BG por construcción). Es más simple de emitir pero usa **6 planos** y
+**más Chip RAM**, y ya no es "5 planos de 1 juego". El RoboCod fiel es la §2 (single 5 planos).
+
+## 7. Parámetros y límites (A500/OCS)
+
+- Single 5 planos: **32 colores de paleta** (mapeados a 16 por la duplicación), sin DPF.
+- Coste por frame: **una copia de Blitter** de `display_height` filas × `bytes_per_row`. Es
+  proporcional a la superficie del fondo: si el bitmap es más ancho que la ventana, conviene
+  copiar solo la ventana visible (o limitar el ancho del bitmap).
+- **Guarda de hasta 15 px** al principio del bitmap por el shift-in enmascarado (§3); la cámara
+  X debe mantenerse ≥ 16 (o reservar una word de guarda).
+- El scroll vertical del fondo comparte el del FG (la copia parte de una fila fija `src_y`);
+  un parallax vertical propio exigiría una fuente distinta por fila.
+- `BPLCON2` no interviene (no hay DPF).
+- Chip RAM: bitmap `bitmap_bytes_per_row * bitmap_height * planes` (1 bit más que el FG-only).
+
+### Rendimiento (medido en la demo 112, A500 / WinUAE-DBG)
+
+- La copia de fondo (`display_height × bytes_per_row`, 25×288 palabras) cuesta **~77k ciclos**
+  de CPU (espera de Blitter) con la pantalla activa: ~10 ciclos/palabra por contención de bus
+  display+Blitter, muy por encima de los ~2-4 ciclos/palabra teóricos.
+- El bucle de la demo (scroll + composición + copia) queda en **~284k ciclos ≈ 2 VBlanks**
+  (≈25 fps): el `update` (212k ≈ 1.5 VBlanks) cruza el límite de 1 VBlank y el `wait_vblank`
+  lo cuantiza a 2. La sincronía de VBlank **es correcta** (el periodo medido es exactamente
+  2×141875).
+- Conclusión: **un fondo re-copiado por Blitter cada frame no permite 50 fps** en esta escena
+  (haría falta que la copia costase < ~15k ciclos). Para 50 fps reales con parallax hay que
+  **no** re-copiar el fondo cada frame: usar **DPF** (cada campo tiene su propio `BPLCON1` fino)
+  o un fondo estático con scroll de puntero. Ojo: el parallax por **puntero por plano** en un
+  solo playfield tiene un diente de sierra de hasta 16 px, porque el `BPLCON1` fino es
+  compartido y solo el coarse (`BPLxPT`) es independiente.
+- El «41.79 fps» de mediciones previas era la tasa **free-running** (`CPU_HZ / ciclos_update`),
+  no la tasa real con sincronía de VBlank.
+
+## 8. Demo de referencia
+
+`demos/amiga/112_xlimited_robocod`: single playfield de **5 planos** (4 FG plataformas +
+1 BG con bandas diagonales a 1/2 de velocidad), X `Finite` + corkscrew Y, paleta 32→16
+duplicada, copia de fondo con shift sub-píxel y guarda X. Verificación visual:
+`analyze-sequence.sh` + `ollama-desc.mjs` (ver `docs/guides/methodology/DEMO_VISUAL_DEBUG.md`).

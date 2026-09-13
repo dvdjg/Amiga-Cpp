@@ -60,7 +60,9 @@ y estaba roto en plena animación (el fondo desaparecía al scrollear).
   desaparecía en la mitad inferior** (negro) al scrollear en Y.
 - **Causa**: single-playfield de 5 planos: el **blit interleaved del FG escribe el plano de
   fondo a 0** y lo borra en las filas entrantes (el Blitter no salta un plano intermedio).
-- **Fix**: **DPF de dos capas** (bitmaps separados) → sin borrados. Ver
-  `docs/reference/amiga/techniques/robocod-layered-scroll.md`.
+- **Fix correcto**: emitir el blit del FG **por-planos** (`bitplane_count = planes-1`), de modo
+  que cubra solo los 4 planos del FG y **no pise el 5.º** (el plano RoboCod). Así se tiene el
+  RoboCod **fiel de 5 planos** (ver `docs/reference/amiga/techniques/robocod-layered-scroll.md`).
+  (Alternativa: DPF de 2 capas con bitmaps separados.)
 - **Cómo se cazó**: secuencia + frame tardío (no la captura inicial) + pregunta crítica a
   Ollama + histograma de color. La pregunta genérica de Ollama NO lo detectó.

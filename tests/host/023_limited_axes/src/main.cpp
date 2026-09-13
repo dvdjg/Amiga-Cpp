@@ -115,18 +115,24 @@ int main() {
 		check(sn.restores == 0, "one-direction: sin restore_saveword");
 	}
 
-	// 4) Y corkscrew con X finite: la fila entrante ocupa TODO el ancho y cae en
-	//    el anillo (< display_planelines). One-direction: sin saveword.
+	// 4) Y corkscrew con X finite: la fila entrante ocupa TODO el ancho y se pinta
+	//    UNA vez al cruzar de fila de mapa (no en cada píxel). One-direction: sin
+	//    saveword.
 	{
 		MockSink sn;
 		sn.finite = true; sn.one_dir = true;
 		Engine eng;
-		eng.state().mapposy = 5000;   // cámara a media altura (shooter)
+		eng.state().mapposy = 4992;   // frontera de fila de mapa (312*16)
 		const int before = sn.draws;
 		check(eng.scroll_up(plan, sn), "Y finite-X: avanza");
-		check(sn.draws - before == sn.bpr, "Y finite-X: dibuja la fila entera (27 bloques)");
+		check(sn.draws - before == sn.bpr, "Y finite-X: dibuja la fila entera (27 bloques) al cruzar");
 		check(sn.last_y < sn.display_planelines(), "Y finite-X: fila dentro del anillo");
 		check(sn.restores == 0, "Y finite-X one-direction: sin restore_saveword");
+
+		// Dentro de la misma fila de mapa no se vuelve a pintar.
+		const int after = sn.draws;
+		for (int i = 0; i < 8; ++i) eng.scroll_up(plan, sn);
+		check(sn.draws == after, "Y finite-X: no repinta dentro de la misma fila de mapa");
 	}
 
 	// 5) Y anillo con X finite: el bucle vertical envuelve (videoposy) sin salir

@@ -313,6 +313,28 @@ namespace eng::field {
 /// Depuración: resultado del `valid()` del compositor dual (0 = OK).
 extern volatile eng::u32 g_dbg_dual_valid;
 
+/// Offset **en píxeles** de la ventana del patrón de fondo para un parallax
+/// horizontal "soft DPF" (RoboCod). El plano de fondo comparte el scroll del FG
+/// (el display lee el bitmap desde `camx`), así que para que el fondo avance a
+/// `1/div` de la velocidad del FG hay que desfasar el CONTENIDO del patrón:
+///
+///   patron_visible(screen_x) = src + camx + screen_x
+///   queremos                  = camx/div + screen_x
+///   => src = camx/div - camx = -camx*(div-1)/div
+///
+/// El resultado se envuelve en `[0, period_px)`. `div=1` devuelve 0 (mismo
+/// fondo: no hay que copiar); `div=0` se trata como 1. Con pasos de cámara
+/// múltiplos de `div` el offset avanza 1 píxel por frame y `make_bg_plane_copy_job`
+/// reparte los 4 bits bajos al barrel shifter del Blitter -> continuidad sin
+/// saltos de columna.
+constexpr s32 parallax_pattern_offset_px(s32 camx, u8 div, u16 period_px) {
+    if (period_px == 0u || div <= 1u) return 0;
+    s32 off = -(camx * static_cast<s32>(div - 1u) / static_cast<s32>(div));
+    off %= static_cast<s32>(period_px);
+    if (off < 0) off += static_cast<s32>(period_px);
+    return off;
+}
+
 
 // -----------------------------------------------------------------------------
 // Constantes canónicas del algoritmo original (ver §1) — valores por defecto
@@ -819,6 +841,54 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
                 pl[wb + 1u] = static_cast<u8>(pl[wb + 1u] | (m & 0xffu));
             }
         }
+    }
+
+    /// Técnica **"soft DPF"** (RoboCod), REUTILIZABLE para cualquier playfield y
+    /// cualquier profundidad: copia por Blitter la ventana del patrón de fondo de
+    /// 1 bit (`pattern`, `pattern_row_bytes` de ancho) al plano
+    /// `m_cfg.parallax_plane` del bitmap. El display lee ese plano con el puntero
+    /// **normal** (compartido con el FG) -> el split del corkscrew sigue cuadrando;
+    /// el movimiento del fondo lo da el CONTENIDO (ventana), no el puntero.
+    ///
+    /// `src_x_pixels` es el offset de la ventana **en píxeles** dentro del patrón:
+    /// el primer píxel de la ventana aparece en el píxel 0 de la fila destino. El
+    /// resto no múltiplo de 16 lo resuelve el barrel shifter A del Blitter
+    /// (`source_shift`), lo que da continuidad sub-byte al scroll del fondo (sin
+    /// saltos de columna cada 8/16 px). `src_y` es la fila del patrón.
+    ///
+    /// Geometría del shift (AHRM 6, "Copying Arbitrary Regions" + `BlitterCopyFast`):
+    /// en modo ascendente el Blitter desplaza a la derecha, de modo que
+    /// `destino[d] = patron[q + d - S]`. Para que `destino[0] == src_x_pixels` se
+    /// apunta A a la word `q = src_x + S` con `S = (-src_x) & 15` (word alineada).
+    /// El primer `S` píxeles de cada fila llegan del shift-in (cero tras enmascarar
+    /// la última word con `BLTALWM`), así que forman una **guarda de hasta 15 px**
+    /// al principio del bitmap: el llamador debe mantenerla fuera de la ventana
+    /// visible (cámara X >= 16 o word de guarda equivalente).
+    ///
+    /// La copia cubre `display_height` filas del anillo por el ancho de fila del
+    /// bitmap. El llamador envuelve `src_x_pixels`/`src_y` dentro del patrón.
+    graphics::BlitJob make_bg_plane_copy_job(const u8* pattern, u16 pattern_row_bytes,
+                                             u16 src_x_pixels, u16 src_y) const {
+        const u8 bgp = m_cfg.parallax_plane;
+        const u16 width_bytes = m_bytes_per_row; // fila completa (el display lee [planeaddx, +fetch])
+        const u16 row = m_bytes_per_row;
+        const u16 pat_row = pattern_row_bytes ? pattern_row_bytes : width_bytes;
+        // Word alineada `q = src_x + S` y shift S para que el píxel 0 del destino
+        // lea el píxel `src_x` del patrón. `S=0` cuando ya está alineado.
+        const u16 shift = static_cast<u16>((16u - (src_x_pixels & 15u)) & 15u);
+        const u16 q = static_cast<u16>(src_x_pixels + shift);
+        const u16 word_off = static_cast<u16>((q / 16u) * 2u);
+        const u8* src = pattern + static_cast<u32>(src_y) * pat_row + word_off;
+        // Plano `bgp`, fila 0 del anillo: base + bgp*row; paso entre filas = planes*row.
+        u16* dst = reinterpret_cast<u16*>(m_frontbuffer + static_cast<u32>(bgp) * row);
+        return {
+            graphics::BlitJobKind::TileBlockCopy, nullptr,
+            reinterpret_cast<const u16*>(src), dst,
+            static_cast<u16>(width_bytes / 2u), m_display_height,
+            static_cast<s16>(pat_row - width_bytes),
+            static_cast<s16>(row * cplanes() - width_bytes),
+            1, static_cast<u8>(shift), 2, 2, false
+        };
     }
 
     bool fill_screen(graphics::FramePlan& plan) const {
@@ -1411,8 +1481,25 @@ private:
 /// frame y luego parchea sólo BPLCON1 y los punteros (13 words), igual que
 /// `TileScrollScene::patch_copper`, para no pagar el coste de re-emitir la
 /// paleta cada frame.
+/// Zona de color por raster (raster colors): en la línea `line` el registro `reg`
+/// pasa a `color`. Las zonas deben venir en orden ASCENDENTE de línea. Requieren
+/// un display SIN split de Copper (`linear_display`) para no desordenar el raster.
+/// Compartida por los compositores single y dual.
+struct RasterColorZone {
+    u16 line = 0;
+    copper::Register reg = copper::Register::COLOR00;
+    u16 color = 0;
+};
+
+/// Construye una zona de color por raster para el registro COLOR`index`.
+constexpr RasterColorZone raster_color(u16 line, u8 color_index, u16 color) {
+    return { line, static_cast<copper::Register>(copper::color_register(color_index)), color };
+}
+
 class XlimitedDisplayComposer {
 public:
+    using ColorZone = RasterColorZone;
+
     struct Config {
         const u16* palette = nullptr; // 2^planes colores (8/16/32/64 según planes 3..6)
         u32 copper_bytes = 1536;
@@ -1422,6 +1509,9 @@ public:
         u16 ddfstrt = xlimited_detail::kDdfStrt;
         u16 ddfstop = xlimited_detail::kDdfStop;
         const graphics::SpriteManager* sprites = nullptr; // opcional
+        // Raster colors opcionales (gradiente del color del patrón de fondo).
+        const ColorZone* color_zones = nullptr;
+        u8 color_zone_count = 0;
     };
 
     bool init(MemorySystem& memory, const Config& cfg) {
@@ -1538,14 +1628,19 @@ private:
         // deben aplicar al inicio del frame y no tras el WAIT del split.
         sched.emit_palette(m_cfg.palette);
         for (u8 p = 0; p < view.planes; ++p) {
-            // El plano de parallax usa su propio coarse X (RoboCod).
-            const u32 xoff = (p == view.parallax_plane) ? view.parallax_planeaddx : view.planeaddx;
             const u32 addr = static_cast<u32>(reinterpret_cast<uintptr>(view.real_base)) +
-                             xoff + view.planeaddy +
+                             view.planeaddx + view.planeaddy +
                              static_cast<u32>(p) * view.bitmap_bytes_per_row;
             // En interleaved, Planes[p] = base + p*BITMAPBYTESPERROW + Y*planes*bytes.
             // planeaddy aporta el offset vertical (display_offset) y planeaddx el horizontal.
             sched.move_bitplane_pointer(p, reinterpret_cast<const void*>(addr));
+        }
+        // Raster colors: WAIT en cada línea + MOVE del color (orden ASCENDENTE).
+        // Requieren un display lineal (sin split de Copper) para no desordenar el raster.
+        for (u8 z = 0; z < m_cfg.color_zone_count; ++z) {
+            const ColorZone& zone = m_cfg.color_zones[z];
+            sched.wait_line(zone.line);
+            sched.move(zone.reg, zone.color);
         }
         // Split vertical del corkscrew: al llegar a `split_line` filas dentro de
         // la ventana, los punteros vuelven a la fila 0 del bucle de display.
@@ -1565,9 +1660,8 @@ private:
             const u8 wait = raster > 0xffu ? 0xffu : static_cast<u8>(raster);
             sched.wait_line(wait);
             for (u8 p = 0; p < view.planes; ++p) {
-                const u32 xoff = (p == view.parallax_plane) ? view.parallax_planeaddx : view.planeaddx;
                 const u32 addr = static_cast<u32>(reinterpret_cast<uintptr>(view.real_base)) +
-                                 xoff + view.split_planeaddy +
+                                 view.planeaddx + view.split_planeaddy +
                                  static_cast<u32>(p) * view.bitmap_bytes_per_row;
                 sched.move_bitplane_pointer(p, reinterpret_cast<const void*>(addr));
             }
@@ -1631,13 +1725,7 @@ private:
 /// `split_line`). Cada playfield conserva su `planeaddx` (parallax en X posible).
 class XlimitedDualComposer {
 public:
-    /// Zona de color por raster (raster colors): en la linea `line` el registro
-    /// `reg` pasa a `color`. Las zonas deben venir en orden ASCENDENTE de linea.
-    struct ColorZone {
-        eng::u16 line = 0;
-        copper::Register reg = copper::Register::COLOR00;
-        eng::u16 color = 0;
-    };
+    using ColorZone = RasterColorZone;
 
     struct Config {
         const u16* palette = nullptr;      // 16 colores: PF1 0..7, PF2 8..15
