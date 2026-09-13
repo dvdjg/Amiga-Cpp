@@ -492,6 +492,11 @@ struct XlimitedConfig {
     AxisMode x_mode = AxisMode::Ring;  // Ring = XLimited (anillo X, por defecto);
                                        // Finite = X lineal acotado [0, mundo-viewport] sin guardas;
                                        // Off = sin scroll X. Ver `AxisMode`.
+    // Parallax por plano (RoboCod): el plano `parallax_plane` (p. ej. 4) scrollea
+    // a `1/parallax_div` de la velocidad del resto, leyendo su propio patrón de
+    // fondo. 0xff = desactivado.
+    u8 parallax_plane = 0xffu;
+    u8 parallax_div = 2u;
     ScrollMode scroll_mode = ScrollMode::EightWay; // especialización del scroll (deriva scroll_y)
     u8 max_step = 1;               // px/frame máximos por eje de AVANCE (salto).
                                    // El algoritmo pinta cada sub-paso de 1 px ANTES de
@@ -773,6 +778,8 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
         m_planes = m_cfg.planes;
         m_width = m_bitmap_width;
         m_height = m_bitmap_height;
+        // Patrón del plano de parallax (RoboCod) pintado una vez (CPU).
+        fill_parallax_pattern();
         m_initialized = true;
         return true;
     }
@@ -788,6 +795,32 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
         const s32 map_x = static_cast<s32>(physical_x) - m_cfg.visible_tile_bias_x;
         const s32 map_y = static_cast<s32>(physical_y) - m_cfg.visible_tile_bias_y;
         return m_cfg.map.tile_at(map_x, map_y);
+    }
+
+    /// Rellena el plano de parallax (`cfg.parallax_plane`) con un patrón de
+    /// "tiles" geométrico procedural (bandas diagonales + rombos, periodo 32x32).
+    /// El scroll de ese plano lo da su `BPLxPT` (no se repinta por frame). Sustituir
+    /// por un tileset artístico es cambiar esta función.
+    void fill_parallax_pattern() {
+        if (m_frontbuffer == nullptr || m_cfg.parallax_plane >= cplanes()) return;
+        const u8 p = m_cfg.parallax_plane;
+        const u32 row = m_bytes_per_row;
+        const u32 w = m_bitmap_width, h = m_bitmap_height;
+        for (u32 y = 0; y < h; ++y) {
+            u8* pl = m_frontbuffer + (y * cplanes() + p) * row;
+            for (u32 x = 0; x < w; ++x) {
+                // Motivo geometrico GRUESO: bandas diagonales de 24 px (periodo 64)
+                // combinadas con una rejilla de rombos de 32x32 (XOR).
+                const u32 diag = (x + y) & 63u;
+                const u32 romb = ((x & 31u) < 16u) ^ ((y & 31u) < 16u);
+                const bool on = (diag < 24u) ^ romb;
+                if (!on) continue;
+                const u32 wb = (x / 8u) & ~1u;
+                const u16 m = static_cast<u16>(0x8000u >> (x & 15u));
+                pl[wb] = static_cast<u8>(pl[wb] | (m >> 8));
+                pl[wb + 1u] = static_cast<u8>(pl[wb + 1u] | (m & 0xffu));
+            }
+        }
     }
 
     bool fill_screen(graphics::FramePlan& plan) const {
@@ -1163,6 +1196,14 @@ const u16 I = fetch_scroll_pixels(m_cfg.fetch_mode);
         if (fine & 16) scroll |= 0x4400;
         if (fine & 32) scroll |= 0x8800;
         v.planeaddx = planeaddx;
+        if (m_cfg.parallax_plane < cplanes() && m_cfg.parallax_div != 0u) {
+            // Parallax por plano (RoboCod): el plano `parallax_plane` scrollea a
+            // 1/div de la velocidad; su `planeaddx` se calcula con esa posición.
+            const s32 ppos = (m_scroll.state().mapposx / m_cfg.parallax_div) +
+                             static_cast<s32>(I) - 1;
+            v.parallax_plane = m_cfg.parallax_plane;
+            v.parallax_planeaddx = static_cast<u32>(ppos / I) * (I / 8u);
+        }
         v.bplcon1 = scroll;
         v.bpl1mod = m_bpl1mod;
         v.bpl2mod = m_bpl2mod;
@@ -1499,8 +1540,10 @@ private:
         // deben aplicar al inicio del frame y no tras el WAIT del split.
         sched.emit_palette(m_cfg.palette);
         for (u8 p = 0; p < view.planes; ++p) {
+            // El plano de parallax usa su propio coarse X (RoboCod).
+            const u32 xoff = (p == view.parallax_plane) ? view.parallax_planeaddx : view.planeaddx;
             const u32 addr = static_cast<u32>(reinterpret_cast<uintptr>(view.real_base)) +
-                             view.planeaddx + view.planeaddy +
+                             xoff + view.planeaddy +
                              static_cast<u32>(p) * view.bitmap_bytes_per_row;
             // En interleaved, Planes[p] = base + p*BITMAPBYTESPERROW + Y*planes*bytes.
             // planeaddy aporta el offset vertical (display_offset) y planeaddx el horizontal.
@@ -1524,8 +1567,9 @@ private:
             const u8 wait = raster > 0xffu ? 0xffu : static_cast<u8>(raster);
             sched.wait_line(wait);
             for (u8 p = 0; p < view.planes; ++p) {
+                const u32 xoff = (p == view.parallax_plane) ? view.parallax_planeaddx : view.planeaddx;
                 const u32 addr = static_cast<u32>(reinterpret_cast<uintptr>(view.real_base)) +
-                                 view.planeaddx + view.split_planeaddy +
+                                 xoff + view.split_planeaddy +
                                  static_cast<u32>(p) * view.bitmap_bytes_per_row;
                 sched.move_bitplane_pointer(p, reinterpret_cast<const void*>(addr));
             }

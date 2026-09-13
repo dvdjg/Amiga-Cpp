@@ -52,6 +52,8 @@ estructura: `docs/STRUCTURE.md` §4. Clasificación por concepto:
     Y anillo one-direction (DPF con FG de objetos).
   - `111_xlimited_sidescroller` — side-scroller horizontal (X-limited): mundo 4096×320, tileset 128,
     X `Ring` (toroidal), Y fijo (DPF con FG de objetos).
+  - `112_xlimited_robocod` — XYLimited 5 planos con **fondo geométrico y parallax RoboCod** (plano 4 a
+    media velocidad; paleta de 32 índices mapeada a 16 tonos).
 - **Escenas con pipeline de assets (`2xx`)**:
   - `201_ehb_map` — mapa real EHB X-Limited con el pipeline completo.
   - `202_xlimited_dpf` — dual playfield parallax 2:1.

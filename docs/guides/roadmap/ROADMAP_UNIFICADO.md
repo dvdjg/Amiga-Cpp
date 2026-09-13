@@ -307,6 +307,18 @@ desarrolla en varios turnos; el orden es 1→2→3.
   objetos: nave con barrido vertical + balas), `analyze` OK y telemetría de cámara.
   Pendiente fino: `y_mode` `Finite` para un Y corto *con* scroll (hoy Y fijo), si un
   juego lo necesita.
-- ⏳ Parte 3: parallax por plano (RoboCod) + patrón/tileset del plano de fondo.
-- ⏳ Transversal: soporte de **tileset de 128 tiles** (ya usado en 110/111) y de tiles
-  grandes (64×64) en el pipeline/`BlocksBitmap`; matriz de memoria Chip por modo DPF.
+- ✅ Parte 3: demo **`112_xlimited_robocod`** — XYLimited de **5 planos** con el
+  plano 4 de **fondo geométrico con parallax RoboCod** (`parallax_plane=4`,
+  `parallax_div=2`: su `BPLxPT` avanza a la mitad), paleta de 32 índices mapeada a
+  16 tonos (bit 4 = capa de fondo). El patrón son "tiles" geométricos procedurales
+  (`XLimitedPlayfield::fill_parallax_pattern`), sustituibles por arte después.
+  `analyze` OK.
+  Ajuste visual (2026-09): **XYLimited 8-way** con movimiento en X e Y (rebote sobre
+  el área extra), **X `Finite`** (el patrón de fondo no choca con el *unroll* del
+  X-Limited largo), tilemap **ralo** (cuadrícula) para que el fondo domine, y
+  **paleta corregida** (17..31 = mismo tono oscurecido; el grid ya no sale teal).
+  Pendiente: **raster colors** (copper) para aparentar más de 1 bitplane, como el
+  RoboCod original.
+- ⏳ Transversal: **tiles 64×64** en `BlocksBitmap`/pipeline (128 tiles ya se usa);
+  matriz de memoria Chip por modo DPF.
+- ⏳ Fino: `y_mode` `Finite` (Y corto con scroll); pulido de objetos de 110/111.

@@ -261,6 +261,8 @@ struct XlimitedSceneConfig {
     eng::field::AxisMode x_mode = eng::field::AxisMode::Ring; // eje X: Ring (XLimited) o
                                        // Finite (lineal acotado, sin guardas). Para un
                                        // juego de scroll Y largo con X corto (shooter).
+    eng::u8 parallax_plane = 0xff;    // plano con parallax (RoboCod); 0xff = off
+    eng::u8 parallax_div = 2;         // divisor de velocidad de ese plano
 
     // --- Conductor de validación (harness de las 8 direcciones) -------------
     XlimitedPathConfig path {};
@@ -377,6 +379,8 @@ public:
             fc.scroll_y = cfg.scroll_y;
             fc.scroll_mode = cfg.scroll_mode;
             fc.x_mode = cfg.x_mode;
+            fc.parallax_plane = cfg.parallax_plane;
+            fc.parallax_div = cfg.parallax_div;
             // DPF MIXTO: `dual_linear_field` selecciona qué playfield usa el
             // mirror (lineal, sin split → Y independiente); el otro conserva el
             // corkscrew (ring + split). Fuera de DPF se aplica `linear_display`.

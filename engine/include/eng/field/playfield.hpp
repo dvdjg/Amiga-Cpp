@@ -56,6 +56,11 @@ struct PlayfieldHardwareView {
     u32 split_planeaddy = 0;       // offset Y de los punteros del split (fila 0)
     u16 viewport_w = 0;
     u16 viewport_h = 0;
+    // Parallax por plano (RoboCod): si `parallax_plane < planes`, ESE plano usa
+    // `parallax_planeaddx` (coarse X propio) en vez de `planeaddx`, de modo que su
+    // contenido (p. ej. un patrón de fondo) scrollea a otra velocidad.
+    u8 parallax_plane = 0xffu;
+    u32 parallax_planeaddx = 0;
     s32 videoposx = 0;
     s32 mapposx = 0;
     s32 videoposy = 0;
