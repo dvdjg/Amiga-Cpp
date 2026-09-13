@@ -76,22 +76,21 @@ struct FourVoicesDemo {
 		m_memory_ok = backend.configure_memory({ 96u * 1024u, 8u * 1024u, 4u * 1024u });
 		if (!m_memory_ok) { eng::debug::mark_failed(g_eng_run_status, 0x00007101u); return; }
 
-		m_bitplane_block = backend.memory().chip.allocate(kBitplaneBytes, 16);
+		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
 		m_copper_block = backend.memory().chip.allocate(2048, 16);
-		m_v1_block = backend.memory().chip.allocate(kLen, 4);
-		m_v2_block = backend.memory().chip.allocate(kLen, 4);
-		m_v3_block = backend.memory().chip.allocate(kLen, 4);
-		m_v4_block = backend.memory().chip.allocate(kLen, 4);
+		m_v1_block = backend.memory().chip.allocate_block<eng::AudioTag>(kLen, 4);
+		m_v2_block = backend.memory().chip.allocate_block<eng::AudioTag>(kLen, 4);
+		m_v3_block = backend.memory().chip.allocate_block<eng::AudioTag>(kLen, 4);
+		m_v4_block = backend.memory().chip.allocate_block<eng::AudioTag>(kLen, 4);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() ||
 			!m_v1_block.valid() || !m_v2_block.valid() || !m_v3_block.valid() || !m_v4_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00007102u);
 			return;
 		}
-		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
-		eng::audio::synth_sequence<kV1Note>(static_cast<eng::u8*>(m_v1_block.data), kV1Freq, kV1Count, kSampleRate, static_cast<eng::s16>(kAmplitude));
-		eng::audio::synth_sequence<kV2Note>(static_cast<eng::u8*>(m_v2_block.data), kV2Freq, kV2Count, kSampleRate, static_cast<eng::s16>(kAmplitude));
-		eng::audio::synth_sequence<kV3Note>(static_cast<eng::u8*>(m_v3_block.data), kV3Freq, kV3Count, kSampleRate, static_cast<eng::s16>(kAmplitude));
-		eng::audio::synth_sequence<kV4Note>(static_cast<eng::u8*>(m_v4_block.data), kV4Freq, kV4Count, kSampleRate, static_cast<eng::s16>(kAmplitude));
+		eng::audio::synth_sequence<kV1Note>(m_v1_block.view.data(), kV1Freq, kV1Count, kSampleRate, static_cast<eng::s16>(kAmplitude));
+		eng::audio::synth_sequence<kV2Note>(m_v2_block.view.data(), kV2Freq, kV2Count, kSampleRate, static_cast<eng::s16>(kAmplitude));
+		eng::audio::synth_sequence<kV3Note>(m_v3_block.view.data(), kV3Freq, kV3Count, kSampleRate, static_cast<eng::s16>(kAmplitude));
+		eng::audio::synth_sequence<kV4Note>(m_v4_block.view.data(), kV4Freq, kV4Count, kSampleRate, static_cast<eng::s16>(kAmplitude));
 
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00007103u); return; }
 		backend.takeover_display(m_copper_ptr);
@@ -149,14 +148,14 @@ struct FourVoicesDemo {
 	}
 
 private:
-	eng::audio::SfxSample sample(eng::MemoryBlock& block) {
-		return { eng::Span<const eng::u8>(static_cast<const eng::u8*>(block.data), kLen) };
+	eng::audio::SfxSample sample(const eng::Block<eng::AudioTag>& block) {
+		return { block.view.as_const().raw() };
 	}
 
 	void draw_scope() {
 		const eng::u8* buf = m_sfx.buffer();
 		const eng::u32 n = m_sfx.buffer_bytes();
-		for (eng::u32 i = 0; i < kPlaneBytes; ++i) m_bitplanes[i] = 0;
+		for (eng::u32 i = 0; i < kPlaneBytes; ++i) m_bitplane_block.view[i] = 0;
 		if (n == 0u) return;
 		for (eng::u16 x = 0; x < 320u; ++x) {
 			const eng::u32 si = (static_cast<eng::u32>(x) * n) / 320u;
@@ -169,7 +168,7 @@ private:
 
 	void set_pixel(eng::u16 x, eng::u16 y) {
 		if (x >= 320u || y >= 256u) return;
-		m_bitplanes[static_cast<eng::u32>(y) * kBytesPerRow + (x >> 3u)]
+		m_bitplane_block.view[static_cast<eng::u32>(y) * kBytesPerRow + (x >> 3u)]
 			|= static_cast<eng::u8>(1u << (7u - (x & 7u)));
 	}
 
@@ -178,7 +177,7 @@ private:
 		const eng::u16 bplcon0 = static_cast<eng::u16>((static_cast<eng::u16>(kPlanes) << 12u) | 0x0200u);
 		sched.emit_planes_display(
 			0x2c81, 0x2cc1, 0x0038, 0x00d0,
-			kBytesPerRow, bplcon0, kPlanes, m_bitplanes, kPlaneBytes
+			kBytesPerRow, bplcon0, kPlanes, m_bitplane_block.view, kPlaneBytes
 		);
 		for (eng::u8 i = 0; i < 32; ++i) {
 			sched.move(eng::copper::color_register(i), 0x0000);
@@ -204,12 +203,11 @@ private:
 	eng::audio::SfxChannel m_ch2 = -1;
 	eng::audio::SfxChannel m_ch3 = -1;
 	const eng::u16* m_copper_ptr = nullptr;
-	eng::PlaneBytes m_bitplanes {};
-	eng::MemoryBlock m_v1_block {};
-	eng::MemoryBlock m_v2_block {};
-	eng::MemoryBlock m_v3_block {};
-	eng::MemoryBlock m_v4_block {};
-	eng::MemoryBlock m_bitplane_block {};
+	eng::Block<eng::AudioTag> m_v1_block {};
+	eng::Block<eng::AudioTag> m_v2_block {};
+	eng::Block<eng::AudioTag> m_v3_block {};
+	eng::Block<eng::AudioTag> m_v4_block {};
+	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::MemoryBlock m_copper_block {};
 	eng::audio::SfxMixer m_sfx {};
 };

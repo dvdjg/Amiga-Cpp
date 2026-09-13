@@ -63,15 +63,14 @@ struct MusicPlayerDemo {
 			return;
 		}
 
-		m_bitplane_block = backend.memory().chip.allocate(kBitplaneBytes, 16);
+		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
 		m_copper_block = backend.memory().chip.allocate(2048, 16);
-		m_alarm_block = backend.memory().chip.allocate(kAlarmLen, 4);
+		m_alarm_block = backend.memory().chip.allocate_block<eng::AudioTag>(kAlarmLen, 4);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || !m_alarm_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00005902u);
 			return;
 		}
-		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
-		gen_square(static_cast<eng::u8*>(m_alarm_block.data), kAlarmLen, 64);
+		gen_square(m_alarm_block.view.data(), kAlarmLen, 64);
 
 		if (!build_copper()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00005903u);
@@ -108,7 +107,7 @@ struct MusicPlayerDemo {
 
 private:
 	eng::audio::SfxSample alarm_sample() {
-		return { eng::Span<const eng::u8>(static_cast<const eng::u8*>(m_alarm_block.data), kAlarmLen) };
+		return { eng::Span<const eng::u8>(m_alarm_block.view.as_const().data(), kAlarmLen) };
 	}
 
 	void gen_square(eng::u8* dst, eng::u32 len, eng::u32 half) {
@@ -121,7 +120,7 @@ private:
 		eng::copper::Scheduler sched { m_copper_block };
 		sched.emit_planes_display(
 			0x2c81, 0x2cc1, 0x0038, 0x00d0,
-			kBytesPerRow, 0x6200, kPlanes, m_bitplanes, kPlaneBytes
+			kBytesPerRow, 0x6200, kPlanes, m_bitplane_block.view, kPlaneBytes
 		);
 		for (eng::u8 i = 0; i < 32; ++i) {
 			sched.move(eng::copper::color_register(i), 0x0000);
@@ -141,9 +140,8 @@ private:
 	bool m_music_ok = false;
 	eng::u16 m_copper_words = 0;
 	const eng::u16* m_copper_ptr = nullptr;
-	eng::PlaneBytes m_bitplanes {};
-	eng::MemoryBlock m_alarm_block {};
-	eng::MemoryBlock m_bitplane_block {};
+	eng::Block<eng::AudioTag> m_alarm_block {};
+	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::MemoryBlock m_copper_block {};
 	eng::audio::SfxMixer m_sfx {};
 	eng::audio::P61Player m_music {};

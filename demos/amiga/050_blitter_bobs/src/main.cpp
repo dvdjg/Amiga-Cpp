@@ -221,10 +221,10 @@ struct DemoGame {
 
 		add_reference_bars(m_scene.bitplanes().data());
 
-		m_mask_block = backend.memory().chip.allocate(bob_plane_bytes, 16);
-		m_source_block = backend.memory().chip.allocate(bob_plane_bytes * plane_count, 16);
-		m_blob_source_block = backend.memory().chip.allocate(bob_plane_bytes * plane_count, 16);
-		m_saved_background_block = backend.memory().chip.allocate(bob_plane_bytes * plane_count, 16);
+		m_mask_block = backend.memory().chip.allocate_block<eng::MaskTag>(bob_plane_bytes, 16);
+		m_source_block = backend.memory().chip.allocate_block<eng::PlaneTag>(bob_plane_bytes * plane_count, 16);
+		m_blob_source_block = backend.memory().chip.allocate_block<eng::PlaneTag>(bob_plane_bytes * plane_count, 16);
+		m_saved_background_block = backend.memory().chip.allocate_block<eng::PlaneTag>(bob_plane_bytes * plane_count, 16);
 		if (
 			!m_mask_block.valid() ||
 			!m_source_block.valid() ||
@@ -236,14 +236,14 @@ struct DemoGame {
 		}
 
 		build_masked_bob(
-			static_cast<eng::u16*>(m_mask_block.data),
-			static_cast<eng::u16*>(m_source_block.data),
+			m_mask_block.view.as_words().data(),
+			m_source_block.view.as_words().data(),
 			4,
 			14
 		);
 		build_masked_bob(
-			static_cast<eng::u16*>(m_mask_block.data),
-			static_cast<eng::u16*>(m_blob_source_block.data),
+			m_mask_block.view.as_words().data(),
+			m_blob_source_block.view.as_words().data(),
 			5,
 			7
 		);
@@ -254,14 +254,14 @@ struct DemoGame {
 		m_frame_plan.add_dirty_rect(bob_dirty_rect(blob_right_x, blob_y));
 		const eng::graphics::BlitJob blob_left_job = make_masked_job(
 			eng::graphics::BlitJobKind::MaskedBlobNoSave,
-			static_cast<const eng::u16*>(m_mask_block.data),
-			static_cast<const eng::u16*>(m_blob_source_block.data),
+			m_mask_block.view.as_words().data(),
+			m_blob_source_block.view.as_words().data(),
 			destination_at(m_scene.bitplanes().data(), blob_left_x, blob_y)
 		);
 		const eng::graphics::BlitJob blob_right_job = make_masked_job(
 			eng::graphics::BlitJobKind::MaskedBlobNoSave,
-			static_cast<const eng::u16*>(m_mask_block.data),
-			static_cast<const eng::u16*>(m_blob_source_block.data),
+			m_mask_block.view.as_words().data(),
+			m_blob_source_block.view.as_words().data(),
 			destination_at(m_scene.bitplanes().data(), blob_right_x, blob_y)
 		);
 
@@ -295,7 +295,7 @@ struct DemoGame {
 
 		const eng::u16 current_x = animated_bob_x(context.frame.frame_index);
 		eng::u16* current_destination = destination_at(m_scene.bitplanes().data(), current_x, bob_y);
-		eng::u16* saved_background = static_cast<eng::u16*>(m_saved_background_block.data);
+		eng::u16* saved_background = m_saved_background_block.view.as_words().data();
 
 		m_frame_plan.clear();
 		configure_blit_budget(m_frame_plan);
@@ -306,7 +306,7 @@ struct DemoGame {
 				return;
 			}
 			const eng::graphics::BlitJob restore = make_copy_job(
-				static_cast<const eng::u16*>(m_saved_background_block.data),
+				m_saved_background_block.view.as_words().data(),
 				destination_at(m_scene.bitplanes().data(), m_previous_x, bob_y),
 				0,
 				static_cast<eng::s16>(bytes_per_row - bob_words_per_row * sizeof(eng::u16)),
@@ -334,8 +334,8 @@ struct DemoGame {
 		);
 		const eng::graphics::BlitJob draw = make_masked_job(
 			eng::graphics::BlitJobKind::MaskedBobCookieCut,
-			static_cast<const eng::u16*>(m_mask_block.data),
-			static_cast<const eng::u16*>(m_source_block.data),
+			m_mask_block.view.as_words().data(),
+			m_source_block.view.as_words().data(),
 			current_destination
 		);
 
@@ -383,10 +383,10 @@ struct DemoGame {
 	bool m_blit_ok = false;
 	drivers::StaticEhbScene m_scene {};
 	eng::graphics::FramePlan m_frame_plan {};
-	eng::MemoryBlock m_mask_block {};
-	eng::MemoryBlock m_source_block {};
-	eng::MemoryBlock m_blob_source_block {};
-	eng::MemoryBlock m_saved_background_block {};
+	eng::Block<eng::MaskTag> m_mask_block {};
+	eng::Block<eng::PlaneTag> m_source_block {};
+	eng::Block<eng::PlaneTag> m_blob_source_block {};
+	eng::Block<eng::PlaneTag> m_saved_background_block {};
 	eng::u16 m_previous_x = bob_start_x;
 	eng::u16 m_last_frame_words = 0;
 	eng::u8 m_static_no_save_jobs = 0;

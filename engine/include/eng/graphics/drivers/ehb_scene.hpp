@@ -88,9 +88,8 @@ public:
 	/// `MinimalBackend::configure_memory`, que usa `MEMF_CLEAR`. El llamador puede
 	/// obtener `bitplanes()` y copiar/escribir assets planares cocinados.
 	bool init(MemorySystem& memory, const StaticEhbSceneConfig& config) {
-		m_bitplane_block = memory.chip.allocate(bitplane_bytes, 16);
+		m_bitplane_block = memory.chip.allocate_block<eng::PlaneTag>(bitplane_bytes, 16);
 		m_copper_block = memory.chip.allocate(config.copper_bytes, 16);
-		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
 
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || config.base_palette == nullptr) {
 			m_ok = false;
@@ -118,7 +117,7 @@ public:
 
 		copper::Scheduler scheduler { m_copper_block };
 		// 320x256 lowres PAL, 6 planos EHB (geometrÃ­a paramÃ©trica del scheduler).
-		scheduler.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 40u, 0x6200, 6, m_bitplanes, plane_bytes);
+		scheduler.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 40u, 0x6200, 6, m_bitplane_block.view, plane_bytes);
 		m_base_palette_value_word = static_cast<u16>(scheduler.words_used() + 1u);
 		scheduler.emit_palette(*config.base_palette);
 		for (u8 i = 0; i < config.zone_count; ++i) {
@@ -215,7 +214,7 @@ public:
 	constexpr bool ok() const { return m_ok; }
 	/// Buffer de bitplanes como dominio (`PlaneBytes`), conecta directamente con
 	/// las APIs que lo piden (Blitter/C2P) sin `static_cast`.
-	[[nodiscard]] constexpr eng::PlaneBytes bitplanes() const { return m_bitplane_block.buffer<eng::PlaneTag>(); }
+	[[nodiscard]] constexpr eng::PlaneBytes bitplanes() const { return m_bitplane_block.view; }
 	constexpr u16 copper_words() const { return m_copper_words; }
 	constexpr const u16* copper_words_ptr() const { return m_copper_words_ptr; }
 	constexpr const copper::ScheduleReport& copper_report() const { return m_copper_report; }
@@ -254,9 +253,8 @@ private:
 		return 0;
 	}
 
-	MemoryBlock m_bitplane_block {};
+	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	MemoryBlock m_copper_block {};
-	eng::PlaneBytes m_bitplanes {};
 	const u16* m_copper_words_ptr = nullptr;
 	copper::ScheduleReport m_copper_report {};
 	PaletteBinding m_zone_bindings[max_palette_zone_bindings] {};

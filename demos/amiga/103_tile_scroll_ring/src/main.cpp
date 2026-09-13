@@ -150,11 +150,11 @@ constexpr eng::u16 world_tile(eng::u32 col, eng::u32 row) {
 	return static_cast<eng::u16>(symbol | (variant << 4u));
 }
 
-eng::Span<const eng::u16> tile_source(const eng::MemoryBlock& block, eng::u16 tile_index) {
+eng::Span<const eng::u16> tile_source(const eng::Block<eng::TileBankTag>& block, eng::u16 tile_index) {
 	constexpr eng::u32 words_per_tile = Scene::tile_bytes() / sizeof(eng::u16);
 	const eng::u32 word_offset = static_cast<eng::u32>(tile_index & (tile_pattern_count - 1u)) * words_per_tile;
 	return {
-		reinterpret_cast<const eng::u16*>(static_cast<const eng::u8*>(block.data)) + word_offset,
+		block.view.as_words().data() + word_offset,
 		words_per_tile,
 	};
 }
@@ -348,12 +348,12 @@ struct DemoGame {
 			return;
 		}
 
-		m_tiles = backend.memory().chip.allocate(Scene::tile_bytes() * tile_pattern_count, 16);
+		m_tiles = backend.memory().chip.allocate_block<eng::TileBankTag>(Scene::tile_bytes() * tile_pattern_count, 16);
 		if (!m_tiles.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000312u);
 			return;
 		}
-		m_scratch = backend.memory().chip.allocate(
+		m_scratch = backend.memory().chip.allocate_block<eng::PlaneTag>(
 			static_cast<eng::u32>(surface_bytes_per_row - (tile_size / 8u)) * Scene::surface_height,
 			16
 		);
@@ -364,8 +364,8 @@ struct DemoGame {
 
 		m_scene.bitplane_span().clear();
 		build_tile_word_cache(eng::Span<eng::u16>::from_raw(
-			static_cast<eng::u16*>(m_tiles.data),
-			m_tiles.size / sizeof(eng::u16)
+			m_tiles.view.as_words().data(),
+			m_tiles.view.as_words().size()
 		));
 
 		// El buffer arranca poblado con el mundo visible desde (0,0).
@@ -443,7 +443,7 @@ private:
 		const eng::u16 height = vdy != 0 ? static_cast<eng::u16>(Scene::surface_height - tile_size) : Scene::surface_height;
 		const eng::u16 words = static_cast<eng::u16>(width_bytes / 2u);
 		const eng::s16 src_mod = static_cast<eng::s16>(surface_bytes_per_row - width_bytes);
-		eng::u8* scratch = static_cast<eng::u8*>(m_scratch.data);
+		eng::u8* scratch = m_scratch.view.data();
 		for (eng::u8 pl = 0; pl < Scene::plane_count; ++pl) {
 			plan.add_tile_block_copy({
 				eng::graphics::BlitJobKind::CopyRect,
@@ -533,8 +533,8 @@ private:
 	bool m_ready = false;
 	Scene m_scene {};
 	eng::graphics::FramePlan m_frame_plan {};
-	eng::MemoryBlock m_tiles {};
-	eng::MemoryBlock m_scratch {};
+	eng::Block<eng::TileBankTag> m_tiles {};
+	eng::Block<eng::PlaneTag> m_scratch {};
 	RingCamera m_cam {};
 };
 

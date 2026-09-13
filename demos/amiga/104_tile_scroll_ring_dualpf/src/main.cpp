@@ -436,7 +436,7 @@ struct DemoGame {
 		// El shift se hace en dos blits (superficie->scratch, scratch->superficie)
 		// porque el CopyRect solapado no mueve el buffer en WinUAE-DBG; el scratch
 		// se reutiliza plano a plano.
-		m_scratch = backend.memory().chip.allocate(
+		m_scratch = backend.memory().chip.allocate_block<eng::PlaneTag>(
 			static_cast<eng::u32>(surface_bytes_per_row - (tile_size / 8u)) * Scene::surface_height,
 			16
 		);
@@ -560,7 +560,7 @@ private:
 		const eng::u16 height = vdy != 0 ? static_cast<eng::u16>(Scene::surface_height - tile_size) : Scene::surface_height;
 		const eng::u16 words = static_cast<eng::u16>(width_bytes / 2u);
 		const eng::s16 src_mod = static_cast<eng::s16>(surface_bytes_per_row - width_bytes);
-		eng::u8* scratch = static_cast<eng::u8*>(m_scratch.data);
+		eng::u8* scratch = m_scratch.view.data();
 		for (eng::u8 pl = 0; pl < Scene::plane_count; ++pl) {
 			// superficie -> scratch (scratch contiguo por fila: modulo 0)
 			plan.add_tile_block_copy({
@@ -695,7 +695,7 @@ private:
 	bool m_ready = false;
 		Scene m_scene {};
 		eng::graphics::FramePlan m_frame_plan {};
-		eng::MemoryBlock m_scratch {};
+		eng::Block<eng::PlaneTag> m_scratch {};
 		TileCache m_bg {};
 	TileCache m_fg {};
 	RingCamera m_cam {};

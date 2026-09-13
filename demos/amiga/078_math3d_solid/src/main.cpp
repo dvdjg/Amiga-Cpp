@@ -288,9 +288,9 @@ struct DemoGame {
 		}
 #if K_FILL_BLITTER
 		// Plano-mascara 1 bit (Chip RAM) para el relleno por Blitter.
-		m_mask_block = backend.memory().chip.allocate(kPlaneBytes, 16);
+		m_mask_block = backend.memory().chip.allocate_block<eng::MaskTag>(kPlaneBytes, 16);
 		if (m_mask_block.valid()) {
-			m_mask = static_cast<eng::u8*>(m_mask_block.data);
+			m_mask = m_mask_block.view.data();
 		}
 #endif
 
@@ -388,7 +388,7 @@ struct DemoGame {
 			mc.clear_rect(xmin, ymin, xmax, ymax);
 			fill_tri(mc, ax, ay, bx, by, cx, cy, 1u);
 			if (!backend.blit_fill_from_mask(
-				    m_mask_block.view<eng::MaskTag>(), m_scene.bitplanes(),
+				    m_mask_block.view.as_const(), m_scene.bitplanes(),
 				    kPlanes, kRowBytes, kPlaneBytes,
 				    xmin, ymin,
 				    static_cast<eng::u16>(xmax - xmin + 1),
@@ -488,7 +488,7 @@ private:
 	bool m_mesh_ok = false;
 	eng::MemoryBlock m_blank_block {};
 	const eng::u16* m_blank = nullptr;
-	eng::MemoryBlock m_mask_block {};
+	eng::Block<eng::MaskTag> m_mask_block {};
 	eng::u8* m_mask = nullptr;
 	ehb::StaticEhbScene m_scene {};
 };

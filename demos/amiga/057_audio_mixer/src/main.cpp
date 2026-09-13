@@ -84,15 +84,14 @@ struct AudioMixerDemo {
 			return;
 		}
 
-		m_sample_block = backend.memory().chip.allocate(kSampleBytes, 4);
-		m_bitplane_block = backend.memory().chip.allocate(kBitplaneBytes, 16);
+		m_sample_block = backend.memory().chip.allocate_block<eng::AudioTag>(kSampleBytes, 4);
+		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
 		m_copper_block = backend.memory().chip.allocate(2048, 16);
 		if (!m_sample_block.valid() || !m_bitplane_block.valid() || !m_copper_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00005702u);
 			return;
 		}
-		m_sample = static_cast<eng::u8*>(m_sample_block.data);
-		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
+		m_sample = m_sample_block.view.data();
 
 		// Tono cuadrado: primera mitad +127, segunda mitad -128 (8 bits con signo).
 		for (eng::u32 i = 0; i < kSampleBytes; ++i) {
@@ -142,7 +141,7 @@ struct AudioMixerDemo {
 			(static_cast<eng::u32>(kPeriodMax - m_period) * 200u) / (kPeriodMax - kPeriodMin) + 16u
 		);
 		if (m_volume != 0u) {
-			fill_rect(m_bitplanes.data(), 156, static_cast<eng::s16>(kScreenH - bar_h), 9, static_cast<eng::s16>(bar_h));
+			fill_rect(m_bitplane_block.view.data(), 156, static_cast<eng::s16>(kScreenH - bar_h), 9, static_cast<eng::s16>(bar_h));
 		}
 
 		if (build_copper()) {
@@ -160,7 +159,7 @@ private:
 	void apply_audio() {
 		m_mixer.begin_frame();
 		eng::audio::SampleEvent ev;
-			ev.sample = m_sample_block.view<eng::AudioTag>();
+			ev.sample = m_sample_block.view.as_const();
 		ev.length_words = kSampleWords;
 		ev.period = m_period;
 		ev.volume = m_volume;
@@ -188,7 +187,7 @@ private:
 	}
 
 	void clear_plane0() {
-		eng::u16* words = reinterpret_cast<eng::u16*>(m_bitplanes.data());
+		eng::u16* words = reinterpret_cast<eng::u16*>(m_bitplane_block.view.data());
 		for (eng::u32 i = 0; i < kPlaneBytes / 2u; ++i) {
 			words[i] = 0;
 		}
@@ -211,7 +210,7 @@ private:
 		eng::copper::Scheduler sched { m_copper_block };
 		sched.emit_planes_display(
 			0x2c81, 0x2cc1, 0x0038, 0x00d0,
-			kBytesPerRow, 0x6200, kPlanes, m_bitplanes, kPlaneBytes
+			kBytesPerRow, 0x6200, kPlanes, m_bitplane_block.view, kPlaneBytes
 		);
 		sched.emit_palette(m_palette);
 		build_bands();
@@ -234,9 +233,8 @@ private:
 	eng::u16 m_palette[32] {};
 	const eng::u16* m_copper_ptr = nullptr;
 	eng::u8* m_sample = nullptr;
-	eng::PlaneBytes m_bitplanes {};
-	eng::MemoryBlock m_sample_block {};
-	eng::MemoryBlock m_bitplane_block {};
+	eng::Block<eng::AudioTag> m_sample_block {};
+	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::MemoryBlock m_copper_block {};
 	eng::graphics::CopperIntent m_intents[kBands] {};
 	eng::audio::AudioMixer m_mixer {};

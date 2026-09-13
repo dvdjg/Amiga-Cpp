@@ -62,15 +62,14 @@ struct MixerRefDemo {
 		m_memory_ok = backend.configure_memory({ 96u * 1024u, 8u * 1024u, 4u * 1024u });
 		if (!m_memory_ok) { eng::debug::mark_failed(g_eng_run_status, 0x00006801u); return; }
 
-		m_bitplane_block = backend.memory().chip.allocate(kBitplaneBytes, 16);
+		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
 		m_copper_block = backend.memory().chip.allocate(2048, 16);
-		m_sample_block = backend.memory().chip.allocate(kSampleLen, 4);
+		m_sample_block = backend.memory().chip.allocate_block<eng::AudioTag>(kSampleLen, 4);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || !m_sample_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006802u);
 			return;
 		}
-		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
-		build_square(static_cast<eng::u8*>(m_sample_block.data));
+		build_square(m_sample_block.view.data());
 
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00006803u); return; }
 		backend.takeover_display(m_copper_ptr);
@@ -95,7 +94,7 @@ struct MixerRefDemo {
 		eng::audio::mixer_amiga::start();
 
 		g_effect.length = static_cast<eng::s32>(kSampleLen);
-		g_effect.sample = static_cast<const eng::u8*>(m_sample_block.data);
+		g_effect.sample = m_sample_block.view.as_const().data();
 		g_effect.loop = static_cast<eng::s16>(eng::audio::LoopMode::Loop);
 		g_effect.priority = 1;
 		g_effect.loop_offset = 0;
@@ -153,7 +152,7 @@ private:
 	void draw_scope() {
 		const eng::u8* buf = static_cast<const eng::u8*>(m_buffer_block.data);
 		const eng::u32 n = m_buffer_block.size;
-		for (eng::u32 i = 0; i < kPlaneBytes; ++i) m_bitplanes[i] = 0;
+		for (eng::u32 i = 0; i < kPlaneBytes; ++i) m_bitplane_block.view[i] = 0;
 		if (buf == nullptr || n == 0u) return;
 		for (eng::u16 x = 0; x < 320u; ++x) {
 			const eng::u32 si = (static_cast<eng::u32>(x) * n) / 320u;
@@ -166,7 +165,7 @@ private:
 
 	void set_pixel(eng::u16 x, eng::u16 y) {
 		if (x >= 320u || y >= 256u) return;
-		m_bitplanes[static_cast<eng::u32>(y) * kBytesPerRow + (x >> 3u)]
+		m_bitplane_block.view[static_cast<eng::u32>(y) * kBytesPerRow + (x >> 3u)]
 			|= static_cast<eng::u8>(1u << (7u - (x & 7u)));
 	}
 
@@ -174,7 +173,7 @@ private:
 		eng::copper::Scheduler sched { m_copper_block };
 		sched.emit_planes_display(
 			0x2c81, 0x2cc1, 0x0038, 0x00d0,
-			kBytesPerRow, 0x6200, kPlanes, m_bitplanes, kPlaneBytes
+			kBytesPerRow, 0x6200, kPlanes, m_bitplane_block.view, kPlaneBytes
 		);
 		for (eng::u8 i = 0; i < 32; ++i) {
 			sched.move(eng::copper::color_register(i), 0x0000);
@@ -197,12 +196,11 @@ private:
 	eng::u16 m_copper_words = 0;
 	eng::s32 m_channel = -1;
 	const eng::u16* m_copper_ptr = nullptr;
-	eng::PlaneBytes m_bitplanes {};
-	eng::MemoryBlock m_sample_block {};
+	eng::Block<eng::AudioTag> m_sample_block {};
 	eng::MemoryBlock m_buffer_block {};
 	eng::MemoryBlock m_plugin_buffer_block {};
 	eng::MemoryBlock m_plugin_data_block {};
-	eng::MemoryBlock m_bitplane_block {};
+	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::MemoryBlock m_copper_block {};
 };
 

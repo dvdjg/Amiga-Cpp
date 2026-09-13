@@ -125,7 +125,7 @@ struct DemoGame {
 	field::XlimitedSceneConfig scene_cfg {};
 	eng::graphics::FramePlan plan {};
 	eng::graphics::FramePlan bg_plan {};   // blit de fondo (filas VISIBLES) -> en blanking
-	eng::MemoryBlock m_bg_pattern {};
+	eng::Block<eng::PatternTag> m_bg_pattern {};
 	eng::s16 m_dx = 1, m_dy = 1;
 	eng::s32 m_bgscroll = 0;                 // cámara PROPIA del fondo (soft DPF)
 	eng::s8  m_bgdx = 1;
@@ -157,10 +157,10 @@ struct DemoGame {
 		// diagonales + puntos (motivo de tiles). Dos periodos de 512 px (1024 px =
 		// 128 bytes) para que la ventana copiada nunca invada la fila siguiente al
 		// desplazarse horizontalmente.
-		m_bg_pattern = backend.memory().chip.allocate(
+		m_bg_pattern = backend.memory().chip.allocate_block<eng::PatternTag>(
 			static_cast<eng::u32>(kPatRowBytes) * kPatRows, 16);
 		if (m_bg_pattern.valid()) {
-			auto* p = static_cast<eng::u8*>(m_bg_pattern.data);
+			auto* p = m_bg_pattern.view.data();
 			for (eng::u16 y = 0; y < kPatRows; ++y) {
 				for (eng::u16 bx = 0; bx < kPatRowBytes; ++bx) {
 					eng::u8 v = 0u;
@@ -264,7 +264,7 @@ struct DemoGame {
 		//    Ver robocod-layered-scroll.md §3.1/§3.3.
 #ifndef K_DIAG_SKIP_BGCOPY
 		if (m_bg_pattern.valid()) {
-			const eng::Pattern pat = m_bg_pattern.view<eng::PatternTag>();
+			const eng::Pattern pat = m_bg_pattern.view.as_const();
 			const eng::s32 camx = scene.bg().videoposx();
 			// Ventana horizontal del blit (helper puro y testeado): [planeaddx-2,
 			// planeaddx+fetch) = guarda + visible, y src_x para que quede FIJA.

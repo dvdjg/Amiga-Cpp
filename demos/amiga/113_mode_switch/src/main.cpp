@@ -78,7 +78,7 @@ struct DemoGame {
 		});
 
 		// Un unico bloque de planos: [campo 0..4][hud 0..1][veneno 0..2].
-		m_plane_block = backend.memory().chip.allocate(
+		m_plane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(
 			static_cast<eng::u32>(bytes_per_row) * height *
 				(field_planes_count + hud_planes_count + poison_planes_count), 16);
 		m_copper_block = backend.memory().chip.allocate(2048u, 16);
@@ -88,7 +88,7 @@ struct DemoGame {
 			return;
 		}
 
-		eng::u8* const planes = static_cast<eng::u8*>(m_plane_block.data);
+		eng::u8* const planes = m_plane_block.view.data();
 		const eng::u32 field_off = 0u;
 		const eng::u32 hud_off = static_cast<eng::u32>(field_planes_count) * plane_bytes;
 		const eng::u32 poison_off = hud_off + static_cast<eng::u32>(hud_planes_count) * plane_bytes;
@@ -195,8 +195,8 @@ private:
 	bool m_copper_ok = false;
 	eng::u16 m_copper_words = 0;
 	const eng::u16* m_copper_ptr = nullptr;
-	eng::MemoryBlock m_plane_block {};
 	eng::MemoryBlock m_copper_block {};
+	eng::Block<eng::PlaneTag> m_plane_block {};
 };
 
 } // namespace

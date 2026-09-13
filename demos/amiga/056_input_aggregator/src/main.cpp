@@ -93,13 +93,12 @@ struct InputAggregatorDemo {
 			return;
 		}
 
-		m_bitplane_block = backend.memory().chip.allocate(kBitplaneBytes, 16);
+		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
 		m_copper_block = backend.memory().chip.allocate(2048, 16);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00005602u);
 			return;
 		}
-		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
 
 		// Paleta base: color 1 = cruz (blanca al arrancar), resto = grises para
 		// dejar visible el degradado de fondo (COLOR00).
@@ -158,7 +157,7 @@ struct InputAggregatorDemo {
 		// 3) Dibujo: limpiar el plano 0 (color 1) y pintar la cruz en la nueva
 		//    posición.
 		clear_plane0();
-		draw_cross(m_bitplanes.data(), m_cx, m_cy);
+		draw_cross(m_bitplane_block.view.data(), m_cx, m_cy);
 
 		// 4) Reconstruir la copperlist (el color de la cruz cambia) e instalarla.
 		if (build_copper()) {
@@ -198,7 +197,7 @@ private:
 	}
 
 	void clear_plane0() {
-		eng::u16* words = reinterpret_cast<eng::u16*>(m_bitplanes.data());
+		eng::u16* words = reinterpret_cast<eng::u16*>(m_bitplane_block.view.data());
 		for (eng::u32 i = 0; i < kPlaneBytes / 2u; ++i) {
 			words[i] = 0;
 		}
@@ -221,7 +220,7 @@ private:
 		eng::copper::Scheduler sched { m_copper_block };
 		sched.emit_planes_display(
 			0x2c81, 0x2cc1, 0x0038, 0x00d0,
-			kBytesPerRow, 0x6200, kPlanes, m_bitplanes, kPlaneBytes
+			kBytesPerRow, 0x6200, kPlanes, m_bitplane_block.view, kPlaneBytes
 		);
 		sched.emit_palette(m_palette);
 		build_bands();
@@ -246,8 +245,7 @@ private:
 	eng::amiga::MousePollState m_mouse_poll {};
 	eng::u16 m_palette[32] {};
 	const eng::u16* m_copper_ptr = nullptr;
-	eng::PlaneBytes m_bitplanes {};
-	eng::MemoryBlock m_bitplane_block {};
+	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::MemoryBlock m_copper_block {};
 	eng::graphics::CopperIntent m_intents[kBands] {};
 };

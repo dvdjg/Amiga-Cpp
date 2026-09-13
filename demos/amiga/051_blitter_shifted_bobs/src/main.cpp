@@ -150,23 +150,23 @@ struct DemoGame {
 			return;
 		}
 
-		add_reference_bars(m_scene.bitplanes());
-		m_mask_block = backend.memory().chip.allocate(bob_plane_bytes, 16);
-		m_source_block = backend.memory().chip.allocate(bob_plane_bytes * plane_count, 16);
+		add_reference_bars(m_scene.bitplanes().data());
+		m_mask_block = backend.memory().chip.allocate_block<eng::MaskTag>(bob_plane_bytes, 16);
+		m_source_block = backend.memory().chip.allocate_block<eng::PlaneTag>(bob_plane_bytes * plane_count, 16);
 		if (!m_mask_block.valid() || !m_source_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000053u);
 			return;
 		}
 
 		build_shift_source(
-			static_cast<eng::u16*>(m_mask_block.data),
-			static_cast<eng::u16*>(m_source_block.data)
+			m_mask_block.view.as_words().data(),
+			m_source_block.view.as_words().data()
 		);
 
 		m_frame_plan.clear();
 		const eng::graphics::BlitJob draw = make_shifted_bob_job(
-			static_cast<const eng::u16*>(m_mask_block.data),
-			static_cast<const eng::u16*>(m_source_block.data),
+			m_mask_block.view.as_words().data(),
+			m_source_block.view.as_words().data(),
 			destination_at(m_scene.bitplanes().data(), bob_x, bob_y)
 		);
 
@@ -215,8 +215,8 @@ struct DemoGame {
 	bool m_ready = false;
 	drivers::StaticEhbScene m_scene {};
 	eng::graphics::FramePlan m_frame_plan {};
-	eng::MemoryBlock m_mask_block {};
-	eng::MemoryBlock m_source_block {};
+	eng::Block<eng::MaskTag> m_mask_block {};
+	eng::Block<eng::PlaneTag> m_source_block {};
 };
 
 } // namespace

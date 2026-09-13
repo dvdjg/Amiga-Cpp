@@ -59,20 +59,19 @@ struct GameAudioDemo {
 		m_memory_ok = backend.configure_memory({ 96u * 1024u, 8u * 1024u, 4u * 1024u });
 		if (!m_memory_ok) { eng::debug::mark_failed(g_eng_run_status, 0x00006201u); return; }
 
-		m_bitplane_block = backend.memory().chip.allocate(kBitplaneBytes, 16);
+		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
 		m_copper_block = backend.memory().chip.allocate(2048, 16);
-		m_mod_block = backend.memory().chip.allocate(kModSize, 4);
-		m_alarm_block = backend.memory().chip.allocate(kAlarmLen, 4);
-		m_beep_block = backend.memory().chip.allocate(kBeepLen, 4);
+		m_mod_block = backend.memory().chip.allocate_block<eng::MusicTag>(kModSize, 4);
+		m_alarm_block = backend.memory().chip.allocate_block<eng::AudioTag>(kAlarmLen, 4);
+		m_beep_block = backend.memory().chip.allocate_block<eng::AudioTag>(kBeepLen, 4);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || !m_mod_block.valid() ||
 			!m_alarm_block.valid() || !m_beep_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006202u);
 			return;
 		}
-		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
-		build_mod(static_cast<eng::u8*>(m_mod_block.data));
-		gen_square(static_cast<eng::u8*>(m_alarm_block.data), kAlarmLen, 64);
-		gen_square(static_cast<eng::u8*>(m_beep_block.data), kBeepLen, 4);
+		build_mod(m_mod_block.view.data());
+		gen_square(m_alarm_block.view.data(), kAlarmLen, 64);
+		gen_square(m_beep_block.view.data(), kBeepLen, 4);
 
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00006203u); return; }
 
@@ -82,7 +81,7 @@ struct GameAudioDemo {
 		m_audio.attach(backend.audio());
 
 		// Música primero, luego reservar AUD0 para el mixer, luego el mixer.
-		eng::audio::MusicModule mod { eng::Span<const eng::u8>(static_cast<const eng::u8*>(m_mod_block.data), kModSize) };
+		eng::audio::MusicModule mod { eng::Span<const eng::u8>(m_mod_block.view.as_const().data(), kModSize) };
 		m_music_ok = m_audio.play_music(mod, eng::audio::MusicFormat::Protracker);
 		m_audio.set_music_volume(40);
 		m_audio.set_duck_volume(12);
@@ -93,11 +92,11 @@ struct GameAudioDemo {
 
 		// Banco: beep (cooldown 4 frames, max 2) y alarma (bucle, ducking).
 		m_audio.bank().add(kSfxBeep, {
-			eng::Span<const eng::u8>(static_cast<const eng::u8*>(m_beep_block.data), kBeepLen),
+			eng::Span<const eng::u8>(m_beep_block.view.as_const().data(), kBeepLen),
 			3, 2, 4, false
 		});
 		m_audio.bank().add(kSfxAlarm, {
-			eng::Span<const eng::u8>(static_cast<const eng::u8*>(m_alarm_block.data), kAlarmLen),
+			eng::Span<const eng::u8>(m_alarm_block.view.as_const().data(), kAlarmLen),
 			1, 1, 0, true // duck_music
 		});
 		m_alarm_ch = m_audio.play(kSfxAlarm, 0);
@@ -169,7 +168,7 @@ private:
 		eng::copper::Scheduler sched { m_copper_block };
 		sched.emit_planes_display(
 			0x2c81, 0x2cc1, 0x0038, 0x00d0,
-			kBytesPerRow, 0x6200, kPlanes, m_bitplanes, kPlaneBytes
+			kBytesPerRow, 0x6200, kPlanes, m_bitplane_block.view, kPlaneBytes
 		);
 		for (eng::u8 i = 0; i < 32; ++i) {
 			sched.move(eng::copper::color_register(i), 0x0000);
@@ -191,11 +190,10 @@ private:
 	eng::u16 m_copper_words = 0;
 	eng::audio::SfxChannel m_alarm_ch = -1;
 	const eng::u16* m_copper_ptr = nullptr;
-	eng::PlaneBytes m_bitplanes {};
-	eng::MemoryBlock m_mod_block {};
-	eng::MemoryBlock m_alarm_block {};
-	eng::MemoryBlock m_beep_block {};
-	eng::MemoryBlock m_bitplane_block {};
+	eng::Block<eng::MusicTag> m_mod_block {};
+	eng::Block<eng::AudioTag> m_alarm_block {};
+	eng::Block<eng::AudioTag> m_beep_block {};
+	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::MemoryBlock m_copper_block {};
 	eng::audio::GameAudio m_audio {};
 };

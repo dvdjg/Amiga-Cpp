@@ -60,7 +60,7 @@ public:
 		for (u16 y = 0; y < m_config.rows; ++y) {
 			const u16 row_line = static_cast<u16>(static_cast<u16>(y) * m_config.block_h + m_config.first_line);
 			// `CopMove32(cop2lc, 0)` -> se parchea al label de la fila.
-			const u16 cop2lc = b.move32(copper::Register::COP2LCH, nullptr);
+			const u16 cop2lc = b.move32(copper::Register::COP2LCH, eng::ChipAddress {});
 			// `label = CopWaitH(Y(y*block_h), X(-4))` (codificacion fiel del original).
 			const u16 label = b.wait_masked(static_cast<u16>(row_line & 128u), m_config.label_hpos, 0u, 255u);
 			b.patch_move32(cop2lc, b.instruction_address(label));

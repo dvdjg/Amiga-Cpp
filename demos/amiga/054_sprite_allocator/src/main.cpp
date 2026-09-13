@@ -84,18 +84,17 @@ struct SpriteAllocatorDemo {
 			return;
 		}
 
-		m_bitplane_block = backend.memory().chip.allocate(kBitplaneBytes, 16);
+		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
 		m_copper_block = backend.memory().chip.allocate(1024, 16);
-		m_sprite_block = backend.memory().chip.allocate(static_cast<eng::u32>(kSpriteWords) * 2u, 16);
+		m_sprite_block = backend.memory().chip.allocate_block<eng::SpriteTag>(static_cast<eng::u32>(kSpriteWords) * 2u, 16);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || !m_sprite_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00005402u);
 			return;
 		}
-		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
-		eng::u16* sprite_data = static_cast<eng::u16*>(m_sprite_block.data);
+		eng::Words<eng::SpriteTag> sprite_data = m_sprite_block.view.as_words();
 
 		build_sprite_sheet(sprite_data);
-		assign_channels(sprite_data);
+		assign_channels(sprite_data.as_const());
 
 		if (!build_copper()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00005403u);
@@ -120,7 +119,7 @@ struct SpriteAllocatorDemo {
 	}
 
 private:
-	void build_sprite_sheet(eng::u16* data) {
+	void build_sprite_sheet(eng::Words<eng::SpriteTag> data) {
 		for (eng::u8 inst = 0; inst < kSprites; ++inst) {
 			for (eng::u8 line = 0; line < kSpriteHeight; ++line) {
 				data[static_cast<eng::u16>(inst) * kInstanceWords + line * 2u + 0u] = 0xFFFFu; // DAT
@@ -131,7 +130,7 @@ private:
 
 	/// Construye los `SpriteIntent`, los reparte con el `SpriteAllocator` y
 	/// configura el `SpriteManager` para los que caben (el resto queda como BOB).
-	void assign_channels(const eng::u16* sprite_data) {
+	void assign_channels(eng::WordView<eng::SpriteTag> sprite_data) {
 		eng::graphics::SpriteIntent intents[kSprites] {};
 		for (eng::u8 i = 0; i < kSprites; ++i) {
 			intents[i].top = kY;
@@ -151,9 +150,7 @@ private:
 			}
 			eng::graphics::SpriteConfig cfg {};
 			cfg.enabled = true;
-			cfg.data = eng::Span<const eng::u16>(
-				sprite_data + static_cast<eng::u16>(i) * kInstanceWords, kInstanceWords
-			);
+			cfg.data = sprite_data.subspan(static_cast<eng::u16>(i) * kInstanceWords, kInstanceWords).raw();
 			cfg.width_words = 1;
 			cfg.height = kSpriteHeight;
 			cfg.hpos = intents[i].hpos;
@@ -167,11 +164,11 @@ private:
 		eng::copper::Scheduler sched { m_copper_block };
 		sched.emit_planes_display(
 			0x2c81, 0x2cc1, 0x0038, 0x00d0,
-			kBytesPerRow, 0x6200, kPlanes, m_bitplanes, kPlaneBytes
+			kBytesPerRow, 0x6200, kPlanes, m_bitplane_block.view, kPlaneBytes
 		);
 		// Reset de los 8 sprites (puntero válido + VSTART/VSTOP=0) ANTES de habilitar
 		// SPREN: así el DMA no arma con los registros basura que dejó AmigaDOS.
-		const eng::uintptr sprite_base = reinterpret_cast<eng::uintptr>(m_sprite_block.data);
+		const eng::uintptr sprite_base = reinterpret_cast<eng::uintptr>(m_sprite_block.view.data());
 		for (eng::u8 c = 0; c < 8u; ++c) {
 			sched.move(static_cast<eng::u16>(0x120u + c * 4u), static_cast<eng::u16>(sprite_base >> 16));   // SPRxPTH
 			sched.move(static_cast<eng::u16>(0x122u + c * 4u), static_cast<eng::u16>(sprite_base & 0xffffu)); // SPRxPTL
@@ -203,10 +200,9 @@ private:
 	eng::u16 m_copper_words = 0;
 	eng::u8  m_bob_count = 0;
 	const eng::u16* m_copper_ptr = nullptr;
-	eng::PlaneBytes m_bitplanes {};
-	eng::MemoryBlock m_bitplane_block {};
+	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::MemoryBlock m_copper_block {};
-	eng::MemoryBlock m_sprite_block {};
+	eng::Block<eng::SpriteTag> m_sprite_block {};
 	eng::graphics::SpriteAllocator m_allocator {};
 	eng::graphics::SpriteManager m_sprites {};
 };

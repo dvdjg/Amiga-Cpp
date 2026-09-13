@@ -34,6 +34,7 @@ using PlaneBytes = Bytes<PlaneTag>;             // buffer de un plano (mutable)
 using PlaneViewBytes = ByteView<PlaneTag>;      // vista de plano (solo lectura)
 using PaletteWords = WordView<PaletteTag>;      // paleta RGB444
 using SpriteWords = WordView<SpriteTag>;        // palabras de sprite hardware
+using SpriteBuffer = Words<SpriteTag>;          // buffer de sprite (escritura)
 using CopperWords = WordView<CopperTag>;        // lista de Copper (WAIT/MOVE)
 using TileBankBytes = ByteView<TileBankTag>;    // tilebank crudo (1 B/píxel)
 using TileBankWords = WordView<TileBankTag>;    // banco de bloques interleaved (lectura)

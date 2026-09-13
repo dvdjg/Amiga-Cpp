@@ -39,6 +39,14 @@ criterio:
 - **Conversión explícita**: cambiar de dominio (`Pattern` → `PatternWords`) o de vista
   (`Bytes<Tag>` → `Words<Tag>`) requiere un método con nombre; nunca hay conversiones implícitas
   entre dominios.
+- **El campo ya nace etiquetado**: quien reserva memoria guarda directamente el tipo de dominio
+  (`eng::Block<Tag>`, o `Bytes<Tag>`/`ByteView<Tag>` cuando no hace falta validez), no un
+  `MemoryBlock` crudo que luego se convierte. La reserva tipada (`allocate_block<Tag>()`) elimina
+  la conversión posterior y hace que un uso indebido no compile. Excepciones justificadas (se
+  documentan en el sitio): el **copperlist** (`ListBuilder`/`Scheduler` validan `MemoryKind::Chip`),
+  los buffers que consume **asm/backend crudo** (mezclador), el **núcleo de memoria** (`Bitmap`),
+  descriptores que alternan memoria **propia y aliaseada** (`XlimitedScene::m_tiles`), **scratch
+  genérico** y los tests de `MemoryKind`.
 - **`unsafe` en una capa**: solo el backend Amiga (Blitter/Copper/DMA) y `BlitJob` manejan lo
   crudo, y lo hacen a través de un único conversor documentado.
 - **Coste cero**: cada tipo es un `struct` trivialmente copiable del mismo tamaño que envuelve;
@@ -308,8 +316,11 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
   callbacks por referencia (`BackgroundPump&`, `BackgroundBlitterService&`, `InterruptTick&`).
   Verificado: 080/081/111/112 alcanzan READY y 111/112 siguen animando sin regresión.
 - **Fase 7 — hecha (API)**: `eng::Block<Tag>` (`typed.hpp`) y reservas tipadas
-  `LinearArena::allocate_block<Tag>()` / `MemoryBlock::block<Tag>()`; HOST-041. Pendiente: migrar
-  consumidores de arena a `allocate_block` donde simplifique.
+  `LinearArena::allocate_block<Tag>()` / `MemoryBlock::block<Tag>()`; HOST-041. **Migración a
+  campo etiquetado hecha**: los dueños guardan `Block<Tag>`/vistas de dominio desde el origen
+  (drivers `ehb_scene`/`ham_scene`/`tile_scroll`; demos de planos, sprites, patrón, máscaras,
+  chunky y audio). Quedan como reserva cruda justificada (ver §1): copperlists, buffers de asm
+  del mezclador, `Bitmap`, `XlimitedScene::m_tiles` y scratch genérico.
 
 
 ## 9. Reglas para `CODING_STYLE.md` (resumen)

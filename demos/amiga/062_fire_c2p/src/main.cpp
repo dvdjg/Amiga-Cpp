@@ -122,7 +122,7 @@ struct FireC2pDemo {
 		m_planar = planar_block.buffer<eng::PlaneTag>();
 
 		// Planos 5 del EHB (half-brite) a 0, una sola vez; el fuego usa planos 0..4.
-		eng::PlaneBytes planes = m_scene.bitplanes().data();
+		eng::PlaneBytes planes = m_scene.bitplanes();
 		for (eng::u32 i = 0; i < kDispPlaneBytes; ++i) {
 			planes[5u * kDispPlaneBytes + i] = 0u;
 		}

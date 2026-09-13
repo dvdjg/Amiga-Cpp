@@ -85,9 +85,8 @@ public:
 		const u32 plane_bytes = plane_bytes_for(config);
 		const u32 bitplane_bytes = plane_bytes * static_cast<u32>(config.planes);
 		// +16 de headroom por el peyote de alineacion de la arena (ver arena.hpp).
-		m_bitplane_block = memory.chip.allocate(bitplane_bytes + 16u, 16);
+		m_bitplane_block = memory.chip.allocate_block<eng::PlaneTag>(bitplane_bytes + 16u, 16);
 		m_copper_block = memory.chip.allocate(config.copper_bytes, 16);
-		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
 		m_plane_bytes = plane_bytes;
 
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || config.planes == 0u || plane_bytes == 0u) {
@@ -107,12 +106,12 @@ public:
 		copper::Scheduler scheduler { m_copper_block };
 		scheduler.emit_planes_display(
 			config.diwstrt, config.diwstop, config.ddfstrt, config.ddfstop,
-			config.bytes_per_row, config.bplcon0, config.planes, m_bitplanes, m_plane_bytes);
+			config.bytes_per_row, config.bplcon0, config.planes, m_bitplane_block.view, m_plane_bytes);
 
 		if (config.reverse_plane_ptrs) {
 			for (u8 plane = 0; plane < config.planes; ++plane) {
 				scheduler.move_bitplane_pointer(
-					plane, m_bitplanes.address(static_cast<eng::s32>(config.planes - 1u - plane) * static_cast<eng::s32>(m_plane_bytes)));
+					plane, m_bitplane_block.view.address(static_cast<eng::s32>(config.planes - 1u - plane) * static_cast<eng::s32>(m_plane_bytes)));
 			}
 		}
 
@@ -166,7 +165,7 @@ public:
 	void end_frame(RenderContext&) {}
 
 	constexpr bool ok() const { return m_ok; }
-	constexpr eng::PlaneBytes bitplanes() const { return m_bitplane_block.buffer<eng::PlaneTag>(); }
+	constexpr eng::PlaneBytes bitplanes() const { return m_bitplane_block.view; }
 	constexpr eng::PlaneBytes plane(u8 index) const {
 		return (index < m_config.planes)
 			? bitplanes().subspan(static_cast<eng::u32>(index) * m_plane_bytes, m_plane_bytes)
@@ -184,9 +183,8 @@ private:
 	}
 
 	HamSceneConfig m_config {};
-	MemoryBlock m_bitplane_block {};
+	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	MemoryBlock m_copper_block {};
-	eng::PlaneBytes m_bitplanes {};
 	u32 m_plane_bytes = 0;
 	const u16* m_copper_words_ptr = nullptr;
 	copper::ScheduleReport m_report {};

@@ -86,18 +86,17 @@ struct SpriteMultiplexDemo {
 			return;
 		}
 
-		m_bitplane_block = backend.memory().chip.allocate(kBitplaneBytes, 16);
+		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
 		m_copper_block = backend.memory().chip.allocate(1024, 16);
-		m_sprite_block = backend.memory().chip.allocate(static_cast<eng::u32>(kSpriteWords) * 2u, 16);
+		m_sprite_block = backend.memory().chip.allocate_block<eng::SpriteTag>(static_cast<eng::u32>(kSpriteWords) * 2u, 16);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || !m_sprite_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00005302u);
 			return;
 		}
-		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
-		eng::u16* sprite_data = static_cast<eng::u16*>(m_sprite_block.data);
+		eng::Words<eng::SpriteTag> sprite_data = m_sprite_block.view.as_words();
 
 		build_sprite_sheet(sprite_data);
-		build_template(sprite_data);
+		build_template(sprite_data.as_const());
 
 		if (!build_copper()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00005303u);
@@ -128,7 +127,7 @@ struct SpriteMultiplexDemo {
 private:
 	/// Hoja de sprites: 6 barras centradas de anchura decreciente (16..6 px), cada
 	/// una de 24 líneas. El cuerpo usa DAT=1 (COLOR17) y DATB=0.
-	void build_sprite_sheet(eng::u16* data) {
+	void build_sprite_sheet(eng::Words<eng::SpriteTag> data) {
 		for (eng::u8 inst = 0; inst < kInstances; ++inst) {
 			const eng::u8 w = static_cast<eng::u8>(16u - static_cast<eng::u8>(inst) * 2u);
 			const eng::u8 margin = static_cast<eng::u8>(16u - w);
@@ -144,9 +143,9 @@ private:
 
 	/// Plantilla: 6 segmentos (uno por instancia, reuso vertical del canal) y 6
 	/// cambios de paleta (COLOR17 = tono de cada instancia).
-	void build_template(const eng::u16* sprite_data) {
+	void build_template(eng::WordView<eng::SpriteTag> sprite_data) {
 		m_template.width_words = 1;
-		m_template.bitmap = eng::Span<const eng::u16>(sprite_data, kSpriteWords);
+		m_template.bitmap = sprite_data.raw();
 		for (eng::u8 i = 0; i < kInstances; ++i) {
 			m_template.segments[i] = {
 				static_cast<eng::u16>(i * kInstanceWords),
@@ -164,13 +163,13 @@ private:
 		eng::copper::Scheduler sched { m_copper_block };
 		sched.emit_planes_display(
 			0x2c81, 0x2cc1, 0x0038, 0x00d0,
-			kBytesPerRow, 0x6200, kPlanes, m_bitplanes, kPlaneBytes
+			kBytesPerRow, 0x6200, kPlanes, m_bitplane_block.view, kPlaneBytes
 		);
 		// Reset del sprite 0 (VSTART/VSTOP=0 + puntero a datos válidos) mientras su
 		// DMA todavía está limpio (`emit_planes_display` lo apagó): evita que, al
 		// habilitar SPREN abajo, el sprite arme con los registros basura de AmigaDOS
 		// y haga una lectura DMA de un puntero inválido.
-		const eng::u32 sprite_addr = reinterpret_cast<eng::u32>(m_sprite_block.data);
+		const eng::u32 sprite_addr = reinterpret_cast<eng::u32>(m_sprite_block.view.data());
 		sched.move(0x120, static_cast<eng::u16>(sprite_addr >> 16));   // SPR0PTH
 		sched.move(0x122, static_cast<eng::u16>(sprite_addr & 0xffff)); // SPR0PTL
 		sched.move(0x142, 0x0000); // SPR0CTL (VSTOP=0)
@@ -199,10 +198,9 @@ private:
 	bool m_copper_ok = false;
 	eng::u16 m_copper_words = 0;
 	const eng::u16* m_copper_ptr = nullptr;
-	eng::PlaneBytes m_bitplanes {};
-	eng::MemoryBlock m_bitplane_block {};
+	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::MemoryBlock m_copper_block {};
-	eng::MemoryBlock m_sprite_block {};
+	eng::Block<eng::SpriteTag> m_sprite_block {};
 	eng::graphics::SpriteTemplate<kInstances, kInstances> m_template {};
 	eng::graphics::SpriteManager m_sprites {};
 	eng::u16 m_hpos = kSpriteHpos;   // posición horizontal animada en update()

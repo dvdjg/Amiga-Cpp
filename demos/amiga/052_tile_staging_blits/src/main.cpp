@@ -105,15 +105,15 @@ void build_tile(eng::u16* tile, eng::u8 color_index, eng::u8 accent_index, eng::
 	}
 }
 
-eng::u16* tile_source_at(eng::MemoryBlock& block, eng::u16 tile_index) {
+eng::u16* tile_source_at(eng::Block<eng::TileBankTag>& block, eng::u16 tile_index) {
 	return reinterpret_cast<eng::u16*>(
-		static_cast<eng::u8*>(block.data) + static_cast<eng::u32>(tile_index) * tile_bytes
+		block.view.data() + static_cast<eng::u32>(tile_index) * tile_bytes
 	);
 }
 
-eng::u16* staging_at(eng::MemoryBlock& block, eng::u16 x, eng::u16 y) {
+eng::u16* staging_at(eng::Block<eng::PlaneTag>& block, eng::u16 x, eng::u16 y) {
 	const eng::u32 offset = static_cast<eng::u32>(y) * staging_bytes_per_row + (x / 8u);
-	return reinterpret_cast<eng::u16*>(static_cast<eng::u8*>(block.data) + offset);
+	return reinterpret_cast<eng::u16*>(block.view.data() + offset);
 }
 
 eng::u16* screen_at(eng::u8* planes, eng::u16 x, eng::u16 y) {
@@ -180,16 +180,16 @@ struct DemoGame {
 			return;
 		}
 
-		add_reference_bars(m_scene.bitplanes());
-		m_tiles_block = backend.memory().chip.allocate(tile_bytes * tile_count, 16);
-		m_staging_block = backend.memory().chip.allocate(staging_plane_bytes * plane_count, 16);
+		add_reference_bars(m_scene.bitplanes().data());
+		m_tiles_block = backend.memory().chip.allocate_block<eng::TileBankTag>(tile_bytes * tile_count, 16);
+		m_staging_block = backend.memory().chip.allocate_block<eng::PlaneTag>(staging_plane_bytes * plane_count, 16);
 		if (!m_tiles_block.valid() || !m_staging_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000054u);
 			return;
 		}
 
-		clear_block(static_cast<eng::u8*>(m_tiles_block.data), tile_bytes * tile_count);
-		clear_block(static_cast<eng::u8*>(m_staging_block.data), staging_plane_bytes * plane_count);
+		clear_block(m_tiles_block.view.data(), tile_bytes * tile_count);
+		clear_block(m_staging_block.view.data(), staging_plane_bytes * plane_count);
 		build_tile(tile_source_at(m_tiles_block, 0), 4, 14, 0);
 		build_tile(tile_source_at(m_tiles_block, 1), 6, 14, 1);
 		build_tile(tile_source_at(m_tiles_block, 2), 7, 14, 2);
@@ -219,7 +219,7 @@ struct DemoGame {
 		}
 
 		const eng::graphics::BlitJob present_job = make_present_staging_job(
-			static_cast<const eng::u16*>(m_staging_block.data),
+			m_staging_block.view.as_words().data(),
 			screen_at(m_scene.bitplanes().data(), present_x, present_y)
 		);
 		if (!m_frame_plan.add_copy_rect(present_job) || !backend.execute_frame_plan(m_frame_plan)) {
@@ -303,8 +303,8 @@ struct DemoGame {
 	bool m_ready = false;
 	drivers::StaticEhbScene m_scene {};
 	eng::graphics::FramePlan m_frame_plan {};
-	eng::MemoryBlock m_tiles_block {};
-	eng::MemoryBlock m_staging_block {};
+	eng::Block<eng::TileBankTag> m_tiles_block {};
+	eng::Block<eng::PlaneTag> m_staging_block {};
 	tilemap::PackedTileCell m_tile_cells[staging_tiles_x * staging_tiles_y] {};
 };
 

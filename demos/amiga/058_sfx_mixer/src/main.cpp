@@ -84,23 +84,22 @@ struct SfxMixerDemo {
 			return;
 		}
 
-		m_bitplane_block = backend.memory().chip.allocate(kBitplaneBytes, 16);
+		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
 		m_copper_block = backend.memory().chip.allocate(2048, 16);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00005802u);
 			return;
 		}
-		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
 
 		// Muestras preprocesadas (amplitud ±24, múltiplos de 4).
-		m_beep_block = backend.memory().chip.allocate(kBeepLen, 4);
-		m_alarm_block = backend.memory().chip.allocate(kAlarmLen, 4);
+		m_beep_block = backend.memory().chip.allocate_block<eng::AudioTag>(kBeepLen, 4);
+		m_alarm_block = backend.memory().chip.allocate_block<eng::AudioTag>(kAlarmLen, 4);
 		if (!m_beep_block.valid() || !m_alarm_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00005803u);
 			return;
 		}
-		gen_square(static_cast<eng::u8*>(m_beep_block.data), kBeepLen, 4);
-		gen_square(static_cast<eng::u8*>(m_alarm_block.data), kAlarmLen, 64);
+		gen_square(m_beep_block.view.data(), kBeepLen, 4);
+		gen_square(m_alarm_block.view.data(), kAlarmLen, 64);
 
 		for (eng::u8 i = 0; i < 32; ++i) {
 			m_palette[i] = static_cast<eng::u16>(i * 0x111u);
@@ -154,7 +153,7 @@ struct SfxMixerDemo {
 		// Dibujo: barra cian cuya altura refleja el volumen maestro.
 		clear_plane0();
 		const eng::u16 bar_h = static_cast<eng::u16>((static_cast<eng::u32>(m_volume) * 200u) / 64u + 16u);
-		fill_rect(m_bitplanes.data(), 156, static_cast<eng::s16>(kScreenH - bar_h), 9, static_cast<eng::s16>(bar_h));
+		fill_rect(m_bitplane_block.view.data(), 156, static_cast<eng::s16>(kScreenH - bar_h), 9, static_cast<eng::s16>(bar_h));
 
 		if (build_copper()) {
 			backend.install_copper_list(m_copper_ptr);
@@ -168,10 +167,10 @@ struct SfxMixerDemo {
 
 private:
 	eng::audio::SfxSample beep_sample() {
-		return { eng::Span<const eng::u8>(static_cast<const eng::u8*>(m_beep_block.data), kBeepLen) };
+		return { eng::Span<const eng::u8>(m_beep_block.view.as_const().data(), kBeepLen) };
 	}
 	eng::audio::SfxSample alarm_sample() {
-		return { eng::Span<const eng::u8>(static_cast<const eng::u8*>(m_alarm_block.data), kAlarmLen) };
+		return { eng::Span<const eng::u8>(m_alarm_block.view.as_const().data(), kAlarmLen) };
 	}
 
 	/// Genera una onda cuadrada con signo (8 bits) de amplitud ±24.
@@ -195,7 +194,7 @@ private:
 	}
 
 	void clear_plane0() {
-		eng::u16* words = reinterpret_cast<eng::u16*>(m_bitplanes.data());
+		eng::u16* words = reinterpret_cast<eng::u16*>(m_bitplane_block.view.data());
 		for (eng::u32 i = 0; i < kPlaneBytes / 2u; ++i) words[i] = 0;
 	}
 
@@ -216,7 +215,7 @@ private:
 		eng::copper::Scheduler sched { m_copper_block };
 		sched.emit_planes_display(
 			0x2c81, 0x2cc1, 0x0038, 0x00d0,
-			kBytesPerRow, 0x6200, kPlanes, m_bitplanes, kPlaneBytes
+			kBytesPerRow, 0x6200, kPlanes, m_bitplane_block.view, kPlaneBytes
 		);
 		sched.emit_palette(m_palette);
 		build_bands();
@@ -239,10 +238,9 @@ private:
 	eng::audio::SfxChannel m_alarm_channel = -1;
 	eng::u16 m_palette[32] {};
 	const eng::u16* m_copper_ptr = nullptr;
-	eng::PlaneBytes m_bitplanes {};
-	eng::MemoryBlock m_beep_block {};
-	eng::MemoryBlock m_alarm_block {};
-	eng::MemoryBlock m_bitplane_block {};
+	eng::Block<eng::AudioTag> m_beep_block {};
+	eng::Block<eng::AudioTag> m_alarm_block {};
+	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::MemoryBlock m_copper_block {};
 	eng::graphics::CopperIntent m_intents[kBands] {};
 	eng::audio::SfxMixer m_sfx {};

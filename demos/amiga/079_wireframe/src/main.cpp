@@ -217,13 +217,12 @@ struct WireframeDemo {
 			return;
 		}
 
-		m_bitplane_block = backend.memory().chip.allocate(kBitmapBytes, 16);
+		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitmapBytes, 16);
 		m_copper_block = backend.memory().chip.allocate(kRing * kCopperPerList, 16);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00007902u);
 			return;
 		}
-		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
 
 		for (eng::u8 a = 0; a < kRing; ++a) {
 			if (!build_copper(a)) {
@@ -242,7 +241,7 @@ struct WireframeDemo {
 
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
-		if (m_bitplanes.data() == nullptr) {
+		if (m_bitplane_block.view.data() == nullptr) {
 			return;
 		}
 
@@ -250,7 +249,7 @@ struct WireframeDemo {
 		// `active`; la copperlist lo muestra como bit 3 y deja el rastro de los 3
 		// frames anteriores en los bits 2..0 (colores 8/4/2/1).
 		const eng::u8 active = m_active;
-		eng::PlaneBytes plane = m_bitplanes.subspan(static_cast<eng::u32>(active) * kPlaneBytes, kPlaneBytes);
+		eng::PlaneBytes plane = m_bitplane_block.view.subspan(static_cast<eng::u32>(active) * kPlaneBytes, kPlaneBytes);
 
 		backend.blitter_clear(plane, 1, kBytesPerRow, kPlaneBytes, kWidth, kHeight);
 
@@ -281,10 +280,10 @@ private:
 				static_cast<eng::u32>(active) * kCopperPerList;
 		copper::Scheduler sched {eng::MemoryBlock {base, kCopperPerList, block.kind}};
 		sched.emit_planes_display(kDiwstrt, kDiwstop, kDdfstrt, kDdfstop, kBytesPerRow, kBplcon0,
-					  kPlanes, m_bitplanes, kPlaneBytes);
+					  kPlanes, m_bitplane_block.view, kPlaneBytes);
 		for (eng::u8 n = 0; n < kPlanes; ++n) {
 			const eng::u8 idx = static_cast<eng::u8>((active + 2u + n) % kRing);
-			sched.move_bitplane_pointer(n, m_bitplanes.address(static_cast<eng::s32>(idx) * static_cast<eng::s32>(kPlaneBytes)));
+			sched.move_bitplane_pointer(n, m_bitplane_block.view.address(static_cast<eng::s32>(idx) * static_cast<eng::s32>(kPlaneBytes)));
 		}
 		sched.move(copper::Register::BPLCON1, kBplcon1);
 		sched.emit_palette(wireframe_colors, 0, 16);
@@ -295,8 +294,7 @@ private:
 
 	bool m_memory_ok = false;
 	eng::u8 m_active = 0;
-	eng::PlaneBytes m_bitplanes {};
-	eng::MemoryBlock m_bitplane_block {};
+	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::MemoryBlock m_copper_block {};
 	const eng::u16* m_copper_ptrs[kRing] = {nullptr, nullptr, nullptr, nullptr, nullptr};
 	eng::object3d::Object3D m_object {};

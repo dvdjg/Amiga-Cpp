@@ -245,11 +245,11 @@ void build_tile_word_cache(eng::Span<eng::u16> tile_words) {
 /// biblioteca de patrones potencia de dos. En un engine de produccion lo normal
 /// sera validar el indice al cargar la escena y no pagar comprobaciones extra en
 /// cada upload de Blitter.
-eng::Span<const eng::u16> tile_source(const eng::MemoryBlock& block, eng::u16 tile_index) {
+eng::Span<const eng::u16> tile_source(const eng::Block<eng::TileBankTag>& block, eng::u16 tile_index) {
 	constexpr eng::u32 words_per_tile = drivers::EhbTileScrollScene::tile_bytes() / sizeof(eng::u16);
 	const eng::u32 word_offset = static_cast<eng::u32>(tile_index & (tile_pattern_count - 1u)) * words_per_tile;
 	return {
-		reinterpret_cast<const eng::u16*>(static_cast<const eng::u8*>(block.data)) + word_offset,
+		block.view.as_words().data() + word_offset,
 		words_per_tile,
 	};
 }
@@ -302,7 +302,7 @@ struct DemoGame {
 			return;
 		}
 
-		m_tiles = backend.memory().chip.allocate(drivers::EhbTileScrollScene::tile_bytes() * tile_pattern_count, 16);
+		m_tiles = backend.memory().chip.allocate_block<eng::TileBankTag>(drivers::EhbTileScrollScene::tile_bytes() * tile_pattern_count, 16);
 		if (!m_tiles.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000112u);
 			return;
@@ -313,8 +313,8 @@ struct DemoGame {
 		m_scene.bitplane_span().clear();
 		build_virtual_map(m_cells);
 		build_tile_word_cache(eng::Span<eng::u16>::from_raw(
-			static_cast<eng::u16*>(m_tiles.data),
-			m_tiles.size / sizeof(eng::u16)
+			m_tiles.view.as_words().data(),
+			m_tiles.view.as_words().size()
 		));
 		m_map.reset(m_cells, map_tiles_x, map_tiles_y);
 
@@ -419,7 +419,7 @@ struct DemoGame {
 	tilemap::ProgressiveTileScheduler m_scheduler {};
 	drivers::EhbBidirectionalRingPrefetch m_ring {};
 	eng::graphics::FramePlan m_frame_plan {};
-	eng::MemoryBlock m_tiles {};
+	eng::Block<eng::TileBankTag> m_tiles {};
 	scene::RouteCamera m_camera {};
 	eng::u16 m_previous_logical_column = 0;
 	eng::u16 m_previous_logical_row = 0;

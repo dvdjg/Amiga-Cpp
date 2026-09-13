@@ -256,7 +256,7 @@ struct DemoGame {
 		if (!m_scene.ok()) {
 			return;
 		}
-		Canvas c {m_scene.bitplanes()};
+		Canvas c {m_scene.bitplanes().data()};
 		const eng::u32 f = context.frame.frame_index;
 
 		// Rotacion compuesta Rx(f*17)·Ry(f*11)·Rz(f*7) en 4.12. Los angulos son de
@@ -295,7 +295,7 @@ private:
 	/// Marco y estrellas estaticas: solo se pintan una vez. El borrado por frame
 	/// toca unicamente la zona central del cubo, asi que el marco no se pierde.
 	void draw_static() {
-		Canvas c {m_scene.bitplanes()};
+		Canvas c {m_scene.bitplanes().data()};
 
 		// Doble marco.
 		for (eng::s32 i = 0; i < 2; ++i) {

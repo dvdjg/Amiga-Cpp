@@ -184,11 +184,11 @@ struct FireDemo {
 		m_memory_ok = backend.configure_memory({128u * 1024u, 4u * 1024u, 4u * 1024u});
 		if (!m_memory_ok) { eng::debug::mark_failed(g_eng_run_status, 0x00008001u); return; }
 
-		m_block = backend.memory().chip.allocate(
+		m_block = backend.memory().chip.allocate_block<eng::ChunkyTag>(
 			kChunkyBuffer * 2u + static_cast<eng::u32>(kWidth) * kHeight * 2u, 16);
 		if (!m_block.valid()) { eng::debug::mark_failed(g_eng_run_status, 0x00008002u); return; }
 
-		eng::u8* p = static_cast<eng::u8*>(m_block.data);
+		eng::u8* p = m_block.view.data();
 		m_chunky[0] = p; p += kChunkyBuffer;
 		m_chunky[1] = p; p += kChunkyBuffer;
 		m_fire = reinterpret_cast<short*>(p);
@@ -354,7 +354,7 @@ private:
 
 	bool m_memory_ok = false;
 	bool m_init_ok = false;
-	eng::MemoryBlock m_block {};
+	eng::Block<eng::ChunkyTag> m_block {};
 	eng::u8* m_chunky[2] = {nullptr, nullptr};
 	eng::u8* m_planes[2][kPlanes] = {};
 	short* m_fire = nullptr;

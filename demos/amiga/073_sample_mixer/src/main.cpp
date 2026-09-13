@@ -61,13 +61,12 @@ struct SampleMixerDemo {
 		m_memory_ok = backend.configure_memory({ 96u * 1024u, 8u * 1024u, 4u * 1024u });
 		if (!m_memory_ok) { eng::debug::mark_failed(g_eng_run_status, 0x00007301u); return; }
 
-		m_bitplane_block = backend.memory().chip.allocate(kBitplaneBytes, 16);
+		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
 		m_copper_block = backend.memory().chip.allocate(2048, 16);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00007302u);
 			return;
 		}
-		m_bitplanes = m_bitplane_block.buffer<eng::PlaneTag>();
 
 		if (!build_copper()) { eng::debug::mark_failed(g_eng_run_status, 0x00007303u); return; }
 		backend.takeover_display(m_copper_ptr);
@@ -125,7 +124,7 @@ private:
 	void draw_scope() {
 		const eng::u8* buf = m_sfx.buffer();
 		const eng::u32 n = m_sfx.buffer_bytes();
-		for (eng::u32 i = 0; i < kPlaneBytes; ++i) m_bitplanes[i] = 0;
+		for (eng::u32 i = 0; i < kPlaneBytes; ++i) m_bitplane_block.view[i] = 0;
 		if (n == 0u) return;
 		for (eng::u16 x = 0; x < 320u; ++x) {
 			const eng::u32 si = (static_cast<eng::u32>(x) * n) / 320u;
@@ -138,7 +137,7 @@ private:
 
 	void set_pixel(eng::u16 x, eng::u16 y) {
 		if (x >= 320u || y >= 256u) return;
-		m_bitplanes[static_cast<eng::u32>(y) * kBytesPerRow + (x >> 3u)]
+		m_bitplane_block.view[static_cast<eng::u32>(y) * kBytesPerRow + (x >> 3u)]
 			|= static_cast<eng::u8>(1u << (7u - (x & 7u)));
 	}
 
@@ -146,7 +145,7 @@ private:
 		eng::copper::Scheduler sched { m_copper_block };
 		sched.emit_planes_display(
 			0x2c81, 0x2cc1, 0x0038, 0x00d0,
-			kBytesPerRow, 0x6200, kPlanes, m_bitplanes, kPlaneBytes
+			kBytesPerRow, 0x6200, kPlanes, m_bitplane_block.view, kPlaneBytes
 		);
 		for (eng::u8 i = 0; i < 32; ++i) {
 			sched.move(eng::copper::color_register(i), 0x0000);
@@ -170,8 +169,7 @@ private:
 	eng::u32 m_len = 0;
 	eng::audio::SfxChannel m_ch = -1;
 	const eng::u16* m_copper_ptr = nullptr;
-	eng::PlaneBytes m_bitplanes {};
-	eng::MemoryBlock m_bitplane_block {};
+	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::MemoryBlock m_copper_block {};
 	eng::audio::SfxMixer m_sfx {};
 };
