@@ -219,7 +219,7 @@ struct DemoGame {
 			return;
 		}
 
-		add_reference_bars(m_scene.bitplanes());
+		add_reference_bars(m_scene.bitplanes().data());
 
 		m_mask_block = backend.memory().chip.allocate(bob_plane_bytes, 16);
 		m_source_block = backend.memory().chip.allocate(bob_plane_bytes * plane_count, 16);
@@ -256,13 +256,13 @@ struct DemoGame {
 			eng::graphics::BlitJobKind::MaskedBlobNoSave,
 			static_cast<const eng::u16*>(m_mask_block.data),
 			static_cast<const eng::u16*>(m_blob_source_block.data),
-			destination_at(m_scene.bitplanes(), blob_left_x, blob_y)
+			destination_at(m_scene.bitplanes().data(), blob_left_x, blob_y)
 		);
 		const eng::graphics::BlitJob blob_right_job = make_masked_job(
 			eng::graphics::BlitJobKind::MaskedBlobNoSave,
 			static_cast<const eng::u16*>(m_mask_block.data),
 			static_cast<const eng::u16*>(m_blob_source_block.data),
-			destination_at(m_scene.bitplanes(), blob_right_x, blob_y)
+			destination_at(m_scene.bitplanes().data(), blob_right_x, blob_y)
 		);
 
 		if (
@@ -294,7 +294,7 @@ struct DemoGame {
 		}
 
 		const eng::u16 current_x = animated_bob_x(context.frame.frame_index);
-		eng::u16* current_destination = destination_at(m_scene.bitplanes(), current_x, bob_y);
+		eng::u16* current_destination = destination_at(m_scene.bitplanes().data(), current_x, bob_y);
 		eng::u16* saved_background = static_cast<eng::u16*>(m_saved_background_block.data);
 
 		m_frame_plan.clear();
@@ -307,7 +307,7 @@ struct DemoGame {
 			}
 			const eng::graphics::BlitJob restore = make_copy_job(
 				static_cast<const eng::u16*>(m_saved_background_block.data),
-				destination_at(m_scene.bitplanes(), m_previous_x, bob_y),
+				destination_at(m_scene.bitplanes().data(), m_previous_x, bob_y),
 				0,
 				static_cast<eng::s16>(bytes_per_row - bob_words_per_row * sizeof(eng::u16)),
 				bob_plane_bytes,

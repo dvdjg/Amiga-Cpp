@@ -216,7 +216,7 @@ struct FireDemo {
 				eng::debug::mark_failed(g_eng_run_status, 0x00008003u);
 				return;
 			}
-			for (eng::u8 pl = 0; pl < kPlanes; ++pl) m_planes[b][pl] = m_scene[b].plane(pl);
+			for (eng::u8 pl = 0; pl < kPlanes; ++pl) m_planes[b][pl] = m_scene[b].plane(pl).data();
 		}
 
 		for (eng::u8 b = 0; b < 2; ++b) {

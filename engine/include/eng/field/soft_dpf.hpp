@@ -168,15 +168,15 @@ public:
 	/// Blit de copia del patrón al plano de fondo (ventana `words`, `rows` filas).
 	/// `pattern` es una vista con dominio y tamaño: si el rectángulo pedido se sale
 	/// del patrón (o no hay patrón), dispara `illegal` en vez de corromper memoria.
-	eng::graphics::BlitJob make_copy_rect_job(eng::Pattern pattern, eng::RowBytes pattern_row_bytes,
+	eng::graphics::BlitJob make_copy_rect_job(eng::Pattern pattern, u16 pattern_row_bytes,
 	                                          u16 src_x_pixels, u16 src_y,
 	                                          u16 dest_row, u16 rows,
-	                                          u16 dest_byte_off, eng::WordCount words) const {
+	                                          u16 dest_byte_off, u16 words) const {
 		const u16 row = m_geo.bytes_per_row;
-		const u16 pat_row = pattern_row_bytes.value ? pattern_row_bytes.value : row;
+		const u16 pat_row = pattern_row_bytes ? pattern_row_bytes : row;
 		const BgShift bs = bg_shift_for(src_x_pixels);
 		const eng::u32 first = static_cast<eng::u32>(src_y) * pat_row + bs.word_bytes;
-		const eng::u32 width_bytes = static_cast<eng::u32>(words.value) * 2u;
+		const eng::u32 width_bytes = static_cast<eng::u32>(words) * 2u;
 		const eng::u32 last = first + (rows != 0u
 			? static_cast<eng::u32>(rows - 1u) * pat_row + width_bytes : 0u);
 		if (pattern.data() == nullptr || last > pattern.size()) eng::detail::typed_range_error();
@@ -188,18 +188,18 @@ public:
 		return { eng::graphics::BlitJobKind::TileBlockCopy, eng::graphics::BlitSource {},
 		         eng::graphics::BlitSource { reinterpret_cast<const eng::u16*>(src) },
 		         eng::graphics::BlitDest { dst },
-		         words.value, rows,
+		         words, rows,
 		         static_cast<s16>(pat_row - width_bytes),
 		         static_cast<s16>(row * m_geo.planes - width_bytes),
 		         1, bs.shift, 2, 2, false };
 	}
 
 	/// Compatibilidad: copia la fila completa del anillo (`display_height` filas).
-	eng::graphics::BlitJob make_copy_job(eng::Pattern pattern, eng::RowBytes pattern_row_bytes,
+	eng::graphics::BlitJob make_copy_job(eng::Pattern pattern, u16 pattern_row_bytes,
 	                                     u16 src_x_pixels, u16 src_y) const {
 		return make_copy_rect_job(pattern, pattern_row_bytes, src_x_pixels, src_y, 0,
 		                          m_geo.display_height, 0,
-		                          eng::WordCount { static_cast<u16>(m_geo.bytes_per_row / 2u) });
+		                          static_cast<u16>(m_geo.bytes_per_row / 2u));
 	}
 
 private:

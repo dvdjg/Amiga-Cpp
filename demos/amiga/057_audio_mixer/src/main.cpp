@@ -160,7 +160,7 @@ private:
 	void apply_audio() {
 		m_mixer.begin_frame();
 		eng::audio::SampleEvent ev;
-			ev.sample = eng::AudioSample{m_sample, kSampleBytes};
+			ev.sample = m_sample_block.view<eng::AudioTag>();
 		ev.length_words = kSampleWords;
 		ev.period = m_period;
 		ev.volume = m_volume;

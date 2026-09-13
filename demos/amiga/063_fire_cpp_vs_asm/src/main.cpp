@@ -138,10 +138,10 @@ struct FireBenchDemo {
 			return;
 		}
 		m_fire = static_cast<eng::u16*>(fire_block.data);
-		m_chunky = static_cast<eng::u8*>(chunky_block.data);
-		m_planar = static_cast<eng::u8*>(planar_block.data);
+		m_chunky = chunky_block.buffer<eng::ChunkyTag>();
+		m_planar = planar_block.buffer<eng::PlaneTag>();
 
-		eng::u8* planes = m_scene.bitplanes();
+		eng::PlaneBytes planes = m_scene.bitplanes();
 		for (eng::u32 i = 0; i < kDispPlaneBytes; ++i) planes[5u * kDispPlaneBytes + i] = 0u;
 
 		// Pre-desarrolla el fuego (siembra + propagación) para que la captura
@@ -150,12 +150,8 @@ struct FireBenchDemo {
 			seed_fire();
 			fire_cpp(m_fire);
 			to_chunky();
-			eng::graphics::c2p_1x1_naive(
-		eng::PixelWidth { kFireW }, eng::PixelHeight { kFireH }, eng::PlaneCount { kPlanes },
-		eng::ByteStride { kPlaneBytes },
-		eng::ChunkyView { m_chunky, static_cast<eng::usize>(kFireW) * kFireH },
-		eng::PlaneBytes { m_planar, static_cast<eng::u32>(kPlaneBytes) * kPlanes });
-			scale4x(m_planar, m_scene.bitplanes());
+			eng::graphics::c2p_1x1_naive(kFireW, kFireH, kPlanes, kPlaneBytes, m_chunky.as_const(), m_planar);
+			scale4x(m_planar.data(), m_scene.bitplanes().data());
 		}
 
 		m_scene.takeover(backend);
@@ -188,12 +184,8 @@ struct FireBenchDemo {
 			fire_asm(m_fire, kFireW, kFireH);
 		}
 		to_chunky();
-		eng::graphics::c2p_1x1_naive(
-		eng::PixelWidth { kFireW }, eng::PixelHeight { kFireH }, eng::PlaneCount { kPlanes },
-		eng::ByteStride { kPlaneBytes },
-		eng::ChunkyView { m_chunky, static_cast<eng::usize>(kFireW) * kFireH },
-		eng::PlaneBytes { m_planar, static_cast<eng::u32>(kPlaneBytes) * kPlanes });
-		scale4x(m_planar, m_scene.bitplanes());
+		eng::graphics::c2p_1x1_naive(kFireW, kFireH, kPlanes, kPlaneBytes, m_chunky.as_const(), m_planar);
+		scale4x(m_planar.data(), m_scene.bitplanes().data());
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -243,8 +235,8 @@ private:
 	bool m_benchmarked = false;
 	drivers::StaticEhbScene m_scene {};
 	eng::u16* m_fire = nullptr;    // fuego u16 80x64 (0..31)
-	eng::u8*  m_chunky = nullptr;  // chunky u8 80x64 (entrada del c2p)
-	eng::u8*  m_planar = nullptr;  // planar temporal 5x(80x64)
+	eng::ChunkyBuffer m_chunky {}; // chunky u8 80x64 (entrada del c2p)
+	eng::PlaneBytes m_planar {};   // planar temporal 5x(80x64)
 	eng::Xoroshiro64pp m_rng { 0x12345678u, 0x9abcdef0u };
 };
 

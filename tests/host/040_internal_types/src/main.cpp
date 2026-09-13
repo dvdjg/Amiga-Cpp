@@ -52,7 +52,6 @@ static_assert(AcceptsPatternSum<Pattern>, "sum_pattern acepta Pattern");
 // Sin coste: la vista es del tamano de un `Span`.
 static_assert(sizeof(PatternBytes) == sizeof(eng::Span<eng::u8>), "Bytes sin sobrecoste");
 static_assert(sizeof(Pattern) == sizeof(eng::Span<const eng::u8>), "ByteView sin sobrecoste");
-static_assert(sizeof(eng::PlaneIndex) == 1u && sizeof(eng::RowBytes) == 2u, "unidades densas");
 } // namespace
 
 int main() {
@@ -80,12 +79,6 @@ int main() {
 	check(pw.size() == 3u && pw[1] == 0x222u, "Words acceso");
 	pw[2] = 0x444u;
 	check(pal[2] == 0x444u, "Words escribe la memoria");
-
-	// Unidades fuertes y validacion de plano.
-	eng::PlaneCount planes {4};
-	check(eng::PlaneIndex::make(2u, planes).valid(planes), "PlaneIndex valido");
-	check(!eng::PlaneIndex {3}.valid(eng::PlaneCount {3}), "PlaneIndex fuera de rango");
-	check(eng::RowBytes {66}.value == 66u && eng::PixelWidth {320}.value == 320u, "unidades");
 
 	// Ergonomia tipo Span: array nativo (deduce tamano), iteradores y conversiones.
 	{

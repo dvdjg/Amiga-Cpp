@@ -18,6 +18,7 @@
 /// para aventuras graficas y escenas ricas porque duplica la gama percibida sin
 /// duplicar los registros fisicos de paleta.
 
+#include <eng/core/domains.hpp>
 #include <eng/core/types.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/driver.hpp>
@@ -206,7 +207,9 @@ public:
 	void end_frame(RenderContext&) {}
 
 	constexpr bool ok() const { return m_ok; }
-	constexpr u8* bitplanes() const { return m_bitplanes; }
+	/// Buffer de bitplanes como dominio (`PlaneBytes`), conecta directamente con
+	/// las APIs que lo piden (Blitter/C2P) sin `static_cast`.
+	[[nodiscard]] constexpr eng::PlaneBytes bitplanes() const { return m_bitplane_block.buffer<eng::PlaneTag>(); }
 	constexpr u16 copper_words() const { return m_copper_words; }
 	constexpr const u16* copper_words_ptr() const { return m_copper_words_ptr; }
 	constexpr const copper::ScheduleReport& copper_report() const { return m_copper_report; }

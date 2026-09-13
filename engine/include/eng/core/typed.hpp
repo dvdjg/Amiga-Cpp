@@ -226,30 +226,11 @@ private:
 
 // --- Unidades fuertes (evitan intercambiar parámetros) -----------------------
 
-struct PlaneCount { eng::u8 value = 0; constexpr explicit PlaneCount(eng::u8 v) noexcept : value(v) {} };
-
-/// Índice de plano validado contra un `PlaneCount`.
-struct PlaneIndex {
-	eng::u8 value = 0;
-	constexpr PlaneIndex() noexcept = default;
-	constexpr explicit PlaneIndex(eng::u8 v) noexcept : value(v) {}
-	/// Construye validando rango; en violación dispara `illegal` (como `Span::at`).
-	static constexpr PlaneIndex make(eng::u8 v, PlaneCount c) noexcept {
-		if (v >= c.value) detail::typed_range_error();
-		return PlaneIndex(v);
-	}
-	[[nodiscard]] constexpr bool valid(PlaneCount c) const noexcept { return value < c.value; }
-};
-
-struct RowBytes { eng::u16 value = 0; constexpr explicit RowBytes(eng::u16 v) noexcept : value(v) {} };
-struct ByteSize { eng::u32 value = 0; constexpr explicit ByteSize(eng::u32 v) noexcept : value(v) {} };
-struct PixelWidth { eng::u16 value = 0; constexpr explicit PixelWidth(eng::u16 v) noexcept : value(v) {} };
-struct PixelHeight { eng::u16 value = 0; constexpr explicit PixelHeight(eng::u16 v) noexcept : value(v) {} };
-struct WordCount { eng::u16 value = 0; constexpr explicit WordCount(eng::u16 v) noexcept : value(v) {} };
-struct ColorCount { eng::u8 value = 0; constexpr explicit ColorCount(eng::u8 v) noexcept : value(v) {} };
-struct ByteStride { eng::u32 value = 0; constexpr explicit ByteStride(eng::u32 v) noexcept : value(v) {} };
-
 // --- Direcciones y bases (semántica distinta a propósito) --------------------
+//
+// Nota de estilo: NO se envuelven escalares (ancho/alto/stride/planes…) en tipos
+// fuertes. Solo se tipan buffers/punteros y direcciones: envolver enteros no aporta
+// seguridad real y ensucia las llamadas. Los escalares van como `u8`/`u16`/`u32`.
 
 /// Base de la reserva de un bitmap (lo que va a `BPLxPT`).
 struct BitmapBase { eng::u8* value = nullptr; };

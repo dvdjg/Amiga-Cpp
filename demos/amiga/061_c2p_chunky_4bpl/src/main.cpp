@@ -121,20 +121,19 @@ struct C2pDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006103u);
 			return;
 		}
-		eng::u8* chunky = static_cast<eng::u8*>(chunky_block.data);
-		fill_chunky(chunky, kChunkyW, kChunkyH);
+		eng::ChunkyBuffer chunky = chunky_block.buffer<eng::ChunkyTag>();
+		fill_chunky(chunky.data(), kChunkyW, kChunkyH);
 
 		// Publica el resultado del c2p a los 4 primeros planos del escenario.
 		// `bplsize` = bytes de un plano completo (plano p a planes + p*kPlaneBytes).
 		eng::graphics::c2p_1x1_4(
-			eng::PixelWidth { kChunkyW }, eng::PixelHeight { kChunkyH },
-			eng::ByteStride { kPlaneBytes },
-			eng::ChunkyView { chunky, static_cast<eng::usize>(kChunkyW) * kChunkyH },
-			eng::PlaneBytes { m_scene.bitplanes(), static_cast<eng::u32>(kPlaneBytes) * 4u }
+			kChunkyW, kChunkyH, kPlaneBytes,
+			chunky_block.view<eng::ChunkyTag>(),
+			m_scene.bitplanes()
 		);
 
 		// Plano 5/6: a cero, para no activar half-brite sobre los indices base.
-		eng::u8* planes = m_scene.bitplanes();
+		eng::u8* planes = m_scene.bitplanes().data();
 		for (eng::u32 i = 0; i < kPlaneBytes; ++i) {
 			planes[4u * kPlaneBytes + i] = 0u;
 			planes[5u * kPlaneBytes + i] = 0u;

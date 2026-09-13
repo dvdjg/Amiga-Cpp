@@ -25,8 +25,12 @@ criterio:
   `Palette`, `CopperList`…) y no son intercambiables.
 - **Semántica en el tipo**: `BitmapBase` (base de `BPLxPT`) ≠ `FrontBase` (buffer de escritura)
   ≠ `PlaneBase` (vista de un plano) ≠ `ChipAddress` (dirección DMA).
-- **Unidades fuertes**: `PixelWidth` ≠ `PixelHeight` ≠ `RowBytes` ≠ `PlaneCount`; `PlaneIndex`
-  lleva rango validado.
+- **Solo se tipan buffers/punteros, no escalares**: los tipos de dominio envuelven rangos de
+  memoria (`Bytes`/`Words`), direcciones/base y roles. **No** se envuelven enteros sueltos
+  (ancho/alto/stride/planes): no aportan seguridad real, ensucian las llamadas y obligan a casts.
+- **El valor está en los valores devueltos**: los productores devuelven tipos de dominio
+  (p. ej. `Bitmap::bitplanes() -> PlaneBytes`, `MemoryBlock::buffer<Tag>()`), de modo que los
+  consumidores se conectan **sin casts** y el compilador rechaza mezclas de dominio.
 - **Conversión explícita**: cambiar de dominio (`Pattern` → `PatternWords`) o de vista
   (`Bytes<Tag>` → `Words<Tag>`) requiere un método con nombre; nunca hay conversiones implícitas
   entre dominios.
@@ -106,21 +110,17 @@ Tags (structs vacíos, cero coste) y alias de dominio:
 `BitmapBase` y `FrontBase` son **distintos a propósito**: el bug "usar el frontbuffer como base
 de `BPLxPT`" deja de compilar.
 
-### 3.3 Unidades y vocabulario (evitan intercambiar parámetros)
+### 3.3 Escalares: **no** se envuelven
 
-| Tipo | Envuelve | Uso |
-|---|---|---|
-| `PixelWidth`, `PixelHeight` | `u16` | no se pueden intercambiar |
-| `RowBytes` | `u16` | bytes por planelínea |
-| `ByteSize` | `u32` | tamaño de un bloque |
-| `PlaneCount` | `u8` | 1..6 |
-| `PlaneIndex` | `u8` | validado contra `PlaneCount` al construir |
-| `WordCount` | `u16` | nº de words de un blit/copia |
-| `TileSide` | `u16` | 16/32 (potencia de dos, `static_assert`) |
-| `ChunkLog2` | `u8` | tamaño de chunk (potencia de dos) |
+Los parámetros escalares (ancho, alto, `row_bytes`, `plane_bytes`, número de planos, número de
+words, stride…) van como `u8`/`u16`/`u32` **a secas**. Envolverlos en tipos fuertes (`PixelWidth`,
+`RowBytes`, `PlaneCount`…) no añade seguridad real, obliga a escribir casts en cada llamada y
+oscurece el código (ver `CODING_STYLE.md`). Como mucho se documenta la unidad en el nombre del
+parámetro.
 
-`PlaneIndex::make(value, PlaneCount)` dispara `illegal` (como `Span::at`) o es `consteval` si se
-conoce a priori.
+La seguridad de "no intercambiar parámetros" se consigue donde importa: **los buffers y las
+direcciones sí son tipos de dominio** y los productores los devuelven ya tipados (p. ej.
+`bitplanes() -> PlaneBytes`), así que una llamada normal no necesita ningún cast.
 
 ### 3.4 Handles y bloques (ownership)
 
@@ -137,7 +137,7 @@ conoce a priori.
   **comando del backend**, pero sus productores (`Surface`, `PlaneView`, `SoftDpfComposition`)
   solo aceptan tipos de dominio:
   ```cpp
-  BlitJob copy(PatternWords src, PlaneView dst, PlaneIndex p, Rect region);
+  BlitJob copy(eng::Pattern src, PlaneView dst, u8 plane, Rect region);
   ```
 - Se distingue **rol** además de contenido: `BlitSource` (const) y `BlitDest` (mut) evitan
   intercambiar origen y destino.
@@ -150,9 +150,9 @@ conoce a priori.
 |---|---|
 | `bind_single(u8* main_real, u8* main_front)` | `bind(BitmapBase, FrontBase)` |
 | `bind_raw(u8*, u8*, u8*, u8*)` | `bind(BitmapBase, FrontBase, BitmapBase, FrontBase)` |
-| `display_base() -> u8*` | `display() -> PlaneBase` (o `ChipAddress` para el Copper) |
-| `write_base() -> u8*` | `back() -> Bytes<PlanarRegion>` |
-| `make_copy_rect_job(const u8* pattern, ..., u16 words)` | `copy(PatternWords, PlaneIndex, Rect, WordCount)` |
+| `display_base() -> u8*` | `display() -> BitmapBase` (o `ChipAddress` para el Copper) |
+| `write_base() -> u8*` | `back() -> FrontBase` |
+| `make_copy_rect_job(const u8* pattern, ...)` | `make_copy_rect_job(Pattern, u16 row_bytes, ...)` |
 
 ### 4.2 Bitmap / arena / memoria
 
@@ -166,31 +166,33 @@ conoce a priori.
 
 ### 4.3 Backend gráfico (frontera unsafe, se documenta y se mantiene fina)
 
-| Actual | Propuesta |
+| Actual | Propuesta / hecho |
 |---|---|
-| `blitter_clear(u8* dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w, u16 h)` | `blitter_clear(Block<PlanarRegion>, PlaneCount, RowBytes, PlaneBytes, PixelWidth, PixelHeight)` |
-| `blit_fill_from_mask(const u8* mask, u8* dst, ...)` | `BlitMask (ByteView<MaskTag>)`, `Bytes<PlanarRegion>` |
-| `blitter_line(u8* plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1)` | `PlaneBase`/`Bytes<PlanarRegion>` + `RowBytes` + puntos |
-| `c2p(const void* chunky, void* planes)` | `ChunkyBuffer` → `Bytes<PlanarRegion>` |
-| `move_bitplane_pointer(u8 plane, const void* address)` | `PlaneIndex` + `ChipAddress` |
+| `blitter_clear(u8* dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w, u16 h)` | `blitter_clear(PlaneBytes, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w, u16 h)` |
+| `blit_fill_from_mask(const u8* mask, u8* dst, ...)` | `blit_fill_from_mask(MaskBytes, PlaneBytes, u8 planes, ...)` |
+| `blitter_line(u8* plane, u16 row_bytes, ...)` | `blitter_line(PlaneBytes, u16 row_bytes, ...)` |
+| `c2p(const void* chunky, void* planes)` | `c2p(u32 w, u32 h, u32 stride, ChunkyView, PlaneBytes)` |
+| `move_bitplane_pointer(u8 plane, const void* address)` | `u8 plane` + `ChipAddress` |
+| `bitplanes() -> u8*` (escenas) | `bitplanes() -> PlaneBytes` (devuelto, sin cast) |
+| `MemoryBlock::data` crudo | `MemoryBlock::buffer<Tag>()` / `view<Tag>()` |
 
 ### 4.4 Copper / escenas EHB/HAM/tile
 
 | Actual | Propuesta |
 |---|---|
 | `CopperBuilder(m_words)` sobre `u16*` | `Words<CopperTag>`; `patch_move32(..., const void*)` → `ChipAddress` |
-| `emit_palette(const u16* colors, u8 first, u8 count)` | `PaletteWords`, `PaletteFirst`, `ColorCount` |
-| `ehb_scene::bitplanes() -> u8*` | `Bytes<PlanarRegion>` |
+| `emit_palette(const u16* colors, u8 first, u8 count)` | `PaletteWords`, `u8 first`, `u8 count` |
+| `ehb_scene::bitplanes() -> u8*` | `PlaneBytes` |
 
 ### 4.5 Contenido / assets / streaming
 
 | Actual | Propuesta |
 |---|---|
-| UAF `read_be16(const u8*)` / `Blob` | `ByteView<UafPayload>` + `ByteCursor` |
-| `WorldView::decode_chunk(..., u16* dst, u32 dst_count)` | `decode_chunk(..., Words<TileBank>, WordCount)` |
-| `ChunkCache::Loader { LoadResult (*)(void*, s32, s32, u16*) }` | `ChunkLoader<Src>` con `WordCount` y `Words<TileBank>` |
-| `xlimited_build_blocks_bitmap(..., const u8* indexed, u32 stride)` | `TileIndexed`, `ByteStride` |
-| `Surface::draw_text(s32, s32, const char*, u8)` | `Utf8`, `PaletteIndex` |
+| UAF `read_be16(const u8*)` / `Blob` | `ByteView<UafPayload>` (hecho) |
+| `WorldView::decode_chunk(..., u16* dst, u32 dst_count)` | `decode_chunk(..., Words<TileBankBuffer>)` (hecho) |
+| `ChunkCache::Loader { LoadResult (*)(void*, s32, s32, u16*) }` | `Loader` con `Words<TileBankBuffer>` (hecho) |
+| `xlimited_build_blocks_bitmap(..., const u8* indexed, u32 stride)` | `TileIndexed`, `u32 stride` |
+| `Surface::draw_text(s32, s32, const char*, u8)` | `u8 color` |
 
 ### 4.6 Audio y tareas de fondo
 
@@ -222,19 +224,16 @@ public:
 };
 ```
 
-El productor (`SoftDpfComposition::copy`) recibe `PatternWords` y `PlaneIndex`, no `const u8*` y
-`u8`; el `BlitJob` resultante sigue crudo, generado **dentro** de la capa segura.
+El productor (`SoftDpfComposition::copy`) recibe `Pattern` y `u8 plane`, no `const u8*`; el `BlitJob`
+resultante sigue crudo, generado **dentro** de la capa segura.
 
 ## 6. Coste en 68000 y verificación
 
-- Los envoltorios son `struct` de un solo miembro (`[[no_unique_address]]` no hace falta): mismo
-  tamaño y misma copia que el tipo envuelto; `constexpr` salvo donde haya validación runtime.
-- `PlaneIndex::make` puede ser `consteval` cuando el índice es constante (todos los usos del
-  engine lo son salvo `parallax_plane` de config); el caso runtime usa una comprobación con
-  `illegal` como `Span::at`.
+- Los envoltorios son `struct` de un solo miembro: mismo tamaño y misma copia que el tipo
+  envuelto; `constexpr` en todo lo que no valide runtime. Verificado por `sizeof` en HOST-040.
 - **Verificación obligatoria** (regla de `AGENTS.md`): comparar el asm con `-S`/`-fverbose-asm`
   antes/después de cada migración y anotarlo en `docs/guides/optimization/OPTIMIZACION_GPP_68000.md`.
-- La capa unsafe no añade instrucciones: `raw()` es una lectura de miembro.
+- La capa unsafe no añade instrucciones: `raw()`/`data()` son una lectura de miembro.
 
 ## 7. Compatibilidad con la frontera pública
 
@@ -248,8 +247,9 @@ El productor (`SoftDpfComposition::copy`) recibe `PatternWords` y `PlaneIndex`, 
 
 ## 8. Migración por fases
 
-1. **Fundamento**: `eng/core/typed.hpp` con `Bytes/ByteView/Words/WordView` y el vocabulario
-   (`PlaneIndex`, `RowBytes`, `PixelWidth/Height`, `ChipAddress`…), más un test host puro.
+1. **Fundamento**: `eng/core/typed.hpp` con `Bytes/ByteView/Words/WordView` (array/iteradores) +
+   `eng/core/domains.hpp` con los tags/alias y tipos de dirección/base (`ChipAddress`…), más un test
+   host puro.
 2. **Frontera de memoria**: `BitmapBase`/`FrontBase`, `Bitmap`, `Block<Tag>`/`LinearArena`.
 3. **PlaneView + SoftDpfComposition**: primer consumidor real (los punteros `u8*` pasan a
    `BitmapBase`/`FrontBase`/`PlaneBytes`).
@@ -264,16 +264,16 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
 
 ### 8.1 Estado de implementación
 
-- **Fase 1 — hecha**: `eng/core/typed.hpp` (vistas con tag + unidades + bases) y
+- **Fase 1 — hecha**: `eng/core/typed.hpp` (vistas con tag, array/iteradores, direcciones/base) y
   `eng/core/domains.hpp` (tags/alias de dominio). Test HOST-040.
 - **Fase 2 — hecha**: `Bitmap::base()`/`front()`; `PlaneView` y `SoftDpfComposition` usan
   `BitmapBase`/`FrontBase` en `bind*`/`display_base`/`write_base` (`XLimitedPlayfield` cruza a
   crudo solo en `hardware_view`). HOST-038/039 actualizados; 112 sin regresión.
-- **Fase 3 — hecha (roles)**: `BlitSource`/`BlitDest` en `BlitJob` (el backend lee `job.source.words`,
-  etc.); `SoftDpfComposition::make_copy_*` recibe `Pattern` (vista **con tamaño**), `RowBytes` y
-  `WordCount`, con **validación de rango** (violación → `illegal`). Los agregados `BlitJob{...}` de
-  demos siguen compilando (conversión de rol implícita desde crudo); falta tipar `Surface`/
-  `FramePlan` (paleta/copper).
+  **Productores tipados**: `MemoryBlock::buffer<Tag>()`/`view<Tag>()`, y escenas/bitmaps devuelven
+  `PlaneBytes` (`bitplanes()`, `plane(i)`); los consumidores conectan sin cast.
+- **Fase 3 — hecha (roles)**: `BlitSource`/`BlitDest` en `BlitJob` (el backend lee `job.source.words`);
+  `SoftDpfComposition::make_copy_*` recibe `Pattern` (vista **con tamaño**) y escalares `u16`, con
+  **validación de rango** (violación → `illegal`). Falta tipar `Surface`/`FramePlan` (paleta/copper).
 - **Fase 4 — hecha**: `Blob`/`Reader`/`BlobWriter`, las vistas UAF y `WorldView::read` usan
   `eng::UafPayload` (`ByteView<UafTag>`); `ChunkCache::Loader`, `StreamingWorldMap::Source`,
   `WorldMapChunkLoader` y `WorldView::decode_chunk<Tag>` usan `eng::TileBankBuffer`. HOST-012/031/

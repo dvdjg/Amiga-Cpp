@@ -19,6 +19,7 @@
 /// repeticion, paleta, linea base): no hay un caso "320x256 HAM6" cableado, de
 /// modo que sirve igual para otras resoluciones/modos planares.
 
+#include <eng/core/domains.hpp>
 #include <eng/core/types.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/driver.hpp>
@@ -165,9 +166,11 @@ public:
 	void end_frame(RenderContext&) {}
 
 	constexpr bool ok() const { return m_ok; }
-	constexpr u8* bitplanes() const { return m_bitplanes; }
-	constexpr u8* plane(u8 index) const {
-		return (index < m_config.planes) ? (m_bitplanes + static_cast<u32>(index) * m_plane_bytes) : nullptr;
+	constexpr eng::PlaneBytes bitplanes() const { return { m_bitplanes, m_plane_bytes * m_config.planes }; }
+	constexpr eng::PlaneBytes plane(u8 index) const {
+		return (index < m_config.planes)
+			? bitplanes().subspan(static_cast<eng::u32>(index) * m_plane_bytes, m_plane_bytes)
+			: eng::PlaneBytes {};
 	}
 	constexpr u32 plane_bytes() const { return m_plane_bytes; }
 	constexpr u8 plane_count() const { return m_config.planes; }

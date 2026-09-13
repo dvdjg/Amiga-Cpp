@@ -194,8 +194,8 @@ public:
 	/// tamano que el destino. Es la ruta rapida de hardware; el llamador conserva
 	/// las rutinas CPU por tramos de byte como alternativa (p. ej. `fill_span`).
 	bool fill_triangles_blitter(const FlatTriangle* tris, u32 count,
-				    eng::Bytes<eng::PlaneTag> dst, eng::PlaneCount planes, eng::RowBytes row_bytes,
-				    eng::ByteSize plane_bytes, eng::MaskBuffer mask);
+				    eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes,
+				    eng::MaskBuffer mask);
 
 	/// Ruta robusta de relleno con Blitter: el llamador construye con la CPU una
 	/// **máscara** de 1 bit (por tramos, `fill_span`) y el Blitter hace el
@@ -203,9 +203,8 @@ public:
 	/// color esta a 1, `D=~A&D` si a 0). Combina lo mejor de ambos: la CPU escribe 1
 	/// plano y el Blitter (en paralelo) materializa los planos de color. La region
 	/// se ajusta a palabra automaticamente.
-	bool blit_fill_from_mask(eng::MaskBytes mask, eng::Bytes<eng::PlaneTag> dst, eng::PlaneCount planes,
-				 eng::RowBytes row_bytes, eng::ByteSize plane_bytes,
-				 s16 x, s16 y, u16 w, u16 h, u8 color);
+	bool blit_fill_from_mask(eng::MaskBytes mask, eng::PlaneBytes dst, u8 planes, u16 row_bytes,
+				 u32 plane_bytes, s16 x, s16 y, u16 w, u16 h, u8 color);
 
 	/// Dibuja una linea por hardware con el Blitter, en la secuencia EXACTA de
 	/// `DrawObject` de la demo `wireframe` del demoscene (line mode OR, sin ONEDOT):
@@ -213,12 +212,11 @@ public:
 	/// SIGNFLAG|rorw(x0&15,4)`, `bltamod = derr-dmax`, `bltbmod = dmin*2`,
 	/// `bltapt = (void*)derr`, `bltsize = (dmax<<6)+66`. `row_bytes` = bytes por
 	/// fila del plano (el original usa WIDTH/8). Linea OR sobre el destino.
-	bool blitter_line(eng::Bytes<eng::PlaneTag> plane, eng::RowBytes row_bytes, s16 x0, s16 y0, s16 x1, s16 y1);
+	bool blitter_line(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1);
 
 	/// Borra (D=0) una region de `w`x`h` en `planes` planos contiguos con separacion
 	/// `plane_bytes`, alineando a palabra. Equivale a `BlitterClear` del demoscene.
-	bool blitter_clear(eng::Bytes<eng::PlaneTag> dst, eng::PlaneCount planes, eng::RowBytes row_bytes,
-			   eng::ByteSize plane_bytes, eng::PixelWidth w, eng::PixelHeight h);
+	bool blitter_clear(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w, u16 h);
 
 	/// Escribe el registro de datos de un bitplane (`BLTxDAT`, $110 + 2*plane). Lo
 	/// usa fire-rgb para los bits HAM fijos de los planos 4/5 (`0x7777`/`0xcccc`).

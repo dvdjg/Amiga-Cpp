@@ -56,15 +56,12 @@ inline void store_word_be(u8* p, u16 v) {
 } // namespace c2p_detail
 
 inline void c2p_1x1_4(
-	eng::PixelWidth width_px,
-	eng::PixelHeight height_px,
-	eng::ByteStride plane_stride_bytes,
+	u32 width,
+	u32 height,
+	u32 stride,
 	eng::ChunkyView chunky,
-	eng::Bytes<eng::PlaneTag> planes
+	eng::PlaneBytes planes
 ) {
-	const u32 width = width_px.value;
-	const u32 height = height_px.value;
-	const u32 stride = plane_stride_bytes.value;
 	const u32 row_bytes = width >> 3u; // bytes por fila en un plano (width/8)
 	const u8* src = chunky.data();
 	u8* base = planes.data();
@@ -146,17 +143,13 @@ inline void c2p_1x1_4(
 /// chunky 1 byte/pixel, bits 0..planes-1 = índice; salida planar, filas contiguas
 /// (`row_bytes = width/8`), planos a `planes + p*plane_stride_bytes`.
 inline void c2p_1x1_naive(
-	eng::PixelWidth width_px,
-	eng::PixelHeight height_px,
-	eng::PlaneCount planes_n,
-	eng::ByteStride plane_stride_bytes,
+	u32 width,
+	u32 height,
+	u32 planes,
+	u32 stride,
 	eng::ChunkyView chunky,
-	eng::Bytes<eng::PlaneTag> out_planes
+	eng::PlaneBytes out_planes
 ) {
-	const u32 width = width_px.value;
-	const u32 height = height_px.value;
-	const u32 planes = planes_n.value;
-	const u32 stride = plane_stride_bytes.value;
 	const u32 row_bytes = width >> 3u;
 	const u8* src = chunky.data();
 	u8* base = out_planes.data();

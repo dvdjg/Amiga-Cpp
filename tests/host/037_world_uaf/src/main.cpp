@@ -59,7 +59,7 @@ int main() {
 	u8 blob_buf[1024] {};
 	BlobWriter writer {eng::Span<u8>(blob_buf, sizeof(blob_buf))};
 	check(writer.begin(), "BlobWriter::begin");
-	check(writer.add_chunk(ChunkType::WorldMap, 1u, eng::UafPayload(world, kWorld)),
+	check(writer.add_chunk(ChunkType::WorldMap, 1u, eng::UafPayload{world}),
 	      "add_chunk WorldMap");
 	const eng::UafPayload out = writer.finish();
 	check(out.size() == writer.size() && out.size() > kWorld, "finish");

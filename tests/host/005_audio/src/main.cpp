@@ -48,7 +48,7 @@ void test_first_fit() {
 	const eng::u8 sample[8] {};
 
 	SampleEvent ev {};
-	ev.sample = eng::AudioSample{sample, 8u};
+	ev.sample = eng::AudioSample{sample};
 	ev.length_words = 4;
 	for (int i = 0; i < 4; ++i) {
 		CHECK(mixer.play(ev) == true);
@@ -64,7 +64,7 @@ void test_channel_hint() {
 	const eng::u8 sample[8] {};
 
 	SampleEvent ev {};
-	ev.sample = eng::AudioSample{sample, 8u};
+	ev.sample = eng::AudioSample{sample};
 	ev.length_words = 4;
 	ev.channel_hint = 2;
 	CHECK(mixer.play(ev) == true);
@@ -78,7 +78,7 @@ void test_begin_frame_resets() {
 	const eng::u8 sample[8] {};
 
 	SampleEvent ev {};
-	ev.sample = eng::AudioSample{sample, 8u};
+	ev.sample = eng::AudioSample{sample};
 	ev.length_words = 4;
 	mixer.play(ev);
 	CHECK(mixer.active_count() == 1u);

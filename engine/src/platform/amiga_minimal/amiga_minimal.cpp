@@ -681,9 +681,9 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 }
 
 bool MinimalBackend::fill_triangles_blitter(const FlatTriangle* tris, u32 count,
-					    eng::Bytes<eng::PlaneTag> dst, eng::PlaneCount planes, eng::RowBytes row_bytes,
-					    eng::ByteSize plane_bytes, eng::MaskBuffer mask) {
-	if (tris == nullptr || dst.data() == nullptr || mask.data() == nullptr || planes.value == 0u) {
+					    eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes,
+					    eng::MaskBuffer mask) {
+	if (tris == nullptr || dst.data() == nullptr || mask.data() == nullptr || planes == 0u) {
 		return false;
 	}
 	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
@@ -713,23 +713,22 @@ bool MinimalBackend::fill_triangles_blitter(const FlatTriangle* tris, u32 count,
 		const u16 h = static_cast<u16>(ymax - ymin + 1);
 
 		// 1) mascara limpia, 2) contorno, 3) area fill, 4) cookie-cut a color.
-		blit_clear_region(mask.data(), row_bytes.value, wx0, ymin, words, h);
-		blit_line(mask.data(), row_bytes.value, t.x0, t.y0, t.x1, t.y1);
-		blit_line(mask.data(), row_bytes.value, t.x1, t.y1, t.x2, t.y2);
-		blit_line(mask.data(), row_bytes.value, t.x2, t.y2, t.x0, t.y0);
-		blit_fill_region(mask.data(), row_bytes.value, wx0, ymin, words, h);
-		for (u8 p = 0; p < planes.value; ++p) {
-			blit_mask_to_plane(dst.data() + static_cast<u32>(p) * plane_bytes.value, row_bytes.value, mask.data(),
+		blit_clear_region(mask.data(), row_bytes, wx0, ymin, words, h);
+		blit_line(mask.data(), row_bytes, t.x0, t.y0, t.x1, t.y1);
+		blit_line(mask.data(), row_bytes, t.x1, t.y1, t.x2, t.y2);
+		blit_line(mask.data(), row_bytes, t.x2, t.y2, t.x0, t.y0);
+		blit_fill_region(mask.data(), row_bytes, wx0, ymin, words, h);
+		for (u8 p = 0; p < planes; ++p) {
+			blit_mask_to_plane(dst.data() + static_cast<u32>(p) * plane_bytes, row_bytes, mask.data(),
 					   wx0, ymin, words, h, ((t.color >> p) & 1u) != 0u);
 		}
 	}
 	return wait_blitter();
 }
 
-bool MinimalBackend::blit_fill_from_mask(eng::MaskBytes mask, eng::Bytes<eng::PlaneTag> dst, eng::PlaneCount planes,
-					 eng::RowBytes row_bytes, eng::ByteSize plane_bytes,
-					 s16 x, s16 y, u16 w, u16 h, u8 color) {
-	if (mask.data() == nullptr || dst.data() == nullptr || planes.value == 0u || w == 0u || h == 0u) {
+bool MinimalBackend::blit_fill_from_mask(eng::MaskBytes mask, eng::PlaneBytes dst, u8 planes, u16 row_bytes,
+					 u32 plane_bytes, s16 x, s16 y, u16 w, u16 h, u8 color) {
+	if (mask.data() == nullptr || dst.data() == nullptr || planes == 0u || w == 0u || h == 0u) {
 		return false;
 	}
 	s16 x0 = x, y0 = y;
@@ -748,14 +747,14 @@ bool MinimalBackend::blit_fill_from_mask(eng::MaskBytes mask, eng::Bytes<eng::Pl
 	const u16 hh = static_cast<u16>(y1 - y0 + 1);
 
 	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
-	for (u8 p = 0; p < planes.value; ++p) {
-		blit_mask_to_plane(dst.data() + static_cast<u32>(p) * plane_bytes.value, row_bytes.value, mask.data(),
+	for (u8 p = 0; p < planes; ++p) {
+		blit_mask_to_plane(dst.data() + static_cast<u32>(p) * plane_bytes, row_bytes, mask.data(),
 				   wx0, y0, words, hh, ((color >> p) & 1u) != 0u);
 	}
 	return wait_blitter();
 }
 
-bool MinimalBackend::blitter_line(eng::Bytes<eng::PlaneTag> plane, eng::RowBytes row_bytes, s16 x0, s16 y0, s16 x1, s16 y1) {
+bool MinimalBackend::blitter_line(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1) {
 	if (plane.data() == nullptr) {
 		return false;
 	}
@@ -766,8 +765,8 @@ bool MinimalBackend::blitter_line(eng::Bytes<eng::PlaneTag> plane, eng::RowBytes
 	custom_base[custom_bltalwm_offset] = 0xffff;
 	custom_base[custom_bltadat_offset] = 0x8000;
 	custom_base[custom_bltbdat_offset] = 0xffff;
-	custom_base[custom_bltcmod_offset] = row_bytes.value;
-	custom_base[custom_bltdmod_offset] = row_bytes.value;
+	custom_base[custom_bltcmod_offset] = row_bytes;
+	custom_base[custom_bltdmod_offset] = row_bytes;
 
 	if (y0 > y1) {
 		s16 t = x0; x0 = x1; x1 = t;
@@ -789,7 +788,7 @@ bool MinimalBackend::blitter_line(eng::Bytes<eng::PlaneTag> plane, eng::RowBytes
 		const s16 t = dmax; dmax = dmin; dmin = t;
 	}
 
-	u8* data = plane.data() + static_cast<u32>(y0) * row_bytes.value + (static_cast<u32>(x0) >> 3);
+	u8* data = plane.data() + static_cast<u32>(y0) * row_bytes + (static_cast<u32>(x0) >> 3);
 	data = reinterpret_cast<u8*>(reinterpret_cast<u32>(data) & ~1u);
 
 	dmin = static_cast<s16>(dmin << 1);
@@ -816,15 +815,14 @@ bool MinimalBackend::blitter_line(eng::Bytes<eng::PlaneTag> plane, eng::RowBytes
 	return wait_blitter();
 }
 
-bool MinimalBackend::blitter_clear(eng::Bytes<eng::PlaneTag> dst, eng::PlaneCount planes, eng::RowBytes row_bytes,
-				   eng::ByteSize plane_bytes, eng::PixelWidth w, eng::PixelHeight h) {
-	if (dst.data() == nullptr || planes.value == 0u || w.value < 16u || h.value == 0u) {
+bool MinimalBackend::blitter_clear(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w, u16 h) {
+	if (dst.data() == nullptr || planes == 0u || w < 16u || h == 0u) {
 		return false;
 	}
 	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
-	const u16 words = static_cast<u16>(w.value / 16u);
-	for (u8 p = 0; p < planes.value; ++p) {
-		blit_clear_region(dst.data() + static_cast<u32>(p) * plane_bytes.value, row_bytes.value, 0, 0, words, h.value);
+	const u16 words = static_cast<u16>(w / 16u);
+	for (u8 p = 0; p < planes; ++p) {
+		blit_clear_region(dst.data() + static_cast<u32>(p) * plane_bytes, row_bytes, 0, 0, words, h);
 	}
 	return wait_blitter();
 }

@@ -32,9 +32,9 @@ int main() {
 
 	// Blit: destino en el buffer trasero, fila del plano de parallax.
 	const eng::Pattern pat {pattern, sizeof(pattern)};
-	auto job = c.make_copy_rect_job(pat, eng::RowBytes {row}, /*src_x=*/3u, /*src_y=*/1u,
+	auto job = c.make_copy_rect_job(pat, row, /*src_x=*/3u, /*src_y=*/1u,
 	                                /*dest_row=*/2u, /*rows=*/4u,
-	                                /*dest_byte_off=*/6u, eng::WordCount {10u});
+	                                /*dest_byte_off=*/6u, 10u);
 	check(job.height == 4u && job.words_per_row == 10u && job.bitplane_count == 1u, "geometría del job");
 	check(job.destination.words == reinterpret_cast<eng::u16*>(ef + (2u * 5u + 4u) * row + 6u),
 	      "destino en el BACK, plano parallax");
@@ -48,12 +48,12 @@ int main() {
 
 	// flip: el blit pasa al bitmap principal.
 	c.flip();
-	auto job2 = c.make_copy_rect_job(pat, eng::RowBytes {row}, 3u, 1u, 2u, 4u, 6u, eng::WordCount {10u});
+	auto job2 = c.make_copy_rect_job(pat, row, 3u, 1u, 2u, 4u, 6u, 10u);
 	check(job2.destination.words == reinterpret_cast<eng::u16*>(mf + (2u * 5u + 4u) * row + 6u),
 	      "tras flip: destino en el MAIN");
 
 	// Fila completa (compatibilidad): display_height filas, dest_row 0.
-	auto full = c.make_copy_job(pat, eng::RowBytes {row}, 3u, 0u);
+	auto full = c.make_copy_job(pat, row, 3u, 0u);
 	check(full.height == 288u && full.words_per_row == row / 2u, "make_copy_job (fila completa)");
 
 	// Inactiva: parallax_plane fuera de planes -> sin doble buffer.

@@ -132,7 +132,7 @@ struct BackgroundDemo {
 
 		// Proceso de fondo: la barra progresa fila a fila. El engine lo drena en el
 		// hueco de VBlank; el bucle principal sigue teniendo prioridad.
-		m_fill.plane = m_plane0;
+		m_fill.plane = m_plane0.data();
 		m_fill.row = 0;
 		m_context = &context;
 		if (context.background != nullptr) {
@@ -161,11 +161,10 @@ struct BackgroundDemo {
 		// Elemento animado del bucle principal, dibujado por HW: limpia una banda y
 		// traza una linea que baja. Ambos blits esperan al Blitter, y ahi el engine
 		// drena las tareas de fondo (`set_blitter_service`) sin parar el juego.
-		backend.blitter_clear(eng::PlaneBytes { m_plane1 + static_cast<eng::u32>(kLineBandTop) * kBytesPerRow, kPlaneBytes },
-				      eng::PlaneCount { 1u }, eng::RowBytes { kBytesPerRow }, eng::ByteSize { kPlaneBytes },
-				      eng::PixelWidth { kWidth }, eng::PixelHeight { kLineBandRows });
+		backend.blitter_clear(m_plane1.subspan(static_cast<eng::u32>(kLineBandTop) * kBytesPerRow),
+				      1u, kBytesPerRow, kPlaneBytes, kWidth, kLineBandRows);
 		const eng::s16 y = static_cast<eng::s16>(kLineBandTop + (m_line_y % kLineBandRows));
-		backend.blitter_line(eng::PlaneBytes { m_plane1, kPlaneBytes }, eng::RowBytes { kBytesPerRow }, 0, y, static_cast<eng::s16>(kWidth - 1), y);
+		backend.blitter_line(m_plane1, kBytesPerRow, 0, y, static_cast<eng::s16>(kWidth - 1), y);
 		m_line_y = static_cast<eng::u16>((m_line_y + 2u) % kLineBandRows);
 
 		if (context.background == nullptr) return;
@@ -180,7 +179,7 @@ struct BackgroundDemo {
 			// Terminado: libera el slot (estaba en `Done`) y reinicia la barra para
 			// mostrar el ciclo de nuevo.
 			context.background->cancel(m_task);
-			auto* band = m_plane0 + static_cast<eng::u32>(kBarTop) * kBytesPerRow;
+			auto* band = m_plane0.data() + static_cast<eng::u32>(kBarTop) * kBytesPerRow;
 			for (eng::u32 i = 0; i < static_cast<eng::u32>(kBytesPerRow) * kBarRows; ++i) {
 				band[i] = 0u;
 			}
@@ -205,8 +204,8 @@ struct BackgroundDemo {
 
 private:
 	drivers::HamScene m_scene {};
-	eng::u8* m_plane0 = nullptr;
-	eng::u8* m_plane1 = nullptr;
+	eng::PlaneBytes m_plane0 {};
+	eng::PlaneBytes m_plane1 {};
 	FillTask m_fill {};
 	task::TaskHandle m_task {};
 	eng::GameContext* m_context = nullptr;

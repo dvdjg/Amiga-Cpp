@@ -331,7 +331,7 @@ struct DemoGame {
 		eng::graphics::BlitJob job {};
 		job.source = m_blank;
 		job.destination = reinterpret_cast<eng::u16*>(
-			m_scene.bitplanes() + static_cast<eng::u32>(kClearY) * kRowBytes + kClearX / 8);
+			m_scene.bitplanes().data() + static_cast<eng::u32>(kClearY) * kRowBytes + kClearX / 8);
 		job.words_per_row = kClearWords;
 		job.height = static_cast<eng::u16>(kClearH);
 		job.source_modulo_bytes = 0; // filas contiguas en la fuente
@@ -362,7 +362,7 @@ struct DemoGame {
 #if K_FILL_BLITTER
 		Canvas mc {m_mask, 1}; // mascara 1 bit (Chip)
 #else
-		Canvas c {m_scene.bitplanes()};
+		Canvas c {m_scene.bitplanes().data()};
 #endif
 		for (eng::u32 i = 0; i < visible; ++i) {
 			const Face& fc = m_faces[order[i].index];
@@ -388,10 +388,8 @@ struct DemoGame {
 			mc.clear_rect(xmin, ymin, xmax, ymax);
 			fill_tri(mc, ax, ay, bx, by, cx, cy, 1u);
 			if (!backend.blit_fill_from_mask(
-				    eng::MaskBytes { m_mask, kPlaneBytes },
-				    eng::PlaneBytes { m_scene.bitplanes(),
-				                      static_cast<eng::u32>(kPlaneBytes) * static_cast<eng::u32>(kPlanes) },
-				    eng::PlaneCount { kPlanes }, eng::RowBytes { kRowBytes }, eng::ByteSize { kPlaneBytes },
+				    m_mask_block.view<eng::MaskTag>(), m_scene.bitplanes(),
+				    kPlanes, kRowBytes, kPlaneBytes,
 				    xmin, ymin,
 				    static_cast<eng::u16>(xmax - xmin + 1),
 				    static_cast<eng::u16>(ymax - ymin + 1), col)) {
@@ -457,7 +455,7 @@ private:
 	}
 
 	void draw_static() {
-		Canvas c {m_scene.bitplanes()};
+		Canvas c {m_scene.bitplanes().data()};
 		for (eng::s32 i = 0; i < 2; ++i) {
 			const eng::s32 x0 = 6 + i * 4, y0 = 6 + i * 4;
 			const eng::s32 x1 = static_cast<eng::s32>(kWidth) - 7 - i * 4;

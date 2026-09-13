@@ -19,6 +19,7 @@
 /// - Close-to-the-metal: tomar el sistema y construir arenas sobre rangos fisicos.
 
 #include <eng/core/types.hpp>
+#include <eng/core/typed.hpp>
 
 namespace eng {
 
@@ -45,6 +46,18 @@ struct MemoryBlock {
 
 	constexpr bool valid() const {
 		return data != nullptr && size != 0;
+	}
+
+	/// Vista tipada mutable del bloque (dominio `Tag`): evita `static_cast` y
+	/// conecta directamente con APIs que piden `Bytes<Tag>`.
+	template <class Tag>
+	[[nodiscard]] constexpr Bytes<Tag> buffer() const noexcept {
+		return Bytes<Tag> { static_cast<u8*>(data), size };
+	}
+	/// Vista tipada de solo lectura del bloque.
+	template <class Tag>
+	[[nodiscard]] constexpr ByteView<Tag> view() const noexcept {
+		return ByteView<Tag> { static_cast<const u8*>(data), size };
 	}
 };
 

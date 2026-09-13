@@ -93,10 +93,10 @@ int main() {
 		check(w.begin(), "writer begin");
 
 		const eng::u8 pal[4] = {0x0F, 0x00, 0x00, 0xF0}; // 2 colores RGB444
-		check(w.add_chunk(ChunkType::Palette, 2, eng::UafPayload(pal, 4)), "writer add palette");
+		check(w.add_chunk(ChunkType::Palette, 2, eng::UafPayload{pal}), "writer add palette");
 
 		const eng::u8 snd[3] = {0x80, 0x40, 0xC0};
-		check(w.add_chunk(ChunkType::Samples, 3, eng::UafPayload(snd, 3)), "writer add sample");
+		check(w.add_chunk(ChunkType::Samples, 3, eng::UafPayload{snd}), "writer add sample");
 
 		const eng::UafPayload out = w.finish();
 		check(w.ok(), "writer ok");
@@ -128,7 +128,7 @@ int main() {
 		eng::u8 store[128];
 		BlobWriter w {eng::Span<eng::u8>(store, sizeof(store))};
 		w.begin();
-		check(w.add_chunk(ChunkType::Bitplanes, 1, eng::UafPayload(bp, 14)), "writer add bitplanes");
+		check(w.add_chunk(ChunkType::Bitplanes, 1, eng::UafPayload{bp}), "writer add bitplanes");
 		Blob bb;
 		check(bb.bind(w.finish()), "bitplanes bind");
 
@@ -142,7 +142,7 @@ int main() {
 	// Reader: comprobacion de limites.
 	{
 		const eng::u8 d[2] = {0x12, 0x34};
-		Reader r {eng::UafPayload(d, 2)};
+		Reader r {eng::UafPayload{d}};
 		check(r.read_u16() == 0x1234, "Reader u16 big-endian");
 		check(r.remaining() == 0 && r.ok(), "Reader agotado sigue ok");
 		check(r.read_u8() == 0 && !r.ok(), "Reader underflow -> !ok");
@@ -162,11 +162,11 @@ int main() {
 	// TilesView: banco de tiles de tamano fijo.
 	{
 		const eng::u8 tiles[6] = {1, 2, 3, 4, 5, 6};
-		TilesView tv {eng::UafPayload(tiles, 6), 2};
+		TilesView tv {eng::UafPayload{tiles}, 2};
 		check(tv.count() == 3, "TilesView count");
 		check(tv.tile(1).size() == 2 && tv.tile(1)[0] == 3 && tv.tile(1)[1] == 4, "TilesView tile 1");
 		check(tv.tile(3).empty(), "TilesView fuera de rango -> vacio");
-		TilesView none {eng::UafPayload(tiles, 6), 0};
+		TilesView none {eng::UafPayload{tiles}, 0};
 		check(none.count() == 0, "TilesView tile_bytes=0 -> count 0");
 	}
 
@@ -176,7 +176,7 @@ int main() {
 		write_be16(sprites, 2);
 		write_be16(sprites + 2, 0x1234); write_be16(sprites + 4, 0x5678);
 		write_be16(sprites + 6, 0x9abc); write_be16(sprites + 8, 0xdef0);
-		const SpritesView sv {eng::UafPayload(sprites, sizeof(sprites))};
+		const SpritesView sv {eng::UafPayload{sprites}};
 		check(sv.words_per_sprite() == 2 && sv.count() == 2, "SpritesView count");
 		check(sv.word(0, 0) == 0x1234 && sv.word(1, 0) == 0x9abc && sv.word(1, 1) == 0xdef0, "SpritesView datos");
 		check(sv.word(2, 0) == 0 && sv.word(0, 5) == 0, "SpritesView fuera de rango -> 0");
@@ -187,7 +187,7 @@ int main() {
 		eng::u8 cop[8];
 		write_be16(cop, 0x2c81); write_be16(cop + 2, 0x2cc1);
 		write_be16(cop + 4, 0xffff); write_be16(cop + 6, 0xfffe);
-		const CopperView cv {eng::UafPayload(cop, 8)};
+		const CopperView cv {eng::UafPayload{cop}};
 		check(cv.count() == 4 && cv.word(0) == 0x2c81 && cv.word(3) == 0xfffe, "CopperView");
 		check(cv.word(4) == 0, "CopperView fuera de rango -> 0");
 	}
@@ -203,7 +203,7 @@ int main() {
 		write_be16(mesh + 12, static_cast<eng::u16>(-48));
 		write_be16(mesh + 14, static_cast<eng::u16>(-48));
 		write_be16(mesh + 16, 0); write_be16(mesh + 18, 1); write_be16(mesh + 20, 1);
-		const MeshAssetView mv {eng::UafPayload(mesh, sizeof(mesh))};
+		const MeshAssetView mv {eng::UafPayload{mesh}};
 		check(mv.valid() && mv.vertex_count() == 2 && mv.face_count() == 1, "MeshAssetView cabecera");
 		const eng::math3d::Vec3 v0 = mv.vertex(0);
 		check(v0.x == -48 && v0.y == -48 && v0.z == -48, "MeshAssetView vertex 0");
