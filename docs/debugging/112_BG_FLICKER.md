@@ -90,6 +90,32 @@ Pasar a **doble buffer**. Opciones, por coste:
 El `K_DIAG_FBCHECK` y los modos `XONLY`/`YONLY`/`K_INIT_CAMX`/`K_DIAG_BG` se conservan como
 diagnósticos opcionales en la demo para volver a medir tras el cambio a doble buffer.
 
+## 7.1 Resolución (implementada)
+
+Se implementó la opción 1:
+
+- `XLimitedPlayfield` reserva **dos `gfx::Bitmap` de fondo** con el mismo layout interleaved
+  (`m_bg_bitmap[2]`) y expone `bg_flip()` / `bg_double_buffered()`.
+- `PlayfieldHardwareView` incorpora `bg_plane_base`; el compositor single lee el plano
+  `parallax_plane` de ese buffer (y los demás de `real_base`), tanto en el bloque principal como
+  en el reload del split.
+- `make_bg_plane_copy_rect_job` escribe el buffer **trasero**; la demo llama `bg_flip()` tras el
+  blit y **antes** de `compose()`, de modo que la copperlist del frame apunta al buffer recién
+  escrito.
+- **Resultado**: en solo-Y el borde del fondo pasa de oscilar 43/44 a ser **constante (43,38)** en
+  los 14 frames → el flicker de 1 px **desaparece**. La causa confirmada era el tearing/fase de la
+  reescritura sobre un único buffer.
+
+## 7.2 Scroll independiente del fondo (soft DPF)
+
+Con el fondo ya estable, se le da **cámara propia** (`m_bgscroll`, avanza 1 px/frame y rebota)
+independiente del FG (±2 px/frame). El offset de contenido es
+`src_x = m_bgscroll - camx (+dest*8)`, con la misma ventana (`bg_window_for`) y el mismo
+barrel shifter; el doble buffer elimina el tearing. Esto es un **DPF soft con scroll independiente**
+sobre un solo bitmap de 5 planos. Siguiente paso: sustituir la muestra del patrón por un
+**tilemap XYLimited completo** (mapa + tileset + anillo/staging) para el plano de fondo,
+reutilizando `ScrollEngine`.
+
 ## 8. Referencias
 
 - Técnica y límites: `docs/reference/amiga/techniques/robocod-layered-scroll.md` §3.

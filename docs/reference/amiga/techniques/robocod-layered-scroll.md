@@ -156,9 +156,14 @@ blit visible (~103 líneas de raster) cabe en el blanking (~105 líneas).
   un split móvil con campo >214. Si se quiere 256 visibles con fondo estable y bitmap único,
   la alternativa del engine es `linear_display` (espejo, sin split), que cabe en el blanking;
   el coste es duplicar los blits de Y (amortizados).
-- **Límite real del bitmap único**: con fondo FIJO el contenido se reescribe cada frame y no hay
-  conmutación atómica; queda un jitter de 1 px no resuelto. Análisis completo, diagnósticos y
-  decisión de pasar a doble buffer: `docs/debugging/112_BG_FLICKER.md`.
+- **Doble buffer del plano de fondo (soft DPF, IMPLEMENTADO)**: con fondo FIJO/scroll propio el
+  contenido se reescribe cada frame y no hay conmutación atómica → jitter de 1 px. Se resuelve
+  doble-bufferizando SOLO el plano 4 (`m_bg_bitmap[2]` + `bg_flip()`): el blit escribe el buffer
+  trasero y el compositor lee el delantero (`PlayfieldHardwareView::bg_plane_base`). Verificado:
+  el borde pasa de oscilar 43/44 a constante. Análisis y diagnóstico completo:
+  `docs/debugging/112_BG_FLICKER.md`. Con esto el plano de fondo es una capa con su **propia
+  cámara** (soft DPF con scroll independiente); el siguiente paso es un tilemap XYLimited completo
+  en ese plano.
 
 ## 4. Patrón de fondo
 

@@ -127,6 +127,8 @@ struct DemoGame {
 	eng::graphics::FramePlan bg_plan {};   // blit de fondo (filas VISIBLES) -> en blanking
 	eng::MemoryBlock m_bg_pattern {};
 	eng::s16 m_dx = 1, m_dy = 1;
+	eng::s32 m_bgscroll = 0;                 // cámara PROPIA del fondo (soft DPF)
+	eng::s8  m_bgdx = 1;
 	bool ready = false;
 
 	static constexpr eng::u16 kPatPeriodPx = 512;  // periodo horizontal del motivo
@@ -135,7 +137,9 @@ struct DemoGame {
 
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		if (!backend.configure_memory({300u * 1024u, 16u * 1024u, 8u * 1024u})) {
+		// El doble buffer del fondo (soft DPF) usa 2 buffers con el stride interleaved
+		// (2 * display_height * planes * row), por eso se pide más Chip RAM.
+		if (!backend.configure_memory({400u * 1024u, 16u * 1024u, 8u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011201u);
 			return;
 		}
@@ -251,9 +255,6 @@ struct DemoGame {
 		if (!backend.execute_frame_plan(plan)) {
 			ready = false; eng::debug::mark_failed(g_eng_run_status, 0x00011210u); return;
 		}
-		if (!scene.compose()) {
-			ready = false; eng::debug::mark_failed(g_eng_run_status, 0x00011211u); return;
-		}
 
 		// 2) Fondo FIJO: se copia SOLO la ventana visible (21 words/fila) y se ejecuta
 		//    en el BLANKING vertical (fin de visible -> inicio del siguiente), de modo
@@ -271,8 +272,16 @@ struct DemoGame {
 			// fetch = viewport/8 + 1 word: el DDFSTRT=0x30 ya incluye la word extra
 			// que el scroll fino coloca a la izquierda, así que el display lee 21
 			// words (42 B) desde planeaddx -> la ventana necesita 22 words.
-			const field::BgWindow win = field::bg_window_for(
+			field::BgWindow win = field::bg_window_for(
 				camx, kPatPeriodPx, static_cast<eng::u16>(kViewportW / 8u + 2u));
+			// Soft DPF: el fondo tiene su PROPIA cámara (`m_bgscroll`) independiente
+			// del FG. La posición aparente del fondo es `m_bgscroll + x`, así que el
+			// offset de contenido es `src_x = m_bgscroll - camx (+dest*8)`.
+			m_bgscroll += m_bgdx;
+			if (m_bgscroll >= static_cast<eng::s32>(kPatPeriodPx)) { m_bgscroll = 0; }
+			win.src_x = static_cast<eng::u16>(
+				(static_cast<eng::s32>(win.src_x) + m_bgscroll) %
+				static_cast<eng::s32>(kPatPeriodPx));
 			const field::BgSplitRects rects = field::bg_split_rects(
 				scene.bg().display_offset(), kDisplayH, kViewportH, /*bg_y=*/0u);
 			bg_plan.clear();
@@ -307,6 +316,12 @@ struct DemoGame {
 #endif
 		}
 #endif
+		// 3) Conmuta el doble buffer del fondo (el blit fue al buffer trasero) y compone
+		//    la copperlist con el nuevo delantero -> sin tearing en el plano de fondo.
+		scene.bg().bg_flip();
+		if (!scene.compose()) {
+			ready = false; eng::debug::mark_failed(g_eng_run_status, 0x00011211u); return;
+		}
 #ifdef K_EARLY_INSTALL
 		// Instala la copperlist YA, dentro del blanking y ANTES del VBlank, de modo
 		// que el swap (COP1LC) sea determinista respecto al bitmap (ya escrito): la
@@ -319,7 +334,9 @@ struct DemoGame {
 		// con el patrón esperado de un fondo FIJO. Si `mism==0`, el dibujo es correcto.
 		{
 			const auto hw = scene.bg().hardware_view();
-			const eng::u8* fb = hw.real_base ? hw.real_base : hw.bitplanes;
+			// El plano de fondo puede vivir en su propio buffer (soft DPF doble buffer).
+			const eng::u8* fb = hw.bg_plane_base ? hw.bg_plane_base
+			                   : (hw.real_base ? hw.real_base : hw.bitplanes);
 			const eng::u16 row = hw.bitmap_bytes_per_row;
 			const eng::u16 npl = hw.planes;
 			const eng::u16 d = hw.display_offset;

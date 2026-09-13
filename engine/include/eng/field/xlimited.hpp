@@ -877,6 +877,16 @@ public:
         m_total_bytes = m_bitmap.total_bytes();
         m_real_base = m_bitmap.allocation_start(); // base del bloque (BPLxPT)
         m_frontbuffer = m_bitmap.bytes().data();   // vía cruda interna (núcleo)
+        // Soft DPF: doble buffer del plano de fondo (mismo layout interleaved para
+        // que el modulo compartido siga valiendo). Solo se usa el slot de ese plano.
+        if (m_cfg.parallax_plane < m_cfg.planes) {
+            for (u8 i = 0; i < 2u; ++i) {
+                if (!m_bg_bitmap[i].init(memory, bc)) return false;
+                m_bg_real_base[i] = m_bg_bitmap[i].allocation_start();
+                m_bg_front[i] = m_bg_bitmap[i].bytes().data();
+            }
+            m_bg_db = true;
+        }
 
         // BPLMODs: BITMAPBYTESPERROW*planes - SCREENBYTESPERROW - modulo_offset
         // modulo_offset = 2 (normal), 4 (BPL32/BPAGEM), 8 (BPL32+BPAGEM) según fetch_mode
@@ -979,8 +989,10 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
         const u16 pat_row = pattern_row_bytes ? pattern_row_bytes : row;
         const BgShift bs = bg_shift_for(src_x_pixels);
         const u8* src = pattern + static_cast<u32>(src_y) * pat_row + bs.word_bytes;
-        // Plano `bgp` del bitmap interleaved: base + (fila*planes + bgp)*row + offset X.
-        u16* dst = reinterpret_cast<u16*>(m_frontbuffer +
+        // Soft DPF: el blit de fondo escribe el buffer TRASERO (el display lee el
+        // delantero, `m_bg_active`), eliminando el tearing.
+        u8* dst_base = m_bg_db ? m_bg_front[m_bg_active ^ 1u] : m_frontbuffer;
+        u16* dst = reinterpret_cast<u16*>(dst_base +
             (static_cast<u32>(dest_row) * cplanes() + bgp) * row + dest_byte_off);
         const u16 width_bytes = static_cast<u16>(words * 2u);
         return {
@@ -1000,6 +1012,11 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
                                            src_y, 0, m_display_height, 0,
                                            static_cast<u16>(m_bytes_per_row / 2u));
     }
+
+    /// Soft DPF: conmuta el buffer de fondo delantero/trasero. Llamar TRAS escribir
+    /// el blit de fondo (que va al buffer trasero) y ANTES de `compose()`.
+    void bg_flip() { if (m_bg_db) m_bg_active ^= 1u; }
+    constexpr bool bg_double_buffered() const { return m_bg_db; }
 
     bool fill_screen(graphics::FramePlan& plan) const {
         if (!m_initialized) return false;
@@ -1374,13 +1391,17 @@ const u16 I = fetch_scroll_pixels(m_cfg.fetch_mode);
         if (fine & 16) scroll |= 0x4400;
         if (fine & 32) scroll |= 0x8800;
         v.planeaddx = planeaddx;
-        if (m_cfg.parallax_plane < cplanes() && m_cfg.parallax_div != 0u) {
-            // Parallax por plano (RoboCod): el plano `parallax_plane` scrollea a
-            // 1/div de la velocidad; su `planeaddx` se calcula con esa posición.
-            const s32 ppos = (m_scroll.state().mapposx / m_cfg.parallax_div) +
-                             static_cast<s32>(I) - 1;
+        if (m_cfg.parallax_plane < cplanes()) {
+            // Plano de fondo (RoboCod). Con soft DPF doble-buffer el display lee el
+            // buffer delantero (`bg_plane_base`); `parallax_planeaddx` solo se usa en
+            // el modo antiguo de puntero por plano (parallax_div != 0).
             v.parallax_plane = m_cfg.parallax_plane;
-            v.parallax_planeaddx = static_cast<u32>(ppos / I) * (I / 8u);
+            v.bg_plane_base = m_bg_db ? m_bg_real_base[m_bg_active] : nullptr;
+            if (m_cfg.parallax_div != 0u) {
+                const s32 ppos = (m_scroll.state().mapposx / m_cfg.parallax_div) +
+                                 static_cast<s32>(I) - 1;
+                v.parallax_planeaddx = static_cast<u32>(ppos / I) * (I / 8u);
+            }
         }
         v.bplcon1 = scroll;
         v.bpl1mod = m_bpl1mod;
@@ -1555,6 +1576,15 @@ private:
     XlimitedConfig m_cfg {};
     gfx::Bitmap m_bitmap {};   // capa de memoria (posee el bloque Chip)
     u8* m_real_base = nullptr;
+    // Soft DPF: doble buffer SOLO del plano de fondo (`parallax_plane`). Dos buffers
+    // con el MISMO stride interleaved (el modulo BPL1MOD/BPL2MOD es compartido); el
+    // compositor lee el FRONT (`m_bg_active`) y el blit escribe el BACK. Elimina el
+    // tearing del fondo (el unico que se reescribe en zona visible).
+    gfx::Bitmap m_bg_bitmap[2] {};
+    u8* m_bg_real_base[2] = {nullptr, nullptr};
+    u8* m_bg_front[2] = {nullptr, nullptr};
+    u8 m_bg_active = 0;
+    bool m_bg_db = false;
     const u8* m_blocks_buffer = nullptr;
     u16 m_bitmap_width = xlimited_detail::kBitmapW32;
     u16 m_bitmap_blocks_per_row = xlimited_detail::kBlocksPerRow32;
@@ -1744,7 +1774,10 @@ private:
         // deben aplicar al inicio del frame y no tras el WAIT del split.
         sched.emit_palette(m_cfg.palette);
         for (u8 p = 0; p < view.planes; ++p) {
-            const u32 addr = static_cast<u32>(reinterpret_cast<uintptr>(view.real_base)) +
+            // soft DPF: el plano de fondo se lee de su propio buffer (doble buffer).
+            const u8* base = (view.bg_plane_base != nullptr && p == view.parallax_plane)
+                             ? view.bg_plane_base : view.real_base;
+            const u32 addr = static_cast<u32>(reinterpret_cast<uintptr>(base)) +
                              view.planeaddx + view.planeaddy +
                              static_cast<u32>(p) * view.bitmap_bytes_per_row;
             // En interleaved, Planes[p] = base + p*BITMAPBYTESPERROW + Y*planes*bytes.
@@ -1776,7 +1809,9 @@ private:
             const u8 wait = raster > 0xffu ? 0xffu : static_cast<u8>(raster);
             sched.wait_line(wait);
             for (u8 p = 0; p < view.planes; ++p) {
-                const u32 addr = static_cast<u32>(reinterpret_cast<uintptr>(view.real_base)) +
+                const u8* base = (view.bg_plane_base != nullptr && p == view.parallax_plane)
+                                 ? view.bg_plane_base : view.real_base;
+                const u32 addr = static_cast<u32>(reinterpret_cast<uintptr>(base)) +
                                  view.planeaddx + view.split_planeaddy +
                                  static_cast<u32>(p) * view.bitmap_bytes_per_row;
                 sched.move_bitplane_pointer(p, reinterpret_cast<const void*>(addr));

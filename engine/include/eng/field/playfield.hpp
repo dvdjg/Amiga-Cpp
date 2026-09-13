@@ -61,6 +61,8 @@ struct PlayfieldHardwareView {
     // contenido (p. ej. un patrón de fondo) scrollea a otra velocidad.
     u8 parallax_plane = 0xffu;
     u32 parallax_planeaddx = 0;
+    const u8* bg_plane_base = nullptr; // base del plano de fondo si es doble-buffer
+                                        // (soft DPF): ESE plano se lee de aquí, no de real_base
     s32 videoposx = 0;
     s32 mapposx = 0;
     s32 videoposy = 0;
