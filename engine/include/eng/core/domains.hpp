@@ -28,6 +28,7 @@ struct IndexedTilesTag {};
 struct UafTag {};
 struct MapCellsTag {};     // celdas de un mapa (indices de tile, u16)
 struct BobTag {};          // BOB planar: planos de color + mascara de cookie-cut
+struct MixerBufferTag {};  // buffer de trabajo del mezclador (consumido por asm)
 
 // Aliases de dominio.
 using Pattern = ByteView<PatternTag>;           // patrón de fondo (bytes)
@@ -53,5 +54,7 @@ using MapCells = Words<MapCellsTag>;            // celdas de mapa (escritura)
 using MapCellsView = WordView<MapCellsTag>;     // celdas de mapa (lectura)
 using BobBytes = Bytes<BobTag>;                 // BOB planar (planos + mascara)
 using BobView = ByteView<BobTag>;               // BOB planar (solo lectura)
+using MixerBuffer = Bytes<MixerBufferTag>;      // buffer del mezclador (escritura)
+using MixerBufferView = ByteView<MixerBufferTag>; // buffer del mezclador (lectura)
 
 } // namespace eng

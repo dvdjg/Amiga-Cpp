@@ -113,6 +113,14 @@ Tags (structs vacíos, cero coste) y alias de dominio:
 | `AudioSample` | bytes | `const u8* sample` | **pasar audio como origen de un Blitter** |
 | `MusicModule` | bytes | `const void* module` | dar un sample a un replayer |
 | `UafPayload` | bytes | `const u8*` en `Blob` | leer offsets sobre un buffer cualquiera |
+| `BobBytes` / `BobView` | bytes | `u8* bob` (planos+máscara) | tratar un BOB como otra cosa |
+| `MapCells` / `MapCellsView` | words | `u16* cells` | mezclar celdas de mapa con un tilebank |
+| `MixerBuffer` / `MixerBufferView` | bytes | `void*` del asm del mezclador | pasar el buffer del mixer como audio |
+
+Además de las vistas, un **descriptor** puede combinar una vista de dominio con su `MemoryKind`
+(cuando el dato puede ser memoria reservada **o** aliaseada a un `incbin`): p. ej.
+`eng::field::XlimitedTileBank` (§8.1). Así el dueño no guarda un `MemoryBlock` crudo y el banco
+aliaseado no necesita `const_cast`.
 
 ### 3.2 Tipos de dirección/base
 

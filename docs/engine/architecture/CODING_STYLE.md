@@ -95,6 +95,12 @@ aporta sus propias piezas de seguridad de C++23 sin depender de `std::span`:
   Excepciones (documentadas en el sitio): buffers que consume asm/backend crudo, el núcleo de
   memoria (`Bitmap`), descriptores que alternan memoria propia y aliaseada y scratch genérico.
   Detalle e inventario: `INTERNAL_TYPE_SYSTEM.md` §1.
+- **Descriptor propio o aliaseado**: cuando un dato puede ser memoria reservada (Chip) **o** una
+  región incrustada de solo lectura (un `incbin`), usa un descriptor con la **vista de dominio +
+  `MemoryKind`** en vez de un `MemoryBlock` crudo. Ejemplo canónico:
+  `struct XlimitedTileBank { TileBankBytes view; MemoryKind kind; }` con `valid()`/`words()`
+  (`engine/include/eng/field/xlimited_scene.hpp`); así el banco aliaseado no exige `const_cast` y
+  el propietario recibe el dominio correcto.
 - **El tipo dueño expone la conversión al dominio**: si un tipo posee el array/puntero (p. ej.
   `EhbPalette` con `color[32]`), ofrece la vista (`operator PaletteWords`, `words()`) para que el
   llamador pase el objeto; no se escribe `PaletteWords{ arr }` a mano.

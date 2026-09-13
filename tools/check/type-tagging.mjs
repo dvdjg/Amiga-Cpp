@@ -13,14 +13,9 @@ const ROOTS = process.argv.slice(2).length
   : ['engine/include', 'engine/src', 'demos'];
 
 // Excepciones documentadas (fragmento-de-ruta, campo): reserva cruda justificada.
-const ALLOW = [
-  'sfx_mixer.hpp:buffer',               // buffers de asm del mezclador
-  'sfx_mixer.hpp:plugin_buffer',
-  'sfx_mixer.hpp:plugin_data',
-  '068_mixer_ref/src/main.cpp:buffer_block',   // buffers de asm del mezclador
-  '068_mixer_ref/src/main.cpp:plugin_buffer_block',
-  '068_mixer_ref/src/main.cpp:plugin_data_block',
-];
+// Vacio: todos los dueños guardan ya `Block<Tag>` desde el origen. Si aparece una
+// excepcion nueva, anadirla aqui con su motivo.
+const ALLOW = [];
 
 function isAllowed(file, name) {
   const norm = file.replace(/\\/g, '/');

@@ -19,6 +19,7 @@
 /// El código ASM vive en `support/audio_mixer/` y se ensambla con VASM a ELF en
 /// `tools/build/build-demo.sh`. Es Amiga-only (usa VBR/interrupciones/DMACON).
 
+#include <eng/core/domains.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/memory/arena.hpp>
@@ -216,7 +217,7 @@ public:
 	/// se reservan aquí (Chip RAM) y se pasan a `MixerSetup`.
 	bool init(MemorySystem& memory) {
 		m_buffer_size = mixer_amiga::get_buffer_size();
-		m_buffer = memory.chip.allocate(m_buffer_size, 4);
+		m_buffer = memory.chip.allocate_block<eng::MixerBufferTag>(m_buffer_size, 4);
 		if (!m_buffer.valid()) {
 			return false;
 		}
@@ -227,15 +228,15 @@ public:
 		// handler esperan punteros válidos -> reservamos bloques fijos. Pasar
 		// nullptr deja la mezcla en silencio (bug corregido con la demo 068).
 		m_plugin_buffer_size = kPluginBufferBytes;
-		m_plugin_buffer = memory.chip.allocate(m_plugin_buffer_size, 4);
-		if (!m_plugin_buffer.valid()) m_plugin_buffer = memory.slow.allocate(m_plugin_buffer_size, 4);
-		m_plugin_data = memory.chip.allocate(kPluginDataBytes, 4);
-		if (!m_plugin_data.valid()) m_plugin_data = memory.slow.allocate(kPluginDataBytes, 4);
+		m_plugin_buffer = memory.chip.allocate_block<eng::MixerBufferTag>(m_plugin_buffer_size, 4);
+		if (!m_plugin_buffer.valid()) m_plugin_buffer = memory.slow.allocate_block<eng::MixerBufferTag>(m_plugin_buffer_size, 4);
+		m_plugin_data = memory.chip.allocate_block<eng::MixerBufferTag>(kPluginDataBytes, 4);
+		if (!m_plugin_data.valid()) m_plugin_data = memory.slow.allocate_block<eng::MixerBufferTag>(kPluginDataBytes, 4);
 		if (!m_plugin_buffer.valid() || !m_plugin_data.valid()) {
 			return false;
 		}
 
-		mixer_amiga::setup(m_buffer.data, m_plugin_buffer.data, m_plugin_data.data,
+		mixer_amiga::setup(m_buffer.view.data(), m_plugin_buffer.view.data(), m_plugin_data.view.data(),
 			MixPal, static_cast<u16>(kPluginDataBytes));
 		mixer_amiga::install_handler(nullptr, 0); // VBR=0 (68000), guardar vector
 		mixer_amiga::start();
@@ -321,8 +322,8 @@ public:
 
 	/// Buffer Chip que el mixer rellena cada interrupción y que Paula reproduce
 	/// por DMA (diagnóstico; no usar en gameplay).
-	const u8* buffer() const { return static_cast<const u8*>(m_buffer.data); }
-	u32 buffer_bytes() const { return m_buffer.size; }
+	const u8* buffer() const { return m_buffer.view.as_const().data(); }
+	u32 buffer_bytes() const { return static_cast<u32>(m_buffer.view.size()); }
 
 	/// Reinicia el contador de interrupciones del mixer (diagnóstico).
 	void reset_counter() { if (m_ready) mixer_amiga::reset_counter(); }
@@ -333,9 +334,9 @@ private:
 	bool m_ready = false;
 	u32 m_buffer_size = 0;
 	u32 m_plugin_buffer_size = 0;
-	MemoryBlock m_buffer {};
-	MemoryBlock m_plugin_buffer {};
-	MemoryBlock m_plugin_data {};
+	eng::Block<eng::MixerBufferTag> m_buffer {};
+	eng::Block<eng::MixerBufferTag> m_plugin_buffer {};
+	eng::Block<eng::MixerBufferTag> m_plugin_data {};
 };
 
 } // namespace eng::audio

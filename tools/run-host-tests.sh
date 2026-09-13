@@ -50,6 +50,16 @@ run_test() {
 	echo ""
 }
 
+# Comprobacion estatica del sistema de tipos (solo en la pasada completa, para no
+# estorbar al iterar un test suelto). Falla si un MemoryBlock crudo se convierte.
+if [ "$#" -eq 0 ]; then
+	TYPE_CHECK="$ROOT/tools/check/type-tagging.mjs"
+	if [ -f "$TYPE_CHECK" ] && command -v node >/dev/null 2>&1; then
+		echo "== type-tagging =="
+		node "$TYPE_CHECK"
+	fi
+fi
+
 # Selección de tests.
 if [ "$#" -gt 0 ]; then
 	for arg in "$@"; do

@@ -79,16 +79,16 @@ struct MixerRefDemo {
 		// NOTA: MixerGetPluginsBufferSize() es un no-op con MIXER_ENABLE_PLUGINS=0
 		// (devuelve basura), así que usamos un tamaño fijo conocido.
 		const eng::u32 plugin_buffer_size = eng::audio::kPluginBufferBytes;
-		m_buffer_block = backend.memory().chip.allocate(buffer_size, 4);
-		m_plugin_buffer_block = backend.memory().slow.allocate(plugin_buffer_size, 4);
-		m_plugin_data_block = backend.memory().slow.allocate(kPluginDataLen, 4);
+		m_buffer_block = backend.memory().chip.allocate_block<eng::MixerBufferTag>(buffer_size, 4);
+		m_plugin_buffer_block = backend.memory().slow.allocate_block<eng::MixerBufferTag>(plugin_buffer_size, 4);
+		m_plugin_data_block = backend.memory().slow.allocate_block<eng::MixerBufferTag>(kPluginDataLen, 4);
 		if (!m_buffer_block.valid() || !m_plugin_buffer_block.valid() || !m_plugin_data_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006804u);
 			return;
 		}
 
 		eng::audio::mixer_amiga::setup(
-			m_buffer_block.data, m_plugin_buffer_block.data, m_plugin_data_block.data,
+			m_buffer_block.view.data(), m_plugin_buffer_block.view.data(), m_plugin_data_block.view.data(),
 			eng::audio::MixPal, static_cast<eng::u16>(kPluginDataLen));
 		eng::audio::mixer_amiga::install_handler(nullptr, 0);
 		eng::audio::mixer_amiga::start();
@@ -115,8 +115,8 @@ struct MixerRefDemo {
 		}
 		if (context.frame.frame_index >= 60u) {
 			// Analiza el buffer de mezcla (lo que Paula reproduce).
-			const eng::u8* buf = static_cast<const eng::u8*>(m_buffer_block.data);
-			const eng::u32 n = m_buffer_block.size;
+			const eng::u8* buf = m_buffer_block.view.as_const().data();
+			const eng::u32 n = m_buffer_block.view.size();
 			eng::u8 vmin = 0xffu, vmax = 0u;
 			eng::u32 changes = 0;
 			for (eng::u32 i = 0; i < n; ++i) {
@@ -150,8 +150,8 @@ private:
 	}
 
 	void draw_scope() {
-		const eng::u8* buf = static_cast<const eng::u8*>(m_buffer_block.data);
-		const eng::u32 n = m_buffer_block.size;
+		const eng::u8* buf = m_buffer_block.view.as_const().data();
+		const eng::u32 n = m_buffer_block.view.size();
 		for (eng::u32 i = 0; i < kPlaneBytes; ++i) m_bitplane_block.view[i] = 0;
 		if (buf == nullptr || n == 0u) return;
 		for (eng::u16 x = 0; x < 320u; ++x) {
@@ -197,9 +197,9 @@ private:
 	eng::s32 m_channel = -1;
 	const eng::u16* m_copper_ptr = nullptr;
 	eng::Block<eng::AudioTag> m_sample_block {};
-	eng::MemoryBlock m_buffer_block {};
-	eng::MemoryBlock m_plugin_buffer_block {};
-	eng::MemoryBlock m_plugin_data_block {};
+	eng::Block<eng::MixerBufferTag> m_buffer_block {};
+	eng::Block<eng::MixerBufferTag> m_plugin_buffer_block {};
+	eng::Block<eng::MixerBufferTag> m_plugin_data_block {};
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::Block<eng::CopperTag> m_copper_block {};
 };
