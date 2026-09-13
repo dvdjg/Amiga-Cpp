@@ -116,6 +116,25 @@ en el proceso.
   (prefetch de la banda por frame). Pendiente: streaming bajo presupuesto real (background queue)
   y `gid`→índice de banco incrustable desde el world map.
 
+- **Pendientes (streaming y contenido)**:
+  1. **Streaming bajo presupuesto real**: sustituir el pool estático del piloto por Chip RAM de la
+     arena y disparar el `prefetch` desde una `BackgroundQueue`, con telemetría `loads/evictions`
+     en `g_eng_run_status.detail`.
+  2. **`gid`→banco incrustable**: cerrar `parse-tmx` (ya con chunks/base64) → `gid-to-bank` →
+     `TileMapView`/`SparseTileMap`, para que el mundo no dependa del PNG derivado. **Formato
+     definido**: `docs/engine/architecture/WORLD_FORMAT.md` (chunk `WorldMap` sobre UAF-R +
+     directorio de chunks). Falta la tool `pack-world.mjs` y el consumidor `WorldView`.
+  3. **Extender el patrón al PF2/DPF**: permitir un `map2` de tipo distinto al `map` (p. ej. denso
+     BG + streaming FG) y validarlo en 112/202.
+  4. **Test de equivalencia denso↔streaming**: comparación determinista por frame (mismo `camX`)
+     para blindar el accesor.
+  5. **Carga desde disco en segundo plano**: el `Loader` de `ChunkCache` lee del disco mientras se
+     dibuja. Base de hardware en
+     `docs/reference/amiga/techniques/trackloading.md` (`trackdisk.device` vs. trackloader de
+     hardware puro y equivalente desde HD). **Diseño definido**:
+     `docs/engine/architecture/STREAMING_LOADER.md` (opciones A–D, doble buffer de pista, decode
+     MFM, contrato de tres estados del `Loader`); a implementar por fases.
+
 ## Mapa de migración (código actual → objetivo)
 
 | Actual | Objetivo |

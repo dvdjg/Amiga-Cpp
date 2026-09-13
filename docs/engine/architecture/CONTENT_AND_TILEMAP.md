@@ -43,7 +43,8 @@ WorldMap (disperso)
   presupuesto, típicamente desde una `BackgroundQueue` (ver `BACKGROUND_TASKS.md`). El
   `SCENE_AND_RESOURCES` controla el hueco de Chip RAM. El acceso durante el dibujo se hace **solo
   sobre lo residente**: `prefetch` precarga por adelantado los chunks que cubren la banda entrante
-  y el `tile_at` nunca dispara una carga.
+  y el `tile_at` nunca dispara una carga. El `Loader` del `ChunkCache` puede leer del disco en
+  segundo plano (ver `docs/reference/amiga/techniques/trackloading.md`).
 - **Coste**: el scroll recorre la banda entrante y pinta sólo tiles poblados; los tramos vacíos se
   saltan sin tocar el Blitter. El índice de chunks debe ser O(1) por consulta (sin `%`/`/` caros;
   potencias de dos).
@@ -56,6 +57,10 @@ WorldMap (disperso)
   `tests/host/025_tile_source`, `tests/host/026_chunk_cache`, `tests/host/029_streaming_map`,
   `tests/host/030_tile_map_view`. Demo de hardware: `demos/amiga/111_xlimited_sidescroller`
   (`StreamingWorldMap` + `prefetch` de la banda por frame).
+- **Formato**: el mundo se empaqueta como chunk `WorldMap` sobre UAF-R (directorio de chunks
+  ordenado + celdas de índice de banco, con `gid` ya resuelto en el host). Ver
+  `docs/engine/architecture/WORLD_FORMAT.md`. La procedencia de los bytes (RAM, `trackdisk.device`
+  o trackloader de hardware) es responsabilidad del `Loader`: `docs/engine/architecture/STREAMING_LOADER.md`.
 
 ### 2.1 Compatibilidad con Tiled (.tmx/.tsx)
 

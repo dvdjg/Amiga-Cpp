@@ -23,6 +23,7 @@ Resúmenes operativos para la IA y el desarrollador: **qué problema resuelve**,
 | [audio-mixing.md](audio-mixing.md) | Mezcla de audio para juegos |
 | [sprite-layer.md](sprite-layer.md) | Capa tipo sprite / prioridades |
 | [dual-playfield-fastbobs.md](dual-playfield-fastbobs.md) | BOBs rápidos con dual playfield |
+| [trackloading.md](trackloading.md) | Carga en segundo plano desde disquete (`trackdisk.device` vs. trackloader de hardware) y equivalente desde HD |
 
 **Manual local:** [amiga-hardware-manual-index.md](../../ahrm/amiga-hardware-manual-index.md) y el `.cat.md` del AHRM. **Matriz de máquinas:** [amiga-chipset-matrix.md](../hardware/amiga-chipset-matrix.md).
 

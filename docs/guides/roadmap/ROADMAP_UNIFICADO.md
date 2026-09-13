@@ -247,6 +247,12 @@ Opciones (no excluyentes, conviene priorizar):
   cerrando el F5 de forma real (harness por feature).
 - **E. Robustez/rendimiento**: telemetría con gate estricto 50 fps en las demos y
   presupuesto de Chip RAM por modo DPF (matriz de memoria documentada).
+- **F. Streaming de contenido y carga desde disco**: llevar `StreamingWorldMap`/`ChunkCache` a un
+  `Loader` real que lea del disquete en segundo plano mientras se dibuja (patrón de loaders de
+  juego). Formato de mundo: `docs/engine/architecture/WORLD_FORMAT.md`; diseño del Loader:
+  `docs/engine/architecture/STREAMING_LOADER.md`; base de hardware (trackdisk vs. trackloader vs.
+  HD): `docs/reference/amiga/techniques/trackloading.md`; pasos concretos en Fase 7 de
+  `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md`.
 
 Recomendación inicial: **D** (caso de uso concreto, p. ej. plataformas con BG
 fondo + FG mapa 8-way, reutilizando 202/DPF) para cerrar el F5 y forzar el resto

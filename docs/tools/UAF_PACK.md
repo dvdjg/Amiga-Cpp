@@ -11,7 +11,7 @@ header  { u32 magic="UAFR", u16 version, u16 chunk_count }
 chunk[] { u16 type, u16 count, u32 size, <size bytes>, pad a 4 }
 ```
 
-Tipos de chunk (alineados con `eng::assets::ChunkType`): `Palette=1`, `Bitplanes=2`, `CopperTemplates=3`, `PatchTables=4`, `Sprites=5`, `Bobs=6`, `Tiles=7`, `Collision=8`, `Strings=9`, `Samples=10`, `Modules=11`, `Mesh=12`.
+Tipos de chunk (alineados con `eng::assets::ChunkType`): `Palette=1`, `Bitplanes=2`, `CopperTemplates=3`, `PatchTables=4`, `Sprites=5`, `Bobs=6`, `Tiles=7`, `Collision=8`, `Strings=9`, `Samples=10`, `Modules=11`, `Mesh=12`, `WorldMap=13` (mapa de tiles en chunks; ver `docs/engine/architecture/WORLD_FORMAT.md`).
 
 - **Palette**: N colores RGB444 en `u16` big-endian.
 - **Bitplanes**: cabecera de geometría (`u16 width, u16 height, u16 row_bytes, u8 planes, u8 layout, u8 flags, u8 resv`) seguida de los planos.
