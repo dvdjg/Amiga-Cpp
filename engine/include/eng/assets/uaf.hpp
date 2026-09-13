@@ -556,6 +556,18 @@ public:
 		         chunk_cell_count() * 2u };
 	}
 
+	/// Copia las celdas del chunk `dir_index` (big-endian) a `dst` como `u16`
+	/// nativos. `false` si el índice no es válido o `dst_count` es corto. Es el
+	/// puente hacia un `Loader` de streaming.
+	bool decode_chunk(u32 i, u32 dir_index, eng::u16* dst, eng::u32 dst_count) const {
+		if (i >= m_layers || dst == nullptr || dst_count < chunk_cell_count()) return false;
+		const Layer& L = m_layer[i];
+		if (dir_index >= L.dir_count) return false;
+		const u8* p = m_bytes.data() + L.cells_off + dir_index * chunk_cell_count() * 2u;
+		for (u32 k = 0; k < chunk_cell_count(); ++k) dst[k] = read_be16(p + k * 2u);
+		return true;
+	}
+
 	/// Tile de la capa en coordenadas de mundo `(x,y)`, con wrap/borde. Los chunks
 	/// ausentes y las celdas fuera de `width`/`height` devuelven `empty_tile`.
 	u16 tile_at(u32 i, s32 x, s32 y) const {

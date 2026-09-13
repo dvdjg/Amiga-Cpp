@@ -118,8 +118,8 @@ Diagrama de memoria:
 
 ## 5. Pipeline host
 
-Nueva tool `tools/ehb/pack-world.mjs` que **generaliza** `tools/ehb/gid-to-bank.mjs` (no la
-duplica: absorbe su lógica y la extiende a chunks):
+Tool `tools/ehb/pack-world.mjs` (**implementada**), que generaliza
+`tools/ehb/gid-to-bank.mjs` (absorbe su lógica y la extiende a chunks):
 
 ```text
   parse-tmx.mjs (tmx.json: finito o <chunk>; CSV/XML/base64)   tiles.json (slice-tiles)
@@ -127,11 +127,11 @@ duplica: absorbe su lógica y la extiende a chunks):
              \                            /
               v                          v
         pack-world.mjs: gid -> indice de banco, troceo en chunks,
-        ordenacion del directorio, celdas empaquetadas
+        ordenacion del directorio, celdas empaquetadas, round-trip 100%
                         |
         +---------------+----------------+
         |                                |
-   world.bin (payload)           world.uafr (UAF-R: WorldMap + Tiles + Palette)
+   world.bin (payload)           (envolver en UAF-R: WorldMap + Tiles + Palette)
         |                                |
    incbin .MEMF_CHIP            servir por offset / StreamLoader
 ```
@@ -156,8 +156,10 @@ Reglas:
   `tile_at` (con wrap/borde) y `meta_entry`.
 - Test host `tests/host/031_world_view`: fixture de `WorldMap` con varias capas, cruce de chunk,
   wrap, chunk ausente, metadatos y validación de bloques.
-- Pendiente: adaptador `WorldView` → `SparseTileMap`/`TileMapView` (montaje directo) y el test de
-  equivalencia en demo (mismo resultado que el mapa denso, paso 4 del roadmap).
+- **Puentes al scroll** (`engine/include/eng/field/world_layer.hpp`): `WorldLayerSource` (una capa
+  del `WorldView` como `TileMap` directo) y `WorldMapChunkLoader` (Loader-RAM que sirve chunks desde
+  el blob). Cadena WorldMap → `StreamingWorldMap` → `TileMapView`, validada por HOST-035.
+- Pendiente: test de equivalencia en demo (mismo resultado que el mapa denso, paso 4 del roadmap).
 
 ## 7. Versionado y compresión
 

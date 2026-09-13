@@ -111,6 +111,10 @@ ScrollEmitter  (dibujar):              pinta la banda entrante en la posición d
 emitter. Así el algoritmo es portable (Mega Drive, SNES…) y testeable con un mock
 (`tests/host/023_limited_axes`).
 
+Implementado como **conceptos** en `engine/include/eng/field/scroll_engine.hpp`:
+`ScrollTarget` (geometría, sin dibujar) + `ScrollEmitter` (`add_draw` + `save_word`/`restore_saveword`)
+= `ScrollSink`; `XLimitedPlayfield` cumple las tres (HOST-036).
+
 ### 3.2 Vista de planos (`PlaneView`)
 
 Un `PlaneView` es una superficie que **no posee memoria**: referencia N planos de otro

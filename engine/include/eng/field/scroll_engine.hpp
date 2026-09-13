@@ -66,15 +66,11 @@ struct ScrollConsts {
     u32 planes = 0;            // 0 = sn.planes()
 };
 
-/// Concepto `ScrollSink` (C++20): contrato EXPLÍCITO que una superficie debe
-/// cumplir para que `ScrollEngine` le aplique el corkscrew/XYLimited. Hace el
-/// algoritmo PORTABLE: cualquier playfield que exponga este "anillo con banda
-/// de staging + blit de bloque + costura" sirve de sink (en Amiga,
-/// `XLimitedPlayfield`). Se comprueba en compile-time con un `static_assert`
-/// en el playfield (no por convención). El `ScrollConsts` NTTP permite además
-/// saltarse el sink cuando la geometría se conoce a priori.
+/// Geometría del anillo/layout que una estrategia de scroll consulta (SIN dibujar):
+/// tile/planes, viewport, bucle del display, bloques por fila/columna, bytes por
+/// fila y límites/wrap del mapa. Es la mitad "layout" del sink.
 template <class S>
-concept ScrollSink = requires(graphics::FramePlan& plan, S& s, u16 x, u32 o) {
+concept ScrollTarget = requires(const S& s) {
     s.tile_width();
     s.tile_height();
     s.planes();
@@ -92,10 +88,24 @@ concept ScrollSink = requires(graphics::FramePlan& plan, S& s, u16 x, u32 o) {
     s.map_wrap_x();
     s.map_wrap_y();
     s.one_direction();
+};
+
+/// Emisión de dibujo + costura del layout: pintar la banda entrante (`add_draw`)
+/// y guardar/restaurar la word de la costura. Es la mitad "cómo se dibuja" del sink.
+template <class S>
+concept ScrollEmitter = requires(graphics::FramePlan& plan, S& s, u16 x, u32 o) {
     s.add_draw(plan, x, x, x, x);  // bool (el uso lo valida con `!sn.add_draw(...)`)
     s.save_word(o);
     s.restore_saveword();
 };
+
+/// Contrato completo del algoritmo: geometría (`ScrollTarget`) + dibujo (`ScrollEmitter`).
+/// Cualquier superficie que cumpla ambas mitades sirve de sink al `ScrollEngine`
+/// (en Amiga, `XLimitedPlayfield`). Se comprueba en compile-time con un `static_assert`
+/// en el playfield. El `ScrollConsts` NTTP permite además saltarse el sink cuando la
+/// geometría se conoce a priori.
+template <class S>
+concept ScrollSink = ScrollTarget<S> && ScrollEmitter<S>;
 
 /// Driver del scroll: estado + algoritmo de los 4 movimientos.
 template <class Sink, ScrollConsts C = ScrollConsts{}>

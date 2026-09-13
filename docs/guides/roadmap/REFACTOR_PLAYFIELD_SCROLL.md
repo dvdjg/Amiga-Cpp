@@ -49,6 +49,7 @@ en el proceso.
 
 ### Fase 2 — Algoritmo: estrategias y contrato target/emitter
 - Oficializar `ScrollTarget` (layout del anillo) y `ScrollEmitter` (dibujo + seam) como conceptos.
+  **Hecho** (`scroll_engine.hpp`: `ScrollTarget`/`ScrollEmitter`/`ScrollSink`, HOST-036).
 - `RingScroll` con `AxisPolicy` (X/Y/XY) y `DirectionPolicy` (bi/one-way), sustituyendo
   `ScrollMode`/`AxisMode`.
 - `FillPolicy` (velocidad) y `GuardPolicy` (ancho de guarda): `Progressive` | `TileBurst<N>` |
@@ -120,18 +121,20 @@ en el proceso.
   CSV/XML/base64(gzip/zlib). El scroll ya consume el accesor abstracto: `XLimitedPlayfield`/
   `XlimitedScene` están templados sobre el tipo de mapa (`TileMap`), con `TileLayerMap` por defecto
   (denso/disperso) y `TileMapView<StreamingWorldMap>` en el piloto `111_xlimited_sidescroller`
-  (prefetch de la banda por frame). Pendiente: streaming bajo presupuesto real (background queue)
-  y `gid`→índice de banco incrustable desde el world map.
+  (prefetch de la banda por frame). El mundo incrustable está cerrado (`WORLD_FORMAT.md`,
+  `WorldView` + `world_layer.hpp` + `pack-world.mjs`). Pendiente: streaming bajo presupuesto real
+  (background queue) y carga desde disco.
 
 - **Pendientes (streaming y contenido)**:
   1. **Streaming bajo presupuesto real**: sustituir el pool estático del piloto por Chip RAM de la
      arena y disparar el `prefetch` desde una `BackgroundQueue`, con telemetría `loads/evictions`
      en `g_eng_run_status.detail`.
   2. **`gid`→banco incrustable**: cerrar `parse-tmx` (ya con chunks/base64) → `gid-to-bank` →
-     `TileMapView`/`SparseTileMap`, para que el mundo no dependa del PNG derivado. **Formato y
-     consumidor hechos**: `docs/engine/architecture/WORLD_FORMAT.md` (chunk `WorldMap` sobre UAF-R +
-     directorio de chunks) y `eng::assets::WorldView` (`ChunkType::WorldMap=13`, HOST-031). Falta la
-     tool `pack-world.mjs` y el adaptador `WorldView`→`SparseTileMap`.
+     `TileMapView`/`SparseTileMap`, para que el mundo no dependa del PNG derivado. **Hecho**:
+     `docs/engine/architecture/WORLD_FORMAT.md` (chunk `WorldMap` sobre UAF-R),
+     `eng::assets::WorldView` (`ChunkType::WorldMap=13`, HOST-031), los puentes `WorldLayerSource`/
+     `WorldMapChunkLoader` (`world_layer.hpp`, HOST-035) y la tool `tools/ehb/pack-world.mjs`
+     (round-trip 100 %).
   3. **Extender el patrón al PF2/DPF**: permitir un `map2` de tipo distinto al `map` (p. ej. denso
      BG + streaming FG) y validarlo en 112/202.
   4. **Test de equivalencia denso↔streaming**: comparación determinista por frame (mismo `camX`)

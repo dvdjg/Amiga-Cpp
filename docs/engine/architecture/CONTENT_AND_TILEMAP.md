@@ -59,10 +59,12 @@ WorldMap (disperso)
   `tests/host/030_tile_map_view`. Demo de hardware: `demos/amiga/111_xlimited_sidescroller`
   (`StreamingWorldMap` + `prefetch` de la banda por frame).
 - **Formato**: el mundo se empaqueta como chunk `WorldMap` sobre UAF-R (directorio de chunks
-  ordenado + celdas de índice de banco, con `gid` ya resuelto en el host) y se lee con
-  `eng::assets::WorldView` (`tests/host/031_world_view`). Ver
-  `docs/engine/architecture/WORLD_FORMAT.md`. La procedencia de los bytes (RAM, `trackdisk.device`
-  o trackloader de hardware) es responsabilidad del `Loader`: `docs/engine/architecture/STREAMING_LOADER.md`.
+  ordenado + celdas de índice de banco, con `gid` ya resuelto en el host) con la tool
+  `tools/ehb/pack-world.mjs`, y se lee con `eng::assets::WorldView` (`tests/host/031_world_view`).
+  Los puentes al scroll son `WorldLayerSource`/`WorldMapChunkLoader` (`world_layer.hpp`,
+  `tests/host/035_world_layer`). Ver `docs/engine/architecture/WORLD_FORMAT.md`. La procedencia de
+  los bytes (RAM, `trackdisk.device` o trackloader de hardware) es responsabilidad del `Loader`:
+  `docs/engine/architecture/STREAMING_LOADER.md`.
 
 ### 2.1 Compatibilidad con Tiled (.tmx/.tsx)
 

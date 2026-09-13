@@ -31,8 +31,8 @@ gids dentro de su `firstgid`.
   con `--resolve-tsx` lee los `.tsx` para resolver la imagen de cada tileset.
   Esto habilita: gid → (imagen, índice) → índice en el banco EHB (si se corta el sheet con
   `slice-tiles.mjs`).
-- `gid-to-bank.mjs` → `pack-world.mjs` (planificado): empaqueta el mapa en el **formato de mundo
-  incrustable** (chunks binarios, `gid` resuelto en el host) que consume el motor de scroll.
+- `gid-to-bank.mjs` → `pack-world.mjs` (**implementado**): empaqueta el mapa en el **formato de
+  mundo incrustable** (chunks binarios, `gid` resuelto en el host) que consume el motor de scroll.
   Formato y mapeo runtime: `docs/engine/architecture/WORLD_FORMAT.md`.
 - El extractor "bitmap en crudo" (`quantize-ehb.mjs` + `slice-tiles.mjs`) NO necesita Tiled.
 
