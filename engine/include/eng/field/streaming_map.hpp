@@ -27,7 +27,7 @@ public:
 	/// carga (`Ready`/`Empty`/`Pending`). En `Empty` las celdas quedan como
 	/// `empty_tile`; en `Pending` no se marcan residentes (se reintenta).
 	struct Source {
-		LoadResult (*load)(void* user, eng::s32 cx, eng::s32 cy, eng::u16* cells) = nullptr;
+		LoadResult (*load)(void* user, eng::s32 cx, eng::s32 cy, eng::TileBankBuffer cells) = nullptr;
 		void* user = nullptr;
 	};
 
@@ -70,7 +70,7 @@ public:
 	eng::u32 pendings() const { return m_cache.pendings(); }
 
 private:
-	static LoadResult load_trampoline(void* user, eng::s32 cx, eng::s32 cy, eng::u16* cells) {
+	static LoadResult load_trampoline(void* user, eng::s32 cx, eng::s32 cy, eng::TileBankBuffer cells) {
 		auto* self = static_cast<StreamingWorldMap*>(user);
 		if (self->m_src.load == nullptr) {
 			for (eng::u32 i = 0; i < kCells; ++i) cells[i] = self->m_empty;

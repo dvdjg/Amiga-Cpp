@@ -25,7 +25,7 @@ constexpr u16 kEmpty = 0xFFFFu;
 
 namespace {
 // Chunk "poblado": valor único por celda para verificar el direccionamiento.
-eng::field::LoadResult load_chunk(void*, s32 cx, s32 cy, u16* cells) {
+eng::field::LoadResult load_chunk(void*, s32 cx, s32 cy, eng::TileBankBuffer cells) {
 	const s32 ccx = cx & 15; // wrap de chunks en X (16 chunks = mundo 256)
 	for (u32 i = 0; i < Map::kCells; ++i) {
 		cells[i] = static_cast<u16>((ccx * 16 + cy) * 256 + static_cast<s32>(i));

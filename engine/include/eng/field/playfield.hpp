@@ -268,7 +268,7 @@ public:
             const u16* s = sbase + static_cast<u32>(p) * (src_plane_stride / 2u);
             u16* d = reinterpret_cast<u16*>(m_frontbuffer + (pl + static_cast<u32>(p)) * m_bytes_per_row + x_byte);
             graphics::BlitJob job {
-                graphics::BlitJobKind::CopyRect, nullptr, s, d,
+                graphics::BlitJobKind::CopyRect, graphics::BlitSource {}, graphics::BlitSource {s}, graphics::BlitDest {d},
                 words, h, src_mod, dst_mod,
                 1, 0, src_plane_stride, static_cast<u32>(m_bytes_per_row * m_planes), false
             };
@@ -304,7 +304,7 @@ public:
             const u16* s = sbase + static_cast<u32>(p) * (src_plane_stride / 2u);
             u16* d = reinterpret_cast<u16*>(m_frontbuffer + (pl + static_cast<u32>(p)) * m_bytes_per_row + x_byte);
             graphics::BlitJob job {
-                graphics::BlitJobKind::MaskedBobCookieCut, mbase, s, d,
+                graphics::BlitJobKind::MaskedBobCookieCut, graphics::BlitSource {mbase}, graphics::BlitSource {s}, graphics::BlitDest {d},
                 words, h, src_mod, dst_mod,
                 1, 0, src_plane_stride, static_cast<u32>(m_bytes_per_row * m_planes), false
             };

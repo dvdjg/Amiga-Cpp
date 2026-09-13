@@ -20,7 +20,7 @@ void check(bool ok, const char* what) {
 
 struct LoaderData { int calls; };
 
-eng::field::LoadResult fake_load(void* user, eng::s32 cx, eng::s32 cy, eng::u16* dst) {
+eng::field::LoadResult fake_load(void* user, eng::s32 cx, eng::s32 cy, eng::TileBankBuffer dst) {
 	++static_cast<LoaderData*>(user)->calls;
 	for (eng::u32 i = 0; i < eng::field::ChunkCache<4, 2>::kCells; ++i) {
 		dst[i] = static_cast<eng::u16>(cx * 100 + cy * 10 + static_cast<eng::s32>(i));
@@ -29,7 +29,7 @@ eng::field::LoadResult fake_load(void* user, eng::s32 cx, eng::s32 cy, eng::u16*
 }
 
 // Carga que ejercita los tres estados: (9,*) aún no lista; (5,*) ausente; resto lista.
-eng::field::LoadResult special_load(void* user, eng::s32 cx, eng::s32 cy, eng::u16* dst) {
+eng::field::LoadResult special_load(void* user, eng::s32 cx, eng::s32 cy, eng::TileBankBuffer dst) {
 	++static_cast<LoaderData*>(user)->calls;
 	if (cx == 9) return eng::field::LoadResult::Pending;
 	if (cx == 5) {

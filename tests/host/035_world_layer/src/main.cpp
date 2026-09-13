@@ -110,7 +110,7 @@ int main() {
 
 	// Chunk ausente: el Loader devuelve Empty sin romper.
 	eng::u16 tmp[256] {};
-	check(eng::field::WorldMapChunkLoader::load(&loader, 9, 9, tmp) == eng::field::LoadResult::Empty,
+	check(eng::field::WorldMapChunkLoader::load(&loader, 9, 9, eng::TileBankBuffer {tmp, 256u}) == eng::field::LoadResult::Empty,
 	      "chunk ausente -> Empty");
 	check(world.loads() >= 2, "el Loader contó cargas");
 

@@ -21,7 +21,7 @@ struct Src { int calls; };
 namespace {
 using Map = eng::field::StreamingWorldMap<4, 2>;
 
-eng::field::LoadResult load_chunk(void* user, eng::s32 cx, eng::s32 cy, eng::u16* cells) {
+eng::field::LoadResult load_chunk(void* user, eng::s32 cx, eng::s32 cy, eng::TileBankBuffer cells) {
 	++static_cast<Src*>(user)->calls;
 	if (cx >= 1 && cx <= 4) {   // chunks poblados (0,0)
 		for (eng::u32 i = 0; i < Map::kCells; ++i) {

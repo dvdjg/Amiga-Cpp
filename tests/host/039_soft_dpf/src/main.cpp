@@ -36,10 +36,10 @@ int main() {
 	                                /*dest_row=*/2u, /*rows=*/4u,
 	                                /*dest_byte_off=*/6u, eng::WordCount {10u});
 	check(job.height == 4u && job.words_per_row == 10u && job.bitplane_count == 1u, "geometría del job");
-	check(job.destination == reinterpret_cast<eng::u16*>(ef + (2u * 5u + 4u) * row + 6u),
+	check(job.destination.words == reinterpret_cast<eng::u16*>(ef + (2u * 5u + 4u) * row + 6u),
 	      "destino en el BACK, plano parallax");
 	const auto bs = bg_shift_for(3u);
-	check(job.source == reinterpret_cast<const eng::u16*>(pattern + 1u * row + bs.word_bytes),
+	check(job.source.words == reinterpret_cast<const eng::u16*>(pattern + 1u * row + bs.word_bytes),
 	      "origen con word del barrel shifter");
 	check(job.source_shift == bs.shift, "shift del barrel shifter");
 	check(job.source_modulo_bytes == static_cast<eng::s16>(row - 20u) &&
@@ -49,7 +49,7 @@ int main() {
 	// flip: el blit pasa al bitmap principal.
 	c.flip();
 	auto job2 = c.make_copy_rect_job(pat, eng::RowBytes {row}, 3u, 1u, 2u, 4u, 6u, eng::WordCount {10u});
-	check(job2.destination == reinterpret_cast<eng::u16*>(mf + (2u * 5u + 4u) * row + 6u),
+	check(job2.destination.words == reinterpret_cast<eng::u16*>(mf + (2u * 5u + 4u) * row + 6u),
 	      "tras flip: destino en el MAIN");
 
 	// Fila completa (compatibilidad): display_height filas, dest_row 0.

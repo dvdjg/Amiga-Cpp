@@ -610,8 +610,8 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 				return false;
 			}
 
-			const u16* source_plane = job.source + static_cast<u32>(plane) * source_plane_stride_words;
-			u16* destination_plane = job.destination + static_cast<u32>(plane) * destination_plane_stride_words;
+			const u16* source_plane = job.source.words + static_cast<u32>(plane) * source_plane_stride_words;
+			u16* destination_plane = job.destination.words + static_cast<u32>(plane) * destination_plane_stride_words;
 
 			if (masked) {
 				custom_base[custom_bltcon0_offset] = static_cast<u16>(
@@ -660,7 +660,7 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 			custom_base[custom_bltdmod_offset] = static_cast<u16>(job.destination_modulo_bytes);
 
 			if (masked) {
-				write_custom_pointer(custom_bltapt_offset, job.mask);
+				write_custom_pointer(custom_bltapt_offset, job.mask.words);
 				write_custom_pointer(custom_bltbpt_offset, source_plane);
 				write_custom_pointer(custom_bltcpt_offset, destination_plane);
 			} else if (shifted_copy) {

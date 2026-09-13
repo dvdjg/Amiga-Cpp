@@ -21,6 +21,7 @@
 #include <eng/core/fast_div.hpp>
 #include <eng/core/math3d.hpp>
 #include <eng/core/span.hpp>
+#include <eng/core/typed.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::assets {
@@ -556,11 +557,12 @@ public:
 		         chunk_cell_count() * 2u };
 	}
 
-	/// Copia las celdas del chunk `dir_index` (big-endian) a `dst` como `u16`
-	/// nativos. `false` si el índice no es válido o `dst_count` es corto. Es el
-	/// puente hacia un `Loader` de streaming.
-	bool decode_chunk(u32 i, u32 dir_index, eng::u16* dst, eng::u32 dst_count) const {
-		if (i >= m_layers || dst == nullptr || dst_count < chunk_cell_count()) return false;
+	/// Copia las celdas del chunk `dir_index` (big-endian) a `dst` (words con
+	/// dominio) como `u16` nativos. `false` si el índice no es válido o `dst` es
+	/// corto. Es el puente hacia un `Loader` de streaming.
+	template <class Tag>
+	bool decode_chunk(u32 i, u32 dir_index, eng::Words<Tag> dst) const {
+		if (i >= m_layers || dst.data() == nullptr || dst.size() < chunk_cell_count()) return false;
 		const Layer& L = m_layer[i];
 		if (dir_index >= L.dir_count) return false;
 		const u8* p = m_bytes.data() + L.cells_off + dir_index * chunk_cell_count() * 2u;

@@ -988,9 +988,9 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
         // inocuo porque bitplane_count=1 sólo itera una vez.
         return {
             graphics::BlitJobKind::TileBlockCopy,
-            nullptr,
-            reinterpret_cast<const u16*>(src),
-            dst,
+            graphics::BlitSource {},
+            graphics::BlitSource { reinterpret_cast<const u16*>(src) },
+            graphics::BlitDest { dst },
             words,
             m_block_planes_lines,
             src_mod,
@@ -1107,7 +1107,7 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
             u16* d = reinterpret_cast<u16*>(const_cast<u8*>(m_frontbuffer) +
                 (planeline_start + static_cast<u32>(p)) * m_bytes_per_row + x_byte);
             graphics::BlitJob job {
-                graphics::BlitJobKind::CopyRect, nullptr, s, d,
+                graphics::BlitJobKind::CopyRect, graphics::BlitSource {}, graphics::BlitSource {s}, graphics::BlitDest {d},
                 words, seg_rows, src_mod, dst_mod,
                 1, 0, src_plane_stride, static_cast<u32>(m_bytes_per_row * planes), false
             };
@@ -1170,7 +1170,7 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
             u16* d = reinterpret_cast<u16*>(const_cast<u8*>(m_frontbuffer) +
                 (planeline_start + static_cast<u32>(p)) * m_bytes_per_row + x_byte);
             graphics::BlitJob job {
-                graphics::BlitJobKind::MaskedBobCookieCut, mask, s, d,
+                graphics::BlitJobKind::MaskedBobCookieCut, graphics::BlitSource {mask}, graphics::BlitSource {s}, graphics::BlitDest {d},
                 words, seg_rows, src_mod, dst_mod,
                 1, 0, src_plane_stride, static_cast<u32>(m_bytes_per_row * planes), false
             };

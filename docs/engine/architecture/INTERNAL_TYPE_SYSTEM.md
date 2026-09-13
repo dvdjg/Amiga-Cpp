@@ -265,11 +265,15 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
 - **Fase 2 — hecha**: `Bitmap::base()`/`front()`; `PlaneView` y `SoftDpfComposition` usan
   `BitmapBase`/`FrontBase` en `bind*`/`display_base`/`write_base` (`XLimitedPlayfield` cruza a
   crudo solo en `hardware_view`). HOST-038/039 actualizados; 112 sin regresión.
-- **Fase 3 — parcial**: `SoftDpfComposition::make_copy_*` recibe `Pattern` (vista **con tamaño**),
-  `RowBytes` y `WordCount`, y **valida el rango** del patrón (violación → `illegal`). `BlitJob`
-  sigue crudo; faltan `BlitSource`/`BlitDest` y tipar el resto de productores (`Surface`,
-  `FramePlan`).
-- **Fases 4-7 — pendientes**.
+- **Fase 3 — hecha (roles)**: `BlitSource`/`BlitDest` en `BlitJob` (el backend lee `job.source.words`,
+  etc.); `SoftDpfComposition::make_copy_*` recibe `Pattern` (vista **con tamaño**), `RowBytes` y
+  `WordCount`, con **validación de rango** (violación → `illegal`). Los agregados `BlitJob{...}` de
+  demos siguen compilando (conversión de rol implícita desde crudo); falta tipar `Surface`/
+  `FramePlan` (paleta/copper).
+- **Fase 4 — parcial**: `ChunkCache::Loader`, `StreamingWorldMap::Source`, `WorldMapChunkLoader` y
+  `WorldView::decode_chunk<Tag>` usan `eng::TileBankBuffer` (words de dominio). 111 (streaming) sin
+  regresión. Pendiente: `Blob`/`Reader`/UAF como `ByteView<UafPayload>`.
+- **Fases 5-7 — pendientes**.
 
 
 ## 9. Reglas para `CODING_STYLE.md` (resumen)

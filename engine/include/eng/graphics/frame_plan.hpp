@@ -162,11 +162,28 @@ struct DirtyReport {
 ///
 /// Son restricciones intencionadas: nos dan una base verificable antes de meter
 /// scroll fino, clipping, restauracion de fondo y dirty rects.
+/// Rol de **origen** de un blit (solo lectura). Junto con `BlitDest` evita pasar
+/// un `BlitDest` donde se espera un `BlitSource` (o viceversa) en las firmas
+/// internas. La construcción desde crudo es implícita por ergonomía de los
+/// agregados (`BlitJob{...}`); el rol tipado no se convierte entre sí.
+struct BlitSource {
+	const u16* words = nullptr;
+	constexpr BlitSource() noexcept = default;
+	constexpr BlitSource(const u16* w) noexcept : words(w) {}
+};
+
+/// Rol de **destino** de un blit (escritura).
+struct BlitDest {
+	u16* words = nullptr;
+	constexpr BlitDest() noexcept = default;
+	constexpr BlitDest(u16* w) noexcept : words(w) {}
+};
+
 struct BlitJob {
 	BlitJobKind kind = BlitJobKind::MaskedBobCookieCut;
-	const u16* mask = nullptr;
-	const u16* source = nullptr;
-	u16* destination = nullptr;
+	BlitSource mask {};
+	BlitSource source {};
+	BlitDest destination {};
 	u16 words_per_row = 0;
 	u16 height = 0;
 	s16 source_modulo_bytes = 0;
@@ -332,8 +349,8 @@ private:
 			job.kind == BlitJobKind::MaskedBobCookieCut ||
 			job.kind == BlitJobKind::MaskedBlobNoSave;
 		if (
-			job.source == nullptr ||
-			job.destination == nullptr ||
+			job.source.words == nullptr ||
+			job.destination.words == nullptr ||
 			job.words_per_row == 0 ||
 			job.height == 0 ||
 			job.bitplane_count == 0 ||
@@ -344,7 +361,7 @@ private:
 			m_ok = false;
 			return false;
 		}
-		if (masked && job.mask == nullptr) {
+		if (masked && job.mask.words == nullptr) {
 			m_ok = false;
 			return false;
 		}

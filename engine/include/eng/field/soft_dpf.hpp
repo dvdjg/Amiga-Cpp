@@ -185,8 +185,9 @@ public:
 		eng::u16* dst = reinterpret_cast<eng::u16*>(dst_base +
 			(static_cast<eng::u32>(dest_row) * m_geo.planes + m_geo.parallax_plane) * row +
 			dest_byte_off);
-		return { eng::graphics::BlitJobKind::TileBlockCopy, nullptr,
-		         reinterpret_cast<const eng::u16*>(src), dst,
+		return { eng::graphics::BlitJobKind::TileBlockCopy, eng::graphics::BlitSource {},
+		         eng::graphics::BlitSource { reinterpret_cast<const eng::u16*>(src) },
+		         eng::graphics::BlitDest { dst },
 		         words.value, rows,
 		         static_cast<s16>(pat_row - width_bytes),
 		         static_cast<s16>(row * m_geo.planes - width_bytes),

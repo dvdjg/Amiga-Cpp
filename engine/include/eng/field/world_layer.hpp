@@ -59,16 +59,15 @@ public:
 	eng::u32 layer = 0;
 	eng::u16 chunk_size = 16u;
 
-	static eng::field::LoadResult load(void* user, eng::s32 cx, eng::s32 cy, eng::u16* dst) {
+	static eng::field::LoadResult load(void* user, eng::s32 cx, eng::s32 cy, eng::TileBankBuffer dst) {
 		auto* self = static_cast<WorldMapChunkLoader*>(user);
-		if (self == nullptr || self->world == nullptr || dst == nullptr) {
+		if (self == nullptr || self->world == nullptr || dst.data() == nullptr) {
 			return eng::field::LoadResult::Empty;
 		}
 		if (self->chunk_size != self->world->chunk_size()) return eng::field::LoadResult::Empty;
 		const eng::s32 idx = self->world->find_chunk(self->layer, cx, cy);
 		if (idx < 0) return eng::field::LoadResult::Empty;
-		if (!self->world->decode_chunk(self->layer, static_cast<eng::u32>(idx), dst,
-		                               self->world->chunk_cell_count())) {
+		if (!self->world->decode_chunk(self->layer, static_cast<eng::u32>(idx), dst)) {
 			return eng::field::LoadResult::Empty;
 		}
 		return eng::field::LoadResult::Ready;

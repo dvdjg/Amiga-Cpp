@@ -14,6 +14,7 @@
 /// reintentar) o `Pending` (carga asíncrona aún no lista: NO se marca residente y
 /// se reintentará). El detalle se diseña en `docs/engine/architecture/STREAMING_LOADER.md`.
 
+#include <eng/core/domains.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 
@@ -32,9 +33,10 @@ public:
 	static constexpr eng::u32 kCells = static_cast<eng::u32>(ChunkSize) * ChunkSize;
 	static constexpr eng::u32 kPoolCells = static_cast<eng::u32>(Capacity) * kCells;
 
-	/// Carga el chunk `(cx,cy)` en `dst` (kCells u16). Ver `LoadResult`.
+	/// Carga el chunk `(cx,cy)` en `dst` (kCells words con dominio tilebank).
+	/// Ver `LoadResult`.
 	struct Loader {
-		LoadResult (*load)(void* user, eng::s32 cx, eng::s32 cy, eng::u16* dst) = nullptr;
+		LoadResult (*load)(void* user, eng::s32 cx, eng::s32 cy, eng::TileBankBuffer dst) = nullptr;
 		void* user = nullptr;
 	};
 
@@ -82,7 +84,7 @@ public:
 		}
 		Slot& s = m_slots[victim];
 		eng::u16* dst = m_pool.data() + static_cast<eng::u32>(victim) * kCells;
-		const LoadResult r = m_loader.load(m_loader.user, cx, cy, dst);
+		const LoadResult r = m_loader.load(m_loader.user, cx, cy, eng::TileBankBuffer { dst, kCells });
 		if (r == LoadResult::Pending) {
 			++m_pendings; // no se toca el slot: se reintentará en la próxima petición
 			return nullptr;
