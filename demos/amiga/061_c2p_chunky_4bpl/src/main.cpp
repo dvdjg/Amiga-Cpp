@@ -127,10 +127,10 @@ struct C2pDemo {
 		// Publica el resultado del c2p a los 4 primeros planos del escenario.
 		// `bplsize` = bytes de un plano completo (plano p a planes + p*kPlaneBytes).
 		eng::graphics::c2p_1x1_4(
-			kChunkyW, kChunkyH,
-			kPlaneBytes,
-			chunky,
-			m_scene.bitplanes()
+			eng::PixelWidth { kChunkyW }, eng::PixelHeight { kChunkyH },
+			eng::ByteStride { kPlaneBytes },
+			eng::ChunkyView { chunky, static_cast<eng::usize>(kChunkyW) * kChunkyH },
+			eng::PlaneBytes { m_scene.bitplanes(), static_cast<eng::u32>(kPlaneBytes) * 4u }
 		);
 
 		// Plano 5/6: a cero, para no activar half-brite sobre los indices base.

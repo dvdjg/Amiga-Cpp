@@ -23,6 +23,7 @@
 ///   - `planes`: destino, 4 planos a `planes + p*plane_stride_bytes`.
 ///   - `bytes_per_row = width_px/8` (filas contiguas por plano, sin BPLMOD).
 
+#include <eng/core/domains.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::graphics {
@@ -55,18 +56,18 @@ inline void store_word_be(u8* p, u16 v) {
 } // namespace c2p_detail
 
 inline void c2p_1x1_4(
-	unsigned long width_px,
-	unsigned long height_px,
-	unsigned long plane_stride_bytes,
-	const void* chunky,
-	void* planes
+	eng::PixelWidth width_px,
+	eng::PixelHeight height_px,
+	eng::ByteStride plane_stride_bytes,
+	eng::ChunkyView chunky,
+	eng::Bytes<eng::PlaneTag> planes
 ) {
-	const u32 width = static_cast<u32>(width_px);
-	const u32 height = static_cast<u32>(height_px);
-	const u32 stride = static_cast<u32>(plane_stride_bytes);
+	const u32 width = width_px.value;
+	const u32 height = height_px.value;
+	const u32 stride = plane_stride_bytes.value;
 	const u32 row_bytes = width >> 3u; // bytes por fila en un plano (width/8)
-	const u8* src = static_cast<const u8*>(chunky);
-	u8* base = static_cast<u8*>(planes);
+	const u8* src = chunky.data();
+	u8* base = planes.data();
 
 	const u32 m_f = 0x0f0f0f0fu; // separa nibbles
 	const u32 m_b = 0x00ff00ffu; // separa bytes
@@ -145,20 +146,20 @@ inline void c2p_1x1_4(
 /// chunky 1 byte/pixel, bits 0..planes-1 = índice; salida planar, filas contiguas
 /// (`row_bytes = width/8`), planos a `planes + p*plane_stride_bytes`.
 inline void c2p_1x1_naive(
-	unsigned long width_px,
-	unsigned long height_px,
-	unsigned long planes_n,
-	unsigned long plane_stride_bytes,
-	const void* chunky,
-	void* out_planes
+	eng::PixelWidth width_px,
+	eng::PixelHeight height_px,
+	eng::PlaneCount planes_n,
+	eng::ByteStride plane_stride_bytes,
+	eng::ChunkyView chunky,
+	eng::Bytes<eng::PlaneTag> out_planes
 ) {
-	const u32 width = static_cast<u32>(width_px);
-	const u32 height = static_cast<u32>(height_px);
-	const u32 planes = static_cast<u32>(planes_n);
-	const u32 stride = static_cast<u32>(plane_stride_bytes);
+	const u32 width = width_px.value;
+	const u32 height = height_px.value;
+	const u32 planes = planes_n.value;
+	const u32 stride = plane_stride_bytes.value;
 	const u32 row_bytes = width >> 3u;
-	const u8* src = static_cast<const u8*>(chunky);
-	u8* base = static_cast<u8*>(out_planes);
+	const u8* src = chunky.data();
+	u8* base = out_planes.data();
 
 	for (u32 y = 0; y < height; ++y) {
 		const u8* srow = src + y * width;

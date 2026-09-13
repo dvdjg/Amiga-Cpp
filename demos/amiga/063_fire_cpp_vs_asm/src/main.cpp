@@ -150,7 +150,11 @@ struct FireBenchDemo {
 			seed_fire();
 			fire_cpp(m_fire);
 			to_chunky();
-			eng::graphics::c2p_1x1_naive(kFireW, kFireH, kPlanes, kPlaneBytes, m_chunky, m_planar);
+			eng::graphics::c2p_1x1_naive(
+		eng::PixelWidth { kFireW }, eng::PixelHeight { kFireH }, eng::PlaneCount { kPlanes },
+		eng::ByteStride { kPlaneBytes },
+		eng::ChunkyView { m_chunky, static_cast<eng::usize>(kFireW) * kFireH },
+		eng::PlaneBytes { m_planar, static_cast<eng::u32>(kPlaneBytes) * kPlanes });
 			scale4x(m_planar, m_scene.bitplanes());
 		}
 
@@ -184,7 +188,11 @@ struct FireBenchDemo {
 			fire_asm(m_fire, kFireW, kFireH);
 		}
 		to_chunky();
-		eng::graphics::c2p_1x1_naive(kFireW, kFireH, kPlanes, kPlaneBytes, m_chunky, m_planar);
+		eng::graphics::c2p_1x1_naive(
+		eng::PixelWidth { kFireW }, eng::PixelHeight { kFireH }, eng::PlaneCount { kPlanes },
+		eng::ByteStride { kPlaneBytes },
+		eng::ChunkyView { m_chunky, static_cast<eng::usize>(kFireW) * kFireH },
+		eng::PlaneBytes { m_planar, static_cast<eng::u32>(kPlaneBytes) * kPlanes });
 		scale4x(m_planar, m_scene.bitplanes());
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 	}

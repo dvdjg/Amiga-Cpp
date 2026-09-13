@@ -161,10 +161,11 @@ struct BackgroundDemo {
 		// Elemento animado del bucle principal, dibujado por HW: limpia una banda y
 		// traza una linea que baja. Ambos blits esperan al Blitter, y ahi el engine
 		// drena las tareas de fondo (`set_blitter_service`) sin parar el juego.
-		backend.blitter_clear(m_plane1 + static_cast<eng::u32>(kLineBandTop) * kBytesPerRow,
-				      1u, kBytesPerRow, kPlaneBytes, kWidth, kLineBandRows);
+		backend.blitter_clear(eng::PlaneBytes { m_plane1 + static_cast<eng::u32>(kLineBandTop) * kBytesPerRow, kPlaneBytes },
+				      eng::PlaneCount { 1u }, eng::RowBytes { kBytesPerRow }, eng::ByteSize { kPlaneBytes },
+				      eng::PixelWidth { kWidth }, eng::PixelHeight { kLineBandRows });
 		const eng::s16 y = static_cast<eng::s16>(kLineBandTop + (m_line_y % kLineBandRows));
-		backend.blitter_line(m_plane1, kBytesPerRow, 0, y, static_cast<eng::s16>(kWidth - 1), y);
+		backend.blitter_line(eng::PlaneBytes { m_plane1, kPlaneBytes }, eng::RowBytes { kBytesPerRow }, 0, y, static_cast<eng::s16>(kWidth - 1), y);
 		m_line_y = static_cast<eng::u16>((m_line_y + 2u) % kLineBandRows);
 
 		if (context.background == nullptr) return;

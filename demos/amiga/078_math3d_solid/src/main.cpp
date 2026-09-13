@@ -387,10 +387,14 @@ struct DemoGame {
 			if (cy > ymax) ymax = cy;
 			mc.clear_rect(xmin, ymin, xmax, ymax);
 			fill_tri(mc, ax, ay, bx, by, cx, cy, 1u);
-			if (!backend.blit_fill_from_mask(m_mask, m_scene.bitplanes(), kPlanes, kRowBytes,
-							 kPlaneBytes, xmin, ymin,
-							 static_cast<eng::u16>(xmax - xmin + 1),
-							 static_cast<eng::u16>(ymax - ymin + 1), col)) {
+			if (!backend.blit_fill_from_mask(
+				    eng::MaskBytes { m_mask, kPlaneBytes },
+				    eng::PlaneBytes { m_scene.bitplanes(),
+				                      static_cast<eng::u32>(kPlaneBytes) * static_cast<eng::u32>(kPlanes) },
+				    eng::PlaneCount { kPlanes }, eng::RowBytes { kRowBytes }, eng::ByteSize { kPlaneBytes },
+				    xmin, ymin,
+				    static_cast<eng::u16>(xmax - xmin + 1),
+				    static_cast<eng::u16>(ymax - ymin + 1), col)) {
 				eng::debug::mark_failed(g_eng_run_status, 0x00007804u);
 				return;
 			}

@@ -274,9 +274,13 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
   `eng::UafPayload` (`ByteView<UafTag>`); `ChunkCache::Loader`, `StreamingWorldMap::Source`,
   `WorldMapChunkLoader` y `WorldView::decode_chunk<Tag>` usan `eng::TileBankBuffer`. HOST-012/031/
   035/037 y la demo 078 migrados; 111 (streaming) sin regresión.
-- **Fase 5 — parcial**: la capa de audio pura (`SampleEvent`/`AudioPlan::Channel` → `eng::AudioSample`,
-  `MusicEvent` → `eng::MusicModule`) y `audio_paula` convertida en el punto de registro; HOST-005 y
-  demo 057 migrados. Pendiente: backend blitter/C2P (`Bytes<PlanarRegion>`, `PlaneIndex`).
+- **Fase 5 — hecha**: audio puro (`SampleEvent`/`AudioPlan::Channel` → `eng::AudioSample`,
+  `MusicEvent` → `eng::MusicModule`) y backend blitter/C2P en su firma interna
+  (`blitter_clear`/`blitter_line`/`blit_fill_from_mask`/`fill_triangles_blitter` con
+  `PlaneBytes`/`PlaneCount`/`RowBytes`/`ByteSize`/`PixelWidth/Height`/`MaskBytes`; `c2p_1x1_*` con
+  `ChunkyView`/`PlaneBytes`); la conversión a crudo (`data()`/`value`) queda dentro del backend.
+  Demos 057/061/062/063/078/079/081 y `audio_paula` migradas; `C2p4State` (staging del C2P) sigue
+  crudo por ser punteros de hardware. HOST-005 y demos alcanzan READY.
 - **Fases 6-7 — pendientes** (`Service<Context>`/`TaskToken<T>`, `Block<Tag>`).
 
 

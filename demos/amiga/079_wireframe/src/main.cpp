@@ -203,7 +203,7 @@ void draw_object(obj::Object3D& object, eng::u8* bplpt, eng::amiga::MinimalBacke
 			x1 = obj::vertex3d(objdat, e1)->x;
 			y1 = obj::vertex3d(objdat, e1)->y;
 
-			backend.blitter_line(bplpt, kBytesPerRow, x0, y0, x1, y1);
+			backend.blitter_line(eng::PlaneBytes { bplpt, kPlaneBytes }, eng::RowBytes { kBytesPerRow }, x0, y0, x1, y1);
 		}
 	} while (*group);
 }
@@ -252,7 +252,8 @@ struct WireframeDemo {
 		const eng::u8 active = m_active;
 		eng::u8* plane = m_bitplanes + static_cast<eng::u32>(active) * kPlaneBytes;
 
-		backend.blitter_clear(plane, 1, kBytesPerRow, kPlaneBytes, kWidth, kHeight);
+		backend.blitter_clear(eng::PlaneBytes { plane, kPlaneBytes }, eng::PlaneCount { 1 }, eng::RowBytes { kBytesPerRow },
+			      eng::ByteSize { kPlaneBytes }, eng::PixelWidth { kWidth }, eng::PixelHeight { kHeight });
 
 		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z =
 			static_cast<eng::s16>(context.frame.frame_index * 8u);
