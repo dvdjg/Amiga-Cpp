@@ -335,6 +335,18 @@ constexpr s32 parallax_pattern_offset_px(s32 camx, u8 div, u16 period_px) {
     return off;
 }
 
+/// Offset en píxeles de la ventana del patrón para un fondo **FIJO** en pantalla
+/// (velocidad 0): anula TODO el scroll X del playfield, tanto el grueso como el
+/// fino. `src = -camx` envuelto en `[0, period_px)`. Es el caso `desired_bg = 0`
+/// de la fórmula `source = main_scroll - desired_bg`, útil para comprobar la
+/// compensación del Copper split con una imagen estática (demo 112).
+constexpr s32 fixed_bg_offset_px(s32 camx, u16 period_px) {
+    if (period_px == 0u) return 0;
+    s32 off = -camx % static_cast<s32>(period_px);
+    if (off < 0) off += static_cast<s32>(period_px);
+    return off;
+}
+
 
 // -----------------------------------------------------------------------------
 // Constantes canónicas del algoritmo original (ver §1) — valores por defecto
@@ -844,51 +856,59 @@ m_scroll.state().previous_xdirection = 0; // DIRECTION_IGNORE (0=ignore, 1=left,
     }
 
     /// Técnica **"soft DPF"** (RoboCod), REUTILIZABLE para cualquier playfield y
-    /// cualquier profundidad: copia por Blitter la ventana del patrón de fondo de
-    /// 1 bit (`pattern`, `pattern_row_bytes` de ancho) al plano
-    /// `m_cfg.parallax_plane` del bitmap. El display lee ese plano con el puntero
-    /// **normal** (compartido con el FG) -> el split del corkscrew sigue cuadrando;
-    /// el movimiento del fondo lo da el CONTENIDO (ventana), no el puntero.
+    /// profundidad: copia por Blitter UN rectángulo de la ventana del patrón de
+    /// fondo de 1 bit al plano `m_cfg.parallax_plane` del bitmap. El display lee
+    /// ese plano con el puntero **normal** (compartido con el FG), de modo que el
+    /// movimiento del fondo lo da el CONTENIDO (la ventana), no el puntero.
     ///
     /// `src_x_pixels` es el offset de la ventana **en píxeles** dentro del patrón:
-    /// el primer píxel de la ventana aparece en el píxel 0 de la fila destino. El
-    /// resto no múltiplo de 16 lo resuelve el barrel shifter A del Blitter
-    /// (`source_shift`), lo que da continuidad sub-byte al scroll del fondo (sin
-    /// saltos de columna cada 8/16 px). `src_y` es la fila del patrón.
+    /// el píxel 0 del destino muestra el píxel `src_x_pixels`. La parte no múltiplo
+    /// de 16 la resuelve el barrel shifter A del Blitter (`source_shift`, AHRM 6,
+    /// "Copying Arbitrary Regions"): modo ascendente `destino[d] = patrón[q+d-S]`
+    /// con `q = src_x + S`, `S = (-src_x)&15` (word alineada). El primer `S` píxeles
+    /// de cada fila llegan del shift-in y quedan a cero (se enmascara la última word
+    /// con `BLTALWM`): forman una **guarda de hasta 15 px** al principio del bitmap
+    /// que el llamador debe mantener fuera de la ventana (cámara X >= 16).
     ///
-    /// Geometría del shift (AHRM 6, "Copying Arbitrary Regions" + `BlitterCopyFast`):
-    /// en modo ascendente el Blitter desplaza a la derecha, de modo que
-    /// `destino[d] = patron[q + d - S]`. Para que `destino[0] == src_x_pixels` se
-    /// apunta A a la word `q = src_x + S` con `S = (-src_x) & 15` (word alineada).
-    /// El primer `S` píxeles de cada fila llegan del shift-in (cero tras enmascarar
-    /// la última word con `BLTALWM`), así que forman una **guarda de hasta 15 px**
-    /// al principio del bitmap: el llamador debe mantenerla fuera de la ventana
-    /// visible (cámara X >= 16 o word de guarda equivalente).
+    /// `src_y` es la fila del patrón; `dest_row` la fila de display destino y `rows`
+    /// la altura del rectángulo. El paso entre filas del destino es `planes*bytes`.
     ///
-    /// La copia cubre `display_height` filas del anillo por el ancho de fila del
-    /// bitmap. El llamador envuelve `src_x_pixels`/`src_y` dentro del patrón.
-    graphics::BlitJob make_bg_plane_copy_job(const u8* pattern, u16 pattern_row_bytes,
-                                             u16 src_x_pixels, u16 src_y) const {
+    /// **Copper split (corkscrew)**: la ventana visible del playfield son DOS trozos
+    /// del bitmap (arriba `[display_offset, display_height)`, abajo `[0, viewport-split)`).
+    /// Un solo rect continuo dejaría el fondo discontinuo en el corte. El llamador
+    /// emite DOS rects con el mismo `src_x`: el superior con `src_y = bg_y`, y el
+    /// inferior con `src_y = bg_y + split` (las filas del patrón contiguas), de forma
+    /// que el fondo queda continuo y fijo aunque el FG haga wrap vertical (§3).
+    graphics::BlitJob make_bg_plane_copy_rect_job(const u8* pattern, u16 pattern_row_bytes,
+                                                  u16 src_x_pixels, u16 src_y,
+                                                  u16 dest_row, u16 rows) const {
         const u8 bgp = m_cfg.parallax_plane;
         const u16 width_bytes = m_bytes_per_row; // fila completa (el display lee [planeaddx, +fetch])
         const u16 row = m_bytes_per_row;
         const u16 pat_row = pattern_row_bytes ? pattern_row_bytes : width_bytes;
-        // Word alineada `q = src_x + S` y shift S para que el píxel 0 del destino
-        // lea el píxel `src_x` del patrón. `S=0` cuando ya está alineado.
         const u16 shift = static_cast<u16>((16u - (src_x_pixels & 15u)) & 15u);
         const u16 q = static_cast<u16>(src_x_pixels + shift);
         const u16 word_off = static_cast<u16>((q / 16u) * 2u);
         const u8* src = pattern + static_cast<u32>(src_y) * pat_row + word_off;
-        // Plano `bgp`, fila 0 del anillo: base + bgp*row; paso entre filas = planes*row.
-        u16* dst = reinterpret_cast<u16*>(m_frontbuffer + static_cast<u32>(bgp) * row);
+        // Plano `bgp` del bitmap interleaved: base + (fila*planes + bgp)*row.
+        u16* dst = reinterpret_cast<u16*>(m_frontbuffer +
+            (static_cast<u32>(dest_row) * cplanes() + bgp) * row);
         return {
             graphics::BlitJobKind::TileBlockCopy, nullptr,
             reinterpret_cast<const u16*>(src), dst,
-            static_cast<u16>(width_bytes / 2u), m_display_height,
+            static_cast<u16>(width_bytes / 2u), rows,
             static_cast<s16>(pat_row - width_bytes),
             static_cast<s16>(row * cplanes() - width_bytes),
             1, static_cast<u8>(shift), 2, 2, false
         };
+    }
+
+    /// Compatibilidad: copia TODO el anillo (`display_height` filas) desde `src_y`.
+    /// Útil sin split (display lineal) o para pintar el fondo completo de una vez.
+    graphics::BlitJob make_bg_plane_copy_job(const u8* pattern, u16 pattern_row_bytes,
+                                             u16 src_x_pixels, u16 src_y) const {
+        return make_bg_plane_copy_rect_job(pattern, pattern_row_bytes, src_x_pixels,
+                                           src_y, 0, m_display_height);
     }
 
     bool fill_screen(graphics::FramePlan& plan) const {
@@ -1599,6 +1619,12 @@ private:
         if (v.plane_bytes < static_cast<u32>(v.bitmap_bytes_per_row * v.bitmap_height * v.planes)) return false;
         // Split: la fila del wrap cae dentro de la ventana y no sobrepasa el buffer.
         if (v.split_active && v.split_line >= v.viewport_h) return false;
+        // LÍMITE OCS (fallo RÁPIDO): el WAIT del Copper compara solo 8 bits de línea
+        // (0..255). Con split MÓVIL, la línea de corte máxima es
+        // DIWSTRT_y + viewport_h - 1 = viewport_h + 40; debe quedar <= 255, luego el
+        // campo visible debe ser <= 215. NO usar 256 (produce el wrap adelantado).
+        // Canónico: 208 (13 filas de tile) + HUD si se quieren ocupar 256.
+        if (v.split_active && static_cast<u16>(v.viewport_h + 40u) > 255u) return false;
         return true;
     }
 
@@ -1813,6 +1839,11 @@ private:
         // (el campo lineal/mirror no envuelve y su Y es libre). Solo si AMBOS
         // tienen split activo deben compartir la misma línea (mismo Y).
         if (a.split_active && b.split_active && a.split_line != b.split_line) { return false; }
+        // LÍMITE OCS (fallo RÁPIDO): split móvil con WAIT de 8 bits (ver composer single).
+        if (a.split_active || b.split_active) {
+            const u16 vh = a.split_active ? a.viewport_h : b.viewport_h;
+            if (static_cast<u16>(vh + 40u) > 255u) return false;
+        }
         return true;
     }
 

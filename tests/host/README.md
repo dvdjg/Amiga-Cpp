@@ -64,4 +64,4 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-021 | [plasma_tables](021_plasma_tables/README.md) | Datos del plasma: tablas `tab1/2/3` (`fx4i`·`SIN/COS` verbatim) y paleta 256×RGB12, con checksums frente al original. |
 | HOST-022 | [fast_div](022_fast_div/README.md) | `eng::fast_div`/`is_pow2`/`ilog2`/`asr_floor`: división/módulo por potencia de dos sin el libcall `__udivsi3` del 68000. |
 | HOST-023 | [limited_axes](023_limited_axes/README.md) | Ejes del `ScrollEngine`: `Ring`/`Finite`/`Off` y `OneDirection` (shooter vertical). |
-| HOST-024 | [parallax_offset](024_parallax_offset/README.md) | `parallax_pattern_offset_px`: fondo "soft DPF" a `1/div` sin saltos de columna cada 8/16 px. |
+| HOST-024 | [parallax_offset](024_parallax_offset/README.md) | Offset de fondo parallax/fijo y compensación del Copper split ("soft DPF"); sin saltos de columna. |

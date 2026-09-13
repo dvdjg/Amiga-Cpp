@@ -1,22 +1,22 @@
-# Test HOST-024: offset de parallax "soft DPF"
+# Test HOST-024: offset de fondo (parallax/fijo) y compensación de split
 
-Respalda `eng::field::parallax_pattern_offset_px`
-(`engine/include/eng/field/xlimited.hpp`), la parte pura de la técnica de fondo
-RoboCod ("soft DPF"): un playfield single de 5 planos donde el 5.º (fondo) se
-copia por Blitter con un offset de contenido para scrollear a `1/div` del FG.
+Respalda la parte pura de la técnica de fondo RoboCod ("soft DPF")
+(`engine/include/eng/field/xlimited.hpp`): un playfield single de 5 planos donde el
+5.º (fondo) se copia por Blitter con un offset de contenido.
 
-El plano de fondo comparte el scroll del FG (el display lee el bitmap desde
-`camx`), así que el patrón debe desfasarse `-camx*(div-1)/div`; la posición
-aparente en pantalla es `src + camx`. Se comprueba:
+El plano de fondo comparte el scroll del FG, así que el contenido hay que
+desfasar `src = bg_x - scroll_x`; la posición aparente es `src + scroll_x`.
 
-- `div=1`/`div=0` no desfasan (config sin parallax).
-- Con paso de cámara múltiplo de `div`, el offset es entero **exacto** y el fondo
-  avanza 1 px por frame (sin saltos de columna cada 8/16 px).
-- El reparto `word (16 px) + shift (0..15)` que consume el barrel shifter del
-  Blitter en `XLimitedPlayfield::make_bg_plane_copy_job`.
+- `parallax_pattern_offset_px(camx, div, period)`: fondo a `1/div` (`bg_x=camx/div`).
+- `fixed_bg_offset_px(camx, period)`: fondo **FIJO** (`bg_x=0` → `src=-camx`), cancela
+  TODO el scroll (coarse+fine).
+- **Compensación del Copper split**: las dos mitades (arriba/abajo del corte)
+  muestrean filas **contiguas** del patrón (`src_y=0` y `src_y=split`), de modo que
+  el fondo queda continuo y fijo aunque el FG haga wrap vertical. El reparto en dos
+  rects se hace con `make_bg_plane_copy_rect_job`.
 
 ```bash
 bash tools/run-host-tests.sh tests/host/024_parallax_offset
 ```
 
-Contexto: `docs/reference/amiga/techniques/robocod-layered-scroll.md`.
+Contexto: `docs/reference/amiga/techniques/robocod-layered-scroll.md` §3.

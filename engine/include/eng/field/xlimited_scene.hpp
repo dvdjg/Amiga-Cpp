@@ -202,7 +202,12 @@ struct XlimitedPathConfig {
 struct XlimitedSceneConfig {
     // --- Geometría del campo de scroll (intrínseca del playfield) -----------
     eng::u16 viewport_w = 320;
-    eng::u16 viewport_h = 256;       // alto visible del playfield principal
+    eng::u16 viewport_h = 256;       // alto visible del playfield principal. CON split
+                                     // de Copper (corkscrew, !linear_display) debe
+                                     // ser <= 214: la línea de corte = DIWSTRT_y +
+                                     // viewport_h - 1 = viewport_h + 40 y el WAIT
+                                     // compara solo 8 bits. Canónico 208 (+ HUD para
+                                     // ocupar 256). El compositor falla rápido si no.
     eng::u16 tile_width = 16;
     eng::u16 tile_height = 16;
     eng::u8 planes = 4;              // profundidad por playfield (4 single, 3 DPF)

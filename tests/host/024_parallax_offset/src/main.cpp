@@ -24,6 +24,7 @@ void check(bool ok, const char* what) {
 using eng::s32;
 using eng::u16;
 using eng::field::parallax_pattern_offset_px;
+using eng::field::fixed_bg_offset_px;
 
 constexpr u16 kPeriod = 512;   // periodo horizontal del patrón (2 bytes = 16 px word)
 
@@ -67,7 +68,31 @@ int main() {
 		check(word * 16 + bit == src, "split word+shift exacto");
 	}
 
+	// Fondo FIJO (`fixed_bg_offset_px`, desired_bg=0): src = -camx mod P. La posición
+	// aparente en pantalla (src + camx) queda constante => imagen estática.
+	for (s32 c = -300; c < 3000; c += 7) {
+		const s32 src = fixed_bg_offset_px(c, kPeriod);
+		check(src >= 0 && src < kPeriod, "fijo: offset en rango [0,period)");
+		check((((src + c) % kPeriod) + kPeriod) % kPeriod == 0,
+		      "fijo: cancela TODO el scroll (coarse+fine)");
+	}
+
+	// Compensación del Copper split: las dos mitades muestrean filas CONTIGUAS del
+	// patrón -> `src_y` superior = 0 (filas [0,split)), inferior = split (filas
+	// [split,viewport)); juntas cubren [0,viewport) sin hueco ni solape.
+	constexpr s32 kViewport = 208;
+	for (s32 D = 240; D <= 288; D += 16) {
+		for (s32 d = 0; d < D; ++d) {
+			const s32 split = D - d;
+			if (split <= 0 || split >= kViewport) continue; // sin split
+			const s32 upper_src0 = 0, upper_n = split;
+			const s32 lower_src0 = split, lower_n = kViewport - split;
+			check(upper_src0 + upper_n == lower_src0, "split: source contiguo arriba/abajo");
+			check(lower_src0 + lower_n == kViewport, "split: cubre toda la ventana");
+		}
+	}
+
 	if (g_fail != 0) { std::printf("%d fallo(s)\n", g_fail); return 1; }
-	std::printf("OK: parallax_pattern_offset_px (soft DPF) validado.\n");
+	std::printf("OK: parallax/fijo + compensacion de split (soft DPF) validados.\n");
 	return 0;
 }

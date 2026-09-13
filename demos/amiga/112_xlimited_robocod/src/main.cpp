@@ -4,12 +4,18 @@
 //
 // Porte del truco del RoboCod ORIGINAL (sin DPF): **un solo playfield de 5
 // planos**. Los 4 primeros (16 colores) son el FG de juego (plataformas); el 5.º
-// plano es el FONDO, que scrollea a distinta velocidad dibujandose por Blitter
-// con su propio offset (`parallax_plane`). El blit del tilemap FG es interleaved
+// plano es el FONDO, dibujado por Blitter. El blit del tilemap FG es interleaved
 // y cubre los 5 planos (pisa el plano de fondo con 0); DESPUES, cada frame, se
 // re-copia por Blitter la ventana del patron al 5.º plano (tecnica "soft DPF").
-// La copia usa el barrel shifter para dar continuidad sub-pixel y deja una guarda
-// enmascarada (ver `make_bg_plane_copy_job` y kGuardX).
+//
+// El fondo se mantiene **FIJO** en pantalla: se compensa TODO el scroll X del
+// playfield (grueso+grueso) desplazando el contenido (`src = -videoposx`) y se
+// COMPENSA EL COPPER SPLIT emitiendo dos rects (arriba/abajo del corte) con las
+// filas del patron contiguas -> sin costura en el wrap vertical. La copia usa el
+// barrel shifter para el sub-pixel y deja una guarda enmascarada (ver
+// `make_bg_plane_copy_rect_job` y kGuardX). Ver robocod-layered-scroll.md §3.
+//
+// LÍMITE OCS: campo visible 208 (el WAIT del Copper es de 8 bits; ver kViewportH).
 //
 // Paleta de 32 indices MAPEADA a 16: `palette[c]==palette[c+16]` para c=1..15, de
 // modo que el plano de fondo NO tinta el FG; solo el indice 0/16 pasa de negro
@@ -53,8 +59,12 @@ namespace field = eng::field;
 constexpr eng::u16 kTileW = 16;
 constexpr eng::u16 kTileH = 16;
 constexpr eng::u16 kViewportW = 320;
-constexpr eng::u16 kViewportH = 256;
-constexpr eng::u16 kDisplayH = 288;        // corkscrew: 256 + 2*16
+// LÍMITE OCS: el WAIT del Copper solo compara 8 bits de línea (0..255). Con un
+// split MÓVIL (corkscrew), la línea de corte = DIWSTRT_y(41) + (display_height -
+// display_offset) debe quedar <= 255 => el campo visible debe ser <= 214. Se usa
+// 208 (13 filas de tile) como valor canónico (igual que 201/202). NO usar 256.
+constexpr eng::u16 kViewportH = 208;
+constexpr eng::u16 kDisplayH = 288;        // anillo = 256 + 2*16 (invariante §7 201)
 constexpr eng::u8  kPlanes = 5;            // 4 FG (16 colores) + 1 BG (RoboCod)
 constexpr eng::u8  kParallaxPlane = 4;
 constexpr eng::u8  kParallaxDiv = 2;
@@ -93,16 +103,9 @@ constexpr eng::u16 kPalette[32] {
 
 // Raster colors (Copper) del fondo: el color del plano 4 (COLOR16) cambia por
 // líneas de raster -> gradiente pastel sobre las bandas. Requiere display lineal
-// (sin split de Copper) para no desordenar el orden de los WAIT.
-constexpr field::RasterColorZone kColorZones[] {
-	field::raster_color(41u, 16u, 0x8cfu),
-	field::raster_color(73u, 16u, 0x9dfu),
-	field::raster_color(105u, 16u, 0xaefu),
-	field::raster_color(137u, 16u, 0x9cfu),
-	field::raster_color(169u, 16u, 0x8bfu),
-	field::raster_color(201u, 16u, 0x7afu),
-	field::raster_color(233u, 16u, 0x6afu),
-};
+// (sin split de Copper) para no desordenar el orden de los WAIT. Se conserva la
+// API `RasterColorZone` en el engine, pero la demo 112 usa el SPLIT (corkscrew)
+// para poder llevar el fondo fijo a través del corte, así que no las usa.
 
 eng::u16 g_map[kMapCols * kMapRows] {};
 
@@ -170,10 +173,7 @@ struct DemoGame {
 		scene_cfg.max_step = 4;
 		scene_cfg.parallax_plane = kParallaxPlane;                  // plano de fondo RoboCod
 		scene_cfg.parallax_div = kParallaxDiv;
-		scene_cfg.linear_display = true;                            // sin split -> raster colors
-		scene_cfg.color_zones = kColorZones;
-		scene_cfg.color_zone_count =
-			static_cast<eng::u8>(sizeof(kColorZones) / sizeof(kColorZones[0]));
+		scene_cfg.linear_display = false;                          // SPLIT de Copper (corkscrew)
 
 		scene_cfg.map.cells = eng::Span<const eng::u16>::from_raw(g_map, kMapCols * kMapRows);
 		scene_cfg.map.width = kMapCols;
@@ -228,23 +228,43 @@ struct DemoGame {
 			m_dx = -m_dx; m_dy = -m_dy;
 		}
 #endif
-		// Soft DPF: copia la ventana del patrón de fondo al 5.º plano. El display
-		// suma +camx (lee el bitmap en [camx, camx+viewport)), así que el patrón debe
-		// situarse en `camx/div - camx = -camx*(div-1)/div` para que el fondo
-		// scrollee a 1/div de la velocidad del FG. La parte no múltiplo de 16 la
-		// resuelve el barrel shifter del Blitter -> posición de píxel exacta, sin
-		// salto de columna cada 8/16 px. La copia deja una guarda (≤15 px) al
-		// principio del bitmap que kGuardX mantiene fuera de la ventana.
-		// El blit interleaved del FG pisa el 5.º plano; esta copia lo rehace DESPUÉS.
+		// Soft DPF con **fondo FIJO** y compensación del Copper split.
+		//
+		// El plano de fondo comparte el scroll hardware del FG (los punteros BPLxPT
+		// son comunes), así que para que la imagen quede FIJA en pantalla hay que
+		// anular TODO el scroll X (grueso+grueso) desplazando el CONTENIDO:
+		//   src_x = -videoposx  (desired_bg = 0)
+		// El barrel shifter del Blitter da la posición de píxel exacta.
+		//
+		// El corkscrew usa un SPLIT vertical de Copper: la ventana visible son DOS
+		// trozos del bitmap (arriba [d, display_height), abajo [0, viewport-split)).
+		// Para que el fondo sea continuo a través del corte se emiten DOS rects con
+		// el mismo src_x y con las filas del patrón contiguas: el superior con
+		// src_y=0, el inferior con src_y=split. Así el fondo se ve fijo y sin costura
+		// aunque el FG haga wrap. Ver robocod-layered-scroll.md §3.
 #ifndef K_DIAG_SKIP_BGCOPY
 		if (m_bg_pattern.valid()) {
-			const eng::s32 camx = scene.bg().mapposx();
-			const eng::s32 src_px = field::parallax_pattern_offset_px(
-				camx, kParallaxDiv, kPatPeriodPx);
-			auto bg_job = scene.bg().make_bg_plane_copy_job(
-				static_cast<const eng::u8*>(m_bg_pattern.data), kPatRowBytes,
-				static_cast<eng::u16>(src_px), 0);
-			plan.add_tile_block_copy(bg_job);
+			const eng::u8* pat = static_cast<const eng::u8*>(m_bg_pattern.data);
+			const eng::s32 src_px = field::fixed_bg_offset_px(
+				scene.bg().videoposx(), kPatPeriodPx);
+			const eng::s32 d = scene.bg().display_offset();
+			const eng::s32 split = static_cast<eng::s32>(kDisplayH) - d;
+			if (split < static_cast<eng::s32>(kViewportH)) {
+				// Superior: bitmap [d, display_height) -> pantalla [0, split).
+				plan.add_tile_block_copy(scene.bg().make_bg_plane_copy_rect_job(
+					pat, kPatRowBytes, static_cast<eng::u16>(src_px), 0,
+					static_cast<eng::u16>(d), static_cast<eng::u16>(split)));
+				// Inferior: bitmap [0, viewport-split) -> pantalla [split, viewport).
+				plan.add_tile_block_copy(scene.bg().make_bg_plane_copy_rect_job(
+					pat, kPatRowBytes, static_cast<eng::u16>(src_px),
+					static_cast<eng::u16>(split), 0,
+					static_cast<eng::u16>(static_cast<eng::s32>(kViewportH) - split)));
+			} else {
+				// Sin split: un solo rect cubre [d, d+viewport).
+				plan.add_tile_block_copy(scene.bg().make_bg_plane_copy_rect_job(
+					pat, kPatRowBytes, static_cast<eng::u16>(src_px), 0,
+					static_cast<eng::u16>(d), kViewportH));
+			}
 		}
 #endif
 		if (!backend.execute_frame_plan(plan)) {

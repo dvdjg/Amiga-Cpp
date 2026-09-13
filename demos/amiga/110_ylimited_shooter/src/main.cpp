@@ -46,7 +46,11 @@ namespace field = eng::field;
 constexpr eng::u16 kTileW = 16;
 constexpr eng::u16 kTileH = 16;
 constexpr eng::u16 kViewportW = 320;
-constexpr eng::u16 kViewportH = 256;
+// LÍMITE OCS: el WAIT del Copper solo compara 8 bits de línea (0..255); con split
+// móvil (corkscrew) la línea de corte = DIWSTRT_y(41) + (display_height -
+// display_offset) debe ser <= 255, luego el campo visible debe ser <= 214. Se usa
+// 208 (13 filas de tile) como canónico (igual que 201/202). NO usar 256.
+constexpr eng::u16 kViewportH = 208;
 constexpr eng::u8  kPlanes = 3;            // planos POR playfield (DPF 3+3 = 6 HW)
 constexpr eng::u16 kDisplayH = 288;        // anillo = 256 + 2*16
 
