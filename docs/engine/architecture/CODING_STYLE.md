@@ -70,6 +70,13 @@ aporta sus propias piezas de seguridad de C++23 sin depender de `std::span`:
   pueden recibir el puntero crudo, y solo el tiempo justo para programar registros.
 - Evitar "puntero + count" en firmas de API; si una funcion necesita memoria
   propia, pedir `Span` por valor y devolver `Span` (mutable solo si escribe).
+- **Vistas y unidades de dominio**: los buffers internos no van con `Span<u8>`/`Span<u16>`
+  crudos ni con escalares sueltos si existe (o puede crearse) un tipo de dominio:
+  `Bytes<Tag>`/`Words<Tag>` (`eng/core/typed.hpp`) y unidades fuertes (`PlaneIndex`, `RowBytes`,
+  `PixelWidth`…). Un error de dominio debe **no compilar** (audio ≠ patrón, base ≠ front,
+  ancho ≠ alto). Inventario, catálogo y migración por fases: `INTERNAL_TYPE_SYSTEM.md`.
+- **Frontera `unsafe`**: `from_raw()`/`raw()` son explícitos y solo los usa la capa de
+  backend/`BlitJob`; el resto del engine consume tipos de dominio.
 - Referencia de rendimiento para 68000: `docs/guides/optimization/OPTIMIZACION_GPP_68000.md`
   (documento vivo: [✓] verificado / [✗] corregido / [P] pendiente contra el toolchain,
   con bitácora de descubrimientos en su §8 y sonda reproducible en

@@ -80,3 +80,4 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-037 | [world_uaf](037_world_uaf/README.md) | Cadena UAF-R → `WorldView`: ensamblar blob con chunk `WorldMap` (`BlobWriter`), validar con `Blob` y leer el mundo. |
 | HOST-038 | [plane_view](038_plane_view/README.md) | `PlaneView`: soft DPF (front/back/`flip`) con doble buffer opcional de planos; base del `SoftDpfComposition`. |
 | HOST-039 | [soft_dpf](039_soft_dpf/README.md) | `SoftDpfComposition`: composición soft DPF (doble buffer + blit de copia del patrón) extraída del playfield. |
+| HOST-040 | [internal_types](040_internal_types/README.md) | `eng/core/typed.hpp`: vistas con tag de dominio (`Bytes`/`Words`), unidades fuertes y bases; dominios no intercambiables (fallo de compilación). |

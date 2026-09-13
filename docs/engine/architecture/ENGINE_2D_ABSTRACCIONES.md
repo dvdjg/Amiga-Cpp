@@ -145,6 +145,7 @@ Reglas concretas:
 - `SpriteConfig::data` es un `Span<const u16>` y `set()` descarta el sprite si la DATA no cubre `height*width_words*2` words.
 - Los punteros crudos quedan SOLO dentro del engine (núcleo): `BlitJob`, `CopperBuilder`, backend. Ahí los invariantes (Chip RAM, alineación, layout) son conocidos y están documentados, y el chipset Amiga exige direcciones físicas.
 - No es "C con clases": no se envuelve cada buffer en un blob opaco; un `Span` es un buffer con su tamaño y las primitivas devuelven `bool` + `constexpr`. El anti-patrón a evitar es el setter por doquier que ahoga los casos legítimos de contenido generado por CPU.
+- **Especialización por dominio**: sobre `Span`, el engine define tipos de dominio (`Bytes<Tag>`/`Words<Tag>`, unidades fuertes, direcciones/base) para que un error de dominio no compile (patrón ≠ audio, base ≠ front, ancho ≠ alto). Fundamento y auditoría: `INTERNAL_TYPE_SYSTEM.md` (`eng/core/typed.hpp`).
 
 ---
 

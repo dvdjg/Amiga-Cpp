@@ -1,0 +1,277 @@
+# Sistema de tipos internos (guía de diseño, tipo Rust)
+
+El engine usa hoy muchas interfaces internas con punteros crudos y escalares sin
+semántica: `u8*`, `const u16*`, `void*`, `u16 width/height/row_bytes` intercambiables. Eso
+permite errores que un sistema de tipos debería atrapar **en compilación**: pasar un buffer
+de audio como origen de un Blitter gráfico, intercambiar origen y destino de un blit, dar
+un `frontbuffer` donde se espera una base de `BPLxPT`, o confundir ancho con alto.
+
+Este documento es el **inventario y la propuesta** de un sistema de tipos de dominio para las
+interfaces internas, al estilo de una aplicación Rust segura: tipos nuevos que envuelven
+punteros/rangos/escalares, conversiones **explícitas** en la frontera, y el acceso crudo
+confinado a una sola capa (`unsafe` explícito). No sustituye a `Span` (que ya resuelve
+"puntero + tamaño"): lo **especializa** por dominio.
+
+Referencia de estilo vigente: `CODING_STYLE.md` §"Seguridad de tipos sobre punteros crudos".
+Modelo de capas: `ENGINE_2D_ABSTRACCIONES.md` §3 (`Owner`/`Ref`/`Span`).
+
+## 1. Objetivo y criterio
+
+Una interfaz es "a prueba de balas" si **no se puede llamar mal aunque se quiera**: el
+compilador rechaza mezclar dominios, invertir roles o pasar una geometría por otra. El
+criterio:
+
+- **Tipos de dominio, no `T*`**: cada buffer/registro tiene su tipo (`Pattern`, `AudioSample`,
+  `Palette`, `CopperList`…) y no son intercambiables.
+- **Semántica en el tipo**: `BitmapBase` (base de `BPLxPT`) ≠ `FrontBase` (buffer de escritura)
+  ≠ `PlaneBase` (vista de un plano) ≠ `ChipAddress` (dirección DMA).
+- **Unidades fuertes**: `PixelWidth` ≠ `PixelHeight` ≠ `RowBytes` ≠ `PlaneCount`; `PlaneIndex`
+  lleva rango validado.
+- **Conversión explícita**: cambiar de dominio (`Pattern` → `PatternWords`) o de vista
+  (`Bytes<Tag>` → `Words<Tag>`) requiere un método con nombre; nunca hay conversiones implícitas
+  entre dominios.
+- **`unsafe` en una capa**: solo el backend Amiga (Blitter/Copper/DMA) y `BlitJob` manejan lo
+  crudo, y lo hacen a través de un único conversor documentado.
+- **Coste cero**: cada tipo es un `struct` trivialmente copiable del mismo tamaño que envuelve;
+  sin virtuals, sin heap, `constexpr` donde aplique. Se verifica con `-S` que no añade
+  instrucciones (regla de rendimiento de `AGENTS.md`).
+
+## 2. Modelo safe ↔ unsafe
+
+```text
+  CAPA SAFE (produce/consume tipos de dominio)        CAPA UNSAFE (raw, documentada)
+  ┌───────────────────────────────────────────┐       ┌──────────────────────────────┐
+  │ Surface / PlaneView / SoftDpfComposition  │       │ BlitJob { const u16* ... }    │
+  │ Pattern, PaletteWords, PatternWords       │──────►│ CopperBuilder (BPLxPT)        │
+  │ BitmapBase, FrontBase, PlaneIndex         │  raw()│ amiga_minimal (registros)     │
+  │ SpriteWords, AudioSample, CopperWords     │       │ c2p / blitter / audio_paula   │
+  └───────────────────────────────────────────┘       └──────────────────────────────┘
+        el error de dominio no compila                       el invariante está documentado
+```
+
+La frontera es **una sola dirección**: los tipos safe exponen `raw()`/`to_raw()` (const), y
+solo la capa unsafe los construye desde memoria (arena/backend) con `from_raw()` documentado.
+
+## 3. Catálogo de tipos propuestos
+
+### 3.1 Vistas tipadas (sustituyen `Span<u8>`/`Span<const u16>` sin dominio)
+
+```cpp
+namespace eng {
+
+template <class Tag> class Bytes;      // Span<u8> mutable
+template <class Tag> class ByteView;   // Span<const u8> (o Bytes<const Tag>)
+template <class Tag> class Words;      // Span<u16> mutable
+template <class Tag> class WordView;   // Span<const u16>
+
+} // namespace eng
+```
+
+- Cada una envuelve un `Span<u8>`/`Span<u16>` y **solo** expone operaciones del dominio
+  (`size`, `subspan`, `at` con `illegal`, `fill`).
+- `Bytes<Tag>::words<Tag>()` / `WordView<Tag>::bytes()` hacen la reinterpretación **explícita**
+  (alineación y tamaño comprobados con `static_assert`/runtime).
+- `raw()` es el único camino a `Span<u8>`/`Span<const u16>` y se documenta como frontera.
+
+Tags (structs vacíos, cero coste) y alias de dominio:
+
+| Alias | Envuelve | Sustituye a | Riesgo que elimina |
+|---|---|---|---|
+| `Pattern` / `PatternWords` | bytes / words | `const u8*` + `pattern_row_bytes` | copiar un patrón a un destino que no es fondo |
+| `TileIndexed` | bytes | `const u8* indexed` | pasar un tilebank como sample |
+| `PlanarRegion` / `PlanarPlane` | bytes | `u8* m_frontbuffer`, `bitplanes` | escribir fuera del plano/layout |
+| `ChunkyBuffer` | bytes | `const void* chunky` | alimentar el C2P con datos planares |
+| `PaletteWords` | words | `const u16* palette` | usar un tileset como paleta |
+| `SpriteWords` | words | `const u16* sprite_data` | pasar palabras de tile a un sprite |
+| `CopperWords` | words | `const u16* copper` | programar el Copper con datos que no son listas |
+| `AudioSample` | bytes | `const u8* sample` | **pasar audio como origen de un Blitter** |
+| `MusicModule` | bytes | `const void* module` | dar un sample a un replayer |
+| `UafPayload` | bytes | `const u8*` en `Blob` | leer offsets sobre un buffer cualquiera |
+
+### 3.2 Tipos de dirección/base
+
+| Tipo | Envuelve | Semántica |
+|---|---|---|
+| `BitmapBase` | `u8*` | `Bitmap::allocation_start()` (lo que va a `BPLxPT`) |
+| `FrontBase` | `u8*` | `bytes().data()` (con `frontbase_offset`) |
+| `PlaneBase` | `const u8*` | base del plano `p` dentro de un bitmap (solo lectura para el mapper) |
+| `ChipAddress` | `uintptr` | dirección DMA-visible (chip RAM) |
+| `CpuAddress` | `uintptr` | dirección solo-CPU |
+| `ByteOffset` / `WordOffset` | `u32` | desplazamiento (no mezclable con `PlaneIndex`) |
+
+`BitmapBase` y `FrontBase` son **distintos a propósito**: el bug "usar el frontbuffer como base
+de `BPLxPT`" deja de compilar.
+
+### 3.3 Unidades y vocabulario (evitan intercambiar parámetros)
+
+| Tipo | Envuelve | Uso |
+|---|---|---|
+| `PixelWidth`, `PixelHeight` | `u16` | no se pueden intercambiar |
+| `RowBytes` | `u16` | bytes por planelínea |
+| `PlaneBytes` | `u32` | tamaño de un plano |
+| `PlaneCount` | `u8` | 1..6 |
+| `PlaneIndex` | `u8` | validado contra `PlaneCount` al construir |
+| `WordCount` | `u16` | nº de words de un blit/copia |
+| `TileSide` | `u16` | 16/32 (potencia de dos, `static_assert`) |
+| `ChunkLog2` | `u8` | tamaño de chunk (potencia de dos) |
+
+`PlaneIndex::make(value, PlaneCount)` dispara `illegal` (como `Span::at`) o es `consteval` si se
+conoce a priori.
+
+### 3.4 Handles y bloques (ownership)
+
+| Tipo | Sustituye a | Nota |
+|---|---|---|
+| `Handle<Tag>` (`BitmapHandle`, `TileBankHandle`, `SpriteHandle`, `SoundHandle`) | índice `u16` suelto | evita usar un índice de sprite como índice de tile |
+| `Block<Tag>` | `MemoryBlock { void* data; ... }` | bloque de arena tipado; `bytes<Tag>()` |
+| `Ref<T>` | `T*` no-propietario | ya especificado en `ENGINE_2D_ABSTRACCIONES.md` §3 |
+| `TaskToken<T>` | `void* user` en callbacks | tarea de fondo con datos tipados |
+
+### 3.5 Blits y contexto de dibujo
+
+- `BlitJob` mantiene campos crudos (`const u16* source`, `u16* destination`) porque es el
+  **comando del backend**, pero sus productores (`Surface`, `PlaneView`, `SoftDpfComposition`)
+  solo aceptan tipos de dominio:
+  ```cpp
+  BlitJob copy(PatternWords src, PlaneView dst, PlaneIndex p, Rect region);
+  ```
+- Se distingue **rol** además de contenido: `BlitSource` (const) y `BlitDest` (mut) evitan
+  intercambiar origen y destino.
+
+## 4. Auditoría por subsistema
+
+### 4.1 `PlaneView` / `SoftDpfComposition` (punto de partida del usuario)
+
+| Actual | Propuesta |
+|---|---|
+| `bind_single(u8* main_real, u8* main_front)` | `bind(BitmapBase, FrontBase)` |
+| `bind_raw(u8*, u8*, u8*, u8*)` | `bind(BitmapBase, FrontBase, BitmapBase, FrontBase)` |
+| `display_base() -> u8*` | `display() -> PlaneBase` (o `ChipAddress` para el Copper) |
+| `write_base() -> u8*` | `back() -> Bytes<PlanarRegion>` |
+| `make_copy_rect_job(const u8* pattern, ..., u16 words)` | `copy(PatternWords, PlaneIndex, Rect, WordCount)` |
+
+### 4.2 Bitmap / arena / memoria
+
+| Actual | Propuesta |
+|---|---|
+| `Bitmap::allocation_start() -> u8*` | `BitmapBase` |
+| `Bitmap::bytes() -> Span<u8>` | `Bytes<PlanarRegion>` (mutable) / `ByteView<PlanarRegion>` |
+| `MemoryBlock { void* data; u32 size; MemoryKind }` | `Block<Tag>` con `bytes<Tag>()` |
+| `LinearArena::allocate(...) -> MemoryBlock` | `allocate<Tag>(Bytes, align) -> Block<Tag>` |
+| `emit_world_rect(const u16* src, ...)` / `..._masked` | `emit_world_rect(WordView<TileBank>, ...)` |
+
+### 4.3 Backend gráfico (frontera unsafe, se documenta y se mantiene fina)
+
+| Actual | Propuesta |
+|---|---|
+| `blitter_clear(u8* dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w, u16 h)` | `blitter_clear(Block<PlanarRegion>, PlaneCount, RowBytes, PlaneBytes, PixelWidth, PixelHeight)` |
+| `blit_fill_from_mask(const u8* mask, u8* dst, ...)` | `BlitMask (ByteView<MaskTag>)`, `Bytes<PlanarRegion>` |
+| `blitter_line(u8* plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1)` | `PlaneBase`/`Bytes<PlanarRegion>` + `RowBytes` + puntos |
+| `c2p(const void* chunky, void* planes)` | `ChunkyBuffer` → `Bytes<PlanarRegion>` |
+| `move_bitplane_pointer(u8 plane, const void* address)` | `PlaneIndex` + `ChipAddress` |
+
+### 4.4 Copper / escenas EHB/HAM/tile
+
+| Actual | Propuesta |
+|---|---|
+| `CopperBuilder(m_words)` sobre `u16*` | `Words<CopperTag>`; `patch_move32(..., const void*)` → `ChipAddress` |
+| `emit_palette(const u16* colors, u8 first, u8 count)` | `PaletteWords`, `PaletteFirst`, `ColorCount` |
+| `ehb_scene::bitplanes() -> u8*` | `Bytes<PlanarRegion>` |
+
+### 4.5 Contenido / assets / streaming
+
+| Actual | Propuesta |
+|---|---|
+| UAF `read_be16(const u8*)` / `Blob` | `ByteView<UafPayload>` + `ByteCursor` |
+| `WorldView::decode_chunk(..., u16* dst, u32 dst_count)` | `decode_chunk(..., Words<TileBank>, WordCount)` |
+| `ChunkCache::Loader { LoadResult (*)(void*, s32, s32, u16*) }` | `ChunkLoader<Src>` con `WordCount` y `Words<TileBank>` |
+| `xlimited_build_blocks_bitmap(..., const u8* indexed, u32 stride)` | `TileIndexed`, `ByteStride` |
+| `Surface::draw_text(s32, s32, const char*, u8)` | `Utf8`, `PaletteIndex` |
+
+### 4.6 Audio y tareas de fondo
+
+| Actual | Propuesta |
+|---|---|
+| `SampleEvent { const u8* sample }` / `AudioMixer::setup(void*, void*, void*)` | `AudioSample`, `MixBuffer`, `PluginBuffer`, `PluginData` |
+| `MusicPlayer::init(const void* module, const void* samples, ...)` | `MusicModule`, `AudioSample` |
+| `BackgroundQueue::add(TaskStep, void* data)` | `add<TaskData>(u16 (*)(TaskData*, TaskSlice), Ref<TaskData>)` |
+| `MinimalBackend::set_vblank_service(void (*)(void*, u16), void*)` | `Service<Context>` tipado |
+
+## 5. Ejemplo: `PlaneView` tipado
+
+```cpp
+struct PlaneTag {};
+using PlaneBytes = eng::Bytes<PlaneTag>;         // buffer de un plano (mutable)
+using PlaneViewConst = eng::ByteView<PlaneTag>;  // vista de solo lectura
+
+class PlaneView {
+public:
+    void bind(eng::BitmapBase real, eng::FrontBase front);            // single
+    void bind(eng::BitmapBase real, eng::FrontBase front,
+              eng::BitmapBase extra_real, eng::FrontBase extra_front); // doble buffer
+
+    /// Base del buffer delantero para `BPLxPT` (dirección DMA, solo lectura por CPU).
+    [[nodiscard]] eng::ChipAddress display() const;
+    /// Buffer trasero donde escribe el Blit (bytes del plano de fondo).
+    [[nodiscard]] PlaneBytes back() const;
+    void flip() noexcept;
+};
+```
+
+El productor (`SoftDpfComposition::copy`) recibe `PatternWords` y `PlaneIndex`, no `const u8*` y
+`u8`; el `BlitJob` resultante sigue crudo, generado **dentro** de la capa segura.
+
+## 6. Coste en 68000 y verificación
+
+- Los envoltorios son `struct` de un solo miembro (`[[no_unique_address]]` no hace falta): mismo
+  tamaño y misma copia que el tipo envuelto; `constexpr` salvo donde haya validación runtime.
+- `PlaneIndex::make` puede ser `consteval` cuando el índice es constante (todos los usos del
+  engine lo son salvo `parallax_plane` de config); el caso runtime usa una comprobación con
+  `illegal` como `Span::at`.
+- **Verificación obligatoria** (regla de `AGENTS.md`): comparar el asm con `-S`/`-fverbose-asm`
+  antes/después de cada migración y anotarlo en `docs/guides/optimization/OPTIMIZACION_GPP_68000.md`.
+- La capa unsafe no añade instrucciones: `raw()` es una lectura de miembro.
+
+## 7. Compatibilidad con la frontera pública
+
+- `CODING_STYLE.md` §"Frontera de API pública" ya prohíbe que la app vea hardware. Estos tipos
+  son **internos** (engine/field, engine/graphics, engine/assets, backend); no aparecen en
+  `eng/api/`.
+- `Span` sigue siendo el tipo de "rango contiguo genérico"; los tipos de dominio son su
+  especialización. No se elimina `Span`, se envuelve.
+- Los tests host ganan porque un test puede crear un `Pattern` de juguete y comprobar que la
+  API no acepta un `AudioSample` (fallo de compilación intencionado).
+
+## 8. Migración por fases
+
+1. **Fundamento**: `eng/core/typed.hpp` con `Bytes/ByteView/Words/WordView` y el vocabulario
+   (`PlaneIndex`, `RowBytes`, `PixelWidth/Height`, `ChipAddress`…), más un test host puro.
+2. **Frontera de memoria**: `BitmapBase`/`FrontBase`, `Bitmap`, `Block<Tag>`/`LinearArena`.
+3. **PlaneView + SoftDpfComposition**: primer consumidor real (los punteros `u8*` pasan a
+   `BitmapBase`/`FrontBase`/`PlaneBytes`).
+4. **Blits/`FramePlan`**: `BlitSource`/`BlitDest` y productores tipados; `BlitJob` crudo.
+5. **Contenido/streaming**: `WorldView`, `ChunkLoader`, UAF (`ByteView<UafPayload>`).
+6. **Backend**: blitter/C2P/audio/copper reciben los tipos de dominio en su firma pública
+   interna y convierten a crudo en el último punto.
+7. **Audios/tareas**: `AudioSample`/`MusicModule`, `Service<Context>`, `TaskToken<T>`.
+
+Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/202 analizan OK, y
+`-S` sin regresión. Ningún cambio de comportamiento visual.
+
+## 9. Reglas para `CODING_STYLE.md` (resumen)
+
+1. Ninguna interfaz interna nueva acepta `T*`/`void*` si existe (o puede crearse) un tipo de
+   dominio; los buffers van por `Bytes<Tag>`/`Words<Tag>`.
+2. Nunca dos parámetros del mismo tipo escalar que signifiquen cosas distintas (`width`/`height`):
+   usar unidades fuertes.
+3. `from_raw`/`raw()` son explícitos y documentados; solo el backend los usa.
+4. Un tipo nuevo solo entra si su invariante es comprobable (test host o `static_assert`).
+
+## 10. Relación con el resto
+
+- Estilo y frontera: `CODING_STYLE.md`.
+- Capas y `Owner`/`Ref`/`Span`: `ENGINE_2D_ABSTRACCIONES.md` §3/§5.1.
+- Modelo de playfields (PlaneView/SoftDpf): `PLAYFIELD_SCROLL_ARCHITECTURE.md` §3.2.
+- Formato de mundo y loader: `WORLD_FORMAT.md`, `STREAMING_LOADER.md`.
+- Contenido y streaming: `CONTENT_AND_TILEMAP.md`.
+- Rendimiento 68000: `docs/guides/optimization/OPTIMIZACION_GPP_68000.md`.
