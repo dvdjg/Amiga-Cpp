@@ -96,6 +96,11 @@ Cada movimiento, en 1 px:
 El coste de Blitter por frame es ∝ al salto (`N` px ⇒ `N` sub-pasos), no al tamaño de la
 pantalla: por eso el scroll puede ser infinito con memoria constante.
 
+> Para velocidades altas (varios tiles por frame, estilo Sonic/Superfrog) existe una **política de
+> relleno** que pre-pinta columnas/filas completas por delante en una banda de guarda ampliada y
+> avanza la cámara en fronteras de tile: `FAST_SCROLL.md`. El núcleo de este documento y sus
+> invariantes no cambian.
+
 ### 1.4 El "split" es un concepto de composición
 
 Cuando la ventana cruza el final del bucle del display, la plataforma debe volver a leer el

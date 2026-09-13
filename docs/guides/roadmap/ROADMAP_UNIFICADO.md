@@ -196,6 +196,11 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
 Objetivo: pasos >2 px/frame (5-6 px, estilo Sonic) garantizando que la fila/
 columna entrante se dibuja siempre a tiempo, y tiles de 32×32.
 
+> **Diseño general**: la política de relleno y guarda para scroll rápido está en
+> `docs/engine/architecture/FAST_SCROLL.md` (`Progressive` | `TileBurst<N>` | `StripPrerender<C>`,
+> `guard_tiles`, dirección laceda a frontera de tile, tear-free). Esta sección conserva la
+> medición E1 que la motiva y las opciones de tiles 32×32.
+
 Medición E1 (parámetro `kFastStep` en la 202, sin macros): con `kFastStep=6` la
 telemetría real da `blit_jobs` máx 27 (media 12) y `blit_words` máx 1296 → carga
 baja para 50 fps; el cruce de 16 px pinta su columna/fila dentro del mismo frame

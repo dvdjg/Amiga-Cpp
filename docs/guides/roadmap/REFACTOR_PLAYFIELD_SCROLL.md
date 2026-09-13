@@ -51,6 +51,8 @@ en el proceso.
 - Oficializar `ScrollTarget` (layout del anillo) y `ScrollEmitter` (dibujo + seam) como conceptos.
 - `RingScroll` con `AxisPolicy` (X/Y/XY) y `DirectionPolicy` (bi/one-way), sustituyendo
   `ScrollMode`/`AxisMode`.
+- `FillPolicy` (velocidad) y `GuardPolicy` (ancho de guarda): `Progressive` | `TileBurst<N>` |
+  `StripPrerender<C>`; `Progressive` = comportamiento actual. Diseño: `FAST_SCROLL.md`.
 - `BigBufferScroll`: estrategia trivial (solo puntero) para “escena ya dibujada”.
 - Mantener `ScrollEngine` como implementación de `RingScroll` (o renombrarlo) sin cambiar su
   aritmética (invariantes §1.2 de `XYLIMITED_ALGORITMO_GENERICO.md`).

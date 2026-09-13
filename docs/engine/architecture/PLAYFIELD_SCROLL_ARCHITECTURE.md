@@ -48,6 +48,25 @@ ScrollStrategy
   decide, para un desplazamiento `(dx,dy)`, la **operación de scroll** a emitir.
 - Una estrategia **no dibuja**: delega en un contrato de emisión (ver §3.1).
 
+### 2.1 Política de relleno y guarda (velocidad)
+
+`RingScroll` se parametriza además por **cuánto trabajo por frame** y cuán ancha es la banda de
+guarda, para soportar scroll rápido (varios tiles/frame) sin cambiar el núcleo:
+
+```text
+RingScroll<Axis, Direction, Fill, Guard>
+  Fill  = Progressive | TileBurst<N> | StripPrerender<C>
+  Guard = guard_tiles  (ancho/alto extra pre-pintado por delante de la ventana)
+```
+
+- `Progressive` = 1 px/sub-paso *paint-then-advance* (comportamiento actual).
+- `TileBurst<N>` = pre-pinta N columnas/filas completas en la guarda y avanza en fronteras de
+  tile; la dirección se lacea a frontera (menos casos de costura).
+- `StripPrerender<C>` = mantiene C columnas/filas ya dibujadas y solo mueve punteros.
+
+Invariante: `guard_tiles >= ceil(max_px_por_frame / tile) + 1`. Detalle, regímenes, tear-free y
+presupuesto en `FAST_SCROLL.md`.
+
 ## 3. Playfields (superficies)
 
 `Playfield<N>` es la base: memoria + geometría + mapeo lógico→físico + primitivas (`write_pixel`,
