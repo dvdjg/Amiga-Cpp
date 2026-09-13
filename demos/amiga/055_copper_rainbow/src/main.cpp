@@ -82,7 +82,7 @@ struct CopperRainbowDemo {
 		}
 
 		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
-		m_copper_block = backend.memory().chip.allocate(2048, 16);
+		m_copper_block = backend.memory().chip.allocate_block<eng::CopperTag>(2048, 16);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00005502u);
 			return;
@@ -150,7 +150,7 @@ private:
 	eng::u8 m_phase = 0;
 	const eng::u16* m_copper_ptr = nullptr;
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
-	eng::MemoryBlock m_copper_block {};
+	eng::Block<eng::CopperTag> m_copper_block {};
 	eng::graphics::CopperIntent m_intents[kBands] {};
 };
 

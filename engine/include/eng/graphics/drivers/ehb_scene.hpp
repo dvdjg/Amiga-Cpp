@@ -89,7 +89,7 @@ public:
 	/// obtener `bitplanes()` y copiar/escribir assets planares cocinados.
 	bool init(MemorySystem& memory, const StaticEhbSceneConfig& config) {
 		m_bitplane_block = memory.chip.allocate_block<eng::PlaneTag>(bitplane_bytes, 16);
-		m_copper_block = memory.chip.allocate(config.copper_bytes, 16);
+		m_copper_block = memory.chip.allocate_block<eng::CopperTag>(config.copper_bytes, 16);
 
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || config.base_palette == nullptr) {
 			m_ok = false;
@@ -233,7 +233,7 @@ private:
 			count = static_cast<u8>(32u - first);
 		}
 
-		u16* words = static_cast<u16*>(m_copper_block.data);
+		u16* words = reinterpret_cast<u16*>(m_copper_block.view.data());
 		for (u8 i = 0; i < count; ++i) {
 			const u16 word_index = static_cast<u16>(first_value_word + static_cast<u16>(first + i) * 2u);
 			if (word_index >= m_copper_words) {
@@ -254,7 +254,7 @@ private:
 	}
 
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
-	MemoryBlock m_copper_block {};
+	eng::Block<eng::CopperTag> m_copper_block {};
 	const u16* m_copper_words_ptr = nullptr;
 	copper::ScheduleReport m_copper_report {};
 	PaletteBinding m_zone_bindings[max_palette_zone_bindings] {};

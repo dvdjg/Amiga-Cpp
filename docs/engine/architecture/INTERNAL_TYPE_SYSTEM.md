@@ -42,16 +42,18 @@ criterio:
 - **El campo ya nace etiquetado**: quien reserva memoria guarda directamente el tipo de dominio
   (`eng::Block<Tag>`, o `Bytes<Tag>`/`ByteView<Tag>` cuando no hace falta validez), no un
   `MemoryBlock` crudo que luego se convierte. La reserva tipada (`allocate_block<Tag>()`) elimina
-  la conversión posterior y hace que un uso indebido no compile. Excepciones justificadas (se
-  documentan en el sitio): el **copperlist** (`ListBuilder`/`Scheduler` validan `MemoryKind::Chip`),
-  los buffers que consume **asm/backend crudo** (mezclador), el **núcleo de memoria** (`Bitmap`),
-  descriptores que alternan memoria **propia y aliaseada** (`XlimitedScene::m_tiles`), **scratch
-  genérico** y los tests de `MemoryKind`.
+  la conversión posterior y hace que un uso indebido no compile. `Block<Tag>` lleva **dominio +
+  `MemoryKind`**, así que el mismo tipo sirve para la copperlist (`Block<CopperTag>`): el builder
+  valida Chip y el dueño ya no necesita un `MemoryBlock`. Excepciones justificadas (se documentan
+  en el sitio): los buffers que consume **asm/backend crudo** (mezclador), el **núcleo de memoria**
+  (`Bitmap`), descriptores que alternan memoria **propia y aliaseada** (`XlimitedScene::m_tiles`),
+  **scratch genérico** y los tests de `MemoryKind`.
 - **`unsafe` en una capa**: solo el backend Amiga (Blitter/Copper/DMA) y `BlitJob` manejan lo
   crudo, y lo hacen a través de un único conversor documentado.
-- **Coste cero**: cada tipo es un `struct` trivialmente copiable del mismo tamaño que envuelve;
-  sin virtuals, sin heap, `constexpr` donde aplique. Se verifica con `-S` que no añade
-  instrucciones (regla de rendimiento de `AGENTS.md`).
+- **Coste**: las **vistas** (`Bytes`/`ByteView`/`Words`/`WordView`) son `struct` trivialmente
+  copiables del mismo tamaño que envuelven (sin virtuals, sin heap, `constexpr`); `Block<Tag>` es
+  una **reserva**, no una vista, y añade el `MemoryKind` (1 enumerado). Se verifica con `-S` que
+  nada de esto añade instrucciones en el hot path (regla de rendimiento de `AGENTS.md`).
 
 ## 2. Modelo safe ↔ unsafe
 
@@ -173,8 +175,8 @@ direcciones sí son tipos de dominio** y los productores los devuelven ya tipado
 |---|---|
 | `Bitmap::allocation_start() -> u8*` | `BitmapBase` |
 | `Bitmap::bytes() -> Span<u8>` | `Bytes<PlanarRegion>` (mutable) / `ByteView<PlanarRegion>` |
-| `MemoryBlock { void* data; u32 size; MemoryKind }` | `Block<Tag>` con `bytes<Tag>()` |
-| `LinearArena::allocate(...) -> MemoryBlock` | `allocate<Tag>(Bytes, align) -> Block<Tag>` |
+| `MemoryBlock { void* data; u32 size; MemoryKind }` | `Block<Tag> { Bytes<Tag> view; MemoryKind }` |
+| `LinearArena::allocate(...) -> MemoryBlock` | `allocate_block<Tag>(bytes, align) -> Block<Tag>` |
 | `emit_world_rect(const u16* src, ...)` / `..._masked` | `emit_world_rect(WordView<TileBank>, ...)` |
 
 ### 4.3 Backend gráfico (frontera unsafe, se documenta y se mantiene fina)
@@ -319,8 +321,10 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
   `LinearArena::allocate_block<Tag>()` / `MemoryBlock::block<Tag>()`; HOST-041. **Migración a
   campo etiquetado hecha**: los dueños guardan `Block<Tag>`/vistas de dominio desde el origen
   (drivers `ehb_scene`/`ham_scene`/`tile_scroll`; demos de planos, sprites, patrón, máscaras,
-  chunky y audio). Quedan como reserva cruda justificada (ver §1): copperlists, buffers de asm
-  del mezclador, `Bitmap`, `XlimitedScene::m_tiles` y scratch genérico.
+  chunky, audio y **copperlist**). `Block<Tag>` lleva dominio + `MemoryKind`, así que la
+  copperlist es `Block<CopperTag>` (el builder valida Chip) y el medio queda separado del dato
+  (permite construir/copiar la lista con el Blitter). Quedan como reserva cruda justificada (ver
+  §1): buffers de asm del mezclador, `Bitmap`, `XlimitedScene::m_tiles` y scratch genérico.
 
 
 ## 9. Reglas para `CODING_STYLE.md` (resumen)
@@ -332,6 +336,9 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
    distingue por su tipo de dominio.
 3. `from_raw`/`raw()` son explícitos y documentados; solo el backend los usa.
 4. Un tipo nuevo solo entra si su invariante es comprobable (test host o `static_assert`).
+5. Las reservas nacen tipadas (`Block<Tag>`); comprobación automática:
+   `node tools/check/type-tagging.mjs` falla si un `MemoryBlock` crudo se convierte a dominio
+   (salvo las excepciones listadas en el propio script).
 
 ## 10. Relación con el resto
 

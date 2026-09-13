@@ -48,13 +48,13 @@ public:
     /// Reserva el bloque de DATA de sprites en Chip RAM (la app escribe los
     /// bitmaps con `sprite_data()`). No reserva copper (lo hace el compositor).
     bool init(MemorySystem& memory, u32 data_bytes) {
-        m_data = memory.chip.allocate(data_bytes, 16);
-        return m_data.valid();
+	m_data = memory.chip.allocate_block<eng::SpriteTag>(data_bytes, 16);
+	return m_data.valid();
     }
 
     /// Acceso acotado al bloque de DATA (el tamaño viaja con el puntero).
-    Span<u8> sprite_data() { return { static_cast<u8*>(m_data.data), m_data.size }; }
-    Span<const u8> sprite_data() const { return { static_cast<const u8*>(m_data.data), m_data.size }; }
+	Span<u8> sprite_data() { return { m_data.view.data(), m_data.view.size() }; }
+	Span<const u8> sprite_data() const { return { m_data.view.as_const().data(), m_data.view.size() }; }
 
     void set(u8 index, const SpriteConfig& cfg) {
         if (index >= 8) return;
@@ -185,7 +185,7 @@ private:
     }
 
     SpriteConfig m_spr[8] {};
-    MemoryBlock m_data {};
+	eng::Block<eng::SpriteTag> m_data {};
 };
 
 } // namespace eng::graphics

@@ -85,7 +85,7 @@ struct SfxMixerDemo {
 		}
 
 		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
-		m_copper_block = backend.memory().chip.allocate(2048, 16);
+		m_copper_block = backend.memory().chip.allocate_block<eng::CopperTag>(2048, 16);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00005802u);
 			return;
@@ -241,7 +241,7 @@ private:
 	eng::Block<eng::AudioTag> m_beep_block {};
 	eng::Block<eng::AudioTag> m_alarm_block {};
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
-	eng::MemoryBlock m_copper_block {};
+	eng::Block<eng::CopperTag> m_copper_block {};
 	eng::graphics::CopperIntent m_intents[kBands] {};
 	eng::audio::SfxMixer m_sfx {};
 };

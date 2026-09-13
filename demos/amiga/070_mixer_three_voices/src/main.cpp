@@ -76,7 +76,7 @@ struct ThreeVoicesDemo {
 		if (!m_memory_ok) { eng::debug::mark_failed(g_eng_run_status, 0x00007001u); return; }
 
 		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
-		m_copper_block = backend.memory().chip.allocate(2048, 16);
+		m_copper_block = backend.memory().chip.allocate_block<eng::CopperTag>(2048, 16);
 		m_melody_block = backend.memory().chip.allocate_block<eng::AudioTag>(kMelodyLen, 4);
 		m_bass_block = backend.memory().chip.allocate_block<eng::AudioTag>(kBassLen, 4);
 		m_counter_block = backend.memory().chip.allocate_block<eng::AudioTag>(kCounterLen, 4);
@@ -202,7 +202,7 @@ private:
 	eng::Block<eng::AudioTag> m_bass_block {};
 	eng::Block<eng::AudioTag> m_counter_block {};
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
-	eng::MemoryBlock m_copper_block {};
+	eng::Block<eng::CopperTag> m_copper_block {};
 	eng::audio::SfxMixer m_sfx {};
 };
 

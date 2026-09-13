@@ -117,6 +117,13 @@ public:
 		  m_capacity_words(block.size / sizeof(u16)),
 		  m_ok(block.valid() && block.kind == MemoryKind::Chip) {}
 
+	/// Construye desde una reserva tipada de copperlist (`Block<CopperTag>`): el
+	/// dominio ya viene etiquetado y solo se valida que viva en Chip RAM.
+	explicit ListBuilder(eng::Block<eng::CopperTag> block)
+		: m_words(reinterpret_cast<u16*>(block.view.data())),
+		  m_capacity_words(static_cast<u16>(block.view.size() / sizeof(u16))),
+		  m_ok(block.valid() && block.kind == MemoryKind::Chip) {}
+
 	/// Escribe un MOVE Copper: registro custom -> valor.
 	void move(Register reg, u16 value) {
 		move(static_cast<u16>(reg), value);

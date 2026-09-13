@@ -18,22 +18,11 @@
 /// - OS-friendly: reservar con Exec/AllocMem.
 /// - Close-to-the-metal: tomar el sistema y construir arenas sobre rangos fisicos.
 
+#include <eng/core/memory_kind.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/typed.hpp>
 
 namespace eng {
-
-/// Tipo logico de memoria desde el punto de vista del engine.
-///
-/// No describe necesariamente el flag exacto de Exec. Por ejemplo, la Slow RAM del
-/// A500 puede aparecer como MEMF_FAST para AmigaOS, pero el engine la etiqueta como
-/// `Slow` porque sigue sin ser Fast RAM CPU-privada.
-enum class MemoryKind : u8 {
-	Chip,
-	Slow,
-	Fast,
-	Any,
-};
 
 /// Resultado de una reserva dentro de una arena.
 ///
@@ -59,10 +48,10 @@ struct MemoryBlock {
 	[[nodiscard]] constexpr ByteView<Tag> view() const noexcept {
 		return ByteView<Tag> { static_cast<const u8*>(data), size };
 	}
-	/// Bloque tipado (mutable) del dominio.
+	/// Bloque tipado (mutable) del dominio, con el `MemoryKind` de la reserva.
 	template <class Tag>
 	[[nodiscard]] constexpr Block<Tag> block() const noexcept {
-		return Block<Tag> { buffer<Tag>() };
+		return Block<Tag> { buffer<Tag>(), kind };
 	}
 };
 
@@ -164,11 +153,12 @@ public:
 		return {reinterpret_cast<void*>(aligned), bytes, m_kind};
 	}
 
-	/// Reserva tipada: devuelve el bloque ya como `Block<Tag>` (vista del dominio),
-	/// de modo que el consumidor no necesite casts ni `reinterpret_cast`.
+	/// Reserva tipada: devuelve el bloque ya como `Block<Tag>` (vista del dominio y
+	/// `MemoryKind` de la arena), de modo que el consumidor no necesite casts.
 	template <class Tag>
 	[[nodiscard]] Block<Tag> allocate_block(u32 bytes, u32 alignment = 2) {
-		return Block<Tag> { allocate(bytes, alignment).buffer<Tag>() };
+		const MemoryBlock mb = allocate(bytes, alignment);
+		return Block<Tag> { mb.buffer<Tag>(), mb.kind };
 	}
 
 	/// Reserva un array de objetos triviales.

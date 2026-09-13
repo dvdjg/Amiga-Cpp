@@ -54,8 +54,17 @@ int main() {
 	              "Block de otro dominio no debe convertir");
 	static_assert(ConstructibleFrom<eng::Block<PatternTag>, eng::Block<PatternTag>>,
 	              "mismo dominio debe copiarse");
-	static_assert(sizeof(eng::Block<PatternTag>) == sizeof(eng::Bytes<PatternTag>),
-	              "Block sin sobrecoste");
+	// El bloque lleva la vista y el medio (MemoryKind); es una reserva, no una vista
+	// de coste cero, pero el sobrecoste es minimo (1 enumerado + padding).
+	static_assert(sizeof(eng::Block<PatternTag>) >= sizeof(eng::Bytes<PatternTag>),
+	              "Block no debe ser mas pequeno que su vista");
+
+	// El MemoryKind de la reserva viaja con el bloque.
+	check(blk.kind == eng::MemoryKind::Any, "kind Any en arena Any");
+	eng::u8 chip_raw[64] {};
+	eng::LinearArena chip_arena {chip_raw, sizeof(chip_raw), eng::MemoryKind::Chip};
+	check(chip_arena.allocate_block<PatternTag>(16u, 4u).kind == eng::MemoryKind::Chip,
+	      "kind Chip en arena Chip");
 
 	if (g_fail != 0) { std::printf("%d fallo(s)\n", g_fail); return 1; }
 	std::printf("OK: Block<Tag> (reserva de arena tipada) validado.\n");

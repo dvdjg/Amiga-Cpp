@@ -63,7 +63,7 @@ struct MixerRefDemo {
 		if (!m_memory_ok) { eng::debug::mark_failed(g_eng_run_status, 0x00006801u); return; }
 
 		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
-		m_copper_block = backend.memory().chip.allocate(2048, 16);
+		m_copper_block = backend.memory().chip.allocate_block<eng::CopperTag>(2048, 16);
 		m_sample_block = backend.memory().chip.allocate_block<eng::AudioTag>(kSampleLen, 4);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || !m_sample_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006802u);
@@ -201,7 +201,7 @@ private:
 	eng::MemoryBlock m_plugin_buffer_block {};
 	eng::MemoryBlock m_plugin_data_block {};
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
-	eng::MemoryBlock m_copper_block {};
+	eng::Block<eng::CopperTag> m_copper_block {};
 };
 
 } // namespace

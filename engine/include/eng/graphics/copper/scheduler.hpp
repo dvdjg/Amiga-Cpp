@@ -55,6 +55,10 @@ public:
 	explicit Scheduler(MemoryBlock block)
 		: m_builder(block) {}
 
+	/// Construye desde una reserva tipada de copperlist (`Block<CopperTag>`).
+	explicit Scheduler(eng::Block<eng::CopperTag> block)
+		: m_builder(block) {}
+
 	/// Emite un MOVE generico.
 	///
 	/// Se mantiene publico porque algunos drivers tempranos necesitan registrar

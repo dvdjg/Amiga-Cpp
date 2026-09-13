@@ -1543,8 +1543,8 @@ public:
 
     bool init(MemorySystem& memory, const Config& cfg) {
         m_cfg = cfg;
-        m_copper_blocks[0] = memory.chip.allocate(cfg.copper_bytes, 16);
-        m_copper_blocks[1] = memory.chip.allocate(cfg.copper_bytes, 16);
+        m_copper_blocks[0] = memory.chip.allocate_block<eng::CopperTag>(cfg.copper_bytes, 16);
+        m_copper_blocks[1] = memory.chip.allocate_block<eng::CopperTag>(cfg.copper_bytes, 16);
         if (!m_copper_blocks[0].valid() || !m_copper_blocks[1].valid() ||
             cfg.palette.empty()) return false;
         m_initialized = true;
@@ -1588,7 +1588,7 @@ public:
     void takeover(Backend& backend) const {
         if (m_initialized && m_copper_initialized) {
             backend.takeover_display(
-                static_cast<const u16*>(m_copper_blocks[m_active].data));
+                m_copper_blocks[m_active].view.as_words().data());
         }
     }
 
@@ -1596,7 +1596,7 @@ public:
     void install(Backend& backend) const {
         if (m_initialized && m_copper_initialized) {
             backend.install_copper_list(
-                static_cast<const u16*>(m_copper_blocks[m_active].data));
+                m_copper_blocks[m_active].view.as_words().data());
         }
     }
 
@@ -1604,7 +1604,7 @@ public:
     constexpr u16 copper_words() const { return m_copper_words; }
     /// Depuración: puntero al bloque de copper activo.
     const u16* debug_active_copper() const {
-        return m_copper_initialized ? static_cast<const u16*>(m_copper_blocks[m_active].data) : nullptr;
+        return m_copper_initialized ? m_copper_blocks[m_active].view.as_words().data() : nullptr;
     }
 
 private:
@@ -1745,7 +1745,7 @@ private:
     }
 
     Config m_cfg {};
-    MemoryBlock m_copper_blocks[2] {};
+    eng::Block<eng::CopperTag> m_copper_blocks[2] {};
     u16 m_copper_words = 0;
     u8 m_active = 0;
     bool m_initialized = false;
@@ -1780,8 +1780,8 @@ public:
 
     bool init(MemorySystem& memory, const Config& cfg) {
         m_cfg = cfg;
-        m_copper_blocks[0] = memory.chip.allocate(cfg.copper_bytes, 16);
-        m_copper_blocks[1] = memory.chip.allocate(cfg.copper_bytes, 16);
+        m_copper_blocks[0] = memory.chip.allocate_block<eng::CopperTag>(cfg.copper_bytes, 16);
+        m_copper_blocks[1] = memory.chip.allocate_block<eng::CopperTag>(cfg.copper_bytes, 16);
         if (!m_copper_blocks[0].valid() || !m_copper_blocks[1].valid() || cfg.palette.empty()) return false;
         m_initialized = true;
         return true;
@@ -1806,14 +1806,14 @@ public:
     template <typename Backend>
     void takeover(Backend& backend) const {
         if (m_initialized && m_copper_initialized) {
-            backend.takeover_display(static_cast<const u16*>(m_copper_blocks[m_active].data));
+            backend.takeover_display(m_copper_blocks[m_active].view.as_words().data());
         }
     }
 
     template <typename Backend>
     void install(Backend& backend) const {
         if (m_initialized && m_copper_initialized) {
-            backend.install_copper_list(static_cast<const u16*>(m_copper_blocks[m_active].data));
+            backend.install_copper_list(m_copper_blocks[m_active].view.as_words().data());
         }
     }
 
@@ -1934,7 +1934,7 @@ private:
     }
 
     Config m_cfg {};
-    MemoryBlock m_copper_blocks[2] {};
+    eng::Block<eng::CopperTag> m_copper_blocks[2] {};
     u16 m_copper_words = 0;
     u8 m_active = 0;
     bool m_initialized = false;

@@ -77,7 +77,7 @@ struct FourVoicesDemo {
 		if (!m_memory_ok) { eng::debug::mark_failed(g_eng_run_status, 0x00007101u); return; }
 
 		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
-		m_copper_block = backend.memory().chip.allocate(2048, 16);
+		m_copper_block = backend.memory().chip.allocate_block<eng::CopperTag>(2048, 16);
 		m_v1_block = backend.memory().chip.allocate_block<eng::AudioTag>(kLen, 4);
 		m_v2_block = backend.memory().chip.allocate_block<eng::AudioTag>(kLen, 4);
 		m_v3_block = backend.memory().chip.allocate_block<eng::AudioTag>(kLen, 4);
@@ -208,7 +208,7 @@ private:
 	eng::Block<eng::AudioTag> m_v3_block {};
 	eng::Block<eng::AudioTag> m_v4_block {};
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
-	eng::MemoryBlock m_copper_block {};
+	eng::Block<eng::CopperTag> m_copper_block {};
 	eng::audio::SfxMixer m_sfx {};
 };
 

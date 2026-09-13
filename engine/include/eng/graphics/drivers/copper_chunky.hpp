@@ -45,7 +45,7 @@ public:
 			m_ok = false;
 			return false;
 		}
-		m_copper_block = memory.chip.allocate(config.copper_bytes, 16);
+		m_copper_block = memory.chip.allocate_block<eng::CopperTag>(config.copper_bytes, 16);
 		if (!m_copper_block.valid()) {
 			m_ok = false;
 			return false;
@@ -124,7 +124,7 @@ public:
 
 private:
 	CopperChunkyConfig m_config {};
-	MemoryBlock m_copper_block {};
+	eng::Block<eng::CopperTag> m_copper_block {};
 	u16* m_words = nullptr;
 	u16 m_words_count = 0;
 	u16 m_slot[max_rows * max_cols] {}; ///< indice de la instruccion COLOR00 de (r,c)

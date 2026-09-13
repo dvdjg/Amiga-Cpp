@@ -469,8 +469,8 @@ public:
 
 	bool init(MemorySystem& memory, const TileScrollConfig& config) {
 		m_bitplane_block = memory.chip.allocate_block<eng::PlaneTag>(bitplane_bytes, 16);
-		m_copper_blocks[0] = memory.chip.allocate(config.copper_bytes, 16);
-		m_copper_blocks[1] = memory.chip.allocate(config.copper_bytes, 16);
+		m_copper_blocks[0] = memory.chip.allocate_block<eng::CopperTag>(config.copper_bytes, 16);
+		m_copper_blocks[1] = memory.chip.allocate_block<eng::CopperTag>(config.copper_bytes, 16);
 		if (!m_bitplane_block.valid() || !m_copper_blocks[0].valid() ||
 			!m_copper_blocks[1].valid() || config.base_palette == nullptr) {
 			m_ok = false;
@@ -536,14 +536,14 @@ public:
 	template <typename Backend>
 	void takeover(Backend& backend) const {
 		if (m_ok && m_copper_initialized) {
-			backend.takeover_display(static_cast<const u16*>(m_copper_blocks[m_active_copper].data));
+			backend.takeover_display(m_copper_blocks[m_active_copper].view.as_words().data());
 		}
 	}
 
 	template <typename Backend>
 	void install(Backend& backend) const {
 		if (m_ok) {
-			backend.install_copper_list(static_cast<const u16*>(m_copper_blocks[m_active_copper].data));
+			backend.install_copper_list(m_copper_blocks[m_active_copper].view.as_words().data());
 		}
 	}
 
@@ -774,7 +774,7 @@ private:
 	/// Re-emitir la lista completa cada frame costaba ~63K ciclos; parchear 13
 	/// words cuesta ~3K y deja margen real para la logica del juego.
 	bool patch_copper() {
-		u16* const words = static_cast<u16*>(m_copper_blocks[m_active_copper ^ 1u].data);
+		u16* const words = reinterpret_cast<u16*>(m_copper_blocks[m_active_copper ^ 1u].view.data());
 		words[5] = m_display.bplcon1;
 		for (u8 plane = 0; plane < plane_count; ++plane) {
 			const uintptr address =
@@ -788,7 +788,7 @@ private:
 
 	TileScrollConfig m_config {};
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
-	MemoryBlock m_copper_blocks[2] {};
+	eng::Block<eng::CopperTag> m_copper_blocks[2] {};
 	TileDisplayState m_display {};
 	copper::ScheduleReport m_copper_report {};
 	u16 m_scroll[2] {};

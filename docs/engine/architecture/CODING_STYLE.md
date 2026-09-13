@@ -78,6 +78,23 @@ aporta sus propias piezas de seguridad de C++23 sin depender de `std::span`:
 - **Los productores devuelven tipos de dominio**: quien entrega un buffer (p. ej. `bitplanes()`,
   `MemoryBlock::buffer<Tag>()`) lo devuelve ya tipado, de modo que el consumidor conecta **sin
   casts**; forzar un cast explícito anula la detección del compilador y hay que evitarlo.
+- **El campo nace etiquetado**: al reservar memoria, guardar directamente `eng::Block<Tag>`
+  (dominio + `MemoryKind`) con `allocate_block<Tag>()`, en vez de un `MemoryBlock` crudo que luego
+  se convierte a vista. Así el tipo se conoce desde el origen y un uso indebido no compila.
+
+  ```cpp
+  // Sí: reserva tipada, el dominio y el medio viajan con el objeto.
+  eng::Block<eng::CopperTag> m_copper = memory.chip.allocate_block<eng::CopperTag>(2048u, 16);
+  copper::Scheduler sched { m_copper };            // valida Chip RAM en el builder
+
+  // No: reserva cruda + conversión posterior (pierde la comprobación).
+  eng::MemoryBlock m_copper = memory.chip.allocate(2048u, 16);
+  eng::CopperWords words = m_copper.view<eng::CopperTag>();
+  ```
+
+  Excepciones (documentadas en el sitio): buffers que consume asm/backend crudo, el núcleo de
+  memoria (`Bitmap`), descriptores que alternan memoria propia y aliaseada y scratch genérico.
+  Detalle e inventario: `INTERNAL_TYPE_SYSTEM.md` §1.
 - **El tipo dueño expone la conversión al dominio**: si un tipo posee el array/puntero (p. ej.
   `EhbPalette` con `color[32]`), ofrece la vista (`operator PaletteWords`, `words()`) para que el
   llamador pase el objeto; no se escribe `PaletteWords{ arr }` a mano.

@@ -19,6 +19,7 @@
 /// virtuals, sin heap, `constexpr`. `raw()` es la frontera explícita hacia la capa
 /// unsafe (backend). Ver reglas en `CODING_STYLE.md`.
 
+#include <eng/core/memory_kind.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 
@@ -244,14 +245,19 @@ private:
 
 // --- Bloque tipado (resultado de una reserva de arena) -----------------------
 
-/// Bloque de memoria tipado: vista `Bytes<Tag>` de la reserva. Lo devuelven las
-/// arenas (`LinearArena::allocate_block<Tag>()`, `MemoryBlock::block<Tag>()`) para
-/// que el consumidor reciba ya el dominio, sin casts. `valid()` = reserva con datos.
+/// Bloque de memoria tipado: vista `Bytes<Tag>` de la reserva **y** su
+/// `MemoryKind` (medio donde vive). Lo devuelven las arenas
+/// (`LinearArena::allocate_block<Tag>()`, `MemoryBlock::block<Tag>()`) para que el
+/// consumidor reciba ya el dominio y el medio, sin casts. `valid()` = reserva con
+/// datos. El dominio (que `Tag` describe el dato) y el `kind` (Chip/Slow/Fast) son
+/// ortogonales: p. ej. una copperlist puede construirse y copiarse desde otro medio.
 template <class Tag>
 struct Block {
 	Bytes<Tag> view {};
+	MemoryKind kind = MemoryKind::Any;
+
 	constexpr Block() noexcept = default;
-	constexpr explicit Block(Bytes<Tag> v) noexcept : view(v) {}
+	constexpr Block(Bytes<Tag> v, MemoryKind k = MemoryKind::Any) noexcept : view(v), kind(k) {}
 	[[nodiscard]] constexpr bool valid() const noexcept { return !view.empty(); }
 	[[nodiscard]] constexpr Bytes<Tag>& operator*() noexcept { return view; }
 	[[nodiscard]] constexpr const Bytes<Tag>& operator*() const noexcept { return view; }

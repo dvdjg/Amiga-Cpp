@@ -218,7 +218,7 @@ struct WireframeDemo {
 		}
 
 		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitmapBytes, 16);
-		m_copper_block = backend.memory().chip.allocate(kRing * kCopperPerList, 16);
+		m_copper_block = backend.memory().chip.allocate_block<eng::CopperTag>(kRing * kCopperPerList, 16);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00007902u);
 			return;
@@ -275,10 +275,10 @@ private:
 	/// bit2=planes[active-1], bit1=planes[active-2], bit0=planes[active-3] (mod 5),
 	/// como el parcheo de `BPLxPT` del original.
 	bool build_copper(eng::u8 active) {
-		const eng::MemoryBlock& block = m_copper_block;
-		eng::u8* base = static_cast<eng::u8*>(block.data) +
-				static_cast<eng::u32>(active) * kCopperPerList;
-		copper::Scheduler sched {eng::MemoryBlock {base, kCopperPerList, block.kind}};
+		// Anillo de copperlists: cada tramo del bloque es una lista independiente.
+		const eng::Bytes<eng::CopperTag> slice = m_copper_block.view.subspan(
+			static_cast<eng::u32>(active) * kCopperPerList, kCopperPerList);
+		copper::Scheduler sched { eng::Block<eng::CopperTag> { slice, m_copper_block.kind } };
 		sched.emit_planes_display(kDiwstrt, kDiwstop, kDdfstrt, kDdfstop, kBytesPerRow, kBplcon0,
 					  kPlanes, m_bitplane_block.view, kPlaneBytes);
 		for (eng::u8 n = 0; n < kPlanes; ++n) {
@@ -295,7 +295,7 @@ private:
 	bool m_memory_ok = false;
 	eng::u8 m_active = 0;
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
-	eng::MemoryBlock m_copper_block {};
+	eng::Block<eng::CopperTag> m_copper_block {};
 	const eng::u16* m_copper_ptrs[kRing] = {nullptr, nullptr, nullptr, nullptr, nullptr};
 	eng::object3d::Object3D m_object {};
 };

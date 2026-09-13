@@ -86,7 +86,7 @@ public:
 		const u32 bitplane_bytes = plane_bytes * static_cast<u32>(config.planes);
 		// +16 de headroom por el peyote de alineacion de la arena (ver arena.hpp).
 		m_bitplane_block = memory.chip.allocate_block<eng::PlaneTag>(bitplane_bytes + 16u, 16);
-		m_copper_block = memory.chip.allocate(config.copper_bytes, 16);
+		m_copper_block = memory.chip.allocate_block<eng::CopperTag>(config.copper_bytes, 16);
 		m_plane_bytes = plane_bytes;
 
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || config.planes == 0u || plane_bytes == 0u) {
@@ -184,7 +184,7 @@ private:
 
 	HamSceneConfig m_config {};
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
-	MemoryBlock m_copper_block {};
+	eng::Block<eng::CopperTag> m_copper_block {};
 	u32 m_plane_bytes = 0;
 	const u16* m_copper_words_ptr = nullptr;
 	copper::ScheduleReport m_report {};
