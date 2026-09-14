@@ -373,4 +373,6 @@ desarrolla en varios turnos; el orden es 1→2→3.
 
 **Hitos**: (1) extraer de 116 un `PolygonSurface` reutilizable en `engine/` + test host (contrato de registros y paridad); (2) `MeshRenderer` con ruta alambre (079) y relleno (116); (3) importar `flatshade` (no-convexo) y `stencil3d` sobre él (ambos usan `BLTDPTR`=base); (4) rasterizador **sub-píxel** (acumulador 12.4, §2 de la ficha) para aristas/polígonos sin *snap* a píxel.
 
-**Estado**: propuesta; sin código de subsistema todavía (todo vive en las demos 077/078/079/116).
+**Estado**: **Hito 1 iniciado**. La primitiva que faltaba para rasterizar caras 3D planas está ya en el contexto de dibujo existente: **`eng::field::Surface::fill_polygon`** (polígono convexo por scanline, recortado contra el clip de la superficie), con test host **HOST-045**. No se creó una clase nueva: `Surface` (sobre `Playfield`) ya tenía `set_pixel`/`fill_rect`/`draw_line`/`draw_text`/`blit`; se **extendió** con el relleno. Pendiente: ruta rápida por **Blitter** (como hook virtual de `Playfield`, específico de Amiga, con el truco `BLTDPTR`), `MeshRenderer` (culling+transform+visibilidad) y los importes de `flatshade`/`stencil3d` sobre él.
+
+**Capa de bobs/personajes**: ver opción A del roadmap general (capa de objetos en el FG lineal DPF, 110/111 ya a medio pulir).

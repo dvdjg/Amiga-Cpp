@@ -71,6 +71,49 @@ public:
         return ok;
     }
 
+    /// Polígono **convexo** relleno por scanline (CPU), recortado contra el clip.
+    /// `xs`/`ys` son los `n` vértices (>= 3) en coordenadas de pantalla. Para un
+    /// convexo cada scanline cruza el contorno exactamente dos veces, así que se
+    /// rellena entre el cruce mínimo y el máximo (even-odd de 2 cruces). Es la
+    /// primitiva que faltaba para rasterizar caras 3D planas sobre una `Surface`
+    /// (el equivalente CPU de lo que 116 hace con el Blitter; el motor de relleno
+    /// por Blitter es específico de Amiga y vive en el backend).
+    bool fill_polygon(const s16* xs, const s16* ys, u8 n, u8 color) {
+        if (!valid() || xs == nullptr || ys == nullptr || n < 3u) return false;
+        s32 ymin = ys[0], ymax = ys[0];
+        for (u8 i = 1u; i < n; ++i) {
+            if (ys[i] < ymin) ymin = ys[i];
+            if (ys[i] > ymax) ymax = ys[i];
+        }
+        const s32 clip_y0 = m_clip.y;
+        const s32 clip_y1 = m_clip.y + static_cast<s32>(m_clip.h) - 1;
+        const s32 clip_x1 = m_clip.x + static_cast<s32>(m_clip.w) - 1;
+        if (ymin < clip_y0) ymin = clip_y0;
+        if (ymax > clip_y1) ymax = clip_y1;
+        for (s32 y = ymin; y <= ymax; ++y) {
+            s32 xl = 32767, xr = -32768;
+            for (u8 i = 0u; i < n; ++i) {
+                const u8 j = (static_cast<u8>(i + 1u) == n) ? 0u : static_cast<u8>(i + 1u);
+                s32 y0 = ys[i], y1 = ys[j], x0 = xs[i], x1 = xs[j];
+                if (y0 == y1) continue;
+                if (y0 > y1) {
+                    const s32 t = y0; y0 = y1; y1 = t;
+                    const s32 u = x0; x0 = x1; x1 = u;
+                }
+                // Semiabierto [y0, y1): evita doble cuenta en el vértice.
+                if (y < y0 || y >= y1) continue;
+                const s32 x = x0 + (x1 - x0) * (y - y0) / (y1 - y0);
+                if (x < xl) xl = x;
+                if (x > xr) xr = x;
+            }
+            if (xl > xr) continue;
+            if (xl < m_clip.x) xl = m_clip.x;
+            if (xr > clip_x1) xr = clip_x1;
+            for (s32 x = xl; x <= xr; ++x) m_target->write_pixel(x, y, color);
+        }
+        return true;
+    }
+
     /// Línea oblicua (Bresenham, CPU), recortada.
     bool draw_line(s32 x0, s32 y0, s32 x1, s32 y1, u8 color) {
         if (!valid()) return false;
