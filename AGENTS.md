@@ -265,6 +265,19 @@ recording del GUI). Pendiente: `print` DWARF.
 - El comentario debe ser **corto** y citar el mecanismo/coste concreto, no una
   explicación larga.
 
+## Regla de validación de optimizaciones de render (obligatoria)
+- Una optimización que toque el **render** (registros/blits/orden de operaciones)
+  **NO se da por buena con `verify-*` de cobertura/tonos**: hay que validarla
+  **visual o estructuralmente** contra la referencia.
+- Gate mínimo con el emulador: capturar una **secuencia** y compararla con el
+  original por **fase** (mejor IoU + MAD de color; ver `out/tmp/bestphase.mjs`) o
+  pedir una descripción a Ollama preguntando explícitamente por **anomalías**
+  (caras deformes, aristas que no cierran). `verify-116` pasó con el sólido
+  deformado: cobertura y nº de tonos no bastan.
+- Ejecutar el gate **después de cada** cambio de render y **revertir** si empeora,
+  aunque el cambio parezca inocuo (p. ej. fijar los comunes del Blitter 1×/frame
+  rompió flatshade-convex).
+
 ## Demos atractivas (sugerencia)
 - Una demo no es solo un test: debe **entrar por los sentidos**. Al escribir un efecto o demo, ponerse en el lugar de quien quiere que su aplicación resulte atractiva, no en el de quien solo comprueba que «funciona».
 - Que se vea **de un vistazo qué efecto se está implementando**: cada demo debe comunicar la capacidad del chipset que demuestra (scroll, sprites multiplexados, copper, paleta, transparencia, blitter, etc.), no quedarse en un patrón plano que no explica nada.
