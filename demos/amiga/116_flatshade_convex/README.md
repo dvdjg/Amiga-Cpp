@@ -44,8 +44,9 @@ original (latencia de 1 frame, mismo orden de ángulos).
   `blitter_fill_polygon` (máscara + cookie-cut).
 - **Rendimiento**: el original activa `DMAF_BLITHOG`; se replica con
   `MinimalBackend::set_blitter_priority(true)` (BLTPRI, 0x0400). Con pipeline+BLITHOG el
-  `update` queda bajo 284k (2 vblanks) y el frame emulado en ~20.7 fps; el techo lo pone la
-  cola serial del Blitter (fill + clear), que en hardware real sería ~3x más barata.
+  `update` queda bajo 284k (2 vblanks) y el frame emulado en ~20.7 fps. El `fill` coincide
+  con el del original (131.8k vs 131k según su profiler), así que la brecha restante es el
+  codegen del `transform` (1.8x) y de los `edges` (1.9x), no el emulador.
 
 ## Paridad del contorno (clave del relleno)
 
