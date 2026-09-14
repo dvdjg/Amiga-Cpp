@@ -143,5 +143,19 @@ La clave de la paridad en los vértices es el **truco `bltdpt`** del original: e
 
 Además, en `BLTSIZE` el campo de altura **0 significa 1024 líneas** (y el de anchura 0, 64 words): por eso el original limpia y rellena los 4 planos contiguos (`256*4 = 1024` líneas × 16 words = los 32768 bytes de los 4 planos) con `bltsize` de altura 0, sin que sea un no-op.
 
+### Optimización (objetivo: igualar el framerate del original)
+
+Estado: la ruta por defecto corre a **~9.9 fps** (715k ciclos/frame; debug ≈ release, no es codegen). El original (vsync-locked con doble buffer) marca el objetivo. Plan:
+
+0. **Medir el fps del original** por `.adf`: leer el contador de ciclos emulados (`0xB7E928`) y contar los frames efectivos (avance de `rotate`/`frameCount` o del puntero de buffer activo) para fijar el objetivo real (50 fps si cabe en un frame).
+1. **Perfilar 116 con checkpoints del periférico** (`0xB70000`, como la demo 101) alrededor de: `clear`, `update_object_transformation`+visibilidad, contorno (bucle de líneas) y `area fill`. Desglose de ciclos por sección.
+2. **Sospechosos a medir/atacar**:
+   - `wait_blitter` **por línea** (secuencia serial). El original también espera por llamada de `DRAWLINE`, pero conviene medir si el coste está aquí; se puede programar la siguiente línea sin esperar la anterior cuando tocan planos/regiones distintas (pipelining), dejando solo el último `wait` antes del fill.
+   - **Setup común de registros una vez por frame** (`bltafwm/alwm`, `bltadat`, `bltbdat`, `bltcmod/bltdmod`) como el original, en vez de por cada llamada de línea.
+   - **`blitter_clear` hace 4 blits** (uno por plano); el original hace **1** (4 planos contiguos, anchura `w/16`, altura 0). Pasar a un solo blit.
+   - **Replicación por plano en una sola programación**: el original comparte todo y solo cambia `bltcpt += plane_bytes` por plano; nuestro bucle llama a `blitter_line_eor` una vez por plano (reprograma los mismos registros). Agrupar.
+   - **Extensión del fill**: hoy barre los 4 planos completos (`1024×16` words). Si el ahorro lo justifica, rellenar solo la bbox del objeto (el fill even-odd necesita la fila completa del contorno; acotar a la bbox es válido si ninguna arista sale de ella).
+3. **Criterio de éxito**: mismo framerate que el original con imagen idéntica (huecos internos 0.00 % e IoU sin cambios). Anotar el resultado en la bitácora de `OPTIMIZACION_GPP_68000.md`.
+
 
 

@@ -129,7 +129,38 @@ El resto de octantes es simétrico (intercambiar los roles de los ejes). El cont
 
 Nota: las operaciones por `dy` necesitan **división** (`/dy`); conviene `dy != 0` (aristas horizontales no cubren filas) y aritmética de 16 bits con redondeo cuidadoso (12.4).
 
-## 3. Relación con el engine
+## 3. Receta: dibujar un polígono relleno (contorno `ONEDOT` + area fill)
+
+Secuencia canónica por frame (la del efecto `flatshade-convex`; ver §1 para el detalle de registros de cada paso):
+
+```text
+  limpiar destino (1 blit)  ->  contorno de aristas visibles (ONEDOT+EOR)  ->  area fill XOR (1 blit)
+```
+
+1. **Limpiar** el destino con **un** blit. Para barrer planos contiguos (`p` planos de `h` filas y `w/16` words), usar `BLTSIZE` con **altura 0** (= 1024 líneas) y anchura `w/16`: `bltcon0 = DEST|A_TO_D`, `bltafwm/alwm = -1`, `bltadat = 0`, `bltdmod = 0`, `bltdpt = base`.
+2. **Contorno**: por cada arista VISIBLE (color de arista `edgeColor > 0`):
+   - descartar las aristas **horizontales** (`y0 == y1`);
+   - programar el modo línea `ONEDOT` + minterm **EOR** (tabla de §1): `bltcon0 = rorw(x0&15,4) | BC0F_LINE_EOR`, octante en `bltcon1`, `bltamod = derr-dmax`, `bltbmod = dmin<<1`, `bltapt = derr`, `bltsize = (dmax<<6)+66`;
+   - **`BLTDPTR` = base del bitmap** (NO la dirección calculada de la línea); `BLTCPTR` = dirección calculada;
+   - replicar en cada plano con el bit puesto en `edgeColor`, recorriendo el plano destino con `bltcm`/`bltdm` = bytes por fila y avanzando la dirección de plano (`+= plane_bytes`);
+   - limpiar el flag de la arista tras dibujarla (la visibilidad se reconstruye cada frame).
+3. **Relleno**: **un** `blitter_area_fill` sobre los planos contiguos: `bltcon0 = (SRCA|DEST)|A_TO_D`, `bltcon1 = BLITREVERSE|FILL_XOR`, `bltamod = bltdmod = 0`, semilla = **última palabra del último plano**, `BLTSIZE` con **altura 0** y anchura `w/16`.
+
+**Invariantes (si falla una, sale una raya horizontal por vértice):**
+
+- Cada scanline debe cruzar el contorno un número **impar** de veces dentro del objeto (relleno *even-odd*). El contorno cerrado + `FILL_XOR` con `FCI=0` garantiza relleno dentro y vacío fuera.
+- **`BLTDPTR` = base del bitmap.** En modo línea el primer píxel va por el canal **D**; si `BLTDPTR` = dirección calculada, el primer píxel (el **vértice**) se escribe por D y por C y se cancela con EOR (`1 XOR 1 = 0`) → paridad rota → raya. Con `BLTDPTR` en la base, la escritura de D cae fuera y el vértice lo escribe solo C.
+- **Sin aristas horizontales** (`y0 == y1`): no aportan contorno y meten cruces falsos.
+- El contorno y el fill deben operar sobre **los mismos planos contiguos**; el fill barre los `p` planos de una pasada (`256×256` → `1024` líneas × 16 words).
+- El relleno **no** es un no-op con altura 0: `BLTSIZE` altura 0 = 1024 líneas (§1).
+
+**Coste**: `1` clear + `n_aristas_visibles × planos_con_bit` blits de línea + `1` fill. Sin máscara 1-bit ni cookie-cut (frente a la ruta por cara, que paga clear+contorno+fill+cookie-cut por polígono).
+
+**`FILL_XOR` (exclusivo) vs `FILL_OR` (inclusivo)**: `FILL_XOR` es el relleno even-odd del contorno `EOR` (deja el borde izquierdo de cada fila "abierto", 1 px más estrecho); es la ruta rápida y fiel. `FILL_OR` inclusivo se usa cuando el contorno está en una **máscara** separada que luego se recorta (cookie-cut) a cada plano — la ruta por cara (`blitter_fill_polygon`), más blits.
+
+**Qué originales usan el truco de `BLTDPTR`** (útil al importar): `flatshade-convex` (`bltdpt = planes`), `flatshade` (`bltdpt = scrbpl[0]`) y `stencil3d` (`bltdpt = planes[DEPTH]`). El `wireframe` **no** lo usa (`bltcpt = bltdpt = data`), por lo que su port no lo necesita.
+
+## 4. Relación con el engine
 
 El backend ya implementa:
 

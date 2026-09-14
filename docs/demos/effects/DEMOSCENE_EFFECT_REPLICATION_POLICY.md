@@ -95,6 +95,26 @@ herramientas o efectos combinables.
    de ese analisis se escribe la replica, reproduciendo la algoritmica exacta y
    optimizando encima de ella, no en su lugar.
 
+   **Checklist de fidelidad de registros** (evita "normalizar" trucos del original):
+
+   - **Diff de registros 1:1**: enumerar los registros que escribe el original
+     (`BLTDPTR`, `BLTCMOD`, `BPLCON1`, `BLTSIZE`, minterms, `BPLxMOD`...) y
+     compararlos con la replica. En codigo a nivel de registro, **cada valor es
+     semantico**: un valor que no encaja con el patron obvio suele ser un truco, no
+     ruido, y se reproduce tal cual (documentando por que).
+   - **Leer el AHRM del modo usado antes de portar** (linea, area fill, cookie-cut,
+     interleaved, HAM/EHB). Citar la seccion en el comentario del codigo. Un ejemplo
+     real: en modo linea el primer pixel va por el canal **D** y `BLTDPTR = base` es
+     obligatorio para la paridad del contorno; y `BLTSIZE` con **altura 0 = 1024
+     lineas** (ver `docs/reference/amiga/techniques/blitter-line-subpixel-fill.md`).
+   - **Gate determinista para rasterizadores**: ademas de la verificacion visual
+     gruesa, medir pixeles (huecos internos por fila, racha maxima, fuga al borde);
+     la vision local no detecta artefactos de 1 px.
+   - **Nunca aceptar una desviacion que tapa un glitch como decision final**: marcarla
+     como pendiente hasta explicar por que el original no lo tiene.
+   - Detalle del caso estudiado y lecciones:
+     `docs/debugging/LECCIONES-PORTE-BLITTER-DEMOSCENE.md`.
+
 ## Flujo por efecto
 
 Para cada efecto de `demoscene-repo/effects`:

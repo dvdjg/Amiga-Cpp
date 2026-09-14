@@ -348,3 +348,29 @@ desarrolla en varios turnos; el orden es 1→2→3.
   tileado). Pendiente: **tileset artístico** y más motivos.- ⏳ Transversal: **tiles 64×64** en `BlocksBitmap`/pipeline (128 tiles ya se usa);
   matriz de memoria Chip por modo DPF.
 - ⏳ Fino: `y_mode` `Finite` (Y corto con scroll); pulido de objetos de 110/111.
+
+## Subsistema de gráficos poligonales / wireframe (propuesta 2026-09)
+
+**Idea**: convertir el importe 3D del demoscene (`flatshade-convex`, `wireframe`, `flatshade`, `stencil3d`, `texobj`, `blurred3d`, `starfox`, `anim-polygons`, `dna3d`) en un **subsistema de render poligonal/wireframe** reutilizable, no en demos sueltas. La base ya está en el repo:
+
+- **Modelo y matemática**: `eng/core/object3d.hpp` (malla `obj2c` + `Object3D`, port 1:1 de lib3d; HOST-014) y `eng/core/mesh3d.hpp` (`MeshView`, `mesh_transform`, `mesh_painter_order`; HOST-013); `math2d`/`math3d` (4.12, `div16`/`normfx`; HOST-010/011).
+- **Primitivas Blitter**: `blitter_line` (OR), `blitter_line_eor` (ONEDOT+EOR, con `d_base`), `blitter_area_fill` (FILL_XOR), `blitter_fill_polygon` (máscara+cookie-cut), `fill_triangles_blitter`.
+- **Técnica canónica**: `docs/reference/amiga/techniques/blitter-line-subpixel-fill.md` §3 (receta del polígono relleno; truco `BLTDPTR`=base, `BLTSIZE` altura 0).
+- **Demos cabecera**: 077/078 (`math3d` cube/solid), 079 (`wireframe`), 116 (`flatshade-convex` fiel).
+
+**Diseño propuesto** (capas análogas a `RastPort`, sin exponer registros/planos):
+
+```text
+  Object3D/MeshView  ->  MeshRenderer  ->  PolygonSurface (Blitter)
+     (datos 3D)         culling + transform    draw_line / fill_polygon
+                        + visibilidad          (oculta planos, d_base,
+                                                row_bytes, minterms)
+```
+
+- **`PolygonSurface`** (contexto de dibujo): expone `draw_line(p0,p1,color)` y `fill_polygon(pts,color)` eligiendo internamente la ruta (contorno `ONEDOT`+EOR + `area fill` XOR, o máscara + cookie-cut) y aplicando el truco `BLTDPTR`. Firma sin punteros ni registros (regla de API del engine); funciona igual en 4/5/6 planos y EHB/DPF.
+- **`MeshRenderer`**: culling (`face_visible`/`UpdateFaceVisibility*`), transform (`transform_vertices`), visibilidad de aristas (simple o la convexa por XOR) y selección de ruta (alambre vs relleno por luz de cara).
+- **Reutilización**: 077/078 ya calculan culling+orden (`mesh_painter_order`); el subsistema unifica esas rutas con las del import 3D.
+
+**Hitos**: (1) extraer de 116 un `PolygonSurface` reutilizable en `engine/` + test host (contrato de registros y paridad); (2) `MeshRenderer` con ruta alambre (079) y relleno (116); (3) importar `flatshade` (no-convexo) y `stencil3d` sobre él (ambos usan `BLTDPTR`=base); (4) rasterizador **sub-píxel** (acumulador 12.4, §2 de la ficha) para aristas/polígonos sin *snap* a píxel.
+
+**Estado**: propuesta; sin código de subsistema todavía (todo vive en las demos 077/078/079/116).
