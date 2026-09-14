@@ -37,6 +37,21 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 	0,
 	0,
 };
+
+// Perfilado por secciones: cabecera magica para localizarla por canal lateral y
+// deltas de ciclos de CPU (contador del periferico de depuracion 0xB7E928).
+// v[0]=clear v[1]=transform/culling v[2]=edges v[3]=fill v[4]=draw(edges+fill) v[5]=update total
+struct EngProf {
+	eng::u32 magic;
+	eng::u32 v[6];
+};
+__attribute__((used)) volatile EngProf g_eng_prof { 0x50524f46u, {0u, 0u, 0u, 0u, 0u, 0u} };
+}
+
+namespace {
+inline eng::u32 rcycles() {
+	return *reinterpret_cast<volatile eng::u32*>(0xB7E928u);
+}
 }
 
 // --- Datos del efecto (copiados TAL CUAL del demoscene) ----------------------
@@ -70,10 +85,6 @@ constexpr eng::u16 kDdfstrt = 0x0048;
 constexpr eng::u16 kDdfstop = 0x00c0;
 constexpr eng::u16 kBplcon0 = 0x4000; // 4 planos, color
 constexpr eng::u16 kBplcon1 = 0x0000;
-
-/// Numero de entradas de la tabla de "aristas tocadas por caras visibles"
-/// (indice = offset de byte de la arista / 2; el modelo tiene offsets < 2800).
-constexpr eng::u16 kEdgeTouch = 2048;
 
 /// Maximo de vertices por cara del modelo `pilka` (poligonos de hasta 8 lados).
 constexpr eng::u16 kMaxFaceVerts = 8;
@@ -187,14 +198,9 @@ void update_face_visibility(obj::Object3D& object) {
 
 /// Port de `UpdateEdgeVisibilityConvex` (flatshade-convex): por cada cara visible
 /// marca sus vertices y **XOR-ea** el color de luz (`face->flags`) en sus aristas.
-/// El XOR cancela las aristas compartidas por dos caras visibles; queda la silueta
-/// y las aristas visibles. Ademas cuenta en `touch` cuantas caras VISIBLES tocan
-/// cada arista (indice = offset de byte / 2) para distinguir la **silueta**
-/// (`touch == 1`, la cierra el relleno en TODOS los planos) de las internas.
-void update_edge_visibility_convex(obj::Object3D& object, eng::u8* touch) {
-	for (eng::u16 k = 0; k < kEdgeTouch; ++k) {
-		touch[k] = 0;
-	}
+/// El XOR cancela las aristas compartidas por dos caras visibles; quedan la silueta
+/// y las aristas internas visibles (las que dibuja `draw_edges_area_fill`).
+void update_edge_visibility_convex(obj::Object3D& object) {
 	const eng::s8 s = 1;
 	void* objdat = object.objdat;
 	eng::s16* group = object.faceGroups;
@@ -208,12 +214,12 @@ void update_edge_visibility_convex(obj::Object3D& object, eng::u8* touch) {
 				eng::s16 vertices = static_cast<eng::s16>(face->count - 3);
 				eng::s16 i;
 				i = *index++; obj::node3d(objdat, i)->flags = s;
-				i = *index++; { obj::Edge* e = obj::edge3d(objdat, i); e->flags = static_cast<eng::s8>(e->flags ^ flags); ++touch[static_cast<eng::u16>(i) >> 1]; }
+				i = *index++; obj::edge3d(objdat, i)->flags = static_cast<eng::s8>(obj::edge3d(objdat, i)->flags ^ flags);
 				i = *index++; obj::node3d(objdat, i)->flags = s;
-				i = *index++; { obj::Edge* e = obj::edge3d(objdat, i); e->flags = static_cast<eng::s8>(e->flags ^ flags); ++touch[static_cast<eng::u16>(i) >> 1]; }
+				i = *index++; obj::edge3d(objdat, i)->flags = static_cast<eng::s8>(obj::edge3d(objdat, i)->flags ^ flags);
 				do {
 					i = *index++; obj::node3d(objdat, i)->flags = s;
-					i = *index++; { obj::Edge* e = obj::edge3d(objdat, i); e->flags = static_cast<eng::s8>(e->flags ^ flags); ++touch[static_cast<eng::u16>(i) >> 1]; }
+					i = *index++; obj::edge3d(objdat, i)->flags = static_cast<eng::s8>(obj::edge3d(objdat, i)->flags ^ flags);
 				} while (--vertices != -1);
 			}
 		}
@@ -305,6 +311,34 @@ void draw_faces(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::Minim
 	} while (*group);
 }
 
+// Seleccion de ruta y perfilado por secciones (todo por defecto a 0/1).
+//   -DFLATSHADE_FAITHFUL=0  -> ruta alternativa por cara (blitter_fill_polygon).
+//   -DFLATSHADE_LINE_OR=1   -> lineas OR en vez de EOR (solo ruta fiel).
+//   -DFLATSHADE_SKIP_CLEAR/EDGES/FILL=1 -> omite esa seccion (perfilar por diferencia).
+#ifndef FLATSHADE_FAITHFUL
+#define FLATSHADE_FAITHFUL 1
+#endif
+#ifndef FLATSHADE_LINE_OR
+#define FLATSHADE_LINE_OR 0
+#endif
+#ifndef FLATSHADE_SKIP_CLEAR
+#define FLATSHADE_SKIP_CLEAR 0
+#endif
+#ifndef FLATSHADE_SKIP_EDGES
+#define FLATSHADE_SKIP_EDGES 0
+#endif
+#ifndef FLATSHADE_SKIP_FILL
+#define FLATSHADE_SKIP_FILL 0
+#endif
+#ifdef FLATSHADE_SKIP_ALL
+#undef FLATSHADE_SKIP_CLEAR
+#undef FLATSHADE_SKIP_EDGES
+#undef FLATSHADE_SKIP_FILL
+#define FLATSHADE_SKIP_CLEAR 1
+#define FLATSHADE_SKIP_EDGES 1
+#define FLATSHADE_SKIP_FILL 1
+#endif
+
 /// Camino FIEL del original (barato): dibuja las aristas VISIBLES
 /// (`edgeColor > 0`) con `blitter_line_eor` (ONEDOT+EOR) replicadas en cada plano
 /// segun el color de arista, y despues UN unico `blitter_area_fill` (area fill
@@ -319,9 +353,11 @@ void draw_faces(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::Minim
 /// vertices (sin ello el area fill filtra una raya horizontal por vertice).
 void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
 			  eng::amiga::MinimalBackend& backend) {
+	const eng::u32 t0 = rcycles();
 	void* objdat = object.objdat;
 	eng::s16* group = object.edgeGroups;
 	eng::s16 e;
+#if !FLATSHADE_SKIP_EDGES
 	do {
 		while ((e = *group++)) {
 			obj::Edge* edge = obj::edge3d(objdat, e);
@@ -357,15 +393,18 @@ void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
 			}
 		}
 	} while (*group);
+#else
+	(void)group; (void)e; (void)objdat;
+#endif
+	const eng::u32 t1 = rcycles();
+#if !FLATSHADE_SKIP_FILL
 	backend.blitter_area_fill(planes, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight);
+#endif
+	const eng::u32 t2 = rcycles();
+	g_eng_prof.v[2] = t1 - t0;
+	g_eng_prof.v[3] = t2 - t1;
+	g_eng_prof.v[4] = t2 - t0;
 }
-
-#ifndef FLATSHADE_FAITHFUL
-#define FLATSHADE_FAITHFUL 1
-#endif
-#ifndef FLATSHADE_LINE_OR
-#define FLATSHADE_LINE_OR 0
-#endif
 
 struct FlatShadeDemo {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
@@ -408,21 +447,31 @@ struct FlatShadeDemo {
 		eng::PlaneBytes planes = m_bitplane_block.view.subspan(
 			static_cast<eng::u32>(buf) * kPlanes * kPlaneBytes, kPlanes * kPlaneBytes);
 
+		const eng::u32 t0 = rcycles();
+#if !FLATSHADE_SKIP_CLEAR
 		backend.blitter_clear(planes, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight);
+#endif
+		const eng::u32 t1 = rcycles();
 
 		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z =
 			static_cast<eng::s16>(context.frame.frame_index * 8u);
 
 		obj::update_object_transformation(m_object);
 		update_face_visibility(m_object);
-		update_edge_visibility_convex(m_object, m_edge_touch);
+		update_edge_visibility_convex(m_object);
 		transform_vertices(m_object);
+		const eng::u32 t2 = rcycles();
 
 #if FLATSHADE_FAITHFUL
 		draw_edges_area_fill(m_object, planes, backend);
 #else
 		draw_faces(m_object, planes, backend, m_mask_block.view);
 #endif
+		const eng::u32 t3 = rcycles();
+
+		g_eng_prof.v[0] = t1 - t0;
+		g_eng_prof.v[1] = t2 - t1;
+		g_eng_prof.v[5] = t3 - t0;
 
 		backend.install_copper_list(m_copper_ptrs[buf]);
 		m_active = static_cast<eng::u8>(buf ^ 1u);
@@ -455,7 +504,6 @@ private:
 	eng::Block<eng::MaskTag> m_mask_block {};
 	const eng::u16* m_copper_ptrs[kBuffers] = {nullptr, nullptr};
 	eng::object3d::Object3D m_object {};
-	eng::u8 m_edge_touch[kEdgeTouch] {};
 };
 
 } // namespace
@@ -471,3 +519,4 @@ int main() {
 
 	return 0;
 }
+

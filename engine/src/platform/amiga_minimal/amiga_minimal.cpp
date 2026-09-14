@@ -953,8 +953,16 @@ bool MinimalBackend::blitter_clear(eng::PlaneBytes dst, u8 planes, u16 row_bytes
 	}
 	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
 	const u16 words = static_cast<u16>(w / 16u);
-	for (u8 p = 0; p < planes; ++p) {
-		blit_clear_region(dst.data() + static_cast<u32>(p) * plane_bytes, row_bytes, 0, 0, words, h);
+	// Planos contiguos con filas contiguas (`plane_bytes == row_bytes*h`): UN solo
+	// blit barre los `planes` planos de una pasada (como `BitmapClearFast` del
+	// original: altura 0 = 1024 lineas si `planes*h` desborda los 10 bits). Si no,
+	// se limpia plano a plano.
+	if (static_cast<u32>(row_bytes) * h == plane_bytes) {
+		blit_clear_region(dst.data(), row_bytes, 0, 0, words, static_cast<u16>(planes * h));
+	} else {
+		for (u8 p = 0; p < planes; ++p) {
+			blit_clear_region(dst.data() + static_cast<u32>(p) * plane_bytes, row_bytes, 0, 0, words, h);
+		}
 	}
 	return wait_blitter();
 }
