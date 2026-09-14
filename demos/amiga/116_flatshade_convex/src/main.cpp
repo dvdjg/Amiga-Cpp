@@ -390,7 +390,6 @@ void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
 	eng::s16* group = object.edgeGroups;
 	eng::s16 e;
 #if !FLATSHADE_SKIP_EDGES
-	backend.blitter_lines_begin(kBytesPerRow);
 	do {
 		while ((e = *group++)) {
 			obj::Edge* edge = obj::edge3d(objdat, e);
@@ -419,20 +418,25 @@ void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
 					px_total += static_cast<eng::u32>(dx > dy ? dx : dy);
 				}
 #endif
+#if FLATSHADE_LINE_OR
 				for (eng::u8 p = 0; p < kPlanes; ++p) {
 					if ((edgeColor & (1 << p)) != 0) {
 						++n_lines;
-#if FLATSHADE_LINE_OR
 						backend.blitter_line(planes.subspan(
 							static_cast<eng::u32>(p) * kPlaneBytes, kPlaneBytes),
 							kBytesPerRow, x0, y0, x1, y1);
+					}
+				}
 #else
+				for (eng::u8 p = 0; p < kPlanes; ++p) {
+					if ((edgeColor & (1 << p)) != 0) {
+						++n_lines;
 						backend.blitter_line_eor(planes.subspan(
 							static_cast<eng::u32>(p) * kPlaneBytes, kPlaneBytes),
 							kBytesPerRow, x0, y0, x1, y1, planes.data());
-#endif
 					}
 				}
+#endif
 			}
 		}
 	} while (*group);
@@ -544,7 +548,6 @@ struct FlatShadeDemo {
 #ifdef FLATSHADE_BENCH_LINE
 		{
 			const eng::u32 b0 = rcycles();
-			backend.blitter_lines_begin(kBytesPerRow);
 			for (eng::u16 k = 0; k < 64u; ++k) {
 				backend.blitter_line_eor(planes.subspan(0u, kPlaneBytes), kBytesPerRow,
 							 100, 100, 140, 130, planes.data());

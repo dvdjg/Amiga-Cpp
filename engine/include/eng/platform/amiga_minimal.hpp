@@ -281,15 +281,13 @@ public:
 	/// fila del plano (el original usa WIDTH/8). Linea OR sobre el destino.
 	bool blitter_line(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1);
 
-	/// Fija UNA vez los registros comunes del modo linea (BLTAFWM/BLTALWM, BLTADAT,
-	/// BLTBDAT, BLTCMOD, BLTDMOD) para todo un `DrawObject` (como el original);
-	/// `blitter_line_eor` los asume ya fijados.
-	void blitter_lines_begin(u16 row_bytes);
-
 	/// Línea por Blitter en modo `ONEDOT` con minterm **EOR** (`BC0F_LINE_EOR`),
 	/// secuencia EXACTA de `DrawObject` de `flatshade-convex`: se usa para el
 	/// contorno de polígonos (un píxel por fila) que luego rellena
-	/// `blitter_area_fill`. Sin `SIGNFLAG` (como el original).
+	/// `blitter_area_fill`. Sin `SIGNFLAG` (como el original). Fija los registros
+	/// comunes del modo línea (`BLTAFWM/ALWM`, `BLTADAT`, `BLTBDAT`, `BLTCMOD`,
+	/// `BLTDMOD`) en cada llamada: se probó fijarlos 1×/frame y el sólido salía
+	/// deforme (el estado del Blitter no es estable entre blits).
 	/// `d_base` replica el truco del original (`bltdpt = planes`, la base del
 	/// bitmap, NO la dirección calculada): si es `nullptr` se usa la dirección de
 	/// la línea.

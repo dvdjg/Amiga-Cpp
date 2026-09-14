@@ -50,9 +50,11 @@ constexpr unsigned short blt_minterm_copy_a = 0x00f0;   // D = A (canal A, con b
 constexpr unsigned short blt_desc = 0x0002;             // BLTCON1 BLITREVERSE (modo descendente)
 
 void write_custom_pointer(unsigned short word_offset, const void* pointer) {
-	// Una sola escritura de 32 bits (high word en `word_offset`, low en +1) en vez de
-	// dos de 16: cada acceso a registro custom cuesta ~130 ciclos con
-	// `cpu_cycle_exact`, asi que fusionarlos ahorra ~130 por puntero.
+	// Una sola escritura de 32 bits, como el original (`custom_regdef.h` declara
+	// BLTxPTH/L como `void *`, y `custom_->bltcpt = ptr` es un long). En 68000
+	// (big-endian) el long deja el high word en `word_offset` y el low en +1, igual
+	// que dos escrituras de 16; ademas cada acceso a registro custom cuesta ~57
+	// ciclos con `cpu_cycle_exact`, asi que fusionarlos ahorra ~57 por puntero.
 	*reinterpret_cast<volatile eng::u32*>(&custom_base[word_offset]) =
 		reinterpret_cast<eng::u32>(pointer);
 }
@@ -877,10 +879,15 @@ bool MinimalBackend::blitter_line(eng::PlaneBytes plane, u16 row_bytes, s16 x0, 
 	return wait_blitter();
 }
 
-void MinimalBackend::blitter_lines_begin(u16 row_bytes) {
-	// Fija UNA vez los registros comunes del modo linea (como el `DrawObject` del
-	// original). `blitter_line_eor` ya no los reescribe por arista/plano: pasar de
-	// ~17 escrituras por plano a ~11 (las mismas que el original).
+bool MinimalBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1,
+				      eng::u8* d_base) {
+	if (plane.data() == nullptr) {
+		return false;
+	}
+	// Registros comunes del modo linea, fijados aqui por linea. Se probo fijarlos 1x
+	// por frame (`blitter_lines_begin`) pero producia caras deformes en flatshade-convex
+	// (el estado de cmod/dmod/dat del Blitter no es estable entre blits); se dejan
+	// explicitos. Coste: ~6 escrituras custom (~57 ciclos) por arista/plano.
 	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
 	wait_blitter();
 	custom_base[custom_bltafwm_offset] = 0xffff;
@@ -889,17 +896,6 @@ void MinimalBackend::blitter_lines_begin(u16 row_bytes) {
 	custom_base[custom_bltbdat_offset] = 0xffff;
 	custom_base[custom_bltcmod_offset] = row_bytes;
 	custom_base[custom_bltdmod_offset] = row_bytes;
-}
-
-bool MinimalBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1,
-				      eng::u8* d_base) {
-	if (plane.data() == nullptr) {
-		return false;
-	}
-	// OJO: los comunes (BLTAFWM/ALWM, BLTADAT, BLTBDAT, BLTCMOD, BLTDMOD) los fija
-	// `blitter_lines_begin` UNA vez por frame; aqui no se reescriben (cada acceso a
-	// registro custom cuesta ~57 ciclos con `cpu_cycle_exact`). El llamador debe
-	// haberlos fijado antes.
 
 	// El original (`DrawObject` de flatshade-convex) DESCARTA las aristas
 	// horizontales: no aportan contorno util y, dibujadas, meterian píxeles
