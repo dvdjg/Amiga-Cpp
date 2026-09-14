@@ -538,6 +538,18 @@ struct FlatShadeDemo {
 			}
 			const eng::u32 b1 = rcycles();
 			g_eng_prof.v[13] = (b1 - b0) / 64u;
+			for (eng::u16 k = 0; k < 64u; ++k) {
+				backend.blitter_line_eor(planes.subspan(0u, kPlaneBytes), kBytesPerRow,
+							 100, 100, 108, 105, planes.data());
+			}
+			const eng::u32 b2 = rcycles();
+			g_eng_prof.v[14] = (b2 - b1) / 64u;
+			for (eng::u16 k = 0; k < 64u; ++k) {
+				backend.blitter_clear_rect(planes.subspan(0u, kPlaneBytes), kBytesPerRow,
+							   100u, 100, 1u, 1u);
+			}
+			const eng::u32 b3 = rcycles();
+			g_eng_prof.v[15] = (b3 - b2) / 64u;
 		}
 #endif
 

@@ -50,9 +50,11 @@ constexpr unsigned short blt_minterm_copy_a = 0x00f0;   // D = A (canal A, con b
 constexpr unsigned short blt_desc = 0x0002;             // BLTCON1 BLITREVERSE (modo descendente)
 
 void write_custom_pointer(unsigned short word_offset, const void* pointer) {
-	const eng::u32 raw = reinterpret_cast<eng::u32>(pointer);
-	custom_base[word_offset] = static_cast<eng::u16>(raw >> 16);
-	custom_base[word_offset + 1] = static_cast<eng::u16>(raw & 0xffffu);
+	// Una sola escritura de 32 bits (high word en `word_offset`, low en +1) en vez de
+	// dos de 16: cada acceso a registro custom cuesta ~130 ciclos con
+	// `cpu_cycle_exact`, asi que fusionarlos ahorra ~130 por puntero.
+	*reinterpret_cast<volatile eng::u32*>(&custom_base[word_offset]) =
+		reinterpret_cast<eng::u32>(pointer);
 }
 
 // Servicio opcional que se ejecuta mientras se espera al Blitter (drenado de fondo).
