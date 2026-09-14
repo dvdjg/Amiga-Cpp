@@ -466,6 +466,9 @@ void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
 		}
 	}
 #else
+	// El fill se espera ANTES del swap: si se mostrara el buffer con el fill a
+	// medias parpadearia. (Se probo solaparlo con el transform del siguiente frame
+	// en pipeline; no mejora el frame porque el trabajo del Blitter es el limite.)
 	backend.blitter_area_fill(planes, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight);
 #endif
 #endif
