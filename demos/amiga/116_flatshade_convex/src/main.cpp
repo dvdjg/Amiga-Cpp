@@ -167,27 +167,27 @@ void update_face_visibility(obj::Object3D& object) {
 				pz = static_cast<eng::s16>(cz - p->z);
 			}
 			eng::s16* fn = face->normal;
-			eng::s32 v = static_cast<eng::s32>(fn[0]) * px +
-				     static_cast<eng::s32>(fn[1]) * py +
-				     static_cast<eng::s32>(fn[2]) * pz;
+			eng::s32 v = eng::math2d::mul16(fn[0], px) +
+				     eng::math2d::mul16(fn[1], py) +
+				     eng::math2d::mul16(fn[2], pz);
 			if (v >= 0) {
 				// s = |v| en la parte alta (magnitud^2), clamp 511.
-				eng::s16 s = hi16(static_cast<eng::s32>(px) * px +
-						  static_cast<eng::s32>(py) * py +
-						  static_cast<eng::s32>(pz) * pz);
+				eng::s16 s = hi16(eng::math2d::mul16(px, px) +
+						  eng::math2d::mul16(py, py) +
+						  eng::math2d::mul16(pz, pz));
 				if (s > 511) s = 511;
 				const eng::s16 vv = hi16(v);
-				const eng::u32 res = (static_cast<eng::u32>(static_cast<eng::s16>(vv)) *
-						      static_cast<eng::u32>(kInvSqrt[static_cast<eng::u16>(s)])) >> 16;
+				const eng::u32 res = eng::math2d::mulu16(static_cast<eng::u16>(static_cast<eng::s16>(vv)),
+									 kInvSqrt[static_cast<eng::u16>(s)]) >> 16;
 				face->flags = static_cast<eng::s8>(res);
 			} else if (face->material < 0) {
-				eng::s16 s = hi16(static_cast<eng::s32>(px) * px +
-						  static_cast<eng::s32>(py) * py +
-						  static_cast<eng::s32>(pz) * pz);
+				eng::s16 s = hi16(eng::math2d::mul16(px, px) +
+						  eng::math2d::mul16(py, py) +
+						  eng::math2d::mul16(pz, pz));
 				if (s > 511) s = 511;
 				const eng::s16 vv = hi16(-v);
-				const eng::u32 res = (static_cast<eng::u32>(static_cast<eng::s16>(vv)) *
-						      static_cast<eng::u32>(kInvSqrt[static_cast<eng::u16>(s)])) >> 16;
+				const eng::u32 res = eng::math2d::mulu16(static_cast<eng::u16>(static_cast<eng::s16>(vv)),
+									 kInvSqrt[static_cast<eng::u16>(s)]) >> 16;
 				face->flags = static_cast<eng::s8>(res);
 			} else {
 				face->flags = -1;
@@ -229,17 +229,17 @@ void update_edge_visibility_convex(obj::Object3D& object) {
 #define MULVERTEX1(D, E) { \
 	eng::s16 t0 = static_cast<eng::s16>((*v++) + y); \
 	eng::s16 t1 = static_cast<eng::s16>((*v++) + x); \
-	eng::s32 t2 = static_cast<eng::s32>(*v++) * z; \
+	eng::s32 t2 = eng::math2d::mul16(*v++, z); \
 	v++; \
-	D = static_cast<eng::s32>(((static_cast<eng::s32>(t0) * t1 + t2 - xy) >> 4) + E); \
+	D = static_cast<eng::s32>(((eng::math2d::mul16(t0, t1) + t2 - xy) >> 4) + E); \
 }
 
 #define MULVERTEX2(D) { \
 	eng::s16 t0 = static_cast<eng::s16>((*v++) + y); \
 	eng::s16 t1 = static_cast<eng::s16>((*v++) + x); \
-	eng::s32 t2 = static_cast<eng::s32>(*v++) * z; \
+	eng::s32 t2 = eng::math2d::mul16(*v++, z); \
 	eng::s16 t3 = *v++; \
-	D = static_cast<eng::s32>(eng::math2d::normfx(static_cast<eng::s32>(t0) * t1 + t2 - xy)) + t3; \
+	D = static_cast<eng::s32>(eng::math2d::normfx(eng::math2d::mul16(t0, t1) + t2 - xy)) + t3; \
 }
 
 /// Port de `TransformVertices`: transforma y proyecta (perspectiva con `div16`)
@@ -398,7 +398,8 @@ void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
 #endif
 	const eng::u32 t1 = rcycles();
 #if !FLATSHADE_SKIP_FILL
-	backend.blitter_area_fill(planes, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight);
+	// El fill se lanza SIN esperar: se solapa con la espera de VBlank del engine.
+	backend.blitter_area_fill(planes, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight, false);
 #endif
 	const eng::u32 t2 = rcycles();
 	g_eng_prof.v[2] = t1 - t0;
@@ -449,7 +450,8 @@ struct FlatShadeDemo {
 
 		const eng::u32 t0 = rcycles();
 #if !FLATSHADE_SKIP_CLEAR
-		backend.blitter_clear(planes, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight);
+		// El clear se lanza SIN esperar: se solapa con el transform/culling (CPU).
+		backend.blitter_clear(planes, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight, false);
 #endif
 		const eng::u32 t1 = rcycles();
 
@@ -461,6 +463,9 @@ struct FlatShadeDemo {
 		update_edge_visibility_convex(m_object);
 		transform_vertices(m_object);
 		const eng::u32 t2 = rcycles();
+
+		// El clear debe haber terminado antes de dibujar el contorno encima.
+		backend.wait_blitter();
 
 #if FLATSHADE_FAITHFUL
 		draw_edges_area_fill(m_object, planes, backend);

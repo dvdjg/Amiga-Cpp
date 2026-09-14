@@ -157,23 +157,29 @@ Estado: la ruta por defecto corre a **~9.9 fps** (715k ciclos/frame; debug ≈ r
    - **Extensión del fill**: hoy barre los 4 planos completos (`1024×16` words). Si el ahorro lo justifica, rellenar solo la bbox del objeto (el fill even-odd necesita la fila completa del contorno; acotar a la bbox es válido si ninguna arista sale de ella).
 3. **Criterio de éxito**: mismo framerate que el original con imagen idéntica (huecos internos 0.00 % e IoU sin cambios). Anotar el resultado en la bitácora de `OPTIMIZACION_GPP_68000.md`.
 
-### Resultados medidos (perfilado)
+### Resultados medidos (perfilado y optimizado)
 
-Tasa real del original (contando cambios del puntero `BPL1PT` en su copperlist, `out/tmp/orig-rate3.mjs`): **~24.7 renders/s, ~287k ciclos/render**. La nuestra: **~10.6 fps, ~670k ciclos/frame** ⇒ **2.4x más lenta**.
+Tasa real del original (contando cambios del puntero `BPL1PT` en su copperlist, `out/tmp/orig-rate3.mjs`): **~24.7 renders/s, ~287k ciclos/render**. El `frame`/`vsync_counter` del monitor NO sirve (avanza a 50 Hz aunque el efecto tarde varios frames).
 
-Desglose instrumentado con el contador de ciclos del periférico (`0xB7E928`, `out/tmp/prof116.mjs`):
+Progresión de la réplica (fps emulados; perfil con `out/tmp/prof116.mjs`):
 
-| Sección | ciclos/frame | fracción |
+| Paso | fps | ciclos/frame |
 |---|---|---|
-| `clear` (1 blit, 4 planos contiguos) | 88,920 | 13 % |
-| `transform` (transform + culling + visibilidad) | **176,152** | 26 % |
-| `edges` (contorno `ONEDOT`+EOR) | 147,648 | 22 % |
-| `fill` (area fill XOR, 1024 líneas) | **143,420** | 21 % |
-| `draw` (edges+fill) | 291,068 | — |
-| `update` (total) | 556,344 | 83 % |
-| bucle/`render`/espera de VB | ~114k | 17 % |
+| Inicial | 9.92 | 715k |
+| `clear` de 1 blit + quitar `touch[]` muerto | 10.58 | 670k |
+| **Solape clear↔transform y fill↔VBlank** | 14.26 | 497k |
+| `div16` nativo (`divs`, como `common.h`) | 15.09 | 470k |
+| `row_offset` con `muls.w` (`__mulsi3` fuera de las líneas) | 15.87 | 447k |
+| `mul16`/`mulu16` nativos en transform y luz | **19.07** | **372k** |
 
-Datos que acotan el problema: el `transform` CPU (176k) y el `fill` (143k) **ya superan cada uno** el total del original (287k); `clear`+`fill` juntos (232k) son ≈ todo un frame suyo. Es decir, si el original hace el mismo `clear`+`fill` (mismo `bltsize`: anchura 16 words, altura 0 = 1024 líneas), su `transform`+`edges` tendrían que caber en ~55k, frente a nuestros 324k. Optimizaciones ya aplicadas en esta pasada: `clear` de **1 blit** (antes 4) y eliminación del array `touch[2048]` muerto (ambos ~ -45k). Pendiente: investigar por qué `transform` (C++ vs asm del original) y `edges` cuestan tanto, y confirmar el modelo de coste del Blitter del emulador (ver informe para IA en `docs/debugging/`).
+Original: **24.7 / 287k** (brecha 1.29x). Desglose final: `clear` 80k, `transform` 97k, `edges` 134k, `fill` 1k (lanzado sin esperar), `update` 312k, bucle/render ~60k.
+
+**Optimizaciones aplicadas** (todas en `engine/`):
+- `blitter_clear`/`blitter_area_fill` aceptan `wait=false`; nuevo `MinimalBackend::wait_blitter()` público. La demo lanza el clear y el fill **sin esperar** (el original no espera el clear): el clear se solapa con la CPU y el fill con la espera de VBlank.
+- `row_offset()` (en `amiga_minimal.cpp`) y `math2d::mul16`/`mulu16` usan `muls`/`mulu` nativos; `math2d::div16` usa `divs` (misma forma que el `common.h` del origen). Elimina los `__mulsi3`/`__divsi3`/`__udivsi3` del hot path (antes 10/11/13 → ahora ~1/0).
+- `blitter_clear` en **1 blit** para planos contiguos.
+
+**Pendiente** (para cerrar la brecha): acotar `clear`/`fill` a la **bbox** del objeto (evita barrer 1024 líneas cada vez; ahorro estimado ~60-80k), escribir los **comunes del Blitter 1×/frame** en las líneas (el original lo hace), y bajar los `edges` (134k). Ver informe para IA en `docs/debugging/CONSULTA-OPTIMIZACION-BLITTER-DEMOSCENE.md`.
 
 
 

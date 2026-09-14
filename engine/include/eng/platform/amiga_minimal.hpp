@@ -295,7 +295,8 @@ public:
 	/// `BitmapFillFast` de `flatshade-convex`: parte de la última palabra del bitmap
 	/// (`planes` planos contiguos de `plane_bytes`) y rellena el hueco dejado por el
 	/// contorno (`blitter_line_eor`). `width` en píxeles (múltiplo de 16).
-	bool blitter_area_fill(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 width, u16 height);
+	bool blitter_area_fill(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 width, u16 height,
+			       bool wait = true);
 
 	/// Rellena un **poligono convexo** (puntos de pantalla `xs`/`ys`, `n` vertices) con
 	/// `color` en `planes` planos. Limpia la mascara de su bbox, traza el contorno
@@ -306,7 +307,8 @@ public:
 
 	/// Borra (D=0) una region de `w`x`h` en `planes` planos contiguos con separacion
 	/// `plane_bytes`, alineando a palabra. Equivale a `BlitterClear` del demoscene.
-	bool blitter_clear(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w, u16 h);
+	bool blitter_clear(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w, u16 h,
+			   bool wait = true);
 
 	/// Escribe el registro de datos de un bitplane (`BLTxDAT`, $110 + 2*plane). Lo
 	/// usa fire-rgb para los bits HAM fijos de los planos 4/5 (`0x7777`/`0xcccc`).
@@ -337,6 +339,11 @@ public:
 	/// `true` mientras el Blitter esta ocupado (bit BBUSY de DMACONR). Permite
 	/// encadenar las fases del C2P por sondeo sin bloquear la CPU.
 	bool blitter_busy() const;
+
+	/// Espera a que el Blitter termine. Util para solapar un blit con trabajo de
+	/// CPU: se lanza el blit con `wait=false` (clear/area fill), se hace CPU, y se
+	/// sincroniza aqui antes de reprogramar registros o mostrar el buffer.
+	bool wait_blitter();
 
 	/// Inicializa el subsistema de audio (SFX mixer + reproductores de música).
 	/// Debe llamarse después de `configure_memory` (necesita el bloque Chip para el

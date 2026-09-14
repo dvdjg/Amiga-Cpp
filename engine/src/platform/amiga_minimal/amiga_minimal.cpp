@@ -134,10 +134,21 @@ unsigned short ror16(unsigned short value, unsigned short n) {
 	return static_cast<unsigned short>((value >> n) | (value << (16u - n)));
 }
 
+/// Offset de fila `y * row_bytes` con multiplicacion 16x16->32 nativa (`muls.w`),
+/// evitando el `__mulsi3` que genera `(u32)y * row_bytes`. Caliente en las lineas
+/// (se calcula una vez por arista y plano). Misma forma que `mul16` del origen.
+inline eng::u32 row_offset(eng::s16 y, eng::u16 row_bytes) {
+	eng::s32 r;
+	const eng::s32 a = y;
+	const eng::s16 b = static_cast<eng::s16>(row_bytes);
+	asm("muls %2,%0" : "=d"(r) : "0"(a), "dm"(b));
+	return static_cast<eng::u32>(r);
+}
+
 /// Borra una region de palabras (D=0) en un plano planar.
 void blit_clear_region(eng::u8* plane, eng::u16 row_bytes, eng::u16 wx0, eng::s16 y,
 		       eng::u16 words, eng::u16 h) {
-	eng::u8* d = plane + static_cast<eng::u32>(y) * row_bytes + (wx0 >> 3);
+	eng::u8* d = plane + row_offset(y, row_bytes) + (wx0 >> 3);
 	const eng::u16 mod = static_cast<eng::u16>(row_bytes - words * 2u);
 	wait_blitter();
 	custom_base[custom_bltcon0_offset] = blt_use_d; // minterm 0 => D = 0
@@ -156,7 +167,7 @@ void blit_line(eng::u8* plane, eng::u16 row_bytes, eng::s16 x1, eng::s16 y1,
 		eng::s16 t = x1; x1 = x2; x2 = t;
 		t = y1; y1 = y2; y2 = t;
 	}
-	eng::u8* data = plane + static_cast<eng::u32>(y1) * row_bytes + ((x1 >> 3) & ~1);
+	eng::u8* data = plane + row_offset(y1, row_bytes) + ((x1 >> 3) & ~1);
 	eng::s16 dx = static_cast<eng::s16>(x2 - x1);
 	eng::s16 dy = static_cast<eng::s16>(y2 - y1);
 	eng::u16 con1 = static_cast<eng::u16>(blt_linemode | blt_onedot);
@@ -208,7 +219,7 @@ void blit_fill_region(eng::u8* plane, eng::u16 row_bytes, eng::u16 wx0, eng::s16
 	// `BlitterFillArea` de libblit: `BLITREVERSE | FILL_OR`). El relleno de area
 	// propaga el "carry" segun la direccion; hacerlo descendente desde el final es
 	// lo que rellena correctamente (la version ascendente filtraba/rayaba).
-	eng::u8* last = plane + static_cast<eng::u32>(y + h - 1) * row_bytes +
+	eng::u8* last = plane + row_offset(static_cast<eng::s16>(y + h - 1), row_bytes) +
 			(wx0 >> 3) + static_cast<eng::u32>(words - 1u) * 2u;
 	const eng::u16 mod = static_cast<eng::u16>(row_bytes - words * 2u);
 	wait_blitter();
@@ -227,8 +238,8 @@ void blit_fill_region(eng::u8* plane, eng::u16 row_bytes, eng::u16 wx0, eng::s16
 /// 1 donde la mascara), `!set` -> D = ~A & D (borra donde la mascara).
 void blit_mask_to_plane(eng::u8* dst, eng::u16 row_bytes, const eng::u8* mask,
 			eng::u16 wx0, eng::s16 y, eng::u16 words, eng::u16 h, bool set) {
-	eng::u8* d = dst + static_cast<eng::u32>(y) * row_bytes + (wx0 >> 3);
-	const eng::u8* m = mask + static_cast<eng::u32>(y) * row_bytes + (wx0 >> 3);
+	eng::u8* d = dst + row_offset(y, row_bytes) + (wx0 >> 3);
+	const eng::u8* m = mask + row_offset(y, row_bytes) + (wx0 >> 3);
 	const eng::u16 mod = static_cast<eng::u16>(row_bytes - words * 2u);
 	wait_blitter();
 	custom_base[custom_bltcon0_offset] = static_cast<eng::u16>(
@@ -833,7 +844,7 @@ bool MinimalBackend::blitter_line(eng::PlaneBytes plane, u16 row_bytes, s16 x0, 
 		const s16 t = dmax; dmax = dmin; dmin = t;
 	}
 
-	u8* data = plane.data() + static_cast<u32>(y0) * row_bytes + (static_cast<u32>(x0) >> 3);
+	u8* data = plane.data() + row_offset(y0, row_bytes) + (static_cast<u32>(x0) >> 3);
 	data = reinterpret_cast<u8*>(reinterpret_cast<u32>(data) & ~1u);
 
 	dmin = static_cast<s16>(dmin << 1);
@@ -899,7 +910,7 @@ bool MinimalBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 
 		}
 		const s16 t = dmax; dmax = dmin; dmin = t;
 	}
-	u8* data = plane.data() + static_cast<u32>(y0) * row_bytes +
+	u8* data = plane.data() + row_offset(y0, row_bytes) +
 		   ((static_cast<u32>(x0) >> 3) & ~1u);
 	const u16 bltcon0 = static_cast<u16>(ror16(static_cast<u16>(x0 & 15), 4) | blt_line_eor);
 	bltcon1 = static_cast<u16>(bltcon1 | ror16(static_cast<u16>(x0 & 15), 4));
@@ -923,7 +934,8 @@ bool MinimalBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 
 	return true;
 }
 
-bool MinimalBackend::blitter_area_fill(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 width, u16 height) {
+bool MinimalBackend::blitter_area_fill(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 width, u16 height,
+				       bool wait) {
 	if (dst.data() == nullptr || planes == 0u || width < 16u || height == 0u) {
 		return false;
 	}
@@ -944,10 +956,11 @@ bool MinimalBackend::blitter_area_fill(eng::PlaneBytes dst, u8 planes, u16 row_b
 	custom_base[custom_bltafwm_offset] = 0xffff;
 	custom_base[custom_bltalwm_offset] = 0xffff;
 	custom_base[custom_bltsize_offset] = bltsize;
-	return wait_blitter();
+	return wait ? wait_blitter() : true;
 }
 
-bool MinimalBackend::blitter_clear(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w, u16 h) {
+bool MinimalBackend::blitter_clear(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w, u16 h,
+				   bool wait) {
 	if (dst.data() == nullptr || planes == 0u || w < 16u || h == 0u) {
 		return false;
 	}
@@ -964,7 +977,7 @@ bool MinimalBackend::blitter_clear(eng::PlaneBytes dst, u8 planes, u16 row_bytes
 			blit_clear_region(dst.data() + static_cast<u32>(p) * plane_bytes, row_bytes, 0, 0, words, h);
 		}
 	}
-	return wait_blitter();
+	return wait ? wait_blitter() : true;
 }
 
 void MinimalBackend::set_bitplane_dat(u8 plane, u16 value) {
@@ -1072,6 +1085,10 @@ bool MinimalBackend::c2p_4bpp_step(C2p4State& s) {
 
 bool MinimalBackend::blitter_busy() const {
 	return (custom_base[custom_dmaconr_offset] & dmaconr_blitter_busy) != 0u;
+}
+
+bool MinimalBackend::wait_blitter() {
+	return ::wait_blitter();
 }
 
 void MinimalBackend::set_warpmode(bool enabled) {

@@ -142,7 +142,42 @@ constexpr u8 PF_BOTTOM = 8u;
 
 /// División entera con cociente a 16 bits (equivale al `div16` del origen, `divs.w`).
 /// Requiere `b != 0` y cociente representable en `s16`.
-inline s16 div16(s32 a, s16 b) { return static_cast<s16>(a / b); }
+inline s16 div16(s32 a, s16 b) {
+#if defined(__mc68000__)
+	// Misma forma que `div16` del origen (common.h): `divs` deja el cociente de 16
+	// bits en la palabra baja del registro (salida ligada al dividendo con "0").
+	// Evita `__divsi3` (division 32-bit por software).
+	s16 r;
+	asm("divs %2,%0" : "=d"(r) : "0"(a), "dm"(b));
+	return r;
+#else
+	return static_cast<s16>(a / b);
+#endif
+}
+
+/// Multiplicacion 16x16->32 con signo. En 68000 usa `muls.w` nativo; sin esto el
+/// compilador genera `__mulsi3` (mucho mas caro) al ver operandos `s32`.
+inline s32 mul16(s16 a, s16 b) {
+#if defined(__mc68000__)
+	s32 r;
+	asm("muls %2,%0" : "=d"(r) : "0"(static_cast<s32>(a)), "dm"(b));
+	return r;
+#else
+	return static_cast<s32>(a) * b;
+#endif
+}
+
+/// Multiplicacion 16x16->32 sin signo (`mulu.w` nativo). Para la luz de caras
+/// (`v * InvSqrt[s]`) y cualquier producto de dos `u16`.
+inline u32 mulu16(u16 a, u16 b) {
+#if defined(__mc68000__)
+	u32 r;
+	asm("mulu %2,%0" : "=d"(r) : "0"(static_cast<u32>(a)), "dm"(b));
+	return r;
+#else
+	return static_cast<u32>(a) * b;
+#endif
+}
 
 /// Recorta el segmento `a`–`b` contra `win` (algoritmo de Liang-Barsky, igual que
 /// `ClipLine2D`). Actualiza `a`/`b` si hace falta y devuelve `true` si queda parte
