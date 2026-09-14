@@ -122,8 +122,44 @@ public:
         return true;
     }
 
-    // --- Blits (virtuales; la costura/espejo dependen del layout) ---------
-    /// Fuente y máscara viajan como `Span<const u16>`: el tamaño que el caller
+    // --- Relleno de polígono (hook; el backend puede usar Blitter) --------
+    /// Rellena un polígono **convexo** (scanline even-odd, CPU) con `color`. El
+    /// llamador (`Surface`) ya recortó el polígono a su clip, así que aquí solo hay
+    /// que escribir en el bitmap (vía `write_pixel`, que acota a los límites).
+    ///
+    /// Es un **hook virtual**: un playfield de Amiga puede sobrescribirlo para
+    /// rellenar por **Blitter** (área fill + el truco `BLTDPTR`, como la demo 116)
+    /// sin que el llamador cambie (dibuja a través de `Surface`). Default: CPU, así
+    /// que funciona en host y en cualquier modo/layout.
+    virtual bool fill_polygon(const s16* xs, const s16* ys, u8 n, u8 color) {
+        if (xs == nullptr || ys == nullptr || n < 3u) return false;
+        s32 ymin = ys[0], ymax = ys[0];
+        for (u8 i = 1u; i < n; ++i) {
+            if (ys[i] < ymin) ymin = ys[i];
+            if (ys[i] > ymax) ymax = ys[i];
+        }
+        for (s32 y = ymin; y <= ymax; ++y) {
+            s32 xl = 32767, xr = -32768;
+            for (u8 i = 0u; i < n; ++i) {
+                const u8 j = (static_cast<u8>(i + 1u) == n) ? 0u : static_cast<u8>(i + 1u);
+                s32 y0 = ys[i], y1 = ys[j], x0 = xs[i], x1 = xs[j];
+                if (y0 == y1) continue;
+                if (y0 > y1) {
+                    const s32 t = y0; y0 = y1; y1 = t;
+                    const s32 u = x0; x0 = x1; x1 = u;
+                }
+                if (y < y0 || y >= y1) continue; // semiabierto: sin doble cuenta
+                const s32 x = x0 + (x1 - x0) * (y - y0) / (y1 - y0);
+                if (x < xl) xl = x;
+                if (x > xr) xr = x;
+            }
+            if (xl > xr) continue;
+            for (s32 x = xl; x <= xr; ++x) write_pixel(x, y, color);
+        }
+        return true;
+    }
+
+    // --- Blits (virtuales; la costura/espejo dependen del layout) ---------    /// Fuente y máscara viajan como `Span<const u16>`: el tamaño que el caller
     /// declara ES el contrato y el playfield lo valida antes de encolar el job
     /// (devuelve false si el origen no cubre `src_plane_stride*planes`). 
     virtual bool add_world_bitmap(graphics::FramePlan& plan, Span<const u16> src,

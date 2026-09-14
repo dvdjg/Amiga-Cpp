@@ -22,6 +22,7 @@
 /// dibuja igual sobre un playfield EHB, single 4p o DPF, recortado contra su
 /// clip, con independencia del modo (el mapeo lo gestiona el `Playfield`).
 
+#include <eng/core/math2d.hpp>
 #include <eng/core/utf8.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/graphics/font5x7.hpp>
@@ -71,47 +72,40 @@ public:
         return ok;
     }
 
-    /// Polígono **convexo** relleno por scanline (CPU), recortado contra el clip.
-    /// `xs`/`ys` son los `n` vértices (>= 3) en coordenadas de pantalla. Para un
-    /// convexo cada scanline cruza el contorno exactamente dos veces, así que se
-    /// rellena entre el cruce mínimo y el máximo (even-odd de 2 cruces). Es la
-    /// primitiva que faltaba para rasterizar caras 3D planas sobre una `Surface`
-    /// (el equivalente CPU de lo que 116 hace con el Blitter; el motor de relleno
-    /// por Blitter es específico de Amiga y vive en el backend).
+    /// Polígono **convexo** relleno, recortado contra el clip de la superficie.
+    ///
+    /// Recorta el polígono con `math2d::clip_polygon` (Sutherland-Hodgman) contra el
+    /// clip y **delega** en el playfield (`Playfield::fill_polygon`): CPU scanline
+    /// por defecto, o **Blitter** en un playfield de Amiga (hook del backend; ver el
+    /// truco `BLTDPTR` de la demo 116). Así el motor de relleno es del backend y el
+    /// llamador solo pide «pinta esta cara» igual en EHB/single/DPF.
     bool fill_polygon(const s16* xs, const s16* ys, u8 n, u8 color) {
         if (!valid() || xs == nullptr || ys == nullptr || n < 3u) return false;
-        s32 ymin = ys[0], ymax = ys[0];
-        for (u8 i = 1u; i < n; ++i) {
-            if (ys[i] < ymin) ymin = ys[i];
-            if (ys[i] > ymax) ymax = ys[i];
+        constexpr u8 kCap = 12; // convexo y recortado: nunca crece más de 4 lados
+        math2d::Vec2 in[kCap];
+        math2d::Vec2 tmp[kCap];
+        const u8 nn = n < kCap ? n : kCap;
+        for (u8 i = 0u; i < nn; ++i) {
+            in[i].x = xs[i];
+            in[i].y = ys[i];
         }
-        const s32 clip_y0 = m_clip.y;
-        const s32 clip_y1 = m_clip.y + static_cast<s32>(m_clip.h) - 1;
-        const s32 clip_x1 = m_clip.x + static_cast<s32>(m_clip.w) - 1;
-        if (ymin < clip_y0) ymin = clip_y0;
-        if (ymax > clip_y1) ymax = clip_y1;
-        for (s32 y = ymin; y <= ymax; ++y) {
-            s32 xl = 32767, xr = -32768;
-            for (u8 i = 0u; i < n; ++i) {
-                const u8 j = (static_cast<u8>(i + 1u) == n) ? 0u : static_cast<u8>(i + 1u);
-                s32 y0 = ys[i], y1 = ys[j], x0 = xs[i], x1 = xs[j];
-                if (y0 == y1) continue;
-                if (y0 > y1) {
-                    const s32 t = y0; y0 = y1; y1 = t;
-                    const s32 u = x0; x0 = x1; x1 = u;
-                }
-                // Semiabierto [y0, y1): evita doble cuenta en el vértice.
-                if (y < y0 || y >= y1) continue;
-                const s32 x = x0 + (x1 - x0) * (y - y0) / (y1 - y0);
-                if (x < xl) xl = x;
-                if (x > xr) xr = x;
-            }
-            if (xl > xr) continue;
-            if (xl < m_clip.x) xl = m_clip.x;
-            if (xr > clip_x1) xr = clip_x1;
-            for (s32 x = xl; x <= xr; ++x) m_target->write_pixel(x, y, color);
+        const math2d::Rect win {
+            static_cast<s16>(m_clip.x),
+            static_cast<s16>(m_clip.y),
+            static_cast<s16>(m_clip.x + static_cast<s32>(m_clip.w) - 1),
+            static_cast<s16>(m_clip.y + static_cast<s32>(m_clip.h) - 1),
+        };
+        const u32 m = math2d::clip_polygon(win, in, tmp, nn,
+                                           static_cast<u8>(math2d::PF_LEFT | math2d::PF_TOP |
+                                                           math2d::PF_RIGHT | math2d::PF_BOTTOM));
+        if (m < 3u) return true;
+        s16 cx[kCap];
+        s16 cy[kCap];
+        for (u32 i = 0u; i < m; ++i) {
+            cx[i] = in[i].x;
+            cy[i] = in[i].y;
         }
-        return true;
+        return m_target->fill_polygon(cx, cy, static_cast<u8>(m), color);
     }
 
     /// Línea oblicua (Bresenham, CPU), recortada.
