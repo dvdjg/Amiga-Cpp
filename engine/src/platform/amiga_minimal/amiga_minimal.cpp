@@ -83,17 +83,21 @@ bool g_level3_installed = false;
 unsigned long g_level3_old_vector = 0;
 
 bool wait_blitter() {
-	// El bit BBUSY de DMACONR baja cuando el Blitter queda libre. Dejamos un limite
-	// alto para evitar bloqueos infinitos durante pruebas si hemos programado mal un
-	// registro; en una build de juego esto se convertira en diagnostico/profiler.
-	// Mientras gira, si hay un servicio de fondo registrado, lo ejecuta (no perder el
-	// tiempo de espera en trabajo util).
+	// El bit BBUSY de DMACONR baja cuando el Blitter queda libre. Camino rapido sin
+	// servicio de fondo: bucle apretado, identico al `_WaitBlitter` del origen
+	// (`while (dmaconr & 0x4000);`). Comprobar el servicio en cada vuelta cuesta
+	// ciclos reales en efectos con muchas lineas de blit (p. ej. flatshade-convex).
+	if (g_blitter_service == nullptr) {
+		while ((custom_base[custom_dmaconr_offset] & dmaconr_blitter_busy) != 0u) {
+		}
+		return true;
+	}
+	// Camino con servicio: drena el fondo durante la espera, con limite anti-bloqueo.
+	// Mientras gira, si hay un servicio de fondo registrado, lo ejecuta.
 	eng::u32 guard = 0x00ffffffu;
 	while ((custom_base[custom_dmaconr_offset] & dmaconr_blitter_busy) != 0u) {
-		if (g_blitter_service != nullptr) {
-			g_blitter_service(g_blitter_service_user,
-					  static_cast<unsigned short>((*vpos_long & 0x1ff00u) >> 8));
-		}
+		g_blitter_service(g_blitter_service_user,
+				  static_cast<unsigned short>((*vpos_long & 0x1ff00u) >> 8));
 		if (--guard == 0u) {
 			return false;
 		}
@@ -871,11 +875,10 @@ bool MinimalBackend::blitter_line(eng::PlaneBytes plane, u16 row_bytes, s16 x0, 
 	return wait_blitter();
 }
 
-bool MinimalBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1,
-				      eng::u8* d_base) {
-	if (plane.data() == nullptr) {
-		return false;
-	}
+void MinimalBackend::blitter_lines_begin(u16 row_bytes) {
+	// Fija UNA vez los registros comunes del modo linea (como el `DrawObject` del
+	// original). `blitter_line_eor` ya no los reescribe por arista/plano: pasar de
+	// ~17 escrituras por plano a ~11 (las mismas que el original).
 	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
 	wait_blitter();
 	custom_base[custom_bltafwm_offset] = 0xffff;
@@ -884,6 +887,13 @@ bool MinimalBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 
 	custom_base[custom_bltbdat_offset] = 0xffff;
 	custom_base[custom_bltcmod_offset] = row_bytes;
 	custom_base[custom_bltdmod_offset] = row_bytes;
+}
+
+bool MinimalBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1,
+				      eng::u8* d_base) {
+	if (plane.data() == nullptr) {
+		return false;
+	}
 
 	// El original (`DrawObject` de flatshade-convex) DESCARTA las aristas
 	// horizontales: no aportan contorno util y, dibujadas, meterian píxeles

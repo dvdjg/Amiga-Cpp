@@ -281,6 +281,11 @@ public:
 	/// fila del plano (el original usa WIDTH/8). Linea OR sobre el destino.
 	bool blitter_line(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1);
 
+	/// Fija UNA vez los registros comunes del modo linea (BLTAFWM/BLTALWM, BLTADAT,
+	/// BLTBDAT, BLTCMOD, BLTDMOD) para todo un `DrawObject` (como el original);
+	/// `blitter_line_eor` los asume ya fijados.
+	void blitter_lines_begin(u16 row_bytes);
+
 	/// Línea por Blitter en modo `ONEDOT` con minterm **EOR** (`BC0F_LINE_EOR`),
 	/// secuencia EXACTA de `DrawObject` de `flatshade-convex`: se usa para el
 	/// contorno de polígonos (un píxel por fila) que luego rellena

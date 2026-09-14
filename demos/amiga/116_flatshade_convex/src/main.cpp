@@ -276,7 +276,7 @@ void transform_vertices(obj::Object3D& object) {
 				x = *pt++;
 				y = *pt++;
 				z = *pt++;
-				xy = static_cast<eng::s32>(x) * y;
+				xy = eng::math2d::mul16(x, y);
 
 				MULVERTEX1(xp, m0);
 				MULVERTEX1(yp, m1);
@@ -380,6 +380,7 @@ void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
 	eng::s16* group = object.edgeGroups;
 	eng::s16 e;
 #if !FLATSHADE_SKIP_EDGES
+	backend.blitter_lines_begin(kBytesPerRow);
 	do {
 		while ((e = *group++)) {
 			obj::Edge* edge = obj::edge3d(objdat, e);
@@ -530,6 +531,7 @@ struct FlatShadeDemo {
 #ifdef FLATSHADE_BENCH_LINE
 		{
 			const eng::u32 b0 = rcycles();
+			backend.blitter_lines_begin(kBytesPerRow);
 			for (eng::u16 k = 0; k < 64u; ++k) {
 				backend.blitter_line_eor(planes.subspan(0u, kPlaneBytes), kBytesPerRow,
 							 100, 100, 140, 130, planes.data());

@@ -178,6 +178,17 @@ Original: **24.7 / 287k** (brecha 1.47x). Desglose: `clear` ~2k (lanzado, solapa
 - **`edges` = 130k**: solo **34 aristas** y **57 blits de línea** por frame (1,232 px totales entre todas) ⇒ **~2,274 ciclos por línea**. Un micro-benchmark aislado de un `blitter_line_eor` de 40 px da **1,752 ciclos**. El coste es del **emulador** (blitter de línea en modo ciclo-exacto + `wait_blitter`), no de nuestro código (el asm de `blitter_line_eor` solo llama a `wait_blitter`), y lo paga el original igual. Es el factor limitante real.
 - **`fill` = 143k**: escala con las words (8.7 ciclos/word; 16,384 words). Acotarlo a la bbox no ayuda porque la pelota llena la pantalla (241×240).
 - El **`clear`** (89k de bus) se solapa con el transform (2k medidos tras la optimización).
+- `transform_vertices` bajó de **57k a 46k** al cambiar `xy = (s32)x * y` (que generaba `__mulsi3` una vez por vértice, ~18k) por `math2d::mul16(x, y)`. El transform queda en **97k** y sin libcalls.
+
+### Cuantización por vblank (por qué las mejoras finas no suben el fps)
+
+El bucle `run_frames_polling` (y el original con `TaskWaitVBlank`) **cuantiza el frame a múltiplos de un vblank** (~142k ciclos): si el trabajo cae entre 1 y 2 vblanks, el frame dura 2; entre 2 y 3, dura 3. Nuestro `update` (~373k) + bucle (~54k) está en **3 vblanks (≈426k → 16.6 fps)**. El original, con el mismo `clear`+`fill`+`edges` (≈270k, coste del emulador, compartido), también cae en **3 vblanks**. Saltar a 2 vblanks (25 fps) exigiría bajar de 284k (recortar ~143k); el `fill` (143k) y los `edges` (129k) los paga el original igual, así que no es alcanzable sin cambiar la técnica. Por eso las mejoras finas del transform no se ven en el fps mientras no se cruce el umbral.
+
+### Referencia del profiler del original (líneas de raster)
+
+El original lleva un profiler (`system/profiler.c`, `ReadLineCounter`) con las medias anotadas en el código: **Transform 156, Draw 130, Fill 289 líneas de raster** (un frame PAL = 313 líneas ≈ 142k ciclos → ~453 ciclos/línea). Es decir: **transform 71k, draw 59k, fill 131k**. Nuestra réplica (mismo emulador): **transform 97k (215 líneas), edges 118k (260), fill 143k (316)**. Los mayores excesos son los **edges (~2x)** y el **transform (1.4x)**; el fill es casi igual. El original cabe en **2 vblanks** (575 líneas < 626) → 25 fps; nosotros en **3** (900 líneas) → 16.6 fps. Para cruzar a 2 vblanks hay que recortar ~78k del `update`.
+
+Cambios aplicados en esta iteración: `xy` con `math2d::mul16` (evita un `__mulsi3` por vértice: `transform_vertices` 57k→46k) y **`blitter_lines_begin`** (los 6 registros comunes del modo línea se fijan 1× por frame; `blitter_line_eor` deja de reescribirlos por arista/plano): per-line 1,752→**1,569**, edges 129k→**118k**, `update` 383k→**362k**.
 
 
 
