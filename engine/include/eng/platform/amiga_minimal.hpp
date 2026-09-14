@@ -310,6 +310,18 @@ public:
 	bool blitter_clear(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w, u16 h,
 			   bool wait = true);
 
+	/// Limpia (D=0) el rectangulo `words` x `rows` que empieza en `(wx0, y0)` de UN
+	/// plano (util para acotar el borrado a la bounding-box del objeto). `wx0`
+	/// alineado a palabra.
+	bool blitter_clear_rect(eng::PlaneBytes plane, u16 row_bytes, u16 wx0, s16 y0, u16 words, u16 rows,
+				bool wait = true);
+
+	/// Area fill `XOR` del mismo rectangulo de UN plano (semilla = ultima palabra
+	/// del rectangulo, recorrido descendente). Port de `BitmapFillFast` acotado a
+	/// una caja, para no barrer el bitmap completo cada frame.
+	bool blitter_area_fill_rect(eng::PlaneBytes plane, u16 row_bytes, u16 wx0, s16 y0, u16 words, u16 rows,
+				    bool wait = true);
+
 	/// Escribe el registro de datos de un bitplane (`BLTxDAT`, $110 + 2*plane). Lo
 	/// usa fire-rgb para los bits HAM fijos de los planos 4/5 (`0x7777`/`0xcccc`).
 	void set_bitplane_dat(u8 plane, u16 value);

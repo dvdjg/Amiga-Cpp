@@ -145,17 +145,7 @@ Además, en `BLTSIZE` el campo de altura **0 significa 1024 líneas** (y el de a
 
 ### Optimización (objetivo: igualar el framerate del original)
 
-Estado: la ruta por defecto corre a **~9.9 fps** (715k ciclos/frame; debug ≈ release, no es codegen). El original (vsync-locked con doble buffer) marca el objetivo. Plan:
-
-0. **Medir el fps del original** por `.adf`: leer el contador de ciclos emulados (`0xB7E928`) y contar los frames efectivos (avance de `rotate`/`frameCount` o del puntero de buffer activo) para fijar el objetivo real (50 fps si cabe en un frame).
-1. **Perfilar 116 con checkpoints del periférico** (`0xB70000`, como la demo 101) alrededor de: `clear`, `update_object_transformation`+visibilidad, contorno (bucle de líneas) y `area fill`. Desglose de ciclos por sección.
-2. **Sospechosos a medir/atacar**:
-   - `wait_blitter` **por línea** (secuencia serial). El original también espera por llamada de `DRAWLINE`, pero conviene medir si el coste está aquí; se puede programar la siguiente línea sin esperar la anterior cuando tocan planos/regiones distintas (pipelining), dejando solo el último `wait` antes del fill.
-   - **Setup común de registros una vez por frame** (`bltafwm/alwm`, `bltadat`, `bltbdat`, `bltcmod/bltdmod`) como el original, en vez de por cada llamada de línea.
-   - **`blitter_clear` hace 4 blits** (uno por plano); el original hace **1** (4 planos contiguos, anchura `w/16`, altura 0). Pasar a un solo blit.
-   - **Replicación por plano en una sola programación**: el original comparte todo y solo cambia `bltcpt += plane_bytes` por plano; nuestro bucle llama a `blitter_line_eor` una vez por plano (reprograma los mismos registros). Agrupar.
-   - **Extensión del fill**: hoy barre los 4 planos completos (`1024×16` words). Si el ahorro lo justifica, rellenar solo la bbox del objeto (el fill even-odd necesita la fila completa del contorno; acotar a la bbox es válido si ninguna arista sale de ella).
-3. **Criterio de éxito**: mismo framerate que el original con imagen idéntica (huecos internos 0.00 % e IoU sin cambios). Anotar el resultado en la bitácora de `OPTIMIZACION_GPP_68000.md`.
+Tasa real del original: **24.7 fps / 287k ciclos/render** (ver "Resultados medidos"). Criterio de éxito: acercarse a ese framerate con la imagen idéntica (0.00 % de huecos internos e IoU sin cambios). El desglose por secciones se obtiene con `out/tmp/prof116.mjs` (contador de ciclos `0xB7E928` + `g_eng_prof`).
 
 ### Resultados medidos (perfilado y optimizado)
 
@@ -167,19 +157,20 @@ Progresión de la réplica (fps emulados; perfil con `out/tmp/prof116.mjs`):
 |---|---|---|
 | Inicial | 9.92 | 715k |
 | `clear` de 1 blit + quitar `touch[]` muerto | 10.58 | 670k |
-| **Solape clear↔transform y fill↔VBlank** | 14.26 | 497k |
-| `div16` nativo (`divs`, como `common.h`) | 15.09 | 470k |
-| `row_offset` con `muls.w` (`__mulsi3` fuera de las líneas) | 15.87 | 447k |
-| `mul16`/`mulu16` nativos en transform y luz | **19.07** | **372k** |
+| Solape clear↔transform | 14.26 | 497k |
+| `div16`+`row_offset` nativos (`divs`/`muls`) | 15.87 | 447k |
+| `mul16`/`mulu16` nativos en transform y luz | 19.07 | 372k |
+| **Esperar el fill antes del swap (fix del parpadeo)** | **16.75** | **423k** |
 
-Original: **24.7 / 287k** (brecha 1.29x). Desglose final: `clear` 80k, `transform` 97k, `edges` 134k, `fill` 1k (lanzado sin esperar), `update` 312k, bucle/render ~60k.
+Original: **24.7 / 287k** (brecha 1.47x). Desglose: `clear` ~2k (lanzado, solapado con el transform), `transform` 109k, `edges` 125k, `fill` 139k (serial), `update` 375k, bucle/render ~49k.
 
-**Optimizaciones aplicadas** (todas en `engine/`):
-- `blitter_clear`/`blitter_area_fill` aceptan `wait=false`; nuevo `MinimalBackend::wait_blitter()` público. La demo lanza el clear y el fill **sin esperar** (el original no espera el clear): el clear se solapa con la CPU y el fill con la espera de VBlank.
-- `row_offset()` (en `amiga_minimal.cpp`) y `math2d::mul16`/`mulu16` usan `muls`/`mulu` nativos; `math2d::div16` usa `divs` (misma forma que el `common.h` del origen). Elimina los `__mulsi3`/`__divsi3`/`__udivsi3` del hot path (antes 10/11/13 → ahora ~1/0).
-- `blitter_clear` en **1 blit** para planos contiguos.
+**Optimizaciones aplicadas** (en `engine/`): `blitter_clear`/`blitter_area_fill` aceptan `wait=false` y `MinimalBackend::wait_blitter()` es público (solape); `row_offset()` + `math2d::mul16`/`mulu16` usan `muls`/`mulu` nativos y `math2d::div16` usa `divs` (como `common.h` del origen), eliminando `__mulsi3`/`__divsi3`/`__udivsi3` del hot path; `blitter_clear` en 1 blit; `blitter_clear_rect`/`blitter_area_fill_rect` (para bbox).
 
-**Pendiente** (para cerrar la brecha): acotar `clear`/`fill` a la **bbox** del objeto (evita barrer 1024 líneas cada vez; ahorro estimado ~60-80k), escribir los **comunes del Blitter 1×/frame** en las líneas (el original lo hace), y bajar los `edges` (134k). Ver informe para IA en `docs/debugging/CONSULTA-OPTIMIZACION-BLITTER-DEMOSCENE.md`.
+**Parpadeo (flicker)**: lanzar el fill **sin esperar** mostraba el buffer a mitad de relleno (frames con hasta 16 % de huecos). El original espera el fill (`WaitBlitter`) antes de `CopUpdateBitplanes`. Fix: esperar el fill antes de `install_copper_list`; el **clear** sí se solapa (escribe un buffer que no se está mostrando). Tras el fix, los huecos por frame vuelven a ~0.00 %. Coste: ~50k (se pierde el solape del fill), inevitable para no parpadear.
+
+**bbox descartada**: acotar `clear`/`fill` a la bounding-box del objeto (`-DFLATSHADE_FILL_BBOX=1`) no aporta: la pelota proyectada ocupa **241×240** de 256×256, así que la caja es casi el bitmap completo. Desactivada por defecto.
+
+**Pendiente**: la brecha restante son los `edges` (125k) y el `transform` (109k). El `fill` (~139k, con contención de bus del display) lo paga igual el original. Bajar el transform exige asm/registros fijos (4 pasadas sobre ~180 caras); en los edges, escribir los comunes del Blitter 1×/frame. Ver informe para IA en `docs/debugging/CONSULTA-OPTIMIZACION-BLITTER-DEMOSCENE.md`.
 
 
 

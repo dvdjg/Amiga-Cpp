@@ -980,6 +980,38 @@ bool MinimalBackend::blitter_clear(eng::PlaneBytes dst, u8 planes, u16 row_bytes
 	return wait ? wait_blitter() : true;
 }
 
+bool MinimalBackend::blitter_clear_rect(eng::PlaneBytes plane, u16 row_bytes, u16 wx0, s16 y0, u16 words, u16 rows,
+					bool wait) {
+	if (plane.data() == nullptr || words == 0u || rows == 0u) {
+		return false;
+	}
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
+	blit_clear_region(plane.data(), row_bytes, wx0, y0, words, rows);
+	return wait ? wait_blitter() : true;
+}
+
+bool MinimalBackend::blitter_area_fill_rect(eng::PlaneBytes plane, u16 row_bytes, u16 wx0, s16 y0, u16 words, u16 rows,
+					    bool wait) {
+	if (plane.data() == nullptr || words == 0u || rows == 0u || words * 2u > row_bytes) {
+		return false;
+	}
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
+	const u16 mod = static_cast<u16>(row_bytes - words * 2u);
+	eng::u8* seed = plane.data() + row_offset(static_cast<eng::s16>(y0 + rows - 1), row_bytes) +
+			(wx0 >> 3) + (words - 1u) * 2u;
+	wait_blitter();
+	write_custom_pointer(custom_bltapt_offset, seed);
+	write_custom_pointer(custom_bltdpt_offset, seed);
+	custom_base[custom_bltamod_offset] = mod;
+	custom_base[custom_bltdmod_offset] = mod;
+	custom_base[custom_bltcon0_offset] = static_cast<u16>(blt_use_a | blt_use_d | blt_minterm_copy_a);
+	custom_base[custom_bltcon1_offset] = static_cast<u16>(blt_reverse | blt_fill_xor);
+	custom_base[custom_bltafwm_offset] = 0xffff;
+	custom_base[custom_bltalwm_offset] = 0xffff;
+	custom_base[custom_bltsize_offset] = static_cast<u16>((rows << 6) | words);
+	return wait ? wait_blitter() : true;
+}
+
 void MinimalBackend::set_bitplane_dat(u8 plane, u16 value) {
 	if (plane < 8u) {
 		custom_base[custom_bpldat_offset + plane] = value;

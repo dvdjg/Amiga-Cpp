@@ -89,6 +89,13 @@ constexpr eng::u16 kBplcon1 = 0x0000;
 /// Maximo de vertices por cara del modelo `pilka` (poligonos de hasta 8 lados).
 constexpr eng::u16 kMaxFaceVerts = 8;
 
+/// Bounding-box de pantalla del objeto (actualizada en `transform_vertices`); acota
+/// el `area fill` a la zona del objeto en vez de barrer las 1024 lineas del bitmap.
+eng::s16 g_bx0 = 32767;
+eng::s16 g_bx1 = -32768;
+eng::s16 g_by0 = 32767;
+eng::s16 g_by1 = -32768;
+
 // Tabla de luz de lib3d (`UpdateFaceVisibility`): 65535/sqrt(x), x=0..511.
 // Normaliza el producto escalar sin sqrt en runtime.
 constexpr eng::u16 kInvSqrt[512] = {
@@ -243,7 +250,8 @@ void update_edge_visibility_convex(obj::Object3D& object) {
 }
 
 /// Port de `TransformVertices`: transforma y proyecta (perspectiva con `div16`)
-/// los vertices marcados, guardando (x,y,zp) en `Node3D::vertex`.
+/// los vertices marcados, guardando (x,y,zp) en `Node3D::vertex`. Actualiza la
+/// **bounding-box** de pantalla (g_bx0..g_by1) para acotar el area fill.
 void transform_vertices(obj::Object3D& object) {
 	eng::math3d::Mat3x3& M = object.objectToWorld;
 	void* objdat = object.objdat;
@@ -253,6 +261,7 @@ void transform_vertices(obj::Object3D& object) {
 	eng::s32 m1 = (static_cast<eng::s32>(M.y) - eng::math2d::normfx(static_cast<eng::s32>(M.m10) * M.m11)) << 8;
 	M.z = static_cast<eng::s16>(M.z - eng::math2d::normfx(static_cast<eng::s32>(M.m20) * M.m21));
 
+	g_bx0 = 32767; g_bx1 = -32768; g_by0 = 32767; g_by1 = -32768;
 	do {
 		eng::s16 i;
 		while ((i = *group++)) {
@@ -273,9 +282,16 @@ void transform_vertices(obj::Object3D& object) {
 				MULVERTEX1(yp, m1);
 				MULVERTEX2(zp);
 
-				*pt++ = static_cast<eng::s16>(eng::math2d::div16(xp, zp) + kWidth / 2);
-				*pt++ = static_cast<eng::s16>(eng::math2d::div16(yp, zp) + kHeight / 2);
+				const eng::s16 sx = static_cast<eng::s16>(eng::math2d::div16(xp, zp) + kWidth / 2);
+				const eng::s16 sy = static_cast<eng::s16>(eng::math2d::div16(yp, zp) + kHeight / 2);
+				*pt++ = sx;
+				*pt++ = sy;
 				*pt++ = zp;
+
+				if (sx < g_bx0) g_bx0 = sx;
+				if (sx > g_bx1) g_bx1 = sx;
+				if (sy < g_by0) g_by0 = sy;
+				if (sy > g_by1) g_by1 = sy;
 			}
 		}
 	} while (*group);
@@ -329,6 +345,9 @@ void draw_faces(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::Minim
 #endif
 #ifndef FLATSHADE_SKIP_FILL
 #define FLATSHADE_SKIP_FILL 0
+#endif
+#ifndef FLATSHADE_FILL_BBOX
+#define FLATSHADE_FILL_BBOX 0
 #endif
 #ifdef FLATSHADE_SKIP_ALL
 #undef FLATSHADE_SKIP_CLEAR
@@ -398,8 +417,29 @@ void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
 #endif
 	const eng::u32 t1 = rcycles();
 #if !FLATSHADE_SKIP_FILL
-	// El fill se lanza SIN esperar: se solapa con la espera de VBlank del engine.
-	backend.blitter_area_fill(planes, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight, false);
+	// El fill se espera ANTES del swap (si se mostrara el buffer a medias
+	// parpadearia). Se acota a la bounding-box del objeto: el contorno queda dentro
+	// de la caja, asi que la paridad even-odd del area fill es correcta, pero no se
+	// barren las 1024 lineas del bitmap. -DFLATSHADE_FILL_BBOX=0 usa el fill completo.
+#if FLATSHADE_FILL_BBOX
+	if (g_bx1 >= g_bx0 && g_by1 >= g_by0) {
+		eng::s16 x0 = static_cast<eng::s16>(g_bx0 - 2); if (x0 < 0) x0 = 0;
+		eng::s16 y0 = static_cast<eng::s16>(g_by0 - 2); if (y0 < 0) y0 = 0;
+		eng::s16 x1 = static_cast<eng::s16>(g_bx1 + 2); if (x1 > 255) x1 = 255;
+		eng::s16 y1 = static_cast<eng::s16>(g_by1 + 2); if (y1 > 255) y1 = 255;
+		const eng::u16 wx0 = static_cast<eng::u16>(x0) & 0xfff0u;
+		const eng::u16 wx1 = static_cast<eng::u16>(x1) | 0x000fu;
+		const eng::u16 words = static_cast<eng::u16>((static_cast<eng::u16>(wx1 - wx0) + 16u) >> 4);
+		const eng::u16 rows = static_cast<eng::u16>(y1 - y0 + 1);
+		for (eng::u8 p = 0; p < kPlanes; ++p) {
+			backend.blitter_area_fill_rect(
+				planes.subspan(static_cast<eng::u32>(p) * kPlaneBytes, kPlaneBytes),
+				kBytesPerRow, wx0, y0, words, rows, static_cast<eng::u8>(p + 1u) == kPlanes);
+		}
+	}
+#else
+	backend.blitter_area_fill(planes, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight);
+#endif
 #endif
 	const eng::u32 t2 = rcycles();
 	g_eng_prof.v[2] = t1 - t0;
@@ -463,6 +503,8 @@ struct FlatShadeDemo {
 		update_edge_visibility_convex(m_object);
 		transform_vertices(m_object);
 		const eng::u32 t2 = rcycles();
+		g_eng_prof.v[6] = static_cast<eng::u32>(static_cast<eng::u16>(g_bx1 - g_bx0 + 1));
+		g_eng_prof.v[7] = static_cast<eng::u32>(static_cast<eng::u16>(g_by1 - g_by0 + 1));
 
 		// El clear debe haber terminado antes de dibujar el contorno encima.
 		backend.wait_blitter();
