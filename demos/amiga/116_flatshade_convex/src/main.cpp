@@ -1,17 +1,14 @@
-// Demo 116 - flatshade-convex (IMPORTE de demoscene-repo-orig/effects/flatshade-convex)
+// Demo 116 - flatshade-convex (IMPORTE FIEL de demoscene-repo-orig/effects/flatshade-convex)
 //
-// Objeto CONVEXO `pilka` girando, con SOMBREADO PLANO por cara: cada cara visible
-// se rellena con su color de luz (0..15) calculado por `UpdateFaceVisibility` de
-// lib3d (producto escalar normal·vista normalizado con la tabla `InvSqrt`, sin
-// sqrt en runtime), y el relleno se materializa con el Blitter via
-// `MinimalBackend::fill_triangles_blitter` (mascara 1 bit + area fill + cookie-cut
-// por plano), reutilizando el camino ya probado en la demo 078.
-//
-// Diferencias con el original (documentadas): el original dibujaba las ARISTAS
-// visibles (visibilidad convexa por XOR) y rellenaba con un area-fill XOR; aqui se
-// rellena por CARA (fan-triangulada) con el color de luz, que es el mismo modelo
-// de sombreado plano y reutiliza el Blitter del engine. El recorrido del object
-// model (`Object3D` + grupos por offsets de byte) es el port 1:1 de `lib3d`.
+// Objeto CONVEXO `pilka` girando, con SOMBREADO PLANO: se calcula la luz de cada
+// cara (`update_face_visibility`: producto escalar normal·vista normalizado con la
+// tabla `kInvSqrt`, sin sqrt en runtime), la visibilidad de aristas del solido
+// convexo (`update_edge_visibility_convex`: XOR de la luz de las caras adyacentes,
+// que cancela las aristas internas y deja silueta + aristas visibles) y se dibujan
+// esas aristas por Blitter (`blitter_line_eor`, ONEDOT+EOR) replicadas en cada plano
+// segun el color; despues se rellena el hueco con `blitter_area_fill` (area fill
+// XOR). El recorrido del object model (`Object3D` + grupos por offsets de byte) y la
+// proyeccion (`transform_vertices`) son el port 1:1 de `lib3d`.
 //
 // Display y doble buffer: 256x256x4 con los registros del original
 // (`SetupPlayfield(MODE_LORES,4,X(32),Y(0),256,256)`); doble buffer con swap de
@@ -73,8 +70,6 @@ constexpr eng::u16 kDdfstrt = 0x0048;
 constexpr eng::u16 kDdfstop = 0x00c0;
 constexpr eng::u16 kBplcon0 = 0x4000; // 4 planos, color
 constexpr eng::u16 kBplcon1 = 0x0000;
-
-constexpr eng::u16 kMaxTris = 128;
 
 // Tabla de luz de lib3d (`UpdateFaceVisibility`): 65535/sqrt(x), x=0..511.
 // Normaliza el producto escalar sin sqrt en runtime.
@@ -183,21 +178,31 @@ void update_face_visibility(obj::Object3D& object) {
 	} while (*group);
 }
 
-/// Marca los vertices que pertenecen a alguna cara visible (port del bucle de
-/// `UpdateEdgeVisibilityConvex`, sin la parte de aristas). `transform_vertices`
-/// proyecta solo los vertices marcados.
-void mark_visible_vertices(obj::Object3D& object) {
+/// Port de `UpdateEdgeVisibilityConvex` (flatshade-convex): por cada cara visible
+/// marca sus vertices y **XOR-ea** el color de luz (`face->flags`) en sus aristas.
+/// El XOR cancela las aristas compartidas por dos caras visibles; queda la silueta
+/// y las aristas visibles, con color = luz de la cara (o XOR de las adyacentes).
+void update_edge_visibility_convex(obj::Object3D& object) {
+	const eng::s8 s = 1;
 	void* objdat = object.objdat;
 	eng::s16* group = object.faceGroups;
 	eng::s16 f;
 	do {
 		while ((f = *group++)) {
 			obj::Face* face = obj::face3d(objdat, f);
-			if (face->flags >= 0) {
-				const obj::FaceIndex* idx = obj::face_indices(face);
-				for (eng::s16 k = 0; k < face->count; ++k) {
-					obj::node3d(objdat, idx[k].vertex)->flags = 1;
-				}
+			const eng::s8 flags = face->flags;
+			if (flags >= 0) {
+				eng::s16* index = reinterpret_cast<eng::s16*>(obj::face_indices(face));
+				eng::s16 vertices = static_cast<eng::s16>(face->count - 3);
+				eng::s16 i;
+				i = *index++; obj::node3d(objdat, i)->flags = s;
+				i = *index++; obj::edge3d(objdat, i)->flags = static_cast<eng::s8>(obj::edge3d(objdat, i)->flags ^ flags);
+				i = *index++; obj::node3d(objdat, i)->flags = s;
+				i = *index++; obj::edge3d(objdat, i)->flags = static_cast<eng::s8>(obj::edge3d(objdat, i)->flags ^ flags);
+				do {
+					i = *index++; obj::node3d(objdat, i)->flags = s;
+					i = *index++; obj::edge3d(objdat, i)->flags = static_cast<eng::s8>(obj::edge3d(objdat, i)->flags ^ flags);
+				} while (--vertices != -1);
 			}
 		}
 	} while (*group);
@@ -258,32 +263,36 @@ void transform_vertices(obj::Object3D& object) {
 	} while (*group);
 }
 
-/// Fan-triangula las caras VISIBLES ya proyectadas, con su color de luz.
-eng::u16 build_flat_triangles(obj::Object3D& object, eng::amiga::FlatTriangle* tris) {
+/// Port de `DrawObject` (flatshade-convex): por cada arista visible (`flags > 0`)
+/// la dibuja con `blitter_line_eor` en cada plano cuyo bit este en `edgeColor`, y
+/// limpia sus flags. El color de la arista es el XOR de las luces de sus caras.
+void draw_object(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::MinimalBackend& backend) {
 	void* objdat = object.objdat;
-	eng::s16* group = object.faceGroups;
-	eng::u16 n = 0;
-	eng::s16 f;
+	eng::s16* group = object.edgeGroups;
 	do {
-		while ((f = *group++)) {
-			obj::Face* face = obj::face3d(objdat, f);
-			if (face->flags < 0 || face->count < 3) {
+		eng::s16 e;
+		while ((e = *group++)) {
+			obj::Edge* edge = obj::edge3d(objdat, e);
+			const eng::s8 edgeColor = edge->flags;
+			if (edgeColor <= 0) {
 				continue;
 			}
-			const obj::FaceIndex* idx = obj::face_indices(face);
-			const obj::Point3D* v0 = obj::vertex3d(objdat, idx[0].vertex);
-			for (eng::s16 k = 1; k + 1 < face->count && n < kMaxTris; ++k) {
-				const obj::Point3D* va = obj::vertex3d(objdat, idx[k].vertex);
-				const obj::Point3D* vb = obj::vertex3d(objdat, idx[k + 1].vertex);
-				tris[n].x0 = v0->x; tris[n].y0 = v0->y;
-				tris[n].x1 = va->x; tris[n].y1 = va->y;
-				tris[n].x2 = vb->x; tris[n].y2 = vb->y;
-				tris[n].color = static_cast<eng::u8>(face->flags);
-				++n;
+			edge->flags = 0;
+			const eng::s16 e0 = edge->point[0];
+			const eng::s16 e1 = edge->point[1];
+			const eng::s16 x0 = obj::vertex3d(objdat, e0)->x;
+			const eng::s16 y0 = obj::vertex3d(objdat, e0)->y;
+			const eng::s16 x1 = obj::vertex3d(objdat, e1)->x;
+			const eng::s16 y1 = obj::vertex3d(objdat, e1)->y;
+			for (eng::u8 p = 0; p < kPlanes; ++p) {
+				if ((edgeColor & (1 << p)) != 0) {
+					backend.blitter_line_eor(
+						planes.subspan(static_cast<eng::u32>(p) * kPlaneBytes, kPlaneBytes),
+						kBytesPerRow, x0, y0, x1, y1);
+				}
 			}
 		}
 	} while (*group);
-	return n;
 }
 
 struct FlatShadeDemo {
@@ -297,8 +306,7 @@ struct FlatShadeDemo {
 
 		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitmapBytes, 16);
 		m_copper_block = backend.memory().chip.allocate_block<eng::CopperTag>(kBuffers * kCopperPerList, 16);
-		m_mask_block = backend.memory().chip.allocate_block<eng::MaskTag>(kPlaneBytes, 16);
-		if (!m_bitplane_block.valid() || !m_copper_block.valid() || !m_mask_block.valid()) {
+		if (!m_bitplane_block.valid() || !m_copper_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011602u);
 			return;
 		}
@@ -334,14 +342,11 @@ struct FlatShadeDemo {
 
 		obj::update_object_transformation(m_object);
 		update_face_visibility(m_object);
-		mark_visible_vertices(m_object);
+		update_edge_visibility_convex(m_object);
 		transform_vertices(m_object);
 
-		const eng::u16 n = build_flat_triangles(m_object, m_tris);
-		if (n > 0) {
-			backend.fill_triangles_blitter(m_tris, n, planes, kPlanes, kBytesPerRow,
-						       kPlaneBytes, m_mask_block.view);
-		}
+		draw_object(m_object, planes, backend);
+		backend.blitter_area_fill(planes, kPlanes, kBytesPerRow, kPlaneBytes, kWidth);
 
 		backend.install_copper_list(m_copper_ptrs[buf]);
 		m_active = static_cast<eng::u8>(buf ^ 1u);
@@ -371,10 +376,8 @@ private:
 	eng::u8 m_active = 0;
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::Block<eng::CopperTag> m_copper_block {};
-	eng::Block<eng::MaskTag> m_mask_block {};
 	const eng::u16* m_copper_ptrs[kBuffers] = {nullptr, nullptr};
 	eng::object3d::Object3D m_object {};
-	eng::amiga::FlatTriangle m_tris[kMaxTris] {};
 };
 
 } // namespace

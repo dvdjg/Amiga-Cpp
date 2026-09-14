@@ -281,6 +281,18 @@ public:
 	/// fila del plano (el original usa WIDTH/8). Linea OR sobre el destino.
 	bool blitter_line(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1);
 
+	/// Línea por Blitter en modo `ONEDOT` con minterm **EOR** (`BC0F_LINE_EOR`),
+	/// secuencia EXACTA de `DrawObject` de `flatshade-convex`: se usa para el
+	/// contorno de polígonos (un píxel por fila) que luego rellena
+	/// `blitter_area_fill`. Sin `SIGNFLAG` (como el original).
+	bool blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1);
+
+	/// Relleno por **area fill XOR** (paint-bucket del Blitter), port de
+	/// `BitmapFillFast` de `flatshade-convex`: parte de la última palabra del bitmap
+	/// (`planes` planos contiguos de `plane_bytes`) y rellena el hueco dejado por el
+	/// contorno (`blitter_line_eor`). `width` en píxeles (múltiplo de 16).
+	bool blitter_area_fill(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 width);
+
 	/// Borra (D=0) una region de `w`x`h` en `planes` planos contiguos con separacion
 	/// `plane_bytes`, alineando a palabra. Equivale a `BlitterClear` del demoscene.
 	bool blitter_clear(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w, u16 h);

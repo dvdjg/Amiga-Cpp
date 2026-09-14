@@ -118,7 +118,9 @@ constexpr unsigned short blt_sul = 0x0008;
 constexpr unsigned short blt_aul = 0x0004;
 constexpr unsigned short blt_signflag = 0x0040;
 constexpr unsigned short blt_fill_or = 0x0008;
+constexpr unsigned short blt_fill_xor = 0x0010;           // BLTCON1 FILL_XOR (area fill exclusivo)
 constexpr unsigned short blt_reverse = 0x0002;
+constexpr unsigned short blt_line_eor = 0x0b4a;           // BC0F_LINE_EOR (minterm 0x4a | SRCA|SRCC|DEST)
 constexpr unsigned short blt_minterm_a_or_c = 0x00fa;       // D = A | C
 constexpr unsigned short blt_minterm_not_a_and_c = 0x000a;  // D = ~A & C
 // C2P 4bpp (portado de fire-rgb): interleave de bytes (A>>8 | B&~0xFF) y su inverso.
@@ -811,6 +813,81 @@ bool MinimalBackend::blitter_line(eng::PlaneBytes plane, u16 row_bytes, s16 x0, 
 			     reinterpret_cast<void*>(static_cast<u32>(static_cast<s32>(derr))));
 	write_custom_pointer(custom_bltcpt_offset, data);
 	write_custom_pointer(custom_bltdpt_offset, data);
+	custom_base[custom_bltsize_offset] = bltsize;
+	return wait_blitter();
+}
+
+bool MinimalBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1) {
+	if (plane.data() == nullptr) {
+		return false;
+	}
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
+	wait_blitter();
+	custom_base[custom_bltafwm_offset] = 0xffff;
+	custom_base[custom_bltalwm_offset] = 0xffff;
+	custom_base[custom_bltadat_offset] = 0x8000;
+	custom_base[custom_bltbdat_offset] = 0xffff;
+	custom_base[custom_bltcmod_offset] = row_bytes;
+	custom_base[custom_bltdmod_offset] = row_bytes;
+
+	if (y0 > y1) {
+		s16 t = x0; x0 = x1; x1 = t;
+		t = y0; y0 = y1; y1 = t;
+	}
+	s16 dmax = static_cast<s16>(x1 - x0);
+	s16 dmin = static_cast<s16>(y1 - y0);
+	u16 bltcon1 = static_cast<u16>(blt_linemode | blt_onedot);
+	if (dmax < 0) {
+		dmax = static_cast<s16>(-dmax);
+	}
+	if (dmax >= dmin) {
+		bltcon1 = static_cast<u16>(bltcon1 | (x0 >= x1 ? (blt_aul | blt_sud) : blt_sud));
+	} else {
+		if (x0 >= x1) {
+			bltcon1 = static_cast<u16>(bltcon1 | blt_sul);
+		}
+		const s16 t = dmax; dmax = dmin; dmin = t;
+	}
+	u8* data = plane.data() + static_cast<u32>(y0) * row_bytes +
+		   ((static_cast<u32>(x0) >> 3) & ~1u);
+	const u16 bltcon0 = static_cast<u16>(ror16(static_cast<u16>(x0 & 15), 4) | blt_line_eor);
+	bltcon1 = static_cast<u16>(bltcon1 | ror16(static_cast<u16>(x0 & 15), 4));
+	dmin = static_cast<s16>(dmin << 1);
+	const s16 derr = static_cast<s16>(dmin - dmax);
+	const u16 bltamod = static_cast<u16>(derr - dmax);
+	const u16 bltbmod = static_cast<u16>(dmin);
+	const u16 bltsize = static_cast<u16>((static_cast<u16>(dmax) << 6) + 66u);
+
+	wait_blitter();
+	custom_base[custom_bltcon0_offset] = bltcon0;
+	custom_base[custom_bltcon1_offset] = bltcon1;
+	custom_base[custom_bltamod_offset] = bltamod;
+	custom_base[custom_bltbmod_offset] = bltbmod;
+	write_custom_pointer(custom_bltapt_offset,
+			     reinterpret_cast<void*>(static_cast<u32>(static_cast<s32>(derr))));
+	write_custom_pointer(custom_bltcpt_offset, data);
+	write_custom_pointer(custom_bltdpt_offset, data);
+	custom_base[custom_bltsize_offset] = bltsize;
+	return wait_blitter();
+}
+
+bool MinimalBackend::blitter_area_fill(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 width) {
+	(void)row_bytes;
+	if (dst.data() == nullptr || planes == 0u || width < 16u) {
+		return false;
+	}
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
+	u8* bltpt = dst.data() + static_cast<u32>(plane_bytes) * planes - 2u;
+	const u16 bltsize = static_cast<u16>((0u << 6) | (width >> 4));
+	wait_blitter();
+	write_custom_pointer(custom_bltapt_offset, bltpt);
+	write_custom_pointer(custom_bltdpt_offset, bltpt);
+	custom_base[custom_bltamod_offset] = 0;
+	custom_base[custom_bltdmod_offset] = 0;
+	custom_base[custom_bltcon0_offset] = static_cast<u16>(blt_use_a | blt_use_d | blt_minterm_copy_a);
+	custom_base[custom_bltcon1_offset] = static_cast<u16>(blt_reverse | blt_fill_xor);
+	custom_base[custom_bltafwm_offset] = 0xffff;
+	custom_base[custom_bltalwm_offset] = 0xffff;
 	custom_base[custom_bltsize_offset] = bltsize;
 	return wait_blitter();
 }
