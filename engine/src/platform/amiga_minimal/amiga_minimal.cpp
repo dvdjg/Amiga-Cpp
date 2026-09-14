@@ -830,6 +830,13 @@ bool MinimalBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 
 	custom_base[custom_bltcmod_offset] = row_bytes;
 	custom_base[custom_bltdmod_offset] = row_bytes;
 
+	// El original (`DrawObject` de flatshade-convex) DESCARTA las aristas
+	// horizontales: no aportan contorno util y, dibujadas, meterian píxeles
+	// extra en los vertices que descuadran el area fill (cruces impares).
+	if (y0 == y1) {
+		return true;
+	}
+
 	if (y0 > y1) {
 		s16 t = x0; x0 = x1; x1 = t;
 		t = y0; y0 = y1; y1 = t;
@@ -868,15 +875,19 @@ bool MinimalBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 
 	write_custom_pointer(custom_bltcpt_offset, data);
 	write_custom_pointer(custom_bltdpt_offset, data);
 	custom_base[custom_bltsize_offset] = bltsize;
-	return wait_blitter();
+	// Sin esperar aqui: la siguiente operacion (o el swap de copperlist) sincroniza.
+	return true;
 }
 
-bool MinimalBackend::blitter_area_fill(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 width) {
-	(void)row_bytes;
-	if (dst.data() == nullptr || planes == 0u || width < 16u) {
+bool MinimalBackend::blitter_area_fill(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 width, u16 height) {
+	if (dst.data() == nullptr || planes == 0u || width < 16u || height == 0u) {
 		return false;
 	}
 	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
+	// Semilla = ultima palabra del bitmap (planos contiguos), descendente. El area
+	// fill recorre `height` filas conmutando el bit de relleno en cada pixel del
+	// contorno, de modo que rellena el interior (port de `BlitterFillArea`; el
+	// original `flatshade-convex` usaba altura 0 por un bug, insuficiente).
 	u8* bltpt = dst.data() + static_cast<u32>(plane_bytes) * planes - 2u;
 	const u16 bltsize = static_cast<u16>((0u << 6) | (width >> 4));
 	wait_blitter();

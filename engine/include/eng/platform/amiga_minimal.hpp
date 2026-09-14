@@ -291,7 +291,7 @@ public:
 	/// `BitmapFillFast` de `flatshade-convex`: parte de la última palabra del bitmap
 	/// (`planes` planos contiguos de `plane_bytes`) y rellena el hueco dejado por el
 	/// contorno (`blitter_line_eor`). `width` en píxeles (múltiplo de 16).
-	bool blitter_area_fill(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 width);
+	bool blitter_area_fill(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 width, u16 height);
 
 	/// Borra (D=0) una region de `w`x`h` en `planes` planos contiguos con separacion
 	/// `plane_bytes`, alineando a palabra. Equivale a `BlitterClear` del demoscene.

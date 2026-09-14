@@ -71,6 +71,10 @@ constexpr eng::u16 kDdfstop = 0x00c0;
 constexpr eng::u16 kBplcon0 = 0x4000; // 4 planos, color
 constexpr eng::u16 kBplcon1 = 0x0000;
 
+/// Numero de entradas de la tabla de "aristas tocadas por caras visibles"
+/// (indice = offset de byte de la arista / 2; el modelo tiene offsets < 2800).
+constexpr eng::u16 kEdgeTouch = 2048;
+
 // Tabla de luz de lib3d (`UpdateFaceVisibility`): 65535/sqrt(x), x=0..511.
 // Normaliza el producto escalar sin sqrt en runtime.
 constexpr eng::u16 kInvSqrt[512] = {
@@ -161,7 +165,7 @@ void update_face_visibility(obj::Object3D& object) {
 				const eng::s16 vv = hi16(v);
 				const eng::u32 res = (static_cast<eng::u32>(static_cast<eng::s16>(vv)) *
 						      static_cast<eng::u32>(kInvSqrt[static_cast<eng::u16>(s)])) >> 16;
-				face->flags = static_cast<eng::s8>(res);
+				face->flags = static_cast<eng::s8>(res == 0u ? 1u : (res > 15u ? 15u : res));
 			} else if (face->material < 0) {
 				eng::s16 s = hi16(static_cast<eng::s32>(px) * px +
 						  static_cast<eng::s32>(py) * py +
@@ -170,7 +174,7 @@ void update_face_visibility(obj::Object3D& object) {
 				const eng::s16 vv = hi16(-v);
 				const eng::u32 res = (static_cast<eng::u32>(static_cast<eng::s16>(vv)) *
 						      static_cast<eng::u32>(kInvSqrt[static_cast<eng::u16>(s)])) >> 16;
-				face->flags = static_cast<eng::s8>(res);
+				face->flags = static_cast<eng::s8>(res == 0u ? 1u : (res > 15u ? 15u : res));
 			} else {
 				face->flags = -1;
 			}
@@ -181,8 +185,13 @@ void update_face_visibility(obj::Object3D& object) {
 /// Port de `UpdateEdgeVisibilityConvex` (flatshade-convex): por cada cara visible
 /// marca sus vertices y **XOR-ea** el color de luz (`face->flags`) en sus aristas.
 /// El XOR cancela las aristas compartidas por dos caras visibles; queda la silueta
-/// y las aristas visibles, con color = luz de la cara (o XOR de las adyacentes).
-void update_edge_visibility_convex(obj::Object3D& object) {
+/// y las aristas visibles. Ademas cuenta en `touch` cuantas caras VISIBLES tocan
+/// cada arista (indice = offset de byte / 2) para distinguir la **silueta**
+/// (`touch == 1`, la cierra el relleno en TODOS los planos) de las internas.
+void update_edge_visibility_convex(obj::Object3D& object, eng::u8* touch) {
+	for (eng::u16 k = 0; k < kEdgeTouch; ++k) {
+		touch[k] = 0;
+	}
 	const eng::s8 s = 1;
 	void* objdat = object.objdat;
 	eng::s16* group = object.faceGroups;
@@ -196,12 +205,12 @@ void update_edge_visibility_convex(obj::Object3D& object) {
 				eng::s16 vertices = static_cast<eng::s16>(face->count - 3);
 				eng::s16 i;
 				i = *index++; obj::node3d(objdat, i)->flags = s;
-				i = *index++; obj::edge3d(objdat, i)->flags = static_cast<eng::s8>(obj::edge3d(objdat, i)->flags ^ flags);
+				i = *index++; { obj::Edge* e = obj::edge3d(objdat, i); e->flags = static_cast<eng::s8>(e->flags ^ flags); ++touch[static_cast<eng::u16>(i) >> 1]; }
 				i = *index++; obj::node3d(objdat, i)->flags = s;
-				i = *index++; obj::edge3d(objdat, i)->flags = static_cast<eng::s8>(obj::edge3d(objdat, i)->flags ^ flags);
+				i = *index++; { obj::Edge* e = obj::edge3d(objdat, i); e->flags = static_cast<eng::s8>(e->flags ^ flags); ++touch[static_cast<eng::u16>(i) >> 1]; }
 				do {
 					i = *index++; obj::node3d(objdat, i)->flags = s;
-					i = *index++; obj::edge3d(objdat, i)->flags = static_cast<eng::s8>(obj::edge3d(objdat, i)->flags ^ flags);
+					i = *index++; { obj::Edge* e = obj::edge3d(objdat, i); e->flags = static_cast<eng::s8>(e->flags ^ flags); ++touch[static_cast<eng::u16>(i) >> 1]; }
 				} while (--vertices != -1);
 			}
 		}
@@ -263,10 +272,13 @@ void transform_vertices(obj::Object3D& object) {
 	} while (*group);
 }
 
-/// Port de `DrawObject` (flatshade-convex): por cada arista visible (`flags > 0`)
-/// la dibuja con `blitter_line_eor` en cada plano cuyo bit este en `edgeColor`, y
-/// limpia sus flags. El color de la arista es el XOR de las luces de sus caras.
-void draw_object(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::MinimalBackend& backend) {
+/// Port de `DrawObject` (flatshade-convex): por cada arista visible la dibuja con
+/// `blitter_line_eor` en cada plano cuyo bit este en `edgeColor`, y limpia sus
+/// flags. La **silueta** (`touch == 1`: una sola cara visible) se dibuja en TODOS
+/// los planos para cerrar el contorno del relleno en cada plano (evita que el area
+/// fill `XOR` se escape por un plano sin esa arista). Las internas van por color.
+void draw_object(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::MinimalBackend& backend,
+		 const eng::u8* touch) {
 	void* objdat = object.objdat;
 	eng::s16* group = object.edgeGroups;
 	do {
@@ -342,11 +354,11 @@ struct FlatShadeDemo {
 
 		obj::update_object_transformation(m_object);
 		update_face_visibility(m_object);
-		update_edge_visibility_convex(m_object);
+		update_edge_visibility_convex(m_object, m_edge_touch);
 		transform_vertices(m_object);
 
-		draw_object(m_object, planes, backend);
-		backend.blitter_area_fill(planes, kPlanes, kBytesPerRow, kPlaneBytes, kWidth);
+		draw_object(m_object, planes, backend, m_edge_touch);
+		backend.blitter_area_fill(planes, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight);
 
 		backend.install_copper_list(m_copper_ptrs[buf]);
 		m_active = static_cast<eng::u8>(buf ^ 1u);
@@ -378,6 +390,7 @@ private:
 	eng::Block<eng::CopperTag> m_copper_block {};
 	const eng::u16* m_copper_ptrs[kBuffers] = {nullptr, nullptr};
 	eng::object3d::Object3D m_object {};
+	eng::u8 m_edge_touch[kEdgeTouch] {};
 };
 
 } // namespace
