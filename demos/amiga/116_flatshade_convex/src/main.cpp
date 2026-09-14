@@ -73,7 +73,7 @@ constexpr eng::u16 kHeight = 256;
 constexpr eng::u8 kPlanes = 4;
 constexpr eng::u16 kBytesPerRow = kWidth / 8; // 32
 constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * kHeight;
-constexpr eng::u8 kBuffers = 2;               // doble buffer
+constexpr eng::u8 kBuffers = 3;               // triple buffer (pipeline clear/fill solapado)
 constexpr eng::u32 kBitmapBytes = kPlaneBytes * kPlanes * kBuffers;
 constexpr eng::u32 kCopperPerList = 512;
 
@@ -368,20 +368,18 @@ void draw_faces(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::Minim
 #define FLATSHADE_SKIP_FILL 1
 #endif
 
-/// Camino FIEL del original (barato): dibuja las aristas VISIBLES
-/// (`edgeColor > 0`) con `blitter_line_eor` (ONEDOT+EOR) replicadas en cada plano
-/// segun el color de arista, y despues UN unico `blitter_area_fill` (area fill
-/// XOR) cierra el hueco. Es el camino del original: 1 clear + N aristas (x planos
-/// con bit) + 1 fill, sin mascara ni cookie-cut por cara.
-/// `edge->flags > 0` => arista visible; se limpia tras dibujarla para que el XOR
-/// del siguiente frame parta de cero (como `DrawObject`). Las aristas con
-/// `edgeColor == 0` (canceladas por dos caras visibles de igual luz) se saltan.
-/// `bltdpt` apunta a la BASE del bitmap (`planes.data()`, como el original), NO a
-/// la direccion calculada: en modo linea el primer pixel va por D, y dejarlo
-/// siempre en la base mantiene la paridad par/impar del contorno correcta en los
-/// vertices (sin ello el area fill filtra una raya horizontal por vertice).
-void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
-			  eng::amiga::MinimalBackend& backend) {
+/// Dibuja las aristas VISIBLES (`edgeColor > 0`) con `blitter_line_eor` (ONEDOT+EOR)
+/// replicadas en cada plano según el color de arista (camino FIEL del original
+/// `DrawObject`). `edge->flags > 0` => arista visible; se limpia tras dibujarla para
+/// que el XOR del siguiente frame parta de cero. Las aristas con `edgeColor == 0`
+/// (canceladas por dos caras visibles de igual luz) se saltan. `bltdpt` apunta a la
+/// BASE del bitmap (`planes.data()`, como el original), NO a la direccion calculada:
+/// en modo linea el primer pixel va por D, y dejarlo siempre en la base mantiene la
+/// paridad par/impar del contorno correcta en los vértices (sin ello el area fill
+/// filtra una raya horizontal por vértice). NO rellena: el fill se lanza aparte
+/// (`area_fill_planes`) para poder solaparlo con el transform del frame siguiente.
+void draw_edges(obj::Object3D& object, eng::PlaneBytes planes,
+		eng::amiga::MinimalBackend& backend) {
 	const eng::u32 t0 = rcycles();
 	eng::u32 n_edges = 0u;
 	eng::u32 n_lines = 0u;
@@ -390,6 +388,12 @@ void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
 	eng::s16* group = object.edgeGroups;
 	eng::s16 e;
 #if !FLATSHADE_SKIP_EDGES
+	// Setup común del modo línea EOR (ONEDOT) UNA vez por frame, como el preludio de
+	// `DrawObject` del original (`bltafwm/alwm=-1, bltadat=0x8000, bltbdat=0xffff,
+	// bltcmod/bltdmod=WIDTH/8`). `blitter_line_eor_continue` solo reprograma los 8
+	// registros de cada arista/plano (macro `DRAWLINE`). No espera aquí: el primer
+	// `continue` sincroniza con el clear.
+	backend.blitter_lines_eor_begin(kBytesPerRow);
 	do {
 		while ((e = *group++)) {
 			obj::Edge* edge = obj::edge3d(objdat, e);
@@ -428,12 +432,18 @@ void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
 					}
 				}
 #else
-				for (eng::u8 p = 0; p < kPlanes; ++p) {
-					if ((edgeColor & (1 << p)) != 0) {
-						++n_lines;
-						backend.blitter_line_eor(planes.subspan(
-							static_cast<eng::u32>(p) * kPlaneBytes, kPlaneBytes),
-							kBytesPerRow, x0, y0, x1, y1, planes.data());
+				// Parámetros Bresenham calculados UNA vez por arista (independientes
+				// del plano) y reutilizados en los N planos del color, como el original
+				// (avanza `bltcpt += plane_bytes` sin recalcular el octante).
+				eng::amiga::MinimalBackend::LineEorParams line;
+				if (backend.blitter_line_eor_prepare(line, kBytesPerRow, x0, y0, x1, y1)) {
+					for (eng::u8 p = 0; p < kPlanes; ++p) {
+						if ((edgeColor & (1 << p)) != 0) {
+							++n_lines;
+							backend.blitter_line_eor_draw(line, planes.data() +
+										       static_cast<eng::u32>(p) * kPlaneBytes,
+										       planes.data());
+						}
 					}
 				}
 #endif
@@ -444,11 +454,20 @@ void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
 	(void)group; (void)e; (void)objdat;
 #endif
 	const eng::u32 t1 = rcycles();
+	g_eng_prof.v[10] = n_edges;
+	g_eng_prof.v[11] = n_lines;
+	g_eng_prof.v[12] = px_total;
+	g_eng_prof.v[2] = t1 - t0;
+}
+
+/// Lanza (o espera) el area fill `XOR` sobre `planes`. `wait=false` lo lanza sin
+/// esperarlo: el buffer no se muestra hasta el swap del siguiente update, así que el
+/// wait final se absorbe en la espera de VBlank del engine (o en el primer wait del
+/// update siguiente), igual que el `WaitBlitter` pegado a `TaskWaitVBlank` del
+/// original. Con `FLATSHADE_FILL_BBOX` se acota a la bounding-box del objeto.
+void area_fill_planes(eng::PlaneBytes planes, eng::amiga::MinimalBackend& backend, bool wait) {
+	const eng::u32 t0 = rcycles();
 #if !FLATSHADE_SKIP_FILL
-	// El fill se espera ANTES del swap (si se mostrara el buffer a medias
-	// parpadearia). Se acota a la bounding-box del objeto: el contorno queda dentro
-	// de la caja, asi que la paridad even-odd del area fill es correcta, pero no se
-	// barren las 1024 lineas del bitmap. -DFLATSHADE_FILL_BBOX=0 usa el fill completo.
 #if FLATSHADE_FILL_BBOX
 	if (g_bx1 >= g_bx0 && g_by1 >= g_by0) {
 		eng::s16 x0 = static_cast<eng::s16>(g_bx0 - 2); if (x0 < 0) x0 = 0;
@@ -462,23 +481,19 @@ void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
 		for (eng::u8 p = 0; p < kPlanes; ++p) {
 			backend.blitter_area_fill_rect(
 				planes.subspan(static_cast<eng::u32>(p) * kPlaneBytes, kPlaneBytes),
-				kBytesPerRow, wx0, y0, words, rows, static_cast<eng::u8>(p + 1u) == kPlanes);
+				kBytesPerRow, wx0, y0, words, rows, wait || static_cast<eng::u8>(p + 1u) == kPlanes);
 		}
 	}
 #else
-	// El fill se espera ANTES del swap: si se mostrara el buffer con el fill a
-	// medias parpadearia. (Se probo solaparlo con el transform del siguiente frame
-	// en pipeline; no mejora el frame porque el trabajo del Blitter es el limite.)
-	backend.blitter_area_fill(planes, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight);
+	// El area fill XOR se lanza sobre el contorno (`draw_edges`). El buffer se muestra
+	// en el próximo swap; `wait=false` deja que el wait final lo absorba la espera de
+	// VBlank o el primer wait del update siguiente (el buffer nunca se ve a medias).
+	backend.blitter_area_fill(planes, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight, wait);
 #endif
 #endif
-	const eng::u32 t2 = rcycles();
-	g_eng_prof.v[10] = n_edges;
-	g_eng_prof.v[11] = n_lines;
-	g_eng_prof.v[12] = px_total;
-	g_eng_prof.v[2] = t1 - t0;
-	g_eng_prof.v[3] = t2 - t1;
-	g_eng_prof.v[4] = t2 - t0;
+	const eng::u32 t1 = rcycles();
+	g_eng_prof.v[3] = t1 - t0;
+	g_eng_prof.v[4] = t1 - t0;
 }
 
 struct FlatShadeDemo {
@@ -506,32 +521,75 @@ struct FlatShadeDemo {
 		}
 		backend.takeover_display(m_copper_ptrs[0]);
 
+		// El original activa `DMAF_BLITHOG` (BLTPRI): el Blitter no cede slots de bus a
+		// la CPU durante el fill/lines. Con la pipeline, el transform corre durante el
+		// fill; si el emulador congela la CPU con BLITHOG, este override se desactiva
+		// en la build (ver bitacora). Se deja activo para medir ambos efectos.
+		backend.set_blitter_priority(true);
+
 		obj::new_object3d(m_object, pilka);
 		m_object.translate.z = static_cast<eng::s16>(-4000); // fx4i(-250)
+
+		// Pipeline de doble/triple buffer: el estado del objeto para el primer dibujo se
+		// precalcula aquí (lo que en `update` ocurre durante el fill del frame previo).
+		m_angle = 0;
+		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z = m_angle;
+		obj::update_object_transformation(m_object);
+		update_face_visibility(m_object);
+		update_edge_visibility_convex(m_object);
+		transform_vertices(m_object);
+
+		// Pre-clear todos los buffers: el primer `update` dibuja sobre el 1º sin esperar.
+		for (eng::u8 b = 0; b < kBuffers; ++b) {
+			backend.blitter_clear(planes_of(b), kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight, true);
+		}
+		m_draw_buf = 0;
+		m_display_buf = static_cast<eng::u8>(kBuffers - 1u); // el takeover muestra el 0
 
 		eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(pilka.faces));
 	}
 
+	/// Pipeline de 3 buffers: el `update` dibuja sobre `m_draw_buf` (ya pre-clearado),
+	/// lanza su fill sin esperarlo y, MIENTRAS el Blitter lo hace, precalcula el estado
+	/// (transform/culling/luz) del frame siguiente y pre-cleara el buffer que ese frame
+	/// usará. Con 3 buffers el buffer a limpiar ni se muestra ni se dibuja, así que el
+	/// clear queda escondido bajo el fill. El wait del fill se absorbe en la espera de
+	/// VBlank del engine o en el primer wait del siguiente update: el buffer nunca se ve
+	/// a medias (se muestra en el swap del update siguiente).
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (m_bitplane_block.view.data() == nullptr) {
 			return;
 		}
 
-		const eng::u8 buf = m_active;
-		eng::PlaneBytes planes = m_bitplane_block.view.subspan(
-			static_cast<eng::u32>(buf) * kPlanes * kPlaneBytes, kPlanes * kPlaneBytes);
+		const eng::u8 buf = m_draw_buf;
+		const eng::u8 show = m_display_buf;
+		eng::PlaneBytes planes = planes_of(buf);
 
 		const eng::u32 t0 = rcycles();
-#if !FLATSHADE_SKIP_CLEAR
-		// El clear se lanza SIN esperar: se solapa con el transform/culling (CPU).
-		backend.blitter_clear(planes, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight, false);
+
+		// 1) Esperar el fill del buffer que vamos a mostrar (lanzado en el update
+		//    anterior); la espera de VBlank ya lo ha absorbido casi siempre.
+		backend.wait_blitter();
+
+		// 2) Swap: mostrar el buffer dibujado (y rellenado) el frame pasado.
+		backend.install_copper_list(m_copper_ptrs[show]);
+
+		// 3) Contorno sobre el buffer pre-clearado (estado del objeto ya precalculado).
+#if FLATSHADE_FAITHFUL
+		draw_edges(m_object, planes, backend);
+#else
+		draw_faces(m_object, planes, backend, m_mask_block.view);
 #endif
 		const eng::u32 t1 = rcycles();
 
-		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z =
-			static_cast<eng::s16>(context.frame.frame_index * 8u);
+		// 4) Lanzar el fill SIN esperarlo: se mostrará en el swap del próximo update.
+		area_fill_planes(planes, backend, false);
 
+		// 5) Durante el fill (Blitter ocupado), precalcular el estado del frame siguiente
+		//    (transform + luz + visibilidad de aristas) sobre el object model.
+		m_angle = static_cast<eng::s16>(m_angle + 8);
+		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z = m_angle;
 		obj::update_object_transformation(m_object);
 		const eng::u32 ta = rcycles();
 		update_face_visibility(m_object);
@@ -545,46 +603,22 @@ struct FlatShadeDemo {
 		g_eng_prof.v[8] = tc - tb; // update_edge_visibility_convex
 		g_eng_prof.v[9] = t2 - tc; // transform_vertices
 
-		// El clear debe haber terminado antes de dibujar el contorno encima.
-		backend.wait_blitter();
-
-#ifdef FLATSHADE_BENCH_LINE
-		{
-			const eng::u32 b0 = rcycles();
-			for (eng::u16 k = 0; k < 64u; ++k) {
-				backend.blitter_line_eor(planes.subspan(0u, kPlaneBytes), kBytesPerRow,
-							 100, 100, 140, 130, planes.data());
-			}
-			const eng::u32 b1 = rcycles();
-			g_eng_prof.v[13] = (b1 - b0) / 64u;
-			for (eng::u16 k = 0; k < 64u; ++k) {
-				backend.blitter_line_eor(planes.subspan(0u, kPlaneBytes), kBytesPerRow,
-							 100, 100, 108, 105, planes.data());
-			}
-			const eng::u32 b2 = rcycles();
-			g_eng_prof.v[14] = (b2 - b1) / 64u;
-			for (eng::u16 k = 0; k < 64u; ++k) {
-				backend.blitter_clear_rect(planes.subspan(0u, kPlaneBytes), kBytesPerRow,
-							   100u, 100, 1u, 1u);
-			}
-			const eng::u32 b3 = rcycles();
-			g_eng_prof.v[15] = (b3 - b2) / 64u;
-		}
+		// 6) Pre-clear del buffer que usará el PRÓXIMO update (`buf+1`: ni en pantalla
+		//    ni en dibujo ahora, el mostrado es `buf-1`): se lanza sin esperar y queda
+		//    colgado tras el fill.
+#if !FLATSHADE_SKIP_CLEAR
+		const eng::u8 next_buf = static_cast<eng::u8>((buf + 1u) % kBuffers);
+		backend.blitter_clear(planes_of(next_buf), kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight, false);
 #endif
 
-#if FLATSHADE_FAITHFUL
-		draw_edges_area_fill(m_object, planes, backend);
-#else
-		draw_faces(m_object, planes, backend, m_mask_block.view);
-#endif
 		const eng::u32 t3 = rcycles();
 
 		g_eng_prof.v[0] = t1 - t0;
 		g_eng_prof.v[1] = t2 - t1;
 		g_eng_prof.v[5] = t3 - t0;
 
-		backend.install_copper_list(m_copper_ptrs[buf]);
-		m_active = static_cast<eng::u8>(buf ^ 1u);
+		m_display_buf = buf;
+		m_draw_buf = static_cast<eng::u8>((buf + 1u) % kBuffers);
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
@@ -592,12 +626,16 @@ struct FlatShadeDemo {
 	}
 
 private:
+	eng::PlaneBytes planes_of(eng::u8 buf) const {
+		return m_bitplane_block.view.subspan(
+			static_cast<eng::u32>(buf) * kPlanes * kPlaneBytes, kPlanes * kPlaneBytes);
+	}
+
 	bool build_copper(eng::u8 buf) {
 		const eng::Bytes<eng::CopperTag> slice = m_copper_block.view.subspan(
 			static_cast<eng::u32>(buf) * kCopperPerList, kCopperPerList);
 		copper::Scheduler sched { eng::Block<eng::CopperTag> { slice, m_copper_block.kind } };
-		const eng::PlaneBytes planes = m_bitplane_block.view.subspan(
-			static_cast<eng::u32>(buf) * kPlanes * kPlaneBytes, kPlanes * kPlaneBytes);
+		const eng::PlaneBytes planes = planes_of(buf);
 		sched.emit_planes_display(kDiwstrt, kDiwstop, kDdfstrt, kDdfstop, kBytesPerRow,
 					  kBplcon0, kPlanes, planes, kPlaneBytes);
 		sched.move(copper::Register::BPLCON1, kBplcon1);
@@ -608,11 +646,13 @@ private:
 	}
 
 	bool m_memory_ok = false;
-	eng::u8 m_active = 0;
+	eng::u8 m_draw_buf = 0;
+	eng::u8 m_display_buf = 0;
+	eng::s16 m_angle = 0;
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::Block<eng::CopperTag> m_copper_block {};
 	eng::Block<eng::MaskTag> m_mask_block {};
-	const eng::u16* m_copper_ptrs[kBuffers] = {nullptr, nullptr};
+	const eng::u16* m_copper_ptrs[kBuffers] = {nullptr, nullptr, nullptr};
 	eng::object3d::Object3D m_object {};
 };
 

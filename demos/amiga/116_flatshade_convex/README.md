@@ -8,15 +8,23 @@ ver el plan `docs/demos/effects/FLATSHADE_CONVEX_PORT_PLAN.md`.
 ## Algoritmo
 
 ```text
-  frame
-    ├─ update_object_transformation   (Rx·Ry·Rz·S·T + invertida; HOST-011)
-    ├─ update_face_visibility         (dot(normal, camera-p0); luz 0..15 con kInvSqrt)
-    ├─ update_edge_visibility_convex  (XOR de la luz de caras vecinas; marca vertices)
-    ├─ transform_vertices             (transform + proyeccion div16 + centro)
-    └─ draw_edges_area_fill           (aristas ONEDOT+EOR por plano segun el color +
-                                        UN blitter_area_fill XOR; BLTDPTR = base)
-  commit: swap de copperlist (VBlank)
+  frame (pipeline de 3 buffers, lookahead 1 frame)
+    ├─ update(N)
+    │    ├─ esperar el fill del buffer mostrado (lanzado en update(N-1))
+    │    ├─ swap: mostrar el buffer dibujado (y rellenado) el frame pasado
+    │    ├─ draw_edges            (aristas ONEDOT+EOR por plano según el color)
+    │    ├─ lanzar fill (sin esperar; lo absorbe el swap del update siguiente)
+    │    ├─ precalcular estado(N+1)   (transform + luz + visibilidad) DURANTE el fill
+    │    └─ lanzar clear(N+1)         (el buffer del próximo update) DURANTE el fill
+    └─ commit: swap de copperlist (VBlank)
 ```
+
+Con **3 buffers** el buffer a pre-limpiar ni se muestra ni se dibuja, así que su clear y el
+transform del frame siguiente quedan escondidos bajo el fill del frame actual; con 2 buffers el
+clear del buffer trasero es inseparable del camino crítico. El fill se lanza sin esperarlo
+(`wait=false`): el buffer nunca se ve a medias porque se muestra en el swap del update siguiente,
+cuyo primer `wait_blitter` ya ha absorbido el fill. La secuencia de rotación mostrada es la del
+original (latencia de 1 frame, mismo orden de ángulos).
 
 - **Back-face culling + luz**: `v = normal·(camera − p0)`; si `v ≥ 0` la cara es
   visible y su color es `(hi16(v) · kInvSqrt[hi16(|cam−p0|²)]) >> 16` (0..15), **sin
@@ -25,13 +33,19 @@ ver el plan `docs/demos/effects/FLATSHADE_CONVEX_PORT_PLAN.md`.
 - **Proyección**: port `1:1` de `TransformVertices` (`>>4`, `normfx`, `div16`),
   centrado en `WIDTH/2`, `HEIGHT/2`.
 - **Relleno**: las **aristas visibles** se dibujan con **`MinimalBackend::blitter_line_eor`**
-  (`ONEDOT`+EOR, replicadas en cada plano con el bit del color de arista) y después
-  **un único `MinimalBackend::blitter_area_fill`** (`FILL_XOR` + `BLITREVERSE`, altura 0)
-  rellena el interior. `BLTDPTR` se deja en la **base del bitmap** (no en la dirección
-  calculada de la línea): en modo línea el primer píxel va por el canal D, y mantenerlo
-  en la base conserva la **paridad par/impar del contorno en los vértices**, de modo que
-  el area fill `XOR` no filtra la raya horizontal por vértice. Ruta alternativa por cara
-  (`-DFLATSHADE_FAITHFUL=0`): `blitter_fill_polygon` (máscara + cookie-cut).
+  (`ONEDOT`+EOR, replicadas en cada plano con el bit del color de arista; comunes fijados
+  `1×/frame` con `blitter_lines_eor_begin` y Bresenham `1×/arista` con
+  `blitter_line_eor_prepare/draw`, como el `DrawObject` original) y después **un único
+  `MinimalBackend::blitter_area_fill`** (`FILL_XOR` + `BLITREVERSE`, altura 0) rellena el
+  interior. `BLTDPTR` se deja en la **base del bitmap** (no en la dirección calculada de la
+  línea): en modo línea el primer píxel va por el canal D, y mantenerlo en la base conserva la
+  **paridad par/impar del contorno en los vértices**, de modo que el area fill `XOR` no filtra
+  la raya horizontal por vértice. Ruta alternativa por cara (`-DFLATSHADE_FAITHFUL=0`):
+  `blitter_fill_polygon` (máscara + cookie-cut).
+- **Rendimiento**: el original activa `DMAF_BLITHOG`; se replica con
+  `MinimalBackend::set_blitter_priority(true)` (BLTPRI, 0x0400). Con pipeline+BLITHOG el
+  `update` queda bajo 284k (2 vblanks) y el frame emulado en ~20.7 fps; el techo lo pone la
+  cola serial del Blitter (fill + clear), que en hardware real sería ~3x más barata.
 
 ## Paridad del contorno (clave del relleno)
 
