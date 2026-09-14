@@ -45,6 +45,14 @@ Cualquier tool MCP que acabe en `monitor X` es un wrapper de `monitor X`.
 `state`, `regs`, `mem <addr> <len>`, `runstatus <addr>`, `screenshot`, `input`.
 Independiente de GDB; útil cuando GDB no está disponible o quedó inerte.
 
+**Puertos configurables (varias instancias).** El fork permite fijar los puertos por
+entorno: `WINUAE_GDB_PORT` (GDB, default 2345) y `WINUAE_SIDE_CHANNEL_PORT` (canal
+lateral, default 2346). Así se pueden lanzar **varias instancias de WinUAE a la vez**.
+`run-demo.sh` respeta ambas vars (o `--side-channel-port`); el MCP lee
+`WINUAE_GDB_PORT`. Los scripts ad-hoc (`out/tmp/*.mjs`) llevan 2345/2346 hardcoded.
+Regla: usar **puertos propios**, **no matar** instancias ajenas y **limpiar las
+propias** (ver `AGENTS.md`).
+
 ---
 
 ## 2. Guía de decisión: síntoma → herramienta

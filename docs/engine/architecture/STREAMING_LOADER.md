@@ -208,7 +208,7 @@ Paula entrega **MFM en crudo**; la CPU (o un rutina rápida) decodifica:
 3. **Trackloader**: motor/seek + lectura de una pista + decode MFM + checksum (una pista
    aislada, verificada contra `DSKBYTR`).
 4. **Doble buffer + cola** y `prefetch` con margen de pistas.
-5. **Integración con `BackgroundQueue`** y telemetría; medir con `out/tmp/fps.mjs`.
+5. **Integración con `BackgroundQueue`** y telemetría; medir con `tools/debug/measure-fps.mjs`.
 6. **HD/worker** (opción D) para el entorno de desarrollo (el runner monta el `.exe` en
    `dh1:`), si se quiere streaming sin disquete.
 

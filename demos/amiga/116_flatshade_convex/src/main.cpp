@@ -380,6 +380,12 @@ void draw_faces(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::Minim
 /// la direccion calculada: en modo linea el primer pixel va por D, y dejarlo
 /// siempre en la base mantiene la paridad par/impar del contorno correcta en los
 /// vertices (sin ello el area fill filtra una raya horizontal por vertice).
+///
+/// Optimización: replica el patrón del original `DrawObject`:
+/// 1) Setup común 1×/frame (BLTAFWM/ALWM/ADAT/BDAT/CMOD/DMOD)
+/// 2) Por arista: solo reprograma BLTCON0/1, BLTAMOD, BLTBMOD, BLTAPT, BLTCPT,
+///    BLTDPT=base, BLTSIZE (macro DRAWLINE)
+/// 3) Lanza fill SIN esperar (wait=false); el wait final ocurre en VBlank/swap.
 void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
 			  eng::amiga::MinimalBackend& backend) {
 	const eng::u32 t0 = rcycles();
@@ -389,7 +395,14 @@ void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
 	void* objdat = object.objdat;
 	eng::s16* group = object.edgeGroups;
 	eng::s16 e;
+
+	// Setup común del modo línea EOR (ONEDOT) 1× por frame, igual que el
+	// original: BLTAFWM/ALWM=0xFFFF, BLTADAT=0x8000, BLTBDAT=0xFFFF,
+	// BLTCMOD=BLTDMOD=row_bytes. NO espera aquí; el primer wait_blitter
+	// dentro del bucle de aristas sincroniza con el clear.
 #if !FLATSHADE_SKIP_EDGES
+	backend.blitter_lines_eor_begin(kBytesPerRow);
+
 	do {
 		while ((e = *group++)) {
 			obj::Edge* edge = obj::edge3d(objdat, e);
@@ -403,15 +416,12 @@ void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
 				eng::s16 y0 = a->y;
 				eng::s16 x1 = b->x;
 				eng::s16 y1 = b->y;
-				if (y0 == y1) {
-					continue;
-				}
+				// Orden ascendente en Y (el original lo hace en DrawObject antes de DRAWLINE)
 				if (y0 > y1) {
 					eng::s16 t = x0; x0 = x1; x1 = t;
 					t = y0; y0 = y1; y1 = t;
 				}
 #if FLATSHADE_PROFILE
-				// Solo diagnostico (perfilado): fuera del bucle caliente en la build normal.
 				{
 					const eng::s16 dx = static_cast<eng::s16>(x1 - x0);
 					const eng::s16 dy = static_cast<eng::s16>(y1 - y0);
@@ -431,8 +441,8 @@ void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
 				for (eng::u8 p = 0; p < kPlanes; ++p) {
 					if ((edgeColor & (1 << p)) != 0) {
 						++n_lines;
-						backend.blitter_line_eor(planes.subspan(
-							static_cast<eng::u32>(p) * kPlaneBytes, kPlaneBytes),
+						backend.blitter_line_eor_continue(
+							planes.subspan(static_cast<eng::u32>(p) * kPlaneBytes, kPlaneBytes),
 							kBytesPerRow, x0, y0, x1, y1, planes.data());
 					}
 				}
@@ -444,11 +454,13 @@ void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
 	(void)group; (void)e; (void)objdat;
 #endif
 	const eng::u32 t1 = rcycles();
+
 #if !FLATSHADE_SKIP_FILL
-	// El fill se espera ANTES del swap (si se mostrara el buffer a medias
-	// parpadearia). Se acota a la bounding-box del objeto: el contorno queda dentro
-	// de la caja, asi que la paridad even-odd del area fill es correcta, pero no se
-	// barren las 1024 lineas del bitmap. -DFLATSHADE_FILL_BBOX=0 usa el fill completo.
+	// Lanza el fill SIN esperarlo (wait=false). El buffer que se está rellenando
+	// NO se muestra este frame (doble buffer: se muestra el buffer previo). El
+	// wait final del fill se absorbe en la espera de VBlank del engine/siguiente
+	// frame, igual que el original: `WaitBlitter` del fill ocurre pegado a
+	// `TaskWaitVBlank`, no antes del swap de copperlist.
 #if FLATSHADE_FILL_BBOX
 	if (g_bx1 >= g_bx0 && g_by1 >= g_by0) {
 		eng::s16 x0 = static_cast<eng::s16>(g_bx0 - 2); if (x0 < 0) x0 = 0;
@@ -462,14 +474,11 @@ void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
 		for (eng::u8 p = 0; p < kPlanes; ++p) {
 			backend.blitter_area_fill_rect(
 				planes.subspan(static_cast<eng::u32>(p) * kPlaneBytes, kPlaneBytes),
-				kBytesPerRow, wx0, y0, words, rows, static_cast<eng::u8>(p + 1u) == kPlanes);
+				kBytesPerRow, wx0, y0, words, rows, false);
 		}
 	}
 #else
-	// El fill se espera ANTES del swap: si se mostrara el buffer con el fill a
-	// medias parpadearia. (Se probo solaparlo con el transform del siguiente frame
-	// en pipeline; no mejora el frame porque el trabajo del Blitter es el limite.)
-	backend.blitter_area_fill(planes, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight);
+	backend.blitter_area_fill(planes, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight, false);
 #endif
 #endif
 	const eng::u32 t2 = rcycles();
@@ -545,8 +554,10 @@ struct FlatShadeDemo {
 		g_eng_prof.v[8] = tc - tb; // update_edge_visibility_convex
 		g_eng_prof.v[9] = t2 - tc; // transform_vertices
 
-		// El clear debe haber terminado antes de dibujar el contorno encima.
-		backend.wait_blitter();
+		// NO esperamos el clear aquí: el primer wait_blitter dentro de
+		// blitter_line_eor_continue (o blitter_line) ya garantiza que el clear
+		// terminó. El original hace el WaitBlitter del clear DENTRO de DrawObject
+		// (el primero de la función), no como barrera explícita entre transform y edges.
 
 #ifdef FLATSHADE_BENCH_LINE
 		{

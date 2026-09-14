@@ -126,6 +126,33 @@ int main() {
 		check(!pf.px(20, 40), "wire: interior vacio (solo contorno)");
 	}
 
+	// 6) Cubo 3D (malla de 077) con la camara en el origen y el cubo trasladado en
+	// +Z: replica la llamada exacta de la demo 110 (aisla si el fallo es del renderer
+	// o especifico de la demo/Amiga).
+	{
+		constexpr eng::s16 R = 48;
+		constexpr math3d::Vec3 cv[8] = {
+			{-R,-R,-R},{R,-R,-R},{R,R,-R},{-R,R,-R},{-R,-R,R},{R,-R,R},{R,R,R},{-R,R,R}};
+		constexpr math3d::Face cf[12] = {
+			{4,5,6},{4,6,7},{0,3,2},{0,2,1},{7,6,2},{7,2,3},{0,1,5},{0,5,4},{1,2,6},{1,6,5},{0,4,7},{0,7,3}};
+		const math3d::MeshView cube {Span<const math3d::Vec3>(cv, 8), Span<const math3d::Face>(cf, 12)};
+		MockPlayfield pf;
+		pf.init(64, 64, 4);
+		Surface surf(pf, SurfaceRect {0, 0, 64, 64});
+		math3d::Vec3 world[8];
+		math3d::FaceOrder order[12];
+		s16 sx[8], sy[8];
+		math3d::Mat3x3 m;
+		math3d::load_identity(m);
+		math3d::translate(m, 0, 0, 320);
+		const auto color = [](u16) -> u8 { return 1; };
+		const u32 drawn = mesh_render_filled(cube, m, math3d::Vec3 {0, 0, 0}, 160, 32, 32,
+						     world, order, sx, sy, surf, color, false);
+		std::printf("  [info] cubo: drawn=%u  world0=(%d,%d,%d)  s0=(%d,%d)\n",
+			    static_cast<unsigned>(drawn), world[0].x, world[0].y, world[0].z, sx[0], sy[0]);
+		check(drawn >= 1, "cubo: al menos una cara visible (camara en el origen)");
+	}
+
 	if (failures == 0) {
 		std::printf("OK: mesh_renderer (malla 3D -> Surface: proyeccion + culling + relleno) validado.\n");
 		return 0;

@@ -74,6 +74,21 @@ Reglas críticas:
 - El toolchain Amiga se resuelve en este orden: `AMIGA_BIN_PATH`, extensión de Cursor y luego extensión de VS Code `bartmanabyss.amiga-debug-*` (versión más alta instalada; el fork local es 1.8.1).
 - `tools/run/run-demo.ts` importa dinámicamente `../mcp-winuae-emu/dist/winuae-connection.js` desde el repositorio hermano; si falta, el runner falla antes de abrir WinUAE.
 
+## Instancias múltiples de WinUAE (puertos dinámicos; respeto obligatorio)
+- El fork `WinUAE-DBG` (commit `6783d95` y anteriores) permite **elegir los puertos por entorno**:
+  - `WINUAE_GDB_PORT` — puerto del servidor GDB (por defecto **2345**).
+  - `WINUAE_SIDE_CHANNEL_PORT` — puerto del **canal lateral** (por defecto **2346**).
+  - `WINUAE_GDB_PERSIST_LISTENER` — el GDB server sigue escuchando tras desconectar.
+  Con eso se pueden lanzar **varias instancias de WinUAE a la vez**, cada una depurando en puertos distintos.
+- Cómo lo usa la tooling:
+  - `tools/run/run-demo.sh` respeta `WINUAE_GDB_PORT` y `WINUAE_SIDE_CHANNEL_PORT` (o el flag `--side-channel-port`).
+  - El MCP (`mcp-winuae-emu`) lee `WINUAE_GDB_PORT`; sus tools aceptan el puerto del canal lateral (`side_port`/`port`, default 2346).
+  - Las herramientas de profiling/medición (`tools/debug/measure-fps.mjs`, `tools/debug/ports.mjs`) usan `WINUAE_GDB_PORT`/`WINUAE_SIDE_CHANNEL_PORT` del entorno (por defecto 2345/2346).
+- **Regla (no somos el único usuario del emulador; respeto entre instancias/agentes)**:
+  - Elegir **puertos propios** y no reutilizar los de otra sesión; si un puerto está ocupado, usar otro en vez de forzar.
+  - **Nunca matar** procesos `winuae-gdb`/`winuae64` que no se hayan lanzado uno mismo. Antes de matar, comprobar si son propios (por PID/instancia).
+  - **Controlar y limpiar las propias**: registrar los PIDs lanzados y cerrarlos al terminar; no dejar instancias huérfanas ocupando puertos.
+
 ## Comandos canónicos
 - Compilar una demo: `bash ./tools/build/build-demo.sh demos/amiga/000_toolchain_cpp23 --debug --clean`
 - Ejecutar una demo y capturar: `bash ./tools/run/run-demo.sh demos/amiga/000_toolchain_cpp23`
@@ -270,7 +285,7 @@ recording del GUI). Pendiente: `print` DWARF.
   **NO se da por buena con `verify-*` de cobertura/tonos**: hay que validarla
   **visual o estructuralmente** contra la referencia.
 - Gate mínimo con el emulador: capturar una **secuencia** y compararla con el
-  original por **fase** (mejor IoU + MAD de color; ver `out/tmp/bestphase.mjs`) o
+  original por **fase** (mejor IoU + MAD de color; ver `tools/analyze/bestphase.mjs` o `tools/analyze/phasecmp.mjs`) o
   pedir una descripción a Ollama preguntando explícitamente por **anomalías**
   (caras deformes, aristas que no cierran). `verify-116` pasó con el sólido
   deformado: cobertura y nº de tonos no bastan.

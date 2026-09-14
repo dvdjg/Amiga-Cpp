@@ -145,13 +145,13 @@ Además, en `BLTSIZE` el campo de altura **0 significa 1024 líneas** (y el de a
 
 ### Optimización (objetivo: igualar el framerate del original)
 
-Tasa real del original: **24.7 fps / 287k ciclos/render** (ver "Resultados medidos"). Criterio de éxito: acercarse a ese framerate con la imagen idéntica (0.00 % de huecos internos e IoU sin cambios). El desglose por secciones se obtiene con `out/tmp/prof116.mjs` (contador de ciclos `0xB7E928` + `g_eng_prof`).
+Tasa real del original: **24.7 fps / 287k ciclos/render** (ver "Resultados medidos"). Criterio de éxito: acercarse a ese framerate con la imagen idéntica (0.00 % de huecos internos e IoU sin cambios). El desglose por secciones se obtiene con el periférico de depuración (`g_eng_prof` + checkpoints) o `tools/debug/measure-fps.mjs`.
 
 ### Resultados medidos (perfilado y optimizado)
 
-Tasa real del original (contando cambios del puntero `BPL1PT` en su copperlist, `out/tmp/orig-rate3.mjs`): **~24.7 renders/s, ~287k ciclos/render**. El `frame`/`vsync_counter` del monitor NO sirve (avanza a 50 Hz aunque el efecto tarde varios frames).
+Tasa real del original (contando cambios del puntero `BPL1PT` en su copperlist): **~24.7 renders/s, ~287k ciclos/render**. El `frame`/`vsync_counter` del monitor NO sirve (avanza a 50 Hz aunque el efecto tarde varios frames).
 
-Progresión de la réplica (fps emulados; perfil con `out/tmp/prof116.mjs`):
+Progresión de la réplica (fps emulados; perfilado con el periférico de depuración):
 
 | Paso | fps | ciclos/frame |
 |---|---|---|
@@ -202,13 +202,13 @@ El desarrollo se cortó aquí (coste de tiempo alto); la imagen es correcta y el
 
 1. **Medir el coste de BUS real del Blitter, no el `BBUSY`.** Lo que medimos es el tiempo que el Blitter está ocupado (incluye `WaitBlitter` + setup + posible contención). Comparar la duración de un `area fill` XOR de 16,384 words (a) con `blitter_cycle_exact=1` vs `0`, y (b) con el DMA de bitplanes activo vs apagado. Si el bus real es ~3 ciclos/word (≈49k) y el BBUSY es ~8.7/word (≈144k), el cuello es el modelo del emulador y en hardware real el frame sería ~262k → **2 vblanks / 25 fps**. Fija el techo real antes de tocar más código.
 2. **Depurar `blitter_lines_begin`** (fijar 1×/frame los comunes del modo línea: `BLTCON`/`MODS`/`DAT`/`AFWM`/`ALWM`). Debería ser correcto (el original lo hace al entrar en `DrawObject`), pero en nuestro port daba **caras deformes** (con `verify-116` en PASS). Encontrar qué registro/estado intermedio (p. ej. `cmod`/`dmod` o `dat`) lo altera entre blits y recuperar las escrituras comunes por arista/plano (~10-60k).
-3. **bbox del `clear`/`fill` a la silueta real (~213 líneas, no las 240 del bbox de vértices)**: ~20 % del fill (~24k) y algo del clear. Ya están `blitter_clear_rect`/`blitter_area_fill_rect` en el backend (probados con el bbox de vértices y descartados por ser casi pantalla completa). Medir con la silueta real y validar con `out/tmp/bestphase.mjs`.
+3. **bbox del `clear`/`fill` a la silueta real (~213 líneas, no las 240 del bbox de vértices)**: ~20 % del fill (~24k) y algo del clear. Ya están `blitter_clear_rect`/`blitter_area_fill_rect` en el backend (probados con el bbox de vértices y descartados por ser casi pantalla completa). Medir con la silueta real y validar con `tools/analyze/bestphase.mjs`.
 4. **`transform_vertices` en asm con registros fijos** (46k; objetivo ~30k, estilo `MULVERTEX` del original). Es el mayor bloque "nuestro"; ~2 `div16` + 6 `muls.w` por vértice.
 5. **Pipeline de 1 frame** (transform del frame siguiente durante el `fill`): ya implementado y probado — **no baja el frame** porque el trabajo del Blitter serial es el límite, pero es combinable con 1-4 si el fill se abarata.
 6. **Reducir blits de contorno**: agrupar los 4 planos de una arista en menos reprogramaciones (`blitter_line_eor_multi`, ya escrito) medía **más lento**; explorar alternativas (compartir más registros, `blitter-DMA` distinto).
 7. **NO fusionar** `update_face_visibility` + `update_edge_visibility_convex` en una pasada: el original no lo hace (son llamadas separadas en `Render`); descartado por fidelidad.
 
-Gate obligatorio tras cualquier cambio: `out/tmp/bestphase.mjs` (mejor IoU + MAD por fase contra el original) y `internal-gaps.mjs` (0.00 % huecos), además de `verify-116`.
+Gate obligatorio tras cualquier cambio: `tools/analyze/bestphase.mjs` (mejor IoU + MAD por fase contra el original) y `tools/analyze/phasecmp.mjs` (paridad pixel a pixel), además de `verify-116`.
 
 
 
