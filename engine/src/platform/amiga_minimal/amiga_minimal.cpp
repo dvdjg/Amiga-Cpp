@@ -38,7 +38,6 @@ constexpr unsigned short dma_setclr = 0x8000;
 constexpr unsigned short dma_master = 0x0200;
 constexpr unsigned short dma_copper = 0x0080;
 constexpr unsigned short dma_blitter = 0x0040;
-constexpr unsigned short dma_blithog = 0x0080;          // BLITHOG: blitter no cede bus a CPU
 constexpr unsigned short dma_clear_all = 0x7fff;
 constexpr unsigned short dmaconr_blitter_busy = 0x4000;
 constexpr unsigned short blt_use_a = 0x0800;
@@ -627,7 +626,7 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 			return false;
 		}
 
-		custom_base[custom_dmacon_offset] = dma_setclr | dma_master | dma_blitter | dma_blithog;
+		custom_base[custom_dmacon_offset] = dma_setclr | dma_master | dma_blitter;
 
 		const u32 source_plane_stride_words = job.source_plane_stride_bytes / sizeof(u16);
 		const u32 destination_plane_stride_words = job.destination_plane_stride_bytes / sizeof(u16);
@@ -712,7 +711,7 @@ bool MinimalBackend::fill_triangles_blitter(const FlatTriangle* tris, u32 count,
 	if (tris == nullptr || dst.data() == nullptr || mask.data() == nullptr || planes == 0u) {
 		return false;
 	}
-	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter | dma_blithog);
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
 
 	for (u32 i = 0; i < count; ++i) {
 		const FlatTriangle& t = tris[i];
@@ -777,7 +776,7 @@ bool MinimalBackend::blitter_fill_polygon(eng::PlaneBytes dst, u8 planes, u16 ro
 	const u16 words = static_cast<u16>((static_cast<u16>(wx1 - wx0) + 16u) >> 4);
 	const u16 h = static_cast<u16>(ymax - ymin + 1);
 
-	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter | dma_blithog);
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
 	blit_clear_region(mask.data(), row_bytes, wx0, ymin, words, h);
 	for (u8 i = 0u; i < n; ++i) {
 		const u8 j = static_cast<u8>((static_cast<u8>(i) + 1u) % n);
@@ -811,7 +810,7 @@ bool MinimalBackend::blit_fill_from_mask(eng::MaskBytes mask, eng::PlaneBytes ds
 	const u16 words = static_cast<u16>((static_cast<u16>(wx1 - wx0) + 16u) >> 4);
 	const u16 hh = static_cast<u16>(y1 - y0 + 1);
 
-	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter | dma_blithog);
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
 	for (u8 p = 0; p < planes; ++p) {
 		blit_mask_to_plane(dst.data() + static_cast<u32>(p) * plane_bytes, row_bytes, mask.data(),
 				   wx0, y0, words, hh, ((color >> p) & 1u) != 0u);
@@ -823,7 +822,7 @@ bool MinimalBackend::blitter_line(eng::PlaneBytes plane, u16 row_bytes, s16 x0, 
 	if (plane.data() == nullptr) {
 		return false;
 	}
-	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter | dma_blithog);
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
 
 	wait_blitter();
 	custom_base[custom_bltafwm_offset] = 0xffff;
@@ -880,27 +879,27 @@ bool MinimalBackend::blitter_line(eng::PlaneBytes plane, u16 row_bytes, s16 x0, 
 	return wait_blitter();
 }
 
-void MinimalBackend::blitter_lines_eor_begin(u16 row_bytes) {
-	// Setup común para una secuencia de líneas EOR (ONEDOT), equivalente al
-	// preludio de `DrawObject` en flatshade-convex. Fija BLTAFWM/ALWM, BLTADAT,
-	// BLTBDAT, BLTCMOD, BLTDMOD, BLTCON1 base (linemode|onedot) y BLTCON0 base.
-	// NO espera al Blitter aquí: el llamador sincroniza antes de la primera línea.
-	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter | dma_blithog);
+bool MinimalBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1,
+				      eng::u8* d_base) {
+	if (plane.data() == nullptr) {
+		return false;
+	}
+	// Registros comunes del modo linea, fijados aqui por linea. Se probo fijarlos 1x
+	// por frame (`blitter_lines_begin`) pero producia caras deformes en flatshade-convex
+	// (el estado de cmod/dmod/dat del Blitter no es estable entre blits); se dejan
+	// explicitos. Coste: ~6 escrituras custom (~57 ciclos) por arista/plano.
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
+	wait_blitter();
 	custom_base[custom_bltafwm_offset] = 0xffff;
 	custom_base[custom_bltalwm_offset] = 0xffff;
 	custom_base[custom_bltadat_offset] = 0x8000;
 	custom_base[custom_bltbdat_offset] = 0xffff;
 	custom_base[custom_bltcmod_offset] = row_bytes;
 	custom_base[custom_bltdmod_offset] = row_bytes;
-}
 
-bool MinimalBackend::blitter_line_eor_continue(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0,
-					       s16 x1, s16 y1, eng::u8* d_base) {
-	if (plane.data() == nullptr) {
-		return false;
-	}
-	// El original DESCARTA aristas horizontales (y0==y1): no aportan contorno
-	// útil y meterían píxeles extra en vértices que descuadran el area fill.
+	// El original (`DrawObject` de flatshade-convex) DESCARTA las aristas
+	// horizontales: no aportan contorno util y, dibujadas, meterian píxeles
+	// extra en los vertices que descuadran el area fill (cruces impares).
 	if (y0 == y1) {
 		return true;
 	}
@@ -943,16 +942,8 @@ bool MinimalBackend::blitter_line_eor_continue(eng::PlaneBytes plane, u16 row_by
 	write_custom_pointer(custom_bltcpt_offset, data);
 	write_custom_pointer(custom_bltdpt_offset, d_base != nullptr ? d_base : data);
 	custom_base[custom_bltsize_offset] = bltsize;
-	// Sin esperar aquí: la siguiente línea (o el fill/swap) sincroniza.
+	// Sin esperar aqui: la siguiente operacion (o el swap de copperlist) sincroniza.
 	return true;
-}
-
-bool MinimalBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1,
-				      eng::u8* d_base) {
-	// Variante autónoma (legacy): hace begin + continue + wait final.
-	blitter_lines_eor_begin(row_bytes);
-	blitter_line_eor_continue(plane, row_bytes, x0, y0, x1, y1, d_base);
-	return wait_blitter();
 }
 
 bool MinimalBackend::blitter_area_fill(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 width, u16 height,
@@ -960,7 +951,7 @@ bool MinimalBackend::blitter_area_fill(eng::PlaneBytes dst, u8 planes, u16 row_b
 	if (dst.data() == nullptr || planes == 0u || width < 16u || height == 0u) {
 		return false;
 	}
-	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter | dma_blithog);
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
 	// Semilla = ultima palabra del bitmap (planos contiguos), descendente. El area
 	// fill recorre `height` filas conmutando el bit de relleno en cada pixel del
 	// contorno, de modo que rellena el interior (port de `BlitterFillArea`; el
@@ -985,7 +976,7 @@ bool MinimalBackend::blitter_clear(eng::PlaneBytes dst, u8 planes, u16 row_bytes
 	if (dst.data() == nullptr || planes == 0u || w < 16u || h == 0u) {
 		return false;
 	}
-	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter | dma_blithog);
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
 	const u16 words = static_cast<u16>(w / 16u);
 	// Planos contiguos con filas contiguas (`plane_bytes == row_bytes*h`): UN solo
 	// blit barre los `planes` planos de una pasada (como `BitmapClearFast` del
@@ -1006,7 +997,7 @@ bool MinimalBackend::blitter_clear_rect(eng::PlaneBytes plane, u16 row_bytes, u1
 	if (plane.data() == nullptr || words == 0u || rows == 0u) {
 		return false;
 	}
-	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter | dma_blithog);
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
 	blit_clear_region(plane.data(), row_bytes, wx0, y0, words, rows);
 	return wait ? wait_blitter() : true;
 }
@@ -1016,7 +1007,7 @@ bool MinimalBackend::blitter_area_fill_rect(eng::PlaneBytes plane, u16 row_bytes
 	if (plane.data() == nullptr || words == 0u || rows == 0u || words * 2u > row_bytes) {
 		return false;
 	}
-	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter | dma_blithog);
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
 	const u16 mod = static_cast<u16>(row_bytes - words * 2u);
 	eng::u8* seed = plane.data() + row_offset(static_cast<eng::s16>(y0 + rows - 1), row_bytes) +
 			(wx0 >> 3) + (words - 1u) * 2u;
@@ -1047,7 +1038,7 @@ bool MinimalBackend::c2p_4bpp_program(C2p4State& s) {
 	u8* dst = s.chunky + s.bytes;
 	const u16 h = static_cast<u16>((static_cast<u32>(s.bytes) / 16u) << 6);
 	const u16 bplsize = static_cast<u16>(s.bytes / 4u);
-	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter | dma_blithog);
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
 	switch (s.phase) {
 	case 0:
 		custom_base[custom_bltamod_offset] = 4;
