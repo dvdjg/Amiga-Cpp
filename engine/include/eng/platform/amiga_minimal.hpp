@@ -300,6 +300,9 @@ public:
 	/// `BitmapFillFast` de `flatshade-convex`: parte de la última palabra del bitmap
 	/// (`planes` planos contiguos de `plane_bytes`) y rellena el hueco dejado por el
 	/// contorno (`blitter_line_eor`). `width` en píxeles (múltiplo de 16).
+	/// `wait=false` lanza el fill sin esperarlo (para solaparlo con trabajo de CPU o
+	/// con la espera de VBlank); el llamador debe sincronizar con `wait_blitter()`
+	/// antes de reprogramar registros o mostrar el buffer.
 	bool blitter_area_fill(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 width, u16 height,
 			       bool wait = true);
 

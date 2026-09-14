@@ -174,6 +174,8 @@ void update_face_visibility(obj::Object3D& object) {
 				pz = static_cast<eng::s16>(cz - p->z);
 			}
 			eng::s16* fn = face->normal;
+			// `mul16`/`mulu16` (no `(s32)a * b`): fuerzan `muls.w`/`mulu.w` de 16 bits y
+			// evitan `__mulsi3`. Producto punto + luz = ~7 muls por cara.
 			eng::s32 v = eng::math2d::mul16(fn[0], px) +
 				     eng::math2d::mul16(fn[1], py) +
 				     eng::math2d::mul16(fn[2], pz);
@@ -233,6 +235,9 @@ void update_edge_visibility_convex(obj::Object3D& object) {
 	} while (*group);
 }
 
+// Port de los macros del original. `mul16` (y no `(s32)a * b`) es intencionado:
+// con el cast a 32 bits el compilador emite `__mulsi3` (mult. 32x32 por software,
+// ~10x mas cara) en vez de `muls.w` de 16x16. Ver `OPTIMIZACION_GPP_68000.md`.
 #define MULVERTEX1(D, E) { \
 	eng::s16 t0 = static_cast<eng::s16>((*v++) + y); \
 	eng::s16 t1 = static_cast<eng::s16>((*v++) + x); \
@@ -276,6 +281,7 @@ void transform_vertices(obj::Object3D& object) {
 				x = *pt++;
 				y = *pt++;
 				z = *pt++;
+				// `mul16` (no `(s32)x * y`): evita un `__mulsi3` por vertice (era ~18k/frame).
 				xy = eng::math2d::mul16(x, y);
 
 				MULVERTEX1(xp, m0);
@@ -349,6 +355,10 @@ void draw_faces(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::Minim
 #ifndef FLATSHADE_FILL_BBOX
 #define FLATSHADE_FILL_BBOX 0
 #endif
+#ifndef FLATSHADE_PROFILE
+// Metricas extra por arista (longitud total) para el perfilado; fuera de la build normal.
+#define FLATSHADE_PROFILE 0
+#endif
 #ifdef FLATSHADE_SKIP_ALL
 #undef FLATSHADE_SKIP_CLEAR
 #undef FLATSHADE_SKIP_EDGES
@@ -401,11 +411,14 @@ void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
 					eng::s16 t = x0; x0 = x1; x1 = t;
 					t = y0; y0 = y1; y1 = t;
 				}
+#if FLATSHADE_PROFILE
+				// Solo diagnostico (perfilado): fuera del bucle caliente en la build normal.
 				{
 					const eng::s16 dx = static_cast<eng::s16>(x1 - x0);
 					const eng::s16 dy = static_cast<eng::s16>(y1 - y0);
 					px_total += static_cast<eng::u32>(dx > dy ? dx : dy);
 				}
+#endif
 				for (eng::u8 p = 0; p < kPlanes; ++p) {
 					if ((edgeColor & (1 << p)) != 0) {
 						++n_lines;

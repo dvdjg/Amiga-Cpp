@@ -250,6 +250,21 @@ recording del GUI). Pendiente: `print` DWARF.
   técnico correspondiente y usar un pequeño esquema ASCII si aclara la geometría
   de buffers, Copper, bitplanes o zonas visibles.
 
+## Regla de comentario de optimizaciones (obligatoria)
+- Toda optimización que deje **rastros no canónicos** en el código —algo que un
+  lector no esperaría para ese algoritmo: un `static_cast` o tipo raro, una
+  escritura de 32 bits donde "tocaría" dos de 16, asm inline, un orden de
+  operaciones forzado, un flag/parámetro que desactiva una ruta "natural",
+  desenrollados, contadores de perfilado en el bucle caliente, etc.— debe llevar
+  **un comentario breve que explique POR QUÉ** se hace así en vez de la forma más
+  legible/natural en C++ (p. ej. «evita `__mulsi3`», «una sola escritura al
+  registro custom porque cada acceso cuesta ~57 ciclos con `cpu_cycle_exact`»,
+  «se fija 1×/frame en vez de por línea»).
+- Aplica a **todo** el código susceptible, no solo al nuevo: si detectas una
+  optimización sin justificar (propia o preexistente), documéntala.
+- El comentario debe ser **corto** y citar el mecanismo/coste concreto, no una
+  explicación larga.
+
 ## Demos atractivas (sugerencia)
 - Una demo no es solo un test: debe **entrar por los sentidos**. Al escribir un efecto o demo, ponerse en el lugar de quien quiere que su aplicación resulte atractiva, no en el de quien solo comprueba que «funciona».
 - Que se vea **de un vistazo qué efecto se está implementando**: cada demo debe comunicar la capacidad del chipset que demuestra (scroll, sprites multiplexados, copper, paleta, transparencia, blitter, etc.), no quedarse en un patrón plano que no explica nada.

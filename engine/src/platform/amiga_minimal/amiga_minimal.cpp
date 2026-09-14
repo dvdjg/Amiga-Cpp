@@ -896,6 +896,10 @@ bool MinimalBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 
 	if (plane.data() == nullptr) {
 		return false;
 	}
+	// OJO: los comunes (BLTAFWM/ALWM, BLTADAT, BLTBDAT, BLTCMOD, BLTDMOD) los fija
+	// `blitter_lines_begin` UNA vez por frame; aqui no se reescriben (cada acceso a
+	// registro custom cuesta ~57 ciclos con `cpu_cycle_exact`). El llamador debe
+	// haberlos fijado antes.
 
 	// El original (`DrawObject` de flatshade-convex) DESCARTA las aristas
 	// horizontales: no aportan contorno util y, dibujadas, meterian píxeles
