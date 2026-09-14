@@ -82,6 +82,14 @@ repetir count veces:
 | `count` | `BLTSIZE` bits 15-6 | iteraciones del bucle |
 | `2` | `BLTSIZE` bits 5-0 | se escribe el último (arranca) |
 
+### `BLTDPTR` en modo línea (primer píxel)
+
+En modo línea el Blitter escribe el **primer píxel** de la línea por el canal **D** y el resto por **C**. Dejar `BLTDPTR` fijo en la **base del bitmap** (en vez de la dirección calculada de la línea) descarta ese primer píxel en un punto inofensivo y mantiene el contorno con la **paridad par/impar correcta en los vértices**. Es lo que hace `DrawObject` de `flatshade-convex` (`bltdpt = planes`): con `BLTDPTR` = dirección calculada, el contorno pierde un cruce en cada vértice y el area fill `XOR` posterior **filtra una raya horizontal** en cada uno.
+
+### `BLTSIZE` con campos a 0
+
+El campo de **altura** (bits 15-6) vale 0 → **1024 líneas** (no 0); el de **anchura** (bits 5-0) vale 0 → **64 words**. Por eso `BitmapClearFast` y `BitmapFillFast` barren los 4 planos contiguos de 256×256 (1024 líneas × 16 words = 32768 bytes) con un único blit de `BLTSIZE` de altura 0 y anchura 16, sin ser un no-op.
+
 ## 2. Rasterizado sub-píxel de polígonos
 
 Se hace en **dos pasos**: (1) contorno por líneas en modo `ONEDOT`; (2) **area fill**.
@@ -126,10 +134,12 @@ Nota: las operaciones por `dy` necesitan **división** (`/dy`); conviene `dy != 
 El backend ya implementa:
 
 - `MinimalBackend::blitter_line` — modo línea con minterm **OR** (`BC0F_LINE_OR`), port de `DrawObject` de `wireframe`.
+- `MinimalBackend::blitter_line_eor` — modo línea `ONEDOT` + minterm **EOR** (`BC0F_LINE_EOR`), port de `DrawObject` de `flatshade-convex`; acepta `d_base` para aplicar el truco de `BLTDPTR` (ver §1).
+- `MinimalBackend::blitter_area_fill` — **area fill exclusivo** (`FILL_XOR` + `BLITREVERSE`, altura 0), port de `BitmapFillFast` de `flatshade-convex`.
 - `blit_line` (interno) — modo línea `ONEDOT` + minterm XOR, usado para contornos.
 - `blit_fill_region` — **area fill inclusivo** (`FILL_OR` + `BLITREVERSE`), port de `BlitterFillArea` de libblit.
 - `fill_triangles_blitter` — contorno + area fill + cookie-cut por plano (demo 078).
 
 **Pendiente / no portado**: el trazado **sub-píxel** (acumulador con parte fraccionaria 12.4 y la fórmula `acc = 2*((X2-x2+2)*dy - (Y2-y2+1)*dx)`) y el contorno `ONEDOT` de polígonos sub-píxel exactos. `blit_fill_region` usa `FILL_OR` (inclusivo), no `FILL_XOR`.
 
-**Usos actuales**: demos `079_wireframe` (línea OR) y `116_flatshade_convex` (contorno+fill de caras convexas). Un futuro rasterizador sub-píxel permitiría aristas y polígonos sin "snap" a píxel (p. ej. el `flatshade` y el `stencil3d` del repo de origen).
+**Usos actuales**: demos `079_wireframe` (línea OR) y `116_flatshade_convex` (contorno `ONEDOT`+EOR de las aristas visibles + un único `blitter_area_fill` `XOR`, con el truco de `BLTDPTR`). Un futuro rasterizador sub-píxel permitiría aristas y polígonos sin "snap" a píxel (p. ej. el `flatshade` y el `stencil3d` del repo de origen).

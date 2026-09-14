@@ -75,6 +75,9 @@ constexpr eng::u16 kBplcon1 = 0x0000;
 /// (indice = offset de byte de la arista / 2; el modelo tiene offsets < 2800).
 constexpr eng::u16 kEdgeTouch = 2048;
 
+/// Maximo de vertices por cara del modelo `pilka` (poligonos de hasta 8 lados).
+constexpr eng::u16 kMaxFaceVerts = 8;
+
 // Tabla de luz de lib3d (`UpdateFaceVisibility`): 65535/sqrt(x), x=0..511.
 // Normaliza el producto escalar sin sqrt en runtime.
 constexpr eng::u16 kInvSqrt[512] = {
@@ -165,7 +168,7 @@ void update_face_visibility(obj::Object3D& object) {
 				const eng::s16 vv = hi16(v);
 				const eng::u32 res = (static_cast<eng::u32>(static_cast<eng::s16>(vv)) *
 						      static_cast<eng::u32>(kInvSqrt[static_cast<eng::u16>(s)])) >> 16;
-				face->flags = static_cast<eng::s8>(res == 0u ? 1u : (res > 15u ? 15u : res));
+				face->flags = static_cast<eng::s8>(res);
 			} else if (face->material < 0) {
 				eng::s16 s = hi16(static_cast<eng::s32>(px) * px +
 						  static_cast<eng::s32>(py) * py +
@@ -174,7 +177,7 @@ void update_face_visibility(obj::Object3D& object) {
 				const eng::s16 vv = hi16(-v);
 				const eng::u32 res = (static_cast<eng::u32>(static_cast<eng::s16>(vv)) *
 						      static_cast<eng::u32>(kInvSqrt[static_cast<eng::u16>(s)])) >> 16;
-				face->flags = static_cast<eng::s8>(res == 0u ? 1u : (res > 15u ? 15u : res));
+				face->flags = static_cast<eng::s8>(res);
 			} else {
 				face->flags = -1;
 			}
@@ -272,40 +275,97 @@ void transform_vertices(obj::Object3D& object) {
 	} while (*group);
 }
 
-/// Port de `DrawObject` (flatshade-convex): por cada arista visible la dibuja con
-/// `blitter_line_eor` en cada plano cuyo bit este en `edgeColor`, y limpia sus
-/// flags. La **silueta** (`touch == 1`: una sola cara visible) se dibuja en TODOS
-/// los planos para cerrar el contorno del relleno en cada plano (evita que el area
-/// fill `XOR` se escape por un plano sin esa arista). Las internas van por color.
-void draw_object(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::MinimalBackend& backend,
-		 const eng::u8* touch) {
+/// Ruta ALTERNATIVA (ruta B, `-DFLATSHADE_FAITHFUL=0`): rellena cada cara VISIBLE
+/// (poligono proyectado) con su color de luz mediante `blitter_fill_polygon`
+/// (mascara + contorno ONEDOT + area fill inclusivo + cookie-cut). Da caras solidas
+/// sin depender de la paridad del area fill XOR, a cambio de mas blits por cara.
+void draw_faces(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::MinimalBackend& backend,
+		eng::MaskBuffer mask) {
+	void* objdat = object.objdat;
+	eng::s16* group = object.faceGroups;
+	eng::s16 xs[kMaxFaceVerts];
+	eng::s16 ys[kMaxFaceVerts];
+	do {
+		eng::s16 f;
+		while ((f = *group++)) {
+			obj::Face* face = obj::face3d(objdat, f);
+			if (face->flags < 0 || face->count < 3 || face->count > kMaxFaceVerts) {
+				continue;
+			}
+			const obj::FaceIndex* idx = obj::face_indices(face);
+			for (eng::s16 k = 0; k < face->count; ++k) {
+				const obj::Point3D* v = obj::vertex3d(objdat, idx[k].vertex);
+				xs[k] = v->x;
+				ys[k] = v->y;
+			}
+			backend.blitter_fill_polygon(planes, kPlanes, kBytesPerRow, kPlaneBytes,
+						     xs, ys, static_cast<eng::u8>(face->count),
+						     static_cast<eng::u8>(face->flags), mask);
+		}
+	} while (*group);
+}
+
+/// Camino FIEL del original (barato): dibuja las aristas VISIBLES
+/// (`edgeColor > 0`) con `blitter_line_eor` (ONEDOT+EOR) replicadas en cada plano
+/// segun el color de arista, y despues UN unico `blitter_area_fill` (area fill
+/// XOR) cierra el hueco. Es el camino del original: 1 clear + N aristas (x planos
+/// con bit) + 1 fill, sin mascara ni cookie-cut por cara.
+/// `edge->flags > 0` => arista visible; se limpia tras dibujarla para que el XOR
+/// del siguiente frame parta de cero (como `DrawObject`). Las aristas con
+/// `edgeColor == 0` (canceladas por dos caras visibles de igual luz) se saltan.
+/// `bltdpt` apunta a la BASE del bitmap (`planes.data()`, como el original), NO a
+/// la direccion calculada: en modo linea el primer pixel va por D, y dejarlo
+/// siempre en la base mantiene la paridad par/impar del contorno correcta en los
+/// vertices (sin ello el area fill filtra una raya horizontal por vertice).
+void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
+			  eng::amiga::MinimalBackend& backend) {
 	void* objdat = object.objdat;
 	eng::s16* group = object.edgeGroups;
+	eng::s16 e;
 	do {
-		eng::s16 e;
 		while ((e = *group++)) {
 			obj::Edge* edge = obj::edge3d(objdat, e);
 			const eng::s8 edgeColor = edge->flags;
-			if (edgeColor <= 0) {
-				continue;
-			}
-			edge->flags = 0;
-			const eng::s16 e0 = edge->point[0];
-			const eng::s16 e1 = edge->point[1];
-			const eng::s16 x0 = obj::vertex3d(objdat, e0)->x;
-			const eng::s16 y0 = obj::vertex3d(objdat, e0)->y;
-			const eng::s16 x1 = obj::vertex3d(objdat, e1)->x;
-			const eng::s16 y1 = obj::vertex3d(objdat, e1)->y;
-			for (eng::u8 p = 0; p < kPlanes; ++p) {
-				if ((edgeColor & (1 << p)) != 0) {
-					backend.blitter_line_eor(
-						planes.subspan(static_cast<eng::u32>(p) * kPlaneBytes, kPlaneBytes),
-						kBytesPerRow, x0, y0, x1, y1);
+			if (edgeColor > 0) {
+				edge->flags = 0;
+				const obj::Point3D* a = obj::vertex3d(objdat, edge->point[0]);
+				const obj::Point3D* b = obj::vertex3d(objdat, edge->point[1]);
+				eng::s16 x0 = a->x;
+				eng::s16 y0 = a->y;
+				eng::s16 x1 = b->x;
+				eng::s16 y1 = b->y;
+				if (y0 == y1) {
+					continue;
+				}
+				if (y0 > y1) {
+					eng::s16 t = x0; x0 = x1; x1 = t;
+					t = y0; y0 = y1; y1 = t;
+				}
+				for (eng::u8 p = 0; p < kPlanes; ++p) {
+					if ((edgeColor & (1 << p)) != 0) {
+#if FLATSHADE_LINE_OR
+						backend.blitter_line(planes.subspan(
+							static_cast<eng::u32>(p) * kPlaneBytes, kPlaneBytes),
+							kBytesPerRow, x0, y0, x1, y1);
+#else
+						backend.blitter_line_eor(planes.subspan(
+							static_cast<eng::u32>(p) * kPlaneBytes, kPlaneBytes),
+							kBytesPerRow, x0, y0, x1, y1, planes.data());
+#endif
+					}
 				}
 			}
 		}
 	} while (*group);
+	backend.blitter_area_fill(planes, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight);
 }
+
+#ifndef FLATSHADE_FAITHFUL
+#define FLATSHADE_FAITHFUL 1
+#endif
+#ifndef FLATSHADE_LINE_OR
+#define FLATSHADE_LINE_OR 0
+#endif
 
 struct FlatShadeDemo {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
@@ -318,7 +378,8 @@ struct FlatShadeDemo {
 
 		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitmapBytes, 16);
 		m_copper_block = backend.memory().chip.allocate_block<eng::CopperTag>(kBuffers * kCopperPerList, 16);
-		if (!m_bitplane_block.valid() || !m_copper_block.valid()) {
+		m_mask_block = backend.memory().chip.allocate_block<eng::MaskTag>(kPlaneBytes, 16);
+		if (!m_bitplane_block.valid() || !m_copper_block.valid() || !m_mask_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011602u);
 			return;
 		}
@@ -357,8 +418,11 @@ struct FlatShadeDemo {
 		update_edge_visibility_convex(m_object, m_edge_touch);
 		transform_vertices(m_object);
 
-		draw_object(m_object, planes, backend, m_edge_touch);
-		backend.blitter_area_fill(planes, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight);
+#if FLATSHADE_FAITHFUL
+		draw_edges_area_fill(m_object, planes, backend);
+#else
+		draw_faces(m_object, planes, backend, m_mask_block.view);
+#endif
 
 		backend.install_copper_list(m_copper_ptrs[buf]);
 		m_active = static_cast<eng::u8>(buf ^ 1u);
@@ -388,6 +452,7 @@ private:
 	eng::u8 m_active = 0;
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::Block<eng::CopperTag> m_copper_block {};
+	eng::Block<eng::MaskTag> m_mask_block {};
 	const eng::u16* m_copper_ptrs[kBuffers] = {nullptr, nullptr};
 	eng::object3d::Object3D m_object {};
 	eng::u8 m_edge_touch[kEdgeTouch] {};

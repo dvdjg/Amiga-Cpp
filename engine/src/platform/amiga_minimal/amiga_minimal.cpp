@@ -204,18 +204,22 @@ void blit_line(eng::u8* plane, eng::u16 row_bytes, eng::s16 x1, eng::s16 y1,
 /// Descendente y bit a bit: requiere que el contorno sea de 1 pixel (ONEDOT).
 void blit_fill_region(eng::u8* plane, eng::u16 row_bytes, eng::u16 wx0, eng::s16 y,
 		      eng::u16 words, eng::u16 h) {
-	// Relleno ASCENDENTE desde la primera palabra de la region.
-	eng::u8* first = plane + static_cast<eng::u32>(y) * row_bytes + (wx0 >> 3);
+	// Relleno DESCENDENTE desde la ULTIMA palabra de la region (port fiel de
+	// `BlitterFillArea` de libblit: `BLITREVERSE | FILL_OR`). El relleno de area
+	// propaga el "carry" segun la direccion; hacerlo descendente desde el final es
+	// lo que rellena correctamente (la version ascendente filtraba/rayaba).
+	eng::u8* last = plane + static_cast<eng::u32>(y + h - 1) * row_bytes +
+			(wx0 >> 3) + static_cast<eng::u32>(words - 1u) * 2u;
 	const eng::u16 mod = static_cast<eng::u16>(row_bytes - words * 2u);
 	wait_blitter();
 	custom_base[custom_bltcon0_offset] = static_cast<eng::u16>(blt_use_a | blt_use_d | 0x00f0); // A_TO_D
-	custom_base[custom_bltcon1_offset] = blt_fill_or;
+	custom_base[custom_bltcon1_offset] = static_cast<eng::u16>(blt_reverse | blt_fill_or);
 	custom_base[custom_bltafwm_offset] = 0xffff;
 	custom_base[custom_bltalwm_offset] = 0xffff;
 	custom_base[custom_bltamod_offset] = mod;
 	custom_base[custom_bltdmod_offset] = mod;
-	write_custom_pointer(custom_bltapt_offset, first);
-	write_custom_pointer(custom_bltdpt_offset, first);
+	write_custom_pointer(custom_bltapt_offset, last);
+	write_custom_pointer(custom_bltdpt_offset, last);
 	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((h << 6) | words);
 }
 
@@ -728,6 +732,45 @@ bool MinimalBackend::fill_triangles_blitter(const FlatTriangle* tris, u32 count,
 	return wait_blitter();
 }
 
+bool MinimalBackend::blitter_fill_polygon(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes,
+					  const s16* xs, const s16* ys, u8 n, u8 color, eng::MaskBuffer mask) {
+	if (dst.data() == nullptr || mask.data() == nullptr || xs == nullptr || ys == nullptr ||
+	    n < 3u || planes == 0u) {
+		return false;
+	}
+	s16 xmin = xs[0], xmax = xs[0], ymin = ys[0], ymax = ys[0];
+	for (u8 i = 1u; i < n; ++i) {
+		if (xs[i] < xmin) xmin = xs[i];
+		if (xs[i] > xmax) xmax = xs[i];
+		if (ys[i] < ymin) ymin = ys[i];
+		if (ys[i] > ymax) ymax = ys[i];
+	}
+	if (xmax < 0 || ymax < 0 || xmin > 319 || ymin > 255) {
+		return true;
+	}
+	if (xmin < 0) xmin = 0;
+	if (ymin < 0) ymin = 0;
+	if (xmax > 319) xmax = 319;
+	if (ymax > 255) ymax = 255;
+	const u16 wx0 = static_cast<u16>(xmin) & 0xfff0u;
+	const u16 wx1 = static_cast<u16>(xmax) | 0x000fu;
+	const u16 words = static_cast<u16>((static_cast<u16>(wx1 - wx0) + 16u) >> 4);
+	const u16 h = static_cast<u16>(ymax - ymin + 1);
+
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
+	blit_clear_region(mask.data(), row_bytes, wx0, ymin, words, h);
+	for (u8 i = 0u; i < n; ++i) {
+		const u8 j = static_cast<u8>((static_cast<u8>(i) + 1u) % n);
+		blit_line(mask.data(), row_bytes, xs[i], ys[i], xs[j], ys[j]);
+	}
+	blit_fill_region(mask.data(), row_bytes, wx0, ymin, words, h);
+	for (u8 p = 0u; p < planes; ++p) {
+		blit_mask_to_plane(dst.data() + static_cast<u32>(p) * plane_bytes, row_bytes, mask.data(),
+				   wx0, ymin, words, h, ((color >> p) & 1u) != 0u);
+	}
+	return wait_blitter();
+}
+
 bool MinimalBackend::blit_fill_from_mask(eng::MaskBytes mask, eng::PlaneBytes dst, u8 planes, u16 row_bytes,
 					 u32 plane_bytes, s16 x, s16 y, u16 w, u16 h, u8 color) {
 	if (mask.data() == nullptr || dst.data() == nullptr || planes == 0u || w == 0u || h == 0u) {
@@ -817,7 +860,8 @@ bool MinimalBackend::blitter_line(eng::PlaneBytes plane, u16 row_bytes, s16 x0, 
 	return wait_blitter();
 }
 
-bool MinimalBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1) {
+bool MinimalBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1,
+				      eng::u8* d_base) {
 	if (plane.data() == nullptr) {
 		return false;
 	}
@@ -873,7 +917,7 @@ bool MinimalBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 
 	write_custom_pointer(custom_bltapt_offset,
 			     reinterpret_cast<void*>(static_cast<u32>(static_cast<s32>(derr))));
 	write_custom_pointer(custom_bltcpt_offset, data);
-	write_custom_pointer(custom_bltdpt_offset, data);
+	write_custom_pointer(custom_bltdpt_offset, d_base != nullptr ? d_base : data);
 	custom_base[custom_bltsize_offset] = bltsize;
 	// Sin esperar aqui: la siguiente operacion (o el swap de copperlist) sincroniza.
 	return true;

@@ -285,13 +285,24 @@ public:
 	/// secuencia EXACTA de `DrawObject` de `flatshade-convex`: se usa para el
 	/// contorno de polígonos (un píxel por fila) que luego rellena
 	/// `blitter_area_fill`. Sin `SIGNFLAG` (como el original).
-	bool blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1);
+	/// `d_base` replica el truco del original (`bltdpt = planes`, la base del
+	/// bitmap, NO la dirección calculada): si es `nullptr` se usa la dirección de
+	/// la línea.
+	bool blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1,
+			      eng::u8* d_base = nullptr);
 
 	/// Relleno por **area fill XOR** (paint-bucket del Blitter), port de
 	/// `BitmapFillFast` de `flatshade-convex`: parte de la última palabra del bitmap
 	/// (`planes` planos contiguos de `plane_bytes`) y rellena el hueco dejado por el
 	/// contorno (`blitter_line_eor`). `width` en píxeles (múltiplo de 16).
 	bool blitter_area_fill(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 width, u16 height);
+
+	/// Rellena un **poligono convexo** (puntos de pantalla `xs`/`ys`, `n` vertices) con
+	/// `color` en `planes` planos. Limpia la mascara de su bbox, traza el contorno
+	/// (`ONEDOT`), hace area fill inclusivo (`FILL_OR`) y cookie-cut a cada plano.
+	/// Da caras solidas limpias (sin el filtrado del area-fill `XOR` en vertices).
+	bool blitter_fill_polygon(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes,
+				  const s16* xs, const s16* ys, u8 n, u8 color, eng::MaskBuffer mask);
 
 	/// Borra (D=0) una region de `w`x`h` en `planes` planos contiguos con separacion
 	/// `plane_bytes`, alineando a palabra. Equivale a `BlitterClear` del demoscene.

@@ -5,48 +5,44 @@ con el método de `docs/demos/effects/DEMOSCENE_EFFECT_REPLICATION_POLICY.md`. E
 importe del efecto original `demoscene-repo-orig/effects/flatshade-convex/flatshade-convex.c`;
 ver el plan `docs/demos/effects/FLATSHADE_CONVEX_PORT_PLAN.md`.
 
-## Algoritmo (fiel a `lib3d`, paso a paso)
+## Algoritmo
 
 ```text
   frame
     ├─ update_object_transformation   (Rx·Ry·Rz·S·T + invertida; HOST-011)
-    ├─ update_face_visibility         (dot(normal, camera-p0); luz 0..15 con InvSqrt)
-    ├─ update_edge_visibility_convex  (XOR de la luz de las caras adyacentes -> aristas)
+    ├─ update_face_visibility         (dot(normal, camera-p0); luz 0..15 con kInvSqrt)
+    ├─ update_edge_visibility_convex  (XOR de la luz de caras vecinas; marca vertices)
     ├─ transform_vertices             (transform + proyeccion div16 + centro)
-    ├─ draw_object                    (blitter_line_eor: ONEDOT+EOR por plano segun color)
-    └─ blitter_area_fill              (area fill XOR: rellena el hueco dejado por el contorno)
+    └─ draw_edges_area_fill           (aristas ONEDOT+EOR por plano segun el color +
+                                        UN blitter_area_fill XOR; BLTDPTR = base)
   commit: swap de copperlist (VBlank)
 ```
 
 - **Back-face culling + luz**: `v = normal·(camera − p0)`; si `v ≥ 0` la cara es
-  visible y su color es `(hi16(v) · InvSqrt[hi16(|cam−p0|²)]) >> 16` (0..15), **sin
+  visible y su color es `(hi16(v) · kInvSqrt[hi16(|cam−p0|²)]) >> 16` (0..15), **sin
   `sqrt` en runtime** (tabla `kInvSqrt[512]`, port de `UpdateFaceVisibility`). Caras
   `material < 0` son de doble cara.
-- **Aristas convexas**: por cada cara visible se marca el vértice y se hace
-  `EDGE(e)->flags ^= face->flags`. El XOR cancela las aristas compartidas por dos
-  caras visibles; quedan la **silueta** y las aristas visibles, con color = luz de la
-  cara (o XOR de las adyacentes).
 - **Proyección**: port `1:1` de `TransformVertices` (`>>4`, `normfx`, `div16`),
   centrado en `WIDTH/2`, `HEIGHT/2`.
-- **Trazado**: cada arista visible se dibuja con `MinimalBackend::blitter_line_eor`
-  (Blitter line mode `ONEDOT` + minterm `EOR`, secuencia exacta de `DrawObject`) en
-  cada plano cuyo bit esté en el color; después `blitter_area_fill` (area fill `XOR`,
-  port de `BitmapFillFast`) rellena el contorno.
+- **Relleno**: las **aristas visibles** se dibujan con **`MinimalBackend::blitter_line_eor`**
+  (`ONEDOT`+EOR, replicadas en cada plano con el bit del color de arista) y después
+  **un único `MinimalBackend::blitter_area_fill`** (`FILL_XOR` + `BLITREVERSE`, altura 0)
+  rellena el interior. `BLTDPTR` se deja en la **base del bitmap** (no en la dirección
+  calculada de la línea): en modo línea el primer píxel va por el canal D, y mantenerlo
+  en la base conserva la **paridad par/impar del contorno en los vértices**, de modo que
+  el area fill `XOR` no filtra la raya horizontal por vértice. Ruta alternativa por cara
+  (`-DFLATSHADE_FAITHFUL=0`): `blitter_fill_polygon` (máscara + cookie-cut).
 
-## Fidelidad (comparado con el original)
+## Paridad del contorno (clave del relleno)
 
-Medido sobre la captura del original (`.adf` en WinUAE) y la nuestra:
-
-| Métrica | Original | Réplica |
-|---|---|---|
-| Fondo | `#001122` (índice 0) | `#001122` (índice 0) |
-| Caja del balón | 494×498 | 498×478 |
-| Cobertura | 38.9 % | 39.7 % |
-| Luminancia media del cuerpo | 149.3 | 145.9 |
-| Descripción (Ollama/qwen3-vl) | poliedro flat-shaded azul, caras sólidas, fondo negro, aristas por contraste | idem |
-
-Misma resolución (256×256×4), misma paleta, mismo modelo y misma técnica
-(aristas convexas + area fill XOR).
+El area fill `XOR` del Blitter conmuta el relleno en cada píxel del contorno de la fila y
+lo propaga verticalmente. Para que rellene solo el interior, cada scanline debe cruzar el
+contorno un número impar de veces. Cada arista se dibuja con `ONEDOT` (un píxel por fila)
+y minterm **EOR**; en un vértice dos aristas pueden escribir el mismo píxel y cancelarse
+(`1 XOR 1 = 0`), perdiendo un cruce y filtrando una raya. El truco de `BLTDPTR` = base del
+bitmap (el primer píxel de la línea va por D a un punto inofensivo) y el descarte de
+**aristas horizontales** (`y0 == y1`) mantienen la paridad correcta; el resultado tiene
+**0.00 % de huecos internos**, igual que el original (ver `FLATSHADE_CONVEX_PORT_PLAN.md`).
 
 ## Verificación
 
@@ -56,8 +52,13 @@ bash ./tools/run/run-demo.sh demos/amiga/116_flatshade_convex
 node tools/analyze/verify-116-flatshade.mjs
 ```
 
+Fidelidad (vs captura del original por `.adf`): fondo `#001122`, **IoU de máscara 93–97 %**
+en frames alineados por fase, **0.00 % de huecos internos** (el original también 0.00 %),
+cobertura ~38.5 % vs 38.9 %.
+
 ## Reutilización
 
 `eng::object3d` (`object3d.hpp`, HOST-014) + `math2d`/`math3d` (HOST-010/011) +
-`MinimalBackend::blitter_line_eor`/`blitter_area_fill` (nuevos, port de
-`DrawObject`/`BitmapFillFast`). Modelo y paleta en `src/data/` (copiados del original).
+`MinimalBackend::blitter_line_eor` / `blitter_area_fill`. El arreglo de **`blit_fill_region`**
+a descendente (port de `BlitterFillArea`) beneficia también a las rutas Blitter del 078.
+Modelo y paleta en `src/data/` (copiados del original).
