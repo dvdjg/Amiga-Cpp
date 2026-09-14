@@ -43,9 +43,9 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 // v[0]=clear v[1]=transform/culling v[2]=edges v[3]=fill v[4]=draw(edges+fill) v[5]=update total
 struct EngProf {
 	eng::u32 magic;
-	eng::u32 v[6];
+	eng::u32 v[16];
 };
-__attribute__((used)) volatile EngProf g_eng_prof { 0x50524f46u, {0u, 0u, 0u, 0u, 0u, 0u} };
+__attribute__((used)) volatile EngProf g_eng_prof { 0x50524f46u, {0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u} };
 }
 
 namespace {
@@ -373,6 +373,9 @@ void draw_faces(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::Minim
 void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
 			  eng::amiga::MinimalBackend& backend) {
 	const eng::u32 t0 = rcycles();
+	eng::u32 n_edges = 0u;
+	eng::u32 n_lines = 0u;
+	eng::u32 px_total = 0u;
 	void* objdat = object.objdat;
 	eng::s16* group = object.edgeGroups;
 	eng::s16 e;
@@ -382,6 +385,7 @@ void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
 			obj::Edge* edge = obj::edge3d(objdat, e);
 			const eng::s8 edgeColor = edge->flags;
 			if (edgeColor > 0) {
+				++n_edges;
 				edge->flags = 0;
 				const obj::Point3D* a = obj::vertex3d(objdat, edge->point[0]);
 				const obj::Point3D* b = obj::vertex3d(objdat, edge->point[1]);
@@ -396,8 +400,14 @@ void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
 					eng::s16 t = x0; x0 = x1; x1 = t;
 					t = y0; y0 = y1; y1 = t;
 				}
+				{
+					const eng::s16 dx = static_cast<eng::s16>(x1 - x0);
+					const eng::s16 dy = static_cast<eng::s16>(y1 - y0);
+					px_total += static_cast<eng::u32>(dx > dy ? dx : dy);
+				}
 				for (eng::u8 p = 0; p < kPlanes; ++p) {
 					if ((edgeColor & (1 << p)) != 0) {
+						++n_lines;
 #if FLATSHADE_LINE_OR
 						backend.blitter_line(planes.subspan(
 							static_cast<eng::u32>(p) * kPlaneBytes, kPlaneBytes),
@@ -442,6 +452,9 @@ void draw_edges_area_fill(obj::Object3D& object, eng::PlaneBytes planes,
 #endif
 #endif
 	const eng::u32 t2 = rcycles();
+	g_eng_prof.v[10] = n_edges;
+	g_eng_prof.v[11] = n_lines;
+	g_eng_prof.v[12] = px_total;
 	g_eng_prof.v[2] = t1 - t0;
 	g_eng_prof.v[3] = t2 - t1;
 	g_eng_prof.v[4] = t2 - t0;
@@ -499,15 +512,32 @@ struct FlatShadeDemo {
 			static_cast<eng::s16>(context.frame.frame_index * 8u);
 
 		obj::update_object_transformation(m_object);
+		const eng::u32 ta = rcycles();
 		update_face_visibility(m_object);
+		const eng::u32 tb = rcycles();
 		update_edge_visibility_convex(m_object);
+		const eng::u32 tc = rcycles();
 		transform_vertices(m_object);
 		const eng::u32 t2 = rcycles();
-		g_eng_prof.v[6] = static_cast<eng::u32>(static_cast<eng::u16>(g_bx1 - g_bx0 + 1));
-		g_eng_prof.v[7] = static_cast<eng::u32>(static_cast<eng::u16>(g_by1 - g_by0 + 1));
+		g_eng_prof.v[6] = ta - t1; // update_object_transformation
+		g_eng_prof.v[7] = tb - ta; // update_face_visibility
+		g_eng_prof.v[8] = tc - tb; // update_edge_visibility_convex
+		g_eng_prof.v[9] = t2 - tc; // transform_vertices
 
 		// El clear debe haber terminado antes de dibujar el contorno encima.
 		backend.wait_blitter();
+
+#ifdef FLATSHADE_BENCH_LINE
+		{
+			const eng::u32 b0 = rcycles();
+			for (eng::u16 k = 0; k < 64u; ++k) {
+				backend.blitter_line_eor(planes.subspan(0u, kPlaneBytes), kBytesPerRow,
+							 100, 100, 140, 130, planes.data());
+			}
+			const eng::u32 b1 = rcycles();
+			g_eng_prof.v[13] = (b1 - b0) / 64u;
+		}
+#endif
 
 #if FLATSHADE_FAITHFUL
 		draw_edges_area_fill(m_object, planes, backend);

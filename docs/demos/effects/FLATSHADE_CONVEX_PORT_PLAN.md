@@ -172,5 +172,14 @@ Original: **24.7 / 287k** (brecha 1.47x). Desglose: `clear` ~2k (lanzado, solapa
 
 **Pendiente**: la brecha restante son los `edges` (125k) y el `transform` (109k). El `fill` (~139k, con contención de bus del display) lo paga igual el original. Bajar el transform exige asm/registros fijos (4 pasadas sobre ~180 caras); en los edges, escribir los comunes del Blitter 1×/frame. Ver informe para IA en `docs/debugging/CONSULTA-OPTIMIZACION-BLITTER-DEMOSCENE.md`.
 
+### Perfil fino (2026-09)
+
+- **`transform` = 109k**, repartido en: `update_object_transformation` 21k, `update_face_visibility` 19k, `update_edge_visibility_convex` 11k y **`transform_vertices` 57k** (el hotspot: ~90 vértices × ~639 ciclos = 6 `muls.w` + 2 `divs` + carga de la matriz por vértice). Sin `__mulsi3`/`__divsi3` en el hot path (los que quedan están en init, en el constructor constexpr de la tabla de senos y en `run_slice` del fondo). La diferencia con el original es **calidad de codegen** (asm con registros fijos), no libcalls.
+- **`edges` = 130k**: solo **34 aristas** y **57 blits de línea** por frame (1,232 px totales entre todas) ⇒ **~2,274 ciclos por línea**. Un micro-benchmark aislado de un `blitter_line_eor` de 40 px da **1,752 ciclos**. El coste es del **emulador** (blitter de línea en modo ciclo-exacto + `wait_blitter`), no de nuestro código (el asm de `blitter_line_eor` solo llama a `wait_blitter`), y lo paga el original igual. Es el factor limitante real.
+- **`fill` = 143k**: escala con las words (8.7 ciclos/word; 16,384 words). Acotarlo a la bbox no ayuda porque la pelota llena la pantalla (241×240).
+- El **`clear`** (89k de bus) se solapa con el transform (2k medidos tras la optimización).
+
+
+
 
 
