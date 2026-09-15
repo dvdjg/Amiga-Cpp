@@ -16,6 +16,7 @@ const ASM = `${ROOT}/out/tmp/codegen-probe.s`;
 
 const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/linalg.hpp>
+#include <eng/core/light.hpp>
 #include <eng/retro/fixed_q.hpp>
 using namespace eng::math;
 using namespace eng::retro;
@@ -23,6 +24,8 @@ using eng::s16;
 using eng::s32;
 struct HalfEvenPolicy { using Round = rounding::HalfEven; using Overflow = overflow::Wrap; };
 using q14 = Fixed<s16, 14>;
+eng::u16 g_tab[512] {}; // mutable: impide que el optimizador pliegue la tabla a constante
+extern "C" s16 c_shade(s32 v, s32 e) { return light_ops<>::shade(v, e, g_tab); }
 
 extern "C" q24 c_mul_q12(s16 a, s16 b) { return q12{a} * q12{b}; }
 extern "C" Fixed<s32, 26> c_mul_mixed(s16 a, s16 b) { return q12{a} * q14{b}; } // 4.12*2.14 -> exp 26
@@ -60,7 +63,7 @@ for (const ln of lines) {
   const s = ln.trim();
   if (!s || s.startsWith('.')) { if (/^(dbra|bra|bne|beq|jne|jmp|jhi|jeq|blt|bgt|blo|bhi)/.test(s)) cur.branch++; continue; }
   cur.ins++;
-  if (/muls\.w|mulu\.w/.test(s)) cur.mul++;
+  if (/\b(muls|mulu)(\.[wl])?\b/.test(s)) cur.mul++;
   if (/asr\.l|lsr\.l/.test(s)) cur.asr++;
   if (/jsr|bsr/.test(s)) cur.lib++;
   if (/^(dbra|bra|bne|beq|jne|jmp|jhi|jeq|blt|bgt|blo|bhi)/.test(s)) cur.branch++;
@@ -70,4 +73,20 @@ console.log('construccion                     instr  muls.w  shifts  saltos  lib
 for (const f of fns) {
   const loop = f.branch > 0 ? 'plegado' : 'lineal';
   console.log(`${f.name.padEnd(32)} ${String(f.ins).padStart(5)} ${String(f.mul).padStart(7)} ${String(f.asr).padStart(7)} ${String(f.branch).padStart(7)} ${String(f.lib).padStart(9)}  ${loop}`);
+}
+
+// --- Gate: el camino caliente no puede llamar a las rutinas de 32 bits de libgcc ---
+// (__mulsi3/__divsi3/…). Si aparece, una operacion que deberia ser `muls.w`/`mulu.w`
+// nativos se ha convertido en una llamada (~50+ ciclos). `--report` solo informa.
+const asmText = fs.readFileSync(ASM, 'latin1');
+const FORBIDDEN = ['__mulsi3', '__umulsi3', '__divsi3', '__udivsi3'];
+const hit = FORBIDDEN.filter((s) => asmText.includes(s));
+const called = fns.filter((f) => f.lib > 0).map((f) => `${f.name} (${f.lib} jsr)`);
+if (process.argv.includes('--report')) {
+  if (hit.length || called.length) console.log(`\n[codegen] aviso: libcalls -> ${[...hit, ...called].join(', ')}`);
+} else if (hit.length || called.length) {
+  console.error(`\n[codegen] FAIL: el camino caliente llama a libgcc -> ${[...hit, ...called].join(', ')}`);
+  process.exit(1);
+} else {
+  console.log('\n[codegen] OK: sin libcalls (__mulsi3/__divsi3) en el camino caliente.');
 }

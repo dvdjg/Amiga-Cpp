@@ -43,6 +43,7 @@
 #include <eng/core/math2d.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/platform/amiga/object3d.hpp>
+#include <eng/core/light.hpp>
 #include <eng/core/types.hpp>
 #include <eng/retro/fixed_q.hpp>
 
@@ -56,10 +57,9 @@ using eng::u32;
 using object3d::Object3D;
 using object3d::Point3D;
 
-/// `x >> 16`: parte alta de un 32 bits como `s16` (el `swap16` del original).
-constexpr s16 hi16(s32 x) {
-	return static_cast<s16>(static_cast<u32>(x) >> 16);
-}
+/// `x >> 16`: parte alta de un 32 bits como `s16` (el `swap16` del original). Vive en el
+/// núcleo de luz (`eng::math::hi16`), junto al punto de personalización `light_ops`.
+using eng::math::hi16;
 
 /// Tabla `InvSqrt` de lib3d (`invsqrt` en el original): `65535 / sqrt(x)` para
 /// `x = 0..511`, en `u16` con formato **0.16** (`1.0 == 1 << 16`, truncado a
@@ -151,20 +151,11 @@ inline void update_face_visibility(Object3D& object) {
 			const eng::retro::q0 vx {px}, vy {py}, vz {pz};
 			const s32 v = (nx * vx).v + (ny * vy).v + (nz * vz).v;
 			const s32 e1_sq = (vx * vx).v + (vy * vy).v + (vz * vz).v;
-			if (v >= 0) {
-				s16 s = hi16(e1_sq);
-				if (s > 511) s = 511;
-				const s16 vv = hi16(v);
-				const u32 res = math2d::mulu16(static_cast<u16>(static_cast<s16>(vv)),
-							       kInvSqrt[static_cast<u16>(s)]) >> 16;
-				face->flags = static_cast<s8>(res);
-			} else if (face->material < 0) {
-				s16 s = hi16(e1_sq);
-				if (s > 511) s = 511;
-				const s16 vv = hi16(-v);
-				const u32 res = math2d::mulu16(static_cast<u16>(static_cast<s16>(vv)),
-							       kInvSqrt[static_cast<u16>(s)]) >> 16;
-				face->flags = static_cast<s8>(res);
+			if (v >= 0 || face->material < 0) {
+				// Luz 0..15. `shade` usa |v| internamente (cubre la cara de espaldas con
+				// material < 0); el rasgo `light_ops` la especializa por CPU (68000:
+				// `mulu.w` + `swap`), sin `sqrt` en runtime.
+				face->flags = static_cast<s8>(eng::math::light_ops<>::shade(v, e1_sq, kInvSqrt));
 			} else {
 				face->flags = -1;
 			}

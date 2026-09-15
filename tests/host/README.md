@@ -85,3 +85,13 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-042 | [mode_switch](042_mode_switch/README.md) | `ModeSwitchZone`: conmutación de geometría de vídeo a mitad de frame con el orden canónico MI09 (`BPLCON0`→`DDF`→mods→`BPLxPT`). |
 | HOST-043 | [xlimited_tile_bank](043_xlimited_tile_bank/README.md) | `XlimitedTileBank`: banco de bloques propio o aliaseado (vista + `MemoryKind`); `Block<Tag>` propaga el `kind` de la reserva. |
 | HOST-044 | [big_buffer_scroll](044_big_buffer_scroll/README.md) | `BigBufferScroll`: estrategia de scroll trivial (offset de cámara acotado / anillo); contraste con `ScrollEngine`. |
+| HOST-045 | [surface_polygon](045_surface_polygon/README.md) | `Surface::fill_polygon`: rasterizado CPU de polígono convexo por scanline (interior/exterior, triángulos, clip). |
+| HOST-046 | [mesh_renderer](046_mesh_renderer/README.md) | `eng::graphics::mesh_renderer`: malla 3D → `Surface` (proyección, culling, relleno). |
+| HOST-047 | [lib3d](047_lib3d/README.md) | `eng::lib3d`: visibilidad de caras/aristas + transform+proyección sobre el modelo empaquetado de `object3d`. |
+| HOST-048 | [math_fixed](048_math_fixed/README.md) | Escalar fixed-point genérico `eng::math::Fixed` (exponentes, promoción, no-mezcla, dot fusionado). |
+| HOST-049 | [math_linalg](049_math_linalg/README.md) | Álgebra lineal genérica `eng::math::Vec`/`Mat`/`Affine` sobre cualquier escalar. |
+| HOST-050 | [math3d_exact](050_math3d_exact/README.md) | Bit-exactitud de `math3d` (4096 ángulos, load_rotate + reverse). |
+| HOST-051 | [object3d_affine](051_object3d_affine/README.md) | Bit-exactitud de `update_object_transformation` (barrido de ángulos). |
+| HOST-052 | [math_generic_scalar](052_math_generic_scalar/README.md) | La librería es agnóstica del escalar: 4.12, 8.8, `float` y un complejo de usuario. |
+| HOST-053 | [lib3d_projection](053_lib3d_projection/README.md) | Tabla dorada de la proyección `lib3d::transform_vertices` a ángulo fijo. |
+| HOST-054 | [light_ops](054_light_ops/README.md) | Sombreado por cara `eng::math::light_ops` e `hi16` contra referencia sin signo. |

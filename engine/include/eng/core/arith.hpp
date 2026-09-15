@@ -28,14 +28,31 @@ struct arith_wide<s32> {
 	using unsigned_t = unsigned long long;
 };
 
+/// Representación sin signo del MISMO ancho que `R`: el producto `mulu` es unsigned
+/// (`mulu.w` en 68000). Si `mulu` tomara `R` con signo, sign-extendería el operando y
+/// daría un resultado distinto al del 68000 para valores con el bit alto puesto.
+template <typename R>
+struct arith_unsigned;
+template <>
+struct arith_unsigned<s16> {
+	using type = u16;
+};
+template <>
+struct arith_unsigned<s32> {
+	using type = u32;
+};
+
 /// Implementación **por defecto** (portable). Un backend de CPU la especializa.
 template <typename R>
 struct arith {
 	using s_wide = typename arith_wide<R>::signed_t;
 	using u_wide = typename arith_wide<R>::unsigned_t;
+	using u_repr = typename arith_unsigned<R>::type;
 
 	[[nodiscard]] static constexpr s_wide mul(R a, R b) { return static_cast<s_wide>(a) * b; }
-	[[nodiscard]] static constexpr u_wide mulu(R a, R b) { return static_cast<u_wide>(a) * b; }
+	[[nodiscard]] static constexpr u_wide mulu(u_repr a, u_repr b) {
+		return static_cast<u_wide>(a) * b;
+	}
 	[[nodiscard]] static constexpr R div(s_wide a, R b) { return static_cast<R>(a / b); }
 };
 

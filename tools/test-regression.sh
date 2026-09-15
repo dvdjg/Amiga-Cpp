@@ -128,6 +128,23 @@ if [ -f "$ENCODING_CHECK" ]; then
 	fi
 fi
 
+# --- Codegen 68000: el camino caliente no debe llamar a libgcc (__mulsi3/__divsi3) ---
+# Una operacion que deberia ser `muls.w`/`mulu.w` nativos convertida en llamada cuesta
+# ~50+ ciclos. Se omite si no hay compilador cruzado disponible.
+CODEGEN="$ROOT/tools/analyze/codegen-report.mjs"
+if [ -f "$CODEGEN" ] && command -v node >/dev/null 2>&1; then
+	CODEGEN_CXX="${AMIGA_BIN_PATH:-C:/Users/dvdjg/.vscode/extensions/bartmanabyss.amiga-debug-1.8.1/bin/win32}/opt/bin/m68k-amiga-elf-g++.exe"
+	if [ -f "$CODEGEN_CXX" ]; then
+		echo "== codegen (68000) =="
+		if ! node "$CODEGEN"; then
+			echo "codegen fallo: hay libcalls en el camino caliente." >&2
+			exit 1
+		fi
+	else
+		echo "codegen: sin compilador cruzado ($CODEGEN_CXX); se omite." >&2
+	fi
+fi
+
 MD="$REPORT_DIR/regression-report.md"
 {
 	echo "# Regression $TIMESTAMP"
