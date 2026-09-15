@@ -59,7 +59,7 @@ int main() {
 	math3d::Vec3 verts[4] = {{-96, -96, 1024}, {96, -96, 1024}, {96, 96, 1024}, {-96, 96, 1024}};
 	math3d::Face faces[2] = {{0, 1, 2}, {0, 2, 3}};
 	const math3d::MeshView mesh {Span<const math3d::Vec3>(verts, 4), Span<const math3d::Face>(faces, 2)};
-	const math3d::Mat3x3 model {}; // identidad
+	const math3d::Affine3 model = math3d::Affine3::identity();
 
 	// 2) Cara mirando a la camara ({0,0,2048}) -> 2 caras visibles rellenadas.
 	{
@@ -142,9 +142,8 @@ int main() {
 		math3d::Vec3 world[8];
 		math3d::FaceOrder order[12];
 		s16 sx[8], sy[8];
-		math3d::Mat3x3 m;
-		math3d::load_identity(m);
-		math3d::translate(m, 0, 0, 320);
+		math3d::Affine3 m = math3d::Affine3::identity();
+		m.t = eng::math::Vec<3, eng::math::q0> {{eng::math::q0 {0}, eng::math::q0 {0}, eng::math::q0 {320}}};
 		const auto color = [](u16) -> u8 { return 1; };
 		const u32 drawn = mesh_render_filled(cube, m, math3d::Vec3 {0, 0, 0}, 160, 32, 32,
 						     world, order, sx, sy, surf, color, false);

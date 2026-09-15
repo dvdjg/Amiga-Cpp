@@ -37,7 +37,7 @@ inline void project_perspective(const math3d::Vec3& v, s16 focal, s16 cx, s16 cy
 /// espacio objeto (mismo convenio que `mesh_painter_order`). `double_sided` para
 /// mallas abiertas (p. ej. suelos).
 template <typename ColorFn>
-inline u32 mesh_render_filled(const math3d::MeshView& mesh, const math3d::Mat3x3& model,
+inline u32 mesh_render_filled(const math3d::MeshView& mesh, const math3d::Affine3& model,
 			      const math3d::Vec3& camera, s16 focal, s16 cx, s16 cy,
 			      math3d::Vec3* world, math3d::FaceOrder* order,
 			      s16* sx, s16* sy, field::Surface& surface, ColorFn color_of,
@@ -69,7 +69,7 @@ inline u32 mesh_render_filled(const math3d::MeshView& mesh, const math3d::Mat3x3
 /// aristas compartidas se dibujan dos veces (barato y sin estado de aristas).
 /// Devuelve el número de caras procesadas. Buffers del llamador como en
 /// `mesh_render_filled`.
-inline u32 mesh_render_wire(const math3d::MeshView& mesh, const math3d::Mat3x3& model,
+inline u32 mesh_render_wire(const math3d::MeshView& mesh, const math3d::Affine3& model,
 			    const math3d::Vec3& camera, s16 focal, s16 cx, s16 cy,
 			    math3d::Vec3* world, math3d::FaceOrder* order,
 			    s16* sx, s16* sy, field::Surface& surface, u8 color,

@@ -38,7 +38,7 @@ struct MeshView {
 
 /// Transforma todos los vértices `in` con `m` hacia `out`. Procesa
 /// `min(in.size(), out.size())` elementos; no lee ni escribe fuera de rango.
-inline void mesh_transform(Span<const Vec3> in, const Mat3x3& m, Span<Vec3> out) {
+inline void mesh_transform(Span<const Vec3> in, const eng::math3d::Affine3& m, Span<Vec3> out) {
 	const u32 n = static_cast<u32>(in.size() < out.size() ? in.size() : out.size());
 	transform(m, out.data(), in.data(), n);
 }

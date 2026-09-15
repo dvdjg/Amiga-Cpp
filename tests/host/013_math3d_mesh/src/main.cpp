@@ -28,7 +28,7 @@ int main() {
 
 	// Transform identidad -> mismos vertices.
 	Vec3 world[6];
-	Mat3x3 id {};
+	Affine3 id = Affine3::identity();
 	mesh_transform(mesh.vertices, id, eng::Span<Vec3>(world, 6));
 	check(world[1].x == 10 && world[5].z == 50, "mesh_transform identidad");
 

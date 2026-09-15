@@ -1,18 +1,17 @@
 #pragma once
 
 /// \file math3d.hpp
-/// Matemática 3D en **fixed-point 4.12** (port de `lib3d` de demoscene-repo-orig).
+/// Especialización **para gráficos de Amiga** de la librería genérica
+/// (`eng/core/linalg.hpp`): rotaciones construidas con la tabla de seno 4.12 y los
+/// tipos concretos que usan los efectos (`Mat3` = `Mat<3,q12>`, `Affine3` =
+/// `Affine<3,q12,q0>`, `Vec3` en crudo). La aritmética de matrices vive en `eng::math`;
+/// aquí sólo queda lo que depende del **formato 4.12** (los senos) o del chipset.
 ///
-/// Porta la parte pura de `lib3d`: matrices 3×3 + traslación (`Matrix3D`),
-/// rotaciones compuestas `Rx·Ry·Rz` (`LoadRotate3D`) y su inversa
-/// (`LoadReverseRotate3D`), composición y transformación de puntos. Reutiliza el
-/// formato 4.12 y la tabla de seno de `math2d` (no duplica).
-///
-/// Convención idéntica al origen: `out = M·v + t` con la parte lineal en 4.12. La
-/// composición (`compose`) suma las traslaciones (como el `Compose3D` original);
-/// válido para rotaciones o cuando el llamador gestiona la posición aparte.
+/// Convención: `out = M·v + t` con la parte lineal en 4.12 (RATIO) y la traslación en
+/// LONGITUD. Eso es exactamente `Affine<3, q12, q0>`.
 
 #include <eng/core/fixed.hpp>
+#include <eng/core/linalg.hpp>
 #include <eng/core/math2d.hpp>
 #include <eng/core/types.hpp>
 
@@ -20,123 +19,92 @@ namespace eng::math3d {
 
 using math2d::cos_q12;
 using math2d::fix;
-using math2d::kOne;
-using math2d::normfx;
 using math2d::sin_q12;
 
-/// Frontera cruda <-> tipo: los campos de Mat3x3 son s16; el calculo va en q12.
-constexpr eng::math::q12 q(fix x) { return eng::math::q12 {x}; }
+/// Matriz lineal 3×3 de ratios en 4.12.
+using Mat3 = eng::math::Mat<3, eng::math::q12>;
+/// Transformación afín completa: lineal (RATIO 4.12) + traslación (LONGITUD entera).
+using Affine3 = eng::math::Affine<3, eng::math::q12, eng::math::q0>;
 
-/// Punto/vector 3D (mismos campos que `Point3D`).
+/// Punto/vector 3D crudo (mismos campos que `Point3D`). Es un tipo de datos del
+/// chipset/del mesh; la aritmética de matrices lo cruza con `q0`/`q12` explícitamente.
 struct Vec3 {
 	s16 x = 0;
 	s16 y = 0;
 	s16 z = 0;
 };
 
-/// Matriz 3×3 + traslación, en 4.12 (mismos campos que `Matrix3D`).
-struct Mat3x3 {
-	fix m00 = kOne; fix m01 = 0; fix m02 = 0; fix x = 0;
-	fix m10 = 0; fix m11 = kOne; fix m12 = 0; fix y = 0;
-	fix m20 = 0; fix m21 = 0; fix m22 = kOne; fix z = 0;
-};
-
-/// Identidad.
-constexpr void load_identity(Mat3x3& m) {
-	m = Mat3x3 {};
-}
-
-/// Suma una traslación.
-constexpr void translate(Mat3x3& m, s16 x, s16 y, s16 z) {
-	m.x = static_cast<fix>(m.x + x);
-	m.y = static_cast<fix>(m.y + y);
-	m.z = static_cast<fix>(m.z + z);
-}
-
-/// Escala la parte lineal (factores en 4.12).
-inline void scale(Mat3x3& m, fix sx, fix sy, fix sz) {
-	m.m00 = eng::math::dot(q(m.m00), q(sx)).v;
-	m.m01 = eng::math::dot(q(m.m01), q(sy)).v;
-	m.m02 = eng::math::dot(q(m.m02), q(sz)).v;
-	m.m10 = eng::math::dot(q(m.m10), q(sx)).v;
-	m.m11 = eng::math::dot(q(m.m11), q(sy)).v;
-	m.m12 = eng::math::dot(q(m.m12), q(sz)).v;
-	m.m20 = eng::math::dot(q(m.m20), q(sx)).v;
-	m.m21 = eng::math::dot(q(m.m21), q(sy)).v;
-	m.m22 = eng::math::dot(q(m.m22), q(sz)).v;
-}
-
 /// Carga `M = Rx(ax)·Ry(ay)·Rz(az)` (igual que `LoadRotate3D`).
-inline void load_rotate(Mat3x3& m, u16 ax, u16 ay, u16 az) {
+inline void load_rotate(Mat3& m, u16 ax, u16 ay, u16 az) {
+	using eng::math::q12;
 	const fix sinX = sin_q12(ax), cosX = cos_q12(ax);
 	const fix sinY = sin_q12(ay), cosY = cos_q12(ay);
 	const fix sinZ = sin_q12(az), cosZ = cos_q12(az);
 
-	const fix tmp0 = eng::math::dot(q(sinY), q(cosZ)).v;
-	const fix tmp1 = eng::math::dot(q(sinY), q(sinZ)).v;
+	const fix tmp0 = eng::math::dot(q12 {sinY}, q12 {cosZ}).v;
+	const fix tmp1 = eng::math::dot(q12 {sinY}, q12 {sinZ}).v;
 
-	m.m00 = eng::math::dot(q(cosY), q(cosZ)).v;
-	m.m01 = (-eng::math::dot(q(cosY), q(sinZ))).v;
-	m.m02 = sinY;
-	m.x = 0;
-	m.m10 = eng::math::dot(q(cosX), q(sinZ), q(sinX), q(tmp0)).v;
-	m.m11 = eng::math::dot(q(cosX), q(cosZ), -q(sinX), q(tmp1)).v;
-	m.m12 = (-eng::math::dot(q(sinX), q(cosY))).v;
-	m.y = 0;
-	m.m20 = eng::math::dot(q(sinX), q(sinZ), -q(cosX), q(tmp0)).v;
-	m.m21 = eng::math::dot(q(sinX), q(cosZ), q(cosX), q(tmp1)).v;
-	m.m22 = eng::math::dot(q(cosX), q(cosY)).v;
-	m.z = 0;
+	m.m[0][0] = eng::math::dot(q12 {cosY}, q12 {cosZ});
+	m.m[0][1] = -eng::math::dot(q12 {cosY}, q12 {sinZ});
+	m.m[0][2] = q12 {sinY};
+	m.m[1][0] = eng::math::dot(q12 {cosX}, q12 {sinZ}, q12 {sinX}, q12 {tmp0});
+	m.m[1][1] = eng::math::dot(q12 {cosX}, q12 {cosZ}, -q12 {sinX}, q12 {tmp1});
+	m.m[1][2] = -eng::math::dot(q12 {sinX}, q12 {cosY});
+	m.m[2][0] = eng::math::dot(q12 {sinX}, q12 {sinZ}, -q12 {cosX}, q12 {tmp0});
+	m.m[2][1] = eng::math::dot(q12 {sinX}, q12 {cosZ}, q12 {cosX}, q12 {tmp1});
+	m.m[2][2] = eng::math::dot(q12 {cosX}, q12 {cosY});
 }
 
 /// Carga `M = Rz(az)·Ry(ay)·Rx(ax)` (igual que `LoadReverseRotate3D`).
-inline void load_reverse_rotate(Mat3x3& m, u16 ax, u16 ay, u16 az) {
+inline void load_reverse_rotate(Mat3& m, u16 ax, u16 ay, u16 az) {
+	using eng::math::q12;
 	const fix sinX = sin_q12(ax), cosX = cos_q12(ax);
 	const fix sinY = sin_q12(ay), cosY = cos_q12(ay);
 	const fix sinZ = sin_q12(az), cosZ = cos_q12(az);
 
-	const fix tmp0 = eng::math::dot(q(sinX), q(sinY)).v;
-	const fix tmp1 = eng::math::dot(q(cosX), q(sinY)).v;
+	const fix tmp0 = eng::math::dot(q12 {sinX}, q12 {sinY}).v;
+	const fix tmp1 = eng::math::dot(q12 {cosX}, q12 {sinY}).v;
 
-	m.m00 = eng::math::dot(q(cosY), q(cosZ)).v;
-	m.m01 = eng::math::dot(q(tmp0), q(cosZ), -q(cosX), q(sinZ)).v;
-	m.m02 = eng::math::dot(q(tmp1), q(cosZ), q(sinX), q(sinZ)).v;
-	m.x = 0;
-	m.m10 = eng::math::dot(q(cosY), q(sinZ)).v;
-	m.m11 = eng::math::dot(q(tmp0), q(sinZ), q(cosX), q(cosZ)).v;
-	m.m12 = eng::math::dot(q(tmp1), q(sinZ), -q(sinX), q(cosZ)).v;
-	m.y = 0;
-	m.m20 = static_cast<fix>(-sinY);
-	m.m21 = eng::math::dot(q(sinX), q(cosY)).v;
-	m.m22 = eng::math::dot(q(cosX), q(cosY)).v;
-	m.z = 0;
+	m.m[0][0] = eng::math::dot(q12 {cosY}, q12 {cosZ});
+	m.m[0][1] = eng::math::dot(q12 {tmp0}, q12 {cosZ}, -q12 {cosX}, q12 {sinZ});
+	m.m[0][2] = eng::math::dot(q12 {tmp1}, q12 {cosZ}, q12 {sinX}, q12 {sinZ});
+	m.m[1][0] = eng::math::dot(q12 {cosY}, q12 {sinZ});
+	m.m[1][1] = eng::math::dot(q12 {tmp0}, q12 {sinZ}, q12 {cosX}, q12 {cosZ});
+	m.m[1][2] = eng::math::dot(q12 {tmp1}, q12 {sinZ}, -q12 {sinX}, q12 {cosZ});
+	m.m[2][0] = -q12 {sinY};
+	m.m[2][1] = eng::math::dot(q12 {sinX}, q12 {cosY});
+	m.m[2][2] = eng::math::dot(q12 {cosX}, q12 {cosY});
 }
 
-/// Composición `d = a·b` (igual que `Compose3D`: la traslación se suma).
-inline Mat3x3 compose(const Mat3x3& a, const Mat3x3& b) {
-	Mat3x3 d {};
-	d.m00 = eng::math::dot(q(a.m00), q(b.m00), q(a.m01), q(b.m10), q(a.m02), q(b.m20)).v;
-	d.m01 = eng::math::dot(q(a.m00), q(b.m01), q(a.m01), q(b.m11), q(a.m02), q(b.m21)).v;
-	d.m02 = eng::math::dot(q(a.m00), q(b.m02), q(a.m01), q(b.m12), q(a.m02), q(b.m22)).v;
-	d.x = static_cast<fix>(a.x + b.x);
-	d.m10 = eng::math::dot(q(a.m10), q(b.m00), q(a.m11), q(b.m10), q(a.m12), q(b.m20)).v;
-	d.m11 = eng::math::dot(q(a.m10), q(b.m01), q(a.m11), q(b.m11), q(a.m12), q(b.m21)).v;
-	d.m12 = eng::math::dot(q(a.m10), q(b.m02), q(a.m11), q(b.m12), q(a.m12), q(b.m22)).v;
-	d.y = static_cast<fix>(a.y + b.y);
-	d.m20 = eng::math::dot(q(a.m20), q(b.m00), q(a.m21), q(b.m10), q(a.m22), q(b.m20)).v;
-	d.m21 = eng::math::dot(q(a.m20), q(b.m01), q(a.m21), q(b.m11), q(a.m22), q(b.m21)).v;
-	d.m22 = eng::math::dot(q(a.m20), q(b.m02), q(a.m21), q(b.m12), q(a.m22), q(b.m22)).v;
-	d.z = static_cast<fix>(a.z + b.z);
-	return d;
+/// Escala la parte lineal in situ (factores en 4.12).
+inline void scale(Mat3& m, fix sx, fix sy, fix sz) {
+	const eng::math::q12 fx {sx}, fy {sy}, fz {sz};
+	for (int i = 0; i < 3; ++i) {
+		m.m[i][0] = (m.m[i][0] * fx).norm<12>().narrow<s16>();
+		m.m[i][1] = (m.m[i][1] * fy).norm<12>().narrow<s16>();
+		m.m[i][2] = (m.m[i][2] * fz).norm<12>().narrow<s16>();
+	}
 }
 
-/// Aplica `m` a `n` puntos (igual que `Transform3D`): `out = M·in + traslación`.
-inline void transform(const Mat3x3& m, Vec3* out, const Vec3* in, u32 n) {
+/// `out = M·in` (sin traslación). Los vértices son LONGITUDES (`q0`).
+inline void transform(const Mat3& m, Vec3* out, const Vec3* in, u32 n) {
+	const eng::math::q0 zero {};
 	for (u32 i = 0; i < n; ++i) {
-		const s16 x = in[i].x, y = in[i].y, z = in[i].z;
-		out[i].x = static_cast<s16>(normfx(static_cast<s32>(m.m00) * x + static_cast<s32>(m.m01) * y + static_cast<s32>(m.m02) * z) + m.x);
-		out[i].y = static_cast<s16>(normfx(static_cast<s32>(m.m10) * x + static_cast<s32>(m.m11) * y + static_cast<s32>(m.m12) * z) + m.y);
-		out[i].z = static_cast<s16>(normfx(static_cast<s32>(m.m20) * x + static_cast<s32>(m.m21) * y + static_cast<s32>(m.m22) * z) + m.z);
+		const eng::math::q0 x {in[i].x}, y {in[i].y}, z {in[i].z};
+		out[i].x = eng::math::dot(m.m[0][0], x, m.m[0][1], y, m.m[0][2], z).v;
+		out[i].y = eng::math::dot(m.m[1][0], x, m.m[1][1], y, m.m[1][2], z).v;
+		out[i].z = eng::math::dot(m.m[2][0], x, m.m[2][1], y, m.m[2][2], z).v;
+	}
+	(void)zero;
+}
+
+/// `out = M·in + t` (afín). Es lo que usa el mesh: su "model" lleva traslación.
+inline void transform(const Affine3& a, Vec3* out, const Vec3* in, u32 n) {
+	for (u32 i = 0; i < n; ++i) {
+		const eng::math::q0 x {in[i].x}, y {in[i].y}, z {in[i].z};
+		out[i].x = eng::math::dot(a.m.m[0][0], x, a.m.m[0][1], y, a.m.m[0][2], z).v + a.t.v[0].v;
+		out[i].y = eng::math::dot(a.m.m[1][0], x, a.m.m[1][1], y, a.m.m[1][2], z).v + a.t.v[1].v;
+		out[i].z = eng::math::dot(a.m.m[2][0], x, a.m.m[2][1], y, a.m.m[2][2], z).v + a.t.v[2].v;
 	}
 }
 

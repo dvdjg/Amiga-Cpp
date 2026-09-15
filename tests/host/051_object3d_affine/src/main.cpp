@@ -89,14 +89,14 @@ int main() {
 		eng::object3d::update_object_transformation(o);
 		const NewTransform n = new_update(static_cast<s16>(a), static_cast<s16>(a), static_cast<s16>(a), 4096, 4096,
 						  4096, 0, 0, -4000);
-		cmp("o2w.m00", o.objectToWorld.m00, n.o2w.m.m[0][0].v);
-		cmp("o2w.m11", o.objectToWorld.m11, n.o2w.m.m[1][1].v);
-		cmp("o2w.m22", o.objectToWorld.m22, n.o2w.m.m[2][2].v);
-		cmp("o2w.x", o.objectToWorld.x, n.o2w.t.v[0].v);
-		cmp("o2w.z", o.objectToWorld.z, n.o2w.t.v[2].v);
-		cmp("w2o.m00", o.worldToObject.m00, n.w2o.m.m[0][0].v);
-		cmp("w2o.m12", o.worldToObject.m12, n.w2o.m.m[1][2].v);
-		cmp("w2o.y", o.worldToObject.y, n.w2o.t.v[1].v);
+		cmp("o2w.m00", o.objectToWorld.m.m[0][0].v, n.o2w.m.m[0][0].v);
+		cmp("o2w.m11", o.objectToWorld.m.m[1][1].v, n.o2w.m.m[1][1].v);
+		cmp("o2w.m22", o.objectToWorld.m.m[2][2].v, n.o2w.m.m[2][2].v);
+		cmp("o2w.x", o.objectToWorld.t.v[0].v, n.o2w.t.v[0].v);
+		cmp("o2w.z", o.objectToWorld.t.v[2].v, n.o2w.t.v[2].v);
+		cmp("w2o.m00", o.worldToObject.m.m[0][0].v, n.w2o.m.m[0][0].v);
+		cmp("w2o.m12", o.worldToObject.m.m[1][2].v, n.w2o.m.m[1][2].v);
+		cmp("w2o.y", o.worldToObject.t.v[1].v, n.w2o.t.v[1].v);
 		cmp("cam.x", o.camera.x, n.camera.v[0].v);
 		cmp("cam.y", o.camera.y, n.camera.v[1].v);
 		cmp("cam.z", o.camera.z, n.camera.v[2].v);

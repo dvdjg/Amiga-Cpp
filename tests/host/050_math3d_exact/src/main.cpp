@@ -66,34 +66,34 @@ int main() {
 	// Los 4096 ángulos, con los tres ejes iguales (el caso de la demo) y con ejes
 	// distintos, para load_rotate y load_reverse_rotate.
 	for (u16 a = 0; a < 4096; ++a) {
-		eng::math3d::Mat3x3 o {};
+		eng::math3d::Mat3 o {};
 		eng::math3d::load_rotate(o, a, a, a);
 		const Mat<3, q12> n = new_load_rotate(a, a, a);
-		cmp("load_rotate", o.m00, n.m[0][0].v, a, "m00");
-		cmp("load_rotate", o.m01, n.m[0][1].v, a, "m01");
-		cmp("load_rotate", o.m02, n.m[0][2].v, a, "m02");
-		cmp("load_rotate", o.m10, n.m[1][0].v, a, "m10");
-		cmp("load_rotate", o.m11, n.m[1][1].v, a, "m11");
-		cmp("load_rotate", o.m12, n.m[1][2].v, a, "m12");
-		cmp("load_rotate", o.m20, n.m[2][0].v, a, "m20");
-		cmp("load_rotate", o.m21, n.m[2][1].v, a, "m21");
-		cmp("load_rotate", o.m22, n.m[2][2].v, a, "m22");
+		cmp("load_rotate", o.m[0][0].v, n.m[0][0].v, a, "m00");
+		cmp("load_rotate", o.m[0][1].v, n.m[0][1].v, a, "m01");
+		cmp("load_rotate", o.m[0][2].v, n.m[0][2].v, a, "m02");
+		cmp("load_rotate", o.m[1][0].v, n.m[1][0].v, a, "m10");
+		cmp("load_rotate", o.m[1][1].v, n.m[1][1].v, a, "m11");
+		cmp("load_rotate", o.m[1][2].v, n.m[1][2].v, a, "m12");
+		cmp("load_rotate", o.m[2][0].v, n.m[2][0].v, a, "m20");
+		cmp("load_rotate", o.m[2][1].v, n.m[2][1].v, a, "m21");
+		cmp("load_rotate", o.m[2][2].v, n.m[2][2].v, a, "m22");
 
 		const u16 ax = static_cast<u16>(a * 3u);
 		const u16 ay = static_cast<u16>(a * 7u);
 		const u16 az = static_cast<u16>(a * 11u);
-		eng::math3d::Mat3x3 o2 {};
+		eng::math3d::Mat3 o2 {};
 		eng::math3d::load_reverse_rotate(o2, ax, ay, az);
 		const Mat<3, q12> n2 = new_load_reverse_rotate(ax, ay, az);
-		cmp("reverse", o2.m00, n2.m[0][0].v, a, "m00");
-		cmp("reverse", o2.m01, n2.m[0][1].v, a, "m01");
-		cmp("reverse", o2.m02, n2.m[0][2].v, a, "m02");
-		cmp("reverse", o2.m10, n2.m[1][0].v, a, "m10");
-		cmp("reverse", o2.m11, n2.m[1][1].v, a, "m11");
-		cmp("reverse", o2.m12, n2.m[1][2].v, a, "m12");
-		cmp("reverse", o2.m20, n2.m[2][0].v, a, "m20");
-		cmp("reverse", o2.m21, n2.m[2][1].v, a, "m21");
-		cmp("reverse", o2.m22, n2.m[2][2].v, a, "m22");
+		cmp("reverse", o2.m[0][0].v, n2.m[0][0].v, a, "m00");
+		cmp("reverse", o2.m[0][1].v, n2.m[0][1].v, a, "m01");
+		cmp("reverse", o2.m[0][2].v, n2.m[0][2].v, a, "m02");
+		cmp("reverse", o2.m[1][0].v, n2.m[1][0].v, a, "m10");
+		cmp("reverse", o2.m[1][1].v, n2.m[1][1].v, a, "m11");
+		cmp("reverse", o2.m[1][2].v, n2.m[1][2].v, a, "m12");
+		cmp("reverse", o2.m[2][0].v, n2.m[2][0].v, a, "m20");
+		cmp("reverse", o2.m[2][1].v, n2.m[2][1].v, a, "m21");
+		cmp("reverse", o2.m[2][2].v, n2.m[2][2].v, a, "m22");
 	}
 
 	if (mismatches == 0) {

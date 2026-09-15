@@ -230,16 +230,16 @@ namespace detail {
 /// + 2 `divs.w` más la carga de la matriz). En asm el ideal es la matriz en
 /// registros y un `muls.w`/`divs.w` por operación, sin recargar `objdat`.
 inline void transform_vertices(Object3D& object, s16 half_w, s16 half_h, s16 bbox[4]) {
-	math3d::Mat3x3& M = object.objectToWorld;
+	math3d::Affine3& M = object.objectToWorld;
 	void* objdat = object.objdat;
 	s16* group = object.vertexGroups;
 
 	// m0/m1 son el termino `xy` de `MULVERTEX1` preescalado por 256 (16.8): el
 	// macro le resta `xy` a un producto 8.24 y hace `>> 4` para volver a 4.12.
 	// Se pasa a `mul16` (no `(s32)*(s16)`) para forzar `muls.w` y evitar `__mulsi3`.
-	s32 m0 = (static_cast<s32>(M.x) - math2d::normfx(math2d::mul16(M.m00, M.m01))) << 8;
-	s32 m1 = (static_cast<s32>(M.y) - math2d::normfx(math2d::mul16(M.m10, M.m11))) << 8;
-	M.z = static_cast<s16>(M.z - math2d::normfx(math2d::mul16(M.m20, M.m21)));
+	s32 m0 = (static_cast<s32>(M.t.v[0].v) - math2d::normfx(math2d::mul16(M.m.m[0][0].v, M.m.m[0][1].v))) << 8;
+	s32 m1 = (static_cast<s32>(M.t.v[1].v) - math2d::normfx(math2d::mul16(M.m.m[1][0].v, M.m.m[1][1].v))) << 8;
+	M.t.v[2] = eng::math::q0 {static_cast<s16>(M.t.v[2].v - math2d::normfx(math2d::mul16(M.m.m[2][0].v, M.m.m[2][1].v)))};
 
 	bbox[0] = 32767; bbox[1] = -32768; bbox[2] = 32767; bbox[3] = -32768;
 	do {
@@ -257,9 +257,9 @@ inline void transform_vertices(Object3D& object, s16 half_w, s16 half_h, s16 bbo
 				z = *pt++;
 				xy = math2d::mul16(x, y);
 
-				ENG_LIB3D_MULVERTEX1(xp, m0, M.m00, M.m01, M.m02);
-				ENG_LIB3D_MULVERTEX1(yp, m1, M.m10, M.m11, M.m12);
-				ENG_LIB3D_MULVERTEX2(zp, M.m20, M.m21, M.m22, M.z);
+				ENG_LIB3D_MULVERTEX1(xp, m0, M.m.m[0][0].v, M.m.m[0][1].v, M.m.m[0][2].v);
+				ENG_LIB3D_MULVERTEX1(yp, m1, M.m.m[1][0].v, M.m.m[1][1].v, M.m.m[1][2].v);
+				ENG_LIB3D_MULVERTEX2(zp, M.m.m[2][0].v, M.m.m[2][1].v, M.m.m[2][2].v, M.t.v[2].v);
 
 				const s16 sx = static_cast<s16>(math2d::div16(xp, zp) + half_w);
 				const s16 sy = static_cast<s16>(math2d::div16(yp, zp) + half_h);
