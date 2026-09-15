@@ -25,13 +25,38 @@ namespace eng::math {
 //  Rasgos del escalar (lo único que el álgebra lineal necesita saber de S)
 // ============================================================================
 
-/// `trivial = false`: los productos suman exponentes y hay que normalizar de vuelta.
+/// Rasgos de un escalar. La plantilla **primaria** da un comportamiento por defecto
+/// válido para cualquier tipo "cuerpo" (float, doble, un complejo, un racional…): usa
+/// su `+`, `*` y sus constructores. Un escalar fixed-point define su propia
+/// especialización porque el producto cambia de exponente y hay que normalizar.
+///
+/// Para añadir un escalar nuevo basta con: (1) darle `+`, `-`, `*`, un cero y un uno
+/// construibles; (2) especializar `scalar_traits` sólo si necesita algo distinto del
+/// comportamiento por defecto (normalización, promoción, etc.).
 template <typename S>
-struct scalar_traits;
+struct scalar_traits {
+	using scalar = S;
+	/// Producto interno de dos componentes (para `dot`). Por defecto, el producto del
+	/// cuerpo; un espacio con producto interno distinto (p. ej. complejo con conjugado)
+	/// lo redefine aquí.
+	static constexpr S inner(S a, S b) { return a * b; }
+	static constexpr S zero() { return S {}; }
+	static constexpr S one() { return S {1}; }
+	/// Los productos ya viven en el mismo espacio: no hay que normalizar.
+	template <typename Prod>
+	static constexpr S norm_from(Prod p) {
+		return static_cast<S>(p);
+	}
+	static constexpr bool needs_normalize = false;
+};
 
 template <typename R, int E, typename P>
 struct scalar_traits<Fixed<R, E, P>> {
 	using scalar = Fixed<R, E, P>;
+
+	/// Producto INTERNO crudo (sin normalizar): el dot acumula estos y normaliza una
+	/// vez, que es lo preciso.
+	static constexpr auto inner(scalar a, scalar b) { return a * b; }
 
 	static constexpr scalar zero() { return scalar {0}; }
 	static constexpr scalar one() { return scalar {static_cast<R>(static_cast<R>(1) << E)}; }
@@ -50,6 +75,8 @@ struct scalar_traits<Fixed<R, E, P>> {
 template <>
 struct scalar_traits<float> {
 	using scalar = float;
+
+	static constexpr float inner(float a, float b) { return a * b; }
 
 	static constexpr float zero() { return 0.0f; }
 	static constexpr float one() { return 1.0f; }
@@ -96,9 +123,10 @@ template <int N, typename S>
 /// Producto escalar: acumula los productos EXACTOS y normaliza UNA vez al escalar.
 template <int N, typename S>
 [[nodiscard]] constexpr S dot(const Vec<N, S>& a, const Vec<N, S>& b) {
-	auto acc = a.v[0] * b.v[0];
-	for (int k = 1; k < N; ++k) acc = acc + a.v[k] * b.v[k];
-	return scalar_traits<S>::norm_from(acc);
+	using T = scalar_traits<S>;
+	auto acc = T::inner(a.v[0], b.v[0]); // el producto INTERNO lo define el escalar
+	for (int k = 1; k < N; ++k) acc = acc + T::inner(a.v[k], b.v[k]);
+	return T::norm_from(acc);
 }
 
 // ============================================================================
