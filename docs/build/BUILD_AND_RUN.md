@@ -42,6 +42,17 @@ Clasifica cada demo en `OK` / `ASSET` (falta un asset generado en `out/`, p. ej.
 de audio o un header del pipeline de tiles) / `FAIL` (rotura de codigo). Devuelve 1 si hay
 `FAIL`; con `--strict` tambien si hay `ASSET`. Detalle en `out/tmp/build-all.log`.
 
+La regresion puede incluir el barrido estricto con `--build-all`:
+
+```bash
+bash ./tools/test-regression.sh --build-all                 # barrido --strict y luego la regresion
+bash ./tools/test-regression.sh --build-all --demo demos/amiga/101_ehb_tile_scroll_driver
+```
+
+Las demos 201 y 202 se autogeneran los assets en `src/prebuild.sh` (como la 078), asi que el
+barrido limpio las deja en `OK` sin pasos manuales. Las demos de audio (072-076) siguen
+dependiendo de WAVs no versionados (ver `tools/audio/README.md`) y salen `ASSET` hasta aportarlos.
+
 ## Hook de assets (`src/prebuild.sh`)
 
 Si la demo incluye `src/prebuild.sh`, `tools/build/build-demo.sh` lo ejecuta **antes de compilar** (con cwd = raíz del repo). Es el gancho para regenerar assets derivados de forma reproducible, por ejemplo un blob UAF-R que luego se incbina:
