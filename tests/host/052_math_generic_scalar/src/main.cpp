@@ -5,6 +5,7 @@
 #include <eng/core/math2d.hpp>
 
 #include <cstdio>
+#include <eng/retro/fixed_q.hpp>
 
 // (1) Escalar de USUARIO: complejo de dos fix. La librería no sabe nada de él.
 struct Cpx {
@@ -42,6 +43,7 @@ struct scalar_traits<Cpx> {
 } // namespace eng::math
 
 using namespace eng::math;
+using namespace eng::retro;
 using eng::s16;
 
 int main() {

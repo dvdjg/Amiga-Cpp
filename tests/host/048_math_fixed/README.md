@@ -18,8 +18,8 @@ const q0  p {10};             // coordenada 10
 
 ```cpp
 a * a                    -> Fixed<s32, 24>   // exponentes SUMAN, representacion ensancha
-(a * a).norm<12>()       -> Fixed<s32, 12>   // un solo desplazamiento
-(a * a).norm<12>().narrow<s16>() -> q12      // y de vuelta a 16 bits
+(a * a).rescale<12>()       -> Fixed<s32, 12>   // un solo desplazamiento
+(a * a).rescale<12>().cast<s16>() -> q12      // y de vuelta a 16 bits
 a + a                    -> q12              // mismo exponente
 a + p                    -> ERROR            // 4.12 + entero NO compila
 from_int<s16>(3)         -> q0               // conversion explicita

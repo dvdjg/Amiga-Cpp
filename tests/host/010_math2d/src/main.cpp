@@ -4,6 +4,8 @@
 #include <eng/core/math2d.hpp>
 
 #include <cstdio>
+#include <eng/retro/fixed_q.hpp>
+using namespace eng::retro;
 
 using namespace eng::math2d;
 

@@ -19,12 +19,15 @@
 ///     normalizar). `4.12 * 4.12 -> 8.24`; sin el ensanchado, `s16 * s16` desborda.
 ///   - **Sumar/restar** exige MISMO exponente, representación y política: mezclar 4.12
 ///     con un entero **no compila**. La mezcla, si hace falta, es explícita
-///     (`norm`, `from_int`, `retag`). El error no es un «no matching function» opaco:
+///     (`rescale`, `from_int`, `retag`). El error no es un «no matching function» opaco:
 ///     hay sobrecargas que sólo existen para disparar un `static_assert` que explica la
 ///     conversión (comprobado por `tools/check/math-diagnostics.sh`).
-///   - **Normalizar** (`norm<Edst>`) aplica la política de redondeo; acumular en el
-///     exponente del producto y normalizar UNA vez es lo más preciso y lo que ya hace
+///   - **Reescalar** (`rescale<Exp>`) aplica la política de redondeo; acumular en el
+///     exponente del producto y reescalar UNA vez es lo más preciso y lo que ya hace
 ///     lib3d (`normfx(a*b + c*d)`).
+///
+/// Tres conversiones con nombres que no se pisan: `rescale<Exp>` (exponente),
+/// `cast<Repr>` (representación) y `retag<Policy>` (sólo política, sin coste).
 ///
 /// Coste (68000, verificado en el `.s`): `muls.w` nativo, `add.l` para las sumas y un
 /// único `asr.l` (o `add` + `asr` con redondeo) por normalización. Sin libcalls.
@@ -186,7 +189,7 @@ struct Fixed {
 
 	/// Mismo valor en otro exponente. Si baja, redondea con `Policy::Round`.
 	template <int Edst>
-	[[nodiscard]] constexpr Fixed<R, Edst, Policy> norm() const {
+	[[nodiscard]] constexpr Fixed<R, Edst, Policy> rescale() const {
 		if constexpr (Edst == Exp) {
 			return Fixed<R, Edst, Policy> {v};
 		} else if constexpr (Edst < Exp) {
@@ -196,9 +199,9 @@ struct Fixed {
 		}
 	}
 
-	/// Mismo exponente, otra representación. Aplica `Policy::Overflow`.
+	/// Mismo exponente, otra representación (`cast<Repr>`). Aplica `Policy::Overflow`.
 	template <typename R2>
-	[[nodiscard]] constexpr Fixed<R2, Exp, Policy> narrow() const {
+	[[nodiscard]] constexpr Fixed<R2, Exp, Policy> cast() const {
 		if constexpr (Policy::Overflow::kind == overflow::Saturate::kind) {
 			if (v > limits<R2>::max) return Fixed<R2, Exp, Policy> {limits<R2>::max};
 			if (v < limits<R2>::min) return Fixed<R2, Exp, Policy> {limits<R2>::min};
@@ -215,13 +218,6 @@ struct Fixed {
 	}
 };
 
-/// 4.12 (RATIO): parte lineal de una transformación, senos/cosenos.
-using q12 = Fixed<s16, 12>;
-/// Entero (LONGITUD): coordenadas de objeto/mundo.
-using q0 = Fixed<s16, 0>;
-/// 8.24: acumulador exacto de productos de 4.12.
-using q24 = Fixed<s32, 24>;
-
 /// Política alternativa: redondeo al más cercano (para etapas donde manda precisión).
 struct RoundPolicy {
 	using Round = rounding::HalfUp;
@@ -233,10 +229,8 @@ struct SaturatePolicy {
 	using Overflow = overflow::Saturate;
 };
 
-/// 4.12 con redondeo al más cercano.
-using q12_round = Fixed<s16, 12, RoundPolicy>;
-/// Mismo layout que `q12`, pero saturador.
-using q12_sat = Fixed<s16, 12, SaturatePolicy>;
+// Las convenciones Q (4.12/entero/8.24) NO viven aquí: son vocabulario de la
+// especialización retro (`eng/retro/fixed_q.hpp`), no del núcleo genérico.
 
 // ============================================================================
 //  Operaciones
@@ -283,7 +277,7 @@ operator+(Fixed<Ra, Ea, P>, Fixed<Rb, Eb, P>) {
 	static_assert(Ea == Eb,
 		      "eng::math::Fixed: no se pueden sumar/restar valores con distinto exponente "
 		      "(p. ej. 4.12 + entero). Convertirlos al mismo exponente de forma explicita "
-		      "con norm<Edst>() (baja/sube la fraccion) o from_int() para un entero.");
+		      "con rescale<Edst>() (baja/sube la fraccion) o from_int() para un entero.");
 	return {};
 }
 template <typename Ra, int Ea, typename Rb, int Eb, typename P>
@@ -293,7 +287,7 @@ operator-(Fixed<Ra, Ea, P>, Fixed<Rb, Eb, P>) {
 	static_assert(Ea == Eb,
 		      "eng::math::Fixed: no se pueden sumar/restar valores con distinto exponente "
 		      "(p. ej. 4.12 - entero). Convertirlos al mismo exponente de forma explicita "
-		      "con norm<Edst>() (baja/sube la fraccion) o from_int() para un entero.");
+		      "con rescale<Edst>() (baja/sube la fraccion) o from_int() para un entero.");
 	return {};
 }
 
@@ -306,14 +300,14 @@ template <typename R>
 /// Conversión explícita a entero, con la política del tipo.
 template <typename R, int E, typename P>
 [[nodiscard]] constexpr R to_int(Fixed<R, E, P> a) {
-	return static_cast<R>(a.template norm<0>().v);
+	return static_cast<R>(a.template rescale<0>().v);
 }
 
 /// Producto de dos escalares normalizado de vuelta al mismo escalar (un redondeo): la
 /// version de un solo termino del `dot` fusionado.
 template <typename R, int E, typename P>
 [[nodiscard]] constexpr Fixed<R, E, P> dot(Fixed<R, E, P> a, Fixed<R, E, P> b) {
-	return (a * b).template norm<E>().template narrow<R>();
+	return (a * b).template rescale<E>().template cast<R>();
 }
 
 /// Producto escalar de dos/tres pares con la normalización FUSIONADA: los productos
@@ -329,7 +323,7 @@ template <typename Ra, int Ea, typename Rb, int Eb, typename P>
 	const W p0 = a * b;
 	const W p1 = c * d;
 	const W acc {static_cast<WR>(p0.v + p1.v)};
-	return acc.template norm<Eb>().template narrow<Rb>();
+	return acc.template rescale<Eb>().template cast<Rb>();
 }
 template <typename Ra, int Ea, typename Rb, int Eb, typename P>
 [[nodiscard]] constexpr Fixed<Rb, Eb, P> dot(Fixed<Ra, Ea, P> a, Fixed<Rb, Eb, P> b,
@@ -341,7 +335,7 @@ template <typename Ra, int Ea, typename Rb, int Eb, typename P>
 	const W p1 = c * d;
 	const W p2 = e * f;
 	const W acc {static_cast<WR>(p0.v + p1.v + p2.v)};
-	return acc.template norm<Eb>().template narrow<Rb>();
+	return acc.template rescale<Eb>().template cast<Rb>();
 }
 
 /// Comparaciones (mismo tipo, exponente y política).
@@ -365,7 +359,7 @@ template <typename Ra, int Ea, typename Rb, int Eb, typename P>
 [[nodiscard]] constexpr bool operator==(Fixed<Ra, Ea, P>, Fixed<Rb, Eb, P>) {
 	static_assert(Ea == Eb,
 		      "eng::math::Fixed: comparar valores con distinto exponente (p. ej. 4.12 == "
-		      "entero) no esta permitido. Convertirlos explicitamente con norm<Edst>() o "
+		      "entero) no esta permitido. Convertirlos explicitamente con rescale<Edst>() o "
 		      "from_int().");
 	return false;
 }
@@ -374,7 +368,7 @@ template <typename Ra, int Ea, typename Rb, int Eb, typename P>
 [[nodiscard]] constexpr bool operator!=(Fixed<Ra, Ea, P>, Fixed<Rb, Eb, P>) {
 	static_assert(Ea == Eb,
 		      "eng::math::Fixed: comparar valores con distinto exponente (p. ej. 4.12 != "
-		      "entero) no esta permitido. Convertirlos explicitamente con norm<Edst>() o "
+		      "entero) no esta permitido. Convertirlos explicitamente con rescale<Edst>() o "
 		      "from_int().");
 	return false;
 }
@@ -383,7 +377,7 @@ template <typename Ra, int Ea, typename Rb, int Eb, typename P>
 [[nodiscard]] constexpr bool operator<(Fixed<Ra, Ea, P>, Fixed<Rb, Eb, P>) {
 	static_assert(Ea == Eb,
 		      "eng::math::Fixed: comparar valores con distinto exponente (p. ej. 4.12 < "
-		      "entero) no esta permitido. Convertirlos explicitamente con norm<Edst>() o "
+		      "entero) no esta permitido. Convertirlos explicitamente con rescale<Edst>() o "
 		      "from_int().");
 	return false;
 }

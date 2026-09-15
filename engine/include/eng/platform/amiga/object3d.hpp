@@ -19,6 +19,7 @@
 #include <eng/core/math2d.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/core/types.hpp>
+#include <eng/retro/fixed_q.hpp>
 
 namespace eng::object3d {
 
@@ -147,20 +148,20 @@ inline void update_object_transformation(Object3D& object) {
 		math3d::Affine3& a = object.objectToWorld;
 		math3d::load_rotate(a.m, static_cast<u16>(r.x), static_cast<u16>(r.y), static_cast<u16>(r.z));
 		math3d::scale(a.m, s.x, s.y, s.z);
-		a.t = eng::math::Vec<3, eng::math::q0> {{eng::math::q0 {t.x}, eng::math::q0 {t.y}, eng::math::q0 {t.z}}};
+		a.t = eng::math::Vec<3, eng::retro::q0> {{eng::retro::q0 {t.x}, eng::retro::q0 {t.y}, eng::retro::q0 {t.z}}};
 	}
 
 	// mundo -> objeto: T * S * Rz * Ry * Rx
 	{
 		math3d::Affine3 m_scale {};
 		m_scale.m = math3d::Mat3::identity();
-		m_scale.t = eng::math::Vec<3, eng::math::q0> {{eng::math::q0 {static_cast<s16>(-t.x)},
-			eng::math::q0 {static_cast<s16>(-t.y)}, eng::math::q0 {static_cast<s16>(-t.z)}}};
+		m_scale.t = eng::math::Vec<3, eng::retro::q0> {{eng::retro::q0 {static_cast<s16>(-t.x)},
+			eng::retro::q0 {static_cast<s16>(-t.y)}, eng::retro::q0 {static_cast<s16>(-t.z)}}};
 		// 1/s en 4.12: numerador 1.0 en 8.24 (`kOne8_24`) para que el cociente de
 		// `div16` (16 bits) quede ya en 4.12 sin normalizar.
-		m_scale.m.m[0][0] = eng::math::q12 {div16(math2d::kOne8_24, s.x)};
-		m_scale.m.m[1][1] = eng::math::q12 {div16(math2d::kOne8_24, s.y)};
-		m_scale.m.m[2][2] = eng::math::q12 {div16(math2d::kOne8_24, s.z)};
+		m_scale.m.m[0][0] = eng::retro::q12 {div16(math2d::kOne8_24, s.x)};
+		m_scale.m.m[1][1] = eng::retro::q12 {div16(math2d::kOne8_24, s.y)};
+		m_scale.m.m[2][2] = eng::retro::q12 {div16(math2d::kOne8_24, s.z)};
 
 		math3d::Mat3 m_rotate = math3d::Mat3::identity();
 		math3d::load_reverse_rotate(m_rotate, static_cast<u16>(-r.x), static_cast<u16>(-r.y),
@@ -171,9 +172,9 @@ inline void update_object_transformation(Object3D& object) {
 	// cámara en espacio objeto (la cámara está en (0,0,0) del mundo)
 	{
 		const math3d::Affine3& M = object.worldToObject;
-		const eng::math::q0 cx = M.t.v[0];
-		const eng::math::q0 cy = M.t.v[1];
-		const eng::math::q0 cz = M.t.v[2];
+		const eng::retro::q0 cx = M.t.v[0];
+		const eng::retro::q0 cy = M.t.v[1];
+		const eng::retro::q0 cz = M.t.v[2];
 		object.camera.x = eng::math::dot(M.m.m[0][0], cx, M.m.m[0][1], cy, M.m.m[0][2], cz).v;
 		object.camera.y = eng::math::dot(M.m.m[1][0], cx, M.m.m[1][1], cy, M.m.m[1][2], cz).v;
 		object.camera.z = eng::math::dot(M.m.m[2][0], cx, M.m.m[2][1], cy, M.m.m[2][2], cz).v;

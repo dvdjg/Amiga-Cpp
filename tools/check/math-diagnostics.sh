@@ -49,8 +49,9 @@ expect_ok() {
 }
 
 PRE='#include <eng/core/fixed.hpp>
-using eng::math::q12;
-using eng::math::q0;'
+#include <eng/retro/fixed_q.hpp>
+using eng::retro::q12;
+using eng::retro::q0;'
 
 expect_fail add_mismatch "distinto exponente" "$PRE
 void f() { q12 a {4096}; q0 b {3}; auto r = a + b; (void)r; }"
@@ -68,8 +69,8 @@ void f() {
 	q12 a {4096}, c {2048};
 	auto s = a + c;      // 4.12 + 4.12
 	auto p = a * c;      // 4.12 * 4.12 -> 8.24
-	auto d = a.norm<8>();                 // 4.12 -> 4.8 explicito
-	auto m = eng::math::from_int<eng::s16>(3) + eng::math::q0 {2};
+	auto d = a.rescale<8>();                 // 4.12 -> 4.8 explicito
+	auto m = eng::math::from_int<eng::s16>(3) + eng::retro::q0 {2};
 	(void)s; (void)p; (void)d; (void)m;
 }"
 

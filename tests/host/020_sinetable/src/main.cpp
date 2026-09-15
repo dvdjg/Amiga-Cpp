@@ -13,6 +13,8 @@
 #include <eng/core/math2d.hpp>
 #include <eng/core/sinetable.hpp>
 #include <eng/core/types.hpp>
+#include <eng/retro/fixed_q.hpp>
+using namespace eng::retro;
 
 namespace {
 using eng::s16;

@@ -16,6 +16,7 @@
 #include <eng/core/math2d.hpp>
 #include <eng/core/mesh3d.hpp>
 #include <eng/core/types.hpp>
+#include <eng/retro/fixed_q.hpp>
 
 namespace eng::math3d {
 
@@ -24,16 +25,16 @@ using math2d::fix;
 using math2d::sin_q12;
 
 /// Matriz lineal 3×3 de ratios en 4.12.
-using Mat3 = eng::math::Mat<3, eng::math::q12>;
+using Mat3 = eng::math::Mat<3, eng::retro::q12>;
 /// Transformación afín completa: lineal (RATIO 4.12) + traslación (LONGITUD entera).
-using Affine3 = eng::math::Affine<3, eng::math::q12, eng::math::q0>;
+using Affine3 = eng::math::Affine<3, eng::retro::q12, eng::retro::q0>;
 
 // `Vec3`, `Face` y el back-face culling son del MODELO de malla, no de este formato:
 // viven en `eng/core/mesh3d.hpp`. Aquí sólo queda lo que usa el 4.12.
 
 /// Carga `M = Rx(ax)·Ry(ay)·Rz(az)` (igual que `LoadRotate3D`).
 inline void load_rotate(Mat3& m, u16 ax, u16 ay, u16 az) {
-	using eng::math::q12;
+	using eng::retro::q12;
 	const fix sinX = sin_q12(ax), cosX = cos_q12(ax);
 	const fix sinY = sin_q12(ay), cosY = cos_q12(ay);
 	const fix sinZ = sin_q12(az), cosZ = cos_q12(az);
@@ -54,7 +55,7 @@ inline void load_rotate(Mat3& m, u16 ax, u16 ay, u16 az) {
 
 /// Carga `M = Rz(az)·Ry(ay)·Rx(ax)` (igual que `LoadReverseRotate3D`).
 inline void load_reverse_rotate(Mat3& m, u16 ax, u16 ay, u16 az) {
-	using eng::math::q12;
+	using eng::retro::q12;
 	const fix sinX = sin_q12(ax), cosX = cos_q12(ax);
 	const fix sinY = sin_q12(ay), cosY = cos_q12(ay);
 	const fix sinZ = sin_q12(az), cosZ = cos_q12(az);
@@ -75,19 +76,19 @@ inline void load_reverse_rotate(Mat3& m, u16 ax, u16 ay, u16 az) {
 
 /// Escala la parte lineal in situ (factores en 4.12).
 inline void scale(Mat3& m, fix sx, fix sy, fix sz) {
-	const eng::math::q12 fx {sx}, fy {sy}, fz {sz};
+	const eng::retro::q12 fx {sx}, fy {sy}, fz {sz};
 	for (int i = 0; i < 3; ++i) {
-		m.m[i][0] = (m.m[i][0] * fx).norm<12>().narrow<s16>();
-		m.m[i][1] = (m.m[i][1] * fy).norm<12>().narrow<s16>();
-		m.m[i][2] = (m.m[i][2] * fz).norm<12>().narrow<s16>();
+		m.m[i][0] = (m.m[i][0] * fx).rescale<12>().cast<s16>();
+		m.m[i][1] = (m.m[i][1] * fy).rescale<12>().cast<s16>();
+		m.m[i][2] = (m.m[i][2] * fz).rescale<12>().cast<s16>();
 	}
 }
 
 /// `out = M·in` (sin traslación). Los vértices son LONGITUDES (`q0`).
 inline void transform(const Mat3& m, Vec3* out, const Vec3* in, u32 n) {
-	const eng::math::q0 zero {};
+	const eng::retro::q0 zero {};
 	for (u32 i = 0; i < n; ++i) {
-		const eng::math::q0 x {in[i].x}, y {in[i].y}, z {in[i].z};
+		const eng::retro::q0 x {in[i].x}, y {in[i].y}, z {in[i].z};
 		out[i].x = eng::math::dot(m.m[0][0], x, m.m[0][1], y, m.m[0][2], z).v;
 		out[i].y = eng::math::dot(m.m[1][0], x, m.m[1][1], y, m.m[1][2], z).v;
 		out[i].z = eng::math::dot(m.m[2][0], x, m.m[2][1], y, m.m[2][2], z).v;
@@ -98,7 +99,7 @@ inline void transform(const Mat3& m, Vec3* out, const Vec3* in, u32 n) {
 /// `out = M·in + t` (afín). Es lo que usa el mesh: su "model" lleva traslación.
 inline void transform(const Affine3& a, Vec3* out, const Vec3* in, u32 n) {
 	for (u32 i = 0; i < n; ++i) {
-		const eng::math::q0 x {in[i].x}, y {in[i].y}, z {in[i].z};
+		const eng::retro::q0 x {in[i].x}, y {in[i].y}, z {in[i].z};
 		out[i].x = eng::math::dot(a.m.m[0][0], x, a.m.m[0][1], y, a.m.m[0][2], z).v + a.t.v[0].v;
 		out[i].y = eng::math::dot(a.m.m[1][0], x, a.m.m[1][1], y, a.m.m[1][2], z).v + a.t.v[1].v;
 		out[i].z = eng::math::dot(a.m.m[2][0], x, a.m.m[2][1], y, a.m.m[2][2], z).v + a.t.v[2].v;

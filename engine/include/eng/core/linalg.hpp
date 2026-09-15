@@ -61,12 +61,12 @@ struct scalar_traits<Fixed<R, E, P>> {
 	static constexpr scalar zero() { return scalar {0}; }
 	static constexpr scalar one() { return scalar {static_cast<R>(static_cast<R>(1) << E)}; }
 	static constexpr scalar from_int(int i) { return scalar {static_cast<R>(i) << E}; }
-	static constexpr int to_int(scalar a) { return static_cast<int>(a.template norm<0>().v); }
+	static constexpr int to_int(scalar a) { return static_cast<int>(a.template rescale<0>().v); }
 
 	/// Normaliza un producto (de cualquier exponente) a este escalar. Un redondeo.
 	template <typename Prod>
 	static constexpr scalar norm_from(Prod p) {
-		return p.template norm<E>().template narrow<R>();
+		return p.template rescale<E>().template cast<R>();
 	}
 
 	static constexpr bool needs_normalize = true;

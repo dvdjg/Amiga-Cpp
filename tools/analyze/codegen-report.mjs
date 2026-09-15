@@ -16,7 +16,9 @@ const ASM = `${ROOT}/out/tmp/codegen-probe.s`;
 
 const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/linalg.hpp>
+#include <eng/retro/fixed_q.hpp>
 using namespace eng::math;
+using namespace eng::retro;
 using eng::s16;
 using eng::s32;
 struct HalfEvenPolicy { using Round = rounding::HalfEven; using Overflow = overflow::Wrap; };
@@ -24,10 +26,10 @@ using q14 = Fixed<s16, 14>;
 
 extern "C" q24 c_mul_q12(s16 a, s16 b) { return q12{a} * q12{b}; }
 extern "C" Fixed<s32, 26> c_mul_mixed(s16 a, s16 b) { return q12{a} * q14{b}; } // 4.12*2.14 -> exp 26
-extern "C" s16 c_mul_mixed_narrow(s16 a, s16 b) { return (q12{a} * q14{b}).norm<12>().narrow<s16>().v; }
-extern "C" s16 c_norm_trunc(q24 a) { return a.norm<12>().narrow<s16>().v; }
-extern "C" s16 c_norm_halfup(q24 a) { return a.retag<RoundPolicy>().norm<12>().narrow<s16>().v; }
-extern "C" s16 c_norm_even(q24 a) { return a.retag<HalfEvenPolicy>().norm<12>().narrow<s16>().v; }
+extern "C" s16 c_mul_mixed_narrow(s16 a, s16 b) { return (q12{a} * q14{b}).rescale<12>().cast<s16>().v; }
+extern "C" s16 c_norm_trunc(q24 a) { return a.rescale<12>().cast<s16>().v; }
+extern "C" s16 c_norm_halfup(q24 a) { return a.retag<RoundPolicy>().rescale<12>().cast<s16>().v; }
+extern "C" s16 c_norm_even(q24 a) { return a.retag<HalfEvenPolicy>().rescale<12>().cast<s16>().v; }
 extern "C" q12 c_dot2(s16 a0,s16 b0,s16 c0,s16 d0){ return dot(q12{a0},q12{b0},q12{c0},q12{d0}); }
 extern "C" q12 c_dot3(s16 a0,s16 b0,s16 c0,s16 d0,s16 e0,s16 f0){ return dot(q12{a0},q12{b0},q12{c0},q12{d0},q12{e0},q12{f0}); }
 extern "C" void c_transform3(s16* out, const Mat<3,q12>* m, const Vec<3,q0>* t, const Vec<3,q0>* p) {

@@ -10,12 +10,14 @@
 /// (comprobado por HOST-053).
 
 #include <eng/core/affine.hpp>
+#include <eng/retro/fixed_q.hpp>
 
 namespace eng::math {
 
 template <>
-struct pack3_ops<q12, q0> {
-	[[nodiscard]] static s32 eval(q12 c0, q12 c1, q0 x, q0 y) {
+struct pack3_ops<eng::retro::q12, eng::retro::q0> {
+	[[nodiscard]] static s32 eval(eng::retro::q12 c0, eng::retro::q12 c1, eng::retro::q0 x,
+				      eng::retro::q0 y) {
 		const s16 t0 = static_cast<s16>(c0.v + y.v); // empaquetado (ver cabecera)
 		const s16 t1 = static_cast<s16>(c1.v + x.v);
 		return arith<s16>::mul(t0, t1) - arith<s16>::mul(x.v, y.v);

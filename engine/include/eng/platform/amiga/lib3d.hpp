@@ -44,6 +44,7 @@
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/platform/amiga/object3d.hpp>
 #include <eng/core/types.hpp>
+#include <eng/retro/fixed_q.hpp>
 
 namespace eng::lib3d {
 
@@ -146,8 +147,8 @@ inline void update_face_visibility(Object3D& object) {
 			// `q12*q0` da el mismo `muls.w` que `mul16`, con el formato explicito, y
 			// aqui NO se normaliza: el original usa la escala cruda para el signo y la
 			// magnitud² de la luz.
-			const eng::math::q12 nx {fn[0]}, ny {fn[1]}, nz {fn[2]};
-			const eng::math::q0 vx {px}, vy {py}, vz {pz};
+			const eng::retro::q12 nx {fn[0]}, ny {fn[1]}, nz {fn[2]};
+			const eng::retro::q0 vx {px}, vy {py}, vz {pz};
 			const s32 v = (nx * vx).v + (ny * vy).v + (nz * vz).v;
 			const s32 e1_sq = (vx * vx).v + (vy * vy).v + (vz * vz).v;
 			if (v >= 0) {

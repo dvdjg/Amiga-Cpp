@@ -6,8 +6,10 @@
 #include <eng/platform/amiga/gfx3d.hpp>
 
 #include <cstdio>
+#include <eng/retro/fixed_q.hpp>
 
 using namespace eng::math;
+using namespace eng::retro;
 using eng::u16;
 
 // --- Implementaciones NUEVAS, espejo de math3d::load_rotate / load_reverse_rotate ---

@@ -7,8 +7,10 @@
 #include <eng/platform/amiga/object3d.hpp>
 
 #include <cstdio>
+#include <eng/retro/fixed_q.hpp>
 
 using namespace eng::math;
+using namespace eng::retro;
 using eng::s16;
 using eng::u16;
 
@@ -51,9 +53,9 @@ static NewTransform new_update(s16 rx, s16 ry, s16 rz, s16 sx, s16 sy, s16 sz, s
 	Mat<3, q12> m = new_load_rotate(static_cast<u16>(rx), static_cast<u16>(ry), static_cast<u16>(rz));
 	const q12 sxs {sx}, sys {sy}, szs {sz};
 	for (int i = 0; i < 3; ++i) {
-		m.m[i][0] = (m.m[i][0] * sxs).norm<12>().narrow<s16>();
-		m.m[i][1] = (m.m[i][1] * sys).norm<12>().narrow<s16>();
-		m.m[i][2] = (m.m[i][2] * szs).norm<12>().narrow<s16>();
+		m.m[i][0] = (m.m[i][0] * sxs).rescale<12>().cast<s16>();
+		m.m[i][1] = (m.m[i][1] * sys).rescale<12>().cast<s16>();
+		m.m[i][2] = (m.m[i][2] * szs).rescale<12>().cast<s16>();
 	}
 	r.o2w.m = m;
 	r.o2w.t = Vec<3, q0> {{from_int<s16>(tx), from_int<s16>(ty), from_int<s16>(tz)}};

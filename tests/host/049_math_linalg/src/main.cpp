@@ -3,8 +3,10 @@
 #include <eng/core/linalg.hpp>
 
 #include <cstdio>
+#include <eng/retro/fixed_q.hpp>
 
 using namespace eng::math;
+using namespace eng::retro;
 using eng::s16;
 
 static int failures = 0;

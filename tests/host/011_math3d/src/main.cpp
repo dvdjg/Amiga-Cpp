@@ -3,11 +3,13 @@
 #include <eng/platform/amiga/gfx3d.hpp>
 
 #include <cstdio>
+#include <eng/retro/fixed_q.hpp>
 
 using namespace eng::math3d;
+using namespace eng::retro;
 using eng::math::Affine;
-using eng::math::q0;
-using eng::math::q12;
+using eng::retro::q0;
+using eng::retro::q12;
 using eng::math::Vec;
 using eng::s16;
 

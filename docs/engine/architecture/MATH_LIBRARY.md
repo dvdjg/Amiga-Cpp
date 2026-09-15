@@ -83,7 +83,7 @@ Aritmética (todo en compilación):
    Fixed<Ra,Ea> * Fixed<Rb,Eb> -> Fixed<Wide<R>, Ea+Eb>   exponentes SUMAN
    Fixed<R,E>   + Fixed<R,E>   -> Fixed<R,E>              sólo mismo exponente
    Fixed<R,Ea>  + Fixed<R,Eb>  -> NO EXISTE (error)       (Ea != Eb)
-   norm<Edst>(Fixed<R,E>)      -> Fixed<R,Edst>           un solo desplazamiento
+   rescale<Edst>(Fixed<R,E>)      -> Fixed<R,Edst>           un solo desplazamiento
    from_int<R>(i)              -> Fixed<R,0>              conversión explícita
 ```
 
@@ -96,7 +96,7 @@ Flujo de exponentes en el camino caliente (ejemplo del `transform`):
 ```
    RATIO(12) * LONGITUD(0)  ->  exp 12            (exacto, sin normalizar)
    (exacto) + (exacto)      ->  exp 12
-   norm<0>(...)             ->  LONGITUD          (un >>12)
+   rescale<0>(...)             ->  LONGITUD          (un >>12)
 ```
 
 Y en el producto escalar fusionado de lib3d:
@@ -104,7 +104,7 @@ Y en el producto escalar fusionado de lib3d:
 ```
    RATIO(12) * RATIO(12)    ->  exp 24            (muls.w, exacto)
    exp24 + exp24            ->  exp 24            (add.l exacto)
-   norm<12>(...)            ->  RATIO(12)         (un >>12)
+   rescale<12>(...)            ->  RATIO(12)         (un >>12)
 ```
 
 ### 3.1.b La política va en el tipo (mismo layout, distinta matemática)
@@ -129,8 +129,8 @@ anchura del acumulador) sin tocar a los usuarios de la librería.
 ### 3.2 El concepto `Scalar`
 
 Un tipo es utilizable como escalar si satisface un concepto (`Scalar`) con: `+`, `-`,
-`*`, `zero`, `one`, una promoción `Wide` y una normalización `norm<Exp>`. Para `float`
-y `double` la multiplicación no cambia de exponente y `norm` es la identidad; para
+`*`, `zero`, `one`, una promoción `Wide` y un reescalado `rescale<Exp>`. Para `float`
+y `double` la multiplicación no cambia de exponente y `rescale` es la identidad; para
 `half` se resuelve con las mismas reglas que el fixed. Para complejos, igual (el
 producto usa la aritmética del cuerpo). El álgebra lineal es **el mismo código** para
 todos.
@@ -209,14 +209,44 @@ mensaje comprensible, no con un error de plantilla ilegible. Objetivo de calidad
 | `4.12 + entero` | **no compila** (exponentes distintos) |
 | `4.12 + 8.8` | **no compila** |
 | `Mat<3,float> * Vec<3,q12>` | **no compila** (escalares distintos) |
-| `a * b` con resultado que no cabe en `R` | **aviso**: la promoción automática lo evita; si se fuerza el estrechado, el usuario debe pedirlo (`narrow`, con su política) |
-| `norm<Edst>` que pierde muchos bits | documentado en la política de redondeo elegida |
+| `a * b` con resultado que no cabe en `R` | **aviso**: la promoción automática lo evita; si se fuerza el estrechado, el usuario debe pedirlo (`cast`, con su política) |
+| `rescale<Edst>` que pierde muchos bits | documentado en la política de redondeo elegida |
 
 Los `static_assert` con mensaje (`"...: mezcla 4.12 con entero"`) y conceptos
 (`Scalar`, `SameExp`) son la herramienta: el error debe decir *qué* se mezcló. En `Fixed`
 está implementado con sobrecargas que sólo existen para disparar el `static_assert` (en vez
 del «no matching function» de la sobrecarga ausente); `tools/check/math-diagnostics.sh`
 exige el **mensaje**, no sólo que falle.
+
+### 3.5.2 API pública: nombres estabilizados
+
+Un efecto o juego escribe **sólo** el vocabulario genérico; la especialización (4.12,
+`muls.w`, empaquetados) se elige **dentro**, según los tipos que entren en la operación.
+
+```
+   PÚBLICO                                      INTERNO (puede cambiar sin aviso)
+   ───────────────────────────────────────      ─────────────────────────────────
+   Fixed<Repr, Exp, Policy = DefaultPolicy>      arith<R>            (backend 68000)
+   Vec<N,S>  Mat<N,S>  Affine<N,SR,SL>           wide / common_repr / mul_repr
+   + - * == != < (y - unario)                    limits, detail::rshift
+   dot(...)   transform(...)                      pack3_ops, projector
+   from_int<R>(i)   to_int(a)                     mapper
+   rescale<Exp>()  cast<Repr>()  retag<Policy>()
+   DefaultPolicy / RoundPolicy / SaturatePolicy
+   scalar_traits<S>   (punto de extensión)
+```
+
+Las tres conversiones tienen nombres que no se pisan: `rescale` cambia el exponente,
+`cast` la representación y `retag` sólo la política (coste cero). El único punto de
+extensión que un usuario de fuera toca es `scalar_traits<S>` (para añadir un escalar:
+complejo, `half`…); el resto de la metaprogramación (`wide`, `common_repr`, `mul_repr`)
+queda fuera del contrato.
+
+Las convenciones **Q** (`q12`, `q0`, `q24`, `q12_round`, `q12_sat`) **no** son núcleo:
+son vocabulario de la especialización retro y viven en `engine/include/eng/retro/fixed_q.hpp`
+(namespace `eng::retro`). `q12 = Fixed<s16,12>` es una decisión retro (palabra de 16 bits,
+4 bits de fracción, atada a la tabla de seno y al layout del original); tenerla en `eng::math`
+haría que el núcleo (que también sirve a `float` o a un complejo de usuario) hablara en Q12.
 
 ## 4. Rendimiento y metaprogramación
 
