@@ -34,8 +34,8 @@ constexpr Rect rect(s16 x0, s16 y0, s16 x1, s16 y1) {
 
 /// Suma una traslación (en píxeles) a la matriz; no toca la parte lineal.
 constexpr void translate(Mat2x2& m, s16 x, s16 y) {
-	m.t.v[0] = q0 {static_cast<s16>(m.t.v[0].v + x)};
-	m.t.v[1] = q0 {static_cast<s16>(m.t.v[1].v + y)};
+	m.t.x() = q0 {static_cast<s16>(m.t.x().v + x)};
+	m.t.y() = q0 {static_cast<s16>(m.t.y().v + y)};
 }
 
 /// Escala la parte lineal (factores en 4.12).
@@ -60,8 +60,8 @@ constexpr u8 PF_BOTTOM = 8u;
 /// Marca cada punto según en qué lado de `win` cae (bits `PF_*`, como
 /// `PointsInsideBox`). Devuelve la máscara combinada.
 constexpr u8 point_flags(const Vec2& p, const Rect& win) {
-	const s16 px = p.v[0].v;
-	const s16 py = p.v[1].v;
+	const s16 px = p.x().v;
+	const s16 py = p.y().v;
 	u8 f = 0;
 	if (px < win.minX.v) f |= PF_LEFT;
 	else if (px >= win.maxX.v) f |= PF_RIGHT;
@@ -75,8 +75,8 @@ constexpr u8 point_flags(const Vec2& p, const Rect& win) {
 inline bool clip_line(const Rect& win, Vec2& a, Vec2& b) {
 	s16 t0 = 0;
 	s16 t1 = static_cast<s16>(kOne88);
-	const s16 ax = a.v[0].v, ay = a.v[1].v;
-	const s16 bx = b.v[0].v, by = b.v[1].v;
+	const s16 ax = a.x().v, ay = a.y().v;
+	const s16 bx = b.x().v, by = b.y().v;
 	const s16 xd = static_cast<s16>(bx - ax);
 	const s16 yd = static_cast<s16>(by - ay);
 
@@ -115,48 +115,48 @@ inline bool clip_line(const Rect& win, Vec2& a, Vec2& b) {
 	}
 
 	if (t0 > 0) {
-		a.v[0].v = static_cast<s16>(ax + ((static_cast<s32>(t0) * xd + kHalf88) >> kShift88));
-		a.v[1].v = static_cast<s16>(ay + ((static_cast<s32>(t0) * yd + kHalf88) >> kShift88));
+		a.x().v = static_cast<s16>(ax + ((static_cast<s32>(t0) * xd + kHalf88) >> kShift88));
+		a.y().v = static_cast<s16>(ay + ((static_cast<s32>(t0) * yd + kHalf88) >> kShift88));
 	}
 	if (t1 < kOne88) {
 		const s16 t1r = static_cast<s16>(kOne88 - t1);
-		b.v[0].v = static_cast<s16>(bx - ((static_cast<s32>(t1r) * xd + kHalf88) >> kShift88));
-		b.v[1].v = static_cast<s16>(by - ((static_cast<s32>(t1r) * yd + kHalf88) >> kShift88));
+		b.x().v = static_cast<s16>(bx - ((static_cast<s32>(t1r) * xd + kHalf88) >> kShift88));
+		b.y().v = static_cast<s16>(by - ((static_cast<s32>(t1r) * yd + kHalf88) >> kShift88));
 	}
 	return true;
 }
 
 /// ¿Está `p` dentro del semi-plano `plane` respecto a `win`? (`CheckInside`).
 constexpr bool clip_inside(const Vec2& p, const Rect& win, u16 plane) {
-	if (plane & PF_LEFT) return p.v[0].v >= win.minX.v;
-	if (plane & PF_RIGHT) return p.v[0].v < win.maxX.v;
-	if (plane & PF_TOP) return p.v[1].v >= win.minY.v;
-	if (plane & PF_BOTTOM) return p.v[1].v < win.maxY.v;
+	if (plane & PF_LEFT) return p.x().v >= win.minX.v;
+	if (plane & PF_RIGHT) return p.x().v < win.maxX.v;
+	if (plane & PF_TOP) return p.y().v >= win.minY.v;
+	if (plane & PF_BOTTOM) return p.y().v < win.maxY.v;
 	return false;
 }
 
 /// Intersección de la arista `s`–`e` con el semi-plano `plane` (`ClipEdge`).
 inline void clip_edge(const Rect& win, Vec2& o, const Vec2& s, const Vec2& e, u16 plane) {
-	const s16 sx = s.v[0].v, sy = s.v[1].v;
-	const s16 ex = e.v[0].v, ey = e.v[1].v;
+	const s16 sx = s.x().v, sy = s.y().v;
+	const s16 ex = e.x().v, ey = e.y().v;
 	const s16 dx = static_cast<s16>(sx - ex);
 	const s16 dy = static_cast<s16>(sy - ey);
 	if (plane & PF_LEFT) {
 		const s16 n = static_cast<s16>(win.minX.v - ex);
-		o.v[0].v = win.minX.v;
-		o.v[1].v = static_cast<s16>(ey + eng::math::div16(static_cast<s32>(dy) * n, dx));
+		o.x().v = win.minX.v;
+		o.y().v = static_cast<s16>(ey + eng::math::div16(static_cast<s32>(dy) * n, dx));
 	} else if (plane & PF_RIGHT) {
 		const s16 n = static_cast<s16>(win.maxX.v - ex);
-		o.v[0].v = win.maxX.v;
-		o.v[1].v = static_cast<s16>(ey + eng::math::div16(static_cast<s32>(dy) * n, dx));
+		o.x().v = win.maxX.v;
+		o.y().v = static_cast<s16>(ey + eng::math::div16(static_cast<s32>(dy) * n, dx));
 	} else if (plane & PF_TOP) {
 		const s16 n = static_cast<s16>(win.minY.v - ey);
-		o.v[0].v = static_cast<s16>(ex + eng::math::div16(static_cast<s32>(dx) * n, dy));
-		o.v[1].v = win.minY.v;
+		o.x().v = static_cast<s16>(ex + eng::math::div16(static_cast<s32>(dx) * n, dy));
+		o.y().v = win.minY.v;
 	} else if (plane & PF_BOTTOM) {
 		const s16 n = static_cast<s16>(win.maxY.v - ey);
-		o.v[0].v = static_cast<s16>(ex + eng::math::div16(static_cast<s32>(dx) * n, dy));
-		o.v[1].v = win.maxY.v;
+		o.x().v = static_cast<s16>(ex + eng::math::div16(static_cast<s32>(dx) * n, dy));
+		o.y().v = win.maxY.v;
 	}
 }
 

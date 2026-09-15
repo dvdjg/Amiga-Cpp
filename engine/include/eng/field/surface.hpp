@@ -99,8 +99,8 @@ public:
         s16 cx[kCap];
         s16 cy[kCap];
         for (u32 i = 0u; i < m; ++i) {
-            cx[i] = in[i].v[0].v;
-            cy[i] = in[i].v[1].v;
+            cx[i] = in[i].x().v;
+            cy[i] = in[i].y().v;
         }
         return m_target->fill_polygon(cx, cy, static_cast<u8>(m), color);
     }

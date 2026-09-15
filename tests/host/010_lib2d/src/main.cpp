@@ -26,23 +26,23 @@ static void near(int got, int want, int tol, const char* msg) {
 int main() {
 	// Identidad: parte lineal 4.12 + traslación 0 (el `Matrix2D` del original, tipado).
 	Mat2x2 m = Mat2x2::identity();
-	check(m.m.m[0][0].v == 4096 && m.m.m[0][1].v == 0 && m.t.v[0].v == 0, "identidad (fila 0)");
-	check(m.m.m[1][0].v == 0 && m.m.m[1][1].v == 4096 && m.t.v[1].v == 0, "identidad (fila 1)");
+	check(m.m.m[0][0].v == 4096 && m.m.m[0][1].v == 0 && m.t.x().v == 0, "identidad (fila 0)");
+	check(m.m.m[1][0].v == 0 && m.m.m[1][1].v == 4096 && m.t.y().v == 0, "identidad (fila 1)");
 
 	// Transform con identidad no cambia los puntos (transform genérico del núcleo).
 	const Vec2 in[2] = {v2(100, 200), v2(-50, 25)};
 	{
 		const Vec2 o0 = eng::math::transform(m, in[0]);
 		const Vec2 o1 = eng::math::transform(m, in[1]);
-		check(o0.v[0].v == 100 && o0.v[1].v == 200, "transform identidad p0");
-		check(o1.v[0].v == -50 && o1.v[1].v == 25, "transform identidad p1");
+		check(o0.x().v == 100 && o0.y().v == 200, "transform identidad p0");
+		check(o1.x().v == -50 && o1.y().v == 25, "transform identidad p1");
 	}
 
 	// Traslación.
 	translate(m, 10, -20);
 	{
 		const Vec2 o = eng::math::transform(m, in[0]);
-		check(o.v[0].v == 110 && o.v[1].v == 180, "translate");
+		check(o.x().v == 110 && o.y().v == 180, "translate");
 	}
 
 	// Escala 0.5 (2048 en 4.12).
@@ -50,7 +50,7 @@ int main() {
 	scale(m, 2048, 2048);
 	{
 		const Vec2 o = eng::math::transform(m, in[0]);
-		check(o.v[0].v == 50 && o.v[1].v == 100, "scale 0.5");
+		check(o.x().v == 50 && o.y().v == 100, "scale 0.5");
 	}
 
 	// Rotación 90° (índice 1024): en coordenadas de pantalla (x,y) -> (y,-x).
@@ -58,13 +58,13 @@ int main() {
 	rotate(m, 1024);
 	{
 		const Vec2 o = eng::math::transform(m, v2(100, 0));
-		near(o.v[0].v, 0, 2, "rot90 (100,0).x");
-		near(o.v[1].v, -100, 2, "rot90 (100,0).y");
+		near(o.x().v, 0, 2, "rot90 (100,0).x");
+		near(o.y().v, -100, 2, "rot90 (100,0).y");
 	}
 	{
 		const Vec2 o = eng::math::transform(m, v2(0, 100));
-		near(o.v[0].v, 100, 2, "rot90 (0,100).x");
-		near(o.v[1].v, 0, 2, "rot90 (0,100).y");
+		near(o.x().v, 100, 2, "rot90 (0,100).x");
+		near(o.y().v, 0, 2, "rot90 (0,100).y");
 	}
 
 	// Rotación 180° (índice 2048): niega.
@@ -72,8 +72,8 @@ int main() {
 	rotate(m, 2048);
 	{
 		const Vec2 o = eng::math::transform(m, v2(100, 50));
-		near(o.v[0].v, -100, 2, "rot180 x");
-		near(o.v[1].v, -50, 2, "rot180 y");
+		near(o.x().v, -100, 2, "rot180 x");
+		near(o.y().v, -50, 2, "rot180 y");
 	}
 
 	// Tabla de seno (4.12).
@@ -94,7 +94,7 @@ int main() {
 	{
 		Vec2 a = v2(-100, 100), b = v2(400, 100);
 		check(clip_line(win, a, b), "clip_line cruza -> true");
-		check(a.v[0].v >= 0 && a.v[0].v < 320 && b.v[0].v > 0 && b.v[0].v <= 320,
+		check(a.x().v >= 0 && a.x().v < 320 && b.x().v > 0 && b.x().v <= 320,
 		      "clip_line extremos dentro");
 	}
 	{
@@ -103,8 +103,8 @@ int main() {
 	}
 	{
 		Vec2 a = v2(50, 50), b = v2(100, 100);
-		check(clip_line(win, a, b) && a.v[0].v == 50 && a.v[1].v == 50 && b.v[0].v == 100 &&
-			      b.v[1].v == 100,
+		check(clip_line(win, a, b) && a.x().v == 50 && a.y().v == 50 && b.x().v == 100 &&
+			      b.y().v == 100,
 		      "clip_line dentro sin cambios");
 	}
 
@@ -117,8 +117,8 @@ int main() {
 		check(n >= 3, "clip_polygon devuelve >= 3 vertices");
 		bool all_in = true;
 		for (u32 i = 0; i < n; ++i) {
-			if (poly[i].v[0].v < 0 || poly[i].v[0].v > 320 || poly[i].v[1].v < 0 ||
-			    poly[i].v[1].v > 256) {
+			if (poly[i].x().v < 0 || poly[i].x().v > 320 || poly[i].y().v < 0 ||
+			    poly[i].y().v > 256) {
 				all_in = false;
 			}
 		}

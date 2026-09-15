@@ -115,6 +115,33 @@ template <int N, typename S>
 struct Vec {
 	S v[N];
 
+	/// Acceso por nombre a las componentes (sólo si `N` las tiene): evita el índice
+	/// mágico en el código 2D/3D. Devuelve la referencia, así sirve para leer y escribir.
+	constexpr S& x() {
+		static_assert(N >= 2, "eng::math::Vec::x() requiere N >= 2");
+		return v[0];
+	}
+	constexpr const S& x() const {
+		static_assert(N >= 2, "eng::math::Vec::x() requiere N >= 2");
+		return v[0];
+	}
+	constexpr S& y() {
+		static_assert(N >= 2, "eng::math::Vec::y() requiere N >= 2");
+		return v[1];
+	}
+	constexpr const S& y() const {
+		static_assert(N >= 2, "eng::math::Vec::y() requiere N >= 2");
+		return v[1];
+	}
+	constexpr S& z() {
+		static_assert(N >= 3, "eng::math::Vec::z() requiere N >= 3");
+		return v[2];
+	}
+	constexpr const S& z() const {
+		static_assert(N >= 3, "eng::math::Vec::z() requiere N >= 3");
+		return v[2];
+	}
+
 	static constexpr Vec zero() {
 		Vec r {};
 		for (int i = 0; i < N; ++i) r.v[i] = scalar_traits<S>::zero();
@@ -179,8 +206,10 @@ template <int N, typename S, int M, typename T>
 //  Rectángulo (AABB 2D) — genérico sobre el escalar
 // ============================================================================
 
-/// Rectángulo alineado a ejes en 2D. Es genérico: sirve para coordenadas enteras
-/// (ventanas de recorte) o para cualquier otro escalar.
+/// Rectángulo alineado a ejes en 2D, en semántica **min/max** (bordes), no origen+tamaño.
+/// Es genérico: sirve para coordenadas enteras (ventanas de recorte) o cualquier escalar.
+/// Un rect de origen+tamaño (p. ej. el viewport/canvas de un `Surface`) es otra
+/// abstracción y no se representa con este tipo.
 template <typename S>
 struct Rect {
 	S minX {};
