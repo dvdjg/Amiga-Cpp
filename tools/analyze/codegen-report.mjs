@@ -18,6 +18,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/linalg.hpp>
 #include <eng/core/light.hpp>
 #include <eng/retro/fixed_q.hpp>
+#include <eng/platform/amiga/lib3d.hpp>
 using namespace eng::math;
 using namespace eng::retro;
 using eng::s16;
@@ -40,6 +41,7 @@ extern "C" void c_transform3(s16* out, const Mat<3,q12>* m, const Vec<3,q0>* t, 
 	for (int i=0;i<3;++i) out[i]=r.v[i].v;
 }
 extern "C" void c_matmul3(Mat<3,q12>* out, const Mat<3,q12>* a, const Mat<3,q12>* b){ *out = (*a)*(*b); }
+extern "C" void c_proj(eng::object3d::Object3D* o, s16* bbox) { eng::lib3d::transform_vertices(*o, 128, 128, bbox); }
 `;
 
 fs.mkdirSync(`${ROOT}/out/tmp`, { recursive: true });
@@ -77,16 +79,17 @@ for (const f of fns) {
 
 // --- Gate: el camino caliente no puede llamar a las rutinas de 32 bits de libgcc ---
 // (__mulsi3/__divsi3/…). Si aparece, una operacion que deberia ser `muls.w`/`mulu.w`
-// nativos se ha convertido en una llamada (~50+ ciclos). `--report` solo informa.
+// nativos se ha convertido en una llamada (~50+ ciclos). Los `jsr` a funciones propias
+// (cuerpos no inlined) son normales y solo se informan. `--report` no falla.
 const asmText = fs.readFileSync(ASM, 'latin1');
 const FORBIDDEN = ['__mulsi3', '__umulsi3', '__divsi3', '__udivsi3'];
 const hit = FORBIDDEN.filter((s) => asmText.includes(s));
 const called = fns.filter((f) => f.lib > 0).map((f) => `${f.name} (${f.lib} jsr)`);
-if (process.argv.includes('--report')) {
-  if (hit.length || called.length) console.log(`\n[codegen] aviso: libcalls -> ${[...hit, ...called].join(', ')}`);
-} else if (hit.length || called.length) {
-  console.error(`\n[codegen] FAIL: el camino caliente llama a libgcc -> ${[...hit, ...called].join(', ')}`);
+if (hit.length) {
+  console.error(`\n[codegen] FAIL: el camino caliente llama a libgcc -> ${hit.join(', ')}`);
   process.exit(1);
-} else {
-  console.log('\n[codegen] OK: sin libcalls (__mulsi3/__divsi3) en el camino caliente.');
 }
+if (called.length && !process.argv.includes('--report')) {
+  console.log(`\n[codegen] nota: jsr a funciones propias (no libgcc): ${called.join(', ')}`);
+}
+console.log('[codegen] OK: sin libcalls (__mulsi3/__divsi3) en el camino caliente.');

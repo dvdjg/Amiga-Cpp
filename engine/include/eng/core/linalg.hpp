@@ -21,6 +21,21 @@
 
 namespace eng::math {
 
+namespace detail {
+
+/// Mismo escalar exacto (tipo y exponente): la suma/resta de vectores y matrices lo exige.
+template <typename A, typename B>
+inline constexpr bool same_scalar = false;
+template <typename A>
+inline constexpr bool same_scalar<A, A> = true;
+
+/// ¿Se pueden multiplicar los dos escalares? Si no, un `Mat*Vec`/`Mat*Mat` mezclado
+/// (p. ej. `Mat<3,float> * Vec<3,q12>`) no tiene sentido de dominio.
+template <typename A, typename B>
+concept mulable = requires(A a, B b) { a * b; };
+
+} // namespace detail
+
 // ============================================================================
 //  Rasgos del escalar (lo único que el álgebra lineal necesita saber de S)
 // ============================================================================
@@ -120,6 +135,27 @@ template <int N, typename S>
 	return r;
 }
 
+/// Suma/resta de vectores de distinta dimensión o escalar: operación INVÁLIDA. La
+/// sobrecarga sólo existe para dar el diagnóstico (en vez del "no matching function").
+template <int N, typename S, int M, typename T>
+	requires (N != M || !detail::same_scalar<S, T>)
+[[nodiscard]] constexpr Vec<N, S> operator+(const Vec<N, S>&, const Vec<M, T>&) {
+	static_assert(N == M, "eng::math: sumar Vec de distinta dimension (N != M).");
+	static_assert(detail::same_scalar<S, T>,
+		      "eng::math: sumar Vec con escalares distintos (p. ej. float + 4.12). Usa el "
+		      "MISMO escalar: convierte con rescale<Exp>()/cast<Repr>()/from_int().");
+	return {};
+}
+template <int N, typename S, int M, typename T>
+	requires (N != M || !detail::same_scalar<S, T>)
+[[nodiscard]] constexpr Vec<N, S> operator-(const Vec<N, S>&, const Vec<M, T>&) {
+	static_assert(N == M, "eng::math: restar Vec de distinta dimension (N != M).");
+	static_assert(detail::same_scalar<S, T>,
+		      "eng::math: restar Vec con escalares distintos (p. ej. float - 4.12). Usa el "
+		      "MISMO escalar: convierte con rescale<Exp>()/cast<Repr>()/from_int().");
+	return {};
+}
+
 /// Producto escalar: acumula los productos EXACTOS y normaliza UNA vez al escalar.
 template <int N, typename S>
 [[nodiscard]] constexpr S dot(const Vec<N, S>& a, const Vec<N, S>& b) {
@@ -127,6 +163,16 @@ template <int N, typename S>
 	auto acc = T::inner(a.v[0], b.v[0]); // el producto INTERNO lo define el escalar
 	for (int k = 1; k < N; ++k) acc = acc + T::inner(a.v[k], b.v[k]);
 	return T::norm_from(acc);
+}
+
+/// `dot` de vectores de distinta dimensión o escalar: diagnóstico en vez de "no match".
+template <int N, typename S, int M, typename T>
+	requires (N != M || !detail::same_scalar<S, T>)
+[[nodiscard]] constexpr S dot(const Vec<N, S>&, const Vec<M, T>&) {
+	static_assert(N == M, "eng::math: dot de Vec de distinta dimension (N != M).");
+	static_assert(detail::same_scalar<S, T>,
+		      "eng::math: dot de Vec con escalares distintos (p. ej. float y 4.12).");
+	return {};
 }
 
 // ============================================================================
@@ -175,8 +221,19 @@ template <int N, typename S>
 	return r;
 }
 
+/// `Mat*Mat` con escalares distintos: diagnóstico en vez de "no match".
+template <int N, typename S, typename T>
+	requires (!detail::same_scalar<S, T>)
+[[nodiscard]] constexpr Mat<N, S> operator*(const Mat<N, S>&, const Mat<N, T>&) {
+	static_assert(detail::same_scalar<S, T>,
+		      "eng::math: Mat*Mat con escalares distintos (p. ej. float y 4.12). Usa el "
+		      "MISMO escalar en los dos factores.");
+	return {};
+}
+
 /// `ratio * longitud -> longitud`.
 template <int N, typename SR, typename SL>
+	requires detail::mulable<SR, SL>
 [[nodiscard]] constexpr Vec<N, SL> operator*(const Mat<N, SR>& a, const Vec<N, SL>& v) {
 	Vec<N, SL> r {};
 	for (int i = 0; i < N; ++i) {
@@ -185,6 +242,17 @@ template <int N, typename SR, typename SL>
 		r.v[i] = scalar_traits<SL>::norm_from(acc);
 	}
 	return r;
+}
+
+/// `Mat*Vec` con escalares que no se pueden multiplicar (p. ej. `Mat<3,float>` por
+/// `Vec<3,q12>`): el dominio lo prohíbe; aquí se explica en vez de fallar dentro del bucle.
+template <int N, typename SR, typename SL>
+	requires (!detail::mulable<SR, SL>)
+[[nodiscard]] constexpr Vec<N, SL> operator*(const Mat<N, SR>&, const Vec<N, SL>&) {
+	static_assert(detail::mulable<SR, SL>,
+		      "eng::math: Mat*Vec con escalares incompatibles (p. ej. Mat<3,float> * "
+		      "Vec<3,q12>). Usa el MISMO escalar en la matriz y el vector.");
+	return {};
 }
 
 template <int N, typename S>

@@ -70,9 +70,7 @@ struct SineTable {
 	}
 };
 
-/// Tabla 4.12 exacta (4096 pasos = 2π): el formato que usan los efectos portados 1:1.
-inline constexpr SineTable<4096, 4096> kSinTableQ12 {};
-/// Alias de puntero para el uso típico (`kSinTab[i]` -> s32 con el valor 4.12).
-inline constexpr const s32* kSinTab = kSinTableQ12.v.data();
+// La tabla Q concreta (4.12, s16, 4096 pasos) es vocabulario retro:
+// `eng/retro/sintab.hpp` (`eng::retro::kSinTab`).
 
 } // namespace eng

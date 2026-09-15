@@ -27,6 +27,7 @@
 
 #include <eng/core/arith.hpp>
 #include <eng/core/types.hpp>
+#include <eng/core/word.hpp>
 
 namespace eng::math2d {
 
@@ -134,16 +135,11 @@ constexpr u8 PF_RIGHT = 2u;
 constexpr u8 PF_TOP = 4u;
 constexpr u8 PF_BOTTOM = 8u;
 
-/// División con cociente a 16 bits (lo que el original hace con `divs.w`). La
-/// implementación la aporta `arith<s16>`: el núcleo es portable y la plataforma
-/// (p. ej. el backend 68000) la especializa sin tocar esto.
-inline s16 div16(s32 a, s16 b) { return arith<s16>::div(a, b); }
-
-/// Producto 16×16→32 con signo. Igual: portable aquí, nativo en el backend.
-inline s32 mul16(s16 a, s16 b) { return arith<s16>::mul(a, b); }
-
-/// Producto 16×16→32 sin signo (lo que el original hace con `mulu.w`).
-inline u32 mulu16(u16 a, u16 b) { return arith<s16>::mulu(a, b); }
+/// Aritmética de palabra (div16/mul16/mulu16) reexportada desde el núcleo (`word.hpp`):
+/// vive ahí porque no tiene nada de geometría.
+using eng::math::div16;
+using eng::math::mul16;
+using eng::math::mulu16;
 
 /// Recorta el segmento `a`–`b` contra `win` (algoritmo de Liang-Barsky, igual que
 /// `ClipLine2D`). Actualiza `a`/`b` si hace falta y devuelve `true` si queda parte

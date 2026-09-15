@@ -1,7 +1,7 @@
 # HOST-020 — Tabla de seno exacta del original (constexpr)
 
 Fija la tabla de seno **4.12 exacta** del original (`libmisc/sintab.c`), generada en
-**constexpr** en `engine/include/eng/core/sinetable.hpp` y usada por `math2d::SinTableQ12`.
+**constexpr** en `engine/include/eng/retro/sintab.hpp` y usada por `math2d::SinTableQ12`.
 
 ## Qué cubre
 

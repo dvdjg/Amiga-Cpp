@@ -5,13 +5,13 @@
 /// especialización de plataforma: un PC moderno usaría `float` y no necesita esta tabla,
 /// ni la convención de que un ángulo sea un índice 0..4095.
 ///
-/// Es la tabla **exacta del original** (`kSinTableQ12`, `eng/core/sinetable.hpp`): los efectos
-/// portados 1:1 la necesitan. El álgebra de rotaciones
+/// Es la tabla **exacta del original** (`eng::retro::kSinTab`, `eng/retro/sintab.hpp`): los
+/// efectos portados 1:1 la necesitan. El álgebra de rotaciones
 /// (que sí es genérica) está en `eng/core/linalg.hpp`; aquí sólo vive el formato.
 
 #include <eng/core/math2d.hpp>
 #include <eng/core/types.hpp>
-#include <eng/core/sinetable.hpp>
+#include <eng/retro/sintab.hpp>
 
 namespace eng::math2d {
 
@@ -20,22 +20,12 @@ constexpr u16 kHalfPi = 1024;
 /// Pasos por vuelta de la tabla de seno.
 constexpr u32 kAngleSteps = 4096;
 
-/// Tabla de seno 4.12 materializada.
-struct SinTableQ12 {
-	s16 v[kAngleSteps] {};
-	constexpr SinTableQ12() {
-		for (u32 i = 0; i < kAngleSteps; ++i) {
-			v[i] = static_cast<s16>(eng::kSinTab[i]);
-		}
-	}
-};
-
-inline constexpr SinTableQ12 kSinQ12 {};
-
-/// Seno de un ángulo `a` (0..4095 = 0..2π) en 4.12.
-constexpr fix sin_q12(u16 a) { return kSinQ12.v[a & (kAngleSteps - 1u)]; }
+/// Seno de un ángulo `a` (0..4095 = 0..2π) en 4.12. Usa la tabla 4.12 exacta del
+/// original (`eng::retro::kSinTab`, 8 KB), compartida con el resto de la capa retro: no
+/// hay una segunda copia.
+constexpr fix sin_q12(u16 a) { return eng::retro::kSinTab[a & (kAngleSteps - 1u)]; }
 /// Coseno de un ángulo `a` en 4.12.
-constexpr fix cos_q12(u16 a) { return kSinQ12.v[(a + kHalfPi) & (kAngleSteps - 1u)]; }
+constexpr fix cos_q12(u16 a) { return eng::retro::kSinTab[(a + kHalfPi) & (kAngleSteps - 1u)]; }
 
 /// Rota la parte lineal de una `Mat2x2` por el ángulo `a` (igual que `Rotate2D`).
 inline void rotate(Mat2x2& m, u16 a) {

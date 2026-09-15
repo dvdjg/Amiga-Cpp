@@ -127,31 +127,37 @@ void update_edge_visibility(obj::Object3D& object) {
 	} while (*group);
 }
 
-#define MULVERTEX1(D, E) { \
-	eng::s16 t0 = static_cast<eng::s16>((*v++) + y); \
-	eng::s16 t1 = static_cast<eng::s16>((*v++) + x); \
-	eng::s32 t2 = static_cast<eng::s32>(*v++) * z; \
-	v++; \
+// Identidad empaquetada del original: por fila, `(m_i0+y)·(m_i1+x) − x·y` da los tres
+// terminos con dos multiplicaciones (los coeficientes de los dos primeros van sumados a
+// y/x). `D` recibe la coordenada; `E` es el precalculo de fila (o la traslacion en la 2).
+#define MULVERTEX1(D, E0, E1, E2, E) { \
+	eng::s16 t0 = static_cast<eng::s16>((E0) + y); \
+	eng::s16 t1 = static_cast<eng::s16>((E1) + x); \
+	eng::s32 t2 = static_cast<eng::s32>(E2) * z; \
 	D = static_cast<eng::s32>(((static_cast<eng::s32>(t0) * t1 + t2 - xy) >> 4) + E); \
 }
 
-#define MULVERTEX2(D) { \
-	eng::s16 t0 = static_cast<eng::s16>((*v++) + y); \
-	eng::s16 t1 = static_cast<eng::s16>((*v++) + x); \
-	eng::s32 t2 = static_cast<eng::s32>(*v++) * z; \
-	eng::s16 t3 = *v++; \
-	D = static_cast<eng::s32>(eng::math2d::normfx(static_cast<eng::s32>(t0) * t1 + t2 - xy)) + t3; \
+#define MULVERTEX2(D, E0, E1, E2, E3) { \
+	eng::s16 t0 = static_cast<eng::s16>((E0) + y); \
+	eng::s16 t1 = static_cast<eng::s16>((E1) + x); \
+	eng::s32 t2 = static_cast<eng::s32>(E2) * z; \
+	D = static_cast<eng::s32>(eng::math2d::normfx(static_cast<eng::s32>(t0) * t1 + t2 - xy)) + (E3); \
 }
 
 void transform_vertices(obj::Object3D& object) {
-	eng::math3d::Mat3x3& M = object.objectToWorld;
+	eng::math3d::Affine3& M = object.objectToWorld;
 	void* objdat = object.objdat;
 	eng::s16* group = object.vertexGroups;
 
-	eng::s32 m0 = (static_cast<eng::s32>(M.x) - eng::math2d::normfx(static_cast<eng::s32>(M.m00) * M.m01)) << 8;
-	eng::s32 m1 = (static_cast<eng::s32>(M.y) - eng::math2d::normfx(static_cast<eng::s32>(M.m10) * M.m11)) << 8;
+	eng::s32 m0 = (static_cast<eng::s32>(M.t.v[0].v) -
+		       eng::math2d::normfx(static_cast<eng::s32>(M.m.m[0][0].v) * M.m.m[0][1].v))
+		      << 8;
+	eng::s32 m1 = (static_cast<eng::s32>(M.t.v[1].v) -
+		       eng::math2d::normfx(static_cast<eng::s32>(M.m.m[1][0].v) * M.m.m[1][1].v))
+		      << 8;
 	// OJO: modifica la matriz de camara (como el original).
-	M.z = static_cast<eng::s16>(M.z - eng::math2d::normfx(static_cast<eng::s32>(M.m20) * M.m21));
+	M.t.v[2].v = static_cast<eng::s16>(
+		M.t.v[2].v - eng::math2d::normfx(static_cast<eng::s32>(M.m.m[2][0].v) * M.m.m[2][1].v));
 
 	do {
 		eng::s16 i;
@@ -159,7 +165,6 @@ void transform_vertices(obj::Object3D& object) {
 			obj::Node3D* node = obj::node3d(objdat, i);
 			if (node->flags) {
 				eng::s16* pt = reinterpret_cast<eng::s16*>(node);
-				eng::s16* v = reinterpret_cast<eng::s16*>(&M);
 				eng::s16 x, y, z, zp;
 				eng::s32 xy, xp, yp;
 
@@ -169,9 +174,9 @@ void transform_vertices(obj::Object3D& object) {
 				z = *pt++;
 				xy = static_cast<eng::s32>(x) * y;
 
-				MULVERTEX1(xp, m0);
-				MULVERTEX1(yp, m1);
-				MULVERTEX2(zp);
+				MULVERTEX1(xp, M.m.m[0][0].v, M.m.m[0][1].v, M.m.m[0][2].v, m0);
+				MULVERTEX1(yp, M.m.m[1][0].v, M.m.m[1][1].v, M.m.m[1][2].v, m1);
+				MULVERTEX2(zp, M.m.m[2][0].v, M.m.m[2][1].v, M.m.m[2][2].v, M.t.v[2].v);
 
 				*pt++ = static_cast<eng::s16>(eng::math2d::div16(xp, zp) + kWidth / 2);
 				*pt++ = static_cast<eng::s16>(eng::math2d::div16(yp, zp) + kHeight / 2);

@@ -69,10 +69,34 @@ void f() {
 	q12 a {4096}, c {2048};
 	auto s = a + c;      // 4.12 + 4.12
 	auto p = a * c;      // 4.12 * 4.12 -> 8.24
-	auto d = a.rescale<8>();                 // 4.12 -> 4.8 explicito
+	auto d = a.rescale<8>();              // 4.12 -> 4.8 explicito
 	auto m = eng::math::from_int<eng::s16>(3) + eng::retro::q0 {2};
 	(void)s; (void)p; (void)d; (void)m;
 }"
+
+# Mat/Vec: dimensionalidad y escalares.
+PRE2='#include <eng/core/linalg.hpp>
+#include <eng/retro/fixed_q.hpp>
+using namespace eng::math;
+using namespace eng::retro;'
+
+expect_fail mat_vec_scalar_mismatch "escalares incompatibles" "$PRE2
+void f() { Mat<3, float> m {}; Vec<3, q12> v {}; auto r = m * v; (void)r; }"
+
+expect_fail vec_dim_mismatch "distinta dimension" "$PRE2
+void f() { Vec<3, q12> a {}; Vec<2, q12> b {}; auto r = a + b; (void)r; }"
+
+expect_fail vec_scalar_mismatch "escalares distintos" "$PRE2
+void f() { Vec<3, q12> a {}; Vec<3, float> b {}; auto r = a - b; (void)r; }"
+
+expect_ok mat_vec_ok "$PRE2
+void f() {
+	Mat<3, q12> m = Mat<3, q12>::identity();
+	const Vec<3, q0> v {};
+	auto r = m * v; // ratio 4.12 * longitud 0 -> longitud 0 (si)
+	(void)r;
+}"
+
 
 if [ "$FAILS" -eq 0 ]; then
 	echo "[math-diag] OK: diagnosticos de Fixed claros (y conversiones explicitas compilan)."
