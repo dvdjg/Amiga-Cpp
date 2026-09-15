@@ -56,7 +56,7 @@
 	.type	fs_update_face_visibility, function
 fs_update_face_visibility:
 	movem.l	d2-d7/a2-a6,-(sp)
-	movea.l	g_fs_args,a2			/* args */
+	lea	g_fs_args,a2			/* args */
 	movea.l	0(a2),a3			/* Object3D* */
 	movea.l	0(a3),a0			/* objdat */
 	movea.l	12(a3),a1			/* faceGroups */
@@ -167,7 +167,7 @@ fs_update_face_visibility:
 	.type	fs_update_edge_visibility_convex, function
 fs_update_edge_visibility_convex:
 	movem.l	d2-d7/a2-a6,-(sp)
-	movea.l	g_fs_args,a2			/* args */
+	lea	g_fs_args,a2			/* args */
 	movea.l	0(a2),a3			/* Object3D* */
 	movea.l	0(a3),a0			/* objdat */
 	movea.l	12(a3),a1			/* faceGroups */
@@ -228,12 +228,8 @@ fs_update_edge_visibility_convex:
 	.type	fs_transform_vertices, function
 fs_transform_vertices:
 	movem.l	d2-d7/a2-a6,-(sp)
-	subq.l	#4,sp				/* slot: m1 */
-	subq.l	#4,sp				/* slot: m0 */
-	subq.l	#4,sp				/* slot: yp */
-	subq.l	#4,sp				/* slot: xp */
-	subq.l	#4,sp				/* slot: zp */
-	movea.l	g_fs_args,a2			/* args */
+	lea	-20(sp),sp			/* slots: zp/xp/yp/m0/m1 (20 bytes) */
+	lea	g_fs_args,a2			/* args */
 	movea.l	0(a2),a3			/* Object3D* */
 	movea.l	0(a3),a0			/* objdat */
 	movea.l	4(a3),a1			/* vertexGroups */
@@ -410,7 +406,7 @@ fs_draw_edges:
 	move.w	#0xffff,0x72(a0)		/* bltbdat (patron linea) */
 	move.w	#32,0x60(a0)			/* bltcmod = WIDTH/8 */
 	move.w	#32,0x66(a0)			/* bltdmod = WIDTH/8 */
-	movea.l	g_fs_args,a1			/* args */
+	lea	g_fs_args,a1			/* args */
 	movea.l	0(a1),a2			/* Object3D* */
 	movea.l	0(a2),a4			/* objdat */
 	movea.l	8(a2),a3			/* edgeGroups */

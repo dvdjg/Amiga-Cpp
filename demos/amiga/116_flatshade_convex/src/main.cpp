@@ -67,8 +67,8 @@ void fs_draw_edges(void);
 #ifndef K_FLATSHADE_ASM
 // Rutinas calientes en ASM (support/flatshade_asm.s): port fiel del original con
 // registros fijos, como fire_loop.s. POR DEFECTO 0 (version C++ canonica): la ruta
-// asm aun crashea en `fs_transform_vertices` (excepcion en init; pendiente de
-// depurar). Poner a 1 para experimentar.
+// asm alcanza READY (el crash de `g_fs_args` esta corregido) pero el render sale
+// deformado (bug pendiente en `fs_transform_vertices`). Poner a 1 para experimentar.
 #define K_FLATSHADE_ASM 0
 #endif
 
