@@ -66,9 +66,12 @@ void fs_draw_edges(void);
 
 #ifndef K_FLATSHADE_ASM
 // Rutinas calientes en ASM (support/flatshade_asm.s): port fiel del original con
-// registros fijos, como fire_loop.s. POR DEFECTO 0 (version C++ canonica): la ruta
-// asm alcanza READY (el crash de `g_fs_args` esta corregido) pero el render sale
-// deformado (bug pendiente en `fs_transform_vertices`). Poner a 1 para experimentar.
+// registros fijos, como fire_loop.s. POR DEFECTO 0 (version C++ canonica, la que
+// renderiza bien): la ruta asm dibuja el contorno con un desfase ~2 px respecto a la
+// C++ y, como el area fill es XOR (paridad por scanline), eso rompe el relleno (bandas
+// y triangulos). Pasa verify-116 pero NO es visualmente correcta: pendiente de fix
+// (ver docs/guides/optimization/OPTIMIZACION_GPP_68000.md). Activar con
+// -DK_FLATSHADE_ASM=1 solo para reproducir/depurar.
 #define K_FLATSHADE_ASM 0
 #endif
 
@@ -620,7 +623,9 @@ struct FlatShadeDemo {
 #if FLATSHADE_FAITHFUL
 #if K_FLATSHADE_ASM
 		prepare_fs_args(planes, m_object);
+		const eng::u32 td0 = rcycles();
 		fs_draw_edges();
+		g_eng_prof.v[2] = rcycles() - td0;
 #else
 		draw_edges(m_object, planes, backend);
 #endif

@@ -2,9 +2,13 @@
  *
  * Implementa las cuatro rutinas calientes del efecto (face/edge visibility, transform
  * de vertices y draw de aristas) y sustituye a sus equivalentes C++ cuando la demo se
- * compila con `-DK_FLATSHADE_ASM=1`. Con ese flag la demo pasa el gate visual
- * (verify-116) y corre a ~25 fps (la ruta C++ ~20.7 fps). El default es la ruta C++
- * (`K_FLATSHADE_ASM=0`), que se conserva como version canonica y legible.
+ * compila con `-DK_FLATSHADE_ASM=1`. El default es la ruta C++ (`K_FLATSHADE_ASM=0`),
+ * que es la que renderiza bien; la ruta asm aun no es valida: `fs_update_face_visibility`,
+ * `fs_update_edge_visibility_convex` y `fs_transform_vertices` son correctas, pero
+ * `fs_draw_edges` dibuja el contorno con un desfase de ~1-2 px y, con el area fill XOR
+ * (paridad por scanline), el relleno se rompe en bandas/triangulos. `verify-116` da PASS
+ * pese a ello: el gate valido es visual (wireframe con `-DFLATSHADE_SKIP_FILL=1` o
+ * secuencia + Ollama). Ver la bitacora OPTIMIZACION_GPP_68000.md.
  *
  * Cuidado al tocar `.Lwait_blit`: espera BBUSY usando d0 como scratch, y
  * `fs_draw_edges` tiene en d0 el BLTCON0 que escribe justo despues del wait; por eso
@@ -412,6 +416,8 @@ fs_transform_vertices:
 	.type	fs_draw_edges, function
 fs_draw_edges:
 	movem.l	d2-d7/a2-a6,-(sp)
+	clr.l	-(sp)				/* (sp)  = nEdges (-> g_eng_prof.v[10]) */
+	clr.l	-(sp)				/* 4(sp) = nLines (-> v[11]) */
 	movea.l	#0xdff000,a0			/* custom base */
 	/* Activa el DMA del Blitter, como `blitter_lines_eor_begin` (igualmente el
 	 * init ya lo deja activo con el pre-clear; se reafirma aqui). */
@@ -435,6 +441,7 @@ fs_draw_edges:
 	move.b	(a6),d2				/* edgeColor */
 	tst.b	d2
 	ble.w	.Lde_group			/* edgeColor <= 0 */
+	addq.l	#1,(sp)				/* ++nEdges (d5/otros se reutilizan abajo) */
 	move.w	#0,(a6)				/* *edge++ = 0 (flags+pad) */
 	/* x0,y0 del primer vertice */
 	move.w	2(a6),d0			/* i = point[0] */
@@ -520,10 +527,11 @@ fs_draw_edges:
 	move.w	d5,d7				/* dmax */
 	lsl.w	#6,d7
 	addi.w	#66,d7				/* size */
-	/* loop de planos: d0=con0 d1=con1 d2=edgeColor d4=bmod d6=amod d7=size d3=derr a6=bltcpt */
-	moveq	#1,d5				/* mascara de plano (libre) */
+	/* loop de planos: d0=con0 d1=con1 d2=edgeColor d4=bmod d6=amod d7=size d3=derr a6=bltcpt
+	 * (d5 = nEdges, no se toca aqui; (sp) = nLines) */
 	btst	#0,d2
 	beq.w	.Lde_p1
+	addq.l	#1,4(sp)			/* ++nLines */
 	bsr.w	.Lwait_blit
 	move.w	d0,0x40(a0)			/* bltcon0 */
 	move.w	d1,0x42(a0)			/* bltcon1 */
@@ -537,6 +545,7 @@ fs_draw_edges:
 	adda.l	#8192,a6			/* bltcpt += plane_bytes */
 	btst	#1,d2
 	beq.w	.Lde_p2
+	addq.l	#1,4(sp)			/* ++nLines */
 	bsr.w	.Lwait_blit
 	move.w	d0,0x40(a0)
 	move.w	d1,0x42(a0)
@@ -550,6 +559,7 @@ fs_draw_edges:
 	adda.l	#8192,a6
 	btst	#2,d2
 	beq.w	.Lde_p3
+	addq.l	#1,4(sp)			/* ++nLines */
 	bsr.w	.Lwait_blit
 	move.w	d0,0x40(a0)
 	move.w	d1,0x42(a0)
@@ -563,6 +573,7 @@ fs_draw_edges:
 	adda.l	#8192,a6
 	btst	#3,d2
 	beq.w	.Lde_next
+	addq.l	#1,4(sp)			/* ++nLines */
 	bsr.w	.Lwait_blit
 	move.w	d0,0x40(a0)
 	move.w	d1,0x42(a0)
@@ -575,5 +586,13 @@ fs_draw_edges:
 .Lde_next:
 	bra.w	.Lde_group
 .Lde_done:
+	/* Telemetria: v[10]=nEdges, v[11]=nLines (EngProf: magic=0, v[16]@4). Asi el
+	 * canal lateral no reporta 0 al perfilar la ruta asm. d0 es libre aqui. */
+	lea	g_eng_prof,a2
+	move.l	(sp),d0				/* nEdges */
+	move.l	d0,44(a2)			/* v[10] = nEdges */
+	move.l	4(sp),d0			/* nLines */
+	move.l	d0,48(a2)			/* v[11] = nLines */
+	lea	8(sp),sp			/* liberar los 2 slots de contadores */
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts

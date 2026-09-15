@@ -53,15 +53,24 @@ original (latencia de 1 frame, mismo orden de ángulos).
 `support/flatshade_asm.s` porta a asm m68k (gas, registros fijos) las rutinas calientes
 del original, siguiendo el patrón de `fire_loop.s` (demo 080): `fs_update_face_visibility`,
 `fs_update_edge_visibility_convex`, `fs_transform_vertices` y `fs_draw_edges`. El flag
-`K_FLATSHADE_ASM` elige la versión C++ canónica (default **0**) o la asm (**1**). Con la
-ruta asm la demo pasa el gate visual (`verify-116`) y el frame emulado baja a **~283k ciclos
-(25.0 fps)**, frente a ~20.7 fps de la ruta C++: el codegen apretado que g++ no consigue con
-los pins `register asm("aN")` del original. Detalles y lecciones en la bitácora
-`docs/guides/optimization/OPTIMIZACION_GPP_68000.md`.
+`K_FLATSHADE_ASM` (**default 0**, versión C++ canónica) elige entre la ruta C++ y la asm.
 
-Al tocar `.Lwait_blit` hay que preservar `d0`: `fs_draw_edges` lo usa como BLTCON0 y lo
-escribe justo tras el wait; si el wait lo pisa se programa DMACONR como con0 y ningún blit
-de línea pinta (el síntoma es un balón que no aparece, sin llegar a crashear).
+**La ruta asm aún no es válida.** `fs_update_face_visibility`, `fs_update_edge_visibility_convex`
+y `fs_transform_vertices` son correctas (con el `draw_edges` C++ encima el balón sale bien),
+pero **`fs_draw_edges` dibuja el contorno con un desfase de ~1-2 px** respecto a la ruta C++.
+Como el **area fill es XOR** (conmuta el relleno en cada píxel del contorno y lo propaga por
+paridad de scanline), ese desfase rompe la paridad y el relleno se desmadra en bandas y
+triángulos. `verify-116` da PASS (cobertura y nº de tonos no detectan el desfase) — **el gate
+válido aquí es visual**: secuencia + Ollama preguntando por anomalías, o comparar el wireframe
+con `-DFLATSHADE_SKIP_FILL=1`. Medido con el wireframe: ~2900 px de contorno en ambas rutas
+pero solo ~96 en común. Mientras no se iguale píxel a píxel, `K_FLATSHADE_ASM=1` es solo para
+depurar la ruta asm (no produce la imagen esperada).
+
+Dos trampas ya conocidas al depurar la ruta asm: `.Lwait_blit` debe **preservar `d0`**
+(`fs_draw_edges` lo usa como BLTCON0 y lo escribe justo tras el wait; si lo pisa se programa
+DMACONR como con0 y ningún blit de línea pinta, balón ausente sin crashear), y el bucle
+reutiliza `d5` como `x1` (no sirve de contador; `fs_draw_edges` cuenta con slots de pila).
+Detalles en la bitácora `docs/guides/optimization/OPTIMIZACION_GPP_68000.md`.
 
 ## Paridad del contorno (clave del relleno)
 
