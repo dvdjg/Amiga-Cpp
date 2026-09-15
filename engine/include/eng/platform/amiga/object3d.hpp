@@ -152,6 +152,14 @@ inline void update_object_transformation(Object3D& object) {
 	}
 
 	// mundo -> objeto: T * S * Rz * Ry * Rx
+	//
+	// OJO — port 1:1 del original: la parte LINEAL sí se invierte (`S⁻¹Rᵀ`, con
+	// `load_reverse_rotate` y `1/s`), pero la traslación queda en `-T`, no en
+	// `-S⁻¹Rᵀ·T`. NO es una inversa completa: `compose(objectToWorld, worldToObject)`
+	// no da la identidad en la traslación (medido: `.t = (-9965,-800,-1924)` en un caso
+	// rotación+escala+traslación). La cámara en espacio objeto de 079/116 depende de este
+	// comportamiento y HOST-014 lo fija, así que NO se corrige aquí. Para una inversa
+	// completa de una transformación rígida usa `math3d::inverse_rigid` (HOST-055).
 	{
 		math3d::Affine3 m_scale {};
 		m_scale.m = math3d::Mat3::identity();
