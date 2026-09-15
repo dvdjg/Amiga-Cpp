@@ -400,11 +400,22 @@ en todos los nodos, p. ej. con `m_angle=1000`:
 **PERO el render sigue negro.** Con la ruta ASM completa (face+edge+transform) y también
 con **sólo el transform en ASM** (face/edge en C++), la demo alcanza READY pero la pantalla
 sale toda de fondo (`verify-116`: "no hay balón"), incluso capturando una secuencia de 4
-frames. Como la salida del transform coincide con la C++, el fallo restante apunta a:
-(a) `fs_update_face_visibility` / `fs_update_edge_visibility_convex` (sólo en la ruta
+frames. **La demo NO crashea**: `g_eng_run_status.state=3` (Ready) y `frames` avanza
+(34→72→109→147) mientras la pantalla está negra. Como la salida del transform coincide con
+la C++, el fallo restante apunta a: (a)
+`fs_update_face_visibility` / `fs_update_edge_visibility_convex` (sólo en la ruta
 completa), o (b) **algún efecto colateral** del ASM (un registro que el render C++ espera,
 corrupción de memoria más allá del `objdat`, o el estado del Blitter/copper). Todos los
 índices de `vertexGroups` son **pares** y caen dentro de `_pilka_data`.
+
+**Confirmaciones de una IA externa (grok) y fixes aplicados**:
+- `zp` big-endian: confirmado y **corregido** (`move.w 2(sp),...` / divisor word).
+- `divs.w` con divisor a 16 bits explícito: **aplicado** (`move.w 2(sp),d1; divs.w d1,d0`).
+- Bucle exterior `do { while(...) } while (*group)` del C++: **aplicado**
+  (`.Ltv_group_end: tst.w (a1); bne.w .Ltv_group`).
+- Grok descarta `muls.w` y confirma que el layout/aritmética cuadran.
+- Grok coincide en que, si el transform ya no es la causa, hay que comparar face/edge y
+  revisar registros (`a6`/`d6`/`d7`) / efectos colaterales.
 
 **Método de comparación** (reutilizable): fijar `m_angle` constante; resolver el `objdat` en
 runtime vía el `.map`/magic ENG; volcar los nodos y diferenciar ambas rutas.

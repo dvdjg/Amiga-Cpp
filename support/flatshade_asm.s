@@ -279,7 +279,7 @@ fs_transform_vertices:
 	move.w	#-32768,6(a4)
 .Ltv_group:
 	move.w	(a1)+,d1			/* i = *group++ */
-	beq.w	.Ltv_done
+	beq.w	.Ltv_group_end
 	move.w	d1,d2
 	subq.w	#2,d2
 	lea	0(a0,d2.w),a5			/* node = objdat + i - 2 */
@@ -342,19 +342,18 @@ fs_transform_vertices:
 	ext.l	d7
 	add.l	d7,d0				/* + z */
 	move.l	d0,0(sp)			/* zp */
-	/* sx = div16(xp, zp) + 128 */
+	/* sx = div16(xp, (s16)zp) + 128 */
+	move.w	2(sp),d1			/* zp como s16 (word bajo, big-endian) */
 	move.l	4(sp),d0			/* xp */
-	move.l	0(sp),d2			/* zp */
-	divs.w	d2,d0
+	divs.w	d1,d0
 	addi.w	#128,d0
 	move.w	d0,8(a5)			/* vertex.x */
-	/* sy = div16(yp, zp) + 128 */
+	/* sy = div16(yp, (s16)zp) + 128 */
 	move.l	8(sp),d0			/* yp */
-	divs.w	d2,d0
+	divs.w	d1,d0
 	addi.w	#128,d0
 	move.w	d0,10(a5)			/* vertex.y */
-	move.w	2(sp),d0			/* zp (word bajo del long en 0(sp)) */
-	move.w	d0,12(a5)			/* vertex.z = zp (s16) */
+	move.w	d1,12(a5)			/* vertex.z = (s16)zp */
 	/* bbox */
 	move.w	8(a5),d0			/* sx */
 	cmp.w	0(a4),d0
@@ -375,6 +374,9 @@ fs_transform_vertices:
 	move.w	d1,6(a4)			/* g_by1 */
 .Ltv_bb3:
 	bra.w	.Ltv_group
+.Ltv_group_end:
+	tst.w	(a1)				/* while (*group) del do/while exterior */
+	bne.w	.Ltv_group
 .Ltv_done:
 	lea	20(sp),sp			/* liberar slots */
 	movem.l	(sp)+,d2-d7/a2-a6
