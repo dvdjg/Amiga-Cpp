@@ -2,7 +2,7 @@
 //
 // Dibuja el objeto `pilka` (malla `obj2c`) en ALAMBRE con la LINEA POR BLITTER, tal
 // cual la demo original. El modelo de objeto (formato `obj2c` + `Object3D`) se ha
-// portado fiel a `lib3d` en `eng/core/object3d.hpp`; la matematica 4.12 viene de
+// portado fiel a `lib3d` en `eng/platform/amiga/object3d.hpp`; la matematica 4.12 viene de
 // `math2d`/`math3d` (HOST-010/011), y la secuencia de registros de la linea vive en
 // `MinimalBackend::blitter_line` (identica a `DrawObject`).
 //
@@ -10,7 +10,7 @@
 // (`SetupPlayfield(MODE_LORES,4,X(32),Y(0),256,256)` + `SetupBitplaneFetch`) y doble
 // buffer con swap de copperlist por frame (el original rota 5 planos y parchea
 // BPLxPT; aqui se usan 2 buffers de 4 planos, equivalente sin tearing).
-#include <eng/core/object3d.hpp>
+#include <eng/platform/amiga/object3d.hpp>
 #include <eng/core/types.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>

@@ -1,6 +1,6 @@
 // Test host de eng::math3d (especialización 4.12 sobre la librería genérica).
 // Valida identidad, escala, rotación sobre Z, composición, transform y el afín.
-#include <eng/core/math3d.hpp>
+#include <eng/platform/amiga/gfx3d.hpp>
 
 #include <cstdio>
 

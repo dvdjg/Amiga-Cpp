@@ -11,7 +11,7 @@
 // set_pixel/line minimos. El trazado se hace en `render()` (durante el vblank):
 // escribir CPU al Chip RAM con el DMA de bitplanes activo roba ciclos y produce
 // scanlines negros (ver 107).
-#include <eng/core/math3d.hpp>
+#include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/core/mesh3d.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>

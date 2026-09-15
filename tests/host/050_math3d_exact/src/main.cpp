@@ -2,7 +2,7 @@
 // EXACTAMENTE los mismos 12 valores que las viejas (math3d), para todos los ángulos.
 // Cualquier diferencia es un fallo, no una mejora.
 #include <eng/core/linalg.hpp>
-#include <eng/core/math3d.hpp>
+#include <eng/platform/amiga/gfx3d.hpp>
 
 #include <cstdio>
 

@@ -1,7 +1,7 @@
 # HOST-014 — modelo de objeto 3D (`eng::object3d`, port de `lib3d`)
 
 Test host del modelo de objeto/malla del demoscene portado 1:1
-(`engine/include/eng/core/object3d.hpp`): formato empaquetado de `obj2c`, acceso por
+(`engine/include/eng/platform/amiga/object3d.hpp`): formato empaquetado de `obj2c`, acceso por
 offsets de byte y `UpdateObjectTransformation` (sobre `math2d`/`math3d`).
 
 ## Qué valida

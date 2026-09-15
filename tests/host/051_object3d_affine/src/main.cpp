@@ -1,8 +1,9 @@
 // HOST-051 — Red de seguridad para migrar `object3d` a Affine: la transformación del
 // objeto construida con la librería genérica debe dar EXACTAMENTE los mismos 12 valores
 // y la misma cámara que `object3d::update_object_transformation` actual.
+#include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/core/linalg.hpp>
-#include <eng/core/object3d.hpp>
+#include <eng/platform/amiga/object3d.hpp>
 
 #include <cstdio>
 

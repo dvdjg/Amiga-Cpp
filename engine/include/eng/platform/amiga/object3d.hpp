@@ -17,7 +17,7 @@
 ///   update_object_transformation(obj);
 
 #include <eng/core/math2d.hpp>
-#include <eng/core/math3d.hpp>
+#include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::object3d {

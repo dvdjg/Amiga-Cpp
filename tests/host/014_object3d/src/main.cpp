@@ -1,5 +1,5 @@
 // Test host de eng::object3d (modelo obj2c + Object3D portado de lib3d).
-#include <eng/core/object3d.hpp>
+#include <eng/platform/amiga/object3d.hpp>
 
 #include <cstdio>
 

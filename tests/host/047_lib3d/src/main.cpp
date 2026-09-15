@@ -1,7 +1,7 @@
 // Test host de eng::lib3d (visibilidad de caras/aristas y transform+proyeccion de
 // vertices sobre el modelo empaquetado de object3d). Construye una malla minima a
 // mano (1 nodo + 1 arista + 1 cara) y comprueba signos/valores calculables.
-#include <eng/core/lib3d.hpp>
+#include <eng/platform/amiga/lib3d.hpp>
 
 #include <cstdio>
 #include <cstring>

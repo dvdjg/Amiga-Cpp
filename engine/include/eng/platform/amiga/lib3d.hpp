@@ -39,9 +39,10 @@
 /// Ver `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` (§9) para la bitácora
 /// de estos hallazgos y `demos/amiga/116_flatshade_convex/README.md` para el port.
 
+#include <eng/core/affine.hpp>
 #include <eng/core/math2d.hpp>
-#include <eng/core/math3d.hpp>
-#include <eng/core/object3d.hpp>
+#include <eng/platform/amiga/gfx3d.hpp>
+#include <eng/platform/amiga/object3d.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::lib3d {
@@ -203,35 +204,8 @@ inline void update_edge_visibility_convex(Object3D& object) {
 	} while (*group);
 }
 
-namespace detail {
-
-/// Una fila de la proyección. La INTERFAZ va con los tipos del sistema: la fila de la
-/// matriz es un RATIO 4.12 (`q12`) y el vértice una LONGITUD (`q0`).
-///
-/// El cuerpo NO usa `q12*q0` a proposito: el original **empaqueta dos productos en un
-/// solo `muls.w`** evaluando `(c0+y)·(c1+x) = c0·c1 + c0·x + c1·y + x·y` de una vez y
-/// restando despues el termino `x·y` (= `xy`, que se cancela). Con los tipos harian
-/// falta 4 multiplicaciones; con el empaquetado, 2. Por eso `c0.v + y.v` es una suma
-/// CRUDA: es la que coloca los dos factores en las mitades del registro, no una suma
-/// con significado fisico. `e`/`xy` llevan las escalas plegadas del original.
-[[nodiscard]] inline s32 vertex_mul12(eng::math::q12 c0, eng::math::q12 c1, eng::math::q12 c2,
-				      eng::math::q0 x, eng::math::q0 y, eng::math::q0 z, s32 xy, s32 e) {
-	const s16 t0 = static_cast<s16>(c0.v + y.v); // empaquetado (ver arriba)
-	const s16 t1 = static_cast<s16>(c1.v + x.v);
-	const s32 t2 = math2d::mul16(c2.v, z.v);
-	return ((math2d::mul16(t0, t1) + t2 - xy) >> 4) + e;
-}
-
-/// Tercera fila: normaliza en vez de desplazar y suma la traslación (LONGITUD).
-[[nodiscard]] inline s32 vertex_mul3(eng::math::q12 c0, eng::math::q12 c1, eng::math::q12 c2,
-				     eng::math::q0 tz, eng::math::q0 x, eng::math::q0 y, eng::math::q0 z, s32 xy) {
-	const s16 t0 = static_cast<s16>(c0.v + y.v); // empaquetado (ver arriba)
-	const s16 t1 = static_cast<s16>(c1.v + x.v);
-	const s32 t2 = math2d::mul16(c2.v, z.v);
-	return math2d::normfx(math2d::mul16(t0, t1) + t2 - xy) + tz.v;
-}
-
-} // namespace detail
+// La proyección de cada vértice la resuelve `eng::math::projector` (en `affine.hpp`): el
+// truco del empaquetado de dos `muls.w` es del 68000 y vive en su backend de CPU, no aquí.
 
 /// Port de `TransformVertices`: transforma y proyecta (perspectiva con `div16`)
 /// los vértices marcados por `update_edge_visibility_convex` (o el que ponga
@@ -251,13 +225,10 @@ inline void transform_vertices(Object3D& object, s16 half_w, s16 half_h, s16 bbo
 	void* objdat = object.objdat;
 	s16* group = object.vertexGroups;
 
-	// m0/m1 son el termino `xy` de `MULVERTEX1` preescalado por 256 (16.8): el
-	// macro le resta `xy` a un producto 8.24 y hace `>> 4` para volver a 4.12.
-	// Se pasa a `mul16` (no `(s32)*(s16)`) para forzar `muls.w` y evitar `__mulsi3`.
-	// `normfx(m00*m01)` es el producto 4.12 normalizado: el `dot` de un par.
-	s32 m0 = (static_cast<s32>(M.t.v[0].v) - eng::math::dot(M.m.m[0][0], M.m.m[0][1]).v) << 8;
-	s32 m1 = (static_cast<s32>(M.t.v[1].v) - eng::math::dot(M.m.m[1][0], M.m.m[1][1]).v) << 8;
-	M.t.v[2] = eng::math::q0 {static_cast<s16>(M.t.v[2].v - eng::math::dot(M.m.m[2][0], M.m.m[2][1]).v)};
+	// Lo precalculable UNA vez por matriz (términos de traslación plegados) lo guarda
+	// la caché del proyector; el backend 68000 mete ahí lo que necesite.
+	using Proj = eng::math::projector<math3d::Affine3>;
+	const Proj::cache pc = Proj::make(M);
 
 	bbox[0] = 32767; bbox[1] = -32768; bbox[2] = 32767; bbox[3] = -32768;
 	do {
@@ -266,26 +237,19 @@ inline void transform_vertices(Object3D& object, s16 half_w, s16 half_h, s16 bbo
 			object3d::Node3D* node = object3d::node3d(objdat, i);
 			if (node->flags) {
 				s16* pt = reinterpret_cast<s16*>(node);
-				s16 x, y, z, zp;
-				s32 xy, xp, yp;
+				s16 x, y, z;
 
 				*pt++ = 0;
 				x = *pt++;
 				y = *pt++;
 				z = *pt++;
-				const eng::math::q0 qx {x}, qy {y}, qz {z};
-				xy = (qx * qy).v; // termino x·y que el empaquetado resta (q0*q0 -> entero)
+				const eng::math::Projected3 pr = Proj::project(pc, x, y, z);
 
-				xp = detail::vertex_mul12(M.m.m[0][0], M.m.m[0][1], M.m.m[0][2], qx, qy, qz, xy, m0);
-				yp = detail::vertex_mul12(M.m.m[1][0], M.m.m[1][1], M.m.m[1][2], qx, qy, qz, xy, m1);
-				zp = static_cast<s16>(detail::vertex_mul3(M.m.m[2][0], M.m.m[2][1], M.m.m[2][2],
-									  M.t.v[2], qx, qy, qz, xy));
-
-				const s16 sx = static_cast<s16>(math2d::div16(xp, zp) + half_w);
-				const s16 sy = static_cast<s16>(math2d::div16(yp, zp) + half_h);
+				const s16 sx = static_cast<s16>(math2d::div16(pr.xp, static_cast<s16>(pr.zp)) + half_w);
+				const s16 sy = static_cast<s16>(math2d::div16(pr.yp, static_cast<s16>(pr.zp)) + half_h);
 				*pt++ = sx;
 				*pt++ = sy;
-				*pt++ = zp;
+				*pt++ = static_cast<s16>(pr.zp);
 
 				if (sx < bbox[0]) bbox[0] = sx;
 				if (sx > bbox[1]) bbox[1] = sx;

@@ -20,11 +20,52 @@
 /// Reutiliza `Face`, `transform`, `face_visible` y `face_z_min` de `math3d`
 /// (no duplica); aquí solo vive la composición «malla → caras listas para pintar».
 
-#include <eng/core/math3d.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::math3d {
+
+/// Punto/vector 3D crudo: 3 enteros. Es del modelo de malla (no depende del 4.12 ni del
+/// chipset); un backend lo cruza con sus escalares cuando transforma.
+struct Vec3 {
+	s16 x = 0;
+	s16 y = 0;
+	s16 z = 0;
+};
+
+/// Cara triangular: 3 índices sobre el array de vértices.
+struct Face {
+	u16 a = 0;
+	u16 b = 0;
+	u16 c = 0;
+};
+
+/// Producto mixto `(B-A)·[(C-A)×(cam-A)]` en 32 bits (signo = visibilidad de la cara
+/// `(A,B,C)` desde `cam`). Back-face culling sin normalizar (solo importa el signo).
+constexpr s32 face_signed_area(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& cam) {
+	const s32 ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
+	const s32 vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
+	const s32 nx = uy * vz - uz * vy;
+	const s32 ny = uz * vx - ux * vz;
+	const s32 nz = ux * vy - uy * vx;
+	return nx * (cam.x - a.x) + ny * (cam.y - a.y) + nz * (cam.z - a.z);
+}
+
+/// ¿Es visible la cara `(a,b,c)` desde `cam`? (`>= 0`, como el origen).
+constexpr bool face_visible(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& cam) {
+	return face_signed_area(a, b, c, cam) >= 0;
+}
+
+/// Clave de orden Z por SUMA de los z de la cara (como `SortFaces`).
+constexpr s16 face_z_sum(const Vec3& a, const Vec3& b, const Vec3& c) {
+	return static_cast<s16>(a.z + b.z + c.z);
+}
+
+/// Clave de orden Z por MÍNIMO de los z de la cara (como `SortFacesMinZ`).
+constexpr s16 face_z_min(const Vec3& a, const Vec3& b, const Vec3& c) {
+	const s16 ab = a.z < b.z ? a.z : b.z;
+	return ab < c.z ? ab : c.z;
+}
 
 /// Vista no propietaria de una malla: vértices compartidos (enlazado por índice)
 /// y caras que los referencian. No posee memoria; el llamador la mantiene viva.
@@ -36,12 +77,8 @@ struct MeshView {
 	[[nodiscard]] constexpr u32 face_count() const { return static_cast<u32>(faces.size()); }
 };
 
-/// Transforma todos los vértices `in` con `m` hacia `out`. Procesa
-/// `min(in.size(), out.size())` elementos; no lee ni escribe fuera de rango.
-inline void mesh_transform(Span<const Vec3> in, const eng::math3d::Affine3& m, Span<Vec3> out) {
-	const u32 n = static_cast<u32>(in.size() < out.size() ? in.size() : out.size());
-	transform(m, out.data(), in.data(), n);
-}
+// `mesh_transform` (que cruza el modelo de malla con un afín concreto) vive en el
+// backend de la plataforma: aquí sólo está el modelo, sin tipos de ningún formato.
 
 /// Cara visible + clave de profundidad para el orden de pintado.
 struct FaceOrder {

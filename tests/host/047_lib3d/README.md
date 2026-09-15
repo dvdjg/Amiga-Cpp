@@ -1,7 +1,7 @@
 # HOST-047 — lib3d (`eng::lib3d`): visibilidad de caras/aristas + transform
 
 Test host de las rutinas puras de `lib3d` promovidas al engine
-(`engine/include/eng/core/lib3d.hpp`): visibilidad de caras con luz, visibilidad de
+(`engine/include/eng/platform/amiga/lib3d.hpp`): visibilidad de caras con luz, visibilidad de
 aristas de un sólido convexo y transform + proyección de vértices, sobre el modelo
 empaquetado de `object3d`.
 

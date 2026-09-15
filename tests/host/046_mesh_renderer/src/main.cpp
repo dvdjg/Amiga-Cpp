@@ -1,6 +1,7 @@
 // Test host de `eng::graphics::mesh_renderer` (malla 3D -> Surface):
 // proyección en perspectiva, back-face culling (mesh_painter_order) y relleno de
 // las caras visibles vía `Surface::fill_polygon`. `Playfield` de prueba en RAM.
+#include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/graphics/mesh_renderer.hpp>
 
 #include <cstdio>

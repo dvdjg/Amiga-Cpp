@@ -14,7 +14,7 @@
 /// registros. Reutiliza `mesh3d`/`math3d`/`Surface` (no duplica).
 
 #include <eng/core/math2d.hpp>
-#include <eng/core/math3d.hpp>
+#include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/core/mesh3d.hpp>
 #include <eng/field/surface.hpp>
 

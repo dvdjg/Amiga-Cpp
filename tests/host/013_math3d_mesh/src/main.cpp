@@ -1,4 +1,5 @@
 // Test host de eng::math3d::MeshView (malla + transform + back-face culling + orden painter).
+#include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/core/mesh3d.hpp>
 
 #include <cstdio>

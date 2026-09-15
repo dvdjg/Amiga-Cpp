@@ -10,7 +10,7 @@
 //   math3d (rotacion 4.12) -> mesh3d (transform + culling + orden painter)
 //   -> rasterizado de triangulos (scanline entero, sin division) -> Blitter clear.
 #include <eng/assets/uaf.hpp>
-#include <eng/core/math3d.hpp>
+#include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/core/mesh3d.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>

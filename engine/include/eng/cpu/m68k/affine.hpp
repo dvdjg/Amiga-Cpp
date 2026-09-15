@@ -1,0 +1,25 @@
+#pragma once
+
+/// \file affine.hpp
+/// Especialización para el **procesador 68000** del empaquetado de la proyección. Es del
+/// CPU (sirve para Amiga, Atari ST o Mega Drive), no del chipset.
+///
+/// `(c0+y)·(c1+x) − x·y = c0·c1 + c0·x + c1·y`, y el producto de 32 bits de los dos
+/// factores empaquetados lleva los dos productos dentro. Así los tres productos de la
+/// fila salen con **dos `muls.w`** en vez de tres. El VALOR es idéntico al genérico
+/// (comprobado por HOST-053).
+
+#include <eng/core/affine.hpp>
+
+namespace eng::math {
+
+template <>
+struct pack3_ops<q12, q0> {
+	[[nodiscard]] static s32 eval(q12 c0, q12 c1, q0 x, q0 y) {
+		const s16 t0 = static_cast<s16>(c0.v + y.v); // empaquetado (ver cabecera)
+		const s16 t1 = static_cast<s16>(c1.v + x.v);
+		return arith<s16>::mul(t0, t1) - arith<s16>::mul(x.v, y.v);
+	}
+};
+
+} // namespace eng::math

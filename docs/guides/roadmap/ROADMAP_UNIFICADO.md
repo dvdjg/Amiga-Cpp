@@ -36,7 +36,7 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
 - Sin `linear_display` por defecto en 202: viewport recortado 320×208 para split
   canónico; mapas toroidales.
 - **Matemática y assets (import demoscene, 2026-09)**: `eng/core/math2d.hpp`
-  (lib2d: matrices 2×2 4.12 + `clip_line`/`clip_polygon`) y `eng/core/math3d.hpp`
+  (lib2d: matrices 2×2 4.12 + `clip_line`/`clip_polygon`) y `eng/platform/amiga/gfx3d.hpp`
   (lib3d: `Mat3x3`, rotaciones, `compose`, `face_visible`); modelo de malla en
   `eng/core/mesh3d.hpp` (`MeshView` + `mesh_transform` + `mesh_painter_order` con
   culling y shell sort) — tests HOST-010/011/013.
@@ -353,7 +353,7 @@ desarrolla en varios turnos; el orden es 1→2→3.
 
 **Idea**: convertir el importe 3D del demoscene (`flatshade-convex`, `wireframe`, `flatshade`, `stencil3d`, `texobj`, `blurred3d`, `starfox`, `anim-polygons`, `dna3d`) en un **subsistema de render poligonal/wireframe** reutilizable, no en demos sueltas. La base ya está en el repo:
 
-- **Modelo y matemática**: `eng/core/object3d.hpp` (malla `obj2c` + `Object3D`, port 1:1 de lib3d; HOST-014) y `eng/core/mesh3d.hpp` (`MeshView`, `mesh_transform`, `mesh_painter_order`; HOST-013); `math2d`/`math3d` (4.12, `div16`/`normfx`; HOST-010/011).
+- **Modelo y matemática**: `eng/platform/amiga/object3d.hpp` (malla `obj2c` + `Object3D`, port 1:1 de lib3d; HOST-014) y `eng/core/mesh3d.hpp` (`MeshView`, `mesh_transform`, `mesh_painter_order`; HOST-013); `math2d`/`math3d` (4.12, `div16`/`normfx`; HOST-010/011).
 - **Primitivas Blitter**: `blitter_line` (OR), `blitter_line_eor` (ONEDOT+EOR, con `d_base`), `blitter_area_fill` (FILL_XOR), `blitter_fill_polygon` (máscara+cookie-cut), `fill_triangles_blitter`.
 - **Técnica canónica**: `docs/reference/amiga/techniques/blitter-line-subpixel-fill.md` §3 (receta del polígono relleno; truco `BLTDPTR`=base, `BLTSIZE` altura 0).
 - **Demos cabecera**: 077/078 (`math3d` cube/solid), 079 (`wireframe`), 116 (`flatshade-convex` fiel).

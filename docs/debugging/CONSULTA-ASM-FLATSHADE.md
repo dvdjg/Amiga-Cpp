@@ -79,7 +79,7 @@ inline void prepare_fs_args(eng::PlaneBytes planes, obj::Object3D& object) {
 }
 ```
 
-El `Object3D` (mismo layout que el original y que `engine/include/eng/core/object3d.hpp`):
+El `Object3D` (mismo layout que el original y que `engine/include/eng/platform/amiga/object3d.hpp`):
 
 ```
 objdat=0  vertexGroups=4  edgeGroups=8  faceGroups=12  objects=16
@@ -474,5 +474,5 @@ runtime vía el `.map`/magic ENG; volcar los nodos y diferenciar ambas rutas.
    al renderizado. Se agradece una **secuencia de pasos reproducibles** para localizarlo.
 
 **Archivos**: `support/flatshade_asm.s` (ASM), `demos/amiga/116_flatshade_convex/src/main.cpp`
-(C++ canónico + llamadas), `engine/include/eng/core/object3d.hpp` (layouts). El build
+(C++ canónico + llamadas), `engine/include/eng/platform/amiga/object3d.hpp` (layouts). El build
 `--debug` emite además el `.s` de GCC para comparar codegen.

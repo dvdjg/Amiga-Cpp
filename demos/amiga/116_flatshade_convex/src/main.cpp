@@ -9,15 +9,15 @@
 // segun el color; despues se rellena el hueco con `blitter_area_fill` (area fill
 // XOR). El recorrido del object model (`Object3D` + grupos por offsets de byte) y la
 // proyeccion (`transform_vertices`) son el port 1:1 de `lib3d` y viven en
-// `eng/core/lib3d.hpp` (API reutilizable, con test host); aqui queda el dibujo Amiga
+// `eng/platform/amiga/lib3d.hpp` (API reutilizable, con test host); aqui queda el dibujo Amiga
 // (Blitter de lineas + area fill) y la orquestacion del efecto.
 //
 // Display y doble buffer: 256x256x4 con los registros del original
 // (`SetupPlayfield(MODE_LORES,4,X(32),Y(0),256,256)`); doble buffer con swap de
 // copperlist por frame.
-#include <eng/core/lib3d.hpp>
+#include <eng/platform/amiga/lib3d.hpp>
 #include <eng/core/math2d.hpp>
-#include <eng/core/object3d.hpp>
+#include <eng/platform/amiga/object3d.hpp>
 #include <eng/core/types.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
@@ -134,7 +134,7 @@ eng::s16 g_bbox[4] = {32767, -32768, 32767, -32768};
 //     ES el punto donde el codegen de g++ mas se nota frente al original: ~9
 //     `mul16` + 2 `div16` por vertice, y los punteros a `objdat` no caben en
 //     registros de direccion (GCC-15 ignora `register ... asm("aN")`). El detalle
-//     de que emite g++ y cual seria el ideal en asm esta en `eng/core/lib3d.hpp`.
+//     de que emite g++ y cual seria el ideal en asm esta en `eng/platform/amiga/lib3d.hpp`.
 //   - edges (~114k) + fill (~132k) + clear (~89k, Blitter): NO es CPU nuestro.
 //     Cada blit tiene un coste fijo (~1.4k ciclos de arranque) y cada escritura a
 //     registro custom ~57 ciclos; el area fill cuesta lo mismo que en el original
@@ -147,7 +147,7 @@ eng::s16 g_bbox[4] = {32767, -32768, 32767, -32768};
 //
 // Las rutinas puras de lib3d (visibilidad de caras con luz, visibilidad de aristas
 // de un solido convexo y transform+proyeccion de vertices) viven en
-// eng/core/lib3d.hpp (API reutilizable, con test host); aqui solo queda el dibujo
+// eng/platform/amiga/lib3d.hpp (API reutilizable, con test host); aqui solo queda el dibujo
 // Amiga (Blitter de lineas / area fill) y la orquestacion del efecto.
 /// Ruta ALTERNATIVA (ruta B, `-DFLATSHADE_FAITHFUL=0`): rellena cada cara VISIBLE
 /// (poligono proyectado) con su color de luz mediante `blitter_fill_polygon`

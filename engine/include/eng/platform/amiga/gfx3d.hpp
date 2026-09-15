@@ -1,6 +1,6 @@
 #pragma once
 
-/// \file math3d.hpp
+/// \file gfx3d.hpp
 /// Especialización **para gráficos de Amiga** de la librería genérica
 /// (`eng/core/linalg.hpp`): rotaciones construidas con la tabla de seno 4.12 y los
 /// tipos concretos que usan los efectos (`Mat3` = `Mat<3,q12>`, `Affine3` =
@@ -13,6 +13,7 @@
 #include <eng/core/fixed.hpp>
 #include <eng/core/linalg.hpp>
 #include <eng/core/math2d.hpp>
+#include <eng/core/mesh3d.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::math3d {
@@ -26,13 +27,8 @@ using Mat3 = eng::math::Mat<3, eng::math::q12>;
 /// Transformación afín completa: lineal (RATIO 4.12) + traslación (LONGITUD entera).
 using Affine3 = eng::math::Affine<3, eng::math::q12, eng::math::q0>;
 
-/// Punto/vector 3D crudo (mismos campos que `Point3D`). Es un tipo de datos del
-/// chipset/del mesh; la aritmética de matrices lo cruza con `q0`/`q12` explícitamente.
-struct Vec3 {
-	s16 x = 0;
-	s16 y = 0;
-	s16 z = 0;
-};
+// `Vec3`, `Face` y el back-face culling son del MODELO de malla, no de este formato:
+// viven en `eng/core/mesh3d.hpp`. Aquí sólo queda lo que usa el 4.12.
 
 /// Carga `M = Rx(ax)·Ry(ay)·Rz(az)` (igual que `LoadRotate3D`).
 inline void load_rotate(Mat3& m, u16 ax, u16 ay, u16 az) {
@@ -108,39 +104,11 @@ inline void transform(const Affine3& a, Vec3* out, const Vec3* in, u32 n) {
 	}
 }
 
-/// Cara triangular: 3 índices sobre el array de vértices.
-struct Face {
-	u16 a = 0;
-	u16 b = 0;
-	u16 c = 0;
-};
-
-/// Producto mixto `(B-A)·[(C-A)×(cam-A)]` en 32 bits (signo = visibilidad de la
-/// cara `(A,B,C)` desde `cam`). Es el test de back-face culling de `UpdateFaceVisibility`
-/// sin normalizar (solo importa el signo). Coords moderadas (≤ ~320) no desbordan.
-constexpr s32 face_signed_area(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& cam) {
-	const s32 ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
-	const s32 vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
-	const s32 nx = uy * vz - uz * vy;
-	const s32 ny = uz * vx - ux * vz;
-	const s32 nz = ux * vy - uy * vx;
-	return nx * (cam.x - a.x) + ny * (cam.y - a.y) + nz * (cam.z - a.z);
-}
-
-/// ¿Es visible la cara `(a,b,c)` desde `cam`? (`>= 0`, como el origen).
-constexpr bool face_visible(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& cam) {
-	return face_signed_area(a, b, c, cam) >= 0;
-}
-
-/// Clave de orden Z por SUMA de los z de la cara (como `SortFaces`).
-constexpr s16 face_z_sum(const Vec3& a, const Vec3& b, const Vec3& c) {
-	return static_cast<s16>(a.z + b.z + c.z);
-}
-
-/// Clave de orden Z por MÍNIMO de los z de la cara (como `SortFacesMinZ`).
-constexpr s16 face_z_min(const Vec3& a, const Vec3& b, const Vec3& c) {
-	const s16 ab = a.z < b.z ? a.z : b.z;
-	return ab < c.z ? ab : c.z;
+/// Transforma los vértices de una malla con el afín 4.12 (cruza el modelo de malla con
+/// los escalares de este formato). Procesa `min(in.size(), out.size())` elementos.
+inline void mesh_transform(Span<const Vec3> in, const Affine3& m, Span<Vec3> out) {
+	const u32 n = static_cast<u32>(in.size() < out.size() ? in.size() : out.size());
+	transform(m, out.data(), in.data(), n);
 }
 
 } // namespace eng::math3d

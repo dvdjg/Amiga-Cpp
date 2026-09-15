@@ -3,7 +3,7 @@
 // en la capa de cálculo (matrices, exponentes, redondeo) los altere en silencio.
 //
 // Malla mínima: 3 nodos (un triángulo) + 1 arista + 1 cara.
-#include <eng/core/lib3d.hpp>
+#include <eng/platform/amiga/lib3d.hpp>
 
 #include <cstdio>
 #include <cstring>

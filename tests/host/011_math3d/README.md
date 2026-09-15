@@ -1,6 +1,6 @@
 # HOST-011 — math3d (lib3d, fixed-point 4.12)
 
-Test host de `eng::core::math3d` (`engine/include/eng/core/math3d.hpp`), port de la
+Test host de `eng::core::math3d` (`engine/include/eng/platform/amiga/gfx3d.hpp`), port de la
 parte pura de **`lib3d`** de `demoscene-repo-orig`.
 
 ## Qué valida
