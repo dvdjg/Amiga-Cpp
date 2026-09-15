@@ -5,13 +5,13 @@
 /// especialización de plataforma: un PC moderno usaría `float` y no necesita esta tabla,
 /// ni la convención de que un ángulo sea un índice 0..4095.
 ///
-/// Es la tabla **exacta del original** (`sintab.hpp`), no la aproximación de Bhaskara de
-/// `sinetable.hpp`: los efectos portados 1:1 la necesitan. El álgebra de rotaciones
+/// Es la tabla **exacta del original** (`kSinTableQ12`, `eng/core/sinetable.hpp`): los efectos
+/// portados 1:1 la necesitan. El álgebra de rotaciones
 /// (que sí es genérica) está en `eng/core/linalg.hpp`; aquí sólo vive el formato.
 
 #include <eng/core/math2d.hpp>
 #include <eng/core/types.hpp>
-#include <eng/platform/amiga/sintab.hpp>
+#include <eng/core/sinetable.hpp>
 
 namespace eng::math2d {
 
@@ -25,7 +25,7 @@ struct SinTableQ12 {
 	s16 v[kAngleSteps] {};
 	constexpr SinTableQ12() {
 		for (u32 i = 0; i < kAngleSteps; ++i) {
-			v[i] = kSinTab[i];
+			v[i] = static_cast<s16>(eng::kSinTab[i]);
 		}
 	}
 };

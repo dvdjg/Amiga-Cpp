@@ -8,7 +8,7 @@
 ///   tab3[i] = fx4i(3*37) * SIN(rad*2) >> 16
 ///
 /// `fx4i(i) = i << 4` y `SIN`/`COS` son la tabla 4.12 exacta del original
-/// (`eng/platform/amiga/sintab.hpp` via `math2d`). El `>> 16` es aritmetico (como el C original,
+/// (`eng/core/sinetable.hpp` via `math2d`). El `>> 16` es aritmetico (como el C original,
 /// que asigna a `char`).
 
 #include <eng/platform/amiga/angles.hpp>

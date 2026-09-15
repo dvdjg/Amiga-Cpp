@@ -60,7 +60,7 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-017 | [background_task](017_background_task/README.md) | `eng::task::BackgroundQueue`: tareas de fondo cooperativas (progreso/rendimiento, adaptación por `vpos`, prioridad al bucle principal). |
 | HOST-018 | [rtc](018_rtc/README.md) | `eng::time::from_tod`: reloj de tiempo real desde el contador TOD de la CIA-A (50/60 Hz, wrap 24 h). |
 | HOST-019 | [copper_ext](019_copper_ext/README.md) | Extensiones de Copper para *copper chunky*: `SKIP` (máscara `0xffff`), `MOVE32` (orden `reg+2`/`reg`) y parcheo de instrucciones (`move_at`/`patch_data`). |
-| HOST-020 | [sintab](020_sintab/README.md) | Tabla de seno 4.12 **exacta** del original (`libmisc/sintab.c`) materializada en `eng/platform/amiga/sintab.hpp`; invariantes, simetría, checksum y uso por `math2d`. |
+| HOST-020 | [sinetable](020_sinetable/README.md) | Tabla de seno 4.12 **exacta** del original (`libmisc/sintab.c`) materializada en `eng/core/sinetable.hpp`; invariantes, simetría, checksum y uso por `math2d`. |
 | HOST-021 | [plasma_tables](021_plasma_tables/README.md) | Datos del plasma: tablas `tab1/2/3` (`fx4i`·`SIN/COS` verbatim) y paleta 256×RGB12, con checksums frente al original. |
 | HOST-022 | [fast_div](022_fast_div/README.md) | `eng::fast_div`/`is_pow2`/`ilog2`/`asr_floor`: división/módulo por potencia de dos sin el libcall `__udivsi3` del 68000. |
 | HOST-023 | [limited_axes](023_limited_axes/README.md) | Ejes del `ScrollEngine`: `Ring`/`Finite`/`Off` y `OneDirection` (shooter vertical). |

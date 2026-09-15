@@ -1,17 +1,17 @@
 // ============================================================================
-// Test HOST-020: tabla de seno EXACTA del original (eng/platform/amiga/sintab.hpp).
+// Test HOST-020: tabla de seno EXACTA del original (eng/core/sinetable.hpp).
 // ============================================================================
 //
 // La tabla se genera desde `libmisc/sintab.c` (reconstruyendo los deltas). Aqui se
 // fijan invariantes + checksum de regresion y se comprueba que `math2d` la usa.
 //
-//   bash tools/run-host-tests.sh tests/host/020_sintab
+//   bash tools/run-host-tests.sh tests/host/020_sinetable
 
 #include <eng/platform/amiga/angles.hpp>
 #include <cstdio>
 
 #include <eng/core/math2d.hpp>
-#include <eng/platform/amiga/sintab.hpp>
+#include <eng/core/sinetable.hpp>
 #include <eng/core/types.hpp>
 
 namespace {
@@ -47,7 +47,7 @@ int main() {
 		std::printf("[FAIL] checksum=%d (esperado 1083047936)\n", (int)chk);
 		return 1;
 	}
-	// `math2d` usa la tabla exacta (no la aproximacion de Bhaskara).
+	// `math2d` usa la tabla exacta.
 	if (eng::math2d::sin_q12(512) != eng::kSinTab[512] ||
 	    eng::math2d::cos_q12(0) != eng::kSinTab[1024]) {
 		std::printf("[FAIL] math2d no usa kSinTab\n");
