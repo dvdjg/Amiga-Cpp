@@ -353,7 +353,7 @@ fs_transform_vertices:
 	divs.w	d2,d0
 	addi.w	#128,d0
 	move.w	d0,10(a5)			/* vertex.y */
-	move.w	0(sp),d0			/* zp */
+	move.w	2(sp),d0			/* zp (word bajo del long en 0(sp)) */
 	move.w	d0,12(a5)			/* vertex.z = zp (s16) */
 	/* bbox */
 	move.w	8(a5),d0			/* sx */

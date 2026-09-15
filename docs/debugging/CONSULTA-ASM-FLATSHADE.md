@@ -1,4 +1,4 @@
-# Consulta para IA externa — port ASM m68k de `flatshade-convex` (demo 116)
+# Consulta — port ASM m68k de `flatshade-convex` (demo 116)
 
 Ayuda para depurar una **excepción / render deformado** en una rutina ASM 68000 escrita a
 mano que debería ser equivalente a su versión C++ (que funciona). No hay ASM original que
@@ -380,7 +380,38 @@ fs_transform_vertices:
 
 ---
 
-## 6. Preguntas concretas para la IA externa
+## 6. Actualización (comparación byte a byte `objdat` C++ vs ASM)
+
+Comparando el `objdat` (los 60 nodos: flags, punto original, vértice proyectado) entre la
+ruta C++ y la ASM con la **misma fase de rotación fija** (`m_angle` fijo) se encontraron y
+corrigieron dos bugs más (además del `movea.l g_fs_args`):
+
+1. **`vertex.z` mal**: en el ASM `move.l d0,0(sp)` guarda el `zp` de 32 bits; en 68000
+   (big-endian) el **word alto** queda en `0(sp)` y el **bajo en `2(sp)`**. Se leía
+   `move.w 0(sp),d0` (el alto → `-1`/`0xFFFF` para `zp` negativos) en vez de `move.w
+   2(sp),d0`. **Corregido.**
+2. (Descartado como causa) la división y el `movem`.
+
+**Tras las correcciones, la salida del `fs_transform_vertices` ASM COINCIDE con la C++**
+en todos los nodos, p. ej. con `m_angle=1000`:
+`n2 v=(132,249,-3288)`, `n16 v=(171,236,-3700)`, `n44 v=(161,16,-3649)`,
+`n58 v=(93,239,-3699)`, `n72 v=(132,236,-2741)` (idénticos en ambas rutas).
+
+**PERO el render sigue negro.** Con la ruta ASM completa (face+edge+transform) y también
+con **sólo el transform en ASM** (face/edge en C++), la demo alcanza READY pero la pantalla
+sale toda de fondo (`verify-116`: "no hay balón"), incluso capturando una secuencia de 4
+frames. Como la salida del transform coincide con la C++, el fallo restante apunta a:
+(a) `fs_update_face_visibility` / `fs_update_edge_visibility_convex` (sólo en la ruta
+completa), o (b) **algún efecto colateral** del ASM (un registro que el render C++ espera,
+corrupción de memoria más allá del `objdat`, o el estado del Blitter/copper). Todos los
+índices de `vertexGroups` son **pares** y caen dentro de `_pilka_data`.
+
+**Método de comparación** (reutilizable): fijar `m_angle` constante; resolver el `objdat` en
+runtime vía el `.map`/magic ENG; volcar los nodos y diferenciar ambas rutas.
+
+---
+
+## 7. Preguntas concretas para la IA externa
 
 1. **¿Ves algún error en el ASM de `fs_transform_vertices`** (offsets de struct, orden de
    operaciones, uso de `ext.l`/`asr.l`/`muls.w`/`divs.w`, gestión de la pila con
@@ -407,6 +438,29 @@ fs_transform_vertices:
 7. Cualquier otra estrategia de depuración: ¿conviene comparar **byte a byte** el estado
    del `objdat` (flags/vertex de los nodes) entre la ruta C++ y la ASM para el mismo
    frame? ¿Cómo fijar la misma fase de rotación para comparar?
+8. **(Preferencia de diseño) `register ... asm("dN")` en `m68k-amiga-elf-g++ 15.1.0`**:
+   el original C usa variables de registro con pin
+   (`register char s asm("d2"); register char flags asm("d3");`) y macros
+   (`MULVERTEX1/2`, `DRAWLINE`). ¿Cuál es el mecanismo **actual** en este GCC (fork
+   bebbo/amiga-gcc, `-m68000`) para que **respete** esos pins (o su equivalente) y así
+   mantener el hot loop **en C++** (macros + variables de registro) en vez de un `.s`
+   aparte? Concretamente:
+   - ¿Sigue existiendo el soporte de `register asm("aN")`/`asm("dN")` en m68k y bajo qué
+     condiciones (`-O`? `-fomit-frame-pointer`? `#pragma GCC optimize`? versión de GCC)?
+     ¿Hay que usar `__asm__("d2")` o `register ... asm` con algún `-ffixed-dN`?
+   - ¿Sirve `register void* p asm("a3")` o hay que usar `-ffixed-a3` + `local register
+     variables` / `asm` blocks?
+   - ¿Hay alguna opción (p. ej. `-fno-omit-frame-pointer` desactivado, `-fcaller-saves`,
+     `-ffixed-reg`) que en la práctica recupere el codegen del original sin bajar a `.s`?
+   - Si el mecanismo no existe/funciona, ¿cuál es la alternativa recomendada para
+     mantenerlo en C++ (intrínsecos, `asm` inline por operación, `__builtin` )?
+9. **(El bug que queda) Render negro aunque el transform coincide**: la salida del
+   `fs_transform_vertices` ASM es idéntica a la C++, pero el render sale todo de fondo.
+   ¿Qué puede explicarlo? Hipótesis a validar: (a) un registro que el ASM pisa y el
+   render C++ espera (¿`a6`? ¿`d6`/`d7`?); (b) escritura fuera de rango de algún nodo
+   (índices/vértices) que corrompe datos vecinos; (c) interacción con el Blitter/copper
+   (el ASM no los toca, pero el render sí); (d) que el dump se lea en un frame distinto
+   al renderizado. Se agradece una **secuencia de pasos reproducibles** para localizarlo.
 
 **Archivos**: `support/flatshade_asm.s` (ASM), `demos/amiga/116_flatshade_convex/src/main.cpp`
 (C++ canónico + llamadas), `engine/include/eng/core/object3d.hpp` (layouts). El build

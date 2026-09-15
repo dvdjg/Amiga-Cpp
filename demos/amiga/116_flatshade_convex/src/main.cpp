@@ -638,7 +638,7 @@ struct FlatShadeDemo {
 		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z = m_angle;
 		obj::update_object_transformation(m_object);
 		const eng::u32 ta = rcycles();
-#if K_FLATSHADE_ASM
+		#if K_FLATSHADE_ASM
 		prepare_fs_args(planes, m_object);
 		fs_update_face_visibility();
 		const eng::u32 tb = rcycles();
