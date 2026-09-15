@@ -27,6 +27,7 @@
 /// Coste (68000, verificado en el `.s`): `muls.w` nativo, `add.l` para las sumas y un
 /// único `asr.l` (o `add` + `asr` con redondeo) por normalización. Sin libcalls.
 
+#include <eng/core/arith.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::math {
@@ -245,8 +246,10 @@ using q12_sat = Fixed<s16, 12, SaturatePolicy>;
 template <typename Ra, int Ea, typename Rb, int Eb, typename P>
 [[nodiscard]] constexpr Fixed<typename mul_repr<Ra, Rb>::type, Ea + Eb, P>
 operator*(Fixed<Ra, Ea, P> a, Fixed<Rb, Eb, P> b) {
+	using CR = typename common_repr<Ra, Rb>::type;
 	using WR = typename mul_repr<Ra, Rb>::type;
-	return Fixed<WR, Ea + Eb, P> {static_cast<WR>(a.v) * static_cast<WR>(b.v)};
+	// Por el rasgo rith (y no (s32)a * b): en 68000 da muls.w en vez de __mulsi3.
+	return Fixed<WR, Ea + Eb, P> {arith<CR>::mul(static_cast<CR>(a.v), static_cast<CR>(b.v))};
 }
 
 /// Suma/resta: MISMO exponente y politica; la representacion se promueve a la comun.

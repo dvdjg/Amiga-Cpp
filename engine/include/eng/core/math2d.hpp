@@ -25,10 +25,15 @@
 /// sin libm en runtime) los valores; aquí se materializa la tabla 4.12 de 4096
 /// entradas reutilizando `SineTable<4096, 4096>::sample`.
 
+#include <eng/core/arith.hpp>
 #include <eng/core/sintab.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::math2d {
+
+using eng::s16;
+using eng::u16;
+using eng::math::arith;
 
 /// Valor fixed-point **4.12** (4 bits enteros con signo + 12 de fracción).
 using fix = s16;
@@ -161,44 +166,16 @@ constexpr u8 PF_RIGHT = 2u;
 constexpr u8 PF_TOP = 4u;
 constexpr u8 PF_BOTTOM = 8u;
 
-/// División entera con cociente a 16 bits (equivale al `div16` del origen, `divs.w`).
-/// Requiere `b != 0` y cociente representable en `s16`.
-inline s16 div16(s32 a, s16 b) {
-#if defined(__mc68000__)
-	// Misma forma que `div16` del origen (common.h): `divs` deja el cociente de 16
-	// bits en la palabra baja del registro (salida ligada al dividendo con "0").
-	// Evita `__divsi3` (division 32-bit por software).
-	s16 r;
-	asm("divs %2,%0" : "=d"(r) : "0"(a), "dm"(b));
-	return r;
-#else
-	return static_cast<s16>(a / b);
-#endif
-}
+/// División con cociente a 16 bits (lo que el original hace con `divs.w`). La
+/// implementación la aporta `arith<s16>`: el núcleo es portable y la plataforma
+/// (p. ej. el backend 68000) la especializa sin tocar esto.
+inline s16 div16(s32 a, s16 b) { return arith<s16>::div(a, b); }
 
-/// Multiplicacion 16x16->32 con signo. En 68000 usa `muls.w` nativo; sin esto el
-/// compilador genera `__mulsi3` (mucho mas caro) al ver operandos `s32`.
-inline s32 mul16(s16 a, s16 b) {
-#if defined(__mc68000__)
-	s32 r;
-	asm("muls %2,%0" : "=d"(r) : "0"(static_cast<s32>(a)), "dm"(b));
-	return r;
-#else
-	return static_cast<s32>(a) * b;
-#endif
-}
+/// Producto 16×16→32 con signo. Igual: portable aquí, nativo en el backend.
+inline s32 mul16(s16 a, s16 b) { return arith<s16>::mul(a, b); }
 
-/// Multiplicacion 16x16->32 sin signo (`mulu.w` nativo). Para la luz de caras
-/// (`v * InvSqrt[s]`) y cualquier producto de dos `u16`.
-inline u32 mulu16(u16 a, u16 b) {
-#if defined(__mc68000__)
-	u32 r;
-	asm("mulu %2,%0" : "=d"(r) : "0"(static_cast<u32>(a)), "dm"(b));
-	return r;
-#else
-	return static_cast<u32>(a) * b;
-#endif
-}
+/// Producto 16×16→32 sin signo (lo que el original hace con `mulu.w`).
+inline u32 mulu16(u16 a, u16 b) { return arith<s16>::mulu(a, b); }
 
 /// Recorta el segmento `a`–`b` contra `win` (algoritmo de Liang-Barsky, igual que
 /// `ClipLine2D`). Actualiza `a`/`b` si hace falta y devuelve `true` si queda parte
