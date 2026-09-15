@@ -204,22 +204,25 @@ inline void update_edge_visibility_convex(Object3D& object) {
 }
 
 namespace detail {
-/// `TransformVertices` del original, pero **indexando la matriz por campos** en vez de
-/// recorrerla como 12 shorts con `reinterpret_cast`. g++ genera el MISMO código (mismos
-/// offsets), así que se gana seguridad sin coste. `mul16` (y no `(s32)a * b`) es
-/// intencionado: con el cast a 32 bits g++ emite `__mulsi3` en vez de `muls.w`.
-#define ENG_LIB3D_MULVERTEX1(D, E, c0, c1, c2) { \
-	eng::s16 t0 = static_cast<eng::s16>((c0) + y); \
-	eng::s16 t1 = static_cast<eng::s16>((c1) + x); \
-	eng::s32 t2 = eng::math2d::mul16(c2, z); \
-	D = static_cast<eng::s32>(((eng::math2d::mul16(t0, t1) + t2 - xy) >> 4) + E); \
+
+/// Una fila de `MULVERTEX1` del original: `((c0+y)·(c1+x) + c2·z − xy) >> 4 + e`.
+/// Es función `inline` y no macro: misma semántica, tipada y depurable.
+/// `mul16` (y no `(s32)a * b`) es intencionado: fuerza `muls.w` de 16×16.
+[[nodiscard]] inline s32 vertex_mul12(s16 c0, s16 c1, s16 c2, s16 x, s16 y, s16 z, s32 xy, s32 e) {
+	const s16 t0 = static_cast<s16>(c0 + y);
+	const s16 t1 = static_cast<s16>(c1 + x);
+	const s32 t2 = math2d::mul16(c2, z);
+	return ((math2d::mul16(t0, t1) + t2 - xy) >> 4) + e;
 }
-#define ENG_LIB3D_MULVERTEX2(D, c0, c1, c2, c3) { \
-	eng::s16 t0 = static_cast<eng::s16>((c0) + y); \
-	eng::s16 t1 = static_cast<eng::s16>((c1) + x); \
-	eng::s32 t2 = eng::math2d::mul16(c2, z); \
-	D = static_cast<eng::s32>(eng::math2d::normfx(eng::math2d::mul16(t0, t1) + t2 - xy)) + (c3); \
+
+/// Tercera fila (`MULVERTEX2`): normaliza en vez de desplazar y suma la traslación.
+[[nodiscard]] inline s32 vertex_mul3(s16 c0, s16 c1, s16 c2, s16 tz, s16 x, s16 y, s16 z, s32 xy) {
+	const s16 t0 = static_cast<s16>(c0 + y);
+	const s16 t1 = static_cast<s16>(c1 + x);
+	const s32 t2 = math2d::mul16(c2, z);
+	return math2d::normfx(math2d::mul16(t0, t1) + t2 - xy) + tz;
 }
+
 } // namespace detail
 
 /// Port de `TransformVertices`: transforma y proyecta (perspectiva con `div16`)
@@ -264,9 +267,10 @@ inline void transform_vertices(Object3D& object, s16 half_w, s16 half_h, s16 bbo
 				z = *pt++;
 				xy = math2d::mul16(x, y);
 
-				ENG_LIB3D_MULVERTEX1(xp, m0, M.m.m[0][0].v, M.m.m[0][1].v, M.m.m[0][2].v);
-				ENG_LIB3D_MULVERTEX1(yp, m1, M.m.m[1][0].v, M.m.m[1][1].v, M.m.m[1][2].v);
-				ENG_LIB3D_MULVERTEX2(zp, M.m.m[2][0].v, M.m.m[2][1].v, M.m.m[2][2].v, M.t.v[2].v);
+				xp = detail::vertex_mul12(M.m.m[0][0].v, M.m.m[0][1].v, M.m.m[0][2].v, x, y, z, xy, m0);
+				yp = detail::vertex_mul12(M.m.m[1][0].v, M.m.m[1][1].v, M.m.m[1][2].v, x, y, z, xy, m1);
+				zp = static_cast<s16>(detail::vertex_mul3(M.m.m[2][0].v, M.m.m[2][1].v, M.m.m[2][2].v,
+									  M.t.v[2].v, x, y, z, xy));
 
 				const s16 sx = static_cast<s16>(math2d::div16(xp, zp) + half_w);
 				const s16 sy = static_cast<s16>(math2d::div16(yp, zp) + half_h);
