@@ -59,8 +59,9 @@ check(Math.abs(cx - W / 2) < 0.20 * W && Math.abs(cy - H / 2) < 0.20 * H,
       `balon centrado (centroide ${cx.toFixed(0)},${cy.toFixed(0)} de ${W}x${H})`);
 check(fracPct > 5 && fracPct < 80, `cobertura razonable (${fracPct.toFixed(1)} %)`);
 // Silueta convexa: descarta el relleno desmadrado (bandas/triangulos del area fill XOR
-// roto). Referencias medidas: balon correcto ~14 px; render con el fill roto ~378 px.
-check(maxEdgeJump < 0.08 * W, `silueta convexa (salto maximo de borde ${maxEdgeJump} px)`);
+// roto). Referencias medidas: balon correcto 14-70 px segun la fase (esquinas del
+// poligono proyectado); render con el fill roto ~378 px.
+check(maxEdgeJump < 0.30 * W, `silueta convexa (salto maximo de borde ${maxEdgeJump} px)`);
 
 if (fail) { console.error(`[verify-116] FAIL (${fail})`); process.exit(1); }
 console.log(`[verify-116] PASS: balon convexo flat-shaded (${colors.size} tonos, ${bw}x${bh}).`);
