@@ -97,7 +97,15 @@ cobertura ~38.5 % vs 38.9 %.
 
 ## Reutilización
 
-`eng::object3d` (`object3d.hpp`, HOST-014) + `math2d`/`math3d` (HOST-010/011) +
-`MinimalBackend::blitter_line_eor` / `blitter_area_fill`. El arreglo de **`blit_fill_region`**
-a descendente (port de `BlitterFillArea`) beneficia también a las rutas Blitter del 078.
-Modelo y paleta en `src/data/` (copiados del original).
+Las rutinas de efectos (visibilidad de caras con luz, visibilidad de aristas de un
+sólido convexo y transform + proyección de vértices) **son API del engine**:
+`eng::lib3d` en `engine/include/eng/core/lib3d.hpp`, con test host **HOST-047** (y no
+viven en la demo). Se apoyan en `eng::object3d` (`object3d.hpp`, HOST-014) y en
+`math2d`/`math3d` (HOST-010/011); el dibujo usa
+`MinimalBackend::blitter_line_eor` / `blitter_area_fill`.
+
+En la demo queda **solo lo específico del efecto**: la orquestación (pipeline de 3
+buffers, cobre, paleta) y el dibujo Amiga (líneas EOR + area fill XOR), que se
+pueden reutilizar tal cual en otros efectos de contorno+relleno. El arreglo de
+**`blit_fill_region`** a descendente (port de `BlitterFillArea`) beneficia también a
+las rutas Blitter del 078. Modelo y paleta en `src/data/` (copiados del original).
