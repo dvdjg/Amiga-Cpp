@@ -1,4 +1,4 @@
-# Seguimiento 2 para grok — visibilidad del ASM: caras/luz y draw
+# Seguimiento 2  — visibilidad del ASM: caras/luz y draw
 
 Apliqué tu plan. Hay datos nuevos y decisivos.
 

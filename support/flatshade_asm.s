@@ -68,6 +68,11 @@ fs_update_face_visibility:
 	move.w	(a1)+,d5			/* f = *group++ */
 	beq.w	.Lfv_done
 	lea	0(a0,d5.w),a5			/* face = objdat + f */
+	/* Recarga la camara CADA cara: d4 se usa como temporal en el calculo de
+	 * v/mag2 y clobberaria camera.z (a partir de la 2a cara, pz saldria mal). */
+	move.w	86(a3),d2			/* cx */
+	move.w	88(a3),d3			/* cy */
+	move.w	90(a3),d4			/* cz */
 	/* primer indice de punto: face->indices[0].vertex (s16 @10) */
 	move.w	10(a5),d6			/* i = indice de punto */
 	lea	0(a0,d6.w),a6			/* p = point3d(objdat, i) */
