@@ -111,14 +111,25 @@ public:
 
 	/// Configura una pantalla de PLANOS EHB/plana genérica (paramétrica).
 	///
-	/// No asume tamaño: el llamador decide la geometría (DIW/DDF) y la anchura de
-	/// fila (bytes_per_row); el scheduler solo traduce la intención a BPLCON,
-	/// módulos y punteros BPL. Para una ventana 320x256 lowres PAL la demo pasa
-	/// diwstrt=0x2c81, diwstop=0x2cc1, ddfstrt=0x0038, ddfstop=0x00d0.
+	/// No asume tamaño: el llamador decide la geometría (DIW/DDF), la anchura de
+	/// fila (bytes_per_row), la separación de los punteros BPL (`plane_pointer_stride`
+	/// = bytes de la base del plano `p` a la del `p+1`) y los módulos BPL. El
+	/// scheduler solo traduce la intención a BPLCON, módulos y punteros BPL. Para
+	/// una ventana 320x256 lowres PAL la demo pasa diwstrt=0x2c81, diwstop=0x2cc1,
+	/// ddfstrt=0x0038, ddfstop=0x00d0.
+	///
+	/// `plane_pointer_stride`/`bpl1mod`/`bpl2mod` cubren los dos layouts (ver
+	/// `gfx::PlaneLayout`): **contiguo por plano** (`stride=plane_bytes`, mods=0, lo
+	/// que usa `StaticEhbScene`) e **interleaved** (`stride=row_bytes`,
+	/// `bpl1mod=bpl2mod=row_bytes*(planes-1)`, lo que usa un `CanvasPlayfield`).
+	/// La ruta contigua está verificada por demos; la interleaved (mods propios)
+	/// está **NO VERIFICADA** (regla de verificación por demo de `AGENTS.md`): su
+	/// único consumidor era un intento de demo descartado.
 	void emit_planes_display(
 		u16 diwstrt, u16 diwstop, u16 ddfstrt, u16 ddfstop,
 		u16 bytes_per_row, u16 bplcon0, u8 planes,
-		eng::PlaneBytes bitplanes, u32 plane_bytes
+		eng::PlaneBytes bitplanes, u32 plane_pointer_stride,
+		u16 bpl1mod = 0, u16 bpl2mod = 0
 	) {
 		move(
 			Register::DMACON,
@@ -128,15 +139,15 @@ public:
 		move(Register::BPLCON0, bplcon0);            // BPU + bits modo (EHB/HAM/DPF…)
 		move(Register::BPLCON1, 0x0000);
 		move(Register::BPLCON2, 0x0000);
-		move(Register::BPL1MOD, 0x0000);
-		move(Register::BPL2MOD, 0x0000);
+		move(Register::BPL1MOD, bpl1mod);
+		move(Register::BPL2MOD, bpl2mod);
 		move(Register::DIWSTRT, diwstrt);
 		move(Register::DIWSTOP, diwstop);
 		move(Register::DDFSTRT, ddfstrt);
 		move(Register::DDFSTOP, ddfstop);
 
 		for (u8 plane = 0; plane < planes; ++plane) {
-			m_builder.move_bitplane_pointer(plane, bitplanes.address(static_cast<eng::s32>(plane) * static_cast<eng::s32>(plane_bytes)));
+			m_builder.move_bitplane_pointer(plane, bitplanes.address(static_cast<eng::s32>(plane) * static_cast<eng::s32>(plane_pointer_stride)));
 			m_report.display_moves += 2;
 		}
 	}

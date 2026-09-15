@@ -23,6 +23,12 @@
 - Las APIs de matemáticas/algoritmos puros (sin hardware) deben tener además **test unitario host** (`tests/host/`, compilado con el `g++` del entorno del toolchain del proyecto) para validarlas rápido y de forma determinista, sin depender de MSVC ni de WSL.
 - Regla de cierre: una API sin test (demo o unitario) no se considera terminada.
 
+## Regla de verificación por demo (obligatoria)
+- Una API del engine (o un cambio en el engine) solo se considera **verificada** si lo ejercita una **demo exitosa** (`build -> run -> analyze` OK; y, cuando toque render, el gate visual/estructural de la regla de validación de optimizaciones).
+- Todo lo que **no** esté cubierto por una demo exitosa se marca explícitamente como **NO VERIFICADA** en su comentario de cabecera, indicando el motivo (`sin consumidor`, `demo descartada`, `solo test host`, …).
+- Una API marcada NO VERIFICADA puede cambiar o eliminarse sin aviso y **no** se documenta en la referencia como si estuviera validada.
+- Al descartar o romper la demo que cubría una API, hay que degradar su marca a **NO VERIFICADA** en la misma pasada (y al revés: al validarla con una demo, quitarla).
+
 ## Qué es este repositorio
 - El repo mantiene un proyecto C Amiga legado en `legacy/` (`legacy/Makefile`, `legacy/out/a.exe`) y un flujo nuevo de demos del engine C++23 en `demos/` + `tools/`; no mezclarlos por error.
 - Para trabajo del engine, usar los wrappers shell de `tools/` en vez de invocar el `legacy/Makefile`.

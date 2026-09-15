@@ -27,6 +27,7 @@
 
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
+#include <eng/field/polygon_fill_service.hpp>
 #include <eng/graphics/bitmap.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/memory/arena.hpp>
@@ -232,10 +233,43 @@ public:
         bc.layout = gfx::PlaneLayout::Interleaved;
         if (!m_bitmap.init(memory, bc)) return false;
         sync_from_bitmap();
+        // Scratch 1-bit para el relleno por Blitter (cookie-cut máscara->plano):
+        // un plano contiguo (stride = row_bytes) del mismo alto que el lienzo,
+        // reservado como `Block<MaskTag>` (nace tipado). Solo se reserva si el
+        // backend instaló `polygon_fill_service` (en host no hay Blitter, así que
+        // no se toca Chip RAM). Si no cabe en el presupuesto de Chip NO es un fallo
+        // de init: el relleno de polígonos cae a la ruta CPU. Contrato en
+        // `eng/field/polygon_fill_service.hpp`.
+        if (polygon_fill_service().fill != nullptr) {
+            m_mask = memory.chip.allocate_block<eng::MaskTag>(
+                static_cast<eng::u32>(m_bytes_per_row) * cfg.height, 16);
+        }
         u8* d = m_frontbuffer;
         for (u32 i = 0; i < m_total_bytes; ++i) d[i] = 0;
         m_initialized = true;
         return true;
+    }
+
+    /// Rellena el polígono con el **Blitter** si el backend instaló
+    /// `polygon_fill_service` (vía rápida de hardware) y, si no, delega en el
+    /// scanline CPU de la base. El lienzo es interleaved, así que la máscara es
+    /// un plano contiguo (`row_bytes`) y los planos de color van a `row_bytes`
+    /// entre sí con filas a `row_bytes*planes`.
+    ///
+    /// **NO VERIFICADA** (regla de verificación por demo de `AGENTS.md`): la ruta
+    /// Blitter no la cubre ninguna demo exitosa (ver `polygon_fill_service.hpp`).
+    /// La ruta CPU (la base) sí está cubierta por HOST-045/046.
+    bool fill_polygon(const s16* xs, const s16* ys, u8 n, u8 color) override {
+        auto& api = polygon_fill_service();
+        if (api.fill != nullptr && m_initialized && m_mask.valid()) {
+            if (api.fill(m_bitmap.bitplanes(), m_planes, m_bytes_per_row,
+                         m_bytes_per_row, static_cast<u32>(m_bytes_per_row) * m_planes,
+                         m_width, m_height, Span<const s16>(xs, n), Span<const s16>(ys, n),
+                         color, m_mask.view)) {
+                return true;
+            }
+        }
+        return Playfield::fill_polygon(xs, ys, n, color);
     }
 
     // --- Hooks (layout plano) ---------------------------------------------
@@ -279,6 +313,12 @@ public:
     /// El bitmap que posee este lienzo (memoria + layout).
     const gfx::Bitmap& bitmap() const { return m_bitmap; }
     gfx::Bitmap& bitmap() { return m_bitmap; }
+
+    /// ¿Está listo el relleno de polígonos por hardware (backend instalado +
+    /// scratch de máscara reservado)? Diagnóstico.
+    [[nodiscard]] bool blit_fill_ready() const {
+        return polygon_fill_service().fill != nullptr && m_mask.valid();
+    }
 
     /// Blit planar en el lienzo (coordenadas de lienzo = fila/columna directas,
     /// sin walk ni costura). `wx` múltiplo de 16, origen en Chip RAM. Fuente con
@@ -360,6 +400,7 @@ private:
         m_frontbuffer = m_bitmap.bytes().data(); // vía cruda interna (núcleo)
     }
     gfx::Bitmap m_bitmap {};
+    eng::Block<eng::MaskTag> m_mask {}; // scratch 1-bit del relleno por Blitter (si hay backend)
 };
 
 } // namespace eng::field
