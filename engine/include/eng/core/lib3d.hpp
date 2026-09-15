@@ -141,17 +141,23 @@ inline void update_face_visibility(Object3D& object) {
 				pz = static_cast<s16>(cz - p->z);
 			}
 			s16* fn = face->normal;
-			// `mul16` (no `(s32)a * b`): fuerza `muls.w` de 16×16 y evita `__mulsi3`.
-			s32 v = math2d::mul16(fn[0], px) + math2d::mul16(fn[1], py) + math2d::mul16(fn[2], pz);
+			// Normal = RATIO (4.12); camara-vertice = LONGITUD (entero). El producto
+			// `q12*q0` da el mismo `muls.w` que `mul16`, con el formato explicito, y
+			// aqui NO se normaliza: el original usa la escala cruda para el signo y la
+			// magnitud² de la luz.
+			const eng::math::q12 nx {fn[0]}, ny {fn[1]}, nz {fn[2]};
+			const eng::math::q0 vx {px}, vy {py}, vz {pz};
+			const s32 v = (nx * vx).v + (ny * vy).v + (nz * vz).v;
+			const s32 e1_sq = (vx * vx).v + (vy * vy).v + (vz * vz).v;
 			if (v >= 0) {
-				s16 s = hi16(math2d::mul16(px, px) + math2d::mul16(py, py) + math2d::mul16(pz, pz));
+				s16 s = hi16(e1_sq);
 				if (s > 511) s = 511;
 				const s16 vv = hi16(v);
 				const u32 res = math2d::mulu16(static_cast<u16>(static_cast<s16>(vv)),
 							       kInvSqrt[static_cast<u16>(s)]) >> 16;
 				face->flags = static_cast<s8>(res);
 			} else if (face->material < 0) {
-				s16 s = hi16(math2d::mul16(px, px) + math2d::mul16(py, py) + math2d::mul16(pz, pz));
+				s16 s = hi16(e1_sq);
 				if (s > 511) s = 511;
 				const s16 vv = hi16(-v);
 				const u32 res = math2d::mulu16(static_cast<u16>(static_cast<s16>(vv)),
@@ -237,9 +243,10 @@ inline void transform_vertices(Object3D& object, s16 half_w, s16 half_h, s16 bbo
 	// m0/m1 son el termino `xy` de `MULVERTEX1` preescalado por 256 (16.8): el
 	// macro le resta `xy` a un producto 8.24 y hace `>> 4` para volver a 4.12.
 	// Se pasa a `mul16` (no `(s32)*(s16)`) para forzar `muls.w` y evitar `__mulsi3`.
-	s32 m0 = (static_cast<s32>(M.t.v[0].v) - math2d::normfx(math2d::mul16(M.m.m[0][0].v, M.m.m[0][1].v))) << 8;
-	s32 m1 = (static_cast<s32>(M.t.v[1].v) - math2d::normfx(math2d::mul16(M.m.m[1][0].v, M.m.m[1][1].v))) << 8;
-	M.t.v[2] = eng::math::q0 {static_cast<s16>(M.t.v[2].v - math2d::normfx(math2d::mul16(M.m.m[2][0].v, M.m.m[2][1].v)))};
+	// `normfx(m00*m01)` es el producto 4.12 normalizado: el `dot` de un par.
+	s32 m0 = (static_cast<s32>(M.t.v[0].v) - eng::math::dot(M.m.m[0][0], M.m.m[0][1]).v) << 8;
+	s32 m1 = (static_cast<s32>(M.t.v[1].v) - eng::math::dot(M.m.m[1][0], M.m.m[1][1]).v) << 8;
+	M.t.v[2] = eng::math::q0 {static_cast<s16>(M.t.v[2].v - eng::math::dot(M.m.m[2][0], M.m.m[2][1]).v)};
 
 	bbox[0] = 32767; bbox[1] = -32768; bbox[2] = 32767; bbox[3] = -32768;
 	do {
