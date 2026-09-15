@@ -27,6 +27,13 @@ using eng::retro::sin_q12;
 using Mat3 = eng::math::Mat<3, eng::retro::q12>;
 /// Transformación afín completa: lineal (RATIO 4.12) + traslación (LONGITUD entera).
 using Affine3 = eng::math::Affine<3, eng::retro::q12, eng::retro::q0>;
+/// Vértice crudo del modelo (`Vec3`) como punto en LONGITUD, para el álgebra genérica.
+using P3 = eng::math::Vec<3, eng::retro::q0>;
+
+/// Convierte un vértice crudo (`Vec3`, tres `s16`) al punto tipado (`P3`).
+[[nodiscard]] constexpr P3 vertex(const Vec3& v) {
+	return P3 {{eng::retro::q0 {v.x}, eng::retro::q0 {v.y}, eng::retro::q0 {v.z}}};
+}
 
 // `Vec3`, `Face` y el back-face culling son del MODELO de malla, no de este formato:
 // viven en `eng/core/mesh3d.hpp`. Aquí sólo queda lo que usa el 4.12.
@@ -85,23 +92,21 @@ inline void scale(Mat3& m, fix sx, fix sy, fix sz) {
 
 /// `out = M·in` (sin traslación). Los vértices son LONGITUDES (`q0`).
 inline void transform(const Mat3& m, Vec3* out, const Vec3* in, u32 n) {
-	const eng::retro::q0 zero {};
 	for (u32 i = 0; i < n; ++i) {
-		const eng::retro::q0 x {in[i].x}, y {in[i].y}, z {in[i].z};
-		out[i].x = eng::math::dot(m.m[0][0], x, m.m[0][1], y, m.m[0][2], z).v;
-		out[i].y = eng::math::dot(m.m[1][0], x, m.m[1][1], y, m.m[1][2], z).v;
-		out[i].z = eng::math::dot(m.m[2][0], x, m.m[2][1], y, m.m[2][2], z).v;
+		const P3 p = vertex(in[i]);
+		out[i].x = static_cast<s16>(eng::math::dot(m.row(0), p).v);
+		out[i].y = static_cast<s16>(eng::math::dot(m.row(1), p).v);
+		out[i].z = static_cast<s16>(eng::math::dot(m.row(2), p).v);
 	}
-	(void)zero;
 }
 
 /// `out = M·in + t` (afín). Es lo que usa el mesh: su "model" lleva traslación.
 inline void transform(const Affine3& a, Vec3* out, const Vec3* in, u32 n) {
 	for (u32 i = 0; i < n; ++i) {
-		const eng::retro::q0 x {in[i].x}, y {in[i].y}, z {in[i].z};
-		out[i].x = eng::math::dot(a.m.m[0][0], x, a.m.m[0][1], y, a.m.m[0][2], z).v + a.t.x().v;
-		out[i].y = eng::math::dot(a.m.m[1][0], x, a.m.m[1][1], y, a.m.m[1][2], z).v + a.t.y().v;
-		out[i].z = eng::math::dot(a.m.m[2][0], x, a.m.m[2][1], y, a.m.m[2][2], z).v + a.t.z().v;
+		const P3 p = vertex(in[i]);
+		out[i].x = static_cast<s16>(eng::math::dot(a.m.row(0), p).v + a.t.x().v);
+		out[i].y = static_cast<s16>(eng::math::dot(a.m.row(1), p).v + a.t.y().v);
+		out[i].z = static_cast<s16>(eng::math::dot(a.m.row(2), p).v + a.t.z().v);
 	}
 }
 

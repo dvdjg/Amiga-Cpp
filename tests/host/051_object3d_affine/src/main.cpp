@@ -69,8 +69,7 @@ static NewTransform new_update(s16 rx, s16 ry, s16 rz, s16 sx, s16 sy, s16 sz, s
 	r.w2o.t = Vec<3, q0> {{from_int<s16>(static_cast<s16>(-tx)), from_int<s16>(static_cast<s16>(-ty)),
 			       from_int<s16>(static_cast<s16>(-tz))}};
 	// camara = M * (M.t), normalizada a q12
-	for (int i = 0; i < 3; ++i) r.camera.v[i] = dot(r.w2o.m.m[i][0], r.w2o.t.x(), r.w2o.m.m[i][1], r.w2o.t.y(),
-							  r.w2o.m.m[i][2], r.w2o.t.z());
+	for (int i = 0; i < 3; ++i) r.camera.v[i] = dot(r.w2o.m.row(i), r.w2o.t);
 	return r;
 }
 

@@ -41,6 +41,10 @@ extern "C" void c_transform3(s16* out, const Mat<3,q12>* m, const Vec<3,q0>* t, 
 	for (int i=0;i<3;++i) out[i]=r.v[i].v;
 }
 extern "C" void c_matmul3(Mat<3,q12>* out, const Mat<3,q12>* a, const Mat<3,q12>* b){ *out = (*a)*(*b); }
+extern "C" s16 c_dotrow(const q12* row, s16 x, s16 y, s16 z) {
+	const Vec<3,q0> v {{q0{x},q0{y},q0{z}}};
+	return dot(row, v).v;
+}
 extern "C" void c_proj(eng::object3d::Object3D* o, s16* bbox) { eng::lib3d::transform_vertices(*o, 128, 128, bbox); }
 `;
 

@@ -202,6 +202,20 @@ template <int N, typename S, int M, typename T>
 	return {};
 }
 
+/// `fila · vector`: es el `dot` de N pares con la normalización FUSIONADA (los productos
+/// comparten exponente, se suman exactos y se normaliza una vez al escalar del vector).
+/// Lee una fórmula de transformación como lo que es: la fila `i` de `M*v`.
+template <int N, typename SR, typename SL>
+[[nodiscard]] constexpr SL dot(const SR* row, const Vec<N, SL>& v) {
+	using WR = typename mul_repr<typename SR::repr, typename SL::repr>::type;
+	using W = Fixed<WR, SR::exp + SL::exp, typename SR::policy>;
+	W acc = row[0] * v.v[0];
+	for (int k = 1; k < N; ++k) {
+		acc = acc + row[k] * v.v[k];
+	}
+	return acc.template rescale<SL::exp>().template cast<typename SL::repr>();
+}
+
 // ============================================================================
 //  Rectángulo (AABB 2D) — genérico sobre el escalar
 // ============================================================================
@@ -225,6 +239,10 @@ struct Rect {
 template <int N, typename S>
 struct Mat {
 	S m[N][N];
+
+	/// Fila `i` (contigua en memoria): para `dot(fila, vector)` y bucles de fórmula.
+	[[nodiscard]] constexpr const S* row(int i) const { return m[i]; }
+	[[nodiscard]] constexpr S* row(int i) { return m[i]; }
 
 	static constexpr Mat identity() {
 		Mat r {};

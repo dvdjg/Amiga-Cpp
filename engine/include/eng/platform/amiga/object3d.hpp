@@ -172,12 +172,10 @@ inline void update_object_transformation(Object3D& object) {
 	// cámara en espacio objeto (la cámara está en (0,0,0) del mundo)
 	{
 		const math3d::Affine3& M = object.worldToObject;
-		const eng::retro::q0 cx = M.t.x();
-		const eng::retro::q0 cy = M.t.y();
-		const eng::retro::q0 cz = M.t.z();
-		object.camera.x = eng::math::dot(M.m.m[0][0], cx, M.m.m[0][1], cy, M.m.m[0][2], cz).v;
-		object.camera.y = eng::math::dot(M.m.m[1][0], cx, M.m.m[1][1], cy, M.m.m[1][2], cz).v;
-		object.camera.z = eng::math::dot(M.m.m[2][0], cx, M.m.m[2][1], cy, M.m.m[2][2], cz).v;
+		const math3d::P3 t = M.t;
+		object.camera.x = static_cast<s16>(eng::math::dot(M.m.row(0), t).v);
+		object.camera.y = static_cast<s16>(eng::math::dot(M.m.row(1), t).v);
+		object.camera.z = static_cast<s16>(eng::math::dot(M.m.row(2), t).v);
 	}
 }
 
