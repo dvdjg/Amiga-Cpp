@@ -213,7 +213,10 @@ mensaje comprensible, no con un error de plantilla ilegible. Objetivo de calidad
 | `norm<Edst>` que pierde muchos bits | documentado en la política de redondeo elegida |
 
 Los `static_assert` con mensaje (`"...: mezcla 4.12 con entero"`) y conceptos
-(`Scalar`, `SameExp`) son la herramienta: el error debe decir *qué* se mezcló.
+(`Scalar`, `SameExp`) son la herramienta: el error debe decir *qué* se mezcló. En `Fixed`
+está implementado con sobrecargas que sólo existen para disparar el `static_assert` (en vez
+del «no matching function» de la sobrecarga ausente); `tools/check/math-diagnostics.sh`
+exige el **mensaje**, no sólo que falle.
 
 ## 4. Rendimiento y metaprogramación
 

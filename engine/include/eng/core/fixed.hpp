@@ -19,7 +19,9 @@
 ///     normalizar). `4.12 * 4.12 -> 8.24`; sin el ensanchado, `s16 * s16` desborda.
 ///   - **Sumar/restar** exige MISMO exponente, representación y política: mezclar 4.12
 ///     con un entero **no compila**. La mezcla, si hace falta, es explícita
-///     (`norm`, `from_int`, `retag`).
+///     (`norm`, `from_int`, `retag`). El error no es un «no matching function» opaco:
+///     hay sobrecargas que sólo existen para disparar un `static_assert` que explica la
+///     conversión (comprobado por `tools/check/math-diagnostics.sh`).
 ///   - **Normalizar** (`norm<Edst>`) aplica la política de redondeo; acumular en el
 ///     exponente del producto y normalizar UNA vez es lo más preciso y lo que ya hace
 ///     lib3d (`normfx(a*b + c*d)`).
@@ -270,6 +272,31 @@ template <typename R, int E, typename P>
 	return Fixed<R, E, P> {static_cast<R>(-a.v)};
 }
 
+/// Suma/resta de exponentes distintos: operación INVÁLIDA. En vez del opaco "no
+/// matching function" que daría la ausencia de sobrecarga, se declara una que sólo es
+/// viable en ese caso y dispara un `static_assert` explicando cómo convertir. Sustituye
+/// al silencio del compilador por el diagnóstico (ver `tools/check/math-diagnostics.sh`).
+template <typename Ra, int Ea, typename Rb, int Eb, typename P>
+	requires (Ea != Eb)
+[[nodiscard]] constexpr Fixed<typename common_repr<Ra, Rb>::type, (Ea < Eb ? Ea : Eb), P>
+operator+(Fixed<Ra, Ea, P>, Fixed<Rb, Eb, P>) {
+	static_assert(Ea == Eb,
+		      "eng::math::Fixed: no se pueden sumar/restar valores con distinto exponente "
+		      "(p. ej. 4.12 + entero). Convertirlos al mismo exponente de forma explicita "
+		      "con norm<Edst>() (baja/sube la fraccion) o from_int() para un entero.");
+	return {};
+}
+template <typename Ra, int Ea, typename Rb, int Eb, typename P>
+	requires (Ea != Eb)
+[[nodiscard]] constexpr Fixed<typename common_repr<Ra, Rb>::type, (Ea < Eb ? Ea : Eb), P>
+operator-(Fixed<Ra, Ea, P>, Fixed<Rb, Eb, P>) {
+	static_assert(Ea == Eb,
+		      "eng::math::Fixed: no se pueden sumar/restar valores con distinto exponente "
+		      "(p. ej. 4.12 - entero). Convertirlos al mismo exponente de forma explicita "
+		      "con norm<Edst>() (baja/sube la fraccion) o from_int() para un entero.");
+	return {};
+}
+
 /// Conversión explícita desde un entero (exponente 0). Nunca implícita.
 template <typename R>
 [[nodiscard]] constexpr Fixed<R, 0> from_int(R i) {
@@ -329,6 +356,36 @@ template <typename R, int E, typename P>
 template <typename R, int E, typename P>
 [[nodiscard]] constexpr bool operator<(Fixed<R, E, P> a, Fixed<R, E, P> b) {
 	return a.v < b.v;
+}
+
+/// Comparar exponentes distintos también es inválido: la sobrecarga sólo existe para
+/// dar el diagnóstico en vez del "no matching function".
+template <typename Ra, int Ea, typename Rb, int Eb, typename P>
+	requires (Ea != Eb)
+[[nodiscard]] constexpr bool operator==(Fixed<Ra, Ea, P>, Fixed<Rb, Eb, P>) {
+	static_assert(Ea == Eb,
+		      "eng::math::Fixed: comparar valores con distinto exponente (p. ej. 4.12 == "
+		      "entero) no esta permitido. Convertirlos explicitamente con norm<Edst>() o "
+		      "from_int().");
+	return false;
+}
+template <typename Ra, int Ea, typename Rb, int Eb, typename P>
+	requires (Ea != Eb)
+[[nodiscard]] constexpr bool operator!=(Fixed<Ra, Ea, P>, Fixed<Rb, Eb, P>) {
+	static_assert(Ea == Eb,
+		      "eng::math::Fixed: comparar valores con distinto exponente (p. ej. 4.12 != "
+		      "entero) no esta permitido. Convertirlos explicitamente con norm<Edst>() o "
+		      "from_int().");
+	return false;
+}
+template <typename Ra, int Ea, typename Rb, int Eb, typename P>
+	requires (Ea != Eb)
+[[nodiscard]] constexpr bool operator<(Fixed<Ra, Ea, P>, Fixed<Rb, Eb, P>) {
+	static_assert(Ea == Eb,
+		      "eng::math::Fixed: comparar valores con distinto exponente (p. ej. 4.12 < "
+		      "entero) no esta permitido. Convertirlos explicitamente con norm<Edst>() o "
+		      "from_int().");
+	return false;
 }
 
 } // namespace eng::math
