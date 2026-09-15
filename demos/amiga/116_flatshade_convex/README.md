@@ -48,6 +48,16 @@ original (latencia de 1 frame, mismo orden de ángulos).
   con el del original (131.8k vs 131k según su profiler), así que la brecha restante es el
   codegen del `transform` (1.8x) y de los `edges` (1.9x), no el emulador.
 
+## Ruta ASM (WIP)
+
+`support/flatshade_asm.s` porta a asm m68k (gas, registros fijos) las rutinas calientes
+del original, siguiendo el patrón de `fire_loop.s` (demo 080). El flag `K_FLATSHADE_ASM`
+(default **0**) elige la versión C++ canónica o la asm. **La ruta asm está sin terminar**:
+`fs_update_face_visibility` y `fs_update_edge_visibility_convex` completan, pero
+`fs_transform_vertices` provoca una excepción (PC en el vector del Kickstart) y la demo no
+llega a READY. El bug no es la división (saltarla no lo evita). Ver el estado detallado en
+el comentario de cabecera del `.s` y la bitácora `docs/guides/optimization/OPTIMIZACION_GPP_68000.md`.
+
 ## Paridad del contorno (clave del relleno)
 
 El area fill `XOR` del Blitter conmuta el relleno en cada píxel del contorno de la fila y

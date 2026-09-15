@@ -1,7 +1,7 @@
 // Demo 116 - flatshade-convex (IMPORTE FIEL de demoscene-repo-orig/effects/flatshade-convex)
 //
 // Objeto CONVEXO `pilka` girando, con SOMBREADO PLANO: se calcula la luz de cada
-// cara (`update_face_visibility`: producto escalar normal·vista normalizado con la
+// cara (`update_face_visibility`: producto escalar normal??vista normalizado con la
 // tabla `kInvSqrt`, sin sqrt en runtime), la visibilidad de aristas del solido
 // convexo (`update_edge_visibility_convex`: XOR de la luz de las caras adyacentes,
 // que cancela las aristas internas y deja silueta + aristas visibles) y se dibujan
@@ -48,6 +48,30 @@ struct EngProf {
 __attribute__((used)) volatile EngProf g_eng_prof { 0x50524f46u, {0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u} };
 }
 
+// Argumentos de las rutinas asm de support/flatshade_asm.s. GLOBAL y `extern "C"`
+// (fuera del namespace anonimo) para que el asm lo referencie, como g_fire_args.
+extern "C" {
+struct FlatShadeAsmArgs {
+	void* obj;            // Object3D* (objdat=0, vertexGroups=4, edgeGroups=8, faceGroups=12, objectToWorld=38, camera=86)
+	eng::u8* planes;      // base del buffer de bitplanes activo (fs_draw_edges)
+	const eng::u16* invsqrt; // kInvSqrt[512]
+	eng::s16* bbox;       // g_bbox[4] (bx0,bx1,by0,by1)
+};
+FlatShadeAsmArgs g_fs_args {};
+void fs_update_face_visibility(void);
+void fs_update_edge_visibility_convex(void);
+void fs_transform_vertices(void);
+void fs_draw_edges(void);
+}
+
+#ifndef K_FLATSHADE_ASM
+// Rutinas calientes en ASM (support/flatshade_asm.s): port fiel del original con
+// registros fijos, como fire_loop.s. POR DEFECTO 0 (version C++ canonica): la ruta
+// asm aun crashea en `fs_transform_vertices` (excepcion en init; pendiente de
+// depurar). Poner a 1 para experimentar.
+#define K_FLATSHADE_ASM 0
+#endif
+
 namespace {
 inline eng::u32 rcycles() {
 	return *reinterpret_cast<volatile eng::u32*>(0xB7E928u);
@@ -91,10 +115,9 @@ constexpr eng::u16 kMaxFaceVerts = 8;
 
 /// Bounding-box de pantalla del objeto (actualizada en `transform_vertices`); acota
 /// el `area fill` a la zona del objeto en vez de barrer las 1024 lineas del bitmap.
-eng::s16 g_bx0 = 32767;
-eng::s16 g_bx1 = -32768;
-eng::s16 g_by0 = 32767;
-eng::s16 g_by1 = -32768;
+/// `g_bbox[4]` = {bx0, bx1, by0, by1}; lo escribe tambien `fs_transform_vertices`
+/// (rutina asm, via `g_fs_args.bbox`).
+eng::s16 g_bbox[4] = {32767, -32768, 32767, -32768};
 
 // Tabla de luz de lib3d (`UpdateFaceVisibility`): 65535/sqrt(x), x=0..511.
 // Normaliza el producto escalar sin sqrt en runtime.
@@ -266,7 +289,7 @@ void transform_vertices(obj::Object3D& object) {
 	eng::s32 m1 = (static_cast<eng::s32>(M.y) - eng::math2d::normfx(static_cast<eng::s32>(M.m10) * M.m11)) << 8;
 	M.z = static_cast<eng::s16>(M.z - eng::math2d::normfx(static_cast<eng::s32>(M.m20) * M.m21));
 
-	g_bx0 = 32767; g_bx1 = -32768; g_by0 = 32767; g_by1 = -32768;
+	g_bbox[0] = 32767; g_bbox[1] = -32768; g_bbox[2] = 32767; g_bbox[3] = -32768;
 	do {
 		eng::s16 i;
 		while ((i = *group++)) {
@@ -294,10 +317,10 @@ void transform_vertices(obj::Object3D& object) {
 				*pt++ = sy;
 				*pt++ = zp;
 
-				if (sx < g_bx0) g_bx0 = sx;
-				if (sx > g_bx1) g_bx1 = sx;
-				if (sy < g_by0) g_by0 = sy;
-				if (sy > g_by1) g_by1 = sy;
+				if (sx < g_bbox[0]) g_bbox[0] = sx;
+				if (sx > g_bbox[1]) g_bbox[1] = sx;
+				if (sy < g_bbox[2]) g_bbox[2] = sy;
+				if (sy > g_bbox[3]) g_bbox[3] = sy;
 			}
 		}
 	} while (*group);
@@ -369,14 +392,14 @@ void draw_faces(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::Minim
 #endif
 
 /// Dibuja las aristas VISIBLES (`edgeColor > 0`) con `blitter_line_eor` (ONEDOT+EOR)
-/// replicadas en cada plano según el color de arista (camino FIEL del original
+/// replicadas en cada plano seg??n el color de arista (camino FIEL del original
 /// `DrawObject`). `edge->flags > 0` => arista visible; se limpia tras dibujarla para
 /// que el XOR del siguiente frame parta de cero. Las aristas con `edgeColor == 0`
 /// (canceladas por dos caras visibles de igual luz) se saltan. `bltdpt` apunta a la
 /// BASE del bitmap (`planes.data()`, como el original), NO a la direccion calculada:
 /// en modo linea el primer pixel va por D, y dejarlo siempre en la base mantiene la
-/// paridad par/impar del contorno correcta en los vértices (sin ello el area fill
-/// filtra una raya horizontal por vértice). NO rellena: el fill se lanza aparte
+/// paridad par/impar del contorno correcta en los v??rtices (sin ello el area fill
+/// filtra una raya horizontal por v??rtice). NO rellena: el fill se lanza aparte
 /// (`area_fill_planes`) para poder solaparlo con el transform del frame siguiente.
 void draw_edges(obj::Object3D& object, eng::PlaneBytes planes,
 		eng::amiga::MinimalBackend& backend) {
@@ -388,10 +411,10 @@ void draw_edges(obj::Object3D& object, eng::PlaneBytes planes,
 	eng::s16* group = object.edgeGroups;
 	eng::s16 e;
 #if !FLATSHADE_SKIP_EDGES
-	// Setup común del modo línea EOR (ONEDOT) UNA vez por frame, como el preludio de
+	// Setup com??n del modo l??nea EOR (ONEDOT) UNA vez por frame, como el preludio de
 	// `DrawObject` del original (`bltafwm/alwm=-1, bltadat=0x8000, bltbdat=0xffff,
 	// bltcmod/bltdmod=WIDTH/8`). `blitter_line_eor_continue` solo reprograma los 8
-	// registros de cada arista/plano (macro `DRAWLINE`). No espera aquí: el primer
+	// registros de cada arista/plano (macro `DRAWLINE`). No espera aqu??: el primer
 	// `continue` sincroniza con el clear.
 	backend.blitter_lines_eor_begin(kBytesPerRow);
 	do {
@@ -432,7 +455,7 @@ void draw_edges(obj::Object3D& object, eng::PlaneBytes planes,
 					}
 				}
 #else
-				// Parámetros Bresenham calculados UNA vez por arista (independientes
+				// Par??metros Bresenham calculados UNA vez por arista (independientes
 				// del plano) y reutilizados en los N planos del color, como el original
 				// (avanza `bltcpt += plane_bytes` sin recalcular el octante).
 				eng::amiga::MinimalBackend::LineEorParams line;
@@ -461,7 +484,7 @@ void draw_edges(obj::Object3D& object, eng::PlaneBytes planes,
 }
 
 /// Lanza (o espera) el area fill `XOR` sobre `planes`. `wait=false` lo lanza sin
-/// esperarlo: el buffer no se muestra hasta el swap del siguiente update, así que el
+/// esperarlo: el buffer no se muestra hasta el swap del siguiente update, as?? que el
 /// wait final se absorbe en la espera de VBlank del engine (o en el primer wait del
 /// update siguiente), igual que el `WaitBlitter` pegado a `TaskWaitVBlank` del
 /// original. Con `FLATSHADE_FILL_BBOX` se acota a la bounding-box del objeto.
@@ -469,11 +492,11 @@ void area_fill_planes(eng::PlaneBytes planes, eng::amiga::MinimalBackend& backen
 	const eng::u32 t0 = rcycles();
 #if !FLATSHADE_SKIP_FILL
 #if FLATSHADE_FILL_BBOX
-	if (g_bx1 >= g_bx0 && g_by1 >= g_by0) {
-		eng::s16 x0 = static_cast<eng::s16>(g_bx0 - 2); if (x0 < 0) x0 = 0;
-		eng::s16 y0 = static_cast<eng::s16>(g_by0 - 2); if (y0 < 0) y0 = 0;
-		eng::s16 x1 = static_cast<eng::s16>(g_bx1 + 2); if (x1 > 255) x1 = 255;
-		eng::s16 y1 = static_cast<eng::s16>(g_by1 + 2); if (y1 > 255) y1 = 255;
+	if (g_bbox[1] >= g_bbox[0] && g_bbox[3] >= g_bbox[2]) {
+		eng::s16 x0 = static_cast<eng::s16>(g_bbox[0] - 2); if (x0 < 0) x0 = 0;
+		eng::s16 y0 = static_cast<eng::s16>(g_bbox[2] - 2); if (y0 < 0) y0 = 0;
+		eng::s16 x1 = static_cast<eng::s16>(g_bbox[1] + 2); if (x1 > 255) x1 = 255;
+		eng::s16 y1 = static_cast<eng::s16>(g_bbox[3] + 2); if (y1 > 255) y1 = 255;
 		const eng::u16 wx0 = static_cast<eng::u16>(x0) & 0xfff0u;
 		const eng::u16 wx1 = static_cast<eng::u16>(x1) | 0x000fu;
 		const eng::u16 words = static_cast<eng::u16>((static_cast<eng::u16>(wx1 - wx0) + 16u) >> 4);
@@ -486,7 +509,7 @@ void area_fill_planes(eng::PlaneBytes planes, eng::amiga::MinimalBackend& backen
 	}
 #else
 	// El area fill XOR se lanza sobre el contorno (`draw_edges`). El buffer se muestra
-	// en el próximo swap; `wait=false` deja que el wait final lo absorba la espera de
+	// en el pr??ximo swap; `wait=false` deja que el wait final lo absorba la espera de
 	// VBlank o el primer wait del update siguiente (el buffer nunca se ve a medias).
 	backend.blitter_area_fill(planes, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight, wait);
 #endif
@@ -495,6 +518,17 @@ void area_fill_planes(eng::PlaneBytes planes, eng::amiga::MinimalBackend& backen
 	g_eng_prof.v[3] = t1 - t0;
 	g_eng_prof.v[4] = t1 - t0;
 }
+
+#if K_FLATSHADE_ASM
+/// Rellena `g_fs_args` para las rutinas asm. `obj`/`invsqrt`/`bbox` son constantes;
+/// `planes` cambia por frame (buffer activo de los edges).
+inline void prepare_fs_args(eng::PlaneBytes planes, obj::Object3D& object) {
+	g_fs_args.obj = &object;
+	g_fs_args.planes = planes.data();
+	g_fs_args.invsqrt = kInvSqrt;
+	g_fs_args.bbox = g_bbox;
+}
+#endif
 
 struct FlatShadeDemo {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
@@ -531,15 +565,22 @@ struct FlatShadeDemo {
 		m_object.translate.z = static_cast<eng::s16>(-4000); // fx4i(-250)
 
 		// Pipeline de doble/triple buffer: el estado del objeto para el primer dibujo se
-		// precalcula aquí (lo que en `update` ocurre durante el fill del frame previo).
+		// precalcula aqu?? (lo que en `update` ocurre durante el fill del frame previo).
 		m_angle = 0;
 		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z = m_angle;
 		obj::update_object_transformation(m_object);
+#if K_FLATSHADE_ASM
+		prepare_fs_args(planes_of(0), m_object);
+		fs_update_face_visibility();
+		fs_update_edge_visibility_convex();
+		fs_transform_vertices();
+#else
 		update_face_visibility(m_object);
 		update_edge_visibility_convex(m_object);
 		transform_vertices(m_object);
+#endif
 
-		// Pre-clear todos los buffers: el primer `update` dibuja sobre el 1º sin esperar.
+		// Pre-clear todos los buffers: el primer `update` dibuja sobre el 1?? sin esperar.
 		for (eng::u8 b = 0; b < kBuffers; ++b) {
 			backend.blitter_clear(planes_of(b), kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight, true);
 		}
@@ -552,7 +593,7 @@ struct FlatShadeDemo {
 	/// Pipeline de 3 buffers: el `update` dibuja sobre `m_draw_buf` (ya pre-clearado),
 	/// lanza su fill sin esperarlo y, MIENTRAS el Blitter lo hace, precalcula el estado
 	/// (transform/culling/luz) del frame siguiente y pre-cleara el buffer que ese frame
-	/// usará. Con 3 buffers el buffer a limpiar ni se muestra ni se dibuja, así que el
+	/// usar??. Con 3 buffers el buffer a limpiar ni se muestra ni se dibuja, as?? que el
 	/// clear queda escondido bajo el fill. El wait del fill se absorbe en la espera de
 	/// VBlank del engine o en el primer wait del siguiente update: el buffer nunca se ve
 	/// a medias (se muestra en el swap del update siguiente).
@@ -577,13 +618,18 @@ struct FlatShadeDemo {
 
 		// 3) Contorno sobre el buffer pre-clearado (estado del objeto ya precalculado).
 #if FLATSHADE_FAITHFUL
+#if K_FLATSHADE_ASM
+		prepare_fs_args(planes, m_object);
+		fs_draw_edges();
+#else
 		draw_edges(m_object, planes, backend);
+#endif
 #else
 		draw_faces(m_object, planes, backend, m_mask_block.view);
 #endif
 		const eng::u32 t1 = rcycles();
 
-		// 4) Lanzar el fill SIN esperarlo: se mostrará en el swap del próximo update.
+		// 4) Lanzar el fill SIN esperarlo: se mostrar?? en el swap del pr??ximo update.
 		area_fill_planes(planes, backend, false);
 
 		// 5) Durante el fill (Blitter ocupado), precalcular el estado del frame siguiente
@@ -592,18 +638,27 @@ struct FlatShadeDemo {
 		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z = m_angle;
 		obj::update_object_transformation(m_object);
 		const eng::u32 ta = rcycles();
+#if K_FLATSHADE_ASM
+		prepare_fs_args(planes, m_object);
+		fs_update_face_visibility();
+		const eng::u32 tb = rcycles();
+		fs_update_edge_visibility_convex();
+		const eng::u32 tc = rcycles();
+		fs_transform_vertices();
+#else
 		update_face_visibility(m_object);
 		const eng::u32 tb = rcycles();
 		update_edge_visibility_convex(m_object);
 		const eng::u32 tc = rcycles();
 		transform_vertices(m_object);
+#endif
 		const eng::u32 t2 = rcycles();
 		g_eng_prof.v[6] = ta - t1; // update_object_transformation
 		g_eng_prof.v[7] = tb - ta; // update_face_visibility
 		g_eng_prof.v[8] = tc - tb; // update_edge_visibility_convex
 		g_eng_prof.v[9] = t2 - tc; // transform_vertices
 
-		// 6) Pre-clear del buffer que usará el PRÓXIMO update (`buf+1`: ni en pantalla
+		// 6) Pre-clear del buffer que usar?? el PR??XIMO update (`buf+1`: ni en pantalla
 		//    ni en dibujo ahora, el mostrado es `buf-1`): se lanza sin esperar y queda
 		//    colgado tras el fill.
 #if !FLATSHADE_SKIP_CLEAR
