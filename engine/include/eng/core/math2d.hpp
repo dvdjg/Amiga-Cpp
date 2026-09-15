@@ -10,6 +10,13 @@
 /// Formato numérico (idéntico al origen):
 /// - Los valores son `s16` en 4.12: `1.0 == 4096`. La parte entera son 4 bits con
 ///   signo y la fracción 12 bits.
+/// Formatos fixed-point (el formato es parte del contrato del API; cada uno tiene
+/// su tipo para que no se mezclen por accidente):
+/// - **4.12** (`fix`, `s16`): el principal de `lib2d`/`lib3d` (`1.0 == 4096`):
+///   matrices, seno/coseno y traslaciones.
+/// - **8.8** (`fix88`, `s16`): `1.0 == 256`. Parámetros `t` de recorte de línea,
+///   donde 0..256 cubre 0.0..1.0: más alcance que precisión.
+/// - **8.24** (`fix8_24`, `s32`): `1.0 == 1 << 24`. Recíprocos de escala (`1/s`).
 /// - El producto de dos 4.12 es 8.24; `normfx(a) = a >> 12` lo normaliza a 4.12
 ///   (shift aritmético, como el `lsll #4/swap` del 68000 sobre el short).
 /// - Los ángulos son índices de 0..4095 para 0..2π (`SIN(a & 4095)`).
@@ -23,11 +30,25 @@
 
 namespace eng::math2d {
 
-/// Valor fixed-point 4.12.
+/// Valor fixed-point **4.12** (4 bits enteros con signo + 12 de fracción).
 using fix = s16;
+
+/// Valor fixed-point **8.8** (8 enteros + 8 de fracción; `1.0 == 256`).
+using fix88 = s16;
+
+/// Valor fixed-point **8.24** (8 enteros + 24 de fracción; `1.0 == 1 << 24`).
+using fix8_24 = s32;
 
 /// 1.0 en 4.12.
 constexpr fix kOne = 4096;
+/// 1.0 en 8.8 (`fix88`).
+constexpr fix88 kOne88 = 256;
+/// 0.5 en 8.8 (`fix88`): redondeo en el recorte de línea.
+constexpr fix88 kHalf88 = 128;
+/// 1.0 en 8.24 (`fix8_24`): numerador de los recíprocos de escala (`1/s`).
+constexpr fix8_24 kOne8_24 = 1 << 24;
+/// Desplazamiento de fracción de 8.8 (bits que hay que bajar para normalizar).
+constexpr s32 kShift88 = 8;
 /// π/2 como índice de ángulo (4096 pasos por vuelta).
 constexpr u16 kHalfPi = 1024;
 /// Pasos por vuelta de la tabla de seno.
@@ -181,14 +202,10 @@ inline u32 mulu16(u16 a, u16 b) {
 
 /// Recorta el segmento `a`–`b` contra `win` (algoritmo de Liang-Barsky, igual que
 /// `ClipLine2D`). Actualiza `a`/`b` si hace falta y devuelve `true` si queda parte
-/// visible. Los `t` están en 8.8 (0..256).
+/// visible. Los `t` son `fix88` (8.8: 0..`kOne88` = 0.0..1.0, NO 4.12).
 inline bool clip_line(const Rect& win, Vec2& a, Vec2& b) {
-	constexpr s32 kBits = 8;
-	constexpr s32 kOne = 1 << kBits;
-	constexpr s32 kHalf = 1 << (kBits - 1);
-
 	s16 t0 = 0;
-	s16 t1 = static_cast<s16>(kOne);
+	s16 t1 = static_cast<s16>(kOne88);
 	const s16 xd = static_cast<s16>(b.x - a.x);
 	const s16 yd = static_cast<s16>(b.y - a.y);
 
@@ -204,30 +221,30 @@ inline bool clip_line(const Rect& win, Vec2& a, Vec2& b) {
 			continue;
 		}
 		if (p < 0) {
-			s16 r = div16(static_cast<s32>(edge[i].q1) << kBits, p);
+			s16 r = div16(static_cast<s32>(edge[i].q1) << kShift88, p);
 			if (r > t1) return false;
 			if (r > t0) t0 = r;
-			r = div16(static_cast<s32>(edge[i].q2) << kBits, static_cast<s16>(-p));
+			r = div16(static_cast<s32>(edge[i].q2) << kShift88, static_cast<s16>(-p));
 			if (r < t0) return false;
 			if (r < t1) t1 = r;
 		} else {
-			s16 r = div16(static_cast<s32>(edge[i].q1) << kBits, p);
+			s16 r = div16(static_cast<s32>(edge[i].q1) << kShift88, p);
 			if (r < t0) return false;
 			if (r < t1) t1 = r;
-			r = div16(static_cast<s32>(edge[i].q2) << kBits, static_cast<s16>(-p));
+			r = div16(static_cast<s32>(edge[i].q2) << kShift88, static_cast<s16>(-p));
 			if (r > t1) return false;
 			if (r > t0) t0 = r;
 		}
 	}
 
 	if (t0 > 0) {
-		a.x = static_cast<s16>(a.x + ((static_cast<s32>(t0) * xd + kHalf) >> kBits));
-		a.y = static_cast<s16>(a.y + ((static_cast<s32>(t0) * yd + kHalf) >> kBits));
+		a.x = static_cast<s16>(a.x + ((static_cast<s32>(t0) * xd + kHalf88) >> kShift88));
+		a.y = static_cast<s16>(a.y + ((static_cast<s32>(t0) * yd + kHalf88) >> kShift88));
 	}
-	if (t1 < kOne) {
-		const s16 t1r = static_cast<s16>(kOne - t1);
-		b.x = static_cast<s16>(b.x - ((static_cast<s32>(t1r) * xd + kHalf) >> kBits));
-		b.y = static_cast<s16>(b.y - ((static_cast<s32>(t1r) * yd + kHalf) >> kBits));
+	if (t1 < kOne88) {
+		const s16 t1r = static_cast<s16>(kOne88 - t1);
+		b.x = static_cast<s16>(b.x - ((static_cast<s32>(t1r) * xd + kHalf88) >> kShift88));
+		b.y = static_cast<s16>(b.y - ((static_cast<s32>(t1r) * yd + kHalf88) >> kShift88));
 	}
 	return true;
 }

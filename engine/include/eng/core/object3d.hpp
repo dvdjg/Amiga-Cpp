@@ -157,9 +157,11 @@ inline void update_object_transformation(Object3D& object) {
 		m_scale.x = static_cast<s16>(-t.x);
 		m_scale.y = static_cast<s16>(-t.y);
 		m_scale.z = static_cast<s16>(-t.z);
-		m_scale.m00 = div16(1 << 24, s.x);
-		m_scale.m11 = div16(1 << 24, s.y);
-		m_scale.m22 = div16(1 << 24, s.z);
+		// 1/s en 4.12: numerador 1.0 en 8.24 (`kOne8_24`) para que el cociente de
+		// `div16` (16 bits) quede ya en 4.12 sin normalizar.
+		m_scale.m00 = div16(math2d::kOne8_24, s.x);
+		m_scale.m11 = div16(math2d::kOne8_24, s.y);
+		m_scale.m22 = div16(math2d::kOne8_24, s.z);
 
 		math3d::Mat3x3 m_rotate;
 		math3d::load_reverse_rotate(m_rotate, static_cast<u16>(-r.x), static_cast<u16>(-r.y),

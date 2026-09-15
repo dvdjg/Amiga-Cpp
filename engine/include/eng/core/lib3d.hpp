@@ -60,7 +60,8 @@ constexpr s16 hi16(s32 x) {
 }
 
 /// Tabla `InvSqrt` de lib3d (`invsqrt` en el original): `65535 / sqrt(x)` para
-/// `x = 0..511`, en `u16`. Normaliza la iluminación: el producto escalar
+/// `x = 0..511`, en `u16` con formato **0.16** (`1.0 == 1 << 16`, truncado a
+/// `65535`). Normaliza la iluminación: el producto escalar
 /// normal·vista se eleva al cuadrado en la parte alta y se indexa aquí para
 /// obtener el color de luz 0..15 **sin calcular `sqrt` en runtime** (es el
 /// `65535/sqrt(x)` precalculado; ver `README.md` de la demo 116).
@@ -233,6 +234,9 @@ inline void transform_vertices(Object3D& object, s16 half_w, s16 half_h, s16 bbo
 	void* objdat = object.objdat;
 	s16* group = object.vertexGroups;
 
+	// m0/m1 son el termino `xy` de `MULVERTEX1` preescalado por 256 (16.8): el
+	// macro le resta `xy` a un producto 8.24 y hace `>> 4` para volver a 4.12.
+	// Se pasa a `mul16` (no `(s32)*(s16)`) para forzar `muls.w` y evitar `__mulsi3`.
 	s32 m0 = (static_cast<s32>(M.x) - math2d::normfx(math2d::mul16(M.m00, M.m01))) << 8;
 	s32 m1 = (static_cast<s32>(M.y) - math2d::normfx(math2d::mul16(M.m10, M.m11))) << 8;
 	M.z = static_cast<s16>(M.z - math2d::normfx(math2d::mul16(M.m20, M.m21)));
