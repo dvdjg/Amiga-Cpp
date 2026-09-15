@@ -95,6 +95,27 @@ Fidelidad (vs captura del original por `.adf`): fondo `#001122`, **IoU de másca
 en frames alineados por fase, **0.00 % de huecos internos** (el original también 0.00 %),
 cobertura ~38.5 % vs 38.9 %.
 
+### Gate de fase congelada (bit-exactitud de render)
+
+`verify-116` mira cobertura/tonos/forma, y sus números **varían con la fase** de giro del
+balón: no sirven para decidir si un cambio altera la imagen. Para eso está el ángulo
+fijo, que hace la captura **determinista**:
+
+```bash
+# mismo ángulo en las dos builds que se comparan (p. ej. antes/después de un cambio)
+sed -i 's/#define FLATSHADE_FREEZE_ANGLE 0/#define FLATSHADE_FREEZE_ANGLE 1000/' src/main.cpp
+bash ./tools/build/build-demo.sh demos/amiga/116_flatshade_convex --debug --clean
+bash ./tools/run/run-demo.sh demos/amiga/116_flatshade_convex
+cp out/run/116_flatshade_convex/A500_debug/screenshot.png /tmp/a.png
+# ... cambiar a la otra build ...
+node tools/analyze/freeze-diff.mjs /tmp/a.png out/run/116_flatshade_convex/A500_debug/screenshot.png
+```
+
+Con el ángulo congelado dos ejecuciones dan el **mismo PNG byte a byte**
+(`freeze-diff` → `MAD/px=0`), así que `MAD != 0` significa que el cambio toca la imagen.
+Es el gate que faltaba para validar optimizaciones de render sin caer en comparar fases
+distintas.
+
 ## Reutilización
 
 Las rutinas de efectos (visibilidad de caras con luz, visibilidad de aristas de un

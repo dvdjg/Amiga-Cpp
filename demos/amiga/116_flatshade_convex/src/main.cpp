@@ -201,6 +201,11 @@ void draw_faces(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::Minim
 #ifndef FLATSHADE_FILL_BBOX
 #define FLATSHADE_FILL_BBOX 0
 #endif
+#ifndef FLATSHADE_FREEZE_ANGLE
+// Angulo FIJO para capturas deterministas (0 = anima). Con esto la captura no depende
+// de la fase de giro del balon y dos builds se pueden comparar PIXEL A PIXEL.
+#define FLATSHADE_FREEZE_ANGLE 0
+#endif
 #ifndef FLATSHADE_PROFILE
 // Metricas extra por arista (longitud total) para el perfilado; fuera de la build normal.
 #define FLATSHADE_PROFILE 0
@@ -469,7 +474,11 @@ struct FlatShadeDemo {
 
 		// 5) Durante el fill (Blitter ocupado), precalcular el estado del frame siguiente
 		//    (transform + luz + visibilidad de aristas) sobre el object model.
+#if FLATSHADE_FREEZE_ANGLE
+		m_angle = static_cast<eng::s16>(FLATSHADE_FREEZE_ANGLE);
+#else
 		m_angle = static_cast<eng::s16>(m_angle + 8);
+#endif
 		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z = m_angle;
 		obj::update_object_transformation(m_object);
 		const eng::u32 ta = rcycles();
