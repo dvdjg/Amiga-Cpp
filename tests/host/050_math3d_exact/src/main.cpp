@@ -1,6 +1,7 @@
 // HOST-050 — Red de seguridad de F3: las versiones NUEVAS (librería genérica) deben dar
 // EXACTAMENTE los mismos 12 valores que las viejas (math3d), para todos los ángulos.
 // Cualquier diferencia es un fallo, no una mejora.
+#include <eng/platform/amiga/angles.hpp>
 #include <eng/core/linalg.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 

@@ -20,6 +20,7 @@
 /// Reutiliza `Face`, `transform`, `face_visible` y `face_z_min` de `math3d`
 /// (no duplica); aquí solo vive la composición «malla → caras listas para pintar».
 
+#include <eng/core/linalg.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 
@@ -77,8 +78,20 @@ struct MeshView {
 	[[nodiscard]] constexpr u32 face_count() const { return static_cast<u32>(faces.size()); }
 };
 
-// `mesh_transform` (que cruza el modelo de malla con un afín concreto) vive en el
-// backend de la plataforma: aquí sólo está el modelo, sin tipos de ningún formato.
+/// Transforma los vértices `in` al mundo con un afín `out = M·in + t`. Es **genérico**
+/// sobre el escalar del afín: sirve para `Affine<3,q12,q0>` (Amiga), `Affine<3,float,float>`
+/// o cualquier otro. Un backend de CPU puede especializar la aritmética por dentro.
+template <int N, typename SR, typename SL>
+inline void mesh_transform(Span<const Vec3> in, const eng::math::Affine<N, SR, SL>& m, Span<Vec3> out) {
+	const u32 n = static_cast<u32>(in.size() < out.size() ? in.size() : out.size());
+	for (u32 i = 0; i < n; ++i) {
+		const eng::math::Vec<N, SL> p {{SL {in[i].x}, SL {in[i].y}, SL {in[i].z}}};
+		const eng::math::Vec<N, SL> w = eng::math::transform(m, p);
+		out[i].x = static_cast<s16>(w.v[0].v);
+		out[i].y = static_cast<s16>(w.v[1].v);
+		out[i].z = static_cast<s16>(w.v[2].v);
+	}
+}
 
 /// Cara visible + clave de profundidad para el orden de pintado.
 struct FaceOrder {

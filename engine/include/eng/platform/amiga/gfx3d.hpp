@@ -10,6 +10,7 @@
 /// Convención: `out = M·v + t` con la parte lineal en 4.12 (RATIO) y la traslación en
 /// LONGITUD. Eso es exactamente `Affine<3, q12, q0>`.
 
+#include <eng/platform/amiga/angles.hpp>
 #include <eng/core/fixed.hpp>
 #include <eng/core/linalg.hpp>
 #include <eng/core/math2d.hpp>
@@ -104,11 +105,7 @@ inline void transform(const Affine3& a, Vec3* out, const Vec3* in, u32 n) {
 	}
 }
 
-/// Transforma los vértices de una malla con el afín 4.12 (cruza el modelo de malla con
-/// los escalares de este formato). Procesa `min(in.size(), out.size())` elementos.
-inline void mesh_transform(Span<const Vec3> in, const Affine3& m, Span<Vec3> out) {
-	const u32 n = static_cast<u32>(in.size() < out.size() ? in.size() : out.size());
-	transform(m, out.data(), in.data(), n);
-}
+// `mesh_transform` (el vector de malla -> mundo) es genérico y vive en `mesh3d`: usa
+// `eng::math::transform(Affine, Vec)`, así que no hace falta una versión por formato.
 
 } // namespace eng::math3d

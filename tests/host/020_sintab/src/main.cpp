@@ -1,5 +1,5 @@
 // ============================================================================
-// Test HOST-020: tabla de seno EXACTA del original (eng/core/sintab.hpp).
+// Test HOST-020: tabla de seno EXACTA del original (eng/platform/amiga/sintab.hpp).
 // ============================================================================
 //
 // La tabla se genera desde `libmisc/sintab.c` (reconstruyendo los deltas). Aqui se
@@ -7,10 +7,11 @@
 //
 //   bash tools/run-host-tests.sh tests/host/020_sintab
 
+#include <eng/platform/amiga/angles.hpp>
 #include <cstdio>
 
 #include <eng/core/math2d.hpp>
-#include <eng/core/sintab.hpp>
+#include <eng/platform/amiga/sintab.hpp>
 #include <eng/core/types.hpp>
 
 namespace {

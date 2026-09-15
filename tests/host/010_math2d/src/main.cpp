@@ -1,5 +1,6 @@
 // Test host de eng::core::math2d (port de lib2d, fixed-point 4.12).
 // Valida identidad, traslación, escala, rotación (90/180°) y la tabla de seno.
+#include <eng/platform/amiga/angles.hpp>
 #include <eng/core/math2d.hpp>
 
 #include <cstdio>

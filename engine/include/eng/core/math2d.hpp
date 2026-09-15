@@ -26,7 +26,6 @@
 /// entradas reutilizando `SineTable<4096, 4096>::sample`.
 
 #include <eng/core/arith.hpp>
-#include <eng/core/sintab.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::math2d {
@@ -54,10 +53,9 @@ constexpr fix88 kHalf88 = 128;
 constexpr fix8_24 kOne8_24 = 1 << 24;
 /// Desplazamiento de fracción de 8.8 (bits que hay que bajar para normalizar).
 constexpr s32 kShift88 = 8;
-/// π/2 como índice de ángulo (4096 pasos por vuelta).
-constexpr u16 kHalfPi = 1024;
-/// Pasos por vuelta de la tabla de seno.
-constexpr u32 kAngleSteps = 4096;
+// Los ángulos 4.12 (tabla de seno, `sin_q12`/`cos_q12`, `rotate`) son una
+// especialización de plataforma: viven en `eng/platform/amiga/angles.hpp`.
+
 
 /// Entero a 4.12.
 constexpr fix fx12i(int i) { return static_cast<fix>(i * 4096); }
@@ -90,25 +88,6 @@ struct Mat2x2 {
 	fix y = 0;
 };
 
-/// Tabla de seno 4.12 (4096 pasos = 2 pi). Es la **exacta del original**
-/// (`eng/core/sintab.hpp`, `libmisc/sintab.c`), no la aproximacion de Bhaskara de
-/// `sinetable.hpp` (que difiere hasta +-8): los efectos portados 1:1 la necesitan.
-struct SinTableQ12 {
-	s16 v[kAngleSteps] {};
-	constexpr SinTableQ12() {
-		for (u32 i = 0; i < kAngleSteps; ++i) {
-			v[i] = kSinTab[i];
-		}
-	}
-};
-
-inline constexpr SinTableQ12 kSinQ12 {};
-
-/// Seno de un ángulo `a` (0..4095 = 0..2π) en 4.12.
-constexpr fix sin_q12(u16 a) { return kSinQ12.v[a & (kAngleSteps - 1u)]; }
-/// Coseno de un ángulo `a` en 4.12.
-constexpr fix cos_q12(u16 a) { return kSinQ12.v[(a + kHalfPi) & (kAngleSteps - 1u)]; }
-
 /// Deja `m` como la identidad.
 constexpr void load_identity(Mat2x2& m) {
 	m = Mat2x2 {};
@@ -126,17 +105,6 @@ constexpr void scale(Mat2x2& m, fix sx, fix sy) {
 	m.m01 = normfx(static_cast<s32>(m.m01) * sy);
 	m.m10 = normfx(static_cast<s32>(m.m10) * sx);
 	m.m11 = normfx(static_cast<s32>(m.m11) * sy);
-}
-
-/// Rota la parte lineal por el ángulo `a` (0..4095 = 0..2π). Igual que `Rotate2D`.
-constexpr void rotate(Mat2x2& m, u16 a) {
-	const fix s = sin_q12(a);
-	const fix c = cos_q12(a);
-	const fix m00 = m.m00, m01 = m.m01, m10 = m.m10, m11 = m.m11;
-	m.m00 = normfx(static_cast<s32>(m00) * c - static_cast<s32>(m01) * s);
-	m.m01 = normfx(static_cast<s32>(m00) * s + static_cast<s32>(m01) * c);
-	m.m10 = normfx(static_cast<s32>(m10) * c - static_cast<s32>(m11) * s);
-	m.m11 = normfx(static_cast<s32>(m10) * s + static_cast<s32>(m11) * c);
 }
 
 /// Aplica `m` a `n` puntos (igual que `Transform2D`): `out = M·in + traslación`.

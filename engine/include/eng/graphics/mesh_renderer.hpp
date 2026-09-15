@@ -14,7 +14,6 @@
 /// registros. Reutiliza `mesh3d`/`math3d`/`Surface` (no duplica).
 
 #include <eng/core/math2d.hpp>
-#include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/core/mesh3d.hpp>
 #include <eng/field/surface.hpp>
 
@@ -36,8 +35,9 @@ inline void project_perspective(const math3d::Vec3& v, s16 focal, s16 cx, s16 cy
 /// `model` transforma la malla al mundo; `camera` es la posición de cámara en
 /// espacio objeto (mismo convenio que `mesh_painter_order`). `double_sided` para
 /// mallas abiertas (p. ej. suelos).
-template <typename ColorFn>
-inline u32 mesh_render_filled(const math3d::MeshView& mesh, const math3d::Affine3& model,
+/// `Model` es cualquier afín (`Affine<N,SR,SL>`): el renderer no sabe de qué formato es.
+template <typename ColorFn, typename Model>
+inline u32 mesh_render_filled(const math3d::MeshView& mesh, const Model& model,
 			      const math3d::Vec3& camera, s16 focal, s16 cx, s16 cy,
 			      math3d::Vec3* world, math3d::FaceOrder* order,
 			      s16* sx, s16* sy, field::Surface& surface, ColorFn color_of,
@@ -69,7 +69,8 @@ inline u32 mesh_render_filled(const math3d::MeshView& mesh, const math3d::Affine
 /// aristas compartidas se dibujan dos veces (barato y sin estado de aristas).
 /// Devuelve el número de caras procesadas. Buffers del llamador como en
 /// `mesh_render_filled`.
-inline u32 mesh_render_wire(const math3d::MeshView& mesh, const math3d::Affine3& model,
+template <typename Model>
+inline u32 mesh_render_wire(const math3d::MeshView& mesh, const Model& model,
 			    const math3d::Vec3& camera, s16 focal, s16 cx, s16 cy,
 			    math3d::Vec3* world, math3d::FaceOrder* order,
 			    s16* sx, s16* sy, field::Surface& surface, u8 color,
