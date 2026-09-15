@@ -976,29 +976,40 @@ bool MinimalBackend::blitter_line(eng::PlaneBytes plane, u16 row_bytes, s16 x0, 
 
 bool MinimalBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1,
 				      eng::u8* d_base) {
-	if (plane.data() == nullptr) {
-		return false;
+	// Variante autónoma: begin + prepare/draw + wait final.
+	blitter_lines_eor_begin(row_bytes);
+	LineEorParams p;
+	if (blitter_line_eor_prepare(p, row_bytes, x0, y0, x1, y1)) {
+		blitter_line_eor_draw(p, plane.data(), d_base);
 	}
-	// Registros comunes del modo linea, fijados aqui por linea. Se probo fijarlos 1x
-	// por frame (`blitter_lines_begin`) pero producia caras deformes en flatshade-convex
-	// (el estado de cmod/dmod/dat del Blitter no es estable entre blits); se dejan
-	// explicitos. Coste: ~6 escrituras custom (~57 ciclos) por arista/plano.
+	return wait_blitter();
+}
+
+void MinimalBackend::blitter_lines_eor_begin(u16 row_bytes) {
+	// Setup común para una secuencia de líneas EOR (ONEDOT), equivalente al preludio
+	// de `DrawObject` en flatshade-convex (`bltafwm/bltalwm=-1, bltadat=0x8000,
+	// bltbdat=0xffff, bltcmod/bltdmod=WIDTH/8`). Se fija UNA vez por grupo de líneas:
+	// cada escritura a registro custom cuesta ~57 ciclos con `cpu_cycle_exact`, así
+	// que reescribirlos por arista×plano es desperdicio (el original no lo hace).
+	// NO espera al Blitter: el primer `blitter_line_eor_draw` (que sí espera)
+	// sincroniza con cualquier blit previo (el clear).
 	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
-	wait_blitter();
 	custom_base[custom_bltafwm_offset] = 0xffff;
 	custom_base[custom_bltalwm_offset] = 0xffff;
 	custom_base[custom_bltadat_offset] = 0x8000;
 	custom_base[custom_bltbdat_offset] = 0xffff;
 	custom_base[custom_bltcmod_offset] = row_bytes;
 	custom_base[custom_bltdmod_offset] = row_bytes;
+}
 
+bool MinimalBackend::blitter_line_eor_prepare(LineEorParams& out, u16 row_bytes, s16 x0, s16 y0,
+					      s16 x1, s16 y1) {
 	// El original (`DrawObject` de flatshade-convex) DESCARTA las aristas
 	// horizontales: no aportan contorno util y, dibujadas, meterian píxeles
 	// extra en los vertices que descuadran el area fill (cruces impares).
 	if (y0 == y1) {
-		return true;
+		return false;
 	}
-
 	if (y0 > y1) {
 		s16 t = x0; x0 = x1; x1 = t;
 		t = y0; y0 = y1; y1 = t;
@@ -1017,28 +1028,30 @@ bool MinimalBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 
 		}
 		const s16 t = dmax; dmax = dmin; dmin = t;
 	}
-	u8* data = plane.data() + row_offset(y0, row_bytes) +
-		   ((static_cast<u32>(x0) >> 3) & ~1u);
-	const u16 bltcon0 = static_cast<u16>(ror16(static_cast<u16>(x0 & 15), 4) | blt_line_eor);
-	bltcon1 = static_cast<u16>(bltcon1 | ror16(static_cast<u16>(x0 & 15), 4));
+	out.row_offset = row_offset(y0, row_bytes) + ((static_cast<u32>(x0) >> 3) & ~1u);
+	out.bltcon0 = static_cast<u16>(ror16(static_cast<u16>(x0 & 15), 4) | blt_line_eor);
+	out.bltcon1 = static_cast<u16>(bltcon1 | ror16(static_cast<u16>(x0 & 15), 4));
 	dmin = static_cast<s16>(dmin << 1);
-	const s16 derr = static_cast<s16>(dmin - dmax);
-	const u16 bltamod = static_cast<u16>(derr - dmax);
-	const u16 bltbmod = static_cast<u16>(dmin);
-	const u16 bltsize = static_cast<u16>((static_cast<u16>(dmax) << 6) + 66u);
+	out.derr = static_cast<s16>(dmin - dmax);
+	out.bltamod = static_cast<u16>(out.derr - dmax);
+	out.bltbmod = static_cast<u16>(dmin);
+	out.bltsize = static_cast<u16>((static_cast<u16>(dmax) << 6) + 66u);
+	return true;
+}
 
+void MinimalBackend::blitter_line_eor_draw(const LineEorParams& p, eng::u8* plane_ptr, eng::u8* d_base) {
+	u8* data = plane_ptr + p.row_offset;
 	wait_blitter();
-	custom_base[custom_bltcon0_offset] = bltcon0;
-	custom_base[custom_bltcon1_offset] = bltcon1;
-	custom_base[custom_bltamod_offset] = bltamod;
-	custom_base[custom_bltbmod_offset] = bltbmod;
+	custom_base[custom_bltcon0_offset] = p.bltcon0;
+	custom_base[custom_bltcon1_offset] = p.bltcon1;
+	custom_base[custom_bltamod_offset] = p.bltamod;
+	custom_base[custom_bltbmod_offset] = p.bltbmod;
 	write_custom_pointer(custom_bltapt_offset,
-			     reinterpret_cast<void*>(static_cast<u32>(static_cast<s32>(derr))));
+			     reinterpret_cast<void*>(static_cast<u32>(static_cast<s32>(p.derr))));
 	write_custom_pointer(custom_bltcpt_offset, data);
 	write_custom_pointer(custom_bltdpt_offset, d_base != nullptr ? d_base : data);
-	custom_base[custom_bltsize_offset] = bltsize;
+	custom_base[custom_bltsize_offset] = p.bltsize;
 	// Sin esperar aqui: la siguiente operacion (o el swap de copperlist) sincroniza.
-	return true;
 }
 
 bool MinimalBackend::blitter_area_fill(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 width, u16 height,

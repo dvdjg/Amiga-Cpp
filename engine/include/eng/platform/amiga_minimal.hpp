@@ -284,15 +284,44 @@ public:
 	/// Línea por Blitter en modo `ONEDOT` con minterm **EOR** (`BC0F_LINE_EOR`),
 	/// secuencia EXACTA de `DrawObject` de `flatshade-convex`: se usa para el
 	/// contorno de polígonos (un píxel por fila) que luego rellena
-	/// `blitter_area_fill`. Sin `SIGNFLAG` (como el original). Fija los registros
-	/// comunes del modo línea (`BLTAFWM/ALWM`, `BLTADAT`, `BLTBDAT`, `BLTCMOD`,
-	/// `BLTDMOD`) en cada llamada: se probó fijarlos 1×/frame y el sólido salía
-	/// deforme (el estado del Blitter no es estable entre blits).
+	/// `blitter_area_fill`. Sin `SIGNFLAG` (como el original). Variante autónoma:
+	/// fija los comunes (`blitter_lines_eor_begin`), dibuja y espera al final.
 	/// `d_base` replica el truco del original (`bltdpt = planes`, la base del
 	/// bitmap, NO la dirección calculada): si es `nullptr` se usa la dirección de
 	/// la línea.
 	bool blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1,
 			      eng::u8* d_base = nullptr);
+
+	/// Inicializa los registros comunes del modo línea EOR (ONEDOT) para una
+	/// secuencia de líneas. Escribe `BLTAFWM/ALWM`, `BLTADAT`, `BLTBDAT`,
+	/// `BLTCMOD`, `BLTDMOD` una sola vez, como el preludio de `DrawObject` de
+	/// `flatshade-convex`. NO espera al Blitter: el llamador sincroniza antes de la
+	/// primera `blitter_line_eor_draw`.
+	void blitter_lines_eor_begin(u16 row_bytes);
+
+	/// Parámetros de línea EOR (ONEDOT) precalculados: son independientes del plano
+	/// (solo cambia el puntero C entre planos de la misma arista). Permiten calcular
+	/// el Bresenham UNA vez por arista y reutilizarlo en los N planos del color,
+	/// como hace el `DrawObject` del original (que avanza `bltcpt += plane_bytes`).
+	/// `row_offset` es el desplazamiento de la línea dentro del plano.
+	struct LineEorParams {
+		u16 bltcon0 = 0;
+		u16 bltcon1 = 0;
+		u16 bltamod = 0;
+		u16 bltbmod = 0;
+		u16 bltsize = 0;
+		s16 derr = 0;
+		u32 row_offset = 0;
+	};
+
+	/// Calcula los parámetros de una línea EOR sin programar el Blitter. Devuelve
+	/// `false` para aristas horizontales (`y0 == y1`), que no aportan contorno.
+	bool blitter_line_eor_prepare(LineEorParams& out, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1);
+
+	/// Programa UNA línea EOR con parámetros ya preparados (`blitter_line_eor_prepare`),
+	/// asumiendo los comunes fijados por `blitter_lines_eor_begin`. `plane_ptr` es el
+	/// inicio del plano; `d_base` replica el truco del original (`bltdpt = planes`).
+	void blitter_line_eor_draw(const LineEorParams& p, eng::u8* plane_ptr, eng::u8* d_base);
 
 	/// Relleno por **area fill XOR** (paint-bucket del Blitter), port de
 	/// `BitmapFillFast` de `flatshade-convex`: parte de la última palabra del bitmap

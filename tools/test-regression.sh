@@ -9,6 +9,7 @@
 #       [--keep-going] [--warp] [--pixel-assert] [--require-pixel-assert-ok]
 #       [--pixel-assert-selftest] [--vision-review] [--require-vision-review-ok]
 #       [--vision-provider <ruta>] [--vision-send-mode multi-image|contact-sheet]
+#       [--build-all]                                      (barrido de compilacion de TODAS las demos)
 #       [--protect <target>,<block|set:0xVALUE>,<size>]   (repetible; WinUAE-DBG v2.1)
 # ---------------------------------------------------------------------------
 set -uo pipefail
@@ -26,6 +27,7 @@ REQUIRE_VISION_REVIEW_OK=0
 PIXEL_ASSERT=0
 REQUIRE_PIXEL_ASSERT_OK=0
 PIXEL_ASSERT_SELFTEST=0
+BUILD_ALL=0
 VISION_PROVIDER=""
 VISION_SEND_MODE="multi-image"
 PROTECTS=()
@@ -49,6 +51,7 @@ while [ "$#" -gt 0 ]; do
 		--pixel-assert) PIXEL_ASSERT=1; shift ;;
 		--require-pixel-assert-ok) REQUIRE_PIXEL_ASSERT_OK=1; shift ;;
 		--pixel-assert-selftest) PIXEL_ASSERT_SELFTEST=1; shift ;;
+		--build-all) BUILD_ALL=1; shift ;;
 		--vision-provider) next_arg "$1" "$2"; VISION_PROVIDER="$2"; shift 2 ;;
 		--vision-send-mode) next_arg "$1" "$2"; VISION_SEND_MODE="$2"; shift 2 ;;
 		--protect) next_arg "$1" "$2"; PROTECTS+=("$2"); shift 2 ;;
@@ -125,6 +128,38 @@ if [ -f "$ENCODING_CHECK" ]; then
 		fi
 	else
 		echo "node no disponible; se omite encoding." >&2
+	fi
+fi
+
+# --- Codegen 68000: el camino caliente no debe llamar a libgcc (__mulsi3/__divsi3) ---
+# Una operacion que deberia ser `muls.w`/`mulu.w` nativos convertida en llamada cuesta
+# ~50+ ciclos. Se omite si no hay compilador cruzado disponible.
+CODEGEN="$ROOT/tools/analyze/codegen-report.mjs"
+if [ -f "$CODEGEN" ] && command -v node >/dev/null 2>&1; then
+	CODEGEN_CXX="${AMIGA_BIN_PATH:-C:/Users/dvdjg/.vscode/extensions/bartmanabyss.amiga-debug-1.8.1/bin/win32}/opt/bin/m68k-amiga-elf-g++.exe"
+	if [ -f "$CODEGEN_CXX" ]; then
+		echo "== codegen (68000) =="
+		if ! node "$CODEGEN"; then
+			echo "codegen fallo: hay libcalls en el camino caliente." >&2
+			exit 1
+		fi
+	else
+		echo "codegen: sin compilador cruzado ($CODEGEN_CXX); se omite." >&2
+	fi
+fi
+
+# --- Barrido de compilacion de TODAS las demos (opt-in: --build-all) ---------
+# Distingue "asset generado ausente" (out/assets/…) de "rotura de codigo". Con
+# --strict, un asset ausente tambien falla: exige el arbol de out/assets completo.
+if [ "$BUILD_ALL" -eq 1 ]; then
+	echo "== build-all (barrido de demos, --strict) =="
+	BUILD_ALL_ARGS=(--strict)
+	if [ -n "$DEMO" ]; then
+		BUILD_ALL_ARGS+=(--demo "$(basename -- "$DEMO")")
+	fi
+	if ! bash "$ROOT/tools/build/build-all-demos.sh" "${BUILD_ALL_ARGS[@]}"; then
+		echo "build-all fallo: hay demos que no compilan o tienen assets ausentes." >&2
+		exit 1
 	fi
 fi
 

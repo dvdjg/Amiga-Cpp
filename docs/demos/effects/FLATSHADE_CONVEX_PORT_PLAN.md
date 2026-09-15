@@ -143,34 +143,45 @@ La clave de la paridad en los vértices es el **truco `bltdpt`** del original: e
 
 Además, en `BLTSIZE` el campo de altura **0 significa 1024 líneas** (y el de anchura 0, 64 words): por eso el original limpia y rellena los 4 planos contiguos (`256*4 = 1024` líneas × 16 words = los 32768 bytes de los 4 planos) con `bltsize` de altura 0, sin que sea un no-op.
 
-### Optimización (objetivo: igualar el framerate del original)
+### Rendimiento (medido, estado vigente)
 
-Tasa real del original: **24.7 fps / 287k ciclos/render** (ver "Resultados medidos"). Criterio de éxito: acercarse a ese framerate con la imagen idéntica (0.00 % de huecos internos e IoU sin cambios). El desglose por secciones se obtiene con el periférico de depuración (`g_eng_prof` + checkpoints) o `tools/debug/measure-fps.mjs`.
-
-### Resultados medidos (perfilado y optimizado)
-
-Tasa real del original (contando cambios del puntero `BPL1PT` en su copperlist): **~24.7 renders/s, ~287k ciclos/render**. El `frame`/`vsync_counter` del monitor NO sirve (avanza a 50 Hz aunque el efecto tarde varios frames).
+Tasa real del original: **~24.7 fps / ~287k ciclos/render** (2 vblanks). Criterio de éxito: acercarse a ese framerate con la imagen idéntica (0.00 % de huecos internos e IoU sin cambios).
 
 Progresión de la réplica (fps emulados; perfilado con el periférico de depuración):
 
 | Paso | fps | ciclos/frame |
 |---|---|---|
-| Inicial | 9.92 | 715k |
+| Inicial (aristas por plano + fill serial) | 9.92 | 715k |
 | `clear` de 1 blit + quitar `touch[]` muerto | 10.58 | 670k |
 | Solape clear↔transform | 14.26 | 497k |
 | `div16`+`row_offset` nativos (`divs`/`muls`) | 15.87 | 447k |
 | `mul16`/`mulu16` nativos en transform y luz | 19.07 | 372k |
-| **Esperar el fill antes del swap (fix del parpadeo)** | **16.75** | **423k** |
+| Esperar el fill antes del swap (fix del parpadeo) | 16.75 | 423k |
+| **`blitter_lines_eor_begin` + `prepare/draw`** (comunes 1×/frame, Bresenham 1×/arista) | ~17.5 | ~395k |
+| **BLITHOG correcto** (`set_blitter_priority(true)`, 0x0400) → fill a 131.8k | ~18.0 | ~380k |
+| **Pipeline de 3 buffers** (transform+clear escondidos bajo el fill) | **~20.7** | **~342k** |
+| **Ruta ASM** (`-DK_FLATSHADE_ASM=1`) | no válida (render roto) | ~283k |
 
-Original: **24.7 / 287k** (brecha 1.47x). Desglose: `clear` ~2k (lanzado, solapado con el transform), `transform` 109k, `edges` 125k, `fill` 139k (serial), `update` 375k, bucle/render ~49k.
+Desglose vigente (emulador, frame representativo): `wait+swap+edges` ~105k, `transform` ~127k (corre durante el fill), `edges` ~114k, lanzamiento del fill ~1.3k, `update` ~238k. El frame (~342k) suma la cola del Blitter (fill 131.8k + clear 89k) que el `update` no espera: el wait se absorbe en el primer `wait_blitter` del update siguiente.
 
-**Optimizaciones aplicadas** (en `engine/`): `blitter_clear`/`blitter_area_fill` aceptan `wait=false` y `MinimalBackend::wait_blitter()` es público (solape); `row_offset()` + `math2d::mul16`/`mulu16` usan `muls`/`mulu` nativos y `math2d::div16` usa `divs` (como `common.h` del origen), eliminando `__mulsi3`/`__divsi3`/`__udivsi3` del hot path; `blitter_clear` en 1 blit; `blitter_clear_rect`/`blitter_area_fill_rect` (para bbox).
+**Cuello actual**: los `edges` (~114k) y el `transform` (~127k) son ~1.9x y ~1.8x los del original (59k y 71k según el profiler de líneas de raster del propio original). El `fill` coincide (131.8k vs 131k): **no es un artefacto del emulador** — WinUAE cobra el mismo área fill al original y al port. La brecha es codegen real: el original usa asm 68k a mano (`register char flags asm("d3")`, macros `DRAWLINE` inline) y el C++ del port no lo iguala. El `update` ya está bajo 284k (2 vblanks) gracias a la pipeline, pero el frame cae en 2-3 vblanks según la variación de aristas por frame (nEdges 34-36, nLines 62-67) y la cola del Blitter (fill + pre-clear) que el transform no cubre del todo. La medida en vivo del original (render/s) quedó bloqueada: el efecto del ADF termina al leer el botón izquierdo del ratón (`EffectRun` sale con `LeftMouseButton()`) y el framework entra en un `BRA *`.
 
-**Parpadeo (flicker)**: lanzar el fill **sin esperar** mostraba el buffer a mitad de relleno (frames con hasta 16 % de huecos). El original espera el fill (`WaitBlitter`) antes de `CopUpdateBitplanes`. Fix: esperar el fill antes de `install_copper_list`; el **clear** sí se solapa (escribe un buffer que no se está mostrando). Tras el fix, los huecos por frame vuelven a ~0.00 %. Coste: ~50k (se pierde el solape del fill), inevitable para no parpadear.
+La **ruta ASM** (`-DK_FLATSHADE_ASM=1`) ataca esa brecha de codegen portando las rutinas calientes a asm m68k con registros fijos, pero **aún no es válida**: visibilidad de caras/aristas y `transform_vertices` son correctas (con el `draw_edges` C++ encima el balón sale bien), mientras que **`fs_draw_edges` desfasa el contorno ~1-2 px**; con el area fill XOR (paridad por scanline) el relleno se rompe en bandas y triángulos. `verify-116` da PASS (no detecta el desfase): el gate es **visual** (wireframe con `-DFLATSHADE_SKIP_FILL=1`, o secuencia + Ollama). El default sigue siendo la ruta C++.
 
-**bbox descartada**: acotar `clear`/`fill` a la bounding-box del objeto (`-DFLATSHADE_FILL_BBOX=1`) no aporta: la pelota proyectada ocupa **241×240** de 256×256, así que la caja es casi el bitmap completo. Desactivada por defecto.
+### Pipeline de 3 buffers (cómo se llega a 2 vblanks en CPU)
 
-**Pendiente**: la brecha restante son los `edges` (125k) y el `transform` (109k). El `fill` (~139k, con contención de bus del display) lo paga igual el original. Bajar el transform exige asm/registros fijos (4 pasadas sobre ~180 caras); en los edges, escribir los comunes del Blitter 1×/frame. Ver informe para IA en `docs/debugging/CONSULTA-OPTIMIZACION-BLITTER-DEMOSCENE.md`.
+El `update` actual usa **triple buffer** + lookahead de 1 frame: el estado del objeto (transform/culling/luz) del frame siguiente se precalcula MIENTRAS el Blitter hace el fill del frame actual, y el buffer que usará el siguiente `update` se pre-limpiara también bajo ese fill. Con 2 buffers el clear del buffer trasero es inseparable del camino crítico (ese buffer se está mostrando hasta el swap); con 3, el buffer a limpiar ni se muestra ni se dibuja.
+
+```
+  update(N):  wait fill(N-1) → swap(mostrar N-1) → edges(N) → lanzar fill(N)
+              → [durante el fill] precalcular estado(N+1) → lanzar clear(N+1) → return
+```
+
+- El fill se lanza SIN esperarlo (`blitter_area_fill(..., wait=false)`): el buffer se muestra en el swap del update siguiente, cuyo primer `wait_blitter` ya lo ha absorbido. Nunca se ve a medias.
+- `m_draw_buf` avanza `(buf+1)%3`, `m_display_buf` sigue al dibujado el frame anterior, y `(buf+1)%3` es el buffer libre que se pre-limpiara.
+- El swap (`install_copper_list`) apunta al buffer dibujado (y rellenado) el frame pasado: la secuencia de rotación mostrada es la del original (latencia de 1 frame, mismo orden de ángulos).
+
+Gate de validación tras cambios de render: `tools/analyze/bestphase.mjs` (IoU+MAD por fase) y `phasecmp.mjs`, además de `verify-116`. La secuencia capturada (`run-demo --sequence-frames`) pasa `verify-116` en todos los frames (el balón rota, sin parpadeo ni tearing).
 
 ### Perfil fino (2026-09)
 

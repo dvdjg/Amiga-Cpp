@@ -56,7 +56,7 @@ Correcto, con un matiz: lo que hay que importar es **`lib3d` tal cual** (modelo 
 
 ## Estado del porte (hecho)
 
-- ✅ **Modelo `obj2c` + `Object3D`** portado 1:1 en `engine/include/eng/core/object3d.hpp` (`Node3D/Edge/Face/Mesh3D/Object3D`, macros de offset, `new_object3d`, `update_object_transformation` sobre `math2d`/`math3d`). Test **HOST-014**. `div16`/`normfx` del engine coinciden con el original (comprobado).
+- ✅ **Modelo `obj2c` + `Object3D`** portado 1:1 en `engine/include/eng/platform/amiga/object3d.hpp` (`Node3D/Edge/Face/Mesh3D/Object3D`, macros de offset, `new_object3d`, `update_object_transformation` sobre `math2d`/`math3d`). Test **HOST-014**. `div16`/`normfx` del engine coinciden con el original (comprobado).
 - ✅ **Línea por Blitter** en `MinimalBackend::blitter_line` (secuencia idéntica a `DrawObject`: `BC0F_LINE_OR`, `bltapt=derr`, `bltsize=(dmax<<6)+66`, sin ONEDOT) + `blitter_clear`.
 - ✅ **Demo `079_wireframe`**: `pilka.c`/paleta copiados tal cual, recorrido (`UpdateFaceVisibilityFast`/`UpdateEdgeVisibility`/`TransformVertices`/`DrawObject`) portado verbatim; arranca (READY) y **visión (qwen3-vl) confirma el balón de alambre** centrado. Adaptaciones (versión B): display 320×256×4 del engine y sin doble buffer.
 

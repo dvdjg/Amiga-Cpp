@@ -1,6 +1,6 @@
 # HOST-011 — math3d (lib3d, fixed-point 4.12)
 
-Test host de `eng::core::math3d` (`engine/include/eng/core/math3d.hpp`), port de la
+Test host de `eng::core::math3d` (`engine/include/eng/platform/amiga/gfx3d.hpp`), port de la
 parte pura de **`lib3d`** de `demoscene-repo-orig`.
 
 ## Qué valida
@@ -13,7 +13,7 @@ parte pura de **`lib3d`** de `demoscene-repo-orig`.
 ## Formato
 
 Igual que `math2d`: `s16` en **4.12** (`1.0 == 4096`), `normfx(a) = a >> 12`
-(shift aritmético). Reutiliza la tabla de seno de `math2d`. La composición suma la
+(shift aritmético). Reutiliza la tabla de seno de `eng/retro`. La composición suma la
 traslación (como el `Compose3D` original).
 
 ## Ejecutar

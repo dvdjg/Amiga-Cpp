@@ -10,7 +10,7 @@
 //   math3d (rotacion 4.12) -> mesh3d (transform + culling + orden painter)
 //   -> rasterizado de triangulos (scanline entero, sin division) -> Blitter clear.
 #include <eng/assets/uaf.hpp>
-#include <eng/core/math3d.hpp>
+#include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/core/mesh3d.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
@@ -347,8 +347,8 @@ struct DemoGame {
 
 		// 2) Rasterizado del solido: rotacion + culling + orden painter + relleno.
 		const eng::u32 f = context.frame.frame_index;
-		eng::math3d::Mat3x3 m;
-		eng::math3d::load_rotate(m, static_cast<eng::u16>(f * 17u), static_cast<eng::u16>(f * 11u),
+		eng::math3d::Affine3 m = eng::math3d::Affine3::identity();
+		eng::math3d::load_rotate(m.m, static_cast<eng::u16>(f * 17u), static_cast<eng::u16>(f * 11u),
 					 static_cast<eng::u16>(f * 7u));
 
 		Vec3 world[8];
@@ -442,8 +442,7 @@ private:
 	/// y 1) es visible. Si la matematica entera o la lectura UAF-R fallaran, la demo
 	/// iria a Failed en vez de Ready.
 	bool verify_mesh() const {
-		eng::math3d::Mat3x3 id;
-		eng::math3d::load_identity(id);
+		const eng::math3d::Affine3 id = eng::math3d::Affine3::identity();
 		Vec3 w[8];
 		eng::math3d::mesh_transform(m_mesh.vertices, id, eng::Span<Vec3>(w, 8));
 		eng::math3d::FaceOrder order[12];

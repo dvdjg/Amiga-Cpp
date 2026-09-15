@@ -8,10 +8,11 @@
 ///   tab3[i] = fx4i(3*37) * SIN(rad*2) >> 16
 ///
 /// `fx4i(i) = i << 4` y `SIN`/`COS` son la tabla 4.12 exacta del original
-/// (`eng/core/sintab.hpp` via `math2d`). El `>> 16` es aritmetico (como el C original,
+/// (`eng/core/sinetable.hpp` via `eng/retro::sin_q12`). El `>> 16` es aritmetico (como el C original,
 /// que asigna a `char`).
 
-#include <eng/core/math2d.hpp>
+#include <eng/retro/angles.hpp>
+#include <eng/retro/lib2d.hpp>
 #include <eng/core/types.hpp>
 
 namespace plasma_data {
@@ -27,9 +28,9 @@ struct PlasmaTables {
 		const eng::s32 k3 = static_cast<eng::s32>(static_cast<eng::u16>(3 * 37) << 4); // 1776
 		for (int i = 0; i < 256; ++i) {
 			const eng::u16 rad2 = static_cast<eng::u16>(i * 16 * 2);
-			tab1[i] = static_cast<eng::s8>((k1 * eng::math2d::sin_q12(rad2)) >> 16);
-			tab2[i] = static_cast<eng::s8>((k2 * eng::math2d::cos_q12(rad2)) >> 16);
-			tab3[i] = static_cast<eng::s8>((k3 * eng::math2d::sin_q12(rad2)) >> 16);
+			tab1[i] = static_cast<eng::s8>((k1 * eng::retro::sin_q12(rad2)) >> 16);
+			tab2[i] = static_cast<eng::s8>((k2 * eng::retro::cos_q12(rad2)) >> 16);
+			tab3[i] = static_cast<eng::s8>((k3 * eng::retro::sin_q12(rad2)) >> 16);
 		}
 	}
 };

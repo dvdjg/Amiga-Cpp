@@ -65,7 +65,7 @@ Método: `docs/guides/roadmap/PORT_PROMPT_1A1.md`. Técnica: `docs/reference/ami
   `move32` (orden `reg+2`/`reg`), `patch_move32`/`patch_data`, `instruction_address`,
   `wait_raw`/`wait_masked` (CopWait/CopWaitMask), `move_at`; `COP2LCH/L`/`COPJMP2`. Test
   host HOST-019.
-- ✅ **Sintab exacta** (`eng/core/sintab.hpp`, constexpr) reutilizada por `math2d` (HOST-020).
+- ✅ **Sintab exacta** (`eng/core/sinetable.hpp`, constexpr) reutilizada por `math2d` (HOST-020).
 - ✅ **Datos del plasma** (tablas `tab1/2/3` verbatim + paleta 256) — HOST-021.
 - ✅ **Driver `CopperChunkyScene`** (`eng/graphics/drivers/copper_chunky.hpp`) y **demo
   `082_plasma`** (doble buffer, `set(row,col,color)`, `takeover/install`).

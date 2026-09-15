@@ -63,6 +63,11 @@ if [ "$#" -eq 0 ]; then
 		echo "== encoding =="
 		node "$ENCODING_CHECK"
 	fi
+	MATH_DIAG="$ROOT/tools/check/math-diagnostics.sh"
+	if [ -f "$MATH_DIAG" ]; then
+		echo "== math-diagnostics =="
+		CXX="$CXX" bash "$MATH_DIAG"
+	fi
 fi
 
 # Selección de tests.

@@ -76,6 +76,10 @@ struct CopperIntent {
     u16 bottom = 0; // linea raster de fin (exclusiva), o igual a `top` si es puntual
     u16 hpos = 0;   // para PaletteSpan (posicion horizontal, unidades de WAIT)
     eng::PaletteWords colors {};  // paleta de dominio (PaletteLine/PaletteSpan)
+    // `first` es el REGISTRO COLOR de arranque (0 = COLOR00) y a la vez el indice
+    // dentro de `colors`: el scheduler escribe COLOR[first+i] = colors[first+i].
+    // Para cambiar COLOR00 a un color suelto, pasa una vista de 1 color en `colors`
+    // (`PaletteWords{&color, 1}`) con `first = 0`.
     u8  first = 0;
     u8  count = 0;
     s16 shift_x = 0;              // ShiftLines

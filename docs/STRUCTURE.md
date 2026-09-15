@@ -87,7 +87,9 @@ Amiga-Cpp/
 ```
 engine/
 ├── include/eng/          → API del engine (header-only, sin backend)
-│   ├── core/             → algoritmos y utilidades genéricas (fast_div, sinetable, span, tipos, ct_array)
+│   ├── core/             → algoritmos y utilidades genéricas (fast_div, fixed, linalg, sinetable, span, tipos, ct_array)
+│   ├── cpu/              → especialización por CPU (cpu/m68k/: arith, affine)
+│   ├── retro/            → vocabulario fixed-point retro (q12/q0/q24 en fixed_q.hpp; lib2d/angles)
 │   ├── memory/           → gestión de memoria (arena)
 │   ├── graphics/         → abstracción de gráficos
 │   │   ├── copper/       →   generación/programación de copperlists
@@ -97,7 +99,9 @@ engine/
 │   ├── field/            → playfield / scroll / X-Limited (escena 2D)
 │   ├── scene/            → escena virtual / cámara
 │   ├── debug/            → telemetría, run_status, periférico de depuración
-│   └── platform/         → interfaz de hardware (ABI de backend)
+│   └── platform/         → especialización por máquina
+│       ├── amiga/        →   gráficos Amiga OCS (gfx3d, lib3d, object3d, angles)
+│       └── *.hpp         →   interfaz de hardware (ABI de backend)
 └── src/
     └── platform/         → implementaciones de backend por máquina
         ├── amiga_minimal/   → backend Amiga OCS/ECS (amiga_minimal.cpp)
@@ -110,6 +114,11 @@ Reglas:
   hardware, sin registros ni DMA concretos. Los registros/drivers específicos de
   cada máquina viven en las capas backend de `src/platform/` y en
   `graphics/drivers/`.
+- **Tres capas de especialización, cada una en su carpeta:** `core/` (genérico, sirve a
+  cualquier escalar), `cpu/<cpu>/` (p. ej. `m68k`: aritmética y empaquetado del 68000) y
+  `platform/<máquina>/` (p. ej. `amiga`: registros y gráficos OCS). El vocabulario retro
+  compartido (formato Q 4.12) va en `retro/`, no en `core/`. Cada capa se incluye desde la
+  siguiente; el núcleo nunca conoce a las de abajo.
 - **`src/`** contiene solo implementaciones de backend; el resto del engine es
   header-only para minimizar acoplamiento y permitir inline en las demos.
 - Algoritmos nuevos: si son genéricos (no dependen de hardware) van a `core/` o

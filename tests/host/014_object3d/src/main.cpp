@@ -1,5 +1,5 @@
 // Test host de eng::object3d (modelo obj2c + Object3D portado de lib3d).
-#include <eng/core/object3d.hpp>
+#include <eng/platform/amiga/object3d.hpp>
 
 #include <cstdio>
 
@@ -41,9 +41,9 @@ int main() {
 	obj.scale = {1 << 12, 1 << 12, 1 << 12};
 	obj.translate = {100, 200, 300};
 	update_object_transformation(obj);
-	check(obj.objectToWorld.m00 == (1 << 12) && obj.objectToWorld.m11 == (1 << 12), "objectToWorld identidad");
-	check(obj.objectToWorld.x == 100 && obj.objectToWorld.y == 200 && obj.objectToWorld.z == 300, "objectToWorld traslacion");
-	check(obj.worldToObject.x == -100 && obj.worldToObject.y == -200 && obj.worldToObject.z == -300, "worldToObject traslacion inversa");
+	check(obj.objectToWorld.m.m[0][0].v == (1 << 12) && obj.objectToWorld.m.m[1][1].v == (1 << 12), "objectToWorld identidad");
+	check(obj.objectToWorld.t.x().v == 100 && obj.objectToWorld.t.y().v == 200 && obj.objectToWorld.t.z().v == 300, "objectToWorld traslacion");
+	check(obj.worldToObject.t.x().v == -100 && obj.worldToObject.t.y().v == -200 && obj.worldToObject.t.z().v == -300, "worldToObject traslacion inversa");
 	check(obj.camera.x == -100 && obj.camera.y == -200 && obj.camera.z == -300, "camara en espacio objeto");
 
 	// Pipeline de visibilidad/luz/proyeccion (port de lib3d). Malla obj2c de 1 cara

@@ -68,7 +68,7 @@ Cada subsistema es un namespace bajo `eng::` y se lista con sus tipos y dependen
 Ya existe y se irá ampliando desde demoscene `libmisc`/`libc`.
 - `types` (u8..u32), `span`, `ct_array`, `fast_div`, `sinetable`, `isqrt`, `sort`,
   `crc32`, `random`, `utf8`.
-- Nuevo a aportar (demoscene `lib2d`/`lib3d`): `math2d`/`math3d` (`Vec3s`, `Mat3x4`,
+- Nuevo a aportar (demoscene `lib2d`/`lib3d`): `lib2d`/`math3d` (`Vec3s`, `Mat3x4`,
   `Transform3D`, `ClipPolygon`, `FaceVisibility`, `SortFaces`) — matemática pura,
   testeable en host (`tests/host/`).
 
@@ -185,13 +185,13 @@ engine (orquesta) ← backend (implementa lo que el engine pide)
 ```
 
 Regla: **nada por encima de `backend` depende de registros/DMA**. `core`/`input`/
-`math2d`/`math3d` son host-testables (sin WinUAE).
+`lib2d`/`math3d` son host-testables (sin WinUAE).
 
 ## 4. Ideas originales a extraer de cada fuente (decidido)
 
 | Fuente | Idea a adoptar | Dónde encaja |
 |---|---|---|
-| demoscene-repo-orig | Librerías `lib2d/lib3d/libblit/libgfx` + asm (c2p/p61) | `core::math2d/math3d`, `graphics::blit`, `support/` |
+| demoscene-repo-orig | Librerías `lib2d/lib3d/libblit/libgfx` + asm (c2p/p61) | `retro/lib2d` y `platform/amiga/gfx3d`, `graphics::blit`, `support/` |
 | amiga-bootcamp | Multiplexado, color multiplexing, "chasing the raster", sprite-as-playfield; presupuesto DMA/copper; antipatterns como invariantes | `SpriteTemplate`, `CopperIntent`, `DmaBudget` |
 | ACE | HAL fino (audio/blitter/copper/teclado/ratón), view/viewport estilo OS, debug vs release, OS se deshabilita/re-habilita, scroll tilemap eficiente | `PlatformBackend`, `MemoryPolicy`, `TileScrollDriver` |
 | Sevgi_Engine | Editor que genera cocinados (bobsheet/spritebank/tilemap/palette), plantillas por género, controladores CD32, ptplayer, double buffering | `eng::assets` (UAF-R), `input` (CD32), `audio` |
@@ -227,7 +227,7 @@ Orden de conversión (cada paso valida con `build -> run -> analyze` y, si es pu
    hardware; test con música + sfx a 50 fps.
 8. **Assets UAF-R** (`AssetRuntime` + exportador host por chunks): cerrar el ciclo
    editor→cocinado→runtime. Es el habilitador de importar escenas completas de demoscene.
-9. **Matemática 2D/3D** (`math2d`/`math3d` + malla `mesh3d`) desde demoscene `lib2d/lib3d`,
+9. **Matemática 2D/3D** (`lib2d`/`math3d` + malla `mesh3d`) desde demoscene `lib2d/lib3d`,
    con tests host HOST-010/011/013.
 
 Cada paso respeta la regla de oro: si un efecto/actor/playfield toca un registro fuera del

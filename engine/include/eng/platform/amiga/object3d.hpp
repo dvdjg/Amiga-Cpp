@@ -16,9 +16,10 @@
 ///   obj.rotate.x = obj.rotate.y = obj.rotate.z = frame * 8;
 ///   update_object_transformation(obj);
 
-#include <eng/core/math2d.hpp>
-#include <eng/core/math3d.hpp>
+#include <eng/core/word.hpp>
+#include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/core/types.hpp>
+#include <eng/retro/fixed_q.hpp>
 
 namespace eng::object3d {
 
@@ -27,8 +28,8 @@ using eng::s32;
 using eng::s8;
 using eng::u8;
 using eng::u16;
-using math2d::div16;
-using math2d::normfx;
+using eng::math::div16;
+using eng::retro::normfx;
 
 /// Punto/vector 3D (mismo layout que `Point3D`).
 struct Point3D {
@@ -93,8 +94,8 @@ struct Object3D {
 	Point3D scale {};
 	Point3D translate {};
 
-	math3d::Mat3x3 objectToWorld {}; // objeto -> mundo
-	math3d::Mat3x3 worldToObject {}; // mundo -> objeto
+	math3d::Affine3 objectToWorld {}; // objeto -> mundo (RATIO 4.12 + LONGITUD)
+	math3d::Affine3 worldToObject {}; // mundo -> objeto
 
 	Point3D camera {}; // posición de cámara en espacio objeto
 };
@@ -144,38 +145,45 @@ inline void update_object_transformation(Object3D& object) {
 
 	// objeto -> mundo: Rx * Ry * Rz * S * T
 	{
-		math3d::Mat3x3& m = object.objectToWorld;
-		math3d::load_rotate(m, static_cast<u16>(r.x), static_cast<u16>(r.y), static_cast<u16>(r.z));
-		math3d::scale(m, s.x, s.y, s.z);
-		math3d::translate(m, t.x, t.y, t.z);
+		math3d::Affine3& a = object.objectToWorld;
+		math3d::load_rotate(a.m, static_cast<u16>(r.x), static_cast<u16>(r.y), static_cast<u16>(r.z));
+		math3d::scale(a.m, s.x, s.y, s.z);
+		a.t = eng::math::Vec<3, eng::retro::q0> {{eng::retro::q0 {t.x}, eng::retro::q0 {t.y}, eng::retro::q0 {t.z}}};
 	}
 
 	// mundo -> objeto: T * S * Rz * Ry * Rx
+	//
+	// OJO — port 1:1 del original: la parte LINEAL sí se invierte (`S⁻¹Rᵀ`, con
+	// `load_reverse_rotate` y `1/s`), pero la traslación queda en `-T`, no en
+	// `-S⁻¹Rᵀ·T`. NO es una inversa completa: `compose(objectToWorld, worldToObject)`
+	// no da la identidad en la traslación (medido: `.t = (-9965,-800,-1924)` en un caso
+	// rotación+escala+traslación). La cámara en espacio objeto de 079/116 depende de este
+	// comportamiento y HOST-014 lo fija, así que NO se corrige aquí. Para una inversa
+	// completa de una transformación rígida usa `math3d::inverse_rigid` (HOST-055).
 	{
-		math3d::Mat3x3 m_scale;
-		math3d::load_identity(m_scale);
-		m_scale.x = static_cast<s16>(-t.x);
-		m_scale.y = static_cast<s16>(-t.y);
-		m_scale.z = static_cast<s16>(-t.z);
-		m_scale.m00 = div16(1 << 24, s.x);
-		m_scale.m11 = div16(1 << 24, s.y);
-		m_scale.m22 = div16(1 << 24, s.z);
+		math3d::Affine3 m_scale {};
+		m_scale.m = math3d::Mat3::identity();
+		m_scale.t = eng::math::Vec<3, eng::retro::q0> {{eng::retro::q0 {static_cast<s16>(-t.x)},
+			eng::retro::q0 {static_cast<s16>(-t.y)}, eng::retro::q0 {static_cast<s16>(-t.z)}}};
+		// 1/s en 4.12: numerador 1.0 en 8.24 (`kOne8_24`) para que el cociente de
+		// `div16` (16 bits) quede ya en 4.12 sin normalizar.
+		m_scale.m.m[0][0] = eng::retro::q12 {div16(eng::retro::kOne8_24, s.x)};
+		m_scale.m.m[1][1] = eng::retro::q12 {div16(eng::retro::kOne8_24, s.y)};
+		m_scale.m.m[2][2] = eng::retro::q12 {div16(eng::retro::kOne8_24, s.z)};
 
-		math3d::Mat3x3 m_rotate;
+		math3d::Mat3 m_rotate = math3d::Mat3::identity();
 		math3d::load_reverse_rotate(m_rotate, static_cast<u16>(-r.x), static_cast<u16>(-r.y),
 					    static_cast<u16>(-r.z));
-		object.worldToObject = math3d::compose(m_scale, m_rotate);
+		object.worldToObject = eng::math::compose(m_scale, math3d::Affine3 {m_rotate, {}});
 	}
 
 	// cámara en espacio objeto (la cámara está en (0,0,0) del mundo)
 	{
-		const math3d::Mat3x3& M = object.worldToObject;
-		const s16 cx = M.x;
-		const s16 cy = M.y;
-		const s16 cz = M.z;
-		object.camera.x = normfx(static_cast<s32>(M.m00) * cx + static_cast<s32>(M.m01) * cy + static_cast<s32>(M.m02) * cz);
-		object.camera.y = normfx(static_cast<s32>(M.m10) * cx + static_cast<s32>(M.m11) * cy + static_cast<s32>(M.m12) * cz);
-		object.camera.z = normfx(static_cast<s32>(M.m20) * cx + static_cast<s32>(M.m21) * cy + static_cast<s32>(M.m22) * cz);
+		const math3d::Affine3& M = object.worldToObject;
+		const math3d::P3 t = M.t;
+		object.camera.x = static_cast<s16>(eng::math::dot(M.m.row(0), t).v);
+		object.camera.y = static_cast<s16>(eng::math::dot(M.m.row(1), t).v);
+		object.camera.z = static_cast<s16>(eng::math::dot(M.m.row(2), t).v);
 	}
 }
 
