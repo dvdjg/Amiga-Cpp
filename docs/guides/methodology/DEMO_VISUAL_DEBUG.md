@@ -66,3 +66,24 @@ y estaba roto en plena animación (el fondo desaparecía al scrollear).
   (Alternativa: DPF de 2 capas con bitmaps separados.)
 - **Cómo se cazó**: secuencia + frame tardío (no la captura inicial) + pregunta crítica a
   Ollama + histograma de color. La pregunta genérica de Ollama NO lo detectó.
+
+## 5. Lección de la 116 (caso real): el `verify-*` puede dar PASS con la imagen rota
+
+- **Síntoma**: el port asm de `flatshade-convex` daba `verify-116` **PASS**
+  (`balon convexo flat-shaded (15 tonos, 512x498)`) pero la imagen era un amasijo de bandas
+  y triángulos. Señal de alarma: el balón C++ usa **7-8 tonos** y el roto **15** (más tonos,
+  no "mejor": son regiones incoherentes).
+- **Por qué el verify no lo cazó**: comprobaba cobertura, bbox, ratio de aspecto, centroide y
+  `tonos >= 4`. Un relleno XOR desmadrado mantiene esos números dentro de rango.
+  **Cobertura y nº de tonos no miden la forma.**
+- **Cómo se cazó**: (1) mirar la captura y compararla con la referencia; (2) **Ollama**
+  pidiendo anomalías concretas (devolvió banda horizontal, contorno desalineado, triángulos
+  sueltos); (3) wireframe (`-DFLATSHADE_SKIP_FILL=1`) **al mismo ángulo**: si el objeto gira,
+  hay que **congelar el ángulo** antes de comparar, o cada captura cae en otra fase y el diff
+  no significa nada.
+- **Gate añadido**: `verify-116` ahora exige **silueta convexa** (salto máximo del borde
+  izquierdo/derecho entre filas consecutivas `< 0.08 · ancho`): balón correcto ~14 px, roto
+  ~378 px. Un objeto convexo no puede dar saltos de contorno grandes.
+- **Regla**: ante cualquier cambio de **render**, no fiar el resultado a `verify-*`; pasar
+  **Ollama** (preguntando por anomalías concretas) o comparar con una referencia por fase
+  (IoU + MAD). Y si el objeto se mueve, comparar **al mismo ángulo**.

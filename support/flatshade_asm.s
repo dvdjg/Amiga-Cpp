@@ -511,13 +511,9 @@ fs_draw_edges:
 	move.w	d6,d4				/* bmod */
 	move.w	d6,d3				/* bmod (para derr) */
 	sub.w	d5,d3				/* derr = bmod - dmax  (d3=derr=apt) */
-	/* Igual que `MinimalBackend::blitter_line`: si derr<0, marcar el sign flag
-	 * (BLTCON1 bit 6). El original no lo hace, pero la ruta C++ del engine si y es
-	 * la que renderiza correctamente el balon. */
-	tst.w	d3
-	bpl.w	.Lde_nosign
-	or.w	#0x0040,d1			/* blt_signflag */
-.Lde_nosign:
+	/* Sin blt_signflag: ni `blitter_line_eor_prepare` (la ruta C++ que renderiza) ni
+	 * el original lo ponen (solo `blitter_line`, que es otra variante). Ponerlo
+	 * desviaba bltcon1 y el contorno salia desfasado. */
 	/* bltapt (BLTAPT) es el acumulador de error de 32 bits del modo linea: hay que
 	 * escribir derr EXTENDIDO CON SIGNO (como `blitter_line_eor_draw`, que hace
 	 * `(void*)(s32)derr`). `move.l d3` a secas dejaba la palabra alta con basura. */

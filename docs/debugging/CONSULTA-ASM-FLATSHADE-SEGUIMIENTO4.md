@@ -15,15 +15,17 @@ Tras esos fixes la ruta asm **llega a READY y `verify-116` da PASS** (~283k cicl
 
 **Aislamiento**: con el `draw_edges` **C++** sobre la visibilidad/transform asm, el balón sale **perfecto**. Con el `fs_draw_edges` asm, sale roto ⇒ **el bug está en `fs_draw_edges`**.
 
-**Medición del wireframe** (`-DFLATSHADE_SKIP_FILL=1`, ASM vs C++ sobre el mismo ángulo):
+**Medición del wireframe** (`-DFLATSHADE_SKIP_FILL=1`, ASM vs C++, **con el ángulo congelado** — `m_angle` fijo — porque si no cada captura cae en una fase distinta y la comparación no vale):
 
 ```
                    px de contorno   comunes
-ASM                    2896           96
-C++                    2880           96   (aprox)
+ASM                    2756           44
+C++                    2796           44
 ```
 
-Ejemplo en `y=52` (zona casi horizontal, cerca del ápice): ASM pinta `x=386,387 / 394,395`; C++ pinta `x=388,389 / 392,393`. Es decir, **las líneas asm van desfasadas ~1-2 px** (no faltan líneas: el recuento es casi idéntico).
+Con el mismo ángulo, el contorno asm sale **fragmentado/truncado** (tramos cortos y punteados, el polígono no cierra) mientras el C++ dibuja las aristas completas. Eso apunta a que **el blit de línea se corta antes** (tamaño/`BLTSIZE` o el error inicial de `BLTAPT`/`BLTBMOD`/`BLTAMOD`), no a un desfase uniforme de 1-2 px.
+
+**Nota**: añadí `blt_signflag` cuando `derr<0` copiándolo de `blitter_line`; pero **la ruta C++ que renderiza es `blitter_line_eor_prepare`, que NO lo pone** (ni el original). Lo he **quitado** para ser fiel a la referencia (el efecto sobre el desfase no se pudo aislar porque la primera comparación era entre ángulos distintos).
 
 **Por qué rompe tanto**: el **area fill es XOR** (conmuta el relleno en cada píxel del contorno y lo **propaga por paridad de scanline**). Un desfase de 1-2 px cambia la paridad de una fila y la cascada entera se desmadra ⇒ bandas horizontales y triángulos sueltos. Por eso un desfase mínimo se convierte en una imagen catastrófica.
 
