@@ -160,6 +160,61 @@ Operaciones, sin temporales y desenrolladas (N constante):
   `translate`) o constructores explícitos (`from_int`, `norm`).
 - Ninguna matriz de `float` operando con una de `Fixed` sin una conversión declarada.
 
+## 3.5 Qué es «genérico» y qué es «backend» (regla de las cabeceras)
+
+La librería se separa en tres capas y **cada truco vive en la suya**:
+
+```
+   ┌──────────────────────────────────────────────────────────────────┐
+   │ A. núcleo genérico (eng::math)                                    │
+   │    Fixed<Repr,Exp,Policy>, Vec, Mat, Affine + operadores          │
+   │    SÓLO matemática portable. Sin asm, sin empaquetados, sin 4.12  │
+   │    concreto. Sirve igual para float, half, complejo o un fractal. │
+   ├──────────────────────────────────────────────────────────────────┤
+   │ B. especializaciones de plataforma (cada una en SU archivo)       │
+   │    p. ej. backend Amiga: `muls.w`/`divs.w`, empaquetado de dos    │
+   │    productos en un registro, tablas de seno 4.12, formatos fijos  │
+   │    (`q12`, `q0`, `fix88`). Atari ST, Mega Drive, etc. tendrían    │
+   │    los suyos. NUNCA se incluyen desde A.                          │
+   ├──────────────────────────────────────────────────────────────────┤
+   │ C. lógica del efecto (lib3d, demos, juegos)                       │
+   │    escribe MATEMÁTICA: `M * v + t`, `dot(a,b)`. No llama a         │
+   │    `vertex_mul` ni elige trucos: el compilador instancia la mejor │
+   │    versión a partir de los TIPOS de los argumentos.               │
+   └──────────────────────────────────────────────────────────────────┘
+```
+
+Consecuencias (criterio para aceptar código):
+
+- **Prohibido en A**: `asm`, `#if defined(__mc68000__)`, `mul16`/`mulu16`/`div16` con
+  implementación específica, constantes como `1 << 12` con significado de formato,
+  y cualquier función tipo `vertex_mul` que sólo tenga sentido con un reparto concreto
+  de registros.
+- **Prohibido exponer una función de bajo nivel**: la operación se expresa con los
+  **operadores** de las plantillas (`*`, `+`, `dot`) y, si la plataforma tiene una
+  versión mejor, se selecciona por **especialización/sobrecarga** según los tipos. El
+  nombre que ve el programador describe *matemática* (`transform`, `dot`), no *mecánica*
+  (`mul_packed_16`).
+- **Punto de extensión, no `#ifdef`**: una plataforma aporta sus versiones
+  especializando los rasgos del núcleo (`scalar_traits`, y los puntos de personalización
+  de las operaciones) desde su propio fichero de backend.
+
+### 3.5.1 Los errores de compilación son parte del API
+
+El tipado existe para que el compilador **rechace lo que no tiene sentido** con un
+mensaje comprensible, no con un error de plantilla ilegible. Objetivo de calidad:
+
+| Se intenta | Debe pasar |
+|---|---|
+| `4.12 + entero` | **no compila** (exponentes distintos) |
+| `4.12 + 8.8` | **no compila** |
+| `Mat<3,float> * Vec<3,q12>` | **no compila** (escalares distintos) |
+| `a * b` con resultado que no cabe en `R` | **aviso**: la promoción automática lo evita; si se fuerza el estrechado, el usuario debe pedirlo (`narrow`, con su política) |
+| `norm<Edst>` que pierde muchos bits | documentado en la política de redondeo elegida |
+
+Los `static_assert` con mensaje (`"...: mezcla 4.12 con entero"`) y conceptos
+(`Scalar`, `SameExp`) son la herramienta: el error debe decir *qué* se mezcló.
+
 ## 4. Rendimiento y metaprogramación
 
 - **N constante** y **sin matrices temporales**: la acumulación va directa a los
