@@ -160,10 +160,13 @@ Progresión de la réplica (fps emulados; perfilado con el periférico de depura
 | **`blitter_lines_eor_begin` + `prepare/draw`** (comunes 1×/frame, Bresenham 1×/arista) | ~17.5 | ~395k |
 | **BLITHOG correcto** (`set_blitter_priority(true)`, 0x0400) → fill a 131.8k | ~18.0 | ~380k |
 | **Pipeline de 3 buffers** (transform+clear escondidos bajo el fill) | **~20.7** | **~342k** |
+| **Ruta ASM** (`-DK_FLATSHADE_ASM=1`: visibilidad + transform + draw en `support/flatshade_asm.s`) | **~25.0** | **~283k** |
 
 Desglose vigente (emulador, frame representativo): `wait+swap+edges` ~105k, `transform` ~127k (corre durante el fill), `edges` ~114k, lanzamiento del fill ~1.3k, `update` ~238k. El frame (~342k) suma la cola del Blitter (fill 131.8k + clear 89k) que el `update` no espera: el wait se absorbe en el primer `wait_blitter` del update siguiente.
 
 **Cuello actual**: los `edges` (~114k) y el `transform` (~127k) son ~1.9x y ~1.8x los del original (59k y 71k según el profiler de líneas de raster del propio original). El `fill` coincide (131.8k vs 131k): **no es un artefacto del emulador** — WinUAE cobra el mismo área fill al original y al port. La brecha es codegen real: el original usa asm 68k a mano (`register char flags asm("d3")`, macros `DRAWLINE` inline) y el C++ del port no lo iguala. El `update` ya está bajo 284k (2 vblanks) gracias a la pipeline, pero el frame cae en 2-3 vblanks según la variación de aristas por frame (nEdges 34-36, nLines 62-67) y la cola del Blitter (fill + pre-clear) que el transform no cubre del todo. La medida en vivo del original (render/s) quedó bloqueada: el efecto del ADF termina al leer el botón izquierdo del ratón (`EffectRun` sale con `LeftMouseButton()`) y el framework entra en un `BRA *`.
+
+Con la **ruta ASM** (`-DK_FLATSHADE_ASM=1`) esa brecha de codegen desaparece: las rutinas calientes (visibilidad de caras/aristas, `transform_vertices` y `draw_edges`) se portan a asm m68k con registros fijos, el frame baja a **~283k ciclos (25.0 fps)** —dentro de 2 vblanks— y el render es idéntico (`verify-116` PASS). El asm se valida contra la referencia C++ que se conserva como default (`K_FLATSHADE_ASM=0`).
 
 ### Pipeline de 3 buffers (cómo se llega a 2 vblanks en CPU)
 

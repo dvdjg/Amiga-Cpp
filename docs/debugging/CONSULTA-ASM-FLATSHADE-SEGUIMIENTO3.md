@@ -1,5 +1,13 @@
 # Seguimiento 3 para grok — cámara corregida, visibilidad OK, draw sigue negro
 
+> **RESUELTO (2026-09-15).** El render negro estaba en `fs_draw_edges`: `.Lwait_blit` usaba
+> `d0` como scratch de BBUSY, y `fs_draw_edges` tiene en `d0` el BLTCON0 que escribe justo
+> después del wait → se programaba DMACONR como con0 y ningún blit de línea pintaba. Se
+> salva/restaura `d0`. Añadidos además `ext.l d3` para `BLTAPT` (acumulador de 32 bits) y
+> `blt_signflag` cuando `derr<0`. Con `-DK_FLATSHADE_ASM=1`: `verify-116` PASS y **25.0 fps**
+> (~283k ciclos/frame) frente a ~20.7 de la ruta C++. Ver la bitácora
+> `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` y `demos/amiga/116_flatshade_convex/README.md`.
+
 **Tu diagnóstico era correcto** y lo apliqué.
 
 ## Fix aplicado

@@ -48,15 +48,20 @@ original (latencia de 1 frame, mismo orden de ángulos).
   con el del original (131.8k vs 131k según su profiler), así que la brecha restante es el
   codegen del `transform` (1.8x) y de los `edges` (1.9x), no el emulador.
 
-## Ruta ASM (WIP)
+## Ruta ASM
 
 `support/flatshade_asm.s` porta a asm m68k (gas, registros fijos) las rutinas calientes
-del original, siguiendo el patrón de `fire_loop.s` (demo 080). El flag `K_FLATSHADE_ASM`
-(default **0**) elige la versión C++ canónica o la asm. **La ruta asm está sin terminar**:
-`fs_update_face_visibility` y `fs_update_edge_visibility_convex` completan, pero
-`fs_transform_vertices` provoca una excepción (PC en el vector del Kickstart) y la demo no
-llega a READY. El bug no es la división (saltarla no lo evita). Ver el estado detallado en
-el comentario de cabecera del `.s` y la bitácora `docs/guides/optimization/OPTIMIZACION_GPP_68000.md`.
+del original, siguiendo el patrón de `fire_loop.s` (demo 080): `fs_update_face_visibility`,
+`fs_update_edge_visibility_convex`, `fs_transform_vertices` y `fs_draw_edges`. El flag
+`K_FLATSHADE_ASM` elige la versión C++ canónica (default **0**) o la asm (**1**). Con la
+ruta asm la demo pasa el gate visual (`verify-116`) y el frame emulado baja a **~283k ciclos
+(25.0 fps)**, frente a ~20.7 fps de la ruta C++: el codegen apretado que g++ no consigue con
+los pins `register asm("aN")` del original. Detalles y lecciones en la bitácora
+`docs/guides/optimization/OPTIMIZACION_GPP_68000.md`.
+
+Al tocar `.Lwait_blit` hay que preservar `d0`: `fs_draw_edges` lo usa como BLTCON0 y lo
+escribe justo tras el wait; si el wait lo pisa se programa DMACONR como con0 y ningún blit
+de línea pinta (el síntoma es un balón que no aparece, sin llegar a crashear).
 
 ## Paridad del contorno (clave del relleno)
 

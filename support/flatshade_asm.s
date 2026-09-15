@@ -1,13 +1,15 @@
 /* flatshade_asm: rutinas calientes de flatshade-convex en ASM m68k (gas).
  *
- * ESTADO: WIP. `fs_update_face_visibility` y `fs_update_edge_visibility_convex`
- * completan; `fs_transform_vertices` provoca una EXCEPCION (la CPU acaba en el
- * vector del Kickstart) y la demo no llega a READY. Descartados por prueba: la
- * division (saltarla sigue crasheando), el mask del `movem` (guardar d0-d7/a0-a6
- * tampoco) y el `lea` (ya corregido: se usaba `movea.l 0(aN,dX.w),aM`, que carga el
- * CONTENIDO en vez de la direccion). Queda por localizar: acceso de memoria del
- * bucle de nodos o flujo de control. La ruta C++ (`K_FLATSHADE_ASM=0`, por defecto)
- * es la canonica y funciona (verify-116 PASS).
+ * Implementa las cuatro rutinas calientes del efecto (face/edge visibility, transform
+ * de vertices y draw de aristas) y sustituye a sus equivalentes C++ cuando la demo se
+ * compila con `-DK_FLATSHADE_ASM=1`. Con ese flag la demo pasa el gate visual
+ * (verify-116) y corre a ~25 fps (la ruta C++ ~20.7 fps). El default es la ruta C++
+ * (`K_FLATSHADE_ASM=0`), que se conserva como version canonica y legible.
+ *
+ * Cuidado al tocar `.Lwait_blit`: espera BBUSY usando d0 como scratch, y
+ * `fs_draw_edges` tiene en d0 el BLTCON0 que escribe justo despues del wait; por eso
+ * el wait salva/restaura d0 (si lo pisara se programaria DMACONR como con0 y los
+ * blits de linea no pintarian).
  *
  * Port fiel de `demoscene-repo-orig/effects/flatshade-convex/flatshade-convex.c`
  * sacado a rutinas .s aparte, como se hizo con `fire_loop.s` (demo 080): g++ ignora
@@ -39,8 +41,7 @@
 
 	.section .text.flatshade_asm,"ax",@progbits
 
-/* _WaitBlitter: gira hasta que DMACONR bit 14 (BBUSY) baje. a0 = base custom 0xdff000. */
-/* Espera a que el Blitter libere (DMACONR bit 14 = BBUSY).
+/* Espera a que el Blitter libere (DMACONR bit 14 = BBUSY). a0 = base custom 0xdff000.
  * PRESERVA d0: `fs_draw_edges` lo usa como BLTCON0 y lo escribe justo despues del
  * wait, asi que si esta rutina lo pisara se programaria DMACONR como con0. */
 .Lwait_blit:
