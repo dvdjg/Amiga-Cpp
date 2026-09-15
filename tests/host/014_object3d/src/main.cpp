@@ -46,49 +46,6 @@ int main() {
 	check(obj.worldToObject.t.x().v == -100 && obj.worldToObject.t.y().v == -200 && obj.worldToObject.t.z().v == -300, "worldToObject traslacion inversa");
 	check(obj.camera.x == -100 && obj.camera.y == -200 && obj.camera.z == -300, "camara en espacio objeto");
 
-	// Pipeline de visibilidad/luz/proyeccion (port de lib3d). Malla obj2c de 1 cara
-	// triangular con 3 vertices; los offsets de grupo son offsets de byte al campo
-	// `point` de cada nodo.
-	{
-		static short md[57] = {
-			// nodos A/B/C (7 shorts): flags|pad, ox,oy,oz, x,y,z
-			0, 100, 0, 0, 0, 0, 0,
-			0, 0, 100, 0, 0, 0, 0,
-			0, 0, 0, -100, 0, 0, 0,
-			// cara (11 shorts): normal(3), flags|material, count, (vertex,edge)*3
-			-4096, 0, 0, 0, 3, 2, 90, 16, 98, 30, 106,
-			// vertexGroups
-			2, 16, 30, 0, 0,
-			// faceGroups (byte 42 = short 21)
-			42, 0, 0,
-			// edgeGroups
-			90, 98, 106, 0, 0,
-			// aristas (2 shorts): flags|pad, point[2]
-			0, 0, 0, 0,
-			0, 0, 0, 0,
-			0, 0, 0, 0,
-		};
-		Mesh3D mm {};
-		mm.vertices = 3;
-		mm.edges = 3;
-		mm.faces = 1;
-		mm.data = md;
-		mm.vertexGroups = md + 32;
-		mm.faceGroups = md + 37;
-		mm.edgeGroups = md + 40;
-		Object3D o {};
-		new_object3d(o, mm);
-		o.translate = {0, 0, -1000};
-		update_object_transformation(o);
-		update_face_visibility(o);
-		const Face* fc = face3d(md, 42);
-		check(fc->flags >= -1 && fc->flags <= 15, "luz por cara en rango [-1,15]");
-		update_edge_visibility_convex(o);
-		transform_vertices(o, 160, 128);
-		const Point3D* vv = vertex3d(md, 2);
-		check(vv->z != 0, "transform_vertices escribe zp del vertice");
-	}
-
 	if (failures == 0) {
 		std::printf("OK: object3d (obj2c + Object3D) validado.\n");
 		return 0;

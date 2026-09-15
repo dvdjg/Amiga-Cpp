@@ -1,7 +1,5 @@
 #include <eng/platform/amiga_minimal.hpp>
 
-#include <eng/field/polygon_fill_service.hpp>
-
 #include "support/gcc8_c_support.h"
 #include <proto/exec.h>
 #include <exec/memory.h>
@@ -266,93 +264,6 @@ void blit_mask_to_plane(eng::u8* dst, eng::u16 row_bytes, const eng::u8* mask,
 	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((h << 6) | words);
 }
 
-/// Cookie-cut de la máscara 1 bit a un plano de color cuyo ESTRIDO DE FILA no
-/// coincide con el de la máscara (planos INTERLEAVED): la máscara es un plano
-/// contiguo de `mask_row_bytes` por fila, pero la fila del plano de color está a
-/// `plane_row_stride` y su base ya viene desplazada al plano `p`. `set` -> D=A|D
-/// (pone a 1 donde la máscara); `!set` -> D=~A&D (borra donde la máscara).
-void blit_mask_to_plane_strided(eng::u8* plane_base, eng::u32 plane_row_stride,
-				const eng::u8* mask, eng::u16 mask_row_bytes,
-				eng::u16 wx0, eng::s16 y, eng::u16 words, eng::u16 h, bool set) {
-	eng::u8* d = plane_base + static_cast<eng::u32>(y) * plane_row_stride + (wx0 >> 3);
-	const eng::u8* m = mask + row_offset(y, mask_row_bytes) + (wx0 >> 3);
-	const eng::u16 mod_d = static_cast<eng::u16>(plane_row_stride - words * 2u);
-	const eng::u16 mod_c = static_cast<eng::u16>(mask_row_bytes - words * 2u);
-	wait_blitter();
-	custom_base[custom_bltcon0_offset] = static_cast<eng::u16>(
-		blt_use_a | blt_use_c | blt_use_d | (set ? blt_minterm_a_or_c : blt_minterm_not_a_and_c));
-	custom_base[custom_bltcon1_offset] = 0;
-	custom_base[custom_bltafwm_offset] = 0xffff;
-	custom_base[custom_bltalwm_offset] = 0xffff;
-	custom_base[custom_bltamod_offset] = mod_c; // A = máscara (plano contiguo)
-	custom_base[custom_bltcmod_offset] = mod_d; // C/D = color (estrido del lienzo)
-	custom_base[custom_bltdmod_offset] = mod_d;
-	write_custom_pointer(custom_bltapt_offset, m);
-	write_custom_pointer(custom_bltcpt_offset, d);
-	write_custom_pointer(custom_bltdpt_offset, d);
-	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((h << 6) | words);
-}
-
-/// Callback instalado en `eng::field::polygon_fill_service` (ver
-/// `eng/field/polygon_fill_service.hpp`): rellena un polígono convexo por Blitter
-/// sobre un lienzo INTERLEAVED. Reusa el algoritmo de `blitter_fill_polygon`
-/// (máscara 1 bit + contorno ONEDOT + area fill + cookie-cut), pero con el
-/// estrido de los planos del lienzo en vez de planos contiguos (caso de la 116).
-bool polygon_fill_blitter(eng::PlaneBytes dst, eng::u8 planes, eng::u16 row_bytes,
-			  eng::u32 plane_base_stride, eng::u32 plane_row_stride,
-			  eng::u16 width, eng::u16 height,
-			  eng::Span<const eng::s16> xs, eng::Span<const eng::s16> ys,
-			  eng::u8 color, eng::MaskBuffer mask) {
-	const eng::u8 n = static_cast<eng::u8>(xs.size());
-	if (dst.empty() || mask.empty() || n < 3u || ys.size() < n || planes == 0u ||
-	    row_bytes == 0u || width == 0u || height == 0u) {
-		return false;
-	}
-	// La máscara se indexa con la fila ABSOLUTA del lienzo: debe cubrir su alto.
-	if (mask.size() < static_cast<eng::usize>(row_bytes) * height) {
-		return false; // scratch insuficiente -> el playfield usa la ruta CPU
-	}
-	// A partir de aquí se trabaja con punteros crudos: es la frontera "unsafe"
-	// del backend (programar el Blitter). El resto del engine usa los tipos de
-	// dominio (`PlaneBytes`/`MaskBuffer`).
-	eng::u8* const mbuf = mask.data();
-	const eng::s16 w = static_cast<eng::s16>(width);
-	const eng::s16 hgt = static_cast<eng::s16>(height);
-	eng::s16 xmin = xs[0], xmax = xs[0], ymin = ys[0], ymax = ys[0];
-	for (eng::u8 i = 1u; i < n; ++i) {
-		if (xs[i] < xmin) xmin = xs[i];
-		if (xs[i] > xmax) xmax = xs[i];
-		if (ys[i] < ymin) ymin = ys[i];
-		if (ys[i] > ymax) ymax = ys[i];
-	}
-	if (xmax < 0 || ymax < 0 || xmin >= w || ymin >= hgt) {
-		return true; // fuera del lienzo: nada que pintar, no es un fallo
-	}
-	if (xmin < 0) xmin = 0;
-	if (ymin < 0) ymin = 0;
-	if (xmax >= w) xmax = static_cast<eng::s16>(w - 1);
-	if (ymax >= hgt) ymax = static_cast<eng::s16>(hgt - 1);
-	const eng::u16 wx0 = static_cast<eng::u16>(xmin) & 0xfff0u;
-	const eng::u16 wx1 = static_cast<eng::u16>(xmax) | 0x000fu;
-	const eng::u16 words = static_cast<eng::u16>((static_cast<eng::u16>(wx1 - wx0) + 16u) >> 4);
-	const eng::u16 h = static_cast<eng::u16>(ymax - ymin + 1);
-
-	custom_base[custom_dmacon_offset] = static_cast<eng::u16>(dma_setclr | dma_master | dma_blitter);
-	blit_clear_region(mbuf, row_bytes, wx0, ymin, words, h);
-	for (eng::u8 i = 0u; i < n; ++i) {
-		const eng::u8 j = static_cast<eng::u8>((static_cast<eng::u8>(i) + 1u) % n);
-		blit_line(mbuf, row_bytes, xs[i], ys[i], xs[j], ys[j]);
-	}
-	blit_fill_region(mbuf, row_bytes, wx0, ymin, words, h);
-	eng::u8* const dbuf = dst.data();
-	for (eng::u8 p = 0u; p < planes; ++p) {
-		eng::u8* plane = dbuf + static_cast<eng::u32>(p) * plane_base_stride;
-		blit_mask_to_plane_strided(plane, plane_row_stride, mbuf, row_bytes,
-					   wx0, ymin, words, h, ((color >> p) & 1u) != 0u);
-	}
-	return wait_blitter();
-}
-
 } // namespace
 
 namespace eng::amiga {
@@ -421,12 +332,6 @@ bool MinimalBackend::configure_memory(const MemoryConfig& config) {
 	m_memory_report.chip_ok = config.chip_bytes == 0 || m_chip_alloc != nullptr;
 	m_memory_report.slow_ok = config.slow_bytes == 0 || m_slow_alloc != nullptr;
 	m_memory_report.frame_ok = config.frame_bytes == 0 || m_frame_alloc != nullptr;
-
-	// Instala el relleno de polígonos por Blitter para el hook virtual
-	// `Playfield::fill_polygon`: el engine no ve hardware, así que el backend
-	// publica su ruta rápida aquí y el `CanvasPlayfield` la usa si está. Ver
-	// `eng/field/polygon_fill_service.hpp`.
-	eng::field::polygon_fill_service().fill = &polygon_fill_blitter;
 
 	return m_memory_report.ok();
 }

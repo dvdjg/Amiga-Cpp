@@ -84,13 +84,6 @@ public:
     [[nodiscard]] constexpr BitmapBase base() const { return { m_real_base }; }
     /// Buffer de escritura (con `frontbase_offset`) como `FrontBase`.
     [[nodiscard]] constexpr FrontBase front() const { return { m_frontbuffer }; }
-    /// Vista de dominio del buffer de escritura (con `frontbase_offset`), para los
-    /// consumidores que esperan `PlaneBytes`/`PlaneViewBytes` (p. ej. el relleno por
-    /// Blitter del playfield) sin construir el tipo a mano en el llamador.
-    /// **NO VERIFICADA** (regla de verificación por demo de `AGENTS.md`): su único
-    /// consumidor es el hook de relleno Blitter, sin demo exitosa.
-    [[nodiscard]] PlaneBytes bitplanes() noexcept { return PlaneBytes(m_frontbuffer, m_total); }
-    [[nodiscard]] PlaneViewBytes bitplanes() const noexcept { return PlaneViewBytes(m_frontbuffer, m_total); }
     constexpr u16 frontbase_offset() const { return m_cfg.frontbase_offset; }
 
     /// Vista acotada del bloque (el tamaño viaja con el puntero). NO es la vía
