@@ -7,10 +7,10 @@
 //
 //   bash tools/run-host-tests.sh tests/host/020_sinetable
 
-#include <eng/platform/amiga/angles.hpp>
+#include <eng/retro/angles.hpp>
 #include <cstdio>
 
-#include <eng/core/math2d.hpp>
+#include <eng/retro/lib2d.hpp>
 #include <eng/retro/sintab.hpp>
 #include <eng/core/types.hpp>
 #include <eng/retro/fixed_q.hpp>
@@ -50,8 +50,8 @@ int main() {
 		return 1;
 	}
 	// `math2d` usa la tabla exacta.
-	if (eng::math2d::sin_q12(512) != eng::retro::kSinTab[512] ||
-	    eng::math2d::cos_q12(0) != eng::retro::kSinTab[1024]) {
+	if (eng::retro::sin_q12(512) != eng::retro::kSinTab[512] ||
+	    eng::retro::cos_q12(0) != eng::retro::kSinTab[1024]) {
 		std::printf("[FAIL] math2d no usa kSinTab\n");
 		return 1;
 	}

@@ -1,11 +1,16 @@
-# HOST-010 — math2d (lib2d, fixed-point 4.12)
+# HOST-010 — lib2d retro (geometría 2D tipada)
 
-Test host de `eng::core::math2d` (`engine/include/eng/core/math2d.hpp`), port de
-la parte pura de **`lib2d`** de `demoscene-repo-orig`.
+Test host de `eng::retro` (`engine/include/eng/retro/lib2d.hpp` + `angles.hpp`): el port
+de la parte pura de **`lib2d`** de `demoscene-repo-orig`, con los tipos **genéricos** del
+núcleo en vez de structs concretos.
+
+`Vec2`/`Mat2x2`/`Rect` son alias de `eng::math::Vec<2,q0>` / `Affine<2,q12,q0>` /
+`Rect<q0>`: mismos datos que `Point2D`/`Matrix2D`/`Box2D` del original, tipados. La
+transformación usa el `eng::math::transform` genérico (no hay `Transform2D` propio).
 
 ## Qué valida
 
-- Matriz de identidad y `transform` con identidad (no altera puntos).
+- Matriz de identidad (`Affine::identity()`) y `transform` con identidad (no altera puntos).
 - `translate` (suma a la traslación) y `scale` (0.5).
 - `rotate` 90° y 180° en coordenadas de pantalla (`(x,y) -> (y,-x)` y negación).
 - Tabla de seno/coseno 4.12 (`sin(π/2)=1.0`, `sin(π)=0`, `cos(0)=1.0`).
@@ -24,7 +29,7 @@ vuelta (8 KB en `s16`), generada en compile-time reutilizando el
 
 ```
 CXX="C:\Users\dvdjg\Documents\programa\AI\Amiga\mingw64\bin\g++.exe" \
-  bash tools/run-host-tests.sh tests/host/010_math2d
+  bash tools/run-host-tests.sh tests/host/010_lib2d
 ```
 
 Origen: `demoscene-repo-orig/lib/lib2d` (`LoadIdentity2D`, `Translate2D`,

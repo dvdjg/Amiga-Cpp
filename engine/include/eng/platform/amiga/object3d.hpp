@@ -16,7 +16,7 @@
 ///   obj.rotate.x = obj.rotate.y = obj.rotate.z = frame * 8;
 ///   update_object_transformation(obj);
 
-#include <eng/core/math2d.hpp>
+#include <eng/core/word.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/core/types.hpp>
 #include <eng/retro/fixed_q.hpp>
@@ -28,8 +28,8 @@ using eng::s32;
 using eng::s8;
 using eng::u8;
 using eng::u16;
-using math2d::div16;
-using math2d::normfx;
+using eng::math::div16;
+using eng::retro::normfx;
 
 /// Punto/vector 3D (mismo layout que `Point3D`).
 struct Point3D {
@@ -159,9 +159,9 @@ inline void update_object_transformation(Object3D& object) {
 			eng::retro::q0 {static_cast<s16>(-t.y)}, eng::retro::q0 {static_cast<s16>(-t.z)}}};
 		// 1/s en 4.12: numerador 1.0 en 8.24 (`kOne8_24`) para que el cociente de
 		// `div16` (16 bits) quede ya en 4.12 sin normalizar.
-		m_scale.m.m[0][0] = eng::retro::q12 {div16(math2d::kOne8_24, s.x)};
-		m_scale.m.m[1][1] = eng::retro::q12 {div16(math2d::kOne8_24, s.y)};
-		m_scale.m.m[2][2] = eng::retro::q12 {div16(math2d::kOne8_24, s.z)};
+		m_scale.m.m[0][0] = eng::retro::q12 {div16(eng::retro::kOne8_24, s.x)};
+		m_scale.m.m[1][1] = eng::retro::q12 {div16(eng::retro::kOne8_24, s.y)};
+		m_scale.m.m[2][2] = eng::retro::q12 {div16(eng::retro::kOne8_24, s.z)};
 
 		math3d::Mat3 m_rotate = math3d::Mat3::identity();
 		math3d::load_reverse_rotate(m_rotate, static_cast<u16>(-r.x), static_cast<u16>(-r.y),

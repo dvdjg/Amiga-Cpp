@@ -89,7 +89,7 @@ engine/
 ├── include/eng/          → API del engine (header-only, sin backend)
 │   ├── core/             → algoritmos y utilidades genéricas (fast_div, fixed, linalg, sinetable, span, tipos, ct_array)
 │   ├── cpu/              → especialización por CPU (cpu/m68k/: arith, affine)
-│   ├── retro/            → vocabulario fixed-point retro (q12/q0/q24 en fixed_q.hpp)
+│   ├── retro/            → vocabulario fixed-point retro (q12/q0/q24 en fixed_q.hpp; lib2d/angles)
 │   ├── memory/           → gestión de memoria (arena)
 │   ├── graphics/         → abstracción de gráficos
 │   │   ├── copper/       →   generación/programación de copperlists

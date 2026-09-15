@@ -6,7 +6,7 @@
 /// `arith<s16>`, así que en 68000 son `muls.w`/`mulu.w`/`divs.w` nativos y en host una
 /// multiplicación/división portable.
 ///
-/// Viven en el núcleo (y no en `math2d`) porque no tienen nada de geometría: son la
+/// Viven en el núcleo (y no en la capa retro 2D) porque no tienen nada de geometría: son la
 /// aritmética de palabra que usan por igual el recorte 2D, la proyección y el sombreado.
 
 #include <eng/core/arith.hpp>

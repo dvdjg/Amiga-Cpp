@@ -16,7 +16,7 @@
 // (`SetupPlayfield(MODE_LORES,4,X(32),Y(0),256,256)`); doble buffer con swap de
 // copperlist por frame.
 #include <eng/platform/amiga/lib3d.hpp>
-#include <eng/core/math2d.hpp>
+#include <eng/retro/lib2d.hpp>
 #include <eng/platform/amiga/object3d.hpp>
 #include <eng/core/types.hpp>
 #include <eng/debug/run_status.hpp>

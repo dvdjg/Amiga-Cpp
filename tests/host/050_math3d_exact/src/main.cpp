@@ -1,7 +1,7 @@
 // HOST-050 — Red de seguridad de F3: las versiones NUEVAS (librería genérica) deben dar
 // EXACTAMENTE los mismos 12 valores que las viejas (math3d), para todos los ángulos.
 // Cualquier diferencia es un fallo, no una mejora.
-#include <eng/platform/amiga/angles.hpp>
+#include <eng/retro/angles.hpp>
 #include <eng/core/linalg.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 
@@ -14,9 +14,9 @@ using eng::u16;
 
 // --- Implementaciones NUEVAS, espejo de math3d::load_rotate / load_reverse_rotate ---
 static Mat<3, q12> new_load_rotate(u16 ax, u16 ay, u16 az) {
-	const q12 sinX {eng::math2d::sin_q12(ax)}, cosX {eng::math2d::cos_q12(ax)};
-	const q12 sinY {eng::math2d::sin_q12(ay)}, cosY {eng::math2d::cos_q12(ay)};
-	const q12 sinZ {eng::math2d::sin_q12(az)}, cosZ {eng::math2d::cos_q12(az)};
+	const q12 sinX {eng::retro::sin_q12(ax)}, cosX {eng::retro::cos_q12(ax)};
+	const q12 sinY {eng::retro::sin_q12(ay)}, cosY {eng::retro::cos_q12(ay)};
+	const q12 sinZ {eng::retro::sin_q12(az)}, cosZ {eng::retro::cos_q12(az)};
 
 	const q12 tmp0 = dot(sinY, cosZ);
 	const q12 tmp1 = dot(sinY, sinZ);
@@ -35,9 +35,9 @@ static Mat<3, q12> new_load_rotate(u16 ax, u16 ay, u16 az) {
 }
 
 static Mat<3, q12> new_load_reverse_rotate(u16 ax, u16 ay, u16 az) {
-	const q12 sinX {eng::math2d::sin_q12(ax)}, cosX {eng::math2d::cos_q12(ax)};
-	const q12 sinY {eng::math2d::sin_q12(ay)}, cosY {eng::math2d::cos_q12(ay)};
-	const q12 sinZ {eng::math2d::sin_q12(az)}, cosZ {eng::math2d::cos_q12(az)};
+	const q12 sinX {eng::retro::sin_q12(ax)}, cosX {eng::retro::cos_q12(ax)};
+	const q12 sinY {eng::retro::sin_q12(ay)}, cosY {eng::retro::cos_q12(ay)};
+	const q12 sinZ {eng::retro::sin_q12(az)}, cosZ {eng::retro::cos_q12(az)};
 
 	const q12 tmp0 = dot(sinX, sinY);
 	const q12 tmp1 = dot(cosX, sinY);

@@ -122,7 +122,7 @@ Las rutinas de efectos (visibilidad de caras con luz, visibilidad de aristas de 
 sólido convexo y transform + proyección de vértices) **son API del engine**:
 `eng::lib3d` en `engine/include/eng/platform/amiga/lib3d.hpp`, con test host **HOST-047** (y no
 viven en la demo). Se apoyan en `eng::object3d` (`object3d.hpp`, HOST-014) y en
-`math2d`/`math3d` (HOST-010/011); el dibujo usa
+`lib2d`/`math3d` (HOST-010/011); el dibujo usa
 `MinimalBackend::blitter_line_eor` / `blitter_area_fill`.
 
 En la demo queda **solo lo específico del efecto**: la orquestación (pipeline de 3

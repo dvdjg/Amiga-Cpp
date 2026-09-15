@@ -50,7 +50,7 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-007 | [input_cd32](007_input_cd32/README.md) | `eng::amiga::decode_cd32_buttons`: decodificación del flujo serie CD32 (9 bits → botones) — backend de entrada. |
 | HOST-008 | [game_audio](008_game_audio/README.md) | `eng::audio::SampleBank` + `allow_trigger`: banco de muestras y política de voces (cooldown + límite de instancias) — capa de audio de juego. |
 | HOST-009 | [wave_tables](009_wave_tables/README.md) | `eng::audio::sine_byte`/`triangle_byte`/`square_byte`: tablas de forma de onda 8-bit (enteras, sin float). |
-| HOST-010 | [math2d](010_math2d/README.md) | `eng::math2d`: primitivas 2D (port de `lib2d`) — MUL/DIV/seno/coseno/atan2 fijos. |
+| HOST-010 | [lib2d](010_lib2d/README.md) | `eng::retro`: primitivas 2D de lib2d sobre los tipos genéricos (Vec2/Mat2x2/Rect + recorte). |
 | HOST-011 | [math3d](011_math3d/README.md) | `eng::math3d`: primitivas 3D (port de `lib3d`) — matrices, rotaciones, proyección. |
 | HOST-012 | [assets_uaf](012_assets_uaf/README.md) | `eng/assets/uaf.hpp`: contenedor UAF-R (`Blob`/`Reader`/vistas) — bind/find/data + errores. |
 | HOST-013 | [math3d_mesh](013_math3d_mesh/README.md) | `eng::math3d` mesh: `mesh_transform`, `mesh_painter_order` (culling + painter). |
@@ -60,7 +60,7 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-017 | [background_task](017_background_task/README.md) | `eng::task::BackgroundQueue`: tareas de fondo cooperativas (progreso/rendimiento, adaptación por `vpos`, prioridad al bucle principal). |
 | HOST-018 | [rtc](018_rtc/README.md) | `eng::time::from_tod`: reloj de tiempo real desde el contador TOD de la CIA-A (50/60 Hz, wrap 24 h). |
 | HOST-019 | [copper_ext](019_copper_ext/README.md) | Extensiones de Copper para *copper chunky*: `SKIP` (máscara `0xffff`), `MOVE32` (orden `reg+2`/`reg`) y parcheo de instrucciones (`move_at`/`patch_data`). |
-| HOST-020 | [sinetable](020_sinetable/README.md) | Tabla de seno 4.12 **exacta** del original (`libmisc/sintab.c`) materializada en `eng/core/sinetable.hpp`; invariantes, simetría, checksum y uso por `math2d`. |
+| HOST-020 | [sinetable](020_sinetable/README.md) | Tabla de seno 4.12 **exacta** del original (`libmisc/sintab.c`) materializada en `eng/core/sinetable.hpp`; invariantes, simetría, checksum y uso por `eng/retro::sin_q12`. |
 | HOST-021 | [plasma_tables](021_plasma_tables/README.md) | Datos del plasma: tablas `tab1/2/3` (`fx4i`·`SIN/COS` verbatim) y paleta 256×RGB12, con checksums frente al original. |
 | HOST-022 | [fast_div](022_fast_div/README.md) | `eng::fast_div`/`is_pow2`/`ilog2`/`asr_floor`: división/módulo por potencia de dos sin el libcall `__udivsi3` del 68000. |
 | HOST-023 | [limited_axes](023_limited_axes/README.md) | Ejes del `ScrollEngine`: `Ring`/`Finite`/`Off` y `OneDirection` (shooter vertical). |

@@ -9,7 +9,7 @@
 /// `eng::core` y se puede validar con test host. El dibujo (Blitter de líneas /
 /// area fill) NO está aquí: es backend y lo decide la plataforma.
 ///
-/// Formato numérico: 4.12 (ver `math2d`). Los ángulos son índices 0..4095.
+/// Formato numérico: 4.12 (ver `eng/retro`). Los ángulos son índices 0..4095.
 ///
 /// ## Perfil de coste (medido en la demo 116, WinUAE-DBG, 68000, -O1)
 /// Con ~60 vértices y ~32 caras por frame, el reparto del `update` es:
@@ -20,11 +20,11 @@
 /// - `update_edge_visibility_convex` ~11k (recorrido puro de índices, sin muls).
 ///
 /// ## Qué genera g++ y qué sería el ideal en asm
-/// - **`mul16(b, a)` / `mulu16`** (`math2d`): `muls.w`/`mulu.w` nativos. Si se
+/// - **`mul16(b, a)` / `mulu16`** (`eng/core/word.hpp`): `muls.w`/`mulu.w` nativos. Si se
 ///   escribe `(s32)a * b` con operandos `s32`, g++ emite `__mulsi3` (multiplicación
 ///   32×32 por software, ~10× más cara). Por eso TODO producto 16×16 del camino
 ///   caliente debe pasar por `mul16`/`mulu16`.
-/// - **`div16(a, b)`** (`math2d`): `divs.w` nativo (cociente 16 bits en la palabra
+/// - **`div16(a, b)`** (`eng/core/word.hpp`): `divs.w` nativo (cociente 16 bits en la palabra
 ///   baja). `a / b` en `s32` genera `__divsi3` (software). Es el libcall más caro.
 /// - **Escrituras a memoria empaquetada** (`objdat + offset`): g++ no puede
 ///   mantener los punteros en registros de dirección (`register ... asm("aN")` se
@@ -40,7 +40,7 @@
 /// de estos hallazgos y `demos/amiga/116_flatshade_convex/README.md` para el port.
 
 #include <eng/core/affine.hpp>
-#include <eng/core/math2d.hpp>
+#include <eng/core/word.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/platform/amiga/object3d.hpp>
 #include <eng/core/light.hpp>
@@ -237,8 +237,8 @@ inline void transform_vertices(Object3D& object, s16 half_w, s16 half_h, s16 bbo
 				z = *pt++;
 				const eng::math::Projected3 pr = Proj::project(pc, x, y, z);
 
-				const s16 sx = static_cast<s16>(math2d::div16(pr.xp, static_cast<s16>(pr.zp)) + half_w);
-				const s16 sy = static_cast<s16>(math2d::div16(pr.yp, static_cast<s16>(pr.zp)) + half_h);
+				const s16 sx = static_cast<s16>(eng::math::div16(pr.xp, static_cast<s16>(pr.zp)) + half_w);
+				const s16 sy = static_cast<s16>(eng::math::div16(pr.yp, static_cast<s16>(pr.zp)) + half_h);
 				*pt++ = sx;
 				*pt++ = sy;
 				*pt++ = static_cast<s16>(pr.zp);

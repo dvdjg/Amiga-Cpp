@@ -1,7 +1,7 @@
 // HOST-051 — Red de seguridad para migrar `object3d` a Affine: la transformación del
 // objeto construida con la librería genérica debe dar EXACTAMENTE los mismos 12 valores
 // y la misma cámara que `object3d::update_object_transformation` actual.
-#include <eng/platform/amiga/angles.hpp>
+#include <eng/retro/angles.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/core/linalg.hpp>
 #include <eng/platform/amiga/object3d.hpp>
@@ -22,9 +22,9 @@ struct NewTransform {
 };
 
 static Mat<3, q12> new_load_rotate(u16 ax, u16 ay, u16 az) {
-	const q12 sinX {eng::math2d::sin_q12(ax)}, cosX {eng::math2d::cos_q12(ax)};
-	const q12 sinY {eng::math2d::sin_q12(ay)}, cosY {eng::math2d::cos_q12(ay)};
-	const q12 sinZ {eng::math2d::sin_q12(az)}, cosZ {eng::math2d::cos_q12(az)};
+	const q12 sinX {eng::retro::sin_q12(ax)}, cosX {eng::retro::cos_q12(ax)};
+	const q12 sinY {eng::retro::sin_q12(ay)}, cosY {eng::retro::cos_q12(ay)};
+	const q12 sinZ {eng::retro::sin_q12(az)}, cosZ {eng::retro::cos_q12(az)};
 	const q12 tmp0 = dot(sinY, cosZ);
 	const q12 tmp1 = dot(sinY, sinZ);
 	Mat<3, q12> m {};
@@ -35,9 +35,9 @@ static Mat<3, q12> new_load_rotate(u16 ax, u16 ay, u16 az) {
 }
 
 static Mat<3, q12> new_load_reverse_rotate(u16 ax, u16 ay, u16 az) {
-	const q12 sinX {eng::math2d::sin_q12(ax)}, cosX {eng::math2d::cos_q12(ax)};
-	const q12 sinY {eng::math2d::sin_q12(ay)}, cosY {eng::math2d::cos_q12(ay)};
-	const q12 sinZ {eng::math2d::sin_q12(az)}, cosZ {eng::math2d::cos_q12(az)};
+	const q12 sinX {eng::retro::sin_q12(ax)}, cosX {eng::retro::cos_q12(ax)};
+	const q12 sinY {eng::retro::sin_q12(ay)}, cosY {eng::retro::cos_q12(ay)};
+	const q12 sinZ {eng::retro::sin_q12(az)}, cosZ {eng::retro::cos_q12(az)};
 	const q12 tmp0 = dot(sinX, sinY);
 	const q12 tmp1 = dot(cosX, sinY);
 	Mat<3, q12> m {};
@@ -61,9 +61,9 @@ static NewTransform new_update(s16 rx, s16 ry, s16 rz, s16 sx, s16 sy, s16 sz, s
 	r.o2w.t = Vec<3, q0> {{from_int<s16>(tx), from_int<s16>(ty), from_int<s16>(tz)}};
 	// w2o = compose(scale_inverso, reverse_rotate)
 	Mat<3, q12> ms = Mat<3, q12>::identity();
-	ms.m[0][0] = q12 {eng::math2d::div16(eng::math2d::kOne8_24, sx)};
-	ms.m[1][1] = q12 {eng::math2d::div16(eng::math2d::kOne8_24, sy)};
-	ms.m[2][2] = q12 {eng::math2d::div16(eng::math2d::kOne8_24, sz)};
+	ms.m[0][0] = q12 {eng::math::div16(eng::retro::kOne8_24, sx)};
+	ms.m[1][1] = q12 {eng::math::div16(eng::retro::kOne8_24, sy)};
+	ms.m[2][2] = q12 {eng::math::div16(eng::retro::kOne8_24, sz)};
 	Mat<3, q12> mr = new_load_reverse_rotate(static_cast<u16>(-rx), static_cast<u16>(-ry), static_cast<u16>(-rz));
 	r.w2o.m = ms * mr;
 	r.w2o.t = Vec<3, q0> {{from_int<s16>(static_cast<s16>(-tx)), from_int<s16>(static_cast<s16>(-ty)),

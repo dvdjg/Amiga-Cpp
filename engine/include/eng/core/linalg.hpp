@@ -176,6 +176,20 @@ template <int N, typename S, int M, typename T>
 }
 
 // ============================================================================
+//  Rectángulo (AABB 2D) — genérico sobre el escalar
+// ============================================================================
+
+/// Rectángulo alineado a ejes en 2D. Es genérico: sirve para coordenadas enteras
+/// (ventanas de recorte) o para cualquier otro escalar.
+template <typename S>
+struct Rect {
+	S minX {};
+	S minY {};
+	S maxX {};
+	S maxY {};
+};
+
+// ============================================================================
 //  Matriz (parte lineal)
 // ============================================================================
 

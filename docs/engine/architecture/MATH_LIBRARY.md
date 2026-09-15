@@ -298,7 +298,7 @@ sin temporales.
 - **F2 — `Vec`/`Mat`/`Affine`.** Operaciones desenrolladas, sin temporales;
   test de **bit-exactitud** contra la implementación actual para todos los ángulos del
   demo (mismo resultado binario) antes de sustituir nada.
-- **F3 — Migración.** `math2d`, `math3d`, `object3d` y `lib3d` sobre la librería
+- **F3 — Migración.** `lib2d` (retro), `math3d`, `object3d` y `lib3d` sobre la librería
   nueva. La única fórmula del original que cambia de forma es `translate` (queda
   tipada). Gate: 49 tests host + regresión + `verify-116`.
 - **F4 — Rendimiento.** Benchmarks host + Amiga; documentar el codegen resultante y

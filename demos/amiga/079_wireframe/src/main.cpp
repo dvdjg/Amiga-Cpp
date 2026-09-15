@@ -3,7 +3,7 @@
 // Dibuja el objeto `pilka` (malla `obj2c`) en ALAMBRE con la LINEA POR BLITTER, tal
 // cual la demo original. El modelo de objeto (formato `obj2c` + `Object3D`) se ha
 // portado fiel a `lib3d` en `eng/platform/amiga/object3d.hpp`; la matematica 4.12 viene de
-// `math2d`/`math3d` (HOST-010/011), y la secuencia de registros de la linea vive en
+// `lib2d`/`math3d` (HOST-010/011), y la secuencia de registros de la linea vive en
 // `MinimalBackend::blitter_line` (identica a `DrawObject`).
 //
 // Display y doble buffer: ventana 256x256x4 con los registros del original
@@ -141,7 +141,7 @@ void update_edge_visibility(obj::Object3D& object) {
 	eng::s16 t0 = static_cast<eng::s16>((E0) + y); \
 	eng::s16 t1 = static_cast<eng::s16>((E1) + x); \
 	eng::s32 t2 = static_cast<eng::s32>(E2) * z; \
-	D = static_cast<eng::s32>(eng::math2d::normfx(static_cast<eng::s32>(t0) * t1 + t2 - xy)) + (E3); \
+	D = static_cast<eng::s32>(eng::retro::normfx(static_cast<eng::s32>(t0) * t1 + t2 - xy)) + (E3); \
 }
 
 void transform_vertices(obj::Object3D& object) {
@@ -150,14 +150,14 @@ void transform_vertices(obj::Object3D& object) {
 	eng::s16* group = object.vertexGroups;
 
 	eng::s32 m0 = (static_cast<eng::s32>(M.t.v[0].v) -
-		       eng::math2d::normfx(static_cast<eng::s32>(M.m.m[0][0].v) * M.m.m[0][1].v))
+		       eng::retro::normfx(static_cast<eng::s32>(M.m.m[0][0].v) * M.m.m[0][1].v))
 		      << 8;
 	eng::s32 m1 = (static_cast<eng::s32>(M.t.v[1].v) -
-		       eng::math2d::normfx(static_cast<eng::s32>(M.m.m[1][0].v) * M.m.m[1][1].v))
+		       eng::retro::normfx(static_cast<eng::s32>(M.m.m[1][0].v) * M.m.m[1][1].v))
 		      << 8;
 	// OJO: modifica la matriz de camara (como el original).
 	M.t.v[2].v = static_cast<eng::s16>(
-		M.t.v[2].v - eng::math2d::normfx(static_cast<eng::s32>(M.m.m[2][0].v) * M.m.m[2][1].v));
+		M.t.v[2].v - eng::retro::normfx(static_cast<eng::s32>(M.m.m[2][0].v) * M.m.m[2][1].v));
 
 	do {
 		eng::s16 i;
@@ -178,8 +178,8 @@ void transform_vertices(obj::Object3D& object) {
 				MULVERTEX1(yp, M.m.m[1][0].v, M.m.m[1][1].v, M.m.m[1][2].v, m1);
 				MULVERTEX2(zp, M.m.m[2][0].v, M.m.m[2][1].v, M.m.m[2][2].v, M.t.v[2].v);
 
-				*pt++ = static_cast<eng::s16>(eng::math2d::div16(xp, zp) + kWidth / 2);
-				*pt++ = static_cast<eng::s16>(eng::math2d::div16(yp, zp) + kHeight / 2);
+				*pt++ = static_cast<eng::s16>(eng::math::div16(xp, zp) + kWidth / 2);
+				*pt++ = static_cast<eng::s16>(eng::math::div16(yp, zp) + kHeight / 2);
 				*pt++ = zp;
 			}
 		}

@@ -16,7 +16,6 @@
 
 #include <eng/core/arith.hpp>
 #include <eng/core/fixed.hpp>
-#include <eng/core/math2d.hpp>
 #include <eng/core/linalg.hpp>
 #include <eng/core/types.hpp>
 
@@ -80,7 +79,9 @@ struct projector<Affine<N, SR, SL>> {
 		const ratio_t* m2 = c.a.m.m[2];
 		return Projected3 {(row(m0[0], m0[1], m0[2], px, py, pz) >> 4) + c.e0,
 				   (row(m1[0], m1[1], m1[2], px, py, pz) >> 4) + c.e1,
-				   eng::math2d::normfx(row(m2[0], m2[1], m2[2], px, py, pz)) + c.tz};
+				   // La fila z normaliza el 8.24 a 4.12 (un `>> 12`), como el `normfx` del
+				   // original; el estrechado a 16 bits forma parte de la convención.
+				   static_cast<s16>(row(m2[0], m2[1], m2[2], px, py, pz) >> 12) + c.tz};
 	}
 };
 

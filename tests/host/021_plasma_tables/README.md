@@ -14,7 +14,7 @@ colores, idénticas al original.
 ## Nota de fidelidad
 
 El original asigna las tablas a `char` (s8): los valores ±141 **envuelven** a s8; el test lo
-fija (rango −128..127). `fx4i(i)=i<<4`; `SIN`/`COS` = `math2d::sin_q12`/`cos_q12` (sintab 4.12
+fija (rango −128..127). `fx4i(i)=i<<4`; `SIN`/`COS` = `eng::retro::sin_q12`/`cos_q12` (sintab 4.12
 exacta, HOST-020).
 
 ## Ejecución

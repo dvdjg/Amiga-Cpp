@@ -35,7 +35,7 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
 - **Telemetría por frame** leíble (símbolo en `.data`), lectura arreglada.
 - Sin `linear_display` por defecto en 202: viewport recortado 320×208 para split
   canónico; mapas toroidales.
-- **Matemática y assets (import demoscene, 2026-09)**: `eng/core/math2d.hpp`
+- **Matemática y assets (import demoscene, 2026-09)**: `eng/retro/lib2d.hpp`
   (lib2d: matrices 2×2 4.12 + `clip_line`/`clip_polygon`) y `eng/platform/amiga/gfx3d.hpp`
   (lib3d: `Mat3x3`, rotaciones, `compose`, `face_visible`); modelo de malla en
   `eng/core/mesh3d.hpp` (`MeshView` + `mesh_transform` + `mesh_painter_order` con
@@ -353,7 +353,7 @@ desarrolla en varios turnos; el orden es 1→2→3.
 
 **Idea**: convertir el importe 3D del demoscene (`flatshade-convex`, `wireframe`, `flatshade`, `stencil3d`, `texobj`, `blurred3d`, `starfox`, `anim-polygons`, `dna3d`) en un **subsistema de render poligonal/wireframe** reutilizable, no en demos sueltas. La base ya está en el repo:
 
-- **Modelo y matemática**: `eng/platform/amiga/object3d.hpp` (malla `obj2c` + `Object3D`, port 1:1 de lib3d; HOST-014) y `eng/core/mesh3d.hpp` (`MeshView`, `mesh_transform`, `mesh_painter_order`; HOST-013); `math2d`/`math3d` (4.12, `div16`/`normfx`; HOST-010/011).
+- **Modelo y matemática**: `eng/platform/amiga/object3d.hpp` (malla `obj2c` + `Object3D`, port 1:1 de lib3d; HOST-014) y `eng/core/mesh3d.hpp` (`MeshView`, `mesh_transform`, `mesh_painter_order`; HOST-013); `lib2d`/`math3d` (4.12, `div16`/`normfx`; HOST-010/011).
 - **Primitivas Blitter**: `blitter_line` (OR), `blitter_line_eor` (ONEDOT+EOR, con `d_base`), `blitter_area_fill` (FILL_XOR), `blitter_fill_polygon` (máscara+cookie-cut), `fill_triangles_blitter`.
 - **Técnica canónica**: `docs/reference/amiga/techniques/blitter-line-subpixel-fill.md` §3 (receta del polígono relleno; truco `BLTDPTR`=base, `BLTSIZE` altura 0).
 - **Demos cabecera**: 077/078 (`math3d` cube/solid), 079 (`wireframe`), 116 (`flatshade-convex` fiel).
@@ -374,7 +374,7 @@ desarrolla en varios turnos; el orden es 1→2→3.
 **Hitos**: (1) extraer de 116 un `PolygonSurface` reutilizable en `engine/` + test host (contrato de registros y paridad); (2) `MeshRenderer` con ruta alambre (079) y relleno (116); (3) importar `flatshade` (no-convexo) y `stencil3d` sobre él (ambos usan `BLTDPTR`=base); (4) rasterizador **sub-píxel** (acumulador 12.4, §2 de la ficha) para aristas/polígonos sin *snap* a píxel.
 
 **Estado**: **base del subsistema hecha** (Hitos 1–2 + hook + alambre). Reutilizando lo existente, sin clases nuevas:
-- **`eng::field::Surface::fill_polygon`** (polígono convexo): **recorta** con `math2d::clip_polygon` contra el clip y **delega** en **`Playfield::fill_polygon`**, un **hook virtual** cuya implementación por defecto es el relleno por scanline CPU. Un playfield de Amiga puede sobrescribirlo para rellenar por **Blitter** (área fill + truco `BLTDPTR` de 116) sin que el llamador cambie. Tests **HOST-045**.
+- **`eng::field::Surface::fill_polygon`** (polígono convexo): **recorta** con `eng::retro::clip_polygon` contra el clip y **delega** en **`Playfield::fill_polygon`**, un **hook virtual** cuya implementación por defecto es el relleno por scanline CPU. Un playfield de Amiga puede sobrescribirlo para rellenar por **Blitter** (área fill + truco `BLTDPTR` de 116) sin que el llamador cambie. Tests **HOST-045**.
 - **`eng::graphics::mesh_renderer.hpp`**: compone el pipeline 3D→2D (`mesh_transform` + `mesh_painter_order` + `project_perspective` + `Surface`), con **ruta rellena** (`mesh_render_filled<ColorFn>`, color por cara) y **ruta alambre** (`mesh_render_wire`, aristas por `draw_line`). Buffers del llamador, sin heap, genérico por modo. Test **HOST-046**.
 
 **Estado hardware (validado en emulador)**: el pipeline de malla **funciona en 68k** — la demo cabecera (cubo en 110) dibuja **2 caras** (`g_eng_run_status.detail` bits 23..20, resuelto por `.map`), confirmando malla `constexpr`/rodata, `mesh_transform`/`project_perspective`, culling y el relleno por scanline. El **bloqueo es el coste del relleno CPU del hook**: `write_pixel` cuesta **~1500 ciclos/píxel** en el emulador (un triángulo de ~6 400 px ≈ 10,7 M ciclos/frame → 0,66 fps; el cubo ≈ 21,4 M → 0,33 fps), frente a ~479k del 110 limpio. La nave (~300 px) ya copa casi la mitad del presupuesto del frame. Por eso 110 está con el cubo fuera (el emulador es la puerta de validación) y el **override Amiga del hook por Blitter es requisito para que los objetos poligonales sean viables por frame**. Nota de diseño: el `mask` del Blitter es del llamador y debe ser Chip; además las primitivas de `amiga_minimal` asumen planos **contiguos por plano**, y el canvas FG es **interleaved** (los planos a `row_bytes` entre sí, recorrido `(fila*planos+plano)*row_bytes`), así que el override necesita una variante interleaved de `blit_mask_to_plane`.

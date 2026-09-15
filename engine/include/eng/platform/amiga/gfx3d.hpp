@@ -10,19 +10,18 @@
 /// Convención: `out = M·v + t` con la parte lineal en 4.12 (RATIO) y la traslación en
 /// LONGITUD. Eso es exactamente `Affine<3, q12, q0>`.
 
-#include <eng/platform/amiga/angles.hpp>
+#include <eng/retro/angles.hpp>
 #include <eng/core/fixed.hpp>
 #include <eng/core/linalg.hpp>
-#include <eng/core/math2d.hpp>
 #include <eng/core/mesh3d.hpp>
 #include <eng/core/types.hpp>
 #include <eng/retro/fixed_q.hpp>
 
 namespace eng::math3d {
 
-using math2d::cos_q12;
-using math2d::fix;
-using math2d::sin_q12;
+using eng::retro::cos_q12;
+using eng::retro::fix;
+using eng::retro::sin_q12;
 
 /// Matriz lineal 3×3 de ratios en 4.12.
 using Mat3 = eng::math::Mat<3, eng::retro::q12>;

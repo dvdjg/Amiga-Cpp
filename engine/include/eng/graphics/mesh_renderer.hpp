@@ -13,7 +13,7 @@
 /// funciona igual en EHB / single 4 planos / DPF: la app nunca ve planos ni
 /// registros. Reutiliza `mesh3d`/`math3d`/`Surface` (no duplica).
 
-#include <eng/core/math2d.hpp>
+#include <eng/core/word.hpp>
 #include <eng/core/mesh3d.hpp>
 #include <eng/field/surface.hpp>
 
@@ -24,8 +24,8 @@ namespace eng::graphics {
 inline void project_perspective(const math3d::Vec3& v, s16 focal, s16 cx, s16 cy,
 				s16& sx, s16& sy) {
 	const s16 z = v.z != 0 ? v.z : 1;
-	sx = static_cast<s16>(math2d::div16(static_cast<s32>(v.x) * focal, z) + cx);
-	sy = static_cast<s16>(math2d::div16(static_cast<s32>(v.y) * focal, z) + cy);
+	sx = static_cast<s16>(eng::math::div16(static_cast<s32>(v.x) * focal, z) + cx);
+	sy = static_cast<s16>(eng::math::div16(static_cast<s32>(v.y) * focal, z) + cy);
 }
 
 /// Rasteriza las caras (triángulos) de `mesh` sobre `surface`, con el color que

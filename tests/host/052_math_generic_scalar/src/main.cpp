@@ -2,7 +2,7 @@
 // El MISMO Vec/Mat/Affine y las MISMAS operaciones funcionan con: 4.12, 8.8, float
 // (FPU/emulación) y un escalar de usuario (complejo de dos fix, definido aquí mismo).
 #include <eng/core/linalg.hpp>
-#include <eng/core/math2d.hpp>
+#include <eng/retro/lib2d.hpp>
 
 #include <cstdio>
 #include <eng/retro/fixed_q.hpp>
@@ -17,10 +17,10 @@ constexpr Cpx operator+(Cpx a, Cpx b) {
 }
 constexpr Cpx operator-(Cpx a) { return Cpx {static_cast<eng::s16>(-a.re), static_cast<eng::s16>(-a.im)}; }
 constexpr Cpx operator*(Cpx a, Cpx b) {
-	const eng::s32 p0 = eng::math2d::mul16(a.re, b.re);
-	const eng::s32 p1 = eng::math2d::mul16(a.im, b.im);
-	const eng::s32 p2 = eng::math2d::mul16(a.re, b.im);
-	const eng::s32 p3 = eng::math2d::mul16(a.im, b.re);
+	const eng::s32 p0 = eng::math::mul16(a.re, b.re);
+	const eng::s32 p1 = eng::math::mul16(a.im, b.im);
+	const eng::s32 p2 = eng::math::mul16(a.re, b.im);
+	const eng::s32 p3 = eng::math::mul16(a.im, b.re);
 	return Cpx {static_cast<eng::s16>((p0 - p1) >> 12), static_cast<eng::s16>((p2 + p3) >> 12)};
 }
 constexpr bool operator==(Cpx a, Cpx b) { return a.re == b.re && a.im == b.im; }

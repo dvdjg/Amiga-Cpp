@@ -2,7 +2,7 @@
 
 Test host del modelo de objeto/malla del demoscene portado 1:1
 (`engine/include/eng/platform/amiga/object3d.hpp`): formato empaquetado de `obj2c`, acceso por
-offsets de byte y `UpdateObjectTransformation` (sobre `math2d`/`math3d`).
+offsets de byte y `UpdateObjectTransformation` (sobre `eng/retro`/`math3d`).
 
 ## Qué valida
 

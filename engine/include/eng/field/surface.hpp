@@ -22,7 +22,7 @@
 /// dibuja igual sobre un playfield EHB, single 4p o DPF, recortado contra su
 /// clip, con independencia del modo (el mapeo lo gestiona el `Playfield`).
 
-#include <eng/core/math2d.hpp>
+#include <eng/retro/lib2d.hpp>
 #include <eng/core/utf8.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/graphics/font5x7.hpp>
@@ -74,7 +74,7 @@ public:
 
     /// Polígono **convexo** relleno, recortado contra el clip de la superficie.
     ///
-    /// Recorta el polígono con `math2d::clip_polygon` (Sutherland-Hodgman) contra el
+    /// Recorta el polígono con `eng::retro::clip_polygon` (Sutherland-Hodgman) contra el
     /// clip y **delega** en el playfield (`Playfield::fill_polygon`): CPU scanline
     /// por defecto, o **Blitter** en un playfield de Amiga (hook del backend; ver el
     /// truco `BLTDPTR` de la demo 116). Así el motor de relleno es del backend y el
@@ -82,28 +82,25 @@ public:
     bool fill_polygon(const s16* xs, const s16* ys, u8 n, u8 color) {
         if (!valid() || xs == nullptr || ys == nullptr || n < 3u) return false;
         constexpr u8 kCap = 12; // convexo y recortado: nunca crece más de 4 lados
-        math2d::Vec2 in[kCap];
-        math2d::Vec2 tmp[kCap];
+        eng::retro::Vec2 in[kCap];
+        eng::retro::Vec2 tmp[kCap];
         const u8 nn = n < kCap ? n : kCap;
         for (u8 i = 0u; i < nn; ++i) {
-            in[i].x = xs[i];
-            in[i].y = ys[i];
+            in[i] = eng::retro::v2(xs[i], ys[i]);
         }
-        const math2d::Rect win {
-            static_cast<s16>(m_clip.x),
-            static_cast<s16>(m_clip.y),
+        const eng::retro::Rect win = eng::retro::rect(
+            static_cast<s16>(m_clip.x), static_cast<s16>(m_clip.y),
             static_cast<s16>(m_clip.x + static_cast<s32>(m_clip.w) - 1),
-            static_cast<s16>(m_clip.y + static_cast<s32>(m_clip.h) - 1),
-        };
-        const u32 m = math2d::clip_polygon(win, in, tmp, nn,
-                                           static_cast<u8>(math2d::PF_LEFT | math2d::PF_TOP |
-                                                           math2d::PF_RIGHT | math2d::PF_BOTTOM));
+            static_cast<s16>(m_clip.y + static_cast<s32>(m_clip.h) - 1));
+        const u32 m = eng::retro::clip_polygon(win, in, tmp, nn,
+                                           static_cast<u8>(eng::retro::PF_LEFT | eng::retro::PF_TOP |
+                                                           eng::retro::PF_RIGHT | eng::retro::PF_BOTTOM));
         if (m < 3u) return true;
         s16 cx[kCap];
         s16 cy[kCap];
         for (u32 i = 0u; i < m; ++i) {
-            cx[i] = in[i].x;
-            cy[i] = in[i].y;
+            cx[i] = in[i].v[0].v;
+            cy[i] = in[i].v[1].v;
         }
         return m_target->fill_polygon(cx, cy, static_cast<u8>(m), color);
     }
