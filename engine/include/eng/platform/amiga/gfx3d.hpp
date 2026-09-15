@@ -113,4 +113,16 @@ inline void transform(const Affine3& a, Vec3* out, const Vec3* in, u32 n) {
 // `mesh_transform` (el vector de malla -> mundo) es genérico y vive en `mesh3d`: usa
 // `eng::math::transform(Affine, Vec)`, así que no hace falta una versión por formato.
 
+/// Inversa de una transformación **rígida** (rotación + traslación, sin escala ni
+/// cizalla): la parte lineal es ortonormal, así que `m⁻¹ = mᵀ` y `t⁻¹ = −mᵀ·t`, sin
+/// divisiones. `compose(a, inverse_rigid(a))` vuelve a la identidad (redondeo 4.12 aparte).
+///
+/// Para una transformación con escala por ejes, la inversa necesita los recíprocos `1/s`
+/// (una división por eje): no la cubre esta función.
+[[nodiscard]] inline Affine3 inverse_rigid(const Affine3& a) {
+	const Mat3 mt = eng::math::transpose(a.m);
+	const P3 t = -eng::math::transform(Affine3 {mt, {}}, a.t);
+	return Affine3 {mt, t};
+}
+
 } // namespace eng::math3d

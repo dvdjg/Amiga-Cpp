@@ -162,6 +162,13 @@ template <int N, typename S>
 	return r;
 }
 
+template <int N, typename S>
+[[nodiscard]] constexpr Vec<N, S> operator-(const Vec<N, S>& a) {
+	Vec<N, S> r {};
+	for (int i = 0; i < N; ++i) r.v[i] = -a.v[i];
+	return r;
+}
+
 /// Suma/resta de vectores de distinta dimensión o escalar: operación INVÁLIDA. La
 /// sobrecarga sólo existe para dar el diagnóstico (en vez del "no matching function").
 template <int N, typename S, int M, typename T>

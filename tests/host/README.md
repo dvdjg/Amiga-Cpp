@@ -95,3 +95,4 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-052 | [math_generic_scalar](052_math_generic_scalar/README.md) | La librería es agnóstica del escalar: 4.12, 8.8, `float` y un complejo de usuario. |
 | HOST-053 | [lib3d_projection](053_lib3d_projection/README.md) | Tabla dorada de la proyección `lib3d::transform_vertices` a ángulo fijo. |
 | HOST-054 | [light_ops](054_light_ops/README.md) | Sombreado por cara `eng::math::light_ops` e `hi16` contra referencia sin signo. |
+| HOST-055 | [inverse_rigid](055_inverse_rigid/README.md) | `math3d::inverse_rigid`: inversa de una transformación rígida (`mT`, `-mT·t`) contra la identidad. |

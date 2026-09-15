@@ -21,12 +21,14 @@
 
 namespace eng::math {
 
-/// Los tres productos `c0·c1 + c0·x + c1·y` de una fila. **Punto de personalización**:
-/// el genérico los hace uno a uno; un backend de CPU puede meter dos en un solo registro
-/// (el 68000, con `muls.w`). Algebraicamente es `(c0+y)·(c1+x) − x·y`.
+/// Los tres productos `c0·c1 + c0·x + c1·y` de una fila. `xy` es el producto `x·y` del
+/// vértice, que el llamador calcula UNA vez y comparte entre las tres filas: la identidad
+/// empaquetada `(c0+y)·(c1+x) − x·y` lo aprovecha (el genérico evalúa los productos uno a
+/// uno y no lo necesita). **Punto de personalización**: un backend de CPU puede meter dos
+/// productos en un solo registro (el 68000, con `muls.w`).
 template <typename SR, typename SL>
 struct pack3_ops {
-	[[nodiscard]] static s32 eval(SR c0, SR c1, SL x, SL y) {
+	[[nodiscard]] static s32 eval(SR c0, SR c1, SL x, SL y, s32 /*xy*/) {
 		using R = typename SR::repr;
 		return arith<R>::mul(c0.v, c1.v) + arith<R>::mul(c0.v, x.v) + arith<R>::mul(c1.v, y.v);
 	}
@@ -66,22 +68,28 @@ struct projector<Affine<N, SR, SL>> {
 	}
 
 	/// Producto escalar entero de una fila: los tres primeros productos van por el punto
-	/// de personalización (`pack3_ops`) y el término `c2·z` aparte.
+	/// de personalización (`pack3_ops`) y el término `c2·z` aparte. `xy` = `x·y` del
+	/// vértice, compartido por las tres filas.
 	[[nodiscard]] static s32 row(ratio_t c0, ratio_t c1, ratio_t c2, length_t x, length_t y,
-				     length_t z) {
-		return pack3_ops<SR, SL>::eval(c0, c1, x, y) + arith<typename SR::repr>::mul(c2.v, z.v);
+				     length_t z, s32 xy) {
+		return pack3_ops<SR, SL>::eval(c0, c1, x, y, xy) +
+		       arith<typename SR::repr>::mul(c2.v, z.v);
 	}
 
 	[[nodiscard]] static Projected3 project(const cache& c, s16 x, s16 y, s16 z) {
 		const length_t px {x}, py {y}, pz {z};
+		// `x·y` se comparte entre las tres filas: la identidad empaquetada del 68000 lo
+		// reutiliza, así que cuesta UNA multiplicación por vértice en vez de una por fila
+		// (como el `MULVERTEX` del original, que recibe `xy`).
+		const s32 xy = arith<typename SL::repr>::mul(px.v, py.v);
 		const ratio_t* m0 = c.a.m.m[0];
 		const ratio_t* m1 = c.a.m.m[1];
 		const ratio_t* m2 = c.a.m.m[2];
-		return Projected3 {(row(m0[0], m0[1], m0[2], px, py, pz) >> 4) + c.e0,
-				   (row(m1[0], m1[1], m1[2], px, py, pz) >> 4) + c.e1,
+		return Projected3 {(row(m0[0], m0[1], m0[2], px, py, pz, xy) >> 4) + c.e0,
+				   (row(m1[0], m1[1], m1[2], px, py, pz, xy) >> 4) + c.e1,
 				   // La fila z normaliza el 8.24 a 4.12 (un `>> 12`), como el `normfx` del
 				   // original; el estrechado a 16 bits forma parte de la convención.
-				   static_cast<s16>(row(m2[0], m2[1], m2[2], px, py, pz) >> 12) + c.tz};
+				   static_cast<s16>(row(m2[0], m2[1], m2[2], px, py, pz, xy) >> 12) + c.tz};
 	}
 };
 
