@@ -30,6 +30,18 @@ out\demos\<demo>\<demo>.map
 out\demos\<demo>\<demo>.s
 ```
 
+## Compilar todas las demos (barrido)
+
+```bash
+bash ./tools/build/build-all-demos.sh            # --debug --clean, todas
+bash ./tools/build/build-all-demos.sh --demo 077 # solo las que contengan "077"
+bash ./tools/build/build-all-demos.sh --strict   # falla tambien por asset ausente
+```
+
+Clasifica cada demo en `OK` / `ASSET` (falta un asset generado en `out/`, p. ej. un `.raw`
+de audio o un header del pipeline de tiles) / `FAIL` (rotura de codigo). Devuelve 1 si hay
+`FAIL`; con `--strict` tambien si hay `ASSET`. Detalle en `out/tmp/build-all.log`.
+
 ## Hook de assets (`src/prebuild.sh`)
 
 Si la demo incluye `src/prebuild.sh`, `tools/build/build-demo.sh` lo ejecuta **antes de compilar** (con cwd = raíz del repo). Es el gancho para regenerar assets derivados de forma reproducible, por ejemplo un blob UAF-R que luego se incbina:

@@ -16,14 +16,15 @@ Reglas principales (ver también `docs/STRUCTURE.md` §6):
 
 | Área | Documentación | Herramientas |
 |---|---|---|
-| Build de demos | `docs/build/BUILD_AND_RUN.md` | `tools/build/build-demo.sh`, `tools/test-regression.sh` |
+| Build de demos | `docs/build/BUILD_AND_RUN.md` | `tools/build/build-demo.sh`, `tools/build/build-all-demos.sh`, `tools/test-regression.sh` |
 | Ejecución (runner/emulador) | `docs/build/BUILD_AND_RUN.md`, `docs/debugging/DEBUG-WINUAE-V2-GUIDE.md` | `tools/run/run-demo.sh`/`.ts` |
 | Análisis de demos | `docs/testing/PIXEL_FRAME_ASSERTIONS.md`, `docs/demos/tile-pipeline/PIPELINE_TILES_EHB.md` | `tools/analyze/*` |
 | Depuración (WinUAE-DBG/DAP) | `docs/debugging/DEBUG-WINUAE-V2-GUIDE.md`, `tools/dap-test/README.md` | `tools/debug/*`, `tools/dap-test/*` |
 | Profiling | `tools/profile/README.md` | `tools/profile/*` |
 | Verificación visual | `tools/vision-review/README.md`, `docs/testing/VISION_REVIEW_ROADMAP.md` | `tools/vision-review/*` |
 | Pipeline de tiles/sprites | `tools/amiga-tiles/README.md`, `docs/demos/tile-pipeline/` | `tools/amiga-tiles/*`, `tools/ehb/*`, `tools/demo202/*` |
-| Assets (UAF-R) | `docs/tools/UAF_PACK.md` | `tools/assets/uaf-pack.ts`, `tools/audio/prep-sample.ts` |
+| Assets (UAF-R) | `docs/tools/UAF_PACK.md` | `tools/assets/uaf-pack.ts` |
+| Audio (muestras del mixer) | `tools/audio/README.md` | `tools/audio/*.ts` |
 | FrameScope | `docs/testing/FRAMESCOPE_ROADMAP.md` | `tools/framescope/*` |
 | Entrada (mouse) | `tools/input/*`, `docs/emulation/MOUSE_AUTOMATION.md` | `tools/input/mouse-path.*` |
 | Programas independientes para PC | `host-tools/README.md`, `playground/README.md` | `host-tools/`, `playground/` |
