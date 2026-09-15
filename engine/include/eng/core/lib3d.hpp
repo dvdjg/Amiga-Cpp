@@ -205,22 +205,30 @@ inline void update_edge_visibility_convex(Object3D& object) {
 
 namespace detail {
 
-/// Una fila de `MULVERTEX1` del original: `((c0+y)·(c1+x) + c2·z − xy) >> 4 + e`.
-/// Es función `inline` y no macro: misma semántica, tipada y depurable.
-/// `mul16` (y no `(s32)a * b`) es intencionado: fuerza `muls.w` de 16×16.
-[[nodiscard]] inline s32 vertex_mul12(s16 c0, s16 c1, s16 c2, s16 x, s16 y, s16 z, s32 xy, s32 e) {
-	const s16 t0 = static_cast<s16>(c0 + y);
-	const s16 t1 = static_cast<s16>(c1 + x);
-	const s32 t2 = math2d::mul16(c2, z);
+/// Una fila de la proyección. La INTERFAZ va con los tipos del sistema: la fila de la
+/// matriz es un RATIO 4.12 (`q12`) y el vértice una LONGITUD (`q0`).
+///
+/// El cuerpo NO usa `q12*q0` a proposito: el original **empaqueta dos productos en un
+/// solo `muls.w`** evaluando `(c0+y)·(c1+x) = c0·c1 + c0·x + c1·y + x·y` de una vez y
+/// restando despues el termino `x·y` (= `xy`, que se cancela). Con los tipos harian
+/// falta 4 multiplicaciones; con el empaquetado, 2. Por eso `c0.v + y.v` es una suma
+/// CRUDA: es la que coloca los dos factores en las mitades del registro, no una suma
+/// con significado fisico. `e`/`xy` llevan las escalas plegadas del original.
+[[nodiscard]] inline s32 vertex_mul12(eng::math::q12 c0, eng::math::q12 c1, eng::math::q12 c2,
+				      eng::math::q0 x, eng::math::q0 y, eng::math::q0 z, s32 xy, s32 e) {
+	const s16 t0 = static_cast<s16>(c0.v + y.v); // empaquetado (ver arriba)
+	const s16 t1 = static_cast<s16>(c1.v + x.v);
+	const s32 t2 = math2d::mul16(c2.v, z.v);
 	return ((math2d::mul16(t0, t1) + t2 - xy) >> 4) + e;
 }
 
-/// Tercera fila (`MULVERTEX2`): normaliza en vez de desplazar y suma la traslación.
-[[nodiscard]] inline s32 vertex_mul3(s16 c0, s16 c1, s16 c2, s16 tz, s16 x, s16 y, s16 z, s32 xy) {
-	const s16 t0 = static_cast<s16>(c0 + y);
-	const s16 t1 = static_cast<s16>(c1 + x);
-	const s32 t2 = math2d::mul16(c2, z);
-	return math2d::normfx(math2d::mul16(t0, t1) + t2 - xy) + tz;
+/// Tercera fila: normaliza en vez de desplazar y suma la traslación (LONGITUD).
+[[nodiscard]] inline s32 vertex_mul3(eng::math::q12 c0, eng::math::q12 c1, eng::math::q12 c2,
+				     eng::math::q0 tz, eng::math::q0 x, eng::math::q0 y, eng::math::q0 z, s32 xy) {
+	const s16 t0 = static_cast<s16>(c0.v + y.v); // empaquetado (ver arriba)
+	const s16 t1 = static_cast<s16>(c1.v + x.v);
+	const s32 t2 = math2d::mul16(c2.v, z.v);
+	return math2d::normfx(math2d::mul16(t0, t1) + t2 - xy) + tz.v;
 }
 
 } // namespace detail
@@ -265,12 +273,13 @@ inline void transform_vertices(Object3D& object, s16 half_w, s16 half_h, s16 bbo
 				x = *pt++;
 				y = *pt++;
 				z = *pt++;
-				xy = math2d::mul16(x, y);
+				const eng::math::q0 qx {x}, qy {y}, qz {z};
+				xy = (qx * qy).v; // termino x·y que el empaquetado resta (q0*q0 -> entero)
 
-				xp = detail::vertex_mul12(M.m.m[0][0].v, M.m.m[0][1].v, M.m.m[0][2].v, x, y, z, xy, m0);
-				yp = detail::vertex_mul12(M.m.m[1][0].v, M.m.m[1][1].v, M.m.m[1][2].v, x, y, z, xy, m1);
-				zp = static_cast<s16>(detail::vertex_mul3(M.m.m[2][0].v, M.m.m[2][1].v, M.m.m[2][2].v,
-									  M.t.v[2].v, x, y, z, xy));
+				xp = detail::vertex_mul12(M.m.m[0][0], M.m.m[0][1], M.m.m[0][2], qx, qy, qz, xy, m0);
+				yp = detail::vertex_mul12(M.m.m[1][0], M.m.m[1][1], M.m.m[1][2], qx, qy, qz, xy, m1);
+				zp = static_cast<s16>(detail::vertex_mul3(M.m.m[2][0], M.m.m[2][1], M.m.m[2][2],
+									  M.t.v[2], qx, qy, qz, xy));
 
 				const s16 sx = static_cast<s16>(math2d::div16(xp, zp) + half_w);
 				const s16 sy = static_cast<s16>(math2d::div16(yp, zp) + half_h);
