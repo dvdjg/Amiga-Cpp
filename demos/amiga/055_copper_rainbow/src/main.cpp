@@ -119,7 +119,13 @@ private:
 			it.top = static_cast<eng::u16>(kBandTop0 + static_cast<eng::u16>(b) * kBandHeight);
 			it.bottom = it.top;
 			it.hpos = 0;
-			it.colors = kRainbow; it.first = static_cast<eng::u8>((static_cast<eng::u8>(b * 2u) + m_phase) & (kRainbowLen - 1u));
+			// Cada franja cambia COLOR00 al color del arcoíris desplazado por la fase.
+			// En `CopperIntent`, `first` es el REGISTRO COLOR de arranque (0 = COLOR00) y
+			// `colors` el tramo de paleta a escribir: aquí, una vista de 1 color sobre
+			// `kRainbow[idx]`, de modo que COLOR00 = kRainbow[idx].
+			const eng::u8 idx = static_cast<eng::u8>(
+				(static_cast<eng::u8>(b * 2u) + m_phase) & (kRainbowLen - 1u));
+			it.colors = eng::PaletteWords {kRainbow + idx, 1};
 			it.first = 0;
 			it.count = 1;
 		}
