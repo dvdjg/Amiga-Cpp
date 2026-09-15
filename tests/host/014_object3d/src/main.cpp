@@ -42,8 +42,8 @@ int main() {
 	obj.translate = {100, 200, 300};
 	update_object_transformation(obj);
 	check(obj.objectToWorld.m.m[0][0].v == (1 << 12) && obj.objectToWorld.m.m[1][1].v == (1 << 12), "objectToWorld identidad");
-	check(obj.objectToWorld.t.v[0].v == 100 && obj.objectToWorld.t.v[1].v == 200 && obj.objectToWorld.t.v[2].v == 300, "objectToWorld traslacion");
-	check(obj.worldToObject.t.v[0].v == -100 && obj.worldToObject.t.v[1].v == -200 && obj.worldToObject.t.v[2].v == -300, "worldToObject traslacion inversa");
+	check(obj.objectToWorld.t.x().v == 100 && obj.objectToWorld.t.y().v == 200 && obj.objectToWorld.t.z().v == 300, "objectToWorld traslacion");
+	check(obj.worldToObject.t.x().v == -100 && obj.worldToObject.t.y().v == -200 && obj.worldToObject.t.z().v == -300, "worldToObject traslacion inversa");
 	check(obj.camera.x == -100 && obj.camera.y == -200 && obj.camera.z == -300, "camara en espacio objeto");
 
 	if (failures == 0) {

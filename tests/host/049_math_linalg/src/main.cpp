@@ -32,8 +32,8 @@ int main() {
 	const Vec<3, q12> a {{q12 {4096}, q12 {2048}, q12 {0}}}; // (1, 0.5, 0)
 	const Vec<3, q12> b {{q12 {2048}, q12 {2048}, q12 {0}}}; // (0.5, 0.5, 0)
 	check(dot(a, b) == q12 {3072}, "1*0.5 + 0.5*0.5 = 0.75 (fusionado)");
-	check((a + b).v[0] == q12 {6144}, "suma de vectores");
-	check((a - b).v[0] == q12 {2048}, "resta de vectores");
+	check((a + b).x() == q12 {6144}, "suma de vectores");
+	check((a - b).x() == q12 {2048}, "resta de vectores");
 
 	// --- Matriz: R(90 grados) en 4.12, R*R = -I, R*(1,0) = (0,1) ---
 	Mat<2, q12> r90 {};
@@ -45,7 +45,7 @@ int main() {
 
 	const Vec<2, q0> p {{q0 {1}, q0 {0}}}; // punto (1, 0) en LONGITUD
 	const Vec<2, q0> q = r90 * p;          // ratio * longitud -> longitud
-	check(q.v[0] == q0 {0} && q.v[1] == q0 {1}, "R90 * (1,0) = (0,1)");
+	check(q.x() == q0 {0} && q.y() == q0 {1}, "R90 * (1,0) = (0,1)");
 
 	check(transpose(r90).m[0][1] == q12 {4096}, "transpose intercambia");
 	check(determinant(r90) == q12 {4096}, "det(R90) = 1");
@@ -55,9 +55,9 @@ int main() {
 	tr.m = r90;
 	tr.t = Vec<2, q0> {{q0 {10}, q0 {20}}};
 	const Vec<2, q0> q2 = transform(tr, p); // R90*(1,0) + (10,20) = (10, 21)
-	check(q2.v[0] == q0 {10} && q2.v[1] == q0 {21}, "afin: M*p + t");
+	check(q2.x() == q0 {10} && q2.y() == q0 {21}, "afin: M*p + t");
 	translate(tr, Vec<2, q0> {{q0 {-10}, q0 {-20}}});
-	check(tr.t.v[0] == q0 {0} && tr.t.v[1] == q0 {0}, "translate tipado (longitud + longitud)");
+	check(tr.t.x() == q0 {0} && tr.t.y() == q0 {0}, "translate tipado (longitud + longitud)");
 
 	// --- El MISMO código con float ---
 	Mat<3, float> f {};
@@ -68,7 +68,7 @@ int main() {
 	check(f2.m[0][1] == 4.0f && f2.m[0][2] == 6.0f, "float: f*f acumula igual");
 	const Vec<3, float> fv {{1.0f, 1.0f, 1.0f}};
 	const Vec<3, float> fo = f * fv;
-	check(fo.v[0] == 6.0f && fo.v[1] == 1.0f, "float: mat*vec");
+	check(fo.x() == 6.0f && fo.y() == 1.0f, "float: mat*vec");
 
 	if (failures == 0) {
 		std::printf("OK: linalg (Vec/Mat/Affine genericos sobre el escalar) validado.\n");

@@ -149,15 +149,15 @@ void transform_vertices(obj::Object3D& object) {
 	void* objdat = object.objdat;
 	eng::s16* group = object.vertexGroups;
 
-	eng::s32 m0 = (static_cast<eng::s32>(M.t.v[0].v) -
+	eng::s32 m0 = (static_cast<eng::s32>(M.t.x().v) -
 		       eng::retro::normfx(static_cast<eng::s32>(M.m.m[0][0].v) * M.m.m[0][1].v))
 		      << 8;
-	eng::s32 m1 = (static_cast<eng::s32>(M.t.v[1].v) -
+	eng::s32 m1 = (static_cast<eng::s32>(M.t.y().v) -
 		       eng::retro::normfx(static_cast<eng::s32>(M.m.m[1][0].v) * M.m.m[1][1].v))
 		      << 8;
 	// OJO: modifica la matriz de camara (como el original).
-	M.t.v[2].v = static_cast<eng::s16>(
-		M.t.v[2].v - eng::retro::normfx(static_cast<eng::s32>(M.m.m[2][0].v) * M.m.m[2][1].v));
+	M.t.z().v = static_cast<eng::s16>(
+		M.t.z().v - eng::retro::normfx(static_cast<eng::s32>(M.m.m[2][0].v) * M.m.m[2][1].v));
 
 	do {
 		eng::s16 i;
@@ -176,7 +176,7 @@ void transform_vertices(obj::Object3D& object) {
 
 				MULVERTEX1(xp, M.m.m[0][0].v, M.m.m[0][1].v, M.m.m[0][2].v, m0);
 				MULVERTEX1(yp, M.m.m[1][0].v, M.m.m[1][1].v, M.m.m[1][2].v, m1);
-				MULVERTEX2(zp, M.m.m[2][0].v, M.m.m[2][1].v, M.m.m[2][2].v, M.t.v[2].v);
+				MULVERTEX2(zp, M.m.m[2][0].v, M.m.m[2][1].v, M.m.m[2][2].v, M.t.z().v);
 
 				*pt++ = static_cast<eng::s16>(eng::math::div16(xp, zp) + kWidth / 2);
 				*pt++ = static_cast<eng::s16>(eng::math::div16(yp, zp) + kHeight / 2);

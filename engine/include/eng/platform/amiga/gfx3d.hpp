@@ -99,9 +99,9 @@ inline void transform(const Mat3& m, Vec3* out, const Vec3* in, u32 n) {
 inline void transform(const Affine3& a, Vec3* out, const Vec3* in, u32 n) {
 	for (u32 i = 0; i < n; ++i) {
 		const eng::retro::q0 x {in[i].x}, y {in[i].y}, z {in[i].z};
-		out[i].x = eng::math::dot(a.m.m[0][0], x, a.m.m[0][1], y, a.m.m[0][2], z).v + a.t.v[0].v;
-		out[i].y = eng::math::dot(a.m.m[1][0], x, a.m.m[1][1], y, a.m.m[1][2], z).v + a.t.v[1].v;
-		out[i].z = eng::math::dot(a.m.m[2][0], x, a.m.m[2][1], y, a.m.m[2][2], z).v + a.t.v[2].v;
+		out[i].x = eng::math::dot(a.m.m[0][0], x, a.m.m[0][1], y, a.m.m[0][2], z).v + a.t.x().v;
+		out[i].y = eng::math::dot(a.m.m[1][0], x, a.m.m[1][1], y, a.m.m[1][2], z).v + a.t.y().v;
+		out[i].z = eng::math::dot(a.m.m[2][0], x, a.m.m[2][1], y, a.m.m[2][2], z).v + a.t.z().v;
 	}
 }
 

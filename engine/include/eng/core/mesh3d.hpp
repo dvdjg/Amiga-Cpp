@@ -87,9 +87,9 @@ inline void mesh_transform(Span<const Vec3> in, const eng::math::Affine<N, SR, S
 	for (u32 i = 0; i < n; ++i) {
 		const eng::math::Vec<N, SL> p {{SL {in[i].x}, SL {in[i].y}, SL {in[i].z}}};
 		const eng::math::Vec<N, SL> w = eng::math::transform(m, p);
-		out[i].x = static_cast<s16>(w.v[0].v);
-		out[i].y = static_cast<s16>(w.v[1].v);
-		out[i].z = static_cast<s16>(w.v[2].v);
+		out[i].x = static_cast<s16>(w.x().v);
+		out[i].y = static_cast<s16>(w.y().v);
+		out[i].z = static_cast<s16>(w.z().v);
 	}
 }
 

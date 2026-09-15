@@ -88,7 +88,7 @@ int main() {
 		Affine<3, q12, q0> a {Mat3::identity(), Vec<3, q0> {{q0 {10}, q0 {-20}, q0 {30}}}};
 		const Vec<3, q0> p {{q0 {100}, q0 {200}, q0 {300}}};
 		const Vec<3, q0> q = eng::math::transform(a, p);
-		check(q.v[0].v == 110 && q.v[1].v == 180 && q.v[2].v == 330, "afin: M*p + t");
+		check(q.x().v == 110 && q.y().v == 180 && q.z().v == 330, "afin: M*p + t");
 	}
 
 	// Visibilidad de cara (back-face culling) y claves de orden Z.

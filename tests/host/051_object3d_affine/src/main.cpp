@@ -69,8 +69,8 @@ static NewTransform new_update(s16 rx, s16 ry, s16 rz, s16 sx, s16 sy, s16 sz, s
 	r.w2o.t = Vec<3, q0> {{from_int<s16>(static_cast<s16>(-tx)), from_int<s16>(static_cast<s16>(-ty)),
 			       from_int<s16>(static_cast<s16>(-tz))}};
 	// camara = M * (M.t), normalizada a q12
-	for (int i = 0; i < 3; ++i) r.camera.v[i] = dot(r.w2o.m.m[i][0], r.w2o.t.v[0], r.w2o.m.m[i][1], r.w2o.t.v[1],
-							  r.w2o.m.m[i][2], r.w2o.t.v[2]);
+	for (int i = 0; i < 3; ++i) r.camera.v[i] = dot(r.w2o.m.m[i][0], r.w2o.t.x(), r.w2o.m.m[i][1], r.w2o.t.y(),
+							  r.w2o.m.m[i][2], r.w2o.t.z());
 	return r;
 }
 
@@ -96,14 +96,14 @@ int main() {
 		cmp("o2w.m00", o.objectToWorld.m.m[0][0].v, n.o2w.m.m[0][0].v);
 		cmp("o2w.m11", o.objectToWorld.m.m[1][1].v, n.o2w.m.m[1][1].v);
 		cmp("o2w.m22", o.objectToWorld.m.m[2][2].v, n.o2w.m.m[2][2].v);
-		cmp("o2w.x", o.objectToWorld.t.v[0].v, n.o2w.t.v[0].v);
-		cmp("o2w.z", o.objectToWorld.t.v[2].v, n.o2w.t.v[2].v);
+		cmp("o2w.x", o.objectToWorld.t.x().v, n.o2w.t.x().v);
+		cmp("o2w.z", o.objectToWorld.t.z().v, n.o2w.t.z().v);
 		cmp("w2o.m00", o.worldToObject.m.m[0][0].v, n.w2o.m.m[0][0].v);
 		cmp("w2o.m12", o.worldToObject.m.m[1][2].v, n.w2o.m.m[1][2].v);
-		cmp("w2o.y", o.worldToObject.t.v[1].v, n.w2o.t.v[1].v);
-		cmp("cam.x", o.camera.x, n.camera.v[0].v);
-		cmp("cam.y", o.camera.y, n.camera.v[1].v);
-		cmp("cam.z", o.camera.z, n.camera.v[2].v);
+		cmp("w2o.y", o.worldToObject.t.y().v, n.w2o.t.y().v);
+		cmp("cam.x", o.camera.x, n.camera.x().v);
+		cmp("cam.y", o.camera.y, n.camera.y().v);
+		cmp("cam.z", o.camera.z, n.camera.z().v);
 	}
 
 	if (bad == 0) {

@@ -60,9 +60,9 @@ struct projector<Affine<N, SR, SL>> {
 	[[nodiscard]] static cache make(const affine_t& a) {
 		return cache {
 			a,
-			static_cast<s32>((static_cast<s32>(a.t.v[0].v) - dot(a.m.m[0][0], a.m.m[0][1]).v) << 8),
-			static_cast<s32>((static_cast<s32>(a.t.v[1].v) - dot(a.m.m[1][0], a.m.m[1][1]).v) << 8),
-			static_cast<s16>(a.t.v[2].v - dot(a.m.m[2][0], a.m.m[2][1]).v)};
+			static_cast<s32>((static_cast<s32>(a.t.x().v) - dot(a.m.m[0][0], a.m.m[0][1]).v) << 8),
+			static_cast<s32>((static_cast<s32>(a.t.y().v) - dot(a.m.m[1][0], a.m.m[1][1]).v) << 8),
+			static_cast<s16>(a.t.z().v - dot(a.m.m[2][0], a.m.m[2][1]).v)};
 	}
 
 	/// Producto escalar entero de una fila: los tres primeros productos van por el punto
