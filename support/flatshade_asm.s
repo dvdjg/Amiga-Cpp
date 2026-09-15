@@ -40,10 +40,16 @@
 	.section .text.flatshade_asm,"ax",@progbits
 
 /* _WaitBlitter: gira hasta que DMACONR bit 14 (BBUSY) baje. a0 = base custom 0xdff000. */
+/* Espera a que el Blitter libere (DMACONR bit 14 = BBUSY).
+ * PRESERVA d0: `fs_draw_edges` lo usa como BLTCON0 y lo escribe justo despues del
+ * wait, asi que si esta rutina lo pisara se programaria DMACONR como con0. */
 .Lwait_blit:
+	move.w	d0,-(sp)
+.Lwait_blit_loop:
 	move.w	0x002(a0),d0
 	btst	#14,d0
-	bne.w	.Lwait_blit
+	bne.s	.Lwait_blit_loop
+	move.w	(sp)+,d0
 	rts
 
 /* ==========================================================================
@@ -406,6 +412,9 @@ fs_transform_vertices:
 fs_draw_edges:
 	movem.l	d2-d7/a2-a6,-(sp)
 	movea.l	#0xdff000,a0			/* custom base */
+	/* Activa el DMA del Blitter, como `blitter_lines_eor_begin` (igualmente el
+	 * init ya lo deja activo con el pre-clear; se reafirma aqui). */
+	move.w	#0x8240,0x96(a0)		/* dmacon = setclr|master|blitter */
 	bsr.w	.Lwait_blit
 	move.w	#-1,0x44(a0)			/* bltafwm */
 	move.w	#-1,0x46(a0)			/* bltalwm */
@@ -494,6 +503,17 @@ fs_draw_edges:
 	move.w	d6,d4				/* bmod */
 	move.w	d6,d3				/* bmod (para derr) */
 	sub.w	d5,d3				/* derr = bmod - dmax  (d3=derr=apt) */
+	/* Igual que `MinimalBackend::blitter_line`: si derr<0, marcar el sign flag
+	 * (BLTCON1 bit 6). El original no lo hace, pero la ruta C++ del engine si y es
+	 * la que renderiza correctamente el balon. */
+	tst.w	d3
+	bpl.w	.Lde_nosign
+	or.w	#0x0040,d1			/* blt_signflag */
+.Lde_nosign:
+	/* bltapt (BLTAPT) es el acumulador de error de 32 bits del modo linea: hay que
+	 * escribir derr EXTENDIDO CON SIGNO (como `blitter_line_eor_draw`, que hace
+	 * `(void*)(s32)derr`). `move.l d3` a secas dejaba la palabra alta con basura. */
+	ext.l	d3
 	move.w	d3,d6				/* derr */
 	sub.w	d5,d6				/* amod = derr - dmax */
 	move.w	d5,d7				/* dmax */
