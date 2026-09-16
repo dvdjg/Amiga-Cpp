@@ -83,6 +83,10 @@ struct PlayfieldHardwareView {
 ///   - `plane_stride`: bytes entre el plano p y el p+1.
 ///   - `row_stride`: bytes entre filas consecutivas del MISMO plano.
 ///   - `row_bytes`: bytes por fila de UN plano (= stride de la máscara 1 bit).
+///
+/// NO VERIFICADA (demo descartada): validada por el test host HOST-062 y por una
+/// prueba en hardware (cubo sólido por Blitter), pero la demo que lo ejercitaba se
+/// retiró por coste. Ver `eng::amiga::PolygonFillService`.
 struct PolygonFillSink {
     using Fn = bool (*)(void* ctx, u8* plane_base, u8 planes, u32 plane_stride,
                         u32 row_stride, u16 row_bytes, u16 bitmap_w, u16 bitmap_h,

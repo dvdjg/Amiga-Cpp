@@ -10,6 +10,13 @@
 /// La escena/demo aporta el backend y una **máscara scratch** de 1 bit en Chip RAM
 /// (mismo `row_bytes` que el bitmap del playfield); aquí se empaqueta todo en el
 /// sink. El motor vive en `MinimalBackend::blitter_fill_polygon_strided`.
+///
+/// NO VERIFICADA (demo descartada): el relleno de caras por Blitter se validó en
+/// hardware (cubo sólido sobre el lienzo FG interleaved), pero la demo que lo
+/// ejercitaba se retiró por coste (~66 blits serializados/frame) y hoy solo lo
+/// respalda el test host HOST-062. Una demo con objeto poligonal por frame exigiría
+/// doble buffer del lienzo FG (ver `DoubleBufferScrollPlayfield`) o menos blits por
+/// cara.
 
 #include <eng/field/playfield.hpp>
 #include <eng/platform/amiga_minimal.hpp>
