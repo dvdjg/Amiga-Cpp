@@ -18,6 +18,8 @@ while [ "$#" -gt 0 ]; do
     --warp) WARP=(--warp) ;;
     --config) CONFIG="$2"; shift ;;
     --release) CONFIG=A500_release ;;
+    --pixel-assert|--require-pixel-assert-ok|--vision-review|--require-vision-review-ok) : ;;
+    --vision-provider|--vision-send-mode) shift ;;
     *) echo "arg desconocido: $1" >&2; exit 2 ;;
   esac
   shift
