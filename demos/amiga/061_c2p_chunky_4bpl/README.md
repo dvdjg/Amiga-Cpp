@@ -1,5 +1,11 @@
 # Demo 061: c2p_1x1_4 (chunky 4bpp → planar) + rotozoom por CPU
 
+> **ESTADO: NO FINALIZADA** (regla de demos atractivas de `AGENTS.md`). Es correcta,
+> colorida y **verificada** (asm c2p y rotozoom byte-idénticos a la C++), pero la
+> animación va a **~3 fps** a pantalla completa: el techo con 20.480 píxeles/frame es
+> ~4-5 fps incluso con un bucle idealizado (ver «Rendimiento»). Para cumplir la regla
+> hay que reducir área o pasar a píxeles gordos 2×2.
+
 Demuestra el valor del **modo chunky**: en un Amiga OCS, un efecto por píxel escrito
 en planar (un bit por plano) sería impagable. Aquí la CPU genera cada píxel en un
 framebuffer **lineal de 1 byte/píxel** y `c2p_1x1_4` lo transpone a los 4 bitplanes

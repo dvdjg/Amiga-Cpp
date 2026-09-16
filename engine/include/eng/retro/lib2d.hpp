@@ -25,25 +25,28 @@ using Mat2x2 = eng::math::Affine<2, q12, q0>;
 /// Ventana de recorte en píxeles.
 using Rect = eng::math::Rect<q0>;
 
-/// Construye un `Vec2` en píxeles (azúcar para no repetir `q0{...}`).
+/// Construye un `Vec2` desde LONGITUD tipada (`q0`).
+constexpr Vec2 v2(q0 x, q0 y) { return Vec2 {{x, y}}; }
+/// Construye un `Vec2` desde píxeles crudos (azúcar para literales).
 constexpr Vec2 v2(s16 x, s16 y) { return Vec2 {{q0 {x}, q0 {y}}}; }
-/// Construye un `Rect` en píxeles.
+/// Construye un `Rect` desde LONGITUD tipada (`q0`).
+constexpr Rect rect(q0 x0, q0 y0, q0 x1, q0 y1) { return Rect {x0, y0, x1, y1}; }
+/// Construye un `Rect` desde píxeles crudos (azúcar para literales).
 constexpr Rect rect(s16 x0, s16 y0, s16 x1, s16 y1) {
 	return Rect {q0 {x0}, q0 {y0}, q0 {x1}, q0 {y1}};
 }
 
-/// Suma una traslación (en píxeles) a la matriz; no toca la parte lineal.
-constexpr void translate(Mat2x2& m, s16 x, s16 y) {
-	m.t.x() = q0 {static_cast<s16>(m.t.x().v + x)};
-	m.t.y() = q0 {static_cast<s16>(m.t.y().v + y)};
+/// Suma una traslación (`q0`, píxeles) a la matriz; no toca la parte lineal.
+constexpr void translate(Mat2x2& m, q0 dx, q0 dy) {
+	m.t.x() = q0 {static_cast<s16>(m.t.x().v + dx.v)};
+	m.t.y() = q0 {static_cast<s16>(m.t.y().v + dy.v)};
 }
 
-/// Escala la parte lineal (factores en 4.12).
-constexpr void scale(Mat2x2& m, fix sx, fix sy) {
-	const q12 fx {sx}, fy {sy};
+/// Escala la parte lineal (factores RATIO en 4.12, el mismo escalar que la matriz).
+constexpr void scale(Mat2x2& m, q12 sx, q12 sy) {
 	for (int i = 0; i < 2; ++i) {
-		m.m.m[i][0] = (m.m.m[i][0] * fx).rescale<12>().cast<s16>();
-		m.m.m[i][1] = (m.m.m[i][1] * fy).rescale<12>().cast<s16>();
+		m.m.m[i][0] = eng::math::mul_norm(m.m.m[i][0], sx);
+		m.m.m[i][1] = eng::math::mul_norm(m.m.m[i][1], sy);
 	}
 }
 
@@ -115,13 +118,13 @@ inline bool clip_line(const Rect& win, Vec2& a, Vec2& b) {
 	}
 
 	if (t0 > 0) {
-		a.x().v = static_cast<s16>(ax + ((static_cast<s32>(t0) * xd + kHalf88) >> kShift88));
-		a.y().v = static_cast<s16>(ay + ((static_cast<s32>(t0) * yd + kHalf88) >> kShift88));
+		a.x().v = static_cast<s16>(ax + ((eng::math::mul16(t0, xd) + kHalf88) >> kShift88));
+		a.y().v = static_cast<s16>(ay + ((eng::math::mul16(t0, yd) + kHalf88) >> kShift88));
 	}
 	if (t1 < kOne88) {
 		const s16 t1r = static_cast<s16>(kOne88 - t1);
-		b.x().v = static_cast<s16>(bx - ((static_cast<s32>(t1r) * xd + kHalf88) >> kShift88));
-		b.y().v = static_cast<s16>(by - ((static_cast<s32>(t1r) * yd + kHalf88) >> kShift88));
+		b.x().v = static_cast<s16>(bx - ((eng::math::mul16(t1r, xd) + kHalf88) >> kShift88));
+		b.y().v = static_cast<s16>(by - ((eng::math::mul16(t1r, yd) + kHalf88) >> kShift88));
 	}
 	return true;
 }
@@ -144,18 +147,18 @@ inline void clip_edge(const Rect& win, Vec2& o, const Vec2& s, const Vec2& e, u1
 	if (plane & PF_LEFT) {
 		const s16 n = static_cast<s16>(win.minX.v - ex);
 		o.x().v = win.minX.v;
-		o.y().v = static_cast<s16>(ey + eng::math::div16(static_cast<s32>(dy) * n, dx));
+		o.y().v = static_cast<s16>(ey + eng::math::div16(eng::math::mul16(dy, n), dx));
 	} else if (plane & PF_RIGHT) {
 		const s16 n = static_cast<s16>(win.maxX.v - ex);
 		o.x().v = win.maxX.v;
-		o.y().v = static_cast<s16>(ey + eng::math::div16(static_cast<s32>(dy) * n, dx));
+		o.y().v = static_cast<s16>(ey + eng::math::div16(eng::math::mul16(dy, n), dx));
 	} else if (plane & PF_TOP) {
 		const s16 n = static_cast<s16>(win.minY.v - ey);
-		o.x().v = static_cast<s16>(ex + eng::math::div16(static_cast<s32>(dx) * n, dy));
+		o.x().v = static_cast<s16>(ex + eng::math::div16(eng::math::mul16(dx, n), dy));
 		o.y().v = win.minY.v;
 	} else if (plane & PF_BOTTOM) {
 		const s16 n = static_cast<s16>(win.maxY.v - ey);
-		o.x().v = static_cast<s16>(ex + eng::math::div16(static_cast<s32>(dx) * n, dy));
+		o.x().v = static_cast<s16>(ex + eng::math::div16(eng::math::mul16(dx, n), dy));
 		o.y().v = win.maxY.v;
 	}
 }

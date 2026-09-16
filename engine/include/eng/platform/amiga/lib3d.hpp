@@ -38,6 +38,12 @@
 ///
 /// Ver `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` (§9) para la bitácora
 /// de estos hallazgos y `demos/amiga/116_flatshade_convex/README.md` para el port.
+///
+/// **Por qué aquí no hay escalares nuevos.** El modelo (`object3d`) es layout crudo
+/// empaquetado y sus punteros se recorren por offset; la matemática que se le aplica es
+/// la ya tipada (`math3d::Affine3`, `Vec<3,Coord>`/`P3`). Por eso este fichero solo usa
+/// enteros con `mul16`/`div16` (`eng/core/word.hpp`): no le hace falta otro tipo de
+/// escalar, solo garantizar `muls.w`/`divs.w` en el camino caliente.
 
 #include <eng/core/affine.hpp>
 #include <eng/core/word.hpp>

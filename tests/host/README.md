@@ -106,3 +106,4 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-063 | [ring_mapper](063_ring_mapper/README.md) | `eng::field::map_ring_scroll`: mapper neutral del corkscrew (planeaddx/BPLCON1 con fetch ancho, offset del anillo y split); fórmula extraída de `XLimitedPlayfield` con equivalente compile-time/runtime. |
 | HOST-064 | [spline_easing](064_spline_easing/README.md) | `eng/core/spline.hpp` (Hermite/Catmull-Rom) y easing de `interp.hpp`: genéricos sobre `double`, `MiniFloat16` y `q12`. |
 | HOST-065 | [scalar_ops](065_scalar_ops/README.md) | `eng/core/scalar_ops.hpp`, easings `_back`/`smooth_damp`/`repeat`/`pingpong` y `bezier2`/`bezier3`: genéricos sobre `double`, `MiniFloat16` y `q12`. |
+| HOST-066 | [route_camera](066_route_camera/README.md) | `eng/scene/route_camera.hpp`: fases de la ruta, círculo sobre `radius_scale` (vía `eng::SineTable`), espejo `mirror_x` y modo salto dentro de límites. |

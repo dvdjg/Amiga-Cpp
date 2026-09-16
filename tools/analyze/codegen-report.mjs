@@ -25,8 +25,11 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/minifloat.hpp>
 #include <eng/core/minifloat_math.hpp>
 #include <eng/retro/fixed_q.hpp>
+#include <eng/retro/lib2d.hpp>
 #include <eng/retro/minifloat_fixed.hpp>
+#include <eng/graphics/mesh_renderer.hpp>
 #include <eng/platform/amiga/lib3d.hpp>
+#include <eng/platform/amiga/object3d.hpp>
 using namespace eng::math;
 using namespace eng::retro;
 using namespace eng::math3d;
@@ -81,6 +84,17 @@ extern "C" s16 c_fx_minmax(s16 a, s16 b) { return max(min(q12{a}, q12{b}), q12{0
 // diferencias de coordenada son s16 y el arith<s16> fuerza la multiplicacion nativa.
 extern "C" s32 c_face_area(const Vec3* a, const Vec3* b, const Vec3* c, const Vec3* cam) {
 	return face_signed_area(*a, *b, *c, *cam);
+}
+
+// --- 2D/3D: proyeccion, recorte y transform del objeto. Productos 16x16 -> mul16. ---
+extern "C" void c_proj_persp(s16* out, const Vec3* v, s16 focal, s16 cx, s16 cy) {
+	eng::graphics::project_perspective(*v, focal, cx, cy, out[0], out[1]);
+}
+extern "C" int c_clip_line(const eng::retro::Rect* win, eng::retro::Vec2* a, eng::retro::Vec2* b) {
+	return eng::retro::clip_line(*win, *a, *b) ? 1 : 0;
+}
+extern "C" void c_update_obj(eng::object3d::Object3D* o) {
+	eng::object3d::update_object_transformation(*o);
 }
 
 // --- MiniFloat16: aritmetica, matematicas y puente con fixed (sin libgcc) ---
@@ -219,7 +233,7 @@ if (loop && loop.lib > 0) {
 // MiniFloat16, que como `sin`/`exp` es una funcion de tabla grande y g++ no la inlinea
 // (es coste esperado del escalar, no del helper).
 const HOT = ['c_fx_move_towards', 'c_fx_deadzone', 'c_fx_repeat', 'c_fx_pingpong', 'c_fx_ease_back',
-  'c_fx_bezier3', 'c_mf_move_towards', 'c_mf_bezier3'];
+  'c_fx_bezier3', 'c_mf_move_towards', 'c_mf_bezier3', 'c_proj_persp', 'c_clip_line', 'c_face_area'];
 const notInlined = HOT.map((n) => fns.find((f) => f.name === n)).filter((f) => f && f.lib > 0)
   .map((f) => `${f.name} (${f.lib} jsr)`);
 if (notInlined.length) {

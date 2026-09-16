@@ -334,10 +334,9 @@ struct DemoGame {
 		m_ring.reset(0, 0);
 
 		// La camara arranca en la posicion inicial de la primera fase de la ruta.
-		m_camera.x = 1;
-		m_camera.y = m_camera.center_y;
-		const eng::u16 initial_x = m_camera.x;
-		const eng::u16 initial_y = m_camera.y;
+		m_camera.set(1, m_camera.center_y);
+		const eng::u16 initial_x = m_camera.x();
+		const eng::u16 initial_y = m_camera.y();
 		m_active_camera_tile_x = camera_tile(initial_x);
 		m_active_camera_tile_y = camera_tile(initial_y);
 		m_previous_logical_column = m_active_camera_tile_x;
@@ -374,8 +373,8 @@ struct DemoGame {
 			eng::debug::DebugPeripheral::checkpoint(0);
 
 			m_camera.advance(context.frame.frame_index);
-			const eng::u16 camera_x = m_camera.x;
-			const eng::u16 camera_y = m_camera.y;
+			const eng::u16 camera_x = m_camera.x();
+			const eng::u16 camera_y = m_camera.y();
 			m_active_camera_tile_x = camera_tile(camera_x);
 			m_active_camera_tile_y = camera_tile(camera_y);
 			// Telemetría del periférico: cuando la cámara cruza un borde de tile
