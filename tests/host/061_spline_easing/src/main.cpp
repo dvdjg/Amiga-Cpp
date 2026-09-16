@@ -108,12 +108,12 @@ void check_easing(const char* tag, float tol) {
 	      "easing: extremos exactos");
 }
 
-/// Easing senoidal/exponencial (solo `MiniFloat16`: usan `sin`/`cos`/`exp2`).
-void check_mf_easing() {
-	const float tol = 4.0e-3f;
+/// Easing senoidal/exponencial genérico (necesita `sin`/`cos`/`exp2`: `scalar_math.hpp`).
+template <typename S>
+void check_trig_easing(const char* tag, float tol) {
 	float mx = 0;
 	for (int i = 0; i <= 40; ++i) {
-		const MiniFloat16 t(static_cast<float>(i) / 40.0f);
+		const S t = mk<S>(static_cast<float>(i) / 40.0f);
 		const double td = em::to_double(t);
 		const double in_s = 1.0 - std::cos(td * 1.57079632679);
 		const double out_s = std::sin(td * 1.57079632679);
@@ -129,8 +129,8 @@ void check_mf_easing() {
 		mx = std::fmax(mx, std::fabs(em::to_double(em::ease_out_expo(t)) - out_e));
 		mx = std::fmax(mx, std::fabs(em::to_double(em::ease_in_out_expo(t)) - io_e));
 	}
-	std::printf("  MF easing sine/expo abs max %.2e\n", mx);
-	check(mx <= tol, "easing senoidal/exponencial MF dentro de tolerancia");
+	std::printf("  %s easing sine/expo abs max %.2e\n", tag, mx);
+	check(mx <= tol, "easing senoidal/exponencial dentro de tolerancia");
 }
 
 /// Spline sobre `Vec<3,double>`: coincide con la versión escalar por componente.
@@ -160,7 +160,9 @@ int main() {
 	check_easing<double>("double", 1.0e-12f);
 	check_easing<MiniFloat16>("MF    ", 1.0e-2f);
 	check_easing<er::q12>("q12   ", 1.0e-2f);
-	check_mf_easing();
+	check_trig_easing<double>("double", 1.0e-9f);
+	check_trig_easing<float>("float ", 1.0e-4f);
+	check_trig_easing<MiniFloat16>("MF    ", 4.0e-3f);
 	check_vec_spline();
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);

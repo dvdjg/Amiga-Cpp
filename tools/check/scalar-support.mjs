@@ -34,7 +34,7 @@ const ROWS = [
   { fn: 'hermite / catmull_rom',     flt: 'si', mf: 'si', fx: 'si (catmull usa div_norm)', test: 'HOST-061' },
   { fn: 'hermite / catmull_rom (Vec<N>)', flt: 'si', mf: 'si', fx: 'si', test: 'HOST-061' },
   { fn: 'ease_in/out/in_out_quad/_cubic', flt: 'si', mf: 'si', fx: 'si', test: 'HOST-061' },
-  { fn: 'ease_in/out/in_out_sine/_expo', flt: '—', mf: 'si (necesita sin/cos/exp2)', fx: '—', test: 'HOST-061' },
+  { fn: 'ease_in/out/in_out_sine/_expo', flt: 'si', mf: 'si (necesita sin/cos/exp2)', fx: '—', test: 'HOST-061' },
   { fn: 'wrap_angle / angle_diff',   flt: '—', mf: 'si', fx: '—', test: 'HOST-057' },
   { fn: 'sqrt/exp/log/sin/cos/tan',  flt: '—', mf: 'si', fx: '—', test: 'HOST-057' },
   { fn: 'transform (MF × fix)',      flt: '—', mf: 'ratio MF (|m| <= 8)', fx: 'coordenada', test: 'HOST-058' },

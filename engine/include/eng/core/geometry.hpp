@@ -27,42 +27,9 @@
 
 #include <eng/core/linalg.hpp>
 #include <eng/core/numeric_traits.hpp>
+#include <eng/core/scalar_math.hpp>
 
 namespace eng::math {
-
-namespace detail {
-
-/// Raíz cuadrada `constexpr` sin `libm`: semilla `2^(e/2)` por manipulación del
-/// exponente y Newton. Converge a la precisión del tipo en `Iter` iteraciones.
-template <typename F, typename U, int MantBits, eng::u32 ExpMask, int ExpBias, int Iter>
-[[nodiscard]] constexpr F sqrt_newton(F x) {
-	if (x <= F(0)) return F(0);
-	const U bits = __builtin_bit_cast(U, x);
-	const int e = static_cast<int>((bits >> MantBits) & ExpMask) - ExpBias;
-	const U seed_bits = static_cast<U>(ExpBias + e / 2) << MantBits;
-	F y = __builtin_bit_cast(F, seed_bits);
-	for (int i = 0; i < Iter; ++i) y = F(0.5) * (y + x / y);
-	return y;
-}
-
-} // namespace detail
-
-/// Punto de extensión: `sqrt` del escalar. Por defecto usa ADL (un escalar que defina
-/// `sqrt(S)`, como `MiniFloat16` en `minifloat_math.hpp`, funciona sin más).
-template <typename S>
-struct scalar_sqrt {
-	static constexpr S op(S x) { return sqrt(x); }
-};
-template <>
-struct scalar_sqrt<float> {
-	static constexpr float op(float x) { return detail::sqrt_newton<float, eng::u32, 23, 0xFFu, 127, 5>(x); }
-};
-template <>
-struct scalar_sqrt<double> {
-	static constexpr double op(double x) {
-		return detail::sqrt_newton<double, unsigned long long, 52, 0x7FFu, 1023, 8>(x);
-	}
-};
 
 /// `v · v` (sin `sqrt`): barato y sin pérdida de rango en el producto.
 template <int N, typename S>

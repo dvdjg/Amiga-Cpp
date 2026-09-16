@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 /// \file interp.hpp
 /// **Interpolación, easing y reescalado** genéricos: el MISMO código sirve para
@@ -11,7 +11,12 @@
 ///
 /// Funciones que **dividen** (`inv_lerp`, `remap`) exigen `numeric_traits<S>::
 /// has_division` y lo comprueban con `require_division`; con un fixed sin división el
-/// error es un mensaje, no un "no matching operator/".
+/// error es un mensaje, no un "no matching operator/". `inv_lerp`/`remap` tienen
+/// sobrecargas para `Fixed` que usan la división explícita `div_norm`.
+///
+/// Los easing **trigonométricos** (`_sine`/`_expo`) piden `sin`/`cos`/`exp2` al escalar
+/// vía `scalar_math.hpp` (ADL o especialización); los **polinómicos** no necesitan nada
+/// más que suma/producto, así que valen también para fixed.
 ///
 /// ## Límites por escalar (importante)
 ///
@@ -24,11 +29,12 @@
 ///   - `smoothstep`/`smootherstep` trabajan en `[0,1]`: seguros (sin división).
 /// - **`float`/`double`**: sin límites prácticos para estos usos.
 /// - **`Fixed`**: representan fracciones, pero no tienen `operator/` en el núcleo;
-///   `lerp`/`smoothstep` funcionan (suma y producto), `remap`/`inv_lerp` no compilan
-///   (a propósito).
+///   `lerp`/`smoothstep`/easing polinómico funcionan (suma y producto), `remap`/
+///   `inv_lerp` usan `div_norm`, y los easing trigonométricos no compilan (sin `sin`).
 
 #include <eng/core/linalg.hpp>
 #include <eng/core/numeric_traits.hpp>
+#include <eng/core/scalar_math.hpp>
 
 namespace eng::math {
 
@@ -137,7 +143,7 @@ template <typename S>
 	t = saturate(t);
 	return mul_norm(t, scalar_traits<S>::from_int(2) - t);
 }
-/// Cuadrático de entrada/salida (`4t³` y `1−4(1−t)³` en las mitades).
+/// Cuadrático de entrada/salida (`2t²` y `1−2(1−t)²` en las mitades).
 template <typename S>
 [[nodiscard]] constexpr S ease_in_out_quad(S t) {
 	t = saturate(t);
@@ -169,6 +175,58 @@ template <typename S>
 	const S four = scalar_traits<S>::from_int(4);
 	if (mul_norm(two, t) < one) return mul_norm(four, ease_cube(t)); // 4t³
 	return one - mul_norm(four, ease_cube(one - t)); // 1 − 4(1−t)³
+}
+
+// ---------------------------------------------------------------------------
+//  Easing trigonométrico (necesita sin/cos/exp2 del escalar: `scalar_math.hpp`)
+// ---------------------------------------------------------------------------
+
+/// Constantes de los easings trigonométricos.
+namespace easeconst {
+constexpr double half_pi = 1.57079632679489661923;
+constexpr double pi = 3.14159265358979323846;
+} // namespace easeconst
+
+/// Senoidal de entrada: `1 − cos(t·π/2)`.
+template <typename S>
+[[nodiscard]] constexpr S ease_in_sine(S t) {
+	t = saturate(t);
+	return scalar_traits<S>::one() - scalar_cos<S>::op(t * scalar_const<S>(easeconst::half_pi));
+}
+/// Senoidal de salida: `sin(t·π/2)`.
+template <typename S>
+[[nodiscard]] constexpr S ease_out_sine(S t) {
+	t = saturate(t);
+	return scalar_sin<S>::op(t * scalar_const<S>(easeconst::half_pi));
+}
+/// Senoidal de entrada/salida: `(1 − cos(π·t))/2`.
+template <typename S>
+[[nodiscard]] constexpr S ease_in_out_sine(S t) {
+	t = saturate(t);
+	return (scalar_traits<S>::one() - scalar_cos<S>::op(t * scalar_const<S>(easeconst::pi))) * S(0.5f);
+}
+/// Exponencial de entrada: `2^(10t−10)` (0 para `t=0`).
+template <typename S>
+[[nodiscard]] constexpr S ease_in_expo(S t) {
+	t = saturate(t);
+	if (t == scalar_traits<S>::zero()) return scalar_traits<S>::zero();
+	return scalar_exp2<S>::op(t * S(10.0f) - S(10.0f));
+}
+/// Exponencial de salida: `1 − 2^(−10t)` (1 para `t=1`).
+template <typename S>
+[[nodiscard]] constexpr S ease_out_expo(S t) {
+	t = saturate(t);
+	if (t == scalar_traits<S>::one()) return scalar_traits<S>::one();
+	return scalar_traits<S>::one() - scalar_exp2<S>::op(S(-10.0f) * t);
+}
+/// Exponencial de entrada/salida.
+template <typename S>
+[[nodiscard]] constexpr S ease_in_out_expo(S t) {
+	t = saturate(t);
+	const S one = scalar_traits<S>::one();
+	if (t < S(0.5f)) return scalar_exp2<S>::op(t * S(20.0f) - S(10.0f)) * S(0.5f);
+	if (t == one) return one;
+	return one - scalar_exp2<S>::op(S(10.0f) - t * S(20.0f)) * S(0.5f);
 }
 
 } // namespace eng::math

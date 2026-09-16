@@ -98,6 +98,7 @@ escriben solo con ellos, y añadir un escalar = especializarlos.
 | `mul_norm(a,b)` | producto normalizado al escalar | `norm_from(a*b)` (identidad en float/MF) | `(a*b).rescale<E>().cast<R>()` |
 | `scalar_div<S>::op` / `div_norm(a,b)` | división **explícita** | `a/b` | `(a.v<<E)/b.v` con `divs.w`, saturado |
 | `scalar_sqrt<S>::op` | `sqrt` para `length`/`normalize` | ADL `sqrt(S)` | no hay (esas funciones no compilan) |
+| `scalar_sin/cos/exp2<S>::op` | trig./exp2 para los easings `_sine`/`_expo` | ADL (`MiniFloat16`) | no hay (Fixed no los define) |
 
 `mul_norm`/`div_norm` son la bisagra: evitan que cada algoritmo tenga que saber si su
 escalar cambia de exponente al multiplicar (fixed) o no (float/MF), y permiten que
@@ -141,7 +142,8 @@ El detalle del escalar de 16 bits está en [MINIFLOAT16.md](MINIFLOAT16.md); el 
 | `core/interp.hpp` | `clamp`/`saturate`/`lerp`/`inv_lerp`/`remap`/`step`/`smoothstep`/`smootherstep` |
 | `core/geometry.hpp` | `length(_sq)`/`distance(_sq)`/`normalize`/`vscale`/`vlerp`/`cross2`/`perp`/`rotate2`/`project`/`reject`/`reflect` |
 | `core/noise.hpp` | `value_noise1/2/3` y `fbm1/2/3` (octavas, `period>0` tileable); hash splitmix32 (2 `__mulsi3` por celda) |
-| `core/spline.hpp` | `hermite` (cúbica) y `catmull_rom` (interpolante) sobre el escalar |
+| `core/spline.hpp` | `hermite` (cúbica) y `catmull_rom` (interpolante) sobre el escalar y sobre `Vec<N,S>` |
+| `core/scalar_math.hpp` | puntos de extensión `sqrt`/`sin`/`cos`/`exp2` (ADL; `float`/`double` con series `constexpr`) |
 | `core/numeric_traits.hpp` | rasgos numéricos y guards de compilación |
 
 ## 6. Verificación
@@ -180,7 +182,7 @@ tests host) falla si la doc se desincroniza del contrato, y `--write` la regener
 | hermite / catmull_rom | si | si | si (catmull usa div_norm) | HOST-061 |
 | hermite / catmull_rom (Vec<N>) | si | si | si | HOST-061 |
 | ease_in/out/in_out_quad/_cubic | si | si | si | HOST-061 |
-| ease_in/out/in_out_sine/_expo | — | si (necesita sin/cos/exp2) | — | HOST-061 |
+| ease_in/out/in_out_sine/_expo | si | si (necesita sin/cos/exp2) | — | HOST-061 |
 | wrap_angle / angle_diff | — | si | — | HOST-057 |
 | sqrt/exp/log/sin/cos/tan | — | si | — | HOST-057 |
 | transform (MF × fix) | — | ratio MF (|m| <= 8) | coordenada | HOST-058 |
