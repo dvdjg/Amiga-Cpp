@@ -39,7 +39,7 @@ int main() {
 	}
 
 	// Traslación.
-	translate(m, 10, -20);
+	translate(m, q0 {10}, q0 {-20});
 	{
 		const Vec2 o = eng::math::transform(m, in[0]);
 		check(o.x().v == 110 && o.y().v == 180, "translate");
@@ -47,7 +47,7 @@ int main() {
 
 	// Escala 0.5 (2048 en 4.12).
 	m = Mat2x2::identity();
-	scale(m, 2048, 2048);
+	scale(m, q12 {2048}, q12 {2048});
 	{
 		const Vec2 o = eng::math::transform(m, in[0]);
 		check(o.x().v == 50 && o.y().v == 100, "scale 0.5");

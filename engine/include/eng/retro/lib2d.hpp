@@ -25,25 +25,28 @@ using Mat2x2 = eng::math::Affine<2, q12, q0>;
 /// Ventana de recorte en píxeles.
 using Rect = eng::math::Rect<q0>;
 
-/// Construye un `Vec2` en píxeles (azúcar para no repetir `q0{...}`).
+/// Construye un `Vec2` desde LONGITUD tipada (`q0`).
+constexpr Vec2 v2(q0 x, q0 y) { return Vec2 {{x, y}}; }
+/// Construye un `Vec2` desde píxeles crudos (azúcar para literales).
 constexpr Vec2 v2(s16 x, s16 y) { return Vec2 {{q0 {x}, q0 {y}}}; }
-/// Construye un `Rect` en píxeles.
+/// Construye un `Rect` desde LONGITUD tipada (`q0`).
+constexpr Rect rect(q0 x0, q0 y0, q0 x1, q0 y1) { return Rect {x0, y0, x1, y1}; }
+/// Construye un `Rect` desde píxeles crudos (azúcar para literales).
 constexpr Rect rect(s16 x0, s16 y0, s16 x1, s16 y1) {
 	return Rect {q0 {x0}, q0 {y0}, q0 {x1}, q0 {y1}};
 }
 
-/// Suma una traslación (en píxeles) a la matriz; no toca la parte lineal.
-constexpr void translate(Mat2x2& m, s16 x, s16 y) {
-	m.t.x() = q0 {static_cast<s16>(m.t.x().v + x)};
-	m.t.y() = q0 {static_cast<s16>(m.t.y().v + y)};
+/// Suma una traslación (`q0`, píxeles) a la matriz; no toca la parte lineal.
+constexpr void translate(Mat2x2& m, q0 dx, q0 dy) {
+	m.t.x() = q0 {static_cast<s16>(m.t.x().v + dx.v)};
+	m.t.y() = q0 {static_cast<s16>(m.t.y().v + dy.v)};
 }
 
-/// Escala la parte lineal (factores en 4.12).
-constexpr void scale(Mat2x2& m, fix sx, fix sy) {
-	const q12 fx {sx}, fy {sy};
+/// Escala la parte lineal (factores RATIO en 4.12, el mismo escalar que la matriz).
+constexpr void scale(Mat2x2& m, q12 sx, q12 sy) {
 	for (int i = 0; i < 2; ++i) {
-		m.m.m[i][0] = (m.m.m[i][0] * fx).rescale<12>().cast<s16>();
-		m.m.m[i][1] = (m.m.m[i][1] * fy).rescale<12>().cast<s16>();
+		m.m.m[i][0] = eng::math::mul_norm(m.m.m[i][0], sx);
+		m.m.m[i][1] = eng::math::mul_norm(m.m.m[i][1], sy);
 	}
 }
 

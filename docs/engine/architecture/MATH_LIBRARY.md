@@ -293,7 +293,8 @@ no llamen a libgcc (`__mulsi3`/`__divsi3`) ni usen instrucciones de 68020.
 | `platform/amiga/gfx3d.hpp` | tipada | `Mat3`/`Affine3`/`Vec3` tipados; `scale` recibe `q12` |
 | `graphics/mesh_renderer.hpp` | tipada | opera sobre `Vec3` tipado; `focal` sigue en 4.12 crudo (convención) |
 | `assets/uaf.hpp` (`MeshAssetView`) | tipada | `vertex()` devuelve `Vec3`; el contenedor es serialización big-endian |
-| `retro/lib2d.hpp` | puente | alias `Vec2`/`Mat2x2`/`Rect` tipados; el recorte (`clip_*`) es aritmética de enteros de píxel por diseño |
+| `retro/lib2d.hpp` | tipada | `Vec2`/`Mat2x2`/`Rect` tipados y `translate`/`scale` toman `q0`/`q12`; el recorte (`clip_*`, Liang-Barsky/Sutherland-Hodgman) es aritmética de enteros de píxel por diseño |
+| `scene/route_camera.hpp` | tipada | posición `Vec<2, Coord>` y offsets de la circunferencia generados con `eng::SineTable<4096,64>` (sin tabla a mano) |
 | `graphics/effects/rotozoom.hpp` | cruda (motivo) | 16.16 en `s32`: `mul_repr<s32>` ensancha a 64 bits → `__muldi3` (no enlaza en 68000); el asm comparte el layout `RotozoomSteps` |
 | `platform/amiga/object3d.hpp`, `lib3d.hpp` | cruda (motivo) | layout empaquetado `obj2c` 1:1; encima se tipa (`Affine3`, `P3`) |
 | `core/light.hpp`, `isqrt.hpp`, `fast_div.hpp`, `arith.hpp`, `word.hpp` | cruda (diseño) | aritmética de enteros/manipulación de bits; no son escalares |
