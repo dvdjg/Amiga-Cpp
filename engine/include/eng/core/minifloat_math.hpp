@@ -1,10 +1,11 @@
 #pragma once
 
 /// \file minifloat_math.hpp
-/// Funciones matemáticas clásicas sobre `MiniFloat16`: `sqrt`, `exp`, `log`, `pow` y
-/// trigonometría (`sin`/`cos`/`tan`), implementadas **solo con aritmética de 16 bits**
-/// (nada de `float`, nada de `libgcc`). El objetivo es que el escalar
-/// (`minifloat.hpp`) sea "casi como un float" dentro de sus ~10 bits de mantisa.
+/// Funciones matemáticas clásicas sobre `MiniFloat16`: `sqrt`, `exp`, `log`, `pow`,
+/// trigonometría (`sin`/`cos`/`tan`) e inversas (`atan`/`atan2`/`asin`/`acos`),
+/// implementadas **solo con aritmética de 16 bits** (nada de `float`, nada de
+/// `libgcc`). El objetivo es que el escalar (`minifloat.hpp`) sea "casi como un float"
+/// dentro de sus ~10 bits de mantisa.
 ///
 /// Estrategia (común a todas): reducción de rango + serie de Taylor/minimax evaluada
 /// en Horner. La reducción se hace con operaciones exactas o de error acotado para no
@@ -19,15 +20,26 @@
 ///     rápido). `k·ln2` se calcula aparte, sin cancelación.
 ///   - `sqrt(x)`: se parte el exponente en par/impar (exacto) y se itera Newton
 ///     `y = (y + m/y)/2` sobre la mantisa normalizada.
+///   - `pow(base, e)`: si `e` es un entero pequeño (|e| <= 64) se calcula por
+///     **cuadrado y multiplicación** (exacto para potencias exactas y admite base
+///     negativa); si no, `exp(e·log(base))`.
 ///   - `sin/cos`: reducción a `r` en `[-π/4, π/4]` con **Cody-Waite** (`π/2 = 1.5 +
 ///     c2 + c3`; el primer trozo `1.5` tiene pocos bits, así que `x − n·1.5` es EXACTO
 ///     por Sterbenz) y series de Taylor. Los argumentos grandes pierden precisión al
 ///     reducir: el dominio fiable es `|x| <= 2π` (ver la doc).
+///   - `atan/atan2/asin/acos`: polinomio minimax de `atan` en [0,1] (error < 2e-5) y
+///     reducción `atan(x) = π/2 − atan(1/x)` para `|x| > 1`; `asin/acos` se apoyan en
+///     `atan2` y `sqrt`.
+///
+/// Las rutinas más pequeñas y calientes llevan `[[gnu::always_inline]]`: en 68000 una
+/// llamada (`jsr`/`rts`, guardar/restaurar registros) cuesta más que el propio cálculo,
+/// así que conviene que el compilador las funda con el llamador.
 ///
 /// Uso acotado y honesto: `MiniFloat16` da ~3 dígitos decimales; estas funciones
 /// heredan ese límite, no lo mejoran. Fuera del rango `[2^-14, 65504]` saturan (0/∞) y
-/// `log(x <= 0)`, `sqrt(x < 0)` y base negativa de `pow` son **indefinidos** (devuelven
-/// ∞, por contrato sencillo y sin NaN).
+/// `log(x <= 0)`, `sqrt(x < 0)`, `asin/acos` fuera de [-1,1] y base negativa de `pow`
+/// con exponente no entero son **indefinidos** (devuelven ∞, por contrato sencillo y sin
+/// NaN).
 ///
 /// Restricciones del engine: `gnu++23`, sin STL, sin excepciones, sin RTTI, sin
 /// asignación dinámica. Depende de `eng/core/minifloat.hpp` y de `eng/core/arith.hpp`
@@ -35,6 +47,14 @@
 
 #include <eng/core/arith.hpp>
 #include <eng/core/minifloat.hpp>
+
+/// Fuerza el inline donde una llamada cuesta más que el cálculo (68000). Se anula al
+/// final del fichero para no contaminar al que incluye.
+#if defined(__GNUC__) || defined(__clang__)
+#define ENG_MF_AI [[gnu::always_inline]]
+#else
+#define ENG_MF_AI
+#endif
 
 namespace eng::math {
 
@@ -75,7 +95,7 @@ inline constexpr MF k_pio2_c3 = MF(k_pio2_c3f);
 /// `x · 2^k` ajustando el campo exponente (exacto salvo saturación 0/∞). Evita la
 /// multiplicación por potencias de dos. Con `e == 0` redondea al mínimo normal, igual
 /// que la aritmética del tipo.
-[[nodiscard]] constexpr MF mf_ldexp(MF x, int k) {
+[[nodiscard]] ENG_MF_AI constexpr MF mf_ldexp(MF x, int k) {
 	const eng::u16 mag = static_cast<eng::u16>(x.raw & 0x7FFFu);
 	if (mag == 0u || mag >= MF::exp_mask) return x;
 	const int e = static_cast<int>((x.raw >> 10) & 31) + k;
@@ -88,7 +108,7 @@ inline constexpr MF k_pio2_c3 = MF(k_pio2_c3f);
 
 /// Entero → `MiniFloat16` sin `float` (para los multiplicadores de Cody-Waite). Exacto
 /// en el rango pequeño que se usa; trunca por encima de 10 bits de mantisa.
-[[nodiscard]] constexpr MF mf_from_int(int n) {
+[[nodiscard]] ENG_MF_AI constexpr MF mf_from_int(int n) {
 	if (n == 0) return MF::zero();
 	const bool neg = n < 0;
 	eng::u32 a = static_cast<eng::u32>(neg ? -n : n);
@@ -105,7 +125,7 @@ inline constexpr MF k_pio2_c3 = MF(k_pio2_c3f);
 }
 
 /// `MiniFloat16` → entero truncando hacia cero. Seguro para |x| < 32768; satura fuera.
-[[nodiscard]] constexpr int mf_to_int_trunc(MF x) {
+[[nodiscard]] ENG_MF_AI constexpr int mf_to_int_trunc(MF x) {
 	const int e = static_cast<int>((x.raw >> 10) & 31) - MF::bias;
 	if (e < 0) return 0;
 	if (e > 14) return (x.raw & MF::sign_mask) != 0u ? -32767 : 32767;
@@ -115,9 +135,22 @@ inline constexpr MF k_pio2_c3 = MF(k_pio2_c3f);
 }
 
 /// Entero más cercano (empate hacia fuera), sin `float`.
-[[nodiscard]] constexpr int mf_round_int(MF x) {
+[[nodiscard]] ENG_MF_AI constexpr int mf_round_int(MF x) {
 	const MF half = MF(0.5f);
 	return mf_to_int_trunc((x.raw & MF::sign_mask) != 0u ? x - half : x + half);
+}
+
+/// `base^n` (n >= 1) por cuadrado y multiplicación. No usa `exp`/`log`: es el camino
+/// exacto para potencias enteras.
+[[nodiscard]] ENG_MF_AI constexpr MF mf_pow_int(MF base, int n) {
+	MF result = MF::one();
+	MF b = base;
+	while (n != 0) {
+		if ((n & 1) != 0) result = result * b;
+		n >>= 1;
+		if (n != 0) b = b * b;
+	}
+	return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -130,7 +163,7 @@ using eng::s32;
 /// Producto Q1.14 × Q1.14 -> Q1.14 con redondeo. `arith<s16>::mul` fuerza `muls.w`
 /// (16×16→32) en 68000; el `>>14` es un `asr`. Los operandos del polinomio no llegan a
 /// desbordar el intermedio de 32 bits.
-[[nodiscard]] constexpr s16 q14_mul(s16 a, s16 b) {
+[[nodiscard]] ENG_MF_AI constexpr s16 q14_mul(s16 a, s16 b) {
 	s32 p = arith<s16>::mul(a, b); // escala 2^28
 	p += 1 << 13;                  // redondeo al bit 14
 	return static_cast<s16>(p >> 14);
@@ -138,7 +171,7 @@ using eng::s32;
 
 /// Suma Q1.14 con saturación (los términos del polinomio son pequeños; la saturación es
 /// una red de seguridad).
-[[nodiscard]] constexpr s16 q14_add(s16 a, s16 b) {
+[[nodiscard]] ENG_MF_AI constexpr s16 q14_add(s16 a, s16 b) {
 	const s32 s = static_cast<s32>(a) + static_cast<s32>(b);
 	if (s > 32767) return 32767;
 	if (s < -32768) return static_cast<s16>(-32768);
@@ -148,7 +181,7 @@ using eng::s32;
 /// `MiniFloat16` -> Q4.11 (s16), redondeando. Exacto para `|x| < 16` con mantisa de 10
 /// bits; por debajo de `2^-11` redondea a 0 (error absoluto < 5e-4, aceptable para la
 /// precisión del tipo).
-[[nodiscard]] constexpr s16 mf16_to_q11(MF x) {
+[[nodiscard]] ENG_MF_AI constexpr s16 mf16_to_q11(MF x) {
 	if (x.is_zero()) return 0;
 	const bool neg = (x.raw & MF::sign_mask) != 0u;
 	const int ef = static_cast<int>((x.raw >> 10) & 31) - MF::bias;
@@ -167,7 +200,7 @@ using eng::s32;
 
 /// Q1.14 (s16) -> `MiniFloat16` con redondeo al más cercano. Conversión manual: nada de
 /// `float` (que en 68000 arrastraría `libgcc`).
-[[nodiscard]] constexpr MF q14_to_mf16(s16 v) {
+[[nodiscard]] ENG_MF_AI constexpr MF q14_to_mf16(s16 v) {
 	if (v == 0) return MF::zero();
 	const bool neg = v < 0;
 	eng::u32 a = static_cast<eng::u32>(neg ? -static_cast<s32>(v) : static_cast<s32>(v));
@@ -196,7 +229,7 @@ using eng::s32;
 
 /// `2^f = exp(f·ln2)` para `f` en [-0.5, 0.5], en Q1.14. Taylor de 8 términos
 /// (`g = f·ln2`, `|g| <= 0.347`), error < 2^-13 antes de redondear.
-[[nodiscard]] constexpr s16 q14_exp2_frac(s16 f14) {
+[[nodiscard]] ENG_MF_AI constexpr s16 q14_exp2_frac(s16 f14) {
 	const s16 g = q14_mul(f14, 11356); // ln2 en Q1.14
 	s16 p = 3;                         // 1/5040
 	p = q14_add(23, q14_mul(p, g));    // 1/720
@@ -209,9 +242,8 @@ using eng::s32;
 	return p;
 }
 
-
 /// `log(m)` para `m` en [1,2) por la serie de `atanh` (t <= 1/3).
-[[nodiscard]] constexpr MF mf_log_m(MF m) {
+[[nodiscard]] ENG_MF_AI constexpr MF mf_log_m(MF m) {
 	const MF t = (m - k_one) / (m + k_one);
 	const MF t2 = t * t;
 	MF p = MF(1.0f / 9.0f);
@@ -223,7 +255,7 @@ using eng::s32;
 }
 
 /// `sin(r)` para `|r| <= π/4` (Taylor, error < 2^-19 antes de redondear).
-[[nodiscard]] constexpr MF mf_sin_small(MF r) {
+[[nodiscard]] ENG_MF_AI constexpr MF mf_sin_small(MF r) {
 	const MF r2 = r * r;
 	MF p = MF(-1.0f / 5040.0f);
 	p = MF(1.0f / 120.0f) + p * r2;
@@ -233,7 +265,7 @@ using eng::s32;
 }
 
 /// `cos(r)` para `|r| <= π/4` (Taylor, 5 términos).
-[[nodiscard]] constexpr MF mf_cos_small(MF r) {
+[[nodiscard]] ENG_MF_AI constexpr MF mf_cos_small(MF r) {
 	const MF r2 = r * r;
 	MF p = MF(1.0f / 40320.0f);
 	p = MF(-1.0f / 720.0f) + p * r2;
@@ -244,13 +276,26 @@ using eng::s32;
 }
 
 /// Reduce `x = n·(π/2) + r` con `r` en `[-π/4, π/4]`; deja `n mod 4` en `q`.
-constexpr void mf_reduce_pio2(MF x, MF& r, int& q) {
+ENG_MF_AI constexpr void mf_reduce_pio2(MF x, MF& r, int& q) {
 	const int n = mf_round_int(x * k_inv_half_pi);
 	const MF nf = mf_from_int(n);
 	r = x - nf * k_pio2_c1;
 	r = r - nf * k_pio2_c2;
 	r = r - nf * k_pio2_c3;
 	q = n & 3;
+}
+
+/// `atan(x)` para `|x| <= 1`: minimax impar de grado 9 en `x²` (Rajan et al.), error
+/// máximo ~2e-5 en [0,1]. En MiniFloat16 el error del polinomio queda por debajo del
+/// redondeo del tipo.
+[[nodiscard]] ENG_MF_AI constexpr MF mf_atan_unit(MF x) {
+	const MF x2 = x * x;
+	MF p = MF(0.0208351f);
+	p = MF(-0.0851330f) + p * x2;
+	p = MF(0.1801410f) + p * x2;
+	p = MF(-0.3302995f) + p * x2;
+	p = MF(0.9998660f) + p * x2;
+	return x * p;
 }
 
 } // namespace mfdetail
@@ -261,7 +306,7 @@ constexpr void mf_reduce_pio2(MF x, MF& r, int& q) {
 
 /// Raíz cuadrada por Newton. `x < 0` es indefinido (devuelve ∞); `x = 0` o ∞ se
 /// propagan.
-[[nodiscard]] constexpr MiniFloat16 sqrt(MiniFloat16 x) {
+[[nodiscard]] ENG_MF_AI constexpr MiniFloat16 sqrt(MiniFloat16 x) {
 	using namespace mfdetail;
 	if (x.is_zero()) return x;
 	if ((x.raw & MiniFloat16::sign_mask) != 0u || x.is_inf())
@@ -284,29 +329,30 @@ constexpr void mf_reduce_pio2(MF x, MF& r, int& q) {
 /// `z = n + f` y `2^f` se evalúa con la serie en Q1.14 y se aplica `2^n` ajustando el
 /// exponente. A diferencia del "partir por la mitad y elevar al cuadrado", aquí no hay
 /// amplificación del error: la precisión se mantiene ~10 bits en todo el rango.
-[[nodiscard]] constexpr MiniFloat16 exp(MiniFloat16 x) {
+[[nodiscard]] ENG_MF_AI constexpr MiniFloat16 exp(MiniFloat16 x) {
 	using namespace mfdetail;
 	if (x.is_zero()) return MF::one();
 	if (x.is_inf()) return (x.raw & MiniFloat16::sign_mask) != 0u ? MF::zero() : x;
 	if (x > MF(12.0f)) return MF::from_raw(MiniFloat16::exp_mask);
 	if (x < MF(-11.0f)) return MF::zero();
 
-	const s32 xq = mf16_to_q11(x);                    // x en Q4.11
-	const s32 zq = (xq * 23637 + (1 << 13)) >> 14;    // ·log2e (Q1.14) -> Q4.11
+	const s32 xq = mf16_to_q11(x);                 // x en Q4.11
+	const s32 zq = (xq * 23637 + (1 << 13)) >> 14; // ·log2e (Q1.14) -> Q4.11
 	s32 n;
 	if (zq >= 0)
 		n = (zq + 1024) >> 11;
 	else
 		n = -(((-zq) + 1024) >> 11);
-	const s32 fq = zq - (n << 11);                    // f en [-0.5, 0.5]
-	const s16 f14 = static_cast<s16>(fq << 3);        // Q4.11 -> Q1.14
+	const s32 fq = zq - (n << 11);             // f en [-0.5, 0.5]
+	const s16 f14 = static_cast<s16>(fq << 3); // Q4.11 -> Q1.14
 	return mf_ldexp(q14_to_mf16(q14_exp2_frac(f14)), static_cast<int>(n));
 }
 
 /// Logaritmo natural. `x <= 0` es indefinido (devuelve ∞); 0 devuelve −∞.
 [[nodiscard]] constexpr MiniFloat16 log(MiniFloat16 x) {
 	using namespace mfdetail;
-	if (x.is_zero()) return MF::from_raw(static_cast<eng::u16>(MiniFloat16::sign_mask | MiniFloat16::exp_mask));
+	if (x.is_zero())
+		return MF::from_raw(static_cast<eng::u16>(MiniFloat16::sign_mask | MiniFloat16::exp_mask));
 	if ((x.raw & MiniFloat16::sign_mask) != 0u) return MF::from_raw(MiniFloat16::exp_mask);
 	if (x.is_inf()) return x;
 	const int ef = static_cast<int>((x.raw >> 10) & 31);
@@ -314,27 +360,36 @@ constexpr void mf_reduce_pio2(MF x, MF& r, int& q) {
 	return mf_from_int(ef - MiniFloat16::bias) * k_ln2 + mf_log_m(m);
 }
 
-/// Potencia `base^e` = `exp(e·log(base))`. Base <= 0 es indefinida (devuelve ∞, salvo
-/// base 0, que se resuelve por el signo de `e`).
+/// Potencia `base^e`. Si `e` es entero (|e| <= 64) se resuelve por cuadrado y
+/// multiplicación (exacto para potencias exactas y admite base negativa); si no, se
+/// usa `exp(e·log(base))` y la base debe ser positiva.
 [[nodiscard]] constexpr MiniFloat16 pow(MiniFloat16 base, MiniFloat16 e) {
 	using namespace mfdetail;
+	const int ni = mf_to_int_trunc(e);
+	if (ni > -65 && ni < 65 && mf_from_int(ni) == e) { // exponente entero exacto
+		if (ni == 0) return MF::one();
+		MF p = mf_pow_int(base, ni < 0 ? -ni : ni);
+		if (ni < 0) p = MF::one() / p;
+		return p;
+	}
 	if (base.is_zero()) {
 		if (e.is_zero()) return MF::one();
-		return (e.raw & MiniFloat16::sign_mask) != 0u
-			       ? MF::from_raw(MiniFloat16::exp_mask)
-			       : MF::zero();
+		return (e.raw & MiniFloat16::sign_mask) != 0u ? MF::from_raw(MiniFloat16::exp_mask)
+							      : MF::zero();
 	}
 	if ((base.raw & MiniFloat16::sign_mask) != 0u) return MF::from_raw(MiniFloat16::exp_mask);
 	return exp(e * log(base));
 }
 
-// Nota: `log`, `exp`, `sqrt` y `pow` usan los nombres del `<cmath>` del host; como
-// toman `MiniFloat16`, el ADL los resuelve frente a los de `std::` sin ambigüedad.
+// Nota: `log`, `exp`, `sqrt`, `pow`, `sin`... usan los nombres del `<cmath>` del host;
+// como toman `MiniFloat16`, el ADL los resuelve frente a los de `std::`. No hay
+// ambigüedad.
 
 /// Seno. Dominio fiable `|x| <= 2π`; con argumentos mayores la reducción pierde bits.
 [[nodiscard]] constexpr MiniFloat16 sin(MiniFloat16 x) {
 	using namespace mfdetail;
-	if (x.is_zero() || x.is_inf()) return (x.is_inf()) ? MF::zero() : x;
+	if (x.is_zero()) return x;
+	if (x.is_inf()) return MF::zero();
 	MF r;
 	int q;
 	mf_reduce_pio2(x, r, q);
@@ -372,4 +427,50 @@ constexpr void mf_reduce_pio2(MF x, MF& r, int& q) {
 	return sin(x) / c;
 }
 
+/// Arco tangente en `(-π/2, π/2)`. `±∞` -> `±π/2`.
+[[nodiscard]] ENG_MF_AI constexpr MiniFloat16 atan(MiniFloat16 x) {
+	using namespace mfdetail;
+	if (x.is_zero()) return x;
+	if (x.is_inf())
+		return (x.raw & MiniFloat16::sign_mask) != 0u ? -k_half_pi : k_half_pi;
+	const bool neg = (x.raw & MiniFloat16::sign_mask) != 0u;
+	const MF a = neg ? -x : x;
+	// |x| > 1: atan(x) = π/2 - atan(1/x) (el polinomio solo es válido en [0,1]).
+	const MF r = (a > k_one) ? (k_half_pi - mf_atan_unit(k_one / a)) : mf_atan_unit(a);
+	return neg ? -r : r;
+}
+
+/// Arco tangente de dos argumentos, en `(-π, π]`. Devuelve 0 para `(0,0)`.
+[[nodiscard]] ENG_MF_AI constexpr MiniFloat16 atan2(MiniFloat16 y, MiniFloat16 x) {
+	using namespace mfdetail;
+	if (x.is_zero()) {
+		if (y.is_zero()) return MF::zero();
+		return (y.raw & MiniFloat16::sign_mask) != 0u ? -k_half_pi : k_half_pi;
+	}
+	if (y.is_zero()) return (x.raw & MiniFloat16::sign_mask) != 0u ? k_pi : MF::zero();
+	const MF q = atan(y / x); // en (-π/2, π/2)
+	if ((x.raw & MiniFloat16::sign_mask) == 0u) return q;
+	return (y.raw & MiniFloat16::sign_mask) != 0u ? (q - k_pi) : (q + k_pi);
+}
+
+/// Arco seno. Dominio `[-1, 1]`; fuera de él, ∞.
+[[nodiscard]] constexpr MiniFloat16 asin(MiniFloat16 x) {
+	using namespace mfdetail;
+	if (x > k_one || x < -k_one) return MF::from_raw(MiniFloat16::exp_mask);
+	MF d = k_one - x * x; // sqrt(1 - x²)
+	if ((d.raw & MiniFloat16::sign_mask) != 0u) d = MF::zero(); // guarda de redondeo
+	return atan2(x, sqrt(d));
+}
+
+/// Arco coseno. Dominio `[-1, 1]`; fuera de él, ∞.
+[[nodiscard]] constexpr MiniFloat16 acos(MiniFloat16 x) {
+	using namespace mfdetail;
+	if (x > k_one || x < -k_one) return MF::from_raw(MiniFloat16::exp_mask);
+	MF d = k_one - x * x;
+	if ((d.raw & MiniFloat16::sign_mask) != 0u) d = MF::zero();
+	return atan2(sqrt(d), x);
+}
+
 } // namespace eng::math
+
+#undef ENG_MF_AI

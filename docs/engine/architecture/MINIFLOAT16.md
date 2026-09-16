@@ -120,30 +120,37 @@ La conversión desde `float` es **explícita** (`MiniFloat16(1.0f)`), para que u
 
 ## 7. Funciones matemáticas
 
-`engine/include/eng/core/minifloat_math.hpp` añade `sqrt`, `exp`, `log`, `pow` y
-trigonometría (`sin`, `cos`, `tan`) en `eng::math`, implementadas **solo con aritmética
-de 16 bits**: nada de `float` ni de `libgcc` (en el `.o` de m68k se ve `muls.w` y las
-tablas, sin `divs`/`divu` ni `__mulsf3`/`__divsf3`). Son la misma idea que el resto del
-tipo: reducción de rango + serie de Taylor evaluada en Horner, con el compromiso
-precisión/coste documentado.
+`engine/include/eng/core/minifloat_math.hpp` añade `sqrt`, `exp`, `log`, `pow`,
+trigonometría (`sin`, `cos`, `tan`) e inversas (`atan`, `atan2`, `asin`, `acos`) en
+`eng::math`, implementadas **solo con aritmética de 16 bits**: nada de `float` ni de
+`libgcc` (en el `.o` de m68k se ve `muls.w` y las tablas, sin `divs`/`divu` ni
+`__mulsf3`/`__divsf3`). Son la misma idea que el resto del tipo: reducción de rango +
+serie de Taylor minimax evaluada en Horner, con el compromiso precisión/coste
+documentado. Las rutinas calientes (`exp`, `sqrt` y los helpers) llevan
+`[[gnu::always_inline]]`: en 68000 la llamada (`jsr`/`rts` + salvar registros) puede
+costar más que el cálculo; con el inline forzado `exp`/`sqrt` no emiten símbolo propio.
 
 | Función | Algoritmo | Rango fiable | Error observado (vs `float`) |
 |---|---|---|---|
 | `sqrt` | exponente par/impar + Newton | `[2^-14, 65504]` | ~1.0e-3 rel |
 | `exp` | `z = x·log2e` en Q4.11, `2^f` en Q1.14, `2^n` por exponente | `[-11, 11]` (satura fuera) | ~6e-4 rel |
 | `log` | `x = m·2^k` + serie de `atanh` | `(0, 65504]` | ~2.5e-3 rel (~1.4e-2 abs en el extremo) |
-| `pow` | `exp(e·log(base))` | `base > 0` | ~1e-2 rel (crece con `|e·log(base)|`) |
-| `sin`/`cos` | Cody-Waite + Taylor | `|x| <= 2π` (más allá pierde bits) | ~2e-3 abs |
+| `pow` | entero `\|e\| <= 64`: cuadrado y multiplicación (exacto); si no `exp(e·log(base))` | `base > 0`; entero admite base negativa | exacto (entero); ~1e-2 rel (crece con `\|e·log(base)\|`) |
+| `sin`/`cos` | Cody-Waite + Taylor | `\|x\| <= 2π` (más allá pierde bits) | ~2e-3 abs |
 | `tan` | `sin/cos` | como `sin`/`cos`, evitando los polos | ~1e-2 rel lejos del polo |
+| `atan` | minimax en `[0,1]` + `atan(1/x)` | todo `x` (±∞ → ±π/2) | ~1.2e-3 abs |
+| `atan2` | `atan(y/x)` + cuadrante | todo `(y,x) != (0,0)` | ~2.1e-3 abs |
+| `asin`/`acos` | `atan2` + `sqrt` | `[-1, 1]` | ~1.8e-3 abs |
 
 El punto a retener es que `exp` **no** usa el clásico "partir por la mitad y elevar al
 cuadrado": ese método amplifica el error relativo por `2^s` y dejaba el extremo en
 ~4% de error. Resolver la reducción en punto fijo (Q4.11/Q1.14 con `muls.w`) mantiene
-los ~10 bits en todo el rango.
+los ~10 bits en todo el rango. `pow` con exponente entero evita `exp`/`log` por
+completo (y por eso `pow(2,10) = 1024` es exacto).
 
-Dominios inválidos (contrato sencillo, sin NaN): `sqrt(x < 0)`, `log(x <= 0)` y
-`pow(base <= 0)` producen ∞ (±∞ en `log(0)`), y las saturaciones a 0/∞ son explícitas
-en el rango del tipo.
+Dominios inválidos (contrato sencillo, sin NaN): `sqrt(x < 0)`, `log(x <= 0)`,
+`asin/acos` fuera de `[-1,1]` y `pow` con base negativa y exponente no entero producen
+∞ (±∞ en `log(0)`), y las saturaciones a 0/∞ son explícitas en el rango del tipo.
 
 ## 8. Estado y verificación
 

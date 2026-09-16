@@ -85,6 +85,28 @@ void test_simple_values() {
 	      "cos(pi) ~ -1");
 	check(std::fabs(static_cast<float>(m::sin(MiniFloat16(3.1415927f)))) < 3.0e-3f, "sin(pi) ~ 0");
 	check(rel_err(static_cast<float>(m::tan(MiniFloat16(0.7853982f))), 1.0f) < 3.0e-2f, "tan(pi/4) ~ 1");
+
+	// inversas
+	check(m::atan(MiniFloat16(0.0f)).is_zero(), "atan(0) = 0");
+	check(std::fabs(static_cast<float>(m::atan(MiniFloat16(1.0f))) - 0.7853982f) < 3.0e-3f,
+	      "atan(1) ~ pi/4");
+	check(std::fabs(static_cast<float>(m::atan2(MiniFloat16(1.0f), MiniFloat16(-1.0f))) - 2.3561945f) <
+		      4.0e-3f,
+	      "atan2(1,-1) ~ 3pi/4");
+	check(m::asin(MiniFloat16(0.0f)).is_zero(), "asin(0) = 0");
+	check(std::fabs(static_cast<float>(m::asin(MiniFloat16(1.0f))) - 1.5707963f) < 3.0e-3f,
+	      "asin(1) ~ pi/2");
+	check(m::acos(MiniFloat16(1.0f)).is_zero(), "acos(1) = 0");
+	check(std::fabs(static_cast<float>(m::acos(MiniFloat16(-1.0f))) - 3.1415927f) < 4.0e-3f,
+	      "acos(-1) ~ pi");
+
+	// pow entero: camino exacto (cuadrado y multiplicación) y base negativa
+	check(m::pow(MiniFloat16(2.0f), MiniFloat16(10.0f)).raw == MiniFloat16(1024.0f).raw, "pow(2,10) = 1024 exacto");
+	check(m::pow(MiniFloat16(-2.0f), MiniFloat16(3.0f)).raw == MiniFloat16(-8.0f).raw, "pow(-2,3) = -8 exacto");
+	check(m::pow(MiniFloat16(-2.0f), MiniFloat16(4.0f)).raw == MiniFloat16(16.0f).raw, "pow(-2,4) = 16 exacto");
+	check(rel_err(static_cast<float>(m::pow(MiniFloat16(3.0f), MiniFloat16(-2.0f))), 1.0f / 9.0f) <
+		      3.0e-3f,
+	      "pow(3,-2) ~ 1/9");
 }
 
 // ---------------------------------------------------------------------------
@@ -171,6 +193,37 @@ void test_sweeps() {
 		check(mxc <= 3.0e-3f, "cos: abs <= 3e-3");
 		check(mxt <= 3.0e-2f, "tan: rel <= 3e-2 (|cos| > 0.1)");
 	}
+
+	// inversas
+	{
+		float mxa = 0, mxt2 = 0, mxs = 0, mxc = 0;
+		for (int i = -2000; i <= 2000; ++i) {
+			const MiniFloat16 x(i * 0.005f);
+			mxa = std::fmax(mxa, std::fabs(static_cast<float>(m::atan(x)) -
+						       std::atan(static_cast<float>(x))));
+		}
+		for (int i = -100; i <= 100; ++i)
+			for (int j = -100; j <= 100; ++j) {
+				if (i == 0 && j == 0) continue;
+				const MiniFloat16 y(i * 0.05f), x(j * 0.05f);
+				mxt2 = std::fmax(mxt2, std::fabs(static_cast<float>(m::atan2(y, x)) -
+								 std::atan2(static_cast<float>(y),
+									    static_cast<float>(x))));
+			}
+		for (int i = -100; i <= 100; ++i) {
+			const MiniFloat16 x(i * 0.01f);
+			mxs = std::fmax(mxs, std::fabs(static_cast<float>(m::asin(x)) -
+						       std::asin(static_cast<float>(x))));
+			mxc = std::fmax(mxc, std::fabs(static_cast<float>(m::acos(x)) -
+						       std::acos(static_cast<float>(x))));
+		}
+		std::printf("  atan abs max %.2e   atan2 abs max %.2e   asin abs %.2e   acos abs %.2e\n", mxa,
+			    mxt2, mxs, mxc);
+		check(mxa <= 3.0e-3f, "atan: abs <= 3e-3");
+		check(mxt2 <= 4.0e-3f, "atan2: abs <= 4e-3");
+		check(mxs <= 3.0e-3f, "asin: abs <= 3e-3");
+		check(mxc <= 3.0e-3f, "acos: abs <= 3e-3");
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -196,12 +249,20 @@ void test_edges() {
 	check(m::pow(MiniFloat16(0.0f), MiniFloat16(2.0f)).is_zero(), "pow(0,+) = 0");
 	check(m::pow(MiniFloat16(0.0f), MiniFloat16(0.0f)).raw == MiniFloat16(1.0f).raw, "pow(0,0) = 1");
 	check(m::pow(MiniFloat16(0.0f), MiniFloat16(-2.0f)).is_inf(), "pow(0,-) = inf");
-	check(m::pow(MiniFloat16(-2.0f), MiniFloat16(2.0f)).is_inf(), "pow(base negativa) -> inf (indefinido)");
+	check(m::pow(MiniFloat16(-2.0f), MiniFloat16(1.5f)).is_inf(),
+	      "pow(base negativa, exponente no entero) -> inf (indefinido)");
 
 	// tan cerca del polo
 	const MiniFloat16 near_pole(1.5707963f);
 	check(m::tan(near_pole).is_inf() || std::fabs(static_cast<float>(m::tan(near_pole))) > 100.0f,
 	      "tan(pi/2) satura o es enorme");
+
+	// inversas fuera de dominio
+	check(m::asin(MiniFloat16(2.0f)).is_inf(), "asin(2) -> inf (indefinido)");
+	check(m::acos(MiniFloat16(-2.0f)).is_inf(), "acos(-2) -> inf (indefinido)");
+	check(std::fabs(static_cast<float>(m::atan(MiniFloat16::from_raw(MiniFloat16::exp_mask))) -
+			1.5707963f) < 3.0e-3f,
+	      "atan(+inf) = pi/2");
 }
 
 } // namespace
