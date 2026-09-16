@@ -39,11 +39,16 @@ public:
 
 	/// Reserva N buffers (planos + copperlist por slot) y enlaza cada driver a los
 	/// suyos. El llamador ya ha reservado la arena Chip del backend.
+	///
+	/// Un driver **sin bitplanes** (p. ej. `CopperChunkyScene`, cuyo buffer es la propia
+	/// copperlist) declara `bitplane_bytes_for == 0` y no se le reserva bloque de planos.
 	template <class Config>
 	bool init(eng::MemorySystem& memory, const Config& config) {
+		const u32 plane_bytes = Driver::bitplane_bytes_for(config);
 		for (u8 i = 0; i < N; ++i) {
-			m_planes[i] = memory.chip.allocate_block<eng::PlaneTag>(
-				Driver::bitplane_bytes_for(config), 16);
+			if (plane_bytes != 0u) {
+				m_planes[i] = memory.chip.allocate_block<eng::PlaneTag>(plane_bytes, 16);
+			}
 			m_copper[i] = memory.chip.allocate_block<eng::CopperTag>(config.copper_bytes, 16);
 			if (!m_driver[i].bind(m_planes[i], m_copper[i], config)) {
 				return false;

@@ -50,6 +50,13 @@
 #define K_061_ASM 1
 #endif
 
+// Numero de buffers de display: 1 = sin doble buffer, 2 = doble, 3 = triple.
+// Configurable sin tocar codigo: EXTRA_DEFINES="-DK_061_BUFFERS=1".
+#ifndef K_061_BUFFERS
+#define K_061_BUFFERS 2
+#endif
+static_assert(K_061_BUFFERS >= 1 && K_061_BUFFERS <= 4, "K_061_BUFFERS fuera de rango");
+
 struct ExecBase* SysBase = nullptr;
 
 extern "C" {
@@ -294,7 +301,7 @@ private:
 		return eng::IndexedTexture {kTexture.data(), kTexture.size()};
 	}
 
-	drivers::MultiBuffered<drivers::HamScene, 2> m_scenes {};
+	drivers::MultiBuffered<drivers::HamScene, K_061_BUFFERS> m_scenes {};
 	eng::Block<eng::ChunkyTag> m_chunky[2] {};
 	eng::Block<eng::PlaneTag> m_ref {};
 	eng::graphics::Rotozoom m_rot {};

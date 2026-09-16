@@ -54,11 +54,19 @@ master** (ver 0.8).
 
 | # | Tarea | Fichero | Estado |
 |---|---|---|---|
-| 2.1 | Migrar `082_plasma` y `083_fbm_noise` (hoy 2 instancias + `m_active` manual) | `demos/amiga/082_plasma`, `083_fbm_noise` | pendiente |
-| 2.2 | Exponer **N por configuración** (`-DK_<DEMO>_BUFFERS=1\|2\|3`) y documentar «con y sin doble/triple buffer» | `demos/amiga/061…`, `080…` | pendiente |
+| 2.1 | Migrar `082_plasma` y `083_fbm_noise` (hoy 2 instancias + `m_active` manual) | `demos/amiga/082_plasma`, `083_fbm_noise` | **hecho** |
+| 2.2 | Exponer **N por configuración** (`-DK_<DEMO>_BUFFERS=1\|2\|3`) y documentar «con y sin doble/triple buffer» | `demos/amiga/061…`, `080…`, `082…`, `083…` | **hecho** |
 | 2.3 | Evaluar `079` (anillo de 5, rastro temporal) y `116` (triple buffer real): ¿encajan como `MultiBuffered<Driver,N>` o son otro caso? | `demos/amiga/079…`, `116…` | pendiente |
 
 Gate: regresión de esas demos (fps + gate visual).
+
+**Resultado de F2**: `CopperChunkyScene` gana `bind()` y declara `bitplane_bytes_for == 0`
+(su "buffer" es la copperlist, no hay bitplanes); `MultiBuffered` no reserva planos en ese
+caso. 082 y 083 usan ya `MultiBuffered<CopperChunkyScene, N>`. Verificado: 082 READY +
+36,49 fps + visión limpia; 083 READY y **frames con MD5 distintos pero idénticos a los de
+antes del refactor** (byte-idéntico en comportamiento; el modelo de visión dio falso
+negativo «no se mueve»). N por configuración en 061/080/082/083: los 4 casos (N=1 y N=2)
+compilan y **082 con N=1 arranca** (`A500_k_082_buffers1_debug`).
 
 ### F3 — Superficies/capas sin memoria de display
 

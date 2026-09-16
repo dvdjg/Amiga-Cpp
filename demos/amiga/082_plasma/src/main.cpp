@@ -14,6 +14,7 @@
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/graphics/drivers/copper_chunky.hpp>
+#include <eng/graphics/drivers/multi_buffered.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
@@ -23,6 +24,13 @@
 #include "support/gcc8_c_support.h"
 #include "data/plasma_colors.hpp"
 #include "data/plasma_tables.hpp"
+
+// Numero de buffers de display: 1 = sin doble buffer, 2 = doble, 3 = triple.
+// Configurable sin tocar codigo: EXTRA_DEFINES="-DK_082_BUFFERS=1".
+#ifndef K_082_BUFFERS
+#define K_082_BUFFERS 2
+#endif
+static_assert(K_082_BUFFERS >= 1 && K_082_BUFFERS <= 4, "K_082_BUFFERS fuera de rango");
 
 struct ExecBase* SysBase = nullptr;
 
@@ -48,6 +56,7 @@ namespace drivers = eng::graphics::drivers;
 
 constexpr eng::u8 kCols = 36; // HTILES = WIDTH/8
 constexpr eng::u8 kRows = 64; // VTILES = HEIGHT/4
+constexpr eng::u8 kBuffers = K_082_BUFFERS;
 
 /// Simulacion del plasma (verbatim de `UpdateXBUF`/`UpdateYBUF`/`UpdateChunky`).
 struct Plasma {
@@ -81,16 +90,15 @@ struct PlasmaDemo {
 		drivers::CopperChunkyConfig cfg {};
 		cfg.cols = kCols;
 		cfg.rows = kRows;
-		for (eng::u8 b = 0; b < 2; ++b) {
-			if (!m_scene[b].init(backend.memory(), cfg)) {
-				eng::debug::mark_failed(g_eng_run_status, 0x00008202u);
-				return;
-			}
+		// Doble buffer generico: el driver no tiene bitplanes, asi que `MultiBuffered`
+		// reserva solo las DOS copperlists (su "buffer" real) y alterna con COP1LC.
+		if (!m_scenes.init(backend.memory(), cfg)) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00008202u);
+			return;
 		}
 		// Rellena el primer frame antes de tomar el display (evita basura inicial).
-		draw_into(m_scene[0]);
-		m_scene[0].takeover(backend);
-		m_active = 1;
+		draw_into(m_scenes.slot(0));
+		m_scenes.takeover(backend);
 		m_init_ok = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x0082u);
 	}
@@ -98,9 +106,8 @@ struct PlasmaDemo {
 	void update(amiga::MinimalBackend& backend, eng::GameContext&) {
 		if (!m_init_ok) return;
 		m_plasma.advance();
-		draw_into(m_scene[m_active]);
-		m_scene[m_active].install(backend);
-		m_active ^= 1;
+		draw_into(m_scenes.back());
+		m_scenes.commit(backend);
 	}
 
 	void render(amiga::MinimalBackend& backend, eng::GameContext& context) {
@@ -125,8 +132,7 @@ private:
 	}
 
 	Plasma m_plasma {};
-	drivers::CopperChunkyScene m_scene[2] {};
-	eng::u8 m_active = 0;
+	drivers::MultiBuffered<drivers::CopperChunkyScene, kBuffers> m_scenes {};
 	bool m_init_ok = false;
 };
 

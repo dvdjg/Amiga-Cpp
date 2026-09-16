@@ -321,9 +321,14 @@ recording del GUI). Pendiente: `print` DWARF.
   demo por hecha**: anotarlo y arreglarlo o marcarla como pendiente.
 - **El veredicto de visión es un filtro de sospecha, no una prueba**: puede sobre-reportar
   en texturas de alta frecuencia (caso real: `qwen3-vl` acusó «permutación de planos» en
-  la 061 y un gate objetivo de 7 estados —rotación/zoom/paneo— la descartó). Toda anomalía
-  señalada se **confirma o refuta con un gate objetivo**; si el gate no cubre ese estado
-  (p. ej. la 061 solo comparaba la identidad), **ampliarlo** antes de dar nada por bueno.
+  la 061 y un gate objetivo de 7 estados —rotación/zoom/paneo— la descartó) y también
+  **dar falsos negativos** (dijo «los frames son idénticos, no hay movimiento» en la 083,
+  cuyos 3 frames tenían MD5 distintos). Toda anomalía señalada **y toda afirmación de
+  «no se mueve»** se confirma o refuta con un gate objetivo (gate de estados, diff de
+  frames/MD5, comparación por fase); si el gate no cubre ese estado (p. ej. la 061 solo
+  comparaba la identidad), **ampliarlo** antes de dar nada por bueno. Ojo también con el
+  **ritmo de captura**: si la demo va a menos fps que el intervalo de captura, los frames
+  salen iguales por muestreo, no por falta de animación (083: 2,3 fps → capturar cada 1,5 s).
 - Herramientas: `tools/profile/ai-analyze.mjs` (`--mode frames|montage|all`),
   `tools/analyze/verify-scroll-directions.mjs`, `tools/amiga-tiles/run-vision-verify.mjs`.
   Ollama en `127.0.0.1:11434`; alternativa por MCP: `winuae_profile_ollama`.

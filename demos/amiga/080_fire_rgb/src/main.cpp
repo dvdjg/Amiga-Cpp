@@ -152,6 +152,13 @@ void RandomizeBottom(void) {
 #define K_FIRE_ASM 1
 #endif
 
+// Numero de buffers de display: 1 = sin doble buffer, 2 = doble, 3 = triple.
+// Configurable sin tocar codigo: EXTRA_DEFINES="-DK_080_BUFFERS=1".
+#ifndef K_080_BUFFERS
+#define K_080_BUFFERS 2
+#endif
+static_assert(K_080_BUFFERS >= 1 && K_080_BUFFERS <= 4, "K_080_BUFFERS fuera de rango");
+
 #define FIRE_ITER_C() \
 		vl = (*Eptr++) + (*Bptr++) + (*Dptr++) + (*Cptr++); \
 		hi = dt[(static_cast<uint16_t>(vl >> 16) >> 2) & 0xFFu]; \
@@ -416,7 +423,7 @@ private:
 	eng::u8* m_planes[2][kPlanes] = {};
 	short* m_fire = nullptr;
 	// Display HAM + cuadruplicado (una instancia del driver por buffer).
-	drivers::MultiBuffered<drivers::HamScene, 2> m_scenes {};
+	drivers::MultiBuffered<drivers::HamScene, K_080_BUFFERS> m_scenes {};
 	amiga::MinimalBackend* m_backend = nullptr;
 	// Pipeline del C2P: la fase 0 la arranca `update`; las fases 1..12 las encadena la
 	// IRQ de blit (`on_blit`), que marca `m_c2p_done` al terminar.

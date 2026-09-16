@@ -39,14 +39,24 @@ public:
 	static constexpr u8 max_cols = 64;
 	static constexpr u8 max_rows = 64;
 
+	/// Este driver **no tiene bitplanes** (el color lo da el Copper): su "buffer" es la
+	/// copperlist. Lo declara para que `MultiBuffered` no reserve planos por slot.
+	static constexpr u32 bitplane_bytes_for(const CopperChunkyConfig&) { return 0u; }
+
 	bool init(MemorySystem& memory, const CopperChunkyConfig& config) {
+		return bind(eng::Block<eng::PlaneTag> {},
+			    memory.chip.allocate_block<eng::CopperTag>(config.copper_bytes, 16), config);
+	}
+
+	/// Construye la lista sobre un bloque de copper **ya reservado** (mismo contrato que
+	/// `init`, sin reservar memoria). El bloque de planos se ignora (driver sin bitplanes);
+	/// existe para encajar con `MultiBuffered<Driver, N>`.
+	bool bind(eng::Block<eng::PlaneTag>, eng::Block<eng::CopperTag> copper,
+		  const CopperChunkyConfig& config) {
 		m_config = config;
-		if (config.cols == 0u || config.rows == 0u || config.cols > max_cols || config.rows > max_rows) {
-			m_ok = false;
-			return false;
-		}
-		m_copper_block = memory.chip.allocate_block<eng::CopperTag>(config.copper_bytes, 16);
-		if (!m_copper_block.valid()) {
+		m_copper_block = copper;
+		if (config.cols == 0u || config.rows == 0u || config.cols > max_cols ||
+			config.rows > max_rows || !m_copper_block.valid()) {
 			m_ok = false;
 			return false;
 		}

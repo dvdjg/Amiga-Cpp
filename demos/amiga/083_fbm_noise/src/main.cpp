@@ -15,6 +15,7 @@
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/graphics/drivers/copper_chunky.hpp>
+#include <eng/graphics/drivers/multi_buffered.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
@@ -22,6 +23,13 @@
 #include <proto/exec.h>
 
 #include "support/gcc8_c_support.h"
+
+// Numero de buffers de display: 1 = sin doble buffer, 2 = doble, 3 = triple.
+// Configurable sin tocar codigo: EXTRA_DEFINES="-DK_083_BUFFERS=1".
+#ifndef K_083_BUFFERS
+#define K_083_BUFFERS 2
+#endif
+static_assert(K_083_BUFFERS >= 1 && K_083_BUFFERS <= 4, "K_083_BUFFERS fuera de rango");
 
 struct ExecBase* SysBase = nullptr;
 
@@ -47,6 +55,7 @@ using MF = eng::math::MiniFloat16;
 
 constexpr u8 kCols = 36;
 constexpr u8 kRows = 64;
+constexpr u8 kBuffers = K_083_BUFFERS;
 constexpr int kGW = 16; // rejilla gruesa del campo fbm
 constexpr int kGH = 16;
 
@@ -71,18 +80,16 @@ struct FbmDemo {
 		drivers::CopperChunkyConfig cfg {};
 		cfg.cols = kCols;
 		cfg.rows = kRows;
-		for (u8 b = 0; b < 2; ++b) {
-			if (!m_scene[b].init(backend.memory(), cfg)) {
-				eng::debug::mark_failed(g_eng_run_status, 0x00008302u);
-				return;
-			}
+		// Doble buffer generico (driver sin bitplanes: 2 copperlists).
+		if (!m_scenes.init(backend.memory(), cfg)) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00008302u);
+			return;
 		}
 		build_coarse();
 		build_palette();
 
-		draw_into(m_scene[0]);
-		m_scene[0].takeover(backend);
-		m_active = 1;
+		draw_into(m_scenes.slot(0));
+		m_scenes.takeover(backend);
 		m_init_ok = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x0083u);
 	}
@@ -97,9 +104,8 @@ struct FbmDemo {
 		if (m_oy >= (3 << 8)) { m_oy = 3 << 8; m_dy = -1; }
 		else if (m_oy <= 0) { m_oy = 0; m_dy = 1; }
 
-		draw_into(m_scene[m_active]);
-		m_scene[m_active].install(backend);
-		m_active ^= 1;
+		draw_into(m_scenes.back());
+		m_scenes.commit(backend);
 	}
 
 	void render(amiga::MinimalBackend& backend, eng::GameContext& context) {
@@ -190,12 +196,11 @@ private:
 		}
 	}
 
-	drivers::CopperChunkyScene m_scene[2] {};
+	drivers::MultiBuffered<drivers::CopperChunkyScene, kBuffers> m_scenes {};
 	u8 m_coarse[kGW * kGH] {};
 	u16 m_palette[256] {};
 	s32 m_ox = 0, m_oy = 0;
 	s16 m_dx = 1, m_dy = 1;
-	u8 m_active = 0;
 	bool m_init_ok = false;
 };
 
