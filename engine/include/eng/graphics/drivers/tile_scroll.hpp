@@ -36,6 +36,7 @@
 
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
+#include <eng/graphics/copper/double_buffer.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/drivers/ehb_scene.hpp>
 #include <eng/graphics/frame_plan.hpp>
@@ -469,10 +470,8 @@ public:
 
 	bool init(MemorySystem& memory, const TileScrollConfig& config) {
 		m_bitplane_block = memory.chip.allocate_block<eng::PlaneTag>(bitplane_bytes, 16);
-		m_copper_blocks[0] = memory.chip.allocate_block<eng::CopperTag>(config.copper_bytes, 16);
-		m_copper_blocks[1] = memory.chip.allocate_block<eng::CopperTag>(config.copper_bytes, 16);
-		if (!m_bitplane_block.valid() || !m_copper_blocks[0].valid() ||
-			!m_copper_blocks[1].valid() || config.base_palette == nullptr) {
+		if (!m_bitplane_block.valid() || !m_copper.begin(memory, config.copper_bytes) ||
+			config.base_palette == nullptr) {
 			m_ok = false;
 			return false;
 		}
@@ -512,16 +511,17 @@ public:
 		if (m_copper_initialized) {
 			return patch_copper();
 		}
-		// Primer build: emitir la lista completa en AMBOS bloques (doble buffer)
-		// y activar el 0; la instalacion apuntara a el.
-		if (!emit_full_copper(0)) {
+		// Primer build: emitir la lista completa en AMBOS bloques (doble buffer) y
+		// activar el ultimo. La instalacion apuntara a el.
+		if (!emit_full_copper()) {
 			return false;
 		}
-		if (!emit_full_copper(1)) {
+		m_copper.flip();
+		if (!emit_full_copper()) {
 			return false;
 		}
+		m_copper.flip();
 		m_copper_initialized = true;
-		m_active_copper = 0;
 		return true;
 	}
 
@@ -536,14 +536,14 @@ public:
 	template <typename Backend>
 	void takeover(Backend& backend) const {
 		if (m_ok && m_copper_initialized) {
-			backend.takeover_display(m_copper_blocks[m_active_copper].view.as_words().data());
+			m_copper.takeover(backend);
 		}
 	}
 
 	template <typename Backend>
 	void install(Backend& backend) const {
 		if (m_ok) {
-			backend.install_copper_list(m_copper_blocks[m_active_copper].view.as_words().data());
+			m_copper.install(backend);
 		}
 	}
 
@@ -668,8 +668,7 @@ private:
 	/// Recalcula el estado de display a partir del input y lo guarda en m_display
 	/// y en m_scroll/m_scroll_y. No toca la copperlist.
 	bool compute_display(const TileScrollInput& input) {
-		if (!m_bitplane_block.valid() || !m_copper_blocks[0].valid() ||
-			!m_copper_blocks[1].valid() || m_config.base_palette == nullptr) {
+		if (!m_bitplane_block.valid() || !m_copper.ok() || m_config.base_palette == nullptr) {
 			m_ok = false;
 			return false;
 		}
@@ -725,15 +724,17 @@ private:
 		return true;
 	}
 
-	/// Emite la lista completa de copper en el bloque indicado del doble buffer.
+	/// Emite la lista completa de copper en el bloque **inactivo** del doble buffer.
 	///
-	/// Se llama UNA sola vez (primer rebuild) sobre los dos bloques; a partir de
-	/// ahi `patch_copper` solo sobrescribe las words que dependen de la camara.
-	bool emit_full_copper(u8 block) {
-		copper::Scheduler scheduler { m_copper_blocks[block] };
+	/// Se llama en el primer `rebuild` (sobre los dos bloques, con un `flip` entre
+	/// ambos); a partir de ahi `patch_copper` solo sobrescribe las words que dependen
+	/// de la camara. Los registros dinamicos se emiten con `move_at` y sus **handles**
+	/// quedan guardados, de modo que `patch_copper` no depende de offsets cableados.
+	bool emit_full_copper() {
+		copper::Scheduler scheduler { m_copper.inactive_block() };
 		scheduler.move(copper::Register::DMACON, m_display.dmacon);
 		scheduler.move(copper::Register::BPLCON0, m_display.bplcon0);
-		scheduler.move(copper::Register::BPLCON1, m_display.bplcon1);
+		m_patch_bplcon1 = scheduler.move_at(copper::Register::BPLCON1, m_display.bplcon1);
 		scheduler.move(copper::Register::BPLCON2, m_display.bplcon2);
 		scheduler.move(copper::Register::BPL1MOD, m_display.bpl1mod);
 		scheduler.move(copper::Register::BPL2MOD, m_display.bpl2mod);
@@ -742,10 +743,11 @@ private:
 		scheduler.move(copper::Register::DDFSTRT, m_display.ddfstrt);
 		scheduler.move(copper::Register::DDFSTOP, m_display.ddfstop);
 		for (u8 plane = 0; plane < plane_count; ++plane) {
-			const uintptr address =
-				reinterpret_cast<uintptr>(m_bitplane_block.view.data() + static_cast<u32>(plane) * plane_bytes + m_display.plane_offsets[plane]);
-			scheduler.move(copper::bitplane_pointer_high_register(plane), static_cast<u16>(address >> 16));
-			scheduler.move(copper::bitplane_pointer_low_register(plane), static_cast<u16>(address & 0xffffu));
+			const uintptr address = plane_pointer(plane);
+			m_patch_bplpt[plane][0] = scheduler.move_at(copper::bitplane_pointer_high_register(plane),
+								   static_cast<u16>(address >> 16));
+			m_patch_bplpt[plane][1] = scheduler.move_at(copper::bitplane_pointer_low_register(plane),
+								   static_cast<u16>(address & 0xffffu));
 		}
 		scheduler.emit_palette(*m_config.base_palette);
 		for (u8 i = 0; i < m_config.zone_count; ++i) {
@@ -762,39 +764,41 @@ private:
 		return m_ok;
 	}
 
-	/// Parchea en el bloque inactivo las words que dependen de la camara.
+	/// Direccion del plano `plane` para la ventana desplazada de este frame.
+	uintptr plane_pointer(u8 plane) const {
+		return reinterpret_cast<uintptr>(m_bitplane_block.view.data() +
+						 static_cast<u32>(plane) * plane_bytes +
+						 m_display.plane_offsets[plane]);
+	}
+
+	/// Parchea en el bloque inactivo las words que dependen de la camara y lo publica.
 	///
-	/// La lista completa se emitio una sola vez; el scroll solo cambia BPLCON1 y
-	/// los 6 punteros. Layout (words) de la lista:
-	///   0-1 DMACON   2-3 BPLCON0   4-5 BPLCON1   <- 5 = valor de BPLCON1
-	///   6-7 BPLCON2  8-9 BPL1MOD   10-11 BPL2MOD
-	///   12-13 DIWSTRT 14-15 DIWSTOP 16-17 DDFSTRT 18-19 DDFSTOP
-	///   20+ por plano p: [BPLxPTH, valor en 21+4p, BPLxPTL, valor en 23+4p]
-	///   despues: paleta (32), wait 0xf8, COLOR00=0, fin.
-	/// Re-emitir la lista completa cada frame costaba ~63K ciclos; parchear 13
-	/// words cuesta ~3K y deja margen real para la logica del juego.
+	/// La lista completa se emitio una sola vez; el scroll solo cambia `BPLCON1` y los
+	/// punteros `BPLxPT`. Los handles los devolvio `move_at` al emitir, asi que el
+	/// parcheo no depende del layout de la lista. Re-emitir la lista completa cada
+	/// frame costaba ~63K ciclos; parchear 13 words cuesta ~3K.
 	bool patch_copper() {
-		u16* const words = reinterpret_cast<u16*>(m_copper_blocks[m_active_copper ^ 1u].view.data());
-		words[5] = m_display.bplcon1;
+		u16* const words = m_copper.inactive_words();
+		words[m_patch_bplcon1 + 1u] = m_display.bplcon1;
 		for (u8 plane = 0; plane < plane_count; ++plane) {
-			const uintptr address =
-				reinterpret_cast<uintptr>(m_bitplane_block.view.data() + static_cast<u32>(plane) * plane_bytes + m_display.plane_offsets[plane]);
-			words[21u + static_cast<u16>(plane) * 4u] = static_cast<u16>(address >> 16);
-			words[23u + static_cast<u16>(plane) * 4u] = static_cast<u16>(address & 0xffffu);
+			const uintptr address = plane_pointer(plane);
+			words[m_patch_bplpt[plane][0] + 1u] = static_cast<u16>(address >> 16);
+			words[m_patch_bplpt[plane][1] + 1u] = static_cast<u16>(address & 0xffffu);
 		}
-		m_active_copper = static_cast<u8>(m_active_copper ^ 1u);
+		m_copper.flip();
 		return true;
 	}
 
 	TileScrollConfig m_config {};
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
-	eng::Block<eng::CopperTag> m_copper_blocks[2] {};
+	copper::DoubleBuffer m_copper {};
 	TileDisplayState m_display {};
 	copper::ScheduleReport m_copper_report {};
 	u16 m_scroll[2] {};
 	u16 m_scroll_y[2] {};
+	u16 m_patch_bplcon1 = 0;
+	u16 m_patch_bplpt[plane_count][2] {};
 	u16 m_copper_words = 0;
-	u8 m_active_copper = 0;
 	bool m_copper_initialized = false;
 	bool m_ok = false;
 };

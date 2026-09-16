@@ -74,6 +74,24 @@ public:
 		++m_report.display_moves;
 	}
 
+	/// Emite un MOVE y devuelve un **handle** (índice de la word de instrucción) para
+	/// parchear su dato despues con `patch_data`. Es la via para que un driver
+	/// parchee registros por frame sin depender de offsets cableados (ver
+	/// `copper::DoubleBuffer`).
+	u16 move_at(Register reg, u16 value) {
+		++m_report.display_moves;
+		return m_builder.move_at(reg, value);
+	}
+
+	/// Igual que `move_at(Register, ...)` para registros custom por offset.
+	u16 move_at(u16 custom_register_offset, u16 value) {
+		++m_report.display_moves;
+		return m_builder.move_at(custom_register_offset, value);
+	}
+
+	/// Sobrescribe el dato de un MOVE emitido con `move_at` (mismo handle).
+	void patch_data(u16 instruction_word, u16 value) { m_builder.patch_data(instruction_word, value); }
+
 	/// Carga un puntero BPLxPT desde una intención de display. Mantiene los dos
 	/// MOVEs del puntero en el scheduler, también para los splits verticales.
 	void move_bitplane_pointer(u8 plane, eng::ChipAddress address) {
