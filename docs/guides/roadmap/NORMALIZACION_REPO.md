@@ -28,7 +28,8 @@ buffers y copper está en `docs/engine/architecture/DISPLAY_COMPOSITION.md`.
 | 0.5 | Test host de `TileScrollScene` (geometría de la lista + alternancia de los 2 bloques + 13 words parcheadas) | `tests/host/069_copper_double_buffer` | **hecho** |
 | 0.6 | Crear los documentos canónicos de F0: contrato (`DISPLAY_COMPOSITION.md`) y roadmap (este) + enlazarlos en los índices | `docs/engine/architecture/`, `docs/guides/roadmap/` | **hecho** |
 | 0.7 | Re-medir y corregir las cifras de fps de `AGENTS.md` (101/102/103/104) o indicar su contexto de medida; hoy 103 mide 32,7 y no 50 | `AGENTS.md` | **investigado, pendiente de bisect** (ver abajo) |
-| 0.8 | **Demo canónica rota**: 107 (corkscrew 8-way) **no alcanza READY** (timeout por canal lateral) en master; A/B con y sin los cambios de F1.3 → es pre-existente | `demos/amiga/107_xlimited_corkscrew` | pendiente |
+| 0.8 | **Demo canónica rota**: 107 (corkscrew 8-way) **no alcanza READY**; instrumentado el `init` y localizado: los mapas se construyen y muere **dentro de `scene.begin`** (guru: PC clavado en ROM de Kickstart, el marcador de `detail` sobrevive → sin reboot). A/B con y sin los cambios de F1.3 → pre-existente | `demos/amiga/107_xlimited_corkscrew` | **localizado, pendiente de arreglo** |
+| 0.9 | **Triaje runtime de demos**: barrido de salud con `tools/analyze/sweep-demo-health.sh` → **53 OK, 0 FAILED, 3 TIMEOUT (070, 071, 107), 4 NOEXE (assets sin construir: 072/073/074/076)**. El build da 0 FAIL; las "rotas" son runtime y son 3, no "muchas" | todas | **hecho** |
 
 Gate: suite host + encoding. Sin cambios de comportamiento, así que no exige regresión de demos.
 
@@ -126,6 +127,23 @@ Evidencia recogida (medida con `measure-fps.mjs`, A500 `-O1`):
 - **101 sí cuadra** con la nota; 103/104 no. Los READMEs de esas demos no citan fps.
 - **No se puede comparar contra un commit antiguo** de forma directa: al hacer checkout cambian también el layout de `out/demos/...` y las propias herramientas (los números de la nota pueden ser de ese layout anterior), así que el A/B envejecido no es fiable.
 - Receta para cerrarlo: `git bisect` entre el commit donde se escribió la nota de `AGENTS.md` y `HEAD`, midiendo 103 en cada paso, **con el tooling de cada commit** (o, mejor, fijar el artefacto: medir siempre con el runner actual y anotar fecha+config junto a cada cifra). Mientras no se haga, las cifras de fps de `AGENTS.md` deben considerarse **no trazables**, no un objetivo.
+
+## Triaje de demos (runtime) — 2026-09
+
+`tools/build/build-all-demos.sh`: **56 OK, 4 ASSET, 0 FAIL** (todas compilan).
+
+`tools/analyze/sweep-demo-health.sh` (lanza cada demo con el runner y clasifica el
+estado por canal lateral): **53 OK, 0 FAILED, 3 TIMEOUT, 4 NOEXE**.
+
+| Estado | Demos | Lectura |
+|---|---|---|
+| TIMEOUT | `070_mixer_three_voices`, `071_mixer_four_voices`, `107_xlimited_corkscrew` | No publican READY ni FAILED: cuelgue/guru. **NO VERIFICADAS** |
+| NOEXE | `072_sample_channel`, `073_sample_mixer`, `074_mixer_drums`, `076_mixer_sample_channels` | Faltan assets generados (ASSET en el build), no rotura de código |
+
+Conclusión: **no hay que borrar demos en bloque**. El parque está sano (53/60 arrancan);
+lo que hay es 3 casos concretos que arrancar, empezando por la 107 (canónica del corkscrew).
+Regla de cierre: una demo que no arranca se marca **NO VERIFICADA** y no se documenta
+como validada hasta que el barrido la de el OK.
 
 ## Decisiones pendientes (requieren consulta)
 1. ¿`TileScrollScene` se promueve a canónico o queda como laboratorio y se retiran sus demos?

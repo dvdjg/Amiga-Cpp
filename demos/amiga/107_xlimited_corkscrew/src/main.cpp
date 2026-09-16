@@ -726,6 +726,7 @@ struct DemoGame {
             eng::debug::mark_failed(g_eng_run_status, 0x00010701u);
             return;
         }
+        g_eng_run_status.detail = 0x107a1u; // DIAG init: config_memory OK
 
 // Mapa de fondo (PF2) + FG. Las VARIANTES NORMAL/CARTA comparten los arrays
         // VIVOS (g_map_cells = BG, m_fg_map = FG en DPF): al conmutar se GENERA el
@@ -806,10 +807,12 @@ scene_cfg.max_step = kStepMax;
         scene_cfg.hud.palette = kHudPalette;
 #endif
 
+        g_eng_run_status.detail = 0x107abu; // DIAG init: mapas construidos, antes de scene.begin
         if (!scene.begin(backend.memory(), scene_cfg)) {
             eng::debug::mark_failed(g_eng_run_status, 0x00010703u);
             return;
         }
+        g_eng_run_status.detail = 0x107a2u; // DIAG init: scene.begin OK
         // Técnica inicial del muestrario (ciclo de vida): paso/patrón por técnica.
         {
             const eng::u8 start = static_cast<eng::u8>(K_START_TECH % (kTechCount ? kTechCount : 1u));
@@ -819,6 +822,7 @@ scene_cfg.max_step = kStepMax;
             eng::debug::mark_failed(g_eng_run_status, 0x00010705u);
             return;
         }
+        g_eng_run_status.detail = 0x107a3u; // DIAG init: scene.fill OK
         // El fill de init ya cubre la variante inicial; no re-pintar en el 1er update.
         m_refillPending = false;
 #if K_CANVAS_FG
@@ -871,11 +875,13 @@ scene_cfg.max_step = kStepMax;
                 return;
             }
         }
+        g_eng_run_status.detail = 0x107a4u; // DIAG init: pre_scroll OK
         if (!scene.compose()) {
             eng::debug::mark_failed(g_eng_run_status, 0x00010708u);
             return;
         }
         scene.install(backend);
+        g_eng_run_status.detail = 0x107a5u; // DIAG init: compose+install OK
 
 #if K_SPRITE
         // Sprite hardware (diamante 16x16, 4 colores via COLOR16-19): DAT=plano0,
