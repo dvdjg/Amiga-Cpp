@@ -36,19 +36,32 @@ cielo usan **registros distintos** (`COLOR01/03/05` frente a `COLOR00`) para no 
   dibujo por píxel costaba ~6 fps.
 - **Los intents no llevan offsets cableados**: el plan guarda los handles del emisor.
 
-## Rendimiento
+## Rendimiento (abierto)
 
-~25 fps (2 campos/frame) en WinUAE-DBG `-O1`. El frame queda justo por encima de un campo,
-así que el bucle lo sincroniza a dos; el coste está en el copiado del BOB a Chip RAM y en
-la emisión del plan, no en el Copper (que trabaja en paralelo).
+**16,7 fps** (3 campos/frame) con el BOB de 45 intenciones. Medido con el contador de
+ciclos: el `update` cuesta poco (BOB ~19k ciclos con el Blitter, plan ~45k con ~300
+intenciones) y sin embargo el **bucle** se lleva ~425k ciclos por frame. Dos experimentos
+lo acotan y quedan como trabajo pendiente:
+
+- **Cielo con cambio por línea (256 intenciones)**: el frame se dispara a **14
+  campos/frame**. Es la mejora que falta (degradado suave de verdad) y el motivo por el que
+  hoy el cielo son 16 bandas.
+- **Relleno de polígono por Blitter** para el BOB: el coste de CPU baja (19k frente a los
+  97k de la copia byte a byte a Chip RAM) pero el frame sube a 3 campos → apunta a
+  **contención de bus** (los blits del polígono/máscara con la CPU compitiendo por el bus en
+  ciclo-exacto), no al coste de programación.
+
+Para cerrarlo hace falta perfilar el bucle (no el update): VPOSR/`wait_vblank` con el
+Copper y el Blitter activos, y probar alternativas (blit directo del blob enmascarado en
+vez de polígono + cookie-cut, o BOB en fast RAM).
 
 ## Verificación
 
-- `analyze-screenshot.sh` → `verify_c2p_color` (≥12 colores, croma y cobertura).
-- **Gate de visión obligatorio** (secuencia): un disco moviéndose sobre el cielo de franjas,
-  sin duplicados ni parpadeo. Nota: pasarle varias imágenes en una sola llamada confunde al
-  modelo (describió «dos discos» cuando es el mismo disco en dos posiciones); conviene
-  revisar un frame suelto si señala anomalías.
+- `analyze-screenshot.sh` → `verify_c2p_color` (≥12 colores, croma y cobertura): 24 colores.
+- **Gate de visión obligatorio** (secuencia): cielo en bandas + disco moviéndose **con
+  arcoíris de degradado vertical en su interior**. Nota: pasarle varias imágenes en una
+  sola llamada confunde al modelo (describió «dos discos» y luego «no hay duplicados»);
+  conviene revisar un frame suelto si señala anomalías.
 
 ## Build & run & analyze
 

@@ -72,7 +72,6 @@ constexpr eng::u16 kSkyBandHeight = 16;
 
 // BOB: radio y degradado de 3 tramos anclado a su Y.
 constexpr eng::s16 kBobR = 22;
-constexpr eng::u8 kBobGradient = 3;
 constexpr eng::u16 kBobSpan = 2u * kBobR + 1u; // 45 filas
 constexpr eng::u16 kBobStride = 8u;            // bytes por fila y plano (45+7 bits)
 
@@ -88,8 +87,14 @@ constexpr eng::u16 kSky[16] = {
 	0x50c, 0x70b, 0x909, 0xb06, 0xd04, 0xf02, 0xf20, 0xf50,
 };
 
-// Degradado del BOB (amarillo -> naranja -> rojo): COLOR01 en 3 tramos de su Y.
-constexpr eng::u16 kBobColors[kBobGradient] = {0xff0, 0xf80, 0xf00};
+// Arcoiris de 32 colores (RGB444) para el interior del BOB: cicla 4 veces sobre el
+// disco, de modo que entre scanlines consecutivas el cambio es de un solo paso (suave).
+constexpr eng::u16 kRainbow[32] = {
+	0x00f, 0x00d, 0x00b, 0x009, 0x008, 0x009, 0x00b, 0x00d,
+	0x00f, 0x0df, 0x0ff, 0x0fd, 0x0fb, 0x0f9, 0x0f8, 0x0f9,
+	0x0fb, 0x0fd, 0x0ff, 0xfff, 0xffd, 0xffb, 0xff9, 0xff8,
+	0xff9, 0xffb, 0xffd, 0xfff, 0xf0f, 0xf0d, 0xf0b, 0xf09,
+};
 
 /// Seno entero (-64..64) de 64 pasos para la trayectoria (compile-time, sin float).
 constexpr eng::SineTable<64, 64> kSin {};
@@ -164,31 +169,37 @@ private:
 		for (eng::u8 b = 0; b < kSkyBands; ++b) {
 			const eng::u8 idx = static_cast<eng::u8>((b + m_sky_phase) & 15u);
 			push_intent(static_cast<eng::u16>(kFirstLine + static_cast<eng::u16>(b) * kSkyBandHeight),
-				    0u, kSky + idx);
+				    0u, kSky[idx]);
 		}
 	}
 
-	/// BOB: comunica su necesidad a la escena — su degradado (COLOR01) viaja con su Y.
-	/// Tres tramos: arriba, medio y abajo del disco.
+	/// BOB: comunica su necesidad a la escena — su degradado (COLOR01) viaja con su Y con
+	/// **un cambio por scanline** (arcoiris suave: un paso de la tabla entre lineas
+	/// consecutivas), cubriendo el disco entero.
 	void add_bob_intents() {
-		const eng::u16 top = static_cast<eng::u16>(
-			(kFirstLine + static_cast<eng::u16>(m_bob_y - kBobR)) & 0xffu);
-		for (eng::u8 i = 0; i < kBobGradient; ++i) {
-			push_intent(static_cast<eng::u16>((top + i * (2u * kBobR / (kBobGradient - 1u))) & 0xffu),
-				    1u, kBobColors + i);
+		for (eng::s16 row = -kBobR; row <= kBobR; ++row) {
+			const eng::s16 y = static_cast<eng::s16>(m_bob_y + row);
+			if (y < 0 || y >= static_cast<eng::s16>(kHeight)) continue;
+			const eng::u8 idx = static_cast<eng::u8>(((row + kBobR) * 4 + m_sky_phase) & 31);
+			push_intent(static_cast<eng::u16>((kFirstLine + y) & 0xffu), 1u, kRainbow[idx]);
 		}
 	}
 
-	/// Anade una intencion `PaletteLine` que escribe el registro `first` (register COLOR)
-	/// con un color suelto.
-	void push_intent(eng::u16 line, eng::u8 first, const eng::u16* color) {
+	/// Anade una intencion `PaletteLine` que escribe el registro COLOR `first` con un
+	/// color suelto. El color vive en un slot PROPIO (`m_colors[2*i + first]`) y la vista
+	/// abarca `first + count`: el scheduler escribe `COLOR[first+i] = colors[first+i]`, asi
+	/// que para `first = 1` la vista necesita 2 entradas (color en el indice 1). Usar un
+	/// unico scratch compartido haria que TODAS las intenciones leyeran el ultimo color.
+	void push_intent(eng::u16 line, eng::u8 first, eng::u16 color) {
 		if (m_n >= eng::copper::Plan::max_intents) return;
+		const eng::u16 slot = static_cast<eng::u16>(m_n * 2u);
+		m_colors[static_cast<eng::u16>(slot + first)] = color;
 		graphics::CopperIntent& it = m_intents[m_n++];
 		it.kind = graphics::CopperIntentKind::PaletteLine;
 		it.top = line;
 		it.bottom = line;
 		it.hpos = 0;
-		it.colors = eng::PaletteWords {color, 1};
+		it.colors = eng::PaletteWords {&m_colors[slot], 2u};
 		it.first = first;
 		it.count = 1;
 	}
@@ -291,7 +302,8 @@ private:
 	eng::u8 m_shape[8][3][kBobSpan][kBobStride] {};
 	copper::Plan m_plan {};
 	graphics::CopperIntent m_intents[eng::copper::Plan::max_intents] {};
-	eng::u8 m_n = 0;
+	eng::u16 m_colors[eng::copper::Plan::max_intents * 2u] {};
+	eng::u16 m_n = 0;
 	eng::u8 m_back = 0;
 	eng::u8 m_sky_phase = 0;
 	eng::s16 m_bob_x = 0;

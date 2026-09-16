@@ -101,6 +101,8 @@ Gate: demo `122` + gate visual/secuencia; host `038/039`.
 | 4.2 | Integrarlo con `MultiBuffered` (el plan se rellena en el buffer trasero y se publica en `commit`) | `engine/include/eng/graphics/drivers/multi_buffered.hpp` | **parcial**: el plan ya es **no propietario** (`attach(DoubleBuffer&)`, cubierto por HOST-070) y publica con `commit(backend)`; falta el plan **por slot** de `MultiBuffered` (resolver la semántica de rotación: hoy `MultiBuffered::commit` instala Y rota, y el `Plan` voltea aparte) |
 | 4.3 | Portar como **tracks** los casos que hoy emiten copper a mano: empezar por `055_copper_rainbow` | demo `055` | **hecho** (055 usa ya el plan y gana doble buffer de copperlist) |
 | 4.4 | Test host del `CopperPlan` (orden por línea, patch vs reemisión, handles válidos, presupuesto) | `tests/host/070_copper_plan` | **hecho** |
+| 4.5 | **Topología de display conocida por el plan**: declarar zonas (rango de líneas + ventana de contenido) para que un efecto exprese su necesidad en coordenadas de contenido y el plan la traduzca a raster — el caso XYlimited, que reparte la pantalla en campos/splits, debe ser transparente para los efectos | `engine/include/eng/graphics/copper/plan.hpp`, `xlimited*` | pendiente |
+| 4.6 | **Gradiente por línea**: hoy el `Plan` ya lo soporta (capacidad 320 + sort O(n)), pero en la 085 el cielo con 256 intenciones dispara el frame a **14 campos** y el BOB por Blitter a **3** (update ~65k, bucle ~425k). Perfilar el **bucle** (VPOSR/`wait_vblank` con Copper+Blitter activos) antes de dar la versión por línea | `demos/amiga/085…` | pendiente |
 
 **Resultado de F4.1/F4.3/F4.4**: `eng::copper::Plan` implementado
 (`begin`/`begin_frame`/`scheduler`/`add`/`materialize`/`end_frame`/`commit`/`takeover`),

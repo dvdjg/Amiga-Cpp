@@ -49,7 +49,8 @@ class Plan {
 public:
 	/// Capacidad de intenciones por frame (fijo, sin heap). `add` marca overflow si se
 	/// supera; `end_frame` devuelve false en ese caso (no se publica una lista parcial).
-	static constexpr u8 max_intents = 64;
+	/// Con 320 caben los gradientes **por línea** de una escena (256 líneas + objetos).
+	static constexpr u16 max_intents = 320;
 
 	bool begin(eng::MemorySystem& memory, const PlanConfig& cfg = {}) {
 		m_cfg = cfg;
@@ -90,8 +91,8 @@ public:
 		}
 	}
 
-	void add(const graphics::CopperIntent* intents, u8 count) {
-		for (u8 i = 0; i < count; ++i) {
+	void add(const graphics::CopperIntent* intents, u16 count) {
+		for (u16 i = 0; i < count; ++i) {
 			add(intents[i]);
 		}
 	}
@@ -101,8 +102,13 @@ public:
 	/// cola). Orden estable: las de igual línea conservan el orden de inserción.
 	void materialize() {
 		sort_by_top();
-		if (m_count != 0u) {
-			m_sched.emit_copper_intents(m_intents, m_count);
+		// El emisor acepta lotes de hasta 255; con gradientes por línea se pasa.
+		u16 done = 0;
+		while (done < m_count) {
+			const u16 left = static_cast<u16>(m_count - done);
+			const u16 n = (left > 255u) ? 255u : left;
+			m_sched.emit_copper_intents(m_intents + done, static_cast<u8>(n));
+			done = static_cast<u16>(done + n);
 		}
 	}
 
@@ -129,7 +135,7 @@ public:
 		m_copper->takeover(backend);
 	}
 
-	constexpr u8 intent_count() const { return m_count; }
+	constexpr u16 intent_count() const { return m_count; }
 	constexpr bool overflow() const { return m_overflow; }
 	constexpr bool ok() const { return m_ok; }
 	constexpr u16 words() const { return m_words; }
@@ -140,20 +146,37 @@ public:
 	constexpr u16* inactive_words() const { return m_copper->inactive_words(); }
 
 private:
-	/// Ordenación por inserción (n ≤ 64, sin STL ni heap) por línea **relativa al inicio
-	/// del display**. El scheduler exige las intenciones en el orden en que el raster las
-	/// alcanza; hacerlo aquí libera al llamador de ese invariante implícito (y del cruce
-	/// de las 256 líneas).
+	/// Cuenta y ordena por línea **relativa al inicio del display** en O(n): counting por
+	/// 256 líneas + permutación cíclica in-place. El scheduler exige las intenciones en el
+	/// orden en que el raster las alcanza; hacerlo aquí libera al llamador de ese invariante
+	/// (y del cruce de las 256 líneas). O(n²) no vale: un cielo con cambio por línea son
+	/// ~256 intenciones.
 	void sort_by_top() {
-		for (u8 i = 1; i < m_count; ++i) {
-			const graphics::CopperIntent key = m_intents[i];
-			const u8 key_line = raster_key(key.top);
-			u8 j = i;
-			while (j > 0u && raster_key(m_intents[j - 1u].top) > key_line) {
-				m_intents[j] = m_intents[j - 1u];
-				--j;
+		if (m_count < 2u) return;
+		u16 prefix[256];
+		u16 count[256];
+		for (u16 l = 0; l < 256u; ++l) count[l] = 0;
+		for (u16 i = 0; i < m_count; ++i) ++count[raster_key(m_intents[i].top)];
+		u16 acc = 0;
+		for (u16 l = 0; l < 256u; ++l) {
+			prefix[l] = acc;
+			acc = static_cast<u16>(acc + count[l]);
+		}
+		// Posición final de cada intención (estable: FIFO por línea).
+		for (u16 i = 0; i < m_count; ++i) {
+			m_perm[i] = prefix[raster_key(m_intents[i].top)]++;
+		}
+		// Permutación cíclica in-place con el array de posiciones como guía.
+		for (u16 i = 0; i < m_count; ++i) {
+			while (m_perm[i] != i) {
+				const u16 j = m_perm[i];
+				const graphics::CopperIntent tmp = m_intents[i];
+				m_intents[i] = m_intents[j];
+				m_intents[j] = tmp;
+				const u16 pj = m_perm[j];
+				m_perm[j] = m_perm[i];
+				m_perm[i] = pj;
 			}
-			m_intents[j] = key;
 		}
 	}
 
@@ -167,7 +190,8 @@ private:
 	DoubleBuffer* m_copper = nullptr;
 	Scheduler m_sched {};
 	graphics::CopperIntent m_intents[max_intents] {};
-	u8 m_count = 0;
+	u16 m_perm[max_intents] {};
+	u16 m_count = 0;
 	u16 m_words = 0;
 	ScheduleReport m_report {};
 	bool m_overflow = false;
