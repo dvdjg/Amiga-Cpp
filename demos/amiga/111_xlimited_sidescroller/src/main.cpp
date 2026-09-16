@@ -22,6 +22,10 @@
 #include <eng/field/streaming_map.hpp>
 #include <eng/field/tile_source.hpp>
 #include <eng/field/tile_demo.hpp>
+#include <eng/graphics/mesh_renderer.hpp>
+#include <eng/platform/amiga/gfx3d.hpp>
+#include <eng/platform/amiga/polygon_fill.hpp>
+#include <eng/retro/fixed_q.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -43,6 +47,50 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 namespace {
 
 namespace field = eng::field;
+namespace math3d = eng::math3d;
+using eng::math3d::Face;
+using eng::math3d::Vec3;
+
+// Cubo giratorio de la capa FG (misma malla que la demo 077): demuestra el
+// **relleno de caras por Blitter** a través de `Surface`. La demo no conoce
+// registros ni planos: pide "pinta esta cara" y el playfield FG enruta el relleno
+// al Blitter (máscara 1 bit + cookie-cut). Es la vía práctica para caras sólidas
+// por frame (el relleno CPU costaba ~1500 ciclos/píxel).
+constexpr eng::s16 kCubeR = 44;
+constexpr Vec3 kCubeVerts[8] {
+	{-kCubeR, -kCubeR, -kCubeR}, {kCubeR, -kCubeR, -kCubeR},
+	{kCubeR, kCubeR, -kCubeR}, {-kCubeR, kCubeR, -kCubeR},
+	{-kCubeR, -kCubeR, kCubeR}, {kCubeR, -kCubeR, kCubeR},
+	{kCubeR, kCubeR, kCubeR}, {-kCubeR, kCubeR, kCubeR},
+};
+constexpr Face kCubeFaces[12] {
+	{4, 5, 6}, {4, 6, 7}, // +Z (frente)
+	{0, 3, 2}, {0, 2, 1}, // -Z (detrás)
+	{7, 6, 2}, {7, 2, 3}, // +Y (arriba)
+	{0, 1, 5}, {0, 5, 4}, // -Y (abajo)
+	{1, 2, 6}, {1, 6, 5}, // +X (derecha)
+	{0, 4, 7}, {0, 7, 3}, // -X (izquierda)
+};
+// Cámara en +Z mirando al origen (como 077); el cubo se proyecta centrado en
+// (kCubeCX, kCubeCY) de la capa FG. `kCubeHalf` cubre el cubo en cualquier
+// orientación (kCubeR*sqrt(2) proyectado) para limpiar el recuadro por frame.
+// `mesh_render_filled` proyecta en perspectiva **desde el origen** (la cámara solo
+// ordena/culling), así que el modelo se traslada a +Z (kCubeCamZ) para caer delante.
+constexpr eng::s16 kCubeCamZ = 240;
+constexpr eng::s16 kCubeFocal = 170;
+constexpr eng::s16 kCubeCX = 234;
+constexpr eng::s16 kCubeCY = 120;
+constexpr eng::s16 kCubeHalf = 44;
+
+/// Modelo del cubo: rotación Rx(angle)·Ry(2·angle) + traslación a +Z.
+inline math3d::Affine3 cube_model(eng::u16 angle) {
+	math3d::Affine3 m = math3d::Affine3::identity();
+	math3d::load_rotate(m.m, angle,
+			    static_cast<eng::u16>((static_cast<eng::u32>(angle) * 2u) & 4095u), 0u);
+	m.t = eng::math::Vec<3, eng::retro::q0> {
+		{eng::retro::q0 {0}, eng::retro::q0 {0}, eng::retro::q0 {kCubeCamZ}} };
+	return m;
+}
 
 constexpr eng::u16 kTileW = 16;
 constexpr eng::u16 kTileH = 16;
@@ -50,6 +98,7 @@ constexpr eng::u16 kViewportW = 320;
 constexpr eng::u16 kViewportH = 256;
 constexpr eng::u8  kPlanes = 3;            // DPF 3+3
 constexpr eng::u16 kDisplayH = 256;        // y_mode=Off -> display = viewport
+constexpr eng::u32 kMaskBytes = static_cast<eng::u32>(kViewportW / 8u) * kViewportH;
 
 // Mundo: 4096 x 320 px -> 256 x 20 tiles.
 constexpr eng::u16 kMapCols = 256;
@@ -130,6 +179,15 @@ struct DemoGame {
 	eng::u8 m_fire = 0;
 	bool ready = false;
 
+	// Cubo FG relleno por Blitter: máscara en Chip + servicio + buffers del render.
+	eng::Block<eng::MaskTag> m_mask_block {};
+	eng::amiga::PolygonFillService m_poly_fill {};
+	math3d::Vec3 m_cube_world[8] {};
+	math3d::FaceOrder m_cube_order[12] {};
+	eng::s16 m_cube_sx[8] {};
+	eng::s16 m_cube_sy[8] {};
+	eng::u8 m_cube_drawn = 0;
+
 	// Precarga los chunks que cubren la banda visible + margen de avance. El
 	// scroll solo consulta residentes (`TileMapView::tile_at`), así que sin esto
 	// aparecerían huecos al entrar en un chunk aún no cargado.
@@ -140,7 +198,7 @@ struct DemoGame {
 
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		if (!backend.configure_memory({300u * 1024u, 16u * 1024u, 8u * 1024u})) {
+		if (!backend.configure_memory({360u * 1024u, 16u * 1024u, 8u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011101u);
 			return;
 		}
@@ -186,6 +244,32 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011102u);
 			return;
 		}
+		// Relleno por Blitter del FG: máscara 1 bit en CHIP + servicio que la
+		// envuelve en el sink del playfield FG. `Surface::fill_polygon` sobre el FG
+		// pasa a usar el Blitter (cookie-cut), sin que la demo vea registros.
+		m_mask_block = backend.memory().chip.allocate_block<eng::MaskTag>(kMaskBytes, 16);
+		if (!m_mask_block.valid()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00011106u);
+			return;
+		}
+		m_poly_fill.backend = &backend;
+		m_poly_fill.mask = m_mask_block.view;
+		scene.canvas_fg().set_polygon_fill_sink(m_poly_fill.sink());
+		// Cubo estático relleno por Blitter: valida el relleno de caras del engine
+		// sobre el lienzo FG **interleaved** (sink → máscara + cookie-cut). Se dibuja
+		// UNA vez; el lienzo FG es de un solo buffer, así que animarlo por frame
+		// exigiría doble buffer (pendiente).
+		{
+			auto fg = scene.canvas_fg_surface();
+			const math3d::MeshView cube {
+				eng::Span<const Vec3>(kCubeVerts, 8), eng::Span<const Face>(kCubeFaces, 12) };
+			const auto color_of = [](eng::u16 face) -> eng::u8 {
+				return static_cast<eng::u8>(1u + ((face / 2u) % 6u));
+			};
+			m_cube_drawn = static_cast<eng::u8>(eng::graphics::mesh_render_filled(
+				cube, cube_model(700u), Vec3 {0, 0, 0}, kCubeFocal, kCubeCX, kCubeCY,
+				m_cube_world, m_cube_order, m_cube_sx, m_cube_sy, fg, color_of, false));
+		}
 		scene.bg().set_camera(0, 0);
 		prefetch_band();
 		if (!scene.fill(backend, plan)) {
@@ -198,7 +282,8 @@ struct DemoGame {
 		}
 		scene.takeover(backend);
 		ready = true;
-		eng::debug::mark_ready(g_eng_run_status, 0x11100000u);
+		eng::debug::mark_ready(g_eng_run_status,
+				      0x11100000u | (static_cast<eng::u32>(m_cube_drawn & 0xfu) << 24));
 	}
 
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
@@ -220,7 +305,9 @@ struct DemoGame {
 			ready = false; eng::debug::mark_failed(g_eng_run_status, 0x00011111u); return;
 		}
 
-		// FG: nave con vaivén vertical + balas hacia la derecha.
+		// FG: nave con vaivén vertical + balas hacia la derecha. El cubo estático
+		// relleno por Blitter se dibuja UNA vez en `init` (el lienzo FG es de un solo
+		// buffer; animarlo por frame exigiría doble buffer, pendiente).
 		const eng::s16 ship_x = 60;
 		{
 			auto fg = scene.canvas_fg_surface();
@@ -240,6 +327,7 @@ struct DemoGame {
 		}
 
 		g_eng_run_status.detail = 0x11100000u |
+			(static_cast<eng::u32>(m_cube_drawn & 0xfu) << 24) |
 			((static_cast<eng::u32>(scene.bg().mapposx()) & 0xffffu) << 8) |
 			(static_cast<eng::u32>(scene.bg().mapposy()) & 0xffu);
 	}

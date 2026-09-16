@@ -69,6 +69,29 @@ struct PlayfieldHardwareView {
     s32 mapposy = 0;
 };
 
+/// Seam opcional para delegar el **relleno de polígonos al hardware** (Blitter).
+///
+/// El `Playfield` es agnóstico del backend: guarda un puntero de función + un
+/// contexto opacos que la escena/app instala con la implementación concreta (p. ej.
+/// `eng::amiga::PolygonFillService`, que usa la máscara + cookie-cut del Blitter).
+/// Si no hay sink, `Playfield::fill_polygon` cae al relleno CPU por scanline, de
+/// modo que la misma llamada funciona en host y en cualquier modo/layout.
+///
+/// La geometría viaja como strides explícitos para servir a planos CONTIGUOS y
+/// INTERLEAVED sin que el sink conozca el tipo de playfield:
+///   - `plane_base`: inicio del plano 0 (fila 0).
+///   - `plane_stride`: bytes entre el plano p y el p+1.
+///   - `row_stride`: bytes entre filas consecutivas del MISMO plano.
+///   - `row_bytes`: bytes por fila de UN plano (= stride de la máscara 1 bit).
+struct PolygonFillSink {
+    using Fn = bool (*)(void* ctx, u8* plane_base, u8 planes, u32 plane_stride,
+                        u32 row_stride, u16 row_bytes, u16 bitmap_w, u16 bitmap_h,
+                        const s16* xs, const s16* ys, u8 n, u8 color);
+    void* ctx = nullptr;
+    Fn fn = nullptr;
+    constexpr bool ready() const { return fn != nullptr && ctx != nullptr; }
+};
+
 /// Base abstracta de playfield: posee el framebuffer y la geometría, y expone
 /// las primitivas de dibujo (CPU y Blitter) con validación de límites. El mapeo
 /// lógico→físico es un hook virtual que cada tipo concreto implementa:
@@ -122,17 +145,33 @@ public:
         return true;
     }
 
+    // --- Layout planar para el sink de relleno (strides) ------------------
+    /// Stride entre planos consecutivos y entre filas del MISMO plano. Los
+    /// playfields del engine son INTERLEAVED (una fila de cada plano seguida),
+    /// así que el default es `plane_stride = row_bytes`,
+    /// `row_stride = planes*row_bytes`. Un playfield con planos contiguos lo
+    /// sobrescribe (`plane_stride = bytes por plano`, `row_stride = row_bytes`).
+    virtual u32 plane_stride() const { return m_bytes_per_row; }
+    virtual u32 row_stride() const { return static_cast<u32>(m_planes) * m_bytes_per_row; }
+
+    /// Instala (o borra, con `{}`) el motor de **relleno por hardware** del
+    /// playfield. Ver `PolygonFillSink`.
+    void set_polygon_fill_sink(PolygonFillSink sink) { m_fill_sink = sink; }
+
     // --- Relleno de polígono (hook; el backend puede usar Blitter) --------
     /// Rellena un polígono **convexo** (scanline even-odd, CPU) con `color`. El
     /// llamador (`Surface`) ya recortó el polígono a su clip, así que aquí solo hay
     /// que escribir en el bitmap (vía `write_pixel`, que acota a los límites).
     ///
-    /// Es un **hook virtual**: un playfield de Amiga puede sobrescribirlo para
-    /// rellenar por **Blitter** (área fill + el truco `BLTDPTR`, como la demo 116)
-    /// sin que el llamador cambie (dibuja a través de `Surface`). Default: CPU, así
-    /// que funciona en host y en cualquier modo/layout.
+    /// Si hay un `PolygonFillSink` instalado (p. ej. el Blitter del backend Amiga),
+    /// delega en él; en caso contrario usa el relleno CPU. El llamador dibuja a
+    /// través de `Surface` y no distingue la ruta.
     virtual bool fill_polygon(const s16* xs, const s16* ys, u8 n, u8 color) {
         if (xs == nullptr || ys == nullptr || n < 3u) return false;
+        if (m_fill_sink.ready()) {
+            return m_fill_sink.fn(m_fill_sink.ctx, m_frontbuffer, m_planes, plane_stride(),
+                                  row_stride(), m_bytes_per_row, m_width, m_height, xs, ys, n, color);
+        }
         s32 ymin = ys[0], ymax = ys[0];
         for (u8 i = 1u; i < n; ++i) {
             if (ys[i] < ymin) ymin = ys[i];
@@ -208,6 +247,7 @@ protected:
     u8 m_planes = 0;
     u32 m_total_bytes = 0;
     bool m_initialized = false;
+    PolygonFillSink m_fill_sink {};
 };
 
 /// Lienzo plano: un playfield SIN tiles ni scroll, para blits y primitivas de
