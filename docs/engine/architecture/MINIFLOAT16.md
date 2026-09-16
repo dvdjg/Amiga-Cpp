@@ -165,7 +165,9 @@ Dominios inválidos (contrato sencillo, sin NaN): `sqrt(x < 0)`, `log(x <= 0)`,
   formato, conversiones, aritmética y operaciones de matrices 2x2/3x3/4x4 (incluida la
   inversa) contra `float`.
 - [`tests/host/057_minifloat16_math`](../../../tests/host/057_minifloat16_math/README.md):
-  `sqrt`/`exp`/`log`/`pow`/`sin`/`cos`/`tan` contra `std::`.
+  `sqrt`/`exp`/`log`/`log2`/`log10`/`pow`/`hypot`/`sin`/`cos`/`tan`/`sincos` e inversas
+  contra `std::`, más identidades de composición (`sin²+cos²=1`, `exp(log x)=x`,
+  `sqrt(x)²=x`, `pow(x,2)=x·x`, `sin(asin x)=x`, `atan(tan x)=x`, `hypot(x,0)=|x|`).
 
 Al integrarla en una demo, actualizar esta sección y la marca del comentario de
 cabecera.

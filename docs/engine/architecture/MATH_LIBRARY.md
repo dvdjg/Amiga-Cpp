@@ -248,6 +248,18 @@ son vocabulario de la especialización retro y viven en `engine/include/eng/retr
 4 bits de fracción, atada a la tabla de seno y al layout del original); tenerla en `eng::math`
 haría que el núcleo (que también sirve a `float` o a un complejo de usuario) hablara en Q12.
 
+### 3.6 Escalares concretos registrados
+
+Además de `float` y `Fixed<Repr,Exp,Policy>`, el núcleo tiene un escalar de **coma
+flotante de 16 bits**, `eng::math::MiniFloat16` (`eng/core/minifloat.hpp`), registrado
+con `scalar_traits` en `linalg.hpp`: `Vec`/`Mat`/`Affine` funcionan con él sin código
+propio. Su formato, rango, precisión y reglas de uso están en
+[MINIFLOAT16.md](MINIFLOAT16.md); sus funciones matemáticas (`sqrt`, `exp`, `log`,
+`log2`/`log10`, `pow`, `hypot`, trigonometría e inversas) viven en
+`eng/core/minifloat_math.hpp` y **no** son todavía parte del concepto `Scalar` que el
+álgebra lineal exige (el álgebra solo necesita `+ - *` y los rasgos); se documentan en
+ese mismo fichero de referencia.
+
 ## 4. Rendimiento y metaprogramación
 
 - **N constante** y **sin matrices temporales**: la acumulación va directa a los

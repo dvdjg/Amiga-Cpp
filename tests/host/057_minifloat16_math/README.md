@@ -21,6 +21,9 @@ Fija `sqrt`, `exp`, `log`, `log2`/`log10`, `pow`, `hypot`, trigonometría
 - **Fronteras/dominios**: `sqrt(x<0)→∞`, `log(0)→−∞`, `log(x<0)→+∞`,
   `exp(20)→∞`, `exp(−20)→0`, `pow(0,+)→0`, `pow(0,0)=1`, base negativa con exponente
   no entero → ∞, `asin/acos` fuera de `[-1,1]` → ∞, `hypot(0,0)=0`, `hypot(∞,·)=∞`.
+- **Identidades de composición** (red que caza errores no detectados función a función):
+  `sin²+cos²=1`, `exp(log x)=x`, `log(exp x)=x`, `sqrt(x)²=x`, `pow(x,2)=x·x` (exacto),
+  `sin(asin x)=x`, `atan(tan x)=x` y `hypot(x,0)=|x|` (exacto).
 
 ## Cómo está implementado (y por qué es rápido)
 

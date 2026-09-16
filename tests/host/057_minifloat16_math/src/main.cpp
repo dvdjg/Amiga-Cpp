@@ -311,6 +311,107 @@ void test_edges() {
 	      "hypot(inf,1) = inf");
 }
 
+// ---------------------------------------------------------------------------
+//  4. Identidades de composición (red de seguridad: cazan errores que un barrido
+//     función a función puede dejar pasar)
+// ---------------------------------------------------------------------------
+
+void test_identities() {
+	const float mags[] = {1.0f, 1.1f, 1.3f, 1.5f, 1.7f, 1.9f};
+
+	// sin² + cos² = 1
+	{
+		float mx = 0;
+		for (int i = -314; i <= 314; ++i) {
+			const MiniFloat16 x(i * 0.02f);
+			MiniFloat16 s, c;
+			m::sincos(x, s, c);
+			const float fs = static_cast<float>(s), fc = static_cast<float>(c);
+			mx = std::fmax(mx, std::fabs(fs * fs + fc * fc - 1.0f));
+		}
+		std::printf("  identidad sin2+cos2-1 abs max %.2e\n", mx);
+		check(mx <= 5.0e-3f, "sin²+cos² = 1 (abs <= 5e-3)");
+	}
+
+	// exp(log(x)) = x
+	{
+		float mx = 0;
+		for (int e = -14; e <= 15; ++e)
+			for (float mg : mags) {
+				const float v = std::ldexp(mg, e);
+				if (v > 65504.0f || v < 6.2e-5f) continue;
+				const MiniFloat16 x(v);
+				mx = std::fmax(mx, rel_err(static_cast<float>(m::exp(m::log(x))),
+							   static_cast<float>(x)));
+			}
+		std::printf("  identidad exp(log x) rel max %.2e\n", mx);
+		check(mx <= 3.0e-2f, "exp(log x) = x (rel <= 3e-2)");
+	}
+
+	// log(exp(x)) = x
+	{
+		float mx = 0;
+		for (int i = -90; i <= 110; ++i) {
+			const MiniFloat16 x(i * 0.1f);
+			const float want = static_cast<float>(x);
+			const float got = static_cast<float>(m::log(m::exp(x)));
+			if (!std::isfinite(got)) continue;
+			mx = std::fmax(mx, std::fabs(got - want));
+		}
+		std::printf("  identidad log(exp x)-x abs max %.2e\n", mx);
+		check(mx <= 1.2e-2f, "log(exp x) = x (abs <= 1.2e-2)");
+	}
+
+	// sqrt(x)² = x  y  pow(x,2) = x·x (camino entero exacto)
+	{
+		float mx = 0;
+		bool pow_exact = true;
+		for (int e = -14; e <= 15; ++e)
+			for (float mg : mags) {
+				const float v = std::ldexp(mg, e);
+				if (v > 65504.0f || v < 6.2e-5f) continue;
+				const MiniFloat16 x(v);
+				const MiniFloat16 r = m::sqrt(x);
+				mx = std::fmax(mx, rel_err(static_cast<float>(r * r), static_cast<float>(x)));
+				if ((m::pow(x, MiniFloat16(2.0f)).raw) != (x * x).raw) pow_exact = false;
+			}
+		std::printf("  identidad sqrt(x)^2 rel max %.2e ; pow(x,2)==x*x %s\n", mx,
+			    pow_exact ? "si" : "NO");
+		check(mx <= 4.0e-3f, "sqrt(x)² = x (rel <= 4e-3)");
+		check(pow_exact, "pow(x,2) = x·x exacto");
+	}
+
+	// sin(asin(x)) = x  y  atan(tan(x)) = x
+	{
+		float mxs = 0, mxa = 0;
+		for (int i = -100; i <= 100; ++i) {
+			const MiniFloat16 x(i * 0.01f);
+			mxs = std::fmax(mxs, std::fabs(static_cast<float>(m::sin(m::asin(x))) -
+						       static_cast<float>(x)));
+		}
+		for (int i = -120; i <= 120; ++i) {
+			const MiniFloat16 x(i * 0.01f); // |x| <= 1.2, lejos del polo
+			mxa = std::fmax(mxa, std::fabs(static_cast<float>(m::atan(m::tan(x))) -
+						       static_cast<float>(x)));
+		}
+		std::printf("  identidad sin(asin x)-x abs %.2e ; atan(tan x)-x abs %.2e\n", mxs, mxa);
+		check(mxs <= 5.0e-3f, "sin(asin x) = x (abs <= 5e-3)");
+		check(mxa <= 1.0e-2f, "atan(tan x) = x (abs <= 1e-2, |x| <= 1.2)");
+	}
+
+	// hypot(x,0) = |x|
+	{
+		bool ok = true;
+		for (int e = -14; e <= 15; ++e) {
+			const MiniFloat16 x(std::ldexp(1.3f, e));
+			if (static_cast<float>(x) > 65504.0f) continue;
+			if (m::hypot(x, MiniFloat16(0.0f)).raw != x.raw) ok = false;
+			if (m::hypot(MiniFloat16(0.0f), x).raw != x.raw) ok = false;
+		}
+		check(ok, "hypot(x,0) = |x| exacto");
+	}
+}
+
 } // namespace
 
 int main() {
@@ -318,6 +419,7 @@ int main() {
 	test_simple_values();
 	test_sweeps();
 	test_edges();
+	test_identities();
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;
