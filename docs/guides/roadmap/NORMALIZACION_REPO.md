@@ -56,7 +56,16 @@ master** (ver 0.8).
 |---|---|---|---|
 | 2.1 | Migrar `082_plasma` y `083_fbm_noise` (hoy 2 instancias + `m_active` manual) | `demos/amiga/082_plasma`, `083_fbm_noise` | **hecho** |
 | 2.2 | Exponer **N por configuración** (`-DK_<DEMO>_BUFFERS=1\|2\|3`) y documentar «con y sin doble/triple buffer» | `demos/amiga/061…`, `080…`, `082…`, `083…` | **hecho** |
-| 2.3 | Evaluar `079` (anillo de 5, rastro temporal) y `116` (triple buffer real): ¿encajan como `MultiBuffered<Driver,N>` o son otro caso? | `demos/amiga/079…`, `116…` | pendiente |
+| 2.3 | Evaluar `079` (anillo de 5, rastro temporal) y `116` (triple buffer real): ¿encajan como `MultiBuffered<Driver,N>` o son otro caso? | `demos/amiga/079…`, `116…` | **decidido** (ver abajo) |
+
+**Decisión F2.3**: `079_wireframe` **no** encaja: su anillo de 5 es de **planos sueltos**
+(`kRing = planes+1`, un `PlaneView` por ranura) que la copperlist combina como rastro
+temporal (bit3=active, bit2=active-1, …); no son buffers de display con bitmap propio.
+`116_flatshade_convex` **sí** encaja: 3 bitmaps completos (4 planos cada uno) + 3
+copperlists con semántica exacta de `commit()` (dibuja en el trasero, convierte y publica
+el recién escrito; rota). Migrarlo requiere darle un driver (hoy emite el copper a mano con
+`Scheduler`); con `HamScene` paramétrico (`rows=256, planes=4, bplcon0=0x4000`) es directo →
+tarea pendiente de F2.
 
 Gate: regresión de esas demos (fps + gate visual).
 
@@ -83,10 +92,19 @@ Gate: demo `122` + gate visual/secuencia; host `038/039`.
 
 | # | Tarea | Fichero | Estado |
 |---|---|---|---|
-| 4.1 | Definir `CopperPlan` (un plan por buffer de display: recolecta `CopperIntent`/`SpriteIntent`, ordena por scanline, `Patch`/`Reemit`, handles, presupuesto). **API concreta ya especificada** en `docs/engine/architecture/DISPLAY_COMPOSITION.md` §5 | `engine/include/eng/graphics/copper/plan.hpp` | **diseñado, sin implementar** |
-| 4.2 | Integrarlo con `MultiBuffered` (el plan se rellena en el buffer trasero y se publica en `commit`) | `engine/include/eng/graphics/drivers/multi_buffered.hpp` | pendiente |
-| 4.3 | Portar como **tracks** los casos que hoy emiten copper a mano: sky, splits, paleta por zona, scroll, HUD, sprites; empezar por `055_copper_rainbow` (ya usa `CopperIntent`; hoy reemite la lista entera en un bloque único, sin doble buffer de copperlist) y una zona de paleta del XLimited | demos `055`, campo XLimited | pendiente |
-| 4.4 | Test host del `CopperPlan` (orden por línea, patch vs reemisión, handles válidos, presupuesto) | `tests/host/<n>_copper_plan` | pendiente |
+| 4.1 | Definir `CopperPlan` (un plan por buffer de display: recolecta `CopperIntent`/`SpriteIntent`, ordena por scanline, `Patch`/`Reemit`, handles, presupuesto) | `engine/include/eng/graphics/copper/plan.hpp` | **hecho** |
+| 4.2 | Integrarlo con `MultiBuffered` (el plan se rellena en el buffer trasero y se publica en `commit`) | `engine/include/eng/graphics/drivers/multi_buffered.hpp` | **parcial**: el plan ya tiene su propio `DoubleBuffer` y publica con `commit(backend)`; falta el caso de un plan **por slot** de `MultiBuffered` |
+| 4.3 | Portar como **tracks** los casos que hoy emiten copper a mano: empezar por `055_copper_rainbow` | demo `055` | **hecho** (055 usa ya el plan y gana doble buffer de copperlist) |
+| 4.4 | Test host del `CopperPlan` (orden por línea, patch vs reemisión, handles válidos, presupuesto) | `tests/host/070_copper_plan` | **hecho** |
+
+**Resultado de F4.1/F4.3/F4.4**: `eng::copper::Plan` implementado
+(`begin`/`begin_frame`/`scheduler`/`add`/`materialize`/`end_frame`/`commit`/`takeover`),
+con **ordenación por scanline** dentro del plan (el invariante deja de ser del llamador),
+doble buffer de copperlist y detección de overflow. Verificado por HOST-070 y por la demo
+**055** (arranca, anima y mide **49,92 fps**; se le añadió `mark_frame`, que no tenía).
+Nota: la visión marcó como «anomalía» las franjas planas y negras de la 055, que son el
+diseño (arcoíris de 32 bandas discretas que pasa por el negro); el prompt pedía «degradado»
+y era el prompt el que estaba mal.
 
 Gate: demos de copper idénticas + test host + informe de presupuesto sin spill.
 

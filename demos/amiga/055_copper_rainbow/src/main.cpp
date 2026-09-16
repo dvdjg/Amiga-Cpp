@@ -18,6 +18,7 @@
 #include <eng/core/types.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
+#include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/drivers/ehb_scene.hpp>
 #include <eng/graphics/raster_intent.hpp>
@@ -82,30 +83,32 @@ struct CopperRainbowDemo {
 		}
 
 		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
-		m_copper_block = backend.memory().chip.allocate_block<eng::CopperTag>(2048, 16);
-		if (!m_bitplane_block.valid() || !m_copper_block.valid()) {
+		if (!m_bitplane_block.valid() ||
+		    !m_plan.begin(backend.memory(), {2048u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00005502u);
 			return;
 		}
 
-		if (!build_copper()) {
+		if (!build_frame()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00005503u);
 			return;
 		}
 
-		backend.takeover_display(m_copper_ptr);
-		eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_copper_words));
+		m_plan.takeover(backend);
+		eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_plan.words()));
 	}
 
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		// Fase avanza cada frame: el arcoíris se desplaza verticalmente.
 		m_phase = static_cast<eng::u8>(context.frame.frame_index & (kRainbowLen - 1u));
-		if (build_copper()) {
-			backend.install_copper_list(m_copper_ptr);
+		if (build_frame()) {
+			m_plan.commit(backend);
 		}
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+		(void)backend;
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -131,32 +134,31 @@ private:
 		}
 	}
 
-	bool build_copper() {
-		eng::copper::Scheduler sched { m_copper_block };
-		sched.emit_planes_display(
+	/// Construye la lista del frame con el `copper::Plan`: parte estática (display +
+	/// paleta base) + las intenciones de las franjas, ordenadas por el plan (la demo las
+	/// añade en orden de banda, que ya es ascendente, pero el invariante lo garantiza el
+	/// plan) + la cola. El plan escribe SIEMPRE en el buffer trasero y `commit` publica.
+	bool build_frame() {
+		m_plan.begin_frame();
+		m_plan.scheduler().emit_planes_display(
 			0x2c81, 0x2cc1, 0x0038, 0x00d0,
 			kBytesPerRow, 0x6200, kPlanes, m_bitplane_block.view, kPlaneBytes
 		);
-		sched.emit_palette(kBasePalette.color);
+		m_plan.scheduler().emit_palette(kBasePalette.color);
 		build_intents();
-		sched.emit_copper_intents(m_intents, kBands);
-		sched.wait_line(0xf8);
-		sched.move(eng::copper::Register::COLOR00, 0x0000);
-		sched.end();
-
-		m_copper_ok = sched.ok();
-		m_copper_words = sched.words_used();
-		m_copper_ptr = sched.data();
+		m_plan.add(m_intents, kBands);
+		m_plan.materialize();
+		m_plan.scheduler().wait_line(0xf8);
+		m_plan.scheduler().move(eng::copper::Register::COLOR00, 0x0000);
+		m_copper_ok = m_plan.end_frame();
 		return m_copper_ok;
 	}
 
 	bool m_memory_ok = false;
 	bool m_copper_ok = false;
-	eng::u16 m_copper_words = 0;
 	eng::u8 m_phase = 0;
-	const eng::u16* m_copper_ptr = nullptr;
+	eng::copper::Plan m_plan {};
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
-	eng::Block<eng::CopperTag> m_copper_block {};
 	eng::graphics::CopperIntent m_intents[kBands] {};
 };
 
