@@ -59,6 +59,9 @@ estructura: `docs/STRUCTURE.md` §4. Clasificación por concepto:
   - `121_mirror_scroll` — **espejo vertical**: bitmap con el bucle duplicado → scroll de **256 px sin
     split** de Copper (la vía recomendada en `CONSULTA-SPLIT-208.md`); `MirrorScrollPlayfield` sobre
     el mapper flat (`analyze-sequence.sh`, marcador `0x13`).
+  - `122_doublebuffer_scroll` — **doble buffer de bitmap + swap `COP1LC`**: dos bitmaps del mundo,
+    `flip()` por frame; base para escribir filas visibles sin tearing (`DoubleBufferScrollPlayfield`,
+    marcador `0x14`).
   - `112_xlimited_robocod` — XYLimited 5 planos con **fondo geométrico y parallax RoboCod** (plano 4 a
     media velocidad; paleta de 32 índices mapeada a 16 tonos).
   - `113_mode_switch` — microtest de **`ModeSwitchZone`**: campo de 5 planos + HUD de 2 planos con
