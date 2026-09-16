@@ -195,6 +195,8 @@ espejo): sin split, el wrap se lee de forma contigua del espejo y la banda de
 staging nunca se muestra. Verificado en WinUAE: captura V de 120 frames
 (mapposy 0..225) con **0/119 pares desincronizados** (antes 12/69).
 
+El límite es del **chipset**, no del emulador: OCS, ECS (Agnus 8372) y AGA (Alice) comparten el comparador vertical de 8 bits sin bit V8, y el truco de anclaje del AHRM (WAIT a `$FF` + WAIT al byte bajo) no fija un split móvil en líneas ≥256. Una **IA externa** lo ratificó: no hay solución de hardware, solo **cambiar de técnica**. Para un viewport de scroll de **256 px**, la alternativa recomendada es `linear_display` (`K_LINEAR=1`, espejo vertical: sin split y con el wrap leído contiguo, a costa de ~2× blits y más Chip RAM).
+
 ## Modo canónico para juegos (viewport corto + split)
 
 El modo que usan los juegos clásicos es el **corkscrew con split** en un

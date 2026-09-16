@@ -112,6 +112,14 @@ del rango de 8 bits y aparece el wrap adelantado (síntoma: banda incorrecta en 
 quiere ocupar las 256 líneas, añadir un HUD (201: campo 208 + HUD 48 sobre un viewport total de
 256 y anillo 288). El compositor **falla rápido** si el campo con split supera 214.
 
+Es un límite **del comparador del Copper, no del emulador**: OCS, ECS (Agnus 8372) y AGA (Alice)
+comparten el comparador vertical de 8 bits sin bit V8, y el truco de anclaje del AHRM (`WAIT` a
+`$FF` y después `WAIT` al byte bajo) solo permite que el Copper siga tras la línea 255; no fija un
+split móvil en una línea concreta ≥256 porque la comparación `>=` se satisface antes del anclaje.
+Una consulta a una **IA externa** lo ratificó: no hay solución de hardware, solo cambiar de
+técnica. Para un scroll de 256 px la alternativa del engine es `linear_display` (espejo vertical,
+sin split, a costa de ~2× blits y más Chip RAM); el campo corto + HUD es la opción canónica.
+
 ### 3.3 Tearing: el blit de filas VISIBLES va en el blanking
 
 Un bitmap **único** no admite reescribir filas visibles mientras el haz las está mostrando: la

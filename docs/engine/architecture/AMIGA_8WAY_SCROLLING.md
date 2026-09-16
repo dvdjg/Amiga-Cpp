@@ -215,7 +215,10 @@ chipset**: el comparador de WAIT es de 8 bits con semántica `>=` (`vp = vpos & 
 bit V8; verificado en `WinUAE-DBG/custom.cpp coppercomp`), por lo que `raster > 255` (cuando
 `display_offset ∈ [33,73]`) no se puede esperar con precisión: el WAIT dispara en la primera
 coincidencia del byte bajo y el split se recorta a la línea 255 (banda de 1..41 filas al pie con
-el wrap adelantado). Es inherente al chipset; el `XYLimited` original degrada igual a 255.
+el wrap adelantado). Es inherente al chipset; el `XYLimited` original degrada igual a 255. Límite
+común a OCS, ECS y AGA (el Copper nunca gana V8), ratificado también por una IA externa: no hay
+solución de hardware para un split móvil en líneas ≥256, solo cambiar de técnica (`linear_display`
+para 256 px, campo corto + HUD como opción canónica). Ver §13.
 
 ## 8. Por qué el wrap horizontal no necesita Copper segmentado
 
@@ -343,6 +346,8 @@ WAIT en `raster = DIWSTRT_y + split_line` seguido de los punteros a la fila 0
 (banda de 1..41 filas al pie con el wrap adelantado). Es **inherente al chipset**; el `XYLimited`
 original degrada igual a 255 (su truco enmascarado `0xFFDF`/`0x0001` también dispara en 255 con
 `>=`). No se puede eliminar con un WAIT de 9 bits en este emulador (la comparación no tiene V8).
+
+**Alcance y confirmación cruzada**: el comparador vertical de 8 bits sin V8 es común a **OCS, ECS (Agnus 8372) y AGA (Alice)**; ninguna revisión del Copper añade un `WAIT`/`SKIP` vertical de más bits. El truco de anclaje del AHRM (`WAIT` a `$FF` y después `WAIT` al byte bajo) permite que el Copper siga ejecutándose tras la línea 255, pero **no** fija un evento en una línea concreta ≥256: la comparación `>=` sobre el byte bajo se satisface antes del anclaje y las *compare-enable bits* no tienen un V8 que enmascarar. Una **IA externa** ratificó esta lectura: es un límite de **hardware**, no del emulador. Consecuencia para el corkscrew: con un split móvil en `raster ∈ [42,296]` no hay solución de hardware, solo **cambiar de técnica**. Si en el futuro se necesita un viewport de scroll de **256 px**, la alternativa recomendada es `linear_display` (espejo vertical: el wrap se lee contiguo y no hay split), a costa de ~2× blits y algo más de Chip RAM; el **campo corto + HUD** (208 de scroll + 48 de HUD) sigue siendo la opción canónica y más barata. Ver demo `107_xlimited_corkscrew` (`K_LINEAR=1`).
 
 Verificación: `verify-xlimited.mjs` (§11) modela esta geometría; el port de los 4 scrolls se
 compara bloque a bloque contra `Scroller_XYLimited/main.c` en `node tools/analyze/verify-corkscrew.mjs`.
