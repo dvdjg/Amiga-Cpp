@@ -1,12 +1,14 @@
-// Demo 084 - Cubo 3D con rotacion en MiniFloat16 (minifloat_math) sobre EHB.
+﻿// Demo 084 - Cubo 3D con rotacion en MiniFloat16 (minifloat_math) sobre EHB.
 //
 // Objetivo: validar EN HARDWARE (68000, sin soft-float) la cadena
 //   minifloat_math (sin/cos, exp, sqrt)  ->  Mat<3, MiniFloat16>  ->
 //   eng/retro/minifloat_fixed (transform de coordenadas q0)  ->  Bresenham
 // dibujando un cubo alambre que gira a 50 fps. La demo hace un **self-test de los
 // trascendentes** en init (sin(pi/2), exp(0), sqrt(4)): si fallara en m68k la demo
-// iria a Failed en vez de Ready.
+// iria a Failed en vez de Ready. Publica en el periferico de depuracion los ciclos
+// EMULADOS del calculo por frame (counter 0 = total, 1 = matriz).
 #include <eng/core/minifloat_math.hpp>
+#include <eng/debug/peripheral.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/graphics/drivers/ehb_scene.hpp>
@@ -36,6 +38,7 @@ namespace ehb = eng::graphics::drivers;
 namespace em = eng::math;
 using MF = em::MiniFloat16;
 using V3 = em::Vec<3, eng::retro::q0>;
+using Periph = eng::debug::DebugPeripheral;
 
 constexpr eng::u16 kWidth = ehb::StaticEhbScene::width;
 constexpr eng::u16 kHeight = ehb::StaticEhbScene::height;
@@ -43,10 +46,10 @@ constexpr eng::u16 kRowBytes = ehb::StaticEhbScene::bytes_per_row;
 constexpr eng::u8 kPlanes = ehb::StaticEhbScene::plane_count;
 constexpr eng::u32 kPlaneBytes = ehb::StaticEhbScene::plane_bytes;
 
-/// Fondo azul oscuro; 1..7 rampa del cubo (azul -> cian -> amarillo -> blanco, por
+/// Fondo azul oscuro; 1..7 rampa del cubo (azul -> cian -> dorado -> blanco, por
 /// profundidad); 8 marco; 9/10 estrellas.
 constexpr ehb::EhbPalette kPalette {{
-	0x013, 0x024, 0x02F, 0x05F, 0x0AF, 0x0FF, 0xFF6, 0xFFF,
+	0x013, 0x024, 0x02F, 0x05F, 0x0AF, 0xFF4, 0xFF9, 0xFFF,
 	0x112, 0x024, 0x011, 0x000, 0x000, 0x000, 0x000, 0x000,
 	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
 	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
@@ -142,17 +145,19 @@ MF wrap_2pi(MF a) {
 /// Brillo por profundidad (media de z de los dos extremos), 7 colores.
 eng::u8 shade_of(eng::s16 z0, eng::s16 z1) {
 	const eng::s16 z = static_cast<eng::s16>(z0 + z1);
-	if (z > 80) return 7;
-	if (z > 40) return 6;
+	if (z > 60) return 7;
+	if (z > 30) return 6;
 	if (z > 0)  return 5;
-	if (z > -40) return 4;
-	if (z > -80) return 3;
+	if (z > -30) return 4;
+	if (z > -60) return 3;
 	return 2;
 }
 
 struct DemoGame {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
+		Periph::counter_name(0, reinterpret_cast<eng::u32>("mf_calc_cycles"));
+		Periph::counter_name(1, reinterpret_cast<eng::u32>("mf_matrix_cycles"));
 		m_memory_ok = backend.configure_memory({70u * 1024u, 8u * 1024u, 4u * 1024u});
 		const ehb::StaticEhbSceneConfig scene_config {&kPalette, nullptr, 0, 1024};
 		m_scene_ok = m_scene.init(backend.memory(), scene_config);
@@ -193,24 +198,43 @@ private:
 	/// Rota el cubo un paso y proyecta los 8 vertices a coordenadas de pantalla (q0);
 	/// se hace en `update` para que `render` (vblank) solo tenga que trazar lineas.
 	void compute_projection() {
+		// Telemetria: ciclos EMULADOS (periferico de depuracion) del calculo MF por
+		// frame. counter 1 = matriz (6 sin/cos + 2 Mat*Mat); counter 0 = total.
+		const eng::u32 ta = Periph::cycle_counter();
 		m_ax = wrap_2pi(m_ax + MF(0.021f));
 		m_ay = wrap_2pi(m_ay + MF(0.013f));
 		m_az = wrap_2pi(m_az + MF(0.007f));
 		const em::Mat<3, MF> m = rot_z(m_az) * rot_y(m_ay) * rot_x(m_ax);
+		const eng::u32 tb = Periph::cycle_counter();
 		for (int i = 0; i < 8; ++i) {
 			const auto r = eng::retro::transform(m, kVerts[i]);
 			m_scr[i][0] = static_cast<eng::s16>(kCX + r.v[0].v);
 			m_scr[i][1] = static_cast<eng::s16>(kCY - r.v[1].v);
 			m_wz[i] = r.v[2].v;
 		}
+		const eng::u32 tc = Periph::cycle_counter();
+		Periph::counter_value(0, tc - ta);
+		Periph::counter_value(1, tb - ta);
 	}
 
 	void draw_cube(Canvas& c) {
-		c.clear_rect(kCX - kHalfSpan, kCY - kHalfSpan, kCX + kHalfSpan, kCY + kHalfSpan);
+		// Borra SOLO las aristas del frame anterior (no un rectangulo): el display nunca
+		// queda vacio a mitad de frame (un `clear_rect` hacia que la captura cogiera el
+		// hueco) y se ahorra escribir toda la zona.
+		if (m_have_prev) {
+			for (const auto& e : kEdges) {
+				c.line(m_prev[e[0]][0], m_prev[e[0]][1], m_prev[e[1]][0], m_prev[e[1]][1], 0);
+			}
+		}
 		for (const auto& e : kEdges) {
 			c.line(m_scr[e[0]][0], m_scr[e[0]][1], m_scr[e[1]][0], m_scr[e[1]][1],
 			       shade_of(m_wz[e[0]], m_wz[e[1]]));
 		}
+		for (int i = 0; i < 8; ++i) {
+			m_prev[i][0] = m_scr[i][0];
+			m_prev[i][1] = m_scr[i][1];
+		}
+		m_have_prev = true;
 	}
 
 	static em::Mat<3, MF> rot_x(MF a) {
@@ -271,6 +295,8 @@ private:
 	MF m_ax {0.0f}, m_ay {0.0f}, m_az {0.0f};
 	eng::s16 m_scr[8][2] {};
 	eng::s16 m_wz[8] {};
+	eng::s16 m_prev[8][2] {};
+	bool m_have_prev = false;
 };
 
 } // namespace

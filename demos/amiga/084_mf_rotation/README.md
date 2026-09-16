@@ -28,11 +28,19 @@ trigonometría/exponencial del escalar de 16 bits funciona en el chip.
 
 ## Invariantes
 
-- El cálculo (ángulos, matrices, transform) va en `update` (antes del vblank); `render`
-  (durante el vblank) solo traza líneas: así no hay *tearing* por escribir Chip RAM con
-  el DMA activo.
+- El cálculo (ángulos, matrices, transform) va en `update`; `render` solo traza líneas.
+- **No se borra un rectángulo cada frame**: se borran *las aristas del frame anterior* y se
+  trazan las nuevas, así el display nunca queda vacío a mitad de frame (un `clear_rect`
+  hacía que la captura cogiera el hueco) y se ahorra escribir toda la zona.
 - Los ángulos se pliegan a `[-2π, 2π]` (`wrap_2pi`), el dominio fiable de `sin`/`cos`.
 - El `transform` exige razones en `[-8, 8]` (4.12); una rotación cumple de sobra.
+
+## Telemetría (periférico de depuración)
+
+`compute_projection` publica en el periférico `0xB70000` los ciclos **emulados** del
+cálculo MF por frame: `counter 0` = total, `counter 1` = matriz (`6 sin/cos` + `2
+Mat*Mat`). Se leen con `node tools/debug/read-debugperiph.mjs demos/amiga/084_mf_rotation
+--sub counters`.
 
 ## Comandos
 

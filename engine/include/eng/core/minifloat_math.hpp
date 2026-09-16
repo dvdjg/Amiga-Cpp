@@ -311,6 +311,11 @@ inline constexpr eng::ct_array<s16, 65> k_exp2_q14 {[](eng::usize i) -> s16 {
 }
 
 /// `sin(r)` para `|r| <= π/4` (Taylor, error < 2^-19 antes de redondear).
+///
+/// Se probó una tabla de cuarto de onda (65 nodos Q1.14 + interpolación) y **no
+/// compensa**: ahorra ~11 `muls.w` pero el índice (MF→entero) y la vuelta Q1.14→MF
+/// añaden ~50 ramas, así que el tamaño crece (c_mf_loop 4849→5131 instr) para un
+/// balance de ciclos casi nulo. La serie se queda.
 [[nodiscard]] ENG_MF_AI constexpr MF mf_sin_small(MF r) {
 	const MF r2 = r * r;
 	MF p = MF(-1.0f / 5040.0f);
