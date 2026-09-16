@@ -11,12 +11,11 @@
 // Estrategia: `eng::field::BigBufferScroll` (una instancia por eje; el struct
 // modela un solo eje). La cámara se satura en los límites y reverde.
 //
-// Superficie: `CanvasPlayfield` (layout interleaved, Chip RAM) con un
-// `hardware_view()` reescrito: el de base asume `ancho == viewport` y su BPLMOD
-// es el del fetch estándar (DDF $38). Aquí se usa la geometría del fetch ancho
-// (DDF $30, 42 B/fila), la misma que el corkscrew y el driver lineal validado
-// `tile_scroll.hpp`: `planeaddx = ((cam_x-1) & ~15)/8`, `BPLCON1=(16-fine)&15`,
-// `BPLMOD = row_bytes*planes - 42`.
+// Superficie y mapper: `eng::field::FlatScrollPlayfield` (bitmap flat interleaved
+// en Chip RAM) + `eng::field::map_flat_scroll` (traducción cámara→BPLxPT/BPLCON1/
+// BPLMOD, geometría del fetch ancho DDF $30). La demo NO conoce registros: solo
+// mueve la cámara y pide la vista. Fórmula verificada en
+// `engine/include/eng/graphics/drivers/tile_scroll.hpp`.
 //
 // Referencias: `docs/engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md` §2
 // (BigBufferScroll), `docs/guides/roadmap/SCROLL_DEMOS_CLEANUP.md` (matriz de
@@ -28,8 +27,7 @@
 
 #include <eng/engine.hpp>
 #include <eng/debug/run_status.hpp>
-#include <eng/field/playfield.hpp>
-#include <eng/field/scroll_engine.hpp>
+#include <eng/field/flat_playfield.hpp>
 #include <eng/field/xlimited.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
@@ -70,39 +68,8 @@ constexpr eng::u16 kPalette[16] {
 	0x740, 0x960, 0xb90, 0xcb0, 0xed0, 0x620, 0xd40, 0xfff,
 };
 
-/// Superficie flat con cámara. `CanvasPlayfield` aporta el bitmap interleaved y
-/// las primitivas; solo se reescribe la vista de hardware para (a) usar la
-/// geometría del fetch ancho y (b) exponer el viewport 320x256 real.
-struct FlatPlayfield : field::CanvasPlayfield {
-	field::BigBufferScroll cam_x {};
-	field::BigBufferScroll cam_y {};
-
-	field::PlayfieldHardwareView hardware_view() const override {
-		field::PlayfieldHardwareView v = CanvasPlayfield::hardware_view();
-		const eng::s32 cx = cam_x.position; // 1..(world-view)
-		const eng::s32 cy = cam_y.position; // 0..(world-view)
-		// Fórmula canónica superficie lineal + DDF $30 (tile_scroll.hpp:684-701):
-		const eng::u16 fine = static_cast<eng::u16>(cx & 15);
-		const eng::u16 nibble = static_cast<eng::u16>((16u - fine) & 15u);
-		v.planeaddx = static_cast<eng::u32>((cx - 1) & ~15) / 8u;
-		v.bplcon1 = static_cast<eng::u16>(nibble | (nibble << 4));
-		// Interleaved: la planelínea siguiente está a row_bytes*planes.
-		v.planeaddy = static_cast<eng::u32>(cy) * kPlanes * kRowBytes;
-		v.bpl1mod = static_cast<eng::u16>(kRowBytes * kPlanes - 42u); // fetch 40+2
-		v.bpl2mod = v.bpl1mod;
-		v.viewport_w = kViewW;
-		v.viewport_h = kViewH;
-		v.display_height = kWorldH;
-		v.display_offset = 0;
-		v.split_active = false;
-		v.videoposx = cx; v.mapposx = cx;
-		v.videoposy = cy; v.mapposy = cy;
-		return v;
-	}
-};
-
 struct DemoGame {
-	FlatPlayfield m_pf {};
+	field::FlatScrollPlayfield m_pf {};
 	field::XlimitedDisplayComposer m_comp {};
 	eng::s32 m_dir_x = 1;
 	eng::s32 m_dir_y = 1;
@@ -114,16 +81,11 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012001u);
 			return;
 		}
-		if (!m_pf.begin(backend.memory(), {kWorldW, kWorldH, kPlanes})) {
+		if (!m_pf.begin(backend.memory(), {kWorldW, kWorldH, kViewW, kViewH, kPlanes, 42u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012002u);
 			return;
 		}
 		fill_world();
-
-		m_pf.cam_x.min_pos = 1;                                   // mínimo obligatorio (DDF $30)
-		m_pf.cam_x.max_pos = static_cast<eng::s32>(kWorldW - kViewW);
-		m_pf.cam_y.min_pos = 0;
-		m_pf.cam_y.max_pos = static_cast<eng::s32>(kWorldH - kViewH);
 
 		field::XlimitedDisplayComposer::Config cfg {};
 		cfg.palette = eng::PaletteWords { kPalette, 16u };
@@ -144,8 +106,8 @@ struct DemoGame {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		if (!m_ready) return;
 		// SOLO se mueve la cámara: BigBufferScroll satura y reveer en los límites.
-		sweep(m_pf.cam_x, m_dir_x);
-		sweep(m_pf.cam_y, m_dir_y);
+		sweep(m_pf.cam_x(), m_dir_x);
+		sweep(m_pf.cam_y(), m_dir_y);
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
@@ -154,8 +116,8 @@ struct DemoGame {
 			if (m_comp.compose(m_pf.hardware_view())) {
 				m_comp.install(backend); // swap de COP1LC (doble buffer de copper)
 				g_eng_run_status.detail = 0x12000000u |
-					((static_cast<eng::u32>(m_pf.cam_x.position) & 0xffu) << 12) |
-					(static_cast<eng::u32>(m_pf.cam_y.position) & 0xfffu);
+					((static_cast<eng::u32>(m_pf.cam_x().position) & 0xffu) << 12) |
+					(static_cast<eng::u32>(m_pf.cam_y().position) & 0xfffu);
 			} else {
 				m_ready = false;
 				eng::debug::mark_failed(g_eng_run_status, 0x00012010u);

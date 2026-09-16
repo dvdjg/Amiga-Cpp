@@ -96,3 +96,4 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-053 | [lib3d_projection](053_lib3d_projection/README.md) | Tabla dorada de la proyección `lib3d::transform_vertices` a ángulo fijo. |
 | HOST-054 | [light_ops](054_light_ops/README.md) | Sombreado por cara `eng::math::light_ops` e `hi16` contra referencia sin signo. |
 | HOST-055 | [inverse_rigid](055_inverse_rigid/README.md) | `math3d::inverse_rigid`: inversa de una transformación rígida (`mT`, `-mT·t`) contra la identidad. |
+| HOST-056 | [flat_mapper](056_flat_mapper/README.md) | `eng::field::map_flat_scroll`: mapper neutral cámara→`planeaddx`/`planeaddy`/`BPLCON1`/`BPLMOD` del virtual playfield (fetch ancho `$30`). |

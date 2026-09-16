@@ -49,8 +49,10 @@ bash ./demos/amiga/120_virtual_playfield/analyze-sequence.sh [--warp]
 
 ## Estado
 
-- Al cablear esta demo, `BigBufferScroll` deja de ser «solo test host» y queda **verificada por
-  demo** (regla de cierre de `AGENTS.md`).
-- Pendiente: art desde el tileset compartido de 32 colores (`out/assets/beginning-fields/32c`) en
-  vez del patrón procedural, y promoción del mapper a engine (`ScrollView`/`AmigaDisplayMapper`,
-  Fase 3 de `REFACTOR_PLAYFIELD_SCROLL.md`).
+- `BigBufferScroll` deja de ser «solo test host» y queda **verificada por demo** (regla de cierre
+  de `AGENTS.md`).
+- El **mapper está en el engine** (Fase 3): `eng::field::map_flat_scroll`
+  (`amiga_display_mapper.hpp`, HOST-056) y la superficie `eng::field::FlatScrollPlayfield`
+  (`flat_playfield.hpp`). La demo ya no calcula registros.
+- Pendiente: art desde el tileset compartido (`out/assets/beginning-fields/`) en vez del patrón
+  procedural, y generalizar `ScrollView`/`AmigaDisplayMapper` al resto de estrategias.

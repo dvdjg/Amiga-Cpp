@@ -69,6 +69,10 @@ Una demo **mínima por algoritmo**, mismo contenido y mismo gate; las demos de e
 | Doble buffer + swap | 2 bitmaps completos | offset de cámara | swap `COP1LC`/`BPLxPT` | **nueva** | nuevo host de `swap()` |
 | Page-backed | páginas | `TileFieldController` | `CopyRect`+scratch | **nueva** (de 105) | host de páginas |
 
+### Estado del mapper (Fase 3, primera rebanada)
+
+`eng::field::map_flat_scroll` (`engine/include/eng/field/amiga_display_mapper.hpp`) traduce la cámara del virtual playfield a `planeaddx`/`planeaddy`/`BPLCON1`/`BPLMOD`; es una función pura con test host (**HOST-056**). La superficie `eng::field::FlatScrollPlayfield` (`flat_playfield.hpp`) compone bitmap flat + `BigBufferScroll` + esa vista, de modo que la demo no conoce registros. Verificado por la demo 120. Falta generalizarlo al resto de estrategias (una `ScrollView` neutral común y el mapper para anillo/split/doble buffer).
+
 ## 5. Lista de salvamento (antes de retirar demos)
 
 | Demo a retirar | Qué conservar | Dónde |
