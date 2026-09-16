@@ -156,8 +156,12 @@ El detalle del escalar de 16 bits está en [MINIFLOAT16.md](MINIFLOAT16.md); el 
 
 - Host: `tests/host/059_scalar_math` (interp/geometry con `double`, `MiniFloat16` y
   `q12`), `tests/host/060_noise` (`value_noise`/`fbm` y periodicidad), 057/058 para el
-  escalar de 16 bits, y `tests/host/062_scalar_ops` (`min`/`max`/`abs`/`sign`/
-  `move_towards`, easings `_back` y Bézier; 061 cubre splines y los demás easings).
+  escalar de 16 bits, `tests/host/064_spline_easing` (splines y easings polinómicos/
+  trigonométricos) y `tests/host/065_scalar_ops` (`min`/`max`/`abs`/`sign`/`move_towards`/
+  `deadzone`, easings `_back`/`smooth_damp`, `repeat`/`pingpong` y Bézier).
+- Hardware sin `float`: `tests/l0_bare_metal/020_math_scalars` reejecuta el vocabulario con
+  `MiniFloat16`, `q12` y `q8` (8.8) más las operaciones entre tipos, en el 68000 y con el
+  veredicto por canal lateral (`verify-math.sh`).
 - Codegen 68000: `tools/analyze/codegen-report.mjs` compila sondas de las funciones nuevas
   (`c_fx_*`/`c_mf_*`) y **falla** si aparecen libcalls de libgcc, instrucciones 68020 o si
   los helpers de gameplay no quedan inlineados (incluido en la pasada de tests host).
@@ -189,18 +193,18 @@ tests host) falla si la doc se desincroniza del contrato, y `--write` la regener
 | length / normalize / reflect / project | si | si (limites de rango) | no (sin sqrt) | HOST-059 |
 | value_noise / fbm | si | si (coord <= 2048) | no (necesita division) | HOST-060 |
 | mul_add / mac (FMA) | — | si (1 redondeo) | si (1 redondeo) | HOST-057/059 |
-| hermite / catmull_rom | si | si | si (catmull usa div_norm) | HOST-061 |
-| hermite / catmull_rom (Vec<N>) | si | si | si | HOST-061 |
-| ease_in/out/in_out_quad/_cubic | si | si | si | HOST-061 |
-| ease_in/out/in_out_sine/_expo | si | si (necesita sin/cos/exp2) | — | HOST-061 |
-| min / max / abs / sign | si | si | si | HOST-062 |
-| move_towards | si | si | si | HOST-062 |
-| deadzone | si | si | si | HOST-062 |
-| smooth_damp | si | si | — (sin exp2) | HOST-062 |
-| repeat / pingpong | si | si | si (div_norm) | HOST-062 |
-| ease_in/out/in_out_back | si | si | si | HOST-062 |
-| bezier2 / bezier3 | si | si | si | HOST-062 |
-| bezier2 / bezier3 (Vec<N>) | si | si | si | HOST-062 |
+| hermite / catmull_rom | si | si | si (catmull usa div_norm) | HOST-064 |
+| hermite / catmull_rom (Vec<N>) | si | si | si | HOST-064 |
+| ease_in/out/in_out_quad/_cubic | si | si | si | HOST-064 |
+| ease_in/out/in_out_sine/_expo | si | si (necesita sin/cos/exp2) | — | HOST-064 |
+| min / max / abs / sign | si | si | si | HOST-065 |
+| move_towards | si | si | si | HOST-065 |
+| deadzone | si | si | si | HOST-065 |
+| smooth_damp | si | si | — (sin exp2) | HOST-065 |
+| repeat / pingpong | si | si | si (div_norm) | HOST-065 |
+| ease_in/out/in_out_back | si | si | si | HOST-065 |
+| bezier2 / bezier3 | si | si | si | HOST-065 |
+| bezier2 / bezier3 (Vec<N>) | si | si | si | HOST-065 |
 | wrap_angle / angle_diff | — | si | — | HOST-057 |
 | sqrt/exp/log/sin/cos/tan | — | si | — | HOST-057 |
 | transform (MF × fix) | — | ratio MF (|m| <= 8) | coordenada | HOST-058 |
