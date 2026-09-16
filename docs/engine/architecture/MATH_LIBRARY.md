@@ -258,7 +258,11 @@ propio. Su formato, rango, precisión y reglas de uso están en
 `log2`/`log10`, `pow`, `hypot`, trigonometría e inversas) viven en
 `eng/core/minifloat_math.hpp` y **no** son todavía parte del concepto `Scalar` que el
 álgebra lineal exige (el álgebra solo necesita `+ - *` y los rasgos); se documentan en
-ese mismo fichero de referencia.
+ese mismo fichero de referencia. El puente con el fixed retro (`fix`/`fix88`), incluida
+la transformación de coordenadas fijas con una matriz MF, está en
+`eng/retro/minifloat_fixed.hpp` (ver [MINIFLOAT16.md](MINIFLOAT16.md) §8): usa el
+exponente de `Fixed<s16,Frac>` como tag de escala en vez de duplicar un tipo de
+coordenada.
 
 ## 4. Rendimiento y metaprogramación
 

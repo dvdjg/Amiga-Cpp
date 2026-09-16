@@ -158,7 +158,40 @@ Dominios inválidos (contrato sencillo, sin NaN): `sqrt(x < 0)`, `log(x <= 0)`,
 `asin/acos` fuera de `[-1,1]` y `pow` con base negativa y exponente no entero producen
 ∞ (±∞ en `log(0)`), y las saturaciones a 0/∞ son explícitas en el rango del tipo.
 
-## 8. Estado y verificación
+## 8. Interoperabilidad con coma fija (`fix`/`fix88`)
+
+`engine/include/eng/retro/minifloat_fixed.hpp` (namespace `eng::retro`) combina
+`MiniFloat16` con el fixed retro. Vive en `retro/` porque el vocabulario `fix` (4.12) y
+`fix88` (8.8) es retro; el núcleo (`core/`) no conoce esas convenciones.
+
+El caso de uso es transformar **coordenadas fijas** con una matriz de ratios MF:
+
+```
+   Mat<N, MiniFloat16> (RATIO)  ×  Vec<N, Coord12> (LONGITUD)  ->  Vec<N, Coord12>
+```
+
+con `Coord12 = Fixed<s16,12>` y `Coord88 = Fixed<s16,8>`: el tag de escala es el
+exponente de `Fixed`, así que 4.12 y 8.8 no se pueden mezclar sin un tipo nuevo. La
+matriz MF se convierte **una vez** a 4.12 y cada fila acumula los productos
+`ratio·coordenada` en 32 bits con `muls.w`, normalizando con **un único** desplazamiento:
+la coordenada conserva sus 12 bits de fracción y no se redondea producto a producto
+(producto escalar fusionado, como el `dot` de `linalg`). Verificado en el `.o` de m68k:
+`muls.w`, sin `divs`/`divu` ni libcalls de coma flotante.
+
+| Función | Qué hace |
+|---|---|
+| `fixed_to_mf` / `mf_to_fixed<Frac>` | conversión tipada `Fixed<s16,Frac>` ↔ MF |
+| `fix_to_mf` / `mf_to_fix`, `fix88_to_mf` / `mf_to_fix88` | igual, con `s16` crudo |
+| `mul_fixed` / `mul_fix` / `mul_fix88` | `ratio · valor` -> mismo fixed |
+| `transform(m, p)` / `transform(m, p, t)` | `M·p` y `M·p + t`, tipado |
+| `transform_fix` / `transform_fix88` | idem, con `s16` crudo |
+
+Todas las conversiones son explícitas y **saturan** al salir del rango del destino (nada
+de envolver). Errores medidos (HOST-058 vs `float`): conversión ~5e-4 rel; `transform`
+3x3 ~1e-4 abs (muy por debajo de la resolución 1/4096 del fixed), identidad exacta y
+saturación correcta fuera de rango.
+
+## 9. Estado y verificación
 
 `MiniFloat16` está **NO VERIFICADA por demo** (todavía no tiene consumidor en
 `demos/`). Su corrección la respaldan los tests host:
@@ -170,6 +203,9 @@ Dominios inválidos (contrato sencillo, sin NaN): `sqrt(x < 0)`, `log(x <= 0)`,
   `sqrt`/`exp`/`log`/`log2`/`log10`/`pow`/`hypot`/`sin`/`cos`/`tan`/`sincos` e inversas
   contra `std::`, más identidades de composición (`sin²+cos²=1`, `exp(log x)=x`,
   `sqrt(x)²=x`, `pow(x,2)=x·x`, `sin(asin x)=x`, `atan(tan x)=x`, `hypot(x,0)=|x|`).
+- [`tests/host/058_minifloat_fixed`](../../../tests/host/058_minifloat_fixed/README.md):
+  puente con `fix`/`fix88` (conversiones, producto mixto y `transform` de coordenadas
+  fijas con matriz MF) contra `float`.
 
 Al integrarla en una demo, actualizar esta sección y la marca del comentario de
 cabecera.
