@@ -50,16 +50,17 @@ int main() {
 	// 1) Proyeccion perspectiva: (x*focal/z) + centro.
 	{
 		s16 sx = 0, sy = 0;
-		project_perspective(math3d::Vec3 {256, 512, 1024}, 256, 0, 0, sx, sy);
+		project_perspective(math3d::vec3(256, 512, 1024), 256, 0, 0, sx, sy);
 		check(sx == 64 && sy == 128, "project_perspective escalado");
-		project_perspective(math3d::Vec3 {100, -50, 1000}, 256, 32, 32, sx, sy);
+		project_perspective(math3d::vec3(100, -50, 1000), 256, 32, 32, sx, sy);
 		// div16(100*256,1000)=25 ; div16(-50*256,1000)=-12 (truncado a 0)
 		check(sx == 57, "project_perspective + centro x");
 		check(sy == 20, "project_perspective + centro y");
 	}
 
 	// Malla: cuadrado en z=1024 (dos triangulos), ±96 -> ±24 px proyectado.
-	math3d::Vec3 verts[4] = {{-96, -96, 1024}, {96, -96, 1024}, {96, 96, 1024}, {-96, 96, 1024}};
+	math3d::Vec3 verts[4] = {math3d::vec3(-96, -96, 1024), math3d::vec3(96, -96, 1024),
+				 math3d::vec3(96, 96, 1024), math3d::vec3(-96, 96, 1024)};
 	math3d::Face faces[2] = {{0, 1, 2}, {0, 2, 3}};
 	const math3d::MeshView mesh {Span<const math3d::Vec3>(verts, 4), Span<const math3d::Face>(faces, 2)};
 	const math3d::Affine3 model = math3d::Affine3::identity();
@@ -73,7 +74,7 @@ int main() {
 		math3d::FaceOrder order[2];
 		s16 sx[4], sy[4];
 		const auto color = [](u16) -> u8 { return 1; };
-		const u32 drawn = mesh_render_filled(mesh, model, math3d::Vec3 {0, 0, 2048}, 256, 32, 32,
+		const u32 drawn = mesh_render_filled(mesh, model, math3d::vec3(0, 0, 2048), 256, 32, 32,
 						     world, order, sx, sy, surf, color, false);
 		check(drawn == 2, "2 caras visibles pintadas");
 		check(surf.valid(), "surface valida");
@@ -93,7 +94,7 @@ int main() {
 		math3d::FaceOrder order[2];
 		s16 sx[4], sy[4];
 		const auto color = [](u16) -> u8 { return 1; };
-		const u32 drawn = mesh_render_filled(mesh, model, math3d::Vec3 {0, 0, 0}, 256, 32, 32,
+		const u32 drawn = mesh_render_filled(mesh, model, math3d::vec3(0, 0, 0), 256, 32, 32,
 						     world, order, sx, sy, surf, color, false);
 		check(drawn == 0, "culling: 0 caras desde detras");
 		check(!pf.px(32, 32), "culling: centro sin pintar");
@@ -108,7 +109,7 @@ int main() {
 		math3d::FaceOrder order[2];
 		s16 sx[4], sy[4];
 		const auto color = [](u16) -> u8 { return 1; };
-		const u32 drawn = mesh_render_filled(mesh, model, math3d::Vec3 {0, 0, 0}, 256, 32, 32,
+		const u32 drawn = mesh_render_filled(mesh, model, math3d::vec3(0, 0, 0), 256, 32, 32,
 						     world, order, sx, sy, surf, color, true);
 		check(drawn == 2, "double_sided: 2 caras");
 		check(pf.px(32, 32), "double_sided: centro pintado");
@@ -122,7 +123,7 @@ int main() {
 		math3d::Vec3 world[4];
 		math3d::FaceOrder order[2];
 		s16 sx[4], sy[4];
-		const u32 n = mesh_render_wire(mesh, model, math3d::Vec3 {0, 0, 2048}, 256, 32, 32,
+		const u32 n = mesh_render_wire(mesh, model, math3d::vec3(0, 0, 2048), 256, 32, 32,
 					       world, order, sx, sy, surf, 1, false);
 		check(n == 2, "wire: 2 caras procesadas");
 		check(pf.px(8, 32), "wire: arista izquierda pintada");
@@ -135,7 +136,8 @@ int main() {
 	{
 		constexpr eng::s16 R = 48;
 		constexpr math3d::Vec3 cv[8] = {
-			{-R,-R,-R},{R,-R,-R},{R,R,-R},{-R,R,-R},{-R,-R,R},{R,-R,R},{R,R,R},{-R,R,R}};
+			math3d::vec3(-R,-R,-R), math3d::vec3(R,-R,-R), math3d::vec3(R,R,-R), math3d::vec3(-R,R,-R),
+			math3d::vec3(-R,-R,R), math3d::vec3(R,-R,R), math3d::vec3(R,R,R), math3d::vec3(-R,R,R)};
 		constexpr math3d::Face cf[12] = {
 			{4,5,6},{4,6,7},{0,3,2},{0,2,1},{7,6,2},{7,2,3},{0,1,5},{0,5,4},{1,2,6},{1,6,5},{0,4,7},{0,7,3}};
 		const math3d::MeshView cube {Span<const math3d::Vec3>(cv, 8), Span<const math3d::Face>(cf, 12)};
@@ -148,10 +150,10 @@ int main() {
 		math3d::Affine3 m = math3d::Affine3::identity();
 		m.t = eng::math::Vec<3, eng::retro::q0> {{eng::retro::q0 {0}, eng::retro::q0 {0}, eng::retro::q0 {320}}};
 		const auto color = [](u16) -> u8 { return 1; };
-		const u32 drawn = mesh_render_filled(cube, m, math3d::Vec3 {0, 0, 0}, 160, 32, 32,
+		const u32 drawn = mesh_render_filled(cube, m, math3d::vec3(0, 0, 0), 160, 32, 32,
 						     world, order, sx, sy, surf, color, false);
 		std::printf("  [info] cubo: drawn=%u  world0=(%d,%d,%d)  s0=(%d,%d)\n",
-			    static_cast<unsigned>(drawn), world[0].x, world[0].y, world[0].z, sx[0], sy[0]);
+			    static_cast<unsigned>(drawn), world[0].x().v, world[0].y().v, world[0].z().v, sx[0], sy[0]);
 		check(drawn >= 1, "cubo: al menos una cara visible (camara en el origen)");
 	}
 

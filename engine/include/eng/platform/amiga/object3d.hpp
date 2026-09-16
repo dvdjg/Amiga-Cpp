@@ -147,7 +147,7 @@ inline void update_object_transformation(Object3D& object) {
 	{
 		math3d::Affine3& a = object.objectToWorld;
 		math3d::load_rotate(a.m, static_cast<u16>(r.x), static_cast<u16>(r.y), static_cast<u16>(r.z));
-		math3d::scale(a.m, s.x, s.y, s.z);
+		math3d::scale(a.m, eng::retro::q12 {s.x}, eng::retro::q12 {s.y}, eng::retro::q12 {s.z});
 		a.t = eng::math::Vec<3, eng::retro::q0> {{eng::retro::q0 {t.x}, eng::retro::q0 {t.y}, eng::retro::q0 {t.z}}};
 	}
 

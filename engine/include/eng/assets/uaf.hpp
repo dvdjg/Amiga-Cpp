@@ -414,11 +414,9 @@ public:
 	}
 	math3d::Vec3 vertex(u32 i) const {
 		const u32 off = 4u + i * 6u;
-		return {
-			static_cast<s16>(read_be16(m_bytes.data() + off)),
-			static_cast<s16>(read_be16(m_bytes.data() + off + 2u)),
-			static_cast<s16>(read_be16(m_bytes.data() + off + 4u)),
-		};
+		return math3d::vec3(static_cast<s16>(read_be16(m_bytes.data() + off)),
+				    static_cast<s16>(read_be16(m_bytes.data() + off + 2u)),
+				    static_cast<s16>(read_be16(m_bytes.data() + off + 4u)));
 	}
 	math3d::Face face(u32 i) const {
 		const u32 off = 4u + vertex_count() * 6u + i * 6u;

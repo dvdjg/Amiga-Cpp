@@ -16,8 +16,8 @@ static void check(bool ok, const char* msg) {
 
 int main() {
 	const Vec3 verts[6] = {
-		{0, 0, 0}, {10, 0, 0}, {0, 10, 0},    // cara 0 (z min 0)
-		{0, 0, 50}, {10, 0, 50}, {0, 10, 50}, // cara 1 (z min 50)
+		vec3(0, 0, 0), vec3(10, 0, 0), vec3(0, 10, 0),    // cara 0 (z min 0)
+		vec3(0, 0, 50), vec3(10, 0, 50), vec3(0, 10, 50), // cara 1 (z min 50)
 	};
 	const Face faces[3] = {
 		{0, 1, 2}, // visible (CCW visto desde +z)
@@ -31,10 +31,10 @@ int main() {
 	Vec3 world[6];
 	Affine3 id = Affine3::identity();
 	mesh_transform(mesh.vertices, id, eng::Span<Vec3>(world, 6));
-	check(world[1].x == 10 && world[5].z == 50, "mesh_transform identidad");
+	check(world[1].x().v == 10 && world[5].z().v == 50, "mesh_transform identidad");
 
 	// Culling + orden painter desde +z (camara mirando -z).
-	const Vec3 cam {0, 0, 100};
+	const Vec3 cam = vec3(0, 0, 100);
 	FaceOrder order[3];
 	const eng::u32 n = mesh_painter_order(mesh, eng::Span<const Vec3>(world, 6), cam,
 					      eng::Span<FaceOrder>(order, 3));

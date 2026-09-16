@@ -37,32 +37,32 @@ int main() {
 	check(mv(m, 0, 1) == 0 && mv(m, 1, 0) == 0 && mv(m, 2, 0) == 0, "identidad fuera");
 
 	// transform con identidad no cambia.
-	const Vec3 in[2] = {{100, 200, 300}, {-50, 25, -75}};
+	const Vec3 in[2] = {vec3(100, 200, 300), vec3(-50, 25, -75)};
 	transform(m, out, in, 2);
-	check(out[0].x == 100 && out[0].y == 200 && out[0].z == 300, "transform identidad p0");
-	check(out[1].x == -50 && out[1].y == 25 && out[1].z == -75, "transform identidad p1");
+	check(out[0].x().v == 100 && out[0].y().v == 200 && out[0].z().v == 300, "transform identidad p0");
+	check(out[1].x().v == -50 && out[1].y().v == 25 && out[1].z().v == -75, "transform identidad p1");
 
 	// Escala 0.5.
 	m = Mat3::identity();
-	scale(m, 2048, 2048, 2048);
+	scale(m, q12 {2048}, q12 {2048}, q12 {2048});
 	transform(m, out, in, 2);
-	check(out[0].x == 50 && out[0].y == 100 && out[0].z == 150, "scale 0.5 p0");
-	check(out[1].x == -25 && out[1].y == 12 && out[1].z == -38, "scale 0.5 p1 (truncado)");
+	check(out[0].x().v == 50 && out[0].y().v == 100 && out[0].z().v == 150, "scale 0.5 p0");
+	check(out[1].x().v == -25 && out[1].y().v == 12 && out[1].z().v == -38, "scale 0.5 p1 (truncado)");
 
 	// Rotación sobre Z 90° (az=1024): (x,y,z) -> (y,-x,z).
 	m = Mat3::identity();
 	load_rotate(m, 0, 0, 1024);
 	{
-		const Vec3 p = {100, 0, 0};
+		const Vec3 p = vec3(100, 0, 0);
 		transform(m, out, &p, 1);
-		near(out[0].x, 0, 1, "rotZ (100,0,0).x");
-		near(out[0].y, 100, 1, "rotZ (100,0,0).y");
+		near(out[0].x().v, 0, 1, "rotZ (100,0,0).x");
+		near(out[0].y().v, 100, 1, "rotZ (100,0,0).y");
 	}
 	{
-		const Vec3 p = {0, 100, 0};
+		const Vec3 p = vec3(0, 100, 0);
 		transform(m, out, &p, 1);
-		near(out[0].x, -100, 1, "rotZ (0,100,0).x");
-		near(out[0].y, 0, 1, "rotZ (0,100,0).y");
+		near(out[0].x().v, -100, 1, "rotZ (0,100,0).x");
+		near(out[0].y().v, 0, 1, "rotZ (0,100,0).y");
 	}
 
 	// compose(I, R) == R  (la composición ahora es el `operator*` de la librería).
@@ -93,12 +93,12 @@ int main() {
 
 	// Visibilidad de cara (back-face culling) y claves de orden Z.
 	{
-		const Vec3 a {0, 0, 0}, b {100, 0, 0}, cc {0, 100, 0};
-		check(face_visible(a, b, cc, {50, 50, 200}), "cara visible desde +z");
-		check(!face_visible(a, b, cc, {50, 50, -200}), "cara no visible desde -z");
+		const Vec3 a = vec3(0, 0, 0), b = vec3(100, 0, 0), cc = vec3(0, 100, 0);
+		check(face_visible(a, b, cc, vec3(50, 50, 200)), "cara visible desde +z");
+		check(!face_visible(a, b, cc, vec3(50, 50, -200)), "cara no visible desde -z");
 	}
 	{
-		const Vec3 a {0, 0, 10}, b {0, 0, 20}, cc {0, 0, 30};
+		const Vec3 a = vec3(0, 0, 10), b = vec3(0, 0, 20), cc = vec3(0, 0, 30);
 		check(face_z_sum(a, b, cc) == 60, "face_z_sum");
 		check(face_z_min(a, b, cc) == 10, "face_z_min");
 	}

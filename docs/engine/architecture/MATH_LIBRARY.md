@@ -279,8 +279,27 @@ la transformación de coordenadas fijas con una matriz MF, está en
 exponente de `Fixed<s16,Frac>` como tag de escala en vez de duplicar un tipo de
 coordenada.
 
-## 4. Rendimiento y metaprogramación
+### 3.7 Estado de tipado de las cabeceras de geometría/3D
 
+Criterio: una cabecera usa los escalares tipados (`Fixed`/`MiniFloat16` y
+`Vec`/`Mat`/`Affine`) salvo que su crudeza sea **contrato** (layout empaquetado, DMA) o
+**rendimiento medido** (una multiplicación que se ensancharía a 64 bits y no enlazaría en
+68000). El gate de codegen (`tools/analyze/codegen-report.mjs`) fija que estos algoritmos
+no llamen a libgcc (`__mulsi3`/`__divsi3`) ni usen instrucciones de 68020.
+
+| Cabecera | Estado | Motivo |
+|---|---|---|
+| `core/mesh3d.hpp` | tipada | `Vec3 = Vec<3, Fixed<s16,0>>` (LONGITUD); el producto mixto usa `arith<s16>` (`muls.w`) y `mul32x16`, sin `__mulsi3` |
+| `platform/amiga/gfx3d.hpp` | tipada | `Mat3`/`Affine3`/`Vec3` tipados; `scale` recibe `q12` |
+| `graphics/mesh_renderer.hpp` | tipada | opera sobre `Vec3` tipado; `focal` sigue en 4.12 crudo (convención) |
+| `assets/uaf.hpp` (`MeshAssetView`) | tipada | `vertex()` devuelve `Vec3`; el contenedor es serialización big-endian |
+| `retro/lib2d.hpp` | puente | alias `Vec2`/`Mat2x2`/`Rect` tipados; el recorte (`clip_*`) es aritmética de enteros de píxel por diseño |
+| `graphics/effects/rotozoom.hpp` | cruda (motivo) | 16.16 en `s32`: `mul_repr<s32>` ensancha a 64 bits → `__muldi3` (no enlaza en 68000); el asm comparte el layout `RotozoomSteps` |
+| `platform/amiga/object3d.hpp`, `lib3d.hpp` | cruda (motivo) | layout empaquetado `obj2c` 1:1; encima se tipa (`Affine3`, `P3`) |
+| `core/light.hpp`, `isqrt.hpp`, `fast_div.hpp`, `arith.hpp`, `word.hpp` | cruda (diseño) | aritmética de enteros/manipulación de bits; no son escalares |
+| `retro/fixed_q.hpp`, `retro/minifloat_fixed.hpp` | puente | vocabulario crudo (`fix`/`fix88`) para ports + conversiones tipadas |
+
+## 4. Rendimiento y metaprogramación
 - **N constante** y **sin matrices temporales**: la acumulación va directa a los
   registros del resultado. Qué hacer con el bucle (desenrollar o dejarlo plegado) se
   decide **midiendo**: el 68000 tiene un prefetch de 2 palabras y un cuerpo compacto
@@ -360,3 +379,9 @@ sin temporales.
 - Cada fase se cierra con su test host antes de tocar la siguiente capa.
 - La migración (F3) se valida por **bit-exactitud** contra la implementación actual, no
   sólo por cobertura: cualquier diferencia de píxel es un fallo.
+- **Hardware sin `float`**: `tests/l0_bare_metal/020_math_scalars` reejecuta el vocabulario
+  (MF/q12/q8 + operaciones entre tipos + `mesh3d`/`light`/`isqrt`/ángulos) en el 68000, con
+  el veredicto por canal lateral (`verify-math.sh`).
+- **Codegen**: `tools/analyze/codegen-report.mjs` compila una sonda por función clave
+  (incluido `face_signed_area` de `mesh3d`) y falla si aparecen libcalls de libgcc,
+  instrucciones de 68020 o helpers de gameplay sin inlinear.

@@ -206,7 +206,7 @@ int main() {
 		const MeshAssetView mv {eng::UafPayload{mesh}};
 		check(mv.valid() && mv.vertex_count() == 2 && mv.face_count() == 1, "MeshAssetView cabecera");
 		const eng::math3d::Vec3 v0 = mv.vertex(0);
-		check(v0.x == -48 && v0.y == -48 && v0.z == -48, "MeshAssetView vertex 0");
+		check(v0.x().v == -48 && v0.y().v == -48 && v0.z().v == -48, "MeshAssetView vertex 0");
 		const eng::math3d::Face f0 = mv.face(0);
 		check(f0.a == 0 && f0.b == 1 && f0.c == 1, "MeshAssetView face 0");
 		const MeshAssetView bad {eng::UafPayload(mesh, 8)};

@@ -23,9 +23,9 @@ namespace eng::graphics {
 /// `z` debe ser > 0 (delante de la cámara); `focal` en 4.12 (256 = 0.0625, 4096 = 1.0).
 inline void project_perspective(const math3d::Vec3& v, s16 focal, s16 cx, s16 cy,
 				s16& sx, s16& sy) {
-	const s16 z = v.z != 0 ? v.z : 1;
-	sx = static_cast<s16>(eng::math::div16(static_cast<s32>(v.x) * focal, z) + cx);
-	sy = static_cast<s16>(eng::math::div16(static_cast<s32>(v.y) * focal, z) + cy);
+	const s16 z = v.v[2].v != 0 ? v.v[2].v : 1;
+	sx = static_cast<s16>(eng::math::div16(static_cast<s32>(v.v[0].v) * focal, z) + cx);
+	sy = static_cast<s16>(eng::math::div16(static_cast<s32>(v.v[1].v) * focal, z) + cy);
 }
 
 /// Rasteriza las caras (triángulos) de `mesh` sobre `surface`, con el color que

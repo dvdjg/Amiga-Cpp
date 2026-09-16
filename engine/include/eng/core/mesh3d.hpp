@@ -1,10 +1,16 @@
 #pragma once
 
 /// \file mesh3d.hpp
-/// Modelo de **malla** 3D sobre `math3d` (lib3d): vista no propietaria de
-/// vértices + caras triangulares, transformación por lotes, **back-face culling**
-/// y **orden de pintado** (painter's algorithm). Todo con buffers del llamador,
-/// sin asignación dinámica ni STL (apto para gameplay).
+/// Modelo de **malla** 3D: vista no propietaria de vértices + caras triangulares,
+/// transformación por lotes, **back-face culling** y **orden de pintado** (painter's
+/// algorithm). Todo con buffers del llamador, sin asignación dinámica ni STL.
+///
+/// La **coordenada** es un escalar tipado (`Coord = Fixed<s16,0>`, LONGITUD) y el punto
+/// es el `Vec<3,Coord>` genérico: mismo tamaño (6 B) que tres `s16`, pero entra en el
+/// álgebra de `eng::math` (`transform`, `dot`, `Vec`) y sus productos usan
+/// `arith<s16>::mul` → **`muls.w`** en el 68000, nunca `__mulsi3`. Las claves derivadas
+/// (signo del producto mixto, suma/mínimo de Z) siguen siendo enteros: al culling y al
+/// orden solo les importa signo/orden, no la fracción.
 ///
 /// Patrón de uso:
 ///
@@ -17,22 +23,32 @@
 ///       draw_triangle(world[f.a], world[f.b], world[f.c]);
 ///   }
 ///
-/// Reutiliza `Face`, `transform`, `face_visible` y `face_z_min` de `math3d`
-/// (no duplica); aquí solo vive la composición «malla → caras listas para pintar».
+/// Convención de coordenada: mallas de juego con componentes en `s16` (el rango de una
+/// LONGITUD de 16 bits); las diferencias que entran en el producto mixto se tratan como
+/// `s16`, igual que el original.
 
+#include <eng/core/arith.hpp>
+#include <eng/core/fixed.hpp>
 #include <eng/core/linalg.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::math3d {
 
-/// Punto/vector 3D crudo: 3 enteros. Es del modelo de malla (no depende del 4.12 ni del
-/// chipset); un backend lo cruza con sus escalares cuando transforma.
-struct Vec3 {
-	s16 x = 0;
-	s16 y = 0;
-	s16 z = 0;
-};
+/// Coordenada de modelo (LONGITUD): entero con signo como escalar tipado (`1.0 == 1`).
+using Coord = eng::math::Fixed<s16, 0>;
+
+/// Punto/vector 3D de la malla. Es el `Vec<3, Coord>` genérico (mismo layout que tres
+/// `s16`), así que `eng::math::transform`/`dot`/`Vec` funcionan sin puente.
+using Vec3 = eng::math::Vec<3, Coord>;
+
+/// Construye un vértice a partir de literales (`vec3(-48, -48, -48)`).
+[[nodiscard]] constexpr Vec3 vec3(int x, int y, int z) {
+	return Vec3 {{Coord {static_cast<s16>(x)}, Coord {static_cast<s16>(y)}, Coord {static_cast<s16>(z)}}};
+}
+
+/// Coordenada `i` (0..2) como entero crudo: el culling/orden trabajan en enteros.
+[[nodiscard]] constexpr s16 coord_at(const Vec3& p, int i) { return p.v[i].v; }
 
 /// Cara triangular: 3 índices sobre el array de vértices.
 struct Face {
@@ -41,15 +57,44 @@ struct Face {
 	u16 c = 0;
 };
 
+namespace detail {
+
+/// Producto `s16 × s16 -> s32` con la multiplicación nativa del `arith` del CPU
+/// (`muls.w` en 68000). Escribir `(s32)a * (s32)b` acabaría en `__mulsi3` (~50+ ciclos).
+[[nodiscard]] constexpr s32 mul16(s16 a, s16 b) { return eng::math::arith<s16>::mul(a, b); }
+
+/// Producto `s32 × s16 -> s32` (se conservan los 32 bits bajos, como el `*` directo) sin
+/// `__mulsi3`: se parte el operando de 32 bits y se usan dos multiplicaciones de 16 bits
+/// nativas. El segundo operando se sign-extiende (de ahí la corrección de `b < 0`); el
+/// resultado queda bit a bit igual que `(s32)a * (s32)b` (probado por HOST-013).
+[[nodiscard]] constexpr s32 mul32x16(s32 a, s16 b) {
+	const u16 a_lo = static_cast<u16>(static_cast<u32>(a) & 0xFFFFu);
+	const s16 a_hi = static_cast<s16>(static_cast<u32>(a) >> 16);
+	u32 lo_prod = eng::math::arith<s16>::mulu(a_lo, static_cast<u16>(b));
+	if (b < 0) lo_prod -= static_cast<u32>(a_lo) << 16;
+	const s32 hi_prod = eng::math::arith<s16>::mul(a_hi, b);
+	return static_cast<s32>(lo_prod + (static_cast<u32>(hi_prod) << 16));
+}
+
+} // namespace detail
+
 /// Producto mixto `(B-A)·[(C-A)×(cam-A)]` en 32 bits (signo = visibilidad de la cara
 /// `(A,B,C)` desde `cam`). Back-face culling sin normalizar (solo importa el signo).
+/// Los productos 16×16 usan `muls.w`; las diferencias se tratan como `s16` (contrato de
+/// coordenada de modelo documentado arriba).
 constexpr s32 face_signed_area(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& cam) {
-	const s32 ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
-	const s32 vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
-	const s32 nx = uy * vz - uz * vy;
-	const s32 ny = uz * vx - ux * vz;
-	const s32 nz = ux * vy - uy * vx;
-	return nx * (cam.x - a.x) + ny * (cam.y - a.y) + nz * (cam.z - a.z);
+	const s16 ux = static_cast<s16>(b.v[0].v - a.v[0].v);
+	const s16 uy = static_cast<s16>(b.v[1].v - a.v[1].v);
+	const s16 uz = static_cast<s16>(b.v[2].v - a.v[2].v);
+	const s16 vx = static_cast<s16>(c.v[0].v - a.v[0].v);
+	const s16 vy = static_cast<s16>(c.v[1].v - a.v[1].v);
+	const s16 vz = static_cast<s16>(c.v[2].v - a.v[2].v);
+	const s32 nx = detail::mul16(uy, vz) - detail::mul16(uz, vy);
+	const s32 ny = detail::mul16(uz, vx) - detail::mul16(ux, vz);
+	const s32 nz = detail::mul16(ux, vy) - detail::mul16(uy, vx);
+	return detail::mul32x16(nx, static_cast<s16>(cam.v[0].v - a.v[0].v)) +
+	       detail::mul32x16(ny, static_cast<s16>(cam.v[1].v - a.v[1].v)) +
+	       detail::mul32x16(nz, static_cast<s16>(cam.v[2].v - a.v[2].v));
 }
 
 /// ¿Es visible la cara `(a,b,c)` desde `cam`? (`>= 0`, como el origen).
@@ -59,13 +104,13 @@ constexpr bool face_visible(const Vec3& a, const Vec3& b, const Vec3& c, const V
 
 /// Clave de orden Z por SUMA de los z de la cara (como `SortFaces`).
 constexpr s16 face_z_sum(const Vec3& a, const Vec3& b, const Vec3& c) {
-	return static_cast<s16>(a.z + b.z + c.z);
+	return static_cast<s16>(a.v[2].v + b.v[2].v + c.v[2].v);
 }
 
 /// Clave de orden Z por MÍNIMO de los z de la cara (como `SortFacesMinZ`).
 constexpr s16 face_z_min(const Vec3& a, const Vec3& b, const Vec3& c) {
-	const s16 ab = a.z < b.z ? a.z : b.z;
-	return ab < c.z ? ab : c.z;
+	const s16 ab = a.v[2].v < b.v[2].v ? a.v[2].v : b.v[2].v;
+	return ab < c.v[2].v ? ab : c.v[2].v;
 }
 
 /// Vista no propietaria de una malla: vértices compartidos (enlazado por índice)
@@ -79,17 +124,18 @@ struct MeshView {
 };
 
 /// Transforma los vértices `in` al mundo con un afín `out = M·in + t`. Es **genérico**
-/// sobre el escalar del afín: sirve para `Affine<3,q12,q0>` (Amiga), `Affine<3,float,float>`
-/// o cualquier otro. Un backend de CPU puede especializar la aritmética por dentro.
+/// sobre el escalar del afín: sirve para `Affine<3,q12,q0>` (Amiga), `Affine<3,MiniFloat16,..>`
+/// o cualquier otro. La coordenada de modelo entra como LONGITUD (`Coord`).
 template <int N, typename SR, typename SL>
-inline void mesh_transform(Span<const Vec3> in, const eng::math::Affine<N, SR, SL>& m, Span<Vec3> out) {
+inline void mesh_transform(Span<const Vec3> in, const eng::math::Affine<N, SR, SL>& m,
+			   Span<Vec3> out) {
 	const u32 n = static_cast<u32>(in.size() < out.size() ? in.size() : out.size());
 	for (u32 i = 0; i < n; ++i) {
-		const eng::math::Vec<N, SL> p {{SL {in[i].x}, SL {in[i].y}, SL {in[i].z}}};
+		const eng::math::Vec<N, SL> p {{SL {in[i].v[0].v}, SL {in[i].v[1].v}, SL {in[i].v[2].v}}};
 		const eng::math::Vec<N, SL> w = eng::math::transform(m, p);
-		out[i].x = static_cast<s16>(w.x().v);
-		out[i].y = static_cast<s16>(w.y().v);
-		out[i].z = static_cast<s16>(w.z().v);
+		out[i].v[0].v = static_cast<s16>(w.v[0].v);
+		out[i].v[1].v = static_cast<s16>(w.v[1].v);
+		out[i].v[2].v = static_cast<s16>(w.v[2].v);
 	}
 }
 
@@ -113,9 +159,8 @@ struct FaceOrder {
 /// juego (decenas/cientos de caras) evita el coste O(n²) de una inserción y se
 /// mantiene 100 % aritmética entera. Las caras con índices fuera de rango se
 /// descartan silenciosamente (malla corrupta no rompe el frame).
-inline u32 mesh_painter_order(const MeshView& mesh, Span<const Vec3> verts,
-			      const Vec3& cam, Span<FaceOrder> out,
-			      bool double_sided = false) {
+inline u32 mesh_painter_order(const MeshView& mesh, Span<const Vec3> verts, const Vec3& cam,
+			      Span<FaceOrder> out, bool double_sided = false) {
 	const u32 nv = mesh.vertex_count();
 	const u32 cap = static_cast<u32>(out.size());
 	u32 n = 0;

@@ -185,6 +185,7 @@ struct Canvas {
 using eng::math3d::Face;
 using eng::math3d::MeshView;
 using eng::math3d::Vec3;
+using eng::math3d::vec3;
 
 constexpr eng::s32 kCX = 160;
 constexpr eng::s32 kCY = 126;
@@ -355,7 +356,7 @@ struct DemoGame {
 		eng::math3d::mesh_transform(m_mesh.vertices, m, eng::Span<Vec3>(world, 8));
 
 		eng::math3d::FaceOrder order[12];
-		const Vec3 cam {0, 0, kCamZ};
+		const Vec3 cam = vec3(0, 0, kCamZ);
 		const eng::u32 visible = eng::math3d::mesh_painter_order(
 			m_mesh, eng::Span<const Vec3>(world, 8), cam, eng::Span<eng::math3d::FaceOrder>(order, 12));
 
@@ -367,12 +368,12 @@ struct DemoGame {
 		for (eng::u32 i = 0; i < visible; ++i) {
 			const Face& fc = m_faces[order[i].index];
 			const eng::u8 col = shade_of(eng::math3d::face_z_sum(world[fc.a], world[fc.b], world[fc.c]));
-			const eng::s16 ax = static_cast<eng::s16>(kCX + world[fc.a].x);
-			const eng::s16 ay = static_cast<eng::s16>(kCY - world[fc.a].y);
-			const eng::s16 bx = static_cast<eng::s16>(kCX + world[fc.b].x);
-			const eng::s16 by = static_cast<eng::s16>(kCY - world[fc.b].y);
-			const eng::s16 cx = static_cast<eng::s16>(kCX + world[fc.c].x);
-			const eng::s16 cy = static_cast<eng::s16>(kCY - world[fc.c].y);
+			const eng::s16 ax = static_cast<eng::s16>(kCX + world[fc.a].x().v);
+			const eng::s16 ay = static_cast<eng::s16>(kCY - world[fc.a].y().v);
+			const eng::s16 bx = static_cast<eng::s16>(kCX + world[fc.b].x().v);
+			const eng::s16 by = static_cast<eng::s16>(kCY - world[fc.b].y().v);
+			const eng::s16 cx = static_cast<eng::s16>(kCX + world[fc.c].x().v);
+			const eng::s16 cy = static_cast<eng::s16>(kCY - world[fc.c].y().v);
 #if K_FILL_BLITTER
 			// Ruta robusta: la CPU dibuja la mascara (1 plano, por tramos) y el
 			// Blitter hace el cookie-cut de la mascara a los planos de color.
@@ -446,7 +447,7 @@ private:
 		Vec3 w[8];
 		eng::math3d::mesh_transform(m_mesh.vertices, id, eng::Span<Vec3>(w, 8));
 		eng::math3d::FaceOrder order[12];
-		const Vec3 cam {0, 0, kCamZ};
+		const Vec3 cam = vec3(0, 0, kCamZ);
 		const eng::u32 n = eng::math3d::mesh_painter_order(
 			m_mesh, eng::Span<const Vec3>(w, 8), cam, eng::Span<eng::math3d::FaceOrder>(order, 12));
 		return n == 2u && order[0].index == 0u && order[1].index == 1u &&

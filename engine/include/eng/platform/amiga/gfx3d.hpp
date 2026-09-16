@@ -27,13 +27,11 @@ using eng::retro::sin_q12;
 using Mat3 = eng::math::Mat<3, eng::retro::q12>;
 /// Transformación afín completa: lineal (RATIO 4.12) + traslación (LONGITUD entera).
 using Affine3 = eng::math::Affine<3, eng::retro::q12, eng::retro::q0>;
-/// Vértice crudo del modelo (`Vec3`) como punto en LONGITUD, para el álgebra genérica.
+/// Punto en LONGITUD del álgebra genérica. Es EXACTAMENTE el vértice de malla
+/// (`Vec3 = Vec<3, Coord>`), porque `retro::q0` y `math3d::Coord` son el mismo
+/// `math::Fixed<s16,0>`: ya no hace falta convertir `{s16 x,y,z}` a `Vec<3,q0>`.
 using P3 = eng::math::Vec<3, eng::retro::q0>;
-
-/// Convierte un vértice crudo (`Vec3`, tres `s16`) al punto tipado (`P3`).
-[[nodiscard]] constexpr P3 vertex(const Vec3& v) {
-	return P3 {{eng::retro::q0 {v.x}, eng::retro::q0 {v.y}, eng::retro::q0 {v.z}}};
-}
+static_assert(sizeof(P3) == sizeof(Vec3), "math3d::P3 y math3d::Vec3 deben coincidir");
 
 // `Vec3`, `Face` y el back-face culling son del MODELO de malla, no de este formato:
 // viven en `eng/core/mesh3d.hpp`. Aquí sólo queda lo que usa el 4.12.
@@ -80,33 +78,32 @@ inline void load_reverse_rotate(Mat3& m, u16 ax, u16 ay, u16 az) {
 	m.m[2][2] = eng::math::dot(q12 {cosX}, q12 {cosY});
 }
 
-/// Escala la parte lineal in situ (factores en 4.12).
-inline void scale(Mat3& m, fix sx, fix sy, fix sz) {
-	const eng::retro::q12 fx {sx}, fy {sy}, fz {sz};
+/// Escala la parte lineal in situ (factores RATIO en 4.12, el mismo escalar que la matriz).
+inline void scale(Mat3& m, eng::retro::q12 sx, eng::retro::q12 sy, eng::retro::q12 sz) {
 	for (int i = 0; i < 3; ++i) {
-		m.m[i][0] = (m.m[i][0] * fx).rescale<12>().cast<s16>();
-		m.m[i][1] = (m.m[i][1] * fy).rescale<12>().cast<s16>();
-		m.m[i][2] = (m.m[i][2] * fz).rescale<12>().cast<s16>();
+		m.m[i][0] = eng::math::mul_norm(m.m[i][0], sx);
+		m.m[i][1] = eng::math::mul_norm(m.m[i][1], sy);
+		m.m[i][2] = eng::math::mul_norm(m.m[i][2], sz);
 	}
 }
 
-/// `out = M·in` (sin traslación). Los vértices son LONGITUDES (`q0`).
+/// `out = M·in` (sin traslación). Los vértices son LONGITUDES (`Coord`), el MISMO escalar
+/// del álgebra: no hay conversión, solo `dot(fila, vértice)` (producto fusionado exacto).
 inline void transform(const Mat3& m, Vec3* out, const Vec3* in, u32 n) {
 	for (u32 i = 0; i < n; ++i) {
-		const P3 p = vertex(in[i]);
-		out[i].x = static_cast<s16>(eng::math::dot(m.row(0), p).v);
-		out[i].y = static_cast<s16>(eng::math::dot(m.row(1), p).v);
-		out[i].z = static_cast<s16>(eng::math::dot(m.row(2), p).v);
+		const Vec3& p = in[i];
+		out[i] = Vec3 {{eng::math::dot(m.row(0), p), eng::math::dot(m.row(1), p),
+				eng::math::dot(m.row(2), p)}};
 	}
 }
 
 /// `out = M·in + t` (afín). Es lo que usa el mesh: su "model" lleva traslación.
 inline void transform(const Affine3& a, Vec3* out, const Vec3* in, u32 n) {
 	for (u32 i = 0; i < n; ++i) {
-		const P3 p = vertex(in[i]);
-		out[i].x = static_cast<s16>(eng::math::dot(a.m.row(0), p).v + a.t.x().v);
-		out[i].y = static_cast<s16>(eng::math::dot(a.m.row(1), p).v + a.t.y().v);
-		out[i].z = static_cast<s16>(eng::math::dot(a.m.row(2), p).v + a.t.z().v);
+		const Vec3& p = in[i];
+		out[i] = Vec3 {{eng::math::dot(a.m.row(0), p) + a.t.v[0],
+				eng::math::dot(a.m.row(1), p) + a.t.v[1],
+				eng::math::dot(a.m.row(2), p) + a.t.v[2]}};
 	}
 }
 

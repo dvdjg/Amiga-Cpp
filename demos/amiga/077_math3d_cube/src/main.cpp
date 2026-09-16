@@ -130,6 +130,7 @@ struct Canvas {
 using eng::math3d::Face;
 using eng::math3d::MeshView;
 using eng::math3d::Vec3;
+using eng::math3d::vec3;
 
 /// Cubo unidad de radio `kR`, 8 vertices compartidos y 12 triangulos con
 /// orientacion CCW vista desde FUERA (necesario para que `face_visible` haga
@@ -137,8 +138,8 @@ using eng::math3d::Vec3;
 /// mira a la camara).
 constexpr eng::s16 kR = 48;
 constexpr Vec3 kVertices[8] = {
-	{-kR, -kR, -kR}, {kR, -kR, -kR}, {kR, kR, -kR}, {-kR, kR, -kR},
-	{-kR, -kR,  kR}, {kR, -kR,  kR}, {kR, kR,  kR}, {-kR, kR,  kR},
+	vec3(-kR, -kR, -kR), vec3(kR, -kR, -kR), vec3(kR, kR, -kR), vec3(-kR, kR, -kR),
+	vec3(-kR, -kR, kR), vec3(kR, -kR, kR), vec3(kR, kR, kR), vec3(-kR, kR, kR),
 };
 constexpr Face kFaces[12] = {
 	{4, 5, 6}, {4, 6, 7}, // +Z (frente)
@@ -190,7 +191,7 @@ void draw_edge(Canvas& c, const Vec3* w, eng::u16 p, eng::u16 q, eng::u8 col) {
 	if (!is_cube_edge(p, q)) {
 		return;
 	}
-	c.line(kCX + w[p].x, kCY - w[p].y, kCX + w[q].x, kCY - w[q].y, col);
+	c.line(kCX + w[p].x().v, kCY - w[p].y().v, kCX + w[q].x().v, kCY - w[q].y().v, col);
 }
 
 /// Auto-test EN HARDWARE (misma comprobacion que HOST-013, sobre el 68000): con
@@ -205,7 +206,7 @@ bool verify_mesh() {
 	eng::math3d::mesh_transform(mesh.vertices, id, eng::Span<Vec3>(w, 8));
 
 	eng::math3d::FaceOrder order[12];
-	const Vec3 cam {0, 0, kCamZ};
+	const Vec3 cam = vec3(0, 0, kCamZ);
 	const eng::u32 n = eng::math3d::mesh_painter_order(
 		mesh, eng::Span<const Vec3>(w, 8), cam, eng::Span<eng::math3d::FaceOrder>(order, 12));
 
@@ -271,7 +272,7 @@ struct DemoGame {
 		eng::math3d::mesh_transform(mesh.vertices, m, eng::Span<Vec3>(world, 8));
 
 		eng::math3d::FaceOrder order[12];
-		const Vec3 cam {0, 0, kCamZ};
+	const Vec3 cam = vec3(0, 0, kCamZ);
 		const eng::u32 visible = eng::math3d::mesh_painter_order(
 			mesh, eng::Span<const Vec3>(world, 8), cam, eng::Span<eng::math3d::FaceOrder>(order, 12));
 

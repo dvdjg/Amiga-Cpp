@@ -21,6 +21,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/geometry.hpp>
 #include <eng/core/scalar_ops.hpp>
 #include <eng/core/spline.hpp>
+#include <eng/core/mesh3d.hpp>
 #include <eng/core/minifloat.hpp>
 #include <eng/core/minifloat_math.hpp>
 #include <eng/retro/fixed_q.hpp>
@@ -28,6 +29,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/platform/amiga/lib3d.hpp>
 using namespace eng::math;
 using namespace eng::retro;
+using namespace eng::math3d;
 using eng::s16;
 using eng::s32;
 using eng::u16;
@@ -74,6 +76,12 @@ extern "C" s16 c_fx_bezier3(s16 p0, s16 p1, s16 p2, s16 p3, s16 t) {
 	return bezier3(q12{p0}, q12{p1}, q12{p2}, q12{p3}, q12{t}).v;
 }
 extern "C" s16 c_fx_minmax(s16 a, s16 b) { return max(min(q12{a}, q12{b}), q12{0}).v; }
+
+// --- mesh3d: producto mixto del culling. Debe usar muls.w (nunca __mulsi3) porque las
+// diferencias de coordenada son s16 y el arith<s16> fuerza la multiplicacion nativa.
+extern "C" s32 c_face_area(const Vec3* a, const Vec3* b, const Vec3* c, const Vec3* cam) {
+	return face_signed_area(*a, *b, *c, *cam);
+}
 
 // --- MiniFloat16: aritmetica, matematicas y puente con fixed (sin libgcc) ---
 extern "C" u16 c_mf_mul(u16 a, u16 b) { return (MiniFloat16::from_raw(a) * MiniFloat16::from_raw(b)).raw; }

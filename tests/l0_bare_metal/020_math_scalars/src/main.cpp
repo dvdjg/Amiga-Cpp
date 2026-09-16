@@ -833,17 +833,17 @@ void t_light() {
 
 void t_mesh3d() {
 	case_begin("mesh3d culling/orden", 3, 0);
-	const m3::Vec3 a {0, 0, 0};
-	const m3::Vec3 b {1, 0, 0};
-	const m3::Vec3 c {0, 1, 0};
-	const m3::Vec3 front {0, 0, 1};
-	const m3::Vec3 back {0, 0, -1};
+	const m3::Vec3 a = m3::vec3(0, 0, 0);
+	const m3::Vec3 b = m3::vec3(1, 0, 0);
+	const m3::Vec3 c = m3::vec3(0, 1, 0);
+	const m3::Vec3 front = m3::vec3(0, 0, 1);
+	const m3::Vec3 back = m3::vec3(0, 0, -1);
 	eqi(m3::face_signed_area(a, b, c, front), 1);
 	eqi(m3::face_signed_area(a, b, c, back), -1);
 	see(m3::face_visible(a, b, c, front));
 	see(!m3::face_visible(a, b, c, back));
-	eqi(m3::face_z_sum(m3::Vec3 {0, 0, 3}, m3::Vec3 {0, 0, 2}, m3::Vec3 {0, 0, 1}), 6);
-	eqi(m3::face_z_min(m3::Vec3 {0, 0, 3}, m3::Vec3 {0, 0, -1}, m3::Vec3 {0, 0, 2}), -1);
+	eqi(m3::face_z_sum(m3::vec3(0, 0, 3), m3::vec3(0, 0, 2), m3::vec3(0, 0, 1)), 6);
+	eqi(m3::face_z_min(m3::vec3(0, 0, 3), m3::vec3(0, 0, -1), m3::vec3(0, 0, 2)), -1);
 	case_end();
 }
 
