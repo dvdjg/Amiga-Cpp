@@ -1,9 +1,10 @@
 # Demo 080 — fuego `fire-rgb` (HAM6 320×256, C2P por Blitter)
 
 **Porte 1:1** de `effects/fire-rgb/fire-rgb.c` de `demoscene-repo-orig`. Es la demo
-canónica del efecto: simulación de fuego **80×64**, conversión a color + escalado ×4 +
-chunky en una sola pasada, **C2P 4bpp por Blitter** y display **HAM6 320×256** con
-**cuadruplicado de líneas por Copper**.
+canónica del efecto (la `062` se retiró por ser un subconjunto más lento; el benchmark
+C++ vs asm de la `063` vive ahora en `playground/fire-benchmark`): simulación de fuego
+**80×64**, conversión a color + escalado ×4 + chunky en una sola pasada, **C2P 4bpp por
+Blitter** y display **HAM6 320×256** con **cuadruplicado de líneas por Copper**.
 
 ## Qué muestra
 
@@ -19,11 +20,37 @@ chunky en una sola pasada, **C2P 4bpp por Blitter** y display **HAM6 320×256** 
   chunky, todo en una pasada sobre el buffer. `RandomizeBottom` + `fastrand` son asm
   verbatim del original. La ruta C++ equivalente (`MainLoopC`) queda como respaldo
   (`-DK_FIRE_ASM=0`).
-- **C2P por Blitter**: 13 fases (`MinimalBackend::c2p_4bpp_step`) encadenadas por la
-  **IRQ de blit** (`on_blit`): la CPU no espera al Blitter. Es el mecanismo del original
-  (`ChunkyToPlanar` en la IRQ), es decir **CPU y Blitter en paralelo**.
+- **C2P por Blitter**: la tabla de estados del original tiene **13 fases = 12 blits**
+  (dos pasadas de *swap* 8×4 + una de *swap* 4×4) y una última que **parchea la copperlist**
+  con los punteros de los 4 planos nuevos; cada blit lo encadena la **IRQ de blit**
+  (`on_blit`), de modo que la **CPU no espera al Blitter** (*CPU y Blitter en paralelo*: el
+  mecanismo del original, `ChunkyToPlanar` en la IRQ).
 - **Display**: `eng::graphics::drivers::HamScene` con `row_repeat = 4` (el escalado
   vertical es gratis por Copper) y doble buffer.
+
+### Detalles del original que importan
+
+- **`dualtab`: color + escalado en una indirección.** Cada entrada son 32 bits: la palabra
+  alta es el **calor** (`val·4`, la realimentación que vuelve a `fire`) y la baja el
+  **color**, empaquetado como 4 píxeles HAM `[r0 g0 b0 b0 r1 g1 b1 b1 …]` (el
+  `scramblePixels` de `gen-dualtab.py`). Una sola indirección resuelve **color y el
+  escalado horizontal ×4** (un valor de fuego de 80 de ancho se expande a 4 píxeles → 320).
+- **Dos celdas por `u32`.** El bucle lee/suma vecinos como `u32` (= dos `u16`) y usa la
+  palabra de 32 bits como **offset en bytes** de la tabla, lo que da gratis la **media** de
+  los 4 vecinos (la suma es múltiplo de 4). Es **seguro** porque 4·252 = 1008 < 65536: la
+  suma de dos celdas nunca acarrea de la palabra baja a la alta.
+- **Escalado ≠ replicar el byte.** El escalado horizontal no es copiar el byte (eso produce
+  columnas verticales espurias) sino **expandir cada bit ×4**; aquí ya viene hecho por la
+  `dualtab`.
+
+## Criterio de aceptación
+
+- Compila, llega a `Ready` y el análisis visual pasa.
+- La captura muestra **llamas pixeladas en bloques 4×4** con degradado suave
+  rojo→amarillo, **subiendo desde abajo**, ocupando todo el ancho y **sin líneas verticales**
+  ni costuras.
+- Si el C2P fallara, la imagen sale corrupta (planos descolocados/no laterales) o con
+  bandas; si fallara la visibilidad del fuego, la parte superior no se apaga.
 
 ## Rendimiento medido (WinUAE-DBG, A500, `-O1`)
 
@@ -48,14 +75,11 @@ fuego (p. ej. actualizándolo cada 2 frames).
 
 El original se sincroniza igual (un `Render` **por tick de VBlank**, `system/effect.c`) y
 su propio profiler le atribuye **788–968–976 líneas de raster** al
-`RandomizeBottom + MainLoop` → **2.5–3.1 campos ≈ 16–20 fps**. Nuestro "sin C2P" son
-**424.899 ciclos ≈ 936 líneas** → **el bucle de fuego ya está a la altura del original**;
-el campo que nos sobra lo pone el C2P (33 KB de DMA compitiendo en el bus de Chip con el
-display HAM6). Objetivo realista, por tanto, **16.7 fps (3 campos)**, no 25.
-
-Detalle del análisis y de los experimentos (colocación en Slow RAM del `fire`/`dualtab`,
-copia de la rutina a Slow —medida y revertida—, y el instrumento pendiente):
-`docs/demos/effects/FIRE_RGB_PORT_PLAN.md` §"Rendimiento vs original".
+`RandomizeBottom + MainLoop` → **2.5–3.1 campos ≈ 16–20 fps**. Nuestro tramo equivalente son
+**436.202 ciclos = 961 líneas** → **el bucle de fuego ya está a la altura del original**
+(dentro de su rango y en su media); el campo que nos sobra lo pone el C2P (33 KB de DMA
+compitiendo en el bus de Chip con el display HAM6). Objetivo realista, por tanto,
+**16.7 fps (3 campos)**, no 25.
 
 ### Ciclos medidos (instrumento `-DK_FIRE_PROF`)
 
@@ -70,25 +94,37 @@ update completo              376.710 ciclos  (2.66 campos)
 sin C2P (K_DIAG_SKIP_C2P=1)  424.899 ciclos  (3.00 campos, 16.7 fps)
 ```
 
-El bucle de fuego (376–436k) cae **dentro del rango del original** (357–439k por su
-propio profiler): el port está en paridad. El bucle del fuego y la sincronía de frame/el
-C2P son las palancas que quedan (ver el plan de porte).
+El bucle de fuego cae **dentro del rango del original** (357–439k por su propio profiler):
+el port está en paridad. Palancas que quedan: el **C2P** (~1 campo), la **espera de
+sincronía** (~1.4 campos medidos) y el **tráfico de memoria del bucle** (reutilizar el long
+`D` de una iteración como `B` de la siguiente ahorra ~25 % de las lecturas del fuego).
+Detalle en `docs/demos/effects/FIRE_RGB_PORT_PLAN.md` §"Rendimiento vs original".
+
+### La simulación: asm vs C++ (benchmark en `playground/fire-benchmark`)
+
+El benchmark aislado de la simulación (32 pasadas, periférico de depuración) mide:
+**C++ 787.792 ciclos/pasada vs asm 705.937** → el **asm es ~12 % más rápido**, por eso es
+el camino por defecto (y el C++ el respaldo). El bucle interior es **memoria-dominante** y
+`-O1` ya lo genera aceptablemente; la ganancia del asm viene de evitar `__mulsi3` por fila
+y de usar post-incremento. Detalle y notas de ABI: `playground/fire-benchmark/README.md`.
 
 Flags de diagnóstico del build (`EXTRA_DEFINES="..."`):
 
 - `-DK_FIRE_ASM=0` — usa la ruta C++ (`MainLoopC`) en vez del asm.
 - `-DK_DIAG_SKIP_C2P=1` — no convierte (mide el camino CPU).
-- `-DK_BLIT_NASTY=1` — da prioridad de bus al Blitter (`DMACON` BLTPRI).
+- `-DK_BLIT_NASTY=1` — da prioridad de bus al Blitter (`DMACON` BLTPRI); **empeora**.
+- `-DK_FIRE_PROF=1|2` — publica ciclos del fuego / del update en `detail`.
 
 ## Referencias
 
-- Plan de porte y análisis del original (hot verbatim, 13 fases, Copper, doble buffer,
-  IRQ de blit): `docs/demos/effects/FIRE_RGB_PORT_PLAN.md`.
-- `HamScene` (HAM + repetición de líneas): test **HOST-016**.
-- `support/fire_loop.s`; C2P: `MinimalBackend::c2p_4bpp_step`/`c2p_4bpp_program`.
+- Plan de porte y análisis del original (hot verbatim, fases del C2P, Copper, doble buffer,
+  IRQ de blit, y el análisis de rendimiento): `docs/demos/effects/FIRE_RGB_PORT_PLAN.md`.
+- `HamScene` (HAM + repetición de líneas): test **HOST-016**; la simulación del fuego:
+  `tests/host/015_fire_sim`.
+- `support/fire_loop.s` (el bucle); C2P: `MinimalBackend::c2p_4bpp_step`/`c2p_4bpp_program`.
 - Benchmark aislado de la simulación (C++ vs asm): `playground/fire-benchmark`.
-- La variante simplificada `062_fire_c2p` (mismo origen, sin HAM y con C2P naive en CPU)
-  se retiró por ser un subconjunto más lento de esta.
+- Demo del C2P **en CPU** (la otra vía, para buffers modestos): `061_c2p_chunky_4bpl`
+  (`c2p_1x1_4` portable en `eng/graphics/c2p.hpp` + la asm de Kalms en `support/`).
 
 ## Build / run
 

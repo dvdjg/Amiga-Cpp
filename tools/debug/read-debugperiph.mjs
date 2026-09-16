@@ -5,9 +5,9 @@
  *
  * Permite leer, sin depender de la tool MCP `winuae_debugperiph` (que requiere
  * una sesión MCP), la telemetría que una demo instrumentada publica:
- *   - `counters`: valores de contador (p. ej. los ciclos del benchmark de la
- *     fire-benchmark, slots 0/1/2 = fire_cpp / fire_asm / t0_raw).
- *   - `checkpoints`: checkpoints registrados (p. ej. la demo 101).
+ *   - `counters`: valores de contador (p. ej. ciclos de un benchmark en slots 0/1/2).
+ *   - `checkpoints`: checkpoints registrados (p. ej. la demo 101, o los tramos de la 080
+ *     con `-DK_FIRE_PROF`).
  *   - `console`: texto de consola acumulado.
  *
  * Lanza WinUAE igual que el runner (escribe la startup-sequence, arranca
@@ -18,8 +18,8 @@
  * Uso:
  *   node tools/debug/read-debugperiph.mjs <demo> [--sub <sub>] [--wait-ms N]
  *
- * Ejemplo (benchmark de fuego):
- *   node tools/debug/read-debugperiph.mjs playground/fire-benchmark --sub counters --wait-ms 12000
+ * Ejemplo (checkpoints de la demo 101):
+ *   node tools/debug/read-debugperiph.mjs demos/amiga/101_ehb_tile_scroll_driver --sub checkpoints --wait-ms 12000
  */
 import * as path from 'path';
 import fs from 'fs';
