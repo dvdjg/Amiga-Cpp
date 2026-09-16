@@ -71,6 +71,47 @@ void check_ops(const char* tag, float tol) {
 }
 
 // ---------------------------------------------------------------------------
+//  deadzone / repeat / pingpong
+// ---------------------------------------------------------------------------
+
+template <typename S>
+void check_range_ops(const char* tag, float tol) {
+	check(em::to_double(em::deadzone(mk<S>(0.3f), mk<S>(0.5f))) == 0.0, "deadzone: dentro -> 0");
+	check(std::fabs(em::to_double(em::deadzone(mk<S>(1.5f), mk<S>(0.5f))) - 1.0) <= tol,
+	      "deadzone: positivo descuenta la zona muerta");
+	check(std::fabs(em::to_double(em::deadzone(mk<S>(-1.5f), mk<S>(0.5f))) + 1.0) <= tol,
+	      "deadzone: negativo conserva el signo");
+
+	check(std::fabs(em::to_double(em::repeat(mk<S>(2.5f), mk<S>(1.0f))) - 0.5) <= tol,
+	      "repeat(2.5,1) = 0.5");
+	check(std::fabs(em::to_double(em::repeat(mk<S>(-0.25f), mk<S>(1.0f))) - 0.75) <= tol,
+	      "repeat(-0.25,1) = 0.75 (módulo con signo)");
+	check(std::fabs(em::to_double(em::repeat(mk<S>(3.0f), mk<S>(1.0f)))) <= tol,
+	      "repeat(3,1) = 0");
+
+	check(std::fabs(em::to_double(em::pingpong(mk<S>(0.25f), mk<S>(1.0f))) - 0.25) <= tol,
+	      "pingpong(0.25,1) = 0.25");
+	check(std::fabs(em::to_double(em::pingpong(mk<S>(1.25f), mk<S>(1.0f))) - 0.75) <= tol,
+	      "pingpong(1.25,1) = 0.75 (rebote)");
+	check(std::fabs(em::to_double(em::pingpong(mk<S>(2.0f), mk<S>(1.0f)))) <= tol,
+	      "pingpong(2,1) = 0");
+	std::printf("  %s deadzone/repeat/pingpong OK\n", tag);
+}
+
+/// Suavizado exponencial (necesita `exp2`: no aplica a fixed).
+template <typename S>
+void check_smooth_damp(const char* tag, float tol) {
+	const S zero = mk<S>(0.0f), one = mk<S>(1.0f), half = mk<S>(0.5f);
+	const S once = em::smooth_damp(zero, one, one, one); // 1 - 2^-1 = 0.5
+	check(std::fabs(em::to_double(once) - 0.5) <= tol, "smooth_damp(r=1,dt=1) reduce a la mitad");
+	const S twice = em::smooth_damp(em::smooth_damp(zero, one, one, half), one, one, half);
+	check(std::fabs(em::to_double(once) - em::to_double(twice)) <= tol,
+	      "smooth_damp es independiente del paso (dos medios = uno entero)");
+	std::printf("  %s smooth_damp abs max %.2e\n", tag,
+		    std::fabs(em::to_double(once) - em::to_double(twice)));
+}
+
+// ---------------------------------------------------------------------------
 //  Easing "back"
 // ---------------------------------------------------------------------------
 
@@ -161,6 +202,12 @@ int main() {
 	check_ops<double>("double", 1.0e-12f);
 	check_ops<MiniFloat16>("MF    ", 1.0e-3f);
 	check_ops<er::q12>("q12   ", 1.0e-3f);
+	check_range_ops<double>("double", 1.0e-9f);
+	check_range_ops<MiniFloat16>("MF    ", 4.0e-3f);
+	check_range_ops<er::q12>("q12   ", 3.0e-3f);
+	check_smooth_damp<double>("double", 1.0e-12f);
+	check_smooth_damp<float>("float ", 1.0e-6f);
+	check_smooth_damp<MiniFloat16>("MF    ", 5.0e-3f);
 	check_back<double>("double", 1.0e-12f);
 	check_back<MiniFloat16>("MF    ", 2.0e-2f);
 	check_back<er::q12>("q12   ", 2.0e-2f);

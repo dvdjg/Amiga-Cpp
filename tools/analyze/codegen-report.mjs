@@ -19,6 +19,8 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/light.hpp>
 #include <eng/core/interp.hpp>
 #include <eng/core/geometry.hpp>
+#include <eng/core/scalar_ops.hpp>
+#include <eng/core/spline.hpp>
 #include <eng/core/minifloat.hpp>
 #include <eng/core/minifloat_math.hpp>
 #include <eng/retro/fixed_q.hpp>
@@ -62,6 +64,17 @@ extern "C" s16 c_fx_remap(s16 v, s16 lo, s16 hi, s16 olo, s16 ohi) { return rema
 extern "C" s16 c_fx_cross2(s16 ax, s16 ay, s16 bx, s16 by) { return cross2(Vec<2,q12>{{q12{ax},q12{ay}}}, Vec<2,q12>{{q12{bx},q12{by}}}).v; }
 extern "C" void c_fx_rotate2(s16* o, s16 x, s16 y, s16 c, s16 s) { const Vec<2,q12> r = rotate2(Vec<2,q12>{{q12{x},q12{y}}}, q12{c}, q12{s}); o[0]=r.v[0].v; o[1]=r.v[1].v; }
 
+// --- Vocabulario nuevo (scalar_ops/back/bezier/repeat): debe ser nativo en fixed ---
+extern "C" s16 c_fx_move_towards(s16 cur, s16 target, s16 d) { return move_towards(q12{cur}, q12{target}, q12{d}).v; }
+extern "C" s16 c_fx_deadzone(s16 x, s16 dead) { return deadzone(q12{x}, q12{dead}).v; }
+extern "C" s16 c_fx_repeat(s16 t, s16 len) { return repeat(q12{t}, q12{len}).v; }
+extern "C" s16 c_fx_pingpong(s16 t, s16 len) { return pingpong(q12{t}, q12{len}).v; }
+extern "C" s16 c_fx_ease_back(s16 t) { return ease_in_out_back(q12{t}).v; }
+extern "C" s16 c_fx_bezier3(s16 p0, s16 p1, s16 p2, s16 p3, s16 t) {
+	return bezier3(q12{p0}, q12{p1}, q12{p2}, q12{p3}, q12{t}).v;
+}
+extern "C" s16 c_fx_minmax(s16 a, s16 b) { return max(min(q12{a}, q12{b}), q12{0}).v; }
+
 // --- MiniFloat16: aritmetica, matematicas y puente con fixed (sin libgcc) ---
 extern "C" u16 c_mf_mul(u16 a, u16 b) { return (MiniFloat16::from_raw(a) * MiniFloat16::from_raw(b)).raw; }
 extern "C" u16 c_mf_div(u16 a, u16 b) { return (MiniFloat16::from_raw(a) / MiniFloat16::from_raw(b)).raw; }
@@ -73,6 +86,17 @@ extern "C" u16 c_mf_math(u16 a) {
 extern "C" s16 c_mf_fixed_mul(u16 r, s16 v) { return mul_fix(MiniFloat16::from_raw(r), v); }
 extern "C" u16 c_mf_mac(u16 a, u16 b, u16 c) { return mac(MiniFloat16::from_raw(a), MiniFloat16::from_raw(b), MiniFloat16::from_raw(c)).raw; }
 extern "C" u16 c_mf_sin(u16 a) { return sin(MiniFloat16::from_raw(a)).raw; }
+extern "C" u16 c_mf_move_towards(u16 cur, u16 target, u16 d) {
+	return move_towards(MiniFloat16::from_raw(cur), MiniFloat16::from_raw(target), MiniFloat16::from_raw(d)).raw;
+}
+extern "C" u16 c_mf_smooth_damp(u16 cur, u16 target, u16 rate, u16 dt) {
+	return smooth_damp(MiniFloat16::from_raw(cur), MiniFloat16::from_raw(target),
+			   MiniFloat16::from_raw(rate), MiniFloat16::from_raw(dt)).raw;
+}
+extern "C" u16 c_mf_bezier3(u16 p0, u16 p1, u16 p2, u16 p3, u16 t) {
+	return bezier3(MiniFloat16::from_raw(p0), MiniFloat16::from_raw(p1), MiniFloat16::from_raw(p2),
+		       MiniFloat16::from_raw(p3), MiniFloat16::from_raw(t)).raw;
+}
 extern "C" void c_matmul3_mf(u16* out, const u16* a, const u16* b) {
 	Mat<3, MiniFloat16> A {}, B {};
 	for (int i = 0; i < 3; ++i)
@@ -178,6 +202,20 @@ if (!/\bdivs(\.w)?\b/.test(asmText)) {
 const loop = fns.find((f) => f.name === 'c_mf_loop');
 if (loop && loop.lib > 0) {
   console.error(`\n[codegen] FAIL: minifloat_math no se inlinea en el bucle (${loop.lib} jsr).`);
+  process.exit(1);
+}
+
+// Los helpers nuevos (scalar_ops/back/bezier/repeat) son bucles internos de gameplay:
+// deben quedar INLINEADOS igual que minifloat_math. Un `jsr` por operacion costaria mas
+// que el propio calculo. `c_mf_smooth_damp` queda fuera a proposito: llama a `exp2` de
+// MiniFloat16, que como `sin`/`exp` es una funcion de tabla grande y g++ no la inlinea
+// (es coste esperado del escalar, no del helper).
+const HOT = ['c_fx_move_towards', 'c_fx_deadzone', 'c_fx_repeat', 'c_fx_pingpong', 'c_fx_ease_back',
+  'c_fx_bezier3', 'c_mf_move_towards', 'c_mf_bezier3'];
+const notInlined = HOT.map((n) => fns.find((f) => f.name === n)).filter((f) => f && f.lib > 0)
+  .map((f) => `${f.name} (${f.lib} jsr)`);
+if (notInlined.length) {
+  console.error(`\n[codegen] FAIL: helpers de gameplay no inlineados -> ${notInlined.join(', ')}`);
   process.exit(1);
 }
 

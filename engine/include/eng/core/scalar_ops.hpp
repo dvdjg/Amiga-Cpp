@@ -54,10 +54,21 @@ template <typename S>
 /// `max_delta` es **no negativo**; no usa `abs` para ahorrar un paso en 68000.
 /// Si la distancia restante es menor que el paso, **clava** en `target` (evita el
 /// "vibrado" clásico al pasarse de largo). Es el homing de IA y el límite de cámara.
+/// `always_inline`: con `MiniFloat16` g++ lo emitiría fuera de línea y cada llamada en un
+/// bucle de gameplay pagaría un `jsr`+`rts` (~20 ciclos) por un cálculo de 2 comparaciones.
 template <typename S>
-[[nodiscard]] constexpr S move_towards(S cur, S target, S max_delta) {
+[[nodiscard, gnu::always_inline]] constexpr S move_towards(S cur, S target, S max_delta) {
 	if (target < cur) return (cur - target < max_delta) ? target : cur - max_delta;
 	return (target - cur < max_delta) ? target : cur + max_delta;
+}
+
+/// Zona muerta: si `|x| <= dead` devuelve `0`; si no, resta `dead` conservando el signo.
+/// Sirve para ignorar el ruido del joystick y para que un actor no "vibre" en reposo.
+/// `always_inline` por el mismo motivo que `move_towards` (evitar el `jsr` en MF).
+template <typename S>
+[[nodiscard, gnu::always_inline]] constexpr S deadzone(S x, S dead) {
+	if (x < -dead) return x + dead;
+	return dead < x ? x - dead : scalar_traits<S>::zero();
 }
 
 } // namespace eng::math

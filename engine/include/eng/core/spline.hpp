@@ -26,15 +26,16 @@ namespace eng::math {
 
 /// **Bézier cuadrática** por de Casteljau (dos `lerp` anidados). Al no usar constantes
 /// enteras, vale tal cual para `MiniFloat16` y `Fixed`; solo necesita `lerp`.
+/// `always_inline`: son 6 `lerp` en la cúbica; fuera de línea sería un árbol de `jsr`.
 template <typename S>
-[[nodiscard]] constexpr S bezier2(S p0, S p1, S p2, S t) {
+[[nodiscard, gnu::always_inline]] constexpr S bezier2(S p0, S p1, S p2, S t) {
 	return lerp(lerp(p0, p1, t), lerp(p1, p2, t), t);
 }
 
 /// **Bézier cúbica** por de Casteljau (seis `lerp`); pasa por `p0` y `p3`, y queda
 /// controlada por `p1`/`p2`. Pensada para trayectorias de objetos y rampas de cámara.
 template <typename S>
-[[nodiscard]] constexpr S bezier3(S p0, S p1, S p2, S p3, S t) {
+[[nodiscard, gnu::always_inline]] constexpr S bezier3(S p0, S p1, S p2, S p3, S t) {
 	const S a = lerp(p0, p1, t);
 	const S b = lerp(p1, p2, t);
 	const S c = lerp(p2, p3, t);

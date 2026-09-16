@@ -128,7 +128,9 @@ demás puntos solo si los algoritmos que se vayan a usar los necesitan.
 | `lerp`/`smoothstep`/`cross2`/`rotate2`/`vscale`/`vlerp`/`dot` | `Fixed` | **funcionan**: el producto se normaliza con `mul_norm` (el producto de dos fixed cambia de exponente) |
 | `smootherstep` | `Fixed` 4.12 | **no compila**: necesita representar el coeficiente 15 y 4.12 llega a ±8 (`require_range`) |
 | `remap`/`inv_lerp` | `Fixed` | **funcionan** vía `div_norm` (división explícita y saturante; el núcleo sigue sin `operator/`) |
-| `min`/`max`/`abs`/`sign`/`move_towards` | cualquier `S` | **exactos**: solo comparan y niegan; `move_towards` clava en el objetivo (no vibra al pasarse) |
+| `min`/`max`/`abs`/`sign`/`move_towards`/`deadzone` | cualquier `S` | **exactos**: solo comparan y niegan; `move_towards` clava en el objetivo (no vibra al pasarse) |
+| `smooth_damp` | `MiniFloat16`/`float` | **no** para fixed (necesita `exp2`); convergencia independiente del framerate |
+| `repeat`/`pingpong` | `MiniFloat16` | el cociente de la división lleva ~1e-3 de error y el ajuste de ±1 paso lo absorbe; resultado siempre en rango |
 | `ease_*_back`/`bezier2`/`bezier3` | `Fixed` 4.12 | **funcionan**: constantes vía `scalar_const`; los productos intermedios caben en ±8 |
 | `dot` fusionado (2-4 pares) | `Fixed` | el acumulador **satura** (3-4 productos de 4.12 superan `s32`) y el estrechado final **satura siempre**, sea cual sea la política de los operandos |
 | `normalize`/`length`/`reflect`/`project` | `Fixed` | **no compilan** (sin `sqrt`), por diseño |
@@ -142,8 +144,8 @@ El detalle del escalar de 16 bits está en [MINIFLOAT16.md](MINIFLOAT16.md); el 
 | Cabecera | Contenido |
 |---|---|
 | `core/linalg.hpp` | `Vec`/`Mat`/`Affine`, `dot`, `transform`, `scalar_traits`, `mul_norm`, `scalar_div`/`div_norm` |
-| `core/interp.hpp` | `clamp`/`saturate`/`lerp`/`inv_lerp`/`remap`/`step`/`smoothstep`/`smootherstep`; easings `_quad`/`_cubic`/`_back`/`_sine`/`_expo` |
-| `core/scalar_ops.hpp` | `min`/`max`/`abs`/`sign`/`move_towards` (comparación y negación, sin división) |
+| `core/interp.hpp` | `clamp`/`saturate`/`lerp`/`inv_lerp`/`remap`/`step`/`smoothstep`/`smootherstep`; `smooth_damp` (suavizado exponencial) y `repeat`/`pingpong` (fase); easings `_quad`/`_cubic`/`_back`/`_sine`/`_expo` |
+| `core/scalar_ops.hpp` | `min`/`max`/`abs`/`sign`/`move_towards`/`deadzone` (comparación y negación, sin división) |
 | `core/geometry.hpp` | `length(_sq)`/`distance(_sq)`/`normalize`/`vscale`/`vlerp`/`cross2`/`perp`/`rotate2`/`project`/`reject`/`reflect` |
 | `core/noise.hpp` | `value_noise1/2/3` y `fbm1/2/3` (octavas, `period>0` tileable); hash splitmix32 (2 `__mulsi3` por celda) |
 | `core/spline.hpp` | `hermite`/`catmull_rom` y Bézier `bezier2`/`bezier3` (escalar y `Vec<N,S>`) |
@@ -156,6 +158,9 @@ El detalle del escalar de 16 bits está en [MINIFLOAT16.md](MINIFLOAT16.md); el 
   `q12`), `tests/host/060_noise` (`value_noise`/`fbm` y periodicidad), 057/058 para el
   escalar de 16 bits, y `tests/host/062_scalar_ops` (`min`/`max`/`abs`/`sign`/
   `move_towards`, easings `_back` y Bézier; 061 cubre splines y los demás easings).
+- Codegen 68000: `tools/analyze/codegen-report.mjs` compila sondas de las funciones nuevas
+  (`c_fx_*`/`c_mf_*`) y **falla** si aparecen libcalls de libgcc, instrucciones 68020 o si
+  los helpers de gameplay no quedan inlineados (incluido en la pasada de tests host).
 - Demo: `demos/amiga/083_fbm_noise` construye un mapa de altura con `fbm2<MiniFloat16>`
   en hardware (build/run/analyze OK) — ejemplo canónico de `noise.hpp` y verificación por
   demo del escalar.
@@ -190,6 +195,9 @@ tests host) falla si la doc se desincroniza del contrato, y `--write` la regener
 | ease_in/out/in_out_sine/_expo | si | si (necesita sin/cos/exp2) | — | HOST-061 |
 | min / max / abs / sign | si | si | si | HOST-062 |
 | move_towards | si | si | si | HOST-062 |
+| deadzone | si | si | si | HOST-062 |
+| smooth_damp | si | si | — (sin exp2) | HOST-062 |
+| repeat / pingpong | si | si | si (div_norm) | HOST-062 |
 | ease_in/out/in_out_back | si | si | si | HOST-062 |
 | bezier2 / bezier3 | si | si | si | HOST-062 |
 | bezier2 / bezier3 (Vec<N>) | si | si | si | HOST-062 |

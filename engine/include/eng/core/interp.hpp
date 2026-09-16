@@ -56,8 +56,10 @@ template <typename S>
 /// Interpolación lineal `a + (b-a)·t` (extrapola si `t` sale de `[0,1]`). El producto se
 /// normaliza con `mul_norm`, así que funciona con fixed (donde `b-a` y `t` son del mismo
 /// exponente) y con `float`/`MiniFloat16`.
+/// `always_inline`: es la operación más usada y con `MiniFloat16` g++ la emitiría fuera de
+/// línea (un `jsr`+`rts` por `lerp` en un bucle caliente cuesta más que el producto).
 template <typename S>
-[[nodiscard]] constexpr S lerp(S a, S b, S t) {
+[[nodiscard, gnu::always_inline]] constexpr S lerp(S a, S b, S t) {
 	return a + mul_norm(b - a, t);
 }
 
@@ -96,6 +98,40 @@ template <int E, typename P>
 template <typename S>
 [[nodiscard]] constexpr S step(S edge, S x) {
 	return x < edge ? scalar_traits<S>::zero() : scalar_traits<S>::one();
+}
+
+/// **Suavizado exponencial independiente del paso**: `target + (cur−target)·2^(−rate·dt)`.
+/// Con `dt` = tiempo transcurrido y `rate` = velocidad de convergencia (en "duplicaciones
+/// por unidad de tiempo"), el resultado es el MISMO a 25 que a 50 fps: la constante de
+/// tiempo no depende del framerate. Es el seguimiento de cámara y el easing de HUD.
+/// Necesita `exp2` del escalar (`scalar_math.hpp`), así que no se ofrece para fixed.
+/// `always_inline` para no pagar un `jsr` por frame en el seguimiento de cámara (MF).
+template <typename S>
+[[nodiscard, gnu::always_inline]] constexpr S smooth_damp(S cur, S target, S rate, S dt) {
+	const S decay = scalar_exp2<S>::op(scalar_traits<S>::zero() - mul_norm(rate, dt));
+	return target + mul_norm(cur - target, decay);
+}
+
+/// Envuelve `t` en `[0, len)` (semántica "tile"/módulo con signo). Necesita `div_norm`
+/// (división explícita) y el `to_int`/`from_int` del escalar para el cociente entero.
+/// Con `MiniFloat16` el cociente lleva ~1e-3 de error, pero el ajuste de ±1 paso lo
+/// absorbe; el resultado siempre cae dentro del rango.
+template <typename S>
+[[nodiscard, gnu::always_inline]] constexpr S repeat(S t, S len) {
+	const S q = div_norm(t, len); // truncado hacia cero
+	const S base = mul_norm(scalar_traits<S>::from_int(scalar_traits<S>::to_int(q)), len);
+	S r = t - base;
+	if (r < scalar_traits<S>::zero()) r = r + len;
+	if (!(r < len)) r = r - len;
+	return r;
+}
+
+/// Rebote triangular en `[0, len]`: sube y baja (fase de ida/vuelta). Se apoya en `repeat`.
+template <typename S>
+[[nodiscard, gnu::always_inline]] constexpr S pingpong(S t, S len) {
+	const S two_len = mul_norm(scalar_traits<S>::from_int(2), len);
+	const S r = repeat(t, two_len);
+	return r < len ? r : two_len - r;
 }
 
 /// Easing suave `3t² - 2t³` sobre `t` saturado a `[0,1]` (derivada 0 en los extremos).
