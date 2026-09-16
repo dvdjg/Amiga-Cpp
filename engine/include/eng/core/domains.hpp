@@ -21,6 +21,7 @@ struct SpriteTag {};
 struct CopperTag {};
 struct TileBankTag {};
 struct ChunkyTag {};
+struct TextureTag {};      // textura indexada 1 B/texel (muestreo de efectos)
 struct MaskTag {};
 struct AudioTag {};
 struct MusicTag {};
@@ -44,6 +45,7 @@ using TileBankWords = WordView<TileBankTag>;    // banco de bloques interleaved 
 using TileBankBuffer = Words<TileBankTag>;      // celdas de chunk residentes (escritura)
 using ChunkyBuffer = Bytes<ChunkyTag>;          // buffer chunky (C2P)
 using ChunkyView = ByteView<ChunkyTag>;         // vista chunky (solo lectura)
+using IndexedTexture = ByteView<TextureTag>;    // textura indexada 1 B/texel
 using MaskBytes = ByteView<MaskTag>;            // máscara 1-bit de cookie-cut
 using MaskBuffer = Bytes<MaskTag>;
 using AudioSample = ByteView<AudioTag>;         // muestra 8-bit con signo
