@@ -306,6 +306,7 @@
 #include <eng/field/scroll_profile.hpp>
 #include <eng/field/soft_dpf.hpp>
 #include <eng/field/tile_map.hpp>
+#include <eng/graphics/copper/double_buffer.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/sprite_manager.hpp>
@@ -1485,9 +1486,9 @@ private:
 ///   comp.compose(field.hardware_view());
 ///   comp.install(backend);
 ///
-/// El compositor emite la lista completa en **dos bloques** (doble buffer de
-/// copperlist) y alterna `m_active`: `compose()` vuelve a emitir la lista entera en
-/// el bloque inactivo (DMACON/BPLCON/DIW/DDF/paleta/punteros) y `install()` publica
+/// El compositor emite la lista completa en **dos bloques** (`copper::DoubleBuffer`)
+/// y alterna el activo: `compose()` vuelve a emitir la lista entera en el bloque
+/// inactivo (DMACON/BPLCON/DIW/DDF/paleta/punteros) y `install()` publica
 /// `COP1LC`. NO parchea words sueltos: el parcheo de 13 words existe solo en
 /// `TileScrollScene::patch_copper` (`drivers/tile_scroll.hpp`). Re-emitir cuesta mas
 /// que parchear, pero deja la lista final auditable; unificarlo es F1 de
@@ -1527,10 +1528,7 @@ public:
 
     bool init(MemorySystem& memory, const Config& cfg) {
         m_cfg = cfg;
-        m_copper_blocks[0] = memory.chip.allocate_block<eng::CopperTag>(cfg.copper_bytes, 16);
-        m_copper_blocks[1] = memory.chip.allocate_block<eng::CopperTag>(cfg.copper_bytes, 16);
-        if (!m_copper_blocks[0].valid() || !m_copper_blocks[1].valid() ||
-            cfg.palette.empty()) return false;
+        if (!m_copper.begin(memory, cfg.copper_bytes) || cfg.palette.empty()) return false;
         m_initialized = true;
         return true;
     }
@@ -1562,14 +1560,17 @@ public:
         if (!m_initialized || !view.bitplanes) return false;
         if (!valid_view(view)) return false;
         if (!m_copper_initialized) {
-            if (!emit_full(0, view, hud) || !emit_full(1, view, hud)) return false;
+            // Primer frame: emitir la lista completa en AMBOS bloques y dejar activo
+            // el ultimo (patron de `copper::DoubleBuffer`).
+            if (!emit_full(view, hud)) return false;
+            m_copper.flip();
+            if (!emit_full(view, hud)) return false;
+            m_copper.flip();
             m_copper_initialized = true;
-            m_active = 0;
             return true;
         }
-        const u8 inactive = static_cast<u8>(m_active ^ 1u);
-        if (!emit_full(inactive, view, hud)) return false;
-        m_active = inactive;
+        if (!emit_full(view, hud)) return false;
+        m_copper.flip();
         return true;
     }
 
@@ -1577,16 +1578,14 @@ public:
     template <typename Backend>
     void takeover(Backend& backend) const {
         if (m_initialized && m_copper_initialized) {
-            backend.takeover_display(
-                m_copper_blocks[m_active].view.as_words().data());
+            m_copper.takeover(backend);
         }
     }
 
     template <typename Backend>
     void install(Backend& backend) const {
         if (m_initialized && m_copper_initialized) {
-            backend.install_copper_list(
-                m_copper_blocks[m_active].view.as_words().data());
+            m_copper.install(backend);
         }
     }
 
@@ -1594,7 +1593,7 @@ public:
     constexpr u16 copper_words() const { return m_copper_words; }
     /// Depuración: puntero al bloque de copper activo.
     const u16* debug_active_copper() const {
-        return m_copper_initialized ? m_copper_blocks[m_active].view.as_words().data() : nullptr;
+        return m_copper_initialized ? m_copper.active_words() : nullptr;
     }
 
 private:
@@ -1625,8 +1624,8 @@ private:
         return true;
     }
 
-    bool emit_full(u8 block, const PlayfieldHardwareView& view, const OverlayZone* hud = nullptr) {
-        copper::Scheduler sched { m_copper_blocks[block] };
+    bool emit_full(const PlayfieldHardwareView& view, const OverlayZone* hud = nullptr) {
+        copper::Scheduler sched { m_copper.inactive_block() };
         const u16 bplcon0 = static_cast<u16>(
             0x0200u | (static_cast<u16>(view.planes) << 12u));
         sched.move(copper::Register::DMACON,
@@ -1739,9 +1738,8 @@ private:
     }
 
     Config m_cfg {};
-    eng::Block<eng::CopperTag> m_copper_blocks[2] {};
+    copper::DoubleBuffer m_copper {};
     u16 m_copper_words = 0;
-    u8 m_active = 0;
     bool m_initialized = false;
     bool m_copper_initialized = false;
     bool m_ok = false;
@@ -1774,9 +1772,7 @@ public:
 
     bool init(MemorySystem& memory, const Config& cfg) {
         m_cfg = cfg;
-        m_copper_blocks[0] = memory.chip.allocate_block<eng::CopperTag>(cfg.copper_bytes, 16);
-        m_copper_blocks[1] = memory.chip.allocate_block<eng::CopperTag>(cfg.copper_bytes, 16);
-        if (!m_copper_blocks[0].valid() || !m_copper_blocks[1].valid() || cfg.palette.empty()) return false;
+        if (!m_copper.begin(memory, cfg.copper_bytes) || cfg.palette.empty()) return false;
         m_initialized = true;
         return true;
     }
@@ -1785,14 +1781,16 @@ public:
         if (!m_initialized) return false;
         if (!valid(pf1, pf2)) return false;
         if (!m_copper_initialized) {
-            if (!emit_full(0, pf1, pf2) || !emit_full(1, pf1, pf2)) return false;
+            // Primer frame: emitir en AMBOS bloques (patron de `copper::DoubleBuffer`).
+            if (!emit_full(pf1, pf2)) return false;
+            m_copper.flip();
+            if (!emit_full(pf1, pf2)) return false;
+            m_copper.flip();
             m_copper_initialized = true;
-            m_active = 0;
             return true;
         }
-        const u8 inactive = static_cast<u8>(m_active ^ 1u);
-        if (!emit_full(inactive, pf1, pf2)) return false;
-        m_active = inactive;
+        if (!emit_full(pf1, pf2)) return false;
+        m_copper.flip();
         return true;
     }
 
@@ -1800,14 +1798,14 @@ public:
     template <typename Backend>
     void takeover(Backend& backend) const {
         if (m_initialized && m_copper_initialized) {
-            backend.takeover_display(m_copper_blocks[m_active].view.as_words().data());
+            m_copper.takeover(backend);
         }
     }
 
     template <typename Backend>
     void install(Backend& backend) const {
         if (m_initialized && m_copper_initialized) {
-            backend.install_copper_list(m_copper_blocks[m_active].view.as_words().data());
+            m_copper.install(backend);
         }
     }
 
@@ -1852,8 +1850,8 @@ private:
         return true;
     }
 
-    bool emit_full(u8 block, const PlayfieldHardwareView& pf1, const PlayfieldHardwareView& pf2) {
-        copper::Scheduler sched { m_copper_blocks[block] };
+    bool emit_full(const PlayfieldHardwareView& pf1, const PlayfieldHardwareView& pf2) {
+        copper::Scheduler sched { m_copper.inactive_block() };
         const u8 total = static_cast<u8>(m_cfg.planes_per_field * 2u);
         const u16 bplcon0 = static_cast<u16>(0x0200u | (static_cast<u16>(total) << 12u) | 0x0400u);
         // BPLCON1: nibble bajo = fine de PF1, alto = fine de PF2.
@@ -1928,9 +1926,8 @@ private:
     }
 
     Config m_cfg {};
-    eng::Block<eng::CopperTag> m_copper_blocks[2] {};
+    copper::DoubleBuffer m_copper {};
     u16 m_copper_words = 0;
-    u8 m_active = 0;
     bool m_initialized = false;
     bool m_copper_initialized = false;
     bool m_ok = false;

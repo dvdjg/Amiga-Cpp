@@ -74,6 +74,47 @@ function run(label, script, args) {
 	}
 }
 
+/// Directorio `sequence/` mas reciente de una demo (lo deja el runner con
+/// `--sequence-frames`). Devuelve null si no hay frames.
+function findSequenceDir(demo) {
+	const demoName = path.basename(demo);
+	const base = path.join(ROOT, 'out', 'run', demoName);
+	if (!fs.existsSync(base)) return null;
+	let best = null;
+	let bestTime = 0;
+	for (const cfg of fs.readdirSync(base)) {
+		const seq = path.join(base, cfg, 'sequence');
+		if (!fs.existsSync(seq)) continue;
+		const pngs = fs.readdirSync(seq).filter((f) => f.endsWith('.png'));
+		if (pngs.length === 0) continue;
+		const t = fs.statSync(seq).mtimeMs;
+		if (t > bestTime) {
+			bestTime = t;
+			best = seq;
+		}
+	}
+	return best;
+}
+
+/// Copia los PNGs de una secuencia a `outDir` y escribe un `profile-summary.json`
+/// minimo (solo frames), para poder reutilizar el analizador de vision sin el
+/// perfil de telemetria (no hay registros: el modo `meta` no aporta nada).
+function synthesizeProfile(outDir, seqDir) {
+	fs.mkdirSync(outDir, { recursive: true });
+	const pngs = fs.readdirSync(seqDir).filter((f) => f.endsWith('.png')).sort();
+	const frames = [];
+	pngs.forEach((name, i) => {
+		fs.copyFileSync(path.join(seqDir, name), path.join(outDir, name));
+		frames.push({ frame: i, screenshot: name });
+	});
+	fs.writeFileSync(
+		path.join(outDir, 'profile-summary.json'),
+		JSON.stringify({ source: 'run-demo --sequence-frames', numFrames: frames.length, frames }, null, 1),
+		'utf8',
+	);
+	console.log(`[ai-analyze] ${frames.length} frames de secuencia en ${outDir}`);
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function main() {
@@ -98,43 +139,45 @@ async function main() {
 	const outDir = path.join(ROOT, 'out', 'profile', outName);
 	const bin = path.join(outDir, `${outName}.profile.bin`);
 
-	// 0) Opcional: lanza la demo directamente (ai-analyze queda como padre de
-	//    WinUAE, asi el emulador y el canal lateral sobreviven a la captura).
+	// 0) Opcional: captura la demo con el RUNNER (camino fiable: prepara dh1, la
+	//    config y el canal lateral) y sintetiza el perfil de frames. El lanzador
+	//    propio (`launch-winuae.mjs`) no levantaba el canal lateral y dejaba la
+	//    captura sin frames; el runner ya expone `--sequence-frames`.
+	//    Nota: el `--demo` requiere que la demo este COMPILADA.
 	let conn = null;
+	let analysisMode = mode;
 	try {
-		// 0) Opcional: lanza la demo directamente (ai-analyze queda como padre de
-		//    WinUAE, asi el emulador y el canal lateral sobreviven a la captura).
 		if (demo) {
-			console.log(`[ai-analyze] lanzando ${demo} (WinUAE directo) y esperando READY...`);
-			const { launchDemoAndWaitReady } = await import('./launch-winuae.mjs');
-			const launched = await launchDemoAndWaitReady({
-				demo,
-				port: port ? parseInt(String(port), 10) : 2346,
-				readyTimeoutMs: demoTimeoutMs,
-			});
-			conn = launched.conn;
-			console.log('[ai-analyze] demo READY');
-			// Asentamiento corto si no hay espera explicita.
-			if (!waitCmd && !waitMs) await sleep(1000);
-		}
+			console.log(`[ai-analyze] capturando ${demo} con el runner (${frames} frames)...`);
+			run('runner', path.join('dist', 'tools', 'run', 'run-demo.js'), [
+				demo, '--warp', '--sequence-frames', String(frames), '--sequence-interval-ms', '150',
+			]);
+			const seqDir = findSequenceDir(demo);
+			if (!seqDir) {
+				throw new Error(`no encontre frames de secuencia para ${demo} (¿compilada? usa tools/build/build-demo.sh)`);
+			}
+			synthesizeProfile(outDir, seqDir);
+			// Sin telemetria de registros el modo `meta` no aporta: solo vision.
+			if (!analysisMode || analysisMode === 'all' || analysisMode === 'meta') analysisMode = 'frames';
+		} else {
+			// 1) Captura por canal lateral (WinUAE ya en marcha).
+			const captureArgs = [path.join('tools', 'profile', 'capture-profile.mjs'), bin, frames, '--lock-owner', lockOwner];
+			for (const [flag, val] of [
+				['--wait-cmd', waitCmd], ['--contains', contains], ['--wait-ms', waitMs], ['--port', port],
+			]) {
+				if (val) captureArgs.push(flag, String(val));
+			}
+			run('captura', captureArgs[0], captureArgs.slice(1));
 
-		// 1) Captura por canal lateral.
-		const captureArgs = [path.join('tools', 'profile', 'capture-profile.mjs'), bin, frames, '--lock-owner', lockOwner];
-		for (const [flag, val] of [
-			['--wait-cmd', waitCmd], ['--contains', contains], ['--wait-ms', waitMs], ['--port', port],
-		]) {
-			if (val) captureArgs.push(flag, String(val));
+			// 2) Extraccion de frames.
+			run('extraccion', path.join('tools', 'profile', 'profile-extract.mjs'), [bin, outDir]);
 		}
-		run('captura', captureArgs[0], captureArgs.slice(1));
-
-		// 2) Extraccion de frames.
-		run('extraccion', path.join('tools', 'profile', 'profile-extract.mjs'), [bin, outDir]);
 
 		// 3) Analisis con Ollama local.
 		const analyzeArgs = [path.join('tools', 'profile', 'ollama-analyze.mjs'), outDir];
 		for (const [flag, val] of [
 			['--prompt', prompt], ['--prompt-file', promptFile], ['--model', model],
-			['--text-model', textModel], ['--base', base], ['--mode', mode],
+			['--text-model', textModel], ['--base', base], ['--mode', analysisMode],
 		]) {
 			if (val) analyzeArgs.push(flag, String(val));
 		}

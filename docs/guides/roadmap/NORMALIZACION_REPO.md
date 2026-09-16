@@ -28,6 +28,7 @@ buffers y copper está en `docs/engine/architecture/DISPLAY_COMPOSITION.md`.
 | 0.5 | Test host de `TileScrollScene` (geometría de la lista + alternancia de los 2 bloques + 13 words parcheadas) | `tests/host/069_copper_double_buffer` | **hecho** |
 | 0.6 | Crear los documentos canónicos de F0: contrato (`DISPLAY_COMPOSITION.md`) y roadmap (este) + enlazarlos en los índices | `docs/engine/architecture/`, `docs/guides/roadmap/` | **hecho** |
 | 0.7 | Re-medir y corregir las cifras de fps de `AGENTS.md` (101/102/103/104) o indicar su contexto de medida; hoy 103 mide 32,7 y no 50 | `AGENTS.md` | **investigado, pendiente de bisect** (ver abajo) |
+| 0.8 | **Demo canónica rota**: 107 (corkscrew 8-way) **no alcanza READY** (timeout por canal lateral) en master; A/B con y sin los cambios de F1.3 → es pre-existente | `demos/amiga/107_xlimited_corkscrew` | pendiente |
 
 Gate: suite host + encoding. Sin cambios de comportamiento, así que no exige regresión de demos.
 
@@ -37,11 +38,16 @@ Gate: suite host + encoding. Sin cambios de comportamiento, así que no exige re
 |---|---|---|---|
 | 1.1 | Extraer `eng::copper::DoubleBuffer` (2 bloques + `flip` + `install`/`takeover` + `inactive_scheduler`), con soporte de **handles** de parcheo en `Scheduler` (`move_at`/`patch_data`) | `engine/include/eng/graphics/copper/double_buffer.hpp`, `copper/scheduler.hpp` | **hecho** |
 | 1.2 | Usarlo en `TileScrollScene`, sustituyendo los offsets cableados (`words[5]`, `words[21+4p]`) por handles | `engine/include/eng/graphics/drivers/tile_scroll.hpp` | **hecho** |
-| 1.3 | Usarlo en `XlimitedDisplayComposer` y `XlimitedDualComposer` (y decidir `Patch` vs `Reemit` con dato de coste) | `engine/include/eng/field/xlimited.hpp:1739,1928` | pendiente |
+| 1.3 | Usarlo en `XlimitedDisplayComposer` y `XlimitedDualComposer` (y decidir `Patch` vs `Reemit` con dato de coste) | `engine/include/eng/field/xlimited.hpp:1739,1928` | **hecho** (política sigue `Reemit`) |
 | 1.4 | Documentar la receta «2 bloques + install tras VBlank, nunca COPJMP1» en `C2P_BLITTER.md`/`GRAPHICS_DRIVERS.md` | `docs/engine/architecture/` | pendiente |
 
 Gate F1.2: demos `101/103/104/105` idénticas (analyze + fps). Gate F1.3: demos
 `107/110/111/112/120/121/201/202`.
+
+**Resultado de F1.3**: migrados los dos compositores. Verificado: **202** READY + 26,12 fps;
+**112** READY + 8,29 fps y **gate de visión de secuencia limpio** (5 frames); 201/120/121
+compilan; 110/111 pendientes de ejecutar. **107 no se puede validar: ya estaba rota en
+master** (ver 0.8).
 
 ### F2 — `MultiBuffered` como única capa de buffers de display
 
@@ -101,6 +107,7 @@ Gate: regresión de las demos de scroll + docs actualizados.
 | Doc↔código (13 words vs reemisión) | `xlimited.hpp:1488-1491` | F0 |
 | Referencia con deriva de línea | `DEBUG_DEMO_ARRANQUE_DOBLE_TEXTO_BANDA.md:189` | F0 |
 | Cifras de fps de `AGENTS.md` desactualizadas: dice 103≈50 fps y hoy mide 32,7 (A/B con y sin `DoubleBuffer`: 32,67 vs 33,50 → **no** es del refactor, es del merge) | `AGENTS.md` (nota de rendimiento del scroll) | F0 |
+| Demo canónica **rota**: 107 (corkscrew) no alcanza READY (A/B confirma que no es de F1.3) | `demos/amiga/107_xlimited_corkscrew` | F0 |
 | Supervisión de copper por escena inexistente | — (nace en F4) | F4 |
 | NO VERIFICADAS sin consumidor | `PolygonFillSink` (`platform/amiga/polygon_fill.hpp:14`, `field/playfield.hpp:87`), `CameraQ16` (`field/tile_demo.hpp:16`) | F0/F5 |
 | Tests host que solapan demos (o al revés) | `038/039` vs `112`; `067` vs `061/080`; `044` vs `120`; `061` vs `120/121/122` | transversal |
