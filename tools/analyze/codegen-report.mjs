@@ -69,6 +69,14 @@ extern "C" u16 c_mf_math(u16 a) {
 	return (sin(x) + exp(x) + log(x) + sqrt(x)).raw;
 }
 extern "C" s16 c_mf_fixed_mul(u16 r, s16 v) { return mul_fix(MiniFloat16::from_raw(r), v); }
+extern "C" u16 c_mf_loop(const u16* xs, int n) {
+	MiniFloat16 acc = MiniFloat16::zero();
+	for (int i = 0; i < n; ++i) {
+		const MiniFloat16 x = MiniFloat16::from_raw(xs[i]);
+		acc = acc + sqrt(x) + sin(x) + exp(x);
+	}
+	return acc.raw;
+}
 extern "C" void c_mf_transform(const u16* mm, const s16* pp, s16* out) {
 	Mat<3, MiniFloat16> m {};
 	for (int i = 0; i < 3; ++i)
@@ -147,6 +155,14 @@ if (bad.length) {
 // Evidencia positiva: la division de fixed (div_norm) debe ser `divs.w` nativa.
 if (!/\bdivs(\.w)?\b/.test(asmText)) {
   console.error('\n[codegen] FAIL: no aparece divs.w (la division de fixed deberia ser nativa).');
+  process.exit(1);
+}
+
+// El bucle de minifloat_math debe quedar INLINEADO (sin `jsr` a funciones propias): un
+// `jsr` por operacion dentro de un bucle caliente cuesta mas que el propio calculo.
+const loop = fns.find((f) => f.name === 'c_mf_loop');
+if (loop && loop.lib > 0) {
+  console.error(`\n[codegen] FAIL: minifloat_math no se inlinea en el bucle (${loop.lib} jsr).`);
   process.exit(1);
 }
 

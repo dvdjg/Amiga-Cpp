@@ -82,6 +82,15 @@ if [ "$#" -eq 0 ]; then
 	else
 		echo "codegen: sin toolchain cruzado; se omite." >&2
 	fi
+	# La tabla funcion x escalar de SCALAR_LIBRARY.md se genera de una fuente unica.
+	SCALAR_SUPPORT="$ROOT/tools/check/scalar-support.mjs"
+	if [ -f "$SCALAR_SUPPORT" ] && command -v node >/dev/null 2>&1; then
+		echo "== scalar-support =="
+		if ! node "$SCALAR_SUPPORT"; then
+			echo "scalar-support fallo: la tabla de SCALAR_LIBRARY.md no esta sincronizada." >&2
+			exit 1
+		fi
+	fi
 fi
 
 # Selección de tests.

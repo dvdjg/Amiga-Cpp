@@ -55,6 +55,14 @@
 #include <eng/core/ct_array.hpp>
 #include <eng/core/types.hpp>
 
+/// Fuerza el inline de los operadores (en 68000 un `jsr`/`rts` cuesta más que la propia
+/// suma de mantisas). Macro local, anulada al final.
+#if defined(__GNUC__) || defined(__clang__)
+#define ENG_MF16_AI [[gnu::always_inline]]
+#else
+#define ENG_MF16_AI
+#endif
+
 namespace eng::math {
 
 // ============================================================================
@@ -257,7 +265,7 @@ constexpr MiniFloat16::operator float() const {
 /// Suma/resta. Alinea la mantisa menor desplazándola por la diferencia de exponentes y
 /// renormaliza una sola vez. El caso `de >= 11` sale antes: el operando pequeño queda
 /// por debajo del ulp y no cambia el resultado (truncado, sin redondeo).
-[[nodiscard]] constexpr MiniFloat16 operator+(MiniFloat16 a, MiniFloat16 b) {
+[[nodiscard]] ENG_MF16_AI constexpr MiniFloat16 operator+(MiniFloat16 a, MiniFloat16 b) {
 	const eng::u16 az = static_cast<eng::u16>(a.raw & 0x7FFFu);
 	const eng::u16 bz = static_cast<eng::u16>(b.raw & 0x7FFFu);
 	if (az == 0u) return bz == 0u ? MiniFloat16::from_raw(0u) : MiniFloat16 {b.raw};
@@ -301,19 +309,19 @@ constexpr MiniFloat16::operator float() const {
 
 /// Resta: `a - b == a + (-b)`. El signo se cambia con un XOR (el cero se trata aparte
 /// para no generar `-0`).
-[[nodiscard]] constexpr MiniFloat16 operator-(MiniFloat16 a, MiniFloat16 b) {
+[[nodiscard]] ENG_MF16_AI constexpr MiniFloat16 operator-(MiniFloat16 a, MiniFloat16 b) {
 	return a + MiniFloat16 {static_cast<eng::u16>(b.raw ^ MiniFloat16::sign_mask)};
 }
 
 /// Negación. `-0` se canonicaliza a `+0` para que el signo no se propague gratis.
-[[nodiscard]] constexpr MiniFloat16 operator-(MiniFloat16 a) {
+[[nodiscard]] ENG_MF16_AI constexpr MiniFloat16 operator-(MiniFloat16 a) {
 	return MiniFloat16 {static_cast<eng::u16>(a.is_zero() ? 0u : (a.raw ^ MiniFloat16::sign_mask))};
 }
 
 /// Producto: los exponentes SUMAN (sesgo descontado) y las mantisas se multiplican con
 /// `mulu.w` (11×11 -> 22 bits). El bit 21 indica que el resultado llegó a `[2,4)` y hay
 /// que desplazar; el `+0x200` redondea al más cercano en el bit 10.
-[[nodiscard]] constexpr MiniFloat16 operator*(MiniFloat16 a, MiniFloat16 b) {
+[[nodiscard]] ENG_MF16_AI constexpr MiniFloat16 operator*(MiniFloat16 a, MiniFloat16 b) {
 	const eng::u16 az = static_cast<eng::u16>(a.raw & 0x7FFFu);
 	const eng::u16 bz = static_cast<eng::u16>(b.raw & 0x7FFFu);
 	const eng::u16 sign = static_cast<eng::u16>((a.raw ^ b.raw) & MiniFloat16::sign_mask);
@@ -347,7 +355,7 @@ constexpr MiniFloat16::operator float() const {
 /// División: exponentes RESTAN (más sesgo) y la mantisa se multiplica por el recíproco
 /// `mf16_rcp` del divisor, evitando el `divu.w`. El producto cae en `[2^19, 2^21)`, así
 /// que se normaliza a bit 20 y se redondea.
-[[nodiscard]] constexpr MiniFloat16 operator/(MiniFloat16 a, MiniFloat16 b) {
+[[nodiscard]] ENG_MF16_AI constexpr MiniFloat16 operator/(MiniFloat16 a, MiniFloat16 b) {
 	const eng::u16 az = static_cast<eng::u16>(a.raw & 0x7FFFu);
 	const eng::u16 bz = static_cast<eng::u16>(b.raw & 0x7FFFu);
 	const eng::u16 sign = static_cast<eng::u16>((a.raw ^ b.raw) & MiniFloat16::sign_mask);
@@ -393,15 +401,17 @@ constexpr MiniFloat16& operator-=(MiniFloat16& a, MiniFloat16 b) { return a = a 
 constexpr MiniFloat16& operator*=(MiniFloat16& a, MiniFloat16 b) { return a = a * b; }
 constexpr MiniFloat16& operator/=(MiniFloat16& a, MiniFloat16 b) { return a = a / b; }
 
-[[nodiscard]] constexpr bool operator==(MiniFloat16 a, MiniFloat16 b) {
+[[nodiscard]] ENG_MF16_AI constexpr bool operator==(MiniFloat16 a, MiniFloat16 b) {
 	return detail::mf16_order_key(a.raw) == detail::mf16_order_key(b.raw);
 }
-[[nodiscard]] constexpr bool operator!=(MiniFloat16 a, MiniFloat16 b) { return !(a == b); }
-[[nodiscard]] constexpr bool operator<(MiniFloat16 a, MiniFloat16 b) {
+[[nodiscard]] ENG_MF16_AI constexpr bool operator!=(MiniFloat16 a, MiniFloat16 b) { return !(a == b); }
+[[nodiscard]] ENG_MF16_AI constexpr bool operator<(MiniFloat16 a, MiniFloat16 b) {
 	return detail::mf16_order_key(a.raw) < detail::mf16_order_key(b.raw);
 }
-[[nodiscard]] constexpr bool operator<=(MiniFloat16 a, MiniFloat16 b) { return !(b < a); }
-[[nodiscard]] constexpr bool operator>(MiniFloat16 a, MiniFloat16 b) { return b < a; }
-[[nodiscard]] constexpr bool operator>=(MiniFloat16 a, MiniFloat16 b) { return !(a < b); }
+[[nodiscard]] ENG_MF16_AI constexpr bool operator<=(MiniFloat16 a, MiniFloat16 b) { return !(b < a); }
+[[nodiscard]] ENG_MF16_AI constexpr bool operator>(MiniFloat16 a, MiniFloat16 b) { return b < a; }
+[[nodiscard]] ENG_MF16_AI constexpr bool operator>=(MiniFloat16 a, MiniFloat16 b) { return !(a < b); }
 
 } // namespace eng::math
+
+#undef ENG_MF16_AI

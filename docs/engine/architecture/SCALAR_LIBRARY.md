@@ -150,3 +150,27 @@ El detalle del escalar de 16 bits está en [MINIFLOAT16.md](MINIFLOAT16.md); el 
 - Demo: `demos/amiga/083_fbm_noise` construye un mapa de altura con `fbm2<MiniFloat16>`
   en hardware (build/run/analyze OK) — ejemplo canónico de `noise.hpp` y verificación por
   demo del escalar.
+
+## 7. Tabla función × escalar (generada)
+
+Esta tabla se genera desde **una sola fuente** (`tools/check/scalar-support.mjs`); no se
+edita a mano. El chequeo `node tools/check/scalar-support.mjs` (integrado en la pasada de
+tests host) falla si la doc se desincroniza del contrato, y `--write` la regenera.
+
+<!-- SCALAR-TABLE:START -->
+
+| Función | `float`/`double` | `MiniFloat16` | `Fixed` 4.12 | Test que lo respalda |
+|---|---|---|---|---|
+| clamp / saturate / step | si | si | si | HOST-059 |
+| lerp | si | si (pierde incremento si |b-a| < |a|/2048) | si | HOST-059 |
+| smoothstep | si | si | si | HOST-059 |
+| smootherstep | si | si | no (coef 15 > rango ±8) | math-diag smootherstep_q12_range |
+| inv_lerp / remap | si | si | si (div_norm) | HOST-059 |
+| dot fusionado (2-4 pares) | si | si | si (acumulador saturado) | HOST-059 |
+| cross2 / rotate2 / vscale / vlerp | si | si | si | HOST-059 |
+| length / normalize / reflect / project | si | si (limites de rango) | no (sin sqrt) | HOST-059 |
+| value_noise / fbm | si | si (coord <= 2048) | no (necesita division) | HOST-060 |
+| sqrt/exp/log/sin/cos/tan | — | si | — | HOST-057 |
+| transform (MF × fix) | — | ratio MF (|m| <= 8) | coordenada | HOST-058 |
+
+<!-- SCALAR-TABLE:END -->

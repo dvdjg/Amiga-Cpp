@@ -173,12 +173,27 @@ template <typename R, typename Round>
 	}
 }
 
+/// Suma **saturada** en la representación ancha del acumulador del `dot` fusionado: sin
+/// esto, sumar 3-4 productos de 4.12 (`≈2^30` cada uno) desborda `s32` y envuelve en
+/// silencio. Hay sobrecarga específica para `s32` (el ancho de `s16*s16`); para `long
+/// long` (productos de `s32`) el rango no es alcanzable y se deja la suma normal.
+template <typename R>
+[[nodiscard]] constexpr R sat_add_repr(R a, R b) {
+	return static_cast<R>(a + b);
+}
+[[nodiscard]] constexpr s32 sat_add_repr(s32 a, s32 b) {
+	constexpr s32 mx = limits<s32>::max;
+	constexpr s32 mn = limits<s32>::min;
+	if (b > 0 && a > static_cast<s32>(mx - b)) return mx;
+	if (b < 0 && a < static_cast<s32>(mn - b)) return mn;
+	return static_cast<s32>(a + b);
+}
+
 } // namespace detail
 
 // ============================================================================
 //  El escalar
 // ============================================================================
-
 /// Valor fixed-point `v * 2^-Exp` con política `Policy`.
 template <typename R, int Exp, typename Policy = DefaultPolicy>
 struct Fixed {
@@ -310,11 +325,11 @@ template <typename R, int E, typename P>
 	return (a * b).template rescale<E>().template cast<R>();
 }
 
-/// Producto escalar de dos/tres pares con la normalización FUSIONADA: los productos
-/// comparten exponente (`Ea+Eb`), se suman **exactos** y se normaliza **una vez**.
-/// Producto escalar de dos pares con la normalizacion FUSIONADA y precisiones
-/// mixtas: el acumulador es la representacion del producto; el resultado se normaliza
-/// a Edst y se recorta a la representacion del SEGUNDO lado (el vector/longitud).
+/// Producto escalar de dos/tres/cuatro pares con la normalización FUSIONADA: los
+/// productos comparten exponente (`Ea+Eb`), se suman **exactos** (con acumulador
+/// **saturado**, sin envolver) y se normaliza **una vez**. El resultado se normaliza a
+/// `Eb` y se recorta a la representación del SEGUNDO lado (el vector/longitud) con la
+/// política del tipo (usar `SaturatePolicy` para que el estrechado final también sature).
 template <typename Ra, int Ea, typename Rb, int Eb, typename P>
 [[nodiscard]] constexpr Fixed<Rb, Eb, P> dot(Fixed<Ra, Ea, P> a, Fixed<Rb, Eb, P> b,
 					     Fixed<Ra, Ea, P> c, Fixed<Rb, Eb, P> d) {
@@ -322,7 +337,7 @@ template <typename Ra, int Ea, typename Rb, int Eb, typename P>
 	using W = Fixed<WR, Ea + Eb, P>;
 	const W p0 = a * b;
 	const W p1 = c * d;
-	const W acc {static_cast<WR>(p0.v + p1.v)};
+	const W acc {detail::sat_add_repr(p0.v, p1.v)};
 	return acc.template rescale<Eb>().template cast<Rb>();
 }
 template <typename Ra, int Ea, typename Rb, int Eb, typename P>
@@ -334,7 +349,22 @@ template <typename Ra, int Ea, typename Rb, int Eb, typename P>
 	const W p0 = a * b;
 	const W p1 = c * d;
 	const W p2 = e * f;
-	const W acc {static_cast<WR>(p0.v + p1.v + p2.v)};
+	const W acc {detail::sat_add_repr(detail::sat_add_repr(p0.v, p1.v), p2.v)};
+	return acc.template rescale<Eb>().template cast<Rb>();
+}
+template <typename Ra, int Ea, typename Rb, int Eb, typename P>
+[[nodiscard]] constexpr Fixed<Rb, Eb, P> dot(Fixed<Ra, Ea, P> a, Fixed<Rb, Eb, P> b,
+					     Fixed<Ra, Ea, P> c, Fixed<Rb, Eb, P> d,
+					     Fixed<Ra, Ea, P> e, Fixed<Rb, Eb, P> f,
+					     Fixed<Ra, Ea, P> g, Fixed<Rb, Eb, P> h) {
+	using WR = typename mul_repr<Ra, Rb>::type;
+	using W = Fixed<WR, Ea + Eb, P>;
+	const W p0 = a * b;
+	const W p1 = c * d;
+	const W p2 = e * f;
+	const W p3 = g * h;
+	const W acc {detail::sat_add_repr(detail::sat_add_repr(detail::sat_add_repr(p0.v, p1.v), p2.v),
+					  p3.v)};
 	return acc.template rescale<Eb>().template cast<Rb>();
 }
 

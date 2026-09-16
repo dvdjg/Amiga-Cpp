@@ -135,6 +135,17 @@ y `double` la multiplicación no cambia de exponente y `rescale` es la identidad
 producto usa la aritmética del cuerpo). El álgebra lineal es **el mismo código** para
 todos.
 
+Dos operaciones **normalizadas** cierran el contrato y hacen posible el mismo algoritmo
+para todos (`fixed.hpp`/`linalg.hpp`, ver `SCALAR_LIBRARY.md` §3.b):
+
+- `mul_norm(a, b)`: producto normalizado al propio escalar (identidad en `float`/`half`;
+  `rescale` en fixed, donde `a*b` pasa a exponente doble). Es lo que permite escribir
+  `lerp`, `cross2`, `rotate2`, `vscale`… sin saber si el escalar cambia de exponente.
+- `div_norm(a, b)`: división **explícita** vía `scalar_div<S>`. El núcleo de `Fixed` no
+  define `operator/` a propósito; el fixed retro aporta una política explícita (división
+  saturante con `divs.w` en 68000), de modo que `remap`/`inv_lerp` funcionan sobre fixed
+  sin abrir la puerta a divisiones implícitas.
+
 ### 3.3 Álgebra lineal genérica
 
 ```
@@ -228,18 +239,22 @@ Un efecto o juego escribe **sólo** el vocabulario genérico; la especializació
    ───────────────────────────────────────      ─────────────────────────────────
    Fixed<Repr, Exp, Policy = DefaultPolicy>      arith<R>            (backend 68000)
    Vec<N,S>  Mat<N,S>  Affine<N,SR,SL>           wide / common_repr / mul_repr
-   + - * == != < (y - unario)                    limits, detail::rshift
+   + - * == != < (y - unario)                    limits, detail::rshift/sat_add_repr
    dot(...)   transform(...)                      pack3_ops, projector
-   from_int<R>(i)   to_int(a)                     mapper
+   mul_norm(a,b)   div_norm(a,b)                  mapper
+   from_int<R>(i)   to_int(a)
    rescale<Exp>()  cast<Repr>()  retag<Policy>()
    DefaultPolicy / RoundPolicy / SaturatePolicy
-   scalar_traits<S>   (punto de extensión)
+   scalar_traits<S> / numeric_traits<S>  ( puntos de extensión )
+   scalar_div<S> / scalar_sqrt<S>        (                      )
 ```
 
 Las tres conversiones tienen nombres que no se pisan: `rescale` cambia el exponente,
-`cast` la representación y `retag` sólo la política (coste cero). El único punto de
-extensión que un usuario de fuera toca es `scalar_traits<S>` (para añadir un escalar:
-complejo, `half`…); el resto de la metaprogramación (`wide`, `common_repr`, `mul_repr`)
+`cast` la representación y `retag` sólo la política (coste cero). Los **puntos de
+extensión** que toca quien añade un escalar son `scalar_traits<S>` (álgebra),
+`numeric_traits<S>` (límites), y —si los algoritmos usados dividen o hacen `sqrt`—
+`scalar_div<S>` / `scalar_sqrt<S>`. `mul_norm`/`div_norm` son el vocabulario estable que
+usan los algoritmos; el resto de la metaprogramación (`wide`, `common_repr`, `mul_repr`)
 queda fuera del contrato.
 
 Las convenciones **Q** (`q12`, `q0`, `q24`, `q12_round`, `q12_sat`) **no** son núcleo:

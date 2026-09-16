@@ -244,6 +244,16 @@ void test_fixed() {
 		const Q r = em::remap(Q {4096}, Q {0}, Q {8192}, Q {0}, Q {4096}); // 1->[0,2]->[0,1]
 		check(std::fabs(em::to_double(r) - 0.5) <= tol, "q12 remap");
 	}
+
+	// dot FUSIONADO de 3 pares: el acumulador satura (no envuelve) en el extremo
+	{
+		using QS = er::q12_sat; // SaturatePolicy: el estrechado final también satura
+		const QS m {32767};
+		const QS r3 = em::dot(m, m, m, m, m, m);             // 3·(32767²) > s32
+		const QS r4 = em::dot(m, m, m, m, m, m, m, m);       // 4 pares
+		check(r3.v == 32767, "q12 dot(3) satura");
+		check(r4.v == 32767, "q12 dot(4) satura");
+	}
 }
 
 } // namespace
