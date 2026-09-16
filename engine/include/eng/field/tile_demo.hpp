@@ -12,6 +12,12 @@
 /// `xlimited_scene.hpp`): bitmap de scroll acotado con anillo+staging; el mapa
 /// (`TileLayerMap`) solo aporta índices (no ocupa framebuffer). Este header solo
 /// evita duplicar la generación de assets y el movimiento de las demos.
+///
+/// **NO VERIFICADAS** (sin consumidor; no las usa ninguna demo ni test): las cámaras Q16
+/// `CameraQ16`, `sin_smooth`, `fg_lissajous_camera` y `bg_scroll_x`. El resto del header
+/// sí está verificado por las demos de tiles (`pf_plane_row`, `cell_hash`, `kPalette`,
+/// `build_tile_cache`, `TileDemoConfig`…). Si alguna se necesita, llevarla a una demo o
+/// a un test en vez de dejarla como andamiaje.
 
 #include <eng/field/tile_map.hpp>
 #include <eng/core/sinetable.hpp>
