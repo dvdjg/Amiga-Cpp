@@ -48,15 +48,27 @@ public:
 		m_cfg = cfg;
 		m_count = 0;
 		m_overflow = false;
-		m_ok = m_copper.begin(memory, cfg.copper_bytes);
+		m_ok = m_owned.begin(memory, cfg.copper_bytes);
+		m_copper = &m_owned;
 		return m_ok;
+	}
+
+	/// Enlaza el plan a un `DoubleBuffer` **externo** (el llamador decide dónde vive la
+	/// memoria: p. ej. el que ya posee un driver o un compositor). Así el plan no impone
+	/// ser dueño de la buffering de copperlist; solo la orquesta (orden + presupuesto +
+	/// publicación).
+	void attach(DoubleBuffer& copper) {
+		m_copper = &copper;
+		m_count = 0;
+		m_overflow = false;
+		m_ok = copper.ok();
 	}
 
 	/// Abre el frame: limpia las intenciones y sitúa el emisor en el bloque **trasero**.
 	void begin_frame() {
 		m_count = 0;
 		m_overflow = false;
-		m_sched = m_copper.inactive_scheduler();
+		m_sched = m_copper->inactive_scheduler();
 	}
 
 	/// Emisor del frame (bloque trasero). El llamador emite aquí la parte estática.
@@ -94,20 +106,20 @@ public:
 		m_words = m_sched.words_used();
 		m_report = m_sched.report();
 		m_ok = m_sched.ok();
-		m_copper.flip();
+		m_copper->flip();
 		return m_ok && !m_overflow;
 	}
 
 	/// Publica el buffer delantero (swap de `COP1LC`). Llamar tras VBlank.
 	template <typename Backend>
 	void commit(Backend& backend) const {
-		m_copper.install(backend);
+		m_copper->install(backend);
 	}
 
 	/// Toma el control del display mostrando el buffer delantero (una vez).
 	template <typename Backend>
 	void takeover(Backend& backend) const {
-		m_copper.takeover(backend);
+		m_copper->takeover(backend);
 	}
 
 	constexpr u8 intent_count() const { return m_count; }
@@ -117,8 +129,8 @@ public:
 	constexpr const ScheduleReport& report() const { return m_report; }
 
 	/// Depuración/tests: words del bloque ACTIVO (el que ejecuta el Copper).
-	constexpr u16* active_words() const { return m_copper.active_words(); }
-	constexpr u16* inactive_words() const { return m_copper.inactive_words(); }
+	constexpr u16* active_words() const { return m_copper->active_words(); }
+	constexpr u16* inactive_words() const { return m_copper->inactive_words(); }
 
 private:
 	/// Ordenación por inserción (n ≤ 64, sin STL ni heap). El scheduler exige las
@@ -137,7 +149,8 @@ private:
 	}
 
 	PlanConfig m_cfg {};
-	DoubleBuffer m_copper {};
+	DoubleBuffer m_owned {};
+	DoubleBuffer* m_copper = nullptr;
 	Scheduler m_sched {};
 	graphics::CopperIntent m_intents[max_intents] {};
 	u8 m_count = 0;

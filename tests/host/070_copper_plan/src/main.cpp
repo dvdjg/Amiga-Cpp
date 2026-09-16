@@ -203,6 +203,32 @@ int main() {
 		}
 	}
 
+	// --- attach: el plan puede orquestar un DoubleBuffer EXTERNO ------------------
+	{
+		static const u16 kAttach[4] = {0x077, 0x0bb, 0x0cc, 0x0dd};
+		eng::copper::DoubleBuffer external;
+		if (!external.begin(mem, 512u)) {
+			std::printf("[FAIL] DoubleBuffer externo\n");
+			return 1;
+		}
+		eng::copper::Plan attached;
+		attached.attach(external);
+		attached.begin_frame();
+		attached.scheduler().emit_palette(eng::PaletteWords {kAttach, 4});
+		attached.add(palette_intent(80u, &kC1));
+		attached.materialize();
+		if (!attached.end_frame()) {
+			std::printf("[FAIL] end_frame del plan enlazado\n");
+			return 1;
+		}
+		// Ha escrito en el buffer EXTERNO (su bloque activo es el del externo).
+		if (attached.active_words() != external.active_words() ||
+		    first_move_value(attached.active_words(), attached.words(), color_reg) != 0x077u) {
+			std::printf("[FAIL] el plan enlazado no escribio en el buffer externo\n");
+			return 1;
+		}
+	}
+
 	std::printf("OK: copper::Plan (orden por scanline, doble buffer, publicacion y overflow).\n");
 	return 0;
 }

@@ -63,9 +63,14 @@ master** (ver 0.8).
 temporal (bit3=active, bit2=active-1, …); no son buffers de display con bitmap propio.
 `116_flatshade_convex` **sí** encaja: 3 bitmaps completos (4 planos cada uno) + 3
 copperlists con semántica exacta de `commit()` (dibuja en el trasero, convierte y publica
-el recién escrito; rota). Migrarlo requiere darle un driver (hoy emite el copper a mano con
-`Scheduler`); con `HamScene` paramétrico (`rows=256, planes=4, bplcon0=0x4000`) es directo →
-tarea pendiente de F2.
+el recién escrito; rota). **Migrado**: usa `MultiBuffered<HamScene, 3>` y `commit()`;
+verificado READY + **20,33 fps** (el README dice ~20,7), `verify-116` PASS y visión de
+secuencia sin anomalías (poliedro convexo girando).
+
+**Hallazgo F2**: `HamScene` emite la lista **por línea** (WAIT + BPLMOD + BPLCON1 por cada
+una de las 256 líneas) **aunque `row_repeat == 1`**, donde no hace falta ninguna: ~2 KB de
+copperlist y trabajo de Copper por línea regalados. El original de la 116 usaba una lista
+plana de 512 B. Es una mejora pendiente del driver (no rompe nada, pero cuesta DMA).
 
 Gate: regresión de esas demos (fps + gate visual).
 
@@ -93,7 +98,7 @@ Gate: demo `122` + gate visual/secuencia; host `038/039`.
 | # | Tarea | Fichero | Estado |
 |---|---|---|---|
 | 4.1 | Definir `CopperPlan` (un plan por buffer de display: recolecta `CopperIntent`/`SpriteIntent`, ordena por scanline, `Patch`/`Reemit`, handles, presupuesto) | `engine/include/eng/graphics/copper/plan.hpp` | **hecho** |
-| 4.2 | Integrarlo con `MultiBuffered` (el plan se rellena en el buffer trasero y se publica en `commit`) | `engine/include/eng/graphics/drivers/multi_buffered.hpp` | **parcial**: el plan ya tiene su propio `DoubleBuffer` y publica con `commit(backend)`; falta el caso de un plan **por slot** de `MultiBuffered` |
+| 4.2 | Integrarlo con `MultiBuffered` (el plan se rellena en el buffer trasero y se publica en `commit`) | `engine/include/eng/graphics/drivers/multi_buffered.hpp` | **parcial**: el plan ya es **no propietario** (`attach(DoubleBuffer&)`, cubierto por HOST-070) y publica con `commit(backend)`; falta el plan **por slot** de `MultiBuffered` (resolver la semántica de rotación: hoy `MultiBuffered::commit` instala Y rota, y el `Plan` voltea aparte) |
 | 4.3 | Portar como **tracks** los casos que hoy emiten copper a mano: empezar por `055_copper_rainbow` | demo `055` | **hecho** (055 usa ya el plan y gana doble buffer de copperlist) |
 | 4.4 | Test host del `CopperPlan` (orden por línea, patch vs reemisión, handles válidos, presupuesto) | `tests/host/070_copper_plan` | **hecho** |
 

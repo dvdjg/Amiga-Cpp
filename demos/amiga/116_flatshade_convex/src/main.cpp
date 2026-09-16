@@ -22,6 +22,8 @@
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
+#include <eng/graphics/drivers/ham_scene.hpp>
+#include <eng/graphics/drivers/multi_buffered.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
@@ -96,6 +98,7 @@ namespace {
 
 namespace obj = eng::object3d;
 namespace copper = eng::copper;
+namespace drivers = eng::graphics::drivers;
 
 // Geometria del original (256x256, 4 planos).
 constexpr eng::u16 kWidth = 256;
@@ -371,27 +374,45 @@ inline void prepare_fs_args(eng::PlaneBytes planes, obj::Object3D& object) {
 struct FlatShadeDemo {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		m_memory_ok = backend.configure_memory({112u * 1024u, 4u * 1024u, 4u * 1024u});
+		m_memory_ok = backend.configure_memory({128u * 1024u, 4u * 1024u, 4u * 1024u});
 		if (!m_memory_ok) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011601u);
 			return;
 		}
 
-		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitmapBytes, 16);
-		m_copper_block = backend.memory().chip.allocate_block<eng::CopperTag>(kBuffers * kCopperPerList, 16);
 		m_mask_block = backend.memory().chip.allocate_block<eng::MaskTag>(kPlaneBytes, 16);
-		if (!m_bitplane_block.valid() || !m_copper_block.valid() || !m_mask_block.valid()) {
+		if (!m_mask_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011602u);
 			return;
 		}
 
-		for (eng::u8 b = 0; b < kBuffers; ++b) {
-			if (!build_copper(b)) {
-				eng::debug::mark_failed(g_eng_run_status, 0x00011603u);
-				return;
-			}
+		// Triple buffer generico: `MultiBuffered<HamScene, 3>` reserva los 3 bitmaps
+		// (4 planos contiguos cada uno) y sus 3 copperlists. La semantica coincide con la
+		// pipeline del original: se dibuja en `back()`, se lanza el fill y `commit()`
+		// publica el recien dibujado (se vera en el swap del frame siguiente) y rota.
+		drivers::HamSceneConfig scene_cfg {};
+		scene_cfg.bytes_per_row = kBytesPerRow;
+		scene_cfg.rows = kHeight;
+		scene_cfg.planes = kPlanes;
+		scene_cfg.bplcon0 = kBplcon0;
+		scene_cfg.diwstrt = kDiwstrt;
+		scene_cfg.diwstop = kDiwstop;
+		scene_cfg.ddfstrt = kDdfstrt;
+		scene_cfg.ddfstop = kDdfstop;
+		scene_cfg.row_repeat = 1u;
+		scene_cfg.bplcon1_shift = kBplcon1;
+		// `HamScene` emite la lista POR LINEA (WAIT + BPLMOD + BPLCON1 por cada una de las
+		// 256 lineas) aunque `row_repeat=1`; son ~2 KB por bloque (el original usaba una
+		// lista plana de 512 B). Se reserva de sobra.
+		scene_cfg.copper_bytes = 6144u;
+		scene_cfg.palette = eng::PaletteWords {flatshade_colors, 16u};
+		scene_cfg.palette_first = 0;
+		scene_cfg.palette_count = 16;
+		if (!m_scenes.init(backend.memory(), scene_cfg)) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00011603u);
+			return;
 		}
-		backend.takeover_display(m_copper_ptrs[0]);
+		m_scenes.takeover(backend);
 
 		// El original activa `DMAF_BLITHOG` (BLTPRI): el Blitter no cede slots de bus a
 		// la CPU durante el fill/lines. Con la pipeline, el transform corre durante el
@@ -408,7 +429,7 @@ struct FlatShadeDemo {
 		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z = m_angle;
 		obj::update_object_transformation(m_object);
 #if K_FLATSHADE_ASM
-		prepare_fs_args(planes_of(0), m_object);
+		prepare_fs_args(m_scenes.slot(0).bitplanes(), m_object);
 		fs_update_face_visibility();
 		fs_update_edge_visibility_convex();
 		fs_transform_vertices();
@@ -418,17 +439,16 @@ struct FlatShadeDemo {
 		eng::lib3d::transform_vertices(m_object, static_cast<eng::s16>(kWidth / 2), static_cast<eng::s16>(kHeight / 2), g_bbox);
 #endif
 
-		// Pre-clear todos los buffers: el primer `update` dibuja sobre el 1?? sin esperar.
+		// Pre-clear todos los buffers: el primer `update` dibuja sobre `back()` sin esperar.
 		for (eng::u8 b = 0; b < kBuffers; ++b) {
-			backend.blitter_clear(planes_of(b), kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight, true);
+			backend.blitter_clear(m_scenes.slot(b).bitplanes(), kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight, true);
 		}
-		m_draw_buf = 0;
-		m_display_buf = static_cast<eng::u8>(kBuffers - 1u); // el takeover muestra el 0
 
+		m_init_ok = true;
 		eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(pilka.faces));
 	}
 
-	/// Pipeline de 3 buffers: el `update` dibuja sobre `m_draw_buf` (ya pre-clearado),
+	/// Pipeline de 3 buffers: el `update` dibuja sobre `back()` (ya pre-clearado),
 	/// lanza su fill sin esperarlo y, MIENTRAS el Blitter lo hace, precalcula el estado
 	/// (transform/culling/luz) del frame siguiente y pre-cleara el buffer que ese frame
 	/// usar??. Con 3 buffers el buffer a limpiar ni se muestra ni se dibuja, as?? que el
@@ -437,22 +457,21 @@ struct FlatShadeDemo {
 	/// a medias (se muestra en el swap del update siguiente).
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
-		if (m_bitplane_block.view.data() == nullptr) {
+		if (!m_init_ok) {
 			return;
 		}
 
-		const eng::u8 buf = m_draw_buf;
-		const eng::u8 show = m_display_buf;
-		eng::PlaneBytes planes = planes_of(buf);
+		// El buffer en el que se dibuja este frame (el trasero del triple buffer).
+		eng::PlaneBytes planes = m_scenes.back().bitplanes();
 
 		const eng::u32 t0 = rcycles();
 
-		// 1) Esperar el fill del buffer que vamos a mostrar (lanzado en el update
-		//    anterior); la espera de VBlank ya lo ha absorbido casi siempre.
+		// 1) Esperar el fill del buffer dibujado el frame pasado (se muestra en el swap
+		//    de este frame); la espera de VBlank ya lo ha absorbido casi siempre.
 		backend.wait_blitter();
 
-		// 2) Swap: mostrar el buffer dibujado (y rellenado) el frame pasado.
-		backend.install_copper_list(m_copper_ptrs[show]);
+		// 2) El swap de display lo hace `commit()` al final del update: publica el buffer
+		//    recien dibujado (se vera en el VBlank siguiente) y rota el trasero.
 
 		// 3) Contorno sobre el buffer pre-clearado (estado del objeto ya precalculado).
 #if FLATSHADE_FAITHFUL
@@ -502,15 +521,13 @@ struct FlatShadeDemo {
 		g_eng_prof.v[8] = tc - tb; // update_edge_visibility_convex
 		g_eng_prof.v[9] = t2 - tc; // transform_vertices
 
-		// 6) Pre-clear del buffer que usar?? el PR??XIMO update (`buf+1`: ni en pantalla
-		//    ni en dibujo ahora, el mostrado es `buf-1`): se lanza sin esperar y queda
-		//    colgado tras el fill.
+		// 6) Publicar y rotar: `commit` instala la copperlist del buffer recien dibujado y
+		//    pasa al siguiente; despues se pre-cleara ESE (ni en pantalla ni en dibujo
+		//    ahora), sin esperar, para que quede colgado tras el fill.
+		m_scenes.commit(backend);
 #if !FLATSHADE_SKIP_CLEAR
-		// Rotacion del buffer SIN `%`: `(buf+1) % kBuffers` con u32 emite `__umodsi3`
-		// (modulo 32-bit por software, caro y cada frame). Con `kBuffers` pequeno la
-		// comparacion sale gratis y no arrastra el libcall.
-		const eng::u8 next_buf = static_cast<eng::u8>(buf + 1u < kBuffers ? buf + 1u : 0u);
-		backend.blitter_clear(planes_of(next_buf), kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight, false);
+		backend.blitter_clear(m_scenes.back().bitplanes(), kPlanes, kBytesPerRow, kPlaneBytes,
+				      kWidth, kHeight, false);
 #endif
 
 		const eng::u32 t3 = rcycles();
@@ -518,9 +535,6 @@ struct FlatShadeDemo {
 		g_eng_prof.v[0] = t1 - t0;
 		g_eng_prof.v[1] = t2 - t1;
 		g_eng_prof.v[5] = t3 - t0;
-
-		m_display_buf = buf;
-		m_draw_buf = static_cast<eng::u8>(buf + 1u < kBuffers ? buf + 1u : 0u);
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
@@ -528,33 +542,11 @@ struct FlatShadeDemo {
 	}
 
 private:
-	eng::PlaneBytes planes_of(eng::u8 buf) const {
-		return m_bitplane_block.view.subspan(
-			static_cast<eng::u32>(buf) * kPlanes * kPlaneBytes, kPlanes * kPlaneBytes);
-	}
-
-	bool build_copper(eng::u8 buf) {
-		const eng::Bytes<eng::CopperTag> slice = m_copper_block.view.subspan(
-			static_cast<eng::u32>(buf) * kCopperPerList, kCopperPerList);
-		copper::Scheduler sched { eng::Block<eng::CopperTag> { slice, m_copper_block.kind } };
-		const eng::PlaneBytes planes = planes_of(buf);
-		sched.emit_planes_display(kDiwstrt, kDiwstop, kDdfstrt, kDdfstop, kBytesPerRow,
-					  kBplcon0, kPlanes, planes, kPlaneBytes);
-		sched.move(copper::Register::BPLCON1, kBplcon1);
-		sched.emit_palette(eng::PaletteWords { flatshade_colors, 16u }, 0, 16);
-		sched.end();
-		m_copper_ptrs[buf] = sched.data();
-		return sched.ok();
-	}
-
+	bool m_init_ok = false;
 	bool m_memory_ok = false;
-	eng::u8 m_draw_buf = 0;
-	eng::u8 m_display_buf = 0;
 	eng::s16 m_angle = 0;
-	eng::Block<eng::PlaneTag> m_bitplane_block {};
-	eng::Block<eng::CopperTag> m_copper_block {};
+	drivers::MultiBuffered<drivers::HamScene, kBuffers> m_scenes {};
 	eng::Block<eng::MaskTag> m_mask_block {};
-	const eng::u16* m_copper_ptrs[kBuffers] = {nullptr, nullptr, nullptr};
 	eng::object3d::Object3D m_object {};
 };
 
