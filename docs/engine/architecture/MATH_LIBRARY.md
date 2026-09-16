@@ -300,6 +300,29 @@ no llamen a libgcc (`__mulsi3`/`__divsi3`) ni usen instrucciones de 68020.
 | `core/light.hpp`, `isqrt.hpp`, `fast_div.hpp`, `arith.hpp`, `word.hpp` | cruda (diseño) | aritmética de enteros/manipulación de bits; no son escalares |
 | `retro/fixed_q.hpp`, `retro/minifloat_fixed.hpp` | puente | vocabulario crudo (`fix`/`fix88`) para ports + conversiones tipadas |
 
+### 3.8 Estado de tipado de `eng/field` y `eng/graphics`
+
+Son capas de **composición y hardware**: su crudeza es casi siempre **contrato** (registros,
+Blitter, Copper, DMA, layout planar, anchos/strides/planos/índices/máscaras). Clasificación de
+las 43 cabeceras:
+
+| Área | (A) tipada | (B) cruda adaptable | (C) cruda por diseño |
+|---|---|---|---|
+| `eng/field/` | — | `surface.hpp` (`SurfaceRect`), `tile_demo.hpp` (cámaras Q16, sin consumidor), campos de cámara de `scroll_engine.hpp` (`ScrollState`) y `playfield.hpp` (`PlayfieldHardwareView`) | el resto (composición, layout, índices) |
+| `eng/graphics/` | `mesh_renderer.hpp` (`math3d::Vec3`/`Affine`; `focal`/`sx`/`sy` en 4.12/píxel crudo por convención) | `drivers/tile_scroll.hpp` (`ScrollPosition2`/`TileScrollInput`) | el resto (registros, Copper, C2P, fuentes, drivers) |
+
+Reglas:
+
+- Un **ancho/alto/stride/plano/índice/máscara** es entero por contrato: no se tipa como escalar.
+- Una **coordenada/ratio/ángulo** debería ser `Coord`/`q12`/`Vec`; los campos (B) son los
+  candidatos (hoy crudos por herencia, no por necesidad).
+- El punto fijo que **no se puede tipar** sin romper el enlazado (p. ej. 16.16 en `s32`) queda
+  crudo y documentado en su cabecera.
+- El **rendimiento** de esta aritmética (divisiones/módulos en caminos calientes) se audita en
+  `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` §11, y el gate
+  `tools/analyze/codegen-report.mjs` cubre las sondas 2D/3D (`project_perspective`, `clip_line`,
+  `face_signed_area`, `update_object_transformation`).
+
 ## 4. Rendimiento y metaprogramación
 - **N constante** y **sin matrices temporales**: la acumulación va directa a los
   registros del resultado. Qué hacer con el bucle (desenrollar o dejarlo plegado) se
