@@ -304,13 +304,25 @@ recording del GUI). Pendiente: `print` DWARF.
   aunque el cambio parezca inocuo (p. ej. fijar los comunes del Blitter 1×/frame
   rompió flatshade-convex).
 
-## Demos atractivas (sugerencia)
-- Una demo no es solo un test: debe **entrar por los sentidos**. Al escribir un efecto o demo, ponerse en el lugar de quien quiere que su aplicación resulte atractiva, no en el de quien solo comprueba que «funciona».
-- Que se vea **de un vistazo qué efecto se está implementando**: cada demo debe comunicar la capacidad del chipset que demuestra (scroll, sprites multiplexados, copper, paleta, transparencia, blitter, etc.), no quedarse en un patrón plano que no explica nada.
-- Usar **animación fluida** para mostrar capacidades: movimiento continuo a 50 fps, no una imagen estática. La suavidad forma parte de la demostración.
-- Aprovechar **todos los colores y transparencias**: degradados, half-brite (EHB), paletas ricas y transparencias reales (sprites/playfields), en lugar de un par de colores planos.
-- Incluir **fondos** con contexto (degradado, patrón, escenario) para que el efecto destaque sobre algo que no sea negro.
-- Un efecto correcto pero «soso» (p. ej. un rectángulo de color sobre fondo negro) no demuestra su valor: subir la ambición visual y hacer que la demo luzca.
+## Regla de demos atractivas (obligatoria)
+- **Una demo no es un test.** Su objetivo es **entrar por los sentidos** y hacer evidente
+  la capacidad que demuestra. Una demo nueva (o al reescribir una existente) debe cumplir
+  estas condiciones; si no, no se considera terminada.
+- **Requisito de técnica exclusiva**: la demo debe mostrar algo que **solo se puede hacer
+  con la técnica que implementa** y que **se vea de un vistazo** por qué esa técnica lo
+  habilita (p. ej. chunky → efecto por píxel que en planar puro no podrías pagar; sprites
+  → multiplexado; copper → split/rasters; blitter → rellenos y máscaras; EHB → degradados
+  de 64 tonos). No vale un patrón plano ni un rectángulo de color sobre negro.
+- **Animación obligatoria y fluida**: movimiento continuo (50 fps si el presupuesto lo
+  permite; si no, la máxima tasa que se sostenga sin tearing perceptible), no una imagen
+  estática. La suavidad forma parte de la demostración. **Nunca** una demo de efecto por
+  píxel puede quedarse en un único frame convertido en `init`.
+- **Color y contexto**: paletas ricas (degradados reales, EHB, transparencias) y un fondo
+  con contexto; no un par de colores planos ni una rampa de grises «de test».
+- **Legibilidad**: debe verse de un vistazo qué efecto se está implementando (plasma,
+  fuego, rotozoom, túnel, scroll, etc.) y, si procede, un rótulo/texto que lo nombre.
+- Estas condiciones **sustituyen** al antiguo criterio de aceptación «compila, llega a
+  Ready y el pixel-assert pasa»: ese gate sigue siendo necesario, pero **no suficiente**.
 
 ## Regla de evidencia
 - No afirmar que una funcionalidad funciona sin evidencia reproducible de esa
