@@ -304,6 +304,33 @@ recording del GUI). Pendiente: `print` DWARF.
   aunque el cambio parezca inocuo (p. ej. fijar los comunes del Blitter 1×/frame
   rompió flatshade-convex).
 
+## Regla de validación visual con visión local (obligatoria)
+- **Ninguna demo o efecto se da por terminado sin pasar Ollama con modelo de visión**
+  (`qwen3-vl:8b-instruct-q8_0`). Los gates automáticos (cobertura, nº de tonos, rampa,
+  `analyze-demo`) **no ven glitches**: costuras, saltos de 16 px, filas duplicadas,
+  planos descolocados, parpadeos o geometrías deformes pasan como «OK». El feedback
+  humano llega tarde o no llega.
+- **Validar secuencias, no solo una imagen**: analizar **varios frames** del efecto
+  (`tools/profile/ai-analyze.mjs <out> <n> --demo <demo> --prompt "..."`), porque hay
+  fallos que solo aparecen en movimiento (cruces de tile, flip de buffer, tearing,
+  parpadeo entre frames). Una sola captura **no** es evidencia suficiente.
+- El prompt debe pedir explícitamente **anomalías** y lo que **se pretendía** ver
+  (`--prompt "scroll horizontal fino; ¿hay saltos de 16 px o costuras entre tiles?"`),
+  no una descripción genérica.
+- Guardar el veredicto como evidencia (salida del informe) y, si hay glitch, **no dar la
+  demo por hecha**: anotarlo y arreglarlo o marcarla como pendiente.
+- **El veredicto de visión es un filtro de sospecha, no una prueba**: puede sobre-reportar
+  en texturas de alta frecuencia (caso real: `qwen3-vl` acusó «permutación de planos» en
+  la 061 y un gate objetivo de 7 estados —rotación/zoom/paneo— la descartó). Toda anomalía
+  señalada se **confirma o refuta con un gate objetivo**; si el gate no cubre ese estado
+  (p. ej. la 061 solo comparaba la identidad), **ampliarlo** antes de dar nada por bueno.
+- Herramientas: `tools/profile/ai-analyze.mjs` (`--mode frames|montage|all`),
+  `tools/analyze/verify-scroll-directions.mjs`, `tools/amiga-tiles/run-vision-verify.mjs`.
+  Ollama en `127.0.0.1:11434`; alternativa por MCP: `winuae_profile_ollama`.
+  Nota: el camino `--demo` de `ai-analyze.mjs` no levanta el canal lateral; hoy lo fiable
+  es `run-demo.sh <demo> --sequence-frames N` (deja `out/run/<demo>/<cfg>/sequence/`) y
+  analizar esos frames con el modelo de visión.
+
 ## Regla de demos atractivas (obligatoria)
 - **Una demo no es un test.** Su objetivo es **entrar por los sentidos** y hacer evidente
   la capacidad que demuestra. Una demo nueva (o al reescribir una existente) debe cumplir

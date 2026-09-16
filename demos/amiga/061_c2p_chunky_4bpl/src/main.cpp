@@ -205,17 +205,40 @@ struct RotozoomDemo {
 		};
 		render_rotozoom(id, m_chunky[0].view, kChunkyW, kChunkyH);
 #if K_061_ASM
-		// La ruta asm debe ser byte-identica a la C++ canonica sobre el mismo estado.
-		eng::graphics::rotozoom_into<64, 64>(texture(), id, m_chunky[1].view, kChunkyW, kChunkyH);
+		// Gate de la ruta asm: debe ser byte-identica a la C++ canonica. NO basta con
+		// la identidad (angulo 0, sin paneo): el avance de fila y el pre-escalado de
+		// `u` solo se ejercitan con rotacion/zoom/paneo, que es lo que la demo usa de
+		// verdad. Se recorren varios estados y se falla con el indice del primero que
+		// difiere (0x6105 = identidad, 0x6107+s = estado s).
 		{
-			const eng::u8* a = m_chunky[0].view.data();
-			const eng::u8* b = m_chunky[1].view.data();
-			for (eng::u32 i = 0; i < static_cast<eng::u32>(kChunkyW) * kChunkyH; ++i) {
-				if (a[i] != b[i]) {
-					eng::debug::mark_failed(g_eng_run_status, 0x00006105u);
-					return false;
+			constexpr eng::u32 kStates = 7u;
+			const eng::graphics::Rotozoom states[kStates] = {
+				{0, 65536, static_cast<eng::s32>(kChunkyW / 2) << 16,
+				 static_cast<eng::s32>(kChunkyH / 2) << 16},   // identidad
+				{64, 65536, 0, 0},                            // 90 grados
+				{32, 65536, 0, 0},                            // 45 grados
+				{0, 131072, 0, 0},                            // zoom 2x
+				{17, 98304, 12288, 7168},                     // rotacion + zoom + paneo
+				{128, 65536, 1 << 16, 3 << 16},               // media vuelta + paneo
+				{200, 122880, 0x00200000, 0x00380000},        // angulo/zoom/offsets grandes
+			};
+			const eng::u32 pixels = static_cast<eng::u32>(kChunkyW) * kChunkyH;
+			for (eng::u32 s = 0; s < kStates; ++s) {
+				render_rotozoom(states[s], m_chunky[0].view, kChunkyW, kChunkyH);
+				eng::graphics::rotozoom_into<64, 64>(texture(), states[s], m_chunky[1].view,
+								    kChunkyW, kChunkyH);
+				const eng::u8* a = m_chunky[0].view.data();
+				const eng::u8* b = m_chunky[1].view.data();
+				for (eng::u32 i = 0; i < pixels; ++i) {
+					if (a[i] != b[i]) {
+						eng::debug::mark_failed(g_eng_run_status,
+									(s == 0u) ? 0x00006105u
+										  : (0x00006107u + s));
+						return false;
+					}
 				}
 			}
+			render_rotozoom(id, m_chunky[0].view, kChunkyW, kChunkyH);
 		}
 #endif
 		const eng::ChunkyBuffer src = m_chunky[0].view;
