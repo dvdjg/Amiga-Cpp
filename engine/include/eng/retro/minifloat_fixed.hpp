@@ -213,30 +213,49 @@ template <int Frac>
 //  Transformación de coordenadas fijas con matriz MF
 // ============================================================================
 
-/// La matriz MF se lleva a 4.12 una vez (razón `RFrac = 12`); la fracción de la
-/// COORDENADA puede ser otra (4.12, 8.8, entero). El producto `ratio·coordenada` se
-/// acumula en 32 bits y se normaliza con un único `>> 12`. Como la razón se guarda en
-/// 4.12, las entradas de la matriz deben caber en `[-8, 8]`.
-template <int N, int Frac>
-[[nodiscard]] constexpr eng::math::Vec<N, eng::math::Fixed<s16, Frac>> transform(
-	const eng::math::Mat<N, eng::math::MiniFloat16>& m,
-	const eng::math::Vec<N, eng::math::Fixed<s16, Frac>>& p) {
-	if consteval { // razones constantes fuera de 4.12 (±8) saturarían en silencio
+/// Matriz de ratios MF ya **convertida a 4.12**: conviene prepararla UNA vez y aplicarla
+/// a muchos puntos (evita reconvertir la matriz por cada vértice).
+template <int N>
+struct RatioMat {
+	s16 m[N][N];
+};
+
+/// Convierte una `Mat<N, MiniFloat16>` a 4.12 (con saturación). Comprueba en compilación
+/// que las razones constantes caben en `[-8, 8]`.
+template <int N>
+[[nodiscard]] constexpr RatioMat<N> prepare_ratio(const eng::math::Mat<N, eng::math::MiniFloat16>& m) {
+	if consteval {
 		for (int i = 0; i < N; ++i)
 			for (int k = 0; k < N; ++k)
 				if (!eng::math::in_range(m.m[i][k], -8.0, 8.0))
 					detail::mf16_fix_domain_ratio_must_be_within_4_12();
 	}
-	s16 mq[N][N];
+	RatioMat<N> r {};
 	for (int i = 0; i < N; ++i)
-		for (int k = 0; k < N; ++k) mq[i][k] = detail::mf_to_fixed(m.m[i][k], 12);
+		for (int k = 0; k < N; ++k) r.m[i][k] = detail::mf_to_fixed(m.m[i][k], 12);
+	return r;
+}
+
+/// `M · v` (ROTACIÓN/ESCALA) sobre la matriz ya preparada (4.12) y coordenadas fijas.
+template <int N, int Frac>
+[[nodiscard]] constexpr eng::math::Vec<N, eng::math::Fixed<s16, Frac>> transform(
+	const RatioMat<N>& mq, const eng::math::Vec<N, eng::math::Fixed<s16, Frac>>& p) {
 	eng::math::Vec<N, eng::math::Fixed<s16, Frac>> out {};
 	for (int i = 0; i < N; ++i) {
 		s32 acc = 0;
-		for (int k = 0; k < N; ++k) acc = detail::sat_mac(acc, mq[i][k], p.v[k].v);
+		for (int k = 0; k < N; ++k) acc = detail::sat_mac(acc, mq.m[i][k], p.v[k].v);
 		out.v[i].v = detail::sat16((acc + 2048) >> 12);
 	}
 	return out;
+}
+
+/// `M · p` (ROTACIÓN/ESCALA) desde la matriz MF (la prepara al vuelo; usa la versión de
+/// `RatioMat` si vas a transformar varios puntos).
+template <int N, int Frac>
+[[nodiscard]] constexpr eng::math::Vec<N, eng::math::Fixed<s16, Frac>> transform(
+	const eng::math::Mat<N, eng::math::MiniFloat16>& m,
+	const eng::math::Vec<N, eng::math::Fixed<s16, Frac>>& p) {
+	return transform(prepare_ratio(m), p);
 }
 
 /// `M · p + t` (afín): traslación `t` en el mismo fixed que `p`.

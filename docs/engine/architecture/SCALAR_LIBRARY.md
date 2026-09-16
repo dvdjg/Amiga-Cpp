@@ -141,6 +141,7 @@ El detalle del escalar de 16 bits está en [MINIFLOAT16.md](MINIFLOAT16.md); el 
 | `core/interp.hpp` | `clamp`/`saturate`/`lerp`/`inv_lerp`/`remap`/`step`/`smoothstep`/`smootherstep` |
 | `core/geometry.hpp` | `length(_sq)`/`distance(_sq)`/`normalize`/`vscale`/`vlerp`/`cross2`/`perp`/`rotate2`/`project`/`reject`/`reflect` |
 | `core/noise.hpp` | `value_noise1/2/3` y `fbm1/2/3` (octavas, `period>0` tileable); hash splitmix32 (2 `__mulsi3` por celda) |
+| `core/spline.hpp` | `hermite` (cúbica) y `catmull_rom` (interpolante) sobre el escalar |
 | `core/numeric_traits.hpp` | rasgos numéricos y guards de compilación |
 
 ## 6. Verificación
@@ -176,6 +177,8 @@ tests host) falla si la doc se desincroniza del contrato, y `--write` la regener
 | length / normalize / reflect / project | si | si (limites de rango) | no (sin sqrt) | HOST-059 |
 | value_noise / fbm | si | si (coord <= 2048) | no (necesita division) | HOST-060 |
 | mul_add / mac (FMA) | — | si (1 redondeo) | si (1 redondeo) | HOST-057/059 |
+| hermite / catmull_rom | si | si | si (catmull usa div_norm) | HOST-061 |
+| ease_in/out/in_out_* | si | si | si | HOST-061 |
 | wrap_angle / angle_diff | — | si | — | HOST-057 |
 | sqrt/exp/log/sin/cos/tan | — | si | — | HOST-057 |
 | transform (MF × fix) | — | ratio MF (|m| <= 8) | coordenada | HOST-058 |

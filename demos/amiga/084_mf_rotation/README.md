@@ -39,8 +39,20 @@ trigonometría/exponencial del escalar de 16 bits funciona en el chip.
 
 `compute_projection` publica en el periférico `0xB70000` los ciclos **emulados** del
 cálculo MF por frame: `counter 0` = total, `counter 1` = matriz (`6 sin/cos` + `2
-Mat*Mat`). Se leen con `node tools/debug/read-debugperiph.mjs demos/amiga/084_mf_rotation
---sub counters`.
+Mat*Mat`). Se leen con:
+
+```bash
+bash ./tools/run/run-demo.sh demos/amiga/084_mf_rotation --read-debugperiph counters
+```
+
+Medición (WinUAE, `cpu_cycle_exact`): el cálculo MF pasó de **190 236** a **127 926**
+ciclos/frame (−33%) con dos cambios:
+- `sincos` por eje en vez de `sin`+`cos` (una sola reducción de rango): 190k → 158k.
+- `prepare_ratio` (convertir la matriz MF a 4.12 UNA vez y aplicarla a los 8 vértices en
+  vez de reconvertirla por vértice): 158k → 128k.
+
+El resto del presupuesto es el trazado de líneas. Con 128k ciclos el cálculo MF cabe en
+los ~141k de un frame a 50 fps.
 
 ## Comandos
 

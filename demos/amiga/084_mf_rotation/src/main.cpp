@@ -198,8 +198,9 @@ private:
 		m_az = em::wrap_angle(m_az + MF(0.007f));
 		const em::Mat<3, MF> m = rot_z(m_az) * rot_y(m_ay) * rot_x(m_ax);
 		const eng::u32 tb = Periph::cycle_counter();
+		const eng::retro::RatioMat<3> mq = eng::retro::prepare_ratio(m); // convertir 1x
 		for (int i = 0; i < 8; ++i) {
-			const auto r = eng::retro::transform(m, kVerts[i]);
+			const auto r = eng::retro::transform(mq, kVerts[i]);
 			m_scr[i][0] = static_cast<eng::s16>(kCX + r.v[0].v);
 			m_scr[i][1] = static_cast<eng::s16>(kCY - r.v[1].v);
 			m_wz[i] = r.v[2].v;
@@ -230,19 +231,22 @@ private:
 	}
 
 	static em::Mat<3, MF> rot_x(MF a) {
-		const MF c = em::cos(a), s = em::sin(a);
+		MF s, c;
+		em::sincos(a, s, c); // una sola reduccion para seno y coseno
 		return em::Mat<3, MF> {{{MF::one(), MF::zero(), MF::zero()},
 					{MF::zero(), c, -s},
 					{MF::zero(), s, c}}};
 	}
 	static em::Mat<3, MF> rot_y(MF a) {
-		const MF c = em::cos(a), s = em::sin(a);
+		MF s, c;
+		em::sincos(a, s, c);
 		return em::Mat<3, MF> {{{c, MF::zero(), s},
 					{MF::zero(), MF::one(), MF::zero()},
 					{-s, MF::zero(), c}}};
 	}
 	static em::Mat<3, MF> rot_z(MF a) {
-		const MF c = em::cos(a), s = em::sin(a);
+		MF s, c;
+		em::sincos(a, s, c);
 		return em::Mat<3, MF> {{{c, -s, MF::zero()},
 					{s, c, MF::zero()},
 					{MF::zero(), MF::zero(), MF::one()}}};

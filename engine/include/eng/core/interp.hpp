@@ -115,4 +115,60 @@ template <typename S>
 	return mul_norm(t3, inner);
 }
 
+// ---------------------------------------------------------------------------
+//  Easing polinómico (sin división: funciona también con fixed)
+// ---------------------------------------------------------------------------
+
+/// Cubo de `t` reutilizado por los easings cúbicos.
+template <typename S>
+[[nodiscard]] constexpr S ease_cube(S t) {
+	return mul_norm(mul_norm(t, t), t);
+}
+
+/// Cuadrático de entrada: `t²` (arranca lento).
+template <typename S>
+[[nodiscard]] constexpr S ease_in_quad(S t) {
+	t = saturate(t);
+	return mul_norm(t, t);
+}
+/// Cuadrático de salida: `t·(2−t)` (frena al llegar).
+template <typename S>
+[[nodiscard]] constexpr S ease_out_quad(S t) {
+	t = saturate(t);
+	return mul_norm(t, scalar_traits<S>::from_int(2) - t);
+}
+/// Cuadrático de entrada/salida (`4t³` y `1−4(1−t)³` en las mitades).
+template <typename S>
+[[nodiscard]] constexpr S ease_in_out_quad(S t) {
+	t = saturate(t);
+	const S one = scalar_traits<S>::one();
+	const S two = scalar_traits<S>::from_int(2);
+	if (mul_norm(two, t) < one) return mul_norm(two, mul_norm(t, t)); // 2t²
+	const S u = one - t;
+	return one - mul_norm(two, mul_norm(u, u)); // 1 − 2(1−t)²
+}
+
+/// Cúbico de entrada: `t³`.
+template <typename S>
+[[nodiscard]] constexpr S ease_in_cubic(S t) {
+	t = saturate(t);
+	return ease_cube(t);
+}
+/// Cúbico de salida: `1−((1−t)³)`.
+template <typename S>
+[[nodiscard]] constexpr S ease_out_cubic(S t) {
+	t = saturate(t);
+	return scalar_traits<S>::one() - ease_cube(scalar_traits<S>::one() - t);
+}
+/// Cúbico de entrada/salida (`4t³` y `1−4(1−t)³` en las mitades).
+template <typename S>
+[[nodiscard]] constexpr S ease_in_out_cubic(S t) {
+	t = saturate(t);
+	const S one = scalar_traits<S>::one();
+	const S two = scalar_traits<S>::from_int(2);
+	const S four = scalar_traits<S>::from_int(4);
+	if (mul_norm(two, t) < one) return mul_norm(four, ease_cube(t)); // 4t³
+	return one - mul_norm(four, ease_cube(one - t)); // 1 − 4(1−t)³
+}
+
 } // namespace eng::math

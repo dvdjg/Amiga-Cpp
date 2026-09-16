@@ -101,4 +101,5 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-058 | [minifloat_fixed](058_minifloat_fixed/README.md) | `eng/retro/minifloat_fixed.hpp`: puente `MiniFloat16` ↔ `fix`/`fix88` (conversiones saturadas, producto mixto y `transform` de coordenadas fijas con matriz MF). |
 | HOST-059 | [scalar_math](059_scalar_math/README.md) | Base escalar-independiente: `numeric_traits` + guards de compilación (`range_fits`/`require_division`), `interp.hpp` y `geometry.hpp` genéricos sobre `double`, `MiniFloat16` y `q12` (fixed). |
 | HOST-060 | [noise](060_noise/README.md) | `eng/core/noise.hpp`: `value_noise1/2/3` y `fbm1/2/3` genéricos, ruido periódico (tileable), determinismo y rango [0,1]; MF vs `double`. |
+| HOST-061 | [spline_easing](061_spline_easing/README.md) | `eng/core/spline.hpp` (Hermite/Catmull-Rom) y easing de `interp.hpp`: genéricos sobre `double`, `MiniFloat16` y `q12`. |
 | HOST-061 | [flat_mapper](061_flat_mapper/README.md) | `eng::field::map_flat_scroll`: mapper neutral cámara→`planeaddx`/`planeaddy`/`BPLCON1`/`BPLMOD` del virtual playfield (fetch ancho `$30`). |
