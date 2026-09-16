@@ -36,6 +36,13 @@ namespace eng::copper {
 
 struct PlanConfig {
 	u32 copper_bytes = 8192u; ///< tamaño de CADA bloque del doble buffer
+	/// Línea de raster donde arranca la ventana visible (p. ej. 0x2c en PAL 256). El
+	/// Copper ejecuta la lista en el orden en que el raster alcanza las líneas, y el
+	/// display **envuelve** a las 256 líneas: las intenciones se ordenan por línea
+	/// RELATIVA a `first_line` ((top - first_line) & 0xff), no por `top` absoluto, para
+	/// que una zona de la parte baja (top < first_line) vaya DESPUÉS de una de la parte
+	/// alta y no antes.
+	u16 first_line = 0u;
 };
 
 class Plan {
@@ -133,19 +140,26 @@ public:
 	constexpr u16* inactive_words() const { return m_copper->inactive_words(); }
 
 private:
-	/// Ordenación por inserción (n ≤ 64, sin STL ni heap). El scheduler exige las
-	/// intenciones en orden ASCENDENTE de línea; hacerlo aquí libera al llamador de ese
-	/// invariante implícito.
+	/// Ordenación por inserción (n ≤ 64, sin STL ni heap) por línea **relativa al inicio
+	/// del display**. El scheduler exige las intenciones en el orden en que el raster las
+	/// alcanza; hacerlo aquí libera al llamador de ese invariante implícito (y del cruce
+	/// de las 256 líneas).
 	void sort_by_top() {
 		for (u8 i = 1; i < m_count; ++i) {
 			const graphics::CopperIntent key = m_intents[i];
+			const u8 key_line = raster_key(key.top);
 			u8 j = i;
-			while (j > 0u && m_intents[j - 1u].top > key.top) {
+			while (j > 0u && raster_key(m_intents[j - 1u].top) > key_line) {
 				m_intents[j] = m_intents[j - 1u];
 				--j;
 			}
 			m_intents[j] = key;
 		}
+	}
+
+	/// Línea de raster relativa al inicio del display (el listado envuelve a 256 líneas).
+	constexpr u8 raster_key(u16 top) const {
+		return static_cast<u8>((static_cast<u16>(top) - m_cfg.first_line) & 0xffu);
 	}
 
 	PlanConfig m_cfg {};

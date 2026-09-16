@@ -229,6 +229,32 @@ int main() {
 		}
 	}
 
+	// --- orden con CRUCE de las 256 lineas (ventana PAL que empieza en 0x2c) ------
+	{
+		eng::copper::Plan wrap;
+		if (!wrap.begin(mem, {1024u, 0x2cu})) {
+			std::printf("[FAIL] Plan::begin con first_line\n");
+			return 1;
+		}
+		wrap.begin_frame();
+		wrap.scheduler().emit_palette(eng::PaletteWords {kBase, 4});
+		// top=250 va ANTES que top=10 (el raster llega a 250 y luego envuelve hasta 10).
+		wrap.add(palette_intent(10u, &kC1));
+		wrap.add(palette_intent(250u, &kC2));
+		wrap.materialize();
+		if (!wrap.end_frame()) {
+			std::printf("[FAIL] end_frame del plan con cruce\n");
+			return 1;
+		}
+		u16 lines[4] = {0};
+		const unsigned n = wait_lines(wrap.active_words(), wrap.words(), lines, 4);
+		if (n < 2u || lines[0] != 250u || lines[1] != 10u) {
+			std::printf("[FAIL] orden con cruce: n=%u [%u,%u] (esperado 250,10)\n", n,
+				    (unsigned)lines[0], (unsigned)lines[1]);
+			return 1;
+		}
+	}
+
 	std::printf("OK: copper::Plan (orden por scanline, doble buffer, publicacion y overflow).\n");
 	return 0;
 }

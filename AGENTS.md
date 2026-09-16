@@ -336,6 +336,26 @@ recording del GUI). Pendiente: `print` DWARF.
   es `run-demo.sh <demo> --sequence-frames N` (deja `out/run/<demo>/<cfg>/sequence/`) y
   analizar esos frames con el modelo de visión.
 
+## Regla de copper y buffers de display (obligatoria)
+
+- **El copper de una escena se orquesta con `eng::copper::Plan`** (`engine/include/eng/graphics/copper/plan.hpp`),
+  no emitiendo a mano. Los efectos/capas **no hablan de registros**: aportan
+  `graphics::CopperIntent` (vocabulario portable de `raster_intent.hpp`) al plan, que
+  **ordena por scanline relativo al inicio del display** (el listado envuelve a 256
+  líneas), lo materializa en el bloque **trasero** de su doble buffer de copperlist y
+  publica con el swap de `COP1LC` (`Plan::commit`).
+- **No llamar `install_copper_list`/`takeover_display` a mano** en código nuevo: usar
+  `Plan::commit`/`Plan::takeover` o `MultiBuffered<Driver,N>::commit`/`takeover`.
+- **Dos granularidades distintas, no confundirlas**:
+  - *buffers de display* (bitmaps) → `drivers::MultiBuffered<Driver, N>`
+    (`N` = 1/2/3 por configuración `K_<DEMO>_BUFFERS`);
+  - *buffers de copperlist* → `copper::DoubleBuffer` (lo que usa el `Plan`; `attach()`
+    permite orquestar uno externo).
+- Un driver sin bitplanes (p. ej. `CopperChunkyScene`) declara `bitplane_bytes_for == 0`.
+- Contrato y racional: `docs/engine/architecture/DISPLAY_COMPOSITION.md`; ejemplo vivo:
+  **demo 085 `copper_plan_scene`** (cielo por bandas de la escena + BOB con degradado
+  anclado a su Y, dos fuentes que el plan ordena por scanline).
+
 ## Regla de demos atractivas (obligatoria)
 - **Una demo no es un test.** Su objetivo es **entrar por los sentidos** y hacer evidente
   la capacidad que demuestra. Una demo nueva (o al reescribir una existente) debe cumplir
