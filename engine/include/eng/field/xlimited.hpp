@@ -1485,10 +1485,13 @@ private:
 ///   comp.compose(field.hardware_view());
 ///   comp.install(backend);
 ///
-/// El compositor reutiliza la misma copperlist en ambos bloques en el primer
-/// frame y luego parchea sólo BPLCON1 y los punteros (13 words), igual que
-/// `TileScrollScene::patch_copper`, para no pagar el coste de re-emitir la
-/// paleta cada frame.
+/// El compositor emite la lista completa en **dos bloques** (doble buffer de
+/// copperlist) y alterna `m_active`: `compose()` vuelve a emitir la lista entera en
+/// el bloque inactivo (DMACON/BPLCON/DIW/DDF/paleta/punteros) y `install()` publica
+/// `COP1LC`. NO parchea words sueltos: el parcheo de 13 words existe solo en
+/// `TileScrollScene::patch_copper` (`drivers/tile_scroll.hpp`). Re-emitir cuesta mas
+/// que parchear, pero deja la lista final auditable; unificarlo es F1 de
+/// `docs/guides/roadmap/NORMALIZACION_REPO.md`.
 /// Zona de color por raster (raster colors): en la línea `line` el registro `reg`
 /// pasa a `color`. Las zonas deben venir en orden ASCENDENTE de línea. Requieren
 /// un display SIN split de Copper (`linear_display`) para no desordenar el raster.

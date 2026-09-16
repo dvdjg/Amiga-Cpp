@@ -17,6 +17,8 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
 | `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md` | **(nuevo) roadmap vigente** | Fases para llevar el código actual al modelo objetivo; demos a adaptar (107/110/111/112/201/202) |
 | `docs/guides/roadmap/CONSULTA-SPLIT-208.md` | **RESUELTO** | Límite de 8 bits del split vertical del corkscrew (OCS/ECS/AGA), ratificado por IA externa; alternativas (`linear_display` para 256 px) |
 | `docs/guides/roadmap/SCROLL_DEMOS_CLEANUP.md` | **(nuevo) Fase 0** | Inventario de demos de scroll, glosario XLimited/XYLimited, lista de salvamento y matriz de demos por algoritmo; tileset 32c compartido |
+| `docs/guides/roadmap/NORMALIZACION_REPO.md` | **roadmap vigente de limpieza** | Fases F0-F5 para normalizar tras la mezcla de ramas: una sola implementación de buffers y de copper, superficies sin memoria, unificación de scroll/cámaras, checklist de incongruencias |
+| `docs/engine/architecture/DISPLAY_COMPOSITION.md` | **(nuevo) contrato** | Buffers de display (3 granularidades, `MultiBuffered<Driver,N>`) y orquestación de copper por escena (`CopperPlan`) |
 
 ## Estado real del engine y las demos (2026-09)
 

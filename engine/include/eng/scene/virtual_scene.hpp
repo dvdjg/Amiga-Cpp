@@ -162,6 +162,14 @@ enum class LayerKind : u8 {
 /// `HiddenMargins` es el caso Amiga tipico: se mantiene una superficie algo mayor
 /// que la ventana visible y se dibujan tiles en el area oculta antes de que la
 /// camara llegue a ella. Otros backends podrian escoger nametables, chunks o VRAM.
+///
+/// **NO VERIFICADA / no implementada**: `DoubleBufferedHiddenMargins` es una
+/// intencion sin respaldo; el engine no tiene doble buffer de display para tile
+/// layers (solo flags de dirty buffer en `graphics/tilemap/tile_scroll.hpp`). Su
+/// unico consumidor, la demo 100, es didactica. La implementacion real de N buffers
+/// es `graphics/drivers/multi_buffered.hpp` (ver
+/// `docs/engine/architecture/DISPLAY_COMPOSITION.md` y F2 de
+/// `docs/guides/roadmap/NORMALIZACION_REPO.md`).
 enum class TileFramebufferStrategy : u8 {
 	Static,
 	HiddenMargins,
