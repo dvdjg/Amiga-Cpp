@@ -12,6 +12,19 @@
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
+// Perfilado de ciclos NO cuantizados: `K_FIRE_PROF=1` publica en
+// `g_eng_run_status.detail` el coste de `RandomizeBottom+MainLoop`; `=2`, el del
+// `update` completo (incluye arrancar el C2P). Se lee del `detail=` que imprime
+// `node tools/debug/measure-fps.mjs 080_fire_rgb`. El frame esta cuantizado a campos,
+// asi que el `.detail` es la unica forma de ver el margen real.
+#ifndef K_FIRE_PROF
+#define K_FIRE_PROF 0
+#endif
+#if K_FIRE_PROF
+#include <eng/debug/peripheral.hpp>
+namespace dbgp = eng::debug;
+#endif
+
 #include <exec/execbase.h>
 #include <proto/exec.h>
 
@@ -87,6 +100,10 @@ namespace drivers = eng::graphics::drivers;
 
 short *chunky[2];
 short *fire;
+/// Tabla de color/calor que consume el bucle: `kDualTab` (`.rodata` → **Chip**) o su
+/// copia en **Slow RAM** si `init` la reubica. Se lee 2x por celda (~5k lecturas/frame),
+/// así que sacarla de Chip descarga el bus que comparten display y Blitter.
+const eng::u32* g_dualtab = fire_rgb::kDualTab.v;
 eng::u8* screen_planes[2][kPlanes];
 short active = 0;
 
@@ -152,7 +169,7 @@ void MainLoopC(void) {
 	uint32_t* Cptr = reinterpret_cast<uint32_t *>(&fire[kWidth]);
 	uint32_t* Dptr = reinterpret_cast<uint32_t *>(&fire[kWidth + 1]);
 	uint32_t* Eptr = reinterpret_cast<uint32_t *>(&fire[kWidth * 2]);
-	const uint32_t* dt = fire_rgb::kDualTab.v;
+	const uint32_t* dt = g_dualtab;
 
 	for (i = 0; i < (kWidth * kHeight - 2 * kWidth) / 8; ++i) {
 		uint32_t vl, hi, lo;
@@ -169,7 +186,7 @@ void MainLoop(void) {
 #if K_FIRE_ASM
 	g_fire_args[0] = reinterpret_cast<eng::u32>(chunky[active]);
 	g_fire_args[1] = reinterpret_cast<eng::u32>(fire);
-	g_fire_args[2] = reinterpret_cast<eng::u32>(fire_rgb::kDualTab.v);
+	g_fire_args[2] = reinterpret_cast<eng::u32>(g_dualtab);
 	g_fire_args[3] = static_cast<eng::u32>((kWidth * kHeight - 2 * kWidth) / 8);
 	fire_loop();
 #else
@@ -181,17 +198,43 @@ struct FireDemo {
 	void init(amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		// Chip RAM: chunky (x2) + fuego + bitplanes y copperlist del driver (x2).
-		m_memory_ok = backend.configure_memory({128u * 1024u, 4u * 1024u, 4u * 1024u});
+		m_memory_ok = backend.configure_memory({128u * 1024u, 16u * 1024u, 4u * 1024u});
 		if (!m_memory_ok) { eng::debug::mark_failed(g_eng_run_status, 0x00008001u); return; }
 
-		m_block = backend.memory().chip.allocate_block<eng::ChunkyTag>(
-			kChunkyBuffer * 2u + static_cast<eng::u32>(kWidth) * kHeight * 2u, 16);
+		// chunky (x2) en **Chip**: lo lee el Blitter en el C2P (DMA).
+		m_block = backend.memory().chip.allocate_block<eng::ChunkyTag>(kChunkyBuffer * 2u, 16);
 		if (!m_block.valid()) { eng::debug::mark_failed(g_eng_run_status, 0x00008002u); return; }
 
 		eng::u8* p = m_block.view.data();
 		m_chunky[0] = p; p += kChunkyBuffer;
 		m_chunky[1] = p; p += kChunkyBuffer;
-		m_fire = reinterpret_cast<short*>(p);
+		// El buffer del fuego (u16[80*64] = 10 KB) sólo lo toca la CPU: va a **Slow RAM**
+		// si la hay, para no competir por el bus de Chip con el display (HAM6 = 61 KB/frame)
+		// ni con los blits del C2P. El bus de Chip es el cuello medido (ver
+		// `docs/demos/effects/FIRE_RGB_PORT_PLAN.md`). Si no hay Slow, cae a Chip.
+		{
+			const eng::u32 fire_bytes = static_cast<eng::u32>(kWidth) * kHeight * 2u;
+			eng::MemoryBlock fire_mb = backend.memory().slow.allocate(fire_bytes, 16);
+			if (!fire_mb.valid()) {
+				fire_mb = backend.memory().chip.allocate(fire_bytes, 16);
+			}
+			if (!fire_mb.valid()) { eng::debug::mark_failed(g_eng_run_status, 0x00008005u); return; }
+			m_fire = reinterpret_cast<short*>(fire_mb.data);
+
+			// La tabla (1 KB) también a Slow si se puede: el bucle la lee 2x por celda
+			// (~5k lecturas/frame) y `.rodata` se carga en Chip (ver el `.map`).
+			eng::MemoryBlock dt_mb =
+				backend.memory().slow.allocate(sizeof(fire_rgb::DualTab), 16);
+			if (dt_mb.valid()) {
+				eng::u8* dst = reinterpret_cast<eng::u8*>(dt_mb.data);
+				const eng::u8* src =
+					reinterpret_cast<const eng::u8*>(fire_rgb::kDualTab.v);
+				for (eng::u32 i = 0; i < static_cast<eng::u32>(sizeof(fire_rgb::DualTab)); ++i) {
+					dst[i] = src[i];
+				}
+				g_dualtab = reinterpret_cast<const eng::u32*>(dst);
+			}
+		}
 		// Enlaza los globales que usan las funciones copiadas.
 		chunky[0] = reinterpret_cast<short*>(m_chunky[0]);
 		chunky[1] = reinterpret_cast<short*>(m_chunky[1]);
@@ -250,8 +293,16 @@ struct FireDemo {
 		if (!m_init_ok) return;
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 
+#if K_FIRE_PROF
+		const eng::u32 tp0 = dbgp::DebugPeripheral::cycle_counter();
+#endif
 		RandomizeBottom();
 		MainLoop();
+#if K_FIRE_PROF
+		if (K_FIRE_PROF == 1) {
+			g_eng_run_status.detail = dbgp::DebugPeripheral::cycle_counter() - tp0;
+		}
+#endif
 
 #if K_FIRE_ASM
 		// El C2P lo encadena la IRQ de blit, que instala la copperlist al completar.
@@ -281,8 +332,6 @@ struct FireDemo {
 		}
 		active ^= 1;
 #else
-		MainLoop();
-
 		{	// DIAG: suma del buffer de fuego (comprobar que se forma).
 			eng::u32 s = 0;
 			for (eng::u32 i = 0; i < static_cast<eng::u32>(kWidth) * kHeight; ++i) {
@@ -308,6 +357,11 @@ struct FireDemo {
 		// Swap de buffer (la copperlist del driver apunta a los 4 planos de `active`).
 		m_scene[active].install(backend);
 		active ^= 1;
+#endif
+#if K_FIRE_PROF
+		if (K_FIRE_PROF == 2) {
+			g_eng_run_status.detail = dbgp::DebugPeripheral::cycle_counter() - tp0;
+		}
 #endif
 	}
 

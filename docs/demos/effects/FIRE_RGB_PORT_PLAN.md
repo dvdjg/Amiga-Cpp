@@ -79,9 +79,94 @@ system/*        (bucle de efecto, vectores de interrupcion/VBR, memoria)
    ya no escribe DIW/DDF ni palabras de Copper. ✅ **C2P encadenado por la IRQ de blit**
    (`FireDemo::on_blit`), el mecanismo fiel del original.
 
-## Abierto (rendimiento vs original)
+## Rendimiento vs original: análisis medido (2026-09-16)
 
-El original se ve **mas fluido** que nuestro port. Nuestro frame es **~4 vblanks (~12.4 fps, sin tearing)**; el original declara **788–968 lineas de raster** en su `MainLoop` (~3 vblanks) pero **no hemos medido su fps real**: su `.exe` arranca por un **bootloader propio** (`.adf`) y no expone contador de frames que el GDB pueda resolver (la region de la CIA no es legible por GDB). Hipotesis a cerrar: (a) si ejecuta codigo/datos en **memoria mas rapida** (ojo: sus buffers de fuego/chunky piden `MEMF_CHIP`); (b) su **scheduling C2P/IRQ**; (c) el **display** (HAM + cuadruplicado). **Pendiente**: medirlo en igualdad (p. ej. *watchpoint* en su `MainLoop` para contar ciclos/pasadas) y comparar. Palanca de diagnostico disponible: `-DK_BLIT_NASTY=1` (`BLTPRI`) — ver `docs/reference/amiga/hardware/amiga-blitter-priority-bltpri.md`.
+**Cómo late el original** (`effects/fire-rgb/fire-rgb.c` + `system/effect.c`):
+
+- `EffectRun` llama a `effect->Render()` **una vez por tick del contador de frames**
+  (VBlank): es **cuantizado a campos**, igual que nuestro engine.
+- Su **propio profiler** (`ProfilerStart/Stop` sobre `RandomizeBottom + MainLoop`,
+  `system/profiler.c`) declara en el comentario del `MainLoop`:
+  **788–968–976 líneas de raster** (min-avg-max). Una línea PAL son ~454 ciclos, y un
+  campo 312.5 líneas → **2.5–3.1 campos por frame ≈ 16–20 fps**. Es decir, **25 fps
+  (2 campos) no es alcanzable con este algoritmo en un A500**, ni por el original.
+- Su C2P (13 blits) va **encadenado por la IRQ de blit**: la CPU no lo espera. Y su
+  `dualtab[256]` se indexa con la **palabra cruda como offset en BYTES** (`(dt, idx.w)`),
+  que equivale a la media de los 4 vecinos — exactamente lo que hace nuestro
+  `support/fire_loop.s`.
+
+**Cuánto tardamos nosotros** (`node tools/debug/measure-fps.mjs 080_fire_rgb`, A500
+`-O1`, ciclo-exacto):
+
+| variante | fps | campos/frame | ciclos/frame |
+|---|---|---|---|
+| 080 baseline | **12.4–12.6** | 4.0 | ~570.000 |
+| 080 `-DK_DIAG_SKIP_C2P=1` | **16.70** | 3.0 | 424.899 |
+
+425k ciclos = **~936 líneas de raster** → **nuestro bucle de fuego ya está en el rango
+del original** (788–968): el port del asm no es el problema. Lo que añade el 4.º campo
+es el **C2P**: sus 33 KB de DMA (~13 blits de 2560 B) compiten por el bus de Chip, que
+ya soporta el display HAM6 (61 KB/frame). `-DK_BLIT_NASTY=1` (BLTPRI) **empeora**
+(12.44 fps / 4.0): el bus de Chip es el cuello, no la prioridad del Blitter.
+
+**Hallazgo nuevo**: el `.map` muestra que **todo el programa se enlaza por debajo de
+0x80000**, o sea en **Chip RAM** (`.text` en 0x400, `.rodata` en 0x253a — ahí vive
+`kDualTab` —, `.data`/`.bss`), con los **512 KB de Slow RAM sin usar**. Se probó y se
+mantiene (inocuo, y en hardware real descarga el bus):
+
+- **`fire` (10 KB) y `dualtab` (1 KB) a Slow RAM** (sólo los toca la CPU).
+- *(Experimentado y **revertido**)* copiar la propia rutina `fire_loop` a Slow
+  (~100 KB/frame de fetches de instrucciones desde Chip): **sin ganancia medible** y
+  añade un invariante frágil (el bucle debe seguir siendo relocalizable).
+
+Medición tras los cambios: **sin cambio a nivel de campo** (12.44–12.56). El frame está
+cuantizado a campos y el trabajo cae **justo en el límite 3/4**, así que una mejora
+sub-campo no se ve en el fps.
+
+**Instrumento y medidas de ciclos NO cuantizados.** La demo publica el tramo medido en
+`g_eng_run_status.detail` (campo que `measure-fps` ya imprime):
+`-DK_FIRE_PROF=1` → coste de `RandomizeBottom+MainLoop`; `=2` → coste del `update`
+completo. (Los `debugperiph counters/checkpoints` **no reportan** en esta ruta de
+lanzamiento — sale `no counters` —; el camino del `detail` sí funciona.)
+
+```
+080_fire_rgb (A500 -O1, ciclo-exacto, measure-fps):
+  frame                        570.303-572.197 ciclos  (4.03 campos, 12.4 fps)
+  RandomizeBottom+MainLoop     436.202 ciclos  (3.07 campos)   [-DK_FIRE_PROF=1]
+  update completo              376.710 ciclos  (2.66 campos)   [-DK_FIRE_PROF=2]
+  sin C2P                      424.899 ciclos  (3.00 campos)   [-DK_DIAG_SKIP_C2P=1]
+```
+
+**Conclusión: estamos en paridad con el original, no por debajo.** Nuestro bucle de fuego
+(376-436k ciclos) cae **dentro del rango que el propio original se atribuye** (788-968-976
+líneas = **357-439k**). Y el original, con su propio contador, **tampoco llega a 25 fps**:
+su `Render` medio son 3.09 campos → cuantizado a ticks de VBlank son **4 campos ≈ 12.5 fps**
+(sólo su mínimo de 2.52 campos daría 3 campos = 16.7). Es decir, el "~25 fps" del original
+**no sale de sus cifras**: es lo que se ve en un emulador **no ciclo-exacto** (o en AGA),
+donde los accesos al bus de Chip se cobran más baratos.
+
+**Inconsistencia de medida a cerrar**: el `update` (2.66 campos) no puede ser menor que el
+tramo del fuego (3.07). Lo más probable es que el tramo corto se mida con la **cola del C2P
+del frame anterior aún corriendo** (sus blits estorban a la CPU) mientras el `update` largo
+arranca ya tras la salvaguarda `FinishC2p`. Se cierra midiendo los dos tramos en el **mismo
+build** (p. ej. alternando el `detail` por frame).
+
+**Palancas que quedan** (para *superar* al original, ya no para igualarlo):
+
+- El bucle gasta ~4.5 accesos a memoria por celda (4 lecturas de vecinos, 2 de tabla y 3
+  escrituras por cada 2 celdas); con `cpu_cycle_exact` cada acceso al bus se cobra caro, así
+  que el cuello es **memoria, no ALU**. Reutilización clásica: el long de `D` de una
+  iteración **es** el long de `B` de la siguiente (los punteros van desfasados una palabra)
+  → llevarlo en un registro ahorra 1 de las 4 lecturas por iteración (~25 % del tráfico del
+  fuego).
+- La sincronía de frame deja ~1.4 campos de espera (4.03 de frame para 2.66 de trabajo):
+  revisar el `wait_vblank`/`render` del bucle del engine.
+- El **C2P** (~1 campo: 13 blits, 33 KB de DMA) decide entre 3 y 4 campos; arrancar su fase 0
+  antes (solapada con la cola del fuego) puede valer el campo que falta → **16.7 fps**.
+
+Objetivo realista: **≤ 3 campos = 16.7 fps**, que es el presupuesto del propio original.
+
+
 
 ## Siguiente (para completar)
 
