@@ -56,6 +56,9 @@ estructura: `docs/STRUCTURE.md` §4. Clasificación por concepto:
   - `120_virtual_playfield` — **virtual playfield**: mundo 448×1684 en un bitmap **FLAT contiguo** ya
     dibujado; el scroll solo mueve `BPLxPT`/`BPLCON1` (**cero blits** por frame). Cablea
     `BigBufferScroll` a una superficie real; `analyze-sequence.sh` (animada + telemetría `camX/camY`).
+  - `121_mirror_scroll` — **espejo vertical**: bitmap con el bucle duplicado → scroll de **256 px sin
+    split** de Copper (la vía recomendada en `CONSULTA-SPLIT-208.md`); `MirrorScrollPlayfield` sobre
+    el mapper flat (`analyze-sequence.sh`, marcador `0x13`).
   - `112_xlimited_robocod` — XYLimited 5 planos con **fondo geométrico y parallax RoboCod** (plano 4 a
     media velocidad; paleta de 32 índices mapeada a 16 tonos).
   - `113_mode_switch` — microtest de **`ModeSwitchZone`**: campo de 5 planos + HUD de 2 planos con

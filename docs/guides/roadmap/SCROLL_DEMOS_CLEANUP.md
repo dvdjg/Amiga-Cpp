@@ -65,7 +65,7 @@ Una demo **mínima por algoritmo**, mismo contenido y mismo gate; las demos de e
 |---|---|---|---|---|---|
 | Ring / corkscrew | anillo+staging | `ScrollEngine` | split Copper | 107 (referencia) | HOST-023/032-036 |
 | BigBuffer / virtual playfield | bitmap grande contiguo | `BigBufferScroll` | mover `BPLxPT` | **`120_virtual_playfield`** (hecha) | HOST-044 (ya existe la estrategia) |
-| Espejo vertical | anillo + wrap duplicado | Ring + `linear_display` | lectura contigua | **nueva** (256 px) | ampliar host del espejo |
+| Espejo vertical | bitmap con bucle duplicado | `MirrorScrollPlayfield` | lectura contigua, sin split | **`121_mirror_scroll`** (hecha, 256 px) | demo + HOST-056 (reusa el mapper flat) |
 | Doble buffer + swap | 2 bitmaps completos | offset de cámara | swap `COP1LC`/`BPLxPT` | **nueva** | nuevo host de `swap()` |
 | Page-backed | páginas | `TileFieldController` | `CopyRect`+scratch | **nueva** (de 105) | host de páginas |
 
