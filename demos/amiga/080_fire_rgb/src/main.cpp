@@ -358,7 +358,7 @@ struct FireDemo {
 		}
 
 		// Swap de buffer (la copperlist del driver apunta a los 4 planos de `active`).
-		m_scene[active].install(backend);
+		m_scenes.slot(active).install(backend);
 		active ^= 1;
 #endif
 #if K_FIRE_PROF
