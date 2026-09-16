@@ -214,6 +214,62 @@ void test_transform() {
 	}
 }
 
+// ---------------------------------------------------------------------------
+//  4. 4x4 homogéneo (proyección) y atajo 2D de `lib2d`
+// ---------------------------------------------------------------------------
+
+void test_homogeneous_and_2d() {
+	// 4x4 afín: M·(p,1) deja w = 1 y transforma la posición
+	{
+		const em::Mat<4, MiniFloat16> m = {
+			{{MiniFloat16(1.5f), MiniFloat16(0.0f), MiniFloat16(0.0f), MiniFloat16(2.0f)},
+			 {MiniFloat16(0.0f), MiniFloat16(0.5f), MiniFloat16(0.0f), MiniFloat16(-1.0f)},
+			 {MiniFloat16(0.0f), MiniFloat16(0.0f), MiniFloat16(2.0f), MiniFloat16(0.5f)},
+			 {MiniFloat16(0.0f), MiniFloat16(0.0f), MiniFloat16(0.0f), MiniFloat16(1.0f)}}};
+		const em::Vec<3, er::Coord12> p = {f2fx(2.0f), f2fx(1.0f), f2fx(3.0f)};
+		const auto h = er::transform_point(m, p);
+		float mx = 0;
+		const float wf[3] = {1.5f * 2.0f + 2.0f, 0.5f * 1.0f - 1.0f, 2.0f * 3.0f + 0.5f};
+		for (int i = 0; i < 3; ++i) mx = std::fmax(mx, std::fabs(fx2f(h.v[i].v) - wf[i]));
+		std::printf("  4x4 afín abs max %.2e ; w = %.4f\n", mx, fx2f(h.v[3].v));
+		check(mx <= 2.0e-3f, "4x4 afín: posicion correcta");
+		check(h.v[3].v == f2fx(1.0f), "4x4 afín: w se mantiene 1.0");
+	}
+
+	// 4x4 de proyección: x' = f·x, y' = f·y, w' = z -> pantalla (f·x/z, f·y/z)
+	{
+		const em::Mat<4, MiniFloat16> m = {
+			{{MiniFloat16(1.0f), MiniFloat16(0.0f), MiniFloat16(0.0f), MiniFloat16(0.0f)},
+			 {MiniFloat16(0.0f), MiniFloat16(1.0f), MiniFloat16(0.0f), MiniFloat16(0.0f)},
+			 {MiniFloat16(0.0f), MiniFloat16(0.0f), MiniFloat16(1.0f), MiniFloat16(0.0f)},
+			 {MiniFloat16(0.0f), MiniFloat16(0.0f), MiniFloat16(1.0f), MiniFloat16(0.0f)}}};
+		const em::Vec<3, er::Coord12> p = {f2fx(2.0f), f2fx(1.0f), f2fx(4.0f)};
+		const auto s = er::project(m, p);
+		const float want[2] = {2.0f / 4.0f, 1.0f / 4.0f};
+		const float got[2] = {static_cast<float>(s.v[0]), static_cast<float>(s.v[1])};
+		const float mx = std::fmax(std::fabs(got[0] - want[0]), std::fabs(got[1] - want[1]));
+		std::printf("  project: (%.4f, %.4f) want (%.4f, %.4f) abs max %.2e\n", got[0], got[1],
+			    want[0], want[1], mx);
+		check(mx <= 3.0e-3f, "project: division por w correcta");
+	}
+
+	// Atajo 2D de `lib2d`: Vec2 = Vec<2,q0> (pixeles enteros) por una matriz 2x2 de MF
+	{
+		const float ang = 0.7f;
+		const em::Mat<2, MiniFloat16> m = {
+			{{MiniFloat16(std::cos(ang)), MiniFloat16(-std::sin(ang))},
+			 {MiniFloat16(std::sin(ang)), MiniFloat16(std::cos(ang))}}};
+		const em::Vec<2, er::q0> v2 = {er::q0 {10}, er::q0 {0}};
+		const auto r = er::transform(m, v2); // mismo template que 4.12/8.8
+		const float wx = std::cos(ang) * 10.0f, wy = std::sin(ang) * 10.0f;
+		const float mx = std::fmax(std::fabs(static_cast<float>(r.v[0].v) - wx),
+					   std::fabs(static_cast<float>(r.v[1].v) - wy));
+		std::printf("  transform 2D (Vec2/q0): (%d,%d) abs max %.2e\n",
+			    static_cast<int>(r.v[0].v), static_cast<int>(r.v[1].v), mx);
+		check(mx <= 1.0f, "transform sobre Vec2 (q0): error <= 1 pixel");
+	}
+}
+
 } // namespace
 
 int main() {
@@ -221,6 +277,7 @@ int main() {
 	test_conversions();
 	test_mul();
 	test_transform();
+	test_homogeneous_and_2d();
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;

@@ -173,10 +173,13 @@ El caso de uso es transformar **coordenadas fijas** con una matriz de ratios MF:
 con `Coord12 = Fixed<s16,12>` y `Coord88 = Fixed<s16,8>`: el tag de escala es el
 exponente de `Fixed`, así que 4.12 y 8.8 no se pueden mezclar sin un tipo nuevo. La
 matriz MF se convierte **una vez** a 4.12 y cada fila acumula los productos
-`ratio·coordenada` en 32 bits con `muls.w`, normalizando con **un único** desplazamiento:
-la coordenada conserva sus 12 bits de fracción y no se redondea producto a producto
-(producto escalar fusionado, como el `dot` de `linalg`). Verificado en el `.o` de m68k:
-`muls.w`, sin `divs`/`divu` ni libcalls de coma flotante.
+`ratio·coordenada` en 32 bits con `muls.w`, normalizando con **un único** desplazamiento
+`>> 12`: la fracción de la coordenada (4.12, 8.8 o entero `q0`, el `Vec2` de `lib2d`) es
+independiente de la de la razón, la coordenada no pasa por la mantisa de 10 bits del MF y
+no se redondea producto a producto (producto escalar fusionado, como el `dot` de
+`linalg`). Como la razón se guarda en 4.12, las entradas de la matriz deben caber en
+`[-8, 8]`. Verificado en el `.o` de m68k: `muls.w`, sin `divs`/`divu` ni libcalls de coma
+flotante.
 
 | Función | Qué hace |
 |---|---|
@@ -185,6 +188,11 @@ la coordenada conserva sus 12 bits de fracción y no se redondea producto a prod
 | `mul_fixed` / `mul_fix` / `mul_fix88` | `ratio · valor` -> mismo fixed |
 | `transform(m, p)` / `transform(m, p, t)` | `M·p` y `M·p + t`, tipado |
 | `transform_fix` / `transform_fix88` | idem, con `s16` crudo |
+| `transform_point(m4, p3)` | homogéneo 4x4: `M·(p,1)` -> `Vec<4,Coord>` (la `w` permite proyectar) |
+| `project(m4, p3)` | proyección: `M·(p,1)` y división por `w`, devuelve **MF** (cabe pantalla) |
+
+Con coordenadas `q0` (pixeles enteros, `Vec2` de `lib2d`) el mismo `transform` sirve de
+atajo 2D: `transform(mf_mat_2x2, v2)`.
 
 Todas las conversiones son explícitas y **saturan** al salir del rango del destino (nada
 de envolver). Errores medidos (HOST-058 vs `float`): conversión ~5e-4 rel; `transform`

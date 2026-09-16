@@ -15,6 +15,10 @@ coordenadas fijas con una matriz MF**.
   cruda, para 4.12 y 8.8. Contra `float`: identidad **exacta**, rotación 90° exacta,
   `transform` 3x3 ≈ `1.1e-4` abs (muy por debajo de la resolución `1/4096`), y saturación
   fuera de rango.
+- **4x4 homogéneo / proyección**: `transform_point(m4,p3)` da `M·(p,1)` con `w` (vale 1
+  para una matriz afín); `project(m4,p3)` divide por `w` y devuelve MF (cabe pantalla).
+- **Atajo 2D de `lib2d`**: el mismo `transform` acepta `Vec2 = Vec<2,q0>` (píxeles
+  enteros) con una matriz 2x2 de MF.
 - La vía **tipada** (`Coord12`/`Coord88`, tag = exponente de `Fixed`) y la cruda dan el
   mismo resultado; 4.12 y 8.8 no se pueden mezclar en el tipo.
 

@@ -16,9 +16,11 @@
 ///
 /// Cómo se hace (producto escalar **fusionado**): la matriz MF se convierte **una vez**
 /// a 4.12 y cada fila acumula los productos `ratio·coordenada` en 32 bits con `muls.w`;
-/// se normaliza con **un único** desplazamiento. La coordenada NO pasa por la mantisa de
-/// 10 bits del MF (conserva sus 12 bits de fracción), y no se redondea producto a
-/// producto.
+/// se normaliza con **un único** desplazamiento `>> 12`. La coordenada puede estar en
+/// 4.12, 8.8 o entero (`q0`, el `Vec2` de `lib2d`) sin cambiar la fórmula, y NO pasa por
+/// la mantisa de 10 bits del MF (conserva su fracción); tampoco se redondea producto a
+/// producto. Como la razón se guarda en 4.12, las entradas de la matriz deben caber en
+/// `[-8, 8]`.
 ///
 /// Sobre tipos y tags: **no** se crea un tipo nuevo porque el engine ya tiene el tag que
 /// hace falta —`eng::math::Fixed<s16,Frac>` distingue 4.12 de 8.8 por su parámetro
@@ -175,14 +177,15 @@ template <int Frac>
 //  Producto mixto (ratio MF × valor fijo -> valor fijo)
 // ============================================================================
 
-/// `r · v` con `r` en MF y `v` en `Fixed<s16, Frac>`, resultado en el MISMO fixed que
-/// `v` (un solo redondeo).
+/// `r · v` con `r` en MF (RATIO) y `v` en `Fixed<s16, Frac>`, resultado en el MISMO
+/// fixed que `v` (un solo redondeo). La razón se lleva a 4.12, así que el resultado es
+/// `(r·2^12 · v) >> 12`: válido para 4.12, 8.8 y entero (`q0`) sin cambiar de fórmula.
 template <int Frac>
 [[nodiscard]] ENG_MF_FIX_AI constexpr eng::math::Fixed<s16, Frac> mul_fixed(
 	eng::math::MiniFloat16 r, eng::math::Fixed<s16, Frac> v) {
-	const s16 rq = detail::mf_to_fixed(r, Frac);
+	const s16 rq = detail::mf_to_fixed(r, 12);
 	const s32 p = static_cast<s32>(rq) * static_cast<s32>(v.v);
-	return {detail::sat16((p + (1 << (Frac - 1))) >> Frac)};
+	return {detail::sat16((p + 2048) >> 12)};
 }
 
 /// `r · v` con `v` en `fix` (4.12) crudo.
@@ -198,21 +201,22 @@ template <int Frac>
 //  Transformación de coordenadas fijas con matriz MF
 // ============================================================================
 
-/// `M · p` (ROTACIÓN/ESCALA): fila `i` = `Σ_k M_ik · p_k`, con la matriz MF convertida
-/// una vez a `Fixed<s16,Frac>` y el acumulador en 32 bits. Un único redondeo por
-/// componente.
+/// La matriz MF se lleva a 4.12 una vez (razón `RFrac = 12`); la fracción de la
+/// COORDENADA puede ser otra (4.12, 8.8, entero). El producto `ratio·coordenada` se
+/// acumula en 32 bits y se normaliza con un único `>> 12`. Como la razón se guarda en
+/// 4.12, las entradas de la matriz deben caber en `[-8, 8]`.
 template <int N, int Frac>
 [[nodiscard]] constexpr eng::math::Vec<N, eng::math::Fixed<s16, Frac>> transform(
 	const eng::math::Mat<N, eng::math::MiniFloat16>& m,
 	const eng::math::Vec<N, eng::math::Fixed<s16, Frac>>& p) {
 	s16 mq[N][N];
 	for (int i = 0; i < N; ++i)
-		for (int k = 0; k < N; ++k) mq[i][k] = detail::mf_to_fixed(m.m[i][k], Frac);
+		for (int k = 0; k < N; ++k) mq[i][k] = detail::mf_to_fixed(m.m[i][k], 12);
 	eng::math::Vec<N, eng::math::Fixed<s16, Frac>> out {};
 	for (int i = 0; i < N; ++i) {
 		s32 acc = 0;
 		for (int k = 0; k < N; ++k) acc = detail::sat_mac(acc, mq[i][k], p.v[k].v);
-		out.v[i].v = detail::sat16((acc + (1 << (Frac - 1))) >> Frac);
+		out.v[i].v = detail::sat16((acc + 2048) >> 12);
 	}
 	return out;
 }
@@ -226,6 +230,31 @@ template <int N, int Frac>
 	auto out = transform(m, p);
 	for (int i = 0; i < N; ++i) out.v[i].v = detail::sat16(static_cast<s32>(out.v[i].v) + t.v[i].v);
 	return out;
+}
+
+/// Punto 3D -> homogéneo 4D: `M · (p, 1)`. La `w` resultante queda en el mismo fixed
+/// que `p` (vale 1 para una matriz afín, y otra cosa para una de proyección).
+template <int Frac>
+[[nodiscard]] constexpr eng::math::Vec<4, eng::math::Fixed<s16, Frac>> transform_point(
+	const eng::math::Mat<4, eng::math::MiniFloat16>& m,
+	const eng::math::Vec<3, eng::math::Fixed<s16, Frac>>& p) {
+	const eng::math::Vec<4, eng::math::Fixed<s16, Frac>> h = {
+		p.v[0], p.v[1], p.v[2], eng::math::Fixed<s16, Frac> {static_cast<s16>(1 << Frac)}};
+	return transform(m, h);
+}
+
+/// Proyección: `M · (p,1)` y división por `w`, devolviendo **MF** (las coordenadas de
+/// pantalla pueden superar el rango del fixed). La cadena va en MF porque los
+/// intermedios homogéneos pueden salirse de `[-8, 8]`; sirve para un `Mat<4>` de cámara.
+template <int Frac>
+[[nodiscard]] constexpr eng::math::Vec<3, eng::math::MiniFloat16> project(
+	const eng::math::Mat<4, eng::math::MiniFloat16>& m,
+	const eng::math::Vec<3, eng::math::Fixed<s16, Frac>>& p) {
+	const eng::math::Vec<4, eng::math::MiniFloat16> h = {
+		fixed_to_mf(p.v[0]), fixed_to_mf(p.v[1]), fixed_to_mf(p.v[2]),
+		eng::math::MiniFloat16::one()};
+	const eng::math::Vec<4, eng::math::MiniFloat16> r = m * h;
+	return {r.v[0] / r.v[3], r.v[1] / r.v[3], r.v[2] / r.v[3]};
 }
 
 /// Igual que `transform`, con coordenadas `fix` (4.12) crudas. Puente para los ports.
