@@ -21,20 +21,23 @@ entrante.
 
 - **`eng::field::BigBufferScroll`** cableada a una superficie real: aporta la cámara saturada por
   eje (el struct modela un eje; se usan dos instancias, X e Y).
-- **`CanvasPlayfield`** como superficie flat interleaved, con su `hardware_view()` reescrito para
-  la geometría del **fetch ancho** (`DDFSTRT=$30`, 42 B/fila): `planeaddx = ((cam_x-1)&~15)/8`,
-  `BPLCON1 = (16-fine)&15` duplicado en ambos nibbles y `BPLMOD = row_bytes*planes - 42`.
-  Fórmula tomada del driver lineal verificado `engine/include/eng/graphics/drivers/tile_scroll.hpp`.
+- **`eng::field::FlatScrollPlayfield`** (engine) como superficie flat interleaved, con el mapper
+  **`eng::field::map_flat_scroll`** (geometría del **fetch ancho** `DDFSTRT=$30`, 42 B/fila):
+  `planeaddx = ((cam_x-1)&~15)/8`, `BPLCON1 = (16-fine)&15` duplicado en ambos nibbles y
+  `BPLMOD = row_bytes*planes - 42`. Fórmula del driver lineal verificado `tile_scroll.hpp`.
 - **Cero blits por frame** (a diferencia del anillo): la CPU solo recompone la copperlist.
+- **Art real**: el mundo se rellena una vez copiando tiles 16×16 del atlas *Beginning Fields* a
+  **8 colores** (3 planos) desde el banco X-Limited interleaved incrustado en `.MEMF_CHIP`.
 
 ## Invariantes / límites
 
 - La cámara X **mínima es 1** (con `DDFSTRT=$30` el puntero apunta una word antes en `fine==0`;
   con 0 leería antes del buffer).
 - El presupuesto de Chip RAM del mundo es `row_bytes*height*planes`:
-  276 KB (3 pl) · **368 KB (4 pl, esta demo)** · 460 KB (5 pl); 6 planos no caben en un A500.
-- El mundo se pinta **una sola vez** en `init` (patrón procedural de celdas de 16 px); en el bucle
-  no se toca memoria.
+  **276 KB (3 pl, esta demo)** · 368 KB (4 pl) · 460 KB (5 pl); 6 planos no caben en un A500.
+  A eso se suma el banco del atlas (111 KB a 8c) y el copper (~3 KB).
+- El mundo se pinta **una sola vez** en `init` copiando tiles del banco; en el bucle no se toca
+  memoria. El mapa (40×40) se repite toroidalmente para cubrir el mundo.
 
 ## Build / run / verify
 
@@ -54,5 +57,7 @@ bash ./demos/amiga/120_virtual_playfield/analyze-sequence.sh [--warp]
 - El **mapper está en el engine** (Fase 3): `eng::field::map_flat_scroll`
   (`amiga_display_mapper.hpp`, HOST-056) y la superficie `eng::field::FlatScrollPlayfield`
   (`flat_playfield.hpp`). La demo ya no calcula registros.
-- Pendiente: art desde el tileset compartido (`out/assets/beginning-fields/`) en vez del patrón
-  procedural, y generalizar `ScrollView`/`AmigaDisplayMapper` al resto de estrategias.
+- **Art integrado**: el mundo usa el atlas *Beginning Fields* a 8 colores
+  (`out/assets/beginning-fields/8c`, generado por `src/prebuild.sh` con `tools/amiga-tiles`).
+- Pendiente: generalizar `ScrollView`/`AmigaDisplayMapper` al resto de estrategias (anillo, espejo,
+  doble buffer).
