@@ -587,6 +587,54 @@ ENG_MF_AI constexpr void sincos(MiniFloat16 x, MiniFloat16& out_sin, MiniFloat16
 	return wrap_angle(a - b);
 }
 
+// ============================================================================
+//  Easing con trascendentes (solo MiniFloat16: necesitan sin/cos/exp2)
+// ============================================================================
+
+namespace mfdetail {
+/// Satura `t` a `[0,1]` (los easings esperan ese dominio).
+[[nodiscard]] ENG_MF_AI constexpr MF clamp01(MF t) {
+	if (t < MF::zero()) return MF::zero();
+	if (MF::one() < t) return MF::one();
+	return t;
+}
+} // namespace mfdetail
+
+/// Easing senoidal de entrada: `1 − cos(t·π/2)` (arranque suave).
+[[nodiscard]] ENG_MF_AI constexpr MiniFloat16 ease_in_sine(MiniFloat16 t) {
+	t = mfdetail::clamp01(t);
+	return MiniFloat16::one() - cos(t * mfdetail::k_half_pi);
+}
+/// Easing senoidal de salida: `sin(t·π/2)`.
+[[nodiscard]] ENG_MF_AI constexpr MiniFloat16 ease_out_sine(MiniFloat16 t) {
+	t = mfdetail::clamp01(t);
+	return sin(t * mfdetail::k_half_pi);
+}
+/// Easing senoidal de entrada/salida: `(1 − cos(π·t))/2`.
+[[nodiscard]] ENG_MF_AI constexpr MiniFloat16 ease_in_out_sine(MiniFloat16 t) {
+	t = mfdetail::clamp01(t);
+	return (MiniFloat16::one() - cos(t * mfdetail::k_pi)) * MiniFloat16(0.5f);
+}
+/// Easing exponencial de entrada: `2^(10t−10)` (0 para `t=0`).
+[[nodiscard]] ENG_MF_AI constexpr MiniFloat16 ease_in_expo(MiniFloat16 t) {
+	t = mfdetail::clamp01(t);
+	if (t.is_zero()) return MiniFloat16::zero();
+	return exp2(t * MiniFloat16(10.0f) - MiniFloat16(10.0f));
+}
+/// Easing exponencial de salida: `1 − 2^(−10t)` (1 para `t=1`).
+[[nodiscard]] ENG_MF_AI constexpr MiniFloat16 ease_out_expo(MiniFloat16 t) {
+	t = mfdetail::clamp01(t);
+	if (t.raw == MiniFloat16::one().raw) return MiniFloat16::one();
+	return MiniFloat16::one() - exp2(MiniFloat16(-10.0f) * t);
+}
+/// Easing exponencial de entrada/salida.
+[[nodiscard]] ENG_MF_AI constexpr MiniFloat16 ease_in_out_expo(MiniFloat16 t) {
+	t = mfdetail::clamp01(t);
+	if (t < MiniFloat16(0.5f)) return exp2(t * MiniFloat16(20.0f) - MiniFloat16(10.0f)) * MiniFloat16(0.5f);
+	if (t.raw == MiniFloat16::one().raw) return MiniFloat16::one();
+	return MiniFloat16::one() - exp2(MiniFloat16(10.0f) - t * MiniFloat16(20.0f)) * MiniFloat16(0.5f);
+}
+
 /// Arco tangente en `(-π/2, π/2)`. `±∞` -> `±π/2`.
 [[nodiscard]] ENG_MF_AI constexpr MiniFloat16 atan(MiniFloat16 x) {
 	using namespace mfdetail;

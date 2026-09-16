@@ -48,4 +48,24 @@ template <typename S>
 	return hermite(p1, m0, p2, m1, t);
 }
 
+/// Hermite componente a componente sobre `Vec<N,S>` (misma tangente `t` para los N ejes).
+template <int N, typename S>
+[[nodiscard]] constexpr Vec<N, S> hermite(const Vec<N, S>& p0, const Vec<N, S>& m0,
+					  const Vec<N, S>& p1, const Vec<N, S>& m1, S t) {
+	Vec<N, S> r {};
+	for (int i = 0; i < N; ++i) r.v[i] = hermite(p0.v[i], m0.v[i], p1.v[i], m1.v[i], t);
+	return r;
+}
+
+/// Catmull-Rom componente a componente sobre `Vec<N,S>` (trayectoria que pasa por `p1` y
+/// `p2`). Pensada para rutas de cámara/objetos en 2D/3D.
+template <int N, typename S>
+[[nodiscard]] constexpr Vec<N, S> catmull_rom(const Vec<N, S>& p0, const Vec<N, S>& p1,
+					      const Vec<N, S>& p2, const Vec<N, S>& p3, S t) {
+	Vec<N, S> r {};
+	for (int i = 0; i < N; ++i)
+		r.v[i] = catmull_rom(p0.v[i], p1.v[i], p2.v[i], p3.v[i], t);
+	return r;
+}
+
 } // namespace eng::math

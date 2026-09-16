@@ -45,14 +45,16 @@ Mat*Mat`). Se leen con:
 bash ./tools/run/run-demo.sh demos/amiga/084_mf_rotation --read-debugperiph counters
 ```
 
-Medición (WinUAE, `cpu_cycle_exact`): el cálculo MF pasó de **190 236** a **127 926**
-ciclos/frame (−33%) con dos cambios:
+Medición (WinUAE, `cpu_cycle_exact`): el cálculo MF pasó de **190 236** a **116 132**
+ciclos/frame (−39%) con tres cambios:
 - `sincos` por eje en vez de `sin`+`cos` (una sola reducción de rango): 190k → 158k.
 - `prepare_ratio` (convertir la matriz MF a 4.12 UNA vez y aplicarla a los 8 vértices en
   vez de reconvertirla por vértice): 158k → 128k.
+- `mul_add` con tabla `clz` en vez del bucle `msb` (dominaba `Mat*Mat`): 128k → 116k
+  (matriz 78k → 66k).
 
-El resto del presupuesto es el trazado de líneas. Con 128k ciclos el cálculo MF cabe en
-los ~141k de un frame a 50 fps.
+El resto del presupuesto es el trazado de líneas. Con 116k ciclos el cálculo MF cabe
+holgadamente en los ~141k de un frame a 50 fps.
 
 ## Comandos
 

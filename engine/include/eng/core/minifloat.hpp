@@ -191,8 +191,17 @@ inline constexpr eng::ct_array<eng::u16, 1024> mf16_rcp {[](eng::usize i) -> eng
 						  (m & MiniFloat16::man_mask))};
 }
 
-/// Clave de orden TOTAL para la representación signo-magnitud: sin esto, comparar los
-/// `raw` como enteros con signo daría un orden incorrecto para negativos (el signo está
+/// Posición del bit más alto de `v` (0..31) por tabla de bytes (`mf16_clz8`), sin bucle.
+/// Lo usa `mul_add`: sustituye un `while` de hasta 22 iteraciones por 3 comparaciones +
+/// 1 lookup (el bucle dominaba el coste de `Mat*Mat`).
+[[nodiscard]] constexpr int msb_u32(eng::u32 v) {
+	if (v == 0u) return -1;
+	if ((v >> 16) != 0u) return 16 + (7 - static_cast<int>(mf16_clz8[(v >> 16) & 0xFFu]));
+	if ((v >> 8) != 0u) return 8 + (7 - static_cast<int>(mf16_clz8[(v >> 8) & 0xFFu]));
+	return 7 - static_cast<int>(mf16_clz8[v & 0xFFu]);
+}
+
+/// Clave de orden TOTAL para la representación signo-magnitud: sin esto, comparar los/// `raw` como enteros con signo daría un orden incorrecto para negativos (el signo está
 /// en el bit alto, no en complemento a 2). `-0` y `+0` colapsan al mismo valor.
 [[nodiscard]] constexpr eng::s16 mf16_order_key(eng::u16 raw) {
 	const eng::u16 mag = static_cast<eng::u16>(raw & 0x7FFFu);
@@ -450,8 +459,7 @@ constexpr MiniFloat16& operator/=(MiniFloat16& a, MiniFloat16 b) { return a = a 
 	if (S == 0) return MiniFloat16::zero();
 	const bool neg = S < 0;
 	eng::u32 mag = neg ? (0u - static_cast<eng::u32>(S)) : static_cast<eng::u32>(S);
-	int msb = 0;
-	while ((mag >> (msb + 1)) != 0u) ++msb;
+	const int msb = detail::msb_u32(mag);
 	int kk = k;
 	const int shift = 10 - msb; // normaliza a msb = bit 10
 	if (shift >= 0) {

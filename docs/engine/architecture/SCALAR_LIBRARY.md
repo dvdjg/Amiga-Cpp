@@ -178,7 +178,9 @@ tests host) falla si la doc se desincroniza del contrato, y `--write` la regener
 | value_noise / fbm | si | si (coord <= 2048) | no (necesita division) | HOST-060 |
 | mul_add / mac (FMA) | — | si (1 redondeo) | si (1 redondeo) | HOST-057/059 |
 | hermite / catmull_rom | si | si | si (catmull usa div_norm) | HOST-061 |
-| ease_in/out/in_out_* | si | si | si | HOST-061 |
+| hermite / catmull_rom (Vec<N>) | si | si | si | HOST-061 |
+| ease_in/out/in_out_quad/_cubic | si | si | si | HOST-061 |
+| ease_in/out/in_out_sine/_expo | — | si (necesita sin/cos/exp2) | — | HOST-061 |
 | wrap_angle / angle_diff | — | si | — | HOST-057 |
 | sqrt/exp/log/sin/cos/tan | — | si | — | HOST-057 |
 | transform (MF × fix) | — | ratio MF (|m| <= 8) | coordenada | HOST-058 |

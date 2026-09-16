@@ -13,6 +13,7 @@
 #include <type_traits>
 
 #include <eng/core/interp.hpp>
+#include <eng/core/minifloat_math.hpp>
 #include <eng/core/spline.hpp>
 #include <eng/retro/fixed_q.hpp>
 
@@ -107,6 +108,48 @@ void check_easing(const char* tag, float tol) {
 	      "easing: extremos exactos");
 }
 
+/// Easing senoidal/exponencial (solo `MiniFloat16`: usan `sin`/`cos`/`exp2`).
+void check_mf_easing() {
+	const float tol = 4.0e-3f;
+	float mx = 0;
+	for (int i = 0; i <= 40; ++i) {
+		const MiniFloat16 t(static_cast<float>(i) / 40.0f);
+		const double td = em::to_double(t);
+		const double in_s = 1.0 - std::cos(td * 1.57079632679);
+		const double out_s = std::sin(td * 1.57079632679);
+		const double io_s = (1.0 - std::cos(td * 3.14159265359)) / 2.0;
+		const double in_e = td == 0.0 ? 0.0 : std::pow(2.0, 10.0 * td - 10.0);
+		const double out_e = td == 1.0 ? 1.0 : 1.0 - std::pow(2.0, -10.0 * td);
+		const double io_e = td < 0.5 ? std::pow(2.0, 20.0 * td - 10.0) / 2.0
+					      : (td >= 1.0 ? 1.0 : 1.0 - std::pow(2.0, 10.0 - 20.0 * td) / 2.0);
+		mx = std::fmax(mx, std::fabs(em::to_double(em::ease_in_sine(t)) - in_s));
+		mx = std::fmax(mx, std::fabs(em::to_double(em::ease_out_sine(t)) - out_s));
+		mx = std::fmax(mx, std::fabs(em::to_double(em::ease_in_out_sine(t)) - io_s));
+		mx = std::fmax(mx, std::fabs(em::to_double(em::ease_in_expo(t)) - in_e));
+		mx = std::fmax(mx, std::fabs(em::to_double(em::ease_out_expo(t)) - out_e));
+		mx = std::fmax(mx, std::fabs(em::to_double(em::ease_in_out_expo(t)) - io_e));
+	}
+	std::printf("  MF easing sine/expo abs max %.2e\n", mx);
+	check(mx <= tol, "easing senoidal/exponencial MF dentro de tolerancia");
+}
+
+/// Spline sobre `Vec<3,double>`: coincide con la versión escalar por componente.
+void check_vec_spline() {
+	using V3 = em::Vec<3, double>;
+	const V3 p0 {0.5, 1.0, -0.5}, p1 {1.5, 0.0, 0.25}, p2 {-0.5, 2.0, 1.0}, p3 {2.0, -1.0, 0.5};
+	float mx = 0;
+	for (int i = 0; i <= 20; ++i) {
+		const double td = i / 20.0;
+		const V3 r = em::catmull_rom(p0, p1, p2, p3, td);
+		const double ref[3] = {catmull_ref(p0.v[0], p1.v[0], p2.v[0], p3.v[0], td),
+				       catmull_ref(p0.v[1], p1.v[1], p2.v[1], p3.v[1], td),
+				       catmull_ref(p0.v[2], p1.v[2], p2.v[2], p3.v[2], td)};
+		for (int k = 0; k < 3; ++k) mx = std::fmax(mx, std::fabs(r.v[k] - ref[k]));
+	}
+	std::printf("  Vec<3> catmull_rom abs max %.2e\n", mx);
+	check(mx <= 1.0e-12f, "catmull_rom sobre Vec<3> por componente");
+}
+
 } // namespace
 
 int main() {
@@ -117,6 +160,8 @@ int main() {
 	check_easing<double>("double", 1.0e-12f);
 	check_easing<MiniFloat16>("MF    ", 1.0e-2f);
 	check_easing<er::q12>("q12   ", 1.0e-2f);
+	check_mf_easing();
+	check_vec_spline();
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;
