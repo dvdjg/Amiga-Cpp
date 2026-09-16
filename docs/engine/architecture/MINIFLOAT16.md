@@ -201,8 +201,10 @@ saturación correcta fuera de rango.
 
 ## 9. Estado y verificación
 
-`MiniFloat16` está **NO VERIFICADA por demo** (todavía no tiene consumidor en
-`demos/`). Su corrección la respaldan los tests host:
+`MiniFloat16` está **verificada por demo**: `demos/amiga/083_fbm_noise` usa
+`fbm2<MiniFloat16>` (`eng/core/noise.hpp`) para construir un mapa de altura en el
+emulador (build/run/analyze OK), ejercitando la aritmética, `from_int` y las
+comparaciones en hardware. Su corrección la amplían los tests host:
 
 - [`tests/host/056_minifloat16`](../../../tests/host/056_minifloat16/README.md):
   formato, conversiones, aritmética y operaciones de matrices 2x2/3x3/4x4 (incluida la
@@ -214,6 +216,8 @@ saturación correcta fuera de rango.
 - [`tests/host/058_minifloat_fixed`](../../../tests/host/058_minifloat_fixed/README.md):
   puente con `fix`/`fix88` (conversiones, producto mixto y `transform` de coordenadas
   fijas con matriz MF) contra `float`.
+- [`tests/host/060_noise`](../../../tests/host/060_noise/README.md): `value_noise`/`fbm`
+  con `MiniFloat16` contra `double` (el mismo camino que usa la demo 083).
 
-Al integrarla en una demo, actualizar esta sección y la marca del comentario de
-cabecera.
+Las funciones de `minifloat_math.hpp` (trascendentes) siguen cubiertas solo por el test
+host 057; al usarlas en una demo, actualizar esta sección.

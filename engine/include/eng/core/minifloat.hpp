@@ -45,10 +45,12 @@
 /// sin asignación dinámica; las únicas dependencias son `eng/core/types.hpp` y la
 /// utilidad de tablas `eng/core/ct_array.hpp`.
 ///
-/// **Estado de verificación: NO VERIFICADA por demo** (todavía sin consumidor en
-/// `demos/`). Validada por el test host `tests/host/056_minifloat16` (formato, barrido
-/// escalar y operaciones de matrices 2x2/3x3/4x4 contra `float`). Al integrarla en una
-/// demo, quitar esta marca.
+/// **Estado de verificación: verificada por demo** — la demo
+/// `demos/amiga/083_fbm_noise` construye un mapa de altura con `fbm2<MiniFloat16>` en
+/// hardware (build/run/analyze OK) y ejercita la aritmética, `from_int` y las
+/// comparaciones. Ampliada por los tests host `tests/host/056_minifloat16` (aritmética
+/// y matrices), `057` (matemáticas), `058` (puente con fixed) y `060` (ruido). Las
+/// funciones de `minifloat_math.hpp` siguen sin demo propia.
 
 #include <eng/core/ct_array.hpp>
 #include <eng/core/types.hpp>

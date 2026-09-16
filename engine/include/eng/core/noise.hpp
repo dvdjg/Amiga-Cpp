@@ -20,6 +20,10 @@
 ///   `lacunarity` y amplitud por `gain`; con muchas octavas la amplitud **bajoflow** a
 ///   0 (`amp < 2^-14`) y deja de aportar. Coordenadas fuera de `[2^-14, 65504]` saturan.
 /// - **`float`/`double`**: sin límites prácticos; el hash sigue siendo 32 bits.
+///
+/// **Estado de verificación: verificada por demo** — `demos/amiga/083_fbm_noise` usa
+/// `fbm2<MiniFloat16>` para un mapa de altura en hardware (build/run/analyze OK);
+/// `tests/host/060_noise` compara `value_noise`/`fbm` de `MiniFloat16` contra `double`.
 
 #include <eng/core/interp.hpp>
 #include <eng/core/linalg.hpp>
