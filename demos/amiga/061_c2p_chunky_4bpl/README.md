@@ -73,13 +73,19 @@ Medido con `measure-fps.mjs` (WinUAE-DBG, A500, `-O1`, ciclo-exacto):
 |---|---|---|
 | C2P asm (320×64) | ~60 k | 1.280 iteraciones de 16 px |
 | Rotozoom C++ | ~3,12 M | **~152 ciclos/píxel** |
-| Rotozoom asm | ~2,41 M | **~117 ciclos/píxel** (−23 %) |
-| frame total (asm) | ~2,85 M | ~20 campos → **~2,5 fps** |
+| Rotozoom asm | ~1,93 M | **~94 ciclos/píxel** (−38 % vs C++) |
+| frame total (asm) | ~2,38 M | ~16,7 campos → **~3,0 fps** |
 
-El coste por píxel lo dominan los desplazamientos largos de 32 bits y el indexado
-(`swap`+`lsl.w #6`+`move.b (a0,d2.w)`) del 68000; no es DMA ni el C2P. Referencia
-medida reduciendo el área a la mitad (`kChunkyW=160`): **4,96 fps** (10,1 campos), o
-sea el coste escala con los píxeles generados.
+El asm va en dos pasos: primero (~117 c/px) solo movía el bucle a registros; después
+(~94 c/px) mantiene la coordenada `u` **pre-escalada** (`u<<6`) para que extraer el
+texel sea un `and` en vez de `and`+`lsl.w #6` (18 ciclos/píxel), con re-máscara a media
+fila para no desbordar. El coste lo dominan las dos extracciones (`swap`+`and`), el
+`move.b` indexado y los dos `add.l` del 68000.
+
+**Techo**: incluso bajando a ~60 ciclos/píxel (un bucle idealizado), 320×64 seguiría en
+~4 fps: con 20.480 píxeles/frame el presupuesto de 20 ms no da para más. Es decir,
+**optimizar el bucle no basta para que sea fluida** a esta área; sirve para confirmarlo
+con números.
 
 **Sigue sin ser fluida.** Opciones, por orden de coste/beneficio:
 1. **Ampliar con el display, no con la CPU**: generar 160×128 y mostrar 320×256 es

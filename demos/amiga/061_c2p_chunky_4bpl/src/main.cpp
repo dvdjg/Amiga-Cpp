@@ -18,10 +18,10 @@
 // (dos instancias del driver + swap de copperlist tras VBlank) para no desgarrar.
 //
 // ESTADO DE RENDIMIENTO (pendiente, ver README): el bucle del rotozoom corre en asm
-// (`support/rotozoom_loop.s`, K_061_ASM=1 por defecto; ~117 ciclos/pixel, frente a
-// ~152 del C++) pero la animacion sigue a ~2,5 fps a pantalla completa. Falta decidir
-// como se amplia el efecto sin pagar 20.480 pixeles por frame (pixeles gordos, menos
-// area, o exprimir mas el bucle); hasta entonces la demo no es fluida.
+// (`support/rotozoom_loop.s`, K_061_ASM=1 por defecto; ~94 ciclos/pixel, frente a ~152
+// del C++) pero la animacion sigue a ~3,0 fps a pantalla completa. Con 20.480 pixeles
+// por frame el presupuesto de 20 ms no da para fluido ni con un bucle idealizado (~4-5
+// fps de techo): para animar sin tearing hay que reducir el area o usar pixeles gordos.
 //
 // Build/run (Windows nativo):
 //   bash tools/build/build-demo.sh demos/amiga/061_c2p_chunky_4bpl --clean
@@ -61,7 +61,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 };
 
 /// Argumentos por memoria del bucle asm del rotozoom (ver `support/rotozoom_loop.s`).
-eng::u32 g_rotozoom_args[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+eng::u32 g_rotozoom_args[11] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 /// Bucle asm del rotozoom (specializado a textura 64x64).
 void rotozoom_loop();
@@ -140,17 +140,24 @@ drivers::HamSceneConfig make_config() {
 void render_rotozoom(const eng::graphics::Rotozoom& rot, eng::ChunkyBuffer dst, eng::u16 w,
 		     eng::u16 h) {
 #if K_061_ASM
+	// El bucle asm mantiene la coordenada u pre-escalada (u<<6) para que la extraccion
+	// del texel sea un solo `and` (ver support/rotozoom_loop.s). El giro de bits se
+	// hace en u32: el asm enmascara a 28 bits, asi que el desbordamiento no importa.
 	const eng::graphics::RotozoomSteps st = eng::graphics::rotozoom_steps<64, 64>(rot, w, h);
+	const eng::u32 u = static_cast<eng::u32>(st.u);
+	const eng::u32 du = static_cast<eng::u32>(st.du);
+	const eng::u32 dv = static_cast<eng::u32>(st.dv);
 	g_rotozoom_args[0] = reinterpret_cast<eng::u32>(dst.data());
 	g_rotozoom_args[1] = reinterpret_cast<eng::u32>(kTexture.data());
 	g_rotozoom_args[2] = w;
 	g_rotozoom_args[3] = h;
-	g_rotozoom_args[4] = static_cast<eng::u32>(st.u);
-	g_rotozoom_args[5] = static_cast<eng::u32>(st.v);
-	g_rotozoom_args[6] = static_cast<eng::u32>(st.du);
-	g_rotozoom_args[7] = static_cast<eng::u32>(st.dv);
-	g_rotozoom_args[8] = static_cast<eng::u32>(st.advance_u);
-	g_rotozoom_args[9] = static_cast<eng::u32>(st.advance_v);
+	g_rotozoom_args[4] = u << 6;   // U (entrada y salida)
+	g_rotozoom_args[5] = static_cast<eng::u32>(st.v); // V (entrada y salida)
+	g_rotozoom_args[6] = du << 6;  // paso de u por pixel
+	g_rotozoom_args[7] = dv;       // paso de v por pixel
+	g_rotozoom_args[8] = dv << 6;  // avance de fila en U
+	g_rotozoom_args[9] = static_cast<eng::u32>(0) - du; // avance de fila en V
+	g_rotozoom_args[10] = (static_cast<eng::u32>(w) / 2u) - 1u; // media fila
 	rotozoom_loop();
 #else
 	eng::graphics::rotozoom_into<64, 64>(eng::IndexedTexture {kTexture.data(), kTexture.size()},

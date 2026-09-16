@@ -49,24 +49,16 @@ struct Rotozoom {
 /// (`support/rotozoom_loop.s`), que **debe** partir de los mismos números para que
 /// ambas rutas sean equivalentes.
 struct RotozoomSteps {
-	s32 u = 0;   ///< Coordenada u del píxel (0,0), 16.16.
-	s32 v = 0;   ///< Coordenada v del píxel (0,0), 16.16.
-	s32 du = 0;  ///< Paso de u por píxel, 16.16.
-	s32 dv = 0;  ///< Paso de v por píxel, 16.16.
-	s32 advance_u = 0; ///< Corrección del acumulador de u al cerrar una fila.
-	s32 advance_v = 0; ///< Corrección del acumulador de v al cerrar una fila.
+	s32 u = 0;  ///< Coordenada u del píxel (0,0), 16.16.
+	s32 v = 0;  ///< Coordenada v del píxel (0,0), 16.16.
+	s32 du = 0; ///< Paso de u por píxel, 16.16.
+	s32 dv = 0; ///< Paso de v por píxel, 16.16.
 };
 
 /// Calcula `RotozoomSteps` para un área `w`×`h`. El zoom se aplica en 8.8 (256 = 1.0)
 /// para que todos los productos quepan en 32 bits: el runtime m68k-amiga NO enlaza
 /// `__muldi3` (libgcc), así que un `s64` aquí no compilaría/lincharía. La pérdida de
 /// precisión es de 1/256 de texel, invisible.
-///
-/// `advance_u/v` existen para la vía asm: el bucle por píxel deja el acumulador al
-/// **final** de la fila (`inicio + w·paso`), mientras que la fila siguiente debe
-/// arrancar en `inicio ∓ paso_de_fila` (el bucle C++ lleva ese inicio aparte). La
-/// corrección a restar es `w·du + dv` (u) y `w·dv − du` (v); sin ella, el error de la
-/// componente `u` solo es visible cuando `w` no es múltiplo de la dimensión de textura.
 template <u16 TW, u16 TH>
 constexpr RotozoomSteps rotozoom_steps(const Rotozoom& r, u16 w, u16 h) {
 	const s32 ca = rotozoom_detail::kSin16[static_cast<u8>((r.angle + 64u) & 0xffu)]; // cos
@@ -82,8 +74,6 @@ constexpr RotozoomSteps rotozoom_steps(const Rotozoom& r, u16 w, u16 h) {
 	// multiplicar por el zoom (mismo resultado exacto, sin productos grandes).
 	s.u = r.offset_x - cx * s.du + cy * s.dv;
 	s.v = r.offset_y - cx * s.dv - cy * s.du;
-	s.advance_u = static_cast<s32>(w) * s.du + s.dv;
-	s.advance_v = static_cast<s32>(w) * s.dv - s.du;
 	return s;
 }
 
@@ -111,6 +101,9 @@ void rotozoom_into(IndexedTexture tex, const Rotozoom& r, ChunkyBuffer dst, u16 
 			u += st.du;
 			v += st.dv;
 		}
+		// El inicio de la fila siguiente NO es el acumulador tal como queda el bucle
+		// (que termina en `inicio + w·paso`), sino `inicio ∓ paso_de_fila`: se lleva
+		// aparte en `u_row`/`v_row`. La vía asm debe respetar lo mismo.
 		u_row -= st.dv; // paso en y de u
 		v_row += st.du; // paso en y de v
 	}
