@@ -126,6 +126,39 @@ Gate: demos de copper idénticas + test host + informe de presupuesto sin spill.
 
 Gate: regresión de las demos de scroll + docs actualizados.
 
+### F6 — Infraestructura de objetos: BOB (blitter) / objeto CPU / sprite HW
+
+Pregunta que la origina: *«¿tenemos infraestructura de gestión de Blitter objects, CPU
+objects ni HW Sprites?»*. Respuesta: **hay piezas, no la capa de objetos**. Y ojo con la
+distinción clave (regla en `AGENTS.md`): **un BOB es una copia de bitmap** (cookie-cut
+`$CA` u OR, con shift y, si los planos van intercalados, **1 solo blit por objeto**), **no**
+un polígono del Blitter (line-draw + area-fill, para relleno vectorial/3D).
+
+| Pieza | Estado | Dónde |
+|---|---|---|
+| Blit de BOB: descriptor + cola + ejecución HW | **EXISTE** | `frame_plan.hpp:44-50,182-199` (`BlitJob`, kinds `MaskedBobCookieCut`/`MaskedBlobNoSave`/`CopyRect`/`RestoreRect`), `MinimalBackend::execute_frame_plan` (`amiga_minimal.cpp:619-716`) |
+| Minterm elegible (OR-bob, glow) | **NO EXISTE** | el ejecutor fija `$CA`/`$AA`/`$F0`; `bobs3d.c` usa `A\|B` |
+| Layout intercalado en el path de blits | **PARCIAL** | se modela con `bitplane_count=1` + altura = planelíneas y un placeholder de stride (`xlimited.hpp:978-994`, `soft_dpf.hpp:188-194`) |
+| Clase/manager de BOBs (posición, frame, máscara, clip, save/restore, ciclo de vida) | **NO EXISTE** | cada demo lo arma a mano (050 hace su propio save/restore) |
+| Objeto CPU 2D (posición+imagen+clip) | **NO EXISTE** | solo `Surface` (`field/surface.hpp`) y structs locales en demos (110/111) |
+| Sprite HW: emitter + plantilla + allocator + intents | **EXISTE** | `sprite_manager.hpp`, `sprite.hpp`, `sprite_allocator.hpp`, `raster_intent.hpp:96-104` |
+| Actor-sprite con estado y **overflow sprite→BOB cableado** | **NO EXISTE/PARCIAL** | 054 solo cuenta el `as_bob` (`054/.../main.cpp:145-149`) |
+| Escena/actores (World/Actor/Layer/recursos/`Visual.id`) | **SOLO DISEÑO** | `docs/engine/architecture/SCENE_AND_RESOURCES.md`; la política sí existe (`scene/representation.hpp` + HOST-028) |
+
+| # | Tarea | Estado |
+|---|---|---|
+| 6.1 | `scene/actor.hpp`: `Actor{Tipo, ActorTemplate, pos, clip, estado}` + `World` con arrays fijos por feature, consumiendo `RepresentationAllocator` | pendiente |
+| 6.2 | `Bob` (bitmap) + manager: hoja de planos (+máscara opcional), frame de animación, clip y política de save/restore; emite `BlitJob`s con el presupuesto del `FramePlan` | pendiente |
+| 6.3 | **Minterm en `BlitJob`** (cookie-cut / OR / copy) para OR-bobs y uniformar 050/051/bobs3d | pendiente |
+| 6.4 | Layout **explícito** en `BlitJob` (interleaved vs planar) para expresar «1 blit/objeto» sin el placeholder de stride | pendiente |
+| 6.5 | Cablear `SpriteAllocator::as_bob` → `BlitJob` (transición sprite→BOB real) y cerrar el bug de la 054 | pendiente |
+| 6.6 | Objeto CPU 2D sobre `Surface` (posición + imagen/redibujo + clip) | pendiente |
+
+Referencias obligatorias antes de tocar esto (regla de contexto técnico): AHRM 3.ª
+(`docs/reference/ahrm/`), `amiga-bootcamp/08_graphics/blitter_programming.md` (minterms,
+cookie-cut, *Use Case 4: interleaved bitplane BOBs*, presupuesto DMA) y
+`demoscene-repo-orig/effects/bobs3d/bobs3d.c` (OR-bobs intercalados + clear en 1 blit).
+
 ## Incongruencias detectadas (checklist)
 
 | Incongruencia | Dónde | Fase |
@@ -178,8 +211,7 @@ lo que hay es 3 casos concretos que arrancar, empezando por la 107 (canónica de
 Regla de cierre: una demo que no arranca se marca **NO VERIFICADA** y no se documenta
 como validada hasta que el barrido la de el OK.
 
-## Decisiones pendientes (requieren consulta)
-1. ¿`TileScrollScene` se promueve a canónico o queda como laboratorio y se retiran sus demos?
+## Decisiones pendientes (requieren consulta)1. ¿`TileScrollScene` se promueve a canónico o queda como laboratorio y se retiran sus demos?
 2. ¿Se renombra `XlimitedScene` → `DisplayComposition` (como propone `PLAYFIELD_SCROLL_ARCHITECTURE.md`)?
 3. ¿`TileFieldController` (4 páginas) se retira?
 4. Para el doble buffer del anillo XLimited: ¿se duplica el anillo (+80 KB y 2× blitter en 201) o se amplía solo el plano de fondo (soft DPF, ya probado)?

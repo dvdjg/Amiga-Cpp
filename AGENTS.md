@@ -336,6 +336,28 @@ recording del GUI). Pendiente: `print` DWARF.
   es `run-demo.sh <demo> --sequence-frames N` (deja `out/run/<demo>/<cfg>/sequence/`) y
   analizar esos frames con el modelo de visión.
 
+## Regla de objetos gráficos: BOB ≠ polígono (obligatoria)
+
+- **Un BOB es una COPIA de bitmap**, no un polígono. Se dibuja copiando un bitmap
+  pre-renderizado (planos + máscara) con el barrel shifter y el minterm adecuado:
+  cookie-cut `$CA` (`D=A·B+¬A·C`, transparencia) o **OR** (`D=A|B`, bobs aditivos/glow).
+  Con **planos intercalados** es **UN solo blit por objeto** para todos los planos
+  (modulo = ancho de pantalla − ancho del bob, `height = alto_bob × planos`); con planos
+  contiguos son N blits. Es el camino barato (~1 blit/objeto).
+- **Un polígono del Blitter es otra cosa**: line-draw (`BLTCON1` LINE, XOR/SING) +
+  **area fill** (`IFE`/`EFE`, descendente) para rellenos **vectoriales** (caras 3D,
+  `blitter_fill_polygon`). Es por polígono y por plano, con setup caro: **no se usa para
+  objetos**.
+- No confundirlos: mezclarlos (p. ej. rellenar un disco con `blitter_fill_polygon` para
+  hacer un BOB) cuesta ~4 blits + máscara por objeto y **satura el bus** (caso real: la
+  085 pasó de 25 a 3 campos/frame). Referencias: AHRM 3.ª (Blitter), `amiga-bootcamp/
+  08_graphics/blitter_programming.md` (minterms, cookie-cut, *Use Case 4: interleaved
+  bitplane BOBs*) y `demoscene-repo-orig/effects/bobs3d/bobs3d.c` (OR-bobs intercalados,
+  1 blit, clear en 1 blit).
+- **Antes de programar cualquier cosa de Blitter/objetos/sprites**: leer la referencia
+  oficial (`docs/reference/ahrm/`), la secundaria (`blitter_programming.md`) y un ejemplo
+  ajeno (`bobs3d.c`, demos 050/051/053/054) — regla de contexto técnico de este fichero.
+
 ## Regla de copper y buffers de display (obligatoria)
 
 - **El copper de una escena se orquesta con `eng::copper::Plan`** (`engine/include/eng/graphics/copper/plan.hpp`),
