@@ -59,6 +59,14 @@ void test_simple_values() {
 	check(rel_err(static_cast<float>(m::exp(MiniFloat16(-1.0f))), std::exp(-1.0f)) < 2.0e-3f,
 	      "exp(-1) ~ 1/e");
 
+	// exp2 / pow2 (2^x)
+	check(m::exp2(MiniFloat16(0.0f)).raw == MiniFloat16(1.0f).raw, "exp2(0) = 1");
+	check(m::exp2(MiniFloat16(10.0f)).raw == MiniFloat16(1024.0f).raw, "exp2(10) = 1024 exacto");
+	check(m::exp2(MiniFloat16(-1.0f)).raw == MiniFloat16(0.5f).raw, "exp2(-1) = 0.5");
+	check(rel_err(static_cast<float>(m::exp2(MiniFloat16(0.5f))), std::sqrt(2.0f)) < 2.0e-3f,
+	      "exp2(0.5) ~ sqrt(2)");
+	check(m::pow2(MiniFloat16(3.0f)).raw == MiniFloat16(8.0f).raw, "pow2(3) = 8");
+
 	// log
 	check(m::log(MiniFloat16(1.0f)).is_zero(), "log(1) = 0");
 	check(std::fabs(static_cast<float>(m::log(MiniFloat16(2.7182818f))) - 1.0f) < 3.0e-3f,
@@ -158,6 +166,19 @@ void test_sweeps() {
 		}
 		std::printf("  exp  rel max %.2e\n", mx);
 		check(mx <= 2.0e-3f, "exp: rel <= 2e-3");
+	}
+
+	// exp2 (2^x) sobre el rango finito
+	{
+		float mx = 0;
+		for (int i = -150; i <= 160; ++i) {
+			const MiniFloat16 x(i * 0.1f);
+			const float want = std::exp2(static_cast<float>(x));
+			if (!in_range(want)) continue;
+			mx = std::fmax(mx, rel_err(static_cast<float>(m::exp2(x)), want));
+		}
+		std::printf("  exp2 rel max %.2e\n", mx);
+		check(mx <= 2.0e-3f, "exp2: rel <= 2e-3");
 	}
 
 	// log: error absoluto (log(1)=0 hace inútil el relativo) y relativo lejos de 1

@@ -7,14 +7,14 @@ Fija `sqrt`, `exp`, `log`, `log2`/`log10`, `pow`, `hypot`, trigonometría
 
 ## Qué cubre
 
-- **Valores simples/exactos**: `sqrt(4)=2`, `exp(0)=1`, `log(1)=0`, `log2(8)=3`,
-  `pow(a,0)=1`, `sin(0)=0`, `cos(0)=1`, `atan(1)≈π/4`, `hypot(3,4)≈5`.
+- **Valores simples/exactos**: `sqrt(4)=2`, `exp(0)=1`, `exp2(10)=1024`, `log(1)=0`,
+  `log2(8)=3`, `pow(a,0)=1`, `sin(0)=0`, `cos(0)=1`, `atan(1)≈π/4`, `hypot(3,4)≈5`.
 - **`pow` con exponente entero**: camino exacto por cuadrado y multiplicación
   (`pow(2,10)=1024`, `pow(-2,3)=-8`, `pow(-2,4)=16` exactos) y base negativa.
 - **Barridos** sobre todo el rango finito (sqrt/pow/log/log2/log10) y `[-11,11]` (exp):
-  - `sqrt` rel ≈ `1.0e-3`, `exp` rel ≈ `6.3e-4`, `log` rel ≈ `2.5e-3`,
-    `log2` abs ≈ `7.9e-3`, `log10` abs ≈ `4.4e-3`, `pow` rel ≈ `1.1e-2`,
-    `hypot` rel ≈ `2.1e-3`.
+  - `sqrt` rel ≈ `1.0e-3`, `exp` rel ≈ `6.3e-4`, `exp2` rel ≈ `4.8e-4`,
+    `log` rel ≈ `2.5e-3`, `log2` abs ≈ `7.9e-3`, `log10` abs ≈ `4.4e-3`,
+    `pow` rel ≈ `1.1e-2`, `hypot` rel ≈ `2.1e-3`.
 - **Trigonometría** en `[-2π, 2π]`: `sin` abs ≈ `1.0e-3`, `cos` abs ≈ `2.0e-3`,
   `tan` rel ≈ `9.2e-3` (con `|cos| > 0.1`), `atan` abs ≈ `1.2e-3`, `atan2` abs
   ≈ `2.1e-3`, `asin`/`acos` abs ≈ `1.8e-3`, `sincos` = `sin`/`cos` en una pasada.
@@ -27,9 +27,9 @@ Fija `sqrt`, `exp`, `log`, `log2`/`log10`, `pow`, `hypot`, trigonometría
 
 ## Cómo está implementado (y por qué es rápido)
 
-- **`exp`**: `z = x·log2e` en Q4.11 con `muls.w`; `z = n + f`, `2^f` con serie en
-  Q1.14 y `2^n` ajustando el exponente. Sin el "partir y elevar al cuadrado", que
-  amplificaba el error por `2^s`.
+- **`exp`/`exp2`**: `z = x·log2e` (o `z = x`) en Q4.11 con `muls.w`; `z = n + f`, `2^f`
+  con serie en Q1.14 y `2^n` ajustando el exponente. Sin el "partir y elevar al
+  cuadrado", que amplificaba el error por `2^s`.
 - **`log`/`log2`/`log10`**: separan el exponente (`m` en [1,2)) y usan la serie de
   `atanh`; `log2` es exacto en potencias de dos.
 - **`sqrt`/`hypot`**: Newton sobre la mantisa normalizada; `hypot` escala por el mayor

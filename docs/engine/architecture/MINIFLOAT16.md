@@ -120,9 +120,10 @@ La conversión desde `float` es **explícita** (`MiniFloat16(1.0f)`), para que u
 
 ## 7. Funciones matemáticas
 
-`engine/include/eng/core/minifloat_math.hpp` añade `sqrt`, `exp`, `log`, `pow`,
-trigonometría (`sin`, `cos`, `tan`) e inversas (`atan`, `atan2`, `asin`, `acos`) en
-`eng::math`, implementadas **solo con aritmética de 16 bits**: nada de `float` ni de
+`engine/include/eng/core/minifloat_math.hpp` añade `sqrt`, `exp`, `exp2`/`pow2`, `log`,
+`log2`/`log10`, `pow`, `hypot`, trigonometría (`sin`, `cos`, `tan` y `sincos`) e
+inversas (`atan`, `atan2`, `asin`, `acos`) en `eng::math`, implementadas **solo con
+aritmética de 16 bits**: nada de `float` ni de
 `libgcc` (en el `.o` de m68k se ve `muls.w` y las tablas, sin `divs`/`divu` ni
 `__mulsf3`/`__divsf3`). Son la misma idea que el resto del tipo: reducción de rango +
 serie de Taylor minimax evaluada en Horner, con el compromiso precisión/coste
@@ -135,6 +136,7 @@ ninguna de ellas emite símbolo propio.
 |---|---|---|---|
 | `sqrt` | exponente par/impar + Newton | `[2^-14, 65504]` | ~1.0e-3 rel |
 | `exp` | `z = x·log2e` en Q4.11, `2^f` en Q1.14, `2^n` por exponente | `[-11, 11]` (satura fuera) | ~6e-4 rel |
+| `exp2`/`pow2` | núcleo `2^z` directo (sin el `·log2e`) | `[-15, 16]` (satura fuera) | ~5e-4 rel (exacto en enteros: `2^10 = 1024`) |
 | `log` | `x = m·2^k` + serie de `atanh` | `(0, 65504]` | ~2.5e-3 rel (~1.4e-2 abs en el extremo) |
 | `log2`/`log10` | exponente + `log(m)·log2(e)` / `·log10(e)` | `(0, 65504]` | ~8e-3 / ~4e-3 abs (exactos en potencias de 2) |
 | `pow` | entero `\|e\| <= 64`: cuadrado y multiplicación (exacto); si no `exp(e·log(base))` | `base > 0`; entero admite base negativa | exacto (entero); ~1e-2 rel (crece con `\|e·log(base)\|`) |

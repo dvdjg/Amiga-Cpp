@@ -1,9 +1,9 @@
 #pragma once
 
 /// \file minifloat_math.hpp
-/// Funciones matemáticas clásicas sobre `MiniFloat16`: `sqrt`, `exp`, `log`,
-/// `log2`/`log10`, `pow`, `hypot`, trigonometría (`sin`/`cos`/`tan` y `sincos`) e
-/// inversas (`atan`/`atan2`/`asin`/`acos`), implementadas **solo con aritmética de 16
+/// Funciones matemáticas clásicas sobre `MiniFloat16`: `sqrt`, `exp`, `exp2`/`pow2`,
+/// `log`, `log2`/`log10`, `pow`, `hypot`, trigonometría (`sin`/`cos`/`tan` y `sincos`)
+/// e inversas (`atan`/`atan2`/`asin`/`acos`), implementadas **solo con aritmética de 16
 /// bits** (nada de `float`, nada de `libgcc`). El objetivo es que el escalar
 /// (`minifloat.hpp`) sea "casi como un float" dentro de sus ~10 bits de mantisa.
 ///
@@ -244,6 +244,19 @@ using eng::s32;
 	return p;
 }
 
+/// Núcleo compartido de `2^z`: parte `z` (Q4.11) en `n + f`, evalúa `2^f` en Q1.14 y
+/// aplica `2^n` con `mf_ldexp`. Lo usan `exp` (con `z = x·log2e`) y `exp2` (con `z = x`).
+[[nodiscard]] ENG_MF_AI constexpr MF mf_exp2_from_q11(s32 zq) {
+	s32 n;
+	if (zq >= 0)
+		n = (zq + 1024) >> 11;
+	else
+		n = -(((-zq) + 1024) >> 11);
+	const s32 fq = zq - (n << 11);             // f en [-0.5, 0.5]
+	const s16 f14 = static_cast<s16>(fq << 3); // Q4.11 -> Q1.14
+	return mf_ldexp(q14_to_mf16(q14_exp2_frac(f14)), static_cast<int>(n));
+}
+
 /// `log(m)` para `m` en [1,2) por la serie de `atanh` (t <= 1/3).
 [[nodiscard]] ENG_MF_AI constexpr MF mf_log_m(MF m) {
 	const MF t = (m - k_one) / (m + k_one);
@@ -340,15 +353,24 @@ ENG_MF_AI constexpr void mf_reduce_pio2(MF x, MF& r, int& q) {
 
 	const s32 xq = mf16_to_q11(x);                 // x en Q4.11
 	const s32 zq = (xq * 23637 + (1 << 13)) >> 14; // ·log2e (Q1.14) -> Q4.11
-	s32 n;
-	if (zq >= 0)
-		n = (zq + 1024) >> 11;
-	else
-		n = -(((-zq) + 1024) >> 11);
-	const s32 fq = zq - (n << 11);             // f en [-0.5, 0.5]
-	const s16 f14 = static_cast<s16>(fq << 3); // Q4.11 -> Q1.14
-	return mf_ldexp(q14_to_mf16(q14_exp2_frac(f14)), static_cast<int>(n));
+	return mf_exp2_from_q11(zq);
 }
+
+/// `2^x` (exponencial en base 2). Es el núcleo de `exp` sin la multiplicación por
+/// `log2e`: más rápido y exacto en los enteros (`2^10 = 1024`). Satura a ∞/0 fuera de
+/// `[-15, 16]`.
+[[nodiscard]] ENG_MF_AI constexpr MiniFloat16 exp2(MiniFloat16 x) {
+	using namespace mfdetail;
+	if (x.is_zero()) return MF::one();
+	if (x.is_inf()) return (x.raw & MiniFloat16::sign_mask) != 0u ? MF::zero() : x;
+	if (x > MF(16.0f)) return MF::from_raw(MiniFloat16::exp_mask);
+	if (x < MF(-15.0f)) return MF::zero();
+	return mf_exp2_from_q11(mf16_to_q11(x));
+}
+
+/// Alias de `exp2` (2^x). **No** confundir con `pow(x, 2)`, que es x² y va por el
+/// camino entero exacto.
+[[nodiscard]] ENG_MF_AI constexpr MiniFloat16 pow2(MiniFloat16 x) { return exp2(x); }
 
 /// Logaritmo natural. `x <= 0` es indefinido (devuelve ∞); 0 devuelve −∞.
 [[nodiscard]] ENG_MF_AI constexpr MiniFloat16 log(MiniFloat16 x) {

@@ -14,6 +14,10 @@ La aplicación se escribe **sin ningún concepto de hardware**: no conoce bitpla
 
 - Público: `engine/include/eng/api/` (y tipos de valor de `eng/core/`). Interno: el resto de
   `engine/include/eng/**`, `engine/src/platform/**`.
+- «Tipos de valor de `eng/core/`» son datos **sin hardware**: los escalares numéricos
+  (`Fixed<Repr,Exp,Policy>`, `MiniFloat16` — ver [MINIFLOAT16.md](MINIFLOAT16.md)) y utilidades
+  como `Span`/`Rect`. Se pueden usar en la app, pero la escena se describe con capas, actores y
+  efectos, **no** con tipos de coma flotante: la elección de escalar para un efecto es interna.
 - En el código de la aplicación **está prohibido**: incluir headers de hardware
   (`<hardware/*.h>`), nombrar registros (`BPL1MOD`, `DMACON`, `COLOR00`…), manejar planos o
   punteros de bitplane, llamar a `hardware_view()`, o elegir explícitamente un modo de display
@@ -131,4 +135,5 @@ arrastrar código no usado.
 - Contenido (tiles/mundo disperso/sprites/audio): `CONTENT_AND_TILEMAP.md`.
 - Efectos (intenciones): `VISUAL_EFFECT_SPRITE_DESIGN.md`.
 - Estilo y restricciones: `CODING_STYLE.md`.
+- Escalar de coma flotante de 16 bits y sus matemáticas: `MINIFLOAT16.md`.
 - Assets cocinados: `docs/tools/UAF_PACK.md`.
