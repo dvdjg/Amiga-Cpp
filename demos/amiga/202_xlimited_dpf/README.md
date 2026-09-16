@@ -10,7 +10,9 @@ Una escena de **dual playfield (DPF 3+3)** sobre el corkscrew X-Limited del engi
 - **Mapas SIEMPRE toroidales**: un único algoritmo de bucle; el recorrido se limita a un primer paso del mundo (320/432 px) para no mostrar la costura.
 - **Anillo = 288 con ventana visible 208** (override `scene_cfg.display_height`, invariante §7
   de la 201: el anillo NO se reduce con el visible → sin colisión de `mapy` y con el split en
-  raster ≤248). El FG lineal no necesita split; el BG corkscrew conserva el anillo/split.
+  raster ≤248). El FG lineal no necesita split; el BG corkscrew conserva el anillo/split. El
+  límite de altura del split por el comparador de 8 bits (208 canónico; `linear_display` para 256)
+  está en `docs/guides/roadmap/CONSULTA-SPLIT-208.md`.
 - Todo el scroll fino es hardware (BPLCON1 + BPLxPT vía Copper); el Blitter solo pinta la columna/fila entrante en cada cruce de 16 px → CPU mínima a 50 fps.
 
 Verificación automática: `analyze-sequence.sh` 1) comprueba que ambas capas están
@@ -154,7 +156,8 @@ Notas:
 - Geometría: ventana visible `320×208`; ANILLO `display_height = 288` (override de la escena,
   invariante §7 de la 201: el anillo se dimensiona para el recorrido del algoritmo y no se
   reduce con el visible; así no hay colisión de `mapy` y el split queda en raster ≤ 248).
-  El FG por defecto va lineal/mirror (Y propia, sin split) y el BG es el corkscrew.
+  El FG por defecto va lineal/mirror (Y propia, sin split) y el BG es el corkscrew. Límite de
+  altura del split (8 bits): `docs/guides/roadmap/CONSULTA-SPLIT-208.md`.
   `visible_tile_bias_x/y = 1` para que `map[0][0]` quede arriba-izquierda.
 - `g_eng_frame_telemetry` se publica por frame y se lee con normalidad: el símbolo
   se declara con inicializador no-cero para que viva en `.data` (no `.bss`) y el

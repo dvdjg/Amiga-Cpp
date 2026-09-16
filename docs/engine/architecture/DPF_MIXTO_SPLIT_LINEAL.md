@@ -68,7 +68,10 @@ recomienda fijar el rol con nombres propios (p. ej. una capa «fondo» y otra
 
 Regla de hardware: en OCS solo hay **un** split de Copper por frame → dos campos
 corkscrew no pueden envolver en filas distintas; por eso la Y independiente exige
-que al menos un campo sea lineal/mirror (o estático/`CanvasPlayfield`).
+que al menos un campo sea lineal/mirror (o estático/`CanvasPlayfield`). Además, el
+comparador del Copper es de 8 bits: un campo corkscrew no puede tener su split por
+encima de la línea 255 (en OCS/ECS/AGA). Límite, alternativas y verificación:
+`docs/guides/roadmap/CONSULTA-SPLIT-208.md`.
 
 Coste del mirror: duplica `display_height` filas verticales del bitmap de ESE
 campo (p. ej. viewport 208 → +240 filas planelínea) y cada tile se dibuja dos
