@@ -102,7 +102,8 @@ Añadir un escalar nuevo = especializar `scalar_traits<S>` (álgebra), `numeric_
 | `value_noise`/`fbm` | `MiniFloat16` | valor de rejilla con 1024 niveles; coordenada constante fuera de `[-2048, 2048]` **falla al compilar**; `period > 0` la hace tileable |
 | `lerp`/`smoothstep`/`cross2`/`rotate2`/`vscale`/`vlerp`/`dot` | `Fixed` | **funcionan**: el producto se normaliza con `mul_norm` (el producto de dos fixed cambia de exponente) |
 | `smootherstep` | `Fixed` 4.12 | **no compila**: necesita representar el coeficiente 15 y 4.12 llega a ±8 (`require_range`) |
-| `remap`/`inv_lerp`/`normalize`/`length`/`reflect`/`project` | `Fixed` | **no compilan** (sin `operator/` ni `sqrt`), por diseño |
+| `remap`/`inv_lerp` | `Fixed` | **funcionan** vía `div_norm` (división explícita y saturante; el núcleo sigue sin `operator/`) |
+| `normalize`/`length`/`reflect`/`project` | `Fixed` | **no compilan** (sin `sqrt`), por diseño |
 | `value_noise`/`fbm` | `Fixed` | **no compilan**: necesitan división (sin `operator/`) |
 
 El detalle del escalar de 16 bits está en [MINIFLOAT16.md](MINIFLOAT16.md); el modelo del
@@ -112,7 +113,7 @@ El detalle del escalar de 16 bits está en [MINIFLOAT16.md](MINIFLOAT16.md); el 
 
 | Cabecera | Contenido |
 |---|---|
-| `core/linalg.hpp` | `Vec`/`Mat`/`Affine`, `dot`, `transform`, `scalar_traits`, `mul_norm` |
+| `core/linalg.hpp` | `Vec`/`Mat`/`Affine`, `dot`, `transform`, `scalar_traits`, `mul_norm`, `scalar_div`/`div_norm` |
 | `core/interp.hpp` | `clamp`/`saturate`/`lerp`/`inv_lerp`/`remap`/`step`/`smoothstep`/`smootherstep` |
 | `core/geometry.hpp` | `length(_sq)`/`distance(_sq)`/`normalize`/`vscale`/`vlerp`/`cross2`/`perp`/`rotate2`/`project`/`reject`/`reflect` |
 | `core/noise.hpp` | `value_noise1/2/3` y `fbm1/2/3` (octavas, `period>0` tileable); hash splitmix32 (2 `__mulsi3` por celda) |

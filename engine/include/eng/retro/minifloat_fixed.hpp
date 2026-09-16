@@ -193,6 +193,9 @@ template <int Frac>
 		if (!eng::math::in_range(r, -8.0, 8.0)) detail::mf16_fix_domain_ratio_must_be_within_4_12();
 	}
 	const s16 rq = detail::mf_to_fixed(r, 12);
+	// Producto INTENCIONADAMENTE en punto fijo entero (no `mul_norm`, que aplica a
+	// escalares con exponente en el tipo): la fusión `(rq·v)>>12` conserva la precisión
+	// de la coordenada y evita normalizar dos veces.
 	const s32 p = static_cast<s32>(rq) * static_cast<s32>(v.v);
 	return {detail::sat16((p + 2048) >> 12)};
 }

@@ -236,6 +236,14 @@ void test_fixed() {
 			      std::fabs(em::to_double(lv.v[1]) - (a1 + (b1 - a1) * 0.5)) <= tol,
 		      "q12 vlerp");
 	}
+
+	// remap/inv_lerp: división EXPLÍCITA (div_norm), sin añadir operator/
+	{
+		const Q a {4096}, b {8192}, v {6144}; // 1, 2, 1.5
+		check(std::fabs(em::to_double(em::inv_lerp(a, b, v)) - 0.5) <= tol, "q12 inv_lerp");
+		const Q r = em::remap(Q {4096}, Q {0}, Q {8192}, Q {0}, Q {4096}); // 1->[0,2]->[0,1]
+		check(std::fabs(em::to_double(r) - 0.5) <= tol, "q12 remap");
+	}
 }
 
 } // namespace

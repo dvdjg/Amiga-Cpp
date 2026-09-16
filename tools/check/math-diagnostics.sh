@@ -152,6 +152,11 @@ PRE6='#include <eng/core/interp.hpp>
 expect_fail smootherstep_q12_range "no cabe en el escalar" "$PRE6
 constexpr auto s = eng::math::smootherstep(eng::retro::q12 {2048});"
 
+expect_ok fixed_interp_remap "$PRE6
+constexpr auto t = eng::math::inv_lerp(eng::retro::q12 {4096}, eng::retro::q12 {8192}, eng::retro::q12 {6144});
+constexpr auto r = eng::math::remap(eng::retro::q12 {4096}, eng::retro::q12 {0}, eng::retro::q12 {8192}, eng::retro::q12 {0}, eng::retro::q12 {4096});
+void g() { (void)t; (void)r; }"
+
 expect_ok domain_ok_extra "$PRE4
 constexpr MiniFloat16 a = eng::math::value_noise2(MiniFloat16(1.0f), MiniFloat16(2.0f), 1u);
 constexpr MiniFloat16 b = eng::math::fbm2(MiniFloat16(1.0f), MiniFloat16(2.0f), 1u, 3, MiniFloat16(2.0f), MiniFloat16(0.5f));

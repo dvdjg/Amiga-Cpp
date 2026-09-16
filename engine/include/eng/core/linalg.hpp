@@ -191,6 +191,41 @@ template <typename S>
 	return scalar_traits<S>::norm_from(a * b);
 }
 
+/// División del escalar. El núcleo de `Fixed` **no** define `operator/` a propósito; un
+/// algoritmo que necesite dividir un fixed pide por aquí y la plataforma/tipo aporta la
+/// política explícita (para el fixed retro es una división saturante con `divs.w`).
+template <typename S>
+struct scalar_div {
+	static constexpr S op(S a, S b) { return a / b; }
+};
+
+/// Cociente `a / b` como el propio escalar (a través de `scalar_div<S>`).
+template <typename S>
+[[nodiscard]] constexpr S div_norm(S a, S b) {
+	return scalar_div<S>::op(a, b);
+}
+
+/// División explícita para fixed 4.12/8.8 (`s16`): `raw = (a.v << E) / b.v`, saturada.
+/// Evita el silencio del `operator/` ausente sin abrir la puerta a divisiones
+/// implícitas. Usa `arith<s16>::div` (en 68000, `divs.w` nativo 32/16) tras comprobar
+/// que el cociente cabe en `s16` (`divs.w` desborda en silencio si no). Válida para
+/// `E <= 15` (el intermedio `a.v << E` cabe en `s32`).
+template <int E, typename P>
+struct scalar_div<Fixed<s16, E, P>> {
+	using S = Fixed<s16, E, P>;
+	[[nodiscard]] static constexpr S op(S a, S b) {
+		constexpr eng::s32 mx = 32767;
+		constexpr eng::s32 mn = -32768;
+		if (b.v == 0) return S {static_cast<eng::s16>(a.v < 0 ? mn : mx)}; // satura con signo
+		const eng::s32 num = static_cast<eng::s32>(a.v) << E;
+		const eng::s32 den = b.v;
+		const eng::s32 lim = mx * (den < 0 ? -den : den); // |num| <= lim  =>  cociente en s16
+		if (num > lim) return S {static_cast<eng::s16>(mx)};
+		if (num < -lim) return S {static_cast<eng::s16>(mn)};
+		return S {arith<s16>::div(num, static_cast<eng::s16>(den))}; // divs.w nativo
+	}
+};
+
 // ============================================================================
 //  Vector
 // ============================================================================

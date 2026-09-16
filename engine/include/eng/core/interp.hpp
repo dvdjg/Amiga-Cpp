@@ -66,6 +66,23 @@ template <typename S>
 	return out_lo + (v - in_lo) / (in_hi - in_lo) * (out_hi - out_lo);
 }
 
+/// `inv_lerp` para fixed: usa `div_norm` (división **explícita** y saturante) en vez de
+/// `operator/`, que el núcleo no ofrece. Todos los argumentos con el mismo exponente.
+template <int E, typename P>
+[[nodiscard]] constexpr Fixed<s16, E, P> inv_lerp(Fixed<s16, E, P> a, Fixed<s16, E, P> b,
+						  Fixed<s16, E, P> v) {
+	return div_norm(v - a, b - a);
+}
+
+/// `remap` para fixed, por la misma vía explícita (`div_norm` + `mul_norm`).
+template <int E, typename P>
+[[nodiscard]] constexpr Fixed<s16, E, P> remap(Fixed<s16, E, P> v, Fixed<s16, E, P> in_lo,
+					       Fixed<s16, E, P> in_hi, Fixed<s16, E, P> out_lo,
+					       Fixed<s16, E, P> out_hi) {
+	const Fixed<s16, E, P> t = div_norm(v - in_lo, in_hi - in_lo);
+	return out_lo + mul_norm(t, out_hi - out_lo);
+}
+
 /// Escalón: 0 si `x < edge`, 1 si no.
 template <typename S>
 [[nodiscard]] constexpr S step(S edge, S x) {
