@@ -219,5 +219,7 @@ comparaciones en hardware. Su corrección la amplían los tests host:
 - [`tests/host/060_noise`](../../../tests/host/060_noise/README.md): `value_noise`/`fbm`
   con `MiniFloat16` contra `double` (el mismo camino que usa la demo 083).
 
-Las funciones de `minifloat_math.hpp` (trascendentes) siguen cubiertas solo por el test
-host 057; al usarlas en una demo, actualizar esta sección.
+Las funciones de `minifloat_math.hpp` (trascendentes) están **verificadas por demo**:
+`demos/amiga/084_mf_rotation` compone una rotación 3D con `sin`/`cos` de `MiniFloat16` y
+hace un self-test en hardware de `sin(π/2)`, `exp(0)` y `sqrt(4)` (build/run/analyze OK).
+Además las cubre el test host 057.

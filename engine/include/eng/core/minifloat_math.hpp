@@ -44,6 +44,11 @@
 /// Restricciones del engine: `gnu++23`, sin STL, sin excepciones, sin RTTI, sin
 /// asignación dinámica. Depende de `eng/core/minifloat.hpp` y de `eng/core/arith.hpp`
 /// (para forzar `muls.w` en el núcleo Q1.14).
+///
+/// **Estado de verificación: verificada por demo** — `demos/amiga/084_mf_rotation`
+/// construye una rotación 3D con `sin`/`cos` de `MiniFloat16` y un self-test en hardware
+/// de `sin(π/2)`, `exp(0)` y `sqrt(4)` (build/run/analyze OK). Ampliada por el test host
+/// `tests/host/057_minifloat16_math`.
 
 #include <eng/core/arith.hpp>
 #include <eng/core/minifloat.hpp>
@@ -243,9 +248,11 @@ using eng::s32;
 	return MF::from_raw(static_cast<eng::u16>(s | (static_cast<eng::u16>(e) << 10) | (m & 0x3FFu)));
 }
 
-/// `2^f = exp(f·ln2)` para `f` en [-0.5, 0.5], en Q1.14. Taylor de 8 términos
-/// (`g = f·ln2`, `|g| <= 0.347`), error < 2^-13 antes de redondear.
-[[nodiscard]] ENG_MF_AI constexpr s16 q14_exp2_frac(s16 f14) {
+/// `2^f = exp(f·ln2)` para `f` en [-0.5, 0.5], en Q1.14, por serie de Taylor de 8
+/// términos (`g = f·ln2`, `|g| <= 0.347`). Se evalúa SOLO en compilación, para
+/// materializar la tabla `k_exp2_q14`; en runtime la usa la interpolación de abajo
+/// (menos instrucciones: 1 `muls.w` + adds en vez de 16 `muls.w`).
+[[nodiscard]] constexpr s16 q14_exp2_poly(s16 f14) {
 	const s16 g = q14_mul(f14, 11356); // ln2 en Q1.14
 	s16 p = 3;                         // 1/5040
 	p = q14_add(23, q14_mul(p, g));    // 1/720
@@ -256,6 +263,26 @@ using eng::s32;
 	p = q14_add(16384, q14_mul(p, g)); // 1
 	p = q14_add(16384, q14_mul(p, g)); // 1 + ...
 	return p;
+}
+
+/// Tabla `2^(-0.5 + i/64)` en Q1.14, `i in [0,64]` (65 nodos, 130 bytes). Materializada
+/// en compile-time desde `q14_exp2_poly`; el error de interpolación lineal (~1.5e-5)
+/// queda por debajo del redondeo del tipo.
+inline constexpr eng::ct_array<s16, 65> k_exp2_q14 {[](eng::usize i) -> s16 {
+	return q14_exp2_poly(static_cast<s16>(-8192 + static_cast<int>(i) * 256));
+}};
+
+/// `2^f` para `f` en [-0.5, 0.5] (Q1.14) por **tabla + interpolación lineal** (1 `muls.w`).
+/// Sustituye a la serie en el camino caliente de `exp`/`exp2`.
+[[nodiscard]] ENG_MF_AI constexpr s16 q14_exp2_frac(s16 f14) {
+	const eng::u32 g = static_cast<eng::u32>(static_cast<s32>(f14) + 8192); // [0, 16384]
+	const eng::u32 idx = g >> 8;                                           // 0..64
+	if (idx >= 64u) return k_exp2_q14[64];
+	const s16 a = k_exp2_q14[idx];
+	const s16 delta = static_cast<s16>(k_exp2_q14[idx + 1u] - a);
+	// `frac/256` en Q1.14 es `frac << 6`; `q14_mul` usa `muls.w` (nada de `__mulsi3`).
+	const eng::u32 frac = g & 0xFFu;
+	return static_cast<s16>(a + q14_mul(delta, static_cast<s16>(frac << 6)));
 }
 
 /// Núcleo compartido de `2^z`: parte `z` (Q4.11) en `n + f`, evalúa `2^f` en Q1.14 y

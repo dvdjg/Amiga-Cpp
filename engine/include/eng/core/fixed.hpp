@@ -338,7 +338,12 @@ template <typename Ra, int Ea, typename Rb, int Eb, typename P>
 	const W p0 = a * b;
 	const W p1 = c * d;
 	const W acc {detail::sat_add_repr(p0.v, p1.v)};
-	return acc.template rescale<Eb>().template cast<Rb>();
+	// El estrechado final satura SIEMPRE (no depende de la política de los operandos):
+	// un dot fusionado es una magnitud y envolver en silencio es siempre un error.
+	return acc.template retag<SaturatePolicy>()
+		.template rescale<Eb>()
+		.template cast<Rb>()
+		.template retag<P>();
 }
 template <typename Ra, int Ea, typename Rb, int Eb, typename P>
 [[nodiscard]] constexpr Fixed<Rb, Eb, P> dot(Fixed<Ra, Ea, P> a, Fixed<Rb, Eb, P> b,
@@ -350,7 +355,12 @@ template <typename Ra, int Ea, typename Rb, int Eb, typename P>
 	const W p1 = c * d;
 	const W p2 = e * f;
 	const W acc {detail::sat_add_repr(detail::sat_add_repr(p0.v, p1.v), p2.v)};
-	return acc.template rescale<Eb>().template cast<Rb>();
+	// El estrechado final satura SIEMPRE (no depende de la política de los operandos):
+	// un dot fusionado es una magnitud y envolver en silencio es siempre un error.
+	return acc.template retag<SaturatePolicy>()
+		.template rescale<Eb>()
+		.template cast<Rb>()
+		.template retag<P>();
 }
 template <typename Ra, int Ea, typename Rb, int Eb, typename P>
 [[nodiscard]] constexpr Fixed<Rb, Eb, P> dot(Fixed<Ra, Ea, P> a, Fixed<Rb, Eb, P> b,
@@ -365,7 +375,12 @@ template <typename Ra, int Ea, typename Rb, int Eb, typename P>
 	const W p3 = g * h;
 	const W acc {detail::sat_add_repr(detail::sat_add_repr(detail::sat_add_repr(p0.v, p1.v), p2.v),
 					  p3.v)};
-	return acc.template rescale<Eb>().template cast<Rb>();
+	// El estrechado final satura SIEMPRE (no depende de la política de los operandos):
+	// un dot fusionado es una magnitud y envolver en silencio es siempre un error.
+	return acc.template retag<SaturatePolicy>()
+		.template rescale<Eb>()
+		.template cast<Rb>()
+		.template retag<P>();
 }
 
 /// Comparaciones (mismo tipo, exponente y política).

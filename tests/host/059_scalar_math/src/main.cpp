@@ -245,14 +245,16 @@ void test_fixed() {
 		check(std::fabs(em::to_double(r) - 0.5) <= tol, "q12 remap");
 	}
 
-	// dot FUSIONADO de 3 pares: el acumulador satura (no envuelve) en el extremo
+	// dot FUSIONADO de 3-4 pares: el acumulador satura (no envuelve) en el extremo, y el
+	// estrechado final satura SIEMPRE (independiente de la política de los operandos)
 	{
-		using QS = er::q12_sat; // SaturatePolicy: el estrechado final también satura
-		const QS m {32767};
-		const QS r3 = em::dot(m, m, m, m, m, m);             // 3·(32767²) > s32
-		const QS r4 = em::dot(m, m, m, m, m, m, m, m);       // 4 pares
-		check(r3.v == 32767, "q12 dot(3) satura");
-		check(r4.v == 32767, "q12 dot(4) satura");
+		using QS = er::q12_sat;
+		const QS ms {32767};
+		check(em::dot(ms, ms, ms, ms, ms, ms).v == 32767, "q12_sat dot(3) satura");
+		check(em::dot(ms, ms, ms, ms, ms, ms, ms, ms).v == 32767, "q12_sat dot(4) satura");
+		const Q m {32767};
+		check(em::dot(m, m, m, m, m, m).v == 32767, "q12 (politica por defecto) dot(3) satura");
+		check(em::dot(m, m, m, m, m, m, m, m).v == 32767, "q12 (politica por defecto) dot(4) satura");
 	}
 }
 

@@ -126,6 +126,7 @@ demás puntos solo si los algoritmos que se vayan a usar los necesitan.
 | `lerp`/`smoothstep`/`cross2`/`rotate2`/`vscale`/`vlerp`/`dot` | `Fixed` | **funcionan**: el producto se normaliza con `mul_norm` (el producto de dos fixed cambia de exponente) |
 | `smootherstep` | `Fixed` 4.12 | **no compila**: necesita representar el coeficiente 15 y 4.12 llega a ±8 (`require_range`) |
 | `remap`/`inv_lerp` | `Fixed` | **funcionan** vía `div_norm` (división explícita y saturante; el núcleo sigue sin `operator/`) |
+| `dot` fusionado (2-4 pares) | `Fixed` | el acumulador **satura** (3-4 productos de 4.12 superan `s32`) y el estrechado final **satura siempre**, sea cual sea la política de los operandos |
 | `normalize`/`length`/`reflect`/`project` | `Fixed` | **no compilan** (sin `sqrt`), por diseño |
 | `value_noise`/`fbm` | `Fixed` | **no compilan**: necesitan división (sin `operator/`) |
 
@@ -150,6 +151,10 @@ El detalle del escalar de 16 bits está en [MINIFLOAT16.md](MINIFLOAT16.md); el 
 - Demo: `demos/amiga/083_fbm_noise` construye un mapa de altura con `fbm2<MiniFloat16>`
   en hardware (build/run/analyze OK) — ejemplo canónico de `noise.hpp` y verificación por
   demo del escalar.
+- Demo: `demos/amiga/084_mf_rotation` compone una rotación 3D con `sin`/`cos` de
+  `MiniFloat16` y transforma coordenadas `q0` con `eng/retro/minifloat_fixed`
+  (self-test de `sin`/`exp`/`sqrt` en hardware) — verificación por demo de
+  `minifloat_math.hpp`.
 
 ## 7. Tabla función × escalar (generada)
 
