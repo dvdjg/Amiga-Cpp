@@ -72,6 +72,18 @@ extern "C" u16 c_mf_math(u16 a) {
 }
 extern "C" s16 c_mf_fixed_mul(u16 r, s16 v) { return mul_fix(MiniFloat16::from_raw(r), v); }
 extern "C" u16 c_mf_mac(u16 a, u16 b, u16 c) { return mac(MiniFloat16::from_raw(a), MiniFloat16::from_raw(b), MiniFloat16::from_raw(c)).raw; }
+extern "C" u16 c_mf_sin(u16 a) { return sin(MiniFloat16::from_raw(a)).raw; }
+extern "C" void c_matmul3_mf(u16* out, const u16* a, const u16* b) {
+	Mat<3, MiniFloat16> A {}, B {};
+	for (int i = 0; i < 3; ++i)
+		for (int j = 0; j < 3; ++j) {
+			A.m[i][j] = MiniFloat16::from_raw(a[i * 3 + j]);
+			B.m[i][j] = MiniFloat16::from_raw(b[i * 3 + j]);
+		}
+	const Mat<3, MiniFloat16> R = A * B;
+	for (int i = 0; i < 3; ++i)
+		for (int j = 0; j < 3; ++j) out[i * 3 + j] = R.m[i][j].raw;
+}
 extern "C" u16 c_mf_loop(const u16* xs, int n) {
 	MiniFloat16 acc = MiniFloat16::zero();
 	for (int i = 0; i < n; ++i) {

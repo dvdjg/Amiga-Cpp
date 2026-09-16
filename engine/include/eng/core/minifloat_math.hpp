@@ -304,10 +304,10 @@ inline constexpr eng::ct_array<s16, 65> k_exp2_q14 {[](eng::usize i) -> s16 {
 	const MF t = (m - k_one) / (m + k_one);
 	const MF t2 = t * t;
 	MF p = MF(1.0f / 9.0f);
-	p = MF(1.0f / 7.0f) + p * t2;
-	p = MF(1.0f / 5.0f) + p * t2;
-	p = MF(1.0f / 3.0f) + p * t2;
-	p = k_one + p * t2;
+	p = mul_add(p, t2, MF(1.0f / 7.0f));
+	p = mul_add(p, t2, MF(1.0f / 5.0f));
+	p = mul_add(p, t2, MF(1.0f / 3.0f));
+	p = mul_add(p, t2, k_one);
 	return (t * p) * k_two;
 }
 
@@ -320,9 +320,9 @@ inline constexpr eng::ct_array<s16, 65> k_exp2_q14 {[](eng::usize i) -> s16 {
 [[nodiscard]] ENG_MF_AI constexpr MF mf_sin_small(MF r) {
 	const MF r2 = r * r;
 	MF p = MF(-1.0f / 5040.0f);
-	p = MF(1.0f / 120.0f) + p * r2;
-	p = MF(-1.0f / 6.0f) + p * r2;
-	p = k_one + p * r2;
+	p = mul_add(p, r2, MF(1.0f / 120.0f));
+	p = mul_add(p, r2, MF(-1.0f / 6.0f));
+	p = mul_add(p, r2, k_one);
 	return r * p;
 }
 
@@ -330,10 +330,10 @@ inline constexpr eng::ct_array<s16, 65> k_exp2_q14 {[](eng::usize i) -> s16 {
 [[nodiscard]] ENG_MF_AI constexpr MF mf_cos_small(MF r) {
 	const MF r2 = r * r;
 	MF p = MF(1.0f / 40320.0f);
-	p = MF(-1.0f / 720.0f) + p * r2;
-	p = MF(1.0f / 24.0f) + p * r2;
-	p = MF(-0.5f) + p * r2;
-	p = k_one + p * r2;
+	p = mul_add(p, r2, MF(-1.0f / 720.0f));
+	p = mul_add(p, r2, MF(1.0f / 24.0f));
+	p = mul_add(p, r2, MF(-0.5f));
+	p = mul_add(p, r2, k_one);
 	return p;
 }
 
@@ -353,10 +353,10 @@ ENG_MF_AI constexpr void mf_reduce_pio2(MF x, MF& r, int& q) {
 [[nodiscard]] ENG_MF_AI constexpr MF mf_atan_unit(MF x) {
 	const MF x2 = x * x;
 	MF p = MF(0.0208351f);
-	p = MF(-0.0851330f) + p * x2;
-	p = MF(0.1801410f) + p * x2;
-	p = MF(-0.3302995f) + p * x2;
-	p = MF(0.9998660f) + p * x2;
+	p = mul_add(p, x2, MF(-0.0851330f));
+	p = mul_add(p, x2, MF(0.1801410f));
+	p = mul_add(p, x2, MF(-0.3302995f));
+	p = mul_add(p, x2, MF(0.9998660f));
 	return x * p;
 }
 

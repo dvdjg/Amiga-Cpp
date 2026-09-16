@@ -142,6 +142,11 @@ struct scalar_traits<MiniFloat16> {
 	static constexpr MiniFloat16 zero() { return MiniFloat16::zero(); }
 	static constexpr MiniFloat16 one() { return MiniFloat16::one(); }
 
+	/// Multiply-accumulate de un solo redondeo (FMA): lo usan `Mat*Mat`/`Mat*Vec`.
+	static constexpr MiniFloat16 mac(MiniFloat16 a, MiniFloat16 b, MiniFloat16 acc) {
+		return mul_add(a, b, acc);
+	}
+
 	/// Entero -> MF sin `float` (construcción por bits): en 68000 un `(float)i`
 	/// arrastraría `__floatsisf`. Exacto hasta 2048; por encima, redondeo de mantisa.
 	static constexpr MiniFloat16 from_int(int i) {
@@ -180,6 +185,27 @@ struct scalar_traits<MiniFloat16> {
 
 	static constexpr bool needs_normalize = false;
 };
+
+namespace detail {
+
+/// ¿El escalar `A` ofrece un multiply-accumulate de un solo redondeo para los operandos
+/// `(A, B)` y acumulador `Acc`? (`MiniFloat16` sí; `Fixed` no lo expone a este nivel).
+template <typename A, typename B, typename Acc>
+concept has_mac = requires(A a, B b, Acc acc) { scalar_traits<A>::mac(a, b, acc); };
+
+/// Acumula `a·b` en `acc` con el mejor redondeo disponible: `mac` del escalar si lo
+/// tiene (p. ej. FMA de `MiniFloat16`, 1 redondeo), si no `acc + a*b` (que en fixed ya
+/// es exacto en el exponente ancho).
+template <typename Acc, typename A, typename B>
+[[nodiscard]] constexpr Acc mac_acc(Acc acc, A a, B b) {
+	if constexpr (has_mac<A, B, Acc>) {
+		return scalar_traits<A>::mac(a, b, acc);
+	} else {
+		return static_cast<Acc>(acc + a * b);
+	}
+}
+
+} // namespace detail
 
 /// Producto de dos escalares **normalizado al propio escalar**: identidad para
 /// `float`/`MiniFloat16` (su producto ya vive en el mismo espacio) y `rescale` para un
@@ -401,7 +427,7 @@ template <int N, typename S>
 	for (int i = 0; i < N; ++i) {
 		for (int j = 0; j < N; ++j) {
 			auto acc = a.m[i][0] * b.m[0][j];
-			for (int k = 1; k < N; ++k) acc = acc + a.m[i][k] * b.m[k][j];
+			for (int k = 1; k < N; ++k) acc = detail::mac_acc(acc, a.m[i][k], b.m[k][j]);
 			r.m[i][j] = scalar_traits<S>::norm_from(acc);
 		}
 	}
@@ -425,7 +451,7 @@ template <int N, typename SR, typename SL>
 	Vec<N, SL> r {};
 	for (int i = 0; i < N; ++i) {
 		auto acc = a.m[i][0] * v.v[0];
-		for (int k = 1; k < N; ++k) acc = acc + a.m[i][k] * v.v[k];
+		for (int k = 1; k < N; ++k) acc = detail::mac_acc(acc, a.m[i][k], v.v[k]);
 		r.v[i] = scalar_traits<SL>::norm_from(acc);
 	}
 	return r;

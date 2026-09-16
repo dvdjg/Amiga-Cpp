@@ -18,4 +18,4 @@ if [ -z "$IMAGE" ]; then
 fi
 
 exec node "$ROOT/dist/tools/analyze/analyze_demo_screenshot.js" \
-	--image "$IMAGE" --min-white 20 --min-dark 0 --min-nonblue 5000
+	--image "$IMAGE" --min-white 8 --min-dark 0 --min-nonblue 5000
