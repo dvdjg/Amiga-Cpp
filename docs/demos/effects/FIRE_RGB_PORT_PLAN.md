@@ -173,3 +173,25 @@ Objetivo realista: **≤ 3 campos = 16.7 fps**, que es el presupuesto del propio
 1. **Diff 1:1** contra `fire-rgb.exe` (frames + `readPng` + vision).
 2. **Portar el siguiente efecto** y actualizar el indice de portes (`docs/guides/roadmap/`).
 
+### Estado de la comparación de rendimiento con el oráculo (2026-09-16)
+
+La comparación **está cerrada en las mismas unidades y sobre la misma región de código**,
+sin necesidad de arrancar el oráculo: el profiler del original loguea
+`FireRGB took %d-%d-%d (min-avg-max) raster lines` para `RandomizeBottom + MainLoop`
+(`system/profiler.c`, `ReadLineCounter()`), y sus cifras son **788 / 968 / 976**, mientras
+que nuestro tramo equivalente mide **436.202 ciclos = 961 líneas** (436.202 / 454):
+**dentro del rango y a la altura de su media**. Es decir, el bucle del port ya rinde como
+el original; lo que marca el fps es el frame completo (C2P incluido) y su cuantización.
+
+Arrancar el oráculo en vivo **se intentó y queda a medias**:
+- Con una config derivada del runner (A500 ciclo-exacto, KS 1.3, sin DH0/DH1) y el
+  `fire-rgb.adf` en DF0, **WinUAE corre** (verificado: sigue vivo a los 12 s), así que el
+  disquete es booteable.
+- El **adjunte automático del GDB falló** (el fork no expuso el puerto con esa config), así
+  que no hubo captura ni lectura. Quedan además los bloqueos ya conocidos: la imagen del
+  original es **relocalizable** (`.text` en 0x0 → los *watchpoints* necesitan la base del
+  hunk en runtime) y su `Log()` hay que capturarlo por su propia vía.
+- El ratio, en cambio, **no necesita esa medida**: las cifras del original y las nuestras
+  son la misma magnitud (líneas de raster de la misma función).
+
+
