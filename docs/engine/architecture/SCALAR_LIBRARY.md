@@ -175,6 +175,8 @@ tests host) falla si la doc se desincroniza del contrato, y `--write` la regener
 | cross2 / rotate2 / vscale / vlerp | si | si | si | HOST-059 |
 | length / normalize / reflect / project | si | si (limites de rango) | no (sin sqrt) | HOST-059 |
 | value_noise / fbm | si | si (coord <= 2048) | no (necesita division) | HOST-060 |
+| mul_add / mac (FMA) | — | si (1 redondeo) | si (1 redondeo) | HOST-057/059 |
+| wrap_angle / angle_diff | — | si | — | HOST-057 |
 | sqrt/exp/log/sin/cos/tan | — | si | — | HOST-057 |
 | transform (MF × fix) | — | ratio MF (|m| <= 8) | coordenada | HOST-058 |
 

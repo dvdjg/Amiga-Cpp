@@ -88,6 +88,7 @@ void mf16_domain_asin_acos_must_be_within_pm1();
 inline constexpr MF k_pi = MF(3.14159265358979f);
 inline constexpr MF k_half_pi = MF(1.57079632679490f);
 inline constexpr MF k_two_pi = MF(6.28318530717959f);
+inline constexpr MF k_inv_two_pi = MF(0.159154943091895f); // 1/(2π)
 inline constexpr MF k_inv_half_pi = MF(0.636619772367581f); // 2/π
 inline constexpr MF k_ln2 = MF(0.693147180559945f);
 inline constexpr MF k_inv_ln2 = MF(1.44269504088896f);
@@ -570,6 +571,20 @@ ENG_MF_AI constexpr void sincos(MiniFloat16 x, MiniFloat16& out_sin, MiniFloat16
 	sincos(x, s, c);
 	if (c.is_zero()) return MiniFloat16::from_raw(MiniFloat16::exp_mask);
 	return s / c;
+}
+
+/// Pliega un ángulo a `[-π, π]`: `x − 2π·round(x/2π)`. O(1) (sin bucles), útil para
+/// mantener los ángulos en el dominio fiable de `sin`/`cos` y para comparar direcciones.
+[[nodiscard]] ENG_MF_AI constexpr MiniFloat16 wrap_angle(MiniFloat16 x) {
+	using namespace mfdetail;
+	if (x.is_zero() || x.is_inf()) return MF::zero();
+	const int n = mf_round_int(x * k_inv_two_pi);
+	return x - mf_from_int(n) * k_two_pi;
+}
+
+/// Diferencia angular mínima `a − b` plegada a `[-π, π]`.
+[[nodiscard]] ENG_MF_AI constexpr MiniFloat16 angle_diff(MiniFloat16 a, MiniFloat16 b) {
+	return wrap_angle(a - b);
 }
 
 /// Arco tangente en `(-π/2, π/2)`. `±∞` -> `±π/2`.

@@ -30,6 +30,8 @@ const ROWS = [
   { fn: 'cross2 / rotate2 / vscale / vlerp', flt: 'si', mf: 'si', fx: 'si', test: 'HOST-059' },
   { fn: 'length / normalize / reflect / project', flt: 'si', mf: 'si (limites de rango)', fx: 'no (sin sqrt)', test: 'HOST-059' },
   { fn: 'value_noise / fbm',         flt: 'si', mf: 'si (coord <= 2048)', fx: 'no (necesita division)', test: 'HOST-060' },
+  { fn: 'mul_add / mac (FMA)',       flt: '—', mf: 'si (1 redondeo)', fx: 'si (1 redondeo)', test: 'HOST-057/059' },
+  { fn: 'wrap_angle / angle_diff',   flt: '—', mf: 'si', fx: '—', test: 'HOST-057' },
   { fn: 'sqrt/exp/log/sin/cos/tan',  flt: '—', mf: 'si', fx: '—', test: 'HOST-057' },
   { fn: 'transform (MF × fix)',      flt: '—', mf: 'ratio MF (|m| <= 8)', fx: 'coordenada', test: 'HOST-058' },
 ];

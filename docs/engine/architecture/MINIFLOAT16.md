@@ -140,6 +140,8 @@ ninguna de ellas emite símbolo propio.
 | `log` | `x = m·2^k` + serie de `atanh` | `(0, 65504]` | ~2.5e-3 rel (~1.4e-2 abs en el extremo) |
 | `log2`/`log10` | exponente + `log(m)·log2(e)` / `·log10(e)` | `(0, 65504]` | ~8e-3 / ~4e-3 abs (exactos en potencias de 2) |
 | `pow` | entero `\|e\| <= 64`: cuadrado y multiplicación (exacto); si no `exp(e·log(base))` | `base > 0`; entero admite base negativa | exacto (entero); ~1e-2 rel (crece con `\|e·log(base)\|`) |
+| `mul_add`/`mac` (FMA) | producto exacto (22 bits) + `c` alineado, **un solo redondeo** | `[-11, 11]` | ≤ que `a·b + c` (2 redondeos) |
+| `wrap_angle`/`angle_diff` | `x − 2π·round(x/2π)`, O(1) | todo `x` | a la resolución del tipo |
 | `sin`/`cos` | Cody-Waite + Taylor | `\|x\| <= 2π` (más allá pierde bits) | ~2e-3 abs |
 | `tan` | `sin/cos` | como `sin`/`cos`, evitando los polos | ~1e-2 rel lejos del polo |
 | `sincos` | una sola reducción para los dos | como `sin`/`cos` | igual que `sin`/`cos` |

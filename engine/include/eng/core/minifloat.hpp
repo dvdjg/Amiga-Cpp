@@ -52,6 +52,7 @@
 /// y matrices), `057` (matemáticas), `058` (puente con fixed) y `060` (ruido). Las
 /// funciones de `minifloat_math.hpp` siguen sin demo propia.
 
+#include <eng/core/arith.hpp>
 #include <eng/core/ct_array.hpp>
 #include <eng/core/types.hpp>
 
@@ -411,6 +412,74 @@ constexpr MiniFloat16& operator/=(MiniFloat16& a, MiniFloat16 b) { return a = a 
 [[nodiscard]] ENG_MF16_AI constexpr bool operator<=(MiniFloat16 a, MiniFloat16 b) { return !(b < a); }
 [[nodiscard]] ENG_MF16_AI constexpr bool operator>(MiniFloat16 a, MiniFloat16 b) { return b < a; }
 [[nodiscard]] ENG_MF16_AI constexpr bool operator>=(MiniFloat16 a, MiniFloat16 b) { return !(a < b); }
+
+/// `a·b + c` con **un solo redondeo** (FMA): más preciso que `a*b + c` (dos redondeos)
+/// en series, `dot` y transformaciones. El producto se acumula exacto (22 bits) junto con
+/// `c` alineado en notación científica y se normaliza una vez. En 68000 usa `muls.w`
+/// (producto de 16×16→32) y solo un bucle corto de normalización.
+[[nodiscard]] ENG_MF16_AI constexpr MiniFloat16 mul_add(MiniFloat16 a, MiniFloat16 b, MiniFloat16 c) {
+	using raw_type = MiniFloat16::raw_type;
+	const raw_type az = static_cast<raw_type>(a.raw & 0x7FFFu);
+	const raw_type bz = static_cast<raw_type>(b.raw & 0x7FFFu);
+	const raw_type cz = static_cast<raw_type>(c.raw & 0x7FFFu);
+	if (az == 0u || bz == 0u) return c; // 0 + c
+	if (cz == 0u) return a * b;
+	if (az >= MiniFloat16::exp_mask || bz >= MiniFloat16::exp_mask) // producto infinito
+		return MiniFloat16::from_raw(
+			static_cast<raw_type>(((a.raw ^ b.raw) & MiniFloat16::sign_mask) | MiniFloat16::exp_mask));
+	if (cz >= MiniFloat16::exp_mask) return c; // c infinito
+	const int ea = static_cast<int>((a.raw >> 10) & 31);
+	const int eb = static_cast<int>((b.raw >> 10) & 31);
+	const int ec = static_cast<int>((c.raw >> 10) & 31);
+	const eng::s32 A = static_cast<eng::s32>(0x400u | (a.raw & MiniFloat16::man_mask));
+	const eng::s32 B = static_cast<eng::s32>(0x400u | (b.raw & MiniFloat16::man_mask));
+	const eng::s32 C = static_cast<eng::s32>(0x400u | (c.raw & MiniFloat16::man_mask));
+	const eng::s32 P = arith<eng::s16>::mul(static_cast<eng::s16>(A), static_cast<eng::s16>(B)); // muls.w
+	const bool nsp = ((a.raw ^ b.raw) & MiniFloat16::sign_mask) != 0u;
+	const bool nsc = (c.raw & MiniFloat16::sign_mask) != 0u;
+	const int kp = ea + eb - 50; // valor del producto = P · 2^kp
+	const int kc = ec - 25;      // valor de c        = C · 2^kc
+	const int k = kp > kc ? kp : kc;
+	// Desplazamiento con redondeo al más cercano (medio hacia arriba).
+	auto rshr = [](eng::s32 v, int s) {
+		return s <= 0 ? v : static_cast<eng::s32>((v + (1 << (s - 1))) >> s);
+	};
+	const eng::s32 tp = rshr(P, k - kp);
+	const eng::s32 tc = rshr(C, k - kc);
+	const eng::s32 S = (nsp ? -tp : tp) + (nsc ? -tc : tc); // valor = S · 2^k
+	if (S == 0) return MiniFloat16::zero();
+	const bool neg = S < 0;
+	eng::u32 mag = neg ? (0u - static_cast<eng::u32>(S)) : static_cast<eng::u32>(S);
+	int msb = 0;
+	while ((mag >> (msb + 1)) != 0u) ++msb;
+	int kk = k;
+	const int shift = 10 - msb; // normaliza a msb = bit 10
+	if (shift >= 0) {
+		mag <<= shift;
+		kk -= shift;
+	} else {
+		const int rs = -shift;
+		mag += 1u << (rs - 1); // redondeo al más cercano
+		mag >>= rs;
+		if ((mag & 0x800u) != 0u) { // el redondeo desbordó el bit 10
+			mag >>= 1;
+			kk += 1;
+		}
+		kk += rs;
+	}
+	const int e = kk + 25;
+	const raw_type s = static_cast<raw_type>(neg ? MiniFloat16::sign_mask : 0u);
+	if (e <= 0) return MiniFloat16::from_raw(static_cast<raw_type>(e == 0 ? (s | (1u << 10)) : s));
+	if (e >= MiniFloat16::exp_inf)
+		return MiniFloat16::from_raw(static_cast<raw_type>(s | MiniFloat16::exp_mask));
+	return MiniFloat16::from_raw(
+		static_cast<raw_type>(s | (static_cast<raw_type>(e) << 10) | (mag & MiniFloat16::man_mask)));
+}
+
+/// `acc += a·b` (multiply-accumulate) con un solo redondeo. Alias de `mul_add`.
+[[nodiscard]] ENG_MF16_AI constexpr MiniFloat16 mac(MiniFloat16 a, MiniFloat16 b, MiniFloat16 acc) {
+	return mul_add(a, b, acc);
+}
 
 } // namespace eng::math
 

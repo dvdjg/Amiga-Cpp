@@ -383,6 +383,30 @@ template <typename Ra, int Ea, typename Rb, int Eb, typename P>
 		.template retag<P>();
 }
 
+/// `a·b + c` con **un solo redondeo** (FMA): el producto es exacto en el exponente
+/// doble, `c` se lleva a ese exponente (exacto si `E >= 0`) y se normaliza UNA vez. Un
+/// `mac` fusionado vale para series, `dot` y transformaciones.
+template <typename R, int E, typename P>
+[[nodiscard]] constexpr Fixed<R, E, P> mul_add(Fixed<R, E, P> a, Fixed<R, E, P> b,
+					      Fixed<R, E, P> c) {
+	using WR = typename mul_repr<R, R>::type;
+	using W = Fixed<WR, 2 * E, P>;
+	const W p = a * b;
+	const W cc = c.template cast<WR>().template rescale<2 * E>();
+	const W acc {detail::sat_add_repr(p.v, cc.v)};
+	return acc.template retag<SaturatePolicy>()
+		.template rescale<E>()
+		.template cast<R>()
+		.template retag<P>();
+}
+
+/// `acc += a·b` con un solo redondeo. Alias de `mul_add`.
+template <typename R, int E, typename P>
+[[nodiscard]] constexpr Fixed<R, E, P> mac(Fixed<R, E, P> a, Fixed<R, E, P> b,
+					   Fixed<R, E, P> acc) {
+	return mul_add(a, b, acc);
+}
+
 /// Comparaciones (mismo tipo, exponente y política).
 template <typename R, int E, typename P>
 [[nodiscard]] constexpr bool operator==(Fixed<R, E, P> a, Fixed<R, E, P> b) {

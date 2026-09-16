@@ -43,6 +43,7 @@ extern "C" s16 c_norm_even(q24 a) { return a.retag<HalfEvenPolicy>().rescale<12>
 extern "C" q12 c_dot2(s16 a0,s16 b0,s16 c0,s16 d0){ return dot(q12{a0},q12{b0},q12{c0},q12{d0}); }
 extern "C" q12 c_dot3(s16 a0,s16 b0,s16 c0,s16 d0,s16 e0,s16 f0){ return dot(q12{a0},q12{b0},q12{c0},q12{d0},q12{e0},q12{f0}); }
 extern "C" q12 c_dot4(s16 a0,s16 b0,s16 c0,s16 d0,s16 e0,s16 f0,s16 g0,s16 h0){ return dot(q12{a0},q12{b0},q12{c0},q12{d0},q12{e0},q12{f0},q12{g0},q12{h0}); }
+extern "C" q12 c_fx_mac(s16 a, s16 b, s16 c){ return mac(q12{a}, q12{b}, q12{c}); }
 extern "C" void c_transform3(s16* out, const Mat<3,q12>* m, const Vec<3,q0>* t, const Vec<3,q0>* p) {
 	const Affine<3,q12,q0> a{*m,*t}; const Vec<3,q0> r = transform(a,*p);
 	for (int i=0;i<3;++i) out[i]=r.v[i].v;
@@ -70,6 +71,7 @@ extern "C" u16 c_mf_math(u16 a) {
 	return (sin(x) + exp(x) + log(x) + sqrt(x)).raw;
 }
 extern "C" s16 c_mf_fixed_mul(u16 r, s16 v) { return mul_fix(MiniFloat16::from_raw(r), v); }
+extern "C" u16 c_mf_mac(u16 a, u16 b, u16 c) { return mac(MiniFloat16::from_raw(a), MiniFloat16::from_raw(b), MiniFloat16::from_raw(c)).raw; }
 extern "C" u16 c_mf_loop(const u16* xs, int n) {
 	MiniFloat16 acc = MiniFloat16::zero();
 	for (int i = 0; i < n; ++i) {

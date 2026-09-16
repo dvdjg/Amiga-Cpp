@@ -433,6 +433,63 @@ void test_identities() {
 	}
 }
 
+// ---------------------------------------------------------------------------
+//  5. FMA (`mul_add`/`mac`) y ángulos (`wrap_angle`/`angle_diff`)
+// ---------------------------------------------------------------------------
+
+void test_mul_add_and_angles() {
+	// exactos
+	check(m::mul_add(MiniFloat16(2.0f), MiniFloat16(3.0f), MiniFloat16(1.0f)).raw ==
+		      MiniFloat16(7.0f).raw,
+	      "mul_add(2,3,1) = 7");
+	check(m::mac(MiniFloat16(1.5f), MiniFloat16(2.0f), MiniFloat16(0.25f)).raw == MiniFloat16(3.25f).raw,
+	      "mac(1.5,2,0.25) = 3.25");
+	check(m::mul_add(MiniFloat16(1.0f), MiniFloat16(1.0f), MiniFloat16(-1.0f)).is_zero(),
+	      "mul_add(1,1,-1) = 0");
+	check(m::mul_add(MiniFloat16(0.0f), MiniFloat16(5.0f), MiniFloat16(1.25f)).raw ==
+		      MiniFloat16(1.25f).raw,
+	      "mul_add(0,b,c) = c");
+
+	// el FMA no debe ser PEOR que el no fusionado (2 redondeos); error relativo
+	float fma_rel = 0, plain_rel = 0;
+	const float vals[] = {1.1f, 1.7f, 2.3f, 3.1f, 0.9f, -1.3f, 4.2f, -2.7f};
+	for (float a : vals)
+		for (float b : vals)
+			for (float c : vals) {
+				const MiniFloat16 A(a), B(b), C(c);
+				const double prod = static_cast<double>(static_cast<float>(A)) *
+						    static_cast<double>(static_cast<float>(B));
+				const double want = prod + static_cast<double>(static_cast<float>(C));
+				// sin cancelación (si no, el error relativo no acota nada)
+				if (std::fabs(want) < 0.25 * std::fmax(std::fabs(prod), std::fabs(static_cast<double>(static_cast<float>(C)))))
+					continue;
+				const double ef = std::fabs(static_cast<double>(static_cast<float>(
+								       m::mul_add(A, B, C))) - want) /
+						  std::fabs(want);
+				const double ep = std::fabs(static_cast<double>(static_cast<float>(A * B + C)) -
+							    want) /
+						  std::fabs(want);
+				fma_rel = static_cast<float>(std::fmax(fma_rel, ef));
+				plain_rel = static_cast<float>(std::fmax(plain_rel, ep));
+			}
+	std::printf("  FMA rel max %.2e   sin fusionar rel max %.2e\n", fma_rel, plain_rel);
+	check(fma_rel <= plain_rel + 1.0e-6f, "mul_add (1 redondeo) no es peor que a*b+c (2)");
+	check(fma_rel <= 2.0e-3f, "mul_add: error relativo <= 2e-3");
+
+	// wrap_angle / angle_diff
+	const float pi = 3.1415927f;
+	check(std::fabs(static_cast<float>(m::wrap_angle(MiniFloat16(0.5f))) - 0.5f) < 3.0e-3f,
+	      "wrap_angle(0.5) = 0.5");
+	check(std::fabs(static_cast<float>(m::wrap_angle(MiniFloat16(2.0f * pi + 0.5f))) - 0.5f) < 5.0e-3f,
+	      "wrap_angle(2pi+0.5) = 0.5");
+	check(std::fabs(static_cast<float>(m::wrap_angle(MiniFloat16(pi + 0.1f))) - (-pi + 0.1f)) <
+		      5.0e-3f,
+	      "wrap_angle(pi+0.1) = -pi+0.1");
+	check(std::fabs(static_cast<float>(m::angle_diff(MiniFloat16(0.1f), MiniFloat16(2.0f * pi - 0.1f))) -
+			0.2f) < 6.0e-3f,
+	      "angle_diff(0.1, 2pi-0.1) = 0.2");
+}
+
 } // namespace
 
 int main() {
@@ -441,6 +498,7 @@ int main() {
 	test_sweeps();
 	test_edges();
 	test_identities();
+	test_mul_add_and_angles();
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;

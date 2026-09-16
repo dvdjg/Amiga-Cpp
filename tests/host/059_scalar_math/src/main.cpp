@@ -256,6 +256,14 @@ void test_fixed() {
 		check(em::dot(m, m, m, m, m, m).v == 32767, "q12 (politica por defecto) dot(3) satura");
 		check(em::dot(m, m, m, m, m, m, m, m).v == 32767, "q12 (politica por defecto) dot(4) satura");
 	}
+
+	// FMA sobre fixed: un solo redondeo
+	{
+		check(em::mul_add(Q {4096}, Q {4096}, Q {4096}).v == Q {8192}.v, "q12 mul_add(1,1,1) = 2");
+		check(em::mac(Q {8192}, Q {2048}, Q {4096}).v == Q {8192}.v, "q12 mac(2,0.5,1) = 2");
+		const Q a {6144}, b {2048}, c {1024}; // 1.5 * 0.5 + 0.25 = 1.0
+		check(em::to_double(em::mul_add(a, b, c)) == 1.0, "q12 mul_add(1.5,0.5,0.25) = 1.0");
+	}
 }
 
 } // namespace

@@ -134,14 +134,6 @@ constexpr eng::s32 kCX = 160;
 constexpr eng::s32 kCY = 118;
 constexpr eng::s32 kHalfSpan = 84;
 
-/// Pliega un angulo `MF` (radianes) a `[-2pi, 2pi]`, el dominio fiable de `sin/cos`.
-MF wrap_2pi(MF a) {
-	const MF two_pi(6.2831853f);
-	while (a > two_pi) a = a - two_pi;
-	while (a < -two_pi) a = a + two_pi;
-	return a;
-}
-
 /// Brillo por profundidad (media de z de los dos extremos), 7 colores.
 eng::u8 shade_of(eng::s16 z0, eng::s16 z1) {
 	const eng::s16 z = static_cast<eng::s16>(z0 + z1);
@@ -201,9 +193,9 @@ private:
 		// Telemetria: ciclos EMULADOS (periferico de depuracion) del calculo MF por
 		// frame. counter 1 = matriz (6 sin/cos + 2 Mat*Mat); counter 0 = total.
 		const eng::u32 ta = Periph::cycle_counter();
-		m_ax = wrap_2pi(m_ax + MF(0.021f));
-		m_ay = wrap_2pi(m_ay + MF(0.013f));
-		m_az = wrap_2pi(m_az + MF(0.007f));
+		m_ax = em::wrap_angle(m_ax + MF(0.021f));
+		m_ay = em::wrap_angle(m_ay + MF(0.013f));
+		m_az = em::wrap_angle(m_az + MF(0.007f));
 		const em::Mat<3, MF> m = rot_z(m_az) * rot_y(m_ay) * rot_x(m_ax);
 		const eng::u32 tb = Periph::cycle_counter();
 		for (int i = 0; i < 8; ++i) {
