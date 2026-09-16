@@ -8,7 +8,7 @@
 // `COP1LC`). Es la base para escribir sobre filas visibles sin tearing: a
 // diferencia del bitmap único (120), que solo puede tocar la banda de staging.
 //
-// CONTRASTE con 120/121: mismo mapper flat (`map_flat_scroll`, HOST-056) y mismo
+// CONTRASTE con 120/121: mismo mapper flat (`map_flat_scroll`, HOST-061) y mismo
 // algoritmo de cámara; lo propio es el par de bitmaps + la conmutación.
 //
 // Superficie en el engine: `eng::field::DoubleBufferScrollPlayfield`. Art: atlas

@@ -19,7 +19,7 @@ copperlist que apunta al nuevo delantero (**swap de `COP1LC`**).
 
 - **`eng::field::DoubleBufferScrollPlayfield`** (engine): dos `gfx::Bitmap`, cámara X/Y saturada y
   `flip()` que conmuta el delantero. Reutiliza el mapper flat `eng::field::map_flat_scroll`
-  (HOST-056): el scroll sigue siendo por punteros, y el swap solo cambia la base del bitmap.
+  (HOST-061): el scroll sigue siendo por punteros, y el swap solo cambia la base del bitmap.
 - **Escribir filas visibles sin tearing**: es la diferencia con el bitmap único (120/121), que solo
   puede escribir en la banda de staging. El doble buffer es la base para redibujar en el trasero
   mientras el delantero se muestra.
