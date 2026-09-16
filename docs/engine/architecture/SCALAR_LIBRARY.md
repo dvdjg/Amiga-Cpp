@@ -112,5 +112,5 @@ El detalle del escalar de 16 bits está en [MINIFLOAT16.md](MINIFLOAT16.md); el 
 | `core/linalg.hpp` | `Vec`/`Mat`/`Affine`, `dot`, `transform`, `scalar_traits` |
 | `core/interp.hpp` | `clamp`/`saturate`/`lerp`/`inv_lerp`/`remap`/`step`/`smoothstep`/`smootherstep` |
 | `core/geometry.hpp` | `length(_sq)`/`distance(_sq)`/`normalize`/`vscale`/`vlerp`/`cross2`/`perp`/`rotate2`/`project`/`reject`/`reflect` |
-| `core/noise.hpp` | `value_noise1/2/3` (lattice [0,1), interpolado con `smoothstep`) y `fbm2` (octavas); hash sin multiplicación (reutiliza `random.hpp`) |
+| `core/noise.hpp` | `value_noise1/2/3` (lattice [0,1), interpolado con `smoothstep`) y `fbm2` (octavas); hash splitmix32 (2 `__mulsi3` por celda) |
 | `core/numeric_traits.hpp` | rasgos numéricos y guards de compilación |

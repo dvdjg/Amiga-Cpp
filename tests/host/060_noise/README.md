@@ -14,11 +14,11 @@ MISMO algoritmo se ejecuta con `double` y con `MiniFloat16` sobre las mismas ent
 
 ## Cómo está implementado
 
-Hash de celda **sin multiplicación** (xor/rot/suma, reutiliza `rotl32` de
-`core/random.hpp`) para no pagar `__mulsi3` en 68000; interpolación con `smoothstep` de
-`core/interp.hpp`. Ligado por `require_division<S>` (el valor de rejilla se normaliza a
-`[0,1)`, 1024 niveles). Verificado en el `.o` de m68k: sin `__mulsi3`/`__divsi3` ni
-`divs`/`divu`.
+Hash de celda **splitmix32** (buena difusión en los bits altos, que son los que se
+leen) combinando ejes con `rotl32` de `core/random.hpp`; interpolación con `smoothstep`
+de `core/interp.hpp`. Ligado por `require_division<S>` (el valor de rejilla se normaliza
+a `[0,1)`, 1024 niveles). En 68000 el hash paga dos `__mulsi3` por evaluación; en una
+demo de ruido se usa en el precalculado, no por píxel y frame.
 
 ## Ejecución
 

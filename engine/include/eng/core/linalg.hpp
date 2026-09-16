@@ -141,8 +141,37 @@ struct scalar_traits<MiniFloat16> {
 
 	static constexpr MiniFloat16 zero() { return MiniFloat16::zero(); }
 	static constexpr MiniFloat16 one() { return MiniFloat16::one(); }
-	static constexpr MiniFloat16 from_int(int i) { return MiniFloat16 {static_cast<float>(i)}; }
-	static constexpr int to_int(MiniFloat16 a) { return static_cast<int>(static_cast<float>(a)); }
+
+	/// Entero -> MF sin `float` (construcción por bits): en 68000 un `(float)i`
+	/// arrastraría `__floatsisf`. Exacto hasta 2048; por encima, redondeo de mantisa.
+	static constexpr MiniFloat16 from_int(int i) {
+		if (i == 0) return MiniFloat16::zero();
+		const bool neg = i < 0;
+		eng::u32 a = static_cast<eng::u32>(neg ? -i : i);
+		int msb = 0;
+		while ((a >> (msb + 1)) != 0u) ++msb;
+		const int e = msb + MiniFloat16::bias;
+		if (e >= MiniFloat16::exp_inf)
+			return MiniFloat16::from_raw(static_cast<eng::u16>(
+				(neg ? MiniFloat16::sign_mask : 0u) | MiniFloat16::exp_mask));
+		eng::u16 mant;
+		if (msb > 10)
+			mant = static_cast<eng::u16>((a >> (msb - 10)) & 0x3FFu);
+		else
+			mant = static_cast<eng::u16>((a << (10 - msb)) & 0x3FFu);
+		return MiniFloat16::from_raw(static_cast<eng::u16>(
+			(neg ? MiniFloat16::sign_mask : 0u) | (static_cast<eng::u16>(e) << 10) | mant));
+	}
+
+	/// MF -> entero truncando hacia cero, sin `float`; satura fuera de `s16`.
+	static constexpr int to_int(MiniFloat16 x) {
+		const int e = static_cast<int>((x.raw >> 10) & 31) - MiniFloat16::bias;
+		if (e < 0) return 0;
+		if (e > 14) return (x.raw & MiniFloat16::sign_mask) != 0u ? -32767 : 32767;
+		const int mant = 0x400 | (x.raw & MiniFloat16::man_mask);
+		const int v = (e <= 10) ? (mant >> (10 - e)) : (mant << (e - 10));
+		return (x.raw & MiniFloat16::sign_mask) != 0u ? -v : v;
+	}
 
 	template <typename Prod>
 	static constexpr MiniFloat16 norm_from(Prod p) {

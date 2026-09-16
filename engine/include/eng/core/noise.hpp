@@ -3,8 +3,9 @@
 /// \file noise.hpp
 /// **Ruido procedural value-noise** 1D/2D/3D y **fbm** (suma de octavas), genérico
 /// sobre el escalar `S` como el resto de la librería (`MiniFloat16`, `float`,
-/// `double`…). Reutiliza el mezclado sin multiplicación de `core/random.hpp`
-/// (`rotl32`): el hash de celda no paga `__mulsi3` en 68000.
+/// `double`…). Reutiliza `rotl32` de `core/random.hpp` para combinar ejes y usa un
+/// finalizador splitmix32 como hash de celda (los bits altos son los que se leen, así
+/// que hace falta buena difusión; en 68000 paga dos `__mulsi3` por hash).
 ///
 /// Value noise: cada punto de la rejilla tiene un valor pseudoaleatorio en `[0,1)` y el
 /// resultado interpola con `smoothstep` entre los vecinos. Es más barato que Perlin y,
@@ -31,14 +32,15 @@ namespace noise_detail {
 
 using u32c = __UINT32_TYPE__; // 32 bits exactos en host y m68k (igual que random.hpp)
 
-/// Hash entero sin multiplicación (xor/rot/suma): determinista y barato en 68000.
+/// Hash entero determinista (finalizador splitmix32). Se lee la parte ALTA del hash
+/// (`unit`), así que hace falta buena difusión; un mezclado solo-xor deja estructura en
+/// los bits altos y produce bandas. En 68000 los dos productos son `__mulsi3`, pero el
+/// hash se usa pocas veces por muestra (y en una demo de ruido, en el precalculado).
 [[nodiscard]] constexpr u32c hash1(u32c x) {
-	x ^= x >> 16;
 	x += 0x9E3779B9u;
-	x = eng::detail::rotl32(x, 13u);
-	x ^= x >> 17;
-	x += 0x85EBCA6Bu;
-	x ^= x >> 13;
+	x = (x ^ (x >> 16)) * 0x85EBCA6Bu;
+	x = (x ^ (x >> 13)) * 0xC2B2AE35u;
+	x ^= x >> 16;
 	return x;
 }
 [[nodiscard]] constexpr u32c hash2(u32c x, u32c y) {
