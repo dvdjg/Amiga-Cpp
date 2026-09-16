@@ -34,6 +34,11 @@ si un cambio en `linalg`, `interp`, `geometry`, `spline`, `noise`, `minifloat_ma
 | `noise` | `value_noise1/2`, `fbm1` (rango, determinismo, tileable) | MF |
 | `minifloat_math` | `sqrt`/`exp`/`exp2`/`log`/`log2`/`pow`/`hypot`, `sin`/`cos`/`tan`, `atan2`/`asin`/`acos`/`wrap_angle`/`angle_diff` | MF |
 | `minifloat_fixed` | `mul_fixed`/`mul_fix`/`mul_fix88`, `fixed_to_mf`/`mf_to_fixed`, `transform(Mat<MF>,Vec<fixed>)`, `transform_fix`, `transform_fix88`, `transform_point`, `project` | MF↔fixed |
+| `isqrt` | `isqrt` (raíz entera; el port subestima ≤1 en la ventana de prueba) | entero |
+| `fast_div` | `fast_div<N>::q/r/qr`, `runtime_div::qr`, `wrap_period`, `asr_floor`, `is_pow2`, `ilog2` | entero |
+| `retro/angles`+`sintab` | `sin_q12`/`cos_q12` (tabla 4.12 de 4096 pasos) e identidad pitagórica | q12 |
+| `light` | `hi16` y `light_ops<>::shade` (recorte del índice y `mulu.w`) | entero |
+| `mesh3d` | `face_signed_area`/`face_visible`/`face_z_sum`/`face_z_min` | entero |
 
 Lo que **no** define un escalar queda fuera por diseño, no por olvido: el fixed no tiene
 `sin`/`exp2`/`sqrt`, así que los easings trigonométricos, `smooth_damp`, `length`/
@@ -92,9 +97,9 @@ bash tests/l0_bare_metal/020_math_scalars/verify-math.sh
 lanza `run-demo.sh`, que espera `READY`. Salida esperada:
 
 ```
-[math] g_math_report v1: 50 casos, 276 comprobaciones
+[math] g_math_report v1: 55 casos, 866 comprobaciones
   (todos los casos dentro de tolerancia)
-[math] fallos: 0/50
+[math] fallos: 0/55
 [math] OK: todos los casos (MF/q12/q8/q0 + inter-tipo) dentro de tolerancia.
 ```
 

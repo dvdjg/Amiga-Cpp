@@ -43,9 +43,15 @@
 #include <eng/core/noise.hpp>
 #include <eng/core/scalar_ops.hpp>
 #include <eng/core/spline.hpp>
+#include <eng/core/fast_div.hpp>
+#include <eng/core/isqrt.hpp>
+#include <eng/core/light.hpp>
+#include <eng/core/mesh3d.hpp>
 #include <eng/core/minifloat_math.hpp>
+#include <eng/retro/angles.hpp>
 #include <eng/retro/fixed_q.hpp>
 #include <eng/retro/minifloat_fixed.hpp>
+#include <eng/retro/sintab.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -72,6 +78,7 @@ using eng::u32;
 using eng::math::MiniFloat16;
 namespace em = eng::math;
 namespace er = eng::retro;
+namespace m3 = eng::math3d;
 
 using MF = MiniFloat16;
 using q12 = er::q12;    // 4.12
@@ -171,6 +178,9 @@ template <typename S>
 void eq(S got, S want) {
 	rec(units(got - want));
 }
+
+/// Comparación de enteros (isqrt/fast_div/mesh3d): error en unidades de 1/4096.
+void eqi(s32 got, s32 want) { rec(mag(got - want)); }
 
 // --- Constructores sin float ----------------------------------------------
 //
@@ -725,6 +735,119 @@ void t_intertype() {
 }
 
 // ============================================================================
+//  utilidades enteras: isqrt y fast_div
+// ============================================================================
+
+void t_integer_utils() {
+	case_begin("isqrt", 3, 0);
+	// Salidas del port. `isqrt` es RÁPIDO y puede SUBESTIMAR (como el original): es exacto
+	// en muchas entradas pero devuelve `floor(sqrt(n)) - 1` en otras (9->2, 36->5, 49->6,
+	// 1000000->999). Los dorados fijan ese comportamiento; las invariantes lo acotan.
+	eqi(static_cast<s32>(eng::isqrt(0u)), 0);
+	eqi(static_cast<s32>(eng::isqrt(1u)), 1);
+	eqi(static_cast<s32>(eng::isqrt(2u)), 1);
+	eqi(static_cast<s32>(eng::isqrt(4u)), 2);
+	eqi(static_cast<s32>(eng::isqrt(9u)), 2);        // subestima 1
+	eqi(static_cast<s32>(eng::isqrt(16u)), 4);
+	eqi(static_cast<s32>(eng::isqrt(36u)), 5);       // subestima 1
+	eqi(static_cast<s32>(eng::isqrt(100u)), 10);
+	eqi(static_cast<s32>(eng::isqrt(255u)), 15);
+	eqi(static_cast<s32>(eng::isqrt(256u)), 16);
+	eqi(static_cast<s32>(eng::isqrt(4096u)), 64);
+	eqi(static_cast<s32>(eng::isqrt(1000000u)), 999); // subestima 1
+	// Invariantes sin float: nunca sobreestima y en [0,255] subestima como mucho 1.
+	for (eng::u32 n = 0; n <= 255u; ++n) {
+		const s32 s = static_cast<s32>(eng::isqrt(n));
+		see(s * s <= static_cast<s32>(n));
+		see((s + 2) * (s + 2) > static_cast<s32>(n));
+	}
+	case_end();
+
+	case_begin("fast_div/wrap_period", 3, 0);
+	eqi(static_cast<s32>(eng::fast_div<8>::q(100u)), 12);  // potencia de dos -> shift
+	eqi(static_cast<s32>(eng::fast_div<8>::r(100u)), 4);
+	eqi(static_cast<s32>(eng::fast_div<10>::q(100u)), 10); // no potencia de dos
+	eqi(static_cast<s32>(eng::fast_div<10>::r(100u)), 0);
+	eqi(static_cast<s32>(eng::fast_div<3>::q(100u)), 33);
+	eqi(static_cast<s32>(eng::fast_div<3>::r(100u)), 1);
+	eng::u32 qq = 0, rr = 0;
+	eng::fast_div<7>::qr(100u, qq, rr);
+	eqi(static_cast<s32>(qq), 14);
+	eqi(static_cast<s32>(rr), 2);
+	eng::runtime_div::qr(100u, 7u, qq, rr);
+	eqi(static_cast<s32>(qq), 14);
+	eqi(static_cast<s32>(rr), 2);
+	see(eng::is_pow2(8u));
+	see(!eng::is_pow2(10u));
+	eqi(static_cast<s32>(eng::ilog2(8u)), 3);
+	eqi(eng::wrap_period(-1, 8u), 7);   // potencia de dos: máscara, correcto con negativos
+	eqi(eng::wrap_period(-3, 10u), 7);  // no potencia de dos: módulo con signo
+	eqi(eng::wrap_period(15, 8u), 7);
+	eqi(eng::asr_floor(-5, 1u), -3);    // floor(-2.5) = -3
+	case_end();
+}
+
+// ============================================================================
+//  ángulos 4.12 (tabla de seno exacta) y sombreado de luz
+// ============================================================================
+
+void t_angles() {
+	case_begin("sin_q12/cos_q12 (tabla)", 1, 8);
+	eqi(er::sin_q12(0), 0);
+	eqi(er::sin_q12(er::kHalfPi), 4096); // sin(π/2) = 1.0
+	eqi(er::sin_q12(2048), 0);           // sin(π) = 0
+	eqi(er::sin_q12(3072), -4096);       // sin(3π/2) = -1.0
+	eqi(er::cos_q12(0), 4096);           // cos(0) = 1.0
+	eqi(er::cos_q12(er::kHalfPi), 0);
+	eqi(er::cos_q12(2048), -4096);       // cos(π) = -1.0
+	// Identidad pitagórica sobre toda la tabla (el redondeo del 4.12 deja ~ULPs).
+	for (eng::u16 a = 0; a < er::kAngleSteps; a = static_cast<eng::u16>(a + 137u)) {
+		const s32 s = er::sin_q12(a);
+		const s32 c = er::cos_q12(a);
+		eqi(((s * s + c * c) + 2048) >> 12, 4096); // 1.0 en 4.12
+	}
+	case_end();
+}
+
+/// Tabla de recíprocos de raíz cuadrada de prueba: 32768 en todas las entradas salvo la
+/// última (511), que es 65535, para comprobar el recorte del índice.
+struct FlatInvSqrt {
+	constexpr eng::u16 operator[](eng::u16 i) const { return i == 511u ? 65535u : 32768u; }
+};
+
+void t_light() {
+	case_begin("hi16/light_ops::shade", 3, 0);
+	eqi(em::hi16(0), 0);
+	eqi(em::hi16(0x00010000), 1);
+	eqi(em::hi16(0x7fff0000), 0x7fff);
+	// shade = (hi16(v) * inv_sqrt[clamp(hi16(e1_sq),511)]) >> 16
+	eqi(em::light_ops<>::shade(0x00040000, 0x00000000, FlatInvSqrt {}), 2); // (4*32768)>>16
+	eqi(em::light_ops<>::shade(0x00010000, 0x00000000, FlatInvSqrt {}), 0); // (1*32768)>>16
+	eqi(em::light_ops<>::shade(0x00040000, 0x02580000, FlatInvSqrt {}), 3); // clamp a 511
+	case_end();
+}
+
+// ============================================================================
+//  mesh3d: visibilidad de caras y claves de orden Z
+// ============================================================================
+
+void t_mesh3d() {
+	case_begin("mesh3d culling/orden", 3, 0);
+	const m3::Vec3 a {0, 0, 0};
+	const m3::Vec3 b {1, 0, 0};
+	const m3::Vec3 c {0, 1, 0};
+	const m3::Vec3 front {0, 0, 1};
+	const m3::Vec3 back {0, 0, -1};
+	eqi(m3::face_signed_area(a, b, c, front), 1);
+	eqi(m3::face_signed_area(a, b, c, back), -1);
+	see(m3::face_visible(a, b, c, front));
+	see(!m3::face_visible(a, b, c, back));
+	eqi(m3::face_z_sum(m3::Vec3 {0, 0, 3}, m3::Vec3 {0, 0, 2}, m3::Vec3 {0, 0, 1}), 6);
+	eqi(m3::face_z_min(m3::Vec3 {0, 0, 3}, m3::Vec3 {0, 0, -1}, m3::Vec3 {0, 0, 2}), -1);
+	case_end();
+}
+
+// ============================================================================
 //  Ejecuta todos los casos
 // ============================================================================
 
@@ -750,6 +873,10 @@ void run_all() {
 	t_noise_mf();
 	t_mf_math();
 	t_intertype();
+	t_integer_utils();
+	t_angles();
+	t_light();
+	t_mesh3d();
 }
 
 } // namespace

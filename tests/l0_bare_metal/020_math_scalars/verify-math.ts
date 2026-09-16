@@ -239,7 +239,7 @@ function decodeReport(buf: Buffer): { magic: number; version: number; count: num
   return { magic, version, count, failed, checks, cases };
 }
 
-const KIND_NAMES = ['MF  ', 'q12 ', 'q8  ', 'q0  ', 'mix '];
+const KIND_NAMES = ['MF  ', 'q12 ', 'q8  ', 'q0/int', 'mix '];
 
 async function main(): Promise<void> {
   const demo = argValue('--demo', 'tests\\l0_bare_metal\\020_math_scalars') as string;

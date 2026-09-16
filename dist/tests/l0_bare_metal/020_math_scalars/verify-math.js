@@ -206,7 +206,7 @@ function decodeReport(buf) {
     }
     return { magic, version, count, failed, checks, cases };
 }
-const KIND_NAMES = ['MF  ', 'q12 ', 'q8  ', 'q0  ', 'mix '];
+const KIND_NAMES = ['MF  ', 'q12 ', 'q8  ', 'q0/int', 'mix '];
 async function main() {
     const demo = argValue('--demo', 'tests\\l0_bare_metal\\020_math_scalars');
     const demoName = path.basename(demo);
