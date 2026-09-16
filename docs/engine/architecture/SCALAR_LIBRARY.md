@@ -86,8 +86,31 @@ constante (`if consteval` + `in_range`), que avisa si una llamada a una función
 dominio acotado se hace con una constante fuera de rango; con valores de runtime el
 algoritmo satura según su contrato. El dominio se documenta además en cada cabecera.
 
-Añadir un escalar nuevo = especializar `scalar_traits<S>` (álgebra), `numeric_traits<S>`
-(límites) y `scalar_sqrt<S>` solo si se usan `length`/`normalize`.
+### 3.b Puntos de extensión (vocabulario interno estable)
+
+Estos nombres son el **contrato estable** de la librería: los algoritmos de `core/` se
+escriben solo con ellos, y añadir un escalar = especializarlos.
+
+| Punto de extensión | Papel | Por defecto | `Fixed<s16,E>` |
+|---|---|---|---|
+| `scalar_traits<S>` | álgebra: `zero`/`one`/`from_int`/`norm_from` | cuerpo (`S{}` / `S{1}`) | `from_int` con el exponente; `norm_from` = `rescale` |
+| `numeric_traits<S>` | límites y flags (solo compilación) | — | rango `±(2^(bits-1)−1)·2^-E` |
+| `mul_norm(a,b)` | producto normalizado al escalar | `norm_from(a*b)` (identidad en float/MF) | `(a*b).rescale<E>().cast<R>()` |
+| `scalar_div<S>::op` / `div_norm(a,b)` | división **explícita** | `a/b` | `(a.v<<E)/b.v` con `divs.w`, saturado |
+| `scalar_sqrt<S>::op` | `sqrt` para `length`/`normalize` | ADL `sqrt(S)` | no hay (esas funciones no compilan) |
+
+`mul_norm`/`div_norm` son la bisagra: evitan que cada algoritmo tenga que saber si su
+escalar cambia de exponente al multiplicar (fixed) o no (float/MF), y permiten que
+`lerp`, `cross2`, `rotate2`, `vscale`, `vlerp`, `remap`… sean **el mismo código** para
+todos.
+
+El **producto escalar fusionado** (`dot` de `linalg.hpp`) es el caso modélico: acumula
+los productos **exactos** (en el exponente del producto) y normaliza **una vez** con
+`norm_from` al escalar destino. Funciona igual con `float`, `MiniFloat16` y `Fixed`
+(`dot(Vec<3,q12>, Vec<3,q0>) -> q0`), sin redondear producto a producto ni usar `sqrt`.
+
+Añadir un escalar nuevo = especializar `scalar_traits<S>` y `numeric_traits<S>`; los
+demás puntos solo si los algoritmos que se vayan a usar los necesitan.
 
 ## 4. Límites por algoritmo (lo que hay que leer)
 

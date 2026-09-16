@@ -68,6 +68,20 @@ if [ "$#" -eq 0 ]; then
 		echo "== math-diagnostics =="
 		CXX="$CXX" bash "$MATH_DIAG"
 	fi
+	# Codegen 68000: sin libcalls ni instrucciones de 68020 en el vocabulario de
+	# fixed/MiniFloat16. Se omite si no hay toolchain cruzado.
+	CODEGEN="$ROOT/tools/analyze/codegen-report.mjs"
+	CODEGEN_CXX="${AMIGA_BIN_PATH:-$HOME/.vscode/extensions/bartmanabyss.amiga-debug-1.8.1/bin/win32}/opt/bin/m68k-amiga-elf-g++.exe"
+	if [ -f "$CODEGEN" ] && command -v node >/dev/null 2>&1 && [ -f "$CODEGEN_CXX" ]; then
+		echo "== codegen (68000) =="
+		if ! node "$CODEGEN" >/dev/null; then
+			echo "codegen fallo: libcalls o instrucciones de 68020 en el target." >&2
+			exit 1
+		fi
+		echo "[codegen] OK"
+	else
+		echo "codegen: sin toolchain cruzado; se omite." >&2
+	fi
 fi
 
 # Selección de tests.

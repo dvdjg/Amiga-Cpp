@@ -17,12 +17,18 @@ const ASM = `${ROOT}/out/tmp/codegen-probe.s`;
 const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/linalg.hpp>
 #include <eng/core/light.hpp>
+#include <eng/core/interp.hpp>
+#include <eng/core/geometry.hpp>
+#include <eng/core/minifloat.hpp>
+#include <eng/core/minifloat_math.hpp>
 #include <eng/retro/fixed_q.hpp>
+#include <eng/retro/minifloat_fixed.hpp>
 #include <eng/platform/amiga/lib3d.hpp>
 using namespace eng::math;
 using namespace eng::retro;
 using eng::s16;
 using eng::s32;
+using eng::u16;
 struct HalfEvenPolicy { using Round = rounding::HalfEven; using Overflow = overflow::Wrap; };
 using q14 = Fixed<s16, 14>;
 eng::u16 g_tab[512] {}; // mutable: impide que el optimizador pliegue la tabla a constante
@@ -46,6 +52,31 @@ extern "C" s16 c_dotrow(const q12* row, s16 x, s16 y, s16 z) {
 	return dot(row, v).v;
 }
 extern "C" void c_proj(eng::object3d::Object3D* o, s16* bbox) { eng::lib3d::transform_vertices(*o, 128, 128, bbox); }
+
+// --- Vocabulario generico sobre fixed (mul_norm/div_norm): debe ser nativo ---
+extern "C" s16 c_fx_lerp(s16 a, s16 b, s16 t) { return lerp(q12{a}, q12{b}, q12{t}).v; }
+extern "C" s16 c_fx_inv_lerp(s16 a, s16 b, s16 v) { return inv_lerp(q12{a}, q12{b}, q12{v}).v; }
+extern "C" s16 c_fx_remap(s16 v, s16 lo, s16 hi, s16 olo, s16 ohi) { return remap(q12{v}, q12{lo}, q12{hi}, q12{olo}, q12{ohi}).v; }
+extern "C" s16 c_fx_cross2(s16 ax, s16 ay, s16 bx, s16 by) { return cross2(Vec<2,q12>{{q12{ax},q12{ay}}}, Vec<2,q12>{{q12{bx},q12{by}}}).v; }
+extern "C" void c_fx_rotate2(s16* o, s16 x, s16 y, s16 c, s16 s) { const Vec<2,q12> r = rotate2(Vec<2,q12>{{q12{x},q12{y}}}, q12{c}, q12{s}); o[0]=r.v[0].v; o[1]=r.v[1].v; }
+
+// --- MiniFloat16: aritmetica, matematicas y puente con fixed (sin libgcc) ---
+extern "C" u16 c_mf_mul(u16 a, u16 b) { return (MiniFloat16::from_raw(a) * MiniFloat16::from_raw(b)).raw; }
+extern "C" u16 c_mf_div(u16 a, u16 b) { return (MiniFloat16::from_raw(a) / MiniFloat16::from_raw(b)).raw; }
+extern "C" u16 c_mf_sqrt(u16 a) { return sqrt(MiniFloat16::from_raw(a)).raw; }
+extern "C" u16 c_mf_math(u16 a) {
+	const MiniFloat16 x = MiniFloat16::from_raw(a);
+	return (sin(x) + exp(x) + log(x) + sqrt(x)).raw;
+}
+extern "C" s16 c_mf_fixed_mul(u16 r, s16 v) { return mul_fix(MiniFloat16::from_raw(r), v); }
+extern "C" void c_mf_transform(const u16* mm, const s16* pp, s16* out) {
+	Mat<3, MiniFloat16> m {};
+	for (int i = 0; i < 3; ++i)
+		for (int j = 0; j < 3; ++j) m.m[i][j] = MiniFloat16::from_raw(mm[i * 3 + j]);
+	const Vec<3, fix> p = {pp[0], pp[1], pp[2]};
+	const Vec<3, fix> r = transform_fix(m, p);
+	for (int i = 0; i < 3; ++i) out[i] = r.v[i];
+}
 `;
 
 fs.mkdirSync(`${ROOT}/out/tmp`, { recursive: true });
@@ -96,4 +127,27 @@ if (hit.length) {
 if (called.length && !process.argv.includes('--report')) {
   console.log(`\n[codegen] nota: jsr a funciones propias (no libgcc): ${called.join(', ')}`);
 }
-console.log('[codegen] OK: sin libcalls (__mulsi3/__divsi3) en el camino caliente.');
+
+// --- Gate 68000: nada de instrucciones de 68020+ (p. ej. divsl.l/divul.l) ---
+// Compilamos con -mcpu=68000, pero si alguien cambia el target la division 32/32 se
+// convierte en `divsl.l` (68020) y crashea en un A500. Se detecta aqui.
+const BAD_68020 = [
+  ['divsl.l', /\bdivsl\.l\b/],
+  ['divul.l', /\bdivul\.l\b/],
+  ['divs.l', /\bdivs\.l\b/],
+  ['divu.l', /\bdivu\.l\b/],
+  ['muls.l', /\bmuls\.l\b/],
+  ['mulu.l', /\bmulu\.l\b/],
+];
+const bad = BAD_68020.filter(([, re]) => re.test(asmText)).map(([name]) => name);
+if (bad.length) {
+  console.error(`\n[codegen] FAIL: instrucciones de 68020 en el target 68000 -> ${bad.join(', ')}`);
+  process.exit(1);
+}
+// Evidencia positiva: la division de fixed (div_norm) debe ser `divs.w` nativa.
+if (!/\bdivs(\.w)?\b/.test(asmText)) {
+  console.error('\n[codegen] FAIL: no aparece divs.w (la division de fixed deberia ser nativa).');
+  process.exit(1);
+}
+
+console.log('[codegen] OK: sin libcalls (__mulsi3/__divsi3) y sin instrucciones 68020.');
