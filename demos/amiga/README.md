@@ -15,8 +15,8 @@ estructura: `docs/STRUCTURE.md` §4. Clasificación por concepto:
   - `053_sprite_multiplex`, `054_sprite_allocator` — multiplexado y reparto de sprites.
   - `055_copper_rainbow` — rainbow de Copper.
   - `056_input_aggregator` — joystick/ratón/teclado (poll + decode); tests HOST-004/006/007.
-- **C2P y fuego (`061-063`)**:
-  - `061_c2p_chunky_4bpl`, `062_fire_c2p`, `063_fire_cpp_vs_asm` — conversión chunky→planar y efecto fuego.
+- **C2P y fuego**:
+  - `061_c2p_chunky_4bpl` — conversión chunky→planar por Blitter. El efecto de fuego es `080_fire_rgb` (ver abajo); el benchmark aislado C++ vs asm vive en `playground/fire-benchmark`.
 - **Audio (`057-076`)** — serie incremental; diseño en `docs/engine/architecture/GAME_AUDIO.md` y `AUDIO_MIXER.md`, y pipeline de muestras en `tools/audio/prep-sample.ts`:
   - `057_audio_mixer` — plan de audio (SFX + música) en el engine.
   - `058_sfx_mixer` — Audio Mixer 3.7 nativo (efectos por AUD0).
