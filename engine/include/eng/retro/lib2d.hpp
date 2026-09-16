@@ -118,13 +118,13 @@ inline bool clip_line(const Rect& win, Vec2& a, Vec2& b) {
 	}
 
 	if (t0 > 0) {
-		a.x().v = static_cast<s16>(ax + ((static_cast<s32>(t0) * xd + kHalf88) >> kShift88));
-		a.y().v = static_cast<s16>(ay + ((static_cast<s32>(t0) * yd + kHalf88) >> kShift88));
+		a.x().v = static_cast<s16>(ax + ((eng::math::mul16(t0, xd) + kHalf88) >> kShift88));
+		a.y().v = static_cast<s16>(ay + ((eng::math::mul16(t0, yd) + kHalf88) >> kShift88));
 	}
 	if (t1 < kOne88) {
 		const s16 t1r = static_cast<s16>(kOne88 - t1);
-		b.x().v = static_cast<s16>(bx - ((static_cast<s32>(t1r) * xd + kHalf88) >> kShift88));
-		b.y().v = static_cast<s16>(by - ((static_cast<s32>(t1r) * yd + kHalf88) >> kShift88));
+		b.x().v = static_cast<s16>(bx - ((eng::math::mul16(t1r, xd) + kHalf88) >> kShift88));
+		b.y().v = static_cast<s16>(by - ((eng::math::mul16(t1r, yd) + kHalf88) >> kShift88));
 	}
 	return true;
 }
@@ -147,18 +147,18 @@ inline void clip_edge(const Rect& win, Vec2& o, const Vec2& s, const Vec2& e, u1
 	if (plane & PF_LEFT) {
 		const s16 n = static_cast<s16>(win.minX.v - ex);
 		o.x().v = win.minX.v;
-		o.y().v = static_cast<s16>(ey + eng::math::div16(static_cast<s32>(dy) * n, dx));
+		o.y().v = static_cast<s16>(ey + eng::math::div16(eng::math::mul16(dy, n), dx));
 	} else if (plane & PF_RIGHT) {
 		const s16 n = static_cast<s16>(win.maxX.v - ex);
 		o.x().v = win.maxX.v;
-		o.y().v = static_cast<s16>(ey + eng::math::div16(static_cast<s32>(dy) * n, dx));
+		o.y().v = static_cast<s16>(ey + eng::math::div16(eng::math::mul16(dy, n), dx));
 	} else if (plane & PF_TOP) {
 		const s16 n = static_cast<s16>(win.minY.v - ey);
-		o.x().v = static_cast<s16>(ex + eng::math::div16(static_cast<s32>(dx) * n, dy));
+		o.x().v = static_cast<s16>(ex + eng::math::div16(eng::math::mul16(dx, n), dy));
 		o.y().v = win.minY.v;
 	} else if (plane & PF_BOTTOM) {
 		const s16 n = static_cast<s16>(win.maxY.v - ey);
-		o.x().v = static_cast<s16>(ex + eng::math::div16(static_cast<s32>(dx) * n, dy));
+		o.x().v = static_cast<s16>(ex + eng::math::div16(eng::math::mul16(dx, n), dy));
 		o.y().v = win.maxY.v;
 	}
 }

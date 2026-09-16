@@ -108,12 +108,13 @@ int main() {
 		const PaletteView pv {bb.data(0)};
 		check(pv.valid() && pv.count() == 2, "PaletteView count");
 		check(pv.color(0) == 0x0F00 && pv.color(1) == 0x00F0, "PaletteView colores");
+		check(pv.words().size() == 2, "PaletteView words (dominio)");
 
 		const ChunkRef* sr = bb.find(ChunkType::Samples);
 		check(sr != nullptr, "writer find Samples");
 		const SampleView sv {bb.data(1)};
 		check(sv.size() == 3 && !sv.empty(), "SampleView size");
-		check(sv.bytes()[0] == 0x80 && sv.bytes()[2] == 0xC0, "SampleView datos");
+		check(sv.samples()[0] == 0x80 && sv.samples()[2] == 0xC0, "SampleView datos");
 	}
 
 	// Reader tipado + BitplanesView (cabecera + datos planares).
@@ -164,8 +165,7 @@ int main() {
 		const eng::u8 tiles[6] = {1, 2, 3, 4, 5, 6};
 		TilesView tv {eng::UafPayload{tiles}, 2};
 		check(tv.count() == 3, "TilesView count");
-		check(tv.tile(1).size() == 2 && tv.tile(1)[0] == 3 && tv.tile(1)[1] == 4, "TilesView tile 1");
-		check(tv.tile(3).empty(), "TilesView fuera de rango -> vacio");
+		check(tv.tile(1).size() == 2 && tv.tile(1)[0] == 3 && tv.tile(1)[1] == 4, "TilesView tile 1");		check(tv.tile(3).empty(), "TilesView fuera de rango -> vacio");
 		TilesView none {eng::UafPayload{tiles}, 0};
 		check(none.count() == 0, "TilesView tile_bytes=0 -> count 0");
 	}
@@ -178,6 +178,7 @@ int main() {
 		write_be16(sprites + 6, 0x9abc); write_be16(sprites + 8, 0xdef0);
 		const SpritesView sv {eng::UafPayload{sprites}};
 		check(sv.words_per_sprite() == 2 && sv.count() == 2, "SpritesView count");
+		check(sv.words().size() == 5, "SpritesView words (dominio)");
 		check(sv.word(0, 0) == 0x1234 && sv.word(1, 0) == 0x9abc && sv.word(1, 1) == 0xdef0, "SpritesView datos");
 		check(sv.word(2, 0) == 0 && sv.word(0, 5) == 0, "SpritesView fuera de rango -> 0");
 	}
@@ -189,6 +190,7 @@ int main() {
 		write_be16(cop + 4, 0xffff); write_be16(cop + 6, 0xfffe);
 		const CopperView cv {eng::UafPayload{cop}};
 		check(cv.count() == 4 && cv.word(0) == 0x2c81 && cv.word(3) == 0xfffe, "CopperView");
+		check(cv.words().size() == 4, "CopperView words (dominio)");
 		check(cv.word(4) == 0, "CopperView fuera de rango -> 0");
 	}
 

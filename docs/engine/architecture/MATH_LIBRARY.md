@@ -292,7 +292,7 @@ no llamen a libgcc (`__mulsi3`/`__divsi3`) ni usen instrucciones de 68020.
 | `core/mesh3d.hpp` | tipada | `Vec3 = Vec<3, Fixed<s16,0>>` (LONGITUD); el producto mixto usa `arith<s16>` (`muls.w`) y `mul32x16`, sin `__mulsi3` |
 | `platform/amiga/gfx3d.hpp` | tipada | `Mat3`/`Affine3`/`Vec3` tipados; `scale` recibe `q12` |
 | `graphics/mesh_renderer.hpp` | tipada | opera sobre `Vec3` tipado; `focal` sigue en 4.12 crudo (convención) |
-| `assets/uaf.hpp` (`MeshAssetView`) | tipada | `vertex()` devuelve `Vec3`; el contenedor es serialización big-endian |
+| `assets/uaf.hpp` | tipada | las sub-vistas exponen vistas de dominio (`AudioSample`, `PlaneViewBytes`, `IndexedTiles`, `PaletteWords`, `SpriteWords`, `CopperWords`, `MeshAssetView`→`Vec3`); el contenedor/lectura sigue en big-endian portable |
 | `retro/lib2d.hpp` | tipada | `Vec2`/`Mat2x2`/`Rect` tipados y `translate`/`scale` toman `q0`/`q12`; el recorte (`clip_*`, Liang-Barsky/Sutherland-Hodgman) es aritmética de enteros de píxel por diseño |
 | `scene/route_camera.hpp` | tipada | posición `Vec<2, Coord>` y offsets de la circunferencia generados con `eng::SineTable<4096,64>` (sin tabla a mano) |
 | `graphics/effects/rotozoom.hpp` | cruda (motivo) | 16.16 en `s32`: `mul_repr<s32>` ensancha a 64 bits → `__muldi3` (no enlaza en 68000); el asm comparte el layout `RotozoomSteps` |

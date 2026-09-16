@@ -24,8 +24,9 @@ namespace eng::graphics {
 inline void project_perspective(const math3d::Vec3& v, s16 focal, s16 cx, s16 cy,
 				s16& sx, s16& sy) {
 	const s16 z = v.v[2].v != 0 ? v.v[2].v : 1;
-	sx = static_cast<s16>(eng::math::div16(static_cast<s32>(v.v[0].v) * focal, z) + cx);
-	sy = static_cast<s16>(eng::math::div16(static_cast<s32>(v.v[1].v) * focal, z) + cy);
+	// `mul16` (16×16→32 nativo): `(s32)coord * focal` acabaría en `__mulsi3` en 68000.
+	sx = static_cast<s16>(eng::math::div16(eng::math::mul16(v.v[0].v, focal), z) + cx);
+	sy = static_cast<s16>(eng::math::div16(eng::math::mul16(v.v[1].v, focal), z) + cy);
 }
 
 /// Rasteriza las caras (triángulos) de `mesh` sobre `surface`, con el color que

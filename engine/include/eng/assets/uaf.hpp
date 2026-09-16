@@ -217,7 +217,12 @@ public:
 	constexpr bool valid() const { return (m_bytes.size() & 1u) == 0u; }
 	/// Color `i` en RGB444 (big-endian; válido en host y m68k).
 	constexpr u16 color(u32 i) const { return read_be16(m_bytes.data() + i * 2u); }
-	constexpr Span<const u8> bytes() const { return m_bytes; }
+	/// Vista de dominio de las palabras de la paleta (`PaletteWords`, RGB444). Está en
+	/// orden **nativo** (m68k); en host los bytes van en big-endian, así que para leer un
+	/// color de forma portable usa `color(i)`.
+	eng::PaletteWords words() const {
+		return eng::PaletteWords {reinterpret_cast<const u16*>(m_bytes.data()), count()};
+	}
 
 private:
 	Span<const u8> m_bytes {};
@@ -227,13 +232,15 @@ private:
 class SampleView {
 public:
 	constexpr SampleView() = default;
-	explicit constexpr SampleView(eng::UafPayload bytes) : m_bytes(bytes.raw()) {}
-	constexpr u32 size() const { return static_cast<u32>(m_bytes.size()); }
-	constexpr bool empty() const { return m_bytes.size() == 0u; }
-	constexpr Span<const u8> bytes() const { return m_bytes; }
+	explicit constexpr SampleView(eng::UafPayload bytes)
+		: m_samples(bytes.data(), bytes.size()) {}
+	constexpr u32 size() const { return static_cast<u32>(m_samples.size()); }
+	constexpr bool empty() const { return m_samples.empty(); }
+	/// Muestras 8-bit con signo como vista de dominio de audio (`AudioSample`).
+	constexpr eng::AudioSample samples() const { return m_samples; }
 
 private:
-	Span<const u8> m_bytes {};
+	eng::AudioSample m_samples {};
 };
 
 /// Vista tipada de un chunk de **bitplanes**: cabecera de geometría + datos
@@ -256,7 +263,7 @@ public:
 		r.read_u8(); // flags
 		r.read_u8(); // reservado
 		const u32 plane_bytes = static_cast<u32>(m_row_bytes) * m_height * m_planes;
-		m_data = r.take(plane_bytes);
+		m_data = eng::PlaneViewBytes::from(r.take(plane_bytes));
 		return r.ok();
 	}
 
@@ -265,7 +272,8 @@ public:
 	constexpr u16 row_bytes() const { return m_row_bytes; }
 	constexpr u8 planes() const { return m_planes; }
 	constexpr u8 layout() const { return m_layout; }
-	constexpr Span<const u8> data() const { return m_data; }
+	/// Datos planares como vista de dominio de plano (`PlaneViewBytes`).
+	constexpr eng::PlaneViewBytes data() const { return m_data; }
 
 private:
 	u16 m_width = 0;
@@ -273,7 +281,7 @@ private:
 	u16 m_row_bytes = 0;
 	u8 m_planes = 0;
 	u8 m_layout = 0;
-	Span<const u8> m_data {};
+	eng::PlaneViewBytes m_data {};
 };
 
 /// Vista tipada de un chunk de **textos**: `count` cadenas C separadas por NUL
@@ -324,20 +332,22 @@ private:
 class TilesView {
 public:
 	constexpr TilesView() = default;
-	constexpr TilesView(eng::UafPayload bytes, u16 tile_bytes) : m_bytes(bytes.raw()), m_tile(tile_bytes) {}
+	constexpr TilesView(eng::UafPayload bytes, u16 tile_bytes)
+		: m_bytes(bytes.data(), bytes.size()), m_tile(tile_bytes) {}
 
 	constexpr u32 count() const {
 		return m_tile == 0u ? 0u : static_cast<u32>(m_bytes.size()) / m_tile;
 	}
-	Span<const u8> tile(u32 i) const {
+	/// Tile `i` como vista de dominio de tiles indexados (`IndexedTiles`).
+	eng::IndexedTiles tile(u32 i) const {
 		if (m_tile == 0u || i >= count()) {
 			return {};
 		}
-		return { m_bytes.data() + i * m_tile, m_tile };
+		return eng::IndexedTiles {m_bytes.data() + i * m_tile, m_tile};
 	}
 
 private:
-	Span<const u8> m_bytes {};
+	eng::IndexedTiles m_bytes {};
 	u16 m_tile = 0;
 };
 
@@ -366,6 +376,12 @@ public:
 		const u32 off = 2u + (i * words_per_sprite() + w) * 2u;
 		return read_be16(m_bytes.data() + off);
 	}
+	/// Palabras del chunk como vista de dominio de sprite (`SpriteWords`); la primera
+	/// palabra es `words_per_sprite`. Está en orden **nativo** (m68k); para lectura
+	/// portable usa `word(i, w)`.
+	eng::SpriteWords words() const {
+		return eng::SpriteWords {reinterpret_cast<const u16*>(m_bytes.data()), m_bytes.size() / 2u};
+	}
 
 private:
 	Span<const u8> m_bytes {};
@@ -381,6 +397,12 @@ public:
 	constexpr u32 count() const { return static_cast<u32>(m_bytes.size()) / 2u; }
 	u16 word(u32 i) const {
 		return i < count() ? read_be16(m_bytes.data() + i * 2u) : 0u;
+	}
+	/// Palabras del chunk como vista de dominio de Copper (`CopperWords`: pares
+	/// WAIT/MOVE). Está en orden **nativo** (m68k), listo para el backend; para lectura
+	/// portable usa `word(i)`.
+	eng::CopperWords words() const {
+		return eng::CopperWords {reinterpret_cast<const u16*>(m_bytes.data()), count()};
 	}
 
 private:
