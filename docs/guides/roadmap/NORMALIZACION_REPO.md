@@ -83,9 +83,9 @@ Gate: demo `122` + gate visual/secuencia; host `038/039`.
 
 | # | Tarea | Fichero | Estado |
 |---|---|---|---|
-| 4.1 | Definir `CopperPlan` (un plan por buffer de display: recolecta `CopperIntent`/`SpriteIntent`, ordena por scanline, `Patch`/`Reemit`, handles, presupuesto) | `engine/include/eng/graphics/copper/plan.hpp` | pendiente |
+| 4.1 | Definir `CopperPlan` (un plan por buffer de display: recolecta `CopperIntent`/`SpriteIntent`, ordena por scanline, `Patch`/`Reemit`, handles, presupuesto). **API concreta ya especificada** en `docs/engine/architecture/DISPLAY_COMPOSITION.md` §5 | `engine/include/eng/graphics/copper/plan.hpp` | **diseñado, sin implementar** |
 | 4.2 | Integrarlo con `MultiBuffered` (el plan se rellena en el buffer trasero y se publica en `commit`) | `engine/include/eng/graphics/drivers/multi_buffered.hpp` | pendiente |
-| 4.3 | Portar como **tracks** los casos que hoy emiten copper a mano: sky, splits, paleta por zona, scroll, HUD, sprites; empezar por `055_copper_rainbow` y una zona de paleta del XLimited | demos `055`, campo XLimited | pendiente |
+| 4.3 | Portar como **tracks** los casos que hoy emiten copper a mano: sky, splits, paleta por zona, scroll, HUD, sprites; empezar por `055_copper_rainbow` (ya usa `CopperIntent`; hoy reemite la lista entera en un bloque único, sin doble buffer de copperlist) y una zona de paleta del XLimited | demos `055`, campo XLimited | pendiente |
 | 4.4 | Test host del `CopperPlan` (orden por línea, patch vs reemisión, handles válidos, presupuesto) | `tests/host/<n>_copper_plan` | pendiente |
 
 Gate: demos de copper idénticas + test host + informe de presupuesto sin spill.

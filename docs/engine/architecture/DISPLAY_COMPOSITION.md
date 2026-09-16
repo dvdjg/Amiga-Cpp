@@ -107,23 +107,52 @@ El vocabulario portable **ya existe** (`graphics/raster_intent.hpp`: `VisualKind
   HUD      --/            5. commit: publica con el swap de COP1LC   ->  install()
 ```
 
-Contrato propuesto:
+Contrato propuesto (API concreta; primer consumidor previsto: `055_copper_rainbow`, que
+hoy emite la lista entera cada frame en un único bloque):
 
-- **Un `CopperPlan` por buffer de display** (encaja con `MultiBuffered`): el plan se rellena
-  en el buffer trasero y se publica al hacer `commit`. Sin doble buffer de copperlist no se
-  puede parchear una lista viva con seguridad.
-- **Los efectos no hablan de registros**: aportan `CopperIntent`/`SpriteIntent` (vocabulario
-  portable); el plan los traduce a registros. Una heurística de calidad en PC puede consumir
-  las mismas intenciones.
-- **Política de actualización explícita por track**: `Reemit` (la lista cambia de forma) o
-  `Patch` (solo words de valor, con handles). El plan expone cuántas words se parchean y el
-  coste estimado; hoy esa decisión está duplicada y, en el caso XLimited, **ni siquiera se
-  cumple** (el comentario promete parchear 13 words y `compose()` reemite la lista entera).
-- **Orden por scanline y presupuesto**: los tracks se fusionan por línea de raster; el plan
-  reporta spill (`timeline_over_budget_lines`) y zonas de paleta pesadas visibles antes de
-  publicar, no después.
-- **Un solo dueño de la lista activa**: mientras el Copper ejecuta la lista A, la CPU
-  escribe la B; el plan es el único que llama a `install_copper_list`.
+```cpp
+namespace eng::copper {
+
+/// Plan de copper de una escena: recolecta las intenciones de las capas/efectos
+/// ("tracks"), las ORDENA por scanline y las materializa en la copperlist del buffer
+/// TRASERO de un `DoubleBuffer`, que se publica con el swap de COP1LC.
+///
+/// Es el único dueño de la lista activa: los efectos no emiten copper, aportan
+/// `graphics::CopperIntent` (vocabulario portable de `raster_intent.hpp`).
+class Plan {
+public:
+    static constexpr u8 max_intents = 64;
+
+    bool begin(eng::MemorySystem& memory, const PlanConfig& cfg); // reserva el DoubleBuffer
+
+    /// Parte estática (display, módulos, paleta base): se emite UNA vez por frame en el
+    /// bloque trasero. `emit` recibe un `Scheduler` ya situado en el trasero, de modo que
+    /// el llamador no elige bloque ni toca COP1LC.
+    template <class EmitFn> void emit_static(EmitFn emit);
+
+    void add(const graphics::CopperIntent& it);          // intención suelta
+    void add(const graphics::CopperIntent* its, u8 n);   // lote de una capa/efecto
+
+    /// Materializa: ordena por `top`, emite las intenciones sobre lo estático, voltea el
+    /// DoubleBuffer y (opcionalmente) publica. Devuelve false si no cupo o hubo overflow.
+    bool commit();
+
+    template <class Backend> void takeover(Backend&) const; // una vez
+    template <class Backend> void install(Backend&) const;  // swap de COP1LC
+
+    constexpr u16 words() const;                          // tamaño de la lista emitida
+    constexpr const ScheduleReport& report() const;       // presupuesto por línea
+};
+
+} // namespace eng::copper
+```
+
+Qué añade sobre lo que ya hay: **el orden por scanline deja de ser una obligación del
+llamador** (`emit_copper_intents` exige intenciones en orden ascendente de línea: hoy es un
+invariante implícito en cada demo), la emisión vive en el bloque trasero (con COP1LC swap,
+sin tocar la lista activa) y el presupuesto (`ScheduleReport`, `timeline_over_budget_lines`)
+se consulta antes de publicar. La política `Patch` vs `Reemit` se declara por track: los
+registros con handle (`Scheduler::move_at`) se parchean; la estructura se reemite.
 
 ## 6. Reglas para desarrollos nuevos
 
