@@ -340,6 +340,18 @@ public:
 	bool blitter_fill_polygon(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes,
 				  const s16* xs, const s16* ys, u8 n, u8 color, eng::MaskBuffer mask);
 
+	/// Igual que `blitter_fill_polygon` pero con la geometria del destino EXPLICITA,
+	/// para servir tanto a planos CONTIGUOS (base + `plane_stride` entre planos,
+	/// `row_stride` = `row_bytes`) como INTERLEAVED (una fila de cada plano seguida:
+	/// `plane_stride` = `row_bytes`, `row_stride` = `planes*row_bytes`). `plane_base`
+	/// es el inicio del plano 0 (fila 0) del bitmap; `mask` es un plano 1 bit con
+	/// stride `row_bytes`. `bitmap_w`/`bitmap_h` acotan el recorte al bitmap real
+	/// (el playfield puede ser mas bajo que 256). Es la ruta que usa el engine para
+	/// el relleno por Blitter de un `CanvasPlayfield` interleaved (capa FG en DPF).
+	bool blitter_fill_polygon_strided(eng::u8* plane_base, u8 planes, u32 plane_stride,
+					  u32 row_stride, u16 row_bytes, u16 bitmap_w, u16 bitmap_h,
+					  const s16* xs, const s16* ys, u8 n, u8 color, eng::MaskBuffer mask);
+
 	/// Borra (D=0) una region de `w`x`h` en `planes` planos contiguos con separacion
 	/// `plane_bytes`, alineando a palabra. Equivale a `BlitterClear` del demoscene.
 	bool blitter_clear(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w, u16 h,

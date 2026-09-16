@@ -244,20 +244,30 @@ void blit_fill_region(eng::u8* plane, eng::u16 row_bytes, eng::u16 wx0, eng::s16
 
 /// Cookie-cut de la mascara 1 bit a un plano de color: `set` -> D = A | D (pone a
 /// 1 donde la mascara), `!set` -> D = ~A & D (borra donde la mascara).
-void blit_mask_to_plane(eng::u8* dst, eng::u16 row_bytes, const eng::u8* mask,
-			eng::u16 wx0, eng::s16 y, eng::u16 words, eng::u16 h, bool set) {
-	eng::u8* d = dst + row_offset(y, row_bytes) + (wx0 >> 3);
-	const eng::u8* m = mask + row_offset(y, row_bytes) + (wx0 >> 3);
-	const eng::u16 mod = static_cast<eng::u16>(row_bytes - words * 2u);
+///
+/// `dst` es el inicio del PLANO (fila 0); `dst_row_stride` es el avance de una
+/// fila DENTRO del plano. Con planos CONTIGUOS (un plano tras otro) vale
+/// `row_bytes`; con planos INTERLEAVED (una fila de cada plano seguida) vale
+/// `planes*row_bytes`, porque la fila siguiente del mismo plano está tras todos
+/// los planos de la fila. `mask` es un plano 1 bit con stride `mask_row_bytes`.
+void blit_mask_to_plane(eng::u8* dst, eng::u32 dst_row_stride, const eng::u8* mask,
+			eng::u16 mask_row_bytes, eng::u16 wx0, eng::s16 y, eng::u16 words,
+			eng::u16 h, bool set) {
+	const eng::u8* m = mask + row_offset(y, mask_row_bytes) + (wx0 >> 3);
+	// El avance de fila del plano cabe en 16 bits (contiguo = row_bytes; interleaved
+	// = planes*row_bytes <= 240 en 6 planos): `row_offset` usa muls.w, no __mulsi3.
+	eng::u8* d = dst + row_offset(y, static_cast<eng::u16>(dst_row_stride)) + (wx0 >> 3);
+	const eng::u16 amod = static_cast<eng::u16>(mask_row_bytes - words * 2u);
+	const eng::u16 dmod = static_cast<eng::u16>(dst_row_stride - words * 2u);
 	wait_blitter();
 	custom_base[custom_bltcon0_offset] = static_cast<eng::u16>(
 		blt_use_a | blt_use_c | blt_use_d | (set ? blt_minterm_a_or_c : blt_minterm_not_a_and_c));
 	custom_base[custom_bltcon1_offset] = 0;
 	custom_base[custom_bltafwm_offset] = 0xffff;
 	custom_base[custom_bltalwm_offset] = 0xffff;
-	custom_base[custom_bltamod_offset] = mod;
-	custom_base[custom_bltcmod_offset] = mod;
-	custom_base[custom_bltdmod_offset] = mod;
+	custom_base[custom_bltamod_offset] = amod;
+	custom_base[custom_bltcmod_offset] = dmod;
+	custom_base[custom_bltdmod_offset] = dmod;
 	write_custom_pointer(custom_bltapt_offset, m);
 	write_custom_pointer(custom_bltcpt_offset, d);
 	write_custom_pointer(custom_bltdpt_offset, d);
@@ -745,7 +755,7 @@ bool MinimalBackend::fill_triangles_blitter(const FlatTriangle* tris, u32 count,
 		blit_fill_region(mask.data(), row_bytes, wx0, ymin, words, h);
 		for (u8 p = 0; p < planes; ++p) {
 			blit_mask_to_plane(dst.data() + static_cast<u32>(p) * plane_bytes, row_bytes, mask.data(),
-					   wx0, ymin, words, h, ((t.color >> p) & 1u) != 0u);
+					   row_bytes, wx0, ymin, words, h, ((t.color >> p) & 1u) != 0u);
 		}
 	}
 	return wait_blitter();
@@ -753,8 +763,20 @@ bool MinimalBackend::fill_triangles_blitter(const FlatTriangle* tris, u32 count,
 
 bool MinimalBackend::blitter_fill_polygon(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes,
 					  const s16* xs, const s16* ys, u8 n, u8 color, eng::MaskBuffer mask) {
-	if (dst.data() == nullptr || mask.data() == nullptr || xs == nullptr || ys == nullptr ||
-	    n < 3u || planes == 0u) {
+	if (dst.data() == nullptr) {
+		return false;
+	}
+	// Planos CONTIGUOS: la base del plano p está a `plane_bytes` del anterior y
+	// cada fila avanza `row_bytes`. Se delega en la ruta con strides explícitos.
+	return blitter_fill_polygon_strided(dst.data(), planes, plane_bytes, row_bytes, row_bytes,
+					    320, 256, xs, ys, n, color, mask);
+}
+
+bool MinimalBackend::blitter_fill_polygon_strided(eng::u8* plane_base, u8 planes, u32 plane_stride,
+						  u32 row_stride, u16 row_bytes, u16 bitmap_w, u16 bitmap_h,
+						  const s16* xs, const s16* ys, u8 n, u8 color, eng::MaskBuffer mask) {
+	if (plane_base == nullptr || mask.data() == nullptr || xs == nullptr || ys == nullptr ||
+	    n < 3u || planes == 0u || bitmap_w == 0u || bitmap_h == 0u) {
 		return false;
 	}
 	s16 xmin = xs[0], xmax = xs[0], ymin = ys[0], ymax = ys[0];
@@ -764,13 +786,15 @@ bool MinimalBackend::blitter_fill_polygon(eng::PlaneBytes dst, u8 planes, u16 ro
 		if (ys[i] < ymin) ymin = ys[i];
 		if (ys[i] > ymax) ymax = ys[i];
 	}
-	if (xmax < 0 || ymax < 0 || xmin > 319 || ymin > 255) {
+	const s16 max_x = static_cast<s16>(bitmap_w - 1u);
+	const s16 max_y = static_cast<s16>(bitmap_h - 1u);
+	if (xmax < 0 || ymax < 0 || xmin > max_x || ymin > max_y) {
 		return true;
 	}
 	if (xmin < 0) xmin = 0;
 	if (ymin < 0) ymin = 0;
-	if (xmax > 319) xmax = 319;
-	if (ymax > 255) ymax = 255;
+	if (xmax > max_x) xmax = max_x;
+	if (ymax > max_y) ymax = max_y;
 	const u16 wx0 = static_cast<u16>(xmin) & 0xfff0u;
 	const u16 wx1 = static_cast<u16>(xmax) | 0x000fu;
 	const u16 words = static_cast<u16>((static_cast<u16>(wx1 - wx0) + 16u) >> 4);
@@ -784,8 +808,9 @@ bool MinimalBackend::blitter_fill_polygon(eng::PlaneBytes dst, u8 planes, u16 ro
 	}
 	blit_fill_region(mask.data(), row_bytes, wx0, ymin, words, h);
 	for (u8 p = 0u; p < planes; ++p) {
-		blit_mask_to_plane(dst.data() + static_cast<u32>(p) * plane_bytes, row_bytes, mask.data(),
-				   wx0, ymin, words, h, ((color >> p) & 1u) != 0u);
+		eng::u8* d = plane_base + static_cast<u32>(p) * plane_stride;
+		blit_mask_to_plane(d, row_stride, mask.data(), row_bytes, wx0, ymin, words, h,
+				   ((color >> p) & 1u) != 0u);
 	}
 	return wait_blitter();
 }
@@ -813,7 +838,7 @@ bool MinimalBackend::blit_fill_from_mask(eng::MaskBytes mask, eng::PlaneBytes ds
 	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
 	for (u8 p = 0; p < planes; ++p) {
 		blit_mask_to_plane(dst.data() + static_cast<u32>(p) * plane_bytes, row_bytes, mask.data(),
-				   wx0, y0, words, hh, ((color >> p) & 1u) != 0u);
+				   row_bytes, wx0, y0, words, hh, ((color >> p) & 1u) != 0u);
 	}
 	return wait_blitter();
 }
