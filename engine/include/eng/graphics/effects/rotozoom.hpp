@@ -21,6 +21,13 @@
 /// Es una utilidad de **efecto puro** (matemáticas y memoria, sin hardware): se valida
 /// en host (`tests/host/022_rotozoom`). El `double` vive solo en la generación
 /// compile-time de la tabla; el bucle emitido es entero.
+///
+/// **Por qué el punto fijo va crudo (`s32` 16.16).** Es deliberado: tipar las
+/// coordenadas como `Fixed<s32,16>` ensancharía cada producto a 64 bits
+/// (`mul_repr<s32>`) y en 68000 eso es `__muldi3` (rutina de libgcc que no enlaza). El
+/// bucle incremental solo necesita sumas y desplazamientos sobre `s32`, así que el
+/// campo se queda como entero de 16.16 y el layout lo comparte el ASM
+/// `support/rotozoom_loop.s`.
 
 #include <eng/core/domains.hpp>
 #include <eng/core/sinetable.hpp>

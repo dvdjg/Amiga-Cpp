@@ -15,6 +15,13 @@
 ///   new_object3d(obj, pilka);          // enlaza el mesh (sin alloc dinámica)
 ///   obj.rotate.x = obj.rotate.y = obj.rotate.z = frame * 8;
 ///   update_object_transformation(obj);
+///
+/// **Por qué los structs siguen en `s16`.** `Point3D`/`Node3D`/`Edge`/`Face` son el
+/// layout empaquetado del `objdat` (los grupos se indexan por offset de byte), así que
+/// retiparlos a `Fixed` cambiaría el binario del mesh generado y rompería los macros del
+/// original. La capa de cálculo que los consume **sí** es tipada: `math3d::Affine3`,
+/// `Vec<3,Coord>` (`P3`), `load_rotate`/`reverse_rotate` y `scale(q12)`. La crudeza vive
+/// solo en el almacenamiento, no en la aritmética.
 
 #include <eng/core/word.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
