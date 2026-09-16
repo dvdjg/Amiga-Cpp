@@ -17,10 +17,11 @@
 // publica en `g_eng_run_status.detail` (0 = idénticos). El display usa **doble buffer**
 // (dos instancias del driver + swap de copperlist tras VBlank) para no desgarrar.
 //
-// ESTADO DE RENDIMIENTO (pendiente, ver README): el bucle C++ del rotozoom cuesta
-// ~152 ciclos/píxel en 68000 (desplazamientos largos de 32 bits), así que la animación
-// va a ~2 fps. Falta portarlo a asm (`support/rotozoom_loop.s`) siguiendo la regla de
-// port de rutinas calientes a asm de AGENTS.md; hasta entonces la demo no es fluida.
+// ESTADO DE RENDIMIENTO (pendiente, ver README): el bucle del rotozoom corre en asm
+// (`support/rotozoom_loop.s`, K_061_ASM=1 por defecto; ~117 ciclos/pixel, frente a
+// ~152 del C++) pero la animacion sigue a ~2,5 fps a pantalla completa. Falta decidir
+// como se amplia el efecto sin pagar 20.480 pixeles por frame (pixeles gordos, menos
+// area, o exprimir mas el bucle); hasta entonces la demo no es fluida.
 //
 // Build/run (Windows nativo):
 //   bash tools/build/build-demo.sh demos/amiga/061_c2p_chunky_4bpl --clean
@@ -41,6 +42,13 @@
 
 #include "support/gcc8_c_support.h"
 
+// Ruta de generacion del rotozoom: 0 = C++ canonica (camino seguro), 1 = bucle asm
+// `support/rotozoom_loop.s`. Se puede invertir sin tocar el codigo con
+// `EXTRA_DEFINES="-DK_061_ASM=1"`.
+#ifndef K_061_ASM
+#define K_061_ASM 1
+#endif
+
 struct ExecBase* SysBase = nullptr;
 
 extern "C" {
@@ -51,6 +59,12 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 	0,
 	0,
 };
+
+/// Argumentos por memoria del bucle asm del rotozoom (ver `support/rotozoom_loop.s`).
+eng::u32 g_rotozoom_args[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+/// Bucle asm del rotozoom (specializado a textura 64x64).
+void rotozoom_loop();
 
 /// c2p de Kalms/Scout (1999) portado a GAS en `support/c2p_1x1_4.s` (asm 68000).
 /// Usa la ABI del ORIGINAL (`include/c2p_1x1_4.h`): d0.w chunkyx, d1.w chunkyy,
@@ -81,7 +95,7 @@ constexpr eng::u16 kChunkyW = 320;
 constexpr eng::u16 kChunkyH = 64;
 constexpr eng::u8 kRepeat = 4;
 constexpr eng::u8 kPlanes = 4;
-constexpr eng::u16 kBytesPerRow = 40;
+constexpr eng::u16 kBytesPerRow = kChunkyW / 8;
 constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * kChunkyH; // 2560
 
 // Paleta ciclica de 16 colores (negro -> azul -> cian -> verde -> amarillo -> rojo ->
@@ -121,6 +135,29 @@ drivers::HamSceneConfig make_config() {
 	return cfg;
 }
 
+/// Genera el rotozoom en `dst` con la ruta elegida. Ambas parten de los MISMOS
+/// `RotozoomSteps`, así que deben escribir el mismo buffer byte a byte.
+void render_rotozoom(const eng::graphics::Rotozoom& rot, eng::ChunkyBuffer dst, eng::u16 w,
+		     eng::u16 h) {
+#if K_061_ASM
+	const eng::graphics::RotozoomSteps st = eng::graphics::rotozoom_steps<64, 64>(rot, w, h);
+	g_rotozoom_args[0] = reinterpret_cast<eng::u32>(dst.data());
+	g_rotozoom_args[1] = reinterpret_cast<eng::u32>(kTexture.data());
+	g_rotozoom_args[2] = w;
+	g_rotozoom_args[3] = h;
+	g_rotozoom_args[4] = static_cast<eng::u32>(st.u);
+	g_rotozoom_args[5] = static_cast<eng::u32>(st.v);
+	g_rotozoom_args[6] = static_cast<eng::u32>(st.du);
+	g_rotozoom_args[7] = static_cast<eng::u32>(st.dv);
+	g_rotozoom_args[8] = static_cast<eng::u32>(st.advance_u);
+	g_rotozoom_args[9] = static_cast<eng::u32>(st.advance_v);
+	rotozoom_loop();
+#else
+	eng::graphics::rotozoom_into<64, 64>(eng::IndexedTexture {kTexture.data(), kTexture.size()},
+					    rot, dst, w, h);
+#endif
+}
+
 struct RotozoomDemo {
 	bool init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
@@ -158,8 +195,21 @@ struct RotozoomDemo {
 			static_cast<eng::s32>(kChunkyW / 2) << 16,
 			static_cast<eng::s32>(kChunkyH / 2) << 16,
 		};
-		eng::graphics::rotozoom_into<64, 64>(texture(), id, m_chunky[0].view,
-						    kChunkyW, kChunkyH);
+		render_rotozoom(id, m_chunky[0].view, kChunkyW, kChunkyH);
+#if K_061_ASM
+		// La ruta asm debe ser byte-identica a la C++ canonica sobre el mismo estado.
+		eng::graphics::rotozoom_into<64, 64>(texture(), id, m_chunky[1].view, kChunkyW, kChunkyH);
+		{
+			const eng::u8* a = m_chunky[0].view.data();
+			const eng::u8* b = m_chunky[1].view.data();
+			for (eng::u32 i = 0; i < static_cast<eng::u32>(kChunkyW) * kChunkyH; ++i) {
+				if (a[i] != b[i]) {
+					eng::debug::mark_failed(g_eng_run_status, 0x00006105u);
+					return false;
+				}
+			}
+		}
+#endif
 		const eng::ChunkyBuffer src = m_chunky[0].view;
 		eng::u8* planes = m_scene[0].bitplanes().data();
 		c2p_1x1_4_asm(kChunkyW, kChunkyH, m_scene[0].plane_bytes(), src.data(), planes);
@@ -194,8 +244,7 @@ struct RotozoomDemo {
 		m_rot.offset_y += 7168;
 
 		const eng::u8 buf = m_active;
-		eng::graphics::rotozoom_into<64, 64>(texture(), m_rot, m_chunky[buf].view,
-						    kChunkyW, kChunkyH);
+		render_rotozoom(m_rot, m_chunky[buf].view, kChunkyW, kChunkyH);
 		c2p_1x1_4_asm(kChunkyW, kChunkyH, m_scene[buf].plane_bytes(),
 			      m_chunky[buf].view.data(),
 			      m_scene[buf].bitplanes().data());

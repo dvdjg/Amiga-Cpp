@@ -59,26 +59,41 @@ permutación de planos sigue dando índices/grises válidos): una escritura
 `move.w d7,(a4)+` que faltaba en la cola de `.pix16` (el plano 1 salía basura) y la
 ABI del port (por pila en vez de registros).
 
-## Rendimiento — PENDIENTE de portar el bucle a asm
+## Rendimiento — el bucle asm ya está, la fluidez sigue pendiente
+
+El bucle del rotozoom vive en dos rutas: la **C++ canónica**
+(`rotozoom_into`, camino seguro, `-DK_061_ASM=0`) y el **asm**
+(`support/rotozoom_loop.s`, `K_061_ASM=1`, default). Ambas parten de los mismos
+`RotozoomSteps` y el `init` de la demo comprueba que producen el **mismo buffer**
+(`0x00006105` si difieren).
 
 Medido con `measure-fps.mjs` (WinUAE-DBG, A500, `-O1`, ciclo-exacto):
 
 | Tramo | Ciclos/frame | Notas |
 |---|---|---|
 | C2P asm (320×64) | ~60 k | 1.280 iteraciones de 16 px |
-| Rotozoom C++ | **~3,12 M** | ~152 ciclos/píxel |
-| frame total | ~3,58 M | ~25 campos → **~2 fps** |
+| Rotozoom C++ | ~3,12 M | **~152 ciclos/píxel** |
+| Rotozoom asm | ~2,41 M | **~117 ciclos/píxel** (−23 %) |
+| frame total (asm) | ~2,85 M | ~20 campos → **~2,5 fps** |
 
-El cuello es el **bucle C++ del rotozoom**, no el hardware: el ensamblador generado
-usa desplazamientos largos de 32 bits (`lsr.l #10`) y direccionamiento indexado, que
-en 68000 cuestan decenas de ciclos por píxel. Es el mismo muro que obligó a portar
-`support/fire_loop.s` a mano (ver `docs/guides/optimization/OPTIMIZACION_GPP_68000.md`).
+El coste por píxel lo dominan los desplazamientos largos de 32 bits y el indexado
+(`swap`+`lsl.w #6`+`move.b (a0,d2.w)`) del 68000; no es DMA ni el C2P. Referencia
+medida reduciendo el área a la mitad (`kChunkyW=160`): **4,96 fps** (10,1 campos), o
+sea el coste escala con los píxeles generados.
 
-**Siguiente paso (regla de port de rutinas calientes a asm de `AGENTS.md`)**: portar
-el bucle del rotozoom a `support/rotozoom_loop.s` conservando esta versión C++ como
-canónica, con `K_061_ASM` para elegir ruta; o reducir el área generada (160×64) si se
-prefiere seguir en C++. La demo **no se considera terminada** hasta que la animación
-sea fluida (regla de demos atractivas).
+**Sigue sin ser fluida.** Opciones, por orden de coste/beneficio:
+1. **Ampliar con el display, no con la CPU**: generar 160×128 y mostrar 320×256 es
+   imposible gratis en horizontal (el Copper solo repite filas), así que la vía real
+   es **píxeles gordos** (2×2) o aceptar media anchura.
+2. **Bajar el área/resolución**: 160×64 (media anchura) da ~5 fps; 160×32, ~8-9 fps.
+3. **Optimizar el bucle asm**: mantener los acumuladores ensanchados para que la
+   extracción del índice sea un `and` (sin `swap`+`lsl`), o precalc con tablas por
+   fila. Techo estimado ~50-60 ciclos/píxel → ~5-6 fps a pantalla completa.
+4. **Cambiar de efecto** a uno por celda/bloque con menos píxeles por unidad de
+   trabajo, manteniendo el C2P como protagonista.
+
+Mientras no se decida, la demo **no cumple** la regla de demos atractivas (animación
+fluida) y así queda documentado.
 
 ## Build & run & analyze
 
