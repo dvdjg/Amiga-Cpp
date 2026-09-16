@@ -425,6 +425,12 @@ van a 48-50 fps, *vblank-gated*); reducirlo es **margen** para hardware real, no
 6. **`dbg_ink_visible`**: el bloque de depuración de `add_draw` corre **por bloque y frame** (varias
    divisiones) aunque solo lo use la 107. Candidato a flag de compilación por instancia
    (`bool InkDetect` como parámetro de plantilla) con default OFF y ON solo en 107.
+7. **Relleno CPU de polígono (`field/playfield.hpp:195`)**: por **arista y scanline** hace
+   `x0 + (x1-x0)*(y-y0)/(y1-y0)` → `__mulsi3` + `__divsi3` en el bucle O(alto). Es el *fallback*
+   cuando no hay `PolygonFillSink` (HOST-046 y `mesh_renderer`). Vías: pendiente incremental
+   (acumular `dx/dy` por fila con `div16` una vez por arista) o `mul16`+`div16` si los operandos
+   caben en `s16`. No es el camino de las demos de producción (Blitter/sink), pero sí del raster
+   software.
 
 ### 11.5 Regla de diseño (para que el compilador sí optimice)
 
