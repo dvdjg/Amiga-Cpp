@@ -28,3 +28,4 @@ documentación, y el script de verificación comprueba el resultado por el canal
 | ID | Test | Estado |
 |----|------|--------|
 | [L0-010](010_display_320x240/README.md) | display_320x240 — 5 bitplanes, paleta 32, líneas planares, verificación y vuelta a Workbench. | implementado |
+| [L0-020](020_math_scalars/README.md) | math_scalars — matemática del engine **sin float** con MF/q12/q8 y operaciones entre tipos, verificada por canal lateral. | implementado |

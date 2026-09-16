@@ -72,6 +72,7 @@ Los artefactos se generan en `out/demos/<leaf>/` (build) y `out/run/<leaf>/` (ej
 |----|------|------|--------|
 | HOST-000 | [eng_core_math](host/000_eng_core_math/README.md) — `eng::core::isqrt` y `eng::core::sort` (port de `libmisc` de demoscene-repo-orig), validados contra el C original con g++ del host. | HOST | implementado |
 | L0-010 | [display_320x240](l0_bare_metal/010_display_320x240/README.md) — modo 320x240, 5 bitplanes, paleta 32, líneas, verificación framebuffer y vuelta a Workbench. | L0/L1 | implementado |
+| L0-020 | [math_scalars](l0_bare_metal/020_math_scalars/README.md) — batería de matemáticas **sin float** en hardware: mismo vocabulario con MF, q12 y q8 + operaciones entre tipos (`transform`, `mul_fixed`, `project`), verificada por canal lateral. | L0/HOST | implementado |
 
 > **Tests HOST** (`tests/host/`): algoritmos y APIs puras que no dependen de
 > hardware se compilan con g++ del entorno (el mismo GCC del toolchain, sin
