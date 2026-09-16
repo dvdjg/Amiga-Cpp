@@ -82,14 +82,27 @@ public:
 	static constexpr u32 bitplane_bytes = plane_bytes * plane_count;
 	static constexpr u8 max_palette_zone_bindings = 8;
 
+	/// Bytes de TODOS los planos del bitmap (geometria fija de este driver). Publico
+	/// para que el llamador pueda reservar la memoria (p. ej. `MultiBuffered`).
+	static constexpr u32 bitplane_bytes_for(const StaticEhbSceneConfig&) { return bitplane_bytes; }
+
 	/// Reserva bitplanes y copperlist en Chip RAM y construye la copperlist.
 	///
 	/// El contenido de los bitplanes queda a cero por la politica actual de
 	/// `MinimalBackend::configure_memory`, que usa `MEMF_CLEAR`. El llamador puede
 	/// obtener `bitplanes()` y copiar/escribir assets planares cocinados.
 	bool init(MemorySystem& memory, const StaticEhbSceneConfig& config) {
-		m_bitplane_block = memory.chip.allocate_block<eng::PlaneTag>(bitplane_bytes, 16);
-		m_copper_block = memory.chip.allocate_block<eng::CopperTag>(config.copper_bytes, 16);
+		return bind(memory.chip.allocate_block<eng::PlaneTag>(bitplane_bytes, 16),
+			    memory.chip.allocate_block<eng::CopperTag>(config.copper_bytes, 16), config);
+	}
+
+	/// Construye la copperlist sobre bloques **ya reservados** (mismo contrato que
+	/// `init`, sin reservar memoria). Separa la emision de copperlist de la propiedad
+	/// de la memoria: el llamador puede repartir N buffers (ver `MultiBuffered`).
+	bool bind(eng::Block<eng::PlaneTag> bitplanes, eng::Block<eng::CopperTag> copper,
+		  const StaticEhbSceneConfig& config) {
+		m_bitplane_block = bitplanes;
+		m_copper_block = copper;
 
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || config.base_palette == nullptr) {
 			m_ok = false;

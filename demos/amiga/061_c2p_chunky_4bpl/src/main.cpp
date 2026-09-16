@@ -34,6 +34,7 @@
 #include <eng/engine.hpp>
 #include <eng/graphics/c2p.hpp>
 #include <eng/graphics/drivers/ham_scene.hpp>
+#include <eng/graphics/drivers/multi_buffered.hpp>
 #include <eng/graphics/effects/rotozoom.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
@@ -175,11 +176,11 @@ struct RotozoomDemo {
 		}
 
 		const drivers::HamSceneConfig cfg = make_config();
-		for (eng::u8 b = 0; b < 2u; ++b) {
-			if (!m_scene[b].init(backend.memory(), cfg)) {
-				eng::debug::mark_failed(g_eng_run_status, 0x00006102u);
-				return false;
-			}
+		// Doble buffer generico: el wrapper es dueno de la memoria y enlaza cada slot
+		// con el driver; el swap es de copperlist (COP1LC) tras VBlank.
+		if (!m_scenes.init(backend.memory(), cfg)) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00006102u);
+			return false;
 		}
 
 		for (eng::u8 b = 0; b < 2u; ++b) {
@@ -218,8 +219,8 @@ struct RotozoomDemo {
 		}
 #endif
 		const eng::ChunkyBuffer src = m_chunky[0].view;
-		eng::u8* planes = m_scene[0].bitplanes().data();
-		c2p_1x1_4_asm(kChunkyW, kChunkyH, m_scene[0].plane_bytes(), src.data(), planes);
+		eng::u8* planes = m_scenes.slot(0).bitplanes().data();
+		c2p_1x1_4_asm(kChunkyW, kChunkyH, m_scenes.slot(0).plane_bytes(), src.data(), planes);
 		eng::graphics::c2p_1x1_4(kChunkyW, kChunkyH, kPlaneBytes, src.as_const(),
 					 m_ref.view);
 
@@ -227,14 +228,14 @@ struct RotozoomDemo {
 		eng::u32 diffs = 0;
 		for (eng::u32 p = 0; p < kPlanes; ++p) {
 			for (eng::u32 i = 0; i < kPlaneBytes; ++i) {
-				if (ref[p * kPlaneBytes + i] != planes[p * m_scene[0].plane_bytes() + i]) {
+				if (ref[p * kPlaneBytes + i] != planes[p * m_scenes.slot(0).plane_bytes() + i]) {
 					++diffs;
 				}
 			}
 		}
 
 		m_rot = eng::graphics::Rotozoom {0, 65536, 0, 0};
-		m_scene[0].takeover(backend);
+		m_scenes.takeover(backend);
 		// `detail` = bytes distintos entre la asm y la referencia C++ (0 = identicos).
 		eng::debug::mark_ready(g_eng_run_status, diffs);
 		return true;
@@ -250,20 +251,18 @@ struct RotozoomDemo {
 		m_rot.offset_x += 12288;
 		m_rot.offset_y += 7168;
 
-		const eng::u8 buf = m_active;
+		const eng::u8 buf = m_scenes.back_slot();
 		render_rotozoom(m_rot, m_chunky[buf].view, kChunkyW, kChunkyH);
-		c2p_1x1_4_asm(kChunkyW, kChunkyH, m_scene[buf].plane_bytes(),
+		c2p_1x1_4_asm(kChunkyW, kChunkyH, m_scenes.back().plane_bytes(),
 			      m_chunky[buf].view.data(),
-			      m_scene[buf].bitplanes().data());
-		m_show = buf;
-		m_active = static_cast<eng::u8>(buf ^ 1u);
+			      m_scenes.back().bitplanes().data());
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		// Swap de copperlist tras VBlank (el motor lo garantiza antes de `render`):
 		// el display muestra el buffer recien convertido, nunca el que se escribe.
-		m_scene[m_show].install(backend);
+		m_scenes.commit(backend);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -272,14 +271,12 @@ private:
 		return eng::IndexedTexture {kTexture.data(), kTexture.size()};
 	}
 
-	drivers::HamScene m_scene[2] {};
+	drivers::MultiBuffered<drivers::HamScene, 2> m_scenes {};
 	eng::Block<eng::ChunkyTag> m_chunky[2] {};
 	eng::Block<eng::PlaneTag> m_ref {};
 	eng::graphics::Rotozoom m_rot {};
 	eng::u16 m_angle = 0;
 	eng::u16 m_phase = 0;
-	eng::u8 m_active = 0;
-	eng::u8 m_show = 0;
 };
 
 } // namespace

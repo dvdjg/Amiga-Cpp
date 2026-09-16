@@ -78,18 +78,36 @@ class HamScene {
 public:
 	static constexpr GraphicsDriverId id = GraphicsDriverId::HamScene;
 
+	/// Bytes de un plano completo (`bytes_per_row * rows`). Publico para que el
+	/// llamador pueda reservar la memoria por su cuenta (p. ej. `MultiBuffered`).
+	static constexpr u32 plane_bytes_for(const HamSceneConfig& config) {
+		return static_cast<u32>(config.bytes_per_row) * static_cast<u32>(config.rows);
+	}
+
+	/// Bytes de TODOS los planos del bitmap.
+	static constexpr u32 bitplane_bytes_for(const HamSceneConfig& config) {
+		return plane_bytes_for(config) * static_cast<u32>(config.planes);
+	}
+
 	/// Reserva bitplanes + copperlist en Chip RAM y construye la lista.
 	bool init(MemorySystem& memory, const HamSceneConfig& config) {
-		m_config = config;
-
-		const u32 plane_bytes = plane_bytes_for(config);
-		const u32 bitplane_bytes = plane_bytes * static_cast<u32>(config.planes);
 		// +16 de headroom por el peyote de alineacion de la arena (ver arena.hpp).
-		m_bitplane_block = memory.chip.allocate_block<eng::PlaneTag>(bitplane_bytes + 16u, 16);
-		m_copper_block = memory.chip.allocate_block<eng::CopperTag>(config.copper_bytes, 16);
-		m_plane_bytes = plane_bytes;
+		return bind(memory.chip.allocate_block<eng::PlaneTag>(bitplane_bytes_for(config) + 16u, 16),
+			    memory.chip.allocate_block<eng::CopperTag>(config.copper_bytes, 16), config);
+	}
 
-		if (!m_bitplane_block.valid() || !m_copper_block.valid() || config.planes == 0u || plane_bytes == 0u) {
+	/// Construye la lista sobre bloques **ya reservados** (mismo contrato que `init`,
+	/// sin reservar memoria). Separa la emision de copperlist de la propiedad de la
+	/// memoria: el llamador puede repartir N buffers (ver `MultiBuffered`).
+	/// `bitplanes` debe medir al menos `bitplane_bytes_for(config)`.
+	bool bind(eng::Block<eng::PlaneTag> bitplanes, eng::Block<eng::CopperTag> copper,
+		  const HamSceneConfig& config) {
+		m_config = config;
+		m_plane_bytes = plane_bytes_for(config);
+		m_bitplane_block = bitplanes;
+		m_copper_block = copper;
+
+		if (!m_bitplane_block.valid() || !m_copper_block.valid() || config.planes == 0u || m_plane_bytes == 0u) {
 			m_ok = false;
 			return false;
 		}
@@ -178,10 +196,6 @@ public:
 	constexpr const copper::ScheduleReport& copper_report() const { return m_report; }
 
 private:
-	static constexpr u32 plane_bytes_for(const HamSceneConfig& config) {
-		return static_cast<u32>(config.bytes_per_row) * static_cast<u32>(config.rows);
-	}
-
 	HamSceneConfig m_config {};
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::Block<eng::CopperTag> m_copper_block {};

@@ -323,6 +323,21 @@ Reglas:
   `tools/analyze/codegen-report.mjs` cubre las sondas 2D/3D (`project_perspective`, `clip_line`,
   `face_signed_area`, `update_object_transformation`).
 
+**Campos (B) que se dejan enteros a propósito** (decisión, no deuda):
+
+| Campo | Por qué entero | Cómo tiparlo si algún día se decide |
+|---|---|---|
+| `field::SurfaceRect{x,y: s32; w,h: u16}` | espacio **lógico** sin tag (mundo o pantalla) y rango de mundo de 16 bits (`world_w: u16` ≤ 65535); `w`/`h` son extensión, no escalar | con etiquetas de espacio (decisión abierta §6.3): `Coordinate<Space, Fixed<s32,0>>` |
+| `field::ScrollState{mapposx/videoposx/mapposy/videoposy: s32}` | posición de cámara acumulada sobre el rango del mundo, que **no cabe en `s16`** (`world_w/h: u16`) | `Fixed<s32,0>` (LONGITUD de 32 bits), nunca `Coord`/`Fixed<s16,0>` |
+| `field::BigBufferScroll{position,min_pos,max_pos: s32}` | offset de cámara del "big buffer" con clamp/anillo sobre el mundo (mismo rango) | `Fixed<s32,0>` |
+| `graphics::ScrollPosition2{x,y: u16}` / `TileScrollInput` | posición **sin signo** en espacio bitmap/tile (offsets de fetch) | `Fixed<u16,0>` o dejarlo crudo: es offset de hardware |
+| `field::tile_demo.hpp` (`CameraQ16`, `sin_smooth`, …) | **helper de demo sin consumidor** (solo `pf_plane_row`/`cell_hash`/`kPalette` se usan) → marcar NO VERIFICADA, no tipar | retirar o promover a API con demo/test |
+
+La razón de fondo común: `Coord` es `Fixed<s16,0>` (LONGITUD de 16 bits) y estas cámaras
+manejan el rango de un mundo de 16 bits, que lo desborda. Tiparlas bien exige `Fixed<s32,0>`
+**y** etiquetas de espacio; mientras no existan, el entero con nombre claro es la opción
+correcta (y evita el `__muldi3` que saldría de multiplicar `s32`).
+
 ## 4. Rendimiento y metaprogramación
 - **N constante** y **sin matrices temporales**: la acumulación va directa a los
   registros del resultado. Qué hacer con el bucle (desenrollar o dejarlo plegado) se
