@@ -10,6 +10,7 @@ en C del repo hermano (`Cursor-Amiga-C`) está en [../c-engine/](../c-engine/REA
 | [ROADMAP_ENGINE_CPP_AMIGA500.md](ROADMAP_ENGINE_CPP_AMIGA500.md) | Hoja de ruta completa del engine C++ por fases (0-12) y libreta de diseño. |
 | [CODING_STYLE.md](CODING_STYLE.md) | Restricciones y estilo: `gnu++23`, sin exceptions, sin RTTI, sin asignación dinámica en gameplay. |
 | [MATH_LIBRARY.md](MATH_LIBRARY.md) | Modelo de la librería de matemáticas genérica: `Fixed<Repr,Exp,Policy>`, `Vec`/`Mat`/`Affine`, escalar como parámetro de plantilla. |
+| [SCALAR_LIBRARY.md](SCALAR_LIBRARY.md) | **Estructura de la librería escalar-independiente**: capas (algoritmo genérico ↔ rasgos ↔ escalar concreto ↔ backend), `numeric_traits` y guards de límites en compilación, límites por algoritmo. |
 | [MINIFLOAT16.md](MINIFLOAT16.md) | Escalar de coma flotante de 16 bits `MiniFloat16` para 68000: formato 1\|5\|10, rango/precisión, rangos seguros de uso y coste. |
 | [GRAPHICS_DRIVERS.md](GRAPHICS_DRIVERS.md) | Modelo de drivers gráficos (estrategia de composición), `EhbScene` implementado y drivers planificados. |
 | [MEMORY_MODEL.md](MEMORY_MODEL.md) | Modelo de memoria del perfil `A500_1MB_Slow`: arenas Chip/Slow/Frame. |

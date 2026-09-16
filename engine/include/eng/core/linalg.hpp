@@ -108,6 +108,27 @@ struct scalar_traits<float> {
 	static constexpr bool needs_normalize = false;
 };
 
+/// Coma flotante de 64 bits: mismos rasgos que `float` (el álgebra es agnóstica del
+/// ancho). Necesario para usar `Vec`/`Mat`/`interp`/`geometry` con `double` en host.
+template <>
+struct scalar_traits<double> {
+	using scalar = double;
+
+	static constexpr double inner(double a, double b) { return a * b; }
+
+	static constexpr double zero() { return 0.0; }
+	static constexpr double one() { return 1.0; }
+	static constexpr double from_int(int i) { return static_cast<double>(i); }
+	static constexpr int to_int(double a) { return static_cast<int>(a); }
+
+	template <typename Prod>
+	static constexpr double norm_from(Prod p) {
+		return static_cast<double>(p);
+	}
+
+	static constexpr bool needs_normalize = false;
+};
+
 /// Coma flotante de 16 bits (`MiniFloat16`): el producto ya vive en el mismo espacio
 /// (no hay exponente separado que normalizar), así que los rasgos son los del cuerpo.
 /// Sólo hay que fijar el `uno` real (por defecto la plantilla primaria usaría `S{1}`,
