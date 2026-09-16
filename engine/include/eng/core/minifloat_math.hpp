@@ -1,11 +1,11 @@
 #pragma once
 
 /// \file minifloat_math.hpp
-/// Funciones matemáticas clásicas sobre `MiniFloat16`: `sqrt`, `exp`, `log`, `pow`,
-/// trigonometría (`sin`/`cos`/`tan`) e inversas (`atan`/`atan2`/`asin`/`acos`),
-/// implementadas **solo con aritmética de 16 bits** (nada de `float`, nada de
-/// `libgcc`). El objetivo es que el escalar (`minifloat.hpp`) sea "casi como un float"
-/// dentro de sus ~10 bits de mantisa.
+/// Funciones matemáticas clásicas sobre `MiniFloat16`: `sqrt`, `exp`, `log`,
+/// `log2`/`log10`, `pow`, `hypot`, trigonometría (`sin`/`cos`/`tan` y `sincos`) e
+/// inversas (`atan`/`atan2`/`asin`/`acos`), implementadas **solo con aritmética de 16
+/// bits** (nada de `float`, nada de `libgcc`). El objetivo es que el escalar
+/// (`minifloat.hpp`) sea "casi como un float" dentro de sus ~10 bits de mantisa.
 ///
 /// Estrategia (común a todas): reducción de rango + serie de Taylor/minimax evaluada
 /// en Horner. La reducción se hace con operaciones exactas o de error acotado para no
@@ -74,6 +74,8 @@ inline constexpr MF k_ln2 = MF(0.693147180559945f);
 inline constexpr MF k_inv_ln2 = MF(1.44269504088896f);
 inline constexpr MF k_e = MF(2.71828182845905f);
 inline constexpr MF k_sqrt2 = MF(1.41421356237310f);
+inline constexpr MF k_log10_2 = MF(0.30102999566398f);  // log10(2)
+inline constexpr MF k_log10_e = MF(0.43429448190325f);  // log10(e)
 inline constexpr MF k_half = MF(0.5f);
 inline constexpr MF k_one = MF(1.0f);
 inline constexpr MF k_two = MF(2.0f);
@@ -349,7 +351,7 @@ ENG_MF_AI constexpr void mf_reduce_pio2(MF x, MF& r, int& q) {
 }
 
 /// Logaritmo natural. `x <= 0` es indefinido (devuelve ∞); 0 devuelve −∞.
-[[nodiscard]] constexpr MiniFloat16 log(MiniFloat16 x) {
+[[nodiscard]] ENG_MF_AI constexpr MiniFloat16 log(MiniFloat16 x) {
 	using namespace mfdetail;
 	if (x.is_zero())
 		return MF::from_raw(static_cast<eng::u16>(MiniFloat16::sign_mask | MiniFloat16::exp_mask));
@@ -360,10 +362,54 @@ ENG_MF_AI constexpr void mf_reduce_pio2(MF x, MF& r, int& q) {
 	return mf_from_int(ef - MiniFloat16::bias) * k_ln2 + mf_log_m(m);
 }
 
+/// Logaritmo en base 2. Se apoya en el exponente (exacto en potencias de dos:
+/// `log2(8) = 3`) y en `log(m)·log2(e)`. Mismo dominio que `log`.
+[[nodiscard]] ENG_MF_AI constexpr MiniFloat16 log2(MiniFloat16 x) {
+	using namespace mfdetail;
+	if (x.is_zero())
+		return MF::from_raw(static_cast<eng::u16>(MiniFloat16::sign_mask | MiniFloat16::exp_mask));
+	if ((x.raw & MiniFloat16::sign_mask) != 0u) return MF::from_raw(MiniFloat16::exp_mask);
+	if (x.is_inf()) return x;
+	const int ef = static_cast<int>((x.raw >> 10) & 31);
+	const MF m = MF::from_raw(static_cast<eng::u16>(0x3C00u | (x.raw & MiniFloat16::man_mask)));
+	return mf_from_int(ef - MiniFloat16::bias) + mf_log_m(m) * k_inv_ln2;
+}
+
+/// Logaritmo en base 10. Mismo dominio que `log`.
+[[nodiscard]] ENG_MF_AI constexpr MiniFloat16 log10(MiniFloat16 x) {
+	using namespace mfdetail;
+	if (x.is_zero())
+		return MF::from_raw(static_cast<eng::u16>(MiniFloat16::sign_mask | MiniFloat16::exp_mask));
+	if ((x.raw & MiniFloat16::sign_mask) != 0u) return MF::from_raw(MiniFloat16::exp_mask);
+	if (x.is_inf()) return x;
+	const int ef = static_cast<int>((x.raw >> 10) & 31);
+	const MF m = MF::from_raw(static_cast<eng::u16>(0x3C00u | (x.raw & MiniFloat16::man_mask)));
+	return mf_from_int(ef - MiniFloat16::bias) * k_log10_2 + mf_log_m(m) * k_log10_e;
+}
+
+/// `sqrt(x² + y²)` con escalado previo (`r = menor/mayor`) para no desbordar al
+/// elevar al cuadrado. Infinito si alguno lo es.
+[[nodiscard]] ENG_MF_AI constexpr MiniFloat16 hypot(MiniFloat16 x, MiniFloat16 y) {
+	using namespace mfdetail;
+	if (x.is_inf() || y.is_inf()) return MF::from_raw(MiniFloat16::exp_mask);
+	const bool nx = (x.raw & MiniFloat16::sign_mask) != 0u;
+	const bool ny = (y.raw & MiniFloat16::sign_mask) != 0u;
+	MF a = nx ? -x : x;
+	MF b = ny ? -y : y;
+	if (a < b) { // deja `a` como el mayor
+		const MF t = a;
+		a = b;
+		b = t;
+	}
+	if (a.is_zero()) return MF::zero();
+	const MF r = b / a;
+	return a * sqrt(k_one + r * r);
+}
+
 /// Potencia `base^e`. Si `e` es entero (|e| <= 64) se resuelve por cuadrado y
 /// multiplicación (exacto para potencias exactas y admite base negativa); si no, se
 /// usa `exp(e·log(base))` y la base debe ser positiva.
-[[nodiscard]] constexpr MiniFloat16 pow(MiniFloat16 base, MiniFloat16 e) {
+[[nodiscard]] ENG_MF_AI constexpr MiniFloat16 pow(MiniFloat16 base, MiniFloat16 e) {
 	using namespace mfdetail;
 	const int ni = mf_to_int_trunc(e);
 	if (ni > -65 && ni < 65 && mf_from_int(ni) == e) { // exponente entero exacto
@@ -385,46 +431,56 @@ ENG_MF_AI constexpr void mf_reduce_pio2(MF x, MF& r, int& q) {
 // como toman `MiniFloat16`, el ADL los resuelve frente a los de `std::`. No hay
 // ambigüedad.
 
-/// Seno. Dominio fiable `|x| <= 2π`; con argumentos mayores la reducción pierde bits.
-[[nodiscard]] constexpr MiniFloat16 sin(MiniFloat16 x) {
+/// Seno y coseno en una pasada (una sola reducción de rango, no dos). Dominio fiable
+/// `|x| <= 2π`; con argumentos mayores la reducción pierde bits.
+ENG_MF_AI constexpr void sincos(MiniFloat16 x, MiniFloat16& out_sin, MiniFloat16& out_cos) {
 	using namespace mfdetail;
-	if (x.is_zero()) return x;
-	if (x.is_inf()) return MF::zero();
+	if (x.is_zero()) {
+		out_sin = x;
+		out_cos = MF::one();
+		return;
+	}
+	if (x.is_inf()) {
+		out_sin = MF::zero();
+		out_cos = MF::zero();
+		return;
+	}
 	MF r;
 	int q;
 	mf_reduce_pio2(x, r, q);
 	const MF sr = mf_sin_small(r);
 	const MF cr = mf_cos_small(r);
 	switch (q) {
-	case 0: return sr;
-	case 1: return cr;
-	case 2: return -sr;
-	default: return -cr;
+	case 0: out_sin = sr; out_cos = cr; break;
+	case 1: out_sin = cr; out_cos = -sr; break;
+	case 2: out_sin = -sr; out_cos = -cr; break;
+	default: out_sin = -cr; out_cos = sr; break;
 	}
+}
+
+/// Seno. Dominio fiable `|x| <= 2π`; con argumentos mayores la reducción pierde bits.
+[[nodiscard]] ENG_MF_AI constexpr MiniFloat16 sin(MiniFloat16 x) {
+	MiniFloat16 s;
+	MiniFloat16 c;
+	sincos(x, s, c);
+	return s;
 }
 
 /// Coseno. Mismo dominio fiable que `sin`.
-[[nodiscard]] constexpr MiniFloat16 cos(MiniFloat16 x) {
-	using namespace mfdetail;
-	if (x.is_inf()) return MF::zero();
-	MF r;
-	int q;
-	mf_reduce_pio2(x, r, q);
-	const MF sr = mf_sin_small(r);
-	const MF cr = mf_cos_small(r);
-	switch (q) {
-	case 0: return cr;
-	case 1: return -sr;
-	case 2: return -cr;
-	default: return sr;
-	}
+[[nodiscard]] ENG_MF_AI constexpr MiniFloat16 cos(MiniFloat16 x) {
+	MiniFloat16 s;
+	MiniFloat16 c;
+	sincos(x, s, c);
+	return c;
 }
 
 /// Tangente `sin/cos`. Cerca de los polos (`cos ~ 0`) satura a ±∞.
-[[nodiscard]] constexpr MiniFloat16 tan(MiniFloat16 x) {
-	const MiniFloat16 c = cos(x);
+[[nodiscard]] ENG_MF_AI constexpr MiniFloat16 tan(MiniFloat16 x) {
+	MiniFloat16 s;
+	MiniFloat16 c;
+	sincos(x, s, c);
 	if (c.is_zero()) return MiniFloat16::from_raw(MiniFloat16::exp_mask);
-	return sin(x) / c;
+	return s / c;
 }
 
 /// Arco tangente en `(-π/2, π/2)`. `±∞` -> `±π/2`.
@@ -454,7 +510,7 @@ ENG_MF_AI constexpr void mf_reduce_pio2(MF x, MF& r, int& q) {
 }
 
 /// Arco seno. Dominio `[-1, 1]`; fuera de él, ∞.
-[[nodiscard]] constexpr MiniFloat16 asin(MiniFloat16 x) {
+[[nodiscard]] ENG_MF_AI constexpr MiniFloat16 asin(MiniFloat16 x) {
 	using namespace mfdetail;
 	if (x > k_one || x < -k_one) return MF::from_raw(MiniFloat16::exp_mask);
 	MF d = k_one - x * x; // sqrt(1 - x²)
@@ -463,7 +519,7 @@ ENG_MF_AI constexpr void mf_reduce_pio2(MF x, MF& r, int& q) {
 }
 
 /// Arco coseno. Dominio `[-1, 1]`; fuera de él, ∞.
-[[nodiscard]] constexpr MiniFloat16 acos(MiniFloat16 x) {
+[[nodiscard]] ENG_MF_AI constexpr MiniFloat16 acos(MiniFloat16 x) {
 	using namespace mfdetail;
 	if (x > k_one || x < -k_one) return MF::from_raw(MiniFloat16::exp_mask);
 	MF d = k_one - x * x;

@@ -107,6 +107,22 @@ void test_simple_values() {
 	check(rel_err(static_cast<float>(m::pow(MiniFloat16(3.0f), MiniFloat16(-2.0f))), 1.0f / 9.0f) <
 		      3.0e-3f,
 	      "pow(3,-2) ~ 1/9");
+
+	// logaritmos en otras bases, hypot y sincos
+	check(m::log2(MiniFloat16(8.0f)).raw == MiniFloat16(3.0f).raw, "log2(8) = 3 exacto");
+	check(m::log2(MiniFloat16(1024.0f)).raw == MiniFloat16(10.0f).raw, "log2(1024) = 10 exacto");
+	check(rel_err(static_cast<float>(m::log10(MiniFloat16(1000.0f))), 3.0f) < 5.0e-3f,
+	      "log10(1000) ~ 3");
+	check(rel_err(static_cast<float>(m::hypot(MiniFloat16(3.0f), MiniFloat16(4.0f))), 5.0f) <
+		      3.0e-3f,
+	      "hypot(3,4) ~ 5");
+	{
+		MiniFloat16 ss, cc;
+		m::sincos(MiniFloat16(1.0f), ss, cc);
+		check(std::fabs(static_cast<float>(ss) - std::sin(1.0f)) < 3.0e-3f &&
+			      std::fabs(static_cast<float>(cc) - std::cos(1.0f)) < 3.0e-3f,
+		      "sincos(1) ~ (sin, cos)");
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -194,6 +210,31 @@ void test_sweeps() {
 		check(mxt <= 3.0e-2f, "tan: rel <= 3e-2 (|cos| > 0.1)");
 	}
 
+	// log2/log10/hypot
+	{
+		float m2 = 0, m10 = 0, mh = 0;
+		for (int e = -14; e <= 15; ++e)
+			for (float mg : mags) {
+				const float v = std::ldexp(mg, e);
+				if (v > 65504.0f || v < 6.2e-5f) continue;
+				const MiniFloat16 x(v);
+				const float xm = static_cast<float>(x);
+				m2 = std::fmax(m2, std::fabs(static_cast<float>(m::log2(x)) - std::log2(xm)));
+				m10 = std::fmax(m10, std::fabs(static_cast<float>(m::log10(x)) - std::log10(xm)));
+			}
+		for (int i = -60; i <= 60; ++i)
+			for (int j = -60; j <= 60; ++j) {
+				const MiniFloat16 x(i * 0.7f), y(j * 1.3f);
+				const float want = std::hypot(static_cast<float>(x), static_cast<float>(y));
+				if (want < 6.2e-5f || want > 65400.0f) continue;
+				mh = std::fmax(mh, rel_err(static_cast<float>(m::hypot(x, y)), want));
+			}
+		std::printf("  log2 abs max %.2e   log10 abs max %.2e   hypot rel max %.2e\n", m2, m10, mh);
+		check(m2 <= 1.2e-2f, "log2: abs <= 1.2e-2");
+		check(m10 <= 8.0e-3f, "log10: abs <= 8e-3");
+		check(mh <= 4.0e-3f, "hypot: rel <= 4e-3");
+	}
+
 	// inversas
 	{
 		float mxa = 0, mxt2 = 0, mxs = 0, mxc = 0;
@@ -263,6 +304,11 @@ void test_edges() {
 	check(std::fabs(static_cast<float>(m::atan(MiniFloat16::from_raw(MiniFloat16::exp_mask))) -
 			1.5707963f) < 3.0e-3f,
 	      "atan(+inf) = pi/2");
+
+	// hypot
+	check(m::hypot(MiniFloat16(0.0f), MiniFloat16(0.0f)).is_zero(), "hypot(0,0) = 0");
+	check(m::hypot(MiniFloat16::from_raw(MiniFloat16::exp_mask), MiniFloat16(1.0f)).is_inf(),
+	      "hypot(inf,1) = inf");
 }
 
 } // namespace

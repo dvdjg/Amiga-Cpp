@@ -126,21 +126,25 @@ trigonometría (`sin`, `cos`, `tan`) e inversas (`atan`, `atan2`, `asin`, `acos`
 `libgcc` (en el `.o` de m68k se ve `muls.w` y las tablas, sin `divs`/`divu` ni
 `__mulsf3`/`__divsf3`). Son la misma idea que el resto del tipo: reducción de rango +
 serie de Taylor minimax evaluada en Horner, con el compromiso precisión/coste
-documentado. Las rutinas calientes (`exp`, `sqrt` y los helpers) llevan
-`[[gnu::always_inline]]`: en 68000 la llamada (`jsr`/`rts` + salvar registros) puede
-costar más que el cálculo; con el inline forzado `exp`/`sqrt` no emiten símbolo propio.
+documentado. Las rutinas calientes (`exp`, `sqrt`, `log`, `pow`, `sin`/`cos`/`tan`,
+`asin`/`acos` y los helpers) llevan `[[gnu::always_inline]]`: en 68000 la llamada
+(`jsr`/`rts` + salvar registros) puede costar más que el cálculo; con el inline forzado
+ninguna de ellas emite símbolo propio.
 
 | Función | Algoritmo | Rango fiable | Error observado (vs `float`) |
 |---|---|---|---|
 | `sqrt` | exponente par/impar + Newton | `[2^-14, 65504]` | ~1.0e-3 rel |
 | `exp` | `z = x·log2e` en Q4.11, `2^f` en Q1.14, `2^n` por exponente | `[-11, 11]` (satura fuera) | ~6e-4 rel |
 | `log` | `x = m·2^k` + serie de `atanh` | `(0, 65504]` | ~2.5e-3 rel (~1.4e-2 abs en el extremo) |
+| `log2`/`log10` | exponente + `log(m)·log2(e)` / `·log10(e)` | `(0, 65504]` | ~8e-3 / ~4e-3 abs (exactos en potencias de 2) |
 | `pow` | entero `\|e\| <= 64`: cuadrado y multiplicación (exacto); si no `exp(e·log(base))` | `base > 0`; entero admite base negativa | exacto (entero); ~1e-2 rel (crece con `\|e·log(base)\|`) |
 | `sin`/`cos` | Cody-Waite + Taylor | `\|x\| <= 2π` (más allá pierde bits) | ~2e-3 abs |
 | `tan` | `sin/cos` | como `sin`/`cos`, evitando los polos | ~1e-2 rel lejos del polo |
+| `sincos` | una sola reducción para los dos | como `sin`/`cos` | igual que `sin`/`cos` |
 | `atan` | minimax en `[0,1]` + `atan(1/x)` | todo `x` (±∞ → ±π/2) | ~1.2e-3 abs |
 | `atan2` | `atan(y/x)` + cuadrante | todo `(y,x) != (0,0)` | ~2.1e-3 abs |
 | `asin`/`acos` | `atan2` + `sqrt` | `[-1, 1]` | ~1.8e-3 abs |
+| `hypot` | escalado `r = menor/mayor` + `sqrt(1+r²)` | todo `x,y` | ~2e-3 rel |
 
 El punto a retener es que `exp` **no** usa el clásico "partir por la mitad y elevar al
 cuadrado": ese método amplifica el error relativo por `2^s` y dejaba el extremo en

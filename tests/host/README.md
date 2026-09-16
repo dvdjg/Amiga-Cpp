@@ -97,4 +97,4 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-054 | [light_ops](054_light_ops/README.md) | Sombreado por cara `eng::math::light_ops` e `hi16` contra referencia sin signo. |
 | HOST-055 | [inverse_rigid](055_inverse_rigid/README.md) | `math3d::inverse_rigid`: inversa de una transformación rígida (`mT`, `-mT·t`) contra la identidad. |
 | HOST-056 | [minifloat16](056_minifloat16/README.md) | `eng::math::MiniFloat16` (`eng/core/minifloat.hpp`): formato 1\|5\|10, conversiones, aritmética y matrices 2x2/3x3/4x4 contra `float`. |
-| HOST-057 | [minifloat16_math](057_minifloat16_math/README.md) | `eng/core/minifloat_math.hpp`: `sqrt`/`exp`/`log`/`pow` (entero exacto) y trigonometría/`atan2` de `MiniFloat16` (16-bit, sin float ni libgcc) contra `std::`. |
+| HOST-057 | [minifloat16_math](057_minifloat16_math/README.md) | `eng/core/minifloat_math.hpp`: `sqrt`/`exp`/`log`/`log2`/`log10`/`pow` (entero exacto)/`hypot` y trigonometría/`atan2` de `MiniFloat16` (16-bit, sin float ni libgcc) contra `std::`. |
