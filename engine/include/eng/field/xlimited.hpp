@@ -300,6 +300,7 @@
 #include <eng/core/fast_div.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
+#include <eng/field/amiga_display_mapper.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/field/scroll_engine.hpp>
 #include <eng/field/scroll_profile.hpp>
@@ -1262,16 +1263,16 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
         v.videoposy = m_scroll.state().videoposy;
         v.mapposy = m_scroll.state().mapposy;
 
-        // Cálculo idéntico a UpdateCopperlist (xlimited.c:579-613) para
-        // fetch normal (I=tile_width). Para fetch ancho se generaliza con I.
-const u16 I = fetch_scroll_pixels(m_cfg.fetch_mode);
-        const s32 xpos = m_scroll.state().videoposx + static_cast<s32>(I) - 1;
-        const u32 planeaddx = static_cast<u32>(xpos / I) * (I / 8u);
-        s32 fine = (static_cast<s32>(I) - 1) - (xpos & (I - 1));
-        u16 scroll = static_cast<u16>((fine & 15) * 0x11);
-        if (fine & 16) scroll |= 0x4400;
-        if (fine & 32) scroll |= 0x8800;
-        v.planeaddx = planeaddx;
+        // Mapeo cámara→registros por el mapper neutral (HOST-063): réplica exacta
+        // de UpdateCopperlist (xlimited.c). El módulo va como NTTP
+        // (SC.display_height) para resolverse en compile-time (fast_div, sin
+        // __umodsi3); si SC no lo trae, el mapper cae al display_h runtime.
+        const u16 I = fetch_scroll_pixels(m_cfg.fetch_mode);
+        const RingDisplayMapping ring = map_ring_scroll<SC.display_height>(
+            m_scroll.state().videoposx, m_scroll.state().videoposy, I, cth(),
+            cplanes(), m_bytes_per_row, m_display_height, m_cfg.viewport_h,
+            scroll_y(), m_linear_display);
+        v.planeaddx = ring.planeaddx;
         if (m_cfg.parallax_plane < cplanes()) {
             // Plano de fondo (RoboCod). Con soft DPF doble-buffer el display lee el
             // buffer delantero (`bg_plane_base`); `parallax_planeaddx` solo se usa en
@@ -1284,29 +1285,14 @@ const u16 I = fetch_scroll_pixels(m_cfg.fetch_mode);
                 v.parallax_planeaddx = static_cast<u32>(ppos / I) * (I / 8u);
             }
         }
-        v.bplcon1 = scroll;
+        v.bplcon1 = ring.bplcon1;
         v.bpl1mod = m_bpl1mod;
         v.bpl2mod = m_bpl2mod;
-        // Offset vertical del display (corkscrew, UpdateCopperlist xlimited.c):
-        //   yoffset = (videoposy + BLOCKHEIGHT) % BITMAPHEIGHT
-        // el display empieza un bloque por debajo de videoposy, dejando la
-        // primera fila de staging por encima de la ventana visible.
-        // En X-only (scroll_y=false) videoposy es 0 y no hay offset ni split.
-        u16 display_offset = 0;
-        if (scroll_y()) {
-const u16 vy = static_cast<u16>(dmod2(m_scroll.state().videoposy));
-        display_offset = static_cast<u16>(dmod1(static_cast<u32>(vy) +
-            cth()));
-        }
         v.display_height = m_display_height;
-        v.display_offset = display_offset;
-        v.planeaddy = static_cast<u32>(display_offset) * cplanes() * m_bytes_per_row;
-        // Split vertical: la vuelta al inicio del bucle ocurre a
-        // `display_height - display_offset` filas dentro de la ventana. Solo se
-        // necesita si esa vuelta cae dentro del viewport (yoffset + VH > DH).
-        v.split_line = static_cast<u16>(m_display_height - display_offset);
-        // En modo lineal no hay split: el wrap lo resuelve el espejo.
-        v.split_active = !m_linear_display && scroll_y() && v.split_line < m_cfg.viewport_h;
+        v.display_offset = ring.display_offset;
+        v.planeaddy = ring.planeaddy;
+        v.split_line = ring.split_line;
+        v.split_active = ring.split_active;
         v.split_planeaddy = 0; // fila 0 (los punteros del split solo suman planeaddx)
         // plane_bytes para validación: bytes totales
         v.plane_bytes = static_cast<u32>(m_bytes_per_row * m_bitmap_height * cplanes());

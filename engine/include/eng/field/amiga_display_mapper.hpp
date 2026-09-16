@@ -19,9 +19,70 @@
 /// El mínimo de `cam_x` es 1: con el fetch adelantado, `cam_x==0` haría que el
 /// puntero apuntase antes del bitmap. Ver AMIGA_8WAY_SCROLLING.md §7.
 
+#include <eng/core/fast_div.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::field {
+
+/// Resultado del mapeo del corkscrew/XYLimited (anillo + staging + split).
+struct RingDisplayMapping {
+    u32 planeaddx = 0;
+    u16 bplcon1 = 0;
+    u32 planeaddy = 0;
+    u16 display_offset = 0;
+    u16 split_line = 0;
+    bool split_active = false;
+};
+
+/// Traduce la cámara del corkscrew/XYLimited a los registros del display. Réplica
+/// exacta de `UpdateCopperlist` (xlimited.c) que usaba `XLimitedPlayfield`.
+///
+/// `DisplayHeight` como NTTP permite que el módulo y el `split_line` se resuelvan
+/// en compile-time (`fast_div`, sin `__umodsi3`); con `0` se usa el `display_h`
+/// runtime (misma semántica, división nativa). `fetch_pixels` (16/32/64) se
+/// mantiene runtime porque sale de la config (`fetch_mode`), igual que en el
+/// playfield original.
+///
+/// - `fine = (I-1) - (xpos & (I-1))`, con `xpos = videoposx + I - 1`; los bits 16/32
+///   de `fine` activan el fetch ancho (`0x4400`/`0x8800` en `BPLCON1`).
+/// - `display_offset = (videoposy + tile_h) % display_height` (solo si hay Y).
+/// - `split_line = display_height - display_offset`;
+///   `split_active = !linear && scroll_y && split_line < viewport_h`.
+template <u32 DisplayHeight = 0u>
+constexpr RingDisplayMapping map_ring_scroll(
+    s32 videoposx, s32 videoposy, u16 fetch_pixels, u16 tile_h,
+    u8 planes, u16 row_bytes, u16 display_h, u16 viewport_h,
+    bool scroll_y, bool linear_display
+) {
+    RingDisplayMapping m;
+    const s32 I = static_cast<s32>(fetch_pixels);
+    const s32 xpos = videoposx + I - 1;
+    m.planeaddx = static_cast<u32>(xpos / I) * static_cast<u32>(I / 8);
+    const s32 fine = (I - 1) - (xpos & (I - 1));
+    u16 scroll = static_cast<u16>((fine & 15) * 0x11);
+    if (fine & 16) scroll |= 0x4400;
+    if (fine & 32) scroll |= 0x8800;
+    m.bplcon1 = scroll;
+
+    u16 display_offset = 0;
+    if (scroll_y) {
+        const s32 dh = static_cast<s32>(DisplayHeight != 0u ? DisplayHeight : display_h);
+        const s32 vy = (videoposy % dh + dh) % dh; // dmod2 (robusto a negativos)
+        if constexpr (DisplayHeight != 0u) {
+            display_offset = static_cast<u16>(
+                eng::fast_div<DisplayHeight>::r(static_cast<u32>(vy + static_cast<s32>(tile_h))));
+        } else {
+            display_offset = static_cast<u16>(
+                (static_cast<u32>(vy + static_cast<s32>(tile_h))) % static_cast<u32>(dh));
+        }
+    }
+    m.display_offset = display_offset;
+    m.planeaddy = static_cast<u32>(display_offset) * planes * row_bytes;
+    const u16 dh16 = static_cast<u16>(DisplayHeight != 0u ? DisplayHeight : display_h);
+    m.split_line = static_cast<u16>(dh16 - display_offset);
+    m.split_active = !linear_display && scroll_y && m.split_line < viewport_h;
+    return m;
+}
 
 /// Resultado del mapeo, en las unidades que espera `PlayfieldHardwareView`.
 struct FlatDisplayMapping {
