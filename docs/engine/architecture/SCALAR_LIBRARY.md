@@ -98,7 +98,8 @@ Añadir un escalar nuevo = especializar `scalar_traits<S>` (álgebra), `numeric_
 | `normalize` | `MiniFloat16` | `length_sq` bajoflow si las componentes < ~0.008 → 0 y división por ∞ |
 | `length_sq` | `MiniFloat16` | desborda si las componentes > ~255 |
 | `reflect`/`project` | `MiniFloat16` | normal/`onto` no nula; dirección ~10 bits |
-| `sqrt`/`exp`/`log`/`sin`… | `MiniFloat16` | ver la tabla de `MINIFLOAT16.md` §7 |
+| `sqrt`/`exp`/`log`/`sin`… | `MiniFloat16` | ver la tabla de `MINIFLOAT16.md` §7; las constantes fuera de dominio **fallan al compilar** (`if consteval` + `mf16_domain_*`) |
+| `value_noise`/`fbm` | `MiniFloat16` | valor de rejilla con 1024 niveles; en `fbm` la amplitud de octava profunda puede bajoflow a 0 |
 | `remap`/`inv_lerp`/`normalize` | `Fixed` | **no compila** (sin `operator/`), por diseño |
 
 El detalle del escalar de 16 bits está en [MINIFLOAT16.md](MINIFLOAT16.md); el modelo del
@@ -111,4 +112,5 @@ El detalle del escalar de 16 bits está en [MINIFLOAT16.md](MINIFLOAT16.md); el 
 | `core/linalg.hpp` | `Vec`/`Mat`/`Affine`, `dot`, `transform`, `scalar_traits` |
 | `core/interp.hpp` | `clamp`/`saturate`/`lerp`/`inv_lerp`/`remap`/`step`/`smoothstep`/`smootherstep` |
 | `core/geometry.hpp` | `length(_sq)`/`distance(_sq)`/`normalize`/`vscale`/`vlerp`/`cross2`/`perp`/`rotate2`/`project`/`reject`/`reflect` |
+| `core/noise.hpp` | `value_noise1/2/3` (lattice [0,1), interpolado con `smoothstep`) y `fbm2` (octavas); hash sin multiplicación (reutiliza `random.hpp`) |
 | `core/numeric_traits.hpp` | rasgos numéricos y guards de compilación |

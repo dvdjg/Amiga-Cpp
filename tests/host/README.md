@@ -100,3 +100,4 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-057 | [minifloat16_math](057_minifloat16_math/README.md) | `eng/core/minifloat_math.hpp`: `sqrt`/`exp`/`exp2`/`log`/`log2`/`log10`/`pow` (entero exacto)/`hypot` y trigonometría/`atan2` de `MiniFloat16` (16-bit, sin float ni libgcc) contra `std::`, más identidades de composición. |
 | HOST-058 | [minifloat_fixed](058_minifloat_fixed/README.md) | `eng/retro/minifloat_fixed.hpp`: puente `MiniFloat16` ↔ `fix`/`fix88` (conversiones saturadas, producto mixto y `transform` de coordenadas fijas con matriz MF). |
 | HOST-059 | [scalar_math](059_scalar_math/README.md) | Base escalar-independiente: `numeric_traits` + guards de compilación (`range_fits`/`require_division`), `interp.hpp` y `geometry.hpp` genéricos sobre `double` y `MiniFloat16`. |
+| HOST-060 | [noise](060_noise/README.md) | `eng/core/noise.hpp`: `value_noise1/2/3` y `fbm2` genéricos (determinismo, rango [0,1], MF vs `double`); hash sin multiplicación. |

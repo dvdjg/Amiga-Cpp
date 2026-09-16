@@ -47,6 +47,7 @@
 
 #include <eng/core/arith.hpp>
 #include <eng/core/minifloat.hpp>
+#include <eng/core/numeric_traits.hpp>
 
 /// Fuerza el inline donde una llamada cuesta más que el cálculo (68000). Se anula al
 /// final del fichero para no contaminar al que incluye.
@@ -61,6 +62,19 @@ namespace eng::math {
 namespace mfdetail {
 
 using MF = MiniFloat16;
+
+// ----------------------------------------------------------------------------
+//  Diagnóstico de dominio en COMPILACIÓN: si una CONSTANTE fuera del dominio fiable
+//  llega a estas funciones (declaradas, sin definir) durante la evaluación constante,
+//  el compilador falla y nombra el límite. En runtime la rama `if consteval` no se
+//  ejecuta, así que nunca se llaman ni se enlazan.
+// ----------------------------------------------------------------------------
+void mf16_domain_sin_cos_must_be_within_2pi();
+void mf16_domain_exp_must_be_within_pm11();
+void mf16_domain_exp2_must_be_within_neg15_16();
+void mf16_domain_log_must_be_positive();
+void mf16_domain_sqrt_must_be_non_negative();
+void mf16_domain_asin_acos_must_be_within_pm1();
 
 // ============================================================================
 //  Constantes (construidas en compile-time; el `float` solo vive aquí)
@@ -323,6 +337,9 @@ ENG_MF_AI constexpr void mf_reduce_pio2(MF x, MF& r, int& q) {
 /// propagan.
 [[nodiscard]] ENG_MF_AI constexpr MiniFloat16 sqrt(MiniFloat16 x) {
 	using namespace mfdetail;
+	if consteval {
+		if (x < MF::zero()) mf16_domain_sqrt_must_be_non_negative();
+	}
 	if (x.is_zero()) return x;
 	if ((x.raw & MiniFloat16::sign_mask) != 0u || x.is_inf())
 		return MiniFloat16::from_raw(MiniFloat16::exp_mask);
@@ -346,6 +363,9 @@ ENG_MF_AI constexpr void mf_reduce_pio2(MF x, MF& r, int& q) {
 /// amplificación del error: la precisión se mantiene ~10 bits en todo el rango.
 [[nodiscard]] ENG_MF_AI constexpr MiniFloat16 exp(MiniFloat16 x) {
 	using namespace mfdetail;
+	if consteval {
+		if (!in_range(x, -11.5, 11.5)) mf16_domain_exp_must_be_within_pm11();
+	}
 	if (x.is_zero()) return MF::one();
 	if (x.is_inf()) return (x.raw & MiniFloat16::sign_mask) != 0u ? MF::zero() : x;
 	if (x > MF(12.0f)) return MF::from_raw(MiniFloat16::exp_mask);
@@ -361,6 +381,9 @@ ENG_MF_AI constexpr void mf_reduce_pio2(MF x, MF& r, int& q) {
 /// `[-15, 16]`.
 [[nodiscard]] ENG_MF_AI constexpr MiniFloat16 exp2(MiniFloat16 x) {
 	using namespace mfdetail;
+	if consteval {
+		if (!in_range(x, -15.5, 16.5)) mf16_domain_exp2_must_be_within_neg15_16();
+	}
 	if (x.is_zero()) return MF::one();
 	if (x.is_inf()) return (x.raw & MiniFloat16::sign_mask) != 0u ? MF::zero() : x;
 	if (x > MF(16.0f)) return MF::from_raw(MiniFloat16::exp_mask);
@@ -375,6 +398,9 @@ ENG_MF_AI constexpr void mf_reduce_pio2(MF x, MF& r, int& q) {
 /// Logaritmo natural. `x <= 0` es indefinido (devuelve ∞); 0 devuelve −∞.
 [[nodiscard]] ENG_MF_AI constexpr MiniFloat16 log(MiniFloat16 x) {
 	using namespace mfdetail;
+	if consteval {
+		if (x <= MF::zero()) mf16_domain_log_must_be_positive();
+	}
 	if (x.is_zero())
 		return MF::from_raw(static_cast<eng::u16>(MiniFloat16::sign_mask | MiniFloat16::exp_mask));
 	if ((x.raw & MiniFloat16::sign_mask) != 0u) return MF::from_raw(MiniFloat16::exp_mask);
@@ -388,6 +414,9 @@ ENG_MF_AI constexpr void mf_reduce_pio2(MF x, MF& r, int& q) {
 /// `log2(8) = 3`) y en `log(m)·log2(e)`. Mismo dominio que `log`.
 [[nodiscard]] ENG_MF_AI constexpr MiniFloat16 log2(MiniFloat16 x) {
 	using namespace mfdetail;
+	if consteval {
+		if (x <= MF::zero()) mf16_domain_log_must_be_positive();
+	}
 	if (x.is_zero())
 		return MF::from_raw(static_cast<eng::u16>(MiniFloat16::sign_mask | MiniFloat16::exp_mask));
 	if ((x.raw & MiniFloat16::sign_mask) != 0u) return MF::from_raw(MiniFloat16::exp_mask);
@@ -400,6 +429,9 @@ ENG_MF_AI constexpr void mf_reduce_pio2(MF x, MF& r, int& q) {
 /// Logaritmo en base 10. Mismo dominio que `log`.
 [[nodiscard]] ENG_MF_AI constexpr MiniFloat16 log10(MiniFloat16 x) {
 	using namespace mfdetail;
+	if consteval {
+		if (x <= MF::zero()) mf16_domain_log_must_be_positive();
+	}
 	if (x.is_zero())
 		return MF::from_raw(static_cast<eng::u16>(MiniFloat16::sign_mask | MiniFloat16::exp_mask));
 	if ((x.raw & MiniFloat16::sign_mask) != 0u) return MF::from_raw(MiniFloat16::exp_mask);
@@ -457,6 +489,9 @@ ENG_MF_AI constexpr void mf_reduce_pio2(MF x, MF& r, int& q) {
 /// `|x| <= 2π`; con argumentos mayores la reducción pierde bits.
 ENG_MF_AI constexpr void sincos(MiniFloat16 x, MiniFloat16& out_sin, MiniFloat16& out_cos) {
 	using namespace mfdetail;
+	if consteval { // dominio fiable |x| <= 2π (con margen para el redondeo de 2π a MF)
+		if (!in_range(x, -6.3, 6.3)) mf16_domain_sin_cos_must_be_within_2pi();
+	}
 	if (x.is_zero()) {
 		out_sin = x;
 		out_cos = MF::one();
@@ -534,6 +569,9 @@ ENG_MF_AI constexpr void sincos(MiniFloat16 x, MiniFloat16& out_sin, MiniFloat16
 /// Arco seno. Dominio `[-1, 1]`; fuera de él, ∞.
 [[nodiscard]] ENG_MF_AI constexpr MiniFloat16 asin(MiniFloat16 x) {
 	using namespace mfdetail;
+	if consteval {
+		if (!in_range(x, -1.0, 1.0)) mf16_domain_asin_acos_must_be_within_pm1();
+	}
 	if (x > k_one || x < -k_one) return MF::from_raw(MiniFloat16::exp_mask);
 	MF d = k_one - x * x; // sqrt(1 - x²)
 	if ((d.raw & MiniFloat16::sign_mask) != 0u) d = MF::zero(); // guarda de redondeo
@@ -543,6 +581,9 @@ ENG_MF_AI constexpr void sincos(MiniFloat16 x, MiniFloat16& out_sin, MiniFloat16
 /// Arco coseno. Dominio `[-1, 1]`; fuera de él, ∞.
 [[nodiscard]] ENG_MF_AI constexpr MiniFloat16 acos(MiniFloat16 x) {
 	using namespace mfdetail;
+	if consteval {
+		if (!in_range(x, -1.0, 1.0)) mf16_domain_asin_acos_must_be_within_pm1();
+	}
 	if (x > k_one || x < -k_one) return MF::from_raw(MiniFloat16::exp_mask);
 	MF d = k_one - x * x;
 	if ((d.raw & MiniFloat16::sign_mask) != 0u) d = MF::zero();

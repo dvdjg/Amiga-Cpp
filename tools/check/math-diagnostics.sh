@@ -97,6 +97,37 @@ void f() {
 	(void)r;
 }"
 
+# Dominio de las matematicas de MiniFloat16: una CONSTANTE fuera de rango debe fallar
+# en compilacion con un mensaje que nombre el limite (no solo saturar en runtime).
+PRE3='#include <eng/core/minifloat_math.hpp>
+using eng::math::MiniFloat16;'
+
+expect_fail mf16_sin_const_oob "mf16_domain_sin_cos_must_be_within_2pi" "$PRE3
+constexpr MiniFloat16 r = eng::math::sin(MiniFloat16(20.0f));"
+
+expect_fail mf16_exp_const_oob "mf16_domain_exp_must_be_within_pm11" "$PRE3
+constexpr MiniFloat16 r = eng::math::exp(MiniFloat16(50.0f));"
+
+expect_fail mf16_log_const_oob "mf16_domain_log_must_be_positive" "$PRE3
+constexpr MiniFloat16 r = eng::math::log(MiniFloat16(-1.0f));"
+
+expect_fail mf16_sqrt_const_oob "mf16_domain_sqrt_must_be_non_negative" "$PRE3
+constexpr MiniFloat16 r = eng::math::sqrt(MiniFloat16(-4.0f));"
+
+expect_fail mf16_asin_const_oob "mf16_domain_asin_acos_must_be_within_pm1" "$PRE3
+constexpr MiniFloat16 r = eng::math::asin(MiniFloat16(2.0f));"
+
+# Control positivo: constantes en dominio, y las mismas fuera de dominio en RUNTIME
+# (saturan segun contrato, sin romper la compilacion).
+expect_ok mf16_domain_ok "$PRE3
+constexpr MiniFloat16 a = eng::math::sin(MiniFloat16(1.0f));
+constexpr MiniFloat16 b = eng::math::exp(MiniFloat16(2.0f));
+constexpr MiniFloat16 c = eng::math::log(MiniFloat16(3.0f));
+constexpr MiniFloat16 d = eng::math::sqrt(MiniFloat16(4.0f));
+volatile float v = 50.0f;
+void f() { MiniFloat16 e = eng::math::exp(MiniFloat16(v)); (void)e; }
+void g() { (void)a; (void)b; (void)c; (void)d; }"
+
 
 if [ "$FAILS" -eq 0 ]; then
 	echo "[math-diag] OK: diagnosticos de Fixed claros (y conversiones explicitas compilan)."
