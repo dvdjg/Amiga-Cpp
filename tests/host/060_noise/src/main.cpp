@@ -1,10 +1,10 @@
-// ============================================================================
+﻿// ============================================================================
 // Test HOST-060: ruido procedural genérico (`eng/core/noise.hpp`).
 // ============================================================================
 //
 // El MISMO algoritmo (value noise + fbm) se ejecuta con `double` (referencia) y con
 // `MiniFloat16`, sobre las mismas entradas redondeadas. Comprueba determinismo, rango
-// [0,1] y diferencia entre escalares.
+// [0,1], ruido periódico (tileable) y fbm1/fbm2/fbm3.
 //
 //   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/060_noise
 
@@ -32,7 +32,6 @@ void test_determinism_and_range() {
 	const MiniFloat16 a = em::value_noise2(MiniFloat16(3.7f), MiniFloat16(-1.3f), 42u);
 	const MiniFloat16 b = em::value_noise2(MiniFloat16(3.7f), MiniFloat16(-1.3f), 42u);
 	check(a.raw == b.raw, "value_noise2 determinista");
-	// seeds distintos -> valores distintos (casi con seguridad)
 	check(em::value_noise2(MiniFloat16(3.7f), MiniFloat16(-1.3f), 43u).raw != a.raw,
 	      "seeds distintos dan valores distintos");
 
@@ -61,8 +60,8 @@ void test_vs_double() {
 		const float r1d = static_cast<float>(em::value_noise1<double>(static_cast<double>(x), 5u));
 		e1 = std::fmax(e1, std::fabs(r1m - r1d));
 
-		const float r2m = static_cast<float>(
-			em::value_noise2(MiniFloat16(x), MiniFloat16(y), 9u));
+		const float r2m =
+			static_cast<float>(em::value_noise2(MiniFloat16(x), MiniFloat16(y), 9u));
 		const float r2d = static_cast<float>(em::value_noise2<double>(static_cast<double>(x),
 									     static_cast<double>(y), 9u));
 		e2 = std::fmax(e2, std::fabs(r2m - r2d));
@@ -99,6 +98,60 @@ void test_fbm_shape() {
 	check(ok, "fbm2 de 7 octavas finito y en [0,1]");
 }
 
+void test_periodic_and_fbm13() {
+	// fbm1 / fbm3 frente a double
+	{
+		float e1 = 0, e3 = 0;
+		for (int i = 0; i < 200; ++i) {
+			const float x = -6.0f + i * 0.06f;
+			const float y = 1.0f - i * 0.02f;
+			const float z = 0.5f + i * 0.011f;
+			e1 = std::fmax(e1, std::fabs(static_cast<float>(em::fbm1(
+					MiniFloat16(x), 5u, 4, MiniFloat16(2.0f), MiniFloat16(0.5f))) -
+				static_cast<float>(em::fbm1<double>(static_cast<double>(x), 5u, 4, 2.0, 0.5))));
+			e3 = std::fmax(e3, std::fabs(static_cast<float>(em::fbm3(
+					MiniFloat16(x), MiniFloat16(y), MiniFloat16(z), 3u, 3,
+					MiniFloat16(2.0f), MiniFloat16(0.5f))) -
+				static_cast<float>(em::fbm3<double>(static_cast<double>(x),
+								    static_cast<double>(y),
+								    static_cast<double>(z), 3u, 3, 2.0, 0.5))));
+		}
+		std::printf("  fbm1 MF~double %.2e   fbm3 MF~double %.2e\n", e1, e3);
+		check(e1 <= 2.0e-2f, "fbm1 MF ~ double");
+		check(e3 <= 2.5e-2f, "fbm3 MF ~ double");
+	}
+
+	// periodicidad (tileable): noise(x+P) == noise(x), en double y en MF
+	{
+		const int P = 8;
+		float md = 0, mm = 0, fd = 0;
+		for (int i = 0; i < 64; ++i) {
+			const float x = i * 0.12f, y = 1.0f - i * 0.05f;
+			md = std::fmax(
+				md, std::fabs(static_cast<float>(em::value_noise2<double>(
+						      static_cast<double>(x) + P, static_cast<double>(y), 4u, P)) -
+					      static_cast<float>(em::value_noise2<double>(
+						      static_cast<double>(x), static_cast<double>(y), 4u, P))));
+			mm = std::fmax(
+				mm, std::fabs(static_cast<float>(em::value_noise2(
+						      MiniFloat16(x + P), MiniFloat16(y), 4u, P)) -
+					      static_cast<float>(em::value_noise2(
+						      MiniFloat16(x), MiniFloat16(y), 4u, P))));
+			fd = std::fmax(
+				fd, std::fabs(static_cast<float>(em::fbm2<double>(
+						      static_cast<double>(x) + P, static_cast<double>(y), 6u,
+						      4, 2.0, 0.5, P)) -
+					      static_cast<float>(em::fbm2<double>(
+						      static_cast<double>(x), static_cast<double>(y), 6u,
+						      4, 2.0, 0.5, P))));
+		}
+		std::printf("  periodicidad: vn2 double %.2e  vn2 MF %.2e  fbm2 double %.2e\n", md, mm, fd);
+		check(md <= 1.0e-9f, "value_noise2 periodico (double) sin costura");
+		check(mm <= 1.5e-2f, "value_noise2 periodico (MF) sin costura");
+		check(fd <= 1.0e-9f, "fbm2 periodico (double, lac=2) sin costura");
+	}
+}
+
 } // namespace
 
 int main() {
@@ -106,6 +159,7 @@ int main() {
 	test_determinism_and_range();
 	test_vs_double();
 	test_fbm_shape();
+	test_periodic_and_fbm13();
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;

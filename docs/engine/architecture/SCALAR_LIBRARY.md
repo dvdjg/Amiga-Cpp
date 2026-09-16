@@ -99,8 +99,11 @@ Añadir un escalar nuevo = especializar `scalar_traits<S>` (álgebra), `numeric_
 | `length_sq` | `MiniFloat16` | desborda si las componentes > ~255 |
 | `reflect`/`project` | `MiniFloat16` | normal/`onto` no nula; dirección ~10 bits |
 | `sqrt`/`exp`/`log`/`sin`… | `MiniFloat16` | ver la tabla de `MINIFLOAT16.md` §7; las constantes fuera de dominio **fallan al compilar** (`if consteval` + `mf16_domain_*`) |
-| `value_noise`/`fbm` | `MiniFloat16` | valor de rejilla con 1024 niveles; en `fbm` la amplitud de octava profunda puede bajoflow a 0 |
-| `remap`/`inv_lerp`/`normalize` | `Fixed` | **no compila** (sin `operator/`), por diseño |
+| `value_noise`/`fbm` | `MiniFloat16` | valor de rejilla con 1024 niveles; coordenada constante fuera de `[-2048, 2048]` **falla al compilar**; `period > 0` la hace tileable |
+| `lerp`/`smoothstep`/`cross2`/`rotate2`/`vscale`/`vlerp`/`dot` | `Fixed` | **funcionan**: el producto se normaliza con `mul_norm` (el producto de dos fixed cambia de exponente) |
+| `smootherstep` | `Fixed` 4.12 | **no compila**: necesita representar el coeficiente 15 y 4.12 llega a ±8 (`require_range`) |
+| `remap`/`inv_lerp`/`normalize`/`length`/`reflect`/`project` | `Fixed` | **no compilan** (sin `operator/` ni `sqrt`), por diseño |
+| `value_noise`/`fbm` | `Fixed` | **no compilan**: necesitan división (sin `operator/`) |
 
 El detalle del escalar de 16 bits está en [MINIFLOAT16.md](MINIFLOAT16.md); el modelo del
 álgebra, en [MATH_LIBRARY.md](MATH_LIBRARY.md).
@@ -109,8 +112,17 @@ El detalle del escalar de 16 bits está en [MINIFLOAT16.md](MINIFLOAT16.md); el 
 
 | Cabecera | Contenido |
 |---|---|
-| `core/linalg.hpp` | `Vec`/`Mat`/`Affine`, `dot`, `transform`, `scalar_traits` |
+| `core/linalg.hpp` | `Vec`/`Mat`/`Affine`, `dot`, `transform`, `scalar_traits`, `mul_norm` |
 | `core/interp.hpp` | `clamp`/`saturate`/`lerp`/`inv_lerp`/`remap`/`step`/`smoothstep`/`smootherstep` |
 | `core/geometry.hpp` | `length(_sq)`/`distance(_sq)`/`normalize`/`vscale`/`vlerp`/`cross2`/`perp`/`rotate2`/`project`/`reject`/`reflect` |
-| `core/noise.hpp` | `value_noise1/2/3` (lattice [0,1), interpolado con `smoothstep`) y `fbm2` (octavas); hash splitmix32 (2 `__mulsi3` por celda) |
+| `core/noise.hpp` | `value_noise1/2/3` y `fbm1/2/3` (octavas, `period>0` tileable); hash splitmix32 (2 `__mulsi3` por celda) |
 | `core/numeric_traits.hpp` | rasgos numéricos y guards de compilación |
+
+## 6. Verificación
+
+- Host: `tests/host/059_scalar_math` (interp/geometry con `double`, `MiniFloat16` y
+  `q12`), `tests/host/060_noise` (`value_noise`/`fbm` y periodicidad), más 057/058 para
+  el escalar de 16 bits.
+- Demo: `demos/amiga/083_fbm_noise` construye un mapa de altura con `fbm2<MiniFloat16>`
+  en hardware (build/run/analyze OK) — ejemplo canónico de `noise.hpp` y verificación por
+  demo del escalar.

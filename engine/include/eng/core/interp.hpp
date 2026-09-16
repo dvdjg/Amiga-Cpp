@@ -32,10 +32,10 @@
 
 namespace eng::math {
 
-/// Recorta `x` a `[lo, hi]`.
+/// Recorta `x` a `[lo, hi]`. Solo usa `<` (que todo escalar define), no `>`.
 template <typename S>
 [[nodiscard]] constexpr S clamp(S x, S lo, S hi) {
-	return x < lo ? lo : (x > hi ? hi : x);
+	return x < lo ? lo : (hi < x ? hi : x);
 }
 
 /// Recorta `x` a `[0, 1]`.
@@ -44,10 +44,12 @@ template <typename S>
 	return clamp(x, scalar_traits<S>::zero(), scalar_traits<S>::one());
 }
 
-/// Interpolación lineal `a + (b-a)·t` (extrapola si `t` sale de `[0,1]`).
+/// Interpolación lineal `a + (b-a)·t` (extrapola si `t` sale de `[0,1]`). El producto se
+/// normaliza con `mul_norm`, así que funciona con fixed (donde `b-a` y `t` son del mismo
+/// exponente) y con `float`/`MiniFloat16`.
 template <typename S>
 [[nodiscard]] constexpr S lerp(S a, S b, S t) {
-	return a + (b - a) * t;
+	return a + mul_norm(b - a, t);
 }
 
 /// Inverso de `lerp`: `t` tal que `lerp(a,b,t) == v`. Necesita división.
@@ -76,17 +78,24 @@ template <typename S>
 	t = saturate(t);
 	const S two = scalar_traits<S>::from_int(2);
 	const S three = scalar_traits<S>::from_int(3);
-	return t * t * (three - two * t);
+	const S t2 = mul_norm(t, t);
+	return mul_norm(t2, three - mul_norm(two, t));
 }
 
 /// Easing `6t⁵ - 15t⁴ + 10t³` sobre `t` saturado (derivada y curvatura 0 en extremos).
+/// Necesita representar el coeficiente 15: un fixed 4.12 (rango ±8) **no** puede y el
+/// `require_range` lo avisa al compilar (usar `smoothstep` o un fixed con más rango).
 template <typename S>
 [[nodiscard]] constexpr S smootherstep(S t) {
+	require_range<S, -15.0, 15.0>();
 	t = saturate(t);
 	const S six = scalar_traits<S>::from_int(6);
 	const S ten = scalar_traits<S>::from_int(10);
 	const S fifteen = scalar_traits<S>::from_int(15);
-	return t * t * t * (t * (t * six - fifteen) + ten);
+	const S t2 = mul_norm(t, t);
+	const S t3 = mul_norm(t2, t);
+	const S inner = (mul_norm(six, t2) - mul_norm(fifteen, t)) + ten;
+	return mul_norm(t3, inner);
 }
 
 } // namespace eng::math

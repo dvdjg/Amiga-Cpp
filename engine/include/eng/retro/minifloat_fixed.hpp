@@ -36,6 +36,7 @@
 
 #include <eng/core/linalg.hpp>
 #include <eng/core/minifloat.hpp>
+#include <eng/core/numeric_traits.hpp>
 #include <eng/retro/fixed_q.hpp>
 
 /// Fuerza el inline donde la llamada cuesta más que el cálculo (68000). Macro local,
@@ -53,6 +54,11 @@ namespace detail {
 using eng::s16;
 using eng::s32;
 using MF = eng::math::MiniFloat16;
+
+// Diagnóstico de dominio en compilación: como la razón se guarda en 4.12 (±8), una
+// entrada de matriz CONSTANTE fuera de `[-8, 8]` saturaría en silencio; aquí se avisa
+// al compilar (mismo patrón que minifloat_math: llamada no-constexpr en `if consteval`).
+void mf16_fix_domain_ratio_must_be_within_4_12();
 
 /// `mant · 2^-frac` -> `MiniFloat16` (redondeo al más cercano). Genérico en `frac`, así
 /// sirve para 4.12, 8.8 y cualquier otra escala.
@@ -183,6 +189,9 @@ template <int Frac>
 template <int Frac>
 [[nodiscard]] ENG_MF_FIX_AI constexpr eng::math::Fixed<s16, Frac> mul_fixed(
 	eng::math::MiniFloat16 r, eng::math::Fixed<s16, Frac> v) {
+	if consteval { // la razón se lleva a 4.12 (±8): fuera de ahí saturaría en silencio
+		if (!eng::math::in_range(r, -8.0, 8.0)) detail::mf16_fix_domain_ratio_must_be_within_4_12();
+	}
 	const s16 rq = detail::mf_to_fixed(r, 12);
 	const s32 p = static_cast<s32>(rq) * static_cast<s32>(v.v);
 	return {detail::sat16((p + 2048) >> 12)};
@@ -209,6 +218,12 @@ template <int N, int Frac>
 [[nodiscard]] constexpr eng::math::Vec<N, eng::math::Fixed<s16, Frac>> transform(
 	const eng::math::Mat<N, eng::math::MiniFloat16>& m,
 	const eng::math::Vec<N, eng::math::Fixed<s16, Frac>>& p) {
+	if consteval { // razones constantes fuera de 4.12 (±8) saturarían en silencio
+		for (int i = 0; i < N; ++i)
+			for (int k = 0; k < N; ++k)
+				if (!eng::math::in_range(m.m[i][k], -8.0, 8.0))
+					detail::mf16_fix_domain_ratio_must_be_within_4_12();
+	}
 	s16 mq[N][N];
 	for (int i = 0; i < N; ++i)
 		for (int k = 0; k < N; ++k) mq[i][k] = detail::mf_to_fixed(m.m[i][k], 12);

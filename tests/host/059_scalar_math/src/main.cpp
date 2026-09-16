@@ -183,12 +183,68 @@ void test_geometry() {
 	}
 }
 
+void test_fixed() {
+	// Los MISMOS algoritmos sobre un fixed 4.12 (q12), donde el producto cambia de
+	// exponente: `mul_norm` los hace genéricos. Sin división (lo que la divide no aplica).
+	using Q = er::q12;
+	const float tol = 6.0e-3f;
+
+	// lerp / smoothstep (smootherstep NO: su coeficiente 15 no cabe en q12; el
+	// require_range lo avisa al compilar)
+	{
+		float e_lerp = 0, e_sm = 0;
+		for (int i = 0; i <= 32; ++i) {
+			const Q t {static_cast<eng::s16>(i * 128)}; // 0..4096 (0..1)
+			const Q a {4096}, b {8192};
+			const double td = em::to_double(t);
+			e_lerp = std::fmax(e_lerp, std::fabs(em::to_double(em::lerp(a, b, t)) -
+							     (1.0 + (2.0 - 1.0) * td)));
+			e_sm = std::fmax(e_sm, std::fabs(em::to_double(em::smoothstep(t)) -
+							 td * td * (3.0 - 2.0 * td)));
+		}
+		std::printf("  q12 lerp %.2e  smoothstep %.2e\n", e_lerp, e_sm);
+		check(e_lerp <= tol, "q12 lerp");
+		check(e_sm <= tol, "q12 smoothstep");
+	}
+
+	// geometría (dot/cross2/perp/rotate2/vscale/vlerp), sin sqrt ni división
+	{
+		using V2 = em::Vec<2, Q>;
+		const V2 a = {Q {4096}, Q {2048}}; // (1, 0.5)
+		const V2 b = {Q {2048}, Q {4096}}; // (0.5, 1)
+		const double a0 = em::to_double(a.v[0]), a1 = em::to_double(a.v[1]);
+		const double b0 = em::to_double(b.v[0]), b1 = em::to_double(b.v[1]);
+		check(std::fabs(em::to_double(em::dot(a, b)) - (a0 * b0 + a1 * b1)) <= tol, "q12 dot");
+		check(std::fabs(em::to_double(em::cross2(a, b)) - (a0 * b1 - a1 * b0)) <= tol,
+		      "q12 cross2");
+		const V2 p = em::perp(a);
+		check(p.v[0].v == static_cast<eng::s16>(-a.v[1].v) && p.v[1].v == a.v[0].v, "q12 perp");
+
+		const Q c {3670}, s {1820}; // ~cos(0.46), ~sin(0.46) en 4.12
+		const double cd = em::to_double(c), sd = em::to_double(s);
+		const V2 r = em::rotate2(a, c, s);
+		check(std::fabs(em::to_double(r.v[0]) - (cd * a0 - sd * a1)) <= tol &&
+			      std::fabs(em::to_double(r.v[1]) - (sd * a0 + cd * a1)) <= tol,
+		      "q12 rotate2");
+
+		const V2 sc = em::vscale(a, Q {2048}); // *0.5
+		check(std::fabs(em::to_double(sc.v[0]) - a0 * 0.5) <= tol &&
+			      std::fabs(em::to_double(sc.v[1]) - a1 * 0.5) <= tol,
+		      "q12 vscale");
+		const V2 lv = em::vlerp(a, b, Q {2048}); // mezcla al 50%
+		check(std::fabs(em::to_double(lv.v[0]) - (a0 + (b0 - a0) * 0.5)) <= tol &&
+			      std::fabs(em::to_double(lv.v[1]) - (a1 + (b1 - a1) * 0.5)) <= tol,
+		      "q12 vlerp");
+	}
+}
+
 } // namespace
 
 int main() {
 	std::printf("== HOST-059 scalar math (interp + geometry) ==\n");
 	test_interp();
 	test_geometry();
+	test_fixed();
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;

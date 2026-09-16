@@ -128,6 +128,36 @@ volatile float v = 50.0f;
 void f() { MiniFloat16 e = eng::math::exp(MiniFloat16(v)); (void)e; }
 void g() { (void)a; (void)b; (void)c; (void)d; }"
 
+# Ruido: coordenada constante fuera del rango de celda exacta, y octavas < 1.
+PRE4='#include <eng/core/noise.hpp>
+using eng::math::MiniFloat16;'
+
+expect_fail noise_coord_oob "noise_domain_coord_out_of_range" "$PRE4
+constexpr MiniFloat16 r = eng::math::value_noise2(MiniFloat16(3000.0f), MiniFloat16(1.0f), 1u);"
+
+expect_fail noise_octaves "noise_domain_octaves_must_be_positive" "$PRE4
+constexpr MiniFloat16 r = eng::math::fbm2(MiniFloat16(1.0f), MiniFloat16(1.0f), 1u, 0, MiniFloat16(2.0f), MiniFloat16(0.5f));"
+
+# Puente fix: razon constante fuera de 4.12 (±8).
+PRE5='#include <eng/retro/minifloat_fixed.hpp>
+using eng::math::MiniFloat16;'
+
+expect_fail fix_ratio_oob "mf16_fix_domain_ratio_must_be_within_4_12" "$PRE5
+constexpr auto r = eng::retro::mul_fixed(MiniFloat16(20.0f), eng::retro::q12 {100});"
+
+# smootherstep necesita representar 15; un 4.12 (rango ±8) no puede.
+PRE6='#include <eng/core/interp.hpp>
+#include <eng/retro/fixed_q.hpp>'
+
+expect_fail smootherstep_q12_range "no cabe en el escalar" "$PRE6
+constexpr auto s = eng::math::smootherstep(eng::retro::q12 {2048});"
+
+expect_ok domain_ok_extra "$PRE4
+constexpr MiniFloat16 a = eng::math::value_noise2(MiniFloat16(1.0f), MiniFloat16(2.0f), 1u);
+constexpr MiniFloat16 b = eng::math::fbm2(MiniFloat16(1.0f), MiniFloat16(2.0f), 1u, 3, MiniFloat16(2.0f), MiniFloat16(0.5f));
+constexpr double sm = eng::math::smootherstep(0.5);
+void g() { (void)a; (void)b; (void)sm; }"
+
 
 if [ "$FAILS" -eq 0 ]; then
 	echo "[math-diag] OK: diagnosticos de Fixed claros (y conversiones explicitas compilan)."

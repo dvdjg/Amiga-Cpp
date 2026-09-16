@@ -88,11 +88,11 @@ template <int N, typename S>
 	return scalar_sqrt<S>::op(distance_sq(a, b));
 }
 
-/// `v·k` componente a componente.
+/// `v·k` componente a componente (producto normalizado: vale también para fixed).
 template <int N, typename S>
 [[nodiscard]] constexpr Vec<N, S> vscale(const Vec<N, S>& v, S k) {
 	Vec<N, S> r {};
-	for (int i = 0; i < N; ++i) r.v[i] = v.v[i] * k;
+	for (int i = 0; i < N; ++i) r.v[i] = mul_norm(v.v[i], k);
 	return r;
 }
 
@@ -111,18 +111,18 @@ template <int N, typename S>
 	return a + vscale(b - a, t);
 }
 
-/// Recorta cada componente a `[lo, hi]`.
+/// Recorta cada componente a `[lo, hi]` (solo usa `<`).
 template <int N, typename S>
 [[nodiscard]] constexpr Vec<N, S> clamp(const Vec<N, S>& v, S lo, S hi) {
 	Vec<N, S> r {};
-	for (int i = 0; i < N; ++i) r.v[i] = v.v[i] < lo ? lo : (v.v[i] > hi ? hi : v.v[i]);
+	for (int i = 0; i < N; ++i) r.v[i] = v.v[i] < lo ? lo : (hi < v.v[i] ? hi : v.v[i]);
 	return r;
 }
 
 /// Producto cruz 2D (escalar): positivo si `b` está a la izquierda de `a`.
 template <typename S>
 [[nodiscard]] constexpr S cross2(const Vec<2, S>& a, const Vec<2, S>& b) {
-	return a.v[0] * b.v[1] - a.v[1] * b.v[0];
+	return mul_norm(a.v[0], b.v[1]) - mul_norm(a.v[1], b.v[0]);
 }
 
 /// Perpendicular 2D (giro de 90°): `(-y, x)`.
@@ -131,10 +131,11 @@ template <typename S>
 	return {{-v.v[1], v.v[0]}};
 }
 
-/// Rotación 2D por `(c, s)` = `(cos, sin)`.
+/// Rotación 2D por `(c, s)` = `(cos, sin)` (productos normalizados: vale para fixed).
 template <typename S>
 [[nodiscard]] constexpr Vec<2, S> rotate2(const Vec<2, S>& v, S c, S s) {
-	return {{c * v.v[0] - s * v.v[1], s * v.v[0] + c * v.v[1]}};
+	return {{mul_norm(c, v.v[0]) - mul_norm(s, v.v[1]),
+		 mul_norm(s, v.v[0]) + mul_norm(c, v.v[1])}};
 }
 
 /// Proyección de `v` sobre `onto`: `(v·onto / onto·onto)·onto`.

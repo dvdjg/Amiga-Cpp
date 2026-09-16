@@ -181,6 +181,16 @@ struct scalar_traits<MiniFloat16> {
 	static constexpr bool needs_normalize = false;
 };
 
+/// Producto de dos escalares **normalizado al propio escalar**: identidad para
+/// `float`/`MiniFloat16` (su producto ya vive en el mismo espacio) y `rescale` para un
+/// fixed (donde `a*b` pasa a exponente doble). Es lo que hace genéricos `lerp`,
+/// `cross2`, `rotate2`, `vscale`… sobre CUALQUIER escalar, incluido el fixed sin
+/// `operator/`.
+template <typename S>
+[[nodiscard]] constexpr S mul_norm(S a, S b) {
+	return scalar_traits<S>::norm_from(a * b);
+}
+
 // ============================================================================
 //  Vector
 // ============================================================================
