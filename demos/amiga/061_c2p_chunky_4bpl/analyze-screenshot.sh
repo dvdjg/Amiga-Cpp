@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# Analizador visual de la demo 061 (c2p chunky->planar).
-# Valida que la captura muestra la rampa de grises i*0x111 (indices 0..15) en la
-# zona del buffer chunky (arriba-izquierda). No usa overlay verde/amarillo.
+# Analizador visual de la demo 061 (rotozoom chunky 4bpp -> planar).
+# Valida que la captura es COLORIDA y llena la pantalla (colores != grises, buena
+# cobertura), que es lo que distingue un c2p correcto de un render plano/negro.
 # Uso: analyze-screenshot.sh <imagen.png>
 # ---------------------------------------------------------------------------
 set -euo pipefail
@@ -15,4 +15,4 @@ if [ -z "$IMAGE" ]; then
 	exit 2
 fi
 
-exec node "$ROOT/dist/tools/analyze/verify_c2p_gray.js" --image "$IMAGE"
+exec node "$ROOT/dist/tools/analyze/verify_c2p_color.js" --image "$IMAGE"

@@ -3,6 +3,10 @@
 /// \file c2p.hpp
 /// chunky 4bpp -> planar. Port FIEL del c2p_1x1_4 de Mikael Kalms (1999) a C++.
 ///
+/// Referencia canónica del asm `support/c2p_1x1_4.s`: la demo 061 comprueba en
+/// `init` que ambas salidas son **byte a byte idénticas** (publica el nº de bytes
+/// distintos en `g_eng_run_status.detail`; medido `0`).
+///
 /// Convierte un framebuffer chunky (1 byte por pixel, nibble bajo = indice 0..15)
 /// al formato planar de 4 bitplanes que lee el DMA de Agnus. Es una transposicion
 /// de matriz de bits (amiga-bootcamp `08_graphics/pixel_conversion.md`): en vez de

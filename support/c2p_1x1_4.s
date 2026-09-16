@@ -4,29 +4,41 @@
      - comentarios en bloque (`,;` no es comentario en este as).
      - los lea con indice .l se sustituyen por move.l/add.l (equivalente en
        68000, porque GNU as exige 68020 para lea (An,Dn.L)).
-   ABI: argumentos por pila. Tras movem d2-d7/a2-a6 (11 registros = 44 bytes):
-     sp+48 = chunkyx (px, multiplo de 16)
-     sp+52 = chunkyy (lineas)
-     sp+56 = bplsize (bytes de salto entre planos consecutivos)
-     sp+60 = chunkybuffer (entrada, 1 byte/pixel, nibble bajo)
-     sp+64 = bitplanes (destino: 4 planos)
+   ABI (la del ORIGINAL, `include/c2p_1x1_4.h`): argumentos por REGISTRO.
+     d0.w = chunkyx (px, multiplo de 16)
+     d1.w = chunkyy (lineas)
+     d5.l = bplsize (bytes de salto entre planos consecutivos)
+     a0   = chunkybuffer (entrada, 1 byte/pixel, nibble bajo)
+     a1   = bitplanes (destino: 4 planos)
+   El llamador los deja en esos registros (wrapper inline-asm de la demo 061); no se
+   pueden declarar como parametros C normales porque GCC no usa d5 para el 3.º.
+
+   Sin `.cfi_startproc/_endproc`: es asm hoja (no necesita unwind) y, ademas, un
+   `.eh_frame` no vacio desajustaba la enumeracion de secciones del canal lateral
+   respecto al `.map` (la demo "no alcanzaba READY"; ver HISTORIAL-CAMBIOS.md). Igual
+   que `fire_loop.s`/`fire_asm.s`.
+
+   VERIFICADA por la demo 061 (`demos/amiga/061_c2p_chunky_4bpl`): su gate de
+   equivalencia comprueba en `init` que la salida es **byte a byte identica** a la
+   referencia portable `eng/graphics/c2p.hpp` y publica el resultado en
+   `g_eng_run_status.detail` (0 = identical; medido `detail=0x0`). Cuidado con la
+   linea `move.w d7,(a4)+` de la cola de `.pix16`: si falta, el plano 1 sale basura
+   (el gate lo detecta) y el fallo pasa desapercibido al gate de color, porque una
+   permutacion de planos sigue dando grises validos.
 */
 
 	.section .text.c2p_1x1_4,"ax",@progbits
 	.type c2p_1x1_4, function
 	.globl	c2p_1x1_4
-	.cfi_startproc
 
 c2p_1x1_4:
 	movem.l	d2-d7/a2-a6,-(sp)
-	.cfi_adjust_cfa_offset 44
 
-	/* Carga de los 5 argumentos por pila (ABI del repo). */
-	move.l	sp@(48), d0	/* chunkyx (la rutina usa solo la word baja via lsr.w) */
-	move.l	sp@(52), d1	/* chunkyy */
-	move.l	sp@(56), d5	/* bplsize */
-	move.l	sp@(60), a0	/* chunkybuffer */
-	move.l	sp@(64), a1	/* bitplanes */
+	/* ABI del ORIGINAL (Kalms, `c2p_1x1_4.h`): NO hay que cargar nada, los argumentos
+	   YA vienen en los registros:
+	     d0.w chunkyx | d1.w chunkyy | d5.l bplsize | a0 chunkybuffer | a1 bitplanes
+	   (El port inicial los leia de la pila; GCC no los coloca ahi y `bplsize` llegaba
+	   mal, lo que corrompia los planos 1..3 y dejaba el 0 perfecto.) */
 
 	lsr.w	#3, d0	/* chunkyx / 8 = bytes por fila de entrada */
 
@@ -162,6 +174,8 @@ c2p_1x1_4:
 
 	move.l	d1, d2
 
+	move.w	d7, (a4)+	/* plano1 (faltaba en el port: solo se escribia en la cola) */
+
 .start:
 	lsr.l	#2, d2
 	eor.l	d0, d2
@@ -187,7 +201,5 @@ c2p_1x1_4:
 	move.w	d7, (a4)+
 
 	movem.l	(sp)+, d2-d7/a2-a6
-	.cfi_adjust_cfa_offset -48
 	rts
-	.cfi_endproc
 	.size c2p_1x1_4, .-c2p_1x1_4
