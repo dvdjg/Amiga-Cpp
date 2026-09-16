@@ -17,6 +17,7 @@
 /// bucles se desenrollan; no se crean matrices temporales.
 
 #include <eng/core/fixed.hpp>
+#include <eng/core/minifloat.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::math {
@@ -102,6 +103,29 @@ struct scalar_traits<float> {
 	template <typename Prod>
 	static constexpr float norm_from(Prod p) {
 		return static_cast<float>(p);
+	}
+
+	static constexpr bool needs_normalize = false;
+};
+
+/// Coma flotante de 16 bits (`MiniFloat16`): el producto ya vive en el mismo espacio
+/// (no hay exponente separado que normalizar), así que los rasgos son los del cuerpo.
+/// Sólo hay que fijar el `uno` real (por defecto la plantilla primaria usaría `S{1}`,
+/// que en este formato es un valor denormal, no 1.0).
+template <>
+struct scalar_traits<MiniFloat16> {
+	using scalar = MiniFloat16;
+
+	static constexpr MiniFloat16 inner(MiniFloat16 a, MiniFloat16 b) { return a * b; }
+
+	static constexpr MiniFloat16 zero() { return MiniFloat16::zero(); }
+	static constexpr MiniFloat16 one() { return MiniFloat16::one(); }
+	static constexpr MiniFloat16 from_int(int i) { return MiniFloat16 {static_cast<float>(i)}; }
+	static constexpr int to_int(MiniFloat16 a) { return static_cast<int>(static_cast<float>(a)); }
+
+	template <typename Prod>
+	static constexpr MiniFloat16 norm_from(Prod p) {
+		return static_cast<MiniFloat16>(p);
 	}
 
 	static constexpr bool needs_normalize = false;
