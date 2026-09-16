@@ -137,9 +137,9 @@ un polígono del Blitter (line-draw + area-fill, para relleno vectorial/3D).
 | Pieza | Estado | Dónde |
 |---|---|---|
 | Blit de BOB: descriptor + cola + ejecución HW | **EXISTE** | `frame_plan.hpp:44-50,182-199` (`BlitJob`, kinds `MaskedBobCookieCut`/`MaskedBlobNoSave`/`CopyRect`/`RestoreRect`), `MinimalBackend::execute_frame_plan` (`amiga_minimal.cpp:619-716`) |
-| Minterm elegible (OR-bob, glow) | **NO EXISTE** | el ejecutor fija `$CA`/`$AA`/`$F0`; `bobs3d.c` usa `A\|B` |
-| Layout intercalado en el path de blits | **PARCIAL** | se modela con `bitplane_count=1` + altura = planelíneas y un placeholder de stride (`xlimited.hpp:978-994`, `soft_dpf.hpp:188-194`) |
-| Clase/manager de BOBs (posición, frame, máscara, clip, save/restore, ciclo de vida) | **NO EXISTE** | cada demo lo arma a mano (050 hace su propio save/restore) |
+| Minterm elegible (OR-bob, glow) | **EXISTE** | `BlitJob::minterm` (`frame_plan.hpp`); kinds `OrBlob` (`$FC`, `D=A\|D`) y `ClearRect` (`$00`) en el ejecutor |
+| Layout intercalado en el path de blits | **EXISTE** | `BlitJob::interleaved` explícito (altura = alto×planos, `bitplane_count=1`, módulos propios); el patrón `bitplane_count=1` + altura = planelíneas sigue usándose en `xlimited.hpp`/`soft_dpf.hpp` |
+| Clase/manager de BOBs (posición, frame, máscara, clip, save/restore, ciclo de vida) | **PARCIAL** | `graphics/bob.hpp` (`Bob`/`BobTarget`/`bob_draw`/`bob_erase`; `RestoreUnder` pendiente, sin manager de actores); 050 sigue armando su save/restore a mano |
 | Objeto CPU 2D (posición+imagen+clip) | **NO EXISTE** | solo `Surface` (`field/surface.hpp`) y structs locales en demos (110/111) |
 | Sprite HW: emitter + plantilla + allocator + intents | **EXISTE** | `sprite_manager.hpp`, `sprite.hpp`, `sprite_allocator.hpp`, `raster_intent.hpp:96-104` |
 | Actor-sprite con estado y **overflow sprite→BOB cableado** | **NO EXISTE/PARCIAL** | 054 solo cuenta el `as_bob` (`054/.../main.cpp:145-149`) |
@@ -147,17 +147,34 @@ un polígono del Blitter (line-draw + area-fill, para relleno vectorial/3D).
 
 | # | Tarea | Estado |
 |---|---|---|
-| 6.1 | `scene/actor.hpp`: `Actor{Tipo, ActorTemplate, pos, clip, estado}` + `World` con arrays fijos por feature, consumiendo `RepresentationAllocator` | pendiente |
-| 6.2 | `Bob` (bitmap) + manager: hoja de planos (+máscara opcional), frame de animación, clip y política de save/restore; emite `BlitJob`s con el presupuesto del `FramePlan` | pendiente |
-| 6.3 | **Minterm en `BlitJob`** (cookie-cut / OR / copy) para OR-bobs y uniformar 050/051/bobs3d | pendiente |
-| 6.4 | Layout **explícito** en `BlitJob` (interleaved vs planar) para expresar «1 blit/objeto» sin el placeholder de stride | pendiente |
+| 6.1 | `scene/actor.hpp`: `Actor{Tipo, ActorTemplate, pos, clip, estado}` + `World` con arrays fijos por feature, consumiendo `RepresentationAllocator` | **HECHO (sin `World` de features)**: `scene/actor.hpp` con `ActorDesc`/`Actor` (transparencia, fondo, anclaje/offset, Copper anclado, velocidad de animación) y `ActorStore<Max>` con handles generacionales. Test host `072_actor`. El contenedor de features/`World` sigue pendiente |
+| 6.2 | `Bob` (bitmap) + manager: hoja de planos (+máscara opcional), frame de animación, clip y política de save/restore; emite `BlitJob`s con el presupuesto del `FramePlan` | **PARCIAL**: `engine/include/eng/graphics/bob.hpp` (`Bob`, `BobTarget`, `bob_draw`, `bob_erase_box`; minterm `$CA`/`$FC`/`$F0`, stride de hoja explícito) + emisión desde el actor (`actor_emit`: borrado, save-under y dibujo) en `scene/actor.hpp`. Geometría cubierta por `tests/host/071_bob` y `072_actor`; el camino Blitter **no** lo ejercita aún una demo con gate visual (ver nota) |
+| 6.3 | **Minterm en `BlitJob`** (cookie-cut / OR / copy) para OR-bobs y uniformar 050/051/bobs3d | **HECHO**: `BlitJob::minterm` (por defecto `$CA`); kind `OrBlob` (`$FC`) y `ClearRect` (`$00`) en `frame_plan.hpp`/`execute_frame_plan` |
+| 6.4 | Layout **explícito** en `BlitJob` (interleaved vs planar) para expresar «1 blit/objeto» sin el placeholder de stride | **HECHO**: `BlitJob::interleaved` (altura = alto×planos, un blit/objeto) con validación propia |
 | 6.5 | Cablear `SpriteAllocator::as_bob` → `BlitJob` (transición sprite→BOB real) y cerrar el bug de la 054 | pendiente |
 | 6.6 | Objeto CPU 2D sobre `Surface` (posición + imagen/redibujo + clip) | pendiente |
+
+**Nota 6.2 — artefacto de planos al montar el BOB en la 085**: la reescritura del BOB de la
+085 al camino Blitter (hoja planar única + barrel shifter + `ClearRect`) compila y llega a
+`READY`, pero el render presenta artefactos (mitad inferior del disco en índice 5 y restos
+tipo media luna/franja bajo el objeto), así que **no pasa el gate visual** y se revirtió. Dos
+datos objetivos: (1) el fps no mejora (CPU byte-copy 16,6 vs Blitter 16,6), luego **el
+copiado del objeto no es el cuello de botella** del frame (coincide con F4.6: el bucle es
+~425k ciclos y el update ~65k); (2) el defecto está en la geometría de los `BlitJob`s o en
+cómo los aplica el ejecutor (módulos de origen/destino y avance de planos), no en la
+construcción en sí (que el host test valida). Depurar contra `execute_frame_plan`
+(`amiga_minimal.cpp:619-748`) antes de retomar.
+
 
 Referencias obligatorias antes de tocar esto (regla de contexto técnico): AHRM 3.ª
 (`docs/reference/ahrm/`), `amiga-bootcamp/08_graphics/blitter_programming.md` (minterms,
 cookie-cut, *Use Case 4: interleaved bitplane BOBs*, presupuesto DMA) y
 `demoscene-repo-orig/effects/bobs3d/bobs3d.c` (OR-bobs intercalados + clear en 1 blit).
+
+El diseño objetivo del sistema de objetos (representación y degradación, transparencia y
+fondos, necesidades de Copper ancladas, algoritmos y presupuesto) está en
+`docs/engine/architecture/OBJECT_SYSTEM.md`; el vocabulario de intenciones y las plantillas
+de sprite, en `docs/engine/architecture/VISUAL_EFFECT_SPRITE_DESIGN.md`.
 
 ## Incongruencias detectadas (checklist)
 

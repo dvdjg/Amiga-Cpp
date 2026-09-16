@@ -47,6 +47,13 @@ enum class BlitJobKind : u8 {
 	TileBlockCopy,
 	MaskedBobCookieCut,
 	MaskedBlobNoSave,
+	/// Borrado del rectangulo: un blit sin fuentes (solo D). Con bitmaps
+	/// intercalados borra la caja del objeto en UN blit (`height = alto*planos`).
+	ClearRect,
+	/// BOB **OR por desplazamiento** (estilo `bobs3d`): `A` = bitmap del objeto,
+	/// `B = D` = destino, minterm `$FC` (`D = A | D`). Sin mascara: los ceros del
+	/// objeto dejan el fondo (aditivo/glow). Con destino intercalado es UN blit.
+	OrBlob,
 };
 
 /// Presupuesto acumulado de Blitter.
@@ -196,6 +203,18 @@ struct BlitJob {
 	/// de regiones solapadas en las que el destino queda por delante del origen
 	/// (p. ej. desplazar el scroll ring hacia la derecha/abajo).
 	bool descending = false;
+	/// Minterm del Blitter (BLTCON0 bits 7..0). Permite el MISMO camino para
+	/// **cookie-cut** `$CA` (`D=A·B+¬A·C`, con mascara), **OR aditivo por
+	/// desplazamiento** `$FC` (`D=A|D`, bobs/glow sin mascara, ver
+	/// `demoscene-repo-orig/effects/bobs3d/bobs3d.c`), **copia** `$F0`/`$AA` y
+	/// **borrado** `$00`. Referencia: `amiga-bootcamp/08_graphics/blitter_programming.md`
+	/// (tabla de minterms).
+	u8 minterm = 0xCAu;
+	/// El destino es un bitmap **INTERCALADO**: una sola "columna" de canales y
+	/// `height` ya incluye los planos (filas = alto_objeto * planos), con los modulos
+	/// del bitmap. Es el truco de **un blit por objeto** (AHRM 6; `blitter_programming.md`
+	/// *Use Case 4: interleaved bitplane BOBs*). Exime de dar strides de plano.
+	bool interleaved = false;
 };
 
 /// Plan de render de un frame.
@@ -309,6 +328,18 @@ public:
 		return add_blit_job(job, BlitJobKind::TileBlockCopy);
 	}
 
+	/// Borrado de un rectangulo (solo D, minterm `$00`). Con `interleaved` borra la
+	/// caja de un objeto en UN blit.
+	bool add_clear_rect(const BlitJob& job) {
+		return add_blit_job(job, BlitJobKind::ClearRect);
+	}
+
+	/// BOB OR (aditivo) por desplazamiento: `A`=objeto, `B=D`=destino, minterm `$FC`.
+	/// El llamador rellena `source`/`destination` y deja `mask` vacia.
+	bool add_or_blob(const BlitJob& job) {
+		return add_blit_job(job, BlitJobKind::OrBlob);
+	}
+
 private:
 	static constexpr s16 min_s16(s16 a, s16 b) { return a < b ? a : b; }
 	static constexpr s16 max_s16(s16 a, s16 b) { return a > b ? a : b; }
@@ -348,15 +379,16 @@ private:
 		const bool masked =
 			job.kind == BlitJobKind::MaskedBobCookieCut ||
 			job.kind == BlitJobKind::MaskedBlobNoSave;
+		const bool clear = job.kind == BlitJobKind::ClearRect;
 		if (
-			job.source.words == nullptr ||
+			(!clear && job.source.words == nullptr) ||
 			job.destination.words == nullptr ||
 			job.words_per_row == 0 ||
 			job.height == 0 ||
 			job.bitplane_count == 0 ||
 			job.source_shift >= 16u ||
-			job.source_plane_stride_bytes == 0 ||
-			job.destination_plane_stride_bytes == 0
+			(!clear && job.source_plane_stride_bytes == 0 && !job.interleaved) ||
+			(job.destination_plane_stride_bytes == 0 && !job.interleaved)
 		) {
 			m_ok = false;
 			return false;

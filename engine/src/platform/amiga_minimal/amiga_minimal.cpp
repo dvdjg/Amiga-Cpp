@@ -631,8 +631,10 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 			job.kind == graphics::BlitJobKind::CopyRect ||
 			job.kind == graphics::BlitJobKind::RestoreRect ||
 			job.kind == graphics::BlitJobKind::TileBlockCopy;
+		const bool clear = job.kind == graphics::BlitJobKind::ClearRect;
+		const bool or_blob = job.kind == graphics::BlitJobKind::OrBlob;
 
-		if (!masked && !copy) {
+		if (!masked && !copy && !clear && !or_blob) {
 			return false;
 		}
 
@@ -648,10 +650,39 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 			const u16* source_plane = job.source.words + static_cast<u32>(plane) * source_plane_stride_words;
 			u16* destination_plane = job.destination.words + static_cast<u32>(plane) * destination_plane_stride_words;
 
+			if (clear) {
+				// Solo D con el minterm del job (por defecto `$00` = D=0): un blit
+				// borra la caja del objeto, y con bitmaps intercalados cubre los
+				// planos en ese mismo blit.
+				custom_base[custom_bltcon0_offset] = static_cast<u16>(blt_use_d | job.minterm);
+				custom_base[custom_bltcon1_offset] = 0;
+				custom_base[custom_bltafwm_offset] = 0xffff;
+				custom_base[custom_bltalwm_offset] = 0xffff;
+				custom_base[custom_bltamod_offset] = 0;
+				custom_base[custom_bltbmod_offset] = 0;
+				custom_base[custom_bltcmod_offset] = 0;
+				custom_base[custom_bltdmod_offset] = static_cast<u16>(job.destination_modulo_bytes);
+				write_custom_pointer(custom_bltdpt_offset, destination_plane);
+				custom_base[custom_bltsize_offset] = static_cast<u16>(
+					(static_cast<u16>(job.height) << 6) | job.words_per_row
+				);
+				++m_blitter_starts;
+				continue;
+			}
 			if (masked) {
 				custom_base[custom_bltcon0_offset] = static_cast<u16>(
 					(static_cast<u16>(job.source_shift) << 12u) |
-					blt_use_a | blt_use_b | blt_use_c | blt_use_d | blt_minterm_cookie_cut
+					blt_use_a | blt_use_b | blt_use_c | blt_use_d | job.minterm
+				);
+				custom_base[custom_bltcon1_offset] = static_cast<u16>(
+					static_cast<u16>(job.source_shift) << 12u
+				);
+			} else if (or_blob) {
+				// BOB OR (bobs3d): A = objeto (con barrel shift), B = D = destino,
+				// minterm $FC (D = A | D). El canal C no interviene.
+				custom_base[custom_bltcon0_offset] = static_cast<u16>(
+					(static_cast<u16>(job.source_shift) << 12u) |
+					blt_use_a | blt_use_b | blt_use_d | job.minterm
 				);
 				custom_base[custom_bltcon1_offset] = static_cast<u16>(
 					static_cast<u16>(job.source_shift) << 12u
@@ -680,17 +711,19 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 					job.descending ? blt_desc : 0x0000
 				);
 			}
-			const bool shifted_copy = !masked && job.source_shift != 0u;
-			// En copias con shift, la ultima word de cada fila se enmascara para que
+			const bool shifted_copy = !masked && !or_blob && job.source_shift != 0u;
+			const bool source_by_a = masked || or_blob || shifted_copy;
+			// En copias/OR con shift, la ultima word de cada fila se enmascara para que
 			// los bits desplazados hacia fuera (que el Blitter reinyecta al principio
 			// de la fila siguiente) sean cero: deja una guarda de `shift` px al
 			// principio del bitmap, nunca datos erroneos de la fila anterior.
 			custom_base[custom_bltafwm_offset] = 0xffff;
-			custom_base[custom_bltalwm_offset] = shifted_copy
+			custom_base[custom_bltalwm_offset] = (shifted_copy || or_blob)
 				? static_cast<u16>(0xffffu << job.source_shift)
 				: 0xffff;
-			custom_base[custom_bltamod_offset] = static_cast<u16>((masked || shifted_copy) ? job.source_modulo_bytes : 0);
-			custom_base[custom_bltbmod_offset] = static_cast<u16>(masked ? job.source_modulo_bytes : 0);
+			custom_base[custom_bltamod_offset] = static_cast<u16>(source_by_a ? job.source_modulo_bytes : 0);
+			custom_base[custom_bltbmod_offset] = static_cast<u16>(
+				masked ? job.source_modulo_bytes : (or_blob ? job.destination_modulo_bytes : 0));
 			custom_base[custom_bltcmod_offset] = static_cast<u16>(masked ? job.destination_modulo_bytes : job.source_modulo_bytes);
 			custom_base[custom_bltdmod_offset] = static_cast<u16>(job.destination_modulo_bytes);
 
@@ -698,6 +731,10 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 				write_custom_pointer(custom_bltapt_offset, job.mask.words);
 				write_custom_pointer(custom_bltbpt_offset, source_plane);
 				write_custom_pointer(custom_bltcpt_offset, destination_plane);
+			} else if (or_blob) {
+				// B = D = destino (el mismo puntero): D = A | D.
+				write_custom_pointer(custom_bltapt_offset, source_plane);
+				write_custom_pointer(custom_bltbpt_offset, destination_plane);
 			} else if (shifted_copy) {
 				write_custom_pointer(custom_bltapt_offset, source_plane);
 			} else {
