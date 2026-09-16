@@ -18,10 +18,46 @@
 ///   (un `divs.w`) para el factor 1/2. Todas las entradas deben caber en ±8.
 /// - **`float`/`double`**: sin límites prácticos.
 
+#include <eng/core/interp.hpp>
 #include <eng/core/linalg.hpp>
 #include <eng/core/numeric_traits.hpp>
 
 namespace eng::math {
+
+/// **Bézier cuadrática** por de Casteljau (dos `lerp` anidados). Al no usar constantes
+/// enteras, vale tal cual para `MiniFloat16` y `Fixed`; solo necesita `lerp`.
+template <typename S>
+[[nodiscard]] constexpr S bezier2(S p0, S p1, S p2, S t) {
+	return lerp(lerp(p0, p1, t), lerp(p1, p2, t), t);
+}
+
+/// **Bézier cúbica** por de Casteljau (seis `lerp`); pasa por `p0` y `p3`, y queda
+/// controlada por `p1`/`p2`. Pensada para trayectorias de objetos y rampas de cámara.
+template <typename S>
+[[nodiscard]] constexpr S bezier3(S p0, S p1, S p2, S p3, S t) {
+	const S a = lerp(p0, p1, t);
+	const S b = lerp(p1, p2, t);
+	const S c = lerp(p2, p3, t);
+	return lerp(lerp(a, b, t), lerp(b, c, t), t);
+}
+
+/// Bézier cuadrática componente a componente sobre `Vec<N,S>`.
+template <int N, typename S>
+[[nodiscard]] constexpr Vec<N, S> bezier2(const Vec<N, S>& p0, const Vec<N, S>& p1,
+					  const Vec<N, S>& p2, S t) {
+	Vec<N, S> r {};
+	for (int i = 0; i < N; ++i) r.v[i] = bezier2(p0.v[i], p1.v[i], p2.v[i], t);
+	return r;
+}
+
+/// Bézier cúbica componente a componente sobre `Vec<N,S>` (trayectoria 2D/3D).
+template <int N, typename S>
+[[nodiscard]] constexpr Vec<N, S> bezier3(const Vec<N, S>& p0, const Vec<N, S>& p1,
+					  const Vec<N, S>& p2, const Vec<N, S>& p3, S t) {
+	Vec<N, S> r {};
+	for (int i = 0; i < N; ++i) r.v[i] = bezier3(p0.v[i], p1.v[i], p2.v[i], p3.v[i], t);
+	return r;
+}
 
 /// Interpolación cúbica de **Hermite**: pasa por `p0` y `p1` con tangentes `m0`/`m1`.
 /// Bases: `h00 = 2t³−3t²+1`, `h10 = t³−2t²+t`, `h01 = −2t³+3t²`, `h11 = t³−t²`.

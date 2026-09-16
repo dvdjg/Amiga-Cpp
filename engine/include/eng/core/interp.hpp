@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 /// \file interp.hpp
 /// **Interpolación, easing y reescalado** genéricos: el MISMO código sirve para
@@ -14,9 +14,12 @@
 /// error es un mensaje, no un "no matching operator/". `inv_lerp`/`remap` tienen
 /// sobrecargas para `Fixed` que usan la división explícita `div_norm`.
 ///
-/// Los easing **trigonométricos** (`_sine`/`_expo`) piden `sin`/`cos`/`exp2` al escalar
-/// vía `scalar_math.hpp` (ADL o especialización); los **polinómicos** no necesitan nada
-/// más que suma/producto, así que valen también para fixed.
+/// Familia de easings (todas saturan `t` a `[0,1]`):
+/// - **Polinómicos** (`_quad`/`_cubic`): solo suma y producto; valen también para fixed.
+/// - **Back** (`_back`): se pasan de largo y vuelven; usan constantes fraccionarias vía
+///   `scalar_const<S>` (para fixed se cuantizan a su exponente).
+/// - **Trigonométricos** (`_sine`/`_expo`): piden `sin`/`cos`/`exp2` al escalar vía
+///   `scalar_math.hpp` (ADL o especialización); **no compilan** para fixed.
 ///
 /// ## Límites por escalar (importante)
 ///
@@ -29,7 +32,7 @@
 ///   - `smoothstep`/`smootherstep` trabajan en `[0,1]`: seguros (sin división).
 /// - **`float`/`double`**: sin límites prácticos para estos usos.
 /// - **`Fixed`**: representan fracciones, pero no tienen `operator/` en el núcleo;
-///   `lerp`/`smoothstep`/easing polinómico funcionan (suma y producto), `remap`/
+///   `lerp`/`smoothstep`/easing polinómico y `_back` funcionan (suma y producto), `remap`/
 ///   `inv_lerp` usan `div_norm`, y los easing trigonométricos no compilan (sin `sin`).
 
 #include <eng/core/linalg.hpp>
@@ -178,55 +181,102 @@ template <typename S>
 }
 
 // ---------------------------------------------------------------------------
-//  Easing trigonométrico (necesita sin/cos/exp2 del escalar: `scalar_math.hpp`)
+//  Easing "back" (retroceso: se pasa de largo y vuelve; solo suma/producto)
 // ---------------------------------------------------------------------------
 
-/// Constantes de los easings trigonométricos.
+/// Constantes de compilación de los easings: retroceso (`back_*`) y trigonométricos
+/// (`half_pi`/`pi`). Se construyen con `scalar_const<S>` para no ambigüear con `MiniFloat16`
+/// y para cuantizarlas correctamente en fixed.
 namespace easeconst {
+constexpr double back_c1 = 1.70158;
+constexpr double back_c3 = 2.70158;
+constexpr double back_c2 = 2.5949095;
 constexpr double half_pi = 1.57079632679489661923;
 constexpr double pi = 3.14159265358979323846;
 } // namespace easeconst
+
+/// Retroceso de entrada: arranca hacia atrás y corrige (`c3·t³ − c1·t²`).
+template <typename S>
+[[nodiscard]] constexpr S ease_in_back(S t) {
+	t = saturate(t);
+	const S c1 = scalar_const<S>::from(easeconst::back_c1);
+	const S c3 = scalar_const<S>::from(easeconst::back_c3);
+	const S t2 = mul_norm(t, t);
+	return mul_norm(t2, mul_norm(c3, t) - c1);
+}
+/// Retroceso de salida: se pasa del objetivo y vuelve.
+template <typename S>
+[[nodiscard]] constexpr S ease_out_back(S t) {
+	t = saturate(t);
+	const S one = scalar_traits<S>::one();
+	const S c1 = scalar_const<S>::from(easeconst::back_c1);
+	const S c3 = scalar_const<S>::from(easeconst::back_c3);
+	const S u = t - one;
+	const S u2 = mul_norm(u, u);
+	return one + mul_norm(u2, mul_norm(c3, u) + c1);
+}
+/// Retroceso de entrada/salida (retrocede en ambos extremos).
+template <typename S>
+[[nodiscard]] constexpr S ease_in_out_back(S t) {
+	t = saturate(t);
+	const S one = scalar_traits<S>::one();
+	const S two = scalar_traits<S>::from_int(2);
+	const S c2 = scalar_const<S>::from(easeconst::back_c2);
+	const S half = scalar_const<S>::from(0.5);
+	const S s = mul_norm(two, t);
+	if (s < one) return mul_norm(half, mul_norm(mul_norm(s, s), mul_norm(c2 + one, s) - c2));
+	const S u = s - two;
+	return mul_norm(half, mul_norm(mul_norm(u, u), mul_norm(c2 + one, u) + c2) + two);
+}
+
+// ---------------------------------------------------------------------------
+//  Easing trigonométrico (necesita sin/cos/exp2 del escalar: `scalar_math.hpp`)
+// ---------------------------------------------------------------------------
 
 /// Senoidal de entrada: `1 − cos(t·π/2)`.
 template <typename S>
 [[nodiscard]] constexpr S ease_in_sine(S t) {
 	t = saturate(t);
-	return scalar_traits<S>::one() - scalar_cos<S>::op(t * scalar_const<S>(easeconst::half_pi));
+	return scalar_traits<S>::one() - scalar_cos<S>::op(t * scalar_const<S>::from(easeconst::half_pi));
 }
 /// Senoidal de salida: `sin(t·π/2)`.
 template <typename S>
 [[nodiscard]] constexpr S ease_out_sine(S t) {
 	t = saturate(t);
-	return scalar_sin<S>::op(t * scalar_const<S>(easeconst::half_pi));
+	return scalar_sin<S>::op(t * scalar_const<S>::from(easeconst::half_pi));
 }
 /// Senoidal de entrada/salida: `(1 − cos(π·t))/2`.
 template <typename S>
 [[nodiscard]] constexpr S ease_in_out_sine(S t) {
 	t = saturate(t);
-	return (scalar_traits<S>::one() - scalar_cos<S>::op(t * scalar_const<S>(easeconst::pi))) * S(0.5f);
+	return (scalar_traits<S>::one() - scalar_cos<S>::op(t * scalar_const<S>::from(easeconst::pi))) *
+	       scalar_const<S>::from(0.5);
 }
 /// Exponencial de entrada: `2^(10t−10)` (0 para `t=0`).
 template <typename S>
 [[nodiscard]] constexpr S ease_in_expo(S t) {
 	t = saturate(t);
 	if (t == scalar_traits<S>::zero()) return scalar_traits<S>::zero();
-	return scalar_exp2<S>::op(t * S(10.0f) - S(10.0f));
+	return scalar_exp2<S>::op(t * scalar_const<S>::from(10.0) - scalar_const<S>::from(10.0));
 }
 /// Exponencial de salida: `1 − 2^(−10t)` (1 para `t=1`).
 template <typename S>
 [[nodiscard]] constexpr S ease_out_expo(S t) {
 	t = saturate(t);
 	if (t == scalar_traits<S>::one()) return scalar_traits<S>::one();
-	return scalar_traits<S>::one() - scalar_exp2<S>::op(S(-10.0f) * t);
+	return scalar_traits<S>::one() - scalar_exp2<S>::op(scalar_const<S>::from(-10.0) * t);
 }
 /// Exponencial de entrada/salida.
 template <typename S>
 [[nodiscard]] constexpr S ease_in_out_expo(S t) {
 	t = saturate(t);
 	const S one = scalar_traits<S>::one();
-	if (t < S(0.5f)) return scalar_exp2<S>::op(t * S(20.0f) - S(10.0f)) * S(0.5f);
+	if (t < scalar_const<S>::from(0.5))
+		return scalar_exp2<S>::op(t * scalar_const<S>::from(20.0) - scalar_const<S>::from(10.0)) *
+		       scalar_const<S>::from(0.5);
 	if (t == one) return one;
-	return one - scalar_exp2<S>::op(S(10.0f) - t * S(20.0f)) * S(0.5f);
+	return one - scalar_exp2<S>::op(scalar_const<S>::from(10.0) - t * scalar_const<S>::from(20.0)) *
+			     scalar_const<S>::from(0.5);
 }
 
 } // namespace eng::math

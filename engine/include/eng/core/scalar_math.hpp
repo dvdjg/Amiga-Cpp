@@ -174,14 +174,27 @@ struct scalar_exp2<double> {
 };
 
 /// Constante escalar desde un `double` de compilación, **sin ambigüedad**: para
-/// `MiniFloat16` usa el constructor de `float` (su formato solo tiene 10 bits de mantisa).
+/// `MiniFloat16` usa el constructor de `float` (su formato solo tiene 10 bits de mantisa) y
+/// para `Fixed<R,E>` cuantiza a `E` bits fraccionarios (redondeo al más cercano). Un
+/// `static_cast<S>` genérico no vale para ninguno de los dos: en MF ambigüea y en fixed
+/// interpretaría el `double` como representación cruda. Es un punto de extensión (struct)
+/// porque `Fixed` necesita una especialización **parcial** (los escalares de usuario solo
+/// tienen que copiar el molde genérico si su `static_cast<double>` ya es correcto).
 template <typename S>
-[[nodiscard]] constexpr S scalar_const(double v) {
-	return static_cast<S>(v);
-}
+struct scalar_const {
+	static constexpr S from(double v) { return static_cast<S>(v); }
+};
 template <>
-[[nodiscard]] constexpr MiniFloat16 scalar_const<MiniFloat16>(double v) {
-	return MiniFloat16(static_cast<float>(v));
-}
+struct scalar_const<MiniFloat16> {
+	static constexpr MiniFloat16 from(double v) { return MiniFloat16(static_cast<float>(v)); }
+};
+template <typename R, int E, typename P>
+struct scalar_const<Fixed<R, E, P>> {
+	static constexpr Fixed<R, E, P> from(double v) {
+		const double scaled = v * static_cast<double>(1 << E);
+		const double rounded = scaled < 0.0 ? scaled - 0.5 : scaled + 0.5;
+		return Fixed<R, E, P> {static_cast<R>(static_cast<long>(rounded))};
+	}
+};
 
 } // namespace eng::math
