@@ -53,6 +53,9 @@ estructura: `docs/STRUCTURE.md` §4. Clasificación por concepto:
     Y anillo one-direction (DPF con FG de objetos).
   - `111_xlimited_sidescroller` — side-scroller horizontal (X-limited): mundo 4096×320, tileset 128,
     X `Ring` (toroidal), Y fijo (DPF con FG de objetos).
+  - `120_virtual_playfield` — **virtual playfield**: mundo 448×1684 en un bitmap **FLAT contiguo** ya
+    dibujado; el scroll solo mueve `BPLxPT`/`BPLCON1` (**cero blits** por frame). Cablea
+    `BigBufferScroll` a una superficie real; `analyze-sequence.sh` (animada + telemetría `camX/camY`).
   - `112_xlimited_robocod` — XYLimited 5 planos con **fondo geométrico y parallax RoboCod** (plano 4 a
     media velocidad; paleta de 32 índices mapeada a 16 tonos).
   - `113_mode_switch` — microtest de **`ModeSwitchZone`**: campo de 5 planos + HUD de 2 planos con

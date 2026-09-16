@@ -15,6 +15,8 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
 | `docs/engine/architecture/DPF_MIXTO_SPLIT_LINEAL.md` | (nuevo) | DPF: modos de Y por campo (split/lineal/mixto) |
 | `docs/engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md` | **(nuevo) modelo objetivo** | Separación algoritmo/superficie/composición/máquina de playfields y scroll (contrato de refactor) |
 | `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md` | **(nuevo) roadmap vigente** | Fases para llevar el código actual al modelo objetivo; demos a adaptar (107/110/111/112/201/202) |
+| `docs/guides/roadmap/CONSULTA-SPLIT-208.md` | **RESUELTO** | Límite de 8 bits del split vertical del corkscrew (OCS/ECS/AGA), ratificado por IA externa; alternativas (`linear_display` para 256 px) |
+| `docs/guides/roadmap/SCROLL_DEMOS_CLEANUP.md` | **(nuevo) Fase 0** | Inventario de demos de scroll, glosario XLimited/XYLimited, lista de salvamento y matriz de demos por algoritmo; tileset 32c compartido |
 
 ## Estado real del engine y las demos (2026-09)
 
@@ -190,6 +192,33 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
    colores. Se añadió el dither `checker` (checkerboard de dos colores cercanos,
    estilo core-design, para sintetizar colores perdidos tras la cuantización) y
    los nombres de tiling incluyen tamaño de tile y dither (`…c_tN_<paleta>_<dither>…`).
+
+## Soporte de 256 px de scroll vía `linear_display` (decisión abierta)
+
+Objetivo: poder usar un **viewport de scroll de 256 px** (pantalla completa, sin gastar 48 px en un
+HUD) manteniendo el corkscrew 8-way.
+
+Motivo: el comparador de 8 bits del Copper impide el **split móvil** en líneas raster ≥256 y el
+corte se recorta a 255. Es límite de hardware común a OCS/ECS/AGA, ratificado por IA externa
+(`docs/guides/roadmap/CONSULTA-SPLIT-208.md`).
+
+Vía: `linear_display` (espejo vertical del bucle). Ya está implementado y es el defecto de la demo
+107 (`K_LINEAR=1`), verificado con 0/119 pares desincronizados.
+
+Coste conocido:
+- **Blitter**: cada celda entrante se blittea 2× (bucle + espejo) → ~2× `blit_jobs`/`blit_words` en
+  los cruces. El coste es proporcional al salto, no al tamaño de pantalla.
+- **Chip RAM**: `display_height × row_bytes × planes` bytes extra en el campo espejado (anillo 288,
+  44 B/fila, 6 planos ≈ 74 KB; menos con 3-5 planos).
+- **DPF**: con `dual_linear_field` el sobrecoste recae solo en el campo lineal.
+
+Pendiente:
+1. Medir fps reales de un corkscrew a 256 px con `linear_display` en una demo (gate 50 fps) y fijar
+   el presupuesto de Chip RAM del modo.
+2. Decidir si se promueve a modo estándar de la 107/202 o se deja como variante paramétrica.
+
+Alternativa más barata si se acepta menos área: **campo corto + HUD** (208 de scroll + 48 de HUD),
+canónico desde la 201.
 
 ## F6 — Variante rápida «Sonic» (medición E1, 2026-09)
 
