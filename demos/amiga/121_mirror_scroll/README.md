@@ -44,6 +44,6 @@ bash ./demos/amiga/121_mirror_scroll/analyze-sequence.sh [--warp]
 
 ## Estado
 
-- `MirrorScrollPlayfield` verificada por demo (regla de cierre de `AGENTS.md`).
+- `MirrorScrollPlayfield` verificada por demo (regla de cierre de `docs/testing/README.md`).
 - Pendiente: capa de doble buffer + swap `COP1LC` (la otra demo de la matriz), y generalizar el
   mapper para el anillo/split del corkscrew.

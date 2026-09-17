@@ -27,7 +27,7 @@ buffers y copper está en `docs/engine/architecture/DISPLAY_COMPOSITION.md`.
 | 0.4 | Test host de `DoubleBufferScrollPlayfield` (2 bitmaps, `flip()`, `hardware_view()` del delantero) | `tests/host/068_double_buffer_scroll` | **hecho** |
 | 0.5 | Test host de `TileScrollScene` (geometría de la lista + alternancia de los 2 bloques + 13 words parcheadas) | `tests/host/069_copper_double_buffer` | **hecho** |
 | 0.6 | Crear los documentos canónicos de F0: contrato (`DISPLAY_COMPOSITION.md`) y roadmap (este) + enlazarlos en los índices | `docs/engine/architecture/`, `docs/guides/roadmap/` | **hecho** |
-| 0.7 | Re-medir y corregir las cifras de fps de `AGENTS.md` (101/102/103/104) o indicar su contexto de medida; hoy 103 mide 32,7 y no 50 | `AGENTS.md` | **investigado, pendiente de bisect** (ver abajo) |
+| 0.7 | Re-medir y corregir las cifras de fps de `BITACORA_SCROLL_TILES.md` (101/102/103/104) o indicar su contexto de medida; hoy 103 mide 32,7 y no 50 | `docs/guides/roadmap/BITACORA_SCROLL_TILES.md` | **investigado, pendiente de bisect** (ver abajo) |
 | 0.8 | **Demo canónica rota**: 107 (corkscrew 8-way) **no alcanza READY**. Estado: la demo escribe su marcador previo a `scene.begin` (`detail=0x107ab`) y luego **muere antes de la primera instrucción de `XlimitedScene::begin`** (instrumentado el `begin` con marcas de paso en el engine: ninguna se ejecutó, ni con build limpio). PC clavado en ROM de Kickstart y marcador superviviente → **guru sin reboot**. A/B con y sin F1.3 → pre-existente. Hipótesis: fallo en la **entrada/llamada** (desbordamiento del marco de pila o arena corrupta antes), no en el cuerpo de `begin`. Requiere sesión GDB (breakpoint en la entrada + volcado de pila); la instrumentación temporal ya se retiró | `demos/amiga/107_xlimited_corkscrew`, `engine/include/eng/field/xlimited_scene.hpp` | **localizado, pendiente (no es de un turno)** |
 | 0.9 | **Triaje runtime de demos**: barrido de salud con `tools/analyze/sweep-demo-health.sh` → **53 OK, 0 FAILED, 3 TIMEOUT (070, 071, 107), 4 NOEXE (assets sin construir: 072/073/074/076)**. El build da 0 FAIL; las "rotas" son runtime y son 3, no "muchas" | todas | **hecho** |
 
@@ -130,7 +130,7 @@ Gate: regresión de las demos de scroll + docs actualizados.
 
 Pregunta que la origina: *«¿tenemos infraestructura de gestión de Blitter objects, CPU
 objects ni HW Sprites?»*. Respuesta: **hay piezas, no la capa de objetos**. Y ojo con la
-distinción clave (regla en `AGENTS.md`): **un BOB es una copia de bitmap** (cookie-cut
+distinción clave (regla en `docs/engine/architecture/OBJECT_SYSTEM.md`): **un BOB es una copia de bitmap** (cookie-cut
 `$CA` u OR, con shift y, si los planos van intercalados, **1 solo blit por objeto**), **no**
 un polígono del Blitter (line-draw + area-fill, para relleno vectorial/3D).
 
@@ -197,7 +197,7 @@ de sprite, en `docs/engine/architecture/VISUAL_EFFECT_SPRITE_DESIGN.md`.
 | Política de buffers sin implementación | `virtual_scene.hpp:168,186` | F0 |
 | Doc↔código (13 words vs reemisión) | `xlimited.hpp:1488-1491` | F0 |
 | Referencia con deriva de línea | `DEBUG_DEMO_ARRANQUE_DOBLE_TEXTO_BANDA.md:189` | F0 |
-| Cifras de fps de `AGENTS.md` desactualizadas: dice 103≈50 fps y hoy mide 32,7 (A/B con y sin `DoubleBuffer`: 32,67 vs 33,50 → **no** es del refactor, es del merge) | `AGENTS.md` (nota de rendimiento del scroll) | F0 |
+| Cifras de fps de `BITACORA_SCROLL_TILES.md` desactualizadas: dice 103≈50 fps y hoy mide 32,7 (A/B con y sin `DoubleBuffer`: 32,67 vs 33,50 → **no** es del refactor, es del merge) | `docs/guides/roadmap/BITACORA_SCROLL_TILES.md` (nota de rendimiento del scroll) | F0 |
 | Demo canónica **rota**: 107 (corkscrew) no alcanza READY (A/B confirma que no es de F1.3) | `demos/amiga/107_xlimited_corkscrew` | F0 |
 | Supervisión de copper por escena inexistente | — (nace en F4) | F4 |
 | NO VERIFICADAS sin consumidor | `PolygonFillSink` (`platform/amiga/polygon_fill.hpp:14`, `field/playfield.hpp:87`), `CameraQ16` (`field/tile_demo.hpp:16`) | F0/F5 |
@@ -207,7 +207,7 @@ de sprite, en `docs/engine/architecture/VISUAL_EFFECT_SPRITE_DESIGN.md`.
 
 Evidencia recogida (medida con `measure-fps.mjs`, A500 `-O1`):
 
-| Demo | `AGENTS.md` | medido hoy | A/B sin `DoubleBuffer` |
+| Demo | `BITACORA_SCROLL_TILES.md` | medido hoy | A/B sin `DoubleBuffer` |
 |---|---|---|---|
 | 101 | ~48 | **49,92** | — |
 | 103 | ~50 | **33,50** | 32,67 |
@@ -216,7 +216,7 @@ Evidencia recogida (medida con `measure-fps.mjs`, A500 `-O1`):
 - **No es de los refactors de normalización**: el A/B de la 103 (con y sin `MultiBuffered`/`DoubleBuffer`) da 33,50 vs 32,67.
 - **101 sí cuadra** con la nota; 103/104 no. Los READMEs de esas demos no citan fps.
 - **No se puede comparar contra un commit antiguo** de forma directa: al hacer checkout cambian también el layout de `out/demos/...` y las propias herramientas (los números de la nota pueden ser de ese layout anterior), así que el A/B envejecido no es fiable.
-- Receta para cerrarlo: `git bisect` entre el commit donde se escribió la nota de `AGENTS.md` y `HEAD`, midiendo 103 en cada paso, **con el tooling de cada commit** (o, mejor, fijar el artefacto: medir siempre con el runner actual y anotar fecha+config junto a cada cifra). Mientras no se haga, las cifras de fps de `AGENTS.md` deben considerarse **no trazables**, no un objetivo.
+- Receta para cerrarlo: `git bisect` entre el commit donde se escribió la nota de `BITACORA_SCROLL_TILES.md` y `HEAD`, midiendo 103 en cada paso, **con el tooling de cada commit** (o, mejor, fijar el artefacto: medir siempre con el runner actual y anotar fecha+config junto a cada cifra). Mientras no se haga, las cifras de fps de `BITACORA_SCROLL_TILES.md` deben considerarse **no trazables**, no un objetivo.
 
 ## Triaje de demos (runtime) — 2026-09
 

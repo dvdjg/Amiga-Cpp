@@ -54,7 +54,7 @@ criterio:
 - **Coste**: las **vistas** (`Bytes`/`ByteView`/`Words`/`WordView`) son `struct` trivialmente
   copiables del mismo tamaño que envuelven (sin virtuals, sin heap, `constexpr`); `Block<Tag>` es
   una **reserva**, no una vista, y añade el `MemoryKind` (1 enumerado). Se verifica con `-S` que
-  nada de esto añade instrucciones en el hot path (regla de rendimiento de `AGENTS.md`).
+  nada de esto añade instrucciones en el hot path (regla de rendimiento, `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` §12).
 
 ## 2. Modelo safe ↔ unsafe
 
@@ -255,7 +255,7 @@ resultante sigue crudo, generado **dentro** de la capa segura.
 
 - Los envoltorios son `struct` de un solo miembro: mismo tamaño y misma copia que el tipo
   envuelto; `constexpr` en todo lo que no valide runtime. Verificado por `sizeof` en HOST-040.
-- **Verificación obligatoria** (regla de `AGENTS.md`): comparar el asm con `-S`/`-fverbose-asm`
+- **Verificación obligatoria** (§12 de `docs/guides/optimization/OPTIMIZACION_GPP_68000.md`): comparar el asm con `-S`/`-fverbose-asm`
   antes/después de cada migración y anotarlo en `docs/guides/optimization/OPTIMIZACION_GPP_68000.md`.
 - La capa unsafe no añade instrucciones: `raw()`/`data()` son una lectura de miembro.
 

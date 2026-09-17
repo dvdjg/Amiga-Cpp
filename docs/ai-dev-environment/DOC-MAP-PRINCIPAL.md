@@ -45,7 +45,7 @@ Cuando termine la lectura contextual, puede abrir solo los enlaces que necesite.
 | Streaming / carga en segundo plano | [CONTENT_AND_TILEMAP.md](../engine/architecture/CONTENT_AND_TILEMAP.md) §2 (chunks/prefetch), [WORLD_FORMAT.md](../engine/architecture/WORLD_FORMAT.md) (formato de mundo), [STREAMING_LOADER.md](../engine/architecture/STREAMING_LOADER.md) (Loader: RAM/trackdisk/trackloader), [trackloading.md](../reference/amiga/techniques/trackloading.md) (carga desde disquete/HD) |
 | Estilo/restricciones del engine | [CODING_STYLE.md](../engine/architecture/CODING_STYLE.md), [HARDWARE_AND_ROM_KERNEL_POLICY.md](../engine/architecture/HARDWARE_AND_ROM_KERNEL_POLICY.md) |
 | Contrato de bajo nivel Amiga (contrato técnico) | [amiga-lowlevel-agent-prompt.md](../guides/methodology/amiga-lowlevel-agent-prompt.md) y [amiga-lowlevel-technique-contract-template.md](../guides/methodology/amiga-lowlevel-technique-contract-template.md) |
-| Bucles de entrada/backend | [engine.hpp](../../../engine/include/eng/engine.hpp), `amiga_minimal.cpp` (ver AGENTS.md §Rutas) |
+| Bucles de entrada/backend | [engine.hpp](../../../engine/include/eng/engine.hpp), `amiga_minimal.cpp` |
 | Build/run/analyze | [BUILD_AND_RUN.md](../build/BUILD_AND_RUN.md) |
 | Depuración WinUAE/MCP | [DEBUG-WINUAE-V2-GUIDE.md](../debugging/DEBUG-WINUAE-V2-GUIDE.md) |
 | Evidencia / visual | [session-evidence.md](session-evidence.md), [testing/](../testing/README.md) |
@@ -69,7 +69,7 @@ Cuando termine la lectura contextual, puede abrir solo los enlaces que necesite.
 | **Pipeline tiles/EHB/assets** | [PIPELINE_TILES_EHB.md](../demos/tile-pipeline/PIPELINE_TILES_EHB.md), [REGLAS_PIPELINE_TILES.md](../guides/roadmap/REGLAS_PIPELINE_TILES.md), `tools/amiga-tiles/README.md` | demos 201, 202 |
 | **Juego sobre el engine** | [STRUCTURE §9](../../STRUCTURE.md), roadmap, técnicas | `games/` |
 | **API pública / nueva abstracción** | [PUBLIC_API.md](../engine/architecture/PUBLIC_API.md) (la app no ve hardware), [INTERNAL_TYPE_SYSTEM.md](../engine/architecture/INTERNAL_TYPE_SYSTEM.md) (tipos de dominio internos: vistas con tag, unidades fuertes, frontera unsafe), [PLAYFIELD_SCROLL_ARCHITECTURE.md](../engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md), [CODING_STYLE.md](../engine/architecture/CODING_STYLE.md) | `engine/include/eng/api/` (objetivo) |
-| **Optimización de un path** | Regla permanente de rendimiento de `AGENTS.md`, perfilado (`tools/profile/README.md`) | — |
+| **Optimización de un path** | §12 de [OPTIMIZACION_GPP_68000.md](../guides/optimization/OPTIMIZACION_GPP_68000.md) (rendimiento, comentarios, port a asm), perfilado (`tools/profile/README.md`) | — |
 | **Depurar un bug de visual** | [DEMO_VISUAL_DEBUG.md](../guides/methodology/DEMO_VISUAL_DEBUG.md) (diseño + depuración visual con Ollama/secuencias), [DEBUG-WINUAE-V2-GUIDE.md](../debugging/DEBUG-WINUAE-V2-GUIDE.md), invariantes microtests, y para arranque/display+doble texto/banda: [DEBUG_DEMO_ARRANQUE_DOBLE_TEXTO_BANDA.md](../debugging/DEBUG_DEMO_ARRANQUE_DOBLE_TEXTO_BANDA.md) | — |
 | **Nueva referencia/documento externo** | §6 de este mapa, [amiga-authoritative-sources.md](../reference/amiga-authoritative-sources.md) | — |
 
@@ -156,6 +156,25 @@ orden:
 
 - Índice maestro de docs: [docs/README.md](../README.md)
 - Roadmap vigente: [ROADMAP_UNIFICADO.md](../guides/roadmap/ROADMAP_UNIFICADO.md)
+- Bitácora del scroll por tiles (histórico): [BITACORA_SCROLL_TILES.md](../guides/roadmap/BITACORA_SCROLL_TILES.md)
 - Coverage efecto → estado: [demoscene-repo-coverage-index.md](../demos/effects/demoscene-repo-coverage-index.md)
 - Fuentes autoritativas: [amiga-authoritative-sources.md](../reference/amiga-authoritative-sources.md)
 - Entorno IA (Ollama, sesión, pruebas): [ai-dev-environment/README.md](README.md)
+
+---
+
+## 8. Herramientas y rutas operativas de alto valor
+
+- **Build/run/analyze**: [BUILD_AND_RUN.md](../build/BUILD_AND_RUN.md) (comandos, runner, emulador, herramientas locales).
+- **Bucle de entrada del engine**: `engine/include/eng/engine.hpp` (`update -> wait_vblank -> render`; `render` es el punto de commit); backend Amiga: `engine/src/platform/amiga_minimal/amiga_minimal.cpp`.
+- **Depuración interactiva**: `tools/debug/build-current-demo.sh` (compila con `-O0` el archivo en primer plano a `out/debug-current/`) + F5 con la config «Amiga 500: depurar archivo actual».
+- **Breakpoints y memoria en caliente**: `tools/debug/step-memory.mjs`.
+- **Self-test del harness** (canal lateral/READY/fps): `node tools/debug/verify-harness.mjs [--strict-fps --warp]`. Nota: el throughput del emulador (~11 fps) limita el gate fps absoluto.
+- **Perfiles y visión local**: [tools/profile/README.md](../../tools/profile/README.md). Para la IA: `node tools/profile/ai-analyze.mjs <outName> [frames] --prompt "…"` captura por canal lateral, extrae frames y analiza con Ollama local (sin tokens de nube); `--demo <demo>` lanza WinUAE directo y lo apaga al terminar.
+- **Validación temporal por demo**: `demos/amiga/101_ehb_tile_scroll_driver/analyze-sequence.sh`.
+- **Scroll multi-modo (XYLimited)**: demos `demos/amiga/201_ehb_map` (8-way EHB) y `202_xlimited_dpf`; test host `node tools/analyze/verify-tile-scroll-modes.mjs`.
+- **Checklist del corkscrew XYLimited (201)**: §7 de `demos/amiga/201_ehb_map/src/README.md` (invariantes del anillo vertical, `block_videoposy` y `visible_tile_bias`).
+- **Pipeline de tiles/EHB y herramienta todo-en-uno**: `tools/amiga-tiles/README.md` + [PIPELINE_TILES_EHB.md](../demos/tile-pipeline/PIPELINE_TILES_EHB.md) + [REGLAS_PIPELINE_TILES.md](../guides/roadmap/REGLAS_PIPELINE_TILES.md).
+- **Harness DAP sin VS Code**: `tools/dap-test/README.md`.
+- **Reinstalar el entorno en otro equipo**: [SETUP_NUEVO_EQUIPO.md](../debugging/SETUP_NUEVO_EQUIPO.md).
+- **Historial de fixes de depuración**: [HISTORIAL-CAMBIOS.md](../debugging/HISTORIAL-CAMBIOS.md).

@@ -132,7 +132,15 @@ Notas de diseño:
 - La transparencia se combina con el **orden de dibujo dentro de la superficie**: los BOB y objetos CPU de un mismo playfield se emiten de atrás hacia delante por `z` (estable, y solo entre objetos de esa misma superficie). Los sprites no entran en ese orden: se superponen por su prioridad de hardware, que además decide si van delante o detrás de cada playfield (`sprite_priority`).
 - Un sprite multiplexado reutiliza el canal y, por tanto, sus registros `COLOR16..31`: los cambios de paleta de dos objetos que compartan canal deben respetar el par N/N+1 o degradarse (ver §7).
 
-La regla del chipset que hay que preservar: **un BOB es una copia de bitmap** (cookie-cut u OR con barrel shifter), y **no** un polígono del Blitter. El camino poligonal (line-draw + area-fill) es para relleno vectorial, no para objetos.
+### Regla obligatoria: BOB ≠ polígono
+
+La regla del chipset que hay que preservar: **un BOB es una COPIA de bitmap**, y **no** un polígono.
+
+- **Un BOB** se dibuja copiando un bitmap pre-renderizado (planos + máscara) con el barrel shifter y el minterm adecuado: cookie-cut `$CA` (`D=A·B+¬A·C`, transparencia) o **OR** (`$FC`, `D=A|D`, bobs aditivos/glow). Con **planos intercalados** es **un solo blit por objeto** para todos los planos (`height = alto_bob × planos`, ver §5); con planos contiguos son N blits. Es el camino barato (~1 blit/objeto).
+- **Un polígono del Blitter es otra cosa**: line-draw (`BLTCON1` LINE, XOR/SING) + **area fill** (`IFE`/`EFE`, descendente) para rellenos **vectoriales** (caras 3D, `blitter_fill_polygon`). Es por polígono y por plano, con setup caro: **no se usa para objetos**.
+- No confundirlos: mezclarlos (p. ej. rellenar un disco con `blitter_fill_polygon` para hacer un BOB) cuesta ~4 blits + máscara por objeto y **satura el bus** (caso real: la demo 085 pasó de 25 a 3 campos/frame; ver su README).
+- Referencias: AHRM 3.ª (cap. Blitter), `amiga-bootcamp/08_graphics/blitter_programming.md` (minterms, cookie-cut, *Use Case 4: interleaved bitplane BOBs*), `docs/reference/amiga/techniques/blitter-line-subpixel-fill.md` (receta del polígono relleno) y `demoscene-repo-orig/effects/bobs3d/bobs3d.c` (OR-bobs intercalados, 1 blit, clear en 1 blit).
+- **Antes de programar cualquier cosa de Blitter/objetos/sprites**: leer la referencia oficial (AHRM en `docs/reference/ahrm/`), la secundaria (`blitter_programming.md`) y un ejemplo ajeno (`bobs3d.c`, demos 050/051/053/054).
 
 ## 6. Gestión del fondo
 
@@ -288,4 +296,4 @@ Ordenadas por dependencia, dentro del roadmap F6:
 5. **Necesidades de Copper ancladas**: conversión de relativas a absolutas. **HECHO** (`actor_emit_copper`); la fusión con prioridad por z en el `Plan` queda pendiente.
 6. **Cableado de la degradación sprite → BOB**: `SpriteAllocator::as_bob` a `BlitJob` con el mismo `Visual`. **PENDIENTE** (`bob_from_visual` ya construye el BOB; falta que el planner lo consuma cuando el allocator marca `as_bob`).
 7. **Objeto CPU** sobre `Surface` con política de fondo y presupuesto. **PENDIENTE**.
-8. **Demo con gate visual** que consuma el sistema (hoy solo hay test host): pendiente, es lo que convierte la capa en verificada según `AGENTS.md`.
+8. **Demo con gate visual** que consuma el sistema (hoy solo hay test host): pendiente, es lo que convierte la capa en verificada según `docs/testing/README.md`.

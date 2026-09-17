@@ -52,5 +52,5 @@ paso natural (capa de bobs/personajes sobre este scroll).
 
 ## Estado
 
-- `DoubleBufferScrollPlayfield` verificada por demo (regla de cierre de `AGENTS.md`).
+- `DoubleBufferScrollPlayfield` verificada por demo (regla de cierre de `docs/testing/README.md`).
 - Pendiente: capa que redibuje el trasero por frame, y el mapper de anillo/split del corkscrew.

@@ -1,6 +1,6 @@
 # Demo 061: c2p_1x1_4 (chunky 4bpp → planar) + rotozoom por CPU
 
-> **ESTADO: NO FINALIZADA** (regla de demos atractivas de `AGENTS.md`). Es correcta,
+> **ESTADO: NO FINALIZADA** (regla de demos atractivas de `docs/guides/methodology/DEMO_VISUAL_DEBUG.md`). Es correcta,
 > colorida y **verificada** (asm c2p y rotozoom byte-idénticos a la C++), pero la
 > animación va a **~3 fps** a pantalla completa: el techo con 20.480 píxeles/frame es
 > ~4-5 fps incluso con un bucle idealizado (ver «Rendimiento»). Para cumplir la regla

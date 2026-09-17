@@ -27,9 +27,9 @@ Toolchain/extension usada por el runner: `.vscode\extensions\bartmanabyss.amiga-
 
 ## Primeros pasos (SIEMPRE)
 
-1. Lee `AGENTS.md` entero (reglas obligatorias: idioma/ortografía en español,
-   formato de docs con word wrap, buscar-antes-de-implementar, regla de
-   evidencia, regla de rendimiento 68000, no usar WSL).
+1. Lee `AGENTS.md` (reglas generales) y sigue su índice de reglas específicas
+   (§4): idioma/ortografía en español, formato de docs con word wrap,
+   buscar-antes-de-implementar, evidencia, rendimiento 68000, no usar WSL.
 2. Lee `docs/STRUCTURE.md` (dónde va cada archivo).
 3. Lee `docs/README.md` y `docs/CONTINUATION_CONTEXT.md` (historial del engine).
 4. Lee `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` (problemas del
