@@ -359,6 +359,71 @@ fallar/detectar**.
   bucle** (envolver de forma incremental). El truco de la constante mágica **no** está disponible
   como asumíamos.
 
+### 11.1b `-Os` es MÁS LENTO que `-O2` en este engine: es un bug de codegen (2026-09-17)
+
+La premisa "en 68000 el código compacto es más rápido (no hay i-cache útil)" es **falsa** aquí.
+Medido sobre la misma fuente de la **086** (`A500_release`, contador de ciclos del Amiga,
+`measure-fps.mjs`):
+
+| Nivel | Ciclos/frame | Campos | Vs `-O2` |
+|---|---:|---:|---:|
+| `-O0` | 3.564.392 | 25,1 | 3,6× peor |
+| `-O1` | 1.043.237 | 7,4 | +6 % |
+| **`-O2`** | **994.714** | **7,0** | **— (mejor)** |
+| `-Os` | 2.258.674 | 15,9 | **+127 % (2,3× peor)** |
+
+**Causa**: a `-Os` gcc **no respeta `always_inline` de la cadena caliente** y **deshace la
+abstracción** del engine. En el asm de `build_frame` de la demo a `-Os`:
+
+- `ListBuilder::move` deja de estar inlineado y se llama con `jsr` **una vez por MOVE de copper**
+  (push de argumentos + jsr + ret por cada par WAIT/MOVE);
+- aparecen **llamadas reales a `memset`/`memcpy`** para inicializar/construir el `Scheduler` y
+  copiar structs (a `-O2` son stores directos);
+- `build_frame` pasa a tener **`link.w a5,#-568`** (568 B de marco de pila) frente a los ~20 B de
+  `-O2`, con `movem` de 11 registros.
+
+**Bisección por unidad** (`ENGINE_OPT`/`DEMO_OPT`/`C_OPT` del script de build), mismo resto a `-O2`:
+
+| Unidad a `-Os` | Campos |
+|---|---:|
+| todo `-O2` (ref) | 7,0 |
+| engine | 7,0 (sin efecto) |
+| **demo (`main.cpp`)** | **11,2** |
+| soporte C | 7,4 |
+| todo `-Os` | 15,9 |
+
+⇒ El coste lo introduce la **demo** compilada a `-Os` (instancia los inlines del engine con
+semántica de `-Os`) y se **agrava al combinarla** con el resto (efecto no lineal).
+
+**Arreglo**: el default release de `build-demo.sh` pasa a **`-O2`**. El `-Os` **no** es una opción
+válida para el engine hasta que se resuelva el codegen; si se quiere reducir tamaño, hacerlo por
+diseño (datos/políticas), no con `-Os`.
+
+**Corrección adicional medida**: `-O2` no solo es más rápido, **también emite más BOBs** que `-O1`
+en la 086 (`detail` 8/8 frente a 7/8), y la captura con `-O2` es visualmente correcta (degradado
+continuo + 8 discos). `-O1` seguía siendo el "perfil verde" de la regresión por inercia, no por ser
+el mejor.
+
+**Validación del cambio a `-O2` (2026-09-17)**: `build-all-demos.sh --release` compila las **58
+demos sin fallos** (`ok=58 fail=0`) ⇒ el aviso histórico de cuelgue con `-mtune=68020` **no aplica**
+a `-O2` sin `-mtune`. Arranque y medida en release `-O2` de una muestra:
+
+| Demo | Release `-O2` | Nota |
+|---|---:|---|
+| 055 copper_rainbow | 2,0 campos (25 fps) | igual que debug |
+| 085 copper_plan_scene | 3,0 campos | ok |
+| 086 bob_objects | 7,0 campos | bate a debug (7,2) |
+| 101 ehb_tile_scroll | **1,0 campo (49,92 fps)** | objetivo de 50 fps cumplido |
+| 116 flatshade_convex | 2,5 campos | ok |
+
+Dos demos **no** son válidas en release, pero **tampoco en debug** (no es regresión de `-O2`, es deuda
+preexistente): la **061** no avanza frame (`detail=0x0`, idéntico en debug y release) y la **107**
+cuelga (`READY=2`, ~300 campos) también en debug. Ambas están en la lista de pendientes conocidos.
+
+Conclusión: **`-O2` es el nivel correcto**; la escena ligera ya alcanza 1 campo, y las demos lentas lo
+son por trabajo de CPU real por frame (en la 086, `update` = ~7 frames de cómputo: `emit` 37 %, `actors`
+12,7 %, `blits` 10,6 %), no por el build.
+
 ### 11.2 Auditoría (inventario real, `asm-audit.mjs`)
 
 `node tools/analyze/asm-audit.mjs --all --engine` agrega 90 ELFs. Antes de optimizar:
@@ -455,6 +520,7 @@ Estas reglas son de obligado cumplimiento y `AGENTS.md` enruta aquí.
 - Medir los picos con profiling y telemetría en el caso límite, no solo validar que el frame nominal funcione; cualquier optimización debe conservar la corrección visual y el presupuesto de Chip RAM.
 - **Criterio retro del chipset (68000)**: preferir algoritmos **rápidos y exactos** a lentos y precisos. Un algoritmo que subestima ~6 en `isqrt` pero cuesta 10 ciclos gana a uno exacto que paga `__divsi3`/`__mulsi3`. Para el hot path, lo deseable es aritmética 16-bit nativa (`muls.w`/`divs.w`), bucles countdown que emiten `dbra`, cero divisiones runtime, cero floats y cero STL.
 - **Comprobar el ensamblador generado**: al portar o escribir APIs, revisar con `-S`/`-fverbose-asm` que el código que emite el toolchain no sea peor que el original (o que el asm a mano del repo de origen). Un port 100 % «fiel pero lento» pierde contra el original 68k optimizado; si el original usaba una optimización en asm (p. ej. `swap` para rotar, `lsl.l #8; add` para `<<9`, `divs`/`divu` de 16 bits), verificar que nuestra versión C++ produce algo al menos igual de eficiente y anotarlo en la bitácora (§8).
+- **Nivel de optimización obligatorio: `-O2`** (release) y `-O1` (regresión). **`-Os` está prohibido** mientras no se resuelva el bug de codegen de §11.1b: en este engine `-Os` deshace la abstracción (llamadas a `ListBuilder::move`/`memset`/`memcpy` por operación) y costaba **2,3×** más que `-O2` en la 086. Cualquier cambio de nivel (`ENGINE_OPT`/`DEMO_OPT`/`C_OPT`) debe medirse con `measure-fps.mjs` y anotarse; no se acepta "código más pequeño" como criterio de rendimiento sin medición.
 
 ### 12.2 Comentario de optimizaciones
 

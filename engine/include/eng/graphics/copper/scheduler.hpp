@@ -256,7 +256,11 @@ public:
 	///     `BitplaneSplit`) los materializa `emit_copper_intents_full` (que conoce el
 	///     display); `SpriteRearm`/`Priority` aún requieren contexto de canal/prioridad
 	///     y se cuentan en `report().unhandled_intents`.
-	__attribute__((always_inline)) inline void emit_copper_intents(const graphics::CopperIntent* intents, u8 count) {
+	///
+	/// NO `always_inline`: absorber el `switch` de `emit_single_intent` dentro del bucle
+	/// expandia ~2,5 KB de codigo en `materialize` (medido en la 086). Es una llamada por
+	/// intencion; el despacho se comparte.
+	void emit_copper_intents(const graphics::CopperIntent* intents, u8 count) {
 		if (intents == nullptr) {
 			return;
 		}
@@ -269,7 +273,7 @@ public:
 	/// materializar también `BitplaneSplit` (re-pointa los bitplanes a
 	/// `intent.bitplanes`) y `ShiftLines` (re-pointa a `bitplane_base + shift_x`
 	/// bytes). `plane_bytes` es el stride entre planos y `planes` cuántos re-pointar.
-	__attribute__((always_inline)) inline void emit_copper_intents_full(
+	void emit_copper_intents_full(
 		const graphics::CopperIntent* intents, u8 count,
 		eng::PlaneBytes bitplane_base, u32 plane_bytes, u8 planes
 	) {
@@ -301,7 +305,11 @@ public:
 private:
 	/// Materializa UNA intent. `bitplane_base != nullptr` habilita los intents de
 	/// layout (BitplaneSplit/ShiftLines); si es null, se marcan como sin manejar.
-	__attribute__((always_inline)) inline void emit_single_intent(
+	///
+	/// NO `always_inline`: con el `switch` completo inlineado en el bucle de
+	/// `materialize`, gcc expandia ~2,5 KB de codigo dentro del bucle (medido en la 086)
+	/// en lugar de compartir el despacho. Aqui interesa una llamada por intencion.
+	void emit_single_intent(
 		const graphics::CopperIntent& intent, eng::PlaneBytes bitplane_base, u32 plane_bytes, u8 planes
 	) {
 		switch (intent.kind) {

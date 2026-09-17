@@ -85,7 +85,12 @@ enum {
 	kProfObjCopper = 5, // build_frame: necesidades de copper de los objetos
 	kProfMaterialize = 6, // build_frame: ordenar y emitir
 	kProfCalib = 10,      // bucle conocido: ciclos por iteracion (calibracion de la CPU)
-	kProfCount = 11,
+	/// Ciclo COMPLETO del bucle del engine (update+wait_vblank+render) medido dentro de
+	/// `render`: la diferencia con la suma de secciones de `update` es el tiempo de
+	/// `wait_vblank` (frames perdidos incluidos). Con el bucle de polling, si `update` no
+	/// cabe en un frame, el `wait_vblank` llega despues del VBlank y pierde frames enteros.
+	kProfLoop = 11,
+	kProfCount = 13,
 };
 
 // Geometría: 320x256 lowres, 4 planos (16 colores), planos contiguos.
@@ -157,11 +162,55 @@ constexpr eng::u16 lerp444(eng::u16 a, eng::u16 b, eng::u16 num, eng::u16 den) {
 	return out;
 }
 
+/// Relleno del gradiente del cielo: un valor RGB444 por linea interpolando las
+/// `kSkyKeys` claves. Resuelto en compilacion (`constexpr`): antes se recalculaba en cada
+/// frame (~166k ciclos/frame medidos, seccion `sky`) aunque el degradado es constante.
+constexpr eng::u16 make_sky_entry(eng::u16 l) {
+	const eng::u16 seg = static_cast<eng::u16>(256u / (kSkyKeys - 1u));
+	eng::u16 k = static_cast<eng::u16>(l / seg);
+	if (k >= kSkyKeys - 1u) {
+		k = static_cast<eng::u16>(kSkyKeys - 2u);
+	}
+	return lerp444(kSky[k], kSky[k + 1u], static_cast<eng::u16>(l % seg), seg);
+}
+
+struct SkyGradient {
+	eng::u16 v[256] {};
+	constexpr SkyGradient() {
+		for (eng::u16 l = 0; l < 256u; ++l) {
+			v[l] = make_sky_entry(l);
+		}
+	}
+};
+constexpr SkyGradient kSkyTable {};
+
+/// Intenciones del cielo, resueltas en compilacion: `K_086_SKY_BANDS` intenciones
+/// `PaletteLine` (una por banda; con 256, una por linea). Antes se construia cada
+/// intencion en el bucle del frame y se llamaba `m_plan.add(sky)` una a una (~166k
+/// ciclos/frame medidos, seccion `sky`); ahora solo se copian en bloque.
+struct SkyIntents {
+	static constexpr eng::u16 max_bands = 256u;
+	graphics::CopperIntent v[max_bands] {};
+	constexpr SkyIntents() {
+		for (eng::u16 b = 0; b < kSkyBands; ++b) {
+			const eng::u16 line = static_cast<eng::u16>(b * (256u / kSkyBands));
+			graphics::CopperIntent it {};
+			it.kind = graphics::CopperIntentKind::PaletteLine;
+			it.top = static_cast<eng::u16>(kFirstLine + line);
+			it.bottom = it.top;
+			it.first = 0u; // COLOR00
+			it.count = 1u;
+			it.colors = eng::PaletteWords {&kSkyTable.v[line], 1u};
+			v[b] = it;
+		}
+	}
+};
+constexpr SkyIntents kSkyIntents {};
+
 // Gradiente del cielo (256 líneas) y paletas/intenciones por objeto.
 // `g_obj_pal[i][s + 1]` es el color del paso `s`: la vista de `colors` debe cubrir el
 // índice `first` (COLOR01), así que se pasa `{&pal[s], 2}` — con tamaño 1 el scheduler
 // recortaría `count` a 0 y el objeto no escribiría nada.
-eng::u16 g_sky[256] {};
 eng::u16 g_obj_pal[kBobCount > 0u ? kBobCount : 1u][kObjCopperSteps][kObjVariants + 1u] {};
 graphics::CopperIntent g_obj_needs[kBobCount > 0u ? kBobCount : 1u][kObjCopperSteps] {};
 
@@ -184,7 +233,6 @@ struct BobObjectsDemo {
 			return;
 		}
 		backend.blitter_clear(m_bitmap.view, kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight, true);
-		build_sky();
 		build_sheet();
 		if (!add_actors()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008603u);
@@ -204,6 +252,7 @@ struct BobObjectsDemo {
 		eng::debug::mark_ready(g_eng_run_status,
 				       (static_cast<eng::u32>(kBobCount) << 8u) |
 					       static_cast<eng::u32>(m_plan.intent_count() & 0xffu));
+		ENG_PROF_BEGIN(kProfLoop);
 	}
 
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
@@ -281,21 +330,13 @@ struct BobObjectsDemo {
 		// Publica la lista del frame (swap de COP1LC) tras VBlank, como manda el contrato.
 		m_plan.commit(backend);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
+		// `loop` mide el ciclo completo (update+wait_vblank+render) entre dos renders: la
+		// diferencia con la suma de secciones de `update` es el tiempo de `wait_vblank`.
+		ENG_PROF_END(kProfLoop);
+		ENG_PROF_BEGIN(kProfLoop);
 	}
 
 private:
-	/// Cielo continuo: un valor por línea de raster, interpolado entre las claves.
-	void build_sky() {
-		const eng::u16 seg = static_cast<eng::u16>(256u / (kSkyKeys - 1u));
-		for (eng::u16 l = 0; l < 256u; ++l) {
-			eng::u16 k = static_cast<eng::u16>(l / seg);
-			if (k >= kSkyKeys - 1u) {
-				k = static_cast<eng::u16>(kSkyKeys - 2u);
-			}
-			g_sky[l] = lerp444(kSky[k], kSky[k + 1u], static_cast<eng::u16>(l % seg), seg);
-		}
-	}
-
 	void build_sheet() {
 		eng::u8* sheet = m_sheet.view.data();
 		for (eng::u32 i = 0; i < kSheetBytes; ++i) {
@@ -408,20 +449,11 @@ private:
 		m_plan.scheduler().emit_palette(kPalette.color);
 		ENG_PROF_END(kProfStatic);
 		// Cielo: `kSkyBands` intenciones repartidas por el raster (una por banda). Con
-		// `K_086_SKY_BANDS=256` es un valor por línea (continuo).
+		// `K_086_SKY_BANDS=256` es un valor por línea (continuo). Las intenciones son
+		// invariantes: van en `kSkyIntents` (constexpr) y se copian en un solo `add`.
 		ENG_PROF_BEGIN(kProfSky);
 #if K_086_STATIC_COPPER == 0
-		for (eng::u16 b = 0; b < kSkyBands; ++b) {
-			const eng::u16 line = static_cast<eng::u16>(b * (256u / kSkyBands));
-			graphics::CopperIntent sky {};
-			sky.kind = graphics::CopperIntentKind::PaletteLine;
-			sky.top = static_cast<eng::u16>(kFirstLine + line);
-			sky.bottom = sky.top;
-			sky.colors = eng::PaletteWords {&g_sky[line], 1u};
-			sky.first = 0u; // COLOR00
-			sky.count = 1u;
-			m_plan.add(sky);
-		}
+		m_plan.add(kSkyIntents.v, kSkyBands);
 		ENG_PROF_END(kProfSky);
 		// Necesidades de cada objeto, con su (superficie, z).
 		ENG_PROF_BEGIN(kProfObjCopper);

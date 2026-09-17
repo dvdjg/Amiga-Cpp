@@ -115,20 +115,16 @@ Anomalía abierta: la misma demo con `--release` mide **2,4× más lento** que e
 
 ## 5. Trampas conocidas (revisar antes de concluir)
 
-- **El perfilador se mide a sí mismo**: cada marca lee el contador; con muchas marcas el coste entra en la cuenta (14 % medido). Instrumentar grueso y descontar.
+- **El perfilador se mide a sí mismo**: cada marca lee el contador y su tiempo entra en la cuenta; con muchas secciones llega a verse un 14 % en `prof_clock() (inlined)`. Mantener 2-3 secciones gruesas y descontar. La atribución `(inlined)` del perfil culpa además al bloque inlined completo.
 - **Perfilar con el depurador enganchado** añade IRQs y el stub GDB (17 % en `[IRQ]`). Perfilar con `run-demo.sh` + MCP, no desde el depurador del plugin.
-- **La atribución `(inlined)`** del perfil culpa al bloque inlined completo: `prof_clock() (inlined)` incluye el código que lo rodea.
-- **Muestras gruesas**: un perfil de pocos frames da tendencia, no detalle. Acumular frames antes de decidir.
 - **El `.amigaprofile` del plugin no da ciclos del Amiga**: sus `timeDeltas` son µs del host y su atribución por desenrollado coloca mal el PC en código con `always_inline`/`volatile`. Da un reparto que **contradice** la medida por secciones (`sort_by_top` 39 % frente al 9,1 % real). Ver §4: usar las secciones del contador Amiga para decidir.
 - **Las muestras de CPU necesitan tabla de unwind**: `profile N "" bin` produce 0 muestras; hace falta el `.unwind` que `tools/debug/winuae-profile.mjs` construye. Aun con él, en la 086 el binario salió con 0 muestras (opción de muestreo de WinUAE pendiente): no dar por hecho que el camino nativo funciona sin comprobarlo.
 - **El canal lateral no refresca el PC**: el campo `pc` de `state` (2346) devuelve el PC de cuando se entró en `observe`, así que muestrear por esa vía repite símbolo. `tools/profile/hotspots.mjs` avisa de ello y queda deprecado para reparto por rutina.
 - **Con la CPU corriendo, el GDB no responde `g`**: muestrear por pausa/lectura/reanudación produce ~1 muestra cada varios segundos. No es práctica.
-- **El perfilador se mide a sí mismo**: cada marca lee el contador y su tiempo entra en la cuenta; con muchas secciones llega a verse un 14 % en `prof_clock() (inlined)`. Mantener 2-3 secciones gruesas y descontar.
-- **La atribución `(inlined)`** del perfil culpa al bloque inlined completo.
 - **`parseProfile` del MCP**: corregido para conservar `profileArray`; `profile-ollama` ya resume por sección/PC. Para nombres de función hace falta el `.map` (`tools/analyze/profile-samples.mjs`).
-- **Shell Windows**: PowerShell 5.1 rompe `&&`, `|`, `(`, `$`, comillas y regex; usar ficheros (`out/tmp/*.py`, `out/tmp/*.sh` con `bash fichero.sh`) o comandos simples con comillas simples.
-- **Configs de run**: `--config` es flag (`run-demo.sh demo --config A500_release`), no argumento posicional.
-- **Shell Windows**: PowerShell 5.1 rompe `&&`, `(`, `$`, comillas y regex con backslashes; usar ficheros (`out/tmp/*.py`, `git commit -F out/tmp/commit-msg.txt`) y comandos simples, o `bash -lc` con comillas simples. `Get-Content`/`Set-Content` de PowerShell re-encoda y genera mojibake: usar las herramientas del agente o `sed -i`.
+- **El assert visual por defecto (`analyze-screenshot.sh`) exige `min-white=10`** aunque la demo no use blanco. La 086 (paleta sin `0xfff`) da `white=0` y la regresión falla con `FAIL : white=0 < 10` **sin que nada esté roto**: es un falso positivo del threshold por defecto, no una rotura de la demo ni del build.
+- **La regresión con `--release-build` compila en release pero ejecuta la config `A500_debug`**: `run-demo.sh` se invoca sin `--config` y elige por prioridad. Para medir/validar release de verdad hay que pasar `--config A500_release` a `run-demo.sh`/`measure-fps.mjs`.
+- **Shell Windows**: PowerShell 5.1 rompe `&&`, `|`, `(`, `$`, comillas y regex con backslashes. Usar la tool de edición del agente para ficheros y `bash fichero.sh` (script en `out/tmp/`) para secuencias; `Get-Content`/`Set-Content` de PowerShell re-encoda y genera mojibake.
 - **Configs de run**: `--config` es flag (`run-demo.sh demo --config A500_release`), no argumento posicional.
 
 ## 6. Optimizaciones identificadas (priorizadas, con evidencia)

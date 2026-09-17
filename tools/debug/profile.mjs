@@ -64,7 +64,7 @@ function runtimeAddr(linked, ms, rs) {
 }
 const u32delta = (a, b) => { let d = b - a; if (d < 0) d += 4294967296; return d; };
 
-const SECTION_NAMES = ['actors', 'blits', 'copper', 'static', 'sky', 'objcopper', 'materialize', 'sort_lines', 'sort_prio', 'emit', 'calib'];
+const SECTION_NAMES = ['actors', 'blits', 'copper', 'static', 'sky', 'objcopper', 'materialize', 'sort_lines', 'sort_prio', 'emit', 'calib', 'loop'];
 
 const conn = new WinUAEConnection({
   winuaePath: 'C:/Users/dvdjg/.vscode/extensions/bartmanabyss.amiga-debug-1.8.1/bin/win32',

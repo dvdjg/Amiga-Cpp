@@ -161,11 +161,22 @@ if [ -f "$DEMO_PATH/src/prebuild.sh" ]; then
 fi
 
 # --- Flags ------------------------------------------------------------------
-# Ver docs/guides/optimization/OPTIMIZACION_GPP_68000.md (§1): en 68000 el código
-# compacto suele ser más rápido (sin i-cache útil). -Os es el default release.
-# NO usar -mtune=68020 aquí: verificado (2026-08-31) que a -O1 cuelga la init
-# de la demo 107; queda anotado en la bitácora §8 del doc.
-OPT="-Os"
+# Nivel de optimizacion de release. Medido en la 086 (A500_release, BUILD medido
+# 2026-09-17) sobre la misma fuente, contador de ciclos del Amiga:
+#
+#   -O0  25,1 campos   (sin optimizar)
+#   -O1   7,4 campos
+#   -O2   7,0 campos   <- mejor
+#   -Os  15,9 campos   <- 2,3x PEOR que -O2
+#
+# `-Os` NO es "codigo compacto = mas rapido" en este engine: al no respetar
+# `always_inline` de la cadena caliente, gcc deshace la abstraccion de
+# `ListBuilder`/`Scheduler` (llama a `ListBuilder::move` como funcion y mete
+# `memset`/`memcpy`, con marco de 568 B en `build_frame`) y cuesta un `jsr` por
+# MOVE de copper. Ver docs/guides/optimization/OPTIMIZACION_GPP_68000.md.
+# La biseccion por unidad dio: engine a `-Os` no pierde nada; el coste lo mete la
+# DEMO compilada a `-Os` (11,2 campos) y se agrava al combinarla con el resto.
+OPT="-O2"
 if [ "$DEBUG_BUILD" -eq 1 ]; then
 	# -O1 para la regresion automatica: suficiente para que las demos lleguen a
 	# READY dentro del timeout en el 68000 emulado. Es el perfil verde conocido.
