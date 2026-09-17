@@ -39,6 +39,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/util/stats.hpp>
 #include <eng/core/util/color.hpp>
 #include <eng/core/util/collision.hpp>
+#include <eng/core/util/text.hpp>
 #include <eng/core/sort.hpp>
 #include <eng/graphics/mesh_renderer.hpp>
 #include <eng/platform/amiga/lib3d.hpp>
@@ -255,6 +256,14 @@ extern "C" u16 c_collision_ops(s16 ax, s16 ay, s16 bx, s16 by, s16 cx, s16 cy, s
 	const eng::Point2s d {dx, dy};
 	return static_cast<u16>((eu::segments_intersect(a, b, c, d) ? 1u : 0u) +
 				(eu::circle_overlap(a, 4, c, 4) ? 2u : 0u));
+}
+extern "C" u16 c_text_ops(const char* s, eng::u32 n) {
+	const eu::StringView text {s, static_cast<eng::usize>(n)};
+	eng::u32 v = 0u;
+	if (!eu::parse_u32(eu::trim(text), v)) v = 0u;
+	eu::StaticString<16> buf;
+	eu::to_chars_u32(buf, v);
+	return static_cast<u16>(buf.size());
 }
 `;
 

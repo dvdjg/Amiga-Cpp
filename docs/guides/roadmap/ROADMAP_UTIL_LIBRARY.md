@@ -55,9 +55,9 @@ Las matemáticas de escalares (`Fixed`, `MiniFloat16`, `linalg`, `interp`, `geom
 Cierre de R1: los cuatro tests host verdes, cross-compile, doc actualizada. `stats` es la
 respuesta directa a "matemáticas de estadística".
 
-**Estado: R1.1, R1.2 y R1.3 hechos** (`stats.hpp` HOST-093, `color.hpp` HOST-094,
-`collision.hpp` HOST-095; sondas `c_stats_ops`/`c_color_lerp`/`c_collision_ops` sin
-libcalls). **R1.4 (`text.hpp`) pendiente.**
+**Estado: R1 completa** (`stats.hpp` HOST-093, `color.hpp` HOST-094, `collision.hpp`
+HOST-095, `text.hpp` HOST-096; sondas `c_stats_ops`/`c_color_lerp`/`c_collision_ops`/
+`c_text_ops` sin libcalls). Siguiente: R2.
 
 ### R2 — Juego avanzado (rejilla, broadphase, pathfinding)
 

@@ -38,6 +38,7 @@ La librería **complementa** el núcleo de `eng/core/`, no lo duplica:
                                      stats.hpp         sum/mean/variance/median/histogram
                                      color.hpp         RGB444 (lerp/scale/HSV)
                                      collision.hpp     AABB/segmento/triángulo/círculo
+                                     text.hpp          trim/split/parse/to_chars/join
                                      pool.hpp          Pool<T,N> (handles)
                                      priority_queue.hpp PriorityQueue<T,N,Cmp>
                                      intrusive_list.hpp IntrusiveList/SList<T>
@@ -111,6 +112,7 @@ Puntos de reutilización explícitos:
 | `stats.hpp` | `sum`/`mean`/`variance`/`stddev`/`kth_smallest`/`median`/`histogram`/`ema`/`RunningMean` | (sin equivalente; estadística) |
 | `color.hpp` | `rgb444`/`lerp444`/`scale444`/`hsv_to_rgb444` | (sin equivalente; color Amiga) |
 | `collision.hpp` | `Aabb`, `aabb_*`, `segments_intersect`, `point_in_triangle`, `circle_overlap` | (sin equivalente; juego 2D) |
+| `text.hpp` | `trim`/`split_next`/`equal_ci`/`parse_u32`/`parse_s32`/`to_chars_*`/`join` | (parte de `boost::string`/`charconv`) |
 | `function_ref.hpp` | `FunctionRef<Sig>` | `std::function_ref` (C++26) |
 
 ## 3. Reglas de diseño para Amiga 500
@@ -172,8 +174,9 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-093 | `stats.hpp` (media/varianza/orden/histograma, `double`/MF/`q12`) |
 | HOST-094 | `color.hpp` (RGB444/lerp/scale/HSV) |
 | HOST-095 | `collision.hpp` (AABB/segmento/triángulo/círculo) |
+| HOST-096 | `text.hpp` (trim/split/parse/to_chars/join) |
 
-> **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`), `Pool` por `086_bob_objects` (parque de actores) y `HashMap` por `111_xlimited_sidescroller` (índice de chunks de `ChunkCache`). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashSet`, `DynamicHashMap`, `PriorityQueue`, `Stack`/`Queue`/`Deque`, `EnumSet`, `ScopeGuard`, `StaticString`, `stats`, `color`, `collision`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..095 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
+> **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`), `Pool` por `086_bob_objects` (parque de actores) y `HashMap` por `111_xlimited_sidescroller` (índice de chunks de `ChunkCache`). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashSet`, `DynamicHashMap`, `PriorityQueue`, `Stack`/`Queue`/`Deque`, `EnumSet`, `ScopeGuard`, `StaticString`, `stats`, `color`, `collision`, `text`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..096 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
 
 Los tests se ejecutan con el `g++` del entorno (Windows/MinGW, donde `unsigned long`
 mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
@@ -193,7 +196,8 @@ mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
    (`c_vector_grow`/`c_chunked_push`), `pool.hpp`/`priority_queue.hpp`/`intrusive_list.hpp`
    (`c_pool_ops`/`c_pq_ops`/`c_ilist_ops`), la ordenación de `core/sort.hpp`
    (`c_stable_sort`/`c_nth_element`/`c_radix_u16`), `dynamic_hash_map.hpp` (`c_dyn_hashmap`),
-   `stats.hpp` (`c_stats_ops`) y `color.hpp`/`collision.hpp` (`c_color_lerp`/`c_collision_ops`).
+   `stats.hpp` (`c_stats_ops`) y `color.hpp`/`collision.hpp`/`text.hpp`
+   (`c_color_lerp`/`c_collision_ops`/`c_text_ops`).
 5. Antes de añadir una utilidad nueva, comprobar si el **vocabulario** de §7 ya cubre la
    necesidad (p. ej. flags con `EnumSet`, restauración con `ScopeGuard`, colas con
    `Queue`/`Deque`); adoptarlo en el engine y documentarlo aquí.
@@ -226,6 +230,7 @@ Qué usar según la necesidad, con el criterio del A500 (sin heap; coste visible
 | Estadística / telemetría (fps, carga) | `stats.hpp` (`mean`/`variance`/`ema`/`RunningMean`) |
 | Color RGB444 (paleta/fundido) | `color.hpp` |
 | Colisión 2D (AABB/segmento/círculo) | `collision.hpp` |
+| Texto (config/HUD: parseo/emisión) | `text.hpp` |
 | Pasar un callable sin poseerlo | `FunctionRef<Sig>` |
 
 Notas de uso:
