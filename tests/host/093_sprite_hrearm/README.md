@@ -1,4 +1,4 @@
-# HOST-089: rearmado horizontal de sprite
+# HOST-093: rearmado horizontal de sprite
 
 Test host de `Scheduler::emit_sprite_horizontal_rearm(s)` (`scheduler.hpp`) y del tipo
 `graphics::SpriteHorizontalRearm` (`raster_intent.hpp`): el **multiplexado horizontal** de
@@ -24,5 +24,5 @@ Todo con un `MemorySystem` sobre un buffer estático: sin hardware.
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/073_sprite_hrearm
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/093_sprite_hrearm
 ```

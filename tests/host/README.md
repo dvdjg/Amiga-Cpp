@@ -128,4 +128,8 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-086 | [dynamic_hash_map](086_dynamic_hash_map/README.md) | `dynamic_hash_map.hpp`: hash con rehash en un `Allocator`. |
 | HOST-087 | [intrusive_list](087_intrusive_list/README.md) | `intrusive_list.hpp`: listas intrusivas con free-list O(1) (`BackgroundQueue`). |
 | HOST-088 | [pool](088_pool/README.md) | `pool.hpp`: `Pool` con handles generacionales (`ActorStore`). |
-| HOST-089 | [sprite_hrearm](089_sprite_hrearm/README.md) | Multiplexado **horizontal** de sprites (`Scheduler::emit_sprite_horizontal_rearm(s)` + `graphics::SpriteHorizontalRearm`): codificación AHRM de `SPRxPOS`/`SPRxCTL`, secuencia WAIT+POS+CTL+DATA+DATB sin tocar `SPRxPT`, y orden por `hpos` de la lista. |
+| HOST-089 | [priority_queue](089_priority_queue/README.md) | `priority_queue.hpp`: heap binario de capacidad fija. |
+| HOST-090 | [sort_extra](090_sort_extra/README.md) | `eng/core/sort.hpp`: ordenación ampliada (`stable`/`nth`/`partial`/`is_sorted`/radix). |
+| HOST-091 | [stack_queue_enum_set](091_stack_queue_enum_set/README.md) | `stack_queue.hpp` (`Stack`/`Queue`/`Deque`) y `enum_set.hpp` (`EnumSet`). |
+| HOST-092 | [scope_guard_static_string](092_scope_guard_static_string/README.md) | `scope_guard.hpp` (`ScopeGuard`) y `static_string.hpp` (`StaticString`). |
+| HOST-093 | [sprite_hrearm](093_sprite_hrearm/README.md) | Multiplexado **horizontal** de sprites (`Scheduler::emit_sprite_horizontal_rearm(s)`/`reposition` + `graphics::SpriteHorizontalRearm`): codificación AHRM de `SPRxPOS`/`SPRxCTL`, secuencia WAIT+POS+CTL+DATA+DATB sin tocar `SPRxPT`, y orden por `hpos` de la lista. |

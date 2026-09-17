@@ -1,5 +1,5 @@
 // ============================================================================
-// Test HOST-089: rearmado horizontal de sprite (multiplexado por linea)
+// Test HOST-093: rearmado horizontal de sprite (multiplexado por linea)
 // ============================================================================
 //
 // Valida en host (sin Amiga) `Scheduler::emit_sprite_horizontal_rearm(s)`:
@@ -12,7 +12,7 @@
 //   4) Los offsets de registro son los del canal (`0x140 + ch*8`, etc.).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/073_sprite_hrearm
+//   bash tools/run-host-tests.sh tests/host/093_sprite_hrearm
 
 #include <cstdio>
 
