@@ -1,23 +1,23 @@
 #pragma once
 
 /// \file stats.hpp
-/// **EstadÃ­stica bÃ¡sica** genÃ©rica sobre una vista (`eng::util`): media, varianza,
-/// desviaciÃ³n tÃ­pica, mediana/estadÃ­sticos de orden e histograma, mÃ¡s medias mÃ³viles
-/// para telemetrÃ­a (fps, carga, fps suavizado).
+/// **Estadística básica** genérica sobre una vista (`eng::util`): media, varianza,
+/// desviación típica, mediana/estadísticos de orden e histograma, más medias móviles
+/// para telemetría (fps, carga, fps suavizado).
 ///
-/// Como el resto de la librerÃ­a de escalares, es **agnÃ³stica del tipo**: el mismo
-/// cÃ³digo vale para `float`, `double`, `MiniFloat16` o un `Fixed`, usando `mul_norm`/
-/// `div_norm` (el producto/divisiÃ³n normalizados del escalar). `div_norm` es la
-/// divisiÃ³n **explÃ­cita** del engine: el `Fixed` del nÃºcleo no tiene `operator/` pero
-/// sÃ­ `div_norm` (saturante), igual que `remap`/`inv_lerp`.
+/// Como el resto de la librería de escalares, es **agnóstica del tipo**: el mismo
+/// código vale para `float`, `double`, `MiniFloat16` o un `Fixed`, usando `mul_norm`/
+/// `div_norm` (el producto/división normalizados del escalar). `div_norm` es la
+/// división **explícita** del engine: el `Fixed` del núcleo no tiene `operator/` pero
+/// sí `div_norm` (saturante), igual que `remap`/`inv_lerp`.
 ///
-/// Coste y lÃ­mites:
-/// - `mean`/`variance`/`histogram` **dividen** vÃ­a `div_norm`; con `Fixed` saturan y
+/// Coste y límites:
+/// - `mean`/`variance`/`histogram` **dividen** vía `div_norm`; con `Fixed` saturan y
 ///   con `MiniFloat16` llevan ~1e-3 de error.
-/// - `stddev` exige ademÃ¡s `sqrt` del escalar (no existe para `Fixed`, por diseÃ±o).
+/// - `stddev` exige además `sqrt` del escalar (no existe para `Fixed`, por diseño).
 /// - `kth_smallest`/`median` **mutan** el `scratch` que aporta el llamador (copian y
 ///   aplican `nth_element`): no asignan memoria.
-/// - `ema`/`RunningMean` no dividen por el total mÃ¡s que una vez por muestra.
+/// - `ema`/`RunningMean` no dividen por el total más que una vez por muestra.
 
 #include <eng/core/sort.hpp>
 #include <eng/core/span.hpp>
@@ -34,7 +34,7 @@ using eng::math::mul_norm;
 using eng::math::scalar_sqrt;
 using eng::math::scalar_traits;
 
-/// Suma de todos los elementos (0 si la vista estÃ¡ vacÃ­a).
+/// Suma de todos los elementos (0 si la vista está vacía).
 template <class S>
 [[nodiscard]] constexpr S sum(Span<const S> xs) {
 	S acc = scalar_traits<S>::zero();
@@ -44,7 +44,7 @@ template <class S>
 	return acc;
 }
 
-/// Media aritmÃ©tica. Requiere divisiÃ³n en el escalar.
+/// Media aritmética. Requiere división en el escalar.
 template <class S>
 [[nodiscard]] constexpr S mean(Span<const S> xs) {
 	if (xs.empty()) {
@@ -53,8 +53,8 @@ template <class S>
 	return div_norm(sum(xs), scalar_traits<S>::from_int(static_cast<int>(xs.size())));
 }
 
-/// Varianza **poblacional** en una sola pasada (Welford): estable numÃ©ricamente y sin
-/// recorrer los datos dos veces. Requiere divisiÃ³n.
+/// Varianza **poblacional** en una sola pasada (Welford): estable numéricamente y sin
+/// recorrer los datos dos veces. Requiere división.
 template <class S>
 [[nodiscard]] constexpr S variance(Span<const S> xs) {
 	S mu = scalar_traits<S>::zero();
@@ -72,15 +72,15 @@ template <class S>
 	return div_norm(m2, scalar_traits<S>::from_int(n));
 }
 
-/// DesviaciÃ³n tÃ­pica (raÃ­z de `variance`). Requiere divisiÃ³n **y** `sqrt` del escalar
+/// Desviación típica (raíz de `variance`). Requiere división **y** `sqrt` del escalar
 /// (no compila con `Fixed`).
 template <class S>
 [[nodiscard]] constexpr S stddev(Span<const S> xs) {
 	return scalar_sqrt<S>::op(variance(xs));
 }
 
-/// k-Ã©simo menor (0 = mÃ­nimo). Copia `items` en `scratch` y aplica `nth_element`; si
-/// `scratch` es menor, usa su tamaÃ±o. PrecondiciÃ³n: `scratch` no vacÃ­o.
+/// k-ésimo menor (0 = mínimo). Copia `items` en `scratch` y aplica `nth_element`; si
+/// `scratch` es menor, usa su tamaño. Precondición: `scratch` no vacío.
 template <class S>
 constexpr S kth_smallest(Span<const S> items, Span<S> scratch, usize k) {
 	const usize n = items.size() < scratch.size() ? items.size() : scratch.size();
@@ -107,8 +107,8 @@ constexpr S median(Span<const S> items, Span<S> scratch) {
 }
 
 /// Histograma por ancho fijo: cuenta en `counts[i]` los valores en
-/// `[lo + iÂ·width, lo + (i+1)Â·width)`. Devuelve cuÃ¡ntos quedaron fuera (por debajo de
-/// `lo` o mÃ¡s allÃ¡ del Ãºltimo cubo). Requiere divisiÃ³n.
+/// `[lo + i·width, lo + (i+1)·width)`. Devuelve cuántos quedaron fuera (por debajo de
+/// `lo` o más allá del último cubo). Requiere división.
 template <class S>
 constexpr u32 histogram(Span<const S> xs, Span<u32> counts, S lo, S width) {
 	if (!(scalar_traits<S>::zero() < width) || counts.empty()) {
@@ -130,7 +130,7 @@ constexpr u32 histogram(Span<const S> xs, Span<u32> counts, S lo, S width) {
 	return dropped;
 }
 
-/// Media mÃ³vil exponencial: `prev + alphaÂ·(x âˆ’ prev)`. `alpha` en `[0,1]` (0 ignora la
+/// Media móvil exponencial: `prev + alpha·(x − prev)`. `alpha` en `[0,1]` (0 ignora la
 /// muestra, 1 la toma entera). No divide (el llamador fija `alpha`). Base del suavizado
 /// de fps/carga.
 template <class S>
@@ -138,13 +138,13 @@ template <class S>
 	return prev + mul_norm(alpha, x - prev);
 }
 
-/// Media aritmÃ©tica de una **ventana** de las Ãºltimas `N` muestras (sin heap).
+/// Media aritmética de una **ventana** de las últimas `N` muestras (sin heap).
 template <class S, usize N>
 class RunningMean {
 	static_assert(N > 0u, "RunningMean: N debe ser mayor que 0");
 
 public:
-	/// AÃ±ade `x` y devuelve la media de la ventana viva.
+	/// Añade `x` y devuelve la media de la ventana viva.
 	constexpr S push(S x) {
 			if (m_window.full()) {
 			m_sum = m_sum - m_window.front();
