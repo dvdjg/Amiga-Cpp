@@ -66,7 +66,12 @@ La separación de capas es la misma que en `VISUAL_EFFECT_SPRITE_DESIGN.md` §2:
 | Playfield como capa: fondo de DPF o bitmap suelto (Soft DPF) | PARCIAL | `Representation::Layer`; la composición de superficies se especifica en `PLAYFIELD_SCROLL_ARCHITECTURE.md` |
 | Orden de emisión por superficie y `z` (`plan_actor_order`, `emit_actors_in_order`) | EXISTE | `engine/include/eng/scene/actor.hpp` |
 | Tiras horizontales de sprite (canales contiguos, `strip_id`/`strip_index`/`strip_span`) | EXISTE | `engine/include/eng/graphics/sprite_allocator.hpp` |
-| Franjas de sprite y rearme intra-scanline (Risky Woods / Jim Power) | PARCIAL | tiras horizontales en el `SpriteAllocator`; queda el detalle de franjas/rearme de `SpriteTemplate` |
+| Proyección de plantilla a intenciones (`sprite_template_to_intents`, `SpriteIntentSet`) | EXISTE | `engine/include/eng/graphics/sprite.hpp` |
+| Intenciones de sprite de los actores y reparto (`build_sprite_intents`, `actor_to_sprite_intent`) | EXISTE | `engine/include/eng/scene/actor.hpp` |
+| Degradación sprite → BOB (`emit_bob_fallbacks` sobre `SpriteSlot::as_bob`) | EXISTE | `engine/include/eng/scene/actor.hpp` |
+| Composición de sprites del frame (`compose_sprites`, `SpriteComposeScratch`, `SpriteComposeResult`) | EXISTE | `engine/include/eng/scene/actor.hpp` |
+| Contrato del sprite resuelto (`SpritePlacement`) y volcado al emisor (`SpriteManager::apply`) | EXISTE | `graphics/sprite.hpp`, `graphics/sprite_manager.hpp` |
+| Franjas de sprite y rearme intra-scanline (Risky Woods / Jim Power) | PARCIAL | proyección de franjas/rearme/paleta hecha; falta conectarla a la emisión real del compositor |
 | Tiles como BOB (blit desde banco común + posición de mapa) | EXISTE | `BlitJobKind::TileBlockCopy` (`frame_plan.hpp`), `field/xlimited.hpp` |
 | Objeto CPU sobre `Surface` con política de fondo | PROPUESTO | §14.7 |
 
@@ -158,7 +163,7 @@ Un objeto no escribe registros: **declara** `CopperIntent` (vocabulario de `rast
 
 Prioridad del sprite frente a los playfields: un sprite hardware puede quedar **delante o detrás** de cada playfield según la prioridad de `BPLCON2` (y ordenarse entre canales por su propia prioridad). El actor la declara en `sprite_priority` (0..3) y el compositor la materializa con la intención `Priority`. No se confunde con el `z` de los BOB: `z` ordena objetos **dentro de un mismo playfield**; `sprite_priority` sitúa el sprite en la pila de prioridades del chipset.
 
-Reconfiguración intra-scanline: un sprite se puede **reapuntar mientras avanza el haz**. La plantilla declara franjas (`SpriteSegment`) con su altura y su desplazamiento dentro de la imagen, y los puntos de rearme (`SpriteRearm`), los cambios de posición (`hpos_delta`) y los cambios de color (`SpritePaletteSwitch`) se convierten en intenciones que el compositor emite en la línea que toca. Con eso se construyen los fondos de sprites tipo Risky Woods o Jim Power. La composición **horizontal** (varios tramos contiguos en la misma línea) se hace con **varios canales** cubriendo tramos uno al lado del otro: un solo canal no puede aparecer dos veces en la misma línea, porque su *fetch* se resuelve al principio de la línea. El modelo lo expresa como plantilla más lista de franjas; cuántos canales contiguos se pueden sostener lo decide el `SpriteAllocator`.
+Reconfiguración intra-scanline: un sprite se puede **reapuntar mientras avanza el haz**. La plantilla declara franjas (`SpriteSegment`) con su altura y su desplazamiento dentro de la imagen, y los puntos de rearme (`SpriteRearm`), los cambios de posición (`hpos_delta`) y los cambios de color (`SpritePaletteSwitch`) se convierten en intenciones que el compositor emite en la línea que toca. `sprite_template_to_intents` hace esa proyección sin escribir registros: una `SpriteIntent` por franja (con el tramo que le toca tras el gap de 1 línea del DMA), un `SpriteRearm` por franja a partir de la segunda y una `PaletteLine` por cada cambio de paleta dentro del tramo. Con eso se construyen los fondos de sprites tipo Risky Woods o Jim Power. La composición **horizontal** (varios tramos contiguos en la misma línea) se hace con **varios canales** cubriendo tramos uno al lado del otro: un solo canal no puede aparecer dos veces en la misma línea, porque su *fetch* se resuelve al principio de la línea. El modelo lo expresa como plantilla más lista de franjas; cuántos canales contiguos se pueden sostener lo decide el `SpriteAllocator`.
 
 Anclaje al objeto: las intenciones de un actor se declaran **relativas a su Y** (o a su Y de pantalla) y el planner las convierte a líneas absolutas sumando la posición efectiva. Así un degradado de paleta «viaja» con el objeto sin que la aplicación calcule la línea del raster.
 
@@ -264,6 +269,7 @@ Demo con gate visual (secuencias, no un frame suelto, y con veredicto de visión
 - **Intercalado frente a contiguo**: un solo blit por objeto solo es posible con planos intercalados y el layout declarado explícitamente.
 - **Prioridad sprite/playfield frente a z de la aplicación**: la resolución debe ser consistente entre `BPLCON2` y el orden de emisión.
 - **Coste del objeto CPU**: el Blitter hace las copias rectangulares mucho más baratas; el objeto CPU se reserva a lo que el Blitter no puede hacer (lógica por píxel, direccionamiento por bytes, dependencias), y debe entrar en el presupuesto del frame.
+- **DATA de sprite frente a hoja de BOB**: un sprite hardware lee su DATA como DAT/DATB **intercalados por línea**, mientras que una hoja de BOB planar lee planos **contiguos con máscara**. El `Visual` tiene una sola vista de píxeles, así que el mismo contenido no sirve tal cual para los dos caminos: la transición sprite↔BOB exige que el pipeline de contenido cocine ambos (o que se adopte un layout canónico y el ejecutor lo soporte). Es la razón de que la degradación a BOB pueda contarse sin poder dibujarse cuando el asset solo existe en formato sprite.
 
 ## 13. Antipatrones
 
@@ -286,6 +292,6 @@ Ordenadas por dependencia, dentro del roadmap F6:
 3. **Anclaje y offset** por actor y animación con velocidad entera. **HECHO** (`actor_screen_rect`, `actor_tick`); el anclaje por frame distinto queda pendiente.
 4. **Emisión de BOB** desde el actor: `bob_draw`/`bob_erase_box` con el rectángulo efectivo y el origen del frame dentro de la hoja. **HECHO**; el **recorte parcial** a la ventana queda pendiente (hoy se rechaza el objeto que no cabe entero).
 5. **Necesidades de Copper ancladas**: conversión de relativas a absolutas. **HECHO** (`actor_emit_copper`); la fusión con prioridad por z en el `Plan` queda pendiente.
-6. **Cableado de la degradación sprite → BOB**: `SpriteAllocator::as_bob` a `BlitJob` con el mismo `Visual`. **PENDIENTE** (`bob_from_visual` ya construye el BOB; falta que el planner lo consuma cuando el allocator marca `as_bob`).
+6. **Cableado de la degradación sprite → BOB**: `SpriteAllocator::as_bob` a `BlitJob` con el mismo `Visual`. **HECHO en el engine**: `build_sprite_intents` (una intención por actor, ordenada por `top`) + `emit_bob_fallbacks` (emite como BOB los degradados, en orden por superficie y `z`, con `bob_from_visual`); falta reescribir la demo 054 para consumirlo.
 7. **Objeto CPU** sobre `Surface` con política de fondo y presupuesto. **PENDIENTE**.
 8. **Demo con gate visual** que consuma el sistema (hoy solo hay test host): pendiente, es lo que convierte la capa en verificada según `AGENTS.md`.

@@ -151,7 +151,7 @@ un polígono del Blitter (line-draw + area-fill, para relleno vectorial/3D).
 | 6.2 | `Bob` (bitmap) + manager: hoja de planos (+máscara opcional), frame de animación, clip y política de save/restore; emite `BlitJob`s con el presupuesto del `FramePlan` | **PARCIAL**: `engine/include/eng/graphics/bob.hpp` (`Bob`, `BobTarget`, `bob_draw`, `bob_erase_box`; minterm `$CA`/`$FC`/`$F0`, stride de hoja explícito) + emisión desde el actor (`actor_emit`: borrado, save-under y dibujo) en `scene/actor.hpp`. Geometría cubierta por `tests/host/071_bob` y `072_actor`; el camino Blitter **no** lo ejercita aún una demo con gate visual (ver nota) |
 | 6.3 | **Minterm en `BlitJob`** (cookie-cut / OR / copy) para OR-bobs y uniformar 050/051/bobs3d | **HECHO**: `BlitJob::minterm` (por defecto `$CA`); kind `OrBlob` (`$FC`) y `ClearRect` (`$00`) en `frame_plan.hpp`/`execute_frame_plan` |
 | 6.4 | Layout **explícito** en `BlitJob` (interleaved vs planar) para expresar «1 blit/objeto» sin el placeholder de stride | **HECHO**: `BlitJob::interleaved` (altura = alto×planos, un blit/objeto) con validación propia |
-| 6.5 | Cablear `SpriteAllocator::as_bob` → `BlitJob` (transición sprite→BOB real) y cerrar el bug de la 054 | pendiente |
+| 6.5 | Cablear `SpriteAllocator::as_bob` → `BlitJob` (transición sprite→BOB real) y cerrar el bug de la 054 | **HECHO en el engine y consumido por la demo 054**: `compose_sprites` ordena, reparte canales, publica `SpritePlacement` (que `SpriteManager::apply` materializa) y manda los `as_bob` al `FramePlan`. El bug visual de la 054 sigue siendo de la EMISIÓN de sprites (ver Nota 6.5b) |
 | 6.6 | Objeto CPU 2D sobre `Surface` (posición + imagen/redibujo + clip) | pendiente |
 
 **Nota 6.2 — artefacto de planos al montar el BOB en la 085**: la reescritura del BOB de la
@@ -172,6 +172,25 @@ la base de los fondos de sprites uno al lado del otro (Risky Woods / Jim Power).
 corrigió un fallo latente del reparto: la condición de canal libre era `busy_until < top` cuando
 `bottom` es exclusivo, de modo que un intent que arrancaba en la línea 0 no encontraba canal y se
 descartaba el canal que terminaba justo en `top`; ahora es `<= top`. Cubierto por `003_sprite_allocator`.
+
+**Nota 6.5 — camino de sprite del sistema de objetos**: `build_sprite_intents` construye una
+`SpriteIntent` por actor y las ordena por `top` (contrato del `SpriteAllocator`);
+`sprite_template_to_intents` proyecta una `SpriteTemplate` a intenciones (franja + `SpriteRearm` +
+`SpritePaletteSwitch` sin escribir registros); `compose_sprites` reúne todo (orden por superficie y
+`z`, reparto de canales, `SpritePlacement` para el emisor, `as_bob` al `FramePlan` y necesidades de
+Copper ancladas); `SpriteManager::apply` vuelca los placements a los 8 canales. La demo 054 ya lo
+consume. Todo con tests host.
+
+**Nota 6.5b — la 054 no dibuja los 8 sprites (defecto PREEXISTENTE de la emisión)**: con la
+composición conectada, la 054 solo muestra **2 sprites** (ambos del mismo par de color) en lugar de
+los 8 repartidos. Un A/B contra la versión anterior de la demo (misma imagen exacta) descarta una
+regresión del sistema de objetos: la composición está validada en host (canales 0..7, geometría,
+punteros de DATA, orden) y el fallo está en la **emisión** `SPRxPOS/CTL/PT` o en la terminación de
+la DATA del sprite. Pista: los dos que se ven son del par 2, lo que apunta a `palette_base` o a que
+la mayoría de canales quedan deshabilitados o con `vstop` inválido. Es el siguiente paso de
+depuración de la 054. Nota aparte: `SpriteManager::dma_bits()` usa `1u << (6 - i)`, que para el
+canal 7 es un desplazamiento negativo (UB); no lo usa la 054 (habilita SPREN con `DMACON`), pero
+conviene revisarlo contra la doc del chipset.
 
 Referencias obligatorias antes de tocar esto (regla de contexto técnico): AHRM 3.ª
 (`docs/reference/ahrm/`), `amiga-bootcamp/08_graphics/blitter_programming.md` (minterms,

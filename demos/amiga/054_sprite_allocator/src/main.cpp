@@ -1,16 +1,28 @@
 // ============================================================================
-// Demo 054: SpriteAllocator — asigna canales de sprite con overflow → BOB.
+// Demo 054: sistema de objetos — composición de sprites y overflow a BOB.
 // ============================================================================
 //
-// Demuestra el paso 4 de ENGINE_DESIGN.md §5: el `SpriteAllocator` reparte
-// `SpriteIntent` entre los 8 canales hardware y decide el overflow (más de 8
-// sprites en la misma franja vertical → BOB). El juego describe QUÉ quiere; el
-// allocator decide CÓMO (canal) y el `SpriteManager` lo materializa en registros.
+// Consume la capa de objetos del engine (`docs/engine/architecture/OBJECT_SYSTEM.md`):
+// la escena describe ACTORES (`ActorDesc`), y `compose_sprites` hace el trabajo:
 //
-// Qué muestra: 9 sprites de 16×16 en una fila horizontal (y=100). Los 8 primeros
-// caben en los canales 0..7 (parejas de color: rojo, verde, azul, amarillo); el
-// noveno no cabe y se marca `as_bob` (no se dibuja). El número de BOBs se publica
-// en `g_eng_run_status.detail`.
+//   1. ordena los actores por superficie y `z`;
+//   2. construye una `SpriteIntent` por actor (ordenada por `top`);
+//   3. reparte canales con el `SpriteAllocator` (multiplexado vertical);
+//   4. publica los `SpritePlacement` que caben, que el `SpriteManager` materializa
+//      en registros (`SPRxPOS/CTL/PT`) dentro de la copperlist;
+//   5. cuenta los que no caben (`as_bob`).
+//
+// Qué muestra: 9 actores de 16×16 en una fila horizontal (y=100). Los 8 primeros caben
+// en los canales 0..7 (parejas de color: rojo, verde, azul, amarillo); el noveno no cabe
+// y queda `as_bob`. El reparto se publica en `g_eng_run_status.detail`
+// (`sprites << 8 | degradados`).
+//
+// NOTA DE CONTENIDO: un sprite hardware lee su DATA como DAT/DATB por línea, mientras
+// que un BOB planar lee planos contiguos con máscara. El `Visual` tiene una sola vista
+// de píxeles, así que degrado a BOB se **cuenta** pero no se dibuja: materializarlo pide
+// un asset planar cocinado aparte (o un layout canónico que sirva a ambos caminos). El
+// destino de BOB se declara como `nullptr`, que produce el rechazo controlado de ese
+// camino sin afectar al resto.
 //
 // Fondo EHB estático (6 planos) con COLOR00 navy.
 
@@ -20,9 +32,10 @@
 #include <eng/engine.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/drivers/ehb_scene.hpp>
-#include <eng/graphics/sprite_allocator.hpp>
+#include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/sprite_manager.hpp>
 #include <eng/platform/amiga_minimal.hpp>
+#include <eng/scene/actor.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -44,18 +57,19 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 namespace {
 
 namespace drivers = eng::graphics::drivers;
+namespace scene = eng::scene;
 
 constexpr eng::u16 kBytesPerRow = 40;
 constexpr eng::u8  kPlanes = 6;
 constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * 256u;
 constexpr eng::u32 kBitplaneBytes = kPlaneBytes * kPlanes;
 
-// 9 sprites de 16x16 en fila (x = 16, 48, ..., 272); solo caben 8 en hardware.
-constexpr eng::u8  kSprites = 9;
+// 9 actores de 16x16 en fila (x = 16, 48, ..., 272); solo caben 8 en hardware.
+constexpr eng::u8  kActors = 9;
 constexpr eng::u8  kSpriteHeight = 16;
 constexpr eng::u16 kWordsPerLine = 2;   // DAT + DATB
 constexpr eng::u16 kInstanceWords = static_cast<eng::u16>(kSpriteHeight) * kWordsPerLine; // 32
-constexpr eng::u16 kSpriteWords = static_cast<eng::u16>(kInstanceWords * kSprites);        // 288
+constexpr eng::u16 kSpriteWords = static_cast<eng::u16>(kInstanceWords * kActors);        // 288
 constexpr eng::u16 kY = 100;
 constexpr eng::u16 kHpos0 = 16;
 constexpr eng::u16 kHposStep = 32;
@@ -74,12 +88,11 @@ constexpr drivers::EhbPalette kBasePalette {{
 struct SpriteAllocatorDemo {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		m_memory_ok = backend.configure_memory({
+		if (!backend.configure_memory({
 			96u * 1024u,
 			8u * 1024u,
 			4u * 1024u,
-		});
-		if (!m_memory_ok) {
+		})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00005401u);
 			return;
 		}
@@ -94,7 +107,14 @@ struct SpriteAllocatorDemo {
 		eng::Words<eng::SpriteTag> sprite_data = m_sprite_block.view.as_words();
 
 		build_sprite_sheet(sprite_data);
-		assign_channels(sprite_data.as_const());
+		if (!add_actors(sprite_data.as_const())) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00005404u);
+			return;
+		}
+		if (!compose()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00005405u);
+			return;
+		}
 
 		if (!build_copper()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00005403u);
@@ -104,7 +124,8 @@ struct SpriteAllocatorDemo {
 		backend.takeover_display(m_copper_ptr);
 		eng::debug::mark_ready(
 			g_eng_run_status,
-			static_cast<eng::u32>(m_copper_words) | (static_cast<eng::u32>(m_bob_count) << 16u)
+			(static_cast<eng::u32>(m_sprites_in_hw) << 8u) |
+				static_cast<eng::u32>(m_bob_count)
 		);
 	}
 
@@ -120,7 +141,7 @@ struct SpriteAllocatorDemo {
 
 private:
 	void build_sprite_sheet(eng::Words<eng::SpriteTag> data) {
-		for (eng::u8 inst = 0; inst < kSprites; ++inst) {
+		for (eng::u8 inst = 0; inst < kActors; ++inst) {
 			for (eng::u8 line = 0; line < kSpriteHeight; ++line) {
 				data[static_cast<eng::u16>(inst) * kInstanceWords + line * 2u + 0u] = 0xFFFFu; // DAT
 				data[static_cast<eng::u16>(inst) * kInstanceWords + line * 2u + 1u] = 0x0000u; // DATB
@@ -128,36 +149,60 @@ private:
 		}
 	}
 
-	/// Construye los `SpriteIntent`, los reparte con el `SpriteAllocator` y
-	/// configura el `SpriteManager` para los que caben (el resto queda como BOB).
-	void assign_channels(eng::WordView<eng::SpriteTag> sprite_data) {
-		eng::graphics::SpriteIntent intents[kSprites] {};
-		for (eng::u8 i = 0; i < kSprites; ++i) {
-			intents[i].top = kY;
-			intents[i].bottom = static_cast<eng::u16>(kY + kSpriteHeight - 1u);
-			intents[i].hpos = static_cast<eng::u16>(kHpos0 + static_cast<eng::u16>(i) * kHposStep);
-			intents[i].width_words = 1;
-			intents[i].visual_index = i;
-		}
-
-		eng::graphics::SpriteSlot slots[kSprites] {};
-		const eng::u8 in_hw = m_allocator.assign(intents, kSprites, slots);
-		m_bob_count = static_cast<eng::u8>(kSprites - in_hw);
-
-		for (eng::u8 i = 0; i < kSprites; ++i) {
-			if (slots[i].as_bob) {
-				continue;
+	/// La aplicación describe los actores; el engine elegirá y podrá reasignar su
+	/// representación. Aquí todos son candidatos a sprite (16x16).
+	bool add_actors(eng::WordView<eng::SpriteTag> sprite_data) {
+		m_actors.reset();
+		m_allocator.reset({8u, 4096u, 0u});
+		for (eng::u8 i = 0; i < kActors; ++i) {
+			scene::ActorDesc d {};
+			d.visual.kind = eng::graphics::VisualKind::HardwareSprite;
+			d.visual.pixels = sprite_data.subspan(
+				static_cast<eng::u16>(i) * kInstanceWords, kInstanceWords).raw();
+			d.visual.w = 16u;
+			d.visual.h = kSpriteHeight;
+			d.visual.bitplanes = 2u;
+			d.x = static_cast<eng::s16>(kHpos0 + static_cast<eng::u16>(i) * kHposStep);
+			d.y = static_cast<eng::s16>(kY);
+			d.surface = 0u;
+			d.z = static_cast<eng::u8>(10u + i);
+			d.preferred = scene::Representation::Sprite;
+			d.transparency = scene::TransparencyMode::Opaque; // sprite: transparencia nativa
+			d.background = scene::BackgroundPolicy::None;
+			d.layout = eng::graphics::BobLayout::Interleaved;
+			if (!m_actors.add(d, m_allocator).valid()) {
+				return false;
 			}
-			eng::graphics::SpriteConfig cfg {};
-			cfg.enabled = true;
-			cfg.data = sprite_data.subspan(static_cast<eng::u16>(i) * kInstanceWords, kInstanceWords).raw();
-			cfg.width_words = 1;
-			cfg.height = kSpriteHeight;
-			cfg.hpos = intents[i].hpos;
-			cfg.vstart = intents[i].top;
-			cfg.vstop = intents[i].bottom;
-			m_sprites.set(slots[i].channel, cfg);
 		}
+		return true;
+	}
+
+	/// Compone los sprites del frame y vuelca los que caben al `SpriteManager`.
+	bool compose() {
+		scene::ActorEmitContext ctx {};
+		ctx.targets = nullptr; // sin destino de BOB en esta demo (ver cabecera)
+		ctx.target_count = 0u;
+		ctx.cam_x = 0;
+		ctx.cam_y = 0;
+		ctx.buffer = 0u;
+		ctx.display_top = 0x2cu;
+
+		scene::SpriteComposeScratch sc {};
+		sc.order = m_order;
+		sc.intents = m_intents;
+		sc.intent_actor = m_intent_actor;
+		sc.slots = m_slots;
+		sc.placements = m_placements;
+		sc.capacity = kActors;
+		sc.placement_capacity = kActors;
+
+		m_frame_plan.clear();
+		const scene::SpriteComposeResult res =
+			scene::compose_sprites(m_frame_plan, m_actors, ctx, 0x2cu, sc);
+		m_sprites_in_hw = static_cast<eng::u8>(res.sprites);
+		m_bob_count = static_cast<eng::u8>(res.degraded);
+		const eng::u8 applied = m_sprites.apply(m_placements, m_sprites_in_hw);
+		return applied == m_sprites_in_hw;
 	}
 
 	bool build_copper() {
@@ -195,15 +240,22 @@ private:
 		return m_copper_ok;
 	}
 
-	bool m_memory_ok = false;
 	bool m_copper_ok = false;
 	eng::u16 m_copper_words = 0;
+	eng::u8  m_sprites_in_hw = 0;
 	eng::u8  m_bob_count = 0;
 	const eng::u16* m_copper_ptr = nullptr;
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::Block<eng::CopperTag> m_copper_block {};
 	eng::Block<eng::SpriteTag> m_sprite_block {};
-	eng::graphics::SpriteAllocator m_allocator {};
+	scene::ActorStore<kActors> m_actors {};
+	scene::RepresentationAllocator m_allocator {};
+	scene::ActorId m_order[kActors] {};
+	eng::graphics::SpriteIntent m_intents[kActors] {};
+	eng::u16 m_intent_actor[kActors] {};
+	eng::graphics::SpriteSlot m_slots[kActors] {};
+	eng::graphics::SpritePlacement m_placements[kActors] {};
+	eng::graphics::FramePlan m_frame_plan {};
 	eng::graphics::SpriteManager m_sprites {};
 };
 

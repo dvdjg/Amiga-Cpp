@@ -8,8 +8,9 @@
 ///   - su DATA vive en Chip RAM (el DMA lee SPRxDATA/SPRxDATB desde SPRxPT);
 ///   - se posiciona con SPRxPOS (vstart/hstart) y SPRxCTL (vstop, doble ancho);
 ///   - usa los colores COLOR16-31 (compartidos entre sprites y, en DPF, con PF2);
-///   - en OCS SIEMPRE va delante de los bitplanes (no hay hardware para atrás:
-///     un objeto "detrás" se dibuja en un playfield con blit enmascarado).
+///   - su prioridad frente a los playfields la fija `BPLCON2` (`PF1P`/`PF2P`): un sprite
+///     puede quedar delante o detrás de cada playfield; la prioridad ENTRE sprites la
+///     decide el orden/prioridad de los canales.
 ///
 /// El `SpriteManager` es un componente de la escena: guarda la configuración de
 /// los 8 sprites, reserva su Chip RAM y emite los MOVEs de Copper
@@ -154,6 +155,31 @@ public:
         // Por sprite: 1 WAIT (2 words) + POS + CTL + PTH + PTL (4 MOVEs = 8 words).
         for (const auto& s : m_spr) if (s.enabled && !s.data.empty()) w += 10;
         return w;
+    }
+
+    /// Vuelca una lista de `SpritePlacement` (salida del compositor) a los 8 canales,
+    /// dejando el gestor listo para `emit_into`. No toca hardware.
+    u8 apply(const SpritePlacement* placements, u8 count) {
+        if (placements == nullptr) return 0;
+        u8 applied = 0;
+        for (u8 i = 0; i < count; ++i) {
+            const SpritePlacement& p = placements[i];
+            if (p.channel >= 8u || p.data == nullptr || p.height == 0u || p.width_words == 0u) {
+                continue;
+            }
+            SpriteConfig cfg {};
+            cfg.enabled = true;
+            cfg.data = Span<const u16> {p.data,
+                                        static_cast<usize>(p.height) * p.width_words * 2u};
+            cfg.width_words = p.width_words;
+            cfg.height = static_cast<u8>(p.height > 128u ? 128u : p.height);
+            cfg.hpos = p.hpos;
+            cfg.vstart = p.vstart;
+            cfg.vstop = static_cast<u16>(p.vstart + cfg.height - 1u);
+            set(p.channel, cfg);
+            ++applied;
+        }
+        return applied;
     }
 
 private:

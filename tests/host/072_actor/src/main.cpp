@@ -18,6 +18,9 @@
 
 #include <eng/scene/actor.hpp>
 
+#include <eng/graphics/sprite.hpp>
+#include <eng/graphics/sprite_manager.hpp>
+
 namespace {
 
 using eng::graphics::Animation;
@@ -29,7 +32,15 @@ using eng::graphics::CopperIntentKind;
 using eng::graphics::DirtyRect;
 using eng::graphics::Frame;
 using eng::graphics::FramePlan;
+using eng::graphics::SpriteAllocator;
 using eng::graphics::SpriteIntent;
+using eng::graphics::SpriteIntentSet;
+using eng::graphics::SpritePaletteSwitch;
+using eng::graphics::SpritePlacement;
+using eng::graphics::SpriteManager;
+using eng::graphics::SpriteSegment;
+using eng::graphics::SpriteSlot;
+using eng::graphics::SpriteTemplate;
 using eng::graphics::Visual;
 using eng::graphics::VisualKind;
 using eng::scene::Actor;
@@ -51,6 +62,7 @@ alignas(16) eng::u8 g_screen[4 * kPlaneBytes];
 alignas(16) eng::u16 g_pixels[32];
 alignas(16) eng::u16 g_mask[16];
 alignas(16) eng::u16 g_save[64];
+alignas(16) eng::u16 g_pixel_pool[256];
 alignas(16) eng::u16 g_copper_colors[2] {};
 
 constexpr Frame kFrames[2] = {
@@ -495,6 +507,183 @@ void test_emit_order_by_surface_and_z() {
 	CHECK(eng::scene::plan_actor_order(store, order, 2u) == 0u, "orden rechazado si no cabe");
 }
 
+void test_sprite_template_projection() {
+	static eng::u16 tpl_bitmap[64] {};
+	static const eng::u16 sw_colors[2] {0x0f0u, 0x00fu};
+	SpriteTemplate<3, 2> tpl {};
+	tpl.bitmap = eng::Span<const eng::u16> {tpl_bitmap, 64u};
+	tpl.width_words = 2u;
+	tpl.attach = true;
+	tpl.add_segment(SpriteSegment {0u, 8u, 0u});
+	tpl.add_segment(SpriteSegment {16u, 8u, 8u});
+	tpl.add_switch(SpritePaletteSwitch {104u, sw_colors, 16u, 2u});
+
+	SpriteIntent intents[4] {};
+	CopperIntent copper[4] {};
+	SpriteIntentSet set {};
+	set.intents = intents;
+	set.intent_capacity = 4u;
+	set.copper = copper;
+	set.copper_capacity = 4u;
+
+	eng::graphics::sprite_template_to_intents(tpl, 3u, 100u, 40u, 2u, set);
+	CHECK(set.intent_count == 2u, "una intencion por franja");
+	CHECK(!set.overflow, "cabe en los buffers");
+	CHECK(intents[0].top == 100u && intents[0].bottom == 108u, "franja 0 en 100..108");
+	CHECK(intents[1].top == 109u && intents[1].bottom == 117u, "franja 1 tras el gap de 1 linea");
+	CHECK(intents[0].channel == 3u && intents[0].hpos == 40u, "canal y X de la franja");
+	CHECK(intents[0].width_words == 2u && intents[0].attach, "32 px con attach");
+	CHECK(intents[0].priority == 2u, "prioridad frente a playfields");
+	CHECK(set.copper_count == 2u, "rearme + cambio de paleta");
+	CHECK(copper[0].kind == CopperIntentKind::SpriteRearm, "rearme de la 2a franja");
+	CHECK(copper[0].top == 109u && copper[0].sprite_channel == 3u, "rearme en la linea 109");
+	CHECK(copper[0].sprite_ptr == tpl_bitmap + 16u, "rearme apunta a la DATA de la franja");
+	CHECK(copper[1].kind == CopperIntentKind::PaletteLine && copper[1].top == 104u, "paleta en la 104");
+	CHECK(copper[1].first == 16u && copper[1].count == 2u, "COLOR16.. del par");
+
+	// Buffers diminutos: se marca el desbordamiento y no se sale del array.
+	SpriteIntent one_intent[1] {};
+	CopperIntent one_copper[1] {};
+	SpriteIntentSet tiny {};
+	tiny.intents = one_intent;
+	tiny.intent_capacity = 1u;
+	tiny.copper = one_copper;
+	tiny.copper_capacity = 1u;
+	eng::graphics::sprite_template_to_intents(tpl, 0u, 0u, 0u, 0u, tiny);
+	CHECK(tiny.overflow, "desbordamiento marcado");
+	CHECK(tiny.intent_count == 1u, "solo cabe una franja");
+}
+
+void test_sprite_allocation_and_bob_fallback() {
+	ActorStore<12> store;
+	store.reset();
+	RepresentationAllocator alloc {};
+	alloc.reset(RepresentationBudget {8u, 60000u, 0u});
+
+	// 10 actores con la MISMA franja (solape total) y `z` creciente con el slot; cada
+	// uno con su propia hoja, para poder identificar por la fuente quién se emite.
+	for (eng::u16 i = 0; i < 10u; ++i) {
+		ActorDesc d = make_desc();
+		d.anchor = {0, 0};
+		d.offset = {0, 0};
+		d.x = 0;
+		d.y = 100;
+		d.surface = 0u;
+		d.z = static_cast<eng::u8>(10u * (i + 1u));
+		d.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool + i * 16u, 16u};
+		CHECK(store.add(d, alloc).valid(), "alta de actor para el reparto");
+	}
+
+	// Orden de emisión deliberadamente por `z` DESCENDENTE: así el orden por `top` de las
+	// intenciones (empate) es el inverso del orden por `z` y se distinguen.
+	ActorId order[12] {};
+	for (eng::u16 i = 0; i < 10u; ++i) {
+		order[i] = store.id_at(static_cast<eng::u16>(9u - i));
+	}
+	const eng::u16 n = 10u;
+
+	ActorEmitContext ctx {};
+	use_targets(ctx);
+
+	SpriteIntent intents[12] {};
+	eng::u16 intent_actor[12] {};
+	CHECK(eng::scene::build_sprite_intents(store, order, n, ctx, intents, intent_actor, 12u) == 10u,
+	      "una intencion por actor");
+	CHECK(intents[0].top == intents[9].top, "franja solapada: mismo top");
+
+	SpriteSlot slots[12] {};
+	const eng::u8 in_hw = SpriteAllocator{}.assign(intents, 10u, slots);
+	CHECK(in_hw == 8u, "ocho caben en hardware");
+	CHECK(slots[8].as_bob && slots[9].as_bob, "los dos ultimos de la intencion degradan");
+	CHECK(intent_actor[8] == 1u && intent_actor[9] == 0u, "degradan los slots 1 y 0");
+
+	FramePlan plan {};
+	plan.clear();
+	const eng::u16 emitted = eng::scene::emit_bob_fallbacks(plan, store, intent_actor, slots, 10u, ctx);
+	CHECK(emitted == 2u, "se emiten los dos degradados como BOB");
+	CHECK(plan.blit_job_count() == 2u, "un job por degradado");
+	// Slots 0 (z=10) y 1 (z=20): por `z` primero el 0, aunque en la intencion iba después.
+	CHECK(plan.blit_job(0).source.words ==
+	      reinterpret_cast<const eng::u16*>(g_pixel_pool + 0u), "job 0: menor z (slot 0)");
+	CHECK(plan.blit_job(1).source.words ==
+	      reinterpret_cast<const eng::u16*>(g_pixel_pool + 16u), "job 1: mayor z (slot 1)");
+
+	// Capacidad insuficiente para las intenciones: rechazo controlado.
+	CHECK(eng::scene::build_sprite_intents(store, order, n, ctx, intents, intent_actor, 4u) == 0u,
+	      "intents rechazadas si no caben");
+}
+
+void test_compose_sprites() {
+	ActorStore<12> store;
+	store.reset();
+	RepresentationAllocator alloc {};
+	alloc.reset(RepresentationBudget {8u, 60000u, 0u});
+
+	static const CopperIntent need {
+		CopperIntentKind::PaletteLine, 0u, 4u, 0u,
+		eng::PaletteWords {g_copper_colors, 2u}, 1u, 2u, 0, {}, 0u, nullptr};
+
+	// 10 actores con solape total y su propia hoja: 8 caben, 2 degradan.
+	for (eng::u16 i = 0; i < 10u; ++i) {
+		ActorDesc d = make_desc();
+		d.anchor = {0, 0};
+		d.offset = {0, 0};
+		d.x = 0;
+		d.y = 100;
+		d.surface = 0u;
+		d.z = static_cast<eng::u8>(10u * (i + 1u));
+		d.sprite_priority = 2u;
+		d.visual.pixels = eng::Span<const eng::u16> {g_pixel_pool + i * 16u, 16u};
+		d.copper = eng::Span<const CopperIntent> {&need, 1u};
+		CHECK(store.add(d, alloc).valid(), "alta para componer");
+	}
+
+	ActorEmitContext ctx {};
+	use_targets(ctx);
+
+	FramePlan plan {};
+	plan.clear();
+
+	ActorId order[12] {};
+	SpriteIntent intents[12] {};
+	eng::u16 intent_actor[12] {};
+	SpriteSlot slots[12] {};
+	SpritePlacement placements[12] {};
+	CopperIntent copper[16] {};
+	eng::scene::SpriteComposeScratch sc {};
+	sc.order = order;
+	sc.intents = intents;
+	sc.intent_actor = intent_actor;
+	sc.slots = slots;
+	sc.placements = placements;
+	sc.placement_capacity = 12u;
+	sc.copper = copper;
+	sc.copper_capacity = 16u;
+	sc.capacity = 12u;
+
+	const eng::scene::SpriteComposeResult res =
+		eng::scene::compose_sprites(plan, store, ctx, 0x2cu, sc);
+	CHECK(res.ok, "composicion OK");
+	CHECK(res.sprites == 8u, "ocho sprites en hardware");
+	CHECK(res.degraded == 2u, "dos degradados");
+	CHECK(res.bobs == 2u, "dos dibujados como BOB");
+	CHECK(plan.blit_job_count() == 2u, "dos jobs de BOB");
+	CHECK(res.copper == 10u, "una necesidad de copper por actor");
+	CHECK(copper[0].top == 0x2cu + 100u, "copper anclado a la Y del actor");
+
+	CHECK(placements[0].channel == 0u && placements[7].channel == 7u, "canales 0..7");
+	CHECK(placements[0].vstart == 100u && placements[0].hpos == 0u, "franja del placement");
+	CHECK(placements[0].height == 8u, "altura del placement");
+	CHECK(placements[0].priority == 2u, "prioridad en el placement");
+	CHECK(placements[0].data == g_pixel_pool + 0u, "data del primer actor");
+
+	// El emisor de sprites acepta los placements (sin tocar hardware).
+	SpriteManager mgr {};
+	CHECK(mgr.apply(placements, 8u) == 8u, "los ocho placements se aplican");
+	CHECK(mgr.any_enabled(), "gestor con sprites habilitados");
+	CHECK(mgr.apply(nullptr, 0u) == 0u, "sin placements no aplica nada");
+}
+
 } // namespace
 
 int main() {
@@ -507,6 +696,9 @@ int main() {
 	test_emit_clipped_and_full();
 	test_surface_selection_and_sprite_intent();
 	test_emit_order_by_surface_and_z();
+	test_sprite_template_projection();
+	test_sprite_allocation_and_bob_fallback();
+	test_compose_sprites();
 	test_emit_save_under();
 	test_copper_anchoring();
 

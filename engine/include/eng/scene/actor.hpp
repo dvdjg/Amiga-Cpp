@@ -28,6 +28,8 @@
 #include <eng/graphics/bob.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/raster_intent.hpp>
+#include <eng/graphics/sprite.hpp>
+#include <eng/graphics/sprite_allocator.hpp>
 
 #include <eng/scene/representation.hpp>
 
@@ -43,7 +45,10 @@ using eng::graphics::CopperIntent;
 using eng::graphics::DirtyRect;
 using eng::graphics::Frame;
 using eng::graphics::FramePlan;
+using eng::graphics::SpriteAllocator;
 using eng::graphics::SpriteIntent;
+using eng::graphics::SpritePlacement;
+using eng::graphics::SpriteSlot;
 using eng::graphics::Visual;
 using eng::graphics::VisualKind;
 
@@ -618,6 +623,196 @@ inline eng::u16 emit_actors_in_order(FramePlan& plan, ActorStore<MaxActors>& sto
 		}
 	}
 	return emitted;
+}
+
+/// Construye una `SpriteIntent` por actor (en el orden dado) y las ordena por `top`, que
+/// es el contrato de `SpriteAllocator::assign`. `intent_actor[i]` recibe el índice de
+/// slot del actor de `intents[i]`, para asociar después los `SpriteSlot` con su actor.
+/// Devuelve cuántas escribió, o 0 si no caben en `capacity` (rechazo controlado).
+template <eng::u16 MaxActors>
+inline eng::u16 build_sprite_intents(const ActorStore<MaxActors>& store, const ActorId* order,
+				     eng::u16 count, const ActorEmitContext& ctx,
+				     SpriteIntent* intents, eng::u16* intent_actor,
+				     eng::u16 capacity) {
+	if (intents == nullptr || intent_actor == nullptr || count > capacity) {
+		return 0u;
+	}
+	eng::u16 n = 0;
+	for (eng::u16 i = 0; i < count; ++i) {
+		const Actor* a = store.get(order[i]);
+		if (a == nullptr) {
+			return 0u;
+		}
+		const Frame f = actor_current_frame(*a);
+		const DirtyRect r = actor_screen_rect(*a, f, ctx.cam_x, ctx.cam_y);
+		intents[n] = actor_to_sprite_intent(*a, f, r);
+		intent_actor[n] = order[i].index;
+		++n;
+	}
+	// Orden por `top` (inserción, estable: los empates conservan el orden por
+	// superficie/`z` con el que llegaron).
+	for (eng::u16 i = 1; i < n; ++i) {
+		const SpriteIntent cur = intents[i];
+		const eng::u16 cur_actor = intent_actor[i];
+		eng::u16 j = i;
+		while (j > 0u && intents[j - 1u].top > cur.top) {
+			intents[j] = intents[j - 1u];
+			intent_actor[j] = intent_actor[j - 1u];
+			--j;
+		}
+		intents[j] = cur;
+		intent_actor[j] = cur_actor;
+	}
+	return n;
+}
+
+/// Emite como BOB los actores que el `SpriteAllocator` degradó (`SpriteSlot::as_bob`),
+/// respetando el orden por superficie y `z`. `intent_actor[i]` asocia `slots[i]` con su
+/// actor. Los actores que sí caben en sprite NO se dibujan aquí (los materializa el
+/// camino de sprite). Devuelve cuántos emitió; 0 si algún actor devuelve `Full`.
+template <eng::u16 MaxActors>
+inline eng::u16 emit_bob_fallbacks(FramePlan& plan, ActorStore<MaxActors>& store,
+				   const eng::u16* intent_actor, const SpriteSlot* slots,
+				   eng::u16 count, const ActorEmitContext& ctx) {
+	if (intent_actor == nullptr || slots == nullptr) {
+		return 0u;
+	}
+	eng::u16 fallback[MaxActors] {};
+	eng::u16 nf = 0;
+	for (eng::u16 i = 0; i < count && nf < MaxActors; ++i) {
+		if (slots[i].as_bob) {
+			fallback[nf++] = intent_actor[i];
+		}
+	}
+	// Los degradados se dibujan en orden por superficie y `z`, no en orden de intent
+	// (que va por `top`).
+	for (eng::u16 i = 1; i < nf; ++i) {
+		const eng::u16 cur = fallback[i];
+		const eng::u32 key = actor_order_key(store.at(cur).desc, cur);
+		eng::u16 j = i;
+		while (j > 0u &&
+		       actor_order_key(store.at(fallback[j - 1u]).desc, fallback[j - 1u]) > key) {
+			fallback[j] = fallback[j - 1u];
+			--j;
+		}
+		fallback[j] = cur;
+	}
+	eng::u16 emitted = 0;
+	for (eng::u16 i = 0; i < nf; ++i) {
+		Actor* a = store.get(store.id_at(fallback[i]));
+		if (a == nullptr) {
+			return 0u;
+		}
+		const ActorEmitStatus st = actor_emit(plan, *a, ctx);
+		if (st == ActorEmitStatus::Full) {
+			return 0u;
+		}
+		if (st == ActorEmitStatus::Ok) {
+			++emitted;
+		}
+	}
+	return emitted;
+}
+
+/// Resumen de la composición de sprites de un frame.
+struct SpriteComposeResult {
+	eng::u16 sprites = 0;  ///< actores materializados como sprite hardware
+	eng::u16 degraded = 0; ///< actores que no caben en hardware (`as_bob`)
+	eng::u16 bobs = 0;     ///< actores finalmente dibujados como BOB
+	eng::u16 copper = 0;   ///< intenciones de Copper escritas (ancladas a los actores)
+	bool ok = false;       ///< false = rechazo controlado (ver `OBJECT_SYSTEM.md`)
+};
+
+/// Buffers del llamador para `compose_sprites` (capacidad fija, sin heap).
+struct SpriteComposeScratch {
+	ActorId* order = nullptr;              ///< capacidad = `capacity`
+	SpriteIntent* intents = nullptr;       ///< capacidad = `capacity`
+	eng::u16* intent_actor = nullptr;      ///< capacidad = `capacity`
+	SpriteSlot* slots = nullptr;           ///< capacidad = `capacity`
+	SpritePlacement* placements = nullptr; ///< capacidad = `placement_capacity`
+	CopperIntent* copper = nullptr;        ///< capacidad = `copper_capacity`
+	eng::u16 capacity = 0;                 ///< actores que caben en los buffers
+	eng::u16 placement_capacity = 0;
+	eng::u16 copper_capacity = 0;
+};
+
+/// Compone los sprites del frame a partir de los actores:
+///
+///   1. orden de emisión por superficie y `z` (`plan_actor_order`);
+///   2. una intención de sprite por actor, ordenada por `top` (`build_sprite_intents`);
+///   3. reparto de canales con multiplexado y tiras (`SpriteAllocator`);
+///   4. los que caben se publican como `SpritePlacement` (para `SpriteManager::apply`);
+///   5. los degradados a BOB se dibujan en el `FramePlan`, en orden por superficie y `z`;
+///   6. las necesidades de Copper ancladas de cada actor se escriben en `copper`.
+///
+/// Es un paso PURO de composición: no escribe registros. Las necesidades de Copper se
+/// emiten para todos los actores (son contenido anclado a su Y); las que dependan de un
+/// canal de sprite concreto (rearmes) deben declararse solo en actores que vayan a
+/// materializarse como sprite. Devuelve el resumen; `ok == false` marca rechazo.
+template <eng::u16 MaxActors>
+inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors>& store,
+					   const ActorEmitContext& ctx, eng::u16 display_top,
+					   SpriteComposeScratch& s) {
+	SpriteComposeResult r {};
+	if (store.count() == 0u) {
+		r.ok = true; // nada que componer
+		return r;
+	}
+	if (s.order == nullptr || s.intents == nullptr || s.intent_actor == nullptr ||
+	    s.slots == nullptr || s.placements == nullptr || s.capacity == 0u ||
+	    s.placement_capacity == 0u) {
+		return r;
+	}
+	const eng::u16 n = plan_actor_order(store, s.order, s.capacity);
+	if (n == 0u) {
+		return r; // no caben en el buffer del llamador
+	}
+	if (build_sprite_intents(store, s.order, n, ctx, s.intents, s.intent_actor, s.capacity) != n) {
+		return r;
+	}
+	SpriteAllocator{}.assign(s.intents, static_cast<eng::u8>(n), s.slots);
+
+	for (eng::u16 i = 0; i < n; ++i) {
+		Actor* a = store.get(store.id_at(s.intent_actor[i]));
+		if (a == nullptr) {
+			return r;
+		}
+		const Frame f = actor_current_frame(*a);
+		const DirtyRect rect = actor_screen_rect(*a, f, ctx.cam_x, ctx.cam_y);
+		const eng::u16 room = s.copper_capacity > r.copper
+					      ? static_cast<eng::u16>(s.copper_capacity - r.copper)
+					      : 0u;
+		r.copper = static_cast<eng::u16>(
+			r.copper + actor_emit_copper(*a, rect.top, display_top,
+						     s.copper != nullptr ? s.copper + r.copper : nullptr,
+						     static_cast<eng::u8>(room > 255u ? 255u : room)));
+		if (s.slots[i].as_bob) {
+			++r.degraded;
+			continue;
+		}
+		if (r.sprites >= s.placement_capacity) {
+			return r; // sin sitio para publicar el sprite
+		}
+		SpritePlacement& p = s.placements[r.sprites];
+		p = SpritePlacement {};
+		p.channel = s.slots[i].channel;
+		p.priority = a->desc.sprite_priority;
+		p.hpos = s.intents[i].hpos;
+		p.vstart = s.intents[i].top;
+		p.height = static_cast<eng::u16>(s.intents[i].bottom - s.intents[i].top);
+		p.width_words = s.intents[i].width_words;
+		p.attach = s.intents[i].attach;
+		p.data = a->desc.visual.pixels.data();
+		++r.sprites;
+	}
+
+	const eng::u16 emitted = emit_bob_fallbacks(plan, store, s.intent_actor, s.slots, n, ctx);
+	if (emitted == 0u && r.degraded != 0u) {
+		return r; // un degradado fue rechazado
+	}
+	r.bobs = emitted;
+	r.ok = true;
+	return r;
 }
 
 } // namespace eng::scene
