@@ -24,6 +24,8 @@
 
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
+#include <eng/core/util/bitset.hpp>
+#include <eng/core/util/static_vector.hpp>
 #include <eng/graphics/animation.hpp>
 #include <eng/graphics/bob.hpp>
 #include <eng/graphics/copper/plan.hpp>
@@ -498,9 +500,9 @@ public:
 	constexpr void reset() {
 		for (eng::u16 i = 0; i < MaxActors; ++i) {
 			m_next[i] = static_cast<eng::u16>(i + 1u);
-			m_used[i] = false;
 		}
 		m_next[MaxActors - 1u] = 0xffffu;
+		m_used.reset();
 		m_free_head = 0u;
 		m_count = 0u;
 	}
@@ -530,7 +532,7 @@ public:
 		tmpl.priority = desc.z;
 		tmpl.scrolls = false;
 		a.actual = alloc.allocate(tmpl);
-		m_used[index] = true;
+		m_used.set(index);
 		++m_count;
 		return ActorId {index, m_generation[index]};
 	}
@@ -539,7 +541,7 @@ public:
 		if (!valid_id(id)) {
 			return false;
 		}
-		m_used[id.index] = false;
+		m_used.reset(id.index);
 		++m_generation[id.index];
 		m_next[id.index] = m_free_head;
 		m_free_head = id.index;
@@ -556,12 +558,12 @@ public:
 	}
 
 	constexpr bool valid_id(ActorId id) const {
-		return id.valid() && id.index < MaxActors && m_used[id.index] &&
+		return id.valid() && id.index < MaxActors && m_used.test(id.index) &&
 		       m_generation[id.index] == id.generation;
 	}
 
 	/// Acceso por índice de slot (para iterar el parque); comprobar `used`.
-	constexpr bool used(eng::u16 index) const { return index < MaxActors && m_used[index]; }
+	constexpr bool used(eng::u16 index) const { return index < MaxActors && m_used.test(index); }
 	constexpr Actor& at(eng::u16 index) { return m_actors[index]; }
 	constexpr const Actor& at(eng::u16 index) const { return m_actors[index]; }
 
@@ -574,7 +576,7 @@ private:
 	Actor m_actors[MaxActors] {};
 	eng::u16 m_generation[MaxActors] {};
 	eng::u16 m_next[MaxActors] {};
-	bool m_used[MaxActors] {};
+	eng::util::BitSet<MaxActors> m_used {};
 	eng::u16 m_free_head = 0u;
 	eng::u16 m_count = 0u;
 };
@@ -700,13 +702,13 @@ inline eng::u16 emit_bob_fallbacks(FramePlan& plan, ActorStore<MaxActors>& store
 	if (intent_actor == nullptr || slots == nullptr) {
 		return 0u;
 	}
-	eng::u16 fallback[MaxActors] {};
-	eng::u16 nf = 0;
-	for (eng::u16 i = 0; i < count && nf < MaxActors; ++i) {
+	eng::util::StaticVector<eng::u16, MaxActors> fallback;
+	for (eng::u16 i = 0; i < count && !fallback.full(); ++i) {
 		if (slots[i].as_bob) {
-			fallback[nf++] = intent_actor[i];
+			fallback.push_back(intent_actor[i]);
 		}
 	}
+	const eng::u16 nf = static_cast<eng::u16>(fallback.size());
 	// Los degradados se dibujan en orden por superficie y `z`, no en orden de intent
 	// (que va por `top`).
 	for (eng::u16 i = 1; i < nf; ++i) {
