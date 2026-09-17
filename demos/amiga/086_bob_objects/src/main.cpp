@@ -43,15 +43,8 @@
 
 struct ExecBase* SysBase = nullptr;
 
-/// Bloque de profiling (ver engine/include/eng/debug/prof.hpp). Se define en la demo,
-/// con enlace C, para que `g_eng_prof` salga sin manglar en el `.map` (lo lee
-/// tools/debug/profile.mjs).
-namespace eng::debug {
-extern "C" {
-volatile ProfBlock g_eng_prof {};
-volatile eng::u32 g_prof_start[prof_max_sections] {};
-}
-} // namespace eng::debug
+// El bloque de profiling (`eng::debug::g_eng_prof`) lo define el engine como
+// `inline volatile` en prof.hpp: no hay que definirlo aquí.
 
 extern "C" {
 __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {

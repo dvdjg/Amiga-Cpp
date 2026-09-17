@@ -20,6 +20,7 @@
 #include <eng/core/types.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/plan.hpp>
+#include <eng/graphics/copper/static_plan.hpp>
 #include <eng/graphics/raster_intent.hpp>
 #include <eng/memory/arena.hpp>
 
@@ -345,6 +346,115 @@ int main() {
 		if (n3 != 2u || vals[0] != kHighP[1] || vals[1] != kLowP[1]) {
 			std::printf("[FAIL] la superficie manda sobre z: [0x%x,0x%x]\n", (unsigned)vals[0],
 				    (unsigned)vals[1]);
+			return 1;
+		}
+	}
+
+	// --- camino ESTATICO: el compilador constexpr coincide con el Plan dinamico ---------
+	{
+		// Escena MIXTA y GENERICA: rampa de paleta por linea + Priority + PaletteSpan +
+		// cola de paleta. El compilador static_plan.hpp materializa cualquier
+		// CopperIntentKind con la codificacion del scheduler, asi que la paridad es
+		// palabra a palabra.
+		static constexpr eng::u16 kPal8[8] = {0x111u, 0x222u, 0x333u, 0x444u,
+						      0x555u, 0x666u, 0x777u, 0x888u};
+		struct Scene {
+			eng::graphics::CopperIntent v[38];
+		};
+		static constexpr Scene kScene = []() constexpr {
+			Scene s {};
+			eng::u16 n = 0;
+			for (eng::u16 i = 0; i < 32u; ++i) {
+				eng::graphics::CopperIntent it {};
+				it.kind = eng::graphics::CopperIntentKind::PaletteLine;
+				it.top = static_cast<eng::u16>(0x2cu + i);
+				it.bottom = it.top;
+				it.colors = eng::PaletteWords {kPal8, 8u};
+				it.first = static_cast<eng::u8>(i & 7u);
+				it.count = 1u;
+				s.v[n++] = it;
+			}
+			{
+				eng::graphics::CopperIntent it {};
+				it.kind = eng::graphics::CopperIntentKind::Priority;
+				it.top = 0x50u;
+				it.bottom = it.top;
+				it.shift_x = 0x0040; // BPLCON2: sprites detras del playfield
+				s.v[n++] = it;
+			}
+			{
+				eng::graphics::CopperIntent it {};
+				it.kind = eng::graphics::CopperIntentKind::PaletteSpan;
+				it.top = 0x60u;
+				it.bottom = it.top;
+				it.hpos = 0x40u;
+				it.colors = eng::PaletteWords {kPal8, 8u};
+				it.first = 1u;
+				it.count = 2u;
+				s.v[n++] = it;
+			}
+			for (eng::u16 i = 0; i < 4u; ++i) {
+				eng::graphics::CopperIntent it {};
+				it.kind = eng::graphics::CopperIntentKind::PaletteLine;
+				it.top = static_cast<eng::u16>(0x70u + i);
+				it.bottom = it.top;
+				it.colors = eng::PaletteWords {kPal8, 8u};
+				it.first = static_cast<eng::u8>(5u + (i & 1u));
+				it.count = 1u;
+				s.v[n++] = it;
+			}
+			return s;
+		}();
+		static constexpr auto kList =
+			eng::copper::compile_intents<8192u>(kScene.v, {40u, 4u, 0x2cu});
+
+		// Gate EN COMPILACION del compilador.
+		static_assert(kList.words[0] == eng::copper::wait_word(0x2cu), "primer WAIT");
+		static_assert(kList.words[1] == 0xff00u, "mascara del WAIT");
+		static_assert(kList.words[2] == eng::copper::color_register(0u), "registro COLOR00");
+		static_assert(kList.words[3] == kPal8[0], "valor de la primera linea");
+		static_assert(kList.ok, "compilacion ok");
+		static_assert(kList.value_word[0] == 3u && !kList.value_is_address[0], "ranura 0");
+
+		// El Plan DINAMICO con la MISMA escena debe emitir la misma lista.
+		static eng::u8 chip_static[32 * 1024];
+		eng::MemorySystem mem2 {};
+		mem2.chip = eng::LinearArena {chip_static, sizeof(chip_static), eng::MemoryKind::Chip};
+		eng::copper::Plan dyn;
+		if (!dyn.begin(mem2, {8192u, 0x2cu})) {
+			std::printf("[FAIL] Plan::begin del camino estatico\n");
+			return 1;
+		}
+		dyn.begin_frame();
+		for (eng::u16 i = 0; i < 38u; ++i) {
+			dyn.add(kScene.v[i]);
+		}
+		dyn.materialize();
+		if (!dyn.end_frame()) {
+			std::printf("[FAIL] end_frame del camino estatico\n");
+			return 1;
+		}
+		const eng::u16* const dw = dyn.active_words();
+		if (dyn.words() < kList.word_count) {
+			std::printf("[FAIL] lista dinamica mas corta (%u < %u)\n", (unsigned)dyn.words(),
+				    (unsigned)kList.word_count);
+			return 1;
+		}
+		for (eng::u16 i = 0; i < kList.word_count; ++i) {
+			if (dw[i] != kList.words[i]) {
+				std::printf("[FAIL] palabra %u: dinamico=0x%04x estatico=0x%04x\n",
+					    (unsigned)i, (unsigned)dw[i], (unsigned)kList.words[i]);
+				return 1;
+			}
+		}
+
+		// Parche de una ranura (color de la linea 10 de la rampa) sin tocar el resto.
+		auto list2 = kList;
+		const eng::u16 slot10 = 10u; // 1 dato por linea en la rampa
+		list2.patch(slot10, 0x0f0u);
+		if (list2.words[list2.value_word[slot10]] != 0x0f0u ||
+		    list2.words[list2.value_word[9]] != kPal8[9u & 7u]) {
+			std::printf("[FAIL] patch de la lista compilada\n");
 			return 1;
 		}
 	}

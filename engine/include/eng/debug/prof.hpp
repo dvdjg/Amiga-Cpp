@@ -37,18 +37,16 @@ struct ProfBlock {
 	eng::u32 calls[prof_max_sections];
 };
 
-/// Instancia unica del bloque; la DEFINE la demo (o el backend) con enlace C para que el
-/// nombre aparezca sin manglar en el `.map` y el host pueda resolverlo.
+/// Instancia unica del bloque, `volatile` y `inline`: una sola definicion por programa
+/// (sin errores de enlace en host ni en Amiga) y accesos ordenados respecto al contador,
+/// que es lo que hace fiable la medida tambien en builds optimizados.
 ///
-/// `volatile`: las acumulaciones tienen que quedar ordenadas respecto a las lecturas del
-/// contador. Sin `volatile`, un build optimizado puede reordenarlas y las secciones miden
-/// cualquier cosa (0,9 llamadas/frame y ciclos inflados en release).
-extern "C" {
-extern volatile ProfBlock g_eng_prof;
+/// El host lo localiza por el simbolo del `.map`; con enlace C++ el nombre va manglado
+/// (`_ZN3eng6debug10g_eng_profE`), asi que `tools/debug/profile.mjs` busca por subcadena.
+inline volatile ProfBlock g_eng_prof {};
 
 /// Marcas de inicio (la escribe `ENG_PROF_BEGIN`).
-extern volatile eng::u32 g_prof_start[prof_max_sections];
-}
+inline volatile eng::u32 g_prof_start[prof_max_sections] {};
 
 /// Secciones que instrumenta el PROPIO engine (indices altos, para no chocar con las de la
 /// demo). El coste es ~2 lecturas del contador por seccion y frame: despreciable, por eso
@@ -64,6 +62,11 @@ inline eng::u32 prof_clock() {
 
 } // namespace eng::debug
 
+// Fuera del target (host) el perfilado es NO-OP: el contador es un periferico del emulador
+// y leerlo en un test host seria un acceso invalido. En m68k instrumenta (~2 lecturas por
+// seccion y frame).
+#if defined(__m68k__)
+
 #define ENG_PROF_INIT(n)                                                                          \
 	do {                                                                                       \
 		::eng::debug::g_eng_prof.magic = ::eng::debug::prof_magic;                         \
@@ -71,7 +74,8 @@ inline eng::u32 prof_clock() {
 	} while (0)
 #define ENG_PROF_FRAME()                                                                          \
 	do {                                                                                       \
-		++::eng::debug::g_eng_prof.frames;                                                 \
+		::eng::debug::g_eng_prof.frames =                                                  \
+			static_cast<::eng::u32>(::eng::debug::g_eng_prof.frames + 1u);             \
 	} while (0)
 #define ENG_PROF_BEGIN(s)                                                                         \
 	do {                                                                                       \
@@ -80,6 +84,18 @@ inline eng::u32 prof_clock() {
 #define ENG_PROF_END(s)                                                                           \
 	do {                                                                                       \
 		const ::eng::u32 _eng_prof_e = ::eng::debug::prof_clock();                         \
-		::eng::debug::g_eng_prof.cycles[(s)] += _eng_prof_e - ::eng::debug::g_prof_start[(s)];\
-		++::eng::debug::g_eng_prof.calls[(s)];                                             \
+		::eng::debug::g_eng_prof.cycles[(s)] =                                             \
+			static_cast<::eng::u32>(::eng::debug::g_eng_prof.cycles[(s)] +             \
+						(_eng_prof_e - ::eng::debug::g_prof_start[(s)]));  \
+		::eng::debug::g_eng_prof.calls[(s)] =                                              \
+			static_cast<::eng::u32>(::eng::debug::g_eng_prof.calls[(s)] + 1u);         \
 	} while (0)
+
+#else
+
+#define ENG_PROF_INIT(n) do { (void)sizeof(n); } while (0)
+#define ENG_PROF_FRAME() do {} while (0)
+#define ENG_PROF_BEGIN(s) do { (void)sizeof(s); } while (0)
+#define ENG_PROF_END(s) do { (void)sizeof(s); } while (0)
+
+#endif
