@@ -134,6 +134,7 @@ Puntos de reutilización explícitos:
 - **`variant`/`tuple`/`mdspan`** y el resto de la STL: sin consumidor real en el engine, no se portan (el tamaño de código y el tiempo de compilación son recursos).
 - **`sort`**: ya existe en `eng/core/sort.hpp`.
 - **`map` de árbol (red-black)**: para esta escala pierde frente a `FlatMap` (pequeño) y `HashMap` (grande), y añade mucho código.
+- **Flags y restauraciones hechos a mano**: no inventar máscaras ni bloques de limpieza por cada `return`; usa `EnumSet<E>` para conjuntos de flags tipados y `ScopeGuard` para restaurar estado (DMA, registros, color) en cualquier salida. Ver §7.
 
 ## 5. Verificación
 
@@ -183,3 +184,40 @@ mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
    (`c_vector_grow`/`c_chunked_push`), `pool.hpp`/`priority_queue.hpp`/`intrusive_list.hpp`
    (`c_pool_ops`/`c_pq_ops`/`c_ilist_ops`), la ordenación de `core/sort.hpp`
    (`c_stable_sort`/`c_nth_element`/`c_radix_u16`) y `dynamic_hash_map.hpp` (`c_dyn_hashmap`).
+5. Antes de añadir una utilidad nueva, comprobar si el **vocabulario** de §7 ya cubre la
+   necesidad (p. ej. flags con `EnumSet`, restauración con `ScopeGuard`, colas con
+   `Queue`/`Deque`); adoptarlo en el engine y documentarlo aquí.
+
+## 7. Guía de elección
+
+Qué usar según la necesidad, con el criterio del A500 (sin heap; coste visible):
+
+| Necesidad | Usar |
+|---|---|
+| Secuencia contigua de tamaño fijo | `Array<T, N>` |
+| Vector que crece (fase `init`) | `Vector<T, A>` o `SmallVector<T, N, A>` |
+| Secuencia que casi siempre cabe en pocos | `SmallVector<T, N, A>` |
+| Direcciones estables al crecer | `ChunkedVector<T, Chunk, Max, A>` |
+| Pila / cola / doble cola | `Stack<T,N>` / `Queue<T,N>` / `Deque<T,N>` |
+| Cola circular de capacidad fija | `RingBuffer<T, N>` |
+| Mapa/conjunto pequeño y ordenado | `FlatMap<K,V,N>` / `FlatSet<T,N>` |
+| Clave densa `0..N-1` | `DirectMap<V, N>` |
+| Flags de estado por `enum` | `EnumSet<E, N>` |
+| Mapa/conjunto hash grande (fijo) | `HashMap<K,V,N>` / `HashSet<T,N>` |
+| Mapa hash que crece (fase `init`) | `DynamicHashMap<K,V,A>` |
+| Parque de objetos con handle estable | `Pool<T, N>` |
+| Lista de objetos sin asignar | `IntrusiveList<T>` / `IntrusiveSList<T>` |
+| Prioridad / heap | `PriorityQueue<T, N, Cmp>` |
+| Ordenar en su sitio | `quick_sort` (`core/sort.hpp`) |
+| Ordenar estable / top-k / por conteo | `stable_sort`, `nth_element`, `partial_sort`, `radix_sort_u16` |
+| Valor opcional / resultado con error | `Optional<T>` / `Expected<T, E>` |
+| Vista de texto / construir texto sin heap | `StringView` / `StaticString<N>` |
+| Restaurar estado al salir del ámbito | `ScopeGuard` |
+| Pasar un callable sin poseerlo | `FunctionRef<Sig>` |
+
+Notas de uso:
+
+- **`EnumSet`** sustituye a las máscaras manuales: `set(Flag::X)` en vez de `1u << k`, y el compilador rechaza valores de otro enum. Sus valores deben caer en `[0, N)`.
+- **`ScopeGuard`** es la forma de garantizar una restauración (DMA, `COLOR00`, un banco de arena) aunque el camino salga antes; `release()`/`commit()` cuando termina bien.
+- **`Pool`** es el patrón por defecto para "muchos objetos con handle" (`ActorStore` ya lo usa); **`HashMap`/`FlatMap`** se reservan para búsquedas por clave.
+- **Estructuras de capacidad fija** en `frame`; reservar/crecer (`Vector`, `SmallVector`, `DynamicHashMap`) solo en `init`/carga.
