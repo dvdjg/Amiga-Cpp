@@ -113,6 +113,86 @@ void test_no_overflow_boundary() {
 	CHECK(slots[0].channel == slots[1].channel);
 }
 
+void test_horizontal_strip() {
+	std::printf("SpriteAllocator: tira horizontal de canales contiguos\n");
+
+	// Tira de 3 tramos contiguos (fondo ancho tipo Risky Woods) en la misma franja.
+	SpriteIntent intents[3] {};
+	for (int i = 0; i < 3; ++i) {
+		intents[i] = make_intent(40, 80);
+		intents[i].strip_id = 1u;
+		intents[i].strip_index = static_cast<eng::u8>(i);
+		intents[i].strip_span = 3u;
+	}
+	SpriteSlot slots[3] {};
+
+	const eng::u8 in_hw = SpriteAllocator{}.assign(intents, 3, slots);
+	CHECK(in_hw == 3u);
+	CHECK(!slots[0].as_bob && !slots[1].as_bob && !slots[2].as_bob);
+	CHECK(slots[0].channel == 0u && slots[1].channel == 1u && slots[2].channel == 2u);
+}
+
+void test_strip_starts_after_busy_channel() {
+	std::printf("SpriteAllocator: la tira busca la primera corrida libre\n");
+
+	// Un sprite suelto ocupa el canal 0; la tira de 2 debe empezar en el 1.
+	SpriteIntent intents[3] {};
+	intents[0] = make_intent(0, 200);
+	intents[1] = make_intent(0, 200);
+	intents[1].strip_id = 1u;
+	intents[1].strip_index = 0u;
+	intents[1].strip_span = 2u;
+	intents[2] = make_intent(0, 200);
+	intents[2].strip_id = 1u;
+	intents[2].strip_index = 1u;
+	intents[2].strip_span = 2u;
+	SpriteSlot slots[3] {};
+
+	const eng::u8 in_hw = SpriteAllocator{}.assign(intents, 3, slots);
+	CHECK(in_hw == 3u);
+	CHECK(slots[0].channel == 0u);
+	CHECK(slots[1].channel == 1u && slots[2].channel == 2u);
+}
+
+void test_strip_overflow_to_bob() {
+	std::printf("SpriteAllocator: tira que no cabe entera -> BOB\n");
+
+	// 6 sueltos solapados ocupan los canales 0..5; una tira de 3 no tiene corrida.
+	SpriteIntent intents[9] {};
+	for (int i = 0; i < 6; ++i) intents[i] = make_intent(0, 200);
+	for (int i = 6; i < 9; ++i) {
+		intents[i] = make_intent(0, 200);
+		intents[i].strip_id = 2u;
+		intents[i].strip_index = static_cast<eng::u8>(i - 6);
+		intents[i].strip_span = 3u;
+	}
+	SpriteSlot slots[9] {};
+
+	const eng::u8 in_hw = SpriteAllocator{}.assign(intents, 9, slots);
+	CHECK(in_hw == 6u);
+	CHECK(slots[6].as_bob && slots[7].as_bob && slots[8].as_bob);
+}
+
+void test_strip_bad_order_rejected() {
+	std::printf("SpriteAllocator: tira sin líder (indice 0) -> BOB\n");
+
+	// El primer miembro de una tira debe ser el índice 0; si no, se rechaza entera.
+	SpriteIntent intents[2] {};
+	intents[0] = make_intent(0, 200);
+	intents[0].strip_id = 1u;
+	intents[0].strip_index = 1u;
+	intents[0].strip_span = 2u;
+	intents[1] = make_intent(0, 200);
+	intents[1].strip_id = 1u;
+	intents[1].strip_index = 0u;
+	intents[1].strip_span = 2u;
+	SpriteSlot slots[2] {};
+
+	const eng::u8 in_hw = SpriteAllocator{}.assign(intents, 2, slots);
+	CHECK(in_hw == 0u);
+	CHECK(slots[0].as_bob && slots[1].as_bob);
+}
+
 } // namespace
 
 int main() {
@@ -123,6 +203,10 @@ int main() {
 	test_horizontal_overflow();
 	test_mixed_reuse();
 	test_no_overflow_boundary();
+	test_horizontal_strip();
+	test_strip_starts_after_busy_channel();
+	test_strip_overflow_to_bob();
+	test_strip_bad_order_rejected();
 
 	if (g_failures == 0) {
 		std::printf("OK: asignador de sprites validado (multiplexado/overflow/reuso).\n");

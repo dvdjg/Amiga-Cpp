@@ -147,7 +147,7 @@ un polígono del Blitter (line-draw + area-fill, para relleno vectorial/3D).
 
 | # | Tarea | Estado |
 |---|---|---|
-| 6.1 | `scene/actor.hpp`: `Actor{Tipo, ActorTemplate, pos, clip, estado}` + `World` con arrays fijos por feature, consumiendo `RepresentationAllocator` | **HECHO (sin `World` de features)**: `scene/actor.hpp` con `ActorDesc`/`Actor` (superficie destino, `z` por superficie, prioridad de sprite, transparencia, fondo, anclaje/offset, Copper anclado, velocidad de animación) y `ActorStore<Max>` con handles generacionales. Test host `072_actor`. El contenedor de features/`World` sigue pendiente |
+| 6.1 | `scene/actor.hpp`: `Actor{Tipo, ActorTemplate, pos, clip, estado}` + `World` con arrays fijos por feature, consumiendo `RepresentationAllocator` | **HECHO (sin `World` de features)**: `scene/actor.hpp` con `ActorDesc`/`Actor` (superficie destino, `z` por superficie, prioridad de sprite, transparencia, fondo, anclaje/offset, Copper anclado, velocidad de animación), `ActorStore<Max>` con handles generacionales y orden de emisión por superficie/`z` (`plan_actor_order`, `emit_actors_in_order`). Test host `072_actor`. El contenedor de features/`World` sigue pendiente |
 | 6.2 | `Bob` (bitmap) + manager: hoja de planos (+máscara opcional), frame de animación, clip y política de save/restore; emite `BlitJob`s con el presupuesto del `FramePlan` | **PARCIAL**: `engine/include/eng/graphics/bob.hpp` (`Bob`, `BobTarget`, `bob_draw`, `bob_erase_box`; minterm `$CA`/`$FC`/`$F0`, stride de hoja explícito) + emisión desde el actor (`actor_emit`: borrado, save-under y dibujo) en `scene/actor.hpp`. Geometría cubierta por `tests/host/071_bob` y `072_actor`; el camino Blitter **no** lo ejercita aún una demo con gate visual (ver nota) |
 | 6.3 | **Minterm en `BlitJob`** (cookie-cut / OR / copy) para OR-bobs y uniformar 050/051/bobs3d | **HECHO**: `BlitJob::minterm` (por defecto `$CA`); kind `OrBlob` (`$FC`) y `ClearRect` (`$00`) en `frame_plan.hpp`/`execute_frame_plan` |
 | 6.4 | Layout **explícito** en `BlitJob` (interleaved vs planar) para expresar «1 blit/objeto» sin el placeholder de stride | **HECHO**: `BlitJob::interleaved` (altura = alto×planos, un blit/objeto) con validación propia |
@@ -165,6 +165,13 @@ cómo los aplica el ejecutor (módulos de origen/destino y avance de planos), no
 construcción en sí (que el host test valida). Depurar contra `execute_frame_plan`
 (`amiga_minimal.cpp:619-748`) antes de retomar.
 
+
+**Nota 6.2b — tiras horizontales de sprite**: el `SpriteAllocator` reserva corridas de canales
+contiguos para objetos más anchos que 16 px (`SpriteIntent::strip_id`/`strip_index`/`strip_span`),
+la base de los fondos de sprites uno al lado del otro (Risky Woods / Jim Power). Al añadirlo se
+corrigió un fallo latente del reparto: la condición de canal libre era `busy_until < top` cuando
+`bottom` es exclusivo, de modo que un intent que arrancaba en la línea 0 no encontraba canal y se
+descartaba el canal que terminaba justo en `top`; ahora es `<= top`. Cubierto por `003_sprite_allocator`.
 
 Referencias obligatorias antes de tocar esto (regla de contexto técnico): AHRM 3.ª
 (`docs/reference/ahrm/`), `amiga-bootcamp/08_graphics/blitter_programming.md` (minterms,

@@ -105,6 +105,15 @@ struct SpriteIntent {
     /// puede quedar delante o detrás de PF1/PF2. No es el `z` de los BOBs (que ordena
     /// objetos dentro de un mismo playfield).
     u8  priority = 0;
+    /// Tira horizontal: grupo de canales CONTIGUOS que forman juntos un objeto más
+    /// ancho que un sprite (fondos de sprites tipo Risky Woods / Jim Power). `strip_id`
+    /// 0 = sprite suelto; los miembros de una tira comparten `strip_id`, declaran el
+    /// MISMO `strip_span` (canales que ocupa) y el mismo rango vertical, y llegan
+    /// ordenados con el líder (`strip_index == 0`, el tramo de la izquierda) PRIMERO y
+    /// los demás a continuación. El allocator reserva una corrida de canales contiguos.
+    u8  strip_id = 0;
+    u8  strip_index = 0;
+    u8  strip_span = 1;
 };
 
 } // namespace eng::graphics

@@ -64,7 +64,9 @@ La separación de capas es la misma que en `VISUAL_EFFECT_SPRITE_DESIGN.md` §2:
 | Prioridad de sprite frente a los playfields (`ActorDesc::sprite_priority`, `SpriteIntent::priority`) | EXISTE | `scene/actor.hpp`, `graphics/raster_intent.hpp` |
 | Proyección de un actor al camino de sprite (`actor_to_sprite_intent`) | EXISTE | `engine/include/eng/scene/actor.hpp` |
 | Playfield como capa: fondo de DPF o bitmap suelto (Soft DPF) | PARCIAL | `Representation::Layer`; la composición de superficies se especifica en `PLAYFIELD_SCROLL_ARCHITECTURE.md` |
-| Franjas de sprite y rearme intra-scanline (Risky Woods / Jim Power) | PARCIAL | `graphics/sprite.hpp` (`SpriteSegment`, `SpritePaletteSwitch`) + `CopperIntent::SpriteRearm`; falta el empaquetado de canales contiguos en el allocator |
+| Orden de emisión por superficie y `z` (`plan_actor_order`, `emit_actors_in_order`) | EXISTE | `engine/include/eng/scene/actor.hpp` |
+| Tiras horizontales de sprite (canales contiguos, `strip_id`/`strip_index`/`strip_span`) | EXISTE | `engine/include/eng/graphics/sprite_allocator.hpp` |
+| Franjas de sprite y rearme intra-scanline (Risky Woods / Jim Power) | PARCIAL | tiras horizontales en el `SpriteAllocator`; queda el detalle de franjas/rearme de `SpriteTemplate` |
 | Tiles como BOB (blit desde banco común + posición de mapa) | EXISTE | `BlitJobKind::TileBlockCopy` (`frame_plan.hpp`), `field/xlimited.hpp` |
 | Objeto CPU sobre `Surface` con política de fondo | PROPUESTO | §14.7 |
 
@@ -179,17 +181,19 @@ Fusión y conflictos, en orden de prioridad decreciente: intenciones del **frame
 
 ### 8.1 Asignación y multiplexado de sprites
 
-`SpriteAllocator::assign` ya implementa **greedy first-fit con multiplexado vertical**: recorre los intents ordenados por `top` ascendente y asigna el primer canal cuyo `busy_until < top`; si los 8 canales están ocupados en esa franja, marca `SpriteSlot::as_bob`. Es O(n·8) sobre una lista ya ordenada (el llamador ordena; el asignador no reserva memoria).
+`SpriteAllocator::assign` implementa **greedy first-fit con multiplexado vertical**: recorre los intents ordenados por `top` ascendente y asigna el primer canal cuyo último uso terminó en `<= top` (el `bottom` es exclusivo, de modo que dos sprites contiguos comparten canal y uno que arranca en la línea 0 también encuentra canal); si no hay canal, marca `SpriteSlot::as_bob`. Es O(n·8) sobre una lista ordenada (el llamador ordena; el asignador no reserva memoria).
+
+**Tiras horizontales** (`SpriteIntent::strip_id`, `strip_index`, `strip_span`): un objeto más ancho que 16 px se compone con varios canales contiguos. El líder (`strip_index == 0`) reserva la primera corrida de `strip_span` canales libres en su franja y los miembros toman `base + strip_index`; si no hay corrida del tamaño pedido, o la tira no llega con el líder primero, la tira **entera** va a `as_bob` (nunca se parte a medias). Es lo que habilita los fondos de sprites uno al lado del otro descritos en §7.
 
 Refinamientos previstos, sin cambiar el contrato:
 
-- Consumir el presupuesto de sprite con el **ancho real** (`width_words`) y contemplar los pares `attach` (32 px o 15 colores), hoy no modelados.
+- Consumir el presupuesto con el **ancho real** (`width_words`) y contemplar los pares `attach` (32 px o 15 colores), hoy no modelados.
 - Contabilidad explícita por línea del **ancho de DMA** de sprites, además del número de canales.
-- Empaquetado **creciente por línea** en lugar de first-fit global (mejor reutilización en escenas densas), manteniendo el determinismo: orden estable por línea y por identificador.
+- Empaquetado **creciente por línea** en lugar de first-fit global (mejor reutilización en escenas densas), manteniendo el determinismo.
 
-### 8.2 Orden de dibujo (z)
+### 8.2 Orden de dibujo (superficie y z)
 
-El orden de emisión (de atrás hacia delante) fija el z efectivo para BOBs y objetos CPU. Se resuelve con una ordenación estable por `z` una vez por frame, o con inserción incremental si hay pocos actores en movimiento. Los sprites se ordenan con su propia prioridad de hardware y se integran en el mismo criterio z declarado por la aplicación.
+El orden de emisión fija la superposición de BOBs y objetos CPU. La clave es `(superficie, z, índice de slot)`: primero todos los objetos de la superficie 0, después los de la 1, y dentro de cada superficie de atrás hacia delante por `z`, con desempate por índice (determinista). `plan_actor_order` lo resuelve con **ordenación por inserción** (sin heap) sobre una lista de capacidad fija y rechaza el frame si el número de actores no cabe en el buffer del llamador; `emit_actors_in_order` emite en ese orden. Los sprites no entran en este criterio: se superponen por su propia prioridad de hardware (§7).
 
 ### 8.3 Traslación al bitmap-anillo
 

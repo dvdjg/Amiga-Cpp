@@ -438,6 +438,63 @@ void test_copper_anchoring() {
 	CHECK(eng::scene::actor_emit_copper(*a, 33, 0x2cu, out, 1u) == 1u, "respeta la capacidad");
 }
 
+void test_emit_order_by_surface_and_z() {
+	// Cuatro actores con (superficie, z) distintos: el orden de emisión debe agrupar por
+	// superficie y, dentro de cada una, ir de atrás hacia delante.
+	ActorStore<8> store;
+	store.reset();
+	RepresentationAllocator alloc {};
+	alloc.reset(RepresentationBudget {8u, 60000u, 0u});
+
+	const auto add = [&](eng::u8 surface, eng::u8 z, eng::s16 y) {
+		ActorDesc d = make_desc();
+		d.anchor = {0, 0};
+		d.offset = {0, 0};
+		d.x = 0;
+		d.y = y;
+		d.surface = surface;
+		d.z = z;
+		return store.add(d, alloc);
+	};
+	add(1u, 200u, 200);
+	add(0u, 50u, 50);
+	add(0u, 200u, 120);
+	add(1u, 10u, 10);
+
+	ActorId order[8] {};
+	const eng::u16 n = eng::scene::plan_actor_order(store, order, 8u);
+	CHECK(n == 4u, "cuatro actores ordenados");
+	CHECK(store.at(order[0].index).desc.surface == 0u && store.at(order[0].index).desc.z == 50u,
+	      "1o: superficie 0, z 50");
+	CHECK(store.at(order[1].index).desc.surface == 0u && store.at(order[1].index).desc.z == 200u,
+	      "2o: superficie 0, z 200");
+	CHECK(store.at(order[2].index).desc.surface == 1u && store.at(order[2].index).desc.z == 10u,
+	      "3o: superficie 1, z 10");
+	CHECK(store.at(order[3].index).desc.surface == 1u && store.at(order[3].index).desc.z == 200u,
+	      "4o: superficie 1, z 200");
+
+	FramePlan plan {};
+	plan.clear();
+	ActorEmitContext ctx {};
+	use_targets(ctx);
+	const eng::u16 emitted = eng::scene::emit_actors_in_order(plan, store, ctx, order, 8u);
+	CHECK(emitted == 4u, "se emiten los cuatro");
+	CHECK(plan.blit_job_count() == 4u, "un job por actor");
+	CHECK(plan.blit_job(0).destination.words ==
+	      reinterpret_cast<const eng::u16*>(g_screen + 50u * kRowBytes), "job 0: superficie 0, z 50");
+	CHECK(plan.blit_job(1).destination.words ==
+	      reinterpret_cast<const eng::u16*>(g_screen + 120u * kRowBytes), "job 1: superficie 0, z 200");
+	CHECK(plan.blit_job(2).destination.words ==
+	      reinterpret_cast<const eng::u16*>(g_screen + kPlaneBytes + 10u * kRowBytes),
+	      "job 2: superficie 1, z 10");
+	CHECK(plan.blit_job(3).destination.words ==
+	      reinterpret_cast<const eng::u16*>(g_screen + kPlaneBytes + 200u * kRowBytes),
+	      "job 3: superficie 1, z 200");
+
+	// El orden no cabe en el buffer del llamador: rechazo controlado.
+	CHECK(eng::scene::plan_actor_order(store, order, 2u) == 0u, "orden rechazado si no cabe");
+}
+
 } // namespace
 
 int main() {
@@ -449,6 +506,7 @@ int main() {
 	test_emit_frame_offset();
 	test_emit_clipped_and_full();
 	test_surface_selection_and_sprite_intent();
+	test_emit_order_by_surface_and_z();
 	test_emit_save_under();
 	test_copper_anchoring();
 

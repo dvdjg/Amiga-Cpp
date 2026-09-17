@@ -537,6 +537,11 @@ public:
 	constexpr Actor& at(eng::u16 index) { return m_actors[index]; }
 	constexpr const Actor& at(eng::u16 index) const { return m_actors[index]; }
 
+	/// Identificador (con generación) del slot, o inválido si está libre.
+	constexpr ActorId id_at(eng::u16 index) const {
+		return used(index) ? ActorId {index, m_generation[index]} : ActorId {};
+	}
+
 private:
 	Actor m_actors[MaxActors] {};
 	eng::u16 m_generation[MaxActors] {};
@@ -545,5 +550,74 @@ private:
 	eng::u16 m_free_head = 0u;
 	eng::u16 m_count = 0u;
 };
+
+/// Clave de orden de emisión: primero la **superficie**, después `z` DENTRO de la
+/// superficie (de atrás hacia delante) y, para desempatar, el índice de slot. Los
+/// objetos de superficies distintas no compiten por `z`: los superpone el hardware.
+constexpr eng::u32 actor_order_key(const ActorDesc& d, eng::u16 index) {
+	return (static_cast<eng::u32>(d.surface) << 24u) |
+	       (static_cast<eng::u32>(d.z) << 16u) |
+	       static_cast<eng::u32>(index);
+}
+
+/// Rellena `out` con los actores vivos ordenados por superficie y, dentro de cada una,
+/// de atrás hacia delante por `z`. Devuelve cuántos escribió, o 0 si no caben en
+/// `capacity` (rechazo controlado). Ordenación por inserción: sin heap y determinista.
+template <eng::u16 MaxActors>
+inline eng::u16 plan_actor_order(const ActorStore<MaxActors>& store, ActorId* out,
+				 eng::u16 capacity) {
+	if (out == nullptr || store.count() > capacity) {
+		return 0u;
+	}
+	eng::u16 n = 0;
+	for (eng::u16 i = 0; i < MaxActors; ++i) {
+		if (store.used(i)) {
+			out[n++] = store.id_at(i);
+		}
+	}
+	for (eng::u16 i = 1; i < n; ++i) {
+		const ActorId cur = out[i];
+		const eng::u32 key = actor_order_key(store.at(cur.index).desc, cur.index);
+		eng::u16 j = i;
+		while (j > 0u) {
+			const ActorId prev = out[j - 1u];
+			if (actor_order_key(store.at(prev.index).desc, prev.index) <= key) {
+				break;
+			}
+			out[j] = prev;
+			--j;
+		}
+		out[j] = cur;
+	}
+	return n;
+}
+
+/// Emite los actores en orden por superficie y `z` (usa `plan_actor_order`). Devuelve
+/// cuántos se emitieron (los `Nothing`/`Clipped` no cuentan); 0 si el orden no cabe en
+/// `order` o si algún actor devuelve `Full` (rechazo controlado).
+template <eng::u16 MaxActors>
+inline eng::u16 emit_actors_in_order(FramePlan& plan, ActorStore<MaxActors>& store,
+				     const ActorEmitContext& ctx, ActorId* order,
+				     eng::u16 capacity) {
+	const eng::u16 n = plan_actor_order(store, order, capacity);
+	if (n == 0u) {
+		return 0u;
+	}
+	eng::u16 emitted = 0;
+	for (eng::u16 i = 0; i < n; ++i) {
+		Actor* a = store.get(order[i]);
+		if (a == nullptr) {
+			return 0u;
+		}
+		const ActorEmitStatus st = actor_emit(plan, *a, ctx);
+		if (st == ActorEmitStatus::Full) {
+			return 0u;
+		}
+		if (st == ActorEmitStatus::Ok) {
+			++emitted;
+		}
+	}
+	return emitted;
+}
 
 } // namespace eng::scene
