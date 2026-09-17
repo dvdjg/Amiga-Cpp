@@ -48,6 +48,11 @@ struct is_same<T, T> : true_type {};
 template <class T, class U>
 inline constexpr bool is_same_v = is_same<T, U>::value;
 
+/// Concepto `same_as`: el subconjunto de `<concepts>` que usan los conceptos del
+/// engine (p. ej. `Allocator`), sin depender de la STL hosted.
+template <class T, class U>
+concept same_as = is_same_v<T, U>;
+
 // --- Cualificadores y referencias -------------------------------------------
 
 template <class T>

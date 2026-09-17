@@ -14,6 +14,7 @@
 //     procesa la mitad por rebanada.
 #include <eng/core/rtc.hpp>
 #include <eng/core/types.hpp>
+#include <eng/core/util/ring_buffer.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/graphics/drivers/ham_scene.hpp>
@@ -143,7 +144,6 @@ struct BackgroundDemo {
 		// Motor de fondo por IRQ del timer A de la CIA-A (nivel 2), continuo: avanza el
 		// fondo a su propio ritmo, sin depender del frame.
 		backend.background_timer_start(0x2000u, &BackgroundDemo::on_timer, *this);
-
 		m_init_ok = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x0081u);
 	}
@@ -171,8 +171,16 @@ struct BackgroundDemo {
 		// Reloj de tiempo real: lee el TOD de la CIA-A (24 bits, 50 Hz PAL).
 		m_clock = eng::time::from_tod(backend.cia_tod_ticks(), 50u);
 		// Evidencia por canal lateral: progreso (permille) arriba y segundos del RTC abajo.
+		// Media movil del rendimiento de fondo: `RingBuffer` guarda las ultimas
+		// rebanadas (ventana de 16) y el promedio se publica arriba en `detail`. El
+		// cociente es un desplazamiento (ventana potencia de dos), sin `__udivsi3`.
+		eng::u32 sum = 0;
+		for (eng::usize i = 0; i < m_slice_window.size(); ++i) {
+			sum += m_slice_window[i];
+		}
+		const eng::u16 avg = static_cast<eng::u16>(sum >> 4u);
 		g_eng_run_status.detail =
-			(static_cast<eng::u32>(p.permille) << 16) | (m_clock.seconds & 0xffffu);
+			(static_cast<eng::u32>(avg) << 16) | (m_clock.seconds & 0xffffu);
 
 		if (p.finished()) {
 			// Terminado: libera el slot (estaba en `Done`) y reinicia la barra para
@@ -197,6 +205,9 @@ struct BackgroundDemo {
 		++self.m_irq_count;
 		if (self.m_context != nullptr && self.m_context->background != nullptr) {
 			self.m_context->background->run_slice(self.m_context->frame.frame_index, vpos);
+			// Guarda el rendimiento de esta rebanada para la media movil (ventana fija).
+			self.m_slice_window.push_overwrite(
+				self.m_context->background->last_slice_units());
 		}
 	}
 
@@ -209,6 +220,7 @@ private:
 	eng::GameContext* m_context = nullptr;
 	eng::u32 m_irq_count = 0;
 	eng::time::TimeOfDay m_clock {};
+	eng::util::RingBuffer<eng::u16, 16> m_slice_window {};
 	eng::u8 m_hue = 0;
 	eng::u16 m_line_y = 0;
 	bool m_init_ok = false;

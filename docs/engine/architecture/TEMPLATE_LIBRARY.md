@@ -7,9 +7,10 @@ durante el gameplay). No es una reimplementación completa de la librería está
 es una selección mínima de piezas que se usan de verdad y que se han elegido por su
 relación valor/coste en un 68000.
 
-Todas las cabeceras son **header-only**, `constexpr`, sin asignación dinámica y sin
-virtuals. El vocabulario vive en el espacio de nombres `eng::util`; las matemáticas
-de escalares (`Fixed`, `MiniFloat16`, `lerp`…) siguen en `eng::math`.
+Todas las cabeceras son **header-only**, `constexpr`, sin `malloc` (la memoria crece
+solo a través de un `Allocator` que se le pase) y sin virtuals. El vocabulario vive en
+el espacio de nombres `eng::util`; las matemáticas de escalares (`Fixed`,
+`MiniFloat16`, `lerp`…) siguen en `eng::math`.
 
 ## 1. Encaje con lo que ya existe
 
@@ -18,18 +19,29 @@ La librería **complementa** el núcleo de `eng/core/`, no lo duplica:
 ```
    eng/core/                         eng/core/util/  (esta librería)
    ─────────────                     ─────────────────────────────
-   types.hpp    tipos base           type_traits.hpp  rasgos
-   span.hpp     Span<T>      ◄────── algorithm.hpp    algoritmos sobre Span
-   sort.hpp     quick_sort           util.hpp         move/forward/swap/exchange
-   fast_div.hpp is_pow2/ilog2 ◄───── bit.hpp          popcount/clz/rotl/bswap
-   ct_array.hpp tabla por functor    array.hpp        Array<T,N> (agregado)
-   typed.hpp    vistas de dominio    bitset.hpp       BitSet<N>
-                                     static_vector.hpp StaticVector<T,N>
-                                     ring_buffer.hpp  RingBuffer<T,N>
-                                     optional.hpp     Optional<T>
-                                     expected.hpp     Expected<T,E>
-                                     string_view.hpp  StringView
-                                     function_ref.hpp FunctionRef<Sig>
+   types.hpp    tipos base           type_traits.hpp   rasgos
+   span.hpp     Span<T>      ◄────── algorithm.hpp     algoritmos sobre Span
+   sort.hpp     quick_sort           util.hpp          move/forward/swap/exchange
+   fast_div.hpp is_pow2/ilog2 ◄───── bit.hpp           popcount/clz/rotl/bswap
+   ct_array.hpp tabla por functor    array.hpp         Array<T,N> (agregado)
+   typed.hpp    vistas de dominio    bitset.hpp        BitSet<N>
+   word.hpp     mulu16        ◄────── hash.hpp          hash_u8/16/32, Hash<T>
+   memory/arena.hpp LinearArena ◄─── arena_alloc.hpp   ArenaAlloc
+                                     allocator.hpp     Allocator, Null/Bump/Inline
+                                     static_vector.hpp StaticVector<T,N> (fijo)
+                                     small_vector.hpp  SmallVector<T,N,A> (inline+arena)
+                                     vector.hpp        Vector<T,A>        (arena)
+                                     chunked_vector.hpp ChunkedVector<...> (estable)
+                                     ring_buffer.hpp   RingBuffer<T,N>
+                                     flat_map.hpp      FlatMap<K,V,N>
+                                     flat_set.hpp      FlatSet<T,N>
+                                     hash_map.hpp      HashMap<K,V,N>
+                                     hash_set.hpp      HashSet<T,N>
+                                     direct_map.hpp    DirectMap<V,N>
+                                     optional.hpp      Optional<T>
+                                     expected.hpp      Expected<T,E>
+                                     string_view.hpp   StringView
+                                     function_ref.hpp  FunctionRef<Sig>
 ```
 
 Puntos de reutilización explícitos:
@@ -41,6 +53,11 @@ Puntos de reutilización explícitos:
 - `Array<T,N>` y `ct_array<T,N>` son distintos a propósito: el primero es un agregado
   que se inicializa con llaves como un array C; el segundo genera su contenido en
   compilación desde un functor.
+- El crecimiento va por el concepto `Allocator` (`allocator.hpp`): `BumpAlloc`/
+  `InlineAlloc`/`NullAlloc` y, sobre el modelo de memoria del engine, `ArenaAlloc`
+  (`arena_alloc.hpp`) adapta `eng::LinearArena`. No hay `malloc`.
+- `hash.hpp` se apoya en `eng::math::mulu16` (`word.hpp`, un `mulu.w`) y en `rotl`
+  (`bit.hpp`); evita la multiplicación de 32×32 que emitiría `__mulsi3`.
 - Los contenedores de capacidad fija siguen el patrón de handles/pool de `eng/task/background.hpp` (sin heap, con `valid()` explícito donde aplica).
 - `eng/scene/actor.hpp` es el primer consumidor dentro del engine: `ActorStore` usa `BitSet<MaxActors>` para los slots vivos del parque generacional y `emit_bob_fallbacks` usa `StaticVector<u16, MaxActors>` para los degradados a BOB.
 
@@ -54,8 +71,19 @@ Puntos de reutilización explícitos:
 | `algorithm.hpp` | `find(_if)`, `contains`, `count(_if)`, `all_of`/`any_of`/`none_of`, `for_each`, `transform`, `copy`/`copy_n`/`fill_n`, `equal`, `accumulate`, `min_element`/`max_element`, `lower_bound`/`upper_bound`/`binary_search`, `reverse`, `rotate`, `iota`, `remove_if`, `unique` | `<algorithm>`, `<numeric>` |
 | `array.hpp` | `Array<T, N>` | `std::array` |
 | `bitset.hpp` | `BitSet<N>` | `std::bitset` |
-| `static_vector.hpp` | `StaticVector<T, N>` | (sin equivalente: capacidad fija) |
+| `allocator.hpp` | `Allocator` (concepto), `NullAlloc`, `BumpAlloc`, `InlineAlloc<N>` | (sin equivalente) |
+| `arena_alloc.hpp` | `ArenaAlloc` (sobre `eng::LinearArena`) | (sin equivalente) |
+| `hash.hpp` | `hash_u8/u16/u32`, `hash_value`, `hash_bytes`/`hash_string`, `Hash<T>` | `std::hash` |
+| `static_vector.hpp` | `StaticVector<T, N>` (capacidad fija) | (sin equivalente) |
+| `small_vector.hpp` | `SmallVector<T, N, A>` (inline + arena) | `llvm::SmallVector` |
+| `vector.hpp` | `Vector<T, A>` (crece en arena) | `std::vector` (sin heap) |
+| `chunked_vector.hpp` | `ChunkedVector<T, Chunk, Max, A>` (direcciones estables) | (sin equivalente) |
 | `ring_buffer.hpp` | `RingBuffer<T, N>` | (sin equivalente) |
+| `flat_map.hpp` | `FlatMap<K, V, N>` | `flat_map` (Boost) |
+| `flat_set.hpp` | `FlatSet<T, N>` | (sin equivalente) |
+| `hash_map.hpp` | `HashMap<K, V, N>` | `std::unordered_map` (fijo) |
+| `hash_set.hpp` | `HashSet<T, N>` | `std::unordered_set` (fijo) |
+| `direct_map.hpp` | `DirectMap<V, N>` (clave densa) | (sin equivalente) |
 | `optional.hpp` | `Optional<T>` | `std::optional` |
 | `expected.hpp` | `Expected<T, E>`, `unexpected(e)` | `std::expected` |
 | `string_view.hpp` | `StringView` | `std::string_view` |
@@ -63,8 +91,10 @@ Puntos de reutilización explícitos:
 
 ## 3. Reglas de diseño para Amiga 500
 
-- **Sin heap**: ningún contenedor asigna. `StaticVector`/`RingBuffer` reservan su
-  capacidad inline; `Array`/`BitSet` son de tamaño fijo.
+- **Sin heap**: nada usa `malloc`. Los contenedores de capacidad fija (`StaticVector`, `RingBuffer`, `Array`, `BitSet`, `FlatMap`/`FlatSet`, `HashMap`/`HashSet`, `DirectMap`) reservan inline; los que crecen (`Vector`, `SmallVector`, `ChunkedVector`) lo hacen sobre un `Allocator` (bump/arena).
+- **Crecimiento explícito y de fase `init`**: crecer devuelve `false`/`nullptr` si no cabe (nunca aborta); en `frame` se reserva de antemano o se usan contenedores de capacidad fija.
+- **Hash sin libcalls**: `hash.hpp` usa `mulu.w` (16×16) o mezcla de rotaciones/xors/sumas, nunca multiplicación de 32×32; la sonda de codegen no muestra `__mulsi3` ni instrucciones de 68020.
+- **Almacenamiento crudo**: `Vector`/`SmallVector`/`ChunkedVector`/`DirectMap` exigen `T` copiable trivialmente (no hay `new` de colocación en freestanding); mapas y sets exigen claves/valores construibles por defecto.
 - **Ancho exacto en la aritmética de bits**: `eng::u32` es `unsigned long`, que mide
   4 bytes en m68k pero 8 en algunos hosts. `bit.hpp` enmascara al ancho real de `T`
   y `BitSet` usa palabras de 32 bits exactos (`__UINT32_TYPE__`).
@@ -79,13 +109,11 @@ Puntos de reutilización explícitos:
 
 ## 4. Qué no incluye (y por qué)
 
-- **Contenedores dinámicos** (`vector`/`map`/`string`): prohibido asignar en gameplay;
-  el engine usa arenas, pools y handles.
-- **`std::function`**: usa heap y copia el cierre; en su lugar, `FunctionRef` cuando
-  solo hace falta pasar un callable sin poseerlo.
-- **`variant`/`tuple`/`mdspan`** y el resto de la STL: sin consumidor real en el
-  engine, no se portan (el tamaño de código y el tiempo de compilación son recursos).
+- **Contenedores con heap implícito** (`std::string`, nodos de `std::map`/`std::list`): fuera. Sí hay `Vector`/`SmallVector`/`ChunkedVector` y mapas/sets, pero **sin `malloc`**: crecen sobre un `Allocator` (arena) y solo en `init`/carga.
+- **`std::function`**: usa heap y copia el cierre; en su lugar, `FunctionRef` cuando solo hace falta pasar un callable sin poseerlo.
+- **`variant`/`tuple`/`mdspan`** y el resto de la STL: sin consumidor real en el engine, no se portan (el tamaño de código y el tiempo de compilación son recursos).
 - **`sort`**: ya existe en `eng/core/sort.hpp`.
+- **`map` de árbol (red-black)**: para esta escala pierde frente a `FlatMap` (pequeño) y `HashMap` (grande), y añade mucho código.
 
 ## 5. Verificación
 
@@ -101,8 +129,14 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-077 | `static_vector.hpp`, `ring_buffer.hpp` |
 | HOST-078 | `optional.hpp`, `expected.hpp` |
 | HOST-079 | `string_view.hpp`, `function_ref.hpp` |
+| HOST-080 | `allocator.hpp`, `hash.hpp` |
+| HOST-081 | `vector.hpp`, `small_vector.hpp` |
+| HOST-082 | `flat_map.hpp`, `flat_set.hpp` |
+| HOST-083 | `hash_map.hpp`, `hash_set.hpp` (back-shift, estrés contra referencia) |
+| HOST-084 | `arena_alloc.hpp`, `chunked_vector.hpp` |
+| HOST-085 | `direct_map.hpp` |
 
-> **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). El resto de utilidades siguen **NO VERIFICADAS (solo test host)** y pueden cambiar sin aviso (`docs/testing/README.md`).
+> **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `FlatMap`/`FlatSet`, `HashMap`/`HashSet`, `DirectMap`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..085 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
 
 Los tests se ejecutan con el `g++` del entorno (Windows/MinGW, donde `unsigned long`
 mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
