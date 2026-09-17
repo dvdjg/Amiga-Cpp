@@ -43,6 +43,7 @@ using eng::graphics::CopperIntent;
 using eng::graphics::DirtyRect;
 using eng::graphics::Frame;
 using eng::graphics::FramePlan;
+using eng::graphics::SpriteIntent;
 using eng::graphics::Visual;
 using eng::graphics::VisualKind;
 
@@ -142,7 +143,16 @@ struct ActorDesc {
 	const Animation* animation = nullptr; ///< opcional; sin ella el frame es el Visual
 	eng::s16 x = 0;                       ///< posición de mundo del ANCLA
 	eng::s16 y = 0;
-	eng::u8 z = 128;                      ///< orden global (mayor = delante)
+	/// Superficie de la composición donde se dibuja (índice en `ActorEmitContext::targets`):
+	/// 0 = playfield de fondo (PF1 en un DPF), 1 = segundo playfield (PF2), etc. Un BOB o
+	/// un objeto CPU se puede dibujar en cualquier combinación de playfields.
+	eng::u8 surface = 0;
+	/// Orden de superposición DENTRO de la superficie: solo compara objetos que se
+	/// dibujan sobre el mismo playfield (mayor = delante).
+	eng::u8 z = 128;
+	/// Prioridad del sprite hardware FRENTE A LOS PLAYFIELDS (0..3, `BPLCON2`); no es
+	/// el `z` de los BOBs. Solo aplica si el actor se materializa como sprite.
+	eng::u8 sprite_priority = 0;
 	Representation preferred = Representation::Sprite;
 	TransparencyMode transparency = TransparencyMode::ColorKey0;
 	BackgroundPolicy background = BackgroundPolicy::ClearRect;
@@ -269,7 +279,10 @@ enum class ActorEmitStatus : eng::u8 {
 
 /// Contexto de emisión de un frame.
 struct ActorEmitContext {
-	BobTarget target {};          ///< bitmap destino (el buffer trasero)
+	/// Superficies de dibujo de la composición, indexadas por `ActorDesc::surface`
+	/// (p. ej. [0] = PF1/BG, [1] = PF2/FG en un DPF; o un único bitmap suelto).
+	const BobTarget* targets = nullptr;
+	eng::u8 target_count = 0;
 	DirtyRect clip {};            ///< ventana visible; si es inválida, no se recorta
 	eng::s16 cam_x = 0;
 	eng::s16 cam_y = 0;
@@ -277,9 +290,26 @@ struct ActorEmitContext {
 	eng::u16 display_top = 0;     ///< línea raster del borde superior del display
 };
 
+/// Proyecta el actor sobre el camino de SPRITE hardware (cuando el allocator lo
+/// materializa así): franja vertical, X propuesta, ancho (16 px, o 32 con `attach`) y
+/// prioridad frente a los playfields. El canal definitivo lo decide `SpriteAllocator`.
+inline SpriteIntent actor_to_sprite_intent(const Actor& a, const Frame& f, const DirtyRect& rect,
+					   eng::u8 channel = 0u) {
+	SpriteIntent it {};
+	it.channel = channel;
+	it.top = static_cast<eng::u16>(rect.top);
+	it.bottom = static_cast<eng::u16>(rect.bottom);
+	it.hpos = static_cast<eng::u16>(rect.left);
+	it.width_words = static_cast<eng::u8>((f.w + 15u) / 16u);
+	it.attach = it.width_words > 1u;
+	it.priority = a.desc.sprite_priority;
+	return it;
+}
+
 namespace actor_detail {
 
-inline bool emit_save(FramePlan& plan, const Actor& a, const DirtyRect& r, const ActorEmitContext& ctx) {
+inline bool emit_save(FramePlan& plan, const Actor& a, const DirtyRect& r,
+		      const ActorEmitContext& ctx, const BobTarget& target) {
 	const eng::Span<eng::u16> save = a.desc.save[ctx.buffer];
 	const eng::u16 words = static_cast<eng::u16>((r.width() + 15u) / 16u);
 	const eng::u16 h = r.height();
@@ -290,20 +320,20 @@ inline bool emit_save(FramePlan& plan, const Actor& a, const DirtyRect& r, const
 	eng::graphics::BlitJob job {};
 	job.destination = {save.data()};
 	job.source = {reinterpret_cast<const eng::u16*>(
-		ctx.target.base + static_cast<eng::u32>(r.top) * ctx.target.row_bytes +
+		target.base + static_cast<eng::u32>(r.top) * target.row_bytes +
 		(static_cast<eng::u32>(r.left & ~15) >> 3u))};
 	job.words_per_row = words;
 	job.height = h;
 	job.bitplane_count = a.bob.planes;
-	job.source_modulo_bytes = static_cast<eng::s16>(ctx.target.row_bytes - static_cast<eng::u32>(words) * 2u);
+	job.source_modulo_bytes = static_cast<eng::s16>(target.row_bytes - static_cast<eng::u32>(words) * 2u);
 	job.destination_modulo_bytes = static_cast<eng::s16>(save_row_bytes - static_cast<eng::u32>(words) * 2u);
-	job.source_plane_stride_bytes = ctx.target.plane_bytes;
+	job.source_plane_stride_bytes = target.plane_bytes;
 	job.destination_plane_stride_bytes = save_row_bytes * a.desc.save_height;
 	return plan.add_copy_rect(job);
 }
 
 inline bool emit_restore(FramePlan& plan, const Actor& a, const DirtyRect& r,
-			 const ActorEmitContext& ctx) {
+			 const ActorEmitContext& ctx, const BobTarget& target) {
 	const eng::Span<eng::u16> save = a.desc.save[ctx.buffer];
 	const eng::u16 words = static_cast<eng::u16>((r.width() + 15u) / 16u);
 	const eng::u16 h = r.height();
@@ -314,15 +344,15 @@ inline bool emit_restore(FramePlan& plan, const Actor& a, const DirtyRect& r,
 	eng::graphics::BlitJob job {};
 	job.source = {save.data()};
 	job.destination = {reinterpret_cast<eng::u16*>(
-		ctx.target.base + static_cast<eng::u32>(r.top) * ctx.target.row_bytes +
+		target.base + static_cast<eng::u32>(r.top) * target.row_bytes +
 		(static_cast<eng::u32>(r.left & ~15) >> 3u))};
 	job.words_per_row = words;
 	job.height = h;
 	job.bitplane_count = a.bob.planes;
 	job.source_modulo_bytes = static_cast<eng::s16>(save_row_bytes - static_cast<eng::u32>(words) * 2u);
-	job.destination_modulo_bytes = static_cast<eng::s16>(ctx.target.row_bytes - static_cast<eng::u32>(words) * 2u);
+	job.destination_modulo_bytes = static_cast<eng::s16>(target.row_bytes - static_cast<eng::u32>(words) * 2u);
 	job.source_plane_stride_bytes = save_row_bytes * a.desc.save_height;
-	job.destination_plane_stride_bytes = ctx.target.plane_bytes;
+	job.destination_plane_stride_bytes = target.plane_bytes;
 	return plan.add_restore_rect(job);
 }
 
@@ -354,6 +384,10 @@ inline ActorEmitStatus actor_emit(FramePlan& plan, Actor& a, const ActorEmitCont
 	if (ctx.buffer >= kActorBuffers) {
 		return ActorEmitStatus::Full;
 	}
+	if (ctx.targets == nullptr || a.desc.surface >= ctx.target_count) {
+		return ActorEmitStatus::Full; // superficie declarada fuera de la composición
+	}
+	const BobTarget& target = ctx.targets[a.desc.surface];
 	const Frame f = actor_current_frame(a);
 	const DirtyRect rect = actor_screen_rect(a, f, ctx.cam_x, ctx.cam_y);
 	if (!rect.valid()) {
@@ -370,20 +404,20 @@ inline ActorEmitStatus actor_emit(FramePlan& plan, Actor& a, const ActorEmitCont
 		case BackgroundPolicy::ClearRect: {
 			if (prev.valid() &&
 			    !eng::graphics::bob_erase_box(plan, a.bob, prev.width(), prev.height(),
-							  prev.left, prev.top, ctx.target)) {
+							  prev.left, prev.top, target)) {
 				return ActorEmitStatus::Full;
 			}
 			break;
 		}
 		case BackgroundPolicy::SaveUnder: {
 			// El save-under cuenta con planos contiguos en el destino.
-			if (ctx.target.layout != BobLayout::Planar) {
+			if (target.layout != BobLayout::Planar) {
 				return ActorEmitStatus::Full;
 			}
-			if (prev.valid() && !actor_detail::emit_restore(plan, a, prev, ctx)) {
+			if (prev.valid() && !actor_detail::emit_restore(plan, a, prev, ctx, target)) {
 				return ActorEmitStatus::Full;
 			}
-			if (!actor_detail::emit_save(plan, a, rect, ctx)) {
+			if (!actor_detail::emit_save(plan, a, rect, ctx, target)) {
 				return ActorEmitStatus::Full;
 			}
 			break;
@@ -394,7 +428,7 @@ inline ActorEmitStatus actor_emit(FramePlan& plan, Actor& a, const ActorEmitCont
 			break;
 	}
 
-	if (!actor_detail::emit_bob(plan, a, f, rect.left, rect.top, ctx.target)) {
+	if (!actor_detail::emit_bob(plan, a, f, rect.left, rect.top, target)) {
 		return ActorEmitStatus::Full;
 	}
 

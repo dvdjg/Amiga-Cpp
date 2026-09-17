@@ -60,6 +60,12 @@ La separación de capas es la misma que en `VISUAL_EFFECT_SPRITE_DESIGN.md` §2:
 | Resolución de conflictos de Copper por prioridad | PROPUESTO | el actor declara; la fusión por z vive en el compositor |
 | Política de save-under por buffer | EXISTE | `emit_save`/`emit_restore` por buffer (`scene/actor.hpp`), solo con destino planar |
 | Anclaje por frame distinto (hot-spot variable entre frames) | PROPUESTO | hoy el anclaje es por actor |
+| Superficie destino y orden `z` **por superficie** (`ActorDesc::surface`, `ActorEmitContext::targets`) | EXISTE | `engine/include/eng/scene/actor.hpp` |
+| Prioridad de sprite frente a los playfields (`ActorDesc::sprite_priority`, `SpriteIntent::priority`) | EXISTE | `scene/actor.hpp`, `graphics/raster_intent.hpp` |
+| Proyección de un actor al camino de sprite (`actor_to_sprite_intent`) | EXISTE | `engine/include/eng/scene/actor.hpp` |
+| Playfield como capa: fondo de DPF o bitmap suelto (Soft DPF) | PARCIAL | `Representation::Layer`; la composición de superficies se especifica en `PLAYFIELD_SCROLL_ARCHITECTURE.md` |
+| Franjas de sprite y rearme intra-scanline (Risky Woods / Jim Power) | PARCIAL | `graphics/sprite.hpp` (`SpriteSegment`, `SpritePaletteSwitch`) + `CopperIntent::SpriteRearm`; falta el empaquetado de canales contiguos en el allocator |
+| Tiles como BOB (blit desde banco común + posición de mapa) | EXISTE | `BlitJobKind::TileBlockCopy` (`frame_plan.hpp`), `field/xlimited.hpp` |
 | Objeto CPU sobre `Surface` con política de fondo | PROPUESTO | §14.7 |
 
 ## 3. Modelo de dominio
@@ -69,22 +75,26 @@ El estado de un actor se separa en tres bloques con ciclos de vida distintos: **
 ```text
 Actor (id estable con generación)
   ├─ contenido (referencia inmutable, cocinada en Chip/Fast)
-  │    ├─ Visual            (pixels + mask + w/h/planos)         [EXISTE]
-  │    ├─ Animation + State (frames con ticks, avance por tick)  [EXISTE]
-  │    └─ CopperIntent[]    (necesidades ancladas al actor)      [EXISTE]
+  │    ├─ Visual            (pixels + mask + w/h/planos)             [EXISTE]
+  │    ├─ Animation + State (frames con ticks, avance por tick)      [EXISTE]
+  │    └─ CopperIntent[]    (necesidades ancladas al actor)          [EXISTE]
   ├─ estado por objeto (lógica, independiente del buffer)
-  │    ├─ posición de mundo, z, preferencia de representación
-  │    ├─ anclaje (hot-spot por frame) y offset (shake/recoil)   [PROPUESTO]
-  │    ├─ modo de transparencia y política de fondo              [PROPUESTO]
-  │    └─ representación actual (la que eligió el planner)       [parcial]
-  └─ estado por buffer (N = 1..3 de MultiBuffered)               [PROPUESTO]
-       └─ rectángulo anterior (save-under) por buffer trasero
+  │    ├─ posición de mundo, preferencia de representación           [EXISTE]
+  │    ├─ superficie destino (`surface`) y orden `z` DENTRO de ella  [EXISTE]
+  │    ├─ prioridad de sprite frente a los playfields                [EXISTE]
+  │    ├─ anclaje (hot-spot) y offset (shake/recoil)                 [EXISTE]
+  │    ├─ modo de transparencia y política de fondo                  [EXISTE]
+  │    └─ representación actual (la que eligió el planner)          [parcial]
+  └─ estado por buffer (N = 1..3 de MultiBuffered)
+       └─ rectángulo anterior (save-under) por buffer trasero        [EXISTE]
 ```
 
 Invariantes:
 
 - El identificador de un actor es **estable** hasta su destrucción; el slot se recicla con un contador de generación para invalidar handles viejos.
 - El estado **por objeto** no depende del buffer; el estado **por buffer** (el rectángulo previo del save-under) sí, porque cada buffer contiene un frame distinto y hay que restaurar el fondo de *ese* buffer.
+- **`z` no es global**: ordena la superposición **dentro de una misma superficie** (`surface`). Dos objetos dibujados en playfields distintos no compiten por `z`, porque los superpone la prioridad de playfields del chipset.
+- Los **sprites** no compiten por `z`: su orden es la prioridad de hardware entre canales y frente a los playfields (`sprite_priority`).
 - Ninguna estructura de actor guarda punteros a registros, copperlist ni direcciones DMA.
 - Todo el estado tiene **capacidad fija** y se consulta antes de saturar (modelo de ocupación de `SCENE_AND_RESOURCES.md`).
 
@@ -95,7 +105,8 @@ La representación actual se expresa con `eng::scene::Representation`: `Cpu`, `S
 Reglas de elegibilidad ya codificadas:
 
 - Un sprite requiere `width <= 16` y `height <= 32` (`fits_sprite`, límites `kSpriteMaxWidth`/`kSpriteMaxHeight`) y un canal libre.
-- Una capa (`Layer`) requiere `scrolls` y un slot de capa disponible.
+- Una capa (`Layer`) requiere `scrolls` y un slot de capa disponible. Una capa es un **playfield con scroll**: lo habitual es que sea el fondo de un DPF (uno de los dos campos), pero también puede ser un **bitmap suelto** compuesto por software (el "Soft DPF" estilo RoboCod), y en ese caso es simplemente una superficie más de la composición.
+- Los **BOB y objetos CPU** no están atados a un playfield concreto: `ActorDesc::surface` elige en cuál se dibujan, de modo que en un DPF unos objetos pueden ir al fondo (PF1) y otros al frente (PF2) con la misma descripción y distinto `surface`.
 - El BOB consume presupuesto de Blitter (hoy una heurística de palabras por fila; el refinamiento es contabilizar `palabras_por_fila * planos * alto` con el `BlitBudget` real).
 - Si nada cabe, la representación es `Cpu`.
 
@@ -116,7 +127,7 @@ Notas de diseño:
 
 - El **minterm es un campo del `BlitJob`** (`BlitJob::minterm`, por defecto `$CA`), así que el mismo camino de ejecución sirve para cookie-cut, OR, copia y borrado; no se multiplican los tipos de job ni las ramas de la aplicación.
 - El **layout** del destino también es un campo explícito (`BlitJob::interleaved`): con planos intercalados, un objeto es **un solo blit** con `height = alto × planos`; con planos contiguos son N blits (uno por plano).
-- La transparencia se combina con el **orden z** global, que se resuelve una vez por frame: los sprites por prioridad de hardware (`BPLCON2`) y el resto por orden de emisión (de atrás hacia delante).
+- La transparencia se combina con el **orden de dibujo dentro de la superficie**: los BOB y objetos CPU de un mismo playfield se emiten de atrás hacia delante por `z` (estable, y solo entre objetos de esa misma superficie). Los sprites no entran en ese orden: se superponen por su prioridad de hardware, que además decide si van delante o detrás de cada playfield (`sprite_priority`).
 - Un sprite multiplexado reutiliza el canal y, por tanto, sus registros `COLOR16..31`: los cambios de paleta de dos objetos que compartan canal deben respetar el par N/N+1 o degradarse (ver §7).
 
 La regla del chipset que hay que preservar: **un BOB es una copia de bitmap** (cookie-cut u OR con barrel shifter), y **no** un polígono del Blitter. El camino poligonal (line-draw + area-fill) es para relleno vectorial, no para objetos.
@@ -143,6 +154,10 @@ Puntos clave del save-under:
 
 Un objeto no escribe registros: **declara** `CopperIntent` (vocabulario de `raster_intent.hpp`) y el compositor las ordena. Las intenciones cubren cambio de paleta por línea (`PaletteLine`), cambio a mitad de línea (`PaletteSpan`), desplazamiento fino por línea (`ShiftLines`), reparto de planos a media pantalla (`BitplaneSplit`), rearme de sprite (`SpriteRearm`) y prioridad (`Priority`).
 
+Prioridad del sprite frente a los playfields: un sprite hardware puede quedar **delante o detrás** de cada playfield según la prioridad de `BPLCON2` (y ordenarse entre canales por su propia prioridad). El actor la declara en `sprite_priority` (0..3) y el compositor la materializa con la intención `Priority`. No se confunde con el `z` de los BOB: `z` ordena objetos **dentro de un mismo playfield**; `sprite_priority` sitúa el sprite en la pila de prioridades del chipset.
+
+Reconfiguración intra-scanline: un sprite se puede **reapuntar mientras avanza el haz**. La plantilla declara franjas (`SpriteSegment`) con su altura y su desplazamiento dentro de la imagen, y los puntos de rearme (`SpriteRearm`), los cambios de posición (`hpos_delta`) y los cambios de color (`SpritePaletteSwitch`) se convierten en intenciones que el compositor emite en la línea que toca. Con eso se construyen los fondos de sprites tipo Risky Woods o Jim Power. La composición **horizontal** (varios tramos contiguos en la misma línea) se hace con **varios canales** cubriendo tramos uno al lado del otro: un solo canal no puede aparecer dos veces en la misma línea, porque su *fetch* se resuelve al principio de la línea. El modelo lo expresa como plantilla más lista de franjas; cuántos canales contiguos se pueden sostener lo decide el `SpriteAllocator`.
+
 Anclaje al objeto: las intenciones de un actor se declaran **relativas a su Y** (o a su Y de pantalla) y el planner las convierte a líneas absolutas sumando la posición efectiva. Así un degradado de paleta «viaja» con el objeto sin que la aplicación calcule la línea del raster.
 
 ```text
@@ -152,7 +167,7 @@ actor (y de pantalla = 84)                      líneas absolutas
   CopperIntent Priority      rel[16..20)  ──►    [100..104)
 ```
 
-Fusión y conflictos, en orden de prioridad decreciente: intenciones del **frame actual** del actor, después las del **actor** y después las de la **capa**. Si dos intenciones escriben el **mismo registro en la misma línea**, gana la del actor con mayor z y, en empate, la de identificador menor (orden determinista). Las reglas específicas que el compositor debe hacer cumplir:
+Fusión y conflictos, en orden de prioridad decreciente: intenciones del **frame actual** del actor, después las del **actor** y después las de la **capa**. Si dos intenciones escriben el **mismo registro en la misma línea**, gana la del actor con mayor `z` dentro de la **misma superficie**; entre superficies distintas decide el orden de las superficies, y en empate final el identificador menor (orden determinista). Las reglas específicas que el compositor debe hacer cumplir:
 
 - `copper::Plan` ordena por scanline relativo al inicio del display, con ordenación estable y sin que importe el orden de alta.
 - Un `SpriteRearm` (multiplexado) exige recargar `SPRxPT` al principio del VBL; el `SpriteManager` es el emisor, no el actor.
@@ -193,6 +208,14 @@ El recorte es siempre intersección de rectángulos enteros con bordes exclusivo
 ### 8.5 Save-under
 
 Por frame y por actor con política `SaveUnder`: restaurar el rectángulo previo de **este** buffer (`RestoreRect`), copiar el fondo nuevo (`CopyRect`) y solo entonces dibujar el objeto. El rectángulo previo se actualiza por buffer. En `Auto`, si el área del objeto por planos supera un umbral o el presupuesto de Blitter está en aviso, se degrada a `ClearRect` o `DirtyRect`.
+
+### 8.6 Los tiles también son BOBs
+
+Un tile es, para el hardware, **una copia de bitmap en una rejilla**: la misma geometría que un BOB (origen en un banco compartido, destino alineado, desplazamiento fino por palabra, máscara opcional), con dos diferencias de gestión: la fuente es un **banco común** (`Tileset`/`TileSource`) y su posición sale de un **mapa** en vez de una lista de actores. El motor ya lo trata así en el camino de blits (`BlitJobKind::TileBlockCopy`, y los `add_draw`/`add_world_bitmap` del campo de tiles).
+
+Consecuencia para este diseño: el algoritmo de scroll por tiles de X-Limited no es un sistema aparte, sino un **emisor masivo de BOB** que comparte el `FramePlan`, el presupuesto de Blitter, el orden dentro de la superficie y las reglas de módulo/guarda del anillo. Lo que cambia es quién decide qué se dibuja (el campo de tiles, por celdas del mapa) y que su emisión es por lotes y con su propio criterio de reuso (franjas, prefetch), no un `actor_emit` por objeto.
+
+Regla práctica: cuando una entidad se pueda describir como "imagen de un banco, posición entera en pantalla, copia por Blitter", debe emitir `BlitJob`s por el mismo camino que un BOB, aunque su origen sea un mapa y no un `Actor`.
 
 ## 9. Memoria y presupuesto
 

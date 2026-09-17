@@ -29,6 +29,7 @@ using eng::graphics::CopperIntentKind;
 using eng::graphics::DirtyRect;
 using eng::graphics::Frame;
 using eng::graphics::FramePlan;
+using eng::graphics::SpriteIntent;
 using eng::graphics::Visual;
 using eng::graphics::VisualKind;
 using eng::scene::Actor;
@@ -93,6 +94,18 @@ BobTarget make_target() {
 	t.planes = 4u;
 	t.layout = BobLayout::Planar;
 	return t;
+}
+
+/// Composiciones de prueba: `g_targets[0]` es el playfield por defecto y `g_targets[1]`
+/// un segundo playfield, para comprobar la selección por `ActorDesc::surface`.
+BobTarget g_targets[2] {};
+
+void use_targets(ActorEmitContext& ctx) {
+	g_targets[0] = make_target();
+	g_targets[1] = make_target();
+	g_targets[1].base = g_screen + kPlaneBytes; // "otro" playfield
+	ctx.targets = g_targets;
+	ctx.target_count = 2u;
 }
 
 int fails = 0;
@@ -221,7 +234,7 @@ void test_emit_clear() {
 	FramePlan plan {};
 	plan.clear();
 	ActorEmitContext ctx {};
-	ctx.target = make_target();
+	use_targets(ctx);
 	ctx.cam_x = 10;
 	ctx.cam_y = 10;
 	ctx.buffer = 0;
@@ -267,7 +280,7 @@ void test_emit_frame_offset() {
 	FramePlan plan {};
 	plan.clear();
 	ActorEmitContext ctx {};
-	ctx.target = make_target();
+	use_targets(ctx);
 	ctx.buffer = 1;
 	CHECK(eng::scene::actor_emit(plan, *a, ctx) == ActorEmitStatus::Ok, "emision frame 1");
 	const auto& draw = plan.blit_job(0);
@@ -288,7 +301,7 @@ void test_emit_clipped_and_full() {
 	FramePlan plan {};
 	plan.clear();
 	ActorEmitContext ctx {};
-	ctx.target = make_target();
+	use_targets(ctx);
 	ctx.clip = DirtyRect {0, 0, 90, 256}; // el objeto acaba en x = 104
 	CHECK(eng::scene::actor_emit(plan, *a, ctx) == ActorEmitStatus::Clipped, "recorte parcial rechazado");
 	CHECK(plan.blit_job_count() == 0u, "sin jobs si no cabe entero");
@@ -298,9 +311,60 @@ void test_emit_clipped_and_full() {
 	a->prev[0] = DirtyRect {10, 20, 26, 28};
 	ctx.clip = DirtyRect {};
 	ctx.buffer = 0;
-	ctx.target.base = nullptr;
+	g_targets[0].base = nullptr;
 	CHECK(eng::scene::actor_emit(plan, *a, ctx) == ActorEmitStatus::Full, "rechazo controlado si un job no vale");
 	CHECK(plan.blit_job_count() == 0u, "sin jobs cuando el destino no vale");
+
+	// Superficie declarada fuera de la composición: rechazo controlado.
+	g_targets[0].base = g_screen;
+	ActorDesc lejos = make_desc();
+	lejos.surface = 5u;
+	ActorStore<2> store2;
+	store2.reset();
+	RepresentationAllocator alloc2 {};
+	alloc2.reset(RepresentationBudget {8u, 10000u, 0u});
+	const ActorId id2 = store2.add(lejos, alloc2);
+	Actor* a2 = store2.get(id2);
+	FramePlan plan2 {};
+	plan2.clear();
+	CHECK(eng::scene::actor_emit(plan2, *a2, ctx) == ActorEmitStatus::Full, "surface fuera de rango");
+	CHECK(plan2.blit_job_count() == 0u, "sin jobs si la surface no existe");
+}
+
+void test_surface_selection_and_sprite_intent() {
+	// El mismo actor dibujado en la superficie 1 (segundo playfield de un DPF).
+	ActorStore<2> store;
+	store.reset();
+	RepresentationAllocator alloc {};
+	alloc.reset(RepresentationBudget {8u, 10000u, 0u});
+	ActorDesc d = make_desc();
+	d.surface = 1u;
+	d.z = 10u;
+	d.sprite_priority = 2u;
+	const ActorId id = store.add(d, alloc);
+	Actor* a = store.get(id);
+
+	FramePlan plan {};
+	plan.clear();
+	ActorEmitContext ctx {};
+	use_targets(ctx);
+	ctx.cam_x = 10;
+	ctx.cam_y = 10;
+	DirtyRect rect {};
+	CHECK(eng::scene::actor_emit(plan, *a, ctx, &rect) == ActorEmitStatus::Ok, "emision en superficie 1");
+	const auto& draw = plan.blit_job(0);
+	CHECK(draw.destination.words ==
+	      reinterpret_cast<const eng::u16*>(g_screen + kPlaneBytes + 33u * kRowBytes + 10u),
+	      "el BOB va al segundo playfield");
+
+	// Proyeccion al camino de sprite hardware: prioridad frente a playfields y ancho.
+	const Frame f = eng::scene::actor_current_frame(*a);
+	const SpriteIntent si = eng::scene::actor_to_sprite_intent(*a, f, rect, 3u);
+	CHECK(si.channel == 3u, "canal propuesto");
+	CHECK(si.top == 33u && si.bottom == 41u, "franja vertical del sprite");
+	CHECK(si.hpos == 88u, "X del sprite");
+	CHECK(si.width_words == 1u && !si.attach, "16 px sin attach");
+	CHECK(si.priority == 2u, "prioridad del sprite frente a los playfields");
 }
 
 void test_emit_save_under() {
@@ -321,7 +385,7 @@ void test_emit_save_under() {
 	plan.clear();
 	plan.set_blit_budget_limits({0xffffffffu, 0xffffffffu, 0xffffu, 8u});
 	ActorEmitContext ctx {};
-	ctx.target = make_target();
+	use_targets(ctx);
 	ctx.cam_x = 10;
 	ctx.cam_y = 10;
 	ctx.buffer = 0;
@@ -384,6 +448,7 @@ int main() {
 	test_emit_clear();
 	test_emit_frame_offset();
 	test_emit_clipped_and_full();
+	test_surface_selection_and_sprite_intent();
 	test_emit_save_under();
 	test_copper_anchoring();
 

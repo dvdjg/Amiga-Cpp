@@ -101,6 +101,10 @@ struct SpriteIntent {
     u16 hpos = 0;
     u8  width_words = 1;       // 16 px o 32 px
     bool attach = false;       // attached al canal anterior (15 colores)
+    /// Prioridad del sprite FRENTE A LOS PLAYFIELDS (0..3, modo `BPLCON2`): un sprite
+    /// puede quedar delante o detrás de PF1/PF2. No es el `z` de los BOBs (que ordena
+    /// objetos dentro de un mismo playfield).
+    u8  priority = 0;
 };
 
 } // namespace eng::graphics
