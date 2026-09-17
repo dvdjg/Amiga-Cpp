@@ -65,20 +65,41 @@ Parámetros: igual que `ollama-analyze.mjs` (`--model`, `--text-model`, `--base`
 | `--mode montage` | Combina los frames en **una sola imagen** (hoja de contacto) con ffmpeg y la analiza en una llamada. | Ver la secuencia/transiciones en una sola llamada. |
 | `--mode all` (por defecto) | `meta` + `montage`. | Informe completo. |
 
-## Sampler profiler de hotspots (`hotspots.mjs`)
+## Hotspots de CPU: perfil nativo + informe (vía fiable)
 
-Muestrea el PC del 68000 por el canal lateral (2346) de forma **no intrusiva**
-durante N segundos, agrupa las muestras por símbolo (resuelve el `.map` de la
-demo contra `baseText`) y emite un informe de "dónde se va el tiempo del CPU".
+El reparto de tiempo por rutina del frame se obtiene con el **perfilador nativo de
+WinUAE** y un informe, no con muestreo del canal lateral:
 
 ```
-node tools/profile/hotspots.mjs demos/amiga/101_ehb_tile_scroll_driver --seconds 5 [--out out/hotspots.md]
+# 1) captura (construye la tabla .unwind que WinUAE necesita para muestrear)
+node tools/debug/winuae-profile.mjs <demo> [CONFIG] [frames]
+
+# 2a) si el perfil se tomo con el plugin (JSON .amigaprofile): top por rutina/archivo
+node tools/analyze/profile-report.mjs <perfil.amigaprofile> [--top N] [--json]
+
+# 2b) si es el binario nativo: PCs -> rutinas resolviendo el .map
+node tools/analyze/profile-samples.mjs <perfil.bin> <demo> [CONFIG] [--top N] [--json]
 ```
 
-Ejemplo (demo 101): `wait_vblank` ~29%, `rebuild_copper` ~28%, `memset` ~17% —
-revela que reconstruir la copperlist cada frame es costoso. Requiere la demo
-compilada (`.exe` + `.map`). El modelo de visión NO interviene; es puro conteo
-de PC.
+`--json` emite una tabla compacta apta para pasar a un modelo local (Ollama) sin gastar
+contexto. Procedimiento completo y trampas: `docs/guides/optimization/METODOLOGIA_PROFILING.md`
+y `docs/tools/PROFILING_FROM_AGENT.md`.
+
+Ejemplo (086, un frame, 12.391 muestras): `copper/plan.hpp` 69,8 % (de él,
+`Plan::add_prioritized` 35,1 % y `sort_by_top` 30,3 %), `main.cpp` 20,1 %,
+`actor.hpp` 9,5 %. Con eso se decidió atacar el algoritmo de ordenación del `Plan`.
+
+### `hotspots.mjs` (deprecado para el reparto por rutina)
+
+`tools/profile/hotspots.mjs` muestrea el campo `pc` del canal lateral (2346). **Ese campo
+no se refresca entre consultas** (devuelve el PC de cuando se entró en `observe`), así que
+el informe repite siempre el mismo símbolo; además con `-f <runner.uae>` el `baseText`
+puede venir a `0`. Se conserva por su resolución de símbolos desde el `.map` y porque el
+script avisa cuando detecta que el PC no cambió. Para "dónde se va el CPU", usar el perfil
+nativo de arriba.
+
+El muestreo por GDB (pausar → leer → reanudar) **tampoco es viable**: con la CPU corriendo
+el stub no responde `g` y el ciclo es tan lento que apenas produce alguna muestra.
 
 ## Sobre el modelo de visión (hallazgo importante)
 

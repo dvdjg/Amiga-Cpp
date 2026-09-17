@@ -2,15 +2,24 @@
 /**
  * Sampler profiler de hotspots (e9k-style) para WinUAE-DBG.
  *
- * Muestrea el PC del 68000 por el canal lateral (2346) durante N segundos,
- * agrupa las muestras por direccion, resuelve a simbolos con el .map de la
- * demo y emite un informe de "donde se va el tiempo del CPU".
+ * DEPRECADO para el reparto por rutina. El canal lateral NO refresca el PC: el campo
+ * `pc` de `state` (puerto 2346) devuelve el PC de cuando se entro en `observe`, asi que
+ * este sampler da siempre el mismo simbolo (y con `-f <runner.uae>` el `baseText` puede
+ * venir a 0). Para "donde se va el CPU" usar el perfil NATIVO de WinUAE + informe:
  *
- * Uso: node tools/profile/hotspots.mjs [demos/<demo>] [--seconds 5] [--map x.map] [--out hotspots.md]
+ *   1) node tools/debug/winuae-profile.mjs <demo> [CONFIG] [frames]      (captura + .unwind)
+ *   2) node tools/analyze/profile-report.mjs  <perfil.amigaprofile>      (top por rutina)
+ *      o  node tools/analyze/profile-samples.mjs <perfil.bin> <demo>     (PCs -> .map)
+ *
+ * Ver docs/guides/optimization/METODOLOGIA_PROFILING.md §5 y docs/tools/PROFILING_FROM_AGENT.md.
+ * Se conserva por su resolucion de simbolos desde el `.map`; si el canal lateral empieza a
+ * refrescar el PC, vuelve a ser util.
+ *
+ * Uso: node tools/profile/hotspots.mjs [demos/<plataforma>/<demo>] [--seconds 5] [--config <id>] [--map x.map] [--out hotspots.md]
  * Env: WINUAE_PATH, WINUAE_CONFIG (defaults abajo).
  *
- * Nota: la demo debe estar compilada (out/demos/<demo>/<demo>.exe) y el .map
- * junto a ella. La captura usa el canal lateral de forma NO intrusiva.
+ * Nota: la demo debe estar compilada (out/demos/<demo>/<CONFIG>/<demo>.<CONFIG>.exe) y el
+ * .map junto a ella. La captura usa el canal lateral de forma NO intrusiva.
  */
 import { WinUAEConnection } from 'file:///C:/Users/dvdjg/Documents/programa/AI/Amiga/mcp-winuae-emu/dist/winuae-connection.js';
 import { sideChannelCommand } from 'file:///C:/Users/dvdjg/Documents/programa/AI/Amiga/mcp-winuae-emu/dist/side-channel.js';
@@ -26,15 +35,38 @@ const outIdx = args.indexOf('--out');
 const outPath = outIdx >= 0 ? (args[outIdx + 1] ?? null) : null;
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-const DEMO = demoArg.replace(/^demos\//, '').replace(/\/$/, '');
-const DEMO_DIR = path.join(ROOT, 'demos', DEMO);
+// Acepta `demos/amiga/<demo>`, `amiga/<demo>` o `<demo>`; la plataforma se descarta porque
+// los artefactos viven en out/<...>/<demo>/ (ver docs/STRUCTURE.md y build-demo.sh).
+const DEMO_RAW = demoArg.replace(/^demos\//, '').replace(/\/$/, '');
+const DEMO = path.basename(DEMO_RAW);
+const DEMO_DIR = path.join(ROOT, 'demos', DEMO_RAW);
 const OUT_DIR = path.join(ROOT, 'out', 'run', DEMO);
 const STAGE = path.join(OUT_DIR, 'dh1');
-const EXE = path.join(ROOT, 'out', 'demos', DEMO, `${DEMO}.exe`);
-const MAP = path.join(ROOT, 'out', 'demos', DEMO, `${DEMO}.map`);
+// El binario y el .map viven en out/demos/<demo>/<CONFIG>/ (sin plataforma; ver build-demo.sh).
+// Se toma la primera config que tenga .exe y .map juntos, y se acepta --config para forzarla.
+const CONFIG_IDX = args.indexOf('--config');
+const CONFIG_ARG = CONFIG_IDX >= 0 ? args[CONFIG_IDX + 1] : null;
+const DEMO_BASE = path.join(ROOT, 'out', 'demos', DEMO);
+function findBuild(configName) {
+  const candidates = [];
+  if (configName) candidates.push(path.join(DEMO_BASE, configName));
+  if (fs.existsSync(DEMO_BASE)) {
+    for (const e of fs.readdirSync(DEMO_BASE)) candidates.push(path.join(DEMO_BASE, e));
+  }
+  for (const dir of candidates) {
+    const id = path.basename(dir);
+    const exe = path.join(dir, `${DEMO}.${id}.exe`);
+    const map = path.join(dir, `${DEMO}.${id}.map`);
+    if (fs.existsSync(exe) && fs.existsSync(map)) return { dir, exe, map };
+  }
+  return null;
+}
+const build = findBuild(CONFIG_ARG);
+const EXE = build ? build.exe : path.join(DEMO_BASE, `${DEMO}.exe`);
+const MAP = build ? build.map : path.join(DEMO_BASE, `${DEMO}.map`);
 
 if (!fs.existsSync(EXE)) {
-  console.error(`No existe ${EXE}. Compila la demo antes.`);
+  console.error(`No existe ${EXE}. Compila la demo antes (bash ./tools/build/build-demo.sh demos/amiga/<demo>).`);
   process.exit(1);
 }
 if (process.env.HOTSPOTS_DEBUG) {
@@ -98,7 +130,10 @@ const conn = new WinUAEConnection({
 });
 
 try {
-  await conn.connect();
+  // `initializeStopped` es IMPRESCINDIBLE: su `qOffsets` hace que WinUAE-DBG calcule
+  // `baseText`, sin el cual los PCs de runtime no se pueden rebasar al direccionamiento
+  // enlazado del .map (todas las muestras caerian en "otra-region").
+  await conn.connect({ forceBreak: false, initializeStopped: true });
   await sleep(9000);
   const p = conn.getProtocol();
   await p.continue();
@@ -108,18 +143,35 @@ try {
   console.log(`Muestreando PC durante ${seconds}s...`);
   const tally = new Map();
   let baseText = 0;
+  let lastPc = null;
+  let distinctPc = 0;
+  // El canal lateral lee el PC SIN detener la CPU, pero en las pruebas el campo `pc` de
+  // `state` no se refresca entre consultas: si no cambia en toda la captura se avisa y el
+  // informe queda inservible (el reparto real se obtiene con el perfil nativo, ver cabecera).
   const t0 = Date.now();
   while (Date.now() - t0 < seconds * 1000) {
-    const r = await sideChannelCommand('state', 2346, 400).catch(() => null);
+    const r = await sideChannelCommand('state', 2346, 500).catch(() => null);
     if (r && r.ok && r.reply) {
-      const pc = parseInt(r.reply.pc, 16);
-      if (!isNaN(pc)) tally.set(pc, (tally.get(pc) || 0) + 1);
-      if (r.reply.baseText) baseText = parseInt(r.reply.baseText, 16) || 0;
+      if (r.reply.baseText) baseText = parseInt(r.reply.baseText, 16) || baseText;
+      const pc = r.reply.pc ? parseInt(r.reply.pc, 16) : NaN;
+      if (!isNaN(pc)) {
+        tally.set(pc, (tally.get(pc) || 0) + 1);
+        if (pc !== lastPc) { ++distinctPc; lastPc = pc; }
+      }
     }
     await sleep(5);
   }
   const samples = [...tally.values()].reduce((a, b) => a + b, 0);
   const syms = loadSymbols(MAP);
+  if (distinctPc <= 1 && samples > 1) {
+    console.error(`[hotspots] AVISO: el canal lateral devolvio el mismo PC en las ${samples} muestras`);
+    console.error('[hotspots] El reparto por rutina NO es fiable por esta via. Usa el perfil nativo:');
+    console.error(`[hotspots]   node tools/debug/winuae-profile.mjs ${DEMO} [CONFIG] [frames]`);
+    console.error('[hotspots]   node tools/analyze/profile-report.mjs <perfil.amigaprofile>');
+  }
+  if (process.env.HOTSPOTS_DEBUG) {
+    console.log(`DEBUG baseText=0x${baseText.toString(16)} PCs distintos=${distinctPc} primera=0x${[...tally.keys()][0]?.toString(16)}`);
+  }
 
   // resolver cada PC muestreado a su simbolo
   const bySymbol = new Map();

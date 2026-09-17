@@ -20,7 +20,7 @@ Reglas principales (ver también `docs/STRUCTURE.md` §6):
 | Ejecución (runner/emulador) | `docs/build/BUILD_AND_RUN.md`, `docs/debugging/DEBUG-WINUAE-V2-GUIDE.md` | `tools/run/run-demo.sh`/`.ts` |
 | Análisis de demos | `docs/testing/PIXEL_FRAME_ASSERTIONS.md`, `docs/demos/tile-pipeline/PIPELINE_TILES_EHB.md` | `tools/analyze/*` |
 | Depuración (WinUAE-DBG/DAP) | `docs/debugging/DEBUG-WINUAE-V2-GUIDE.md`, `tools/dap-test/README.md` | `tools/debug/*`, `tools/dap-test/*` |
-| Profiling | `tools/profile/README.md` | `tools/profile/*`, `tools/debug/measure-fps.mjs`, `tools/debug/record-fps.mjs`, `tools/debug/check-fps.mjs`, `tools/run-fps-gate.sh` |
+| Profiling | `tools/profile/README.md`, `docs/tools/PROFILING_FROM_AGENT.md`, `docs/guides/optimization/METODOLOGIA_PROFILING.md` | `tools/profile/*`, `tools/debug/{measure-fps,record-fps,check-fps,profile,winuae-profile}.mjs`, `tools/analyze/profile-{samples,report}.mjs`, `tools/run-fps-gate.sh` |
 | Verificación visual | `tools/vision-review/README.md`, `docs/testing/VISION_REVIEW_ROADMAP.md` | `tools/vision-review/*` |
 | Pipeline de tiles/sprites | `tools/amiga-tiles/README.md`, `docs/demos/tile-pipeline/` | `tools/amiga-tiles/*`, `tools/ehb/*`, `tools/demo202/*` |
 | Assets (UAF-R) | `docs/tools/UAF_PACK.md` | `tools/assets/uaf-pack.ts` |
@@ -80,6 +80,22 @@ que distingue **trabajo propio** de **espera** sin instrumentar el motor.
   `node tools/debug/profile.mjs <demo> [config] [segundos]`.
 - Coste: ~2 lecturas del contador por sección y frame (el contador es el mismo `0xB7E928` que usa
   `measure-fps.mjs`).
+
+## Análisis de perfiles (muestras de CPU por rutina)
+
+El perfilador de la extensión (**F5 → Frame Profiler**) y el MCP capturan un binario con
+**muestras de CPU**, DMA por scanline y recursos. Resolver esas muestras a funciones es lo que
+dice **qué código se lleva el frame**; el procedimiento completo (tabla de unwind, comandos y
+trampas) está en `docs/tools/PROFILING_FROM_AGENT.md` y la metodología general en
+`docs/guides/optimization/METODOLOGIA_PROFILING.md`.
+
+| Tool | Devuelve |
+|---|---|
+| `tools/debug/winuae-profile.mjs <demo> [config] [frames]` | Captura binaria + ciclos de CPU ocupada/libre por frame + DMA por tipo. Construye la tabla `.unwind` que WinUAE necesita para muestrear. |
+| `tools/analyze/profile-samples.mjs <perfil.bin> <demo> [config] [--top N] [--json]` | Top de rutinas por muestras de CPU, resolviendo los PCs con el `.map` del build. |
+| `tools/analyze/profile-report.mjs <perfil.amigaprofile> [--top N] [--json]` | Top de rutinas/archivos de un perfil JSON exportado desde VSCode (incluye además `[IRQ]` del depurador). |
+
+`--json` emite una tabla compacta apta para pasársela a un modelo local sin gastar contexto.
 
 ## Sondas de emisión de sprites (depuración de custom chips)
 

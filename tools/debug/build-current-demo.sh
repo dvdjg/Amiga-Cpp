@@ -41,6 +41,10 @@ case "$RELATIVE" in
 		# out/debug-current/current es el demo esperado (evita 'churro' por stale).
 		CURRENT_OUT="$ROOT/out/debug-current"
 		mkdir -p "$CURRENT_OUT"
+		# Y RETIRAR el binario publicado: si el depurador arranca igualmente (F5 con la
+		# tarea fallida o una config de otro repo), no debe ejecutar la demo ANTERIOR.
+		rm -f "$CURRENT_OUT/current.exe" "$CURRENT_OUT/current" "$CURRENT_OUT/current.elf" \
+			"$CURRENT_OUT/current.map" "$CURRENT_OUT/current.s"
 		cat > "$CURRENT_OUT/session.json" <<EOF
 {
   "status": "failed",
@@ -56,6 +60,9 @@ esac
 
 if [ ! -d "$ROOT/$TARGET" ]; then
 	echo "No existe el target: $ROOT/$TARGET" >&2
+	rm -f "$ROOT/out/debug-current/current.exe" "$ROOT/out/debug-current/current" \
+		"$ROOT/out/debug-current/current.elf" "$ROOT/out/debug-current/current.map" \
+		"$ROOT/out/debug-current/current.s"
 	exit 1
 fi
 

@@ -84,7 +84,8 @@ enum {
 	kProfSky = 4,    // build_frame: bucle de intenciones del cielo
 	kProfObjCopper = 5, // build_frame: necesidades de copper de los objetos
 	kProfMaterialize = 6, // build_frame: ordenar y emitir
-	kProfCount = 7,
+	kProfCalib = 10,      // bucle conocido: ciclos por iteracion (calibracion de la CPU)
+	kProfCount = 11,
 };
 
 // Geometría: 320x256 lowres, 4 planos (16 colores), planos contiguos.
@@ -136,6 +137,9 @@ constexpr eng::u16 kSky[kSkyKeys] = {
 };
 
 constexpr eng::SineTable<64, 64> kSin {};
+
+/// Sumidero del bucle de calibracion (evita que el compilador lo elimine).
+volatile eng::u32 g_calib_sink = 0;
 
 /// Interpolación lineal por nibble (RGB444) entre dos colores.
 constexpr eng::u16 lerp444(eng::u16 a, eng::u16 b, eng::u16 num, eng::u16 den) {
@@ -204,6 +208,19 @@ struct BobObjectsDemo {
 
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
+		// CALIBRACION: bucle de coste conocido. `profile.mjs` dara ciclos/frame con 1.0
+		// llamadas/frame; dividiendo entre 1000 salen los ciclos por iteracion y, con las
+		// ~4 instrucciones del bucle, la velocidad efectiva del CPU en este contexto (con
+		// el DMA de bitplanes activo). Es lo que permite interpretar las demas secciones.
+		ENG_PROF_BEGIN(kProfCalib);
+		{
+			eng::u32 acc = 0;
+			for (eng::u32 i = 0; i < 1000u; ++i) {
+				acc = static_cast<eng::u32>(acc + i);
+			}
+			g_calib_sink = acc;
+		}
+		ENG_PROF_END(kProfCalib);
 		ENG_PROF_FRAME();
 		ENG_PROF_BEGIN(kProfActors);
 		const eng::u16 t = static_cast<eng::u16>(context.frame.frame_index);

@@ -34,7 +34,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function findMapSymbol(name) {
   if (!fs.existsSync(MAP)) return null;
-  const re = new RegExp('^\\s*0x([0-9a-fA-F]+)\\s+' + name + '\\b');
+  // Tolerante al manglado: `g_eng_prof` puede aparecer como `_ZN3eng6debug10g_eng_profE`.
+  const re = new RegExp('^\\s*0x([0-9a-fA-F]+)\\s+\\S*' + name + '\\S*\\s*$');
   for (const line of fs.readFileSync(MAP, 'utf8').split(/\r?\n/g)) {
     const m = line.match(re);
     if (m) return parseInt(m[1], 16);
@@ -63,7 +64,7 @@ function runtimeAddr(linked, ms, rs) {
 }
 const u32delta = (a, b) => { let d = b - a; if (d < 0) d += 4294967296; return d; };
 
-const SECTION_NAMES = ['actors', 'blits', 'copper', 'static', 'sky', 'objcopper', 'materialize', 'sort_lines', 'sort_prio', 'emit'];
+const SECTION_NAMES = ['actors', 'blits', 'copper', 'static', 'sky', 'objcopper', 'materialize', 'sort_lines', 'sort_prio', 'emit', 'calib'];
 
 const conn = new WinUAEConnection({
   winuaePath: 'C:/Users/dvdjg/.vscode/extensions/bartmanabyss.amiga-debug-1.8.1/bin/win32',
