@@ -78,9 +78,9 @@ sin libcalls). pendiente: verificar R2 por demo (consumidor con muchas entidades
 
 ### R3 — Audio y efectos
 
-**Estado: R3.1 hecho** (`core/random.hpp`: `next_range`/`next_symmetric`/`chance`/`pick`/
-`shuffle`/`next_gaussian_approx`, HOST-100; `next_mod` sin división, sonda
-`c_random_ops`). R3.2/R3.3 pendientes.
+**Estado: R3 completa.** R3.1 distribuciones (`core/random.hpp`, HOST-100; `next_mod` sin
+división), R3.2 worley/turbulence/ridged (`core/noise.hpp`, HOST-101) y R3.3 `dsp.hpp`
+(Adsr/OnePole/DelayLine/soft_clip/osciladores, HOST-102); sonda `c_dsp_ops` sin libcalls.
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|

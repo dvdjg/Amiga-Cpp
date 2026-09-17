@@ -44,6 +44,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/util/broadphase.hpp>
 #include <eng/core/util/pathfinding.hpp>
 #include <eng/core/random.hpp>
+#include <eng/core/util/dsp.hpp>
 #include <eng/core/sort.hpp>
 #include <eng/graphics/mesh_renderer.hpp>
 #include <eng/platform/amiga/lib3d.hpp>
@@ -315,6 +316,17 @@ extern "C" u16 c_random_ops(u16 seed) {
 	eng::shuffle(rng, eng::Span<eng::u16> {data, 8});
 	return static_cast<eng::u16>(eng::pick(rng, eng::Span<const eng::u16> {data, 8}) +
 				     (eng::chance(rng, 1u, 3u) ? 1u : 0u));
+}
+extern "C" float c_dsp_ops(float x) {
+	eu::Adsr<float> env {0.5f, 0.25f, 0.1f, 0.5f};
+	env.note_on();
+	float a = env.tick();
+	eu::OnePole<float> lp {0.5f, 0.0f};
+	a += lp.process(x);
+	eu::DelayLine<float, 4> dl;
+	dl.clear();
+	a += dl.process(x, 1u);
+	return a + eu::osc_saw(x) + eu::osc_square(x) + eu::osc_triangle(x);
 }
 `;
 

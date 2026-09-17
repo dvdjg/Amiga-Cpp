@@ -36,6 +36,7 @@
 #include <eng/core/linalg.hpp>
 #include <eng/core/numeric_traits.hpp>
 #include <eng/core/random.hpp>
+#include <eng/core/scalar_ops.hpp>
 
 namespace eng::math {
 
@@ -260,6 +261,103 @@ template <typename S>
 		const S xf = mul_norm(x, freq), yf = mul_norm(y, freq), zf = mul_norm(z, freq);
 		sum = sum +
 		      mul_norm(value_noise3(xf, yf, zf, seed + static_cast<eng::u32>(o), p), amp);
+		norm = norm + amp;
+		amp = mul_norm(amp, gain);
+		freq = mul_norm(freq, lacunarity);
+		if (p > 0) p <<= 1;
+	}
+	return sum / norm;
+}
+
+// ============================================================================
+//  Worley (cellular) y variantes de fbm
+// ============================================================================
+
+/// **Worley/cellular 2D** en distancia al cuadrado: para cada celda se coloca un punto
+/// de característica pseudoaleatorio (dos valores de `hash`) y se toma la distancia
+/// mínima entre la celda y sus 8 vecinas. Devuelve la distancia **al cuadrado** (sin
+/// `sqrt`), en `[0, ~2]`; para distancia euclídea usa `worley2`.
+template <typename S>
+[[nodiscard]] constexpr S worley2_sq(S x, S y, eng::u32 seed, int period = 0) {
+	require_division<S>();
+	noise_detail::check_coord<S>(x);
+	noise_detail::check_coord<S>(y);
+	using namespace noise_detail;
+	const int ix = ifloor(x), iy = ifloor(y);
+	const S fx = x - scalar_traits<S>::from_int(ix);
+	const S fy = y - scalar_traits<S>::from_int(iy);
+	S best = scalar_traits<S>::from_int(4); // mayor que cualquier distancia de 3x3
+	for (int dy = -1; dy <= 1; ++dy) {
+		for (int dx = -1; dx <= 1; ++dx) {
+			const int cx = lwrap(ix + dx, period), cy = lwrap(iy + dy, period);
+			const u32c h = hash2(static_cast<u32c>(cx),
+					     hash2(static_cast<u32c>(cy), static_cast<u32c>(seed)));
+			const S ox = unit<S>(h);
+			const S oy = unit<S>(hash1(h));
+			const S px = scalar_traits<S>::from_int(dx) + ox - fx;
+			const S py = scalar_traits<S>::from_int(dy) + oy - fy;
+			const S d = mul_norm(px, px) + mul_norm(py, py);
+			if (d < best) {
+				best = d;
+			}
+		}
+	}
+	return best;
+}
+
+/// Worley/cellular 2D en distancia euclídea (requiere `sqrt` del escalar).
+template <typename S>
+[[nodiscard]] constexpr S worley2(S x, S y, eng::u32 seed, int period = 0) {
+	return scalar_sqrt<S>::op(worley2_sq(x, y, seed, period));
+}
+
+/// **Turbulencia** 2D (`|2·n−1|` sumado en octavas): nubes/humo con crestas suaves.
+/// Devuelve `[0,1]`.
+template <typename S>
+[[nodiscard]] constexpr S turbulence2(S x, S y, eng::u32 seed, int octaves, S lacunarity,
+				      S gain, int period = 0) {
+	require_division<S>();
+	check_octaves(octaves);
+	noise_detail::check_coord<S>(x);
+	noise_detail::check_coord<S>(y);
+	S sum = scalar_traits<S>::zero();
+	S amp = scalar_traits<S>::one();
+	S freq = scalar_traits<S>::one();
+	S norm = scalar_traits<S>::zero();
+	int p = period;
+	for (int o = 0; o < octaves; ++o) {
+		const S n = value_noise2(mul_norm(x, freq), mul_norm(y, freq),
+					 seed + static_cast<eng::u32>(o), p);
+		const S b = abs(mul_norm(scalar_traits<S>::from_int(2), n) - scalar_traits<S>::one());
+		sum = sum + mul_norm(b, amp);
+		norm = norm + amp;
+		amp = mul_norm(amp, gain);
+		freq = mul_norm(freq, lacunarity);
+		if (p > 0) p <<= 1;
+	}
+	return sum / norm;
+}
+
+/// **Ridged** 2D (crestas afiladas): `r = 1−|2n−1|`, sumado como `r²·amp`. Devuelve
+/// `[0,1]`.
+template <typename S>
+[[nodiscard]] constexpr S ridged2(S x, S y, eng::u32 seed, int octaves, S lacunarity, S gain,
+				  int period = 0) {
+	require_division<S>();
+	check_octaves(octaves);
+	noise_detail::check_coord<S>(x);
+	noise_detail::check_coord<S>(y);
+	S sum = scalar_traits<S>::zero();
+	S amp = scalar_traits<S>::one();
+	S freq = scalar_traits<S>::one();
+	S norm = scalar_traits<S>::zero();
+	int p = period;
+	for (int o = 0; o < octaves; ++o) {
+		const S n = value_noise2(mul_norm(x, freq), mul_norm(y, freq),
+					 seed + static_cast<eng::u32>(o), p);
+		const S r = scalar_traits<S>::one() -
+			    abs(mul_norm(scalar_traits<S>::from_int(2), n) - scalar_traits<S>::one());
+		sum = sum + mul_norm(mul_norm(r, r), amp);
 		norm = norm + amp;
 		amp = mul_norm(amp, gain);
 		freq = mul_norm(freq, lacunarity);
