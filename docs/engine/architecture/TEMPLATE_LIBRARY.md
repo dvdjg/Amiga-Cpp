@@ -60,6 +60,7 @@ Puntos de reutilización explícitos:
   (`bit.hpp`); evita la multiplicación de 32×32 que emitiría `__mulsi3`.
 - Los contenedores de capacidad fija siguen el patrón de handles/pool de `eng/task/background.hpp` (sin heap, con `valid()` explícito donde aplica).
 - `eng/scene/actor.hpp` es el primer consumidor dentro del engine: `ActorStore` usa `BitSet<MaxActors>` para los slots vivos del parque generacional y `emit_bob_fallbacks` usa `StaticVector<u16, MaxActors>` para los degradados a BOB.
+- `eng/assets/uaf.hpp` (`Blob`) indexa los chunks con `FlatMap<ChunkType, u16, kMaxChunks>` y guarda la lista en `StaticVector<ChunkRef, kMaxChunks>`; lo consumen las demos de assets (078/100/101).
 
 ## 2. Inventario
 
