@@ -266,7 +266,11 @@ for demo_path in "${DEMO_DIRS[@]}"; do
 			[ "$VISION_REVIEW" -eq 1 ] && seq_args+=("--vision-review")
 			[ "$REQUIRE_VISION_REVIEW_OK" -eq 1 ] && seq_args+=("--require-vision-review-ok")
 			[ -n "$VISION_PROVIDER" ] && seq_args+=("--vision-provider" "$VISION_PROVIDER")
-			seq_args+=("--vision-send-mode" "$VISION_SEND_MODE")
+			# `--vision-send-mode` solo tiene sentido con vision review; pasarlo siempre
+			# rompia los `analyze-sequence.sh` por demo que no lo conocen.
+			if [ "$VISION_REVIEW" -eq 1 ] || [ "$REQUIRE_VISION_REVIEW_OK" -eq 1 ]; then
+				seq_args+=("--vision-send-mode" "$VISION_SEND_MODE")
+			fi
 			if "${seq_args[@]}"; then
 				sequence="ok"
 				{ [ "$PIXEL_ASSERT" -eq 1 ] || [ "$REQUIRE_PIXEL_ASSERT_OK" -eq 1 ]; } && pixel_assert="ok"
