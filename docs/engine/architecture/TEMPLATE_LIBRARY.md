@@ -47,6 +47,8 @@ La librería **complementa** el núcleo de `eng/core/`, no lo duplica:
                                      optional.hpp      Optional<T>
                                      expected.hpp      Expected<T,E>
                                      string_view.hpp   StringView
+                                     static_string.hpp StaticString<N>
+                                     scope_guard.hpp   ScopeGuard
                                      function_ref.hpp  FunctionRef<Sig>
 ```
 
@@ -101,6 +103,8 @@ Puntos de reutilización explícitos:
 | `optional.hpp` | `Optional<T>` | `std::optional` |
 | `expected.hpp` | `Expected<T, E>`, `unexpected(e)` | `std::expected` |
 | `string_view.hpp` | `StringView` | `std::string_view` |
+| `static_string.hpp` | `StaticString<N>` | (sin equivalente; `llvm::SmallString`) |
+| `scope_guard.hpp` | `ScopeGuard`, `make_scope_guard` | `boost::scope_exit` |
 | `function_ref.hpp` | `FunctionRef<Sig>` | `std::function_ref` (C++26) |
 
 ## 3. Reglas de diseño para Amiga 500
@@ -157,8 +161,9 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-089 | `priority_queue.hpp` (max/min-heap, comparador propio) |
 | HOST-090 | `core/sort.hpp` (stable/nth/partial/radix) |
 | HOST-091 | `stack_queue.hpp`, `enum_set.hpp` (y `RingBuffer` doble) |
+| HOST-092 | `scope_guard.hpp`, `static_string.hpp` |
 
-> **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`), `Pool` por `086_bob_objects` (parque de actores) y `HashMap` por `111_xlimited_sidescroller` (índice de chunks de `ChunkCache`). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashSet`, `DynamicHashMap`, `PriorityQueue`, `Stack`/`Queue`/`Deque`, `EnumSet`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..091 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
+> **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`), `Pool` por `086_bob_objects` (parque de actores) y `HashMap` por `111_xlimited_sidescroller` (índice de chunks de `ChunkCache`). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashSet`, `DynamicHashMap`, `PriorityQueue`, `Stack`/`Queue`/`Deque`, `EnumSet`, `ScopeGuard`, `StaticString`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..092 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
 
 Los tests se ejecutan con el `g++` del entorno (Windows/MinGW, donde `unsigned long`
 mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
