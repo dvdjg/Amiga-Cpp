@@ -54,6 +54,21 @@ struct Visual {
 };
 
 /// Qué registro/grupo de registros cambia una intención de Copper.
+///
+/// El vocabulario cubre las familias de efecto por raster que usan las demos. Para
+/// "barrer todo lo que se puede hacer con el Copper" faltan explícitamente:
+///
+/// - `Wait`/`Skip` crudos y `MoveSequence` opacos: hoy se emiten con
+///   `Scheduler::wait_position`/`move` directamente; un kind portable capturaría efectos
+///   que no son "paleta" ni "layout" (p. ej. cambiar `DMACON`/`BLTCON` en una línea).
+/// - `SpriteAttach` como intención explícita (hoy viaja en `SpriteIntent::attach`).
+/// - `BitplaneModulo` por franja (`BPL1MOD`/`BPL2MOD`), base de los trucos de
+///   `modulo-tricks.md` (fetch discontinuo, líneas de repetición).
+/// - `CopperJump`/`COP2LC` (sub-listas con `COPJMP2`), para tablas de efectos reusables.
+///
+/// El rearmado **horizontal** de sprites sí está modelado, pero NO como kind: ocurre
+/// varias veces en la MISMA línea y es carrera contra el haz, así que no encaja en la
+/// semántica "un cambio por franja en `top`". Ver `SpriteHorizontalRearm`.
 enum class CopperIntentKind : u8 {
     PaletteLine,    // COLORxx a partir de la linea `top`
     PaletteSpan,    // COLORxx a mitad de linea (hpos): "copper bar"
@@ -61,6 +76,32 @@ enum class CopperIntentKind : u8 {
     BitplaneSplit,  // reapuntar planos a media pantalla (HUD, bandas)
     SpriteRearm,    // reapuntar SPRxPT/POS/CTL (multiplexado vertical)
     Priority,       // cambiar prioridad sprite/playfield (BPLCON2)
+};
+
+/// **Rearmado horizontal de un canal de sprite** (multiplexado horizontal por línea).
+///
+/// A diferencia del multiplexado vertical (`CopperIntent::SpriteRearm`, que reapunta el
+/// canal en OTRA línea), éste redibuja el MISMO canal más a la derecha en la MISMA línea:
+/// el Copper reposiciona (`SPRxPOS`/`SPRxCTL`) y recarga la imagen (`SPRxDATA`/`SPRxDATB`)
+/// varias veces mientras el haz barre. Es la base de los fondos continuos tipo
+/// **Risky Woods** (2 canales, patrón de 64 px repetitivo a 15 colores) y del **Free Form
+/// Sprite Layer** (los 8 canales, fondo sin patrón). Ver
+/// `docs/reference/amiga/techniques/sprite-horizontal-multiplex.md`.
+///
+/// **No toca `SPRxPT`**: el puntero apunta a una estructura POS/CTL+DATA; reasignarlo
+/// relanzaría la secuencia DMA. En modo manual se escriben los registros directos.
+///
+/// Modelo de coste: es **carrera contra el haz**, no presupuesto por frame. Hacen falta
+/// **≥24 px** entre usos del mismo canal para que el Copper llegue a escribir los
+/// registros a tiempo (medido por la fuente). El `Timeline` no lo presupuesta.
+struct SpriteHorizontalRearm {
+    u8  channel = 0;              // canal 0..7
+    u16 hpos = 0;                 // posición horizontal (low-res px; se codifica /2)
+    u16 vstart = 0;               // VSTART del tramo (línea de la primera fila)
+    u16 vstop = 0;                // VSTOP (línea DESPUÉS de la última fila)
+    u16 data_high = 0;            // SPRxDATA (primera palabra de la fila)
+    u16 data_low = 0;             // SPRxDATB (segunda palabra de la fila)
+    bool attach = false;          // bit de attach (par de canales a 15 colores)
 };
 
 /// Cambio portable sobre una franja vertical de lineas raster.

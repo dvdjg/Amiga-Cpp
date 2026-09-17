@@ -22,6 +22,7 @@ Resúmenes operativos para la IA y el desarrollador: **qué problema resuelve**,
 | [cpu-blit-assist.md](cpu-blit-assist.md) | CPU + blitter en paralelo (A1200+) |
 | [audio-mixing.md](audio-mixing.md) | Mezcla de audio para juegos |
 | [sprite-layer.md](sprite-layer.md) | Capa tipo sprite / prioridades |
+| [sprite-horizontal-multiplex.md](sprite-horizontal-multiplex.md) | Multiplexado **horizontal** de sprites: rearmado de canal por línea (fondos tipo Risky Woods / Free Form, coste DMA por línea) |
 | [dual-playfield-fastbobs.md](dual-playfield-fastbobs.md) | BOBs rápidos con dual playfield |
 | [trackloading.md](trackloading.md) | Carga en segundo plano desde disquete (`trackdisk.device` vs. trackloader de hardware) y equivalente desde HD |
 | [blitter-line-subpixel-fill.md](blitter-line-subpixel-fill.md) | Líneas por Blitter (octantes, acumulador/incrementos), **receta de polígono relleno** (contorno `ONEDOT`+EOR + un `area fill` XOR; truco `BLTDPTR`=base, `BLTSIZE` altura 0) y rasterizado **sub-píxel** de polígonos |

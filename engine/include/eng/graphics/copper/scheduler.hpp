@@ -127,6 +127,55 @@ public:
 		++m_report.waits;
 	}
 
+	/// **Rearmado horizontal de un canal de sprite**: espera a `(vstart, hpos)` y
+	/// reescribe `SPRxPOS`/`SPRxCTL`/`SPRxDATA`/`SPRxDATB` para redibujar el MISMO canal
+	/// más a la derecha en la misma línea (multiplexado horizontal). NO toca `SPRxPT`.
+	///
+	/// Se emite **por línea** (el truco se repite en cada scanline del efecto). El
+	/// llamador es responsable de la separación ≥24 px entre usos del mismo canal (carrera
+	/// contra el haz). Ver `graphics::SpriteHorizontalRearm` y
+	/// `docs/reference/amiga/techniques/sprite-horizontal-multiplex.md`.
+	///
+	/// Codificación (AHRM cap. 4): `SPRxPOS = (VSTART[7:0]<<8) | (HSTART[8:1])`;
+	/// `SPRxCTL = (VSTOP[7:0]<<8) | (VSTART[8]<<3) | (VSTOP[8]<<2) | (HSTART[0]<<1) | attach`.
+	/// Offsets: `SPRxPOS=0x140+x*8`, `SPRxCTL=0x142+x*8`, `SPRxDATA=0x144+x*8`,
+	/// `SPRxDATB=0x146+x*8`.
+	void emit_sprite_horizontal_rearm(const graphics::SpriteHorizontalRearm& r) {
+		const u16 ch = r.channel & 7u;
+		wait_position(static_cast<u8>(r.vstart & 0xffu), static_cast<u8>(r.hpos & 0xfeu));
+		const u16 pos = static_cast<u16>(((r.vstart & 0xffu) << 8u) | ((r.hpos >> 1u) & 0xffu));
+		const u16 ctl = static_cast<u16>(
+			((r.vstop & 0xffu) << 8u) |
+			(((r.vstart >> 8u) & 0x1u) << 3u) |
+			(((r.vstop >> 8u) & 0x1u) << 2u) |
+			((r.hpos & 0x1u) << 1u) |
+			(r.attach ? 1u : 0u)
+		);
+		move(static_cast<u16>(0x140u + ch * 8u), pos);   // SPRxPOS
+		move(static_cast<u16>(0x142u + ch * 8u), ctl);   // SPRxCTL
+		move(static_cast<u16>(0x144u + ch * 8u), r.data_high); // SPRxDATA (arma)
+		move(static_cast<u16>(0x146u + ch * 8u), r.data_low);  // SPRxDATB
+	}
+
+	/// Igual que `emit_sprite_horizontal_rearm(1)`, para una lista (misma línea).
+	///
+	/// La lista DEBE venir en `hpos` ascendente: el Copper ejecuta los WAIT en orden y
+	/// un WAIT ya pasado espera al frame siguiente. Aquí se salta el siguiente rearm si
+	/// su `hpos` es menor que el anterior (la lista la ordena el llamador).
+	void emit_sprite_horizontal_rearms(const graphics::SpriteHorizontalRearm* list, u16 count) {
+		if (list == nullptr) {
+			return;
+		}
+		u16 last_hpos = 0;
+		for (u16 i = 0; i < count; ++i) {
+			if (i > 0u && list[i].hpos < last_hpos) {
+				continue; // fuera de orden: se ignora (el llamador debe ordenar)
+			}
+			last_hpos = list[i].hpos;
+			emit_sprite_horizontal_rearm(list[i]);
+		}
+	}
+
 	/// Configura una pantalla de PLANOS EHB/plana genérica (paramétrica).
 	///
 	/// No asume tamaño: el llamador decide la geometría (DIW/DDF) y la anchura de
@@ -266,6 +315,37 @@ public:
 		}
 		for (u8 i = 0; i < count; ++i) {
 			emit_single_intent(intents[i], {}, 0, 0);
+		}
+	}
+
+	/// Ruta rápida para escenas dominadas por `PaletteLine` con **un solo color por
+	/// línea** (el caso del degradado continuo: un COLORxx por scanline): evita el
+	/// `switch` por elemento y el bucle de 1 de `emit_palette`, emitiendo WAIT+MOVE
+	/// directamente. Cualquier otra forma cae a la ruta normal.
+	///
+	/// Motivo (medido en la 086): 288 intenciones costaban ~387k ciclos (~1.343/intención)
+	/// por el despacho + `emit_palette`. Con el cielo a 64 bandas (4 colores por franja)
+	/// esta ruta NO aplica y se usa la general.
+	void emit_copper_intents_fast(const graphics::CopperIntent* intents, u16 count) {
+		if (intents == nullptr) {
+			return;
+		}
+		for (u16 i = 0; i < count; ++i) {
+			const graphics::CopperIntent& it = intents[i];
+			if (it.kind == graphics::CopperIntentKind::PaletteLine && it.count == 1u && !it.colors.empty()) {
+				m_builder.wait_line_pal(it.top);
+				if (it.top <= 255u) {
+					m_timeline.reserve_wait(static_cast<u8>(it.top & 0xffu));
+				}
+				++m_report.waits;
+				if (it.top <= 255u) {
+					m_timeline.reserve_moves(static_cast<u8>(it.top & 0xffu), 1u);
+				}
+				m_builder.move(color_register(it.first), it.colors[it.first]);
+				++m_report.palette_moves;
+			} else {
+				emit_single_intent(it, {}, 0, 0);
+			}
 		}
 	}
 

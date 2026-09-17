@@ -6,3 +6,4 @@
 - **Límites:** Ancho 16 píxeles (o 64 con attach), colores por sprite limitados; prioridad vs bitplanes en `BPLCON2`.
 - **AHRM:** Capítulo Sprite.
 - **Lab:** Escena mínima con 2–3 sprites y fondo dual playfield; capturar con MCP.
+- **Multiplexado:** esta ficha cubre la idea general. Para el **rearmado horizontal** (fondo continuo tipo Risky Woods / Free Form, donde el Copper reposiciona y recarga el canal **dentro de la misma línea**), ver [sprite-horizontal-multiplex.md](sprite-horizontal-multiplex.md); para el vertical (más objetos en distinta Y), `SpriteRearm` en `raster_intent.hpp`.

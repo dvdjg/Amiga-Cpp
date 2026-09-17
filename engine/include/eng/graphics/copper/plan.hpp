@@ -124,7 +124,7 @@ public:
 		// emite de una en una pero con el emisor inline (sin coste de llamada por elemento).
 		ENG_PROF_BEGIN(eng::debug::prof_emit);
 		for (u16 i = 0; i < m_count; ++i) {
-			m_sched.emit_copper_intents(&m_intents[m_perm[i]], 1u);
+			m_sched.emit_copper_intents_fast(&m_intents[m_perm[i]], 1u);
 		}
 		ENG_PROF_END(eng::debug::prof_emit);
 	}

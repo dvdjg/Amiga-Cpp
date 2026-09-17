@@ -322,7 +322,11 @@ struct BobObjectsDemo {
 			return;
 		}
 		ENG_PROF_END(kProfCopper);
-		g_eng_run_status.detail = (static_cast<eng::u32>(emitted) << 8u) |
+		// detail = nº de intenciones del plan (16 bits altos) | BOBs emitidos (8 bits
+		// medios) | BOBs configurados (8 bits bajos). El conteo de intenciones permite
+		// interpretar `emit` (ciclos por intención) sin sondas extra.
+		g_eng_run_status.detail = (static_cast<eng::u32>(m_plan.intent_count() & 0xffffu) << 16u) |
+					  (static_cast<eng::u32>(emitted) << 8u) |
 					  static_cast<eng::u32>(kBobCount);
 	}
 
