@@ -170,6 +170,22 @@ int main() {
 		      "pow(4,0.5) = 2");
 	}
 
+	// --- tamaño de tabla elegible en compilación ----------------------------
+	{
+		const er::q12 x {2300}; // ≈ 0.5615 rad
+		const double ref = std::sin(2300.0 / 4096.0);
+		const double e_def = std::fabs(em::to_double(em::fixed_sin<12, 1024>(x)) - ref);
+		const double e_lo = std::fabs(em::to_double(em::fixed_sin<12, 256>(x)) - ref);
+		check(e_def <= 4.0e-3, "fixed_sin<1024> preciso");
+		check(e_lo <= 3.0e-2, "fixed_sin<256> aceptable");
+		// exp2/log2 con tablas pequeñas.
+		check(std::fabs(em::to_double(em::fixed_exp2<12, 64>(q(1.0f))) - 2.0) <= 2.0e-2,
+		      "fixed_exp2<64>(1) ≈ 2");
+		check(std::fabs(em::to_double(em::fixed_log2<12, 64>(q(4.0f))) - 2.0) <= 2.0e-2,
+		      "fixed_log2<64>(4) ≈ 2");
+		std::printf("  sin err: 1024=%.4f 256=%.4f\n", e_def, e_lo);
+	}
+
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;
