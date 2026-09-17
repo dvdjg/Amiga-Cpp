@@ -52,8 +52,7 @@ Puntos de reutilización explícitos:
 
 - `has_single_bit` se apoya en `eng::is_pow2` (`fast_div.hpp`); no se redefine la
   detección de potencia de dos.
-- El orden de elementos lo cubre `eng/core/sort.hpp` (`quick_sort`/`sort_items`);
-  `algorithm.hpp` no incluye una segunda ordenación.
+- El orden de elementos lo cubre `eng/core/sort.hpp` (`quick_sort`/`sort_items`, más `stable_sort`, `nth_element`, `partial_sort` e `is_sorted`; `radix_sort_u16` para claves de 16 bits); `algorithm.hpp` no incluye una segunda ordenación.
 - `Array<T,N>` y `ct_array<T,N>` son distintos a propósito: el primero es un agregado
   que se inicializa con llaves como un array C; el segundo genera su contenido en
   compilación desde un functor.
@@ -151,6 +150,7 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-087 | `intrusive_list.hpp` (`IntrusiveList`/`IntrusiveSList`, free-list) |
 | HOST-088 | `pool.hpp` (handles generacionales, reciclado de slots) |
 | HOST-089 | `priority_queue.hpp` (max/min-heap, comparador propio) |
+| HOST-090 | `core/sort.hpp` (stable/nth/partial/radix) |
 
 > **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`) y `Pool` por `086_bob_objects` (parque de actores). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashMap`/`HashSet`, `DynamicHashMap`, `PriorityQueue`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..089 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
 

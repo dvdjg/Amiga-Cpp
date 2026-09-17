@@ -134,4 +134,164 @@ constexpr void sort_items(Span<SortItem> items) {
     });
 }
 
+/// Orden **estable** con buffer auxiliar `scratch` (merge sort ascendente). Estable
+/// significa que las claves iguales conservan su orden relativo (útil cuando el orden
+/// de inserción importa: animaciones, capas, ids de red). Sin heap: `scratch` lo
+/// aporta el llamador y debe tener el tamaño de `items`; si no, cae a inserción
+/// (estable, O(n²)) para listas cortas.
+template <typename T, typename Less>
+constexpr void stable_sort(Span<T> items, Less less, Span<T> scratch) {
+    const usize n = items.size();
+    if (n < 2u) {
+        return;
+    }
+    if (scratch.size() < n) {
+        detail::insertion_sort(items, 0u, n - 1u, less);
+        return;
+    }
+    // Merge sort ascendente (bottom-up): no recursión, pila O(1).
+    for (usize width = 1u; width < n; width *= 2u) {
+        for (usize i = 0u; i < n; i += 2u * width) {
+            const usize mid = (i + width < n) ? (i + width) : n;
+            const usize end = (i + 2u * width < n) ? (i + 2u * width) : n;
+            usize a = i;
+            usize b = mid;
+            usize k = i;
+            while (a < mid && b < end) {
+                if (less(items[b], items[a])) {
+                    scratch[k++] = items[b++];
+                } else {
+                    scratch[k++] = items[a++]; // empate: primero el de la izquierda
+                }
+            }
+            while (a < mid) {
+                scratch[k++] = items[a++];
+            }
+            while (b < end) {
+                scratch[k++] = items[b++];
+            }
+        }
+        for (usize i = 0u; i < n; ++i) {
+            items[i] = scratch[i];
+        }
+    }
+}
+
+/// Orden estable **sin** buffer (inserción). Coste O(n²): para listas cortas o casi
+/// ordenadas; con listas largas usa la sobrecarga con `scratch`.
+template <typename T, typename Less>
+constexpr void stable_sort(Span<T> items, Less less) {
+    if (items.size() >= 2u) {
+        detail::insertion_sort(items, 0u, items.size() - 1u, less);
+    }
+}
+
+/// Deja en `items[nth]` el elemento que ocuparía esa posición si estuviera ordenado,
+/// con los menores (o iguales) antes y los mayores después, **sin ordenar el resto**
+/// (quickselect, O(n) esperado). Útil para medianas y `top-k`.
+template <typename T, typename Less>
+constexpr void nth_element(Span<T> items, usize nth, Less less) {
+    const usize n = items.size();
+    if (n < 2u || nth >= n) {
+        return;
+    }
+    usize lo = 0u;
+    usize hi = n - 1u;
+    while (lo < hi) {
+        const usize pivot = lo;
+        usize left = lo + 1u;
+        usize right = hi;
+        while (left < right) {
+            while (left < hi && less(items[left], items[pivot])) {
+                ++left;
+            }
+            while (right > lo && !less(items[right], items[pivot])) {
+                --right;
+            }
+            if (left < right) {
+                T tmp = items[left];
+                items[left] = items[right];
+                items[right] = tmp;
+            }
+        }
+        T tmp = items[pivot];
+        items[pivot] = items[right];
+        items[right] = tmp;
+        if (nth == right) {
+            return;
+        }
+        if (nth < right) {
+            hi = right - 1u;
+        } else {
+            lo = right + 1u;
+        }
+    }
+}
+
+/// Ordena los `n` primeros elementos (los `n` menores, ya ordenados) dejando el resto
+/// sin garantía de orden. Combina `nth_element` y un quicksort de la primera parte.
+template <typename T, typename Less>
+constexpr void partial_sort(Span<T> items, usize n, Less less) {
+    const usize size = items.size();
+    if (n >= size) {
+        quick_sort(items, less);
+        return;
+    }
+    if (n == 0u) {
+        return;
+    }
+    nth_element(items, n, less);
+    quick_sort(items.first(n), less);
+}
+
+/// ¿Está la vista ordenada según `less`?
+template <typename T, typename Less>
+[[nodiscard]] constexpr bool is_sorted(Span<T> items, Less less) {
+    for (usize i = 1u; i < items.size(); ++i) {
+        if (less(items[i], items[i - 1u])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// Orden **por conteo (LSD radix)** de claves `u16` en dos pasadas de 8 bits, estable
+/// y sin heap: `scratch` (tamaño `items`) lo aporta el llamador. Devuelve `false` si
+/// `scratch` es insuficiente. Usa 256 contadores `u32` en pila (1 KiB): para muchas
+/// claves de 16 bits (ids, índices) suele batir al quicksort y no depende de la
+/// distribución.
+constexpr bool radix_sort_u16(Span<u16> items, Span<u16> scratch) {
+    const usize n = items.size();
+    if (n < 2u) {
+        return true;
+    }
+    if (scratch.size() < n) {
+        return false;
+    }
+    u32 count[256];
+    for (int pass = 0; pass < 2; ++pass) {
+        const u32 shift = static_cast<u32>(pass) * 8u;
+        for (u32 b = 0u; b < 256u; ++b) {
+            count[b] = 0u;
+        }
+        for (usize i = 0u; i < n; ++i) {
+            ++count[(items[i] >> shift) & 0xffu];
+        }
+        u32 sum = 0u;
+        for (u32 b = 0u; b < 256u; ++b) {
+            const u32 c = count[b];
+            count[b] = sum;
+            sum += c;
+        }
+        for (usize i = 0u; i < n; ++i) {
+            const u32 key = (items[i] >> shift) & 0xffu;
+            scratch[count[key]++] = items[i];
+        }
+        for (usize i = 0u; i < n; ++i) {
+            items[i] = scratch[i];
+        }
+    }
+    return true;
+}
+
 } // namespace eng
