@@ -184,4 +184,4 @@ Otros comandos útiles para inspección: `memory`, `blitter`, `denise`, `paula`,
 - Página del autor (funcionalidad, changelog, capturas): [heckmeck.de/amigastyle/coppenheimer](https://heckmeck.de/amigastyle/coppenheimer/).
 - vAmiga: [dirkwhoffmann.github.io/vAmiga](https://dirkwhoffmann.github.io/vAmiga).
 - vAmigaWeb: [vamigaweb.github.io/doc/about.html](https://vamigaweb.github.io/doc/about.html).
-- Integración con flujo de depuración del proyecto: [debug-with-ai.md](debug-with-ai.md) (Plan B: Coppenheimer).
+- Integración con flujo de depuración del proyecto: [debug-with-ai.md](../debugging/debug-with-ai.md) (Plan B: Coppenheimer).

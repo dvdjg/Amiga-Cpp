@@ -9,10 +9,10 @@
 //   --json   imprime el resultado como JSON
 //
 // Por defecto se revisa la documentacion **mantenida** (router, arquitectura, guias
-// —incluida methodology—, testing, build, debugging, emulacion e indices). Quedan
-// fuera los arboles historicos/importados que aun conservan enlaces al repo de origen
-// (docs/engine/c-engine, docs/legacy y los .md importados sueltos de docs/emulation);
-// para revisarlos, pasar la raiz explicitamente.
+// —incluidas methodology y roadmap—, testing, build, debugging, emulacion e indices).
+// Quedan fuera los arboles historicos/importados que aun conservan enlaces al repo de
+// origen (docs/engine/c-engine, docs/legacy); para revisarlos, pasar la raiz
+// explicitamente.
 //
 // No se comprueban: enlaces absolutos (http/https/mailto), anclas puras (#...),
 // rutas absolutas de Windows, el manual OCR (`*.cat.md`) y destinos bajo directorios
@@ -37,7 +37,7 @@ const DEFAULT_ROOTS = [
   'docs/testing',
   'docs/build/BUILD_AND_RUN.md',
   'docs/debugging',
-  'docs/emulation/README.md',
+  'docs/emulation',
   'docs/reference/README.md',
   'docs/tools/README.md',
   'docs/demos/README.md',
@@ -47,9 +47,31 @@ const GENERATED = new Set(['out', 'obj', 'dist']);
 const EXT = new Set(['.md', '.markdown']);
 
 const args = process.argv.slice(2);
+
+if (args.includes('--help') || args.includes('-h')) {
+  console.log(`Comprueba que los enlaces relativos de la documentación (Markdown) apunten a
+ficheros o directorios existentes.
+
+Uso: node tools/check/links.mjs [raíces...] [--quiet] [--json] [--help]
+
+  raíces   ficheros o directorios Markdown a revisar. Por defecto, la
+           documentación canónica (AGENTS.md, router, arquitectura, guías,
+           testing, build, debugging, emulación e índices).
+  --quiet  imprime solo el resumen y los fallos.
+  --json   imprime el resultado como JSON.
+  --help   muestra esta ayuda.
+
+No se comprueban: enlaces absolutos (http/https/mailto), anclas puras (#...),
+rutas absolutas de Windows, el manual OCR (*.cat.md) y destinos bajo
+directorios generados (out/, obj/, dist/).
+
+Salida: 0 si no hay enlaces rotos; 1 si hay alguno.`);
+  process.exit(0);
+}
+
 const quiet = args.includes('--quiet');
 const json = args.includes('--json');
-const roots = args.filter((a) => !a.startsWith('--'));
+const roots = args.filter((a) => !a.startsWith('-'));
 const ROOTS = roots.length ? roots : DEFAULT_ROOTS;
 
 function walk(target, out = []) {
@@ -139,7 +161,7 @@ for (const file of files) {
 if (json) {
   console.log(JSON.stringify({ checked: seen.size, broken }, null, 2));
 } else if (broken.length === 0) {
-  console.log(`[links] OK: ${seen.size} documento(s), sin enlaces relativos rotos.`);
+  if (!quiet) console.log(`[links] OK: ${seen.size} documento(s), sin enlaces relativos rotos.`);
 } else {
   console.error(`[links] ${broken.length} enlace(s) roto(s) en ${seen.size} documento(s):`);
   for (const b of broken) console.error(`  ${b.file}:${b.line}: ${b.target}`);

@@ -14,7 +14,7 @@ En la parte de kernel/loader, ninguna ruta más moderna debería desplazar a la 
 
 ### Visión de capacidades (IA ↔ emulador)
 
-La IA debe poder: **cargar ADF en caliente** cuando el flujo lo permita; **volcar el binario** del cross-compiler en memoria (`winuae_load`, `winuae_memory_write`, etc.); **leer** memoria, registros **custom** y **CPU**; **escribir** memoria y registros; **depurar** (breakpoints, `continue`, **paso a paso** con `winuae_step`, `winuae_wait_stop`). Objetivo adicional: **instantánea única** del estado de la máquina y **decodificación de bitmaps** desde chip RAM para extraer gráficos coloreados — parte de esto es **desarrollo pendiente** en MCP/WinUAE; el inventario hecho/pendiente y la hoja de ruta están en [amiga-test-battery-spec.md](amiga-test-battery-spec.md) §2 y §10.
+La IA debe poder: **cargar ADF en caliente** cuando el flujo lo permita; **volcar el binario** del cross-compiler en memoria (`winuae_load`, `winuae_memory_write`, etc.); **leer** memoria, registros **custom** y **CPU**; **escribir** memoria y registros; **depurar** (breakpoints, `continue`, **paso a paso** con `winuae_step`, `winuae_wait_stop`). Objetivo adicional: **instantánea única** del estado de la máquina y **decodificación de bitmaps** desde chip RAM para extraer gráficos coloreados — parte de esto es **desarrollo pendiente** en MCP/WinUAE; el inventario hecho/pendiente y la hoja de ruta están en [amiga-test-battery-spec.md](../engine/c-engine/amiga-test-battery-spec.md) §2 y §10.
 
 ## 1. Elegir máquina
 
@@ -29,7 +29,7 @@ source scripts/select-winuae-machine.sh a1200   # exporta WINUAE_CONFIG
 bash scripts/build.sh --debug --machine=a1200
 ```
 
-Edita los `.uae` y sustituye `YOURUSER`, ROMs y rutas `filesystem`/`filesystem2` antes de depurar. Detalle: [config/winuae/README.md](../config/winuae/README.md).
+Edita los `.uae` y sustituye `YOURUSER`, ROMs y rutas `filesystem`/`filesystem2` antes de depurar. Detalle: [BUILD_AND_RUN.md](../build/BUILD_AND_RUN.md).
 
 **MCP:** opcionalmente `winuae_connect` con argumento `config_file` apuntando al `.uae` (sobrescribe `WINUAE_CONFIG` solo para esa conexión).
 
@@ -48,7 +48,7 @@ Salida: `out/a.exe`, `out/a.map`, `out/a.elf`.
 **Arranque desde ADF (recomendado con Workbench/DOS):**
 
 1. `make adf` o scripts `create-adf` → `out/disk.adf`
-2. MCP: `winuae_insert_disk` con ruta a `out/disk.adf` (inserción **en caliente** con sesión ya conectada según soporte del monitor; ver limitaciones en [amiga-test-battery-spec.md](amiga-test-battery-spec.md) §2.1)
+2. MCP: `winuae_insert_disk` con ruta a `out/disk.adf` (inserción **en caliente** con sesión ya conectada según soporte del monitor; ver limitaciones en [amiga-test-battery-spec.md](../engine/c-engine/amiga-test-battery-spec.md) §2.1)
 3. `winuae_connect` (o `winuae_connect_existing` si ya lanzaste WinUAE con F5 o dejaste una sesión visible abierta de un turno anterior)
 4. Para observar el boot/ADF sin romper actividad DOS o disco, usa attach no intrusivo: `force_break=false` e `initialize_stopped=false`.
 5. Si el caso es `dos_hunk_exe`, no asumas que `qOffsets` devolverá siempre la forma clásica `Text=...;Data=...;Bss=...`; en abril de 2026 M03 sigue devolviendo respuestas no estándar en la ruta ADF, así que la resolución automática de símbolos del proceso DOS aún no es fiable.
@@ -145,15 +145,14 @@ hex: "4e714e75", address: "$80000", pc: "$80000", continue_after: false
 
 ## 7. Integración y tests
 
-- Script de proyecto: [scripts/run-integration-test.sh](../scripts/run-integration-test.sh) (build + ADF + prueba UI vía Node).
 - Secuencia mínima documentada arriba sustituye una “única hoja de ruta” para comprobar `out/a.exe` con GDB + MCP.
-- **Batería de pruebas gráficas/hardware (catálogo, evidencias 320×…, EHB, copper, blitter, dual PF, sprites, audio, AGA):** [amiga-test-battery-spec.md](amiga-test-battery-spec.md).
-- **Qué falta por implementar (fases A–E, IDs, MCP):** [amiga-implementation-roadmap.md](amiga-implementation-roadmap.md).
+- **Batería de pruebas gráficas/hardware (catálogo, evidencias 320×…, EHB, copper, blitter, dual PF, sprites, audio, AGA):** [amiga-test-battery-spec.md](../engine/c-engine/amiga-test-battery-spec.md).
+- **Qué falta por implementar (fases A–E, IDs, MCP):** [amiga-implementation-roadmap.md](../engine/c-engine/amiga-implementation-roadmap.md).
 - **Análisis visual local de capturas:** `scripts/lmstudio-vision.mjs` y `.cursor/lmstudio.json`.
 
 ## 8. Referencias cruzadas
 
-- Depuración general (DAP, overlay, perfil): [debug-with-ai.md](debug-with-ai.md)
+- Depuración general (DAP, overlay, perfil): [debug-with-ai.md](../debugging/debug-with-ai.md)
 - Reglas del workspace y WinUAE: `.cursor/rules/amiga-verification-flow.mdc`, `amiga-debug-with-mcp.mdc`
 ## Actualización: memoria y cargas directas
 

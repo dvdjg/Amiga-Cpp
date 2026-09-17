@@ -24,19 +24,19 @@ Las demos 103/104 (`demos/amiga/103_tile_scroll_ring`, `104_tile_scroll_ring_dua
 
 La cifra histórica (101=~48, 102=~50, 103=~50, 104=~47,6) no era reproducible: no se anotó commit/config/fecha, la demo 102 ya no existe en el árbol de fuentes y las medidas posteriores daban otra cosa para 103/104. La tabla trazable vigente es:
 
-| Demo | `CONFIG_ID` | fps emulado | ciclos/frame | `detail` |
-|---|---|---|---|---|
-| `101_ehb_tile_scroll_driver` | `A500_debug` | 49,75 | 142 576 | 0x11595823 |
-| `103_tile_scroll_ring` | `A500_debug` | 32,95 | 215 306 | 0x13100200 |
-| `104_tile_scroll_ring_dualpf` | `A500_debug` | 30,02 | 236 313 | 0x14020600 |
+| Demo | `CONFIG_ID` | fps emulado | ciclos/frame | `detail` | fecha | commit |
+|---|---|---|---|---|---|---|
+| `101_ehb_tile_scroll_driver` | `A500_debug` | 49,92 | 142 102 | 0x11595823 | 2026-09-17 | `53af1d4` |
+| `103_tile_scroll_ring` | `A500_debug` | 32,95 | 215 306 | 0x13100200 | 2026-09-17 | `1490dfc` |
+| `104_tile_scroll_ring_dualpf` | `A500_debug` | 30,02 | 236 313 | 0x14020600 | 2026-09-17 | `1490dfc` |
 
-Contexto de medida: fecha **2026-09-17**, commit **`1490dfc`**, `CONFIG_ID` **`A500_debug`** (build `--debug`, `-O1`), emulador **WinUAE-DBG x86**, herramienta `tools/debug/measure-fps.mjs` (contador de ciclos del periférico `0xB7E928`, 7,09379 MHz). El fps depende de la **fase** del recorrido (`detail`): comparar siempre con el mismo `detail`. En hardware real las demos de scroll van a 50 fps.
+Contexto de medida: `CONFIG_ID` **`A500_debug`** (build `--debug`, `-O1`), emulador **WinUAE-DBG x86**, herramienta `tools/debug/measure-fps.mjs` (contador de ciclos del periférico `0xB7E928`, 7,09379 MHz). El fps depende de la **fase** del recorrido (`detail`): comparar siempre con el mismo `detail`. En hardware real las demos de scroll van a 50 fps.
 
 **Protocolo para reproducir y añadir filas:**
 
 1. Compilar: `bash ./tools/build/build-demo.sh demos/amiga/<demo> --debug` (o `--release`).
-2. Medir: `node tools/debug/measure-fps.mjs <demo> A500_debug`.
-3. Anotar: fecha, `CONFIG_ID`, commit (`git rev-parse --short HEAD`) y `detail`.
+2. Medir y anotar de una vez: `node tools/debug/record-fps.mjs <demo> A500_debug` (ejecuta `measure-fps.mjs --json` y anexa/actualiza la fila con fecha, commit, config y `detail`). Con `--dry-run` solo imprime la fila.
+3. A mano (sin el helper): `node tools/debug/measure-fps.mjs <demo> A500_debug --json` y pegar la fila con fecha/commit/`detail`.
 
 **Notas de la re-medición (2026-09-17):**
 

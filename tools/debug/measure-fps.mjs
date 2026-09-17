@@ -3,7 +3,11 @@
 // de depuración 0xB7E928, 7.09379 MHz en A500), independiente del ancho de banda host.
 //
 // Uso:
-//   node tools/debug/measure-fps.mjs <demo_dir_name> [CONFIG_NAME]
+//   node tools/debug/measure-fps.mjs <demo_dir_name> [CONFIG_NAME] [--json]
+//
+// --json imprime, como última línea, un objeto JSON con el resultado (demo, config,
+// fecha, commit, fps emulado/host, ciclos/frame y detail) para consumo por tooling
+// (p. ej. tools/debug/record-fps.mjs).
 //
 // Puertos: WINUAE_GDB_PORT (GDB, 2345) y WINUAE_SIDE_CHANNEL_PORT (lateral, 2346).
 // Parametrizables para convivir con otras instancias de WinUAE (no pisar la ajena).
@@ -12,6 +16,7 @@
 // secciones) en vez de escanear el magic ENG: el escaneo daba falsos positivos.
 import { WinUAEConnection } from '../../../mcp-winuae-emu/dist/winuae-connection.js';
 import { sideChannelCommand } from '../../../mcp-winuae-emu/dist/side-channel.js';
+import { execSync } from 'node:child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -19,9 +24,12 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../..');
 
-const DEMO = process.argv[2];
-if (!DEMO) { console.error('Uso: node tools/debug/measure-fps.mjs <demo_dir_name> [CONFIG_NAME]'); process.exit(1); }
-const CONFIG_NAME = process.argv[3] || 'A500_debug';
+const ARGV = process.argv.slice(2);
+const JSON_OUT = ARGV.includes('--json');
+const POSITIONAL = ARGV.filter((a) => !a.startsWith('-'));
+const DEMO = POSITIONAL[0];
+if (!DEMO) { console.error('Uso: node tools/debug/measure-fps.mjs <demo_dir_name> [CONFIG_NAME] [--json]'); process.exit(1); }
+const CONFIG_NAME = POSITIONAL[1] || 'A500_debug';
 const GDB_PORT = parseInt(process.env.WINUAE_GDB_PORT || '2345', 10);
 const SIDE_PORT = parseInt(process.env.WINUAE_SIDE_CHANNEL_PORT || '2346', 10);
 const MAP = `${ROOT}/out/demos/${DEMO}/${CONFIG_NAME}/${DEMO}.${CONFIG_NAME}.map`;
@@ -122,6 +130,23 @@ console.log('[fps] ' + DEMO + '/' + CONFIG_NAME +
   ' | host=' + ((dFrame) / ((t1 - t0) / 1000)).toFixed(2) + ' fps' +
   ' | ' + (dCycles / Math.max(1, dFrame)).toFixed(0) + ' ciclos/frame (' + (dCycles / Math.max(1, dFrame) / (CPU_HZ / 50)).toFixed(1) + ' lineas/frame)' +
   ' | detail=0x' + (b.detail >>> 0).toString(16));
+
+if (JSON_OUT) {
+  let commit = null;
+  try { commit = execSync('git rev-parse --short HEAD', { cwd: ROOT }).toString().trim(); } catch { /* sin git */ }
+  const result = {
+    demo: DEMO,
+    config: CONFIG_NAME,
+    date: new Date().toISOString().slice(0, 10),
+    commit,
+    emulatedFps: Number(emuFps.toFixed(2)),
+    hostFps: Number(((dFrame) / ((t1 - t0) / 1000)).toFixed(2)),
+    cyclesPerFrame: Math.round(dCycles / Math.max(1, dFrame)),
+    linesPerFrame: Number((dCycles / Math.max(1, dFrame) / (CPU_HZ / 50)).toFixed(1)),
+    detail: '0x' + (b.detail >>> 0).toString(16),
+  };
+  console.log(JSON.stringify(result));
+}
 
 await conn.disconnect(true);
 process.exit(0);
