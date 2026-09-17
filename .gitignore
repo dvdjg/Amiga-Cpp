@@ -79,3 +79,10 @@ Thumbs.db
 Amiga-C.code-workspace
 *.code-workspace
 .*/
+# Config del lanzador F5 de este repo: se versiona (la del workspace multi-carpeta
+# vive fuera, en Amiga-Cpp.code-workspace).
+!.vscode/
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/settings.json

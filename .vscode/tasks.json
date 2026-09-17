@@ -1,0 +1,31 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Amiga-Optimizations: compilar archivo actual",
+      "type": "process",
+      "command": "C:\\Program Files\\Git\\bin\\bash.exe",
+      "args": [
+        "-lc",
+        "./tools/debug/build-current-demo.sh \"$(cygpath -u '${file}')\""
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Amiga-Optimizations: compilar archivo actual (optimizado)",
+      "type": "process",
+      "command": "C:\\Program Files\\Git\\bin\\bash.exe",
+      "args": [
+        "-lc",
+        "./tools/debug/build-current-demo-opt.sh \"$(cygpath -u '${file}')\""
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
