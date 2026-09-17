@@ -37,6 +37,8 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/util/intrusive_list.hpp>
 #include <eng/core/util/dynamic_hash_map.hpp>
 #include <eng/core/util/stats.hpp>
+#include <eng/core/util/color.hpp>
+#include <eng/core/util/collision.hpp>
 #include <eng/core/sort.hpp>
 #include <eng/graphics/mesh_renderer.hpp>
 #include <eng/platform/amiga/lib3d.hpp>
@@ -242,6 +244,17 @@ extern "C" u16 c_dyn_hashmap(eng::u8* scratch, eng::u32 bytes, u16 seed) {
 extern "C" s16 c_stats_ops(const s16* data, int n) {
 	eng::Span<const q12> xs {reinterpret_cast<const q12*>(data), static_cast<eng::usize>(n)};
 	return static_cast<s16>(eu::mean(xs).v + eu::variance(xs).v);
+}
+extern "C" u16 c_color_lerp(u16 a, u16 b, u16 num, u16 den) {
+	return eu::lerp444(a, b, num, den);
+}
+extern "C" u16 c_collision_ops(s16 ax, s16 ay, s16 bx, s16 by, s16 cx, s16 cy, s16 dx, s16 dy) {
+	const eng::Point2s a {ax, ay};
+	const eng::Point2s b {bx, by};
+	const eng::Point2s c {cx, cy};
+	const eng::Point2s d {dx, dy};
+	return static_cast<u16>((eu::segments_intersect(a, b, c, d) ? 1u : 0u) +
+				(eu::circle_overlap(a, 4, c, 4) ? 2u : 0u));
 }
 `;
 
