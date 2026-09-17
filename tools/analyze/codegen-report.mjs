@@ -41,6 +41,8 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/util/collision.hpp>
 #include <eng/core/util/text.hpp>
 #include <eng/core/util/grid.hpp>
+#include <eng/core/util/broadphase.hpp>
+#include <eng/core/util/pathfinding.hpp>
 #include <eng/core/sort.hpp>
 #include <eng/graphics/mesh_renderer.hpp>
 #include <eng/platform/amiga/lib3d.hpp>
@@ -272,6 +274,36 @@ extern "C" s16 c_grid_ops(s16 tx, s16 ty) {
 	eu::Hex vecinos[6];
 	eu::hex_neighbors(eu::Hex {tx, ty}, vecinos);
 	return static_cast<s16>(back.x + back.y + eu::hex_distance(vecinos[0], vecinos[3]));
+}
+extern "C" u16 c_broadphase_ops(s16 x, s16 y) {
+	eu::SpatialHash<8, 8, 8, 16> g;
+	g.clear();
+	g.insert(1u, x, y);
+	g.insert(2u, static_cast<s16>(x + 3), y);
+	eng::u16 hits[4];
+	return static_cast<u16>(g.query(eu::Aabb {0, 0, 32, 32}, eng::Span<eng::u16> {hits, 4}));
+}
+extern "C" u16 c_pathfinding_ops(u16 start, u16 goal) {
+	static eng::s16 came[64];
+	static eng::u16 queue[64];
+	static eng::u16 gs[64];
+	static eng::u8 closed[64];
+	static eng::u16 path[64];
+	const auto walk = [](u16) { return true; };
+	const u16 s = static_cast<u16>(start % 64u);
+	const u16 g = static_cast<u16>(goal % 64u);
+	if (!eu::bfs<8, 8>(s, g, walk, eng::Span<eng::s16> {came, 64},
+			   eng::Span<eng::u16> {queue, 64})) {
+		return 0u;
+	}
+	const eng::usize bl = eu::reconstruct_path<8, 8>(eng::Span<const eng::s16> {came, 64}, s, g,
+							 eng::Span<eng::u16> {path, 64});
+	const bool aok = eu::astar<8, 8>(s, g, walk,
+					 [](u16, u16) { return static_cast<u16>(1u); },
+					 eng::Span<eng::s16> {came, 64},
+					 eng::Span<eng::u16> {gs, 64},
+					 eng::Span<eng::u8> {closed, 64});
+	return static_cast<u16>(bl + (aok ? 1u : 0u));
 }
 `;
 
