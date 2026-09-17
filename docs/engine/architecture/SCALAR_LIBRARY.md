@@ -172,6 +172,10 @@ El detalle del escalar de 16 bits está en [MINIFLOAT16.md](MINIFLOAT16.md); el 
   `MiniFloat16` y transforma coordenadas `q0` con `eng/retro/minifloat_fixed`
   (self-test de `sin`/`exp`/`sqrt` en hardware) — verificación por demo de
   `minifloat_math.hpp`.
+- Fixed: `eng/core/fixed_math.hpp` (`sin`/`cos`/`sqrt`/`exp2`/`log2`/`exp`/`log`/`pow`
+  para `Fixed<s16,E>`, con tablas compartidas) está respaldado por HOST-104 y
+  **verificado por demo** en `demos/amiga/110_ylimited_shooter` (self-test en `init`,
+  sin `float`).
 
 ## 7. Tabla función × escalar (generada)
 

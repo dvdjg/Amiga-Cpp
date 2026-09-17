@@ -23,6 +23,9 @@
 #include <eng/field/tile_demo.hpp>
 #include <eng/core/util/broadphase.hpp>
 #include <eng/core/util/pathfinding.hpp>
+#include <eng/core/fixed_math.hpp>
+#include <eng/core/geometry.hpp>
+#include <eng/core/interp.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -68,6 +71,38 @@ bool util_selftest() {
 	}
 	return eng::util::reconstruct_path<8, 8>(eng::Span<const eng::s16> {came, 64}, 0u, 63u,
 						 eng::Span<eng::u16> {path, 64}) == 15u;
+}
+
+/// Self-test de las matemáticas `Fixed` (`fixed_math.hpp`) en el 68000, **sin `float`**
+/// (compara valores crudos contra márgenes): `sin`/`cos` (tabla), `smooth_damp`
+/// (`exp2`), `pow` (`log2`+`exp2`) y `length` (`sqrt`). Si falla, la demo no llega a
+/// READY.
+bool fixed_math_selftest() {
+	using q12 = eng::math::Fixed<eng::s16, 12>;
+	const q12 zero {0};
+	if (eng::math::scalar_sin<q12>::op(zero).v != 0) {
+		return false;
+	}
+	const eng::s16 s_pi2 = eng::math::scalar_sin<q12>::op(q12 {6434}).v; // sin(pi/2) ≈ 1
+	if (!(s_pi2 >= 4000 && s_pi2 <= 4100)) {
+		return false;
+	}
+	const eng::s16 c_0 = eng::math::scalar_cos<q12>::op(zero).v; // cos(0) = 1
+	if (!(c_0 >= 4000 && c_0 <= 4100)) {
+		return false;
+	}
+	const q12 half =
+		eng::math::smooth_damp<q12>(zero, q12 {4096}, q12 {4096}, q12 {4096}); // 0.5
+	if (!(half.v >= 2000 && half.v <= 2100)) {
+		return false;
+	}
+	const q12 pw = eng::math::scalar_pow<q12>::op(q12 {8192}, q12 {8192}); // 2^2 = 4
+	if (!(pw.v >= 16200 && pw.v <= 16500)) {
+		return false;
+	}
+	const eng::math::Vec<2, q12> v {q12 {6144}, q12 {8192}}; // |(1.5,2.0)| = 2.5
+	const eng::s16 len = eng::math::length(v).v;
+	return len >= 10150 && len <= 10350;
 }
 
 constexpr eng::u16 kTileW = 16;
@@ -185,6 +220,10 @@ struct DemoGame {
 		scene.takeover(backend);
 		if (!util_selftest()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011005u);
+			return;
+		}
+		if (!fixed_math_selftest()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00011006u);
 			return;
 		}
 		ready = true;
