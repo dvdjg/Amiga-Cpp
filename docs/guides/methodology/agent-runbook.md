@@ -14,8 +14,8 @@ Guía para que el agente sea autónomo en desarrollo y depuración. Solo escalar
 ## Roadmap Amiga (MCP, batería, engine): sistema de agentes
 
 - **Roles, supervisión, Definition of Done y plantillas de prompt:** [agent-system-roadmap.md](agent-system-roadmap.md) (Orquestador G0, MCP G1, infra batería G2, efectos G3, engine G4, QA G5).
-- **Estado PENDIENTE / PARCIAL / HECHO por ID:** [amiga-implementation-roadmap.md](amiga-implementation-roadmap.md). No dar por cerrada una tarea del roadmap sin actualizar esa tabla en el mismo cambio.
-- **Especificación de pruebas y visión IA:** [amiga-test-battery-spec.md](amiga-test-battery-spec.md).
+- **Estado PENDIENTE / PARCIAL / HECHO por ID:** [amiga-implementation-roadmap.md](../../engine/c-engine/amiga-implementation-roadmap.md). No dar por cerrada una tarea del roadmap sin actualizar esa tabla en el mismo cambio.
+- **Especificación de pruebas y visión IA:** [amiga-test-battery-spec.md](../../engine/c-engine/amiga-test-battery-spec.md).
 - **Prompt maestro y contrato close-to-the-metal:** [amiga-lowlevel-agent-prompt.md](amiga-lowlevel-agent-prompt.md) y [amiga-lowlevel-technique-contract-template.md](amiga-lowlevel-technique-contract-template.md). Para tareas que mezclen display, copper, blitter, sprites o timings, rellenar antes el contrato tecnico y ejecutar por fases.
 
 ## Compilación y verificación

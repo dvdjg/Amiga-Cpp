@@ -202,8 +202,8 @@ Describe con detalle:
 ## Relacion con otros docs
 
 - El contrato que el prompt exige se rellena con [amiga-lowlevel-technique-contract-template.md](amiga-lowlevel-technique-contract-template.md).
-- El inventario previo y la validacion del setup de display se apoyan en [amiga-display-setup-checklist.md](amiga-display-setup-checklist.md).
-- El flujo de evidencia y depuracion real se apoya en [mcp-live-coding-workflow.md](mcp-live-coding-workflow.md) y [amiga-test-battery-spec.md](amiga-test-battery-spec.md).
+- El inventario previo y la validacion del setup de display se apoyan en [amiga-display-setup-checklist.md](../../reference/amiga/techniques/amiga-display-setup-checklist.md).
+- El flujo de evidencia y depuracion real se apoya en [mcp-live-coding-workflow.md](../../emulation/mcp-live-coding-workflow.md) y [amiga-test-battery-spec.md](../../engine/c-engine/amiga-test-battery-spec.md).
 - Para roles y supervision multiagente, ver [agent-system-roadmap.md](agent-system-roadmap.md).
-- Para APIs parametricas y capa retained, ver [engine-parametric-api-and-cpp-notes.md](engine-parametric-api-and-cpp-notes.md) y [engine-cpu-sprites-api-proposal.md](engine-cpu-sprites-api-proposal.md).
-- Para cobre dinamico dependiente de escena, ver [engine-dynamic-copper-scene-notes.md](engine-dynamic-copper-scene-notes.md).
+- Para APIs parametricas y capa retained, ver [engine-parametric-api-and-cpp-notes.md](../../engine/c-engine/engine-parametric-api-and-cpp-notes.md) y [engine-cpu-sprites-api-proposal.md](../../engine/c-engine/engine-cpu-sprites-api-proposal.md).
+- Para cobre dinamico dependiente de escena, ver [engine-dynamic-copper-scene-notes.md](../../engine/c-engine/engine-dynamic-copper-scene-notes.md).

@@ -8,10 +8,10 @@
 //   --quiet  solo resumen y fallos
 //   --json   imprime el resultado como JSON
 //
-// Por defecto solo se revisa la documentacion **mantenida** (router, arquitectura,
-// guias, testing, build, emulacion e indices). Los arboles historicos/importados
-// (docs/engine/c-engine, docs/legacy, docs/debugging, docs/emulation/*.md importados)
-// conservan enlaces al repo de origen y se excluyen para no fallar por deuda ajena;
+// Por defecto se revisa la documentacion **mantenida** (router, arquitectura, guias
+// —incluida methodology—, testing, build, debugging, emulacion e indices). Quedan
+// fuera los arboles historicos/importados que aun conservan enlaces al repo de origen
+// (docs/engine/c-engine, docs/legacy y los .md importados sueltos de docs/emulation);
 // para revisarlos, pasar la raiz explicitamente.
 //
 // No se comprueban: enlaces absolutos (http/https/mailto), anclas puras (#...),
@@ -33,10 +33,10 @@ const DEFAULT_ROOTS = [
   'docs/engine/architecture',
   'docs/guides/roadmap',
   'docs/guides/optimization',
-  'docs/guides/methodology/README.md',
-  'docs/guides/methodology/DEMO_VISUAL_DEBUG.md',
+  'docs/guides/methodology',
   'docs/testing',
   'docs/build/BUILD_AND_RUN.md',
+  'docs/debugging',
   'docs/emulation/README.md',
   'docs/reference/README.md',
   'docs/tools/README.md',

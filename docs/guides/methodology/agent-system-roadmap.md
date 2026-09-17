@@ -1,9 +1,9 @@
 # Sistema de agentes para el roadmap Amiga (MCP, batería, engine)
 
-Define **roles de agente** (pueden ser chats distintos en Cursor o turnos con un solo agente), **entregables**, **supervisión** y **actualización obligatoria** de [amiga-implementation-roadmap.md](amiga-implementation-roadmap.md).
+Define **roles de agente** (pueden ser chats distintos en Cursor o turnos con un solo agente), **entregables**, **supervisión** y **actualización obligatoria** de [amiga-implementation-roadmap.md](../../engine/c-engine/amiga-implementation-roadmap.md).
 
-**Documento de verdad del backlog:** [amiga-implementation-roadmap.md](amiga-implementation-roadmap.md).  
-**Especificación de pruebas y visión IA:** [amiga-test-battery-spec.md](amiga-test-battery-spec.md).  
+**Documento de verdad del backlog:** [amiga-implementation-roadmap.md](../../engine/c-engine/amiga-implementation-roadmap.md).  
+**Especificación de pruebas y visión IA:** [amiga-test-battery-spec.md](../../engine/c-engine/amiga-test-battery-spec.md).  
 **Runbook general del agente:** [agent-runbook.md](agent-runbook.md).
 
 ---
@@ -26,7 +26,7 @@ Define **roles de agente** (pueden ser chats distintos en Cursor o turnos con un
 | **G1 — MCP / WinUAE** | Herramientas GDB, monitor, snapshot, bitmap, ADF, relocs. | `mcp-winuae-emu/`, `WinUAE-DBG` / fork | A (A-MCP-*) |
 | **G2 — Infra batería** | Plantillas, scripts `run-battery-*`, índice `tests/amiga-battery/`, launcher menú. | `Cursor-Amiga-C/tests/`, `scripts/` | B (B-TEST-*) |
 | **G3 — Batería gráfica** | Implementar efectos T/C/B/S/A/M/AG; chip RAM, copper, blitter. | `app/effects/`, `tests/amiga-battery/*` | C |
-| **G4 — Engine** | APIs `engine_*` alineadas a [demoscene-effects-integration.md](demoscene-effects-integration.md). | `engine/` | D |
+| **G4 — Engine** | APIs `engine_*` alineadas a [demoscene-effects-integration.md](../../demos/effects/demoscene-effects-integration.md). | `engine/` | D |
 | **G5 — QA / Verificación** | Ejecutar build, pruebas smoke MCP, revisar `evidence/`, proponer corrección de estados PARCIAL. | scripts, MCP | Todas |
 
 **Nota Cursor:** Puedes abrir **un chat por rol** (título: `G1 MCP`, `G3 Batería`…) y pegar la **plantilla de §6**. El Orquestador puede ser tú o un agente cuyo único trabajo sea “siguiente tarea + revisión de cierre”.
@@ -62,7 +62,7 @@ El **Orquestador** no debe saltar a T04 antes de tener **T01** cerrado salvo dec
 | **A-MCP-*** | Código en `mcp-winuae-emu`, `npm run build` OK, README MCP actualizado, fila en §2 Fase A → **HECHO** o **PARCIAL** con subcriterios. |
 | **B-TEST-*** | Archivos en repo, script ejecutable o documentado, fila Fase B actualizada. |
 | **T/C/B/S/A/M/AG** | Código + integración menú o script + `evidence/` + README del caso; fila §4 → **HECHO**; opcionalmente entrada en `tests/amiga-battery/README.md`. |
-| **D-ENG-*** | API en `engine.h`, uso en al menos un efecto o test; [engine-roadmap.md](engine-roadmap.md) tocado si aplica. |
+| **D-ENG-*** | API en `engine.h`, uso en al menos un efecto o test; [engine-roadmap.md](../../engine/c-engine/engine-roadmap.md) tocado si aplica. |
 
 ---
 
@@ -143,7 +143,7 @@ Propón cambiar PARCIAL → HECHO o HECHO → PARCIAL si encuentras lagunas.
 ## 8. Referencias
 
 - Puntero corto: [agents/README.md](agents/README.md)
-- [amiga-implementation-roadmap.md](amiga-implementation-roadmap.md)
-- [amiga-test-battery-spec.md](amiga-test-battery-spec.md)
-- [mcp-live-coding-workflow.md](mcp-live-coding-workflow.md)
+- [amiga-implementation-roadmap.md](../../engine/c-engine/amiga-implementation-roadmap.md)
+- [amiga-test-battery-spec.md](../../engine/c-engine/amiga-test-battery-spec.md)
+- [mcp-live-coding-workflow.md](../../emulation/mcp-live-coding-workflow.md)
 - [agent-runbook.md](agent-runbook.md)

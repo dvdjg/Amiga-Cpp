@@ -67,6 +67,27 @@ function runtimeAddr(linked, ms, rs) {
   return parseInt(rs[idx], 16) + (linked - cand.start);
 }
 
+// La medida exige que el `a.exe` montado en `dh1` sea EXACTAMENTE la build cuyo
+// `.map` usamos para resolver simbolos. Si no coincide, la direccion de
+// `g_eng_run_status` cae en otro sitio y la medida sale invalida (detail=0x0,
+// contador de frames retrocediendo). Por eso copiamos aqui la build recien
+// compilada; no dependemos de un `run-demo` previo.
+const RUN_DIR = `${ROOT}/out/run/${DEMO}/${CONFIG_NAME}`;
+const RUNNER_UAE = `${RUN_DIR}/runner.uae`;
+const BUILT_EXE = `${ROOT}/out/demos/${DEMO}/${CONFIG_NAME}/${DEMO}.${CONFIG_NAME}.exe`;
+if (!fs.existsSync(RUNNER_UAE)) {
+  console.error(`[fps] falta ${RUNNER_UAE}; ejecuta una vez 'bash tools/run/run-demo.sh demos/amiga/${DEMO}' para generarlo.`);
+  process.exit(1);
+}
+if (!fs.existsSync(BUILT_EXE)) {
+  console.error(`[fps] falta ${BUILT_EXE}; compila la demo: 'bash tools/build/build-demo.sh demos/amiga/${DEMO}${CONFIG_NAME === 'A500_release' ? ' --release' : ''}'.`);
+  process.exit(1);
+}
+const STAGED_DIR = `${RUN_DIR}/dh1`;
+fs.mkdirSync(STAGED_DIR, { recursive: true });
+fs.copyFileSync(BUILT_EXE, `${STAGED_DIR}/a.exe`);
+console.log(`[fps] staged ${path.basename(BUILT_EXE)} -> ${STAGED_DIR}/a.exe`);
+
 const conn = new WinUAEConnection(CONFIG);
 await conn.connect({ forceBreak: false, initializeStopped: true });
 const p = conn.getProtocol();
