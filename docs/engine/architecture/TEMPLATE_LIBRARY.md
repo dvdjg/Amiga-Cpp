@@ -35,6 +35,7 @@ La librería **complementa** el núcleo de `eng/core/`, no lo duplica:
                                      ring_buffer.hpp   RingBuffer<T,N> (doble)
                                      stack_queue.hpp   Stack/Queue/Deque<T,N>
                                      enum_set.hpp      EnumSet<E,N>
+                                     stats.hpp         sum/mean/variance/median/histogram
                                      pool.hpp          Pool<T,N> (handles)
                                      priority_queue.hpp PriorityQueue<T,N,Cmp>
                                      intrusive_list.hpp IntrusiveList/SList<T>
@@ -105,6 +106,7 @@ Puntos de reutilización explícitos:
 | `string_view.hpp` | `StringView` | `std::string_view` |
 | `static_string.hpp` | `StaticString<N>` | (sin equivalente; `llvm::SmallString`) |
 | `scope_guard.hpp` | `ScopeGuard`, `make_scope_guard` | `boost::scope_exit` |
+| `stats.hpp` | `sum`/`mean`/`variance`/`stddev`/`kth_smallest`/`median`/`histogram`/`ema`/`RunningMean` | (sin equivalente; estadística) |
 | `function_ref.hpp` | `FunctionRef<Sig>` | `std::function_ref` (C++26) |
 
 ## 3. Reglas de diseño para Amiga 500
@@ -163,8 +165,9 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-090 | `core/sort.hpp` (stable/nth/partial/radix) |
 | HOST-091 | `stack_queue.hpp`, `enum_set.hpp` (y `RingBuffer` doble) |
 | HOST-092 | `scope_guard.hpp`, `static_string.hpp` |
+| HOST-093 | `stats.hpp` (media/varianza/orden/histograma, `double`/MF/`q12`) |
 
-> **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`), `Pool` por `086_bob_objects` (parque de actores) y `HashMap` por `111_xlimited_sidescroller` (índice de chunks de `ChunkCache`). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashSet`, `DynamicHashMap`, `PriorityQueue`, `Stack`/`Queue`/`Deque`, `EnumSet`, `ScopeGuard`, `StaticString`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..092 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
+> **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`), `Pool` por `086_bob_objects` (parque de actores) y `HashMap` por `111_xlimited_sidescroller` (índice de chunks de `ChunkCache`). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashSet`, `DynamicHashMap`, `PriorityQueue`, `Stack`/`Queue`/`Deque`, `EnumSet`, `ScopeGuard`, `StaticString`, `stats`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..093 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
 
 Los tests se ejecutan con el `g++` del entorno (Windows/MinGW, donde `unsigned long`
 mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
@@ -183,7 +186,8 @@ mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
    (`c_hashmap_find`/`c_hashset_contains`), `vector.hpp`/`chunked_vector.hpp`
    (`c_vector_grow`/`c_chunked_push`), `pool.hpp`/`priority_queue.hpp`/`intrusive_list.hpp`
    (`c_pool_ops`/`c_pq_ops`/`c_ilist_ops`), la ordenación de `core/sort.hpp`
-   (`c_stable_sort`/`c_nth_element`/`c_radix_u16`) y `dynamic_hash_map.hpp` (`c_dyn_hashmap`).
+   (`c_stable_sort`/`c_nth_element`/`c_radix_u16`), `dynamic_hash_map.hpp` (`c_dyn_hashmap`)
+   y `stats.hpp` (`c_stats_ops`).
 5. Antes de añadir una utilidad nueva, comprobar si el **vocabulario** de §7 ya cubre la
    necesidad (p. ej. flags con `EnumSet`, restauración con `ScopeGuard`, colas con
    `Queue`/`Deque`); adoptarlo en el engine y documentarlo aquí.
@@ -213,6 +217,7 @@ Qué usar según la necesidad, con el criterio del A500 (sin heap; coste visible
 | Valor opcional / resultado con error | `Optional<T>` / `Expected<T, E>` |
 | Vista de texto / construir texto sin heap | `StringView` / `StaticString<N>` |
 | Restaurar estado al salir del ámbito | `ScopeGuard` |
+| Estadística / telemetría (fps, carga) | `stats.hpp` (`mean`/`variance`/`ema`/`RunningMean`) |
 | Pasar un callable sin poseerlo | `FunctionRef<Sig>` |
 
 Notas de uso:

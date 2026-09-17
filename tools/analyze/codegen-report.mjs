@@ -36,6 +36,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/util/priority_queue.hpp>
 #include <eng/core/util/intrusive_list.hpp>
 #include <eng/core/util/dynamic_hash_map.hpp>
+#include <eng/core/util/stats.hpp>
 #include <eng/core/sort.hpp>
 #include <eng/graphics/mesh_renderer.hpp>
 #include <eng/platform/amiga/lib3d.hpp>
@@ -237,6 +238,10 @@ extern "C" u16 c_dyn_hashmap(eng::u8* scratch, eng::u32 bytes, u16 seed) {
 	const u16* p = m.find(seed);
 	m.erase(seed);
 	return static_cast<u16>(m.size() + (p != nullptr ? 1u : 0u));
+}
+extern "C" s16 c_stats_ops(const s16* data, int n) {
+	eng::Span<const q12> xs {reinterpret_cast<const q12*>(data), static_cast<eng::usize>(n)};
+	return static_cast<s16>(eu::mean(xs).v + eu::variance(xs).v);
 }
 `;
 
