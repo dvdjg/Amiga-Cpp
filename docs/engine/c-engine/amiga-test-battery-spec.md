@@ -8,8 +8,8 @@ Documento maestro para implementar **tests reproducibles** (código + capturas +
 
 1. Cada prueba debe poder **compilarse**, **arrancar en emulador** (ADF o carga según el caso) y generar **evidencia** (al menos una captura PNG).
 2. **Cobertura del engine**: la matriz [engine-test-battery-matrix.md](engine-test-battery-matrix.md) enlaza cada subsistema reusable con un caso previsto o existente; al añadir API en `engine/`, actualizar la matriz y el caso de prueba asociado. El plan detallado de niveles de test, trazas y visión está en [engine-unified-test-roadmap.md](engine-unified-test-roadmap.md).
-3. La IA puede automatizar: build, despliegue, lectura/escritura de memoria y registros, depuración paso a paso, reconocimiento de gráficos (cuando exista la herramienta) — ver §2 y [mcp-live-coding-workflow.md](mcp-live-coding-workflow.md).
-4. Documentar **límites por máquina** (OCS/ECS vs AGA): usar [amiga-chipset-matrix.md](amiga-chipset-matrix.md).
+3. La IA puede automatizar: build, despliegue, lectura/escritura de memoria y registros, depuración paso a paso, reconocimiento de gráficos (cuando exista la herramienta) — ver §2 y [mcp-live-coding-workflow.md](../../emulation/mcp-live-coding-workflow.md).
+4. Documentar **límites por máquina** (OCS/ECS vs AGA): usar [amiga-chipset-matrix.md](../../reference/amiga/hardware/amiga-chipset-matrix.md).
 5. Cualquier caso que toque hardware/kickstart/kernel debe incluir respaldo técnico en `docs/technique.md` con referencias objetivas (AHRM, RKM/NDK, autodocs, etc.).
 
 ## 1.1 Compatibilidad base del kernel y del loader
@@ -140,7 +140,7 @@ Por tanto, el estado objetivo es que los casos usen cada vez más biblioteca com
 | **Log de asserts/eventos en RAM** | Recomendado para todos los casos nuevos | Capturar `g_battery_evidence_log` en `evidence-log.json` / `evidence-log.md` con `run_id`, `last_stage`, `final_status`, `assert_failures` y anillo de eventos. Debe validarse firma (`BATTERY_EVIDENCE_MAGIC`) y permitir demostrar que el test alcanzó su checkpoint final aunque la imagen falle o no sea concluyente. |
 | **Traza ligera de SO/custom** | Recomendado en casos DOS o de depuración de vídeo | Emitir eventos `battery_sys_trace_*` (por ejemplo `OpenLibrary`, `CloseLibrary`, `LoadView`, y muestras de `VPOSR/VHPOSR`) dentro del `evidence-log` para confirmar actividad del sistema y presentación de frames. |
 | **Bitmap decodificado** | Comparar playfield / bob con golden image | Cuando exista herramienta §2.4 |
-| **Perfil de frame** | CPU vs blitter vs copper | `winuae_profile` (WinUAE-DBG); analizar con `scripts/parse-amigaprofile.sh` — ver [debug-with-ai.md](debug-with-ai.md) |
+| **Perfil de frame** | CPU vs blitter vs copper | `winuae_profile` (WinUAE-DBG); analizar con `scripts/parse-amigaprofile.sh` — ver [debug-with-ai.md](../../debugging/debug-with-ai.md) |
 | **Copper list** | Pruebas copper | `winuae_copper_disassemble` con dirección de `COP1LC` |
 
 Infra común disponible:
@@ -300,8 +300,8 @@ Implementación preferente en el repo **mcp-winuae-emu**; si hace falta soporte 
 ## 11. Referencias
 
 - **Roadmap de implementación y estado global:** [amiga-implementation-roadmap.md](amiga-implementation-roadmap.md)
-- Flujo MCP y compilación: [mcp-live-coding-workflow.md](mcp-live-coding-workflow.md)
+- Flujo MCP y compilación: [mcp-live-coding-workflow.md](../../emulation/mcp-live-coding-workflow.md)
 - Fichas por técnica: [techniques/README.md](../../reference/amiga/techniques/README.md)
-- Matriz chipset: [amiga-chipset-matrix.md](amiga-chipset-matrix.md)
-- AHRM índice: [amiga-hardware-manual-index.md](amiga-hardware-manual-index.md)
-- Integración engine/demoscene: [demoscene-effects-integration.md](demoscene-effects-integration.md)
+- Matriz chipset: [amiga-chipset-matrix.md](../../reference/amiga/hardware/amiga-chipset-matrix.md)
+- AHRM índice: [amiga-hardware-manual-index.md](../../reference/ahrm/amiga-hardware-manual-index.md)
+- Integración engine/demoscene: [demoscene-effects-integration.md](../../demos/effects/demoscene-effects-integration.md)

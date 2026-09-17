@@ -1,17 +1,9 @@
 # Enlaces rotos conocidos (deuda historica de docs importados).
+# Casi todos apuntan a rutas del repo de origen Cursor-Amiga-C (engine/, app/,
+# tests/amiga-battery/, config/) que no existen en este repo; los documentos
+# nativos si se reapuntan a su ubicacion real (ver docs/engine/c-engine/README.md).
 # Formato: ruta-relativa|destino. Regenerar con: node tools/check/links.mjs --update-baseline
-docs/engine/c-engine/README.md|../testing/README.md
-docs/engine/c-engine/amiga-implementation-roadmap.md|../config/winuae/README.md
-docs/engine/c-engine/amiga-implementation-roadmap.md|agent-system-roadmap.md
-docs/engine/c-engine/amiga-implementation-roadmap.md|amiga-chipset-matrix.md
-docs/engine/c-engine/amiga-implementation-roadmap.md|mcp-live-coding-workflow.md
 docs/engine/c-engine/amiga-implementation-roadmap.md|scripts/validate-metal-vector.mjs
-docs/engine/c-engine/amiga-test-battery-spec.md|amiga-chipset-matrix.md
-docs/engine/c-engine/amiga-test-battery-spec.md|amiga-hardware-manual-index.md
-docs/engine/c-engine/amiga-test-battery-spec.md|debug-with-ai.md
-docs/engine/c-engine/amiga-test-battery-spec.md|demoscene-effects-integration.md
-docs/engine/c-engine/amiga-test-battery-spec.md|mcp-live-coding-workflow.md
-docs/engine/c-engine/engine-api-maturity-and-refactor-policy.md|demoscene-repo-import-roadmap.md
 docs/engine/c-engine/engine-architecture.md|engine/include/engine_bitmap.h
 docs/engine/c-engine/engine-architecture.md|engine/include/engine_clock.h
 docs/engine/c-engine/engine-architecture.md|engine/include/engine_diag.h
@@ -20,41 +12,11 @@ docs/engine/c-engine/engine-architecture.md|engine/include/engine_rand.h
 docs/engine/c-engine/engine-architecture.md|engine/include/engine_suite.h
 docs/engine/c-engine/engine-architecture.md|engine/include/engine_tag.h
 docs/engine/c-engine/engine-architecture.md|engine/include/engine_trace.h
-docs/engine/c-engine/engine-docs-index.md|../config/winuae/README.md
 docs/engine/c-engine/engine-docs-index.md|../tests/amiga-battery/README.md
 docs/engine/c-engine/engine-docs-index.md|../tests/amiga-battery/common/README.md
-docs/engine/c-engine/engine-docs-index.md|agent-runbook.md
-docs/engine/c-engine/engine-docs-index.md|agent-system-roadmap.md
-docs/engine/c-engine/engine-docs-index.md|amiga-a500-dma-copper-state-rules.md
-docs/engine/c-engine/engine-docs-index.md|amiga-binary-and-disk-formats.md
-docs/engine/c-engine/engine-docs-index.md|amiga-dev-harness-loader.md
-docs/engine/c-engine/engine-docs-index.md|amiga-display-setup-checklist.md
-docs/engine/c-engine/engine-docs-index.md|amiga-hardware-manual-index.md
-docs/engine/c-engine/engine-docs-index.md|amiga-kernel-loader-notes.md
-docs/engine/c-engine/engine-docs-index.md|amiga-lowlevel-agent-prompt.md
-docs/engine/c-engine/engine-docs-index.md|amiga-lowlevel-technique-contract-template.md
-docs/engine/c-engine/engine-docs-index.md|amiga-postmortems-to-rules.md
-docs/engine/c-engine/engine-docs-index.md|amigaprofile-format.md
-docs/engine/c-engine/engine-docs-index.md|debug-with-ai.md
-docs/engine/c-engine/engine-docs-index.md|demoscene-effects-integration.md
-docs/engine/c-engine/engine-docs-index.md|demoscene-repo-coverage-index.md
-docs/engine/c-engine/engine-docs-index.md|demoscene-repo-import-roadmap.md
-docs/engine/c-engine/engine-docs-index.md|development-methodology.md
-docs/engine/c-engine/engine-docs-index.md|diagnóstico-depurador-f5.md
-docs/engine/c-engine/engine-docs-index.md|dx39-layers-original-analysis.md
-docs/engine/c-engine/engine-docs-index.md|ia-hot-reload-winuae.md
-docs/engine/c-engine/engine-docs-index.md|m68k-stack-and-calling-notes.md
-docs/engine/c-engine/engine-docs-index.md|mcp-live-coding-workflow.md
-docs/engine/c-engine/engine-docs-index.md|roadmap-amc-wrobel-engine-docs-and-debug.md
-docs/engine/c-engine/engine-docs-index.md|verificación-display-por-ia.md
-docs/engine/c-engine/engine-docs-index.md|winuae-extensión-internals.md
-docs/engine/c-engine/engine-dynamic-copper-scene-notes.md|amiga-lowlevel-agent-prompt.md
-docs/engine/c-engine/engine-dynamic-copper-scene-notes.md|amiga-lowlevel-technique-contract-template.md
 docs/engine/c-engine/engine-feature-phases.md|../engine/include/engine_extensions.h
 docs/engine/c-engine/engine-implementation-plan.md|../engine/include/engine_suite.h
-docs/engine/c-engine/engine-new-project-guide.md|../Makefile
 docs/engine/c-engine/engine-new-project-guide.md|../app/effects/demo_scroll_bobs/effect.h
-docs/engine/c-engine/engine-new-project-guide.md|../app/main.c
 docs/engine/c-engine/engine-new-project-guide.md|../app/menu.c
 docs/engine/c-engine/engine-new-project-guide.md|../app/state.c
 docs/engine/c-engine/engine-new-project-guide.md|../engine/include/engine.h
@@ -62,19 +24,11 @@ docs/engine/c-engine/engine-new-project-guide.md|../engine/include/engine_automa
 docs/engine/c-engine/engine-new-project-guide.md|../engine/include/engine_suite.h
 docs/engine/c-engine/engine-new-project-guide.md|../engine/include/engine_types.h
 docs/engine/c-engine/engine-new-project-guide.md|../tests/amiga-battery/README.md
-docs/engine/c-engine/engine-new-project-guide.md|build.md
-docs/engine/c-engine/engine-new-project-guide.md|debug-with-ai.md
-docs/engine/c-engine/engine-new-project-guide.md|m68k-stack-and-calling-notes.md
-docs/engine/c-engine/engine-new-project-guide.md|mcp-live-coding-workflow.md
-docs/engine/c-engine/engine-new-project-guide.md|winuae-y-adf.md
-docs/engine/c-engine/engine-parametric-api-and-cpp-notes.md|amiga-lowlevel-agent-prompt.md
-docs/engine/c-engine/engine-parametric-api-and-cpp-notes.md|amiga-lowlevel-technique-contract-template.md
 docs/engine/c-engine/engine-roadmap.md|../engine/include/engine_extensions.h
 docs/engine/c-engine/engine-roadmap.md|../engine/include/engine_suite.h
 docs/engine/c-engine/engine-subsystems.md|../engine/include/engine.h
 docs/engine/c-engine/engine-subsystems.md|../engine/include/engine_extensions.h
 docs/engine/c-engine/engine-subsystems.md|../engine/include/engine_suite.h
-docs/engine/c-engine/engine-subsystems.md|amiga-a500-dma-copper-state-rules.md
 docs/engine/c-engine/engine-unified-test-roadmap.md|../tests/amiga-battery/common/README.md
 docs/engine/c-engine/engine-unified-test-roadmap.md|../tests/amiga-battery/common/include/battery_evidence.h
 docs/engine/c-engine/engine-unified-test-roadmap.md|../tests/amiga-battery/common/src/battery_runtime.c

@@ -8,7 +8,9 @@
 
 Trata estos documentos como fuente de **conocimiento y contexto**, no como especificación del
 código actual. Los enlaces internos pueden referirse a rutas del repo original (`app/`,
-`tests/amiga-battery/`, `scripts/`) que no existen aquí.
+`tests/amiga-battery/`, `scripts/`) que no existen aquí; esas roturas quedan aceptadas como
+deuda conocida en `tools/check/links-baseline.txt`. Al reapuntar los enlaces que sí existen en
+este repo, regenera el baseline con `node tools/check/links.mjs --update-baseline`.
 
 ## Documentos
 
@@ -38,4 +40,4 @@ código actual. Los enlaces internos pueden referirse a rutas del repo original 
 | [amiga-implementation-roadmap.md](amiga-implementation-roadmap.md) | Seguimiento maestro PENDIENTE/PARCIAL/HECHO del roadmap C. |
 
 > La validación determinista del engine actual (pixel assertions, secuencias, FrameScope,
-> Vision Review) está en [../testing/](../testing/README.md), no en esta carpeta.
+> Vision Review) está en [../testing/](../../testing/README.md), no en esta carpeta.

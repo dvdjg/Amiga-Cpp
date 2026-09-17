@@ -230,5 +230,5 @@ La politica de madurez y refactor queda documentada en:
 - [engine-roadmap.md](engine-roadmap.md)
 - [engine-subsystems.md](engine-subsystems.md)
 - [engine-test-battery-matrix.md](engine-test-battery-matrix.md)
-- [amiga-lowlevel-agent-prompt.md](amiga-lowlevel-agent-prompt.md)
-- [amiga-lowlevel-technique-contract-template.md](amiga-lowlevel-technique-contract-template.md)
+- [amiga-lowlevel-agent-prompt.md](../../guides/methodology/amiga-lowlevel-agent-prompt.md)
+- [amiga-lowlevel-technique-contract-template.md](../../guides/methodology/amiga-lowlevel-technique-contract-template.md)

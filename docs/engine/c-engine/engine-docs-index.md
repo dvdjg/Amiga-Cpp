@@ -15,11 +15,11 @@ Punto de entrada a la documentación del motor de juegos.
 | [external-scroll-source-map.md](external-scroll-source-map.md) | Trazabilidad tecnica de formulas/patrones de scroll importados desde ACE y `amiga-stuff/scrolling_tricks`, con destino exacto en modulos del engine. |
 | [engine_scene_tilebuffer API](/C:/Users/dvdjg/Documents/programa/AI/Cursor-Amiga-C/engine/include/engine_scene_tilebuffer.h) | Estado retained inicial para tilebuffer (invalidacion por camara + iterador de celdas sucias) construido sobre adapters importados de ACE. |
 | [ace-reuse-notes.md](ace-reuse-notes.md) | Que patrones y guardrails merece la pena reutilizar desde ACE, y que partes conviene tomar solo como referencia de arquitectura. |
-| [demoscene-repo-import-roadmap.md](demoscene-repo-import-roadmap.md) | Roadmap maestro para importar los programas funcionales de `demoscene-repo` a la bateria y al engine, preservando su documentacion de origen y promoviendo solo la parte reusable. |
-| [demoscene-repo-coverage-index.md](demoscene-repo-coverage-index.md) | Indice operativo efecto a efecto para seguir el estado de importacion desde `demoscene-repo` hasta caso de bateria local y posible API reusable del engine. |
-| [dx39-layers-original-analysis.md](dx39-layers-original-analysis.md) | Despiece tecnico del efecto `layers`: init, dual playfield, scroll, cambios de modulo, gradientes por raster y plan de recreacion por fases en el repo local. |
-| [amiga-a500-dma-copper-state-rules.md](amiga-a500-dma-copper-state-rules.md) | Reglas generales de estado A500 para DMA, copper, dual playfield, scroll y ciclo de frame; base reusable para futuros efectos y juegos. |
-| [amiga-postmortems-to-rules.md](amiga-postmortems-to-rules.md) | Bugs reales convertidos en reglas reusables y guardrails del proyecto. |
+| [demoscene-repo-import-roadmap.md](../../demos/effects/demoscene-repo-import-roadmap.md) | Roadmap maestro para importar los programas funcionales de `demoscene-repo` a la bateria y al engine, preservando su documentacion de origen y promoviendo solo la parte reusable. |
+| [demoscene-repo-coverage-index.md](../../demos/effects/demoscene-repo-coverage-index.md) | Indice operativo efecto a efecto para seguir el estado de importacion desde `demoscene-repo` hasta caso de bateria local y posible API reusable del engine. |
+| [dx39-layers-original-analysis.md](../../demos/effects/dx39-layers-original-analysis.md) | Despiece tecnico del efecto `layers`: init, dual playfield, scroll, cambios de modulo, gradientes por raster y plan de recreacion por fases en el repo local. |
+| [amiga-a500-dma-copper-state-rules.md](../../reference/amiga/hardware/amiga-a500-dma-copper-state-rules.md) | Reglas generales de estado A500 para DMA, copper, dual playfield, scroll y ciclo de frame; base reusable para futuros efectos y juegos. |
+| [amiga-postmortems-to-rules.md](../../reference/amiga/hardware/amiga-postmortems-to-rules.md) | Bugs reales convertidos en reglas reusables y guardrails del proyecto. |
 | [amiga-hardware-invariants-microtests.md](../../reference/amiga/hardware/amiga-hardware-invariants-microtests.md) | Índice de invariantes hardware (MI01–MI10) y su evidencia (demo/test/doc) o pendiente. |
 | [engine-architecture.md](engine-architecture.md) | Visión, alcance (3D blitter, multi-plataforma), estructura del proyecto, conceptos (utils/managers, view/viewport, estados, debug/release), API actual, roadmap de capacidades. |
 | [engine-roadmap.md](engine-roadmap.md) | **Roadmap de fases** con tests en emulador: estructura app/ vs engine, menú de demos, efectos, automatización Coppenheimer/Playwright, preparación para juego. |
@@ -29,30 +29,30 @@ Punto de entrada a la documentación del motor de juegos.
 | [engine-test-battery-matrix.md](engine-test-battery-matrix.md) | Matriz subsistema ↔ caso de batería + evidencia; backlog (plan) para cobertura del engine. |
 | [engine-unified-test-roadmap.md](engine-unified-test-roadmap.md) | **Plan maestro de tests del engine**: niveles U/F/T/I, trazas `BTEV`, huella visual para visión, fases por subsistema, técnicas de juego, automatización. |
 | [engine-test-audit-2026-04-06.md](engine-test-audit-2026-04-06.md) | Auditoría inicial de cobertura real del engine: huecos, desalineaciones entre docs y primer lote recomendado. |
-| [roadmap-amc-wrobel-engine-docs-and-debug.md](roadmap-amc-wrobel-engine-docs-and-debug.md) | Curso AMC (Mark Wrobel): ingerir espejo local/web, mapa ↔ engine, docs aditivas, auditoría de API, WinUAE/MCP y tests automáticos. |
+| [roadmap-amc-wrobel-engine-docs-and-debug.md](../../reference/amc-wrobel/roadmap-amc-wrobel-engine-docs-and-debug.md) | Curso AMC (Mark Wrobel): ingerir espejo local/web, mapa ↔ engine, docs aditivas, auditoría de API, WinUAE/MCP y tests automáticos. |
 | [reference/amc-wrobel/README.md](../../reference/amc-wrobel/README.md) | Carpeta destino del índice de lecciones, topic map y análisis de gaps (rellenar según el roadmap). |
 | [engine-new-project-guide.md](engine-new-project-guide.md) | **Nuevo proyecto**: arrancar juego/demo (dentro del repo o repo aparte), patrones create/loop/destroy, includes, build, checklist. |
-| [verificación-display-por-ia.md](verificación-display-por-ia.md) | **Verificación del display por la IA**: amigaprofile (yo leo PNG), LM Studio (script con visión), Coppenheimer + Playwright. Script `verify-display-with-lmstudio.mjs`. |
-| [demoscene-effects-integration.md](demoscene-effects-integration.md) | Integración de efectos demoscene: catálogo de técnicas, mapeo a APIs del engine, gui.c como referencia, planes de UI, uso del overlay WinUAE. |
-| [development-methodology.md](development-methodology.md) | Metodología general: fases, pruebas, depuración; sección 7.1 aplicada a C/Amiga. |
-| [debug-with-ai.md](debug-with-ai.md) | Depuración con IA: MCP, dap-proxy, mcp-amiga-debug, compilación para depuración (-Og/-O0). |
-| [amiga-lowlevel-agent-prompt.md](amiga-lowlevel-agent-prompt.md) | Prompt maestro para pedir a la IA trabajo close-to-the-metal sin implementaciones big-bang ni iteraciones a ciegas. |
-| [amiga-lowlevel-technique-contract-template.md](amiga-lowlevel-technique-contract-template.md) | Plantilla de contrato tecnico para separar init, VBL, copper/DMA, invariantes y evidencia antes de implementar. |
-| [amiga-display-setup-checklist.md](amiga-display-setup-checklist.md) | Checklist para heredar correctamente contratos de display ya validados y evitar reabrir fallos como `BPL1MOD/BPL2MOD` mal configurados. |
-| [mcp-live-coding-workflow.md](mcp-live-coding-workflow.md) | Flujo winuae-emu: compilar, desplegar, verificar; `winuae_exec_chunk`; modos live; multi-máquina. |
-| [amiga-dev-harness-loader.md](amiga-dev-harness-loader.md) | Estrategia de cargador/harness de desarrollo: ADF/OS-loader, carga directa diagnóstica y futuro dev disk o kernel ligero para automatización. |
-| [amiga-kernel-loader-notes.md](amiga-kernel-loader-notes.md) | Modelo de Exec + AmigaDOS para carga de binarios, documentado primero para **A500 + Kickstart 1.3** y marcando aparte lo que es posterior o más propio de A600/A1200. |
-| [m68k-stack-and-calling-notes.md](m68k-stack-and-calling-notes.md) | ABI GCC/m68k: pila, `A6`, registros scratch, retorno en `D0`, `-mrtd`, `-mshort` y exception frames. |
-| [amiga-binary-and-disk-formats.md](amiga-binary-and-disk-formats.md) | Qué significan `ADF`, `.map`, `.exe`, `.elf`, `.o`, `.out`, HDF/RDB y cómo encajan en el flujo del repo. |
-| [ia-hot-reload-winuae.md](ia-hot-reload-winuae.md) | Documento maestro del objetivo de ejecución en caliente con IA: qué se quiere conseguir, qué ya funciona, qué falló, qué falta y de qué fuentes sale el conocimiento usado. |
+| [verificación-display-por-ia.md](../../debugging/verificacion-display-por-ia.md) | **Verificación del display por la IA**: amigaprofile (yo leo PNG), LM Studio (script con visión), Coppenheimer + Playwright. Script `verify-display-with-lmstudio.mjs`. |
+| [demoscene-effects-integration.md](../../demos/effects/demoscene-effects-integration.md) | Integración de efectos demoscene: catálogo de técnicas, mapeo a APIs del engine, gui.c como referencia, planes de UI, uso del overlay WinUAE. |
+| [development-methodology.md](../../guides/methodology/development-methodology.md) | Metodología general: fases, pruebas, depuración; sección 7.1 aplicada a C/Amiga. |
+| [debug-with-ai.md](../../debugging/debug-with-ai.md) | Depuración con IA: MCP, dap-proxy, mcp-amiga-debug, compilación para depuración (-Og/-O0). |
+| [amiga-lowlevel-agent-prompt.md](../../guides/methodology/amiga-lowlevel-agent-prompt.md) | Prompt maestro para pedir a la IA trabajo close-to-the-metal sin implementaciones big-bang ni iteraciones a ciegas. |
+| [amiga-lowlevel-technique-contract-template.md](../../guides/methodology/amiga-lowlevel-technique-contract-template.md) | Plantilla de contrato tecnico para separar init, VBL, copper/DMA, invariantes y evidencia antes de implementar. |
+| [amiga-display-setup-checklist.md](../../reference/amiga/techniques/amiga-display-setup-checklist.md) | Checklist para heredar correctamente contratos de display ya validados y evitar reabrir fallos como `BPL1MOD/BPL2MOD` mal configurados. |
+| [mcp-live-coding-workflow.md](../../emulation/mcp-live-coding-workflow.md) | Flujo winuae-emu: compilar, desplegar, verificar; `winuae_exec_chunk`; modos live; multi-máquina. |
+| [amiga-dev-harness-loader.md](../../build/amiga-dev-harness-loader.md) | Estrategia de cargador/harness de desarrollo: ADF/OS-loader, carga directa diagnóstica y futuro dev disk o kernel ligero para automatización. |
+| [amiga-kernel-loader-notes.md](../../reference/amiga/hardware/amiga-kernel-loader-notes.md) | Modelo de Exec + AmigaDOS para carga de binarios, documentado primero para **A500 + Kickstart 1.3** y marcando aparte lo que es posterior o más propio de A600/A1200. |
+| [m68k-stack-and-calling-notes.md](../../reference/amiga/hardware/m68k-stack-and-calling-notes.md) | ABI GCC/m68k: pila, `A6`, registros scratch, retorno en `D0`, `-mrtd`, `-mshort` y exception frames. |
+| [amiga-binary-and-disk-formats.md](../../build/amiga-binary-and-disk-formats.md) | Qué significan `ADF`, `.map`, `.exe`, `.elf`, `.o`, `.out`, HDF/RDB y cómo encajan en el flujo del repo. |
+| [ia-hot-reload-winuae.md](../../emulation/ia-hot-reload-winuae.md) | Documento maestro del objetivo de ejecución en caliente con IA: qué se quiere conseguir, qué ya funciona, qué falló, qué falta y de qué fuentes sale el conocimiento usado. |
 | [techniques/README.md](../../reference/amiga/techniques/README.md) | Fichas técnicas (modulo, dual layer, copper chunky, audio, sprites, DPF bobs) + lab menú. |
 | [amiga-chipset-matrix.md](../../reference/amiga/hardware/amiga-chipset-matrix.md) | Matriz OCS/ECS/AGA/CD32 y punteros al AHRM. |
 | [amiga-test-battery-spec.md](amiga-test-battery-spec.md) | **Batería de tests** + **visión IA** (ADF caliente, snapshot máquina, decode bitmaps, depuración paso a paso) y **hoja de ruta MCP** §10. |
 | [amiga-implementation-roadmap.md](amiga-implementation-roadmap.md) | **Seguimiento de implementación:** estados PENDIENTE/PARCIAL/HECHO, fases A–E (MCP, infra tests, IDs §8, engine, docs). |
 | [../tests/amiga-battery/README.md](../tests/amiga-battery/README.md) | Índice práctico de la batería: plantilla, harness común, casos abiertos y convenciones de evidencia. |
 | [../tests/amiga-battery/common/README.md](../tests/amiga-battery/common/README.md) | Harness común de la batería y criterio de cuándo sus utilidades deben migrar al engine. |
-| [diagnóstico-depurador-f5.md](diagnóstico-depurador-f5.md) | Diagnóstico cuando F5 o los breakpoints no funcionan. |
-| [winuae-extensión-internals.md](winuae-extensión-internals.md) | Cómo la extensión amiga-debug accede a WinUAE (GDB, memoria, Custom). |
+| [diagnóstico-depurador-f5.md](../../debugging/diagnostico-depurador-f5.md) | Diagnóstico cuando F5 o los breakpoints no funcionan. |
+| [winuae-extensión-internals.md](../../emulation/winuae-extension-internals.md) | Cómo la extensión amiga-debug accede a WinUAE (GDB, memoria, Custom). |
 
 ## Fuentes objetivas de hardware/kernel
 
@@ -60,13 +60,13 @@ Punto de entrada a la documentación del motor de juegos.
 
 ## Otras referencias
 
-- [amigaprofile-format.md](amigaprofile-format.md) – Formato de perfiles de ejecución.
-- [agent-runbook.md](agent-runbook.md) – Uso del agente IA en el proyecto.
-- [amiga-lowlevel-agent-prompt.md](amiga-lowlevel-agent-prompt.md) – Prompt maestro para tareas low-level Amiga.
-- [amiga-lowlevel-technique-contract-template.md](amiga-lowlevel-technique-contract-template.md) – Contrato tecnico por fases, invariantes y evidencia.
-- [agent-system-roadmap.md](agent-system-roadmap.md) – Sistema de agentes (G0–G5) para ejecutar y supervisar el roadmap Amiga.
-- [amiga-hardware-manual-index.md](amiga-hardware-manual-index.md) – **Índice del Amiga Hardware Reference Manual (3rd ed.)**: capítulos, apéndices, registros y términos de búsqueda para consultar el manual completo (`Amiga Hardware Reference Manual 3rd edition (Commodore Amiga Inc.) (Z-Library).cat.md`).
-- [config/winuae/README.md](../config/winuae/README.md) – Perfiles WinUAE A500/A1200/CD32 para MCP y extensión.
+- [amigaprofile-format.md](../../emulation/amigaprofile-format.md) – Formato de perfiles de ejecución.
+- [agent-runbook.md](../../guides/methodology/agent-runbook.md) – Uso del agente IA en el proyecto.
+- [amiga-lowlevel-agent-prompt.md](../../guides/methodology/amiga-lowlevel-agent-prompt.md) – Prompt maestro para tareas low-level Amiga.
+- [amiga-lowlevel-technique-contract-template.md](../../guides/methodology/amiga-lowlevel-technique-contract-template.md) – Contrato tecnico por fases, invariantes y evidencia.
+- [agent-system-roadmap.md](../../guides/methodology/agent-system-roadmap.md) – Sistema de agentes (G0–G5) para ejecutar y supervisar el roadmap Amiga.
+- [amiga-hardware-manual-index.md](../../reference/ahrm/amiga-hardware-manual-index.md) – **Índice del Amiga Hardware Reference Manual (3rd ed.)**: capítulos, apéndices, registros y términos de búsqueda para consultar el manual completo (`Amiga Hardware Reference Manual 3rd edition (Commodore Amiga Inc.) (Z-Library).cat.md`).
+- [BUILD_AND_RUN.md](../../build/BUILD_AND_RUN.md) – Perfiles WinUAE A500/A1200/CD32 para MCP y extensión.
 
 ## Objetivo del engine y papel de la batería
 
@@ -83,9 +83,9 @@ Punto de entrada a la documentación del motor de juegos.
 4. [amiga-test-battery-spec.md](amiga-test-battery-spec.md)
 5. [amiga-implementation-roadmap.md](amiga-implementation-roadmap.md)
 6. [../tests/amiga-battery/README.md](../tests/amiga-battery/README.md)
-7. [amiga-kernel-loader-notes.md](amiga-kernel-loader-notes.md)
-8. [m68k-stack-and-calling-notes.md](m68k-stack-and-calling-notes.md)
-9. [amiga-binary-and-disk-formats.md](amiga-binary-and-disk-formats.md)
+7. [amiga-kernel-loader-notes.md](../../reference/amiga/hardware/amiga-kernel-loader-notes.md)
+8. [m68k-stack-and-calling-notes.md](../../reference/amiga/hardware/m68k-stack-and-calling-notes.md)
+9. [amiga-binary-and-disk-formats.md](../../build/amiga-binary-and-disk-formats.md)
 
 ## Tipos de documentación previstos
 

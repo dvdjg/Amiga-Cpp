@@ -1,8 +1,8 @@
 # Roadmap de implementación Amiga (MCP, tests, engine)
 
-**Propósito:** una sola vista de **qué está hecho**, **qué está a medias** y **qué falta**, alineada con [amiga-test-battery-spec.md](amiga-test-battery-spec.md) (especificación y §2 visión IA) y [mcp-live-coding-workflow.md](mcp-live-coding-workflow.md).
+**Propósito:** una sola vista de **qué está hecho**, **qué está a medias** y **qué falta**, alineada con [amiga-test-battery-spec.md](amiga-test-battery-spec.md) (especificación y §2 visión IA) y [mcp-live-coding-workflow.md](../../emulation/mcp-live-coding-workflow.md).
 
-**Sistema de agentes y supervisión:** roles (Orquestador, MCP, batería, engine, QA), cola de trabajo, DoD y checklists en [agent-system-roadmap.md](agent-system-roadmap.md).
+**Sistema de agentes y supervisión:** roles (Orquestador, MCP, batería, engine, QA), cola de trabajo, DoD y checklists en [agent-system-roadmap.md](../../guides/methodology/agent-system-roadmap.md).
 
 **Cómo mantenerlo:** al cerrar un ítem, cambia el estado en las tablas de este archivo y, si aplica, el texto de [amiga-test-battery-spec.md](amiga-test-battery-spec.md) §2. Los IDs de prueba (T01, B03…) pasan de **PENDIENTE** a **HECHO** cuando existen código + `evidence/` mínimo + `README.md` en `tests/amiga-battery/<id>_*` o efecto equivalente en `app/effects/` enlazado desde el menú o script.
 
@@ -152,7 +152,7 @@ La integración externa seguirá regla de **destilación**: se extraen ideas y t
 
 | ID | Entrega | Estado |
 |----|---------|--------|
-| **E-DOC-01** | Fuentes AGA legales en repo + índice | PENDIENTE | Ver [amiga-chipset-matrix.md](amiga-chipset-matrix.md) pie. |
+| **E-DOC-01** | Fuentes AGA legales en repo + índice | PENDIENTE | Ver [amiga-chipset-matrix.md](../../reference/amiga/hardware/amiga-chipset-matrix.md) pie. |
 | **E-DOC-02** | Este roadmap actualizado cada hito | PARCIAL | Creación del documento = hito 0. |
 
 ---
@@ -185,9 +185,9 @@ flowchart TB
 | Documento | Rol |
 |-----------|-----|
 | [amiga-test-battery-spec.md](amiga-test-battery-spec.md) | Especificación de pruebas, §2 capacidades IA, §10 resumen MCP (detalle normativo). |
-| [mcp-live-coding-workflow.md](mcp-live-coding-workflow.md) | Flujo operativo día a día. |
+| [mcp-live-coding-workflow.md](../../emulation/mcp-live-coding-workflow.md) | Flujo operativo día a día. |
 | [engine-roadmap.md](engine-roadmap.md) | Roadmap del motor de juego y menú de demos. |
-| [config/winuae/README.md](../config/winuae/README.md) | Perfiles emulador. |
+| [BUILD_AND_RUN.md](../../build/BUILD_AND_RUN.md) | Perfiles emulador. |
 | Repo **mcp-winuae-emu** | Código de herramientas Fase A. |
 
 ---
