@@ -23,6 +23,7 @@
 /// piden slots al timeline, y el scheduler decide como materializarlos.
 
 #include <eng/core/types.hpp>
+#include <eng/core/util/array.hpp>
 
 namespace eng::copper {
 
@@ -54,10 +55,8 @@ public:
 
 	/// Limpia el estado para construir un nuevo frame/lista.
 	void reset() {
-		for (u16 i = 0; i < line_count; ++i) {
-			m_moves_by_line[i] = 0;
-			m_waits_by_line[i] = 0;
-		}
+		m_moves_by_line.fill(0u);
+		m_waits_by_line.fill(0u);
 		m_report = {};
 	}
 
@@ -117,8 +116,8 @@ public:
 	}
 
 private:
-	u8 m_moves_by_line[line_count] {};
-	u8 m_waits_by_line[line_count] {};
+	eng::util::Array<u8, line_count> m_moves_by_line {};
+	eng::util::Array<u8, line_count> m_waits_by_line {};
 	TimelineReport m_report {};
 };
 

@@ -18,6 +18,7 @@
 
 #include <eng/core/domains.hpp>
 #include <eng/core/types.hpp>
+#include <eng/core/util/array.hpp>
 
 namespace eng::graphics {
 
@@ -459,9 +460,9 @@ private:
 		return true;
 	}
 
-	PalettePatch m_palette_patches[max_palette_patches] {};
-	BlitJob m_blit_jobs[max_blit_jobs] {};
-	DirtyRect m_dirty_rects[max_dirty_rects] {};
+	eng::util::Array<PalettePatch, max_palette_patches> m_palette_patches {};
+	eng::util::Array<BlitJob, max_blit_jobs> m_blit_jobs {};
+	eng::util::Array<DirtyRect, max_dirty_rects> m_dirty_rects {};
 	BlitBudget m_blit_budget {};
 	BlitBudgetLimits m_blit_budget_limits {};
 	BlitBudgetReport m_blit_budget_report {};

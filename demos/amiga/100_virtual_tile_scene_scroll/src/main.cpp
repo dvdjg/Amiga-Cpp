@@ -299,7 +299,7 @@ struct DemoGame {
 			&m_map,
 			{
 				scene::TileFramebufferStrategy::DoubleBufferedHiddenMargins,
-				tilemap::ScrollAxes::Both,
+				tilemap::scroll_axes_both,
 				tile_size,
 				1,
 				1,
