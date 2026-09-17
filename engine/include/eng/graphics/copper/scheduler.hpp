@@ -63,13 +63,13 @@ public:
 	///
 	/// Se mantiene publico porque algunos drivers tempranos necesitan registrar
 	/// movimientos concretos. A medida que aparezcan APIs mas expresivas, este metodo
-	/// deberia usarse cada vez menos fuera del scheduler.
-	void move(Register reg, u16 value) {
+	/// deberia usarse cada vez menos fuera del scheduler. Camino caliente: `always_inline`.
+	__attribute__((always_inline)) inline void move(Register reg, u16 value) {
 		m_builder.move(reg, value);
 		++m_report.display_moves;
 	}
 
-	void move(u16 custom_register_offset, u16 value) {
+	__attribute__((always_inline)) inline void move(u16 custom_register_offset, u16 value) {
 		m_builder.move(custom_register_offset, value);
 		++m_report.display_moves;
 	}
@@ -99,8 +99,8 @@ public:
 		m_report.display_moves = static_cast<u16>(m_report.display_moves + 2u);
 	}
 
-	/// Emite un WAIT de raster sin asociarlo a una paleta.
-	void wait_line(u8 line) {
+	/// Emite un WAIT de raster sin asociarlo a una paleta. Camino caliente.
+	__attribute__((always_inline)) inline void wait_line(u8 line) {
 		m_builder.wait_line(line);
 		m_timeline.reserve_wait(line);
 		++m_report.waits;
@@ -111,7 +111,7 @@ public:
 	/// Delega en `ListBuilder::wait_line_pal` (port de `CopWaitSafe` de libgfx). El
 	/// timeline solo reserva las lineas 0..255 (zona visible); las lineas del borde
 	/// inferior/VBlank no compiten por H-BLANK y no se presupuestan aqui.
-	void wait_line_safe(u16 line) {
+	__attribute__((always_inline)) inline void wait_line_safe(u16 line) {
 		m_builder.wait_line_pal(line);
 		if (line <= 255u) {
 			m_timeline.reserve_wait(static_cast<u8>(line & 0xffu));
@@ -120,8 +120,8 @@ public:
 	}
 
 	/// Emite un WAIT a una posicion concreta (V y H): para "copper bars" a mitad de
-	/// scanline.
-	void wait_position(u8 line, u8 hpos) {
+	/// scanline. Camino caliente.
+	__attribute__((always_inline)) inline void wait_position(u8 line, u8 hpos) {
 		m_builder.wait_position(line, hpos);
 		m_timeline.reserve_wait(line);
 		++m_report.waits;
@@ -209,8 +209,8 @@ public:
 	///
 	/// `colors` es la paleta de dominio (`PaletteWords`, con su tamaño). Los
 	/// parametros `first/count` permiten que un efecto actualice solo un tramo sin
-	/// que el llamador tenga que recalcular registros COLORxx.
-	void emit_palette(eng::PaletteWords colors, u8 first = 0, u8 count = 32) {
+	/// que el llamador tenga que recalcular registros COLORxx. Camino caliente.
+	__attribute__((always_inline)) inline void emit_palette(eng::PaletteWords colors, u8 first = 0, u8 count = 32) {
 		if (colors.empty() || first >= 32) {
 			return;
 		}
@@ -256,7 +256,7 @@ public:
 	///     `BitplaneSplit`) los materializa `emit_copper_intents_full` (que conoce el
 	///     display); `SpriteRearm`/`Priority` aún requieren contexto de canal/prioridad
 	///     y se cuentan en `report().unhandled_intents`.
-	void emit_copper_intents(const graphics::CopperIntent* intents, u8 count) {
+	__attribute__((always_inline)) inline void emit_copper_intents(const graphics::CopperIntent* intents, u8 count) {
 		if (intents == nullptr) {
 			return;
 		}
@@ -269,7 +269,7 @@ public:
 	/// materializar también `BitplaneSplit` (re-pointa los bitplanes a
 	/// `intent.bitplanes`) y `ShiftLines` (re-pointa a `bitplane_base + shift_x`
 	/// bytes). `plane_bytes` es el stride entre planos y `planes` cuántos re-pointar.
-	void emit_copper_intents_full(
+	__attribute__((always_inline)) inline void emit_copper_intents_full(
 		const graphics::CopperIntent* intents, u8 count,
 		eng::PlaneBytes bitplane_base, u32 plane_bytes, u8 planes
 	) {
@@ -301,7 +301,7 @@ public:
 private:
 	/// Materializa UNA intent. `bitplane_base != nullptr` habilita los intents de
 	/// layout (BitplaneSplit/ShiftLines); si es null, se marcan como sin manejar.
-	void emit_single_intent(
+	__attribute__((always_inline)) inline void emit_single_intent(
 		const graphics::CopperIntent& intent, eng::PlaneBytes bitplane_base, u32 plane_bytes, u8 planes
 	) {
 		switch (intent.kind) {

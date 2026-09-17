@@ -129,8 +129,9 @@ public:
 		move(static_cast<u16>(reg), value);
 	}
 
-	/// Escribe un MOVE Copper usando un offset raw.
-	void move(u16 custom_register_offset, u16 value) {
+	/// Escribe un MOVE Copper usando un offset raw. Camino caliente (emisión por línea):
+	/// `always_inline` para que el estado del builder viva en registro, no en memoria.
+	__attribute__((always_inline)) inline void move(u16 custom_register_offset, u16 value) {
 		write_pair(custom_register_offset, value);
 	}
 
@@ -145,11 +146,11 @@ public:
 		move(bitplane_pointer_low_register(plane), static_cast<u16>(raw & 0xffffu));
 	}
 
-	/// Espera a una linea de raster con mascara estandar (solo V).
+	/// Espera a una linea de raster con mascara estandar (solo V). Camino caliente.
 	///
 	/// Usa la mascara `0xff00`: compara los 8 bits verticales e ignora la posicion
 	/// horizontal. Es la espera mas comun (cambios al principio de linea).
-	void wait_line(u8 vpos) {
+	__attribute__((always_inline)) inline void wait_line(u8 vpos) {
 		write_pair(wait_word(vpos), 0xff00);
 	}
 
@@ -203,7 +204,7 @@ public:
 	u16 move_at(Register reg, u16 value) { return move_at(static_cast<u16>(reg), value); }
 
 	/// Parchea el word de valor de un MOVE emitido antes (indice devuelto por `move_at`).
-	void patch_data(u16 instruction_word, u16 value) {
+	__attribute__((always_inline)) inline void patch_data(u16 instruction_word, u16 value) {
 		if (m_ok && (instruction_word + 1u) < m_used_words) {
 			m_words[instruction_word + 1u] = value;
 		}
@@ -277,14 +278,27 @@ public:
 	}
 
 private:
-	void write_pair(u16 a, u16 b) {
-		if (!m_ok || m_used_words + 2 > m_capacity_words) {
+	/// Escribe un par WAIT/MOVE (`a`,`b`) y avanza el cursor. **Camino caliente**: la
+	/// emisión de una copperlist por línea lo llama miles de veces por frame, así que
+	/// `always_inline` es deliberado. Sin él, a `-O1` gcc recargaba `m_ok`,
+	/// `m_used_words` y `m_capacity_words` desde memoria en cada palabra y recomputaba
+	/// el puntero base (medido: el patrón dominante en `build_frame` de la 086).
+	///
+	/// El chequeo de capacidad se hace una vez por par (no por palabra) y contra un
+	/// límite con margen de 1 palabra: si quedara justo una palabra libre, un par la
+	/// desbordaría a medias, así que se exige `+2 <= capacity`; el camino rápido evita
+	/// tocar memoria salvo las dos escrituras.
+	__attribute__((always_inline)) inline void write_pair(u16 a, u16 b) {
+		const u16 used = m_used_words;
+		if (used > m_capacity_words - 2u) {
 			m_ok = false;
+			m_overflow_sent = true;
 			return;
 		}
-
-		m_words[m_used_words++] = a;
-		m_words[m_used_words++] = b;
+		u16* const words = m_words;
+		words[used] = a;
+		words[used + 1u] = b;
+		m_used_words = static_cast<u16>(used + 2u);
 	}
 
 	u16* m_words = nullptr;

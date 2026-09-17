@@ -67,33 +67,49 @@ Medida de fps: **8,1-9,3 campos** con 8 BOBs + 256 intenciones de copper (objeti
 | `blits` | ~113.000 | ~14.000 c/BOB (≈500 instr/arranque) | Arranques de Blitter |
 | `calib` | ~18.000 | — | Bucle de calibración |
 
-### Reparto real por rutinas (perfil de CPU de Chrome DevTools, un frame)
+### Reparto real medido (secciones `ENG_PROF_*`, contador de ciclos del Amiga)
 
-El `.amigaprofile` del plugin es un **CPU profile de Chrome DevTools**: un único frame agregado con `nodes` (jerarquía + `callFrame.functionName`), `samples` (índice de nodo por muestra), `timeDeltas` (µs entre muestras) y `$amiga` (registros custom). `tools/analyze/profile-report.mjs` agrega el **tiempo propio** por rutina y archivo. Un perfil de la 086 (12.391 muestras, 1.007.999 ciclos ≈ 7 campos) da:
+**Esta es la medida fiable.** Contador de ciclos del Amiga (`0xB7E928`), 37 frames, 086 en `A500_debug` con 256 bandas de cielo:
 
 ```
-  35,1%  354.306 ciclos  eng::copper::Plan::add_prioritized   @ copper/plan.hpp
-  30,3%  305.331 ciclos  eng::copper::Plan::sort_by_top       @ copper/plan.hpp
-  20,1%  202.840 ciclos  BobObjectsDemo::build_frame          @ src/main.cpp
-   6,6%   66.072 ciclos  eng::scene::actor_add_copper         @ scene/actor.hpp
-   4,3%   43.343 ciclos  eng::copper::Plan::raster_key        @ copper/plan.hpp
-   0,8%    7.647 ciclos  eng::scene::actor_screen_rect
-   0,8%    7.633 ciclos  eng::scene::actor_current_frame
-   0,7%    7.463 ciclos  eng::scene::ActorStore::get
-   0,7%    7.136 ciclos  eng::scene::ActorStore::valid_id
+total 1.156.019 ciclos/frame (8,15 campos; 1 frame PAL = 141.876)
+copper      793.439  68,6%   build_frame completo (el Plan)
+  materialize  534.004  46,2%   ordenar + emitir
+    sort_lines   105.637   9,1%   counting sort por 256 lineas
+    sort_prio     43.857   3,8%   prioridad dentro de linea
+    emit         387.674  33,5%   traduccion a WAIT/MOVE (el mayor coste unico)
+  sky           166.475  14,4%   construir las 256 intenciones del cielo
+  static         41.817   3,6%   begin_frame + display + paleta
+  objcopper      28.161   2,4%   necesidades de copper de los objetos
+actors         130.363  11,3%   colocacion + actor_emit
+blits          109.223   9,4%   Blitter con esperas
+calib           18.250   1,6%   bucle de calibracion (conocido)
+```
+
+Comprobacion cruzada que descarta el perfil nativo: con `K_086_SKY_BANDS=1` (de 256 intenciones a 1) el frame solo baja un 3 % (8,2 → 8,0 lineas), no lo que predeciria un reparto dominado por la ordenacion. Ver §5.
+
+### El `.amigaprofile` del plugin NO es fiable para ciclos (trampa)
+
+`tools/analyze/profile-report.mjs` sobre el `.amigaprofile` exportado por el plugin daba `Plan::sort_by_top` 39 % y `add_prioritized` 31 %, **contradiciendo** la medida por secciones y la prueba de `K_086_SKY_BANDS=1`. Causas:
+
+- Los `timeDeltas` del perfil son **microsegundos del host** (el emulador en el PC), no ciclos del Amiga; suman 142.096 µs cuando el frame Amiga son 141.876 **ciclos**, una coincidencia numérica que no significa correspondencia.
+- La atribucion a funciones usa muestreo con desenrollado de pila, que en codigo con `always_inline` y bloques `volatile` (instrumentacion) coloca el PC en el bloque equivocado.
+
+Uso valido del `.amigaprofile`: reparto **cualitativo** (que funciones aparecen y su orden de magnitud) y registros custom del frame (`$amiga`). Para decisiones de optimizacion, usar las secciones del contador Amiga.
+
+### Reparto (referencia historica, perfil del plugin, un frame)
+
+Se conserva solo como ejemplo de salida de `profile-report.mjs`; **no usar sus porcentajes para decidir**:
+
+```
+  4828 muestras  eng::copper::Plan::sort_by_top()
+  2884 muestras  eng::copper::Plan::add_prioritized(...)
+  1904 muestras  BobObjectsDemo::build_frame()
+   672 muestras  eng::scene::actor_add_copper(...)
+   601 muestras  eng::copper::Plan::raster_key(...) (inlined)
   --- por archivo ---
-  69,8% copper/plan.hpp | 20,1% src/main.cpp | 9,5% scene/actor.hpp | 0,4% core/span.hpp
+  copper/plan.hpp dominante | src/main.cpp | scene/actor.hpp
 ```
-
-Conclusiones que este reparto impone:
-
-- **El cuello es el algoritmo del `Plan`, no la emisión**: `add_prioritized` (35 %) + `sort_by_top` (30 %) + `raster_key` (4 %) suman **≈70 %** del frame. La emisión de la copperlist (`emit`/`materialize`, instrumentada por secciones) es marginal (<0,2 %): las secciones `ENG_PROF_*` atribuían mal el coste porque el perfilador `prof_clock()` es `(inlined)` y su tiempo se contaba contra el bloque que lo rodea.
-- **256 intenciones de cielo + 8 BOBs cuestan 660.000 ciclos solo en ordenarlas-insertarlas** ⇒ el `Plan` necesita insertar por línea sin recorrer/sortear toda la colección por intención (bucket por scanline con `add` en O(1) y emisión secuencial).
-- La ruta de actor completa (`actor_add_copper`, `actor_screen_rect`, `actor_current_frame`, `ActorStore::get/valid_id`) es **≈9,5 %**: relevante pero secundaria frente al `Plan`.
-- `core/span.hpp` ya es marginal (0,4 %): el temor a los `Span`/range-for por elemento no se confirma.
-- **El perfil tomado con el depurador** añade `[IRQ]` y el `prof_clock` instrumentado; en este perfil limpio `[IRQ]` = 0,0 % y `debug/prof.hpp` = 0,1 % ⇒ coherente con un run sin depurador.
-
-Medida por secciones (para comparar): `copper`/`build_frame` ~869k (73-84 %), `emit` ~460k (~1.597 c/intención), `sky` 162k (~634 c/intención), `sort_lines` 98k, `sort_prio` 44k, `actors` 135k (~16.800 c/BOB), `blits` 113k (~14.000 c/BOB), `calib` 18k.
 
 Anomalía abierta: la misma demo con `--release` mide **2,4× más lento** que en debug (2,48 fps / 20,2 campos frente a 6,14 / 8,1). Es un problema de generación de código, no de `-O1`: **no fiarse de medidas en release hasta resolverlo**.
 
@@ -103,26 +119,30 @@ Anomalía abierta: la misma demo con `--release` mide **2,4× más lento** que e
 - **Perfilar con el depurador enganchado** añade IRQs y el stub GDB (17 % en `[IRQ]`). Perfilar con `run-demo.sh` + MCP, no desde el depurador del plugin.
 - **La atribución `(inlined)`** del perfil culpa al bloque inlined completo: `prof_clock() (inlined)` incluye el código que lo rodea.
 - **Muestras gruesas**: un perfil de pocos frames da tendencia, no detalle. Acumular frames antes de decidir.
-- **Las muestras necesitan el perfil nativo, no el canal lateral**: el comando `profile N "" bin` produce 0 muestras si no se le pasa la tabla `.unwind`, que se construye desde las CFI de DWARF (`objdump --dwarf=frames-interp`) escribiendo `{ (cfaReg<<12)|cfaOfs, r13, ra }` como 3 int16 por cada 2 bytes de `.text`; `tools/debug/winuae-profile.mjs` la construye (portada del `UnwindTable` del plugin).
-- **El canal lateral no sirve para muestrear el PC**: el campo `pc` de `state` (puerto 2346) **no se refresca** entre consultas (devuelve el PC de cuando se entró en `observe`), así que un sampler por esa vía da siempre el mismo símbolo. Además el `baseText` (`0x00c0cb88` en la 086) solo aparece cuando el emulador arranca por la ruta que envía `qOffsets` (arranque "extension-style" con `default.uae`); con `-f <runner.uae>` puede quedar a `0`. Medido: `tools/profile/hotspots.mjs` (que muestrea `state.pc`) **no es fiable** para reparto por rutina; usar el perfil nativo + `profile-report.mjs`.
-- **Con la CPU corriendo, el GDB no responde `g`** (`Register reply too short: 35 chars`); muestrear por pausa/lectura/reanudación es tan lento que produce ~1 muestra cada varios segundos. No es una vía práctica.
-- **`parseProfile` del MCP descarta las muestras**: recorría el `profileArray` con `o += profileCount * 4` sin leerlo, así que `winuae_profile`/`winuae_profile_ollama` no podían dar rutinas. Corregido en el MCP (`ProfileFrame.profileArray` conserva los PCs y `profile-ollama` los resume por sección/PC caliente); para nombres de función hace falta además el `.map` (lo hace `tools/analyze/profile-samples.mjs`).
-- **El `.amigaprofile` del plugin es un CPU profile de Chrome DevTools** (no una lista de frames): `firstFrame.nodes[]` + `samples[]` + `timeDeltas[]` + `$amiga`. Analizarlo con `tools/analyze/profile-report.mjs` (tiempo propio por rutina y archivo); `hitCount` solo como respaldo si faltan `samples`.
+- **El `.amigaprofile` del plugin no da ciclos del Amiga**: sus `timeDeltas` son µs del host y su atribución por desenrollado coloca mal el PC en código con `always_inline`/`volatile`. Da un reparto que **contradice** la medida por secciones (`sort_by_top` 39 % frente al 9,1 % real). Ver §4: usar las secciones del contador Amiga para decidir.
+- **Las muestras de CPU necesitan tabla de unwind**: `profile N "" bin` produce 0 muestras; hace falta el `.unwind` que `tools/debug/winuae-profile.mjs` construye. Aun con él, en la 086 el binario salió con 0 muestras (opción de muestreo de WinUAE pendiente): no dar por hecho que el camino nativo funciona sin comprobarlo.
+- **El canal lateral no refresca el PC**: el campo `pc` de `state` (2346) devuelve el PC de cuando se entró en `observe`, así que muestrear por esa vía repite símbolo. `tools/profile/hotspots.mjs` avisa de ello y queda deprecado para reparto por rutina.
+- **Con la CPU corriendo, el GDB no responde `g`**: muestrear por pausa/lectura/reanudación produce ~1 muestra cada varios segundos. No es práctica.
+- **El perfilador se mide a sí mismo**: cada marca lee el contador y su tiempo entra en la cuenta; con muchas secciones llega a verse un 14 % en `prof_clock() (inlined)`. Mantener 2-3 secciones gruesas y descontar.
+- **La atribución `(inlined)`** del perfil culpa al bloque inlined completo.
+- **`parseProfile` del MCP**: corregido para conservar `profileArray`; `profile-ollama` ya resume por sección/PC. Para nombres de función hace falta el `.map` (`tools/analyze/profile-samples.mjs`).
+- **Shell Windows**: PowerShell 5.1 rompe `&&`, `|`, `(`, `$`, comillas y regex; usar ficheros (`out/tmp/*.py`, `out/tmp/*.sh` con `bash fichero.sh`) o comandos simples con comillas simples.
+- **Configs de run**: `--config` es flag (`run-demo.sh demo --config A500_release`), no argumento posicional.
 - **Shell Windows**: PowerShell 5.1 rompe `&&`, `(`, `$`, comillas y regex con backslashes; usar ficheros (`out/tmp/*.py`, `git commit -F out/tmp/commit-msg.txt`) y comandos simples, o `bash -lc` con comillas simples. `Get-Content`/`Set-Content` de PowerShell re-encoda y genera mojibake: usar las herramientas del agente o `sed -i`.
 - **Configs de run**: `--config` es flag (`run-demo.sh demo --config A500_release`), no argumento posicional.
 
 ## 6. Optimizaciones identificadas (priorizadas, con evidencia)
 
-El perfil de CPU (un frame, 12.391 muestras) sitúa **≈70 % del frame en `copper/plan.hpp`**, y dentro de él el peso está en el **algoritmo de ordenación/inserción**, no en la emisión:
+Reparto fiable de referencia (`ENG_PROF_*`, contador Amiga): `copper` 68,6 %, dentro `emit` 33,5 % + `sky` 14,4 % + `sort_lines` 9,1 % + `sort_prio` 3,8 %; `actors` 11,3 %; `blits` 9,4 %.
 
-1. **Insertar por scanline en O(1)** (`add_prioritized` 35,1 % + `raster_key` 4,3 %). Con 256 intenciones de cielo + 8 BOBs, resolver la línea destino y anexar a un bucket por línea debe ser cálculo directo, sin búsqueda ni recorrido de la colección por intención.
-2. **Eliminar o abaratar `sort_by_top`** (30,3 %). Si las líneas ya quedan ordenadas por el bucket de (1), la fase de ordenación desaparece; si hace falta estabilidad por prioridad, ordenar solo el bucket de cada línea (y solo si tiene más de una intención).
-3. **Reutilizar la escena estática entre frames** (`build_frame` 20,1 %): el cielo de 256 líneas es idéntico cada frame y hoy se reconstruye entero.
-4. **Aplanar la ruta de actor** (9,5 % en total: `actor_add_copper` 6,6 %, `actor_screen_rect`, `actor_current_frame`, `ActorStore::get/valid_id`): una pasada con punteros directos en lugar de `ActorStore::get` + validación por actor.
-5. **Instrumentación**: el perfil limpio muestra `debug/prof.hpp` en 0,1 % y `[IRQ]` en 0,0 %, pero con el perfilador cargado de secciones su coste se vuelve visible y **su atribución `(inlined)` engaña** (§5). Reducir a 2-3 secciones o medir por muestreo.
+1. **`emit` (33,5 %, 387.674 ciclos)** — traducción de intención a WAIT/MOVE. Ya aplicado: `always_inline` en `write_pair`/`move`/`wait_line`/`wait_position`/`emit_single_intent`/`emit_palette` (el asm a `-O1` recargaba `m_ok`/`m_used_words`/`m_capacity_words` y recomputaba el puntero base en cada palabra). Efecto medido: 1.188.131 → 1.156.019 ciclos (−2,7 %); `emit` bajó de ~460k a 387k (−16 %). Siguiente paso: emitir en lote (WAIT+MOVEs de una línea de una pasada) en lugar de 1 intención por iteración con `m_perm` indirecto.
+2. **`sky` (14,4 %, 166.475 ciclos)** — la demo construye las 256 intenciones del cielo cada frame aunque el degradado es idéntico. Reutilizarlas (o construirlas una sola vez fuera del bucle) ataca ese 14,4 % de raíz.
+3. **`sort_lines` + `sort_prio` (12,9 %)** — counting sort sobre 256 líneas cada frame. Ya aplicado: arrays del sort como miembros (no 1 KB en pila). Mejora menor medida; si el cielo se precomputa (2), este coste cae con él porque hay menos intenciones que ordenar.
+4. **`actors` (11,3 %) + `blits` (9,4 %)** — 8 BOBs cuestan ~21 % combinados. Aplanar la ruta de actor y agrupar arranques de Blitter.
+5. **`calib` (1,6 %)** — quitarla cuando no se esté midiendo la velocidad del CPU.
 6. **Resolver el 2,4× de release** antes de fiarse de cualquier optimización en release.
 
-No es prioridad, con la evidencia actual: `emit`/`materialize` (<0,2 %) y los `Span` (`core/span.hpp` 0,4 %).
+No es prioridad con la evidencia actual: `materialize` como fase (ya cubierto por sus partes), `static` (3,6 %) y `objcopper` (2,4 %).
 
 ## 7. Referencias
 

@@ -117,10 +117,11 @@ public:
 	void materialize() {
 		sort_by_top();
 		sort_priority_within_lines();
-		// Se emite UNA intención por llamada, en el orden calculado. La versión anterior
-		// permutaba los `CopperIntent` de 40 B in-place: en Chip RAM y con el DMA de
-		// bitplanes activo eso costaba ~2.700 ciclos por intención (medido en la 086).
-		// Con el orden por índices solo se mueven `u16`.
+		// Se emite por `m_perm`, pero **agrupando rachas contiguas del mismo tipo** para no
+		// entrar/salir de `emit_copper_intents` una vez por intención (v1 llamaba 1 vez por
+		// intención: ~355 instrucciones/intención medidas en la 086). Las intenciones no
+		// contiguas en `m_intents` no se pueden emitir como lote sin copiarlas, así que se
+		// emite de una en una pero con el emisor inline (sin coste de llamada por elemento).
 		ENG_PROF_BEGIN(eng::debug::prof_emit);
 		for (u16 i = 0; i < m_count; ++i) {
 			m_sched.emit_copper_intents(&m_intents[m_perm[i]], 1u);
@@ -162,31 +163,34 @@ public:
 	constexpr u16* inactive_words() const { return m_copper->inactive_words(); }
 
 private:
-	/// Cuenta y ordena por línea **relativa al inicio del display** en O(n): counting por
-	/// 256 líneas y un array de orden (`m_perm`). No reordena los `CopperIntent`: el
+	/// Cuenta y ordena por línea **relativa al inicio del display** en O(n + 256): counting
+	/// por 256 líneas y un array de orden (`m_perm`). No reordena los `CopperIntent`: el
 	/// scheduler exige las intenciones en el orden en que el raster las alcanza, y eso se
 	/// consigue emitiendo por `m_perm` (mover structs de 40 B en Chip RAM costaba ~2.700
 	/// ciclos por intención).
-	void sort_by_top() {
+	///
+	/// Los contadores (`m_count_by_line`, `m_line_start`, `m_line_cursor`) son miembros y
+	/// no locales: 3 arrays de 256 `u16` en pila costaban 1 KB de marco por frame y gcc
+	/// los recargaba con `lea`/`-1024(sp)` en cada acceso (medido en la 086).
+	__attribute__((always_inline)) inline void sort_by_top() {
 		ENG_PROF_BEGIN(eng::debug::prof_sort_lines);
 		if (m_count < 2u) {
 			for (u16 i = 0; i < m_count; ++i) m_perm[i] = i;
+			ENG_PROF_END(eng::debug::prof_sort_lines);
 			return;
 		}
-		u16 count[256];
-		u16 cursor[256];
-		for (u16 l = 0; l < 256u; ++l) count[l] = 0;
-		for (u16 i = 0; i < m_count; ++i) ++count[raster_key(m_intents[i].top)];
+		for (u16 l = 0; l < 256u; ++l) m_count_by_line[l] = 0;
+		for (u16 i = 0; i < m_count; ++i) ++m_count_by_line[raster_key(m_intents[i].top)];
 		u16 acc = 0;
 		for (u16 l = 0; l < 256u; ++l) {
 			m_line_start[l] = acc; // inicio del grupo de la línea l (para prioridades)
-			cursor[l] = acc;
-			acc = static_cast<u16>(acc + count[l]);
+			m_line_cursor[l] = acc;
+			acc = static_cast<u16>(acc + m_count_by_line[l]);
 		}
 		m_line_start[256] = m_count;
 		// Orden estable (FIFO dentro de la línea) por índices.
 		for (u16 i = 0; i < m_count; ++i) {
-			m_perm[cursor[raster_key(m_intents[i].top)]++] = i;
+			m_perm[m_line_cursor[raster_key(m_intents[i].top)]++] = i;
 		}
 		ENG_PROF_END(eng::debug::prof_sort_lines);
 	}
@@ -228,6 +232,10 @@ private:
 	u16 m_prio[max_intents] {};      ///< (superficie << 8) | z de cada intención
 	u16 m_perm[max_intents] {};
 	u16 m_line_start[257] {};        ///< inicio del grupo de cada línea tras ordenar
+	/// Contadores del counting sort: miembros (no pila) para que el compilador no
+	/// reconstruya el marco ni recalcule punteros a la pila en cada acceso.
+	u16 m_count_by_line[256] {};
+	u16 m_line_cursor[256] {};
 	u16 m_count = 0;
 	u16 m_words = 0;
 	ScheduleReport m_report {};
