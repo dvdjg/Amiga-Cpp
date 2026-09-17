@@ -27,6 +27,7 @@
 
 #include <eng/core/sinetable.hpp>
 #include <eng/core/types.hpp>
+#include <eng/debug/prof.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/graphics/copper/plan.hpp>
@@ -41,6 +42,16 @@
 #include "support/gcc8_c_support.h"
 
 struct ExecBase* SysBase = nullptr;
+
+/// Bloque de profiling (ver engine/include/eng/debug/prof.hpp). Se define en la demo,
+/// con enlace C, para que `g_eng_prof` salga sin manglar en el `.map` (lo lee
+/// tools/debug/profile.mjs).
+namespace eng::debug {
+extern "C" {
+ProfBlock g_eng_prof {};
+eng::u32 g_prof_start[prof_max_sections] {};
+}
+} // namespace eng::debug
 
 extern "C" {
 __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
@@ -59,12 +70,25 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 #ifndef K_086_SKY_BANDS
 #define K_086_SKY_BANDS 256
 #endif
+// 1 = desactivar la parte DINAMICA del copper (cielo + necesidades de objeto +
+// materialize) para aislar su coste. Solo diagnostico.
+#ifndef K_086_STATIC_COPPER
+#define K_086_STATIC_COPPER 0
+#endif
 
 namespace {
 
 namespace scene = eng::scene;
 namespace graphics = eng::graphics;
 namespace drivers = eng::graphics::drivers;
+
+/// Secciones medidas con `eng::debug::g_eng_prof` (ver tools/debug/profile.mjs).
+enum {
+	kProfActors = 0, // colocacion + actor_emit (jobs al plan de blits)
+	kProfBlits = 1,  // execute_frame_plan (Blitter, con sus esperas)
+	kProfCopper = 2, // build_frame (Plan: intenciones, ordenacion y emision)
+	kProfCount = 3,
+};
 
 // Geometría: 320x256 lowres, 4 planos (16 colores), planos contiguos.
 constexpr eng::u16 kWidth = 320;
@@ -75,28 +99,28 @@ constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * kHeight;
 constexpr eng::u32 kBitplaneBytes = kPlaneBytes * kPlanes;
 constexpr eng::u16 kFirstLine = 0x2cu;
 
-// Rejilla de BOBs: 4x4 celdas de 80x64; el objeto se mueve solo dentro de su celda.
+// Rejilla de BOBs: 4 columnas x 2 filas; el objeto se mueve solo dentro de su celda.
 constexpr eng::u8  kBobCount = K_086_BOBS;
 constexpr eng::u16 kSkyBands = K_086_SKY_BANDS;
 constexpr eng::u8  kCols = 4u;
 constexpr eng::u16 kCellW = 80u;
-constexpr eng::u16 kCellH = 64u;
+constexpr eng::u16 kCellH = 128u;
 
-// Hojas: disco 32x32 (2 planos + máscara) y cuadrado 16x16 (1 y 2 planos).
-constexpr eng::u16 kDiscW = 32, kDiscH = 32, kDiscPlanes = 2;
-constexpr eng::u32 kDiscRow = ((kDiscW / 16u) + 1u) * 2u;   // 6
-constexpr eng::u32 kDiscPlane = kDiscH * kDiscRow;          // 192
-constexpr eng::u16 kSqW = 16, kSqH = 16;
-constexpr eng::u32 kSqRow = ((kSqW / 16u) + 1u) * 2u;       // 4
-constexpr eng::u32 kSqPlane = kSqH * kSqRow;                // 64
-constexpr eng::u32 kDiscOff = 0;
-constexpr eng::u32 kGlowOff = kDiscOff + kDiscPlane * kDiscPlanes;
-constexpr eng::u32 kOpaqueOff = kGlowOff + kSqPlane;
-constexpr eng::u32 kMaskOff = kOpaqueOff + kSqPlane * 2u;
-constexpr eng::u32 kSheetBytes = kMaskOff + kDiscPlane;
-constexpr eng::u32 kSaveWords = 64;
+// Objeto: disco 32x32 de 3 planos (indices 1..4 -> COLOR01..COLOR04) + mascara. Cada
+// OBJETO usa su PROPIO indice de color, para que sus intenciones de copper no colisionen
+// con las de otro objeto aunque compartan lineas de raster (el Plan, si colisionan,
+// resolveria por prioridad y se veria el color del ganador en los dos).
+constexpr eng::u16 kObjW = 32, kObjH = 32, kObjPlanes = 3;
+constexpr eng::u8  kObjVariants = 4u;                     // indices 1..4
+constexpr eng::u32 kObjRow = ((kObjW / 16u) + 1u) * 2u;   // 6 (base + guarda)
+constexpr eng::u32 kObjPlane = kObjH * kObjRow;           // 192
+constexpr eng::u32 kObjData = kObjPlane * kObjPlanes;     // 576
+constexpr eng::u32 kObjMask = kObjPlane;                  // 192 (1 plano)
+constexpr eng::u32 kObjStride = kObjData + kObjMask;      // 768
+constexpr eng::u32 kSheetBytes = kObjStride * kObjVariants;
+constexpr eng::u32 kSaveWords = kObjPlanes * 3u * kObjH;  // 288: 3 palabras x 32 filas x 3 planos
 
-constexpr eng::u8 kObjKinds = 3u;
+constexpr eng::u8 kObjPolicies = 3u;
 constexpr eng::u8 kObjCopperSteps = 4u;   // pasos de degradado de copper por objeto
 
 // Paleta base: fondo + colores de los tres objetos (COLOR01..). El cielo reescribe
@@ -137,7 +161,7 @@ constexpr eng::u16 lerp444(eng::u16 a, eng::u16 b, eng::u16 num, eng::u16 den) {
 // índice `first` (COLOR01), así que se pasa `{&pal[s], 2}` — con tamaño 1 el scheduler
 // recortaría `count` a 0 y el objeto no escribiría nada.
 eng::u16 g_sky[256] {};
-eng::u16 g_obj_pal[kBobCount > 0u ? kBobCount : 1u][kObjCopperSteps + 1u] {};
+eng::u16 g_obj_pal[kBobCount > 0u ? kBobCount : 1u][kObjCopperSteps][kObjVariants + 1u] {};
 graphics::CopperIntent g_obj_needs[kBobCount > 0u ? kBobCount : 1u][kObjCopperSteps] {};
 
 /// Arcoíris de 4 pasos para el degradado que pide cada objeto (evidente a la vista).
@@ -146,6 +170,7 @@ constexpr eng::u16 kObjRainbow[kObjCopperSteps] = {0x00f, 0x0f0, 0xf00, 0xff0};
 struct BobObjectsDemo {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
+		ENG_PROF_INIT(kProfCount);
 		if (!backend.configure_memory({96u * 1024u, 8u * 1024u, 4u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008601u);
 			return;
@@ -182,6 +207,8 @@ struct BobObjectsDemo {
 
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
+		ENG_PROF_FRAME();
+		ENG_PROF_BEGIN(kProfActors);
 		const eng::u16 t = static_cast<eng::u16>(context.frame.frame_index);
 
 		// Cada objeto se mueve dentro de su celda (los borrados por caja/save-under no
@@ -219,14 +246,19 @@ struct BobObjectsDemo {
 				++emitted;
 			}
 		}
+		ENG_PROF_END(kProfActors);
+		ENG_PROF_BEGIN(kProfBlits);
 		if (!backend.execute_frame_plan(m_blits)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008606u);
 			return;
 		}
+		ENG_PROF_END(kProfBlits);
+		ENG_PROF_BEGIN(kProfCopper);
 		if (!build_frame()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008607u);
 			return;
 		}
+		ENG_PROF_END(kProfCopper);
 		g_eng_run_status.detail = (static_cast<eng::u32>(emitted) << 8u) |
 					  static_cast<eng::u32>(kBobCount);
 	}
@@ -260,26 +292,24 @@ private:
 			sheet[row + (x >> 3u)] = static_cast<eng::u8>(sheet[row + (x >> 3u)] |
 								      (0x80u >> (x & 7u)));
 		};
-		for (eng::s16 dy = -16; dy < 16; ++dy) {
-			for (eng::s16 dx = -16; dx < 16; ++dx) {
-				const eng::s16 d2 = static_cast<eng::s16>(dx * dx + dy * dy);
-				if (d2 > 14 * 14) {
-					continue;
+		for (eng::u8 v = 0; v < kObjVariants; ++v) {
+			const eng::u8 index = static_cast<eng::u8>(v + 1u); // COLOR01..COLOR04
+			const eng::u32 base = static_cast<eng::u32>(v) * kObjStride;
+			for (eng::s16 dy = -16; dy < 16; ++dy) {
+				for (eng::s16 dx = -16; dx < 16; ++dx) {
+					const eng::s16 d2 = static_cast<eng::s16>(dx * dx + dy * dy);
+					if (d2 > 14 * 14) {
+						continue;
+					}
+					const eng::u16 x = static_cast<eng::u16>(dx + 16);
+					const eng::u16 y = static_cast<eng::u16>(dy + 16);
+					put(base + kObjData, kObjRow, x, y); // máscara (cookie-cut)
+					for (eng::u8 p = 0; p < kObjPlanes; ++p) {
+						if (((index >> p) & 1u) != 0u) {
+							put(base + static_cast<eng::u32>(p) * kObjPlane, kObjRow, x, y);
+						}
+					}
 				}
-				const eng::u16 x = static_cast<eng::u16>(dx + 16);
-				const eng::u16 y = static_cast<eng::u16>(dy + 16);
-				put(kDiscOff, kDiscRow, x, y);
-				put(kMaskOff, kDiscRow, x, y);
-				if (d2 <= 8 * 8) {
-					put(kDiscOff + kDiscPlane, kDiscRow, x, y);
-				}
-			}
-		}
-		for (eng::u16 y = 0; y < kSqH; ++y) {
-			for (eng::u16 x = 0; x < kSqW; ++x) {
-				put(kGlowOff, kSqRow, x, y);
-				put(kOpaqueOff, kSqRow, x, y);
-				put(kOpaqueOff + kSqPlane, kSqRow, x, y);
 			}
 		}
 	}
@@ -289,64 +319,55 @@ private:
 		m_allocator.reset({0u, 60000u, 0u}); // sin sprites: todo va por Blitter
 		const eng::u8* const sheet = m_sheet.view.data();
 		for (eng::u8 i = 0; i < kBobCount; ++i) {
-			const eng::u8 kind = static_cast<eng::u8>(i % kObjKinds);
+			const eng::u8 policy = static_cast<eng::u8>(i % kObjPolicies);
+			const eng::u8 variant = static_cast<eng::u8>(i % kObjVariants);
+			const eng::u8 index = static_cast<eng::u8>(variant + 1u); // registro COLOR
+			const eng::u32 base = static_cast<eng::u32>(variant) * kObjStride;
 			scene::ActorDesc d {};
 			d.visual.kind = graphics::VisualKind::Bob;
+			d.visual.pixels = eng::Span<const eng::u16> {
+				reinterpret_cast<const eng::u16*>(sheet + base),
+				static_cast<eng::usize>(kObjData / 2u)};
+			d.visual.mask = eng::Span<const eng::u16> {
+				reinterpret_cast<const eng::u16*>(sheet + base + kObjData),
+				static_cast<eng::usize>(kObjMask / 2u)};
+			d.visual.w = kObjW;
+			d.visual.h = kObjH;
+			d.visual.bitplanes = kObjPlanes;
 			d.x = 0;
 			d.y = 0;
 			d.surface = 0u;
 			d.z = static_cast<eng::u8>(10u + i);
 			d.preferred = scene::Representation::Bob;
 			d.layout = graphics::BobLayout::Planar;
-			if (kind == 0u) {
-				d.visual.pixels = eng::Span<const eng::u16> {
-					reinterpret_cast<const eng::u16*>(sheet + kDiscOff),
-					static_cast<eng::usize>(kDiscPlane * kDiscPlanes / 2u)};
-				d.visual.mask = eng::Span<const eng::u16> {
-					reinterpret_cast<const eng::u16*>(sheet + kMaskOff),
-					static_cast<eng::usize>(kDiscPlane / 2u)};
-				d.visual.w = kDiscW;
-				d.visual.h = kDiscH;
-				d.visual.bitplanes = kDiscPlanes;
+			if (policy == 0u) {
 				d.transparency = scene::TransparencyMode::Mask1Bit;
 				d.background = scene::BackgroundPolicy::ClearRect;
-			} else if (kind == 1u) {
-				d.visual.pixels = eng::Span<const eng::u16> {
-					reinterpret_cast<const eng::u16*>(sheet + kGlowOff),
-					static_cast<eng::usize>(kSqPlane / 2u)};
-				d.visual.w = kSqW;
-				d.visual.h = kSqH;
-				d.visual.bitplanes = 1u;
+			} else if (policy == 1u) {
 				d.transparency = scene::TransparencyMode::AdditiveOr;
 				d.background = scene::BackgroundPolicy::ClearRect;
 			} else {
-				d.visual.pixels = eng::Span<const eng::u16> {
-					reinterpret_cast<const eng::u16*>(sheet + kOpaqueOff),
-					static_cast<eng::usize>(kSqPlane)};
-				d.visual.w = kSqW;
-				d.visual.h = kSqH;
-				d.visual.bitplanes = 2u;
 				d.transparency = scene::TransparencyMode::Opaque;
 				d.background = scene::BackgroundPolicy::SaveUnder;
 				d.save[0] = eng::Span<eng::u16> {
 					reinterpret_cast<eng::u16*>(m_save.view.data()), kSaveWords};
-				d.save_words_per_row = 2u; // 16 px + palabra de guarda del shift
-				d.save_height = kSqH;
+				d.save_words_per_row = 3u; // 32 px -> 2 palabras + guarda del shift
+				d.save_height = kObjH;
 			}
 			// Necesidades de Copper del objeto: un arcoíris de `kObjCopperSteps` pasos a lo
-			// largo de sus filas (relativo a su Y), que `actor_add_copper` pasa al plan con
-			// su z. Es VISIBLE: el color del objeto cambia según la fila.
-			eng::u16* colors = g_obj_pal[i];
+			// largo de sus filas, en SU registro (`COLOR0<index>`), relativo a su Y. Así no
+			// colisiona con otro objeto ni aunque compartan líneas de raster.
 			for (eng::u8 s = 0; s < kObjCopperSteps; ++s) {
-				colors[s + 1u] = kObjRainbow[s];
+				eng::u16* colors = g_obj_pal[i][s];
+				colors[index] = kObjRainbow[s];
 				graphics::CopperIntent& need = g_obj_needs[i][s];
 				need = graphics::CopperIntent {};
 				need.kind = graphics::CopperIntentKind::PaletteLine;
 				need.top = static_cast<eng::u16>(static_cast<eng::u16>(s) * d.visual.h /
 								 kObjCopperSteps);
 				need.bottom = need.top;
-				need.colors = eng::PaletteWords {&colors[s], 2u}; // cubre el índice 1
-				need.first = 1u; // COLOR01
+				need.colors = eng::PaletteWords {colors, static_cast<eng::u8>(index + 1u)};
+				need.first = index; // COLOR0<index>
 				need.count = 1u;
 			}
 			d.copper = eng::Span<const graphics::CopperIntent> {g_obj_needs[i], kObjCopperSteps};
@@ -373,6 +394,7 @@ private:
 		// Cielo: `kSkyBands` intenciones repartidas por el raster (una por banda). Con
 		// `K_086_SKY_BANDS=256` es un valor por línea (continuo) y el frame se dispara a
 		// ~9 campos: el coste no es el copper sino el bucle (ver F4.6 del roadmap).
+#if K_086_STATIC_COPPER == 0
 		for (eng::u16 b = 0; b < kSkyBands; ++b) {
 			const eng::u16 line = static_cast<eng::u16>(b * (256u / kSkyBands));
 			graphics::CopperIntent sky {};
@@ -395,6 +417,7 @@ private:
 			scene::actor_add_copper(m_plan, *a, r.top, kFirstLine);
 		}
 		m_plan.materialize();
+#endif
 		return m_plan.end_frame();
 	}
 

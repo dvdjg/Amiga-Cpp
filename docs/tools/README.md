@@ -66,6 +66,21 @@ Por defecto revisa la documentación mantenida **y** los árboles importados (`d
 
 La regresión lo lleva como opt-in `--fps-gate` (añade ~25 s de emulador por muestra y demo).
 
+## Perfil por secciones (¿dónde se va el frame?)
+
+`tools/debug/profile.mjs` lee `eng::debug::g_eng_prof` (contadores de ciclos por sección,
+`engine/include/eng/debug/prof.hpp`) de la demo en marcha y lo traduce a ciclos/frame, % del total y
+llamadas/frame. La diferencia *total − suma(secciones)* es la espera de VBlank + `render` + bucle, así
+que distingue **trabajo propio** de **espera** sin instrumentar el motor.
+
+- En la demo: `ENG_PROF_INIT(n)` una vez, `ENG_PROF_FRAME()` por frame y
+  `ENG_PROF_BEGIN/END(seccion)` alrededor de los tramos a medir. La demo define el bloque
+  (`g_eng_prof`, con enlace C para que salga sin manglar en el `.map`).
+- Medir: `bash tools/run/run-demo.sh <demo>` y luego
+  `node tools/debug/profile.mjs <demo> [config] [segundos]`.
+- Coste: ~2 lecturas del contador por sección y frame (el contador es el mismo `0xB7E928` que usa
+  `measure-fps.mjs`).
+
 ## Sondas de emisión de sprites (depuración de custom chips)
 
 Leen del emulador lo que el engine **programa** y lo que el chipset **tiene**, sin depender de la
