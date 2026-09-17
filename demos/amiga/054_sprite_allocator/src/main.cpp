@@ -64,14 +64,18 @@ constexpr eng::u8  kPlanes = 6;
 constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * 256u;
 constexpr eng::u32 kBitplaneBytes = kPlaneBytes * kPlanes;
 
-// 9 actores de 16x16 en fila (x = 16, 48, ..., 272); solo caben 8 en hardware.
+// 9 actores de 16x16 en fila dentro de la ventana (x = 144, 176, ..., 400); solo 8 caben.
 constexpr eng::u8  kActors = 9;
 constexpr eng::u8  kSpriteHeight = 16;
 constexpr eng::u16 kWordsPerLine = 2;   // DAT + DATB
-constexpr eng::u16 kInstanceWords = static_cast<eng::u16>(kSpriteHeight) * kWordsPerLine; // 32
-constexpr eng::u16 kSpriteWords = static_cast<eng::u16>(kInstanceWords * kActors);        // 288
+// Cada instancia lleva su DATA (16 líneas x DAT/DATB) y, detrás, DOS palabras a cero que
+// terminan el canal de DMA (AHRM 3.ª: "two all-zero words are placed at the end of the
+// data structure to stop the DMA channel"). Sin ellas el canal sigue leyendo la
+// instancia vecina.
+constexpr eng::u16 kInstanceWords = static_cast<eng::u16>(kSpriteHeight) * kWordsPerLine + 2u; // 34
+constexpr eng::u16 kSpriteWords = static_cast<eng::u16>(kInstanceWords * kActors);              // 306
 constexpr eng::u16 kY = 100;
-constexpr eng::u16 kHpos0 = 16;
+constexpr eng::u16 kHpos0 = 144;
 constexpr eng::u16 kHposStep = 32;
 
 // Fondo navy + parejas de color de sprite: COLOR17=rojo, COLOR21=verde,
@@ -146,6 +150,10 @@ private:
 				data[static_cast<eng::u16>(inst) * kInstanceWords + line * 2u + 0u] = 0xFFFFu; // DAT
 				data[static_cast<eng::u16>(inst) * kInstanceWords + line * 2u + 1u] = 0x0000u; // DATB
 			}
+			// Terminador del canal de DMA: dos palabras a cero tras la DATA.
+			const eng::u16 tail = static_cast<eng::u16>(kSpriteHeight) * kWordsPerLine;
+			data[static_cast<eng::u16>(inst) * kInstanceWords + tail + 0u] = 0u;
+			data[static_cast<eng::u16>(inst) * kInstanceWords + tail + 1u] = 0u;
 		}
 	}
 

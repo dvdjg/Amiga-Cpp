@@ -1,23 +1,32 @@
 # Demo 054: SpriteAllocator — asignación de canales con overflow → BOB
 
-> **ESTADO: a revisar.** La demo destapa un bug latente en `SpriteManager::emit_into`
-> (el camino de 8 canales, nunca ejercitado antes): los sprites NO se dibujan
-> aunque la copperlist los emite (el `emit_template_into` de la demo 053, con
-> `wait_line` por segmento, SÍ funciona). Queda pendiente diagnosticar por qué el
-> camino de 8 canales (sin `wait_line`) no arma el DMA de sprites.
+Consume la capa de objetos del engine (`docs/engine/architecture/OBJECT_SYSTEM.md`): la escena
+describe actores (`ActorDesc`) y `compose_sprites` ordena, reparte canales, publica los
+`SpritePlacement` (que `SpriteManager::apply` materializa en `SPRxPOS/CTL/PT`) y dibuja como BOB los
+que no caben.
 
-## Qué valida (el allocator sí funciona)
+## Qué muestra
 
-El `SpriteAllocator` (paso 4 de `ENGINE_DESIGN.md` §5) reparte `SpriteIntent`
-entre los 8 canales hardware y decide el overflow (más de 8 sprites en la misma
-franja → BOB). Su lógica pura está validada por el test host HOST-003; esta demo
-intenta validar la integración allocator → `SpriteManager`.
+9 actores de 16×16 en fila horizontal (y=100). Los 8 primeros caben en los canales 0..7 (parejas de
+color: rojo, verde, azul, amarillo); el noveno no cabe y queda `as_bob`. El reparto se publica en
+`g_eng_run_status.detail` (`sprites << 8 | degradados`).
 
-Qué debería mostrar: 9 sprites de 16×16 en fila horizontal (y=100). Los 8
-primeros caben en los canales 0..7 (parejas rojo/verde/azul/amarillo); el noveno
-desborda a `as_bob`. El número de BOBs se publica en `g_eng_run_status.detail`
-(byte alto) — la demo sí reporta `bob_count=1` y `copper_words=180` (los 8 sprites
-sí se emiten), pero el DMA no los muestra.
+**`hpos` debe caer DENTRO de la ventana de display.** El display empieza en `DIWSTRT` (x≈128); los
+sprites situados a la izquierda de ese punto se dibujan en el **borde** y no se ven. Con
+`kHpos0 = 16` solo se veían los dos últimos pares que entraban en la ventana (y en azul, porque
+eran los canales 4/5, cuyo par es el azul); con `kHpos0 = 144` se ven las tres primeras parejas.
+Un SpriteManager o un canal que no dibuje en la ventana no es un defecto de emisión: las sondas
+`tools/debug/probe-sprite-emission.mjs` (lista decodificada + registros + DATA en una sola
+ejecución) confirman que la copperlist, la paleta, `DMACON` y la DATA son correctos.
+
+## Sondas de depuración
+
+```bash
+node tools/debug/read-sprite-regs.mjs       054_sprite_allocator   # registros de sprite
+node tools/debug/decode-copper.mjs          054_sprite_allocator   # lista desde COP1LC
+node tools/debug/probe-sprite-data.mjs      054_sprite_allocator   # DATA + paleta + display
+node tools/debug/probe-sprite-emission.mjs  054_sprite_allocator   # todo, en una sola ejecución
+```
 
 ## Build & run
 

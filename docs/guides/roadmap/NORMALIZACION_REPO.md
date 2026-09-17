@@ -185,12 +185,82 @@ consume. Todo con tests host.
 composición conectada, la 054 solo muestra **2 sprites** (ambos del mismo par de color) en lugar de
 los 8 repartidos. Un A/B contra la versión anterior de la demo (misma imagen exacta) descarta una
 regresión del sistema de objetos: la composición está validada en host (canales 0..7, geometría,
-punteros de DATA, orden) y el fallo está en la **emisión** `SPRxPOS/CTL/PT` o en la terminación de
-la DATA del sprite. Pista: los dos que se ven son del par 2, lo que apunta a `palette_base` o a que
-la mayoría de canales quedan deshabilitados o con `vstop` inválido. Es el siguiente paso de
-depuración de la 054. Nota aparte: `SpriteManager::dma_bits()` usa `1u << (6 - i)`, que para el
-canal 7 es un desplazamiento negativo (UB); no lo usa la 054 (habilita SPREN con `DMACON`), pero
-conviene revisarlo contra la doc del chipset.
+punteros de DATA, orden).
+
+Evidencia medida (sondas `out/tmp/read_spr.mjs` y `out/tmp/decode_copper.mjs`, por canal
+lateral+GDB tras READY):
+
+- Volcado de la lista (`COP1LC` → decodificada): `DMACON=0x8380` (sin SPREN) → bucle de reset
+  (`SPRxPT=0x24460` para los 8, `POS/CTL=0`) → `DMACON=0x83A0` (con SPREN) → paleta → 8 ×
+  [`WAIT vpos=100 mask=0xFF00` + 4 MOVEs] con `POS=0x6408` (vstart 100, hstart 16), `CTL=0x7300`
+  (vstop 115) y `SPRxPT` por canal, 64 B apart → `WAIT 0xf8` → `COLOR00=0` → STOP. Es decir, la
+  lista **contiene la config correcta de los 8 canales**.
+- `CopperBuilder::end()` escribe `(0xFFFF,0xFFFE)` = STOP: la lista **no enlaza**, se ejecuta una
+  vez y el Copper se detiene.
+- Los `WAIT` de sprite llevan `mask=0xFF00` (solo comparan VPOS): **todos pasan en la misma línea**,
+  así que el WAIT por sprite **no** es la causa (corrige la hipótesis anterior). Emitirlos en ráfaga
+  sin WAIT dio **0 sprites** por una razón que sigue sin explicarse, y el cambio se revirtió.
+- Lectura de `$DFF120`/`$DFF140`: `SPRxPT` correctos por canal, pero `POS/CTL` se leen `0xFFFF`/
+  `0x0000` pese a estar en la lista → son registros de lectura no fiable (write-only).
+
+Conclusión: el defecto **no** está en la composición ni en el texto de la lista. Sondeos nuevos
+(`out/tmp/probe_spr_data.mjs`) y resultados en la MISMA ejecución:
+
+- **La paleta es correcta**: `COLOR16..31` se lee `111 f00 111 111 | 222 0f0 222 222 | 333 00f 333
+  333 | 444 ff0 444 444`, es decir rojo en 17, verde en 21, azul en 25 y amarillo en 29, como espera
+  la demo. `DMACON=0x03A0` (con SPREN), `BPLCON0=0x6200` (6 planos EHB) y `DIWSTRT/DIWSTOP`
+  correctos.
+- Los dos cuadrados visibles son **azules** (`COLOR25`, par 2 = canales 4 y 5), cuando los canales
+  0/1 deberían ser **rojos** (`COLOR17`): no es un problema de color sino de **qué canales dibujan**.
+- **Metodología (importante)**: comparar dumps de custom registers entre ejecuciones NO es válido
+  (la base de la arena cambia por run) y `SPRxPT`/`POS`/`CTL` no son fiables de lectura (write-only).
+  Las comparaciones cruzadas de pasadas anteriores quedan anuladas; la próxima sonda debe leer lista,
+  registros y DATA **en una sola ejecución**.
+
+Terminador de sprite: la AHRM 3.ª (*"In single-sprite usage, two all-zero words are placed at the end
+of the data structure to stop the DMA channel"*) exige **dos palabras a cero** tras la DATA. La demo
+054 no las tenía (las instancias se seguían unas a otras), así que ahora cada instancia lleva su
+terminador (`kInstanceWords` 32 → 34). No cambia el resultado visible, pero elimina una violación de
+la spec que podía hacer que un canal siguiera leyendo la instancia vecina.
+
+Siguiente sonda: **una sola ejecución** que lea `COP1LC` + la lista decodificada + los `SPRxPT` + la
+DATA + el estado de fetch del DMA de sprite (si el emulador lo expone), para localizar por qué solo
+dos canales dibujan.
+
+Aparte, en esta pasada se corrigió `SpriteManager::dma_bits()`, que era incorrecto: el DMA de
+sprites es **un único bit** (`SPREN`, bit 5) que habilita los 8 canales, no un bit por canal
+(referencia AHRM 3.ª: `MOVE.W #$83A0,DMACON` = `DMAEN|BPLEN|COPEN|SPREN`). La versión anterior
+devolvía bits para los canales 0..6 (que en `DMACON` son blitter/disco/audio) y para el canal 7 un
+desplazamiento negativo (UB). Ahora devuelve `0x0020` y está cubierto por `072_actor`. Un canal que
+no debe verse se desactiva con su `SPRxPT` a 0.
+
+**Nota 6.5b — CERRADA: la 054 no tenía bug de emisión; los sprites caían en el borde.** Sonda en
+UNA sola ejecución (`tools/debug/probe-sprite-emission.mjs`: lee `COP1LC`, decodifica la lista,
+extrae la config de los 8 canales y lee la DATA en esas mismas direcciones):
+
+- La lista contiene la config correcta de los 8 canales: `vstart=100 vstop=115`,
+  `hstart=16,48,…,240`, `SPRxPT` por canal (68 B, con terminador).
+- La DATA en esas direcciones es la esperada (`ffff 0000 …`) con las dos palabras a cero de
+  terminación; la paleta (`COLOR17=f00`, `21=0f0`, `25=00f`, `29=ff0`), `DMACON=0x03A0` y
+  `BPLCON0=0x6200` son correctos.
+- **El problema era de contenido**: los sprites se colocaban en `hpos` 16..240 y la ventana de
+  display empieza en `DIWSTRT` (x≈128), así que caían en el **borde** (invisibles). Con
+  `kHpos0 = 144` se ven las parejas rojo/verde/azul; los dos cuadrados azules anteriores eran los
+  canales 4/5 (par 2 = azul), los únicos que entraban en la ventana.
+
+Quedan por tanto **anuladas** las hipótesis previas sobre `SpriteManager::emit_into` (el WAIT por
+sprite funciona: su `mask=0xFF00` compara solo VPOS y pasan todos en la misma línea) y sobre el
+fallo de la composición. Lecciones de método: comparar dumps de custom registers entre ejecuciones
+NO es válido (la base de la arena cambia por run) y `SPRxPT`/`POS`/`CTL` no son fiables de lectura;
+hay que cruzar lista + registros + DATA en una sola ejecución.
+
+Sondas reutilizables en `tools/debug/`: `read-sprite-regs.mjs`, `decode-copper.mjs`,
+`probe-sprite-data.mjs`, `probe-sprite-emission.mjs`.
+
+En la misma pasada se corrigieron dos defectos reales del engine/demo: `SpriteManager::dma_bits()`
+(el DMA de sprites es **un único bit**, `SPREN`; ver la referencia AHRM `MOVE.W #$83A0,DMACON`) y la
+falta del **terminador de dos palabras a cero** al final de cada DATA de sprite (AHRM: *"two
+all-zero words are placed at the end of the data structure to stop the DMA channel"*).
 
 Referencias obligatorias antes de tocar esto (regla de contexto técnico): AHRM 3.ª
 (`docs/reference/ahrm/`), `amiga-bootcamp/08_graphics/blitter_programming.md` (minterms,
