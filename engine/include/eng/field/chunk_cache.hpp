@@ -17,6 +17,7 @@
 #include <eng/core/domains.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
+#include <eng/core/util/hash_map.hpp>
 
 namespace eng::field {
 
@@ -26,6 +27,31 @@ enum class LoadResult : eng::u8 {
 	Empty = 1,   ///< chunk ausente; el `Loader` rellenó `empty_tile`; residente.
 	Pending = 2, ///< aún no disponible; no se marca residente (se reintenta).
 };
+
+/// Clave exacta `(cx, cy)` de un chunk residente. No se empaqueta a 16 bits: los
+/// índices de chunk pueden ser negativos o grandes y una colisión daría un falso hit.
+struct ChunkKey {
+	eng::s32 cx = 0;
+	eng::s32 cy = 0;
+	[[nodiscard]] constexpr bool operator==(const ChunkKey& other) const noexcept {
+		return cx == other.cx && cy == other.cy;
+	}
+};
+
+} // namespace eng::field
+
+namespace eng::util {
+/// Hash de la clave de chunk (xor de dos avalanchas + rotación; sin multiplicar 32×32).
+template <>
+struct Hash<eng::field::ChunkKey> {
+	[[nodiscard]] eng::u32 operator()(const eng::field::ChunkKey& k) const noexcept {
+		return hash_u32(static_cast<eng::u32>(k.cx)) ^
+		       rotl(hash_u32(static_cast<eng::u32>(k.cy)), 16u);
+	}
+};
+} // namespace eng::util
+
+namespace eng::field {
 
 template <eng::u16 ChunkSize, eng::u8 Capacity>
 class ChunkCache {
@@ -48,6 +74,7 @@ public:
 		m_loader = loader;
 		m_pool = pool;
 		for (eng::u8 i = 0; i < Capacity; ++i) m_slots[i] = Slot {};
+		m_index.clear();
 		m_clock = 0;
 		m_loads = 0;
 		m_evictions = 0;
@@ -58,24 +85,23 @@ public:
 	}
 
 	/// Devuelve las celdas del chunk si ESTÁ RESIDENTE (sin cargar ni tocar stats).
+	/// El índice hash lleva `(cx,cy) -> ranura` en `O(1)`.
 	const eng::u16* find(eng::s32 cx, eng::s32 cy) const {
-		for (eng::u8 i = 0; i < Capacity; ++i) {
-			if (m_slots[i].valid && m_slots[i].cx == cx && m_slots[i].cy == cy) {
-				return m_pool.data() + static_cast<eng::u32>(i) * kCells;
-			}
+		const eng::u8* slot = m_index.find(ChunkKey {cx, cy});
+		if (slot == nullptr) {
+			return nullptr;
 		}
-		return nullptr;
+		return m_pool.data() + static_cast<eng::u32>(*slot) * kCells;
 	}
 
 	/// Devuelve las celdas del chunk (residente o recién cargado). `nullptr` si el
 	/// `Loader` devolvió `Pending` (no queda residente) o si no hay fuente.
 	const eng::u16* get(eng::s32 cx, eng::s32 cy) {
-		for (eng::u8 i = 0; i < Capacity; ++i) {
-			if (m_slots[i].valid && m_slots[i].cx == cx && m_slots[i].cy == cy) {
-				m_slots[i].stamp = ++m_clock;
-				++m_hits;
-				return m_pool.data() + static_cast<eng::u32>(i) * kCells;
-			}
+		if (const eng::u8* slot = m_index.find(ChunkKey {cx, cy})) {
+			Slot& s = m_slots[*slot];
+			s.stamp = ++m_clock;
+			++m_hits;
+			return m_pool.data() + static_cast<eng::u32>(*slot) * kCells;
 		}
 		eng::u8 victim = 0;
 		bool any_free = false;
@@ -91,13 +117,17 @@ public:
 			++m_pendings; // no se toca el slot: se reintentará en la próxima petición
 			return nullptr;
 		}
-		if (s.valid && !any_free) ++m_evictions;
+		if (s.valid && !any_free) {
+			++m_evictions;
+			m_index.erase(ChunkKey {s.cx, s.cy});
+		}
 		s.cx = cx;
 		s.cy = cy;
 		s.valid = true;
 		s.stamp = ++m_clock;
 		++m_loads;
 		if (r == LoadResult::Empty) ++m_empties;
+		m_index.insert_or_assign(ChunkKey {cx, cy}, victim);
 		return dst.data();
 	}
 
@@ -116,6 +146,8 @@ private:
 	Loader m_loader {};
 	eng::TileBankBuffer m_pool {};
 	Slot m_slots[Capacity] {};
+	/// Índice `(cx,cy) -> ranura` para no recorrer los slots en cada `find`/`get`.
+	eng::util::HashMap<ChunkKey, eng::u8, Capacity> m_index {};
 	eng::u32 m_clock = 0;
 	eng::u32 m_loads = 0;
 	eng::u32 m_evictions = 0;

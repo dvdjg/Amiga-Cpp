@@ -32,8 +32,11 @@ La librería **complementa** el núcleo de `eng/core/`, no lo duplica:
                                      small_vector.hpp  SmallVector<T,N,A> (inline+arena)
                                      vector.hpp        Vector<T,A>        (arena)
                                      chunked_vector.hpp ChunkedVector<...> (estable)
-                                     ring_buffer.hpp   RingBuffer<T,N>
+                                     ring_buffer.hpp   RingBuffer<T,N> (doble)
+                                     stack_queue.hpp   Stack/Queue/Deque<T,N>
+                                     enum_set.hpp      EnumSet<E,N>
                                      pool.hpp          Pool<T,N> (handles)
+                                     priority_queue.hpp PriorityQueue<T,N,Cmp>
                                      intrusive_list.hpp IntrusiveList/SList<T>
                                      flat_map.hpp      FlatMap<K,V,N>
                                      flat_set.hpp      FlatSet<T,N>
@@ -44,6 +47,8 @@ La librería **complementa** el núcleo de `eng/core/`, no lo duplica:
                                      optional.hpp      Optional<T>
                                      expected.hpp      Expected<T,E>
                                      string_view.hpp   StringView
+                                     static_string.hpp StaticString<N>
+                                     scope_guard.hpp   ScopeGuard
                                      function_ref.hpp  FunctionRef<Sig>
 ```
 
@@ -51,8 +56,7 @@ Puntos de reutilización explícitos:
 
 - `has_single_bit` se apoya en `eng::is_pow2` (`fast_div.hpp`); no se redefine la
   detección de potencia de dos.
-- El orden de elementos lo cubre `eng/core/sort.hpp` (`quick_sort`/`sort_items`);
-  `algorithm.hpp` no incluye una segunda ordenación.
+- El orden de elementos lo cubre `eng/core/sort.hpp` (`quick_sort`/`sort_items`, más `stable_sort`, `nth_element`, `partial_sort` e `is_sorted`; `radix_sort_u16` para claves de 16 bits); `algorithm.hpp` no incluye una segunda ordenación.
 - `Array<T,N>` y `ct_array<T,N>` son distintos a propósito: el primero es un agregado
   que se inicializa con llaves como un array C; el segundo genera su contenido en
   compilación desde un functor.
@@ -65,6 +69,7 @@ Puntos de reutilización explícitos:
 - `eng/scene/actor.hpp` usa `eng::util::Pool<Actor, MaxActors>` como parque de actores con handles generacionales (`ActorStore`), `BitSet<MaxActors>` y `StaticVector` en la emisión de BOB.
 - `eng/assets/uaf.hpp` (`Blob`) indexa los chunks con `FlatMap<ChunkType, u16, kMaxChunks>` y guarda la lista en `StaticVector<ChunkRef, kMaxChunks>`; lo consumen las demos de assets (078/100/101).
 - `eng/task/background.hpp` usa `IntrusiveSList<Entry>` como free-list de slots de tarea (reparto y devolución `O(1)`, sin heap); lo ejercita la demo `081_background_tasks`.
+- `eng/field/chunk_cache.hpp` indexa los chunks residentes con `HashMap<ChunkKey, u8, Capacity>` (`(cx,cy) -> ranura`) en vez de recorrer los slots; lo ejercita la demo `111_xlimited_sidescroller`.
 
 ## 2. Inventario
 
@@ -83,8 +88,11 @@ Puntos de reutilización explícitos:
 | `small_vector.hpp` | `SmallVector<T, N, A>` (inline + arena) | `llvm::SmallVector` |
 | `vector.hpp` | `Vector<T, A>` (crece en arena) | `std::vector` (sin heap) |
 | `chunked_vector.hpp` | `ChunkedVector<T, Chunk, Max, A>` (direcciones estables) | (sin equivalente) |
-| `ring_buffer.hpp` | `RingBuffer<T, N>` | (sin equivalente) |
+| `ring_buffer.hpp` | `RingBuffer<T, N>` (doble) | (sin equivalente) |
+| `stack_queue.hpp` | `Stack<T,N>`, `Queue<T,N>`, `Deque<T,N>` | `std::stack`/`queue`/`deque` (fijos) |
+| `enum_set.hpp` | `EnumSet<E, N>` | (sin equivalente) |
 | `pool.hpp` | `Pool<T, N>` (+ `Handle` generacional) | `boost::pool` / slot map |
+| `priority_queue.hpp` | `PriorityQueue<T, N, Cmp>` (+ `Less`/`Greater`) | `boost::heap` |
 | `intrusive_list.hpp` | `IntrusiveList<T>`, `IntrusiveSList<T>` (+ `IntrusiveLink`/`IntrusiveSLink`) | `boost::intrusive::list` |
 | `flat_map.hpp` | `FlatMap<K, V, N>` | `flat_map` (Boost) |
 | `flat_set.hpp` | `FlatSet<T, N>` | (sin equivalente) |
@@ -95,6 +103,8 @@ Puntos de reutilización explícitos:
 | `optional.hpp` | `Optional<T>` | `std::optional` |
 | `expected.hpp` | `Expected<T, E>`, `unexpected(e)` | `std::expected` |
 | `string_view.hpp` | `StringView` | `std::string_view` |
+| `static_string.hpp` | `StaticString<N>` | (sin equivalente; `llvm::SmallString`) |
+| `scope_guard.hpp` | `ScopeGuard`, `make_scope_guard` | `boost::scope_exit` |
 | `function_ref.hpp` | `FunctionRef<Sig>` | `std::function_ref` (C++26) |
 
 ## 3. Reglas de diseño para Amiga 500
@@ -124,6 +134,7 @@ Puntos de reutilización explícitos:
 - **`variant`/`tuple`/`mdspan`** y el resto de la STL: sin consumidor real en el engine, no se portan (el tamaño de código y el tiempo de compilación son recursos).
 - **`sort`**: ya existe en `eng/core/sort.hpp`.
 - **`map` de árbol (red-black)**: para esta escala pierde frente a `FlatMap` (pequeño) y `HashMap` (grande), y añade mucho código.
+- **Flags y restauraciones hechos a mano**: no inventar máscaras ni bloques de limpieza por cada `return`; usa `EnumSet<E>` para conjuntos de flags tipados y `ScopeGuard` para restaurar estado (DMA, registros, color) en cualquier salida. Ver §7.
 
 ## 5. Verificación
 
@@ -148,8 +159,12 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-086 | `dynamic_hash_map.hpp` (rehash, estrés contra referencia e internado) |
 | HOST-087 | `intrusive_list.hpp` (`IntrusiveList`/`IntrusiveSList`, free-list) |
 | HOST-088 | `pool.hpp` (handles generacionales, reciclado de slots) |
+| HOST-089 | `priority_queue.hpp` (max/min-heap, comparador propio) |
+| HOST-090 | `core/sort.hpp` (stable/nth/partial/radix) |
+| HOST-091 | `stack_queue.hpp`, `enum_set.hpp` (y `RingBuffer` doble) |
+| HOST-092 | `scope_guard.hpp`, `static_string.hpp` |
 
-> **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`) y `Pool` por `086_bob_objects` (parque de actores). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashMap`/`HashSet`, `DynamicHashMap`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..088 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
+> **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`), `Pool` por `086_bob_objects` (parque de actores) y `HashMap` por `111_xlimited_sidescroller` (índice de chunks de `ChunkCache`). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashSet`, `DynamicHashMap`, `PriorityQueue`, `Stack`/`Queue`/`Deque`, `EnumSet`, `ScopeGuard`, `StaticString`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..092 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
 
 Los tests se ejecutan con el `g++` del entorno (Windows/MinGW, donde `unsigned long`
 mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
@@ -165,5 +180,46 @@ mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
    de codegen (`tools/analyze/codegen-report.mjs`) para fijar que no aparecen libcalls
    de libgcc ni instrucciones de 68020. Ya está cubierto el vocabulario sensible:
    `hash.hpp` (`c_hash_u16`/`c_hash_u32`), `hash_map.hpp`/`hash_set.hpp`
-   (`c_hashmap_find`/`c_hashset_contains`) y `vector.hpp`/`chunked_vector.hpp`
-   (`c_vector_grow`/`c_chunked_push`).
+   (`c_hashmap_find`/`c_hashset_contains`), `vector.hpp`/`chunked_vector.hpp`
+   (`c_vector_grow`/`c_chunked_push`), `pool.hpp`/`priority_queue.hpp`/`intrusive_list.hpp`
+   (`c_pool_ops`/`c_pq_ops`/`c_ilist_ops`), la ordenación de `core/sort.hpp`
+   (`c_stable_sort`/`c_nth_element`/`c_radix_u16`) y `dynamic_hash_map.hpp` (`c_dyn_hashmap`).
+5. Antes de añadir una utilidad nueva, comprobar si el **vocabulario** de §7 ya cubre la
+   necesidad (p. ej. flags con `EnumSet`, restauración con `ScopeGuard`, colas con
+   `Queue`/`Deque`); adoptarlo en el engine y documentarlo aquí.
+
+## 7. Guía de elección
+
+Qué usar según la necesidad, con el criterio del A500 (sin heap; coste visible):
+
+| Necesidad | Usar |
+|---|---|
+| Secuencia contigua de tamaño fijo | `Array<T, N>` |
+| Vector que crece (fase `init`) | `Vector<T, A>` o `SmallVector<T, N, A>` |
+| Secuencia que casi siempre cabe en pocos | `SmallVector<T, N, A>` |
+| Direcciones estables al crecer | `ChunkedVector<T, Chunk, Max, A>` |
+| Pila / cola / doble cola | `Stack<T,N>` / `Queue<T,N>` / `Deque<T,N>` |
+| Cola circular de capacidad fija | `RingBuffer<T, N>` |
+| Mapa/conjunto pequeño y ordenado | `FlatMap<K,V,N>` / `FlatSet<T,N>` |
+| Clave densa `0..N-1` | `DirectMap<V, N>` |
+| Flags de estado por `enum` | `EnumSet<E, N>` |
+| Mapa/conjunto hash grande (fijo) | `HashMap<K,V,N>` / `HashSet<T,N>` |
+| Mapa hash que crece (fase `init`) | `DynamicHashMap<K,V,A>` |
+| Parque de objetos con handle estable | `Pool<T, N>` |
+| Lista de objetos sin asignar | `IntrusiveList<T>` / `IntrusiveSList<T>` |
+| Prioridad / heap | `PriorityQueue<T, N, Cmp>` |
+| Ordenar en su sitio | `quick_sort` (`core/sort.hpp`) |
+| Ordenar estable / top-k / por conteo | `stable_sort`, `nth_element`, `partial_sort`, `radix_sort_u16` |
+| Valor opcional / resultado con error | `Optional<T>` / `Expected<T, E>` |
+| Vista de texto / construir texto sin heap | `StringView` / `StaticString<N>` |
+| Restaurar estado al salir del ámbito | `ScopeGuard` |
+| Pasar un callable sin poseerlo | `FunctionRef<Sig>` |
+
+Notas de uso:
+
+- **`EnumSet`** sustituye a las máscaras manuales: `set(Flag::X)` en vez de `1u << k`, y el compilador rechaza valores de otro enum. Sus valores deben caer en `[0, N)`.
+- **`ScopeGuard`** es la forma de garantizar una restauración (DMA, `COLOR00`, un banco de arena) aunque el camino salga antes; `release()`/`commit()` cuando termina bien.
+- **`Pool`** es el patrón por defecto para "muchos objetos con handle" (`ActorStore` ya lo usa); **`HashMap`/`FlatMap`** se reservan para búsquedas por clave.
+- **Estructuras de capacidad fija** en `frame`; reservar/crecer (`Vector`, `SmallVector`, `DynamicHashMap`) solo en `init`/carga.
+
+Plan de crecimiento (qué falta y en qué orden, con sus gates): [ROADMAP_UTIL_LIBRARY.md](../../guides/roadmap/ROADMAP_UTIL_LIBRARY.md).

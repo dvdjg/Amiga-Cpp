@@ -63,6 +63,28 @@ public:
 		return true;
 	}
 
+	/// Encola por **delante** copiando (doble cola); `false` si está lleno.
+	constexpr bool push_front(const T& value) {
+		if (full()) {
+			return false;
+		}
+		m_head = (m_head == 0u) ? (N - 1u) : (m_head - 1u);
+		m_data[m_head] = value;
+		++m_size;
+		return true;
+	}
+
+	/// Encola por delante moviendo; `false` si está lleno.
+	constexpr bool push_front(T&& value) {
+		if (full()) {
+			return false;
+		}
+		m_head = (m_head == 0u) ? (N - 1u) : (m_head - 1u);
+		m_data[m_head] = move(value);
+		++m_size;
+		return true;
+	}
+
 	/// Encola descartando el elemento más antiguo si estaba lleno.
 	constexpr void push_overwrite(const T& value) {
 		if (full()) {
@@ -100,6 +122,24 @@ public:
 			eng::detail::span_out_of_bounds();
 		}
 		advance(m_head);
+		--m_size;
+	}
+
+	/// Saca el más reciente (doble cola; precondición: no vacío).
+	[[nodiscard]] constexpr T pop_back() {
+		if (empty()) {
+			eng::detail::span_out_of_bounds();
+		}
+		T value = move(m_data[index_of(m_size - 1u)]);
+		--m_size;
+		return value;
+	}
+
+	/// Saca el más reciente descartándolo.
+	constexpr void pop_back_discard() noexcept {
+		if (empty()) {
+			eng::detail::span_out_of_bounds();
+		}
 		--m_size;
 	}
 
