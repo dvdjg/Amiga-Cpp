@@ -35,13 +35,30 @@ const DEMO = POSITIONAL[0];
 if (!DEMO) { console.error('Falta <demo_dir_name>. Uso: node tools/debug/record-fps.mjs <demo_dir_name> [CONFIG_NAME] [--dry-run]'); process.exit(1); }
 const CONFIG_NAME = POSITIONAL[1] || 'A500_debug';
 
-const run = spawnSync(process.execPath, [MEASURE, DEMO, CONFIG_NAME, '--json'], { cwd: ROOT, encoding: 'utf8' });
-process.stdout.write(run.stdout || '');
-process.stderr.write(run.stderr || '');
-if (run.status !== 0) { console.error(`[record-fps] la medicion fallo (exit ${run.status}).`); process.exit(run.status || 1); }
-
-const jsonLine = (run.stdout || '').split(/\r?\n/).reverse().find((l) => l.trim().startsWith('{'));
-if (!jsonLine) { console.error('[record-fps] no se encontro la linea JSON de resultados.'); process.exit(1); }
+// El arranque de WinUAE + GDB ocasionalmente falla de forma transitoria (handshake,
+// puerto aun en TIME_WAIT tras una medicion previa). Se reintenta con backoff antes
+// de dar la medicion por perdida.
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const MAX_ATTEMPTS = 3;
+let jsonLine = null;
+let lastErr = '';
+for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+  const run = spawnSync(process.execPath, [MEASURE, DEMO, CONFIG_NAME, '--json'], { cwd: ROOT, encoding: 'utf8' });
+  const out = run.stdout || '';
+  const line = out.split(/\r?\n/).reverse().find((l) => l.trim().startsWith('{'));
+  if (run.status === 0 && line) { jsonLine = line; process.stdout.write(out); break; }
+  lastErr = (run.stderr || '') + out;
+  if (attempt < MAX_ATTEMPTS) {
+    const delay = 2000 * attempt;
+    console.error(`[record-fps] intento ${attempt}/${MAX_ATTEMPTS} fallido (exit ${run.status}); reintento en ${delay} ms.`);
+    await sleep(delay);
+  }
+}
+if (!jsonLine) {
+  console.error(`[record-fps] la medicion fallo tras ${MAX_ATTEMPTS} intentos.`);
+  process.stderr.write(lastErr);
+  process.exit(1);
+}
 const res = JSON.parse(jsonLine);
 
 const fmtFps = (n) => Number(n).toFixed(2).replace('.', ',');

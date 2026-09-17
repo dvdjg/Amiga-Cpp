@@ -20,7 +20,7 @@ Reglas principales (ver también `docs/STRUCTURE.md` §6):
 | Ejecución (runner/emulador) | `docs/build/BUILD_AND_RUN.md`, `docs/debugging/DEBUG-WINUAE-V2-GUIDE.md` | `tools/run/run-demo.sh`/`.ts` |
 | Análisis de demos | `docs/testing/PIXEL_FRAME_ASSERTIONS.md`, `docs/demos/tile-pipeline/PIPELINE_TILES_EHB.md` | `tools/analyze/*` |
 | Depuración (WinUAE-DBG/DAP) | `docs/debugging/DEBUG-WINUAE-V2-GUIDE.md`, `tools/dap-test/README.md` | `tools/debug/*`, `tools/dap-test/*` |
-| Profiling | `tools/profile/README.md` | `tools/profile/*`, `tools/debug/measure-fps.mjs`, `tools/debug/record-fps.mjs` |
+| Profiling | `tools/profile/README.md` | `tools/profile/*`, `tools/debug/measure-fps.mjs`, `tools/debug/record-fps.mjs`, `tools/debug/check-fps.mjs` |
 | Verificación visual | `tools/vision-review/README.md`, `docs/testing/VISION_REVIEW_ROADMAP.md` | `tools/vision-review/*` |
 | Pipeline de tiles/sprites | `tools/amiga-tiles/README.md`, `docs/demos/tile-pipeline/` | `tools/amiga-tiles/*`, `tools/ehb/*`, `tools/demo202/*` |
 | Assets (UAF-R) | `docs/tools/UAF_PACK.md` | `tools/assets/uaf-pack.ts` |
@@ -38,7 +38,7 @@ Checks baratos que corren en `tools/test-regression.sh` y en la pasada completa 
 | Tool | Comprueba |
 |---|---|
 | `encoding.mjs` | Que los archivos de texto sean UTF-8 válido y sin mojibake. Admite `[raices...]`. |
-| `links.mjs` | Que los enlaces relativos de la documentación canónica resuelvan a ficheros/directorios existentes. Admite `[raices...]`, `--quiet` y `--json`. |
+| `links.mjs` | Que los enlaces relativos de la documentación resuelvan a ficheros/directorios existentes. Admite `[raíces...]`, `--quiet`, `--json` y `--update-baseline`. |
 | `type-tagging.mjs` | Que no aparezca un `MemoryBlock` crudo convertido a tipo de dominio (INTERNAL_TYPE_SYSTEM.md §1). |
 | `scalar-support.mjs` | Que la tabla función × escalar de `SCALAR_LIBRARY.md` esté sincronizada con su fuente única. |
 | `math-diagnostics.sh` | Diagnósticos del vocabulario matemático fixed-point. |
@@ -46,12 +46,13 @@ Checks baratos que corren en `tools/test-regression.sh` y en la pasada completa 
 Uso típico de `links.mjs`:
 
 ```bash
-node tools/check/links.mjs                       # documentación canónica (por defecto)
-node tools/check/links.mjs docs/engine/c-engine  # un árbol concreto
+node tools/check/links.mjs                       # documentación por defecto
+node tools/check/links.mjs docs/reference        # un árbol concreto
 node tools/check/links.mjs --json                # resultado legible por máquina
+node tools/check/links.mjs --update-baseline     # acepta la deuda actual como baseline
 ```
 
-Por defecto revisa la documentación mantenida; quedan fuera los árboles históricos/importados (`docs/engine/c-engine`, `docs/legacy`) por conservar enlaces al repo de origen. Pasa la raíz explícita para revisarlos.
+Por defecto revisa la documentación mantenida **y** los árboles importados (`docs/engine/c-engine`, `docs/legacy`). Como esos últimos conservan enlaces al repo de origen, sus roturas actuales están aceptadas en `tools/check/links-baseline.txt`; el check **solo falla ante rotura nueva**. Al arreglar enlaces, regenerar el baseline con `--update-baseline`.
 
 ## Dónde poner documentación nueva de tools
 - Si es específica de una herramienta: `README.md` junto al código.
