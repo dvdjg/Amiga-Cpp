@@ -6,8 +6,8 @@ Referencia práctica para **arrancar un juego o demo** reutilizando el motor de 
 
 - [Índice de documentación](engine-docs-index.md)
 - [Arquitectura](engine-architecture.md)
-- [Build CLI](build.md)
-- [Batería de tests](../tests/amiga-battery/README.md)
+- [Build CLI](../../build/build.md)
+- Batería de tests
 - [Matriz engine ↔ batería](engine-test-battery-matrix.md)
 - [Roadmap tests unificados del engine](engine-unified-test-roadmap.md)
 
@@ -17,15 +17,15 @@ Referencia práctica para **arrancar un juego o demo** reutilizando el motor de 
 
 ### A) Proyecto **dentro** de este repositorio (recomendado al principio)
 
-- Añades un efecto o juego como **`app/effects/<tu_juego>/`** con el contrato `create` / `loop` / `destroy` (igual que [demo_scroll_bobs/effect.h](../app/effects/demo_scroll_bobs/effect.h)).
-- Registras la entrada en el menú ([`app/menu.c`](../app/menu.c)) o en el flujo Intuition ([`app/main.c`](../app/main.c)).
+- Añades un efecto o juego como **`app/effects/<tu_juego>/`** con el contrato `create` / `loop` / `destroy` (igual que `demo_scroll_bobs/effect.h`).
+- Registras la entrada en el menú (`app/menu.c`) o en el flujo Intuition ([`app/main.c`](../../../legacy/main.c)).
 - **Ventajas**: mismo `Makefile`, `scripts/verify-build.sh`, batería, MCP y configs WinUAE ya probados; promoción natural de código a `engine/` cuando se repita.
 
 ### B) Repositorio **nuevo** (producto aparte)
 
 - Copias como mínimo **`engine/`** (include + src) y **`support/`** (runtime GCC/ABI y ensamblador que espera el linker).
 - Adaptas un **Makefile** tomando como modelo el de la raíz: `VPATH`, `m68k-amiga-elf-gcc`, `elf2hunk`, lista de `.c` de app + `wildcard engine/src/*.c`.
-- Mantén la **misma convención** de salida `out/<nombre>.exe` y, si usas ADF, el flujo de [build.md](build.md) / `make adf`.
+- Mantén la **misma convención** de salida `out/<nombre>.exe` y, si usas ADF, el flujo de [build.md](../../build/build.md) / `make adf`.
 - **Licencia**: el proyecto hereda **GPL-3.0** del ecosistema vscode-amiga-debug; un juego comercial suele requerir plan legal aparte o sustituir el runtime según asesoramiento.
 
 ---
@@ -33,9 +33,9 @@ Referencia práctica para **arrancar un juego o demo** reutilizando el motor de 
 ## 2. Contrato de aplicación que ya funciona aquí
 
 1. **`engine_init()`** — abre librerías base (`graphics`, `dos` si existe).
-2. **UI opcional** (Intuition) o **menú copper** — ver [`app/main.c`](../app/main.c).
+2. **UI opcional** (Intuition) o **menú copper** — ver [`app/main.c`](../../../legacy/main.c).
 3. **`TakeSystem()`** — antes del bucle que toca hardware directo (bitplanes, copper propios).
-4. Por frame: **`engine_wait_vbl()`**, input (`engine_mouse_update`, `engine_key_*`, opcional `engine_input_edges_sync` con [engine_suite.h](../engine/include/engine_suite.h)), lógica y gráficos.
+4. Por frame: **`engine_wait_vbl()`**, input (`engine_mouse_update`, `engine_key_*`, opcional `engine_input_edges_sync` con `engine_suite.h`), lógica y gráficos.
 5. **`FreeSystem()`** + **`effect_destroy()`** (o equivalente) al salir.
 6. **`engine_shutdown()`** al terminar el programa.
 
@@ -74,13 +74,13 @@ Detalle de subsistemas: [engine-subsystems.md](engine-subsystems.md).
 |------|------------|----------------|
 | **Separación engine / app / batería** | [README](../README.md), [engine-architecture.md](engine-architecture.md) | Escalar sin mezclar menú con HAL. |
 | **Efecto = create + loop + destroy** | `app/effects/*` | Carga/descarga limpia y menú estable. |
-| **Estados push/pop** | [`app/state.c`](../app/state.c) | Pausa, menú encima del juego, transiciones. |
-| **Automatización MCP** | `g_automation_input`, [`engine_automation_input.h`](../engine/include/engine_automation_input.h) | Pruebas sin depender solo del ratón host. |
-| **`engine_has_dos()`** | [`engine.h`](../engine/include/engine.h) | Misma build para ADF sin Workbench y para CLI. |
-| **Batería aislada** | `tests/amiga-battery/`, `BATTERY_CASE=` en [Makefile](../Makefile) | Validar una técnica antes de ensuciar el juego. |
+| **Estados push/pop** | `app/state.c` | Pausa, menú encima del juego, transiciones. |
+| **Automatización MCP** | `g_automation_input`, `engine_automation_input.h` | Pruebas sin depender solo del ratón host. |
+| **`engine_has_dos()`** | `engine.h` | Misma build para ADF sin Workbench y para CLI. |
+| **Batería aislada** | `tests/amiga-battery/`, `BATTERY_CASE=` en [Makefile](../../../legacy/Makefile) | Validar una técnica antes de ensuciar el juego. |
 | **Matriz de cobertura** | [engine-test-battery-matrix.md](engine-test-battery-matrix.md) | Saber qué API tiene ya un test con evidencia. |
-| **Constantes copper sin acoplar** | `ENGINE_CUSTOM_*` en [engine_types.h](../engine/include/engine_types.h) | Listas reubicables y legibles. |
-| **Depuración WinUAE + MCP** | [mcp-live-coding-workflow.md](mcp-live-coding-workflow.md), [debug-with-ai.md](debug-with-ai.md) | Regresiones visuales y memoria. |
+| **Constantes copper sin acoplar** | `ENGINE_CUSTOM_*` en `engine_types.h` | Listas reubicables y legibles. |
+| **Depuración WinUAE + MCP** | [mcp-live-coding-workflow.md](../../emulation/mcp-live-coding-workflow.md), [debug-with-ai.md](../../debugging/debug-with-ai.md) | Regresiones visuales y memoria. |
 
 ---
 
@@ -92,8 +92,8 @@ bash scripts/verify-build.sh --clean LTO=0 # depuración estable
 bash scripts/build.sh --debug --program=out/mijuego --battery-case=Mi_caso   # binario suelto + caso batería
 ```
 
-- Toolchain: variable **`AMIGA_BIN_PATH`** o detección automática (extensión amiga-debug); detalle en [build.md](build.md).
-- **ADF**: `make adf` o scripts documentados en [winuae-y-adf.md](winuae-y-adf.md) si aplica.
+- Toolchain: variable **`AMIGA_BIN_PATH`** o detección automática (extensión amiga-debug); detalle en [build.md](../../build/build.md).
+- **ADF**: `make adf` o scripts documentados en [winuae-y-adf.md](../../emulation/winuae-y-adf.md) si aplica.
 
 ---
 
@@ -130,4 +130,4 @@ bash scripts/build.sh --debug --program=out/mijuego --battery-case=Mi_caso   # b
 
 1. [engine-architecture.md](engine-architecture.md) — visión completa del API.
 2. [amiga-test-battery-spec.md](amiga-test-battery-spec.md) — cómo demostrar técnicas con evidencia.
-3. [m68k-stack-and-calling-notes.md](m68k-stack-and-calling-notes.md) — cuando toques ensamblador o interrupciones.
+3. [m68k-stack-and-calling-notes.md](../../reference/amiga/hardware/m68k-stack-and-calling-notes.md) — cuando toques ensamblador o interrupciones.

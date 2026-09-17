@@ -1,0 +1,3 @@
+# Enlaces rotos conocidos (deuda historica aceptada).
+# Formato: ruta-relativa|destino. Regenerar con: node tools/check/links.mjs --update-baseline
+# Si solo tiene esta cabecera, no hay deuda pendiente.

@@ -91,7 +91,7 @@ La verificación visual en WinUAE puede apoyarse en capturas, MCP, análisis LM 
 
 ## Subsistemas de gameplay aún no integrados (lotes BOB, tilemap, copper dinámico, audio modular)
 
-Quedan fuera del núcleo mínimo hasta que el disparador del [engine-roadmap.md](engine-roadmap.md) (sección “Criterio para portar subsistemas grandes”) se cumpla: al menos dos consumidores o un bloqueo real de producto. La aritmética fija y utilidades de [`engine_suite.h`](../engine/include/engine_suite.h) ya forman parte de la Fase 1 en [engine-feature-phases.md](engine-feature-phases.md).
+Quedan fuera del núcleo mínimo hasta que el disparador del [engine-roadmap.md](engine-roadmap.md) (sección “Criterio para portar subsistemas grandes”) se cumpla: al menos dos consumidores o un bloqueo real de producto. La aritmética fija y utilidades de `engine_suite.h` ya forman parte de la Fase 1 en [engine-feature-phases.md](engine-feature-phases.md).
 
 ## Resumen operativo
 

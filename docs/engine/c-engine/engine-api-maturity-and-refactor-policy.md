@@ -103,4 +103,4 @@ Cuando se promueva una tecnica desde bateria o desde `demoscene-repo`, dejar sie
 - [engine-parametric-api-and-cpp-notes.md](engine-parametric-api-and-cpp-notes.md)
 - [engine-subsystems.md](engine-subsystems.md)
 - [engine-roadmap.md](engine-roadmap.md)
-- [demoscene-repo-import-roadmap.md](demoscene-repo-import-roadmap.md)
+- [demoscene-repo-import-roadmap.md](../../demos/effects/demoscene-repo-import-roadmap.md)

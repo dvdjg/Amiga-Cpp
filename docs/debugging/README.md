@@ -18,7 +18,6 @@ Esta carpeta contiene documentación técnica sobre el sistema de depuración Am
 | [AUDIO_DEBUG.md](AUDIO_DEBUG.md) | Procedimiento de depuración de sonido: analizar la onda en host (generador/analizador), puente a C++, y verificación del hardware por canal lateral (DMACONR, registros AUDx, volcado de muestra). |
 | [LECCIONES-PORTE-BLITTER-DEMOSCENE.md](LECCIONES-PORTE-BLITTER-DEMOSCENE.md) | Post-mortem del porte del Blitter de `flatshade-convex`: la raya por vértice, por qué se "normalizó" un truco de registro (`BLTDPTR`), el papel del AHRM y el checklist para no repetirlo al importar efectos. |
 | [CONSULTA-OPTIMIZACION-BLITTER-DEMOSCENE.md](CONSULTA-OPTIMIZACION-BLITTER-DEMOSCENE.md) | Consulta técnica autocontenida para una IA externa: el port C++ de `flatshade-convex` es 2.4x más lento que el original (670k vs 287k ciclos/frame) pese a hacer los mismos blits; incluye el código original, el port, el desglose medido por secciones y las preguntas sobre el modelo de coste del Blitter y la transformación. |
-| [CONSULTA-OPTIMIZACION2-BLITTER-DEMOSCENE.md](CONSULTA-OPTIMIZACION2-BLITTER-DEMOSCENE.md) | Segunda consulta: el original cabe en **2 vblanks** (25 fps) y el port en 3, y la aritmética del Blitter no cuadra (clear+edges+fill ≈ 313k > 284k). Pregunta dónde falla el modelo de coste (emulador vs hardware, altura 0, solape) y qué técnica de Blitter se podría estar pasando por alto. |
 
 ## Resumen del Sistema
 

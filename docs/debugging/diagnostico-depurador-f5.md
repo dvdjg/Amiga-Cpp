@@ -137,7 +137,7 @@ En el desplegable de la barra de depuración debe decir **"AROS (debug, breakpoi
 
 Si **Pausar** funciona pero los **breakpoints no**, lo más probable es que el ELF tenga las direcciones en 0x400 pero, bajo AROS, el programa se cargue en otra zona de memoria (LoadSeg). GDB envía direcciones del ELF y el PC real no coincide.
 
-**Probar**: usa la configuración **"Amiga 500"** (con Kickstart) en lugar de "AROS", y un ADF booteable. Así el ejecutable suele cargarse en 0x400 y los breakpoints pueden funcionar. Véase [../docs/WINUAE-MCP-DEBUG.md](../docs/WINUAE-MCP-DEBUG.md).
+**Probar**: usa la configuración **"Amiga 500"** (con Kickstart) en lugar de "AROS", y un ADF booteable. Así el ejecutable suele cargarse en 0x400 y los breakpoints pueden funcionar. Véase [../docs/WINUAE-MCP-DEBUG.md](../emulation/winuae-extension-internals.md).
 
 ### 5. Profile: "Cannot execute while target is running"
 

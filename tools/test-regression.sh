@@ -11,6 +11,7 @@
 #       [--vision-provider <ruta>] [--vision-send-mode multi-image|contact-sheet]
 #       [--build-all]                                      (barrido de compilacion de TODAS las demos)
 #       [--protect <target>,<block|set:0xVALUE>,<size>]   (repetible; WinUAE-DBG v2.1)
+#       [--fps-gate] [--fps-warn-only] [--fps-threshold <n>]  (gate de fps, opt-in)
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
@@ -31,6 +32,9 @@ BUILD_ALL=0
 VISION_PROVIDER=""
 VISION_SEND_MODE="multi-image"
 PROTECTS=()
+FPS_GATE=0
+FPS_WARN_ONLY=0
+FPS_THRESHOLD=""
 
 next_arg() {
 	if [ -z "${2:-}" ]; then
@@ -55,6 +59,9 @@ while [ "$#" -gt 0 ]; do
 		--vision-provider) next_arg "$1" "$2"; VISION_PROVIDER="$2"; shift 2 ;;
 		--vision-send-mode) next_arg "$1" "$2"; VISION_SEND_MODE="$2"; shift 2 ;;
 		--protect) next_arg "$1" "$2"; PROTECTS+=("$2"); shift 2 ;;
+		--fps-gate) FPS_GATE=1; shift ;;
+		--fps-warn-only) FPS_GATE=1; FPS_WARN_ONLY=1; shift ;;
+		--fps-threshold) next_arg "$1" "$2"; FPS_THRESHOLD="$2"; shift 2 ;;
 		*) echo "Argumento desconocido: $1" >&2; exit 2 ;;
 	esac
 done
@@ -65,6 +72,7 @@ ANALYZE="$ROOT/tools/analyze/analyze-demo.sh"
 PIXEL_SELFTEST="$ROOT/tools/analyze/verify-pixel-assert.sh"
 TYPE_CHECK="$ROOT/tools/check/type-tagging.mjs"
 ENCODING_CHECK="$ROOT/tools/check/encoding.mjs"
+LINKS_CHECK="$ROOT/tools/check/links.mjs"
 
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 REPORT_DIR="$ROOT/out/regression/$TIMESTAMP"
@@ -128,6 +136,38 @@ if [ -f "$ENCODING_CHECK" ]; then
 		fi
 	else
 		echo "node no disponible; se omite encoding." >&2
+	fi
+fi
+
+# --- Enlaces: la documentacion canonica no debe tener enlaces relativos rotos ---
+if [ -f "$LINKS_CHECK" ]; then
+	if command -v node >/dev/null 2>&1; then
+		echo "== links =="
+		if ! node "$LINKS_CHECK"; then
+			echo "links fallo: hay enlaces relativos rotos en la documentacion." >&2
+			exit 1
+		fi
+	else
+		echo "node no disponible; se omite links." >&2
+	fi
+fi
+
+# --- Gate de fps (opt-in): mide las demos de la bitacora y detecta deriva ---
+# Lanza WinUAE por cada fila de la tabla trazable; por eso es opt-in. Falla si una
+# demo medida en la misma fase (`detail`) baja del umbral (por defecto -10 %).
+if [ "$FPS_GATE" -eq 1 ]; then
+	FPS_CHECK="$ROOT/tools/debug/check-fps.mjs"
+	if [ -f "$FPS_CHECK" ] && command -v node >/dev/null 2>&1; then
+		echo "== fps gate =="
+		FPS_ARGS=()
+		[ -n "$FPS_THRESHOLD" ] && FPS_ARGS+=(--threshold "$FPS_THRESHOLD")
+		[ "$FPS_WARN_ONLY" -eq 1 ] && FPS_ARGS+=(--warn-only)
+		if ! node "$FPS_CHECK" ${FPS_ARGS[@]+"${FPS_ARGS[@]}"}; then
+			echo "fps gate fallo: deriva de fps por encima del umbral." >&2
+			exit 1
+		fi
+	else
+		echo "node o check-fps no disponible; se omite fps gate." >&2
 	fi
 fi
 

@@ -10,7 +10,7 @@ Use this skill only for the `Cursor-Amiga-C` workspace or a direct fork that pre
 ## Core workflow
 
 1. Read only the docs needed for the task.
-   For document selection, use [references/cursor-amiga-c-doc-map.md](references/cursor-amiga-c-doc-map.md).
+   For document selection, use [DOC-MAP-PRINCIPAL.md](../../ai-dev-environment/DOC-MAP-PRINCIPAL.md).
 2. Treat every non-trivial Amiga task as phased low-level work, not as generic feature coding.
 3. Before implementing, model the scene as persistent machine state, not as a stateless draw call.
 4. Before implementing, build a dependency inventory:

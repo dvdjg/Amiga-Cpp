@@ -1,8 +1,8 @@
 # Roadmap de implementación Amiga (MCP, tests, engine)
 
-**Propósito:** una sola vista de **qué está hecho**, **qué está a medias** y **qué falta**, alineada con [amiga-test-battery-spec.md](amiga-test-battery-spec.md) (especificación y §2 visión IA) y [mcp-live-coding-workflow.md](mcp-live-coding-workflow.md).
+**Propósito:** una sola vista de **qué está hecho**, **qué está a medias** y **qué falta**, alineada con [amiga-test-battery-spec.md](amiga-test-battery-spec.md) (especificación y §2 visión IA) y [mcp-live-coding-workflow.md](../../emulation/mcp-live-coding-workflow.md).
 
-**Sistema de agentes y supervisión:** roles (Orquestador, MCP, batería, engine, QA), cola de trabajo, DoD y checklists en [agent-system-roadmap.md](agent-system-roadmap.md).
+**Sistema de agentes y supervisión:** roles (Orquestador, MCP, batería, engine, QA), cola de trabajo, DoD y checklists en [agent-system-roadmap.md](../../guides/methodology/agent-system-roadmap.md).
 
 **Cómo mantenerlo:** al cerrar un ítem, cambia el estado en las tablas de este archivo y, si aplica, el texto de [amiga-test-battery-spec.md](amiga-test-battery-spec.md) §2. Los IDs de prueba (T01, B03…) pasan de **PENDIENTE** a **HECHO** cuando existen código + `evidence/` mínimo + `README.md` en `tests/amiga-battery/<id>_*` o efecto equivalente en `app/effects/` enlazado desde el menú o script.
 
@@ -111,7 +111,7 @@ Cada fila debe reflejar implementación verificada real (**PENDIENTE / PARCIAL /
 | M00 | Smoke DOS ADF | PARCIAL | Caso mínimo en `tests/amiga-battery/M00_smoke_dos_adf/` para validar `exe2adf + ADF + arranque de ejecutable DOS` sin mezclar harness complejo, Intuition ni takeover. Tras estabilizar la generación ADF en Windows y el montaje previo de DF0, el caso reproduce el mismo requester `Software error - task held` que M03, así que sirve como control base fuerte antes de seguir diagnosticando M03/T01. |
 | M10 | Smoke metal directo | HECHO | Caso reproducible en `tests/amiga-battery/M10_smoke_metal/` para validar el camino `winuae_load` + `battery_metal_entry` sin depender de AmigaDOS. La evidencia directa incluye captura visible, postmortem, parcheo simbólico en RAM, comandos consumibles (`SET_MODE`, `EXIT`) y una autopsia de `TRIGGER_ILLEGAL` que deja tanto señal visual roja como estado legible en `g_battery_metal_control` (`stage_id=0xFFFF`, `detail=4`, `status_flags=0x00040000`, `last_error=4`). |
 | V01 | Vector metal visual simple | HECHO | Primer vector visual base en `tests/amiga-battery/V01_raster_bars_metal/`. La validación dedicada `scripts/validate-metal-vector.mjs` ya pasa en vivo con `SET_MODE(1)` y `EXIT`, dejando `status_flags=0x00020001` y `0x00010000` en `tests/amiga-battery/V01_raster_bars_metal/evidence/vector-validation-summary.json`. El tooling de comandos metal ya exige progreso real (`heartbeat`/`status_flags`) antes de aceptar el acuse, evitando falsos positivos de readback temprano. |
-| V02 | Vector metal pulso de paleta | HECHO | Caso validado en `tests/amiga-battery/V02_palette_pulse_metal/` con [scripts/validate-metal-vector.mjs](scripts/validate-metal-vector.mjs): `SET_MODE(1)` deja `status_flags=0x00020001` y `EXIT` deja `status_flags=0x00010000` en `tests/amiga-battery/V02_palette_pulse_metal/evidence/vector-validation-summary.json`. Durante la depuración se detecto que una variante inicial más compleja era sensible al layout del artefacto `.elf -> .exe` al cargarlo en caliente; la version actual queda reducida y alineada con `M10` como baseline estable antes de reintroducir complejidad. |
+| V02 | Vector metal pulso de paleta | HECHO | Caso validado en `tests/amiga-battery/V02_palette_pulse_metal/` con `scripts/validate-metal-vector.mjs`: `SET_MODE(1)` deja `status_flags=0x00020001` y `EXIT` deja `status_flags=0x00010000` en `tests/amiga-battery/V02_palette_pulse_metal/evidence/vector-validation-summary.json`. Durante la depuración se detecto que una variante inicial más compleja era sensible al layout del artefacto `.elf -> .exe` al cargarlo en caliente; la version actual queda reducida y alineada con `M10` como baseline estable antes de reintroducir complejidad. |
 | V03 | Vector metal por bandas de scanline | HECHO | Caso validado en `tests/amiga-battery/V03_scanline_bands_metal/` con `scripts/validate-metal-vector.mjs`: `SET_MODE(1)` y `EXIT` pasan en vivo con `status_flags=0x00020001` y `0x00010000` (ver `tests/amiga-battery/V03_scanline_bands_metal/evidence/vector-validation-summary.json`). La validación ahora separa artefactos por comando y aplica fallback automático de `EXIT` a `fresh-launch` cuando falla `connect_existing`, dejando evidencia trazable sin falsos positivos por readback degradado. |
 | AG01 | AGA planos/FMODE | PENDIENTE | Perfil `amiga1200.uae` / `cd32.uae`. |
 | AG02 | AGA paleta 24-bit | PENDIENTE | |
@@ -152,7 +152,7 @@ La integración externa seguirá regla de **destilación**: se extraen ideas y t
 
 | ID | Entrega | Estado |
 |----|---------|--------|
-| **E-DOC-01** | Fuentes AGA legales en repo + índice | PENDIENTE | Ver [amiga-chipset-matrix.md](amiga-chipset-matrix.md) pie. |
+| **E-DOC-01** | Fuentes AGA legales en repo + índice | PENDIENTE | Ver [amiga-chipset-matrix.md](../../reference/amiga/hardware/amiga-chipset-matrix.md) pie. |
 | **E-DOC-02** | Este roadmap actualizado cada hito | PARCIAL | Creación del documento = hito 0. |
 
 ---
@@ -185,9 +185,9 @@ flowchart TB
 | Documento | Rol |
 |-----------|-----|
 | [amiga-test-battery-spec.md](amiga-test-battery-spec.md) | Especificación de pruebas, §2 capacidades IA, §10 resumen MCP (detalle normativo). |
-| [mcp-live-coding-workflow.md](mcp-live-coding-workflow.md) | Flujo operativo día a día. |
+| [mcp-live-coding-workflow.md](../../emulation/mcp-live-coding-workflow.md) | Flujo operativo día a día. |
 | [engine-roadmap.md](engine-roadmap.md) | Roadmap del motor de juego y menú de demos. |
-| [config/winuae/README.md](../config/winuae/README.md) | Perfiles emulador. |
+| [BUILD_AND_RUN.md](../../build/BUILD_AND_RUN.md) | Perfiles emulador. |
 | Repo **mcp-winuae-emu** | Código de herramientas Fase A. |
 
 ---

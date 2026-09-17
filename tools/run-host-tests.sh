@@ -63,6 +63,11 @@ if [ "$#" -eq 0 ]; then
 		echo "== encoding =="
 		node "$ENCODING_CHECK"
 	fi
+	LINKS_CHECK="$ROOT/tools/check/links.mjs"
+	if [ -f "$LINKS_CHECK" ] && command -v node >/dev/null 2>&1; then
+		echo "== links =="
+		node "$LINKS_CHECK"
+	fi
 	MATH_DIAG="$ROOT/tools/check/math-diagnostics.sh"
 	if [ -f "$MATH_DIAG" ]; then
 		echo "== math-diagnostics =="

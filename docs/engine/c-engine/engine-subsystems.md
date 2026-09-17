@@ -1,6 +1,6 @@
 # Subsistemas avanzados del engine
 
-Documentación de las APIs opcionales agrupadas en [engine_extensions.h](../engine/include/engine_extensions.h). Complementan [engine.h](../engine/include/engine.h) y [engine_suite.h](../engine/include/engine_suite.h) sin sustituir al núcleo mínimo.
+Documentación de las APIs opcionales agrupadas en `engine_extensions.h`. Complementan `engine.h` y `engine_suite.h` sin sustituir al núcleo mínimo.
 
 ## Parent links
 
@@ -71,7 +71,7 @@ Primer paso ya implementado:
 - `DX39P5_layers_wrap_mod` valida ya el wrap vertical por cambios temporales de `BPL1MOD/BPL2MOD`, separado de los gradientes por raster.
 - `DX39P6_layers_raster_gradients` añade el otro bloque reusable del efecto: bandas de color por copper (`COLOR01..06` y `COLOR09..13`) sobre la misma base de scroll y wrap ya validada.
 - el aprendizaje reusable de `DX39` no se limita al efecto:
-  ver [amiga-a500-dma-copper-state-rules.md](amiga-a500-dma-copper-state-rules.md) para reglas generales sobre residencia CHIP, ciclo de copper, dual playfield y scroll de playfield en A500.
+  ver [amiga-a500-dma-copper-state-rules.md](../../reference/amiga/hardware/amiga-a500-dma-copper-state-rules.md) para reglas generales sobre residencia CHIP, ciclo de copper, dual playfield y scroll de playfield en A500.
 - Estado actual recomendado:
   - esta familia nace de `DX39 layers` y entra como `ENGINE_PARCIAL`;
   - el contrato base de registros ya converge con el original;

@@ -154,7 +154,7 @@ La IA puede no modelar:
 
 ## Relacion con otros docs
 
-- [amiga-lowlevel-agent-prompt.md](amiga-lowlevel-agent-prompt.md)
-- [amiga-lowlevel-technique-contract-template.md](amiga-lowlevel-technique-contract-template.md)
+- [amiga-lowlevel-agent-prompt.md](../../guides/methodology/amiga-lowlevel-agent-prompt.md)
+- [amiga-lowlevel-technique-contract-template.md](../../guides/methodology/amiga-lowlevel-technique-contract-template.md)
 - [engine-unified-test-roadmap.md](engine-unified-test-roadmap.md)
 - [engine-roadmap.md](engine-roadmap.md)

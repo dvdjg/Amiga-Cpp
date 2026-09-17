@@ -10,7 +10,7 @@ Cuando termine la lectura contextual, puede abrir solo los enlaces que necesite.
 > Regla de oro: **buscar antes de crear.** Si la técnica, el efecto o la
 > referencia ya está documentado, consiste en *reutilizar/extender/componer*,
 > nunca en duplicar. Solo cuando no exista nada equivalente se crea contenido
-> nuevo, y siempre en el sitio canónico (ver [STRUCTURE.md](../../STRUCTURE.md)).
+> nuevo, y siempre en el sitio canónico (ver [STRUCTURE.md](../STRUCTURE.md)).
 
 ---
 
@@ -45,7 +45,7 @@ Cuando termine la lectura contextual, puede abrir solo los enlaces que necesite.
 | Streaming / carga en segundo plano | [CONTENT_AND_TILEMAP.md](../engine/architecture/CONTENT_AND_TILEMAP.md) §2 (chunks/prefetch), [WORLD_FORMAT.md](../engine/architecture/WORLD_FORMAT.md) (formato de mundo), [STREAMING_LOADER.md](../engine/architecture/STREAMING_LOADER.md) (Loader: RAM/trackdisk/trackloader), [trackloading.md](../reference/amiga/techniques/trackloading.md) (carga desde disquete/HD) |
 | Estilo/restricciones del engine | [CODING_STYLE.md](../engine/architecture/CODING_STYLE.md), [HARDWARE_AND_ROM_KERNEL_POLICY.md](../engine/architecture/HARDWARE_AND_ROM_KERNEL_POLICY.md) |
 | Contrato de bajo nivel Amiga (contrato técnico) | [amiga-lowlevel-agent-prompt.md](../guides/methodology/amiga-lowlevel-agent-prompt.md) y [amiga-lowlevel-technique-contract-template.md](../guides/methodology/amiga-lowlevel-technique-contract-template.md) |
-| Bucles de entrada/backend | [engine.hpp](../../../engine/include/eng/engine.hpp), `amiga_minimal.cpp` |
+| Bucles de entrada/backend | [engine.hpp](../../engine/include/eng/engine.hpp), `amiga_minimal.cpp` |
 | Build/run/analyze | [BUILD_AND_RUN.md](../build/BUILD_AND_RUN.md) |
 | Depuración WinUAE/MCP | [DEBUG-WINUAE-V2-GUIDE.md](../debugging/DEBUG-WINUAE-V2-GUIDE.md) |
 | Evidencia / visual | [session-evidence.md](session-evidence.md), [testing/](../testing/README.md) |
@@ -67,7 +67,7 @@ Cuando termine la lectura contextual, puede abrir solo los enlaces que necesite.
 | **3D fixed-point / wireframe** | DEMOSCENE §lib3d, `blitter-line-subpixel-fill.md` (línea por Blitter), `object3d.hpp`/`mesh3d.hpp` (HOST-014/013) | demos 077, 078, 079, 116 |
 | **Matemáticas genéricas / escalar nuevo** | [MATH_LIBRARY.md](../engine/architecture/MATH_LIBRARY.md) (modelo y reglas), [SCALAR_LIBRARY.md](../engine/architecture/SCALAR_LIBRARY.md) (estructura escalar-independiente, límites y guards de compilación), [MINIFLOAT16.md](../engine/architecture/MINIFLOAT16.md) (escalar de 16 bits para 68000), [OPTIMIZACION_GPP_68000.md](../guides/optimization/OPTIMIZACION_GPP_68000.md) | `engine/include/eng/core/{fixed,linalg,minifloat,minifloat_math,interp,geometry,noise,numeric_traits}.hpp`; demo `083_fbm_noise`; HOST-048/049/052/056/057/058/059/060 |
 | **Pipeline tiles/EHB/assets** | [PIPELINE_TILES_EHB.md](../demos/tile-pipeline/PIPELINE_TILES_EHB.md), [REGLAS_PIPELINE_TILES.md](../guides/roadmap/REGLAS_PIPELINE_TILES.md), `tools/amiga-tiles/README.md` | demos 201, 202 |
-| **Juego sobre el engine** | [STRUCTURE §9](../../STRUCTURE.md), roadmap, técnicas | `games/` |
+| **Juego sobre el engine** | [STRUCTURE §9](../STRUCTURE.md), roadmap, técnicas | `games/` |
 | **API pública / nueva abstracción** | [PUBLIC_API.md](../engine/architecture/PUBLIC_API.md) (la app no ve hardware), [INTERNAL_TYPE_SYSTEM.md](../engine/architecture/INTERNAL_TYPE_SYSTEM.md) (tipos de dominio internos: vistas con tag, unidades fuertes, frontera unsafe), [PLAYFIELD_SCROLL_ARCHITECTURE.md](../engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md), [CODING_STYLE.md](../engine/architecture/CODING_STYLE.md) | `engine/include/eng/api/` (objetivo) |
 | **Optimización de un path** | §12 de [OPTIMIZACION_GPP_68000.md](../guides/optimization/OPTIMIZACION_GPP_68000.md) (rendimiento, comentarios, port a asm), perfilado (`tools/profile/README.md`) | — |
 | **Depurar un bug de visual** | [DEMO_VISUAL_DEBUG.md](../guides/methodology/DEMO_VISUAL_DEBUG.md) (diseño + depuración visual con Ollama/secuencias), [DEBUG-WINUAE-V2-GUIDE.md](../debugging/DEBUG-WINUAE-V2-GUIDE.md), invariantes microtests, y para arranque/display+doble texto/banda: [DEBUG_DEMO_ARRANQUE_DOBLE_TEXTO_BANDA.md](../debugging/DEBUG_DEMO_ARRANQUE_DOBLE_TEXTO_BANDA.md) | — |

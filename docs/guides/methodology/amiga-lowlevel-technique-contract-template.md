@@ -348,8 +348,8 @@ Complementa esta plantilla con [amiga-lowlevel-agent-prompt.md](amiga-lowlevel-a
 
 Segun el tipo de trabajo, complementar ademas con:
 
-- [amiga-display-setup-checklist.md](amiga-display-setup-checklist.md)
-- [engine-parametric-api-and-cpp-notes.md](engine-parametric-api-and-cpp-notes.md)
-- [engine-cpu-sprites-api-proposal.md](engine-cpu-sprites-api-proposal.md)
-- [engine-cpu-sprites-implementation-plan.md](engine-cpu-sprites-implementation-plan.md)
-- [engine-dynamic-copper-scene-notes.md](engine-dynamic-copper-scene-notes.md)
+- [amiga-display-setup-checklist.md](../../reference/amiga/techniques/amiga-display-setup-checklist.md)
+- [engine-parametric-api-and-cpp-notes.md](../../engine/c-engine/engine-parametric-api-and-cpp-notes.md)
+- [engine-cpu-sprites-api-proposal.md](../../engine/c-engine/engine-cpu-sprites-api-proposal.md)
+- [engine-cpu-sprites-implementation-plan.md](../../engine/c-engine/engine-cpu-sprites-implementation-plan.md)
+- [engine-dynamic-copper-scene-notes.md](../../engine/c-engine/engine-dynamic-copper-scene-notes.md)

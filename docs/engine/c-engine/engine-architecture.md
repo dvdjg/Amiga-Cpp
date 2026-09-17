@@ -145,13 +145,13 @@ Este flujo es especialmente importante para gráficos, audio e input, donde es f
 ### Input
 
 - `engine_mouse_*`, `engine_key_get()`, `engine_key_held(raw)`
-- Flancos y rectángulo: `engine_input_edges.h` (incluido vía [engine_suite.h](engine/include/engine_suite.h))
+- Flancos y rectángulo: `engine_input_edges.h` (incluido vía `engine_suite.h`)
 
 ### Interrupciones y tiempo
 
 - `engine_set_interrupt_handler(handler)`
 - `engine_frame_tick()` / `engine_get_frame_counter()`
-- `engine_clock_reset()` / `engine_clock_elapsed_frames()` ([engine_clock.h](engine/include/engine_clock.h))
+- `engine_clock_reset()` / `engine_clock_elapsed_frames()` (`engine_clock.h`)
 
 ### Memoria
 
@@ -160,12 +160,12 @@ Este flujo es especialmente importante para gráficos, audio e input, donde es f
 
 ### Diagnóstico opcional
 
-- `make ENGINE_DIAG=1`: `ENGINE_LOG` / `ENGINE_ASSERT` en [engine_diag.h](engine/include/engine_diag.h) (KPrintF)
-- Bloques y promedios: [engine_trace.h](engine/include/engine_trace.h) (`ENGINE_TRACE_*`)
+- `make ENGINE_DIAG=1`: `ENGINE_LOG` / `ENGINE_ASSERT` en `engine_diag.h` (KPrintF)
+- Bloques y promedios: `engine_trace.h` (`ENGINE_TRACE_*`)
 
 ### Suite ampliada (`engine_suite.h`)
 
-Incluye: [engine_bitmap.h](engine/include/engine_bitmap.h), [engine_rand.h](engine/include/engine_rand.h), [engine_fixmath.h](engine/include/engine_fixmath.h), [engine_tag.h](engine/include/engine_tag.h), además de clock, edges y trace. Plan de evolución: [engine-feature-phases.md](engine-feature-phases.md).
+Incluye: `engine_bitmap.h`, `engine_rand.h`, `engine_fixmath.h`, `engine_tag.h`, además de clock, edges y trace. Plan de evolución: [engine-feature-phases.md](engine-feature-phases.md).
 
 ### Extensiones opcionales (`engine_extensions.h`)
 
