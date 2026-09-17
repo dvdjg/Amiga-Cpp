@@ -10,6 +10,7 @@
 
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
+#include <eng/core/util/direct_map.hpp>
 
 namespace eng::audio {
 
@@ -38,27 +39,25 @@ struct SfxDef {
 	bool loop = false;        // reproducir en bucle (Loop) en vez de una vez (Once)
 };
 
-/// Catálogo fijo de sonidos (sin heap). Indexa `SfxDef` por `id` (0..kMaxSfx-1).
+/// Catálogo fijo de sonidos (sin heap). Indexa `SfxDef` por `id` (0..kMaxSfx-1) con
+/// un `eng::util::DirectMap` de clave densa: array indexado por el propio id + bit de
+/// presencia, acceso `O(1)` sin hash ni comparaciones.
 class SampleBank {
 public:
 	constexpr SampleBank() = default;
 
 	/// Registra (o sobrescribe) el sonido `id`. Ignora ids inválidos o vacíos.
 	constexpr void add(u8 id, const SfxDef& def) {
-		if (id < kMaxSfx && def.data.size() != 0u) {
-			m_defs[id] = def;
-			m_present[id] = true;
+		if (def.data.size() != 0u) {
+			m_defs.insert_or_assign(id, def);
 		}
 	}
 
 	/// Devuelve el `SfxDef` de `id`, o `nullptr` si no está registrado.
-	constexpr const SfxDef* find(u8 id) const {
-		return (id < kMaxSfx && m_present[id]) ? &m_defs[id] : nullptr;
-	}
+	constexpr const SfxDef* find(u8 id) const { return m_defs.find(id); }
 
 private:
-	SfxDef m_defs[kMaxSfx] {};
-	bool m_present[kMaxSfx] {};
+	eng::util::DirectMap<SfxDef, kMaxSfx> m_defs {};
 };
 
 /// Estado de voz por sonido (para la política).
