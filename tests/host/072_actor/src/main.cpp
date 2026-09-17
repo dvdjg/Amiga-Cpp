@@ -25,6 +25,9 @@ namespace {
 
 using eng::graphics::Animation;
 using eng::graphics::BlitJobKind;
+using eng::graphics::Bob;
+using eng::graphics::BobDraw;
+using eng::graphics::BobErase;
 using eng::graphics::BobLayout;
 using eng::graphics::BobTarget;
 using eng::graphics::CopperIntent;
@@ -64,6 +67,7 @@ alignas(16) eng::u16 g_mask[16];
 alignas(16) eng::u16 g_save[64];
 alignas(16) eng::u16 g_pixel_pool[256];
 alignas(16) eng::u8 g_chip_plan[32 * 1024];
+alignas(16) eng::u8 g_matrix_sheet[4096];
 
 /// Valores de los MOVEs a `reg`, en orden de aparicion.
 unsigned collect_moves(const eng::u16* words, eng::u16 count, eng::u16 reg, eng::u16* out,
@@ -274,9 +278,10 @@ void test_emit_clear() {
 	const auto& clear = plan.blit_job(0);
 	CHECK(clear.kind == BlitJobKind::ClearRect, "job 0 es borrado");
 	CHECK(clear.minterm == 0x00u, "borrado D=0");
-	CHECK(clear.words_per_row == 1u, "1 palabra por fila");
+	// El objeto previo esta en x=10 (shift 10): la caja cubre base + la palabra extra.
+	CHECK(clear.words_per_row == 2u, "2 palabras por fila (base + shift)");
 	CHECK(clear.height == 8u, "altura de la caja previa");
-	CHECK(clear.destination_modulo_bytes == 38, "modulo destino clear");
+	CHECK(clear.destination_modulo_bytes == 36, "modulo destino clear");
 	CHECK(clear.bitplane_count == 1u, "planos del BOB");
 	CHECK(clear.destination.words == reinterpret_cast<const eng::u16*>(g_screen + 20 * kRowBytes + 0),
 	      "destino del borrado en la caja previa");
@@ -401,7 +406,7 @@ void test_emit_save_under() {
 	ActorDesc d = make_desc();
 	d.background = BackgroundPolicy::SaveUnder;
 	d.save[0] = eng::Span<eng::u16> {g_save, 64u};
-	d.save_words_per_row = 1u;
+	d.save_words_per_row = 2u; // con desplazamiento fino el blit cubre 1 palabra extra
 	d.save_height = 8u;
 	const ActorId id = store.add(d, alloc);
 	Actor* a = store.get(id);
@@ -769,6 +774,113 @@ void test_copper_priority_wiring() {
 	CHECK(cplan.intent_count() == 1u, "el Plan la recibio con su prioridad");
 }
 
+/// Matriz de geometría del BOB a nivel de job: dibujo x layout x borrado y profundidad
+/// 3..6, más los rechazos documentados. Fija el contrato de `bob_draw`/`bob_erase` (el
+/// camino del actor se prueba en los demás casos).
+void test_bob_job_matrix() {
+	const auto mk = [](BobLayout layout, BobDraw draw, eng::u8 planes) {
+		Bob b {};
+		b.sheet = g_matrix_sheet;
+		b.width = 48u;
+		b.height = 32u;
+		b.planes = planes;
+		b.frame_count = 4u;
+		b.frame_stride = 1u << 14;
+		b.layout = layout;
+		b.draw = draw;
+		b.erase = BobErase::None;
+		return b;
+	};
+	const auto tgt = [](BobLayout layout, eng::u8 planes = 4u) {
+		BobTarget t {};
+		t.base = g_screen;
+		t.row_bytes = kRowBytes;
+		t.plane_bytes = kPlaneBytes;
+		t.planes = planes;
+		t.layout = layout;
+		return t;
+	};
+
+	// OR intercalado (un blit/objeto) en 3..6 planos.
+	for (eng::u8 planes = 3u; planes <= 6u; ++planes) {
+		FramePlan plan {};
+		plan.clear();
+		CHECK(bob_draw(plan, mk(BobLayout::Interleaved, BobDraw::Or, planes), 1u, 100, 64,
+			       tgt(BobLayout::Interleaved, planes)), "OR intercalado dibuja");
+		CHECK(plan.blit_job_count() == 1u, "OR intercalado: 1 blit");
+		const auto& j = plan.blit_job(0);
+		CHECK(j.kind == BlitJobKind::OrBlob, "kind OrBlob");
+		CHECK(j.minterm == 0x00fcu, "minterm OR $FC");
+		CHECK(j.interleaved, "flag interleaved");
+		CHECK(j.bitplane_count == 1u, "una columna de canales");
+		CHECK(j.height == 32u * planes, "altura = alto x planos");
+		CHECK(j.words_per_row == 4u, "palabras/fila con shift 4");
+		CHECK(j.source_shift == 4u, "shift 4");
+		CHECK(j.destination_modulo_bytes == static_cast<eng::s16>(kRowBytes - 8u), "modulo destino");
+		CHECK(j.source_modulo_bytes == 0, "modulo origen de hoja densa");
+	}
+
+	// Cookie-cut planar: N planos, stride de la hoja y palabra de guarda.
+	{
+		FramePlan plan {};
+		plan.clear();
+		Bob b = mk(BobLayout::Planar, BobDraw::CookieCut, 4u);
+		b.mask = g_matrix_sheet;
+		CHECK(bob_draw(plan, b, 0u, 32, 10, tgt(BobLayout::Planar)), "cookie-cut planar dibuja");
+		const auto& j = plan.blit_job(0);
+		CHECK(j.minterm == 0x00cau, "minterm cookie-cut $CA");
+		CHECK(j.bitplane_count == 4u, "N planos en planar");
+		CHECK(j.height == 32u, "altura = alto");
+		CHECK(j.source_plane_stride_bytes == 32u * 8u, "stride de plano origen");
+		CHECK(j.source_modulo_bytes == 2, "modulo origen con shift 0 (guarda)");
+		CHECK(!j.interleaved, "planar sin flag interleaved");
+	}
+
+	// Cookie-cut con destino intercalado: rechazado (documentado).
+	{
+		FramePlan plan {};
+		plan.clear();
+		CHECK(!bob_draw(plan, mk(BobLayout::Interleaved, BobDraw::CookieCut, 4u), 0u, 0, 0,
+				tgt(BobLayout::Interleaved)), "cookie-cut intercalado se rechaza");
+	}
+
+	// Borrado por caja: 1 job intercalado / 1 job de N planos en planar.
+	{
+		FramePlan plan {};
+		plan.clear();
+		Bob b = mk(BobLayout::Interleaved, BobDraw::Or, 4u);
+		b.erase = BobErase::ClearRect;
+		CHECK(bob_erase(plan, b, 100, 64, tgt(BobLayout::Interleaved)), "borrado intercalado");
+		CHECK(plan.blit_job_count() == 1u, "borrado intercalado: 1 blit");
+		const auto& j = plan.blit_job(0);
+		CHECK(j.minterm == 0x00u, "minterm clear $00");
+		CHECK(j.height == 32u * 4u, "altura clear = alto x planos");
+		CHECK(j.words_per_row == 4u, "palabras clear (base + shift)");
+	}
+	{
+		FramePlan plan {};
+		plan.clear();
+		Bob b = mk(BobLayout::Planar, BobDraw::Or, 4u);
+		b.erase = BobErase::ClearRect;
+		CHECK(bob_erase(plan, b, 100, 64, tgt(BobLayout::Planar)), "borrado planar");
+		CHECK(plan.blit_job_count() == 1u && plan.blit_job(0).bitplane_count == 4u,
+		      "clear planar: 1 job de N planos");
+	}
+
+	// Sin borrado (aditivo) y entradas inválidas.
+	{
+		FramePlan plan {};
+		plan.clear();
+		const Bob b = mk(BobLayout::Interleaved, BobDraw::Or, 4u);
+		CHECK(bob_erase(plan, b, 10, 10, tgt(BobLayout::Interleaved)) && plan.blit_job_count() == 0u,
+		      "erase None no encola");
+		Bob bad = b;
+		bad.sheet = nullptr;
+		CHECK(!bob_draw(plan, bad, 0u, 0, 0, tgt(BobLayout::Interleaved)), "sin hoja falla");
+		CHECK(!bob_draw(plan, b, 9u, 0, 0, tgt(BobLayout::Interleaved)), "frame fuera de rango falla");
+	}
+}
+
 } // namespace
 
 int main() {
@@ -787,6 +899,7 @@ int main() {
 	test_copper_priority_wiring();
 	test_emit_save_under();
 	test_copper_anchoring();
+	test_bob_job_matrix();
 
 	if (fails != 0) {
 		std::printf("[FAIL] %d comprobaciones\n", fails);

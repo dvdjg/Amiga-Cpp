@@ -102,7 +102,7 @@ Gate: demo `122` + gate visual/secuencia; host `038/039`.
 | 4.3 | Portar como **tracks** los casos que hoy emiten copper a mano: empezar por `055_copper_rainbow` | demo `055` | **hecho** (055 usa ya el plan y gana doble buffer de copperlist) |
 | 4.4 | Test host del `CopperPlan` (orden por línea, patch vs reemisión, handles válidos, presupuesto) | `tests/host/070_copper_plan` | **hecho** |
 | 4.5 | **Topología de display conocida por el plan**: declarar zonas (rango de líneas + ventana de contenido) para que un efecto exprese su necesidad en coordenadas de contenido y el plan la traduzca a raster — el caso XYlimited, que reparte la pantalla en campos/splits, debe ser transparente para los efectos | `engine/include/eng/graphics/copper/plan.hpp`, `xlimited*` | pendiente |
-| 4.6 | **Gradiente por línea**: hoy el `Plan` ya lo soporta (capacidad 320 + sort O(n)), pero en la 085 el cielo con 256 intenciones dispara el frame a **14 campos** y el BOB por Blitter a **3** (update ~65k, bucle ~425k). Perfilar el **bucle** (VPOSR/`wait_vblank` con Copper+Blitter activos) antes de dar la versión por línea | `demos/amiga/085…` | pendiente |
+| 4.6 | **Gradiente por línea**: hoy el `Plan` ya lo soporta (capacidad 320 + sort O(n)), pero en la 085 el cielo con 256 intenciones dispara el frame a **14 campos** y el BOB por Blitter a **3** (update ~65k, bucle ~425k). Medido también en la **086**: 3 BOBs + lista estática = **50,09 fps (1,0 campos)**; 8 BOBs + cielo por línea (256 intenciones) = **5,47 fps (9,1 campos)**; 8 BOBs + 32 bandas = **12,56 fps (4,0 campos)**. El coste NO escala lineal con las intenciones (64 ya cuestan 4 campos) ni lo explican copper/blits: **es el bucle**. Perfilarlo (VPOSR/`wait_vblank` con Copper+Blitter activos) antes de dar la versión por línea | `demos/amiga/085…`, `demos/amiga/086_bob_objects` | pendiente |
 
 **Resultado de F4.1/F4.3/F4.4**: `eng::copper::Plan` implementado
 (`begin`/`begin_frame`/`scheduler`/`add`/`materialize`/`end_frame`/`commit`/`takeover`),
@@ -148,22 +148,22 @@ un polígono del Blitter (line-draw + area-fill, para relleno vectorial/3D).
 | # | Tarea | Estado |
 |---|---|---|
 | 6.1 | `scene/actor.hpp`: `Actor{Tipo, ActorTemplate, pos, clip, estado}` + `World` con arrays fijos por feature, consumiendo `RepresentationAllocator` | **HECHO (sin `World` de features)**: `scene/actor.hpp` con `ActorDesc`/`Actor` (superficie destino, `z` por superficie, prioridad de sprite, transparencia, fondo, anclaje/offset, Copper anclado, velocidad de animación), `ActorStore<Max>` con handles generacionales y orden de emisión por superficie/`z` (`plan_actor_order`, `emit_actors_in_order`). Test host `072_actor`. El contenedor de features/`World` sigue pendiente |
-| 6.2 | `Bob` (bitmap) + manager: hoja de planos (+máscara opcional), frame de animación, clip y política de save/restore; emite `BlitJob`s con el presupuesto del `FramePlan` | **PARCIAL**: `engine/include/eng/graphics/bob.hpp` (`Bob`, `BobTarget`, `bob_draw`, `bob_erase_box`; minterm `$CA`/`$FC`/`$F0`, stride de hoja explícito) + emisión desde el actor (`actor_emit`: borrado, save-under y dibujo) en `scene/actor.hpp`. Geometría cubierta por `tests/host/071_bob` y `072_actor`; el camino Blitter **no** lo ejercita aún una demo con gate visual (ver nota) |
+| 6.2 | `Bob` (bitmap) + manager: hoja de planos (+máscara opcional), frame de animación, clip y política de save/restore; emite `BlitJob`s con el presupuesto del `FramePlan` | **HECHO**: `graphics/bob.hpp` (`Bob`, `BobTarget`, `bob_draw`, `bob_erase_box`; minterm `$CA`/`$FC`/`$F0`, stride de hoja explícito) + emisión desde el actor (`actor_emit`: borrado, save-under y dibujo). Geometría y emisión en `072_actor` y **gate visual** en la demo `086_bob_objects` (cookie-cut/OR/opaco + caja/save-under). Queda `RestoreUnder` como política de primera clase del actor (hoy el save-under es la secuencia restore+save) |
 | 6.3 | **Minterm en `BlitJob`** (cookie-cut / OR / copy) para OR-bobs y uniformar 050/051/bobs3d | **HECHO**: `BlitJob::minterm` (por defecto `$CA`); kind `OrBlob` (`$FC`) y `ClearRect` (`$00`) en `frame_plan.hpp`/`execute_frame_plan` |
 | 6.4 | Layout **explícito** en `BlitJob` (interleaved vs planar) para expresar «1 blit/objeto» sin el placeholder de stride | **HECHO**: `BlitJob::interleaved` (altura = alto×planos, un blit/objeto) con validación propia |
 | 6.5 | Cablear `SpriteAllocator::as_bob` → `BlitJob` (transición sprite→BOB real) y cerrar el bug de la 054 | **HECHO**: `compose_sprites` ordena, reparte canales, publica `SpritePlacement` (que `SpriteManager::apply` materializa) y manda los `as_bob` al `FramePlan`; la demo 054 lo consume y ya muestra los sprites (el «bug» era el `hpos` fuera de la ventana, ver Nota 6.5b) |
 | 6.6 | Objeto CPU 2D sobre `Surface` (posición + imagen/redibujo + clip) | pendiente |
 
-**Nota 6.2 — artefacto de planos al montar el BOB en la 085**: la reescritura del BOB de la
-085 al camino Blitter (hoja planar única + barrel shifter + `ClearRect`) compila y llega a
-`READY`, pero el render presenta artefactos (mitad inferior del disco en índice 5 y restos
-tipo media luna/franja bajo el objeto), así que **no pasa el gate visual** y se revirtió. Dos
-datos objetivos: (1) el fps no mejora (CPU byte-copy 16,6 vs Blitter 16,6), luego **el
-copiado del objeto no es el cuello de botella** del frame (coincide con F4.6: el bucle es
-~425k ciclos y el update ~65k); (2) el defecto está en la geometría de los `BlitJob`s o en
-cómo los aplica el ejecutor (módulos de origen/destino y avance de planos), no en la
-construcción en sí (que el host test valida). Depurar contra `execute_frame_plan`
-(`amiga_minimal.cpp:619-748`) antes de retomar.
+**Nota 6.2 — resuelto con la demo 086**: la 085 montó un BOB por Blitter y el render presentó
+artefactos (mitad inferior del disco en índice 5 y restos), así que se revirtió. Al montar la demo
+dedicada `086_bob_objects` (gate visual: cookie-cut/OR/opaco con borrado por caja y save-under) el
+defecto quedó localizado y corregido: **la caja de borrado y el save-under usaban `base` palabras
+mientras el dibujo usa `base + 1` cuando hay desplazamiento fino**, así que el borde derecho del
+objeto (hasta 15 px por fila) nunca se limpiaba y dejaba un rastro que crecía por frame. Corregido en
+`bob_erase_box`, `emit_save` y `emit_restore` (`words = base + (shift != 0)`) y cubierto por
+`072_actor`. Método que lo destapó: pintar el fondo con un índice distinto de 0 hace
+**visible** dónde borra el Blitter (un `ClearRect` deja índice 0), lo que separa «no borra» de «borra
+dejando residuo».
 
 
 **Nota 6.2b — tiras horizontales de sprite**: el `SpriteAllocator` reserva corridas de canales

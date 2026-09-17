@@ -23,16 +23,21 @@
 /// palabra extra al final. Interleaved: `height · planes` filas alternando planos,
 /// también con la guarda por fila. `frame_stride` separa frames (0 = denso).
 ///
+/// Contrato del **borrado** (`bob_erase`/`bob_erase_box`) y del **save-under**: la caja
+/// procesa `base + (shift != 0)` palabras — las MISMAS que el dibujo — porque con
+/// desplazamiento fino el blit escribe la palabra extra. Borrar solo `base` deja hasta
+/// 15 px por fila sin limpiar (residuo en el borde derecho del objeto).
+///
 /// Uso por frame (el estado — posición, frame — lo lleva el llamador o un manager):
 ///
 ///   bob_erase(plan, bob, prev_x, prev_y, target);   // si bob.erase == ClearRect
 ///   bob_draw(plan, bob, frame, x, y, target);
 ///
-/// Verificación: geometría de los `BlitJob`s cubierta por el test host `071_bob`
-/// (matriz dibujo × layout × borrado × 3..6 planos). El camino Blitter en hardware
-/// todavía **no** lo ejercita una demo con gate visual: la 085 montó un BOB planar y
-/// el render presentó artefactos de planos (documentado en `NORMALIZACION_REPO.md`
-/// F6), por lo que su reescritura quedó pendiente de depurar contra el ejecutor.
+/// Verificación: geometría de los `BlitJob`s cubierta por el test host `072_actor`
+/// (matriz dibujo × layout × borrado × 3..6 planos) y el camino Blitter en hardware por la
+/// demo `086_bob_objects` (gate visual: cookie-cut/OR/opaco, borrado por caja y save-under,
+/// con desplazamiento fino). El residuo de borde que apareció al montarla —borrar `base`
+/// palabras en vez de `base + shift`— está corregido y cubierto por `072_actor`.
 
 #include <eng/core/types.hpp>
 #include <eng/graphics/frame_plan.hpp>
@@ -142,7 +147,10 @@ inline bool bob_erase_box(FramePlan& plan, const Bob& bob, u16 w, u16 h, s16 x, 
 		return true; // caja fuera por la izquierda
 	}
 	const bool inter = (t.layout == BobLayout::Interleaved);
-	const u16 words = static_cast<u16>((w + 15u) / 16u);
+	// La caja debe cubrir el objeto TAL COMO SE DIBUJA: con desplazamiento fino el blit
+	// procesa una palabra de más (`base + shift`), así que borrar `base` dejaría el borde
+	// derecho del objeto sin limpiar (residuo de hasta 15 px por fila).
+	const u16 words = static_cast<u16>((w + 15u) / 16u + ((x & 15) != 0 ? 1u : 0u));
 	const u32 start_row = inter ? static_cast<u32>(t.row_bytes) * t.planes
 				    : t.row_bytes; // fila del bitmap en la que empieza la caja
 	BlitJob job {};

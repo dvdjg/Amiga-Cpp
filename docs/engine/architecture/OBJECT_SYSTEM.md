@@ -258,7 +258,7 @@ Host (deterministas, sin hardware):
 - Traslación al anillo: posición física correcta y partición al cruzar el módulo.
 - Clip por ventana/split y bordes de guarda.
 - Save-under: rectángulos previos correctos con N = 1, 2 y 3 buffers.
-- Geometría de los `BlitJob` del BOB (ya cubierta por `tests/host/071_bob`).
+- Geometría de los `BlitJob` del BOB (ya cubierta por `tests/host/072_actor`).
 
 Demo con gate visual (secuencias, no un frame suelto, y con veredicto de visión):
 
@@ -270,6 +270,7 @@ Demo con gate visual (secuencias, no un frame suelto, y con veredicto de visión
 
 - **Barrel shifter del Blitter**: los bits desplazados fuera se reinyectan al principio de la fila siguiente; la hoja del BOB necesita una **palabra de guarda** por fila y el módulo de origen debe ser coherente con ella (`sheet_row_bytes − words_procesadas × 2`), no cero salvo cuando coinciden.
 - **Módulo del Blitter**: al procesar una palabra extra por el desplazamiento hay que ajustar `BLTSIZE` (palabras por fila) y los módulos, o el objeto se deforma.
+- **La caja de borrado y el save-under cubren las MISMAS palabras que el dibujo** (`base + (shift != 0)`): con desplazamiento fino el blit escribe la palabra extra del barrel shifter, así que limpiar solo `base` deja hasta 15 px por fila sin limpiar y el objeto deja rastro. La política de borrado por caja o save-under exige además que el objeto **no invada la caja de otro** (el borrado de uno taparía al vecino).
 - **Transparencia = minterm**: cookie-cut `$CA`, OR `$FC`, copia `$F0`, borrado `$00`. El color de fondo no es «transparente» salvo que el minterm o la máscara lo digan.
 - **Paleta de sprite**: los sprites usan `COLOR16..31`, independientes del playfield; los canales par e impar **comparten** sus 3 colores.
 - **Recarga de `SPRxPT`**: el puntero de datos hay que reescribirlo cada VBL; el multiplexado se apoya en ello.

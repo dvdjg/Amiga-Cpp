@@ -318,7 +318,10 @@ namespace actor_detail {
 inline bool emit_save(FramePlan& plan, const Actor& a, const DirtyRect& r,
 		      const ActorEmitContext& ctx, const BobTarget& target) {
 	const eng::Span<eng::u16> save = a.desc.save[ctx.buffer];
-	const eng::u16 words = static_cast<eng::u16>((r.width() + 15u) / 16u);
+	// Igual que el borrado: con desplazamiento fino hay que cubrir la palabra extra del
+	// barrel shifter, o la restauración deja el borde derecho sin devolver.
+	const eng::u16 words = static_cast<eng::u16>((r.width() + 15u) / 16u +
+						     ((r.left & 15) != 0 ? 1u : 0u));
 	const eng::u16 h = r.height();
 	if (save.empty() || words > a.desc.save_words_per_row || h > a.desc.save_height) {
 		return false; // sin buffer o buffer insuficiente: rechazo controlado
@@ -342,7 +345,8 @@ inline bool emit_save(FramePlan& plan, const Actor& a, const DirtyRect& r,
 inline bool emit_restore(FramePlan& plan, const Actor& a, const DirtyRect& r,
 			 const ActorEmitContext& ctx, const BobTarget& target) {
 	const eng::Span<eng::u16> save = a.desc.save[ctx.buffer];
-	const eng::u16 words = static_cast<eng::u16>((r.width() + 15u) / 16u);
+	const eng::u16 words = static_cast<eng::u16>((r.width() + 15u) / 16u +
+						     ((r.left & 15) != 0 ? 1u : 0u));
 	const eng::u16 h = r.height();
 	if (save.empty() || words > a.desc.save_words_per_row || h > a.desc.save_height) {
 		return false;
