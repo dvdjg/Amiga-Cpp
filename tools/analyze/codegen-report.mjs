@@ -35,6 +35,8 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/util/pool.hpp>
 #include <eng/core/util/priority_queue.hpp>
 #include <eng/core/util/intrusive_list.hpp>
+#include <eng/core/util/dynamic_hash_map.hpp>
+#include <eng/core/sort.hpp>
 #include <eng/graphics/mesh_renderer.hpp>
 #include <eng/platform/amiga/lib3d.hpp>
 #include <eng/platform/amiga/object3d.hpp>
@@ -212,6 +214,29 @@ extern "C" u16 c_ilist_ops(u16 seed) {
 	l.push_back(&b);
 	l.erase(&a);
 	return static_cast<u16>(l.size());
+}
+extern "C" void c_stable_sort(u16* data, u16* scratch, int n) {
+	eng::Span<u16> items {data, static_cast<eng::usize>(n)};
+	eng::Span<u16> sc {scratch, static_cast<eng::usize>(n)};
+	eng::stable_sort(items, [](u16 a, u16 b) { return a < b; }, sc);
+}
+extern "C" u16 c_nth_element(u16* data, int n, int k) {
+	eng::Span<u16> items {data, static_cast<eng::usize>(n)};
+	eng::nth_element(items, static_cast<eng::usize>(k), [](u16 a, u16 b) { return a < b; });
+	return items[static_cast<eng::usize>(k)];
+}
+extern "C" u16 c_radix_u16(u16* data, u16* scratch, int n) {
+	eng::Span<u16> items {data, static_cast<eng::usize>(n)};
+	eng::Span<u16> sc {scratch, static_cast<eng::usize>(n)};
+	return eng::radix_sort_u16(items, sc) ? items[0] : static_cast<u16>(0u);
+}
+extern "C" u16 c_dyn_hashmap(eng::u8* scratch, eng::u32 bytes, u16 seed) {
+	eu::BumpAlloc alloc {eng::Span<eng::u8> {scratch, bytes}};
+	eu::DynamicHashMap<u16, u16, eu::BumpAlloc> m {alloc};
+	for (u16 i = 0; i < 40u; ++i) m.insert_or_assign(static_cast<u16>(i * 7u), seed);
+	const u16* p = m.find(seed);
+	m.erase(seed);
+	return static_cast<u16>(m.size() + (p != nullptr ? 1u : 0u));
 }
 `;
 

@@ -180,5 +180,6 @@ mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
    de libgcc ni instrucciones de 68020. Ya está cubierto el vocabulario sensible:
    `hash.hpp` (`c_hash_u16`/`c_hash_u32`), `hash_map.hpp`/`hash_set.hpp`
    (`c_hashmap_find`/`c_hashset_contains`), `vector.hpp`/`chunked_vector.hpp`
-   (`c_vector_grow`/`c_chunked_push`) y `pool.hpp`/`priority_queue.hpp`/`intrusive_list.hpp`
-   (`c_pool_ops`/`c_pq_ops`/`c_ilist_ops`).
+   (`c_vector_grow`/`c_chunked_push`), `pool.hpp`/`priority_queue.hpp`/`intrusive_list.hpp`
+   (`c_pool_ops`/`c_pq_ops`/`c_ilist_ops`), la ordenación de `core/sort.hpp`
+   (`c_stable_sort`/`c_nth_element`/`c_radix_u16`) y `dynamic_hash_map.hpp` (`c_dyn_hashmap`).
