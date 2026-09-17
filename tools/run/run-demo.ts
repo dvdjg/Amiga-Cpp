@@ -956,21 +956,32 @@ try {
     console.error(`[run-demo] AVISO: en este build WinUAE-DBG escucha el GDB en 2345 fijo;`);
     console.error(`  WINUAE_GDB_PORT=${gdbPort} solo cambia la conexion del cliente y rompera el enlace.`);
   }
-  const owners = pidsListeningOn([gdbPort, sideChannelPort]);
-  if (owners.length > 0) {
-    if (hasArg('--reset-emulator')) {
-      // Limpieza previa: libera SOLO los procesos que escuchan NUESTROS puertos, sin
-      // matar instancias de otros hilos (regla de convivencia multi-instancia).
-      console.log(`[run-demo] --reset-emulator: liberando PIDs ${owners.join(',')} en ${gdbPort}/${sideChannelPort}`);
-      freePorts([gdbPort, sideChannelPort]);
-      await new Promise((r) => setTimeout(r, 800));
-    } else {
-      // No conectar con una instancia ajena: produciria capturas cruzadas.
-      console.error(`[run-demo] puerto GDB ${gdbPort} o canal lateral ${sideChannelPort} ocupado por PID(s) ${owners.join(',')}.`);
-      console.error('  No me conecto a una instancia ajena (evita capturas cruzadas). Espera a que termine,');
-      console.error('  usa otro hilo/equipo, o libera SOLO esos puertos con --reset-emulator.');
-      process.exit(1);
+  // El GDB (2345) es un recurso único: varios hilos deben serializarse. `--wait-port`
+  // espera a que se libere; `--reset-emulator` libera SOLO los PIDs que lo escuchan.
+  const waitPortSeconds = parseInt(argValue('--wait-port', process.env.WINUAE_WAIT_PORT || '0'), 10);
+  let owners = pidsListeningOn([gdbPort, sideChannelPort]);
+  if (owners.length > 0 && hasArg('--reset-emulator')) {
+    // Limpieza previa: libera SOLO los procesos que escuchan NUESTROS puertos, sin
+    // matar instancias de otros hilos (regla de convivencia multi-instancia).
+    console.log(`[run-demo] --reset-emulator: liberando PIDs ${owners.join(',')} en ${gdbPort}/${sideChannelPort}`);
+    freePorts([gdbPort, sideChannelPort]);
+    await new Promise((r) => setTimeout(r, 800));
+    owners = pidsListeningOn([gdbPort, sideChannelPort]);
+  } else if (owners.length > 0 && waitPortSeconds > 0) {
+    const deadline = Date.now() + waitPortSeconds * 1000;
+    while (owners.length > 0 && Date.now() < deadline) {
+      console.log(`[run-demo] puertos ocupados por PID(s) ${owners.join(',')}; esperando (--wait-port ${waitPortSeconds}s)...`);
+      await new Promise((r) => setTimeout(r, 1000));
+      owners = pidsListeningOn([gdbPort, sideChannelPort]);
     }
+  }
+  if (owners.length > 0) {
+    // No conectar con una instancia ajena: produciria capturas cruzadas.
+    console.error(`[run-demo] puerto GDB ${gdbPort} o canal lateral ${sideChannelPort} ocupado por PID(s) ${owners.join(',')}.`);
+    console.error('  No me conecto a una instancia ajena (evita capturas cruzadas). Opciones:');
+    console.error('  --wait-port <segundos> para esperar a que el otro hilo termine, o');
+    console.error('  --reset-emulator para liberar SOLO los PIDs que escuchan esos puertos.');
+    process.exit(1);
   }
   console.log(`[run-demo] launching ${demoName}`);
   await conn.connect({ forceBreak: false, initializeStopped: true });
