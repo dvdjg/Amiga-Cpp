@@ -27,6 +27,11 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/retro/fixed_q.hpp>
 #include <eng/retro/lib2d.hpp>
 #include <eng/retro/minifloat_fixed.hpp>
+#include <eng/core/util/hash.hpp>
+#include <eng/core/util/hash_map.hpp>
+#include <eng/core/util/hash_set.hpp>
+#include <eng/core/util/vector.hpp>
+#include <eng/core/util/chunked_vector.hpp>
 #include <eng/graphics/mesh_renderer.hpp>
 #include <eng/platform/amiga/lib3d.hpp>
 #include <eng/platform/amiga/object3d.hpp>
@@ -145,6 +150,38 @@ extern "C" void c_mf_transform(const u16* mm, const s16* pp, s16* out) {
 	const Vec<3, fix> p = {pp[0], pp[1], pp[2]};
 	const Vec<3, fix> r = transform_fix(m, p);
 	for (int i = 0; i < 3; ++i) out[i] = r.v[i];
+}
+
+// --- eng::util: hashes y contenedores sin heap. Deben compilarse a aritmetica nativa
+// (los hashes no usan multiplicacion de 32x32) y sin libcalls de libgcc. El gate global
+// de FORBIDDEN (__mulsi3/__divsi3/__udivsi3) cubre estas funciones.
+namespace eu = eng::util;
+extern "C" eng::u32 c_hash_u16(u16 a) { return eu::hash_u16(a); }
+extern "C" eng::u32 c_hash_u32(eng::u32 a) { return eu::hash_u32(a); }
+extern "C" u16 c_hashmap_find(u16 key) {
+	eu::HashMap<u16, u16, 16> m;
+	m.insert(key, 7u);
+	m.erase(key);
+	const u16* p = m.find(key);
+	return static_cast<u16>(p != nullptr ? *p : 0u);
+}
+extern "C" u16 c_hashset_contains(u16 v) {
+	eu::HashSet<u16, 16> s;
+	s.insert(v);
+	s.erase(v);
+	return static_cast<u16>(s.contains(v) ? 1u : 0u);
+}
+extern "C" u16 c_vector_grow(eng::u8* scratch, eng::u32 bytes) {
+	eu::BumpAlloc alloc {eng::Span<eng::u8> {scratch, bytes}};
+	eu::Vector<u16, eu::BumpAlloc> v {alloc};
+	for (u16 i = 0; i < 20u; ++i) v.push_back(i);
+	return static_cast<u16>(v.size());
+}
+extern "C" u16 c_chunked_push(eng::u8* scratch, eng::u32 bytes) {
+	eu::BumpAlloc alloc {eng::Span<eng::u8> {scratch, bytes}};
+	eu::ChunkedVector<u16, 4, 4, eu::BumpAlloc> c {alloc};
+	for (u16 i = 0; i < 12u; ++i) c.push_back(i);
+	return static_cast<u16>(c.size());
 }
 `;
 

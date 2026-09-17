@@ -150,4 +150,7 @@ mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
 3. Test host en `tests/host/` con su `README.md`.
 4. Si la utilidad es de bits o entra en un bucle caliente, añadir una sonda al gate
    de codegen (`tools/analyze/codegen-report.mjs`) para fijar que no aparecen libcalls
-   de libgcc ni instrucciones de 68020.
+   de libgcc ni instrucciones de 68020. Ya está cubierto el vocabulario sensible:
+   `hash.hpp` (`c_hash_u16`/`c_hash_u32`), `hash_map.hpp`/`hash_set.hpp`
+   (`c_hashmap_find`/`c_hashset_contains`) y `vector.hpp`/`chunked_vector.hpp`
+   (`c_vector_grow`/`c_chunked_push`).
