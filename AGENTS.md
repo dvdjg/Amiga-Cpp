@@ -68,6 +68,12 @@ contexto irrelevante a quien trabaja en otra cosa.
 - **Citar la referencia** (ruta del doc, datasheet, sección) en el comentario del código y en el commit.
 - Ejemplo (2026-09): el timer de CIA no recargaba por poner `CRA bit3 RUNMODE=1` (one-shot); leer `cia_chips.md` lo documenta como «0 = continuo» y fue la corrección directa.
 
+### 1.8 Commits por turno
+
+- Por defecto, **al comenzar un turno, hacer commit de lo que quedó del turno anterior** (solo lo hecho en el hilo actual).
+- **No** hacer el commit final de lo desarrollado en el propio turno: el trabajo del turno en curso se deja sin commitear salvo que el usuario lo pida.
+- No incluir en ese commit cambios ajenos al hilo actual.
+
 ---
 
 ## 2. El repositorio
