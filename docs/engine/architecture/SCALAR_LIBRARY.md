@@ -190,13 +190,13 @@ tests host) falla si la doc se desincroniza del contrato, y `--write` la regener
 | inv_lerp / remap | si | si | si (div_norm) | HOST-059 |
 | dot fusionado (2-4 pares) | si | si | si (acumulador saturado) | HOST-059 |
 | cross2 / rotate2 / vscale / vlerp | si | si | si | HOST-059 |
-| length / normalize / reflect / project | si | si (limites de rango) | no (sin sqrt) | HOST-059 |
+| length / normalize / reflect / project | si | si (limites de rango) | length si (fixed_math); normalize/project no (division) | HOST-059/104 |
 | value_noise / fbm | si | si (coord <= 2048) | no (necesita division) | HOST-060 |
 | mul_add / mac (FMA) | — | si (1 redondeo) | si (1 redondeo) | HOST-057/059 |
 | hermite / catmull_rom | si | si | si (catmull usa div_norm) | HOST-064 |
 | hermite / catmull_rom (Vec<N>) | si | si | si | HOST-064 |
 | ease_in/out/in_out_quad/_cubic | si | si | si | HOST-064 |
-| ease_in/out/in_out_sine/_expo | si | si (necesita sin/cos/exp2) | — | HOST-064 |
+| ease_in/out/in_out_sine/_expo | si | si (necesita sin/cos/exp2) | si _sine (fixed_math); _expo no (sin exp2) | HOST-064/104 |
 | min / max / abs / sign | si | si | si | HOST-065 |
 | move_towards | si | si | si | HOST-065 |
 | deadzone | si | si | si | HOST-065 |
@@ -206,7 +206,9 @@ tests host) falla si la doc se desincroniza del contrato, y `--write` la regener
 | bezier2 / bezier3 | si | si | si | HOST-065 |
 | bezier2 / bezier3 (Vec<N>) | si | si | si | HOST-065 |
 | wrap_angle / angle_diff | — | si | — | HOST-057 |
-| sqrt/exp/log/sin/cos/tan | — | si | — | HOST-057 |
+| sqrt/exp/log/sin/cos/tan | — | si | sqrt/sin/cos si (fixed_math); exp/log/tan no | HOST-057/104 |
 | transform (MF × fix) | — | ratio MF (|m| <= 8) | coordenada | HOST-058 |
+| stats::mean / variance / stddev | si | si | si (sum/mean con acumulador s32; stddev con fixed_math) | HOST-093/104 |
+| dsp::Adsr / OnePole / DelayLine / osc_* | si | si | si (salvo osc_sine) | HOST-102 |
 
 <!-- SCALAR-TABLE:END -->

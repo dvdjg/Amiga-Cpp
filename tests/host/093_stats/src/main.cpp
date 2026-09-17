@@ -139,6 +139,15 @@ int main() {
 		check(rm.size() == 3u, "ventana llena");
 	}
 
+	// --- acumulador ancho en Fixed: la media no satura ----------------------
+	{
+		const er::q12 big[4] = {mk<er::q12>(7.0f), mk<er::q12>(7.0f), mk<er::q12>(7.0f),
+					mk<er::q12>(7.0f)};
+		check(std::fabs(em::to_double(eu::mean(cspan(big))) - 7.0) <= 3.0e-3,
+		      "mean<q12> acumula en s32 (no satura)");
+		check(em::to_double(eu::sum(cspan(big))) <= 8.0, "sum<q12> cabe/satura en rango");
+	}
+
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;

@@ -152,15 +152,17 @@ Los contenedores y las utilidades de bytes/enteros son agnósticos del tipo (alm
 | Contenedores (`Array`…`RingBuffer`, `FlatMap`, `HashSet`, `Pool`, `PriorityQueue`…) | sí | sí | sí | sí |
 | `algorithm.hpp`, `core/sort.hpp`, `type_traits`/`util`/`bit` | sí | sí | sí | sí |
 | `collision`, `color`, `grid`, `broadphase`, `pathfinding`, `text` | sí | — | — | — (enteros por diseño: 68000/hardware) |
-| `stats` | — | sí (`div_norm`; satura) | sí (~1e-3) | sí |
+| `stats` | — | sí (sum/mean con acumulador s32; stddev con `fixed_math.hpp`) | sí (~1e-3) | sí |
 | `dsp` | — | sí (salvo `osc_sine`) | sí | sí |
 
 Limitaciones (también en cada cabecera):
 
-- `stats::stddev` **no compila** con `Fixed` (no hay `sqrt`); `dsp::osc_sine` **no compila** con `Fixed` (no hay `sin`).
+- `stats::sum`/`mean` con `Fixed<s16>` acumulan en **32 bits** (`add.l`) y solo estrechan al final; `variance` mantiene el acumulador del escalar (un acumulador ancho necesitaría productos de 64 bits, `__muldi3`).
+- `stats::stddev` con `Fixed` requiere incluir `eng/core/fixed_math.hpp` (aporta `scalar_sqrt<Fixed>` vía `isqrt`); `dsp::osc_sine` con `Fixed` no compila (necesita `sin`).
+- **Trigonometría fixed**: `eng/core/fixed_math.hpp` especializa `scalar_sin`/`scalar_cos`/`scalar_sqrt` para `Fixed<s16,E>` (tabla de seno + `isqrt`); incluir ese header antes de usar easings `_sine`/`length` con fixed. Requiere `E <= 14`.
 - `MiniFloat16`: pierde incrementos por debajo de `2^-14` (tasas de ADSR/`alpha` muy pequeñas bajoflow a 0); precisión ~1e-3.
 - `Fixed`: la división (`div_norm`) **satura**; el paso mínimo es `2^-Exp` (p. ej. 1/4096 en q12).
-- Las matemáticas de escalares (interpolación, easings, geometría, ruido, `minifloat_math`) viven en `eng::math`; ver `SCALAR_LIBRARY.md` y `MATH_LIBRARY.md`.
+- Las matemáticas de escalares (interpolación, easings, geometría, ruido, `minifloat_math`) viven en `eng::math`; ver `SCALAR_LIBRARY.md` (tabla función × escalar) y `MATH_LIBRARY.md`.
 
 ## 4. Qué no incluye (y por qué)
 
@@ -209,6 +211,7 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-101 | `core/noise.hpp` (worley/turbulence/ridged) |
 | HOST-102 | `dsp.hpp` (Adsr/OnePole/DelayLine/osciladores; `double`/MF/`q12`) |
 | HOST-103 | util (contenedores/algoritmos) con `MiniFloat16`/`q12` |
+| HOST-104 | `core/fixed_math.hpp` (sin/cos/sqrt de `Fixed`; easings/length con q12) |
 
 > **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`), `Pool` por `086_bob_objects` (parque de actores), `HashMap` por `111_xlimited_sidescroller` (índice de chunks de `ChunkCache`), `color` también por `086_bob_objects` (gradiente del cielo con `eng::util::lerp444`), y `broadphase` y `pathfinding` por `110_ylimited_shooter` (self-test en `init`: `SpatialHash` + `bfs`/`reconstruct_path` en el 68000; si falla, la demo no llega a READY). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashSet`, `DynamicHashMap`, `PriorityQueue`, `Stack`/`Queue`/`Deque`, `EnumSet`, `ScopeGuard`, `StaticString`, `stats`, `collision`, `text`, `grid`, `dsp`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..102 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
 

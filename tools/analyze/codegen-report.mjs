@@ -45,6 +45,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/util/pathfinding.hpp>
 #include <eng/core/random.hpp>
 #include <eng/core/util/dsp.hpp>
+#include <eng/core/fixed_math.hpp>
 #include <eng/core/sort.hpp>
 #include <eng/graphics/mesh_renderer.hpp>
 #include <eng/platform/amiga/lib3d.hpp>
@@ -327,6 +328,15 @@ extern "C" float c_dsp_ops(float x) {
 	dl.clear();
 	a += dl.process(x, 1u);
 	return a + eu::osc_saw(x) + eu::osc_square(x) + eu::osc_triangle(x);
+}
+extern "C" s16 c_scalar16_ops(const s16* data, int n) {
+	eng::Span<const q12> xs {reinterpret_cast<const q12*>(data), static_cast<eng::usize>(n)};
+	const q12 m = eu::mean(xs);            // acumulador s32 (add.l)
+	const q12 s = scalar_sin<q12>::op(q12 {1024}); // tabla de seno fixed
+	eu::Adsr<q12> env {q12 {1024}, q12 {1024}, q12 {1024}, q12 {2048}};
+	env.note_on();
+	(void)env.tick();
+	return static_cast<s16>(m.v + s.v + env.level.v);
 }
 `;
 

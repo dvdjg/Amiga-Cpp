@@ -273,46 +273,52 @@ template <typename S>
 template <typename S>
 [[nodiscard]] constexpr S ease_in_sine(S t) {
 	t = saturate(t);
-	return scalar_traits<S>::one() - scalar_cos<S>::op(t * scalar_const<S>::from(easeconst::half_pi));
+	return scalar_traits<S>::one() -
+	       scalar_cos<S>::op(mul_norm(t, scalar_const<S>::from(easeconst::half_pi)));
 }
 /// Senoidal de salida: `sin(t·π/2)`.
 template <typename S>
 [[nodiscard]] constexpr S ease_out_sine(S t) {
 	t = saturate(t);
-	return scalar_sin<S>::op(t * scalar_const<S>::from(easeconst::half_pi));
+	return scalar_sin<S>::op(mul_norm(t, scalar_const<S>::from(easeconst::half_pi)));
 }
 /// Senoidal de entrada/salida: `(1 − cos(π·t))/2`.
 template <typename S>
 [[nodiscard]] constexpr S ease_in_out_sine(S t) {
 	t = saturate(t);
-	return (scalar_traits<S>::one() - scalar_cos<S>::op(t * scalar_const<S>::from(easeconst::pi))) *
-	       scalar_const<S>::from(0.5);
+	return mul_norm(scalar_traits<S>::one() -
+				scalar_cos<S>::op(mul_norm(t, scalar_const<S>::from(easeconst::pi))),
+			scalar_const<S>::from(0.5));
 }
 /// Exponencial de entrada: `2^(10t−10)` (0 para `t=0`).
 template <typename S>
 [[nodiscard]] constexpr S ease_in_expo(S t) {
 	t = saturate(t);
 	if (t == scalar_traits<S>::zero()) return scalar_traits<S>::zero();
-	return scalar_exp2<S>::op(t * scalar_const<S>::from(10.0) - scalar_const<S>::from(10.0));
+	const S ten = scalar_const<S>::from(10.0);
+	return scalar_exp2<S>::op(mul_norm(t, ten) - ten);
 }
 /// Exponencial de salida: `1 − 2^(−10t)` (1 para `t=1`).
 template <typename S>
 [[nodiscard]] constexpr S ease_out_expo(S t) {
 	t = saturate(t);
 	if (t == scalar_traits<S>::one()) return scalar_traits<S>::one();
-	return scalar_traits<S>::one() - scalar_exp2<S>::op(scalar_const<S>::from(-10.0) * t);
+	const S ten = scalar_const<S>::from(10.0);
+	return scalar_traits<S>::one() -
+	       scalar_exp2<S>::op(scalar_traits<S>::zero() - mul_norm(t, ten));
 }
 /// Exponencial de entrada/salida.
 template <typename S>
 [[nodiscard]] constexpr S ease_in_out_expo(S t) {
 	t = saturate(t);
 	const S one = scalar_traits<S>::one();
-	if (t < scalar_const<S>::from(0.5))
-		return scalar_exp2<S>::op(t * scalar_const<S>::from(20.0) - scalar_const<S>::from(10.0)) *
-		       scalar_const<S>::from(0.5);
+	const S ten = scalar_const<S>::from(10.0);
+	const S twenty = scalar_const<S>::from(20.0);
+	const S half = scalar_const<S>::from(0.5);
+	if (t < half)
+		return mul_norm(scalar_exp2<S>::op(mul_norm(t, twenty) - ten), half);
 	if (t == one) return one;
-	return one - scalar_exp2<S>::op(scalar_const<S>::from(10.0) - t * scalar_const<S>::from(20.0)) *
-			     scalar_const<S>::from(0.5);
+	return one - mul_norm(scalar_exp2<S>::op(ten - mul_norm(t, twenty)), half);
 }
 
 } // namespace eng::math
