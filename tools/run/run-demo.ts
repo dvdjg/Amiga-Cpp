@@ -2,6 +2,7 @@
 import * as fs from 'fs';
 import * as net from 'net';
 import * as path from 'path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { repoRoot } from '../lib/paths.js';
 
@@ -893,10 +894,41 @@ const runnerConfigPath = path.join(outputDir, 'runner.uae');
 const configText = fs.readFileSync(baseConfigPath, 'utf8');
 fs.writeFileSync(runnerConfigPath, patchConfig(configText, extensionRoot, stagedDir, warpEnabled, immediateBlits), 'utf8');
 
+const gdbPort = parseInt(process.env.WINUAE_GDB_PORT || '2345', 10);
+
+/// PIDs que están ESCUCHANDO en alguno de `ports` (Windows, vía `netstat -ano`).
+/// Se usa `netstat` y no una conexión TCP porque el GDB server de WinUAE-DBG acepta
+/// una sola conexión y deja de aceptar (el connect quedaría colgado y no detectaría).
+function pidsListeningOn(ports: number[]): number[] {
+  if (process.platform !== 'win32') {
+    return [];
+  }
+  const ns = spawnSync('netstat', ['-ano'], { encoding: 'utf8' });
+  if (ns.status !== 0 || !ns.stdout) {
+    return [];
+  }
+  const pids = new Set<number>();
+  for (const line of ns.stdout.split(/\r?\n/)) {
+    const m = line.trim().match(/:(\d+)\s+.*LISTENING\s+(\d+)\s*$/i);
+    if (m && ports.includes(parseInt(m[1], 10))) {
+      pids.add(parseInt(m[2], 10));
+    }
+  }
+  return [...pids];
+}
+
+/// Mata SOLO los procesos que escuchan en `ports` (no toca instancias ajenas de
+/// WinUAE: la regla de convivencia prohíbe matar procesos que uno no ha lanzado).
+function freePorts(ports: number[]): void {
+  for (const pid of pidsListeningOn(ports)) {
+    spawnSync('taskkill', ['/PID', String(pid), '/F', '/T'], { encoding: 'utf8' });
+  }
+}
+
 const config = {
   winuaePath,
   configFile: runnerConfigPath,
-  gdbPort: parseInt(process.env.WINUAE_GDB_PORT || '2345', 10),
+  gdbPort,
 };
 
 const conn = new WinUAEConnection(config);
@@ -920,19 +952,25 @@ const report: Record<string, any> = {
 };
 
 try {
-  if (hasArg('--reset-emulator')) {
-    // Limpieza previa opcional: evita que un WinUAE zombie de un run anterior
-    // tenga tomados los puertos 2345/2346 (causa de "GDB connect timeout" y de
-    // listeners 2346 ausentes). Solo matamos los binarios homónimos del depurador.
-    try {
-      const { spawnSync } = await import('node:child_process');
-      for (const exe of ['winuae-gdb.exe', 'm68k-amiga-elf-gdb.exe', 'amiga-gdb.exe']) {
-        const k = spawnSync('taskkill', ['/IM', exe, '/F', '/T'], { encoding: 'utf8' });
-        if (k.status !== 0) { /* simplemente no estaba corriendo */ }
-      }
+  if (gdbPort !== 2345) {
+    console.error(`[run-demo] AVISO: en este build WinUAE-DBG escucha el GDB en 2345 fijo;`);
+    console.error(`  WINUAE_GDB_PORT=${gdbPort} solo cambia la conexion del cliente y rompera el enlace.`);
+  }
+  const owners = pidsListeningOn([gdbPort, sideChannelPort]);
+  if (owners.length > 0) {
+    if (hasArg('--reset-emulator')) {
+      // Limpieza previa: libera SOLO los procesos que escuchan NUESTROS puertos, sin
+      // matar instancias de otros hilos (regla de convivencia multi-instancia).
+      console.log(`[run-demo] --reset-emulator: liberando PIDs ${owners.join(',')} en ${gdbPort}/${sideChannelPort}`);
+      freePorts([gdbPort, sideChannelPort]);
       await new Promise((r) => setTimeout(r, 800));
-      console.log('[run-demo] --reset-emulator: procesos stale finalizados');
-    } catch { /* la limpieza nunca debe bloquear el arranque */ }
+    } else {
+      // No conectar con una instancia ajena: produciria capturas cruzadas.
+      console.error(`[run-demo] puerto GDB ${gdbPort} o canal lateral ${sideChannelPort} ocupado por PID(s) ${owners.join(',')}.`);
+      console.error('  No me conecto a una instancia ajena (evita capturas cruzadas). Espera a que termine,');
+      console.error('  usa otro hilo/equipo, o libera SOLO esos puertos con --reset-emulator.');
+      process.exit(1);
+    }
   }
   console.log(`[run-demo] launching ${demoName}`);
   await conn.connect({ forceBreak: false, initializeStopped: true });

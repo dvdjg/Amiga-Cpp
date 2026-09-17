@@ -45,20 +45,12 @@ Cualquier tool MCP que acabe en `monitor X` es un wrapper de `monitor X`.
 `state`, `regs`, `mem <addr> <len>`, `runstatus <addr>`, `screenshot`, `input`.
 Independiente de GDB; útil cuando GDB no está disponible o quedó inerte.
 
-**Puertos configurables (varias instancias).** El fork permite fijar los puertos por
-entorno: `WINUAE_GDB_PORT` (GDB, default 2345), `WINUAE_SIDE_CHANNEL_PORT` (canal
-lateral, default 2346) y `WINUAE_GDB_PERSIST_LISTENER` (el GDB server sigue
-escuchando tras desconectar). Así se pueden lanzar **varias instancias de WinUAE a la
-vez**, cada una depurando en puertos distintos. `run-demo.sh` respeta ambas vars (o
-`--side-channel-port`); el MCP lee `WINUAE_GDB_PORT` y sus tools aceptan el puerto del
-canal lateral. Las herramientas de profiling (`tools/debug/measure-fps.mjs`,
-`tools/debug/ports.mjs`) usan las vars del entorno. Los scripts ad-hoc (`out/tmp/*.mjs`)
-llevan 2345/2346 hardcoded.
+**Puertos (varias instancias).** En este build el **GDB del emulador es fijo (2345)**: `WINUAE_GDB_PORT` solo indica al cliente a dónde conectarse, así que no debe cambiarse (poner otro valor rompe el enlace). El **canal lateral** sí se configura con `WINUAE_SIDE_CHANNEL_PORT` (por defecto 2346), lo que permite varias instancias con canales distintos; `WINUAE_GDB_PERSIST_LISTENER` mantiene el GDB server escuchando tras desconectar. Como el GDB 2345 es único, **no se puede depurar GDB en paralelo** con dos instancias: hay que coordinar su uso entre hilos. `run-demo.sh` respeta `WINUAE_SIDE_CHANNEL_PORT` (o `--side-channel-port`) y, antes de lanzar, comprueba con `netstat` que los puertos estén libres: si están ocupados **falla con un mensaje claro** (no se conecta a una instancia ajena), y con `--reset-emulator` libera **solo** los PIDs que los escuchan. Las herramientas de profiling (`tools/debug/measure-fps.mjs`, `tools/debug/ports.mjs`) usan las vars del entorno.
 
 **Regla de convivencia (no somos el único usuario del emulador; respeto entre
 instancias/agentes):**
 
-- Elegir al **empezar el hilo** un par de puertos al azar (`WINUAE_GDB_PORT` + `WINUAE_SIDE_CHANNEL_PORT`) y usarlo en todas las corridas del hilo; no reutilizar los de otra sesión. Si un puerto está ocupado, usar otro en vez de forzar.
+- Elegir al **empezar el hilo** un canal lateral propio (`WINUAE_SIDE_CHANNEL_PORT`) si se va a convivir con otra instancia; el GDB (2345) es único, así que coordinar su uso entre hilos. Si un puerto está ocupado, no forzar.
 - **Nunca matar** procesos `winuae-gdb`/`winuae64` que no se hayan lanzado uno mismo. Antes de matar, comprobar si son propios (por PID/instancia).
 - **Controlar y limpiar las propias**: registrar los PIDs lanzados y cerrarlos al terminar; no dejar instancias huérfanas ocupando puertos.
 
