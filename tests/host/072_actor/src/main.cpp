@@ -681,6 +681,8 @@ void test_compose_sprites() {
 	SpriteManager mgr {};
 	CHECK(mgr.apply(placements, 8u) == 8u, "los ocho placements se aplican");
 	CHECK(mgr.any_enabled(), "gestor con sprites habilitados");
+	// El DMA de sprites es un unico bit (SPREN); no hay bits por canal.
+	CHECK(mgr.dma_bits() == 0x0020u, "DMACON: SPREN");
 	CHECK(mgr.apply(nullptr, 0u) == 0u, "sin placements no aplica nada");
 }
 

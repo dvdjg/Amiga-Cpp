@@ -77,16 +77,27 @@ public:
         return false;
     }
 
-    /// Bits de DMACON que activan el DMA de los sprites habilitados. En OCS el
-    /// bit 6 habilita SPR0, el bit 0 SPR7 (DMACON es little-endian de bits).
+    /// Bits de DMACON que activan el DMA de sprites. En el chipset es un **único bit**
+    /// (`SPREN`, bit 5) que habilita los 8 canales: no existen bits por sprite. Un canal
+    /// que no debe verse se desactiva con su `SPRxPT` a 0 (o con `VSTOP <= VSTART`).
+    /// Referencia: AHRM 3.ª (`MOVE.W #$83A0,DMACON` = `DMAEN|BPLEN|COPEN|SPREN`).
     u16 dma_bits() const {
-        u16 bits = 0;
-        for (u8 i = 0; i < 8; ++i) if (m_spr[i].enabled) bits |= static_cast<u16>(1u << (6 - i));
-        return bits;
+        for (const auto& s : m_spr) {
+            if (s.enabled && !s.data.empty()) return 0x0020u; // SPREN
+        }
+        return 0u;
     }
 
     /// Emite SPRxPT / SPRxPOS / SPRxCTL de los sprites habilitados en el Copper.
     /// Llámala desde el compositor antes de `end()` (paleta y sprites al final).
+    ///
+    /// AVISO (defecto conocido, ver `NORMALIZACION_REPO.md` Nota 6.5b): emite un WAIT por
+    /// sprite en su `vstart`. Con dos o más sprites en la MISMA `vstart`, el segundo WAIT
+    /// encuentra el beam ya pasado y espera al frame siguiente, así que los registros se
+    /// programan tarde y el reset del frame los pisa. Programar los 8 en ráfaga sin WAIT
+    /// tampoco funciona en la 054 (0 sprites), lo que apunta a la estructura de la lista
+    /// que construye el compositor: falta verificar el punto de bucle de `end()` y el
+    /// armado del DMA de sprite antes de tocar esto.
     void emit_into(copper::Scheduler& sched) const {
         for (u8 i = 0; i < 8; ++i) {
             const SpriteConfig& s = m_spr[i];
