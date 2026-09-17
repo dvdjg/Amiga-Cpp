@@ -65,6 +65,7 @@ ANALYZE="$ROOT/tools/analyze/analyze-demo.sh"
 PIXEL_SELFTEST="$ROOT/tools/analyze/verify-pixel-assert.sh"
 TYPE_CHECK="$ROOT/tools/check/type-tagging.mjs"
 ENCODING_CHECK="$ROOT/tools/check/encoding.mjs"
+LINKS_CHECK="$ROOT/tools/check/links.mjs"
 
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 REPORT_DIR="$ROOT/out/regression/$TIMESTAMP"
@@ -128,6 +129,19 @@ if [ -f "$ENCODING_CHECK" ]; then
 		fi
 	else
 		echo "node no disponible; se omite encoding." >&2
+	fi
+fi
+
+# --- Enlaces: la documentacion canonica no debe tener enlaces relativos rotos ---
+if [ -f "$LINKS_CHECK" ]; then
+	if command -v node >/dev/null 2>&1; then
+		echo "== links =="
+		if ! node "$LINKS_CHECK"; then
+			echo "links fallo: hay enlaces relativos rotos en la documentacion." >&2
+			exit 1
+		fi
+	else
+		echo "node no disponible; se omite links." >&2
 	fi
 fi
 

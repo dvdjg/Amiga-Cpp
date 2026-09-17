@@ -34,6 +34,7 @@ contexto irrelevante a quien trabaja en otra cosa.
 - Al incorporar una referencia externa (manual, repo, curso, ficha), comprobar primero si ya existe algo equivalente en `docs/` y decidir: sustituir si la nueva es superior, componer solo si aporta algo distinto sin repetir, o descartar si es inferior o duplicada. Documentar el resultado final, no el proceso.
 - **No incluir metainformación de proceso en los documentos de referencia**: fechas de edición/limpieza, «OCR corregido», «actualizado en <fecha>» o decisiones de ingesta no van en el contenido de la referencia ni de su índice; van en el mensaje de commit o, si procede, en una bitácora separada (`docs/guides/roadmap/`, `docs/debugging/`).
 - Los índices y README de `docs/` deben apuntar solo a lo que existe y es canónico; si se elimina un documento, actualizar todos los enlaces en la misma pasada.
+- **Los enlaces relativos de la documentación canónica no deben quedar rotos**: `node tools/check/links.mjs` los valida y corre en `tools/test-regression.sh` y `tools/run-host-tests.sh`.
 - Protocolo detallado de ingesta de repos/referencias externas: §6 de `docs/ai-dev-environment/DOC-MAP-PRINCIPAL.md`.
 
 ### 1.4 Encoding y finales de línea

@@ -24,6 +24,6 @@ agrupa los procesos de trabajo, no el diseño del engine.
 
 ## Regla de idioma
 
-Según [AGENTS.md](../../AGENTS.md), toda la documentación en español debe usar ortografía
+Según [AGENTS.md](../../../AGENTS.md), toda la documentación en español debe usar ortografía
 correcta (tildes, eñes y puntuación). Los documentos nuevos deben cumplirla desde el primer
 commit.

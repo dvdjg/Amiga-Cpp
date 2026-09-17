@@ -22,4 +22,19 @@ Las demos 103/104 (`demos/amiga/103_tile_scroll_ring`, `104_tile_scroll_ring_dua
 - Los checkpoints del periférico (`debugperiph checkpoints`) añaden ~10 fps de overhead al update; medir fps con ellos puestos engaña. Quitarlos para medir.
 - Fps medidos (emulador WinUAE-DBG, `-O1`): 101=~48, 102=~50, 103=~50, 104=~47,6. En hardware real los cuatro van a 50 fps.
 
-> Nota de trazabilidad: las cifras de fps dependen del emulador, del flag de optimización y de la fase medida. La discrepancia de la 103 en medidas posteriores se investiga en [NORMALIZACION_REPO.md](NORMALIZACION_REPO.md); hasta cerrarlo, trátese cada cifra con su contexto de medida (fecha + config).
+### Cifras de fps: trazabilidad
+
+Las cifras anteriores son **referencias históricas, no gates**, y hoy **no son reproducibles de forma directa**:
+
+- **La demo `102` ya no existe** en `demos/amiga/`; solo queda su artifact (`out/demos/102_tile_scroll_dualpf/`), lo que hace imposible reproducir esa fila.
+- No se registró el **commit, la fecha, el `CONFIG_ID` ni el flag de optimización** de la medida, y el fps depende de la **fase** del recorrido (`detail` cambia), así que una cifra suelta no es comparable entre revisiones.
+- Medidas posteriores dan para la 103 ~33 fps (no ~50); el A/B con y sin `DoubleBuffer` (33,50 vs 32,67) descarta que sea del refactor de buffers. El análisis está en [NORMALIZACION_REPO.md](NORMALIZACION_REPO.md) §0.7.
+
+**Protocolo de medida (para que las próximas cifras sí sean trazables):**
+
+1. Compilar la demo en la config a medir: `bash ./tools/build/build-demo.sh demos/amiga/<demo> --debug` (o `--release`).
+2. Poblar el `runner.uae`/`dh1` de esa config ejecutándola una vez: `bash ./tools/run/run-demo.sh demos/amiga/<demo>`.
+3. Medir con `node tools/debug/measure-fps.mjs <demo> <CONFIG_ID>` (usa el contador de ciclos del periférico `0xB7E928`, 7,09379 MHz).
+4. Anotar junto a cada cifra: **fecha, `CONFIG_ID`, commit (`git rev-parse --short HEAD`) y `detail`** (fase).
+
+**Estado del intento de re-medición (2026-09-17):** al ejecutar el protocolo sobre `101_ehb_tile_scroll_driver` (`A500_debug`), la medida salió inválida (`detail=0x0` y el contador de frames retrocedió, señal de que la máquina no llegó a READY): `measure-fps.mjs` lanzó WinUAE con la config por defecto de la extensión y no ejecutó la demo del `dh1`. Queda pendiente corregir el arranque del runner para esa medición antes de poder fijar la tabla trazable.

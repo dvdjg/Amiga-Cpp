@@ -27,7 +27,7 @@ buffers y copper está en `docs/engine/architecture/DISPLAY_COMPOSITION.md`.
 | 0.4 | Test host de `DoubleBufferScrollPlayfield` (2 bitmaps, `flip()`, `hardware_view()` del delantero) | `tests/host/068_double_buffer_scroll` | **hecho** |
 | 0.5 | Test host de `TileScrollScene` (geometría de la lista + alternancia de los 2 bloques + 13 words parcheadas) | `tests/host/069_copper_double_buffer` | **hecho** |
 | 0.6 | Crear los documentos canónicos de F0: contrato (`DISPLAY_COMPOSITION.md`) y roadmap (este) + enlazarlos en los índices | `docs/engine/architecture/`, `docs/guides/roadmap/` | **hecho** |
-| 0.7 | Re-medir y corregir las cifras de fps de `BITACORA_SCROLL_TILES.md` (101/102/103/104) o indicar su contexto de medida; hoy 103 mide 32,7 y no 50 | `docs/guides/roadmap/BITACORA_SCROLL_TILES.md` | **investigado, pendiente de bisect** (ver abajo) |
+| 0.7 | Re-medir y corregir las cifras de fps de `BITACORA_SCROLL_TILES.md` (101/102/103/104) o indicar su contexto de medida; hoy 103 mide 32,7 y no 50 | `docs/guides/roadmap/BITACORA_SCROLL_TILES.md` | **cifras marcadas como no trazables + protocolo de medida; pendiente re-medir** (ver abajo) |
 | 0.8 | **Demo canónica rota**: 107 (corkscrew 8-way) **no alcanza READY**. Estado: la demo escribe su marcador previo a `scene.begin` (`detail=0x107ab`) y luego **muere antes de la primera instrucción de `XlimitedScene::begin`** (instrumentado el `begin` con marcas de paso en el engine: ninguna se ejecutó, ni con build limpio). PC clavado en ROM de Kickstart y marcador superviviente → **guru sin reboot**. A/B con y sin F1.3 → pre-existente. Hipótesis: fallo en la **entrada/llamada** (desbordamiento del marco de pila o arena corrupta antes), no en el cuerpo de `begin`. Requiere sesión GDB (breakpoint en la entrada + volcado de pila); la instrumentación temporal ya se retiró | `demos/amiga/107_xlimited_corkscrew`, `engine/include/eng/field/xlimited_scene.hpp` | **localizado, pendiente (no es de un turno)** |
 | 0.9 | **Triaje runtime de demos**: barrido de salud con `tools/analyze/sweep-demo-health.sh` → **53 OK, 0 FAILED, 3 TIMEOUT (070, 071, 107), 4 NOEXE (assets sin construir: 072/073/074/076)**. El build da 0 FAIL; las "rotas" son runtime y son 3, no "muchas" | todas | **hecho** |
 
@@ -215,8 +215,10 @@ Evidencia recogida (medida con `measure-fps.mjs`, A500 `-O1`):
 
 - **No es de los refactors de normalización**: el A/B de la 103 (con y sin `MultiBuffered`/`DoubleBuffer`) da 33,50 vs 32,67.
 - **101 sí cuadra** con la nota; 103/104 no. Los READMEs de esas demos no citan fps.
+- **La fila de la 102 no es reproducible**: la demo `102_tile_scroll_dualpf` ya no existe en `demos/amiga/` (solo queda el artifact en `out/demos/`).
 - **No se puede comparar contra un commit antiguo** de forma directa: al hacer checkout cambian también el layout de `out/demos/...` y las propias herramientas (los números de la nota pueden ser de ese layout anterior), así que el A/B envejecido no es fiable.
-- Receta para cerrarlo: `git bisect` entre el commit donde se escribió la nota de `BITACORA_SCROLL_TILES.md` y `HEAD`, midiendo 103 en cada paso, **con el tooling de cada commit** (o, mejor, fijar el artefacto: medir siempre con el runner actual y anotar fecha+config junto a cada cifra). Mientras no se haga, las cifras de fps de `BITACORA_SCROLL_TILES.md` deben considerarse **no trazables**, no un objetivo.
+- **Acción tomada**: las cifras quedan marcadas en `BITACORA_SCROLL_TILES.md` como **referencias no trazables** (no gates) y se documenta allí el **protocolo de medida** (fecha + `CONFIG_ID` + commit + `detail`). El intento de re-medición del 2026-09-17 no llegó a READY porque `measure-fps.mjs` no ejecutó la demo; el detalle está en la bitácora.
+- Receta opcional para el histórico: `git bisect` entre el commit donde se escribió la nota y `HEAD`, midiendo 103 en cada paso **con el tooling de cada commit**. Es una curiosidad histórica, no bloquea nada; el objetivo real es producir la tabla trazable con el protocolo nuevo.
 
 ## Triaje de demos (runtime) — 2026-09
 
