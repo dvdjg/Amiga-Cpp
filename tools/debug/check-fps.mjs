@@ -4,17 +4,19 @@
 // respecto al valor registrado. Pensado como check opt-in (lanza WinUAE por fila).
 //
 // Uso:
-//   node tools/debug/check-fps.mjs [--demo <substr>] [--threshold 0.9] [--json]
-//                                  [--warn-only] [--help]
+//   node tools/debug/check-fps.mjs [--demo <substr>] [--threshold 0.9] [--samples N]
+//                                  [--json] [--warn-only] [--help]
 //
 //   --demo <substr>   solo las filas cuyo nombre contenga <substr>
 //   --threshold <n>   fraccion minima respecto al valor registrado (def. 0.9 = -10 %)
+//   --samples N       mediciones por demo; se compara la de mayor fps (def. 2)
 //   --json            imprime el resultado como JSON
 //   --warn-only       no falla (exit 0) aunque haya deriva
 //
-// El fps depende de la fase del recorrido (`detail`), asi que:
-//   - si la fase medida coincide con la registrada y se baja del umbral -> FALLO
-//   - si la fase difiere -> AVISO (no comparable de forma estricta)
+// El fps depende de la fase del recorrido (`detail`). Para no depender de medir la
+// misma fase, se toman varias muestras y se compara la MEJOR contra el baseline (que
+// tambien se registra como mejor de N en record-fps.mjs). Si aun asi baja del umbral,
+// es FALLO (la fase observada se reporta como informacion).
 import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -27,29 +29,42 @@ const MEASURE = path.join(ROOT, 'tools/debug/measure-fps.mjs');
 
 const ARGV = process.argv.slice(2);
 if (ARGV.includes('--help') || ARGV.includes('-h')) {
-  console.log(`Uso: node tools/debug/check-fps.mjs [--demo <substr>] [--threshold 0.9] [--json] [--warn-only]
+  console.log(`Uso: node tools/debug/check-fps.mjs [--demo <substr>] [--threshold 0.9] [--samples N] [--json] [--warn-only]
 
 Mide las demos de la tabla de BITACORA_SCROLL_TILES.md y detecta deriva de fps.
-Falla si una demo medida en la MISMA fase (detail) baja del umbral; si la fase
-difiere, solo avisa. Requiere el emulador (opt-in).`);
+Toma varias muestras por demo y compara la mejor contra el baseline; si baja del
+umbral, falla. Requiere el emulador (opt-in).`);
   process.exit(0);
 }
 const filter = (() => { const i = ARGV.indexOf('--demo'); return i >= 0 ? ARGV[i + 1] : null; })();
 const threshold = (() => { const i = ARGV.indexOf('--threshold'); return i >= 0 ? Number(ARGV[i + 1]) : 0.9; })();
+const samples = (() => { const i = ARGV.indexOf('--samples'); const n = i >= 0 ? parseInt(ARGV[i + 1], 10) : 2; return Number.isFinite(n) && n > 0 ? n : 2; })();
 const warnOnly = ARGV.includes('--warn-only');
 const json = ARGV.includes('--json');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function measure(demo, config) {
+async function measureOnce(demo, config) {
   for (let attempt = 1; attempt <= 3; attempt++) {
     const run = spawnSync(process.execPath, [MEASURE, demo, config, '--json'], { cwd: ROOT, encoding: 'utf8' });
     const out = run.stdout || '';
     const line = out.split(/\r?\n/).reverse().find((l) => l.trim().startsWith('{'));
     if (run.status === 0 && line) return JSON.parse(line);
-    if (attempt < 3) { console.error(`[check-fps] ${demo}: intento ${attempt}/3 fallido; reintento...`); }
+    if (attempt < 3) {
+      console.error(`[check-fps] ${demo}: intento ${attempt}/3 fallido; reintento...`);
+      await sleep(2000 * attempt);
+    }
   }
   return null;
+}
+
+async function measureBest(demo, config, n) {
+  let best = null;
+  for (let i = 0; i < n; i++) {
+    const r = await measureOnce(demo, config);
+    if (r && (!best || r.emulatedFps > best.emulatedFps)) best = r;
+  }
+  return best;
 }
 
 function readRows() {
@@ -77,21 +92,21 @@ if (rows.length === 0) { console.error('[check-fps] no hay filas que medir.'); p
 
 const results = [];
 for (const row of rows) {
-  const res = measure(row.demo, row.config);
+  const res = await measureBest(row.demo, row.config, samples);
   if (!res) { results.push({ ...row, status: 'error' }); continue; }
   const samePhase = (res.detail || '').toLowerCase() === row.detail;
   const limit = row.fps * threshold;
-  const status = res.emulatedFps >= limit ? 'ok' : (samePhase ? 'fail' : 'warn');
+  const status = res.emulatedFps >= limit ? 'ok' : 'fail';
   results.push({
     demo: row.demo, config: row.config,
     baselineFps: row.fps, currentFps: res.emulatedFps,
-    baselineDetail: row.detail, currentDetail: res.detail, samePhase, status,
+    baselineDetail: row.detail, currentDetail: res.detail, samePhase, samples, status,
   });
-  if (!json) console.log(`[check-fps] ${row.demo}: ${res.emulatedFps} fps (baseline ${row.fps}, umbral ${(threshold * 100).toFixed(0)} %) -> ${status.toUpperCase()}${samePhase ? '' : ' (fase distinta)'}`);
+  if (!json) console.log(`[check-fps] ${row.demo}: ${res.emulatedFps} fps de ${samples} (baseline ${row.fps}, umbral ${(threshold * 100).toFixed(0)} %) -> ${status.toUpperCase()}${samePhase ? '' : ' (fase distinta)'}`);
 }
 
 const failed = results.filter((r) => r.status === 'fail' || r.status === 'error');
-if (json) console.log(JSON.stringify({ threshold, results, failed: failed.length }, null, 2));
+if (json) console.log(JSON.stringify({ threshold, samples, results, failed: failed.length }, null, 2));
 else if (failed.length === 0) console.log(`[check-fps] OK: ${results.length} demo(s), sin deriva por encima del umbral.`);
 else console.error(`[check-fps] ${failed.length} demo(s) con deriva (${failed.map((r) => r.demo).join(', ')}).`);
 

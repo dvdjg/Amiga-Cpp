@@ -38,6 +38,8 @@ Contexto de medida: `CONFIG_ID` **`A500_debug`** (build `--debug`, `-O1`), emula
 2. Medir y anotar de una vez: `node tools/debug/record-fps.mjs <demo> A500_debug` (ejecuta `measure-fps.mjs --json` y anexa/actualiza la fila con fecha, commit, config y `detail`). Con `--dry-run` solo imprime la fila.
 3. A mano (sin el helper): `node tools/debug/measure-fps.mjs <demo> A500_debug --json` y pegar la fila con fecha/commit/`detail`.
 
+> El fps depende de la fase (`detail`). Para no depender de acertar la misma fase, tanto `record-fps` como `check-fps` toman varias muestras (`--samples`, 2 por defecto) y usan la **mejor**; se compara contra el baseline (también mejor-de-N). El **gate periódico** es `bash ./tools/run-fps-gate.sh` (no en cada regresión); la regresión lo lleva opt-in con `--fps-gate`.
+
 **Notas de la re-medición (2026-09-17):**
 
 - La demo `102_tile_scroll_dualpf` ya no existe en `demos/amiga/` (solo queda su artifact en `out/demos/`), así que su fila no es reproducible.

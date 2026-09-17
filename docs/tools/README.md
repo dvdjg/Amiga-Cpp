@@ -20,7 +20,7 @@ Reglas principales (ver también `docs/STRUCTURE.md` §6):
 | Ejecución (runner/emulador) | `docs/build/BUILD_AND_RUN.md`, `docs/debugging/DEBUG-WINUAE-V2-GUIDE.md` | `tools/run/run-demo.sh`/`.ts` |
 | Análisis de demos | `docs/testing/PIXEL_FRAME_ASSERTIONS.md`, `docs/demos/tile-pipeline/PIPELINE_TILES_EHB.md` | `tools/analyze/*` |
 | Depuración (WinUAE-DBG/DAP) | `docs/debugging/DEBUG-WINUAE-V2-GUIDE.md`, `tools/dap-test/README.md` | `tools/debug/*`, `tools/dap-test/*` |
-| Profiling | `tools/profile/README.md` | `tools/profile/*`, `tools/debug/measure-fps.mjs`, `tools/debug/record-fps.mjs`, `tools/debug/check-fps.mjs` |
+| Profiling | `tools/profile/README.md` | `tools/profile/*`, `tools/debug/measure-fps.mjs`, `tools/debug/record-fps.mjs`, `tools/debug/check-fps.mjs`, `tools/run-fps-gate.sh` |
 | Verificación visual | `tools/vision-review/README.md`, `docs/testing/VISION_REVIEW_ROADMAP.md` | `tools/vision-review/*` |
 | Pipeline de tiles/sprites | `tools/amiga-tiles/README.md`, `docs/demos/tile-pipeline/` | `tools/amiga-tiles/*`, `tools/ehb/*`, `tools/demo202/*` |
 | Assets (UAF-R) | `docs/tools/UAF_PACK.md` | `tools/assets/uaf-pack.ts` |
@@ -53,6 +53,18 @@ node tools/check/links.mjs --update-baseline     # acepta la deuda actual como b
 ```
 
 Por defecto revisa la documentación mantenida **y** los árboles importados (`docs/engine/c-engine`, `docs/legacy`). Como esos últimos conservan enlaces al repo de origen, sus roturas actuales están aceptadas en `tools/check/links-baseline.txt`; el check **solo falla ante rotura nueva**. Al arreglar enlaces, regenerar el baseline con `--update-baseline`.
+
+## Gate de fps (deriva de rendimiento)
+
+`tools/debug/` mide fps en tiempo emulado y detecta deriva contra la tabla trazable de
+`docs/guides/roadmap/BITACORA_SCROLL_TILES.md`:
+
+- `measure-fps.mjs <demo> [config] [--json]` — una medición (contador de ciclos).
+- `record-fps.mjs <demo> [config] [--samples N] [--dry-run]` — mide y anexa/actualiza la fila de la bitácora (fecha, commit, config, `detail`). Registra la **mejor de N** muestras (def. 2) para no depender de la fase.
+- `check-fps.mjs [--demo <substr>] [--threshold 0.9] [--samples N] [--warn-only] [--json]` — compara la **mejor de N** de cada fila con el baseline; falla si baja del umbral.
+- `tools/run-fps-gate.sh [--samples N] [--threshold X] [--warn-only] [--no-prepare]` — **job programable**: asegura build + `runner.uae`, ejecuta el gate y guarda `out/fps-gate/<timestamp>/report.txt`. Pensado para lanzarse periódicamente (Task Scheduler/cron), no en cada regresión.
+
+La regresión lo lleva como opt-in `--fps-gate` (añade ~25 s de emulador por muestra y demo).
 
 ## Dónde poner documentación nueva de tools
 - Si es específica de una herramienta: `README.md` junto al código.
