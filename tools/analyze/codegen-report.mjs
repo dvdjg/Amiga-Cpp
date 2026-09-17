@@ -32,6 +32,9 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/util/hash_set.hpp>
 #include <eng/core/util/vector.hpp>
 #include <eng/core/util/chunked_vector.hpp>
+#include <eng/core/util/pool.hpp>
+#include <eng/core/util/priority_queue.hpp>
+#include <eng/core/util/intrusive_list.hpp>
 #include <eng/graphics/mesh_renderer.hpp>
 #include <eng/platform/amiga/lib3d.hpp>
 #include <eng/platform/amiga/object3d.hpp>
@@ -182,6 +185,33 @@ extern "C" u16 c_chunked_push(eng::u8* scratch, eng::u32 bytes) {
 	eu::ChunkedVector<u16, 4, 4, eu::BumpAlloc> c {alloc};
 	for (u16 i = 0; i < 12u; ++i) c.push_back(i);
 	return static_cast<u16>(c.size());
+}
+struct ProbeNode : eu::IntrusiveLink<ProbeNode> { u16 v; };
+extern "C" u16 c_pool_ops(u16 seed) {
+	eu::Pool<u16, 8> p;
+	const auto h0 = p.add();
+	const auto h1 = p.add();
+	if (u16* v = p.get(h0)) *v = seed;
+	p.remove(h0);
+	return static_cast<u16>(p.size() + (p.valid(h1) ? 1u : 0u));
+}
+extern "C" u16 c_pq_ops(u16 seed) {
+	eu::PriorityQueue<u16, 8> q;
+	q.push(seed);
+	q.push(static_cast<u16>(seed + 3u));
+	q.push(static_cast<u16>(seed + 1u));
+	q.pop();
+	return q.empty() ? 0u : q.top();
+}
+extern "C" u16 c_ilist_ops(u16 seed) {
+	ProbeNode a, b;
+	a.v = seed;
+	b.v = static_cast<u16>(seed + 1u);
+	eu::IntrusiveList<ProbeNode> l;
+	l.push_back(&a);
+	l.push_back(&b);
+	l.erase(&a);
+	return static_cast<u16>(l.size());
 }
 `;
 
