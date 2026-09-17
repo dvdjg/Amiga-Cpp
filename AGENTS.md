@@ -131,6 +131,15 @@ Windows nativo + Git Bash + Node.js. **No usar WSL** para invocar binarios `.exe
 - La regresión usa build estilo debug por defecto (`--debug` interno). Usar `--release` solo cuando se necesite comportamiento de optimización release.
 - Detalle operativo y reglas del runner/emulador: `docs/build/BUILD_AND_RUN.md`.
 
+### 3.4 WinUAE concurrente: puertos y convivencia entre hilos
+
+- En este build, **el puerto GDB de WinUAE-DBG es fijo (2345)**: `WINUAE_GDB_PORT` solo cambia a dónde conecta el cliente, no el puerto del emulador; ponerlo a otro valor rompe el enlace. El **canal lateral** sí es configurable con `WINUAE_SIDE_CHANNEL_PORT` (verificado). Consecuencia: **solo una instancia de WinUAE-DBG puede usar GDB a la vez**.
+- Antes de lanzar, el runner comprueba con `netstat` si 2345 o el canal lateral están ocupados. Si lo están, **falla con un mensaje claro** en vez de conectarse a una instancia ajena (evita capturas cruzadas). Para serializar el GDB entre hilos: `--wait-port <segundos>` espera a que se libere; `--reset-emulator` libera **solo** los PIDs que escuchan esos puertos.
+- **Nunca matar** procesos `winuae-gdb`/`winuae64` ajenos: solo cerrar los propios (por PID) al terminar. Nunca `taskkill /IM winuae-gdb.exe`, que mata a todas las instancias.
+- Cada hilo puede usar un **canal lateral propio** (`WINUAE_SIDE_CHANNEL_PORT`) para reducir colisiones, pero al compartir el GDB 2345 debe coordinarse con otros hilos. Detalle: `docs/debugging/DEBUG-WINUAE-V2-GUIDE.md` §1.3–1.4.
+
+Ejemplo: `WINUAE_SIDE_CHANNEL_PORT=2418 bash ./tools/run/run-demo.sh demos/amiga/000_toolchain_cpp23`.
+
 ---
 
 ## 4. Reglas específicas (leer el documento del dominio antes de trabajar en él)

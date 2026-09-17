@@ -24,6 +24,8 @@
 #include <eng/core/span.hpp>
 #include <eng/core/typed.hpp>
 #include <eng/core/types.hpp>
+#include <eng/core/util/flat_map.hpp>
+#include <eng/core/util/static_vector.hpp>
 
 namespace eng::assets {
 
@@ -141,7 +143,8 @@ public:
 	/// Valida el header y recorre los chunks. Devuelve true si el blob es válido.
 	bool bind(eng::UafPayload blob) {
 		m_blob = blob.raw();
-		m_count = 0;
+		m_chunks.clear();
+		m_index.clear();
 		m_ok = false;
 		if (blob.data() == nullptr || blob.size() < kContainerHeaderSize) {
 			return false;
@@ -170,40 +173,49 @@ public:
 			if (!r.skip(pad)) {
 				return false;
 			}
-			m_chunks[m_count++] = ref;
+			// Índice por tipo para `find` (el primer chunk de cada tipo manda). Se
+			// construye aquí, en la única pasada de parseo, con un `FlatMap` de tamaño
+			// acotado por `kMaxChunks`.
+			const u16 index = static_cast<u16>(m_chunks.size());
+			if (m_index.find(ref.type) == nullptr) {
+				m_index.insert(ref.type, index);
+			}
+			m_chunks.push_back(ref);
 		}
 		m_ok = true;
 		return true;
 	}
 
 	constexpr bool ok() const { return m_ok; }
-	constexpr u32 chunk_count() const { return m_count; }
+	constexpr u32 chunk_count() const { return static_cast<u32>(m_chunks.size()); }
 	constexpr const ChunkRef& chunk(u32 i) const { return m_chunks[i]; }
 	constexpr eng::UafPayload blob() const { return eng::UafPayload { m_blob.data(), m_blob.size() }; }
 
 	/// Datos de un chunk (vacío si el índice no es válido).
 	eng::UafPayload data(u32 i) const {
-		if (i >= m_count) {
+		if (i >= m_chunks.size()) {
 			return {};
 		}
-		const ChunkRef& c = m_chunks[i];
+		return data(m_chunks[i]);
+	}
+
+	/// Datos del chunk referenciado (vista sobre el blob, sin copiar).
+	eng::UafPayload data(const ChunkRef& c) const {
 		return { m_blob.data() + c.offset, c.size };
 	}
 
-	/// Primer chunk del tipo pedido (o `nullptr`).
+	/// Primer chunk del tipo pedido (o `nullptr`). Usa el índice por tipo, en `O(log n)`.
 	const ChunkRef* find(ChunkType type) const {
-		for (u32 i = 0; i < m_count; ++i) {
-			if (m_chunks[i].type == type) {
-				return &m_chunks[i];
-			}
-		}
-		return nullptr;
+		const u16* index = m_index.find(type);
+		return index != nullptr ? &m_chunks[*index] : nullptr;
 	}
 
 private:
 	Span<const u8> m_blob {};
-	ChunkRef m_chunks[kMaxChunks] {};
-	u32 m_count = 0;
+	/// Chunks en orden de aparición (capacidad fija, sin `m_count` manual).
+	eng::util::StaticVector<ChunkRef, kMaxChunks> m_chunks {};
+	/// Índice tipo → posición en `m_chunks` (primer chunk de cada tipo).
+	eng::util::FlatMap<ChunkType, u16, kMaxChunks> m_index {};
 	bool m_ok = false;
 };
 

@@ -65,6 +65,10 @@ Una sonda de diagnóstico útil: pintar el fondo con un índice distinto de 0 ha
 y cómo borra el Blitter (un `ClearRect` deja índice 0); sirvió para separar «no borra» de «borra
 dejando residuo».
 
+## Verificación de la librería de utilidades
+
+El camino de actores usa `eng::util::BitSet` (`ActorStore`: slots vivos del parque generacional) y `eng::util::StaticVector` (`emit_bob_fallbacks`: degradados a BOB), así que esta demo es su verificación por demo (ver `docs/engine/architecture/TEMPLATE_LIBRARY.md`). El analizador propio `analyze-screenshot.sh` exige verde y amarillo (el arcoíris de los objetos) y valida el `run-report` en Ready, en lugar del overlay de depuración genérico.
+
 ## Build & run
 
 ```bash

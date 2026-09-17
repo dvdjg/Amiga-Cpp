@@ -417,19 +417,12 @@ private:
 		if (!blob.bind(bytes)) {
 			return false;
 		}
-		eng::u32 index = 0;
-		bool found = false;
-		for (eng::u32 i = 0; i < blob.chunk_count(); ++i) {
-			if (blob.chunk(i).type == eng::assets::ChunkType::Mesh) {
-				index = i;
-				found = true;
-				break;
-			}
-		}
-		if (!found) {
+		// `Blob::find` usa el índice por tipo (FlatMap) construido en `bind`.
+		const eng::assets::ChunkRef* mesh = blob.find(eng::assets::ChunkType::Mesh);
+		if (mesh == nullptr) {
 			return false;
 		}
-		const eng::assets::MeshAssetView mv {blob.data(index)};
+		const eng::assets::MeshAssetView mv {blob.data(*mesh)};
 		if (!mv.valid() || mv.vertex_count() != 8u || mv.face_count() != 12u) {
 			return false;
 		}
