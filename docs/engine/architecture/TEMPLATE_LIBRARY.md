@@ -34,6 +34,7 @@ La librería **complementa** el núcleo de `eng/core/`, no lo duplica:
                                      chunked_vector.hpp ChunkedVector<...> (estable)
                                      ring_buffer.hpp   RingBuffer<T,N>
                                      pool.hpp          Pool<T,N> (handles)
+                                     priority_queue.hpp PriorityQueue<T,N,Cmp>
                                      intrusive_list.hpp IntrusiveList/SList<T>
                                      flat_map.hpp      FlatMap<K,V,N>
                                      flat_set.hpp      FlatSet<T,N>
@@ -85,6 +86,7 @@ Puntos de reutilización explícitos:
 | `chunked_vector.hpp` | `ChunkedVector<T, Chunk, Max, A>` (direcciones estables) | (sin equivalente) |
 | `ring_buffer.hpp` | `RingBuffer<T, N>` | (sin equivalente) |
 | `pool.hpp` | `Pool<T, N>` (+ `Handle` generacional) | `boost::pool` / slot map |
+| `priority_queue.hpp` | `PriorityQueue<T, N, Cmp>` (+ `Less`/`Greater`) | `boost::heap` |
 | `intrusive_list.hpp` | `IntrusiveList<T>`, `IntrusiveSList<T>` (+ `IntrusiveLink`/`IntrusiveSLink`) | `boost::intrusive::list` |
 | `flat_map.hpp` | `FlatMap<K, V, N>` | `flat_map` (Boost) |
 | `flat_set.hpp` | `FlatSet<T, N>` | (sin equivalente) |
@@ -148,8 +150,9 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-086 | `dynamic_hash_map.hpp` (rehash, estrés contra referencia e internado) |
 | HOST-087 | `intrusive_list.hpp` (`IntrusiveList`/`IntrusiveSList`, free-list) |
 | HOST-088 | `pool.hpp` (handles generacionales, reciclado de slots) |
+| HOST-089 | `priority_queue.hpp` (max/min-heap, comparador propio) |
 
-> **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`) y `Pool` por `086_bob_objects` (parque de actores). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashMap`/`HashSet`, `DynamicHashMap`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..088 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
+> **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`) y `Pool` por `086_bob_objects` (parque de actores). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashMap`/`HashSet`, `DynamicHashMap`, `PriorityQueue`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..089 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
 
 Los tests se ejecutan con el `g++` del entorno (Windows/MinGW, donde `unsigned long`
 mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
