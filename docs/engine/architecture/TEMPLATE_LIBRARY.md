@@ -33,6 +33,7 @@ La librería **complementa** el núcleo de `eng/core/`, no lo duplica:
                                      vector.hpp        Vector<T,A>        (arena)
                                      chunked_vector.hpp ChunkedVector<...> (estable)
                                      ring_buffer.hpp   RingBuffer<T,N>
+                                     intrusive_list.hpp IntrusiveList/SList<T>
                                      flat_map.hpp      FlatMap<K,V,N>
                                      flat_set.hpp      FlatSet<T,N>
                                      hash_map.hpp      HashMap<K,V,N>
@@ -62,6 +63,7 @@ Puntos de reutilización explícitos:
 - Los contenedores de capacidad fija siguen el patrón de handles/pool de `eng/task/background.hpp` (sin heap, con `valid()` explícito donde aplica).
 - `eng/scene/actor.hpp` es el primer consumidor dentro del engine: `ActorStore` usa `BitSet<MaxActors>` para los slots vivos del parque generacional y `emit_bob_fallbacks` usa `StaticVector<u16, MaxActors>` para los degradados a BOB.
 - `eng/assets/uaf.hpp` (`Blob`) indexa los chunks con `FlatMap<ChunkType, u16, kMaxChunks>` y guarda la lista en `StaticVector<ChunkRef, kMaxChunks>`; lo consumen las demos de assets (078/100/101).
+- `eng/task/background.hpp` usa `IntrusiveSList<Entry>` como free-list de slots de tarea (reparto y devolución `O(1)`, sin heap); lo ejercita la demo `081_background_tasks`.
 
 ## 2. Inventario
 
@@ -81,6 +83,7 @@ Puntos de reutilización explícitos:
 | `vector.hpp` | `Vector<T, A>` (crece en arena) | `std::vector` (sin heap) |
 | `chunked_vector.hpp` | `ChunkedVector<T, Chunk, Max, A>` (direcciones estables) | (sin equivalente) |
 | `ring_buffer.hpp` | `RingBuffer<T, N>` | (sin equivalente) |
+| `intrusive_list.hpp` | `IntrusiveList<T>`, `IntrusiveSList<T>` (+ `IntrusiveLink`/`IntrusiveSLink`) | `boost::intrusive::list` |
 | `flat_map.hpp` | `FlatMap<K, V, N>` | `flat_map` (Boost) |
 | `flat_set.hpp` | `FlatSet<T, N>` | (sin equivalente) |
 | `hash_map.hpp` | `HashMap<K, V, N>` | `std::unordered_map` (fijo) |
@@ -96,6 +99,7 @@ Puntos de reutilización explícitos:
 
 - **Sin heap**: nada usa `malloc`. Los contenedores de capacidad fija (`StaticVector`, `RingBuffer`, `Array`, `BitSet`, `FlatMap`/`FlatSet`, `HashMap`/`HashSet`, `DirectMap`) reservan inline; los que crecen (`Vector`, `SmallVector`, `ChunkedVector`) lo hacen sobre un `Allocator` (bump/arena).
 - **Crecimiento explícito y de fase `init`**: crecer devuelve `false`/`nullptr` si no cabe (nunca aborta); en `frame` se reserva de antemano o se usan contenedores de capacidad fija.
+- **Listas intrusivas**: el enlace vive en el objeto (`IntrusiveList`/`IntrusiveSList`), así que insertar/borrar es `O(1)` y **no asigna**; la lista no posee los nodos. Es la alternativa del engine a `std::list` (nodos con heap).
 - **Rehash solo en `init`**: `DynamicHashMap` rehace sus tablas desde un `Allocator` al cruzar 3/4 de carga; el coste es `O(n)` en ese momento y la tabla vieja se descarta (bump). Para `frame` usar `HashMap`/`FlatMap` de capacidad fija.
 - **Hash sin libcalls**: `hash.hpp` usa `mulu.w` (16×16) o mezcla de rotaciones/xors/sumas, nunca multiplicación de 32×32; la sonda de codegen no muestra `__mulsi3` ni instrucciones de 68020.
 - **Almacenamiento crudo**: `Vector`/`SmallVector`/`ChunkedVector`/`DirectMap` exigen `T` copiable trivialmente (no hay `new` de colocación en freestanding); mapas y sets exigen claves/valores construibles por defecto.
@@ -140,8 +144,9 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-084 | `arena_alloc.hpp`, `chunked_vector.hpp` |
 | HOST-085 | `direct_map.hpp` |
 | HOST-086 | `dynamic_hash_map.hpp` (rehash, estrés contra referencia e internado) |
+| HOST-087 | `intrusive_list.hpp` (`IntrusiveList`/`IntrusiveSList`, free-list) |
 
-> **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo) y `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `FlatSet`, `HashMap`/`HashSet`, `DynamicHashMap`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..086 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
+> **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id) e `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashMap`/`HashSet`, `DynamicHashMap`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..087 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
 
 Los tests se ejecutan con el `g++` del entorno (Windows/MinGW, donde `unsigned long`
 mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.

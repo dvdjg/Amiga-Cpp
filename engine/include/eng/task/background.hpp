@@ -31,6 +31,7 @@
 /// liberan su slot y el `generation` del handle lo invalida.
 
 #include <eng/core/types.hpp>
+#include <eng/core/util/intrusive_list.hpp>
 
 namespace eng::task {
 
@@ -132,6 +133,17 @@ struct TaskProgress {
 class BackgroundQueue {
 public:
 	static constexpr u8 max_tasks = 8;
+
+	/// Construye la free-list intrusiva con todos los slots libres.
+	BackgroundQueue() noexcept {
+		for (u8 i = 0; i < max_tasks; ++i) {
+			m_free.push_front(&m_entries[i]);
+		}
+	}
+	BackgroundQueue(const BackgroundQueue&) = delete;
+	BackgroundQueue& operator=(const BackgroundQueue&) = delete;
+	BackgroundQueue(BackgroundQueue&&) = delete;
+	BackgroundQueue& operator=(BackgroundQueue&&) = delete;
 
 	/// Registra una tarea **tipada**. `total_units = 0` la hace continua (nunca
 	/// termina sola; el juego la cancela). `slice_units` es el presupuesto por
@@ -265,7 +277,7 @@ public:
 private:
 	static constexpr u32 kTokenBytes = 2u * sizeof(void*);
 
-	struct Entry {
+	struct Entry : eng::util::IntrusiveSLink<Entry> {
 		TaskStep step = nullptr;
 		alignas(void*) u8 token[kTokenBytes] {};
 		u32 done = 0u;
@@ -290,24 +302,22 @@ private:
 	/// Reserva el primer slot libre y lo deja limpio (sin `total`/`slice`, los fija
 	/// el llamador). Devuelve `nullptr` si no hay hueco.
 	Entry* alloc_entry() {
-		for (u8 i = 0; i < max_tasks; ++i) {
-			Entry& e = m_entries[i];
-			if (!e.live) {
-				e.step = nullptr;
-				for (u32 k = 0; k < kTokenBytes; ++k) e.token[k] = 0u;
-				e.done = 0u;
-				e.total = 0u;
-				e.slice_units = 0u;
-				e.avg = 0u;
-				e.slices = 0u;
-				e.failed = false;
-				e.completed = false;
-				e.live = true;
-				++m_live;
-				return &e;
-			}
+		Entry* e = m_free.pop_front();
+		if (e == nullptr) {
+			return nullptr;
 		}
-		return nullptr;
+		e->step = nullptr;
+		for (u32 k = 0; k < kTokenBytes; ++k) e->token[k] = 0u;
+		e->done = 0u;
+		e->total = 0u;
+		e->slice_units = 0u;
+		e->avg = 0u;
+		e->slices = 0u;
+		e->failed = false;
+		e->completed = false;
+		e->live = true;
+		++m_live;
+		return e;
 	}
 
 	Entry* find(TaskHandle handle) {
@@ -332,12 +342,15 @@ private:
 		e.step = nullptr;
 		e.slice_units = 0u;
 		e.generation = static_cast<u8>(e.generation + 1u); // invalida handles viejos
+		m_free.push_front(&e);
 		if (m_live != 0u) {
 			--m_live;
 		}
 	}
 
 	Entry m_entries[max_tasks] {};
+	/// Free-list intrusiva de slots libres (O(1) alloc/free, sin heap).
+	eng::util::IntrusiveSList<Entry> m_free {};
 	u16 m_slice_units = 0u;
 	u8 m_live = 0u;
 	u8 m_max_slices = 4u;
