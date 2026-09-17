@@ -24,6 +24,7 @@
 
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
+#include <eng/core/util/array.hpp>
 #include <eng/core/util/bitset.hpp>
 #include <eng/core/util/pool.hpp>
 #include <eng/core/util/static_vector.hpp>
@@ -179,7 +180,7 @@ struct ActorDesc {
 	/// Necesidades de Copper ancladas al borde superior del actor (líneas RELATIVAS).
 	eng::Span<const CopperIntent> copper {};
 	/// Save-under (solo `SaveUnder`): un buffer por buffer de display.
-	eng::Span<eng::u16> save[kActorBuffers] {};
+	eng::util::Array<eng::Span<eng::u16>, kActorBuffers> save {};
 	eng::u16 save_words_per_row = 0; ///< capacidad de la rejilla de guardado
 	eng::u16 save_height = 0;
 };
@@ -191,7 +192,7 @@ struct Actor {
 	Animation::State anim {};    ///< frame actual de la animación
 	eng::u32 anim_accum = 0;     ///< acumulador de velocidad (aritmética entera)
 	Representation actual = Representation::Cpu;
-	DirtyRect prev[kActorBuffers] {}; ///< rect previo POR BUFFER (save-under/borrado)
+	eng::util::Array<DirtyRect, kActorBuffers> prev {}; ///< rect previo POR BUFFER (save-under/borrado)
 };
 
 /// Construye la descripción de BOB de un `Visual`: misma identidad, otra

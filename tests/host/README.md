@@ -133,3 +133,4 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-091 | [stack_queue_enum_set](091_stack_queue_enum_set/README.md) | `stack_queue.hpp` (`Stack`/`Queue`/`Deque`) y `enum_set.hpp` (`EnumSet`). |
 | HOST-092 | [scope_guard_static_string](092_scope_guard_static_string/README.md) | `scope_guard.hpp` (`ScopeGuard`) y `static_string.hpp` (`StaticString`). |
 | HOST-093 | [sprite_hrearm](093_sprite_hrearm/README.md) | Multiplexado **horizontal** de sprites (`Scheduler::emit_sprite_horizontal_rearm(s)`/`reposition` + `graphics::SpriteHorizontalRearm`): codificación AHRM de `SPRxPOS`/`SPRxCTL`, secuencia WAIT+POS+CTL+DATA+DATB sin tocar `SPRxPT`, y orden por `hpos` de la lista. |
+| HOST-094 | [scroll_saveword_guard](094_scroll_saveword_guard/README.md) | `field/scroll_engine.hpp`: la costura (`save_word`) se **restaura** cuando `add_draw` rechaza el frame (ScopeGuard); en el camino correcto no se restaura. |

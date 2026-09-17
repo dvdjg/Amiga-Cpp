@@ -36,6 +36,7 @@
 
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
+#include <eng/core/util/array.hpp>
 #include <eng/graphics/copper/double_buffer.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/drivers/ehb_scene.hpp>
@@ -198,7 +199,7 @@ public:
 
 private:
 	u16 m_first_world_column = 0;
-	u16 m_world_column_by_slot[surface_columns] {};
+	eng::util::Array<u16, surface_columns> m_world_column_by_slot {};
 };
 
 /// Trabajo de prefetch 2D emitido por `BidirectionalRingPrefetch`.
@@ -359,8 +360,8 @@ public:
 	}
 
 private:
-	u16 m_world_column_by_slot[surface_columns] {};
-	u16 m_world_row_by_slot[surface_rows] {};
+	eng::util::Array<u16, surface_columns> m_world_column_by_slot {};
+	eng::util::Array<u16, surface_rows> m_world_row_by_slot {};
 };
 
 /// Superficie de tiles con scroll, compilada para un modo concreto.
