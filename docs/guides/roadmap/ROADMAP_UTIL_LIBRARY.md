@@ -74,7 +74,8 @@ regresión verde; ambas pasan a verificadas por demo.
 
 **Estado: R2 completa** (`grid.hpp` HOST-097, `broadphase.hpp` HOST-098,
 `pathfinding.hpp` HOST-099; sondas `c_grid_ops`/`c_broadphase_ops`/`c_pathfinding_ops`
-sin libcalls). pendiente: verificar R2 por demo (consumidor con muchas entidades).
+sin libcalls). `broadphase` y `pathfinding` **verificados por demo** (`110_ylimited_shooter`
+ejecuta un self-test de ambos en `init`).
 
 ### R3 — Audio y efectos
 

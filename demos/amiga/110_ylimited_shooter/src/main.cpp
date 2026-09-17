@@ -21,6 +21,8 @@
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/field/xlimited_scene.hpp>
 #include <eng/field/tile_demo.hpp>
+#include <eng/core/util/broadphase.hpp>
+#include <eng/core/util/pathfinding.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -42,6 +44,31 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 namespace {
 
 namespace field = eng::field;
+
+/// Self-test de las utilidades de rejilla y búsqueda de caminos: se ejecuta en `init`
+/// (en el 68000) y el demo NO llega a READY si falla. Verificación por demo de
+/// `eng::util::SpatialHash` (broadphase) y `eng::util::bfs`/`reconstruct_path`.
+bool util_selftest() {
+	eng::util::SpatialHash<8, 8, 8, 16> grid;
+	grid.clear();
+	if (!grid.insert(1u, 2, 2) || !grid.insert(2u, 10, 10) || !grid.insert(3u, 2, 10)) {
+		return false;
+	}
+	eng::u16 hits[8] = {};
+	if (grid.query(eng::util::Aabb {0, 0, 16, 16}, eng::Span<eng::u16> {hits, 8}) != 3u) {
+		return false;
+	}
+	static eng::s16 came[64];
+	static eng::u16 queue[64];
+	static eng::u16 path[64];
+	const auto walk = [](eng::u16) { return true; };
+	if (!eng::util::bfs<8, 8>(0u, 63u, walk, eng::Span<eng::s16> {came, 64},
+				   eng::Span<eng::u16> {queue, 64})) {
+		return false;
+	}
+	return eng::util::reconstruct_path<8, 8>(eng::Span<const eng::s16> {came, 64}, 0u, 63u,
+						 eng::Span<eng::u16> {path, 64}) == 15u;
+}
 
 constexpr eng::u16 kTileW = 16;
 constexpr eng::u16 kTileH = 16;
@@ -156,6 +183,10 @@ struct DemoGame {
 			return;
 		}
 		scene.takeover(backend);
+		if (!util_selftest()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00011005u);
+			return;
+		}
 		ready = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x11000000u);
 	}
