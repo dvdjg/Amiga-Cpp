@@ -221,3 +221,5 @@ Notas de uso:
 - **`ScopeGuard`** es la forma de garantizar una restauración (DMA, `COLOR00`, un banco de arena) aunque el camino salga antes; `release()`/`commit()` cuando termina bien.
 - **`Pool`** es el patrón por defecto para "muchos objetos con handle" (`ActorStore` ya lo usa); **`HashMap`/`FlatMap`** se reservan para búsquedas por clave.
 - **Estructuras de capacidad fija** en `frame`; reservar/crecer (`Vector`, `SmallVector`, `DynamicHashMap`) solo en `init`/carga.
+
+Plan de crecimiento (qué falta y en qué orden, con sus gates): [ROADMAP_UTIL_LIBRARY.md](../../guides/roadmap/ROADMAP_UTIL_LIBRARY.md).
