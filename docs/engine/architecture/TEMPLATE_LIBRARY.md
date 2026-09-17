@@ -37,6 +37,7 @@ La librería **complementa** el núcleo de `eng/core/`, no lo duplica:
                                      flat_set.hpp      FlatSet<T,N>
                                      hash_map.hpp      HashMap<K,V,N>
                                      hash_set.hpp      HashSet<T,N>
+                                     dynamic_hash_map.hpp DynamicHashMap<K,V,A>
                                      direct_map.hpp    DirectMap<V,N>
                                      optional.hpp      Optional<T>
                                      expected.hpp      Expected<T,E>
@@ -84,6 +85,7 @@ Puntos de reutilización explícitos:
 | `flat_set.hpp` | `FlatSet<T, N>` | (sin equivalente) |
 | `hash_map.hpp` | `HashMap<K, V, N>` | `std::unordered_map` (fijo) |
 | `hash_set.hpp` | `HashSet<T, N>` | `std::unordered_set` (fijo) |
+| `dynamic_hash_map.hpp` | `DynamicHashMap<K, V, A>` (crece con rehash) | `std::unordered_map` (sin heap) |
 | `direct_map.hpp` | `DirectMap<V, N>` (clave densa) | (sin equivalente) |
 | `optional.hpp` | `Optional<T>` | `std::optional` |
 | `expected.hpp` | `Expected<T, E>`, `unexpected(e)` | `std::expected` |
@@ -94,6 +96,7 @@ Puntos de reutilización explícitos:
 
 - **Sin heap**: nada usa `malloc`. Los contenedores de capacidad fija (`StaticVector`, `RingBuffer`, `Array`, `BitSet`, `FlatMap`/`FlatSet`, `HashMap`/`HashSet`, `DirectMap`) reservan inline; los que crecen (`Vector`, `SmallVector`, `ChunkedVector`) lo hacen sobre un `Allocator` (bump/arena).
 - **Crecimiento explícito y de fase `init`**: crecer devuelve `false`/`nullptr` si no cabe (nunca aborta); en `frame` se reserva de antemano o se usan contenedores de capacidad fija.
+- **Rehash solo en `init`**: `DynamicHashMap` rehace sus tablas desde un `Allocator` al cruzar 3/4 de carga; el coste es `O(n)` en ese momento y la tabla vieja se descarta (bump). Para `frame` usar `HashMap`/`FlatMap` de capacidad fija.
 - **Hash sin libcalls**: `hash.hpp` usa `mulu.w` (16×16) o mezcla de rotaciones/xors/sumas, nunca multiplicación de 32×32; la sonda de codegen no muestra `__mulsi3` ni instrucciones de 68020.
 - **Almacenamiento crudo**: `Vector`/`SmallVector`/`ChunkedVector`/`DirectMap` exigen `T` copiable trivialmente (no hay `new` de colocación en freestanding); mapas y sets exigen claves/valores construibles por defecto.
 - **Ancho exacto en la aritmética de bits**: `eng::u32` es `unsigned long`, que mide
@@ -136,8 +139,9 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-083 | `hash_map.hpp`, `hash_set.hpp` (back-shift, estrés contra referencia) |
 | HOST-084 | `arena_alloc.hpp`, `chunked_vector.hpp` |
 | HOST-085 | `direct_map.hpp` |
+| HOST-086 | `dynamic_hash_map.hpp` (rehash, estrés contra referencia e internado) |
 
-> **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo) y `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `FlatSet`, `HashMap`/`HashSet`, `DirectMap`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..085 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
+> **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo) y `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `FlatSet`, `HashMap`/`HashSet`, `DynamicHashMap`, `DirectMap`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..086 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
 
 Los tests se ejecutan con el `g++` del entorno (Windows/MinGW, donde `unsigned long`
 mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
