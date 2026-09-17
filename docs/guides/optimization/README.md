@@ -10,6 +10,7 @@ Optimización de código C++ y del chipset para las plataformas soportadas
 | [OPTIMIZACION_GPP_68000.md](OPTIMIZACION_GPP_68000.md) | Cómo compila g++/elf2hunk para 68000: reglas de tamaño vs velocidad, `-Os`, cuándo `-O1` engaña y warnings de `-Wextra`. |
 | [_probe_gpp68000.cpp](_probe_gpp68000.cpp) | Sonda de compilación usada para medir el código generado (complementa el doc). |
 
-## Regla permanente
-- Regla de rendimiento global del repo: `AGENTS.md` («Regla permanente de
-  rendimiento») y `docs/engine/architecture/CODING_STYLE.md`.
+## Reglas obligatorias
+- Reglas de rendimiento, comentarios de optimización y port a asm: §12 de
+  [OPTIMIZACION_GPP_68000.md](OPTIMIZACION_GPP_68000.md).
+- Estilo y restricciones de diseño: `docs/engine/architecture/CODING_STYLE.md`.

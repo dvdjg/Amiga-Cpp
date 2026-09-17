@@ -53,7 +53,7 @@ bash ./demos/amiga/120_virtual_playfield/analyze-sequence.sh [--warp]
 ## Estado
 
 - `BigBufferScroll` deja de ser «solo test host» y queda **verificada por demo** (regla de cierre
-  de `AGENTS.md`).
+  de `docs/testing/README.md`).
 - El **mapper está en el engine** (Fase 3): `eng::field::map_flat_scroll`
   (`amiga_display_mapper.hpp`, HOST-061) y la superficie `eng::field::FlatScrollPlayfield`
   (`flat_playfield.hpp`). La demo ya no calcula registros.

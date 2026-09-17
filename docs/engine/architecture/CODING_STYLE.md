@@ -110,3 +110,13 @@ aporta sus propias piezas de seguridad de C++23 sin depender de `std::span`:
   (documento vivo: [✓] verificado / [✗] corregido / [P] pendiente contra el toolchain,
   con bitácora de descubrimientos en su §8 y sonda reproducible en
   `docs/guides/optimization/_probe_gpp68000.cpp`).
+
+## Reglas obligatorias de diseño
+
+Estas reglas hay que preservarlas en todo el código. `AGENTS.md` las enruta aquí.
+
+- **APIs paramétricas, nunca de tamaño fijo**: no generar funciones con geometría/tamaño embebido (p. ej. `emit_ehb_320x256_display`); el engine expone métodos paramétricos (registros/planos/ancho, etc.) y el llamador decide los valores. Los «magic numbers» de un caso concreto viven en la demo/config, no como API.
+- **La lógica de juego es agnóstica del backend**: los registros/DMA específicos de Amiga viven en las capas backend/driver, nunca en la lógica de alto nivel (ver «Arquitectura»).
+- **Comentarios didácticos**: el código nuevo de hardware Amiga debe incluir comentarios breves, en español y con estilo de tutorial, que expliquen qué registro o mecanismo del chipset interviene, qué invariantes mantiene el algoritmo y por qué una alternativa aparentemente más simple consumiría más CPU, Blitter o Chip RAM. Cuando una decisión sea difícil de inferir, enlazar al MD técnico correspondiente y usar un pequeño esquema ASCII si aclara la geometría de buffers, Copper, bitplanes o zonas visibles.
+
+Las reglas de la **frontera de API pública** (sin hardware, sin punteros ni mecanismos inseguros, versátil para cualquier configuración) están en [PUBLIC_API.md](PUBLIC_API.md).

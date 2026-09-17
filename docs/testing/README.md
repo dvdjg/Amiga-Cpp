@@ -24,7 +24,25 @@ OpenAI-compatible, opcional). La regresión completa las encadena por demo.
 5. Opcional: `vision-review.ps1` con LM Studio (`-VisionReview`).
 6. `tools/test-regression.ps1` ejecuta todo el pipeline por demo y genera el informe en `out/regression/`.
 
+## Reglas obligatorias de tests y verificación
+
+Estas reglas aplican a cualquier API o cambio del engine. `AGENTS.md` las enruta aquí.
+
+- **Toda API reutilizable del engine debe tener tests que la respalden.** No se promueve código a `engine/` sin una forma de verificar su corrección.
+- Forma preferida: ejercitar la API dentro de una **demo** (aunque sea paramétrica o por fases, recorriendo variantes con `g_eng_run_status.detail` y aserciones). Las demos ya corren en el pipeline `build -> run -> analyze`, así que ofrecen evidencia viva de hardware.
+- Si la API no tiene demo que la ejercite, **crear una** o, como mínimo, un **test unitario** en `tests/` que la respalde y corra en la regresión.
+- Las APIs de matemáticas/algoritmos puros (sin hardware) deben tener además **test unitario host** (`tests/host/`, compilado con el `g++` del entorno del toolchain del proyecto) para validarlas rápido y de forma determinista, sin depender de MSVC ni de WSL.
+- **Regla de cierre:** una API sin test (demo o unitario) no se considera terminada.
+
+### Verificación por demo
+
+- Una API del engine (o un cambio en él) solo se considera **verificada** si lo ejercita una **demo exitosa** (`build -> run -> analyze` OK; y, cuando toque render, el gate visual/estructural de [DEMO_VISUAL_DEBUG.md](../guides/methodology/DEMO_VISUAL_DEBUG.md)).
+- Todo lo que **no** esté cubierto por una demo exitosa se marca explícitamente como **NO VERIFICADA** en su comentario de cabecera, indicando el motivo (`sin consumidor`, `demo descartada`, `solo test host`, …).
+- Una API marcada NO VERIFICADA puede cambiar o eliminarse sin aviso y **no** se documenta en la referencia como si estuviera validada.
+- Al descartar o romper la demo que cubría una API, hay que degradar su marca a **NO VERIFICADA** en la misma pasada (y al revés: al validarla con una demo, quitarla).
+
 ## Enlaces relacionados
 
 - Operativa completa: [../build/BUILD_AND_RUN.md](../build/BUILD_AND_RUN.md).
+- Reglas de demos y de validación visual/render: [../guides/methodology/DEMO_VISUAL_DEBUG.md](../guides/methodology/DEMO_VISUAL_DEBUG.md).
 - Invariantes de hardware que validan los tests: [../reference/amiga/hardware/amiga-hardware-invariants-microtests.md](../reference/amiga/hardware/amiga-hardware-invariants-microtests.md).

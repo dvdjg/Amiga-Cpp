@@ -165,6 +165,13 @@ registros con handle (`Scheduler::move_at`) se parchean; la estructura se reemit
 4. Nada de `COPJMP1` fuera del arranque (`takeover`); el swap de frame es `COP1LC`.
 5. Toda API nueva de display/copper se valida con **test host** (geometría de la lista,
    alternancia de buffer, handles de parcheo) además del gate visual de su demo.
+6. El copper se orquesta con `eng::copper::Plan` (`engine/include/eng/graphics/copper/plan.hpp`),
+   no emitiendo a mano. Los efectos/capas **no hablan de registros**: aportan `graphics::CopperIntent` (vocabulario portable de `raster_intent.hpp`) al plan, que **ordena por scanline relativo al inicio del display** (el listado envuelve a 256 líneas), lo materializa en el bloque **trasero** de su doble buffer de copperlist y publica con el swap de `COP1LC` (`Plan::commit`).
+7. **No llamar `install_copper_list`/`takeover_display` a mano** en código nuevo: usar `Plan::commit`/`Plan::takeover` o `MultiBuffered<Driver,N>::commit`/`takeover`.
+8. **Dos granularidades distintas, no confundirlas**: *buffers de display* (bitmaps) → `drivers::MultiBuffered<Driver, N>` (`N` = 1/2/3 por configuración `K_<DEMO>_BUFFERS`); *buffers de copperlist* → `copper::DoubleBuffer` (lo que usa el `Plan`; `attach()` permite orquestar uno externo).
+9. Un driver sin bitplanes (p. ej. `CopperChunkyScene`) declara `bitplane_bytes_for == 0`.
+
+Ejemplo vivo: **demo 085 `copper_plan_scene`** (cielo por bandas de la escena + BOB con degradado anclado a su Y, dos fuentes que el plan ordena por scanline).
 
 ## 7. Deuda actual (a normalizar)
 

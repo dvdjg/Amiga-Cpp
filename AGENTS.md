@@ -1,42 +1,89 @@
 # AGENTS
 
-## Regla de idioma (obligatoria)
+Reglas operativas para agentes IA en este repositorio. Este documento contiene las
+**reglas generales** (aplican a toda tarea) y un **índice que enruta a las reglas
+específicas de cada dominio**, que viven en su documento canónico para no cargar de
+contexto irrelevante a quien trabaja en otra cosa.
+
+## Cómo usar este documento
+
+1. Antes de empezar cualquier tarea, leer `docs/ai-dev-environment/DOC-MAP-PRINCIPAL.md` (mapa «voy a hacer X → documentación»).
+2. Aplicar siempre las reglas generales de §1 y §3.
+3. Si la tarea cae en un dominio con regla propia, **leer su documento** (§4) antes de escribir código.
+4. Documentar en el sitio canónico y enlazar desde el índice correspondiente.
+
+---
+
+## 1. Reglas generales (aplican a toda tarea)
+
+### 1.1 Idioma
+
 - Toda documentación y texto en español debe escribirse con ortografía correcta: tildes, eñes y puntuación adecuadas.
 - No introducir nuevas frases en español sin corregir (`ejecución`, `análisis`, `depuración`, `diseño`, etc.).
 
-## Formato de la documentación (obligatoria)
+### 1.2 Formato de la documentación
+
 - No poner saltos de línea a mitad de párrafo: cada párrafo es una línea lógica y el texto se adapta a la anchura del editor con *word wrap*.
 - Se permiten saltos de línea explícitos solo para estructuras (listas, código, tablas, diagramas ASCII).
 - Añadir diagramas ASCII para ilustrar conceptos (capas, flujos, geometrías de buffers, zonas del Copper, etc.) cuando aclaren el texto.
 - **Escribir para un lector sin conocimiento histórico.** Los documentos de referencia describen el estado/objetivo **vigente**, no su evolución: no usar «antes/ahora/desaparece/hoy/ya no», no narrar el proceso ni las alternativas descartadas. Las notas de transición, decisiones descartadas, estado de fases y bitácoras van a `docs/debugging/` o `docs/guides/roadmap/`, nunca al documento de referencia. La misma regla aplica a los **comentarios del código**: describen el comportamiento actual, no la historia de sus cambios.
 
-## Política de documentación y referencias (obligatoria)
+### 1.3 Política de documentación y referencias
+
 - **Preservar e indexar solo la mejor información**: ante un documento, manual o fuente que duplique contenido ya cubierto, comparar la calidad de ambos y quedarse solo con la mejor versión (o sintetizar en un único documento). No mantener dos fuentes que digan lo mismo.
 - Al incorporar una referencia externa (manual, repo, curso, ficha), comprobar primero si ya existe algo equivalente en `docs/` y decidir: sustituir si la nueva es superior, componer solo si aporta algo distinto sin repetir, o descartar si es inferior o duplicada. Documentar el resultado final, no el proceso.
-- **No incluir metainformación de proceso en los documentos de referencia**: fechas de edición/limpieza, "OCR corregido", "actualizado en <fecha>" o decisiones de ingesta no van en el contenido de la referencia ni de su índice; van en el mensaje de commit o, si procede, en una bitácora separada (`docs/guides/roadmap/`, `docs/debugging/`).
+- **No incluir metainformación de proceso en los documentos de referencia**: fechas de edición/limpieza, «OCR corregido», «actualizado en <fecha>» o decisiones de ingesta no van en el contenido de la referencia ni de su índice; van en el mensaje de commit o, si procede, en una bitácora separada (`docs/guides/roadmap/`, `docs/debugging/`).
 - Los índices y README de `docs/` deben apuntar solo a lo que existe y es canónico; si se elimina un documento, actualizar todos los enlaces en la misma pasada.
+- Protocolo detallado de ingesta de repos/referencias externas: §6 de `docs/ai-dev-environment/DOC-MAP-PRINCIPAL.md`.
 
-## Regla de tests unitarios (obligatoria)
-- **Toda API reutilizable del engine debe tener tests que la respalden.** No se promueve código a `engine/` sin una forma de verificar su corrección.
-- Forma preferida: ejecutar la validación dentro de una **demo** (aunque sea paramétrica o por fases, recorriendo variantes del API con `g_eng_run_status.detail` y aserciones). Las demos ya se ejecutan en el pipeline `build -> run -> analyze`, así que ofrecen evidencia viva de hardware.
-- Si la API no tiene demo que la ejercite, **crear una** o, como mínimo, **un test unitario** en `tests/` que la respalde y que corra en la regresión.
-- Las APIs de matemáticas/algoritmos puros (sin hardware) deben tener además **test unitario host** (`tests/host/`, compilado con el `g++` del entorno del toolchain del proyecto) para validarlas rápido y de forma determinista, sin depender de MSVC ni de WSL.
-- Regla de cierre: una API sin test (demo o unitario) no se considera terminada.
+### 1.4 Encoding y finales de línea
 
-## Regla de verificación por demo (obligatoria)
-- Una API del engine (o un cambio en el engine) solo se considera **verificada** si lo ejercita una **demo exitosa** (`build -> run -> analyze` OK; y, cuando toque render, el gate visual/estructural de la regla de validación de optimizaciones).
-- Todo lo que **no** esté cubierto por una demo exitosa se marca explícitamente como **NO VERIFICADA** en su comentario de cabecera, indicando el motivo (`sin consumidor`, `demo descartada`, `solo test host`, …).
-- Una API marcada NO VERIFICADA puede cambiar o eliminarse sin aviso y **no** se documenta en la referencia como si estuviera validada.
-- Al descartar o romper la demo que cubría una API, hay que degradar su marca a **NO VERIFICADA** en la misma pasada (y al revés: al validarla con una demo, quitarla).
+- **Todos los archivos de texto del repo deben ser UTF-8 válido (sin mojibake).** Tildes, `ñ`, `—`, `→`, `≈`, `≤`, `∝`, `φ`, etc. deben quedar en UTF-8 correcto. Evitar añadir BOM.
+- **NO editar archivos con `Get-Content`/`Set-Content` de PowerShell**: por defecto `Get-Content` lee UTF-8 y `Set-Content` escribe Windows-1252, lo que **re-encoda** el archivo y pierde los caracteres no representables (`→` → `?`, `≤` → `=`). Es la causa del mojibake (UTF-8 doblemente codificado) detectado en el repo.
+  - Usar las herramientas de edición del agente (escriben UTF-8) o `sed -i` de Git Bash (preserva bytes).
+  - Si hay que usar PowerShell, forzar `-Encoding utf8` en lectura **y** escritura (`Get-Content -Encoding utf8 … | Set-Content -Encoding utf8 …`) y verificar después con `node tools/check/encoding.mjs`.
+- **Finales de línea LF**: el repo usa LF. `Set-Content` de PowerShell también convierte LF→CRLF (diff de archivo completo). No introducir CRLF en fuentes/docs nuevos; el único archivo CRLF admitido es el manual AHRM ingerido (`docs/reference/ahrm/`).
+- **Check obligatorio en CI**: `node tools/check/encoding.mjs` falla si algún `.cpp/.hpp/.md/.mjs/.sh/…` no es UTF-8 válido o contiene mojibake. Ya está integrado en `tools/test-regression.sh` y en la pasada completa de `tools/run-host-tests.sh`. Para reparar mojibake: decodificar el run de no-ASCII como cp1252 → UTF-8 (reversible, varias pasadas), nunca reescribir el archivo entero.
 
-## Qué es este repositorio
+### 1.5 Evidencia
+
+- No afirmar que una funcionalidad funciona sin evidencia reproducible de esa funcionalidad concreta.
+- Distinguir siempre entre indicios, validación parcial y evidencia concluyente; una compilación, un test host o una imagen que cambia no prueban por sí solos continuidad visual ni corrección del hardware.
+- Si faltan herramientas para observar el comportamiento real (por ejemplo, registros Copper efectivos, punteros BPL por frame o ciclos del Blitter), declararlo explícitamente y no presentar una hipótesis como resultado.
+- Probar primero el caso límite relevante y solo después documentar o afirmar que el cambio está resuelto.
+
+### 1.6 Buscar antes de implementar
+
+- **Nunca implementar una utilidad o API del engine sin comprobar antes que no existe ya.** Antes de escribir `draw_text`, una fuente, un blit, un driver o cualquier ayuda reusable, buscar en `engine/include/`, `demos/` y `tools/` (grep por nombre y por concepto: «text», «font», «blit», «surface», «scene», «palette»…) y en los índices de `docs/` (`DOC-MAP-PRINCIPAL.md`, READMEs, roadmaps).
+- Si ya existe (incluso en una demo): **reutilizar, generalizar o subir al engine**, nunca duplicar. Una implementación local en una demo que sirve a otras debe promoverse a `engine/` como utilidad reutilizable.
+- Antes de añadir un archivo nuevo en `engine/`, listar los helpers existentes del dominio y decidir explícitamente: ¿esto ya lo cubre `X`? ¿Puedo extender `X` en vez de crear `Y`?
+- Aplica también a **fuentes, tablas y glifos**: buscar si el carácter/glifo ya está antes de redibujarlo.
+- Un commit que añade algo que ya existía como duplicado se considera un error de proceso.
+
+### 1.7 Contexto técnico
+
+- **Antes de implementar cualquier mecanismo técnico** (registro o comportamiento de hardware, protocolo, formato, peculiaridad del toolchain o del chipset), **localizar y leer la documentación de referencia relevante**. No inventar ni descubrir por prueba y error.
+- Fuentes preferentes: `docs/reference/ahrm/` (AHRM 3.ª), el repo hermano `../amiga-bootcamp/` (p. ej. `01_hardware/common/cia_chips.md`, `video_timing.md`, `dma_architecture.md`), los headers del SDK (`…/opt/m68k-amiga-elf/sys-include/hardware/*.h`) y los datasheets.
+- Si no existe doc en el repo, **traerla o crearla antes de programar** (regla de ingesta de referencias: buscar, comparar calidad, componer/sustituir).
+- **Citar la referencia** (ruta del doc, datasheet, sección) en el comentario del código y en el commit.
+- Ejemplo (2026-09): el timer de CIA no recargaba por poner `CRA bit3 RUNMODE=1` (one-shot); leer `cia_chips.md` lo documenta como «0 = continuo» y fue la corrección directa.
+
+### 1.8 Commits por turno
+
+- Por defecto, **al comenzar un turno, hacer commit de lo que quedó del turno anterior** (solo lo hecho en el hilo actual).
+- **No** hacer el commit final de lo desarrollado en el propio turno: el trabajo del turno en curso se deja sin commitear salvo que el usuario lo pida.
+- No incluir en ese commit cambios ajenos al hilo actual.
+
+---
+
+## 2. El repositorio
+
 - El repo mantiene un proyecto C Amiga legado en `legacy/` (`legacy/Makefile`, `legacy/out/a.exe`) y un flujo nuevo de demos del engine C++23 en `demos/` + `tools/`; no mezclarlos por error.
 - Para trabajo del engine, usar los wrappers shell de `tools/` en vez de invocar el `legacy/Makefile`.
 
-## Estructura del repositorio (obligatorio)
-La organización de directorios es canónica y está especificada en
-**`docs/STRUCTURE.md`**. Antes de crear cualquier archivo o directorio, definir
-dónde debe vivir según esa especificación. Resumen de las áreas raíz:
+### 2.1 Estructura (obligatoria)
+
+La organización de directorios es canónica y está especificada en **`docs/STRUCTURE.md`**. Antes de crear cualquier archivo o directorio, definir dónde debe vivir según esa especificación. Resumen de las áreas raíz:
 
 | Área | Contenido |
 |---|---|
@@ -54,358 +101,56 @@ dónde debe vivir según esa especificación. Resumen de las áreas raíz:
 | `legacy/` | Proyecto C Amiga congelado. |
 
 Reglas críticas:
-- Los assets **generados** por pipelines van a `out/assets/<pipeline>/…` (nunca a
-  `assets/`), y cada tool debe aceptar `--out` con un defecto ya canónico.
+
+- Los assets **generados** por pipelines van a `out/assets/<pipeline>/…` (nunca a `assets/`), y cada tool debe aceptar `--out` con un defecto ya canónico.
 - La salida de experimentos/medidas va a `out/playground/<experimento>/`.
 - Los juegos en `games/` usan el mismo flujo build/run/analyze que las demos.
-- Cualquier salida temporal va a `out/tmp/`; si ves un directorio suelto en
-  `out/`, muévelo al área canónica correspondiente y corrige la tool que lo crea.
-- **Nada de binarios/media en git**: no añadir archivos binarios ni media masiva
-  (PNG/JPG/audio/vídeo/archivos compilados). `.gitignore` los excluye por
-  defecto; sólo se versionan los assets fuente de `assets/`. Si un pipeline o una
-  IA genera imágenes/`.bin`, la salida va a `out/` (ignorado) y el resultado
-  "canónico" de texto (informes/README) a `docs/` o `artifacts/`.
+- Cualquier salida temporal va a `out/tmp/`; si ves un directorio suelto en `out/`, muévelo al área canónica correspondiente y corrige la tool que lo crea.
+- **Nada de binarios/media en git**: no añadir archivos binarios ni media masiva (PNG/JPG/audio/vídeo/archivos compilados). `.gitignore` los excluye por defecto; solo se versionan los assets fuente de `assets/`. Si un pipeline o una IA genera imágenes/`.bin`, la salida va a `out/` (ignorado) y el resultado «canónico» de texto (informes/README) a `docs/` o `artifacts/`.
 
-## Encoding de archivos (obligatorio)
-- **Todos los archivos de texto del repo deben ser UTF-8 válido (sin mojibake).** Tildes, `ñ`, `—`, `→`, `≈`, `≤`, `∝`, `φ`, etc. deben quedar en UTF-8 correcto. Evitar añadir BOM.
-- **NO editar archivos con `Get-Content`/`Set-Content` de PowerShell**: por defecto `Get-Content` lee UTF-8 y `Set-Content` escribe Windows-1252, lo que **re-encoda** el archivo y pierde los caracteres no representables (`→` → `?`, `≤` → `=`). Es la causa del mojibake (UTF-8 doblemente codificado) detectado en el repo.
-  - Usar las herramientas de edición del agente (escriben UTF-8) o `sed -i` de Git Bash (preserva bytes).
-  - Si hay que usar PowerShell, forzar `-Encoding utf8` en lectura **y** escritura (`Get-Content -Encoding utf8 … | Set-Content -Encoding utf8 …`) y verificar después con `node tools/check/encoding.mjs`.
-- **Finales de línea LF**: el repo usa LF. `Set-Content` de PowerShell también convierte LF→CRLF (diff de archivo completo). No introducir CRLF en fuentes/docs nuevos; el único archivo CRLF admitido es el manual AHRM ingerido (`docs/reference/ahrm/`).
-- **Check obligatorio en CI**: `node tools/check/encoding.mjs` falla si algún `.cpp/.hpp/.md/.mjs/.sh/…` no es UTF-8 válido o contiene mojibake. Ya está integrado en `tools/test-regression.sh` y en la pasada completa de `tools/run-host-tests.sh`. Para reparar mojibake: decodificar el run de no-ASCII como cp1252 → UTF-8 (reversible, varias pasadas), nunca reescribir el archivo entero.
+---
 
-## Herramientas locales requeridas
-- Windows + Git Bash + Node.js son obligatorios para el flujo de ejecución automatizada (`tools/run/run-demo.sh` -> `dist/tools/run/run-demo.js`). No usar el `bash.exe` de WSL para invocar los binarios `.exe` del toolchain; PowerShell solo se usa cuando el script o la integración con Visual Studio lo exige.
-- **NO usar WSL** para este proyecto: el entorno operativo es **Windows nativo**. Todo comando que invoque `node`, `g++`/el toolchain Amiga, WinUAE o el runner debe ejecutarse con los binarios de Windows (p. ej. `C:\Program Files\nodejs\node.exe`, el `.exe` de la extensión Bartman), no con el `bash` de WSL (que mangla rutas y rompe `cc1plus`/lanzamiento de WinUAE). Si un script llega a necesitar bash en Windows, usar Git Bash, nunca WSL. Use rutas Windows (`C:\...`, `out\run\...`) o montajes `/mnt/c` solo para lectura.
-- El toolchain Amiga se resuelve en este orden: `AMIGA_BIN_PATH`, extensión de Cursor y luego extensión de VS Code `bartmanabyss.amiga-debug-*` (versión más alta instalada; el fork local es 1.8.1).
-- `tools/run/run-demo.ts` importa dinámicamente `../mcp-winuae-emu/dist/winuae-connection.js` desde el repositorio hermano; si falta, el runner falla antes de abrir WinUAE.
+## 3. Operación (build / run / analyze)
 
-## Instancias múltiples de WinUAE (puertos dinámicos; respeto obligatorio)
-- El fork `WinUAE-DBG` (commit `6783d95` y anteriores) permite **elegir los puertos por entorno**:
-  - `WINUAE_GDB_PORT` — puerto del servidor GDB (por defecto **2345**).
-  - `WINUAE_SIDE_CHANNEL_PORT` — puerto del **canal lateral** (por defecto **2346**).
-  - `WINUAE_GDB_PERSIST_LISTENER` — el GDB server sigue escuchando tras desconectar.
-  Con eso se pueden lanzar **varias instancias de WinUAE a la vez**, cada una depurando en puertos distintos.
-- Cómo lo usa la tooling:
-  - `tools/run/run-demo.sh` respeta `WINUAE_GDB_PORT` y `WINUAE_SIDE_CHANNEL_PORT` (o el flag `--side-channel-port`).
-  - El MCP (`mcp-winuae-emu`) lee `WINUAE_GDB_PORT`; sus tools aceptan el puerto del canal lateral (`side_port`/`port`, default 2346).
-  - Las herramientas de profiling/medición (`tools/debug/measure-fps.mjs`, `tools/debug/ports.mjs`) usan `WINUAE_GDB_PORT`/`WINUAE_SIDE_CHANNEL_PORT` del entorno (por defecto 2345/2346).
-- **Regla (no somos el único usuario del emulador; respeto entre instancias/agentes)**:
-  - Elegir **puertos propios** y no reutilizar los de otra sesión; si un puerto está ocupado, usar otro en vez de forzar.
-  - **Nunca matar** procesos `winuae-gdb`/`winuae64` que no se hayan lanzado uno mismo. Antes de matar, comprobar si son propios (por PID/instancia).
-  - **Controlar y limpiar las propias**: registrar los PIDs lanzados y cerrarlos al terminar; no dejar instancias huérfanas ocupando puertos.
+### 3.1 Herramientas locales
 
-## Comandos canónicos
+Windows nativo + Git Bash + Node.js. **No usar WSL** para invocar binarios `.exe` del toolchain. El toolchain Amiga se resuelve por `AMIGA_BIN_PATH` y luego por las extensiones Bartman. Detalle completo: `docs/build/BUILD_AND_RUN.md` §Herramientas locales requeridas.
+
+### 3.2 Comandos canónicos
+
 - Compilar una demo: `bash ./tools/build/build-demo.sh demos/amiga/000_toolchain_cpp23 --debug --clean`
 - Ejecutar una demo y capturar: `bash ./tools/run/run-demo.sh demos/amiga/000_toolchain_cpp23`
 - Analizar una demo: `bash ./tools/analyze/analyze-demo.sh demos/amiga/000_toolchain_cpp23`
 - Regresión completa: `bash ./tools/test-regression.sh`
 - Bucle de regresión de una demo: `bash ./tools/test-regression.sh --demo demos/amiga/101_ehb_tile_scroll_driver --warp`
 
-## Orden de verificación (no saltar)
-- Orden por defecto: `build -> run -> analyze`; `analyze-demo.sh` espera `.exe/.elf/.map` y valida `out/run/<demo>/screenshot.png` si existe.
-- `tools/test-regression.sh` ya impone ese orden por demo y ejecuta `analyze-sequence.sh` automáticamente cuando existe.
+### 3.3 Orden de verificación (no saltar)
+
+- Orden por defecto: `build -> run -> analyze`. `tools/test-regression.sh` impone ese orden por demo.
 - La regresión usa build estilo debug por defecto (`--debug` interno). Usar `--release` solo cuando se necesite comportamiento de optimización release.
+- Detalle operativo y reglas del runner/emulador: `docs/build/BUILD_AND_RUN.md`.
 
-## Comportamiento clave de runner/emulador
-- `run-demo` configura WinUAE con `warp=false` por defecto. Usar `-Warp` solo para throughput/diagnóstico rápido, no para evaluar suavidad visual.
-- Las demos modernas deben exponer `g_eng_run_status`; el runner espera `READY` por canal lateral en `127.0.0.1:2346` y falla rápido si no llega.
-- El fallback por timeout es opt-in (`--allow-timeout-fallback`) y es para diagnóstico.
-- Las capturas de secuencia se limpian antes de cada ejecución (`out/run/<demo>/sequence`) para no mezclar frames antiguos.
+---
 
-## Depuración avanzada (WinUAE-DBG v2.x, vía MCP `winuae-emu`)
-Servidor GDB (puerto 2345) + **canal lateral** (2346). Especificación canónica:
-`WinUAE-DBG/docs/WINUAE-MONITOR-EXTENSIONS.md`. **Usar el build x86**
-(`winuae-gdb.exe`); el x64 tiene un bug preexistente de boot congelado.
+## 4. Reglas específicas (leer el documento del dominio antes de trabajar en él)
 
-Herramientas MCP disponibles (todos vía `mcp-winuae-emu`):
-- `winuae_emulator_status` — telemetría (ciclos, frame, vpos/hpos, warp, baseText, contadores). Para confirmar que el emulador corre y estado global.
-- `winuae_watchpoint_set_ext` / `_list` / `_last` / `_clear_ext` — watchpoints con filtro por **origen** (`src=cpu|copper|blitter|bpl0-7|spr0-7|audio0-3|disk|dma`), `value=`, `mask=`, `must_change`, `nobreak`. `watch_last` reporta addr/src/valor/PC del último hit. Para "¿quién/cuándo toca X?" (p. ej. el copper escribe un registro custom).
-- `winuae_protect` — `block`/`set` para congelar memoria o forzar valores. Para cheats y tests de estados.
-- `winuae_rewind` — `start`/`stop`/`status` (captura); el restore **congela la emulación** pero deja el snapshot legible por canal lateral. Sólo para inspeccionar un estado pasado.
-- `winuae_trace` — trazas de eventos watch/protect/rewind en `%TEMP%\winuae-gdb.log` (activo por defecto).
-- `winuae_side_read` — canal lateral (`state`/`regs`/`mem <addr> <len>`/`runstatus <addr>`), independiente de GDB. Cuando GDB esté inerte o para observar sin intrusión.
-- `winuae_debugperiph` — **periférico de depuración in-Amiga** en `0xB70000` (consola, checkpoints, contador de ciclos, debug args, breakpoints auto-dirigidos). Para telemetría del propio programa y profiling por checkpoints.
-- **Control de CPU, memoria y ejecución** (para depurar paso a paso de forma autónoma): `winuae_registers_get`/`_set` (D0-D7/A0-A7/SR/PC), `winuae_step`/`_continue`/`_pause`/`_wait_stop`, `winuae_breakpoint_set`/`_clear`, `winuae_memory_read`/`_write`/`_dump`, `winuae_connect`/`_connect_existing`, `winuae_screenshot`, `winuae_postmortem_capture`, `winuae_machine_snapshot`, `winuae_bitmap_decode`, `winuae_load`/`_run_program`/`_exec_chunk`, `winuae_print` (símbolos del `.map` + campos DWARF del `.elf`).
-- **La IA puede usarlas de forma autónoma**, sin que estén cargadas como tools del asistente: `mcp-winuae-emu` es un **módulo Node importable** (`mcp-winuae-emu/dist/`: `WinUAEConnection` para lanzar/adjuntar, `GdbProtocol` para `readRegisters`/`step`/`setBreakpoint`/`continue`/`readMemory`/`writeMemory`) y también habla **GDB RSP crudo** en el puerto 2345 + **canal lateral** en 2346. Guía completa con el patrón de depuración autónoma: `docs/debugging/DEBUG-WINUAE-V2-GUIDE.md` §7.
+Estas reglas son obligatorias, pero solo son relevantes cuando se toca su dominio. Cada una vive en su documento canónico (fuente única).
 
-**Ejemplo real de periférico**: la demo `demos/amiga/101_ehb_tile_scroll_driver` está
-instrumentada (`engine/include/eng/debug/peripheral.hpp`): en cada cambio de
-tile-set escribe `TILE_CHANGE` a la consola y abre checkpoints 10→11 (coste del
-upload). Consulta: `winuae_debugperiph checkpoints` / `console`. Verificación
-de scroll en 4 direcciones + diagonal a 50fps (con ollama):
-`tools/analyze/verify-scroll-directions.mjs`.
+| Regla / dominio | Documento obligatorio |
+|---|---|
+| **Tests y verificación por demo** (toda API con test; NO VERIFICADA si no hay demo) | `docs/testing/README.md` |
+| **Demos atractivas, validación visual (Ollama) y gate de optimizaciones de render** | `docs/guides/methodology/DEMO_VISUAL_DEBUG.md` |
+| **API del engine** (sin hardware, sin punteros, versátil, prueba de diseño) | `docs/engine/architecture/PUBLIC_API.md` |
+| **Estilo y restricciones de diseño** (gnu++23, sin excepciones/RTTI/heap, APIs paramétricas, agnosticismo del backend, comentarios didácticos) | `docs/engine/architecture/CODING_STYLE.md` |
+| **Rendimiento, comentario de optimizaciones y port de rutinas calientes a asm** | §12 de `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` |
+| **Copper y buffers de display** (`copper::Plan`, `MultiBuffered`, doble buffer de copperlist) | §6 de `docs/engine/architecture/DISPLAY_COMPOSITION.md` |
+| **Objetos: BOB ≠ polígono, transparencia, fondo, copper por objeto** | `docs/engine/architecture/OBJECT_SYSTEM.md` |
+| **Blitter / minterms / líneas y polígonos** | `docs/reference/amiga/techniques/README.md` y `blitter-line-subpixel-fill.md` |
+| **Runner/emulador** (warp, READY, canvas, secuencias) | `docs/build/BUILD_AND_RUN.md` |
+| **WinUAE: instancias múltiples y depuración avanzada (GDB/canal lateral/MCP)** | `docs/debugging/DEBUG-WINUAE-V2-GUIDE.md` |
+| **Pipeline de tiles/EHB** (cuantizar antes de extraer, comparar al 100 %, etc.) | `docs/guides/roadmap/REGLAS_PIPELINE_TILES.md` |
+| **Estado vigente y próximas direcciones del engine** | `docs/guides/roadmap/ROADMAP_UNIFICADO.md` |
+| **Bitácora de scroll por tiles (histórico)** | `docs/guides/roadmap/BITACORA_SCROLL_TILES.md` |
 
-Guía "cuándo usar cada herramienta" e instrumentación de demos:
-`docs/debugging/DEBUG-WINUAE-V2-GUIDE.md`.
-
-Estado scroll fino de la demo 101 (2026-08): RESUELTO el salto del cruce de tile.
-La causa raíz era el signo de `BPLCON1` (invertido) y el puntero coarse: el driver
-usaba `BPLCON1=fine` con `fetch=coarse-16`, lo que invertía el sentido del scroll
-dentro de cada tile y producía un salto de ~31px en el cruce de 16px. Se sustituyó
-por la fórmula canónica de ACE/HRM: `BPLCON1=(16-fine)&15` y
-`fetch=(scroll_x-1)&~15` (un word antes solo en `fine==0`), que da
-`display_start == scroll_x` continuo en todo el rango. Sigue pendiente el doble
-buffer de la copperlist. Validar con `analyze-fine-scroll.sh --warp` y
-`analyze-sequence.sh --warp`.
-
-Scroll genérico multi-modo (2026-08): el driver de scroll por tiles vive ahora en
-`engine/include/eng/graphics/drivers/tile_scroll.hpp` como `TileScrollScene<Mode>`
-(template sobre el modo), con scroll por playfield (`TileScrollInput`) y override
-coarse por bitplane (`plane[i]`, preparado para RoboCod). `ehb_tile_scroll.hpp` es
-un shim de compatibilidad (`EhbTileScrollScene` = single 6). Las demos 103/104
-(`demos/amiga/103_tile_scroll_ring`, `104_tile_scroll_ring_dualpf`) demuestran el
-scroll por tiles single y dual. El test de descomposición de scroll para 4/5/6
-single y 2+3/3+3 dual es: `node tools/analyze/verify-tile-scroll-modes.mjs`.
-
-Rendimiento del scroll por tiles (2026-08, lecciones aprendidas):
-- El scroll del chipset (BPLxPT + BPLCON1 vía Copper) es barato; la CPU solo
-  calcula offsets y programa registros, como en los juegos reales (Mega Typhoon).
-  El coste real del frame estaba en la capa software de prefetch, no en el display.
-- `ProgressiveTileScheduler::take_budget` era O(n²): desplazaba toda la cola por
-  cada job tomado. Con la cámara rápida (2px/frame) y franjas encoladas en cada
-  cruce, dominaba el update y la demo caía de 50fps a ~36. Se arregló con puntero
-  de cabeza (O(budget), compactación amortizada) en `tilemap/tile_scroll.hpp`.
-- En dual playfield, `make_playfield_upload_jobs` emitía UN job por plano por tile
-  (3x en 3+3). Cada job paga wait_blitter + programación de registros, y el
-  overhead por blit es lo que domina en los cruces del ring dual. Se fusionó en un
-  solo job por tile con `destination_plane_stride = 2*plane_bytes` (los planos de
-  un playfield están intercalados: PF1=1,3,5 / PF2=2,4,6). La demo 104 subió de
-  ~41.5 a ~47.6fps; el resto del gap es el overhead del emulador por blit en los
-  frames de cruce, no el hardware (en Amiga real cabe de sobra en 20ms).
-- Los checkpoints del periférico (`debugperiph checkpoints`) añaden ~10fps de
-  overhead al update; medir fps con ellos puestos engaña. Quitarlos para medir.
-- Fps medidos (emulador WinUAE-DBG, -O1): 101=~48, 102=~50, 103=~50, 104=~47.6.
-  En hardware real los cuatro van a 50fps.
-
-Roadmap del port de features de engine9000 (hecho/pendiente, priorizado para
-hilos nuevos): `WinUAE-DBG/docs/WINUAE-MONITOR-EXTENSIONS.md` → sección
-"Roadmap del port desde engine9000". Hechos: punto 1 (periférico Amiga 1:1),
-punto 2 (checkpoint profiler), punto 4 (`train` + `base`), punto 5 (hotspots +
-smoke test). Punto 3 (rewind timeline) bloqueado (captura atada al input-
-recording del GUI). Pendiente: `print` DWARF.
-
-## Rutas de alto valor
-- **Puerta de entrada IA → documentación (leer primero ante cualquier tarea)**: `docs/ai-dev-environment/DOC-MAP-PRINCIPAL.md`. Mapea «voy a hacer X» → docs/demo/API a consultar, incluye el protocolo de ingesta de repos/referencias externas (buscar antes de crear, comparar calidad, componer/sustituir) y los enlaces a la referencia oficial de hardware (AHRM 3.ª en `docs/reference/ahrm/`).
-- **Diseño y depuración visual de demos (leer antes de plantear o validar una demo)**: `docs/guides/methodology/DEMO_VISUAL_DEBUG.md` — qué debe mostrar una demo para que se entienda y cómo cazarlo cuando falla (secuencias, no un frame; preguntas críticas y específicas a Ollama; histogramas de color; checklist de fallos como huecos negros, costuras, capas incoherentes).
-- **Técnicas por capas (parallax tipo RoboCod)**: `docs/reference/amiga/techniques/robocod-layered-scroll.md` (DPF de 2 campos con scroll independiente + raster colors; por qué NO el 5.º plano en un solo playfield). Índice de técnicas: `docs/reference/amiga/techniques/README.md`.
-- **Modelo objetivo de playfields y scroll (contrato de refactor)**: `docs/engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md` (separa algoritmo ↔ superficie ↔ composición ↔ mapping Amiga: `Playfield<N>`, `PlaneView`, estrategias de scroll, `DisplayComposition`) + plan por fases y demos a adaptar en `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md`.
-- **API pública (la aplicación no ve hardware)**: `docs/engine/architecture/PUBLIC_API.md` — la app describe capas/cámaras/efectos y el planner deduce la composición; tipos fuertes, handles, errores sin excepciones, init/frame. Escena **retenida**, **modelo de ocupación** (headroom/can_add), introspección y representación de actores (sprite/BOB/playfield): `docs/engine/architecture/SCENE_AND_RESOURCES.md`. Contenido (motor de tiles, **mundo disperso** por chunks, sprites/animaciones, audio): `docs/engine/architecture/CONTENT_AND_TILEMAP.md`.
-- **Herramienta de tiles/sprites para juegos (todo-en-uno)**: `tools/amiga-tiles/README.md` — *tutorial y entrada* para `amiga-tiles.mjs` (quantizer/tilebank/EHB/dither/paletas), `run-demos.mjs` (genera `out/assets/tile-demos`), `run-vision-verify.mjs` (verificación con ollama), `extract-sprites.mjs` (extracción de sprites por componentes) y `game-assets.mjs` (pipeline único con IA). Ver también `docs/guides/roadmap/REGLAS_PIPELINE_TILES.md` y `docs/demos/tile-pipeline/PIPELINE_TILES_EHB.md`.
-- **Estado actual (2026-09) y plan — ROADMAP VIGENTE**: `docs/guides/roadmap/ROADMAP_UNIFICADO.md` (reunifica los roadmaps: estado del engine/demos, decisiones tomadas y próximas direcciones; incluye la variante rápida «Sonic» F6). Históricos superados (con banner interno): `docs/guides/roadmap/XLIMITED_8WAY_EHB_201.md` (roadmap 201→202, F1-F4 cerradas y F5 202 DPF completado). Reglas de pipeline vigentes: `docs/guides/roadmap/REGLAS_PIPELINE_TILES.md`. DPF (Y por campo / split / lineal / mixto): `docs/engine/architecture/DPF_MIXTO_SPLIT_LINEAL.md`. y `docs/guides/roadmap/REGLAS_PIPELINE_TILES.md` (reglas de oro: cuantizar el original antes de extraer, comparar en el mismo espacio EHB con assert al 100%, catálogo ≤ original, PNG indexados con encoder propio + round-trip, umbrales con pérdida explícita). El bug 8-way "tile en el área visible" se depura con watchpoint `g_eng_diag_hit` y breakpoints en `add_draw`/`draw_block_job`/`scroll_down-up` (ver `demos/amiga/107_xlimited_corkscrew/src/main.cpp`). Enunciado para IA externa sobre el runner que no ejecuta demos NUEVAS (queda en AmigaDOS): `docs/guides/roadmap/PROBLEMA_LAUNCHER_DEMOS_NUEVAS.md`.
-- **Checklist imprescindible del corkscrew XYLimited (201, lecciones 2026-09)**: ver §7 de `demos/amiga/201_ehb_map/src/README.md`. Tres invariantes NO obvios que rompen la imagen si se tocan sin entenderlos: (1) el ANILLO vertical `display_height` se dimensiona para el viewport TOTAL (256+2*16=288), NO `(viewport−HUD)+32`; si es 240, `mapy=16/17` colisiona con `mapy=1/2` en el módulo y aparecen arriba las filas que deben ir abajo. (2) `block_videoposy` envuelve en `display_height`, nunca en `bitmap_height` (304, incluye las filas extra del walk X) → basura por toda la pantalla. (3) `visible_tile_bias_x/y=1` es OBLIGATORIO para que `map[0][0]` sea visible (el hardware esconde los 16 px de guarda; sin bias hay un offset aparente −16,−16). El `mapx/mapy` del scroll son celdas FÍSICAS del anillo, no índices lógicos, por eso `map_tile_at` restándoles bias es correcto para fill y scroll. Constantes NTTP `ScrollConsts.display_height` deben coincidir con el anillo real.
-- Pipeline de tiles/EHB (verificado): `node tools/ehb/quantize-ehb.mjs <png>` → `palette.json`; `node tools/ehb/slice-tiles.mjs <png> --palette out/assets/ehb/palette.json [--ehb-merge F]` → `tilebank_indexed.h` + **`tilebank.raw.bin`** (modo `--encode raw` por defecto; datos de índices 0..63, 256 bytes/tile, stride fijo) + `tiles.json`/PNG (assert COMPARAR=100% sin fusión). La demo 201 incrusta el `.bin` por incbin en sección `tiles.MEMF_CHIP` (hunk HUNKF_CHIP; receta documentada en el asm de `demos/amiga/201_ehb_map/src/main.cpp:30-36`). **Explicación completa del pipeline y del concepto X-Limited (qué engine usa, qué mecánicas del chipset explota: EHB, scroll HW con BPLCON1/BPLxPT, split de Copper, Blitter interleaved): `demos/amiga/201_ehb_map/src/README.md`**; ahí se detallan y verifican las invocaciones de `quantize-ehb` → `slice-tiles` → `emit-const-201` → `emit-xlimited-bank` y su correspondencia con los 1149 tiles / mapa 40×40 / banco 222,720 B de la demo.
-- Self-test del harness (canal lateral/READY/fps): `node tools/debug/verify-harness.mjs [--strict-fps --warp]`. Nota: el throughput del emulador ~11fps limita el gate fps absoluto.
-- Bucle de entrada del engine: `engine/include/eng/engine.hpp` (`update -> wait_vblank -> render`; `render` es el punto de commit).
-- Backend Amiga: `engine/src/platform/amiga_minimal/amiga_minimal.cpp`.
-- Validación temporal fuerte por demo: `demos/amiga/101_ehb_tile_scroll_driver/analyze-sequence.sh`.
-- Scroll multi-modo (XYLimited, canónico): demos `demos/amiga/201_ehb_map` (8-way EHB) y `202_xlimited_dpf`; test host `node tools/analyze/verify-tile-scroll-modes.mjs`.
-- Detalles operativos build/run: `docs/build/BUILD_AND_RUN.md`.
-- Reinstalar el entorno en otro equipo: `docs/debugging/SETUP_NUEVO_EQUIPO.md` (repos, build de WinUAE-DBG, instalación del fork de la extensión, `.mcp.json`).
-- Historial de fixes de depuración (relocalización de breakpoints, `-O0`, qOffsets): `docs/debugging/HISTORIAL-CAMBIOS.md`.
-- Harness DAP sin VS Code (verifica breakpoints y fuente C++ de la capa DAP): `tools/dap-test/README.md`. Requiere el fork `vscode-amiga-debug` compilado y el stub de `vscode` (ver README). Trazas en `%TEMP%\amiga-debug-trace.log` y `%TEMP%\winuae-gdb.log`.
-- Depuración interactiva: usa `tools/debug/build-current-demo.sh` (compila con `-O0` el archivo en primer plano a `out/debug-current/`) y F5 con la config "Amiga 500: depurar archivo actual".
-- Captura y análisis de perfiles (frames de pantalla + análisis con Ollama local): `tools/profile/README.md`. **Para la IA**: `node tools/profile/ai-analyze.mjs <outName> [frames] --prompt "…"` captura por el canal lateral (2346), extrae frames + resumen y analiza con Ollama local, imprimiendo el informe final por stdout (sin gastar tokens de nube). `--demo <demo>` lanza WinUAE directo (como hijo del script), espera READY y lo apaga al terminar; el análisis completo tarda ~2-4 min, `--mode meta` es rápido. Componentes: `capture-profile.mjs`, `profile-extract.mjs`, `ollama-analyze.mjs`, `launch-winuae.mjs`, `profile-analyze.sh`. Requiere WinUAE con `WINUAE_GDB_PERSIST_LISTENER=1` y Ollama en `127.0.0.1:11434`. La tool MCP `winuae_profile_ollama` (en `mcp-winuae-emu`, no registrada aún en opencode) hace lo mismo por MCP.
-- Avanzar por breakpoints y leer memoria/frame buffer en caliente: `tools/debug/step-memory.mjs`.
-
-## Regla de port de rutinas calientes a asm (obligatoria)
-- En los ports de efectos del demoscene, **conservar siempre la versión C++ canónica** en el código (fiel al original, legible) **y portar las rutinas más calientes a ASM m68k copiándolas del original**, como se hizo con `support/fire_loop.s` (fire-rgb, demo 080). El asm vive en `support/<nombre>.s` (gas, sin `.cfi`), con argumentos por memoria en un global `extern "C"` y un flag `K_<DEMO>_ASM` (default el camino seguro) que elige asm o C++. Cuando la ruta asm ya pasa el gate visual y la regresión se puede invertir el default para que la demo compile con el asm (documentándolo en el README de la demo y dejando la ruta C++ accesible con `-DK_<DEMO>_ASM=0`).
-- Motivo: g++ 15 ignora los pins `register ... asm("aN")` del original y no alcanza el codegen apretado (ver `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` §9). El original sí lo consigue con variables de registro y macros inline.
-- **Toda ruta asm debe validarse visual/estructuralmente** (secuencia de frames + `verify-*`), no solo por compilación: un `movea.l`/`lea`, un índice o una división mal portados cuelgan o deforman sin fallar el build. Referencia de errores vistos: `docs/debugging/` y la bitácora de optimización.
-
-## Restricciones de código/diseño que hay que preservar
-- Restricciones intencionales del engine: `gnu++23`, sin exceptions, sin RTTI, sin asignación dinámica en gameplay (`docs/engine/architecture/CODING_STYLE.md`).
-- **APIs paramétricas, nunca de tamaño fijo**: no generar funciones con geometría/tamaño embebido (p. ej. `emit_ehb_320x256_display`); el engine expone métodos paramétricos (registros/planos/ancho, etc.) y el llamador decide los valores. Los "magic numbers" de un caso concreto viven en la demo/config, no como API.
-- La lógica de juego debe ser agnóstica del backend; registros/DMA específicos de Amiga van en capas backend/driver, no en lógica de alto nivel.
-
-## Regla de API del engine (obligatoria)
-- **El programador no debe ver funciones de bajo nivel** (p. ej. `draw_text` que recibe puntero a bitplanes, índices de planos o `u8*`). Todo dibujo y acceso a la imagen pasa por **una abstracción de alto nivel** (tipo **contexto de dispositivo**), análoga al `RastPort` de la ROM de Amiga (graphics.library) o a un device-context de Windows: la app pide «surface/contexto» y dibuja sobre él, sin conocer la memoria subyacente.
-- **Sin punteros ni mecanismos inseguros en el API**: no exponer `u8*`, offsets crudos, layouts, planos, registros custom ni direcciones DMA en la interfaz pública. Esas decisiones viven dentro de la implementación (driver/surface), nunca en la firma que consume la lógica de juego.
-- **Versátil para cualquier configuración**: el API debe funcionar igual para EHB, single/double playfield, 4/5/6 planos, interleaved/separate, cualquier resolución. No diseñar funciones o clases que solo funcionen en EHB o en DPF o en un tamaño concreto; la abstracción expone un «pincel/contexto» que el propio contexto (superficie) configura internamente según sus parámetros.
-- Prueba de diseño: una función de dibujo debe poder expresarse igualmente sobre un contexto EHB 6 planos, un contexto single 4 planos y un contexto DPF, con la misma llamada y solo cambiando la configuración del contexto; el llamador nunca ve qué modo es.
-- Lo que sí puede ser específico de un modo (registros, cobre, DMA) queda **dentro del driver/surface** o en capas backend, nunca filtrado al llamador.
-
-## Regla de «buscar antes de implementar» (obligatoria)
-- **Nunca implementar una utilidad o API del engine sin antes comprobar que no existe ya.** Antes de escribir `draw_text`, una fuente, un blit, un driver o cualquier ayuda reusable, buscar en `engine/include/`, `demos/` y `tools/` (grep por nombre y por concepto: «text», «font», «blit», «surface», «scene», «palette»…) y en los índices de `docs/` (`DOC-MAP-PRINCIPAL.md`, READMEs, roadmaps).
-- Si ya existe (incluso en una demo): **reutilizar, generalizar o subir al engine**, nunca duplicar. Una implementación local en una demo que sirve a otras debe promoverse a `engine/` como utilidad reutilizable.
-- Antes de añadir un archivo nuevo en `engine/`, listar los helpers existentes del dominio y decidir explícitamente: ¿esto ya lo cubre `X`? ¿Puedo extender `X` en vez de crear `Y`?
-- Esto aplica también a **fuentes, tablas y glifos**: buscar si el carácter/glifo ya está antes de redibujarlo.
-- Un commit que añade algo que ya existía como duplicado se considera un error de proceso.
-
-## Regla de contexto técnico (obligatoria)
-- **Antes de implementar cualquier mecanismo técnico** (registro o comportamiento de hardware, protocolo, formato, peculiaridad del toolchain o del chipset), **localizar y leer la documentación de referencia relevante**. No inventar ni descubrir por prueba y error.
-- Fuentes preferentes: `docs/reference/ahrm/` (AHRM 3.ª), el repo hermano `../amiga-bootcamp/` (p. ej. `01_hardware/common/cia_chips.md`, `video_timing.md`, `dma_architecture.md`), los headers del SDK (`…/opt/m68k-amiga-elf/sys-include/hardware/*.h`) y los datasheets.
-- Si no existe doc en el repo, **traerla o crearla antes de programar** (regla de ingesta de referencias: buscar, comparar calidad, componer/sustituir).
-- **Citar la referencia** (ruta del doc, datasheet, sección) en el comentario del código y en el commit.
-- Ejemplo (2026-09): el timer de CIA no recargaba por poner `CRA bit3 RUNMODE=1` (one-shot); leer `cia_chips.md` lo documenta como "0 = continuo" y fue la corrección directa.
-
-## Regla permanente de rendimiento
-- Todo código nuevo debe minimizar el trabajo total por frame y reutilizar datos,
-  trabajos, buffers y estados siempre que sea posible.
-- La CPU debe limitarse a decidir cambios y programar hardware; evitar que haga
-  copias, divisiones, módulos, recorridos o reconstrucciones repetidas que puedan
-  resolverse incrementalmente, por lotes o mediante el Blitter/Copper.
-- Antes de aceptar una solución, buscar explícitamente algoritmos O(1) o O(n)
-  frente a colas O(n²), fusionar operaciones compatibles y reducir el número real
-  de accesos al Blitter y de esperas síncronas.
-- Medir los picos con profiling y telemetría en el caso límite, no solo validar
-  que el frame nominal funcione; cualquier optimización debe conservar la
-  corrección visual y el presupuesto de Chip RAM.
-- **Criterio retro del chipset (68000)**: preferir algoritmos **rápidos y
-  exactos** a lentos y precisos. Un algoritmo que subestima ~6 en `isqrt` pero
-  cuesta 10 ciclos gana a uno exacto que paga `__divsi3`/`__mulsi3`. Para el
-  hot path, lo deseable es aritmética 16-bit nativa (`muls.w`/`divs.w`), bucles
-  countdown que emiten `dbra`, cero divisiones runtime, cero floats y cero STL.
-  Directrices operativas y bitácora de descubrimientos en
-  `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` (leer antes de optimizar
-  o portar código caliente).
-- **Comprobar el ensamblador generado**: al portar o escribir APIs, revisar con
-  `-S`/`-fverbose-asm` que el código que emite el toolchain no sea peor que el
-  original (o que el asm a mano del repo de origen). Un port 100 % "fiel pero
-  lento" pierde contra el original 68k optimizado; si el original usaba una
-  optimización en asm (p. ej. `swap` para rotar, `lsl.l #8; add` para `<<9`,
-  `divs/divu` de 16 bits), verificar que nuestra versión C++ produce algo al
-  menos igual de eficiente y anotarlo en la bitácora del doc de optimización.
-
-## Comentarios didácticos de código
-- El código nuevo de hardware Amiga debe incluir comentarios breves, en español,
-  con estilo de tutorial: explicar qué registro o mecanismo del chipset interviene,
-  qué invariantes mantiene el algoritmo y por qué una alternativa aparentemente
-  más simple consumiría más CPU, Blitter o Chip RAM.
-- Cuando una decisión sea difícil de inferir, enlazar desde el comentario al MD
-  técnico correspondiente y usar un pequeño esquema ASCII si aclara la geometría
-  de buffers, Copper, bitplanes o zonas visibles.
-
-## Regla de comentario de optimizaciones (obligatoria)
-- Toda optimización que deje **rastros no canónicos** en el código —algo que un
-  lector no esperaría para ese algoritmo: un `static_cast` o tipo raro, una
-  escritura de 32 bits donde "tocaría" dos de 16, asm inline, un orden de
-  operaciones forzado, un flag/parámetro que desactiva una ruta "natural",
-  desenrollados, contadores de perfilado en el bucle caliente, etc.— debe llevar
-  **un comentario breve que explique POR QUÉ** se hace así en vez de la forma más
-  legible/natural en C++ (p. ej. «evita `__mulsi3`», «una sola escritura al
-  registro custom porque cada acceso cuesta ~57 ciclos con `cpu_cycle_exact`»,
-  «se fija 1×/frame en vez de por línea»).
-- Aplica a **todo** el código susceptible, no solo al nuevo: si detectas una
-  optimización sin justificar (propia o preexistente), documéntala.
-- El comentario debe ser **corto** y citar el mecanismo/coste concreto, no una
-  explicación larga.
-
-## Regla de validación de optimizaciones de render (obligatoria)
-- Una optimización que toque el **render** (registros/blits/orden de operaciones)
-  **NO se da por buena con `verify-*` de cobertura/tonos**: hay que validarla
-  **visual o estructuralmente** contra la referencia.
-- Gate mínimo con el emulador: capturar una **secuencia** y compararla con el
-  original por **fase** (mejor IoU + MAD de color; ver `tools/analyze/bestphase.mjs` o `tools/analyze/phasecmp.mjs`) o
-  pedir una descripción a Ollama preguntando explícitamente por **anomalías**
-  (caras deformes, aristas que no cierran). `verify-116` pasó con el sólido
-  deformado: cobertura y nº de tonos no bastan.
-- Ejecutar el gate **después de cada** cambio de render y **revertir** si empeora,
-  aunque el cambio parezca inocuo (p. ej. fijar los comunes del Blitter 1×/frame
-  rompió flatshade-convex).
-
-## Regla de validación visual con visión local (obligatoria)
-- **Ninguna demo o efecto se da por terminado sin pasar Ollama con modelo de visión**
-  (`qwen3-vl:8b-instruct-q8_0`). Los gates automáticos (cobertura, nº de tonos, rampa,
-  `analyze-demo`) **no ven glitches**: costuras, saltos de 16 px, filas duplicadas,
-  planos descolocados, parpadeos o geometrías deformes pasan como «OK». El feedback
-  humano llega tarde o no llega.
-- **Validar secuencias, no solo una imagen**: analizar **varios frames** del efecto
-  (`tools/profile/ai-analyze.mjs <out> <n> --demo <demo> --prompt "..."`), porque hay
-  fallos que solo aparecen en movimiento (cruces de tile, flip de buffer, tearing,
-  parpadeo entre frames). Una sola captura **no** es evidencia suficiente.
-- El prompt debe pedir explícitamente **anomalías** y lo que **se pretendía** ver
-  (`--prompt "scroll horizontal fino; ¿hay saltos de 16 px o costuras entre tiles?"`),
-  no una descripción genérica.
-- Guardar el veredicto como evidencia (salida del informe) y, si hay glitch, **no dar la
-  demo por hecha**: anotarlo y arreglarlo o marcarla como pendiente.
-- **El veredicto de visión es un filtro de sospecha, no una prueba**: puede sobre-reportar
-  en texturas de alta frecuencia (caso real: `qwen3-vl` acusó «permutación de planos» en
-  la 061 y un gate objetivo de 7 estados —rotación/zoom/paneo— la descartó) y también
-  **dar falsos negativos** (dijo «los frames son idénticos, no hay movimiento» en la 083,
-  cuyos 3 frames tenían MD5 distintos). Toda anomalía señalada **y toda afirmación de
-  «no se mueve»** se confirma o refuta con un gate objetivo (gate de estados, diff de
-  frames/MD5, comparación por fase); si el gate no cubre ese estado (p. ej. la 061 solo
-  comparaba la identidad), **ampliarlo** antes de dar nada por bueno. Ojo también con el
-  **ritmo de captura**: si la demo va a menos fps que el intervalo de captura, los frames
-  salen iguales por muestreo, no por falta de animación (083: 2,3 fps → capturar cada 1,5 s).
-- Herramientas: `tools/profile/ai-analyze.mjs` (`--mode frames|montage|all`),
-  `tools/analyze/verify-scroll-directions.mjs`, `tools/amiga-tiles/run-vision-verify.mjs`.
-  Ollama en `127.0.0.1:11434`; alternativa por MCP: `winuae_profile_ollama`.
-  Nota: el camino `--demo` de `ai-analyze.mjs` no levanta el canal lateral; hoy lo fiable
-  es `run-demo.sh <demo> --sequence-frames N` (deja `out/run/<demo>/<cfg>/sequence/`) y
-  analizar esos frames con el modelo de visión.
-
-## Regla de objetos gráficos: BOB ≠ polígono (obligatoria)
-
-- **Un BOB es una COPIA de bitmap**, no un polígono. Se dibuja copiando un bitmap
-  pre-renderizado (planos + máscara) con el barrel shifter y el minterm adecuado:
-  cookie-cut `$CA` (`D=A·B+¬A·C`, transparencia) o **OR** (`D=A|B`, bobs aditivos/glow).
-  Con **planos intercalados** es **UN solo blit por objeto** para todos los planos
-  (modulo = ancho de pantalla − ancho del bob, `height = alto_bob × planos`); con planos
-  contiguos son N blits. Es el camino barato (~1 blit/objeto).
-- **Un polígono del Blitter es otra cosa**: line-draw (`BLTCON1` LINE, XOR/SING) +
-  **area fill** (`IFE`/`EFE`, descendente) para rellenos **vectoriales** (caras 3D,
-  `blitter_fill_polygon`). Es por polígono y por plano, con setup caro: **no se usa para
-  objetos**.
-- No confundirlos: mezclarlos (p. ej. rellenar un disco con `blitter_fill_polygon` para
-  hacer un BOB) cuesta ~4 blits + máscara por objeto y **satura el bus** (caso real: la
-  085 pasó de 25 a 3 campos/frame). Referencias: AHRM 3.ª (Blitter), `amiga-bootcamp/
-  08_graphics/blitter_programming.md` (minterms, cookie-cut, *Use Case 4: interleaved
-  bitplane BOBs*) y `demoscene-repo-orig/effects/bobs3d/bobs3d.c` (OR-bobs intercalados,
-  1 blit, clear en 1 blit).
-- **Antes de programar cualquier cosa de Blitter/objetos/sprites**: leer la referencia
-  oficial (`docs/reference/ahrm/`), la secundaria (`blitter_programming.md`) y un ejemplo
-  ajeno (`bobs3d.c`, demos 050/051/053/054) — regla de contexto técnico de este fichero.
-
-## Regla de copper y buffers de display (obligatoria)
-
-- **El copper de una escena se orquesta con `eng::copper::Plan`** (`engine/include/eng/graphics/copper/plan.hpp`),
-  no emitiendo a mano. Los efectos/capas **no hablan de registros**: aportan
-  `graphics::CopperIntent` (vocabulario portable de `raster_intent.hpp`) al plan, que
-  **ordena por scanline relativo al inicio del display** (el listado envuelve a 256
-  líneas), lo materializa en el bloque **trasero** de su doble buffer de copperlist y
-  publica con el swap de `COP1LC` (`Plan::commit`).
-- **No llamar `install_copper_list`/`takeover_display` a mano** en código nuevo: usar
-  `Plan::commit`/`Plan::takeover` o `MultiBuffered<Driver,N>::commit`/`takeover`.
-- **Dos granularidades distintas, no confundirlas**:
-  - *buffers de display* (bitmaps) → `drivers::MultiBuffered<Driver, N>`
-    (`N` = 1/2/3 por configuración `K_<DEMO>_BUFFERS`);
-  - *buffers de copperlist* → `copper::DoubleBuffer` (lo que usa el `Plan`; `attach()`
-    permite orquestar uno externo).
-- Un driver sin bitplanes (p. ej. `CopperChunkyScene`) declara `bitplane_bytes_for == 0`.
-- Contrato y racional: `docs/engine/architecture/DISPLAY_COMPOSITION.md`; ejemplo vivo:
-  **demo 085 `copper_plan_scene`** (cielo por bandas de la escena + BOB con degradado
-  anclado a su Y, dos fuentes que el plan ordena por scanline).
-
-## Regla de demos atractivas (obligatoria)
-- **Una demo no es un test.** Su objetivo es **entrar por los sentidos** y hacer evidente
-  la capacidad que demuestra. Una demo nueva (o al reescribir una existente) debe cumplir
-  estas condiciones; si no, no se considera terminada.
-- **Requisito de técnica exclusiva**: la demo debe mostrar algo que **solo se puede hacer
-  con la técnica que implementa** y que **se vea de un vistazo** por qué esa técnica lo
-  habilita (p. ej. chunky → efecto por píxel que en planar puro no podrías pagar; sprites
-  → multiplexado; copper → split/rasters; blitter → rellenos y máscaras; EHB → degradados
-  de 64 tonos). No vale un patrón plano ni un rectángulo de color sobre negro.
-- **Animación obligatoria y fluida**: movimiento continuo (50 fps si el presupuesto lo
-  permite; si no, la máxima tasa que se sostenga sin tearing perceptible), no una imagen
-  estática. La suavidad forma parte de la demostración. **Nunca** una demo de efecto por
-  píxel puede quedarse en un único frame convertido en `init`.
-- **Color y contexto**: paletas ricas (degradados reales, EHB, transparencias) y un fondo
-  con contexto; no un par de colores planos ni una rampa de grises «de test».
-- **Legibilidad**: debe verse de un vistazo qué efecto se está implementando (plasma,
-  fuego, rotozoom, túnel, scroll, etc.) y, si procede, un rótulo/texto que lo nombre.
-- Estas condiciones **sustituyen** al antiguo criterio de aceptación «compila, llega a
-  Ready y el pixel-assert pasa»: ese gate sigue siendo necesario, pero **no suficiente**.
-
-## Regla de evidencia
-- No afirmar que una funcionalidad funciona sin evidencia reproducible de esa
-  funcionalidad concreta.
-- Distinguir siempre entre indicios, validación parcial y evidencia concluyente;
-  una compilación, un test host o una imagen que cambia no prueban por sí solos
-  continuidad visual ni corrección del hardware.
-- Si faltan herramientas para observar el comportamiento real (por ejemplo,
-  registros Copper efectivos, punteros BPL por frame o ciclos del Blitter),
-  declararlo explícitamente y no presentar una hipótesis como resultado.
-- Probar primero el caso límite relevante y solo después documentar o afirmar
-  que el cambio está resuelto.
+> Navegación general y protocolo de ingesta: `docs/ai-dev-environment/DOC-MAP-PRINCIPAL.md`.
+> Índice maestro de la documentación: `docs/README.md`.

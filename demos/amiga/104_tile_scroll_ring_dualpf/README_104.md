@@ -320,7 +320,7 @@ movimientos de punteros (6 planos × PTH/PTL), la paleta (32 COLORxx), y un
 Escribir una copperlist cada frame cuesta ciclos de CPU, pero es la vía
 recomendada porque el Copper **escribe los registros en el momento exacto del
 raster**, sin las carreras de escribir por CPU durante el VBlank (que producían
-frames corruptos con blits activos, ver AGENTS.md).
+frames corruptos con blits activos, ver `docs/engine/architecture/DISPLAY_COMPOSITION.md`).
 
 ---
 

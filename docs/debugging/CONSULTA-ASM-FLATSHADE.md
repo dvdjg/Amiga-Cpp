@@ -19,7 +19,7 @@ copiar: el efecto original es **C**.
   ```
   y macros (`MULVERTEX1/2`, `DRAWLINE`). El **g++ 15 de este repo ignora esos pins**
   (`register ... asm("aN")` no obliga la asignación), así que no alcanza el codegen
-  apretado. La estrategia (documentada en `AGENTS.md` y ya usada en
+  apretado. La estrategia (regla §12.3 de `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` y ya usada en
   `support/fire_loop.s`) es: **conservar la versión C++ canónica y portar las rutinas
   calientes a ASM m68k escrito a mano** (`support/flatshade_asm.s`), con un flag
   `K_FLATSHADE_ASM` que elige una u otra.

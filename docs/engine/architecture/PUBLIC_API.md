@@ -128,7 +128,15 @@ arrastrar código no usado.
 `Bitplane`, `Playfield`, `BPLCON*`, `Copper`/`CopperList`, `Blitter`, `DMACON`, `planes`, `split`,
 `DPF`/`HAM`/`chunky` como flags, punteros, offsets de memoria, ni la elección de modo de display.
 
-## 12. Referencias
+## 12. Reglas obligatorias y prueba de diseño
+
+- **El programador no ve funciones de bajo nivel**: todo dibujo y acceso a la imagen pasa por una **abstracción de alto nivel** (tipo **contexto de dispositivo**), análoga al `RastPort` de la ROM de Amiga (graphics.library) o a un device-context de Windows. La app pide «surface/contexto» y dibuja sobre él sin conocer la memoria subyacente; no hay `draw_text` que reciba puntero a bitplanes, índices de planos ni `u8*`.
+- **Sin punteros ni mecanismos inseguros en el API**: no exponer `u8*`, offsets crudos, layouts, planos, registros custom ni direcciones DMA en la interfaz pública (ver §11). Esas decisiones viven en la implementación (driver/surface), nunca en la firma que consume la lógica de juego.
+- **Versátil para cualquier configuración**: el API debe funcionar igual para EHB, single/double playfield, 4/5/6 planos, interleaved/separate y cualquier resolución. No diseñar funciones o clases que solo funcionen en EHB, en DPF o en un tamaño concreto; la abstracción expone un «pincel/contexto» que la propia superficie configura internamente según sus parámetros.
+- **Prueba de diseño**: una función de dibujo debe poder expresarse igualmente sobre un contexto EHB de 6 planos, uno single de 4 planos y uno DPF, con la misma llamada y solo cambiando la configuración del contexto; el llamador nunca ve qué modo es.
+- Lo que sí puede ser específico de un modo (registros, copper, DMA) queda **dentro del driver/surface** o en capas backend, nunca filtrado al llamador.
+
+## 13. Referencias
 
 - Modelo interno: `PLAYFIELD_SCROLL_ARCHITECTURE.md`.
 - Escena retenida y recursos: `SCENE_AND_RESOURCES.md`.

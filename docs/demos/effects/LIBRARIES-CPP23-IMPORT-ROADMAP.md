@@ -41,7 +41,7 @@ C:\Users\dvdjg\Documents\programa\AI\Amiga\demoscene-repo
 3. **Portación fiel al comportamiento, limpia en estilo.** Se traduce la lógica
    al C++23 del engine: sin excepciones, sin RTTI, sin asignación dinámica en
    gameplay, APIs paramétricas y agnósticas del backend (reglas de
-   `AGENTS.md`/`CODING_STYLE.md`). Los comentarios didácticos en español, con
+   `docs/engine/architecture/CODING_STYLE.md`). Los comentarios didácticos en español, con
    esquema ASCII cuando aclare geometrías.
 4. **Regla de no-salto.** No pasar de "código C en origen" a "API final del
    engine" directamente. Por librería: inventariar → portar mínimo → validar
@@ -189,7 +189,7 @@ Para cada librería, en cada oleada, seguir este pipeline:
      y anotar por qué (regla: solo la mejor información).
    - Decidir namespace destino según tabla de §2.
 4. **Portación C++23**
-   - Traducir con el estilo del engine (codigar a `AGENTS.md`/`CODING_STYLE.md`).
+   - Traducir con el estilo del engine (codigar a `docs/engine/architecture/CODING_STYLE.md`).
    - Los `.asm` se referencian desde `support/`, no se traducen.
    - Añadir comentarios didácticos en español (qué invariante mantiene, por qué
      una alternativa simple sería más cara).
@@ -254,7 +254,7 @@ o producir basura. La evidencia es la imagen/captura o un test de equivalencia.
 
 ### C-bis. En 68000, no acceder byte a byte en el hot path (inspeccionar `-S`)
 
-Regla de `AGENTS.md` ("comprobar el ensamblador generado") confirmada con el c2p: si el
+Regla §12 de `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` («comprobar el ensamblador generado») confirmada con el c2p: si el
 C++ construye un `u32` byte a byte (p. ej. `load_be` con 4 shifts para "portabilidad"),
 g++ NO lo fusiona en un `move.l (a0)+` y emite ~15 instrucciones por longword en vez de
 1. Lo mismo al escribir: `move.b` sueltos en vez de `move.w`.

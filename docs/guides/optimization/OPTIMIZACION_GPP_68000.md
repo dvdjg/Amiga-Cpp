@@ -441,6 +441,33 @@ van a 48-50 fps, *vblank-gated*); reducirlo es **margen** para hardware real, no
 - Antes de tocar: `asm-audit.mjs` para localizar, y **medir** el camino ejecutado (el conteo
   estático incluye ramas no tomadas).
 
+---
+
+## 12. Reglas obligatorias de rendimiento, comentarios y port a asm
+
+Estas reglas son de obligado cumplimiento y `AGENTS.md` enruta aquí.
+
+### 12.1 Regla permanente de rendimiento
+
+- Todo código nuevo debe minimizar el trabajo total por frame y reutilizar datos, trabajos, buffers y estados siempre que sea posible.
+- La CPU debe limitarse a decidir cambios y programar hardware; evitar que haga copias, divisiones, módulos, recorridos o reconstrucciones repetidas que puedan resolverse incrementalmente, por lotes o mediante el Blitter/Copper.
+- Antes de aceptar una solución, buscar explícitamente algoritmos O(1) o O(n) frente a colas O(n²), fusionar operaciones compatibles y reducir el número real de accesos al Blitter y de esperas síncronas.
+- Medir los picos con profiling y telemetría en el caso límite, no solo validar que el frame nominal funcione; cualquier optimización debe conservar la corrección visual y el presupuesto de Chip RAM.
+- **Criterio retro del chipset (68000)**: preferir algoritmos **rápidos y exactos** a lentos y precisos. Un algoritmo que subestima ~6 en `isqrt` pero cuesta 10 ciclos gana a uno exacto que paga `__divsi3`/`__mulsi3`. Para el hot path, lo deseable es aritmética 16-bit nativa (`muls.w`/`divs.w`), bucles countdown que emiten `dbra`, cero divisiones runtime, cero floats y cero STL.
+- **Comprobar el ensamblador generado**: al portar o escribir APIs, revisar con `-S`/`-fverbose-asm` que el código que emite el toolchain no sea peor que el original (o que el asm a mano del repo de origen). Un port 100 % «fiel pero lento» pierde contra el original 68k optimizado; si el original usaba una optimización en asm (p. ej. `swap` para rotar, `lsl.l #8; add` para `<<9`, `divs`/`divu` de 16 bits), verificar que nuestra versión C++ produce algo al menos igual de eficiente y anotarlo en la bitácora (§8).
+
+### 12.2 Comentario de optimizaciones
+
+- Toda optimización que deje **rastros no canónicos** en el código —algo que un lector no esperaría para ese algoritmo: un `static_cast` o tipo raro, una escritura de 32 bits donde «tocaría» dos de 16, asm inline, un orden de operaciones forzado, un flag/parámetro que desactiva una ruta «natural», desenrollados, contadores de perfilado en el bucle caliente, etc.— debe llevar **un comentario breve que explique POR QUÉ** se hace así en vez de la forma más legible/natural en C++ (p. ej. «evita `__mulsi3`», «una sola escritura al registro custom porque cada acceso cuesta ~57 ciclos con `cpu_cycle_exact`», «se fija 1×/frame en vez de por línea»).
+- Aplica a **todo** el código susceptible, no solo al nuevo: si detectas una optimización sin justificar (propia o preexistente), documéntala.
+- El comentario debe ser **corto** y citar el mecanismo/coste concreto, no una explicación larga.
+
+### 12.3 Port de rutinas calientes a asm
+
+- En los ports de efectos del demoscene, **conservar siempre la versión C++ canónica** en el código (fiel al original, legible) **y portar las rutinas más calientes a ASM m68k copiándolas del original** (caso de referencia: `support/fire_loop.s`, fire-rgb, demo 080). El asm vive en `support/<nombre>.s` (gas, sin `.cfi`), con argumentos por memoria en un global `extern "C"` y un flag `K_<DEMO>_ASM` (default el camino seguro) que elige asm o C++. Cuando la ruta asm ya pasa el gate visual y la regresión, se puede invertir el default para que la demo compile con el asm (documentándolo en el README de la demo y dejando la ruta C++ accesible con `-DK_<DEMO>_ASM=0`).
+- Motivo: g++ 15 ignora los pins `register ... asm("aN")` del original y no alcanza el codegen apretado (ver §9). El original sí lo consigue con variables de registro y macros inline.
+- **Toda ruta asm debe validarse visual/estructuralmente** (secuencia de frames + `verify-*`), no solo por compilación: un `movea.l`/`lea`, un índice o una división mal portados cuelgan o deforman sin fallar el build. Referencia de errores vistos: `docs/debugging/` y la bitácora de este documento.
+
 
 
 

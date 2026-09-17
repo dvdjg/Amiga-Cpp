@@ -87,3 +87,31 @@ y estaba roto en plena animación (el fondo desaparecía al scrollear).
 - **Regla**: ante cualquier cambio de **render**, no fiar el resultado a `verify-*`; pasar
   **Ollama** (preguntando por anomalías concretas) o comparar con una referencia por fase
   (IoU + MAD). Y si el objeto se mueve, comparar **al mismo ángulo**.
+
+## 6. Reglas obligatorias (demos y validación visual)
+
+Estas reglas son de obligado cumplimiento y `AGENTS.md` enruta aquí. Complementan las lecciones de las secciones anteriores.
+
+### 6.1 Demo atractiva
+
+- **Una demo no es un test.** Su objetivo es **entrar por los sentidos** y hacer evidente la capacidad que demuestra. Una demo nueva (o al reescribir una existente) debe cumplir estas condiciones; si no, no se considera terminada.
+- **Requisito de técnica exclusiva**: debe mostrar algo que **solo se puede hacer con la técnica que implementa** y que **se vea de un vistazo** por qué esa técnica lo habilita (p. ej. chunky → efecto por píxel que en planar puro no podrías pagar; sprites → multiplexado; copper → split/rasters; blitter → rellenos y máscaras; EHB → degradados de 64 tonos). No vale un patrón plano ni un rectángulo de color sobre negro.
+- **Animación obligatoria y fluida**: movimiento continuo (50 fps si el presupuesto lo permite; si no, la máxima tasa que se sostenga sin tearing perceptible), no una imagen estática. La suavidad forma parte de la demostración. **Nunca** una demo de efecto por píxel puede quedarse en un único frame convertido en `init`.
+- **Color y contexto**: paletas ricas (degradados reales, EHB, transparencias) y un fondo con contexto; no un par de colores planos ni una rampa de grises «de test».
+- **Legibilidad**: debe verse de un vistazo qué efecto se está implementando (plasma, fuego, rotozoom, túnel, scroll, etc.) y, si procede, un rótulo/texto que lo nombre.
+- Estas condiciones **sustituyen** al antiguo criterio de aceptación «compila, llega a Ready y el pixel-assert pasa»: ese gate sigue siendo necesario, pero **no suficiente**.
+
+### 6.2 Validación visual con visión local
+
+- **Ninguna demo o efecto se da por terminado sin pasar Ollama con modelo de visión** (`qwen3-vl:8b-instruct-q8_0`). Los gates automáticos (cobertura, nº de tonos, rampa, `analyze-demo`) **no ven glitches**: costuras, saltos de 16 px, filas duplicadas, planos descolocados, parpadeos o geometrías deformes pasan como «OK». El feedback humano llega tarde o no llega.
+- **Validar secuencias, no solo una imagen**: analizar **varios frames** del efecto (`tools/profile/ai-analyze.mjs <out> <n> --demo <demo> --prompt "..."`), porque hay fallos que solo aparecen en movimiento (cruces de tile, flip de buffer, tearing, parpadeo entre frames). Una sola captura **no** es evidencia suficiente.
+- El prompt debe pedir explícitamente **anomalías** y lo que **se pretendía** ver (`--prompt "scroll horizontal fino; ¿hay saltos de 16 px o costuras entre tiles?"`), no una descripción genérica.
+- Guardar el veredicto como evidencia (salida del informe) y, si hay glitch, **no dar la demo por hecha**: anotarlo y arreglarlo o marcarla como pendiente.
+- **El veredicto de visión es un filtro de sospecha, no una prueba**: puede sobre-reportar en texturas de alta frecuencia (caso real: `qwen3-vl` acusó «permutación de planos» en la 061 y un gate objetivo de 7 estados —rotación/zoom/paneo— la descartó) y también **dar falsos negativos** (dijo «los frames son idénticos, no hay movimiento» en la 083, cuyos 3 frames tenían MD5 distintos). Toda anomalía señalada **y toda afirmación de «no se mueve»** se confirma o refuta con un gate objetivo (gate de estados, diff de frames/MD5, comparación por fase); si el gate no cubre ese estado (p. ej. la 061 solo comparaba la identidad), **ampliarlo** antes de dar nada por bueno. Ojo también con el **ritmo de captura**: si la demo va a menos fps que el intervalo de captura, los frames salen iguales por muestreo, no por falta de animación (083: 2,3 fps → capturar cada 1,5 s).
+- Herramientas: `tools/profile/ai-analyze.mjs` (`--mode frames|montage|all`), `tools/analyze/verify-scroll-directions.mjs`, `tools/amiga-tiles/run-vision-verify.mjs`. Ollama en `127.0.0.1:11434`; alternativa por MCP: `winuae_profile_ollama`. Nota: el camino `--demo` de `ai-analyze.mjs` no levanta el canal lateral; hoy lo fiable es `run-demo.sh <demo> --sequence-frames N` (deja `out/run/<demo>/<cfg>/sequence/`) y analizar esos frames con el modelo de visión.
+
+### 6.3 Validación de optimizaciones de render
+
+- Una optimización que toque el **render** (registros/blits/orden de operaciones) **NO se da por buena con `verify-*` de cobertura/tonos**: hay que validarla **visual o estructuralmente** contra la referencia.
+- Gate mínimo con el emulador: capturar una **secuencia** y compararla con el original por **fase** (mejor IoU + MAD de color; ver `tools/analyze/bestphase.mjs` o `tools/analyze/phasecmp.mjs`) o pedir una descripción a Ollama preguntando explícitamente por **anomalías** (caras deformes, aristas que no cierran). `verify-116` pasó con el sólido deformado: cobertura y nº de tonos no bastan.
+- Ejecutar el gate **después de cada** cambio de render y **revertir** si empeora, aunque el cambio parezca inocuo (p. ej. fijar los comunes del Blitter 1×/frame rompió flatshade-convex).

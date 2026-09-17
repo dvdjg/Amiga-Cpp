@@ -294,3 +294,20 @@ Opciones utiles:
 
 `-Warp` en regresion es util para ciclos internos rapidos de la IA. Para observar
 suavidad o depurar visualmente, usa el menu o `run-demo.ps1` sin `-Warp`.
+
+## Herramientas locales requeridas
+
+- Windows + Git Bash + Node.js son obligatorios para el flujo de ejecución automatizada (`tools/run/run-demo.sh` → `dist/tools/run/run-demo.js`).
+- **NO usar WSL** para este proyecto: el entorno operativo es **Windows nativo**. Todo comando que invoque `node`, `g++`/el toolchain Amiga, WinUAE o el runner debe ejecutarse con los binarios de Windows (p. ej. `C:\Program Files\nodejs\node.exe`, el `.exe` de la extensión Bartman), no con el `bash` de WSL (que mangla rutas y rompe `cc1plus`/lanzamiento de WinUAE). Si un script necesita bash en Windows, usar Git Bash, nunca WSL. Usar rutas Windows (`C:\...`, `out\run\...`) o montajes `/mnt/c` solo para lectura.
+- El toolchain Amiga se resuelve en este orden: `AMIGA_BIN_PATH`, extensión de Cursor y luego extensión de VS Code `bartmanabyss.amiga-debug-*` (versión más alta instalada; el fork local es 1.8.1).
+- `tools/run/run-demo.ts` importa dinámicamente `../mcp-winuae-emu/dist/winuae-connection.js` desde el repositorio hermano; si falta, el runner falla antes de abrir WinUAE.
+
+## Reglas del runner/emulador
+
+- `run-demo` configura WinUAE con `warp=false` por defecto. Usar `-Warp` solo para throughput/diagnóstico rápido, no para evaluar suavidad visual.
+- Las demos modernas deben exponer `g_eng_run_status`; el runner espera `READY` por canal lateral en `127.0.0.1:2346` y falla rápido si no llega.
+- El fallback por timeout es opt-in (`--allow-timeout-fallback`) y es para diagnóstico.
+- Las capturas de secuencia se limpian antes de cada ejecución (`out/run/<demo>/sequence`) para no mezclar frames antiguos.
+- Orden de verificación por defecto: `build -> run -> analyze`; `analyze-demo.sh` espera `.exe/.elf/.map` y valida `out/run/<demo>/screenshot.png` si existe. `tools/test-regression.sh` impone ese orden por demo y ejecuta `analyze-sequence.sh` automáticamente cuando existe.
+- La regresión usa build estilo debug por defecto (`--debug` interno). Usar `--release` solo cuando se necesite comportamiento de optimización release.
+- Varias instancias de WinUAE a la vez: puertos propios, no matar ajenas y limpiar las propias; ver [DEBUG-WINUAE-V2-GUIDE.md](../debugging/DEBUG-WINUAE-V2-GUIDE.md) §1.3.

@@ -19,6 +19,7 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
 | `docs/guides/roadmap/SCROLL_DEMOS_CLEANUP.md` | **(nuevo) Fase 0** | Inventario de demos de scroll, glosario XLimited/XYLimited, lista de salvamento y matriz de demos por algoritmo; tileset 32c compartido |
 | `docs/guides/roadmap/NORMALIZACION_REPO.md` | **roadmap vigente de limpieza** | Fases F0-F5 para normalizar tras la mezcla de ramas: una sola implementación de buffers y de copper, superficies sin memoria, unificación de scroll/cámaras, checklist de incongruencias |
 | `docs/engine/architecture/DISPLAY_COMPOSITION.md` | **(nuevo) contrato** | Buffers de display (3 granularidades, `MultiBuffered<Driver,N>`) y orquestación de copper por escena (`CopperPlan`) |
+| `docs/guides/roadmap/BITACORA_SCROLL_TILES.md` | bitácora | Estado y lecciones del scroll por tiles (fix de `BPLCON1` de la 101, multi-modo, optimizaciones O(n²)→O(n), cifras de fps) |
 
 ## Estado real del engine y las demos (2026-09)
 
@@ -91,7 +92,7 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
     rebuild_copper` emite las zonas de paleta como `PaletteLine` (demos 030/040
     llegan a READY).
   - Embellecer la demo 053 (fondo, animación de colores) siguiendo la regla
-    «Demos atractivas» de `AGENTS.md`.
+    «Demos atractivas» de `docs/guides/methodology/DEMO_VISUAL_DEBUG.md`.
 
 ## Input y audio — estado (2026-09)
 

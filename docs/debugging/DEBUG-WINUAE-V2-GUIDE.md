@@ -46,12 +46,21 @@ Cualquier tool MCP que acabe en `monitor X` es un wrapper de `monitor X`.
 Independiente de GDB; útil cuando GDB no está disponible o quedó inerte.
 
 **Puertos configurables (varias instancias).** El fork permite fijar los puertos por
-entorno: `WINUAE_GDB_PORT` (GDB, default 2345) y `WINUAE_SIDE_CHANNEL_PORT` (canal
-lateral, default 2346). Así se pueden lanzar **varias instancias de WinUAE a la vez**.
-`run-demo.sh` respeta ambas vars (o `--side-channel-port`); el MCP lee
-`WINUAE_GDB_PORT`. Los scripts ad-hoc (`out/tmp/*.mjs`) llevan 2345/2346 hardcoded.
-Regla: usar **puertos propios**, **no matar** instancias ajenas y **limpiar las
-propias** (ver `AGENTS.md`).
+entorno: `WINUAE_GDB_PORT` (GDB, default 2345), `WINUAE_SIDE_CHANNEL_PORT` (canal
+lateral, default 2346) y `WINUAE_GDB_PERSIST_LISTENER` (el GDB server sigue
+escuchando tras desconectar). Así se pueden lanzar **varias instancias de WinUAE a la
+vez**, cada una depurando en puertos distintos. `run-demo.sh` respeta ambas vars (o
+`--side-channel-port`); el MCP lee `WINUAE_GDB_PORT` y sus tools aceptan el puerto del
+canal lateral. Las herramientas de profiling (`tools/debug/measure-fps.mjs`,
+`tools/debug/ports.mjs`) usan las vars del entorno. Los scripts ad-hoc (`out/tmp/*.mjs`)
+llevan 2345/2346 hardcoded.
+
+**Regla de convivencia (no somos el único usuario del emulador; respeto entre
+instancias/agentes):**
+
+- Elegir **puertos propios** y no reutilizar los de otra sesión; si un puerto está ocupado, usar otro en vez de forzar.
+- **Nunca matar** procesos `winuae-gdb`/`winuae64` que no se hayan lanzado uno mismo. Antes de matar, comprobar si son propios (por PID/instancia).
+- **Controlar y limpiar las propias**: registrar los PIDs lanzados y cerrarlos al terminar; no dejar instancias huérfanas ocupando puertos.
 
 ---
 
