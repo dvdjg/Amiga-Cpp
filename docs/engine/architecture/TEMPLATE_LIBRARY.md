@@ -143,6 +143,25 @@ Puntos de reutilización explícitos:
   `Optional`/`Expected` mantienen presente el almacenamiento de sus tipos (no hay
   `new` de colocación en freestanding) y exigen `T` construible por defecto.
 
+### 3.b Soporte por escalar
+
+Los contenedores y las utilidades de bytes/enteros son agnósticos del tipo (almacenan `T` y usan solo `operator<`/`==`/`+`); las utilidades **escalar-genéricas** (`stats`, `dsp`) usan `mul_norm`/`div_norm` y los rasgos del escalar. No hacen falta especializaciones: `MiniFloat16` y `Fixed` funcionan igual.
+
+| Utilidad | enteros | `Fixed` (p. ej. q12) | `MiniFloat16` | `float`/`double` |
+|---|---|---|---|---|
+| Contenedores (`Array`…`RingBuffer`, `FlatMap`, `HashSet`, `Pool`, `PriorityQueue`…) | sí | sí | sí | sí |
+| `algorithm.hpp`, `core/sort.hpp`, `type_traits`/`util`/`bit` | sí | sí | sí | sí |
+| `collision`, `color`, `grid`, `broadphase`, `pathfinding`, `text` | sí | — | — | — (enteros por diseño: 68000/hardware) |
+| `stats` | — | sí (`div_norm`; satura) | sí (~1e-3) | sí |
+| `dsp` | — | sí (salvo `osc_sine`) | sí | sí |
+
+Limitaciones (también en cada cabecera):
+
+- `stats::stddev` **no compila** con `Fixed` (no hay `sqrt`); `dsp::osc_sine` **no compila** con `Fixed` (no hay `sin`).
+- `MiniFloat16`: pierde incrementos por debajo de `2^-14` (tasas de ADSR/`alpha` muy pequeñas bajoflow a 0); precisión ~1e-3.
+- `Fixed`: la división (`div_norm`) **satura**; el paso mínimo es `2^-Exp` (p. ej. 1/4096 en q12).
+- Las matemáticas de escalares (interpolación, easings, geometría, ruido, `minifloat_math`) viven en `eng::math`; ver `SCALAR_LIBRARY.md` y `MATH_LIBRARY.md`.
+
 ## 4. Qué no incluye (y por qué)
 
 - **Contenedores con heap implícito** (`std::string`, nodos de `std::map`/`std::list`): fuera. Sí hay `Vector`/`SmallVector`/`ChunkedVector` y mapas/sets, pero **sin `malloc`**: crecen sobre un `Allocator` (arena) y solo en `init`/carga.
@@ -188,7 +207,8 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-099 | `pathfinding.hpp` (BFS/A*/reconstruct) |
 | HOST-100 | `core/random.hpp` (next_range/pick/shuffle/gaussian) |
 | HOST-101 | `core/noise.hpp` (worley/turbulence/ridged) |
-| HOST-102 | `dsp.hpp` (Adsr/OnePole/DelayLine/osciladores) |
+| HOST-102 | `dsp.hpp` (Adsr/OnePole/DelayLine/osciladores; `double`/MF/`q12`) |
+| HOST-103 | util (contenedores/algoritmos) con `MiniFloat16`/`q12` |
 
 > **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`), `Pool` por `086_bob_objects` (parque de actores), `HashMap` por `111_xlimited_sidescroller` (índice de chunks de `ChunkCache`), `color` también por `086_bob_objects` (gradiente del cielo con `eng::util::lerp444`), y `broadphase` y `pathfinding` por `110_ylimited_shooter` (self-test en `init`: `SpatialHash` + `bfs`/`reconstruct_path` en el 68000; si falla, la demo no llega a READY). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashSet`, `DynamicHashMap`, `PriorityQueue`, `Stack`/`Queue`/`Deque`, `EnumSet`, `ScopeGuard`, `StaticString`, `stats`, `collision`, `text`, `grid`, `dsp`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..102 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
 

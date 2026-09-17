@@ -15,6 +15,16 @@
 ///   const auto a = env.tick();          // amplitud del sample actual
 ///   eng::util::OnePole<MiniFloat16> lp { /*alpha*/ ... };
 ///   y = lp.process(x);
+///
+/// ## Escalares y límites
+///
+/// Genérico sobre `S` (usa `mul_norm`/`scalar_traits`, sin `float` obligatorio):
+/// - **`float`/`double`**: sin límites prácticos.
+/// - **`MiniFloat16`** (~10 bits, `[2^-14, 65504]`): precisión ~1e-3; una tasa del ADSR o
+///   un `alpha` por debajo de `2^-14` **bajoflow a 0** (el segmento no avanza).
+/// - **`Fixed`/`q12`**: funciona `Adsr`/`OnePole`/`DelayLine`/`soft_clip`/`osc_saw`/
+///   `osc_square`/`osc_triangle` (el mínimo es `2^-E`, p. ej. 1/4096); **`osc_sine` no
+///   compila** con fixed porque necesita `sin` (no lo ofrece).
 
 #include <eng/core/linalg.hpp>
 #include <eng/core/scalar_math.hpp>

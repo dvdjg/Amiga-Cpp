@@ -11,10 +11,12 @@
 
 #include <eng/core/minifloat_math.hpp>
 #include <eng/core/util/dsp.hpp>
+#include <eng/retro/fixed_q.hpp>
 
 using eng::math::MiniFloat16;
 namespace em = eng::math;
 namespace eu = eng::util;
+namespace er = eng::retro;
 
 namespace {
 
@@ -107,6 +109,34 @@ int main() {
 		check(std::fabs(em::to_double(dl.read(0u)) - 0.75) <= 2.0e-3, "MF delay");
 		const double saw = em::to_double(eu::osc_saw(MiniFloat16(0.25f)));
 		check(std::fabs(saw + 0.5) <= 5.0e-3, "MF saw(0.25) ~ -0.5");
+	}
+
+	// --- fixed q12 (salvo osc_sine: necesita sin) ---------------------------
+	{
+		const auto q = [](float v) {
+			return er::q12 {static_cast<eng::s16>(v * 4096.0f + 0.5f)};
+		};
+		eu::Adsr<er::q12> env {q(0.25f), q(0.25f), q(0.25f), q(0.5f)};
+		env.note_on();
+		check(std::fabs(em::to_double(env.tick()) - 0.25) <= 2.0e-3, "q12 ADSR attack");
+		(void)env.tick(); // 0.5
+		(void)env.tick(); // 0.75
+		check(std::fabs(em::to_double(env.tick()) - 1.0) <= 2.0e-3, "q12 ADSR pico");
+		for (int i = 0; i < 3; ++i) {
+			(void)env.tick();
+		}
+		check(std::fabs(em::to_double(env.level) - 0.5) <= 2.0e-3, "q12 ADSR sustain");
+		eu::OnePole<er::q12> lp {q(0.5f), q(0.0f)};
+		(void)lp.process(q(1.0f));
+		check(std::fabs(em::to_double(lp.y) - 0.5) <= 3.0e-3, "q12 OnePole ~0.5");
+		eu::DelayLine<er::q12, 4> dl;
+		dl.clear();
+		dl.push(q(0.75f));
+		check(std::fabs(em::to_double(dl.read(0u)) - 0.75) <= 2.0e-3, "q12 delay");
+		check(std::fabs(em::to_double(eu::osc_saw(q(0.25f))) + 0.5) <= 2.0e-3, "q12 saw");
+		check(er::q12 {0} < eu::osc_square(q(0.25f)) &&
+			      er::q12 {0} < eu::osc_triangle(q(0.5f)),
+		      "q12 square/triangle definidos");
 	}
 
 	if (g_fail != 0) {
