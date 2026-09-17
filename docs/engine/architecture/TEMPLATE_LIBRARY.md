@@ -184,6 +184,7 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-097 | `grid.hpp` (tile/iso/hex) |
 | HOST-098 | `broadphase.hpp` (SpatialHash) |
 | HOST-099 | `pathfinding.hpp` (BFS/A*/reconstruct) |
+| HOST-100 | `core/random.hpp` (next_range/pick/shuffle/gaussian) |
 
 > **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`), `Pool` por `086_bob_objects` (parque de actores), `HashMap` por `111_xlimited_sidescroller` (índice de chunks de `ChunkCache`) y `color` también por `086_bob_objects` (gradiente del cielo con `eng::util::lerp444`). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashSet`, `DynamicHashMap`, `PriorityQueue`, `Stack`/`Queue`/`Deque`, `EnumSet`, `ScopeGuard`, `StaticString`, `stats`, `collision`, `text`, `grid`, `broadphase`, `pathfinding`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..099 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
 
@@ -207,7 +208,8 @@ mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
    (`c_stable_sort`/`c_nth_element`/`c_radix_u16`), `dynamic_hash_map.hpp` (`c_dyn_hashmap`),
    `stats.hpp` (`c_stats_ops`) y `color.hpp`/`collision.hpp`/`text.hpp`
    (`c_color_lerp`/`c_collision_ops`/`c_text_ops`), `grid.hpp` (`c_grid_ops`),
-   `broadphase.hpp` (`c_broadphase_ops`) y `pathfinding.hpp` (`c_pathfinding_ops`).
+   `broadphase.hpp` (`c_broadphase_ops`), `pathfinding.hpp` (`c_pathfinding_ops`) y
+   `core/random.hpp` (`c_random_ops`).
 5. Antes de añadir una utilidad nueva, comprobar si el **vocabulario** de §7 ya cubre la
    necesidad (p. ej. flags con `EnumSet`, restauración con `ScopeGuard`, colas con
    `Queue`/`Deque`); adoptarlo en el engine y documentarlo aquí.
@@ -244,6 +246,7 @@ Qué usar según la necesidad, con el criterio del A500 (sin heap; coste visible
 | Coordenadas tile/iso/hex | `grid.hpp` |
 | Broadphase (rejilla espacial) | `broadphase.hpp` |
 | Búsqueda de caminos (A*/BFS) | `pathfinding.hpp` |
+| Aleatoriedad (rango/pick/shuffle) | `core/random.hpp` (`Xoroshiro64pp` + distribuciones) |
 | Pasar un callable sin poseerlo | `FunctionRef<Sig>` |
 
 Notas de uso:

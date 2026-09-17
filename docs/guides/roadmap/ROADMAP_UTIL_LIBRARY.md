@@ -78,6 +78,10 @@ sin libcalls). pendiente: verificar R2 por demo (consumidor con muchas entidades
 
 ### R3 — Audio y efectos
 
+**Estado: R3.1 hecho** (`core/random.hpp`: `next_range`/`next_symmetric`/`chance`/`pick`/
+`shuffle`/`next_gaussian_approx`, HOST-100; `next_mod` sin división, sonda
+`c_random_ops`). R3.2/R3.3 pendientes.
+
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
 | R3.1 | `random` distribuciones | `next_range`, `float01`, `pick`, `shuffle(Span)` (Fisher-Yates), `gaussian` | HOST-100 |

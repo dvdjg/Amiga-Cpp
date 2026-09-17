@@ -43,6 +43,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/util/grid.hpp>
 #include <eng/core/util/broadphase.hpp>
 #include <eng/core/util/pathfinding.hpp>
+#include <eng/core/random.hpp>
 #include <eng/core/sort.hpp>
 #include <eng/graphics/mesh_renderer.hpp>
 #include <eng/platform/amiga/lib3d.hpp>
@@ -304,6 +305,16 @@ extern "C" u16 c_pathfinding_ops(u16 start, u16 goal) {
 					 eng::Span<eng::u16> {gs, 64},
 					 eng::Span<eng::u8> {closed, 64});
 	return static_cast<u16>(bl + (aok ? 1u : 0u));
+}
+extern "C" u16 c_random_ops(u16 seed) {
+	eng::Xoroshiro64pp rng {seed, static_cast<eng::u32>(seed + 1u)};
+	eng::u16 data[8];
+	for (eng::u16 i = 0; i < 8u; ++i) {
+		data[i] = static_cast<eng::u16>(eng::next_range(rng, 0u, 1000u));
+	}
+	eng::shuffle(rng, eng::Span<eng::u16> {data, 8});
+	return static_cast<eng::u16>(eng::pick(rng, eng::Span<const eng::u16> {data, 8}) +
+				     (eng::chance(rng, 1u, 3u) ? 1u : 0u));
 }
 `;
 
