@@ -72,6 +72,8 @@ Dependencias: R2.2/R2.3 se apoyan en el vocabulario ya entregado (contenedores, 
 estructuras nuevas). Cierre de R2: demo consumidora (broadphase y/o pathfinding) y
 regresión verde; ambas pasan a verificadas por demo.
 
+**Estado: R2.1 hecho** (`grid.hpp` HOST-097; sonda `c_grid_ops`). R2.2/R2.3 pendientes.
+
 ### R3 — Audio y efectos
 
 | Paso | Entrega | Detalle | Verificación |

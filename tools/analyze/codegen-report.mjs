@@ -40,6 +40,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/util/color.hpp>
 #include <eng/core/util/collision.hpp>
 #include <eng/core/util/text.hpp>
+#include <eng/core/util/grid.hpp>
 #include <eng/core/sort.hpp>
 #include <eng/graphics/mesh_renderer.hpp>
 #include <eng/platform/amiga/lib3d.hpp>
@@ -264,6 +265,13 @@ extern "C" u16 c_text_ops(const char* s, eng::u32 n) {
 	eu::StaticString<16> buf;
 	eu::to_chars_u32(buf, v);
 	return static_cast<u16>(buf.size());
+}
+extern "C" s16 c_grid_ops(s16 tx, s16 ty) {
+	const eng::Point2s px = eu::grid_to_world(eu::TileCoord {tx, ty}, 16u, 16u);
+	const eu::TileCoord back = eu::world_to_grid<16, 16>(px.x, px.y);
+	eu::Hex vecinos[6];
+	eu::hex_neighbors(eu::Hex {tx, ty}, vecinos);
+	return static_cast<s16>(back.x + back.y + eu::hex_distance(vecinos[0], vecinos[3]));
 }
 `;
 
