@@ -33,6 +33,7 @@ La librería **complementa** el núcleo de `eng/core/`, no lo duplica:
                                      vector.hpp        Vector<T,A>        (arena)
                                      chunked_vector.hpp ChunkedVector<...> (estable)
                                      ring_buffer.hpp   RingBuffer<T,N>
+                                     pool.hpp          Pool<T,N> (handles)
                                      intrusive_list.hpp IntrusiveList/SList<T>
                                      flat_map.hpp      FlatMap<K,V,N>
                                      flat_set.hpp      FlatSet<T,N>
@@ -61,7 +62,7 @@ Puntos de reutilización explícitos:
 - `hash.hpp` se apoya en `eng::math::mulu16` (`word.hpp`, un `mulu.w`) y en `rotl`
   (`bit.hpp`); evita la multiplicación de 32×32 que emitiría `__mulsi3`.
 - Los contenedores de capacidad fija siguen el patrón de handles/pool de `eng/task/background.hpp` (sin heap, con `valid()` explícito donde aplica).
-- `eng/scene/actor.hpp` es el primer consumidor dentro del engine: `ActorStore` usa `BitSet<MaxActors>` para los slots vivos del parque generacional y `emit_bob_fallbacks` usa `StaticVector<u16, MaxActors>` para los degradados a BOB.
+- `eng/scene/actor.hpp` usa `eng::util::Pool<Actor, MaxActors>` como parque de actores con handles generacionales (`ActorStore`), `BitSet<MaxActors>` y `StaticVector` en la emisión de BOB.
 - `eng/assets/uaf.hpp` (`Blob`) indexa los chunks con `FlatMap<ChunkType, u16, kMaxChunks>` y guarda la lista en `StaticVector<ChunkRef, kMaxChunks>`; lo consumen las demos de assets (078/100/101).
 - `eng/task/background.hpp` usa `IntrusiveSList<Entry>` como free-list de slots de tarea (reparto y devolución `O(1)`, sin heap); lo ejercita la demo `081_background_tasks`.
 
@@ -83,6 +84,7 @@ Puntos de reutilización explícitos:
 | `vector.hpp` | `Vector<T, A>` (crece en arena) | `std::vector` (sin heap) |
 | `chunked_vector.hpp` | `ChunkedVector<T, Chunk, Max, A>` (direcciones estables) | (sin equivalente) |
 | `ring_buffer.hpp` | `RingBuffer<T, N>` | (sin equivalente) |
+| `pool.hpp` | `Pool<T, N>` (+ `Handle` generacional) | `boost::pool` / slot map |
 | `intrusive_list.hpp` | `IntrusiveList<T>`, `IntrusiveSList<T>` (+ `IntrusiveLink`/`IntrusiveSLink`) | `boost::intrusive::list` |
 | `flat_map.hpp` | `FlatMap<K, V, N>` | `flat_map` (Boost) |
 | `flat_set.hpp` | `FlatSet<T, N>` | (sin equivalente) |
@@ -145,8 +147,9 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-085 | `direct_map.hpp` |
 | HOST-086 | `dynamic_hash_map.hpp` (rehash, estrés contra referencia e internado) |
 | HOST-087 | `intrusive_list.hpp` (`IntrusiveList`/`IntrusiveSList`, free-list) |
+| HOST-088 | `pool.hpp` (handles generacionales, reciclado de slots) |
 
-> **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id) e `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashMap`/`HashSet`, `DynamicHashMap`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..087 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
+> **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`) y `Pool` por `086_bob_objects` (parque de actores). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashMap`/`HashSet`, `DynamicHashMap`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..088 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
 
 Los tests se ejecutan con el `g++` del entorno (Windows/MinGW, donde `unsigned long`
 mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.

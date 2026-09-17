@@ -25,6 +25,7 @@
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/util/bitset.hpp>
+#include <eng/core/util/pool.hpp>
 #include <eng/core/util/static_vector.hpp>
 #include <eng/graphics/animation.hpp>
 #include <eng/graphics/bob.hpp>
@@ -492,35 +493,32 @@ inline eng::u8 actor_add_copper(Plan& plan, const Actor& a, eng::s16 screen_y, e
 }
 
 /// Almacén de actores de capacidad fija con handles generacionales. Sin heap.
+/// Se apoya en `eng::util::Pool<Actor, MaxActors>`: slots, free-list y generaciones
+/// viven ahí (alta/baja O(1), sin gestión manual de índices).
 template <eng::u16 MaxActors>
 class ActorStore {
+	using PoolType = eng::util::Pool<Actor, MaxActors>;
+
 public:
 	static constexpr eng::u16 kMax = MaxActors;
 
-	constexpr void reset() {
-		for (eng::u16 i = 0; i < MaxActors; ++i) {
-			m_next[i] = static_cast<eng::u16>(i + 1u);
-		}
-		m_next[MaxActors - 1u] = 0xffffu;
-		m_used.reset();
-		m_free_head = 0u;
-		m_count = 0u;
-	}
+	constexpr void reset() { m_pool.reset(); }
 
-	constexpr eng::u16 count() const { return m_count; }
-	constexpr bool full() const { return m_free_head == 0xffffu; }
+	constexpr eng::u16 count() const { return static_cast<eng::u16>(m_pool.size()); }
+	constexpr bool full() const { return m_pool.full(); }
 
 	/// Alta de un actor. Consume presupuesto del allocator. Devuelve un id inválido si
 	/// no queda capacidad o si la descripción no tiene contenido.
 	ActorId add(const ActorDesc& desc, RepresentationAllocator& alloc) {
-		if (m_free_head == 0xffffu || desc.visual.pixels.empty() || desc.visual.w == 0u ||
+		if (m_pool.full() || desc.visual.pixels.empty() || desc.visual.w == 0u ||
 		    desc.visual.h == 0u) {
 			return {};
 		}
-		const eng::u16 index = m_free_head;
-		m_free_head = m_next[index];
-		Actor& a = m_actors[index];
-		a = Actor {};
+		const auto handle = m_pool.add();
+		if (!handle.valid()) {
+			return {};
+		}
+		Actor& a = *m_pool.get(handle);
 		a.desc = desc;
 		a.bob = bob_from_visual(desc.visual, desc.layout, desc.transparency);
 		a.bob.sheet_row_bytes = desc.sheet_row_bytes;
@@ -532,53 +530,34 @@ public:
 		tmpl.priority = desc.z;
 		tmpl.scrolls = false;
 		a.actual = alloc.allocate(tmpl);
-		m_used.set(index);
-		++m_count;
-		return ActorId {index, m_generation[index]};
+		return ActorId {handle.index, handle.generation};
 	}
 
-	constexpr bool remove(ActorId id) {
-		if (!valid_id(id)) {
-			return false;
-		}
-		m_used.reset(id.index);
-		++m_generation[id.index];
-		m_next[id.index] = m_free_head;
-		m_free_head = id.index;
-		--m_count;
-		return true;
-	}
+	constexpr bool remove(ActorId id) { return m_pool.remove(to_handle(id)); }
 
-	constexpr Actor* get(ActorId id) {
-		return valid_id(id) ? &m_actors[id.index] : nullptr;
-	}
+	constexpr Actor* get(ActorId id) { return m_pool.get(to_handle(id)); }
 
-	constexpr const Actor* get(ActorId id) const {
-		return valid_id(id) ? &m_actors[id.index] : nullptr;
-	}
+	constexpr const Actor* get(ActorId id) const { return m_pool.get(to_handle(id)); }
 
-	constexpr bool valid_id(ActorId id) const {
-		return id.valid() && id.index < MaxActors && m_used.test(id.index) &&
-		       m_generation[id.index] == id.generation;
-	}
+	constexpr bool valid_id(ActorId id) const { return m_pool.valid(to_handle(id)); }
 
 	/// Acceso por índice de slot (para iterar el parque); comprobar `used`.
-	constexpr bool used(eng::u16 index) const { return index < MaxActors && m_used.test(index); }
-	constexpr Actor& at(eng::u16 index) { return m_actors[index]; }
-	constexpr const Actor& at(eng::u16 index) const { return m_actors[index]; }
+	constexpr bool used(eng::u16 index) const { return m_pool.used(index); }
+	constexpr Actor& at(eng::u16 index) { return m_pool.at(index); }
+	constexpr const Actor& at(eng::u16 index) const { return m_pool.at(index); }
 
 	/// Identificador (con generación) del slot, o inválido si está libre.
 	constexpr ActorId id_at(eng::u16 index) const {
-		return used(index) ? ActorId {index, m_generation[index]} : ActorId {};
+		const auto handle = m_pool.handle_at(index);
+		return handle.valid() ? ActorId {handle.index, handle.generation} : ActorId {};
 	}
 
 private:
-	Actor m_actors[MaxActors] {};
-	eng::u16 m_generation[MaxActors] {};
-	eng::u16 m_next[MaxActors] {};
-	eng::util::BitSet<MaxActors> m_used {};
-	eng::u16 m_free_head = 0u;
-	eng::u16 m_count = 0u;
+	static constexpr typename PoolType::Handle to_handle(ActorId id) {
+		return {id.index, id.generation};
+	}
+
+	PoolType m_pool {};
 };
 
 /// Clave de orden de emisión: primero la **superficie**, después `z` DENTRO de la
