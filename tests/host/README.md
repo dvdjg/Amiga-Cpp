@@ -112,4 +112,20 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-069 | [copper_double_buffer](069_copper_double_buffer/README.md) | `eng::copper::DoubleBuffer`: 2 bloques de copperlist, `flip`, publicar; y `TileScrollScene` parcheando el bloque inactivo. |
 | HOST-070 | [copper_plan](070_copper_plan/README.md) | `eng::copper::Plan`: orden por scanline, **prioridad `(superficie, z)`**, doble buffer de copperlist, publicación y rechazo por overflow. |
 | HOST-072 | [actor](072_actor/README.md) | Sistema de objetos (`scene/actor.hpp`): almacén generacional, políticas de transparencia y fondo, anclaje/offset, geometría y emisión de los `BlitJob` del BOB (matriz por job), save-under por buffer, orden por superficie/`z`, sprites (intents, tiras, plantilla→intenciones, degradación a BOB) y necesidades de Copper ancladas con prioridad. Absorbe el antiguo HOST-071. |
-| HOST-073 | [sprite_hrearm](073_sprite_hrearm/README.md) | Multiplexado **horizontal** de sprites (`Scheduler::emit_sprite_horizontal_rearm(s)` + `graphics::SpriteHorizontalRearm`): codificación AHRM de `SPRxPOS`/`SPRxCTL`, secuencia WAIT+POS+CTL+DATA+DATB sin tocar `SPRxPT`, y orden por `hpos` de la lista. |
+| HOST-073 | [basic_type_traits](073_basic_type_traits/README.md) | `eng/core/util/type_traits.hpp` y `util.hpp`: rasgos, `move/forward/swap/exchange`, `Ref`/`cref`. |
+| HOST-074 | [bit_ops](074_bit_ops/README.md) | `eng/core/util/bit.hpp`: `popcount`/`clz`/`ctz`/`rotl`/`rotr`/`bswap`/`byteswap`. |
+| HOST-075 | [algorithm](075_algorithm/README.md) | `eng/core/util/algorithm.hpp`: `copy`/`fill`/`find`/`min`/`max`/`clamp` sobre `Span`. |
+| HOST-076 | [array_bitset](076_array_bitset/README.md) | `eng/core/util/array.hpp` (`Array<T,N>` agregado) y `bitset.hpp` (`BitSet<N>`). |
+| HOST-077 | [static_vector_ring_buffer](077_static_vector_ring_buffer/README.md) | `static_vector.hpp` (capacidad fija, sin heap) y `ring_buffer.hpp`. |
+| HOST-078 | [optional_expected](078_optional_expected/README.md) | `optional.hpp` y `expected.hpp` (sin excepciones). |
+| HOST-079 | [string_view_function_ref](079_string_view_function_ref/README.md) | `string_view.hpp` y `function_ref.hpp` (sin virtuals ni heap). |
+| HOST-080 | [allocator_hash](080_allocator_hash/README.md) | `allocator.hpp` (`Allocator`, `Null/Bump/Inline`) y `hash.hpp`. |
+| HOST-081 | [vector_small_vector](081_vector_small_vector/README.md) | `vector.hpp` y `small_vector.hpp` (crecen solo por `Allocator`). |
+| HOST-082 | [flat_map_set](082_flat_map_set/README.md) | `flat_map.hpp`/`flat_set.hpp` (ordenados en array contiguo). |
+| HOST-083 | [hash_map_set](083_hash_map_set/README.md) | `hash_map.hpp`/`hash_set.hpp` (abiertos, sin heap). |
+| HOST-084 | [arena_chunked](084_arena_chunked/README.md) | `arena_alloc.hpp` (`ArenaAlloc`) y `chunked_vector.hpp`. |
+| HOST-085 | [direct_map](085_direct_map/README.md) | `direct_map.hpp`: mapa indexado directo (`SampleBank`). |
+| HOST-086 | [dynamic_hash_map](086_dynamic_hash_map/README.md) | `dynamic_hash_map.hpp`: hash con rehash en un `Allocator`. |
+| HOST-087 | [intrusive_list](087_intrusive_list/README.md) | `intrusive_list.hpp`: listas intrusivas con free-list O(1) (`BackgroundQueue`). |
+| HOST-088 | [pool](088_pool/README.md) | `pool.hpp`: `Pool` con handles generacionales (`ActorStore`). |
+| HOST-089 | [sprite_hrearm](089_sprite_hrearm/README.md) | Multiplexado **horizontal** de sprites (`Scheduler::emit_sprite_horizontal_rearm(s)` + `graphics::SpriteHorizontalRearm`): codificación AHRM de `SPRxPOS`/`SPRxCTL`, secuencia WAIT+POS+CTL+DATA+DATB sin tocar `SPRxPT`, y orden por `hpos` de la lista. |

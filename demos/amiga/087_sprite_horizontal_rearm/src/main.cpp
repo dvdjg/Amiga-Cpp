@@ -53,13 +53,14 @@ constexpr eng::u8  kPlanes = 6;
 constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * 256u;
 constexpr eng::u32 kBitplaneBytes = kPlaneBytes * kPlanes;
 
-/// Tres tramos del canal 0 en la MISMA línea, con `hpos` creciente (low-res px).
-/// Separación ≥24 px (regla de la carrera Copper vs haz).
-constexpr eng::u8  kTramos = 3;
-constexpr eng::u16 kHpos[kTramos] = { 0x2au, 0x6au, 0xaau }; // 42, 106, 170 px
-constexpr eng::u8  kLineas = 3;                              // 3 filas del efecto
-constexpr eng::u16 kVStart = 60;                             // primera línea
-constexpr eng::u16 kVStop = 61;                              // 1 línea de alto
+/// Cuatro tramos del canal 0 en la MISMA línea (patrón repetido, como Risky Woods).
+/// `hpos` en low-res px, separación ≥24 px (regla de la carrera Copper vs haz).
+constexpr eng::u8  kTramos = 4;
+constexpr eng::u16 kHpos[kTramos] = { 0x30u, 0x50u, 0x70u, 0x90u }; // 48, 80, 112, 144 px
+constexpr eng::u16 kHposLeft = 0x30u;  // reset al principio de cada línea
+constexpr eng::u8  kLineas = 8;        // filas del efecto (banda)
+constexpr eng::u16 kVStart = 60;       // primera línea del efecto
+constexpr eng::u16 kSpriteHeight = 8;  // alto del sprite (líneas que cubre el efecto)
 
 /// Fondo navy + grises; COLOR17/18/19 se usan para los tramos (vía paleta del efecto).
 constexpr drivers::EhbPalette kBasePalette {{
@@ -104,28 +105,22 @@ struct SpriteHRearmDemo {
 	}
 
 private:
-	/// Imagen de un tramo de 16 px (1 línea): 3 patrones distintos.
-	static eng::u16 patron(eng::u8 tramo) {
-		switch (tramo) {
-			case 0: return 0xffffu; // bloque lleno
-			case 1: return 0xaaaau; // damero
-			default: return 0xccccu;// rayas
-		}
-	}
-
-	/// Estructura de sprite "semilla" del DMA del canal 0: POS/CTL + 1 línea
-	/// (DAT+DATB) + par de fin. Sirve para que el canal tenga un `SPRxPT` válido y
-	/// el DMA no lea basura; el efecto real lo hacen los rearms manuales, que
-	/// reescriben POS/CTL/DATA (no el puntero).
+	/// Estructura de sprite del DMA del canal 0: POS/CTL + `kSpriteHeight` líneas
+	/// (DAT+DATB) + par de fin. El DMA la carga una vez y arma el sprite; el Copper
+	/// **solo mueve `SPRxPOS`** por línea (patrón Risky Woods). El VSTOP-VSTART cubre
+	/// la banda entera del efecto.
 	void build_sprite_seed(eng::Words<eng::SpriteTag> w) {
-		// [0]=POS, [1]=CTL, [2]=DAT, [3]=DATB, [4]=0, [5]=0 (fin)
-		w[0] = static_cast<eng::u16>((kVStart << 8) | ((kHpos[0] >> 1) & 0xffu));
-		w[1] = static_cast<eng::u16>((static_cast<eng::u16>(kVStart + 1u) << 8) |
-					      ((kHpos[0] & 1u) << 1));
-		w[2] = 0xffffu;
-		w[3] = 0x0000u;
-		w[4] = 0x0000u;
-		w[5] = 0x0000u;
+		w[0] = static_cast<eng::u16>((kVStart << 8) | ((kHposLeft >> 1) & 0xffu)); // POS
+		w[1] = static_cast<eng::u16>(
+			((static_cast<eng::u16>(kVStart + kSpriteHeight) & 0xffu) << 8) |
+			((kHposLeft & 1u) << 1));  // CTL: VSTOP = VSTART + alto
+		eng::u16 at = 2u;
+		for (eng::u8 line = 0; line < kSpriteHeight; ++line) {
+			w[at++] = 0xffffu; // DAT (bloque lleno, 16 px)
+			w[at++] = 0x0000u; // DATB
+		}
+		w[at++] = 0x0000u; // fin
+		w[at++] = 0x0000u;
 	}
 
 	bool build_copper() {
@@ -134,36 +129,35 @@ private:
 			0x2c81, 0x2cc1, 0x0038, 0x00d0,
 			kBytesPerRow, 0x6200, kPlanes, m_bitplane_block.view, kPlaneBytes
 		);
-		// Canal 0: puntero de DMA válido (semilla) + reset de POS/CTL, mientras el
-		// DMA de sprites aún no está habilitado por esta lista.
+		// Reset del sprite 0 ANTES de habilitar SPREN (mismo orden que la 053):
+		// puntero a datos válidos + POS/CTL a 0 mientras el DMA está limpio, para que
+		// no arme con los registros basura de AmigaDOS al encender el canal.
 		const eng::u32 seed = reinterpret_cast<eng::u32>(m_sprite_block.view.data());
-		sched.move(0x120, static_cast<eng::u16>(seed >> 16));            // SPR0PTH
-		sched.move(0x122, static_cast<eng::u16>(seed & 0xffffu));        // SPR0PTL
-		sched.move(0x140, 0x0000); // SPR0POS
-		sched.move(0x142, 0x0000); // SPR0CTL
+		sched.move(0x120, static_cast<eng::u16>(seed >> 16));     // SPR0PTH
+		sched.move(0x122, static_cast<eng::u16>(seed & 0xffffu)); // SPR0PTL
+		sched.move(0x142, 0x0000); // SPR0CTL (VSTOP=0: desarmado)
+		sched.move(0x140, 0x0000); // SPR0POS (VSTART=0)
 		sched.move(
 			eng::copper::Register::DMACON,
 			static_cast<eng::u16>(
 				eng::copper::DmaSetClear | eng::copper::DmaMaster | eng::copper::DmaCopper |
-				eng::copper::DmaBitplane
-				// Sin DmaSprite: el efecto usa el canal 0 en MODO MANUAL. Con SPREN
-				// activo el DMA recarga POS/CTL/DATA de SPRxPT cada H-Blank y pisaría
-				// el rearm (AHRM cap. 4: el modo manual no convive con el DMA del canal).
+				eng::copper::DmaBitplane | eng::copper::DmaSprite
 			)
 		);
 		sched.emit_palette(kBasePalette.color);
 
-		// En cada línea del efecto, rearmar el canal 0 en los 3 hpos, con imagen
-		// distinta y el mismo VSTART/VSTOP (la Y no cambia: es horizontal puro).
+		// Por cada línea de la banda, REARMAR el canal 0 en cada tramo (POS+CTL+DATA):
+		// a diferencia de solo-POS, escribir DATA arma el sprite tras el WAIT, que es lo
+		// que la 053 demuestra que funciona con su `emit_config` (POS+CTL+PT).
 		eng::graphics::SpriteHorizontalRearm list[kTramos] {};
 		for (eng::u8 l = 0; l < kLineas; ++l) {
-			const eng::u16 v = static_cast<eng::u16>(kVStart + l * 24u);
+			const eng::u16 v = static_cast<eng::u16>(kVStart + l);
 			for (eng::u8 t = 0; t < kTramos; ++t) {
 				list[t].channel = 0u;
 				list[t].hpos = kHpos[t];
 				list[t].vstart = v;
 				list[t].vstop = static_cast<eng::u16>(v + 1u);
-				list[t].data_high = patron(t);
+				list[t].data_high = 0xffffu; // bloque lleno de 16 px
 				list[t].data_low = 0x0000u;
 				list[t].attach = false;
 			}

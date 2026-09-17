@@ -1,4 +1,4 @@
-# HOST-073: rearmado horizontal de sprite
+# HOST-089: rearmado horizontal de sprite
 
 Test host de `Scheduler::emit_sprite_horizontal_rearm(s)` (`scheduler.hpp`) y del tipo
 `graphics::SpriteHorizontalRearm` (`raster_intent.hpp`): el **multiplexado horizontal** de

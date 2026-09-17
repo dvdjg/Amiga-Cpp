@@ -176,6 +176,26 @@ public:
 		}
 	}
 
+	/// **Reposiciona** un canal de sprite horizontalmente a media línea: espera a
+	/// `(vline, hpos)` y escribe SOLO `SPRxPOS`. No toca CTL ni DATA.
+	///
+	/// Es el patrón real del **Risky Woods** / R-Type 2 (copperlist desensamblada): el
+	/// canal se arma UNA vez por DMA (`SPRxPT` con POS/CTL/DATA válidos, VSTART/VSTOP que
+	/// cubren la línea) y el Copper **solo mueve `SPRxPOS`** repetidamente mientras el haz
+	/// barre; el armado del sprite persiste y el patrón (de 64 px) se repite. Es más
+	/// barato que `emit_sprite_horizontal_rearm` (1 MOVE en vez de 4) y es el que cabe en
+	/// el presupuesto de una línea completa.
+	///
+	/// `vline` es la línea del efecto y `hpos` la posición horizontal (low-res px, mismo
+	/// valor que el HSTART de `SPRxPOS`). Al final de la línea hay que **resetear** el
+	/// canal a la izquierda (otra llamada con el `hpos` inicial) antes de la siguiente.
+	void emit_sprite_horizontal_reposition(u8 channel, u8 vline, u16 hpos) {
+		const u16 ch = channel & 7u;
+		wait_position(vline, static_cast<u8>(hpos & 0xfeu));
+		move(static_cast<u16>(0x140u + ch * 8u),
+		     static_cast<u16>((static_cast<u16>(vline) << 8u) | ((hpos >> 1u) & 0xffu)));
+	}
+
 	/// Configura una pantalla de PLANOS EHB/plana genérica (paramétrica).
 	///
 	/// No asume tamaño: el llamador decide la geometría (DIW/DDF) y la anchura de

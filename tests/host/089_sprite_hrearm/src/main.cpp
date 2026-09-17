@@ -1,5 +1,5 @@
 // ============================================================================
-// Test HOST-073: rearmado horizontal de sprite (multiplexado por linea)
+// Test HOST-089: rearmado horizontal de sprite (multiplexado por linea)
 // ============================================================================
 //
 // Valida en host (sin Amiga) `Scheduler::emit_sprite_horizontal_rearm(s)`:
