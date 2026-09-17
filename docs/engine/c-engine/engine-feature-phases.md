@@ -14,7 +14,7 @@ Incluida en el árbol `engine/` y en `engine_suite.h`:
 - Listas de etiquetas para parámetros opcionales (`engine_tag.h`).
 - Trazas con bloques e indentación y promedios (`engine_trace`), activo con `ENGINE_DIAG=1`.
 
-Incluida además vía [`engine_extensions.h`](../engine/include/engine_extensions.h) (ver [engine-subsystems.md](engine-subsystems.md)):
+Incluida además vía `engine_extensions.h` (ver [engine-subsystems.md](engine-subsystems.md)):
 
 - Copper doble buffer y primitivas WAIT/fin de lista (`engine_copper_list`).
 - Sprites OCS (`engine_sprite`); joystick (`engine_joy`); view/tilemap lógicos (`engine_view`, `engine_tilemap`).

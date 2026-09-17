@@ -7,8 +7,8 @@ Documento maestro para **planificar y, más adelante, generar** pruebas que cubr
 - [Spec batería](amiga-test-battery-spec.md)
 - [Matriz subsistema ↔ casos](engine-test-battery-matrix.md)
 - [Subsistemas del engine](engine-subsystems.md)
-- [Harness común](../tests/amiga-battery/common/README.md)
-- [battery_evidence.h](../tests/amiga-battery/common/include/battery_evidence.h)
+- Harness común
+- `battery_evidence.h`
 
 ---
 
@@ -16,7 +16,7 @@ Documento maestro para **planificar y, más adelante, generar** pruebas que cubr
 
 1. **Un ejecutable = un caso** (como hoy): se compila con `BATTERY_CASE=…`, produce `out/battery_<Caso>.exe` y `case.json` cuando entre al pipeline automatizado.
 2. **Trazas en CHIP/Fast visibles para GDB/MCP**: el patrón actual es obligatorio para todo test del engine:
-   - `g_battery_evidence_log` ([`BatteryEvidenceLog`](../tests/amiga-battery/common/include/battery_evidence.h)): `magic = 'BTEV'`, `assert_failures`, `last_stage`, anillo de eventos, `final_status`.
+   - `g_battery_evidence_log` (`BatteryEvidenceLog`): `magic = 'BTEV'`, `assert_failures`, `last_stage`, anillo de eventos, `final_status`.
    - `g_battery_runtime_state` (`BRTS`): `stage_id` / `detail` actualizados con `battery_runtime_mark()`.
    - Eventos explícitos: `battery_evidence_event()`, fallos lógicos: `battery_evidence_assert(cond, code, arg)`.
    - Opcional pero recomendado: `battery_sys_trace_beam(custom, code)` en puntos de sincronía con el haz.
@@ -130,7 +130,7 @@ Objetivo: **no** explotar el producto cartesiano; cada caso T tiene una **hipót
 
 ## 6. Qué reutilizar del código actual (referencia de “grado de feedback”)
 
-- **`battery_case_run`**: ya resetea evidencia y marca etapas 1→2→3 ([`battery_runtime.c`](../tests/amiga-battery/common/src/battery_runtime.c)).
+- **`battery_case_run`**: ya resetea evidencia y marca etapas 1→2→3 (`battery_runtime.c`).
 - **`battery_evidence_assert`**: incrementa `assert_failures` y registra evento `0x3000....` — el runner automático debe fallar si ≠ 0.
 - **Capturas multi-frame**: patrón B01 `capture_presented_frames` + `battery_sys_trace_beam`.
 - **Salida serial / pasos**: `battery_output_step` para correlación con logs host.

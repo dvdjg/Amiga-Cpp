@@ -1,34 +1,3 @@
-# Enlaces rotos conocidos (deuda historica de docs importados).
-# Casi todos apuntan a rutas del repo de origen Cursor-Amiga-C (engine/, app/,
-# tests/amiga-battery/, config/) que no existen en este repo; los documentos
-# nativos si se reapuntan a su ubicacion real (ver docs/engine/c-engine/README.md).
+# Enlaces rotos conocidos (deuda historica aceptada).
 # Formato: ruta-relativa|destino. Regenerar con: node tools/check/links.mjs --update-baseline
-docs/engine/c-engine/amiga-implementation-roadmap.md|scripts/validate-metal-vector.mjs
-docs/engine/c-engine/engine-architecture.md|engine/include/engine_bitmap.h
-docs/engine/c-engine/engine-architecture.md|engine/include/engine_clock.h
-docs/engine/c-engine/engine-architecture.md|engine/include/engine_diag.h
-docs/engine/c-engine/engine-architecture.md|engine/include/engine_fixmath.h
-docs/engine/c-engine/engine-architecture.md|engine/include/engine_rand.h
-docs/engine/c-engine/engine-architecture.md|engine/include/engine_suite.h
-docs/engine/c-engine/engine-architecture.md|engine/include/engine_tag.h
-docs/engine/c-engine/engine-architecture.md|engine/include/engine_trace.h
-docs/engine/c-engine/engine-docs-index.md|../tests/amiga-battery/README.md
-docs/engine/c-engine/engine-docs-index.md|../tests/amiga-battery/common/README.md
-docs/engine/c-engine/engine-feature-phases.md|../engine/include/engine_extensions.h
-docs/engine/c-engine/engine-implementation-plan.md|../engine/include/engine_suite.h
-docs/engine/c-engine/engine-new-project-guide.md|../app/effects/demo_scroll_bobs/effect.h
-docs/engine/c-engine/engine-new-project-guide.md|../app/menu.c
-docs/engine/c-engine/engine-new-project-guide.md|../app/state.c
-docs/engine/c-engine/engine-new-project-guide.md|../engine/include/engine.h
-docs/engine/c-engine/engine-new-project-guide.md|../engine/include/engine_automation_input.h
-docs/engine/c-engine/engine-new-project-guide.md|../engine/include/engine_suite.h
-docs/engine/c-engine/engine-new-project-guide.md|../engine/include/engine_types.h
-docs/engine/c-engine/engine-new-project-guide.md|../tests/amiga-battery/README.md
-docs/engine/c-engine/engine-roadmap.md|../engine/include/engine_extensions.h
-docs/engine/c-engine/engine-roadmap.md|../engine/include/engine_suite.h
-docs/engine/c-engine/engine-subsystems.md|../engine/include/engine.h
-docs/engine/c-engine/engine-subsystems.md|../engine/include/engine_extensions.h
-docs/engine/c-engine/engine-subsystems.md|../engine/include/engine_suite.h
-docs/engine/c-engine/engine-unified-test-roadmap.md|../tests/amiga-battery/common/README.md
-docs/engine/c-engine/engine-unified-test-roadmap.md|../tests/amiga-battery/common/include/battery_evidence.h
-docs/engine/c-engine/engine-unified-test-roadmap.md|../tests/amiga-battery/common/src/battery_runtime.c
+# Si solo tiene esta cabecera, no hay deuda pendiente.

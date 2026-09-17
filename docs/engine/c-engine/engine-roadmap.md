@@ -165,7 +165,7 @@ No se integran de serie lotes de BOB con restauración de fondo, tilebuffer con 
 2. Un objetivo de roadmap (p. ej. juego con scroll ancho o copper por línea dinámico) queda **bloqueado** sin esa pieza.
 3. La API encaja con el contrato test → engine como módulo opcional claramente acotado.
 
-Las ampliaciones ya disponibles como cabeceras y `.c` auxiliares se agrupan en [`engine_suite.h`](../engine/include/engine_suite.h); subsistemas opcionales mayores (copper doble buffer, sprites, joy, view, tilemap, DOS, audio, etc.) en [`engine_extensions.h`](../engine/include/engine_extensions.h) y [engine-subsystems.md](engine-subsystems.md). El plan por fases está en [engine-feature-phases.md](engine-feature-phases.md).
+Las ampliaciones ya disponibles como cabeceras y `.c` auxiliares se agrupan en `engine_suite.h`; subsistemas opcionales mayores (copper doble buffer, sprites, joy, view, tilemap, DOS, audio, etc.) en `engine_extensions.h` y [engine-subsystems.md](engine-subsystems.md). El plan por fases está en [engine-feature-phases.md](engine-feature-phases.md).
 
 ## 4. Verificación y herramientas
 

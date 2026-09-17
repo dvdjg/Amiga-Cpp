@@ -10,6 +10,7 @@
 //   --demo <substr>   solo las filas cuyo nombre contenga <substr>
 //   --threshold <n>   fraccion minima respecto al valor registrado (def. 0.9 = -10 %)
 //   --samples N       mediciones por demo; se compara la de mayor fps (def. 2)
+//   --report <path>   escribe el resultado completo como JSON en <path>
 //   --json            imprime el resultado como JSON
 //   --warn-only       no falla (exit 0) aunque haya deriva
 //
@@ -29,16 +30,18 @@ const MEASURE = path.join(ROOT, 'tools/debug/measure-fps.mjs');
 
 const ARGV = process.argv.slice(2);
 if (ARGV.includes('--help') || ARGV.includes('-h')) {
-  console.log(`Uso: node tools/debug/check-fps.mjs [--demo <substr>] [--threshold 0.9] [--samples N] [--json] [--warn-only]
+  console.log(`Uso: node tools/debug/check-fps.mjs [--demo <substr>] [--threshold 0.9] [--samples N] [--report <path>] [--json] [--warn-only]
 
 Mide las demos de la tabla de BITACORA_SCROLL_TILES.md y detecta deriva de fps.
 Toma varias muestras por demo y compara la mejor contra el baseline; si baja del
-umbral, falla. Requiere el emulador (opt-in).`);
+umbral, falla. Con --report deja el informe JSON en un fichero (adems de la salida
+humana). Requiere el emulador (opt-in).`);
   process.exit(0);
 }
 const filter = (() => { const i = ARGV.indexOf('--demo'); return i >= 0 ? ARGV[i + 1] : null; })();
 const threshold = (() => { const i = ARGV.indexOf('--threshold'); return i >= 0 ? Number(ARGV[i + 1]) : 0.9; })();
 const samples = (() => { const i = ARGV.indexOf('--samples'); const n = i >= 0 ? parseInt(ARGV[i + 1], 10) : 2; return Number.isFinite(n) && n > 0 ? n : 2; })();
+const reportPath = (() => { const i = ARGV.indexOf('--report'); return i >= 0 ? ARGV[i + 1] : null; })();
 const warnOnly = ARGV.includes('--warn-only');
 const json = ARGV.includes('--json');
 
@@ -106,7 +109,14 @@ for (const row of rows) {
 }
 
 const failed = results.filter((r) => r.status === 'fail' || r.status === 'error');
-if (json) console.log(JSON.stringify({ threshold, samples, results, failed: failed.length }, null, 2));
+const summary = { threshold, samples, results, failed: failed.length };
+if (reportPath) {
+  const abs = path.isAbsolute(reportPath) ? reportPath : path.join(ROOT, reportPath);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, JSON.stringify(summary, null, 2) + '\n', 'utf8');
+  if (!json) console.log(`[check-fps] informe JSON: ${path.relative(ROOT, abs).split(path.sep).join('/')}`);
+}
+if (json) console.log(JSON.stringify(summary, null, 2));
 else if (failed.length === 0) console.log(`[check-fps] OK: ${results.length} demo(s), sin deriva por encima del umbral.`);
 else console.error(`[check-fps] ${failed.length} demo(s) con deriva (${failed.map((r) => r.demo).join(', ')}).`);
 

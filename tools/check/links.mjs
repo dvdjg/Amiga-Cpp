@@ -182,11 +182,9 @@ for (const file of files) {
 
 if (updateBaseline) {
   const keys = [...new Set(broken.map(baselineKey))].sort();
-  const header = '# Enlaces rotos conocidos (deuda historica de docs importados).\n'
-    + '# Casi todos apuntan a rutas del repo de origen Cursor-Amiga-C (engine/, app/,\n'
-    + '# tests/amiga-battery/, config/) que no existen en este repo; los documentos\n'
-    + '# nativos si se reapuntan a su ubicacion real (ver docs/engine/c-engine/README.md).\n'
-    + '# Formato: ruta-relativa|destino. Regenerar con: node tools/check/links.mjs --update-baseline\n';
+  const header = '# Enlaces rotos conocidos (deuda historica aceptada).\n'
+    + '# Formato: ruta-relativa|destino. Regenerar con: node tools/check/links.mjs --update-baseline\n'
+    + '# Si solo tiene esta cabecera, no hay deuda pendiente.\n';
   fs.writeFileSync(BASELINE_PATH, header + keys.join('\n') + (keys.length ? '\n' : ''), 'utf8');
   console.log(`[links] baseline actualizado: ${keys.length} enlace(s) conocido(s) en ${path.relative(ROOT, BASELINE_PATH).split(path.sep).join('/')}.`);
   process.exit(0);

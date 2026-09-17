@@ -7,7 +7,7 @@ Referencia práctica para **arrancar un juego o demo** reutilizando el motor de 
 - [Índice de documentación](engine-docs-index.md)
 - [Arquitectura](engine-architecture.md)
 - [Build CLI](../../build/build.md)
-- [Batería de tests](../tests/amiga-battery/README.md)
+- Batería de tests
 - [Matriz engine ↔ batería](engine-test-battery-matrix.md)
 - [Roadmap tests unificados del engine](engine-unified-test-roadmap.md)
 
@@ -17,8 +17,8 @@ Referencia práctica para **arrancar un juego o demo** reutilizando el motor de 
 
 ### A) Proyecto **dentro** de este repositorio (recomendado al principio)
 
-- Añades un efecto o juego como **`app/effects/<tu_juego>/`** con el contrato `create` / `loop` / `destroy` (igual que [demo_scroll_bobs/effect.h](../app/effects/demo_scroll_bobs/effect.h)).
-- Registras la entrada en el menú ([`app/menu.c`](../app/menu.c)) o en el flujo Intuition ([`app/main.c`](../../../legacy/main.c)).
+- Añades un efecto o juego como **`app/effects/<tu_juego>/`** con el contrato `create` / `loop` / `destroy` (igual que `demo_scroll_bobs/effect.h`).
+- Registras la entrada en el menú (`app/menu.c`) o en el flujo Intuition ([`app/main.c`](../../../legacy/main.c)).
 - **Ventajas**: mismo `Makefile`, `scripts/verify-build.sh`, batería, MCP y configs WinUAE ya probados; promoción natural de código a `engine/` cuando se repita.
 
 ### B) Repositorio **nuevo** (producto aparte)
@@ -35,7 +35,7 @@ Referencia práctica para **arrancar un juego o demo** reutilizando el motor de 
 1. **`engine_init()`** — abre librerías base (`graphics`, `dos` si existe).
 2. **UI opcional** (Intuition) o **menú copper** — ver [`app/main.c`](../../../legacy/main.c).
 3. **`TakeSystem()`** — antes del bucle que toca hardware directo (bitplanes, copper propios).
-4. Por frame: **`engine_wait_vbl()`**, input (`engine_mouse_update`, `engine_key_*`, opcional `engine_input_edges_sync` con [engine_suite.h](../engine/include/engine_suite.h)), lógica y gráficos.
+4. Por frame: **`engine_wait_vbl()`**, input (`engine_mouse_update`, `engine_key_*`, opcional `engine_input_edges_sync` con `engine_suite.h`), lógica y gráficos.
 5. **`FreeSystem()`** + **`effect_destroy()`** (o equivalente) al salir.
 6. **`engine_shutdown()`** al terminar el programa.
 
@@ -74,12 +74,12 @@ Detalle de subsistemas: [engine-subsystems.md](engine-subsystems.md).
 |------|------------|----------------|
 | **Separación engine / app / batería** | [README](../README.md), [engine-architecture.md](engine-architecture.md) | Escalar sin mezclar menú con HAL. |
 | **Efecto = create + loop + destroy** | `app/effects/*` | Carga/descarga limpia y menú estable. |
-| **Estados push/pop** | [`app/state.c`](../app/state.c) | Pausa, menú encima del juego, transiciones. |
-| **Automatización MCP** | `g_automation_input`, [`engine_automation_input.h`](../engine/include/engine_automation_input.h) | Pruebas sin depender solo del ratón host. |
-| **`engine_has_dos()`** | [`engine.h`](../engine/include/engine.h) | Misma build para ADF sin Workbench y para CLI. |
+| **Estados push/pop** | `app/state.c` | Pausa, menú encima del juego, transiciones. |
+| **Automatización MCP** | `g_automation_input`, `engine_automation_input.h` | Pruebas sin depender solo del ratón host. |
+| **`engine_has_dos()`** | `engine.h` | Misma build para ADF sin Workbench y para CLI. |
 | **Batería aislada** | `tests/amiga-battery/`, `BATTERY_CASE=` en [Makefile](../../../legacy/Makefile) | Validar una técnica antes de ensuciar el juego. |
 | **Matriz de cobertura** | [engine-test-battery-matrix.md](engine-test-battery-matrix.md) | Saber qué API tiene ya un test con evidencia. |
-| **Constantes copper sin acoplar** | `ENGINE_CUSTOM_*` en [engine_types.h](../engine/include/engine_types.h) | Listas reubicables y legibles. |
+| **Constantes copper sin acoplar** | `ENGINE_CUSTOM_*` en `engine_types.h` | Listas reubicables y legibles. |
 | **Depuración WinUAE + MCP** | [mcp-live-coding-workflow.md](../../emulation/mcp-live-coding-workflow.md), [debug-with-ai.md](../../debugging/debug-with-ai.md) | Regresiones visuales y memoria. |
 
 ---

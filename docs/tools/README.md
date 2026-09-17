@@ -52,7 +52,7 @@ node tools/check/links.mjs --json                # resultado legible por máquin
 node tools/check/links.mjs --update-baseline     # acepta la deuda actual como baseline
 ```
 
-Por defecto revisa la documentación mantenida **y** los árboles importados (`docs/engine/c-engine`, `docs/legacy`). Como esos últimos conservan enlaces al repo de origen, sus roturas actuales están aceptadas en `tools/check/links-baseline.txt`; el check **solo falla ante rotura nueva**. Al arreglar enlaces, regenerar el baseline con `--update-baseline`.
+Por defecto revisa la documentación mantenida **y** los árboles importados (`docs/engine/c-engine`, `docs/legacy`). El check falla ante cualquier enlace roto; `tools/check/links-baseline.txt` permite aceptar deuda histórica de forma explícita (hoy está vacío). Al arreglar enlaces, regenerar el baseline con `--update-baseline`.
 
 ## Gate de fps (deriva de rendimiento)
 

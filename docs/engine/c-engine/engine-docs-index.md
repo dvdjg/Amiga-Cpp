@@ -49,8 +49,8 @@ Punto de entrada a la documentación del motor de juegos.
 | [amiga-chipset-matrix.md](../../reference/amiga/hardware/amiga-chipset-matrix.md) | Matriz OCS/ECS/AGA/CD32 y punteros al AHRM. |
 | [amiga-test-battery-spec.md](amiga-test-battery-spec.md) | **Batería de tests** + **visión IA** (ADF caliente, snapshot máquina, decode bitmaps, depuración paso a paso) y **hoja de ruta MCP** §10. |
 | [amiga-implementation-roadmap.md](amiga-implementation-roadmap.md) | **Seguimiento de implementación:** estados PENDIENTE/PARCIAL/HECHO, fases A–E (MCP, infra tests, IDs §8, engine, docs). |
-| [../tests/amiga-battery/README.md](../tests/amiga-battery/README.md) | Índice práctico de la batería: plantilla, harness común, casos abiertos y convenciones de evidencia. |
-| [../tests/amiga-battery/common/README.md](../tests/amiga-battery/common/README.md) | Harness común de la batería y criterio de cuándo sus utilidades deben migrar al engine. |
+| `../tests/amiga-battery/README.md` | Índice práctico de la batería: plantilla, harness común, casos abiertos y convenciones de evidencia. |
+| `../tests/amiga-battery/common/README.md` | Harness común de la batería y criterio de cuándo sus utilidades deben migrar al engine. |
 | [diagnóstico-depurador-f5.md](../../debugging/diagnostico-depurador-f5.md) | Diagnóstico cuando F5 o los breakpoints no funcionan. |
 | [winuae-extensión-internals.md](../../emulation/winuae-extension-internals.md) | Cómo la extensión amiga-debug accede a WinUAE (GDB, memoria, Custom). |
 
@@ -82,7 +82,7 @@ Punto de entrada a la documentación del motor de juegos.
 3. [engine-roadmap.md](engine-roadmap.md)
 4. [amiga-test-battery-spec.md](amiga-test-battery-spec.md)
 5. [amiga-implementation-roadmap.md](amiga-implementation-roadmap.md)
-6. [../tests/amiga-battery/README.md](../tests/amiga-battery/README.md)
+6. `../tests/amiga-battery/README.md`
 7. [amiga-kernel-loader-notes.md](../../reference/amiga/hardware/amiga-kernel-loader-notes.md)
 8. [m68k-stack-and-calling-notes.md](../../reference/amiga/hardware/m68k-stack-and-calling-notes.md)
 9. [amiga-binary-and-disk-formats.md](../../build/amiga-binary-and-disk-formats.md)

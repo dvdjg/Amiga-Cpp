@@ -7,10 +7,10 @@
 > describen el código activo.
 
 Trata estos documentos como fuente de **conocimiento y contexto**, no como especificación del
-código actual. Los enlaces internos pueden referirse a rutas del repo original (`app/`,
-`tests/amiga-battery/`, `scripts/`) que no existen aquí; esas roturas quedan aceptadas como
-deuda conocida en `tools/check/links-baseline.txt`. Al reapuntar los enlaces que sí existen en
-este repo, regenera el baseline con `node tools/check/links.mjs --update-baseline`.
+código actual. Las referencias a rutas del repo original (`engine/`, `app/`, `tests/amiga-battery/`,
+`scripts/`) se conservan como **texto** (sin enlace), porque esos ficheros no existen aquí. Si en
+el futuro se reapunta algún enlace nativo, regenera el baseline con
+`node tools/check/links.mjs --update-baseline`.
 
 ## Documentos
 

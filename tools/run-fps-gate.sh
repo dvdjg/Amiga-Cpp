@@ -78,10 +78,11 @@ fi
 ARGS=()
 [ -n "$THRESHOLD" ] && ARGS+=(--threshold "$THRESHOLD")
 ARGS+=(--samples "$SAMPLES")
+ARGS+=(--report "$OUTDIR/report.json")
 [ "$WARN_ONLY" -eq 1 ] && ARGS+=(--warn-only)
 
 echo "== fps gate =="
 node "$CHECK" ${ARGS[@]+"${ARGS[@]}"} 2>&1 | tee "$OUTDIR/report.txt"
 status="${PIPESTATUS[0]}"
-echo "[fps-gate] informe: out/fps-gate/$TS/report.txt"
+echo "[fps-gate] informes: out/fps-gate/$TS/report.txt y out/fps-gate/$TS/report.json"
 exit "$status"

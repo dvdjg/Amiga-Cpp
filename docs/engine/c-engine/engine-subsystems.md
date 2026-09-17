@@ -1,6 +1,6 @@
 # Subsistemas avanzados del engine
 
-Documentación de las APIs opcionales agrupadas en [engine_extensions.h](../engine/include/engine_extensions.h). Complementan [engine.h](../engine/include/engine.h) y [engine_suite.h](../engine/include/engine_suite.h) sin sustituir al núcleo mínimo.
+Documentación de las APIs opcionales agrupadas en `engine_extensions.h`. Complementan `engine.h` y `engine_suite.h` sin sustituir al núcleo mínimo.
 
 ## Parent links
 
