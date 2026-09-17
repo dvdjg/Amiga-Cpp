@@ -173,6 +173,13 @@ struct scalar_exp2<double> {
 	static constexpr double op(double x) { return detail::exp2_d(x); }
 };
 
+/// `log2` del escalar (por defecto ADL). El núcleo no lo necesita; lo aportan los
+/// escalares que lo definan (p. ej. `MiniFloat16`) o `fixed_math.hpp` para `Fixed`.
+template <typename S>
+struct scalar_log2 {
+	static constexpr S op(S x) { return log2(x); }
+};
+
 /// Constante escalar desde un `double` de compilación, **sin ambigüedad**: para
 /// `MiniFloat16` usa el constructor de `float` (su formato solo tiene 10 bits de mantisa) y
 /// para `Fixed<R,E>` cuantiza a `E` bits fraccionarios (redondeo al más cercano). Un

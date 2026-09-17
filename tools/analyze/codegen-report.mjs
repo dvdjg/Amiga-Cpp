@@ -46,6 +46,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/random.hpp>
 #include <eng/core/util/dsp.hpp>
 #include <eng/core/fixed_math.hpp>
+#include <eng/core/geometry.hpp>
 #include <eng/core/sort.hpp>
 #include <eng/graphics/mesh_renderer.hpp>
 #include <eng/platform/amiga/lib3d.hpp>
@@ -337,6 +338,17 @@ extern "C" s16 c_scalar16_ops(const s16* data, int n) {
 	env.note_on();
 	(void)env.tick();
 	return static_cast<s16>(m.v + s.v + env.level.v);
+}
+extern "C" s16 c_scalar16_math(s16 a, s16 b) {
+	const q12 t {a};
+	const q12 e1 = ease_in_sine(t);
+	const q12 e2 = ease_out_sine(t);
+	const q12 sd = smooth_damp(q12 {0}, q12 {4096}, q12 {2048}, q12 {4096});
+	const Vec<2, q12> v {q12 {a}, q12 {b}};
+	const q12 len = length(v);
+	const q12 e2v = scalar_exp2<q12>::op(q12 {1024});
+	const q12 l2 = scalar_log2<q12>::op(q12 {4096});
+	return static_cast<s16>(e1.v + e2.v + sd.v + len.v + e2v.v + l2.v);
 }
 `;
 

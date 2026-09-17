@@ -22,8 +22,9 @@
 ///   - `normalize`, `reflect`, `project`: usan división (tabla de recíprocos, ~1e-3); la
 ///     dirección resultante es buena a ~10 bits.
 /// - **`float`/`double`**: sin límites prácticos para geometría normal.
-/// - **`Fixed`**: no define `operator/` ni `sqrt`; `dot`/`cross2`/`perp`/`vlerp`/`rotate2`
-///   funcionan (suma y producto), las que dividen o hacen `sqrt` no compilan.
+/// - **`Fixed`**: con `fixed_math.hpp` incluido (aporta `scalar_sqrt<Fixed>`) y `div_norm`
+///   (división explícita), funcionan `normalize`/`project`/`reject`/`reflect`/`length`;
+///   sin él solo compilan `dot`/`cross2`/`perp`/`vlerp`/`rotate2` (suma y producto).
 
 #include <eng/core/linalg.hpp>
 #include <eng/core/numeric_traits.hpp>
@@ -66,10 +67,9 @@ template <int N, typename S>
 /// `v / |v|` (necesita división y `sqrt`). Si `|v| == 0`, devuelve `v` (cero).
 template <int N, typename S>
 [[nodiscard]] constexpr Vec<N, S> normalize(const Vec<N, S>& v) {
-	require_division<S>();
 	const S len = length(v);
 	if (len == scalar_traits<S>::zero()) return v;
-	return vscale(v, scalar_traits<S>::one() / len);
+	return vscale(v, div_norm(scalar_traits<S>::one(), len));
 }
 
 /// Interpolación lineal componente a componente.
@@ -108,8 +108,7 @@ template <typename S>
 /// Proyección de `v` sobre `onto`: `(v·onto / onto·onto)·onto`.
 template <int N, typename S>
 [[nodiscard]] constexpr Vec<N, S> project(const Vec<N, S>& v, const Vec<N, S>& onto) {
-	require_division<S>();
-	return vscale(onto, dot(v, onto) / dot(onto, onto));
+	return vscale(onto, div_norm(dot(v, onto), dot(onto, onto)));
 }
 
 /// Componente de `v` perpendicular a `onto`: `v - project(v, onto)`.
@@ -121,9 +120,8 @@ template <int N, typename S>
 /// Reflexión de `v` respecto a la normal `n` (unitaria): `v - 2(v·n)/|n|²·n`.
 template <int N, typename S>
 [[nodiscard]] constexpr Vec<N, S> reflect(const Vec<N, S>& v, const Vec<N, S>& n) {
-	require_division<S>();
 	const S two = scalar_traits<S>::from_int(2);
-	return v - vscale(n, two * dot(v, n) / dot(n, n));
+	return v - vscale(n, div_norm(mul_norm(two, dot(v, n)), dot(n, n)));
 }
 
 } // namespace eng::math

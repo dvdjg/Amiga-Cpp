@@ -153,13 +153,13 @@ Los contenedores y las utilidades de bytes/enteros son agnósticos del tipo (alm
 | `algorithm.hpp`, `core/sort.hpp`, `type_traits`/`util`/`bit` | sí | sí | sí | sí |
 | `collision`, `color`, `grid`, `broadphase`, `pathfinding`, `text` | sí | — | — | — (enteros por diseño: 68000/hardware) |
 | `stats` | — | sí (sum/mean con acumulador s32; stddev con `fixed_math.hpp`) | sí (~1e-3) | sí |
-| `dsp` | — | sí (salvo `osc_sine`) | sí | sí |
+| `dsp` | — | sí (osc_sine con `fixed_math.hpp`) | sí | sí |
 
 Limitaciones (también en cada cabecera):
 
 - `stats::sum`/`mean` con `Fixed<s16>` acumulan en **32 bits** (`add.l`) y solo estrechan al final; `variance` mantiene el acumulador del escalar (un acumulador ancho necesitaría productos de 64 bits, `__muldi3`).
-- `stats::stddev` con `Fixed` requiere incluir `eng/core/fixed_math.hpp` (aporta `scalar_sqrt<Fixed>` vía `isqrt`); `dsp::osc_sine` con `Fixed` no compila (necesita `sin`).
-- **Trigonometría fixed**: `eng/core/fixed_math.hpp` especializa `scalar_sin`/`scalar_cos`/`scalar_sqrt` para `Fixed<s16,E>` (tabla de seno + `isqrt`); incluir ese header antes de usar easings `_sine`/`length` con fixed. Requiere `E <= 14`.
+- `stats::stddev` con `Fixed` requiere incluir `eng/core/fixed_math.hpp` (aporta `scalar_sqrt<Fixed>` vía `isqrt`); `dsp::osc_sine` con `Fixed` también (aporta `scalar_sin<Fixed>`).
+- **Matemáticas `Fixed`**: `eng/core/fixed_math.hpp` especializa `scalar_sin`/`scalar_cos`/`scalar_sqrt`/`scalar_exp2`/`scalar_log2` para `Fixed<s16,E>` (tablas + `isqrt`); incluir ese header antes de usar easings `_sine`/`_expo`, `smooth_damp`, `length`/`normalize`/`project`/`reflect` o `stddev` con fixed. `sin`/`cos` requieren `E <= 14`; `exp2` satura; `log2` solo correcto dentro del rango del fixed.
 - `MiniFloat16`: pierde incrementos por debajo de `2^-14` (tasas de ADSR/`alpha` muy pequeñas bajoflow a 0); precisión ~1e-3.
 - `Fixed`: la división (`div_norm`) **satura**; el paso mínimo es `2^-Exp` (p. ej. 1/4096 en q12).
 - Las matemáticas de escalares (interpolación, easings, geometría, ruido, `minifloat_math`) viven en `eng::math`; ver `SCALAR_LIBRARY.md` (tabla función × escalar) y `MATH_LIBRARY.md`.

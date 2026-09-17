@@ -109,6 +109,47 @@ int main() {
 		// para fixed se usaría `div_norm` explícito en un futuro refinamiento.
 	}
 
+	// --- exp2/log2 de Fixed (tablas) ----------------------------------------
+	{
+		check(std::fabs(em::to_double(em::scalar_exp2<er::q12>::op(q(0.0f))) - 1.0) <= 4.0e-3,
+		      "exp2(0) = 1");
+		check(std::fabs(em::to_double(em::scalar_exp2<er::q12>::op(q(1.0f))) - 2.0) <= 8.0e-3,
+		      "exp2(1) = 2");
+		check(std::fabs(em::to_double(em::scalar_exp2<er::q12>::op(q(-1.0f))) - 0.5) <= 4.0e-3,
+		      "exp2(-1) = 0.5");
+		check(std::fabs(em::to_double(em::scalar_log2<er::q12>::op(q(1.0f)))) <= 4.0e-3,
+		      "log2(1) = 0");
+		check(std::fabs(em::to_double(em::scalar_log2<er::q12>::op(q(2.0f))) - 1.0) <= 8.0e-3,
+		      "log2(2) = 1");
+		check(std::fabs(em::to_double(em::scalar_log2<er::q12>::op(q(4.0f))) - 2.0) <= 8.0e-3,
+		      "log2(4) = 2");
+	}
+
+	// --- normalize/project/reflect con Fixed (div_norm) ---------------------
+	{
+		const em::Vec<2, er::q12> v {q(1.5f), q(2.0f)}; // |v| = 2.5
+		const em::Vec<2, er::q12> n = em::normalize(v);
+		check(std::fabs(em::to_double(n.v[0]) - 0.6) <= 8.0e-3 &&
+			      std::fabs(em::to_double(n.v[1]) - 0.8) <= 8.0e-3,
+		      "normalize<q12> = (0.6, 0.8)");
+		const em::Vec<2, er::q12> onto {q(1.0f), q(0.0f)};
+		const em::Vec<2, er::q12> p = em::project(v, onto);
+		check(std::fabs(em::to_double(p.v[0]) - 1.5) <= 8.0e-3 &&
+			      std::fabs(em::to_double(p.v[1])) <= 8.0e-3,
+		      "project<q12>");
+		const em::Vec<2, er::q12> up {q(0.0f), q(1.0f)};
+		const em::Vec<2, er::q12> r = em::reflect(v, up);
+		check(std::fabs(em::to_double(r.v[0]) - 1.5) <= 8.0e-3 &&
+			      std::fabs(em::to_double(r.v[1]) + 2.0) <= 8.0e-3,
+		      "reflect<q12>");
+	}
+
+	// --- smooth_damp con Fixed (usa exp2 fixed) -----------------------------
+	{
+		const er::q12 out = em::smooth_damp(q(0.0f), q(1.0f), q(1.0f), q(1.0f));
+		check(std::fabs(em::to_double(out) - 0.5) <= 1.0e-2, "smooth_damp<q12> = 0.5");
+	}
+
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;
