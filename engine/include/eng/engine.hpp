@@ -11,6 +11,7 @@
 /// fases explicitas: input, update fijo, preparacion de render, blitter jobs,
 /// copper commit, sprites, audio y profiler.
 
+#include <eng/core/util/scope_guard.hpp>
 #include <eng/graphics/driver.hpp>
 #include <eng/task/background.hpp>
 
@@ -214,6 +215,15 @@ public:
 		InterruptTick<Backend, Game> tick {&m_game, &m_backend, &context, 0u, frame_count};
 		if constexpr (requires { m_backend.set_vblank_service(&InterruptTick<Backend, Game>::run, tick); }) {
 			if (m_backend.set_vblank_service(&InterruptTick<Backend, Game>::run, tick)) {
+				// Al salir (por donde sea) hay que devolver el hardware al estado base:
+				// si no, la IRQ de VBlank seguiria apuntando a `tick` (que vive en esta
+				// pila) al volver. El `ScopeGuard` lo garantiza en toda salida.
+				[[maybe_unused]] auto services_off = eng::util::make_scope_guard([&] {
+					if constexpr (requires { m_backend.clear_blit_service(); }) {
+						m_backend.clear_blit_service();
+					}
+					m_backend.clear_vblank_service();
+				});
 				// El servicio de blit (nivel 3, mismo vector que el VBlank) drena el
 				// fondo mientras el juego espera a un blit.
 				BackgroundBlitterService blitter_service {&m_background, &context};
@@ -224,10 +234,6 @@ public:
 				while (tick.frames < frame_count) {
 					m_background.run_slice(tick.frames, 0u);
 				}
-				if constexpr (requires { m_backend.clear_blit_service(); }) {
-					m_backend.clear_blit_service();
-				}
-				m_backend.clear_vblank_service();
 				return;
 			}
 		}

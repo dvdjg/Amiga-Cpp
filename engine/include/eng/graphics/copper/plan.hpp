@@ -27,6 +27,8 @@
 
 #include <eng/core/domains.hpp>
 #include <eng/core/types.hpp>
+#include <eng/core/util/algorithm.hpp>
+#include <eng/core/util/array.hpp>
 #include <eng/graphics/copper/double_buffer.hpp>
 #include <eng/debug/prof.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
@@ -179,7 +181,7 @@ private:
 			ENG_PROF_END(eng::debug::prof_sort_lines);
 			return;
 		}
-		for (u16 l = 0; l < 256u; ++l) m_count_by_line[l] = 0;
+		m_count_by_line.fill(u16(0u));
 		for (u16 i = 0; i < m_count; ++i) ++m_count_by_line[raster_key(m_intents[i].top)];
 		u16 acc = 0;
 		for (u16 l = 0; l < 256u; ++l) {
@@ -228,14 +230,16 @@ private:
 	DoubleBuffer m_owned {};
 	DoubleBuffer* m_copper = nullptr;
 	Scheduler m_sched {};
-	graphics::CopperIntent m_intents[max_intents] {};
-	u16 m_prio[max_intents] {};      ///< (superficie << 8) | z de cada intención
-	u16 m_perm[max_intents] {};
-	u16 m_line_start[257] {};        ///< inicio del grupo de cada línea tras ordenar
+	/// `Array` (no `T v[N]`) para que el tamaño viaje con el objeto; mismo layout y
+	/// coste cero (`eng::util::Array`). `max_intents`/256 líneas.
+	eng::util::Array<graphics::CopperIntent, max_intents> m_intents {};
+	eng::util::Array<u16, max_intents> m_prio {};      ///< (superficie << 8) | z
+	eng::util::Array<u16, max_intents> m_perm {};
+	eng::util::Array<u16, 257u> m_line_start {};       ///< inicio de grupo por línea
 	/// Contadores del counting sort: miembros (no pila) para que el compilador no
 	/// reconstruya el marco ni recalcule punteros a la pila en cada acceso.
-	u16 m_count_by_line[256] {};
-	u16 m_line_cursor[256] {};
+	eng::util::Array<u16, 256u> m_count_by_line {};
+	eng::util::Array<u16, 256u> m_line_cursor {};
 	u16 m_count = 0;
 	u16 m_words = 0;
 	ScheduleReport m_report {};
