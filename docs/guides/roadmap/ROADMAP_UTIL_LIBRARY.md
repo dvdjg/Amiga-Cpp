@@ -57,7 +57,8 @@ respuesta directa a "matemáticas de estadística".
 
 **Estado: R1 completa** (`stats.hpp` HOST-093, `color.hpp` HOST-094, `collision.hpp`
 HOST-095, `text.hpp` HOST-096; sondas `c_stats_ops`/`c_color_lerp`/`c_collision_ops`/
-`c_text_ops` sin libcalls). Siguiente: R2.
+`c_text_ops` sin libcalls). `color` además **verificada por demo** (`086_bob_objects`
+usa `eng::util::lerp444` en el gradiente del cielo). Siguiente: R2.
 
 ### R2 — Juego avanzado (rejilla, broadphase, pathfinding)
 

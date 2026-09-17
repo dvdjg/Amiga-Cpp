@@ -27,6 +27,7 @@
 
 #include <eng/core/sinetable.hpp>
 #include <eng/core/types.hpp>
+#include <eng/core/util/color.hpp>
 #include <eng/debug/prof.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
@@ -146,32 +147,17 @@ constexpr eng::SineTable<64, 64> kSin {};
 /// Sumidero del bucle de calibracion (evita que el compilador lo elimine).
 volatile eng::u32 g_calib_sink = 0;
 
-/// Interpolación lineal por nibble (RGB444) entre dos colores.
-constexpr eng::u16 lerp444(eng::u16 a, eng::u16 b, eng::u16 num, eng::u16 den) {
-	if (den == 0u) {
-		return a;
-	}
-	eng::u16 out = 0u;
-	for (eng::u8 shift = 0u; shift < 12u; shift += 4u) {
-		const eng::s16 ca = static_cast<eng::s16>((a >> shift) & 0xfu);
-		const eng::s16 cb = static_cast<eng::s16>((b >> shift) & 0xfu);
-		const eng::s16 v = static_cast<eng::s16>(ca + ((cb - ca) * static_cast<eng::s16>(num)) /
-							      static_cast<eng::s16>(den));
-		out = static_cast<eng::u16>(out | (static_cast<eng::u16>(v & 0xf) << shift));
-	}
-	return out;
-}
-
 /// Relleno del gradiente del cielo: un valor RGB444 por linea interpolando las
 /// `kSkyKeys` claves. Resuelto en compilacion (`constexpr`): antes se recalculaba en cada
 /// frame (~166k ciclos/frame medidos, seccion `sky`) aunque el degradado es constante.
+/// Usa `eng::util::lerp444` (misma interpolacion por nibble, probada en HOST-094).
 constexpr eng::u16 make_sky_entry(eng::u16 l) {
 	const eng::u16 seg = static_cast<eng::u16>(256u / (kSkyKeys - 1u));
 	eng::u16 k = static_cast<eng::u16>(l / seg);
 	if (k >= kSkyKeys - 1u) {
 		k = static_cast<eng::u16>(kSkyKeys - 2u);
 	}
-	return lerp444(kSky[k], kSky[k + 1u], static_cast<eng::u16>(l % seg), seg);
+	return eng::util::lerp444(kSky[k], kSky[k + 1u], static_cast<eng::u16>(l % seg), seg);
 }
 
 struct SkyGradient {

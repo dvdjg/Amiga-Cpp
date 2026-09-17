@@ -67,7 +67,7 @@ dejando residuo».
 
 ## Verificación de la librería de utilidades
 
-El camino de actores usa `eng::util::BitSet` (`ActorStore`: slots vivos del parque generacional) y `eng::util::StaticVector` (`emit_bob_fallbacks`: degradados a BOB), así que esta demo es su verificación por demo (ver `docs/engine/architecture/TEMPLATE_LIBRARY.md`). El analizador propio `analyze-screenshot.sh` exige verde y amarillo (el arcoíris de los objetos) y valida el `run-report` en Ready, en lugar del overlay de depuración genérico.
+El camino de actores usa `eng::util::BitSet` (`ActorStore`: slots vivos del parque generacional) y `eng::util::StaticVector` (`emit_bob_fallbacks`: degradados a BOB), y el gradiente del cielo usa `eng::util::lerp444` (RGB444), así que esta demo es su verificación por demo (ver `docs/engine/architecture/TEMPLATE_LIBRARY.md`). El analizador propio `analyze-screenshot.sh` exige verde y amarillo (el arcoíris de los objetos) y valida el `run-report` en Ready, en lugar del overlay de depuración genérico.
 
 ## Build & run
 
