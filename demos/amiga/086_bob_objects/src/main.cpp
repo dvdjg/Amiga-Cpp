@@ -48,8 +48,8 @@ struct ExecBase* SysBase = nullptr;
 /// tools/debug/profile.mjs).
 namespace eng::debug {
 extern "C" {
-ProfBlock g_eng_prof {};
-eng::u32 g_prof_start[prof_max_sections] {};
+volatile ProfBlock g_eng_prof {};
+volatile eng::u32 g_prof_start[prof_max_sections] {};
 }
 } // namespace eng::debug
 

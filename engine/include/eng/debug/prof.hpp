@@ -39,11 +39,15 @@ struct ProfBlock {
 
 /// Instancia unica del bloque; la DEFINE la demo (o el backend) con enlace C para que el
 /// nombre aparezca sin manglar en el `.map` y el host pueda resolverlo.
+///
+/// `volatile`: las acumulaciones tienen que quedar ordenadas respecto a las lecturas del
+/// contador. Sin `volatile`, un build optimizado puede reordenarlas y las secciones miden
+/// cualquier cosa (0,9 llamadas/frame y ciclos inflados en release).
 extern "C" {
-extern ProfBlock g_eng_prof;
+extern volatile ProfBlock g_eng_prof;
 
 /// Marcas de inicio (la escribe `ENG_PROF_BEGIN`).
-extern eng::u32 g_prof_start[prof_max_sections];
+extern volatile eng::u32 g_prof_start[prof_max_sections];
 }
 
 /// Secciones que instrumenta el PROPIO engine (indices altos, para no chocar con las de la
