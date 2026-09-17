@@ -28,6 +28,7 @@
 #include <eng/core/domains.hpp>
 #include <eng/core/types.hpp>
 #include <eng/graphics/copper/double_buffer.hpp>
+#include <eng/debug/prof.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/raster_intent.hpp>
 #include <eng/memory/arena.hpp>
@@ -116,14 +117,15 @@ public:
 	void materialize() {
 		sort_by_top();
 		sort_priority_within_lines();
-		// El emisor acepta lotes de hasta 255; con gradientes por línea se pasa.
-		u16 done = 0;
-		while (done < m_count) {
-			const u16 left = static_cast<u16>(m_count - done);
-			const u16 n = (left > 255u) ? 255u : left;
-			m_sched.emit_copper_intents(m_intents + done, static_cast<u8>(n));
-			done = static_cast<u16>(done + n);
+		// Se emite UNA intención por llamada, en el orden calculado. La versión anterior
+		// permutaba los `CopperIntent` de 40 B in-place: en Chip RAM y con el DMA de
+		// bitplanes activo eso costaba ~2.700 ciclos por intención (medido en la 086).
+		// Con el orden por índices solo se mueven `u16`.
+		ENG_PROF_BEGIN(eng::debug::prof_emit);
+		for (u16 i = 0; i < m_count; ++i) {
+			m_sched.emit_copper_intents(&m_intents[m_perm[i]], 1u);
 		}
+		ENG_PROF_END(eng::debug::prof_emit);
 	}
 
 	/// Cierra la lista (`end`), guarda el informe y **voltea** el buffer. Devuelve false si
@@ -161,42 +163,32 @@ public:
 
 private:
 	/// Cuenta y ordena por línea **relativa al inicio del display** en O(n): counting por
-	/// 256 líneas + permutación cíclica in-place. El scheduler exige las intenciones en el
-	/// orden en que el raster las alcanza; hacerlo aquí libera al llamador de ese invariante
-	/// (y del cruce de las 256 líneas). O(n²) no vale: un cielo con cambio por línea son
-	/// ~256 intenciones.
+	/// 256 líneas y un array de orden (`m_perm`). No reordena los `CopperIntent`: el
+	/// scheduler exige las intenciones en el orden en que el raster las alcanza, y eso se
+	/// consigue emitiendo por `m_perm` (mover structs de 40 B en Chip RAM costaba ~2.700
+	/// ciclos por intención).
 	void sort_by_top() {
-		if (m_count < 2u) return;
-		u16 prefix[256];
+		ENG_PROF_BEGIN(eng::debug::prof_sort_lines);
+		if (m_count < 2u) {
+			for (u16 i = 0; i < m_count; ++i) m_perm[i] = i;
+			return;
+		}
 		u16 count[256];
+		u16 cursor[256];
 		for (u16 l = 0; l < 256u; ++l) count[l] = 0;
 		for (u16 i = 0; i < m_count; ++i) ++count[raster_key(m_intents[i].top)];
 		u16 acc = 0;
 		for (u16 l = 0; l < 256u; ++l) {
-			prefix[l] = acc;
 			m_line_start[l] = acc; // inicio del grupo de la línea l (para prioridades)
+			cursor[l] = acc;
 			acc = static_cast<u16>(acc + count[l]);
 		}
 		m_line_start[256] = m_count;
-		// Posición final de cada intención (estable: FIFO por línea).
+		// Orden estable (FIFO dentro de la línea) por índices.
 		for (u16 i = 0; i < m_count; ++i) {
-			m_perm[i] = prefix[raster_key(m_intents[i].top)]++;
+			m_perm[cursor[raster_key(m_intents[i].top)]++] = i;
 		}
-		// Permutación cíclica in-place con el array de posiciones como guía.
-		for (u16 i = 0; i < m_count; ++i) {
-			while (m_perm[i] != i) {
-				const u16 j = m_perm[i];
-				const graphics::CopperIntent tmp = m_intents[i];
-				m_intents[i] = m_intents[j];
-				m_intents[j] = tmp;
-				const u16 tp = m_prio[i];
-				m_prio[i] = m_prio[j];
-				m_prio[j] = tp;
-				const u16 pj = m_perm[j];
-				m_perm[j] = m_perm[i];
-				m_perm[i] = pj;
-			}
-		}
+		ENG_PROF_END(eng::debug::prof_sort_lines);
 	}
 
 	/// Dentro de cada línea, ordena por prioridad ASCENDENTE (estable): la de mayor
@@ -205,22 +197,22 @@ private:
 	/// `OBJECT_SYSTEM.md` §7 para intenciones que comparten `top`. Coste O(k²) por línea
 	/// con k = intenciones de esa línea (pequeño en la práctica: k=1 en un cielo por línea).
 	void sort_priority_within_lines() {
+		ENG_PROF_BEGIN(eng::debug::prof_sort_prio);
 		for (u16 l = 0; l < 256u; ++l) {
 			const u16 lo = m_line_start[l];
 			const u16 hi = m_line_start[static_cast<u16>(l + 1u)];
 			for (u16 i = static_cast<u16>(lo + 1u); i < hi; ++i) {
-				const graphics::CopperIntent it = m_intents[i];
-				const u16 pr = m_prio[i];
+				const u16 cur = m_perm[i];
+				const u16 pr = m_prio[cur];
 				u16 j = i;
-				while (j > lo && m_prio[static_cast<u16>(j - 1u)] > pr) {
-					m_intents[j] = m_intents[static_cast<u16>(j - 1u)];
-					m_prio[j] = m_prio[static_cast<u16>(j - 1u)];
+				while (j > lo && m_prio[m_perm[static_cast<u16>(j - 1u)]] > pr) {
+					m_perm[j] = m_perm[static_cast<u16>(j - 1u)];
 					--j;
 				}
-				m_intents[j] = it;
-				m_prio[j] = pr;
+				m_perm[j] = cur;
 			}
 		}
+		ENG_PROF_END(eng::debug::prof_sort_prio);
 	}
 
 	/// Línea de raster relativa al inicio del display (el listado envuelve a 256 líneas).

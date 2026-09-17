@@ -86,8 +86,12 @@ namespace drivers = eng::graphics::drivers;
 enum {
 	kProfActors = 0, // colocacion + actor_emit (jobs al plan de blits)
 	kProfBlits = 1,  // execute_frame_plan (Blitter, con sus esperas)
-	kProfCopper = 2, // build_frame (Plan: intenciones, ordenacion y emision)
-	kProfCount = 3,
+	kProfCopper = 2, // build_frame completo (el Plan)
+	kProfStatic = 3, // build_frame: begin_frame + display + paleta
+	kProfSky = 4,    // build_frame: bucle de intenciones del cielo
+	kProfObjCopper = 5, // build_frame: necesidades de copper de los objetos
+	kProfMaterialize = 6, // build_frame: ordenar y emitir
+	kProfCount = 7,
 };
 
 // Geometría: 320x256 lowres, 4 planos (16 colores), planos contiguos.
@@ -387,13 +391,15 @@ private:
 	/// Compone el copper del frame: parte estática + cielo por línea + necesidades de
 	/// Copper de cada objeto (ancladas a su Y y con su prioridad).
 	bool build_frame() {
+		ENG_PROF_BEGIN(kProfStatic);
 		m_plan.begin_frame();
 		m_plan.scheduler().emit_planes_display(0x2c81u, 0x2cc1u, 0x0038u, 0x00d0u, kBytesPerRow,
 						       0x4200u, kPlanes, m_bitmap.view, kPlaneBytes);
 		m_plan.scheduler().emit_palette(kPalette.color);
+		ENG_PROF_END(kProfStatic);
 		// Cielo: `kSkyBands` intenciones repartidas por el raster (una por banda). Con
-		// `K_086_SKY_BANDS=256` es un valor por línea (continuo) y el frame se dispara a
-		// ~9 campos: el coste no es el copper sino el bucle (ver F4.6 del roadmap).
+		// `K_086_SKY_BANDS=256` es un valor por línea (continuo).
+		ENG_PROF_BEGIN(kProfSky);
 #if K_086_STATIC_COPPER == 0
 		for (eng::u16 b = 0; b < kSkyBands; ++b) {
 			const eng::u16 line = static_cast<eng::u16>(b * (256u / kSkyBands));
@@ -406,7 +412,9 @@ private:
 			sky.count = 1u;
 			m_plan.add(sky);
 		}
+		ENG_PROF_END(kProfSky);
 		// Necesidades de cada objeto, con su (superficie, z).
+		ENG_PROF_BEGIN(kProfObjCopper);
 		for (eng::u8 i = 0; i < kBobCount; ++i) {
 			const scene::Actor* a = m_actors.get(m_ids[i]);
 			if (a == nullptr) {
@@ -416,7 +424,10 @@ private:
 			const graphics::DirtyRect r = scene::actor_screen_rect(*a, f, 0, 0);
 			scene::actor_add_copper(m_plan, *a, r.top, kFirstLine);
 		}
+		ENG_PROF_END(kProfObjCopper);
+		ENG_PROF_BEGIN(kProfMaterialize);
 		m_plan.materialize();
+		ENG_PROF_END(kProfMaterialize);
 #endif
 		return m_plan.end_frame();
 	}

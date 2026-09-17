@@ -63,7 +63,7 @@ function runtimeAddr(linked, ms, rs) {
 }
 const u32delta = (a, b) => { let d = b - a; if (d < 0) d += 4294967296; return d; };
 
-const SECTION_NAMES = ['actors', 'blits', 'copper'];
+const SECTION_NAMES = ['actors', 'blits', 'copper', 'static', 'sky', 'objcopper', 'materialize', 'sort_lines', 'sort_prio', 'emit'];
 
 const conn = new WinUAEConnection({
   winuaePath: 'C:/Users/dvdjg/.vscode/extensions/bartmanabyss.amiga-debug-1.8.1/bin/win32',
@@ -112,7 +112,7 @@ const frames = Math.max(1, u32delta(a.frames, z.frames));
 const total = u32delta(a.clock, z.clock) / frames;
 console.log(`[prof] ${DEMO}/${CONFIG_NAME} | ${frames} frames | total ${total.toFixed(0)} ciclos/frame (${(total / FIELD).toFixed(2)} campos)`);
 let sum = 0;
-for (let i = 0; i < a.sections; ++i) {
+for (let i = 0; i < Math.max(a.sections, 10); ++i) {
   const perFrame = u32delta(a.cycles[i], z.cycles[i]) / frames;
   const calls = u32delta(a.calls[i], z.calls[i]) / frames;
   sum += perFrame;

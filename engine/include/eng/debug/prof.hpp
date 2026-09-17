@@ -46,6 +46,13 @@ extern ProfBlock g_eng_prof;
 extern eng::u32 g_prof_start[prof_max_sections];
 }
 
+/// Secciones que instrumenta el PROPIO engine (indices altos, para no chocar con las de la
+/// demo). El coste es ~2 lecturas del contador por seccion y frame: despreciable, por eso
+/// van siempre activas y permiten perfilar el interior del engine sin recompilar nada.
+inline constexpr eng::u8 prof_sort_lines = 7;  ///< `Plan::sort_by_top`
+inline constexpr eng::u8 prof_sort_prio = 8;   ///< `Plan::sort_priority_within_lines`
+inline constexpr eng::u8 prof_emit = 9;        ///< `Plan::materialize` (emision al copper)
+
 /// Reloj de ciclos del periferico de depuracion (7,09379 MHz en A500).
 inline eng::u32 prof_clock() {
 	return *reinterpret_cast<volatile eng::u32*>(0xb7e928UL);
