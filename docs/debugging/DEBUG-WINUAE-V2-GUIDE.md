@@ -58,7 +58,7 @@ llevan 2345/2346 hardcoded.
 **Regla de convivencia (no somos el único usuario del emulador; respeto entre
 instancias/agentes):**
 
-- Elegir **puertos propios** y no reutilizar los de otra sesión; si un puerto está ocupado, usar otro en vez de forzar.
+- Elegir al **empezar el hilo** un par de puertos al azar (`WINUAE_GDB_PORT` + `WINUAE_SIDE_CHANNEL_PORT`) y usarlo en todas las corridas del hilo; no reutilizar los de otra sesión. Si un puerto está ocupado, usar otro en vez de forzar.
 - **Nunca matar** procesos `winuae-gdb`/`winuae64` que no se hayan lanzado uno mismo. Antes de matar, comprobar si son propios (por PID/instancia).
 - **Controlar y limpiar las propias**: registrar los PIDs lanzados y cerrarlos al terminar; no dejar instancias huérfanas ocupando puertos.
 

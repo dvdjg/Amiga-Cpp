@@ -131,6 +131,14 @@ Windows nativo + Git Bash + Node.js. **No usar WSL** para invocar binarios `.exe
 - La regresión usa build estilo debug por defecto (`--debug` interno). Usar `--release` solo cuando se necesite comportamiento de optimización release.
 - Detalle operativo y reglas del runner/emulador: `docs/build/BUILD_AND_RUN.md`.
 
+### 3.4 WinUAE concurrente: puertos propios por hilo
+
+- Varios hilos/agentes pueden lanzar WinUAE a la vez. Cada hilo debe **elegir un par de puertos al azar al empezar** y usarlo en todas sus corridas: `WINUAE_GDB_PORT` (GDB) y `WINUAE_SIDE_CHANNEL_PORT` (canal lateral). No usar los defectos (2345/2346) si puede haber otra instancia. Si un puerto está ocupado, elegir otro; no forzar.
+- **Nunca matar** procesos `winuae-gdb`/`winuae64` ajenos: solo cerrar los propios (por PID) al terminar. Evitar `taskkill /IM winuae-gdb.exe`, que mata a todas las instancias.
+- `run-demo.sh` y el runner respetan ambas variables (o `--side-channel-port`); el MCP lee `WINUAE_GDB_PORT`. Regla de convivencia completa: `docs/debugging/DEBUG-WINUAE-V2-GUIDE.md` §1.4.
+
+Ejemplo: `WINUAE_GDB_PORT=2417 WINUAE_SIDE_CHANNEL_PORT=2418 bash ./tools/run/run-demo.sh demos/amiga/000_toolchain_cpp23`.
+
 ---
 
 ## 4. Reglas específicas (leer el documento del dominio antes de trabajar en él)
