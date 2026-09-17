@@ -26,6 +26,7 @@
 /// rellenarse un `eng::input::InputAggregator`.
 
 #include <eng/core/types.hpp>
+#include <eng/core/util/scope_guard.hpp>
 #include <eng/input/input.hpp>
 
 namespace eng::amiga {
@@ -222,6 +223,14 @@ inline eng::u16 read_cd32_buttons(eng::u8 port) {
 	*ciaapra &= static_cast<eng::u8>(~gameport);
 	*potgo = (port == 0u) ? 0xF200u : 0x2F00u;
 
+	// El modo CD32 cambia CIA y POTGO: hay que volver a modo joystick en CUALQUIER
+	// salida (el guard lo garantiza si se anade una salida temprana; hoy el bucle es
+	// fijo, pero el codigo toca registros timing-sensitive).
+	auto restore_joystick = eng::util::make_scope_guard([&] {
+		*potgo = 0xFF00u; // volver a modo joystick
+		*ciaaddra &= static_cast<eng::u8>(~gameport);
+	});
+
 	eng::u16 buttons = 0u;
 	for (eng::u8 i = 0; i < 9; ++i) {
 		for (volatile eng::u32 d = 0; d < 6; ++d) { (void)*ciaapra; } // ECLOCK_DELAY
@@ -232,9 +241,6 @@ inline eng::u16 read_cd32_buttons(eng::u8 port) {
 		*ciaapra |= gameport;
 		*ciaapra &= static_cast<eng::u8>(~gameport);
 	}
-
-	*potgo = 0xFF00u; // volver a modo joystick
-	*ciaaddra &= static_cast<eng::u8>(~gameport);
 
 	// Si no tiene firma CD32, degradar a joystick de 1/2 botones.
 	if ((buttons & 0x180u) != 0x100u) {

@@ -17,6 +17,7 @@
 #include <eng/core/domains.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
+#include <eng/core/util/array.hpp>
 #include <eng/core/util/hash_map.hpp>
 
 namespace eng::field {
@@ -145,7 +146,7 @@ private:
 	};
 	Loader m_loader {};
 	eng::TileBankBuffer m_pool {};
-	Slot m_slots[Capacity] {};
+	eng::util::Array<Slot, Capacity> m_slots {};
 	/// Índice `(cx,cy) -> ranura` para no recorrer los slots en cada `find`/`get`.
 	eng::util::HashMap<ChunkKey, eng::u8, Capacity> m_index {};
 	eng::u32 m_clock = 0;
