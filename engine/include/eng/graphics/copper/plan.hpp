@@ -83,25 +83,39 @@ public:
 	Scheduler& scheduler() { return m_sched; }
 	const Scheduler& scheduler() const { return m_sched; }
 
-	void add(const graphics::CopperIntent& it) {
-		if (m_count < max_intents) {
-			m_intents[m_count++] = it;
-		} else {
-			m_overflow = true;
-		}
-	}
+	void add(const graphics::CopperIntent& it) { add_prioritized(&it, 1u, 0u, 0u); }
 
 	void add(const graphics::CopperIntent* intents, u16 count) {
+		add_prioritized(intents, count, 0u, 0u);
+	}
+
+	/// Igual que `add`, pero anotando de quién viene cada intención: `surface` (índice de
+	/// la superficie de la composición) y `z` (orden dentro de ella). En conflicto — dos
+	/// intenciones que escriben el mismo registro en la MISMA línea — gana la de mayor
+	/// `(surface, z)`: se ordena para emitirse la última, y en el Copper la última
+	/// escritura a un registro manda. Ver `docs/engine/architecture/OBJECT_SYSTEM.md` §7.
+	///
+	/// Alcance: cada intención se materializa como un punto en `top` (el scheduler no usa
+	/// `bottom`), así que esto cubre todos los conflictos que existen hoy.
+	void add_prioritized(const graphics::CopperIntent* intents, u16 count, u8 surface, u8 z) {
+		const u16 prio = static_cast<u16>((static_cast<u16>(surface) << 8u) | z);
 		for (u16 i = 0; i < count; ++i) {
-			add(intents[i]);
+			if (m_count < max_intents) {
+				m_intents[m_count] = intents[i];
+				m_prio[m_count] = prio;
+				++m_count;
+			} else {
+				m_overflow = true;
+			}
 		}
 	}
 
 	/// Ordena las intenciones por `top` (scanline) y las emite en la posición ACTUAL del
 	/// emisor (así el llamador decide dónde van: p. ej. tras la paleta base y antes de la
-	/// cola). Orden estable: las de igual línea conservan el orden de inserción.
+	/// cola). Dentro de cada línea, ordena por prioridad (ver `add_prioritized`).
 	void materialize() {
 		sort_by_top();
+		sort_priority_within_lines();
 		// El emisor acepta lotes de hasta 255; con gradientes por línea se pasa.
 		u16 done = 0;
 		while (done < m_count) {
@@ -160,8 +174,10 @@ private:
 		u16 acc = 0;
 		for (u16 l = 0; l < 256u; ++l) {
 			prefix[l] = acc;
+			m_line_start[l] = acc; // inicio del grupo de la línea l (para prioridades)
 			acc = static_cast<u16>(acc + count[l]);
 		}
+		m_line_start[256] = m_count;
 		// Posición final de cada intención (estable: FIFO por línea).
 		for (u16 i = 0; i < m_count; ++i) {
 			m_perm[i] = prefix[raster_key(m_intents[i].top)]++;
@@ -173,9 +189,36 @@ private:
 				const graphics::CopperIntent tmp = m_intents[i];
 				m_intents[i] = m_intents[j];
 				m_intents[j] = tmp;
+				const u16 tp = m_prio[i];
+				m_prio[i] = m_prio[j];
+				m_prio[j] = tp;
 				const u16 pj = m_perm[j];
 				m_perm[j] = m_perm[i];
 				m_perm[i] = pj;
+			}
+		}
+	}
+
+	/// Dentro de cada línea, ordena por prioridad ASCENDENTE (estable): la de mayor
+	/// `(superficie, z)` se emite la última y, en el Copper, la última escritura al mismo
+	/// registro de la misma línea es la que manda. Es la resolución de conflictos de
+	/// `OBJECT_SYSTEM.md` §7 para intenciones que comparten `top`. Coste O(k²) por línea
+	/// con k = intenciones de esa línea (pequeño en la práctica: k=1 en un cielo por línea).
+	void sort_priority_within_lines() {
+		for (u16 l = 0; l < 256u; ++l) {
+			const u16 lo = m_line_start[l];
+			const u16 hi = m_line_start[static_cast<u16>(l + 1u)];
+			for (u16 i = static_cast<u16>(lo + 1u); i < hi; ++i) {
+				const graphics::CopperIntent it = m_intents[i];
+				const u16 pr = m_prio[i];
+				u16 j = i;
+				while (j > lo && m_prio[static_cast<u16>(j - 1u)] > pr) {
+					m_intents[j] = m_intents[static_cast<u16>(j - 1u)];
+					m_prio[j] = m_prio[static_cast<u16>(j - 1u)];
+					--j;
+				}
+				m_intents[j] = it;
+				m_prio[j] = pr;
 			}
 		}
 	}
@@ -190,7 +233,9 @@ private:
 	DoubleBuffer* m_copper = nullptr;
 	Scheduler m_sched {};
 	graphics::CopperIntent m_intents[max_intents] {};
+	u16 m_prio[max_intents] {};      ///< (superficie << 8) | z de cada intención
 	u16 m_perm[max_intents] {};
+	u16 m_line_start[257] {};        ///< inicio del grupo de cada línea tras ordenar
 	u16 m_count = 0;
 	u16 m_words = 0;
 	ScheduleReport m_report {};

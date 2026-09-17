@@ -234,6 +234,15 @@ devolvía bits para los canales 0..6 (que en `DMACON` son blitter/disco/audio) y
 desplazamiento negativo (UB). Ahora devuelve `0x0020` y está cubierto por `072_actor`. Un canal que
 no debe verse se desactiva con su `SPRxPT` a 0.
 
+Fusión de conflictos de Copper: `copper::Plan::add_prioritized(intents, count, surface, z)` ordena
+por prioridad ascendente dentro de cada línea (la de mayor `(superficie, z)` se emite la última y en
+el Copper manda la última escritura). Cubierto por `070_copper_plan` (prioridad por `z`, empate FIFO
+y superficie por encima de `z`). La escena lo cablea con `actor_add_copper` (pasa el `(surface, z)`
+del actor) y `compose_sprites(..., plan)`, cubierto por `072_actor`. Alcance: cada intención se
+materializa como un **punto en `top`** (el scheduler no usa `bottom`), así que el espacio de
+conflicto es la misma línea y queda resuelto por completo; los tramos de varias líneas exigirían
+expandirlos por línea (coste de memoria, cuadrar con `max_intents`).
+
 **Nota 6.5b — CERRADA: la 054 no tenía bug de emisión; los sprites caían en el borde.** Sonda en
 UNA sola ejecución (`tools/debug/probe-sprite-emission.mjs`: lee `COP1LC`, decodifica la lista,
 extrae la config de los 8 canales y lee la DATA en esas mismas direcciones):

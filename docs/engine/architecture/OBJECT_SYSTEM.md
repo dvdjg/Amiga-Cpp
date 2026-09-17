@@ -57,7 +57,7 @@ La separación de capas es la misma que en `VISUAL_EFFECT_SPRITE_DESIGN.md` §2:
 | Anclaje y offset por actor, animación con velocidad entera | EXISTE | `actor_screen_rect`, `actor_tick` (`scene/actor.hpp`) |
 | Traslación al bitmap-anillo | EXISTE | `ring_physical` (`scene/actor.hpp`) |
 | Recorte parcial del objeto a la ventana | PROPUESTO | el emisor rechaza el objeto que no cabe entero (hace falta máscara de fin de línea) |
-| Resolución de conflictos de Copper por prioridad | PROPUESTO | el actor declara; la fusión por z vive en el compositor |
+| Resolución de conflictos de Copper por `(superficie, z)` | EXISTE | `copper::Plan::add_prioritized` (orden ascendente por prioridad dentro de cada línea: la última escritura manda) |
 | Política de save-under por buffer | EXISTE | `emit_save`/`emit_restore` por buffer (`scene/actor.hpp`), solo con destino planar |
 | Anclaje por frame distinto (hot-spot variable entre frames) | PROPUESTO | hoy el anclaje es por actor |
 | Superficie destino y orden `z` **por superficie** (`ActorDesc::surface`, `ActorEmitContext::targets`) | EXISTE | `engine/include/eng/scene/actor.hpp` |
@@ -182,7 +182,7 @@ actor (y de pantalla = 84)                      líneas absolutas
   CopperIntent Priority      rel[16..20)  ──►    [100..104)
 ```
 
-Fusión y conflictos, en orden de prioridad decreciente: intenciones del **frame actual** del actor, después las del **actor** y después las de la **capa**. Si dos intenciones escriben el **mismo registro en la misma línea**, gana la del actor con mayor `z` dentro de la **misma superficie**; entre superficies distintas decide el orden de las superficies, y en empate final el identificador menor (orden determinista). Las reglas específicas que el compositor debe hacer cumplir:
+Fusión y conflictos, en orden de prioridad decreciente: intenciones del **frame actual** del actor, después las del **actor** y después las de la **capa**. Si dos intenciones escriben el **mismo registro en la misma línea**, gana la del actor con mayor `z` dentro de la **misma superficie**; entre superficies distintas decide el orden de las superficies, y en empate final el identificador menor (orden determinista). El `Plan` lo resuelve con `add_prioritized(intents, count, surface, z)`: ordena por prioridad **ascendente** dentro de cada línea y emite la de mayor prioridad la última, de modo que en el Copper manda la última escritura. La escena lo cablea con `actor_add_copper` (que pasa `(surface, z)` del actor) o con `compose_sprites(..., plan)`. Alcance actual: cada intención se materializa como un **punto en `top`** (el scheduler no usa `bottom`), así que el espacio de conflicto es exactamente la misma línea y queda resuelto por completo; si en el futuro se quieren tramos de varias líneas, habrá que expandirlos por línea antes de ordenar, con el coste de memoria correspondiente (cuadrar con `max_intents`). Las reglas específicas que el compositor debe hacer cumplir:
 
 - `copper::Plan` ordena por scanline relativo al inicio del display, con ordenación estable y sin que importe el orden de alta.
 - Un `SpriteRearm` (multiplexado) exige recargar `SPRxPT` al principio del VBL; el `SpriteManager` es el emisor, no el actor.

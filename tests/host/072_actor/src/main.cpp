@@ -63,6 +63,20 @@ alignas(16) eng::u16 g_pixels[32];
 alignas(16) eng::u16 g_mask[16];
 alignas(16) eng::u16 g_save[64];
 alignas(16) eng::u16 g_pixel_pool[256];
+alignas(16) eng::u8 g_chip_plan[32 * 1024];
+
+/// Valores de los MOVEs a `reg`, en orden de aparicion.
+unsigned collect_moves(const eng::u16* words, eng::u16 count, eng::u16 reg, eng::u16* out,
+		       unsigned max) {
+	unsigned n = 0;
+	for (eng::u16 i = 0; i + 1u < count && n < max; i += 2u) {
+		const eng::u16 w0 = words[i];
+		if (w0 == 0xffffu) break;
+		if ((w0 & 1u) != 0u) continue; // WAIT
+		if (w0 == reg) out[n++] = words[i + 1u];
+	}
+	return n;
+}
 alignas(16) eng::u16 g_copper_colors[2] {};
 
 constexpr Frame kFrames[2] = {
@@ -686,6 +700,75 @@ void test_compose_sprites() {
 	CHECK(mgr.apply(nullptr, 0u) == 0u, "sin placements no aplica nada");
 }
 
+void test_copper_priority_wiring() {
+	static eng::u16 hi_cols[2] {0u, 0x0ccu};
+	static eng::u16 lo_cols[2] {0u, 0x0aau};
+
+	eng::MemorySystem mem {};
+	mem.chip = eng::LinearArena {g_chip_plan, sizeof(g_chip_plan), eng::MemoryKind::Chip};
+	eng::copper::Plan plan {};
+	CHECK(plan.begin(mem, {4096u, 0x00u}), "plan.begin");
+
+	ActorStore<4> store;
+	store.reset();
+	RepresentationAllocator alloc {};
+	alloc.reset(RepresentationBudget {8u, 60000u, 0u});
+	CopperIntent hi {
+		CopperIntentKind::PaletteLine, 0u, 0u, 0u,
+		eng::PaletteWords {hi_cols, 2u}, 1u, 1u, 0, {}, 0u, nullptr};
+	ActorDesc d = make_desc();
+	d.copper = eng::Span<const CopperIntent> {&hi, 1u};
+	d.surface = 0u;
+	d.z = 200u;
+	d.anchor = {0, 0};
+	d.offset = {0, 0};
+	d.y = 100;
+	const ActorId id = store.add(d, alloc);
+	Actor* a = store.get(id);
+	CHECK(a != nullptr, "actor con necesidad de copper");
+
+	plan.begin_frame();
+	CHECK(eng::scene::actor_add_copper(plan, *a, 100u, 0u) == 1u, "necesidad al Plan");
+	// Un segundo intent a la MISMA linea y registro, con prioridad menor, anadido DESPUES:
+	// el Plan debe emitirlo antes (la ultima escritura es la del actor, que tiene mas z).
+	CopperIntent lo = hi;
+	lo.colors = eng::PaletteWords {lo_cols, 2u};
+	plan.add_prioritized(&lo, 1u, 0u, 1u);
+	plan.materialize();
+	CHECK(plan.end_frame(), "end_frame del plan de prioridades");
+	const eng::u16 reg01 = static_cast<eng::u16>(eng::copper::Register::COLOR00) + 2u;
+	eng::u16 vals[4] {0};
+	const unsigned n = collect_moves(plan.active_words(), plan.words(), reg01, vals, 4);
+	CHECK(n == 2u && vals[0] == 0x0aau && vals[1] == 0x0ccu,
+	      "gana el actor (mayor z) aunque su intent se anadiese antes");
+
+	// `compose_sprites` con un Plan: las necesidades van al Plan (con su prioridad) y no
+	// al buffer del llamador.
+	eng::copper::Plan cplan {};
+	CHECK(cplan.begin(mem, {4096u, 0x00u}), "cplan.begin");
+	ActorEmitContext ctx {};
+	use_targets(ctx);
+	ActorId order[4] {};
+	SpriteIntent intents[4] {};
+	eng::u16 intent_actor[4] {};
+	SpriteSlot slots[4] {};
+	SpritePlacement placements[4] {};
+	eng::scene::SpriteComposeScratch sc {};
+	sc.order = order;
+	sc.intents = intents;
+	sc.intent_actor = intent_actor;
+	sc.slots = slots;
+	sc.placements = placements;
+	sc.placement_capacity = 4u;
+	sc.capacity = 4u;
+	FramePlan frame {};
+	frame.clear();
+	const eng::scene::SpriteComposeResult res =
+		eng::scene::compose_sprites(frame, store, ctx, 0x00u, sc, &cplan);
+	CHECK(res.copper == 1u, "una necesidad enrutada");
+	CHECK(cplan.intent_count() == 1u, "el Plan la recibio con su prioridad");
+}
+
 } // namespace
 
 int main() {
@@ -701,6 +784,7 @@ int main() {
 	test_sprite_template_projection();
 	test_sprite_allocation_and_bob_fallback();
 	test_compose_sprites();
+	test_copper_priority_wiring();
 	test_emit_save_under();
 	test_copper_anchoring();
 

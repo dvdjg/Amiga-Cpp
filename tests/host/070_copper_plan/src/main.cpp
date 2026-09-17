@@ -84,6 +84,18 @@ u16 first_move_value(const u16* words, u16 count, u16 reg) {
 	return 0xdeadu;
 }
 
+/// Valores de los MOVEs a `reg`, en orden de aparicion.
+unsigned move_values(const u16* words, u16 count, u16 reg, u16* out, unsigned max) {
+	unsigned n = 0;
+	for (u16 i = 0; i + 1u < count && n < max; i += 2u) {
+		const u16 w0 = words[i];
+		if (w0 == 0xffffu) break;
+		if ((w0 & 1u) != 0u) continue; // WAIT
+		if (w0 == reg) out[n++] = words[i + 1u];
+	}
+	return n;
+}
+
 eng::graphics::CopperIntent palette_intent(u16 line, const u16* color) {
 	eng::graphics::CopperIntent it {};
 	it.kind = eng::graphics::CopperIntentKind::PaletteLine;
@@ -255,6 +267,88 @@ int main() {
 		}
 	}
 
-	std::printf("OK: copper::Plan (orden por scanline, doble buffer, publicacion y overflow).\n");
+	// --- conflictos en la MISMA linea: gana la de mayor (superficie, z) -----------
+	{
+		eng::copper::Plan prio;
+		if (!prio.begin(mem, {1024u, 0x00u})) {
+			std::printf("[FAIL] Plan::begin para prioridades\n");
+			return 1;
+		}
+		// Dos colores para COLOR01; la vista de `colors` cubre hasta el indice `first`.
+		static const u16 kLowP[2] = {0x000, 0x0aau};
+		static const u16 kHighP[2] = {0x000, 0x0ccu};
+		const u16 reg01 = static_cast<u16>(eng::copper::Register::COLOR00) + 2u; // COLOR01
+		const auto conflict = [](const u16* two) {
+			eng::graphics::CopperIntent it {};
+			it.kind = eng::graphics::CopperIntentKind::PaletteLine;
+			it.top = 100u;
+			it.bottom = 100u;
+			it.colors = eng::PaletteWords {two, 2u};
+			it.first = 1u; // COLOR01
+			it.count = 1u;
+			return it;
+		};
+		eng::graphics::CopperIntent high = conflict(kHighP);
+		eng::graphics::CopperIntent low = conflict(kLowP);
+		// La base escribe solo COLOR00, para que los unicos MOVEs a COLOR01 sean los dos
+		// en conflicto.
+		static const u16 kBaseP[1] = {0x000};
+
+		prio.begin_frame();
+		prio.scheduler().emit_palette(eng::PaletteWords {kBaseP, 1u});
+		// Se anaden en orden INVERSO a su prioridad: la de mayor z entra primero y aun
+		// asi debe salir la ultima (la ultima escritura de la linea manda).
+		prio.add_prioritized(&high, 1u, 0u, 20u);
+		prio.add_prioritized(&low, 1u, 0u, 10u);
+		prio.materialize();
+		if (!prio.end_frame()) {
+			std::printf("[FAIL] end_frame de prioridades\n");
+			return 1;
+		}
+		u16 vals[4] = {0};
+		const unsigned n = move_values(prio.active_words(), prio.words(), reg01, vals, 4);
+		if (n != 2u || vals[0] != kLowP[1] || vals[1] != kHighP[1]) {
+			std::printf("[FAIL] prioridad por z: n=%u [0x%x,0x%x] (esperado 0x%x,0x%x)\n", n,
+				    (unsigned)vals[0], (unsigned)vals[1], (unsigned)kLowP[1],
+				    (unsigned)kHighP[1]);
+			return 1;
+		}
+
+		// Misma z (empate): se conserva el orden de insercion (FIFO estable).
+		prio.begin_frame();
+		prio.scheduler().emit_palette(eng::PaletteWords {kBaseP, 1u});
+		prio.add_prioritized(&high, 1u, 0u, 7u);
+		prio.add_prioritized(&low, 1u, 0u, 7u);
+		prio.materialize();
+		if (!prio.end_frame()) {
+			std::printf("[FAIL] end_frame del empate\n");
+			return 1;
+		}
+		const unsigned n2 = move_values(prio.active_words(), prio.words(), reg01, vals, 4);
+		if (n2 != 2u || vals[0] != kHighP[1] || vals[1] != kLowP[1]) {
+			std::printf("[FAIL] empate conserva FIFO: [0x%x,0x%x]\n", (unsigned)vals[0],
+				    (unsigned)vals[1]);
+			return 1;
+		}
+
+		// La superficie manda sobre z: (superficie 1, z 1) gana a (superficie 0, z 250).
+		prio.begin_frame();
+		prio.scheduler().emit_palette(eng::PaletteWords {kBaseP, 1u});
+		prio.add_prioritized(&high, 1u, 0u, 250u);
+		prio.add_prioritized(&low, 1u, 1u, 1u);
+		prio.materialize();
+		if (!prio.end_frame()) {
+			std::printf("[FAIL] end_frame de superficies\n");
+			return 1;
+		}
+		const unsigned n3 = move_values(prio.active_words(), prio.words(), reg01, vals, 4);
+		if (n3 != 2u || vals[0] != kHighP[1] || vals[1] != kLowP[1]) {
+			std::printf("[FAIL] la superficie manda sobre z: [0x%x,0x%x]\n", (unsigned)vals[0],
+				    (unsigned)vals[1]);
+			return 1;
+		}
+	}
+
+	std::printf("OK: copper::Plan (orden por scanline, prioridad, doble buffer, publicacion y overflow).\n");
 	return 0;
 }

@@ -26,6 +26,7 @@
 #include <eng/core/types.hpp>
 #include <eng/graphics/animation.hpp>
 #include <eng/graphics/bob.hpp>
+#include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/raster_intent.hpp>
 #include <eng/graphics/sprite.hpp>
@@ -35,6 +36,7 @@
 
 namespace eng::scene {
 
+using eng::copper::Plan;
 using eng::graphics::Animation;
 using eng::graphics::Bob;
 using eng::graphics::BobDraw;
@@ -466,6 +468,23 @@ inline eng::u8 actor_emit_copper(const Actor& a, eng::s16 screen_y, eng::u16 dis
 	return n;
 }
 
+/// Escribe en `plan` las necesidades de Copper del actor, ya convertidas a líneas
+/// absolutas y CON su prioridad `(superficie, z)`: en conflicto (dos objetos que piden el
+/// mismo registro en la misma línea) gana la de mayor `(superficie, z)`, porque el Plan
+/// la emite la última. Devuelve cuántas añadió.
+inline eng::u8 actor_add_copper(Plan& plan, const Actor& a, eng::s16 screen_y, eng::u16 display_top) {
+	const eng::s32 base = static_cast<eng::s32>(display_top) + screen_y;
+	eng::u8 n = 0;
+	for (const CopperIntent& need : a.desc.copper) {
+		CopperIntent abs = need;
+		abs.top = static_cast<eng::u16>(base + need.top);
+		abs.bottom = static_cast<eng::u16>(base + need.bottom);
+		plan.add_prioritized(&abs, 1u, a.desc.surface, a.desc.z);
+		++n;
+	}
+	return n;
+}
+
 /// Almacén de actores de capacidad fija con handles generacionales. Sin heap.
 template <eng::u16 MaxActors>
 class ActorStore {
@@ -752,7 +771,8 @@ struct SpriteComposeScratch {
 template <eng::u16 MaxActors>
 inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors>& store,
 					   const ActorEmitContext& ctx, eng::u16 display_top,
-					   SpriteComposeScratch& s) {
+					   SpriteComposeScratch& s,
+					   Plan* copper_plan = nullptr) {
 	SpriteComposeResult r {};
 	if (store.count() == 0u) {
 		r.ok = true; // nada que componer
@@ -779,13 +799,20 @@ inline SpriteComposeResult compose_sprites(FramePlan& plan, ActorStore<MaxActors
 		}
 		const Frame f = actor_current_frame(*a);
 		const DirtyRect rect = actor_screen_rect(*a, f, ctx.cam_x, ctx.cam_y);
-		const eng::u16 room = s.copper_capacity > r.copper
-					      ? static_cast<eng::u16>(s.copper_capacity - r.copper)
-					      : 0u;
-		r.copper = static_cast<eng::u16>(
-			r.copper + actor_emit_copper(*a, rect.top, display_top,
-						     s.copper != nullptr ? s.copper + r.copper : nullptr,
-						     static_cast<eng::u8>(room > 255u ? 255u : room)));
+		if (copper_plan != nullptr) {
+			// Al Plan, con la prioridad (superficie, z) del actor: activa la fusion de
+			// conflictos en la misma linea.
+			r.copper = static_cast<eng::u16>(
+				r.copper + actor_add_copper(*copper_plan, *a, rect.top, display_top));
+		} else {
+			const eng::u16 room = s.copper_capacity > r.copper
+						      ? static_cast<eng::u16>(s.copper_capacity - r.copper)
+						      : 0u;
+			r.copper = static_cast<eng::u16>(
+				r.copper + actor_emit_copper(*a, rect.top, display_top,
+							     s.copper != nullptr ? s.copper + r.copper : nullptr,
+							     static_cast<eng::u8>(room > 255u ? 255u : room)));
+		}
 		if (s.slots[i].as_bob) {
 			++r.degraded;
 			continue;
