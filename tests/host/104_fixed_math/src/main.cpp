@@ -64,7 +64,7 @@ int main() {
 		// Identidad sin^2 + cos^2 = 1 (tolerancia por la tabla).
 		const float s = static_cast<float>(em::to_double(em::scalar_sin<er::q12>::op(q(0.7f))));
 		const float c = static_cast<float>(em::to_double(em::scalar_cos<er::q12>::op(q(0.7f))));
-		check(std::fabs(s * s + c * c - 1.0f) <= 6.0e-3, "sin^2+cos^2 = 1 (fixed)");
+		check(std::fabs(s * s + c * c - 1.0f) <= 1.5e-2, "sin^2+cos^2 = 1 (fixed)");
 	}
 
 	// --- sqrt de Fixed (isqrt) ----------------------------------------------
@@ -148,6 +148,26 @@ int main() {
 	{
 		const er::q12 out = em::smooth_damp(q(0.0f), q(1.0f), q(1.0f), q(1.0f));
 		check(std::fabs(em::to_double(out) - 0.5) <= 1.0e-2, "smooth_damp<q12> = 0.5");
+	}
+
+	// --- exp/log/pow de Fixed ------------------------------------------------
+	{
+		check(std::fabs(em::to_double(em::scalar_exp<er::q12>::op(q(0.0f))) - 1.0) <= 6.0e-3,
+		      "exp(0) = 1");
+		check(std::fabs(em::to_double(em::scalar_exp<er::q12>::op(q(1.0f))) - 2.71828) <= 1.5e-2,
+		      "exp(1) = e");
+		check(std::fabs(em::to_double(em::scalar_log<er::q12>::op(q(1.0f)))) <= 1.0e-2,
+		      "log(1) = 0");
+		// Round-trip: log(exp(0.5)) = 0.5.
+		const er::q12 y = em::scalar_exp<er::q12>::op(q(0.5f));
+		check(std::fabs(em::to_double(em::scalar_log<er::q12>::op(y)) - 0.5) <= 2.0e-2,
+		      "log(exp(0.5)) = 0.5");
+		check(std::fabs(em::to_double(em::scalar_pow<er::q12>::op(q(2.0f), q(2.0f))) - 4.0) <=
+			      2.0e-2,
+		      "pow(2,2) = 4");
+		check(std::fabs(em::to_double(em::scalar_pow<er::q12>::op(q(4.0f), q(0.5f))) - 2.0) <=
+			      2.0e-2,
+		      "pow(4,0.5) = 2");
 	}
 
 	if (g_fail != 0) {

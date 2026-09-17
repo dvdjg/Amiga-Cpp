@@ -180,6 +180,24 @@ struct scalar_log2 {
 	static constexpr S op(S x) { return log2(x); }
 };
 
+/// `log` natural del escalar (por defecto ADL).
+template <typename S>
+struct scalar_log {
+	static constexpr S op(S x) { return log(x); }
+};
+
+/// `exp` del escalar (por defecto ADL).
+template <typename S>
+struct scalar_exp {
+	static constexpr S op(S x) { return exp(x); }
+};
+
+/// `pow(a, b)` del escalar (por defecto ADL).
+template <typename S>
+struct scalar_pow {
+	static constexpr S op(S a, S b) { return pow(a, b); }
+};
+
 /// Constante escalar desde un `double` de compilación, **sin ambigüedad**: para
 /// `MiniFloat16` usa el constructor de `float` (su formato solo tiene 10 bits de mantisa) y
 /// para `Fixed<R,E>` cuantiza a `E` bits fraccionarios (redondeo al más cercano). Un

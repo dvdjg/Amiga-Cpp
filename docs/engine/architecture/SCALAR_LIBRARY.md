@@ -206,7 +206,9 @@ tests host) falla si la doc se desincroniza del contrato, y `--write` la regener
 | bezier2 / bezier3 | si | si | si | HOST-065 |
 | bezier2 / bezier3 (Vec<N>) | si | si | si | HOST-065 |
 | wrap_angle / angle_diff | — | si | — | HOST-057 |
-| sqrt/exp/log/sin/cos/tan | — | si | sqrt/sin/cos/exp2/log2 si (fixed_math); exp/log/tan no | HOST-057/104 |
+| sqrt / sin / cos / exp2 / log2 | — | si | si (fixed_math) | HOST-057/104 |
+| exp / log / pow | — | si (minifloat_math) | si (fixed_math) | HOST-104 |
+| tan / asin / acos / atan2 | — | si | no | HOST-057 |
 | transform (MF × fix) | — | ratio MF (|m| <= 8) | coordenada | HOST-058 |
 | stats::mean / variance / stddev | si | si | si (sum/mean con acumulador s32; stddev con fixed_math) | HOST-093/104 |
 | dsp::Adsr / OnePole / DelayLine / osc_* | si | si | si (osc_sine con fixed_math) | HOST-102/104 |

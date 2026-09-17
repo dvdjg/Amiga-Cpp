@@ -348,7 +348,9 @@ extern "C" s16 c_scalar16_math(s16 a, s16 b) {
 	const q12 len = length(v);
 	const q12 e2v = scalar_exp2<q12>::op(q12 {1024});
 	const q12 l2 = scalar_log2<q12>::op(q12 {4096});
-	return static_cast<s16>(e1.v + e2.v + sd.v + len.v + e2v.v + l2.v);
+	const q12 ex = scalar_exp<q12>::op(q12 {1024});
+	const q12 pw = scalar_pow<q12>::op(q12 {4096}, q12 {1024});
+	return static_cast<s16>(e1.v + e2.v + sd.v + len.v + e2v.v + l2.v + ex.v + pw.v);
 }
 `;
 
