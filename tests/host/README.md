@@ -160,3 +160,5 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-118 | [navmesh](118_navmesh/README.md) | `ai/navigation/navmesh_lite.hpp`: `NavMesh` de poligonos convexos con portales; localizar punto, A* por adyacencia, puntos medios y string-pulling (funnel). |
 | HOST-119 | [union_find](119_union_find/README.md) | `util/union_find.hpp`: `UnionFind<MaxElements>` (DSU: find/unite/connected/component_size); islas de celdas transitables. |
 | HOST-120 | [sparse_set](120_sparse_set/README.md) | `util/sparse_set.hpp`: `SparseSet<T,MaxElements>` (disperso-denso, altas/bajas O(1), iteracion contigua, swap-remove). |
+| HOST-121 | [bitstream](121_bitstream/README.md) | `util/bitstream.hpp`: `BitWriter`/`BitReader` (campos de 1..32 bits, LSB-first) sobre un buffer. Round-trip, capacidad y fin de buffer. |
+| HOST-122 | [dynamic_bitset](122_dynamic_bitset/README.md) | `util/dynamic_bitset.hpp`: `DynamicBitSet<Allocator>` (tamano fijado en `init`, palabras en arena); mascara de la ultima palabra. |

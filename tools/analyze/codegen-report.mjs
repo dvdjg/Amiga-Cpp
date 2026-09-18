@@ -59,6 +59,8 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/ai/perception/agent_memory.hpp>
 #include <eng/core/util/union_find.hpp>
 #include <eng/core/util/sparse_set.hpp>
+#include <eng/core/util/bitstream.hpp>
+#include <eng/core/util/dynamic_bitset.hpp>
 #include <eng/core/random.hpp>
 #include <eng/core/util/dsp.hpp>
 #include <eng/core/fixed_math.hpp>
@@ -540,6 +542,31 @@ extern "C" s32 c_sparse_set_ops(u16 seed) {
 		sum += v;
 	}
 	return static_cast<s32>(sum + static_cast<s32>(set.size()));
+}
+extern "C" u16 c_bitstream_ops(eng::u32 value, u16 bits) {
+	eng::u8 buf[8] {};
+	eng::util::BitWriter bw {eng::Span<eng::u8> {buf, 8}};
+	bw.write(value, static_cast<eng::u8>(bits % 32u + 1u));
+	bw.write_bool(true);
+	eng::util::BitReader br {eng::Span<const eng::u8> {buf, bw.byte_count()}};
+	eng::u32 out = 0;
+	bool b = false;
+	br.read(static_cast<eng::u8>(bits % 32u + 1u), out);
+	br.read_bool(b);
+	return static_cast<u16>(out + (b ? 1u : 0u));
+}
+extern "C" u16 c_dynamic_bitset_ops(u16 seed) {
+	eng::util::InlineAlloc<64> alloc;
+	eng::util::DynamicBitSet<eng::util::InlineAlloc<64>> bits {alloc};
+	if (!bits.init(70u)) {
+		return 0u;
+	}
+	for (eng::u16 i = 0u; i < 70u; i = static_cast<eng::u16>(i + 3u)) {
+		bits.set(i);
+	}
+	const eng::usize c = bits.count();
+	bits.flip(static_cast<eng::usize>(seed % 70u));
+	return static_cast<u16>(c + (bits.any() ? 1u : 0u) + bits.size());
 }
 extern "C" u16 c_random_ops(u16 seed) {
 	eng::Xoroshiro64pp rng {seed, static_cast<eng::u32>(seed + 1u)};

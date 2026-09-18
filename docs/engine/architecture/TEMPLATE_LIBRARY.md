@@ -89,6 +89,8 @@ Puntos de reutilización explícitos:
 | `algorithm.hpp` | `find(_if)`, `contains`, `count(_if)`, `all_of`/`any_of`/`none_of`, `for_each`, `transform`, `copy`/`copy_n`/`fill_n`, `equal`, `accumulate`, `min_element`/`max_element`, `lower_bound`/`upper_bound`/`binary_search`, `reverse`, `rotate`, `iota`, `remove_if`, `unique` | `<algorithm>`, `<numeric>` |
 | `array.hpp` | `Array<T, N>` | `std::array` |
 | `bitset.hpp` | `BitSet<N>` | `std::bitset` |
+| `dynamic_bitset.hpp` | `DynamicBitSet<A>` (tamaño fijado en `init`, palabras en arena) | `boost::dynamic_bitset` |
+| `bitstream.hpp` | `BitWriter`/`BitReader` (campos de 1..32 bits, LSB-first) | (sin equivalente; bit I/O) |
 | `allocator.hpp` | `Allocator` (concepto), `NullAlloc`, `BumpAlloc`, `InlineAlloc<N>` | (sin equivalente) |
 | `arena_alloc.hpp` | `ArenaAlloc` (sobre `eng::LinearArena`) | (sin equivalente) |
 | `hash.hpp` | `hash_u8/u16/u32`, `hash_value`, `hash_bytes`/`hash_string`, `Hash<T>` | `std::hash` |
@@ -167,6 +169,8 @@ referencia para **elegir contenedor por coste**, no por hábito:
 | `AgentFsm::dispatch` (tabla de 3) | 37 (sonda `c_agent_fsm_ops`) | 0 | 0 |
 | `UnionFind` (N=64: unite/find/connect) | 315 (sonda `c_union_find_ops`) | 0 | 1 |
 | `SparseSet` (N=64: altas/baja/iterar) | 253 (sonda `c_sparse_set_ops`) | 0 | 1 |
+| `BitWriter`+`BitReader` (round-trip) | 96 (sonda `c_bitstream_ops`) | 0 | 0 |
+| `DynamicBitSet` init/set/count (70 bits) | 76 (sonda `c_dynamic_bitset_ops`) | 0 | 4 |
 
 Lectura: **para N pequeño, ordenar/indizar linealmente gana al hash** (`FlatMap` casi la
 mitad que `HashMap`, y `DirectMap` menos aún con clave densa); el hash usa **un `mulu.w` de
@@ -247,6 +251,8 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-109 | `core/util/event.hpp` (emisor de eventos de capacidad fija) |
 | HOST-119 | `core/util/union_find.hpp` (DSU: unir, conectividad, tamaños, islas) |
 | HOST-120 | `core/util/sparse_set.hpp` (disperso-denso: insert/find, swap-remove) |
+| HOST-121 | `core/util/bitstream.hpp` (campos de bits LSB-first) |
+| HOST-122 | `core/util/dynamic_bitset.hpp` (bitset de tamaño en `init`, en arena) |
 
 > **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`), `Pool` por `086_bob_objects` (parque de actores), `HashMap` por `111_xlimited_sidescroller` (índice de chunks de `ChunkCache`), `color` también por `086_bob_objects` (gradiente del cielo con `eng::util::lerp444`), y `broadphase` y `pathfinding` por `110_ylimited_shooter` (self-test en `init`: `SpatialHash` + `bfs`/`reconstruct_path` en el 68000; si falla, la demo no llega a READY). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashSet`, `DynamicHashMap`, `PriorityQueue`, `Stack`/`Queue`/`Deque`, `EnumSet`, `ScopeGuard`, `StaticString`, `stats`, `collision`, `text`, `grid`, `dsp`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..102 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
 
@@ -273,6 +279,7 @@ mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
    `broadphase.hpp` (`c_broadphase_ops`), `pathfinding.hpp` (`c_pathfinding_ops`),
    `state_machine.hpp`/`event.hpp` (`c_state_machine_ops`/`c_event_ops`),
    `union_find.hpp`/`sparse_set.hpp` (`c_union_find_ops`/`c_sparse_set_ops`),
+   `bitstream.hpp`/`dynamic_bitset.hpp` (`c_bitstream_ops`/`c_dynamic_bitset_ops`),
    `core/random.hpp` (`c_random_ops`) y `dsp.hpp` (`c_dsp_ops`).
 5. Antes de añadir una utilidad nueva, comprobar si el **vocabulario** de §7 ya cubre la
    necesidad (p. ej. flags con `EnumSet`, restauración con `ScopeGuard`, colas con
@@ -318,6 +325,8 @@ Qué usar según la necesidad, con el criterio del A500 (sin heap; coste visible
 | Difundir un suceso a varios oyentes | `event.hpp` (`Event<Signature,MaxSubscribers>`) |
 | Componentes conexas / particionar el mundo | `union_find.hpp` (`UnionFind<N>`) |
 | Componentes por entidad con id disperso (ECS) | `sparse_set.hpp` (`SparseSet<T,N>`) |
+| Serializar campos de bits (nivel/partida) | `bitstream.hpp` (`BitWriter`/`BitReader`) |
+| Conjunto de bits de tamaño fijado en carga | `dynamic_bitset.hpp` (`DynamicBitSet<A>`) |
 
 Notas de uso:
 
