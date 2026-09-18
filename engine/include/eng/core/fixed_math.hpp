@@ -315,6 +315,29 @@ template <int E, int Size = ENG_FIXED_ATAN_SIZE, typename P>
 	return fixed_atan2<E, Size>(r, x);
 }
 
+// --- Ángulos: pliegue y diferencia ---------------------------------------------
+
+/// Pliega un ángulo `Fixed<s16,E>` a `[-π, π]`: `x − 2π·round(x/2π)`. Sin tabla; útil
+/// para mantener los ángulos en el dominio fiable de `fixed_sin`/`fixed_cos`. El
+/// argumento debe caber en `s16` (no pliega ángulos fuera del rango del propio fixed).
+template <int E, typename P>
+[[nodiscard]] constexpr Fixed<s16, E, P> wrap_angle(Fixed<s16, E, P> x) {
+	static_assert(E >= 1 && E <= 15, "wrap_angle: E en [1,15]");
+	using F = Fixed<s16, E, P>;
+	// round-to-nearest de x/2π en crudo: `(x·(1/2π) + 2^(2E-1)) >> 2E` (redondeo por
+	// suelo, válido también para negativos).
+	const s32 inv_raw = scalar_const<F>::from(0.15915494309189535).v;
+	const s32 num = static_cast<s32>(x.v) * inv_raw;
+	const int n = (num + (1 << (2 * E - 1))) >> (2 * E);
+	return x - mul_norm(scalar_traits<F>::from_int(n), scalar_const<F>::from(6.283185307179586));
+}
+
+/// Diferencia angular mínima `a − b` plegada a `[-π, π]`.
+template <int E, typename P>
+[[nodiscard]] constexpr Fixed<s16, E, P> angle_diff(Fixed<s16, E, P> a, Fixed<s16, E, P> b) {
+	return wrap_angle(a - b);
+}
+
 // --- Puntos de extensión (tamaño por defecto) ---------------------------------
 
 /// `sin` de un `Fixed<s16,E>` por la tabla compartida (radianes en el propio fixed).

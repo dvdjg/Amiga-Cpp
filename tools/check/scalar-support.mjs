@@ -43,7 +43,7 @@ const ROWS = [
   { fn: 'ease_in/out/in_out_back',   flt: 'si', mf: 'si', fx: 'si', test: 'HOST-065' },
   { fn: 'bezier2 / bezier3',         flt: 'si', mf: 'si', fx: 'si', test: 'HOST-065' },
   { fn: 'bezier2 / bezier3 (Vec<N>)', flt: 'si', mf: 'si', fx: 'si', test: 'HOST-065' },
-  { fn: 'wrap_angle / angle_diff',   flt: '—', mf: 'si', fx: '—', test: 'HOST-057' },
+  { fn: 'wrap_angle / angle_diff',   flt: '—', mf: 'si', fx: 'si (fixed_math)', test: 'HOST-057/104' },
   { fn: 'sqrt / sin / cos / exp2 / log2', flt: '—', mf: 'si', fx: 'si (fixed_math)', test: 'HOST-057/104' },
   { fn: 'exp / log / pow',            flt: '—', mf: 'si (minifloat_math)', fx: 'si (fixed_math)', test: 'HOST-104' },
   { fn: 'tan / asin / acos / atan2',  flt: '—', mf: 'si', fx: 'si (fixed_math)', test: 'HOST-057/104' },

@@ -207,6 +207,19 @@ int main() {
 		      "acos(0) = pi/2");
 	}
 
+	// --- wrap_angle / angle_diff de Fixed -----------------------------------
+	{
+		const float two_pi = 2.0f * kPi;
+		check(std::fabs(em::to_double(em::wrap_angle(q(0.5f))) - 0.5) <= 1.0e-2,
+		      "wrap_angle(0.5) = 0.5");
+		check(std::fabs(em::to_double(em::wrap_angle(q(two_pi + 0.5f))) - 0.5) <= 1.5e-2,
+		      "wrap_angle(2pi+0.5) = 0.5");
+		check(std::fabs(em::to_double(em::wrap_angle(q(kPi + 0.1f))) - (-kPi + 0.1f)) <= 1.5e-2,
+		      "wrap_angle(pi+0.1) = -pi+0.1");
+		check(std::fabs(em::to_double(em::angle_diff(q(0.1f), q(two_pi - 0.1f))) - 0.2f) <= 1.5e-2,
+		      "angle_diff(0.1, 2pi-0.1) = 0.2");
+	}
+
 	// --- tamaño de tabla elegible en compilación ----------------------------
 	{
 		const er::q12 x {2300}; // ≈ 0.5615 rad

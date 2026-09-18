@@ -209,7 +209,7 @@ tests host) falla si la doc se desincroniza del contrato, y `--write` la regener
 | ease_in/out/in_out_back | si | si | si | HOST-065 |
 | bezier2 / bezier3 | si | si | si | HOST-065 |
 | bezier2 / bezier3 (Vec<N>) | si | si | si | HOST-065 |
-| wrap_angle / angle_diff | — | si | — | HOST-057 |
+| wrap_angle / angle_diff | — | si | si (fixed_math) | HOST-057/104 |
 | sqrt / sin / cos / exp2 / log2 | — | si | si (fixed_math) | HOST-057/104 |
 | exp / log / pow | — | si (minifloat_math) | si (fixed_math) | HOST-104 |
 | tan / asin / acos / atan2 | — | si | si (fixed_math) | HOST-057/104 |
