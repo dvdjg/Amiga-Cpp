@@ -229,7 +229,18 @@ Blitter/clear, que ya estan a su nivel.
 Es cadencia por IRQ con ejecucion en primer plano. `Engine::run_frames` ejecuta
 `update`/`render` **dentro** de la ISR de VBlank (variante cercana, no identica); da la
 misma cadencia en la practica. `run_frames_polling` es la otra alternativa (busy-wait en
-`VPOSR`), que es la que cuantiza a campos enteros.
+`VPOSR`), que es la que cuantiza a campos enteros. Para efectos que no caben en 1 campo,
+`run_frames` es la cadencia correcta.
+
+**Sincronia de pantalla (flickering).** Con `run_frames` el `update` dura ~2,6 campos y no
+empieza alineado al VBlank. Con **doble buffer**, el dibujo del buffer destino empieza
+~0,4 campos antes de que el Copper haga el swap (recarga de `COP1LC` al VBlank) => se
+dibuja/borra un buffer que aun se muestra, y aparece tearing. El original lo evita porque
+`TaskWaitVBlank()` alinea el inicio del render al VBlank (con 2 buffers). Nuestro
+`update`, al durar >2 campos, no puede. Solucion: **triple buffer** (`kRing = 3`): el
+buffer que se dibuja lleva >=2 swaps sin mostrarse, sin solape. Medido: 19,24 fps
+(2,6 campos) y vision no detecta frames incompletos ni tearing. Raspar ~10k no lo
+arreglaria: el trabajo seguiria por encima de 2 campos.
 
 ## 7. Optimizaciones
 
@@ -267,8 +278,10 @@ Pendiente / descartado con la evidencia actual:
 - ✅ **Lote de BOBs fusionado e inline** (`OrBlobBatch`): `blits` 231,7k → 202,5k.
 - ✅ **Paridad por componente** con el original (medido con su propio profiler):
   transform 84k vs 83k, bobs 202,5k vs 194k, clear 75k vs ~76k.
-- ✅ **Cadencia por IRQ** (`Engine::run_frames`): **19,34 fps (2,6 campos)** — practicamente
+- ✅ **Cadencia por IRQ** (`Engine::run_frames`): **19,3 fps (2,6 campos)** — practicamente
   el original (20,1 fps, 2,49 campos). El polling daba 16,6 (3,0 campos).
+- ✅ **Triple buffer** (`kRing = 3`): elimina el tearing del doble buffer con `update` >2
+  campos. Vision confirma imagenes completas sin desgarro. Mismo rendimiento (19,2 fps).
 - ✅ Oraculo del original medido: **20,1 fps (2,49 campos/render)**, no 50.
 - ⏭ Unico margen: reducir Blitter/clear (ya al nivel del original) para bajar de 2,5 campos.
 

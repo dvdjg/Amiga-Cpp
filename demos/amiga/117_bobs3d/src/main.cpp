@@ -140,7 +140,11 @@ constexpr u8 kCarrionPlanes = 2;       // playfield del fondo
 constexpr u16 kBytesPerRow = kWidth / 8u;      // 32
 constexpr u32 kScreenPlaneBytes = static_cast<u32>(kBytesPerRow) * kHeight; // 8192
 constexpr u32 kScreenBytes = kScreenPlaneBytes * kPlanes;                    // 24576
-constexpr u8 kRing = 2;                // doble buffer de pantalla
+// Triple buffer: el `update` dura ~2,6 campos y la cadencia del copper (recarga de
+// COP1LC al VBlank) no esta alineada con el inicio del dibujo. Con 2 buffers, el
+// dibujo empieza cuando aun se muestra el buffer destino (~0,4 campos) => tearing.
+// Con 3, el buffer que se dibuja lleva >=2 swaps sin mostrarse.
+constexpr u8 kRing = 3;
 
 // BOB: chispa 48x32x3; el atlas original es denso (bytesPerRow 6) con 16 frames de 32
 // filas. Se reempaqueta a filas con palabra de guarda para el contrato de `bob.hpp`.
@@ -218,7 +222,7 @@ struct Bobs3DDemo {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		ENG_PROF_INIT(kProfCount);
-		if (!backend.configure_memory({160u * 1024u, 4u * 1024u, 4u * 1024u})) {
+		if (!backend.configure_memory({192u * 1024u, 4u * 1024u, 4u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011701u);
 			return;
 		}
@@ -304,7 +308,7 @@ struct Bobs3DDemo {
 		ENG_PROF_BEGIN(kProfInstall);
 		backend.install_copper_list(m_copper_ptrs[active]);
 		ENG_PROF_END(kProfInstall);
-		m_active = static_cast<u8>(active ^ 1u);
+		m_active = static_cast<u8>((active + 1u) % kRing);
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
