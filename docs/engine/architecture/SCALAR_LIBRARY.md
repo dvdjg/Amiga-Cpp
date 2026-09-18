@@ -213,6 +213,7 @@ tests host) falla si la doc se desincroniza del contrato, y `--write` la regener
 | sqrt / sin / cos / exp2 / log2 | — | si | si (fixed_math) | HOST-057/104 |
 | exp / log / pow | — | si (minifloat_math) | si (fixed_math) | HOST-104 |
 | tan / asin / acos / atan2 | — | si | si (fixed_math) | HOST-057/104 |
+| sincos (una pasada) | — | si (minifloat_math) | si (fixed_math) | HOST-057/104 |
 | transform (MF × fix) | — | ratio MF (|m| <= 8) | coordenada | HOST-058 |
 | stats::mean / variance / stddev | si | si | si (sum/mean con acumulador s32; stddev con fixed_math) | HOST-093/104 |
 | dsp::Adsr / OnePole / DelayLine / osc_* | si | si | si (osc_sine con fixed_math) | HOST-102/104 |

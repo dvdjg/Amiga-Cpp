@@ -222,6 +222,14 @@ struct scalar_acos {
 	static constexpr S op(S x) { return acos(x); }
 };
 
+/// `sincos(x, s, c)` del escalar (por defecto ADL): calcula seno y coseno del mismo
+/// ángulo en una sola pasada. Lo aportan los escalares que lo definan (p. ej.
+/// `MiniFloat16`) o `fixed_math.hpp` para `Fixed`.
+template <typename S>
+struct scalar_sincos {
+	static constexpr void op(S x, S& out_sin, S& out_cos) { sincos(x, out_sin, out_cos); }
+};
+
 /// Constante escalar desde un `double` de compilación, **sin ambigüedad**: para
 /// `MiniFloat16` usa el constructor de `float` (su formato solo tiene 10 bits de mantisa) y
 /// para `Fixed<R,E>` cuantiza a `E` bits fraccionarios (redondeo al más cercano). Un

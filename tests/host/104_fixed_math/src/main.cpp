@@ -207,6 +207,19 @@ int main() {
 		      "acos(0) = pi/2");
 	}
 
+	// --- sincos de una sola pasada ------------------------------------------
+	{
+		const er::q12 x = q(0.7f);
+		er::q12 s {0}, c {0};
+		em::fixed_sincos<12, 1024>(x, s, c);
+		check(s.v == em::fixed_sin<12, 1024>(x).v && c.v == em::fixed_cos<12, 1024>(x).v,
+		      "fixed_sincos = fixed_sin/fixed_cos");
+		em::scalar_sincos<er::q12>::op(x, s, c);
+		check(s.v == em::scalar_sin<er::q12>::op(x).v &&
+			      c.v == em::scalar_cos<er::q12>::op(x).v,
+		      "scalar_sincos<q12> = scalar_sin/scalar_cos");
+	}
+
 	// --- wrap_angle / angle_diff de Fixed -----------------------------------
 	{
 		const float two_pi = 2.0f * kPi;

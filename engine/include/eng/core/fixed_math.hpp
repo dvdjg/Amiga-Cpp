@@ -2,9 +2,9 @@
 
 /// \file fixed_math.hpp
 /// **Funciones matemáticas para `Fixed`** (`eng::math`): especializa los puntos de
-/// extensión de `scalar_math.hpp` (`sin`, `cos`, `tan`, `asin`, `acos`, `atan2`,
-/// `sqrt`, `exp2`, `log2`, `log`, `exp`, `pow`) para el escalar de coma fija de 16
-/// bits, de modo que los algoritmos genéricos (easings `_sine`/`_expo`, `smooth_damp`,
+/// extensión de `scalar_math.hpp` (`sin`, `cos`, `sincos`, `tan`, `asin`, `acos`,
+/// `atan2`, `sqrt`, `exp2`, `log2`, `log`, `exp`, `pow`) para el escalar de coma fija de
+/// 16 bits, de modo que los algoritmos genéricos (easings `_sine`/`_expo`, `smooth_damp`,
 /// `length`/`normalize`, `stats::stddev`, `pow`…) compilen también con fixed.
 ///
 /// ## Tablas y precisión: se eligen en compilación
@@ -214,6 +214,19 @@ template <int E, int Size = ENG_FIXED_SIN_SIZE, int Iter = ENG_FIXED_SIN_ITER, t
 	const s32 idx = (((static_cast<s32>(x.v) * Tab::kScale) >> (E + 4)) + Tab::kQuarter) &
 			Tab::kMask;
 	return Fixed<s16, E, P> {Tab::value.v[idx]};
+}
+
+/// `sin` y `cos` de `x` en **una sola pasada**: calcula el índice una vez y lee las dos
+/// entradas de la tabla (el coseno es la misma tabla desplazada un cuarto de vuelta). Más
+/// barato que `fixed_sin` seguido de `fixed_cos` cuando se necesitan ambos del mismo ángulo.
+template <int E, int Size = ENG_FIXED_SIN_SIZE, int Iter = ENG_FIXED_SIN_ITER, typename P>
+constexpr void fixed_sincos(Fixed<s16, E, P> x, Fixed<s16, E, P>& out_sin,
+			    Fixed<s16, E, P>& out_cos) {
+	static_assert(E <= 14, "fixed_sincos: 2^E debe caber en s16");
+	using Tab = detail::FixedSineTable<E, Size, Iter>;
+	const s32 idx = ((static_cast<s32>(x.v) * Tab::kScale) >> (E + 4)) & Tab::kMask;
+	out_sin = Fixed<s16, E, P> {Tab::value.v[idx]};
+	out_cos = Fixed<s16, E, P> {Tab::value.v[(idx + Tab::kQuarter) & Tab::kMask]};
 }
 
 /// `2^x` de `Fixed<s16,E>` (`2^n · 2^f`, tabla + desplazamiento). Satura.
@@ -431,6 +444,15 @@ struct scalar_asin<Fixed<s16, E, P>> {
 template <int E, typename P>
 struct scalar_acos<Fixed<s16, E, P>> {
 	static constexpr Fixed<s16, E, P> op(Fixed<s16, E, P> x) { return fixed_acos(x); }
+};
+
+/// `sincos` de un `Fixed<s16,E>` (seno y coseno del mismo ángulo en una sola pasada).
+template <int E, typename P>
+struct scalar_sincos<Fixed<s16, E, P>> {
+	static constexpr void op(Fixed<s16, E, P> x, Fixed<s16, E, P>& out_sin,
+				 Fixed<s16, E, P>& out_cos) {
+		fixed_sincos(x, out_sin, out_cos);
+	}
 };
 
 } // namespace eng::math

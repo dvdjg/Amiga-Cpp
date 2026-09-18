@@ -75,8 +75,8 @@ bool util_selftest() {
 
 /// Self-test de las matemáticas `Fixed` (`fixed_math.hpp`) en el 68000, **sin `float`**
 /// (compara valores crudos contra márgenes): `sin`/`cos`/`tan` (tabla), `asin`/`acos`/
-/// `atan2` (tabla de `atan`), `wrap_angle`, `smooth_damp` (`exp2`), `pow`
-/// (`log2`+`exp2`) y `length` (`sqrt`). Si falla, la demo no llega a READY.
+/// `atan2` (tabla de `atan`), `sincos` (una pasada), `wrap_angle`, `smooth_damp` (`exp2`),
+/// `pow` (`log2`+`exp2`) y `length` (`sqrt`). Si falla, la demo no llega a READY.
 bool fixed_math_selftest() {
 	using q12 = eng::math::Fixed<eng::s16, 12>;
 	const q12 zero {0};
@@ -128,6 +128,15 @@ bool fixed_math_selftest() {
 	volatile eng::s16 q_wrap_raw = 27785; // 2π+0.5 en q12
 	const eng::s16 wrapped = eng::math::wrap_angle(q12 {q_wrap_raw}).v;
 	if (!(wrapped >= 2000 && wrapped <= 2100)) {
+		return false;
+	}
+	// sincos: seno y coseno del mismo ángulo en una sola pasada (π/2 -> (1, 0)).
+	volatile eng::s16 q_sincos_raw = 6434;
+	q12 sincos_s {0};
+	q12 sincos_c {0};
+	eng::math::scalar_sincos<q12>::op(q12 {q_sincos_raw}, sincos_s, sincos_c);
+	if (!(sincos_s.v >= 4000 && sincos_s.v <= 4100 && sincos_c.v >= -100 &&
+	      sincos_c.v <= 100)) {
 		return false;
 	}
 	return true;

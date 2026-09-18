@@ -359,7 +359,10 @@ extern "C" s16 c_scalar16_trig(s16 a, s16 b) {
 	const q12 at = scalar_atan2<q12>::op(y, x);
 	const q12 as = scalar_asin<q12>::op(y);
 	const q12 ac = scalar_acos<q12>::op(x);
-	return static_cast<s16>(tn.v + at.v + as.v + ac.v);
+	q12 ss {};
+	q12 cc {};
+	scalar_sincos<q12>::op(y, ss, cc); // seno y coseno en una sola pasada
+	return static_cast<s16>(tn.v + at.v + as.v + ac.v + ss.v + cc.v);
 }
 `;
 
