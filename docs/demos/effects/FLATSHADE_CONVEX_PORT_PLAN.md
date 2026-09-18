@@ -1,5 +1,7 @@
 # Plan de importe — `effects/flatshade-convex`
 
+> **Nota:** documento histórico (plan y bitácora del importe). Cita la API del **original** (`fx.h`, `div16`/`mul16`); en el engine vigente esos nombres son `div_wide`/`mul_wide` (`docs/engine/architecture/SCALAR_LIBRARY.md`).
+
 `flatshade-convex.c` dibuja un objeto **convexo** `pilka` (malla `obj2c`) girando con **sombreado plano**: calcula la visibilidad y la **luz por cara**, la visibilidad de **aristas** del sólido convexo (XOR), dibuja esas aristas por **Blitter** (line mode `ONEDOT`+`EOR`) y rellena el hueco con **area fill XOR**. Display 256×256×4, doble buffer, paleta `flatshade-pal.c`. Método: `docs/demos/effects/DEMOSCENE_EFFECT_REPLICATION_POLICY.md`.
 
 ## La rebanada (alcance del importe)

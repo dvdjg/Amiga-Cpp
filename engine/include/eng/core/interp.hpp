@@ -149,15 +149,22 @@ template <typename S>
 /// `require_range` lo avisa al compilar (usar `smoothstep` o un fixed con más rango).
 template <typename S>
 [[nodiscard]] constexpr S smootherstep(S t) {
-	require_range<S, -15.0, 15.0>();
-	t = saturate(t);
-	const S six = scalar_traits<S>::from_int(6);
-	const S ten = scalar_traits<S>::from_int(10);
-	const S fifteen = scalar_traits<S>::from_int(15);
-	const S t2 = mul_norm(t, t);
-	const S t3 = mul_norm(t2, t);
-	const S inner = (mul_norm(six, t2) - mul_norm(fifteen, t)) + ten;
-	return mul_norm(t3, inner);
+	// El corte `if constexpr` evita instanciar `from_int(15)` cuando el rango no llega:
+	// asi solo se emite el diagnostico de dominio (`require_range`), no tambien el de
+	// `from_int`.
+	if constexpr (!range_fits<S, -15.0, 15.0>()) {
+		require_range<S, -15.0, 15.0>();
+		return t;
+	} else {
+		t = saturate(t);
+		const S six = scalar_traits<S>::from_int(6);
+		const S ten = scalar_traits<S>::from_int(10);
+		const S fifteen = scalar_traits<S>::from_int(15);
+		const S t2 = mul_norm(t, t);
+		const S t3 = mul_norm(t2, t);
+		const S inner = (mul_norm(six, t2) - mul_norm(fifteen, t)) + ten;
+		return mul_norm(t3, inner);
+	}
 }
 
 // ---------------------------------------------------------------------------

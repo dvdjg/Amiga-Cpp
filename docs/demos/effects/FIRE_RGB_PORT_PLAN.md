@@ -1,5 +1,7 @@
 # Plan de porte 1:1 — `effects/fire-rgb`
 
+> **Nota:** documento histórico (plan y bitácora del porte). Cita la API del **original** (`common.h`, `div16`/`mul16`); en el engine vigente esos nombres son `div_wide`/`mul_wide` (`docs/engine/architecture/SCALAR_LIBRARY.md`).
+
 `fire-rgb.c` renderiza un **fuego** en un display **HAM6** de 320×256 con **cuadruplicado de líneas** por Copper, una simulación de fuego en **asm a mano** (`dualtab`) y un **C2P por Blitter** disparado por **interrupción de blit**. Es bastante más complejo que `wireframe`; el porte se hace por pasos, siempre contra el original.
 
 Método: `docs/guides/roadmap/PORT_PROMPT_1A1.md`. Oráculo: `effects/fire-rgb/fire-rgb.exe`.

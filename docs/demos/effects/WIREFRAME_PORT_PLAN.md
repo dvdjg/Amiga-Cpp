@@ -1,5 +1,7 @@
 # Plan de porte 1:1 — `effects/wireframe`
 
+> **Nota:** documento histórico (plan y bitácora del porte). Cita la API del **original** (`fx.h`, `div16`/`mul16`); en el engine vigente esos nombres son `div_wide`/`mul_wide` (`docs/engine/architecture/SCALAR_LIBRARY.md`).
+
 `wireframe.c` dibuja un objeto `pilka` (malla `obj2c`) en **alambre** con la **línea por Blitter** (modo line OR), doble buffer de 5 planos rotando `BPLxPT`, 256×256×4, y la paleta de `wireframe-pal.c`. Es el patrón ideal para calibrar el porte 1:1 (método: `docs/guides/roadmap/PORT_PROMPT_1A1.md`).
 
 ## La rebanada (alcance del porte)

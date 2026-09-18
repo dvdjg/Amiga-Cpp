@@ -119,12 +119,18 @@ constexpr void require_grid_range() {
 }
 
 /// Celda `h` -> valor en `[0,1)` con 1024 niveles (10 bits). La normalización usa
-/// `div_norm` (el fixed no tiene `operator/`).
+/// `div_norm` (el fixed no tiene `operator/`). El corte `if constexpr` evita instanciar
+/// `from_int(1024)` cuando el rango no llega: solo se emite el diagnóstico de dominio.
 template <typename S>
 [[nodiscard]] constexpr S unit(u32c h) {
-	require_grid_range<S>();
-	const int v = static_cast<int>((h >> 22) & 0x3FFu);
-	return div_norm(scalar_traits<S>::from_int(v), scalar_traits<S>::from_int(1024));
+	if constexpr (!range_fits<S, -1024.0, 1024.0>()) {
+		require_grid_range<S>();
+		return scalar_traits<S>::zero();
+	} else {
+		const int v = static_cast<int>((h >> 22) & 0x3FFu);
+		return div_norm(scalar_traits<S>::from_int(v),
+				scalar_traits<S>::from_int(1024));
+	}
 }
 
 } // namespace noise_detail

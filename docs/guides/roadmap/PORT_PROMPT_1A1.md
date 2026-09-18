@@ -1,5 +1,7 @@
 # Prompt de porte 1:1 desde `demoscene-repo-orig`
 
+> **Nota:** documento de método histórico. Cita la API del **original** (`div16`/`mul16`); en el engine vigente esos nombres son `div_wide`/`mul_wide`.
+
 Prompt y método reutilizable para traer efectos del repo demoscene al engine **tal cual**, sin reinventar. Se usa demo a demo (p. ej. `effects/wireframe/wireframe.c`, luego `effects/fire-rgb/fire-rgb.c`).
 
 ## Regla de oro

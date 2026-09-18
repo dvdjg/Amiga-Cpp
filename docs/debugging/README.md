@@ -2,6 +2,9 @@
 > (engine en C) y describen la arquitectura y los arreglos del sistema de depuración
 > WinUAE-DBG (gdbserver), que es el mismo que usa este repo a través del canal lateral
 > (`tools/debug/`) y del runner (`tools/run/`).
+>
+> Son **bitácoras** (post-mortems, consultas, historial): pueden citar nombres de API de
+> versiones anteriores (`div16`/`mul16`). El estado vigente está en `docs/engine/`.
 
 # Documentación del Sistema de Depuración WinUAE-DBG
 
