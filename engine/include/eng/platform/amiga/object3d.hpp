@@ -194,4 +194,25 @@ inline void update_object_transformation(Object3D& object) {
 	}
 }
 
+/// Actualiza **solo** `objectToWorld` (la matriz directa), **sin** la inversa
+/// `worldToObject` ni `camera`. Para efectos que unicamente proyectan vertices (p. ej.
+/// `bobs3d`, que dibuja un BOB por vertice y no usa culling ni luz), ahorra el calculo
+/// de `S⁻¹Rᵀ`, su `compose` y los 3 productos de la camara (~1/3 del
+/// `UpdateObjectTransformation` original). La salida de `objectToWorld` es identica a la
+/// de `update_object_transformation`.
+inline void update_object_transformation_forward(Object3D& object) {
+	const Point3D& r = object.rotate;
+	const Point3D& s = object.scale;
+	const Point3D& t = object.translate;
+	math3d::Affine3& a = object.objectToWorld;
+	math3d::load_rotate(a.m, static_cast<u16>(r.x), static_cast<u16>(r.y), static_cast<u16>(r.z));
+	// La mayoria de efectos (p. ej. bobs3d) usan escala 1.0 (4.12: 4096), asi que el
+	// `scale` seria una identidad de 9 `muls.w`. Se salta cuando no aporta nada.
+	if (s.x != (1 << 12) || s.y != (1 << 12) || s.z != (1 << 12)) {
+		math3d::scale(a.m, eng::retro::q12 {s.x}, eng::retro::q12 {s.y}, eng::retro::q12 {s.z});
+	}
+	a.t = eng::math::Vec<3, eng::retro::q0> {
+		{eng::retro::q0 {t.x}, eng::retro::q0 {t.y}, eng::retro::q0 {t.z}}};
+}
+
 } // namespace eng::object3d

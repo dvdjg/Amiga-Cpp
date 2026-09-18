@@ -302,3 +302,98 @@ Pendiente / descartado con la evidencia actual:
 - `MinimalBackend::custom_registers()` (frontera unsafe para rutinas de lote inline).
 - `MinimalBackend::blitter_or_bobs_begin/one/end` delegan en el mismo `OrBlobBatch` (una
   sola fuente de verdad para la secuencia de registros).
+- `object3d::update_object_transformation_forward(Object3D&)`: matriz directa **sin** la
+  inversa ni la camara (para efectos de solo proyeccion).
+
+---
+
+## 9. Descubrimientos e interioridades (para reutilizar)
+
+### 9.1 Secuencia de registros del BOB OR intercalado (`DrawObject`)
+
+Un objeto = **UN blit** de `BOBH*planos` filas (96) x `BOBW/16` palabras (3), con las
+constantes del lote fijadas una vez (`BLTCON1=0`, `BLTAFWM/BLTALWM=0xFFFF`, `BLTAMOD=0`,
+`BLTBMOD=BLTDMOD=(WIDTH-BOBW)/8=26`) y por objeto solo `BLTCON0 = rorw(x&15,4)|SRCA|SRCB|
+DEST|A_OR_B`, `BLTAPT`, `BLT(B/D)PT`, `BLTSIZE=(96<<6)|3`. Destino **intercalado**: el
+puntero avanza 32 B por fila del blit, de modo que 96 filas cubren los 3 planos de 32
+scanlines. Fuente **densa** (sin guarda) con `BLTAMOD=0`.
+
+### 9.2 Reglas de fidelidad de registros (leccion BSH)
+
+- **`BLTCON1` bits 15-12 = BSH (shift del canal B)**, no un duplicado de ASH. En un OR-BOB
+  `B = D = destino`, asi que poner BSH != 0 desplaza la lectura del fondo y emborrona.
+  Original: `bltcon1 = 0`. Se paga caro "normalizar" un registro sin leer su semantica.
+- Anadir la primitiva que faltaba: `CopWaitSafe` **con H** (`wait_position_safe`).
+
+### 9.3 Cadencia de frame y tearing (el punto mas sutil)
+
+- `Engine::run_frames` corre `update`/`render` **dentro de la ISR de VBlank**; si `update`
+  dura > 1 campo, la IRQ pendiente lo relanza **a media pantalla** (no alineado).
+- Con **2 buffers** y render no alineado, el dibujo del buffer destino empieza antes del
+  swap (recarga de `COP1LC` al VBlank) => **tearing**.
+- El original usa 2 buffers y no parpadea porque `TaskWaitVBlank()` (al final de `Render`)
+  **alinea el arranque del render al VBlank** y hace el swap en el VBlank: siempre dibuja
+  el buffer que acaba de salir de pantalla. Su precio es cadencia entera de campos.
+- **Solucion elegida (sin triple buffer)**: `run_frames_polling` (update alineado al
+  VBlank) + **solapar el clear con el transform** (`blitter_clear(..., wait=false)`; el
+  `begin` del lote espera despues), que es la estructura de `DrawObject`.
+- **Triple buffer (fallback documentado)**: cuando la carga es tan alta que no cabe ni
+  alineada, usar `kRing = 3` y `run_frames`. El buffer que se dibuja lleva >=2 swaps sin
+  mostrarse, asi que no importa que el render no este alineado. Coste: +1 pantalla
+  (24 kB) +1 copperlist y el tiempo de construirla; **rendimiento identico** (19,3 fps en
+  bobs3d, porque el limite era el trabajo, no el swap). Regla: con `update` > 1 campo y
+  sin alineacion se necesitan `ceil(update/campo) + 1` buffers. Aqui 3.
+
+### 9.4 Donde se va el tiempo (paridad por componente con el original)
+
+Medido con el **profiler del propio original** (`_DrawObject_profile`, `_TransformObject_profile`)
+via canal lateral, y con `ENG_PROF` en el nuestro:
+
+| Componente | Original | Ours (antes) | Ours (ahora) |
+|---|---|---|---|
+| transform | 83k | 92k | **83,7k** |
+| bobs (mates + Blitter) | 194k | 202k | 197k |
+| clear (solapado) | ~75k | 75k | 75k (oculto) |
+| total real | ~2,0 campos | ~2,6 | ~2,0 |
+
+### 9.5 Optimizaciones aplicadas (y su efecto)
+
+1. **Lote OR inline** (`OrBlobBatch`): elimina `jsr` + 4 pushes por BOB. `blits` 231,7 ->
+   202,5k.
+2. **Fusionar calculo del vertice y programacion del blit** en un bucle (sin array).
+3. **BLTPRI** (`DmaBlitterPriority`): 12,56 -> 16,70 fps.
+4. **Solapar clear con transform**: trabajo real 354k -> ~289k.
+5. **`update_object_transformation_forward`** (sin inversa ni camara; bobs3d no las usa):
+   transform 92k -> 83,7k.
+6. **Saltar `scale` cuando es identidad (1.0)** y **tabla `frame->origen`** (evita `z*18`).
+
+`Proj::project` (backend `eng/cpu/m68k/affine.hpp`) ya es **optimo**: 1 `muls.w` por fila
+empaquetada + 1 `muls.w` para `c2*z` (7 en total) + `xy` compartido + 2 `divs.w`, identico
+al `MULVERTEX` del original. No hay nada que sacar ahi.
+
+### 9.6 Restante
+
+Medido con una seccion `update` que envuelve todo el frame (contador de ciclos del Amiga):
+
+- `update` = **286.211 ciclos**; umbral de 2 campos = **283.752** => faltan **2.459**.
+- Subsecciones: `clear` 1.848 (el Blitter va solapado) + `transform` 83.754 + `blits`
+  196.643 + `install` 227 = **282.472**. El resto (~3,7k) es overhead del bucle de frame
+  (P_BEGIN/P_END de instrumentacion, `mark_frame`, subspan, `frame*12`, `probe`).
+- Quitar `ENG_PROF` no cambia la cuantizacion (sigue 3 campos): el trabajo real ya esta
+  pegado al umbral.
+
+Recortar ~2,5k daria **2 campos = 25 fps**, igualando/superando al original (20,1). Es el
+1 % del frame; candidatos: bajar el `clear` a la bbox de los BOBs (deja de ser de pantalla
+completa y libera bus al transform), afinar el bucle de BOBs (197k vs 194k del original) o
+reducir el transform (`load_rotate` = 2 productos 3x3 = ~54 `muls.w`/frame).
+
+### 9.7 Como reproducir la medicion del original (oraculo)
+
+1. `out/tmp/oracle.uae`: `runner.uae` + `floppy0=<bobs3d.adf>` + `joyport0=mouse` (sin esto
+   `LeftMouseButton` sale pulsado y el efecto termina al primer frame) + `warp=true`.
+2. Lanzar con `WinUAEConnection` (GDB para arrancar) y leer memoria por el **canal lateral**
+   `mem <addr> <len>` (responde aunque la CPU del original duerma en `TaskWaitVBlank`; GDB
+   no).
+3. Localizar la base de relocalizacion buscando la cadena `"Bobs3D"` y el puntero a ella
+   (`Bobs3DEffect.name`). Los fps reales NO se miden con `rotate` (va con la CIA a 50 Hz):
+   usar `ProfileT.count` de `_DrawObject_profile` (offset +16), que incrementa por render.

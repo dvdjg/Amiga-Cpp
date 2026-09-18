@@ -210,7 +210,8 @@ enum {
 	kProfDraw = 2,
 	kProfBlits = 3,
 	kProfInstall = 4,
-	kProfCount = 5,
+	kProfUpdate = 5,
+	kProfCount = 6,
 };
 
 /// Recorrido del original: transforma los 60 vertices (sin culling) y guarda la
@@ -256,6 +257,10 @@ struct Bobs3DDemo {
 
 		build_bob_sheet();
 		copy_bob_dense();
+		for (u8 f = 0; f < kBobFrames; ++f) {
+			m_frame_src[f] = m_bob_dense_block.view.data() +
+					 static_cast<u32>(f) * kBobDenseFrame;
+		}
 #if K_117_BG
 		copy_carrion();
 #endif
@@ -282,6 +287,7 @@ struct Bobs3DDemo {
 		}
 
 		P_FRAME();
+		P_BEGIN(kProfUpdate);
 		const u8 active = m_active;
 		eng::PlaneBytes screen = m_screen_block.view.subspan(
 			static_cast<u32>(active) * kScreenBytes, kScreenBytes);
@@ -302,7 +308,8 @@ struct Bobs3DDemo {
 			static_cast<s16>(context.frame.frame_index * 12u);
 
 		P_BEGIN(kProfTransform);
-		obj::update_object_transformation(m_object);
+		// bobs3d no usa la inversa ni la camara: solo la matriz directa para proyectar.
+		obj::update_object_transformation_forward(m_object);
 		transform_all_vertices(m_object);
 		P_END(kProfTransform);
 
@@ -328,6 +335,7 @@ struct Bobs3DDemo {
 		backend.install_copper_list(m_copper_ptrs[active]);
 		P_END(kProfInstall);
 		m_active = static_cast<u8>((active + 1u) % kRing);
+		P_END(kProfUpdate);
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
@@ -367,7 +375,6 @@ private:
 	void draw_bobs_stream(eng::amiga::MinimalBackend& backend, u8* screen) {
 		void* objdat = m_object.objdat;
 		s16* group = m_object.vertexGroups;
-		const u8* sheet = m_bob_dense_block.view.data();
 
 		eng::amiga::OrBlobBatch batch;
 		batch.begin(backend.custom_registers(), kBobWords, K_117_BLITROWS, 0, kBobDestModulo);
@@ -396,7 +403,7 @@ private:
 				}
 
 				batch.one(
-					sheet + static_cast<u32>(z >> 5) * kBobDenseFrame,
+					m_frame_src[static_cast<u8>(z >> 5)],
 					screen + static_cast<s32>(y) * static_cast<s32>(kBytesPerRow * kPlanes) +
 						(static_cast<s32>(x_start) >> 3),
 					static_cast<u8>(x & 15));
@@ -526,6 +533,7 @@ private:
 	eng::Block<eng::CopperTag> m_copper_block {};
 	const u16* m_copper_ptrs[kRing] = {nullptr, nullptr};
 	graphics::FramePlan m_plan {};
+	const u8* m_frame_src[kBobFrames] {};
 	obj::Object3D m_object {};
 };
 
