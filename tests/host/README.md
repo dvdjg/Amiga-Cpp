@@ -176,3 +176,4 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-133 | [palette_transition](133_palette_transition/README.md) | `graphics/effects/palette_transition.hpp`: estado `num/den` (una pasada y vaivén), paleta runtime y parche base/zona en `FramePlan`. |
 | HOST-134 | [raster_gradient](134_raster_gradient/README.md) | `graphics/effects/raster_gradient.hpp`: muestreo de claves (lineal/cíclico, `phase`), geometría de bandas e intenciones `PaletteLine`. |
 | HOST-135 | [scalar_matrix](135_scalar_matrix/README.md) | Matriz de escalares (`double`/`float`/`MiniFloat16`/`Fixed<s16,12>`/`Fixed<s32,12>`/`Fixed<s32,24>`): error de `lerp`/`smoothstep`/`normalize` vs `double` y division/raiz de `Fixed<s32,E>` (F0/F1). |
+| HOST-136 | [real_scalar](136_real_scalar/README.md) | Tipos generales de simulacion (`eng::real`/`coord`/`intw`): el mismo algoritmo se compila en RETRO16, RETRO32 y NATIVE (`tools/run/run-scalar-modes.sh`) y se compara la precision (F5). |

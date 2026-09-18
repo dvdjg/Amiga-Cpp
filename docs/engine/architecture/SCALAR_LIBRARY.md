@@ -257,10 +257,16 @@ en 68020, `int`/`float` en host) y la política `bool` vs byte está en
   que el `s16` (que conserva su semántica).
 - **F3** (nombres genéricos `mul_wide`/`mulu_wide`/`div_wide` sobre `arith<R>`) entregado y
   migrados `mesh3d`, `collision` y `retro/lib2d`; el camino 68000 es idéntico.
+- **F4** (barrido `bool` vs byte) auditado: el engine ya usaba `bool` para booleanos y
+  `u8`/`s8` para cuentas, índices y layout/ABI; el único ajuste es el flag de depuración
+  `m_dbg_ink_visible` de `field/xlimited.hpp`, que pasa a `bool`.
+- **F5** (tipos generales en simulación) entregado: HOST-136 compila el mismo algoritmo contra
+  `eng::real`/`coord`/`intw` y `tools/run/run-scalar-modes.sh` lo ejecuta en RETRO16, RETRO32 y
+  NATIVE para comparar la precisión (muestra que el ancho da rango, no resolución fraccionaria).
 - **F6** (codegen 68020) entregado: la sonda compila también a `-mcpu=68020` sin libcalls.
 
 Todo respaldado por HOST-135 (matriz de escalares: `double`/`float`/`MiniFloat16`/
-`Fixed<s16,12>`/`Fixed<s32,12>`/`Fixed<s32,24>`, incluida la trig/exp/log de `Fixed<s32>`).
-Pendientes menores: extender la tabla §7 con la columna de 32 bits, el barrido `bool` (F4), el
-wiring de `eng::real`/`coord` en demos (F5) y completar la migración de todos los `mul16` a
-`mul_wide`.
+`Fixed<s16,12>`/`Fixed<s32,12>`/`Fixed<s32,24>`, incluida la trig/exp/log de `Fixed<s32>`) y
+HOST-136 (`eng::real`/`coord`/`intw` en los tres modos).
+Pendientes menores: extender la tabla §7 con la columna de 32 bits, adoptar `eng::real`/`coord`
+en demos concretas y completar la migración de todos los `mul16` a `mul_wide`.

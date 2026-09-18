@@ -607,7 +607,7 @@ public:
     /// completa cada frame; el coste de Blitter crece ∝ salto).
     bool update_scroll(graphics::FramePlan& plan, s32 dx, s32 dy) override {
         if (!m_initialized) return false;
-        m_dbg_ink_visible = 0; // DEBUG: reinicio el flag del frame (hipótesis offset)
+        m_dbg_ink_visible = false; // DEBUG: reinicio el flag del frame (hipótesis offset)
         // Perfil con `prefill`: la cámara avanza por TILES completos. Garantiza
         // que el cambio de dirección caiga en frontera de tile (`direction_latched`)
         // y que la franja entre alineada (plane-shift 0 al terminar). El perfil
@@ -650,7 +650,7 @@ public:
     static constexpr bool profile_direction_latched() { return Profile::direction_latched; }
 
     /// DEBUG: ¿el frame pintó algún bloque de relleno dentro de la zona visible?
-    constexpr u8 dbg_ink_visible() const { return m_dbg_ink_visible; }
+    constexpr bool dbg_ink_visible() const { return m_dbg_ink_visible; }
     /// DEBUG: fila del bucle (0..display_height) del último ink visible.
     constexpr u8 dbg_ink_visible_row() const { return m_dbg_ink_visible_row; }
 
@@ -1063,7 +1063,7 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
             const u32 xb = static_cast<u32>(x) % m_bitmap_width;
             const bool xvis = (xb < x0v + m_cfg.viewport_w) && (xb + ctw() > x0v) ||
                               (x0v + m_cfg.viewport_w > m_bitmap_width && xb < (x0v + m_cfg.viewport_w) % m_bitmap_width);
-            if (rel < m_cfg.viewport_h && xvis) { m_dbg_ink_visible = 1; m_dbg_ink_visible_row = static_cast<u8>(row); }
+            if (rel < m_cfg.viewport_h && xvis) { m_dbg_ink_visible = true; m_dbg_ink_visible_row = static_cast<u8>(row); }
         }
         if (!plan.add_tile_block_copy(draw_block_job(x, y, mapx, mapy))) return false;
         if (m_linear_display) {
@@ -1469,7 +1469,7 @@ private:
     u16* m_savewordpointer = nullptr;             // guarda de 1 word plane-shift (sink)
     u16 m_saveword = 0;
     u8 m_max_step = 1;                            // salto máx. px/frame por eje (config)
-    u8 m_dbg_ink_visible = 0;                     // DEBUG: ink dentro de la zona visible
+    bool m_dbg_ink_visible = false;               // DEBUG: ink dentro de la zona visible
     u8 m_dbg_ink_visible_row = 0;                 // DEBUG: fila del bucle donde cayó el ink
 };
 
