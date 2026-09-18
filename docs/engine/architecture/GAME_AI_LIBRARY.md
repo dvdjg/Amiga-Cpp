@@ -285,5 +285,14 @@ HOST-117.
 5. Actualizar este documento (inventario y estado) y el roadmap, en la misma pasada.
 6. Verificación por demo cuando exista consumidor; entonces deja de ser «NO VERIFICADA».
 
+> **Convención de tests.** El número de `tests/host/NNN_<nombre>/` es **único y no
+> reutilizable**: un test nuevo toma el siguiente libre (y, ante una colisión, se renumera
+> el más nuevo). `tools/check/test-numbering.mjs` (que corre dentro de
+> `tools/run-host-tests.sh`) falla si hay prefijos duplicados o si el catálogo
+> `tests/host/README.md` no cuadra 1:1 con los directorios. Antes de añadir una pieza de
+> `eng::ai`, comprobar que no duplica una primitiva de `eng::util`
+> (`docs/engine/architecture/TEMPLATE_LIBRARY.md`): la FSM, los eventos, el grafo, el DSU,
+> `SparseSet`, etc. se **reutilizan**, no se reimplementan en `eng::ai`.
+
 Plan de crecimiento y catálogo completo de técnicas:
 [ROADMAP_GAME_AI.md](../../guides/roadmap/ROADMAP_GAME_AI.md).
