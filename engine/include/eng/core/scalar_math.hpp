@@ -27,6 +27,11 @@ namespace eng::math {
 
 namespace detail {
 
+/// Diagnóstico de compilación: `scalar_const<Fixed>::from` recibe una constante que no
+/// cabe en el rango del fixed. Sin esto, el `static_cast` al `Repr` **envuelve** en
+/// silencio (p. ej. `from(10.0)` en 4.12, rango ±8).
+void scalar_const_fixed_out_of_range();
+
 constexpr double k_pi = 3.14159265358979323846;
 constexpr double k_half_pi = 1.57079632679489661923;
 constexpr double k_ln2 = 0.69314718055994530942;
@@ -319,6 +324,10 @@ struct scalar_const<MiniFloat16> {
 template <typename R, int E, typename P>
 struct scalar_const<Fixed<R, E, P>> {
 	static constexpr Fixed<R, E, P> from(double v) {
+		if consteval {
+			constexpr double mx = numeric_traits<Fixed<R, E, P>>::max_finite;
+			if (!(v >= -mx && v <= mx)) detail::scalar_const_fixed_out_of_range();
+		}
 		const double scaled = v * static_cast<double>(1 << E);
 		const double rounded = scaled < 0.0 ? scaled - 0.5 : scaled + 0.5;
 		return Fixed<R, E, P> {static_cast<R>(static_cast<long>(rounded))};

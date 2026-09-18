@@ -124,6 +124,10 @@ void test_fixed32_extra() {
 			 scalar_const<F>::from(0.5));
 	const double fd = to_double(f);
 	check(fd >= 0.0 && fd <= 1.0, "Fixed<s32,12>: fbm1 (4 octavas) en [0,1]");
+
+	// `ease_*_expo` usa las constantes 10 y 20: no caben en 4.12 (±8) pero si en 32 bits.
+	check(rel(to_double(ease_in_expo(half)), 0.03125) < 5e-3,
+	      "Fixed<s32,12>: ease_in_expo(0.5) = 2^-5");
 }
 
 /// Escalar entero general (`eng::intw`) y nativos con las operaciones exactas.

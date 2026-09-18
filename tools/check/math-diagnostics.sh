@@ -158,6 +158,11 @@ expect_fail noise_q12_range "no cabe en el escalar" "$PRE6
 #include <eng/core/noise.hpp>
 constexpr auto n = eng::math::value_noise1(eng::retro::q12 {4096}, 1u);"
 
+# scalar_const<Fixed>::from con una constante fuera de rango no debe envolver en silencio
+# (el easing expo usa 10/20, que no caben en 4.12).
+expect_fail expo_q12_range "scalar_const_fixed_out_of_range" "$PRE6
+constexpr auto e = eng::math::ease_in_expo(eng::retro::q12 {2048});"
+
 expect_ok fixed_interp_remap "$PRE6
 constexpr auto t = eng::math::inv_lerp(eng::retro::q12 {4096}, eng::retro::q12 {8192}, eng::retro::q12 {6144});
 constexpr auto r = eng::math::remap(eng::retro::q12 {4096}, eng::retro::q12 {0}, eng::retro::q12 {8192}, eng::retro::q12 {0}, eng::retro::q12 {4096});

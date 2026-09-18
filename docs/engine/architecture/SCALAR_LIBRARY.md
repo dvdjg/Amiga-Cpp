@@ -218,7 +218,7 @@ tests host) falla si la doc se desincroniza del contrato, y `--write` la regener
 | hermite / catmull_rom | si | si | si (catmull usa div_norm) | si (div_norm) | HOST-064 |
 | hermite / catmull_rom (Vec<N>) | si | si | si | si | HOST-064 |
 | ease_in/out/in_out_quad/_cubic | si | si | si | si | HOST-064 |
-| ease_in/out/in_out_sine/_expo | si | si (necesita sin/cos/exp2) | si (fixed_math) | si (fixed_math) | HOST-064/104 |
+| ease_in/out/in_out_sine/_expo | si | si (necesita sin/cos/exp2) | sine si; expo no (coef 10/20 > ±8) | si (fixed_math) | HOST-064/135 |
 | min / max / abs / sign | si | si | si | si | HOST-065 |
 | move_towards | si | si | si | si | HOST-065 |
 | deadzone | si | si | si | si | HOST-065 |
@@ -277,5 +277,8 @@ la columna `Fixed<s32>`.
 
 El ruido (`noise.hpp`) normaliza con `div_norm` en vez de `operator/`, así que `value_noise`/`fbm`
 funcionan con `Fixed<s32,E>` (el 4.12 queda fuera por rango: la rejilla tiene 1024 niveles).
-Pendientes menores: adoptar `eng::real`/`coord` en demos concretas y completar la migración de
-los `mul16` restantes a `mul_wide`.
+
+`scalar_const<Fixed>::from` comprueba en compilación que la constante cabe en el rango del fixed
+(antes el `static_cast` **envolvía** en silencio); por eso `ease_*_expo` (usa 10 y 20) queda vetado
+en 4.12 y disponible en `Fixed<s32>`. Pendientes menores: adoptar `eng::real`/`coord` en demos
+concretas y completar la migración de los `mul16` restantes a `mul_wide`.

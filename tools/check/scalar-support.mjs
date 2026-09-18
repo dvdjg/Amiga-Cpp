@@ -36,7 +36,7 @@ const ROWS = [
   { fn: 'hermite / catmull_rom',     flt: 'si', mf: 'si', fx: 'si (catmull usa div_norm)', f32: 'si (div_norm)', test: 'HOST-064' },
   { fn: 'hermite / catmull_rom (Vec<N>)', flt: 'si', mf: 'si', fx: 'si', f32: 'si', test: 'HOST-064' },
   { fn: 'ease_in/out/in_out_quad/_cubic', flt: 'si', mf: 'si', fx: 'si', f32: 'si', test: 'HOST-064' },
-  { fn: 'ease_in/out/in_out_sine/_expo', flt: 'si', mf: 'si (necesita sin/cos/exp2)', fx: 'si (fixed_math)', f32: 'si (fixed_math)', test: 'HOST-064/104' },
+  { fn: 'ease_in/out/in_out_sine/_expo', flt: 'si', mf: 'si (necesita sin/cos/exp2)', fx: 'sine si; expo no (coef 10/20 > ±8)', f32: 'si (fixed_math)', test: 'HOST-064/135' },
   { fn: 'min / max / abs / sign',    flt: 'si', mf: 'si', fx: 'si', f32: 'si', test: 'HOST-065' },
   { fn: 'move_towards',              flt: 'si', mf: 'si', fx: 'si', f32: 'si', test: 'HOST-065' },
   { fn: 'deadzone',                  flt: 'si', mf: 'si', fx: 'si', f32: 'si', test: 'HOST-065' },
