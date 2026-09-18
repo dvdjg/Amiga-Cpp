@@ -18,6 +18,10 @@ plan paso a paso):
    coste total 20.
 3. **Misión de un soldado** (13 acciones): obstáculo (alambre), utensilio (alicates),
    llave y puerta, máquina (generador y puerta eléctrica), arma y munición; coste 26.
+4. **Dos dominios de distinta clave conviviendo**: el de 32 hechos (`Goap<>`, por defecto) y
+   uno de 64 (`Goap<64>`) en la misma unidad de traducción (tipos independientes, sin
+   colisión); el ancho usa el hecho `63` (el último válido) y la clave de dos palabras
+   (`StateKey64`).
 
 Casos límite del contrato: objetivo **ya cumplido** (plan vacío, coste 0), objetivo
 **sin solución** (`found()` falso) y `forbid` (una acción solo se aplica con un hecho
@@ -29,7 +33,11 @@ a 0; con el hecho presente el planner toma la vía alternativa).
   hanoi        plan=7 acciones  coste=7  nodos=17
   pastel       plan=8 acciones  coste=20  nodos=35
   soldado      plan=13 acciones  coste=26  nodos=81
+  huge64       plan=2 acciones  coste=2  nodos=2
 ```
+
+El dominio se declara una sola vez (`using Ai = eng::ai::Goap<>;`, 32 hechos); el test añade
+`Huge = Goap<64>` para probar la clave de dos palabras y que ambos dominios conviven.
 
 ## Ejecutar
 

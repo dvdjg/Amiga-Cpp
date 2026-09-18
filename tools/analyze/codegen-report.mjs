@@ -312,20 +312,35 @@ extern "C" u16 c_pathfinding_ops(u16 start, u16 goal) {
 	return static_cast<u16>(bl + (aok ? 1u : 0u));
 }
 extern "C" u16 c_goap_ops(u16 seed) {
-	using namespace eng::ai;
-	constexpr eng::util::Array<Action, 4> acts { {
-		ActionBuilder {}.require(0).produce(1).build(),
-		ActionBuilder {}.require(1).produce(2).build(),
-		ActionBuilder {}.require(2).produce(3).build(),
-		ActionBuilder {}.produce(3).build(),
+	using Ai = eng::ai::Goap<>;
+	constexpr eng::util::Array<Ai::Action, 4> acts { {
+		Ai::Builder {}.require(0).produce(1).build(),
+		Ai::Builder {}.require(1).produce(2).build(),
+		Ai::Builder {}.require(2).produce(3).build(),
+		Ai::Builder {}.produce(3).build(),
 	} };
-	WorldState start {};
+	Ai::State start {};
 	start.facts.set(static_cast<eng::usize>(seed % 8u));
-	Goal goal {};
-	goal.want_true.facts.set(static_cast<Fact>(3u));
-	Planner<32> planner;
+	Ai::Goal goal {};
+	goal.want_true.facts.set(static_cast<eng::ai::Fact>(3u));
+	Ai::Planner<32> planner;
 	eng::u16 plan[4] {};
 	const eng::usize n = planner.plan(start, goal, acts.span(), eng::Span<eng::u16> {plan, 4});
+	return static_cast<u16>(n + (planner.found() ? 1u : 0u));
+}
+extern "C" u16 c_goap64_ops(u16 seed) {
+	using Big = eng::ai::Goap<64>;
+	constexpr eng::util::Array<Big::Action, 2> acts { {
+		Big::Builder {}.require(0).produce(63).build(),
+		Big::Builder {}.require(63).produce(1).build(),
+	} };
+	Big::Goal goal {};
+	goal.want_true.facts.set(static_cast<eng::ai::Fact>(1u));
+	Big::Planner<16> planner;
+	eng::u16 plan[2] {};
+	Big::State start {};
+	start.facts.set(static_cast<eng::ai::Fact>(seed % 8u));
+	const eng::usize n = planner.plan(start, goal, acts.span(), eng::Span<eng::u16> {plan, 2});
 	return static_cast<u16>(n + (planner.found() ? 1u : 0u));
 }
 extern "C" u16 c_random_ops(u16 seed) {
@@ -442,7 +457,8 @@ for (const f of fns) {
 // nativos se ha convertido en una llamada (~50+ ciclos). Los `jsr` a funciones propias
 // (cuerpos no inlined) son normales y solo se informan. `--report` no falla.
 const asmText = fs.readFileSync(ASM, 'latin1');
-const FORBIDDEN = ['__mulsi3', '__umulsi3', '__divsi3', '__udivsi3'];
+const FORBIDDEN = ['__mulsi3', '__umulsi3', '__divsi3', '__udivsi3',
+  '__ashldi3', '__lshrdi3', '__ashrdi3', '__muldi3', '__divdi3', '__udivdi3'];
 const hit = FORBIDDEN.filter((s) => asmText.includes(s));
 const called = fns.filter((f) => f.lib > 0).map((f) => `${f.name} (${f.lib} jsr)`);
 if (hit.length) {
@@ -497,4 +513,4 @@ if (notInlined.length) {
   process.exit(1);
 }
 
-console.log('[codegen] OK: sin libcalls (__mulsi3/__divsi3) y sin instrucciones 68020.');
+console.log('[codegen] OK: sin libcalls (mul/div de 32 y 64 bits) ni instrucciones 68020.');

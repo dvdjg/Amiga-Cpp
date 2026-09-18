@@ -79,39 +79,44 @@ heap.
 
 ### 3.1 Modelo
 
+Los tipos cuelgan de un **dominio** `Goap<MaxFacts>`, que se declara una sola vez con un
+alias (`using Ai = eng::ai::Goap<>;`); así la capacidad se escribe una vez y no se repite
+por el código.
+
 | Tipo | Papel |
 |---|---|
 | `Fact` (`u16`) | índice de un hecho booleano; su significado lo fija el juego |
-| `WorldState` | conjunto de hasta `max_facts` (32) hechos (`BitSet<32>`); `key()` lo empaqueta en `u32` |
-| `make_state(hechos…)` | construye un estado a partir de sus hechos (constantes o de runtime) |
-| `Action` | `pre_true`, `pre_false`, `eff_add`, `eff_del`, `cost`, `name` |
-| `ActionBuilder` | constructor fluido (`named`/`cost`/`require`/`forbid`/`produce`/`consume`) |
-| `Goal` | `want_true` (hechos exigidos a 1) y `want_false` (exigidos a 0) |
-| `Planner<MaxNodes>` | A* hacia delante; `plan()`, `found()`, `plan_cost()`, `expansions()` |
+| `Ai::State` | `MaxFacts` hechos booleanos (`BitSet`); `key()` los empaqueta en `u32` (o en dos palabras si son 64) |
+| `Ai::state(hechos…)` | construye un estado a partir de sus hechos (constantes o de runtime) |
+| `Ai::Action` | `pre_true`, `pre_false`, `eff_add`, `eff_del`, `cost`, `name` |
+| `Ai::Builder` | constructor fluido (`named`/`cost`/`require`/`forbid`/`produce`/`consume`) |
+| `Ai::Goal` | `want_true` (hechos exigidos a 1) y `want_false` (exigidos a 0) |
+| `Ai::Planner<MaxNodes>` | A* hacia delante; `plan()`, `found()`, `plan_cost()`, `expansions()` |
 
-El número de hechos **no se parametriza**: el estado se empaqueta en un `u32`, así que 32 es
-el tope natural y no hay que repetir el tamaño en cada acción ni contenedor. El único
-parámetro de plantilla de la API es el presupuesto de búsqueda del `Planner` (`MaxNodes`),
-que tiene un valor por defecto.
-
-Consulta de estado: `applicable(s, a)`, `apply(s, a)`, `satisfies(s, g)` y la
-heurística `goal_distance(s, g)` (hechos del objetivo pendientes).
+`MaxFacts` solo admite dos valores: **32** (por defecto, clave `u32`) o **64** (clave de
+64 bits empaquetada en dos palabras). No hay valores intermedios útiles: `BitSet<N>` ocupa
+una sola palabra para todo `N ≤ 32` y el código generado es idéntico, así que lo único que
+cambia de verdad es el ancho de la clave. El otro parámetro de la API es el presupuesto de
+búsqueda del `Planner<MaxNodes>`, con valor por defecto. Consulta de estado:
+`applicable(s, a)`, `apply(s, a)`, `satisfies(s, g)` y `goal_distance(s, g)`, que deducen
+`MaxFacts` de sus argumentos.
 
 ### 3.2 Uso
 
 ```cpp
 enum : eng::u16 { kHarina, kHuevos, kMezcla, kHorneado };
-constexpr eng::util::Array<eng::ai::Action, 3> acciones { {
-    eng::ai::ActionBuilder{}.named("comprar").produce(kHarina, kHuevos).build(),
-    eng::ai::ActionBuilder{}.named("batir").require(kHarina, kHuevos).produce(kMezcla).build(),
-    eng::ai::ActionBuilder{}.named("hornear").require(kMezcla).produce(kHorneado).build(),
+using Ai = eng::ai::Goap<>;                  // 32 hechos (el caso normal)
+constexpr eng::util::Array<Ai::Action, 3> acciones { {
+    Ai::Builder{}.named("comprar").produce(kHarina, kHuevos).build(),
+    Ai::Builder{}.named("batir").require(kHarina, kHuevos).produce(kMezcla).build(),
+    Ai::Builder{}.named("hornear").require(kMezcla).produce(kHorneado).build(),
 } };
-eng::ai::Goal meta;
+Ai::Goal meta;
 meta.want_true.facts.set(kHorneado);
 
-eng::ai::Planner<64> planner;            // en Amiga: instancia estatica, no de pila
+Ai::Planner<64> planner;            // en Amiga: instancia estatica, no de pila
 eng::u16 plan[8];
-const eng::usize n = planner.plan(eng::ai::make_state(), meta, acciones.span(),
+const eng::usize n = planner.plan(Ai::state(), meta, acciones.span(),
                                   eng::Span<eng::u16> {plan, 8u});
 ```
 
@@ -123,12 +128,17 @@ objetivo; `found() == false` con `0` significa que no hay solución (o no cabe e
 ### 3.3 Coste y límites (A500)
 
 - El planificador usa `HashMap`, `PriorityQueue` y los nodos **inline** en el objeto
-  `Planner`. `MaxNodes` dimensiona los tres: `Planner<256>` ocupa ~9 KiB, así que se
-  instancia en **memoria estática** (no en la pila del 68000) y se ejecuta en `init` o en
-  una tarea de fondo (`eng::task`), nunca en el camino por frame.
-- `max_facts = 32`: la clave del estado se empaqueta en una palabra de 32 bits (`WorldState`
-  es un `BitSet<32>` fijo), de ahí la deduplicación `O(1)` sin hashes largos. Un índice de
-  hecho fuera de `[0, 32)` dispara `illegal` (contrato de `BitSet`).
+  `Ai::Planner`. `MaxNodes` dimensiona los tres: con la clave de 32 bits, `Ai::Planner<256>`
+  ocupa **8280 B** (`Ai::Planner<128>`, 4152 B); con la de 64 bits, **12 376 B**
+  (`Ai::Planner<128>`, 6200 B). Se instancia en **memoria estática** (no en la pila del
+  68000) y se ejecuta en `init` o en una tarea de fondo (`eng::task`), nunca en el camino por
+  frame. Tamaños medidos con el compilador cruzado (sonda `Show<sizeof(T)>`, `-mcpu=68000`):
+  `State` 4 B (32 hechos) / 8 B (64), `Action` 22 B / 38 B.
+- La clave de 64 bits se empaqueta en **dos `u32`** (`StateKey64`), no en un
+  `unsigned long long`: el 68000 no tiene aritmética nativa de 64 bits y `long long` acabaría
+  en libcalls (`__ashldi3`, `__lshrdi3`). El hash combina las dos palabras con `hash_u32` y el
+  gate de codegen (`c_goap64_ops`) comprueba que esas libcalls no aparecen. Un índice de hecho
+  fuera del rango del dominio dispara `illegal` (contrato de `BitSet`).
 - La heurística es el número de hechos del objetivo pendientes. Es **admisible cuando
   cada acción satisface como mucho un hecho del objetivo** (el caso de estos planes); si
   una acción resolviera varios hechos de golpe, la heurística puede sobreestimar y el
@@ -147,14 +157,16 @@ HOST-107 ejercita el planner con tres dominios clásicos (y los reproduce paso a
 | Receta de un pastel | 8 hechos (ingredientes, mezcla, horno, horneado, decorado); coste por acción | 8 | 20 | 35 |
 | Misión de un soldado | obstáculo (alambre) + utensilio (alicates) + llave/puerta + máquina (generador/puerta eléctrica) + arma/munición | 13 | 26 | 81 |
 
-Además, el test cubre los casos límite: objetivo ya cumplido, objetivo sin solución y
-`forbid`.
+Además, el test cubre los casos límite (objetivo ya cumplido, objetivo sin solución y
+`forbid`) y declara **dos dominios de distinta clave** en la misma unidad de traducción: el de
+32 hechos (`Goap<>`, el de los escenarios) y uno de 64 (`Goap<64>`) que usa el hecho `63`, el
+último válido, y ejercita la clave de dos palabras (`StateKey64`).
 
 ## 4. Inventario
 
 | Cabecera | Tipos / funciones | Estado |
 |---|---|---|
-| `planning/goap.hpp` | `Fact`, `WorldState`, `make_state`, `Action`, `ActionBuilder`, `Goal`, `applicable`, `apply`, `satisfies`, `goal_distance`, `Planner` | Implementado, HOST-107 |
+| `planning/goap.hpp` | `Goap<MaxFacts>` (dominio: `State`/`state`/`Action`/`Builder`/`Goal`/`Planner`), `Fact`, `applicable`, `apply`, `satisfies`, `goal_distance` | Implementado, HOST-107 |
 | `decision/…` | FSM/HFSM, utility AI, behavior trees | Planificado (ROADMAP_GAME_AI) |
 | `navigation/…` | navmesh lite (Recast/Detour), flow field | Planificado (ROADMAP_GAME_AI) |
 | `steering/…` | seek/flee/arrive, flocking, evasión | Planificado (ROADMAP_GAME_AI) |
