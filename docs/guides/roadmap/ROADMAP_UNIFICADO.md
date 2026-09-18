@@ -20,6 +20,7 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
 | `docs/guides/roadmap/NORMALIZACION_REPO.md` | **roadmap vigente de limpieza** | Fases F0-F5 para normalizar tras la mezcla de ramas: una sola implementación de buffers y de copper, superficies sin memoria, unificación de scroll/cámaras, checklist de incongruencias |
 | `docs/engine/architecture/DISPLAY_COMPOSITION.md` | **(nuevo) contrato** | Buffers de display (3 granularidades, `MultiBuffered<Driver,N>`) y orquestación de copper por escena (`CopperPlan`) |
 | `docs/guides/roadmap/BITACORA_SCROLL_TILES.md` | bitácora | Estado y lecciones del scroll por tiles (fix de `BPLCON1` de la 101, multi-modo, optimizaciones O(n²)→O(n), cifras de fps) |
+| `docs/guides/roadmap/ROADMAP_GAME_AI.md` | **vigente (G1–G4 entregados)** | IA de juego: fases G1–G5 y catálogo de técnicas; estado de `eng::ai` en `docs/engine/architecture/GAME_AI_LIBRARY.md` |
 
 ## Estado real del engine y las demos (2026-09)
 
@@ -60,7 +61,13 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   (máscara CPU + cookie-cut Blitter) tras `-DK_FILL_BLITTER=1`. WIP: ambas rutas Blitter
   dibujan pero el resultado sale rayado (alineación/carry de los canales A/C-D), así que
   el relleno por CPU (tramos de byte/word) es el defecto y las de Blitter quedan en
-  depuración. Para depurar se usan capturas + `tools/analyze/ollama-desc.mjs` (visión).
+   depuración. Para depurar se usan capturas + `tools/analyze/ollama-desc.mjs` (visión).
+- **IA de juego (`eng::ai`) — G1–G4 entregados** y verificados por test host: planificación
+  GOAP (HOST-107), decisión (`AgentFsm`, utility, behavior tree y blackboard; HOST-110…113),
+  navegación (flow field, waypoints con A* y navmesh lite con string-pulling; HOST-114/116/118)
+  y movimiento/percepción (steering + mapa de influencia y memoria; HOST-115/117). Falta la
+  verificación por demo y G5 (diseño). Detalle: `docs/engine/architecture/GAME_AI_LIBRARY.md`;
+  plan y catálogo: `docs/guides/roadmap/ROADMAP_GAME_AI.md`.
 
 ## Sprites hardware — estado (2026-09)
 

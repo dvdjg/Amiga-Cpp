@@ -89,6 +89,8 @@ Puntos de reutilización explícitos:
 | `algorithm.hpp` | `find(_if)`, `contains`, `count(_if)`, `all_of`/`any_of`/`none_of`, `for_each`, `transform`, `copy`/`copy_n`/`fill_n`, `equal`, `accumulate`, `min_element`/`max_element`, `lower_bound`/`upper_bound`/`binary_search`, `reverse`, `rotate`, `iota`, `remove_if`, `unique` | `<algorithm>`, `<numeric>` |
 | `array.hpp` | `Array<T, N>` | `std::array` |
 | `bitset.hpp` | `BitSet<N>` | `std::bitset` |
+| `dynamic_bitset.hpp` | `DynamicBitSet<A>` (tamaño fijado en `init`, palabras en arena) | `boost::dynamic_bitset` |
+| `bitstream.hpp` | `BitWriter`/`BitReader` (campos de 1..32 bits, LSB-first) | (sin equivalente; bit I/O) |
 | `allocator.hpp` | `Allocator` (concepto), `NullAlloc`, `BumpAlloc`, `InlineAlloc<N>` | (sin equivalente) |
 | `arena_alloc.hpp` | `ArenaAlloc` (sobre `eng::LinearArena`) | (sin equivalente) |
 | `hash.hpp` | `hash_u8/u16/u32`, `hash_value`, `hash_bytes`/`hash_string`, `Hash<T>` | `std::hash` |
@@ -99,6 +101,8 @@ Puntos de reutilización explícitos:
 | `ring_buffer.hpp` | `RingBuffer<T, N>` (doble) | (sin equivalente) |
 | `stack_queue.hpp` | `Stack<T,N>`, `Queue<T,N>`, `Deque<T,N>` | `std::stack`/`queue`/`deque` (fijos) |
 | `enum_set.hpp` | `EnumSet<E, N>` | (sin equivalente) |
+| `state_machine.hpp` | `Transition<State,Event>`, `StateMachine<State,Event>` (tabla `constexpr` externa) | (sin equivalente; FSM) |
+| `event.hpp` | `Event<Signature, MaxSubscribers>` (observador con `FunctionRef`) | (sin equivalente; señales) |
 | `pool.hpp` | `Pool<T, N>` (+ `Handle` generacional) | `boost::pool` / slot map |
 | `priority_queue.hpp` | `PriorityQueue<T, N, Cmp>` (+ `Less`/`Greater`) | `boost::heap` |
 | `intrusive_list.hpp` | `IntrusiveList<T>`, `IntrusiveSList<T>` (+ `IntrusiveLink`/`IntrusiveSLink`) | `boost::intrusive::list` |
@@ -108,10 +112,17 @@ Puntos de reutilización explícitos:
 | `hash_set.hpp` | `HashSet<T, N>` | `std::unordered_set` (fijo) |
 | `dynamic_hash_map.hpp` | `DynamicHashMap<K, V, A>` (crece con rehash) | `std::unordered_map` (sin heap) |
 | `direct_map.hpp` | `DirectMap<V, N>` (clave densa) | (sin equivalente) |
+| `sparse_set.hpp` | `SparseSet<T, N>` (disperso-denso; ids `u16`, altas/bajas `O(1)`, iteración contigua) | (sin equivalente; ECS) |
+| `union_find.hpp` | `UnionFind<N>` (conjuntos disjuntos: `find`/`unite`/`connected`/`component_size`) | (sin equivalente; DSU) |
 | `optional.hpp` | `Optional<T>` | `std::optional` |
 | `expected.hpp` | `Expected<T, E>`, `unexpected(e)` | `std::expected` |
 | `string_view.hpp` | `StringView` | `std::string_view` |
 | `static_string.hpp` | `StaticString<N>` | (sin equivalente; `llvm::SmallString`) |
+| `string_interner.hpp` | `StringInterner<MaxStrings, A>` (dedup por contenido sobre arena) | `boost::flyweight` |
+| `lru_cache.hpp` | `LruCache<K, V, N>` (LRU `O(1)`, sin heap) | (sin equivalente) |
+| `task.hpp` | `TaskStatus`, `TaskSequence<N>`, `Delay` (tareas *stackless*) | (coroutine ligera) |
+| `interval.hpp` | `Interval`, `IntervalSet<N>` (rangos `[lo,hi)` fusionados) | `boost::icl` (mínimo) |
+| `variant.hpp` | `Variant<Ts...>` (unión etiquetada de alternativas triviales, `visit`) | `std::variant` (sin heap) |
 | `scope_guard.hpp` | `ScopeGuard`, `make_scope_guard` | `boost::scope_exit` |
 | `stats.hpp` | `sum`/`mean`/`variance`/`stddev`/`kth_smallest`/`median`/`histogram`/`ema`/`RunningMean` | (sin equivalente; estadística) |
 | `color.hpp` | `rgb444`/`lerp444`/`scale444`/`hsv_to_rgb444` + `palette_lerp`/`palette_scale` (transición y fundido de una paleta completa) + `gradient444` (degradado multi-parada) | (sin equivalente; color Amiga) |
@@ -119,7 +130,8 @@ Puntos de reutilización explícitos:
 | `text.hpp` | `trim`/`split_next`/`equal_ci`/`parse_u32`/`parse_s32`/`to_chars_*`/`join` | (parte de `boost::string`/`charconv`) |
 | `grid.hpp` | `TileCoord`/`grid_to_world`/`world_to_grid`/`iso_to_screen`/`Hex` | (sin equivalente; rejilla/iso/hex) |
 | `broadphase.hpp` | `SpatialHash<CellSize,CellsX,CellsY,MaxItems>` | (sin equivalente; broadphase) |
-| `pathfinding.hpp` | `bfs<W,H>`, `astar<W,H>`, `reconstruct_path<W,H>` | (sin equivalente; A*/BFS) |
+| `pathfinding.hpp` | `bfs<W,H>`, `astar<W,H>` (heurística parametrizable), `reconstruct_path<W,H>` | (sin equivalente; A*/BFS) |
+| `graph.hpp` | `Graph<MaxNodes,MaxEdges>` (adyacencia), `graph_bfs`, `graph_astar`, `topological_sort` | (sin equivalente; grafo) |
 | `dsp.hpp` | `Adsr`, `OnePole`, `DelayLine`, `soft_clip`, `osc_*` | (sin equivalente; audio) |
 | `function_ref.hpp` | `FunctionRef<Sig>` | `std::function_ref` (C++26) |
 
@@ -158,6 +170,20 @@ referencia para **elegir contenedor por coste**, no por hábito:
 | `HashMap::find` (abierto) | **62** | 1 | 0 |
 | `Expected<T,E>` construir fallo | 23 (vs 18 de `bool`+out-param) | 0 | 0 |
 | consumidor `r ? r.value() : fallback` | 14 (igual que `bool`) | 0 | 0 |
+| `StateMachine::dispatch` (tabla de 3) | 33 (sonda `c_state_machine_ops`) | 0 | 0 |
+| `Event::emit` (2 suscriptores) | 28 (sonda `c_event_ops`) | 0 | 1 |
+| `AgentFsm::dispatch` (tabla de 3) | 37 (sonda `c_agent_fsm_ops`) | 0 | 0 |
+| `UnionFind` (N=64: unite/find/connect) | 315 (sonda `c_union_find_ops`) | 0 | 1 |
+| `SparseSet` (N=64: altas/baja/iterar) | 253 (sonda `c_sparse_set_ops`) | 0 | 1 |
+| `BitWriter`+`BitReader` (round-trip) | 96 (sonda `c_bitstream_ops`) | 0 | 0 |
+| `DynamicBitSet` init/set/count (70 bits) | 76 (sonda `c_dynamic_bitset_ops`) | 0 | 4 |
+| `StringInterner` intern/lookup | 84 (sonda `c_string_interner_ops`) | 0 | 7 |
+| `convex_overlap` (SAT 2D, 2 cuadrados) | 302 (sonda `c_convex_overlap_ops`) | 18 | 0 |
+| `graph_astar`+`graph_bfs` (6 nodos) | 545 (sonda `c_graph_ops`) | 0 | 1 |
+| `LruCache` put/get (N=8) | 710 (sonda `c_lru_cache_ops`) | 10 | 1 |
+| `TaskSequence::tick` (Delay + paso) | 56 (sonda `c_task_ops`) | 0 | 1 |
+| `IntervalSet` add×3 + contains | 276 (sonda `c_interval_ops`) | 0 | 2 |
+| `Variant` visit (2 alternativas) | 3 (sonda `c_variant_ops`) | 0 | 0 |
 
 Lectura: **para N pequeño, ordenar/indizar linealmente gana al hash** (`FlatMap` casi la
 mitad que `HashMap`, y `DirectMap` menos aún con clave densa); el hash usa **un `mulu.w` de
@@ -234,6 +260,20 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-102 | `dsp.hpp` (Adsr/OnePole/DelayLine/osciladores; `double`/MF/`q12`) |
 | HOST-103 | util (contenedores/algoritmos) con `MiniFloat16`/`q12` |
 | HOST-104 | `core/fixed_math.hpp` (sin/cos/tan/atan2/asin/acos/sqrt/exp2/log2 de `Fixed`; easings/length con q12) |
+| HOST-108 | `core/util/state_machine.hpp` (FSM de tabla `constexpr`; semáforo y FSM de IA) |
+| HOST-109 | `core/util/event.hpp` (emisor de eventos de capacidad fija) |
+| HOST-119 | `core/util/union_find.hpp` (DSU: unir, conectividad, tamaños, islas) |
+| HOST-120 | `core/util/sparse_set.hpp` (disperso-denso: insert/find, swap-remove) |
+| HOST-121 | `core/util/bitstream.hpp` (campos de bits LSB-first) |
+| HOST-122 | `core/util/dynamic_bitset.hpp` (bitset de tamaño en `init`, en arena) |
+| HOST-123 | consumidor de `bitstream`/`dynamic_bitset` (nivel empaquetado y tiles sucios) |
+| HOST-124 | `core/util/string_interner.hpp` (internado de cadenas) |
+| HOST-125 | `core/util/collision.hpp` (SAT 2D de polígonos convexos y punto en convexo) |
+| HOST-126 | `core/util/graph.hpp` (adyacencia, BFS, A*, orden topológico) |
+| HOST-127 | `core/util/lru_cache.hpp` (LRU `O(1)`) |
+| HOST-128 | `core/util/task.hpp` (tareas *stackless*) |
+| HOST-129 | `core/util/interval.hpp` (rangos `[lo,hi)` fusionados) |
+| HOST-130 | `core/util/variant.hpp` (unión etiquetada sin heap) |
 
 > **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`), `Pool` por `086_bob_objects` (parque de actores), `HashMap` por `111_xlimited_sidescroller` (índice de chunks de `ChunkCache`), `color` también por `086_bob_objects` (gradiente del cielo con `eng::util::lerp444`), y `broadphase` y `pathfinding` por `110_ylimited_shooter` (self-test en `init`: `SpatialHash` + `bfs`/`reconstruct_path` en el 68000; si falla, la demo no llega a READY). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashSet`, `DynamicHashMap`, `PriorityQueue`, `Stack`/`Queue`/`Deque`, `EnumSet`, `ScopeGuard`, `StaticString`, `stats`, `collision`, `text`, `grid`, `dsp`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..102 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
 
@@ -258,7 +298,14 @@ mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
    `stats.hpp` (`c_stats_ops`) y `color.hpp`/`collision.hpp`/`text.hpp`
    (`c_color_lerp`/`c_palette_ops`/`c_collision_ops`/`c_text_ops`), `grid.hpp` (`c_grid_ops`),
    `broadphase.hpp` (`c_broadphase_ops`), `pathfinding.hpp` (`c_pathfinding_ops`),
-   `core/random.hpp` (`c_random_ops`) y `dsp.hpp` (`c_dsp_ops`).
+   `state_machine.hpp`/`event.hpp` (`c_state_machine_ops`/`c_event_ops`),
+   `union_find.hpp`/`sparse_set.hpp` (`c_union_find_ops`/`c_sparse_set_ops`),
+   `bitstream.hpp`/`dynamic_bitset.hpp` (`c_bitstream_ops`/`c_dynamic_bitset_ops`),
+   `string_interner.hpp` (`c_string_interner_ops`), `collision.hpp`
+   (`c_collision_ops`/`c_convex_overlap_ops`), `graph.hpp` (`c_graph_ops`),
+   `lru_cache.hpp`/`task.hpp` (`c_lru_cache_ops`/`c_task_ops`), `interval.hpp`/`variant.hpp`
+   (`c_interval_ops`/`c_variant_ops`), `core/random.hpp` (`c_random_ops`) y `dsp.hpp`
+   (`c_dsp_ops`).
 5. Antes de añadir una utilidad nueva, comprobar si el **vocabulario** de §7 ya cubre la
    necesidad (p. ej. flags con `EnumSet`, restauración con `ScopeGuard`, colas con
    `Queue`/`Deque`); adoptarlo en el engine y documentarlo aquí.
@@ -299,6 +346,18 @@ Qué usar según la necesidad, con el criterio del A500 (sin heap; coste visible
 | Ruido procedural (value/fbm/worley) | `core/noise.hpp` |
 | Audio/efectos (envolvente/filtro/eco/oscilador) | `dsp.hpp` |
 | Pasar un callable sin poseerlo | `FunctionRef<Sig>` |
+| Estados/eventos con transiciones | `state_machine.hpp` (`StateMachine<State,Event>`, tabla `constexpr`) |
+| Difundir un suceso a varios oyentes | `event.hpp` (`Event<Signature,MaxSubscribers>`) |
+| Grafo / dependencias / waypoints | `graph.hpp` (`Graph<N,E>` + `graph_astar`/`topological_sort`) |
+| Caché con desalojo por uso | `lru_cache.hpp` (`LruCache<K,V,N>`) |
+| Secuencia/scripting que espera entre frames | `task.hpp` (`TaskSequence<N>`, `Delay`) |
+| Rangos de nivel / ventanas temporales | `interval.hpp` (`IntervalSet<N>`) |
+| Mensajes/comandos heterogéneos sin heap | `variant.hpp` (`Variant<Ts...>`) |
+| Componentes conexas / particionar el mundo | `union_find.hpp` (`UnionFind<N>`) |
+| Componentes por entidad con id disperso (ECS) | `sparse_set.hpp` (`SparseSet<T,N>`) |
+| Serializar campos de bits (nivel/partida) | `bitstream.hpp` (`BitWriter`/`BitReader`) |
+| Conjunto de bits de tamaño fijado en carga | `dynamic_bitset.hpp` (`DynamicBitSet<A>`) |
+| Deduplicar texto y usar ids | `string_interner.hpp` (`StringInterner<MaxStrings,A>`) |
 
 Notas de uso:
 

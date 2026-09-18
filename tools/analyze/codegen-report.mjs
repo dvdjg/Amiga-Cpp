@@ -43,6 +43,30 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/util/grid.hpp>
 #include <eng/core/util/broadphase.hpp>
 #include <eng/core/util/pathfinding.hpp>
+#include <eng/core/util/array.hpp>
+#include <eng/ai/planning/goap.hpp>
+#include <eng/core/util/state_machine.hpp>
+#include <eng/core/util/event.hpp>
+#include <eng/ai/decision/agent_fsm.hpp>
+#include <eng/ai/decision/blackboard.hpp>
+#include <eng/ai/decision/utility.hpp>
+#include <eng/ai/decision/behavior_tree.hpp>
+#include <eng/ai/navigation/flow_field.hpp>
+#include <eng/ai/navigation/waypoints.hpp>
+#include <eng/ai/navigation/navmesh_lite.hpp>
+#include <eng/ai/steering/steering.hpp>
+#include <eng/ai/perception/influence_map.hpp>
+#include <eng/ai/perception/agent_memory.hpp>
+#include <eng/core/util/union_find.hpp>
+#include <eng/core/util/sparse_set.hpp>
+#include <eng/core/util/bitstream.hpp>
+#include <eng/core/util/dynamic_bitset.hpp>
+#include <eng/core/util/string_interner.hpp>
+#include <eng/core/util/graph.hpp>
+#include <eng/core/util/lru_cache.hpp>
+#include <eng/core/util/task.hpp>
+#include <eng/core/util/interval.hpp>
+#include <eng/core/util/variant.hpp>
 #include <eng/core/random.hpp>
 #include <eng/core/util/dsp.hpp>
 #include <eng/core/fixed_math.hpp>
@@ -57,6 +81,18 @@ using namespace eng::math3d;
 using eng::s16;
 using eng::s32;
 using eng::u16;
+
+// Gate de layout GOAP (m68k): fija los sizeof medidos. Si cambian, la compilacion
+// cruzada falla y hay que revisar el presupuesto de RAM del planificador.
+static_assert(sizeof(eng::ai::Goap<>::State) == 4u, "Goap<32>::State");
+static_assert(sizeof(eng::ai::Goap<>::Action) == 22u, "Goap<32>::Action");
+static_assert(sizeof(eng::ai::Goap<>::Planner<128>) == 4358u, "Goap<32>::Planner<128>");
+static_assert(sizeof(eng::ai::Goap<>::Planner<256>) == 8486u, "Goap<32>::Planner<256>");
+static_assert(sizeof(eng::ai::Goap<64>::State) == 8u, "Goap<64>::State");
+static_assert(sizeof(eng::ai::Goap<64>::Action) == 38u, "Goap<64>::Action");
+static_assert(sizeof(eng::ai::Goap<64>::Planner<128>) == 6454u, "Goap<64>::Planner<128>");
+static_assert(sizeof(eng::ai::Goap<64>::Planner<256>) == 12630u, "Goap<64>::Planner<256>");
+
 struct HalfEvenPolicy { using Round = rounding::HalfEven; using Overflow = overflow::Wrap; };
 using q14 = Fixed<s16, 14>;
 eng::u16 g_tab[512] {}; // mutable: impide que el optimizador pliegue la tabla a constante
@@ -324,6 +360,345 @@ extern "C" u16 c_pathfinding_ops(u16 start, u16 goal) {
 					 eng::Span<eng::u8> {closed, 64});
 	return static_cast<u16>(bl + (aok ? 1u : 0u));
 }
+extern "C" u16 c_goap_ops(u16 seed) {
+	using Ai = eng::ai::Goap<>;
+	constexpr eng::util::Array<Ai::Action, 4> acts { {
+		Ai::Builder {}.require(0).produce(1).build(),
+		Ai::Builder {}.require(1).produce(2).build(),
+		Ai::Builder {}.require(2).produce(3).build(),
+		Ai::Builder {}.produce(3).build(),
+	} };
+	Ai::State start {};
+	start.facts.set(static_cast<eng::usize>(seed % 8u));
+	Ai::Goal goal {};
+	goal.want_true.facts.set(static_cast<eng::ai::Fact>(3u));
+	Ai::Planner<32> planner;
+	eng::u16 plan[4] {};
+	const eng::usize n = planner.plan(start, goal, acts.span(), eng::Span<eng::u16> {plan, 4});
+	return static_cast<u16>(n + (planner.found() ? 1u : 0u));
+}
+extern "C" u16 c_goap64_ops(u16 seed) {
+	using Big = eng::ai::Goap<64>;
+	constexpr eng::util::Array<Big::Action, 2> acts { {
+		Big::Builder {}.require(0).produce(63).build(),
+		Big::Builder {}.require(63).produce(1).build(),
+	} };
+	Big::Goal goal {};
+	goal.want_true.facts.set(static_cast<eng::ai::Fact>(1u));
+	Big::Planner<16> planner;
+	eng::u16 plan[2] {};
+	Big::State start {};
+	start.facts.set(static_cast<eng::ai::Fact>(seed % 8u));
+	const eng::usize n = planner.plan(start, goal, acts.span(), eng::Span<eng::u16> {plan, 2});
+	return static_cast<u16>(n + (planner.found() ? 1u : 0u));
+}
+extern "C" u16 c_state_machine_ops(u16 seed) {
+	enum class S : eng::u8 { A, B, C };
+	enum class E : eng::u8 { Go };
+	static constexpr eng::util::Transition<S, E> table[] = {
+		{S::A, E::Go, S::B},
+		{S::B, E::Go, S::C},
+		{S::C, E::Go, S::A},
+	};
+	eng::util::StateMachine<S, E> fsm {S::A, table};
+	for (eng::u16 i = 0; i < (seed & 3u); ++i) {
+		fsm.dispatch(E::Go);
+	}
+	return static_cast<u16>(static_cast<u16>(fsm.current()) + fsm.transition_count());
+}
+extern "C" u16 c_event_ops(u16 seed) {
+	eng::util::Event<void(eng::u16), 4> ev;
+	auto a = [](eng::u16) {};
+	auto b = [](eng::u16) {};
+	ev.subscribe(a);
+	ev.subscribe(b);
+	ev.emit(seed);
+	ev.clear();
+	return static_cast<u16>(ev.size());
+}
+extern "C" u16 c_agent_fsm_ops(u16 seed) {
+	enum class S : eng::u8 { A, B, C };
+	enum class E : eng::u8 { Go };
+	static constexpr eng::util::Transition<S, E> table[] = {
+		{S::A, E::Go, S::B},
+		{S::B, E::Go, S::C},
+		{S::C, E::Go, S::A},
+	};
+	eng::ai::AgentFsm<S, E, 3> fsm {S::A, table};
+	for (eng::u16 i = 0; i < (seed & 3u); ++i) {
+		fsm.dispatch(E::Go);
+	}
+	return static_cast<u16>(static_cast<u16>(fsm.current()) + fsm.transition_count());
+}
+extern "C" u16 c_blackboard_ops(u16 seed) {
+	enum class K : eng::u16 { A, B, C, Count };
+	eng::ai::Blackboard<K, eng::s32, static_cast<eng::usize>(K::Count)> bb;
+	bb.set(K::A, seed);
+	bb.set(K::B, static_cast<eng::s32>(seed) + 1);
+	const eng::s32* p = bb.find(K::A);
+	bb.erase(K::B);
+	return static_cast<u16>((p != nullptr ? *p : 0) + static_cast<eng::s32>(bb.size()));
+}
+extern "C" s16 c_utility_ops(u16 a, u16 b) {
+	eng::ai::Utility u;
+	u.add(static_cast<eng::s32>(a), 2);
+	u.add(static_cast<eng::s32>(b), 1);
+	eng::ai::UtilitySelector<3> sel;
+	sel.add(u.score());
+	sel.add(static_cast<eng::s32>(b));
+	return static_cast<s16>(static_cast<eng::s32>(sel.best()) + u.score());
+}
+extern "C" u16 c_behavior_tree_ops(u16 seed) {
+	(void)seed;
+	auto fail = []() { return eng::ai::BtStatus::Failure; };
+	auto ok = []() { return eng::ai::BtStatus::Success; };
+	eng::ai::BehaviorTree<4> bt;
+	bt.add_leaf(fail);
+	bt.add_leaf(ok);
+	const eng::u16 sel = bt.add_selector(0u, 2u);
+	bt.set_root(sel);
+	const eng::ai::BtStatus st = bt.tick();
+	return static_cast<u16>((st == eng::ai::BtStatus::Success ? 1u : 0u) + bt.node_count());
+}
+extern "C" u16 c_flow_field_ops(u16 goal) {
+	static eng::u16 integ[64];
+	static eng::u8 dir[64];
+	const eng::u16 goals[1] = {static_cast<eng::u16>(goal % 64u)};
+	auto cost = [](eng::u16) -> eng::u16 { return 1u; };
+	if (!eng::ai::compute_flow_field<8, 8>(eng::Span<const eng::u16> {goals, 1}, cost,
+					       eng::Span<eng::u16> {integ, 64},
+					       eng::Span<eng::u8> {dir, 64})) {
+		return 0u;
+	}
+	eng::u16 next = 0u;
+	return eng::ai::flow_next<8>(eng::Span<const eng::u8> {dir, 64}, 0u, next)
+		       ? next
+		       : static_cast<eng::u16>(0u);
+}
+extern "C" s16 c_steering_ops(s16 px, s16 py, s16 tx, s16 ty) {
+	const Vec<2, q12> pos {q12 {px}, q12 {py}};
+	const Vec<2, q12> target {q12 {tx}, q12 {ty}};
+	const Vec<2, q12> v = eng::ai::seek(pos, target, q12 {64});
+	const Vec<2, q12> a = eng::ai::arrive(pos, target, q12 {64}, q12 {256});
+	return static_cast<s16>(v.v[0].v + v.v[1].v + a.v[0].v + a.v[1].v);
+}
+extern "C" s16 c_steering_extra_ops(s16 px, s16 py, s16 tx, s16 ty) {
+	const Vec<2, q12> pos {q12 {px}, q12 {py}};
+	const Vec<2, q12> target {q12 {tx}, q12 {ty}};
+	const Vec<2, q12> vel {q12 {8}, q12 {0}};
+	const Vec<2, q12> pv = eng::ai::pursue(pos, target, vel, q12 {64});
+	const Vec<2, q12> ev = eng::ai::evade(pos, target, vel, q12 {64});
+	const Vec<2, q12> wv = eng::ai::wander(pos, q12 {0}, q12 {64}, q12 {16}, q12 {64});
+	const eng::ai::SteerCircle<q12> circles[1] = {{{q12 {64}, q12 {8}}, q12 {16}}};
+	const Vec<2, q12> av = eng::ai::avoid_circles(
+		pos, target, eng::Span<const eng::ai::SteerCircle<q12>> {circles, 1}, q12 {16},
+		q12 {32});
+	return static_cast<s16>(pv.v[0].v + ev.v[0].v + wv.v[0].v + av.v[0].v);
+}
+extern "C" u16 c_waypoints_ops(u16 start, u16 goal) {
+	eng::ai::WaypointGraph<8, 8> graph;
+	const eng::u16 a = graph.add_node({0, 0});
+	const eng::u16 b = graph.add_node({10, 0});
+	const eng::u16 c = graph.add_node({20, 0});
+	graph.add_edge(a, b, 10u);
+	graph.add_edge(b, c, 10u);
+	eng::u16 g[8];
+	eng::s16 came[8];
+	eng::u8 closed[8];
+	eng::u16 path[8];
+	const eng::u16 s = static_cast<eng::u16>(start % 3u);
+	const eng::u16 t = static_cast<eng::u16>(goal % 3u);
+	const eng::usize n = graph.find_path(s, t, eng::Span<eng::u16> {g, 8},
+					     eng::Span<eng::s16> {came, 8},
+					     eng::Span<eng::u8> {closed, 8},
+					     eng::Span<eng::u16> {path, 8});
+	return static_cast<u16>(n + (g[t] == 0xffffu ? 0u : g[t]));
+}
+extern "C" u16 c_navmesh_ops(u16 seed) {
+	using Mesh = eng::ai::NavMesh<8, 4, 8>;
+	Mesh mesh;
+	const eng::Point2s a_verts[4] = {{0, 0}, {10, 0}, {10, 10}, {0, 10}};
+	const eng::Point2s b_verts[4] = {{10, 0}, {20, 0}, {20, 10}, {10, 10}};
+	const eng::u16 a = mesh.add_polygon(eng::Span<const eng::Point2s> {a_verts, 4});
+	const eng::u16 b = mesh.add_polygon(eng::Span<const eng::Point2s> {b_verts, 4});
+	mesh.add_portal(a, b, {10, 0}, {10, 10});
+	eng::u16 g[8];
+	eng::s16 came[8];
+	eng::u8 closed[8];
+	eng::Point2s path[8];
+	const eng::s16 gx = static_cast<eng::s16>(seed % 15u);
+	const eng::usize n = mesh.find_path(
+		{5, 5}, {gx, 5}, eng::Span<eng::u16> {g, 8}, eng::Span<eng::s16> {came, 8},
+		eng::Span<eng::u8> {closed, 8}, eng::Span<eng::Point2s> {path, 8});
+	const eng::usize sn = mesh.find_smooth_path(
+		{5, 5}, {gx, 5}, eng::Span<eng::u16> {g, 8}, eng::Span<eng::s16> {came, 8},
+		eng::Span<eng::u8> {closed, 8}, eng::Span<eng::Point2s> {path, 8});
+	const eng::u16 loc = mesh.locate({5, 5});
+	return static_cast<u16>(n + sn + (loc == Mesh::no_poly ? 0u : loc));
+}
+extern "C" s32 c_influence_map_ops(u16 cell, s32 amount) {
+	eng::ai::InfluenceMap<8, 8> map;
+	map.clear();
+	const eng::u16 i = static_cast<eng::u16>(cell % 64u);
+	map.deposit(i, amount);
+	map.decay(amount / 2);
+	const eng::u16 best = map.strongest();
+	return map.at(i) + (best == eng::ai::InfluenceMap<8, 8>::no_cell ? 0 : 1);
+}
+extern "C" u16 c_agent_memory_ops(u16 ticks) {
+	eng::ai::AgentMemory mem;
+	mem.see({static_cast<eng::s16>(ticks), 4});
+	for (eng::u16 i = 0; i < (ticks & 7u); ++i) {
+		mem.tick();
+	}
+	return static_cast<u16>((mem.fresh(3u) ? 1u : 0u) + mem.ticks_since_seen +
+				mem.last_position.y);
+}
+extern "C" u16 c_union_find_ops(u16 seed) {
+	eng::util::UnionFind<64> uf;
+	for (eng::u16 i = 0u; i + 1u < 64u; i = static_cast<eng::u16>(i + 2u)) {
+		uf.unite(i, static_cast<eng::u16>(i + 1u));
+	}
+	uf.unite(0u, 2u);
+	const eng::u16 r = uf.find(static_cast<eng::u16>(seed % 64u));
+	return static_cast<u16>(r + uf.components() + uf.component_size(0u) +
+				(uf.connected(0u, 2u) ? 1u : 0u));
+}
+extern "C" s32 c_sparse_set_ops(u16 seed) {
+	eng::util::SparseSet<eng::s32, 64> set;
+	for (eng::u16 i = 0u; i < 32u; ++i) {
+		set.insert(static_cast<eng::u16>((i * 7u) % 64u), static_cast<eng::s32>(i));
+	}
+	set.erase(static_cast<eng::u16>(seed % 64u));
+	const eng::s32* p = set.find(static_cast<eng::u16>((seed + 1u) % 64u));
+	s32 sum = p != nullptr ? *p : 0;
+	for (s32 v : set.values()) {
+		sum += v;
+	}
+	return static_cast<s32>(sum + static_cast<s32>(set.size()));
+}
+extern "C" u16 c_bitstream_ops(eng::u32 value, u16 bits) {
+	eng::u8 buf[8] {};
+	eng::util::BitWriter bw {eng::Span<eng::u8> {buf, 8}};
+	bw.write(value, static_cast<eng::u8>(bits % 32u + 1u));
+	bw.write_bool(true);
+	eng::util::BitReader br {eng::Span<const eng::u8> {buf, bw.byte_count()}};
+	eng::u32 out = 0;
+	bool b = false;
+	br.read(static_cast<eng::u8>(bits % 32u + 1u), out);
+	br.read_bool(b);
+	return static_cast<u16>(out + (b ? 1u : 0u));
+}
+extern "C" u16 c_dynamic_bitset_ops(u16 seed) {
+	eng::util::InlineAlloc<64> alloc;
+	eng::util::DynamicBitSet<eng::util::InlineAlloc<64>> bits {alloc};
+	if (!bits.init(70u)) {
+		return 0u;
+	}
+	for (eng::u16 i = 0u; i < 70u; i = static_cast<eng::u16>(i + 3u)) {
+		bits.set(i);
+	}
+	const eng::usize c = bits.count();
+	bits.flip(static_cast<eng::usize>(seed % 70u));
+	return static_cast<u16>(c + (bits.any() ? 1u : 0u) + bits.size());
+}
+extern "C" u16 c_string_interner_ops(u16 seed) {
+	eng::util::InlineAlloc<128> arena;
+	eng::util::StringInterner<16, eng::util::InlineAlloc<128>> names {arena};
+	const eng::u16 a = names.intern("enemy_idle");
+	const eng::u16 b = names.intern("enemy_run");
+	const eng::u16 c = names.intern("enemy_idle");
+	char buf[3] = {'i', static_cast<char>('0' + (seed % 10u)), '\0'};
+	names.intern(eng::util::StringView(buf, 2u));
+	return static_cast<u16>(a + b + c + names.size() +
+				static_cast<eng::u16>(names.lookup(a).size()));
+}
+extern "C" u16 c_convex_overlap_ops(s16 ax, s16 ay, s16 bx, s16 by) {
+	const eng::Point2s a[4] = {{0, 0}, {10, 0}, {10, 10}, {0, 10}};
+	const eng::Point2s b[4] = {{ax, ay},
+				   {static_cast<s16>(ax + 10), ay},
+				   {static_cast<s16>(ax + 10), static_cast<s16>(ay + 10)},
+				   {ax, static_cast<s16>(ay + 10)}};
+	const bool ov = eng::util::convex_overlap(eng::Span<const eng::Point2s> {a, 4},
+						  eng::Span<const eng::Point2s> {b, 4});
+	const bool in = eng::util::point_in_convex({bx, by}, eng::Span<const eng::Point2s> {a, 4});
+	return static_cast<u16>((ov ? 1u : 0u) + (in ? 1u : 0u));
+}
+extern "C" u16 c_graph_ops(u16 seed) {
+	eng::util::Graph<8, 12> g;
+	for (eng::u16 i = 0u; i < 6u; ++i) {
+		g.add_node();
+	}
+	g.add_edge(0u, 1u, 2u);
+	g.add_edge(1u, 2u, 2u);
+	g.add_edge(0u, 3u, 1u);
+	g.add_edge(3u, 4u, 1u);
+	g.add_edge(4u, 2u, 1u);
+	eng::u16 gs[8];
+	eng::s16 came[8];
+	eng::u8 closed[8];
+	eng::u16 out[8];
+	eng::u16 q[8];
+	auto h = [](eng::u16, eng::u16) { return static_cast<eng::u16>(0u); };
+	const eng::usize a = eng::util::graph_astar(
+		g, 0u, 2u, h, eng::Span<eng::u16> {gs, 8}, eng::Span<eng::s16> {came, 8},
+		eng::Span<eng::u8> {closed, 8}, eng::Span<eng::u16> {out, 8});
+	const eng::usize b = eng::util::graph_bfs(g, 0u, 2u, eng::Span<eng::s16> {came, 8},
+						  eng::Span<eng::u16> {q, 8},
+						  eng::Span<eng::u16> {out, 8});
+	return static_cast<u16>(a + b + g.node_count() + g.edge_count() +
+				static_cast<eng::u16>(seed & 0u));
+}
+extern "C" s32 c_lru_cache_ops(u16 seed) {
+	eng::util::LruCache<eng::u16, eng::s32, 8> cache;
+	for (eng::u16 i = 0u; i < 12u; ++i) {
+		cache.put(static_cast<eng::u16>(i % 8u), static_cast<eng::s32>(i));
+	}
+	const eng::s32* v = cache.get(static_cast<eng::u16>(seed % 8u));
+	return (v != nullptr ? *v : -1) + static_cast<eng::s32>(cache.size());
+}
+static eng::util::TaskStatus c_task_ok() { return eng::util::TaskStatus::Success; }
+extern "C" u16 c_task_ops(u16 seed) {
+	eng::util::Delay wait {2};
+	eng::util::TaskSequence<2> seq;
+	seq.add(wait);
+	seq.add(c_task_ok);
+	eng::util::TaskStatus last = eng::util::TaskStatus::Running;
+	for (eng::u16 i = 0u; i < (seed & 7u); ++i) {
+		last = seq.tick();
+		if (last != eng::util::TaskStatus::Running) {
+			seq.reset();
+		}
+	}
+	return static_cast<u16>(static_cast<eng::u16>(last) + seq.step_count());
+}
+extern "C" u16 c_interval_ops(s32 lo, s32 hi) {
+	eng::util::IntervalSet<8> s;
+	s.add(lo, hi);
+	s.add(0, 10);
+	s.add(20, 30);
+	return static_cast<u16>(s.size() + (s.contains(5) ? 1u : 0u) +
+				(s.contains(25) ? 1u : 0u));
+}
+struct CVariantA {
+	eng::s16 a;
+};
+struct CVariantB {
+	eng::u16 b;
+};
+extern "C" u16 c_variant_ops(u16 seed) {
+	eng::util::Variant<CVariantA, CVariantB> v {CVariantB {seed}};
+	eng::u16 out = 0u;
+	v.visit([&](const auto& c) {
+		using T = eng::util::remove_cvref_t<decltype(c)>;
+		if constexpr (eng::util::is_same_v<T, CVariantA>) {
+			out = static_cast<eng::u16>(c.a);
+		} else {
+			out = c.b;
+		}
+	});
+	return static_cast<u16>(out + v.index());
+}
 extern "C" u16 c_random_ops(u16 seed) {
 	eng::Xoroshiro64pp rng {seed, static_cast<eng::u32>(seed + 1u)};
 	eng::u16 data[8];
@@ -438,7 +813,8 @@ for (const f of fns) {
 // nativos se ha convertido en una llamada (~50+ ciclos). Los `jsr` a funciones propias
 // (cuerpos no inlined) son normales y solo se informan. `--report` no falla.
 const asmText = fs.readFileSync(ASM, 'latin1');
-const FORBIDDEN = ['__mulsi3', '__umulsi3', '__divsi3', '__udivsi3'];
+const FORBIDDEN = ['__mulsi3', '__umulsi3', '__divsi3', '__udivsi3',
+  '__ashldi3', '__lshrdi3', '__ashrdi3', '__muldi3', '__divdi3', '__udivdi3'];
 const hit = FORBIDDEN.filter((s) => asmText.includes(s));
 const called = fns.filter((f) => f.lib > 0).map((f) => `${f.name} (${f.lib} jsr)`);
 if (hit.length) {
@@ -493,4 +869,4 @@ if (notInlined.length) {
   process.exit(1);
 }
 
-console.log('[codegen] OK: sin libcalls (__mulsi3/__divsi3) y sin instrucciones 68020.');
+console.log('[codegen] OK: sin libcalls (mul/div de 32 y 64 bits) ni instrucciones 68020.');

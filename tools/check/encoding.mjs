@@ -1,4 +1,4 @@
-// Comprueba que los archivos de texto del repo sean UTF-8 valido y no tengan
+// Comprueba que los archivos de texto del repo sean UTF-8 valido, sin BOM y sin
 // mojibake (UTF-8 doblemente codificado) ni caracter de reemplazo. Falla (exit 1)
 // si encuentra alguno. Pensado para el CI (regresion / tests host).
 //
@@ -29,6 +29,10 @@ const bad = [];
 for (const root of ROOTS) {
   for (const f of walk(root)) {
     const buf = fs.readFileSync(f);
+    if (buf.length >= 3 && buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF) {
+      bad.push(`${f}: BOM UTF-8 (no usar)`);
+      continue;
+    }
     try { utf8.decode(buf); } catch { bad.push(`${f}: no es UTF-8 valido`); continue; }
     if (MOJI.test(buf.toString('utf8'))) bad.push(`${f}: mojibake (UTF-8 doblemente codificado)`);
   }

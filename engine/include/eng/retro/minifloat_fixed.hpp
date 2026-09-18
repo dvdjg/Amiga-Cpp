@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 /// \file minifloat_fixed.hpp
 /// Puente entre `MiniFloat16` y el vocabulario fixed-point **retro** (`fix` = 4.12,

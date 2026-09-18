@@ -31,11 +31,11 @@ repositorio mantiene dos flujos claramente separados:
 | Carpeta | Contenido |
 |---------|-----------|
 | [STRUCTURE.md](STRUCTURE.md) | **Especificación canónica de organización del repositorio** (dónde va cada cosa). |
-| [engine/](engine/README.md) | Diseño del engine C++ actual: estilo, drivers gráficos, memoria, política de hardware/ROM, benchmarks de API y roadmap (en `engine/architecture/`) + histórico del engine C (`engine/c-engine/`). |
+| [engine/](engine/README.md) | Diseño del engine C++ actual: estilo, drivers gráficos, memoria, política de hardware/ROM, benchmarks de API, IA de juego (`engine/architecture/GAME_AI_LIBRARY.md`) y roadmap (en `engine/architecture/`) + histórico del engine C (`engine/c-engine/`). |
 | [demos/](demos/README.md) | Efectos demoscene (`demos/effects/`) y pipeline de tiles/EHB (`demos/tile-pipeline/`, con informes IA en `ai-reports/`). |
 | [tools/](tools/README.md) | Documentación de las herramientas de desarrollo (build/run/analyze/debug/profile/verify/pipeline). |
 | [reference/](reference/README.md) | Referencia por plataforma: `reference/amiga/` (hardware + técnicas), `reference/ahrm/` (AHRM 3.ª edición), `reference/amc-wrobel/`, y áreas futuras `atarist/` y `megadrive/`. |
-| [guides/](guides/README.md) | Roadmaps vigentes (`guides/roadmap/`), guías de optimización (`guides/optimization/`) y metodología/agentes (`guides/methodology/`). Estado vigente en [ROADMAP_UNIFICADO.md](guides/roadmap/ROADMAP_UNIFICADO.md); bitácora histórica del scroll por tiles en [BITACORA_SCROLL_TILES.md](guides/roadmap/BITACORA_SCROLL_TILES.md). |
+| [guides/](guides/README.md) | Roadmaps vigentes (`guides/roadmap/`, p. ej. [ROADMAP_GAME_AI.md](guides/roadmap/ROADMAP_GAME_AI.md) para IA y diseño de juego), guías de optimización (`guides/optimization/`) y metodología/agentes (`guides/methodology/`). Estado vigente en [ROADMAP_UNIFICADO.md](guides/roadmap/ROADMAP_UNIFICADO.md); bitácora histórica del scroll por tiles en [BITACORA_SCROLL_TILES.md](guides/roadmap/BITACORA_SCROLL_TILES.md). |
 | [build/](build/README.md) | Toolchain, build CLI, artefactos y formatos de disco. |
 | [emulation/](emulation/README.md) | WinUAE, extensión amiga-debug, MCP, canal lateral, perfiles y automatización del emulador. |
 | [debugging/](debugging/README.md) | Sistema de depuración WinUAE-DBG (arquitectura, arreglos) y guías de depuración con IA. |
@@ -101,11 +101,20 @@ fuente nueva, añádela aquí en la misma pasada.
 - **Commodore Amiga Hardware Reference Manual** (3.ª ed., `reference/ahrm/`).
 - **amiga-bootcamp** (técnicas y hardware, repo hermano).
 
+### IA de juego y diseño
+
+- **A. Alex** — *Using GOAP for Advanced Gaming AI Techniques*
+  (<https://arnauld-alex.com/using-goap-for-advanced-gaming-ai-techniques>): referencia del
+  planificador GOAP (`eng/ai/planning/goap.hpp`), basado en el de *F.E.A.R.* (Orkin).
+- **Recast & Detour** (<https://github.com/recastnavigation/recastnavigation>): referencia
+  para la futura versión lite de navmesh en `eng/ai/navigation/`.
+
 ## Dónde va cada documento nuevo
 
 | Si el documento trata de... | va en... |
 |-----------------------------|----------|
 | Diseño, API, drivers, memoria del engine C++ | `engine/architecture/` |
+| IA de juego y técnicas de diseño (referencia vs. plan) | `engine/architecture/` (estado) + `guides/roadmap/` (plan) |
 | Arquitectura o roadmaps del engine en C (histórico) | `engine/c-engine/` |
 | Efectos demoscene y qué enseña cada demo | `demos/effects/` y README de la demo |
 | Pipeline de tiles/EHB e informes IA | `demos/tile-pipeline/` |

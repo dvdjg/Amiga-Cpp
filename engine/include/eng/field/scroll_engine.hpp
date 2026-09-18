@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 /// \file scroll_engine.hpp
 /// Driver + algoritmo del scroll separados del playfield (diseño §7 `ScrollEngine`).

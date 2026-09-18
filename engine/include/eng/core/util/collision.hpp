@@ -13,6 +13,7 @@
 ///   if (eng::util::aabb_overlap(box, other)) { ... }
 ///   if (eng::util::segments_intersect(a, b, c, d)) { ... }
 
+#include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/word.hpp>
 
@@ -91,6 +92,100 @@ struct Aabb {
 	const bool has_neg = d1 < 0 || d2 < 0 || d3 < 0;
 	const bool has_pos = d1 > 0 || d2 > 0 || d3 > 0;
 	return !(has_neg && has_pos);
+}
+
+/// ¿`p` dentro del polígono **convexo** `poly`? (incluye bordes). Todos los productos
+/// de `orient` deben tener el mismo signo. `poly` debe ser convexo y en orden.
+[[nodiscard]] constexpr bool point_in_convex(Point2s p, Span<const Point2s> poly) noexcept {
+	if (poly.size() < 3u) {
+		return false;
+	}
+	bool pos = false;
+	bool neg = false;
+	for (usize i = 0u; i < poly.size(); ++i) {
+		const s32 c = orient(poly[i], poly[(i + 1u) % poly.size()], p);
+		if (c > 0) {
+			pos = true;
+		} else if (c < 0) {
+			neg = true;
+		}
+		if (pos && neg) {
+			return false;
+		}
+	}
+	return true;
+}
+
+namespace detail {
+
+/// Intervalo `[mn,mx]` de la proyección de `poly` sobre el eje `(nx, ny)` (sin
+/// normalizar). Productos 16×16 con `muls.w`.
+constexpr void project_poly(Span<const Point2s> poly, s16 nx, s16 ny, s32& mn,
+			    s32& mx) noexcept {
+	const Point2s p0 = poly[0];
+	mn = mx = static_cast<s32>(eng::math::mul16(nx, p0.x) + eng::math::mul16(ny, p0.y));
+	for (usize i = 1u; i < poly.size(); ++i) {
+		const s32 d =
+			static_cast<s32>(eng::math::mul16(nx, poly[i].x) + eng::math::mul16(ny, poly[i].y));
+		if (d < mn) {
+			mn = d;
+		} else if (d > mx) {
+			mx = d;
+		}
+	}
+}
+
+/// ¿Los intervalos `[amn,amx]` y `[bmn,bmx]` se separan? (tocar por el borde cuenta como
+/// separado, igual que `aabb_overlap`).
+constexpr bool separated(const s32 amn, const s32 amx, const s32 bmn,
+			 const s32 bmx) noexcept {
+	return amx <= bmn || bmx <= amn;
+}
+
+} // namespace detail
+
+/// ¿Se solapan dos polígonos **convexos**? **Teorema de los ejes separadores (SAT)**: si
+/// algún eje de arista deja las proyecciones separadas, no se tocan. Los ejes van sin
+/// normalizar (solo importa el signo), así que no hay `sqrt` ni división. Coordenadas en
+/// `s16` y diferencias que quepan en `s16` (≈±16000), como el resto del archivo.
+[[nodiscard]] constexpr bool convex_overlap(Span<const Point2s> a,
+					    Span<const Point2s> b) noexcept {
+	if (a.size() < 3u || b.size() < 3u) {
+		return false;
+	}
+	// Ejes de las aristas de `a`.
+	for (usize i = 0u; i < a.size(); ++i) {
+		const Point2s p = a[i];
+		const Point2s q = a[(i + 1u) % a.size()];
+		const s16 nx = static_cast<s16>(q.y - p.y);
+		const s16 ny = static_cast<s16>(-(q.x - p.x));
+		s32 amn = 0;
+		s32 amx = 0;
+		s32 bmn = 0;
+		s32 bmx = 0;
+		detail::project_poly(a, nx, ny, amn, amx);
+		detail::project_poly(b, nx, ny, bmn, bmx);
+		if (detail::separated(amn, amx, bmn, bmx)) {
+			return false;
+		}
+	}
+	// Ejes de las aristas de `b`.
+	for (usize i = 0u; i < b.size(); ++i) {
+		const Point2s p = b[i];
+		const Point2s q = b[(i + 1u) % b.size()];
+		const s16 nx = static_cast<s16>(q.y - p.y);
+		const s16 ny = static_cast<s16>(-(q.x - p.x));
+		s32 amn = 0;
+		s32 amx = 0;
+		s32 bmn = 0;
+		s32 bmx = 0;
+		detail::project_poly(a, nx, ny, amn, amx);
+		detail::project_poly(b, nx, ny, bmn, bmx);
+		if (detail::separated(amn, amx, bmn, bmx)) {
+			return false;
+		}
+	}
+	return true;
 }
 
 /// ¿Se solapan dos círculos? Compara distancias al cuadrado (`muls.w`), sin `sqrt`.

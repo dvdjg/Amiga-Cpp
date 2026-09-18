@@ -1,4 +1,4 @@
-﻿// Demo 084 - Cubo 3D con rotacion en MiniFloat16 (minifloat_math) sobre EHB.
+// Demo 084 - Cubo 3D con rotacion en MiniFloat16 (minifloat_math) sobre EHB.
 //
 // Objetivo: validar EN HARDWARE (68000, sin soft-float) la cadena
 //   minifloat_math (sin/cos, exp, sqrt)  ->  Mat<3, MiniFloat16>  ->

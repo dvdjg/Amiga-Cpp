@@ -93,6 +93,36 @@ int main() {
 		      "A* camino válido");
 	}
 
+	// --- Heurísticas alternativas (punto de extensión) -----------------------
+	{
+		static eng::s16 came_from[N] = {};
+		static eng::u16 g_score[N] = {};
+		static eng::u8 closed[N] = {};
+		const eng::u16 start = 0u;
+		const eng::u16 goal = W * H - 1u;
+		const auto unit = [](eng::u16, eng::u16) { return static_cast<eng::u16>(1u); };
+
+		const bool cheb = eu::astar<W, H>(start, goal, walkable, unit,
+						  eng::Span<eng::s16> {came_from, N},
+						  eng::Span<eng::u16> {g_score, N},
+						  eng::Span<eng::u8> {closed, N},
+						  eu::detail::ChebyshevH<W, H> {});
+		check(cheb, "A* con heuristica Chebyshev encuentra camino");
+		static eng::u16 path[N] = {};
+		const eng::usize len = eu::reconstruct_path<W, H>(
+			eng::Span<const eng::s16> {came_from, N}, start, goal,
+			eng::Span<eng::u16> {path, N});
+		check(path[0] == start && path[len - 1u] == goal && path_is_adjacent(path, len),
+		      "camino valido con Chebyshev");
+
+		const bool eucl = eu::astar<W, H>(start, goal, walkable, unit,
+						  eng::Span<eng::s16> {came_from, N},
+						  eng::Span<eng::u16> {g_score, N},
+						  eng::Span<eng::u8> {closed, N},
+						  eu::detail::EuclideanH<W, H> {});
+		check(eucl, "A* con heuristica euclidea encuentra camino");
+	}
+
 	// --- Bloqueado -----------------------------------------------------------
 	{
 		static bool walls2[N] = {};

@@ -27,11 +27,10 @@ dependen de hardware y no necesitan WinUAE.
 - Cada test declara al principio las funciones/buenas prácticas que ejercita.
 - Falla con mensaje claro si una aserción no se cumple; el script de regresión
   puede invocar estos binarios y considerar fallo `exit != 0`.
-- **Numeración única y no reutilizable.** El prefijo `NNN` de `tests/host/NNN_<nombre>/` es único: un test nuevo toma el **siguiente número libre** (máximo + 1). Si se descubre una colisión, se renumera el test **más nuevo** (el que aún no estaba en el catálogo ni referenciado) al siguiente libre; nunca se cambia el número de un test ya catalogado. Tras renumerar hay que actualizar el título y las rutas dentro del test, sus referencias (p. ej. en `engine/`) y este catálogo.
 
 ## Cómo añadir un test
 
-1. Elige el **siguiente número libre** en `tests/host/NNN_<nombre>/` (máximo + 1).
+1. Elige el siguiente número en `tests/host/NNN_<nombre>/`.
 2. Escribe `src/main.cpp` que `#include <eng/core/...>` y aserta los valores.
 3. Añade el `README.md`.
 4. Regístralo en el `README.md` de esta carpeta (catálogo) y, si la API que
@@ -134,7 +133,7 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-091 | [stack_queue_enum_set](091_stack_queue_enum_set/README.md) | `stack_queue.hpp` (`Stack`/`Queue`/`Deque`) y `enum_set.hpp` (`EnumSet`). |
 | HOST-092 | [scope_guard_static_string](092_scope_guard_static_string/README.md) | `scope_guard.hpp` (`ScopeGuard`) y `static_string.hpp` (`StaticString`). |
 | HOST-093 | [stats](093_stats/README.md) | `util/stats.hpp`: sum/mean/varianza/desviación (acumuladores anchos, agnóstico de escalar). |
-| HOST-094 | [color](094_color/README.md) | `util/color.hpp`: conversiones y mezcla de color, y paleta completa (`palette_lerp`/`palette_scale`). |
+| HOST-094 | [color](094_color/README.md) | `util/color.hpp`: conversiones y mezcla de color. |
 | HOST-095 | [collision](095_collision/README.md) | `util/collision.hpp`: AABB/círculo/rect y resolución. |
 | HOST-096 | [text](096_text/README.md) | `util/text.hpp`: formateo de enteros sin heap. |
 | HOST-097 | [grid](097_grid/README.md) | `util/grid.hpp`: rejilla 2D indexada. |
@@ -147,6 +146,31 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-104 | [fixed_math](104_fixed_math/README.md) | `core/fixed_math.hpp`: trigonometría Fixed (tablas, precisión, tamaño configurable). |
 | HOST-105 | [sprite_hrearm](105_sprite_hrearm/README.md) | Multiplexado **horizontal** de sprites (`Scheduler::emit_sprite_horizontal_rearm(s)`/`reposition` + `graphics::SpriteHorizontalRearm`): codificación AHRM de `SPRxPOS`/`SPRxCTL`, secuencia WAIT+POS+CTL+DATA+DATB sin tocar `SPRxPT`, y orden por `hpos` de la lista. |
 | HOST-106 | [scroll_saveword_guard](106_scroll_saveword_guard/README.md) | `field/scroll_engine.hpp`: la costura (`save_word`) se **restaura** cuando `add_draw` rechaza el frame (ScopeGuard); en el camino correcto no se restaura. |
-| HOST-107 | [rotozoom](107_rotozoom/README.md) | `graphics/effects/rotozoom.hpp`: muestreo por píxel con aritmética entera (tabla de seno 16.16, identidad, rotación, zoom). |
-| HOST-108 | [palette_transition](108_palette_transition/README.md) | `graphics/effects/palette_transition.hpp`: estado `num/den` (una pasada y vaivén), paleta runtime y parche base en `FramePlan`. |
-| HOST-109 | [raster_gradient](109_raster_gradient/README.md) | `graphics/effects/raster_gradient.hpp`: muestreo de claves (lineal/cíclico, `phase`), geometría de bandas e intenciones `PaletteLine`. |
+| HOST-107 | [goap](107_goap/README.md) | `ai/planning/goap.hpp`: planificador GOAP (hechos booleanos, acciones con coste, A*). Planes óptimos para Torres de Hanoi (7), receta de un pastel (coste 20) y misión de un soldado (coste 26), con `forbid` y casos límite. |
+| HOST-108 | [state_machine](108_state_machine/README.md) | `util/state_machine.hpp`: FSM de tabla `constexpr` externa (`StateMachine<State,Event>`, `Transition`). Semaforo y FSM de IA de un guardia; evento sin transicion, `reset` y orden de tabla. |
+| HOST-109 | [event](109_event/README.md) | `util/event.hpp`: emisor de eventos de capacidad fija (`Event<Signature,MaxSubscribers>`) con suscriptores `FunctionRef`. Suscripcion/emit/clear, capacidad y orden. |
+| HOST-110 | [agent_fsm](110_agent_fsm/README.md) | `ai/decision/agent_fsm.hpp`: `AgentFsm` envuelve `util::StateMachine` y anade efectos de entrada/salida de estado; evento sin transicion y reemplazo de efecto. |
+| HOST-111 | [blackboard](111_blackboard/README.md) | `ai/decision/blackboard.hpp`: `Blackboard<Key,Value,MaxKeys>` (memoria compartida de la IA) con claves densas; `find` O(1), sobrescritura y valores struct. |
+| HOST-112 | [utility](112_utility/README.md) | `ai/decision/utility.hpp`: `Utility` (media ponderada en [0,1000], `muls.w`/`divs.w`) y `UtilitySelector` (mejor opcion, empate -> indice menor). Decision de un guardia. |
+| HOST-113 | [behavior_tree](113_behavior_tree/README.md) | `ai/decision/behavior_tree.hpp`: `BehaviorTree<MaxNodes>` sin heap (secuencia/selector, cortocircuito, `no_node` al llenarse). Guardia dispara/recarga. |
+| HOST-114 | [flow_field](114_flow_field/README.md) | `ai/navigation/flow_field.hpp`: campo de flujo por Dijkstra multi-fuente (`compute_flow_field<W,H>`, `flow_next<W>`); coste uniforme, muro, region inalcanzable. |
+| HOST-115 | [steering](115_steering/README.md) | `ai/steering/steering.hpp`: `seek`/`flee`/`arrive` y flocking (`separation`/`cohesion`/`alignment`/`flock`), generico sobre `double` y `q12`. |
+| HOST-116 | [waypoints](116_waypoints/README.md) | `ai/navigation/waypoints.hpp`: `WaypointGraph<MaxNodes,MaxEdges>` + A* sobre el grafo (heuristica Manhattan, scratch del llamador). Ruta optima, inalcanzable y capacidad. |
+| HOST-117 | [perception](117_perception/README.md) | `ai/perception/influence_map.hpp` (`InfluenceMap<W,H>`: deposit/decay/strongest) y `ai/perception/agent_memory.hpp` (`AgentMemory`: see/tick/fresh/stale/forget). |
+| HOST-118 | [navmesh](118_navmesh/README.md) | `ai/navigation/navmesh_lite.hpp`: `NavMesh` de poligonos convexos con portales; localizar punto, A* por adyacencia, puntos medios y string-pulling (funnel). |
+| HOST-119 | [union_find](119_union_find/README.md) | `util/union_find.hpp`: `UnionFind<MaxElements>` (DSU: find/unite/connected/component_size); islas de celdas transitables. |
+| HOST-120 | [sparse_set](120_sparse_set/README.md) | `util/sparse_set.hpp`: `SparseSet<T,MaxElements>` (disperso-denso, altas/bajas O(1), iteracion contigua, swap-remove). |
+| HOST-121 | [bitstream](121_bitstream/README.md) | `util/bitstream.hpp`: `BitWriter`/`BitReader` (campos de 1..32 bits, LSB-first) sobre un buffer. Round-trip, capacidad y fin de buffer. |
+| HOST-122 | [dynamic_bitset](122_dynamic_bitset/README.md) | `util/dynamic_bitset.hpp`: `DynamicBitSet<Allocator>` (tamano fijado en `init`, palabras en arena); mascara de la ultima palabra. |
+| HOST-123 | [packed_level](123_packed_level/README.md) | Consumidor de `bitstream`/`dynamic_bitset`: nivel empaquetado (cabecera + 4 bits de tile + flag) con round-trip 100 %, y set de tiles sucios de 4096 celdas. |
+| HOST-124 | [string_interner](124_string_interner/README.md) | `util/string_interner.hpp`: `StringInterner<MaxStrings,Allocator>` (dedup por contenido, id -> texto, arena). |
+| HOST-125 | [convex_sat](125_convex_sat/README.md) | `util/collision.hpp`: `convex_overlap` (SAT 2D, poligonos convexos) y `point_in_convex`; rombo (ejes no alineados), borde y sentido de giro. |
+| HOST-126 | [graph](126_graph/README.md) | `util/graph.hpp`: `Graph<MaxNodes,MaxEdges>` (adyacencia) + `graph_bfs`/`graph_astar`/`topological_sort`. Consolida waypoints (HOST-116). |
+| HOST-127 | [lru_cache](127_lru_cache/README.md) | `util/lru_cache.hpp`: `LruCache<K,V,N>` (LRU O(1), get/peek/put/erase, sin heap). |
+| HOST-128 | [task](128_task/README.md) | `util/task.hpp`: `TaskSequence<N>` y `Delay` (tareas *stackless*: espera, encadena y aborta). |
+| HOST-129 | [interval](129_interval/README.md) | `util/interval.hpp`: `Interval` e `IntervalSet<N>` (rangos `[lo,hi)`, fusion de solapes/adyacencias, `contains` binario). |
+| HOST-130 | [variant](130_variant/README.md) | `util/variant.hpp`: `Variant<Ts...>` (union etiquetada sin heap) usada como comandos heterogeneos (`index`/`holds`/`get`/`visit`/`emplace`). |
+| HOST-131 | [heap_bench](131_heap_bench/README.md) | Medicion R5.5: heap binario (`PriorityQueue`) vs 4-ario (comparaciones, mismo orden). Conclusion: el binario gana. |
+| HOST-132 | [rotozoom](132_rotozoom/README.md) | `graphics/effects/rotozoom.hpp`: muestreo por píxel con aritmética entera (tabla de seno 16.16, identidad, rotación, zoom). |
+| HOST-133 | [palette_transition](133_palette_transition/README.md) | `graphics/effects/palette_transition.hpp`: estado `num/den` (una pasada y vaivén), paleta runtime y parche base/zona en `FramePlan`. |
+| HOST-134 | [raster_gradient](134_raster_gradient/README.md) | `graphics/effects/raster_gradient.hpp`: muestreo de claves (lineal/cíclico, `phase`), geometría de bandas e intenciones `PaletteLine`. |

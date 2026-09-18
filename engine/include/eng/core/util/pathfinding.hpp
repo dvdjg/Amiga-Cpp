@@ -6,8 +6,14 @@
 /// heap). Todo entero, sin `float`; `W` debe ser potencia de dos (índices por máscara).
 ///
 /// El llamador da la transitabilidad con un callable `walkable(idx) -> bool` y, en A*,
-/// el coste `cost(from, to) -> u16`. La heurística es **Manhattan** (admisible para
-/// coste ≥ 1). El resultado se lee de `came_from` con `reconstruct_path`.
+/// el coste `cost(from, to) -> u16`. El resultado se lee de `came_from` con
+/// `reconstruct_path`.
+///
+/// La heurística de A* es un **punto de extensión**: por defecto **Manhattan**
+/// (`detail::ManhattanH<W,H>`), que es la **óptima para la malla de 4 vecinos** (admisible
+/// y ajustada con coste ≥ 1). Para mallas con movimiento en diagonal pueden pasarse
+/// `detail::ChebyshevH<W,H>` u `detail::EuclideanH<W,H>` como último argumento; ambas son
+/// admisibles pero más débiles en 4 vecinos.
 ///
 /// Uso:
 ///   eng::s16 came_from[W*H];
@@ -17,6 +23,7 @@
 ///       const eng::usize n = eng::util::reconstruct_path<W,H>(came_from, start, goal, path);
 ///   }
 
+#include <eng/core/isqrt.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/util/bit.hpp>
@@ -47,7 +54,54 @@ consteval int log2_pow2(u16 w) {
 	return e;
 }
 
+/// Heurística **Manhattan** (óptima en la malla de 4 vecinos): `|dx| + |dy|`.
+template <u16 W, u16 H>
+struct ManhattanH {
+	[[nodiscard]] constexpr u16 operator()(u16 a, u16 b) const noexcept {
+		constexpr int kLog = log2_pow2(W);
+		const int ax = static_cast<int>(a & (W - 1u));
+		const int ay = static_cast<int>(a >> kLog);
+		const int bx = static_cast<int>(b & (W - 1u));
+		const int by = static_cast<int>(b >> kLog);
+		const int dx = ax > bx ? ax - bx : bx - ax;
+		const int dy = ay > by ? ay - by : by - ay;
+		return static_cast<u16>(dx + dy);
+	}
+};
+
+/// Heurística **Chebyshev** (para mallas con movimiento diagonal): `max(|dx|, |dy|)`.
+template <u16 W, u16 H>
+struct ChebyshevH {
+	[[nodiscard]] constexpr u16 operator()(u16 a, u16 b) const noexcept {
+		constexpr int kLog = log2_pow2(W);
+		const int ax = static_cast<int>(a & (W - 1u));
+		const int ay = static_cast<int>(a >> kLog);
+		const int bx = static_cast<int>(b & (W - 1u));
+		const int by = static_cast<int>(b >> kLog);
+		const int dx = ax > bx ? ax - bx : bx - ax;
+		const int dy = ay > by ? ay - by : by - ay;
+		return static_cast<u16>(dx > dy ? dx : dy);
+	}
+};
+
+/// Heurística **euclídea** (`isqrt`, admisible en 4 y 8 vecinos; más débil que Manhattan
+/// en 4 vecinos).
+template <u16 W, u16 H>
+struct EuclideanH {
+	[[nodiscard]] constexpr u16 operator()(u16 a, u16 b) const noexcept {
+		constexpr int kLog = log2_pow2(W);
+		const int ax = static_cast<int>(a & (W - 1u));
+		const int ay = static_cast<int>(a >> kLog);
+		const int bx = static_cast<int>(b & (W - 1u));
+		const int by = static_cast<int>(b >> kLog);
+		const int dx = ax > bx ? ax - bx : bx - ax;
+		const int dy = ay > by ? ay - by : by - ay;
+		return static_cast<u16>(eng::isqrt(static_cast<u32>(dx * dx + dy * dy)));
+	}
+};
+
 } // namespace detail
+
 
 /// BFS sobre la malla `W×H` (cuatro vecinos). Rellena `came_from` (índice anterior;
 /// `start` apunta a sí mismo; `-1` = no visitado). Devuelve `true` si alcanzó `goal`.
@@ -100,10 +154,13 @@ constexpr bool bfs(u16 start, u16 goal, Walkable walkable, Span<s16> came_from,
 	return false;
 }
 
-/// A* sobre la malla `W×H` con coste por arista y heurística Manhattan.
-template <u16 W, u16 H, class Walkable, class Cost>
+/// A* sobre la malla `W×H` con coste por arista. La heurística es el último parámetro
+/// (por defecto `detail::ManhattanH<W,H>`, la óptima en 4 vecinos); para mallas con
+/// diagonal puede pasarse `detail::ChebyshevH<W,H>` o `detail::EuclideanH<W,H>`.
+template <u16 W, u16 H, class Walkable, class Cost,
+	  class Heuristic = detail::ManhattanH<W, H>>
 constexpr bool astar(u16 start, u16 goal, Walkable walkable, Cost cost, Span<s16> came_from,
-		     Span<u16> g_score, Span<u8> closed) {
+		     Span<u16> g_score, Span<u8> closed, Heuristic heuristic = {}) {
 	static_assert(has_single_bit(W), "astar: W potencia de dos");
 	static_assert(static_cast<u32>(W) * H <= 32767u, "astar: la rejilla debe caber en s16");
 	constexpr usize N = static_cast<usize>(W) * H;
@@ -119,15 +176,6 @@ constexpr bool astar(u16 start, u16 goal, Walkable walkable, Cost cost, Span<s16
 		g_score[i] = 0xffffu;
 		closed[i] = 0u;
 	}
-	const auto heuristic = [](u16 a, u16 b) -> u16 {
-		const u16 ax = static_cast<u16>(a & (W - 1u));
-		const u16 ay = static_cast<u16>(a >> kLog);
-		const u16 bx = static_cast<u16>(b & (W - 1u));
-		const u16 by = static_cast<u16>(b >> kLog);
-		const u16 dx = ax > bx ? static_cast<u16>(ax - bx) : static_cast<u16>(bx - ax);
-		const u16 dy = ay > by ? static_cast<u16>(ay - by) : static_cast<u16>(by - ay);
-		return static_cast<u16>(dx + dy);
-	};
 
 	PriorityQueue<detail::AStarNode, N, detail::AStarCmp> open;
 	g_score[start] = 0u;

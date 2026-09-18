@@ -22,9 +22,12 @@ Ya entregado y verificado por test host: base (`type_traits`, `util`, `bit`,
 `flat_set`, `hash_map`, `hash_set`, `dynamic_hash_map`, `direct_map`), utilidades de valor
 (`optional`, `expected`, `string_view`, `static_string`, `scope_guard`, `function_ref`,
 `enum_set`, `stack_queue`), ordenación (`quick_sort`, `stable_sort`, `nth_element`,
-`partial_sort`, `radix_sort_u16`), `hash` y sondas de codegen. Verificados **por demo**:
-`BitSet`, `StaticVector`, `RingBuffer`, `FlatMap`, `DirectMap`, `IntrusiveSList`, `Pool`,
-`HashMap`.
+`partial_sort`, `radix_sort_u16`), `hash` y sondas de codegen. Extras de decisión,
+partición, bits y texto: `state_machine` (R4.4), `event` (R4.3), `union_find` (DSU),
+`sparse_set` (disperso-denso, ECS), `bitstream`/`dynamic_bitset` (R4.1), `string_interner`
+(HOST-124), `graph` (HOST-126) y SAT 2D en `collision` (HOST-125). Verificados **por demo**:
+`BitSet`, `StaticVector`, `RingBuffer`,
+`FlatMap`, `DirectMap`, `IntrusiveSList`, `Pool`, `HashMap`.
 
 Las matemáticas de escalares (`Fixed`, `MiniFloat16`, `linalg`, `interp`, `geometry`,
 `spline`, `noise`) viven en `eng::math` y ya están cubiertas.
@@ -93,14 +96,40 @@ división), R3.2 worley/turbulence/ridged (`core/noise.hpp`, HOST-101) y R3.3 `d
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| R4.1 | `bitstream.hpp` + `dynamic_bitset.hpp` | `BitReader`/`BitWriter`, bitset que crece con `Allocator` | HOST-103 |
-| R4.2 | `variant.hpp` | unión etiquetada sin heap, `visit` con overload set | HOST-104 |
-| R4.3 | `event.hpp` | array fijo de `FunctionRef`, `subscribe`/`emit` | HOST-105 |
-| R4.4 | `state_machine.hpp` | estados/eventos/tabla `constexpr` | HOST-106 |
-| R4.5 | `type_list.hpp` (opcional) | `TypeList` + `for_each_type` (registro en compile-time) | HOST-107 |
+| R4.1 | `bitstream.hpp` + `dynamic_bitset.hpp` | `BitReader`/`BitWriter`, bitset que crece con `Allocator` | **HOST-121/122** (entregado) |
+| R4.2 | `variant.hpp` | unión etiquetada sin heap, `visit` con overload set | **HOST-130** (entregado) |
+| R4.3 | `event.hpp` | array fijo de `FunctionRef`, `subscribe`/`emit` | **HOST-109** (entregado) |
+| R4.4 | `state_machine.hpp` | estados/eventos/tabla `constexpr` | **HOST-108** (entregado) |
+| R4.5 | `type_list.hpp` (opcional) | `TypeList` + `for_each_type` (registro en compile-time) | HOST (siguiente libre) |
+
+> Los pasos sin implementar usan el **siguiente `HOST-NNN` libre** en el momento de
+> implementarse (hoy 132 en adelante; 000–131 están asignados). R4.3/R4.4 se adelantaron
+> para desbloquear G2 (decisión/blackboard) de la IA.
 
 R4.2–R4.5 solo si aparece consumidor (comandos/eventos/efectos). R4.5 es avanzado y se
 puede posponer sin bloquear el resto.
+
+### R5 — Extras de juego (con consumidor)
+
+Selección de utilidades clásicas valoradas para un engine «estilo Amiga 500». Cada una se
+implementa **solo con consumidor real**; el orden es por valor/coste.
+
+| Paso | Entrega | Detalle | Verificación |
+|---|---|---|---|
+| R5.1 | `lru_cache.hpp` | generalizar el patrón de `chunk_cache.hpp` (`K`,`V`,`N`, sin heap) para tiles/sprites/mapas | **HOST-127** (entregado; falta demo que la consuma) |
+| R5.2 | `interval.hpp` | `Interval`/`IntervalSet<N>` para rangos (streaming, buffs/daño, animación) | **HOST-129** (entregado) |
+| R5.3 | `task.hpp` (coroutine *stackless*) | tarea con estado en `struct` y `step()` (patrón `switch`); secuencias/scripting sin corrutinas C++20 | **HOST-128** (entregado; falta secuencia de demo) |
+| R5.4 | `variant.hpp` (R4.2) | unión etiquetada sin heap con `visit`, para colas de comandos/mensajes heterogéneos | **HOST-130** (entregado) |
+| R5.5 | heap d-ario / `stable_heap` | *open set* de A* con *decrease-key* (índice) o heap 4-ario; **medir** antes de adoptar | **Medido (HOST-131)**: el 4-ario hace **más** comparaciones que el binario (ratio 1.04–1.15) → **no se adopta**; se mantiene `PriorityQueue` |
+| R5.6 | `bloom.hpp` | filtro de Bloom fijo (bitset + k hashes) para «visitados» grandes (GOAP) | HOST |
+| R5.7 | `trie.hpp` | trie / *prefix map* para autocompletado y búsqueda por prefijo | HOST + consumidor (consola) |
+| R5.8 | `grid_view.hpp` (mdspan) | vista multidimensional sobre `Span` para rejillas de nivel | HOST |
+
+> Prioridad práctica: R5.1 (cachés), R5.2 (rangos) y R5.3 (tareas) tienen consumidor claro
+> (streaming, buffs/animación, secuencias); R5.4 en cuanto aparezca una cola de comandos;
+> R5.5 exige **medición** (el heap binario actual puede ganar con claves pequeñas);
+> R5.6–R5.8 solo si aparecen conjuntos de visitados grandes, consola de comandos o código de
+> rejillas que lo pida. `type_list` (R4.5) sigue pospuesto.
 
 ## 5. Dependencias entre fases
 
@@ -114,7 +143,8 @@ puede posponer sin bloquear el resto.
 ```
 
 R1 no depende de nada nuevo. R2 se apoya en contenedores ya entregados. R3 es
-independiente de R1/R2 (salvo `RingBuffer` para `delay`). R4 es el más prescindible.
+independiente de R1/R2 (salvo `RingBuffer` para `delay`). R4 es el más prescindible. R5 se
+implementa **por consumidor y en cualquier orden** una vez cerradas R1–R4.
 
 ## 6. Riesgos y decisiones abiertas
 
@@ -127,8 +157,24 @@ independiente de R1/R2 (salvo `RingBuffer` para `delay`). R4 es el más prescind
   `HashMap` para dispersas. Definir presupuesto y estrategia de listas por celda.
 - **`pathfinding`**: tamaño del `scratch` (open/closed/come-from) y coste por frame; acotar
   con presupuesto o ejecutarlo en `eng::task::BackgroundQueue`.
-- **`Variant`**: conjunto fijo de alternativas y `visit` sin RTTI; decidir si se necesita o
-  basta el despacho estático (conceptos).
+- **`Variant`** (R4.2): **diferido por falta de consumidor** (regla §1.6 de `AGENTS.md` y
+  `TEMPLATE_LIBRARY` §4). Candidatos a justificarlo: cola de comandos de juego con carga
+  heterogénea o mensajes entre sistemas. Hasta entonces basta el despacho estático
+  (conceptos).
+- **Interner de cadenas**: **implementado** (`string_interner.hpp`, HOST-124). Deduplica por
+  contenido (`HashMap<StringView,u16>`) y copia los bytes en una arena (`Allocator`) que
+  aporta el llamador; pensado para nombres construidos en runtime (assets/config, etiquetas).
+- **Heurística parametrizable**: **implementada** en `pathfinding.hpp`: `astar` acepta
+  `detail::ChebyshevH`/`detail::EuclideanH` (Manhattan por defecto, la óptima en 4 vecinos;
+  las otras son para mallas con diagonal). HOST-099.
+- **Grafo genérico**: **implementado** (`graph.hpp`, HOST-126); `ai::navigation::WaypointGraph`
+  ya se apoya en él. `navmesh_lite` mantiene su malla de polígonos/portales.
+- **SAT 2D**: **implementado** en `collision.hpp` (`convex_overlap`/`point_in_convex`,
+  HOST-125). Cubre la colisión de polígonos convexos 2D; `GJK`/`EPA` se descartan para 2D
+  (sobran) y **no hay colisión 3D**: el soporte 3D actual (`linalg`/`mesh3d`/`lib3d`) es de
+  modelo, transformación y render, no de física.
+- **Autómata celular**: candidato menor (hoy hay simulaciones ad-hoc, p. ej. el fuego de
+  HOST-015).
 - **Alcance de R4**: `type_list` solo si un registro en compile-time aporta valor real.
 
 ## 7. Cómo se cierra cada paso
