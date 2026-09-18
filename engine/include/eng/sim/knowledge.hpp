@@ -40,7 +40,8 @@ enum class KnowledgeKind : eng::u8 {
 	Enemy = 7,       ///< individuo/facción hostil
 	ToolUse = 8,     ///< cómo usar/construir una herramienta (sujeto = objeto)
 	Route = 9,       ///< camino entre regiones (sujeto = room destino)
-	Count = 10,
+	Ritual = 10,     ///< tradición/ritual conocido (sujeto = RitualKind)
+	Count = 11,
 };
 
 /// Una creencia: tipo, sujeto genérico y confianza `[0, 255]`.
