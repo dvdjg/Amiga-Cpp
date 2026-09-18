@@ -14,8 +14,7 @@
 // Uso:
 //   selfplay [games] [--variant standard|chess960] [--seed N] [--max-plies N]
 //            [--out ruta.pgn] [--swap] [--no-book] [--verify]
-//            [--dump-positions ruta.txt] [--quiet]
-//            [--slice-nodes N] [--frames N] [--min-frames N]
+//            [--dump-positions ruta.txt] [--move-nodes N] [--quiet]
 //   por defecto: 1 standard 0 300 out/board/selfplay/selfplay.pgn
 //
 //   --verify          comprueba en cada ply que la clave incremental coincide con
@@ -52,12 +51,10 @@ namespace {
 // --- Configuracion identica a demos/amiga/123_chess_match -------------------
 constexpr eng::u32 kTtEntries = 16384u;
 constexpr eng::u16 kMaxDepth = 12u;
-constexpr eng::u64 kSliceNodes = 32u;
+constexpr eng::u64 kMoveNodes = 24u;
 constexpr eng::s32 kStartMs = 300000; // 5:00
 constexpr eng::s32 kIncrementMs = 0;
-constexpr eng::u32 kMoveThinkFrames = 8u;
-constexpr eng::u32 kMinThinkFrames = 3u;
-constexpr eng::s32 kFrameMs = 20;
+constexpr eng::s32 kMoveCostMs = 200;
 constexpr eng::usize kBookMax = 64u;
 constexpr eng::usize kPgnCap = 1u << 16; // 64 KB por partida
 
@@ -68,26 +65,11 @@ eng::u32 g_book_count = 0u;
 char g_pgn[kPgnCap];
 
 // Presupuesto de pensamiento (por defecto, el de la demo; ajustable para analisis).
-eng::u64 g_slice_nodes = kSliceNodes;
-eng::u32 g_think_frames = kMoveThinkFrames;
-eng::u32 g_min_frames = kMinThinkFrames;
+eng::u64 g_move_nodes = kMoveNodes;
 
 // Dos motores reutilizados entre partidas (TT de 192 KB cada uno; en estatica).
 Engine g_engine_a {};
 Engine g_engine_b {};
-
-[[nodiscard]] eng::u32 move_budget_frames(eng::s32 clock_ms) noexcept {
-	eng::s32 budget_ms = clock_ms / 25;
-	const eng::s32 cap_ms = static_cast<eng::s32>(g_think_frames) * kFrameMs;
-	if (budget_ms > cap_ms) {
-		budget_ms = cap_ms;
-	}
-	eng::s32 frames = budget_ms / kFrameMs;
-	if (frames < static_cast<eng::s32>(g_min_frames)) {
-		frames = static_cast<eng::s32>(g_min_frames);
-	}
-	return static_cast<eng::u32>(frames);
-}
 
 void format_score(char* dst, eng::usize cap, Score score) noexcept {
 	const bool negative = score < 0;
@@ -248,19 +230,14 @@ eng::usize play_game(Position pos, const GameConfig& cfg, const char* round, u32
 		eng::u64 move_nodes = 0u;
 		if (!from_book) {
 			g_active_weights = style;
-			const eng::u32 budget = move_budget_frames(clock);
-			for (eng::u32 slice = 0u; slice < budget; ++slice) {
-				const Engine::Result r = engine.search(pos, {kMaxDepth, g_slice_nodes});
-				if (!move_none(r.best_move)) {
-					move = r.best_move;
-					if (r.depth > 0u) {
-						depth = r.depth;
-						score = r.score;
-					}
-				}
-				move_nodes += r.nodes;
+			const Engine::Result r = engine.search(pos, {kMaxDepth, g_move_nodes});
+			if (!move_none(r.best_move)) {
+				move = r.best_move;
 			}
-			clock -= static_cast<eng::s32>(budget) * kFrameMs;
+			depth = r.depth;
+			score = r.score;
+			move_nodes = r.nodes;
+			clock -= kMoveCostMs;
 		}
 		clock += kIncrementMs;
 
@@ -410,12 +387,8 @@ int main(int argc, char** argv) {
 			max_plies = static_cast<u32>(std::atoi(argv[++i]));
 		} else if (std::strcmp(a, "--out") == 0 && i + 1 < argc) {
 			out_path = argv[++i];
-		} else if (std::strcmp(a, "--slice-nodes") == 0 && i + 1 < argc) {
-			g_slice_nodes = static_cast<eng::u64>(std::strtoull(argv[++i], nullptr, 10));
-		} else if (std::strcmp(a, "--frames") == 0 && i + 1 < argc) {
-			g_think_frames = static_cast<u32>(std::atoi(argv[++i]));
-		} else if (std::strcmp(a, "--min-frames") == 0 && i + 1 < argc) {
-			g_min_frames = static_cast<u32>(std::atoi(argv[++i]));
+		} else if (std::strcmp(a, "--move-nodes") == 0 && i + 1 < argc) {
+			g_move_nodes = static_cast<eng::u64>(std::strtoull(argv[++i], nullptr, 10));
 		} else if (std::strcmp(a, "--swap") == 0) {
 			swap = true;
 		} else if (std::strcmp(a, "--no-book") == 0) {

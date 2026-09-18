@@ -74,15 +74,16 @@ using eng::usize;
 // el objetivo de ~400 KB por jugador.
 constexpr eng::u32 kDemoTtEntries = 16384u;
 constexpr eng::u16 kMaxDepth = 12u;
-constexpr eng::u64 kSliceNodes = 32u;
+// Una sola busqueda por jugada con presupuesto de nodos. Llamar a `search` por
+// rebanadas (una por frame) reinicia la ID y paga la generacion de la raiz cada vez;
+// medido en el A500, eso domina el coste. Ver docs/debugging/BOARD_SELFPLAY_AND_PERF.md.
+constexpr eng::u64 kMoveNodes = 24u;
 
 // --- Reloj -----------------------------------------------------------------
 constexpr eng::s32 kStartMs = 300000; // 5:00
 constexpr eng::s32 kIncrementMs = 0;  // sin incremento (partida tradicional)
-constexpr eng::u32 kMoveThinkFrames = 20u; // techo de frames por jugada
-constexpr eng::u32 kMinThinkFrames = 3u;   // minimo para no mover a ciegas
-constexpr eng::u32 kBookDelayFrames = 8u;  // pausa teatral de una jugada de libro
-constexpr eng::s32 kFrameMs = 20;
+constexpr eng::s32 kMoveCostMs = 200; // coste nominal por jugada de busqueda
+constexpr eng::u32 kBookDelayFrames = 8u; // pausa teatral de una jugada de libro
 
 // --- Eval por estilo (policy con pesos activos) ----------------------------
 // `StyledEval` y `g_active_weights` viven en `eng/board/eval/styled_eval.hpp` para
@@ -117,7 +118,6 @@ struct Player {
 	Score score = 0;
 	Move best = kNoMove;
 	char last_san[12] {};
-	u32 think_frames = 0u;
 	bool use_book = false;
 };
 
@@ -336,8 +336,6 @@ struct ChessMatch {
 		(void)backend;
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		const eng::u32 frame = context.frame.frame_index;
-		const eng::u32 elapsed = (frame >= m_last_frame) ? (frame - m_last_frame) : 1u;
-		m_last_frame = frame;
 
 		if (m_phase != Phase::GameOver) {
 			Player& p = current();
@@ -348,25 +346,19 @@ struct ChessMatch {
 					commit(p.best, true);
 				}
 			} else {
-				// Pensamiento por rebanadas: busqueda acotada por frame, TT viva.
+				// Una busqueda por jugada con presupuesto de nodos (no se reinicia la
+				// ID frame a frame): mucho menos coste fijo por jugada en el A500.
 				g_active_weights = p.style;
 				const DemoEngine::Result result =
-				    p.engine.search(p.pos, {kMaxDepth, kSliceNodes});
-				p.nodes = static_cast<eng::u64>(p.nodes + result.nodes);
+				    p.engine.search(p.pos, {kMaxDepth, kMoveNodes});
+				p.nodes = static_cast<eng::u64>(result.nodes);
 				if (!move_none(result.best_move)) {
-					if (result.depth > 0u) {
-						p.depth = result.depth;
-						p.score = result.score;
-					}
+					p.depth = result.depth;
+					p.score = result.score;
 					p.best = result.best_move;
-				}
-				p.think_frames += (elapsed == 0u) ? 1u : elapsed;
-				if (p.think_frames >= move_budget_frames(p)) {
-					if (move_none(p.best)) {
-						end_game("Sin jugada legal");
-					} else {
-						commit(p.best, false);
-					}
+					commit(p.best, false);
+				} else {
+					end_game("Sin jugada legal");
 				}
 			}
 		}
@@ -394,25 +386,8 @@ private:
 		return (m_turn == Color::White) ? m_black : m_white;
 	}
 
-	/// Presupuesto de pensamiento por jugada, derivado del reloj restante: ~1/25 del
-	/// tiempo que queda, acotado entre `kMinThinkFrames` y `kMoveThinkFrames`. Asi el
-	/// jugador con menos tiempo piensa menos y el reloj no se agota de golpe.
-	[[nodiscard]] static eng::u32 move_budget_frames(const Player& p) noexcept {
-		eng::s32 budget_ms = p.clock_ms / 25;
-		const eng::s32 cap_ms = static_cast<eng::s32>(kMoveThinkFrames) * kFrameMs;
-		if (budget_ms > cap_ms) {
-			budget_ms = cap_ms;
-		}
-		eng::s32 frames = budget_ms / kFrameMs;
-		if (frames < static_cast<eng::s32>(kMinThinkFrames)) {
-			frames = static_cast<eng::s32>(kMinThinkFrames);
-		}
-		return static_cast<eng::u32>(frames);
-	}
-
 	void start_turn() {
 		Player& p = current();
-		p.think_frames = 0u;
 		p.best = kNoMove;
 		p.depth = 0u;
 		p.nodes = 0u;
@@ -454,7 +429,7 @@ private:
 
 		// Reloj.
 		if (!from_book) {
-			p.clock_ms -= static_cast<eng::s32>(p.think_frames) * kFrameMs;
+			p.clock_ms -= kMoveCostMs;
 		}
 		p.clock_ms += kIncrementMs;
 		if (p.clock_ms <= 0) {
@@ -689,7 +664,6 @@ private:
 	Color m_turn = Color::White;
 	Phase m_phase = Phase::Thinking;
 	eng::u32 m_book_delay = 0u;
-	eng::u32 m_last_frame = 0u;
 	eng::u32 m_plies = 0u;
 	bool m_board_dirty = true;
 	bool m_ready_sent = false;
