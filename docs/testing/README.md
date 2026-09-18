@@ -34,6 +34,11 @@ Estas reglas aplican a cualquier API o cambio del engine. `AGENTS.md` las enruta
 - Las APIs de matemáticas/algoritmos puros (sin hardware) deben tener además **test unitario host** (`tests/host/`, compilado con el `g++` del entorno del toolchain del proyecto) para validarlas rápido y de forma determinista, sin depender de MSVC ni de WSL.
 - **Regla de cierre:** una API sin test (demo o unitario) no se considera terminada.
 
+### Convención de tests host
+
+- Los tests host viven en `tests/host/NNN_<nombre>/` y su prefijo `NNN` es **único y no reutilizable**: un test nuevo toma el **siguiente número libre** (máximo + 1) y, ante una colisión, se renumera el **más nuevo** (actualizando título, rutas internas, referencias y catálogo).
+- El catálogo canónico (ID → directorio → qué cubre) y el detalle de compilación están en [../../tests/host/README.md](../../tests/host/README.md).
+
 ### Verificación por demo
 
 - Una API del engine (o un cambio en él) solo se considera **verificada** si lo ejercita una **demo exitosa** (`build -> run -> analyze` OK; y, cuando toque render, el gate visual/estructural de [DEMO_VISUAL_DEBUG.md](../guides/methodology/DEMO_VISUAL_DEBUG.md)).
