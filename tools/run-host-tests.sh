@@ -20,7 +20,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="$ROOT/out/host-tests"
 STD="gnu++23"
-CXXFLAGS="-std=$STD -I$ROOT/engine/include -Wall -Wextra -O2"
+# `-Werror=narrowing`: un estrechamiento en un braced-init (p. ej. `scalar{R(v)}` de un
+# fixed) suele indicar una perdida de precision no intencionada; debe romper el build.
+CXXFLAGS="-std=$STD -I$ROOT/engine/include -Wall -Wextra -Werror=narrowing -O2"
 
 CXX="${CXX:-g++}"
 

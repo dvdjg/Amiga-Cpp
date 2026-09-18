@@ -694,10 +694,12 @@ private:
 			static_cast<u16>((cam_x[1] - 1u) & 0xfff0u),
 		};
 		const u32 pointer_offset[2] = {
-			static_cast<u32>(input.page[0].y) * tile_size * surface_bytes_per_row +
-				static_cast<u32>(cam_y[0]) * surface_bytes_per_row + input.page[0].x * sizeof(u16) + fetch_x[0] / 8u,
-			static_cast<u32>(input.page[1].y) * tile_size * surface_bytes_per_row +
-				static_cast<u32>(cam_y[1]) * surface_bytes_per_row + input.page[1].x * sizeof(u16) + fetch_x[1] / 8u,
+			static_cast<u32>(static_cast<u32>(input.page[0].y) * tile_size * surface_bytes_per_row +
+					 static_cast<u32>(cam_y[0]) * surface_bytes_per_row +
+					 input.page[0].x * sizeof(u16) + fetch_x[0] / 8u),
+			static_cast<u32>(static_cast<u32>(input.page[1].y) * tile_size * surface_bytes_per_row +
+					 static_cast<u32>(cam_y[1]) * surface_bytes_per_row +
+					 input.page[1].x * sizeof(u16) + fetch_x[1] / 8u),
 		};
 
 		m_display.bplcon1 = dual_playfield
