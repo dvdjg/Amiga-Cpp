@@ -201,3 +201,8 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-158 | [goap_numeric](158_goap_numeric/README.md) | `ai/planning/numeric_goap.hpp`: GOAP con variables numéricas cuantizadas (enteros y decimales), saturación y caché (memo de planes + sufijo). |
 | HOST-159 | [goap_numeric_relaxed](159_goap_numeric_relaxed/README.md) | GOAP numérico con heurística relajada (h_max) y memo de heurística entre llamadas. |
 | HOST-160 | [pgn](160_pgn/README.md) | `rules/chess/pgn.hpp` (escritor PGN sin heap ni I/O) y `rules/chess/opening_book.hpp` (líneas de apertura incorporadas que comparten demo y selfplay). |
+| HOST-161 | [cards_core](161_cards_core/README.md) | `eng/cards/core/{types,deck,budget}.hpp`: tipos de carta, baraja determinista (mismo PRNG+semilla) y presupuesto de naipes `N20`…`N512`. |
+| HOST-162 | [cards_hand_rank](162_cards_hand_rank/README.md) | `eng/cards/rules/hand_rank.hpp`: evaluador de 5/7 cartas por conteo, categorías, orden total, escalera de as bajo y kickers. |
+| HOST-163 | [cards_holdem](163_cards_holdem/README.md) | `eng/cards/rules/texas_holdem.hpp`: reparto/ciegas, calles, acciones legales, resolución por retirada y botes laterales. |
+| HOST-164 | [cards_equity](164_cards_equity/README.md) | `eng/cards/eval/equity.hpp`: equity Monte Carlo determinista, heurística preflop y pot odds. |
+| HOST-165 | [cards_selfplay](165_cards_selfplay/README.md) | `eng/cards/{ai/bot,sim/session}.hpp`: estilos, modelo de rival, sesiones CPU vs CPU, conservación y determinismo. |

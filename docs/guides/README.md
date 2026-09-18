@@ -9,6 +9,7 @@ docs/guides/
 ├── roadmap/             → ROADMAP_VIGENTE (ROADMAP_UNIFICADO.md), planes y decisiones
 │   ├── ROADMAP_UNIFICADO.md          → estado del engine/demos y próximas direcciones
 │   ├── ROADMAP_BOARD_GAMES.md        → motores de tablero (ajedrez/Go) y conocimiento en disquete
+│   ├── ROADMAP_CARD_GAMES.md         → motores de naipes (póker): reglas, equity, IA y simulación
 │   ├── REFACTOR_PLAYFIELD_SCROLL.md  → plan por fases del refactor playfield/scroll
 │   ├── REGLAS_PIPELINE_TILES.md      → reglas de oro del pipeline de tiles
 │   ├── PROBLEMA_LAUNCHER_DEMOS_NUEVAS.md → enunciado de un problema conocido

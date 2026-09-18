@@ -13,6 +13,7 @@ docs/engine/
 │   ├── GRAPHICS_DRIVERS.md          → drivers de gráficos
 │   ├── GAME_AI_LIBRARY.md           → IA de juego (planificación/GOAP, decisión, navegación…)
 │   ├── BOARD_GAME_AI.md             → motores de tablero (ajedrez/Go), footprint y NLG
+│   ├── CARD_GAME_AI.md              → motores de naipes (póker): baraja, reglas, equity, IA y simulación
 │   ├── PARALLEL_AND_THREADS.md      → concurrencia abstracta (eng::parallel): no-op m68k, std en host
 │   ├── 3D_RENDER_VS_PHYSICS.md      → soporte 3D (modelo/render) y por qué no hay física 3D
 │   └── …                            → scrolling, DPF, X-Limited, roadmap antiguo
