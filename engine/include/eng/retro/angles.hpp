@@ -26,6 +26,10 @@ constexpr fix sin_q12(u16 a) { return kSinTab[a & (kAngleSteps - 1u)]; }
 constexpr fix cos_q12(u16 a) { return kSinTab[(a + kHalfPi) & (kAngleSteps - 1u)]; }
 
 /// Rota la parte lineal de una `Mat2x2` por el ángulo `a` (igual que `Rotate2D`).
+///
+/// Nota: se mantiene el par `sin_q12`/`cos_q12` en vez de un `sincos` combinado porque
+/// a `-O2` gcc **reutiliza el índice** de la tabla entre ambos: medido con una sonda
+/// (out/tmp/sincos-probe.cpp), el par separado son 30 instr y un `sincos` explícito 36.
 inline void rotate(Mat2x2& m, u16 a) {
 	const fix s = sin_q12(a);
 	const fix c = cos_q12(a);
