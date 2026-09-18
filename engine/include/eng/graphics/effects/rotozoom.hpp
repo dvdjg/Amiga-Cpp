@@ -19,7 +19,7 @@
 /// del bucle solo hay **sumas** e indexado (sin multiplicar ni dividir por píxel).
 ///
 /// Es una utilidad de **efecto puro** (matemáticas y memoria, sin hardware): se valida
-/// en host (`tests/host/022_rotozoom`). El `double` vive solo en la generación
+/// en host (`tests/host/107_rotozoom`). El `double` vive solo en la generación
 /// compile-time de la tabla; el bucle emitido es entero.
 ///
 /// **Por qué el punto fijo va crudo (`s32` 16.16).** Es deliberado: tipar las

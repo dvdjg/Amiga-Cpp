@@ -1,5 +1,5 @@
 // ============================================================================
-// Test HOST-022: rotozoom por píxel (eng/graphics/effects/rotozoom.hpp).
+// Test HOST-107: rotozoom por píxel (eng/graphics/effects/rotozoom.hpp).
 // ============================================================================
 //
 // Es un efecto de matemáticas puras (sin hardware), así que se valida aquí de forma
@@ -10,7 +10,7 @@
 //   - la tabla de seno 16.16 es exacta en los cuartos.
 // Todas las comprobaciones son aritmética entera (nada de floats en el hot path).
 //
-//   bash tools/run-host-tests.sh tests/host/022_rotozoom
+//   bash tools/run-host-tests.sh tests/host/107_rotozoom
 
 #include <cstdio>
 #include <vector>

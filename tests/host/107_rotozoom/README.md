@@ -1,4 +1,4 @@
-# HOST-022: rotozoom por píxel
+# HOST-107: rotozoom por píxel
 
 Test host de `eng/graphics/effects/rotozoom.hpp`: valida el muestreo del rotozoom con
 aritmética entera, sin hardware ni emulador.
@@ -17,5 +17,5 @@ que un desajuste de signos, de redondeo o de periodicidad falla de forma determi
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/022_rotozoom
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/107_rotozoom
 ```

@@ -146,3 +146,4 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-104 | [fixed_math](104_fixed_math/README.md) | `core/fixed_math.hpp`: trigonometría Fixed (tablas, precisión, tamaño configurable). |
 | HOST-105 | [sprite_hrearm](105_sprite_hrearm/README.md) | Multiplexado **horizontal** de sprites (`Scheduler::emit_sprite_horizontal_rearm(s)`/`reposition` + `graphics::SpriteHorizontalRearm`): codificación AHRM de `SPRxPOS`/`SPRxCTL`, secuencia WAIT+POS+CTL+DATA+DATB sin tocar `SPRxPT`, y orden por `hpos` de la lista. |
 | HOST-106 | [scroll_saveword_guard](106_scroll_saveword_guard/README.md) | `field/scroll_engine.hpp`: la costura (`save_word`) se **restaura** cuando `add_draw` rechaza el frame (ScopeGuard); en el camino correcto no se restaura. |
+| HOST-107 | [rotozoom](107_rotozoom/README.md) | `graphics/effects/rotozoom.hpp`: muestreo por píxel con aritmética entera (tabla de seno 16.16, identidad, rotación, zoom). |
