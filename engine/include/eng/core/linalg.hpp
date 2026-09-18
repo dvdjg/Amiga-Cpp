@@ -18,6 +18,7 @@
 
 #include <eng/core/fixed.hpp>
 #include <eng/core/minifloat.hpp>
+#include <eng/core/numeric_traits.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::math {
@@ -76,7 +77,14 @@ struct scalar_traits<Fixed<R, E, P>> {
 
 	static constexpr scalar zero() { return scalar {0}; }
 	static constexpr scalar one() { return scalar {static_cast<R>(static_cast<R>(1) << E)}; }
-	static constexpr scalar from_int(int i) { return scalar {static_cast<R>(static_cast<R>(i) << E)}; }
+	static constexpr scalar from_int(int i) {
+		if consteval {
+			constexpr double mx = numeric_traits<scalar>::max_finite;
+			if (!(static_cast<double>(i) >= -mx && static_cast<double>(i) <= mx))
+				scalar_from_int_out_of_range();
+		}
+		return scalar {static_cast<R>(static_cast<R>(i) << E)};
+	}
 	static constexpr int to_int(scalar a) { return static_cast<int>(a.template rescale<0>().v); }
 
 	/// Normaliza un producto (de cualquier exponente) a este escalar. Un redondeo.

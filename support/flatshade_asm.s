@@ -237,7 +237,7 @@ fs_update_edge_visibility_convex:
 /* ==========================================================================
  * fs_transform_vertices
  *   Port de `TransformVertices` (con macros MULVERTEX1/2): transforma y proyecta
- *   (div16) los vertices con flags!=0, guarda (x,y,zp) en Node3D::vertex y
+ *   (div_wide) los vertices con flags!=0, guarda (x,y,zp) en Node3D::vertex y
  *   actualiza la bounding-box (g_fs_args.bbox).
  * ========================================================================== */
 	.globl	fs_transform_vertices
@@ -358,13 +358,13 @@ fs_transform_vertices:
 	ext.l	d7
 	add.l	d7,d0				/* + z */
 	move.l	d0,0(sp)			/* zp */
-	/* sx = div16(xp, (s16)zp) + 128 */
+	/* sx = div_wide(xp, (s16)zp) + 128 */
 	move.w	2(sp),d1			/* zp como s16 (word bajo, big-endian) */
 	move.l	4(sp),d0			/* xp */
 	divs.w	d1,d0
 	addi.w	#128,d0
 	move.w	d0,8(a5)			/* vertex.x */
-	/* sy = div16(yp, (s16)zp) + 128 */
+	/* sy = div_wide(yp, (s16)zp) + 128 */
 	move.l	8(sp),d0			/* yp */
 	divs.w	d1,d0
 	addi.w	#128,d0

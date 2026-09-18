@@ -278,9 +278,9 @@ la columna `Fixed<s32>`.
 El ruido (`noise.hpp`) normaliza con `div_norm` en vez de `operator/`, así que `value_noise`/`fbm`
 funcionan con `Fixed<s32,E>` (el 4.12 queda fuera por rango: la rejilla tiene 1024 niveles).
 
-`scalar_const<Fixed>::from` comprueba en compilación que la constante cabe en el rango del fixed
-(antes el `static_cast` **envolvía** en silencio); por eso `ease_*_expo` (usa 10 y 20) queda vetado
-en 4.12 y disponible en `Fixed<s32>`.
+`scalar_const<Fixed>::from` y `scalar_traits<Fixed>::from_int` comprueban en compilación que el
+valor cabe en el rango del fixed (antes el `static_cast`/`i << E` **envolvía** en silencio); por eso
+`ease_*_expo` (usa 10 y 20) queda vetado en 4.12 y disponible en `Fixed<s32>`.
 
 La aritmética de palabra vive en `arith.hpp` (`mul_wide`/`div_wide`/`mulu16` por CPU); el antiguo
 `word.hpp` ya no existe y los call sites usan los nombres genéricos. Pendiente menor: adoptar

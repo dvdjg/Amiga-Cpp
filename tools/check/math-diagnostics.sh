@@ -163,6 +163,10 @@ constexpr auto n = eng::math::value_noise1(eng::retro::q12 {4096}, 1u);"
 expect_fail expo_q12_range "scalar_const_fixed_out_of_range" "$PRE6
 constexpr auto e = eng::math::ease_in_expo(eng::retro::q12 {2048});"
 
+# scalar_traits<Fixed>::from_int con un entero fuera de rango tampoco debe envolver.
+expect_fail from_int_q12_range "scalar_from_int_out_of_range" "$PRE6
+constexpr auto v = eng::math::scalar_traits<eng::retro::q12>::from_int(15);"
+
 expect_ok fixed_interp_remap "$PRE6
 constexpr auto t = eng::math::inv_lerp(eng::retro::q12 {4096}, eng::retro::q12 {8192}, eng::retro::q12 {6144});
 constexpr auto r = eng::math::remap(eng::retro::q12 {4096}, eng::retro::q12 {0}, eng::retro::q12 {8192}, eng::retro::q12 {0}, eng::retro::q12 {4096});

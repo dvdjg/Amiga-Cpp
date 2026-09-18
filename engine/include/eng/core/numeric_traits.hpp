@@ -128,6 +128,11 @@ constexpr void require_division() {
 		      "eng::math: el algoritmo necesita division y el escalar no la ofrece");
 }
 
+/// Diagnóstico de compilación: `scalar_traits<Fixed>::from_int` recibe un entero que no
+/// cabe en el rango del fixed. Sin esto, `i << E` **envuelve** en silencio (p. ej.
+/// `from_int(15)` en 4.12, rango ±8).
+void scalar_from_int_out_of_range();
+
 /// ¿El valor (si es constante, en `if consteval`) cae dentro de `[lo, hi]`?
 template <typename S>
 constexpr bool in_range(S x, double lo, double hi) {
