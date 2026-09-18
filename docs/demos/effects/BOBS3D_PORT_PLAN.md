@@ -289,11 +289,15 @@ Pendiente / descartado con la evidencia actual:
   transform 84k vs 83k, bobs 202,5k vs 194k, clear 75k vs ~76k.
 - ✅ **Sincronia con 2 buffers** (elegida): `run_frames_polling` (update arranca alineado
   al VBlank) + `clear` solapado con el transform. Sin tearing (vision sobre 8 frames).
-  Trabajo real ~289k (2,04 campos); cuantiza a 3 campos = **16,7 fps**.
+- ✅ **Objetivo 25 fps alcanzado reduciendo BOBs** (`K_117_MAXBLOBS=56` de 60): `update`
+  = 282.322 ciclos (2,0 campos) = **25,13 fps**, sin tearing y con vision coherente.
+  Barrido medido: 60->16,6 / 58->21,8 / **56->25,0** / 54-46->25,0 fps. Se recortan 4
+  chispas (7 %) a cambio de la sincronia estricta de 2 campos.
 - ✅ `run_frames` (IRQ) probado: 19,3 fps pero exige triple buffer; descartado por
   preferencia del usuario.
 - ✅ Oraculo del original medido: **20,1 fps (2,49 campos/render)**, no 50.
-- ⏭ Margen: recortar ~6k del transform/bucle de BOBs para caber en 2 campos = 25 fps.
+- ⏭ Alternativa sin recortar BOBs: acortar ~2,5k del transform/bucle (rotacion
+  incremental de `load_rotate`) para 60 BOBs en 2 campos.
 
 ### API de engine anadida
 
@@ -383,9 +387,26 @@ Medido con una seccion `update` que envuelve todo el frame (contador de ciclos d
   pegado al umbral.
 
 Recortar ~2,5k daria **2 campos = 25 fps**, igualando/superando al original (20,1). Es el
-1 % del frame; candidatos: bajar el `clear` a la bbox de los BOBs (deja de ser de pantalla
-completa y libera bus al transform), afinar el bucle de BOBs (197k vs 194k del original) o
-reducir el transform (`load_rotate` = 2 productos 3x3 = ~54 `muls.w`/frame).
+1 % del frame. Palancas evaluadas:
+
+- **Bajar el `clear` a la bbox de los BOBs**: descartado; el clear va **oculto** tras el
+  transform (no esta en el camino critico) y los BOBs cubren casi toda la pantalla.
+- **Afinar el bucle de BOBs**: el asm ya esta a paridad con `DrawObject` (196,6k vs 194,3k);
+  sin grasa clara.
+- **Reducir el transform** (`load_rotate` = 2 productos 3x3 = ~54 `muls.w`/frame). Unico
+  margen real; requeriria rotacion incremental (el angulo solo cambia 12/4096 por frame).
+- **Reducir BOBs (`K_117_MAXBLOBS`)**: adoptado. Barrido medido (2 buffers, polling
+  alineado):
+
+  | BOBs | campos/frame | fps |
+  |---|---|---|
+  | 60 | 3,0 | 16,6 |
+  | 58 | 2,3 | 21,8 |
+  | **56** | **2,0** | **25,0** |
+  | 54..46 | 2,0 | 25,0 |
+
+  Con **56 BOBs** (de 60) el `update` cabe en 2 campos (25 fps) manteniendo el sincronismo
+  estricto. Se pierden 4 chispas; vision confirma esfera coherente y sin glitches.
 
 ### 9.7 Como reproducir la medicion del original (oraculo)
 

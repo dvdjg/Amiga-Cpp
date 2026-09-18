@@ -113,6 +113,11 @@ struct PixmapT {
 #ifndef K_117_IRQ
 #define K_117_IRQ 0
 #endif
+// Numero maximo de BOBs dibujados por frame (diagnostico de coste vs objetivo).
+// >= 64 dibuja todos los vertices.
+#ifndef K_117_MAXBLOBS
+#define K_117_MAXBLOBS 56
+#endif
 // Instrumentacion por secciones. Off por defecto: los ciclos que mide el profiler
 // cuentan en el presupuesto del frame (puede costar ~2-3k y hacer perder el 2.o campo).
 #ifndef K_117_PROF
@@ -378,9 +383,14 @@ private:
 
 		eng::amiga::OrBlobBatch batch;
 		batch.begin(backend.custom_registers(), kBobWords, K_117_BLITROWS, 0, kBobDestModulo);
+		u32 drawn = 0;
 		do {
 			s16 v;
 			while ((v = *group++)) {
+				if (drawn >= static_cast<u32>(K_117_MAXBLOBS)) {
+					break;
+				}
+				++drawn;
 				obj::Point3D* data = obj::vertex3d(objdat, v);
 				s16 x = static_cast<s16>(data->x - 16);
 				const s16 y = static_cast<s16>(data->y - 16);
@@ -407,6 +417,9 @@ private:
 					screen + static_cast<s32>(y) * static_cast<s32>(kBytesPerRow * kPlanes) +
 						(static_cast<s32>(x_start) >> 3),
 					static_cast<u8>(x & 15));
+			}
+			if (drawn >= static_cast<u32>(K_117_MAXBLOBS)) {
+				break;
 			}
 		} while (*group);
 		batch.end();
