@@ -38,6 +38,11 @@ Puntos de reutilización explícitos:
   primitiva cuando exista.
 - La máquina de estados genérica existe en `eng::util` (`core/util/state_machine.hpp`,
   HOST-108); `eng::ai::decision` se construye **sobre** ella (no se duplica una FSM).
+- La capa de **ecosistema vivo** `eng::sim` ([SIM_ECOSYSTEM.md](SIM_ECOSYSTEM.md)) se
+  construye **sobre** esta librería (utilidad, percepción, navegación y GOAP) y añade el
+  estado de criatura (necesidades, personalidad, mente, conocimiento, jerarquía, genética,
+  sociedad) y el LOD abstracto/realizado; `sim/planner.hpp` **envuelve** `Goap` para las
+  criaturas que planifican. No reimplementa las primitivas de `eng::ai`.
 
 ## 2. Organización por familias
 
@@ -226,10 +231,13 @@ Coste medido: localizar + A* con y sin suavizado entre 2 polígonos (sonda `c_na
 
 ## 6. Movimiento: steering (`eng/ai/steering/steering.hpp`)
 
-Velocidades de movimiento continuo genéricas sobre el escalar: `seek`/`flee`/`arrive` y los
-tres términos de flocking (`separation`/`cohesion`/`alignment`, combinados en `flock` con
-`FlockWeights`). Se apoyan en `eng::math` (`Vec<2,S>`, `length`, `normalize`, `vscale`). Con
-`q12` usan `div_norm`/tablas nativas; `normalize` de un vector nulo devuelve cero.
+Velocidades de movimiento continuo genéricas sobre el escalar: `seek`/`flee`/`arrive`, los
+tres términos del flocking (`separation`/`cohesion`/`alignment`, combinados en `flock` con
+`FlockWeights`) y las técnicas G4.4 `pursue`/`evade` (posición prevista del objetivo en
+movimiento), `wander` (objetivo que orbita por delante) y `avoid_circles` (evasión de
+obstáculos con empuje lateral). Se apoyan en `eng::math` (`Vec<2,S>`, `length`, `normalize`,
+`vscale`). Con `q12` usan `div_norm`/tablas nativas; `normalize` de un vector nulo devuelve
+cero.
 
 Coste medido: `seek`+`arrive` con q12 (sonda `c_steering_ops`) 411 instrucciones y 27
 `muls.w`, sin libcalls. Límite q12: `length_sq` desborda si las componentes pasan de ~2.
@@ -259,7 +267,7 @@ HOST-117.
 | `navigation/flow_field.hpp` | `compute_flow_field<W,H>`, `flow_next<W>`, `FlowDir`: campo de flujo multi-fuente | Implementado, HOST-114 |
 | `navigation/waypoints.hpp` | `WaypointGraph<MaxNodes,MaxEdges>`, `find_path` (A* Manhattan) | Implementado, HOST-116 |
 | `navigation/navmesh_lite.hpp` | `NavMesh`, `locate`, `find_path` (A* por portales) | Implementado, HOST-118 |
-| `steering/steering.hpp` | `seek`/`flee`/`arrive`, `separation`/`cohesion`/`alignment`/`flock` | Implementado, HOST-115 |
+| `steering/steering.hpp` | `seek`/`flee`/`arrive`, `separation`/`cohesion`/`alignment`/`flock`, `pursue`/`evade`/`wander`/`avoid_circles` | Implementado, HOST-115 |
 | `perception/influence_map.hpp` | `InfluenceMap<W,H>`: deposit/decay/strongest | Implementado, HOST-117 |
 | `perception/agent_memory.hpp` | `AgentMemory`: see/tick/fresh/stale/forget | Implementado, HOST-117 |
 | `design/…` | director de dificultad, recompensas | Planificado (ROADMAP_GAME_AI) |

@@ -37,6 +37,7 @@ en C del repo hermano (`Cursor-Amiga-C`) está en [../c-engine/](../c-engine/REA
 | [C2P_BLITTER.md](C2P_BLITTER.md) | C2P (chunky→planar) por Blitter: las 13 fases del C2P 4bpp de `fire-rgb`, minterms (`0xE4`/`0xD8`), máscaras `BLTCDAT`, síncrono vs interrupción de blit y API del engine. |
 | [BACKGROUND_TASKS.md](BACKGROUND_TASKS.md) | Tareas de fondo cooperativas (`eng::task::BackgroundQueue`): progreso/rendimiento baratos, adaptación de carga por `vpos`, prioridad al bucle principal y drenado en el hueco de VBlank. |
 | [GAME_AI_LIBRARY.md](GAME_AI_LIBRARY.md) | IA clásica de videojuego (`eng::ai`): planificación GOAP, decisión, navegación, steering y percepción. |
+| [SIM_ECOSYSTEM.md](SIM_ECOSYSTEM.md) | **Ecosistema vivo** (`eng::sim`): criaturas con necesidades, personalidad, mente afectiva, relaciones y sociedad; LOD abstracto/realizado, tick escalonado y decisión por utilidad. |
 | [BOARD_GAME_AI.md](BOARD_GAME_AI.md) | **Motores de tablero** (`eng::board`): ajedrez y Go 9×9 con footprint de 20 kB–1 MB, búsqueda adversaria, conocimiento en disquete y explicación NLG ES/EN. |
 | [PARALLEL_AND_THREADS.md](PARALLEL_AND_THREADS.md) | **Concurrencia** (`eng::parallel`): hilos, mutex, atómicos, condición y cancelación abstractos (no-ops en m68k, `std::` en el host) para optimizar en plataformas multinúcleo sin romper el Amiga. |
 

@@ -31,7 +31,7 @@ repositorio mantiene dos flujos claramente separados:
 | Carpeta | Contenido |
 |---------|-----------|
 | [STRUCTURE.md](STRUCTURE.md) | **Especificación canónica de organización del repositorio** (dónde va cada cosa). |
-| [engine/](engine/README.md) | Diseño del engine C++ actual: estilo, drivers gráficos, memoria, política de hardware/ROM, benchmarks de API, IA de juego (`engine/architecture/GAME_AI_LIBRARY.md`), motores de tablero (`engine/architecture/BOARD_GAME_AI.md`), concurrencia abstracta (`engine/architecture/PARALLEL_AND_THREADS.md`) y roadmap (en `engine/architecture/`) + histórico del engine C (`engine/c-engine/`). |
+| [engine/](engine/README.md) | Diseño del engine C++ actual: estilo, drivers gráficos, memoria, política de hardware/ROM, benchmarks de API, IA de juego (`engine/architecture/GAME_AI_LIBRARY.md`), ecosistema vivo (`engine/architecture/SIM_ECOSYSTEM.md`), motores de tablero (`engine/architecture/BOARD_GAME_AI.md`), concurrencia abstracta (`engine/architecture/PARALLEL_AND_THREADS.md`) y roadmap (en `engine/architecture/`) + histórico del engine C (`engine/c-engine/`). |
 | [demos/](demos/README.md) | Efectos demoscene (`demos/effects/`) y pipeline de tiles/EHB (`demos/tile-pipeline/`, con informes IA en `ai-reports/`). |
 | [tools/](tools/README.md) | Documentación de las herramientas de desarrollo (build/run/analyze/debug/profile/verify/pipeline). |
 | [reference/](reference/README.md) | Referencia por plataforma: `reference/amiga/` (hardware + técnicas), `reference/ahrm/` (AHRM 3.ª edición), `reference/amc-wrobel/`, y áreas futuras `atarist/` y `megadrive/`. |

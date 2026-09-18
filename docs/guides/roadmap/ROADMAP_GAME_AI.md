@@ -29,6 +29,11 @@ y (si tiene consumidor natural) una demo/juego exitoso.
 - **En `eng::util`** (no duplicar): `state_machine.hpp` (HOST-108) y `event.hpp` (HOST-109)
   **entregados**; `variant.hpp` sigue planificado (R4 de
   [ROADMAP_UTIL_LIBRARY.md](ROADMAP_UTIL_LIBRARY.md)); `decision` se apoya en ellos.
+- **Consumidor**: `eng::sim` ([SIM_ECOSYSTEM.md](../../engine/architecture/SIM_ECOSYSTEM.md))
+  usa la utilidad, la percepción, la navegación y el GOAP de `eng::ai` para el modelo de
+  ecosistema (necesidades, personalidad, mente, conocimiento, jerarquía, genética, sociedad
+  y LOD; HOST-152…155; `sim/planner.hpp` envuelve `Goap`). No es una técnica nueva de
+  `eng::ai` sino una capa de entidad viva construida sobre la librería.
 
 ## 3. Reglas transversales (criterios de aceptación)
 
