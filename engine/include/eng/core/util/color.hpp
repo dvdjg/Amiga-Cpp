@@ -2,8 +2,8 @@
 
 /// \file color.hpp
 /// **Color RGB444** de Amiga (`eng::util`): empaquetado, interpolación, escalado,
-/// conversión desde HSV y operaciones de **paleta completa**, todo en entero y sin
-/// `float`.
+/// conversión desde HSV y operaciones de **paleta completa y degradados**, todo en
+/// entero y sin `float`.
 ///
 /// El chipset Amiga guarda el color como 12 bits `0x0RGB` (un nibble por canal). Estas
 /// utilidades operan sobre ese `u16` directamente y usan la aritmética de palabra del
@@ -131,6 +131,28 @@ namespace eng::util {
 		dst[i] = scale444(src[i], num, den);
 	}
 	return n;
+}
+
+/// **Degradado multi-parada**: muestrea `keys` en la posición `num/den` (`[0, 1]`)
+/// interpolando entre `keys[seg]` y `keys[seg+1]`, con `seg = num·(K−1)/den`. Es la base
+/// de un degradado de cielo/horizonte por línea: el llamante reparte las líneas en
+/// segmentos y pide la muestra. Usa `div16` (`divs.w` en 68000), sin `float` ni libcalls;
+/// `den` debe caber en `s16`.
+[[nodiscard]] constexpr u16 gradient444(Span<const u16> keys, u16 num, u16 den) noexcept {
+	const usize k = keys.size();
+	if (k == 0u) {
+		return 0u;
+	}
+	if (k == 1u || den == 0u) {
+		return keys[0];
+	}
+	if (num >= den) {
+		return keys[k - 1u];
+	}
+	const s32 scaled = static_cast<s32>(num) * static_cast<s32>(k - 1u);
+	const s16 seg = eng::math::div16(scaled, static_cast<s16>(den));
+	const u16 local = static_cast<u16>(scaled - static_cast<s32>(seg) * static_cast<s32>(den));
+	return lerp444(keys[static_cast<usize>(seg)], keys[static_cast<usize>(seg) + 1u], local, den);
 }
 
 } // namespace eng::util

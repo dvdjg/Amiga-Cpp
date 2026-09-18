@@ -98,6 +98,35 @@ int main() {
 		check(buf[0] == eu::scale444(0xfffu, 1u, 2u), "palette_scale in place");
 	}
 
+	// --- Degradado multi-parada (gradient444) -------------------------------
+	{
+		const eng::u16 two[2] = {0x000u, 0xfffu};
+		check(eu::gradient444(eng::Span<const eng::u16> {two}, 0u, 8u) == 0x000u,
+		      "gradient [n,r] en 0 = primer color");
+		check(eu::gradient444(eng::Span<const eng::u16> {two}, 8u, 8u) == 0xfffu,
+		      "gradient [n,r] en den = ultimo color");
+		check(eu::gradient444(eng::Span<const eng::u16> {two}, 4u, 8u) == 0x777u,
+		      "gradient [n,r] a mitad = 0x777");
+
+		const eng::u16 three[3] = {0x000u, 0xf00u, 0xfffu};
+		check(eu::gradient444(eng::Span<const eng::u16> {three}, 4u, 8u) == 0xf00u,
+		      "gradient 3 paradas: en 1/2 = parada central");
+		check(eu::gradient444(eng::Span<const eng::u16> {three}, 6u, 8u) ==
+			      eu::lerp444(0xf00u, 0xfffu, 4u, 8u),
+		      "gradient 3 paradas: tramo 2 interpolado");
+		check(eu::gradient444(eng::Span<const eng::u16> {three}, 6u, 8u) != 0xf00u &&
+			      eu::gradient444(eng::Span<const eng::u16> {three}, 6u, 8u) != 0xfffu,
+		      "gradient 3 paradas: 3/4 no es una parada");
+
+		const eng::u16 one[1] = {0x246u};
+		check(eu::gradient444(eng::Span<const eng::u16> {one}, 3u, 8u) == 0x246u,
+		      "gradient de una parada = esa parada");
+		check(eu::gradient444(eng::Span<const eng::u16> {}, 3u, 8u) == 0u,
+		      "gradient vacio = 0");
+		check(eu::gradient444(eng::Span<const eng::u16> {two}, 3u, 0u) == 0x000u,
+		      "gradient den=0 = primer color");
+	}
+
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;

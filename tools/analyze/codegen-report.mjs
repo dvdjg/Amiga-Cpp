@@ -268,7 +268,8 @@ extern "C" u16 c_palette_ops(u16 num, u16 den) {
 					       eng::Span<const eng::u16> {b}, num, den);
 	const eng::usize n2 = eu::palette_scale(eng::Span<eng::u16> {dst}, eng::Span<const eng::u16> {a},
 						num, den);
-	return static_cast<u16>(dst[0] + dst[7] + static_cast<u16>(n1 + n2));
+	const eng::u16 grad = eu::gradient444(eng::Span<const eng::u16> {a}, num, den);
+	return static_cast<u16>(dst[0] + dst[7] + grad + static_cast<u16>(n1 + n2));
 }
 extern "C" u16 c_collision_ops(s16 ax, s16 ay, s16 bx, s16 by, s16 cx, s16 cy, s16 dx, s16 dy) {
 	const eng::Point2s a {ax, ay};
