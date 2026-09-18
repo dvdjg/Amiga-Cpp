@@ -76,7 +76,7 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   habitaciones, migración al refugio, **ciclo de vida y reproducción** con gestación,
   **objetos materiales** (inventario + ejecución del plan), **economía/reputación**,
   **terreno y clima** por región (representación algorítmica del mundo + `astar`),
-  **rumores/memoria de grupo**, sociedad/enjambre (HOST-152…154, HOST-156…174),
+  **rumores/memoria de grupo**, sociedad/enjambre (HOST-152…154, HOST-156…175),
   **cuerpo procedural** expresivo (HOST-156), **percepción multimodal** (visión/oído/olfato/
   tacto/gusto/temperatura; HOST-160), **atención** y **sentidos por genética** (HOST-162),
   **memoria de corto y largo plazo** con consolidación, **memoria espacial/rutas macro**,
@@ -85,8 +85,9 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   **biomas/ecosistemas** (HOST-169), **lenguaje/gestos** atados a emoción y jerarquía
   (HOST-170), **cultura/rituales** y **manadas** (HOST-171/172), un **laboratorio de
   escenarios** con digesto y ajustes (HOST-173; bitácora en
-  `docs/debugging/SIM_ECOSYSTEM_SCENARIOS.md`) y **jugador simulado con LOD** y aforo por
-  región (HOST-174), y **planificación GOAP integrada** con dominio de construcción
+  `docs/debugging/SIM_ECOSYSTEM_SCENARIOS.md`) y **jugador simulado con LOD** (despertar
+  gradual y reparto por frames), **aforo dinámico** (estación/clima) y **entrada humana**
+  (HOST-174/175), y **planificación GOAP integrada** con dominio de construcción
   (HOST-155), con gate de codegen 68000. Reutiliza `eng::ai` (utility, percepción,
   navegación, steering, GOAP). Falta **consumidor real en `games/`** (demo Amiga con
   render) y las líneas de crecimiento (percepción imperfecta, tácticas de manada).

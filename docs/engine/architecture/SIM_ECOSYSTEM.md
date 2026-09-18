@@ -38,10 +38,13 @@ espacial, nunca en el modelo de criatura, que usa siempre coordenadas de mundo
 
 El paso de abstracto a realizado lo decide el **LOD alrededor del jugador** (`lod.hpp`):
 `SimWorld::update_lod` marca **realized** cerca, **abstract** a media distancia y
-**dormant** (congelado, sin coste) lejos; al acercarse el jugador, lo dormido se realiza.
-Así el jugador percibe un mundo rico a su alrededor mientras el resto apenas cuesta. El
-**aforo por región** (`biome.hpp`, `capacity`) limita cuántas criaturas sostiene cada bioma
-y frena la reproducción cuando está lleno.
+**dormant** (congelado, sin coste) lejos; al acercarse el jugador, lo dormido se realiza
+**gradualmente** (`lod_blend` sube por frames y `wake_per_frame` reparte cuántas despiertan,
+evitando el "pop" y los picos de trabajo). El **aforo dinámico** (`season.hpp` + `biome.hpp`)
+modula la capacidad de cada región por **estación** y **clima**. El **jugador simulado**
+(`avatar.hpp`) usa los mismos sentidos y necesidades, y admite tanto IA (`player_step`) como
+**entrada humana** (`player_control`), de modo que un humano sustituye a la IA sin tocar el
+mundo.
 
 ## 2. Modelo de datos
 
@@ -67,10 +70,10 @@ eng::sim::AbstractCreature<MaxTrackers, MaxRelations> c; // arrays inline
 | `Senses` | sensibilidad y alcance por modalidad sensorial (+ ecolocalización) | 13 B |
 | `Tracker` | entidad percibida, última posición, confianza, modalidades y saliencia | 14 B |
 | `Relationship` | vínculo (`affinity`) y **carga emocional dirigida** (`affect`) | 6 B |
-| `AbstractCreature<6,6>` | criatura completa | 306 B |
+| `AbstractCreature<6,6>` | criatura completa | 308 B |
 | `Climate<64>` | peligro ambiental por región | 128 B |
 | `GroupMemory<8>` | memoria de conocimiento por facción | 416 B |
-| `SimWorld<…>` | array de criaturas + grafo de rooms + clima + terreno + biomas + sociedad + objetos + planificador | 23 864 B |
+| `SimWorld<…>` | array de criaturas + grafo de rooms + clima + terreno + biomas + sociedad + objetos + planificador | 23 998 B |
 
 Las **especies** (`Species`) son tablas inmutables que el juego declara una vez: dieta,
 organización social (solitaria, manada, colmena, familia, territorial, **enjambre**), bits
@@ -318,8 +321,9 @@ de modo que no ocupa RAM si no se usa (verificado por el gate de tamaños m68k).
 | `communication.hpp` | señales/gestos, recepción y efecto emocional/jerárquico | HOST-170 |
 | `culture.hpp` | rituales, disparo por evento, herencia y actuación en el mundo | HOST-171 |
 | `pack.hpp` | roles de manada, flanqueo y coordinación de caza | HOST-172 |
-| `lod.hpp` | bandas de detalle por distancia (realized/abstract/dormant) | HOST-174 |
-| `avatar.hpp` | jugador simulado: intención, movimiento/acción y resumen de percepción/carga | HOST-174 |
+| `lod.hpp` | bandas de detalle por distancia (realized/abstract/dormant) con despertar gradual | HOST-174 |
+| `season.hpp` | aforo dinámico por estación y clima | HOST-174 |
+| `avatar.hpp` | jugador simulado (IA y entrada humana), percepción y carga | HOST-174 / HOST-175 |
 | `world.hpp` (laboratorio) | escenarios largos con digesto y ajuste de parámetros | HOST-173 |
 | `society.hpp` | `Society` (reputación), `Pack` | HOST-153 |
 | `planner.hpp` | `PlannerDriver`/`PlanRunner` sobre `Goap`, `PlanParams` | HOST-155 |

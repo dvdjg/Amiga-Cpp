@@ -90,3 +90,21 @@ Estos cambios se verifican en HOST-174 y mantienen verdes los 23 tests de `eng::
 demo Amiga con render (consumidor real en `games/`) queda como siguiente paso: en este entorno
 no se puede ejecutar WinUAE de forma fiable, así que no se presenta como verificado.
 
+## Iteración 3: despertar suave, aforo dinámico y entrada humana
+
+- **Despertar gradual del LOD**: al pasar de dormant a realized, la criatura arranca con
+  `lod_blend = 0` y solo avanza necesidades/olvido hasta completar la transición; además
+  `wake_per_frame` limita cuántas despiertan por frame. Evita el "pop" visual y los picos de
+  trabajo al entrar en una zona llena.
+- **Aforo dinámico** (`season.hpp`): la capacidad del bioma se modula por **estación**
+  (primavera 110 %, invierno 70 %) y por **clima** (tormenta extrema la mitad). La población
+  respira con el entorno en vez de clavarse en un tope fijo.
+- **Entrada humana** (`PlayerInput`/`player_control`): un humano maneja al avatar sin tocar el
+  mundo; la IA (`player_step`) y el humano comparten el mismo modelo, así que la simulación
+  no distingue quién controla. Verificado por HOST-175.
+
+Observación: el tamaño de `SimWorld` (y por tanto el coste de RAM) está dominado por el
+array de criaturas (`AbstractCreature` × capacidad), así que cada byte del modelo de criatura
+importa; conviene dimensionar `MaxCreatures` por perfil (A500 vs 1 MB).
+
+

@@ -79,6 +79,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/sim/pack.hpp>
 #include <eng/sim/planner.hpp>
 #include <eng/sim/rumor.hpp>
+#include <eng/sim/season.hpp>
 #include <eng/sim/senses.hpp>
 #include <eng/sim/society.hpp>
 #include <eng/sim/terrain.hpp>
@@ -135,8 +136,8 @@ static_assert(sizeof(eng::sim::Genome) == 8u, "Sim::Genome");
 static_assert(sizeof(eng::sim::KnowledgeEntry) == 6u, "Sim::KnowledgeEntry");
 static_assert(sizeof(eng::sim::Inventory) == 12u, "Sim::Inventory");
 static_assert(sizeof(eng::sim::Item) == 12u, "Sim::Item");
-static_assert(sizeof(eng::sim::AbstractCreature<>) == 306u, "Sim::AbstractCreature<>");
-static_assert(sizeof(eng::sim::SimWorld<>) == 23864u, "Sim::SimWorld<>");
+static_assert(sizeof(eng::sim::AbstractCreature<>) == 308u, "Sim::AbstractCreature<>");
+static_assert(sizeof(eng::sim::SimWorld<>) == 23998u, "Sim::SimWorld<>");
 
 struct HalfEvenPolicy { using Round = rounding::HalfEven; using Overflow = overflow::Wrap; };
 using q14 = Fixed<s16, 14>;
@@ -868,6 +869,38 @@ extern "C" u16 c_sim_avatar_ops(u16 seed) {
 	(void)player_step(w, a, rng);
 	return static_cast<u16>(it) + w.region_population(0u) +
 	       static_cast<u16>(w.region_capacity(0u));
+}
+extern "C" u16 c_sim_season_ops(u16 seed) {
+	using namespace eng::sim;
+	static SimWorld<> w;
+	w.set_biome(0u, static_cast<BiomeKind>(
+				static_cast<eng::u8>(seed % static_cast<eng::u16>(BiomeKind::Count))));
+	w.set_season(static_cast<Season>(
+		static_cast<eng::u8>(seed % static_cast<eng::u16>(Season::Count))));
+	w.climate().set(0u, HazardKind::Storm, static_cast<eng::u8>(seed % 256u));
+	return static_cast<u16>(w.region_capacity(0u)) +
+	       static_cast<u16>(w.region_base_capacity(0u)) +
+	       static_cast<u16>(season_factor(w.season()));
+}
+extern "C" u16 c_sim_wake_ops(u16 seed) {
+	using namespace eng::sim;
+	static SimWorld<> w;
+	LodParams lp {};
+	lp.wake_per_frame = 1u;
+	lp.wake_step = static_cast<eng::u8>(seed % 256u);
+	w.set_lod_params(lp);
+	w.update_lod(0, 0, 0u);
+	return static_cast<u16>(w.realized_count()) + w.dormant_count();
+}
+extern "C" u16 c_sim_input_ops(u16 seed) {
+	using namespace eng::sim;
+	static SimWorld<> w;
+	const EntityId p = w.spawn(9u, 0u, 0u, 5, 5);
+	PlayerInput in {};
+	in.dx = static_cast<eng::s16>(seed % 5u);
+	in.interact = (seed & 1u) != 0u;
+	const bool acted = player_control(w, p, in);
+	return static_cast<u16>(acted ? 1u : 0u) + static_cast<u16>(w.find(p)->x);
 }
 extern "C" u16 c_sim_planner_ops(u16 seed) {
 	using namespace eng::sim;
