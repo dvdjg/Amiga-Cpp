@@ -61,7 +61,7 @@ namespace detail {
 
 /// Producto `s16 × s16 -> s32` con la multiplicación nativa del `arith` del CPU
 /// (`muls.w` en 68000). Escribir `(s32)a * (s32)b` acabaría en `__mulsi3` (~50+ ciclos).
-[[nodiscard]] constexpr s32 mul16(s16 a, s16 b) { return eng::math::arith<s16>::mul(a, b); }
+[[nodiscard]] constexpr s32 mul16(s16 a, s16 b) { return eng::math::mul_wide<s16>(a, b); }
 
 /// Producto `s32 × s16 -> s32` (se conservan los 32 bits bajos, como el `*` directo) sin
 /// `__mulsi3`: se parte el operando de 32 bits y se usan dos multiplicaciones de 16 bits

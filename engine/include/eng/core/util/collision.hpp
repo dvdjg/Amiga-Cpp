@@ -55,7 +55,7 @@ struct Aabb {
 	const s16 ay = static_cast<s16>(a.y - o.y);
 	const s16 bx = static_cast<s16>(b.x - o.x);
 	const s16 by = static_cast<s16>(b.y - o.y);
-	return eng::math::mul16(ax, by) - eng::math::mul16(ay, bx);
+	return eng::math::mul_wide(ax, by) - eng::math::mul_wide(ay, bx);
 }
 
 /// ¿`p` está en el segmento `[a,b]` (asumiendo colinealidad)?
@@ -123,10 +123,10 @@ namespace detail {
 constexpr void project_poly(Span<const Point2s> poly, s16 nx, s16 ny, s32& mn,
 			    s32& mx) noexcept {
 	const Point2s p0 = poly[0];
-	mn = mx = static_cast<s32>(eng::math::mul16(nx, p0.x) + eng::math::mul16(ny, p0.y));
+	mn = mx = static_cast<s32>(eng::math::mul_wide(nx, p0.x) + eng::math::mul_wide(ny, p0.y));
 	for (usize i = 1u; i < poly.size(); ++i) {
 		const s32 d =
-			static_cast<s32>(eng::math::mul16(nx, poly[i].x) + eng::math::mul16(ny, poly[i].y));
+			static_cast<s32>(eng::math::mul_wide(nx, poly[i].x) + eng::math::mul_wide(ny, poly[i].y));
 		if (d < mn) {
 			mn = d;
 		} else if (d > mx) {
@@ -192,9 +192,9 @@ constexpr bool separated(const s32 amn, const s32 amx, const s32 bmn,
 [[nodiscard]] constexpr bool circle_overlap(Point2s c0, s16 r0, Point2s c1, s16 r1) noexcept {
 	const s16 dx = static_cast<s16>(c1.x - c0.x);
 	const s16 dy = static_cast<s16>(c1.y - c0.y);
-	const s32 dist_sq = eng::math::mul16(dx, dx) + eng::math::mul16(dy, dy);
+	const s32 dist_sq = eng::math::mul_wide(dx, dx) + eng::math::mul_wide(dy, dy);
 	const s16 rsum = static_cast<s16>(r0 + r1);
-	return dist_sq <= eng::math::mul16(rsum, rsum);
+	return dist_sq <= eng::math::mul_wide(rsum, rsum);
 }
 
 } // namespace eng::util

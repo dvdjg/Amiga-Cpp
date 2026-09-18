@@ -248,9 +248,19 @@ multiplicaciones pasan por `mul16` pensado para `muls.w`. El plan para añadir `
 en 68020, `int`/`float` en host) y la política `bool` vs byte está en
 [REFACTOR_SCALAR_GENERICO.md](../../guides/roadmap/REFACTOR_SCALAR_GENERICO.md).
 
-**Estado**: F0 (`s64/u64`, `core/scalar.hpp` con `eng::intw`/`real`/`coord`, regla `bool` vs
-byte en `CODING_STYLE`) y F1 (`div_norm` y `sqrt` de `Fixed<s32,E>`, en host/32 bits; vetados
-en m68k por libcalls) entregados y respaldados por HOST-135 (matriz de escalares:
-`double`/`float`/`MiniFloat16`/`Fixed<s16,12>`/`Fixed<s32,12>`/`Fixed<s32,24>`). La extensión
-de la tabla §7 a la columna de 32 bits y el `fixed_math` genérico por `Repr` (F2) siguen
-pendientes.
+**Estado**:
+- **F0** (`s64/u64`, `core/scalar.hpp` con `eng::intw`/`real`/`coord`, regla `bool` vs byte en
+  `CODING_STYLE`) y **F1** (`div_norm` y `sqrt` de `Fixed<s32,E>`, en host/32 bits; vetados en
+  m68k por libcalls) entregados.
+- **F2** (`fixed_math.hpp` genérico por `Repr`: tablas dimensionadas y series) entregado: la
+  trigonometría/exponencial de `Fixed<s32,E>` funciona en host/32 bits con la misma maquinaria
+  que el `s16` (que conserva su semántica).
+- **F3** (nombres genéricos `mul_wide`/`mulu_wide`/`div_wide` sobre `arith<R>`) entregado y
+  migrados `mesh3d`, `collision` y `retro/lib2d`; el camino 68000 es idéntico.
+- **F6** (codegen 68020) entregado: la sonda compila también a `-mcpu=68020` sin libcalls.
+
+Todo respaldado por HOST-135 (matriz de escalares: `double`/`float`/`MiniFloat16`/
+`Fixed<s16,12>`/`Fixed<s32,12>`/`Fixed<s32,24>`, incluida la trig/exp/log de `Fixed<s32>`).
+Pendientes menores: extender la tabla §7 con la columna de 32 bits, el barrido `bool` (F4), el
+wiring de `eng::real`/`coord` en demos (F5) y completar la migración de todos los `mul16` a
+`mul_wide`.

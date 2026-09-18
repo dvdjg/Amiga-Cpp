@@ -870,3 +870,24 @@ if (notInlined.length) {
 }
 
 console.log('[codegen] OK: sin libcalls (mul/div de 32 y 64 bits) ni instrucciones 68020.');
+
+// --- Variante 68020 (nativo) ---------------------------------------------------
+// La sonda debe compilar tambien para 68020 sin pedir libgcc de mul/div. En ese target
+// `__mc68000__` no esta definido, asi que `arith<s16>` usa el camino portable nativo en
+// vez del backend `muls.w`/`divs.w`; el gate 68000 de arriba (que exige `divs.w`) no
+// aplica aqui. Se comprueba solo que no aparezcan libcalls prohibidas.
+const ASM20 = `${ROOT}/out/tmp/codegen-probe-68020.s`;
+try {
+  execFileSync(CXX, ['-std=gnu++23', '-mcpu=68020', '-O2', '-fomit-frame-pointer',
+    `-I${ROOT}/engine/include`, '-S', '-o', ASM20, SRC], { stdio: 'pipe' });
+} catch (e) {
+  console.error('fallo el compilado 68020:\n' + e.stderr?.toString());
+  process.exit(1);
+}
+const asm20 = fs.readFileSync(ASM20, 'latin1');
+const hit20 = FORBIDDEN.filter((s) => asm20.includes(s));
+if (hit20.length) {
+  console.error(`\n[codegen 68020] FAIL: libcalls -> ${hit20.join(', ')}`);
+  process.exit(1);
+}
+console.log('[codegen 68020] OK: compila sin libcalls de mul/div (68020 nativo).');

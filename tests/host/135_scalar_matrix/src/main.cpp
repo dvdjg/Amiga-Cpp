@@ -92,6 +92,21 @@ void test_fixed32_ops() {
 	check(rel(to_double(r3), std::sqrt(3.0)) < 1e-2, "Fixed<s32,12>: sqrt(3) con error < 1e-2");
 }
 
+/// F2: la trigonometria/exponencial de `Fixed<s32,E>` (host) funciona.
+void test_fixed32_math() {
+	using F = Fixed<eng::s32, 12>;
+	const F one = scalar_traits<F>::one();
+	const F six = scalar_const<F>::from(0.5235987755982988); // pi/6
+	check(rel(to_double(scalar_sin<F>::op(six)), 0.5) < 5e-3, "Fixed<s32,12>: sin(pi/6)");
+	check(rel(to_double(scalar_cos<F>::op(six)), 0.8660254037844386) < 5e-3,
+	      "Fixed<s32,12>: cos(pi/6)");
+	check(rel(to_double(scalar_atan2<F>::op(one, one)), 0.7853981633974483) < 5e-3,
+	      "Fixed<s32,12>: atan2(1,1)");
+	check(rel(to_double(scalar_exp2<F>::op(one)), 2.0) < 5e-3, "Fixed<s32,12>: exp2(1)");
+	check(rel(to_double(scalar_log2<F>::op(scalar_traits<F>::from_int(4))), 2.0) < 5e-3,
+	      "Fixed<s32,12>: log2(4)");
+}
+
 /// Escalar entero general (`eng::intw`) y nativos con las operaciones exactas.
 void test_integers() {
 	using I = eng::intw;
@@ -110,6 +125,7 @@ int main() {
 	std::printf("ScalarMatrix:\n");
 	test_scalars();
 	test_fixed32_ops();
+	test_fixed32_math();
 	test_integers();
 
 	if (g_fail == 0u) {

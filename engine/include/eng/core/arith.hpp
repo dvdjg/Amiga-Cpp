@@ -56,6 +56,27 @@ struct arith {
 	[[nodiscard]] static constexpr R div(s_wide a, R b) { return static_cast<R>(a / b); }
 };
 
+/// Producto **ensanchado genérico** `R × R -> doble ancho`, sin nombrar el ancho: con `R`
+/// de 16 bits en 68000 es `muls.w` (`arith<R>`); con `R` de 32 bits usa el producto nativo
+/// del target. Es el nombre portable de `mul16` para los algoritmos escalar-genéricos.
+template <typename R>
+[[nodiscard]] constexpr typename arith_wide<R>::signed_t mul_wide(R a, R b) {
+	return arith<R>::mul(a, b);
+}
+
+/// Producto sin signo ensanchado (`mulu.w` con `R` de 16 bits).
+template <typename R>
+[[nodiscard]] constexpr typename arith_wide<R>::unsigned_t mulu_wide(
+	typename arith_unsigned<R>::type a, typename arith_unsigned<R>::type b) {
+	return arith<R>::mulu(a, b);
+}
+
+/// Cociente de un valor ensanchado por `R`, con el cociente en `R` (`divs.w` con 16 bits).
+template <typename R>
+[[nodiscard]] constexpr R div_wide(typename arith_wide<R>::signed_t a, R b) {
+	return arith<R>::div(a, b);
+}
+
 } // namespace eng::math
 
 // Selección del backend por CPU objetivo (no por máquina): un 68000 es un 68000, sea un

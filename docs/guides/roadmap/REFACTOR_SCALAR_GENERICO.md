@@ -133,6 +133,11 @@ en 68000 la implementación es la de hoy (gate bit a bit), en 68020/host es la n
 Dependencias: F0→F1→F2 (el `fixed_math` de 32 bits necesita la división/raíz); F3 es
 independiente; F4/F5 van tras F0; F6 cierra.
 
+**Estado**: **F0, F1, F2, F3 y F6 entregados** (detalle y evidencia en
+[SCALAR_LIBRARY.md](../../engine/architecture/SCALAR_LIBRARY.md) §8 y HOST-135). Pendientes:
+**F4** (barrido `bool` vs byte en el resto del código), **F5** (usar `eng::real`/`coord` en
+demos/juegos) y completar la migración mecánica de los `mul16` restantes a `mul_wide`.
+
 ## 5. Plan de pruebas
 
 1. **Matriz de escalares** (nuevo test host): el **mismo** algoritmo instanciado con
