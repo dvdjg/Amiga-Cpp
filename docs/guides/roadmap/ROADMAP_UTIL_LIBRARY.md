@@ -141,6 +141,12 @@ independiente de R1/R2 (salvo `RingBuffer` para `delay`). R4 es el más prescind
 - **Interner de cadenas**: **implementado** (`string_interner.hpp`, HOST-124). Deduplica por
   contenido (`HashMap<StringView,u16>`) y copia los bytes en una arena (`Allocator`) que
   aporta el llamador; pensado para nombres construidos en runtime (assets/config, etiquetas).
+- **Heurística parametrizable** en `pathfinding.hpp`: hoy Manhattan; añadir Euclídea/Octile
+  con un consumidor de grilla grande (los mapas pequeños no lo justifican).
+- **SAT 2D** en `collision.hpp`: candidato para polígonos convexos; GJK se descarta (sobra
+  para 2D). Se añadirá con un consumidor.
+- **Autómata celular**: candidato menor (hoy hay simulaciones ad-hoc, p. ej. el fuego de
+  HOST-015).
 - **Alcance de R4**: `type_list` solo si un registro en compile-time aporta valor real.
 
 ## 7. Cómo se cierra cada paso

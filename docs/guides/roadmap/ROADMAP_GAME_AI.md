@@ -53,8 +53,10 @@ y (si tiene consumidor natural) una demo/juego exitoso.
 |---|---|---|---|
 | G1.1 | `planning/goap.hpp` | Hechos booleanos, acciones (pre/efectos/coste), A* con heurística de objetivos pendientes; presupuesto `MaxNodes` | **HOST-107** (Hanoi, pastel, soldado) |
 | G1.2 | `planning/htn.hpp` (opcional) | Redes de tareas jerárquicas: descomponer un objetivo en subtareas con métodos alternativos | HOST propio; demo si hay consumidor |
+| G1.3 | `planning/goap.hpp` (caché) | Cachear planes por `(estado, objetivo)` para no replanificar lo mismo cada vez | HOST propio; con consumidor |
 
-**Estado: G1.1 completa.** GOAP verificado por HOST-107. HTN solo si un juego lo pide.
+**Estado: G1.1 completa.** GOAP verificado por HOST-107. Candidatos: HTN (G1.2) y caché de
+planes (G1.3), ambos solo con consumidor.
 
 ### G2 — Decisión por tick
 
@@ -64,6 +66,7 @@ y (si tiene consumidor natural) una demo/juego exitoso.
 | G2.2 | `decision/utility.hpp` | Utilidad por puntuación (media ponderada de consideraciones), entera y determinista (`muls.w`/`divs.w`) | **Entregado**: HOST-112 |
 | G2.3 | `decision/behavior_tree.hpp` | Secuencia/selector sobre nodos sin heap; tick síncrono y acotado | **Entregado**: HOST-113 |
 | G2.4 | `decision/blackboard.hpp` + eventos | Datos compartidos entre sistemas; difusión con `event.hpp` (entregado, HOST-109) | **Entregado**: HOST-111 |
+| G2.5 | `decision/` HFSM | FSM **jerárquica** (estados compuestos) sobre `AgentFsm`, si aparecen estados anidados | HOST propio; con consumidor |
 
 **Estado: G2 completa.** Reutiliza `state_machine` (R4.4) y `event` (R4.3) de `eng::util`, y
 añade `AgentFsm`, `Utility`, `BehaviorTree` y `Blackboard` (HOST-110…113). Siguiente: G3
@@ -88,9 +91,11 @@ lite; HOST-114/116/118).
 | G4.1 | `steering/steering.hpp` | seek/flee/arrive y separación/cohesión/alineación (flocking), genérico sobre el escalar | **Entregado**: HOST-115 |
 | G4.2 | `perception/influence_map.hpp` | Mapa de influencia (amenaza/control) sobre rejilla con decay | **Entregado**: HOST-117 |
 | G4.3 | `perception/agent_memory.hpp` | Memoria del agente (última posición conocida, tiempo desde el avistamiento) | **Entregado**: HOST-117 |
+| G4.4 | `steering/steering.hpp` | *Pursue*/*evade* (con velocidad del objetivo), *wander* y evasión de obstáculos | HOST propio |
+| G4.5 | `steering/formation.hpp` | Formación / asignación de huecos respecto a un líder o centro | HOST propio; con consumidor |
 
-G4 no depende de G1–G3; puede adelantarse si un juego necesita movimiento. **Estado: G4 completa** (steering, influence map y
-memoria del agente; HOST-115/117).
+G4 no depende de G1–G3; puede adelantarse si un juego necesita movimiento. **Estado: G4.1–G4.3 entregados** (steering, influence
+map y memoria; HOST-115/117). Candidatos G4.4 (pursue/evade/wander/evasión) y G4.5 (formación).
 
 ### G5 — Técnicas de diseño con consumidor
 
@@ -121,6 +126,13 @@ patrones descritos en §5.
 | Steering behaviors / flocking | movimiento | `ai/steering/steering.hpp` | C. Reynolds (1987) | **Entregado** (HOST-115) |
 | Influence maps | percepción | `ai/perception/influence_map.hpp` | (técnica de RTS) | **Entregado** (HOST-117) |
 | Memoria del agente / creencias | percepción | `ai/perception/agent_memory.hpp` | — | **Entregado** (HOST-117) |
+| Caché de planes GOAP | planificación | `ai/planning/goap.hpp` (cache) | — | Candidato (con consumidor) |
+| HFSM (FSM jerárquica) | decisión | `ai/decision/` | — | Candidato (estados anidados) |
+| Pursuit/evade/wander y evasión de obstáculos | movimiento | `ai/steering/steering.hpp` | C. Reynolds | Candidato (G4) |
+| Formación / asignación de huecos | movimiento | `ai/steering/` | — | Candidato opcional |
+| Heurística parametrizable (grilla) | navegación | `util/pathfinding.hpp` | — | Candidato menor |
+| SAT 2D (polígonos convexos) | colisión (`util`) | `util/collision.hpp` | — | Candidato |
+| Autómata celular | procedural | `util/` o demo | — | Candidato menor |
 | Filtmation | presentación/animación | por definir | *Heads over Heels* / *Batman 3D* | Pendiente de ficha técnica |
 
 > **Filtmation**: la técnica aún no está documentada en el repositorio. La ficha debe
@@ -143,6 +155,47 @@ patrones descritos en §5.
 Estos patrones se documentan primero (sin duplicar fuentes) y se convierten en código solo
 cuando un juego de `games/` los use. Referencias formales (MDA, Swink, Reynolds, Mark…)
 se citarán en la ficha de cada uno al incorporarlos.
+
+### 5.3 Evaluación de la lista externa de núcleos clásicos
+
+Lista de núcleos clásicos propuesta externamente para un engine «estilo Amiga 500». Casi toda
+ella está ya cubierta; se anotan las piezas que faltan y las que se descartan de forma
+explícita.
+
+| Bloque de la lista | Estado en el engine | Decisión |
+|---|---|---|
+| A* (heurísticas intercambiables, early-exit, reutilización) | `util::pathfinding` (A*/BFS, Manhattan, early-exit, scratch del llamador) + `ai::navigation.*` | Cubierto; **candidata** la heurística parametrizable (Euclídea/Octile) y reutilizar scratch entre consultas |
+| Dijkstra | A* con `h=0`; `flow_field` es Dijkstra multi-fuente | Cubierto; no se añade pieza aparte |
+| Jump Point Search / Theta* | — | **Descartado**: mapas pequeños (8×8..32×32); el coste y la complejidad no compensan |
+| Flood-fill / distance field | `ai/navigation/flow_field.hpp` (`integration` + `direction`) | Cubierto |
+| Navmesh simplificado + funnel | `ai/navigation/navmesh_lite.hpp` (`find_smooth_path`) | Cubierto |
+| GOAP/STRIPS + A* + **caché de planes** | `ai/planning/goap.hpp`; la caché no | **Candidata** la caché por (estado, objetivo), con consumidor |
+| FSM e **HFSM** | `util::state_machine` + `ai::AgentFsm` (plana); HFSM no | **Candidata** la HFSM si aparecen estados anidados |
+| Utility AI | `ai/decision/utility.hpp` | Cubierto |
+| Behavior trees ultra-simplificados | `ai/decision/behavior_tree.hpp` (secuencia/selector/hoja; condición y acción son hojas) | Cubierto |
+| Steering (pursue/evade/wander/obstacle avoidance) | `ai/steering/steering.hpp` (seek/flee/arrive/flocking); faltan pursue, evade, wander y evasión | **Candidato** (G4.4) |
+| Separación/alineación O(n) con spatial hash | `util/broadphase.hpp` + steering | Cubierto |
+| Formación / asignación de huecos | — | **Candidato opcional** (posiciones relativas a líder/centro), con consumidor |
+| Influence maps / potential fields | `ai/perception/influence_map.hpp` | Cubierto |
+| Spatial hash / grid | `util/broadphase.hpp`, `util/grid.hpp` | Cubierto |
+| Quadtree ligero | — | **Descartado**: `SpatialHash` cubre y es más simple en 2D |
+| AABB/círculo + SAT/GJK | `util/collision.hpp` (AABB/segmento/triángulo/círculo); SAT no | **Candidato** SAT 2D; GJK descartado (sobra para 2D) |
+| Sweep and prune | — | **Descartado**: `SpatialHash` cubre |
+| Bitmask / tile collision | mapas y `field` tile-based | Cubierto |
+| Heap, pool/free-list, ring buffer | `priority_queue`, `pool`/`intrusive_list`, `ring_buffer` | Cubierto |
+| Fixed-point helpers | `Fixed`/`q12`/`q24` + `fixed_math` | Cubierto |
+| RNG determinista (xorshift/PCG) | `core/random.hpp` (`Xoroshiro64pp`) | Cubierto; PCG no se añade |
+| Sorts estables/cache-friendly | `quick_sort`/`stable_sort`/`radix_sort_u16` | Cubierto |
+| Lerp/smoothstep/bezier/easing | `interp`/`scalar_ops` | Cubierto |
+| Noise + random walks + CA | `core/noise.hpp` (value/perlin/worley/turbulence); CA ad-hoc | Cubierto; **candidata menor** una utilidad de autómata celular con consumidor |
+| Diseño (header-only, allocators, SoA, constexpr, full/ultra-light, determinismo) | Ya es la política del repo (`CODING_STYLE`, `TEMPLATE_LIBRARY`) | Sin cambios |
+
+**Conclusión**: la lista está cubierta en lo esencial y su orden de prioridad (spatial hash +
+A* + steering; FSM + utility; GOAP; navmesh/funnel + influence; pools + fixed-point) coincide
+con G1–G4, ya entregados. Candidatos vivos: caché de planes GOAP, HFSM, *pursue*/*evade*,
+*wander* y evasión de obstáculos, formación, heurística parametrizable y SAT 2D. Se descartan
+JPS/Theta*, quadtree, sweep-and-prune, GJK, RVO/ORCA y PCG por coste/complejidad frente a
+alternativas ya presentes.
 
 ## 6. Dependencias entre fases
 
