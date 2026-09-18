@@ -256,6 +256,20 @@ extern "C" s16 c_stats_ops(const s16* data, int n) {
 extern "C" u16 c_color_lerp(u16 a, u16 b, u16 num, u16 den) {
 	return eu::lerp444(a, b, num, den);
 }
+extern "C" u16 c_palette_ops(u16 num, u16 den) {
+	u16 a[8];
+	u16 b[8];
+	u16 dst[8];
+	for (u16 i = 0; i < 8u; ++i) {
+		a[i] = static_cast<u16>(i * 0x111u);
+		b[i] = static_cast<u16>(0xfffu - i * 0x111u);
+	}
+	const eng::usize n1 = eu::palette_lerp(eng::Span<eng::u16> {dst}, eng::Span<const eng::u16> {a},
+					       eng::Span<const eng::u16> {b}, num, den);
+	const eng::usize n2 = eu::palette_scale(eng::Span<eng::u16> {dst}, eng::Span<const eng::u16> {a},
+						num, den);
+	return static_cast<u16>(dst[0] + dst[7] + static_cast<u16>(n1 + n2));
+}
 extern "C" u16 c_collision_ops(s16 ax, s16 ay, s16 bx, s16 by, s16 cx, s16 cy, s16 dx, s16 dy) {
 	const eng::Point2s a {ax, ay};
 	const eng::Point2s b {bx, by};

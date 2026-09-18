@@ -134,7 +134,7 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-091 | [stack_queue_enum_set](091_stack_queue_enum_set/README.md) | `stack_queue.hpp` (`Stack`/`Queue`/`Deque`) y `enum_set.hpp` (`EnumSet`). |
 | HOST-092 | [scope_guard_static_string](092_scope_guard_static_string/README.md) | `scope_guard.hpp` (`ScopeGuard`) y `static_string.hpp` (`StaticString`). |
 | HOST-093 | [stats](093_stats/README.md) | `util/stats.hpp`: sum/mean/varianza/desviación (acumuladores anchos, agnóstico de escalar). |
-| HOST-094 | [color](094_color/README.md) | `util/color.hpp`: conversiones y mezcla de color. |
+| HOST-094 | [color](094_color/README.md) | `util/color.hpp`: conversiones y mezcla de color, y paleta completa (`palette_lerp`/`palette_scale`). |
 | HOST-095 | [collision](095_collision/README.md) | `util/collision.hpp`: AABB/círculo/rect y resolución. |
 | HOST-096 | [text](096_text/README.md) | `util/text.hpp`: formateo de enteros sin heap. |
 | HOST-097 | [grid](097_grid/README.md) | `util/grid.hpp`: rejilla 2D indexada. |

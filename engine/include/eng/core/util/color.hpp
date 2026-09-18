@@ -1,8 +1,9 @@
 #pragma once
 
 /// \file color.hpp
-/// **Color RGB444** de Amiga (`eng::util`): empaquetado, interpolación, escalado y
-/// conversión desde HSV, todo en entero y sin `float`.
+/// **Color RGB444** de Amiga (`eng::util`): empaquetado, interpolación, escalado,
+/// conversión desde HSV y operaciones de **paleta completa**, todo en entero y sin
+/// `float`.
 ///
 /// El chipset Amiga guarda el color como 12 bits `0x0RGB` (un nibble por canal). Estas
 /// utilidades operan sobre ese `u16` directamente y usan la aritmética de palabra del
@@ -13,7 +14,10 @@
 ///   const eng::u16 cielo = eng::util::rgb444(1, 3, 8);
 ///   const eng::u16 medio = eng::util::lerp444(cielo, blanco, 1u, 2u);   // a mitad
 ///   const eng::u16 rojo  = eng::util::hsv_to_rgb444(0u, 255u, 255u);
+///   eng::util::palette_lerp(dst, a, b, paso, total);                    // transición
+///   eng::util::palette_scale(dst, src, 15u, 16u);                      // fundido
 
+#include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/word.hpp>
 
@@ -92,6 +96,41 @@ namespace eng::util {
 	}
 	return rgb444(static_cast<u16>(r >> 4u), static_cast<u16>(g >> 4u),
 		      static_cast<u16>(b >> 4u));
+}
+
+/// **Transición de paleta**: `dst[i] = lerp444(a[i], b[i], num, den)` hasta el menor de
+/// los tres tamaños; devuelve cuántos colores escribió. `num` va de 0 (todo `a`) a `den`
+/// (todo `b`). Es el núcleo de `ColorTransition` de `libgfx` (`palette.h`) sin estado ni
+/// registros: el llamante decide qué paleta física recibe el resultado.
+[[nodiscard]] constexpr usize palette_lerp(Span<u16> dst, Span<const u16> a,
+					   Span<const u16> b, u16 num, u16 den) noexcept {
+	usize n = dst.size();
+	if (a.size() < n) {
+		n = a.size();
+	}
+	if (b.size() < n) {
+		n = b.size();
+	}
+	for (usize i = 0; i < n; ++i) {
+		dst[i] = lerp444(a[i], b[i], num, den);
+	}
+	return n;
+}
+
+/// **Fundido de paleta**: `dst[i] = scale444(src[i], num, den)` hasta el menor tamaño;
+/// devuelve cuántos colores escribió. `num == 0` deja la paleta en negro (fundido a
+/// negro, `FadeBlack` de `libgfx`); `num == den` la deja igual. `dst` y `src` pueden ser
+/// la misma memoria (fundido *in place*).
+[[nodiscard]] constexpr usize palette_scale(Span<u16> dst, Span<const u16> src, u16 num,
+					    u16 den) noexcept {
+	usize n = dst.size();
+	if (src.size() < n) {
+		n = src.size();
+	}
+	for (usize i = 0; i < n; ++i) {
+		dst[i] = scale444(src[i], num, den);
+	}
+	return n;
 }
 
 } // namespace eng::util

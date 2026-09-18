@@ -2,7 +2,8 @@
 // Test HOST-094: color RGB444 (eng::util::color).
 // ============================================================================
 //
-// Respalda `eng/core/util/color.hpp`: empaquetado, interpolación, escalado y HSV.
+// Respalda `eng/core/util/color.hpp`: empaquetado, interpolación, escalado, HSV y
+// operaciones de paleta completa (`palette_lerp`/`palette_scale`).
 //
 //   CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/094_color
 
@@ -57,6 +58,44 @@ int main() {
 		check(eu::hsv_to_rgb444(1024u, 255u, 255u) == 0x00fu, "HSV azul");
 		check(eu::hsv_to_rgb444(0u, 0u, 255u) == 0xfffu, "HSV blanco (sat 0)");
 		check(eu::hsv_to_rgb444(0u, 0u, 0u) == 0x000u, "HSV negro (val 0)");
+	}
+
+	// --- Paleta: transición (palette_lerp) ----------------------------------
+	{
+		const eng::u16 a[4] = {0x000u, 0x111u, 0x222u, 0x333u};
+		const eng::u16 b[4] = {0xfffu, 0xeeeu, 0xdddu, 0xcccu};
+		eng::u16 dst[4] = {};
+		const eng::usize n = eu::palette_lerp(eng::Span<eng::u16> {dst},
+						      eng::Span<const eng::u16> {a},
+						      eng::Span<const eng::u16> {b}, 1u, 2u);
+		check(n == 4u, "palette_lerp escribe 4");
+		bool ok = true;
+		for (eng::usize i = 0; i < 4u; ++i) {
+			if (dst[i] != eu::lerp444(a[i], b[i], 1u, 2u)) {
+				ok = false;
+			}
+		}
+		check(ok, "palette_lerp = lerp444 por color");
+		eu::palette_lerp(eng::Span<eng::u16> {dst}, eng::Span<const eng::u16> {a},
+				 eng::Span<const eng::u16> {b}, 1u, 1u);
+		check(dst[0] == b[0] && dst[3] == b[3], "palette_lerp num=den = b");
+		eng::u16 small[2] = {};
+		check(eu::palette_lerp(eng::Span<eng::u16> {small}, eng::Span<const eng::u16> {a},
+				       eng::Span<const eng::u16> {b}, 1u, 2u) == 2u,
+		      "palette_lerp recorta al mínimo");
+	}
+
+	// --- Paleta: fundido (palette_scale) ------------------------------------
+	{
+		const eng::u16 src[3] = {0xfffu, 0x888u, 0x800u};
+		eng::u16 dst[3] = {};
+		eu::palette_scale(eng::Span<eng::u16> {dst}, eng::Span<const eng::u16> {src}, 0u, 1u);
+		check(dst[0] == 0u && dst[1] == 0u && dst[2] == 0u, "palette_scale num=0 = negro");
+		eu::palette_scale(eng::Span<eng::u16> {dst}, eng::Span<const eng::u16> {src}, 1u, 1u);
+		check(dst[0] == src[0] && dst[2] == src[2], "palette_scale num=den = igual");
+		eng::u16 buf[1] = {0xfffu};
+		eu::palette_scale(eng::Span<eng::u16> {buf}, eng::Span<const eng::u16> {buf}, 1u, 2u);
+		check(buf[0] == eu::scale444(0xfffu, 1u, 2u), "palette_scale in place");
 	}
 
 	if (g_fail != 0) {

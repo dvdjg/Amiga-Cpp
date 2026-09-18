@@ -36,7 +36,7 @@ La librería **complementa** el núcleo de `eng/core/`, no lo duplica:
                                      stack_queue.hpp   Stack/Queue/Deque<T,N>
                                      enum_set.hpp      EnumSet<E,N>
                                      stats.hpp         sum/mean/variance/median/histogram
-                                     color.hpp         RGB444 (lerp/scale/HSV)
+                                     color.hpp         RGB444 (lerp/scale/HSV) + paleta (transición/fundido)
                                      collision.hpp     AABB/segmento/triángulo/círculo
                                      text.hpp          trim/split/parse/to_chars/join
                                      grid.hpp          tile/iso/hex
@@ -114,7 +114,7 @@ Puntos de reutilización explícitos:
 | `static_string.hpp` | `StaticString<N>` | (sin equivalente; `llvm::SmallString`) |
 | `scope_guard.hpp` | `ScopeGuard`, `make_scope_guard` | `boost::scope_exit` |
 | `stats.hpp` | `sum`/`mean`/`variance`/`stddev`/`kth_smallest`/`median`/`histogram`/`ema`/`RunningMean` | (sin equivalente; estadística) |
-| `color.hpp` | `rgb444`/`lerp444`/`scale444`/`hsv_to_rgb444` | (sin equivalente; color Amiga) |
+| `color.hpp` | `rgb444`/`lerp444`/`scale444`/`hsv_to_rgb444` + `palette_lerp`/`palette_scale` (transición y fundido de una paleta completa) | (sin equivalente; color Amiga) |
 | `collision.hpp` | `Aabb`, `aabb_*`, `segments_intersect`, `point_in_triangle`, `circle_overlap` | (sin equivalente; juego 2D) |
 | `text.hpp` | `trim`/`split_next`/`equal_ci`/`parse_u32`/`parse_s32`/`to_chars_*`/`join` | (parte de `boost::string`/`charconv`) |
 | `grid.hpp` | `TileCoord`/`grid_to_world`/`world_to_grid`/`iso_to_screen`/`Hex` | (sin equivalente; rejilla/iso/hex) |
@@ -223,7 +223,7 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-091 | `stack_queue.hpp`, `enum_set.hpp` (y `RingBuffer` doble) |
 | HOST-092 | `scope_guard.hpp`, `static_string.hpp` |
 | HOST-093 | `stats.hpp` (media/varianza/orden/histograma, `double`/MF/`q12`) |
-| HOST-094 | `color.hpp` (RGB444/lerp/scale/HSV) |
+| HOST-094 | `color.hpp` (RGB444/lerp/scale/HSV + paleta `palette_lerp`/`palette_scale`) |
 | HOST-095 | `collision.hpp` (AABB/segmento/triángulo/círculo) |
 | HOST-096 | `text.hpp` (trim/split/parse/to_chars/join) |
 | HOST-097 | `grid.hpp` (tile/iso/hex) |
@@ -256,7 +256,7 @@ mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
    (`c_pool_ops`/`c_pq_ops`/`c_ilist_ops`), la ordenación de `core/sort.hpp`
    (`c_stable_sort`/`c_nth_element`/`c_radix_u16`), `dynamic_hash_map.hpp` (`c_dyn_hashmap`),
    `stats.hpp` (`c_stats_ops`) y `color.hpp`/`collision.hpp`/`text.hpp`
-   (`c_color_lerp`/`c_collision_ops`/`c_text_ops`), `grid.hpp` (`c_grid_ops`),
+   (`c_color_lerp`/`c_palette_ops`/`c_collision_ops`/`c_text_ops`), `grid.hpp` (`c_grid_ops`),
    `broadphase.hpp` (`c_broadphase_ops`), `pathfinding.hpp` (`c_pathfinding_ops`),
    `core/random.hpp` (`c_random_ops`) y `dsp.hpp` (`c_dsp_ops`).
 5. Antes de añadir una utilidad nueva, comprobar si el **vocabulario** de §7 ya cubre la
