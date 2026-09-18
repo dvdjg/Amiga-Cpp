@@ -79,6 +79,7 @@
 
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
+#include <eng/core/util/array.hpp>
 #include <eng/core/util/bit.hpp>
 #include <eng/core/util/bitset.hpp>
 #include <eng/core/util/hash_map.hpp>
@@ -198,6 +199,19 @@ template <usize MaxFacts>
 struct Goal {
 	State<MaxFacts> want_true {};
 	State<MaxFacts> want_false {};
+};
+
+/// Dominio GOAP: agrupa las acciones y el objetivo de un problema concreto. Es un
+/// envoltorio sobre `Array<Action, MaxActions>` + `Goal`; el `Planner` tiene una
+/// sobrecarga que lo acepta directamente (`plan(start, domain, out)`).
+template <usize MaxFacts, usize MaxActions>
+struct Domain {
+	eng::util::Array<Action<MaxFacts>, MaxActions> actions {};
+	Goal<MaxFacts> goal {};
+
+	[[nodiscard]] constexpr Span<const Action<MaxFacts>> action_span() const noexcept {
+		return actions.span();
+	}
 };
 
 /// Constructor fluido de acciones (se usa en `constexpr` en los escenarios). Los hechos
@@ -405,6 +419,14 @@ public:
 		return reconstruct(goal_node, out);
 	}
 
+	/// Variante que toma un `Domain` (acciones + objetivo) en una sola pieza.
+	template <usize MaxActions>
+	[[nodiscard]] constexpr usize plan(const StateT& start,
+					   const Domain<MaxFacts, MaxActions>& domain,
+					   Span<u16> out) noexcept {
+		return plan(start, domain.goal, domain.action_span(), out);
+	}
+
 private:
 	struct Node {
 		KeyT key;
@@ -485,6 +507,9 @@ struct Goap {
 	using Builder = detail::Builder<MaxFacts>;
 	using Goal = detail::Goal<MaxFacts>;
 
+	template <usize MaxActions>
+	using Domain = detail::Domain<MaxFacts, MaxActions>;
+
 	template <usize MaxNodes = 128u>
 	using Planner = detail::Planner<MaxFacts, MaxNodes>;
 
@@ -495,6 +520,14 @@ struct Goap {
 		State s {};
 		((s.facts.set(static_cast<Fact>(facts))), ...);
 		return s;
+	}
+
+	/// Objetivo con los hechos exigidos a 1 (azucar; los prohibidos se marcan aparte).
+	template <class... Fs>
+	[[nodiscard]] static constexpr Goal goal(Fs... want_true) noexcept {
+		Goal g {};
+		((g.want_true.facts.set(static_cast<Fact>(want_true))), ...);
+		return g;
 	}
 };
 

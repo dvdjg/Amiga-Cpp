@@ -93,14 +93,15 @@ división), R3.2 worley/turbulence/ridged (`core/noise.hpp`, HOST-101) y R3.3 `d
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| R4.1 | `bitstream.hpp` + `dynamic_bitset.hpp` | `BitReader`/`BitWriter`, bitset que crece con `Allocator` | HOST-108 |
-| R4.2 | `variant.hpp` | unión etiquetada sin heap, `visit` con overload set | HOST-109 |
-| R4.3 | `event.hpp` | array fijo de `FunctionRef`, `subscribe`/`emit` | HOST-110 |
-| R4.4 | `state_machine.hpp` | estados/eventos/tabla `constexpr` | HOST-111 |
+| R4.1 | `bitstream.hpp` + `dynamic_bitset.hpp` | `BitReader`/`BitWriter`, bitset que crece con `Allocator` | HOST-109 |
+| R4.2 | `variant.hpp` | unión etiquetada sin heap, `visit` con overload set | HOST-110 |
+| R4.3 | `event.hpp` | array fijo de `FunctionRef`, `subscribe`/`emit` | HOST-111 |
+| R4.4 | `state_machine.hpp` | estados/eventos/tabla `constexpr` | **HOST-108** (entregado) |
 | R4.5 | `type_list.hpp` (opcional) | `TypeList` + `for_each_type` (registro en compile-time) | HOST-112 |
 
 > Los `HOST-NNN` de esta tabla son la reserva vigente: al implementar cada paso se usa el
-> siguiente número libre real (hoy 108 en adelante; 000–107 están asignados).
+> siguiente número libre real (hoy 109 en adelante; 000–108 están asignados). R4.4 se adelantó
+> para que G2 (decisión) de la IA no duplique una FSM.
 
 R4.2–R4.5 solo si aparece consumidor (comandos/eventos/efectos). R4.5 es avanzado y se
 puede posponer sin bloquear el resto.

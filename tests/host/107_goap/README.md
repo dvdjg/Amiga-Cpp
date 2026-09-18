@@ -22,6 +22,8 @@ plan paso a paso):
    uno de 64 (`Goap<64>`) en la misma unidad de traducción (tipos independientes, sin
    colisión); el ancho usa el hecho `63` (el último válido) y la clave de dos palabras
    (`StateKey64`).
+5. **Contenedor `Ai::Domain`**: problema mínimo de 3 acciones encadenadas resuelto con la
+   sobrecarga `plan(start, domain, out)` (`Ai::goal(...)` incluido).
 
 Casos límite del contrato: objetivo **ya cumplido** (plan vacío, coste 0), objetivo
 **sin solución** (`found()` falso) y `forbid` (una acción solo se aplica con un hecho
@@ -34,6 +36,7 @@ a 0; con el hecho presente el planner toma la vía alternativa).
   pastel       plan=8 acciones  coste=20  nodos=35
   soldado      plan=13 acciones  coste=26  nodos=81
   huge64       plan=2 acciones  coste=2  nodos=2
+  domain       plan=3 acciones  coste=3  nodos=3
 ```
 
 El dominio se declara una sola vez (`using Ai = eng::ai::Goap<>;`, 32 hechos); el test añade

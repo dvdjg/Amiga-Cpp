@@ -25,9 +25,9 @@ y (si tiene consumidor natural) una demo/juego exitoso.
 - **Primitivas ya disponibles**: `eng::util::pathfinding` (BFS/A* en rejilla),
   `eng::util::broadphase` (`SpatialHash`), `eng::util::grid` (tile/iso/hex),
   `eng::util::random`, y los contenedores/heap/hashmap que usará la IA.
-- **Planificado en `eng::util`** (no duplicar): `state_machine.hpp`, `event.hpp`,
-  `variant.hpp` (R4 de [ROADMAP_UTIL_LIBRARY.md](ROADMAP_UTIL_LIBRARY.md)); `decision` se
-  apoyará en ellos.
+- **En `eng::util`** (no duplicar): `state_machine.hpp` **entregado** (HOST-108); `event.hpp`
+  y `variant.hpp` siguen planificados (R4 de
+  [ROADMAP_UTIL_LIBRARY.md](ROADMAP_UTIL_LIBRARY.md)); `decision` se apoya en ellos.
 
 ## 3. Reglas transversales (criterios de aceptación)
 
@@ -59,13 +59,13 @@ y (si tiene consumidor natural) una demo/juego exitoso.
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| G2.1 | `decision/` sobre `state_machine.hpp` | FSM/HSM reutilizando la máquina de estados genérica de `eng::util` (R4) | HOST propio + HOST de util |
+| G2.1 | `decision/` sobre `state_machine.hpp` | FSM/HSM reutilizando la máquina de estados genérica de `eng::util`; la capa de IA solo aporta estados/eventos y efectos (no una segunda FSM) | Motor genérico **entregado**: `eng::util::state_machine.hpp`, HOST-108 |
 | G2.2 | `decision/utility.hpp` | Utilidad por puntuación (suma ponderada de consideraciones), con normalización/clamp enteros | HOST propio |
 | G2.3 | `decision/behavior_tree.hpp` | Selector/secuencia/decoradores sobre nodos sin heap; tick por frame acotado | HOST propio |
 | G2.4 | `decision/blackboard.hpp` + eventos | Datos compartidos entre sistemas; difusión con `event.hpp` (R4) | HOST propio |
 
-Dependencia: G2 necesita `state_machine`/`event` de `eng::util` R4 (o se implementan allí
-primero). El orden preferido es FSM → utility → behavior tree.
+Dependencia: G2 reutiliza `state_machine` de `eng::util` (ya entregado, R4.4) y necesitará
+`event` (R4.3) para el blackboard. El orden preferido es FSM → utility → behavior tree.
 
 ### G3 — Navegación
 
@@ -107,7 +107,7 @@ patrones descritos en §5.
 |---|---|---|---|---|
 | GOAP (Goal-Oriented Action Planning) | planificación | `ai/planning/goap.hpp` | A. Alex (basado en Orkin/F.E.A.R.) | **Implementado** (HOST-107) |
 | HTN (Hierarchical Task Network) | planificación | `ai/planning/htn.hpp` | Erol, Hendler, Nau | Pendiente |
-| FSM / HSM | decisión | `ai/decision/` + `util/state_machine.hpp` | — | Pendiente (util R4) |
+| FSM / HSM | decisión | `util/state_machine.hpp` (motor) + `ai/decision/` (capa) | — | Motor genérico **entregado** (HOST-108); capa AI pendiente |
 | Utility AI | decisión | `ai/decision/utility.hpp` | D. Mark (Infinite Axis Utility System) | Pendiente |
 | Behavior trees | decisión | `ai/decision/behavior_tree.hpp` | — | Pendiente |
 | Blackboard / eventos | decisión | `ai/decision/blackboard.hpp` | — | Pendiente |
@@ -143,7 +143,7 @@ se citarán en la ficha de cada uno al incorporarlos.
 ## 6. Dependencias entre fases
 
 ```
-   eng::util (R4: state_machine/event/variant)
+   eng::util (state_machine entregado; event/variant R4)
         │
         ▼
    G2 decisión ──► G1 planificación (GOAP ya hecho; HTN opcional)
@@ -155,7 +155,7 @@ se citarán en la ficha de cada uno al incorporarlos.
    G4 movimiento/percepción          G5 diseño (exige juego en games/)
 ```
 
-G1 está hecho y es independiente. G2 depende de util R4. G3/G4 no dependen de G2. G5 es el
+G1 está hecho y es independiente. G2 reutiliza el `state_machine` ya entregado (y espera `event` para el blackboard). G3/G4 no dependen de G2. G5 es el
 más tardío: no hay código de diseño sin un juego que lo consuma.
 
 ## 7. Riesgos y decisiones abiertas

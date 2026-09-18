@@ -99,6 +99,7 @@ Puntos de reutilización explícitos:
 | `ring_buffer.hpp` | `RingBuffer<T, N>` (doble) | (sin equivalente) |
 | `stack_queue.hpp` | `Stack<T,N>`, `Queue<T,N>`, `Deque<T,N>` | `std::stack`/`queue`/`deque` (fijos) |
 | `enum_set.hpp` | `EnumSet<E, N>` | (sin equivalente) |
+| `state_machine.hpp` | `Transition<State,Event>`, `StateMachine<State,Event>` (tabla `constexpr` externa) | (sin equivalente; FSM) |
 | `pool.hpp` | `Pool<T, N>` (+ `Handle` generacional) | `boost::pool` / slot map |
 | `priority_queue.hpp` | `PriorityQueue<T, N, Cmp>` (+ `Less`/`Greater`) | `boost::heap` |
 | `intrusive_list.hpp` | `IntrusiveList<T>`, `IntrusiveSList<T>` (+ `IntrusiveLink`/`IntrusiveSLink`) | `boost::intrusive::list` |
@@ -158,6 +159,7 @@ referencia para **elegir contenedor por coste**, no por hábito:
 | `HashMap::find` (abierto) | **62** | 1 | 0 |
 | `Expected<T,E>` construir fallo | 23 (vs 18 de `bool`+out-param) | 0 | 0 |
 | consumidor `r ? r.value() : fallback` | 14 (igual que `bool`) | 0 | 0 |
+| `StateMachine::dispatch` (tabla de 3) | 33 (sonda `c_state_machine_ops`) | 0 | 0 |
 
 Lectura: **para N pequeño, ordenar/indizar linealmente gana al hash** (`FlatMap` casi la
 mitad que `HashMap`, y `DirectMap` menos aún con clave densa); el hash usa **un `mulu.w` de
@@ -234,6 +236,7 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-102 | `dsp.hpp` (Adsr/OnePole/DelayLine/osciladores; `double`/MF/`q12`) |
 | HOST-103 | util (contenedores/algoritmos) con `MiniFloat16`/`q12` |
 | HOST-104 | `core/fixed_math.hpp` (sin/cos/tan/atan2/asin/acos/sqrt/exp2/log2 de `Fixed`; easings/length con q12) |
+| HOST-108 | `core/util/state_machine.hpp` (FSM de tabla `constexpr`; semáforo y FSM de IA) |
 
 > **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`), `Pool` por `086_bob_objects` (parque de actores), `HashMap` por `111_xlimited_sidescroller` (índice de chunks de `ChunkCache`), `color` también por `086_bob_objects` (gradiente del cielo con `eng::util::lerp444`), y `broadphase` y `pathfinding` por `110_ylimited_shooter` (self-test en `init`: `SpatialHash` + `bfs`/`reconstruct_path` en el 68000; si falla, la demo no llega a READY). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashSet`, `DynamicHashMap`, `PriorityQueue`, `Stack`/`Queue`/`Deque`, `EnumSet`, `ScopeGuard`, `StaticString`, `stats`, `collision`, `text`, `grid`, `dsp`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..102 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
 
@@ -299,6 +302,7 @@ Qué usar según la necesidad, con el criterio del A500 (sin heap; coste visible
 | Ruido procedural (value/fbm/worley) | `core/noise.hpp` |
 | Audio/efectos (envolvente/filtro/eco/oscilador) | `dsp.hpp` |
 | Pasar un callable sin poseerlo | `FunctionRef<Sig>` |
+| Estados/eventos con transiciones | `state_machine.hpp` (`StateMachine<State,Event>`, tabla `constexpr`) |
 
 Notas de uso:
 

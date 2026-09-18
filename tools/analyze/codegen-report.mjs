@@ -45,6 +45,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/util/pathfinding.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/ai/planning/goap.hpp>
+#include <eng/core/util/state_machine.hpp>
 #include <eng/core/random.hpp>
 #include <eng/core/util/dsp.hpp>
 #include <eng/core/fixed_math.hpp>
@@ -59,6 +60,18 @@ using namespace eng::math3d;
 using eng::s16;
 using eng::s32;
 using eng::u16;
+
+// Gate de layout GOAP (m68k): fija los sizeof medidos. Si cambian, la compilacion
+// cruzada falla y hay que revisar el presupuesto de RAM del planificador.
+static_assert(sizeof(eng::ai::Goap<>::State) == 4u, "Goap<32>::State");
+static_assert(sizeof(eng::ai::Goap<>::Action) == 22u, "Goap<32>::Action");
+static_assert(sizeof(eng::ai::Goap<>::Planner<128>) == 4152u, "Goap<32>::Planner<128>");
+static_assert(sizeof(eng::ai::Goap<>::Planner<256>) == 8280u, "Goap<32>::Planner<256>");
+static_assert(sizeof(eng::ai::Goap<64>::State) == 8u, "Goap<64>::State");
+static_assert(sizeof(eng::ai::Goap<64>::Action) == 38u, "Goap<64>::Action");
+static_assert(sizeof(eng::ai::Goap<64>::Planner<128>) == 6200u, "Goap<64>::Planner<128>");
+static_assert(sizeof(eng::ai::Goap<64>::Planner<256>) == 12376u, "Goap<64>::Planner<256>");
+
 struct HalfEvenPolicy { using Round = rounding::HalfEven; using Overflow = overflow::Wrap; };
 using q14 = Fixed<s16, 14>;
 eng::u16 g_tab[512] {}; // mutable: impide que el optimizador pliegue la tabla a constante
@@ -342,6 +355,20 @@ extern "C" u16 c_goap64_ops(u16 seed) {
 	start.facts.set(static_cast<eng::ai::Fact>(seed % 8u));
 	const eng::usize n = planner.plan(start, goal, acts.span(), eng::Span<eng::u16> {plan, 2});
 	return static_cast<u16>(n + (planner.found() ? 1u : 0u));
+}
+extern "C" u16 c_state_machine_ops(u16 seed) {
+	enum class S : eng::u8 { A, B, C };
+	enum class E : eng::u8 { Go };
+	static constexpr eng::util::Transition<S, E> table[] = {
+		{S::A, E::Go, S::B},
+		{S::B, E::Go, S::C},
+		{S::C, E::Go, S::A},
+	};
+	eng::util::StateMachine<S, E> fsm {S::A, table};
+	for (eng::u16 i = 0; i < (seed & 3u); ++i) {
+		fsm.dispatch(E::Go);
+	}
+	return static_cast<u16>(static_cast<u16>(fsm.current()) + fsm.transition_count());
 }
 extern "C" u16 c_random_ops(u16 seed) {
 	eng::Xoroshiro64pp rng {seed, static_cast<eng::u32>(seed + 1u)};

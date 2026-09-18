@@ -36,9 +36,8 @@ Puntos de reutilización explícitos:
 - La búsqueda en rejilla (`eng::util::bfs`/`astar`) es para mapas **densos**; la
   navegación sobre geometría/topología de `eng::ai::navigation` la usará como
   primitiva cuando exista.
-- La máquina de estados genérica (`state_machine.hpp`) está planificada en
-  [ROADMAP_UTIL_LIBRARY.md](../../guides/roadmap/ROADMAP_UTIL_LIBRARY.md) §R4 dentro de
-  `eng::util`; `eng::ai::decision` se construirá **sobre** ella (no se duplica).
+- La máquina de estados genérica existe en `eng::util` (`core/util/state_machine.hpp`,
+  HOST-108); `eng::ai::decision` se construye **sobre** ella (no se duplica una FSM).
 
 ## 2. Organización por familias
 
@@ -91,6 +90,8 @@ por el código.
 | `Ai::Action` | `pre_true`, `pre_false`, `eff_add`, `eff_del`, `cost`, `name` |
 | `Ai::Builder` | constructor fluido (`named`/`cost`/`require`/`forbid`/`produce`/`consume`) |
 | `Ai::Goal` | `want_true` (hechos exigidos a 1) y `want_false` (exigidos a 0) |
+| `Ai::goal(hechos…)` | construye un `Goal` con los hechos exigidos a 1 |
+| `Ai::Domain<MaxActions>` | dominio listo: `actions` (`Array`) + `goal`; el planner lo acepta directo |
 | `Ai::Planner<MaxNodes>` | A* hacia delante; `plan()`, `found()`, `plan_cost()`, `expansions()` |
 
 `MaxFacts` solo admite dos valores: **32** (por defecto, clave `u32`) o **64** (clave de
@@ -124,6 +125,11 @@ const eng::usize n = planner.plan(Ai::state(), meta, acciones.span(),
 número. Un plan vacío con `found() == true` significa que el estado ya cumplía el
 objetivo; `found() == false` con `0` significa que no hay solución (o no cabe en
 `out`/`MaxNodes`).
+
+Para no repetir `Array` + `Goal`, `Ai::Domain<MaxActions>` agrupa ambos y el planner tiene
+una sobrecarga: `Ai::Domain<3> problema { { a0, a1, a2 }, Ai::goal(kMeta) };
+planner.plan(start, problema, out);`. Ahorra un argumento y una declaración; compensa cuando
+hay varios dominios o agentes, y aporta poco con uno solo.
 
 ### 3.3 Coste y límites (A500)
 
@@ -160,14 +166,15 @@ HOST-107 ejercita el planner con tres dominios clásicos (y los reproduce paso a
 Además, el test cubre los casos límite (objetivo ya cumplido, objetivo sin solución y
 `forbid`) y declara **dos dominios de distinta clave** en la misma unidad de traducción: el de
 32 hechos (`Goap<>`, el de los escenarios) y uno de 64 (`Goap<64>`) que usa el hecho `63`, el
-último válido, y ejercita la clave de dos palabras (`StateKey64`).
+último válido, y ejercita la clave de dos palabras (`StateKey64`). El contenedor `Ai::Domain`
+se prueba con un problema mínimo (3 acciones encadenadas, coste 3).
 
 ## 4. Inventario
 
 | Cabecera | Tipos / funciones | Estado |
 |---|---|---|
 | `planning/goap.hpp` | `Goap<MaxFacts>` (dominio: `State`/`state`/`Action`/`Builder`/`Goal`/`Planner`), `Fact`, `applicable`, `apply`, `satisfies`, `goal_distance` | Implementado, HOST-107 |
-| `decision/…` | FSM/HFSM, utility AI, behavior trees | Planificado (ROADMAP_GAME_AI) |
+| `decision/…` | FSM/HSM sobre `eng::util::StateMachine` (motor genérico); utility AI, behavior trees | FSM genérica entregada (HOST-108); resto planificado |
 | `navigation/…` | navmesh lite (Recast/Detour), flow field | Planificado (ROADMAP_GAME_AI) |
 | `steering/…` | seek/flee/arrive, flocking, evasión | Planificado (ROADMAP_GAME_AI) |
 | `perception/…` | influence maps, blackboard | Planificado (ROADMAP_GAME_AI) |

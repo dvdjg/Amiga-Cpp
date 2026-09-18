@@ -225,6 +225,29 @@ void test_huge_domain() {
 }
 
 // ---------------------------------------------------------------------------
+// 5) Contenedor `Domain`: acciones + objetivo en una pieza (menos ceremonia).
+// ---------------------------------------------------------------------------
+void test_domain_container() {
+	// Hechos 0 -> 1 -> 2 -> 3.
+	constexpr Ai::Domain<3> kMini {
+		{
+			Ai::Builder {}.named("a").require(0).produce(1).build(),
+			Ai::Builder {}.named("b").require(1).produce(2).build(),
+			Ai::Builder {}.named("c").require(2).produce(3).build(),
+		},
+		Ai::goal(3),
+	};
+	Ai::Planner<16> planner;
+	u16 plan[4] {};
+	const usize n = planner.plan(Ai::state(0), kMini, eng::Span<u16> {plan, 4u});
+	std::printf("  %-12s plan=%u acciones  coste=%u  nodos=%u\n", "domain",
+		    static_cast<unsigned>(n), static_cast<unsigned>(planner.plan_cost()),
+		    static_cast<unsigned>(planner.expansions()));
+	check(planner.found() && n == 3u && planner.plan_cost() == 3u,
+	      "Domain: plan de 3 acciones con coste 3");
+}
+
+// ---------------------------------------------------------------------------
 // Casos limite del contrato.
 // ---------------------------------------------------------------------------
 void test_already_satisfied() {
@@ -286,6 +309,7 @@ int main() {
 	test_cake();
 	test_soldier();
 	test_huge_domain();
+	test_domain_container();
 	test_already_satisfied();
 	test_no_solution();
 	test_forbid();
