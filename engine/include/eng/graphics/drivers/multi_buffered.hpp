@@ -26,6 +26,7 @@
 
 #include <eng/core/domains.hpp>
 #include <eng/core/types.hpp>
+#include <eng/core/util/array.hpp>
 #include <eng/memory/arena.hpp>
 
 namespace eng::graphics::drivers {
@@ -84,9 +85,9 @@ public:
 	const Driver& slot(u8 i) const { return m_driver[i % N]; }
 
 private:
-	Driver m_driver[N] {};
-	eng::Block<eng::PlaneTag> m_planes[N] {};
-	eng::Block<eng::CopperTag> m_copper[N] {};
+	eng::util::Array<Driver, N> m_driver {};
+	eng::util::Array<eng::Block<eng::PlaneTag>, N> m_planes {};
+	eng::util::Array<eng::Block<eng::CopperTag>, N> m_copper {};
 	u8 m_back = 0;
 };
 

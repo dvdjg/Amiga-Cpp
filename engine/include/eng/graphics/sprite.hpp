@@ -24,6 +24,7 @@
 #include <eng/core/domains.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
+#include <eng/core/util/array.hpp>
 #include <eng/graphics/raster_intent.hpp>
 
 namespace eng::graphics {
@@ -58,8 +59,8 @@ struct SpritePaletteSwitch {
 template <u8 MaxSegments, u8 MaxPaletteSwitches>
 struct SpriteTemplate {
     Span<const u16> bitmap {};                     // imagen fuente (Chip RAM)
-    SpriteSegment segments[MaxSegments] {};
-    SpritePaletteSwitch switches[MaxPaletteSwitches] {};
+    eng::util::Array<SpriteSegment, MaxSegments> segments {};
+    eng::util::Array<SpritePaletteSwitch, MaxPaletteSwitches> switches {};
     u8 segment_count = 0;
     u8 switch_count = 0;
     u8 width_words = 1;    // 1 = 16 px, 2 = 32 px (SPRxCTL doble ancho)

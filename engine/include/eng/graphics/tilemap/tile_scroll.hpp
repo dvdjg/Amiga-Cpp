@@ -16,6 +16,7 @@
 /// para el mapa, normalmente desde un recurso UAF-R o desde una arena del engine.
 
 #include <eng/core/types.hpp>
+#include <eng/core/util/enum_set.hpp>
 
 namespace eng::graphics::tilemap {
 
@@ -77,13 +78,29 @@ struct ScrollPosition {
 /// Ejes de scroll que una capa permite o espera optimizar.
 ///
 /// La opcion comoda para un juego deberia ser `Both`: el disenador mueve una
-/// camara 2D normal y el driver decide cada frame si puede usar una ruta mas barata
-/// de solo X, solo Y o necesita la ruta bidireccional completa.
-enum class ScrollAxes : u8 {
-	Horizontal = 1,
-	Vertical = 2,
-	Both = 3,
+/// Ejes de scroll que un driver puede explotar. Es un **conjunto tipado** de dos flags
+/// (`eng::util::EnumSet`): antes era un `enum class` con `Horizontal=1`/`Vertical=2`/
+/// `Both=3` y dos helpers que hacían `static_cast<u8>` + `&` a mano.
+enum class ScrollFlag : u8 {
+	Horizontal = 0,
+	Vertical = 1,
 };
+
+class ScrollAxes : public eng::util::EnumSet<ScrollFlag, 2> {
+public:
+	using EnumSet::EnumSet;
+	constexpr ScrollAxes() noexcept = default;
+	constexpr ScrollAxes(ScrollFlag a) noexcept { set(a); }
+	constexpr ScrollAxes(ScrollFlag a, ScrollFlag b) noexcept {
+		set(a);
+		set(b);
+	}
+};
+
+/// Conjuntos habituales (como los antiguos enumeradores `ScrollAxes::Horizontal/...`).
+inline constexpr ScrollAxes scroll_axes_horizontal {ScrollFlag::Horizontal};
+inline constexpr ScrollAxes scroll_axes_vertical {ScrollFlag::Vertical};
+inline constexpr ScrollAxes scroll_axes_both {ScrollFlag::Horizontal, ScrollFlag::Vertical};
 
 /// Ruta concreta que el driver deberia elegir para un frame.
 ///
@@ -99,11 +116,11 @@ enum class ScrollSpecialization : u8 {
 };
 
 constexpr bool has_horizontal_axis(ScrollAxes axes) {
-	return (static_cast<u8>(axes) & static_cast<u8>(ScrollAxes::Horizontal)) != 0;
+	return axes.test(ScrollFlag::Horizontal);
 }
 
 constexpr bool has_vertical_axis(ScrollAxes axes) {
-	return (static_cast<u8>(axes) & static_cast<u8>(ScrollAxes::Vertical)) != 0;
+	return axes.test(ScrollFlag::Vertical);
 }
 
 constexpr ScrollSpecialization choose_scroll_specialization(s16 dx, s16 dy, ScrollAxes axes) {

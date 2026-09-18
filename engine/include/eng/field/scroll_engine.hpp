@@ -33,6 +33,7 @@
 
 #include <eng/core/fast_div.hpp>
 #include <eng/core/types.hpp>
+#include <eng/core/util/scope_guard.hpp>
 #include <eng/graphics/frame_plan.hpp>
 
 namespace eng::field {
@@ -239,6 +240,15 @@ public:
 
         if (!sn.one_direction() && m_state.previous_xdirection == ScrollDirLeft) sn.restore_saveword();
 
+        // La costura se guarda con `save_word` y hay que restaurarla si el frame se
+        // rechaza despues (add_draw puede devolver false): sin esto, un fallo dejaba
+        // la word de costura a medio escribir. El guard la restaura en cualquier salida
+        // de error; `release()` la desactiva en el camino correcto.
+        bool saveword_armed = false;
+        auto restore_on_error = eng::util::make_scope_guard([&] {
+            if (saveword_armed) sn.restore_saveword();
+        });
+
         u16 mapy = static_cast<u16>(stepx + 1);
         if (mapy == 1) { // stepx == 0 → dos bloques
             mapy = static_cast<u16>(mapy + mapblocky);
@@ -247,6 +257,7 @@ public:
             const u32 y2 = r_dph(sn, y + sn.block_planes_lines());
             sn.save_word((y2 + sn.block_planes_lines() - 1u) * sn.bytes_per_row() +
                          ((x0 + sn.bitmap_width()) / 8u));
+            saveword_armed = true;
             if (!sn.add_draw(plan, static_cast<u16>(x0 + sn.bitmap_width()), static_cast<u16>(y2), mapx, static_cast<u16>(mapy + 1))) return false;
         } else { // un bloque
             ++mapy;
@@ -254,6 +265,7 @@ public:
             mapy = static_cast<u16>(mapy + mapblocky);
             sn.save_word((y + sn.block_planes_lines() - 1u) * sn.bytes_per_row() +
                          ((x0 + sn.bitmap_width()) / 8u));
+            saveword_armed = true;
             if (!sn.add_draw(plan, static_cast<u16>(x0 + sn.bitmap_width()), static_cast<u16>(y), mapx, mapy)) return false;
         }
 
@@ -282,6 +294,7 @@ public:
         }
 
         m_state.previous_xdirection = new_stepx ? ScrollDirRight : ScrollDirNone;
+        saveword_armed = false; // camino correcto: la costura queda como este frame manda
         return true;
     }
 
@@ -322,6 +335,13 @@ public:
 
             if (!sn.one_direction() && m_state.previous_xdirection == ScrollDirLeft) sn.restore_saveword();
 
+            // Igual que `scroll_right`: la costura debe restaurarse si el frame se
+            // rechaza despues de `save_word`.
+            bool saveword_armed = false;
+            auto restore_on_error = eng::util::make_scope_guard([&] {
+                if (saveword_armed) sn.restore_saveword();
+            });
+
             // Pixel k=0 (stepx=0): dos bloques de la columna entrante.
             {
                 const u32 y = r_dh(sn, bvpos + thv) * pl;
@@ -329,6 +349,7 @@ public:
                         static_cast<u16>(mapblocky + 1))) return false;
                 const u32 y2 = r_dph(sn, y + bpll);
                 sn.save_word((y2 + bpll - 1u) * bpr_bytes + ((x0 + bw) / 8u));
+                saveword_armed = true;
                 if (!sn.add_draw(plan, static_cast<u16>(x0 + bw), static_cast<u16>(y2), mapx,
                         static_cast<u16>(mapblocky + 2))) return false;
             }
@@ -337,6 +358,7 @@ public:
                 const u16 mapy = static_cast<u16>(k + 2u);
                 const u32 y = r_dh(sn, bvpos + mapy * thv) * pl;
                 sn.save_word((y + bpll - 1u) * bpr_bytes + ((x0 + bw) / 8u));
+                saveword_armed = true;
                 if (!sn.add_draw(plan, static_cast<u16>(x0 + bw), static_cast<u16>(y), mapx,
                         static_cast<u16>(mapy + mapblocky))) return false;
             }
@@ -355,6 +377,7 @@ public:
                         static_cast<u16>(mapblocky + sn.bitmap_blocks_per_col()))) return false;
             }
             m_state.previous_xdirection = ScrollDirNone;
+            saveword_armed = false; // camino correcto
         }
         return true;
     }
@@ -401,10 +424,15 @@ public:
         const u16 mapx = mapblockx;
         u16 mapy = static_cast<u16>(stepx + 1);
         if (!sn.one_direction() && m_state.previous_xdirection == ScrollDirRight) sn.restore_saveword();
+        bool saveword_armed = false;
+        auto restore_on_error = eng::util::make_scope_guard([&] {
+            if (saveword_armed) sn.restore_saveword();
+        });
         if (mapy == 1) { // stepx == 0 → dos bloques
             mapy = static_cast<u16>(mapy + mapblocky);
             const u32 y = r_dh(sn, bvpos + th(sn)) * planes(sn);
             sn.save_word(y * sn.bytes_per_row() + (x0 / 8u));
+            saveword_armed = true;
             if (!sn.add_draw(plan, x0, static_cast<u16>(y), mapx, mapy)) return false;
             const u32 y2 = r_dph(sn, y + sn.block_planes_lines());
             if (!sn.add_draw(plan, x0, static_cast<u16>(y2), mapx, static_cast<u16>(mapy + 1))) return false;
@@ -413,10 +441,12 @@ public:
             const u32 y = r_dh(sn, bvpos + mapy * th(sn)) * planes(sn);
             mapy = static_cast<u16>(mapy + mapblocky);
             sn.save_word(y * sn.bytes_per_row() + (x0 / 8u));
+            saveword_armed = true;
             if (!sn.add_draw(plan, x0, static_cast<u16>(y), mapx, mapy)) return false;
         }
 
         m_state.previous_xdirection = stepx ? ScrollDirLeft : ScrollDirNone;
+        saveword_armed = false; // camino correcto
         return true;
     }
 
@@ -480,9 +510,11 @@ public:
             const u32 y2 = r_dh(sn, nvpos + my * th(sn)) * planes(sn);
             const u32 y2b = r_dph(sn, y2 + sn.block_planes_lines() - 1u);
             sn.save_word(y2b * sn.bytes_per_row() + ((x0 + sn.bitmap_width()) / 8u));
+            auto restore_on_error = eng::util::make_scope_guard([&] { sn.restore_saveword(); });
             if (!sn.add_draw(plan, static_cast<u16>(x0 + sn.bitmap_width()), static_cast<u16>(y2),
                     static_cast<u16>(mapblockx + sn.bitmap_blocks_per_row()),
                     static_cast<u16>(my + nmapblocky))) return false;
+            restore_on_error.release(); // camino correcto
             m_state.previous_xdirection = ScrollDirRight;
         }
         return true;
@@ -536,9 +568,11 @@ public:
             const u16 my2 = static_cast<u16>(stepx + 2);
             const u32 y2 = r_dh(sn, bvpos + my2 * th(sn)) * planes(sn);
             sn.save_word(y2 * sn.bytes_per_row() + (x0 / 8u));
+            auto restore_on_error = eng::util::make_scope_guard([&] { sn.restore_saveword(); });
             if (!sn.add_draw(plan, x0, static_cast<u16>(y2),
                     static_cast<u16>(mx1 - sn.bitmap_blocks_per_row()),
                     static_cast<u16>(my2 + mapblocky))) return false;
+            restore_on_error.release(); // camino correcto
             m_state.previous_xdirection = ScrollDirLeft;
         }
 

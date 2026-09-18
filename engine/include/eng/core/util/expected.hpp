@@ -24,6 +24,17 @@
 /// `E` está siempre presente (evita `new` de colocación y mantiene `constexpr`);
 /// `T` y `E` deben ser construibles por defecto. `value()` sobre un error detiene
 /// la CPU (parada `illegal` en m68k), igual que `Optional::value()`.
+///
+/// **Coste medido** (sonda `out/tmp/expected-probe.cpp`, m68k `-O2`): una función
+/// que puede fallar cuesta +5 instrucciones frente a `bool`+out-param (23 vs 18) —
+/// escribir el error y el flag; el **consumidor** (`r ? r.value() : fallback`) cuesta
+/// lo mismo que el `bool` (14/14). **Sin `jsr` ni libcalls** (`__mulsi3` etc. no
+/// aparecen). `sizeof(Expected<u16,Err>)` = 4 B (una word con padding).
+///
+/// Regla de uso: `Expected` en la **frontera pública** y en fallos de `init`/carga
+/// (no en hot path); en el camino por frame, donde el `bool` se comprueba miles de
+/// veces, `bool`+out-param ya es óptimo. Para `T` grande, ojo: `sizeof` incluye el
+/// valor completo (usar salida por puntero si es voluminoso).
 
 #include <eng/core/util/optional.hpp>
 #include <eng/core/util/type_traits.hpp>

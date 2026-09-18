@@ -30,6 +30,7 @@
 ///   // frame: kList.words[kList.value_word[i]] = nuevo_valor;     // parche de dato
 
 #include <eng/core/types.hpp>
+#include <eng/core/util/array.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/raster_intent.hpp>
 
@@ -47,13 +48,13 @@ struct StaticDisplayLayout {
 /// Lista de copper compilada: words + ranuras de parcheo de las palabras de DATO.
 template <eng::u16 MaxWords>
 struct StaticCopperList {
-	eng::u16 words[MaxWords] {};
+	eng::util::Array<eng::u16, MaxWords> words {};
 	/// Índice, dentro de `words`, del SEGUNDO word de cada MOVE (su dato). Parchear por
 	/// frame es escribir `words[value_word[i]]`, sin tocar el resto de la lista.
-	eng::u16 value_word[MaxWords / 2u] {};
+	eng::util::Array<eng::u16, (MaxWords / 2u) + 1u> value_word {};
 	/// `true` para las ranuras cuyo valor es una DIRECCIÓN (punteros de plano/sprite), que
 	/// el llamador debe escribir en `init` porque no existe en tiempo de compilación.
-	bool value_is_address[MaxWords / 2u] {};
+	eng::util::Array<bool, (MaxWords / 2u) + 1u> value_is_address {};
 	eng::u16 word_count = 0;
 	eng::u16 value_count = 0;
 	bool ok = false;

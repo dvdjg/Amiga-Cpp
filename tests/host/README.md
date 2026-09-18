@@ -132,4 +132,17 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-090 | [sort_extra](090_sort_extra/README.md) | `eng/core/sort.hpp`: ordenación ampliada (`stable`/`nth`/`partial`/`is_sorted`/radix). |
 | HOST-091 | [stack_queue_enum_set](091_stack_queue_enum_set/README.md) | `stack_queue.hpp` (`Stack`/`Queue`/`Deque`) y `enum_set.hpp` (`EnumSet`). |
 | HOST-092 | [scope_guard_static_string](092_scope_guard_static_string/README.md) | `scope_guard.hpp` (`ScopeGuard`) y `static_string.hpp` (`StaticString`). |
-| HOST-093 | [sprite_hrearm](093_sprite_hrearm/README.md) | Multiplexado **horizontal** de sprites (`Scheduler::emit_sprite_horizontal_rearm(s)`/`reposition` + `graphics::SpriteHorizontalRearm`): codificación AHRM de `SPRxPOS`/`SPRxCTL`, secuencia WAIT+POS+CTL+DATA+DATB sin tocar `SPRxPT`, y orden por `hpos` de la lista. |
+| HOST-093 | [stats](093_stats/README.md) | `util/stats.hpp`: sum/mean/varianza/desviación (acumuladores anchos, agnóstico de escalar). |
+| HOST-094 | [color](094_color/README.md) | `util/color.hpp`: conversiones y mezcla de color. |
+| HOST-095 | [collision](095_collision/README.md) | `util/collision.hpp`: AABB/círculo/rect y resolución. |
+| HOST-096 | [text](096_text/README.md) | `util/text.hpp`: formateo de enteros sin heap. |
+| HOST-097 | [grid](097_grid/README.md) | `util/grid.hpp`: rejilla 2D indexada. |
+| HOST-098 | [broadphase](098_broadphase/README.md) | `util/broadphase.hpp`: partición espacial para colisiones. |
+| HOST-099 | [pathfinding](099_pathfinding/README.md) | `util/pathfinding.hpp`: A*/BFS sobre rejilla. |
+| HOST-100 | [random_dist](100_random_dist/README.md) | `core/random.hpp`: distribuciones y determinismo. |
+| HOST-101 | [noise_extra](101_noise_extra/README.md) | `core/noise.hpp`: ruido ampliado. |
+| HOST-102 | [dsp](102_dsp/README.md) | `util/dsp.hpp`: osciladores/filtros (con `fixed_math`). |
+| HOST-103 | [scalar_util](103_scalar_util/README.md) | `stats`/`dsp` y utilidades por escalar. |
+| HOST-104 | [fixed_math](104_fixed_math/README.md) | `core/fixed_math.hpp`: trigonometría Fixed (tablas, precisión, tamaño configurable). |
+| HOST-105 | [sprite_hrearm](105_sprite_hrearm/README.md) | Multiplexado **horizontal** de sprites (`Scheduler::emit_sprite_horizontal_rearm(s)`/`reposition` + `graphics::SpriteHorizontalRearm`): codificación AHRM de `SPRxPOS`/`SPRxCTL`, secuencia WAIT+POS+CTL+DATA+DATB sin tocar `SPRxPT`, y orden por `hpos` de la lista. |
+| HOST-106 | [scroll_saveword_guard](106_scroll_saveword_guard/README.md) | `field/scroll_engine.hpp`: la costura (`save_word`) se **restaura** cuando `add_draw` rechaza el frame (ScopeGuard); en el camino correcto no se restaura. |

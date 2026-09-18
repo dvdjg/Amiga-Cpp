@@ -143,6 +143,28 @@ Puntos de reutilización explícitos:
   `Optional`/`Expected` mantienen presente el almacenamiento de sus tipos (no hay
   `new` de colocación en freestanding) y exigen `T` construible por defecto.
 
+### 3.1 Coste medido por operación (sonda m68k `-O2`)
+
+Instrucciones generadas por una llamada (sondas `out/tmp/expected-probe.cpp` y
+`out/tmp/containers-probe.cpp`, compiladas con el `m68k-amiga-elf-g++` real). Son la
+referencia para **elegir contenedor por coste**, no por hábito:
+
+| Operación (N=64) | instrucciones | `mulu.w` | `jsr` |
+|---|---:|---:|---:|
+| `StaticVector::push_back` | 11 | 0 | 0 |
+| iterar `StaticVector` completo | 12 | 0 | 0 |
+| `DirectMap::find` (clave densa) | **22** | 0 | 0 |
+| `FlatMap::find` (búsqueda binaria) | **36** | 0 | 0 |
+| `HashMap::find` (abierto) | **62** | 1 | 0 |
+| `Expected<T,E>` construir fallo | 23 (vs 18 de `bool`+out-param) | 0 | 0 |
+| consumidor `r ? r.value() : fallback` | 14 (igual que `bool`) | 0 | 0 |
+
+Lectura: **para N pequeño, ordenar/indizar linealmente gana al hash** (`FlatMap` casi la
+mitad que `HashMap`, y `DirectMap` menos aún con clave densa); el hash usa **un `mulu.w` de
+16×16** (nunca `__mulsi3`). `Expected` cuesta **+5 instrucciones** al construir el
+resultado y **0 de más** al consumirlo, sin libcalls: apto para frontera pública e
+`init`/carga, no para el camino por frame (ver `expected.hpp`).
+
 ### 3.b Soporte por escalar
 
 Los contenedores y las utilidades de bytes/enteros son agnósticos del tipo (almacenan `T` y usan solo `operator<`/`==`/`+`); las utilidades **escalar-genéricas** (`stats`, `dsp`) usan `mul_norm`/`div_norm` y los rasgos del escalar. No hacen falta especializaciones: `MiniFloat16` y `Fixed` funcionan igual.
