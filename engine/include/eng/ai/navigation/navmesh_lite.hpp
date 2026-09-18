@@ -8,11 +8,12 @@
 /// polígonos** y el camino devuelto son los **puntos medios de los portales** (la arista
 /// compartida entre dos polígonos) más el destino.
 ///
-/// No incluye generación/cocido de la malla ni el algoritmo del embudo (funnel); la malla
-/// la aporta el juego (`add_polygon`/`add_portal`). Es deliberadamente pequeño: punto en
-/// polígono, A* de polígonos y reconstrucción por portales, todo sin heap y sin división
-/// por valores de runtime (los costes usan el **primer vértice** de cada polígono como
-/// ancla, no el centroide).
+/// La malla la aporta el juego (`add_polygon`/`add_portal`); no se genera ni se cuece.
+/// Dos consultas: `find_path` (puntos medios de los portales, sin zigzag solo si el
+/// pasillo es recto) y `find_smooth_path`, que aplica **string-pulling** con el algoritmo
+/// del embudo (*simple stupid funnel*) y devuelve solo las esquinas visibles. Todo sin heap
+/// y sin división por valores de runtime (los costes usan el **primer vértice** de cada
+/// polígono como ancla, no el centroide).
 ///
 /// Uso:
 ///   eng::ai::NavMesh<8, 4, 8> mesh;
@@ -142,53 +143,62 @@ public:
 			out[0] = goal;
 			return 1u;
 		}
-		for (eng::usize i = 0; i < N; ++i) {
-			g_score[i] = 0xffffu;
-			came_from[i] = -1;
-			closed[i] = 0u;
+		if (!search_polys(s, g, g_score, came_from, closed)) {
+			return 0u;
+		}
+		return emit_path(s, g, goal, came_from, out);
+	}
+
+	/// Como `find_path`, pero aplica **string-pulling** (funnel) sobre los portales: el
+	/// camino sale como la secuencia de esquinas visibles (menos puntos y sin zigzag).
+	/// Mismos requisitos y valores de retorno que `find_path`.
+	[[nodiscard]] constexpr eng::usize find_smooth_path(eng::Point2s start, eng::Point2s goal,
+							    eng::Span<eng::u16> g_score,
+							    eng::Span<eng::s16> came_from,
+							    eng::Span<eng::u8> closed,
+							    eng::Span<eng::Point2s> out) const noexcept {
+		constexpr eng::usize N = MaxPolys;
+		if (g_score.size() < N || came_from.size() < N || closed.size() < N ||
+		    out.empty()) {
+			return 0u;
+		}
+		const eng::u16 s = locate(start);
+		const eng::u16 g = locate(goal);
+		if (s == no_poly || g == no_poly) {
+			return 0u;
+		}
+		if (s == g) {
+			out[0] = goal;
+			return 1u;
+		}
+		if (!search_polys(s, g, g_score, came_from, closed)) {
+			return 0u;
+		}
+		eng::u16 seq[MaxPolys] {};
+		const eng::usize len = reconstruct_seq(
+			s, g, came_from, eng::Span<eng::u16> {seq, MaxPolys});
+		if (len < 2u) {
+			return 0u;
 		}
 
-		eng::util::PriorityQueue<detail::NavNode, N, detail::NavCmp> open;
-		g_score[s] = 0u;
-		came_from[s] = static_cast<eng::s16>(s);
-		open.push(detail::NavNode {s, heuristic(s, g)});
-
-		while (!open.empty()) {
-			const detail::NavNode cur = open.top();
-			open.pop();
-			if (closed[cur.idx] != 0u) {
+		eng::Point2s lefts[MaxPolys] {};
+		eng::Point2s rights[MaxPolys] {};
+		eng::usize portals = 0u;
+		for (eng::usize i = 0u; i + 1u < len; ++i) {
+			const Portal* portal = find_portal(seq[i], seq[i + 1u]);
+			if (portal == nullptr) {
 				continue;
 			}
-			closed[cur.idx] = 1u;
-			if (cur.idx == g) {
-				return emit_path(s, g, goal, came_from, out);
-			}
-			for (eng::u16 e = 0u; e < m_portal_count; ++e) {
-				const Portal& portal = m_portals[e];
-				eng::u16 nb;
-				if (portal.a == cur.idx) {
-					nb = portal.b;
-				} else if (portal.b == cur.idx) {
-					nb = portal.a;
-				} else {
-					continue;
-				}
-				if (closed[nb] != 0u) {
-					continue;
-				}
-				const eng::u32 ng = static_cast<eng::u32>(g_score[cur.idx]) +
-						    anchor_distance(cur.idx, nb);
-				if (ng < g_score[nb]) {
-					g_score[nb] = static_cast<eng::u16>(ng > 0xffffu ? 0xffffu : ng);
-					came_from[nb] = static_cast<eng::s16>(cur.idx);
-					const eng::u32 f = ng + heuristic(nb, g);
-					open.push(detail::NavNode {
-						nb,
-						static_cast<eng::u16>(f > 0xffffu ? 0xffffu : f)});
-				}
-			}
+			orient(seq[i + 1u], portal->p0, portal->p1, lefts[portals],
+			       rights[portals]);
+			++portals;
 		}
-		return 0u;
+		if (portals == 0u) {
+			out[0] = goal;
+			return 1u;
+		}
+		return funnel(start, goal, eng::Span<const eng::Point2s> {lefts, portals},
+			      eng::Span<const eng::Point2s> {rights, portals}, out);
 	}
 
 private:
@@ -240,15 +250,68 @@ private:
 			static_cast<eng::s16>((static_cast<eng::s32>(a.y) + b.y) / 2)};
 	}
 
-	[[nodiscard]] constexpr eng::usize emit_path(eng::u16 s, eng::u16 g,
-						     eng::Point2s goal,
-						     eng::Span<eng::s16> came_from,
-						     eng::Span<eng::Point2s> out) const noexcept {
-		eng::u16 seq[MaxPolys] {};
+	/// A* sobre la adyacencia; deja `came_from`/`g_score`/`closed` y dice si llegó a `g`.
+	[[nodiscard]] constexpr bool search_polys(eng::u16 s, eng::u16 g,
+						  eng::Span<eng::u16> g_score,
+						  eng::Span<eng::s16> came_from,
+						  eng::Span<eng::u8> closed) const noexcept {
+		constexpr eng::usize N = MaxPolys;
+		for (eng::usize i = 0; i < N; ++i) {
+			g_score[i] = 0xffffu;
+			came_from[i] = -1;
+			closed[i] = 0u;
+		}
+		eng::util::PriorityQueue<detail::NavNode, N, detail::NavCmp> open;
+		g_score[s] = 0u;
+		came_from[s] = static_cast<eng::s16>(s);
+		open.push(detail::NavNode {s, heuristic(s, g)});
+
+		while (!open.empty()) {
+			const detail::NavNode cur = open.top();
+			open.pop();
+			if (closed[cur.idx] != 0u) {
+				continue;
+			}
+			closed[cur.idx] = 1u;
+			if (cur.idx == g) {
+				return true;
+			}
+			for (eng::u16 e = 0u; e < m_portal_count; ++e) {
+				const Portal& portal = m_portals[e];
+				eng::u16 nb;
+				if (portal.a == cur.idx) {
+					nb = portal.b;
+				} else if (portal.b == cur.idx) {
+					nb = portal.a;
+				} else {
+					continue;
+				}
+				if (closed[nb] != 0u) {
+					continue;
+				}
+				const eng::u32 ng = static_cast<eng::u32>(g_score[cur.idx]) +
+						    anchor_distance(cur.idx, nb);
+				if (ng < g_score[nb]) {
+					g_score[nb] = static_cast<eng::u16>(ng > 0xffffu ? 0xffffu : ng);
+					came_from[nb] = static_cast<eng::s16>(cur.idx);
+					const eng::u32 f = ng + heuristic(nb, g);
+					open.push(detail::NavNode {
+						nb,
+						static_cast<eng::u16>(f > 0xffffu ? 0xffffu : f)});
+				}
+			}
+		}
+		return false;
+	}
+
+	/// Secuencia de polígonos `s..g` (ambos incluidos) a partir de `came_from`.
+	[[nodiscard]] constexpr eng::usize reconstruct_seq(eng::u16 s, eng::u16 g,
+							   eng::Span<eng::s16> came_from,
+							   eng::Span<eng::u16> seq) const noexcept {
 		eng::usize len = 0u;
 		eng::u16 n = g;
 		for (;;) {
-			if (len >= MaxPolys) {
+			if (len >= seq.size()) {
 				return 0u;
 			}
 			seq[len++] = n;
@@ -266,26 +329,139 @@ private:
 			seq[i] = seq[len - 1u - i];
 			seq[len - 1u - i] = tmp;
 		}
+		return len;
+	}
 
+	[[nodiscard]] constexpr const Portal* find_portal(eng::u16 a, eng::u16 b) const noexcept {
+		for (eng::u16 e = 0u; e < m_portal_count; ++e) {
+			const Portal& portal = m_portals[e];
+			if ((portal.a == a && portal.b == b) ||
+			    (portal.a == b && portal.b == a)) {
+				return &m_portals[e];
+			}
+		}
+		return nullptr;
+	}
+
+	[[nodiscard]] static constexpr bool eq(eng::Point2s a, eng::Point2s b) noexcept {
+		return a.x == b.x && a.y == b.y;
+	}
+
+	/// Orienta los extremos del portal como izquierda/derecha del sentido de avance,
+	/// usando un vértice interior del polígono vecino.
+	constexpr void orient(eng::u16 interior_poly, eng::Point2s p0, eng::Point2s p1,
+			      eng::Point2s& left, eng::Point2s& right) const noexcept {
+		const eng::u16 n = m_counts[interior_poly];
+		eng::Point2s other {};
+		bool found = false;
+		for (eng::u16 i = 0u; i < n; ++i) {
+			const eng::Point2s v = m_verts[interior_poly][i];
+			if (!eq(v, p0) && !eq(v, p1)) {
+				other = v;
+				found = true;
+				break;
+			}
+		}
+		if (!found) {
+			left = p0;
+			right = p1;
+			return;
+		}
+		const eng::Point2s mid = midpoint(p0, p1);
+		if (cross(mid, other, p0) > 0) {
+			left = p0;
+			right = p1;
+		} else {
+			left = p1;
+			right = p0;
+		}
+	}
+
+	/// Algoritmo del embudo (simple stupid funnel): encoge el pasillo de portales a la
+	/// secuencia de esquinas visibles.
+	[[nodiscard]] static constexpr eng::usize funnel(
+		eng::Point2s start, eng::Point2s goal,
+		eng::Span<const eng::Point2s> lefts, eng::Span<const eng::Point2s> rights,
+		eng::Span<eng::Point2s> out) noexcept {
+		if (out.empty()) {
+			return 0u;
+		}
+		eng::usize count = 0u;
+		out[count++] = start;
+		eng::Point2s apex = start;
+		eng::Point2s left = start;
+		eng::Point2s right = start;
+		eng::s32 apex_i = -1;
+		eng::s32 left_i = -1;
+		eng::s32 right_i = -1;
+		const eng::s32 n = static_cast<eng::s32>(lefts.size());
+		for (eng::s32 i = 0; i < n; ++i) {
+			const eng::Point2s p_left = lefts[static_cast<eng::usize>(i)];
+			const eng::Point2s p_right = rights[static_cast<eng::usize>(i)];
+			if (cross(apex, right, p_right) <= 0) {
+				if (right_i == apex_i || cross(apex, left, p_right) > 0) {
+					right = p_right;
+					right_i = i;
+				} else {
+					if (count >= out.size()) {
+						return 0u;
+					}
+					out[count++] = left;
+					apex = left;
+					apex_i = left_i;
+					left = apex;
+					right = apex;
+					left_i = right_i = apex_i;
+					i = apex_i;
+					continue;
+				}
+			}
+			if (cross(apex, left, p_left) >= 0) {
+				if (left_i == apex_i || cross(apex, right, p_left) < 0) {
+					left = p_left;
+					left_i = i;
+				} else {
+					if (count >= out.size()) {
+						return 0u;
+					}
+					out[count++] = right;
+					apex = right;
+					apex_i = right_i;
+					left = apex;
+					right = apex;
+					left_i = right_i = apex_i;
+					i = apex_i;
+					continue;
+				}
+			}
+		}
+		if (count >= out.size()) {
+			return 0u;
+		}
+		out[count++] = goal;
+		return count;
+	}
+
+	[[nodiscard]] constexpr eng::usize emit_path(eng::u16 s, eng::u16 g,
+						     eng::Point2s goal,
+						     eng::Span<eng::s16> came_from,
+						     eng::Span<eng::Point2s> out) const noexcept {
+		eng::u16 seq[MaxPolys] {};
+		const eng::usize len = reconstruct_seq(
+			s, g, came_from, eng::Span<eng::u16> {seq, MaxPolys});
+		if (len < 1u) {
+			return 0u;
+		}
 		eng::usize count = 0u;
 		for (eng::usize i = 0u; i + 1u < len; ++i) {
-			bool found = false;
-			eng::Point2s mid {};
-			for (eng::u16 e = 0u; e < m_portal_count; ++e) {
-				const Portal& portal = m_portals[e];
-				if ((portal.a == seq[i] && portal.b == seq[i + 1u]) ||
-				    (portal.b == seq[i] && portal.a == seq[i + 1u])) {
-					mid = midpoint(portal.p0, portal.p1);
-					found = true;
-					break;
-				}
+			const Portal* portal = find_portal(seq[i], seq[i + 1u]);
+			if (portal == nullptr) {
+				continue;
 			}
-			if (found) {
-				if (count >= out.size()) {
-					return 0u;
-				}
-				out[count++] = mid;
+			if (count >= out.size()) {
+				return 0u;
 			}
+			out[count++] = midpoint(portal->p0, portal->p1);
 		}
 		if (count >= out.size()) {
 			return 0u;

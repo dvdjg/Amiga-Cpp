@@ -92,6 +92,26 @@ void test_three_polys() {
 	      "navmesh: portales y destino encadenados");
 }
 
+void test_smooth() {
+	using Mesh = eng::ai::NavMesh<8, 4, 8>;
+	Mesh mesh;
+	const u16 a = mesh.add_polygon(kRectA);
+	const u16 b = mesh.add_polygon(kRectB);
+	const u16 c = mesh.add_polygon(kRectC);
+	check(mesh.add_portal(a, b, {10, 0}, {10, 10}), "navmesh: portal A-B");
+	check(mesh.add_portal(b, c, {20, 0}, {20, 10}), "navmesh: portal B-C");
+
+	// El pasillo es recto (y=5): el funnel debe colapsarlo a inicio + destino.
+	const usize n = mesh.find_smooth_path({5, 5}, {25, 5}, g_g, g_came, g_closed, g_path);
+	check(n == 2u, "navmesh: string-pulling colapsa el pasillo recto");
+	check(eq(g_path[0], {5, 5}) && eq(g_path[1], {25, 5}),
+	      "navmesh: camino suavizado = inicio y destino");
+
+	// Sin suavizar, el mismo camino lleva los puntos medios de los dos portales.
+	const usize m = mesh.find_path({5, 5}, {25, 5}, g_g, g_came, g_closed, g_path);
+	check(m == 3u, "navmesh: find_path mantiene los puntos medios");
+}
+
 } // namespace
 
 int main() {
@@ -99,9 +119,10 @@ int main() {
 	test_locate();
 	test_two_polys();
 	test_three_polys();
+	test_smooth();
 
 	if (g_fail == 0u) {
-		std::printf("OK: NavMeshLite (localizar, portales, uno/dos/tres poligonos)\n");
+		std::printf("OK: NavMeshLite (localizar, portales, poligonos y string-pulling)\n");
 		return 0;
 	}
 	std::printf("FALLOS: %u\n", g_fail);

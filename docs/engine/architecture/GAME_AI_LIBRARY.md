@@ -213,13 +213,14 @@ instrucciones, sin libcalls. Verificación: HOST-116.
 
 `navmesh_lite.hpp`: versión mínima de Recast/Detour. El mundo transitable se divide en
 **polígonos convexos** (`add_polygon`) unidos por **portales** (`add_portal`, la arista
-compartida); A* recorre la adyacencia y el camino devuelto son los puntos medios de los
-portales más el destino. Incluye `locate` (punto en polígono) pero no el cocido de la malla
-ni el algoritmo del embudo: la malla la construye el juego. Usa el primer vértice como ancla
-(evita dividir) y `muls.w` para el producto vectorial.
+compartida); A* recorre la adyacencia. `find_path` devuelve los puntos medios de los
+portales y `find_smooth_path` aplica **string-pulling** con el algoritmo del embudo (*simple
+stupid funnel*) para quedarse solo con las esquinas visibles. Incluye `locate` (punto en
+polígono) pero no el cocido de la malla: la malla la construye el juego. Usa el primer
+vértice como ancla (evita dividir) y `muls.w` para el producto vectorial.
 
-Coste medido: localizar + A* entre 2 polígonos (sonda `c_navmesh_ops`) 194 instrucciones y
-4 `muls.w`, sin libcalls. Verificación: HOST-118.
+Coste medido: localizar + A* con y sin suavizado entre 2 polígonos (sonda `c_navmesh_ops`)
+661 instrucciones y 12 `muls.w`, sin libcalls. Verificación: HOST-118.
 
 ## 6. Movimiento: steering (`eng/ai/steering/steering.hpp`)
 
