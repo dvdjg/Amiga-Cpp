@@ -279,6 +279,19 @@ la transformación de coordenadas fijas con una matriz MF, está en
 exponente de `Fixed<s16,Frac>` como tag de escala en vez de duplicar un tipo de
 coordenada.
 
+### 3.6.1 Tablas de trigonometría `Fixed`: coste y precisión
+
+Las funciones trigonométricas de `Fixed<s16,E>` (`eng/core/fixed_math.hpp`) se apoyan en tablas `static constexpr` compartidas por `(E, Size, Iter)`. El tamaño de cada tabla es un parámetro de plantilla (`fixed_sin<E,Size,Iter>`, `fixed_exp2<E,Size>`, `fixed_log2<E,Size>`, `fixed_atan2<E,Size>`) y su valor por defecto se fija por compilación con `ENG_FIXED_SIN_SIZE`, `ENG_FIXED_SIN_ITER`, `ENG_FIXED_EXP2_SIZE`, `ENG_FIXED_LOG2_SIZE` y `ENG_FIXED_ATAN_SIZE`.
+
+| Tabla | Muestras (defecto) | Tipo | `.rodata` (defecto) | Error típico |
+|---|---|---|---|---|
+| seno/coseno | 1024 (paso 2π/1024) | s16 | 2 KiB | ~5e-3 |
+| `exp2` | 256 | s32 | 1 KiB | — |
+| `log2` | 256 | s32 | 1 KiB | — |
+| `atan` (`atan2`/`asin`/`acos`) | 257 sobre `[0,1]` | s32 | ~1 KiB | — |
+
+El seno admite 4096 (~1e-3, 8 KiB) y 256 (~2e-2, 512 B) como extremos de precisión/coste. Medido con `size`: ~5 KiB de tablas con los valores por defecto y ~1.8 KiB con `-DENG_FIXED_SIN_SIZE=512 -DENG_FIXED_EXP2_SIZE=64 -DENG_FIXED_LOG2_SIZE=64 -DENG_FIXED_ATAN_SIZE=64`. Una tabla cuyos usos tienen argumento constante se pliega en compilación y no llega a enlazarse. El factor `2π` de `wrap_angle`/`angle_diff` es una constante, no una tabla. Verificado por HOST-104 y por la demo `110_ylimited_shooter`.
+
 ### 3.7 Estado de tipado de las cabeceras de geometría/3D
 
 Criterio: una cabecera usa los escalares tipados (`Fixed`/`MiniFloat16` y
