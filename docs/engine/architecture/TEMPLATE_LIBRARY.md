@@ -173,6 +173,7 @@ referencia para **elegir contenedor por coste**, no por hábito:
 | `BitWriter`+`BitReader` (round-trip) | 96 (sonda `c_bitstream_ops`) | 0 | 0 |
 | `DynamicBitSet` init/set/count (70 bits) | 76 (sonda `c_dynamic_bitset_ops`) | 0 | 4 |
 | `StringInterner` intern/lookup | 84 (sonda `c_string_interner_ops`) | 0 | 7 |
+| `convex_overlap` (SAT 2D, 2 cuadrados) | 302 (sonda `c_convex_overlap_ops`) | 18 | 0 |
 
 Lectura: **para N pequeño, ordenar/indizar linealmente gana al hash** (`FlatMap` casi la
 mitad que `HashMap`, y `DirectMap` menos aún con clave densa); el hash usa **un `mulu.w` de
@@ -257,6 +258,7 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-122 | `core/util/dynamic_bitset.hpp` (bitset de tamaño en `init`, en arena) |
 | HOST-123 | consumidor de `bitstream`/`dynamic_bitset` (nivel empaquetado y tiles sucios) |
 | HOST-124 | `core/util/string_interner.hpp` (internado de cadenas) |
+| HOST-125 | `core/util/collision.hpp` (SAT 2D de polígonos convexos y punto en convexo) |
 
 > **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`), `Pool` por `086_bob_objects` (parque de actores), `HashMap` por `111_xlimited_sidescroller` (índice de chunks de `ChunkCache`), `color` también por `086_bob_objects` (gradiente del cielo con `eng::util::lerp444`), y `broadphase` y `pathfinding` por `110_ylimited_shooter` (self-test en `init`: `SpatialHash` + `bfs`/`reconstruct_path` en el 68000; si falla, la demo no llega a READY). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashSet`, `DynamicHashMap`, `PriorityQueue`, `Stack`/`Queue`/`Deque`, `EnumSet`, `ScopeGuard`, `StaticString`, `stats`, `collision`, `text`, `grid`, `dsp`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..102 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
 
@@ -284,7 +286,8 @@ mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
    `state_machine.hpp`/`event.hpp` (`c_state_machine_ops`/`c_event_ops`),
    `union_find.hpp`/`sparse_set.hpp` (`c_union_find_ops`/`c_sparse_set_ops`),
    `bitstream.hpp`/`dynamic_bitset.hpp` (`c_bitstream_ops`/`c_dynamic_bitset_ops`),
-   `string_interner.hpp` (`c_string_interner_ops`), `core/random.hpp` (`c_random_ops`) y
+   `string_interner.hpp` (`c_string_interner_ops`), `collision.hpp`
+   (`c_collision_ops`/`c_convex_overlap_ops`), `core/random.hpp` (`c_random_ops`) y
    `dsp.hpp` (`c_dsp_ops`).
 5. Antes de añadir una utilidad nueva, comprobar si el **vocabulario** de §7 ya cubre la
    necesidad (p. ej. flags con `EnumSet`, restauración con `ScopeGuard`, colas con

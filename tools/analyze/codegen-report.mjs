@@ -580,6 +580,17 @@ extern "C" u16 c_string_interner_ops(u16 seed) {
 	return static_cast<u16>(a + b + c + names.size() +
 				static_cast<eng::u16>(names.lookup(a).size()));
 }
+extern "C" u16 c_convex_overlap_ops(s16 ax, s16 ay, s16 bx, s16 by) {
+	const eng::Point2s a[4] = {{0, 0}, {10, 0}, {10, 10}, {0, 10}};
+	const eng::Point2s b[4] = {{ax, ay},
+				   {static_cast<s16>(ax + 10), ay},
+				   {static_cast<s16>(ax + 10), static_cast<s16>(ay + 10)},
+				   {ax, static_cast<s16>(ay + 10)}};
+	const bool ov = eng::util::convex_overlap(eng::Span<const eng::Point2s> {a, 4},
+						  eng::Span<const eng::Point2s> {b, 4});
+	const bool in = eng::util::point_in_convex({bx, by}, eng::Span<const eng::Point2s> {a, 4});
+	return static_cast<u16>((ov ? 1u : 0u) + (in ? 1u : 0u));
+}
 extern "C" u16 c_random_ops(u16 seed) {
 	eng::Xoroshiro64pp rng {seed, static_cast<eng::u32>(seed + 1u)};
 	eng::u16 data[8];

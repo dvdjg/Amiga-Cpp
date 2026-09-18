@@ -143,8 +143,10 @@ independiente de R1/R2 (salvo `RingBuffer` para `delay`). R4 es el más prescind
   aporta el llamador; pensado para nombres construidos en runtime (assets/config, etiquetas).
 - **Heurística parametrizable** en `pathfinding.hpp`: hoy Manhattan; añadir Euclídea/Octile
   con un consumidor de grilla grande (los mapas pequeños no lo justifican).
-- **SAT 2D** en `collision.hpp`: candidato para polígonos convexos; GJK se descarta (sobra
-  para 2D). Se añadirá con un consumidor.
+- **SAT 2D**: **implementado** en `collision.hpp` (`convex_overlap`/`point_in_convex`,
+  HOST-125). Cubre la colisión de polígonos convexos 2D; `GJK`/`EPA` se descartan para 2D
+  (sobran) y **no hay colisión 3D**: el soporte 3D actual (`linalg`/`mesh3d`/`lib3d`) es de
+  modelo, transformación y render, no de física.
 - **Autómata celular**: candidato menor (hoy hay simulaciones ad-hoc, p. ej. el fuego de
   HOST-015).
 - **Alcance de R4**: `type_list` solo si un registro en compile-time aporta valor real.
