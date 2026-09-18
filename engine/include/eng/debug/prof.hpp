@@ -28,6 +28,10 @@ inline constexpr eng::u32 prof_magic = 0x50524f46u; ///< 'PROF'
 inline constexpr eng::u8 prof_max_sections = 16u;
 
 /// Bloque de profiling (se lee de golpe por el canal lateral/GDB).
+///
+/// Por seccion guarda suma (`cycles`) y llamadas (`calls`) para la media, mas `min`/`max`
+/// del ciclo individual, que es lo que revela el **peor frame** (la media sola lo esconde).
+/// `min_cycles` arranca en 0 y se siembra en la primera muestra (si `calls == 0`).
 struct ProfBlock {
 	eng::u32 magic;
 	eng::u8 sections;
@@ -35,6 +39,8 @@ struct ProfBlock {
 	eng::u32 frames;
 	eng::u32 cycles[prof_max_sections];
 	eng::u32 calls[prof_max_sections];
+	eng::u32 min_cycles[prof_max_sections];
+	eng::u32 max_cycles[prof_max_sections];
 };
 
 /// Instancia unica del bloque, `volatile` y `inline`: una sola definicion por programa
@@ -71,6 +77,13 @@ inline eng::u32 prof_clock() {
 	do {                                                                                       \
 		::eng::debug::g_eng_prof.magic = ::eng::debug::prof_magic;                         \
 		::eng::debug::g_eng_prof.sections = static_cast<::eng::u8>(n);                     \
+		::eng::debug::g_eng_prof.frames = 0u;                                              \
+		for (::eng::u8 _eng_prof_i = 0u; _eng_prof_i < (n); ++_eng_prof_i) {               \
+			::eng::debug::g_eng_prof.cycles[_eng_prof_i] = 0u;                         \
+			::eng::debug::g_eng_prof.calls[_eng_prof_i] = 0u;                          \
+			::eng::debug::g_eng_prof.min_cycles[_eng_prof_i] = 0u;                     \
+			::eng::debug::g_eng_prof.max_cycles[_eng_prof_i] = 0u;                     \
+		}                                                                                  \
 	} while (0)
 #define ENG_PROF_FRAME()                                                                          \
 	do {                                                                                       \
@@ -84,9 +97,18 @@ inline eng::u32 prof_clock() {
 #define ENG_PROF_END(s)                                                                           \
 	do {                                                                                       \
 		const ::eng::u32 _eng_prof_e = ::eng::debug::prof_clock();                         \
+		const ::eng::u32 _eng_prof_d = _eng_prof_e - ::eng::debug::g_prof_start[(s)];      \
 		::eng::debug::g_eng_prof.cycles[(s)] =                                             \
-			static_cast<::eng::u32>(::eng::debug::g_eng_prof.cycles[(s)] +             \
-						(_eng_prof_e - ::eng::debug::g_prof_start[(s)]));  \
+			static_cast<::eng::u32>(::eng::debug::g_eng_prof.cycles[(s)] + _eng_prof_d); \
+		if (::eng::debug::g_eng_prof.calls[(s)] == 0u) {                                   \
+			/* primera muestra: siembra min (arranca en 0 y no vale como minimo) */     \
+			::eng::debug::g_eng_prof.min_cycles[(s)] = _eng_prof_d;                    \
+		} else if (_eng_prof_d < ::eng::debug::g_eng_prof.min_cycles[(s)]) {               \
+			::eng::debug::g_eng_prof.min_cycles[(s)] = _eng_prof_d;                    \
+		}                                                                                  \
+		if (_eng_prof_d > ::eng::debug::g_eng_prof.max_cycles[(s)]) {                      \
+			::eng::debug::g_eng_prof.max_cycles[(s)] = _eng_prof_d;                    \
+		}                                                                                  \
 		::eng::debug::g_eng_prof.calls[(s)] =                                              \
 			static_cast<::eng::u32>(::eng::debug::g_eng_prof.calls[(s)] + 1u);         \
 	} while (0)

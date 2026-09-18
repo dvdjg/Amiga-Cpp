@@ -85,19 +85,23 @@ if (addr === null) {
   process.exit(1);
 }
 
-const BLOCK = 12 + 16 * 4 + 16 * 4; // magic+sections+pad+frames + cycles[16] + calls[16]
+// magic(4)+sections(1)+pad(3)+frames(4) + cycles[16] + calls[16] + min[16] + max[16]
+const BLOCK = 12 + 16 * 4 * 4;
 async function sample() {
   const b = await p.readMemory(addr, BLOCK);
   if (b.readUInt32BE(0) !== PROF_MAGIC) return null;
   const sections = b.readUInt8(4);
   const frames = b.readUInt32BE(8);
-  const cycles = [], calls = [];
+  const cycles = [], calls = [], minc = [], maxc = [];
+  const base = 12;
   for (let i = 0; i < 16; ++i) {
-    cycles.push(b.readUInt32BE(12 + i * 4));
-    calls.push(b.readUInt32BE(12 + 64 + i * 4));
+    cycles.push(b.readUInt32BE(base + i * 4));
+    calls.push(b.readUInt32BE(base + 64 + i * 4));
+    minc.push(b.readUInt32BE(base + 128 + i * 4));
+    maxc.push(b.readUInt32BE(base + 192 + i * 4));
   }
   const clock = (await p.readMemory(0xb7e928, 4)).readUInt32BE(0);
-  return { sections, frames, cycles, calls, clock };
+  return { sections, frames, cycles, calls, minc, maxc, clock };
 }
 
 const a = await sample();
@@ -112,15 +116,20 @@ if (!a || !z) {
 const frames = Math.max(1, u32delta(a.frames, z.frames));
 const total = u32delta(a.clock, z.clock) / frames;
 console.log(`[prof] ${DEMO}/${CONFIG_NAME} | ${frames} frames | total ${total.toFixed(0)} ciclos/frame (${(total / FIELD).toFixed(2)} campos)`);
+console.log('  seccion   ciclos/frame      %   llam/frame   min/llam   max/llam');
 let sum = 0;
 for (let i = 0; i < Math.max(a.sections, 10); ++i) {
   const perFrame = u32delta(a.cycles[i], z.cycles[i]) / frames;
   const calls = u32delta(a.calls[i], z.calls[i]) / frames;
+  // min/max del bloque `z` (ultimo estado) ya son por-llamada; si la seccion no se
+  // ejecuto, son 0.
+  const minc = z.minc[i];
+  const maxc = z.maxc[i];
   sum += perFrame;
   const name = SECTION_NAMES[i] || `seccion${i}`;
-  console.log(`  ${name.padEnd(8)} ${perFrame.toFixed(0).padStart(8)} ciclos/frame ${(100 * perFrame / total).toFixed(1).padStart(6)}%  ${calls.toFixed(1).padStart(6)} llamadas/frame`);
+  console.log(`  ${name.padEnd(8)} ${perFrame.toFixed(0).padStart(8)} ${(100 * perFrame / total).toFixed(1).padStart(6)}% ${calls.toFixed(1).padStart(10)} ${String(minc).padStart(11)} ${String(maxc).padStart(11)}`);
 }
 const rest = total - sum;
-console.log(`  ${'(resto)'.padEnd(8)} ${rest.toFixed(0).padStart(8)} ciclos/frame ${(100 * rest / total).toFixed(1).padStart(6)}%  (espera VBlank + render + bucle)`);
+console.log(`  ${'(resto)'.padEnd(8)} ${rest.toFixed(0).padStart(8)} ${(100 * rest / total).toFixed(1).padStart(6)}%  (espera VBlank + render + bucle)`);
 await conn.disconnect(true);
 process.exit(0);
