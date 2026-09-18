@@ -36,6 +36,13 @@ no toca hardware (principio de [PUBLIC_API.md](PUBLIC_API.md)). La **proyección
 espacial, nunca en el modelo de criatura, que usa siempre coordenadas de mundo
 (`room` + `x,y`).
 
+El paso de abstracto a realizado lo decide el **LOD alrededor del jugador** (`lod.hpp`):
+`SimWorld::update_lod` marca **realized** cerca, **abstract** a media distancia y
+**dormant** (congelado, sin coste) lejos; al acercarse el jugador, lo dormido se realiza.
+Así el jugador percibe un mundo rico a su alrededor mientras el resto apenas cuesta. El
+**aforo por región** (`biome.hpp`, `capacity`) limita cuántas criaturas sostiene cada bioma
+y frena la reproducción cuando está lleno.
+
 ## 2. Modelo de datos
 
 Cada criatura es un agregado compacto, sin punteros ni heap, que vive en un array
@@ -63,7 +70,7 @@ eng::sim::AbstractCreature<MaxTrackers, MaxRelations> c; // arrays inline
 | `AbstractCreature<6,6>` | criatura completa | 306 B |
 | `Climate<64>` | peligro ambiental por región | 128 B |
 | `GroupMemory<8>` | memoria de conocimiento por facción | 416 B |
-| `SimWorld<…>` | array de criaturas + grafo de rooms + clima + terreno + biomas + sociedad + objetos + planificador | 23 860 B |
+| `SimWorld<…>` | array de criaturas + grafo de rooms + clima + terreno + biomas + sociedad + objetos + planificador | 23 864 B |
 
 Las **especies** (`Species`) son tablas inmutables que el juego declara una vez: dieta,
 organización social (solitaria, manada, colmena, familia, territorial, **enjambre**), bits
@@ -311,6 +318,8 @@ de modo que no ocupa RAM si no se usa (verificado por el gate de tamaños m68k).
 | `communication.hpp` | señales/gestos, recepción y efecto emocional/jerárquico | HOST-170 |
 | `culture.hpp` | rituales, disparo por evento, herencia y actuación en el mundo | HOST-171 |
 | `pack.hpp` | roles de manada, flanqueo y coordinación de caza | HOST-172 |
+| `lod.hpp` | bandas de detalle por distancia (realized/abstract/dormant) | HOST-174 |
+| `avatar.hpp` | jugador simulado: intención, movimiento/acción y resumen de percepción/carga | HOST-174 |
 | `world.hpp` (laboratorio) | escenarios largos con digesto y ajuste de parámetros | HOST-173 |
 | `society.hpp` | `Society` (reputación), `Pack` | HOST-153 |
 | `planner.hpp` | `PlannerDriver`/`PlanRunner` sobre `Goap`, `PlanParams` | HOST-155 |

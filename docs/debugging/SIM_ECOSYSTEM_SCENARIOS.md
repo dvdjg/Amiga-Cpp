@@ -62,8 +62,31 @@ produce comportamientos incoherentes difíciles de depurar.
 
 - Los ciclos depredador-presa son **frágiles** a escala pequeña; para estabilidad haría falta
   refugio de presas, dieta parcial de los depredadores o reproducción más rápida de la presa.
-- El reciclado de capacidad obliga a acotar la población por escenario; un modelo de
-  **capacidad por región** (aforo) sería más fiel que un tope global.
+- **Resuelto**: el tope global de población se sustituyó por **aforo por región** (capacidad
+  del bioma, `biome.hpp`), y la carga se reparte por **LOD alrededor del jugador**
+  (`lod.hpp`: realized/abstract/dormant; HOST-174).
 - La caza es por contacto; sin "emboscada" ni persecución larga, los depredadores dependen del
   azar del encuentro. La coordinación de manada mejora la captura (HOST-172) y es la vía para
   tácticas más ricas.
+
+## Iteración 2: aforo por región, jugador y LOD
+
+Tras la primera puesta a punto se abordó el **punto de vista del jugador** y el **coste**:
+
+- **Aforo por región** (`biome.hpp` + `SimWorld::region_capacity/population/has_space`): cada
+  bioma sostiene un número finito de criaturas; `try_reproduce`/`lay_brood` no inician cría si
+  la región está llena. Sustituye al tope global por uno **ecológico** (desierto 5, ciénaga 8,
+  bosque 14...).
+- **LOD** (`lod.hpp`): `update_lod(px, py, room)` marca **realized** en un radio, **abstract**
+  a media distancia y **dormant** fuera; los dormidos **no se simulan** (no cuestan CPU) y se
+  despiertan al acercarse el jugador. Así el jugador ve un mundo rico cerca sin pagar el mundo
+  entero.
+- **Jugador simulado** (`avatar.hpp`): un avatar con IA que decide por necesidades
+  (`intent_for`), se mueve/come (`player_step`) y expone un resumen de lo que percibe y de la
+  carga (`player_view`: observed/realized/abstract/dormant). Permite validar en host que la
+  experiencia "se siente viva" y que el coste se concentra alrededor del jugador.
+
+Estos cambios se verifican en HOST-174 y mantienen verdes los 23 tests de `eng::sim`. La
+demo Amiga con render (consumidor real en `games/`) queda como siguiente paso: en este entorno
+no se puede ejecutar WinUAE de forma fiable, así que no se presenta como verificado.
+

@@ -41,7 +41,7 @@ OK: Sim creature (needs, personalidad, relaciones, trackers, mente, utilidad)
 Los tamaños son los del host (64 bits: `usize` = 8). En el cruce `m68k` (`usize` = 4) el
 gate de `tools/analyze/codegen-report.mjs` fija los valores de las piezas clave (`Needs` 7,
 `Personality` 10, `Emotions` 12, `Mind` 44, `Tracker` 14, `Senses` 13, `Relationship` 6,
-`Inventory` 12, `Item` 12, `AbstractCreature<>` 306 y `SimWorld<>` 23 860 B).
+`Inventory` 12, `Item` 12, `AbstractCreature<>` 306 y `SimWorld<>` 23 864 B).
 
 ## Ejecutar
 

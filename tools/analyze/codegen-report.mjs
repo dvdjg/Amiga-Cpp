@@ -57,6 +57,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/ai/steering/steering.hpp>
 #include <eng/ai/perception/influence_map.hpp>
 #include <eng/ai/perception/agent_memory.hpp>
+#include <eng/sim/avatar.hpp>
 #include <eng/sim/behavior.hpp>
 #include <eng/sim/biome.hpp>
 #include <eng/sim/body.hpp>
@@ -71,6 +72,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/sim/inventory.hpp>
 #include <eng/sim/knowledge.hpp>
 #include <eng/sim/lifecycle.hpp>
+#include <eng/sim/lod.hpp>
 #include <eng/sim/memory.hpp>
 #include <eng/sim/mental_map.hpp>
 #include <eng/sim/object.hpp>
@@ -134,7 +136,7 @@ static_assert(sizeof(eng::sim::KnowledgeEntry) == 6u, "Sim::KnowledgeEntry");
 static_assert(sizeof(eng::sim::Inventory) == 12u, "Sim::Inventory");
 static_assert(sizeof(eng::sim::Item) == 12u, "Sim::Item");
 static_assert(sizeof(eng::sim::AbstractCreature<>) == 306u, "Sim::AbstractCreature<>");
-static_assert(sizeof(eng::sim::SimWorld<>) == 23860u, "Sim::SimWorld<>");
+static_assert(sizeof(eng::sim::SimWorld<>) == 23864u, "Sim::SimWorld<>");
 
 struct HalfEvenPolicy { using Round = rounding::HalfEven; using Overflow = overflow::Wrap; };
 using q14 = Fixed<s16, 14>;
@@ -846,6 +848,26 @@ extern "C" u16 c_sim_pack_ops(u16 seed) {
 		eng::Point2s {static_cast<eng::s16>(seed % 40u), static_cast<eng::s16>(10)},
 		role, static_cast<eng::u8>(seed % 4u), 3u);
 	return static_cast<u16>(role) + static_cast<u16>(g.x) + static_cast<u16>(g.y);
+}
+extern "C" u16 c_sim_lod_ops(u16 seed) {
+	using namespace eng::sim;
+	static SimWorld<> w;
+	const LodBand b = band_for(static_cast<eng::u16>(seed % 64u), (seed & 1u) != 0u);
+	w.update_lod(0, 0, 0u);
+	return static_cast<u16>(b) + w.realized_count() + w.dormant_count() +
+	       static_cast<u16>(lod_costs_cpu(b) ? 1u : 0u);
+}
+extern "C" u16 c_sim_avatar_ops(u16 seed) {
+	using namespace eng::sim;
+	static SimWorld<> w;
+	const EntityId a = w.spawn(9u, 0u, 0u, 5, 5);
+	Needs n {};
+	n.hunger = static_cast<eng::u8>(seed % 256u);
+	const PlayerIntent it = intent_for(n);
+	eng::Xoroshiro64pp rng {seed, static_cast<eng::u32>(seed + 1u)};
+	(void)player_step(w, a, rng);
+	return static_cast<u16>(it) + w.region_population(0u) +
+	       static_cast<u16>(w.region_capacity(0u));
 }
 extern "C" u16 c_sim_planner_ops(u16 seed) {
 	using namespace eng::sim;
