@@ -73,22 +73,24 @@ añade `AgentFsm`, `Utility`, `BehaviorTree` y `Blackboard` (HOST-110…113). Si
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| G3.1 | `navigation/flow_field.hpp` | Campo de flujo sobre rejilla (Dijkstra/BFS desde el destino) para muchos agentes | HOST propio; reutiliza `pathfinding`/`grid` |
+| G3.1 | `navigation/flow_field.hpp` | Campo de flujo sobre rejilla (Dijkstra multi-fuente con coste de terreno) para muchos agentes | **Entregado**: HOST-114 |
 | G3.2 | `navigation/waypoints.hpp` | Grafo de waypoints + A* sobre el grafo | HOST propio |
 | G3.3 | `navigation/navmesh_lite.hpp` | Versión **lite** de Recast/Detour: malla de navegación, punto más cercano y consulta de camino sobre polígonos | HOST propio + referencia <https://github.com/recastnavigation/recastnavigation> |
 
 G3 se apoya en `eng::util::pathfinding`/`grid`; el navmesh lite se acota a mallas pequeñas
-de A500 (memoria y coste de consulta visibles).
+de A500 (memoria y coste de consulta visibles). **Estado: G3.1 entregado (flow field,
+HOST-114).** Quedan el grafo de waypoints y el navmesh lite.
 
 ### G4 — Movimiento y percepción
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| G4.1 | `steering/` | seek/flee/arrive/wander, separación/cohesión/alineación (flocking), evasión; enteros/fixed | HOST propio |
+| G4.1 | `steering/steering.hpp` | seek/flee/arrive y separación/cohesión/alineación (flocking), genérico sobre el escalar | **Entregado**: HOST-115 |
 | G4.2 | `perception/influence_map.hpp` | Mapa de influencia (amenaza/control) sobre rejilla, decay y difusión acotada | HOST propio |
 | G4.3 | `perception/` | Memoria del agente (última posición conocida, tiempo desde el avistamiento) | HOST propio |
 
-G4 no depende de G1–G3; puede adelantarse si un juego necesita movimiento.
+G4 no depende de G1–G3; puede adelantarse si un juego necesita movimiento. **Estado: G4.1
+entregado (steering, HOST-115).** Quedan influence maps (G4.2) y memoria del agente (G4.3).
 
 ### G5 — Técnicas de diseño con consumidor
 
@@ -113,10 +115,10 @@ patrones descritos en §5.
 | Utility AI | decisión | `ai/decision/utility.hpp` | D. Mark (Infinite Axis Utility System) | **Entregado** (HOST-112) |
 | Behavior trees | decisión | `ai/decision/behavior_tree.hpp` | — | **Entregado** (HOST-113) |
 | Blackboard / eventos | decisión | `ai/decision/blackboard.hpp` + `util/event.hpp` | — | **Entregado** (HOST-111 / HOST-109) |
-| Flow field | navegación | `ai/navigation/flow_field.hpp` | — | Pendiente |
+| Flow field | navegación | `ai/navigation/flow_field.hpp` | — | **Entregado** (HOST-114) |
 | Grafo de waypoints + A* | navegación | `ai/navigation/waypoints.hpp` | — | Pendiente |
 | Navmesh lite (Recast/Detour) | navegación | `ai/navigation/navmesh_lite.hpp` | <https://github.com/recastnavigation/recastnavigation> | Pendiente |
-| Steering behaviors / flocking | movimiento | `ai/steering/` | C. Reynolds (1987) | Pendiente |
+| Steering behaviors / flocking | movimiento | `ai/steering/steering.hpp` | C. Reynolds (1987) | **Entregado** (HOST-115) |
 | Influence maps | percepción | `ai/perception/influence_map.hpp` | (técnica de RTS) | Pendiente |
 | Memoria del agente / creencias | percepción | `ai/perception/` | — | Pendiente |
 | Filtmation | presentación/animación | por definir | *Heads over Heels* / *Batman 3D* | Pendiente de ficha técnica |

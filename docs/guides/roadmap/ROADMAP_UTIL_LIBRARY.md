@@ -93,15 +93,15 @@ división), R3.2 worley/turbulence/ridged (`core/noise.hpp`, HOST-101) y R3.3 `d
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| R4.1 | `bitstream.hpp` + `dynamic_bitset.hpp` | `BitReader`/`BitWriter`, bitset que crece con `Allocator` | HOST-111 |
-| R4.2 | `variant.hpp` | unión etiquetada sin heap, `visit` con overload set | HOST-112 |
+| R4.1 | `bitstream.hpp` + `dynamic_bitset.hpp` | `BitReader`/`BitWriter`, bitset que crece con `Allocator` | HOST (siguiente libre) |
+| R4.2 | `variant.hpp` | unión etiquetada sin heap, `visit` con overload set | HOST (siguiente libre) |
 | R4.3 | `event.hpp` | array fijo de `FunctionRef`, `subscribe`/`emit` | **HOST-109** (entregado) |
 | R4.4 | `state_machine.hpp` | estados/eventos/tabla `constexpr` | **HOST-108** (entregado) |
-| R4.5 | `type_list.hpp` (opcional) | `TypeList` + `for_each_type` (registro en compile-time) | HOST-113 |
+| R4.5 | `type_list.hpp` (opcional) | `TypeList` + `for_each_type` (registro en compile-time) | HOST (siguiente libre) |
 
-> Los `HOST-NNN` de esta tabla son la reserva vigente: al implementar cada paso se usa el
-> siguiente número libre real (hoy 111 en adelante; 000–110 están asignados). R4.3/R4.4 se
-> adelantaron para desbloquear G2 (decisión/blackboard) de la IA.
+> Los pasos sin implementar usan el **siguiente `HOST-NNN` libre** en el momento de
+> implementarse (hoy 116 en adelante; 000–115 están asignados). R4.3/R4.4 se adelantaron
+> para desbloquear G2 (decisión/blackboard) de la IA.
 
 R4.2–R4.5 solo si aparece consumidor (comandos/eventos/efectos). R4.5 es avanzado y se
 puede posponer sin bloquear el resto.

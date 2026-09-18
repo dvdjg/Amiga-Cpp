@@ -153,3 +153,5 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-111 | [blackboard](111_blackboard/README.md) | `ai/decision/blackboard.hpp`: `Blackboard<Key,Value,MaxKeys>` (memoria compartida de la IA) con claves densas; `find` O(1), sobrescritura y valores struct. |
 | HOST-112 | [utility](112_utility/README.md) | `ai/decision/utility.hpp`: `Utility` (media ponderada en [0,1000], `muls.w`/`divs.w`) y `UtilitySelector` (mejor opcion, empate -> indice menor). Decision de un guardia. |
 | HOST-113 | [behavior_tree](113_behavior_tree/README.md) | `ai/decision/behavior_tree.hpp`: `BehaviorTree<MaxNodes>` sin heap (secuencia/selector, cortocircuito, `no_node` al llenarse). Guardia dispara/recarga. |
+| HOST-114 | [flow_field](114_flow_field/README.md) | `ai/navigation/flow_field.hpp`: campo de flujo por Dijkstra multi-fuente (`compute_flow_field<W,H>`, `flow_next<W>`); coste uniforme, muro, region inalcanzable. |
+| HOST-115 | [steering](115_steering/README.md) | `ai/steering/steering.hpp`: `seek`/`flee`/`arrive` y flocking (`separation`/`cohesion`/`alignment`/`flock`), generico sobre `double` y `q12`. |

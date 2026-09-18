@@ -190,7 +190,31 @@ Coste medido (sondas m68k): `Blackboard::find` 3 instrucciones; `Utility` 40 ins
 libcalls). Verificación: HOST-110 (FSM), HOST-111 (blackboard), HOST-112 (utility), HOST-113
 (árbol).
 
-## 5. Inventario
+## 5. Navegación (`eng/ai/navigation/`)
+
+`flow_field.hpp`: `compute_flow_field<W,H>` corre un **Dijkstra multi-fuente** desde los
+objetivos sobre una rejilla con coste de terreno y rellena `integration` (coste al objetivo
+más cercano) y `direction` (`FlowDir`). Muchos agentes comparten el campo: cada uno avanza
+con `flow_next<W>` leyendo una celda, sin recalcular camino. `terrain_cost(idx)` es el coste
+de entrar (≥1; `0xffff` = bloqueado). Reutiliza la malla de 4 vecinos de
+`eng::util::pathfinding`.
+
+Coste medido: `compute_flow_field<8,8>` (sonda `c_flow_field_ops`) 40 instrucciones, sin
+libcalls. El `PriorityQueue` interno es `W*H` inline: se calcula en `init`/fondo.
+Verificación: HOST-114.
+
+## 6. Movimiento: steering (`eng/ai/steering/steering.hpp`)
+
+Velocidades de movimiento continuo genéricas sobre el escalar: `seek`/`flee`/`arrive` y los
+tres términos de flocking (`separation`/`cohesion`/`alignment`, combinados en `flock` con
+`FlockWeights`). Se apoyan en `eng::math` (`Vec<2,S>`, `length`, `normalize`, `vscale`). Con
+`q12` usan `div_norm`/tablas nativas; `normalize` de un vector nulo devuelve cero.
+
+Coste medido: `seek`+`arrive` con q12 (sonda `c_steering_ops`) 411 instrucciones y 27
+`muls.w`, sin libcalls. Límite q12: `length_sq` desborda si las componentes pasan de ~2.
+Verificación: HOST-115.
+
+## 7. Inventario
 
 | Cabecera | Tipos / funciones | Estado |
 |---|---|---|
@@ -199,8 +223,9 @@ libcalls). Verificación: HOST-110 (FSM), HOST-111 (blackboard), HOST-112 (utili
 | `decision/utility.hpp` | `Utility`/`UtilitySelector<MaxOptions>`: utilidad ponderada; entero y determinista | Implementado, HOST-112 |
 | `decision/behavior_tree.hpp` | `BehaviorTree<MaxNodes>`, `BtStatus`, `BtTask`: secuencia/selector sin heap | Implementado, HOST-113 |
 | `decision/blackboard.hpp` | `Blackboard<Key,Value,MaxKeys>`: memoria compartida `O(1)` | Implementado, HOST-111 |
-| `navigation/…` | navmesh lite (Recast/Detour), flow field | Planificado (ROADMAP_GAME_AI) |
-| `steering/…` | seek/flee/arrive, flocking, evasión | Planificado (ROADMAP_GAME_AI) |
+| `navigation/flow_field.hpp` | `compute_flow_field<W,H>`, `flow_next<W>`, `FlowDir`: campo de flujo multi-fuente | Implementado, HOST-114 |
+| `navigation/…` | navmesh lite (Recast/Detour), waypoints | Planificado (ROADMAP_GAME_AI) |
+| `steering/steering.hpp` | `seek`/`flee`/`arrive`, `separation`/`cohesion`/`alignment`/`flock` | Implementado, HOST-115 |
 | `perception/…` | influence maps, sensores | Planificado (ROADMAP_GAME_AI) |
 | `design/…` | director de dificultad, recompensas | Planificado (ROADMAP_GAME_AI) |
 
@@ -210,7 +235,7 @@ libcalls). Verificación: HOST-110 (FSM), HOST-111 (blackboard), HOST-112 (utili
 > pueden cambiar sin aviso. La primera demo/juego con un personaje con objetivos los
 > verificará en el 68000.
 
-## 6. Cómo añadir una técnica
+## 8. Cómo añadir una técnica
 
 1. Comprobar que no existe ya en `eng/core/`, `eng/core/util/` ni `eng/ai/` (§1.6 de
    `AGENTS.md`); decidir si se reutiliza una primitiva existente.

@@ -51,6 +51,8 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/ai/decision/blackboard.hpp>
 #include <eng/ai/decision/utility.hpp>
 #include <eng/ai/decision/behavior_tree.hpp>
+#include <eng/ai/navigation/flow_field.hpp>
+#include <eng/ai/steering/steering.hpp>
 #include <eng/core/random.hpp>
 #include <eng/core/util/dsp.hpp>
 #include <eng/core/fixed_math.hpp>
@@ -428,6 +430,28 @@ extern "C" u16 c_behavior_tree_ops(u16 seed) {
 	bt.set_root(sel);
 	const eng::ai::BtStatus st = bt.tick();
 	return static_cast<u16>((st == eng::ai::BtStatus::Success ? 1u : 0u) + bt.node_count());
+}
+extern "C" u16 c_flow_field_ops(u16 goal) {
+	static eng::u16 integ[64];
+	static eng::u8 dir[64];
+	const eng::u16 goals[1] = {static_cast<eng::u16>(goal % 64u)};
+	auto cost = [](eng::u16) -> eng::u16 { return 1u; };
+	if (!eng::ai::compute_flow_field<8, 8>(eng::Span<const eng::u16> {goals, 1}, cost,
+					       eng::Span<eng::u16> {integ, 64},
+					       eng::Span<eng::u8> {dir, 64})) {
+		return 0u;
+	}
+	eng::u16 next = 0u;
+	return eng::ai::flow_next<8>(eng::Span<const eng::u8> {dir, 64}, 0u, next)
+		       ? next
+		       : static_cast<eng::u16>(0u);
+}
+extern "C" s16 c_steering_ops(s16 px, s16 py, s16 tx, s16 ty) {
+	const Vec<2, q12> pos {q12 {px}, q12 {py}};
+	const Vec<2, q12> target {q12 {tx}, q12 {ty}};
+	const Vec<2, q12> v = eng::ai::seek(pos, target, q12 {64});
+	const Vec<2, q12> a = eng::ai::arrive(pos, target, q12 {64}, q12 {256});
+	return static_cast<s16>(v.v[0].v + v.v[1].v + a.v[0].v + a.v[1].v);
 }
 extern "C" u16 c_random_ops(u16 seed) {
 	eng::Xoroshiro64pp rng {seed, static_cast<eng::u32>(seed + 1u)};
