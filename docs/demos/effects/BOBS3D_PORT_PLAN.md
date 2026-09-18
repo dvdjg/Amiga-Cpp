@@ -232,15 +232,24 @@ misma cadencia en la practica. `run_frames_polling` es la otra alternativa (busy
 `VPOSR`), que es la que cuantiza a campos enteros. Para efectos que no caben en 1 campo,
 `run_frames` es la cadencia correcta.
 
-**Sincronia de pantalla (flickering).** Con `run_frames` el `update` dura ~2,6 campos y no
-empieza alineado al VBlank. Con **doble buffer**, el dibujo del buffer destino empieza
-~0,4 campos antes de que el Copper haga el swap (recarga de `COP1LC` al VBlank) => se
-dibuja/borra un buffer que aun se muestra, y aparece tearing. El original lo evita porque
-`TaskWaitVBlank()` alinea el inicio del render al VBlank (con 2 buffers). Nuestro
-`update`, al durar >2 campos, no puede. Solucion: **triple buffer** (`kRing = 3`): el
-buffer que se dibuja lleva >=2 swaps sin mostrarse, sin solape. Medido: 19,24 fps
-(2,6 campos) y vision no detecta frames incompletos ni tearing. Raspar ~10k no lo
-arreglaria: el trabajo seguiria por encima de 2 campos.
+**Sincronia de pantalla (flickering).** Con `run_frames` (update en la ISR) el render no
+empieza alineado al VBlank; con **doble buffer** el dibujo del buffer destino empieza
+~0,4 campos antes de que el Copper haga el swap => tearing.
+
+Solucion adoptada (sin triple buffer): **2 buffers + `run_frames_polling`** (el `update`
+arranca alineado al VBlank, como el original) **+ solapar el `clear` con el `transform`**
+(`blitter_clear(..., wait=false)`; el `blitter_or_bobs_begin` espera despues), que es la
+estructura de `DrawObject`. Vision sobre 8 frames: sin tearing ni frames incompletos.
+
+Coste medido con esta configuracion: el trabajo real baja de ~354k a **~289k (2,04
+campos)** porque el clear (~75k) se solapa con el transform (que sube 84 -> 92k por
+contender con el Blitter). Como 289k > 2 campos (283.752), el bucle alineado **cuantiza a
+3 campos = 16,7 fps**. Estamos a **~6k de caber en 2 campos = 25 fps**: bastaria recortar
+~6k del transform o del bucle de BOBs. Quitar la instrumentacion `ENG_PROF` no cambia la
+cuantizacion (medido: sigue en 3 campos).
+
+El modo `run_frames` (IRQ, sin alinear) daba 19,3 fps pero exigia triple buffer. El usuario
+prefirio la via sincronizada de 2 buffers.
 
 ## 7. Optimizaciones
 
@@ -278,12 +287,13 @@ Pendiente / descartado con la evidencia actual:
 - ✅ **Lote de BOBs fusionado e inline** (`OrBlobBatch`): `blits` 231,7k → 202,5k.
 - ✅ **Paridad por componente** con el original (medido con su propio profiler):
   transform 84k vs 83k, bobs 202,5k vs 194k, clear 75k vs ~76k.
-- ✅ **Cadencia por IRQ** (`Engine::run_frames`): **19,3 fps (2,6 campos)** — practicamente
-  el original (20,1 fps, 2,49 campos). El polling daba 16,6 (3,0 campos).
-- ✅ **Triple buffer** (`kRing = 3`): elimina el tearing del doble buffer con `update` >2
-  campos. Vision confirma imagenes completas sin desgarro. Mismo rendimiento (19,2 fps).
+- ✅ **Sincronia con 2 buffers** (elegida): `run_frames_polling` (update arranca alineado
+  al VBlank) + `clear` solapado con el transform. Sin tearing (vision sobre 8 frames).
+  Trabajo real ~289k (2,04 campos); cuantiza a 3 campos = **16,7 fps**.
+- ✅ `run_frames` (IRQ) probado: 19,3 fps pero exige triple buffer; descartado por
+  preferencia del usuario.
 - ✅ Oraculo del original medido: **20,1 fps (2,49 campos/render)**, no 50.
-- ⏭ Unico margen: reducir Blitter/clear (ya al nivel del original) para bajar de 2,5 campos.
+- ⏭ Margen: recortar ~6k del transform/bucle de BOBs para caber en 2 campos = 25 fps.
 
 ### API de engine anadida
 

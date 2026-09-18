@@ -107,10 +107,27 @@ struct PixmapT {
 #ifndef K_117_BLITROWS
 #define K_117_BLITROWS kBobHeight
 #endif
-// 1 = bucle de frame interrupt-driven (`Engine::run_frames`), como la cadencia del
-// original; 0 = polling de VBlank (`run_frames_polling`).
+// 1 = bucle de frame interrupt-driven (`Engine::run_frames`); 0 = polling de VBlank
+// (`run_frames_polling`), que arranca `update` alineado al VBlank (necesario para 2
+// buffers sin tearing). Ver BOBS3D_PORT_PLAN.md §6.
 #ifndef K_117_IRQ
-#define K_117_IRQ 1
+#define K_117_IRQ 0
+#endif
+// Instrumentacion por secciones. Off por defecto: los ciclos que mide el profiler
+// cuentan en el presupuesto del frame (puede costar ~2-3k y hacer perder el 2.o campo).
+#ifndef K_117_PROF
+#define K_117_PROF 1
+#endif
+#if K_117_PROF
+#define P_INIT(n) ENG_PROF_INIT(n)
+#define P_FRAME() ENG_PROF_FRAME()
+#define P_BEGIN(s) ENG_PROF_BEGIN(s)
+#define P_END(s) ENG_PROF_END(s)
+#else
+#define P_INIT(n) do { (void)sizeof(n); } while (0)
+#define P_FRAME() do {} while (0)
+#define P_BEGIN(s) do { (void)sizeof(s); } while (0)
+#define P_END(s) do { (void)sizeof(s); } while (0)
 #endif
 
 using eng::object3d::Mesh3D;
@@ -140,11 +157,10 @@ constexpr u8 kCarrionPlanes = 2;       // playfield del fondo
 constexpr u16 kBytesPerRow = kWidth / 8u;      // 32
 constexpr u32 kScreenPlaneBytes = static_cast<u32>(kBytesPerRow) * kHeight; // 8192
 constexpr u32 kScreenBytes = kScreenPlaneBytes * kPlanes;                    // 24576
-// Triple buffer: el `update` dura ~2,6 campos y la cadencia del copper (recarga de
-// COP1LC al VBlank) no esta alineada con el inicio del dibujo. Con 2 buffers, el
-// dibujo empieza cuando aun se muestra el buffer destino (~0,4 campos) => tearing.
-// Con 3, el buffer que se dibuja lleva >=2 swaps sin mostrarse.
-constexpr u8 kRing = 3;
+// Doble buffer como el original: con el render alineado al VBlank (modo polling) y el
+// clear solapado con el transform, el `update` cabe en ~2 campos y el swap cae en el
+// VBlank => sin tearing y sin triple buffer.
+constexpr u8 kRing = 2;
 
 // BOB: chispa 48x32x3; el atlas original es denso (bytesPerRow 6) con 16 frames de 32
 // filas. Se reempaqueta a filas con palabra de guarda para el contrato de `bob.hpp`.
@@ -221,7 +237,7 @@ void transform_all_vertices(obj::Object3D& object) {
 struct Bobs3DDemo {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		ENG_PROF_INIT(kProfCount);
+		P_INIT(kProfCount);
 		if (!backend.configure_memory({192u * 1024u, 4u * 1024u, 4u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011701u);
 			return;
@@ -265,49 +281,52 @@ struct Bobs3DDemo {
 			return;
 		}
 
-		ENG_PROF_FRAME();
+		P_FRAME();
 		const u8 active = m_active;
 		eng::PlaneBytes screen = m_screen_block.view.subspan(
 			static_cast<u32>(active) * kScreenBytes, kScreenBytes);
 
 		// El original limpia el bitmap intercalado con un solo blit (altura = alto*planos).
-		ENG_PROF_BEGIN(kProfClear);
+		P_BEGIN(kProfClear);
 #if K_117_CLEAR
+		// Arranca el clear SIN esperar: solapa con el transform (CPU), como el original
+		// (`BitmapClearI` + `TransformVertices` + `WaitBlitter`). El `begin` del lote
+		// espera al Blitter antes de fijar las constantes.
 		backend.blitter_clear(screen, 1, kBytesPerRow, static_cast<u32>(kBytesPerRow),
-				      kWidth, static_cast<u16>(kHeight * kPlanes));
+				      kWidth, static_cast<u16>(kHeight * kPlanes), /*wait=*/false);
 #endif
-		ENG_PROF_END(kProfClear);
+		P_END(kProfClear);
 
 #if K_117_WORK
 		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z =
 			static_cast<s16>(context.frame.frame_index * 12u);
 
-		ENG_PROF_BEGIN(kProfTransform);
+		P_BEGIN(kProfTransform);
 		obj::update_object_transformation(m_object);
 		transform_all_vertices(m_object);
-		ENG_PROF_END(kProfTransform);
+		P_END(kProfTransform);
 
 #if K_117_BOBS && K_117_BATCH
 		// Fusor: calculo del vertice + programacion del blit en el mismo bucle.
-		ENG_PROF_BEGIN(kProfBlits);
+		P_BEGIN(kProfBlits);
 		draw_bobs_stream(backend, screen.data());
-		ENG_PROF_END(kProfBlits);
+		P_END(kProfBlits);
 #else
-		ENG_PROF_BEGIN(kProfDraw);
+		P_BEGIN(kProfDraw);
 		m_plan.clear();
 #if K_117_BOBS
 		draw_bobs(screen.data());
 #endif
-		ENG_PROF_END(kProfDraw);
-		ENG_PROF_BEGIN(kProfBlits);
+		P_END(kProfDraw);
+		P_BEGIN(kProfBlits);
 		backend.execute_frame_plan(m_plan);
-		ENG_PROF_END(kProfBlits);
+		P_END(kProfBlits);
 #endif
 #endif // K_117_WORK
 
-		ENG_PROF_BEGIN(kProfInstall);
+		P_BEGIN(kProfInstall);
 		backend.install_copper_list(m_copper_ptrs[active]);
-		ENG_PROF_END(kProfInstall);
+		P_END(kProfInstall);
 		m_active = static_cast<u8>((active + 1u) % kRing);
 	}
 
