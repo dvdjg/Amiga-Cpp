@@ -203,9 +203,11 @@ struct RangeOpponentDealer {
 	return equity_vs_dealer(hole, board, opponents, samples, rng, dealer);
 }
 
-/// Tabla preflop: equity (por mil, heads-up vs mano aleatoria) de cada una de las 169 clases.
+/// Tabla preflop: equity (por mil, heads-up vs mano aleatoria) de cada una de las 169 clases,
+/// más el **orden** de clases por equity (para construir rangos en O(N)).
 struct PreflopTable {
 	u16 equity_permille[kPreflopClasses] {};
+	u8 order[kPreflopClasses] {};
 	u16 samples = 0u;
 	bool ready = false;
 };
@@ -222,12 +224,27 @@ inline void build_preflop_table(PreflopTable& table, eng::Xoroshiro64pp& rng,
 		class_representative(index, a, b);
 		if (samples_per_class == 0u) {
 			table.equity_permille[index] = 0u;
+			table.order[index] = index;
 			continue;
 		}
 		const Card hole[2] {a, b};
 		const EquityResult eq = equity_vs_random(eng::Span<const Card> {hole, 2u},
 		                                         eng::Span<const Card> {}, 1u, samples_per_class, rng);
 		table.equity_permille[index] = eq.equity_permille;
+	}
+	// Orden por equity descendente (selección; una sola vez en `init`).
+	bool used[kPreflopClasses] {};
+	for (u8 n = 0u; n < kPreflopClasses; ++n) {
+		s16 best = -1;
+		u16 best_eq = 0u;
+		for (u8 i = 0u; i < kPreflopClasses; ++i) {
+			if (!used[i] && (best < 0 || table.equity_permille[i] > best_eq)) {
+				best = static_cast<s16>(i);
+				best_eq = table.equity_permille[i];
+			}
+		}
+		used[static_cast<u8>(best)] = true;
+		table.order[n] = static_cast<u8>(best);
 	}
 }
 
@@ -239,30 +256,26 @@ inline void build_preflop_table(PreflopTable& table, eng::Xoroshiro64pp& rng,
 	return table.equity_permille[preflop_class_index(a, b)];
 }
 
-/// Construye en `out` el rango de las `top_count` clases de mayor equity de la tabla.
-/// Requiere `table.ready`; si no lo está, deja el rango vacío.
+/// Construye en `out` el rango de las `top_count` clases de mayor equity de la tabla
+/// (usa `table.order`, coste O(top_count)). Requiere `table.ready`.
 inline void make_range_by_equity(const PreflopTable& table, HandRange& out, u8 top_count) noexcept {
 	out.clear();
 	if (!table.ready) {
 		return;
 	}
-	bool used[kPreflopClasses] {};
 	const u8 limit = top_count > kPreflopClasses ? kPreflopClasses : top_count;
 	for (u8 n = 0u; n < limit; ++n) {
-		s16 best = -1;
-		u16 best_eq = 0u;
-		for (u8 i = 0u; i < kPreflopClasses; ++i) {
-			if (!used[i] && (best < 0 || table.equity_permille[i] > best_eq)) {
-				best = static_cast<s16>(i);
-				best_eq = table.equity_permille[i];
-			}
-		}
-		if (best < 0) {
-			break;
-		}
-		used[static_cast<u8>(best)] = true;
-		out.add(static_cast<u8>(best));
+		out.add(table.order[n]);
 	}
+}
+
+/// Construye el rango del `top_permille` (por mil) de clases de mayor equity.
+inline void make_range_by_percentile(const PreflopTable& table, HandRange& out,
+                                     u16 top_permille) noexcept {
+	const u32 scaled = static_cast<u32>(kPreflopClasses) * top_permille;
+	const u32 count = div32(scaled, 1000u);
+	const u8 at_least_one = count == 0u ? 1u : static_cast<u8>(count);
+	make_range_by_equity(table, out, at_least_one);
 }
 
 } // namespace eng::cards

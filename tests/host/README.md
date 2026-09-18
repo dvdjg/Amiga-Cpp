@@ -207,3 +207,4 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-164 | [cards_equity](164_cards_equity/README.md) | `eng/cards/eval/equity.hpp`: equity Monte Carlo determinista, heurística preflop y pot odds. |
 | HOST-165 | [cards_selfplay](165_cards_selfplay/README.md) | `eng/cards/{ai/bot,sim/session}.hpp`: estilos, modelo de rival, sesiones CPU vs CPU, conservación y determinismo. |
 | HOST-166 | [cards_range](166_cards_range/README.md) | `eng/cards/eval/range.hpp`: 169 clases de mano inicial, `HandRange`, equity contra rango y tabla preflop (`build_preflop_table`). |
+| HOST-167 | [cards_variants](167_cards_variants/README.md) | `eng/cards/rules/variants.hpp` + `evaluate_omaha`: Omaha (2 hole + 3 board), reparto por variante y estructura Limit (apuesta fija y tope de subidas). |

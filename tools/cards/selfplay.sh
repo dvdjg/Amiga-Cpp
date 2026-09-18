@@ -6,9 +6,10 @@
 #
 # Uso: tools/cards/selfplay.sh [hands] [--seats N] [--seed S] [--stack N]
 #        [--sb N] [--bb N] [--profile N20|N64|N128|N256|N512] [--sessions N]
-#        [--table-samples N] [--range-classes N] [--styles tp,ta,lp,la,eq]
-#        [--no-range] [--out ruta] [--quiet]
-#   por defecto: 200 --seats 6 --seed 1 --profile N512
+#        [--table-samples N] [--range-classes N] [--range-mode dynamic|table|none]
+#        [--styles tp,ta,lp,la,eq] [--compare] [--sweep] [--csv ruta.csv]
+#        [--out ruta] [--quiet]
+#   por defecto: 200 --seats 6 --seed 1 --profile N512 --range-mode dynamic
 # ---------------------------------------------------------------------------
 set -euo pipefail
 

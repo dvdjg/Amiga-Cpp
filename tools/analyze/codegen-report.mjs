@@ -66,6 +66,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/cards/core/intmath.hpp>
 #include <eng/cards/rules/hand_rank.hpp>
 #include <eng/cards/rules/texas_holdem.hpp>
+#include <eng/cards/rules/variants.hpp>
 #include <eng/cards/eval/equity.hpp>
 #include <eng/cards/eval/range.hpp>
 #include <eng/cards/ai/bot.hpp>
@@ -109,12 +110,12 @@ static_assert(sizeof(eng::ai::Goap<64>::Planner<256>) == 12630u, "Goap<64>::Plan
 
 // Gate de layout de eng::cards (m68k): fija los sizeof del estado de poker. Si cambian,
 // la compilacion cruzada falla y hay que revisar el presupuesto de RAM por perfil.
-static_assert(sizeof(eng::cards::Seat) == 16u, "cards::Seat");
-static_assert(sizeof(eng::cards::Table) == 246u, "cards::Table");
+static_assert(sizeof(eng::cards::Seat) == 18u, "cards::Seat");
+static_assert(sizeof(eng::cards::Table) == 270u, "cards::Table");
 static_assert(sizeof(eng::cards::Deck) == 53u, "cards::Deck");
 static_assert(sizeof(eng::cards::CardPlan) == 34u, "cards::CardPlan");
 static_assert(sizeof(eng::cards::HandRange) == 24u, "cards::HandRange");
-static_assert(sizeof(eng::cards::PreflopTable) == 342u, "cards::PreflopTable");
+static_assert(sizeof(eng::cards::PreflopTable) == 512u, "cards::PreflopTable");
 static_assert(sizeof(eng::cards::EquityResult) == 6u, "cards::EquityResult");
 static_assert(sizeof(eng::cards::BotParams) == 14u, "cards::BotParams");
 static_assert(sizeof(eng::cards::OpponentModel) == 82u, "cards::OpponentModel");
@@ -924,6 +925,22 @@ extern "C" eng::u16 c_cards_bot(eng::u16 samples) {
 	params.use_mc = samples > 0u;
 	const eng::cards::Action a = eng::cards::decide(t, t.to_act, params, &model, rng);
 	return static_cast<eng::u16>(a.amount) + static_cast<eng::u16>(a.type);
+}
+extern "C" eng::u32 c_cards_omaha(const eng::u8* hole, const eng::u8* board) {
+	eng::u8 h[4];
+	eng::u8 b[5];
+	for (int i = 0; i < 4; ++i) h[i] = hole[i];
+	for (int i = 0; i < 5; ++i) b[i] = board[i];
+	return static_cast<eng::u32>(eng::cards::evaluate_omaha(h, b));
+}
+extern "C" eng::u16 c_cards_limit() {
+	static eng::Xoroshiro64pp rng {13u, 14u};
+	eng::cards::Table t;
+	eng::cards::start_hand(t, rng, 3u, 1000, 5, 10, 0u, eng::cards::PokerVariant::TexasHoldem,
+	                      eng::cards::BettingStructure::Limit);
+	eng::cards::Action legal[12];
+	const eng::u8 n = eng::cards::legal_actions(t, legal, 12u);
+	return static_cast<eng::u16>(n + static_cast<eng::u8>(t.raises_this_street));
 }
 `;
 

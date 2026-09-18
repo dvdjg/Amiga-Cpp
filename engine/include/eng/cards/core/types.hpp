@@ -33,7 +33,8 @@ using cards_int = eng::intw;
 inline constexpr u8 kSuitCount = 4u;
 inline constexpr u8 kRankCount = 13u;
 inline constexpr u8 kDeckSize = 52u;
-inline constexpr u8 kMaxHoleCards = 2u;
+inline constexpr u8 kMaxHoleCards = 2u;  ///< Texas Hold'em
+inline constexpr u8 kSeatCards = 4u;     ///< máximo por asiento (Omaha usa 4)
 inline constexpr u8 kBoardCards = 5u;
 
 /// Palo de la baraja francesa. El orden no implica fuerza.

@@ -11,6 +11,7 @@
 
 #include <cstdio>
 
+#include <eng/cards/ai/bot.hpp>
 #include <eng/cards/core/types.hpp>
 #include <eng/cards/eval/range.hpp>
 
@@ -168,6 +169,39 @@ void test_multiway() {
 	check(multiway_from_heads_up(1000u, 1u) == 1000u, "multiway: equity perfecto se mantiene");
 }
 
+void test_dynamic_range() {
+	eng::Xoroshiro64pp table_rng {77u, 88u};
+	PreflopTable table;
+	build_preflop_table(table, table_rng, 32u);
+
+	eng::Xoroshiro64pp hand_rng {5u, 6u};
+	Table t;
+	start_hand(t, hand_rng, 3u, 1000, 5, 10, 0u);
+
+	OpponentModel tight;
+	OpponentModel loose;
+	for (u16 i = 0u; i < 20u; ++i) {
+		tight.observe(1u, ActionType::Fold);
+		tight.observe(2u, ActionType::Fold);
+		loose.observe(1u, ActionType::Raise);
+		loose.observe(2u, ActionType::Raise);
+	}
+
+	HandRange tight_range;
+	HandRange loose_range;
+	opponent_range_from_model(tight, t, 0u, &table, tight_range);
+	opponent_range_from_model(loose, t, 0u, &table, loose_range);
+	check(tight_range.class_count() > 0u && loose_range.class_count() > 0u,
+	      "rango dinamico: rangos no vacios");
+	check(tight_range.class_count() < loose_range.class_count(),
+	      "rango dinamico: un rival que se retira juega menos manos");
+
+	// Sin tabla no hay ranking: rango completo (equivale a mano aleatoria).
+	HandRange all;
+	opponent_range_from_model(tight, t, 0u, nullptr, all);
+	check(all.class_count() == kPreflopClasses, "rango dinamico: sin tabla = completo");
+}
+
 } // namespace
 
 int main() {
@@ -177,6 +211,7 @@ int main() {
 	test_preflop_table();
 	test_equity_vs_range();
 	test_multiway();
+	test_dynamic_range();
 
 	if (g_fail == 0u) {
 		std::printf("OK: eng::cards range (169 clases, HandRange, equity vs rango y tabla preflop)\n");

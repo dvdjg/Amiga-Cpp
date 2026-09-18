@@ -216,6 +216,7 @@ Notas:
 | `eval/range.hpp` (169 clases, rangos, tabla preflop) | **Implementado**: HOST-166 |
 | `ai/bot.hpp` + `sim/session.hpp` (estilos, modelo de rival, sesiones) | **Implementado**: HOST-165 |
 | Herramienta host `tools/cards/selfplay.sh` | **Implementado y ejecutado** (torneos CPU vs CPU) |
+| Benchmark hardware `demos/amiga/124_cards_bench` | **Implementado y medido**: A500/68000/`N20` = 290 líneas de raster por unidad (1 mano + 1 muestra), cabe en el frame de 313 (~53 unidades/s); `N64` lo supera |
 | Juego con UI en `games/` | **Pendiente** (los motores están **NO VERIFICADOS** en hardware) |
 
 > Estado: núcleo, reglas, evaluación (equity/rangos), IA y simulación implementados y

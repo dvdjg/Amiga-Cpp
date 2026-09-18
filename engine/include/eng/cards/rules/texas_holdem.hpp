@@ -29,6 +29,7 @@
 #include <eng/cards/core/intmath.hpp>
 #include <eng/cards/core/types.hpp>
 #include <eng/cards/rules/hand_rank.hpp>
+#include <eng/cards/rules/variants.hpp>
 
 namespace eng::cards {
 
@@ -64,12 +65,12 @@ struct Seat {
 	s32 stack = 0;
 	s32 committed = 0;
 	s32 street_bet = 0;
-	Card hole[kMaxHoleCards] {kNoCard, kNoCard};
+	Card hole[kSeatCards] {kNoCard, kNoCard, kNoCard, kNoCard};
 	SeatStatus status = SeatStatus::Out;
 	bool acted = false;
 };
 
-/// Mesa completa de una mano de Texas Hold'em. Tamaño fijo y sin punteros.
+/// Mesa completa de una mano de póker. Tamaño fijo y sin punteros.
 struct Table {
 	Seat seats[kMaxSeats] {};
 	Card board[kBoardCards] {};
@@ -79,7 +80,10 @@ struct Table {
 	u8 button = 0u;
 	u8 to_act = kNoSeat;
 	u8 last_aggressor = kNoSeat;
+	u8 raises_this_street = 0u; ///< subidas en la calle (tope en Limit)
 	Street street = Street::Preflop;
+	PokerVariant variant = PokerVariant::TexasHoldem;
+	BettingStructure structure = BettingStructure::NoLimit;
 	s32 pot = 0;
 	s32 current_bet = 0;
 	s32 min_raise = 0;
@@ -132,10 +136,14 @@ struct Table {
 	return owe > 0 ? owe : 0;
 }
 
-/// Valor de la mejor mano de 5 de `seat` (requiere 2 hole + 5 comunitarias).
+/// Valor de la mejor mano de 5 de `seat` (requiere 5 comunitarias). En Omaha usa
+/// exactamente 2 de las 4 privadas y 3 del tablero (`evaluate_omaha`).
 [[nodiscard]] constexpr HandValue seat_hand_value(const Table& t, u8 seat) noexcept {
 	if (t.board_count < kBoardCards) {
 		return kHandValueNone;
+	}
+	if (t.variant == PokerVariant::Omaha) {
+		return evaluate_omaha(t.seats[seat].hole, t.board);
 	}
 	Card cards[7] {};
 	cards[0] = t.seats[seat].hole[0];
@@ -216,7 +224,8 @@ constexpr void post(Table& t, u8 seat, s32 amount) noexcept {
 }
 
 constexpr void deal_hole(Table& t, u8 count) noexcept {
-	for (u8 round = 0u; round < kMaxHoleCards; ++round) {
+	const u8 rounds = hole_cards_for(t.variant);
+	for (u8 round = 0u; round < rounds; ++round) {
 		for (u8 k = 0u; k < count; ++k) {
 			const u8 seat = ring_add(t.button, static_cast<u8>(1u + k), count);
 			if (t.seats[seat].status == SeatStatus::Active || t.seats[seat].status == SeatStatus::AllIn) {
@@ -236,20 +245,27 @@ constexpr void deal_board(Table& t, u8 n) noexcept {
 } // namespace detail
 
 /// Reparte una mano nueva. Los asientos sin fichas quedan `Out`. Baraja con `rng`
-/// (misma semilla ⇒ misma mano) y reparte hole cards y ciegas.
+/// (misma semilla ⇒ misma mano) y reparte hole cards y ciegas. `variant` decide si
+/// cada asiento recibe 2 (Hold'em) o 4 (Omaha) cartas; `structure`, la apuesta libre
+/// (No-Limit) o fija con tope (Limit).
 inline void start_hand(Table& t, eng::Xoroshiro64pp& rng, u8 seat_count, s32 starting_stack,
-                       s32 small_blind, s32 big_blind, u8 button) noexcept {
+                       s32 small_blind, s32 big_blind, u8 button,
+                       PokerVariant variant = PokerVariant::TexasHoldem,
+                       BettingStructure structure = BettingStructure::NoLimit) noexcept {
 	t = Table {};
 	t.seat_count = seat_count > kMaxSeats ? kMaxSeats : seat_count;
 	t.small_blind = small_blind;
 	t.big_blind = big_blind;
 	t.min_raise = big_blind;
+	t.variant = variant;
+	t.structure = structure;
 	t.button = detail::ring_add(0u, button, t.seat_count);
 	for (u8 i = 0u; i < t.seat_count; ++i) {
 		t.seats[i].status = starting_stack > 0 ? SeatStatus::Active : SeatStatus::Out;
 		t.seats[i].stack = starting_stack;
-		t.seats[i].hole[0] = kNoCard;
-		t.seats[i].hole[1] = kNoCard;
+		for (u8 c = 0u; c < kSeatCards; ++c) {
+			t.seats[i].hole[c] = kNoCard;
+		}
 	}
 
 	t.deck.reset();
@@ -308,7 +324,25 @@ inline void start_hand(Table& t, eng::Xoroshiro64pp& rng, u8 seat_count, s32 sta
 		add(ActionType::Check, 0);
 	}
 
-	// Subida: solo si la acción no está cerrada (`!acted`) y hay fichas por encima del call.
+	if (t.structure == BettingStructure::Limit) {
+		// Limit: subidas de tamaño fijo y tope de `kLimitMaxRaises` por calle. No se
+		// ofrece all-in (la apuesta ya está acotada por el tope).
+		if (!s.acted && t.raises_this_street < kLimitMaxRaises && s.stack > owe) {
+			const s32 bet = limit_bet_size(t.street, t.small_blind, t.big_blind);
+			s32 target = t.current_bet == 0 ? bet : t.current_bet + bet;
+			const s32 max_target = s.street_bet + s.stack;
+			if (target > max_target) {
+				target = max_target;
+			}
+			if (target > s.street_bet) {
+				add(ActionType::Raise, target);
+			}
+		}
+		return n;
+	}
+
+	// No-Limit: subida libre. Solo si la acción no está cerrada (`!acted`) y hay
+	// fichas por encima del call.
 	if (!s.acted && s.stack > owe) {
 		s32 min_target = t.current_bet + t.min_raise;
 		if (t.current_bet == 0) {
@@ -454,6 +488,7 @@ inline void advance_street(Table& t) noexcept {
 	}
 	t.current_bet = 0;
 	t.min_raise = t.big_blind;
+	t.raises_this_street = 0u;
 
 	switch (t.street) {
 	case Street::Preflop:
@@ -533,6 +568,9 @@ inline void apply_action(Table& t, const Action& action) noexcept {
 		}
 		const s32 add = target - s.street_bet;
 		detail::post(t, seat, add);
+		if (target > old_bet) {
+			++t.raises_this_street;
+		}
 		if (s.status != SeatStatus::AllIn) {
 			const s32 raise_size = target - old_bet;
 			if (raise_size > t.min_raise) {
@@ -553,6 +591,7 @@ inline void apply_action(Table& t, const Action& action) noexcept {
 		const s32 target = s.street_bet + s.stack;
 		detail::post(t, seat, s.stack);
 		if (target > old_bet) {
+			++t.raises_this_street;
 			if (target - old_bet > t.min_raise) {
 				t.min_raise = target - old_bet;
 				detail::reset_acted_except(t, seat);

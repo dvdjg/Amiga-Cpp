@@ -253,4 +253,26 @@ constexpr u8 top_ranks(u16 mask, u8* out, u8 need) noexcept {
 	return evaluate_hand(cards.data(), static_cast<u8>(cards.size()));
 }
 
+/// **Omaha**: la mano se forma con **exactamente 2** de las 4 cartas privadas y
+/// **exactamente 3** de las 5 comunitarias (60 combinaciones). Reutiliza `evaluate_hand`.
+[[nodiscard]] constexpr HandValue evaluate_omaha(const Card (&hole)[4], const Card (&board)[5]) noexcept {
+	HandValue best = kHandValueNone;
+	for (u8 h0 = 0u; h0 < 3u; ++h0) {
+		for (u8 h1 = static_cast<u8>(h0 + 1u); h1 < 4u; ++h1) {
+			for (u8 b0 = 0u; b0 < 3u; ++b0) {
+				for (u8 b1 = static_cast<u8>(b0 + 1u); b1 < 4u; ++b1) {
+					for (u8 b2 = static_cast<u8>(b1 + 1u); b2 < 5u; ++b2) {
+						const Card five[5] {hole[h0], hole[h1], board[b0], board[b1], board[b2]};
+						const HandValue value = evaluate_hand(five, 5u);
+						if (value > best) {
+							best = value;
+						}
+					}
+				}
+			}
+		}
+	}
+	return best;
+}
+
 } // namespace eng::cards

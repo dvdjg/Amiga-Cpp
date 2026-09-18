@@ -225,6 +225,44 @@ namespace detail {
 	return category_strength_permille(seat_hand_value(t, seat));
 }
 
+/// Rango de rival derivado del modelo observado: un rival que se retira mucho juega
+/// menos manos (rango estrecho) y uno agresivo/pegajoso juega más. Requiere la tabla
+/// preflop lista para ordenar por equity; si no lo está, deja el rango completo.
+/// Coste O(N) sobre `table->order`.
+inline void opponent_range_from_model(const OpponentModel& model, const Table& t, u8 hero_seat,
+                                      const PreflopTable* table, HandRange& out) noexcept {
+	if (table == nullptr || !table->ready) {
+		out.set_all();
+		return;
+	}
+	u16 fold_sum = 0u;
+	u16 aggr_sum = 0u;
+	u8 n = 0u;
+	for (u8 i = 0u; i < t.seat_count; ++i) {
+		const SeatStatus st = t.seats[i].status;
+		if (i != hero_seat && (st == SeatStatus::Active || st == SeatStatus::AllIn)) {
+			fold_sum = static_cast<u16>(fold_sum + model.fold_permille(i));
+			aggr_sum = static_cast<u16>(aggr_sum + model.aggression_permille(i));
+			++n;
+		}
+	}
+	if (n == 0u) {
+		out.set_all();
+		return;
+	}
+	const u16 fold = static_cast<u16>(div32(fold_sum, n));
+	const u16 aggr = static_cast<u16>(div32(aggr_sum, n));
+	// 400 ‰ por defecto; retirarse mucho estrecha el rango, la agresividad lo ensancha.
+	s32 wide = 400 + (300 - static_cast<s32>(fold)) + (static_cast<s32>(aggr) - 300) / 2;
+	if (wide < 80) {
+		wide = 80;
+	}
+	if (wide > 850) {
+		wide = 850;
+	}
+	make_range_by_percentile(*table, out, static_cast<u16>(wide));
+}
+
 /// Decide la acción de `seat`. Respeta siempre la lista de acciones legales.
 [[nodiscard]] inline Action decide(const Table& t, u8 seat, const BotParams& params,
                                    const OpponentModel* model, eng::Xoroshiro64pp& rng,
@@ -237,7 +275,17 @@ namespace detail {
 	}
 
 	const s32 owe = to_call(t, seat);
-	const u16 strength = hand_strength_permille(t, seat, params, rng, table, opponent_range);
+
+	// Rango dinámico: si hay modelo de rival y no se fijó un rango explícito, se
+	// deriva de sus frecuencias (fold/call/raise) observadas.
+	HandRange dynamic_range;
+	const HandRange* effective_range = opponent_range;
+	if (effective_range == nullptr && model != nullptr && params.use_mc && params.mc_samples > 0u) {
+		opponent_range_from_model(*model, t, seat, table, dynamic_range);
+		effective_range = &dynamic_range;
+	}
+
+	const u16 strength = hand_strength_permille(t, seat, params, rng, table, effective_range);
 
 	// Ajuste por modelo de rivales: ante rivales que se retiran mucho, más farol.
 	u16 bluff = params.bluff_permille;
