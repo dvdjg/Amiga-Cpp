@@ -29,7 +29,7 @@ programador de recompensas), se implementa en `eng::ai::design` con consumidor r
 
 Puntos de reutilización explícitos:
 
-- `WorldState<MaxFacts>` encapsula un `eng::util::BitSet<MaxFacts>`; el significado de
+- `WorldState` encapsula un `eng::util::BitSet<32>` (tope `max_facts`); el significado de
   cada hecho (`Fact`, un `u16`) lo fija el juego con un `enum`.
 - El planificador usa `eng::util::HashMap` (estado → mejor coste, deduplicación `O(1)`)
   y `eng::util::PriorityQueue` (min-heap por `f`), ya verificados por HOST-083/089.
@@ -82,12 +82,17 @@ heap.
 | Tipo | Papel |
 |---|---|
 | `Fact` (`u16`) | índice de un hecho booleano; su significado lo fija el juego |
-| `WorldState<MaxFacts>` | conjunto de hechos (`BitSet`); `key()` lo empaqueta en `u32` |
-| `make_state<MaxFacts>(hechos…)` | construye un estado a partir de sus hechos |
-| `Action<MaxFacts>` | `pre_true`, `pre_false`, `eff_add`, `eff_del`, `cost`, `name` |
-| `ActionBuilder<MaxFacts>` | constructor fluido (`named`/`cost`/`require`/`forbid`/`produce`/`consume`) |
-| `Goal<MaxFacts>` | `want_true` (hechos exigidos a 1) y `want_false` (exigidos a 0) |
-| `Planner<MaxFacts, MaxActions, MaxNodes>` | A* hacia delante; `plan()`, `found()`, `plan_cost()`, `expansions()` |
+| `WorldState` | conjunto de hasta `max_facts` (32) hechos (`BitSet<32>`); `key()` lo empaqueta en `u32` |
+| `make_state(hechos…)` | construye un estado a partir de sus hechos (constantes o de runtime) |
+| `Action` | `pre_true`, `pre_false`, `eff_add`, `eff_del`, `cost`, `name` |
+| `ActionBuilder` | constructor fluido (`named`/`cost`/`require`/`forbid`/`produce`/`consume`) |
+| `Goal` | `want_true` (hechos exigidos a 1) y `want_false` (exigidos a 0) |
+| `Planner<MaxNodes>` | A* hacia delante; `plan()`, `found()`, `plan_cost()`, `expansions()` |
+
+El número de hechos **no se parametriza**: el estado se empaqueta en un `u32`, así que 32 es
+el tope natural y no hay que repetir el tamaño en cada acción ni contenedor. El único
+parámetro de plantilla de la API es el presupuesto de búsqueda del `Planner` (`MaxNodes`),
+que tiene un valor por defecto.
 
 Consulta de estado: `applicable(s, a)`, `apply(s, a)`, `satisfies(s, g)` y la
 heurística `goal_distance(s, g)` (hechos del objetivo pendientes).
@@ -96,17 +101,17 @@ heurística `goal_distance(s, g)` (hechos del objetivo pendientes).
 
 ```cpp
 enum : eng::u16 { kHarina, kHuevos, kMezcla, kHorneado };
-constexpr auto acciones = eng::util::Array<eng::ai::Action<8>, 3> { {
-    eng::ai::ActionBuilder<8>{}.named("comprar").produce<kHarina, kHuevos>().build(),
-    eng::ai::ActionBuilder<8>{}.named("batir").require<kHarina, kHuevos>().produce<kMezcla>().build(),
-    eng::ai::ActionBuilder<8>{}.named("hornear").require<kMezcla>().produce<kHorneado>().build(),
+constexpr eng::util::Array<eng::ai::Action, 3> acciones { {
+    eng::ai::ActionBuilder{}.named("comprar").produce(kHarina, kHuevos).build(),
+    eng::ai::ActionBuilder{}.named("batir").require(kHarina, kHuevos).produce(kMezcla).build(),
+    eng::ai::ActionBuilder{}.named("hornear").require(kMezcla).produce(kHorneado).build(),
 } };
-eng::ai::Goal<8> meta;
+eng::ai::Goal meta;
 meta.want_true.facts.set(kHorneado);
 
-eng::ai::Planner<8, 3, 64> planner;      // en Amiga: instancia estatica, no de pila
+eng::ai::Planner<64> planner;            // en Amiga: instancia estatica, no de pila
 eng::u16 plan[8];
-const eng::usize n = planner.plan(eng::ai::make_state<8>(), meta, acciones.span(),
+const eng::usize n = planner.plan(eng::ai::make_state(), meta, acciones.span(),
                                   eng::Span<eng::u16> {plan, 8u});
 ```
 
@@ -118,11 +123,12 @@ objetivo; `found() == false` con `0` significa que no hay solución (o no cabe e
 ### 3.3 Coste y límites (A500)
 
 - El planificador usa `HashMap`, `PriorityQueue` y los nodos **inline** en el objeto
-  `Planner`. `MaxNodes` dimensiona los tres: `Planner<16,13,256>` ocupa ~9 KiB, así que
-  se instancia en **memoria estática** (no en la pila del 68000) y se ejecuta en `init`
-  o en una tarea de fondo (`eng::task`), nunca en el camino por frame.
-- `MaxFacts ≤ 32`: la clave del estado se empaqueta en una palabra de 32 bits, de ahí la
-  deduplicación `O(1)` sin hashes largos.
+  `Planner`. `MaxNodes` dimensiona los tres: `Planner<256>` ocupa ~9 KiB, así que se
+  instancia en **memoria estática** (no en la pila del 68000) y se ejecuta en `init` o en
+  una tarea de fondo (`eng::task`), nunca en el camino por frame.
+- `max_facts = 32`: la clave del estado se empaqueta en una palabra de 32 bits (`WorldState`
+  es un `BitSet<32>` fijo), de ahí la deduplicación `O(1)` sin hashes largos. Un índice de
+  hecho fuera de `[0, 32)` dispara `illegal` (contrato de `BitSet`).
 - La heurística es el número de hechos del objetivo pendientes. Es **admisible cuando
   cada acción satisface como mucho un hecho del objetivo** (el caso de estos planes); si
   una acción resolviera varios hechos de golpe, la heurística puede sobreestimar y el
