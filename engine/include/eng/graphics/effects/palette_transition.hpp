@@ -32,6 +32,9 @@ struct PaletteTransitionRange {
 	u8 count = 32;       // numero de colores
 	u16 frames = 64;     // frames por sentido (0 se corrige a 1)
 	bool ping_pong = true; // ida y vuelta; false = una sola vez y se queda en `to`
+	/// Si `>= 0`, el parche es de **zona** (cambia la paleta a partir de esa linea raster,
+	/// como `EhbPaletteZone`); si es negativo, es de **base** (`COLORxx` globales).
+	s16 zone_line = -1;
 };
 
 /// Efecto de transicion de paleta sin asignaciones dinamicas.
@@ -99,14 +102,19 @@ public:
 	constexpr PaletteTransitionRange range() const { return m_range; }
 
 	/// Aporta este efecto al plan: interpola `m_from -> m_to` en la paleta runtime y
-	/// registra un parche base con el tramo `first/count`. Es el metodo del concepto
+	/// registra el parche (base o de zona segun `zone_line`). Es el metodo del concepto
 	/// `Effect<PaletteTransitionEffect, FramePlan>`.
 	void apply_into(FramePlan& plan) {
 		if (m_from == nullptr || m_to == nullptr) {
 			return;
 		}
 		apply_fixed();
-		plan.add_base_palette_patch(m_runtime, m_range.first, m_range.count);
+		if (m_range.zone_line < 0) {
+			plan.add_base_palette_patch(m_runtime, m_range.first, m_range.count);
+		} else {
+			plan.add_zone_palette_patch(static_cast<u8>(m_range.zone_line), m_runtime,
+						    m_range.first, m_range.count);
+		}
 	}
 
 private:

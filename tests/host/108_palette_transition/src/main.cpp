@@ -103,6 +103,21 @@ int main() {
 		check(ok, "ping_pong: 0,den,0,den-1,6");
 	}
 
+	// --- Parche de zona (`zone_line >= 0`) -----------------------------------
+	{
+		effects::PaletteTransitionEffect e;
+		e.configure({0, 32, 8, false, 0x70});
+		e.bind(black, white);
+		eng::graphics::FramePlan plan;
+		e.update(8u);
+		plan.clear();
+		e.apply_into(plan);
+		check(plan.palette_patch_count() == 1u, "zona -> 1 parche");
+		const eng::graphics::PalettePatch& patch = plan.palette_patch(0u);
+		check(patch.target == eng::graphics::PalettePatchTarget::Zone, "parche de zona");
+		check(patch.line == 0x70u, "parche en la linea de zona");
+	}
+
 	// --- Recorte de rango y efecto sin enlazar -------------------------------
 	{
 		effects::PaletteTransitionEffect e;

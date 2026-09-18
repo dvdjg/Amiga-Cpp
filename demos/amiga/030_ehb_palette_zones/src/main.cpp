@@ -27,12 +27,11 @@ namespace {
 namespace ehb = eng::graphics::drivers;
 namespace effects = eng::graphics::effects;
 
-/// Paleta totalmente negra: origen del "encendido" (fade-in de arranque).
-constexpr ehb::EhbPalette black_palette {};
-
-/// Duracion del fade-in de arranque (frames). READY se retrasa a `kFadeFrames + 4` para
-/// que la captura del runner sea siempre la escena ya encendida (no a media transicion).
+/// Duracion de cada rampa del encendido/apagon (frames), tiempo encendido/apagado en
+/// meseta, y frames de arranque antes de marcar READY (siempre con la escena encendida).
 constexpr eng::u16 kFadeFrames = 32;
+constexpr eng::u16 kHoldFrames = 240;
+constexpr eng::u32 kReadyFrame = static_cast<eng::u32>(kFadeFrames) + 4u;
 
 constexpr eng::u16 screen_height = ehb::StaticEhbScene::height;
 constexpr eng::u16 bytes_per_row = ehb::StaticEhbScene::bytes_per_row;
@@ -129,11 +128,11 @@ struct DemoGame {
 			4u * 1024u,  // Frame scratch.
 		});
 
-		// Encendido: la paleta base arranca en negro y sube hasta `top_palette` en
-		// `kFadeFrames`, una sola vez (`ping_pong = false`). El efecto escribe su propia
-		// paleta runtime y aporta el parche al plan; el driver lo materializa.
+		// Encendido inicial: la paleta base arranca en negro y sube hasta `top_palette`.
+		// Despues la demo cicla encendido/apagon con el mismo efecto (ida sin vuelta en
+		// cada rampa): ver `drive_fade`.
 		m_fade_in.configure({0, 32, kFadeFrames, false});
-		m_fade_in.bind(black_palette, top_palette);
+		m_fade_in.bind(ehb::black_palette, top_palette);
 
 		const ehb::StaticEhbSceneConfig scene_config {
 			&m_fade_in.runtime_palette(),
@@ -160,8 +159,10 @@ struct DemoGame {
 			return;
 		}
 
-		// Avanza el fade-in y aporta su parche de paleta base al plan.
-		m_fade_in.update(context.frame.frame_index);
+		// Encendido/apagon periodico: el mismo efecto, re-enlazado por fase. Cada rampa es
+		// una sola pasada (num 0 -> frames); la paleta destino/origen fija la direccion.
+		drive_fade(context.frame.frame_index);
+
 		m_frame_plan.clear();
 		m_fade_in.apply_into(m_frame_plan);
 		if (!m_scene.apply_frame_plan(m_frame_plan)) {
@@ -171,10 +172,31 @@ struct DemoGame {
 		}
 		m_scene.install(backend);
 
-		// READY solo cuando el encendido ha terminado: la captura del runner es la
-		// escena ya encendida, no un frame negro de la transicion.
-		if (context.frame.frame_index >= static_cast<eng::u32>(kFadeFrames) + 4u) {
+		// READY se marca tras el primer encendido: la captura del runner es la escena
+		// ya encendida, no un frame negro de la transicion.
+		if (context.frame.frame_index >= kReadyFrame) {
 			eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_scene.copper_words()));
+		}
+	}
+
+	/// Re-enlaza y avanza el fundido segun la fase del ciclo encendido/apagon.
+	void drive_fade(eng::u16 frame) {
+		const eng::u32 hold = kHoldFrames;
+		const eng::u32 fade = kFadeFrames;
+		const eng::u32 cycle = 2u * (hold + fade);
+		const eng::u32 t = static_cast<eng::u32>(frame) % cycle;
+		if (t < hold) {                    // encendido estable
+			m_fade_in.bind(ehb::black_palette, top_palette);
+			m_fade_in.update(kFadeFrames);
+		} else if (t < hold + fade) {      // apagon
+			m_fade_in.bind(top_palette, ehb::black_palette);
+			m_fade_in.update(static_cast<eng::u16>(t - hold));
+		} else if (t < 2u * hold + fade) { // apagado estable
+			m_fade_in.bind(top_palette, ehb::black_palette);
+			m_fade_in.update(kFadeFrames);
+		} else {                           // encendido
+			m_fade_in.bind(ehb::black_palette, top_palette);
+			m_fade_in.update(static_cast<eng::u16>(t - (2u * hold + fade)));
 		}
 	}
 

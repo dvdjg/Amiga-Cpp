@@ -34,14 +34,16 @@ bytes y la copperlist cabe en 1 KB. Pedir grandes bloques en AmigaDOS/Kick 1.3 p
 fallar por fragmentacion o memoria ya ocupada, asi que la demo no solicita margen
 innecesario.
 
-## Encendido (fade-in)
+## Encendido / apagon
 
-Al arrancar, la paleta base no empieza en `top_palette` sino en negro y sube hasta ella
-en 32 frames mediante `PaletteTransitionEffect` (`eng/graphics/effects/palette_transition.hpp`)
-en modo una sola pasada (`ping_pong = false`). El efecto aporta un parche de paleta base
-al `FramePlan` y `StaticEhbScene` parchea los `COLORxx`; la demo no toca registros. READY
-se marca cuando el encendido ha terminado (`kFadeFrames + 4`), de modo que la captura del
-runner es siempre la escena ya encendida, no un frame de la transicion.
+La demo arranca en negro y sube hasta `top_palette` en 32 frames mediante
+`PaletteTransitionEffect` (`eng/graphics/effects/palette_transition.hpp`) en modo una sola
+pasada (`ping_pong = false`). Despues repite un ciclo encendido/apagon de forma periodica
+con el mismo efecto, re-enlazando origen/destino por fase (cada rampa es una sola pasada).
+El efecto aporta un parche de paleta base al `FramePlan` y `StaticEhbScene` parchea los
+`COLORxx`; la demo no toca registros. READY se marca cuando el primer encendido ha
+terminado (`kReadyFrame`), de modo que la captura del runner es siempre la escena
+encendida, no un frame de la transicion.
 
 ## Verificacion
 

@@ -42,6 +42,11 @@ struct EhbPalette {
 	}
 };
 
+/// Paleta totalmente negra, compartida. Es el origen/destino natural de un fundido de
+/// paleta (`PaletteTransitionEffect`); vive aqui para no repetir el literal de 32 ceros en
+/// cada demo.
+inline constexpr EhbPalette black_palette {};
+
 /// Cambio de paleta en una linea concreta.
 ///
 /// `line` usa el mismo espacio que `Copper::wait_line`: valores de raster visibles
