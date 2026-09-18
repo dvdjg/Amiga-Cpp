@@ -2,10 +2,10 @@
 // Test HOST-026: cache de chunks residentes con streaming (LRU) y presupuesto
 // ============================================================================
 //
-// Valida `eng::field::ChunkCache<ChunkSize, Capacity>`: mantiene `Capacity` chunks
-// en un pool aportado por el llamador, carga bajo demanda con un `Loader` y evicta
-// por LRU. Es la pieza que hace viable un `WorldMap` disperso sin tener todo el
-// mundo en Chip RAM.
+// Valida `eng::field::ChunkCache<ChunkSize, Capacity, Loader>`: mantiene `Capacity`
+// chunks en un pool aportado por el llamador, carga bajo demanda con un loader (un
+// **tipo** con `load(cx,cy,dst)`, concept `ChunkLoader`) y evicta por LRU. Es la
+// pieza que hace viable un `WorldMap` disperso sin tener todo el mundo en Chip RAM.
 
 #include <cstdio>
 
@@ -20,40 +20,47 @@ void check(bool ok, const char* what) {
 
 struct LoaderData { int calls; };
 
-eng::field::LoadResult fake_load(void* user, eng::s32 cx, eng::s32 cy, eng::TileBankBuffer dst) {
-	++static_cast<LoaderData*>(user)->calls;
-	for (eng::u32 i = 0; i < eng::field::ChunkCache<4, 2>::kCells; ++i) {
-		dst[i] = static_cast<eng::u16>(cx * 100 + cy * 10 + static_cast<eng::s32>(i));
+/// Loader de prueba: rellena cada chunk con un patrón dependiente de (cx,cy).
+struct FakeLoader {
+	LoaderData* data;
+	eng::field::LoadResult load(eng::s32 cx, eng::s32 cy, eng::TileBankBuffer dst) {
+		++data->calls;
+		for (eng::u32 i = 0; i < dst.size(); ++i) {
+			dst[i] = static_cast<eng::u16>(cx * 100 + cy * 10 + static_cast<eng::s32>(i));
+		}
+		return eng::field::LoadResult::Ready;
 	}
-	return eng::field::LoadResult::Ready;
-}
+};
 
-// Carga que ejercita los tres estados: (9,*) aún no lista; (5,*) ausente; resto lista.
-eng::field::LoadResult special_load(void* user, eng::s32 cx, eng::s32 cy, eng::TileBankBuffer dst) {
-	++static_cast<LoaderData*>(user)->calls;
-	if (cx == 9) return eng::field::LoadResult::Pending;
-	if (cx == 5) {
-		for (eng::u32 i = 0; i < eng::field::ChunkCache<4, 2>::kCells; ++i) dst[i] = 0xFFFFu;
-		return eng::field::LoadResult::Empty;
+/// Carga que ejercita los tres estados: (9,*) aún no lista; (5,*) ausente; resto lista.
+struct SpecialLoader {
+	LoaderData* data;
+	eng::field::LoadResult load(eng::s32 cx, eng::s32 cy, eng::TileBankBuffer dst) {
+		++data->calls;
+		if (cx == 9) return eng::field::LoadResult::Pending;
+		if (cx == 5) {
+			for (eng::u32 i = 0; i < dst.size(); ++i) dst[i] = 0xFFFFu;
+			return eng::field::LoadResult::Empty;
+		}
+		for (eng::u32 i = 0; i < dst.size(); ++i) {
+			dst[i] = static_cast<eng::u16>(cx * 100 + cy * 10 + static_cast<eng::s32>(i));
+		}
+		return eng::field::LoadResult::Ready;
 	}
-	for (eng::u32 i = 0; i < eng::field::ChunkCache<4, 2>::kCells; ++i) {
-		dst[i] = static_cast<eng::u16>(cx * 100 + cy * 10 + static_cast<eng::s32>(i));
-	}
-	return eng::field::LoadResult::Ready;
-}
+};
 
 } // namespace
 
 int main() {
-	using Cache = eng::field::ChunkCache<4, 2>;   // 2 chunks de 4x4
-	eng::u16 pool[Cache::kPoolCells] {};          // pool del llamador
+	using Cache = eng::field::ChunkCache<4u, 2u, FakeLoader>; // 2 chunks de 4x4
+	eng::u16 pool[Cache::kPoolCells] {};                      // pool del llamador
 	LoaderData ld {0};
+	FakeLoader loader {&ld};
 	Cache cache {};
 
-	check(cache.init({ &fake_load, &ld }, eng::TileBankBuffer{pool}),
-	      "init");
-	check(!cache.init({ nullptr, nullptr }, eng::TileBankBuffer{pool}),
-	      "init sin loader falla");
+	check(cache.init(loader, eng::TileBankBuffer {pool}), "init");
+	// Un pool demasiado pequeño no se acepta (no se toca el loader).
+	check(!cache.init(loader, eng::TileBankBuffer {pool, 0u}), "init con pool pequeno falla");
 
 	const eng::u16* a = cache.get(0, 0);
 	check(a != nullptr && a[0] == 0 && a[15] == 15, "carga (0,0) y datos");
@@ -75,11 +82,12 @@ int main() {
 	check(cache.get(0, 0) != nullptr && cache.loads() == 4, "(0,0) recargado");
 
 	// Tres estados del Loader: Pending no queda residente (se reintenta), Empty sí.
-	using Cache2 = eng::field::ChunkCache<4, 2>;
+	using Cache2 = eng::field::ChunkCache<4u, 2u, SpecialLoader>;
 	eng::u16 pool2[Cache2::kPoolCells] {};
 	LoaderData ld2 {0};
+	SpecialLoader special {&ld2};
 	Cache2 c2 {};
-	check(c2.init({ &special_load, &ld2 }, eng::TileBankBuffer{pool2}), "init c2");
+	check(c2.init(special, eng::TileBankBuffer {pool2}), "init c2");
 	check(c2.get(9, 0) == nullptr && c2.pendings() == 1 && c2.loads() == 0,
 	      "Pending: sin residente ni load");
 	check(c2.get(9, 0) == nullptr && c2.pendings() == 2, "Pending se reintenta");

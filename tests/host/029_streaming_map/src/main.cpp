@@ -2,9 +2,10 @@
 // Test HOST-029: mundo disperso con streaming (prefetch + solo-residentes)
 // ============================================================================
 //
-// Valida `eng::field::StreamingWorldMap`: prefetch de los chunks que cubren la
-// ventana, lectura de SOLO residentes (sin cargar durante el dibujo), chunks
-// ausentes como `empty_tile`, y telemetría de loads/evictions.
+// Valida `eng::field::StreamingWorldMap<ChunkSize, Capacity, Source>`: prefetch de
+// los chunks que cubren la ventana, lectura de SOLO residentes (sin cargar durante el
+// dibujo), chunks ausentes como `empty_tile`, y telemetría de loads/evictions. La
+// fuente es un tipo con `load(cx,cy,dst)` (concept `ChunkSource`), no un puntero.
 
 #include <cstdio>
 
@@ -15,22 +16,25 @@ int g_fail = 0;
 void check(bool ok, const char* what) {
 	if (!ok) { std::printf("[FAIL] %s\n", what); ++g_fail; }
 }
-struct Src { int calls; };
+
+/// Fuente de prueba: puebla los chunks (1..4, *) y deja el resto como ausentes.
+struct Src {
+	int calls;
+	eng::field::LoadResult load(eng::s32 cx, eng::s32 cy, eng::TileBankBuffer cells) {
+		++calls;
+		if (cx >= 1 && cx <= 4) {
+			for (eng::u32 i = 0; i < 16u; ++i) { // 4x4 celdas
+				cells[i] = static_cast<eng::u16>(cx * 100 + cy * 10 + static_cast<eng::s32>(i));
+			}
+			return eng::field::LoadResult::Ready;
+		}
+		return eng::field::LoadResult::Empty;
+	}
+};
 } // namespace
 
 namespace {
-using Map = eng::field::StreamingWorldMap<4, 2>;
-
-eng::field::LoadResult load_chunk(void* user, eng::s32 cx, eng::s32 cy, eng::TileBankBuffer cells) {
-	++static_cast<Src*>(user)->calls;
-	if (cx >= 1 && cx <= 4) {   // chunks poblados (0,0)
-		for (eng::u32 i = 0; i < Map::kCells; ++i) {
-			cells[i] = static_cast<eng::u16>(cx * 100 + cy * 10 + static_cast<eng::s32>(i));
-		}
-		return eng::field::LoadResult::Ready;
-	}
-	return eng::field::LoadResult::Empty;   // ausente
-}
+using Map = eng::field::StreamingWorldMap<4, 2, Src>;
 } // namespace
 
 int main() {
@@ -38,7 +42,7 @@ int main() {
 	Src src {0};
 	Map map {};
 
-	check(map.init({ &load_chunk, &src }, eng::TileBankBuffer{pool}), "init");
+	check(map.init(src, eng::TileBankBuffer {pool}), "init");
 	check(map.is_empty(map.tile_at(4, 0)), "no residente -> empty antes de prefetch");
 
 	// prefetch de la ventana que cubre el chunk (1,0).

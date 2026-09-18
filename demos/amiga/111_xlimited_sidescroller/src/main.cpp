@@ -62,7 +62,12 @@ constexpr eng::u16 kTilesetCount = 128;
 // frame mantiene residentes los chunks que cubren la banda entrante.
 constexpr eng::u16 kChunkTiles = 16;
 constexpr eng::u8  kChunkCapacity = 12;
-using WorldMap = field::StreamingWorldMap<kChunkTiles, kChunkCapacity>;
+/// Fuente de chunks del mundo (concept `ChunkSource`): envuelve `load_chunk` para
+/// que `StreamingWorldMap` la conozca en compilación (sin punteros a función).
+struct WorldChunkSource {
+	field::LoadResult load(eng::s32 cx, eng::s32 cy, eng::TileBankBuffer cells) const;
+};
+using WorldMap = field::StreamingWorldMap<kChunkTiles, kChunkCapacity, WorldChunkSource>;
 using MapView = field::TileMapView<WorldMap>;
 
 constexpr field::ScrollConsts kScrollConsts {
@@ -118,6 +123,11 @@ field::LoadResult load_chunk(void*, eng::s32 cx, eng::s32 cy, eng::TileBankBuffe
 	return field::LoadResult::Ready;
 }
 
+field::LoadResult WorldChunkSource::load(eng::s32 cx, eng::s32 cy,
+                                         eng::TileBankBuffer cells) const {
+	return load_chunk(nullptr, cx, cy, cells);
+}
+
 struct DemoGame {
 	field::XlimitedScene<kScrollConsts, MapView, ScrollProfile_t> scene {};
 	field::XlimitedSceneConfigT<MapView> scene_cfg {};
@@ -162,7 +172,7 @@ struct DemoGame {
 		scene_cfg.display_height = kDisplayH;
 		scene_cfg.max_step = 4;
 
-		if (!m_world.init({&load_chunk, nullptr},
+		if (!m_world.init(WorldChunkSource {},
 		                  eng::TileBankBuffer{g_world_pool}, 0xFFFFu)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011105u);
 			return;

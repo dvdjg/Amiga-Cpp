@@ -77,15 +77,14 @@ int main() {
 	check(ws.is_empty(ws.tile_at(0, 16)), "fuera de height -> empty");
 
 	// 2) Streaming con Loader-RAM desde el blob del mundo.
-	using World = eng::field::StreamingWorldMap<16, 4>;
+	using World = eng::field::StreamingWorldMap<16, 4, eng::field::WorldMapChunkLoader>;
 	using View = eng::field::TileMapView<World>;
 	static_assert(eng::field::TileMap<View>, "TileMapView debe cumplir TileMap");
 
 	eng::u16 pool[World::kPoolCells] {};
 	World world {};
 	eng::field::WorldMapChunkLoader loader {&w, 0u, 16u};
-	check(world.init({&eng::field::WorldMapChunkLoader::load, &loader},
-	                 eng::TileBankBuffer{pool}, 0xFFFFu), "init streaming");
+	check(world.init(loader, eng::TileBankBuffer {pool}, 0xFFFFu), "init streaming");
 
 	View view {};
 	view.src = &world;
@@ -110,7 +109,7 @@ int main() {
 
 	// Chunk ausente: el Loader devuelve Empty sin romper.
 	eng::u16 tmp[256] {};
-	check(eng::field::WorldMapChunkLoader::load(&loader, 9, 9, eng::TileBankBuffer {tmp}) == eng::field::LoadResult::Empty,
+	check(loader.load(9, 9, eng::TileBankBuffer {tmp}) == eng::field::LoadResult::Empty,
 	      "chunk ausente -> Empty");
 	check(world.loads() >= 2, "el Loader contó cargas");
 

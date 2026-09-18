@@ -30,7 +30,7 @@ public:
 	static constexpr u32 block_size = BlockSize;
 	static constexpr u32 capacity = Capacity;
 
-	constexpr explicit BlockCache(Source source) noexcept : m_source(source) {}
+	constexpr explicit BlockCache(const Source& source) noexcept : m_source(source) {}
 
 	/// Devuelve la vista del bloque (válida hasta el siguiente `get`). Vacía si el
 	/// bloque no existe (`Empty`) o no está listo (`Pending`).
@@ -77,7 +77,8 @@ private:
 		eng::util::Array<u8, BlockSize> data {};
 	};
 
-	Source m_source {};
+	/// Referencia a la fuente (vive más que la caché); FileBlockSource no es copiable.
+	const Source& m_source;
 	eng::util::LruCache<u32, Slot, Capacity> m_cache {};
 	u32 m_hits = 0u;
 	u32 m_misses = 0u;

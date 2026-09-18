@@ -6,6 +6,10 @@
 /// con acceso de **solo-residentes** (no carga durante el dibujo). El `prefetch` por
 /// frame usa el `ChunkCache`; los chunks ausentes devuelven `empty_tile`.
 ///
+/// La fuente de chunks es un **tipo** (`Source` con `load(cx,cy,TileBankBuffer)`), no
+/// un puntero a función: `StreamingWorldMap<…, WorldMapChunkLoader>` conoce su backend
+/// en compilación. Un `NullChunkSource` (por defecto) no sirve ningún chunk.
+///
 /// Ver `docs/engine/architecture/CONTENT_AND_TILEMAP.md` §2.
 
 #include <eng/core/span.hpp>
@@ -15,7 +19,22 @@
 
 namespace eng::field {
 
-template <eng::u16 ChunkSize = 16, eng::u8 Capacity = 8>
+/// Contrato de una fuente de chunks (estático, sin punteros).
+template <class Source>
+concept ChunkSource = requires(Source& source, eng::s32 cx, eng::s32 cy, eng::TileBankBuffer dst) {
+	{ source.load(cx, cy, dst) };
+};
+
+/// Fuente vacía: no sirve ningún chunk (todo `Empty`).
+struct NullChunkSource {
+	[[nodiscard]] LoadResult load(eng::s32, eng::s32, eng::TileBankBuffer) const noexcept {
+		return LoadResult::Empty;
+	}
+};
+
+static_assert(ChunkSource<NullChunkSource>, "NullChunkSource cumple el contrato ChunkSource");
+
+template <eng::u16 ChunkSize = 16, eng::u8 Capacity = 8, ChunkSource Source = NullChunkSource>
 class StreamingWorldMap {
 public:
 	static_assert(ChunkSize != 0u && (ChunkSize & (ChunkSize - 1u)) == 0u,
@@ -23,18 +42,12 @@ public:
 	static constexpr eng::u32 kCells = static_cast<eng::u32>(ChunkSize) * ChunkSize;
 	static constexpr eng::u32 kPoolCells = static_cast<eng::u32>(Capacity) * kCells;
 
-	/// Fuente de chunks: rellena `cells` (kCells) y devuelve el resultado de la
-	/// carga (`Ready`/`Empty`/`Pending`). En `Empty` las celdas quedan como
-	/// `empty_tile`; en `Pending` no se marcan residentes (se reintenta).
-	struct Source {
-		LoadResult (*load)(void* user, eng::s32 cx, eng::s32 cy, eng::TileBankBuffer cells) = nullptr;
-		void* user = nullptr;
-	};
-
+	/// `src` es la fuente de chunks; `pool` el almacén de residentes. En `Empty` las
+	/// celdas quedan como `empty_tile`; en `Pending` no se marcan residentes.
 	bool init(Source src, eng::TileBankBuffer pool, eng::u16 empty_tile = 0xFFFFu) {
 		m_src = src;
 		m_empty = empty_tile;
-		return m_cache.init({ &StreamingWorldMap::load_trampoline, this }, pool);
+		return m_cache.init(m_loader, pool);
 	}
 
 	/// Asegura residentes los chunks que cubren `[x0,x1) x [y0,y1)` (en tiles).
@@ -70,22 +83,31 @@ public:
 	eng::u32 pendings() const { return m_cache.pendings(); }
 
 private:
-	static LoadResult load_trampoline(void* user, eng::s32 cx, eng::s32 cy, eng::TileBankBuffer cells) {
-		auto* self = static_cast<StreamingWorldMap*>(user);
-		if (self->m_src.load == nullptr) {
-			for (eng::u32 i = 0; i < kCells; ++i) cells[i] = self->m_empty;
-			return LoadResult::Empty;
+	/// Adapta la fuente al contrato `ChunkLoader` del `ChunkCache` (referencia al
+	/// mapa; el mapa vive más que su caché).
+	class MapLoader {
+	public:
+		constexpr explicit MapLoader(StreamingWorldMap& self) noexcept : m_self(self) {}
+		LoadResult load(eng::s32 cx, eng::s32 cy, eng::TileBankBuffer cells) {
+			return m_self.load_chunk(cx, cy, cells);
 		}
-		const LoadResult r = self->m_src.load(self->m_src.user, cx, cy, cells);
+
+	private:
+		StreamingWorldMap& m_self;
+	};
+
+	LoadResult load_chunk(eng::s32 cx, eng::s32 cy, eng::TileBankBuffer cells) {
+		const LoadResult r = m_src.load(cx, cy, cells);
 		if (r == LoadResult::Empty) {
-			for (eng::u32 i = 0; i < kCells; ++i) cells[i] = self->m_empty;
+			for (eng::u32 i = 0; i < kCells; ++i) cells[i] = m_empty;
 		}
 		return r;
 	}
 
-	ChunkCache<ChunkSize, Capacity> m_cache {};
 	Source m_src {};
 	eng::u16 m_empty = 0xFFFFu;
+	MapLoader m_loader {*this};
+	ChunkCache<ChunkSize, Capacity, MapLoader> m_cache {};
 };
 
 } // namespace eng::field

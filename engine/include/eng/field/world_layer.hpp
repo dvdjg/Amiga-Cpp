@@ -50,7 +50,7 @@ private:
 	eng::u32 m_layer = 0;
 };
 
-/// `Loader` de `StreamingWorldMap` que sirve los chunks desde el blob de un
+/// Fuente de chunks (`ChunkSource`) que sirve cada chunk desde el blob de un
 /// `WorldView` (Loader-RAM). `chunk_size` debe coincidir con el `ChunkSize` del
 /// `StreamingWorldMap` (misma potencia de dos); si no, devuelve `Empty`.
 class WorldMapChunkLoader {
@@ -59,15 +59,15 @@ public:
 	eng::u32 layer = 0;
 	eng::u16 chunk_size = 16u;
 
-	static eng::field::LoadResult load(void* user, eng::s32 cx, eng::s32 cy, eng::TileBankBuffer dst) {
-		auto* self = static_cast<WorldMapChunkLoader*>(user);
-		if (self == nullptr || self->world == nullptr || dst.data() == nullptr) {
+	[[nodiscard]] eng::field::LoadResult load(eng::s32 cx, eng::s32 cy,
+	                                          eng::TileBankBuffer dst) const {
+		if (world == nullptr || dst.data() == nullptr) {
 			return eng::field::LoadResult::Empty;
 		}
-		if (self->chunk_size != self->world->chunk_size()) return eng::field::LoadResult::Empty;
-		const eng::s32 idx = self->world->find_chunk(self->layer, cx, cy);
+		if (chunk_size != world->chunk_size()) return eng::field::LoadResult::Empty;
+		const eng::s32 idx = world->find_chunk(layer, cx, cy);
 		if (idx < 0) return eng::field::LoadResult::Empty;
-		if (!self->world->decode_chunk(self->layer, static_cast<eng::u32>(idx), dst)) {
+		if (!world->decode_chunk(layer, static_cast<eng::u32>(idx), dst)) {
 			return eng::field::LoadResult::Empty;
 		}
 		return eng::field::LoadResult::Ready;

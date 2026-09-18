@@ -124,11 +124,12 @@ una **caché LRU** de los últimos bloques usados.
   `eng::util::ByteReader`/`ByteWriter` ([`binary.hpp`](../../../engine/include/eng/core/util/binary.hpp)),
   cursores little-endian sobre `Span` con comprobación de límites: sin `reinterpret_cast` (que
   en 68000 fallaría por alineación) ni aritmética de punteros.
-- **Fuentes.** La fuente **RAM** (bloque incbinado o precargado al inicio) valida todo el
-  camino sin disco. La fuente **disco** reutiliza el trackloader de hardware o el worker de HD
-  descritos en [STREAMING_LOADER.md](STREAMING_LOADER.md) §3–§5; la base de hardware está en
+- **Fuentes.** La fuente **RAM** (`RamBlockSource`) valida todo el camino sin disco; la fuente
+  de **fichero del PC** (`FileBlockSource`, host) es la E/S real del lado de herramientas. El
+  backend de **disquete del Amiga** reutilizará el trackloader de hardware descrito en
+  [STREAMING_LOADER.md](STREAMING_LOADER.md) §3–§5; la base de hardware está en
   [trackloading.md](../../reference/amiga/techniques/trackloading.md). `eng::board` no
-  reimplementa E/S: solo consume el mismo contrato de carga.
+  reimplementa E/S: solo consume el mismo concept `BlockSource`.
 - **Caché LRU.** `eng::util::lru_cache` (HOST-127) guarda los últimos N bloques (4–64 kB según
   perfil). Los aciertos evitan el *seek* y la latencia mecánica (~200 ms por revolución más
   *seek*), que es el coste dominante.
@@ -344,11 +345,11 @@ coste bajo (8–50 kB según riqueza).
 | `search/` (negamax/αβ, ID, quiescence, TT, ordering) | **Implementado**: HOST-143 (corrección) y HOST-144 (TT 12 B y MVV-LVA) |
 | `search/` (null-move, PV/Multi-PV, ponder, tiempo) | **Implementado**: HOST-148; refutation cubierto por killers; aspiration/SEE pendientes |
 | `eval/` (ajedrez: material, PST, movilidad, peones, rasgos) | **Implementado**: HOST-145; `eval/go` planificado (B7) |
-| `knowledge/` + `storage/` (BlockSource RAM, caché LRU, libro, tablas) | **Implementado**: HOST-146/147; backends de disco/PC y packers pendientes |
+| `knowledge/` + `storage/` (BlockSource RAM/fichero, caché LRU, libro, tablas) | **Implementado**: HOST-146/147/151 y packer `tools/board/pack-book.sh`; trackloader Amiga y packers de tablas/patrones pendientes |
 | `explain/` (NLG ES/EN por plantillas) | **Implementado**: HOST-149; detección por patrón, packer y assets pendientes |
 | `rules/go/` + `eval/go` | Planificado (B7) |
 | Motores de concurrencia (`eng::parallel`) | **Implementado**: HOST-137; ver [PARALLEL_AND_THREADS.md](PARALLEL_AND_THREADS.md) |
-| Juegos en `games/` | Planificado (B8) |
+| Juegos en `games/` | **Iniciado y verificado**: `games/100_chess` build → run → analyze OK; pulido visual pendiente |
 
 > Estado: núcleo y reglas de ajedrez implementados y verificados por test host (HOST-137…140);
 > el resto, planificado. El plan por fases, la distribución de tests y los criterios de cierre

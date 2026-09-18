@@ -19,19 +19,21 @@ void check(bool ok, const char* what) {
 using eng::s32;
 using eng::u16;
 using eng::u32;
-using Map = eng::field::StreamingWorldMap<16, 4>;
 constexpr u16 kEmpty = 0xFFFFu;
 } // namespace
 
 namespace {
-// Chunk "poblado": valor único por celda para verificar el direccionamiento.
-eng::field::LoadResult load_chunk(void*, s32 cx, s32 cy, eng::TileBankBuffer cells) {
-	const s32 ccx = cx & 15; // wrap de chunks en X (16 chunks = mundo 256)
-	for (u32 i = 0; i < Map::kCells; ++i) {
-		cells[i] = static_cast<u16>((ccx * 16 + cy) * 256 + static_cast<s32>(i));
+/// Fuente de chunks de prueba: valor único por celda (con wrap de chunks en X).
+struct ChunkSrc {
+	eng::field::LoadResult load(s32 cx, s32 cy, eng::TileBankBuffer cells) {
+		const s32 ccx = cx & 15; // wrap de chunks en X (16 chunks = mundo 256)
+		for (u32 i = 0; i < 256u; ++i) {
+			cells[i] = static_cast<u16>((ccx * 16 + cy) * 256 + static_cast<s32>(i));
+		}
+		return eng::field::LoadResult::Ready;
 	}
-	return eng::field::LoadResult::Ready;
-}
+};
+using Map = eng::field::StreamingWorldMap<16, 4, ChunkSrc>;
 } // namespace
 
 int main() {
@@ -43,7 +45,7 @@ int main() {
 
 	u16 pool[Map::kPoolCells] {};
 	Map world {};
-	check(world.init({ &load_chunk, nullptr }, eng::TileBankBuffer{pool}, kEmpty), "init");
+	check(world.init(ChunkSrc {}, eng::TileBankBuffer {pool}, kEmpty), "init");
 
 	eng::field::TileMapView<Map> view {};
 	check(!view.has_data(), "vista sin src -> sin datos");

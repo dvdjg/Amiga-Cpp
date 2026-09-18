@@ -27,10 +27,14 @@ test host, cruce `m68k` y, cuando corresponde, un juego en `games/`.
   reglas de ajedrez (`rules/chess/`: tablero, `make`/`unmake`, generación legal, FEN, SAN,
   repetición y finales), búsqueda adversaria (`search/`: negamax/αβ, ID, quiescence, TT,
   null-move, PV/Multi-PV) y evaluación (`eval/`). Verificado por HOST-138…145 y HOST-148.
-- **Implementado (conocimiento)**: `storage/BlockSource` (tres estados, fuente RAM) y
-  `knowledge/` (caché LRU, libro de aperturas y tablas de finales), con round-trip por bloque;
-  HOST-146/147. Los **backends de disco/PC y los packers** quedan pendientes.
+- **Implementado (conocimiento)**: `storage/BlockSource` (concept, tres estados, fuente RAM
+  `RamBlockSource`, fuente de fichero del PC `FileBlockSource`) y `knowledge/` (caché LRU, libro
+  de aperturas y tablas de finales), con round-trip por bloque; HOST-146/147/151. Packer de
+  libro `tools/board/pack-book.sh` (texto → blob). Los **backends de disquete Amiga y los
+  packers de tablas/patrones** quedan pendientes.
 - **Implementado (NLG)**: explicador por plantillas ES/EN (`explain/`), HOST-149.
+- **Primer consumidor**: `games/100_chess` verificado en emulador con build → run → analyze
+  (tablero + reglas + búsqueda + explicación); pulido visual pendiente.
 - **Implementado (transversal)**: primitivas de concurrencia abstractas `eng::parallel`
   (`hardware_threads`, `Thread`, `Mutex`, `Atomic`, `ConditionVariable`, `StopSource`,
   `for_each_index`), no-ops en m68k y hilos reales en el host; HOST-137. Diseño en
@@ -147,12 +151,12 @@ explicación (hecho).
 | B4.2 | `knowledge/cache.hpp` | Caché LRU de bloques sobre `eng::util::lru_cache` | **HOST-146** (hecho) |
 | B4.3 | `knowledge/book.hpp` | Libro de aperturas: índice por clave Zobrist → jugada + nombre | **HOST-147** (hecho) |
 | B4.4 | `knowledge/endgame_tables.hpp` | Tablas de finales (nivel 3); sonda bajo demanda | **HOST-147** (hecho) |
-| B4.5 | `tools/board/*-pack.ts` | Packers host texto → bloques + índice (libro, finales, patrones) con round-trip | Pendiente |
-| B4.6 | Fuente disco / FS PC | Adaptadores de `BlockSource` (trackloader Amiga y fichero del PC) | Pendiente (E/S aún sin implementar) |
+| B4.5 | `tools/board/pack-book.sh` | Packer host texto → blob de libro (usa las reglas del engine) | **Hecho** (finales/patrones pendientes) |
+| B4.6 | Fuente disco / FS PC | `FileBlockSource` (PC) hecho; trackloader del Amiga pendiente | **HOST-151** / pendiente |
 
-Cierre: contenedor de conocimiento y fuente RAM hechos (round-trip struct→bloque→struct sin
-alineación). Los backends de disquete/PC y los packers quedan pendientes; se enchufan al mismo
-`BlockSource` sin reabrir el motor.
+Cierre: contenedor de conocimiento, E/S de fichero del PC y packer de libro hechos (round-trip
+struct→bloque→struct sin alineación). El backend de disquete del Amiga y los packers de
+tablas/patrones quedan pendientes; se enchufan al mismo concept `BlockSource`.
 
 ### B5 — Tiempo, pondering y Multi-PV
 
@@ -184,11 +188,11 @@ la detección por patrón, el packer y los assets externos.
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| B7.1 | `rules/go/board.hpp` | Tablero 9×9 (81 B), grupos/libertades (`union_find` o flood-fill), ko, suicidio | **HOST-151** |
-| B7.2 | `rules/go/movegen.hpp` | Jugadas legales y conteo de prisioneros | **HOST-151** |
-| B7.3 | `eval/go_eval.hpp` | Territorio (flood-fill/influencia), ataris, ojos y grupos débiles | **HOST-152** |
-| B7.4 | `knowledge/patterns.hpp` (Go) | Patrones 3×3/5×5 y fuseki desde disquete | **HOST-152** |
-| B7.5 | `search/` (Go) | Alpha-Beta + patrones; **MCTS muy ligero** opcional con ≥ 256–512 kB | **HOST-152** |
+| B7.1 | `rules/go/board.hpp` | Tablero 9×9 (81 B), grupos/libertades (`union_find` o flood-fill), ko, suicidio | **HOST-152** |
+| B7.2 | `rules/go/movegen.hpp` | Jugadas legales y conteo de prisioneros | **HOST-152** |
+| B7.3 | `eval/go_eval.hpp` | Territorio (flood-fill/influencia), ataris, ojos y grupos débiles | **HOST-153** |
+| B7.4 | `knowledge/patterns.hpp` (Go) | Patrones 3×3/5×5 y fuseki desde disquete | **HOST-153** |
+| B7.5 | `search/` (Go) | Alpha-Beta + patrones; **MCTS muy ligero** opcional con ≥ 256–512 kB | **HOST-153** |
 
 Cierre: 9×9 legal y jugable en `P20`–`P64`; 13×13 solo con ≥ 512 kB; 19×19 **fuera de diseño**.
 
@@ -196,12 +200,13 @@ Cierre: 9×9 legal y jugable en `P20`–`P64`; 13×13 solo con ≥ 512 kB; 19×1
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| B8.1 | `games/100_chess` | Ajedrez jugable sobre el engine: tablero (tiles/superficie), entrada, estado y análisis en pantalla | build → run → analyze + capturas |
+| B8.1 | `games/100_chess` | Ajedrez jugable (tablero + cursor + reglas + motor + explicación) | **build → run → analyze OK** (captura); pulido visual pendiente |
 | B8.2 | `games/101_go` | Go 9×9 jugable (mismo flujo) | build → run → analyze |
 | B8.3 | Matriz de rendimiento | Nodos/s y fps por CPU (68000/020/030) y perfil (`P20`…`P1M`); TT/caché vivos | Informe en `docs/debugging/` o `artifacts/` |
 | B8.4 | (Opcional) 13×13 | Solo si B8.3 confirma margen en A1200 | Demo/juego y medida |
 
-Cierre: las APIs dejan de estar "NO VERIFICADAS" y el roadmap se marca completo por fase.
+Cierre: las APIs dejan de estar "NO VERIFICADAS" y el roadmap se marca completo por fase. B8.1
+está iniciada (compila); falta la verificación visual/hardware.
 
 ## 5. Dependencias entre fases
 
@@ -233,7 +238,7 @@ cierra cada juego con verificación real.
 
 ## 6. Distribución de tests host
 
-Los números son únicos y no reutilizables; el siguiente libre es **151**. Antes de crear cada
+Los números son únicos y no reutilizables; el siguiente libre es **152**. Antes de crear cada
 pieza se comprueba que no duplica una primitiva de `eng::util`/`eng::parallel`
 ([TEMPLATE_LIBRARY.md](../../engine/architecture/TEMPLATE_LIBRARY.md) y
 [PARALLEL_AND_THREADS.md](../../engine/architecture/PARALLEL_AND_THREADS.md)).
@@ -254,8 +259,9 @@ pieza se comprueba que no duplica una primitiva de `eng::util`/`eng::parallel`
 | HOST-148 | `TimeManager`, ponder, null-move, PV/Multi-PV y análisis paralelo | **Hecho** |
 | HOST-149 | NLG: reglas, plantillas ES/EN, tono y truncado | **Hecho** |
 | HOST-150 | `binary.hpp`: cursores `ByteReader`/`ByteWriter` sobre `Span` | **Hecho** |
-| HOST-151 | Go: tablero, grupos/libertades, ko, suicidio y movegen | Pendiente |
-| HOST-152 | Go: evaluación de territorio/patrones y búsqueda | Pendiente |
+| HOST-151 | `FileBlockSource`: E/S real de bloques desde fichero del PC | **Hecho** |
+| HOST-152 | Go: tablero, grupos/libertades, ko, suicidio y movegen | Pendiente |
+| HOST-153 | Go: evaluación de territorio/patrones y búsqueda | Pendiente |
 | Tools | Packers host (`tools/board/`) con round-trip y validación de huecos | Pendiente |
 
 ## 7. Extensiones, decisiones tomadas y descartado

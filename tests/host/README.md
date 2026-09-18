@@ -191,3 +191,4 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-148 | [chess_b5](148_chess_b5/README.md) | `eng/board/search/{pruning,time,search}.hpp`: null-move, `TimeManager`, PV/Multi-PV y análisis paralelo determinista. |
 | HOST-149 | [chess_explain](149_chess_explain/README.md) | `eng/board/explain/`: NLG por plantillas ES/EN (jaque, material, dama prematura, desarrollo, rey en el centro), tono y truncado seguro. |
 | HOST-150 | [binary](150_binary/README.md) | `eng/core/util/binary.hpp`: `ByteReader`/`ByteWriter` little-endian sobre `Span` con comprobación de límites (round-trip, bounds, copia de bloques). |
+| HOST-151 | [board_file](151_board_file/README.md) | `eng/board/storage/file_block_source.hpp`: E/S real de bloques desde un fichero del PC; cadena entradas→fichero→`BlockCache`→`probe_book`. |

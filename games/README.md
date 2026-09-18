@@ -6,6 +6,12 @@ juego juntos. Cuando un juego madure podrá extraerse a su propio repositorio.
 
 La especificación completa está en `docs/STRUCTURE.md` (§9).
 
+## Juegos
+
+| Juego | Estado | Motor que ejercita |
+|---|---|---|
+| [`100_chess`](100_chess/README.md) | compila (build-demo OK); verificación visual en WinUAE pendiente | `eng::board`: reglas 0x88, búsqueda negamax/αβ/TT y explicación NLG |
+
 ## Estructura
 
 ```
