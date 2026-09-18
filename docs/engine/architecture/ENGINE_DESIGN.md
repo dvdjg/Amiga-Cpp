@@ -86,8 +86,8 @@ Ya existe y se irá ampliando desde demoscene `libmisc`/`libc`.
 - `blit/` (nuevo): `BlitterQueue`, `BlitterBudget`, minterms reutilizables. Mapea demoscene `libblit`.
 - `drivers/`: `StaticEhbScene`, `HamScene`, `TileScrollScene`, `Standard4/5`, `FakeDPF`,
   `DualPlayfield`, `SpriteBackdrop`, `CopperHeavy` (roadmap §20.5).
-- `effects/`: `Effect` concept + `PaletteCycleEffect`, `RasterGradientEffect`,
-  `RasterDistortionEffect`, `CopperScript`, etc. (roadmap §20.6).
+- `effects/`: `Effect` concept + `PaletteCycleEffect`, `PaletteTransitionEffect`,
+  `RasterGradientEffect`, `RasterDistortionEffect`, `CopperScript`, etc. (roadmap §20.6).
 
 ### 2.4 Objetos/escena (`eng::field`, `eng::scene`)
 - `Visual` (contenido portable: BOB/sprite/tile).

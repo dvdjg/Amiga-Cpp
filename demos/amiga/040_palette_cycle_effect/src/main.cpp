@@ -1,7 +1,9 @@
 #include <eng/engine.hpp>
 #include <eng/debug/run_status.hpp>
+#include <eng/core/util/color.hpp>
 #include <eng/graphics/drivers/ehb_scene.hpp>
 #include <eng/graphics/effects/palette_cycle.hpp>
+#include <eng/graphics/effects/palette_transition.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
@@ -44,6 +46,19 @@ constexpr drivers::EhbPalette source_palette {{
 	0x024, 0x046, 0x068, 0x08a, 0x0ac, 0x0ce, 0x0ef, 0x124,
 	0x246, 0x468, 0x68a, 0x8ac, 0xace, 0xcdf, 0xeef, 0x111,
 }};
+
+/// Version atenuada de una paleta (cada canal a `num/den`): destino del fundido del
+/// segundo efecto. Demuestra que `palette_scale` (fundido de paleta completa) se integra
+/// como un `Effect` mas.
+constexpr drivers::EhbPalette dim_palette_of(const drivers::EhbPalette& src, eng::u16 num,
+					     eng::u16 den) {
+	drivers::EhbPalette out {};
+	for (eng::u8 i = 0; i < 32u; ++i) {
+		out.color[i] = eng::util::scale444(src.color[i], num, den);
+	}
+	return out;
+}
+constexpr drivers::EhbPalette dim_source_palette = dim_palette_of(source_palette, 1u, 4u);
 
 /// Zona inferior fija para comprobar que el scheduler mezcla una paleta animada
 /// de base con una zona Copper estatica posterior.
@@ -90,14 +105,14 @@ void build_cycle_test_pattern(eng::PlaneBytes planes) {
 	}
 }
 
-/// Demo del primer efecto reutilizable.
+/// Demo de los primeros efectos reutilizables, compuestos.
 ///
-/// La demo no redibuja pixels ni recompila toda la copperlist cada frame. Modifica
-/// una paleta runtime, escribe una intencion en `FramePlan` y deja que
-/// `StaticEhbScene` parchee solo las words de valor de los MOVEs `COLOR01..07`.
-/// Ese es el patron que luego usaremos en drivers mas ambiciosos: el juego pide un
-/// efecto, el plan describe el cambio y el driver decide como escribirlo en el
-/// hardware.
+/// La demo no redibuja pixels ni recompila toda la copperlist cada frame. Dos efectos
+/// aportan **parches de paleta distintos** al mismo `FramePlan`: el ciclo rota el tramo
+/// `COLOR01..07` y la transicion funde `COLOR16..31` entre la paleta base y una atenuada.
+/// `StaticEhbScene` parchea solo las words de valor de los MOVEs correspondientes. Ese es
+/// el patron que luego usaremos en drivers mas ambiciosos: el juego pide efectos, el plan
+/// describe los cambios y el driver decide como escribirlos en el hardware.
 struct DemoGame {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
@@ -110,6 +125,11 @@ struct DemoGame {
 		m_cycle.configure({1, 7, 1});
 		// Enlaza la paleta cocinada al efecto y usa su paleta runtime para la escena.
 		m_cycle.bind_source(source_palette);
+
+		// Segundo efecto: fundido del tramo `COLOR16..31` entre la paleta base y una
+		// atenuada, en vaiven. Parche distinto del ciclo: se componen sin solaparse.
+		m_trans.configure({16, 16, 48, true});
+		m_trans.bind(source_palette, dim_source_palette);
 
 		const drivers::StaticEhbSceneConfig scene_config {
 			&m_cycle.runtime_palette(),
@@ -134,10 +154,13 @@ struct DemoGame {
 		}
 
 		m_cycle.update(context.frame.frame_index);
+		m_trans.update(context.frame.frame_index);
 
 		m_frame_plan.clear();
 		// apply_into: rota la paleta runtime y registra el parche base en el plan.
 		m_cycle.apply_into(m_frame_plan);
+		// apply_into: funde `COLOR16..31` y registra su propio parche base.
+		m_trans.apply_into(m_frame_plan);
 		if (!m_scene.apply_frame_plan(m_frame_plan)) {
 			m_scene_ok = false;
 			eng::debug::mark_failed(g_eng_run_status, 0x00000042u);
@@ -169,6 +192,7 @@ struct DemoGame {
 	drivers::StaticEhbScene m_scene {};
 	eng::graphics::FramePlan m_frame_plan {};
 	effects::PaletteCycleEffect m_cycle {};
+	effects::PaletteTransitionEffect m_trans {};
 };
 
 } // namespace

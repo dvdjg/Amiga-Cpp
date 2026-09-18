@@ -249,6 +249,7 @@ Efectos previstos (cada uno produce `CopperIntent`s, no MOVEs):
 ```
 eng::graphics::effects/
    palette_cycle.hpp     (ya existe) — agua/fuego/luces
+   palette_transition.hpp (ya existe) — fundido/transición entre paletas
    palette_zone.hpp      — cambio de paleta por bandas
    raster_gradient.hpp   — cielos/niebla/horizonte (per-line COLOR00)
    raster_distortion.hpp — ondas/heat haze (ShiftLines)

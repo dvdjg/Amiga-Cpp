@@ -59,9 +59,14 @@ El primer efecto reusable esta en
 `engine/include/eng/graphics/effects/palette_cycle.hpp`. `PaletteCycleEffect`
 rota un tramo de paleta fisica sin tocar bitplanes; la demo
 `demos/amiga/040_palette_cycle_effect` lo valida con captura y `runStatus.detail`.
-La demo ya usa `engine/include/eng/graphics/frame_plan.hpp`: el efecto genera un
+Su hermano `PaletteTransitionEffect` (`effects/palette_transition.hpp`) hace un
+**fundido/transicion** entre dos paletas cocinadas (fundir a negro = transicion a una
+paleta de ceros) reutilizando `eng::util::palette_lerp`/`palette_scale`; la misma demo lo
+compone con el ciclo (parches `COLOR01..07` y `COLOR16..31` en el mismo plan).
+La demo ya usa `engine/include/eng/graphics/frame_plan.hpp`: cada efecto genera un
 parche de paleta en `FramePlan` y `StaticEhbScene` actualiza solo los valores de
-los MOVEs `COLORxx` existentes, sin recompilar la copperlist completa.
+los MOVEs `COLORxx` existentes, sin recompilar la copperlist completa. Los parches de
+efectos distintos se componen sin solaparse.
 
 La primera prueba de Blitter esta en `demos/amiga/050_blitter_bobs`. La demo crea
 trabajos `BlitJob` dentro de `FramePlan`; el backend Amiga los ejecuta con el
