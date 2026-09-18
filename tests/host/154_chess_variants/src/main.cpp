@@ -121,6 +121,43 @@ void test_chess960_castling_arbitrary_files() {
 	      "chess960: unmake restaura rey, torre y clave");
 }
 
+void test_chess960_castling_overlap() {
+	// Rey en f1 y torre en g1: enroque corto -> rey g1, torre f1; rey y torre
+	// INTERCAMBIAN casillas. Es el caso que rompia make/unmake (la torre se
+	// perdia al escribir el rey en la casilla que ocupaba la torre).
+	Position pos;
+	pos.board[make_square(5u, 0u)] = make_piece(Color::White, PieceType::King);
+	pos.board[make_square(6u, 0u)] = make_piece(Color::White, PieceType::Rook);
+	pos.board[make_square(4u, 7u)] = make_piece(Color::Black, PieceType::King);
+	pos.side = static_cast<u8>(Color::White);
+	pos.castling = kCastleWhiteKing;
+	rebuild_castle_rooks(pos);
+	pos.key = compute_key(pos);
+
+	MoveList legal;
+	generate_legal(pos, legal);
+	Move castle = kNoMove;
+	for (eng::usize i = 0u; i < legal.size(); ++i) {
+		if (move_is_castle_king(legal[i])) {
+			castle = legal[i];
+		}
+	}
+	check(!move_none(castle), "chess960 solape: el enroque rey/torre-intercambio es legal");
+
+	Undo undo;
+	const eng::u32 key_before = pos.key;
+	make_move(pos, castle, undo);
+	check(pos.board[make_square(6u, 0u)] == make_piece(Color::White, PieceType::King),
+	      "chess960 solape: rey a g1");
+	check(pos.board[make_square(5u, 0u)] == make_piece(Color::White, PieceType::Rook),
+	      "chess960 solape: torre a f1 (no se pierde)");
+	unmake_move(pos, castle, undo);
+	check(pos.board[make_square(5u, 0u)] == make_piece(Color::White, PieceType::King) &&
+	          pos.board[make_square(6u, 0u)] == make_piece(Color::White, PieceType::Rook) &&
+	          pos.key == key_before,
+	      "chess960 solape: unmake restaura rey, torre y clave");
+}
+
 void test_fast_tournament() {
 	// Torneo rapido de 2 partidas con arranques Chess960 y profundidad 1.
 	const ArenaResult result = arena_chess(2u, 1u, 3000u, ChessVariant::Chess960, 0u, 40u);
@@ -144,6 +181,7 @@ int main() {
 	test_chess960_arrangements();
 	test_chess960_start_deterministic();
 	test_chess960_castling_arbitrary_files();
+	test_chess960_castling_overlap();
 	test_fast_tournament();
 
 	if (g_fail == 0u) {

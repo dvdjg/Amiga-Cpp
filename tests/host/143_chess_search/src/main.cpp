@@ -123,6 +123,29 @@ void test_node_budget_aborts_cleanly() {
 	check(result.nodes >= 500u, "presupuesto: respeta el limite de nodos");
 }
 
+/// Con un presupuesto muy pequeno puede no completarse ni la profundidad 1; aun asi
+/// el buscador debe devolver la mejor jugada parcialmente evaluada (asi la busqueda
+/// por rebanadas de la demo no se queda sin jugada).
+void test_tiny_budget_keeps_partial_move() {
+	Position pos = ChessRules::initial();
+	ChessSearcher searcher;
+	ChessSearcher::Limits limits {12u, 8u};
+	const ChessSearcher::Result result = searcher.search(pos, limits);
+
+	check(result.aborted, "rebanada: se marca abortado con presupuesto minimo");
+	check(!move_none(result.best_move), "rebanada: conserva una jugada parcial");
+
+	bool legal = false;
+	MoveList moves;
+	generate_legal(pos, moves);
+	for (eng::usize i = 0u; i < moves.size(); ++i) {
+		if (moves[i] == result.best_move) {
+			legal = true;
+		}
+	}
+	check(legal, "rebanada: la jugada parcial es legal");
+}
+
 void test_stop_token_cancels() {
 	Position pos = ChessRules::initial();
 	ChessSearcher searcher;
@@ -144,6 +167,7 @@ int main() {
 	test_captures_hanging_queen();
 	test_quiescence_resolves_recapture();
 	test_node_budget_aborts_cleanly();
+	test_tiny_budget_keeps_partial_move();
 	test_stop_token_cancels();
 
 	if (g_fail == 0u) {

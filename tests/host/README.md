@@ -200,3 +200,4 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-157 | [chess_knowledge](157_chess_knowledge/README.md) | Ajedrez: sonda del libro de aperturas (`opening.hpp`) y finales teóricos en la evaluación. |
 | HOST-158 | [goap_numeric](158_goap_numeric/README.md) | `ai/planning/numeric_goap.hpp`: GOAP con variables numéricas cuantizadas (enteros y decimales), saturación y caché (memo de planes + sufijo). |
 | HOST-159 | [goap_numeric_relaxed](159_goap_numeric_relaxed/README.md) | GOAP numérico con heurística relajada (h_max) y memo de heurística entre llamadas. |
+| HOST-160 | [pgn](160_pgn/README.md) | `rules/chess/pgn.hpp` (escritor PGN sin heap ni I/O) y `rules/chess/opening_book.hpp` (líneas de apertura incorporadas que comparten demo y selfplay). |

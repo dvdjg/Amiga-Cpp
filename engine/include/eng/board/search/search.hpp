@@ -91,6 +91,14 @@ public:
 			const Node out = search_root(pos, depth);
 			if (out.aborted) {
 				m_aborted = true;
+				// Presupuesto agotado a mitad de profundidad: conserva la mejor
+				// jugada ya evaluada para no dejar al llamador sin jugada (util en
+				// busqueda por rebanadas con presupuestos pequenos). `result.depth`
+				// queda en la ultima profundidad completa (0 si ninguna).
+				if (out.move != kNoMove) {
+					result.best_move = out.move;
+					result.score = out.score;
+				}
 				break;
 			}
 			result.best_move = out.move;

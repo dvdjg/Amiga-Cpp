@@ -370,50 +370,50 @@ inline void make_move(Position& pos, Move move, Undo& undo) noexcept {
 	}
 	key ^= kZobrist.castling[pos.castling];
 
+	const bool castle_king = move_is_castle_king(move);
+	const bool castle_queen = move_is_castle_queen(move);
+	const bool castle = castle_king || castle_queen;
+
 	Piece captured = kEmptyPiece;
-	if (move_is_en_passant(move)) {
-		const Square cap = static_cast<Square>((mover == Color::White) ? to - 16u : to + 16u);
-		captured = pos.board[cap];
-		pos.board[cap] = kEmptyPiece;
-		key ^= kZobrist.piece[piece_index(captured)][compact_square(cap)];
-	} else if (pos.board[to] != kEmptyPiece) {
-		captured = pos.board[to];
-		key ^= kZobrist.piece[piece_index(captured)][compact_square(to)];
+	if (!castle) {
+		if (move_is_en_passant(move)) {
+			const Square cap = static_cast<Square>((mover == Color::White) ? to - 16u : to + 16u);
+			captured = pos.board[cap];
+			pos.board[cap] = kEmptyPiece;
+			key ^= kZobrist.piece[piece_index(captured)][compact_square(cap)];
+		} else if (pos.board[to] != kEmptyPiece) {
+			captured = pos.board[to];
+			key ^= kZobrist.piece[piece_index(captured)][compact_square(to)];
+		}
 	}
 	undo.captured = captured;
 
 	key ^= kZobrist.piece[piece_index(piece)][compact_square(from)];
 	pos.board[from] = kEmptyPiece;
 
-	if (move_promo(move) != PieceType::None) {
+	if (castle) {
+		// Enroque (tambien Chess960): el rey va a g/c y la torre a f/d, pero las
+		// casillas pueden solaparse (p. ej. rey en f1 y torre en g1: se intercambian).
+		// Se lee y retira la torre ANTES de escribir el rey en `to`, y el rey se
+		// escribe antes que la torre en `rook_to`, para que el solape no la pierda.
+		const int base = (mover == Color::White) ? 0 : 2;
+		const Square rook_from = pos.castle_rook[base + (castle_king ? 0 : 1)];
+		const Square rook_to = make_square(castle_king ? 5u : 3u, square_rank(from));
+		const Piece rook = pos.board[rook_from];
+		pos.board[rook_from] = kEmptyPiece;
+		key ^= kZobrist.piece[piece_index(rook)][compact_square(rook_from)];
+		pos.board[to] = piece;
+		key ^= kZobrist.piece[piece_index(piece)][compact_square(to)];
+		pos.board[rook_to] = rook;
+		key ^= kZobrist.piece[piece_index(rook)][compact_square(rook_to)];
+		undo.rook_from = rook_from;
+	} else if (move_promo(move) != PieceType::None) {
 		const Piece promoted = make_piece(mover, move_promo(move));
 		pos.board[to] = promoted;
 		key ^= kZobrist.piece[piece_index(promoted)][compact_square(to)];
 	} else {
 		pos.board[to] = piece;
 		key ^= kZobrist.piece[piece_index(piece)][compact_square(to)];
-	}
-
-	if (move_is_castle_king(move)) {
-		const int base = (mover == Color::White) ? 0 : 2;
-		const Square rook_from = pos.castle_rook[base];
-		const Square rook_to = make_square(5u, square_rank(from));
-		const Piece rook = pos.board[rook_from];
-		pos.board[rook_from] = kEmptyPiece;
-		pos.board[rook_to] = rook;
-		key ^= kZobrist.piece[piece_index(rook)][compact_square(rook_from)];
-		key ^= kZobrist.piece[piece_index(rook)][compact_square(rook_to)];
-		undo.rook_from = rook_from;
-	} else if (move_is_castle_queen(move)) {
-		const int base = (mover == Color::White) ? 0 : 2;
-		const Square rook_from = pos.castle_rook[base + 1];
-		const Square rook_to = make_square(3u, square_rank(from));
-		const Piece rook = pos.board[rook_from];
-		pos.board[rook_from] = kEmptyPiece;
-		pos.board[rook_to] = rook;
-		key ^= kZobrist.piece[piece_index(rook)][compact_square(rook_from)];
-		key ^= kZobrist.piece[piece_index(rook)][compact_square(rook_to)];
-		undo.rook_from = rook_from;
 	}
 
 	pos.castling =
@@ -454,25 +454,27 @@ inline void unmake_move(Position& pos, Move move, const Undo& undo) noexcept {
 		piece = pos.board[to];
 		pos.board[to] = kEmptyPiece;
 	}
-	pos.board[from] = piece;
 
-	if (move_is_en_passant(move)) {
-		const Square cap = static_cast<Square>((mover == Color::White) ? to - 16u : to + 16u);
-		pos.board[cap] = undo.captured;
-	} else if (undo.captured != kEmptyPiece) {
-		pos.board[to] = undo.captured;
-	}
-
-	if (move_is_castle_king(move)) {
-		const Square rook_to = make_square(5u, square_rank(from));
+	const bool castle_king = move_is_castle_king(move);
+	const bool castle = castle_king || move_is_castle_queen(move);
+	if (castle) {
+		// Restaura rey y torre teniendo en cuenta el solape: primero se retira la
+		// torre de su destino y se repone en `rook_from`, y despues el rey en `from`
+		// (puede coincidir con el destino de la torre).
+		const Square rook_to = make_square(castle_king ? 5u : 3u, square_rank(from));
 		const Square rook_from = undo.rook_from;
-		pos.board[rook_from] = pos.board[rook_to];
+		const Piece rook = pos.board[rook_to];
 		pos.board[rook_to] = kEmptyPiece;
-	} else if (move_is_castle_queen(move)) {
-		const Square rook_to = make_square(3u, square_rank(from));
-		const Square rook_from = undo.rook_from;
-		pos.board[rook_from] = pos.board[rook_to];
-		pos.board[rook_to] = kEmptyPiece;
+		pos.board[rook_from] = rook;
+		pos.board[from] = piece;
+	} else {
+		pos.board[from] = piece;
+		if (move_is_en_passant(move)) {
+			const Square cap = static_cast<Square>((mover == Color::White) ? to - 16u : to + 16u);
+			pos.board[cap] = undo.captured;
+		} else if (undo.captured != kEmptyPiece) {
+			pos.board[to] = undo.captured;
+		}
 	}
 
 	pos.castling = undo.castling;

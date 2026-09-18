@@ -9,6 +9,9 @@ Test host de `eng/board/rules/chess/variant.hpp` y `eng/board/tournament.hpp`.
   test comprueba las 960.
 - **Enroque generalizado**: con rey en b1 y torre en h1, el enroque corto lleva el rey
   a g1 y la torre a f1; `make`/`unmake` restauran tablero y clave.
+- **Enroque con solape (Chess960)**: con rey en f1 y torre en g1, el enroque corto
+  intercambia sus casillas (rey g1, torre f1); se comprueba que `make`/`unmake` no
+  pierden la torre ni la clave (regresión del caso de solape).
 - **Torneo rápido** (`tournament.hpp`): `play_game` juega una partida con presupuesto
   de nodos por jugada; `arena_chess` juega N partidas con arranques de variante y
   semilla creciente, devolviendo el marcador.

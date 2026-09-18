@@ -20,8 +20,13 @@ independiente narra la partida.
   cada jugada en notación algebraica y comenta mate, jaque, aperturas, dama
   prematura, retraso de desarrollo, rey en el centro, capturas, estructura de peones
   y enroques.
-- **Relojes** de 5:00 con incremento, y **búsqueda por rebanadas** (200 nodos por
-  frame, ~20 frames por jugada) para no bloquear el frame.
+- **Relojes** de 5:00 sin incremento. El presupuesto de pensamiento por jugada se
+  deriva del reloj restante (~1/25 de lo que queda, acotado entre 3 y 8 frames), de
+  modo que el bando con menos tiempo piensa menos; si el reloj llega a cero, el juez
+  declara `TIEMPO AGOTADO`.
+- **Búsqueda por rebanadas** (64 nodos por frame, hasta 8 frames por jugada) para no
+  bloquear el frame; el libro de aperturas lo usan los dos bandos, así que la
+  apertura se juega al instante.
 - **Última jugada resaltada en amarillo** (casillas de origen y destino) y marca
   `PENSANDO...` en el panel del bando que piensa.
 
@@ -39,6 +44,18 @@ independiente narra la partida.
 |  <comentario>          |  Mejor <jugada>             |
 +------------------------+-----------------------------+
 ```
+
+## Rendimiento
+
+El coste por frame lo domina la búsqueda (generación de jugadas + evaluación por
+nodo). Medido con el contador de plies del `RunStatus` y comparando build debug y
+release, ambos avanzan lo mismo, así que el cuello no es la generación de código sino
+el coste por nodo y el ritmo del emulador (el sampler
+`tools/profile/hotspots.mjs` no obtuvo muestras en este entorno). Decisión: **no
+portar `movegen`/`eval` a asm todavía**; el libro en los dos bandos y el presupuesto
+de pensamiento acotado mantienen la partida fluida. Si se quiere más profundidad por
+jugada, el siguiente paso es perfilar y optimizar `movegen`/`eval` antes de bajar más
+`kSliceNodes`.
 
 ## Motor y memoria
 
@@ -68,11 +85,25 @@ Para observar la partida avanzar en la captura, ampliar el asentamiento:
 bash tools/run/run-demo.sh demos/amiga/123_chess_match --warp --settle-ms 12000
 ```
 
+## Simulación host (partidas completas con PGN)
+
+La misma configuración (estilos, libro, rebanadas y relojes) se puede jugar sin UI en
+host y exportar a PGN para analizar el resultado:
+
+```bash
+tools/board/selfplay.sh 4 --swap --max-plies 400 --out out/board/selfplay/demo.pgn
+```
+
+Ver `tools/board/README.md`.
+
 ## Estado
 
 - **Compila y enlaza** (`build-demo.sh`, verificado en debug y release).
 - **Ejecutado en WinUAE** (`run-demo.sh --warp`): READY + captura; con
   `--settle-ms 12000` se ha verificado `1. e4`, el comentario del juez, el resalte
   amarillo y el turno de las negras; `analyze-demo.sh` da **OK**.
-- **Pendiente**: sondeo de tablas de finales en la partida, límite real de tiempo por
-  reloj (hoy solo hay incremento), y modo "humano vs. máquina" con joystick.
+- **Partidas completas en host** (`tools/board/selfplay.sh`): con `--swap`, dos
+  partidas terminadas y exportadas a PGN con `[Result]` correcto (una victoria de
+  cada color); HOST-160 cubre el escritor PGN y el libro.
+- **Pendiente**: sondeo de tablas de finales en la partida y modo "humano vs.
+  máquina" con joystick.

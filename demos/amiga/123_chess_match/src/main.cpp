@@ -23,11 +23,12 @@
 //   bash tools/build/build-demo.sh demos/amiga/123_chess_match --debug --clean
 //   bash tools/run/run-demo.sh demos/amiga/123_chess_match
 
+#include <eng/board/eval/styled_eval.hpp>
 #include <eng/board/explain/explain.hpp>
 #include <eng/board/knowledge/book.hpp>
 #include <eng/board/rules/chess/history.hpp>
 #include <eng/board/rules/chess/notation.hpp>
-#include <eng/board/rules/chess/opening.hpp>
+#include <eng/board/rules/chess/opening_book.hpp>
 #include <eng/board/rules/chess/rules.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/util/static_string.hpp>
@@ -78,17 +79,14 @@ constexpr eng::u64 kSliceNodes = 200u;
 // --- Reloj -----------------------------------------------------------------
 constexpr eng::s32 kStartMs = 300000; // 5:00
 constexpr eng::s32 kIncrementMs = 0;  // sin incremento (partida tradicional)
-constexpr eng::u32 kMoveThinkFrames = 20u; // ~0.4 s por jugada
+constexpr eng::u32 kMoveThinkFrames = 20u; // techo de frames por jugada
+constexpr eng::u32 kMinThinkFrames = 3u;   // minimo para no mover a ciegas
+constexpr eng::u32 kBookDelayFrames = 8u;  // pausa teatral de una jugada de libro
 constexpr eng::s32 kFrameMs = 20;
 
 // --- Eval por estilo (policy con pesos activos) ----------------------------
-EvalWeights g_active_weights = positional_weights();
-
-struct StyledEval {
-	[[nodiscard]] static Score evaluate(const Position& pos) noexcept {
-		return evaluate_styled(pos, g_active_weights);
-	}
-};
+// `StyledEval` y `g_active_weights` viven en `eng/board/eval/styled_eval.hpp` para
+// compartirlos con la simulacion host (`tools/board/selfplay.cpp`).
 
 using DemoEngine = Searcher<ChessRules, StyledEval, ChessOrdering, kDemoTtEntries, false>;
 
@@ -97,68 +95,14 @@ constexpr eng::usize kBookMax = 64u;
 BookEntry g_book[kBookMax] {};
 eng::u32 g_book_count = 0u;
 
-const char kBookNames[] =
-    "Apertura abierta\0"
-    "Defensa Siciliana\0"
-    "Defensa Francesa\0"
-    "Gambito de Dama\0"
-    "India de Rey\0"
-    "Apertura Inglesa\0"
-    "Apertura Reti\0";
-
-Move find_move_uci(const Position& pos, eng::util::StringView uci) {
-	MoveList legal;
-	generate_legal(pos, legal);
-	for (eng::usize i = 0u; i < legal.size(); ++i) {
-		char text[8];
-		const eng::usize n = to_uci(legal[i], eng::Span<char> {text, sizeof(text)});
-		if (eng::util::StringView {text, n} == uci) {
-			return legal[i];
-		}
-	}
-	return kNoMove;
-}
-
 void build_book() {
-	struct Line {
-		const char* uci;
-		eng::u16 name_id;
-	};
-	static const Line lines[] = {
-	    {"e2e4 e7e5", 0u},  {"e2e4 c7c5", 1u},   {"e2e4 e7e6", 2u},
-	    {"d2d4 d7d5 c2c4", 3u}, {"d2d4 g8f6", 4u}, {"c2c4", 5u},
-	    {"g1f3", 6u},
-	};
-	BookBuilder builder {eng::Span<BookEntry> {g_book, kBookMax}};
-	for (const Line& l : lines) {
-		Position pos;
-		set_start(pos);
-		eng::util::StringView rest {l.uci};
-		while (!rest.empty()) {
-			const eng::util::StringView uci = eng::util::split_next(rest, ' ');
-			if (uci.empty()) {
-				break;
-			}
-			const Move move = find_move_uci(pos, uci);
-			if (move_none(move)) {
-				break;
-			}
-			(void)builder.add(pos.key, move, 10, l.name_id);
-			Undo undo;
-			make_move(pos, move, undo);
-		}
-	}
-	builder.finalize();
-	g_book_count = builder.size();
+	g_book_count = build_opening_book(eng::Span<BookEntry> {g_book, kBookMax});
 }
 
 eng::util::StringView book_name_of(const Position& pos) {
 	const BookProbe probe =
 	    probe_opening_book(pos, eng::Span<const BookEntry> {g_book, g_book_count});
-	if (!probe.found) {
-		return {};
-	}
-	return book_name(eng::Span<const char> {kBookNames, sizeof(kBookNames)}, probe.name_id);
+	return probe.found ? opening_name(probe.name_id) : eng::util::StringView {};
 }
 
 // --- Jugador ---------------------------------------------------------------
@@ -374,7 +318,7 @@ struct ChessMatch {
 		set_start(m_black.pos);
 		m_black.history.push(m_black.pos.key);
 		m_black.style = positional_weights();
-		m_black.use_book = false;
+		m_black.use_book = true;
 		set_start(m_judge.pos);
 		m_judge.history.push(m_judge.pos.key);
 
@@ -408,14 +352,16 @@ struct ChessMatch {
 				g_active_weights = p.style;
 				const DemoEngine::Result result =
 				    p.engine.search(p.pos, {kMaxDepth, kSliceNodes});
-				if (result.depth > 0u) {
-					p.depth = result.depth;
-					p.score = result.score;
+				p.nodes = static_cast<eng::u64>(p.nodes + result.nodes);
+				if (!move_none(result.best_move)) {
+					if (result.depth > 0u) {
+						p.depth = result.depth;
+						p.score = result.score;
+					}
 					p.best = result.best_move;
-					p.nodes = static_cast<eng::u64>(p.nodes + result.nodes);
 				}
 				p.think_frames += (elapsed == 0u) ? 1u : elapsed;
-				if (p.think_frames >= kMoveThinkFrames) {
+				if (p.think_frames >= move_budget_frames(p)) {
 					if (move_none(p.best)) {
 						end_game("Sin jugada legal");
 					} else {
@@ -448,6 +394,22 @@ private:
 		return (m_turn == Color::White) ? m_black : m_white;
 	}
 
+	/// Presupuesto de pensamiento por jugada, derivado del reloj restante: ~1/25 del
+	/// tiempo que queda, acotado entre `kMinThinkFrames` y `kMoveThinkFrames`. Asi el
+	/// jugador con menos tiempo piensa menos y el reloj no se agota de golpe.
+	[[nodiscard]] static eng::u32 move_budget_frames(const Player& p) noexcept {
+		eng::s32 budget_ms = p.clock_ms / 25;
+		const eng::s32 cap_ms = static_cast<eng::s32>(kMoveThinkFrames) * kFrameMs;
+		if (budget_ms > cap_ms) {
+			budget_ms = cap_ms;
+		}
+		eng::s32 frames = budget_ms / kFrameMs;
+		if (frames < static_cast<eng::s32>(kMinThinkFrames)) {
+			frames = static_cast<eng::s32>(kMinThinkFrames);
+		}
+		return static_cast<eng::u32>(frames);
+	}
+
 	void start_turn() {
 		Player& p = current();
 		p.think_frames = 0u;
@@ -460,7 +422,7 @@ private:
 			if (probe.found) {
 				p.best = probe.move;
 				m_phase = Phase::BookDelay;
-				m_book_delay = 24u;
+				m_book_delay = kBookDelayFrames;
 				return;
 			}
 		}
@@ -686,12 +648,14 @@ private:
 
 	void redraw() {
 		eng::u8* planes = m_scene.bitplanes().data();
-		for (eng::u32 i = 0u; i < kPlaneBytes * kPlanes; ++i) {
-			planes[i] = 0u;
-		}
+		// Sin borrado global: el tablero repinta cada casilla con su color exacto y
+		// los paneles reescriben sus lineas completas, asi que cualquier frame
+		// intermedio sigue mostrando una pantalla valida (no un fotograma en negro).
 		draw_board(planes);
 		draw_player_panel(planes, 4, m_white, true);
 		draw_player_panel(planes, 128, m_black, false);
+		// La zona del juez cambia de longitud: se limpia acotada antes de redibujar.
+		fill_bytes(planes, kBoardX >> 3, kBoardY + 8 * kCell + 8, 16, 72, 0u);
 		draw_judge(planes);
 	}
 

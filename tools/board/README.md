@@ -42,3 +42,30 @@ marcador (blancas/negras/tablas/sin acabar).
 
 Compilación: `pack-book.sh` usa `CXX` (por defecto `g++` del PATH) con
 `-I engine/include`.
+
+## `selfplay.sh` — partidas completas de la demo (con PGN)
+
+```bash
+tools/board/selfplay.sh [games] [--variant standard|chess960] [--seed N]
+  [--max-plies N] [--out ruta.pgn] [--swap] [--no-book]
+  [--slice-nodes N] [--frames N] [--min-frames N] [--quiet]
+# por defecto: 1 standard 0 300 out/board/selfplay/selfplay.pgn
+```
+
+Juega partidas completas **sin UI** con la misma configuración que la demo
+`demos/amiga/123_chess_match`: estilos agresivo (blancas) y posicional (negras)
+sobre el mismo `StyledEval`, libro de aperturas incorporado, búsqueda por rebanadas
+(200 nodos por frame, hasta 20 frames) y relojes de 5:00 sin incremento. Los valores
+por defecto son los de la demo; `--slice-nodes`/`--frames` permiten simular más
+fuerte para análisis.
+
+Cada partida se exporta a **PGN** con cabeceras, jugadas SAN, comentarios por jugada
+(`libro` o `d<prof> <eval> n<nodos>`) y el resultado final. `--swap` alterna los
+estilos entre blancas y negras. El resumen por consola da el marcador y la media de
+plies/nodos.
+
+Ejemplo:
+
+```bash
+tools/board/selfplay.sh 4 --swap --max-plies 400 --out out/board/selfplay/demo.pgn
+```

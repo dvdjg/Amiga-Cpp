@@ -216,6 +216,7 @@ Cierre: 9×9 legal y jugable en `P20`–`P64`; 13×13 solo con ≥ 512 kB; 19×1
 | B8.1 | `games/100_chess` | Ajedrez jugable (tablero + cursor + reglas + motor + explicación) | **build → run → analyze OK** (captura); pulido visual pendiente |
 | B8.2 | `games/101_go` | Go 9×9 jugable (mismo flujo) | **build → run → analyze OK** (captura); pase/superko y pulido pendientes |
 | B8.2b | `demos/amiga/123_chess_match` | Partida autónoma entre dos motores (estilos agresivo/posicional), juez narrador, relojes y libro en memoria | **build → run → analyze OK** (captura); verificado `1. e4`, comentario del juez y resalte de última jugada |
+| B8.2c | `tools/board/selfplay` | Partidas completas en host con la misma configuración que la demo y export a **PGN** (cabeceras, SAN, comentarios y resultado) | **OK**: partidas terminadas en standard y Chess960; HOST-160 cubre PGN y libro |
 | B8.3 | Matriz de rendimiento | Nodos/s y fps por CPU (68000/020/030) y perfil (`P20`…`P1M`); TT/caché vivos | Informe en `docs/debugging/` o `artifacts/` |
 | B8.4 | (Opcional) 13×13 | Solo si B8.3 confirma margen en A1200 | Demo/juego y medida |
 
