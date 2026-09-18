@@ -22,9 +22,10 @@ Ya entregado y verificado por test host: base (`type_traits`, `util`, `bit`,
 `flat_set`, `hash_map`, `hash_set`, `dynamic_hash_map`, `direct_map`), utilidades de valor
 (`optional`, `expected`, `string_view`, `static_string`, `scope_guard`, `function_ref`,
 `enum_set`, `stack_queue`), ordenación (`quick_sort`, `stable_sort`, `nth_element`,
-`partial_sort`, `radix_sort_u16`), `hash` y sondas de codegen. Verificados **por demo**:
-`BitSet`, `StaticVector`, `RingBuffer`, `FlatMap`, `DirectMap`, `IntrusiveSList`, `Pool`,
-`HashMap`.
+`partial_sort`, `radix_sort_u16`), `hash` y sondas de codegen. Extras de decisión y
+partición: `state_machine` (R4.4), `event` (R4.3), `union_find` (DSU) y `sparse_set`
+(disperso-denso, ECS). Verificados **por demo**: `BitSet`, `StaticVector`, `RingBuffer`,
+`FlatMap`, `DirectMap`, `IntrusiveSList`, `Pool`, `HashMap`.
 
 Las matemáticas de escalares (`Fixed`, `MiniFloat16`, `linalg`, `interp`, `geometry`,
 `spline`, `noise`) viven en `eng::math` y ya están cubiertas.

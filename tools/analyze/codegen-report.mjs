@@ -57,6 +57,8 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/ai/steering/steering.hpp>
 #include <eng/ai/perception/influence_map.hpp>
 #include <eng/ai/perception/agent_memory.hpp>
+#include <eng/core/util/union_find.hpp>
+#include <eng/core/util/sparse_set.hpp>
 #include <eng/core/random.hpp>
 #include <eng/core/util/dsp.hpp>
 #include <eng/core/fixed_math.hpp>
@@ -488,12 +490,15 @@ extern "C" u16 c_navmesh_ops(u16 seed) {
 	eng::s16 came[8];
 	eng::u8 closed[8];
 	eng::Point2s path[8];
+	const eng::s16 gx = static_cast<eng::s16>(seed % 15u);
 	const eng::usize n = mesh.find_path(
-		{5, 5}, {static_cast<eng::s16>(seed % 15u), 5}, eng::Span<eng::u16> {g, 8},
-		eng::Span<eng::s16> {came, 8}, eng::Span<eng::u8> {closed, 8},
-		eng::Span<eng::Point2s> {path, 8});
+		{5, 5}, {gx, 5}, eng::Span<eng::u16> {g, 8}, eng::Span<eng::s16> {came, 8},
+		eng::Span<eng::u8> {closed, 8}, eng::Span<eng::Point2s> {path, 8});
+	const eng::usize sn = mesh.find_smooth_path(
+		{5, 5}, {gx, 5}, eng::Span<eng::u16> {g, 8}, eng::Span<eng::s16> {came, 8},
+		eng::Span<eng::u8> {closed, 8}, eng::Span<eng::Point2s> {path, 8});
 	const eng::u16 loc = mesh.locate({5, 5});
-	return static_cast<u16>(n + (loc == Mesh::no_poly ? 0u : loc));
+	return static_cast<u16>(n + sn + (loc == Mesh::no_poly ? 0u : loc));
 }
 extern "C" s32 c_influence_map_ops(u16 cell, s32 amount) {
 	eng::ai::InfluenceMap<8, 8> map;
@@ -512,6 +517,29 @@ extern "C" u16 c_agent_memory_ops(u16 ticks) {
 	}
 	return static_cast<u16>((mem.fresh(3u) ? 1u : 0u) + mem.ticks_since_seen +
 				mem.last_position.y);
+}
+extern "C" u16 c_union_find_ops(u16 seed) {
+	eng::util::UnionFind<64> uf;
+	for (eng::u16 i = 0u; i + 1u < 64u; i = static_cast<eng::u16>(i + 2u)) {
+		uf.unite(i, static_cast<eng::u16>(i + 1u));
+	}
+	uf.unite(0u, 2u);
+	const eng::u16 r = uf.find(static_cast<eng::u16>(seed % 64u));
+	return static_cast<u16>(r + uf.components() + uf.component_size(0u) +
+				(uf.connected(0u, 2u) ? 1u : 0u));
+}
+extern "C" s32 c_sparse_set_ops(u16 seed) {
+	eng::util::SparseSet<eng::s32, 64> set;
+	for (eng::u16 i = 0u; i < 32u; ++i) {
+		set.insert(static_cast<eng::u16>((i * 7u) % 64u), static_cast<eng::s32>(i));
+	}
+	set.erase(static_cast<eng::u16>(seed % 64u));
+	const eng::s32* p = set.find(static_cast<eng::u16>((seed + 1u) % 64u));
+	s32 sum = p != nullptr ? *p : 0;
+	for (s32 v : set.values()) {
+		sum += v;
+	}
+	return static_cast<s32>(sum + static_cast<s32>(set.size()));
 }
 extern "C" u16 c_random_ops(u16 seed) {
 	eng::Xoroshiro64pp rng {seed, static_cast<eng::u32>(seed + 1u)};

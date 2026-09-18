@@ -110,6 +110,8 @@ Puntos de reutilización explícitos:
 | `hash_set.hpp` | `HashSet<T, N>` | `std::unordered_set` (fijo) |
 | `dynamic_hash_map.hpp` | `DynamicHashMap<K, V, A>` (crece con rehash) | `std::unordered_map` (sin heap) |
 | `direct_map.hpp` | `DirectMap<V, N>` (clave densa) | (sin equivalente) |
+| `sparse_set.hpp` | `SparseSet<T, N>` (disperso-denso; ids `u16`, altas/bajas `O(1)`, iteración contigua) | (sin equivalente; ECS) |
+| `union_find.hpp` | `UnionFind<N>` (conjuntos disjuntos: `find`/`unite`/`connected`/`component_size`) | (sin equivalente; DSU) |
 | `optional.hpp` | `Optional<T>` | `std::optional` |
 | `expected.hpp` | `Expected<T, E>`, `unexpected(e)` | `std::expected` |
 | `string_view.hpp` | `StringView` | `std::string_view` |
@@ -163,6 +165,8 @@ referencia para **elegir contenedor por coste**, no por hábito:
 | `StateMachine::dispatch` (tabla de 3) | 33 (sonda `c_state_machine_ops`) | 0 | 0 |
 | `Event::emit` (2 suscriptores) | 28 (sonda `c_event_ops`) | 0 | 1 |
 | `AgentFsm::dispatch` (tabla de 3) | 37 (sonda `c_agent_fsm_ops`) | 0 | 0 |
+| `UnionFind` (N=64: unite/find/connect) | 315 (sonda `c_union_find_ops`) | 0 | 1 |
+| `SparseSet` (N=64: altas/baja/iterar) | 253 (sonda `c_sparse_set_ops`) | 0 | 1 |
 
 Lectura: **para N pequeño, ordenar/indizar linealmente gana al hash** (`FlatMap` casi la
 mitad que `HashMap`, y `DirectMap` menos aún con clave densa); el hash usa **un `mulu.w` de
@@ -241,6 +245,8 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-104 | `core/fixed_math.hpp` (sin/cos/tan/atan2/asin/acos/sqrt/exp2/log2 de `Fixed`; easings/length con q12) |
 | HOST-108 | `core/util/state_machine.hpp` (FSM de tabla `constexpr`; semáforo y FSM de IA) |
 | HOST-109 | `core/util/event.hpp` (emisor de eventos de capacidad fija) |
+| HOST-119 | `core/util/union_find.hpp` (DSU: unir, conectividad, tamaños, islas) |
+| HOST-120 | `core/util/sparse_set.hpp` (disperso-denso: insert/find, swap-remove) |
 
 > **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`), `Pool` por `086_bob_objects` (parque de actores), `HashMap` por `111_xlimited_sidescroller` (índice de chunks de `ChunkCache`), `color` también por `086_bob_objects` (gradiente del cielo con `eng::util::lerp444`), y `broadphase` y `pathfinding` por `110_ylimited_shooter` (self-test en `init`: `SpatialHash` + `bfs`/`reconstruct_path` en el 68000; si falla, la demo no llega a READY). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashSet`, `DynamicHashMap`, `PriorityQueue`, `Stack`/`Queue`/`Deque`, `EnumSet`, `ScopeGuard`, `StaticString`, `stats`, `collision`, `text`, `grid`, `dsp`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..102 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
 
@@ -266,6 +272,7 @@ mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
    (`c_color_lerp`/`c_collision_ops`/`c_text_ops`), `grid.hpp` (`c_grid_ops`),
    `broadphase.hpp` (`c_broadphase_ops`), `pathfinding.hpp` (`c_pathfinding_ops`),
    `state_machine.hpp`/`event.hpp` (`c_state_machine_ops`/`c_event_ops`),
+   `union_find.hpp`/`sparse_set.hpp` (`c_union_find_ops`/`c_sparse_set_ops`),
    `core/random.hpp` (`c_random_ops`) y `dsp.hpp` (`c_dsp_ops`).
 5. Antes de añadir una utilidad nueva, comprobar si el **vocabulario** de §7 ya cubre la
    necesidad (p. ej. flags con `EnumSet`, restauración con `ScopeGuard`, colas con
@@ -309,6 +316,8 @@ Qué usar según la necesidad, con el criterio del A500 (sin heap; coste visible
 | Pasar un callable sin poseerlo | `FunctionRef<Sig>` |
 | Estados/eventos con transiciones | `state_machine.hpp` (`StateMachine<State,Event>`, tabla `constexpr`) |
 | Difundir un suceso a varios oyentes | `event.hpp` (`Event<Signature,MaxSubscribers>`) |
+| Componentes conexas / particionar el mundo | `union_find.hpp` (`UnionFind<N>`) |
+| Componentes por entidad con id disperso (ECS) | `sparse_set.hpp` (`SparseSet<T,N>`) |
 
 Notas de uso:
 

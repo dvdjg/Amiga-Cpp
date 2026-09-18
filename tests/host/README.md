@@ -157,4 +157,6 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-115 | [steering](115_steering/README.md) | `ai/steering/steering.hpp`: `seek`/`flee`/`arrive` y flocking (`separation`/`cohesion`/`alignment`/`flock`), generico sobre `double` y `q12`. |
 | HOST-116 | [waypoints](116_waypoints/README.md) | `ai/navigation/waypoints.hpp`: `WaypointGraph<MaxNodes,MaxEdges>` + A* sobre el grafo (heuristica Manhattan, scratch del llamador). Ruta optima, inalcanzable y capacidad. |
 | HOST-117 | [perception](117_perception/README.md) | `ai/perception/influence_map.hpp` (`InfluenceMap<W,H>`: deposit/decay/strongest) y `ai/perception/agent_memory.hpp` (`AgentMemory`: see/tick/fresh/stale/forget). |
-| HOST-118 | [navmesh](118_navmesh/README.md) | `ai/navigation/navmesh_lite.hpp`: `NavMesh` de poligonos convexos con portales; localizar punto, A* por adyacencia y camino por puntos medios de portales. |
+| HOST-118 | [navmesh](118_navmesh/README.md) | `ai/navigation/navmesh_lite.hpp`: `NavMesh` de poligonos convexos con portales; localizar punto, A* por adyacencia, puntos medios y string-pulling (funnel). |
+| HOST-119 | [union_find](119_union_find/README.md) | `util/union_find.hpp`: `UnionFind<MaxElements>` (DSU: find/unite/connected/component_size); islas de celdas transitables. |
+| HOST-120 | [sparse_set](120_sparse_set/README.md) | `util/sparse_set.hpp`: `SparseSet<T,MaxElements>` (disperso-denso, altas/bajas O(1), iteracion contigua, swap-remove). |
