@@ -16,13 +16,19 @@
 // `bob.hpp` + `FramePlan`), con tres políticas: cookie-cut con máscara + borrado por caja,
 // OR aditivo + borrado por caja, y opaco + save-under. Todos con desplazamiento fino.
 //
-// El número de BOBs es configurable (`-DK_086_BOBS=n`, 1..16; por defecto 8): la rejilla es
+// **Coste y configuración.** El cielo (256 intenciones) es **constante**: se construye una
+// vez y, con `K_086_STATIC_COPPER=1` (por defecto), no se re-emite la lista cada frame, así
+// la demo corre a **~50 fps (1 campo/frame)**. Las necesidades de Copper **por objeto**
+// (dinámicas, ancladas a la Y) se activan con `K_086_STATIC_COPPER=0`, que exige
+// re-materializar el plan cada frame y baja el framerate (referencia visual, no 50 fps).
+//
+// El número de BOBs es configurable (`-DK_086_BOBS=n`, 1..16; por defecto 3): la rejilla es
 // 4x4 celdas de 80x64 (los recorridos no se salen de su celda, requisito de las políticas
 // de borrado) y el presupuesto de intenciones del Plan (320) da `256 + 4n <= 320` -> n<=16.
 //
 // Build/run:
 //   bash ./tools/build/build-demo.sh demos/amiga/086_bob_objects --debug
-//   EXTRA_DEFINES="-DK_086_BOBS=16" bash ./tools/build/build-demo.sh demos/amiga/086_bob_objects --debug
+//   EXTRA_DEFINES="-DK_086_BOBS=8 -DK_086_STATIC_COPPER=0" bash ./tools/build/build-demo.sh demos/amiga/086_bob_objects --debug
 //   bash ./tools/run/run-demo.sh demos/amiga/086_bob_objects
 
 #include <eng/core/sinetable.hpp>
@@ -58,7 +64,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 }
 
 #ifndef K_086_BOBS
-#define K_086_BOBS 8
+#define K_086_BOBS 3
 #endif
 // Bandas del cielo: 0 = una intención por línea (degradado continuo, caro: ver README).
 #ifndef K_086_SKY_BANDS
@@ -67,7 +73,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 // 1 = desactivar la parte DINAMICA del copper (cielo + necesidades de objeto +
 // materialize) para aislar su coste. Solo diagnostico.
 #ifndef K_086_STATIC_COPPER
-#define K_086_STATIC_COPPER 0
+#define K_086_STATIC_COPPER 1
 #endif
 
 namespace {
@@ -303,10 +309,12 @@ struct BobObjectsDemo {
 		}
 		ENG_PROF_END(kProfBlits);
 		ENG_PROF_BEGIN(kProfCopper);
+#if K_086_STATIC_COPPER == 0
 		if (!build_frame()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008607u);
 			return;
 		}
+#endif
 		ENG_PROF_END(kProfCopper);
 		// detail = nº de intenciones del plan (16 bits altos) | BOBs emitidos (8 bits
 		// medios) | BOBs configurados (8 bits bajos). El conteo de intenciones permite
@@ -429,8 +437,10 @@ private:
 		return true;
 	}
 
-	/// Compone el copper del frame: parte estática + cielo por línea + necesidades de
-	/// Copper de cada objeto (ancladas a su Y y con su prioridad).
+	/// Compone el copper del frame. El **cielo** es constante: se construye (y materializa)
+	/// siempre, y en modo `K_086_STATIC_COPPER=1` solo se llama **una vez** (en `init`), de
+	/// modo que el frame no re-emite la lista. Las **necesidades de Copper por objeto**
+	/// (ancladas a su Y, dinámicas) solo entran con `K_086_STATIC_COPPER == 0`.
 	bool build_frame() {
 		ENG_PROF_BEGIN(kProfStatic);
 		m_plan.begin_frame();
@@ -442,9 +452,9 @@ private:
 		// `K_086_SKY_BANDS=256` es un valor por línea (continuo). Las intenciones son
 		// invariantes: van en `kSkyIntents` (constexpr) y se copian en un solo `add`.
 		ENG_PROF_BEGIN(kProfSky);
-#if K_086_STATIC_COPPER == 0
 		m_plan.add(kSkyIntents.v, kSkyBands);
 		ENG_PROF_END(kProfSky);
+#if K_086_STATIC_COPPER == 0
 		// Necesidades de cada objeto, con su (superficie, z).
 		ENG_PROF_BEGIN(kProfObjCopper);
 		for (eng::u8 i = 0; i < kBobCount; ++i) {
@@ -457,10 +467,10 @@ private:
 			scene::actor_add_copper(m_plan, *a, r.top, kFirstLine);
 		}
 		ENG_PROF_END(kProfObjCopper);
+#endif
 		ENG_PROF_BEGIN(kProfMaterialize);
 		m_plan.materialize();
 		ENG_PROF_END(kProfMaterialize);
-#endif
 		return m_plan.end_frame();
 	}
 

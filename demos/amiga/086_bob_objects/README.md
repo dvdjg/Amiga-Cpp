@@ -27,31 +27,42 @@ El copper del frame lo compone `copper::Plan`:
 
 - **Cielo**: degradado (RGB444 interpolado) con `K_086_SKY_BANDS` intenciones `PaletteLine` sobre
   `COLOR00`. Con `K_086_SKY_BANDS=256` es **un valor por línea de raster** (continuo, lo que se ve en
-  las capturas); con 32 es en bandas.
+  las capturas); con 32 es en bandas. Las intenciones son **constantes** (`kSkyIntents`, `constexpr`).
 - **Cada BOB declara sus necesidades de Copper** (`ActorDesc::copper`): un arcoíris de 4 pasos a lo
   largo de sus filas, expresado en líneas **relativas a su Y**. `actor_add_copper` las convierte a
   líneas absolutas y las añade al plan **con la prioridad `(superficie, z)` del actor**; el objeto no
-  escribe registros en ningún momento. El efecto es **visible**: el color del objeto cambia por filas.
-  Trampa que costó encontrarlo: `emit_palette` recorta `count` a `colors.size() - first`, así que una
-  intención con `first = 1` (COLOR01) necesita una vista de puestos `first + count` (aquí, 2); con 1
-  el scheduler emitía **cero** MOVEs y el objeto "pedía" en vano.
+  escribe registros en ningún momento. Trampa que costó encontrarlo: `emit_palette` recorta `count` a
+  `colors.size() - first`, así que una intención con `first = 1` (COLOR01) necesita una vista de
+  puestos `first + count` (aquí, 2); con 1 el scheduler emitía **cero** MOVEs y el objeto "pedía" en
+  vano.
 
-Configuración: `-DK_086_BOBS=n` (1..16; rejilla 4×4 de celdas 80×64, los recorridos no se salen de su
-celda) y `-DK_086_SKY_BANDS=n` (por defecto **256**, un color por línea: degradado continuo).
+Configuración:
+
+- `-DK_086_BOBS=n` (1..16; por defecto **3**).
+- `-DK_086_SKY_BANDS=n` (por defecto **256**, un color por línea: degradado continuo).
+- `-DK_086_STATIC_COPPER=1` (por defecto): el cielo es **constante**, así que la lista se construye
+  **una vez** y no se re-emite cada frame; las necesidades **dinámicas** de los objetos se desactivan.
+  `-DK_086_STATIC_COPPER=0` reactiva el copper por objeto (anclado a su Y), que exige
+  re-materializar el plan cada frame.
 
 ## Coste medido (evidencia)
 
+`fps` emulados con el contador de ciclos del Amiga (`tools/debug/measure-fps.mjs`); un campo PAL ≈
+142.000 ciclos.
+
 | Configuración | fps emulado | campos/frame |
 |---|---|---|
-| 3 BOBs, lista de copper estática (revisión anterior) | **50,09** | 1,0 |
-| 8 BOBs, cielo **por línea** (256 intenciones) | **5,47** | 9,1 |
-| 8 BOBs, cielo en 32 bandas | **12,56** | 4,0 |
+| **3 BOBs + copper estático (por defecto)** | **49,92** | **1,0** |
+| 8 BOBs, cielo por línea, copper **dinámico** | 7,13 | 7,0 |
+| 8 BOBs, cielo por línea, copper dinámico **sin** re-emitir la parte estática | 24,88 | 2,0 |
 
-El coste **no** escala con el número de intenciones de forma lineal (64 intenciones ya cuestan 4
-campos) y no lo explican ni el copper ni los blits: es el **bucle** del frame (F4.6 del roadmap, que
-sigue pendiente). Por eso el modo por línea **no cumple 50 fps** y queda como referencia visual, no
-como configuración por defecto. Además, con 8 BOBs `detail` marca 7 emitidos de 8: hay un actor que
-devuelve no-`Ok` y está por diagnosticar.
+La clave es **no re-emitir copper que no cambia**: con `K_086_STATIC_COPPER=1` la lista (display +
+paleta + 256 intenciones del cielo) es idéntica cada frame, así que se construye una vez en `init` y
+se salta `build_frame` en `update` (el perfil bajó `copper` de ~68k a ~0 y cruzó de 2 a 1 campo).
+
+Con **copper dinámico** el framerate **no** llega a 50: los `actors` + `blits` de los BOB ya suman
+más de un campo (≈236k ciclos con 8 BOBs) antes de contar el copper, así que ese modo queda como
+referencia visual (degradado por objeto anclado a su Y), no como configuración de 50 fps.
 
 ## Defecto que encontró esta demo
 

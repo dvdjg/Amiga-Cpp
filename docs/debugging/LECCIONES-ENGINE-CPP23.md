@@ -58,3 +58,16 @@ numeración: conviene añadirlo.
 Los documentos de referencia describen el estado vigente; las lecciones de proceso (este
 fichero) y las bitácoras viven aparte. Evita narrar historia en cabeceras y en documentos
 de arquitectura.
+
+## 8. No re-emitir el copper que no cambia (demo 086)
+
+La demo 086 (BOBs) tenía el framerate clavado por el **copper**: 8 BOBs + cielo continuo
+(256 intenciones) = 7,1 fps (994k ciclos/frame), y el perfil daba `copper` al 67%
+(`materialize` 458k: emitir 288 intenciones ≈ 1.089 ciclos/intención; `sky` 107k por
+recopiar la lista). Con el cielo **constante**, la lista entera (display + paleta + 256
+intenciones) es idéntica cada frame: construirla **una vez** en `init` y saltar
+`build_frame` en `update` bajó `copper` de ~68k a ~0 y cruzó de **2 a 1 campo** →
+**49,92 fps**. Lección: antes de optimizar la emisión, preguntar **si hay que emitir**;
+separar lo estático de lo dinámico. Corolario medido: con copper dinámico, `actors` +
+`blits` de 8 BOBs ya superan un campo, así que 50 fps es inalcanzable en ese modo (el
+techo real lo fija el número de objetos, no el copper).
