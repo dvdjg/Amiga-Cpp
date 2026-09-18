@@ -58,9 +58,11 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/ai/perception/influence_map.hpp>
 #include <eng/ai/perception/agent_memory.hpp>
 #include <eng/sim/behavior.hpp>
+#include <eng/sim/biome.hpp>
 #include <eng/sim/body.hpp>
 #include <eng/sim/climate.hpp>
 #include <eng/sim/colony.hpp>
+#include <eng/sim/communication.hpp>
 #include <eng/sim/creature.hpp>
 #include <eng/sim/domain.hpp>
 #include <eng/sim/economy.hpp>
@@ -131,7 +133,7 @@ static_assert(sizeof(eng::sim::KnowledgeEntry) == 6u, "Sim::KnowledgeEntry");
 static_assert(sizeof(eng::sim::Inventory) == 12u, "Sim::Inventory");
 static_assert(sizeof(eng::sim::Item) == 12u, "Sim::Item");
 static_assert(sizeof(eng::sim::AbstractCreature<>) == 306u, "Sim::AbstractCreature<>");
-static_assert(sizeof(eng::sim::SimWorld<>) == 23778u, "Sim::SimWorld<>");
+static_assert(sizeof(eng::sim::SimWorld<>) == 23850u, "Sim::SimWorld<>");
 
 struct HalfEvenPolicy { using Round = rounding::HalfEven; using Overflow = overflow::Wrap; };
 using q14 = Fixed<s16, 14>;
@@ -798,6 +800,30 @@ extern "C" u16 c_sim_trade_ops(u16 seed) {
 	const bool ok = execute_trade(a, b, eco, o);
 	return static_cast<u16>(ok ? 1u : 0u) + static_cast<u16>(s) +
 	       a.count(ItemKind::Material) + b.count(ItemKind::Food);
+}
+extern "C" u16 c_sim_biome_ops(u16 seed) {
+	using namespace eng::sim;
+	static SimWorld<> w;
+	const RoomId r = static_cast<RoomId>(seed % 8u);
+	w.apply_biome(r, static_cast<BiomeKind>(
+				 static_cast<eng::u8>(seed % static_cast<eng::u16>(BiomeKind::Count))),
+		      true, 100u);
+	eng::u8 ids[4] {};
+	const eng::u8 n = biome_species(BiomeKind::Forest, eng::Span<eng::u8> {ids, 4});
+	return static_cast<u16>(w.terrain(r)) + w.climate().severity(r) + n +
+	       biome_food(BiomeKind::Desert);
+}
+extern "C" u16 c_sim_communication_ops(u16 seed) {
+	using namespace eng::sim;
+	Mind m {};
+	m.emotions.fear = static_cast<eng::u8>(seed % 256u);
+	Senses s {};
+	s.hearing = 50u;
+	const Signal sig = make_signal(1u, 0u, 0u, 0, 0, Behavior::Flee, m, s);
+	TrackerList<4> tr;
+	const eng::u8 h = receive_signals(tr, eng::Span<const Signal> {&sig, 1}, 0u, 1, 0, 0u);
+	apply_signal_effect(m, sig.kind);
+	return static_cast<u16>(h) + m.emotions.fear + sig.range;
 }
 extern "C" u16 c_sim_planner_ops(u16 seed) {
 	using namespace eng::sim;

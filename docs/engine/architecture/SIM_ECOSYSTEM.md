@@ -63,7 +63,7 @@ eng::sim::AbstractCreature<MaxTrackers, MaxRelations> c; // arrays inline
 | `AbstractCreature<6,6>` | criatura completa | 306 B |
 | `Climate<64>` | peligro ambiental por región | 128 B |
 | `GroupMemory<8>` | memoria de conocimiento por facción | 416 B |
-| `SimWorld<…>` | array de criaturas + grafo de rooms + clima + terreno + sociedad + objetos + planificador | 23 778 B |
+| `SimWorld<…>` | array de criaturas + grafo de rooms + clima + terreno + biomas + sociedad + objetos + planificador | 23 850 B |
 
 Las **especies** (`Species`) son tablas inmutables que el juego declara una vez: dieta,
 organización social (solitaria, manada, colmena, familia, territorial, **enjambre**), bits
@@ -94,6 +94,12 @@ regiones se clasifican con `RegionTerrain` (terreno dominante, abrigo, peligro).
 terreno es **dinámico**: `apply_terrain_event` (inundación, incendio, derrumbe,
 regeneración) lo cambia en caliente y, si procede, altera el clima de la región
 (`TerrainEventParams`).
+
+Los **biomas** (`biome.hpp`) unen las tres capas: un `BiomeKind` describe el terreno
+dominante, el clima típico, los recursos y las especies; `species_fits_biome` comprueba que
+la especie puede moverse por él y `SimWorld::apply_biome` vuelca el perfil en la región
+(terreno, abrigo, peligro) y, si se pide, siembra su clima. Una ciénaga nace encharcada, una
+montaña exige trepar y un desierto trae calor, sin duplicar terreno ni clima.
 
 ## 4. Decisión por utilidad
 
@@ -211,6 +217,11 @@ colonia de hormigas o una jerarquía de rivales.
   región y `apply_group_knowledge` traduce la memoria colectiva en **reputación**
   (enemigos/aliados) y **demanda** económica. Es la cultura de grupo cruzando `Society` y
   `Economy`.
+- **Lenguaje y gestos** (`communication.hpp`): una criatura **emite** una señal (llamada,
+  alarma, amenaza, comida, cortejo, sumisión, saludo) derivada de su conducta y emoción, y
+  las que la oyen en su región actualizan su memoria de corto plazo y su afecto
+  (`apply_signal_effect`: la alarma da miedo, la sumisión **eleva al receptor**). El alcance
+  depende del oído y de la ecolocalización. `SimWorld::broadcast_signals` lo ejecuta.
 
 ## 9. Planificación ocasional (GOAP)
 
@@ -282,7 +293,9 @@ de modo que no ocupa RAM si no se usa (verificado por el gate de tamaños m68k).
 | `rumor.hpp` | `GroupMemory`, difusión y efectos sociales de los rumores | HOST-159 |
 | `senses.hpp` | percepción multimodal, atención (`focused`) y sentidos por genoma | HOST-160 / HOST-162 |
 | `memory.hpp` | corto plazo, consolidación y memoria espacial (`MemoryParams`) | HOST-161 / HOST-163 |
-| `mental_map.hpp` | sesgo de lugares, overlay para `astar` e influencia de peligro | HOST-164 |
+| `mental_map.hpp` | sesgo de lugares, overlay para `astar` e influencia de peligro | HOST-164 / HOST-166 |
+| `biome.hpp` | biomas/ecosistemas: terreno + clima típico + especies por región | HOST-169 |
+| `communication.hpp` | señales/gestos, recepción y efecto emocional/jerárquico | HOST-170 |
 | `society.hpp` | `Society` (reputación), `Pack` | HOST-153 |
 | `planner.hpp` | `PlannerDriver`/`PlanRunner` sobre `Goap`, `PlanParams` | HOST-155 |
 | `domain.hpp` | dominio de ejemplo de objetos/construcción, `SimInventory` | HOST-155 |
@@ -298,9 +311,10 @@ criaturas los verificará en el 68000.
 
 Líneas abiertas, en orden de valor: **consumidor real en `games/`** que ejercite todo en
 el 68000; **percepción imperfecta** (ruidos sin fuente, olores que engañan) para emergencia
-y errores creíbles; **biomas/ecosistemas** (clima + terreno + especies por región); y
-**lenguaje/gestos** (comunicación explícita entre criaturas, más allá de rumores y señales).
-Cada pieza entra con test host y su sonda de codegen si toca el bucle por frame.
+y errores creíbles; **cultura y rituales** (señales compuestas, tradiciones que se heredan
+por enseñanza) sobre `communication`/`knowledge`; y **coordinación de manadas** (roles y
+tácticas emergentes guiadas por señales). Cada pieza entra con test host y su sonda de
+codegen si toca el bucle por frame.
 
 > Navegación general: [DOC-MAP-PRINCIPAL.md](../../ai-dev-environment/DOC-MAP-PRINCIPAL.md).
 > IA clásica reutilizada: [GAME_AI_LIBRARY.md](GAME_AI_LIBRARY.md).

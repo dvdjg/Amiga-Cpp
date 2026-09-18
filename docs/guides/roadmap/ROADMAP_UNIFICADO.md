@@ -76,16 +76,18 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   habitaciones, migración al refugio, **ciclo de vida y reproducción** con gestación,
   **objetos materiales** (inventario + ejecución del plan), **economía/reputación**,
   **terreno y clima** por región (representación algorítmica del mundo + `astar`),
-  **rumores/memoria de grupo**, sociedad/enjambre (HOST-152…154, HOST-156…168),
+  **rumores/memoria de grupo**, sociedad/enjambre (HOST-152…154, HOST-156…170),
   **cuerpo procedural** expresivo (HOST-156), **percepción multimodal** (visión/oído/olfato/
   tacto/gusto/temperatura; HOST-160), **atención** y **sentidos por genética** (HOST-162),
   **memoria de corto y largo plazo** con consolidación, **memoria espacial/rutas macro**,
   **mapa mental aplicado al movimiento** (corto y fino; HOST-161/163/164/166), **clima con
-  frentes** (HOST-165), **terreno dinámico** (HOST-167) y **trueque/reputación** (HOST-168),
-  y **planificación GOAP integrada** con dominio de construcción (HOST-155), con gate de
-  codegen 68000. Reutiliza `eng::ai` (utility, percepción, navegación, steering, GOAP).
-  Falta consumidor en demo/juego y las líneas de crecimiento (percepción imperfecta,
-  biomas, lenguaje). Detalle: `docs/engine/architecture/SIM_ECOSYSTEM.md`.
+  frentes** (HOST-165), **terreno dinámico** (HOST-167), **trueque/reputación** (HOST-168),
+  **biomas/ecosistemas** (HOST-169) y **lenguaje/gestos** atados a emoción y jerarquía
+  (HOST-170), y **planificación GOAP integrada** con dominio de construcción (HOST-155), con
+  gate de codegen 68000. Reutiliza `eng::ai` (utility, percepción, navegación, steering,
+  GOAP). Falta consumidor en demo/juego y las líneas de crecimiento (percepción imperfecta,
+  cultura/rituales, coordinación de manadas). Detalle:
+  `docs/engine/architecture/SIM_ECOSYSTEM.md`.
 
 ## Sprites hardware — estado (2026-09)
 

@@ -23,8 +23,10 @@
 #include <eng/core/types.hpp>
 #include <eng/core/util/static_vector.hpp>
 #include <eng/sim/behavior.hpp>
+#include <eng/sim/biome.hpp>
 #include <eng/sim/climate.hpp>
 #include <eng/sim/colony.hpp>
+#include <eng/sim/communication.hpp>
 #include <eng/sim/creature.hpp>
 #include <eng/sim/economy.hpp>
 #include <eng/sim/lifecycle.hpp>
@@ -284,6 +286,35 @@ public:
 	}
 	constexpr void set_terrain_event_params(const TerrainEventParams& p) noexcept {
 		m_terrain_events = p;
+	}
+
+	/// **Bioma de una región**: vuelca su perfil en el terreno (dominante, abrigo, peligro).
+	constexpr void set_biome(RoomId r, BiomeKind b) noexcept {
+		if (r >= MaxRooms) {
+			return;
+		}
+		m_biome[r] = b;
+		const BiomeProfile prof = biome_profile(b);
+		m_regions[r].dominant = prof.dominant;
+		m_regions[r].shelter = prof.shelter;
+		m_regions[r].danger = prof.danger;
+	}
+
+	/// Como `set_biome` y, si `seed_climate`, siembra el clima típico del bioma.
+	constexpr void apply_biome(RoomId r, BiomeKind b, bool seed_climate = false,
+				   eng::u8 severity = 120u) noexcept {
+		set_biome(r, b);
+		if (!seed_climate) {
+			return;
+		}
+		const BiomeProfile prof = biome_profile(b);
+		if (prof.typical_hazard != HazardKind::None) {
+			m_climate.set(r, prof.typical_hazard, severity);
+		}
+	}
+
+	[[nodiscard]] constexpr BiomeKind biome(RoomId r) const noexcept {
+		return r < MaxRooms ? m_biome[r] : BiomeKind::Plains;
 	}
 
 	[[nodiscard]] constexpr Society& society() noexcept { return m_society; }
@@ -693,6 +724,52 @@ public:
 		}
 	}
 
+	// --- Lenguaje y gestos ---
+
+	constexpr void set_signal_params(const SignalParams& p) noexcept { m_signal_params = p; }
+
+	/// Emite y entrega señales entre las criaturas realizadas: cada una comunica su
+	/// conducta/emoción y las que la oyen (misma región, dentro de alcance) actualizan su
+	/// memoria de corto plazo y su estado afectivo. Devuelve cuántas señales se oyeron.
+	constexpr eng::u8 broadcast_signals() noexcept {
+		eng::u8 heard = 0u;
+		for (eng::usize i = 0; i < m_creatures.size(); ++i) {
+			Creature& c = m_creatures[i];
+			if (!c.alive() || !c.realized()) {
+				continue;
+			}
+			const Signal s = make_signal(c.id, c.faction, c.room, c.x, c.y, c.behavior,
+						     c.mind, c.senses, m_signal_params);
+			if (s.intensity < m_signal_params.intensity_min) {
+				continue;
+			}
+			for (eng::usize j = 0; j < m_creatures.size(); ++j) {
+				if (i == j) {
+					continue;
+				}
+				Creature& d = m_creatures[j];
+				if (!d.alive() || !d.realized() || d.room != s.room ||
+				    s.room == no_room) {
+					continue;
+				}
+				const eng::u16 dist = manhattan(d.x, d.y, s.x, s.y);
+				if (s.range == 0u || dist > s.range) {
+					continue;
+				}
+				const eng::u8 strength = u8_scale(s.intensity,
+								  attenuation(dist, s.range));
+				if (strength == 0u) {
+					continue;
+				}
+				observe(d.trackers, tracker_for_signal(s.kind), s.sender, s.room, s.x,
+					s.y, strength, m_frame);
+				apply_signal_effect(d.mind, s.kind, m_signal_params);
+				++heard;
+			}
+		}
+		return heard;
+	}
+
 	// --- Mapa mental y rutas macro ---
 
 	/// Ruta por el grafo de regiones (BFS). Escribe las regiones de `from` a `to` en `out`
@@ -1026,6 +1103,8 @@ private:
 	SenseGenomeParams m_sense_genome_params {};
 	MentalMapParams m_mental_params {};
 	TerrainEventParams m_terrain_events {};
+	BiomeKind m_biome[MaxRooms] {};
+	SignalParams m_signal_params {};
 	[[no_unique_address]] detail::PlannerHolder<Traits::planning, PlannerNodes,
 						     kMaxPlanSteps> m_planner {};
 };
