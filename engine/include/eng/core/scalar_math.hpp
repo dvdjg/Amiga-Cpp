@@ -198,6 +198,30 @@ struct scalar_pow {
 	static constexpr S op(S a, S b) { return pow(a, b); }
 };
 
+/// `tan` del escalar (por defecto ADL).
+template <typename S>
+struct scalar_tan {
+	static constexpr S op(S x) { return tan(x); }
+};
+
+/// `atan2(y, x)` del escalar (por defecto ADL).
+template <typename S>
+struct scalar_atan2 {
+	static constexpr S op(S y, S x) { return atan2(y, x); }
+};
+
+/// `asin` del escalar (por defecto ADL).
+template <typename S>
+struct scalar_asin {
+	static constexpr S op(S x) { return asin(x); }
+};
+
+/// `acos` del escalar (por defecto ADL).
+template <typename S>
+struct scalar_acos {
+	static constexpr S op(S x) { return acos(x); }
+};
+
 /// Constante escalar desde un `double` de compilación, **sin ambigüedad**: para
 /// `MiniFloat16` usa el constructor de `float` (su formato solo tiene 10 bits de mantisa) y
 /// para `Fixed<R,E>` cuantiza a `E` bits fraccionarios (redondeo al más cercano). Un

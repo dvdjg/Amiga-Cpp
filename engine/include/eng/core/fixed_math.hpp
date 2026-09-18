@@ -2,18 +2,23 @@
 
 /// \file fixed_math.hpp
 /// **Funciones matemáticas para `Fixed`** (`eng::math`): especializa los puntos de
-/// extensión de `scalar_math.hpp` (`sin`, `cos`, `sqrt`, `exp2`, `log2`, `log`, `exp`,
-/// `pow`) para el escalar de coma fija de 16 bits, de modo que los algoritmos genéricos
-/// (easings `_sine`/`_expo`, `smooth_damp`, `length`/`normalize`, `stats::stddev`,
-/// `pow`…) compilen también con fixed.
+/// extensión de `scalar_math.hpp` (`sin`, `cos`, `tan`, `asin`, `acos`, `atan2`,
+/// `sqrt`, `exp2`, `log2`, `log`, `exp`, `pow`) para el escalar de coma fija de 16
+/// bits, de modo que los algoritmos genéricos (easings `_sine`/`_expo`, `smooth_damp`,
+/// `length`/`normalize`, `stats::stddev`, `pow`…) compilen también con fixed.
 ///
 /// ## Tablas y precisión: se eligen en compilación
 ///
 /// El **tamaño de las tablas** (resolución angular y uso de `.rodata`) y el **número de
 /// términos de la serie de Taylor** son parámetros de plantilla; se elige uno u otro
 /// según la precisión/coste que pida el uso. Los puntos de extensión `scalar_sin<S>`…
-/// usan un tamaño por defecto, y las funciones `fixed_sin<E, Size, Iter>`,
-/// `fixed_cos<…>`, `fixed_exp2<E, Size>` y `fixed_log2<E, Size>` permiten pedir otro.
+/// usan un tamaño por defecto, y las funciones `fixed_sin<E, Size, Iter>`, `fixed_cos<…>`,
+/// `fixed_exp2<E, Size>`, `fixed_log2<E, Size>` y `fixed_atan2<E, Size>` permiten pedir otro.
+///
+/// El **tamaño por defecto se fija por compilación** con `-DENG_FIXED_SIN_SIZE=…`,
+/// `-DENG_FIXED_EXP2_SIZE=…`, `-DENG_FIXED_LOG2_SIZE=…`, `-DENG_FIXED_ATAN_SIZE=…` y
+/// `-DENG_FIXED_SIN_ITER=…` (ver bloque de configuración tras los `#include`); útil para
+/// recortar `.rodata` en un juego con poca memoria.
 ///
 /// | Seno `Size` | resolución angular | error típico (peor caso ≈ pendiente·paso) | `.rodata` (s16) |
 /// |---|---|---|---|
@@ -21,12 +26,14 @@
 /// | **1024 (defecto)** | 2π/1024 | ~5e-3 | 2 KiB |
 /// | 256 | 2π/256 | ~2e-2 | 512 B |
 ///
-/// `exp2`/`log2` usan **256 entradas `s32`** por defecto (1 KiB cada tabla); con `Size`
-/// menor bajan proporcionalmente. `Iter` (términos de Taylor) solo afecta a la
+/// `exp2`/`log2` usan **256 entradas `s32`** por defecto (1 KiB cada tabla) y la de
+/// `atan` (para `atan2`/`asin`/`acos`) **257 entradas `s32`** (~1 KiB); con `Size` menor
+/// bajan proporcionalmente. `Iter` (términos de Taylor) solo afecta a la
 /// **generación** de la tabla en compilación: con `Iter = 12` el error (≈1e-16) queda
 /// por debajo del truncado de la tabla, así que bajarlo no cambia el runtime y solo
-/// ahorra tiempo de compilación. Configuración mínima medida (`fixed_sin<12,256>` +
-/// `fixed_exp2<12,64>` + `fixed_log2<12,64>`): **1 KiB** de `.rodata` en total.
+/// ahorra tiempo de compilación. Medido con `size`: **~5 KiB** de tablas con los valores
+/// por defecto y **~1.8 KiB** configurando `-DENG_FIXED_SIN_SIZE=512` y
+/// `-DENG_FIXED_{EXP2,LOG2,ATAN}_SIZE=64`.
 ///
 /// Las tablas son `static constexpr` en structs de `detail`: se materializan **una vez**
 /// por `(E, Size, Iter)` y se comparten entre funciones y entre TUs.
@@ -34,6 +41,9 @@
 /// ## Límites
 ///
 /// - `sin`/`cos` requieren `E <= 14` (amplitud `2^E` en `s16`).
+/// - `tan` = `sin/cos` (satura donde `cos ≈ 0`); `atan2` requiere `E <= 13` (π debe caber
+///   en `s16`) y la tabla de `atan` cubre el primer octante; `asin`/`acos` se derivan de
+///   `atan2` y `sqrt` (`|x| >= 1` satura a `±π/2` por el `sqrt` de un valor no positivo).
 /// - `exp2` **satura** al rango del fixed. `log2` solo es correcto si el resultado cabe
 ///   en `s16` (en q12, `x` en `[2^-8, 2^8)`); si no, satura. `pow(a,b) = 2^(b·log2 a)`
 ///   (a > 0). `sqrt` es `isqrt(raw << E)` (negativos → 0).
@@ -43,8 +53,35 @@
 #include <eng/core/ct_array.hpp>
 #include <eng/core/fixed.hpp>
 #include <eng/core/isqrt.hpp>
+#include <eng/core/linalg.hpp>
 #include <eng/core/scalar_math.hpp>
 #include <eng/core/sinetable.hpp>
+
+/// --- Configuración por defecto de las tablas ----------------------------------
+/// El tamaño con el que se materializan las tablas de los puntos de extensión
+/// (`scalar_sin<Fixed>`…) se fija aquí y se puede **cambiar por compilación**:
+///
+/// ```
+/// g++ -DENG_FIXED_SIN_SIZE=512 -DENG_FIXED_EXP2_SIZE=64 -DENG_FIXED_LOG2_SIZE=64 ...
+/// ```
+///
+/// `ENG_FIXED_SIN_ITER` = términos de la serie de Taylor (solo afecta al coste de
+/// compilación, no al runtime). `ENG_FIXED_ATAN_SIZE` = tabla de `atan`/`atan2`.
+#ifndef ENG_FIXED_SIN_SIZE
+#define ENG_FIXED_SIN_SIZE 1024
+#endif
+#ifndef ENG_FIXED_SIN_ITER
+#define ENG_FIXED_SIN_ITER 12
+#endif
+#ifndef ENG_FIXED_EXP2_SIZE
+#define ENG_FIXED_EXP2_SIZE 256
+#endif
+#ifndef ENG_FIXED_LOG2_SIZE
+#define ENG_FIXED_LOG2_SIZE 256
+#endif
+#ifndef ENG_FIXED_ATAN_SIZE
+#define ENG_FIXED_ATAN_SIZE 256
+#endif
 
 namespace eng::math {
 
@@ -82,8 +119,30 @@ consteval int log2_size() {
 	return e;
 }
 
+/// `atan(z)` para `z` en `[0,1]` por serie de Maclaurin.
+[[nodiscard]] constexpr double atan_series(double z) {
+	const double z2 = z * z;
+	double term = z;
+	double sum = z;
+	for (int k = 1; k < 32; ++k) {
+		term *= -z2;
+		sum += term / static_cast<double>(2 * k + 1);
+	}
+	return sum;
+}
+
+/// `atan(z)` para `z >= 0`: reduce `[tan(π/8),1]` con `atan(z)=π/4−atan((1−z)/(1+z))`.
+[[nodiscard]] constexpr double atan_d(double z) {
+	constexpr double kTanPi8 = 0.41421356237309503;
+	constexpr double kPi4 = 0.78539816339744831;
+	if (z > kTanPi8) {
+		return kPi4 - atan_series((1.0 - z) / (1.0 + z));
+	}
+	return atan_series(z);
+}
+
 /// Tabla de seno (muestras `s16`) para `Fixed<s16,E>`. `Iter` = términos de la serie.
-template <int E, int Size = 1024, int Iter = 12>
+template <int E, int Size = ENG_FIXED_SIN_SIZE, int Iter = ENG_FIXED_SIN_ITER>
 struct FixedSineTable {
 	static_assert(Size > 0 && (Size & (Size - 1)) == 0, "tabla de seno: Size potencia de dos");
 	static_assert(Size % 4 == 0, "tabla de seno: Size divisible por 4 (cuadrante de cos)");
@@ -103,7 +162,7 @@ struct FixedSineTable {
 };
 
 /// Tabla de `2^f` (muestras `s32`) para `Fixed<s16,E>`.
-template <int E, int Size = 256>
+template <int E, int Size = ENG_FIXED_EXP2_SIZE>
 struct FixedExp2Table {
 	static_assert(Size > 0 && (Size & (Size - 1)) == 0, "tabla exp2: Size potencia de dos");
 	static_assert(Size <= 1024, "tabla exp2: Size razonable");
@@ -115,7 +174,7 @@ struct FixedExp2Table {
 };
 
 /// Tabla de `log2(1+i/N)` (muestras `s32`) para `Fixed<s16,E>`.
-template <int E, int Size = 256>
+template <int E, int Size = ENG_FIXED_LOG2_SIZE>
 struct FixedLog2Table {
 	static_assert(Size > 0 && (Size & (Size - 1)) == 0, "tabla log2: Size potencia de dos");
 	static constexpr int kSize = Size;
@@ -125,10 +184,21 @@ struct FixedLog2Table {
 	}};
 };
 
+/// Tabla de `atan(z)` (muestras `s32`) para `z = i/Size` en `[0,1]`; `Size+1` muestras.
+template <int E, int Size = ENG_FIXED_ATAN_SIZE>
+struct FixedAtanTable {
+	static_assert(Size > 0 && (Size & (Size - 1)) == 0, "tabla atan: Size potencia de dos");
+	static constexpr int kSize = Size;
+	static constexpr ct_array<s32, Size + 1> value {[](usize i) -> s32 {
+		const double z = static_cast<double>(i) / static_cast<double>(Size);
+		return static_cast<s32>(atan_d(z) * static_cast<double>(1 << E) + 0.5);
+	}};
+};
+
 } // namespace detail
 
 /// `sin` de `Fixed<s16,E>` por tabla. `Size`/`Iter` eligen precisión y coste.
-template <int E, int Size = 1024, int Iter = 12, typename P>
+template <int E, int Size = ENG_FIXED_SIN_SIZE, int Iter = ENG_FIXED_SIN_ITER, typename P>
 [[nodiscard]] constexpr Fixed<s16, E, P> fixed_sin(Fixed<s16, E, P> x) {
 	static_assert(E <= 14, "fixed_sin: 2^E debe caber en s16");
 	using Tab = detail::FixedSineTable<E, Size, Iter>;
@@ -137,7 +207,7 @@ template <int E, int Size = 1024, int Iter = 12, typename P>
 }
 
 /// `cos` de `Fixed<s16,E>` (misma tabla, desfase de un cuarto de vuelta).
-template <int E, int Size = 1024, int Iter = 12, typename P>
+template <int E, int Size = ENG_FIXED_SIN_SIZE, int Iter = ENG_FIXED_SIN_ITER, typename P>
 [[nodiscard]] constexpr Fixed<s16, E, P> fixed_cos(Fixed<s16, E, P> x) {
 	static_assert(E <= 14, "fixed_cos: 2^E debe caber en s16");
 	using Tab = detail::FixedSineTable<E, Size, Iter>;
@@ -147,7 +217,7 @@ template <int E, int Size = 1024, int Iter = 12, typename P>
 }
 
 /// `2^x` de `Fixed<s16,E>` (`2^n · 2^f`, tabla + desplazamiento). Satura.
-template <int E, int Size = 256, typename P>
+template <int E, int Size = ENG_FIXED_EXP2_SIZE, typename P>
 [[nodiscard]] constexpr Fixed<s16, E, P> fixed_exp2(Fixed<s16, E, P> x) {
 	using Tab = detail::FixedExp2Table<E, Size>;
 	const s32 raw = static_cast<s32>(x.v);
@@ -166,7 +236,7 @@ template <int E, int Size = 256, typename P>
 }
 
 /// `log2` de `Fixed<s16,E>` (exponente entero + tabla). Satura; `x <= 0` → 0.
-template <int E, int Size = 256, typename P>
+template <int E, int Size = ENG_FIXED_LOG2_SIZE, typename P>
 [[nodiscard]] constexpr Fixed<s16, E, P> fixed_log2(Fixed<s16, E, P> x) {
 	if (x.v <= 0) {
 		return Fixed<s16, E, P> {0};
@@ -183,6 +253,66 @@ template <int E, int Size = 256, typename P>
 	if (w > 32767) return Fixed<s16, E, P> {static_cast<s16>(32767)};
 	if (w < -32768) return Fixed<s16, E, P> {static_cast<s16>(-32768)};
 	return Fixed<s16, E, P> {static_cast<s16>(w)};
+}
+
+// --- Trigonometría inversa y tangente ------------------------------------------
+
+/// `tan` de `Fixed<s16,E>` como `sin/cos`; satura donde `cos ≈ 0`.
+template <int E, int Size = ENG_FIXED_SIN_SIZE, int Iter = ENG_FIXED_SIN_ITER, typename P>
+[[nodiscard]] constexpr Fixed<s16, E, P> fixed_tan(Fixed<s16, E, P> x) {
+	using F = Fixed<s16, E, P>;
+	const F c = fixed_cos<E, Size, Iter>(x);
+	if (c.v == 0) {
+		return F {static_cast<s16>(fixed_sin<E, Size, Iter>(x).v < 0 ? -32768 : 32767)};
+	}
+	return div_norm(fixed_sin<E, Size, Iter>(x), c);
+}
+
+/// `atan2(y,x)` de `Fixed<s16,E>` por octantes + tabla de `atan` en `[0,1]`; resultado
+/// en `[-π, π]`. Requiere `E <= 13` (π debe caber en `s16`).
+template <int E, int Size = ENG_FIXED_ATAN_SIZE, typename P>
+[[nodiscard]] constexpr Fixed<s16, E, P> fixed_atan2(Fixed<s16, E, P> y, Fixed<s16, E, P> x) {
+	static_assert(E <= 13, "fixed_atan2: pi debe caber en s16");
+	using F = Fixed<s16, E, P>;
+	using Tab = detail::FixedAtanTable<E, Size>;
+	if (x.v == 0 && y.v == 0) {
+		return F {0};
+	}
+	const s32 ax = x.v < 0 ? -static_cast<s32>(x.v) : x.v;
+	const s32 ay = y.v < 0 ? -static_cast<s32>(y.v) : y.v;
+	const s32 lo = (ax < ay ? ax : ay) > 32767 ? 32767 : (ax < ay ? ax : ay);
+	const s32 hi = (ax < ay ? ay : ax) > 32767 ? 32767 : (ax < ay ? ay : ax);
+	const F ratio = div_norm(F {static_cast<s16>(lo)}, F {static_cast<s16>(hi)});
+	const s32 idx = (static_cast<s32>(ratio.v) * Tab::kSize) >> E;
+	s32 ang = Tab::value.v[idx];
+	if (ay > ax) {
+		ang = scalar_const<F>::from(1.57079632679489661923).v - ang;
+	}
+	if (x.v < 0) {
+		ang = scalar_const<F>::from(3.14159265358979323846).v - ang;
+	}
+	if (y.v < 0) {
+		ang = -ang;
+	}
+	if (ang > 32767) ang = 32767;
+	if (ang < -32768) ang = -32768;
+	return F {static_cast<s16>(ang)};
+}
+
+/// `asin` de `Fixed<s16,E>` = `atan2(x, sqrt(1−x²))` (`|x| >= 1` → `±π/2`).
+template <int E, int Size = ENG_FIXED_ATAN_SIZE, typename P>
+[[nodiscard]] constexpr Fixed<s16, E, P> fixed_asin(Fixed<s16, E, P> x) {
+	using F = Fixed<s16, E, P>;
+	const F r = scalar_sqrt<F>::op(scalar_traits<F>::one() - mul_norm(x, x));
+	return fixed_atan2<E, Size>(x, r);
+}
+
+/// `acos` de `Fixed<s16,E>` = `atan2(sqrt(1−x²), x)`.
+template <int E, int Size = ENG_FIXED_ATAN_SIZE, typename P>
+[[nodiscard]] constexpr Fixed<s16, E, P> fixed_acos(Fixed<s16, E, P> x) {
+	using F = Fixed<s16, E, P>;
+	const F r = scalar_sqrt<F>::op(scalar_traits<F>::one() - mul_norm(x, x));
+	return fixed_atan2<E, Size>(r, x);
 }
 
 // --- Puntos de extensión (tamaño por defecto) ---------------------------------
@@ -252,6 +382,32 @@ struct scalar_pow<Fixed<s16, E, P>> {
 		return scalar_exp2<Fixed<s16, E, P>>::op(
 			mul_norm(b, scalar_log2<Fixed<s16, E, P>>::op(a)));
 	}
+};
+
+/// `tan` de un `Fixed<s16,E>`.
+template <int E, typename P>
+struct scalar_tan<Fixed<s16, E, P>> {
+	static constexpr Fixed<s16, E, P> op(Fixed<s16, E, P> x) { return fixed_tan(x); }
+};
+
+/// `atan2(y,x)` de un `Fixed<s16,E>` (radianes).
+template <int E, typename P>
+struct scalar_atan2<Fixed<s16, E, P>> {
+	static constexpr Fixed<s16, E, P> op(Fixed<s16, E, P> y, Fixed<s16, E, P> x) {
+		return fixed_atan2(y, x);
+	}
+};
+
+/// `asin` de un `Fixed<s16,E>` (radianes).
+template <int E, typename P>
+struct scalar_asin<Fixed<s16, E, P>> {
+	static constexpr Fixed<s16, E, P> op(Fixed<s16, E, P> x) { return fixed_asin(x); }
+};
+
+/// `acos` de un `Fixed<s16,E>` (radianes).
+template <int E, typename P>
+struct scalar_acos<Fixed<s16, E, P>> {
+	static constexpr Fixed<s16, E, P> op(Fixed<s16, E, P> x) { return fixed_acos(x); }
 };
 
 } // namespace eng::math

@@ -352,6 +352,15 @@ extern "C" s16 c_scalar16_math(s16 a, s16 b) {
 	const q12 pw = scalar_pow<q12>::op(q12 {4096}, q12 {1024});
 	return static_cast<s16>(e1.v + e2.v + sd.v + len.v + e2v.v + l2.v + ex.v + pw.v);
 }
+extern "C" s16 c_scalar16_trig(s16 a, s16 b) {
+	const q12 y {a};
+	const q12 x {b};
+	const q12 tn = scalar_tan<q12>::op(y);
+	const q12 at = scalar_atan2<q12>::op(y, x);
+	const q12 as = scalar_asin<q12>::op(y);
+	const q12 ac = scalar_acos<q12>::op(x);
+	return static_cast<s16>(tn.v + at.v + as.v + ac.v);
+}
 `;
 
 fs.mkdirSync(`${ROOT}/out/tmp`, { recursive: true });

@@ -170,6 +170,43 @@ int main() {
 		      "pow(4,0.5) = 2");
 	}
 
+	// --- tan/atan2/asin/acos de Fixed ---------------------------------------
+	{
+		check(std::fabs(em::to_double(em::scalar_tan<er::q12>::op(q(0.0f)))) <= 1.0e-2,
+		      "tan(0) = 0");
+		check(std::fabs(em::to_double(em::scalar_tan<er::q12>::op(q(kPi / 4.0f))) - 1.0) <= 1.5e-2,
+		      "tan(pi/4) = 1");
+		check(std::fabs(em::to_double(em::scalar_tan<er::q12>::op(q(1.0f))) - 1.5574) <= 3.0e-2,
+		      "tan(1) = 1.5574");
+
+		check(std::fabs(em::to_double(em::scalar_atan2<er::q12>::op(q(0.0f), q(1.0f)))) <= 1.5e-2,
+		      "atan2(0,1) = 0");
+		check(std::fabs(em::to_double(em::scalar_atan2<er::q12>::op(q(1.0f), q(1.0f))) -
+				0.7853982) <= 2.5e-2,
+		      "atan2(1,1) = pi/4");
+		check(std::fabs(em::to_double(em::scalar_atan2<er::q12>::op(q(1.0f), q(0.0f))) -
+				1.5707963) <= 2.5e-2,
+		      "atan2(1,0) = pi/2");
+		check(std::fabs(em::to_double(em::scalar_atan2<er::q12>::op(q(0.0f), q(-1.0f))) -
+				3.1415927) <= 2.5e-2,
+		      "atan2(0,-1) = pi");
+		check(std::fabs(em::to_double(em::scalar_atan2<er::q12>::op(q(-1.0f), q(0.0f))) +
+				1.5707963) <= 2.5e-2,
+		      "atan2(-1,0) = -pi/2");
+		check(std::fabs(em::to_double(em::scalar_atan2<er::q12>::op(q(1.0f), q(-1.0f))) -
+				2.3561945) <= 3.0e-2,
+		      "atan2(1,-1) = 3pi/4");
+
+		check(std::fabs(em::to_double(em::scalar_asin<er::q12>::op(q(0.5f))) - 0.5235988) <= 3.0e-2,
+		      "asin(0.5) = pi/6");
+		check(std::fabs(em::to_double(em::scalar_asin<er::q12>::op(q(1.0f))) - 1.5707963) <= 3.0e-2,
+		      "asin(1) = pi/2");
+		check(std::fabs(em::to_double(em::scalar_acos<er::q12>::op(q(0.5f))) - 1.0471976) <= 3.0e-2,
+		      "acos(0.5) = pi/3");
+		check(std::fabs(em::to_double(em::scalar_acos<er::q12>::op(q(0.0f))) - 1.5707963) <= 3.0e-2,
+		      "acos(0) = pi/2");
+	}
+
 	// --- tamaño de tabla elegible en compilación ----------------------------
 	{
 		const er::q12 x {2300}; // ≈ 0.5615 rad
