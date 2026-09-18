@@ -19,8 +19,9 @@ y (si tiene consumidor natural) una demo/juego exitoso.
 
 ## 2. Estado de partida
 
-- **Entregado**: `planning/goap.hpp` (GOAP con A*, hechos booleanos, acciones con coste),
-  verificado por HOST-107 (Hanoi, pastel, soldado) y con la taxonomía documentada en
+- **Entregado**: `planning/goap.hpp` (GOAP con A*, hechos booleanos, acciones con coste;
+  HOST-107) y la familia `decision/` (`agent_fsm`, `utility`, `behavior_tree`, `blackboard`;
+  HOST-110…113), con la taxonomía e inventario en
   [GAME_AI_LIBRARY.md](../../engine/architecture/GAME_AI_LIBRARY.md).
 - **Primitivas ya disponibles**: `eng::util::pathfinding` (BFS/A* en rejilla),
   `eng::util::broadphase` (`SpatialHash`), `eng::util::grid` (tile/iso/hex),
@@ -60,12 +61,13 @@ y (si tiene consumidor natural) una demo/juego exitoso.
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
 | G2.1 | `decision/agent_fsm.hpp` | FSM/HSM reutilizando la máquina de estados genérica de `eng::util`; la capa de IA solo aporta estados/eventos y efectos (no una segunda FSM) | **Entregado**: `util::StateMachine` (HOST-108) + `ai::AgentFsm` (HOST-110) |
-| G2.2 | `decision/utility.hpp` | Utilidad por puntuación (suma ponderada de consideraciones), con normalización/clamp enteros | HOST propio |
-| G2.3 | `decision/behavior_tree.hpp` | Selector/secuencia/decoradores sobre nodos sin heap; tick por frame acotado | HOST propio |
-| G2.4 | `decision/blackboard.hpp` + eventos | Datos compartidos entre sistemas; difusión con `event.hpp` (entregado, HOST-109) | HOST propio |
+| G2.2 | `decision/utility.hpp` | Utilidad por puntuación (media ponderada de consideraciones), entera y determinista (`muls.w`/`divs.w`) | **Entregado**: HOST-112 |
+| G2.3 | `decision/behavior_tree.hpp` | Secuencia/selector sobre nodos sin heap; tick síncrono y acotado | **Entregado**: HOST-113 |
+| G2.4 | `decision/blackboard.hpp` + eventos | Datos compartidos entre sistemas; difusión con `event.hpp` (entregado, HOST-109) | **Entregado**: HOST-111 |
 
-Dependencia: G2 reutiliza `state_machine` (entregado, R4.4) y `event` (entregado, R4.3) de
-`eng::util`. Queda utility AI y behavior tree sobre esa base.
+**Estado: G2 completa.** Reutiliza `state_machine` (R4.4) y `event` (R4.3) de `eng::util`, y
+añade `AgentFsm`, `Utility`, `BehaviorTree` y `Blackboard` (HOST-110…113). Siguiente: G3
+(navegación) o G4 (movimiento/percepción).
 
 ### G3 — Navegación
 
@@ -108,9 +110,9 @@ patrones descritos en §5.
 | GOAP (Goal-Oriented Action Planning) | planificación | `ai/planning/goap.hpp` | A. Alex (basado en Orkin/F.E.A.R.) | **Implementado** (HOST-107) |
 | HTN (Hierarchical Task Network) | planificación | `ai/planning/htn.hpp` | Erol, Hendler, Nau | Pendiente |
 | FSM / HSM | decisión | `util/state_machine.hpp` (motor) + `ai/decision/agent_fsm.hpp` (efectos) | — | **Entregado** (HOST-108 y HOST-110) |
-| Utility AI | decisión | `ai/decision/utility.hpp` | D. Mark (Infinite Axis Utility System) | Pendiente |
-| Behavior trees | decisión | `ai/decision/behavior_tree.hpp` | — | Pendiente |
-| Blackboard / eventos | decisión | `ai/decision/blackboard.hpp` | — | Pendiente |
+| Utility AI | decisión | `ai/decision/utility.hpp` | D. Mark (Infinite Axis Utility System) | **Entregado** (HOST-112) |
+| Behavior trees | decisión | `ai/decision/behavior_tree.hpp` | — | **Entregado** (HOST-113) |
+| Blackboard / eventos | decisión | `ai/decision/blackboard.hpp` + `util/event.hpp` | — | **Entregado** (HOST-111 / HOST-109) |
 | Flow field | navegación | `ai/navigation/flow_field.hpp` | — | Pendiente |
 | Grafo de waypoints + A* | navegación | `ai/navigation/waypoints.hpp` | — | Pendiente |
 | Navmesh lite (Recast/Detour) | navegación | `ai/navigation/navmesh_lite.hpp` | <https://github.com/recastnavigation/recastnavigation> | Pendiente |

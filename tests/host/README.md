@@ -150,3 +150,6 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-108 | [state_machine](108_state_machine/README.md) | `util/state_machine.hpp`: FSM de tabla `constexpr` externa (`StateMachine<State,Event>`, `Transition`). Semaforo y FSM de IA de un guardia; evento sin transicion, `reset` y orden de tabla. |
 | HOST-109 | [event](109_event/README.md) | `util/event.hpp`: emisor de eventos de capacidad fija (`Event<Signature,MaxSubscribers>`) con suscriptores `FunctionRef`. Suscripcion/emit/clear, capacidad y orden. |
 | HOST-110 | [agent_fsm](110_agent_fsm/README.md) | `ai/decision/agent_fsm.hpp`: `AgentFsm` envuelve `util::StateMachine` y anade efectos de entrada/salida de estado; evento sin transicion y reemplazo de efecto. |
+| HOST-111 | [blackboard](111_blackboard/README.md) | `ai/decision/blackboard.hpp`: `Blackboard<Key,Value,MaxKeys>` (memoria compartida de la IA) con claves densas; `find` O(1), sobrescritura y valores struct. |
+| HOST-112 | [utility](112_utility/README.md) | `ai/decision/utility.hpp`: `Utility` (media ponderada en [0,1000], `muls.w`/`divs.w`) y `UtilitySelector` (mejor opcion, empate -> indice menor). Decision de un guardia. |
+| HOST-113 | [behavior_tree](113_behavior_tree/README.md) | `ai/decision/behavior_tree.hpp`: `BehaviorTree<MaxNodes>` sin heap (secuencia/selector, cortocircuito, `no_node` al llenarse). Guardia dispara/recarga. |

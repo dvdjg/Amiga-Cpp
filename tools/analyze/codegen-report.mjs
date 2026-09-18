@@ -48,6 +48,9 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/util/state_machine.hpp>
 #include <eng/core/util/event.hpp>
 #include <eng/ai/decision/agent_fsm.hpp>
+#include <eng/ai/decision/blackboard.hpp>
+#include <eng/ai/decision/utility.hpp>
+#include <eng/ai/decision/behavior_tree.hpp>
 #include <eng/core/random.hpp>
 #include <eng/core/util/dsp.hpp>
 #include <eng/core/fixed_math.hpp>
@@ -395,6 +398,36 @@ extern "C" u16 c_agent_fsm_ops(u16 seed) {
 		fsm.dispatch(E::Go);
 	}
 	return static_cast<u16>(static_cast<u16>(fsm.current()) + fsm.transition_count());
+}
+extern "C" u16 c_blackboard_ops(u16 seed) {
+	enum class K : eng::u16 { A, B, C, Count };
+	eng::ai::Blackboard<K, eng::s32, static_cast<eng::usize>(K::Count)> bb;
+	bb.set(K::A, seed);
+	bb.set(K::B, static_cast<eng::s32>(seed) + 1);
+	const eng::s32* p = bb.find(K::A);
+	bb.erase(K::B);
+	return static_cast<u16>((p != nullptr ? *p : 0) + static_cast<eng::s32>(bb.size()));
+}
+extern "C" s16 c_utility_ops(u16 a, u16 b) {
+	eng::ai::Utility u;
+	u.add(static_cast<eng::s32>(a), 2);
+	u.add(static_cast<eng::s32>(b), 1);
+	eng::ai::UtilitySelector<3> sel;
+	sel.add(u.score());
+	sel.add(static_cast<eng::s32>(b));
+	return static_cast<s16>(static_cast<eng::s32>(sel.best()) + u.score());
+}
+extern "C" u16 c_behavior_tree_ops(u16 seed) {
+	(void)seed;
+	auto fail = []() { return eng::ai::BtStatus::Failure; };
+	auto ok = []() { return eng::ai::BtStatus::Success; };
+	eng::ai::BehaviorTree<4> bt;
+	bt.add_leaf(fail);
+	bt.add_leaf(ok);
+	const eng::u16 sel = bt.add_selector(0u, 2u);
+	bt.set_root(sel);
+	const eng::ai::BtStatus st = bt.tick();
+	return static_cast<u16>((st == eng::ai::BtStatus::Success ? 1u : 0u) + bt.node_count());
 }
 extern "C" u16 c_random_ops(u16 seed) {
 	eng::Xoroshiro64pp rng {seed, static_cast<eng::u32>(seed + 1u)};

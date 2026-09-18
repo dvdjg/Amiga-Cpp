@@ -173,24 +173,44 @@ Además, el test cubre los casos límite (objetivo ya cumplido, objetivo sin sol
 último válido, y ejercita la clave de dos palabras (`StateKey64`). El contenedor `Ai::Domain`
 se prueba con un problema mínimo (3 acciones encadenadas, coste 3).
 
-## 4. Inventario
+## 4. Decisión por tick (`eng/ai/decision/`)
+
+La decisión se apoya en dos motores genéricos de `eng::util` (no se duplican):
+`StateMachine` (transiciones) y `Event` (difusión). Encima:
+
+| Cabecera | Qué aporta |
+|---|---|
+| `agent_fsm.hpp` | `AgentFsm<State,Event,MaxStates>`: FSM con **efectos de entrada/salida** de estado, conteniendo `util::StateMachine`. |
+| `utility.hpp` | `Utility` (media ponderada de consideraciones normalizadas en `[0,1000]`) y `UtilitySelector<MaxOptions>` (mejor opción, empate → índice menor). Sin `float` ni libcalls (`muls.w`/`divs.w`). |
+| `behavior_tree.hpp` | `BehaviorTree<MaxNodes>` sin heap: secuencia y selector sobre hojas `FunctionRef<BtStatus()>`; tick síncrono y acotado. |
+| `blackboard.hpp` | `Blackboard<Key,Value,MaxKeys>`: memoria compartida por claves densas, `find` `O(1)`. No emite; para difundir se usa `util::Event`. |
+
+Coste medido (sondas m68k): `Blackboard::find` 3 instrucciones; `Utility` 40 instrucciones con
+2 `muls.w`; `BehaviorTree::tick` (árbol de 3 nodos) 271 instrucciones (recursivo, sin
+libcalls). Verificación: HOST-110 (FSM), HOST-111 (blackboard), HOST-112 (utility), HOST-113
+(árbol).
+
+## 5. Inventario
 
 | Cabecera | Tipos / funciones | Estado |
 |---|---|---|
 | `planning/goap.hpp` | `Goap<MaxFacts>` (dominio: `State`/`state`/`Action`/`Builder`/`Goal`/`Planner`), `Fact`, `applicable`, `apply`, `satisfies`, `goal_distance` | Implementado, HOST-107 |
 | `decision/agent_fsm.hpp` | `AgentFsm<State,Event,MaxStates>`: FSM de agente con efectos de entrada/salida sobre `eng::util::StateMachine` | Implementado, HOST-110 |
-| `decision/…` | utility AI, behavior trees, blackboard (sobre `util::StateMachine`/`util::Event`) | Planificado (ROADMAP_GAME_AI) |
+| `decision/utility.hpp` | `Utility`/`UtilitySelector<MaxOptions>`: utilidad ponderada; entero y determinista | Implementado, HOST-112 |
+| `decision/behavior_tree.hpp` | `BehaviorTree<MaxNodes>`, `BtStatus`, `BtTask`: secuencia/selector sin heap | Implementado, HOST-113 |
+| `decision/blackboard.hpp` | `Blackboard<Key,Value,MaxKeys>`: memoria compartida `O(1)` | Implementado, HOST-111 |
 | `navigation/…` | navmesh lite (Recast/Detour), flow field | Planificado (ROADMAP_GAME_AI) |
 | `steering/…` | seek/flee/arrive, flocking, evasión | Planificado (ROADMAP_GAME_AI) |
-| `perception/…` | influence maps, blackboard | Planificado (ROADMAP_GAME_AI) |
+| `perception/…` | influence maps, sensores | Planificado (ROADMAP_GAME_AI) |
 | `design/…` | director de dificultad, recompensas | Planificado (ROADMAP_GAME_AI) |
 
-> Estado de verificación: `goap.hpp` está **verificado por test host** (HOST-107). Al no
-> tener todavía consumidor en una demo, está **NO VERIFICADO por demo** (ver
-> [docs/testing/README.md](../../testing/README.md)); puede cambiar sin aviso. La primera
-> demo/juego que plantee un personaje con objetivos lo verificará en el 68000.
+> Estado de verificación: los módulos de `eng::ai` están **verificados por test host**
+> (GOAP: HOST-107; decisión: HOST-110…113). Al no tener todavía consumidor en una demo,
+> están **NO VERIFICADOS por demo** (ver [docs/testing/README.md](../../testing/README.md));
+> pueden cambiar sin aviso. La primera demo/juego con un personaje con objetivos los
+> verificará en el 68000.
 
-## 5. Cómo añadir una técnica
+## 6. Cómo añadir una técnica
 
 1. Comprobar que no existe ya en `eng/core/`, `eng/core/util/` ni `eng/ai/` (§1.6 de
    `AGENTS.md`); decidir si se reutiliza una primitiva existente.
