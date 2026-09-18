@@ -57,6 +57,8 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/ai/steering/steering.hpp>
 #include <eng/ai/perception/influence_map.hpp>
 #include <eng/ai/perception/agent_memory.hpp>
+#include <eng/board/rules/chess/rules.hpp>
+#include <eng/parallel/parallel.hpp>
 #include <eng/core/util/union_find.hpp>
 #include <eng/core/util/sparse_set.hpp>
 #include <eng/core/util/bitstream.hpp>
@@ -772,6 +774,23 @@ extern "C" s16 c_fx_aim(s16 dx, s16 dy) {
 	const q12 ang = angle_of(d);          // atan2 fixed (tabla de atan)
 	const Vec<2, q12> dir = from_angle(ang); // sincos fixed (tabla de seno)
 	return static_cast<s16>(ang.v + dir.v[0].v + dir.v[1].v);
+}
+
+// --- eng::board / eng::parallel: generacion legal y perft no deben arrastrar
+// libcalls de libgcc (la busqueda por nodo sera el camino caliente en 68000). ---
+extern "C" u16 c_chess_gen() {
+	using R = eng::board::ChessRules;
+	R::Position pos = R::initial();
+	R::MoveList moves;
+	return static_cast<u16>(R::generate_legal(pos, moves));
+}
+extern "C" eng::u32 c_chess_perft(u16 depth) {
+	using R = eng::board::ChessRules;
+	R::Position pos = R::initial();
+	return static_cast<eng::u32>(eng::board::chess::perft(pos, static_cast<eng::u32>(depth)));
+}
+extern "C" u16 c_parallel_threads() {
+	return static_cast<u16>(eng::parallel::hardware_threads());
 }
 `;
 

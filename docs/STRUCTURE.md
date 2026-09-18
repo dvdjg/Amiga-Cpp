@@ -100,6 +100,7 @@ engine/
 │   ├── scene/            → escena virtual / cámara
 │   ├── ai/               → IA de juego (ai/planning: GOAP; familias decision/navigation/steering/perception/design)
 │   ├── board/            → motores de tablero (ajedrez/Go): reglas, búsqueda adversaria, aperturas/finales, NLG (eng::board)
+│   ├── parallel/         → concurrencia abstracta (eng::parallel): hilos/mutex/atomicos no-op en m68k, std en host
 │   ├── debug/            → telemetría, run_status, periférico de depuración
 │   └── platform/         → especialización por máquina
 │       ├── amiga/        →   gráficos Amiga OCS (gfx3d, lib3d, object3d, angles)

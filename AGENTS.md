@@ -160,6 +160,7 @@ Estas reglas son obligatorias, pero solo son relevantes cuando se toca su domini
 | **WinUAE: instancias múltiples y depuración avanzada (GDB/canal lateral/MCP)** | `docs/debugging/DEBUG-WINUAE-V2-GUIDE.md` |
 | **Pipeline de tiles/EHB** (cuantizar antes de extraer, comparar al 100 %, etc.) | `docs/guides/roadmap/REGLAS_PIPELINE_TILES.md` |
 | **Motores de tablero (ajedrez/Go), footprint 20 kB–1 MB y conocimiento en disquete** | `docs/engine/architecture/BOARD_GAME_AI.md` + `docs/guides/roadmap/ROADMAP_BOARD_GAMES.md` |
+| **Concurrencia y portabilidad multinúcleo (hilos/mutex/atómicos)** | `docs/engine/architecture/PARALLEL_AND_THREADS.md` |
 | **Estado vigente y próximas direcciones del engine** | `docs/guides/roadmap/ROADMAP_UNIFICADO.md` |
 | **Bitácora de scroll por tiles (histórico)** | `docs/guides/roadmap/BITACORA_SCROLL_TILES.md` |
 

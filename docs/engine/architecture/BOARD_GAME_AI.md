@@ -61,13 +61,10 @@ engine/include/eng/board/
    core/      ┌─────────┴───────────────────────────────────────────┐
               │ Score · Move · Zobrist · MemoryBudget · GameRules    │
               └─────────────────────────────────────────────────────┘
-   eng::util / eng::math / eng::task  (LRU, hash, bitset, arena, fixed, tareas)
+   eng::util / eng::math / eng::task / eng::parallel  (LRU, hash, arena, fixed, tareas, hilos)
 ```
 
-Reglas de capa (las de [CODING_STYLE.md](CODING_STYLE.md)): `eng::board` no conoce hardware,
-no incluye registros ni DMA y compila igual en host que en el cruce `m68k`. El acceso a disco
-se hace a través de `storage/`, que se apoya en la abstracción de carga ya existente, no en
-registros de Paula.
+Reglas de capa (las de [CODING_STYLE.md](CODING_STYLE.md)): `eng::board` no conoce hardware, no incluye registros ni DMA y compila igual en host que en el cruce `m68k`. El acceso a disco se hace a través de `storage/`, que se apoya en la abstracción de carga ya existente, no en registros de Paula. El reparto entre CPUs (cuando el target las tiene) se hace a través de `eng::parallel`, que en el Amiga degrada a ejecución secuencial; ver [PARALLEL_AND_THREADS.md](PARALLEL_AND_THREADS.md).
 
 ## 2. Presupuesto de memoria (20 kB – 1 MB)
 
@@ -181,6 +178,10 @@ Cuestiones de diseño en 68000:
   la cola de [BACKGROUND_TASKS.md](BACKGROUND_TASKS.md)), cediendo el turno al render; no hay
   segundo hilo ni `busy-wait`. El motor **nunca está parado**: sigue refinando mientras se
   espera al rival o a la entrada.
+- **Búsqueda paralela solo en targets multinúcleo.** Con `hardware_threads() > 1` el *root
+  split* reparte las jugadas de la raíz entre hilos con `eng::parallel` y un `StopToken` por
+  hilo; en el A500 el mismo código corre secuencial. El reparto no puede alterar el resultado
+  (reducción ordenada y criterios estables).
 - **TT persistente entre turnos.** Cuando el rival juega la jugada asumida, se reaprovecha el
   árbol vía TT/PV; si juega otra, se aborta y se reinicia desde la nueva posición
   conservando la TT.
@@ -280,7 +281,28 @@ coste bajo (8–50 kB según riqueza).
   limitada) solo si hay ≥ 256–512 kB. Los patrones de fuseki y locales se sirven desde
   disquete.
 
-## 9. Verificación
+## 9. Decisiones de diseño
+
+- **Entrada de TT de 12 B** (clave parcial `u32` + `s16` de score + `u8` de profundidad + `u8`
+  de jugada/flags). El tamaño se fija en `budget.hpp` (`kTtEntryBytes`) para que el
+  dimensionado y la estructura sean coherentes.
+- **Zobrist de una sola palabra `u32`**, generada en `constexpr` con xorshift32; sin
+  aritmética de 64 bits. Si las colisiones medidas lo exigieran, se añadiría una segunda clave
+  de verificación, no un `unsigned long long`.
+- **Tablero 0x88** con índice Zobrist compacto 0..63. La validez de casilla es una máscara
+  (`(s & 0x88) == 0`).
+- **`Move` de 32 bits**: `from` (7) + `to` (7) + `payload` (16, definido por el juego). El
+  ajedrez usa el payload para captura, doble paso, al paso, enroque y pieza de promoción.
+- **Legalidad por `make`/`unmake`**, no por lógica de clavadas: se generan pseudo-legales y se
+  filtran las que dejan al rey propio atacado. La corrección la fija `perft` (posición
+  inicial, Kiwipete, al paso y promoción).
+- **Presupuesto por bytes planificados**: `plan_memory` elige el perfil mayor cuyo
+  `planned_bytes()` cabe en la RAM libre; si no cabe ni `P20`, devuelve `P20` como fallback.
+- **Concurrencia abstracta** con `eng::parallel` ([PARALLEL_AND_THREADS.md](PARALLEL_AND_THREADS.md)):
+  no-ops en m68k, hilos reales en el host. La búsqueda paralela solo se activa con
+  `hardware_threads() > 1` y no puede alterar el resultado.
+
+## 10. Verificación
 
 - **Test host** por pieza (búsqueda, reglas, tablas, TT, caché, NLG) en `tests/host/NNN` con su
   `README.md`; los escenarios son deterministas (mates en N, posiciones de libro, secuencias
@@ -293,19 +315,22 @@ coste bajo (8–50 kB según riqueza).
 - El pipeline de conocimiento (packers host) se verifica con round-trip texto → bloque →
   lectura, igual que el pipeline de tiles.
 
-## 10. Inventario
+## 11. Inventario
 
 | Área | Estado |
 |---|---|
-| `core/` (tipos, Zobrist, budget, concepto `GameRules`) | Planificado (B0) |
-| `rules/chess/` (tablero, legalidad, notación, tablas, finales) | Planificado (B1) |
+| `core/` (tipos, Zobrist, budget, concepto `GameRules`) | **Implementado**: HOST-138 (tipos/Zobrist/GameRules) y HOST-139 (budget) |
+| `rules/chess/` (tablero 0x88, legalidad, FEN) | **Implementado**: HOST-140 (make/unmake, perft, FEN, fin de partida) |
+| `rules/chess/` (SAN/algebraica y sonda de finales) | Planificado (B1.4–B1.5) |
 | `search/` (negamax/αβ, ID, quiescence, TT, ordering, ponder, MultiPV) | Planificado (B2, B5) |
 | `eval/` (ajedrez y Go, rasgos) | Planificado (B3, B7) |
 | `knowledge/` + `storage/` (libro, tablas, patrones, BlockSource, LRU) | Planificado (B4) |
 | `explain/` (NLG ES/EN por plantillas) | Planificado (B6) |
 | `rules/go/` + `eval/go` | Planificado (B7) |
+| Motores de concurrencia (`eng::parallel`) | **Implementado**: HOST-137; ver [PARALLEL_AND_THREADS.md](PARALLEL_AND_THREADS.md) |
 | Juegos en `games/` | Planificado (B8) |
 
-> Estado: **planificado**. El plan por fases, la distribución de tests y los criterios de
-> cierre están en [ROADMAP_BOARD_GAMES.md](../../guides/roadmap/ROADMAP_BOARD_GAMES.md), fuente
-> única del avance. Este documento describe el diseño vigente y no se duplica allí.
+> Estado: núcleo y reglas de ajedrez implementados y verificados por test host (HOST-137…140);
+> el resto, planificado. El plan por fases, la distribución de tests y los criterios de cierre
+> están en [ROADMAP_BOARD_GAMES.md](../../guides/roadmap/ROADMAP_BOARD_GAMES.md), fuente única
+> del avance. Este documento describe el diseño vigente y no se duplica allí.
