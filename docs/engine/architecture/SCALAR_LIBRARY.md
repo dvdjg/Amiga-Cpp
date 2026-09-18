@@ -213,7 +213,7 @@ tests host) falla si la doc se desincroniza del contrato, y `--write` la regener
 | dot fusionado (2-4 pares) | si | si | si (acumulador saturado) | si | HOST-059 |
 | cross2 / rotate2 / vscale / vlerp | si | si | si (rotate2 por ángulo con fixed_math) | si (fixed_math) | HOST-059/104 |
 | length / normalize / reflect / project | si | si (limites de rango) | si (fixed_math) | si (fixed_math) | HOST-059/104 |
-| value_noise / fbm | si | si (coord <= 2048) | no (necesita division) | no (necesita division) | HOST-060 |
+| value_noise / fbm | si | si (coord <= 2048) | no (rejilla 1024 > rango ±8) | si (div_norm; host/68020) | HOST-060/135 |
 | mul_add / mac (FMA) | — | si (1 redondeo) | si (1 redondeo) | si (1 redondeo) | HOST-057/059 |
 | hermite / catmull_rom | si | si | si (catmull usa div_norm) | si (div_norm) | HOST-064 |
 | hermite / catmull_rom (Vec<N>) | si | si | si | si | HOST-064 |
@@ -273,5 +273,9 @@ están en [REFACTOR_SCALAR_GENERICO.md](../../guides/roadmap/REFACTOR_SCALAR_GEN
 Todo respaldado por HOST-135 (matriz de escalares: `double`/`float`/`MiniFloat16`/
 `Fixed<s16,12>`/`Fixed<s32,12>`/`Fixed<s32,24>`, incluida la trig/exp/log y `smootherstep` de
 `Fixed<s32>`) y HOST-136 (`eng::real`/`coord`/`intw` en los tres modos). La tabla §7 incluye ya
-la columna `Fixed<s32>`. Pendientes menores: adoptar `eng::real`/`coord` en demos concretas y
-completar la migración de los `mul16` restantes a `mul_wide`.
+la columna `Fixed<s32>`.
+
+El ruido (`noise.hpp`) normaliza con `div_norm` en vez de `operator/`, así que `value_noise`/`fbm`
+funcionan con `Fixed<s32,E>` (el 4.12 queda fuera por rango: la rejilla tiene 1024 niveles).
+Pendientes menores: adoptar `eng::real`/`coord` en demos concretas y completar la migración de
+los `mul16` restantes a `mul_wide`.

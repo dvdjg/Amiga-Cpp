@@ -64,7 +64,11 @@ template <typename R>
 	return arith<R>::mul(a, b);
 }
 
-/// Producto sin signo ensanchado (`mulu.w` con `R` de 16 bits).
+/// Producto sin signo ensanchado (`mulu.w` con `R` de 16 bits). El parámetro `R` es la
+/// representación **con signo** (el backend `arith<R>` indexa por ella) y **no se deduce**
+/// de los operandos sin signo: hay que indicarlo (`mulu_wide<s16>(a, b)`). Para el producto
+/// 16×16 sin signo del camino caliente usa el atajo `mulu16` de `word.hpp`, que fija
+/// `R = s16` y acepta cualquier entero convertible a `u16`.
 template <typename R>
 [[nodiscard]] constexpr typename arith_wide<R>::unsigned_t mulu_wide(
 	typename arith_unsigned<R>::type a, typename arith_unsigned<R>::type b) {

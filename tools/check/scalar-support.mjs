@@ -31,7 +31,7 @@ const ROWS = [
   { fn: 'dot fusionado (2-4 pares)', flt: 'si', mf: 'si', fx: 'si (acumulador saturado)', f32: 'si', test: 'HOST-059' },
   { fn: 'cross2 / rotate2 / vscale / vlerp', flt: 'si', mf: 'si', fx: 'si (rotate2 por ángulo con fixed_math)', f32: 'si (fixed_math)', test: 'HOST-059/104' },
   { fn: 'length / normalize / reflect / project', flt: 'si', mf: 'si (limites de rango)', fx: 'si (fixed_math)', f32: 'si (fixed_math)', test: 'HOST-059/104' },
-  { fn: 'value_noise / fbm',         flt: 'si', mf: 'si (coord <= 2048)', fx: 'no (necesita division)', f32: 'no (necesita division)', test: 'HOST-060' },
+  { fn: 'value_noise / fbm',         flt: 'si', mf: 'si (coord <= 2048)', fx: 'no (rejilla 1024 > rango ±8)', f32: 'si (div_norm; host/68020)', test: 'HOST-060/135' },
   { fn: 'mul_add / mac (FMA)',       flt: '—', mf: 'si (1 redondeo)', fx: 'si (1 redondeo)', f32: 'si (1 redondeo)', test: 'HOST-057/059' },
   { fn: 'hermite / catmull_rom',     flt: 'si', mf: 'si', fx: 'si (catmull usa div_norm)', f32: 'si (div_norm)', test: 'HOST-064' },
   { fn: 'hermite / catmull_rom (Vec<N>)', flt: 'si', mf: 'si', fx: 'si', f32: 'si', test: 'HOST-064' },

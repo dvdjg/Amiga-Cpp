@@ -18,8 +18,10 @@
 ///
 /// ## Límites por escalar (importante)
 ///
-/// - Necesita **división** (`has_division`) para normalizar el valor de rejilla; con un
-///   `Fixed` sin `operator/` no compila (a propósito).
+/// - Normaliza el valor de rejilla con `div_norm` (la división explícita del escalar), así
+///   que sirve también con `Fixed`. El límite real es el **rango**: la rejilla tiene 1024
+///   niveles y el fixed 4.12 (±8) no los representa, así que se rechaza en compilación;
+///   `Fixed<s32,E>` (host/68020) sí vale.
 /// - **`MiniFloat16`** (~10 bits): los valores de rejilla tienen **1024 niveles** (la
 ///   precisión del tipo, no más). El índice de celda es exacto hasta `|coord| <= 2048`
 ///   (por encima, la mantisa de 10 bits deja de representar enteros); una coordenada
@@ -30,7 +32,8 @@
 ///
 /// **Estado de verificación: verificada por demo** — `demos/amiga/083_fbm_noise` usa
 /// `fbm2<MiniFloat16>` para un mapa de altura en hardware (build/run/analyze OK);
-/// `tests/host/060_noise` compara `value_noise`/`fbm` de `MiniFloat16` contra `double`.
+/// `tests/host/060_noise` compara `value_noise`/`fbm` de `MiniFloat16` contra `double`;
+/// `tests/host/135_scalar_matrix` ejercita `value_noise1`/`fbm1` con `Fixed<s32,12>`.
 
 #include <eng/core/interp.hpp>
 #include <eng/core/linalg.hpp>
@@ -107,11 +110,21 @@ constexpr void check_coord(S x) {
 	}
 }
 
-/// Celda `h` -> valor en `[0,1)` con 1024 niveles (10 bits).
+/// El valor de rejilla tiene 1024 niveles: `S` debe poder representar hasta 1023. Es lo
+/// que descarta el fixed 4.12 (rango ±8) en compilación; `Fixed<s32,E>` o los de coma
+/// flotante lo cumplen.
+template <typename S>
+constexpr void require_grid_range() {
+	require_range<S, -1024.0, 1024.0>();
+}
+
+/// Celda `h` -> valor en `[0,1)` con 1024 niveles (10 bits). La normalización usa
+/// `div_norm` (el fixed no tiene `operator/`).
 template <typename S>
 [[nodiscard]] constexpr S unit(u32c h) {
+	require_grid_range<S>();
 	const int v = static_cast<int>((h >> 22) & 0x3FFu);
-	return scalar_traits<S>::from_int(v) / scalar_traits<S>::from_int(1024);
+	return div_norm(scalar_traits<S>::from_int(v), scalar_traits<S>::from_int(1024));
 }
 
 } // namespace noise_detail
@@ -124,7 +137,6 @@ template <typename S>
 /// `period > 0` lo hace periódico en ese dominio.
 template <typename S>
 [[nodiscard]] constexpr S value_noise1(S x, eng::u32 seed, int period = 0) {
-	require_division<S>();
 	noise_detail::check_coord<S>(x);
 	using namespace noise_detail;
 	const int i = ifloor(x);
@@ -137,7 +149,6 @@ template <typename S>
 /// Ruido 2D bilineal en `[0,1)`. `period > 0` lo hace periódico en `[0, period)²`.
 template <typename S>
 [[nodiscard]] constexpr S value_noise2(S x, S y, eng::u32 seed, int period = 0) {
-	require_division<S>();
 	noise_detail::check_coord<S>(x);
 	noise_detail::check_coord<S>(y);
 	using namespace noise_detail;
@@ -157,7 +168,6 @@ template <typename S>
 /// Ruido 3D trilineal en `[0,1)`. `period > 0` lo hace periódico.
 template <typename S>
 [[nodiscard]] constexpr S value_noise3(S x, S y, S z, eng::u32 seed, int period = 0) {
-	require_division<S>();
 	noise_detail::check_coord<S>(x);
 	noise_detail::check_coord<S>(y);
 	noise_detail::check_coord<S>(z);
@@ -197,7 +207,6 @@ constexpr void check_octaves(int octaves) {
 template <typename S>
 [[nodiscard]] constexpr S fbm1(S x, eng::u32 seed, int octaves, S lacunarity, S gain,
 			       int period = 0) {
-	require_division<S>();
 	check_octaves(octaves);
 	noise_detail::check_coord<S>(x);
 	S sum = scalar_traits<S>::zero();
@@ -213,7 +222,7 @@ template <typename S>
 		freq = mul_norm(freq, lacunarity);
 		if (p > 0) p <<= 1;
 	}
-	return sum / norm;
+	return div_norm(sum, norm);
 }
 
 /// fbm 2D: suma de `octaves` octavas de value noise en `[0,1)`. `lacunarity` (p. ej. 2)
@@ -222,7 +231,6 @@ template <typename S>
 template <typename S>
 [[nodiscard]] constexpr S fbm2(S x, S y, eng::u32 seed, int octaves, S lacunarity, S gain,
 			       int period = 0) {
-	require_division<S>();
 	check_octaves(octaves);
 	noise_detail::check_coord<S>(x);
 	noise_detail::check_coord<S>(y);
@@ -239,7 +247,7 @@ template <typename S>
 		freq = mul_norm(freq, lacunarity);
 		if (p > 0) p <<= 1;
 	}
-	return sum / norm;
+	return div_norm(sum, norm);
 }
 
 /// fbm 3D: suma de `octaves` octavas de value noise en `[0,1)`. `period > 0` lo hace
@@ -247,7 +255,6 @@ template <typename S>
 template <typename S>
 [[nodiscard]] constexpr S fbm3(S x, S y, S z, eng::u32 seed, int octaves, S lacunarity,
 			       S gain, int period = 0) {
-	require_division<S>();
 	check_octaves(octaves);
 	noise_detail::check_coord<S>(x);
 	noise_detail::check_coord<S>(y);
@@ -266,7 +273,7 @@ template <typename S>
 		freq = mul_norm(freq, lacunarity);
 		if (p > 0) p <<= 1;
 	}
-	return sum / norm;
+	return div_norm(sum, norm);
 }
 
 // ============================================================================
@@ -279,7 +286,6 @@ template <typename S>
 /// `sqrt`), en `[0, ~2]`; para distancia euclídea usa `worley2`.
 template <typename S>
 [[nodiscard]] constexpr S worley2_sq(S x, S y, eng::u32 seed, int period = 0) {
-	require_division<S>();
 	noise_detail::check_coord<S>(x);
 	noise_detail::check_coord<S>(y);
 	using namespace noise_detail;
@@ -316,7 +322,6 @@ template <typename S>
 template <typename S>
 [[nodiscard]] constexpr S turbulence2(S x, S y, eng::u32 seed, int octaves, S lacunarity,
 				      S gain, int period = 0) {
-	require_division<S>();
 	check_octaves(octaves);
 	noise_detail::check_coord<S>(x);
 	noise_detail::check_coord<S>(y);
@@ -335,7 +340,7 @@ template <typename S>
 		freq = mul_norm(freq, lacunarity);
 		if (p > 0) p <<= 1;
 	}
-	return sum / norm;
+	return div_norm(sum, norm);
 }
 
 /// **Ridged** 2D (crestas afiladas): `r = 1−|2n−1|`, sumado como `r²·amp`. Devuelve
@@ -343,7 +348,6 @@ template <typename S>
 template <typename S>
 [[nodiscard]] constexpr S ridged2(S x, S y, eng::u32 seed, int octaves, S lacunarity, S gain,
 				  int period = 0) {
-	require_division<S>();
 	check_octaves(octaves);
 	noise_detail::check_coord<S>(x);
 	noise_detail::check_coord<S>(y);
@@ -363,7 +367,7 @@ template <typename S>
 		freq = mul_norm(freq, lacunarity);
 		if (p > 0) p <<= 1;
 	}
-	return sum / norm;
+	return div_norm(sum, norm);
 }
 
 } // namespace eng::math

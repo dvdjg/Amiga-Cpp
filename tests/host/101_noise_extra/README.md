@@ -12,8 +12,10 @@ Respalda las incorporaciones a `engine/include/eng/core/noise.hpp`.
 
 ## Límites
 
-Necesitan división en el escalar (como el resto de `noise.hpp`): `Fixed` sin `operator/`
-no compila (por diseño). `worley2` exige además `sqrt`.
+Normalizan con `div_norm` (la división explícita del escalar), así que funcionan con
+cualquier escalar que la ofrezca, incluido `Fixed<s32,E>` (host/68020). El fixed 4.12 (±8)
+queda fuera por **rango**: la rejilla tiene 1024 niveles. `worley2` exige además `sqrt`
+(`fixed_math`).
 
 ## Ejecución
 

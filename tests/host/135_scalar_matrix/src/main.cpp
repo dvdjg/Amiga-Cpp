@@ -20,6 +20,7 @@
 #include <eng/core/interp.hpp>
 #include <eng/core/minifloat.hpp>
 #include <eng/core/minifloat_math.hpp>
+#include <eng/core/noise.hpp>
 #include <eng/core/numeric_traits.hpp>
 #include <eng/core/scalar.hpp>
 #include <eng/core/scalar_math.hpp>
@@ -107,14 +108,22 @@ void test_fixed32_math() {
 	      "Fixed<s32,12>: log2(4)");
 }
 
-/// F2: `smootherstep` con `Fixed<s32,E>`. En 4.12 (`s16`) falla por rango (coeficiente
-/// 15 > ±8); con 32 bits cabe. El ruido (`value_noise`/`fbm`) queda fuera porque usa
-/// `operator/` crudo, vetado en `Fixed` con independencia del ancho.
+/// F2: operaciones que en 4.12 (`s16`) fallan por **rango** pero caben con 32 bits:
+/// `smootherstep` (coeficiente 15 > ±8) y el ruido (`value_noise`/`fbm`, rejilla de 1024
+/// niveles normalizada con `div_norm`).
 void test_fixed32_extra() {
 	using F = Fixed<eng::s32, 12>;
 	const F half = scalar_const<F>::from(0.5);
 	check(rel(to_double(smootherstep(half)), 0.5) < 5e-3,
 	      "Fixed<s32,12>: smootherstep(0.5) = 0.5");
+
+	const double n = to_double(value_noise1(scalar_const<F>::from(3.7), 42u));
+	check(n >= 0.0 && n <= 1.0, "Fixed<s32,12>: value_noise1 en [0,1]");
+
+	const F f = fbm1(scalar_const<F>::from(1.0), 7u, 4, scalar_const<F>::from(2.0),
+			 scalar_const<F>::from(0.5));
+	const double fd = to_double(f);
+	check(fd >= 0.0 && fd <= 1.0, "Fixed<s32,12>: fbm1 (4 octavas) en [0,1]");
 }
 
 /// Escalar entero general (`eng::intw`) y nativos con las operaciones exactas.

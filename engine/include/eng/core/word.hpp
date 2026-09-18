@@ -20,7 +20,9 @@ namespace eng::math {
 /// `a * b` con signo, ensanchado a 32 bits (`muls.w`).
 [[nodiscard]] constexpr s32 mul16(s16 a, s16 b) { return mul_wide(a, b); }
 
-/// `a * b` sin signo, ensanchado a 32 bits (`mulu.w`).
+/// `a * b` sin signo, ensanchado a 32 bits (`mulu.w`). Es el atajo **canónico** del
+/// producto sin signo: fija `R = s16` (el genérico `mulu_wide<s16>` exige decirlo) y
+/// acepta literales.
 [[nodiscard]] constexpr u32 mulu16(u16 a, u16 b) { return mulu_wide<s16>(a, b); }
 
 } // namespace eng::math

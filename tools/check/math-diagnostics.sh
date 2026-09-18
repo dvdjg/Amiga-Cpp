@@ -152,6 +152,12 @@ PRE6='#include <eng/core/interp.hpp>
 expect_fail smootherstep_q12_range "no cabe en el escalar" "$PRE6
 constexpr auto s = eng::math::smootherstep(eng::retro::q12 {2048});"
 
+# El ruido normaliza con div_norm, pero necesita representar la rejilla (1024 niveles):
+# un 4.12 (rango ±8) no cabe -> fallo claro de rango.
+expect_fail noise_q12_range "no cabe en el escalar" "$PRE6
+#include <eng/core/noise.hpp>
+constexpr auto n = eng::math::value_noise1(eng::retro::q12 {4096}, 1u);"
+
 expect_ok fixed_interp_remap "$PRE6
 constexpr auto t = eng::math::inv_lerp(eng::retro::q12 {4096}, eng::retro::q12 {8192}, eng::retro::q12 {6144});
 constexpr auto r = eng::math::remap(eng::retro::q12 {4096}, eng::retro::q12 {0}, eng::retro::q12 {8192}, eng::retro::q12 {0}, eng::retro::q12 {4096});
