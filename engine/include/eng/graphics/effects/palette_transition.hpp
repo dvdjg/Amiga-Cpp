@@ -72,7 +72,8 @@ public:
 		m_runtime = from;
 	}
 
-	/// Avanza el estado temporal. Calcula `num/den` (triangular si `ping_pong`).
+	/// Avanza el estado temporal. Calcula `num/den`: triangular (ida y vuelta) si
+	/// `ping_pong`, o `0..den` y se **queda** en `den` (destino) si no.
 	void update(u16 frame_index) {
 		const u32 f = m_range.frames;
 		u32 pos = frame_index;
@@ -81,14 +82,16 @@ public:
 			if (pos >= f) {
 				pos = 2u * f - pos;
 			}
-		} else {
-			pos %= f;
+		} else if (pos > f) {
+			pos = f;
 		}
 		m_num = static_cast<u16>(pos);
 		m_den = static_cast<u16>(f);
 	}
 
-	/// Paleta runtime derivada (base `from` con el tramo interpolado hacia `to`).
+	/// Paleta runtime derivada (base `from` con el tramo interpolado hacia `to`). Se
+	/// refresca en `apply_into` (igual que `PaletteCycleEffect`): llámala después de
+	/// aplicarla al plan, o usa el puntero estable para el `scene_config` del driver.
 	constexpr const drivers::EhbPalette& runtime_palette() const { return m_runtime; }
 
 	constexpr u16 num() const { return m_num; }

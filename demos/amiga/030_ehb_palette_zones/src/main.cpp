@@ -1,6 +1,8 @@
 #include <eng/engine.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/effects/palette_transition.hpp>
+#include <eng/graphics/frame_plan.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 #include <proto/exec.h>
@@ -23,6 +25,14 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 namespace {
 
 namespace ehb = eng::graphics::drivers;
+namespace effects = eng::graphics::effects;
+
+/// Paleta totalmente negra: origen del "encendido" (fade-in de arranque).
+constexpr ehb::EhbPalette black_palette {};
+
+/// Duracion del fade-in de arranque (frames). READY se retrasa a `kFadeFrames + 4` para
+/// que la captura del runner sea siempre la escena ya encendida (no a media transicion).
+constexpr eng::u16 kFadeFrames = 32;
 
 constexpr eng::u16 screen_height = ehb::StaticEhbScene::height;
 constexpr eng::u16 bytes_per_row = ehb::StaticEhbScene::bytes_per_row;
@@ -119,8 +129,14 @@ struct DemoGame {
 			4u * 1024u,  // Frame scratch.
 		});
 
+		// Encendido: la paleta base arranca en negro y sube hasta `top_palette` en
+		// `kFadeFrames`, una sola vez (`ping_pong = false`). El efecto escribe su propia
+		// paleta runtime y aporta el parche al plan; el driver lo materializa.
+		m_fade_in.configure({0, 32, kFadeFrames, false});
+		m_fade_in.bind(black_palette, top_palette);
+
 		const ehb::StaticEhbSceneConfig scene_config {
-			&top_palette,
+			&m_fade_in.runtime_palette(),
 			palette_zones,
 			static_cast<eng::u8>(sizeof(palette_zones) / sizeof(palette_zones[0])),
 			1024,
@@ -133,7 +149,6 @@ struct DemoGame {
 
 		if (m_memory_ok && m_scene_ok) {
 			m_scene.takeover(backend);
-			eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_scene.copper_words()));
 		} else {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000030u);
 		}
@@ -141,8 +156,25 @@ struct DemoGame {
 
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
-		if (m_scene.ok()) {
-			m_scene.install(backend);
+		if (!m_scene.ok()) {
+			return;
+		}
+
+		// Avanza el fade-in y aporta su parche de paleta base al plan.
+		m_fade_in.update(context.frame.frame_index);
+		m_frame_plan.clear();
+		m_fade_in.apply_into(m_frame_plan);
+		if (!m_scene.apply_frame_plan(m_frame_plan)) {
+			m_scene_ok = false;
+			eng::debug::mark_failed(g_eng_run_status, 0x00000031u);
+			return;
+		}
+		m_scene.install(backend);
+
+		// READY solo cuando el encendido ha terminado: la captura del runner es la
+		// escena ya encendida, no un frame negro de la transicion.
+		if (context.frame.frame_index >= static_cast<eng::u32>(kFadeFrames) + 4u) {
+			eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_scene.copper_words()));
 		}
 	}
 
@@ -158,6 +190,8 @@ struct DemoGame {
 	bool m_memory_ok = false;
 	bool m_scene_ok = false;
 	ehb::StaticEhbScene m_scene {};
+	eng::graphics::FramePlan m_frame_plan {};
+	effects::PaletteTransitionEffect m_fade_in {};
 };
 
 } // namespace

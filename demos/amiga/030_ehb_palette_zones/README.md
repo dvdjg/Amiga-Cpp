@@ -30,9 +30,18 @@ copperlist en Chip RAM, activar 6 planos EHB y compilar zonas de paleta a Copper
 El codigo de la demo solo genera el patron planar de prueba y declara las paletas.
 
 La reserva Chip se mantiene deliberadamente ajustada: seis bitplanes ocupan 61.440
-bytes y la copperlist cabe en 1 KB. Pedir bloques grandes en AmigaDOS/Kick 1.3 puede
+bytes y la copperlist cabe en 1 KB. Pedir grandes bloques en AmigaDOS/Kick 1.3 puede
 fallar por fragmentacion o memoria ya ocupada, asi que la demo no solicita margen
 innecesario.
+
+## Encendido (fade-in)
+
+Al arrancar, la paleta base no empieza en `top_palette` sino en negro y sube hasta ella
+en 32 frames mediante `PaletteTransitionEffect` (`eng/graphics/effects/palette_transition.hpp`)
+en modo una sola pasada (`ping_pong = false`). El efecto aporta un parche de paleta base
+al `FramePlan` y `StaticEhbScene` parchea los `COLORxx`; la demo no toca registros. READY
+se marca cuando el encendido ha terminado (`kFadeFrames + 4`), de modo que la captura del
+runner es siempre la escena ya encendida, no un frame de la transicion.
 
 ## Verificacion
 
