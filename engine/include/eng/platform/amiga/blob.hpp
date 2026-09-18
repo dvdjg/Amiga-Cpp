@@ -56,9 +56,14 @@ public:
 		wait();
 		const eng::u16 s = static_cast<eng::u16>(static_cast<eng::u16>(shift & 0x0fu) << 12u);
 		c[kBltcon0] = static_cast<eng::u16>(s | con0);
-		*reinterpret_cast<volatile eng::u32*>(&c[kBltapt]) = reinterpret_cast<eng::u32>(source);
-		*reinterpret_cast<volatile eng::u32*>(&c[kBltbpt]) = reinterpret_cast<eng::u32>(dest);
-		*reinterpret_cast<volatile eng::u32*>(&c[kBltdpt]) = reinterpret_cast<eng::u32>(dest);
+		// En Amiga `uintptr` es 32 bits (el `static_cast` es exacto); en host 64 bits se
+		// estrecha a la direccion de 32 bits (los punteros del test caben).
+		*reinterpret_cast<volatile eng::u32*>(&c[kBltapt]) =
+			static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(source));
+		*reinterpret_cast<volatile eng::u32*>(&c[kBltbpt]) =
+			static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(dest));
+		*reinterpret_cast<volatile eng::u32*>(&c[kBltdpt]) =
+			static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(dest));
 		c[kBltsize] = size;
 	}
 

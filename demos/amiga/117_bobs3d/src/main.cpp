@@ -216,7 +216,8 @@ enum {
 	kProfBlits = 3,
 	kProfInstall = 4,
 	kProfUpdate = 5,
-	kProfCount = 6,
+	kProfForward = 6,
+	kProfCount = 7,
 };
 
 /// Recorrido del original: transforma los 60 vertices (sin culling) y guarda la
@@ -314,7 +315,9 @@ struct Bobs3DDemo {
 
 		P_BEGIN(kProfTransform);
 		// bobs3d no usa la inversa ni la camara: solo la matriz directa para proyectar.
+		P_BEGIN(kProfForward);
 		obj::update_object_transformation_forward(m_object);
+		P_END(kProfForward);
 		transform_all_vertices(m_object);
 		P_END(kProfTransform);
 

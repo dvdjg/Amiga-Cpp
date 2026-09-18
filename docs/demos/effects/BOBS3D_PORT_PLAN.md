@@ -309,6 +309,11 @@ Pendiente / descartado con la evidencia actual:
 - `object3d::update_object_transformation_forward(Object3D&)`: matriz directa **sin** la
   inversa ni la camara (para efectos de solo proyeccion).
 
+`OrBlobBatch` es una ruta **especializada** (mismo tamano, OR, intercalado, un lote
+homogeneo); NO sustituye al camino general `bob.hpp`/`FramePlan` (cookie-cut, opaco,
+save-under, tamanos distintos). Decision: **no migrar la 086** (usa el camino general y va a
+49,92 fps sin regresion); `OrBlobBatch` queda para efectos tipo `bobs3d`.
+
 ---
 
 ## 9. Descubrimientos e interioridades (para reutilizar)
@@ -393,8 +398,13 @@ Recortar ~2,5k daria **2 campos = 25 fps**, igualando/superando al original (20,
   transform (no esta en el camino critico) y los BOBs cubren casi toda la pantalla.
 - **Afinar el bucle de BOBs**: el asm ya esta a paridad con `DrawObject` (196,6k vs 194,3k);
   sin grasa clara.
-- **Reducir el transform** (`load_rotate` = 2 productos 3x3 = ~54 `muls.w`/frame). Unico
-  margen real; requeriria rotacion incremental (el angulo solo cambia 12/4096 por frame).
+- **Reducir `load_rotate`** (medido aislado en una seccion propia = **2.676 ciclos**, 0,9 %
+  del frame; recomponer `Rx·Ry·Rz` son ~11 `muls.w` + 6 lookups de tabla). Seria suficiente
+  para devolver los 60 BOBs a 2 campos (el hueco era 2.459), pero **no hay via limpia**:
+  (a) la rotacion **no es subgrupo de 1 parametro** (`Rx(θ)Ry(θ)Rz(θ)` con los tres angulos
+  iguales, pero cambiar los tres a la vez no es un post-producto constante), asi que la
+  rotacion incremental no aplica; (b) una tabla de 4096 matrices = 72 kB (demasiado); (c)
+  el eje fijo ahorra ~1k como mucho. Por eso se prefirio el recorte de BOBs.
 - **Reducir BOBs (`K_117_MAXBLOBS`)**: adoptado. Barrido medido (2 buffers, polling
   alineado):
 

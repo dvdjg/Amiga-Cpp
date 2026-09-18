@@ -349,6 +349,27 @@ original**. Este gate rige todos los portes y fija el objetivo de fps.
 → `transform` (precalculo/as.m) → display (planos, clear). El display y el clear suelen
 ser inherentes al efecto: no son candidatos a "optimizar" salvo rediseño.
 
+### Cadencia de frame y nº de buffers (anti-tearing)
+
+Un `update` que no cabe en 1 campo tiene **dos** cuantizaciones y no hay que confundirlas:
+
+- **Nº de buffers de display** (anti-tearing): el swap es `COP1LC` y surte efecto al
+  **inicio del siguiente VBlank**. Con `update` **alineado** a VBlank (bucle de polling)
+  2 buffers bastan; con `update` **no alineado** (IRQ que relanza a media pantalla) hacen
+  falta **`ceil(update/campo)+1`** buffers (3 = triple buffer). Ver
+  `docs/engine/architecture/DISPLAY_COMPOSITION.md` §6 regla 10.
+- **Cadencia**: alineado + `update` = `W` campos => fps = `50/ceil(W)`. Para bajar el
+  `ceil` no basta con "optimizar": medir `update` en ciclos (seccion que envuelve el
+  frame), comparar con el umbral (`ceil(W)×141.876`) y decidir si se recorta carga o se
+  asume la cadencia.
+
+**Leccion medida (117_bobs3d):** con `update` = 2,0 campos se alcanzan 25 fps; con 60
+BOBs eran 2,02 campos (286k) => 16,6 fps, y con **56 BOBs** (recorte configurable,
+`K_117_MAXBLOBS`) baja a 2,0 campos => **25 fps**. Optimizar el efecto (BLTPRI, lote inline,
+solape clear/transform, matriz directa sin inversa/`camera`) bajo el trabajo real de ~354k
+a ~286k, pero el ultimo tramo hasta los 2 campos se resolvio recortando la carga (4 chispas)
+porque las palancas restantes (~2,5k de `load_rotate`) no compensaban el coste/riesgo.
+
 Ver también: [METODOLOGIA_PROFILING.md](../../guides/optimization/METODOLOGIA_PROFILING.md)
 y §12 de [OPTIMIZACION_GPP_68000.md](../../guides/optimization/OPTIMIZACION_GPP_68000.md).
 
