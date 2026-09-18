@@ -63,13 +63,18 @@ eng::sim::AbstractCreature<MaxTrackers, MaxRelations> c; // arrays inline
 | `AbstractCreature<6,6>` | criatura completa | 306 B |
 | `Climate<64>` | peligro ambiental por región | 128 B |
 | `GroupMemory<8>` | memoria de conocimiento por facción | 416 B |
-| `SimWorld<…>` | array de criaturas + grafo de rooms + clima + terreno + biomas + sociedad + objetos + planificador | 23 850 B |
+| `SimWorld<…>` | array de criaturas + grafo de rooms + clima + terreno + biomas + sociedad + objetos + planificador | 23 860 B |
 
 Las **especies** (`Species`) son tablas inmutables que el juego declara una vez: dieta,
 organización social (solitaria, manada, colmena, familia, territorial, **enjambre**), bits
 de movimiento (andar, trepar, nadar, volar, saltar, cavar), capacidades y personalidad
 base. Lo que no cambia no se copia por criatura. El movimiento es agnóstico de la
 proyección: cada `Projection` traduce los bits a costes de tile.
+
+Los **ids de entidad son monótonos y únicos**: `spawn` reutiliza el hueco de una criatura
+muerta pero con un id **nuevo**, de modo que ninguna referencia antigua (tracker, relación)
+apunta por accidente a la criatura reciclada; el mundo no crece indefinidamente y las
+poblaciones pueden renovarse a lo largo de generaciones.
 
 ## 3. Necesidad ambiental genérica y representación del mundo
 
@@ -222,6 +227,14 @@ colonia de hormigas o una jerarquía de rivales.
   las que la oyen en su región actualizan su memoria de corto plazo y su afecto
   (`apply_signal_effect`: la alarma da miedo, la sumisión **eleva al receptor**). El alcance
   depende del oído y de la ecolocalización. `SimWorld::broadcast_signals` lo ejecuta.
+- **Cultura y rituales** (`culture.hpp`): la tradición es conocimiento (`KnowledgeKind::Ritual`)
+  que se **hereda por enseñanza**; ante un evento (muere un aliado, se halla comida, aparece
+  un enemigo) la criatura actúa el ritual que conoce (`ritual_for_event`/`perform_ritual`) y lo
+  expresa con una señal (`SimWorld::enact_ritual`). Sin quien enseñe, la tradición se pierde.
+- **Manadas** (`pack.hpp`): roles (líder, flanqueador, seguidor, explorador) y
+  `coordinate_packs`: el líder con una presa percibida orienta a los miembros (relaciones
+  `Pack`) a **envolver** el objetivo desde distintos flancos; es la coordinación táctica
+  emergente guiada por señales y jerarquía.
 
 ## 9. Planificación ocasional (GOAP)
 
@@ -296,6 +309,9 @@ de modo que no ocupa RAM si no se usa (verificado por el gate de tamaños m68k).
 | `mental_map.hpp` | sesgo de lugares, overlay para `astar` e influencia de peligro | HOST-164 / HOST-166 |
 | `biome.hpp` | biomas/ecosistemas: terreno + clima típico + especies por región | HOST-169 |
 | `communication.hpp` | señales/gestos, recepción y efecto emocional/jerárquico | HOST-170 |
+| `culture.hpp` | rituales, disparo por evento, herencia y actuación en el mundo | HOST-171 |
+| `pack.hpp` | roles de manada, flanqueo y coordinación de caza | HOST-172 |
+| `world.hpp` (laboratorio) | escenarios largos con digesto y ajuste de parámetros | HOST-173 |
 | `society.hpp` | `Society` (reputación), `Pack` | HOST-153 |
 | `planner.hpp` | `PlannerDriver`/`PlanRunner` sobre `Goap`, `PlanParams` | HOST-155 |
 | `domain.hpp` | dominio de ejemplo de objetos/construcción, `SimInventory` | HOST-155 |
@@ -311,9 +327,10 @@ criaturas los verificará en el 68000.
 
 Líneas abiertas, en orden de valor: **consumidor real en `games/`** que ejercite todo en
 el 68000; **percepción imperfecta** (ruidos sin fuente, olores que engañan) para emergencia
-y errores creíbles; **cultura y rituales** (señales compuestas, tradiciones que se heredan
-por enseñanza) sobre `communication`/`knowledge`; y **coordinación de manadas** (roles y
-tácticas emergentes guiadas por señales). Cada pieza entra con test host y su sonda de
+y errores creíbles; **capacidad por región** (aforo por bioma en vez de un tope global) para
+poblaciones más fieles; y **tácticas de manada** más ricas (emboscada, relevos, roles
+dinámicos). El laboratorio de escenarios y sus ajustes se documentan en
+`docs/debugging/SIM_ECOSYSTEM_SCENARIOS.md`. Cada pieza entra con test host y su sonda de
 codegen si toca el bucle por frame.
 
 > Navegación general: [DOC-MAP-PRINCIPAL.md](../../ai-dev-environment/DOC-MAP-PRINCIPAL.md).

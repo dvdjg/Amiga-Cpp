@@ -64,7 +64,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/sim/colony.hpp>
 #include <eng/sim/communication.hpp>
 #include <eng/sim/creature.hpp>
-#include <eng/sim/domain.hpp>
+#include <eng/sim/culture.hpp>
 #include <eng/sim/economy.hpp>
 #include <eng/sim/genetics.hpp>
 #include <eng/sim/hierarchy.hpp>
@@ -74,6 +74,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/sim/memory.hpp>
 #include <eng/sim/mental_map.hpp>
 #include <eng/sim/object.hpp>
+#include <eng/sim/pack.hpp>
 #include <eng/sim/planner.hpp>
 #include <eng/sim/rumor.hpp>
 #include <eng/sim/senses.hpp>
@@ -133,7 +134,7 @@ static_assert(sizeof(eng::sim::KnowledgeEntry) == 6u, "Sim::KnowledgeEntry");
 static_assert(sizeof(eng::sim::Inventory) == 12u, "Sim::Inventory");
 static_assert(sizeof(eng::sim::Item) == 12u, "Sim::Item");
 static_assert(sizeof(eng::sim::AbstractCreature<>) == 306u, "Sim::AbstractCreature<>");
-static_assert(sizeof(eng::sim::SimWorld<>) == 23850u, "Sim::SimWorld<>");
+static_assert(sizeof(eng::sim::SimWorld<>) == 23860u, "Sim::SimWorld<>");
 
 struct HalfEvenPolicy { using Round = rounding::HalfEven; using Overflow = overflow::Wrap; };
 using q14 = Fixed<s16, 14>;
@@ -824,6 +825,27 @@ extern "C" u16 c_sim_communication_ops(u16 seed) {
 	const eng::u8 h = receive_signals(tr, eng::Span<const Signal> {&sig, 1}, 0u, 1, 0, 0u);
 	apply_signal_effect(m, sig.kind);
 	return static_cast<u16>(h) + m.emotions.fear + sig.range;
+}
+extern "C" u16 c_sim_culture_ops(u16 seed) {
+	using namespace eng::sim;
+	KnowledgeSet kn;
+	learn_ritual(kn, RitualKind::Mourning, static_cast<eng::u8>(seed % 256u));
+	Mind m {};
+	m.emotions.sadness = 120u;
+	const RitualKind r = ritual_for_event(
+		kn, static_cast<CultureEvent>(
+			    static_cast<eng::u8>(seed % static_cast<eng::u16>(CultureEvent::Count))));
+	perform_ritual(m, r);
+	return static_cast<u16>(kn.size()) + m.emotions.sadness +
+	       ritual_confidence(kn, RitualKind::Mourning);
+}
+extern "C" u16 c_sim_pack_ops(u16 seed) {
+	using namespace eng::sim;
+	const PackRole role = pack_role_for((seed & 1u) != 0u, static_cast<eng::u8>(seed % 3u));
+	const eng::Point2s g = flank_goal(
+		eng::Point2s {static_cast<eng::s16>(seed % 40u), static_cast<eng::s16>(10)},
+		role, static_cast<eng::u8>(seed % 4u), 3u);
+	return static_cast<u16>(role) + static_cast<u16>(g.x) + static_cast<u16>(g.y);
 }
 extern "C" u16 c_sim_planner_ops(u16 seed) {
 	using namespace eng::sim;
