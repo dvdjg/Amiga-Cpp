@@ -166,3 +166,5 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-124 | [string_interner](124_string_interner/README.md) | `util/string_interner.hpp`: `StringInterner<MaxStrings,Allocator>` (dedup por contenido, id -> texto, arena). |
 | HOST-125 | [convex_sat](125_convex_sat/README.md) | `util/collision.hpp`: `convex_overlap` (SAT 2D, poligonos convexos) y `point_in_convex`; rombo (ejes no alineados), borde y sentido de giro. |
 | HOST-126 | [graph](126_graph/README.md) | `util/graph.hpp`: `Graph<MaxNodes,MaxEdges>` (adyacencia) + `graph_bfs`/`graph_astar`/`topological_sort`. Consolida waypoints (HOST-116). |
+| HOST-127 | [lru_cache](127_lru_cache/README.md) | `util/lru_cache.hpp`: `LruCache<K,V,N>` (LRU O(1), get/peek/put/erase, sin heap). |
+| HOST-128 | [task](128_task/README.md) | `util/task.hpp`: `TaskSequence<N>` y `Delay` (tareas *stackless*: espera, encadena y aborta). |

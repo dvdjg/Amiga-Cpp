@@ -119,6 +119,8 @@ Puntos de reutilización explícitos:
 | `string_view.hpp` | `StringView` | `std::string_view` |
 | `static_string.hpp` | `StaticString<N>` | (sin equivalente; `llvm::SmallString`) |
 | `string_interner.hpp` | `StringInterner<MaxStrings, A>` (dedup por contenido sobre arena) | `boost::flyweight` |
+| `lru_cache.hpp` | `LruCache<K, V, N>` (LRU `O(1)`, sin heap) | (sin equivalente) |
+| `task.hpp` | `TaskStatus`, `TaskSequence<N>`, `Delay` (tareas *stackless*) | (coroutine ligera) |
 | `scope_guard.hpp` | `ScopeGuard`, `make_scope_guard` | `boost::scope_exit` |
 | `stats.hpp` | `sum`/`mean`/`variance`/`stddev`/`kth_smallest`/`median`/`histogram`/`ema`/`RunningMean` | (sin equivalente; estadística) |
 | `color.hpp` | `rgb444`/`lerp444`/`scale444`/`hsv_to_rgb444` | (sin equivalente; color Amiga) |
@@ -176,6 +178,8 @@ referencia para **elegir contenedor por coste**, no por hábito:
 | `StringInterner` intern/lookup | 84 (sonda `c_string_interner_ops`) | 0 | 7 |
 | `convex_overlap` (SAT 2D, 2 cuadrados) | 302 (sonda `c_convex_overlap_ops`) | 18 | 0 |
 | `graph_astar`+`graph_bfs` (6 nodos) | 545 (sonda `c_graph_ops`) | 0 | 1 |
+| `LruCache` put/get (N=8) | 710 (sonda `c_lru_cache_ops`) | 10 | 1 |
+| `TaskSequence::tick` (Delay + paso) | 56 (sonda `c_task_ops`) | 0 | 1 |
 
 Lectura: **para N pequeño, ordenar/indizar linealmente gana al hash** (`FlatMap` casi la
 mitad que `HashMap`, y `DirectMap` menos aún con clave densa); el hash usa **un `mulu.w` de
@@ -262,6 +266,8 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-124 | `core/util/string_interner.hpp` (internado de cadenas) |
 | HOST-125 | `core/util/collision.hpp` (SAT 2D de polígonos convexos y punto en convexo) |
 | HOST-126 | `core/util/graph.hpp` (adyacencia, BFS, A*, orden topológico) |
+| HOST-127 | `core/util/lru_cache.hpp` (LRU `O(1)`) |
+| HOST-128 | `core/util/task.hpp` (tareas *stackless*) |
 
 > **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`), `Pool` por `086_bob_objects` (parque de actores), `HashMap` por `111_xlimited_sidescroller` (índice de chunks de `ChunkCache`), `color` también por `086_bob_objects` (gradiente del cielo con `eng::util::lerp444`), y `broadphase` y `pathfinding` por `110_ylimited_shooter` (self-test en `init`: `SpatialHash` + `bfs`/`reconstruct_path` en el 68000; si falla, la demo no llega a READY). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashSet`, `DynamicHashMap`, `PriorityQueue`, `Stack`/`Queue`/`Deque`, `EnumSet`, `ScopeGuard`, `StaticString`, `stats`, `collision`, `text`, `grid`, `dsp`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..102 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
 
@@ -291,7 +297,8 @@ mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
    `bitstream.hpp`/`dynamic_bitset.hpp` (`c_bitstream_ops`/`c_dynamic_bitset_ops`),
    `string_interner.hpp` (`c_string_interner_ops`), `collision.hpp`
    (`c_collision_ops`/`c_convex_overlap_ops`), `graph.hpp` (`c_graph_ops`),
-   `core/random.hpp` (`c_random_ops`) y `dsp.hpp` (`c_dsp_ops`).
+   `lru_cache.hpp`/`task.hpp` (`c_lru_cache_ops`/`c_task_ops`), `core/random.hpp`
+   (`c_random_ops`) y `dsp.hpp` (`c_dsp_ops`).
 5. Antes de añadir una utilidad nueva, comprobar si el **vocabulario** de §7 ya cubre la
    necesidad (p. ej. flags con `EnumSet`, restauración con `ScopeGuard`, colas con
    `Queue`/`Deque`); adoptarlo en el engine y documentarlo aquí.
@@ -335,6 +342,8 @@ Qué usar según la necesidad, con el criterio del A500 (sin heap; coste visible
 | Estados/eventos con transiciones | `state_machine.hpp` (`StateMachine<State,Event>`, tabla `constexpr`) |
 | Difundir un suceso a varios oyentes | `event.hpp` (`Event<Signature,MaxSubscribers>`) |
 | Grafo / dependencias / waypoints | `graph.hpp` (`Graph<N,E>` + `graph_astar`/`topological_sort`) |
+| Caché con desalojo por uso | `lru_cache.hpp` (`LruCache<K,V,N>`) |
+| Secuencia/scripting que espera entre frames | `task.hpp` (`TaskSequence<N>`, `Delay`) |
 | Componentes conexas / particionar el mundo | `union_find.hpp` (`UnionFind<N>`) |
 | Componentes por entidad con id disperso (ECS) | `sparse_set.hpp` (`SparseSet<T,N>`) |
 | Serializar campos de bits (nivel/partida) | `bitstream.hpp` (`BitWriter`/`BitReader`) |

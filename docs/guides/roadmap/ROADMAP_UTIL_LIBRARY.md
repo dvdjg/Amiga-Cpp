@@ -103,7 +103,7 @@ división), R3.2 worley/turbulence/ridged (`core/noise.hpp`, HOST-101) y R3.3 `d
 | R4.5 | `type_list.hpp` (opcional) | `TypeList` + `for_each_type` (registro en compile-time) | HOST (siguiente libre) |
 
 > Los pasos sin implementar usan el **siguiente `HOST-NNN` libre** en el momento de
-> implementarse (hoy 127 en adelante; 000–126 están asignados). R4.3/R4.4 se adelantaron
+> implementarse (hoy 129 en adelante; 000–128 están asignados). R4.3/R4.4 se adelantaron
 > para desbloquear G2 (decisión/blackboard) de la IA.
 
 R4.2–R4.5 solo si aparece consumidor (comandos/eventos/efectos). R4.5 es avanzado y se
@@ -116,9 +116,9 @@ implementa **solo con consumidor real**; el orden es por valor/coste.
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| R5.1 | `lru_cache.hpp` | generalizar el patrón de `chunk_cache.hpp` (`K`,`V`,`N`, sin heap) para tiles/sprites/mapas | HOST + demo con segunda caché |
+| R5.1 | `lru_cache.hpp` | generalizar el patrón de `chunk_cache.hpp` (`K`,`V`,`N`, sin heap) para tiles/sprites/mapas | **HOST-127** (entregado; falta demo que la consuma) |
 | R5.2 | `interval.hpp` | `Interval`/`IntervalSet<N>`/`IntervalMap` para rangos (streaming, buffs/daño, animación) | HOST |
-| R5.3 | `task.hpp` (coroutine *stackless*) | tarea con estado en `struct` y `step()` (patrón `switch`); secuencias/scripting sin corrutinas C++20 | HOST + secuencia de demo |
+| R5.3 | `task.hpp` (coroutine *stackless*) | tarea con estado en `struct` y `step()` (patrón `switch`); secuencias/scripting sin corrutinas C++20 | **HOST-128** (entregado; falta secuencia de demo) |
 | R5.4 | `variant.hpp` (R4.2) | unión etiquetada sin heap con `visit`, para colas de comandos/mensajes heterogéneos | HOST + consumidor |
 | R5.5 | `stable_heap.hpp` / heap d-ario | *open set* de A* con *decrease-key* (índice) o heap 4-ario; **medir** antes de adoptar | HOST + medición en A* |
 | R5.6 | `bloom.hpp` | filtro de Bloom fijo (bitset + k hashes) para «visitados» grandes (GOAP) | HOST |

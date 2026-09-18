@@ -63,6 +63,8 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/util/dynamic_bitset.hpp>
 #include <eng/core/util/string_interner.hpp>
 #include <eng/core/util/graph.hpp>
+#include <eng/core/util/lru_cache.hpp>
+#include <eng/core/util/task.hpp>
 #include <eng/core/random.hpp>
 #include <eng/core/util/dsp.hpp>
 #include <eng/core/fixed_math.hpp>
@@ -629,6 +631,29 @@ extern "C" u16 c_graph_ops(u16 seed) {
 						  eng::Span<eng::u16> {out, 8});
 	return static_cast<u16>(a + b + g.node_count() + g.edge_count() +
 				static_cast<eng::u16>(seed & 0u));
+}
+extern "C" s32 c_lru_cache_ops(u16 seed) {
+	eng::util::LruCache<eng::u16, eng::s32, 8> cache;
+	for (eng::u16 i = 0u; i < 12u; ++i) {
+		cache.put(static_cast<eng::u16>(i % 8u), static_cast<eng::s32>(i));
+	}
+	const eng::s32* v = cache.get(static_cast<eng::u16>(seed % 8u));
+	return (v != nullptr ? *v : -1) + static_cast<eng::s32>(cache.size());
+}
+static eng::util::TaskStatus c_task_ok() { return eng::util::TaskStatus::Success; }
+extern "C" u16 c_task_ops(u16 seed) {
+	eng::util::Delay wait {2};
+	eng::util::TaskSequence<2> seq;
+	seq.add(wait);
+	seq.add(c_task_ok);
+	eng::util::TaskStatus last = eng::util::TaskStatus::Running;
+	for (eng::u16 i = 0u; i < (seed & 7u); ++i) {
+		last = seq.tick();
+		if (last != eng::util::TaskStatus::Running) {
+			seq.reset();
+		}
+	}
+	return static_cast<u16>(static_cast<eng::u16>(last) + seq.step_count());
 }
 extern "C" u16 c_random_ops(u16 seed) {
 	eng::Xoroshiro64pp rng {seed, static_cast<eng::u32>(seed + 1u)};
