@@ -106,6 +106,37 @@ constexpr void sincos_d(double x, double& out_sin, double& out_cos) {
 	default: out_sin = -cr; out_cos = sr; break;
 	}
 }
+/// `atan(z)` para `|z| <= tan(π/8)` por serie de Maclaurin (converge rápido ahí).
+[[nodiscard]] constexpr double atan_series_d(double z) {
+	const double z2 = z * z;
+	double term = z;
+	double sum = z;
+	for (int k = 1; k < 32; ++k) {
+		term *= -z2;
+		sum += term / static_cast<double>(2 * k + 1);
+	}
+	return sum;
+}
+/// `atan(z)` por serie con reducción de rango (`atan(z) = π/4 − atan((1−z)/(1+z))` para
+/// `z > tan(π/8)`). Sin libm.
+[[nodiscard]] constexpr double atan_d(double z) {
+	if (z < 0.0) return -atan_d(-z);
+	constexpr double kTanPi8 = 0.41421356237309503;
+	const double kPi4 = k_pi * 0.25;
+	if (z > kTanPi8) return kPi4 - atan_series_d((1.0 - z) / (1.0 + z));
+	return atan_series_d(z);
+}
+/// `atan2(y, x)` en `(-π, π]`, sin libm.
+[[nodiscard]] constexpr double atan2_d(double y, double x) {
+	if (x == 0.0) {
+		if (y > 0.0) return k_half_pi;
+		if (y < 0.0) return -k_half_pi;
+		return 0.0;
+	}
+	const double a = atan_d(y / x);
+	if (x > 0.0) return a;
+	return y >= 0.0 ? a + k_pi : a - k_pi;
+}
 /// `2^x = 2^n · 2^f` con `f` en `[0,1)` (Taylor de `exp(f·ln2)` y `2^n` por bucle).
 [[nodiscard]] constexpr double exp2_d(double x) {
 	int n = static_cast<int>(x);
@@ -222,6 +253,16 @@ struct scalar_tan {
 template <typename S>
 struct scalar_atan2 {
 	static constexpr S op(S y, S x) { return atan2(y, x); }
+};
+template <>
+struct scalar_atan2<float> {
+	static constexpr float op(float y, float x) {
+		return static_cast<float>(detail::atan2_d(static_cast<double>(y), static_cast<double>(x)));
+	}
+};
+template <>
+struct scalar_atan2<double> {
+	static constexpr double op(double y, double x) { return detail::atan2_d(y, x); }
 };
 
 /// `asin` del escalar (por defecto ADL).

@@ -215,6 +215,8 @@ struct DemoGame {
 	eng::s16 m_ship_px = 152;
 	eng::u8 m_ship_dir = 0;
 	eng::u8 m_fire = 0;
+	eng::s16 m_enemy_x = 40; // torreta fija que apunta al jugador
+	eng::s16 m_enemy_y = 36;
 
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
@@ -347,6 +349,28 @@ struct DemoGame {
 			fg.fill_rect(m_ship_x, static_cast<eng::s16>(ship_y + 8), 16, 4, 3);                          // base
 			for (auto& b : m_bullets) if (b.live) { fg.fill_rect(b.x, b.y, 2, 5, 2); b.py = b.y; }
 			m_ship_px = m_ship_x;
+
+			// Torreta: mira al jugador con trigonometría fixed (`angle_of`/`from_angle`,
+			// tablas compartidas), sin `float`. El cañón es un radio de 7 px.
+			const eng::s16 ship_cx = static_cast<eng::s16>(m_ship_x + 7);
+			const eng::s16 ship_cy = static_cast<eng::s16>(ship_y + 4);
+			using qa = eng::math::Fixed<eng::s16, 6>; // rango ±511 px: cabe el delta de pantalla
+			const eng::s16 ex = static_cast<eng::s16>(m_enemy_x + 8);
+			const eng::s16 ey = static_cast<eng::s16>(m_enemy_y + 8);
+			fg.fill_rect(m_enemy_x, m_enemy_y, 24, 24, 0); // borra cuerpo + cañón previos
+			const qa ddx = eng::math::scalar_traits<qa>::from_int(ship_cx - ex);
+			const qa ddy = eng::math::scalar_traits<qa>::from_int(ship_cy - ey);
+			const qa aim = eng::math::angle_of(eng::math::Vec<2, qa> {{ddx, ddy}});
+			const eng::math::Vec<2, qa> dir = eng::math::from_angle(aim);
+			for (eng::s16 i = 2; i <= 7; i += 2) {
+				const qa li = eng::math::scalar_traits<qa>::from_int(i);
+				const eng::s16 bx = static_cast<eng::s16>(
+					ex + (eng::math::mul_norm(dir.v[0], li).v >> 6));
+				const eng::s16 by = static_cast<eng::s16>(
+					ey + (eng::math::mul_norm(dir.v[1], li).v >> 6));
+				fg.fill_rect(bx, by, 2, 2, 5);
+			}
+			fg.fill_rect(m_enemy_x, m_enemy_y, 16, 16, 4); // cuerpo de la torreta
 		}
 
 		// Telemetría: cámara X/Y para el assert de movimiento en regresión.

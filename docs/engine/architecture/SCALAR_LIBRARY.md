@@ -98,7 +98,7 @@ escriben solo con ellos, y añadir un escalar = especializarlos.
 | `mul_norm(a,b)` | producto normalizado al escalar | `norm_from(a*b)` (identidad en float/MF) | `(a*b).rescale<E>().cast<R>()` |
 | `scalar_div<S>::op` / `div_norm(a,b)` | división **explícita** | `a/b` | `(a.v<<E)/b.v` con `divs.w`, saturado |
 | `scalar_sqrt<S>::op` | `sqrt` para `length`/`normalize` | ADL `sqrt(S)` | con `fixed_math.hpp` (`isqrt`); sin él, no compila |
-| `scalar_sin/cos/sincos/tan/asin/acos/atan2<S>::op` | trigonometría (easings, rotación, apuntado) | ADL (`MiniFloat16`) | con `fixed_math.hpp` (tablas); sin él, no compila |
+| `scalar_sin/cos/sincos/tan/asin/acos/atan2<S>::op` | trigonometría (easings, rotación, apuntado) | ADL (`MiniFloat16`); `sincos`/`atan2` con serie `constexpr` para `float`/`double` | con `fixed_math.hpp` (tablas); sin él, no compila |
 | `scalar_exp2/log2/exp/log/pow<S>::op` | exponencial/log (`smooth_damp`, `pow`) | ADL (`MiniFloat16`) | con `fixed_math.hpp` (tablas); sin él, no compila |
 | `scalar_const<S>::from(double)` | constante fraccionaria de compilación (p. ej. `1.70158` del `_back`) | `static_cast<S>` | cuantiza a `E` bits fraccionarios |
 
@@ -116,6 +116,19 @@ los productos **exactos** (en el exponente del producto) y normaliza **una vez**
 
 Añadir un escalar nuevo = especializar `scalar_traits<S>` y `numeric_traits<S>`; los
 demás puntos solo si los algoritmos que se vayan a usar los necesitan.
+
+### 3.c Patrón de apuntado (sin `float`)
+
+Tres pasos, todos resueltos por el escalar: dirección → ángulo → rotación. Con `Fixed` basta incluir `fixed_math.hpp`; con `MiniFloat16`, su propia matemática.
+
+```cpp
+using V = eng::math::Vec<2, q12>;                  // o MiniFloat16 / Fixed<s16,6>
+const q12 ang = eng::math::angle_to(pos, target);  // atan2 (tabla): ángulo hacia el objetivo
+const V   dir = eng::math::from_angle(ang);        // (cos,sin) en una pasada (sincos)
+const V   aim = eng::math::rotate2(base, ang);     // gira el cañón/sprite por el ángulo
+```
+
+`angle_of(v)` da el ángulo de un vector; `angle_to(a, b) = angle_of(b − a)`. El resultado vive en `(-π, π]`; `wrap_angle` lo pliega si se acumula. El **vector debe caber en el formato** (en 4.12, ±8: para deltas de pantalla en píxeles usa `Fixed<s16,6>` o escala el delta). Ver la demo `110_ylimited_shooter` (torreta que sigue al jugador).
 
 ## 4. Límites por algoritmo (lo que hay que leer)
 
@@ -137,7 +150,7 @@ demás puntos solo si los algoritmos que se vayan a usar los necesitan.
 | `ease_*_back`/`bezier2`/`bezier3` | `Fixed` 4.12 | **funcionan**: constantes vía `scalar_const`; los productos intermedios caben en ±8 |
 | `dot` fusionado (2-4 pares) | `Fixed` | el acumulador **satura** (3-4 productos de 4.12 superan `s32`) y el estrechado final **satura siempre**, sea cual sea la política de los operandos |
 | `normalize`/`length`/`reflect`/`project` | `Fixed` | **no compilan** (sin `sqrt`), por diseño |
-| `angle_of`/`from_angle`/`angle_to`/`rotate2(v,ángulo)` | `Fixed`/`MiniFloat16` | **funcionan** con la trig del escalar (`atan2`+`sincos`): `angle_of` = ángulo de un vector, `from_angle` = vector unitario, `angle_to` = apuntado hacia un objetivo; `float`/`double` no tienen `atan2` en el núcleo (`scalar_atan2` ADL) |
+| `angle_of`/`from_angle`/`angle_to`/`rotate2(v,ángulo)` | `Fixed`/`MiniFloat16`/`float`/`double` | **funcionan** con la trig del escalar (`atan2`+`sincos`): `angle_of` = ángulo de un vector, `from_angle` = vector unitario, `angle_to` = apuntado hacia un objetivo (`float`/`double` usan `atan2_d`/`sincos_d`, series `constexpr` sin libm); el **vector de entrada** debe caber en el formato (4.12 solo cubre ±8: para deltas de pantalla en píxeles usa un formato mayor como `Fixed<s16,6>` o escala el delta) |
 | `value_noise`/`fbm` | `Fixed` | **no compilan**: necesitan división (sin `operator/`) |
 
 El detalle del escalar de 16 bits está en [MINIFLOAT16.md](MINIFLOAT16.md); el modelo del
@@ -216,9 +229,9 @@ tests host) falla si la doc se desincroniza del contrato, y `--write` la regener
 | wrap_angle / angle_diff | — | si | si (fixed_math) | HOST-057/104 |
 | sqrt / sin / cos / exp2 / log2 | — | si | si (fixed_math) | HOST-057/104 |
 | exp / log / pow | — | si (minifloat_math) | si (fixed_math) | HOST-104 |
-| tan / asin / acos / atan2 | — | si | si (fixed_math) | HOST-057/104 |
-| sincos (una pasada) | — | si (minifloat_math) | si (fixed_math) | HOST-057/104 |
-| angle_of / from_angle / angle_to (apuntado) | — | si | si (fixed_math) | HOST-104 |
+| tan / asin / acos / atan2 | solo atan2 | si | si (fixed_math) | HOST-057/104 |
+| sincos (una pasada) | si | si (minifloat_math) | si (fixed_math) | HOST-057/104 |
+| angle_of / from_angle / angle_to (apuntado) | si | si | si (fixed_math) | HOST-059/104 |
 | transform (MF × fix) | — | ratio MF (|m| <= 8) | coordenada | HOST-058 |
 | stats::mean / variance / stddev | si | si | si (sum/mean con acumulador s32; stddev con fixed_math) | HOST-093/104 |
 | dsp::Adsr / OnePole / DelayLine / osc_* | si | si | si (osc_sine con fixed_math) | HOST-102/104 |

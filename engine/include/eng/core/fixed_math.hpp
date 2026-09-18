@@ -119,28 +119,6 @@ consteval int log2_size() {
 	return e;
 }
 
-/// `atan(z)` para `z` en `[0,1]` por serie de Maclaurin.
-[[nodiscard]] constexpr double atan_series(double z) {
-	const double z2 = z * z;
-	double term = z;
-	double sum = z;
-	for (int k = 1; k < 32; ++k) {
-		term *= -z2;
-		sum += term / static_cast<double>(2 * k + 1);
-	}
-	return sum;
-}
-
-/// `atan(z)` para `z >= 0`: reduce `[tan(π/8),1]` con `atan(z)=π/4−atan((1−z)/(1+z))`.
-[[nodiscard]] constexpr double atan_d(double z) {
-	constexpr double kTanPi8 = 0.41421356237309503;
-	constexpr double kPi4 = 0.78539816339744831;
-	if (z > kTanPi8) {
-		return kPi4 - atan_series((1.0 - z) / (1.0 + z));
-	}
-	return atan_series(z);
-}
-
 /// Tabla de seno (muestras `s16`) para `Fixed<s16,E>`. `Iter` = términos de la serie.
 template <int E, int Size = ENG_FIXED_SIN_SIZE, int Iter = ENG_FIXED_SIN_ITER>
 struct FixedSineTable {
