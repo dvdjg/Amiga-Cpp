@@ -301,6 +301,9 @@ coste bajo (8–50 kB según riqueza).
 - **Concurrencia abstracta** con `eng::parallel` ([PARALLEL_AND_THREADS.md](PARALLEL_AND_THREADS.md)):
   no-ops en m68k, hilos reales en el host. La búsqueda paralela solo se activa con
   `hardware_threads() > 1` y no puede alterar el resultado.
+- **Sin multiplicaciones de 32 bits en el camino caliente**: evaluación y ordenación usan
+  desplazamientos para los factores constantes y `eng::math::mulu16` (nativo `mulu.w`) para el
+  cuadrado de profundidad; el gate de codegen prohíbe `__mulsi3` en las rutas de búsqueda.
 
 ## 10. Verificación
 
@@ -321,9 +324,10 @@ coste bajo (8–50 kB según riqueza).
 |---|---|
 | `core/` (tipos, Zobrist, budget, concepto `GameRules`) | **Implementado**: HOST-138 (tipos/Zobrist/GameRules) y HOST-139 (budget) |
 | `rules/chess/` (tablero 0x88, legalidad, FEN) | **Implementado**: HOST-140 (make/unmake, perft, FEN, fin de partida) |
-| `rules/chess/` (SAN/algebraica y sonda de finales) | Planificado (B1.4–B1.5) |
-| `search/` (negamax/αβ, ID, quiescence, TT, ordering, ponder, MultiPV) | Planificado (B2, B5) |
-| `eval/` (ajedrez y Go, rasgos) | Planificado (B3, B7) |
+| `rules/chess/` (repetición, finales, SAN) | **Implementado**: HOST-141 (repetición 3× y finales teóricos) y HOST-142 (SAN/UCI) |
+| `search/` (negamax/αβ, ID, quiescence, TT, ordering) | **Implementado**: HOST-143 (corrección) y HOST-144 (TT 12 B y MVV-LVA) |
+| `search/` (refutation table, null-move, ponder, MultiPV) | Planificado (B2.5, B2.6, B5) |
+| `eval/` (ajedrez: material, PST, movilidad, peones, rasgos) | **Implementado**: HOST-145; `eval/go` planificado (B7) |
 | `knowledge/` + `storage/` (libro, tablas, patrones, BlockSource, LRU) | Planificado (B4) |
 | `explain/` (NLG ES/EN por plantillas) | Planificado (B6) |
 | `rules/go/` + `eval/go` | Planificado (B7) |

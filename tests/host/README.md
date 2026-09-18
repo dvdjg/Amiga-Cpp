@@ -181,3 +181,8 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-138 | [board_core](138_board_core/README.md) | `eng/board/core/{types,zobrist,game}.hpp`: tipos base (color, pieza, casilla 0x88, `Move`, `Score`), generador Zobrist y concepto `GameRules`. |
 | HOST-139 | [board_budget](139_board_budget/README.md) | `eng/board/core/budget.hpp`: perfiles `P20`…`P1M`, selección por RAM libre y reparto de TT/libro/caché/pila. |
 | HOST-140 | [chess_movegen](140_chess_movegen/README.md) | `eng/board/rules/chess/`: tablero 0x88, `make`/`unmake` con Zobrist incremental, generación legal validada por **perft** (inicial/Kiwipete/al paso/promoción) y fin de partida. |
+| HOST-141 | [chess_draw_endgame](141_chess_draw_endgame/README.md) | `eng/board/rules/chess/{history,endgame}.hpp`: repetición de 3 posiciones (ventana de 50 movimientos) y finales teóricos (K vs K, K+B vs K, K+R/K+Q vs K, K+P vs K por la regla del cuadrado). |
+| HOST-142 | [chess_notation](142_chess_notation/README.md) | `eng/board/rules/chess/notation.hpp`: SAN (peón, enroque, captura, promoción, desambiguación, jaque/mate) y UCI. |
+| HOST-143 | [chess_search](143_chess_search/README.md) | `eng/board/search/search.hpp`: negamax + alpha-beta + iterative deepening + quiescence; mate en 1, dama colgada, recaptura, presupuesto de nodos y `StopToken`. |
+| HOST-144 | [chess_tt_ordering](144_chess_tt_ordering/README.md) | `eng/board/search/tt.hpp` (entrada de 12 B, sondeo/escritura/reemplazo/reuso) y `rules/chess/ordering.hpp` (MVV-LVA y killer). |
+| HOST-145 | [chess_eval](145_chess_eval/README.md) | `eng/board/eval/{chess_eval,features}.hpp`: evaluación (material+PST+movilidad+peones+desarrollo) y rasgos de desarrollo. |

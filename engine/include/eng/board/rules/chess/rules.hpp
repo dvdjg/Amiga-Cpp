@@ -10,9 +10,14 @@
 
 #include <eng/board/core/game.hpp>
 #include <eng/board/core/types.hpp>
+#include <eng/board/eval/chess_eval.hpp>
 #include <eng/board/rules/chess/board.hpp>
+#include <eng/board/rules/chess/endgame.hpp>
 #include <eng/board/rules/chess/fen.hpp>
+#include <eng/board/rules/chess/history.hpp>
 #include <eng/board/rules/chess/movegen.hpp>
+#include <eng/board/rules/chess/ordering.hpp>
+#include <eng/board/search/search.hpp>
 
 namespace eng::board::chess {
 
@@ -79,6 +84,19 @@ namespace eng::board::chess {
 	return Terminal::None;
 }
 
+/// Estado terminal considerando el **historial** de la partida (repetición de tres
+/// posiciones). `history` debe contener la clave de la posición actual.
+[[nodiscard]] inline Terminal terminal(const Position& pos, const PositionHistory<512>& history) {
+	const Terminal base = terminal(pos);
+	if (base != Terminal::None) {
+		return base;
+	}
+	if (history.repetitions(pos.key, static_cast<eng::u32>(pos.halfmove) + 1u) >= 3u) {
+		return Terminal::Repetition;
+	}
+	return Terminal::None;
+}
+
 } // namespace eng::board::chess
 
 namespace eng::board {
@@ -88,6 +106,7 @@ struct ChessRules {
 	using Position = chess::Position;
 	using Move = eng::board::Move;
 	using MoveList = eng::board::MoveList;
+	using Undo = chess::Undo;
 
 	static Position initial() {
 		Position position;
@@ -104,8 +123,18 @@ struct ChessRules {
 	static u32 zobrist(const Position& pos) { return pos.key; }
 
 	static Terminal terminal(const Position& pos) { return chess::terminal(pos); }
+
+	static void make(Position& pos, Move move, Undo& undo) { chess::make_move(pos, move, undo); }
+
+	static void unmake(Position& pos, Move move, const Undo& undo) { chess::unmake_move(pos, move, undo); }
+
+	static bool is_capture(Move move) { return chess::move_is_capture(move); }
 };
 
 static_assert(GameRules<ChessRules>, "ChessRules debe cumplir GameRules");
+
+/// Buscador de ajedrez listo para usar: negamax/alpha-beta + quiescence + TT de
+/// 1024 entradas (≈ 12 kB) y las heurísticas de ordenación de ajedrez.
+using ChessSearcher = Searcher<ChessRules, chess::ChessEval, chess::ChessOrdering, 1024u>;
 
 } // namespace eng::board

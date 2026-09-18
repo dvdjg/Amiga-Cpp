@@ -789,6 +789,14 @@ extern "C" eng::u32 c_chess_perft(u16 depth) {
 	R::Position pos = R::initial();
 	return static_cast<eng::u32>(eng::board::chess::perft(pos, static_cast<eng::u32>(depth)));
 }
+extern "C" eng::u32 c_chess_search(u16 depth) {
+	using R = eng::board::ChessRules;
+	R::Position pos = R::initial();
+	eng::board::ChessSearcher searcher;
+	const eng::board::ChessSearcher::Result result =
+	    searcher.search(pos, {static_cast<eng::u32>(depth), 0u});
+	return static_cast<eng::u32>(result.best_move) ^ static_cast<eng::u32>(result.nodes);
+}
 extern "C" u16 c_parallel_threads() {
 	return static_cast<u16>(eng::parallel::hardware_threads());
 }

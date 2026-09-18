@@ -35,17 +35,24 @@ enum class Terminal : u8 {
 	return terminal != Terminal::None;
 }
 
-/// Contrato de reglas de un juego de tablero por turnos.
+/// Contrato de reglas de un juego de tablero por turnos. Lo consume el buscador
+/// adversario (`search/`), que se escribe una vez y no conoce ajedrez ni Go.
 template <class G>
-concept GameRules = requires(const typename G::Position& position, typename G::MoveList& moves) {
+concept GameRules = requires(const typename G::Position& position, typename G::Position& work,
+                             typename G::MoveList& moves, typename G::Undo& undo,
+                             typename G::Move move) {
 	typename G::Position;
 	typename G::Move;
 	typename G::MoveList;
+	typename G::Undo;
 	G::initial();
 	G::generate_legal(position, moves);
 	G::in_check(position);
 	G::zobrist(position);
 	G::terminal(position);
+	G::make(work, move, undo);
+	G::unmake(work, move, undo);
+	G::is_capture(move);
 };
 
 } // namespace eng::board

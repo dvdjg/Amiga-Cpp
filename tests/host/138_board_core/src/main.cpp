@@ -31,12 +31,16 @@ struct MockGame {
 	using Position = Square;
 	using Move = eng::board::Move;
 	using MoveList = eng::board::MoveList;
+	using Undo = eng::u8;
 
 	static Position initial() { return 0u; }
 	static eng::u32 generate_legal(const Position&, MoveList&) { return 0u; }
 	static bool in_check(const Position&) { return false; }
 	static eng::u32 zobrist(const Position&) { return 0u; }
 	static Terminal terminal(const Position&) { return Terminal::None; }
+	static void make(Position&, Move, Undo&) {}
+	static void unmake(Position&, Move, const Undo&) {}
+	static bool is_capture(Move) { return false; }
 };
 
 struct NotGame {};

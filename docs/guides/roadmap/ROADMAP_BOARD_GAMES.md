@@ -97,37 +97,37 @@ búsqueda paralela en B5.
 |---|---|---|---|
 | B1.1 | `rules/chess/board.hpp` | Tablero **0x88**, Zobrist incremental, `make`/`unmake`, ataques y jaque | **HOST-140** (hecho) |
 | B1.2 | `rules/chess/movegen.hpp` | Generación **legal** (pseudo-legal + filtro make/unmake) y `perft` | **HOST-140** (hecho) |
-| B1.3 | `rules/chess/rules.hpp` | Jaque mate, ahogado, 50 movimientos y material insuficiente (repetición pendiente, exige historial) | **HOST-140** (parcial) / HOST-141 |
-| B1.4 | `rules/chess/endgame.hpp` | Sondeo de finales teóricos (KRK, KQK, KBNK, KPK con casilla del peón/oposición) | **HOST-141** |
-| B1.5 | `rules/chess/notation.hpp` | FEN/EPD (ya en `fen.hpp`, HOST-140) y SAN/algebraica | **HOST-142** |
+| B1.3 | `rules/chess/rules.hpp` + `history.hpp` | Jaque mate, ahogado, 50 movimientos, material insuficiente y **repetición (3×)** | **HOST-140/141** (hecho) |
+| B1.4 | `rules/chess/endgame.hpp` | Sondeo de finales teóricos (KRK, KQK, KBNK, KPvK con regla del cuadrado) | **HOST-141** (hecho) |
+| B1.5 | `rules/chess/notation.hpp` | FEN/EPD (`fen.hpp`) y SAN/algebraica (`notation.hpp`) | **HOST-140/142** (hecho) |
 
-Cierre: perft vs valores conocidos (hecho: inicial/Kiwipete/al paso/promoción); repetición y
-finales de referencia resueltos.
+Cierre: perft vs valores conocidos (inicial/Kiwipete/al paso/promoción), repetición y finales de
+referencia resueltos (HOST-140/141/142).
 
 ### B2 — Búsqueda adversaria genérica
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| B2.1 | `search/search.hpp` | Negamax + Alpha-Beta + **iterative deepening** + aspiration; interrumpible por nodo/tiempo | **HOST-143** |
-| B2.2 | `search/search.hpp` (quiescence) | Quiescence de capturas y jaques + SEE básico (táctica) | **HOST-143** |
-| B2.3 | `search/ordering.hpp` | MVV-LVA + killer moves + history heuristic | **HOST-144** |
-| B2.4 | `search/tt.hpp` | Transposition table por perfil (entrada de 12 B), *always replace* / *depth-preferred* | **HOST-144** |
-| B2.5 | `search/refutation.hpp` | *Refutation table* triangular (sustituye a la TT en `P20`) | **HOST-144** |
-| B2.6 | `search/pruning.hpp` | Null-move (≥ `P256`) y podas opcionales tras medir | **HOST-143/144** |
+| B2.1 | `search/search.hpp` | Negamax + Alpha-Beta + **iterative deepening**, interrumpible por nodo/tiempo (aspiration pendiente) | **HOST-143** (hecho) |
+| B2.2 | `search/search.hpp` (quiescence) | Quiescence de capturas y jaques (SEE pendiente de medir) | **HOST-143** (hecho) |
+| B2.3 | `rules/chess/ordering.hpp` | MVV-LVA + killer moves + history heuristic | **HOST-144** (hecho) |
+| B2.4 | `search/tt.hpp` | Transposition table (entrada de 12 B), reemplazo directo | **HOST-144** (hecho) |
+| B2.5 | `search/refutation.hpp` | *Refutation table* triangular (sustituye a la TT en `P20`) | Pendiente |
+| B2.6 | `search/pruning.hpp` | Null-move (≥ `P256`) y podas opcionales tras medir | Pendiente |
 
-Cierre: mates en N y posiciones tácticas resueltos; la TT reduce nodos sin corromper; el perfil
-`P20` funciona sin TT.
+Cierre: mates en N y posiciones tácticas resueltos (hecho: HOST-143); la TT reduce nodos sin
+corromper (hecho: HOST-144). Pendiente: refutation table y null-move.
 
 ### B3 — Evaluación de ajedrez y rasgos
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| B3.1 | `eval/chess_eval.hpp` | Material + PST + movilidad simple + peones + seguridad del rey | **HOST-145** |
-| B3.2 | `eval/features.hpp` | `DevelopmentFeatures` (menores/mayores sin desarrollar, dama prematura, rey en el centro, enroques, torres, fase) | **HOST-145** |
-| B3.3 | `eval/chess_eval.hpp` (centro) | Control del centro y coordinación mínima | **HOST-145** |
+| B3.1 | `eval/chess_eval.hpp` | Material + PST + movilidad + peones + seguridad del rey | **HOST-145** (hecho) |
+| B3.2 | `eval/features.hpp` | `DevelopmentFeatures` (menores/mayores sin desarrollar, dama prematura, rey en el centro, enroques, torres, fase) | **HOST-145** (hecho) |
+| B3.3 | `eval/chess_eval.hpp` (centro) | Control del centro vía PST de centralización | **HOST-145** (hecho) |
 
 Cierre: la evaluación separa táctica y estrategia; los rasgos se calculan una vez y sirven a la
-explicación.
+explicación (hecho).
 
 ### B4 — Conocimiento externo y almacenamiento
 
@@ -233,11 +233,11 @@ pieza se comprueba que no duplica una primitiva de `eng::util`/`eng::parallel`
 | HOST-138 | `core/`: tipos, Zobrist y concepto `GameRules` | **Hecho** |
 | HOST-139 | `core/budget.hpp`: perfiles y selección por RAM libre | **Hecho** |
 | HOST-140 | Ajedrez: FEN, make/unmake, Zobrist, perft y fin de partida | **Hecho** |
-| HOST-141 | Ajedrez: repetición y sondeo de finales teóricos | Pendiente |
-| HOST-142 | Notación SAN/algebraica | Pendiente |
-| HOST-143 | Búsqueda: negamax/αβ, iterative deepening, quiescence (mates en N) | Pendiente |
-| HOST-144 | Ordenación, TT y refutation table (reducción de nodos, sin corrupción) | Pendiente |
-| HOST-145 | Evaluación de ajedrez y `DevelopmentFeatures` | Pendiente |
+| HOST-141 | Ajedrez: repetición (3×) y sondeo de finales teóricos | **Hecho** |
+| HOST-142 | Notación SAN/algebraica y UCI | **Hecho** |
+| HOST-143 | Búsqueda: negamax/αβ, iterative deepening, quiescence (mates en N) | **Hecho** |
+| HOST-144 | Ordenación, TT y reuso (reducción de nodos, sin corrupción) | **Hecho** |
+| HOST-145 | Evaluación de ajedrez y `DevelopmentFeatures` | **Hecho** |
 | HOST-146 | `BlockSource` + LRU (contrato de tres estados y aciertos de caché) | Pendiente |
 | HOST-147 | Libro de aperturas y tablas de finales (índice → bloque, round-trip) | Pendiente |
 | HOST-148 | `TimeManager`, pondering, MultiPV, reuso de árbol y búsqueda paralela | Pendiente |
