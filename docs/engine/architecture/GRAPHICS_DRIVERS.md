@@ -62,7 +62,11 @@ rota un tramo de paleta fisica sin tocar bitplanes; la demo
 Su hermano `PaletteTransitionEffect` (`effects/palette_transition.hpp`) hace un
 **fundido/transicion** entre dos paletas cocinadas (fundir a negro = transicion a una
 paleta de ceros) reutilizando `eng::util::palette_lerp`/`palette_scale`; la misma demo lo
-compone con el ciclo (parches `COLOR01..07` y `COLOR16..31` en el mismo plan).
+compone con el ciclo (parches `COLOR01..07` y `COLOR16..31` en el mismo plan). Para
+degradados por **linea/banda** (`COLORxx` por franja) esta `RasterGradientEffect`
+(`effects/raster_gradient.hpp`): reparte `bands` intenciones `PaletteLine` interpolando
+colores clave y las aporta al `copper::Plan`, que las **ordena por scanline** y las
+presupuesta (ver `plan.hpp`); la demo `085_copper_plan_scene` lo usa para el cielo.
 La demo ya usa `engine/include/eng/graphics/frame_plan.hpp`: cada efecto genera un
 parche de paleta en `FramePlan` y `StaticEhbScene` actualiza solo los valores de
 los MOVEs `COLORxx` existentes, sin recompilar la copperlist completa. Los parches de

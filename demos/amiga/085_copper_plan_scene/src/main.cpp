@@ -6,7 +6,8 @@
 // una escena con **varias fuentes de copper** que cambian a ritmos distintos y deben
 // intercalarse por scanline sin que el llamador tenga que ordenarlas a mano.
 //
-//   - **CIELO (Copper sky)**: 16 bandas de COLOR00 con un degradado que cicla. Es una
+//   - **CIELO (Copper sky)**: 16 bandas de COLOR00 con un degradado que cicla, generado
+//     por el efecto reutilizable `RasterGradientEffect` (claves + fase). Es una
 //     aportacion de la ESCENA: fija, de fondo.
 //   - **BOB (software)**: un disco que se mueve por la pantalla y **comunica su
 //     necesidad** a la escena: su degradado (COLOR01) debe quedar **anclado a su Y**, asi
@@ -30,6 +31,7 @@
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/graphics/copper/plan.hpp>
+#include <eng/graphics/effects/raster_gradient.hpp>
 #include <eng/graphics/raster_intent.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
@@ -55,6 +57,7 @@ namespace {
 
 namespace amiga = eng::amiga;
 namespace copper = eng::copper;
+namespace effects = eng::graphics::effects;
 namespace graphics = eng::graphics;
 
 // Geometria: 320x256 lowres, 4 planos (16 colores).
@@ -124,6 +127,10 @@ struct CopperPlanDemo {
 
 		m_bob_x = 160;
 		m_bob_y = 128;
+		// Cielo: degradado por banda generado por el efecto (claves `kSky`, cíclico).
+		m_sky.configure({kFirstLine, kSkyBandHeight, kSkyBands, 0u});
+		m_sky.set_cyclic(true);
+		m_sky.set_keys(eng::Span<const eng::u16> {kSky, 16u});
 		build_shape();         // prerenderiza el disco (8 variantes de offset sub-byte)
 		draw_bob(0u);          // primer frame en el bitmap 0
 		if (!build_frame(0u)) {
@@ -164,13 +171,13 @@ struct CopperPlanDemo {
 private:
 	// --- aportaciones de copper -------------------------------------------------
 
-	/// CIELO: 16 bandas de COLOR00 con el degradado desplazado por la fase (fijo).
+	/// CIELO: 16 bandas de COLOR00 con el degradado desplazado por la fase. Lo genera el
+	/// efecto reutilizable `RasterGradientEffect` (claves `kSky`, cíclico); la demo solo
+	/// aporta las intenciones al plan, que las ordena por scanline.
 	void add_sky_intents() {
-		for (eng::u8 b = 0; b < kSkyBands; ++b) {
-			const eng::u8 idx = static_cast<eng::u8>((b + m_sky_phase) & 15u);
-			push_intent(static_cast<eng::u16>(kFirstLine + static_cast<eng::u16>(b) * kSkyBandHeight),
-				    0u, kSky[idx]);
-		}
+		m_sky.set_phase(m_sky_phase);
+		const eng::u16 room = static_cast<eng::u16>(copper::Plan::max_intents - m_n);
+		m_n = static_cast<eng::u16>(m_n + m_sky.fill_intents(&m_intents[m_n], room));
 	}
 
 	/// BOB: comunica su necesidad a la escena — su degradado (COLOR01) viaja con su Y con
@@ -301,6 +308,7 @@ private:
 	eng::Block<eng::PlaneTag> m_bitmaps[2] {};
 	eng::u8 m_shape[8][3][kBobSpan][kBobStride] {};
 	copper::Plan m_plan {};
+	effects::RasterGradientEffect m_sky {};
 	graphics::CopperIntent m_intents[eng::copper::Plan::max_intents] {};
 	eng::u16 m_colors[eng::copper::Plan::max_intents * 2u] {};
 	eng::u16 m_n = 0;

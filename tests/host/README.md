@@ -149,3 +149,4 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-106 | [scroll_saveword_guard](106_scroll_saveword_guard/README.md) | `field/scroll_engine.hpp`: la costura (`save_word`) se **restaura** cuando `add_draw` rechaza el frame (ScopeGuard); en el camino correcto no se restaura. |
 | HOST-107 | [rotozoom](107_rotozoom/README.md) | `graphics/effects/rotozoom.hpp`: muestreo por píxel con aritmética entera (tabla de seno 16.16, identidad, rotación, zoom). |
 | HOST-108 | [palette_transition](108_palette_transition/README.md) | `graphics/effects/palette_transition.hpp`: estado `num/den` (una pasada y vaivén), paleta runtime y parche base en `FramePlan`. |
+| HOST-109 | [raster_gradient](109_raster_gradient/README.md) | `graphics/effects/raster_gradient.hpp`: muestreo de claves (lineal/cíclico, `phase`), geometría de bandas e intenciones `PaletteLine`. |

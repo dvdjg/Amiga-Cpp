@@ -251,7 +251,7 @@ eng::graphics::effects/
    palette_cycle.hpp     (ya existe) — agua/fuego/luces
    palette_transition.hpp (ya existe) — fundido/transición entre paletas
    palette_zone.hpp      — cambio de paleta por bandas
-   raster_gradient.hpp   — cielos/niebla/horizonte (per-line COLOR00)
+   raster_gradient.hpp   (ya existe) — degradado por banda/línea (COLORxx)
    raster_distortion.hpp — ondas/heat haze (ShiftLines)
    copper_script.hpp     — script portable desde UAF (intenciones, no raw)
    sprite_multiplex.hpp  — reuso de canales por franjas
