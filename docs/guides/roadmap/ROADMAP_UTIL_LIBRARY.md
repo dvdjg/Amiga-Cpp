@@ -97,13 +97,13 @@ división), R3.2 worley/turbulence/ridged (`core/noise.hpp`, HOST-101) y R3.3 `d
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
 | R4.1 | `bitstream.hpp` + `dynamic_bitset.hpp` | `BitReader`/`BitWriter`, bitset que crece con `Allocator` | **HOST-121/122** (entregado) |
-| R4.2 | `variant.hpp` | unión etiquetada sin heap, `visit` con overload set | HOST (siguiente libre) |
+| R4.2 | `variant.hpp` | unión etiquetada sin heap, `visit` con overload set | **HOST-130** (entregado) |
 | R4.3 | `event.hpp` | array fijo de `FunctionRef`, `subscribe`/`emit` | **HOST-109** (entregado) |
 | R4.4 | `state_machine.hpp` | estados/eventos/tabla `constexpr` | **HOST-108** (entregado) |
 | R4.5 | `type_list.hpp` (opcional) | `TypeList` + `for_each_type` (registro en compile-time) | HOST (siguiente libre) |
 
 > Los pasos sin implementar usan el **siguiente `HOST-NNN` libre** en el momento de
-> implementarse (hoy 129 en adelante; 000–128 están asignados). R4.3/R4.4 se adelantaron
+> implementarse (hoy 132 en adelante; 000–131 están asignados). R4.3/R4.4 se adelantaron
 > para desbloquear G2 (decisión/blackboard) de la IA.
 
 R4.2–R4.5 solo si aparece consumidor (comandos/eventos/efectos). R4.5 es avanzado y se
@@ -117,10 +117,10 @@ implementa **solo con consumidor real**; el orden es por valor/coste.
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
 | R5.1 | `lru_cache.hpp` | generalizar el patrón de `chunk_cache.hpp` (`K`,`V`,`N`, sin heap) para tiles/sprites/mapas | **HOST-127** (entregado; falta demo que la consuma) |
-| R5.2 | `interval.hpp` | `Interval`/`IntervalSet<N>`/`IntervalMap` para rangos (streaming, buffs/daño, animación) | HOST |
+| R5.2 | `interval.hpp` | `Interval`/`IntervalSet<N>` para rangos (streaming, buffs/daño, animación) | **HOST-129** (entregado) |
 | R5.3 | `task.hpp` (coroutine *stackless*) | tarea con estado en `struct` y `step()` (patrón `switch`); secuencias/scripting sin corrutinas C++20 | **HOST-128** (entregado; falta secuencia de demo) |
-| R5.4 | `variant.hpp` (R4.2) | unión etiquetada sin heap con `visit`, para colas de comandos/mensajes heterogéneos | HOST + consumidor |
-| R5.5 | `stable_heap.hpp` / heap d-ario | *open set* de A* con *decrease-key* (índice) o heap 4-ario; **medir** antes de adoptar | HOST + medición en A* |
+| R5.4 | `variant.hpp` (R4.2) | unión etiquetada sin heap con `visit`, para colas de comandos/mensajes heterogéneos | **HOST-130** (entregado) |
+| R5.5 | heap d-ario / `stable_heap` | *open set* de A* con *decrease-key* (índice) o heap 4-ario; **medir** antes de adoptar | **Medido (HOST-131)**: el 4-ario hace **más** comparaciones que el binario (ratio 1.04–1.15) → **no se adopta**; se mantiene `PriorityQueue` |
 | R5.6 | `bloom.hpp` | filtro de Bloom fijo (bitset + k hashes) para «visitados» grandes (GOAP) | HOST |
 | R5.7 | `trie.hpp` | trie / *prefix map* para autocompletado y búsqueda por prefijo | HOST + consumidor (consola) |
 | R5.8 | `grid_view.hpp` (mdspan) | vista multidimensional sobre `Span` para rejillas de nivel | HOST |

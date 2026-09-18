@@ -65,6 +65,8 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/util/graph.hpp>
 #include <eng/core/util/lru_cache.hpp>
 #include <eng/core/util/task.hpp>
+#include <eng/core/util/interval.hpp>
+#include <eng/core/util/variant.hpp>
 #include <eng/core/random.hpp>
 #include <eng/core/util/dsp.hpp>
 #include <eng/core/fixed_math.hpp>
@@ -654,6 +656,33 @@ extern "C" u16 c_task_ops(u16 seed) {
 		}
 	}
 	return static_cast<u16>(static_cast<eng::u16>(last) + seq.step_count());
+}
+extern "C" u16 c_interval_ops(s32 lo, s32 hi) {
+	eng::util::IntervalSet<8> s;
+	s.add(lo, hi);
+	s.add(0, 10);
+	s.add(20, 30);
+	return static_cast<u16>(s.size() + (s.contains(5) ? 1u : 0u) +
+				(s.contains(25) ? 1u : 0u));
+}
+struct CVariantA {
+	eng::s16 a;
+};
+struct CVariantB {
+	eng::u16 b;
+};
+extern "C" u16 c_variant_ops(u16 seed) {
+	eng::util::Variant<CVariantA, CVariantB> v {CVariantB {seed}};
+	eng::u16 out = 0u;
+	v.visit([&](const auto& c) {
+		using T = eng::util::remove_cvref_t<decltype(c)>;
+		if constexpr (eng::util::is_same_v<T, CVariantA>) {
+			out = static_cast<eng::u16>(c.a);
+		} else {
+			out = c.b;
+		}
+	});
+	return static_cast<u16>(out + v.index());
 }
 extern "C" u16 c_random_ops(u16 seed) {
 	eng::Xoroshiro64pp rng {seed, static_cast<eng::u32>(seed + 1u)};

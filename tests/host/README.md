@@ -168,3 +168,6 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-126 | [graph](126_graph/README.md) | `util/graph.hpp`: `Graph<MaxNodes,MaxEdges>` (adyacencia) + `graph_bfs`/`graph_astar`/`topological_sort`. Consolida waypoints (HOST-116). |
 | HOST-127 | [lru_cache](127_lru_cache/README.md) | `util/lru_cache.hpp`: `LruCache<K,V,N>` (LRU O(1), get/peek/put/erase, sin heap). |
 | HOST-128 | [task](128_task/README.md) | `util/task.hpp`: `TaskSequence<N>` y `Delay` (tareas *stackless*: espera, encadena y aborta). |
+| HOST-129 | [interval](129_interval/README.md) | `util/interval.hpp`: `Interval` e `IntervalSet<N>` (rangos `[lo,hi)`, fusion de solapes/adyacencias, `contains` binario). |
+| HOST-130 | [variant](130_variant/README.md) | `util/variant.hpp`: `Variant<Ts...>` (union etiquetada sin heap) usada como comandos heterogeneos (`index`/`holds`/`get`/`visit`/`emplace`). |
+| HOST-131 | [heap_bench](131_heap_bench/README.md) | Medicion R5.5: heap binario (`PriorityQueue`) vs 4-ario (comparaciones, mismo orden). Conclusion: el binario gana. |
