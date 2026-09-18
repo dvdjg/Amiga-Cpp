@@ -237,3 +237,12 @@ tests host) falla si la doc se desincroniza del contrato, y `--write` la regener
 | dsp::Adsr / OnePole / DelayLine / osc_* | si | si | si (osc_sine con fixed_math) | HOST-102/104 |
 
 <!-- SCALAR-TABLE:END -->
+
+## 8. Generalización a 32/64 bits
+
+El vocabulario de §3.b ya es agnóstico del escalar. La deuda pendiente es el **ancho de
+palabra**: `fixed_math` y `scalar_div` solo están especializados para `Fixed<s16,E>`, y las
+multiplicaciones pasan por `mul16` pensado para `muls.w`. El plan para añadir `Fixed<s32,E>`
+(con tablas y series), un tipo general seleccionable en compilación (`s16` en 68000, `s32`
+en 68020, `int`/`float` en host) y la política `bool` vs byte está en
+[REFACTOR_SCALAR_GENERICO.md](../../guides/roadmap/REFACTOR_SCALAR_GENERICO.md).
