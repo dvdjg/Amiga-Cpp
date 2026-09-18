@@ -203,6 +203,14 @@ Coste medido: `compute_flow_field<8,8>` (sonda `c_flow_field_ops`) 40 instruccio
 libcalls. El `PriorityQueue` interno es `W*H` inline: se calcula en `init`/fondo.
 Verificación: HOST-114.
 
+`waypoints.hpp`: `WaypointGraph<MaxNodes,MaxEdges>` (nodos con posición y aristas
+bidireccionales con coste) y A* sobre el grafo con heurística Manhattan y `scratch` del
+llamador. Es el complemento del campo de flujo: aquí el destino cambia por agente y el
+camino se calcula a petición.
+
+Coste medido: `find_path` sobre un grafo de 3 nodos (sonda `c_waypoints_ops`) 74
+instrucciones, sin libcalls. Verificación: HOST-116.
+
 ## 6. Movimiento: steering (`eng/ai/steering/steering.hpp`)
 
 Velocidades de movimiento continuo genéricas sobre el escalar: `seek`/`flee`/`arrive` y los
@@ -214,7 +222,19 @@ Coste medido: `seek`+`arrive` con q12 (sonda `c_steering_ops`) 411 instrucciones
 `muls.w`, sin libcalls. Límite q12: `length_sq` desborda si las componentes pasan de ~2.
 Verificación: HOST-115.
 
-## 7. Inventario
+## 7. Percepción (`eng/ai/perception/`)
+
+- `influence_map.hpp`: `InfluenceMap<W,H>`, rejilla de influencia (`s32` por celda) con
+  `deposit`/`decay`/`at`/`strongest`. Para amenaza/cobertura/interés: el agente huye de lo
+  «caliente» o se concentra donde conviene.
+- `agent_memory.hpp`: `AgentMemory`, la última posición vista del objetivo y su antigüedad
+  (`see`/`tick`/`fresh`/`stale`/`forget`), para decidir con información caducada pero útil.
+
+Coste medido: `deposit`+`decay`+`strongest` (sonda `c_influence_map_ops`) 62 instrucciones;
+`AgentMemory` (sonda `c_agent_memory_ops`) 11 instrucciones; sin libcalls. Verificación:
+HOST-117.
+
+## 8. Inventario
 
 | Cabecera | Tipos / funciones | Estado |
 |---|---|---|
@@ -224,9 +244,11 @@ Verificación: HOST-115.
 | `decision/behavior_tree.hpp` | `BehaviorTree<MaxNodes>`, `BtStatus`, `BtTask`: secuencia/selector sin heap | Implementado, HOST-113 |
 | `decision/blackboard.hpp` | `Blackboard<Key,Value,MaxKeys>`: memoria compartida `O(1)` | Implementado, HOST-111 |
 | `navigation/flow_field.hpp` | `compute_flow_field<W,H>`, `flow_next<W>`, `FlowDir`: campo de flujo multi-fuente | Implementado, HOST-114 |
-| `navigation/…` | navmesh lite (Recast/Detour), waypoints | Planificado (ROADMAP_GAME_AI) |
+| `navigation/waypoints.hpp` | `WaypointGraph<MaxNodes,MaxEdges>`, `find_path` (A* Manhattan) | Implementado, HOST-116 |
+| `navigation/…` | navmesh lite (Recast/Detour) | Planificado (ROADMAP_GAME_AI) |
 | `steering/steering.hpp` | `seek`/`flee`/`arrive`, `separation`/`cohesion`/`alignment`/`flock` | Implementado, HOST-115 |
-| `perception/…` | influence maps, sensores | Planificado (ROADMAP_GAME_AI) |
+| `perception/influence_map.hpp` | `InfluenceMap<W,H>`: deposit/decay/strongest | Implementado, HOST-117 |
+| `perception/agent_memory.hpp` | `AgentMemory`: see/tick/fresh/stale/forget | Implementado, HOST-117 |
 | `design/…` | director de dificultad, recompensas | Planificado (ROADMAP_GAME_AI) |
 
 > Estado de verificación: los módulos de `eng::ai` están **verificados por test host**
@@ -235,7 +257,7 @@ Verificación: HOST-115.
 > pueden cambiar sin aviso. La primera demo/juego con un personaje con objetivos los
 > verificará en el 68000.
 
-## 8. Cómo añadir una técnica
+## 9. Cómo añadir una técnica
 
 1. Comprobar que no existe ya en `eng/core/`, `eng/core/util/` ni `eng/ai/` (§1.6 de
    `AGENTS.md`); decidir si se reutiliza una primitiva existente.

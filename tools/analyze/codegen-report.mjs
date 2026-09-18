@@ -52,7 +52,10 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/ai/decision/utility.hpp>
 #include <eng/ai/decision/behavior_tree.hpp>
 #include <eng/ai/navigation/flow_field.hpp>
+#include <eng/ai/navigation/waypoints.hpp>
 #include <eng/ai/steering/steering.hpp>
+#include <eng/ai/perception/influence_map.hpp>
+#include <eng/ai/perception/agent_memory.hpp>
 #include <eng/core/random.hpp>
 #include <eng/core/util/dsp.hpp>
 #include <eng/core/fixed_math.hpp>
@@ -452,6 +455,43 @@ extern "C" s16 c_steering_ops(s16 px, s16 py, s16 tx, s16 ty) {
 	const Vec<2, q12> v = eng::ai::seek(pos, target, q12 {64});
 	const Vec<2, q12> a = eng::ai::arrive(pos, target, q12 {64}, q12 {256});
 	return static_cast<s16>(v.v[0].v + v.v[1].v + a.v[0].v + a.v[1].v);
+}
+extern "C" u16 c_waypoints_ops(u16 start, u16 goal) {
+	eng::ai::WaypointGraph<8, 8> graph;
+	const eng::u16 a = graph.add_node({0, 0});
+	const eng::u16 b = graph.add_node({10, 0});
+	const eng::u16 c = graph.add_node({20, 0});
+	graph.add_edge(a, b, 10u);
+	graph.add_edge(b, c, 10u);
+	eng::u16 g[8];
+	eng::s16 came[8];
+	eng::u8 closed[8];
+	eng::u16 path[8];
+	const eng::u16 s = static_cast<eng::u16>(start % 3u);
+	const eng::u16 t = static_cast<eng::u16>(goal % 3u);
+	const eng::usize n = graph.find_path(s, t, eng::Span<eng::u16> {g, 8},
+					     eng::Span<eng::s16> {came, 8},
+					     eng::Span<eng::u8> {closed, 8},
+					     eng::Span<eng::u16> {path, 8});
+	return static_cast<u16>(n + (g[t] == 0xffffu ? 0u : g[t]));
+}
+extern "C" s32 c_influence_map_ops(u16 cell, s32 amount) {
+	eng::ai::InfluenceMap<8, 8> map;
+	map.clear();
+	const eng::u16 i = static_cast<eng::u16>(cell % 64u);
+	map.deposit(i, amount);
+	map.decay(amount / 2);
+	const eng::u16 best = map.strongest();
+	return map.at(i) + (best == eng::ai::InfluenceMap<8, 8>::no_cell ? 0 : 1);
+}
+extern "C" u16 c_agent_memory_ops(u16 ticks) {
+	eng::ai::AgentMemory mem;
+	mem.see({static_cast<eng::s16>(ticks), 4});
+	for (eng::u16 i = 0; i < (ticks & 7u); ++i) {
+		mem.tick();
+	}
+	return static_cast<u16>((mem.fresh(3u) ? 1u : 0u) + mem.ticks_since_seen +
+				mem.last_position.y);
 }
 extern "C" u16 c_random_ops(u16 seed) {
 	eng::Xoroshiro64pp rng {seed, static_cast<eng::u32>(seed + 1u)};
