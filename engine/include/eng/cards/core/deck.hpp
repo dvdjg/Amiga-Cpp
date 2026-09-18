@@ -51,6 +51,16 @@ struct Deck {
 		eng::shuffle(rng, live());
 	}
 
+	/// ¿Sigue `card` en la parte viva?
+	[[nodiscard]] constexpr bool contains(Card card) const noexcept {
+		for (u8 i = 0u; i < remaining_count; ++i) {
+			if (cards[i] == card) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/// Saca `card` de la parte viva. Devuelve `false` si ya no estaba.
 	constexpr bool remove(Card card) noexcept {
 		for (u8 i = 0u; i < remaining_count; ++i) {

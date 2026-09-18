@@ -61,6 +61,15 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/board/rules/chess/rules.hpp>
 #include <eng/board/rules/go/rules.hpp>
 #include <eng/board/explain/explain.hpp>
+#include <eng/cards/core/budget.hpp>
+#include <eng/cards/core/deck.hpp>
+#include <eng/cards/core/intmath.hpp>
+#include <eng/cards/rules/hand_rank.hpp>
+#include <eng/cards/rules/texas_holdem.hpp>
+#include <eng/cards/eval/equity.hpp>
+#include <eng/cards/eval/range.hpp>
+#include <eng/cards/ai/bot.hpp>
+#include <eng/cards/sim/session.hpp>
 #include <eng/parallel/parallel.hpp>
 #include <eng/core/util/union_find.hpp>
 #include <eng/core/util/sparse_set.hpp>
@@ -97,6 +106,19 @@ static_assert(sizeof(eng::ai::Goap<64>::State) == 8u, "Goap<64>::State");
 static_assert(sizeof(eng::ai::Goap<64>::Action) == 38u, "Goap<64>::Action");
 static_assert(sizeof(eng::ai::Goap<64>::Planner<128>) == 6454u, "Goap<64>::Planner<128>");
 static_assert(sizeof(eng::ai::Goap<64>::Planner<256>) == 12630u, "Goap<64>::Planner<256>");
+
+// Gate de layout de eng::cards (m68k): fija los sizeof del estado de poker. Si cambian,
+// la compilacion cruzada falla y hay que revisar el presupuesto de RAM por perfil.
+static_assert(sizeof(eng::cards::Seat) == 16u, "cards::Seat");
+static_assert(sizeof(eng::cards::Table) == 246u, "cards::Table");
+static_assert(sizeof(eng::cards::Deck) == 53u, "cards::Deck");
+static_assert(sizeof(eng::cards::CardPlan) == 34u, "cards::CardPlan");
+static_assert(sizeof(eng::cards::HandRange) == 24u, "cards::HandRange");
+static_assert(sizeof(eng::cards::PreflopTable) == 342u, "cards::PreflopTable");
+static_assert(sizeof(eng::cards::EquityResult) == 6u, "cards::EquityResult");
+static_assert(sizeof(eng::cards::BotParams) == 14u, "cards::BotParams");
+static_assert(sizeof(eng::cards::OpponentModel) == 82u, "cards::OpponentModel");
+static_assert(sizeof(eng::cards::SessionStats) == 72u, "cards::SessionStats");
 
 struct HalfEvenPolicy { using Round = rounding::HalfEven; using Overflow = overflow::Wrap; };
 using q14 = Fixed<s16, 14>;
@@ -837,6 +859,71 @@ extern "C" u16 c_numeric_goap(u16 seed) {
 	eng::u16 plan[8] {};
 	const eng::usize n = planner.plan(start, goal, acts.span(), eng::Span<eng::u16> {plan, 8u});
 	return static_cast<u16>(n + (planner.found() ? 1u : 0u));
+}
+
+// --- eng::cards: evaluacion, equity, reglas, rangos, IA y simulacion. El equity y el
+// reparto de botes usan intmath (div por resta) y mulu16: no deben arrastrar
+// __mulsi3/__divsi3 en 68000. ---
+extern "C" eng::u32 c_cards_eval7(const eng::u8* cards) {
+	return static_cast<eng::u32>(eng::cards::evaluate_hand(cards, 7u));
+}
+extern "C" eng::u16 c_cards_equity(eng::u8 a, eng::u8 b, eng::u16 samples) {
+	static eng::Xoroshiro64pp rng {1u, 2u};
+	const eng::u8 hole[2] = {a, b};
+	const eng::cards::EquityResult r = eng::cards::equity_vs_random(
+	    eng::Span<const eng::u8> {hole, 2u}, eng::Span<const eng::u8> {}, 1u, samples, rng);
+	return r.equity_permille;
+}
+extern "C" eng::u32 c_cards_holdem(eng::u8 seats) {
+	static eng::Xoroshiro64pp rng {3u, 4u};
+	eng::cards::Table table;
+	eng::cards::start_hand(table, rng, seats, 1000, 5, 10, 0u);
+	eng::cards::Action legal[12];
+	const eng::u8 n = eng::cards::legal_actions(table, legal, 12u);
+	if (n > 0u) {
+		eng::cards::apply_action(table, legal[0]);
+	}
+	return static_cast<eng::u32>(n) ^ static_cast<eng::u32>(table.pot);
+}
+extern "C" eng::u32 c_cards_selfplay(eng::u16 hands) {
+	eng::cards::SessionConfig cfg {};
+	cfg.seats = 4u;
+	cfg.hands = hands;
+	cfg.seed = 5u;
+	eng::cards::SessionStats stats {};
+	eng::cards::run_session(cfg, eng::cards::card_profile_plan(eng::cards::CardProfile::N64), stats);
+	eng::u32 acc = 0u;
+	for (eng::u8 i = 0u; i < 4u; ++i) {
+		acc ^= static_cast<eng::u32>(stats.net[i]);
+	}
+	return acc ^ stats.raises;
+}
+extern "C" eng::u16 c_cards_range(eng::u16 samples) {
+	static eng::cards::PreflopTable table;
+	static bool built = false;
+	static eng::Xoroshiro64pp rng {9u, 10u};
+	if (!built) {
+		eng::cards::build_preflop_table(table, rng, samples);
+		built = true;
+	}
+	eng::cards::HandRange range;
+	eng::cards::make_range_by_equity(table, range, 40u);
+	const eng::u8 hole[2] = {eng::cards::make_card(eng::cards::Rank::Ace, eng::cards::Suit::Spades),
+	                         eng::cards::make_card(eng::cards::Rank::Ace, eng::cards::Suit::Hearts)};
+	const eng::cards::EquityResult r = eng::cards::equity_vs_range(
+	    eng::Span<const eng::u8> {hole, 2u}, eng::Span<const eng::u8> {}, range, 1u, 64u, rng);
+	return static_cast<eng::u16>(r.equity_permille + range.class_count());
+}
+extern "C" eng::u16 c_cards_bot(eng::u16 samples) {
+	static eng::Xoroshiro64pp rng {11u, 12u};
+	eng::cards::Table t;
+	eng::cards::start_hand(t, rng, 4u, 1000, 5, 10, 0u);
+	eng::cards::OpponentModel model;
+	eng::cards::BotParams params = eng::cards::bot_params(eng::cards::BotStyle::Balanced);
+	params.mc_samples = samples;
+	params.use_mc = samples > 0u;
+	const eng::cards::Action a = eng::cards::decide(t, t.to_act, params, &model, rng);
+	return static_cast<eng::u16>(a.amount) + static_cast<eng::u16>(a.type);
 }
 `;
 

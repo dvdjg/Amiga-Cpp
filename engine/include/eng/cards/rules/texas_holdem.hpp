@@ -26,6 +26,7 @@
 #include <eng/core/types.hpp>
 
 #include <eng/cards/core/deck.hpp>
+#include <eng/cards/core/intmath.hpp>
 #include <eng/cards/core/types.hpp>
 #include <eng/cards/rules/hand_rank.hpp>
 
@@ -151,8 +152,24 @@ struct Table {
 
 namespace detail {
 
+/// Avanza un asiento dentro del anillo `0..count-1` sin `%` (el 68000 no tiene
+/// módulo de 32 bits nativo: `%` con divisor runtime acaba en `__umodsi3`).
+[[nodiscard]] constexpr u8 ring_next(u8 seat, u8 count) noexcept {
+	const u8 n = static_cast<u8>(seat + 1u);
+	return n >= count ? 0u : n;
+}
+
+/// `(base + offset) % count` para valores que no dan más de una vuelta al anillo.
+[[nodiscard]] constexpr u8 ring_add(u8 base, u8 offset, u8 count) noexcept {
+	u8 idx = static_cast<u8>(base + offset);
+	while (idx >= count) {
+		idx = static_cast<u8>(idx - count);
+	}
+	return idx;
+}
+
 [[nodiscard]] constexpr u8 next_seat(u8 seat, u8 count) noexcept {
-	return static_cast<u8>((seat + 1u) % count);
+	return ring_next(seat, count);
 }
 
 constexpr void post(Table& t, u8 seat, s32 amount) noexcept {
@@ -179,7 +196,7 @@ constexpr void post(Table& t, u8 seat, s32 amount) noexcept {
 /// Primer asiento a la izquierda de `from` (sin incluirlo) con estado `Active`.
 [[nodiscard]] constexpr u8 first_active_after(const Table& t, u8 from) noexcept {
 	for (u8 k = 1u; k <= t.seat_count; ++k) {
-		const u8 idx = static_cast<u8>((from + k) % t.seat_count);
+		const u8 idx = ring_add(from, k, t.seat_count);
 		if (t.seats[idx].status == SeatStatus::Active) {
 			return idx;
 		}
@@ -190,7 +207,7 @@ constexpr void post(Table& t, u8 seat, s32 amount) noexcept {
 /// Primer asiento a la izquierda de `from` que debe actuar; `kNoSeat` si la ronda acabó.
 [[nodiscard]] constexpr u8 next_to_act(const Table& t, u8 from) noexcept {
 	for (u8 k = 1u; k <= t.seat_count; ++k) {
-		const u8 idx = static_cast<u8>((from + k) % t.seat_count);
+		const u8 idx = ring_add(from, k, t.seat_count);
 		if (needs_action(t, idx)) {
 			return idx;
 		}
@@ -201,7 +218,7 @@ constexpr void post(Table& t, u8 seat, s32 amount) noexcept {
 constexpr void deal_hole(Table& t, u8 count) noexcept {
 	for (u8 round = 0u; round < kMaxHoleCards; ++round) {
 		for (u8 k = 0u; k < count; ++k) {
-			const u8 seat = static_cast<u8>((t.button + 1u + k) % count);
+			const u8 seat = ring_add(t.button, static_cast<u8>(1u + k), count);
 			if (t.seats[seat].status == SeatStatus::Active || t.seats[seat].status == SeatStatus::AllIn) {
 				t.seats[seat].hole[round] = t.deck.deal();
 			}
@@ -227,7 +244,7 @@ inline void start_hand(Table& t, eng::Xoroshiro64pp& rng, u8 seat_count, s32 sta
 	t.small_blind = small_blind;
 	t.big_blind = big_blind;
 	t.min_raise = big_blind;
-	t.button = static_cast<u8>(button % t.seat_count);
+	t.button = detail::ring_add(0u, button, t.seat_count);
 	for (u8 i = 0u; i < t.seat_count; ++i) {
 		t.seats[i].status = starting_stack > 0 ? SeatStatus::Active : SeatStatus::Out;
 		t.seats[i].stack = starting_stack;
@@ -327,15 +344,16 @@ constexpr void split_pot(Table& t, s32 pot, const u8* winners, u8 wn, s32* won) 
 	if (wn == 0u || pot <= 0) {
 		return;
 	}
-	const s32 share = pot / static_cast<s32>(wn);
-	s32 remainder = pot - share * static_cast<s32>(wn);
+	u32 remainder_u = 0u;
+	const s32 share = static_cast<s32>(divmod32(static_cast<u32>(pot), static_cast<u32>(wn), remainder_u));
+	s32 remainder = static_cast<s32>(remainder_u);
 	for (u8 i = 0u; i < wn; ++i) {
 		won[winners[i]] += share;
 	}
 	while (remainder > 0) {
 		bool handed = false;
 		for (u8 k = 1u; k <= t.seat_count && remainder > 0; ++k) {
-			const u8 idx = static_cast<u8>((t.button + k) % t.seat_count);
+			const u8 idx = ring_add(t.button, k, t.seat_count);
 			for (u8 i = 0u; i < wn; ++i) {
 				if (winners[i] == idx) {
 					won[idx] += 1;

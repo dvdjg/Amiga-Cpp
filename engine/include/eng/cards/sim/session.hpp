@@ -44,29 +44,45 @@ struct SessionStats {
 	u32 folds = 0u;
 	u32 max_actions_in_hand = 0u;
 
-	/// Net del asiento en *big blinds por 100 manos* (×100, entero).
+	/// Net del asiento en *big blinds por 100 manos* (×100, entero). Se calcula con
+	/// desplazamientos y `div32` (sin `__mulsi3`/`__divsi3`), por si se invoca en el
+	/// target 68000.
 	[[nodiscard]] constexpr s32 bb_per_100_centi(u8 seat, s32 big_blind) const noexcept {
 		if (big_blind <= 0 || hands_played == 0u) {
 			return 0;
 		}
-		return (net[seat] * 10000) / (big_blind * static_cast<s32>(hands_played));
+		const s32 net_value = net[seat];
+		const u32 magnitude = net_value < 0 ? static_cast<u32>(-net_value) : static_cast<u32>(net_value);
+		// magnitude * 10000 (10000 = 8192 + 1024 + 512 + 256 + 16).
+		const u32 scaled = (magnitude << 13u) + (magnitude << 10u) + (magnitude << 9u) +
+		                   (magnitude << 8u) + (magnitude << 4u);
+		const u32 per_bb = div32(scaled, static_cast<u32>(big_blind));
+		const u32 centi = div32(per_bb, hands_played);
+		return net_value < 0 ? -static_cast<s32>(centi) : static_cast<s32>(centi);
 	}
 };
 
 /// Juega `hands` manos con los estilos indicados. `model` (opcional) acumula las
 /// acciones observadas. `plan` fija las muestras Monte Carlo por perfil.
+/// `preflop_table` (opcional) aporta el equity preflop de las 169 clases y
+/// `opponent_range` (opcional) restringe el rival del Monte Carlo.
 inline void run_session(const SessionConfig& config, const CardPlan& plan, SessionStats& stats,
-                        OpponentModel* model = nullptr) noexcept {
+                        OpponentModel* model = nullptr,
+                        const PreflopTable* preflop_table = nullptr,
+                        const HandRange* opponent_range = nullptr) noexcept {
 	stats = SessionStats {};
 	stats.starting_stack = config.starting_stack;
 
 	const u8 seats = config.seats > kMaxSeats ? kMaxSeats : (config.seats < 2u ? 2u : config.seats);
 	eng::Xoroshiro64pp rng {config.seed, config.seed ^ 0x9e3779b9u};
+	u8 button = 0u;
 
 	for (u32 hand = 0u; hand < config.hands; ++hand) {
 		Table table {};
-		const u8 button = static_cast<u8>(hand % seats);
 		start_hand(table, rng, seats, config.starting_stack, config.small_blind, config.big_blind, button);
+		// Rota el botón sin `%` (evita `__umodsi3` en 68000).
+		const u8 next_button = static_cast<u8>(button + 1u);
+		button = next_button >= seats ? 0u : next_button;
 
 		u32 actions = 0u;
 		while (!table.hand_over && actions < 400u) {
@@ -75,7 +91,8 @@ inline void run_session(const SessionConfig& config, const CardPlan& plan, Sessi
 				break;
 			}
 			const BotStyle style = config.styles[actor];
-			const Action action = decide_with_plan(table, actor, style, plan, model, rng);
+			const Action action = decide_with_plan(table, actor, style, plan, model, rng,
+			                                       preflop_table, opponent_range);
 
 			switch (action.type) {
 			case ActionType::Raise:

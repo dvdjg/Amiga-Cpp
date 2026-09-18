@@ -23,6 +23,7 @@
 #include <eng/cards/core/budget.hpp>
 #include <eng/cards/core/types.hpp>
 #include <eng/cards/eval/equity.hpp>
+#include <eng/cards/eval/range.hpp>
 #include <eng/cards/rules/hand_rank.hpp>
 #include <eng/cards/rules/texas_holdem.hpp>
 
@@ -160,13 +161,15 @@ struct OpponentModel {
 	}
 
 	[[nodiscard]] constexpr u16 fold_permille(u8 seat) const noexcept {
-		const u16 total = static_cast<u16>(folds[seat] + calls[seat] + raises[seat]);
-		return total == 0u ? 300u : static_cast<u16>((folds[seat] * kPermilleMax) / total);
+		const u16 total =
+		    static_cast<u16>(folds[seat] + calls[seat] + raises[seat]);
+		return total == 0u ? 300u : permille_u32(folds[seat], total);
 	}
 
 	[[nodiscard]] constexpr u16 aggression_permille(u8 seat) const noexcept {
-		const u16 total = static_cast<u16>(folds[seat] + calls[seat] + raises[seat]);
-		return total == 0u ? 300u : static_cast<u16>((raises[seat] * kPermilleMax) / total);
+		const u16 total =
+		    static_cast<u16>(folds[seat] + calls[seat] + raises[seat]);
+		return total == 0u ? 300u : permille_u32(raises[seat], total);
 	}
 };
 
@@ -195,17 +198,28 @@ namespace detail {
 } // namespace detail
 
 /// Fuerza de la mano de `seat` en por mil: Monte Carlo si hay muestras, si no la
-/// heurística preflop o la categoría de la mejor mano parcial.
+/// tabla preflop, la heurística preflop o la categoría de la mejor mano parcial.
+/// `table` (opcional) aporta el equity preflop de las 169 clases; `opponent_range`
+/// (opcional) restringe al rival en el Monte Carlo.
 [[nodiscard]] inline u16 hand_strength_permille(const Table& t, u8 seat, const BotParams& params,
-                                                eng::Xoroshiro64pp& rng) noexcept {
+                                                eng::Xoroshiro64pp& rng,
+                                                const PreflopTable* table = nullptr,
+                                                const HandRange* opponent_range = nullptr) noexcept {
 	const u8 opponents = opponents_in_hand(t, seat);
 	if (params.use_mc && params.mc_samples > 0u && t.board_count <= kBoardCards) {
 		const eng::Span<const Card> hole {t.seats[seat].hole, kMaxHoleCards};
 		const eng::Span<const Card> board {t.board, t.board_count};
-		const EquityResult equity = equity_vs_random(hole, board, opponents, params.mc_samples, rng);
+		const EquityResult equity =
+		    (opponent_range != nullptr)
+		        ? equity_vs_range(hole, board, *opponent_range, opponents, params.mc_samples, rng)
+		        : equity_vs_random(hole, board, opponents, params.mc_samples, rng);
 		return equity.equity_permille;
 	}
 	if (t.board_count < 3u) {
+		if (table != nullptr && table->ready) {
+			const u16 hu = preflop_equity(*table, t.seats[seat].hole[0], t.seats[seat].hole[1]);
+			return multiway_from_heads_up(hu, opponents);
+		}
 		return preflop_strength_permille(t.seats[seat].hole[0], t.seats[seat].hole[1]);
 	}
 	return category_strength_permille(seat_hand_value(t, seat));
@@ -213,8 +227,9 @@ namespace detail {
 
 /// Decide la acción de `seat`. Respeta siempre la lista de acciones legales.
 [[nodiscard]] inline Action decide(const Table& t, u8 seat, const BotParams& params,
-                                   const OpponentModel* model,
-                                   eng::Xoroshiro64pp& rng) noexcept {
+                                   const OpponentModel* model, eng::Xoroshiro64pp& rng,
+                                   const PreflopTable* table = nullptr,
+                                   const HandRange* opponent_range = nullptr) noexcept {
 	Action legal[12] {};
 	const u8 legal_count = legal_actions(t, legal, 12u);
 	if (legal_count == 0u) {
@@ -222,7 +237,7 @@ namespace detail {
 	}
 
 	const s32 owe = to_call(t, seat);
-	const u16 strength = hand_strength_permille(t, seat, params, rng);
+	const u16 strength = hand_strength_permille(t, seat, params, rng, table, opponent_range);
 
 	// Ajuste por modelo de rivales: ante rivales que se retiran mucho, más farol.
 	u16 bluff = params.bluff_permille;
@@ -236,7 +251,7 @@ namespace detail {
 			}
 		}
 		if (n > 0u) {
-			bluff = static_cast<u16>((bluff + (fold_sum / n)) / 2u);
+			bluff = static_cast<u16>((bluff + div32(fold_sum, n)) / 2u);
 		}
 	}
 
@@ -278,14 +293,17 @@ namespace detail {
 }
 
 /// Bot con `CardPlan`: deriva los parámetros de estilo y aplica las muestras del
-/// perfil de memoria.
+/// perfil de memoria. `table`/`range` (opcionales) activan la tabla preflop y el
+/// modelo de rango del rival.
 [[nodiscard]] inline Action decide_with_plan(const Table& t, u8 seat, BotStyle style,
                                              const CardPlan& plan, const OpponentModel* model,
-                                             eng::Xoroshiro64pp& rng) noexcept {
+                                             eng::Xoroshiro64pp& rng,
+                                             const PreflopTable* table = nullptr,
+                                             const HandRange* opponent_range = nullptr) noexcept {
 	BotParams params = bot_params(style);
 	params.mc_samples = plan.mc_samples;
 	params.use_mc = plan.mc_samples > 0u;
-	return decide(t, seat, params, model, rng);
+	return decide(t, seat, params, model, rng, table, opponent_range);
 }
 
 } // namespace eng::cards

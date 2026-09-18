@@ -25,12 +25,14 @@ un *bot* consume las acciones legales, no las inventa.
 
 ```text
 engine/include/eng/cards/
-├── core/          → tipos (Suit, Rank, Card, Hand, Street), Deck y presupuesto (N20…N512)
+├── core/          → tipos (Suit, Rank, Card, Hand, Street), Deck, presupuesto (N20…N512)
+│                     y aritmética sin libcalls (intmath: divu.w / mulu16)
 ├── rules/
 │   ├── hand_rank.hpp     → evaluador de 5/7 cartas (mejor de 5 entre 7)
 │   └── texas_holdem.hpp  → estado de mesa, ciegas, acciones legales, side pots y showdown
 ├── eval/
-│   └── equity.hpp        → equity Monte Carlo, pot odds y heurística preflop
+│   ├── equity.hpp        → equity Monte Carlo, pot odds y heurística preflop
+│   └── range.hpp         → 169 clases de mano inicial, rangos y tabla preflop
 ├── ai/
 │   └── bot.hpp           → política (equity + pot odds + estilo) y modelo de rival
 └── sim/
@@ -80,6 +82,11 @@ materializa en un `CardPlan` (`core/budget.hpp`); ningún tamaño se fija con ma
 
 Notas:
 
+- Los **tamaños reales en m68k** están fijados en la sonda de codegen
+  (`tools/analyze/codegen-report.mjs`): `Seat` 16 B, `Table` 246 B, `Deck` 53 B,
+  `CardPlan` 34 B, `HandRange` 24 B, `PreflopTable` 342 B, `EquityResult` 6 B,
+  `BotParams` 14 B, `OpponentModel` 82 B y `SessionStats` 72 B. El estado de una mano
+  completa cabe en ~300 B; lo demás es caché de conocimiento (tabla, modelo, histórico).
 - El perfil decide **cuánto piensa** el bot (muestras de Monte Carlo, resolución del modelo
   de rival) y **cuánto recuerda**, no la legalidad: un `N20` juega el mismo póker con menos
   información. La estrategia de nivel por footprint es la misma que la de tablero
@@ -141,6 +148,19 @@ Notas:
 - **Heurística preflop** (`preflop_strength_permille`): aproxima Chen (pareja, cartas altas,
   *suited*, conectores) para el perfil `N20`, que no gasta muestras.
 
+### 4.1 Rangos y tabla preflop (`eval/range.hpp`)
+
+- **169 clases canónicas** de mano inicial (13 parejas + 78 *suited* + 78 *offsuit*) con
+  índice simétrico y decodificación a combinaciones concretas (6/4/12 según clase).
+- **`HandRange`** es un conjunto de clases (`BitSet<169>`, 24 B) con `combo_count`. El
+  dealer de rango reparte la mano del rival desde el rango (clase uniforme, luego
+  combinación), evitando cartas vistas.
+- **`equity_vs_range`** estima el equity del héroe contra rivales restringidos a un rango
+  (no mano aleatoria), reutilizando `equity_vs_dealer`.
+- **`PreflopTable`** (342 B) guarda el equity heads-up de las 169 clases en por mil,
+  construido una vez con Monte Carlo determinista (`build_preflop_table`) para no incrustar
+  datos opacos; ordenado por equity genera rangos por percentil (`make_range_by_equity`).
+
 ## 5. Decisión y modelo de rival (`ai/bot.hpp`)
 
 - **Estilo** (`BotStyle`, 5 variantes: tight/loose × passive/aggressive + balanced) fija
@@ -148,7 +168,9 @@ Notas:
   footprint**: dos bots `N512` pueden jugar estilos opuestos.
 - **Decisión**: sin apuesta viva, apuesta si la fuerza supera el umbral o farolea; con
   apuesta viva, compara fuerza con pot odds + colchón; muy fuerte ⇒ sube, rentable ⇒ iguala
-  o sube según agresividad, débil ⇒ farol ocasional o se retira.
+  o sube según agresividad, débil ⇒ farol ocasional o se retira. La fuerza preflop sale de
+  la tabla de 169 clases si el perfil la mantiene (convertida a multiway con
+  `multiway_from_heads_up`); el Monte Carlo puede usar un **rango de rival** opcional.
 - **Modelo de rival** (`OpponentModel`): acumula por asiento folds/calls/raises y expone
   frecuencias en por mil; el bot sube el farol ante rivales que se retiran mucho. Va
   dimensionado por `CardPlan::tracked_opponents`.
@@ -176,20 +198,29 @@ Notas:
   fijo; no hay excepciones, heap ni RTTI.
 - **Sin duplicar**: la baraja se baraja con `eng::shuffle`; el azar es `eng::Xoroshiro64pp`;
   los perfiles de memoria siguen el patrón de `eng::board`; no se reinventan contenedores.
+- **Aritmética sin libcalls** (`core/intmath.hpp`): el 68000 no tiene mul/div de 32 bits
+  nativo. Los productos 16×16 usan `mulu16` (`mulu.w`) y la división `u32/u16` usa `divu.w`
+  por mitades de 16 bits. `divmod32` es `noinline` a propósito: inlineado en un contexto con
+  rango conocido, GCC reconoce el patrón y lo sustituye por `__divsi3` de libgcc. La sonda
+  `tools/analyze/codegen-report.mjs` falla si aparece cualquier libcall o instrucción 68020.
 
 ## 8. Inventario
 
 | Área | Estado |
 |---|---|
 | `core/` (tipos, baraja, presupuesto `N20`…`N512`) | **Implementado**: HOST-161 |
+| `core/intmath.hpp` (división `divu.w` / `mulu16` sin libcalls) | **Implementado**: codegen-report (68000 sin libgcc) |
 | `rules/hand_rank.hpp` (evaluador 5/7) | **Implementado**: HOST-162 |
 | `rules/texas_holdem.hpp` (reglas, calles, acciones, side pots, showdown) | **Implementado**: HOST-163 |
 | `eval/equity.hpp` (Monte Carlo, pot odds, heurística preflop) | **Implementado**: HOST-164 |
+| `eval/range.hpp` (169 clases, rangos, tabla preflop) | **Implementado**: HOST-166 |
 | `ai/bot.hpp` + `sim/session.hpp` (estilos, modelo de rival, sesiones) | **Implementado**: HOST-165 |
+| Herramienta host `tools/cards/selfplay.sh` | **Implementado y ejecutado** (torneos CPU vs CPU) |
 | Juego con UI en `games/` | **Pendiente** (los motores están **NO VERIFICADOS** en hardware) |
 
-> Estado: núcleo, reglas, evaluación y IA implementados y verificados por test host
-> (HOST-161…165). El juego con interfaz en el Amiga, el pulido visual y la medida de
-> rendimiento quedan pendientes. El plan por fases y los criterios de cierre están en
+> Estado: núcleo, reglas, evaluación (equity/rangos), IA y simulación implementados y
+> verificados por test host (HOST-161…166); el codegen 68000 está libre de libcalls y de
+> instrucciones 68020. El juego con interfaz en el Amiga, el pulido visual y la medida de
+> rendimiento por CPU quedan pendientes. El plan por fases y los criterios de cierre están en
 > [ROADMAP_CARD_GAMES.md](../../guides/roadmap/ROADMAP_CARD_GAMES.md), fuente única del
 > avance. Este documento describe el diseño vigente y no se duplica allí.

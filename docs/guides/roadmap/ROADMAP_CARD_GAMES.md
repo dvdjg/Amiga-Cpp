@@ -22,12 +22,18 @@ CPU vs CPU para ajustar el nivel; el juego con UI en el Amiga cierra la verifica
 
 ## 2. Estado de partida
 
-- **Implementado**: núcleo (`core/`: tipos de carta, baraja determinista y presupuesto
-  `N20`…`N512`), reglas (`rules/hand_rank.hpp` evaluador de 5/7 y `rules/texas_holdem.hpp`
-  con ciegas, calles, acciones legales, botes laterales y showdown), evaluación
-  (`eval/equity.hpp`: Monte Carlo, pot odds y heurística preflop), IA (`ai/bot.hpp`:
-  estilos y modelo de rival) y simulación (`sim/session.hpp`: sesiones CPU vs CPU).
-  Verificado por HOST-161…165.
+- **Implementado**: núcleo (`core/`: tipos de carta, baraja determinista, presupuesto
+  `N20`…`N512` y aritmética sin libcalls `core/intmath.hpp`), reglas (`rules/hand_rank.hpp`
+  evaluador de 5/7 y `rules/texas_holdem.hpp` con ciegas, calles, acciones legales, botes
+  laterales y showdown), evaluación (`eval/equity.hpp`: Monte Carlo, pot odds y heurística
+  preflop; `eval/range.hpp`: 169 clases, rangos y tabla preflop), IA (`ai/bot.hpp`: estilos y
+  modelo de rival) y simulación (`sim/session.hpp`: sesiones CPU vs CPU). Verificado por
+  HOST-161…166.
+- **Implementado (herramienta)**: `tools/cards/selfplay.sh` juega torneos CPU vs CPU en host
+  con perfiles, estilos, tabla preflop y rango de rival, y reporta net/bb-100.
+- **Verificado el target 68000**: `tools/analyze/codegen-report.mjs` compila las rutas de
+  cartas (evaluador, equity, reglas, rangos, IA y simulación) sin libcalls de libgcc ni
+  instrucciones 68020, y fija los `sizeof` reales (`Table` 246 B, `PreflopTable` 342 B…).
 - **Primitivas reutilizadas**: `eng::Xoroshiro64pp` y `eng::shuffle`
   (`eng/core/random.hpp`, HOST-100), `eng::Span`/`StringView`/`StaticVector`
   (HOST-073…079), `eng::parallel` (HOST-137) y el patrón de presupuesto de `eng::board`
@@ -91,10 +97,12 @@ controlados. Pendiente de evaluar: variantes (Limit, Omaha, torneos con ciegas c
 |---|---|---|---|
 | C2.1 | `eval/equity.hpp` | Equity Monte Carlo determinista contra rivales aleatorios | **HOST-164** (hecho) |
 | C2.2 | `eval/equity.hpp` | Pot odds y heurística preflop (fallback `N20`) | **HOST-164** (hecho) |
+| C2.3 | `eval/range.hpp` | 169 clases canónicas, `HandRange` y `equity_vs_range` | **HOST-166** (hecho) |
+| C2.4 | `eval/range.hpp` | `PreflopTable` (169 valores, MC una vez) y rango por percentil | **HOST-166** (hecho) |
 
-Cierre: el equity ordena manos conocidas (AA > 72o), una mano hecha gana siempre y las pot
-odds son correctas. Pendiente: **equity contra rangos** (no solo manos aleatorias) y tabla de
-169 arranques en RAM para perfiles altos.
+Cierre: el equity ordena manos conocidas (AA > 72o), una mano hecha gana siempre, las pot
+odds son correctas y el rival puede restringirse a un rango. Pendiente: rangos de subida
+dinámicos (leídos de las acciones) y más resolución para perfiles altos.
 
 ### C3 — IA y modelo de rival
 
@@ -111,8 +119,8 @@ Pendiente: rangos de subida, farol inducido por el tablero y equilibrio (bluff/v
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
 | C4.1 | `sim/session.hpp` | `run_session`: N manos, botón rota, net y `bb/100` | **HOST-165** (hecho) |
-| C4.2 | `tools/cards/selfplay` | Herramienta host de torneos largos entre estilos/configuraciones | Pendiente |
-| C4.3 | Matriz de rendimiento | Manos/s y muestras/s por CPU (68000/020/030) y perfil | Pendiente |
+| C4.2 | `tools/cards/selfplay` | Herramienta host de torneos CPU vs CPU (perfiles, estilos, tabla y rango) | **Hecho** (ejecutada) |
+| C4.3 | Matriz de rendimiento | Manos/s y muestras/s por CPU (68000/020/030) y perfil | **Parcial**: tamaños y codegen hechos (sin libcalls); falta medida en emulador |
 
 Cierre: el nivel se ajusta desde host sin emulador; la matriz fija qué perfil es jugable en
 un A500 base. Es el paso que decide el reparto de muestras por perfil.
@@ -151,7 +159,7 @@ verificación real.
 
 ## 6. Distribución de tests host
 
-Los números son únicos y no reutilizables; el siguiente libre es **166**. Antes de crear cada
+Los números son únicos y no reutilizables; el siguiente libre es **167**. Antes de crear cada
 pieza se comprueba que no duplica una primitiva de `eng::util`/`eng::parallel`.
 
 | Test | Cubre | Estado |
@@ -161,7 +169,8 @@ pieza se comprueba que no duplica una primitiva de `eng::util`/`eng::parallel`.
 | HOST-163 | `rules/texas_holdem.hpp`: reparto, calles, retirada y botes laterales | **Hecho** |
 | HOST-164 | `eval/equity.hpp`: Monte Carlo, heurística preflop y pot odds | **Hecho** |
 | HOST-165 | `ai/bot.hpp` + `sim/session.hpp`: conservación, determinismo y perfiles | **Hecho** |
-| HOST-166+ | Equity vs rangos, variantes de póker, torneos y UI | Pendiente |
+| HOST-166 | `eval/range.hpp`: 169 clases, `HandRange`, equity vs rango y tabla preflop | **Hecho** |
+| HOST-167+ | Rangos dinámicos, variantes de póker, torneos y UI | Pendiente |
 
 ## 7. Extensiones, decisiones tomadas y descartado
 
@@ -169,6 +178,9 @@ pieza se comprueba que no duplica una primitiva de `eng::util`/`eng::parallel`.
   §7): carta `u8`; `HandValue` empaquetado en `u32`; azar inyectado con
   `eng::Xoroshiro64pp`; zona de trabajo `cards_int`; botes laterales por niveles de
   aportación.
+- **Aritmética sin libcalls** (`core/intmath.hpp`): productos 16×16 con `mulu16` y división
+  `u32/u16` con `divu.w` por mitades; `divmod32` es `noinline` porque GCC inlineado reconoce
+  el patrón y lo cambia por `__divsi3`. El gate de codegen falla si aparece una libcall.
 - **Texas Hold'em primero**: variantes (Omaha, Seven-Card Stud, Limit) se añaden como
   políticas de reglas sobre el mismo evaluador y presupuesto.
 - **Equity vs rangos**: extensión de C2; los rangos de arranque son un conjunto de 169

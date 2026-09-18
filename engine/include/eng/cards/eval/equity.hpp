@@ -1,26 +1,32 @@
 #pragma once
 
 /// \file equity.hpp
-/// Fuerza de mano y **equity Monte Carlo** contra rivales aleatorios.
+/// Fuerza de mano y **equity Monte Carlo** contra rivales aleatorios o de un rango.
 ///
 /// El bot decide comparando su equity (probabilidad de ganar + media de empatar)
 /// con las *pot odds*. El equity se estima repartiendo `samples` tableros/rivales
-/// aleatorios con `eng::Xoroshiro64pp`: mismo PRNG y misma semilla ⇒ mismos
-/// números, en host y en Amiga. Sin `float`: todo en **por mil** (`u16`), que cabe
-/// de sobra y evita libgcc.
+/// con `eng::Xoroshiro64pp`: mismo PRNG y misma semilla ⇒ mismos números, en host
+/// y en Amiga. Sin `float`: todo en **por mil** (`u16`), que cabe de sobra y evita
+/// libgcc (`core/intmath.hpp` hace la división por resta, sin `__divsi3`).
+///
+/// `equity_vs_dealer` es genérico sobre la **política de reparto del rival**: una
+/// lambda o functor que llena sus dos cartas desde el mazo. `RandomOpponentDealer`
+/// reparte al azar; `range.hpp` añade `RangeOpponentDealer` para restringir el
+/// rival a un conjunto de 169 clases de mano.
 ///
 /// En perfiles sin Monte Carlo (`N20`) se usa `preflop_strength_permille`, una
-/// heurística de arranque (pareja, cartas altas, suited, conectores) que no
-/// consume apenas memoria ni tiempo.
+/// heurística de arranque (pareja, cartas altas, suited, conectores), o la tabla
+/// preflop de `range.hpp` cuando el perfil la mantiene en RAM.
 ///
-/// Verificación: HOST-164. Estado: verificado por test host; **NO VERIFICADO** en
-/// demo/hardware (sin consumidor en `games/` todavía).
+/// Verificación: HOST-164 y HOST-166. Estado: verificado por test host; **NO
+/// VERIFICADO** en demo/hardware (sin consumidor en `games/` todavía).
 
 #include <eng/core/random.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 
 #include <eng/cards/core/deck.hpp>
+#include <eng/cards/core/intmath.hpp>
 #include <eng/cards/core/types.hpp>
 #include <eng/cards/rules/hand_rank.hpp>
 
@@ -37,12 +43,22 @@ struct EquityResult {
 	[[nodiscard]] constexpr bool strong() const noexcept { return equity_permille >= 500u; }
 };
 
-/// Equity de `hole` (+ `board`) contra `opponents` manos aleatorias. Completa el
-/// tablero repartiendo del mazo restante. `samples == 0` devuelve un resultado
-/// nulo; `opponents == 0` mide manos hechas (triunfa el propio hero).
-[[nodiscard]] inline EquityResult equity_vs_random(eng::Span<const Card> hole, eng::Span<const Card> board,
-                                                    u8 opponents, u16 samples,
-                                                    eng::Xoroshiro64pp& rng) noexcept {
+/// Política por defecto: el rival recibe dos cartas al azar del mazo vivo.
+struct RandomOpponentDealer {
+	[[nodiscard]] constexpr bool operator()(Deck& deck, Card& first, Card& second) const noexcept {
+		first = deck.deal();
+		second = deck.deal();
+		return card_valid(first) && card_valid(second);
+	}
+};
+
+/// Equity de `hole` (+ `board`) contra `opponents` manos repartidas por `deal_opponent`.
+/// Completa el tablero del mazo restante. `samples == 0` devuelve un resultado nulo.
+template <class OpponentDealer>
+[[nodiscard]] inline EquityResult equity_vs_dealer(eng::Span<const Card> hole,
+                                                   eng::Span<const Card> board, u8 opponents,
+                                                   u16 samples, eng::Xoroshiro64pp& rng,
+                                                   OpponentDealer deal_opponent) noexcept {
 	EquityResult result {};
 	if (samples == 0u) {
 		return result;
@@ -90,9 +106,19 @@ struct EquityResult {
 		bool lost = false;
 		bool tied = false;
 		for (u8 o = 0u; o < opponents; ++o) {
+			Card first = kNoCard;
+			Card second = kNoCard;
+			bool dealt = false;
+			for (u8 attempt = 0u; attempt < 4u && !dealt; ++attempt) {
+				dealt = deal_opponent(deck, first, second);
+			}
+			if (!dealt) {
+				lost = true;
+				break;
+			}
 			Card opp[7] {};
-			opp[0] = deck.deal();
-			opp[1] = deck.deal();
+			opp[0] = first;
+			opp[1] = second;
 			for (u8 i = 0u; i < kBoardCards; ++i) {
 				opp[2u + i] = full_board[i];
 			}
@@ -115,10 +141,17 @@ struct EquityResult {
 		}
 	}
 
-	result.win_permille = static_cast<u16>((wins * kPermilleMax) / samples);
-	result.tie_permille = static_cast<u16>((ties * kPermilleMax) / samples);
-	result.equity_permille = static_cast<u16>(((wins * kPermilleMax) + (ties * (kPermilleMax / 2u))) / samples);
+	result.win_permille = permille_u32(wins, samples);
+	result.tie_permille = permille_u32(ties, samples);
+	result.equity_permille = permille_u32(wins * 2u + ties, static_cast<u32>(samples) * 2u);
 	return result;
+}
+
+/// Equity contra `opponents` manos aleatorias.
+[[nodiscard]] inline EquityResult equity_vs_random(eng::Span<const Card> hole,
+                                                   eng::Span<const Card> board, u8 opponents,
+                                                   u16 samples, eng::Xoroshiro64pp& rng) noexcept {
+	return equity_vs_dealer(hole, board, opponents, samples, rng, RandomOpponentDealer {});
 }
 
 /// Probabilidad implícita de la llamada: `to_call / (pot + to_call)` en por mil.
@@ -130,7 +163,7 @@ struct EquityResult {
 	if (denom <= 0) {
 		return kPermilleMax;
 	}
-	return static_cast<u16>((to_call_amount * static_cast<s32>(kPermilleMax)) / denom);
+	return permille_u32(static_cast<u32>(to_call_amount), static_cast<u32>(denom));
 }
 
 /// Heurística de fuerza preflop en por mil, sin tablas: pareja, cartas altas,
