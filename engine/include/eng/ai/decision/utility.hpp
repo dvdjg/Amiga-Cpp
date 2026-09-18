@@ -52,19 +52,19 @@ public:
 			return; // pesos fuera de rango 16 bits no participan
 		}
 		// `muls.w`: valor y peso caben en s16 -> producto ensanchado sin `__mulsi3`.
-		m_weighted += eng::math::mul16(static_cast<eng::s16>(value),
+		m_weighted += eng::math::mul_wide(static_cast<eng::s16>(value),
 					       static_cast<eng::s16>(weight));
 		m_weights += weight;
 	}
 
-	/// Puntuación en `[0, utility_scale]`; 0 si no hay consideraciones. Usa `div16`
+	/// Puntuación en `[0, utility_scale]`; 0 si no hay consideraciones. Usa `div_wide`
 	/// (`divs.w` nativo 32/16), de modo que no aparece `__divsi3`. La suma de pesos debe
 	/// caber en `s16` (<= 32767).
 	[[nodiscard]] constexpr eng::s32 score() const noexcept {
 		if (m_weights <= 0) {
 			return 0;
 		}
-		return eng::math::div16(m_weighted + m_weights / 2,
+		return eng::math::div_wide(m_weighted + m_weights / 2,
 					static_cast<eng::s16>(m_weights));
 	}
 

@@ -129,7 +129,7 @@ private:
 		}
 		const s32 den = m_cyclic ? bands : (bands > 1 ? bands - 1 : 1);
 		const s32 unum = static_cast<s32>(b) * span + static_cast<s32>(m_phase) * den;
-		const s16 seg_raw = eng::math::div16(unum, static_cast<s16>(den));
+		const s16 seg_raw = eng::math::div_wide(unum, static_cast<s16>(den));
 		const u16 local = static_cast<u16>(unum - static_cast<s32>(seg_raw) * den);
 		s32 seg = seg_raw % k;
 		if (seg < 0) {

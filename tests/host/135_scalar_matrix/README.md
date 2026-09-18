@@ -15,6 +15,9 @@ cómo se comporta cada ancho (16 bits retro vs 32 bits vs nativo) y cierra las f
    `1/3`/`sqrt(3)`.
 3. El escalar entero general `eng::intw` (`scalar.hpp`) con `min`/`max`/`abs`/`clamp`, y el
    modo seleccionado (`eng::scalar_mode`).
+4. `smootherstep` con `Fixed<s32,12>`: el coeficiente 15 no cabe en 4.12 (`s16`, ±8) pero sí
+   con 32 bits; es la fila `smootherstep` de la columna `Fixed<s32>` de la tabla de
+   `SCALAR_LIBRARY.md` §7.
 
 ## Salida de referencia (host, modo nativo)
 

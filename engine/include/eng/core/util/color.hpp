@@ -42,8 +42,8 @@ namespace eng::util {
 	for (u8 shift = 0u; shift < 12u; shift += 4u) {
 		const s16 ca = static_cast<s16>((a >> shift) & 0xfu);
 		const s16 cb = static_cast<s16>((b >> shift) & 0xfu);
-		const s32 diff = eng::math::mul16(static_cast<s16>(cb - ca), static_cast<s16>(num));
-		const s16 step = eng::math::div16(diff, static_cast<s16>(den));
+		const s32 diff = eng::math::mul_wide(static_cast<s16>(cb - ca), static_cast<s16>(num));
+		const s16 step = eng::math::div_wide(diff, static_cast<s16>(den));
 		const s16 v = static_cast<s16>(ca + step);
 		out = static_cast<u16>(out | (static_cast<u16>(v & 0xf) << shift));
 	}
@@ -58,8 +58,8 @@ namespace eng::util {
 	u16 out = 0u;
 	for (u8 shift = 0u; shift < 12u; shift += 4u) {
 		const s16 comp = static_cast<s16>((c >> shift) & 0xfu);
-		const s32 prod = eng::math::mul16(comp, static_cast<s16>(num));
-		s16 v = eng::math::div16(prod, static_cast<s16>(den));
+		const s32 prod = eng::math::mul_wide(comp, static_cast<s16>(num));
+		s16 v = eng::math::div_wide(prod, static_cast<s16>(den));
 		if (v > 15) {
 			v = 15;
 		}
@@ -136,7 +136,7 @@ namespace eng::util {
 /// **Degradado multi-parada**: muestrea `keys` en la posición `num/den` (`[0, 1]`)
 /// interpolando entre `keys[seg]` y `keys[seg+1]`, con `seg = num·(K−1)/den`. Es la base
 /// de un degradado de cielo/horizonte por línea: el llamante reparte las líneas en
-/// segmentos y pide la muestra. Usa `div16` (`divs.w` en 68000), sin `float` ni libcalls;
+/// segmentos y pide la muestra. Usa `div_wide` (`divs.w` en 68000), sin `float` ni libcalls;
 /// `den` debe caber en `s16`.
 [[nodiscard]] constexpr u16 gradient444(Span<const u16> keys, u16 num, u16 den) noexcept {
 	const usize k = keys.size();
@@ -150,7 +150,7 @@ namespace eng::util {
 		return keys[k - 1u];
 	}
 	const s32 scaled = static_cast<s32>(num) * static_cast<s32>(k - 1u);
-	const s16 seg = eng::math::div16(scaled, static_cast<s16>(den));
+	const s16 seg = eng::math::div_wide(scaled, static_cast<s16>(den));
 	const u16 local = static_cast<u16>(scaled - static_cast<s32>(seg) * static_cast<s32>(den));
 	return lerp444(keys[static_cast<usize>(seg)], keys[static_cast<usize>(seg) + 1u], local, den);
 }

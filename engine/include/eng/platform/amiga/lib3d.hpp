@@ -13,18 +13,19 @@
 ///
 /// ## Perfil de coste (medido en la demo 116, WinUAE-DBG, 68000, -O1)
 /// Con ~60 vértices y ~32 caras por frame, el reparto del `update` es:
-/// - `transform_vertices` ~57k ciclos (**el mayor**: ~9 `mul16` + 2 `div16` por
+/// - `transform_vertices` ~57k ciclos (**el mayor**: ~9 `mul_wide` + 2 `div_wide` por
 ///   vértice, o sea ~6 `muls.w` + 2 `divs.w` + carga de matriz).
 /// - `update_face_visibility` ~19k (producto punto + luz: ~7 muls por cara).
 /// - `update_object_transformation` ~21k (la matriz Rx·Ry·Rz + su inversa).
 /// - `update_edge_visibility_convex` ~11k (recorrido puro de índices, sin muls).
 ///
 /// ## Qué genera g++ y qué sería el ideal en asm
-/// - **`mul16(b, a)` / `mulu16`** (`eng/core/word.hpp`): `muls.w`/`mulu.w` nativos. Si se
-///   escribe `(s32)a * b` con operandos `s32`, g++ emite `__mulsi3` (multiplicación
-///   32×32 por software, ~10× más cara). Por eso TODO producto 16×16 del camino
-///   caliente debe pasar por `mul16`/`mulu16`.
-/// - **`div16(a, b)`** (`eng/core/word.hpp`): `divs.w` nativo (cociente 16 bits en la palabra
+/// - **`mul_wide(b, a)` / `mulu_wide`** (`arith.hpp`; atajos `mul16`/`mulu16` en
+///   `eng/core/word.hpp`): `muls.w`/`mulu.w` nativos. Si se escribe `(s32)a * b` con
+///   operandos `s32`, g++ emite `__mulsi3` (multiplicación 32×32 por software, ~10× más
+///   cara). Por eso TODO producto 16×16 del camino caliente debe pasar por
+///   `mul_wide`/`mulu_wide`.
+/// - **`div_wide(a, b)`** (`arith.hpp`; atajo `div16` en `word.hpp`): `divs.w` nativo (cociente 16 bits en la palabra
 ///   baja). `a / b` en `s32` genera `__divsi3` (software). Es el libcall más caro.
 /// - **Escrituras a memoria empaquetada** (`objdat + offset`): g++ no puede
 ///   mantener los punteros en registros de dirección (`register ... asm("aN")` se
@@ -42,7 +43,7 @@
 /// **Por qué aquí no hay escalares nuevos.** El modelo (`object3d`) es layout crudo
 /// empaquetado y sus punteros se recorren por offset; la matemática que se le aplica es
 /// la ya tipada (`math3d::Affine3`, `Vec<3,Coord>`/`P3`). Por eso este fichero solo usa
-/// enteros con `mul16`/`div16` (`eng/core/word.hpp`): no le hace falta otro tipo de
+/// enteros con `mul_wide`/`div_wide` (`eng/core/arith.hpp`): no le hace falta otro tipo de
 /// escalar, solo garantizar `muls.w`/`divs.w` en el camino caliente.
 
 #include <eng/core/affine.hpp>
@@ -128,7 +129,7 @@ inline constexpr u16 kInvSqrt[512] = {
 /// `object3d::update_object_transformation`). Caras ocultas quedan a `-1`
 /// (salvo `material < 0`, que usa la luz invertida, para doble cara).
 ///
-/// Coste: producto punto + magnitud² + luz ≈ 7 `mul16`/`mulu16` por cara.
+/// Coste: producto punto + magnitud² + luz ≈ 7 `mul_wide`/`mulu_wide` por cara.
 /// No usa `sqrt`: la magnitud² (parte alta) indexa `kInvSqrt`.
 inline void update_face_visibility(Object3D& object) {
 	const s16 cx = object.camera.x;
@@ -150,7 +151,7 @@ inline void update_face_visibility(Object3D& object) {
 			}
 			s16* fn = face->normal;
 			// Normal = RATIO (4.12); camara-vertice = LONGITUD (entero). El producto
-			// `q12*q0` da el mismo `muls.w` que `mul16`, con el formato explicito, y
+			// `q12*q0` da el mismo `muls.w` que `mul_wide`, con el formato explicito, y
 			// aqui NO se normaliza: el original usa la escala cruda para el signo y la
 			// magnitud² de la luz.
 			const eng::retro::q12 nx {fn[0]}, ny {fn[1]}, nz {fn[2]};
@@ -205,7 +206,7 @@ inline void update_edge_visibility_convex(Object3D& object) {
 // La proyección de cada vértice la resuelve `eng::math::projector` (en `affine.hpp`): el
 // truco del empaquetado de dos `muls.w` es del 68000 y vive en su backend de CPU, no aquí.
 
-/// Port de `TransformVertices`: transforma y proyecta (perspectiva con `div16`)
+/// Port de `TransformVertices`: transforma y proyecta (perspectiva con `div_wide`)
 /// los vértices marcados por `update_edge_visibility_convex` (o el que ponga
 /// `node->flags`), guardando `(x, y, zp)` en `Node3D::vertex`. Los no marcados se
 /// dejan tal cual.
@@ -215,7 +216,7 @@ inline void update_edge_visibility_convex(Object3D& object) {
 /// buffer del llamador. `half_w`/`half_h` son el centro de proyección (mitad del
 /// viewport).
 ///
-/// Coste: **el mayor del efecto**: ~9 `mul16` + 2 `div16` por vértice (~6 `muls.w`
+/// Coste: **el mayor del efecto**: ~9 `mul_wide` + 2 `div_wide` por vértice (~6 `muls.w`
 /// + 2 `divs.w` más la carga de la matriz). En asm el ideal es la matriz en
 /// registros y un `muls.w`/`divs.w` por operación, sin recargar `objdat`.
 inline void transform_vertices(Object3D& object, s16 half_w, s16 half_h, s16 bbox[4]) {
@@ -243,8 +244,8 @@ inline void transform_vertices(Object3D& object, s16 half_w, s16 half_h, s16 bbo
 				z = *pt++;
 				const eng::math::Projected3 pr = Proj::project(pc, x, y, z);
 
-				const s16 sx = static_cast<s16>(eng::math::div16(pr.xp, static_cast<s16>(pr.zp)) + half_w);
-				const s16 sy = static_cast<s16>(eng::math::div16(pr.yp, static_cast<s16>(pr.zp)) + half_h);
+				const s16 sx = static_cast<s16>(eng::math::div_wide(pr.xp, static_cast<s16>(pr.zp)) + half_w);
+				const s16 sy = static_cast<s16>(eng::math::div_wide(pr.yp, static_cast<s16>(pr.zp)) + half_h);
 				*pt++ = sx;
 				*pt++ = sy;
 				*pt++ = static_cast<s16>(pr.zp);

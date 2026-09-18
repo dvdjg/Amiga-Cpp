@@ -217,7 +217,7 @@ private:
 		const eng::s16 aby = static_cast<eng::s16>(b.y - a.y);
 		const eng::s16 apx = static_cast<eng::s16>(p.x - a.x);
 		const eng::s16 apy = static_cast<eng::s16>(p.y - a.y);
-		return eng::math::mul16(abx, apy) - eng::math::mul16(aby, apx);
+		return eng::math::mul_wide(abx, apy) - eng::math::mul_wide(aby, apx);
 	}
 
 	[[nodiscard]] static constexpr eng::u16 manhattan(eng::Point2s a,

@@ -30,8 +30,8 @@ struct TileCoord {
 
 /// Origen en píxeles de un tile: `(x·tile_w, y·tile_h)`.
 [[nodiscard]] constexpr Point2s grid_to_world(TileCoord t, u16 tile_w, u16 tile_h) noexcept {
-	const s32 wx = eng::math::mul16(t.x, static_cast<s16>(tile_w));
-	const s32 wy = eng::math::mul16(t.y, static_cast<s16>(tile_h));
+	const s32 wx = eng::math::mul_wide(t.x, static_cast<s16>(tile_w));
+	const s32 wy = eng::math::mul_wide(t.y, static_cast<s16>(tile_h));
 	return Point2s {static_cast<s16>(wx), static_cast<s16>(wy)};
 }
 
@@ -49,8 +49,8 @@ template <u16 TileW, u16 TileH>
 /// Proyección **isométrica**: el tile `(0,0)` en el origen; `half_w`/`half_h` son la
 /// mitad del ancho/alto del diamante. `sx = (x−y)·half_w`, `sy = (x+y)·half_h`.
 [[nodiscard]] constexpr Point2s iso_to_screen(TileCoord t, u16 half_w, u16 half_h) noexcept {
-	const s32 sx = eng::math::mul16(static_cast<s16>(t.x - t.y), static_cast<s16>(half_w));
-	const s32 sy = eng::math::mul16(static_cast<s16>(t.x + t.y), static_cast<s16>(half_h));
+	const s32 sx = eng::math::mul_wide(static_cast<s16>(t.x - t.y), static_cast<s16>(half_w));
+	const s32 sy = eng::math::mul_wide(static_cast<s16>(t.x + t.y), static_cast<s16>(half_h));
 	return Point2s {static_cast<s16>(sx), static_cast<s16>(sy)};
 }
 

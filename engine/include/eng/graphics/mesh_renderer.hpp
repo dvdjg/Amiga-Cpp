@@ -6,7 +6,7 @@
 /// Compone el pipeline completo a alto nivel:
 ///   1. transformar la malla al mundo (`mesh_transform`, de `mesh3d`);
 ///   2. back-face culling + orden de pintado (`mesh_painter_order`);
-///   3. proyectar a pantalla (`project_perspective`, `div16` 4.12);
+///   3. proyectar a pantalla (`project_perspective`, `div_wide` 4.12);
 ///   4. rellenar cada cara visible con `Surface::fill_polygon`.
 ///
 /// Todo con buffers del llamador (sin heap) y a través de `Surface`, así que
@@ -19,14 +19,14 @@
 
 namespace eng::graphics {
 
-/// Proyección en perspectiva 4.12 → pantalla: `s = centro + div16(coord*focal, z)`.
+/// Proyección en perspectiva 4.12 → pantalla: `s = centro + div_wide(coord*focal, z)`.
 /// `z` debe ser > 0 (delante de la cámara); `focal` en 4.12 (256 = 0.0625, 4096 = 1.0).
 inline void project_perspective(const math3d::Vec3& v, s16 focal, s16 cx, s16 cy,
 				s16& sx, s16& sy) {
 	const s16 z = v.v[2].v != 0 ? v.v[2].v : 1;
-	// `mul16` (16×16→32 nativo): `(s32)coord * focal` acabaría en `__mulsi3` en 68000.
-	sx = static_cast<s16>(eng::math::div16(eng::math::mul16(v.v[0].v, focal), z) + cx);
-	sy = static_cast<s16>(eng::math::div16(eng::math::mul16(v.v[1].v, focal), z) + cy);
+	// `mul_wide` (16×16→32 nativo): `(s32)coord * focal` acabaría en `__mulsi3` en 68000.
+	sx = static_cast<s16>(eng::math::div_wide(eng::math::mul_wide(v.v[0].v, focal), z) + cx);
+	sy = static_cast<s16>(eng::math::div_wide(eng::math::mul_wide(v.v[1].v, focal), z) + cy);
 }
 
 /// Rasteriza las caras (triángulos) de `mesh` sobre `surface`, con el color que

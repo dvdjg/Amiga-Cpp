@@ -107,6 +107,16 @@ void test_fixed32_math() {
 	      "Fixed<s32,12>: log2(4)");
 }
 
+/// F2: `smootherstep` con `Fixed<s32,E>`. En 4.12 (`s16`) falla por rango (coeficiente
+/// 15 > ±8); con 32 bits cabe. El ruido (`value_noise`/`fbm`) queda fuera porque usa
+/// `operator/` crudo, vetado en `Fixed` con independencia del ancho.
+void test_fixed32_extra() {
+	using F = Fixed<eng::s32, 12>;
+	const F half = scalar_const<F>::from(0.5);
+	check(rel(to_double(smootherstep(half)), 0.5) < 5e-3,
+	      "Fixed<s32,12>: smootherstep(0.5) = 0.5");
+}
+
 /// Escalar entero general (`eng::intw`) y nativos con las operaciones exactas.
 void test_integers() {
 	using I = eng::intw;
@@ -126,6 +136,7 @@ int main() {
 	test_scalars();
 	test_fixed32_ops();
 	test_fixed32_math();
+	test_fixed32_extra();
 	test_integers();
 
 	if (g_fail == 0u) {

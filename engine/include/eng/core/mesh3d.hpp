@@ -59,10 +59,6 @@ struct Face {
 
 namespace detail {
 
-/// Producto `s16 × s16 -> s32` con la multiplicación nativa del `arith` del CPU
-/// (`muls.w` en 68000). Escribir `(s32)a * (s32)b` acabaría en `__mulsi3` (~50+ ciclos).
-[[nodiscard]] constexpr s32 mul16(s16 a, s16 b) { return eng::math::mul_wide<s16>(a, b); }
-
 /// Producto `s32 × s16 -> s32` (se conservan los 32 bits bajos, como el `*` directo) sin
 /// `__mulsi3`: se parte el operando de 32 bits y se usan dos multiplicaciones de 16 bits
 /// nativas. El segundo operando se sign-extiende (de ahí la corrección de `b < 0`); el
@@ -89,9 +85,9 @@ constexpr s32 face_signed_area(const Vec3& a, const Vec3& b, const Vec3& c, cons
 	const s16 vx = static_cast<s16>(c.v[0].v - a.v[0].v);
 	const s16 vy = static_cast<s16>(c.v[1].v - a.v[1].v);
 	const s16 vz = static_cast<s16>(c.v[2].v - a.v[2].v);
-	const s32 nx = detail::mul16(uy, vz) - detail::mul16(uz, vy);
-	const s32 ny = detail::mul16(uz, vx) - detail::mul16(ux, vz);
-	const s32 nz = detail::mul16(ux, vy) - detail::mul16(uy, vx);
+	const s32 nx = eng::math::mul_wide(uy, vz) - eng::math::mul_wide(uz, vy);
+	const s32 ny = eng::math::mul_wide(uz, vx) - eng::math::mul_wide(ux, vz);
+	const s32 nz = eng::math::mul_wide(ux, vy) - eng::math::mul_wide(uy, vx);
 	return detail::mul32x16(nx, static_cast<s16>(cam.v[0].v - a.v[0].v)) +
 	       detail::mul32x16(ny, static_cast<s16>(cam.v[1].v - a.v[1].v)) +
 	       detail::mul32x16(nz, static_cast<s16>(cam.v[2].v - a.v[2].v));

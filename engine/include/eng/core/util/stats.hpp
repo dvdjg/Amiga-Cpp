@@ -75,7 +75,7 @@ template <class S>
 	}
 }
 
-/// Media aritmética. Con `Fixed<s16>` suma en **s32** y divide con `div16` (`divs.w`),
+/// Media aritmética. Con `Fixed<s16>` suma en **s32** y divide con `div_wide` (`divs.w`),
 /// así la suma intermedia no satura; el tamaño de la vista debe caber en `s16`.
 template <class S>
 [[nodiscard]] constexpr S mean(Span<const S> xs) {
@@ -87,7 +87,7 @@ template <class S>
 		for (const S& x : xs) {
 			acc += static_cast<s32>(x.v);
 		}
-		return S {eng::math::div16(acc, static_cast<s16>(xs.size()))};
+		return S {eng::math::div_wide(acc, static_cast<s16>(xs.size()))};
 	} else {
 		return div_norm(sum(xs), scalar_traits<S>::from_int(static_cast<int>(xs.size())));
 	}

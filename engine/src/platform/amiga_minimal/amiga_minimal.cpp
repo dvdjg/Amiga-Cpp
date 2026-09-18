@@ -144,7 +144,7 @@ unsigned short ror16(unsigned short value, unsigned short n) {
 
 /// Offset de fila `y * row_bytes` con multiplicacion 16x16->32 nativa (`muls.w`),
 /// evitando el `__mulsi3` que genera `(u32)y * row_bytes`. Caliente en las lineas
-/// (se calcula una vez por arista y plano). Misma forma que `mul16` del origen.
+/// (se calcula una vez por arista y plano). Misma forma que `mul_wide` del origen.
 inline eng::u32 row_offset(eng::s16 y, eng::u16 row_bytes) {
 	eng::s32 r;
 	const eng::s32 a = y;

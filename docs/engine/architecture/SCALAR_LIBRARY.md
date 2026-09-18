@@ -203,50 +203,55 @@ tests host) falla si la doc se desincroniza del contrato, y `--write` la regener
 
 <!-- SCALAR-TABLE:START -->
 
-| Función | `float`/`double` | `MiniFloat16` | `Fixed` 4.12 | Test que lo respalda |
-|---|---|---|---|---|
-| clamp / saturate / step | si | si | si | HOST-059 |
-| lerp | si | si (pierde incremento si |b-a| < |a|/2048) | si | HOST-059 |
-| smoothstep | si | si | si | HOST-059 |
-| smootherstep | si | si | no (coef 15 > rango ±8) | math-diag smootherstep_q12_range |
-| inv_lerp / remap | si | si | si (div_norm) | HOST-059 |
-| dot fusionado (2-4 pares) | si | si | si (acumulador saturado) | HOST-059 |
-| cross2 / rotate2 / vscale / vlerp | si | si | si (rotate2 por ángulo con fixed_math) | HOST-059/104 |
-| length / normalize / reflect / project | si | si (limites de rango) | si (fixed_math) | HOST-059/104 |
-| value_noise / fbm | si | si (coord <= 2048) | no (necesita division) | HOST-060 |
-| mul_add / mac (FMA) | — | si (1 redondeo) | si (1 redondeo) | HOST-057/059 |
-| hermite / catmull_rom | si | si | si (catmull usa div_norm) | HOST-064 |
-| hermite / catmull_rom (Vec<N>) | si | si | si | HOST-064 |
-| ease_in/out/in_out_quad/_cubic | si | si | si | HOST-064 |
-| ease_in/out/in_out_sine/_expo | si | si (necesita sin/cos/exp2) | si (fixed_math) | HOST-064/104 |
-| min / max / abs / sign | si | si | si | HOST-065 |
-| move_towards | si | si | si | HOST-065 |
-| deadzone | si | si | si | HOST-065 |
-| smooth_damp | si | si | si (fixed_math, exp2) | HOST-065/104 |
-| repeat / pingpong | si | si | si (div_norm) | HOST-065 |
-| ease_in/out/in_out_back | si | si | si | HOST-065 |
-| bezier2 / bezier3 | si | si | si | HOST-065 |
-| bezier2 / bezier3 (Vec<N>) | si | si | si | HOST-065 |
-| wrap_angle / angle_diff | — | si | si (fixed_math) | HOST-057/104 |
-| sqrt / sin / cos / exp2 / log2 | — | si | si (fixed_math) | HOST-057/104 |
-| exp / log / pow | — | si (minifloat_math) | si (fixed_math) | HOST-104 |
-| tan / asin / acos / atan2 | solo atan2 | si | si (fixed_math) | HOST-057/104 |
-| sincos (una pasada) | si | si (minifloat_math) | si (fixed_math) | HOST-057/104 |
-| angle_of / from_angle / angle_to (apuntado) | si | si | si (fixed_math) | HOST-059/104 |
-| transform (MF × fix) | — | ratio MF (|m| <= 8) | coordenada | HOST-058 |
-| stats::mean / variance / stddev | si | si | si (sum/mean con acumulador s32; stddev con fixed_math) | HOST-093/104 |
-| dsp::Adsr / OnePole / DelayLine / osc_* | si | si | si (osc_sine con fixed_math) | HOST-102/104 |
+| Función | `float`/`double` | `MiniFloat16` | `Fixed` 4.12 (`s16`) | `Fixed<s32>` | Test que lo respalda |
+|---|---|---|---|---|---|
+| clamp / saturate / step | si | si | si | si | HOST-059 |
+| lerp | si | si (pierde incremento si |b-a| < |a|/2048) | si | si | HOST-059 |
+| smoothstep | si | si | si | si | HOST-059 |
+| smootherstep | si | si | no (coef 15 > rango ±8) | si (32 bits dan rango) | HOST-135 / math-diag smootherstep_q12_range |
+| inv_lerp / remap | si | si | si (div_norm) | si (div_norm) | HOST-059 |
+| dot fusionado (2-4 pares) | si | si | si (acumulador saturado) | si | HOST-059 |
+| cross2 / rotate2 / vscale / vlerp | si | si | si (rotate2 por ángulo con fixed_math) | si (fixed_math) | HOST-059/104 |
+| length / normalize / reflect / project | si | si (limites de rango) | si (fixed_math) | si (fixed_math) | HOST-059/104 |
+| value_noise / fbm | si | si (coord <= 2048) | no (necesita division) | no (necesita division) | HOST-060 |
+| mul_add / mac (FMA) | — | si (1 redondeo) | si (1 redondeo) | si (1 redondeo) | HOST-057/059 |
+| hermite / catmull_rom | si | si | si (catmull usa div_norm) | si (div_norm) | HOST-064 |
+| hermite / catmull_rom (Vec<N>) | si | si | si | si | HOST-064 |
+| ease_in/out/in_out_quad/_cubic | si | si | si | si | HOST-064 |
+| ease_in/out/in_out_sine/_expo | si | si (necesita sin/cos/exp2) | si (fixed_math) | si (fixed_math) | HOST-064/104 |
+| min / max / abs / sign | si | si | si | si | HOST-065 |
+| move_towards | si | si | si | si | HOST-065 |
+| deadzone | si | si | si | si | HOST-065 |
+| smooth_damp | si | si | si (fixed_math, exp2) | si (fixed_math, exp2) | HOST-065/104 |
+| repeat / pingpong | si | si | si (div_norm) | si (div_norm) | HOST-065 |
+| ease_in/out/in_out_back | si | si | si | si | HOST-065 |
+| bezier2 / bezier3 | si | si | si | si | HOST-065 |
+| bezier2 / bezier3 (Vec<N>) | si | si | si | si | HOST-065 |
+| wrap_angle / angle_diff | — | si | si (fixed_math) | si (fixed_math) | HOST-057/104 |
+| sqrt / sin / cos / exp2 / log2 | — | si | si (fixed_math) | si (fixed_math) | HOST-057/104 |
+| exp / log / pow | — | si (minifloat_math) | si (fixed_math) | si (fixed_math) | HOST-104 |
+| tan / asin / acos / atan2 | solo atan2 | si | si (fixed_math) | si (fixed_math) | HOST-057/104 |
+| sincos (una pasada) | si | si (minifloat_math) | si (fixed_math) | si (fixed_math) | HOST-057/104 |
+| angle_of / from_angle / angle_to (apuntado) | si | si | si (fixed_math) | si (fixed_math) | HOST-059/104 |
+| transform (MF × fix) | — | ratio MF (|m| <= 8) | coordenada | coordenada | HOST-058 |
+| stats::mean / variance / stddev | si | si | si (sum/mean con acumulador s32; stddev con fixed_math) | si | HOST-093/104 |
+| dsp::Adsr / OnePole / DelayLine / osc_* | si | si | si (osc_sine con fixed_math) | si | HOST-102/104 |
 
 <!-- SCALAR-TABLE:END -->
 
+> `Fixed<s32>` comparte la maquinaria genérica de `Fixed<s16>` (tablas, series y `div_norm`
+> dimensionados por `Repr`). El ancho de la representación da **rango**, no resolución
+> fraccionaria: esa la fija `E` (por eso 4.12 y 32.12 rinden igual en precisión). Se usa en
+> host y 68020; en 68000 está vetado porque su división/raíz/trigonométrica implican libcalls
+> de 64 bits (`static_assert` explícito).
+
 ## 8. Generalización a 32/64 bits
 
-El vocabulario de §3.b ya es agnóstico del escalar. La deuda pendiente es el **ancho de
-palabra**: `fixed_math` y `scalar_div` solo están especializados para `Fixed<s16,E>`, y las
-multiplicaciones pasan por `mul16` pensado para `muls.w`. El plan para añadir `Fixed<s32,E>`
-(con tablas y series), un tipo general seleccionable en compilación (`s16` en 68000, `s32`
-en 68020, `int`/`float` en host) y la política `bool` vs byte está en
-[REFACTOR_SCALAR_GENERICO.md](../../guides/roadmap/REFACTOR_SCALAR_GENERICO.md).
+El vocabulario de §3.b y la aritmética de §5 son agnósticos del escalar: `fixed_math` y
+`scalar_div` se instancian para cualquier `Repr`, y `arith<R>` aporta las primitivas por CPU.
+Sobre eso, `core/scalar.hpp` elige el ancho en compilación (`s16` en 68000, `Fixed<s32,E>` en
+68020/host) y `CODING_STYLE` fija la política `bool` vs byte. El plan por fases y su estado
+están en [REFACTOR_SCALAR_GENERICO.md](../../guides/roadmap/REFACTOR_SCALAR_GENERICO.md).
 
 **Estado**:
 - **F0** (`s64/u64`, `core/scalar.hpp` con `eng::intw`/`real`/`coord`, regla `bool` vs byte en
@@ -266,7 +271,7 @@ en 68020, `int`/`float` en host) y la política `bool` vs byte está en
 - **F6** (codegen 68020) entregado: la sonda compila también a `-mcpu=68020` sin libcalls.
 
 Todo respaldado por HOST-135 (matriz de escalares: `double`/`float`/`MiniFloat16`/
-`Fixed<s16,12>`/`Fixed<s32,12>`/`Fixed<s32,24>`, incluida la trig/exp/log de `Fixed<s32>`) y
-HOST-136 (`eng::real`/`coord`/`intw` en los tres modos).
-Pendientes menores: extender la tabla §7 con la columna de 32 bits, adoptar `eng::real`/`coord`
-en demos concretas y completar la migración de todos los `mul16` a `mul_wide`.
+`Fixed<s16,12>`/`Fixed<s32,12>`/`Fixed<s32,24>`, incluida la trig/exp/log y `smootherstep` de
+`Fixed<s32>`) y HOST-136 (`eng::real`/`coord`/`intw` en los tres modos). La tabla §7 incluye ya
+la columna `Fixed<s32>`. Pendientes menores: adoptar `eng::real`/`coord` en demos concretas y
+completar la migración de los `mul16` restantes a `mul_wide`.

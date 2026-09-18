@@ -7,7 +7,7 @@
 /// Fidelidad de layout (clave): los índices de los grupos son **offsets en bytes**
 /// sobre `objdat`, y los structs conservan la disposición del original, porque el
 /// efecto recorre los grupos con macros (`NODE3D(i) = objdat + i - 2`, etc.). Las
-/// primitivas matemáticas (matrices 4.12, `normfx`, `div16`) vienen de `math2d`/
+/// primitivas matemáticas (matrices 4.12, `normfx`, `div_wide`) vienen de `math2d`/
 /// `math3d`, ya validadas por HOST-010/011.
 ///
 /// Uso:
@@ -35,7 +35,7 @@ using eng::s32;
 using eng::s8;
 using eng::u8;
 using eng::u16;
-using eng::math::div16;
+using eng::math::div_wide;
 using eng::retro::normfx;
 
 /// Punto/vector 3D (mismo layout que `Point3D`).
@@ -173,10 +173,10 @@ inline void update_object_transformation(Object3D& object) {
 		m_scale.t = eng::math::Vec<3, eng::retro::q0> {{eng::retro::q0 {static_cast<s16>(-t.x)},
 			eng::retro::q0 {static_cast<s16>(-t.y)}, eng::retro::q0 {static_cast<s16>(-t.z)}}};
 		// 1/s en 4.12: numerador 1.0 en 8.24 (`kOne8_24`) para que el cociente de
-		// `div16` (16 bits) quede ya en 4.12 sin normalizar.
-		m_scale.m.m[0][0] = eng::retro::q12 {div16(eng::retro::kOne8_24, s.x)};
-		m_scale.m.m[1][1] = eng::retro::q12 {div16(eng::retro::kOne8_24, s.y)};
-		m_scale.m.m[2][2] = eng::retro::q12 {div16(eng::retro::kOne8_24, s.z)};
+		// `div_wide` (16 bits) quede ya en 4.12 sin normalizar.
+		m_scale.m.m[0][0] = eng::retro::q12 {div_wide(eng::retro::kOne8_24, s.x)};
+		m_scale.m.m[1][1] = eng::retro::q12 {div_wide(eng::retro::kOne8_24, s.y)};
+		m_scale.m.m[2][2] = eng::retro::q12 {div_wide(eng::retro::kOne8_24, s.z)};
 
 		math3d::Mat3 m_rotate = math3d::Mat3::identity();
 		math3d::load_reverse_rotate(m_rotate, static_cast<u16>(-r.x), static_cast<u16>(-r.y),

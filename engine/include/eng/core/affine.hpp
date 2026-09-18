@@ -8,7 +8,7 @@
 ///
 /// Convención de escalas (la del original, idéntica en genérico y backend): la fila se
 /// pliega con `>> 4` y un término de traslación preescalado (`e`), y el resultado son los
-/// **numeradores** de la perspectiva; `div16(xp, zp)` los lleva a pantalla.
+/// **numeradores** de la perspectiva; `div_wide(xp, zp)` los lleva a pantalla.
 ///
 /// Algebraicamente `(c0+y)·(c1+x) − x·y = c0·c1 + c0·x + c1·y`, así que el genérico
 /// evalúa esos productos uno a uno y el 68000 los mete dos a dos en un registro. El
@@ -34,7 +34,7 @@ struct pack3_ops {
 	}
 };
 
-/// Numeradores de la proyección de un vértice (antes del `div16`).
+/// Numeradores de la proyección de un vértice (antes del `div_wide`).
 struct Projected3 {
 	s32 xp;
 	s32 yp;
