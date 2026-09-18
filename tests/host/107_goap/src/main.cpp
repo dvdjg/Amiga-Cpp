@@ -164,6 +164,34 @@ void test_cake() {
 }
 
 // ---------------------------------------------------------------------------
+// Caché de planes: repetir la misma consulta no vuelve a buscar.
+// ---------------------------------------------------------------------------
+void test_plan_cache() {
+	Ai::Planner<64> planner;
+	u16 plan[8] {};
+	const Ai::State start {};
+	Ai::Goal goal {};
+	goal.want_true.facts.set(kPastelListo);
+
+	const usize n1 = planner.plan_cached(start, goal, kCakeActions.span(),
+					     eng::Span<u16> {plan, 8u});
+	check(n1 == 8u, "cache: el primer plan se calcula");
+	check(planner.expansions() > 0u, "cache: hubo busqueda la primera vez");
+
+	const usize n2 = planner.plan_cached(start, goal, kCakeActions.span(),
+					     eng::Span<u16> {plan, 8u});
+	check(n2 == n1, "cache: el segundo devuelve el plan guardado");
+	check(planner.expansions() == 0u, "cache: acierto sin expandir nodos");
+
+	Ai::Goal other {};
+	other.want_true.facts.set(kHorneado);
+	const usize n3 = planner.plan_cached(start, other, kCakeActions.span(),
+					     eng::Span<u16> {plan, 8u});
+	check(planner.found() && n3 >= 1u, "cache: otro objetivo replanifica");
+	planner.clear_plan_cache();
+}
+
+// ---------------------------------------------------------------------------
 // 3) Mision del soldado: obstaculo + utensilio + llave/puerta + maquina + arma.
 // ---------------------------------------------------------------------------
 enum : u16 {
@@ -204,7 +232,7 @@ void test_soldier() {
 	goal.want_true.facts.set(kObjetivo);
 	// 1+1 +3 +1+2 +2+2 +3 +4+1 +3 +2 +1 = 26; las 13 acciones son necesarias.
 	// El presupuesto `MaxNodes` acota el estado de trabajo del planner (medido en m68k:
-	// 256 nodos = 8280 B inline): el escenario usa 81. En Amiga se instancia en estatica.
+	// 256 nodos = 8486 B inline): el escenario usa 81. En Amiga se instancia en estatica.
 	run_and_check<Ai, 13, 256>("soldado", 26u, 13u, start, goal, kSoldierActions);
 }
 
@@ -307,6 +335,7 @@ int main() {
 	std::printf("GOAP:\n");
 	test_hanoi();
 	test_cake();
+	test_plan_cache();
 	test_soldier();
 	test_huge_domain();
 	test_domain_container();

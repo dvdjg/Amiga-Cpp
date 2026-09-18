@@ -145,4 +145,77 @@ template <class S>
 	return total;
 }
 
+/// Persecución: como `seek` a la **posición prevista** del objetivo dentro de
+/// `distancia/max_speed` ticks (el objetivo se mueve con `target_velocity`).
+template <class S>
+[[nodiscard]] constexpr SteerVec<S> pursue(const SteerVec<S>& pos, const SteerVec<S>& target,
+					   const SteerVec<S>& target_velocity, S max_speed) {
+	if (max_speed == eng::math::scalar_traits<S>::zero()) {
+		return SteerVec<S> {};
+	}
+	const S t = eng::math::div_norm(eng::math::distance(pos, target), max_speed);
+	const SteerVec<S> predicted = target + eng::math::vscale(target_velocity, t);
+	return seek(pos, predicted, max_speed);
+}
+
+/// Evasión de un objetivo móvil: `flee` de su posición prevista.
+template <class S>
+[[nodiscard]] constexpr SteerVec<S> evade(const SteerVec<S>& pos, const SteerVec<S>& target,
+					  const SteerVec<S>& target_velocity, S max_speed) {
+	if (max_speed == eng::math::scalar_traits<S>::zero()) {
+		return SteerVec<S> {};
+	}
+	const S t = eng::math::div_norm(eng::math::distance(pos, target), max_speed);
+	const SteerVec<S> predicted = target + eng::math::vscale(target_velocity, t);
+	return flee(pos, predicted, max_speed);
+}
+
+/// Deambular clásico: un objetivo que orbita sobre un círculo de radio `wander_radius`
+/// por delante del agente. El `heading` (ángulo) y el `jitter` (desviación angular) los
+/// aporta el juego (deterministas); `heading + jitter` mueve el punto del círculo.
+template <class S>
+[[nodiscard]] constexpr SteerVec<S> wander(const SteerVec<S>& pos, S heading, S wander_radius,
+					   S jitter, S max_speed) {
+	const SteerVec<S> ahead =
+		pos + eng::math::vscale(eng::math::from_angle(heading), wander_radius);
+	const SteerVec<S> target =
+		ahead + eng::math::vscale(eng::math::from_angle(heading + jitter), wander_radius);
+	return seek(pos, target, max_speed);
+}
+
+/// Obstáculo circular (centro + radio) para `avoid_circles`.
+template <class S>
+struct SteerCircle {
+	SteerVec<S> center {};
+	S radius {};
+};
+
+/// Evasión de obstáculos: suma al vector `desired` un empuje **lateral** (perpendicular
+/// a `desired`) por cada obstáculo que esté delante y a menos de `radius + margin`.
+/// `strength` es la magnitud del empuje. Un obstáculo justo en la línea de avance
+/// (componente lateral nula) no añade empuje.
+template <class S>
+[[nodiscard]] constexpr SteerVec<S> avoid_circles(const SteerVec<S>& pos,
+						  const SteerVec<S>& desired,
+						  eng::Span<const SteerCircle<S>> obstacles,
+						  S margin, S strength) {
+	const S zero = eng::math::scalar_traits<S>::zero();
+	SteerVec<S> steer = desired;
+	for (eng::usize i = 0; i < obstacles.size(); ++i) {
+		const SteerVec<S> rel = obstacles[i].center - pos;
+		const S limit = obstacles[i].radius + margin;
+		if (!(eng::math::length(rel) < limit)) {
+			continue; // fuera de alcance
+		}
+		const S along = eng::math::dot(desired, rel);
+		if (!(zero < along)) {
+			continue; // el obstáculo está detrás (o perpendicular)
+		}
+		const SteerVec<S> okdir = eng::math::normalize(rel);
+		const SteerVec<S> lateral = eng::math::reject(okdir, desired);
+		steer = steer + eng::math::vscale(eng::math::normalize(lateral), strength);
+	}
+	return steer;
+}
+
 } // namespace eng::ai

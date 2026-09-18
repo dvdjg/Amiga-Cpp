@@ -97,6 +97,7 @@ por el código.
 | `Ai::goal(hechos…)` | construye un `Goal` con los hechos exigidos a 1 |
 | `Ai::Domain<MaxActions>` | dominio listo: `actions` (`Array`) + `goal`; el planner lo acepta directo |
 | `Ai::Planner<MaxNodes>` | A* hacia delante; `plan()`, `found()`, `plan_cost()`, `expansions()` |
+| `Ai::Planner::plan_cached` | como `plan()` pero con **caché** por `(estado, objetivo)`; `clear_plan_cache()` |
 
 `MaxFacts` solo admite dos valores: **32** (por defecto, clave `u32`) o **64** (clave de
 64 bits empaquetada en dos palabras). No hay valores intermedios útiles: `BitSet<N>` ocupa
@@ -139,11 +140,12 @@ hay varios dominios o agentes, y aporta poco con uno solo.
 
 - El planificador usa `HashMap`, `PriorityQueue` y los nodos **inline** en el objeto
   `Ai::Planner`. `MaxNodes` dimensiona los tres: con la clave de 32 bits, `Ai::Planner<256>`
-  ocupa **8280 B** (`Ai::Planner<128>`, 4152 B); con la de 64 bits, **12 376 B**
-  (`Ai::Planner<128>`, 6200 B). Se instancia en **memoria estática** (no en la pila del
-  68000) y se ejecuta en `init` o en una tarea de fondo (`eng::task`), nunca en el camino por
-  frame. Tamaños medidos con el compilador cruzado (sonda `Show<sizeof(T)>`, `-mcpu=68000`):
-  `State` 4 B (32 hechos) / 8 B (64), `Action` 22 B / 38 B.
+  ocupa **8486 B** (`Ai::Planner<128>`, 4358 B); con la de 64 bits, **12 630 B**
+  (`Ai::Planner<128>`, 6454 B). La **caché de planes** (`plan_cached`, 4 entradas y 64
+  acciones por defecto) suma ~200 B a esas cifras. Se instancia en **memoria estática** (no
+  en la pila del 68000) y se ejecuta en `init` o en una tarea de fondo (`eng::task`), nunca en
+  el camino por frame. Tamaños medidos con el compilador cruzado (sonda `Show<sizeof(T)>`,
+  `-mcpu=68000`): `State` 4 B (32 hechos) / 8 B (64), `Action` 22 B / 38 B.
 - La clave de 64 bits se empaqueta en **dos `u32`** (`StateKey64`), no en un
   `unsigned long long`: el 68000 no tiene aritmética nativa de 64 bits y `long long` acabaría
   en libcalls (`__ashldi3`, `__lshrdi3`). El hash combina las dos palabras con `hash_u32` y el
@@ -249,7 +251,7 @@ HOST-117.
 
 | Cabecera | Tipos / funciones | Estado |
 |---|---|---|
-| `planning/goap.hpp` | `Goap<MaxFacts>` (dominio: `State`/`state`/`Action`/`Builder`/`Goal`/`Planner`), `Fact`, `applicable`, `apply`, `satisfies`, `goal_distance` | Implementado, HOST-107 |
+| `planning/goap.hpp` | `Goap<MaxFacts>` (dominio: `State`/`state`/`Action`/`Builder`/`Goal`/`Planner`), caché de planes (`plan_cached`), `Fact`, `applicable`, `apply`, `satisfies`, `goal_distance` | Implementado, HOST-107 |
 | `decision/agent_fsm.hpp` | `AgentFsm<State,Event,MaxStates>`: FSM de agente con efectos de entrada/salida sobre `eng::util::StateMachine` | Implementado, HOST-110 |
 | `decision/utility.hpp` | `Utility`/`UtilitySelector<MaxOptions>`: utilidad ponderada; entero y determinista | Implementado, HOST-112 |
 | `decision/behavior_tree.hpp` | `BehaviorTree<MaxNodes>`, `BtStatus`, `BtTask`: secuencia/selector sin heap | Implementado, HOST-113 |

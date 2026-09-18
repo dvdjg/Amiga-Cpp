@@ -324,7 +324,8 @@ template <usize MaxFacts>
 /// `MaxNodes` es el presupuesto comun de nodos generados, entradas del mapa de mejor
 /// coste y elementos de la cola. El estado de trabajo va inline en el objeto, asi que
 /// conviene instanciarlo en estatica para no consumir pila en el 68000.
-template <usize MaxFacts, usize MaxNodes>
+template <usize MaxFacts, usize MaxNodes, usize MaxCachedPlans = 4u,
+	  usize MaxCachedActions = 64u>
 class Planner {
 	static_assert(MaxNodes > 0u, "Planner: MaxNodes debe ser mayor que 0");
 
@@ -427,6 +428,55 @@ public:
 		return plan(start, domain.goal, domain.action_span(), out);
 	}
 
+	/// Como `plan`, pero **cachea** el último resultado por `(estado, objetivo)`: si la
+	/// misma consulta se repite, devuelve el plan guardado sin buscar. Pensado para agentes
+	/// que replantean el mismo objetivo desde el mismo estado. El llamador puede vaciar la
+	/// caché con `clear_plan_cache()` cuando cambie el dominio de acciones.
+	[[nodiscard]] constexpr usize plan_cached(const StateT& start, const GoalT& goal,
+						  Span<const ActionT> actions,
+						  Span<u16> out) noexcept {
+		const KeyT k_start = start.key();
+		const KeyT k_true = goal.want_true.key();
+		const KeyT k_false = goal.want_false.key();
+		for (usize i = 0; i < m_cache_count; ++i) {
+			const CacheEntry& e = m_cache[i];
+			if (e.start == k_start && e.want_true == k_true &&
+			    e.want_false == k_false) {
+				if (e.length > out.size()) {
+					break;
+				}
+				for (usize j = 0; j < e.length; ++j) {
+					out[j] = m_plan_pool[e.offset + j];
+				}
+				m_found = true;
+				m_cost = e.cost;
+				m_expansions = 0u;
+				return e.length;
+			}
+		}
+		const usize n = plan(start, goal, actions, out);
+		if (m_found && m_cache_count < MaxCachedPlans &&
+		    m_plan_used + n <= MaxCachedActions) {
+			CacheEntry& e = m_cache[m_cache_count++];
+			e.start = k_start;
+			e.want_true = k_true;
+			e.want_false = k_false;
+			e.offset = m_plan_used;
+			e.length = static_cast<u16>(n);
+			e.cost = m_cost;
+			for (usize j = 0; j < n; ++j) {
+				m_plan_pool[m_plan_used + j] = out[j];
+			}
+			m_plan_used = static_cast<u16>(m_plan_used + n);
+		}
+		return n;
+	}
+
+	constexpr void clear_plan_cache() noexcept {
+		m_cache_count = 0u;
+		m_plan_used = 0u;
+	}
+
 private:
 	struct Node {
 		KeyT key;
@@ -476,6 +526,16 @@ private:
 		return count;
 	}
 
+	/// Entrada de la caché de planes (`plan_cached`).
+	struct CacheEntry {
+		KeyT start {};
+		KeyT want_true {};
+		KeyT want_false {};
+		u16 offset = 0u;
+		u16 length = 0u;
+		u16 cost = 0u;
+	};
+
 	eng::util::HashMap<KeyT, u16, MaxNodes> m_best {};       ///< estado -> mejor coste g
 	eng::util::PriorityQueue<OpenNode, MaxNodes, OpenCmp> m_open {};
 	Node m_nodes[MaxNodes] {};
@@ -483,6 +543,11 @@ private:
 	usize m_expansions = 0u;
 	u16 m_cost = 0u;
 	bool m_found = false;
+
+	CacheEntry m_cache[MaxCachedPlans] {};
+	usize m_cache_count = 0u;
+	u16 m_plan_pool[MaxCachedActions] {};
+	u16 m_plan_used = 0u;
 };
 
 } // namespace detail

@@ -24,8 +24,8 @@ Ya entregado y verificado por test host: base (`type_traits`, `util`, `bit`,
 `enum_set`, `stack_queue`), ordenación (`quick_sort`, `stable_sort`, `nth_element`,
 `partial_sort`, `radix_sort_u16`), `hash` y sondas de codegen. Extras de decisión,
 partición, bits y texto: `state_machine` (R4.4), `event` (R4.3), `union_find` (DSU),
-`sparse_set` (disperso-denso, ECS), `bitstream`/`dynamic_bitset` (R4.1) y `string_interner`
-(HOST-124). Verificados **por demo**:
+`sparse_set` (disperso-denso, ECS), `bitstream`/`dynamic_bitset` (R4.1), `string_interner`
+(HOST-124), `graph` (HOST-126) y SAT 2D en `collision` (HOST-125). Verificados **por demo**:
 `BitSet`, `StaticVector`, `RingBuffer`,
 `FlatMap`, `DirectMap`, `IntrusiveSList`, `Pool`, `HashMap`.
 
@@ -141,8 +141,11 @@ independiente de R1/R2 (salvo `RingBuffer` para `delay`). R4 es el más prescind
 - **Interner de cadenas**: **implementado** (`string_interner.hpp`, HOST-124). Deduplica por
   contenido (`HashMap<StringView,u16>`) y copia los bytes en una arena (`Allocator`) que
   aporta el llamador; pensado para nombres construidos en runtime (assets/config, etiquetas).
-- **Heurística parametrizable** en `pathfinding.hpp`: hoy Manhattan; añadir Euclídea/Octile
-  con un consumidor de grilla grande (los mapas pequeños no lo justifican).
+- **Heurística parametrizable**: **implementada** en `pathfinding.hpp`: `astar` acepta
+  `detail::ChebyshevH`/`detail::EuclideanH` (Manhattan por defecto, la óptima en 4 vecinos;
+  las otras son para mallas con diagonal). HOST-099.
+- **Grafo genérico**: **implementado** (`graph.hpp`, HOST-126); `ai::navigation::WaypointGraph`
+  ya se apoya en él. `navmesh_lite` mantiene su malla de polígonos/portales.
 - **SAT 2D**: **implementado** en `collision.hpp` (`convex_overlap`/`point_in_convex`,
   HOST-125). Cubre la colisión de polígonos convexos 2D; `GJK`/`EPA` se descartan para 2D
   (sobran) y **no hay colisión 3D**: el soporte 3D actual (`linalg`/`mesh3d`/`lib3d`) es de

@@ -53,7 +53,7 @@ y (si tiene consumidor natural) una demo/juego exitoso.
 |---|---|---|---|
 | G1.1 | `planning/goap.hpp` | Hechos booleanos, acciones (pre/efectos/coste), A* con heurística de objetivos pendientes; presupuesto `MaxNodes` | **HOST-107** (Hanoi, pastel, soldado) |
 | G1.2 | `planning/htn.hpp` (opcional) | Redes de tareas jerárquicas: descomponer un objetivo en subtareas con métodos alternativos | HOST propio; demo si hay consumidor |
-| G1.3 | `planning/goap.hpp` (caché) | Cachear planes por `(estado, objetivo)` para no replanificar lo mismo cada vez | HOST propio; con consumidor |
+| G1.3 | `planning/goap.hpp` (caché) | Cachear planes por `(estado, objetivo)` para no replanificar lo mismo cada vez | **Entregado**: `plan_cached` en HOST-107 |
 
 **Estado: G1.1 completa.** GOAP verificado por HOST-107. Candidatos: HTN (G1.2) y caché de
 planes (G1.3), ambos solo con consumidor.
@@ -91,7 +91,7 @@ lite; HOST-114/116/118).
 | G4.1 | `steering/steering.hpp` | seek/flee/arrive y separación/cohesión/alineación (flocking), genérico sobre el escalar | **Entregado**: HOST-115 |
 | G4.2 | `perception/influence_map.hpp` | Mapa de influencia (amenaza/control) sobre rejilla con decay | **Entregado**: HOST-117 |
 | G4.3 | `perception/agent_memory.hpp` | Memoria del agente (última posición conocida, tiempo desde el avistamiento) | **Entregado**: HOST-117 |
-| G4.4 | `steering/steering.hpp` | *Pursue*/*evade* (con velocidad del objetivo), *wander* y evasión de obstáculos | HOST propio |
+| G4.4 | `steering/steering.hpp` | *Pursue*/*evade* (con velocidad del objetivo), *wander* y evasión de obstáculos | **Entregado**: HOST-115 |
 | G4.5 | `steering/formation.hpp` | Formación / asignación de huecos respecto a un líder o centro | HOST propio; con consumidor |
 
 G4 no depende de G1–G3; puede adelantarse si un juego necesita movimiento. **Estado: G4.1–G4.3 entregados** (steering, influence
@@ -126,9 +126,9 @@ patrones descritos en §5.
 | Steering behaviors / flocking | movimiento | `ai/steering/steering.hpp` | C. Reynolds (1987) | **Entregado** (HOST-115) |
 | Influence maps | percepción | `ai/perception/influence_map.hpp` | (técnica de RTS) | **Entregado** (HOST-117) |
 | Memoria del agente / creencias | percepción | `ai/perception/agent_memory.hpp` | — | **Entregado** (HOST-117) |
-| Caché de planes GOAP | planificación | `ai/planning/goap.hpp` (cache) | — | Candidato (con consumidor) |
+| Caché de planes GOAP | planificación | `ai/planning/goap.hpp` (`plan_cached`) | — | **Entregado** (HOST-107) |
 | HFSM (FSM jerárquica) | decisión | `ai/decision/` | — | Candidato (estados anidados) |
-| Pursuit/evade/wander y evasión de obstáculos | movimiento | `ai/steering/steering.hpp` | C. Reynolds | Candidato (G4) |
+| Pursuit/evade/wander y evasión de obstáculos | movimiento | `ai/steering/steering.hpp` | C. Reynolds | **Entregado** (HOST-115) |
 | Formación / asignación de huecos | movimiento | `ai/steering/` | — | Candidato opcional |
 | Heurística parametrizable (grilla) | navegación | `util/pathfinding.hpp` | — | Candidato menor |
 | SAT 2D (polígonos convexos) | colisión (`util`) | `util/collision.hpp` | — | Candidato |

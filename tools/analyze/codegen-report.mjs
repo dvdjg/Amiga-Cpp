@@ -62,6 +62,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/util/bitstream.hpp>
 #include <eng/core/util/dynamic_bitset.hpp>
 #include <eng/core/util/string_interner.hpp>
+#include <eng/core/util/graph.hpp>
 #include <eng/core/random.hpp>
 #include <eng/core/util/dsp.hpp>
 #include <eng/core/fixed_math.hpp>
@@ -81,12 +82,12 @@ using eng::u16;
 // cruzada falla y hay que revisar el presupuesto de RAM del planificador.
 static_assert(sizeof(eng::ai::Goap<>::State) == 4u, "Goap<32>::State");
 static_assert(sizeof(eng::ai::Goap<>::Action) == 22u, "Goap<32>::Action");
-static_assert(sizeof(eng::ai::Goap<>::Planner<128>) == 4152u, "Goap<32>::Planner<128>");
-static_assert(sizeof(eng::ai::Goap<>::Planner<256>) == 8280u, "Goap<32>::Planner<256>");
+static_assert(sizeof(eng::ai::Goap<>::Planner<128>) == 4358u, "Goap<32>::Planner<128>");
+static_assert(sizeof(eng::ai::Goap<>::Planner<256>) == 8486u, "Goap<32>::Planner<256>");
 static_assert(sizeof(eng::ai::Goap<64>::State) == 8u, "Goap<64>::State");
 static_assert(sizeof(eng::ai::Goap<64>::Action) == 38u, "Goap<64>::Action");
-static_assert(sizeof(eng::ai::Goap<64>::Planner<128>) == 6200u, "Goap<64>::Planner<128>");
-static_assert(sizeof(eng::ai::Goap<64>::Planner<256>) == 12376u, "Goap<64>::Planner<256>");
+static_assert(sizeof(eng::ai::Goap<64>::Planner<128>) == 6454u, "Goap<64>::Planner<128>");
+static_assert(sizeof(eng::ai::Goap<64>::Planner<256>) == 12630u, "Goap<64>::Planner<256>");
 
 struct HalfEvenPolicy { using Round = rounding::HalfEven; using Overflow = overflow::Wrap; };
 using q14 = Fixed<s16, 14>;
@@ -462,6 +463,19 @@ extern "C" s16 c_steering_ops(s16 px, s16 py, s16 tx, s16 ty) {
 	const Vec<2, q12> a = eng::ai::arrive(pos, target, q12 {64}, q12 {256});
 	return static_cast<s16>(v.v[0].v + v.v[1].v + a.v[0].v + a.v[1].v);
 }
+extern "C" s16 c_steering_extra_ops(s16 px, s16 py, s16 tx, s16 ty) {
+	const Vec<2, q12> pos {q12 {px}, q12 {py}};
+	const Vec<2, q12> target {q12 {tx}, q12 {ty}};
+	const Vec<2, q12> vel {q12 {8}, q12 {0}};
+	const Vec<2, q12> pv = eng::ai::pursue(pos, target, vel, q12 {64});
+	const Vec<2, q12> ev = eng::ai::evade(pos, target, vel, q12 {64});
+	const Vec<2, q12> wv = eng::ai::wander(pos, q12 {0}, q12 {64}, q12 {16}, q12 {64});
+	const eng::ai::SteerCircle<q12> circles[1] = {{{q12 {64}, q12 {8}}, q12 {16}}};
+	const Vec<2, q12> av = eng::ai::avoid_circles(
+		pos, target, eng::Span<const eng::ai::SteerCircle<q12>> {circles, 1}, q12 {16},
+		q12 {32});
+	return static_cast<s16>(pv.v[0].v + ev.v[0].v + wv.v[0].v + av.v[0].v);
+}
 extern "C" u16 c_waypoints_ops(u16 start, u16 goal) {
 	eng::ai::WaypointGraph<8, 8> graph;
 	const eng::u16 a = graph.add_node({0, 0});
@@ -590,6 +604,31 @@ extern "C" u16 c_convex_overlap_ops(s16 ax, s16 ay, s16 bx, s16 by) {
 						  eng::Span<const eng::Point2s> {b, 4});
 	const bool in = eng::util::point_in_convex({bx, by}, eng::Span<const eng::Point2s> {a, 4});
 	return static_cast<u16>((ov ? 1u : 0u) + (in ? 1u : 0u));
+}
+extern "C" u16 c_graph_ops(u16 seed) {
+	eng::util::Graph<8, 12> g;
+	for (eng::u16 i = 0u; i < 6u; ++i) {
+		g.add_node();
+	}
+	g.add_edge(0u, 1u, 2u);
+	g.add_edge(1u, 2u, 2u);
+	g.add_edge(0u, 3u, 1u);
+	g.add_edge(3u, 4u, 1u);
+	g.add_edge(4u, 2u, 1u);
+	eng::u16 gs[8];
+	eng::s16 came[8];
+	eng::u8 closed[8];
+	eng::u16 out[8];
+	eng::u16 q[8];
+	auto h = [](eng::u16, eng::u16) { return static_cast<eng::u16>(0u); };
+	const eng::usize a = eng::util::graph_astar(
+		g, 0u, 2u, h, eng::Span<eng::u16> {gs, 8}, eng::Span<eng::s16> {came, 8},
+		eng::Span<eng::u8> {closed, 8}, eng::Span<eng::u16> {out, 8});
+	const eng::usize b = eng::util::graph_bfs(g, 0u, 2u, eng::Span<eng::s16> {came, 8},
+						  eng::Span<eng::u16> {q, 8},
+						  eng::Span<eng::u16> {out, 8});
+	return static_cast<u16>(a + b + g.node_count() + g.edge_count() +
+				static_cast<eng::u16>(seed & 0u));
 }
 extern "C" u16 c_random_ops(u16 seed) {
 	eng::Xoroshiro64pp rng {seed, static_cast<eng::u32>(seed + 1u)};
