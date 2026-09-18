@@ -98,6 +98,7 @@ engine/
 │   │   └── tilemap/      →   tile schedulers / upload (tile_scroll.hpp)
 │   ├── field/            → playfield / scroll / X-Limited (escena 2D)
 │   ├── scene/            → escena virtual / cámara
+│   ├── ai/               → IA de juego (ai/planning: GOAP; familias decision/navigation/steering/perception/design)
 │   ├── debug/            → telemetría, run_status, periférico de depuración
 │   └── platform/         → especialización por máquina
 │       ├── amiga/        →   gráficos Amiga OCS (gfx3d, lib3d, object3d, angles)

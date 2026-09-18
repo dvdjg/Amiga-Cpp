@@ -11,6 +11,7 @@ docs/engine/
 │   ├── CODING_STYLE.md              → guía de estilo de código (reglas duras)
 │   ├── MEMORY_MODEL.md              → modelo de memoria del engine
 │   ├── GRAPHICS_DRIVERS.md          → drivers de gráficos
+│   ├── GAME_AI_LIBRARY.md           → IA de juego (planificación/GOAP, decisión, navegación…)
 │   └── …                            → scrolling, DPF, X-Limited, roadmap antiguo
 └── c-engine/           → documentación del engine C legado (contexto histórico)
 ```

@@ -43,6 +43,8 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/util/grid.hpp>
 #include <eng/core/util/broadphase.hpp>
 #include <eng/core/util/pathfinding.hpp>
+#include <eng/core/util/array.hpp>
+#include <eng/ai/planning/goap.hpp>
 #include <eng/core/random.hpp>
 #include <eng/core/util/dsp.hpp>
 #include <eng/core/fixed_math.hpp>
@@ -308,6 +310,23 @@ extern "C" u16 c_pathfinding_ops(u16 start, u16 goal) {
 					 eng::Span<eng::u16> {gs, 64},
 					 eng::Span<eng::u8> {closed, 64});
 	return static_cast<u16>(bl + (aok ? 1u : 0u));
+}
+extern "C" u16 c_goap_ops(u16 seed) {
+	using namespace eng::ai;
+	constexpr eng::util::Array<Action<8>, 4> acts { {
+		ActionBuilder<8> {}.require<0>().produce<1>().build(),
+		ActionBuilder<8> {}.require<1>().produce<2>().build(),
+		ActionBuilder<8> {}.require<2>().produce<3>().build(),
+		ActionBuilder<8> {}.produce<3>().build(),
+	} };
+	WorldState<8> start {};
+	start.facts.set(static_cast<eng::usize>(seed % 8u));
+	Goal<8> goal {};
+	goal.want_true.facts.set(static_cast<Fact>(3u));
+	Planner<8, 4, 32> planner;
+	eng::u16 plan[4] {};
+	const eng::usize n = planner.plan(start, goal, acts.span(), eng::Span<eng::u16> {plan, 4});
+	return static_cast<u16>(n + (planner.found() ? 1u : 0u));
 }
 extern "C" u16 c_random_ops(u16 seed) {
 	eng::Xoroshiro64pp rng {seed, static_cast<eng::u32>(seed + 1u)};
