@@ -5,8 +5,9 @@ Demuestra el paso 7 de `ENGINE_DESIGN.md` §5: la cadena completa de audio
 `eng::amiga::PaulaAudio` (registros de Paula + DMA).
 
 Qué suena: un tono cuadrado en bucle por el canal 0. Arriba/abajo cambia el tono
-(período de `AUD0PER`); FIRE silencia (volumen 0). Visualmente, un degradado de
-fondo con una barra cian cuya altura refleja el tono.
+(período de `AUD0PER`); FIRE silencia (volumen 0). Visualmente, un fondo sólido
+(`COLOR00`) con una barra cian cuya altura refleja el tono (es una prueba de audio; el
+visual es mínimo, no un degradado).
 
 ## Verificación
 
