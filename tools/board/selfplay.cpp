@@ -13,8 +13,17 @@
 //
 // Uso:
 //   selfplay [games] [--variant standard|chess960] [--seed N] [--max-plies N]
-//            [--out ruta.pgn] [--swap] [--no-book] [--quiet]
+//            [--out ruta.pgn] [--swap] [--no-book] [--verify]
+//            [--dump-positions ruta.txt] [--quiet]
+//            [--slice-nodes N] [--frames N] [--min-frames N]
 //   por defecto: 1 standard 0 300 out/board/selfplay/selfplay.pgn
+//
+//   --verify          comprueba en cada ply que la clave incremental coincide con
+//                     la recomputada y que make/unmake deja la posicion identica
+//                     para todas las jugadas legales; sale con error si falla.
+//   --dump-positions  guarda una linea por jugada (FEN antes de mover + jugada +
+//                     profundidad/eval/nodos) para reanalizar cualquier decision
+//                     con `tools/board/analyze_move.sh`.
 
 #include <cstdio>
 #include <cstdlib>
@@ -43,10 +52,10 @@ namespace {
 // --- Configuracion identica a demos/amiga/123_chess_match -------------------
 constexpr eng::u32 kTtEntries = 16384u;
 constexpr eng::u16 kMaxDepth = 12u;
-constexpr eng::u64 kSliceNodes = 200u;
+constexpr eng::u64 kSliceNodes = 32u;
 constexpr eng::s32 kStartMs = 300000; // 5:00
 constexpr eng::s32 kIncrementMs = 0;
-constexpr eng::u32 kMoveThinkFrames = 20u;
+constexpr eng::u32 kMoveThinkFrames = 8u;
 constexpr eng::u32 kMinThinkFrames = 3u;
 constexpr eng::s32 kFrameMs = 20;
 constexpr eng::usize kBookMax = 64u;
@@ -87,11 +96,76 @@ void format_score(char* dst, eng::usize cap, Score score) noexcept {
 	              magnitude % 100);
 }
 
+// --- Verificacion de coherencia --------------------------------------------
+bool g_verify = false;
+bool g_verify_failed = false;
+std::FILE* g_positions_file = nullptr;
+
+[[nodiscard]] bool positions_equal(const Position& a, const Position& b) noexcept {
+	if (a.side != b.side || a.castling != b.castling || a.ep != b.ep ||
+	    a.halfmove != b.halfmove || a.fullmove != b.fullmove || a.key != b.key ||
+	    a.checks[0] != b.checks[0] || a.checks[1] != b.checks[1]) {
+		return false;
+	}
+	for (eng::u32 i = 0u; i < kBoardSize; ++i) {
+		if (a.board[i] != b.board[i]) {
+			return false;
+		}
+	}
+	for (eng::u32 i = 0u; i < 4u; ++i) {
+		if (a.castle_rook[i] != b.castle_rook[i]) {
+			return false;
+		}
+	}
+	return true;
+}
+
+/// Comprueba que `pos` es coherente: la clave incremental coincide con la
+/// recomputada y, para cada jugada legal, `make`/`unmake` deja la posicion
+/// EXACTAMENTE igual (tablero, metadatos, derechos de enroque y clave). Devuelve
+/// `false` y describe el fallo por stderr en caso contrario.
+[[nodiscard]] bool verify_position(const Position& pos, eng::u32 ply) {
+	char fen[128];
+	(void)to_fen(pos, eng::Span<char> {fen, sizeof(fen)});
+	auto fail = [&](const char* what) {
+		std::fprintf(stderr, "verify: ply %lu: %s\n  FEN: %s\n",
+		             static_cast<unsigned long>(ply), what, fen);
+		return false;
+	};
+
+	if (pos.key != compute_key(pos)) {
+		return fail("clave incremental != recomputada");
+	}
+
+	MoveList legal;
+	generate_legal(pos, legal);
+	for (eng::usize i = 0u; i < legal.size(); ++i) {
+		Position work = pos;
+		Undo undo;
+		make_move(work, legal[i], undo);
+		if (work.key != compute_key(work)) {
+			char uci[8];
+			(void)to_uci(legal[i], eng::Span<char> {uci, sizeof(uci)});
+			std::fprintf(stderr, "  jugada con clave inconsistente: %s\n", uci);
+			return fail("make_move deja la clave inconsistente");
+		}
+		unmake_move(work, legal[i], undo);
+		if (!positions_equal(work, pos)) {
+			char uci[8];
+			(void)to_uci(legal[i], eng::Span<char> {uci, sizeof(uci)});
+			std::fprintf(stderr, "  jugada que no se deshace bien: %s\n", uci);
+			return fail("unmake_move no restaura la posicion");
+		}
+	}
+	return true;
+}
+
 struct GameConfig {
 	const char* white_name = "Agresivo";
 	const char* black_name = "Posicional";
 	EvalWeights white_style = aggressive_weights();
 	EvalWeights black_style = positional_weights();
+	bool white_aggressive = true;
 	bool use_book = true;
 };
 
@@ -146,6 +220,11 @@ eng::usize play_game(Position pos, const GameConfig& cfg, const char* round, u32
 			break;
 		}
 
+		if (g_verify && !verify_position(pos, ply)) {
+			g_verify_failed = true;
+			break;
+		}
+
 		const Color side = to_move(pos);
 		const bool white_side = (side == Color::White);
 		Engine& engine = white_side ? g_engine_a : g_engine_b;
@@ -190,12 +269,54 @@ eng::usize play_game(Position pos, const GameConfig& cfg, const char* round, u32
 			break;
 		}
 
+		if (g_verify) {
+			MoveList legal;
+			generate_legal(pos, legal);
+			bool found = false;
+			for (eng::usize i = 0u; i < legal.size(); ++i) {
+				if (legal[i] == move) {
+					found = true;
+					break;
+				}
+			}
+			if (!found) {
+				char fen[128];
+				(void)to_fen(pos, eng::Span<char> {fen, sizeof(fen)});
+				char uci[8];
+				(void)to_uci(move, eng::Span<char> {uci, sizeof(uci)});
+				std::fprintf(stderr, "verify: ply %lu: jugada NO legal %s\n  FEN: %s\n",
+				             static_cast<unsigned long>(ply), uci, fen);
+				g_verify_failed = true;
+				break;
+			}
+		}
+
 		// SAN antes de aplicar la jugada (usa la posición previa).
 		char san[12];
 		(void)to_san(pos, move, eng::Span<char> {san, sizeof(san)});
 
+		// Captura de la decision: posicion ANTES de la jugada + jugada elegida.
+		if (g_positions_file != nullptr) {
+			char fen[128];
+			(void)to_fen(pos, eng::Span<char> {fen, sizeof(fen)});
+			char uci[8];
+			(void)to_uci(move, eng::Span<char> {uci, sizeof(uci)});
+			char score_text[16];
+			format_score(score_text, sizeof(score_text), score);
+			std::fprintf(g_positions_file, "%lu %s %s | %s %s d%lu %s n%llu\n",
+			             static_cast<unsigned long>(ply), (side == Color::White) ? "w" : "b", fen,
+			             uci, san, static_cast<unsigned long>(depth), score_text,
+			             static_cast<unsigned long long>(move_nodes));
+		}
+
 		Undo undo;
 		make_move(pos, move, undo);
+		if (g_verify && pos.key != compute_key(pos)) {
+			std::fprintf(stderr, "verify: ply %lu: make_move dejo la clave inconsistente\n",
+			             static_cast<unsigned long>(ply));
+			g_verify_failed = true;
+			break;
+		}
 
 		if (records < kMaxRecords) {
 			MoveRecord& rec = g_records[records++];
@@ -277,6 +398,7 @@ int main(int argc, char** argv) {
 	bool quiet = false;
 	ChessVariant variant = ChessVariant::Standard;
 	const char* out_path = "out/board/selfplay/selfplay.pgn";
+	const char* dump_positions_path = nullptr;
 
 	for (int i = 1; i < argc; ++i) {
 		const char* a = argv[i];
@@ -298,6 +420,10 @@ int main(int argc, char** argv) {
 			swap = true;
 		} else if (std::strcmp(a, "--no-book") == 0) {
 			use_book = false;
+		} else if (std::strcmp(a, "--verify") == 0) {
+			g_verify = true;
+		} else if (std::strcmp(a, "--dump-positions") == 0 && i + 1 < argc) {
+			dump_positions_path = argv[++i];
 		} else if (std::strcmp(a, "--quiet") == 0) {
 			quiet = true;
 		} else if (a[0] != '-') {
@@ -321,16 +447,39 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
+	if (dump_positions_path != nullptr) {
+		const std::filesystem::path pp {dump_positions_path};
+		if (pp.has_parent_path()) {
+			std::error_code ec;
+			std::filesystem::create_directories(pp.parent_path(), ec);
+		}
+		g_positions_file = std::fopen(dump_positions_path, "wb");
+		if (g_positions_file == nullptr) {
+			std::fprintf(stderr, "selfplay: no se pudo abrir '%s' para posiciones\n",
+			             dump_positions_path);
+		} else {
+			std::fprintf(g_positions_file,
+			             "# ply side FEN | uci san dDEPT SCORE nNODES\n"
+			             "# una linea por jugada (posicion ANTES de mover); '-- game N' separa partidas\n");
+		}
+	}
+
 	eng::u32 white_wins = 0u;
 	eng::u32 black_wins = 0u;
 	eng::u32 draws = 0u;
 	eng::u32 unfinished = 0u;
+	eng::u32 aggressive_wins = 0u;
+	eng::u32 positional_wins = 0u;
+	eng::u32 style_draws = 0u;
 	eng::u64 total_plies = 0u;
 	eng::u64 total_nodes = 0u;
 
 	for (eng::u32 g = 0u; g < games; ++g) {
 		const u16 seed = static_cast<u16>(seed_base + static_cast<u16>(g));
 		Position pos = initial_position(variant, seed);
+		if (g_positions_file != nullptr) {
+			std::fprintf(g_positions_file, "-- game %u\n", static_cast<unsigned>(g + 1u));
+		}
 
 		GameConfig cfg;
 		if (swap && (g & 1u) != 0u) {
@@ -338,6 +487,7 @@ int main(int argc, char** argv) {
 			cfg.black_name = "Agresivo";
 			cfg.white_style = positional_weights();
 			cfg.black_style = aggressive_weights();
+			cfg.white_aggressive = false;
 		}
 		cfg.use_book = use_book;
 
@@ -353,10 +503,21 @@ int main(int argc, char** argv) {
 
 		if (std::strcmp(result, "1-0") == 0) {
 			++white_wins;
+			if (cfg.white_aggressive) {
+				++aggressive_wins;
+			} else {
+				++positional_wins;
+			}
 		} else if (std::strcmp(result, "0-1") == 0) {
 			++black_wins;
+			if (!cfg.white_aggressive) {
+				++aggressive_wins;
+			} else {
+				++positional_wins;
+			}
 		} else if (std::strcmp(result, "1/2-1/2") == 0) {
 			++draws;
+			++style_draws;
 		} else {
 			++unfinished;
 		}
@@ -372,6 +533,18 @@ int main(int argc, char** argv) {
 		}
 	}
 	std::fclose(file);
+	if (g_positions_file != nullptr) {
+		std::fclose(g_positions_file);
+		g_positions_file = nullptr;
+	}
+
+	if (g_verify && g_verify_failed) {
+		std::fprintf(stderr, "selfplay: COHERENCIA FALLIDA (revisa los mensajes 'verify')\n");
+		return 1;
+	}
+	if (g_verify) {
+		std::printf("  verificacion: OK (clave, legalidad y round-trip make/unmake)\n");
+	}
 
 	std::printf("selfplay: %u partidas (%s), blancas %u | negras %u | tablas %u | sin acabar %u\n",
 	            static_cast<unsigned>(games), variant_name(variant),
@@ -381,6 +554,10 @@ int main(int argc, char** argv) {
 		std::printf("  media %.1f plies | %.0f nodos/partida\n",
 		            static_cast<double>(total_plies) / static_cast<double>(games),
 		            static_cast<double>(total_nodes) / static_cast<double>(games));
+		std::printf("  por estilo: agresivo %u | posicional %u | tablas %u\n",
+		            static_cast<unsigned>(aggressive_wins),
+		            static_cast<unsigned>(positional_wins),
+		            static_cast<unsigned>(style_draws));
 	}
 	std::printf("  PGN: %s\n", out_path);
 	return 0;

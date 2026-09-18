@@ -74,7 +74,7 @@ using eng::usize;
 // el objetivo de ~400 KB por jugador.
 constexpr eng::u32 kDemoTtEntries = 16384u;
 constexpr eng::u16 kMaxDepth = 12u;
-constexpr eng::u64 kSliceNodes = 200u;
+constexpr eng::u64 kSliceNodes = 32u;
 
 // --- Reloj -----------------------------------------------------------------
 constexpr eng::s32 kStartMs = 300000; // 5:00

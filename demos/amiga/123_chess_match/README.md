@@ -24,9 +24,10 @@ independiente narra la partida.
   deriva del reloj restante (~1/25 de lo que queda, acotado entre 3 y 8 frames), de
   modo que el bando con menos tiempo piensa menos; si el reloj llega a cero, el juez
   declara `TIEMPO AGOTADO`.
-- **Búsqueda por rebanadas** (64 nodos por frame, hasta 8 frames por jugada) para no
+- **Búsqueda por rebanadas** (32 nodos por frame, hasta 8 frames por jugada) para no
   bloquear el frame; el libro de aperturas lo usan los dos bandos, así que la
-  apertura se juega al instante.
+  apertura se juega al instante. El presupuesto es reducido porque la generación de
+  jugadas es el cuello medido en el A500; ver `docs/debugging/BOARD_SELFPLAY_AND_PERF.md`.
 - **Última jugada resaltada en amarillo** (casillas de origen y destino) y marca
   `PENSANDO...` en el panel del bando que piensa.
 
