@@ -21,6 +21,11 @@
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/field/xlimited_scene.hpp>
 #include <eng/field/tile_demo.hpp>
+#include <eng/core/util/broadphase.hpp>
+#include <eng/core/util/pathfinding.hpp>
+#include <eng/core/fixed_math.hpp>
+#include <eng/core/geometry.hpp>
+#include <eng/core/interp.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -42,6 +47,107 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 namespace {
 
 namespace field = eng::field;
+
+/// Self-test de las utilidades de rejilla y búsqueda de caminos: se ejecuta en `init`
+/// (en el 68000) y el demo NO llega a READY si falla. Verificación por demo de
+/// `eng::util::SpatialHash` (broadphase) y `eng::util::bfs`/`reconstruct_path`.
+bool util_selftest() {
+	eng::util::SpatialHash<8, 8, 8, 16> grid;
+	grid.clear();
+	if (!grid.insert(1u, 2, 2) || !grid.insert(2u, 10, 10) || !grid.insert(3u, 2, 10)) {
+		return false;
+	}
+	eng::u16 hits[8] = {};
+	if (grid.query(eng::util::Aabb {0, 0, 16, 16}, eng::Span<eng::u16> {hits, 8}) != 3u) {
+		return false;
+	}
+	static eng::s16 came[64];
+	static eng::u16 queue[64];
+	static eng::u16 path[64];
+	const auto walk = [](eng::u16) { return true; };
+	if (!eng::util::bfs<8, 8>(0u, 63u, walk, eng::Span<eng::s16> {came, 64},
+				   eng::Span<eng::u16> {queue, 64})) {
+		return false;
+	}
+	return eng::util::reconstruct_path<8, 8>(eng::Span<const eng::s16> {came, 64}, 0u, 63u,
+						 eng::Span<eng::u16> {path, 64}) == 15u;
+}
+
+/// Self-test de las matemáticas `Fixed` (`fixed_math.hpp`) en el 68000, **sin `float`**
+/// (compara valores crudos contra márgenes): `sin`/`cos`/`tan` (tabla), `asin`/`acos`/
+/// `atan2` (tabla de `atan`), `sincos`/`rotate2` (una pasada), `wrap_angle`, `smooth_damp`
+/// (`exp2`), `pow` (`log2`+`exp2`) y `length` (`sqrt`). Si falla, la demo no llega a READY.
+bool fixed_math_selftest() {
+	using q12 = eng::math::Fixed<eng::s16, 12>;
+	const q12 zero {0};
+	if (eng::math::scalar_sin<q12>::op(zero).v != 0) {
+		return false;
+	}
+	const eng::s16 s_pi2 = eng::math::scalar_sin<q12>::op(q12 {6434}).v; // sin(pi/2) ≈ 1
+	if (!(s_pi2 >= 4000 && s_pi2 <= 4100)) {
+		return false;
+	}
+	const eng::s16 c_0 = eng::math::scalar_cos<q12>::op(zero).v; // cos(0) = 1
+	if (!(c_0 >= 4000 && c_0 <= 4100)) {
+		return false;
+	}
+	const q12 half =
+		eng::math::smooth_damp<q12>(zero, q12 {4096}, q12 {4096}, q12 {4096}); // 0.5
+	if (!(half.v >= 2000 && half.v <= 2100)) {
+		return false;
+	}
+	const q12 pw = eng::math::scalar_pow<q12>::op(q12 {8192}, q12 {8192}); // 2^2 = 4
+	if (!(pw.v >= 16200 && pw.v <= 16500)) {
+		return false;
+	}
+	const eng::math::Vec<2, q12> v {q12 {6144}, q12 {8192}}; // |(1.5,2.0)| = 2.5
+	const eng::s16 len = eng::math::length(v).v;
+	if (!(len >= 10150 && len <= 10350)) {
+		return false;
+	}
+	// Trigonometría inversa/tangente con entrada NO constante (evita el plegado del
+	// compilador y ejercita la tabla de `atan` en runtime).
+	volatile eng::s16 q_half_raw = 2048; // 0.5 en q12
+	const q12 half_q {q_half_raw};
+	const eng::s16 asin_half = eng::math::scalar_asin<q12>::op(half_q).v; // asin(0.5) ≈ 0.524
+	if (!(asin_half >= 2050 && asin_half <= 2250)) {
+		return false;
+	}
+	const eng::s16 acos_half = eng::math::scalar_acos<q12>::op(half_q).v; // acos(0.5) ≈ 1.047
+	if (!(acos_half >= 4200 && acos_half <= 4400)) {
+		return false;
+	}
+	const eng::s16 atan_11 = eng::math::scalar_atan2<q12>::op(half_q, half_q).v; // π/4 ≈ 0.785
+	if (!(atan_11 >= 3100 && atan_11 <= 3350)) {
+		return false;
+	}
+	if (eng::math::scalar_tan<q12>::op(zero).v != 0) { // tan(0) = 0
+		return false;
+	}
+	// wrap_angle: pliega 2π+0.5 a 0.5 (sin tabla).
+	volatile eng::s16 q_wrap_raw = 27785; // 2π+0.5 en q12
+	const eng::s16 wrapped = eng::math::wrap_angle(q12 {q_wrap_raw}).v;
+	if (!(wrapped >= 2000 && wrapped <= 2100)) {
+		return false;
+	}
+	// sincos: seno y coseno del mismo ángulo en una sola pasada (π/2 -> (1, 0)).
+	volatile eng::s16 q_sincos_raw = 6434;
+	q12 sincos_s {0};
+	q12 sincos_c {0};
+	eng::math::scalar_sincos<q12>::op(q12 {q_sincos_raw}, sincos_s, sincos_c);
+	if (!(sincos_s.v >= 4000 && sincos_s.v <= 4100 && sincos_c.v >= -100 &&
+	      sincos_c.v <= 100)) {
+		return false;
+	}
+	// rotate2 por ángulo: (1,0) girado π/2 -> (0,1) (sincos en una pasada).
+	volatile eng::s16 q_rot_raw = 6434;
+	const eng::math::Vec<2, q12> rv = eng::math::rotate2(
+		eng::math::Vec<2, q12> {q12 {4096}, q12 {0}}, q12 {q_rot_raw});
+	if (!(rv.v[0].v >= -100 && rv.v[0].v <= 100 && rv.v[1].v >= 4000 && rv.v[1].v <= 4100)) {
+		return false;
+	}
+	return true;
+}
 
 constexpr eng::u16 kTileW = 16;
 constexpr eng::u16 kTileH = 16;
@@ -156,6 +262,14 @@ struct DemoGame {
 			return;
 		}
 		scene.takeover(backend);
+		if (!util_selftest()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00011005u);
+			return;
+		}
+		if (!fixed_math_selftest()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00011006u);
+			return;
+		}
 		ready = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x11000000u);
 	}

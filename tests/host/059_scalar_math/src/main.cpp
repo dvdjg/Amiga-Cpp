@@ -128,6 +128,18 @@ void geometry_for(const char* tag, float tol) {
 		      "rotate2");
 	}
 
+	// rotate2 por ángulo: `scalar_sincos` en una sola pasada -> mismas componentes
+	{
+		S sc_sin {};
+		S sc_cos {};
+		em::scalar_sincos<S>::op(S(0.6f), sc_sin, sc_cos);
+		const V2 r_ang = em::rotate2(a, S(0.6f));
+		const V2 r_cs = em::rotate2(a, sc_cos, sc_sin);
+		check(em::to_double(r_ang.v[0]) == em::to_double(r_cs.v[0]) &&
+			      em::to_double(r_ang.v[1]) == em::to_double(r_cs.v[1]),
+		      "rotate2(ángulo) = rotate2(cos,sin)");
+	}
+
 	// length / distance / normalize
 	{
 		const V3 u = {S(1.5f), S(-2.0f), S(0.75f)};

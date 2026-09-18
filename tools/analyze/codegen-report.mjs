@@ -36,6 +36,17 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/util/priority_queue.hpp>
 #include <eng/core/util/intrusive_list.hpp>
 #include <eng/core/util/dynamic_hash_map.hpp>
+#include <eng/core/util/stats.hpp>
+#include <eng/core/util/color.hpp>
+#include <eng/core/util/collision.hpp>
+#include <eng/core/util/text.hpp>
+#include <eng/core/util/grid.hpp>
+#include <eng/core/util/broadphase.hpp>
+#include <eng/core/util/pathfinding.hpp>
+#include <eng/core/random.hpp>
+#include <eng/core/util/dsp.hpp>
+#include <eng/core/fixed_math.hpp>
+#include <eng/core/geometry.hpp>
 #include <eng/core/sort.hpp>
 #include <eng/graphics/mesh_renderer.hpp>
 #include <eng/platform/amiga/lib3d.hpp>
@@ -237,6 +248,134 @@ extern "C" u16 c_dyn_hashmap(eng::u8* scratch, eng::u32 bytes, u16 seed) {
 	const u16* p = m.find(seed);
 	m.erase(seed);
 	return static_cast<u16>(m.size() + (p != nullptr ? 1u : 0u));
+}
+extern "C" s16 c_stats_ops(const s16* data, int n) {
+	eng::Span<const q12> xs {reinterpret_cast<const q12*>(data), static_cast<eng::usize>(n)};
+	return static_cast<s16>(eu::mean(xs).v + eu::variance(xs).v);
+}
+extern "C" u16 c_color_lerp(u16 a, u16 b, u16 num, u16 den) {
+	return eu::lerp444(a, b, num, den);
+}
+extern "C" u16 c_collision_ops(s16 ax, s16 ay, s16 bx, s16 by, s16 cx, s16 cy, s16 dx, s16 dy) {
+	const eng::Point2s a {ax, ay};
+	const eng::Point2s b {bx, by};
+	const eng::Point2s c {cx, cy};
+	const eng::Point2s d {dx, dy};
+	return static_cast<u16>((eu::segments_intersect(a, b, c, d) ? 1u : 0u) +
+				(eu::circle_overlap(a, 4, c, 4) ? 2u : 0u));
+}
+extern "C" u16 c_text_ops(const char* s, eng::u32 n) {
+	const eu::StringView text {s, static_cast<eng::usize>(n)};
+	eng::u32 v = 0u;
+	if (!eu::parse_u32(eu::trim(text), v)) v = 0u;
+	eu::StaticString<16> buf;
+	eu::to_chars_u32(buf, v);
+	return static_cast<u16>(buf.size());
+}
+extern "C" s16 c_grid_ops(s16 tx, s16 ty) {
+	const eng::Point2s px = eu::grid_to_world(eu::TileCoord {tx, ty}, 16u, 16u);
+	const eu::TileCoord back = eu::world_to_grid<16, 16>(px.x, px.y);
+	eu::Hex vecinos[6];
+	eu::hex_neighbors(eu::Hex {tx, ty}, vecinos);
+	return static_cast<s16>(back.x + back.y + eu::hex_distance(vecinos[0], vecinos[3]));
+}
+extern "C" u16 c_broadphase_ops(s16 x, s16 y) {
+	eu::SpatialHash<8, 8, 8, 16> g;
+	g.clear();
+	g.insert(1u, x, y);
+	g.insert(2u, static_cast<s16>(x + 3), y);
+	eng::u16 hits[4];
+	return static_cast<u16>(g.query(eu::Aabb {0, 0, 32, 32}, eng::Span<eng::u16> {hits, 4}));
+}
+extern "C" u16 c_pathfinding_ops(u16 start, u16 goal) {
+	static eng::s16 came[64];
+	static eng::u16 queue[64];
+	static eng::u16 gs[64];
+	static eng::u8 closed[64];
+	static eng::u16 path[64];
+	const auto walk = [](u16) { return true; };
+	const u16 s = static_cast<u16>(start % 64u);
+	const u16 g = static_cast<u16>(goal % 64u);
+	if (!eu::bfs<8, 8>(s, g, walk, eng::Span<eng::s16> {came, 64},
+			   eng::Span<eng::u16> {queue, 64})) {
+		return 0u;
+	}
+	const eng::usize bl = eu::reconstruct_path<8, 8>(eng::Span<const eng::s16> {came, 64}, s, g,
+							 eng::Span<eng::u16> {path, 64});
+	const bool aok = eu::astar<8, 8>(s, g, walk,
+					 [](u16, u16) { return static_cast<u16>(1u); },
+					 eng::Span<eng::s16> {came, 64},
+					 eng::Span<eng::u16> {gs, 64},
+					 eng::Span<eng::u8> {closed, 64});
+	return static_cast<u16>(bl + (aok ? 1u : 0u));
+}
+extern "C" u16 c_random_ops(u16 seed) {
+	eng::Xoroshiro64pp rng {seed, static_cast<eng::u32>(seed + 1u)};
+	eng::u16 data[8];
+	for (eng::u16 i = 0; i < 8u; ++i) {
+		data[i] = static_cast<eng::u16>(eng::next_range(rng, 0u, 1000u));
+	}
+	eng::shuffle(rng, eng::Span<eng::u16> {data, 8});
+	return static_cast<eng::u16>(eng::pick(rng, eng::Span<const eng::u16> {data, 8}) +
+				     (eng::chance(rng, 1u, 3u) ? 1u : 0u));
+}
+extern "C" float c_dsp_ops(float x) {
+	eu::Adsr<float> env {0.5f, 0.25f, 0.1f, 0.5f};
+	env.note_on();
+	float a = env.tick();
+	eu::OnePole<float> lp {0.5f, 0.0f};
+	a += lp.process(x);
+	eu::DelayLine<float, 4> dl;
+	dl.clear();
+	a += dl.process(x, 1u);
+	return a + eu::osc_saw(x) + eu::osc_square(x) + eu::osc_triangle(x);
+}
+extern "C" s16 c_scalar16_ops(const s16* data, int n) {
+	eng::Span<const q12> xs {reinterpret_cast<const q12*>(data), static_cast<eng::usize>(n)};
+	const q12 m = eu::mean(xs);            // acumulador s32 (add.l)
+	const q12 s = scalar_sin<q12>::op(q12 {1024}); // tabla de seno fixed
+	eu::Adsr<q12> env {q12 {1024}, q12 {1024}, q12 {1024}, q12 {2048}};
+	env.note_on();
+	(void)env.tick();
+	return static_cast<s16>(m.v + s.v + env.level.v);
+}
+extern "C" s16 c_scalar16_math(s16 a, s16 b) {
+	const q12 t {a};
+	const q12 e1 = ease_in_sine(t);
+	const q12 e2 = ease_out_sine(t);
+	const q12 sd = smooth_damp(q12 {0}, q12 {4096}, q12 {2048}, q12 {4096});
+	const Vec<2, q12> v {q12 {a}, q12 {b}};
+	const q12 len = length(v);
+	const q12 e2v = scalar_exp2<q12>::op(q12 {1024});
+	const q12 l2 = scalar_log2<q12>::op(q12 {4096});
+	const q12 ex = scalar_exp<q12>::op(q12 {1024});
+	const q12 pw = scalar_pow<q12>::op(q12 {4096}, q12 {1024});
+	return static_cast<s16>(e1.v + e2.v + sd.v + len.v + e2v.v + l2.v + ex.v + pw.v);
+}
+extern "C" s16 c_scalar16_trig(s16 a, s16 b) {
+	const q12 y {a};
+	const q12 x {b};
+	const q12 tn = scalar_tan<q12>::op(y);
+	const q12 at = scalar_atan2<q12>::op(y, x);
+	const q12 as = scalar_asin<q12>::op(y);
+	const q12 ac = scalar_acos<q12>::op(x);
+	q12 ss {};
+	q12 cc {};
+	scalar_sincos<q12>::op(y, ss, cc); // seno y coseno en una sola pasada
+	return static_cast<s16>(tn.v + at.v + as.v + ac.v + ss.v + cc.v);
+}
+extern "C" s16 c_fx_rotate2_angle(s16 angle, s16 x, s16 y) {
+	const Vec<2, q12> v {q12 {x}, q12 {y}};
+	const Vec<2, q12> r = rotate2(v, q12 {angle}); // scalar_sincos: un solo indice
+	return static_cast<s16>(r.v[0].v + r.v[1].v);
+}
+extern "C" s16 c_fx_rotate2_twice(s16 angle, s16 x, s16 y) {
+	const q12 a {angle};
+	const q12 s = scalar_sin<q12>::op(a); // dos indices (sin y cos por separado)
+	const q12 c = scalar_cos<q12>::op(a);
+	const Vec<2, q12> v {q12 {x}, q12 {y}};
+	const Vec<2, q12> r = rotate2(v, c, s);
+	return static_cast<s16>(r.v[0].v + r.v[1].v);
 }
 `;
 

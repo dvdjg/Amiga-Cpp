@@ -1,5 +1,5 @@
 // ============================================================================
-// Test HOST-094: restauracion de la costura (ScopeGuard) en scroll_engine
+// Test HOST-106: restauracion de la costura (ScopeGuard) en scroll_engine
 // ============================================================================
 //
 // `ScrollEngine::scroll_right/left/down/up/burst_right` guardan la costura con

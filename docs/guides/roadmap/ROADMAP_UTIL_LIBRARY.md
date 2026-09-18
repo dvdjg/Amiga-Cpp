@@ -55,6 +55,11 @@ Las matemáticas de escalares (`Fixed`, `MiniFloat16`, `linalg`, `interp`, `geom
 Cierre de R1: los cuatro tests host verdes, cross-compile, doc actualizada. `stats` es la
 respuesta directa a "matemáticas de estadística".
 
+**Estado: R1 completa** (`stats.hpp` HOST-093, `color.hpp` HOST-094, `collision.hpp`
+HOST-095, `text.hpp` HOST-096; sondas `c_stats_ops`/`c_color_lerp`/`c_collision_ops`/
+`c_text_ops` sin libcalls). `color` además **verificada por demo** (`086_bob_objects`
+usa `eng::util::lerp444` en el gradiente del cielo). Siguiente: R2.
+
 ### R2 — Juego avanzado (rejilla, broadphase, pathfinding)
 
 | Paso | Entrega | Detalle | Verificación |
@@ -67,7 +72,16 @@ Dependencias: R2.2/R2.3 se apoyan en el vocabulario ya entregado (contenedores, 
 estructuras nuevas). Cierre de R2: demo consumidora (broadphase y/o pathfinding) y
 regresión verde; ambas pasan a verificadas por demo.
 
+**Estado: R2 completa** (`grid.hpp` HOST-097, `broadphase.hpp` HOST-098,
+`pathfinding.hpp` HOST-099; sondas `c_grid_ops`/`c_broadphase_ops`/`c_pathfinding_ops`
+sin libcalls). `broadphase` y `pathfinding` **verificados por demo** (`110_ylimited_shooter`
+ejecuta un self-test de ambos en `init`).
+
 ### R3 — Audio y efectos
+
+**Estado: R3 completa.** R3.1 distribuciones (`core/random.hpp`, HOST-100; `next_mod` sin
+división), R3.2 worley/turbulence/ridged (`core/noise.hpp`, HOST-101) y R3.3 `dsp.hpp`
+(Adsr/OnePole/DelayLine/soft_clip/osciladores, HOST-102); sonda `c_dsp_ops` sin libcalls.
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|

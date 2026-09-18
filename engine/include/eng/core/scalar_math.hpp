@@ -92,6 +92,20 @@ template <typename F, typename U, int MantBits, eng::u32 ExpMask, int ExpBias, i
 	default: return sin_core(r);
 	}
 }
+/// `sin` y `cos` de `x` en una **sola** reducción de rango (`reduce_pio2` una vez);
+/// mismo resultado que `sin_d`/`cos_d`.
+constexpr void sincos_d(double x, double& out_sin, double& out_cos) {
+	double r;
+	const int q = reduce_pio2(x, r);
+	const double sr = sin_core(r);
+	const double cr = cos_core(r);
+	switch (q & 3) {
+	case 0: out_sin = sr; out_cos = cr; break;
+	case 1: out_sin = cr; out_cos = -sr; break;
+	case 2: out_sin = -sr; out_cos = -cr; break;
+	default: out_sin = -cr; out_cos = sr; break;
+	}
+}
 /// `2^x = 2^n · 2^f` con `f` en `[0,1)` (Taylor de `exp(f·ln2)` y `2^n` por bucle).
 [[nodiscard]] constexpr double exp2_d(double x) {
 	int n = static_cast<int>(x);
@@ -171,6 +185,79 @@ struct scalar_exp2<float> {
 template <>
 struct scalar_exp2<double> {
 	static constexpr double op(double x) { return detail::exp2_d(x); }
+};
+
+/// `log2` del escalar (por defecto ADL). El núcleo no lo necesita; lo aportan los
+/// escalares que lo definan (p. ej. `MiniFloat16`) o `fixed_math.hpp` para `Fixed`.
+template <typename S>
+struct scalar_log2 {
+	static constexpr S op(S x) { return log2(x); }
+};
+
+/// `log` natural del escalar (por defecto ADL).
+template <typename S>
+struct scalar_log {
+	static constexpr S op(S x) { return log(x); }
+};
+
+/// `exp` del escalar (por defecto ADL).
+template <typename S>
+struct scalar_exp {
+	static constexpr S op(S x) { return exp(x); }
+};
+
+/// `pow(a, b)` del escalar (por defecto ADL).
+template <typename S>
+struct scalar_pow {
+	static constexpr S op(S a, S b) { return pow(a, b); }
+};
+
+/// `tan` del escalar (por defecto ADL).
+template <typename S>
+struct scalar_tan {
+	static constexpr S op(S x) { return tan(x); }
+};
+
+/// `atan2(y, x)` del escalar (por defecto ADL).
+template <typename S>
+struct scalar_atan2 {
+	static constexpr S op(S y, S x) { return atan2(y, x); }
+};
+
+/// `asin` del escalar (por defecto ADL).
+template <typename S>
+struct scalar_asin {
+	static constexpr S op(S x) { return asin(x); }
+};
+
+/// `acos` del escalar (por defecto ADL).
+template <typename S>
+struct scalar_acos {
+	static constexpr S op(S x) { return acos(x); }
+};
+
+/// `sincos(x, s, c)` del escalar (por defecto ADL): calcula seno y coseno del mismo
+/// ángulo en una sola pasada. Lo aportan los escalares que lo definan (p. ej.
+/// `MiniFloat16`) o `fixed_math.hpp` para `Fixed`.
+template <typename S>
+struct scalar_sincos {
+	static constexpr void op(S x, S& out_sin, S& out_cos) { sincos(x, out_sin, out_cos); }
+};
+template <>
+struct scalar_sincos<float> {
+	static constexpr void op(float x, float& out_sin, float& out_cos) {
+		double s = 0.0;
+		double c = 0.0;
+		detail::sincos_d(static_cast<double>(x), s, c);
+		out_sin = static_cast<float>(s);
+		out_cos = static_cast<float>(c);
+	}
+};
+template <>
+struct scalar_sincos<double> {
+	static constexpr void op(double x, double& out_sin, double& out_cos) {
+		detail::sincos_d(x, out_sin, out_cos);
+	}
 };
 
 /// Constante escalar desde un `double` de compilación, **sin ambigüedad**: para

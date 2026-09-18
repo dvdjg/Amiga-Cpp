@@ -25,8 +25,11 @@ constexpr double kPi = 3.14159265358979323846;
 constexpr double kTau = 2.0 * kPi;
 
 /// Seno en doble por reducción a [0, π/2] + serie de Taylor (Horner). `constexpr` no
-/// puede llamar `std::sin`, así que se evalúa la serie (12 términos: error por debajo
-/// del truncado en las 4096 muestras).
+/// puede llamar `std::sin`, así que se evalúa la serie. `Iter` término se elige en
+/// compilación: solo afecta a la **generación** de la tabla (coste de compilación y
+/// precisión), no al runtime. Con `Iter = 12` el error (≈1e-16) queda por debajo del
+/// truncado de las tablas de 8-12 bits; reducirlo no mejora nada en runtime.
+template <int Iter = 12>
 constexpr double sin_series(double x) {
 	if (x > kPi) {
 		x -= kTau; // -> (-pi, pi]
@@ -44,7 +47,7 @@ constexpr double sin_series(double x) {
 	const double x2 = x * x;
 	double sum = 0.0;
 	double term = x; // x^(2k+1)/(2k+1)!
-	for (int k = 0; k < 12; ++k) {
+	for (int k = 0; k < Iter; ++k) {
 		sum += term;
 		term *= -x2 / static_cast<double>((2 * k + 2) * (2 * k + 3));
 	}

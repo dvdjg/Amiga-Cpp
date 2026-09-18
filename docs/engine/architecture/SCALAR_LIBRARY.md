@@ -172,6 +172,10 @@ El detalle del escalar de 16 bits está en [MINIFLOAT16.md](MINIFLOAT16.md); el 
   `MiniFloat16` y transforma coordenadas `q0` con `eng/retro/minifloat_fixed`
   (self-test de `sin`/`exp`/`sqrt` en hardware) — verificación por demo de
   `minifloat_math.hpp`.
+- Fixed: `eng/core/fixed_math.hpp` (`sin`/`cos`/`sqrt`/`exp2`/`log2`/`exp`/`log`/`pow`
+  para `Fixed<s16,E>`, con tablas compartidas) está respaldado por HOST-104 y
+  **verificado por demo** en `demos/amiga/110_ylimited_shooter` (self-test en `init`,
+  sin `float`).
 
 ## 7. Tabla función × escalar (generada)
 
@@ -189,24 +193,29 @@ tests host) falla si la doc se desincroniza del contrato, y `--write` la regener
 | smootherstep | si | si | no (coef 15 > rango ±8) | math-diag smootherstep_q12_range |
 | inv_lerp / remap | si | si | si (div_norm) | HOST-059 |
 | dot fusionado (2-4 pares) | si | si | si (acumulador saturado) | HOST-059 |
-| cross2 / rotate2 / vscale / vlerp | si | si | si | HOST-059 |
-| length / normalize / reflect / project | si | si (limites de rango) | no (sin sqrt) | HOST-059 |
+| cross2 / rotate2 / vscale / vlerp | si | si | si (rotate2 por ángulo con fixed_math) | HOST-059/104 |
+| length / normalize / reflect / project | si | si (limites de rango) | si (fixed_math) | HOST-059/104 |
 | value_noise / fbm | si | si (coord <= 2048) | no (necesita division) | HOST-060 |
 | mul_add / mac (FMA) | — | si (1 redondeo) | si (1 redondeo) | HOST-057/059 |
 | hermite / catmull_rom | si | si | si (catmull usa div_norm) | HOST-064 |
 | hermite / catmull_rom (Vec<N>) | si | si | si | HOST-064 |
 | ease_in/out/in_out_quad/_cubic | si | si | si | HOST-064 |
-| ease_in/out/in_out_sine/_expo | si | si (necesita sin/cos/exp2) | — | HOST-064 |
+| ease_in/out/in_out_sine/_expo | si | si (necesita sin/cos/exp2) | si (fixed_math) | HOST-064/104 |
 | min / max / abs / sign | si | si | si | HOST-065 |
 | move_towards | si | si | si | HOST-065 |
 | deadzone | si | si | si | HOST-065 |
-| smooth_damp | si | si | — (sin exp2) | HOST-065 |
+| smooth_damp | si | si | si (fixed_math, exp2) | HOST-065/104 |
 | repeat / pingpong | si | si | si (div_norm) | HOST-065 |
 | ease_in/out/in_out_back | si | si | si | HOST-065 |
 | bezier2 / bezier3 | si | si | si | HOST-065 |
 | bezier2 / bezier3 (Vec<N>) | si | si | si | HOST-065 |
-| wrap_angle / angle_diff | — | si | — | HOST-057 |
-| sqrt/exp/log/sin/cos/tan | — | si | — | HOST-057 |
+| wrap_angle / angle_diff | — | si | si (fixed_math) | HOST-057/104 |
+| sqrt / sin / cos / exp2 / log2 | — | si | si (fixed_math) | HOST-057/104 |
+| exp / log / pow | — | si (minifloat_math) | si (fixed_math) | HOST-104 |
+| tan / asin / acos / atan2 | — | si | si (fixed_math) | HOST-057/104 |
+| sincos (una pasada) | — | si (minifloat_math) | si (fixed_math) | HOST-057/104 |
 | transform (MF × fix) | — | ratio MF (|m| <= 8) | coordenada | HOST-058 |
+| stats::mean / variance / stddev | si | si | si (sum/mean con acumulador s32; stddev con fixed_math) | HOST-093/104 |
+| dsp::Adsr / OnePole / DelayLine / osc_* | si | si | si (osc_sine con fixed_math) | HOST-102/104 |
 
 <!-- SCALAR-TABLE:END -->

@@ -35,6 +35,14 @@ La librería **complementa** el núcleo de `eng/core/`, no lo duplica:
                                      ring_buffer.hpp   RingBuffer<T,N> (doble)
                                      stack_queue.hpp   Stack/Queue/Deque<T,N>
                                      enum_set.hpp      EnumSet<E,N>
+                                     stats.hpp         sum/mean/variance/median/histogram
+                                     color.hpp         RGB444 (lerp/scale/HSV)
+                                     collision.hpp     AABB/segmento/triángulo/círculo
+                                     text.hpp          trim/split/parse/to_chars/join
+                                     grid.hpp          tile/iso/hex
+                                     broadphase.hpp    SpatialHash (rejilla)
+                                     pathfinding.hpp   bfs/astar/reconstruct
+                                     dsp.hpp           Adsr/OnePole/DelayLine/osciladores
                                      pool.hpp          Pool<T,N> (handles)
                                      priority_queue.hpp PriorityQueue<T,N,Cmp>
                                      intrusive_list.hpp IntrusiveList/SList<T>
@@ -105,6 +113,14 @@ Puntos de reutilización explícitos:
 | `string_view.hpp` | `StringView` | `std::string_view` |
 | `static_string.hpp` | `StaticString<N>` | (sin equivalente; `llvm::SmallString`) |
 | `scope_guard.hpp` | `ScopeGuard`, `make_scope_guard` | `boost::scope_exit` |
+| `stats.hpp` | `sum`/`mean`/`variance`/`stddev`/`kth_smallest`/`median`/`histogram`/`ema`/`RunningMean` | (sin equivalente; estadística) |
+| `color.hpp` | `rgb444`/`lerp444`/`scale444`/`hsv_to_rgb444` | (sin equivalente; color Amiga) |
+| `collision.hpp` | `Aabb`, `aabb_*`, `segments_intersect`, `point_in_triangle`, `circle_overlap` | (sin equivalente; juego 2D) |
+| `text.hpp` | `trim`/`split_next`/`equal_ci`/`parse_u32`/`parse_s32`/`to_chars_*`/`join` | (parte de `boost::string`/`charconv`) |
+| `grid.hpp` | `TileCoord`/`grid_to_world`/`world_to_grid`/`iso_to_screen`/`Hex` | (sin equivalente; rejilla/iso/hex) |
+| `broadphase.hpp` | `SpatialHash<CellSize,CellsX,CellsY,MaxItems>` | (sin equivalente; broadphase) |
+| `pathfinding.hpp` | `bfs<W,H>`, `astar<W,H>`, `reconstruct_path<W,H>` | (sin equivalente; A*/BFS) |
+| `dsp.hpp` | `Adsr`, `OnePole`, `DelayLine`, `soft_clip`, `osc_*` | (sin equivalente; audio) |
 | `function_ref.hpp` | `FunctionRef<Sig>` | `std::function_ref` (C++26) |
 
 ## 3. Reglas de diseño para Amiga 500
@@ -149,6 +165,27 @@ mitad que `HashMap`, y `DirectMap` menos aún con clave densa); el hash usa **un
 resultado y **0 de más** al consumirlo, sin libcalls: apto para frontera pública e
 `init`/carga, no para el camino por frame (ver `expected.hpp`).
 
+### 3.b Soporte por escalar
+
+Los contenedores y las utilidades de bytes/enteros son agnósticos del tipo (almacenan `T` y usan solo `operator<`/`==`/`+`); las utilidades **escalar-genéricas** (`stats`, `dsp`) usan `mul_norm`/`div_norm` y los rasgos del escalar. No hacen falta especializaciones: `MiniFloat16` y `Fixed` funcionan igual.
+
+| Utilidad | enteros | `Fixed` (p. ej. q12) | `MiniFloat16` | `float`/`double` |
+|---|---|---|---|---|
+| Contenedores (`Array`…`RingBuffer`, `FlatMap`, `HashSet`, `Pool`, `PriorityQueue`…) | sí | sí | sí | sí |
+| `algorithm.hpp`, `core/sort.hpp`, `type_traits`/`util`/`bit` | sí | sí | sí | sí |
+| `collision`, `color`, `grid`, `broadphase`, `pathfinding`, `text` | sí | — | — | — (enteros por diseño: 68000/hardware) |
+| `stats` | — | sí (sum/mean con acumulador s32; stddev con `fixed_math.hpp`) | sí (~1e-3) | sí |
+| `dsp` | — | sí (osc_sine con `fixed_math.hpp`) | sí | sí |
+
+Limitaciones (también en cada cabecera):
+
+- `stats::sum`/`mean` con `Fixed<s16>` acumulan en **32 bits** (`add.l`) y solo estrechan al final; `variance` mantiene el acumulador del escalar (un acumulador ancho necesitaría productos de 64 bits, `__muldi3`).
+- `stats::stddev` con `Fixed` requiere incluir `eng/core/fixed_math.hpp` (aporta `scalar_sqrt<Fixed>` vía `isqrt`); `dsp::osc_sine` con `Fixed` también (aporta `scalar_sin<Fixed>`).
+- **Matemáticas `Fixed`**: `eng/core/fixed_math.hpp` especializa `scalar_sin`/`scalar_cos`/`scalar_tan`/`scalar_asin`/`scalar_acos`/`scalar_atan2`/`scalar_sqrt`/`scalar_exp2`/`scalar_log2`/`scalar_exp`/`scalar_log`/`scalar_pow` para `Fixed<s16,E>` (tablas compartidas + `isqrt`), más `scalar_sincos` (`fixed_sincos`, seno y coseno en una pasada; `geometry` lo usa en `rotate2(v, ángulo)`) y `wrap_angle`/`angle_diff` (pliegue sin tabla); incluir ese header antes de usar easings `_sine`/`_expo`, `smooth_damp`, `length`/`normalize`/`project`/`reflect` o `stddev` con fixed. `sin`/`cos` requieren `E <= 14`; `atan2`/`asin`/`acos` `E <= 13` (π debe caber); `tan` satura donde `cos ≈ 0`; `exp2` satura; `log2` solo correcto dentro del rango del fixed. Tablas (seno 2 KiB, `exp2`/`log2`/`atan` 1 KiB c/u) compartidas, con **tamaño elegible por plantilla** (`fixed_sin<E,Size,Iter>`, `fixed_exp2`/`fixed_log2`/`fixed_atan2<E,Size>`) o **por compilación** (`-DENG_FIXED_SIN_SIZE`, `ENG_FIXED_EXP2_SIZE`, `ENG_FIXED_LOG2_SIZE`, `ENG_FIXED_ATAN_SIZE`, `ENG_FIXED_SIN_ITER`; medido: ~5 KiB por defecto, ~1.8 KiB con 512/64/64/64). Verificado por HOST-104 y **por demo** (`110_ylimited_shooter`, self-test en `init`).
+- `MiniFloat16`: pierde incrementos por debajo de `2^-14` (tasas de ADSR/`alpha` muy pequeñas bajoflow a 0); precisión ~1e-3.
+- `Fixed`: la división (`div_norm`) **satura**; el paso mínimo es `2^-Exp` (p. ej. 1/4096 en q12).
+- Las matemáticas de escalares (interpolación, easings, geometría, ruido, `minifloat_math`) viven en `eng::math`; ver `SCALAR_LIBRARY.md` (tabla función × escalar) y `MATH_LIBRARY.md`.
+
 ## 4. Qué no incluye (y por qué)
 
 - **Contenedores con heap implícito** (`std::string`, nodos de `std::map`/`std::list`): fuera. Sí hay `Vector`/`SmallVector`/`ChunkedVector` y mapas/sets, pero **sin `malloc`**: crecen sobre un `Allocator` (arena) y solo en `init`/carga.
@@ -185,8 +222,20 @@ canónica de validar algoritmos puros (sin hardware):
 | HOST-090 | `core/sort.hpp` (stable/nth/partial/radix) |
 | HOST-091 | `stack_queue.hpp`, `enum_set.hpp` (y `RingBuffer` doble) |
 | HOST-092 | `scope_guard.hpp`, `static_string.hpp` |
+| HOST-093 | `stats.hpp` (media/varianza/orden/histograma, `double`/MF/`q12`) |
+| HOST-094 | `color.hpp` (RGB444/lerp/scale/HSV) |
+| HOST-095 | `collision.hpp` (AABB/segmento/triángulo/círculo) |
+| HOST-096 | `text.hpp` (trim/split/parse/to_chars/join) |
+| HOST-097 | `grid.hpp` (tile/iso/hex) |
+| HOST-098 | `broadphase.hpp` (SpatialHash) |
+| HOST-099 | `pathfinding.hpp` (BFS/A*/reconstruct) |
+| HOST-100 | `core/random.hpp` (next_range/pick/shuffle/gaussian) |
+| HOST-101 | `core/noise.hpp` (worley/turbulence/ridged) |
+| HOST-102 | `dsp.hpp` (Adsr/OnePole/DelayLine/osciladores; `double`/MF/`q12`) |
+| HOST-103 | util (contenedores/algoritmos) con `MiniFloat16`/`q12` |
+| HOST-104 | `core/fixed_math.hpp` (sin/cos/tan/atan2/asin/acos/sqrt/exp2/log2 de `Fixed`; easings/length con q12) |
 
-> **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`), `Pool` por `086_bob_objects` (parque de actores) y `HashMap` por `111_xlimited_sidescroller` (índice de chunks de `ChunkCache`). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashSet`, `DynamicHashMap`, `PriorityQueue`, `Stack`/`Queue`/`Deque`, `EnumSet`, `ScopeGuard`, `StaticString`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..092 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
+> **Estado: verificación por demo parcial.** `BitSet` y `StaticVector` están **verificadas** por la demo `086_bob_objects` (`build -> run -> analyze` OK), que las ejerce a través de `eng/scene/actor.hpp` (`ActorStore` y `emit_bob_fallbacks`); además las respaldan HOST-076 (`BitSet`) y HOST-077 (`StaticVector`). `RingBuffer` está **verificada** por la demo `081_background_tasks` (media móvil del throughput del fondo), `FlatMap` por la demo `078_math3d_solid` (`eng::assets::Blob` indexa sus chunks por tipo), `DirectMap` por la demo `066_polyphony` (`eng::audio::SampleBank` indexa los sonidos por id), `IntrusiveSList` por `081_background_tasks` (free-list de `BackgroundQueue`), `Pool` por `086_bob_objects` (parque de actores), `HashMap` por `111_xlimited_sidescroller` (índice de chunks de `ChunkCache`), `color` también por `086_bob_objects` (gradiente del cielo con `eng::util::lerp444`), y `broadphase` y `pathfinding` por `110_ylimited_shooter` (self-test en `init`: `SpatialHash` + `bfs`/`reconstruct_path` en el 68000; si falla, la demo no llega a READY). Los demás contenedores (`Vector`, `SmallVector`, `ChunkedVector`, `IntrusiveList`, `FlatSet`, `HashSet`, `DynamicHashMap`, `PriorityQueue`, `Stack`/`Queue`/`Deque`, `EnumSet`, `ScopeGuard`, `StaticString`, `stats`, `collision`, `text`, `grid`, `dsp`, `allocator`/`arena_alloc`/`hash`) están respaldados por HOST-080..102 y siguen **NO VERIFICADOS por demo**; pueden cambiar sin aviso (`docs/testing/README.md`).
 
 Los tests se ejecutan con el `g++` del entorno (Windows/MinGW, donde `unsigned long`
 mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
@@ -205,7 +254,11 @@ mide 4 bytes y coincide con m68k) mediante `tools/run-host-tests.sh`.
    (`c_hashmap_find`/`c_hashset_contains`), `vector.hpp`/`chunked_vector.hpp`
    (`c_vector_grow`/`c_chunked_push`), `pool.hpp`/`priority_queue.hpp`/`intrusive_list.hpp`
    (`c_pool_ops`/`c_pq_ops`/`c_ilist_ops`), la ordenación de `core/sort.hpp`
-   (`c_stable_sort`/`c_nth_element`/`c_radix_u16`) y `dynamic_hash_map.hpp` (`c_dyn_hashmap`).
+   (`c_stable_sort`/`c_nth_element`/`c_radix_u16`), `dynamic_hash_map.hpp` (`c_dyn_hashmap`),
+   `stats.hpp` (`c_stats_ops`) y `color.hpp`/`collision.hpp`/`text.hpp`
+   (`c_color_lerp`/`c_collision_ops`/`c_text_ops`), `grid.hpp` (`c_grid_ops`),
+   `broadphase.hpp` (`c_broadphase_ops`), `pathfinding.hpp` (`c_pathfinding_ops`),
+   `core/random.hpp` (`c_random_ops`) y `dsp.hpp` (`c_dsp_ops`).
 5. Antes de añadir una utilidad nueva, comprobar si el **vocabulario** de §7 ya cubre la
    necesidad (p. ej. flags con `EnumSet`, restauración con `ScopeGuard`, colas con
    `Queue`/`Deque`); adoptarlo en el engine y documentarlo aquí.
@@ -235,6 +288,16 @@ Qué usar según la necesidad, con el criterio del A500 (sin heap; coste visible
 | Valor opcional / resultado con error | `Optional<T>` / `Expected<T, E>` |
 | Vista de texto / construir texto sin heap | `StringView` / `StaticString<N>` |
 | Restaurar estado al salir del ámbito | `ScopeGuard` |
+| Estadística / telemetría (fps, carga) | `stats.hpp` (`mean`/`variance`/`ema`/`RunningMean`) |
+| Color RGB444 (paleta/fundido) | `color.hpp` |
+| Colisión 2D (AABB/segmento/círculo) | `collision.hpp` |
+| Texto (config/HUD: parseo/emisión) | `text.hpp` |
+| Coordenadas tile/iso/hex | `grid.hpp` |
+| Broadphase (rejilla espacial) | `broadphase.hpp` |
+| Búsqueda de caminos (A*/BFS) | `pathfinding.hpp` |
+| Aleatoriedad (rango/pick/shuffle) | `core/random.hpp` (`Xoroshiro64pp` + distribuciones) |
+| Ruido procedural (value/fbm/worley) | `core/noise.hpp` |
+| Audio/efectos (envolvente/filtro/eco/oscilador) | `dsp.hpp` |
 | Pasar un callable sin poseerlo | `FunctionRef<Sig>` |
 
 Notas de uso:

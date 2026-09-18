@@ -1,4 +1,4 @@
-# HOST-094: restauración de la costura en `scroll_engine` (ScopeGuard)
+# HOST-106: restauración de la costura en `scroll_engine` (ScopeGuard)
 
 Test host de `engine/include/eng/field/scroll_engine.hpp`: cuando una función de scroll
 (`scroll_right`, `scroll_left`, `scroll_down`…) guarda la costura con `save_word` y un
@@ -19,5 +19,5 @@ Usa un sink de pega que falla el primer `add_draw` posterior al primer `save_wor
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/094_scroll_saveword_guard
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/106_scroll_saveword_guard
 ```
