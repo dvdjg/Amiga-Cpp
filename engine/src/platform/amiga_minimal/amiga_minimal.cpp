@@ -47,6 +47,7 @@ constexpr unsigned short blt_use_d = 0x0100;
 constexpr unsigned short blt_minterm_cookie_cut = 0x00ca;
 constexpr unsigned short blt_minterm_copy_c = 0x00aa;
 constexpr unsigned short blt_minterm_copy_a = 0x00f0;   // D = A (canal A, con barrel shifter)
+constexpr unsigned short blt_minterm_a_or_b = 0x00fc;   // D = A | B (con B = D, OR aditivo)
 constexpr unsigned short blt_desc = 0x0002;             // BLTCON1 BLITREVERSE (modo descendente)
 
 void write_custom_pointer(unsigned short word_offset, const void* pointer) {
@@ -678,15 +679,20 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 					static_cast<u16>(job.source_shift) << 12u
 				);
 			} else if (or_blob) {
-				// BOB OR (bobs3d): A = objeto (con barrel shift), B = D = destino,
+				// BOB OR (bobs3d): A = objeto (con barrel shift ASH), B = D = destino,
 				// minterm $FC (D = A | D). El canal C no interviene.
+				//
+				// OJO: BLTCON1 bits 15-12 son **BSH** (shift del canal B), NO un duplicado
+				// de ASH. B aqui es el DESTINO (B=D), asi que poner BSH!=0 desplaza la
+				// lectura del fondo y emborrona el BOB (cola horizontal). El original
+				// (`bobs3d.c`) deja `bltcon1=0`; solo desplaza A via BLTCON0. Ver AHRM 3. a
+				// (BLTCON1) y `amiga-bootcamp/08_graphics/blitter_programming.md` ("Shift
+				// and Alignment").
 				custom_base[custom_bltcon0_offset] = static_cast<u16>(
 					(static_cast<u16>(job.source_shift) << 12u) |
 					blt_use_a | blt_use_b | blt_use_d | job.minterm
 				);
-				custom_base[custom_bltcon1_offset] = static_cast<u16>(
-					static_cast<u16>(job.source_shift) << 12u
-				);
+				custom_base[custom_bltcon1_offset] = 0u;
 			} else if (job.source_shift != 0u) {
 				// Copia con desplazamiento fino. El barrel shifter del Blitter solo
 				// actua sobre los canales A y B (AHRM 6, "Shifting"), asi que la
@@ -1065,6 +1071,52 @@ bool MinimalBackend::blitter_clear(eng::PlaneBytes dst, u8 planes, u16 row_bytes
 		}
 	}
 	return wait ? wait_blitter() : true;
+}
+
+void MinimalBackend::blitter_or_bobs_begin(u16 words, u16 height, s16 source_modulo,
+					   s16 dest_modulo) {
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
+	wait_blitter();
+
+	// Constantes del lote (una sola vez): es lo que el original deja fuera del bucle
+	// de `DrawObject`. A = objeto (con barrel shifter), B = D = destino, `A_OR_B`;
+	// atlas denso (sin guarda) y ALWM completo, como bobs3d.
+	m_or_bob_size = static_cast<u16>((static_cast<u16>(height) << 6) | words);
+	m_or_bob_con0 = static_cast<u16>(blt_use_a | blt_use_b | blt_use_d | blt_minterm_a_or_b);
+	custom_base[custom_bltcon1_offset] = 0;
+	custom_base[custom_bltafwm_offset] = 0xffff;
+	custom_base[custom_bltalwm_offset] = 0xffff;
+	custom_base[custom_bltamod_offset] = static_cast<u16>(source_modulo);
+	custom_base[custom_bltbmod_offset] = static_cast<u16>(dest_modulo);
+	custom_base[custom_bltdmod_offset] = static_cast<u16>(dest_modulo);
+}
+
+void MinimalBackend::blitter_or_bobs_one(const void* source, void* dest, u8 shift) {
+	// El original espera antes de reprogramar cada objeto (no solapa el setup con el
+	// blit en curso, que comparte BLTxPT/BLTSIZE).
+	wait_blitter();
+	custom_base[custom_bltcon0_offset] =
+		static_cast<u16>(static_cast<u16>(shift & 0x0fu) << 12u | m_or_bob_con0);
+	write_custom_pointer(custom_bltapt_offset, source);
+	write_custom_pointer(custom_bltbpt_offset, dest);
+	write_custom_pointer(custom_bltdpt_offset, dest);
+	custom_base[custom_bltsize_offset] = m_or_bob_size;
+}
+
+bool MinimalBackend::blitter_or_bobs_end() {
+	return wait_blitter();
+}
+
+bool MinimalBackend::blitter_or_bobs(const OrBobEntry* entries, u32 count, u16 words, u16 height,
+				     s16 source_modulo, s16 dest_modulo) {
+	if (entries == nullptr || count == 0u || words == 0u || height == 0u) {
+		return false;
+	}
+	blitter_or_bobs_begin(words, height, source_modulo, dest_modulo);
+	for (u32 i = 0; i < count; ++i) {
+		blitter_or_bobs_one(entries[i].source, entries[i].dest, entries[i].shift);
+	}
+	return blitter_or_bobs_end();
 }
 
 bool MinimalBackend::blitter_clear_rect(eng::PlaneBytes plane, u16 row_bytes, u16 wx0, s16 y0, u16 words, u16 rows,

@@ -68,6 +68,7 @@ enum class Register : u16 {
 /// inicial del Copper.
 enum DmaControl : u16 {
 	DmaSetClear = 0x8000,
+	DmaBlitterPriority = 0x0400, // BLTPRI/BLITHOG: el Blitter no cede slots a la CPU
 	DmaMaster = 0x0200,
 	DmaBitplane = 0x0100,
 	DmaCopper = 0x0080,
@@ -183,6 +184,24 @@ public:
 	/// el valor par que compara).
 	void wait_position(u8 vpos, u8 hpos) {
 		write_pair(wait_word(vpos, static_cast<u8>(hpos & 0xfe)), 0xfffe);
+	}
+
+	/// Espera a una POSICION (V y H) de una linea PAL completa (0..311), manejando el
+	/// overflow del contador V como `wait_line_pal` pero conservando la comparacion
+	/// horizontal. Es el port exacto de `CopWaitSafe` con `X(...)`: se usa para los
+	/// cambios de paleta por scanline de `bobs3d`, que esperan al final de la linea
+	/// anterior (`X(288)`) y al principio de la actual (`X(0)`). `hpos` va en el mismo
+	/// formato que `wait_position` (color-clock, se enmascara a par).
+	void wait_position_pal(u16 vpos, u8 hpos) {
+		if (vpos <= 255u) {
+			wait_position(static_cast<u8>(vpos & 0xffu), hpos);
+			return;
+		}
+		if (!m_overflow_sent) {
+			m_overflow_sent = true;
+			write_pair(0xffdf, 0xfffe);
+		}
+		wait_position(static_cast<u8>(vpos & 0xffu), hpos);
 	}
 
 	/// Finaliza la lista. El Copper se detiene en este par especial.

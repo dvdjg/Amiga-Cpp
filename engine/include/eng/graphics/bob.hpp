@@ -177,7 +177,11 @@ inline bool bob_erase(FramePlan& plan, const Bob& bob, s16 x, s16 y, const BobTa
 }
 
 /// Dibuja el `frame` del objeto en `(x,y)`.
-inline bool bob_draw(FramePlan& plan, const Bob& bob, u8 frame, s16 x, s16 y, const BobTarget& t) {
+///
+/// Camino caliente (un BOB por objeto y frame): `always_inline` para que el contrato
+/// de la hoja y la aritmetica de modulos queden dentro del bucle del llamador, sin
+/// `jsr` por objeto. Medido en la 117 (bobs3d): `draw` ~2.660 ciclos/BOB sin inline.
+__attribute__((always_inline)) inline bool bob_draw(FramePlan& plan, const Bob& bob, u8 frame, s16 x, s16 y, const BobTarget& t) {
 	using namespace bob_detail;
 	if (!valid(bob, t) || frame >= bob.frame_count) {
 		return false;

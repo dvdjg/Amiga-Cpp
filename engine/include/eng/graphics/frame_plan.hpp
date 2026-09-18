@@ -337,7 +337,7 @@ public:
 
 	/// BOB OR (aditivo) por desplazamiento: `A`=objeto, `B=D`=destino, minterm `$FC`.
 	/// El llamador rellena `source`/`destination` y deja `mask` vacia.
-	bool add_or_blob(const BlitJob& job) {
+	__attribute__((always_inline)) inline bool add_or_blob(const BlitJob& job) {
 		return add_blit_job(job, BlitJobKind::OrBlob);
 	}
 
@@ -374,7 +374,9 @@ private:
 		}
 	}
 
-	bool add_blit_job(const BlitJob& input, BlitJobKind kind) {
+	/// Camino caliente (1 vez por BOB): `always_inline` para no pagar un `jsr` por objeto
+	/// ni recargar `m_blit_job_count`/`m_blit_budget` desde memoria en cada anadido.
+	__attribute__((always_inline)) inline bool add_blit_job(const BlitJob& input, BlitJobKind kind) {
 		BlitJob job = input;
 		job.kind = kind;
 		const bool masked =

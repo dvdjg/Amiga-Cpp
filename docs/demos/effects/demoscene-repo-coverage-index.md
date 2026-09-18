@@ -53,7 +53,7 @@ Este documento convierte el roadmap general en una tabla de trabajo mantenible. 
 | 19 | Ball | `effects/ball` | `NO_INICIADO` | `DX19_ball` | blit runtime helpers | Caso pequeno de movimiento y render por frame. |
 | 20 | Blurred | `effects/blurred` | `NO_INICIADO` | `DX20_blurred` | blur buffer ops | Coste por frame importante; documentar bien CPU/blitter. |
 | 21 | Blurred3D | `effects/blurred3d` | `NO_INICIADO` | `DX21_blurred3d` | 3D + accumulation | Mejor tras wireframe/flatshade. |
-| 22 | Bobs3D | `effects/bobs3d` | `NO_INICIADO` | `DX22_bobs3d` | object/scene helpers | Mezcla 3D con BOBs; no abrir sin base fuerte. |
+| 22 | Bobs3D | `effects/bobs3d` | `ENGINE_PARCIAL` | `117_bobs3d` | `eng::object3d` + `math::projector` + `graphics::bob` + `copper::Scheduler` | Porte fiel en `demos/amiga/117_bobs3d` (DPF 3+2, paleta por línea, BOB OR intercalado). Validado con visión (qwen3-vl) y `measure-fps`; la optimización de rendimiento (lote de BOBs, 3 palabras) y el oráculo del original quedan pendientes. Ver `BOBS3D_PORT_PLAN.md`; corregido el bug de fidelidad BSH del backend OR-BOB. |
 | 23 | Bumpmap RGB | `effects/bumpmap-rgb` | `NO_INICIADO` | `DX23_bumpmap_rgb` | lighting helpers | Tardia por coste y formato. |
 | 24 | Butterfly-gears | `effects/butterfly-gears` | `NO_INICIADO` | `DX24_butterfly_gears` | loops especializados | Buena referencia de optimizacion micro. |
 | 25 | Carrion | `effects/carrion` | `NO_INICIADO` | `DX25_carrion` | blit por trozos | Caso muy especifico. |
