@@ -74,9 +74,9 @@ bool util_selftest() {
 }
 
 /// Self-test de las matemáticas `Fixed` (`fixed_math.hpp`) en el 68000, **sin `float`**
-/// (compara valores crudos contra márgenes): `sin`/`cos` (tabla), `smooth_damp`
-/// (`exp2`), `pow` (`log2`+`exp2`) y `length` (`sqrt`). Si falla, la demo no llega a
-/// READY.
+/// (compara valores crudos contra márgenes): `sin`/`cos`/`tan` (tabla), `asin`/`acos`/
+/// `atan2` (tabla de `atan`), `smooth_damp` (`exp2`), `pow` (`log2`+`exp2`) y `length`
+/// (`sqrt`). Si falla, la demo no llega a READY.
 bool fixed_math_selftest() {
 	using q12 = eng::math::Fixed<eng::s16, 12>;
 	const q12 zero {0};
@@ -102,7 +102,29 @@ bool fixed_math_selftest() {
 	}
 	const eng::math::Vec<2, q12> v {q12 {6144}, q12 {8192}}; // |(1.5,2.0)| = 2.5
 	const eng::s16 len = eng::math::length(v).v;
-	return len >= 10150 && len <= 10350;
+	if (!(len >= 10150 && len <= 10350)) {
+		return false;
+	}
+	// Trigonometría inversa/tangente con entrada NO constante (evita el plegado del
+	// compilador y ejercita la tabla de `atan` en runtime).
+	volatile eng::s16 q_half_raw = 2048; // 0.5 en q12
+	const q12 half_q {q_half_raw};
+	const eng::s16 asin_half = eng::math::scalar_asin<q12>::op(half_q).v; // asin(0.5) ≈ 0.524
+	if (!(asin_half >= 2050 && asin_half <= 2250)) {
+		return false;
+	}
+	const eng::s16 acos_half = eng::math::scalar_acos<q12>::op(half_q).v; // acos(0.5) ≈ 1.047
+	if (!(acos_half >= 4200 && acos_half <= 4400)) {
+		return false;
+	}
+	const eng::s16 atan_11 = eng::math::scalar_atan2<q12>::op(half_q, half_q).v; // π/4 ≈ 0.785
+	if (!(atan_11 >= 3100 && atan_11 <= 3350)) {
+		return false;
+	}
+	if (eng::math::scalar_tan<q12>::op(zero).v != 0) { // tan(0) = 0
+		return false;
+	}
+	return true;
 }
 
 constexpr eng::u16 kTileW = 16;
