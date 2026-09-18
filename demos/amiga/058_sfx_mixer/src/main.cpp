@@ -132,6 +132,7 @@ struct SfxMixerDemo {
 	}
 
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+		(void)backend;
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		eng::amiga::GameInput gin;
 		eng::amiga::poll_input(gin);
@@ -151,14 +152,12 @@ struct SfxMixerDemo {
 		}
 		m_sfx.set_master_volume(m_volume);
 
-		// Dibujo: barra cian cuya altura refleja el volumen maestro.
+		// Dibujo: barra cian cuya altura refleja el volumen maestro. La copperlist es
+		// CONSTANTE (misma paleta, mismas bandas, mismo puntero de bitplanes), asi que se
+		// construye y se instala UNA vez en `init` y no se re-emite por frame.
 		clear_plane0();
 		const eng::u16 bar_h = static_cast<eng::u16>((static_cast<eng::u32>(m_volume) * 200u) / 64u + 16u);
 		fill_rect(m_bitplane_block.view.data(), 156, static_cast<eng::s16>(kScreenH - bar_h), 9, static_cast<eng::s16>(bar_h));
-
-		if (build_copper()) {
-			backend.install_copper_list(m_copper_ptr);
-		}
 		(void)context;
 	}
 

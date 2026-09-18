@@ -120,6 +120,7 @@ struct AudioMixerDemo {
 	}
 
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+		(void)backend;
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		eng::input::InputAggregator agg;
 		eng::amiga::poll_input(agg);
@@ -145,9 +146,8 @@ struct AudioMixerDemo {
 			fill_rect(m_bitplane_block.view.data(), 156, static_cast<eng::s16>(kScreenH - bar_h), 9, static_cast<eng::s16>(bar_h));
 		}
 
-		if (build_copper()) {
-			backend.install_copper_list(m_copper_ptr);
-		}
+		// La copperlist es CONSTANTE (paleta, bandas y puntero de bitplanes fijos): se
+		// construye e instala UNA vez en `init`; no se re-emite por frame.
 		(void)context;
 	}
 

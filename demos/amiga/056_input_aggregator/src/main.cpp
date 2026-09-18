@@ -160,10 +160,10 @@ struct InputAggregatorDemo {
 		clear_plane0();
 		draw_cross(m_bitplane_block.view.data(), m_cx, m_cy);
 
-		// 4) Reconstruir la copperlist (el color de la cruz cambia) e instalarla.
-		if (build_copper()) {
-			backend.install_copper_list(m_copper_ptr);
-		}
+		// 4) Parchear SOLO el valor de COLOR01 en la copperlist ya construida (estructura
+		//    fija): no se reconstruye ni se reinstala la lista cada frame.
+		reinterpret_cast<eng::u16*>(m_copper_block.view.data())[m_color1_word] = cross;
+		(void)backend;
 		(void)context;
 	}
 
@@ -223,7 +223,16 @@ private:
 			0x2c81, 0x2cc1, 0x0038, 0x00d0,
 			kBytesPerRow, 0x6200, kPlanes, m_bitplane_block.view, kPlaneBytes
 		);
-		sched.emit_palette(m_palette);
+		// Paleta: emitimos los MOVEs uno a uno para guardar el indice de la palabra de
+		// valor de COLOR01, que es lo unico que cambia por frame (color de la cruz).
+		for (eng::u8 i = 0; i < 32u; ++i) {
+			const eng::u16 idx = sched.move_at(
+				static_cast<eng::u16>(eng::copper::Register::COLOR00) + static_cast<eng::u16>(i) * 2u,
+				m_palette[i]);
+			if (i == 1u) {
+				m_color1_word = static_cast<eng::u16>(idx + 1u); // palabra de valor del MOVE
+			}
+		}
 		build_bands();
 		sched.emit_copper_intents(m_intents, kBands);
 		sched.wait_line(0xf8);
@@ -245,6 +254,7 @@ private:
 	eng::u16 m_cy = kScreenH / 2u;
 	eng::amiga::MousePollState m_mouse_poll {};
 	eng::u16 m_palette[32] {};
+	eng::u16 m_color1_word = 0; // indice de la palabra de valor del MOVE COLOR01
 	const eng::u16* m_copper_ptr = nullptr;
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::Block<eng::CopperTag> m_copper_block {};

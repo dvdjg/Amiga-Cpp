@@ -31,8 +31,8 @@ La cifra histórica (101=~48, 102=~50, 103=~50, 104=~47,6) no era reproducible: 
 | `104_tile_scroll_ring_dualpf` | `A500_debug` | 30,02 | 236 313 | 0x14020600 | 2026-09-17 | `1490dfc` |
 | `086_bob_objects` | `A500_debug` | 49,92 | 142 102 | 0x1000303 | 2026-09-18 | `11014f8` |
 | `056_input_aggregator` | `A500_debug` | 16,58 | 427 727 | 0xb4 | 2026-09-18 | `46d4a82` |
-| `057_audio_mixer` | `A500_debug` | 9,95 | 712 878 | 0x381 | 2026-09-18 | `46d4a82` |
-| `058_sfx_mixer` | `A500_debug` | 9,95 | 712 878 | 0x3810004 | 2026-09-18 | `46d4a82` |
+| `057_audio_mixer` | `A500_debug` | 12,60 | 562 799 | 0x381 | 2026-09-18 | `83f1bba` |
+| `058_sfx_mixer` | `A500_debug` | 12,44 | 570 303 | 0x3810004 | 2026-09-18 | `83f1bba` |
 
 Contexto de medida: `CONFIG_ID` **`A500_debug`** (build `--debug`, `-O1`), emulador **WinUAE-DBG x86**, herramienta `tools/debug/measure-fps.mjs` (contador de ciclos del periférico `0xB7E928`, 7,09379 MHz). El fps depende de la **fase** del recorrido (`detail`): comparar siempre con el mismo `detail`. En hardware real las demos de scroll van a 50 fps.
 
