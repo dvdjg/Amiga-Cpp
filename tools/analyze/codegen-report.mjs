@@ -45,6 +45,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/util/pathfinding.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/ai/planning/goap.hpp>
+#include <eng/ai/planning/numeric_goap.hpp>
 #include <eng/core/util/state_machine.hpp>
 #include <eng/core/util/event.hpp>
 #include <eng/ai/decision/agent_fsm.hpp>
@@ -58,6 +59,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/ai/perception/influence_map.hpp>
 #include <eng/ai/perception/agent_memory.hpp>
 #include <eng/board/rules/chess/rules.hpp>
+#include <eng/board/rules/go/rules.hpp>
 #include <eng/board/explain/explain.hpp>
 #include <eng/parallel/parallel.hpp>
 #include <eng/core/util/union_find.hpp>
@@ -811,6 +813,30 @@ extern "C" u16 c_chess_explain(u16 language) {
 }
 extern "C" u16 c_parallel_threads() {
 	return static_cast<u16>(eng::parallel::hardware_threads());
+}
+extern "C" eng::u32 c_go_search(u16 depth) {
+	using G = eng::board::GoRules;
+	G::Position pos = G::initial();
+	eng::board::GoSearcher searcher;
+	const eng::board::GoSearcher::Result result =
+	    searcher.search(pos, {static_cast<eng::u32>(depth), 0u});
+	return static_cast<eng::u32>(result.best_move) ^ static_cast<eng::u32>(result.nodes);
+}
+extern "C" u16 c_numeric_goap(u16 seed) {
+	using Ai = eng::ai::NumericGoap<4u>;
+	constexpr eng::util::Array<Ai::Action, 3> acts {{
+	    Ai::Builder {}.add(0u, 1).cost(1).build(),
+	    Ai::Builder {}.var_ge(0u, 2).set_var(0u, 0u).add(2u, 1).cost(2).build(),
+	    Ai::Builder {}.var_ge(2u, 1).add(1u, 1).cost(1).build(),
+	}};
+	Ai::State start {};
+	start.set_var(0u, static_cast<eng::u8>(seed & 0x03u));
+	Ai::Goal goal {};
+	goal.var_ge[1u] = 2u;
+	Ai::Planner<64> planner;
+	eng::u16 plan[8] {};
+	const eng::usize n = planner.plan(start, goal, acts.span(), eng::Span<eng::u16> {plan, 8u});
+	return static_cast<u16>(n + (planner.found() ? 1u : 0u));
 }
 `;
 

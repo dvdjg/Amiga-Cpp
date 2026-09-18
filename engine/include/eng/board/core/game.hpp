@@ -28,6 +28,8 @@ enum class Terminal : u8 {
 	Draw50,
 	Repetition,
 	InsufficientMaterial,
+	GameEnded,  ///< fin por reglas propias del juego (p. ej. dos pases en Go)
+	VariantWin, ///< victoria por condición de variante (rey al centro, 3 jaques…)
 };
 
 /// Verdadero para cualquier estado que decide la partida.
@@ -48,6 +50,9 @@ concept GameRules = requires(const typename G::Position& position, typename G::P
 	G::initial();
 	G::generate_legal(position, moves);
 	G::in_check(position);
+	G::is_draw(position);
+	G::is_over(position);
+	G::variant_score(position);
 	G::zobrist(position);
 	G::terminal(position);
 	G::make(work, move, undo);

@@ -192,3 +192,11 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-149 | [chess_explain](149_chess_explain/README.md) | `eng/board/explain/`: NLG por plantillas ES/EN (jaque, material, dama prematura, desarrollo, rey en el centro), tono y truncado seguro. |
 | HOST-150 | [binary](150_binary/README.md) | `eng/core/util/binary.hpp`: `ByteReader`/`ByteWriter` little-endian sobre `Span` con comprobación de límites (round-trip, bounds, copia de bloques). |
 | HOST-151 | [board_file](151_board_file/README.md) | `eng/board/storage/file_block_source.hpp`: E/S real de bloques desde un fichero del PC; cadena entradas→fichero→`BlockCache`→`probe_book`. |
+| HOST-152 | [go_rules](152_go_rules/README.md) | `eng/board/rules/go/`: tablero 9×9, grupos/libertades, captura, suicidio y ko simple; jugada con flag de captura. |
+| HOST-153 | [go_search](153_go_search/README.md) | `eng/board/eval/go_eval.hpp` + `rules/go/rules.hpp`: territorio/capturas/atari, `GoSearcher` (negamax/αβ/TT) encuentra la captura. |
+| HOST-154 | [chess_variants](154_chess_variants/README.md) | `rules/chess/variant.hpp` (Chess960: 960 disposiciones y enroque generalizado) y `tournament.hpp` (torneos rápidos con presupuesto de nodos). |
+| HOST-155 | [go_complete](155_go_complete/README.md) | Go: pase/dos pases (`GameEnded`), superko (historial de claves) y apertura (`knowledge/patterns.hpp`). |
+| HOST-156 | [chess_variants_cond](156_chess_variants_cond/README.md) | Ajedrez: variantes de condición King of the Hill y Three-check vía `variant_score`. |
+| HOST-157 | [chess_knowledge](157_chess_knowledge/README.md) | Ajedrez: sonda del libro de aperturas (`opening.hpp`) y finales teóricos en la evaluación. |
+| HOST-158 | [goap_numeric](158_goap_numeric/README.md) | `ai/planning/numeric_goap.hpp`: GOAP con variables numéricas cuantizadas (enteros y decimales), saturación y caché (memo de planes + sufijo). |
+| HOST-159 | [goap_numeric_relaxed](159_goap_numeric_relaxed/README.md) | GOAP numérico con heurística relajada (h_max) y memo de heurística entre llamadas. |

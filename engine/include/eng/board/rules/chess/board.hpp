@@ -107,6 +107,11 @@ struct Position {
 	u16 halfmove = 0u;
 	u16 fullmove = 1u;
 	u32 key = 0u;
+	/// Jaques dados por cada bando (variante Three-check); 0 en ajedrez estándar.
+	u8 checks[2] = {0u, 0u};
+	/// Casillas de origen de las torres de enroque [WK, WQ, BK, BQ]; permite el
+	/// enroque en **Chess960** (torres/rey en columnas arbitrarias).
+	Square castle_rook[4] = {kH1, kA1, kH8, kA8};
 };
 
 /// Información necesaria para deshacer una jugada.
@@ -116,6 +121,8 @@ struct Undo {
 	u8 ep = kNoSquare;
 	u16 halfmove = 0u;
 	u32 key = 0u;
+	Square rook_from = kNoSquare; ///< torre movida en un enroque (Chess960)
+	u8 checks[2] = {0u, 0u};      ///< jaques dados (Three-check)
 };
 
 /// Pieza que mueve en la posición.
@@ -172,6 +179,50 @@ inline void set_start(Position& pos) noexcept {
 		}
 	}
 	return kNoSquare;
+}
+
+/// Reconstruye las casillas de las torres de enroque escaneando desde el rey hacia
+/// cada borde (sirve para posición inicial estándar, Chess960 y FEN). Apaga el
+/// derecho del lado cuya torre no exista.
+inline void rebuild_castle_rooks(Position& pos) noexcept {
+	for (int color = 0; color < 2; ++color) {
+		const Color us = (color == 0) ? Color::White : Color::Black;
+		const u8 king_bit = (color == 0) ? kCastleWhiteKing : kCastleBlackKing;
+		const u8 queen_bit = (color == 0) ? kCastleWhiteQueen : kCastleBlackQueen;
+		const Square king = king_square(pos, us);
+		if (king == kNoSquare) {
+			pos.castling = static_cast<u8>(pos.castling & static_cast<u8>(~static_cast<u8>(king_bit | queen_bit)));
+			continue;
+		}
+		const u8 rank = square_rank(king);
+		const u8 king_file = square_file(king);
+		const Piece rook = make_piece(us, PieceType::Rook);
+
+		Square king_rook = kNoSquare;
+		for (u8 file = king_file + 1u; file < 8u; ++file) {
+			const Square sq = make_square(file, rank);
+			if (pos.board[sq] == rook) {
+				king_rook = sq;
+				break;
+			}
+		}
+		Square queen_rook = kNoSquare;
+		for (u8 file = king_file; file > 0u; --file) {
+			const Square sq = make_square(static_cast<u8>(file - 1u), rank);
+			if (pos.board[sq] == rook) {
+				queen_rook = sq;
+				break;
+			}
+		}
+		pos.castle_rook[color * 2] = king_rook;
+		pos.castle_rook[color * 2 + 1] = queen_rook;
+		if (king_rook == kNoSquare) {
+			pos.castling = static_cast<u8>(pos.castling & static_cast<u8>(~king_bit));
+		}
+		if (queen_rook == kNoSquare) {
+			pos.castling = static_cast<u8>(pos.castling & static_cast<u8>(~queen_bit));
+		}
+	}
 }
 
 /// ¿La casilla `square` está atacada por alguna pieza de color `by`?
@@ -270,23 +321,29 @@ inline void set_start(Position& pos) noexcept {
 	return is_square_attacked(pos, king, opposite(color));
 }
 
-/// Máscara de derechos de enroque que **no** hay que borrar tras la jugada.
-[[nodiscard]] constexpr u8 castling_keep_mask(Square from, Square to, Piece moved, Piece captured) noexcept {
+/// Máscara de derechos de enroque que **no** hay que borrar tras la jugada. Es
+/// consciente de las casillas reales de las torres (`castle_rook`) para Chess960.
+[[nodiscard]] inline u8 castling_keep_mask(const Position& pos, Square from, Square to, Piece moved,
+                                           Piece captured) noexcept {
 	u8 cleared = 0u;
 	if (piece_type(moved) == PieceType::King) {
 		cleared |= (piece_color(moved) == Color::White)
 		               ? static_cast<u8>(kCastleWhiteKing | kCastleWhiteQueen)
 		               : static_cast<u8>(kCastleBlackKing | kCastleBlackQueen);
 	}
-	if (from == kH1) cleared |= kCastleWhiteKing;
-	if (from == kA1) cleared |= kCastleWhiteQueen;
-	if (from == kH8) cleared |= kCastleBlackKing;
-	if (from == kA8) cleared |= kCastleBlackQueen;
+	if (piece_type(moved) == PieceType::Rook) {
+		for (board_int slot = 0; slot < 4; ++slot) {
+			if (pos.castle_rook[slot] == from) {
+				cleared = static_cast<u8>(cleared | (1u << slot));
+			}
+		}
+	}
 	if (captured != kEmptyPiece && piece_type(captured) == PieceType::Rook) {
-		if (to == kH1) cleared |= kCastleWhiteKing;
-		if (to == kA1) cleared |= kCastleWhiteQueen;
-		if (to == kH8) cleared |= kCastleBlackKing;
-		if (to == kA8) cleared |= kCastleBlackQueen;
+		for (board_int slot = 0; slot < 4; ++slot) {
+			if (pos.castle_rook[slot] == to) {
+				cleared = static_cast<u8>(cleared | (1u << slot));
+			}
+		}
 	}
 	return static_cast<u8>(~cleared);
 }
@@ -304,6 +361,8 @@ inline void make_move(Position& pos, Move move, Undo& undo) noexcept {
 	undo.ep = pos.ep;
 	undo.halfmove = pos.halfmove;
 	undo.key = pos.key;
+	undo.checks[0] = pos.checks[0];
+	undo.checks[1] = pos.checks[1];
 
 	u32 key = pos.key;
 	if (pos.ep != kNoSquare) {
@@ -336,26 +395,29 @@ inline void make_move(Position& pos, Move move, Undo& undo) noexcept {
 	}
 
 	if (move_is_castle_king(move)) {
-		const u8 rank = square_rank(from);
-		const Square rook_from = make_square(7u, rank);
-		const Square rook_to = make_square(5u, rank);
+		const int base = (mover == Color::White) ? 0 : 2;
+		const Square rook_from = pos.castle_rook[base];
+		const Square rook_to = make_square(5u, square_rank(from));
 		const Piece rook = pos.board[rook_from];
 		pos.board[rook_from] = kEmptyPiece;
 		pos.board[rook_to] = rook;
 		key ^= kZobrist.piece[piece_index(rook)][compact_square(rook_from)];
 		key ^= kZobrist.piece[piece_index(rook)][compact_square(rook_to)];
+		undo.rook_from = rook_from;
 	} else if (move_is_castle_queen(move)) {
-		const u8 rank = square_rank(from);
-		const Square rook_from = make_square(0u, rank);
-		const Square rook_to = make_square(3u, rank);
+		const int base = (mover == Color::White) ? 0 : 2;
+		const Square rook_from = pos.castle_rook[base + 1];
+		const Square rook_to = make_square(3u, square_rank(from));
 		const Piece rook = pos.board[rook_from];
 		pos.board[rook_from] = kEmptyPiece;
 		pos.board[rook_to] = rook;
 		key ^= kZobrist.piece[piece_index(rook)][compact_square(rook_from)];
 		key ^= kZobrist.piece[piece_index(rook)][compact_square(rook_to)];
+		undo.rook_from = rook_from;
 	}
 
-	pos.castling = static_cast<u8>(pos.castling & castling_keep_mask(from, to, piece, captured));
+	pos.castling =
+	    static_cast<u8>(pos.castling & castling_keep_mask(pos, from, to, piece, captured));
 	key ^= kZobrist.castling[pos.castling];
 
 	pos.ep = kNoSquare;
@@ -402,15 +464,13 @@ inline void unmake_move(Position& pos, Move move, const Undo& undo) noexcept {
 	}
 
 	if (move_is_castle_king(move)) {
-		const u8 rank = square_rank(from);
-		const Square rook_from = make_square(7u, rank);
-		const Square rook_to = make_square(5u, rank);
+		const Square rook_to = make_square(5u, square_rank(from));
+		const Square rook_from = undo.rook_from;
 		pos.board[rook_from] = pos.board[rook_to];
 		pos.board[rook_to] = kEmptyPiece;
 	} else if (move_is_castle_queen(move)) {
-		const u8 rank = square_rank(from);
-		const Square rook_from = make_square(0u, rank);
-		const Square rook_to = make_square(3u, rank);
+		const Square rook_to = make_square(3u, square_rank(from));
+		const Square rook_from = undo.rook_from;
 		pos.board[rook_from] = pos.board[rook_to];
 		pos.board[rook_to] = kEmptyPiece;
 	}
@@ -419,6 +479,8 @@ inline void unmake_move(Position& pos, Move move, const Undo& undo) noexcept {
 	pos.ep = undo.ep;
 	pos.halfmove = undo.halfmove;
 	pos.key = undo.key;
+	pos.checks[0] = undo.checks[0];
+	pos.checks[1] = undo.checks[1];
 	if (mover == Color::Black) {
 		--pos.fullmove;
 	}

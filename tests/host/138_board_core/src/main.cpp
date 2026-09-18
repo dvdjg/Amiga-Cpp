@@ -36,6 +36,9 @@ struct MockGame {
 	static Position initial() { return 0u; }
 	static eng::u32 generate_legal(const Position&, MoveList&) { return 0u; }
 	static bool in_check(const Position&) { return false; }
+	static bool is_draw(const Position&) { return false; }
+	static bool is_over(const Position&) { return false; }
+	static eng::board::Score variant_score(const Position&) { return 0; }
 	static eng::u32 zobrist(const Position&) { return 0u; }
 	static Terminal terminal(const Position&) { return Terminal::None; }
 	static void make(Position&, Move, Undo&) {}

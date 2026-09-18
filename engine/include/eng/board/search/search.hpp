@@ -284,8 +284,15 @@ private:
 		if (ply < max_ply) {
 			m_pv_len[ply] = 0u;
 		}
-		if (pos.halfmove >= 100u) {
-			return 0; // regla de los 50 movimientos
+		if (Rules::is_draw(pos)) {
+			return 0; // tablas por regla del juego (p. ej. 50 movimientos)
+		}
+		if (Rules::is_over(pos)) {
+			return Eval::evaluate(pos); // fin de partida: decide la evaluación
+		}
+		const Score variant = Rules::variant_score(pos);
+		if (variant != 0) {
+			return variant; // victoria/derrota por condición de variante
 		}
 		if (ply >= max_ply) {
 			return Eval::evaluate(pos);

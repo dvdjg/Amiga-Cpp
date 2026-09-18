@@ -18,6 +18,9 @@ joystick (puerto 0) y el motor juega las **negras**.
   (profundidad 2, presupuesto de nodos) elige la jugada del motor.
 - `eng::board::chess::explain`: describe la posición en español con los rasgos de la
   evaluación (se muestra en la barra inferior, junto a la última jugada del motor).
+- **Variantes**: arranca en **Chess960** (piezas descolocadas) de forma reproducible
+  (`kVariant`/`kSeed` en `main.cpp`); `Standard` es cambiar esas dos constantes. El
+  enroque generalizado cubre las torres en columnas arbitrarias.
 
 ## Visual
 

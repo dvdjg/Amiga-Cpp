@@ -17,6 +17,7 @@
 #include <eng/board/rules/chess/history.hpp>
 #include <eng/board/rules/chess/movegen.hpp>
 #include <eng/board/rules/chess/ordering.hpp>
+#include <eng/board/rules/chess/variant.hpp>
 #include <eng/board/search/search.hpp>
 
 namespace eng::board::chess {
@@ -120,6 +121,15 @@ struct ChessRules {
 
 	static bool in_check(const Position& pos) { return chess::in_check(pos, chess::to_move(pos)); }
 
+	/// Tablas por la regla de los 50 movimientos (media jugada sin captura ni peón).
+	static bool is_draw(const Position& pos) { return pos.halfmove >= 100u; }
+
+	/// El ajedrez estándar/960 no tiene fin propio del juego aparte de mate/tablas.
+	static bool is_over(const Position&) { return false; }
+
+	/// Sin condición de variante en el ajedrez estándar/960.
+	static Score variant_score(const Position&) { return 0; }
+
 	static u32 zobrist(const Position& pos) { return pos.key; }
 
 	static Terminal terminal(const Position& pos) { return chess::terminal(pos); }
@@ -156,5 +166,45 @@ using ChessSearcher = Searcher<ChessRules, chess::ChessEval, chess::ChessOrderin
 
 /// Variante con **null-move pruning** (perfiles con presupuesto, p. ej. `P256+`).
 using ChessSearcherNull = Searcher<ChessRules, chess::ChessEval, chess::ChessOrdering, 1024u, true>;
+
+/// Reglas de ajedrez con **condición de victoria de variante** (`variant_score`).
+/// `KingOfTheHill` gana con el rey en el centro; `ThreeCheck`, dando 3 jaques.
+template <chess::ChessVariant V>
+struct ChessVariantRules : ChessRules {
+	using Position = ChessRules::Position;
+	using Move = ChessRules::Move;
+	using MoveList = ChessRules::MoveList;
+	using Undo = ChessRules::Undo;
+
+	static Position initial() { return chess::initial_position(V, 0u); }
+
+	static Score variant_score(const Position& pos) { return chess::variant_score_impl<V>(pos); }
+
+	static void make(Position& pos, Move move, Undo& undo) {
+		ChessRules::make(pos, move, undo);
+		if constexpr (V == chess::ChessVariant::ThreeCheck) {
+			const Color mover = opposite(chess::to_move(pos));
+			if (chess::in_check(pos, chess::to_move(pos))) {
+				++pos.checks[static_cast<u8>(mover)];
+			}
+		}
+	}
+
+	static void unmake(Position& pos, Move move, const Undo& undo) {
+		ChessRules::unmake(pos, move, undo);
+	}
+};
+
+static_assert(GameRules<ChessVariantRules<chess::ChessVariant::KingOfTheHill>>,
+              "King of the Hill cumple GameRules");
+static_assert(GameRules<ChessVariantRules<chess::ChessVariant::ThreeCheck>>,
+              "Three-check cumple GameRules");
+
+using KingOfTheHillSearcher =
+    Searcher<ChessVariantRules<chess::ChessVariant::KingOfTheHill>, chess::ChessEval,
+             chess::ChessOrdering, 1024u, false>;
+using ThreeCheckSearcher =
+    Searcher<ChessVariantRules<chess::ChessVariant::ThreeCheck>, chess::ChessEval,
+             chess::ChessOrdering, 1024u, false>;
 
 } // namespace eng::board

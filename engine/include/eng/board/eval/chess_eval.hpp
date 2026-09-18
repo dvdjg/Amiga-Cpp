@@ -17,6 +17,7 @@
 #include <eng/board/core/types.hpp>
 #include <eng/board/eval/features.hpp>
 #include <eng/board/rules/chess/board.hpp>
+#include <eng/board/rules/chess/endgame.hpp>
 #include <eng/board/rules/chess/movegen.hpp>
 
 namespace eng::board::chess {
@@ -186,8 +187,18 @@ struct EvalBreakdown {
 	return eval;
 }
 
-/// Evaluación desde la perspectiva del bando al turno (negamax).
+/// Evaluación desde la perspectiva del bando al turno (negamax). Incluye el
+/// **conocimiento de finales teóricos** (KRK/KQK/KBNK/KQvKR ganados): si la posición
+/// es un final ganado conocido, devuelve una ventaja grande en lugar de la
+/// evaluación posicional, para que la búsqueda vaya directa a la conversión.
 [[nodiscard]] inline Score evaluate(const Position& pos) noexcept {
+	const EndgameProbe probe = probe_endgame(pos);
+	if (probe.known && probe.is_win) {
+		constexpr Score kEndgameWin = 1500; // por debajo del umbral de mate
+		const bool white_wins = (probe.winner == 0u);
+		const bool stm_white = (to_move(pos) == Color::White);
+		return (white_wins == stm_white) ? kEndgameWin : static_cast<Score>(-kEndgameWin);
+	}
 	const Score white = evaluate_white(pos).total;
 	return (to_move(pos) == Color::White) ? white : static_cast<Score>(-white);
 }
@@ -198,5 +209,47 @@ struct ChessEval {
 		return chess::evaluate(pos);
 	}
 };
+
+/// Pesos de evaluación por estilo, en «dieciseisavos» (se dividen por 16). Permiten
+/// que dos motores de fuerza similar jueguen distinto: uno agresivo (material y
+/// movilidad) y otro posicional (peones y desarrollo).
+struct EvalWeights {
+	int material = 16;
+	int pst = 4;
+	int mobility = 2;
+	int pawns = 4;
+	int development = 4;
+};
+
+[[nodiscard]] constexpr EvalWeights aggressive_weights() noexcept {
+	return EvalWeights {24, 4, 3, 2, 1};
+}
+
+[[nodiscard]] constexpr EvalWeights positional_weights() noexcept {
+	return EvalWeights {14, 5, 3, 8, 6};
+}
+
+/// Evaluación ponderada desde la perspectiva de las blancas (suma de componentes ×
+/// pesos / 16). Mantiene el conocimiento de finales ganados.
+[[nodiscard]] inline Score evaluate_styled_white(const Position& pos,
+                                                 const EvalWeights& w) noexcept {
+	const EvalBreakdown e = evaluate_white(pos);
+	const int total = e.material * w.material + e.pst * w.pst + e.mobility * w.mobility +
+	                  e.pawns * w.pawns + e.development * w.development;
+	return static_cast<Score>(total >> 4);
+}
+
+/// Evaluación ponderada desde el bando al turno (con el atajo de finales ganados).
+[[nodiscard]] inline Score evaluate_styled(const Position& pos, const EvalWeights& w) noexcept {
+	const EndgameProbe probe = probe_endgame(pos);
+	if (probe.known && probe.is_win) {
+		constexpr Score kEndgameWin = 1500;
+		const bool white_wins = (probe.winner == 0u);
+		const bool stm_white = (to_move(pos) == Color::White);
+		return (white_wins == stm_white) ? kEndgameWin : static_cast<Score>(-kEndgameWin);
+	}
+	const Score white = evaluate_styled_white(pos, w);
+	return (to_move(pos) == Color::White) ? white : static_cast<Score>(-white);
+}
 
 } // namespace eng::board::chess

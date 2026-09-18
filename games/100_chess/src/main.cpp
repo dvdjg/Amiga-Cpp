@@ -30,6 +30,7 @@
 #include <eng/board/rules/chess/history.hpp>
 #include <eng/board/rules/chess/notation.hpp>
 #include <eng/board/rules/chess/rules.hpp>
+#include <eng/board/rules/chess/variant.hpp>
 #include <eng/core/types.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
@@ -88,6 +89,11 @@ constexpr eng::u8 kColorWarn = 26;  // jaque/aviso
 // El buscador vive en memoria estatica (TT + tablas de PV; no en la pila del 68000).
 ChessSearcher g_searcher {};
 
+// Variante y semilla de arranque. Cambia a `Standard` para ajedrez clásico o deja
+// `Chess960` con otra semilla (0..959) para "piezas descolocadas" reproducibles.
+constexpr ChessVariant kVariant = ChessVariant::Chess960;
+constexpr eng::u16 kSeed = 0u;
+
 struct ChessGame {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
@@ -106,7 +112,7 @@ struct ChessGame {
 			return;
 		}
 
-		set_start(m_pos);
+		m_pos = initial_position(kVariant, kSeed);
 		m_history.push(m_pos.key);
 		m_cursor = make_square(4u, 1u); // e2
 		m_selected = kNoSquare;

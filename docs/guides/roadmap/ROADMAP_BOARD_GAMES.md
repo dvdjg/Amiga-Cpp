@@ -35,6 +35,15 @@ test host, cruce `m68k` y, cuando corresponde, un juego en `games/`.
 - **Implementado (NLG)**: explicador por plantillas ES/EN (`explain/`), HOST-149.
 - **Primer consumidor**: `games/100_chess` verificado en emulador con build → run → analyze
   (tablero + reglas + búsqueda + explicación); pulido visual pendiente.
+- **Implementado (Go 9×9)**: `rules/go/` (tablero, grupos/libertades, captura, suicidio, ko
+  simple, **pase/dos pases** y **superko**), `eval/go_eval.hpp` (territorio/capturas/atari),
+  `knowledge/patterns.hpp` (apertura 4-4/3-4) y `GoSearcher` (el mismo buscador genérico);
+  HOST-152/153/155. Pendiente: patrones 3×3/5×5 desde disquete y MCTS ligero.
+- **Implementado (variantes de ajedrez y torneos)**: Chess960 (enroque generalizado),
+  King of the Hill y Three-check (`variant_score`), y `tournament.hpp`/`tools/board/arena.sh`;
+  HOST-154/156. Pendiente: UI de variante en el juego y más variantes (Crazyhouse, Atomic…).
+- **Implementado (conocimiento en el motor)**: sonda del libro de aperturas
+  (`rules/chess/opening.hpp`) y finales teóricos en la evaluación; HOST-157.
 - **Implementado (transversal)**: primitivas de concurrencia abstractas `eng::parallel`
   (`hardware_threads`, `Thread`, `Mutex`, `Atomic`, `ConditionVariable`, `StopSource`,
   `for_each_index`), no-ops en m68k y hilos reales en el host; HOST-137. Diseño en
@@ -153,6 +162,7 @@ explicación (hecho).
 | B4.4 | `knowledge/endgame_tables.hpp` | Tablas de finales (nivel 3); sonda bajo demanda | **HOST-147** (hecho) |
 | B4.5 | `tools/board/pack-book.sh` | Packer host texto → blob de libro (usa las reglas del engine) | **Hecho** (finales/patrones pendientes) |
 | B4.6 | Fuente disco / FS PC | `FileBlockSource` (PC) hecho; trackloader del Amiga pendiente | **HOST-151** / pendiente |
+| B4.7 | `rules/chess/opening.hpp` + `eval/chess_eval.hpp` | Consumo: sonda del libro por clave y finales teóricos en la evaluación | **HOST-157** (hecho) |
 
 Cierre: contenedor de conocimiento, E/S de fichero del PC y packer de libro hechos (round-trip
 struct→bloque→struct sin alineación). El backend de disquete del Amiga y los packers de
@@ -188,11 +198,14 @@ la detección por patrón, el packer y los assets externos.
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| B7.1 | `rules/go/board.hpp` | Tablero 9×9 (81 B), grupos/libertades (`union_find` o flood-fill), ko, suicidio | **HOST-152** |
-| B7.2 | `rules/go/movegen.hpp` | Jugadas legales y conteo de prisioneros | **HOST-152** |
-| B7.3 | `eval/go_eval.hpp` | Territorio (flood-fill/influencia), ataris, ojos y grupos débiles | **HOST-153** |
-| B7.4 | `knowledge/patterns.hpp` (Go) | Patrones 3×3/5×5 y fuseki desde disquete | **HOST-153** |
-| B7.5 | `search/` (Go) | Alpha-Beta + patrones; **MCTS muy ligero** opcional con ≥ 256–512 kB | **HOST-153** |
+| B7.1 | `rules/go/board.hpp` | Tablero 9×9 (81 B), grupos/libertades (`union_find` o flood-fill), ko, suicidio | **HOST-152** (hecho) |
+| B7.2 | `rules/go/movegen.hpp` | Jugadas legales y conteo de prisioneros | **HOST-152** (hecho) |
+| B7.3 | `eval/go_eval.hpp` | Territorio (flood-fill), capturas y ataris | **HOST-153** (hecho) |
+| B7.4 | `knowledge/patterns.hpp` (Go) | Apertura/fuseki: puntos estrella (4-4) y komoku (3-4) | **HOST-155** (hecho) |
+| B7.5 | `search/` (Go) + `rules/go` | `GoSearcher` (alpha-beta + TT), **pase/dos pases** y **superko** | **HOST-153/155** (hecho) |
+
+Cierre: Go 9×9 legal y jugable en `P20`–`P64` con el mismo buscador que el ajedrez. Patrones
+3×3/5×5 desde disquete y **MCTS muy ligero** (≥ 256–512 kB) quedan como líneas futuras.
 
 Cierre: 9×9 legal y jugable en `P20`–`P64`; 13×13 solo con ≥ 512 kB; 19×19 **fuera de diseño**.
 
@@ -201,12 +214,26 @@ Cierre: 9×9 legal y jugable en `P20`–`P64`; 13×13 solo con ≥ 512 kB; 19×1
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
 | B8.1 | `games/100_chess` | Ajedrez jugable (tablero + cursor + reglas + motor + explicación) | **build → run → analyze OK** (captura); pulido visual pendiente |
-| B8.2 | `games/101_go` | Go 9×9 jugable (mismo flujo) | build → run → analyze |
+| B8.2 | `games/101_go` | Go 9×9 jugable (mismo flujo) | **build → run → analyze OK** (captura); pase/superko y pulido pendientes |
+| B8.2b | `demos/amiga/123_chess_match` | Partida autónoma entre dos motores (estilos agresivo/posicional), juez narrador, relojes y libro en memoria | **build → run → analyze OK** (captura); verificado `1. e4`, comentario del juez y resalte de última jugada |
 | B8.3 | Matriz de rendimiento | Nodos/s y fps por CPU (68000/020/030) y perfil (`P20`…`P1M`); TT/caché vivos | Informe en `docs/debugging/` o `artifacts/` |
 | B8.4 | (Opcional) 13×13 | Solo si B8.3 confirma margen en A1200 | Demo/juego y medida |
 
-Cierre: las APIs dejan de estar "NO VERIFICADAS" y el roadmap se marca completo por fase. B8.1
-está iniciada (compila); falta la verificación visual/hardware.
+Cierre: las APIs dejan de estar "NO VERIFICADAS" y el roadmap se marca completo por fase. B8.1 y
+B8.2 verificadas (build → run → analyze); B8.3 pendiente.
+
+### B9 — Variantes de ajedrez y torneos
+
+| Paso | Entrega | Detalle | Verificación |
+|---|---|---|---|
+| B9.1 | `rules/chess/variant.hpp` | **Chess960 / Fischer Random**: las 960 disposiciones (alfiles en colores opuestos, rey entre torres) y posición inicial reproducible | **HOST-154** (hecho) |
+| B9.2 | `board.hpp` + `movegen.hpp` | Enroque **generalizado** (rey/torres en columnas arbitrarias; `castle_rook` en el estado) | **HOST-154** (hecho) |
+| B9.3 | `tournament.hpp` | Partida completa con presupuesto de nodos y torneo rápido con arranques de variante (`arena_chess`) | **HOST-154** (hecho) |
+| B9.4 | `tools/board/arena.sh` | Herramienta de torneo (standard/chess960, semilla, nodos/jugada) | Ejecutada en host |
+| B9.5 | Otras variantes | **King of the Hill**, **Three-check** con `variant_score` en el buscador | **HOST-156** (hecho) |
+
+Cierre: el motor juega Chess960, King of the Hill y Three-check, y se enfrenta a sí mismo en
+torneos rápidos.
 
 ## 5. Dependencias entre fases
 
@@ -238,7 +265,7 @@ cierra cada juego con verificación real.
 
 ## 6. Distribución de tests host
 
-Los números son únicos y no reutilizables; el siguiente libre es **152**. Antes de crear cada
+Los números son únicos y no reutilizables; el siguiente libre es **158**. Antes de crear cada
 pieza se comprueba que no duplica una primitiva de `eng::util`/`eng::parallel`
 ([TEMPLATE_LIBRARY.md](../../engine/architecture/TEMPLATE_LIBRARY.md) y
 [PARALLEL_AND_THREADS.md](../../engine/architecture/PARALLEL_AND_THREADS.md)).
@@ -260,8 +287,12 @@ pieza se comprueba que no duplica una primitiva de `eng::util`/`eng::parallel`
 | HOST-149 | NLG: reglas, plantillas ES/EN, tono y truncado | **Hecho** |
 | HOST-150 | `binary.hpp`: cursores `ByteReader`/`ByteWriter` sobre `Span` | **Hecho** |
 | HOST-151 | `FileBlockSource`: E/S real de bloques desde fichero del PC | **Hecho** |
-| HOST-152 | Go: tablero, grupos/libertades, ko, suicidio y movegen | Pendiente |
-| HOST-153 | Go: evaluación de territorio/patrones y búsqueda | Pendiente |
+| HOST-152 | Go: tablero, grupos/libertades, ko, suicidio y movegen | **Hecho** |
+| HOST-153 | Go: evaluación de territorio/capturas y búsqueda (`GoSearcher`) | **Hecho** |
+| HOST-154 | Chess960 (960 disposiciones, enroque generalizado) y torneos rápidos (`tournament.hpp`) | **Hecho** |
+| HOST-155 | Go: pase/dos pases, superko y patrones de apertura | **Hecho** |
+| HOST-156 | Ajedrez: King of the Hill y Three-check (`variant_score`) | **Hecho** |
+| HOST-157 | Ajedrez: libro de aperturas en el motor y finales en la evaluación | **Hecho** |
 | Tools | Packers host (`tools/board/`) con round-trip y validación de huecos | Pendiente |
 
 ## 7. Extensiones, decisiones tomadas y descartado

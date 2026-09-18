@@ -175,8 +175,28 @@ Además, el test cubre los casos límite (objetivo ya cumplido, objetivo sin sol
 último válido, y ejercita la clave de dos palabras (`StateKey64`). El contenedor `Ai::Domain`
 se prueba con un problema mínimo (3 acciones encadenadas, coste 3).
 
-## 4. Decisión por tick (`eng/ai/decision/`)
+### 3.5 GOAP numérico (cuantizado, `goap_numeric.hpp`)
 
+`eng::ai::NumericGoap<MaxVars>` extiende el GOAP booleano con hasta **4 variables de
+nivel** (`u8`, 0..255): los enteros son niveles directos y los **decimales**, niveles
+escalados (p. ej. `Fixed` q4.4 = nivel/16). La clave sigue siendo **exacta** (32 bits de
+hechos + 32 de niveles) y el planner es el mismo A* determinista, sin heap.
+
+- **Acción**: booleanos (`require`/`forbid`/`produce`/`consume`) + numéricos
+  (`var_ge`, `var_le`, `add`, `sub`, `set_var`), saturados a 0..255.
+- **Cachés**: `plan_cached` (memo de planes por `(start, goal)` con pool) y
+  `plan_reusing` (reutiliza el **sufijo** del plan anterior tras ejecutar un paso).
+- **Heurística relajada** (`plan_relaxed`): `h_max` sobre hechos (relajación por
+  borrado) + cota numérica por el mayor delta por acción, con **memo de `h` por estado
+  entre llamadas** (`heuristic_hits`). Guía mejor; no garantiza optimalidad estricta.
+- Límites: `MaxFacts <= 32` y `MaxVars <= 4` (clave de 64 bits exacta). Para más
+  variables, componer dominios o esperar al planner numérico general (heurística de
+  grafo relajado completa).
+
+Verificación: HOST-158 (enteros, decimales, saturación, memo y sufijo) y HOST-159
+(heurística relajada con memo).
+
+## 4. Decisión por tick (`eng/ai/decision/`)
 La decisión se apoya en dos motores genéricos de `eng::util` (no se duplican):
 `StateMachine` (transiciones) y `Event` (difusión). Encima:
 
@@ -252,6 +272,7 @@ HOST-117.
 | Cabecera | Tipos / funciones | Estado |
 |---|---|---|
 | `planning/goap.hpp` | `Goap<MaxFacts>` (dominio: `State`/`state`/`Action`/`Builder`/`Goal`/`Planner`), caché de planes (`plan_cached`), `Fact`, `applicable`, `apply`, `satisfies`, `goal_distance` | Implementado, HOST-107 |
+| `planning/numeric_goap.hpp` | `NumericGoap<MaxVars>`: GOAP con variables numéricas cuantizadas (enteros y decimales), `plan_cached`, `plan_reusing`, `plan_relaxed` con heurística `h_max` y memo | Implementado, HOST-158/159 |
 | `decision/agent_fsm.hpp` | `AgentFsm<State,Event,MaxStates>`: FSM de agente con efectos de entrada/salida sobre `eng::util::StateMachine` | Implementado, HOST-110 |
 | `decision/utility.hpp` | `Utility`/`UtilitySelector<MaxOptions>`: utilidad ponderada; entero y determinista | Implementado, HOST-112 |
 | `decision/behavior_tree.hpp` | `BehaviorTree<MaxNodes>`, `BtStatus`, `BtTask`: secuencia/selector sin heap | Implementado, HOST-113 |

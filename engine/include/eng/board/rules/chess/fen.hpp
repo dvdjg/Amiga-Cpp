@@ -132,6 +132,7 @@ inline bool set_from_fen(Position& pos, eng::util::StringView fen) noexcept {
 	}
 	pos.halfmove = halfmove;
 	pos.fullmove = (fullmove == 0u) ? 1u : fullmove;
+	rebuild_castle_rooks(pos); // resuelve las torres reales (también Chess960)
 	pos.key = compute_key(pos);
 	return true;
 }

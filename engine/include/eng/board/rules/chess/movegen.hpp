@@ -69,33 +69,68 @@ inline void add_slider_moves(const Position& pos, Square from, Color us, const b
 	}
 }
 
-/// Enroques legales (derechos + camino libre + casillas no atacadas).
+/// Enroques legales, **generalizados para Chess960** (rey/torres en columnas
+/// arbitrarias): el rey va a g/c y la torre a f/d, comprobando caminos libres y que
+/// el rey no cruce casillas atacadas.
 inline void add_castling(const Position& pos, Square from, Color us, MoveList& out) {
-	const Square home = (us == Color::White) ? make_square(4u, 0u) : make_square(4u, 7u);
-	if (from != home || in_check(pos, us)) {
+	if (in_check(pos, us)) {
 		return;
 	}
 	const Color them = opposite(us);
-	const u8 rank = square_rank(home);
+	const u8 rank = square_rank(from);
+	const u8 from_file = square_file(from);
 	const u8 king_side = (us == Color::White) ? kCastleWhiteKing : kCastleBlackKing;
 	const u8 queen_side = (us == Color::White) ? kCastleWhiteQueen : kCastleBlackQueen;
+	const int base = (us == Color::White) ? 0 : 2;
+	const Piece rook_piece = make_piece(us, PieceType::Rook);
+
+	auto path_clear = [&](u8 fa, u8 fb, Square except_a, Square except_b) {
+		const u8 lo = (fa < fb) ? fa : fb;
+		const u8 hi = (fa < fb) ? fb : fa;
+		for (u8 file = lo; file <= hi; ++file) {
+			const Square sq = make_square(file, rank);
+			if (sq == except_a || sq == except_b) {
+				continue;
+			}
+			if (pos.board[sq] != kEmptyPiece) {
+				return false;
+			}
+		}
+		return true;
+	};
+
+	auto king_path_safe = [&](u8 target_file) {
+		const u8 lo = (from_file < target_file) ? from_file : target_file;
+		const u8 hi = (from_file < target_file) ? target_file : from_file;
+		for (u8 file = lo; file <= hi; ++file) {
+			if (file == from_file) {
+				continue; // el rey ya no está en jaque (comprobado arriba)
+			}
+			if (is_square_attacked(pos, make_square(file, rank), them)) {
+				return false;
+			}
+		}
+		return true;
+	};
 
 	if ((pos.castling & king_side) != 0u) {
-		const Square f = make_square(5u, rank);
-		const Square g = make_square(6u, rank);
-		if (pos.board[f] == kEmptyPiece && pos.board[g] == kEmptyPiece &&
-		    !is_square_attacked(pos, f, them) && !is_square_attacked(pos, g, them)) {
-			out.push_back(chess_move(home, g, kPayloadCastleKing));
+		const Square rook_from = pos.castle_rook[base];
+		if (rook_from != kNoSquare && pos.board[rook_from] == rook_piece) {
+			const u8 rook_file = square_file(rook_from);
+			if (path_clear(from_file, 6u, from, rook_from) &&
+			    path_clear(rook_file, 5u, from, rook_from) && king_path_safe(6u)) {
+				out.push_back(chess_move(from, make_square(6u, rank), kPayloadCastleKing));
+			}
 		}
 	}
 	if ((pos.castling & queen_side) != 0u) {
-		const Square b = make_square(1u, rank);
-		const Square c = make_square(2u, rank);
-		const Square d = make_square(3u, rank);
-		if (pos.board[b] == kEmptyPiece && pos.board[c] == kEmptyPiece &&
-		    pos.board[d] == kEmptyPiece && !is_square_attacked(pos, d, them) &&
-		    !is_square_attacked(pos, c, them)) {
-			out.push_back(chess_move(home, c, kPayloadCastleQueen));
+		const Square rook_from = pos.castle_rook[base + 1];
+		if (rook_from != kNoSquare && pos.board[rook_from] == rook_piece) {
+			const u8 rook_file = square_file(rook_from);
+			if (path_clear(from_file, 2u, from, rook_from) &&
+			    path_clear(rook_file, 3u, from, rook_from) && king_path_safe(2u)) {
+				out.push_back(chess_move(from, make_square(2u, rank), kPayloadCastleQueen));
+			}
 		}
 	}
 }

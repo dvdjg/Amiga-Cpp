@@ -45,6 +45,7 @@ struct EndgameProbe {
 	bool known = false;
 	bool is_draw = false;
 	bool is_win = false;
+	u8 winner = 2u; ///< 0 blancas, 1 negras, 2 nadie (para finales ganados)
 };
 
 /// Recuento de material por bando (peones y figuras; reyes aparte).
@@ -159,6 +160,7 @@ struct MaterialCount {
 		probe.known = known;
 		probe.is_draw = draw;
 		probe.is_win = known && !draw;
+		probe.winner = (m.pawns[0] != 0u) ? 0u : 1u;
 		return probe;
 	}
 	if (m.pawns[0] + m.pawns[1] != 0u) {
@@ -192,12 +194,14 @@ struct MaterialCount {
 		probe.kind = EndgameKind::KRvK;
 		probe.known = true;
 		probe.is_win = true;
+		probe.winner = (m.rooks[0] != 0u) ? 0u : 1u;
 		return probe;
 	}
 	if (m.queens[0] + m.queens[1] == 1u && w + b == 1u) {
 		probe.kind = EndgameKind::KQvK;
 		probe.known = true;
 		probe.is_win = true;
+		probe.winner = (m.queens[0] != 0u) ? 0u : 1u;
 		return probe;
 	}
 	if (m.knights[0] + m.knights[1] == 1u && m.bishops[0] + m.bishops[1] == 1u &&
@@ -205,12 +209,14 @@ struct MaterialCount {
 		probe.kind = EndgameKind::KBNvK;
 		probe.known = true;
 		probe.is_win = true;
+		probe.winner = (m.knights[0] != 0u) ? 0u : 1u;
 		return probe;
 	}
 	if (m.queens[0] + m.queens[1] == 1u && m.rooks[0] + m.rooks[1] == 1u && w + b == 2u) {
 		probe.kind = EndgameKind::KQvKR;
 		probe.known = true;
 		probe.is_win = true;
+		probe.winner = (m.queens[0] != 0u) ? 0u : 1u;
 		return probe;
 	}
 	return probe;

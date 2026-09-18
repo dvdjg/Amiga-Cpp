@@ -278,15 +278,29 @@ coste bajo (8–50 kB según riqueza).
 
 ### 8.2 Go 9×9
 
-- Tablero de 81 bytes; grupos y libertades con unión-búsqueda
-  (`eng::util::union_find`, HOST-119) o *flood-fill*.
-- Ko por historial de claves Zobrist; suicidio prohibido.
+- Tablero de 81 bytes; grupos y libertades por *flood-fill* (4 vecinos) y captura de grupos
+  sin libertades.
+- **Ko simple**, **pase/dos pases** (`GameEnded`) y **superko** (historial circular de claves);
+  suicidio prohibido.
 - **9×9** es el tamaño objetivo en el rango de 20 kB–1 MB. **13×13** solo con ≥ 512 kB; **19×19**
   queda fuera del rango (varios MB) y se documenta como no soportado por diseño.
-- Búsqueda: Alpha-Beta + evaluación de territorio/patrones (profundidad baja con búsqueda
-  selectiva) cuando hay poca memoria; **MCTS muy ligero** (pocas simulaciones, expansión
-  limitada) solo si hay ≥ 256–512 kB. Los patrones de fuseki y locales se sirven desde
-  disquete.
+- Búsqueda: el mismo `Searcher` genérico con `GoRules`/`GoEval`/`GoOrdering`; territorio por
+  *flood-fill*, capturas y ataris; `knowledge/patterns.hpp` propone la apertura (4-4/3-4).
+  Patrones 3×3/5×5 y **MCTS muy ligero** (≥ 256–512 kB) quedan como líneas futuras.
+
+### 8.3 Variantes de ajedrez y torneos
+
+- **Chess960 / Fischer Random** ("piezas descolocadas"): `chess960_back_rank` genera las 960
+  disposiciones válidas (alfiles en colores opuestos, rey entre torres) y `initial_position`
+  produce arranques reproducibles por semilla.
+- **Enroque generalizado**: el estado guarda `castle_rook[4]` (casillas reales de las torres) y
+  `make`/`unmake` y `movegen` mueven rey a g/c y torre a f/d desde columnas arbitrarias; la
+  posición estándar es un caso particular.
+- **Torneos rápidos** (`tournament.hpp`): `play_game` juega una partida completa con presupuesto
+  de nodos por jugada y `arena_chess` enfrenta al motor consigo mismo con arranques de variante;
+  herramienta `tools/board/arena.sh`.
+- Variantes de condición (**King of the Hill**, **Three-check**) implementadas con el hook
+  `variant_score` que el buscador consulta en cada nodo; el ajedrez estándar/960 devuelve 0.
 
 ## 9. Decisiones de diseño
 
@@ -347,9 +361,11 @@ coste bajo (8–50 kB según riqueza).
 | `eval/` (ajedrez: material, PST, movilidad, peones, rasgos) | **Implementado**: HOST-145; `eval/go` planificado (B7) |
 | `knowledge/` + `storage/` (BlockSource RAM/fichero, caché LRU, libro, tablas) | **Implementado**: HOST-146/147/151 y packer `tools/board/pack-book.sh`; trackloader Amiga y packers de tablas/patrones pendientes |
 | `explain/` (NLG ES/EN por plantillas) | **Implementado**: HOST-149; detección por patrón, packer y assets pendientes |
-| `rules/go/` + `eval/go` | Planificado (B7) |
+| `rules/go/` + `eval/go` | **Implementado**: HOST-152/153/155 (tablero/grupos/captura/suicidio/ko simple, pase/dos pases, superko, apertura y `GoSearcher`); patrones 3×3/5×5 desde disquete pendientes |
+| `rules/chess/variant.hpp` + `tournament.hpp` | **Implementado**: HOST-154/156 (Chess960 con enroque generalizado, torneos rápidos, King of the Hill y Three-check) |
+| `rules/chess/opening.hpp` + finales en `eval/` | **Implementado**: HOST-157 (sonda del libro por clave y finales teóricos en la evaluación) |
 | Motores de concurrencia (`eng::parallel`) | **Implementado**: HOST-137; ver [PARALLEL_AND_THREADS.md](PARALLEL_AND_THREADS.md) |
-| Juegos en `games/` | **Iniciado y verificado**: `games/100_chess` build → run → analyze OK; pulido visual pendiente |
+| Juegos en `games/` | **Iniciados y verificados**: `games/100_chess` y `games/101_go`, build → run → analyze OK; pulido visual pendiente |
 
 > Estado: núcleo y reglas de ajedrez implementados y verificados por test host (HOST-137…140);
 > el resto, planificado. El plan por fases, la distribución de tests y los criterios de cierre
