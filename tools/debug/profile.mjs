@@ -78,7 +78,26 @@ await sleep(3000);
 
 const st = await sideChannelCommand('state', SIDE_PORT, 5000);
 const linked = findMapSymbol('g_eng_prof');
-const addr = linked !== null ? runtimeAddr(linked, mapSections(), st.reply.sections) : null;
+// Resolucion robusta: primero el mapeo por indice; si el magic no cuadra (el runtime
+// incluye `.eh_frame` y el .map no, o hay un `.s` extra de `support/`), escanea cada
+// seccion runtime. Mismo criterio que `tools/profile/launch-winuae.mjs`.
+const profOk = async (a) => {
+  if (!a) return false;
+  try {
+    const b = await p.readMemory(a, 4);
+    return b.readUInt32BE(0) === PROF_MAGIC;
+  } catch { return false; }
+};
+let addr = linked !== null ? runtimeAddr(linked, mapSections(), st.reply.sections) : null;
+if (!(await profOk(addr))) {
+  addr = null;
+  if (Array.isArray(st.reply.sections)) {
+    for (const sec of st.reply.sections) {
+      const a = parseInt(sec, 16);
+      if (a && await profOk(a)) { addr = a; break; }
+    }
+  }
+}
 if (addr === null) {
   console.error('[prof] no se pudo resolver g_eng_prof (¿map? ¿sections?)');
   await conn.disconnect(true);

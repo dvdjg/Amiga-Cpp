@@ -75,6 +75,30 @@ function runtimeAddr(linked, ms, rs) {
   return parseInt(rs[idx], 16) + (linked - cand.start);
 }
 
+const RUN_STATUS_MAGIC = '0x454e4752';
+
+/// Resuelve la direccion runtime de `g_eng_run_status` de forma robusta: primero el
+/// mapeo por indice; si el magic no coincide (el runtime incluye `.eh_frame` y el .map
+/// no, o hay un `.s` extra de `support/` que desalinea), escanea cada seccion runtime.
+/// Mismo criterio que `tools/profile/launch-winuae.mjs`.
+async function resolveRunStatusAddr(linked, ms, rs) {
+  const ok = async (addr) => {
+    if (!addr) return false;
+    const r = await sideChannelCommand('runstatus 0x' + addr.toString(16), SIDE_PORT, 2000);
+    const v = r.reply;
+    return !!(v && v.magic === RUN_STATUS_MAGIC);
+  };
+  const cand = runtimeAddr(linked, ms, rs);
+  if (cand && await ok(cand)) return cand;
+  if (Array.isArray(rs)) {
+    for (const sec of rs) {
+      const a = parseInt(sec, 16);
+      if (a && await ok(a)) return a;
+    }
+  }
+  return cand;
+}
+
 // La medida exige que el `a.exe` montado en `dh1` sea EXACTAMENTE la build cuyo
 // `.map` usamos para resolver simbolos. Si no coincide, la direccion de
 // `g_eng_run_status` cae en otro sitio y la medida sale invalida (detail=0x0,
@@ -104,7 +128,7 @@ await sleep(10000);
 
 const st = await sideChannelCommand('state', SIDE_PORT, 5000);
 const linked = findMapSymbol('g_eng_run_status');
-const magicAddr = linked !== null ? runtimeAddr(linked, mapSections(), st.reply.sections) : null;
+const magicAddr = linked !== null ? await resolveRunStatusAddr(linked, mapSections(), st.reply.sections) : null;
 console.log('[fps] map=' + MAP + ' linked=' + (linked ?? 'null') + ' runtime=0x' + (magicAddr ?? 0).toString(16));
 if (magicAddr === null) {
   console.log('[fps] no se pudo resolver g_eng_run_status (¿map? ¿sections?)');

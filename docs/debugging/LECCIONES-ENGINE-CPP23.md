@@ -71,3 +71,17 @@ intenciones) es idéntica cada frame: construirla **una vez** en `init` y saltar
 separar lo estático de lo dinámico. Corolario medido: con copper dinámico, `actors` +
 `blits` de 8 BOBs ya superan un campo, así que 50 fps es inalcanzable en ese modo (el
 techo real lo fija el número de objetos, no el copper).
+
+## 9. Resolver símbolos runtime: validar, no confiar en el índice
+
+El fps de 058 daba 0,00 y parecía un cuelgue; en realidad `measure-fps`/`profile`
+resolvían mal la dirección de `g_eng_run_status` al **emparejar secciones del `.map` con
+las del runtime por índice**: el runtime incluye `.eh_frame` y el `.map` no, así que los
+índices se desalinean (y con un `.s` extra de `support/` cambia el número de hunks). El
+síntoma engañoso: el medidor leía una dirección ajena con un valor plausible
+(`0x77000f00`), no `0x0`. Se detecta cambiando el símbolo a un centinela y reconstruyendo
+con `--clean`: si el valor no cambia, el problema es la **herramienta**, no la demo.
+Arreglo: como `launch-winuae.mjs` ya hacía, **validar el magic** (`0x454e4752`) y, si no
+cuadra, **escanear** las secciones runtime. Lección: al resolver símbolos relocalizados,
+validar contra un centinela conocido; no asumir que el orden de secciones del `.map`
+coincide con el del ejecutable cargado.
