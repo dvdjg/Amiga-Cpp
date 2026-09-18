@@ -61,6 +61,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/util/sparse_set.hpp>
 #include <eng/core/util/bitstream.hpp>
 #include <eng/core/util/dynamic_bitset.hpp>
+#include <eng/core/util/string_interner.hpp>
 #include <eng/core/random.hpp>
 #include <eng/core/util/dsp.hpp>
 #include <eng/core/fixed_math.hpp>
@@ -567,6 +568,17 @@ extern "C" u16 c_dynamic_bitset_ops(u16 seed) {
 	const eng::usize c = bits.count();
 	bits.flip(static_cast<eng::usize>(seed % 70u));
 	return static_cast<u16>(c + (bits.any() ? 1u : 0u) + bits.size());
+}
+extern "C" u16 c_string_interner_ops(u16 seed) {
+	eng::util::InlineAlloc<128> arena;
+	eng::util::StringInterner<16, eng::util::InlineAlloc<128>> names {arena};
+	const eng::u16 a = names.intern("enemy_idle");
+	const eng::u16 b = names.intern("enemy_run");
+	const eng::u16 c = names.intern("enemy_idle");
+	char buf[3] = {'i', static_cast<char>('0' + (seed % 10u)), '\0'};
+	names.intern(eng::util::StringView(buf, 2u));
+	return static_cast<u16>(a + b + c + names.size() +
+				static_cast<eng::u16>(names.lookup(a).size()));
 }
 extern "C" u16 c_random_ops(u16 seed) {
 	eng::Xoroshiro64pp rng {seed, static_cast<eng::u32>(seed + 1u)};

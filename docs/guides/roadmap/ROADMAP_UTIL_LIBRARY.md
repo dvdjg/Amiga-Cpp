@@ -23,8 +23,9 @@ Ya entregado y verificado por test host: base (`type_traits`, `util`, `bit`,
 (`optional`, `expected`, `string_view`, `static_string`, `scope_guard`, `function_ref`,
 `enum_set`, `stack_queue`), ordenación (`quick_sort`, `stable_sort`, `nth_element`,
 `partial_sort`, `radix_sort_u16`), `hash` y sondas de codegen. Extras de decisión,
-partición y bits: `state_machine` (R4.4), `event` (R4.3), `union_find` (DSU), `sparse_set`
-(disperso-denso, ECS) y `bitstream`/`dynamic_bitset` (R4.1). Verificados **por demo**:
+partición, bits y texto: `state_machine` (R4.4), `event` (R4.3), `union_find` (DSU),
+`sparse_set` (disperso-denso, ECS), `bitstream`/`dynamic_bitset` (R4.1) y `string_interner`
+(HOST-124). Verificados **por demo**:
 `BitSet`, `StaticVector`, `RingBuffer`,
 `FlatMap`, `DirectMap`, `IntrusiveSList`, `Pool`, `HashMap`.
 
@@ -137,10 +138,9 @@ independiente de R1/R2 (salvo `RingBuffer` para `delay`). R4 es el más prescind
   `TEMPLATE_LIBRARY` §4). Candidatos a justificarlo: cola de comandos de juego con carga
   heterogénea o mensajes entre sistemas. Hasta entonces basta el despacho estático
   (conceptos).
-- **Interner de cadenas**: **evaluado y diferido**. `dynamic_hash_map.hpp` ya permite
-  internar; un `StringInterner` dedicado (arena de bytes + índice) ahorraría RAM en nombres
-  de assets/config, pero hoy los nombres son `constexpr`/`incbin`. Se implementará con un
-  consumidor real (nombres construidos en runtime).
+- **Interner de cadenas**: **implementado** (`string_interner.hpp`, HOST-124). Deduplica por
+  contenido (`HashMap<StringView,u16>`) y copia los bytes en una arena (`Allocator`) que
+  aporta el llamador; pensado para nombres construidos en runtime (assets/config, etiquetas).
 - **Alcance de R4**: `type_list` solo si un registro en compile-time aporta valor real.
 
 ## 7. Cómo se cierra cada paso
