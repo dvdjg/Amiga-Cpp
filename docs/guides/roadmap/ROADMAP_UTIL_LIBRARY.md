@@ -103,11 +103,33 @@ división), R3.2 worley/turbulence/ridged (`core/noise.hpp`, HOST-101) y R3.3 `d
 | R4.5 | `type_list.hpp` (opcional) | `TypeList` + `for_each_type` (registro en compile-time) | HOST (siguiente libre) |
 
 > Los pasos sin implementar usan el **siguiente `HOST-NNN` libre** en el momento de
-> implementarse (hoy 116 en adelante; 000–115 están asignados). R4.3/R4.4 se adelantaron
+> implementarse (hoy 127 en adelante; 000–126 están asignados). R4.3/R4.4 se adelantaron
 > para desbloquear G2 (decisión/blackboard) de la IA.
 
 R4.2–R4.5 solo si aparece consumidor (comandos/eventos/efectos). R4.5 es avanzado y se
 puede posponer sin bloquear el resto.
+
+### R5 — Extras de juego (con consumidor)
+
+Selección de utilidades clásicas valoradas para un engine «estilo Amiga 500». Cada una se
+implementa **solo con consumidor real**; el orden es por valor/coste.
+
+| Paso | Entrega | Detalle | Verificación |
+|---|---|---|---|
+| R5.1 | `lru_cache.hpp` | generalizar el patrón de `chunk_cache.hpp` (`K`,`V`,`N`, sin heap) para tiles/sprites/mapas | HOST + demo con segunda caché |
+| R5.2 | `interval.hpp` | `Interval`/`IntervalSet<N>`/`IntervalMap` para rangos (streaming, buffs/daño, animación) | HOST |
+| R5.3 | `task.hpp` (coroutine *stackless*) | tarea con estado en `struct` y `step()` (patrón `switch`); secuencias/scripting sin corrutinas C++20 | HOST + secuencia de demo |
+| R5.4 | `variant.hpp` (R4.2) | unión etiquetada sin heap con `visit`, para colas de comandos/mensajes heterogéneos | HOST + consumidor |
+| R5.5 | `stable_heap.hpp` / heap d-ario | *open set* de A* con *decrease-key* (índice) o heap 4-ario; **medir** antes de adoptar | HOST + medición en A* |
+| R5.6 | `bloom.hpp` | filtro de Bloom fijo (bitset + k hashes) para «visitados» grandes (GOAP) | HOST |
+| R5.7 | `trie.hpp` | trie / *prefix map* para autocompletado y búsqueda por prefijo | HOST + consumidor (consola) |
+| R5.8 | `grid_view.hpp` (mdspan) | vista multidimensional sobre `Span` para rejillas de nivel | HOST |
+
+> Prioridad práctica: R5.1 (cachés), R5.2 (rangos) y R5.3 (tareas) tienen consumidor claro
+> (streaming, buffs/animación, secuencias); R5.4 en cuanto aparezca una cola de comandos;
+> R5.5 exige **medición** (el heap binario actual puede ganar con claves pequeñas);
+> R5.6–R5.8 solo si aparecen conjuntos de visitados grandes, consola de comandos o código de
+> rejillas que lo pida. `type_list` (R4.5) sigue pospuesto.
 
 ## 5. Dependencias entre fases
 
@@ -121,7 +143,8 @@ puede posponer sin bloquear el resto.
 ```
 
 R1 no depende de nada nuevo. R2 se apoya en contenedores ya entregados. R3 es
-independiente de R1/R2 (salvo `RingBuffer` para `delay`). R4 es el más prescindible.
+independiente de R1/R2 (salvo `RingBuffer` para `delay`). R4 es el más prescindible. R5 se
+implementa **por consumidor y en cualquier orden** una vez cerradas R1–R4.
 
 ## 6. Riesgos y decisiones abiertas
 

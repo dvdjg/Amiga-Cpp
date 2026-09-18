@@ -420,6 +420,19 @@ template <typename R, int E, typename P>
 [[nodiscard]] constexpr bool operator<(Fixed<R, E, P> a, Fixed<R, E, P> b) {
 	return a.v < b.v;
 }
+/// `>`/`<=`/`>=` como una sola comparación sobre la representación (sin recalcular).
+template <typename R, int E, typename P>
+[[nodiscard]] constexpr bool operator>(Fixed<R, E, P> a, Fixed<R, E, P> b) {
+	return b.v < a.v;
+}
+template <typename R, int E, typename P>
+[[nodiscard]] constexpr bool operator<=(Fixed<R, E, P> a, Fixed<R, E, P> b) {
+	return !(b.v < a.v);
+}
+template <typename R, int E, typename P>
+[[nodiscard]] constexpr bool operator>=(Fixed<R, E, P> a, Fixed<R, E, P> b) {
+	return !(a.v < b.v);
+}
 
 /// Comparar exponentes distintos también es inválido: la sobrecarga sólo existe para
 /// dar el diagnóstico en vez del "no matching function".
@@ -446,6 +459,33 @@ template <typename Ra, int Ea, typename Rb, int Eb, typename P>
 [[nodiscard]] constexpr bool operator<(Fixed<Ra, Ea, P>, Fixed<Rb, Eb, P>) {
 	static_assert(Ea == Eb,
 		      "eng::math::Fixed: comparar valores con distinto exponente (p. ej. 4.12 < "
+		      "entero) no esta permitido. Convertirlos explicitamente con rescale<Edst>() o "
+		      "from_int().");
+	return false;
+}
+template <typename Ra, int Ea, typename Rb, int Eb, typename P>
+	requires (Ea != Eb)
+[[nodiscard]] constexpr bool operator>(Fixed<Ra, Ea, P>, Fixed<Rb, Eb, P>) {
+	static_assert(Ea == Eb,
+		      "eng::math::Fixed: comparar valores con distinto exponente (p. ej. 4.12 > "
+		      "entero) no esta permitido. Convertirlos explicitamente con rescale<Edst>() o "
+		      "from_int().");
+	return false;
+}
+template <typename Ra, int Ea, typename Rb, int Eb, typename P>
+	requires (Ea != Eb)
+[[nodiscard]] constexpr bool operator<=(Fixed<Ra, Ea, P>, Fixed<Rb, Eb, P>) {
+	static_assert(Ea == Eb,
+		      "eng::math::Fixed: comparar valores con distinto exponente (p. ej. 4.12 <= "
+		      "entero) no esta permitido. Convertirlos explicitamente con rescale<Edst>() o "
+		      "from_int().");
+	return false;
+}
+template <typename Ra, int Ea, typename Rb, int Eb, typename P>
+	requires (Ea != Eb)
+[[nodiscard]] constexpr bool operator>=(Fixed<Ra, Ea, P>, Fixed<Rb, Eb, P>) {
+	static_assert(Ea == Eb,
+		      "eng::math::Fixed: comparar valores con distinto exponente (p. ej. 4.12 >= "
 		      "entero) no esta permitido. Convertirlos explicitamente con rescale<Edst>() o "
 		      "from_int().");
 	return false;

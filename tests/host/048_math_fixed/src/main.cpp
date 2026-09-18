@@ -83,6 +83,12 @@ static_assert(q12 {4096}.retag<RoundPolicy>().v == 4096, "retag no toca el valor
 // Las políticas no se mezclan sin querer.
 static_assert(!Sumable<q12, q12_round>, "4.12 y 4.12-redondeado no se suman a lo bruto");
 
+// Comparaciones completas, cada una de una sola comparación sobre la representación.
+static_assert(q12 {4096} > q12 {2048}, "1.0 > 0.5");
+static_assert(q12 {2048} <= q12 {4096} && q12 {4096} >= q12 {2048}, "<= / >=");
+static_assert(q12 {4096} <= q12 {4096} && q12 {4096} >= q12 {4096}, "<= / >= con iguales");
+static_assert(!(q12 {4096} <= q12 {2048}) && !(q12 {2048} >= q12 {4096}), "negaciones");
+
 int main() {
 	// Comprobaciones en runtime equivalentes (por si el optimizador oculta algo).
 	const q12 a {4096}; // 1.0
@@ -90,6 +96,9 @@ int main() {
 	check(a * b == Fixed<s32, 24> {8388608L}, "1.0*0.5 = 0.5 en 8.24");
 	check((a * b).rescale<12>().cast<s16>() == q12 {2048}, "0.5 en 4.12");
 	check(dot(q12 {8191}, q12 {1}, q12 {1}, q12 {1}) == q12 {2}, "dot fusionado");
+	check(a > b && b < a, "> y <");
+	check(b <= a && a >= b, "<= y >=");
+	check(!(a <= b) && !(b >= a), "negaciones de <=/>= ");
 
 	if (failures == 0) {
 		std::printf("OK: Fixed<Repr,Exp> (exponentes, promocion, no-mezcla, dot fusionado) validado.\n");
