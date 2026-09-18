@@ -30,7 +30,7 @@ original (latencia de 1 frame, mismo orden de ángulos).
   visible y su color es `(hi16(v) · kInvSqrt[hi16(|cam−p0|²)]) >> 16` (0..15), **sin
   `sqrt` en runtime** (tabla `kInvSqrt[512]`, port de `UpdateFaceVisibility`). Caras
   `material < 0` son de doble cara.
-- **Proyección**: port `1:1` de `TransformVertices` (`>>4`, `normfx`, `div16`),
+- **Proyección**: port `1:1` de `TransformVertices` (`>>4`, `normfx`, `div_wide`),
   centrado en `WIDTH/2`, `HEIGHT/2`.
 - **Relleno**: las **aristas visibles** se dibujan con **`MinimalBackend::blitter_line_eor`**
   (`ONEDOT`+EOR, replicadas en cada plano con el bit del color de arista; comunes fijados

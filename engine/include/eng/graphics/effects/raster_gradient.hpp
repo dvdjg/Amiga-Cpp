@@ -28,7 +28,7 @@
 #include <eng/core/types.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/core/util/color.hpp>
-#include <eng/core/word.hpp>
+#include <eng/core/arith.hpp>
 #include <eng/graphics/raster_intent.hpp>
 
 namespace eng::graphics::effects {

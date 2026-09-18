@@ -1,4 +1,4 @@
-// HOST-053 — tabla dorada de `lib3d::transform_vertices` (la proyección con `div16`)
+// HOST-053 — tabla dorada de `lib3d::transform_vertices` (la proyección con `div_wide`)
 // a ángulo FIJO. Fija los valores proyectados y la bounding-box para que ningún cambio
 // en la capa de cálculo (matrices, exponentes, redondeo) los altere en silencio.
 //

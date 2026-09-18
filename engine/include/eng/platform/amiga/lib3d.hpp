@@ -20,12 +20,11 @@
 /// - `update_edge_visibility_convex` ~11k (recorrido puro de índices, sin muls).
 ///
 /// ## Qué genera g++ y qué sería el ideal en asm
-/// - **`mul_wide(b, a)` / `mulu_wide`** (`arith.hpp`; atajos `mul16`/`mulu16` en
-///   `eng/core/word.hpp`): `muls.w`/`mulu.w` nativos. Si se escribe `(s32)a * b` con
-///   operandos `s32`, g++ emite `__mulsi3` (multiplicación 32×32 por software, ~10× más
-///   cara). Por eso TODO producto 16×16 del camino caliente debe pasar por
-///   `mul_wide`/`mulu_wide`.
-/// - **`div_wide(a, b)`** (`arith.hpp`; atajo `div16` en `word.hpp`): `divs.w` nativo (cociente 16 bits en la palabra
+/// - **`mul_wide(b, a)` / `mulu16`** (`arith.hpp`): `muls.w`/`mulu.w` nativos. Si se
+///   escribe `(s32)a * b` con operandos `s32`, g++ emite `__mulsi3` (multiplicación 32×32
+///   por software, ~10× más cara). Por eso TODO producto 16×16 del camino caliente debe
+///   pasar por `mul_wide`/`mulu16`.
+/// - **`div_wide(a, b)`** (`arith.hpp`): `divs.w` nativo (cociente 16 bits en la palabra
 ///   baja). `a / b` en `s32` genera `__divsi3` (software). Es el libcall más caro.
 /// - **Escrituras a memoria empaquetada** (`objdat + offset`): g++ no puede
 ///   mantener los punteros en registros de dirección (`register ... asm("aN")` se
@@ -47,7 +46,7 @@
 /// escalar, solo garantizar `muls.w`/`divs.w` en el camino caliente.
 
 #include <eng/core/affine.hpp>
-#include <eng/core/word.hpp>
+#include <eng/core/arith.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/platform/amiga/object3d.hpp>
 #include <eng/core/light.hpp>

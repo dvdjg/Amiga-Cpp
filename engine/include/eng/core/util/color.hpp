@@ -7,7 +7,7 @@
 ///
 /// El chipset Amiga guarda el color como 12 bits `0x0RGB` (un nibble por canal). Estas
 /// utilidades operan sobre ese `u16` directamente y usan la aritmética de palabra del
-/// 68000 (`muls.w`/`divs.w`, `word.hpp`), sin `float` ni divisiones que acaben en
+/// 68000 (`muls.w`/`divs.w`, `arith.hpp`), sin `float` ni divisiones que acaben en
 /// libgcc. Sirven para degradados de paleta, fundidos, parpadeos y efectos de color.
 ///
 /// Uso:
@@ -19,7 +19,7 @@
 
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
-#include <eng/core/word.hpp>
+#include <eng/core/arith.hpp>
 
 namespace eng::util {
 

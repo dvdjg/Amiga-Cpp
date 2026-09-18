@@ -178,8 +178,8 @@ void transform_vertices(obj::Object3D& object) {
 				MULVERTEX1(yp, M.m.m[1][0].v, M.m.m[1][1].v, M.m.m[1][2].v, m1);
 				MULVERTEX2(zp, M.m.m[2][0].v, M.m.m[2][1].v, M.m.m[2][2].v, M.t.z().v);
 
-				*pt++ = static_cast<eng::s16>(eng::math::div16(xp, zp) + kWidth / 2);
-				*pt++ = static_cast<eng::s16>(eng::math::div16(yp, zp) + kHeight / 2);
+				*pt++ = static_cast<eng::s16>(eng::math::div_wide(xp, zp) + kWidth / 2);
+				*pt++ = static_cast<eng::s16>(eng::math::div_wide(yp, zp) + kHeight / 2);
 				*pt++ = zp;
 			}
 		}

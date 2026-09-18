@@ -135,7 +135,7 @@ eng::s16 g_bbox[4] = {32767, -32768, 32767, -32768};
 //
 //   - transform (~127k, CPU): lib3d puro (visibilidad + transform+proyeccion).
 //     ES el punto donde el codegen de g++ mas se nota frente al original: ~9
-//     `mul16` + 2 `div16` por vertice, y los punteros a `objdat` no caben en
+//     `mul_wide` + 2 `div_wide` por vertice, y los punteros a `objdat` no caben en
 //     registros de direccion (GCC-15 ignora `register ... asm("aN")`). El detalle
 //     de que emite g++ y cual seria el ideal en asm esta en `eng/platform/amiga/lib3d.hpp`.
 //   - edges (~114k) + fill (~132k) + clear (~89k, Blitter): NO es CPU nuestro.

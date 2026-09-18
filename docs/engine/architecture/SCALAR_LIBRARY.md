@@ -280,5 +280,8 @@ funcionan con `Fixed<s32,E>` (el 4.12 queda fuera por rango: la rejilla tiene 10
 
 `scalar_const<Fixed>::from` comprueba en compilación que la constante cabe en el rango del fixed
 (antes el `static_cast` **envolvía** en silencio); por eso `ease_*_expo` (usa 10 y 20) queda vetado
-en 4.12 y disponible en `Fixed<s32>`. Pendientes menores: adoptar `eng::real`/`coord` en demos
-concretas y completar la migración de los `mul16` restantes a `mul_wide`.
+en 4.12 y disponible en `Fixed<s32>`.
+
+La aritmética de palabra vive en `arith.hpp` (`mul_wide`/`div_wide`/`mulu16` por CPU); el antiguo
+`word.hpp` ya no existe y los call sites usan los nombres genéricos. Pendiente menor: adoptar
+`eng::real`/`coord` en demos concretas.

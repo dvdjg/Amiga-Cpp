@@ -41,8 +41,8 @@ Lo que **está acoplado**:
 |---|---|---|
 | `fixed_math.hpp` | tablas y `scalar_sin/cos/tan/asin/acos/atan2/exp2/log2/sqrt` **solo** para `Fixed<s16,E>` | **sí** (por `Repr` y por `E`) |
 | `linalg.hpp` | `scalar_div<Fixed<s16,E>>` es la única especialización; `div_norm(Fixed<s32,E>)` **no compila** | **sí** |
-| `word.hpp` (`mul16`/`div16`), `arith<>` | pensados para 16 bits (`muls.w`/`divs.w`) | **sí**: envolver por CPU |
-| `mesh3d.hpp` (`Coord = Fixed<s16,0>`, `mul16`/`mul32x16`), `collision.hpp`/`grid.hpp`/`broadphase.hpp`/`color.hpp` (`Point2s`, AABB, RGB444) | dominio de **pantalla/tile/píxel** a 16 bits | **no** (son tipos de dominio hardware) |
+| `arith<>` (`mul_wide`/`div_wide`/`mulu16`) | producto/cociente ensanchado por CPU (`muls.w`/`divs.w` en 16 bits) | **sí** (ya genérico) |
+| `mesh3d.hpp` (`Coord = Fixed<s16,0>`, `mul_wide`/`mul32x16`), `collision.hpp`/`grid.hpp`/`broadphase.hpp`/`color.hpp` (`Point2s`, AABB, RGB444) | dominio de **pantalla/tile/píxel** a 16 bits | **no** (son tipos de dominio hardware) |
 | `object3d.hpp`/`lib3d.hpp` | layout empaquetado `s16` del `objdat` de lib3d | **no** (ABI/binario del mesh) |
 | `eng/retro/*`, `eng/cpu/m68k/*` | vocabulario fijo retro y CPU | **no** (son la capa 16-bit) |
 
@@ -106,7 +106,7 @@ Falta, por `Repr`:
 
 ### 3.4 Abstracción de CPU (palabra y multiplicación)
 
-Promover `word.hpp` a una noción genérica por CPU:
+Abstracción por CPU (implementada en `arith.hpp`, sustituye al antiguo `word.hpp`):
 
 ```
    mul_wide<S>(a,b) -> wide<S>     … nativa si el target la tiene
@@ -136,9 +136,10 @@ independiente; F4/F5 van tras F0; F6 cierra.
 **Estado**: **F0–F6 entregados** (detalle y evidencia en
 [SCALAR_LIBRARY.md](../../engine/architecture/SCALAR_LIBRARY.md) §8, HOST-135 y HOST-136).
 F4 fue un barrido de auditoría: el código ya seguía la regla `bool` vs byte. F5 se materializa en
-HOST-136 más `tools/run/run-scalar-modes.sh` (mismo fuente en RETRO16/RETRO32/NATIVE). Pendientes
-menores: extender la tabla §7 con la columna de 32 bits, adoptar `eng::real`/`coord` en demos
-concretas y completar la migración mecánica de los `mul16` restantes a `mul_wide`.
+HOST-136 más `tools/run/run-scalar-modes.sh` (mismo fuente en RETRO16/RETRO32/NATIVE). La tabla §7
+incluye la columna `Fixed<s32>` y el antiguo `word.hpp` se eliminó (la aritmética de palabra vive en
+`arith.hpp`: `mul_wide`/`div_wide`/`mulu16`). Pendiente menor: adoptar `eng::real`/`coord` en demos
+concretas.
 
 ## 5. Plan de pruebas
 

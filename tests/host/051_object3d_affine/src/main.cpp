@@ -61,9 +61,9 @@ static NewTransform new_update(s16 rx, s16 ry, s16 rz, s16 sx, s16 sy, s16 sz, s
 	r.o2w.t = Vec<3, q0> {{from_int<s16>(tx), from_int<s16>(ty), from_int<s16>(tz)}};
 	// w2o = compose(scale_inverso, reverse_rotate)
 	Mat<3, q12> ms = Mat<3, q12>::identity();
-	ms.m[0][0] = q12 {eng::math::div16(eng::retro::kOne8_24, sx)};
-	ms.m[1][1] = q12 {eng::math::div16(eng::retro::kOne8_24, sy)};
-	ms.m[2][2] = q12 {eng::math::div16(eng::retro::kOne8_24, sz)};
+	ms.m[0][0] = q12 {eng::math::div_wide(eng::retro::kOne8_24, sx)};
+	ms.m[1][1] = q12 {eng::math::div_wide(eng::retro::kOne8_24, sy)};
+	ms.m[2][2] = q12 {eng::math::div_wide(eng::retro::kOne8_24, sz)};
 	Mat<3, q12> mr = new_load_reverse_rotate(static_cast<u16>(-rx), static_cast<u16>(-ry), static_cast<u16>(-rz));
 	r.w2o.m = ms * mr;
 	r.w2o.t = Vec<3, q0> {{from_int<s16>(static_cast<s16>(-tx)), from_int<s16>(static_cast<s16>(-ty)),

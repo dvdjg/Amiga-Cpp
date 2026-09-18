@@ -13,7 +13,7 @@
 /// funciona igual en EHB / single 4 planos / DPF: la app nunca ve planos ni
 /// registros. Reutiliza `mesh3d`/`math3d`/`Surface` (no duplica).
 
-#include <eng/core/word.hpp>
+#include <eng/core/arith.hpp>
 #include <eng/core/mesh3d.hpp>
 #include <eng/field/surface.hpp>
 

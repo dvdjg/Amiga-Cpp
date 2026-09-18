@@ -23,7 +23,7 @@
 /// `Vec<3,Coord>` (`P3`), `load_rotate`/`reverse_rotate` y `scale(q12)`. La crudeza vive
 /// solo en el almacenamiento, no en la aritmética.
 
-#include <eng/core/word.hpp>
+#include <eng/core/arith.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/core/types.hpp>
 #include <eng/retro/fixed_q.hpp>

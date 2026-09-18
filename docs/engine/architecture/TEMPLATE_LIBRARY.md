@@ -25,7 +25,7 @@ La librería **complementa** el núcleo de `eng/core/`, no lo duplica:
    fast_div.hpp is_pow2/ilog2 ◄───── bit.hpp           popcount/clz/rotl/bswap
    ct_array.hpp tabla por functor    array.hpp         Array<T,N> (agregado)
    typed.hpp    vistas de dominio    bitset.hpp        BitSet<N>
-   word.hpp     mulu16        ◄────── hash.hpp          hash_u8/16/32, Hash<T>
+   arith.hpp    mulu16        ◄────── hash.hpp          hash_u8/16/32, Hash<T>
    memory/arena.hpp LinearArena ◄─── arena_alloc.hpp   ArenaAlloc
                                      allocator.hpp     Allocator, Null/Bump/Inline
                                      static_vector.hpp StaticVector<T,N> (fijo)
@@ -71,7 +71,7 @@ Puntos de reutilización explícitos:
 - El crecimiento va por el concepto `Allocator` (`allocator.hpp`): `BumpAlloc`/
   `InlineAlloc`/`NullAlloc` y, sobre el modelo de memoria del engine, `ArenaAlloc`
   (`arena_alloc.hpp`) adapta `eng::LinearArena`. No hay `malloc`.
-- `hash.hpp` se apoya en `eng::math::mulu16` (`word.hpp`, un `mulu.w`) y en `rotl`
+- `hash.hpp` se apoya en `eng::math::mulu16` (`arith.hpp`, un `mulu.w`) y en `rotl`
   (`bit.hpp`); evita la multiplicación de 32×32 que emitiría `__mulsi3`.
 - Los contenedores de capacidad fija siguen el patrón de handles/pool de `eng/task/background.hpp` (sin heap, con `valid()` explícito donde aplica).
 - `eng/scene/actor.hpp` usa `eng::util::Pool<Actor, MaxActors>` como parque de actores con handles generacionales (`ActorStore`), `BitSet<MaxActors>` y `StaticVector` en la emisión de BOB.

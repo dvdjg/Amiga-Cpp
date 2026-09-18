@@ -53,7 +53,7 @@ int main() {
 		project_perspective(math3d::vec3(256, 512, 1024), 256, 0, 0, sx, sy);
 		check(sx == 64 && sy == 128, "project_perspective escalado");
 		project_perspective(math3d::vec3(100, -50, 1000), 256, 32, 32, sx, sy);
-		// div16(100*256,1000)=25 ; div16(-50*256,1000)=-12 (truncado a 0)
+		// div_wide(100*256,1000)=25 ; div_wide(-50*256,1000)=-12 (truncado a 0)
 		check(sx == 57, "project_perspective + centro x");
 		check(sy == 20, "project_perspective + centro y");
 	}

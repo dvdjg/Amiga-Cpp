@@ -2,7 +2,7 @@
 
 /// \file collision.hpp
 /// **Pruebas de colisión 2D** enteras (`eng::util`), pensadas para el 68000: sin
-/// `float`, sin división y con productos de 16×16 (`muls.w`, `word.hpp`).
+/// `float`, sin división y con productos de 16×16 (`muls.w`, `arith.hpp`).
 ///
 /// Coordenadas en `s16` (`Point2s`) y diferencias que también deben caber en `s16`
 /// (espacio de pantalla/tile, ~±16000): así los productos cruzados y las distancias
@@ -15,7 +15,7 @@
 
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
-#include <eng/core/word.hpp>
+#include <eng/core/arith.hpp>
 
 namespace eng::util {
 

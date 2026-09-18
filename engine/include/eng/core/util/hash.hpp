@@ -24,7 +24,7 @@
 #include <eng/core/util/bit.hpp>
 #include <eng/core/util/string_view.hpp>
 #include <eng/core/util/type_traits.hpp>
-#include <eng/core/word.hpp>
+#include <eng/core/arith.hpp>
 
 namespace eng::util {
 

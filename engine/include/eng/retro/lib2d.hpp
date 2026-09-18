@@ -13,7 +13,7 @@
 
 #include <eng/core/linalg.hpp>
 #include <eng/core/types.hpp>
-#include <eng/core/word.hpp>
+#include <eng/core/arith.hpp>
 #include <eng/retro/fixed_q.hpp>
 
 namespace eng::retro {

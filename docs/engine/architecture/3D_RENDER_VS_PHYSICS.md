@@ -53,7 +53,7 @@ engine porque **no hay consumidor 3D físico**.
 - `Affine3` es ratio 4.12 (±8) + traslación `s16`; cadenas largas de composición acumulan
   redondeo y el rango se agota rápido. Un mundo 3D grande exigiría escalas/rebasado.
 - Las diferencias de coordenadas que entran en productos cruzados deben caber en `s16`
-  (~±16000); los productos usan `mul16` (`muls.w`) para no caer en `__mulsi3`.
+  (~±16000); los productos usan `mul_wide` (`muls.w`) para no caer en `__mulsi3`.
 
 ## 5. Si algún día se aborda física 3D (fuera de alcance hoy)
 

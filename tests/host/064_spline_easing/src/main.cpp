@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <type_traits>
 
+#include <eng/core/fixed_math.hpp>
 #include <eng/core/interp.hpp>
 #include <eng/core/minifloat_math.hpp>
 #include <eng/core/spline.hpp>
@@ -40,6 +41,13 @@ S mk(float x) {
 template <>
 er::q12 mk<er::q12>(float x) {
 	return er::q12 {static_cast<eng::s16>(std::lround(x * 4096.0f))};
+}
+/// `Fixed<s32,12>`: mismo exponente que 4.12 pero mas rango (p. ej. `ease_*_expo`, que
+/// usa 10/20 y no caben en 4.12).
+using fix32 = eng::math::Fixed<eng::s32, 12>;
+template <>
+fix32 mk<fix32>(float x) {
+	return fix32 {static_cast<eng::s32>(std::lround(x * 4096.0f))};
 }
 
 double hermite_ref(double p0, double m0, double p1, double m1, double t) {
@@ -163,6 +171,7 @@ int main() {
 	check_trig_easing<double>("double", 1.0e-9f);
 	check_trig_easing<float>("float ", 1.0e-4f);
 	check_trig_easing<MiniFloat16>("MF    ", 4.0e-3f);
+	check_trig_easing<fix32>("fix32 ", 1.5e-2f);
 	check_vec_spline();
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);

@@ -1,7 +1,7 @@
 # HOST-053 — tabla dorada de la proyección (`lib3d::transform_vertices`)
 
 A ángulo **fijo**, fija los valores proyectados y la bounding-box para que ningún
-cambio en la capa de cálculo (matrices, exponentes, redondeo, `div16`) los altere en
+cambio en la capa de cálculo (matrices, exponentes, redondeo, `div_wide`) los altere en
 silencio. Es el trinquete determinista que complementa a `HOST-047`.
 
 ## Qué valida

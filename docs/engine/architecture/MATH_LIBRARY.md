@@ -197,7 +197,7 @@ La librería se separa en tres capas y **cada truco vive en la suya**:
 
 Consecuencias (criterio para aceptar código):
 
-- **Prohibido en A**: `asm`, `#if defined(__mc68000__)`, `mul16`/`mulu16`/`div16` con
+- **Prohibido en A**: `asm`, `#if defined(__mc68000__)`, `mul_wide`/`mulu16`/`div_wide` con
   implementación específica, constantes como `1 << 12` con significado de formato,
   y cualquier función tipo `vertex_mul` que sólo tenga sentido con un reparto concreto
   de registros.
@@ -310,7 +310,7 @@ no llamen a libgcc (`__mulsi3`/`__divsi3`) ni usen instrucciones de 68020.
 | `scene/route_camera.hpp` | tipada | posición `Vec<2, Coord>` y offsets de la circunferencia generados con `eng::SineTable<4096,64>` (sin tabla a mano) |
 | `graphics/effects/rotozoom.hpp` | cruda (motivo) | 16.16 en `s32`: `mul_repr<s32>` ensancha a 64 bits → `__muldi3` (no enlaza en 68000); el asm comparte el layout `RotozoomSteps` |
 | `platform/amiga/object3d.hpp`, `lib3d.hpp` | cruda (motivo) | layout empaquetado `obj2c` 1:1; encima se tipa (`Affine3`, `P3`) |
-| `core/light.hpp`, `isqrt.hpp`, `fast_div.hpp`, `arith.hpp`, `word.hpp` | cruda (diseño) | aritmética de enteros/manipulación de bits; no son escalares |
+| `core/light.hpp`, `isqrt.hpp`, `fast_div.hpp`, `arith.hpp` | cruda (diseño) | aritmética de enteros/manipulación de bits; no son escalares |
 | `retro/fixed_q.hpp`, `retro/minifloat_fixed.hpp` | puente | vocabulario crudo (`fix`/`fix88`) para ports + conversiones tipadas |
 
 ### 3.8 Estado de tipado de `eng/field` y `eng/graphics`

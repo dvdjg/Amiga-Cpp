@@ -28,7 +28,7 @@
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/util/priority_queue.hpp>
-#include <eng/core/word.hpp>
+#include <eng/core/arith.hpp>
 
 namespace eng::ai {
 

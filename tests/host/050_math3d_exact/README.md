@@ -12,7 +12,7 @@ dan **exactamente** los mismos valores que las viejas.
 - Compara los 9 elementos de la matriz **valor a valor** (`==`). Cualquier diferencia es
   un fallo, no una mejora: la migración no debe cambiar ni un píxel.
 
-Se apoya en que la normalización fusionada (`dot`) es bit-idéntica al `normfx(mul16)`
+Se apoya en que la normalización fusionada (`dot`) es bit-idéntica al `normfx(mul_wide)`
 del original, y en que el exponente va en el tipo (misma representación `s16`, mismo
 resultado).
 
