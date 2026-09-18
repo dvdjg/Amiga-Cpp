@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 /// \file ehb_scene.hpp
 /// Primer driver reutilizable para escenas Extra Half-Brite.

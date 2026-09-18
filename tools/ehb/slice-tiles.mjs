@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 // F3-tools · Slicer EHB-first: convierte el ORIGINAL a la paleta EHB, extrae los
 // tiles únicos (dedupe exacto + fusión por similitud opcional), reconstruye y
 // compara la versión cuantizada del ORIGINAL con la reconstruida (debe dar 100%

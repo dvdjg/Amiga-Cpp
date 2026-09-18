@@ -1,4 +1,4 @@
-﻿// Sonda reproducible para el doc OPTIMIZACION_GPP_68000.md (§0, §8).
+// Sonda reproducible para el doc OPTIMIZACION_GPP_68000.md (§0, §8).
 // Compilación de referencia (igual que la evidencia del 2026-08-31):
 //   m68k-amiga-elf-g++ -m68000 -std=gnu++23 -O2 -S _probe_gpp68000.cpp
 //   m68k-amiga-elf-g++ -m68000 -std=gnu++23 -O2 -Os -S _probe_gpp68000.cpp

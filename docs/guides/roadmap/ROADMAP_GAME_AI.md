@@ -75,11 +75,11 @@ añade `AgentFsm`, `Utility`, `BehaviorTree` y `Blackboard` (HOST-110…113). Si
 |---|---|---|---|
 | G3.1 | `navigation/flow_field.hpp` | Campo de flujo sobre rejilla (Dijkstra multi-fuente con coste de terreno) para muchos agentes | **Entregado**: HOST-114 |
 | G3.2 | `navigation/waypoints.hpp` | Grafo de waypoints + A* sobre el grafo | **Entregado**: HOST-116 |
-| G3.3 | `navigation/navmesh_lite.hpp` | Versión **lite** de Recast/Detour: malla de navegación, punto más cercano y consulta de camino sobre polígonos | HOST propio + referencia <https://github.com/recastnavigation/recastnavigation> |
+| G3.3 | `navigation/navmesh_lite.hpp` | Versión **lite** de Recast/Detour: polígonos convexos + portales, punto en polígono y A* de adyacencia | **Entregado**: HOST-118 (referencia <https://github.com/recastnavigation/recastnavigation>) |
 
 G3 se apoya en `eng::util::pathfinding`/`grid`; el navmesh lite se acota a mallas pequeñas
-de A500 (memoria y coste de consulta visibles). **Estado: G3.1 y G3.2 entregados (flow field y waypoints,
-HOST-114/116).** Queda el navmesh lite.
+de A500 (memoria y coste de consulta visibles). **Estado: G3 completa** (flow field, waypoints y navmesh
+lite; HOST-114/116/118).
 
 ### G4 — Movimiento y percepción
 
@@ -117,7 +117,7 @@ patrones descritos en §5.
 | Blackboard / eventos | decisión | `ai/decision/blackboard.hpp` + `util/event.hpp` | — | **Entregado** (HOST-111 / HOST-109) |
 | Flow field | navegación | `ai/navigation/flow_field.hpp` | — | **Entregado** (HOST-114) |
 | Grafo de waypoints + A* | navegación | `ai/navigation/waypoints.hpp` | — | **Entregado** (HOST-116) |
-| Navmesh lite (Recast/Detour) | navegación | `ai/navigation/navmesh_lite.hpp` | <https://github.com/recastnavigation/recastnavigation> | Pendiente |
+| Navmesh lite (Recast/Detour) | navegación | `ai/navigation/navmesh_lite.hpp` | <https://github.com/recastnavigation/recastnavigation> | **Entregado** (HOST-118) |
 | Steering behaviors / flocking | movimiento | `ai/steering/steering.hpp` | C. Reynolds (1987) | **Entregado** (HOST-115) |
 | Influence maps | percepción | `ai/perception/influence_map.hpp` | (técnica de RTS) | **Entregado** (HOST-117) |
 | Memoria del agente / creencias | percepción | `ai/perception/agent_memory.hpp` | — | **Entregado** (HOST-117) |

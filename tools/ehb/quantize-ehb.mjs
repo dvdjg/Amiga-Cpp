@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 // F3-tools · Cuantizador EHB (k-means modificado, half-aware).
 //
 // Elige 32 colores base de forma que {base} ∪ {half(base)} (half = c>>1 por

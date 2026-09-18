@@ -53,6 +53,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/ai/decision/behavior_tree.hpp>
 #include <eng/ai/navigation/flow_field.hpp>
 #include <eng/ai/navigation/waypoints.hpp>
+#include <eng/ai/navigation/navmesh_lite.hpp>
 #include <eng/ai/steering/steering.hpp>
 #include <eng/ai/perception/influence_map.hpp>
 #include <eng/ai/perception/agent_memory.hpp>
@@ -474,6 +475,25 @@ extern "C" u16 c_waypoints_ops(u16 start, u16 goal) {
 					     eng::Span<eng::u8> {closed, 8},
 					     eng::Span<eng::u16> {path, 8});
 	return static_cast<u16>(n + (g[t] == 0xffffu ? 0u : g[t]));
+}
+extern "C" u16 c_navmesh_ops(u16 seed) {
+	using Mesh = eng::ai::NavMesh<8, 4, 8>;
+	Mesh mesh;
+	const eng::Point2s a_verts[4] = {{0, 0}, {10, 0}, {10, 10}, {0, 10}};
+	const eng::Point2s b_verts[4] = {{10, 0}, {20, 0}, {20, 10}, {10, 10}};
+	const eng::u16 a = mesh.add_polygon(eng::Span<const eng::Point2s> {a_verts, 4});
+	const eng::u16 b = mesh.add_polygon(eng::Span<const eng::Point2s> {b_verts, 4});
+	mesh.add_portal(a, b, {10, 0}, {10, 10});
+	eng::u16 g[8];
+	eng::s16 came[8];
+	eng::u8 closed[8];
+	eng::Point2s path[8];
+	const eng::usize n = mesh.find_path(
+		{5, 5}, {static_cast<eng::s16>(seed % 15u), 5}, eng::Span<eng::u16> {g, 8},
+		eng::Span<eng::s16> {came, 8}, eng::Span<eng::u8> {closed, 8},
+		eng::Span<eng::Point2s> {path, 8});
+	const eng::u16 loc = mesh.locate({5, 5});
+	return static_cast<u16>(n + (loc == Mesh::no_poly ? 0u : loc));
 }
 extern "C" s32 c_influence_map_ops(u16 cell, s32 amount) {
 	eng::ai::InfluenceMap<8, 8> map;

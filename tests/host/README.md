@@ -157,3 +157,4 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-115 | [steering](115_steering/README.md) | `ai/steering/steering.hpp`: `seek`/`flee`/`arrive` y flocking (`separation`/`cohesion`/`alignment`/`flock`), generico sobre `double` y `q12`. |
 | HOST-116 | [waypoints](116_waypoints/README.md) | `ai/navigation/waypoints.hpp`: `WaypointGraph<MaxNodes,MaxEdges>` + A* sobre el grafo (heuristica Manhattan, scratch del llamador). Ruta optima, inalcanzable y capacidad. |
 | HOST-117 | [perception](117_perception/README.md) | `ai/perception/influence_map.hpp` (`InfluenceMap<W,H>`: deposit/decay/strongest) y `ai/perception/agent_memory.hpp` (`AgentMemory`: see/tick/fresh/stale/forget). |
+| HOST-118 | [navmesh](118_navmesh/README.md) | `ai/navigation/navmesh_lite.hpp`: `NavMesh` de poligonos convexos con portales; localizar punto, A* por adyacencia y camino por puntos medios de portales. |

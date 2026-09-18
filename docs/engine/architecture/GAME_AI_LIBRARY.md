@@ -211,6 +211,16 @@ camino se calcula a petición.
 Coste medido: `find_path` sobre un grafo de 3 nodos (sonda `c_waypoints_ops`) 74
 instrucciones, sin libcalls. Verificación: HOST-116.
 
+`navmesh_lite.hpp`: versión mínima de Recast/Detour. El mundo transitable se divide en
+**polígonos convexos** (`add_polygon`) unidos por **portales** (`add_portal`, la arista
+compartida); A* recorre la adyacencia y el camino devuelto son los puntos medios de los
+portales más el destino. Incluye `locate` (punto en polígono) pero no el cocido de la malla
+ni el algoritmo del embudo: la malla la construye el juego. Usa el primer vértice como ancla
+(evita dividir) y `muls.w` para el producto vectorial.
+
+Coste medido: localizar + A* entre 2 polígonos (sonda `c_navmesh_ops`) 194 instrucciones y
+4 `muls.w`, sin libcalls. Verificación: HOST-118.
+
 ## 6. Movimiento: steering (`eng/ai/steering/steering.hpp`)
 
 Velocidades de movimiento continuo genéricas sobre el escalar: `seek`/`flee`/`arrive` y los
@@ -245,7 +255,7 @@ HOST-117.
 | `decision/blackboard.hpp` | `Blackboard<Key,Value,MaxKeys>`: memoria compartida `O(1)` | Implementado, HOST-111 |
 | `navigation/flow_field.hpp` | `compute_flow_field<W,H>`, `flow_next<W>`, `FlowDir`: campo de flujo multi-fuente | Implementado, HOST-114 |
 | `navigation/waypoints.hpp` | `WaypointGraph<MaxNodes,MaxEdges>`, `find_path` (A* Manhattan) | Implementado, HOST-116 |
-| `navigation/…` | navmesh lite (Recast/Detour) | Planificado (ROADMAP_GAME_AI) |
+| `navigation/navmesh_lite.hpp` | `NavMesh`, `locate`, `find_path` (A* por portales) | Implementado, HOST-118 |
 | `steering/steering.hpp` | `seek`/`flee`/`arrive`, `separation`/`cohesion`/`alignment`/`flock` | Implementado, HOST-115 |
 | `perception/influence_map.hpp` | `InfluenceMap<W,H>`: deposit/decay/strongest | Implementado, HOST-117 |
 | `perception/agent_memory.hpp` | `AgentMemory`: see/tick/fresh/stale/forget | Implementado, HOST-117 |
