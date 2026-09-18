@@ -107,6 +107,11 @@ struct PixmapT {
 #ifndef K_117_BLITROWS
 #define K_117_BLITROWS kBobHeight
 #endif
+// 1 = bucle de frame interrupt-driven (`Engine::run_frames`), como la cadencia del
+// original; 0 = polling de VBlank (`run_frames_polling`).
+#ifndef K_117_IRQ
+#define K_117_IRQ 1
+#endif
 
 using eng::object3d::Mesh3D;
 #include "data/pilka.c"
@@ -281,7 +286,6 @@ struct Bobs3DDemo {
 #if K_117_BOBS && K_117_BATCH
 		// Fusor: calculo del vertice + programacion del blit en el mismo bucle.
 		ENG_PROF_BEGIN(kProfBlits);
-		backend.set_blitter_priority(true);
 		draw_bobs_stream(backend, screen.data());
 		ENG_PROF_END(kProfBlits);
 #else
@@ -342,7 +346,8 @@ private:
 		s16* group = m_object.vertexGroups;
 		const u8* sheet = m_bob_dense_block.view.data();
 
-		backend.blitter_or_bobs_begin(kBobWords, K_117_BLITROWS, 0, kBobDestModulo);
+		eng::amiga::OrBlobBatch batch;
+		batch.begin(backend.custom_registers(), kBobWords, K_117_BLITROWS, 0, kBobDestModulo);
 		do {
 			s16 v;
 			while ((v = *group++)) {
@@ -367,14 +372,14 @@ private:
 					x_start = 0;
 				}
 
-				backend.blitter_or_bobs_one(
+				batch.one(
 					sheet + static_cast<u32>(z >> 5) * kBobDenseFrame,
 					screen + static_cast<s32>(y) * static_cast<s32>(kBytesPerRow * kPlanes) +
 						(static_cast<s32>(x_start) >> 3),
 					static_cast<u8>(x & 15));
 			}
 		} while (*group);
-		backend.blitter_or_bobs_end();
+		batch.end();
 	}
 
 	void copy_carrion() {
@@ -510,7 +515,11 @@ int main() {
 	eng::amiga::MinimalBackend backend {};
 	Bobs3DDemo game {};
 	eng::Engine engine {backend, game};
+#if K_117_IRQ
+	engine.run_frames(0xffff);
+#else
 	engine.run_frames_polling(0xffff);
+#endif
 
 	return 0;
 }

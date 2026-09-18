@@ -17,6 +17,7 @@
 #include <eng/core/types.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/platform/amiga/blob.hpp>
 
 namespace eng::amiga {
 
@@ -254,6 +255,12 @@ public:
 	/// internos de su copperlist.
 	bool execute_frame_plan(const graphics::FramePlan& plan);
 
+	/// Base de registros custom (`$dff000`). Para rutinas de lote `inline` (p. ej.
+	/// `eng::amiga::OrBlobBatch`) que programan hardware sin un `jsr` por objeto.
+	volatile u16* custom_registers() const {
+		return reinterpret_cast<volatile u16*>(0xdff000);
+	}
+
 	/// Rellena triangulos planos con el **Blitter**: por cada triangulo dibuja el
 	/// contorno (line mode XOR, ONEDOT) + area fill inclusivo en un plano-mascara
 	/// de 1 bit y luego hace cookie-cut de la mascara a cada bitplane segun el
@@ -489,10 +496,9 @@ private:
 	void* m_frame_alloc = nullptr;
 	u32 m_frame_alloc_size = 0;
 	u32 m_blitter_starts = 0;
-	/// Estado del lote de BOBs en streaming (`blitter_or_bobs_begin/one/end`):
-	/// `BLTCON0` comun (sin el shift) y `BLTSIZE` fijados en `begin`.
-	u16 m_or_bob_con0 = 0;
-	u16 m_or_bob_size = 0;
+	/// Estado del lote de BOBs no-inline (`blitter_or_bobs_begin/one/end`): delega en
+	/// la misma implementacion `inline` de `blob.hpp` que usa el camino de coste cero.
+	eng::amiga::OrBlobBatch m_or_bob {};
 	/// true una vez que la primera copperlist ha tomado el control completo del
 	/// display (INTENA/INTREQ/DMACON apagados e interrupciones del sistema
 	/// congeladas). Las instalaciones posteriores son solo swaps de puntero.

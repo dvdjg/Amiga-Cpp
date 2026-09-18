@@ -1075,36 +1075,17 @@ bool MinimalBackend::blitter_clear(eng::PlaneBytes dst, u8 planes, u16 row_bytes
 
 void MinimalBackend::blitter_or_bobs_begin(u16 words, u16 height, s16 source_modulo,
 					   s16 dest_modulo) {
-	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
-	wait_blitter();
-
-	// Constantes del lote (una sola vez): es lo que el original deja fuera del bucle
-	// de `DrawObject`. A = objeto (con barrel shifter), B = D = destino, `A_OR_B`;
-	// atlas denso (sin guarda) y ALWM completo, como bobs3d.
-	m_or_bob_size = static_cast<u16>((static_cast<u16>(height) << 6) | words);
-	m_or_bob_con0 = static_cast<u16>(blt_use_a | blt_use_b | blt_use_d | blt_minterm_a_or_b);
-	custom_base[custom_bltcon1_offset] = 0;
-	custom_base[custom_bltafwm_offset] = 0xffff;
-	custom_base[custom_bltalwm_offset] = 0xffff;
-	custom_base[custom_bltamod_offset] = static_cast<u16>(source_modulo);
-	custom_base[custom_bltbmod_offset] = static_cast<u16>(dest_modulo);
-	custom_base[custom_bltdmod_offset] = static_cast<u16>(dest_modulo);
+	// Misma implementacion que el camino `inline` de coste cero (blob.hpp): una sola
+	// fuente de verdad para la secuencia de registros.
+	m_or_bob.begin(custom_base, words, height, source_modulo, dest_modulo);
 }
 
 void MinimalBackend::blitter_or_bobs_one(const void* source, void* dest, u8 shift) {
-	// El original espera antes de reprogramar cada objeto (no solapa el setup con el
-	// blit en curso, que comparte BLTxPT/BLTSIZE).
-	wait_blitter();
-	custom_base[custom_bltcon0_offset] =
-		static_cast<u16>(static_cast<u16>(shift & 0x0fu) << 12u | m_or_bob_con0);
-	write_custom_pointer(custom_bltapt_offset, source);
-	write_custom_pointer(custom_bltbpt_offset, dest);
-	write_custom_pointer(custom_bltdpt_offset, dest);
-	custom_base[custom_bltsize_offset] = m_or_bob_size;
+	m_or_bob.one(source, dest, shift);
 }
 
 bool MinimalBackend::blitter_or_bobs_end() {
-	return wait_blitter();
+	return m_or_bob.end();
 }
 
 bool MinimalBackend::blitter_or_bobs(const OrBobEntry* entries, u32 count, u16 words, u16 height,

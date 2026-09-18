@@ -197,9 +197,39 @@ Conclusiones:
   blit): 232k vs 194k, +20 %. Es codigo C++ (aritmetica de punteros, ramas, calculo de
   `x/y/z/frame`) frente al C afinado del original.
 
-Siguiente paso: apretar ese bucle (~37k). Fusionar `draw` ya esta hecho (ahorro ~8k). Solo
-si apretarlo en C++ no basta, portar **ese bucle** (no el transform) a asm; batir al
-original exige reducir Blitter/clear, que ya estan a su nivel.
+Optimizaciones aplicadas al bucle:
+
+1. **Fusion** del calculo del vertice y la programacion del blit en un solo bucle
+   (`draw_bobs_stream`, sin array intermedio): `draw` 46k -> 0.
+2. **Lote `inline`** (`eng::amiga::OrBlobBatch` en `blob.hpp`): elimina el `jsr` + 4 pushes
+   por BOB. `blits` 231,7k -> **202,5k**.
+
+Estado final medido: `clear` 75k, `transform` 84k, `blits` **202,5k**, total ~425k
+(3,0 campos, 16,6 fps). Verificado en el `.s`: 0 llamadas a `blitter_or_bobs_one` (todo
+inline). Queda un `jsr __mulsi3` en `blitter_clear` (`row_bytes*h == plane_bytes`, una vez
+por frame), despreciable.
+
+**Paridad por componente**: transform 84k vs 83k del original; bobs 202,5k vs 194k; clear
+~75k vs ~76k. El trabajo real por frame es ~360k (2,54 campos) en ambos lados. La unica
+diferencia que queda (nuestro 16,6 fps vs 20,1 del original) es la **cuantizacion de
+campos** de `run_frames_polling` (2,54 campos => salta a 3), mientras el original, guiado
+por el contador de la CIA, promedia 2,49 campos. No es coste de algoritmo.
+
+Para igualar el framerate hay que cambiar el **bucle de frame** del engine, no optimizar
+mas el efecto. Probado: con `Engine::run_frames` (interrupt-driven) en vez de
+`run_frames_polling`, el total baja a **366.793 ciclos/frame (2,6 campos, 19,34 fps)**,
+practicamente el original (2,49 campos, 20,1 fps), y vision confirma que sigue limpio.
+El polling cuantiza a 3 campos porque `2,54 > 2`; la cadencia por IRQ no cuantiza.
+La demo usa `run_frames` por defecto (`K_117_IRQ=1`). Batir al original exigiria reducir
+Blitter/clear, que ya estan a su nivel.
+
+**Nota de modelo (importante).** El original **no** ejecuta `Render` dentro de la ISR: el
+`EFFECT` pasa `VBlank = NULL` y `Render` corre en la **tarea de primer plano**, que
+`TaskWaitVBlank()` **duerme** hasta que la IRQ de VBlank la despierta (`TaskNotifyISR`).
+Es cadencia por IRQ con ejecucion en primer plano. `Engine::run_frames` ejecuta
+`update`/`render` **dentro** de la ISR de VBlank (variante cercana, no identica); da la
+misma cadencia en la practica. `run_frames_polling` es la otra alternativa (busy-wait en
+`VPOSR`), que es la que cuantiza a campos enteros.
 
 ## 7. Optimizaciones
 
@@ -226,12 +256,26 @@ Pendiente / descartado con la evidencia actual:
 
 ## 8. Estado
 
-- ✅ Port fiel que reproduce el efecto (READY, vision: esfera de chispas girando sobre
-  carrion-metro, circulos limpios, sin bandas ni costuras).
-- ✅ Bug de fidelidad de registros (BSH) corregido en el backend.
+- ✅ Port fiel que reproduce el efecto (READY; vision: esfera de chispas girando sobre
+  carrion-metro, circulos limpios, sin bandas ni costuras; revalidado tras la fusion y el
+  lote inline).
+- ✅ Bug de fidelidad de registros (BSH, `BLTCON1`) corregido en el backend; 086 sigue a
+  50 fps sin regresion.
 - ✅ Assets importados verbatim; atlas re-encodificado a la guarda de `bob.hpp` y copia
   densa para el lote.
-- ✅ **Lote de BOBs** (`blitter_or_bobs`) con 3 palabras fieles: 10,08 → 12,56 fps.
-- 🔄 Optimizacion adicional: limitada por bus (clear + blits). Reducir mas exige cambiar el
-  diseno (menos planos de pantalla, bobs mas pequenos) y ya no seria fiel.
-- ❌ Oráculo del original: arranca, pero su fps no medido (base de relocalizacion).
+- ✅ **BLTPRI** activado (como el original): 12,56 → 16,70 fps.
+- ✅ **Lote de BOBs fusionado e inline** (`OrBlobBatch`): `blits` 231,7k → 202,5k.
+- ✅ **Paridad por componente** con el original (medido con su propio profiler):
+  transform 84k vs 83k, bobs 202,5k vs 194k, clear 75k vs ~76k.
+- ✅ **Cadencia por IRQ** (`Engine::run_frames`): **19,34 fps (2,6 campos)** — practicamente
+  el original (20,1 fps, 2,49 campos). El polling daba 16,6 (3,0 campos).
+- ✅ Oraculo del original medido: **20,1 fps (2,49 campos/render)**, no 50.
+- ⏭ Unico margen: reducir Blitter/clear (ya al nivel del original) para bajar de 2,5 campos.
+
+### API de engine anadida
+
+- `engine/include/eng/platform/amiga/blob.hpp`: `eng::amiga::OrBlobBatch` (lote OR
+  intercalado `inline`, constantes fijadas una vez, sin `jsr` por objeto).
+- `MinimalBackend::custom_registers()` (frontera unsafe para rutinas de lote inline).
+- `MinimalBackend::blitter_or_bobs_begin/one/end` delegan en el mismo `OrBlobBatch` (una
+  sola fuente de verdad para la secuencia de registros).
