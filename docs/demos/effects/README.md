@@ -6,7 +6,7 @@ replicación, índices de cobertura y análisis de efectos concretos.
 > **Procedencia:** la política de replicación y el índice del repo externo son propios de
 > este repositorio; los documentos de importación proceden del repo hermano `Cursor-Amiga-C`.
 
-## Documentos
+## Documentos vigentes
 
 | Documento | Contenido |
 |-----------|-----------|
@@ -19,6 +19,20 @@ replicación, índices de cobertura y análisis de efectos concretos.
 | [demoscene-repo-import-roadmap.md](demoscene-repo-import-roadmap.md) | Roadmap anterior de importación por efectos (superado por el enfoque por librerías). |
 | [demoscene-repo-coverage-index.md](demoscene-repo-coverage-index.md) | Índice efecto a efecto (01-67 + Starfox) del estado de importación. |
 | [dx39-layers-original-analysis.md](dx39-layers-original-analysis.md) | Despiece técnico del efecto `layers` (dual playfield, scroll fino/coarse, wrap). |
+
+## Planes de porte (histórico)
+
+Planes y bitácoras del porte 1:1 de efectos concretos. **No** describen la API vigente: citan
+la del original (`fx.h`/`common.h`, `div16`/`mul16`), que en el engine hoy son
+`div_wide`/`mul_wide` (`docs/engine/architecture/SCALAR_LIBRARY.md`). Se conservan como
+registro del proceso y de las mediciones.
+
+| Documento | Efecto |
+|-----------|--------|
+| [WIREFRAME_PORT_PLAN.md](WIREFRAME_PORT_PLAN.md) | `effects/wireframe`: línea por Blitter. |
+| [FLATSHADE_CONVEX_PORT_PLAN.md](FLATSHADE_CONVEX_PORT_PLAN.md) | `effects/flatshade-convex`: luz por cara + area fill. |
+| [FIRE_RGB_PORT_PLAN.md](FIRE_RGB_PORT_PLAN.md) | `effects/fire-rgb`: HAM6 + C2P por Blitter. |
+| [PLASMA_PORT_PLAN.md](PLASMA_PORT_PLAN.md) | `effects/plasma`: copper chunky. |
 
 ## Enlaces relacionados
 

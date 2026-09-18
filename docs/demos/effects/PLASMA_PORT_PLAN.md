@@ -1,5 +1,7 @@
 # Plan de porte 1:1 — `effects/plasma`
 
+> **Nota:** documento histórico (plan y bitácora del porte). Cita la API del **original**; en el engine vigente los nombres de aritmética de palabra son `div_wide`/`mul_wide` (`docs/engine/architecture/SCALAR_LIBRARY.md`).
+
 `plasma.c` dibuja un **plasma 2D** (suma separable de tres senoides 1D) sobre un display
 **copper chunky** de 288×256: **sin bitplanes**, el Copper escribe `COLOR00` por bloque de
 **8×4** a lo largo de cada línea (36 bloques × 64 filas), re-ejecutando la misma "línea de
