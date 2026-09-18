@@ -16,6 +16,7 @@
 #include <cstdio>
 
 #include <eng/sim/avatar.hpp>
+#include <eng/sim/season.hpp>
 #include <eng/sim/world.hpp>
 
 namespace {
@@ -137,6 +138,56 @@ void test_player() {
 	      "jugador: registra a quien ve");
 }
 
+void test_lod_wake() {
+	World w;
+	for (eng::u8 r = 0; r < 8; ++r) {
+		w.link_rooms(r, static_cast<RoomId>(r + 1u));
+	}
+	w.set_biome(0u, BiomeKind::Plains);
+	const EntityId a = w.spawn(1u, 0u, 0u, 3, 5);
+	const EntityId b = w.spawn(1u, 0u, 0u, 6, 5);
+	const EntityId far = w.spawn(1u, 0u, 0u, 60, 5);
+	LodParams lp {};
+	lp.realize_radius = 10u;
+	lp.abstract_radius = 20u;
+	lp.wake_per_frame = 1u;
+	lp.wake_step = 80u;
+	w.set_lod_params(lp);
+
+	// Presupuesto de despertar: solo una criatura se realiza por frame.
+	w.update_lod(0, 5, 0u);
+	check(w.realized_count() == 1u, "lod: wake_per_frame limita las transiciones");
+	w.update_lod(0, 5, 0u);
+	check(w.realized_count() == 2u, "lod: el resto se realiza en el frame siguiente");
+
+	// Despertar gradual: la criatura no decide hasta completar la transición.
+	check(!w.find(a)->lod_ready(), "lod: recien realizada no esta lista");
+	eng::Xoroshiro64pp rng {1u, 2u};
+	for (int i = 0; i < 4; ++i) {
+		w.tick_realized(rng);
+	}
+	check(w.find(a)->lod_ready() && w.find(b)->lod_ready(),
+	      "lod: la transicion se completa sin pop");
+	check(w.find(far)->dormant(), "lod: lo lejano sigue dormido");
+}
+
+void test_dynamic_capacity() {
+	World w;
+	w.set_biome(0u, BiomeKind::Plains); // base 12
+	check(w.region_capacity(0u) == 12u, "aforo: en verano, capacidad base");
+
+	w.set_season(Season::Winter);
+	check(w.region_capacity(0u) == 8u, "aforo: en invierno sostiene menos");
+
+	w.climate().set(0u, HazardKind::Storm, 200u);
+	check(w.region_capacity(0u) == 4u, "aforo: con tormenta extrema, la mitad");
+
+	w.climate().set(0u, HazardKind::None, 0u);
+	w.set_season(Season::Spring);
+	check(w.region_capacity(0u) == 13u, "aforo: en primavera sostiene mas");
+	check(w.region_base_capacity(0u) == 12u, "aforo: la base del bioma no cambia");
+}
+
 } // namespace
 
 int main() {
@@ -144,9 +195,11 @@ int main() {
 	test_lod();
 	test_capacity();
 	test_player();
+	test_lod_wake();
+	test_dynamic_capacity();
 
 	if (g_fail == 0u) {
-		std::printf("OK: Sim player lod (bandas, aforo, avatar, percepcion)\n");
+		std::printf("OK: Sim player lod (bandas, wake, aforo dinamico, avatar, percepcion)\n");
 		return 0;
 	}
 	std::printf("FALLOS: %u\n", g_fail);

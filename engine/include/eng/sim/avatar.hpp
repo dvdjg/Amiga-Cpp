@@ -169,9 +169,53 @@ template <class W, class Rng>
 	return intent;
 }
 
+/// Entrada **humana** del avatar (mando/direccional). Un humano sustituye a la IA sin tocar
+/// el mundo: basta con llamar a `player_control` en vez de a `player_step`.
+struct PlayerInput {
+	eng::s16 dx = 0;       ///< avance en X (celdas por frame)
+	eng::s16 dy = 0;       ///< avance en Y
+	bool interact = false; ///< comer/usar en la región actual
+	bool rest = false;     ///< descansar
+};
+
+/// Aplica la entrada humana al avatar: mueve y actúa. Devuelve `true` si actuó.
+template <class W>
+constexpr bool player_control(W& w, EntityId id, const PlayerInput& in,
+			      const PlayerParams& p = PlayerParams {}) noexcept {
+	auto* c = w.find(id);
+	if (c == nullptr || !c->alive()) {
+		return false;
+	}
+	eng::s16 nx = static_cast<eng::s16>(c->x + in.dx);
+	eng::s16 ny = static_cast<eng::s16>(c->y + in.dy);
+	if (nx < 0) {
+		nx = 0;
+	} else if (nx > 40) {
+		nx = 40;
+	}
+	if (ny < 0) {
+		ny = 0;
+	} else if (ny > 40) {
+		ny = 40;
+	}
+	c->x = nx;
+	c->y = ny;
+
+	bool acted = false;
+	if (in.interact && biome_food(w.biome(c->room)) >= 40u) {
+		feed(c->needs, p.feed_amount);
+		c->mind.remember(MemoryKind::Ate, no_entity, 80u);
+		acted = true;
+	}
+	if (in.rest) {
+		rest(c->needs, 60u);
+		acted = true;
+	}
+	return acted;
+}
+
 /// Resumen de lo que percibe el jugador y de la carga de simulación (para depurar LOD).
-struct PlayerView {
-	eng::u8 observed = 0;  ///< observaciones producidas por sus sentidos
+struct PlayerView {	eng::u8 observed = 0;  ///< observaciones producidas por sus sentidos
 	eng::u8 realized = 0;  ///< criaturas a detalle cerca
 	eng::u8 abstract = 0;  ///< criaturas en tick abstracto
 	eng::u8 dormant = 0;   ///< criaturas congeladas lejos

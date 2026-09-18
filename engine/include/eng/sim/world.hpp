@@ -38,6 +38,7 @@
 #include <eng/sim/pack.hpp>
 #include <eng/sim/planner.hpp>
 #include <eng/sim/rumor.hpp>
+#include <eng/sim/season.hpp>
 #include <eng/sim/society.hpp>
 #include <eng/sim/terrain.hpp>
 #include <eng/sim/types.hpp>
@@ -415,8 +416,11 @@ public:
 
 	/// Ajusta la banda de detalle de cada criatura según su distancia al observador
 	/// (normalmente el jugador): realized cerca, abstract a media distancia y **dormant**
-	/// lejos. Así el jugador percibe un mundo rico alrededor mientras el resto apenas cuesta.
+	/// lejos. Al realizarse, la criatura **despierta gradualmente** (`lod_blend` sube por
+	/// frames) y solo se realizan `wake_per_frame` por llamada, de modo que ni hay "pop" ni
+	/// un pico de trabajo al llegar a una zona llena.
 	constexpr void update_lod(eng::s16 px, eng::s16 py, RoomId room) noexcept {
+		eng::u8 budget = m_lod.wake_per_frame;
 		for (eng::usize i = 0; i < m_creatures.size(); ++i) {
 			Creature& c = m_creatures[i];
 			if (!c.alive()) {
@@ -428,15 +432,45 @@ public:
 			const eng::u16 dist = same_room ? manhattan(c.x, c.y, px, py)
 							: static_cast<eng::u16>(255u);
 			const LodBand band = band_for(dist, same_room, m_lod);
-			c.set_realized(band == LodBand::Realized);
-			c.set_dormant(band == LodBand::Dormant);
+			if (band == LodBand::Realized) {
+				if (c.realized()) {
+					continue; // ya realizada; conserva su transición
+				}
+				if (budget == 0u) {
+					// Sin presupuesto de despertar: sigue abstracta un frame más.
+					c.set_realized(false);
+					c.set_dormant(false);
+					continue;
+				}
+				--budget;
+				c.set_dormant(false);
+				c.set_realized(true);
+				c.set_lod_blend(0u); // despierta desde cero (sin pop)
+			} else if (band == LodBand::Abstract) {
+				c.set_realized(false);
+				c.set_dormant(false);
+			} else {
+				c.set_realized(false);
+				c.set_dormant(true);
+				c.set_lod_blend(0u);
+			}
 		}
 	}
 
-	// --- Aforo por region (capacidad del bioma) ---
+	// --- Aforo por region (capacidad del bioma, modulada por estacion y clima) ---
 
-	/// Aforo de la región según su bioma.
+	constexpr void set_season(Season s) noexcept { m_season = s; }
+	[[nodiscard]] constexpr Season season() const noexcept { return m_season; }
+	constexpr void set_season_params(const SeasonParams& p) noexcept { m_season_params = p; }
+
+	/// Aforo **efectivo** de la región: capacidad del bioma modulada por la estación y por
+	/// la severidad del clima (invierno/tormenta sostienen menos criaturas).
 	[[nodiscard]] constexpr eng::u8 region_capacity(RoomId r) const noexcept {
+		return effective_capacity(biome_capacity(biome(r)), m_season, m_climate.severity(r),
+					  m_season_params);
+	}
+	/// Aforo base del bioma (sin estación ni clima).
+	[[nodiscard]] constexpr eng::u8 region_base_capacity(RoomId r) const noexcept {
 		return biome_capacity(biome(r));
 	}
 	/// Criaturas vivas en la región.
@@ -1019,6 +1053,20 @@ public:
 			if (!c.alive() || !c.realized()) {
 				continue;
 			}
+			// Transición de LOD: mientras despierta, la criatura solo avanza sus
+			// necesidades/olvido (sin decidir ni buscar), repartiendo el coste por frames.
+			if (c.lod_blend < 255u) {
+				tick(c.needs, m_rates, false);
+				apply_environment(c);
+				decay(c.trackers, 1u);
+				c.lod_blend = u8_sat_add(c.lod_blend, m_lod.wake_step);
+				if constexpr (Traits::emotions) {
+					c.mind.update(c.needs, c.personality);
+				}
+				update_den_flag(c);
+				check_death(c);
+				continue;
+			}
 			if (c.behavior == Behavior::Sleep) {
 				c.flags = static_cast<eng::u8>(c.flags | flags::asleep);
 			} else {
@@ -1279,6 +1327,8 @@ private:
 	CultureParams m_culture_params {};
 	PackParams m_pack_params {};
 	LodParams m_lod {};
+	Season m_season = Season::Summer;
+	SeasonParams m_season_params {};
 	[[no_unique_address]] detail::PlannerHolder<Traits::planning, PlannerNodes,
 						     kMaxPlanSteps> m_planner {};
 };

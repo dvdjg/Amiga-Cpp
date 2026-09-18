@@ -31,11 +31,13 @@ enum class LodBand : eng::u8 {
 	Count = 3,
 };
 
-/// Radios de la banda por distancia (en celdas de mundo).
+/// Radios de la banda por distancia (en celdas de mundo) y parámetros de "despertar".
 struct LodParams {
 	eng::u8 realize_radius = 12u; ///< dentro: realizada
 	eng::u8 abstract_radius = 28u; ///< dentro: abstracta; fuera: dormida
 	eng::u8 room_hysteresis = 0u;  ///< margen extra si comparten región
+	eng::u8 wake_step = 48u;       ///< cuánto avanza la transición por frame (0..255)
+	eng::u8 wake_per_frame = 4u;   ///< cuántas criaturas se realizan como mucho por frame
 };
 
 /// Nombre legible (diagnóstico).

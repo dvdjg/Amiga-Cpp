@@ -76,6 +76,7 @@ struct AbstractCreature {
 	ReproState repro {};            ///< cooldown/gestación/pareja
 	Behavior behavior = Behavior::Idle;
 	Score behavior_score = 0;
+	eng::u8 lod_blend = 255u; ///< 255 = plenamente realizada; <255 = despertando (LOD)
 
 	// --- Percepción y vínculos (capacidad fija) ---
 	eng::util::StaticVector<Tracker, MaxTrackers> trackers {};
@@ -89,6 +90,11 @@ struct AbstractCreature {
 	[[nodiscard]] constexpr bool dormant() const noexcept {
 		return (flags & flags::dormant) != 0u;
 	}
+	/// Realizada y ya **despierta del todo** (transición de LOD completada).
+	[[nodiscard]] constexpr bool lod_ready() const noexcept {
+		return realized() && lod_blend == 255u;
+	}
+	constexpr void set_lod_blend(eng::u8 v) noexcept { lod_blend = v; }
 	constexpr void set_dormant(bool on) noexcept {
 		if (on) {
 			flags = static_cast<eng::u8>(flags | flags::dormant);
