@@ -28,12 +28,13 @@
 #include <eng/sim/colony.hpp>
 #include <eng/sim/communication.hpp>
 #include <eng/sim/creature.hpp>
+#include <eng/sim/culture.hpp>
 #include <eng/sim/economy.hpp>
 #include <eng/sim/lifecycle.hpp>
 #include <eng/sim/memory.hpp>
 #include <eng/sim/mental_map.hpp>
 #include <eng/sim/object.hpp>
-#include <eng/sim/senses.hpp>
+#include <eng/sim/pack.hpp>
 #include <eng/sim/planner.hpp>
 #include <eng/sim/rumor.hpp>
 #include <eng/sim/society.hpp>
@@ -80,7 +81,7 @@ public:
 	static constexpr eng::u8 max_plan_steps = kMaxPlanSteps;
 	static_assert(MaxCreatures > 0u, "SimWorld: MaxCreatures > 0");
 	static_assert(MaxRooms > 0u && MaxRooms < 255u, "SimWorld: 1..254 rooms");
-	static_assert(sizeof(Creature) <= 320u,
+	static_assert(sizeof(Creature) <= 384u,
 		      "SimWorld: la criatura supera el presupuesto; reduce trackers/relaciones");
 
 	// --- Población ---
@@ -95,21 +96,27 @@ public:
 		return m_creatures[index];
 	}
 
-	/// Crea una criatura. Devuelve su `EntityId` (>= 1) o `no_entity` si no cabe.
+	/// Crea una criatura. Devuelve su `EntityId` (>= 1) o `no_entity` si no cabe. Reutiliza
+	/// el hueco de una criatura **muerta** con un id **nuevo y monótono**, de modo que el
+	/// mundo no crece indefinidamente y ninguna referencia antigua (trackers, relaciones)
+	/// apunta por accidente a la criatura reciclada.
 	constexpr EntityId spawn(SpeciesId species, FactionId faction, RoomId room, eng::s16 x,
 				 eng::s16 y) noexcept {
+		const EntityId id = m_next_id++;
+		for (eng::usize i = 0; i < m_creatures.size(); ++i) {
+			if (!m_creatures[i].alive()) {
+				init_creature(m_creatures[i], id, species, faction, room, x, y);
+				return id;
+			}
+		}
 		if (m_creatures.full()) {
+			m_next_id = id; // no se consumió
 			return no_entity;
 		}
 		Creature c {};
-		c.id = static_cast<EntityId>(m_creatures.size() + 1u);
-		c.species = species;
-		c.faction = faction;
-		c.room = room;
-		c.x = x;
-		c.y = y;
+		init_creature(c, id, species, faction, room, x, y);
 		(void)m_creatures.push_back(c);
-		return c.id;
+		return id;
 	}
 
 	/// Crea una criatura con genoma y personalidad derivada (cría). Nace en la etapa
@@ -129,14 +136,15 @@ public:
 		return id;
 	}
 
-	/// Busca por id (`O(1)`: los ids son correlativos y no se reciclan).
+	/// Busca por id (recorrido lineal: el id es monótono y único, nunca se reutiliza).
 	[[nodiscard]] constexpr Creature* find(EntityId id) noexcept {
 		if (id == no_entity || id == 0u) {
 			return nullptr;
 		}
-		const eng::usize index = static_cast<eng::usize>(id) - 1u;
-		if (index < m_creatures.size() && m_creatures.at(index).id == id) {
-			return &m_creatures.at(index);
+		for (eng::usize i = 0; i < m_creatures.size(); ++i) {
+			if (m_creatures[i].id == id) {
+				return &m_creatures[i];
+			}
 		}
 		return nullptr;
 	}
@@ -144,9 +152,10 @@ public:
 		if (id == no_entity || id == 0u) {
 			return nullptr;
 		}
-		const eng::usize index = static_cast<eng::usize>(id) - 1u;
-		if (index < m_creatures.size() && m_creatures.at(index).id == id) {
-			return &m_creatures.at(index);
+		for (eng::usize i = 0; i < m_creatures.size(); ++i) {
+			if (m_creatures[i].id == id) {
+				return &m_creatures[i];
+			}
 		}
 		return nullptr;
 	}
@@ -743,32 +752,81 @@ public:
 			if (s.intensity < m_signal_params.intensity_min) {
 				continue;
 			}
+			heard = u8_sat_add(heard, deliver_signal(s, i));
+		}
+		return heard;
+	}
+
+	/// Actúa un **ritual** (cultura): efecto emocional propio y lo expresa con una señal a
+	/// los de su región. Devuelve cuántos lo percibieron.
+	constexpr eng::u8 enact_ritual(EntityId id, RitualKind r) noexcept {
+		Creature* c = find(id);
+		if (c == nullptr) {
+			return 0u;
+		}
+		perform_ritual(c->mind, r, m_culture_params);
+		Signal s {};
+		s.sender = c->id;
+		s.faction = c->faction;
+		s.room = c->room;
+		s.x = c->x;
+		s.y = c->y;
+		s.kind = signal_for_ritual(r);
+		s.intensity = m_pack_params.call_intensity;
+		s.range = u8_sat_add(m_pack_params.call_range,
+				     static_cast<eng::u8>(c->senses.hearing / 8u));
+		eng::usize self = 0u;
+		for (eng::usize k = 0; k < m_creatures.size(); ++k) {
+			if (m_creatures[k].id == c->id) {
+				self = k;
+				break;
+			}
+		}
+		return deliver_signal(s, self);
+	}
+
+	/// **Coordina las manadas**: cada líder con una presa percibida envía a sus miembros
+	/// (relaciones `Pack` hacia él) a posiciones de flanqueo alrededor del objetivo. Los
+	/// miembros pasan a cazar y orientan su tracker de presa al punto que les toca.
+	constexpr eng::u8 coordinate_packs() noexcept {
+		eng::u8 coordinated = 0u;
+		for (eng::usize i = 0; i < m_creatures.size(); ++i) {
+			Creature& leader = m_creatures[i];
+			if (!leader.alive() || !leader.realized()) {
+				continue;
+			}
+			const Tracker* prey = best_attention_tracker(leader.trackers, TrackerKind::Prey);
+			if (prey == nullptr || prey->room != leader.room) {
+				continue;
+			}
+			eng::u8 idx = 0u;
 			for (eng::usize j = 0; j < m_creatures.size(); ++j) {
 				if (i == j) {
 					continue;
 				}
-				Creature& d = m_creatures[j];
-				if (!d.alive() || !d.realized() || d.room != s.room ||
-				    s.room == no_room) {
+				Creature& m = m_creatures[j];
+				if (!m.alive() || !m.realized() || m.room != leader.room) {
 					continue;
 				}
-				const eng::u16 dist = manhattan(d.x, d.y, s.x, s.y);
-				if (s.range == 0u || dist > s.range) {
+				const Relationship* rel = find_rel(m.relationships, leader.id);
+				if (rel == nullptr || rel->kind != RelationKind::Pack) {
 					continue;
 				}
-				const eng::u8 strength = u8_scale(s.intensity,
-								  attenuation(dist, s.range));
-				if (strength == 0u) {
-					continue;
-				}
-				observe(d.trackers, tracker_for_signal(s.kind), s.sender, s.room, s.x,
-					s.y, strength, m_frame);
-				apply_signal_effect(d.mind, s.kind, m_signal_params);
-				++heard;
+				const PackRole role = pack_role_for(false, idx);
+				const eng::Point2s goal = flank_goal(eng::Point2s {prey->x, prey->y}, role,
+								     idx, m_pack_params.flank_distance);
+				observe(m.trackers, TrackerKind::Prey, prey->target, prey->room, goal.x,
+					goal.y, prey->confidence, m_frame);
+				m.behavior = Behavior::Hunt;
+				++idx;
+				++coordinated;
 			}
 		}
-		return heard;
+		return coordinated;
 	}
+
+	constexpr void set_culture_params(const CultureParams& p) noexcept { m_culture_params = p; }
+	constexpr void set_pack_params(const PackParams& p) noexcept { m_pack_params = p; }
 
 	// --- Mapa mental y rutas macro ---
 
@@ -1019,6 +1077,46 @@ private:
 		(void)transfer_knowledge(c.id, child->id);
 	}
 
+	/// Inicializa una criatura recién creada/reciclada.
+	constexpr void init_creature(Creature& c, EntityId id, SpeciesId species, FactionId faction,
+				     RoomId room, eng::s16 x, eng::s16 y) noexcept {
+		c = Creature {};
+		c.id = id;
+		c.species = species;
+		c.faction = faction;
+		c.room = room;
+		c.x = x;
+		c.y = y;
+	}
+
+	/// Entrega una señal a las criaturas realizadas de su región dentro de alcance (salvo
+	/// el emisor). Registra el tracker y aplica el efecto emocional.
+	constexpr eng::u8 deliver_signal(const Signal& s, eng::usize emitter) noexcept {
+		eng::u8 heard = 0u;
+		for (eng::usize j = 0; j < m_creatures.size(); ++j) {
+			if (j == emitter) {
+				continue;
+			}
+			Creature& d = m_creatures[j];
+			if (!d.alive() || !d.realized() || d.room != s.room || s.room == no_room) {
+				continue;
+			}
+			const eng::u16 dist = manhattan(d.x, d.y, s.x, s.y);
+			if (s.range == 0u || dist > s.range) {
+				continue;
+			}
+			const eng::u8 strength = u8_scale(s.intensity, attenuation(dist, s.range));
+			if (strength == 0u) {
+				continue;
+			}
+			observe(d.trackers, tracker_for_signal(s.kind), s.sender, s.room, s.x, s.y,
+				strength, m_frame);
+			apply_signal_effect(d.mind, s.kind, m_signal_params);
+			++heard;
+		}
+		return heard;
+	}
+
 	[[nodiscard]] constexpr bool push_link(RoomId a, RoomId b) noexcept {
 		if (m_links[a].full()) {
 			return false;
@@ -1079,6 +1177,7 @@ private:
 	}
 
 	eng::util::StaticVector<Creature, MaxCreatures> m_creatures {};
+	eng::u16 m_next_id = 1u;
 	eng::util::StaticVector<RoomId, kMaxRoomLinks> m_links[MaxRooms] {};
 	eng::util::StaticVector<Plan, MaxPlans> m_plans {};
 	ItemStore m_items {};
@@ -1105,6 +1204,8 @@ private:
 	TerrainEventParams m_terrain_events {};
 	BiomeKind m_biome[MaxRooms] {};
 	SignalParams m_signal_params {};
+	CultureParams m_culture_params {};
+	PackParams m_pack_params {};
 	[[no_unique_address]] detail::PlannerHolder<Traits::planning, PlannerNodes,
 						     kMaxPlanSteps> m_planner {};
 };
