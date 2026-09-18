@@ -46,13 +46,17 @@ modo que añadir una técnica nueva no reordena nada:
 
 ```
 engine/include/eng/ai/
-├── planning/     → PLANIFICACIÓN de acciones (GOAP; futuro HTN, planificador jerárquico)
-├── decision/     → DECISIÓN por tick (FSM/HFSM, utility AI, behavior trees, selectores)
+├── planning/     → PLANIFICACIÓN de acciones (goap.hpp; futuro HTN, planificador jerárquico)
+├── decision/     → DECISIÓN por tick (agent_fsm.hpp; futuro utility AI, behavior trees, selectores)
 ├── navigation/   → NAVEGACIÓN en el mapa (navmesh lite tipo Recast/Detour, flow fields)
 ├── steering/     → MOVIMIENTO continuo (seek/flee/arrive, flocking, evasión)
 ├── perception/   → MEMORIA y creencias (influence maps, blackboard, sensores, threat)
 └── design/       → DISEÑO con consumidor (director de dificultad, recompensas, pacing)
 ```
+
+La decisión se apoya en la FSM genérica de `eng::util` (`state_machine.hpp`, HOST-108) y en el
+emisor de eventos (`event.hpp`, HOST-109): `AgentFsm` (en `decision/`) **contiene** la
+`StateMachine` y añade los efectos de entrada/salida; no reimplementa transiciones.
 
 ```
    percepción          decisión            planificación
@@ -174,7 +178,8 @@ se prueba con un problema mínimo (3 acciones encadenadas, coste 3).
 | Cabecera | Tipos / funciones | Estado |
 |---|---|---|
 | `planning/goap.hpp` | `Goap<MaxFacts>` (dominio: `State`/`state`/`Action`/`Builder`/`Goal`/`Planner`), `Fact`, `applicable`, `apply`, `satisfies`, `goal_distance` | Implementado, HOST-107 |
-| `decision/…` | FSM/HSM sobre `eng::util::StateMachine` (motor genérico); utility AI, behavior trees | FSM genérica entregada (HOST-108); resto planificado |
+| `decision/agent_fsm.hpp` | `AgentFsm<State,Event,MaxStates>`: FSM de agente con efectos de entrada/salida sobre `eng::util::StateMachine` | Implementado, HOST-110 |
+| `decision/…` | utility AI, behavior trees, blackboard (sobre `util::StateMachine`/`util::Event`) | Planificado (ROADMAP_GAME_AI) |
 | `navigation/…` | navmesh lite (Recast/Detour), flow field | Planificado (ROADMAP_GAME_AI) |
 | `steering/…` | seek/flee/arrive, flocking, evasión | Planificado (ROADMAP_GAME_AI) |
 | `perception/…` | influence maps, blackboard | Planificado (ROADMAP_GAME_AI) |

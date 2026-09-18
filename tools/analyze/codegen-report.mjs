@@ -46,6 +46,8 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/ai/planning/goap.hpp>
 #include <eng/core/util/state_machine.hpp>
+#include <eng/core/util/event.hpp>
+#include <eng/ai/decision/agent_fsm.hpp>
 #include <eng/core/random.hpp>
 #include <eng/core/util/dsp.hpp>
 #include <eng/core/fixed_math.hpp>
@@ -365,6 +367,30 @@ extern "C" u16 c_state_machine_ops(u16 seed) {
 		{S::C, E::Go, S::A},
 	};
 	eng::util::StateMachine<S, E> fsm {S::A, table};
+	for (eng::u16 i = 0; i < (seed & 3u); ++i) {
+		fsm.dispatch(E::Go);
+	}
+	return static_cast<u16>(static_cast<u16>(fsm.current()) + fsm.transition_count());
+}
+extern "C" u16 c_event_ops(u16 seed) {
+	eng::util::Event<void(eng::u16), 4> ev;
+	auto a = [](eng::u16) {};
+	auto b = [](eng::u16) {};
+	ev.subscribe(a);
+	ev.subscribe(b);
+	ev.emit(seed);
+	ev.clear();
+	return static_cast<u16>(ev.size());
+}
+extern "C" u16 c_agent_fsm_ops(u16 seed) {
+	enum class S : eng::u8 { A, B, C };
+	enum class E : eng::u8 { Go };
+	static constexpr eng::util::Transition<S, E> table[] = {
+		{S::A, E::Go, S::B},
+		{S::B, E::Go, S::C},
+		{S::C, E::Go, S::A},
+	};
+	eng::ai::AgentFsm<S, E, 3> fsm {S::A, table};
 	for (eng::u16 i = 0; i < (seed & 3u); ++i) {
 		fsm.dispatch(E::Go);
 	}

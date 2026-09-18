@@ -25,8 +25,8 @@ y (si tiene consumidor natural) una demo/juego exitoso.
 - **Primitivas ya disponibles**: `eng::util::pathfinding` (BFS/A* en rejilla),
   `eng::util::broadphase` (`SpatialHash`), `eng::util::grid` (tile/iso/hex),
   `eng::util::random`, y los contenedores/heap/hashmap que usará la IA.
-- **En `eng::util`** (no duplicar): `state_machine.hpp` **entregado** (HOST-108); `event.hpp`
-  y `variant.hpp` siguen planificados (R4 de
+- **En `eng::util`** (no duplicar): `state_machine.hpp` (HOST-108) y `event.hpp` (HOST-109)
+  **entregados**; `variant.hpp` sigue planificado (R4 de
   [ROADMAP_UTIL_LIBRARY.md](ROADMAP_UTIL_LIBRARY.md)); `decision` se apoya en ellos.
 
 ## 3. Reglas transversales (criterios de aceptación)
@@ -59,13 +59,13 @@ y (si tiene consumidor natural) una demo/juego exitoso.
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| G2.1 | `decision/` sobre `state_machine.hpp` | FSM/HSM reutilizando la máquina de estados genérica de `eng::util`; la capa de IA solo aporta estados/eventos y efectos (no una segunda FSM) | Motor genérico **entregado**: `eng::util::state_machine.hpp`, HOST-108 |
+| G2.1 | `decision/agent_fsm.hpp` | FSM/HSM reutilizando la máquina de estados genérica de `eng::util`; la capa de IA solo aporta estados/eventos y efectos (no una segunda FSM) | **Entregado**: `util::StateMachine` (HOST-108) + `ai::AgentFsm` (HOST-110) |
 | G2.2 | `decision/utility.hpp` | Utilidad por puntuación (suma ponderada de consideraciones), con normalización/clamp enteros | HOST propio |
 | G2.3 | `decision/behavior_tree.hpp` | Selector/secuencia/decoradores sobre nodos sin heap; tick por frame acotado | HOST propio |
-| G2.4 | `decision/blackboard.hpp` + eventos | Datos compartidos entre sistemas; difusión con `event.hpp` (R4) | HOST propio |
+| G2.4 | `decision/blackboard.hpp` + eventos | Datos compartidos entre sistemas; difusión con `event.hpp` (entregado, HOST-109) | HOST propio |
 
-Dependencia: G2 reutiliza `state_machine` de `eng::util` (ya entregado, R4.4) y necesitará
-`event` (R4.3) para el blackboard. El orden preferido es FSM → utility → behavior tree.
+Dependencia: G2 reutiliza `state_machine` (entregado, R4.4) y `event` (entregado, R4.3) de
+`eng::util`. Queda utility AI y behavior tree sobre esa base.
 
 ### G3 — Navegación
 
@@ -107,7 +107,7 @@ patrones descritos en §5.
 |---|---|---|---|---|
 | GOAP (Goal-Oriented Action Planning) | planificación | `ai/planning/goap.hpp` | A. Alex (basado en Orkin/F.E.A.R.) | **Implementado** (HOST-107) |
 | HTN (Hierarchical Task Network) | planificación | `ai/planning/htn.hpp` | Erol, Hendler, Nau | Pendiente |
-| FSM / HSM | decisión | `util/state_machine.hpp` (motor) + `ai/decision/` (capa) | — | Motor genérico **entregado** (HOST-108); capa AI pendiente |
+| FSM / HSM | decisión | `util/state_machine.hpp` (motor) + `ai/decision/agent_fsm.hpp` (efectos) | — | **Entregado** (HOST-108 y HOST-110) |
 | Utility AI | decisión | `ai/decision/utility.hpp` | D. Mark (Infinite Axis Utility System) | Pendiente |
 | Behavior trees | decisión | `ai/decision/behavior_tree.hpp` | — | Pendiente |
 | Blackboard / eventos | decisión | `ai/decision/blackboard.hpp` | — | Pendiente |
