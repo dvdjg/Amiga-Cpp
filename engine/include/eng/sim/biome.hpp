@@ -38,13 +38,14 @@ enum class BiomeKind : eng::u8 {
 /// Número de especies típicas que declara un bioma.
 inline constexpr eng::u8 kBiomeSpecies = 4u;
 
-/// Descripción de un bioma: terreno, clima típico, recursos y especies.
+/// Descripción de un bioma: terreno, clima típico, recursos, **aforo** y especies.
 struct BiomeProfile {
 	TerrainKind dominant = TerrainKind::Floor;
 	HazardKind typical_hazard = HazardKind::None;
 	eng::u8 shelter = 0;    ///< abrigo extra de la región (0..100)
 	eng::u8 danger = 0;     ///< peligro intrínseco (0..100)
 	eng::u8 food = 50;      ///< abundancia de comida (0..100)
+	eng::u8 capacity = 12;  ///< aforo: criaturas que la región sostiene
 	SpeciesId species[kBiomeSpecies] {no_species, no_species, no_species, no_species};
 };
 
@@ -52,28 +53,28 @@ struct BiomeProfile {
 [[nodiscard]] constexpr BiomeProfile biome_profile(BiomeKind b) noexcept {
 	switch (b) {
 		case BiomeKind::Plains:
-			return {TerrainKind::Floor, HazardKind::None, 10u, 5u, 70u,
+			return {TerrainKind::Floor, HazardKind::None, 10u, 5u, 70u, 12u,
 				{no_species, no_species, no_species, no_species}};
 		case BiomeKind::Forest:
-			return {TerrainKind::Cover, HazardKind::None, 60u, 20u, 80u,
+			return {TerrainKind::Cover, HazardKind::None, 60u, 20u, 80u, 14u,
 				{no_species, no_species, no_species, no_species}};
 		case BiomeKind::Swamp:
-			return {TerrainKind::Water, HazardKind::Flood, 20u, 40u, 60u,
+			return {TerrainKind::Water, HazardKind::Flood, 20u, 40u, 60u, 8u,
 				{no_species, no_species, no_species, no_species}};
 		case BiomeKind::Desert:
-			return {TerrainKind::Rough, HazardKind::Heat, 0u, 30u, 15u,
+			return {TerrainKind::Rough, HazardKind::Heat, 0u, 30u, 15u, 5u,
 				{no_species, no_species, no_species, no_species}};
 		case BiomeKind::Tundra:
-			return {TerrainKind::Floor, HazardKind::Cold, 20u, 25u, 20u,
+			return {TerrainKind::Floor, HazardKind::Cold, 20u, 25u, 20u, 6u,
 				{no_species, no_species, no_species, no_species}};
 		case BiomeKind::Mountain:
-			return {TerrainKind::Climb, HazardKind::Storm, 40u, 45u, 25u,
+			return {TerrainKind::Climb, HazardKind::Storm, 40u, 45u, 25u, 6u,
 				{no_species, no_species, no_species, no_species}};
 		case BiomeKind::Cave:
-			return {TerrainKind::Rough, HazardKind::None, 90u, 60u, 30u,
+			return {TerrainKind::Rough, HazardKind::None, 90u, 60u, 30u, 10u,
 				{no_species, no_species, no_species, no_species}};
 		case BiomeKind::Reef:
-			return {TerrainKind::Water, HazardKind::Flood, 10u, 30u, 90u,
+			return {TerrainKind::Water, HazardKind::Flood, 10u, 30u, 90u, 10u,
 				{no_species, no_species, no_species, no_species}};
 		default:
 			return {};
@@ -116,6 +117,11 @@ struct BiomeProfile {
 /// Abundancia de comida del bioma (0..100).
 [[nodiscard]] constexpr eng::u8 biome_food(BiomeKind b) noexcept {
 	return biome_profile(b).food;
+}
+
+/// Aforo del bioma: cuántas criaturas sostiene la región.
+[[nodiscard]] constexpr eng::u8 biome_capacity(BiomeKind b) noexcept {
+	return biome_profile(b).capacity;
 }
 
 } // namespace eng::sim

@@ -42,6 +42,7 @@ inline constexpr eng::u8 in_den = 0x04u;   ///< dentro de su refugio
 inline constexpr eng::u8 asleep = 0x08u;   ///< durmiendo
 inline constexpr eng::u8 carrying = 0x10u; ///< transporta un objeto
 inline constexpr eng::u8 injured = 0x20u;  ///< herida abierta (sangra/cojea)
+inline constexpr eng::u8 dormant = 0x40u;  ///< fuera del LOD: no se simula (lejos del jugador)
 } // namespace flags
 
 /// Estado lógico de una criatura. Los valores por defecto describen una criatura viva,
@@ -84,6 +85,16 @@ struct AbstractCreature {
 	[[nodiscard]] constexpr bool alive() const noexcept { return (flags & flags::alive) != 0u; }
 	[[nodiscard]] constexpr bool realized() const noexcept {
 		return (flags & flags::realized) != 0u;
+	}
+	[[nodiscard]] constexpr bool dormant() const noexcept {
+		return (flags & flags::dormant) != 0u;
+	}
+	constexpr void set_dormant(bool on) noexcept {
+		if (on) {
+			flags = static_cast<eng::u8>(flags | flags::dormant);
+		} else {
+			flags = static_cast<eng::u8>(flags & static_cast<eng::u8>(~flags::dormant));
+		}
 	}
 	[[nodiscard]] constexpr bool at_home() const noexcept {
 		return den_room != no_room && room == den_room;

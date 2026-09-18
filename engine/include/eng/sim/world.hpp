@@ -31,6 +31,7 @@
 #include <eng/sim/culture.hpp>
 #include <eng/sim/economy.hpp>
 #include <eng/sim/lifecycle.hpp>
+#include <eng/sim/lod.hpp>
 #include <eng/sim/memory.hpp>
 #include <eng/sim/mental_map.hpp>
 #include <eng/sim/object.hpp>
@@ -383,6 +384,76 @@ public:
 		return n;
 	}
 
+	/// Criaturas vivas no realizadas ni dormidas (tick abstracto).
+	[[nodiscard]] constexpr eng::u8 abstract_count() const noexcept {
+		eng::u8 n = 0u;
+		for (eng::usize i = 0; i < m_creatures.size(); ++i) {
+			const Creature& c = m_creatures[i];
+			if (c.alive() && !c.realized() && !c.dormant()) {
+				++n;
+			}
+		}
+		return n;
+	}
+
+	/// Criaturas vivas dormidas (fuera del LOD; no cuestan CPU).
+	[[nodiscard]] constexpr eng::u8 dormant_count() const noexcept {
+		eng::u8 n = 0u;
+		for (eng::usize i = 0; i < m_creatures.size(); ++i) {
+			const Creature& c = m_creatures[i];
+			if (c.alive() && c.dormant()) {
+				++n;
+			}
+		}
+		return n;
+	}
+
+	// --- Nivel de detalle (LOD) alrededor del jugador ---
+
+	constexpr void set_lod_params(const LodParams& p) noexcept { m_lod = p; }
+	[[nodiscard]] constexpr const LodParams& lod_params() const noexcept { return m_lod; }
+
+	/// Ajusta la banda de detalle de cada criatura según su distancia al observador
+	/// (normalmente el jugador): realized cerca, abstract a media distancia y **dormant**
+	/// lejos. Así el jugador percibe un mundo rico alrededor mientras el resto apenas cuesta.
+	constexpr void update_lod(eng::s16 px, eng::s16 py, RoomId room) noexcept {
+		for (eng::usize i = 0; i < m_creatures.size(); ++i) {
+			Creature& c = m_creatures[i];
+			if (!c.alive()) {
+				c.set_realized(false);
+				c.set_dormant(false);
+				continue;
+			}
+			const bool same_room = c.room == room && room != no_room;
+			const eng::u16 dist = same_room ? manhattan(c.x, c.y, px, py)
+							: static_cast<eng::u16>(255u);
+			const LodBand band = band_for(dist, same_room, m_lod);
+			c.set_realized(band == LodBand::Realized);
+			c.set_dormant(band == LodBand::Dormant);
+		}
+	}
+
+	// --- Aforo por region (capacidad del bioma) ---
+
+	/// Aforo de la región según su bioma.
+	[[nodiscard]] constexpr eng::u8 region_capacity(RoomId r) const noexcept {
+		return biome_capacity(biome(r));
+	}
+	/// Criaturas vivas en la región.
+	[[nodiscard]] constexpr eng::u8 region_population(RoomId r) const noexcept {
+		eng::u8 n = 0u;
+		for (eng::usize i = 0; i < m_creatures.size(); ++i) {
+			if (m_creatures[i].alive() && m_creatures[i].room == r) {
+				++n;
+			}
+		}
+		return n;
+	}
+	/// ¿Queda sitio en la región para otra criatura?
+	[[nodiscard]] constexpr bool region_has_space(RoomId r) const noexcept {
+		return region_population(r) < region_capacity(r);
+	}
+
 	// --- Planificacion (solo si Traits::planning) ---
 
 	/// Planifica para `id` desde `start` hacia `goal` sobre el dominio `actions`. Devuelve
@@ -459,6 +530,7 @@ public:
 		for (eng::usize i = 0; i < m_creatures.size(); ++i) {
 			Creature& c = m_creatures[i];
 			if (!c.alive() || !c.realized() || !c.repro.ready() ||
+			    !region_has_space(c.room) ||
 			    !can_reproduce(c.age, c.health, c.needs.hunger, c.needs.fatigue, m_life)) {
 				continue;
 			}
@@ -531,7 +603,7 @@ public:
 		} else {
 			for (eng::usize i = 0; i < m_creatures.size(); ++i) {
 				Creature& c = m_creatures[i];
-				if (!c.alive() || !c.realized() ||
+				if (!c.alive() || !c.realized() || !region_has_space(c.room) ||
 				    caste_of(c.genome, cp) != Caste::Queen) {
 					continue;
 				}
@@ -993,7 +1065,7 @@ public:
 		constexpr eng::u8 period = Traits::stagger_period == 0u ? 1u : Traits::stagger_period;
 		for (eng::usize i = 0; i < m_creatures.size(); ++i) {
 			Creature& c = m_creatures[i];
-			if (!c.alive() || c.realized()) {
+			if (!c.alive() || c.realized() || c.dormant()) {
 				continue;
 			}
 			if ((c.id % period) != m_cursor) {
@@ -1206,6 +1278,7 @@ private:
 	SignalParams m_signal_params {};
 	CultureParams m_culture_params {};
 	PackParams m_pack_params {};
+	LodParams m_lod {};
 	[[no_unique_address]] detail::PlannerHolder<Traits::planning, PlannerNodes,
 						     kMaxPlanSteps> m_planner {};
 };
