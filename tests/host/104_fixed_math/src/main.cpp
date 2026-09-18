@@ -220,6 +220,15 @@ int main() {
 		      "scalar_sincos<q12> = scalar_sin/scalar_cos");
 	}
 
+	// --- rotate2 por ángulo (sincos en una pasada) --------------------------
+	{
+		const em::Vec<2, er::q12> v {q(1.0f), q(0.0f)};
+		const em::Vec<2, er::q12> r = em::rotate2(v, q(kPi / 2.0f)); // (0, 1)
+		check(std::fabs(em::to_double(r.v[0])) <= 8.0e-3 &&
+			      std::fabs(em::to_double(r.v[1]) - 1.0) <= 8.0e-3,
+		      "rotate2<q12>(ángulo pi/2) = (0,1)");
+	}
+
 	// --- wrap_angle / angle_diff de Fixed -----------------------------------
 	{
 		const float two_pi = 2.0f * kPi;

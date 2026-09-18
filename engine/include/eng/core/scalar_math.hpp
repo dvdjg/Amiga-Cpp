@@ -92,6 +92,20 @@ template <typename F, typename U, int MantBits, eng::u32 ExpMask, int ExpBias, i
 	default: return sin_core(r);
 	}
 }
+/// `sin` y `cos` de `x` en una **sola** reducción de rango (`reduce_pio2` una vez);
+/// mismo resultado que `sin_d`/`cos_d`.
+constexpr void sincos_d(double x, double& out_sin, double& out_cos) {
+	double r;
+	const int q = reduce_pio2(x, r);
+	const double sr = sin_core(r);
+	const double cr = cos_core(r);
+	switch (q & 3) {
+	case 0: out_sin = sr; out_cos = cr; break;
+	case 1: out_sin = cr; out_cos = -sr; break;
+	case 2: out_sin = -sr; out_cos = -cr; break;
+	default: out_sin = -cr; out_cos = sr; break;
+	}
+}
 /// `2^x = 2^n · 2^f` con `f` en `[0,1)` (Taylor de `exp(f·ln2)` y `2^n` por bucle).
 [[nodiscard]] constexpr double exp2_d(double x) {
 	int n = static_cast<int>(x);
@@ -228,6 +242,22 @@ struct scalar_acos {
 template <typename S>
 struct scalar_sincos {
 	static constexpr void op(S x, S& out_sin, S& out_cos) { sincos(x, out_sin, out_cos); }
+};
+template <>
+struct scalar_sincos<float> {
+	static constexpr void op(float x, float& out_sin, float& out_cos) {
+		double s = 0.0;
+		double c = 0.0;
+		detail::sincos_d(static_cast<double>(x), s, c);
+		out_sin = static_cast<float>(s);
+		out_cos = static_cast<float>(c);
+	}
+};
+template <>
+struct scalar_sincos<double> {
+	static constexpr void op(double x, double& out_sin, double& out_cos) {
+		detail::sincos_d(x, out_sin, out_cos);
+	}
 };
 
 /// Constante escalar desde un `double` de compilación, **sin ambigüedad**: para

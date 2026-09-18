@@ -75,8 +75,8 @@ bool util_selftest() {
 
 /// Self-test de las matemáticas `Fixed` (`fixed_math.hpp`) en el 68000, **sin `float`**
 /// (compara valores crudos contra márgenes): `sin`/`cos`/`tan` (tabla), `asin`/`acos`/
-/// `atan2` (tabla de `atan`), `sincos` (una pasada), `wrap_angle`, `smooth_damp` (`exp2`),
-/// `pow` (`log2`+`exp2`) y `length` (`sqrt`). Si falla, la demo no llega a READY.
+/// `atan2` (tabla de `atan`), `sincos`/`rotate2` (una pasada), `wrap_angle`, `smooth_damp`
+/// (`exp2`), `pow` (`log2`+`exp2`) y `length` (`sqrt`). Si falla, la demo no llega a READY.
 bool fixed_math_selftest() {
 	using q12 = eng::math::Fixed<eng::s16, 12>;
 	const q12 zero {0};
@@ -137,6 +137,13 @@ bool fixed_math_selftest() {
 	eng::math::scalar_sincos<q12>::op(q12 {q_sincos_raw}, sincos_s, sincos_c);
 	if (!(sincos_s.v >= 4000 && sincos_s.v <= 4100 && sincos_c.v >= -100 &&
 	      sincos_c.v <= 100)) {
+		return false;
+	}
+	// rotate2 por ángulo: (1,0) girado π/2 -> (0,1) (sincos en una pasada).
+	volatile eng::s16 q_rot_raw = 6434;
+	const eng::math::Vec<2, q12> rv = eng::math::rotate2(
+		eng::math::Vec<2, q12> {q12 {4096}, q12 {0}}, q12 {q_rot_raw});
+	if (!(rv.v[0].v >= -100 && rv.v[0].v <= 100 && rv.v[1].v >= 4000 && rv.v[1].v <= 4100)) {
 		return false;
 	}
 	return true;

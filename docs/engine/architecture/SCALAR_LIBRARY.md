@@ -193,7 +193,7 @@ tests host) falla si la doc se desincroniza del contrato, y `--write` la regener
 | smootherstep | si | si | no (coef 15 > rango ±8) | math-diag smootherstep_q12_range |
 | inv_lerp / remap | si | si | si (div_norm) | HOST-059 |
 | dot fusionado (2-4 pares) | si | si | si (acumulador saturado) | HOST-059 |
-| cross2 / rotate2 / vscale / vlerp | si | si | si | HOST-059 |
+| cross2 / rotate2 / vscale / vlerp | si | si | si (rotate2 por ángulo con fixed_math) | HOST-059/104 |
 | length / normalize / reflect / project | si | si (limites de rango) | si (fixed_math) | HOST-059/104 |
 | value_noise / fbm | si | si (coord <= 2048) | no (necesita division) | HOST-060 |
 | mul_add / mac (FMA) | — | si (1 redondeo) | si (1 redondeo) | HOST-057/059 |

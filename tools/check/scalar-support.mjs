@@ -27,7 +27,7 @@ const ROWS = [
   { fn: 'smootherstep',              flt: 'si', mf: 'si', fx: 'no (coef 15 > rango ±8)', test: 'math-diag smootherstep_q12_range' },
   { fn: 'inv_lerp / remap',          flt: 'si', mf: 'si', fx: 'si (div_norm)', test: 'HOST-059' },
   { fn: 'dot fusionado (2-4 pares)', flt: 'si', mf: 'si', fx: 'si (acumulador saturado)', test: 'HOST-059' },
-  { fn: 'cross2 / rotate2 / vscale / vlerp', flt: 'si', mf: 'si', fx: 'si', test: 'HOST-059' },
+  { fn: 'cross2 / rotate2 / vscale / vlerp', flt: 'si', mf: 'si', fx: 'si (rotate2 por ángulo con fixed_math)', test: 'HOST-059/104' },
   { fn: 'length / normalize / reflect / project', flt: 'si', mf: 'si (limites de rango)', fx: 'si (fixed_math)', test: 'HOST-059/104' },
   { fn: 'value_noise / fbm',         flt: 'si', mf: 'si (coord <= 2048)', fx: 'no (necesita division)', test: 'HOST-060' },
   { fn: 'mul_add / mac (FMA)',       flt: '—', mf: 'si (1 redondeo)', fx: 'si (1 redondeo)', test: 'HOST-057/059' },

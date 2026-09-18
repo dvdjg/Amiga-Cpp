@@ -364,6 +364,19 @@ extern "C" s16 c_scalar16_trig(s16 a, s16 b) {
 	scalar_sincos<q12>::op(y, ss, cc); // seno y coseno en una sola pasada
 	return static_cast<s16>(tn.v + at.v + as.v + ac.v + ss.v + cc.v);
 }
+extern "C" s16 c_fx_rotate2_angle(s16 angle, s16 x, s16 y) {
+	const Vec<2, q12> v {q12 {x}, q12 {y}};
+	const Vec<2, q12> r = rotate2(v, q12 {angle}); // scalar_sincos: un solo indice
+	return static_cast<s16>(r.v[0].v + r.v[1].v);
+}
+extern "C" s16 c_fx_rotate2_twice(s16 angle, s16 x, s16 y) {
+	const q12 a {angle};
+	const q12 s = scalar_sin<q12>::op(a); // dos indices (sin y cos por separado)
+	const q12 c = scalar_cos<q12>::op(a);
+	const Vec<2, q12> v {q12 {x}, q12 {y}};
+	const Vec<2, q12> r = rotate2(v, c, s);
+	return static_cast<s16>(r.v[0].v + r.v[1].v);
+}
 `;
 
 fs.mkdirSync(`${ROOT}/out/tmp`, { recursive: true });
