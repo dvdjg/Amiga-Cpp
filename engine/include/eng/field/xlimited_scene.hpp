@@ -32,6 +32,7 @@
 #include <eng/core/sinetable.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
+#include <eng/core/util/expected.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/field/xlimited.hpp>
@@ -364,13 +365,18 @@ public:
     XlimitedScene(const XlimitedScene&) = delete;
     XlimitedScene& operator=(const XlimitedScene&) = delete;
 
-    bool begin(MemorySystem& memory, const XlimitedSceneConfigT<MapT>& cfg) {
+    /// Igual que `begin`, pero devolviendo el **motivo** del fallo.
+    ///
+    /// `begin()` (bool) es un wrapper de este metodo. Los consumidores que necesiten
+    /// diagnostico (o que ya lleven `Result`) usan esta version; el motivo distingue
+    /// argumento invalido de memoria agotada o limite de hardware.
+    eng::util::Expected<void, eng::Result> begin_checked(MemorySystem& memory, const XlimitedSceneConfigT<MapT>& cfg) {
         m_cfg = cfg;
-        if (cfg.planes == 0 || cfg.planes > 6) return false;
+        if (cfg.planes == 0 || cfg.planes > 6) return eng::util::unexpected(eng::Result::InvalidArgument);
         if (cfg.blocks_prebuilt == nullptr && cfg.blocks_prebuilt2 == nullptr &&
-            cfg.fg_row_fn == nullptr && cfg.indexed_tiles.empty()) return false;
-        if (cfg.palette.empty()) return false;
-        if (cfg.map.width == 0 && (cfg.map.wrap_x == 0 && cfg.map.wrap_y == 0)) return false;
+            cfg.fg_row_fn == nullptr && cfg.indexed_tiles.empty()) return eng::util::unexpected(eng::Result::InvalidArgument);
+        if (cfg.palette.empty()) return eng::util::unexpected(eng::Result::InvalidArgument);
+        if (cfg.map.width == 0 && (cfg.map.wrap_x == 0 && cfg.map.wrap_y == 0)) return eng::util::unexpected(eng::Result::InvalidArgument);
         // Main viewport: el HUD se resta del total. El WAIT de la zona HUD cae en
         // `DIWSTRT_y + main`; el comparador del Copper es de 8 bits, así que debe
         // ser <= 255. Con HUD la ventana DIW queda abierta al total (main + hud).
@@ -378,9 +384,9 @@ public:
         const bool hud_zone = cfg.hud.height != 0;
         const eng::u8 hud_planes = cfg.hud.planes != 0u ? cfg.hud.planes : cfg.planes;
         if (hud_zone) {
-            if (cfg.hud.height > cfg.viewport_h) return false;
-            if (hud_planes == 0u || hud_planes > 6u) return false;
-            if (static_cast<eng::u16>(xlimited_detail::kDiwStrt >> 8u) + main_h > 255u) return false;
+            if (cfg.hud.height > cfg.viewport_h) return eng::util::unexpected(eng::Result::InvalidArgument);
+            if (hud_planes == 0u || hud_planes > 6u) return eng::util::unexpected(eng::Result::InvalidArgument);
+            if (static_cast<eng::u16>(xlimited_detail::kDiwStrt >> 8u) + main_h > 255u) return eng::util::unexpected(eng::Result::HardwareLimit);
             // El lienzo del HUD se reserva con el layout de DISPLAY del campo
             // corkscrew (filas de viewport_w + guarda de fetch) pero con SU propia
             // profundidad `hud_planes`. Si coincide con el campo, la zona overlay
@@ -392,7 +398,7 @@ public:
             const eng::u16 hud_w = static_cast<eng::u16>(
                 cfg.viewport_w + (cfg.fetch_mode == 0u ? xlimited_detail::kExtraW32
                                                        : xlimited_detail::kExtraW64));
-            if (!m_hud.begin(memory, {hud_w, cfg.hud.height, hud_planes})) return false;
+            if (!m_hud.begin(memory, {hud_w, cfg.hud.height, hud_planes})) return eng::util::unexpected(eng::Result::OutOfMemory);
         }
         const eng::u8 n = static_cast<eng::u8>(cfg.dpf.enabled && !cfg.dpf.fg_canvas ? 2 : 1);
         const eng::u16 tw = cfg.tile_width, th = cfg.tile_height;
@@ -413,19 +419,19 @@ public:
                 // layout X-Limited de 320 px; el engine solo lo direcciona.
                 m_tiles[pf] = { eng::TileBankBytes { pb, pbSize }, eng::MemoryKind::Chip };
             } else if (isPf0 && !cfg.indexed_tiles.empty()) {
-                if (cfg.planes != 6) return false; // el pipeline EHB es 6 planos
+                if (cfg.planes != 6) return eng::util::unexpected(eng::Result::Unsupported); // el pipeline EHB es 6 planos
                 const eng::Block<eng::TileBankTag> bank = xlimited_build_blocks_bitmap_from_indexed(
                     memory, cfg.planes, tw, th, cfg.tileset_count,
                     cfg.indexed_tiles, cfg.indexed_stride);
                 m_tiles[pf] = { bank.view.as_const(), bank.kind };
             } else {
                 const BlocksRowFn fn = isPf0 ? cfg.fg_row_fn : cfg.bg_row_fn;
-                if (fn == nullptr) return false; // cada campo necesita una fuente
+                if (fn == nullptr) return eng::util::unexpected(eng::Result::InvalidArgument); // cada campo necesita una fuente
                 const eng::Block<eng::TileBankTag> bank = xlimited_build_blocks_bitmap(
                     memory, cfg.planes, tw, th, cfg.tileset_count, fn);
                 m_tiles[pf] = { bank.view.as_const(), bank.kind };
             }
-            if (!m_tiles[pf].valid()) return false;
+            if (!m_tiles[pf].valid()) return eng::util::unexpected(eng::Result::OutOfMemory);
             // Config del campo.
             XlimitedConfigT<MapT> fc;
             fc.map = (pf == 0) ? cfg.map : (cfg.map2.has_data() ? cfg.map2 : cfg.map);
@@ -460,7 +466,7 @@ public:
             fc.visible_tile_bias_x = cfg.visible_tile_bias_x;
             fc.visible_tile_bias_y = cfg.visible_tile_bias_y;
             fc.fetch_mode = cfg.fetch_mode;
-            if (!m_field[pf].begin(memory, fc)) return false;
+            if (!m_field[pf].begin(memory, fc)) return eng::util::unexpected(eng::Result::OutOfMemory);
         }
         // Compositores. Con franja HUD la ventana DIW queda abierta al TOTAL
         // (main + hud); la zona HUD solo cambia BPLxPT/modulos en su raster.
@@ -474,25 +480,30 @@ public:
                 cfg.dpf.foreground_is_pf2,
                 xlimited_detail::kDiwStrt, diwstop,
                 xlimited_detail::kDdfStrt, xlimited_detail::kDdfStop,
-                cfg.dpf.color_zones, cfg.dpf.color_zone_count})) return false;
+                cfg.dpf.color_zones, cfg.dpf.color_zone_count})) return eng::util::unexpected(eng::Result::OutOfMemory);
         } else {
             if (!m_single.init(memory, {cfg.palette, cfg.copper_bytes, cfg.planes,
                 xlimited_detail::kDiwStrt, diwstop,
                 xlimited_detail::kDdfStrt, xlimited_detail::kDdfStop,
-                sprites, cfg.color_zones, cfg.color_zone_count})) return false;
+                sprites, cfg.color_zones, cfg.color_zone_count})) return eng::util::unexpected(eng::Result::OutOfMemory);
         }
         if (cfg.sprite_data_bytes != 0) {
-            if (!m_sprites.init(memory, cfg.sprite_data_bytes)) return false;
+            if (!m_sprites.init(memory, cfg.sprite_data_bytes)) return eng::util::unexpected(eng::Result::OutOfMemory);
         }
         // FG como lienzo plano (DPF heterogéneo): el BG es el corkscrew, el FG un
         // CanvasPlayfield estático de viewport_w × viewport_h y `planes` bitplanes.
         if (cfg.dpf.enabled && cfg.dpf.fg_canvas) {
-            if (!m_fg_canvas.begin(memory, {cfg.viewport_w, cfg.viewport_h, cfg.planes})) return false;
+            if (!m_fg_canvas.begin(memory, {cfg.viewport_w, cfg.viewport_h, cfg.planes})) return eng::util::unexpected(eng::Result::OutOfMemory);
         }
         m_phase_frame = 0;
         m_phase = cfg.path.start_phase; // fase inicial del ciclo (update_auto)
         m_initialized = true;
-        return true;
+        return {};
+    }
+
+    /// Wrapper booleano de `begin_checked` (compatibilidad de la API existente).
+    bool begin(MemorySystem& memory, const XlimitedSceneConfigT<MapT>& cfg) {
+        return begin_checked(memory, cfg).has_value();
     }
 
     /// Rellena la pantalla inicial (y el PF2 si dual) en lotes. Devuelve false
