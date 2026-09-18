@@ -3,20 +3,22 @@
 // ============================================================================
 //
 // TUTORIAL. El conocimiento (libro de aperturas, tablas de finales) no cabe en RAM:
-// vive en almacenamiento externo y se pide por bloques. `BlockSource` es la
-// frontera; el contrato de tres estados es el mismo del streaming del engine:
+// vive en almacenamiento externo y se pide por bloques. La fuente es un **tipo** que
+// cumple el concept `BlockSource` (`block_size()`, `block_count()`,
+// `fetch(id, Span<u8>)`): no hay punteros a funcion ni `void*`. El contrato de tres
+// estados es el mismo del streaming del engine:
 //
 //   Ready   -> el bloque se escribio en dst (usar)
 //   Empty   -> el bloque no existe (no reintentar)
 //   Pending -> lectura asincrona no lista (reintentar luego)
 //
-// Aqui se usa la fuente en RAM (`RamBlockSource`), que ya es funcional. Los
-// backends de disquete Amiga (trackloader) y de sistema de archivos del PC se
-// enchufan con el MISMO contrato; aun no estan implementados.
+// Aqui se usa la fuente en RAM (`RamBlockSource`), ya funcional; los backends de
+// disquete Amiga (trackloader) y de sistema de archivos del PC se enchufan como
+// otros tipos que cumplen el mismo contrato.
 //
-// `BlockCache<BlockSize,Capacity>` guarda los ultimos bloques para no repetir la
-// peticion (que en disquete cuesta un seek). La RAM que ocupa es exactamente
-// Capacity*BlockSize, encajada en el perfil de memoria.
+// `BlockCache<Source, BlockSize, Capacity>` guarda los ultimos bloques para no
+// repetir la peticion (que en disquete cuesta un seek). La RAM que ocupa es
+// exactamente Capacity*BlockSize.
 //
 // Se ejecuta con:
 //   bash tools/run-host-tests.sh tests/host/146_board_storage
@@ -42,28 +44,26 @@ void check(bool ok, const char* what) {
 
 // Tres bloques de 8 bytes, contiguos en RAM.
 const eng::u8 g_blob[24] = {
-    1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u,   // bloque 0
-    9u, 10u, 11u, 12u, 13u, 14u, 15u, 16u, // bloque 1
-    17u, 18u, 19u, 20u, 21u, 22u, 23u, 24u // bloque 2
+    1u,  2u,  3u,  4u,  5u,  6u,  7u,  8u,  // bloque 0
+    9u,  10u, 11u, 12u, 13u, 14u, 15u, 16u, // bloque 1
+    17u, 18u, 19u, 20u, 21u, 22u, 23u, 24u  // bloque 2
 };
 
 void test_ram_source() {
-	RamBlockSource ram {eng::Span<const u8> {g_blob, 24u}, 8u};
+	const RamBlockSource ram {eng::Span<const u8> {g_blob, 24u}, 8u};
 	check(ram.block_count() == 3u, "ram: 24/8 = 3 bloques");
-	const BlockSource source = ram.source();
-	check(source.valid(), "ram: fuente valida");
 
 	eng::u8 buffer[8] = {};
-	check(source.fetch(1u, eng::Span<u8> {buffer, 8u}) == BlockStatus::Ready,
+	check(ram.fetch(1u, eng::Span<u8> {buffer, 8u}) == BlockStatus::Ready,
 	      "ram: bloque interno Ready");
 	check(buffer[0] == 9u && buffer[7] == 16u, "ram: datos del bloque 1");
-	check(source.fetch(3u, eng::Span<u8> {buffer, 8u}) == BlockStatus::Empty,
+	check(ram.fetch(3u, eng::Span<u8> {buffer, 8u}) == BlockStatus::Empty,
 	      "ram: fuera de rango Empty");
 }
 
 void test_cache_hits_and_eviction() {
-	RamBlockSource ram {eng::Span<const u8> {g_blob, 24u}, 8u};
-	BlockCache<8u, 2u> cache {ram.source()};
+	const RamBlockSource ram {eng::Span<const u8> {g_blob, 24u}, 8u};
+	BlockCache<RamBlockSource, 8u, 2u> cache {ram};
 
 	const eng::Span<const u8> b0 = cache.get(0u);
 	check(b0.size() == 8u && b0[0] == 1u, "cache: lee el bloque 0");
@@ -89,16 +89,16 @@ void test_cache_hits_and_eviction() {
 }
 
 void test_absent_not_cached() {
-	RamBlockSource ram {eng::Span<const u8> {g_blob, 24u}, 8u};
-	BlockCache<8u, 2u> cache {ram.source()};
+	const RamBlockSource ram {eng::Span<const u8> {g_blob, 24u}, 8u};
+	BlockCache<RamBlockSource, 8u, 2u> cache {ram};
 	check(cache.get(9u).empty(), "ausente: devuelve vista vacia");
 	check(cache.resident() == 0u, "ausente: no se cachea");
 	check(cache.get(9u).empty(), "ausente: se reintenta en cada peticion");
 }
 
 void test_invalid_source() {
-	BlockSource bad {};
-	BlockCache<8u, 2u> cache {bad};
+	const NullBlockSource bad {};
+	BlockCache<NullBlockSource, 8u, 2u> cache {bad};
 	check(cache.get(0u).empty(), "sin backend: devuelve vacio (Empty)");
 }
 

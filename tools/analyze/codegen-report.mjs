@@ -806,7 +806,7 @@ extern "C" u16 c_chess_explain(u16 language) {
 	                                             ? eng::board::chess::Language::Spanish
 	                                             : eng::board::chess::Language::English;
 	const eng::usize n = eng::board::chess::explain(
-	    pos, {lang, eng::board::chess::Tone::Neutral, 3u}, out, sizeof(out));
+	    pos, {lang, eng::board::chess::Tone::Neutral, 3u}, eng::Span<char> {out, sizeof(out)});
 	return static_cast<u16>(n + static_cast<eng::usize>(static_cast<eng::u8>(out[0])));
 }
 extern "C" u16 c_parallel_threads() {

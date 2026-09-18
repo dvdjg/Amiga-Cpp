@@ -115,9 +115,15 @@ una **caché LRU** de los últimos bloques usados.
 
 - **Contrato de bloques.** `storage/block_source.hpp` expone una lectura por bloque con el
   **contrato de tres estados** ya definido por el streaming del engine
-  (`Ready` / `Empty` / `Pending`, ver [STREAMING_LOADER.md](STREAMING_LOADER.md) §1). Un
-  `BlockSource` enumera bloques por identificador; el índice de conocimiento mapea
-  `posición/clave → bloque`.
+  (`Ready` / `Empty` / `Pending`, ver [STREAMING_LOADER.md](STREAMING_LOADER.md) §1). El
+  contrato es un **concept** `BlockSource` (`block_size()`, `block_count()`,
+  `fetch(id, Span<u8>)`), no un puntero a función: cada backend es un tipo y el compilador
+  verifica la interfaz. `BlockCache<Source, …>` se especializa por fuente. El índice de
+  conocimiento mapea `posición/clave → bloque`.
+- **Serialización segura.** Las entradas de libro/tablas se leen y escriben con
+  `eng::util::ByteReader`/`ByteWriter` ([`binary.hpp`](../../../engine/include/eng/core/util/binary.hpp)),
+  cursores little-endian sobre `Span` con comprobación de límites: sin `reinterpret_cast` (que
+  en 68000 fallaría por alineación) ni aritmética de punteros.
 - **Fuentes.** La fuente **RAM** (bloque incbinado o precargado al inicio) valida todo el
   camino sin disco. La fuente **disco** reutiliza el trackloader de hardware o el worker de HD
   descritos en [STREAMING_LOADER.md](STREAMING_LOADER.md) §3–§5; la base de hardware está en
@@ -305,6 +311,15 @@ coste bajo (8–50 kB según riqueza).
   ordenación y NLG usan desplazamientos para los factores constantes, `eng::math::mulu16`
   (nativo `mulu.w`) para el cuadrado de profundidad y resta repetida para dividir por 100; el
   gate de codegen prohíbe `__mulsi3`/`__divsi3` en las rutas de búsqueda y explicación.
+- **Interfaces seguras y polivalentes**: nada de punteros crudos ni `char*` en la frontera.
+  Buffers y bloques viajan como `Span`; el texto de solo lectura, como `StringView`; las tablas
+  internas, como `eng::util::Array`; las fuentes de conocimiento, como **concept** `BlockSource`
+  (sin punteros a función); la serialización, con `ByteReader`/`ByteWriter`; y las primitivas
+  de concurrencia, como `eng::parallel`. El sufijo `*` solo aparece en el almacenamiento interno
+  de estas vistas (igual que en `Span`), nunca en parámetros.
+- **Entero de trabajo elegido en compilación**: evaluación, rasgos, offsets y conteos usan
+  `board_int` (`eng::intw`: `s16` en 68000, `s32` en 68020, `int` en host). Solo se usa `s32`
+  donde el rango lo exige y el coste es irrelevante (puntuación de ordenación, que llega a 10^6).
 
 ## 10. Verificación
 

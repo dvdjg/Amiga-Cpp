@@ -18,6 +18,7 @@
 
 #include <eng/board/core/types.hpp>
 #include <eng/core/span.hpp>
+#include <eng/core/util/binary.hpp>
 
 namespace eng::board {
 
@@ -38,31 +39,20 @@ struct EndgameTableProbe {
 	bool found = false;
 };
 
-// --- Serialización byte a byte (segura en 68000) ---
+// --- Serialización con cursores seguros (little-endian, sin alineación) ---
 
-[[nodiscard]] inline u32 eg_read_u32(const u8* data) noexcept {
-	return static_cast<u32>(data[0]) | (static_cast<u32>(data[1]) << 8u) |
-	       (static_cast<u32>(data[2]) << 16u) | (static_cast<u32>(data[3]) << 24u);
+/// Lee una entrada (8 B) del cursor. `false` si no caben.
+[[nodiscard]] inline bool read_endgame_entry(eng::util::ByteReader& reader,
+                                             EndgameTableEntry& out) noexcept {
+	return reader.read_u32(out.key) && reader.read_s16(out.value) && reader.read_u8(out.dtm) &&
+	       reader.read_u8(out.reserved);
 }
 
-[[nodiscard]] inline EndgameTableEntry read_endgame_entry(const u8* data) noexcept {
-	EndgameTableEntry entry;
-	entry.key = eg_read_u32(data);
-	entry.value = static_cast<s16>(static_cast<u16>(data[4]) | (static_cast<u16>(data[5]) << 8u));
-	entry.dtm = data[6];
-	entry.reserved = data[7];
-	return entry;
-}
-
-inline void write_endgame_entry(u8* data, const EndgameTableEntry& entry) noexcept {
-	data[0] = static_cast<u8>(entry.key & 0xffu);
-	data[1] = static_cast<u8>((entry.key >> 8u) & 0xffu);
-	data[2] = static_cast<u8>((entry.key >> 16u) & 0xffu);
-	data[3] = static_cast<u8>((entry.key >> 24u) & 0xffu);
-	data[4] = static_cast<u8>(static_cast<u16>(entry.value) & 0xffu);
-	data[5] = static_cast<u8>((static_cast<u16>(entry.value) >> 8u) & 0xffu);
-	data[6] = entry.dtm;
-	data[7] = entry.reserved;
+/// Escribe una entrada (8 B) en el cursor. `false` si no caben.
+[[nodiscard]] inline bool write_endgame_entry(eng::util::ByteWriter& writer,
+                                              const EndgameTableEntry& entry) noexcept {
+	return writer.write_u32(entry.key) && writer.write_s16(entry.value) &&
+	       writer.write_u8(entry.dtm) && writer.write_u8(entry.reserved);
 }
 
 /// Búsqueda binaria por clave sobre entradas **ordenadas**.

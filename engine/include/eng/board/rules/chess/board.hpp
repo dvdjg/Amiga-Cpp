@@ -81,16 +81,16 @@ struct ChessZobrist {
 [[nodiscard]] constexpr ChessZobrist make_chess_zobrist() noexcept {
 	ChessZobrist table {};
 	u32 state = 0x9e3779b9u;
-	for (int p = 0; p < 12; ++p) {
-		for (int s = 0; s < 64; ++s) {
+	for (board_int p = 0; p < 12; ++p) {
+		for (board_int s = 0; s < 64; ++s) {
 			table.piece[p][s] = zobrist_step(state);
 		}
 	}
 	table.side = zobrist_step(state);
-	for (int c = 0; c < 16; ++c) {
+	for (board_int c = 0; c < 16; ++c) {
 		table.castling[c] = zobrist_step(state);
 	}
-	for (int f = 0; f < 8; ++f) {
+	for (board_int f = 0; f < 8; ++f) {
 		table.ep_file[f] = zobrist_step(state);
 	}
 	return table;
@@ -176,12 +176,12 @@ inline void set_start(Position& pos) noexcept {
 
 /// ¿La casilla `square` está atacada por alguna pieza de color `by`?
 [[nodiscard]] inline bool is_square_attacked(const Position& pos, Square square, Color by) noexcept {
-	const int s = static_cast<int>(square);
+	const board_int s = static_cast<board_int>(square);
 
 	// Peones: un peón blanco en `s-15`/`s-17` ataca a `s` (y al revés para negras).
 	if (by == Color::White) {
-		const int from1 = s - 15;
-		const int from2 = s - 17;
+		const board_int from1 = s - 15;
+		const board_int from2 = s - 17;
 		if (from1 >= 0 && from1 <= 127 &&
 		    pos.board[from1] == make_piece(Color::White, PieceType::Pawn)) {
 			return true;
@@ -191,8 +191,8 @@ inline void set_start(Position& pos) noexcept {
 			return true;
 		}
 	} else {
-		const int from1 = s + 15;
-		const int from2 = s + 17;
+		const board_int from1 = s + 15;
+		const board_int from2 = s + 17;
 		if (from1 >= 0 && from1 <= 127 &&
 		    pos.board[from1] == make_piece(Color::Black, PieceType::Pawn)) {
 			return true;
@@ -204,20 +204,20 @@ inline void set_start(Position& pos) noexcept {
 	}
 
 	// Caballos.
-	constexpr int knight_offsets[8] = {31, 33, 14, 18, -31, -33, -14, -18};
+	constexpr board_int knight_offsets[8] = {31, 33, 14, 18, -31, -33, -14, -18};
 	const Piece knight = make_piece(by, PieceType::Knight);
-	for (int offset : knight_offsets) {
-		const int target = s + offset;
+	for (board_int offset : knight_offsets) {
+		const board_int target = s + offset;
 		if (target >= 0 && target <= 127 && pos.board[target] == knight) {
 			return true;
 		}
 	}
 
 	// Rey.
-	constexpr int king_offsets[8] = {16, 1, -16, -1, 15, 17, -15, -17};
+	constexpr board_int king_offsets[8] = {16, 1, -16, -1, 15, 17, -15, -17};
 	const Piece king = make_piece(by, PieceType::King);
-	for (int offset : king_offsets) {
-		const int target = s + offset;
+	for (board_int offset : king_offsets) {
+		const board_int target = s + offset;
 		if (target >= 0 && target <= 127 && pos.board[target] == king) {
 			return true;
 		}
@@ -226,9 +226,9 @@ inline void set_start(Position& pos) noexcept {
 	// Deslizantes diagonales (alfil/dama).
 	const Piece bishop = make_piece(by, PieceType::Bishop);
 	const Piece queen = make_piece(by, PieceType::Queen);
-	constexpr int diagonal[4] = {15, 17, -15, -17};
-	for (int offset : diagonal) {
-		int target = s + offset;
+	constexpr board_int diagonal[4] = {15, 17, -15, -17};
+	for (board_int offset : diagonal) {
+		board_int target = s + offset;
 		while (target >= 0 && target <= 127 && square_valid(static_cast<Square>(target))) {
 			const Piece piece = pos.board[target];
 			if (piece != kEmptyPiece) {
@@ -243,9 +243,9 @@ inline void set_start(Position& pos) noexcept {
 
 	// Deslizantes ortogonales (torre/dama).
 	const Piece rook = make_piece(by, PieceType::Rook);
-	constexpr int orthogonal[4] = {16, 1, -16, -1};
-	for (int offset : orthogonal) {
-		int target = s + offset;
+	constexpr board_int orthogonal[4] = {16, 1, -16, -1};
+	for (board_int offset : orthogonal) {
+		board_int target = s + offset;
 		while (target >= 0 && target <= 127 && square_valid(static_cast<Square>(target))) {
 			const Piece piece = pos.board[target];
 			if (piece != kEmptyPiece) {

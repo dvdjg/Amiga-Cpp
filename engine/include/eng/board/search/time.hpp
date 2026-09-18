@@ -1,13 +1,13 @@
 #pragma once
 
 /// \file time.hpp
-/// **Gestión de tiempo** del buscador: decide cuándo parar según nodos y milisegundos,
-/// sin `busy-wait` y sin depender del reloj de una plataforma concreta.
+/// **Gestión de tiempo** del buscador: decide cuándo parar según nodos y
+/// milisegundos, sin `busy-wait` y sin depender del reloj de una plataforma
+/// concreta.
 ///
-/// El reloj se inyecta como función (`NowMsFn`) porque el Amiga no tiene `chrono`:
-/// el juego pasa un lector de VBlank/CIA (o de `eng::time`) y el host uno de
-/// `std::chrono`. Así el mismo motor sirve en ambos targets y el test puede usar un
-/// reloj falso determinista.
+/// El reloj es un **functor** con `operator()() const -> u32` (milisegundos
+/// monótonos) que `TimeManager` guarda **por valor**: el Amiga pasa un lector de
+/// VBlank/CIA y el host uno de `std::chrono`. No hay punteros a función ni `void*`.
 ///
 /// El buscador ya es interrumpible (`Limits::max_nodes` + `StopToken`); este tipo es
 /// el que el bucle de juego usa para **pedir** la parada a tiempo (soft = planifica
@@ -19,9 +19,6 @@
 
 namespace eng::board {
 
-/// Lector de tiempo en milisegundos (monótono). `user` es del llamador.
-using NowMsFn = u32 (*)(void* user);
-
 /// Presupuesto de una búsqueda.
 struct TimeBudget {
 	u64 max_nodes = 0u; ///< 0 = sin límite de nodos
@@ -29,10 +26,11 @@ struct TimeBudget {
 	u32 hard_ms = 0u;   ///< límite absoluto (corta ya)
 };
 
+/// Gestor de tiempo parametrizado por el reloj (`Clock` = callable `u32() const`).
+template <class Clock>
 class TimeManager {
 public:
-	TimeManager() noexcept = default;
-	TimeManager(NowMsFn now, void* user) noexcept : m_now(now), m_user(user) {}
+	constexpr explicit TimeManager(Clock clock) noexcept : m_clock(clock) {}
 
 	/// Marca el inicio de la búsqueda.
 	void start() noexcept { m_start = read_now(); }
@@ -59,10 +57,9 @@ public:
 	}
 
 private:
-	[[nodiscard]] u32 read_now() const noexcept { return m_now != nullptr ? m_now(m_user) : 0u; }
+	[[nodiscard]] u32 read_now() const noexcept { return m_clock(); }
 
-	NowMsFn m_now = nullptr;
-	void* m_user = nullptr;
+	Clock m_clock;
 	u32 m_start = 0u;
 };
 

@@ -16,6 +16,7 @@
 ///
 /// Verificación: HOST-139.
 
+#include <eng/board/core/types.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::board {
@@ -132,7 +133,7 @@ struct MemoryPlan {
 /// Elige el perfil mayor cuyo `planned_bytes()` cabe en `free_bytes` (fallback
 /// `P20`). Determinista y sin dependencias de plataforma.
 [[nodiscard]] constexpr MemoryPlan plan_memory(u32 free_bytes) noexcept {
-	for (int index = static_cast<int>(MemoryProfile::P1M); index >= 0; --index) {
+	for (board_int index = static_cast<board_int>(MemoryProfile::P1M); index >= 0; --index) {
 		MemoryPlan candidate = profile_plan(static_cast<MemoryProfile>(index));
 		if (candidate.planned_bytes() <= free_bytes) {
 			candidate.free_bytes = free_bytes;

@@ -15,10 +15,18 @@
 ///
 /// Verificación: HOST-138.
 
+#include <eng/core/scalar.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/util/static_vector.hpp>
 
 namespace eng::board {
+
+/// Entero de trabajo del motor de tablero, **elegido en compilación** por máquina
+/// (`eng::intw`: `s16` en 68000, `s32` en 68020, `int` en host). Se usa en
+/// acumuladores e índices cuyo rango cabe en palabra (evaluación, rasgos, offsets,
+/// conteos). Las puntuaciones que exceden 16 bits (ordenación por encima de 32 k,
+/// nodos) usan tipos explícitos `s32`/`u64`, donde el coste es imprescindible.
+using board_int = eng::intw;
 
 /// Bando. Se guarda como `u8` (no `bool`) porque viaja en structs de estado.
 enum class Color : u8 {

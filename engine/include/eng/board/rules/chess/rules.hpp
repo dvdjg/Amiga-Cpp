@@ -24,10 +24,10 @@ namespace eng::board::chess {
 /// Material insuficiente para dar mate: K vs K, K+pieza menor vs K y K+B vs K+B del
 /// mismo color de casilla. Conservador a propósito (no declara tablas dudosas).
 [[nodiscard]] inline bool insufficient_material(const Position& pos) noexcept {
-	int knights = 0;
-	int bishops = 0;
-	int light_bishops = 0;
-	for (int raw = 0; raw < 128; ++raw) {
+	board_int knights = 0;
+	board_int bishops = 0;
+	board_int light_bishops = 0;
+	for (board_int raw = 0; raw < 128; ++raw) {
 		if (!square_valid(static_cast<Square>(raw))) {
 			continue;
 		}
@@ -141,7 +141,7 @@ struct ChessRules {
 		if (material.queens[0] + material.queens[1] != 0u) {
 			return false;
 		}
-		const int non_pawn = static_cast<int>(material.knights[0] + material.knights[1] +
+		const board_int non_pawn = static_cast<board_int>(material.knights[0] + material.knights[1] +
 		                                      material.bishops[0] + material.bishops[1] +
 		                                      material.rooks[0] + material.rooks[1]);
 		return non_pawn <= 4;

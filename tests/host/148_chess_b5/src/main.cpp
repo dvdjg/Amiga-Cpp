@@ -27,6 +27,7 @@
 
 #include <eng/board/rules/chess/rules.hpp>
 #include <eng/board/search/time.hpp>
+#include <eng/core/util/array.hpp>
 
 namespace {
 
@@ -47,13 +48,15 @@ Position position_from(const char* fen) {
 	return pos;
 }
 
-// --- Reloj falso para el TimeManager ---
+// --- Reloj falso para el TimeManager (functor; sin punteros a funcion) ---
 eng::u32 g_clock = 0u;
-eng::u32 fake_now(void*) { return g_clock; }
+struct FakeClock {
+	eng::u32 operator()() const { return g_clock; }
+};
 
 void test_time_manager() {
 	g_clock = 1000u;
-	TimeManager manager {&fake_now, nullptr};
+	TimeManager manager {FakeClock {}};
 	manager.start();
 	check(manager.elapsed_ms() == 0u, "tiempo: recien arrancado");
 
@@ -103,16 +106,16 @@ void test_pv_and_multi_pv() {
 			e4 = legal[i];
 		}
 	}
-	Move pv[ChessSearcher::pv_max] {};
+	eng::util::Array<Move, ChessSearcher::pv_max> pv {};
 	eng::u32 length = 0u;
-	const Score score = searcher.analyze_move(pos, e4, 3u, pv, ChessSearcher::pv_max, length);
+	const Score score = searcher.analyze_move(pos, e4, 3u, pv.span(), length);
 	check(!score_is_mate(score), "pv: 1.e4 no es mate a profundidad 3");
 	check(length >= 1u && pv[0] == e4, "pv: la linea empieza por la jugada");
 	check(length <= ChessSearcher::pv_max, "pv: respeta el maximo");
 
 	// Multi-PV: tres lineas ordenadas por puntuacion.
-	ChessSearcher::Line lines[3] {};
-	const eng::u32 produced = searcher.search_multi_pv(pos, {3u, 0u}, 3u, lines, 3u, 1u);
+	eng::util::Array<ChessSearcher::Line, 3u> lines {};
+	const eng::u32 produced = searcher.search_multi_pv(pos, {3u, 0u}, 3u, lines.span(), 1u);
 	check(produced == 3u, "multi-pv: tres lineas");
 	check(lines[0].score >= lines[1].score && lines[1].score >= lines[2].score,
 	      "multi-pv: ordenadas por puntuacion");
@@ -123,10 +126,10 @@ void test_pv_and_multi_pv() {
 void test_parallel_is_deterministic() {
 	Position pos = ChessRules::initial();
 	ChessSearcher searcher;
-	ChessSearcher::Line sequential[2] {};
-	ChessSearcher::Line parallel[2] {};
-	searcher.search_multi_pv(pos, {3u, 0u}, 2u, sequential, 2u, 1u);
-	searcher.search_multi_pv(pos, {3u, 0u}, 2u, parallel, 2u, 4u);
+	eng::util::Array<ChessSearcher::Line, 2u> sequential {};
+	eng::util::Array<ChessSearcher::Line, 2u> parallel {};
+	searcher.search_multi_pv(pos, {3u, 0u}, 2u, sequential.span(), 1u);
+	searcher.search_multi_pv(pos, {3u, 0u}, 2u, parallel.span(), 4u);
 
 	check(sequential[0].move == parallel[0].move, "paralelo: misma mejor jugada");
 	check(sequential[0].score == parallel[0].score, "paralelo: misma puntuacion");

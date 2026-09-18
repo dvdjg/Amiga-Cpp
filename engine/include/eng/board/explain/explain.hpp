@@ -10,10 +10,13 @@
 ///
 ///   rasgos + evaluación  ->  reglas de prioridad  ->  plantillas  ->  párrafo
 ///
+/// La interfaz es segura y polivalente: la salida es un `Span<char>` (con truncado
+/// comprobado), las plantillas son `StringView` y los números se formatean con
+/// `eng::util::to_chars_s32` (sin división). No hay punteros crudos ni `char*`.
+///
 /// Reglas actuales (por prioridad): jaque, ventaja material, dama prematura,
 /// retraso de desarrollo y rey en el centro. Los conectores ("Además,",
-/// "Por otro lado,") dan coherencia al párrafo. El coste es de pocos kB de lógica
-/// más las plantillas (`templates.hpp`).
+/// "Por otro lado,") dan coherencia al párrafo.
 ///
 /// Verificación: HOST-149.
 
@@ -22,6 +25,10 @@
 #include <eng/board/eval/features.hpp>
 #include <eng/board/explain/templates.hpp>
 #include <eng/board/rules/chess/board.hpp>
+#include <eng/core/span.hpp>
+#include <eng/core/util/static_string.hpp>
+#include <eng/core/util/string_view.hpp>
+#include <eng/core/util/text.hpp>
 
 namespace eng::board::chess {
 
@@ -41,120 +48,86 @@ struct ExplainOptions {
 	u32 max_phrases = 3u;
 };
 
-// --- Escritura con truncado seguro (nunca desborda `out`) ---
+// --- Escritura en `Span<char>` con truncado seguro (nunca desborda) ---
 
-inline void explain_put(char* out, eng::usize cap, eng::usize& n, char c) noexcept {
-	if (n + 1u < cap) {
+inline void explain_put(eng::Span<char> out, eng::usize& n, char c) noexcept {
+	if (n < out.size()) {
 		out[n] = c;
 	}
 	++n;
 }
 
-inline void explain_put_str(char* out, eng::usize cap, eng::usize& n, const char* text) noexcept {
-	for (const char* p = text; *p != '\0'; ++p) {
-		explain_put(out, cap, n, *p);
+inline void explain_put_text(eng::Span<char> out, eng::usize& n, eng::util::StringView text) noexcept {
+	for (eng::usize i = 0u; i < text.size(); ++i) {
+		explain_put(out, n, text[i]);
 	}
 }
 
-inline void explain_put_int(char* out, eng::usize cap, eng::usize& n, int value) noexcept {
-	if (value < 0) {
-		explain_put(out, cap, n, '-');
-		value = -value;
-	}
-	// Sin divisiones: `% 10`/`/ 10` acabarían en `__divsi3` (libcall de libgcc) en
-	// 68000. Se extraen los dígitos restando potencias de diez.
-	static constexpr eng::u32 powers[10] = {1u,       10u,      100u,      1000u,     10000u,
-	                                        100000u,  1000000u, 10000000u, 100000000u, 1000000000u};
-	eng::u32 v = static_cast<eng::u32>(value);
-	int p = 9;
-	while (p > 0 && powers[p] > v) {
-		--p;
-	}
-	for (; p >= 0; --p) {
-		eng::u32 digit = 0u;
-		while (v >= powers[p]) {
-			v -= powers[p];
-			++digit;
+/// Añade a `out` (desde `n`) la plantilla con sus huecos sustituidos.
+inline void format_phrase(eng::util::StringView tmpl, eng::util::StringView side,
+                          eng::util::StringView side_adj, board_int diff, eng::Span<char> out,
+                          eng::usize& n) noexcept {
+	eng::usize i = 0u;
+	while (i < tmpl.size()) {
+		const char c = tmpl[i];
+		if (c != '{') {
+			explain_put(out, n, c);
+			++i;
+			continue;
 		}
-		explain_put(out, cap, n, static_cast<char>('0' + digit));
+		eng::usize end = i + 1u;
+		while (end < tmpl.size() && tmpl[end] != '}') {
+			++end;
+		}
+		const eng::util::StringView token = tmpl.substr(i + 1u, end - (i + 1u));
+		if (token == eng::util::StringView {"side"}) {
+			explain_put_text(out, n, side);
+		} else if (token == eng::util::StringView {"side_adj"}) {
+			explain_put_text(out, n, side_adj);
+		} else if (token == eng::util::StringView {"diff"}) {
+			eng::util::StaticString<16> digits;
+			(void)eng::util::to_chars_u32(digits, static_cast<u32>(diff));
+			explain_put_text(out, n, digits.view());
+		}
+		i = (end < tmpl.size()) ? (end + 1u) : tmpl.size();
 	}
 }
 
 /// Divide por 100 sin `__divsi3` (resta repetida; el material es pequeño).
-[[nodiscard]] inline int explain_div100(int value) noexcept {
-	int rest = (value < 0) ? -value : value;
-	int quotient = 0;
+[[nodiscard]] inline board_int explain_div100(board_int value) noexcept {
+	board_int rest = (value < 0) ? static_cast<board_int>(-value) : value;
+	board_int quotient = 0;
 	while (rest >= 100) {
-		rest -= 100;
+		rest = static_cast<board_int>(rest - 100);
 		++quotient;
 	}
-	// Sin `sign * quotient`: una multiplicación por ±1 sería `__mulsi3` en 68000.
-	return (value < 0) ? -quotient : quotient;
-}
-
-[[nodiscard]] inline bool token_is(const char* token, eng::usize length, const char* word) noexcept {
-	eng::usize i = 0u;
-	for (; i < length && word[i] != '\0'; ++i) {
-		if (token[i] != word[i]) {
-			return false;
-		}
-	}
-	return i == length && word[i] == '\0';
-}
-
-/// Añade a `out` (desde `n`) la plantilla con sus huecos sustituidos.
-inline void format_phrase(const char* tmpl, const char* side, const char* side_adj, int diff,
-                          char* out, eng::usize cap, eng::usize& n) noexcept {
-	for (const char* p = tmpl; *p != '\0'; ++p) {
-		if (*p != '{') {
-			explain_put(out, cap, n, *p);
-			continue;
-		}
-		char token[12];
-		eng::usize len = 0u;
-		++p;
-		while (*p != '\0' && *p != '}' && len < sizeof(token)) {
-			token[len++] = *p;
-			++p;
-		}
-		if (token_is(token, len, "side")) {
-			explain_put_str(out, cap, n, side);
-		} else if (token_is(token, len, "side_adj")) {
-			explain_put_str(out, cap, n, side_adj);
-		} else if (token_is(token, len, "diff")) {
-			explain_put_int(out, cap, n, diff);
-		}
-		// un hueco desconocido se ignora
-	}
+	return (value < 0) ? static_cast<board_int>(-quotient) : quotient;
 }
 
 namespace detail {
 
-struct ExplainEntry {
-	const Phrase* phrase;
-	int side_index;
-	int diff;
-};
-
-[[nodiscard]] inline const char* side_name(Language language, int side) noexcept {
+[[nodiscard]] inline eng::util::StringView side_name(Language language, board_int side) noexcept {
 	if (language == Language::Spanish) {
-		return (side == 0) ? "blancas" : "negras";
+		return eng::util::StringView {(side == 0) ? "blancas" : "negras"};
 	}
-	return (side == 0) ? "White" : "Black";
+	return eng::util::StringView {(side == 0) ? "White" : "Black"};
 }
 
-[[nodiscard]] inline const char* side_adjective(Language language, int side) noexcept {
+[[nodiscard]] inline eng::util::StringView side_adjective(Language language,
+                                                          board_int side) noexcept {
 	if (language == Language::Spanish) {
-		return (side == 0) ? "blanco" : "negro";
+		return eng::util::StringView {(side == 0) ? "blanco" : "negro"};
 	}
-	return (side == 0) ? "white" : "black";
+	return eng::util::StringView {(side == 0) ? "white" : "black"};
 }
 
-[[nodiscard]] inline const char* connector(const Phrase& phrase, Language language) noexcept {
+[[nodiscard]] inline eng::util::StringView connector(const Phrase& phrase,
+                                                     Language language) noexcept {
 	return (language == Language::Spanish) ? phrase.es : phrase.en;
 }
 
-[[nodiscard]] inline const char* text_of(const Phrase& phrase, Language language) noexcept {
+[[nodiscard]] inline eng::util::StringView text_of(const Phrase& phrase,
+                                                   Language language) noexcept {
 	return (language == Language::Spanish) ? phrase.es : phrase.en;
 }
 
@@ -162,76 +135,75 @@ struct ExplainEntry {
 
 /// Genera la explicación de `pos` en `out` (truncada con seguridad). Devuelve la
 /// longitud lógica escrita.
-[[nodiscard]] inline eng::usize explain(const Position& pos, ExplainOptions options, char* out,
-                                        eng::usize cap) noexcept {
-	using detail::ExplainEntry;
-
+[[nodiscard]] inline eng::usize explain(const Position& pos, ExplainOptions options,
+                                        eng::Span<char> out) noexcept {
 	const DevelopmentFeatures features = extract_development(pos);
 	const EvalBreakdown eval = evaluate_white(pos);
-	const int to_move_index = static_cast<int>(to_move(pos));
+	const board_int to_move_index = static_cast<board_int>(to_move(pos));
 	const bool to_move_in_check = in_check(pos, to_move(pos));
+	const bool emphatic = options.tone == Tone::Emphatic;
 
-	ExplainEntry entries[6] {};
-	u32 count = 0u;
+	eng::usize n = 0u;
+	u32 emitted = 0u;
 	const u32 limit = (options.max_phrases == 0u) ? 1u : options.max_phrases;
-	auto add = [&](const Phrase& phrase, int side_index, int diff) {
-		if (count < limit && count < 6u) {
-			entries[count++] = ExplainEntry {&phrase, side_index, diff};
+
+	auto emit = [&](const Phrase& phrase, board_int side_index, board_int diff) {
+		if (emitted >= limit) {
+			return;
 		}
+		if (emitted == 1u) {
+			explain_put_text(out, n, detail::connector(kConnectorSecond, options.language));
+		} else if (emitted == 2u) {
+			explain_put_text(out, n, detail::connector(kConnectorThird, options.language));
+		} else if (emitted >= 3u) {
+			explain_put_text(out, n, eng::util::StringView {" "});
+		}
+		format_phrase(detail::text_of(phrase, options.language),
+		              detail::side_name(options.language, side_index),
+		              detail::side_adjective(options.language, side_index), diff, out, n);
+		++emitted;
 	};
 
 	// Prioridad 1: jaque inmediato.
-	const bool emphatic = options.tone == Tone::Emphatic;
 	if (to_move_in_check) {
-		add(emphatic ? kPhraseInCheckEmphatic : kPhraseInCheck, to_move_index, 0);
+		emit(emphatic ? kPhraseInCheckEmphatic : kPhraseInCheck, to_move_index, 0);
 	}
 
 	// Prioridad 2: ventaja material.
-	const int material_pawns = explain_div100(static_cast<int>(eval.material));
+	const board_int material_pawns = explain_div100(static_cast<board_int>(eval.material));
 	if (material_pawns != 0) {
-		const int lead = (material_pawns > 0) ? 0 : 1;
-		const int magnitude = (material_pawns > 0) ? material_pawns : -material_pawns;
-		add((emphatic || magnitude >= 5) ? kPhraseMaterialEmphatic : kPhraseMaterial, lead,
-		    magnitude);
+		const board_int lead = (material_pawns > 0) ? 0 : 1;
+		const board_int magnitude =
+		    (material_pawns > 0) ? material_pawns : static_cast<board_int>(-material_pawns);
+		emit((emphatic || magnitude >= 5) ? kPhraseMaterialEmphatic : kPhraseMaterial, lead,
+		     magnitude);
 	}
 
 	// Prioridad 3: dama prematura.
-	for (int side = 0; side < 2; ++side) {
+	for (board_int side = 0; side < 2; ++side) {
 		if (features.queen_moved_early[side]) {
-			add(kPhraseQueenEarly, side, 0);
+			emit(kPhraseQueenEarly, side, 0);
 		}
 	}
 
 	// Prioridad 4: desarrollo.
-	for (int side = 0; side < 2; ++side) {
+	for (board_int side = 0; side < 2; ++side) {
 		if (features.undeveloped_minors[side] >= 3u && features.phase == GamePhase::Opening) {
-			add(kPhraseUndeveloped, side, 0);
+			emit(kPhraseUndeveloped, side, 0);
 		}
 	}
 
 	// Prioridad 5: rey en el centro.
-	for (int side = 0; side < 2; ++side) {
+	for (board_int side = 0; side < 2; ++side) {
 		if (features.king_in_center[side]) {
-			add(kPhraseKingInCenter, side, 0);
+			emit(kPhraseKingInCenter, side, 0);
 		}
 	}
 
-	eng::usize n = 0u;
-	for (u32 i = 0u; i < count; ++i) {
-		if (i == 1u) {
-			explain_put_str(out, cap, n, detail::connector(kConnectorSecond, options.language));
-		} else if (i == 2u) {
-			explain_put_str(out, cap, n, detail::connector(kConnectorThird, options.language));
-		} else if (i >= 3u) {
-			explain_put_str(out, cap, n, " ");
-		}
-		const ExplainEntry& entry = entries[i];
-		const char* side = detail::side_name(options.language, entry.side_index);
-		const char* side_adj = detail::side_adjective(options.language, entry.side_index);
-		format_phrase(detail::text_of(*entry.phrase, options.language), side, side_adj, entry.diff,
-		              out, cap, n);
+	if (!out.empty()) {
+		const eng::usize nul_at = (n < out.size()) ? n : (out.size() - 1u);
+		out[nul_at] = '\0';
 	}
-	out[n < cap ? n : (cap == 0u ? 0u : cap - 1u)] = '\0';
 	return n;
 }
 

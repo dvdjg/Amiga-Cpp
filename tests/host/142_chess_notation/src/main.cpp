@@ -57,16 +57,17 @@ Move find_move(const Position& pos, Square from, Square to) {
 	return kNoMove;
 }
 
-void check_san(const Position& pos, Square from, Square to, const char* expected, const char* what) {
+void check_san(const Position& pos, Square from, Square to, eng::util::StringView expected,
+               const char* what) {
 	const Move move = find_move(pos, from, to);
 	check(!move_none(move), what);
 	if (move_none(move)) {
 		return;
 	}
 	char text[16];
-	to_san(pos, move, text, sizeof(text));
-	if (std::strcmp(text, expected) != 0) {
-		std::printf("[FAIL] %s: '%s' (esperado '%s')\n", what, text, expected);
+	const eng::usize n = to_san(pos, move, eng::Span<char> {text, sizeof(text)});
+	if (eng::util::StringView(text, n) != expected) {
+		std::printf("[FAIL] %s: '%s' (esperado '%s')\n", what, text, expected.data());
 		++g_fail;
 	}
 }
@@ -117,13 +118,13 @@ void test_uci() {
 	const Position start = position_from("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 	const Move e4 = find_move(start, make_square(4u, 1u), make_square(4u, 3u));
 	char text[8];
-	to_uci(e4, text, sizeof(text));
-	check(std::strcmp(text, "e2e4") == 0, "uci: e2e4");
+	eng::usize n = to_uci(e4, eng::Span<char> {text, sizeof(text)});
+	check(eng::util::StringView(text, n) == eng::util::StringView("e2e4"), "uci: e2e4");
 
 	const Position promo = position_from("8/P6k/8/8/8/8/8/K7 w - - 0 1");
 	const Move a8q = find_move(promo, make_square(0u, 6u), make_square(0u, 7u));
-	to_uci(a8q, text, sizeof(text));
-	check(std::strcmp(text, "a7a8q") == 0, "uci: a7a8q");
+	n = to_uci(a8q, eng::Span<char> {text, sizeof(text)});
+	check(eng::util::StringView(text, n) == eng::util::StringView("a7a8q"), "uci: a7a8q");
 }
 
 } // namespace

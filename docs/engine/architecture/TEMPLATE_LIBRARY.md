@@ -54,6 +54,8 @@ La librería **complementa** el núcleo de `eng/core/`, no lo duplica:
                                      direct_map.hpp    DirectMap<V,N>
                                      optional.hpp      Optional<T>
                                      expected.hpp      Expected<T,E>
+                                     bitstream.hpp     BitWriter/BitReader
+                                     binary.hpp        ByteReader/ByteWriter
                                      string_view.hpp   StringView
                                      static_string.hpp StaticString<N>
                                      scope_guard.hpp   ScopeGuard
@@ -91,6 +93,7 @@ Puntos de reutilización explícitos:
 | `bitset.hpp` | `BitSet<N>` | `std::bitset` |
 | `dynamic_bitset.hpp` | `DynamicBitSet<A>` (tamaño fijado en `init`, palabras en arena) | `boost::dynamic_bitset` |
 | `bitstream.hpp` | `BitWriter`/`BitReader` (campos de 1..32 bits, LSB-first) | (sin equivalente; bit I/O) |
+| `binary.hpp` | `ByteReader`/`ByteWriter` (cursores little-endian sobre `Span`, con comprobación de límites; u8/u16/u32/s16/s32 y copia de bloques) | (sin equivalente; I/O binario) |
 | `allocator.hpp` | `Allocator` (concepto), `NullAlloc`, `BumpAlloc`, `InlineAlloc<N>` | (sin equivalente) |
 | `arena_alloc.hpp` | `ArenaAlloc` (sobre `eng::LinearArena`) | (sin equivalente) |
 | `hash.hpp` | `hash_u8/u16/u32`, `hash_value`, `hash_bytes`/`hash_string`, `Hash<T>` | `std::hash` |

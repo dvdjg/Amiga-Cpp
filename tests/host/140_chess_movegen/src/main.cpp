@@ -43,25 +43,31 @@ Position position_from(const char* fen) {
 	return pos;
 }
 
+/// Escribe la posición y devuelve la vista FEN del buffer (sin `strcmp` ni punteros).
+eng::util::StringView fen_text(const Position& pos, char* buffer, eng::usize cap) {
+	const eng::usize n = to_fen(pos, eng::Span<char> {buffer, cap});
+	return eng::util::StringView(buffer, n);
+}
+
 void test_fen_roundtrip() {
 	const char* start = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 	Position pos = position_from(start);
 	char out[128];
-	to_fen(pos, out, sizeof(out));
-	check(std::strcmp(out, start) == 0, "fen: round-trip de la posicion inicial");
+	check(fen_text(pos, out, sizeof(out)) == eng::util::StringView(start),
+	      "fen: round-trip de la posicion inicial");
 
 	Position kiwipete = position_from("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
 	char out2[128];
-	to_fen(kiwipete, out2, sizeof(out2));
-	check(std::strcmp(out2,
-	                  "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1") == 0,
+	check(fen_text(kiwipete, out2, sizeof(out2)) ==
+	          eng::util::StringView(
+	              "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"),
 	      "fen: round-trip de Kiwipete");
 }
 
 void test_make_unmake_restores() {
 	Position pos = position_from("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
-	char before[128];
-	to_fen(pos, before, sizeof(before));
+	char before_buffer[128];
+	const eng::util::StringView before = fen_text(pos, before_buffer, sizeof(before_buffer));
 	MoveList legal;
 	generate_legal(pos, legal);
 	bool restored = true;
@@ -69,9 +75,8 @@ void test_make_unmake_restores() {
 		Undo undo;
 		make_move(pos, legal[i], undo);
 		unmake_move(pos, legal[i], undo);
-		char after[128];
-		to_fen(pos, after, sizeof(after));
-		if (std::strcmp(after, before) != 0) {
+		char after_buffer[128];
+		if (fen_text(pos, after_buffer, sizeof(after_buffer)) != before) {
 			restored = false;
 		}
 	}

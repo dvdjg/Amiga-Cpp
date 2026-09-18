@@ -28,11 +28,11 @@ inline void add_promotions(Square from, Square to, u16 flags, MoveList& out) {
 
 /// Saltos (caballo/rey) desde `from`.
 template <eng::usize N>
-inline void add_step_moves(const Position& pos, Square from, Color us, const int (&offsets)[N],
+inline void add_step_moves(const Position& pos, Square from, Color us, const board_int (&offsets)[N],
                            MoveList& out) {
-	const int s = static_cast<int>(from);
+	const board_int s = static_cast<board_int>(from);
 	for (eng::usize i = 0; i < N; ++i) {
-		const int target = s + offsets[i];
+		const board_int target = s + offsets[i];
 		if (target < 0 || target > 127 || !square_valid(static_cast<Square>(target))) {
 			continue;
 		}
@@ -47,12 +47,12 @@ inline void add_step_moves(const Position& pos, Square from, Color us, const int
 
 /// Deslizantes (alfil/torre/dama) desde `from`.
 template <eng::usize N>
-inline void add_slider_moves(const Position& pos, Square from, Color us, const int (&offsets)[N],
+inline void add_slider_moves(const Position& pos, Square from, Color us, const board_int (&offsets)[N],
                              MoveList& out) {
-	const int s = static_cast<int>(from);
+	const board_int s = static_cast<board_int>(from);
 	for (eng::usize i = 0; i < N; ++i) {
-		const int offset = offsets[i];
-		int target = s + offset;
+		const board_int offset = offsets[i];
+		board_int target = s + offset;
 		while (target >= 0 && target <= 127 && square_valid(static_cast<Square>(target))) {
 			const Piece target_piece = pos.board[target];
 			if (target_piece == kEmptyPiece) {
@@ -104,12 +104,12 @@ inline void add_castling(const Position& pos, Square from, Color us, MoveList& o
 inline void generate_pseudo(const Position& pos, MoveList& out) {
 	out.clear();
 	const Color us = to_move(pos);
-	static constexpr int knight_offsets[8] = {31, 33, 14, 18, -31, -33, -14, -18};
-	static constexpr int king_offsets[8] = {16, 1, -16, -1, 15, 17, -15, -17};
-	static constexpr int diagonal[4] = {15, 17, -15, -17};
-	static constexpr int orthogonal[4] = {16, 1, -16, -1};
+	static constexpr board_int knight_offsets[8] = {31, 33, 14, 18, -31, -33, -14, -18};
+	static constexpr board_int king_offsets[8] = {16, 1, -16, -1, 15, 17, -15, -17};
+	static constexpr board_int diagonal[4] = {15, 17, -15, -17};
+	static constexpr board_int orthogonal[4] = {16, 1, -16, -1};
 
-	for (int raw = 0; raw < 128; ++raw) {
+	for (board_int raw = 0; raw < 128; ++raw) {
 		if (!square_valid(static_cast<Square>(raw))) {
 			continue;
 		}
@@ -120,17 +120,17 @@ inline void generate_pseudo(const Position& pos, MoveList& out) {
 		}
 		switch (piece_type(piece)) {
 		case PieceType::Pawn: {
-			const int dir = (us == Color::White) ? 16 : -16;
-			const int start_rank = (us == Color::White) ? 1 : 6;
-			const int promo_rank = (us == Color::White) ? 7 : 0;
-			const int one = raw + dir;
+			const board_int dir = (us == Color::White) ? 16 : -16;
+			const board_int start_rank = (us == Color::White) ? 1 : 6;
+			const board_int promo_rank = (us == Color::White) ? 7 : 0;
+			const board_int one = raw + dir;
 			if (one >= 0 && one <= 127 && square_valid(static_cast<Square>(one)) &&
 			    pos.board[one] == kEmptyPiece) {
 				if (square_rank(static_cast<Square>(one)) == promo_rank) {
 					add_promotions(from, static_cast<Square>(one), 0u, out);
 				} else {
 					out.push_back(chess_move(from, static_cast<Square>(one), 0u));
-					const int two = raw + 2 * dir;
+					const board_int two = raw + 2 * dir;
 					if (square_rank(from) == start_rank && two >= 0 && two <= 127 &&
 					    pos.board[two] == kEmptyPiece) {
 						out.push_back(
@@ -138,8 +138,8 @@ inline void generate_pseudo(const Position& pos, MoveList& out) {
 					}
 				}
 			}
-			for (int dc = -1; dc <= 1; dc += 2) {
-				const int target = raw + dir + dc;
+			for (board_int dc = -1; dc <= 1; dc += 2) {
+				const board_int target = raw + dir + dc;
 				if (target < 0 || target > 127 ||
 				    !square_valid(static_cast<Square>(target))) {
 					continue;

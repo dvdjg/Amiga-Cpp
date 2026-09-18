@@ -44,7 +44,7 @@ bool contains(const char* text, const char* needle) { return std::strstr(text, n
 
 /// Envuelve `explain` para el test (descarta la longitud devuelta).
 void say(const Position& pos, Language language, char* out, eng::usize cap) {
-	(void)explain(pos, ExplainOptions {language, Tone::Neutral, 3u}, out, cap);
+	(void)explain(pos, ExplainOptions {language, Tone::Neutral, 3u}, eng::Span<char> {out, cap});
 }
 
 } // namespace

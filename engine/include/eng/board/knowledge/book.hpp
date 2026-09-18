@@ -1,24 +1,23 @@
 #pragma once
 
 /// \file book.hpp
-/// **Libro de aperturas** empaquetado: un array de entradas ordenadas por clave
-/// Zobrist. En partida el motor hace búsqueda binaria (sin cargar el libro entero);
-/// cada entrada devuelve la jugada, una puntuación y el identificador de nombre de
-/// la apertura (que el explicador NLG convierte en texto).
+/// **Libro de aperturas** empaquetado: entradas ordenadas por clave Zobrist. En
+/// partida el motor hace búsqueda binaria (sin cargar el libro entero); cada entrada
+/// devuelve la jugada, una puntuación y el identificador de nombre de la apertura
+/// (que el explicador NLG convierte en texto).
 ///
-/// Formato de una entrada (12 B, serializable a bloque sin problemas de alineación
-/// en 68000):
+/// Formato de una entrada (12 B): `key u32 | move u32 | score s16 | name_id u16`.
 ///
-///   key u32 | move u32 | score s16 | name_id u16
-///
-/// El libro se construye en el host (`tools/board/`) y viaja como bloque; el motor
-/// lo lee con `read_book_entry` (ensamblado byte a byte, nunca `reinterpret_cast` a
-/// un struct, que en 68000 fallaría por alineación).
+/// El parseo/serializado usa `eng::util::ByteReader`/`ByteWriter` (little-endian y
+/// **sin `reinterpret_cast`**), de modo que no hay aritmética de punteros ni fallos
+/// de alineación en 68000; el libro se lee de un bloque con `read_book_entry`.
 ///
 /// Verificación: HOST-147.
 
 #include <eng/board/core/types.hpp>
 #include <eng/core/span.hpp>
+#include <eng/core/util/binary.hpp>
+#include <eng/core/util/string_view.hpp>
 
 namespace eng::board {
 
@@ -40,43 +39,17 @@ struct BookProbe {
 	bool found = false;
 };
 
-// --- Serialización byte a byte (segura en 68000, sin alineación) ---
-
-[[nodiscard]] inline u32 book_read_u32(const u8* data) noexcept {
-	return static_cast<u32>(data[0]) | (static_cast<u32>(data[1]) << 8u) |
-	       (static_cast<u32>(data[2]) << 16u) | (static_cast<u32>(data[3]) << 24u);
+/// Lee una entrada del libro del cursor. `false` si no hay 12 bytes.
+[[nodiscard]] inline bool read_book_entry(eng::util::ByteReader& reader, BookEntry& out) noexcept {
+	return reader.read_u32(out.key) && reader.read_u32(out.move) && reader.read_s16(out.score) &&
+	       reader.read_u16(out.name_id);
 }
 
-[[nodiscard]] inline u16 book_read_u16(const u8* data) noexcept {
-	return static_cast<u16>(static_cast<u16>(data[0]) | (static_cast<u16>(data[1]) << 8u));
-}
-
-[[nodiscard]] inline BookEntry read_book_entry(const u8* data) noexcept {
-	BookEntry entry;
-	entry.key = book_read_u32(data);
-	entry.move = book_read_u32(data + 4);
-	entry.score = static_cast<s16>(book_read_u16(data + 8));
-	entry.name_id = book_read_u16(data + 10);
-	return entry;
-}
-
-inline void book_write_u32(u8* data, u32 value) noexcept {
-	data[0] = static_cast<u8>(value & 0xffu);
-	data[1] = static_cast<u8>((value >> 8u) & 0xffu);
-	data[2] = static_cast<u8>((value >> 16u) & 0xffu);
-	data[3] = static_cast<u8>((value >> 24u) & 0xffu);
-}
-
-inline void book_write_u16(u8* data, u16 value) noexcept {
-	data[0] = static_cast<u8>(value & 0xffu);
-	data[1] = static_cast<u8>((value >> 8u) & 0xffu);
-}
-
-inline void write_book_entry(u8* data, const BookEntry& entry) noexcept {
-	book_write_u32(data, entry.key);
-	book_write_u32(data + 4, entry.move);
-	book_write_u16(data + 8, static_cast<u16>(entry.score));
-	book_write_u16(data + 10, entry.name_id);
+/// Escribe una entrada del libro en el cursor. `false` si no caben 12 bytes.
+[[nodiscard]] inline bool write_book_entry(eng::util::ByteWriter& writer,
+                                           const BookEntry& entry) noexcept {
+	return writer.write_u32(entry.key) && writer.write_u32(entry.move) &&
+	       writer.write_s16(entry.score) && writer.write_u16(entry.name_id);
 }
 
 /// Búsqueda binaria por clave sobre entradas **ordenadas**.
@@ -102,13 +75,13 @@ inline void write_book_entry(u8* data, const BookEntry& entry) noexcept {
 	return probe;
 }
 
-/// Constructor del libro sobre un buffer del llamador (para el host o para
-/// `init`). `add` no reserva; `finalize` ordena por clave.
+/// Constructor del libro sobre un buffer del llamador. `add` no reserva; `finalize`
+/// ordena por clave.
 class BookBuilder {
 public:
-	explicit BookBuilder(eng::Span<BookEntry> storage) noexcept : m_storage(storage) {}
+	constexpr explicit BookBuilder(eng::Span<BookEntry> storage) noexcept : m_storage(storage) {}
 
-	bool add(u32 key, Move move, s16 score = 0, u16 name_id = 0u) noexcept {
+	[[nodiscard]] bool add(u32 key, Move move, s16 score = 0, u16 name_id = 0u) noexcept {
 		if (m_count >= m_storage.size()) {
 			return false;
 		}
@@ -117,7 +90,6 @@ public:
 		return true;
 	}
 
-	/// Ordena por clave (inserción; el libro se ordena una vez al construirlo).
 	void finalize() noexcept {
 		for (u32 i = 1u; i < m_count; ++i) {
 			const BookEntry value = m_storage[i];
@@ -140,22 +112,28 @@ private:
 	u32 m_count = 0u;
 };
 
-/// Nombre de apertura `id` dentro de un pool de cadenas separadas por NUL.
-[[nodiscard]] inline const char* book_name(eng::Span<const char> pool, u16 id) noexcept {
-	if (pool.empty()) {
-		return "";
+/// Índice del primer NUL a partir de `from` (o el tamaño si no hay).
+[[nodiscard]] inline eng::usize find_nul(eng::Span<const char> pool, eng::usize from) noexcept {
+	eng::usize i = from;
+	while (i < pool.size() && pool[i] != '\0') {
+		++i;
 	}
-	const char* cursor = pool.data();
-	const char* end = pool.data() + pool.size();
-	for (u16 i = 0u; i < id && cursor < end; ++i) {
-		while (cursor < end && *cursor != '\0') {
-			++cursor;
+	return i;
+}
+
+/// Nombre de apertura `id` dentro de un pool de cadenas separadas por NUL. Devuelve
+/// `StringView` (vista, sin copia) o vacío si el id se sale del pool.
+[[nodiscard]] inline eng::util::StringView book_name(eng::Span<const char> pool, u16 id) noexcept {
+	eng::usize begin = 0u;
+	for (u16 i = 0u; i < id; ++i) {
+		const eng::usize next = find_nul(pool, begin);
+		if (next >= pool.size()) {
+			return {};
 		}
-		if (cursor < end) {
-			++cursor;
-		}
+		begin = next + 1u;
 	}
-	return (cursor < end) ? cursor : "";
+	const eng::usize end = find_nul(pool, begin);
+	return eng::util::StringView {pool.subspan(begin, end - begin)};
 }
 
 } // namespace eng::board

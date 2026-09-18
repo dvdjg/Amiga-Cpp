@@ -190,3 +190,4 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-147 | [board_knowledge](147_board_knowledge/README.md) | `eng/board/knowledge/{book,endgame_tables}.hpp`: libro ordenado por clave, nombres, tablas de finales y round-trip byte a byte por bloque. |
 | HOST-148 | [chess_b5](148_chess_b5/README.md) | `eng/board/search/{pruning,time,search}.hpp`: null-move, `TimeManager`, PV/Multi-PV y análisis paralelo determinista. |
 | HOST-149 | [chess_explain](149_chess_explain/README.md) | `eng/board/explain/`: NLG por plantillas ES/EN (jaque, material, dama prematura, desarrollo, rey en el centro), tono y truncado seguro. |
+| HOST-150 | [binary](150_binary/README.md) | `eng/core/util/binary.hpp`: `ByteReader`/`ByteWriter` little-endian sobre `Span` con comprobación de límites (round-trip, bounds, copia de bloques). |

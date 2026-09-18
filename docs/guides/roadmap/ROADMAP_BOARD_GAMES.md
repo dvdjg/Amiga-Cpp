@@ -63,6 +63,11 @@ test host, cruce `m68k` y, cuando corresponde, un juego en `games/`.
 - **Concurrencia abstracta**: la lógica usa `eng::parallel`, nunca `<thread>`. En el Amiga las
   primitivas son no-ops y `hardware_threads() == 1`; el reparto entre CPUs solo se activa con
   `hardware_threads() > 1` y no puede alterar el resultado.
+- **Interfaces seguras**: sin punteros crudos ni `char*` en la frontera. Buffers como `Span`,
+  texto como `StringView`, tablas como `eng::util::Array`, bloques con el concept `BlockSource`,
+  serialización con `ByteReader`/`ByteWriter` y backends como políticas de plantilla (nada de
+  punteros a función ni `void*`). Acumuladores e índices usan `board_int` (`eng::intw`); `s32`
+  solo donde el rango lo exige.
 - **No duplicar**: reutilizar `eng::util`/`eng::math`/`Loader`/`eng::parallel` antes de crear;
   una detección o utilidad que ya exista se extiende, no se copia.
 - **Verificación**: `tests/host/NNN` con `README.md`, cruce `m68k`, y juego en `games/` como
@@ -179,11 +184,11 @@ la detección por patrón, el packer y los assets externos.
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| B7.1 | `rules/go/board.hpp` | Tablero 9×9 (81 B), grupos/libertades (`union_find` o flood-fill), ko, suicidio | **HOST-150** |
-| B7.2 | `rules/go/movegen.hpp` | Jugadas legales y conteo de prisioneros | **HOST-150** |
-| B7.3 | `eval/go_eval.hpp` | Territorio (flood-fill/influencia), ataris, ojos y grupos débiles | **HOST-151** |
-| B7.4 | `knowledge/patterns.hpp` (Go) | Patrones 3×3/5×5 y fuseki desde disquete | **HOST-151** |
-| B7.5 | `search/` (Go) | Alpha-Beta + patrones; **MCTS muy ligero** opcional con ≥ 256–512 kB | **HOST-151** |
+| B7.1 | `rules/go/board.hpp` | Tablero 9×9 (81 B), grupos/libertades (`union_find` o flood-fill), ko, suicidio | **HOST-151** |
+| B7.2 | `rules/go/movegen.hpp` | Jugadas legales y conteo de prisioneros | **HOST-151** |
+| B7.3 | `eval/go_eval.hpp` | Territorio (flood-fill/influencia), ataris, ojos y grupos débiles | **HOST-152** |
+| B7.4 | `knowledge/patterns.hpp` (Go) | Patrones 3×3/5×5 y fuseki desde disquete | **HOST-152** |
+| B7.5 | `search/` (Go) | Alpha-Beta + patrones; **MCTS muy ligero** opcional con ≥ 256–512 kB | **HOST-152** |
 
 Cierre: 9×9 legal y jugable en `P20`–`P64`; 13×13 solo con ≥ 512 kB; 19×19 **fuera de diseño**.
 
@@ -228,7 +233,7 @@ cierra cada juego con verificación real.
 
 ## 6. Distribución de tests host
 
-Los números son únicos y no reutilizables; el siguiente libre es **150**. Antes de crear cada
+Los números son únicos y no reutilizables; el siguiente libre es **151**. Antes de crear cada
 pieza se comprueba que no duplica una primitiva de `eng::util`/`eng::parallel`
 ([TEMPLATE_LIBRARY.md](../../engine/architecture/TEMPLATE_LIBRARY.md) y
 [PARALLEL_AND_THREADS.md](../../engine/architecture/PARALLEL_AND_THREADS.md)).
@@ -248,8 +253,9 @@ pieza se comprueba que no duplica una primitiva de `eng::util`/`eng::parallel`
 | HOST-147 | Libro de aperturas y tablas de finales (round-trip por bloque) | **Hecho** |
 | HOST-148 | `TimeManager`, ponder, null-move, PV/Multi-PV y análisis paralelo | **Hecho** |
 | HOST-149 | NLG: reglas, plantillas ES/EN, tono y truncado | **Hecho** |
-| HOST-150 | Go: tablero, grupos/libertades, ko, suicidio y movegen | Pendiente |
-| HOST-151 | Go: evaluación de territorio/patrones y búsqueda | Pendiente |
+| HOST-150 | `binary.hpp`: cursores `ByteReader`/`ByteWriter` sobre `Span` | **Hecho** |
+| HOST-151 | Go: tablero, grupos/libertades, ko, suicidio y movegen | Pendiente |
+| HOST-152 | Go: evaluación de territorio/patrones y búsqueda | Pendiente |
 | Tools | Packers host (`tools/board/`) con round-trip y validación de huecos | Pendiente |
 
 ## 7. Extensiones, decisiones tomadas y descartado

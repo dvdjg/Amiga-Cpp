@@ -2,16 +2,20 @@
 
 /// \file fen.hpp
 /// Notación **FEN** (Forsyth-Edwards) para ajedrez: leer y escribir posiciones. La
-/// usa el libro de aperturas, las tablas de finales, los tests y (más adelante) el
-/// comentarista de partidas.
+/// usa el libro de aperturas, las tablas de finales, los tests y el comentarista de
+/// partidas.
 ///
-/// `set_from_fen` reconstruye el tablero, turno, enroques, al paso y relojes, y
-/// recalcula la clave Zobrist. `to_fen` escribe en un buffer del llamador (sin
-/// asignación) y trunca de forma segura si no cabe.
+/// Interfaz segura: `set_from_fen` recibe un `StringView` y `to_fen` escribe en un
+/// `Span<char>` (con truncado comprobado). No hay `char*` ni aritmética de punteros;
+/// el parseo avanza por índices sobre la vista.
 ///
 /// Verificación: HOST-140.
 
 #include <eng/board/rules/chess/board.hpp>
+#include <eng/core/span.hpp>
+#include <eng/core/util/static_string.hpp>
+#include <eng/core/util/string_view.hpp>
+#include <eng/core/util/text.hpp>
 
 namespace eng::board::chess {
 
@@ -42,40 +46,26 @@ namespace eng::board::chess {
 	return make_piece(lower ? Color::Black : Color::White, type);
 }
 
-/// Escribe `value` en decimal al final del buffer (helper interno de `to_fen`).
-inline void write_uint(char* out, eng::usize cap, eng::usize& n, unsigned value) {
-	char digits[10];
-	eng::usize count = 0u;
-	do {
-		digits[count++] = static_cast<char>('0' + (value % 10u));
-		value /= 10u;
-	} while (value != 0u);
-	while (count > 0u) {
-		if (n + 1u < cap) {
-			out[n] = digits[count - 1u];
-		}
-		++n;
-		--count;
-	}
-}
-
-/// Lee una posición FEN. Devuelve `false` si el texto no es válido.
-inline bool set_from_fen(Position& pos, const char* fen) {
-	if (fen == nullptr) {
-		return false;
-	}
+/// Lee una posición FEN desde una vista de texto. `false` si el texto no es válido.
+inline bool set_from_fen(Position& pos, eng::util::StringView fen) noexcept {
 	pos = Position {};
-	int rank = 7;
-	int file = 0;
-	const char* cursor = fen;
+	eng::usize i = 0u;
+	auto skip_spaces = [&]() {
+		while (i < fen.size() && fen[i] == ' ') {
+			++i;
+		}
+	};
 
-	while (*cursor != '\0' && *cursor != ' ') {
-		const char c = *cursor++;
+	board_int rank = 7;
+	board_int file = 0;
+	while (i < fen.size() && fen[i] != ' ') {
+		const char c = fen[i];
+		++i;
 		if (c == '/') {
 			--rank;
 			file = 0;
 		} else if (c >= '1' && c <= '8') {
-			file += (c - '0');
+			file += static_cast<board_int>(c - '0');
 		} else {
 			const Piece piece = char_to_piece(c);
 			if (piece == kEmptyPiece || rank < 0 || rank > 7 || file < 0 || file > 7) {
@@ -86,54 +76,58 @@ inline bool set_from_fen(Position& pos, const char* fen) {
 		}
 	}
 
-	while (*cursor == ' ') ++cursor;
-	pos.side = (*cursor == 'b') ? static_cast<u8>(Color::Black) : static_cast<u8>(Color::White);
-	if (*cursor != '\0') ++cursor;
+	skip_spaces();
+	pos.side = (i < fen.size() && fen[i] == 'b') ? static_cast<u8>(Color::Black)
+	                                             : static_cast<u8>(Color::White);
+	if (i < fen.size()) {
+		++i;
+	}
 
-	while (*cursor == ' ') ++cursor;
-	if (*cursor == '-') {
+	skip_spaces();
+	if (i < fen.size() && fen[i] == '-') {
 		pos.castling = 0u;
-		++cursor;
+		++i;
 	} else {
 		u8 castling = 0u;
-		while (*cursor != '\0' && *cursor != ' ') {
-			switch (*cursor) {
-			case 'K': castling |= kCastleWhiteKing; break;
-			case 'Q': castling |= kCastleWhiteQueen; break;
-			case 'k': castling |= kCastleBlackKing; break;
-			case 'q': castling |= kCastleBlackQueen; break;
+		while (i < fen.size() && fen[i] != ' ') {
+			switch (fen[i]) {
+			case 'K': castling = static_cast<u8>(castling | kCastleWhiteKing); break;
+			case 'Q': castling = static_cast<u8>(castling | kCastleWhiteQueen); break;
+			case 'k': castling = static_cast<u8>(castling | kCastleBlackKing); break;
+			case 'q': castling = static_cast<u8>(castling | kCastleBlackQueen); break;
 			default: return false;
 			}
-			++cursor;
+			++i;
 		}
 		pos.castling = castling;
 	}
 
-	while (*cursor == ' ') ++cursor;
-	if (*cursor == '-') {
+	skip_spaces();
+	if (i < fen.size() && fen[i] == '-') {
 		pos.ep = kNoSquare;
-		++cursor;
-	} else if (*cursor != '\0') {
-		if (cursor[0] < 'a' || cursor[0] > 'h' || cursor[1] < '1' || cursor[1] > '8') {
+		++i;
+	} else if (i < fen.size()) {
+		if (fen[i] < 'a' || fen[i] > 'h' || i + 1u >= fen.size() || fen[i + 1u] < '1' ||
+		    fen[i + 1u] > '8') {
 			return false;
 		}
-		pos.ep = make_square(static_cast<u8>(cursor[0] - 'a'), static_cast<u8>(cursor[1] - '1'));
-		cursor += 2;
+		pos.ep = make_square(static_cast<u8>(fen[i] - 'a'), static_cast<u8>(fen[i + 1u] - '1'));
+		i += 2u;
 	}
 
-	while (*cursor == ' ') ++cursor;
+	skip_spaces();
 	u16 halfmove = 0u;
-	while (*cursor >= '0' && *cursor <= '9') {
-		halfmove = static_cast<u16>(halfmove * 10u + static_cast<u16>(*cursor - '0'));
-		++cursor;
+	while (i < fen.size() && eng::util::is_digit(fen[i])) {
+		halfmove = static_cast<u16>(halfmove * 10u + static_cast<u16>(fen[i] - '0'));
+		++i;
 	}
-	while (*cursor == ' ') ++cursor;
+	skip_spaces();
 	u16 fullmove = 1u;
-	if (*cursor >= '0' && *cursor <= '9') {
+	if (i < fen.size() && eng::util::is_digit(fen[i])) {
 		fullmove = 0u;
-		while (*cursor >= '0' && *cursor <= '9') {
-			fullmove = static_cast<u16>(fullmove * 10u + static_cast<u16>(*cursor - '0'));
-			++cursor;
+		while (i < fen.size() && eng::util::is_digit(fen[i])) {
+			fullmove = static_cast<u16>(fullmove * 10u + static_cast<u16>(fen[i] - '0'));
+			++i;
 		}
 	}
 	pos.halfmove = halfmove;
@@ -142,23 +136,32 @@ inline bool set_from_fen(Position& pos, const char* fen) {
 	return true;
 }
 
-/// Escribe la posición en FEN dentro de `out` (truncando si no cabe).
-inline void to_fen(const Position& pos, char* out, eng::usize cap) {
-	if (out == nullptr || cap == 0u) {
-		return;
-	}
+/// Escribe la posición en FEN dentro de `out`. Devuelve la longitud lógica (puede
+/// superar `out.size()` si se truncó).
+inline eng::usize to_fen(const Position& pos, eng::Span<char> out) noexcept {
 	eng::usize n = 0u;
 	auto put = [&](char c) {
-		if (n + 1u < cap) {
+		if (n < out.size()) {
 			out[n] = c;
 		}
 		++n;
 	};
+	auto put_text = [&](eng::util::StringView text) {
+		for (eng::usize k = 0u; k < text.size(); ++k) {
+			put(text[k]);
+		}
+	};
+	auto put_u32 = [&](u32 value) {
+		eng::util::StaticString<12> digits;
+		(void)eng::util::to_chars_u32(digits, value);
+		put_text(digits.view());
+	};
 
-	for (int rank = 7; rank >= 0; --rank) {
-		int empty = 0;
-		for (int file = 0; file < 8; ++file) {
-			const Piece piece = pos.board[make_square(static_cast<u8>(file), static_cast<u8>(rank))];
+	for (board_int rank = 7; rank >= 0; --rank) {
+		board_int empty = 0;
+		for (board_int file = 0; file < 8; ++file) {
+			const Piece piece =
+			    pos.board[make_square(static_cast<u8>(file), static_cast<u8>(rank))];
 			if (piece == kEmptyPiece) {
 				++empty;
 				continue;
@@ -196,10 +199,15 @@ inline void to_fen(const Position& pos, char* out, eng::usize cap) {
 		put(static_cast<char>('1' + square_rank(pos.ep)));
 	}
 	put(' ');
-	write_uint(out, cap, n, pos.halfmove);
+	put_u32(pos.halfmove);
 	put(' ');
-	write_uint(out, cap, n, pos.fullmove);
-	out[n < cap ? n : cap - 1u] = '\0';
+	put_u32(pos.fullmove);
+
+	if (!out.empty()) {
+		const eng::usize nul_at = (n < out.size()) ? n : (out.size() - 1u);
+		out[nul_at] = '\0';
+	}
+	return n;
 }
 
 } // namespace eng::board::chess

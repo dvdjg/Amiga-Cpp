@@ -56,7 +56,7 @@ struct MaterialCount {
 	u8 queens[2] {};
 	u8 bishops_light[2] {}; ///< alfiles en casillas claras (para K+B vs K+B)
 
-	[[nodiscard]] u8 total(int side) const noexcept {
+	[[nodiscard]] u8 total(board_int side) const noexcept {
 		return static_cast<u8>(pawns[side] + knights[side] + bishops[side] + rooks[side] +
 		                       queens[side]);
 	}
@@ -65,7 +65,7 @@ struct MaterialCount {
 /// Cuenta el material de una posición.
 [[nodiscard]] inline MaterialCount count_material(const Position& pos) noexcept {
 	MaterialCount m {};
-	for (int raw = 0; raw < 128; ++raw) {
+	for (board_int raw = 0; raw < 128; ++raw) {
 		if (!square_valid(static_cast<Square>(raw))) {
 			continue;
 		}
@@ -73,7 +73,7 @@ struct MaterialCount {
 		if (piece == kEmptyPiece) {
 			continue;
 		}
-		const int side = static_cast<int>(piece_color(piece));
+		const board_int side = static_cast<board_int>(piece_color(piece));
 		switch (piece_type(piece)) {
 		case PieceType::Pawn: ++m.pawns[side]; break;
 		case PieceType::Knight: ++m.knights[side]; break;
@@ -97,11 +97,11 @@ struct MaterialCount {
 }
 
 /// Distancia de Chebyshev (máxima de fila/columna) entre dos casillas.
-[[nodiscard]] inline int chebyshev(Square a, Square b) noexcept {
-	const int df = static_cast<int>(square_file(a)) - static_cast<int>(square_file(b));
-	const int dr = static_cast<int>(square_rank(a)) - static_cast<int>(square_rank(b));
-	const int af = df < 0 ? -df : df;
-	const int ar = dr < 0 ? -dr : dr;
+[[nodiscard]] inline board_int chebyshev(Square a, Square b) noexcept {
+	const board_int df = static_cast<board_int>(square_file(a)) - static_cast<board_int>(square_file(b));
+	const board_int dr = static_cast<board_int>(square_rank(a)) - static_cast<board_int>(square_rank(b));
+	const board_int af = df < 0 ? -df : df;
+	const board_int ar = dr < 0 ? -dr : dr;
 	return af > ar ? af : ar;
 }
 
@@ -110,11 +110,11 @@ struct MaterialCount {
 [[nodiscard]] inline bool kpk_is_draw(const Position& pos, MaterialCount& m, bool& known) noexcept {
 	known = true;
 	// Localiza el peón y el rey defensor.
-	const int pawn_side = (m.pawns[0] != 0u) ? 0 : 1;
+	const board_int pawn_side = (m.pawns[0] != 0u) ? 0 : 1;
 	const Color attacker = static_cast<Color>(pawn_side);
 	const Color defender = opposite(attacker);
 	Square pawn = kNoSquare;
-	for (int raw = 0; raw < 128; ++raw) {
+	for (board_int raw = 0; raw < 128; ++raw) {
 		if (square_valid(static_cast<Square>(raw)) &&
 		    pos.board[raw] == make_piece(attacker, PieceType::Pawn)) {
 			pawn = static_cast<Square>(raw);
@@ -133,7 +133,7 @@ struct MaterialCount {
 	}
 	const u8 promo_rank = (attacker == Color::White) ? 7u : 0u;
 	const Square promo = make_square(file, promo_rank);
-	const int advances = static_cast<int>((attacker == Color::White)
+	const board_int advances = static_cast<board_int>((attacker == Color::White)
 	                                          ? (promo_rank - square_rank(pawn))
 	                                          : (square_rank(pawn) - promo_rank));
 	const Square def_king = king_square(pos, defender);

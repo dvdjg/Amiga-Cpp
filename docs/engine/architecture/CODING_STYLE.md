@@ -70,6 +70,17 @@ aporta sus propias piezas de seguridad de C++23 sin depender de `std::span`:
   pueden recibir el puntero crudo, y solo el tiempo justo para programar registros.
 - Evitar "puntero + count" en firmas de API; si una funcion necesita memoria
   propia, pedir `Span` por valor y devolver `Span` (mutable solo si escribe).
+- **Nada de punteros crudos ni `char*` en la frontera**: el texto de solo lectura se pasa
+  como `StringView`; las tablas de tamano fijo, como `eng::util::Array`; los datos
+  empaquetados se leen/escriben con `ByteReader`/`ByteWriter` (`core/util/binary.hpp`),
+  nunca con `reinterpret_cast` (falla por alineacion en 68000) ni con aritmetica de
+  punteros. El sufijo `*` solo vive dentro del almacenamiento de estas vistas.
+- **Polimorfismo estatico**: cuando un backend o politica varia (fuente de bloques, reloj,
+  escalar, juego), se usa un tipo/`concept` en plantilla, no un puntero a funcion ni `void*`.
+- **Enteros de maquina**: para acumuladores e indices cuyo rango cabe en palabra, usar el
+  entero elegido en compilacion (`eng::intw`; p. ej. `eng::board::board_int`), no `s32`
+  por defecto. Reservar `s32`/`u64` para cuando el rango lo exige (puntuaciones de
+  ordenacion, nodos) y el coste es irrelevante.
 - **Buffers con dominio, escalares sin envolver**: los buffers/punteros internos usan tipos de
   dominio (`Bytes<Tag>`/`Words<Tag>`, `eng/core/typed.hpp`; p. ej. `PlaneBytes`, `Pattern`,
   `AudioSample`). **No** se envuelven escalares (ancho/alto/stride/planes): van como `u8`/`u16`/`u32`.

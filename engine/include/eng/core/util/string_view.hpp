@@ -19,6 +19,7 @@
 ///   draw("VIDAS");                       // literal
 ///   draw(eng::util::StringView(buf, 8)); // tramo
 
+#include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::util {
@@ -35,6 +36,10 @@ public:
 	/// Desde puntero y longitud (no recorre la memoria).
 	constexpr StringView(const char* text, usize size) noexcept : m_data(text), m_size(size) {}
 
+	/// Desde una vista contigua de caracteres (segura, sin puntero suelto).
+	constexpr explicit StringView(eng::Span<const char> text) noexcept
+	    : m_data(text.data()), m_size(text.size()) {}
+
 	[[nodiscard]] constexpr const char* data() const noexcept { return m_data; }
 	[[nodiscard]] constexpr usize size() const noexcept { return m_size; }
 	[[nodiscard]] constexpr bool empty() const noexcept { return m_size == 0u; }
@@ -46,6 +51,11 @@ public:
 
 	[[nodiscard]] constexpr char front() const noexcept { return m_data[0]; }
 	[[nodiscard]] constexpr char back() const noexcept { return m_data[m_size - 1u]; }
+
+	/// Vista contigua de los bytes (para APIs que piden `Span`).
+	[[nodiscard]] constexpr eng::Span<const char> span() const noexcept {
+		return eng::Span<const char> {m_data, m_size};
+	}
 
 	/// Subcadena a partir de `pos` (a lo sumo `count` caracteres). Si `pos` está
 	/// fuera, la vista queda vacía al final.

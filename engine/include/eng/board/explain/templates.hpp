@@ -14,47 +14,49 @@
 ///
 /// Verificación: HOST-149.
 
+#include <eng/core/util/string_view.hpp>
+
 namespace eng::board::chess {
 
-/// Par de frases (español, inglés).
+/// Par de frases (español, inglés) como vistas de texto de solo lectura.
 struct Phrase {
-	const char* es;
-	const char* en;
+	eng::util::StringView es;
+	eng::util::StringView en;
 };
 
 // --- Material ---
 inline constexpr Phrase kPhraseMaterial {
-    "Las {side} tienen ventaja material de {diff} peones.",
-    "{side} has a material advantage of {diff} pawns."};
+    eng::util::StringView {"Las {side} tienen ventaja material de {diff} peones."},
+    eng::util::StringView {"{side} has a material advantage of {diff} pawns."}};
 inline constexpr Phrase kPhraseMaterialEmphatic {
-    "¡Las {side} tienen una ventaja material decisiva de {diff} peones!",
-    "{side} has a decisive material advantage of {diff} pawns!"};
+    eng::util::StringView {"¡Las {side} tienen una ventaja material decisiva de {diff} peones!"},
+    eng::util::StringView {"{side} has a decisive material advantage of {diff} pawns!"}};
 
 // --- Desarrollo ---
 inline constexpr Phrase kPhraseQueenEarly {
-    "Las {side} han sacado la dama demasiado pronto y podrá ser hostigada.",
-    "{side} has developed the queen prematurely and it may be harassed."};
+    eng::util::StringView {"Las {side} han sacado la dama demasiado pronto y podrá ser hostigada."},
+    eng::util::StringView {"{side} has developed the queen prematurely and it may be harassed."}};
 inline constexpr Phrase kPhraseUndeveloped {
-    "Las {side} tienen un retraso en el desarrollo de las piezas menores.",
-    "{side} is behind in the development of the minor pieces."};
+    eng::util::StringView {"Las {side} tienen un retraso en el desarrollo de las piezas menores."},
+    eng::util::StringView {"{side} is behind in the development of the minor pieces."}};
 inline constexpr Phrase kPhraseKingInCenter {
-    "El rey de las {side} sigue en el centro y puede volverse vulnerable.",
-    "The {side_adj} king remains in the centre and may become vulnerable."};
+    eng::util::StringView {"El rey de las {side} sigue en el centro y puede volverse vulnerable."},
+    eng::util::StringView {"The {side_adj} king remains in the centre and may become vulnerable."}};
 
 // --- Táctica inmediata ---
 inline constexpr Phrase kPhraseInCheck {
-    "El rey de las {side} está en jaque.",
-    "The {side_adj} king is in check."};
+    eng::util::StringView {"El rey de las {side} está en jaque."},
+    eng::util::StringView {"The {side_adj} king is in check."}};
 inline constexpr Phrase kPhraseInCheckEmphatic {
-    "¡El rey de las {side} está en jaque!",
-    "The {side_adj} king is in check!"};
+    eng::util::StringView {"¡El rey de las {side} está en jaque!"},
+    eng::util::StringView {"The {side_adj} king is in check!"}};
 
 // --- Conectores entre frases ---
 inline constexpr Phrase kConnectorSecond {
-    "Además, ",
-    "Moreover, "};
+    eng::util::StringView {"Además, "},
+    eng::util::StringView {"Moreover, "}};
 inline constexpr Phrase kConnectorThird {
-    "Por otro lado, ",
-    "On the other hand, "};
+    eng::util::StringView {"Por otro lado, "},
+    eng::util::StringView {"On the other hand, "}};
 
 } // namespace eng::board::chess

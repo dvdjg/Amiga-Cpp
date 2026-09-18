@@ -11,25 +11,28 @@
 //   * TABLAS DE FINALES: entradas ordenadas por clave; devuelven valor y distancia
 //     a la conversion. Formato de 8 B: key u32 | value s16 | dtm u8 | reservado.
 //
-// AMBOS SE LEEN BYTE A BYTE (`read_book_entry`/`read_endgame_entry`), nunca con
-// `reinterpret_cast` a struct: en 68000 el acceso desalineado produce un bus error.
-// El test comprueba el round-trip struct -> bytes -> bloque -> struct.
+// El parseo/serializado usa `eng::util::ByteReader`/`ByteWriter` (little-endian y
+// sin `reinterpret_cast`): en 68000 el acceso desalineado daria bus error. El test
+// hace el round-trip struct -> bytes -> bloque -> struct y consulta por clave.
 //
 // Se ejecuta con:
 //   bash tools/run-host-tests.sh tests/host/147_board_knowledge
 
 #include <cstdio>
-#include <cstring>
 
 #include <eng/board/knowledge/book.hpp>
 #include <eng/board/knowledge/cache.hpp>
 #include <eng/board/knowledge/endgame_tables.hpp>
+#include <eng/core/util/binary.hpp>
 
 namespace {
 
 using namespace eng::board;
 using eng::u8;
 using eng::u32;
+using eng::util::ByteReader;
+using eng::util::ByteWriter;
+using eng::util::StringView;
 
 unsigned g_fail = 0;
 void check(bool ok, const char* what) {
@@ -61,9 +64,9 @@ void test_book_builder_and_probe() {
 void test_book_names() {
 	const char pool[] = "Ruy Lopez\0Sicilian\0Queen's Gambit\0";
 	const eng::Span<const char> names {pool, sizeof(pool)};
-	check(std::strcmp(book_name(names, 0u), "Ruy Lopez") == 0, "nombres: id 0");
-	check(std::strcmp(book_name(names, 1u), "Sicilian") == 0, "nombres: id 1");
-	check(std::strcmp(book_name(names, 2u), "Queen's Gambit") == 0, "nombres: id 2");
+	check(book_name(names, 0u) == StringView("Ruy Lopez"), "nombres: id 0");
+	check(book_name(names, 1u) == StringView("Sicilian"), "nombres: id 1");
+	check(book_name(names, 2u) == StringView("Queen's Gambit"), "nombres: id 2");
 }
 
 void test_book_roundtrip_through_block() {
@@ -73,20 +76,26 @@ void test_book_roundtrip_through_block() {
 	    {0x33333333u, make_move(2u, 18u), 9, 2u},
 	};
 	eng::u8 block_bytes[3u * 12u] = {};
-	for (u32 i = 0u; i < 3u; ++i) {
-		write_book_entry(block_bytes + i * 12u, original[i]);
+	{
+		ByteWriter writer {eng::Span<u8> {block_bytes, sizeof(block_bytes)}};
+		for (u32 i = 0u; i < 3u; ++i) {
+			check(write_book_entry(writer, original[i]), "round-trip: escribe la entrada");
+		}
 	}
 
-	RamBlockSource ram {eng::Span<const u8> {block_bytes, sizeof(block_bytes)}, sizeof(block_bytes)};
-	BlockCache<sizeof(block_bytes), 2u> cache {ram.source()};
+	const RamBlockSource ram {eng::Span<const u8> {block_bytes, sizeof(block_bytes)},
+	                          sizeof(block_bytes)};
+	BlockCache<RamBlockSource, sizeof(block_bytes), 2u> cache {ram};
 	const eng::Span<const u8> block = cache.get(0u);
 	check(block.size() == sizeof(block_bytes), "round-trip: bloque completo");
 
+	ByteReader reader {block};
 	bool same = true;
 	for (u32 i = 0u; i < 3u; ++i) {
-		const BookEntry entry = read_book_entry(block.data() + i * 12u);
-		if (entry.key != original[i].key || entry.move != original[i].move ||
-		    entry.score != original[i].score || entry.name_id != original[i].name_id) {
+		BookEntry entry;
+		if (!read_book_entry(reader, entry) || entry.key != original[i].key ||
+		    entry.move != original[i].move || entry.score != original[i].score ||
+		    entry.name_id != original[i].name_id) {
 			same = false;
 		}
 	}
@@ -108,9 +117,15 @@ void test_endgame_table() {
 
 	// Round-trip de una entrada por bytes.
 	eng::u8 bytes[8] = {};
-	write_endgame_entry(bytes, EndgameTableEntry {0xabcd0001u, -1234, 7u, 0u});
-	const EndgameTableEntry back = read_endgame_entry(bytes);
-	check(back.key == 0xabcd0001u && back.value == -1234 && back.dtm == 7u,
+	{
+		ByteWriter writer {eng::Span<u8> {bytes, sizeof(bytes)}};
+		check(write_endgame_entry(writer, EndgameTableEntry {0xabcd0001u, -1234, 7u, 0u}),
+		      "finales: escribe la entrada");
+	}
+	ByteReader reader {eng::Span<const u8> {bytes, sizeof(bytes)}};
+	EndgameTableEntry back;
+	check(read_endgame_entry(reader, back) && back.key == 0xabcd0001u && back.value == -1234 &&
+	          back.dtm == 7u,
 	      "finales: round-trip de entrada");
 }
 

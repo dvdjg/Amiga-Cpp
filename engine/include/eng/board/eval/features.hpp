@@ -77,9 +77,9 @@ struct DevelopmentFeatures {
 	    {make_square(4u, 7u), make_piece(Color::Black, PieceType::King)},
 	};
 
-	for (int side = 0; side < 2; ++side) {
+	for (board_int side = 0; side < 2; ++side) {
 		const HomeSquare* home = (side == 0) ? white_home : black_home;
-		for (int i = 0; i < 8; ++i) {
+		for (board_int i = 0; i < 8; ++i) {
 			if (pos.board[home[i].square] != home[i].piece) {
 				continue;
 			}
@@ -95,14 +95,14 @@ struct DevelopmentFeatures {
 
 	const u8 castle_king[2] = {kCastleWhiteKing, kCastleBlackKing};
 	const u8 castle_queen[2] = {kCastleWhiteQueen, kCastleBlackQueen};
-	for (int side = 0; side < 2; ++side) {
+	for (board_int side = 0; side < 2; ++side) {
 		f.can_castle_king[side] = (pos.castling & castle_king[side]) != 0u;
 		f.can_castle_queen[side] = (pos.castling & castle_queen[side]) != 0u;
 	}
 
 	// Fase: número total de piezas no peón y no rey.
-	int non_pawns = 0;
-	for (int raw = 0; raw < 128; ++raw) {
+	board_int non_pawns = 0;
+	for (board_int raw = 0; raw < 128; ++raw) {
 		if (!square_valid(static_cast<Square>(raw))) {
 			continue;
 		}
@@ -127,10 +127,10 @@ struct DevelopmentFeatures {
 
 	// Dama prematura: fuera de d1/d8, antes de la jugada 10 y con menores sin salir.
 	const Square queen_home[2] = {make_square(3u, 0u), make_square(3u, 7u)};
-	for (int side = 0; side < 2; ++side) {
+	for (board_int side = 0; side < 2; ++side) {
 		const Piece queen = make_piece(static_cast<Color>(side), PieceType::Queen);
 		bool queen_on_home = false;
-		for (int raw = 0; raw < 128; ++raw) {
+		for (board_int raw = 0; raw < 128; ++raw) {
 			if (square_valid(static_cast<Square>(raw)) && pos.board[raw] == queen &&
 			    static_cast<Square>(raw) == queen_home[side]) {
 				queen_on_home = true;
@@ -143,7 +143,7 @@ struct DevelopmentFeatures {
 
 	// Rey en el centro: sigue en la columna e y no se ha enrocado en medio juego.
 	const Square king_home[2] = {make_square(4u, 0u), make_square(4u, 7u)};
-	for (int side = 0; side < 2; ++side) {
+	for (board_int side = 0; side < 2; ++side) {
 		const Square king = king_square(pos, static_cast<Color>(side));
 		f.king_in_center[side] =
 		    (king == king_home[side]) && (pos.fullmove >= 10u) &&
@@ -151,7 +151,7 @@ struct DevelopmentFeatures {
 	}
 
 	// Torres en columnas abiertas (sin peones propios ni rivales).
-	for (int raw = 0; raw < 128; ++raw) {
+	for (board_int raw = 0; raw < 128; ++raw) {
 		if (!square_valid(static_cast<Square>(raw))) {
 			continue;
 		}
@@ -159,7 +159,7 @@ struct DevelopmentFeatures {
 		if (piece == kEmptyPiece || piece_type(piece) != PieceType::Rook) {
 			continue;
 		}
-		const int side = static_cast<int>(piece_color(piece));
+		const board_int side = static_cast<board_int>(piece_color(piece));
 		if (!file_has_pawn(pos, square_file(static_cast<Square>(raw)))) {
 			++f.rooks_on_open_files[side];
 		}

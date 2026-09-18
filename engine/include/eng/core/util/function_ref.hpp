@@ -40,6 +40,10 @@ public:
 		return m_fn(m_obj, static_cast<Args>(args)...);
 	}
 
+	/// ¿Enlaza algún callable?
+	[[nodiscard]] constexpr bool valid() const noexcept { return m_fn != nullptr; }
+	[[nodiscard]] constexpr explicit operator bool() const noexcept { return valid(); }
+
 private:
 	/// Puente por tipo: un objeto-functor se invoca por su dirección; una función
 	/// libre guarda la dirección de la función (su "objeto" es la propia función).
