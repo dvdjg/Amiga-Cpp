@@ -21,6 +21,7 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
 | `docs/engine/architecture/DISPLAY_COMPOSITION.md` | **(nuevo) contrato** | Buffers de display (3 granularidades, `MultiBuffered<Driver,N>`) y orquestación de copper por escena (`CopperPlan`) |
 | `docs/guides/roadmap/BITACORA_SCROLL_TILES.md` | bitácora | Estado y lecciones del scroll por tiles (fix de `BPLCON1` de la 101, multi-modo, optimizaciones O(n²)→O(n), cifras de fps) |
 | `docs/guides/roadmap/ROADMAP_GAME_AI.md` | **vigente (G1–G4 entregados)** | IA de juego: fases G1–G5 y catálogo de técnicas; estado de `eng::ai` en `docs/engine/architecture/GAME_AI_LIBRARY.md` |
+| `docs/guides/roadmap/ROADMAP_BOARD_GAMES.md` | **vigente (B0–B8 planificados)** | Motores de tablero (`eng::board`): ajedrez y Go 9×9 con footprint 20 kB–1 MB, conocimiento en disquete y explicación NLG ES/EN; diseño en `docs/engine/architecture/BOARD_GAME_AI.md` |
 
 ## Estado real del engine y las demos (2026-09)
 

@@ -36,6 +36,8 @@ en C del repo hermano (`Cursor-Amiga-C`) está en [../c-engine/](../c-engine/REA
 | [GAME_AUDIO.md](GAME_AUDIO.md) | Capa de audio de juego (`GameAudio`/`SampleBank`): política de voces y ducking, y guía para generar música y sonidos desde herramientas externas. |
 | [C2P_BLITTER.md](C2P_BLITTER.md) | C2P (chunky→planar) por Blitter: las 13 fases del C2P 4bpp de `fire-rgb`, minterms (`0xE4`/`0xD8`), máscaras `BLTCDAT`, síncrono vs interrupción de blit y API del engine. |
 | [BACKGROUND_TASKS.md](BACKGROUND_TASKS.md) | Tareas de fondo cooperativas (`eng::task::BackgroundQueue`): progreso/rendimiento baratos, adaptación de carga por `vpos`, prioridad al bucle principal y drenado en el hueco de VBlank. |
+| [GAME_AI_LIBRARY.md](GAME_AI_LIBRARY.md) | IA clásica de videojuego (`eng::ai`): planificación GOAP, decisión, navegación, steering y percepción. |
+| [BOARD_GAME_AI.md](BOARD_GAME_AI.md) | **Motores de tablero** (`eng::board`): ajedrez y Go 9×9 con footprint de 20 kB–1 MB, búsqueda adversaria, conocimiento en disquete y explicación NLG ES/EN. |
 
 ## Puntos de entrada del código
 
