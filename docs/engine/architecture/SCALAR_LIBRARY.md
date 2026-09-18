@@ -168,6 +168,7 @@ El detalle del escalar de 16 bits está en [MINIFLOAT16.md](MINIFLOAT16.md); el 
 | `core/spline.hpp` | `hermite`/`catmull_rom` y Bézier `bezier2`/`bezier3` (escalar y `Vec<N,S>`) |
 | `core/scalar_math.hpp` | puntos de extensión `scalar_sqrt`/`scalar_sin`/`scalar_cos`/`scalar_sincos`/`scalar_tan`/`scalar_asin`/`scalar_acos`/`scalar_atan2`/`scalar_exp2`/`scalar_log2`/`scalar_log`/`scalar_exp`/`scalar_pow` (ADL; `float`/`double` con series `constexpr`) y `scalar_const<S>` |
 | `core/numeric_traits.hpp` | rasgos numéricos y guards de compilación |
+| `core/scalar.hpp` | tipos generales seleccionables en compilación (`eng::intw`/`real`/`coord`, `ENG_SCALAR_RETRO16`/`RETRO32`/`NATIVE`) |
 
 ## 6. Verificación
 
@@ -246,3 +247,10 @@ multiplicaciones pasan por `mul16` pensado para `muls.w`. El plan para añadir `
 (con tablas y series), un tipo general seleccionable en compilación (`s16` en 68000, `s32`
 en 68020, `int`/`float` en host) y la política `bool` vs byte está en
 [REFACTOR_SCALAR_GENERICO.md](../../guides/roadmap/REFACTOR_SCALAR_GENERICO.md).
+
+**Estado**: F0 (`s64/u64`, `core/scalar.hpp` con `eng::intw`/`real`/`coord`, regla `bool` vs
+byte en `CODING_STYLE`) y F1 (`div_norm` y `sqrt` de `Fixed<s32,E>`, en host/32 bits; vetados
+en m68k por libcalls) entregados y respaldados por HOST-135 (matriz de escalares:
+`double`/`float`/`MiniFloat16`/`Fixed<s16,12>`/`Fixed<s32,12>`/`Fixed<s32,24>`). La extensión
+de la tabla §7 a la columna de 32 bits y el `fixed_math` genérico por `Repr` (F2) siguen
+pendientes.

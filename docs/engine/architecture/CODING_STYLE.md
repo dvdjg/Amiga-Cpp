@@ -106,6 +106,11 @@ aporta sus propias piezas de seguridad de C++23 sin depender de `std::span`:
   llamador pase el objeto; no se escribe `PaletteWords{ arr }` a mano.
 - **Frontera `unsafe`**: `from_raw()`/`raw()` son explícitos y solo los usa la capa de
   backend/`BlitJob`; el resto del engine consume tipos de dominio.
+- **`bool` para booleanos, bytes para layout**: usa `bool` en flags de estado semánticos
+  (`valid`, `visible`, `enabled`); reserva `u8`/`s8` para **bytes empaquetados, IDs/índices
+  pequeños, máscaras de bits y structs de ABI/DMA/`incbin`** (el `objdat` de lib3d, campos
+  de registro). Nunca uses `bool` en un struct que cruza a hardware o a una herramienta
+  externa. Detalle y plan: `docs/guides/roadmap/REFACTOR_SCALAR_GENERICO.md`.
 - Referencia de rendimiento para 68000: `docs/guides/optimization/OPTIMIZACION_GPP_68000.md`
   (documento vivo: [✓] verificado / [✗] corregido / [P] pendiente contra el toolchain,
   con bitácora de descubrimientos en su §8 y sonda reproducible en

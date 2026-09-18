@@ -356,6 +356,49 @@ struct scalar_sqrt<Fixed<s16, E, P>> {
 	}
 };
 
+#if !defined(__m68k__)
+/// `isqrt` de 64 bits (constexpr, bit a bit). Solo lo usa el `sqrt` de 32 bits en host.
+[[nodiscard]] constexpr eng::u64 isqrt64(eng::u64 n) noexcept {
+	eng::u64 res = 0u;
+	eng::u64 bit = static_cast<eng::u64>(1) << 62u;
+	while (bit > n) {
+		bit >>= 2u;
+	}
+	while (bit != 0u) {
+		if (n >= res + bit) {
+			n -= res + bit;
+			res = (res >> 1u) + bit;
+		} else {
+			res >>= 1u;
+		}
+		bit >>= 2u;
+	}
+	return res;
+}
+#endif
+
+/// `sqrt` de un `Fixed<s32,E>` (host/32 bits): `raw << E` puede pasar de 32 bits, de ahí
+/// `isqrt64`. **No disponible en m68k** (la aritmética de 64 bits son libcalls).
+template <int E, typename P>
+struct scalar_sqrt<Fixed<s32, E, P>> {
+	using S = Fixed<s32, E, P>;
+	[[nodiscard]] static constexpr S op(S x) {
+#if defined(__m68k__)
+		(void)x;
+		static_assert(sizeof(S) == 0u,
+			      "eng::math: sqrt de Fixed<s32,E> usaria libgcc de 64 bits en m68k; usa "
+			      "Fixed<s16,E> o compila para host/32 bits nativo");
+		return S {0};
+#else
+		if (x.v <= 0) {
+			return S {0};
+		}
+		const eng::u64 scaled = static_cast<eng::u64>(x.v) << E;
+		return S {static_cast<eng::s32>(isqrt64(scaled))};
+#endif
+	}
+};
+
 /// `2^x` de un `Fixed<s16,E>`.
 template <int E, typename P>
 struct scalar_exp2<Fixed<s16, E, P>> {

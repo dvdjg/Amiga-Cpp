@@ -252,6 +252,40 @@ struct scalar_div<Fixed<s16, E, P>> {
 	}
 };
 
+/// División de `Fixed<s32,E>` (32 bits): el intermedio `a.v·2^E` no cabe en 32 bits, así
+/// que usa `s64`. **No disponible en m68k** (la aritmética de 64 bits son libcalls de
+/// libgcc): allí usa `Fixed<s16,E>`. En host/32 bits nativo es una división de máquina.
+template <int E, typename P>
+struct scalar_div<Fixed<s32, E, P>> {
+	using S = Fixed<s32, E, P>;
+	[[nodiscard]] static constexpr S op(S a, S b) {
+#if defined(__m68k__)
+		(void)a;
+		(void)b;
+		static_assert(sizeof(S) == 0u,
+			      "eng::math::div_norm de Fixed<s32,E> usaria libgcc de 64 bits en "
+			      "m68k; usa Fixed<s16,E> o compila para host/32 bits nativo");
+		return S {0};
+#else
+		constexpr eng::s64 mx = 2147483647LL;
+		constexpr eng::s64 mn = -2147483648LL;
+		if (b.v == 0) {
+			return S {static_cast<eng::s32>(a.v < 0 ? mn : mx)};
+		}
+		const eng::s64 num =
+			static_cast<eng::s64>(a.v) * (static_cast<eng::s64>(1) << E);
+		const eng::s64 q = num / b.v;
+		if (q > mx) {
+			return S {static_cast<eng::s32>(mx)};
+		}
+		if (q < mn) {
+			return S {static_cast<eng::s32>(mn)};
+		}
+		return S {static_cast<eng::s32>(q)};
+#endif
+	}
+};
+
 // ============================================================================
 //  Vector
 // ============================================================================
