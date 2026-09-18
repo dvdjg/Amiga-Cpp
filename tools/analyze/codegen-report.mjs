@@ -377,6 +377,12 @@ extern "C" s16 c_fx_rotate2_twice(s16 angle, s16 x, s16 y) {
 	const Vec<2, q12> r = rotate2(v, c, s);
 	return static_cast<s16>(r.v[0].v + r.v[1].v);
 }
+extern "C" s16 c_fx_aim(s16 dx, s16 dy) {
+	const Vec<2, q12> d {q12 {dx}, q12 {dy}};
+	const q12 ang = angle_of(d);          // atan2 fixed (tabla de atan)
+	const Vec<2, q12> dir = from_angle(ang); // sincos fixed (tabla de seno)
+	return static_cast<s16>(ang.v + dir.v[0].v + dir.v[1].v);
+}
 `;
 
 fs.mkdirSync(`${ROOT}/out/tmp`, { recursive: true });

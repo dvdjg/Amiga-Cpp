@@ -48,6 +48,7 @@ const ROWS = [
   { fn: 'exp / log / pow',            flt: '—', mf: 'si (minifloat_math)', fx: 'si (fixed_math)', test: 'HOST-104' },
   { fn: 'tan / asin / acos / atan2',  flt: '—', mf: 'si', fx: 'si (fixed_math)', test: 'HOST-057/104' },
   { fn: 'sincos (una pasada)',       flt: '—', mf: 'si (minifloat_math)', fx: 'si (fixed_math)', test: 'HOST-057/104' },
+  { fn: 'angle_of / from_angle / angle_to (apuntado)', flt: '—', mf: 'si', fx: 'si (fixed_math)', test: 'HOST-104' },
   { fn: 'transform (MF × fix)',      flt: '—', mf: 'ratio MF (|m| <= 8)', fx: 'coordenada', test: 'HOST-058' },
   { fn: 'stats::mean / variance / stddev', flt: 'si', mf: 'si', fx: 'si (sum/mean con acumulador s32; stddev con fixed_math)', test: 'HOST-093/104' },
   { fn: 'dsp::Adsr / OnePole / DelayLine / osc_*', flt: 'si', mf: 'si', fx: 'si (osc_sine con fixed_math)', test: 'HOST-102/104' },

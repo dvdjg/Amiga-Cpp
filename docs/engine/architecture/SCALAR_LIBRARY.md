@@ -97,9 +97,12 @@ escriben solo con ellos, y añadir un escalar = especializarlos.
 | `numeric_traits<S>` | límites y flags (solo compilación) | — | rango `±(2^(bits-1)−1)·2^-E` |
 | `mul_norm(a,b)` | producto normalizado al escalar | `norm_from(a*b)` (identidad en float/MF) | `(a*b).rescale<E>().cast<R>()` |
 | `scalar_div<S>::op` / `div_norm(a,b)` | división **explícita** | `a/b` | `(a.v<<E)/b.v` con `divs.w`, saturado |
-| `scalar_sqrt<S>::op` | `sqrt` para `length`/`normalize` | ADL `sqrt(S)` | no hay (esas funciones no compilan) |
-| `scalar_sin/cos/exp2<S>::op` | trig./exp2 para los easings `_sine`/`_expo` | ADL (`MiniFloat16`) | no hay (Fixed no los define) |
+| `scalar_sqrt<S>::op` | `sqrt` para `length`/`normalize` | ADL `sqrt(S)` | con `fixed_math.hpp` (`isqrt`); sin él, no compila |
+| `scalar_sin/cos/sincos/tan/asin/acos/atan2<S>::op` | trigonometría (easings, rotación, apuntado) | ADL (`MiniFloat16`) | con `fixed_math.hpp` (tablas); sin él, no compila |
+| `scalar_exp2/log2/exp/log/pow<S>::op` | exponencial/log (`smooth_damp`, `pow`) | ADL (`MiniFloat16`) | con `fixed_math.hpp` (tablas); sin él, no compila |
 | `scalar_const<S>::from(double)` | constante fraccionaria de compilación (p. ej. `1.70158` del `_back`) | `static_cast<S>` | cuantiza a `E` bits fraccionarios |
+
+La trigonometría/exponencial de `Fixed` es **opt-in**: vive en `eng/core/fixed_math.hpp` (no la arrastra `scalar_math.hpp`) y se incluye solo donde se usa, con el tamaño de tabla elegible en compilación.
 
 `mul_norm`/`div_norm` son la bisagra: evitan que cada algoritmo tenga que saber si su
 escalar cambia de exponente al multiplicar (fixed) o no (float/MF), y permiten que
@@ -134,6 +137,7 @@ demás puntos solo si los algoritmos que se vayan a usar los necesitan.
 | `ease_*_back`/`bezier2`/`bezier3` | `Fixed` 4.12 | **funcionan**: constantes vía `scalar_const`; los productos intermedios caben en ±8 |
 | `dot` fusionado (2-4 pares) | `Fixed` | el acumulador **satura** (3-4 productos de 4.12 superan `s32`) y el estrechado final **satura siempre**, sea cual sea la política de los operandos |
 | `normalize`/`length`/`reflect`/`project` | `Fixed` | **no compilan** (sin `sqrt`), por diseño |
+| `angle_of`/`from_angle`/`angle_to`/`rotate2(v,ángulo)` | `Fixed`/`MiniFloat16` | **funcionan** con la trig del escalar (`atan2`+`sincos`): `angle_of` = ángulo de un vector, `from_angle` = vector unitario, `angle_to` = apuntado hacia un objetivo; `float`/`double` no tienen `atan2` en el núcleo (`scalar_atan2` ADL) |
 | `value_noise`/`fbm` | `Fixed` | **no compilan**: necesitan división (sin `operator/`) |
 
 El detalle del escalar de 16 bits está en [MINIFLOAT16.md](MINIFLOAT16.md); el modelo del
@@ -146,10 +150,10 @@ El detalle del escalar de 16 bits está en [MINIFLOAT16.md](MINIFLOAT16.md); el 
 | `core/linalg.hpp` | `Vec`/`Mat`/`Affine`, `dot`, `transform`, `scalar_traits`, `mul_norm`, `scalar_div`/`div_norm` |
 | `core/interp.hpp` | `clamp`/`saturate`/`lerp`/`inv_lerp`/`remap`/`step`/`smoothstep`/`smootherstep`; `smooth_damp` (suavizado exponencial) y `repeat`/`pingpong` (fase); easings `_quad`/`_cubic`/`_back`/`_sine`/`_expo` |
 | `core/scalar_ops.hpp` | `min`/`max`/`abs`/`sign`/`move_towards`/`deadzone` (comparación y negación, sin división) |
-| `core/geometry.hpp` | `length(_sq)`/`distance(_sq)`/`normalize`/`vscale`/`vlerp`/`cross2`/`perp`/`rotate2`/`project`/`reject`/`reflect` |
+| `core/geometry.hpp` | `length(_sq)`/`distance(_sq)`/`normalize`/`vscale`/`vlerp`/`cross2`/`perp`/`rotate2` (por `(c,s)` o por **ángulo**)/`angle_of`/`from_angle`/`angle_to`/`project`/`reject`/`reflect` |
 | `core/noise.hpp` | `value_noise1/2/3` y `fbm1/2/3` (octavas, `period>0` tileable); hash splitmix32 (2 `__mulsi3` por celda) |
 | `core/spline.hpp` | `hermite`/`catmull_rom` y Bézier `bezier2`/`bezier3` (escalar y `Vec<N,S>`) |
-| `core/scalar_math.hpp` | puntos de extensión `scalar_sqrt`/`scalar_sin`/`scalar_cos`/`scalar_exp2` (ADL; `float`/`double` con series `constexpr`) y `scalar_const<S>` |
+| `core/scalar_math.hpp` | puntos de extensión `scalar_sqrt`/`scalar_sin`/`scalar_cos`/`scalar_sincos`/`scalar_tan`/`scalar_asin`/`scalar_acos`/`scalar_atan2`/`scalar_exp2`/`scalar_log2`/`scalar_log`/`scalar_exp`/`scalar_pow` (ADL; `float`/`double` con series `constexpr`) y `scalar_const<S>` |
 | `core/numeric_traits.hpp` | rasgos numéricos y guards de compilación |
 
 ## 6. Verificación
@@ -214,6 +218,7 @@ tests host) falla si la doc se desincroniza del contrato, y `--write` la regener
 | exp / log / pow | — | si (minifloat_math) | si (fixed_math) | HOST-104 |
 | tan / asin / acos / atan2 | — | si | si (fixed_math) | HOST-057/104 |
 | sincos (una pasada) | — | si (minifloat_math) | si (fixed_math) | HOST-057/104 |
+| angle_of / from_angle / angle_to (apuntado) | — | si | si (fixed_math) | HOST-104 |
 | transform (MF × fix) | — | ratio MF (|m| <= 8) | coordenada | HOST-058 |
 | stats::mean / variance / stddev | si | si | si (sum/mean con acumulador s32; stddev con fixed_math) | HOST-093/104 |
 | dsp::Adsr / OnePole / DelayLine / osc_* | si | si | si (osc_sine con fixed_math) | HOST-102/104 |

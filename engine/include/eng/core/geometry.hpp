@@ -116,6 +116,30 @@ template <typename S>
 	return rotate2(v, c, s);
 }
 
+/// Ángulo (radianes) de un vector 2D: `atan2(v.y, v.x)`, en `(-π, π]`. Lo aporta el
+/// escalar vía `scalar_atan2` (`MiniFloat16` de serie; `Fixed` con `fixed_math.hpp`).
+template <typename S>
+[[nodiscard]] constexpr S angle_of(const Vec<2, S>& v) {
+	return scalar_atan2<S>::op(v.v[1], v.v[0]);
+}
+
+/// Vector **unitario** en la dirección `angle` (radianes): `(cos, sin)`, con
+/// `scalar_sincos<S>` en una sola pasada.
+template <typename S>
+[[nodiscard]] constexpr Vec<2, S> from_angle(S angle) {
+	S s {};
+	S c {};
+	scalar_sincos<S>::op(angle, s, c);
+	return {{c, s}};
+}
+
+/// Ángulo (radianes) de `from` a `to`: `atan2(to.y − from.y, to.x − from.x)`. La base del
+/// apuntado de IA (torreta/enemigo hacia el objetivo).
+template <typename S>
+[[nodiscard]] constexpr S angle_to(const Vec<2, S>& from, const Vec<2, S>& to) {
+	return angle_of(to - from);
+}
+
 /// Proyección de `v` sobre `onto`: `(v·onto / onto·onto)·onto`.
 template <int N, typename S>
 [[nodiscard]] constexpr Vec<N, S> project(const Vec<N, S>& v, const Vec<N, S>& onto) {

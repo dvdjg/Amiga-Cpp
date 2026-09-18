@@ -146,6 +146,18 @@ bool fixed_math_selftest() {
 	if (!(rv.v[0].v >= -100 && rv.v[0].v <= 100 && rv.v[1].v >= 4000 && rv.v[1].v <= 4100)) {
 		return false;
 	}
+	// apuntado: angle_of/from_angle (atan2 + sincos fixed) para un vector hacia arriba.
+	volatile eng::s16 q_aim_dy = 4096;
+	const q12 aim_ang = eng::math::angle_of(
+		eng::math::Vec<2, q12> {q12 {0}, q12 {q_aim_dy}}); // π/2
+	if (!(aim_ang.v >= 6300 && aim_ang.v <= 6550)) {
+		return false;
+	}
+	const eng::math::Vec<2, q12> aim_dir = eng::math::from_angle(aim_ang); // ≈ (0,1)
+	if (!(aim_dir.v[0].v >= -100 && aim_dir.v[0].v <= 100 && aim_dir.v[1].v >= 4000 &&
+	      aim_dir.v[1].v <= 4100)) {
+		return false;
+	}
 	return true;
 }
 

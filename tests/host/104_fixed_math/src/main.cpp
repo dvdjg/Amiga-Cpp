@@ -229,6 +229,22 @@ int main() {
 		      "rotate2<q12>(ángulo pi/2) = (0,1)");
 	}
 
+	// --- apuntado: angle_of / from_angle / angle_to -------------------------
+	{
+		const em::Vec<2, er::q12> right {q(1.0f), q(0.0f)};
+		const em::Vec<2, er::q12> up {q(0.0f), q(1.0f)};
+		check(std::fabs(em::to_double(em::angle_of(right))) <= 2.0e-2, "angle_of(1,0) = 0");
+		check(std::fabs(em::to_double(em::angle_of(up)) - 1.5707963) <= 2.5e-2,
+		      "angle_of(0,1) = pi/2");
+		const em::Vec<2, er::q12> origin {q(0.0f), q(0.0f)};
+		check(std::fabs(em::to_double(em::angle_to(origin, up)) - 1.5707963) <= 2.5e-2,
+		      "angle_to((0,0),(0,1)) = pi/2");
+		const em::Vec<2, er::q12> h = em::from_angle(q(1.5707963f)); // pi/2 -> (0,1)
+		check(std::fabs(em::to_double(h.v[0])) <= 3.0e-2 &&
+			      std::fabs(em::to_double(h.v[1]) - 1.0) <= 3.0e-2,
+		      "from_angle(pi/2) = (0,1)");
+	}
+
 	// --- wrap_angle / angle_diff de Fixed -----------------------------------
 	{
 		const float two_pi = 2.0f * kPi;
