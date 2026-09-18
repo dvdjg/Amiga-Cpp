@@ -118,6 +118,7 @@ struct InputAggregatorDemo {
 	}
 
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		// 1) Entrada: el backend rellena el agregador (joystick + fuego) y el
 		//    teclado sintético se sondea aparte; el ratón se lee por delta.
 		eng::input::InputAggregator agg;

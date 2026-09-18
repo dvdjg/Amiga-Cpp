@@ -120,6 +120,7 @@ struct AudioMixerDemo {
 	}
 
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		eng::input::InputAggregator agg;
 		eng::amiga::poll_input(agg);
 
