@@ -98,6 +98,15 @@ if [ "$#" -eq 0 ]; then
 			exit 1
 		fi
 	fi
+	# Numeracion de los tests host (sin duplicados y catalogo sincronizado).
+	TEST_NUMBERING="$ROOT/tools/check/test-numbering.mjs"
+	if [ -f "$TEST_NUMBERING" ] && command -v node >/dev/null 2>&1; then
+		echo "== test-numbering =="
+		if ! node "$TEST_NUMBERING"; then
+			echo "test-numbering fallo: numeros de test duplicados o catalogo desincronizado." >&2
+			exit 1
+		fi
+	fi
 fi
 
 # Selección de tests.

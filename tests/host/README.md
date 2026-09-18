@@ -27,10 +27,11 @@ dependen de hardware y no necesitan WinUAE.
 - Cada test declara al principio las funciones/buenas prácticas que ejercita.
 - Falla con mensaje claro si una aserción no se cumple; el script de regresión
   puede invocar estos binarios y considerar fallo `exit != 0`.
+- **Numeración única y no reutilizable.** El prefijo `NNN` de `tests/host/NNN_<nombre>/` es único: un test nuevo toma el **siguiente número libre** (máximo + 1). Si se descubre una colisión, se renumera el test **más nuevo** (el que aún no estaba en el catálogo ni referenciado) al siguiente libre; nunca se cambia el número de un test ya catalogado. Tras renumerar hay que actualizar el título y las rutas dentro del test, sus referencias (p. ej. en `engine/`) y este catálogo. Lo valida `tools/check/test-numbering.mjs` (corre en `tools/run-host-tests.sh`): falla si hay prefijos duplicados o si el catálogo no cuadra 1:1 con los directorios.
 
 ## Cómo añadir un test
 
-1. Elige el siguiente número en `tests/host/NNN_<nombre>/`.
+1. Elige el **siguiente número libre** en `tests/host/NNN_<nombre>/` (máximo + 1).
 2. Escribe `src/main.cpp` que `#include <eng/core/...>` y aserta los valores.
 3. Añade el `README.md`.
 4. Regístralo en el `README.md` de esta carpeta (catálogo) y, si la API que
