@@ -23,10 +23,14 @@ test host, cruce `m68k` y, cuando corresponde, un juego en `games/`.
 
 ## 2. Estado de partida
 
-- **Implementado**: núcleo de `eng::board` (`core/`: tipos 0x88, Zobrist, `GameRules`, budget)
-  y reglas de ajedrez (`rules/chess/`: tablero, `make`/`unmake`, generación legal, FEN y fin de
-  partida). Verificado por HOST-138/139/140; diseño en
-  [BOARD_GAME_AI.md](../../engine/architecture/BOARD_GAME_AI.md).
+- **Implementado**: núcleo de `eng::board` (`core/`: tipos 0x88, Zobrist, `GameRules`, budget),
+  reglas de ajedrez (`rules/chess/`: tablero, `make`/`unmake`, generación legal, FEN, SAN,
+  repetición y finales), búsqueda adversaria (`search/`: negamax/αβ, ID, quiescence, TT,
+  null-move, PV/Multi-PV) y evaluación (`eval/`). Verificado por HOST-138…145 y HOST-148.
+- **Implementado (conocimiento)**: `storage/BlockSource` (tres estados, fuente RAM) y
+  `knowledge/` (caché LRU, libro de aperturas y tablas de finales), con round-trip por bloque;
+  HOST-146/147. Los **backends de disco/PC y los packers** quedan pendientes.
+- **Implementado (NLG)**: explicador por plantillas ES/EN (`explain/`), HOST-149.
 - **Implementado (transversal)**: primitivas de concurrencia abstractas `eng::parallel`
   (`hardware_threads`, `Thread`, `Mutex`, `Atomic`, `ConditionVariable`, `StopSource`,
   `for_each_index`), no-ops en m68k y hilos reales en el host; HOST-137. Diseño en
@@ -112,11 +116,12 @@ referencia resueltos (HOST-140/141/142).
 | B2.2 | `search/search.hpp` (quiescence) | Quiescence de capturas y jaques (SEE pendiente de medir) | **HOST-143** (hecho) |
 | B2.3 | `rules/chess/ordering.hpp` | MVV-LVA + killer moves + history heuristic | **HOST-144** (hecho) |
 | B2.4 | `search/tt.hpp` | Transposition table (entrada de 12 B), reemplazo directo | **HOST-144** (hecho) |
-| B2.5 | `search/refutation.hpp` | *Refutation table* triangular (sustituye a la TT en `P20`) | Pendiente |
-| B2.6 | `search/pruning.hpp` | Null-move (≥ `P256`) y podas opcionales tras medir | Pendiente |
+| B2.5 | `rules/chess/ordering.hpp` | El rol de *refutation* en perfiles bajos lo cubren killers + history (sin cabecera aparte) | **HOST-144** (hecho) |
+| B2.6 | `search/pruning.hpp` | Null-move (≥ `P256`), configurable y desactivado en final/jaque | **HOST-148** (hecho) |
 
 Cierre: mates en N y posiciones tácticas resueltos (hecho: HOST-143); la TT reduce nodos sin
-corromper (hecho: HOST-144). Pendiente: refutation table y null-move.
+corromper (hecho: HOST-144); null-move operativo (hecho: HOST-148). Aspiration y SEE quedan como
+mejoras a medir.
 
 ### B3 — Evaluación de ajedrez y rasgos
 
@@ -133,41 +138,42 @@ explicación (hecho).
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| B4.1 | `storage/block_source.hpp` | `BlockSource` con el contrato `Ready`/`Empty`/`Pending`; fuente RAM | **HOST-146** |
-| B4.2 | `knowledge/cache.hpp` | Caché LRU de bloques sobre `eng::util::lru_cache` | **HOST-146** |
-| B4.3 | `knowledge/book.hpp` | Libro de aperturas: índice por prefijo Zobrist → bloque; devuelve jugada + nombre | **HOST-147** |
-| B4.4 | `knowledge/endgame_tables.hpp` | Tablas de finales en disco (nivel 3); sonda bajo demanda | **HOST-147** |
-| B4.5 | `tools/board/*-pack.ts` | Packers host texto → bloques + índice (libro, finales, patrones) con round-trip | Tools + informe |
-| B4.6 | Fuente disco | Adaptador de `BlockSource` al trackloader/HD del engine | Prueba de pista contra ADF |
+| B4.1 | `storage/block_source.hpp` | `BlockSource` con el contrato `Ready`/`Empty`/`Pending`; fuente RAM | **HOST-146** (hecho) |
+| B4.2 | `knowledge/cache.hpp` | Caché LRU de bloques sobre `eng::util::lru_cache` | **HOST-146** (hecho) |
+| B4.3 | `knowledge/book.hpp` | Libro de aperturas: índice por clave Zobrist → jugada + nombre | **HOST-147** (hecho) |
+| B4.4 | `knowledge/endgame_tables.hpp` | Tablas de finales (nivel 3); sonda bajo demanda | **HOST-147** (hecho) |
+| B4.5 | `tools/board/*-pack.ts` | Packers host texto → bloques + índice (libro, finales, patrones) con round-trip | Pendiente |
+| B4.6 | Fuente disco / FS PC | Adaptadores de `BlockSource` (trackloader Amiga y fichero del PC) | Pendiente (E/S aún sin implementar) |
 
-Cierre: con el libro en disquete la RAM no crece; round-trip texto→bloque→lectura al 100 %; la
-caché acota el número de *seeks*.
+Cierre: contenedor de conocimiento y fuente RAM hechos (round-trip struct→bloque→struct sin
+alineación). Los backends de disquete/PC y los packers quedan pendientes; se enchufan al mismo
+`BlockSource` sin reabrir el motor.
 
 ### B5 — Tiempo, pondering y Multi-PV
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| B5.1 | `search/time.hpp` | `TimeManager` por nodos/reloj (VBlank/CIA); nunca *busy-wait* | **HOST-148** |
-| B5.2 | `search/ponder.hpp` | Búsqueda continua cooperativa (rodajas en el bucle) con TT/killers vivos entre turnos | **HOST-148** |
-| B5.3 | `search/ponder.hpp` (MultiPV) | N mejores líneas con score y PV; separación táctica/estratégica | **HOST-148** |
-| B5.4 | Reuso de árbol | Reaprovechar TT/PV si el rival juega la jugada asumida; abortar y reanudar si no | **HOST-148** |
-| B5.5 | Búsqueda paralela | *Root split* con `eng::parallel` si `hardware_threads() > 1`; sin alterar el resultado | **HOST-148** |
+| B5.1 | `search/time.hpp` | `TimeManager` por nodos/reloj inyectable (VBlank/CIA); nunca *busy-wait* | **HOST-148** (hecho) |
+| B5.2 | `search/search.hpp` (`ponder`) | Búsqueda continua cooperativa con TT/ordenación vivos entre turnos | **HOST-148** (hecho) |
+| B5.3 | `search/search.hpp` (`search_multi_pv`) | N mejores líneas con score y PV | **HOST-148** (hecho) |
+| B5.4 | Reuso de árbol | TT persistente y mejor jugada previa reutilizadas entre búsquedas | **HOST-144/148** (hecho) |
+| B5.5 | Búsqueda paralela | Reparto de la raíz con `eng::parallel`, determinista y secuencial en Amiga | **HOST-148** (hecho) |
 
-Cierre: el motor "sigue pensando" sin frenar el frame; con `P128+` muestra 2–4 líneas y su
-puntuación.
+Cierre: el motor "sigue pensando" sin frenar el frame y expone 2–4 líneas con su PV; el reparto
+paralelo no altera el resultado (hecho). Falta el bucle de juego real (B8).
 
 ### B6 — Explicación en lenguaje natural
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| B6.1 | `explain/explain.hpp` | Motor de reglas: rasgos → 2–4 frases por prioridad, modo breve/detallado | **HOST-149** |
-| B6.2 | `explain/templates.hpp` | Plantillas con huecos (`{side}`, `{piece}`, `{square}`, `{diff}`) y tono (neutra/enfática/apasionada) | **HOST-149** |
-| B6.3 | `knowledge/patterns.hpp` | Detección de aperturas por patrón (además del nombre del libro) | **HOST-149** |
-| B6.4 | `tools/board/nlg-pack.ts` | Compila y **valida huecos** de las plantillas ES/EN; carga solo idioma+fase | Tools + test |
-| B6.5 | Packs ES/EN | En `assets/amiga/board/*/explain/` (texto fuente) | Revisión de contenido |
+| B6.1 | `explain/explain.hpp` | Motor de reglas: rasgos → 2–4 frases por prioridad | **HOST-149** (hecho) |
+| B6.2 | `explain/templates.hpp` | Plantillas con huecos (`{side}`, `{side_adj}`, `{diff}`) y tono (neutra/enfática) | **HOST-149** (hecho) |
+| B6.3 | `knowledge/patterns.hpp` | Detección de aperturas por patrón (además del nombre del libro) | Pendiente |
+| B6.4 | `tools/board/nlg-pack.ts` | Compila y **valida huecos** de las plantillas ES/EN; carga solo idioma+fase | Pendiente |
+| B6.5 | Packs ES/EN | En `assets/amiga/board/*/explain/` (texto fuente) | Pendiente |
 
-Cierre: dada una posición, el motor produce un párrafo coherente en ES y EN, con tono acorde a
-la magnitud, en 8–50 kB según perfil.
+Cierre: el motor produce frases coherentes en ES y EN con tono y truncado seguro (hecho). Faltan
+la detección por patrón, el packer y los assets externos.
 
 ### B7 — Go 9×9
 
@@ -222,7 +228,7 @@ cierra cada juego con verificación real.
 
 ## 6. Distribución de tests host
 
-Los números son únicos y no reutilizables; el siguiente libre es **152**. Antes de crear cada
+Los números son únicos y no reutilizables; el siguiente libre es **150**. Antes de crear cada
 pieza se comprueba que no duplica una primitiva de `eng::util`/`eng::parallel`
 ([TEMPLATE_LIBRARY.md](../../engine/architecture/TEMPLATE_LIBRARY.md) y
 [PARALLEL_AND_THREADS.md](../../engine/architecture/PARALLEL_AND_THREADS.md)).
@@ -238,10 +244,10 @@ pieza se comprueba que no duplica una primitiva de `eng::util`/`eng::parallel`
 | HOST-143 | Búsqueda: negamax/αβ, iterative deepening, quiescence (mates en N) | **Hecho** |
 | HOST-144 | Ordenación, TT y reuso (reducción de nodos, sin corrupción) | **Hecho** |
 | HOST-145 | Evaluación de ajedrez y `DevelopmentFeatures` | **Hecho** |
-| HOST-146 | `BlockSource` + LRU (contrato de tres estados y aciertos de caché) | Pendiente |
-| HOST-147 | Libro de aperturas y tablas de finales (índice → bloque, round-trip) | Pendiente |
-| HOST-148 | `TimeManager`, pondering, MultiPV, reuso de árbol y búsqueda paralela | Pendiente |
-| HOST-149 | NLG: selección de reglas, plantillas ES/EN y tono | Pendiente |
+| HOST-146 | `BlockSource` (3 estados) + caché LRU de bloques | **Hecho** |
+| HOST-147 | Libro de aperturas y tablas de finales (round-trip por bloque) | **Hecho** |
+| HOST-148 | `TimeManager`, ponder, null-move, PV/Multi-PV y análisis paralelo | **Hecho** |
+| HOST-149 | NLG: reglas, plantillas ES/EN, tono y truncado | **Hecho** |
 | HOST-150 | Go: tablero, grupos/libertades, ko, suicidio y movegen | Pendiente |
 | HOST-151 | Go: evaluación de territorio/patrones y búsqueda | Pendiente |
 | Tools | Packers host (`tools/board/`) con round-trip y validación de huecos | Pendiente |

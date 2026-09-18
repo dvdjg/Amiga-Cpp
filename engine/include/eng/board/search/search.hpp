@@ -2,9 +2,10 @@
 
 /// \file search.hpp
 /// **Buscador adversario genérico** de `eng::board`: negamax con alpha-beta,
-/// *iterative deepening*, *quiescence search* y tabla de transposición. Se escribe
-/// una sola vez contra el contrato `GameRules` y una policy de evaluación; no
-/// conoce ajedrez ni Go.
+/// *iterative deepening*, *quiescence search*, tabla de transposición, **PV**
+/// (línea principal), **Multi-PV** (varias mejores líneas) y, opcionalmente,
+/// **null-move pruning**. Se escribe una sola vez contra el contrato `GameRules` y
+/// una policy de evaluación; no conoce ajedrez ni Go.
 ///
 /// Por qué estas piezas (todas clásicas y aptas para 68000):
 /// - **Iterative deepening**: busca a profundidad 1, 2, 3… guardando la mejor
@@ -14,21 +15,26 @@
 ///   (y todas las jugadas si está en jaque) para no evaluar en medio de un
 ///   intercambio (efecto horizonte).
 /// - **Tabla de transposición**: reutiliza posiciones y sostiene el pondering.
+/// - **PV/Multi-PV**: devuelve la línea principal y las N mejores candidatas con su
+///   puntuación, base del análisis táctico/estratégico y del pondering.
+/// - **Null-move** (`EnableNullMove`): poda ramas tranquilas cuando hay presupuesto.
 ///
 /// Presupuesto explícito (`Limits::max_depth`/`max_nodes`) y cancelación con
 /// `eng::parallel::StopToken`; si se agota, `Result::aborted` queda a `true` y se
 /// conserva la mejor jugada de la última profundidad completada.
 ///
-/// Verificación: HOST-143 (corrección) y HOST-144 (ordenación/TT).
+/// Verificación: HOST-143 (corrección), HOST-144 (ordenación/TT) y HOST-148
+/// (null-move, tiempo, PV/Multi-PV y análisis paralelo).
 
 #include <eng/board/core/game.hpp>
 #include <eng/board/core/types.hpp>
+#include <eng/board/search/pruning.hpp>
 #include <eng/board/search/tt.hpp>
 #include <eng/parallel/parallel.hpp>
 
 namespace eng::board {
 
-template <class Rules, class Eval, class Ordering, u32 TtEntries>
+template <class Rules, class Eval, class Ordering, u32 TtEntries, bool EnableNullMove = false>
 class Searcher {
 public:
 	using Position = typename Rules::Position;
@@ -37,6 +43,8 @@ public:
 	using Undo = typename Rules::Undo;
 
 	static constexpr u32 max_ply = Ordering::max_ply;
+	static constexpr u32 pv_max = 24u;
+	static constexpr u32 root_move_max = 256u;
 
 	struct Limits {
 		u32 max_depth = 6u;
@@ -49,6 +57,14 @@ public:
 		u32 depth = 0u;
 		eng::u64 nodes = 0u;
 		bool aborted = false;
+	};
+
+	/// Una línea del análisis: jugada, puntuación y línea principal.
+	struct Line {
+		Move move = kNoMove;
+		Score score = kScoreNone;
+		u32 length = 0u;
+		Move pv[pv_max] {};
 	};
 
 	Searcher() = default;
@@ -84,12 +100,130 @@ public:
 			result.score = out.score;
 			result.depth = depth;
 			if (score_is_mate(out.score)) {
-				break; // mate encontrado: no hace falta más profundidad
+				break;
 			}
 		}
 		result.nodes = m_nodes;
 		result.aborted = m_aborted;
 		return result;
+	}
+
+	/// **Pondering**: igual que `search`, pero pensado para lanzarse con un `stop`
+	/// que el juego cancela cuando el rival mueve. La TT y la ordenación sobreviven
+	/// entre llamadas, así que si el rival juega la jugada prevista se reaprovecha
+	/// casi todo el árbol.
+	Result ponder(Position& pos, const Limits& limits, const eng::parallel::StopToken& stop) {
+		return search(pos, limits, stop);
+	}
+
+	/// Puntúa una jugada de la raíz con **ventana completa** y rellena su PV. Se usa
+	/// para Multi-PV y para confirmar la mejor jugada por separado.
+	Score analyze_move(Position& pos, Move move, u32 depth, Move* pv_out, u32 pv_cap,
+	                   u32& pv_len) {
+		m_aborted = false;
+		m_max_nodes = 0u;
+		m_stop = nullptr;
+		pv_len = 0u;
+		Undo undo;
+		Rules::make(pos, move, undo);
+		m_pv_len[1] = 0u;
+		const Score score =
+		    (depth == 0u)
+		        ? Eval::evaluate(pos)
+		        : static_cast<Score>(
+		              -negamax(pos, depth - 1u, -kScoreInfinite, kScoreInfinite, 1u));
+		Rules::unmake(pos, move, undo);
+		if (m_aborted) {
+			return kScoreNone;
+		}
+		if (pv_out != nullptr && pv_cap > 0u) {
+			u32 out = 1u;
+			pv_out[0] = move;
+			const u32 child = (depth >= 1u) ? m_pv_len[1] : 0u;
+			for (u32 i = 0u; i < child && out < pv_cap; ++i) {
+				pv_out[out++] = m_pv_table[1][i];
+			}
+			pv_len = out;
+		}
+		return score;
+	}
+
+	/// **Multi-PV**: calcula las `wanted` mejores jugadas con su puntuación y su
+	/// línea principal. Reparte la puntuación exacta de cada jugada de la raíz con
+	/// `eng::parallel::for_each_index` (secuencial en el Amiga, hilos en el host);
+	/// el ranking es estable por orden de generación, así que el resultado es
+	/// determinista. Devuelve cuántas líneas escribió.
+	u32 search_multi_pv(Position& pos, const Limits& limits, u32 wanted, Line* out,
+	                    u32 out_cap, u32 threads = 0u) {
+		if (wanted == 0u || out_cap == 0u || out == nullptr) {
+			return 0u;
+		}
+		if (wanted > out_cap) {
+			wanted = out_cap;
+		}
+		MoveList root_moves;
+		Rules::generate_legal(pos, root_moves);
+		m_ordering.order(pos, root_moves, m_previous_best, 0u);
+		u32 n = static_cast<u32>(root_moves.size());
+		if (n == 0u) {
+			return 0u;
+		}
+		if (n > root_move_max) {
+			n = root_move_max;
+		}
+		if (threads == 0u) {
+			threads = eng::parallel::hardware_threads();
+		}
+
+		Score scores[root_move_max];
+		for (u32 i = 0u; i < n; ++i) {
+			scores[i] = kScoreNone;
+		}
+
+		struct Job {
+			const Position* pos;
+			const MoveList* moves;
+			Score* scores;
+			u32 depth;
+		};
+		Job job {&pos, &root_moves, scores, limits.max_depth};
+		auto task = [&job](u32 index) {
+			Position work = *job.pos;
+			Searcher<Rules, Eval, Ordering, 256u, EnableNullMove> local;
+			u32 length = 0u;
+			job.scores[index] =
+			    local.analyze_move(work, (*job.moves)[index], job.depth, nullptr, 0u, length);
+		};
+		eng::parallel::for_each_index(n, threads, task);
+
+		u32 order_index[root_move_max];
+		for (u32 i = 0u; i < n; ++i) {
+			order_index[i] = i;
+		}
+		for (u32 i = 0u; i < n; ++i) {
+			u32 best = i;
+			for (u32 j = i + 1u; j < n; ++j) {
+				if (scores[order_index[j]] > scores[order_index[best]]) {
+					best = j;
+				}
+			}
+			const u32 tmp = order_index[i];
+			order_index[i] = order_index[best];
+			order_index[best] = tmp;
+		}
+
+		u32 produced = 0u;
+		for (u32 r = 0u; r < wanted; ++r) {
+			const u32 index = order_index[r];
+			Line& line = out[produced];
+			line.move = root_moves[index];
+			line.score = scores[index];
+			u32 length = 0u;
+			line.score = analyze_move(pos, line.move, limits.max_depth, line.pv, pv_max, length);
+			line.length = length;
+			++produced;
+		}
+		return produced;
 	}
 
 private:
@@ -152,6 +286,9 @@ private:
 			return kScoreNone;
 		}
 		++m_nodes;
+		if (ply < max_ply) {
+			m_pv_len[ply] = 0u;
+		}
 		if (pos.halfmove >= 100u) {
 			return 0; // regla de los 50 movimientos
 		}
@@ -183,6 +320,24 @@ private:
 		}
 
 		const bool checked = Rules::in_check(pos);
+		if constexpr (EnableNullMove) {
+			static constexpr NullMoveConfig null_config {};
+			if (null_config.allowed(depth, checked, Rules::is_endgame(pos))) {
+				Undo null_undo;
+				Rules::make_null(pos, null_undo);
+				const Score null_score = static_cast<Score>(-negamax(
+				    pos, depth - 1u - null_config.reduction, static_cast<Score>(-beta),
+				    static_cast<Score>(-beta + 1), ply + 1u));
+				Rules::unmake_null(pos, null_undo);
+				if (m_aborted) {
+					return kScoreNone;
+				}
+				if (null_score >= beta) {
+					return beta;
+				}
+			}
+		}
+
 		MoveList moves;
 		Rules::generate_legal(pos, moves);
 		if (moves.empty()) {
@@ -208,6 +363,7 @@ private:
 			if (score > best_score) {
 				best_score = score;
 				best = move;
+				record_pv(ply, move);
 			}
 			if (best_score > a) {
 				a = best_score;
@@ -231,6 +387,9 @@ private:
 			return alpha;
 		}
 		++m_nodes;
+		if (ply < max_ply) {
+			m_pv_len[ply] = 0u;
+		}
 		if (ply >= max_ply) {
 			return Eval::evaluate(pos);
 		}
@@ -273,6 +432,22 @@ private:
 		return alpha;
 	}
 
+	/// Copia la PV del hijo a este ply tras elegir `move`.
+	void record_pv(u32 ply, Move move) noexcept {
+		if (ply >= max_ply) {
+			return;
+		}
+		m_pv_table[ply][0] = move;
+		u32 length = 1u;
+		if (ply + 1u < max_ply) {
+			const u32 child = m_pv_len[ply + 1u];
+			for (u32 i = 0u; i < child && length < pv_max; ++i) {
+				m_pv_table[ply][length++] = m_pv_table[ply + 1u][i];
+			}
+		}
+		m_pv_len[ply] = length;
+	}
+
 	TranspositionTable<TtEntries> m_tt {};
 	Ordering m_ordering {};
 	eng::u64 m_nodes = 0u;
@@ -280,6 +455,8 @@ private:
 	bool m_aborted = false;
 	const eng::parallel::StopToken* m_stop = nullptr;
 	Move m_previous_best = kNoMove;
+	Move m_pv_table[max_ply][pv_max] {};
+	u32 m_pv_len[max_ply] {};
 };
 
 } // namespace eng::board

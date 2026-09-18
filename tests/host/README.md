@@ -186,3 +186,7 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-143 | [chess_search](143_chess_search/README.md) | `eng/board/search/search.hpp`: negamax + alpha-beta + iterative deepening + quiescence; mate en 1, dama colgada, recaptura, presupuesto de nodos y `StopToken`. |
 | HOST-144 | [chess_tt_ordering](144_chess_tt_ordering/README.md) | `eng/board/search/tt.hpp` (entrada de 12 B, sondeo/escritura/reemplazo/reuso) y `rules/chess/ordering.hpp` (MVV-LVA y killer). |
 | HOST-145 | [chess_eval](145_chess_eval/README.md) | `eng/board/eval/{chess_eval,features}.hpp`: evaluación (material+PST+movilidad+peones+desarrollo) y rasgos de desarrollo. |
+| HOST-146 | [board_storage](146_board_storage/README.md) | `eng/board/storage/block_source.hpp` (`BlockSource` 3 estados y `RamBlockSource`) y `knowledge/cache.hpp` (caché LRU de bloques). |
+| HOST-147 | [board_knowledge](147_board_knowledge/README.md) | `eng/board/knowledge/{book,endgame_tables}.hpp`: libro ordenado por clave, nombres, tablas de finales y round-trip byte a byte por bloque. |
+| HOST-148 | [chess_b5](148_chess_b5/README.md) | `eng/board/search/{pruning,time,search}.hpp`: null-move, `TimeManager`, PV/Multi-PV y análisis paralelo determinista. |
+| HOST-149 | [chess_explain](149_chess_explain/README.md) | `eng/board/explain/`: NLG por plantillas ES/EN (jaque, material, dama prematura, desarrollo, rey en el centro), tono y truncado seguro. |

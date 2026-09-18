@@ -58,6 +58,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/ai/perception/influence_map.hpp>
 #include <eng/ai/perception/agent_memory.hpp>
 #include <eng/board/rules/chess/rules.hpp>
+#include <eng/board/explain/explain.hpp>
 #include <eng/parallel/parallel.hpp>
 #include <eng/core/util/union_find.hpp>
 #include <eng/core/util/sparse_set.hpp>
@@ -796,6 +797,17 @@ extern "C" eng::u32 c_chess_search(u16 depth) {
 	const eng::board::ChessSearcher::Result result =
 	    searcher.search(pos, {static_cast<eng::u32>(depth), 0u});
 	return static_cast<eng::u32>(result.best_move) ^ static_cast<eng::u32>(result.nodes);
+}
+extern "C" u16 c_chess_explain(u16 language) {
+	using R = eng::board::ChessRules;
+	R::Position pos = R::initial();
+	char out[128] {};
+	const eng::board::chess::Language lang = (language == 0u)
+	                                             ? eng::board::chess::Language::Spanish
+	                                             : eng::board::chess::Language::English;
+	const eng::usize n = eng::board::chess::explain(
+	    pos, {lang, eng::board::chess::Tone::Neutral, 3u}, out, sizeof(out));
+	return static_cast<u16>(n + static_cast<eng::usize>(static_cast<eng::u8>(out[0])));
 }
 extern "C" u16 c_parallel_threads() {
 	return static_cast<u16>(eng::parallel::hardware_threads());

@@ -425,4 +425,34 @@ inline void unmake_move(Position& pos, Move move, const Undo& undo) noexcept {
 	pos.side = static_cast<u8>(mover);
 }
 
+/// Aplica una **jugada nula** (cambiar el turno sin mover): la usa el null-move
+/// pruning. Limpia el al paso y NO toca piezas; el reloj de 50 movimientos avanza
+/// (aproximación razonable para la búsqueda).
+inline void make_null(Position& pos, Undo& undo) noexcept {
+	undo.captured = kEmptyPiece;
+	undo.castling = pos.castling;
+	undo.ep = pos.ep;
+	undo.halfmove = pos.halfmove;
+	undo.key = pos.key;
+
+	u32 key = pos.key;
+	if (pos.ep != kNoSquare) {
+		key ^= kZobrist.ep_file[square_file(pos.ep)];
+	}
+	pos.ep = kNoSquare;
+	pos.side = static_cast<u8>(opposite(to_move(pos)));
+	key ^= kZobrist.side;
+	pos.key = key;
+	++pos.halfmove;
+}
+
+/// Deshace una jugada nula.
+inline void unmake_null(Position& pos, const Undo& undo) noexcept {
+	pos.side = static_cast<u8>(opposite(to_move(pos)));
+	pos.castling = undo.castling;
+	pos.ep = undo.ep;
+	pos.halfmove = undo.halfmove;
+	pos.key = undo.key;
+}
+
 } // namespace eng::board::chess

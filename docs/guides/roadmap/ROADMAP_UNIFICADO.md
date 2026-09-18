@@ -21,7 +21,7 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
 | `docs/engine/architecture/DISPLAY_COMPOSITION.md` | **(nuevo) contrato** | Buffers de display (3 granularidades, `MultiBuffered<Driver,N>`) y orquestación de copper por escena (`CopperPlan`) |
 | `docs/guides/roadmap/BITACORA_SCROLL_TILES.md` | bitácora | Estado y lecciones del scroll por tiles (fix de `BPLCON1` de la 101, multi-modo, optimizaciones O(n²)→O(n), cifras de fps) |
 | `docs/guides/roadmap/ROADMAP_GAME_AI.md` | **vigente (G1–G4 entregados)** | IA de juego: fases G1–G5 y catálogo de técnicas; estado de `eng::ai` en `docs/engine/architecture/GAME_AI_LIBRARY.md` |
-| `docs/guides/roadmap/ROADMAP_BOARD_GAMES.md` | **vigente (B0–B3 hechos; B4 en adelante planificado)** | Motores de tablero (`eng::board`): ajedrez y Go 9×9 con footprint 20 kB–1 MB, conocimiento en disquete y explicación NLG ES/EN; núcleo, reglas, búsqueda y evaluación de ajedrez verificados (HOST-137…145); diseño en `docs/engine/architecture/BOARD_GAME_AI.md` y concurrencia en `docs/engine/architecture/PARALLEL_AND_THREADS.md` |
+| `docs/guides/roadmap/ROADMAP_BOARD_GAMES.md` | **vigente (B0–B6 hechos; backends de disco/packers y B7 pendientes)** | Motores de tablero (`eng::board`): ajedrez completo (núcleo, reglas, búsqueda con TT/null-move/Multi-PV, evaluación, conocimiento y NLG ES/EN) verificado por HOST-137…149; falta la E/S de disco/PC, los packers y Go 9×9. Diseño en `docs/engine/architecture/BOARD_GAME_AI.md` y concurrencia en `docs/engine/architecture/PARALLEL_AND_THREADS.md` |
 
 ## Estado real del engine y las demos (2026-09)
 

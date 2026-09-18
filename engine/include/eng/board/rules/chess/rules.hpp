@@ -129,12 +129,32 @@ struct ChessRules {
 	static void unmake(Position& pos, Move move, const Undo& undo) { chess::unmake_move(pos, move, undo); }
 
 	static bool is_capture(Move move) { return chess::move_is_capture(move); }
+
+	static void make_null(Position& pos, Undo& undo) { chess::make_null(pos, undo); }
+
+	static void unmake_null(Position& pos, const Undo& undo) { chess::unmake_null(pos, undo); }
+
+	/// Aproximación de final: sin damas y con poco material no peón. El null-move
+	/// se desactiva aquí para evitar zugzwang.
+	static bool is_endgame(const Position& pos) {
+		const chess::MaterialCount material = chess::count_material(pos);
+		if (material.queens[0] + material.queens[1] != 0u) {
+			return false;
+		}
+		const int non_pawn = static_cast<int>(material.knights[0] + material.knights[1] +
+		                                      material.bishops[0] + material.bishops[1] +
+		                                      material.rooks[0] + material.rooks[1]);
+		return non_pawn <= 4;
+	}
 };
 
 static_assert(GameRules<ChessRules>, "ChessRules debe cumplir GameRules");
 
 /// Buscador de ajedrez listo para usar: negamax/alpha-beta + quiescence + TT de
 /// 1024 entradas (≈ 12 kB) y las heurísticas de ordenación de ajedrez.
-using ChessSearcher = Searcher<ChessRules, chess::ChessEval, chess::ChessOrdering, 1024u>;
+using ChessSearcher = Searcher<ChessRules, chess::ChessEval, chess::ChessOrdering, 1024u, false>;
+
+/// Variante con **null-move pruning** (perfiles con presupuesto, p. ej. `P256+`).
+using ChessSearcherNull = Searcher<ChessRules, chess::ChessEval, chess::ChessOrdering, 1024u, true>;
 
 } // namespace eng::board

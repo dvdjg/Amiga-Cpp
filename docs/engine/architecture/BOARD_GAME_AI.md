@@ -301,9 +301,10 @@ coste bajo (8–50 kB según riqueza).
 - **Concurrencia abstracta** con `eng::parallel` ([PARALLEL_AND_THREADS.md](PARALLEL_AND_THREADS.md)):
   no-ops en m68k, hilos reales en el host. La búsqueda paralela solo se activa con
   `hardware_threads() > 1` y no puede alterar el resultado.
-- **Sin multiplicaciones de 32 bits en el camino caliente**: evaluación y ordenación usan
-  desplazamientos para los factores constantes y `eng::math::mulu16` (nativo `mulu.w`) para el
-  cuadrado de profundidad; el gate de codegen prohíbe `__mulsi3` en las rutas de búsqueda.
+- **Sin multiplicaciones ni divisiones de 32 bits en el camino caliente**: evaluación,
+  ordenación y NLG usan desplazamientos para los factores constantes, `eng::math::mulu16`
+  (nativo `mulu.w`) para el cuadrado de profundidad y resta repetida para dividir por 100; el
+  gate de codegen prohíbe `__mulsi3`/`__divsi3` en las rutas de búsqueda y explicación.
 
 ## 10. Verificación
 
@@ -326,10 +327,10 @@ coste bajo (8–50 kB según riqueza).
 | `rules/chess/` (tablero 0x88, legalidad, FEN) | **Implementado**: HOST-140 (make/unmake, perft, FEN, fin de partida) |
 | `rules/chess/` (repetición, finales, SAN) | **Implementado**: HOST-141 (repetición 3× y finales teóricos) y HOST-142 (SAN/UCI) |
 | `search/` (negamax/αβ, ID, quiescence, TT, ordering) | **Implementado**: HOST-143 (corrección) y HOST-144 (TT 12 B y MVV-LVA) |
-| `search/` (refutation table, null-move, ponder, MultiPV) | Planificado (B2.5, B2.6, B5) |
+| `search/` (null-move, PV/Multi-PV, ponder, tiempo) | **Implementado**: HOST-148; refutation cubierto por killers; aspiration/SEE pendientes |
 | `eval/` (ajedrez: material, PST, movilidad, peones, rasgos) | **Implementado**: HOST-145; `eval/go` planificado (B7) |
-| `knowledge/` + `storage/` (libro, tablas, patrones, BlockSource, LRU) | Planificado (B4) |
-| `explain/` (NLG ES/EN por plantillas) | Planificado (B6) |
+| `knowledge/` + `storage/` (BlockSource RAM, caché LRU, libro, tablas) | **Implementado**: HOST-146/147; backends de disco/PC y packers pendientes |
+| `explain/` (NLG ES/EN por plantillas) | **Implementado**: HOST-149; detección por patrón, packer y assets pendientes |
 | `rules/go/` + `eval/go` | Planificado (B7) |
 | Motores de concurrencia (`eng::parallel`) | **Implementado**: HOST-137; ver [PARALLEL_AND_THREADS.md](PARALLEL_AND_THREADS.md) |
 | Juegos en `games/` | Planificado (B8) |
