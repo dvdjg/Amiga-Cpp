@@ -161,6 +161,27 @@ desplazan con el scroll), no se puede parchear sin reordenar slots; ahí o se re
 fijos (y se parchea también el registro) o se reconstruye. `patch_wait` solo es seguro para
 `vpos` 0..255 (por encima, el par de overflow debe recolocarse).
 
+#### Modelo por clases de elemento
+
+Una copperlist real es una mezcla; clasificar cada elemento decide **qué se escribe por frame**:
+
+| Clase | Ejemplo | Mantenimiento por frame |
+|---|---|---|
+| **Estático** | waits en punto fijo, escrituras constantes (modo de display) | 0 (se construye una vez) |
+| **Grupo en bloque** | grid de bandas que se desplaza entero | 1 palabra por WAIT (las líneas) |
+| **Dato variable** | paleta por banda (mismo registro, valor distinto) | 1 palabra por MOVE (solo el dato) |
+| **Registro variable** | slot que cambia de destino (bg↔fg según fase) | 1 palabra (solo el registro; raro) |
+| **Dinámico total** | estructura que cambia de forma | reconstruir |
+
+Coste óptimo = (#waits que se mueven) + (#datos que varían) + (#registros que cambian). Lo
+estático es gratis. Un `copper::Template` recorre estos grupos con bucles contiguos.
+
+**¿Expression templates?** Ayudan a generar la **estructura estática en compilación** (orden,
+offsets de registro, init sin coste), pero **no** reducen el nº de palabras que varían por
+frame: eso lo fija el dato. En este perfil (bus-bound) la ganancia es **no significativa**; el
+win está en **clasificar** y **parchear lo mínimo**. Se implementa como runtime (`Template` +
+slots), no como expresión estática.
+
 ---
 
 ## 6. Metodología: cómo se verifica (orden obligatorio)

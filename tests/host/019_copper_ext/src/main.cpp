@@ -109,6 +109,30 @@ int main() {
 		}
 	}
 
+	// --- Template "por bandas": grupo de waits que se desplaza + datos variables ---
+	{
+		eng::u16 bw[128];
+		MemoryBlock band_block {bw, sizeof(bw), MemoryKind::Chip};
+		eng::copper::Template t {band_block};
+		u16 wait[3];
+		u16 col[3];
+		for (int k = 0; k < 3; ++k) {
+			wait[k] = t.wait_slot(static_cast<u16>(0x2cu + 8 * k));
+			col[k] = t.move_slot(static_cast<u16>(0x182u), 0);
+		}
+		t.end();
+		// Frame: el grupo se desplaza 3 lineas y los datos cambian (2 palabras/slot).
+		for (int k = 0; k < 3; ++k) {
+			t.set_wait(wait[k], static_cast<u16>(0x2cu + 3 + 8 * k));
+			t.set(col[k], static_cast<u16>(0x0100u + k));
+		}
+		if (bw[wait[0]] != 0x2f01u || bw[wait[2]] != 0x3f01u || bw[col[2] + 1u] != 0x0102u) {
+			std::printf("[FAIL] template bandas: %04x %04x %04x\n", bw[wait[0]], bw[wait[2]],
+				    bw[col[2] + 1u]);
+			return 1;
+		}
+	}
+
 	std::printf("OK: copper chunky (SKIP 0xffff, MOVE32 reg+2/reg, patch, Template) validado.\n");
 	return 0;
 }
