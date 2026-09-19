@@ -248,3 +248,4 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-205 | [sim_input_expression](205_sim_input_expression/README.md) | `eng/sim/expression.hpp::expression_from_input`: el humano como personaje (gestos explícitos + timing) y lectura simétrica por la mesa. |
 | HOST-206 | [sim_introspection](206_sim_introspection/README.md) | `eng/sim/introspection.hpp` (afecto desde los hechos del motor) + puente `eng/board/persona.hpp`; y `gestures_for_pace` (impaciencia/bostezo si el humano tarda). |
 | HOST-207 | [math_expr](207_math_expr/README.md) | `eng/core/expr.hpp`: expression templates lite (árbol en compilación, evaluación única, `converter` para `Fixed`, fusión por componente de `Vec`/`Mat`). |
+| HOST-208 | [ptr](208_ptr/README.md) | `eng/core/ptr.hpp`: punteros "inteligentes" sin heap (`Ref` observador no propietario y anulable, `NonNull`, `Opt` opcional en sitio). |

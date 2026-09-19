@@ -89,8 +89,17 @@ ataca justo esto: **asm apretado (menos instrucciones) + parchear (menos accesos
 VBlank + código/tablas en Fast/Slow RAM**. Nuestro build está en C++ y con muchos accesos, así que
 paga el peaje de Chip RAM ×2.
 
-**El Scheduler tiene además un coste fijo** (construir la timeline por frame): merece revisarse
+**El Scheduler tenía además un coste fijo** (construir la timeline por frame): merece revisarse
 (la base sola ya cuesta ~28 k).
+
+**Corrección aplicada (2026):** ese coste fijo era la `Timeline` del `Scheduler`, que se
+**inicializaba a cero (2×256 B) en cada construcción** — y como el `Scheduler` se crea por frame
+en la pila (Chip RAM), costaba **~25 k ciclos/frame solo en borrar memoria**. Arreglado: la
+`Timeline` ahora **no borra sus contadores** en el constructor (bitset de líneas tocadas de 32 B;
+`finish()` ignora las no tocadas). Medido en la demo 125: **32.5 → 42.6 fps** con `Scheduler`
+(y 44.5 con `ListBuilder` directo). Lección general: **no construir/limpiar objetos grandes en el
+hot path**; usar inicialización perezosa o almacenamiento del llamador. Se añadió además una
+librería de punteros no propietarios sin heap (`eng/core/ptr.hpp`: `Ref`/`NonNull`/`Opt`).
 
 **MOVEM/ráfaga**: en la copperlist las palabras van intercaladas `[reg, dato, …]` → los datos
 **no** son contiguos (stride 4 B); un `memcpy`/`movem` reescribiría también los registros (más

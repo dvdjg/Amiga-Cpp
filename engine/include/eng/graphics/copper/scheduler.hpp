@@ -50,12 +50,16 @@ struct ScheduleReport {
 /// Compositor central de Copper para las primeras escenas.
 class Scheduler {
 public:
-	constexpr Scheduler() = default;
+	Scheduler() = default;
 
 	explicit Scheduler(MemoryBlock block)
 		: m_builder(block) {}
 
 	/// Construye desde una reserva tipada de copperlist (`Block<CopperTag>`).
+	///
+	/// La `Timeline` se posee **por valor** pero **no borra** sus arrays al construirse
+	/// (inicialización perezosa por líneas tocadas): así construir el `Scheduler` en el
+	/// hot path no cuesta ~25k ciclos de limpieza en Chip RAM.
 	explicit Scheduler(eng::Block<eng::CopperTag> block)
 		: m_builder(block) {}
 
@@ -415,9 +419,9 @@ public:
 	/// Finaliza la lista y congela el informe.
 	void end() {
 		m_builder.end();
-		const TimelineReport timeline = m_timeline.finish();
 		m_report.words_used = m_builder.words_used();
 		m_report.ok = m_builder.ok();
+		const TimelineReport timeline = m_timeline.finish();
 		m_report.timeline_over_budget_lines = timeline.over_budget_lines;
 		m_report.heaviest_line = timeline.heaviest_line;
 		m_report.heaviest_line_moves = timeline.heaviest_line_moves;
@@ -503,7 +507,7 @@ private:
 	}
 
 	ListBuilder m_builder {};
-	Timeline m_timeline {};
+	Timeline m_timeline; // por valor; NO se limpia al construir (ver timeline.hpp)
 	ScheduleReport m_report {};
 };
 
