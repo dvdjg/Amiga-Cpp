@@ -64,7 +64,7 @@ struct DemoGame {
 		paint(planes + 0u, 0u, hud_line, field_planes);
 		paint(planes + hud_off, hud_line, height, hud_planes);
 
-		eng::copper::Scheduler sched { m_copper_block };
+		eng::copper::SchedulerT<false> sched { m_copper_block };
 		sched.emit_planes_display(
 			0x2c81, 0x2cc1, ddfstrt, ddfstop, bytes_per_row,
 			static_cast<eng::u16>(0x0200u | (static_cast<eng::u16>(field_planes) << 12u)),

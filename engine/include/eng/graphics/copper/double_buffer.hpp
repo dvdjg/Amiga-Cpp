@@ -29,6 +29,7 @@
 #include <eng/core/domains.hpp>
 #include <eng/core/types.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
+#include <eng/graphics/copper/template.hpp>
 #include <eng/memory/arena.hpp>
 
 namespace eng::copper {
@@ -62,6 +63,10 @@ public:
 
 	/// Un `Scheduler` ligado al bloque inactivo (para reemitir o emitir+MOVE inicial).
 	constexpr Scheduler inactive_scheduler() const { return Scheduler { inactive_block() }; }
+
+	/// Un `Template` ligado al bloque inactivo: construye la ESTRUCTURA una vez y deja
+	/// *slots* para parchear por frame solo las palabras que cambian (ver `template.hpp`).
+	constexpr Template inactive_template() const { return Template { inactive_block() }; }
 
 	/// El inactivo pasa a ser el activo: se publicará en el próximo `install`.
 	constexpr void flip() { m_active = static_cast<u8>(m_active ^ 1u); }

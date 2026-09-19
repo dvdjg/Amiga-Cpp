@@ -15,6 +15,7 @@
 ///   eng::util::ArenaAlloc alloc {arena};
 ///   eng::util::Vector<eng::u32, eng::util::ArenaAlloc> ids {alloc};
 
+#include <eng/core/ptr.hpp>
 #include <eng/core/util/allocator.hpp>
 #include <eng/memory/arena.hpp>
 
@@ -25,14 +26,14 @@ namespace eng::util {
 class ArenaAlloc {
 public:
 	constexpr ArenaAlloc() noexcept = default;
-	explicit constexpr ArenaAlloc(eng::LinearArena& arena) noexcept : m_arena(&arena) {}
+	explicit constexpr ArenaAlloc(eng::LinearArena& arena) noexcept : m_arena(arena) {}
 
 	/// Asocia la arena sobre la que reservar (no la posee).
-	constexpr void attach(eng::LinearArena& arena) noexcept { m_arena = &arena; }
-	[[nodiscard]] constexpr bool valid() const noexcept { return m_arena != nullptr; }
+	constexpr void attach(eng::LinearArena& arena) noexcept { m_arena = arena; }
+	[[nodiscard]] constexpr bool valid() const noexcept { return m_arena.valid(); }
 
 	[[nodiscard]] Span<u8> allocate(usize bytes, usize align) noexcept {
-		if (m_arena == nullptr || bytes == 0u) {
+		if (!m_arena.valid() || bytes == 0u) {
 			return {};
 		}
 		const eng::MemoryBlock block =
@@ -46,7 +47,7 @@ public:
 	constexpr void deallocate(Span<u8>) noexcept {}
 
 private:
-	eng::LinearArena* m_arena = nullptr;
+	eng::Ref<eng::LinearArena> m_arena {};
 };
 
 } // namespace eng::util

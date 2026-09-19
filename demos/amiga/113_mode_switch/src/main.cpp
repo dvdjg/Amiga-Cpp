@@ -98,7 +98,7 @@ struct DemoGame {
 		fill_poison(planes + poison_off);
 
 		// Copperlist: display de 5 planos + paleta del campo + ModeSwitchZone a 2.
-		eng::copper::Scheduler sched { m_copper_block };
+		eng::copper::SchedulerT<false> sched { m_copper_block };
 		sched.emit_planes_display(
 			0x2c81, 0x2cc1, 0x0038, 0x00d0, bytes_per_row,
 			static_cast<eng::u16>(0x0200u | (static_cast<eng::u16>(field_planes_count) << 12u)),

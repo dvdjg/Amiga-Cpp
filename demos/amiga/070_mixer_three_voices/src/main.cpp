@@ -168,7 +168,7 @@ private:
 	}
 
 	bool build_copper() {
-		eng::copper::Scheduler sched { m_copper_block };
+		eng::copper::SchedulerT<false> sched { m_copper_block };
 		// BPLCON0 = (planos << 12) | 0x0200 (mismo patrón que las demos de 6 planos).
 		const eng::u16 bplcon0 = static_cast<eng::u16>((static_cast<eng::u16>(kPlanes) << 12u) | 0x0200u);
 		sched.emit_planes_display(

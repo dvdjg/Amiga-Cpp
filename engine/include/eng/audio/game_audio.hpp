@@ -12,6 +12,7 @@
 /// este header es Amiga-only porque depende del `AudioSystem`.
 
 #include <eng/audio/audio_system.hpp>
+#include <eng/core/ptr.hpp>
 #include <eng/audio/sfx_bank.hpp>
 
 namespace eng::audio {
@@ -31,7 +32,7 @@ namespace eng::audio {
 class GameAudio {
 public:
 	/// Referencia al `AudioSystem` subyacente (típicamente el del backend).
-	explicit GameAudio(AudioSystem& system) : m_audio(&system) {}
+	explicit GameAudio(AudioSystem& system) : m_audio(system) {}
 
 	/// Sin sistema: se enlaza después con `attach`.
 	GameAudio() = default;
@@ -39,7 +40,7 @@ public:
 	GameAudio& operator=(const GameAudio&) = delete;
 
 	/// Enlaza este `GameAudio` a un `AudioSystem` (p. ej. `backend.audio()`).
-	void attach(AudioSystem& system) { m_audio = &system; }
+	void attach(AudioSystem& system) { m_audio = system; }
 
 	/// Inicializa el SFX mixer del `AudioSystem` referenciado (buffer Chip +
 	/// handler). La música se arranca con `play_music`.
@@ -209,7 +210,7 @@ private:
 		}
 	}
 
-	AudioSystem* m_audio = nullptr;
+	eng::Ref<AudioSystem> m_audio {};
 	SampleBank m_bank {};
 	VoiceState m_voices[kMaxSfx] {};
 	ActiveVoice m_active[kMaxActiveVoices] {};

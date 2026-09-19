@@ -82,7 +82,7 @@ struct DemoGame {
 		paint_band(planes + field.plane_off, field);
 		for (const Band& b : bands) paint_band(planes + b.plane_off, b);
 
-		eng::copper::Scheduler sched { m_copper_block };
+		eng::copper::SchedulerT<false> sched { m_copper_block };
 		sched.emit_planes_display(
 			0x2c81, 0x2cc1, ddfstrt, ddfstop, bytes_per_row,
 			static_cast<eng::u16>(0x0200u | (static_cast<eng::u16>(field_planes) << 12u)),

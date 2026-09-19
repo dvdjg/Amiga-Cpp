@@ -24,6 +24,7 @@
 
 #include <eng/board/core/game.hpp>
 #include <eng/board/core/types.hpp>
+#include <eng/core/ptr.hpp>
 #include <eng/board/search/pruning.hpp>
 #include <eng/board/search/tt.hpp>
 #include <eng/core/span.hpp>
@@ -83,7 +84,7 @@ public:
 		m_nodes = 0u;
 		m_aborted = false;
 		m_max_nodes = limits.max_nodes;
-		m_stop = &stop;
+		m_stop = stop;
 		m_ordering.reset();
 
 		Result result;
@@ -125,7 +126,7 @@ public:
 	                   u32& pv_len) {
 		m_aborted = false;
 		m_max_nodes = 0u;
-		m_stop = nullptr;
+		m_stop.reset();
 		pv_len = 0u;
 		Undo undo;
 		Rules::make(pos, move, undo);
@@ -240,7 +241,7 @@ private:
 		if (m_aborted) {
 			return true;
 		}
-		if (m_stop != nullptr && m_stop->stop_requested()) {
+		if (m_stop.valid() && m_stop->stop_requested()) {
 			m_aborted = true;
 			return true;
 		}
@@ -464,7 +465,7 @@ private:
 	eng::u64 m_nodes = 0u;
 	eng::u64 m_max_nodes = 0u;
 	bool m_aborted = false;
-	const eng::parallel::StopToken* m_stop = nullptr;
+	eng::Ref<const eng::parallel::StopToken> m_stop {};
 	Move m_previous_best = kNoMove;
 	eng::util::Array<eng::util::Array<Move, pv_max>, max_ply> m_pv_table {};
 	eng::util::Array<u32, max_ply> m_pv_len {};

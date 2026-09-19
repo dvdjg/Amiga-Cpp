@@ -1625,7 +1625,7 @@ private:
     }
 
     bool emit_full(const PlayfieldHardwareView& view, const OverlayZone* hud = nullptr) {
-        copper::Scheduler sched { m_copper.inactive_block() };
+        copper::SchedulerT<false> sched { m_copper.inactive_block() };
         const u16 bplcon0 = static_cast<u16>(
             0x0200u | (static_cast<u16>(view.planes) << 12u));
         sched.move(copper::Register::DMACON,
@@ -1851,7 +1851,7 @@ private:
     }
 
     bool emit_full(const PlayfieldHardwareView& pf1, const PlayfieldHardwareView& pf2) {
-        copper::Scheduler sched { m_copper.inactive_block() };
+        copper::SchedulerT<false> sched { m_copper.inactive_block() };
         const u8 total = static_cast<u8>(m_cfg.planes_per_field * 2u);
         const u16 bplcon0 = static_cast<u16>(0x0200u | (static_cast<u16>(total) << 12u) | 0x0400u);
         // BPLCON1: nibble bajo = fine de PF1, alto = fine de PF2.

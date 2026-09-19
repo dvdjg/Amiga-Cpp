@@ -130,10 +130,26 @@ public:
 		move(static_cast<u16>(reg), value);
 	}
 
-	/// Escribe un MOVE Copper usando un offset raw. Camino caliente (emisión por línea):
+	/// Writes un MOVE Copper usando un offset raw. Camino caliente (emisión por línea):
 	/// `always_inline` para que el estado del builder viva en registro, no en memoria.
 	__attribute__((always_inline)) inline void move(u16 custom_register_offset, u16 value) {
 		write_pair(custom_register_offset, value);
+	}
+
+	/// Igual que `move` pero escribe el par (registro+dato) en **una sola** operación de
+	/// 32 bits. En chip RAM (copperlists de cientos de palabras por frame) la contienda por
+	/// el bus hace que 1 store de 32 bits cueste bastante menos que 2 de 16. `m_used_words`
+	/// es siempre par, así que el destino está alineado a 4 bytes.
+	__attribute__((always_inline)) inline void move32(u16 custom_register_offset, u16 value) {
+		const u16 used = m_used_words;
+		if (used > m_capacity_words - 2u) {
+			m_ok = false;
+			m_overflow_sent = true;
+			return;
+		}
+		*reinterpret_cast<u32*>(m_words + used) =
+			(static_cast<u32>(custom_register_offset) << 16) | static_cast<u32>(value);
+		m_used_words = static_cast<u16>(used + 2u);
 	}
 
 	/// Escribe los dos MOVEs necesarios para cargar un puntero de bitplane.
@@ -226,6 +242,25 @@ public:
 	__attribute__((always_inline)) inline void patch_data(u16 instruction_word, u16 value) {
 		if (m_ok && (instruction_word + 1u) < m_used_words) {
 			m_words[instruction_word + 1u] = value;
+		}
+	}
+
+	/// Parchea la **linea** (word0) de un WAIT ya emitido (indice devuelto por `wait_raw`,
+	/// `wait_line`, `skip`...). Deja la mascara (word1). Solo seguro para `vpos` 0..255: por
+	/// encima, la lista debe llevar ya el par de overflow y hay que recolocarlo.
+	__attribute__((always_inline)) inline void patch_wait(u16 instruction_word, u16 vpos,
+							      u8 hpos = 1) {
+		if (m_ok && (instruction_word + 1u) < m_used_words) {
+			m_words[instruction_word] =
+				wait_word(static_cast<u8>(vpos & 0xffu), hpos);
+		}
+	}
+
+	/// Parchea el **registro** (word0) de un MOVE ya emitido: permite que un slot cambie
+	/// de destino (p. ej. escribir COLOR01..06 o COLOR09..13 segun la fase del efecto).
+	__attribute__((always_inline)) inline void patch_move_reg(u16 instruction_word, u16 reg) {
+		if (m_ok && (instruction_word + 1u) < m_used_words) {
+			m_words[instruction_word] = reg;
 		}
 	}
 

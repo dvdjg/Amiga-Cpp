@@ -6,24 +6,17 @@
 /// El Copper no es una CPU general: comparte tiempo con el barrido de video y con
 /// el resto del chipset. Un efecto que "solo" escribe 32 colores puede ser barato
 /// si ocurre fuera de la zona visible, o muy agresivo si pretende hacerlo en una
-/// linea con pixels activos. `CopperTimeline` es la primera pieza para que el
-/// engine razone sobre esto antes de generar la copperlist final.
+/// linea con pixels activos. La `Timeline` es la pieza para que el engine razone
+/// sobre esto antes de generar la copperlist final.
 ///
-/// Esta version es deliberadamente conservadora y pequena:
-///
-/// - no reserva memoria;
-/// - no usa STL;
-/// - no intenta simular todos los ciclos exactos de Agnus;
-/// - cuenta `WAIT` y `MOVE` por linea raster;
-/// - marca lineas visibles con mas movimientos de los que cabrian comodamente en
-///   H-BLANK.
-///
-/// Mas adelante la ajustaremos con datos del Hardware Reference Manual y del
-/// profiler de WinUAE, pero el contrato de alto nivel ya queda fijado: los efectos
-/// piden slots al timeline, y el scheduler decide como materializarlos.
+/// **Construcción barata (clave de rendimiento).** Antes reservaba e inicializaba a cero
+/// `2 × 256` bytes en el constructor, y como el `Scheduler` la posee por valor y se
+/// construye cada frame en la pila (Chip RAM), eso costaba **~25k ciclos/frame** solo en
+/// limpiar memoria. Ahora los contadores **no se inicializan**: se marcan las líneas
+/// tocadas con un bitset de 32 bytes (lo único que se pone a cero), y `finish()`/las
+/// consultas ignoran las líneas no tocadas. `reset()` limpia el bitset si se reutiliza.
 
 #include <eng/core/types.hpp>
-#include <eng/core/util/array.hpp>
 
 namespace eng::copper {
 
@@ -43,34 +36,39 @@ struct TimelineReport {
 class Timeline {
 public:
 	static constexpr u16 line_count = 256;
+	static constexpr u16 words = (line_count + 31u) / 32u; // 8 words = 256 bits
 
 	/// Presupuesto conservador de MOVEs "seguros" por linea visible.
-	///
-	/// No significa que el Copper no pueda ejecutar mas instrucciones en una linea.
-	/// Significa que, para efectos reutilizables y exportables, cualquier cosa por
-	/// encima de este umbral debe quedar marcada y revisarse con captura/profiler.
 	static constexpr u8 visible_hblank_move_budget = 20;
 
-	constexpr Timeline() = default;
+	Timeline() = default;
 
-	/// Limpia el estado para construir un nuevo frame/lista.
+	/// Limpia el estado (solo el bitset + informe; los contadores no se tocan).
 	void reset() {
-		m_moves_by_line.fill(0u);
-		m_waits_by_line.fill(0u);
+		for (u16 w = 0; w < words; ++w) {
+			m_touched[w] = 0u;
+		}
 		m_report = {};
 	}
 
 	/// Reserva un WAIT en una linea.
 	void reserve_wait(u8 line) {
-		++m_waits_by_line[line];
+		if (!mark_touched(line)) {
+			m_waits_by_line[line] = 1u;
+		} else {
+			++m_waits_by_line[line];
+		}
 		++m_report.waits;
 	}
 
 	/// Reserva uno o varios MOVEs asociados a una linea.
 	void reserve_moves(u8 line, u8 count) {
-		const u16 current = m_moves_by_line[line];
-		const u16 next = current + count;
-		m_moves_by_line[line] = next > 255u ? 255u : static_cast<u8>(next);
+		if (!mark_touched(line)) {
+			m_moves_by_line[line] = count; // primer toque: se fija
+		} else {
+			const u16 next = static_cast<u16>(m_moves_by_line[line]) + count;
+			m_moves_by_line[line] = next > 255u ? 255u : static_cast<u8>(next);
+		}
 		m_report.moves = static_cast<u16>(m_report.moves + count);
 		if (is_visible(line)) {
 			m_report.visible_moves = static_cast<u16>(m_report.visible_moves + count);
@@ -83,7 +81,7 @@ public:
 		reserve_moves(line, color_count);
 	}
 
-	/// Calcula el informe final.
+	/// Calcula el informe final (solo líneas tocadas).
 	TimelineReport finish() {
 		m_report.over_budget_lines = 0;
 		m_report.heaviest_line = 0;
@@ -91,12 +89,16 @@ public:
 		m_report.has_visible_spill = false;
 
 		for (u16 i = 0; i < line_count; ++i) {
-			const u8 moves = m_moves_by_line[i];
+			const u8 line = static_cast<u8>(i);
+			if (!touched(line)) {
+				continue;
+			}
+			const u8 moves = m_moves_by_line[line];
 			if (moves > m_report.heaviest_line_moves) {
-				m_report.heaviest_line = static_cast<u8>(i);
+				m_report.heaviest_line = line;
 				m_report.heaviest_line_moves = moves;
 			}
-			if (is_visible(static_cast<u8>(i)) && moves > visible_hblank_move_budget) {
+			if (is_visible(line) && moves > visible_hblank_move_budget) {
 				++m_report.over_budget_lines;
 				m_report.has_visible_spill = true;
 			}
@@ -107,8 +109,8 @@ public:
 	}
 
 	constexpr const TimelineReport& report() const { return m_report; }
-	constexpr u8 moves_on_line(u8 line) const { return m_moves_by_line[line]; }
-	constexpr u8 waits_on_line(u8 line) const { return m_waits_by_line[line]; }
+	u8 moves_on_line(u8 line) const { return touched(line) ? m_moves_by_line[line] : 0u; }
+	u8 waits_on_line(u8 line) const { return touched(line) ? m_waits_by_line[line] : 0u; }
 
 	/// Ventana visible PAL lowres usada por los primeros drivers.
 	static constexpr bool is_visible(u8 line) {
@@ -116,8 +118,21 @@ public:
 	}
 
 private:
-	eng::util::Array<u8, line_count> m_moves_by_line {};
-	eng::util::Array<u8, line_count> m_waits_by_line {};
+	/// Marca la linea como tocada; devuelve `true` si YA estaba tocada.
+	__attribute__((always_inline)) inline bool mark_touched(u8 line) {
+		const u16 w = static_cast<u16>(line >> 5u);
+		const u32 b = static_cast<u32>(1u) << (line & 31u);
+		const bool was = (m_touched[w] & b) != 0u;
+		m_touched[w] |= b;
+		return was;
+	}
+	__attribute__((always_inline)) inline bool touched(u8 line) const {
+		return (m_touched[line >> 5u] & (static_cast<u32>(1u) << (line & 31u))) != 0u;
+	}
+
+	u8 m_moves_by_line[line_count]; // sin inicializar: válido solo si `touched`
+	u8 m_waits_by_line[line_count];
+	u32 m_touched[words] {}; // bitset (32 B a cero en construcción, no 512)
 	TimelineReport m_report {};
 };
 

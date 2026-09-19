@@ -1,0 +1,8 @@
+# Baseline de `raw-pointer-members.mjs`: punteros a objeto no propietario aceptados.
+# Triage: los 4 punteros de OBJETO ya se migraron a eng::Ref (game_audio/game_audio,
+# search/StopToken, arena_alloc/LinearArena, parallel/Mutex). Los que quedan son
+# **buffers/almacenamiento** (se aceptan): no son observadores de objeto.
+eng/board/storage/file_block_source.hpp:m_file
+eng/core/util/dynamic_hash_map.hpp:m_used
+eng/graphics/tilemap/tile_scroll.hpp:m_cells
+eng/scene/virtual_scene.hpp:m_tile_layers

@@ -133,6 +133,55 @@ silueta y no se solapan** → el sort es gasto puro. Medición (`codegen-report.
 
 Detalle y coste en `OPTIMIZACION_GPP_68000.md` §13 y `3D_RENDER_VS_PHYSICS.md` §1.
 
+### 5.b Copperlist: estructura fija + parcheo (`copper::Template`)
+
+Coste real de una copperlist: en el A500 escribir en chip RAM durante el display de varios
+planos cuesta **decenas de ciclos por palabra** (la CPU compite con el DMA de bitplanes).
+Medido en la demo `125_layers_dualpf` (6 planos): **reconstruir** ~900 palabras por frame
+cuesta ~76k ciclos y baja el frame de 1 a 1.5 campos (**49.9 → 32.5 fps**); **sin reconstruir**
+vuelve a 1 campo. Es coste de bus, no de CPU (release ≈ debug) — por eso la compilación
+estática / expression templates **no** lo resuelven por sí solos: reducen instrucciones, no
+escrituras.
+
+La palanca es **escribir menos palabras**: separar **estructura** (fija) de **datos** (por
+frame) con `eng::copper::Template` (`copper/template.hpp`):
+
+```cpp
+copper::Template t {block};
+u16 c = t.move_slot(Register::COLOR01, 0);   // slot de DATO
+u16 w = t.wait_slot(0);                       // slot de la INSTRUCCION WAIT
+t.end();
+... por frame ...
+t.set(c, color);        // 1 palabra
+t.set_wait(w, line);    // 1 palabra (patch_wait: la linea vive en word0)
+```
+
+Límite: si la **estructura depende del frame** (p. ej. las líneas de banda de `layers` se
+desplazan con el scroll), no se puede parchear sin reordenar slots; ahí o se reservan slots
+fijos (y se parchea también el registro) o se reconstruye. `patch_wait` solo es seguro para
+`vpos` 0..255 (por encima, el par de overflow debe recolocarse).
+
+#### Modelo por clases de elemento
+
+Una copperlist real es una mezcla; clasificar cada elemento decide **qué se escribe por frame**:
+
+| Clase | Ejemplo | Mantenimiento por frame |
+|---|---|---|
+| **Estático** | waits en punto fijo, escrituras constantes (modo de display) | 0 (se construye una vez) |
+| **Grupo en bloque** | grid de bandas que se desplaza entero | 1 palabra por WAIT (las líneas) |
+| **Dato variable** | paleta por banda (mismo registro, valor distinto) | 1 palabra por MOVE (solo el dato) |
+| **Registro variable** | slot que cambia de destino (bg↔fg según fase) | 1 palabra (solo el registro; raro) |
+| **Dinámico total** | estructura que cambia de forma | reconstruir |
+
+Coste óptimo = (#waits que se mueven) + (#datos que varían) + (#registros que cambian). Lo
+estático es gratis. Un `copper::Template` recorre estos grupos con bucles contiguos.
+
+**¿Expression templates?** Ayudan a generar la **estructura estática en compilación** (orden,
+offsets de registro, init sin coste), pero **no** reducen el nº de palabras que varían por
+frame: eso lo fija el dato. En este perfil (bus-bound) la ganancia es **no significativa**; el
+win está en **clasificar** y **parchear lo mínimo**. Se implementa como runtime (`Template` +
+slots), no como expresión estática.
+
 ---
 
 ## 6. Metodología: cómo se verifica (orden obligatorio)
