@@ -22,6 +22,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/scalar_ops.hpp>
 #include <eng/core/spline.hpp>
 #include <eng/core/mesh3d.hpp>
+#include <eng/retro/fixed_mesh.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/core/minifloat.hpp>
 #include <eng/core/minifloat_math.hpp>

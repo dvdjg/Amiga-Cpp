@@ -1,3 +1,4 @@
+#define ENG_SCALAR_RETRO16  // host: instancia retro (eng::real=q12, coord=q0)
 // Test host de eng::assets::Blob (contenedor UAF-R, big-endian).
 // Construye un blob mínimo (header + chunks) y valida bind/find/data y errores.
 #include <eng/assets/uaf.hpp>

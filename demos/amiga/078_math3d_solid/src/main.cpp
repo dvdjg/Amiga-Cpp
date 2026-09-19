@@ -1,3 +1,4 @@
+#include <eng/retro/fixed_mesh.hpp>
 // Demo 078 - Solido 3D relleno (math3d + mesh3d + Blitter).
 //
 // Extiende la 077: en vez de alambre, pinta las caras RELLENAS en orden

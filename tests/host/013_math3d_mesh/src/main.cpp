@@ -1,4 +1,5 @@
 #define ENG_SCALAR_RETRO16  // host: instancia retro (eng::real=q12, coord=q0)
+#include <eng/retro/fixed_mesh.hpp>
 // Test host de eng::math3d::MeshView (malla + transform + back-face culling + orden painter).
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/core/mesh3d.hpp>

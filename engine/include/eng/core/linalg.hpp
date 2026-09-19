@@ -59,6 +59,9 @@ struct scalar_traits {
 	static constexpr S inner(S a, S b) { return a * b; }
 	static constexpr S zero() { return S {}; }
 	static constexpr S one() { return S {1}; }
+	/// Conversión desde/hacia entero crudo (por defecto, el `static_cast` del escalar).
+	static constexpr S from_int(int i) { return static_cast<S>(i); }
+	static constexpr int to_int(S a) { return static_cast<int>(a); }
 	/// Los productos ya viven en el mismo espacio: no hay que normalizar.
 	template <typename Prod>
 	static constexpr S norm_from(Prod p) {
