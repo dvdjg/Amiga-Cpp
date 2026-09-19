@@ -241,3 +241,7 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-198 | [cards_five_draw](198_cards_five_draw/README.md) | `eng/cards/rules/five_draw.hpp` + `evaluate_deuces_wild`: Five-Card Draw con descarte y Deuces Wild. |
 | HOST-199 | [sim_persona](199_sim_persona/README.md) | `eng/sim/{psyche_traits,archetypes,persona}.hpp`: rasgos de psique, aptitudes, defectos, catálogo de ~39 arquetipos y `materialize` con jitter determinista. |
 | HOST-200 | [sim_expression](200_sim_expression/README.md) | `eng/sim/expression.hpp`: canales y gestos, control por gesto, compostura efectiva y cálculo de la fuga (autonómicos vs volitivos, microexpresiones). |
+| HOST-201 | [sim_read](201_sim_read/README.md) | `eng/sim/read.hpp`: lectura de tells (aprendizaje en showdown, Bayes-lite, prior por arquetipo y suspicacia; pardillo vs listillo). |
+| HOST-202 | [sim_psyche](202_sim_psyche/README.md) | `eng/sim/psyche.hpp`: estado temporal (tilt, confianza, racha, fatiga) y evolución por eventos de mesa. |
+| HOST-203 | [sim_convention](203_sim_convention/README.md) | `eng/sim/convention.hpp`: convenciones secretas (pacto gesto→señal, disimulo, exposición e inferencia) — base del Mus. |
+| HOST-204 | [cards_persona](204_cards_persona/README.md) | `eng/cards/ai/persona_bot.hpp`: parámetros del bot por arquetipo/estado, emisión de tells y lectura de rivales. |

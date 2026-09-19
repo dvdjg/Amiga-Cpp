@@ -524,15 +524,18 @@ La verificación sigue las reglas de `docs/testing/README.md`: test host por pie
 | `sim/archetypes.hpp` (catálogo de ~39 arquetipos) | **Implementado**: HOST-199 |
 | `sim/persona.hpp` (`Persona`, `materialize` con jitter) | **Implementado**: HOST-199 |
 | `sim/expression.hpp` (canales, ~72 gestos, control, compostura y fuga) | **Implementado**: HOST-200 |
-| `sim/read.hpp` (lectura de tells: Bayes-lite, prior, suspicacia) | Pendiente (P2) |
-| `sim/psyche.hpp` (estado temporal y evolución de partida) | Pendiente (P3) |
-| `sim/convention.hpp` (convenciones secretas, base del Mus) | Pendiente (P4) |
-| Integración con `eng::cards` y avatares del juego | Pendiente (P5) |
-| Humano como personaje y expresión en ajedrez/Go | Pendiente (P6) |
+| `sim/read.hpp` (lectura de tells: Bayes-lite, prior, suspicacia) | **Implementado**: HOST-201 |
+| `sim/psyche.hpp` (estado temporal y evolución de partida) | **Implementado**: HOST-202 |
+| `sim/convention.hpp` (convenciones secretas, base del Mus) | **Implementado**: HOST-203 |
+| `eng/cards/ai/persona_bot.hpp` (integración con `eng::cards`) | **Implementado**: HOST-204 |
+| `sim/body.hpp` `pose_from_gesture` (postura desde gesto) | **Implementado** (cubierto por HOST-204/200) |
+| Avatares del juego y humano como personaje (ajedrez/Go) | Pendiente (P5 avatares, P6) |
 
-> Estado: P0 (persona/arquetipos) y P1 (expresión/fuga) implementados y verificados por
-> test host (HOST-199/200); el codegen 68000 está libre de libcalls e instrucciones 68020 y
-> los tamaños m68k están fijados (`Persona` 52 B, `LeakList` 28 B, `PsycheTraits` 20 B…).
-> El plan por fases y los criterios de cierre están en
+> Estado: P0 (persona/arquetipos), P1 (expresión/fuga), P2 (lectura), P3 (evolución), P4
+> (convenciones) y P5 (integración con `eng::cards`) implementados y verificados por test
+> host (HOST-199…204); el codegen 68000 está libre de libcalls e instrucciones 68020 y los
+> tamaños m68k están fijados (`Persona` 52 B, `PsycheState` 8 B, `Convention` 22 B…). Queda
+> pendiente la representación (avatares) en el juego y P6 (humano como personaje y
+> expresión en ajedrez/Go). El plan por fases y los criterios de cierre están en
 > [ROADMAP_NPC_PSYCHOLOGY.md](../../guides/roadmap/ROADMAP_NPC_PSYCHOLOGY.md), fuente única
 > del avance. Este documento describe el diseño vigente y no se duplica allí.

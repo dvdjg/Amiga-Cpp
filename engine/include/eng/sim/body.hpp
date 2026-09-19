@@ -21,6 +21,7 @@
 #include <eng/core/geometry.hpp>
 #include <eng/core/types.hpp>
 #include <eng/sim/behavior.hpp>
+#include <eng/sim/expression.hpp>
 #include <eng/sim/mind.hpp>
 #include <eng/sim/types.hpp>
 
@@ -88,6 +89,85 @@ struct BodyPose {
 		p.wag = clamp_pose(p.wag + bond / 3);
 	}
 	return p;
+}
+
+/// Postura derivada de un **gesto** con su intensidad (0..100). Refleja en el cuerpo lo
+/// que la expresión filtra por la cara: encogerse al temblar, inclinarse al atacar,
+/// cruzar los brazos al defenderse, desplomarse al desanimarse. Se **suma** a la postura
+/// de conducta para que el avatar muestre el gesto sin animaciones dibujadas a mano.
+[[nodiscard]] constexpr BodyPose pose_from_gesture(GestureKind g, eng::u8 intensity) noexcept {
+	BodyPose p {};
+	const eng::s16 v = static_cast<eng::s16>(intensity);
+	switch (g) {
+		case GestureKind::HandTremor:
+		case GestureKind::WipePalms:
+		case GestureKind::BreathHold:
+		case GestureKind::ChipFumble:
+			p.crouch = clamp_pose(v / 3);
+			p.recoil = clamp_pose(v / 2);
+			break;
+		case GestureKind::ShoulderTension:
+		case GestureKind::FistClench:
+		case GestureKind::FingerTap:
+		case GestureKind::LegBounce:
+		case GestureKind::FootTap:
+		case GestureKind::Fidget:
+			p.lean = clamp_pose(v / 3);
+			break;
+		case GestureKind::LeanIn:
+		case GestureKind::StareDown:
+			p.lean = clamp_pose(v / 2);
+			p.reach = clamp_pose(v / 2);
+			break;
+		case GestureKind::LeanBack:
+		case GestureKind::CrossArms:
+		case GestureKind::GazeAversion:
+		case GestureKind::SelfHug:
+			p.recoil = clamp_pose(v / 2);
+			break;
+		case GestureKind::Slump:
+		case GestureKind::HeadDown:
+			p.crouch = clamp_pose(v / 3);
+			p.head_pitch = clamp_pose(v / 2);
+			break;
+		case GestureKind::ChestPuff:
+		case GestureKind::OpenPosture:
+			p.reach = clamp_pose(v / 3);
+			p.head_pitch = clamp_pose(-v / 3);
+			break;
+		case GestureKind::HeadTilt:
+		case GestureKind::HeadNod:
+			p.head_pitch = clamp_pose(v / 3);
+			break;
+		case GestureKind::Yawn:
+		case GestureKind::Sigh:
+			p.crouch = clamp_pose(v / 4);
+			p.head_pitch = clamp_pose(v / 3);
+			break;
+		case GestureKind::Smile:
+		case GestureKind::Laugh:
+			p.wag = clamp_pose(v / 2);
+			break;
+		case GestureKind::Smirk:
+		case GestureKind::EyeRoll:
+			p.head_pitch = clamp_pose(-v / 4);
+			break;
+		default:
+			break;
+	}
+	return p;
+}
+
+/// Suma dos posturas, saturando a `[-100, 100]`.
+[[nodiscard]] constexpr BodyPose pose_add(const BodyPose& a, const BodyPose& b) noexcept {
+	BodyPose r {};
+	r.lean = clamp_pose(static_cast<eng::s16>(a.lean + b.lean));
+	r.crouch = clamp_pose(static_cast<eng::s16>(a.crouch + b.crouch));
+	r.reach = clamp_pose(static_cast<eng::s16>(a.reach + b.reach));
+	r.recoil = clamp_pose(static_cast<eng::s16>(a.recoil + b.recoil));
+	r.wag = clamp_pose(static_cast<eng::s16>(a.wag + b.wag));
+	r.head_pitch = clamp_pose(static_cast<eng::s16>(a.head_pitch + b.head_pitch));
+	return r;
 }
 
 /// Cadena articulada genérica sobre el escalar `S`.

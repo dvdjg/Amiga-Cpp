@@ -81,6 +81,9 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/sim/pack.hpp>
 #include <eng/sim/persona.hpp>
 #include <eng/sim/expression.hpp>
+#include <eng/sim/read.hpp>
+#include <eng/sim/psyche.hpp>
+#include <eng/sim/convention.hpp>
 #include <eng/sim/planner.hpp>
 #include <eng/sim/rumor.hpp>
 #include <eng/sim/season.hpp>
@@ -102,6 +105,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/cards/eval/equity.hpp>
 #include <eng/cards/eval/range.hpp>
 #include <eng/cards/ai/bot.hpp>
+#include <eng/cards/ai/persona_bot.hpp>
 #include <eng/cards/sim/session.hpp>
 #include <eng/parallel/parallel.hpp>
 #include <eng/core/util/union_find.hpp>
@@ -164,6 +168,8 @@ static_assert(sizeof(eng::sim::LeakedGesture) == 3u, "sim::LeakedGesture");
 static_assert(sizeof(eng::sim::LeakList) == 28u, "sim::LeakList");
 static_assert(sizeof(eng::sim::ExpressionParams) == 6u, "sim::ExpressionParams");
 static_assert(sizeof(eng::sim::LeakContext) == 5u, "sim::LeakContext");
+static_assert(sizeof(eng::sim::PsycheState) == 8u, "sim::PsycheState");
+static_assert(sizeof(eng::sim::Convention) == 22u, "sim::Convention");
 // Gate de layout del modelo de ecosistema (m68k): fija los sizeof medidos. Si cambian,
 // la compilacion cruzada falla y hay que revisar el presupuesto de RAM por criatura.
 static_assert(sizeof(eng::sim::Needs) == 7u, "Sim::Needs");
@@ -965,6 +971,64 @@ extern "C" u16 c_sim_expression_ops(u16 seed) {
 	compute_leaks(m, ctx, kCandidates, out);
 	return static_cast<u16>(out.size()) +
 	       static_cast<u16>(effective_composure(ctx, ExpressionParams {}));
+}
+extern "C" u16 c_sim_psyche_ops(u16 seed) {
+	using namespace eng::sim;
+	Mind m;
+	PsycheState s {};
+	s.tilt = static_cast<eng::u8>(seed % 256u);
+	s.confidence = static_cast<eng::u8>(seed % 101u);
+	Persona p {};
+	p.psyche = kArchetypes[0].psyche;
+	psyche_update(s, m, p, PsycheParams {});
+	return static_cast<u16>(s.tension) + s.mood +
+	       static_cast<u16>(psyche_aggression_mod(s) + 100);
+}
+extern "C" u16 c_sim_read_ops(u16 seed) {
+	using namespace eng::sim;
+	static ReadModel<4, 4> model;
+	model.reset();
+	constexpr GestureKind tracked[4] {GestureKind::BlinkFast, GestureKind::HandTremor,
+					  GestureKind::StareDown, GestureKind::Smile};
+	LeakedGesture leaked[2] {{GestureKind::BlinkFast, 80u, false},
+				 {GestureKind::HandTremor, 60u, false}};
+	for (eng::u8 i = 0u; i < 6u; ++i) {
+		label_showdown(model, 0u, (seed & 1u) != 0u,
+			       eng::Span<const GestureKind> {tracked, 4u},
+			       eng::Span<const LeakedGesture> {leaked, 2u});
+	}
+	return static_cast<u16>(p_strong(model, 0u, 0u)) +
+	       static_cast<u16>(classify_tells(model, 0u));
+}
+extern "C" u16 c_sim_convention_ops(u16 seed) {
+	using namespace eng::sim;
+	static Convention c;
+	if (!c.active()) {
+		c.id = 1u;
+		c.add(GestureKind::EarScratch, SignalKind::Alarm);
+		c.add(GestureKind::NoseFlare, SignalKind::Food);
+	}
+	c.concealment = static_cast<eng::u8>(seed % 101u);
+	(void)emit_convention(c, GestureKind::EarScratch, 1u, 0u, 0u, 0, 0,
+			      static_cast<eng::u8>(seed % 256u));
+	SignalKind out = SignalKind::Count;
+	const ConventionDecode d = decode_convention(c, GestureKind::EarScratch, true, out);
+	ConventionObserver obs {};
+	observe_for_convention(obs, 1u, 2u, GestureKind::EarScratch, true);
+	return static_cast<u16>(c.exposure) + static_cast<u16>(d) +
+	       static_cast<u16>(convention_inferred(obs) ? 1u : 0u);
+}
+extern "C" u16 c_cards_persona_ops(u16 seed) {
+	using namespace eng::cards;
+	using namespace eng::sim;
+	Persona p {};
+	p.psyche = kArchetypes[static_cast<eng::u8>(seed % static_cast<eng::u16>(Archetype::Count))]
+			   .psyche;
+	PsycheState s {};
+	s.tilt = static_cast<eng::u8>(seed % 256u);
+	const BotParams bp = params_from_persona(p, s);
+	return static_cast<u16>(bp.aggression_permille + bp.bluff_permille +
+				bp.call_margin_permille);
 }
 extern "C" u16 c_sim_planner_ops(u16 seed) {
 	using namespace eng::sim;

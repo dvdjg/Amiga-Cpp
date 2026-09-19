@@ -28,15 +28,14 @@ leerlos** con el tiempo. Debe ser determinista, entero, sin heap y con footprint
   afectos + autonomía/deferencia), `MemoryEvent`/`MemoryKind`, `Relationship`/`bond_score`,
   `Senses`/`Tracker`/atención, `behavior.hpp` (utilidad), `communication.hpp` (señales) y
   `body.hpp` (postura). Verificado por HOST-152…175.
-- **No existe todavía**: rasgos de psique (control, engaño, suspicacia…), aptitudes,
-  defectos, arquetipos con nombre, la **compostura** y las **fugas** por canal, el
-  **modelo de lectura** de tells, la **evolución psicológica de partida** y las
-  **convenciones secretas**.
-- **Primer consumidor previsto**: `games/200_holdem` y el futuro juego de póker con
-  avatares.
-
-> Actualización: P0 (persona/arquetipos, HOST-199) y P1 (expresión/fuga, HOST-200) están
-> implementados; el resto sigue pendiente.
+- **Implementado**: rasgos de psique/aptitudes/defectos y arquetipos (`psyche_traits.hpp`,
+  `archetypes.hpp`, `persona.hpp`, HOST-199), expresión y fuga (`expression.hpp`, HOST-200),
+  lectura de tells (`read.hpp`, HOST-201), evolución de partida (`psyche.hpp`, HOST-202),
+  convenciones secretas (`convention.hpp`, HOST-203), postura desde gesto (`body.hpp`) e
+  integración con `eng::cards` (`cards/ai/persona_bot.hpp`, HOST-204).
+- **Pendiente**: representación (avatares en el juego), rango de apuesta combinado con
+  tells, escenarios de mesa en `docs/debugging/` y P6 (humano como personaje y expresión en
+  ajedrez/Go).
 
 ## 3. Reglas transversales (criterios de aceptación)
 
@@ -85,10 +84,10 @@ autonómicos delatan siempre, los volitivos se controlan.
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| P2.1 | `sim/read.hpp` | `ReadModel` (TellStat por objetivo/gesto, exposición, incertidumbre) y `observe_tell` | **HOST-201** |
-| P2.2 | `sim/read.hpp` | `label_showdown` (aprende al revelarse) y `p_strong`/`indicio` (Bayes-lite entero) | **HOST-201** |
-| P2.3 | `sim/read.hpp` | `infer_archetype` (prior) y descuento por `suspicion` (tell invertido del listillo) | **HOST-201** |
-| P2.4 | `sim/senses.hpp` (integración) | La observación de tells usa visión + atención (`attention_score`) | **HOST-201** |
+| P2.1 | `sim/read.hpp` | `ReadModel` (TellStat por objetivo/gesto, exposición, incertidumbre) y `observe_tell` | **HOST-201** (hecho) |
+| P2.2 | `sim/read.hpp` | `label_showdown` (aprende al revelarse) y `p_strong`/`indicio` (Bayes-lite entero) | **HOST-201** (hecho) |
+| P2.3 | `sim/read.hpp` | `infer_archetype` (prior) y descuento por `suspicion` (tell invertido del listillo) | **HOST-201** (hecho) |
+| P2.4 | `sim/senses.hpp` (integración) | La observación de tells usa visión + atención (`attention_score`) | Pendiente (mejora) |
 
 Cierre: un observador aprende a leer a un pardillo tras N showdowns y no se fía de un
 listillo; sin showdown, la incertidumbre persiste.
@@ -97,10 +96,10 @@ listillo; sin showdown, la incertidumbre persiste.
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| P3.1 | `sim/psyche.hpp` | `PsycheState` (compostura, tensión, confianza, tilt, fatiga, ánimo, racha, imagen) | **HOST-202** |
-| P3.2 | `sim/psyche.hpp` | `TableEventKind` y `psyche_observe`: cada evento afecta a `Mind` y al estado (paramétrico) | **HOST-202** |
-| P3.3 | `sim/psyche.hpp` | `psyche_update` (deriva por pasos) y efecto sobre compostura/agresión/farol | **HOST-202** |
-| P3.4 | Escenarios | `docs/debugging/` con partidas controladas (pardillo, listillo, irascible, flemático) | Escenario host |
+| P3.1 | `sim/psyche.hpp` | `PsycheState` (compostura, tensión, confianza, tilt, fatiga, ánimo, racha, imagen) | **HOST-202** (hecho) |
+| P3.2 | `sim/psyche.hpp` | `TableEventKind` y `psyche_observe`: cada evento afecta a `Mind` y al estado (paramétrico) | **HOST-202** (hecho) |
+| P3.3 | `sim/psyche.hpp` | `psyche_update` (deriva por pasos) y efecto sobre compostura/agresión/farol | **HOST-202** (hecho) |
+| P3.4 | Escenarios | `docs/debugging/` con partidas controladas (pardillo, listillo, irascible, flemático) | Pendiente |
 
 Cierre: una racha de derrotas lleva al irascible al tilt y deja al flemático estable; los
 rivales ven cambiar su lectura.
@@ -109,9 +108,9 @@ rivales ven cambiar su lectura.
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| P4.1 | `sim/convention.hpp` | `Convention` (mapa gesto→señal, disimulo, exposición) y `emit`/`decode` | **HOST-203** |
-| P4.2 | `sim/convention.hpp` | `infer_convention` (repetición correlacionada) y riesgo de descubrimiento | **HOST-203** |
-| P4.3 | `sim/communication.hpp` (integración) | La señal de convención entra por `receive_signals`/`apply_signal_effect` | **HOST-203** |
+| P4.1 | `sim/convention.hpp` | `Convention` (mapa gesto→señal, disimulo, exposición) y `emit`/`decode` | **HOST-203** (hecho) |
+| P4.2 | `sim/convention.hpp` | `infer_convention` (repetición correlacionada) y riesgo de descubrimiento | **HOST-203** (hecho) |
+| P4.3 | `sim/communication.hpp` (integración) | La señal de convención entra por `receive_signals`/`apply_signal_effect` | Pendiente (mejora) |
 
 Cierre: dos jugadores comparten un código que los demás no decodifican; si se repite sin
 disimulo, un observador puede inferirlo.
@@ -120,10 +119,10 @@ disimulo, un observador puede inferirlo.
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| P5.1 | `eng::cards` | `Persona`/`PsycheState` por asiento y `BotParams` derivados del arquetipo | Juego/demo |
-| P5.2 | `eng::cards` | Emisión de tells al resolver la acción y lectura por los rivales | Juego/demo |
-| P5.3 | `eng::cards` | El rango dinámico combina línea de apuesta + tells leídos | HOST-166/201 |
-| P5.4 | `games/200_holdem` | Avatares con expresión visible (caras y postura) y evolución en la partida | build → run → analyze |
+| P5.1 | `eng::cards/ai/persona_bot.hpp` | `Persona`/`PsycheState` por asiento y `BotParams` derivados del arquetipo | **HOST-204** (hecho) |
+| P5.2 | `eng::cards/ai/persona_bot.hpp` | `emit_tells`/`read_showdown`: emisión de tells y lectura por los rivales | **HOST-204** (hecho) |
+| P5.3 | `eng::cards` | El rango dinámico combina línea de apuesta + tells leídos | Pendiente |
+| P5.4 | `games/200_holdem` | Avatares con expresión visible (caras y postura) y evolución en la partida | Pendiente |
 
 Cierre: la mesa de póker muestra personajes que se delatan, se leen y evolucionan; el juego
 es el consumidor real que retira el estado "NO VERIFICADA".
@@ -174,11 +173,11 @@ crear cada pieza se comprueba que no duplica una primitiva de `eng::sim`/`eng::u
 |---|---|---|
 | HOST-199 | `psyche_traits.hpp` + `persona.hpp` + `archetypes.hpp`: rasgos, aptitudes, defectos y materialización por arquetipo | **Hecho** |
 | HOST-200 | `expression.hpp`: canales, control por gesto, fuga y microexpresiones | **Hecho** |
-| HOST-201 | `read.hpp`: aprendizaje de tells, Bayes-lite, prior de arquetipo y suspicacia | Planificado |
-| HOST-202 | `psyche.hpp`: estado, eventos de mesa y evolución (tilt/racha/compostura) | Planificado |
-| HOST-203 | `convention.hpp`: emisión/decodificación, disimulo e inferencia de convención | Planificado |
-| HOST-204 | Humano como personaje: `expression_from_input` (gesto explícito + timing) y lectura simétrica | Planificado |
-| HOST-205+ | Integración con cartas y escenarios de mesa | Planificado |
+| HOST-201 | `read.hpp`: aprendizaje de tells, Bayes-lite, prior de arquetipo y suspicacia | **Hecho** |
+| HOST-202 | `psyche.hpp`: estado, eventos de mesa y evolución (tilt/racha/compostura) | **Hecho** |
+| HOST-203 | `convention.hpp`: emisión/decodificación, disimulo e inferencia de convención | **Hecho** |
+| HOST-204 | `eng/cards/ai/persona_bot.hpp`: parámetros por arquetipo/estado, tells y lectura | **Hecho** |
+| HOST-205+ | Avatares del juego, rango con tells y escenarios de mesa | Pendiente |
 
 ## 7. Decisiones y descartado
 
