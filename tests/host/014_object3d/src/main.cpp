@@ -2,6 +2,7 @@
 // Test host de eng::object3d (modelo obj2c + Object3D portado de lib3d).
 #include <eng/platform/amiga/object3d.hpp>
 #include <eng/platform/amiga/object3d_poly.hpp>
+#include <eng/platform/amiga/lib3d.hpp>
 
 #include <cstdio>
 
@@ -145,6 +146,42 @@ int main() {
 			pview, pview.vertices, eng::math3d::vec3<eng::coord>(0, 0, 6000),
 			eng::Span<eng::math3d::FaceOrder>(porder, 64));
 		check(vis > 0 && vis < 32, "pilka: culling parcial de parches");
+	}
+
+	// El culling n-gon de math3d coincide con lib3d sobre la pilka (misma cara visible).
+	{
+		Object3D po {};
+		new_object3d(po, pilka);
+		po.rotate = {};
+		po.scale = {eng::retro::q12 {1 << 12}, eng::retro::q12 {1 << 12}, eng::retro::q12 {1 << 12}};
+		po.translate = {eng::retro::q0 {0}, eng::retro::q0 {0}, eng::retro::q0 {-6000}};
+		update_object_transformation(po);
+		eng::lib3d::update_face_visibility(po);
+		eng::u32 lib3d_visible = 0;
+		const s16* fg = po.faceGroups;
+		if (fg != nullptr) {
+			do {
+				s16 off;
+				while ((off = *fg++) != 0) {
+					if (po.face(off)->flags >= 0) ++lib3d_visible;
+				}
+			} while (*fg != 0);
+		}
+
+		static eng::math3d::Vec3 mv[64];
+		static s16 moff[64];
+		static eng::u16 midx[256];
+		static eng::math3d::FaceSpan mface[64];
+		eng::math3d::PolyMeshView mview {};
+		build_poly_mesh(po, eng::Span<eng::math3d::Vec3>(mv, 64), eng::Span<s16>(moff, 64),
+				eng::Span<eng::u16>(midx, 256),
+				eng::Span<eng::math3d::FaceSpan>(mface, 64), mview);
+		const eng::math3d::Vec3 mcam {{po.camera.x, po.camera.y, po.camera.z}};
+		static eng::math3d::FaceOrder morder[64];
+		const eng::u32 m3d_visible = eng::math3d::mesh_patches_order(
+			mview, mview.vertices, mcam, eng::Span<eng::math3d::FaceOrder>(morder, 64));
+		check(lib3d_visible == m3d_visible,
+		      "pilka: math3d n-gon == lib3d (caras visibles)");
 	}
 
 	if (failures == 0) {

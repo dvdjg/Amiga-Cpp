@@ -236,15 +236,8 @@ public:
             }
             for (u8 r = 0; r < eng::Font5x7::kRows; ++r) {
                 const u8 glyph_row = eng::Font5x7::row(static_cast<u16>(cp), r);
-                if (glyph_row == 0) {
-                    continue;
-                }
-                // 5x7: bit (4-k) es la columna k desde la izquierda.
-                for (u8 k = 0; k < 5u; ++k) {
-                    if ((glyph_row & (1u << (4u - k))) == 0) {
-                        continue;
-                    }
-                    set_pixel(x + static_cast<s32>(k), y + static_cast<s32>(r), color);
+                if (glyph_row != 0) {
+                    draw_glyph_row(x, y + static_cast<s32>(r), glyph_row, 5u, true, color);
                 }
             }
             x += 5; // avance de 5 px (sin espacio extra entre glifos)
@@ -276,18 +269,42 @@ public:
     }
 
 private:
-    /// Pinta un code point con la fuente 8x8 (enrutado por `set_pixel`).
+    /// Pinta los bits ACTIVOS de una fila de glifo como tramos horizontales (una palabra por
+    /// plano, `Playfield::draw_span`). `msb_first` = el bit `nbits-1` es la columna 0 (fuente 5x7).
+    void draw_glyph_row(s32 x, s32 y, u8 bits, u8 nbits, bool msb_first, u8 color) {
+        const s32 cx0 = m_clip.x;
+        const s32 cx1 = m_clip.x + static_cast<s32>(m_clip.w) - 1;
+        if (y < m_clip.y || y >= m_clip.y + static_cast<s32>(m_clip.h)) return;
+        auto is_set = [&](u8 c) {
+            return ((bits >> (msb_first ? (nbits - 1u - c) : c)) & 1u) != 0u;
+        };
+        u8 k = 0;
+        while (k < nbits) {
+            if (!is_set(k)) {
+                ++k;
+                continue;
+            }
+            u8 j = k;
+            while (j + 1u < nbits && is_set(static_cast<u8>(j + 1u))) {
+                ++j;
+            }
+            s32 a = x + static_cast<s32>(k);
+            s32 b = x + static_cast<s32>(j);
+            if (a < cx0) a = cx0;
+            if (b > cx1) b = cx1;
+            if (b >= a) {
+                m_target->draw_span(a, b, y, color);
+            }
+            k = static_cast<u8>(j + 1u);
+        }
+    }
+
+    /// Pinta un code point con la fuente 8x8 (por tramos, `draw_glyph_row`).
     void draw_code_point(s32 x, s32 y, u32 cp, u8 color) {
         for (u8 row = 0; row < eng::Font8::kRows; ++row) {
             const u8 glyph_row = eng::Font8::row(static_cast<u16>(cp), row);
-            if (glyph_row == 0) {
-                continue;
-            }
-            for (u8 k = 0; k < 8u; ++k) {
-                if ((glyph_row & (1u << k)) == 0) {
-                    continue;
-                }
-                set_pixel(x + static_cast<s32>(k), y + static_cast<s32>(row), color);
+            if (glyph_row != 0) {
+                draw_glyph_row(x, y + static_cast<s32>(row), glyph_row, 8u, false, color);
             }
         }
     }

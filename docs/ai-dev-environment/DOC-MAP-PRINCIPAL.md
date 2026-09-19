@@ -44,6 +44,7 @@ Cuando termine la lectura contextual, puede abrir solo los enlaces que necesite.
 | Objetos/actores (sprite vs BOB vs CPU, transparencia, fondos, Copper por objeto) | [OBJECT_SYSTEM.md](../engine/architecture/OBJECT_SYSTEM.md) + [VISUAL_EFFECT_SPRITE_DESIGN.md](../engine/architecture/VISUAL_EFFECT_SPRITE_DESIGN.md) (Visual/CopperIntent/SpriteTemplate) |
 | Streaming / carga en segundo plano | [CONTENT_AND_TILEMAP.md](../engine/architecture/CONTENT_AND_TILEMAP.md) §2 (chunks/prefetch), [WORLD_FORMAT.md](../engine/architecture/WORLD_FORMAT.md) (formato de mundo), [STREAMING_LOADER.md](../engine/architecture/STREAMING_LOADER.md) (Loader: RAM/trackdisk/trackloader), [trackloading.md](../reference/amiga/techniques/trackloading.md) (carga desde disquete/HD) |
 | Estilo/restricciones del engine | [CODING_STYLE.md](../engine/architecture/CODING_STYLE.md), [HARDWARE_AND_ROM_KERNEL_POLICY.md](../engine/architecture/HARDWARE_AND_ROM_KERNEL_POLICY.md) |
+| **Cómo se hacen las cosas** (patrones de escalares/mallas/raster + metodología) | [PATRONES_Y_PROCESO.md](../engine/architecture/PATRONES_Y_PROCESO.md) |
 | Contrato de bajo nivel Amiga (contrato técnico) | [amiga-lowlevel-agent-prompt.md](../guides/methodology/amiga-lowlevel-agent-prompt.md) y [amiga-lowlevel-technique-contract-template.md](../guides/methodology/amiga-lowlevel-technique-contract-template.md) |
 | Bucles de entrada/backend | [engine.hpp](../../engine/include/eng/engine.hpp), `amiga_minimal.cpp` |
 | Build/run/analyze | [BUILD_AND_RUN.md](../build/BUILD_AND_RUN.md) |
