@@ -74,6 +74,12 @@ public:
 		++m_report.display_moves;
 	}
 
+	/// MOVE con escritura de 32 bits (1 store); útil en copperlists largas por línea.
+	__attribute__((always_inline)) inline void move32(u16 custom_register_offset, u16 value) {
+		m_builder.move32(custom_register_offset, value);
+		++m_report.display_moves;
+	}
+
 	/// Emite un MOVE y devuelve un **handle** (índice de la word de instrucción) para
 	/// parchear su dato despues con `patch_data`. Es la via para que un driver
 	/// parchee registros por frame sin depender de offsets cableados (ver

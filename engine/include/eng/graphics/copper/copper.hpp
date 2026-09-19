@@ -130,10 +130,26 @@ public:
 		move(static_cast<u16>(reg), value);
 	}
 
-	/// Escribe un MOVE Copper usando un offset raw. Camino caliente (emisión por línea):
+	/// Writes un MOVE Copper usando un offset raw. Camino caliente (emisión por línea):
 	/// `always_inline` para que el estado del builder viva en registro, no en memoria.
 	__attribute__((always_inline)) inline void move(u16 custom_register_offset, u16 value) {
 		write_pair(custom_register_offset, value);
+	}
+
+	/// Igual que `move` pero escribe el par (registro+dato) en **una sola** operación de
+	/// 32 bits. En chip RAM (copperlists de cientos de palabras por frame) la contienda por
+	/// el bus hace que 1 store de 32 bits cueste bastante menos que 2 de 16. `m_used_words`
+	/// es siempre par, así que el destino está alineado a 4 bytes.
+	__attribute__((always_inline)) inline void move32(u16 custom_register_offset, u16 value) {
+		const u16 used = m_used_words;
+		if (used > m_capacity_words - 2u) {
+			m_ok = false;
+			m_overflow_sent = true;
+			return;
+		}
+		*reinterpret_cast<u32*>(m_words + used) =
+			(static_cast<u32>(custom_register_offset) << 16) | static_cast<u32>(value);
+		m_used_words = static_cast<u16>(used + 2u);
 	}
 
 	/// Escribe los dos MOVEs necesarios para cargar un puntero de bitplane.
