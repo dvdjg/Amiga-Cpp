@@ -35,7 +35,8 @@ que cada caso genera su versión optimizada y ambos comparten el bucle de cullin
 | `Kind` | Cuándo | Qué hace | Qué se ahorra |
 |---|---|---|---|
 | `ConvexSolid` | Sólido convexo (p. ej. la `pilka`) | Sólo back-face culling | Clave de profundidad, shell sort; la lista es `ConvexFace` (2 B/cara) |
-| `ConcaveMesh` | Malla general | Culling + orden de pintor (lejos→cerca) | — |
+| `ConcaveMesh` | Malla general (triángulos) | Culling + orden de pintor (lejos→cerca) | — |
+| `ConvexPatches` | Malla cóncava descompuesta en parches convexos (n-gon) | Culling + pintor por parche | — (relleno convexo por parche) |
 
 Fundamento: en un poliedro **convexo**, tras descartar las caras traseras las visibles
 **particionan la silueta y no se solapan** en proyección, así que el orden de dibujo es
@@ -43,6 +44,27 @@ indiferente y el sort (O(n log n)) es gasto puro. `mesh_painter_order` (pintor, 
 general) se mantiene como envoltorio de `MeshFaceOrder<ConcaveMesh>`; `mesh_convex_order` es
 el del sólido convexo. Añadir una cualidad nueva = especializar `mesh_order_traits<Kind>` y
 `mesh_order_item<Kind, S>`.
+
+Medición (sondas `c_math3d_order_convex`/`c_math3d_order_concave` de
+`tools/analyze/codegen-report.mjs`, malla de 12 triángulos): convexo **256 instrucciones / 3
+saltos** frente a cóncavo **323 / 6**, mismo `muls.w` y sin libcalls. El ahorro es la clave de
+profundidad y el shell sort que el caso convexo no genera.
+
+### 1.2 Caras n-gon y relleno convexo (amigable con el raster)
+
+El raster Amiga rellena **polígonos convexos**, no triángulos, así que triangular una cara de
+5-6 lados (la `pilka`: 20 hexágonos + 12 pentágonos) multiplica los *fills* y añade diagonales
+internas. Para evitarlo:
+
+- **`PolyMeshViewT<S>`** (`mesh3d.hpp`): malla con caras de longitud variable (`FaceSpan` +
+  array plano de índices); el triángulo es `count == 3`. El culling de una cara n-gon usa la
+  normal de **Newell** (`poly_face_visible`), válida también para caras no convexas, y la clave
+  de orden es el mínimo z de la cara. `mesh_patches_order` ordena los parches convexos con el
+  mismo `MeshFaceOrder<ConvexPatches>` (pintor por parche).
+- **`convex_spans`**: genera los spans `(y, xl, xr)` de un polígono convexo por **dos cadenas**
+  (izquierda/derecha desde el vértice superior al inferior), O(altura) frente a O(lados·altura)
+  del barrido por mínimo/máximo. Es el generador de spans para el relleno CPU/Blitter; un
+  llamador escribe cada span con un blit o un `write_span`.
 
 ## 2. Lo que NO hay (colisión/física 3D)
 

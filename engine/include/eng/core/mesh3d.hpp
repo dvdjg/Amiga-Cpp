@@ -61,6 +61,14 @@ struct Face {
 	u16 c = 0;
 };
 
+/// Cara de longitud variable **n-gon**: rango `[first, first+count)` sobre un array plano de
+/// índices de vértice. Un triángulo es el caso `count == 3`. Es la forma amiga del raster
+/// Amiga (rellena polígonos convexos, no triángulos): evita triangular una cara de 5-6 lados.
+struct FaceSpan {
+	u16 first = 0;
+	u16 count = 0;
+};
+
 /// Rasgos de malla **por escalar**: culling y claves de orden. El default usa la aritmética
 /// del propio escalar `S` (vale para `float`/`double`/enteros). Un escalar con camino
 /// optimizado lo especializa (p. ej. `Fixed<s16,0>` en `eng/retro/fixed_mesh.hpp`), de modo
@@ -147,6 +155,129 @@ struct MeshViewT {
 /// Instancia por defecto (escalar `Coord`).
 using MeshView = MeshViewT<Coord>;
 
+/// Vista no propietaria de una malla con caras **n-gon**: vértices compartidos + índices
+/// concatenados + caras (rangos). Un triángulo es el caso `count == 3`. Es la forma amiga del
+/// raster Amiga (rellena polígonos convexos): evita triangular caras de 5-6 lados.
+template <class S = Coord>
+struct PolyMeshViewT {
+	Span<const Vec3t<S>> vertices {};
+	Span<const u16> indices {}; // índices de vértice, concatenados por cara
+	Span<const FaceSpan> faces {};
+
+	[[nodiscard]] constexpr u32 vertex_count() const { return static_cast<u32>(vertices.size()); }
+	[[nodiscard]] constexpr u32 face_count() const { return static_cast<u32>(faces.size()); }
+	/// Índices de vértice de la cara `f` (sin comprobar rango).
+	[[nodiscard]] constexpr Span<const u16> face_indices(u32 f) const {
+		const FaceSpan s = faces[f];
+		return Span<const u16>(indices.data() + s.first, s.count);
+	}
+};
+
+/// Instancia por defecto (escalar `Coord`).
+using PolyMeshView = PolyMeshViewT<Coord>;
+
+/// Visibilidad de una cara n-gon planar `f` desde `cam`: signo de la normal de **Newell**
+/// (válida también para caras no convexas) contra la vista `cam - p0`.
+template <class S>
+[[nodiscard]] inline s32 poly_face_signed_area(const PolyMeshViewT<S>& mesh, u32 f,
+					       Span<const Vec3t<S>> verts, const Vec3t<S>& cam) {
+	using W = decltype(verts[0].v[0] * verts[0].v[0]);
+	const FaceSpan s = mesh.faces[f];
+	W nx {};
+	W ny {};
+	W nz {};
+	for (u32 k = 0; k < s.count; ++k) {
+		const Vec3t<S>& p = verts[mesh.indices[s.first + k]];
+		const Vec3t<S>& q = verts[mesh.indices[s.first + (k + 1u) % s.count]];
+		nx = nx + (p.v[1] - q.v[1]) * (p.v[2] + q.v[2]);
+		ny = ny + (p.v[2] - q.v[2]) * (p.v[0] + q.v[0]);
+		nz = nz + (p.v[0] - q.v[0]) * (p.v[1] + q.v[1]);
+	}
+	const Vec3t<S>& p0 = verts[mesh.indices[s.first]];
+	const auto d = nx * (cam.v[0] - p0.v[0]) + ny * (cam.v[1] - p0.v[1]) +
+		       nz * (cam.v[2] - p0.v[2]);
+	const auto zero = decltype(d) {};
+	return d < zero ? -1 : (d > zero ? 1 : 0);
+}
+
+/// ¿Es visible la cara n-gon `f` desde `cam`?
+template <class S>
+[[nodiscard]] inline bool poly_face_visible(const PolyMeshViewT<S>& mesh, u32 f,
+					    Span<const Vec3t<S>> verts, const Vec3t<S>& cam) {
+	return poly_face_signed_area<S>(mesh, f, verts, cam) >= 0;
+}
+
+/// Clave de orden Z por MÍNIMO de los z de la cara n-gon `f`.
+template <class S>
+[[nodiscard]] inline typename mesh_traits<S>::key poly_face_z_min(const PolyMeshViewT<S>& mesh,
+								  u32 f,
+								  Span<const Vec3t<S>> verts) {
+	const FaceSpan s = mesh.faces[f];
+	s32 m = static_cast<s32>(
+		eng::math::scalar_traits<S>::to_int(verts[mesh.indices[s.first]].v[2]));
+	for (u32 k = 1; k < s.count; ++k) {
+		const s32 z = static_cast<s32>(
+			eng::math::scalar_traits<S>::to_int(verts[mesh.indices[s.first + k]].v[2]));
+		if (z < m) {
+			m = z;
+		}
+	}
+	return static_cast<typename mesh_traits<S>::key>(m);
+}
+
+/// Genera los **spans** horizontales `(y, xl, xr)` de un polígono **convexo** en pantalla por
+/// **dos cadenas** (izquierda/derecha desde el vértice superior al inferior): coste O(altura)
+/// frente a O(lados·altura) del barrido por mínimo/máximo. `emit(y, xl, xr)` se llama una vez
+/// por scanline (con `xl <= xr`, semiapert de la fila inferior como el barrido de referencia).
+/// Los vértices deben estar en orden de giro y formar un polígono convexo.
+template <class Emit>
+inline u32 convex_spans(Span<const s32> xs, Span<const s32> ys, Emit&& emit) {
+	const u32 n = static_cast<u32>(xs.size());
+	if (n < 3u || ys.size() != xs.size()) {
+		return 0;
+	}
+	u32 top = 0;
+	u32 bot = 0;
+	for (u32 i = 1; i < n; ++i) {
+		if (ys[i] < ys[top]) {
+			top = i;
+		}
+		if (ys[i] > ys[bot]) {
+			bot = i;
+		}
+	}
+	if (ys[top] == ys[bot]) {
+		return 0;
+	}
+
+	u32 ia = top; // vértice actual de la cadena "hacia adelante"
+	u32 ib = top; // vértice actual de la cadena "hacia atrás"
+
+	u32 rows = 0;
+	for (s32 y = ys[top]; y < ys[bot]; ++y) {
+		// Evita aristas horizontales (altura 0) al inicio de cada tramo.
+		while (ia != bot && ys[(ia + 1u) % n] == ys[ia]) {
+			ia = (ia + 1u) % n;
+		}
+		while (ib != bot && ys[(ib + n - 1u) % n] == ys[ib]) {
+			ib = (ib + n - 1u) % n;
+		}
+		const u32 na = (ia + 1u) % n;
+		const u32 nb = (ib + n - 1u) % n;
+		const s32 xa = xs[ia] + (xs[na] - xs[ia]) * (y - ys[ia]) / (ys[na] - ys[ia]);
+		const s32 xb = xs[ib] + (xs[nb] - xs[ib]) * (y - ys[ib]) / (ys[nb] - ys[ib]);
+		emit(y, xa < xb ? xa : xb, xa < xb ? xb : xa);
+		++rows;
+		if (na != bot && y + 1 == ys[na]) {
+			ia = na;
+		}
+		if (nb != bot && y + 1 == ys[nb]) {
+			ib = nb;
+		}
+	}
+	return rows;
+}
+
 /// Transforma los vértices `in` al mundo con un afín `out = M·in + t`. Genérico sobre el
 /// escalar del vértice (`S`) y el del afín (`SR`/`SL`); convierte por entero crudo
 /// (`to_int`/`from_int`), coste cero cuando `S == SL`.
@@ -188,12 +319,17 @@ struct ConvexFace {
 /// - `ConvexSolid`: sólido convexo. Tras descartar las caras traseras, las visibles
 ///   particionan la silueta y **no se solapan** en proyección: basta el culling, sin clave
 ///   de profundidad ni ordenación.
-/// - `ConcaveMesh`: malla general. Necesita el **orden de pintor** (lejos→cerca).
+/// - `ConcaveMesh`: malla general de triángulos. Necesita el **orden de pintor** (lejos→cerca).
+/// - `ConvexPatches`: malla cóncava descompuesta en **parches convexos** (n-gon): se ordena por
+///   parche (pintor) y cada parche se rellena por el camino convexo. Reutiliza el mecanismo:
+///   sólo cambia la vista (n-gon) y la intención.
 struct ConvexSolid {};
 struct ConcaveMesh {};
+struct ConvexPatches {};
 
 /// Qué necesita el algoritmo para cada cualidad (punto de extensión). El primario es el caso
-/// general (seguro); `ConvexSolid` lo especializa. Añadir una cualidad = especializar aquí.
+/// general (seguro: clave + sort); `ConvexSolid` lo especializa. Añadir una cualidad =
+/// especializar aquí (y, si cambia el tipo de la lista, `mesh_order_item`).
 template <class Kind>
 struct mesh_order_traits {
 	static constexpr bool depth_key = true;
@@ -205,19 +341,37 @@ struct mesh_order_traits<ConvexSolid> {
 	static constexpr bool sorts = false;
 };
 
-/// Tipo de la lista de salida por cualidad: el convexo no guarda clave de profundidad.
+/// Tipo de la lista de salida por cualidad: el convexo no guarda clave; el resto (general) sí.
 template <class Kind, class S>
-struct mesh_order_item;
+struct mesh_order_item {
+	using type = FaceOrderT<typename mesh_traits<S>::key>;
+};
 template <class S>
 struct mesh_order_item<ConvexSolid, S> {
 	using type = ConvexFace;
 };
-template <class S>
-struct mesh_order_item<ConcaveMesh, S> {
-	using type = FaceOrderT<typename mesh_traits<S>::key>;
-};
 template <class Kind, class S>
 using mesh_order_item_t = typename mesh_order_item<Kind, S>::type;
+
+namespace detail {
+
+/// Shell sort in-place por clave `z` (ascendente) de items con campo `.z`.
+template <class Item>
+inline void shell_sort_by_z(Span<Item> out, u32 n) {
+	for (u32 gap = n / 2u; gap > 0u; gap /= 2u) {
+		for (u32 i = gap; i < n; ++i) {
+			const Item tmp = out[i];
+			u32 j = i;
+			while (j >= gap && out[j - gap].z > tmp.z) {
+				out[j] = out[j - gap];
+				j -= gap;
+			}
+			out[j] = tmp;
+		}
+	}
+}
+
+} // namespace detail
 
 /// **Ordenador de caras**, elegido en compilación por la cualidad `Kind`. Comparte el bucle
 /// de culling; `if constexpr` genera una versión por caso (convexo: sin clave ni sort;
@@ -254,17 +408,45 @@ public:
 			}
 		}
 		if constexpr (Tr::sorts) {
-			for (u32 gap = n / 2u; gap > 0u; gap /= 2u) {
-				for (u32 i = gap; i < n; ++i) {
-					const item_type tmp = out[i];
-					u32 j = i;
-					while (j >= gap && out[j - gap].z > tmp.z) {
-						out[j] = out[j - gap];
-						j -= gap;
-					}
-					out[j] = tmp;
+			detail::shell_sort_by_z(out, n);
+		}
+		return n;
+	}
+
+	/// Igual que `order` pero sobre una malla de caras **n-gon** (`PolyMeshViewT`): culling por
+	/// la normal de Newell y clave por el mínimo z de la cara. Un triángulo es `count == 3`.
+	static u32 order(const PolyMeshViewT<S>& mesh, Span<const Vec3t<S>> verts,
+			 const Vec3t<S>& cam, Span<item_type> out, bool double_sided = false) {
+		using Tr = mesh_order_traits<Kind>;
+		const u32 nv = mesh.vertex_count();
+		const u32 ni = static_cast<u32>(mesh.indices.size());
+		const u32 cap = static_cast<u32>(out.size());
+		u32 n = 0;
+		for (u32 i = 0; i < mesh.face_count() && n < cap; ++i) {
+			const FaceSpan s = mesh.faces[i];
+			if (s.count < 3u || static_cast<u32>(s.first) + s.count > ni) {
+				continue;
+			}
+			bool ok = true;
+			for (u32 k = 0; k < s.count; ++k) {
+				if (mesh.indices[s.first + k] >= nv) {
+					ok = false;
+					break;
 				}
 			}
+			if (!ok) {
+				continue;
+			}
+			if (double_sided || poly_face_visible<S>(mesh, i, verts, cam)) {
+				out[n].index = static_cast<u16>(i);
+				if constexpr (Tr::depth_key) {
+					out[n].z = poly_face_z_min<S>(mesh, i, verts);
+				}
+				++n;
+			}
+		}
+		if constexpr (Tr::sorts) {
+			detail::shell_sort_by_z(out, n);
 		}
 		return n;
 	}
@@ -285,6 +467,15 @@ template <class S = Coord>
 inline u32 mesh_convex_order(const MeshViewT<S>& mesh, Span<const Vec3t<S>> verts,
 			     const Vec3t<S>& cam, Span<ConvexFace> out, bool double_sided = false) {
 	return MeshFaceOrder<ConvexSolid, S>::order(mesh, verts, cam, out, double_sided);
+}
+
+/// Orden de **parches convexos** (n-gon) de una malla cóncava: culling + pintor por parche.
+template <class S = Coord>
+inline u32 mesh_patches_order(const PolyMeshViewT<S>& mesh, Span<const Vec3t<S>> verts,
+			      const Vec3t<S>& cam,
+			      Span<FaceOrderT<typename mesh_traits<S>::key>> out,
+			      bool double_sided = false) {
+	return MeshFaceOrder<ConvexPatches, S>::order(mesh, verts, cam, out, double_sided);
 }
 
 } // namespace eng::math3d

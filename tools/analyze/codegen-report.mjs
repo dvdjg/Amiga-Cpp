@@ -1237,6 +1237,30 @@ extern "C" s16 c_math3d_load_rotate(s16 ax, s16 ay, s16 az) {
 		for (int j = 0; j < 3; ++j) s = static_cast<s16>(s + m.m[i][j].v);
 	return s;
 }
+extern "C" s16 c_math3d_order_convex(s16 a) {
+	static eng::math3d::Vec3 verts[8];
+	static eng::math3d::Face faces[12];
+	static eng::math3d::MeshView mesh {eng::Span<const eng::math3d::Vec3>(verts, 8),
+					   eng::Span<const eng::math3d::Face>(faces, 12)};
+	eng::math3d::ConvexFace out[12] {};
+	const eng::math3d::Vec3 cam = eng::math3d::vec3(0, 0, a);
+	const eng::u32 n = eng::math3d::mesh_convex_order(
+		mesh, eng::Span<const eng::math3d::Vec3>(verts, 8), cam,
+		eng::Span<eng::math3d::ConvexFace>(out, 12));
+	return static_cast<s16>(n + out[0].index);
+}
+extern "C" s16 c_math3d_order_concave(s16 a) {
+	static eng::math3d::Vec3 verts[8];
+	static eng::math3d::Face faces[12];
+	static eng::math3d::MeshView mesh {eng::Span<const eng::math3d::Vec3>(verts, 8),
+					   eng::Span<const eng::math3d::Face>(faces, 12)};
+	eng::math3d::FaceOrder out[12] {};
+	const eng::math3d::Vec3 cam = eng::math3d::vec3(0, 0, a);
+	const eng::u32 n = eng::math3d::mesh_painter_order(
+		mesh, eng::Span<const eng::math3d::Vec3>(verts, 8), cam,
+		eng::Span<eng::math3d::FaceOrder>(out, 12));
+	return static_cast<s16>(n + out[0].index);
+}
 extern "C" s16 c_object3d_update(s16 ax, s16 ay, s16 az) {
 	static eng::object3d::Object3D o {};
 	o.rotate = {q12 {ax}, q12 {ay}, q12 {az}};
