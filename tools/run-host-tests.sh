@@ -107,6 +107,15 @@ if [ "$#" -eq 0 ]; then
 			exit 1
 		fi
 	fi
+	# Numeracion de las demos (sin duplicados por plataforma; ver docs/ai-dev-environment/NUMBERING.md).
+	DEMO_NUMBERING="$ROOT/tools/check/demo-numbering.mjs"
+	if [ -f "$DEMO_NUMBERING" ] && command -v node >/dev/null 2>&1; then
+		echo "== demo-numbering =="
+		if ! node "$DEMO_NUMBERING"; then
+			echo "demo-numbering fallo: numeros de demo duplicados." >&2
+			exit 1
+		fi
+	fi
 fi
 
 # Selección de tests.

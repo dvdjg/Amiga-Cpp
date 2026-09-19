@@ -162,6 +162,7 @@ Estas reglas son obligatorias, pero solo son relevantes cuando se toca su domini
 | **Motores de tablero (ajedrez/Go), footprint 20 kB–1 MB y conocimiento en disquete** | `docs/engine/architecture/BOARD_GAME_AI.md` + `docs/guides/roadmap/ROADMAP_BOARD_GAMES.md` |
 | **Concurrencia y portabilidad multinúcleo (hilos/mutex/atómicos)** | `docs/engine/architecture/PARALLEL_AND_THREADS.md` |
 | **Estado vigente y próximas direcciones del engine** | `docs/guides/roadmap/ROADMAP_UNIFICADO.md` |
+| **Numeración de demos/tests entre ramas** (anti-solape: bloques reservados) | `docs/ai-dev-environment/NUMBERING.md` |
 | **Bitácora de scroll por tiles (histórico)** | `docs/guides/roadmap/BITACORA_SCROLL_TILES.md` |
 
 > Navegación general y protocolo de ingesta: `docs/ai-dev-environment/DOC-MAP-PRINCIPAL.md`.
