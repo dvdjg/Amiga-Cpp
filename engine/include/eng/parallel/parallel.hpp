@@ -34,6 +34,7 @@
 ///
 /// Verificación: HOST-137.
 
+#include <eng/core/ptr.hpp>
 #include <eng/core/types.hpp>
 
 #if !defined(__m68k__)
@@ -103,9 +104,9 @@ private:
 /// Cierre RAII de un `Mutex` (equivalente a `std::lock_guard`).
 class LockGuard {
 public:
-	explicit LockGuard(Mutex& mutex) noexcept : m_mutex(&mutex) { m_mutex->lock(); }
+	explicit LockGuard(Mutex& mutex) noexcept : m_mutex(mutex) { m_mutex->lock(); }
 	~LockGuard() noexcept {
-		if (m_mutex != nullptr) {
+		if (m_mutex.valid()) {
 			m_mutex->unlock();
 		}
 	}
@@ -113,7 +114,7 @@ public:
 	LockGuard& operator=(const LockGuard&) = delete;
 
 private:
-	Mutex* m_mutex;
+	eng::Ref<Mutex> m_mutex {};
 };
 
 /// Atómico abstracto. En el Amiga, con un único contexto de ejecución, basta un

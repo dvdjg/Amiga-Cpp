@@ -55,6 +55,13 @@ int main() {
 	eng::Opt<int> o2 {9};
 	check(o2.has_value() && o2.value() == 9, "Opt desde valor");
 
+	// Ref<const T>: observador de solo lectura.
+	const Obj& ca = a;
+	eng::Ref<const Obj> rc {ca};
+	check(rc.valid() && rc->get() == 42 && rc.get() == &a, "Ref<const T> desde referencia");
+	eng::Ref<const Obj> rc2 {static_cast<const Obj*>(&a)};
+	check(rc2 == rc, "Ref<const T> desde puntero y comparacion");
+
 	if (g_fail == 0) {
 		std::printf("OK: ptr (Ref/NonNull/Opt, sin heap) validado.\n");
 		return 0;
