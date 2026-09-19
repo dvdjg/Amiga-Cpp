@@ -21,8 +21,7 @@
 /// Como los rangos caben en 4 bits y las categorías son crecientes, comparar
 /// valores enteros da exactamente el orden de manos (sin `float` ni multiplicar).
 ///
-/// Verificación: HOST-162. Estado: verificado por test host; **NO VERIFICADO** en
-/// demo/hardware (sin consumidor en `games/` todavía).
+/// Verificación: HOST-162. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
 
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
@@ -273,18 +272,23 @@ namespace detail {
 } // namespace detail
 
 /// Evalúa una mano de 5 a 9 cartas y devuelve el `HandValue` de la mejor de 5. Los
-/// **comodines** (`card_is_joker`) se sustituyen por la mejor carta posible que no
+/// **comodines** (`card_is_joker`) y las cartas cuyo rango esté marcado en
+/// `wild_rank_mask` (p. ej. los doses) se sustituyen por la mejor carta posible que no
 /// esté ya en la mano. Sin comodines delega en `evaluate_plain` (coste cero añadido).
 ///
 /// Coste con comodines: `O(52^wilds)`; pensado para el showdown (1–2 comodines). No
 /// usar con muchos comodines en barridos Monte Carlo grandes.
-[[nodiscard]] constexpr HandValue evaluate_hand(const Card* cards, u8 count) noexcept {
+[[nodiscard]] constexpr HandValue evaluate_hand(const Card* cards, u8 count,
+                                                u16 wild_rank_mask = 0u) noexcept {
 	Card plain[kMaxHandCards] {};
 	u8 plain_count = 0u;
 	u8 wilds = 0u;
 	for (u8 i = 0u; i < count && i < kMaxHandCards; ++i) {
 		const Card card = cards[i];
 		if (card_is_joker(card)) {
+			++wilds;
+		} else if (card_valid(card) &&
+		           ((wild_rank_mask >> static_cast<u8>(card >> 2u)) & 1u) != 0u) {
 			++wilds;
 		} else if (card_valid(card)) {
 			plain[plain_count++] = card;
@@ -317,9 +321,18 @@ namespace detail {
 	return evaluate_hand(cards.data(), static_cast<u8>(cards.size()));
 }
 
+/// **Deuces Wild** (o cualquier juego donde un rango sea comodín): todos los doses son
+/// comodines. `wild_rank` permite cambiar el rango comodín (por defecto, el dos).
+[[nodiscard]] constexpr HandValue evaluate_deuces_wild(const Card* cards, u8 count,
+                                                       Rank wild_rank = Rank::Two) noexcept {
+	return evaluate_hand(cards, count, static_cast<u16>(1u << static_cast<u8>(wild_rank)));
+}
+
 /// **Omaha**: la mano se forma con **exactamente 2** de las 4 cartas privadas y
 /// **exactamente 3** de las 5 comunitarias (60 combinaciones). Reutiliza `evaluate_hand`.
-[[nodiscard]] constexpr HandValue evaluate_omaha(const Card (&hole)[4], const Card (&board)[5]) noexcept {
+/// `wild_rank_mask` (opcional) marca rangos comodín (p. ej. doses).
+[[nodiscard]] constexpr HandValue evaluate_omaha(const Card (&hole)[4], const Card (&board)[5],
+                                                 u16 wild_rank_mask = 0u) noexcept {
 	HandValue best = kHandValueNone;
 	for (u8 h0 = 0u; h0 < 3u; ++h0) {
 		for (u8 h1 = static_cast<u8>(h0 + 1u); h1 < 4u; ++h1) {
@@ -327,7 +340,7 @@ namespace detail {
 				for (u8 b1 = static_cast<u8>(b0 + 1u); b1 < 4u; ++b1) {
 					for (u8 b2 = static_cast<u8>(b1 + 1u); b2 < 5u; ++b2) {
 						const Card five[5] {hole[h0], hole[h1], board[b0], board[b1], board[b2]};
-						const HandValue value = evaluate_hand(five, 5u);
+						const HandValue value = evaluate_hand(five, 5u, wild_rank_mask);
 						if (value > best) {
 							best = value;
 						}

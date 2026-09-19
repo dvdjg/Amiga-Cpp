@@ -28,8 +28,11 @@ engine/include/eng/cards/
 ├── core/          → tipos (Suit, Rank, Card, Hand, Street), Deck, presupuesto (N20…N512)
 │                     y aritmética sin libcalls (intmath: divu.w / mulu16)
 ├── rules/
-│   ├── hand_rank.hpp     → evaluador de 5/7 cartas (mejor de 5 entre 7)
-│   └── texas_holdem.hpp  → estado de mesa, ciegas, acciones legales, side pots y showdown
+│   ├── hand_rank.hpp     → evaluador de 5/7 cartas (mejor de 5 entre 7) + comodines
+│   ├── texas_holdem.hpp  → estado de mesa, ciegas, acciones legales, side pots y showdown
+│   ├── variants.hpp      → variantes (Hold'em/Omaha) y estructura de apuestas (No-Limit/Limit)
+│   ├── seven_stud.hpp    → Seven-Card Stud (ante, bring-in, 5 calles)
+│   └── five_draw.hpp     → Five-Card Draw + Deuces Wild (descarte y segunda ronda)
 ├── eval/
 │   ├── equity.hpp        → equity Monte Carlo, pot odds y heurística preflop
 │   └── range.hpp         → 169 clases de mano inicial, rangos y tabla preflop
@@ -237,14 +240,17 @@ Notas:
 | `rules/variants.hpp` + `evaluate_omaha` (Omaha, Limit) | **Implementado**: HOST-167 |
 | Comodines (mazo de 54 + sustitución en `evaluate_hand`) | **Implementado**: HOST-168 |
 | Omaha de extremo a extremo (equity 4 cartas + sesión) | **Implementado**: HOST-169 |
+| `rules/seven_stud.hpp` (Seven-Card Stud: ante, bring-in, 5 calles) | **Implementado**: HOST-170 |
+| `rules/five_draw.hpp` + `evaluate_deuces_wild` (Draw / Deuces Wild) | **Implementado**: HOST-171 |
 | Herramienta host `tools/cards/selfplay.sh` | **Implementado y ejecutado** (torneos CPU vs CPU) |
 | Benchmark hardware `demos/amiga/124_cards_bench` | **Implementado y medido en A500**: `N20` ≈ 30 unidades/s, `N64` (8 muestras) ≈ 685 ms/unidad; `N128`+ no jugables. Muestras por perfil calibradas con esta tabla |
-| Juego con UI en `games/` | **Pendiente** (los motores están **NO VERIFICADOS** en hardware) |
+| Juego `games/200_holdem` (UI, N20) | **Implementado y verificado**: build → run → analyze OK (READY y captura con contenido) |
 
-> Estado: núcleo, reglas (incluidas Omaha/Limit), evaluación (equity/rangos), comodines, IA
-> y simulación implementados y verificados por test host (HOST-161…169); el codegen 68000
-> está libre de libcalls y de instrucciones 68020. El juego con interfaz en el Amiga, el
-> pulido visual, Seven-Card Stud y la medida por CPU quedan pendientes. El plan por fases y
-> los criterios de cierre están en
+> Estado: núcleo, reglas (Hold'em, Omaha, Limit, Seven-Card Stud, Five-Card Draw), comodines
+> (jokers y rangos comodín), evaluación, IA, simulación y el juego `games/200_holdem`
+> implementados y verificados por test host (HOST-161…171) y, el juego, por build → run →
+> analyze. El codegen 68000 está libre de libcalls e instrucciones 68020. Quedan pendientes
+> el pulido visual del juego y la medida de rendimiento por CPU (020/030). El plan por fases
+> y los criterios de cierre están en
 > [ROADMAP_CARD_GAMES.md](../../guides/roadmap/ROADMAP_CARD_GAMES.md), fuente única del
 > avance. Este documento describe el diseño vigente y no se duplica allí.

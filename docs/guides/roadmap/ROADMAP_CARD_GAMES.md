@@ -27,25 +27,29 @@ CPU vs CPU para ajustar el nivel; el juego con UI en el Amiga cierra la verifica
   evaluador de 5/7 y `rules/texas_holdem.hpp` con ciegas, calles, acciones legales, botes
   laterales y showdown), evaluación (`eval/equity.hpp`: Monte Carlo, pot odds y heurística
   preflop; `eval/range.hpp`: 169 clases, rangos y tabla preflop), IA (`ai/bot.hpp`: estilos y
-  modelo de rival) y simulación (`sim/session.hpp`: sesiones CPU vs CPU). **Variantes**:
-  Omaha de extremo a extremo (equity de 4 cartas, bot y sesión) y estructura Limit, más
-  **comodines** (mazo de 54 cartas con sustitución en el evaluador). Verificado por
-  HOST-161…169.
+  modelo de rival, con **rango derivado de la línea de apuesta**) y simulación
+  (`sim/session.hpp`). **Variantes**: Omaha de extremo a extremo, estructura Limit,
+  **Seven-Card Stud** (`rules/seven_stud.hpp`) y **Five-Card Draw / Deuces Wild**
+  (`rules/five_draw.hpp`), más **comodines** (mazo de 54 y rangos comodín). Verificado por
+  HOST-161…171.
+- **Implementado (juego)**: `games/200_holdem` (Texas Hold'em No-Limit, jugador + 2 bots
+  con perfil `N20`); build → run → analyze **OK** en emulador.
 - **Implementado (herramienta)**: `tools/cards/selfplay.sh` juega torneos CPU vs CPU en host
-  con perfiles, estilos, tabla preflop y rango de rival, y reporta net/bb-100.
+  con perfiles, estilos, tabla preflop y rango de rival, y reporta net/bb-100. Regresión de
+  nivel con `tools/cards/regression.sh` + línea base, integrada en `run-host-tests.sh`.
 - **Verificado el target 68000**: `tools/analyze/codegen-report.mjs` compila las rutas de
-  cartas (evaluador, equity, reglas, rangos, IA y simulación) sin libcalls de libgcc ni
-  instrucciones 68020, y fija los `sizeof` reales (`Table` 246 B, `PreflopTable` 342 B…).
+  cartas (evaluador, equity, reglas incluidas Stud/Draw, rangos, IA y simulación) sin
+  libcalls de libgcc ni instrucciones 68020, y fija los `sizeof` reales.
 - **Primitivas reutilizadas**: `eng::Xoroshiro64pp` y `eng::shuffle`
   (`eng/core/random.hpp`, HOST-100), `eng::Span`/`StringView`/`StaticVector`
   (HOST-073…079), `eng::parallel` (HOST-137) y el patrón de presupuesto de `eng::board`
   (HOST-139).
-- **Pendiente**: juego con UI en `games/` (tablero de naipes, cursor, animación de
-  apuestas, pistas y explicación), medida de rendimiento por CPU/perfil, port a asm de las
-  rutinas calientes de equity y evaluación, y backends de conocimiento externo si se
-  quieren libros/rangos en disquete.
-- **NO VERIFICADO en hardware**: ninguna API de `eng::cards` tiene consumidor en demo o
-  juego todavía; la evidencia actual es solo test host.
+- **Pendiente**: pulido visual del juego y UI de variantes, medida de rendimiento por
+  CPU/perfil, torneos con ciegas crecientes, port a asm de las rutinas calientes y backends
+  de conocimiento externo si se quieren libros/rangos en disquete.
+- **Verificación en hardware**: `games/200_holdem` (Texas Hold'em No-Limit, N20) es el
+  consumidor real; corre en emulador (build → run → analyze OK). El benchmark
+  `demos/amiga/124_cards_bench` mide el coste por perfil en A500.
 
 ## 3. Reglas transversales (criterios de aceptación)
 
@@ -135,11 +139,12 @@ ampliadas. Las muestras por perfil de `core/budget.hpp` se recalibraron con esta
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| C5.1 | `games/200_holdem` | Mesa de póker jugable: cartas, cursor, apuestas, bote, pistas | Pendiente |
+| C5.1 | `games/200_holdem` | Mesa de póker jugable: cartas, apuestas, bote y menú de acciones | **build → run → analyze OK** (captura con contenido) |
 | C5.2 | UI y explicación | Resalte de la mano propia, pot odds visibles, explicación por plantillas | Pendiente |
 | C5.3 | Medida y pulido | Perfil por RAM libre, tiempos de decisión y pulido visual | Pendiente |
 
 Cierre: las APIs dejan de estar "NO VERIFICADAS" y el roadmap se marca completo por fase.
+C5.1 cerrado (el juego corre en emulador con N20); C5.2/C5.3 pendientes.
 
 ## 5. Dependencias entre fases
 
@@ -165,7 +170,7 @@ verificación real.
 
 ## 6. Distribución de tests host
 
-Los números son únicos y no reutilizables; el siguiente libre es **170**. Antes de crear cada
+Los números son únicos y no reutilizables; el siguiente libre es **172**. Antes de crear cada
 pieza se comprueba que no duplica una primitiva de `eng::util`/`eng::parallel`.
 
 | Test | Cubre | Estado |
@@ -179,7 +184,9 @@ pieza se comprueba que no duplica una primitiva de `eng::util`/`eng::parallel`.
 | HOST-167 | `rules/variants.hpp` + `evaluate_omaha`: Omaha 2+3, reparto y estructura Limit | **Hecho** |
 | HOST-168 | Comodines: mazo de 54, sustitución en `evaluate_hand` y showdown | **Hecho** |
 | HOST-169 | Omaha de extremo a extremo: equity de 4 cartas y `run_session` | **Hecho** |
-| HOST-170+ | Seven-Card Stud, rangos de subida dinámicos, torneos y UI | Pendiente |
+| HOST-170 | `rules/seven_stud.hpp`: ante, bring-in, 5 calles, showdown y retirada | **Hecho** |
+| HOST-171 | `rules/five_draw.hpp` + `evaluate_deuces_wild`: descarte y Deuces Wild | **Hecho** |
+| HOST-172+ | Rangos de subida, torneos con ciegas crecientes y UI de variantes | Pendiente |
 
 ## 7. Extensiones, decisiones tomadas y descartado
 

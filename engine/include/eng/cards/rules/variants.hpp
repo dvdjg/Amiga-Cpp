@@ -12,8 +12,7 @@
 /// - `limit_bet_size`: tamaño de apuesta fijo de Limit (ciega pequeña preflop/flop,
 ///   doble en turn/river).
 ///
-/// Verificación: HOST-167. Estado: verificado por test host; **NO VERIFICADO** en
-/// demo/hardware (sin consumidor en `games/` todavía).
+/// Verificación: HOST-167. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
 
 #include <eng/core/types.hpp>
 

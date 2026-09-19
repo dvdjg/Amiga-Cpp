@@ -210,3 +210,5 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-167 | [cards_variants](167_cards_variants/README.md) | `eng/cards/rules/variants.hpp` + `evaluate_omaha`: Omaha (2 hole + 3 board), reparto por variante y estructura Limit (apuesta fija y tope de subidas). |
 | HOST-168 | [cards_wildcards](168_cards_wildcards/README.md) | Comodines: mazo de 54 cartas, sustitución por la mejor carta en `evaluate_hand`, heurística preflop y showdown con comodín. |
 | HOST-169 | [cards_omaha](169_cards_omaha/README.md) | Omaha de extremo a extremo: `equity_vs_random_omaha` (4 cartas) y `run_session` con `variant=Omaha` (conservación, determinismo y comodines). |
+| HOST-170 | [cards_stud](170_cards_stud/README.md) | `eng/cards/rules/seven_stud.hpp`: Seven-Card Stud (ante, bring-in, 5 calles, showdown y retirada). |
+| HOST-171 | [cards_five_draw](171_cards_five_draw/README.md) | `eng/cards/rules/five_draw.hpp` + `evaluate_deuces_wild`: Five-Card Draw con descarte y Deuces Wild. |

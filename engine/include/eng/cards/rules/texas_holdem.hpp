@@ -20,8 +20,8 @@
 ///   pueden igualar o retirarse (se conserva `acted`).
 ///
 /// Verificación: HOST-163 (reglas, acción legal, botes laterales y showdown).
-/// Estado: verificado por test host; **NO VERIFICADO** en demo/hardware (sin
-/// consumidor en `games/` todavía).
+/// Estado: verificado por test host y consumido por `games/200_holdem`
+/// (build → run → analyze OK).
 
 #include <eng/core/types.hpp>
 

@@ -16,8 +16,7 @@
 /// - El trabajo aritmético usa `cards_int` (`eng::intw`: `s16` en 68000), igual
 ///   que `board_int` en los juegos de tablero.
 ///
-/// Verificación: HOST-161. Estado: verificado por test host; **NO VERIFICADO** en
-/// demo/hardware (sin consumidor en `games/` todavía).
+/// Verificación: HOST-161. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
 
 #include <eng/core/scalar.hpp>
 #include <eng/core/types.hpp>

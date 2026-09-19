@@ -200,6 +200,28 @@ void test_dynamic_range() {
 	HandRange all;
 	opponent_range_from_model(tight, t, 0u, nullptr, all);
 	check(all.class_count() == kPreflopClasses, "rango dinamico: sin tabla = completo");
+
+	// Linea de la calle actual: con el mismo historico, quien sube en la calle juega
+	// menos manos (rango mas estrecho) que quien solo pasa.
+	OpponentModel line_raiser;
+	OpponentModel line_checker;
+	for (u16 i = 0u; i < 4u; ++i) {
+		line_raiser.observe(1u, ActionType::Call, Street::Preflop);
+		line_raiser.observe(2u, ActionType::Call, Street::Preflop);
+		line_checker.observe(1u, ActionType::Call, Street::Preflop);
+		line_checker.observe(2u, ActionType::Call, Street::Preflop);
+	}
+	line_raiser.observe(1u, ActionType::Raise, Street::Flop);
+	line_raiser.observe(2u, ActionType::Raise, Street::Flop);
+	line_checker.observe(1u, ActionType::Check, Street::Flop);
+	line_checker.observe(2u, ActionType::Check, Street::Flop);
+
+	HandRange raise_range;
+	HandRange check_range;
+	opponent_range_from_model(line_raiser, t, 0u, &table, raise_range);
+	opponent_range_from_model(line_checker, t, 0u, &table, check_range);
+	check(raise_range.class_count() < check_range.class_count(),
+	      "rango dinamico: subir en la calle estrecha el rango");
 }
 
 } // namespace

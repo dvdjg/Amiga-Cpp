@@ -17,8 +17,7 @@
 /// Los comodines valen `kDeckSize`/`kDeckSize+1`; el evaluador los sustituye por la
 /// mejor carta posible (`hand_rank.hpp`).
 ///
-/// Verificación: HOST-161. Estado: verificado por test host; **NO VERIFICADO** en
-/// demo/hardware (sin consumidor en `games/` todavía).
+/// Verificación: HOST-161. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
 
 #include <eng/core/random.hpp>
 #include <eng/core/span.hpp>

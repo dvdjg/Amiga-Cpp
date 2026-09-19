@@ -67,6 +67,8 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/cards/rules/hand_rank.hpp>
 #include <eng/cards/rules/texas_holdem.hpp>
 #include <eng/cards/rules/variants.hpp>
+#include <eng/cards/rules/seven_stud.hpp>
+#include <eng/cards/rules/five_draw.hpp>
 #include <eng/cards/eval/equity.hpp>
 #include <eng/cards/eval/range.hpp>
 #include <eng/cards/ai/bot.hpp>
@@ -118,7 +120,7 @@ static_assert(sizeof(eng::cards::HandRange) == 24u, "cards::HandRange");
 static_assert(sizeof(eng::cards::PreflopTable) == 512u, "cards::PreflopTable");
 static_assert(sizeof(eng::cards::EquityResult) == 6u, "cards::EquityResult");
 static_assert(sizeof(eng::cards::BotParams) == 14u, "cards::BotParams");
-static_assert(sizeof(eng::cards::OpponentModel) == 82u, "cards::OpponentModel");
+static_assert(sizeof(eng::cards::OpponentModel) == 122u, "cards::OpponentModel");
 static_assert(sizeof(eng::cards::SessionStats) == 72u, "cards::SessionStats");
 
 struct HalfEvenPolicy { using Round = rounding::HalfEven; using Overflow = overflow::Wrap; };
@@ -951,6 +953,31 @@ extern "C" eng::u16 c_cards_omaha_eq(eng::u8 a, eng::u8 b, eng::u8 c, eng::u8 d,
 	const eng::cards::EquityResult r = eng::cards::equity_vs_random_omaha(
 	    eng::Span<const eng::u8> {hole, 4u}, eng::Span<const eng::u8> {}, 1u, samples, rng);
 	return r.equity_permille;
+}
+extern "C" eng::u32 c_cards_stud(eng::u8 seats) {
+	static eng::Xoroshiro64pp rng {17u, 18u};
+	eng::cards::StudTable t;
+	eng::cards::start_stud(t, rng, seats, 1000, 1, 2, 4, 8, 0u);
+	eng::cards::Action legal[12];
+	const eng::u8 n = eng::cards::stud_legal_actions(t, legal, 12u);
+	if (n > 0u) {
+		eng::cards::stud_apply_action(t, legal[n - 1u]);
+	}
+	return static_cast<eng::u32>(n) ^ static_cast<eng::u32>(t.pot);
+}
+extern "C" eng::u32 c_cards_draw(eng::u8 seats) {
+	static eng::Xoroshiro64pp rng {19u, 20u};
+	eng::cards::DrawTable t;
+	eng::cards::start_draw(t, rng, seats, 1000, 1, 4, 8, 0u, false, true);
+	eng::cards::Action legal[12];
+	const eng::u8 n = eng::cards::draw_legal_actions(t, legal, 12u);
+	if (n > 0u) {
+		eng::cards::draw_apply_action(t, legal[n - 1u]);
+	}
+	return static_cast<eng::u32>(n) ^ static_cast<eng::u32>(t.pot);
+}
+extern "C" eng::u32 c_cards_deuces(const eng::u8* cards) {
+	return static_cast<eng::u32>(eng::cards::evaluate_deuces_wild(cards, 7u));
 }
 `;
 

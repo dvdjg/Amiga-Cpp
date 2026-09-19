@@ -14,8 +14,7 @@
 /// expone frecuencias en por mil, que el bot usa para ajustar el farol y el valor
 /// fino. Va dimensionado por el `CardPlan` (`tracked_opponents`).
 ///
-/// Verificación: HOST-165. Estado: verificado por test host; **NO VERIFICADO** en
-/// demo/hardware (sin consumidor en `games/` todavía).
+/// Verificación: HOST-165. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
 
 #include <eng/core/random.hpp>
 #include <eng/core/types.hpp>
@@ -123,12 +122,17 @@ struct BotParams {
 	return 0u;
 }
 
-/// Modelo de rival: cuenta acciones observadas por asiento y deduce frecuencias.
+/// Modelo de rival: cuenta acciones observadas por asiento (histórico completo y
+/// **calle actual**) y deduce frecuencias. La agresión de la calle actual es la que
+/// delata la fuerza de la línea de apuesta (un rival que sube juega menos manos).
 struct OpponentModel {
 	u16 hands_faced[kMaxSeats] {};
 	u16 folds[kMaxSeats] {};
 	u16 calls[kMaxSeats] {};
 	u16 raises[kMaxSeats] {};
+	u16 street_raises[kMaxSeats] {};
+	u16 street_passive[kMaxSeats] {}; ///< calls + checks de la calle actual
+	u8 current_street = 0xffu;
 	u8 tracked = kMaxSeats;
 
 	constexpr void reset() noexcept {
@@ -137,23 +141,43 @@ struct OpponentModel {
 			folds[i] = 0u;
 			calls[i] = 0u;
 			raises[i] = 0u;
+			street_raises[i] = 0u;
+			street_passive[i] = 0u;
 		}
+		current_street = 0xffu;
 	}
 
-	constexpr void observe(u8 seat, ActionType action) noexcept {
+	constexpr void reset_street(Street street) noexcept {
+		for (u8 i = 0u; i < kMaxSeats; ++i) {
+			street_raises[i] = 0u;
+			street_passive[i] = 0u;
+		}
+		current_street = static_cast<u8>(street);
+	}
+
+	constexpr void observe(u8 seat, ActionType action, Street street = Street::Preflop) noexcept {
 		if (seat >= kMaxSeats) {
 			return;
+		}
+		if (static_cast<u8>(street) != current_street) {
+			reset_street(street);
 		}
 		switch (action) {
 		case ActionType::Fold:
 			++folds[seat];
+			++street_passive[seat]; // retirarse no sube
 			break;
 		case ActionType::Call:
 			++calls[seat];
+			++street_passive[seat];
+			break;
+		case ActionType::Check:
+			++street_passive[seat];
 			break;
 		case ActionType::Raise:
 		case ActionType::AllIn:
 			++raises[seat];
+			++street_raises[seat];
 			break;
 		default:
 			break;
@@ -170,6 +194,13 @@ struct OpponentModel {
 		const u16 total =
 		    static_cast<u16>(folds[seat] + calls[seat] + raises[seat]);
 		return total == 0u ? 300u : permille_u32(raises[seat], total);
+	}
+
+	/// Agresión de la **calle actual**: proporción de subidas frente a acciones
+	/// pasivas (call/check/fold). Sin datos, 300 ‰ (neutro).
+	[[nodiscard]] constexpr u16 line_aggression_permille(u8 seat) const noexcept {
+		const u16 total = static_cast<u16>(street_raises[seat] + street_passive[seat]);
+		return total == 0u ? 300u : permille_u32(street_raises[seat], total);
 	}
 };
 
@@ -248,12 +279,14 @@ inline void opponent_range_from_model(const OpponentModel& model, const Table& t
 	}
 	u16 fold_sum = 0u;
 	u16 aggr_sum = 0u;
+	u16 line_sum = 0u;
 	u8 n = 0u;
 	for (u8 i = 0u; i < t.seat_count; ++i) {
 		const SeatStatus st = t.seats[i].status;
 		if (i != hero_seat && (st == SeatStatus::Active || st == SeatStatus::AllIn)) {
 			fold_sum = static_cast<u16>(fold_sum + model.fold_permille(i));
 			aggr_sum = static_cast<u16>(aggr_sum + model.aggression_permille(i));
+			line_sum = static_cast<u16>(line_sum + model.line_aggression_permille(i));
 			++n;
 		}
 	}
@@ -263,8 +296,12 @@ inline void opponent_range_from_model(const OpponentModel& model, const Table& t
 	}
 	const u16 fold = static_cast<u16>(div32(fold_sum, n));
 	const u16 aggr = static_cast<u16>(div32(aggr_sum, n));
-	// 400 ‰ por defecto; retirarse mucho estrecha el rango, la agresividad lo ensancha.
-	s32 wide = 400 + (300 - static_cast<s32>(fold)) + (static_cast<s32>(aggr) - 300) / 2;
+	const u16 line = static_cast<u16>(div32(line_sum, n));
+	// 400 ‰ por defecto; retirarse mucho estrecha el rango y la agresividad sostenida
+	// lo ensancha. La **línea de la calle actual** manda: si el rival sube, juega menos
+	// manos y mejores, así que estrecha el rango.
+	s32 wide = 400 + (300 - static_cast<s32>(fold)) + (static_cast<s32>(aggr) - 300) / 2 -
+	           (static_cast<s32>(line) - 300) / 2;
 	if (wide < 80) {
 		wide = 80;
 	}

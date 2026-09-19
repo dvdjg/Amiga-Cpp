@@ -20,8 +20,8 @@
 /// En perfiles sin Monte Carlo (`N20`) se usa `preflop_strength_permille` (o
 /// `omaha_preflop_strength_permille`) y la tabla preflop de `range.hpp`.
 ///
-/// Verificación: HOST-164, HOST-166 y HOST-169. Estado: verificado por test host;
-/// **NO VERIFICADO** en demo/hardware (sin consumidor en `games/` todavía).
+/// Verificación: HOST-164, HOST-166 y HOST-169. Estado: verificado por test host y
+/// consumido por `games/200_holdem` (build → run → analyze OK).
 
 #include <eng/core/random.hpp>
 #include <eng/core/span.hpp>

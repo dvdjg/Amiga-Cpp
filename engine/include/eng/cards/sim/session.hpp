@@ -8,8 +8,7 @@
 /// miles de manos con semilla fija y comparan net (bb/100), frecuencia de showdown
 /// y reparto de botes entre estilos. Todo determinista y sin I/O.
 ///
-/// Verificación: HOST-165. Estado: verificado por test host; **NO VERIFICADO** en
-/// demo/hardware (sin consumidor en `games/` todavía).
+/// Verificación: HOST-165. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
 
 #include <eng/core/random.hpp>
 #include <eng/core/types.hpp>
@@ -112,7 +111,7 @@ inline void run_session(const SessionConfig& config, const CardPlan& plan, Sessi
 				break;
 			}
 			if (model != nullptr) {
-				model->observe(actor, action.type);
+				model->observe(actor, action.type, table.street);
 			}
 			apply_action(table, action);
 			++actions;
