@@ -127,6 +127,17 @@ public:
 		++m_report.waits;
 	}
 
+	/// WAIT a una POSICION (V y H) de una linea PAL completa (0..311): port exacto de
+	/// `CopWaitSafe` conservando la comparacion horizontal (`ListBuilder::wait_position_pal`).
+	/// Para cambios de paleta por scanline mas alla de la linea 255 sin perder el H.
+	__attribute__((always_inline)) inline void wait_position_safe(u16 line, u8 hpos) {
+		m_builder.wait_position_pal(line, hpos);
+		if (line <= 255u) {
+			m_timeline.reserve_wait(static_cast<u8>(line & 0xffu));
+		}
+		++m_report.waits;
+	}
+
 	/// **Rearmado horizontal de un canal de sprite**: espera a `(vstart, hpos)` y
 	/// reescribe `SPRxPOS`/`SPRxCTL`/`SPRxDATA`/`SPRxDATB` para redibujar el MISMO canal
 	/// más a la derecha en la misma línea (multiplexado horizontal). NO toca `SPRxPT`.

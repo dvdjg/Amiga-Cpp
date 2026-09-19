@@ -36,7 +36,7 @@ si un cambio en `linalg`, `interp`, `geometry`, `spline`, `noise`, `minifloat_ma
 | `minifloat_fixed` | `mul_fixed`/`mul_fix`/`mul_fix88`, `fixed_to_mf`/`mf_to_fixed`, `transform(Mat<MF>,Vec<fixed>)`, `transform_fix`, `transform_fix88`, `transform_point`, `project` | MF↔fixed |
 | `isqrt` | `isqrt` (raíz entera; el port subestima ≤1 en la ventana de prueba) | entero |
 | `fast_div` | `fast_div<N>::q/r/qr`, `runtime_div::qr`, `wrap_period`, `asr_floor`, `is_pow2`, `ilog2` | entero |
-| `retro/angles`+`sintab` | `sin_q12`/`cos_q12` (tabla 4.12 de 4096 pasos) e identidad pitagórica | q12 |
+| `retro/fixed_trig`+`sintab` | `sin`/`cos` de un ángulo en vueltas (`Turns`; tabla 4.12 de 4096 pasos) e identidad pitagórica | q12 |
 | `light` | `hi16` y `light_ops<>::shade` (recorte del índice y `mulu.w`) | entero |
 | `mesh3d` | `face_signed_area`/`face_visible`/`face_z_sum`/`face_z_min` | entero |
 

@@ -176,10 +176,10 @@ template <class S>
 template <class S>
 [[nodiscard]] constexpr SteerVec<S> wander(const SteerVec<S>& pos, S heading, S wander_radius,
 					   S jitter, S max_speed) {
-	const SteerVec<S> ahead =
-		pos + eng::math::vscale(eng::math::from_angle(heading), wander_radius);
+	using Rad = eng::math::Angle<S, eng::math::angle::radians>;
+	const SteerVec<S> ahead = pos + eng::math::vscale(eng::math::from_angle(Rad {heading}), wander_radius);
 	const SteerVec<S> target =
-		ahead + eng::math::vscale(eng::math::from_angle(heading + jitter), wander_radius);
+		ahead + eng::math::vscale(eng::math::from_angle(Rad {heading + jitter}), wander_radius);
 	return seek(pos, target, max_speed);
 }
 

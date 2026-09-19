@@ -534,6 +534,20 @@ Estas reglas son de obligado cumplimiento y `AGENTS.md` enruta aquí.
 - Motivo: g++ 15 ignora los pins `register ... asm("aN")` del original y no alcanza el codegen apretado (ver §9). El original sí lo consigue con variables de registro y macros inline.
 - **Toda ruta asm debe validarse visual/estructuralmente** (secuencia de frames + `verify-*`), no solo por compilación: un `movea.l`/`lea`, un índice o una división mal portados cuelgan o deforman sin fallar el build. Referencia de errores vistos: `docs/debugging/` y la bitácora de este documento.
 
+### 12.4 Sondas de codegen del camino 3D (`math3d`/`lib3d`/`object3d`)
+
+El informe `tools/analyze/codegen-report.mjs` fija el asm del camino 3D en 68000, además del gate de libcalls (nada de `__mulsi3`/`__divsi3` ni 68020):
+
+| Sonda | Qué cubre | Coste medido (68000, `-O2`) |
+|---|---|---|
+| `c_math3d_load_rotate` | `math3d::load_rotate` (Rx·Ry·Rz) genérico | ~30 instr + 1 `jsr` (con `sincos3`) |
+| `c_object3d_update` | `update_object_transformation` (directa + inversa + cámara) | 20 instr + 1 `jsr` |
+| `c_lib3d_facevis` | `update_face_visibility` (luz por producto punto) | 111 instr, 7 `muls.w`, 0 libcalls |
+| `c_lib3d_transform` | `transform_vertices` (transform + `div_wide` + bbox) | 87 instr, 0 libcalls |
+
+- El producto q12×q12 va a `Fixed<s32,24>` (**8.24**, `wide<s16> = s32`) y normaliza **una vez** por `dot`/`mul_norm`; en 68000 es `muls.w`, nunca `__mulsi3`.
+- **`sincos3` compartido**: `update_object_transformation` calcula `(sin, cos)` por eje una sola vez y los reutiliza en la matriz directa y la inversa (`sincos(-a) = (-sin a, cos a)`, exacto porque la tabla es impar/par), ahorrando 3 lecturas de tabla por frame. La exactitud la fijan HOST-050/051 y la tabla dorada HOST-053.
+
 
 
 

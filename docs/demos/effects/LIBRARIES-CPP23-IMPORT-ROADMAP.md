@@ -297,6 +297,115 @@ cualquier WAIT (incluido el doble-WAIT `0xffdf/0xfffe` de `CopWaitSafe`, portado
 - `wait_line_pal` sigue siendo útil para otras esperas (p. ej. sincronizar a final
   de frame) pero NO para posicionar un split con precisión a una línea >= 256.
 
+## 4-ter. Importación con gate de rendimiento (obligatorio)
+
+Una importación no está terminada cuando "se ve": debe **mantener el rendimiento del
+original**. Este gate rige todos los portes y fija el objetivo de fps.
+
+### Objetivos
+
+| Tipo de efecto | Objetivo | Criterio |
+|---|---|---|
+| No intensivo de CPU | **50 fps** (1 campo) | El `update` cabe en un campo PAL (141.876 ciclos). |
+| Intensivo de CPU/bus | **25 fps** (2 campos) | El `update` cabe en dos campos. Si el original tampoco da 25, el objetivo es **igualar al original**, no inventar. |
+
+### Procedimiento (en este orden, sin saltos)
+
+1. **Medir antes de optimizar**: `measure-fps.mjs` da ciclos/frame y campos. Prohibido
+   "optimizar a ojo".
+2. **Aislar por capas** antes de tocar código: exponer interruptores de compilación
+   (`-DK_<NNN>_BG=0`, `-DK_<NNN>_BOBS=0`…) y capturar cada capa por separado. Distingue
+   fallos de fondo de fallos de objeto sin interpretar una imagen global.
+3. **Validar con visión local** (`qwen3-vl`): `run-demo.sh <demo> --sequence-frames N` +
+   `ollama-desc.mjs` (o `ai-analyze.mjs`). El veredicto es un filtro de sospecha, no una
+   prueba: confirmar/refutar con un gate objetivo (diff de frames, cobertura, registros).
+   Validar **secuencias**, no una sola imagen.
+4. **Perfilar el reparto**: secciones `ENG_PROF_*` alrededor de cada fase (clear /
+   transform / draw / blits / install) y leer con `profile.mjs` (o el lector de ciclos).
+   La fase dominante decide la optimización; `measure-fps` ya no basta.
+5. **Separar CPU de bus**: `winuae-profile.mjs` da ciclos de CPU ocupada/libre y DMA por
+   tipo. Si libre≈0 y el coste crece con los datos, es bus/Blitter, no instrucciones: hay
+   que reducir accesos (palabras), no reescribir en C.
+6. **Fidelidad de registros**: cualquier secuencia de registros del original se copia
+   verbatim y se contrasta con AHRM 3.ª / `amiga-bootcamp/08_graphics/
+   blitter_programming.md`. **Nunca** "normalizar" un registro sin leer su semántica
+   (lección BSH de `bobs3d`: `BLTCON1` bits 15-12 = BSH, no un duplicado de ASH).
+7. **Capa de engine de coste cero**: el engine no debe añadir ciclos sobre el algoritmo.
+   Medir el coste **por elemento** (`c/BOB`, `c/verifice`, `c/intencion`). Si el
+   recorrido genérico recalcula por elemento lo que es constante para el lote, **subirlo
+   al engine como primitiva de lote** (constantes fuera del bucle, como el original).
+   Duplicar el camino genérico no es la solución: se optimiza el genérico o se añade la
+   variante de lote reutilizable.
+8. **Escalado a asm**: si tras el paso 7 el C++ fiel no iguala al original en una rutina
+   caliente, se porta esa rutina a `support/*.s` (se conserva, no se traduce) y se
+   enlaza desde el wrapper C++, con test de equivalencia.
+9. **Oráculo**: medir el `.exe`/ADF original del efecto en WinUAE. Fija el objetivo real
+   (p. ej. si el original da ~3 campos, 25 fps no es alcanzable con fidelidad y el
+   objetivo es acercarse).
+
+### Orden de ataque del sobrecoste
+
+`bus/Blitter` (reducir palabras y contencion) → `draw` por elemento (constantes al lote)
+→ `transform` (precalculo/as.m) → display (planos, clear). El display y el clear suelen
+ser inherentes al efecto: no son candidatos a "optimizar" salvo rediseño.
+
+### Cadencia de frame y nº de buffers (anti-tearing)
+
+Un `update` que no cabe en 1 campo tiene **dos** cuantizaciones y no hay que confundirlas:
+
+- **Nº de buffers de display** (anti-tearing): el swap es `COP1LC` y surte efecto al
+  **inicio del siguiente VBlank**. Con `update` **alineado** a VBlank (bucle de polling)
+  2 buffers bastan; con `update` **no alineado** (IRQ que relanza a media pantalla) hacen
+  falta **`ceil(update/campo)+1`** buffers (3 = triple buffer). Ver
+  `docs/engine/architecture/DISPLAY_COMPOSITION.md` §6 regla 10.
+- **Cadencia**: alineado + `update` = `W` campos => fps = `50/ceil(W)`. Para bajar el
+  `ceil` no basta con "optimizar": medir `update` en ciclos (seccion que envuelve el
+  frame), comparar con el umbral (`ceil(W)×141.876`) y decidir si se recorta carga o se
+  asume la cadencia.
+
+**Leccion medida (117_bobs3d):** con `update` = 2,0 campos se alcanzan 25 fps; con 60
+BOBs eran 2,02 campos (286k) => 16,6 fps, y con **56 BOBs** (recorte configurable,
+`K_117_MAXBLOBS`) baja a 2,0 campos => **25 fps**. Optimizar el efecto (BLTPRI, lote inline,
+solape clear/transform, matriz directa sin inversa/`camera`) bajo el trabajo real de ~354k
+a ~286k, pero el ultimo tramo hasta los 2 campos se resolvio recortando la carga (4 chispas)
+porque las palancas restantes (~2,5k de `load_rotate`) no compensaban el coste/riesgo.
+
+Ver también: [METODOLOGIA_PROFILING.md](../../guides/optimization/METODOLOGIA_PROFILING.md)
+y §12 de [OPTIMIZACION_GPP_68000.md](../../guides/optimization/OPTIMIZACION_GPP_68000.md).
+
+## 4-quater. Adaptar el original al sistema de plantillas (escalares y ángulos)
+
+El engine es **genérico sobre el escalar**: la matemática es plantilla y el tipo (fixed
+4.12, `float`, otro) se instancia según quién la use. Un original del demoscene no conoce
+esa abstracción (fija formatos y convenciones a fuego), así que al portarlo hay que
+**traducir** sus convenciones, no copiarlas:
+
+- **Ángulo.** El original suele medir el ángulo como **índice entero** de una tabla de 4096
+  pasos (`SIN(a)` con `a` en `0..4095`). Las APIs de math3d (`load_rotate`,
+  `scalar_sin`/`scalar_cos`) usan **radianes** del propio escalar. Convierte en el límite
+  con `eng::retro::angle_to_radians(a)` (el viaje índice→radianes→tabla es exacto, así que
+  el valor no cambia). No metas índices en una firma tipada ni llames a `sin_q12` desde
+  código nuevo.
+- **Tabla de seno.** Para generar tablas idénticas al original (p. ej. `plasma`) usa el
+  ángulo en **vueltas** (`eng::retro::Turns` + `sin`/`cos`, índice `0..4095`), que lleva la
+  unidad **en el tipo**; para cálculo en runtime usa `scalar_sin<S>`/`scalar_cos<S>`
+  (radianes). No añadir funciones con el formato en el nombre (`cos_q12`).
+- **Inventario del corpus.** La convención está en `include/fx.h` (`SIN_MASK 0xfff`, tabla
+  `sintab[4096]`, `SIN`/`COS` inline). Efectos que usan `SIN(`/`COS(`: `anim`, `ball`,
+  `blurred`, `bumpmap-rgb`, `butterfly-gears`, `credits`, `dna3d`, `floor`, `floor-old`,
+  `growing-tree`, `layers`, `metaballs`, `plasma`, `plotter`, `prisms`, `rotator`,
+  `sea-anemone`, `shapes`, `spooky-tree`, `starfox`, `stripes`, `thunders`, `tiles8`,
+  `transparency`, `twister-rgb`, `uvmap-rgb`, `weave`.
+- **Escalar del tipo.** Donde el original escribe `Fixed`/`s16`/`fix` a fuego, deja que la
+  plantilla decida: instancia `q12` (RATIO) o `q0` (LONGITUD) y deja que el compilador
+  rechace mezclas. El alias concreto sólo debe aparecer en `retro/`/`platform`.
+- **Vértices/geometría.** El layout empaquetado del `obj2c` (blob `Span<u8>`, campos `q0`,
+  `normal` `q12`, grupos `s16`) es contrato/ABI: se porta 1:1 y sobre él se tipa la
+  aritmética.
+- **Verificar.** Tras adaptar, pasar el gate de codegen 68000 (sin `__mulsi3`/`__divsi3`) y
+  comparar fps/captura con el original (§4-ter). Un cambio de unidades mal hecho se suele
+  ver como una rotación más rápida, lenta o desfasada, no como un fallo de compilación.
+
 ## 5. Índice de cobertura (seguimiento por librería)
 
 Estado por librería (actualizarlo en cada cambio de estado):
@@ -306,9 +415,9 @@ Estado por librería (actualizarlo en cada cambio de estado):
 | `libmisc` (fx/sort/crc32) | ✅ | ✅ | ✅ (host) · demo 060 creada (build OK, pendiente corrida WinUAE) | ✅ | 060 | `isqrt` (isqrt.hpp), `sort` (sort.hpp) y `crc32` (crc32.hpp) en `eng/core`; validados por test HOST-000 y compilados en la demo 060. `sintab`→`core::sinetable`; `random`→`core::random.hpp` (xoroshiro64++, equivalente al `random.c` de libc). Pendientes: `console` (→Oleada 1), `sync`, `file`. |
 | `libc` (string/stdlib/stdio) | ✅ | 🔄 (random) | ✅ (random) | 🔄 | 04, 14 | `random` portado. `qsort`→`eng::core::quick_sort` (no duplicar). `string`/`stdio` (kvprintf/snprintf): no se portan ahora (sin necesidad real; `debug.text()` es `const char*` fijo). Recomendado: portar cuando una API lo exija. |
 | `libgfx` (bitmaps/copper/sprites/c2p) | 🔄 | 🔄 (c2p, bitmap portable, paleta) | 🔄 (c2p demo 061) | 🔄 | 03, 04, 50, 53 | `c2p_1x1_4` portado: version C++ naive en `eng/graphics/c2p.hpp` (validada por demo 061) + asm de Kalms en `support/c2p_1x1_4.s` (pendiente equivalencia). `CopWaitSafe`→`wait_line_pal`. `Bitmap` portable ya existia (`eng/graphics/bitmap.hpp`). `palette.h`→ helpers puros en `eng::util::color.hpp` (`hsv_to_rgb444`, `palette_lerp`/`palette_scale`; HOST-094). Ver `OLEADA1_LIBGFX_INVENTARIO.md`. |
-| `libblit` (blitter) | ✅ | ✅ (mapeado) | ✅ | 11, 14, 58, 59, 67 | Las ops son hardware y van al backend: `FramePlan` (`frame_plan.hpp`) ya es la **cola de blits con presupuesto** (`BlitJob` copy/restore/tile/masked + `BlitBudget`/`DirtyRect`), y los minterms (`cookie_cut=0xca`, `copy_c=0xaa`) están en `amiga_minimal.cpp`. Las tablas puras `WordMask` no se portan (el backend usa HWM/LWM completos). |
+| `libblit` (blitter) | ✅ | ✅ (mapeado) | ✅ | 11, 14, 58, 59, 67, 117 | Las ops son hardware y van al backend: `FramePlan` (`frame_plan.hpp`) ya es la **cola de blits con presupuesto** (`BlitJob` copy/restore/tile/masked + `BlitBudget`/`DirtyRect`), y los minterms (`cookie_cut=0xca`, `copy_c=0xaa`) están en `amiga_minimal.cpp`. Las tablas puras `WordMask` no se portan (el backend usa HWM/LWM completos). La demo **117_bobs3d** (ver `BOBS3D_PORT_PLAN.md`) destapó un fallo de fidelidad: el camino OR-BOB escribía `BLTCON1 = shift<<12`, cuando esos bits son **BSH** (shift del canal B, que en OR-BOB es el destino); corregido a `BLTCON1 = 0` como el original. Rendimiento: anadida la primitiva de **lote de BOBs** `MinimalBackend::blitter_or_bobs` (constantes de blit fijadas una vez, atlas denso y 3 palabras fieles); en la 117 baja `draw` 159k→46k y `blits` 372k→262k (10,08→12,56 fps). |
 | `lib2d` | ✅ | ✅ | ✅ (host HOST-010) | ✅ | 06, 30, 56 | `engine/include/eng/core/math2d.hpp`: `Mat2x2` (fixed-point 4.12, formato del origen) con `load_identity`/`translate`/`scale`/`rotate`/`transform`, tabla de seno 4096 (reusa `eng::SineTable`, sin libm), `point_flags`, `clip_line` (Liang-Barsky) y `clip_polygon` (Sutherland-Hodgman, con buffer de trabajo). Validado por `tests/host/010_lib2d`. |
-| `lib3d` | ✅ | ✅ (matrices + caras + malla) | ✅ (host HOST-011/013 + demos 077/078) | ✅ | 06, 30, 56, 65 | `engine/include/eng/platform/amiga/gfx3d.hpp`: `Mat3x3` (fixed-point 4.12) con `load_identity`/`translate`/`scale`/`load_rotate` (Rx·Ry·Rz)/`load_reverse_rotate` (Rz·Ry·Rx)/`compose`/`transform`, más `Face` + `face_visible` (back-face culling por signo), `face_z_sum`/`face_z_min` (claves del painter's algorithm). Reutiliza la tabla de seno de `math2d`. Validado por `tests/host/011_math3d`. Modelo de malla en `engine/include/eng/core/mesh3d.hpp`: `MeshView` (vértices + caras), `mesh_transform` (lote) y `mesh_painter_order` (culling + orden lejos→cerca por shell sort in-place, sin asignación), validado por `tests/host/013_math3d_mesh`. Doble cara (`double_sided` en `mesh_painter_order`), formato binario `obj2c` consumido por la capa UAF-R (`MeshAssetView`; demo 078) y **modelo de objeto `lib3d`** (`obj2c` + `Object3D`) portado 1:1 en `eng/platform/amiga/object3d.hpp` (test HOST-014), validado por las demos **`079_wireframe`** (porte 1:1 de `effects/wireframe`; ver `WIREFRAME_PORT_PLAN.md`) y **`116_flatshade_convex`** (importe de `effects/flatshade-convex`: culling convexo + luz por cara con `InvSqrt`, relleno por Blitter). |
+| `lib3d` | ✅ | ✅ (matrices + caras + malla) | ✅ (host HOST-011/013 + demos 077/078) | ✅ | 06, 30, 56, 65 | `engine/include/eng/platform/amiga/gfx3d.hpp`: `Mat3x3` (fixed-point 4.12) con `load_identity`/`translate`/`scale`/`load_rotate` (Rx·Ry·Rz)/`load_reverse_rotate` (Rz·Ry·Rx)/`compose`/`transform`, más `Face` + `face_visible` (back-face culling por signo), `face_z_sum`/`face_z_min` (claves del painter's algorithm). Reutiliza la tabla de seno de `math2d`. Validado por `tests/host/011_math3d`. Modelo de malla en `engine/include/eng/core/mesh3d.hpp`: `MeshView` (vértices + caras), `mesh_transform` (lote) y `mesh_painter_order` (culling + orden lejos→cerca por shell sort in-place, sin asignación), validado por `tests/host/013_math3d_mesh`. Doble cara (`double_sided` en `mesh_painter_order`), formato binario `obj2c` consumido por la capa UAF-R (`MeshAssetView`; demo 078) y **modelo de objeto `lib3d`** (`obj2c` + `Object3D`) portado 1:1 en `eng/platform/amiga/object3d.hpp` (test HOST-014), validado por las demos **`079_wireframe`** (porte 1:1 de `effects/wireframe`; ver `WIREFRAME_PORT_PLAN.md`), **`116_flatshade_convex`** (importe de `effects/flatshade-convex`: culling convexo + luz por cara con `InvSqrt`, relleno por Blitter) y **`117_bobs3d`** (importe de `effects/bobs3d`: `TransformVertices` de TODOS los vértices con `eng::math::projector`, y cada vértice como BOB OR intercalado; ver `BOBS3D_PORT_PLAN.md`). |
 | `libgui` | ❌ | ❌ | ❌ | ❌ | 37, 38 | `eng::ui` |
 | `libp61/libpt/libahx/libctr` | ❌ | ❌ | ❌ | ❌ | 46, 47, 44, 45 | asm en `support/` |
 
@@ -350,3 +459,4 @@ Siguiente paso recomendado: portar/mapear el resto de `libmisc`/`libc`
 - Catálogo de técnicas del origen: `docs/06-catalogo-efectos.md` y `docs/07-referencia-apis.md` en el repo origen.
 - **Método de porte 1:1** (prompt reutilizable + flujo + oráculo con el `.exe` original): [`../../../guides/roadmap/PORT_PROMPT_1A1.md`](../../../guides/roadmap/PORT_PROMPT_1A1.md).
 - **Plan de huecos del primer porte** (`wireframe`): [`WIREFRAME_PORT_PLAN.md`](WIREFRAME_PORT_PLAN.md).
+- **Porte de `bobs3d`** (DPF 3+2, paleta por linea y BOB OR intercalado; caso de estudio de rendimiento y del bug BSH): [`BOBS3D_PORT_PLAN.md`](BOBS3D_PORT_PLAN.md).

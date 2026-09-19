@@ -1,3 +1,4 @@
+#define ENG_SCALAR_RETRO16  // host: instancia retro (eng::real=q12, coord=q0)
 // Test host de eng::lib3d (visibilidad de caras/aristas y transform+proyeccion de
 // vertices sobre el modelo empaquetado de object3d). Construye una malla minima a
 // mano (1 nodo + 1 arista + 1 cara) y comprueba signos/valores calculables.
@@ -68,14 +69,14 @@ int main() {
 	// Objeto: malla minima + camara detras del origen (translate z negativo).
 	eng::object3d::Object3D obj {};
 	eng::object3d::Mesh3D mesh {};
-	mesh.data = g_objdat;
+	mesh.bytes = eng::Span<eng::u8>(g_objdat);
 	mesh.vertexGroups = g_vertexGroups;
 	mesh.edgeGroups = g_edgeGroups;
 	mesh.faceGroups = g_faceGroups;
 	mesh.objects = nullptr;
 	eng::object3d::new_object3d(obj, mesh);
-	obj.rotate = {0, 0, 0};
-	obj.translate = {0, 0, -4000};
+	obj.rotate = {};
+	obj.translate = {eng::retro::q0 {0}, eng::retro::q0 {0}, eng::retro::q0 {-4000}};
 	eng::object3d::update_object_transformation(obj);
 
 	// La camara queda en +z (translate.z = -4000): la cara que mira a la camara es

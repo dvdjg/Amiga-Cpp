@@ -190,3 +190,145 @@ concretas.
 - **`bool` en structs**: nunca en ABI/DMA; documentar la regla en `CODING_STYLE.md`.
 - **Alcance**: no generalizar tipos de dominio (píxeles/tiles/registros); solo el escalar de
   simulación.
+
+## 8. Replanteo: cabeceras genéricas, el tipo solo en config y `retro/`
+
+**Regla nueva (corrige §2).** Ninguna cabecera define su propio alias concreto de escalar
+(`using Coord = Fixed<s16,0>`), ni impone un ancho. El tipo se decide en **dos sitios**:
+
+1. `eng/core/scalar.hpp` — los alias **configurables** `eng::intw`/`real`/`coord` (y, si
+   hace falta, un `eng::real32` aparte). Es el único lugar que nombra el exponente de un
+   modo dado.
+2. `eng/retro/`, `eng/cpu/m68k/` — el vocabulario **retro 16 bits** (`q0`/`q12`, `s16`) y
+   las especializaciones para ciertas funciones (trig por tabla, `muls.w`). Aquí SÍ se
+   nombra `Fixed<s16,E>` a propósito (es el target y el ABI de los assets).
+
+Todo lo demás (`core/`, `graphics`, `field`, `scene`, `ai`, `sim`, `platform/amiga`)
+**usa `eng::coord`/`real` o es plantilla sobre `S`**; nunca crea un alias concreto. Los
+tipos de **dominio** (píxeles/tiles/registros/`bob`/`bitmap`) siguen crudos: no son
+escalares.
+
+**Decisión ya aplicada:** en 68020 (`retro32`) `real`/`coord` siguen siendo
+`Fixed<s16,12>`/`Fixed<s16,0>` (mismos assets que 68000); lo único que cambia es `intw`
+(`s32`). Un fixed de 32 bits sería una opción **explícita**, no el defecto del target.
+
+### 8.1 Cambios por cabecera (backlog)
+
+| Cabecera | Hoy | Cambio |
+|---|---|---|
+| `core/mesh3d.hpp` | `using Coord = Fixed<s16,0>` local | usar `eng::coord` (o plantilla `S`); borrar el alias local |
+| `platform/amiga/gfx3d.hpp` (`math3d`) | `Mat3 = Mat<3,q12>`, `Affine3 = Affine<3,q12,q0>`, trig `q12` | alias a `eng::real`/`eng::coord`; trig sobre `eng::real` (ver 8.2) |
+| `platform/amiga/object3d.hpp` | piloto: `Point3S<retro::q0/q12>` | cambiar a `eng::coord`/`eng::real` (tras 8.2) |
+| `core/fixed_math.hpp` | tablas/series **solo** `Fixed<s16,E>` | plantilla `Fixed<Repr,E>`; tablas por `Repr` |
+| `core/linalg.hpp` | `scalar_div` solo `Fixed<s16,E>` | generalizar a `Fixed<Repr,E>` |
+| `core/light.hpp`, `retro/lib2d.hpp`, `retro/minifloat_fixed.hpp` | tipos concretos | usar `eng::real`/`coord` o plantilla |
+| `scene/actor.hpp`, `core/util/grid.hpp`, `collision.hpp`, `broadphase.hpp`, `color.hpp` | `Point2s`/AABB/RGB a 16 bits | son **dominio** (píxeles): se quedan; auditar sólo call sites con coma fija |
+
+### 8.2 Problemas que sigo viendo (respuesta a «¿sigues viendo problemas?»)
+
+1. **La trig es el cuello de botella real.** `math3d::load_rotate` depende de
+   `retro::sin_q12/cos_q12`, que devuelven `Fixed<s16,12>`. Hasta que `fixed_math` esté
+   parametrizado por `Repr`/`E`, `eng::real` **no puede** usarse en `math3d`/`object3d` si
+   en algún modo `eng::real` ≠ `Fixed<s16,12>`. Es el primer trabajo, no el último.
+2. **El `objdat` es un formato externo de 16 bits y de escalas mezcladas.** `point` es
+   `q0`, `normal` es `q12`, y `rotate/scale/translate` usan `q0`/`q4`/`q12`. Eso choca con
+   el modelo «un tipo = un exponente» y con `Fixed` (prohíbe mezclar): no hay un único `S`
+   que describa un `Point3D` reutilizado. Opciones: (a) tipos 16-bit separados por campo
+   (`PointQ0`/`NormalQ12`) sobre el mismo blob; (b) un lector que convierta a `eng::coord`/
+   `real`. La (a) conserva el `reinterpret_cast` y el layout; la (b) es más limpia pero
+   añade copia. **Decisión abierta.**
+3. **El `real` de host.** Para que `mesh3d`/`object3d` usen `eng::coord` central sin romper
+   el ABI de 16 bits, `eng::coord`/`real` deben ser de **16 bits también en host** (el
+   proyecto es Amiga y reutiliza assets; la versión `float` es para tests de *algoritmos
+   genéricos*, que se instancian explícitamente con `float`, no vía `eng::real`). Si se
+   prefiere `float` en host para `eng::real`, entonces el `objdat` necesita un alias de
+   ABI aparte (16 bits). **Decisión abierta** (afecta a los tests 135/136 y a `mesh3d`).
+4. **Tests «golden» de 16 bits.** 050/053 fijan valores s16 exactos; el modo por defecto de
+   los tests host debe ser el de 16 bits (retro16) o forzarse por test, si no, los valores
+   cambian. Hoy se fuerza por test; conviene una política única.
+5. **Rendimiento.** Generalizar no debe perder los `always_inline` ni introducir
+   `__mulsi3`/`__divsi3`: el `codegen-report` (68000) sigue siendo el gate obligatorio en
+   cada paso. La generalización debe ser de **tipos**, no de despacho dinámico.
+6. **Tipos de dominio.** `bitmap`/`bob`/registros/`incbin` no son escalares: se quedan
+   crudos; confundirlos con «deuda de escalar» sería un error.
+
+**Orden recomendado:** (1) parametrizar `fixed_math`/`linalg` por `Fixed<Repr,E>` y la trig
+por escalar; (2) `mesh3d`/`math3d` a `eng::coord`/`eng::real`; (3) `object3d` runtime a
+`eng::coord`/`eng::real` y decidir 8.2-2; (4) auditar los call sites de coma fija; (5)
+consolidar la política de tests (retro16 por defecto en host).
+
+### 8.3 El patrón concreto: `scalar_sin<S>` en lugar de `sin_q12`
+
+El vocabulario genérico **ya existe** en `core/scalar_math.hpp` (`scalar_sin<S>`,
+`scalar_cos<S>`, `scalar_sqrt<S>`, …), con especializaciones para `float`/`double`. El
+refactor no inventa nada: usa esos puntos de extensión y **borra** el vocabulario concreto
+de `retro/angles.hpp` (`sin_q12`/`cos_q12`/`fix`). El algoritmo nunca nombra `q12`:
+
+```cpp
+// math3d/gfx3d: SOLO el algoritmo; el escalar es plantilla (instancia por defecto = eng::real)
+template <class S = eng::real>
+void load_rotate(eng::math::Mat<3, S>& m, angle_t<S> ax, angle_t<S> ay, angle_t<S> az) {
+    const S sX = eng::math::scalar_sin<S>::op(ax), cX = eng::math::scalar_cos<S>::op(ax);
+    // ... producto matricial con eng::math::dot / mul_norm sobre S
+}
+using Mat3 = eng::math::Mat<3, eng::real>;   // la instancia concreta, en un solo sitio
+```
+
+Pasos:
+
+1. **`scalar_sin`/`scalar_cos` para `Fixed<Repr,E>`**: la especialización de
+   `Fixed<s16,12>` usa la tabla `kSinTab` (idéntica, para no mover los golden); para
+   `Fixed<s32,E>`/`Fixed<s16,8>`… serie o tabla propia. **Misma firma** para todos.
+   Contrato fijado: ángulo en **radianes** (como `float`/`double`); la conversión a índice
+   de tabla queda dentro de la especialización. **Hecho** en `eng/retro/fixed_trig.hpp`
+   (`scalar_sin`/`scalar_cos`/`scalar_sincos<Fixed<s16,12,P>>` con `kSinTab`) y cubierto
+   por HOST-177, que instancia un mismo algoritmo con `float` y con `q12`.
+2. **`gfx3d`/`math3d` a plantillas sobre `S`** (`load_rotate`, `load_reverse_rotate`,
+   `scale`, `transform`, `inverse_rigid`). Los alias `Mat3`/`Affine3`/`P3` son la
+   instanciación por defecto y viven en **un** sitio.
+3. **El ángulo deja de ser `u16`** en la API: es `angle_t<S>` (`float` → radianes; fixed →
+   índice 0..N). A diseñar: `scalar_angle<S>` (tipo + ops) o que `scalar_sin<S>` documente
+   su unidad. Es el punto que evita «argumentos con tipo prefijado».
+4. **`angles.hpp` desaparece**; su contenido va a las especializaciones retro de
+   `scalar_sin`/`scalar_cos` (donde SÍ procede nombrar `Fixed<s16,12>`), junto a
+   `fixed_math.hpp`.
+5. **Límite innegociable**: el `objdat` empaquetado (`obj2c`, 16 bits, escalas mezcladas),
+   los registros de hardware y la geometría de píxeles **no** son escalares; se quedan como
+   están (formato/dominio). Todo lo demás (matemática, escena, sim) va por `S` o por
+   `eng::real`/`coord`.
+
+### 8.4 Estado: pasos 1–3 hechos
+
+- **`gfx3d` genérico** (`platform/amiga/gfx3d.hpp`): `Mat3<S>`, `Affine3<SR,SL>` y `P3<S>`
+  son alias de plantilla; `load_rotate`/`load_reverse_rotate`/`scale`/`transform`/
+  `inverse_rigid` reciben el escalar por plantilla y el **ángulo en radianes** del propio
+  `S`; la única operación concreta es `scalar_sin<S>`/`scalar_cos<S>`. Ninguna firma nombra
+  `q12`, `q0`, `fix` ni `u16`.
+- **`retro/angles.hpp` retirado**: su contenido vive en `retro/fixed_trig.hpp` (tabla
+  exacta + `scalar_sin`/`scalar_cos`/`scalar_sincos<Fixed<s16,12,P>>` en radianes), más
+  `angle_to_radians` para quien piensa en el índice `0..4095`. El `rotate(Mat2x2&)` 2D pasó
+  a `retro/lib2d.hpp` (ángulo en radianes).
+- **Radianes de punta a punta**: `object3d::Angle3` es un `q12` en radianes; las demos
+  `077/078/079/116/117` convierten su índice de frame con `angle_to_radians`; la conversión
+  índice→radianes→tabla es **exacta** (redondeo al más cercano), así que los gates
+  HOST-050/051/053 (bit-exactitud y tabla dorada) siguen verdes y la demo 117 no cambia de
+  resultado (25.04 fps, 2.0 líneas/frame).
+- **Instancia por defecto**: los alias usan `eng::real`/`eng::coord`; los tests host de la
+  capa Amiga fijan `-DENG_SCALAR_RETRO16` para validar la instancia de producción
+  (`eng::real=q12`, `coord=q0`).
+- **Blob `obj2c` tipado** (`object3d`): `Mesh3D::bytes`/`Object3D::objdat` son `Span<u8>`
+  (ya no `void*`), los campos llevan su escala (`Point3D` q0, `Face::normal` q12) y
+  `new_object3d` valida el descriptor (`mesh_validate`). Los **grupos y offsets siguen
+  `s16`**: son offsets de byte del `obj2c` (y del asm `flatshade_asm.s`), no escalares.
+- **Por qué `Object3D`/`Mesh3D` no se plantillan sobre el escalar**: su layout es ABI
+  (el asm lee `objdat`@0, grupos@4/8/12, `objectToWorld`@38…); meter un `Span`/tipo más
+  ancho en esos campos movería los offsets. La generalización aplica a la **aritmética**
+  (`Affine3<>`/`P3<>`/`load_rotate`), no al layout empaquetado.
+- **`scalar.hpp` consolidado**: se queda en `core/` como **única** selección por target.
+  `intw` lo usa el núcleo (`eng::board`); `real`/`coord` son la instancia por defecto de la
+  capa de plataforma/3D (hoy sólo `gfx3d` los consume). El resto del engine es plantilla y
+  no los nombra. No se mueven a `platform/` para no duplicar las macros de selección.
+- **Ángulo con unidad en el tipo**: `eng::math::Angle<S, Unit>` (`radians`/`turns`/
+  `degrees`/`unit`) + `sin`/`cos` (punto de entrada único). El ángulo-vueltas del original
+  es `Turns = Angle<q12, turns>` con `sin`/`cos` por tabla exacta; se eliminan
+  `sin_q12`/`cos_q12` y las funciones con el formato en el nombre.

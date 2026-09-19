@@ -99,6 +99,7 @@ engine/
 │   ├── field/            → playfield / scroll / X-Limited (escena 2D)
 │   ├── scene/            → escena virtual / cámara
 │   ├── ai/               → IA de juego (ai/planning: GOAP; familias decision/navigation/steering/perception/design)
+│   ├── sim/              → ecosistema vivo (eng::sim): criaturas, necesidades, mente, sociedad y LOD abstracto/realizado
 │   ├── board/            → motores de tablero (ajedrez/Go): reglas, búsqueda adversaria, aperturas/finales, NLG (eng::board)
 │   ├── cards/            → motores de naipes (póker): baraja, reglas, equity, IA y simulación (eng::cards)
 │   ├── parallel/         → concurrencia abstracta (eng::parallel): hilos/mutex/atomicos no-op en m68k, std en host

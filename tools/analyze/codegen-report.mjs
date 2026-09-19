@@ -22,6 +22,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/scalar_ops.hpp>
 #include <eng/core/spline.hpp>
 #include <eng/core/mesh3d.hpp>
+#include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/core/minifloat.hpp>
 #include <eng/core/minifloat_math.hpp>
 #include <eng/retro/fixed_q.hpp>
@@ -58,6 +59,33 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/ai/steering/steering.hpp>
 #include <eng/ai/perception/influence_map.hpp>
 #include <eng/ai/perception/agent_memory.hpp>
+#include <eng/sim/avatar.hpp>
+#include <eng/sim/behavior.hpp>
+#include <eng/sim/biome.hpp>
+#include <eng/sim/body.hpp>
+#include <eng/sim/climate.hpp>
+#include <eng/sim/colony.hpp>
+#include <eng/sim/communication.hpp>
+#include <eng/sim/creature.hpp>
+#include <eng/sim/culture.hpp>
+#include <eng/sim/economy.hpp>
+#include <eng/sim/genetics.hpp>
+#include <eng/sim/hierarchy.hpp>
+#include <eng/sim/inventory.hpp>
+#include <eng/sim/knowledge.hpp>
+#include <eng/sim/lifecycle.hpp>
+#include <eng/sim/lod.hpp>
+#include <eng/sim/memory.hpp>
+#include <eng/sim/mental_map.hpp>
+#include <eng/sim/object.hpp>
+#include <eng/sim/pack.hpp>
+#include <eng/sim/planner.hpp>
+#include <eng/sim/rumor.hpp>
+#include <eng/sim/season.hpp>
+#include <eng/sim/senses.hpp>
+#include <eng/sim/society.hpp>
+#include <eng/sim/terrain.hpp>
+#include <eng/sim/world.hpp>
 #include <eng/board/rules/chess/rules.hpp>
 #include <eng/board/rules/go/rules.hpp>
 #include <eng/board/explain/explain.hpp>
@@ -122,6 +150,21 @@ static_assert(sizeof(eng::cards::EquityResult) == 6u, "cards::EquityResult");
 static_assert(sizeof(eng::cards::BotParams) == 14u, "cards::BotParams");
 static_assert(sizeof(eng::cards::OpponentModel) == 122u, "cards::OpponentModel");
 static_assert(sizeof(eng::cards::SessionStats) == 72u, "cards::SessionStats");
+// Gate de layout del modelo de ecosistema (m68k): fija los sizeof medidos. Si cambian,
+// la compilacion cruzada falla y hay que revisar el presupuesto de RAM por criatura.
+static_assert(sizeof(eng::sim::Needs) == 7u, "Sim::Needs");
+static_assert(sizeof(eng::sim::Personality) == 10u, "Sim::Personality");
+static_assert(sizeof(eng::sim::Emotions) == 12u, "Sim::Emotions");
+static_assert(sizeof(eng::sim::Mind) == 44u, "Sim::Mind");
+static_assert(sizeof(eng::sim::Tracker) == 14u, "Sim::Tracker");
+static_assert(sizeof(eng::sim::Senses) == 13u, "Sim::Senses");
+static_assert(sizeof(eng::sim::Relationship) == 6u, "Sim::Relationship");
+static_assert(sizeof(eng::sim::Genome) == 8u, "Sim::Genome");
+static_assert(sizeof(eng::sim::KnowledgeEntry) == 6u, "Sim::KnowledgeEntry");
+static_assert(sizeof(eng::sim::Inventory) == 12u, "Sim::Inventory");
+static_assert(sizeof(eng::sim::Item) == 12u, "Sim::Item");
+static_assert(sizeof(eng::sim::AbstractCreature<>) == 308u, "Sim::AbstractCreature<>");
+static_assert(sizeof(eng::sim::SimWorld<>) == 23998u, "Sim::SimWorld<>");
 
 struct HalfEvenPolicy { using Round = rounding::HalfEven; using Overflow = overflow::Wrap; };
 using q14 = Fixed<s16, 14>;
@@ -525,8 +568,383 @@ extern "C" s16 c_steering_extra_ops(s16 px, s16 py, s16 tx, s16 ty) {
 		q12 {32});
 	return static_cast<s16>(pv.v[0].v + ev.v[0].v + wv.v[0].v + av.v[0].v);
 }
-extern "C" u16 c_waypoints_ops(u16 start, u16 goal) {
-	eng::ai::WaypointGraph<8, 8> graph;
+// --- eng::sim: modelo de ecosistema. La decision por utilidad es camino por frame;
+// no puede arrastrar libcalls de mul/div de 32 bits (usa muls.w/divs.w de Utility y
+// apply_mod). El mundo es estatico (12 KB) para no reservar en la pila del 68000. ---
+static eng::sim::SimWorld<> g_sim_world;
+extern "C" u16 c_sim_behavior_ops(u16 seed, u16 hunger, u16 threat_conf) {
+	using namespace eng::sim;
+	AbstractCreature<> c {};
+	c.id = 1u;
+	c.room = 0u;
+	c.needs.hunger = static_cast<eng::u8>(hunger % 256u);
+	observe(c.trackers, TrackerKind::Threat, 2u, 0u, 10, 0,
+		static_cast<eng::u8>(threat_conf % 256u), 0u);
+	eng::Xoroshiro64pp rng {seed, static_cast<eng::u32>(seed + 1u)};
+	BehaviorContext ctx {};
+	ctx.environment_severe = (seed & 1u) != 0u;
+	ctx.has_den = true;
+	const Behavior b = choose_behavior<SimTraits>(c, ctx, rng);
+	return static_cast<u16>(static_cast<eng::u16>(b) + static_cast<eng::u16>(c.behavior_score));
+}
+extern "C" u16 c_sim_world_ops(u16 seed, u16 hungry) {
+	using namespace eng::sim;
+	g_sim_world = SimWorld<> {};
+	const EntityId a = g_sim_world.spawn(1u, 0u, 0u, 10, 20);
+	const EntityId b = g_sim_world.spawn(2u, 0u, 1u, 30, 40);
+	g_sim_world.link_rooms(0u, 1u);
+	if (auto* c = g_sim_world.find(a)) {
+		c->set_den(1u, 30, 40);
+		c->needs.hunger = static_cast<eng::u8>(hungry % 256u);
+	}
+	g_sim_world.set_rain(true);
+	g_sim_world.realize_room(0u, 1u);
+	eng::Xoroshiro64pp rng {seed, static_cast<eng::u32>(seed + 1u)};
+	g_sim_world.tick_realized(rng);
+	g_sim_world.tick_abstract(rng);
+	return static_cast<u16>(static_cast<eng::u16>(b) +
+				static_cast<eng::u16>(g_sim_world.creature_count()) +
+				g_sim_world.realized_count());
+}
+extern "C" u16 c_sim_knowledge_ops(u16 seed) {
+	using namespace eng::sim;
+	KnowledgeSet a {};
+	KnowledgeSet b {};
+	learn(a, KnowledgeKind::FoodSource, seed, 200u);
+	const eng::u8 shared = share(a, b);
+	decay_knowledge(b, 3u);
+	return static_cast<u16>(shared + top_confidence(b) +
+				static_cast<eng::u16>(caste_of(Genome {})));
+}
+extern "C" u16 c_sim_hierarchy_ops(u16 seed) {
+	using namespace eng::sim;
+	Personality p {};
+	Mind m {};
+	p.autonomy = static_cast<eng::u8>(seed % 101u);
+	const eng::u8 self = contest_power(static_cast<eng::u8>(seed % 100u), 50u, 70u);
+	const eng::u8 other = 80u;
+	const Score s = submission_score(self, other, p, m);
+	const Score d = defiance_score(self, other, p, m);
+	return static_cast<u16>(should_submit(self, other, p, m) ? 1u : 0u) +
+	       static_cast<u16>(s + d);
+}
+extern "C" u16 c_sim_genetics_ops(u16 seed) {
+	using namespace eng::sim;
+	eng::Xoroshiro64pp rng {seed, static_cast<eng::u32>(seed + 1u)};
+	const Genome a = Genome::random(rng);
+	const Genome b = Genome::random(rng);
+	const Genome c = inherit(a, b, rng);
+	const Personality p = genome_to_personality(c);
+	return static_cast<u16>(static_cast<eng::u16>(caste_of(c)) + p.aggression);
+}
+extern "C" u16 c_sim_affect_ops(u16 seed) {
+	using namespace eng::sim;
+	RelationshipList<4> rels {};
+	const EntityId target = static_cast<EntityId>(seed % 4u);
+	adjust_affect(rels, target, RelationKind::Rival, -70);
+	const Relationship* hated = most_hated(rels);
+	return static_cast<u16>(hated != nullptr ? 1u : 0u) +
+	       static_cast<u16>(bond_score(rels, target) + 200);
+}
+extern "C" u16 c_sim_lifecycle_ops(u16 seed) {
+	using namespace eng::sim;
+	const LifecycleParams lp {};
+	const eng::u8 age = static_cast<eng::u8>(seed % 256u);
+	eng::Xoroshiro64pp rng {seed, static_cast<eng::u32>(seed + 1u)};
+	const Genome child = newborn_genome(Genome {}, Genome {}, rng);
+	return static_cast<u16>(stage_for(age, lp)) +
+	       static_cast<u16>(can_reproduce(age, 100u, 0u, 0u, lp) ? 1u : 0u) +
+	       child.gene(Gene::Aggression);
+}
+extern "C" u16 c_sim_domain_ops(u16 seed) {
+	using namespace eng::sim;
+	const auto acts = ConstructionDomain::actions();
+	const SimGoap::Goal goal = ConstructionDomain::goal((seed & 1u) != 0u, true);
+	PlannerDriver<64, 8> driver;
+	const bool ok = driver.replan(start_state(SimInventory {}), goal, acts.span());
+	return static_cast<u16>(ok ? 1u : 0u) + driver.current();
+}
+extern "C" void c_sim_body_ops(s16* out, s16 px, s16 py, s16 tx, s16 ty) {
+	using namespace eng::sim;
+	using Q = eng::retro::q12;
+	using VQ = eng::math::Vec<2, Q>;
+	ChainBody<Q, 4> body;
+	body.reset(VQ {Q {0}, Q {0}}, Q {256});
+	body.solve(VQ {Q {px}, Q {py}}, VQ {Q {tx}, Q {ty}}, 8);
+	Mind mind {};
+	mind.emotions.fear = static_cast<eng::u8>(px & 0xff);
+	const BodyPose pose = pose_from_state(Behavior::Flee, mind, 0);
+	body.apply_pose(pose, Q {256});
+	out[0] = body.tail().v[0].v;
+	out[1] = body.tail().v[1].v;
+}
+extern "C" u16 c_sim_objects_ops(u16 seed) {
+	using namespace eng::sim;
+	Inventory inv {};
+	ItemStore store {};
+	const SimActionKind a = action_kind_of(
+		static_cast<eng::usize>(seed % static_cast<u16>(SimActionKind::Count)));
+	const ActionResult r = execute_domain_action(inv, a, &store, 0u, 0, 0);
+	return static_cast<u16>(static_cast<eng::u8>(r)) + store.count_kind(ItemKind::Shelter);
+}
+extern "C" s16 c_sim_economy_ops(u16 seed) {
+	using namespace eng::sim;
+	Society soc {};
+	Economy eco {};
+	eco.reset();
+	const eng::s16 g = give_gift(soc, eco, 1u, ItemKind::Food,
+				     static_cast<eng::u8>(seed % 20u + 1u));
+	eco.tick_decay();
+	return static_cast<eng::s16>(g + eco.value(ItemKind::Food) + soc.rep(1u));
+}
+extern "C" u16 c_sim_terrain_ops(u16 seed) {
+	using namespace eng::sim;
+	TerrainMap<8, 8> map;
+	map.fill(TerrainKind::Floor);
+	map.set(2u, 2u, TerrainKind::Wall);
+	map.set(3u, 3u, static_cast<TerrainKind>(
+				static_cast<eng::u8>(seed % static_cast<u16>(TerrainKind::Count))));
+	const eng::usize i = TerrainMap<8, 8>::index(3u, 3u);
+	return static_cast<u16>(map.walkable(i, movement::walk) ? 1u : 0u) + map.cost(i) +
+	       map.cover(i);
+}
+extern "C" u16 c_sim_climate_ops(u16 seed) {
+	using namespace eng::sim;
+	Climate<16> cl;
+	cl.set(1u, HazardKind::Storm, static_cast<eng::u8>(seed % 256u));
+	cl.tick(static_cast<eng::u8>(seed % 40u));
+	const RegionTerrain rt {TerrainKind::Cover, 20u, 0u};
+	const eng::u8 eff = exposure_at(cl.at(1u), rt, false);
+	return static_cast<u16>(cl.max_severity()) + eff + cl.strongest();
+}
+extern "C" s16 c_sim_rumor_ops(u16 seed) {
+	using namespace eng::sim;
+	GroupMemory<kMaxFactions> mem;
+	KnowledgeSet team;
+	learn(team, KnowledgeKind::Enemy, static_cast<eng::u16>(seed % kMaxFactions), 200u);
+	(void)contribute(mem, 1u, team);
+	Society soc;
+	Economy eco;
+	eco.reset();
+	return apply_group_knowledge(soc, eco, 1u, mem);
+}
+extern "C" u16 c_sim_senses_ops(u16 seed) {
+	using namespace eng::sim;
+	Senses s {};
+	s.vision_range = static_cast<eng::u8>(seed % 20u + 1u);
+	s.hearing_range = static_cast<eng::u8>(seed % 25u + 1u);
+	Observer o {};
+	o.room = 0u;
+	o.x = 0;
+	o.y = 0;
+	o.face_x = 1;
+	o.face_y = 0;
+	SenseTarget t {};
+	t.id = 2u;
+	t.room = 0u;
+	t.x = static_cast<eng::s16>(seed % 10u);
+	t.y = 0;
+	t.sound = static_cast<eng::u8>(seed % 256u);
+	t.odor = static_cast<eng::u8>(seed % 200u);
+	t.kind = TrackerKind::Prey;
+	Observation out[1];
+	const auto known = [](EntityId) { return false; };
+	const eng::u8 n = perceive(s, o, eng::Span<const SenseTarget> {&t, 1},
+				   eng::Span<Observation> {out, 1}, known);
+	return static_cast<u16>(n) + out[0].modalities + out[0].salience;
+}
+extern "C" u16 c_sim_memory_ops(u16 seed) {
+	using namespace eng::sim;
+	TrackerList<4> tr;
+	Observation o {};
+	o.target = static_cast<EntityId>(seed % 4u + 1u);
+	o.kind = TrackerKind::Threat;
+	o.room = 0u;
+	o.strength = static_cast<eng::u8>(seed % 256u);
+	o.salience = o.strength;
+	o.modalities = sense_bit::sight;
+	integrate_observations(tr, eng::Span<const Observation> {&o, 1}, 0u);
+	MemoryParams mp {};
+	mp.consolidation_threshold = 0u;
+	KnowledgeSet kn;
+	const eng::u8 c = consolidate(tr, kn, mp);
+	return static_cast<u16>(c) + working_strength(tr, o.target);
+}
+extern "C" u16 c_sim_attention_ops(u16 seed) {
+	using namespace eng::sim;
+	const Senses base {50u, 50u, 50u, 50u, 50u, 50u, 100u, 20u, 25u, 12u, 10u, 50u, 0u};
+	const Senses eff = focused(base, static_cast<eng::u8>(seed % 256u),
+				   static_cast<eng::u8>((seed * 3u) % 256u));
+	Tracker t {};
+	t.confidence = static_cast<eng::u8>(seed % 256u);
+	t.salience = static_cast<eng::u8>((seed * 2u) % 256u);
+	t.modalities = static_cast<eng::u8>(seed % 64u);
+	return static_cast<u16>(eff.vision_arc) + eff.vision_range +
+	       static_cast<u16>(attention_score(t));
+}
+extern "C" u16 c_sim_spatial_ops(u16 seed) {
+	using namespace eng::sim;
+	KnowledgeSet kn;
+	remember_place(kn, KnowledgeKind::Shelter, static_cast<RoomId>(seed % 8u), 200u);
+	static SimWorld<> w;
+	w.link_rooms(0u, 1u);
+	w.link_rooms(1u, 2u);
+	RoomId path[8];
+	const eng::u8 n = w.route_room(0u, 2u, eng::Span<RoomId> {path, 8});
+	return static_cast<u16>(best_known_room(kn, KnowledgeKind::Shelter)) + n +
+	       static_cast<u16>(w.route_first_step(0u, 2u));
+}
+extern "C" u16 c_sim_mental_ops(u16 seed) {
+	using namespace eng::sim;
+	KnowledgeSet kn;
+	remember_place(kn, KnowledgeKind::Shelter, static_cast<RoomId>(seed % 4u), 200u);
+	remember_place(kn, KnowledgeKind::Danger, static_cast<RoomId>((seed + 1u) % 4u), 200u);
+	MentalOverlay<4, 4> overlay;
+	const auto room_at = [](eng::usize idx) -> RoomId {
+		return static_cast<RoomId>(idx / 4u);
+	};
+	overlay.stamp(kn, room_at);
+	eng::ai::InfluenceMap<4, 4> inf;
+	deposit_mental_danger(kn, inf, room_at);
+	return overlay.cost(0u, 5u) + static_cast<u16>(place_bias(kn, 0u) + 128) +
+	       static_cast<u16>(inf.strongest());
+}
+extern "C" u16 c_sim_terrain_event_ops(u16 seed) {
+	using namespace eng::sim;
+	static SimWorld<> w;
+	const RoomId r = static_cast<RoomId>(seed % 8u);
+	const TerrainEvent e = static_cast<TerrainEvent>(
+		static_cast<eng::u16>(seed % static_cast<eng::u16>(TerrainEvent::Count)));
+	w.apply_terrain_event(r, e);
+	return static_cast<u16>(w.terrain(r)) + w.climate().severity(r);
+}
+extern "C" u16 c_sim_trade_ops(u16 seed) {
+	using namespace eng::sim;
+	Economy eco;
+	eco.reset();
+	Inventory a;
+	Inventory b;
+	a.add(ItemKind::Food, 3u);
+	b.add(ItemKind::Material, 3u);
+	const TradeOffer o {ItemKind::Food, 1u, ItemKind::Material, 1u};
+	const Score s = bargain_score(eco, o, static_cast<eng::u8>(seed % 256u));
+	const bool ok = execute_trade(a, b, eco, o);
+	return static_cast<u16>(ok ? 1u : 0u) + static_cast<u16>(s) +
+	       a.count(ItemKind::Material) + b.count(ItemKind::Food);
+}
+extern "C" u16 c_sim_biome_ops(u16 seed) {
+	using namespace eng::sim;
+	static SimWorld<> w;
+	const RoomId r = static_cast<RoomId>(seed % 8u);
+	w.apply_biome(r, static_cast<BiomeKind>(
+				 static_cast<eng::u8>(seed % static_cast<eng::u16>(BiomeKind::Count))),
+		      true, 100u);
+	eng::u8 ids[4] {};
+	const eng::u8 n = biome_species(BiomeKind::Forest, eng::Span<eng::u8> {ids, 4});
+	return static_cast<u16>(w.terrain(r)) + w.climate().severity(r) + n +
+	       biome_food(BiomeKind::Desert);
+}
+extern "C" u16 c_sim_communication_ops(u16 seed) {
+	using namespace eng::sim;
+	Mind m {};
+	m.emotions.fear = static_cast<eng::u8>(seed % 256u);
+	Senses s {};
+	s.hearing = 50u;
+	const Signal sig = make_signal(1u, 0u, 0u, 0, 0, Behavior::Flee, m, s);
+	TrackerList<4> tr;
+	const eng::u8 h = receive_signals(tr, eng::Span<const Signal> {&sig, 1}, 0u, 1, 0, 0u);
+	apply_signal_effect(m, sig.kind);
+	return static_cast<u16>(h) + m.emotions.fear + sig.range;
+}
+extern "C" u16 c_sim_culture_ops(u16 seed) {
+	using namespace eng::sim;
+	KnowledgeSet kn;
+	learn_ritual(kn, RitualKind::Mourning, static_cast<eng::u8>(seed % 256u));
+	Mind m {};
+	m.emotions.sadness = 120u;
+	const RitualKind r = ritual_for_event(
+		kn, static_cast<CultureEvent>(
+			    static_cast<eng::u8>(seed % static_cast<eng::u16>(CultureEvent::Count))));
+	perform_ritual(m, r);
+	return static_cast<u16>(kn.size()) + m.emotions.sadness +
+	       ritual_confidence(kn, RitualKind::Mourning);
+}
+extern "C" u16 c_sim_pack_ops(u16 seed) {
+	using namespace eng::sim;
+	const PackRole role = pack_role_for((seed & 1u) != 0u, static_cast<eng::u8>(seed % 3u));
+	const eng::Point2s g = flank_goal(
+		eng::Point2s {static_cast<eng::s16>(seed % 40u), static_cast<eng::s16>(10)},
+		role, static_cast<eng::u8>(seed % 4u), 3u);
+	return static_cast<u16>(role) + static_cast<u16>(g.x) + static_cast<u16>(g.y);
+}
+extern "C" u16 c_sim_lod_ops(u16 seed) {
+	using namespace eng::sim;
+	static SimWorld<> w;
+	const LodBand b = band_for(static_cast<eng::u16>(seed % 64u), (seed & 1u) != 0u);
+	w.update_lod(0, 0, 0u);
+	return static_cast<u16>(b) + w.realized_count() + w.dormant_count() +
+	       static_cast<u16>(lod_costs_cpu(b) ? 1u : 0u);
+}
+extern "C" u16 c_sim_avatar_ops(u16 seed) {
+	using namespace eng::sim;
+	static SimWorld<> w;
+	const EntityId a = w.spawn(9u, 0u, 0u, 5, 5);
+	Needs n {};
+	n.hunger = static_cast<eng::u8>(seed % 256u);
+	const PlayerIntent it = intent_for(n);
+	eng::Xoroshiro64pp rng {seed, static_cast<eng::u32>(seed + 1u)};
+	(void)player_step(w, a, rng);
+	return static_cast<u16>(it) + w.region_population(0u) +
+	       static_cast<u16>(w.region_capacity(0u));
+}
+extern "C" u16 c_sim_season_ops(u16 seed) {
+	using namespace eng::sim;
+	static SimWorld<> w;
+	w.set_biome(0u, static_cast<BiomeKind>(
+				static_cast<eng::u8>(seed % static_cast<eng::u16>(BiomeKind::Count))));
+	w.set_season(static_cast<Season>(
+		static_cast<eng::u8>(seed % static_cast<eng::u16>(Season::Count))));
+	w.climate().set(0u, HazardKind::Storm, static_cast<eng::u8>(seed % 256u));
+	return static_cast<u16>(w.region_capacity(0u)) +
+	       static_cast<u16>(w.region_base_capacity(0u)) +
+	       static_cast<u16>(season_factor(w.season()));
+}
+extern "C" u16 c_sim_wake_ops(u16 seed) {
+	using namespace eng::sim;
+	static SimWorld<> w;
+	LodParams lp {};
+	lp.wake_per_frame = 1u;
+	lp.wake_step = static_cast<eng::u8>(seed % 256u);
+	w.set_lod_params(lp);
+	w.update_lod(0, 0, 0u);
+	return static_cast<u16>(w.realized_count()) + w.dormant_count();
+}
+extern "C" u16 c_sim_input_ops(u16 seed) {
+	using namespace eng::sim;
+	static SimWorld<> w;
+	const EntityId p = w.spawn(9u, 0u, 0u, 5, 5);
+	PlayerInput in {};
+	in.dx = static_cast<eng::s16>(seed % 5u);
+	in.interact = (seed & 1u) != 0u;
+	const bool acted = player_control(w, p, in);
+	return static_cast<u16>(acted ? 1u : 0u) + static_cast<u16>(w.find(p)->x);
+}
+extern "C" u16 c_sim_planner_ops(u16 seed) {
+	using namespace eng::sim;
+	using Ai = SimGoap;
+	constexpr eng::util::Array<Ai::Action, 2> acts { {
+		Ai::Builder {}.require(0u).produce(1u).build(),
+		Ai::Builder {}.require(1u).produce(2u).build(),
+	} };
+	Ai::Goal goal {};
+	goal.want_true.facts.set(static_cast<eng::ai::Fact>(2u));
+	Ai::State start {};
+	start.facts.set(static_cast<eng::ai::Fact>(seed % 2u));
+	PlannerDriver<32, 4> driver;
+	const bool ok = driver.replan(start, goal, acts.span());
+	return static_cast<u16>(ok ? 1u : 0u) + driver.current();
+}
+extern "C" u16 c_waypoints_ops(u16 start, u16 goal) {	eng::ai::WaypointGraph<8, 8> graph;
 	const eng::u16 a = graph.add_node({0, 0});
 	const eng::u16 b = graph.add_node({10, 0});
 	const eng::u16 c = graph.add_node({20, 0});
@@ -786,7 +1204,7 @@ extern "C" s16 c_scalar16_trig(s16 a, s16 b) {
 }
 extern "C" s16 c_fx_rotate2_angle(s16 angle, s16 x, s16 y) {
 	const Vec<2, q12> v {q12 {x}, q12 {y}};
-	const Vec<2, q12> r = rotate2(v, q12 {angle}); // scalar_sincos: un solo indice
+	const Vec<2, q12> r = rotate2(v, Angle<q12, angle::radians> {q12 {angle}}); // sincos: un indice
 	return static_cast<s16>(r.v[0].v + r.v[1].v);
 }
 extern "C" s16 c_fx_rotate2_twice(s16 angle, s16 x, s16 y) {
@@ -799,13 +1217,62 @@ extern "C" s16 c_fx_rotate2_twice(s16 angle, s16 x, s16 y) {
 }
 extern "C" s16 c_fx_aim(s16 dx, s16 dy) {
 	const Vec<2, q12> d {q12 {dx}, q12 {dy}};
-	const q12 ang = angle_of(d);          // atan2 fixed (tabla de atan)
+	const auto ang = angle_of(d);          // atan2 fixed (tabla de atan)
 	const Vec<2, q12> dir = from_angle(ang); // sincos fixed (tabla de seno)
-	return static_cast<s16>(ang.v + dir.v[0].v + dir.v[1].v);
+	return static_cast<s16>(ang.value.v + dir.v[0].v + dir.v[1].v);
 }
 
 // --- eng::board / eng::parallel: generacion legal y perft no deben arrastrar
 // libcalls de libgcc (la busqueda por nodo sera el camino caliente en 68000). ---
+extern "C" s16 c_math3d_load_rotate(s16 ax, s16 ay, s16 az) {
+	const q12 x {ax};
+	const q12 y {ay};
+	const q12 z {az};
+	eng::math3d::Mat3<> m {};
+	eng::math3d::load_rotate(m, Angle<q12, angle::radians> {x}, Angle<q12, angle::radians> {y},
+				 Angle<q12, angle::radians> {z});
+	s16 s = 0;
+	for (int i = 0; i < 3; ++i)
+		for (int j = 0; j < 3; ++j) s = static_cast<s16>(s + m.m[i][j].v);
+	return s;
+}
+extern "C" s16 c_object3d_update(s16 ax, s16 ay, s16 az) {
+	static eng::object3d::Object3D o {};
+	o.rotate = {q12 {ax}, q12 {ay}, q12 {az}};
+	o.scale = {q12 {1 << 12}, q12 {1 << 12}, q12 {1 << 12}};
+	o.translate = {q0 {10}, q0 {20}, q0 {-4000}};
+	eng::object3d::update_object_transformation(o);
+	return static_cast<s16>(o.camera.x.v + o.camera.y.v + o.camera.z.v);
+}
+static eng::u8 g_l3d_blob[64] {};
+static eng::s16 g_l3d_vgroups[2] = {2, 0};
+static eng::s16 g_l3d_fgroups[2] = {14, 0};
+static eng::object3d::Object3D& l3d_object() {
+	static eng::object3d::Object3D o {};
+	o.objdat = g_l3d_blob;
+	o.objdat_size = sizeof(g_l3d_blob);
+	o.vertexGroups = g_l3d_vgroups;
+	o.edgeGroups = g_l3d_vgroups;
+	o.faceGroups = g_l3d_fgroups;
+	o.scale = {q12 {1 << 12}, q12 {1 << 12}, q12 {1 << 12}};
+	return o;
+}
+extern "C" s16 c_lib3d_facevis(s16 a) {
+	auto& o = l3d_object();
+	o.rotate = {q12 {a}, q12 {a}, q12 {a}};
+	eng::object3d::update_object_transformation(o);
+	eng::lib3d::update_face_visibility(o);
+	return static_cast<s16>(o.camera.x.v);
+}
+extern "C" s16 c_lib3d_transform(s16 a, s16 hw, s16 hh) {
+	auto& o = l3d_object();
+	o.rotate = {q12 {a}, q12 {a}, q12 {a}};
+	eng::object3d::update_object_transformation(o);
+	eng::lib3d::update_edge_visibility_convex(o);
+	eng::s16 bbox[4] {};
+	eng::lib3d::transform_vertices(o, hw, hh, bbox);
+	return bbox[0];
+}
 extern "C" u16 c_chess_gen() {
 	using R = eng::board::ChessRules;
 	R::Position pos = R::initial();

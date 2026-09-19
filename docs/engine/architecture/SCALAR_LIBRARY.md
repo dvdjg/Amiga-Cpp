@@ -285,3 +285,80 @@ valor cabe en el rango del fixed (antes el `static_cast`/`i << E` **envolvía** 
 La aritmética de palabra vive en `arith.hpp` (`mul_wide`/`div_wide`/`mulu16` por CPU); el antiguo
 `word.hpp` ya no existe y los call sites usan los nombres genéricos. Pendiente menor: adoptar
 `eng::real`/`coord` en demos concretas.
+
+## 9. Cuándo un `s16` crudo y cuándo `Fixed`/plantilla
+
+Regla: **el escalar tipado (`Fixed`, `MiniFloat16`, un `S` de plantilla) se usa para la
+*aritmética*; el entero crudo (`s16`/`u16`/`s8`) se usa para *formato/ABI/hardware*.** En el
+segundo caso no es deuda pendiente: cambiarlo rompería el contrato.
+
+### 9.1 `s16` crudo a propósito (formato/ABI/hardware)
+
+| Zona | Por qué entero crudo |
+|---|---|
+| `object3d.hpp` **`objdat` empaquetado** (`Point3D`, `Node3D`, `Edge`, `Face`) | **Semántica, no tamaño.** `Fixed<R,Exp,Policy>` es `struct { R v; }`: mismo `sizeof` y layout que `R` (verificado: `sizeof(Fixed<s16,12>)==2`, standard-layout, trivially copyable; reinterpretar los bytes del `objdat` funciona). El motivo no es el binario: el `objdat` mezcla escalas (`point`/`vertex` `q0`, `normal` `q12`) y **reutiliza el mismo `Point3D`** para varias; además `flags`/`count`/`Edge.point`/`FaceIndex` son booleanos/índices/offsets de byte. Por eso el blob se deja crudo. |
+
+**Piloto hecho (2026):** los campos de **runtime** de `Object3D` —que **no** son el ABI del `objdat`— ya estan tipados: `Angle3 rotate` (indice de angulo 0..4095, **no** coma fija), `Point3R scale` (`q12`) y `Point3C translate`/`camera` (`q0`), con `Point3S<S>` **templado** (el caller puede instanciar con otro fixed y el compilador rechaza mezclas; se eliminaron los `static_cast` de la transformacion). El `objdat` empaquetado (`Point3D`/`Node3D`/`Face`) sigue crudo por lo anterior. Guardas: HOST-014/047/051/053 (053 es tabla dorada **bit-exacta**) y `codegen-report` (``muls.w`/`divs.w`, sin libcalls).
+| `amiga_minimal.hpp`, `blob.hpp` (registros, `blitter_*`, copper) | palabras de registro custom y offsets de hardware; 16 bits es parte del protocolo del chipset. |
+| `mesh3d.hpp` (`Coord = Fixed<s16,0>`, `mul32x16`) | tipo de dominio pantalla/tile: ya es `Fixed`, con exponente 0 (`q0`) por coste 68000. |
+| `bitmap.hpp`, `bob.hpp` (`u16 width/height/row_bytes`, `s16 x/y`), `sprite*` | geometría en píxeles/palabras (enteros de dominio), no coma fija. |
+| assets/`incbin`/DMA | bytes con layout externo. |
+
+### 9.2 `s16` que sí debería ser `Fixed`/plantilla (deuda real)
+
+- `fixed_math.hpp`: tablas y `scalar_sin/cos/...` **solo** para `Fixed<s16,*>`; generalizar por
+  `Repr`/`E` (ver `REFACTOR_SCALAR_GENERICO.md` §2).
+- `linalg.hpp`: `scalar_div<Fixed<s16,E>>` es la única especialización; `div_norm(Fixed<s32,E>)`
+  no compila.
+- Call sites que aún usan `s16` para valores con coma fija en vez de `eng::real`/`eng::coord`.
+
+El resto del engine (sim/IA/util) usa `s16` como **entero pequeño/índice**, no como escalar de
+coma fija: ahí `s16` es correcto (es el `int` de palabra natural del 68000; `eng::intw`, ver
+`REFACTOR_SCALAR_GENERICO.md` §3.1).
+
+**Prueba rápida para clasificar un `s16`:** ¿el valor se suma/multiplica con otros y se
+desplaza (coma fija)? → `Fixed`. ¿Es un tamaño, índice, coordenada de pantalla, palabra de
+registro o campo de un formato? → `s16` crudo.
+
+### 9.3 Bloqueo para unificar `object3d`/`math3d` en `eng::coord`/`eng::real`
+
+`math3d` (`gfx3d.hpp`) y el `objdat` usan hoy `retro::q0`/`q12` (siempre `Fixed<s16,E>`).
+Cambiar los alias a `eng::coord`/`eng::real` (seleccionables) **no compila fuera de
+retro16**: en retro32/host `eng::real = Fixed<s32,12>`/`float`, pero la trigonometria de la
+que dependen (`retro::sin_q12`/`cos_q12`) devuelve `Fixed<s16,12>`, y `load_rotate` mezcla
+ambos. Lo destapa el `codegen (68020)`: `Fixed<long int,12>` vs `Fixed<short int,12>`.
+
+Para unificar de verdad hay que **generalizar la trigonometria por escalar** (el pendiente
+de `REFACTOR_SCALAR_GENERICO.md` §2: `fixed_math.hpp` solo tiene tablas para `Fixed<s16,E>`).
+Mientras tanto, el piloto de `Object3D` usa `Point3S<S>` con `retro::q0`/`q12` (identicos a
+`eng::coord`/`eng::real` en retro16); cambiar el alias a `eng::coord`/`eng::real` sera una
+linea cuando la trig este generalizada.
+
+## 10. Por qué no todo es `q12`: rango frente a precisión
+
+`q12` (= `Fixed<s16,12>`) es el "float" del 68000 para **magnitudes normalizadas**: sin/cos,
+entradas de matriz, direcciones unitarias. Pero su rango en `s16` es **[-8.0, 7.999]** (12
+bits de fracción, 4 de entero): cualquier valor con parte entera >= 8 **no cabe**. Por eso no
+puede usarse para todo:
+
+- Coordenadas de malla (hasta ~1600 unidades en `pilka`): `q0` (`Fixed<s16,0>`), como en el
+  `objdat` de lib3d (si fueran `q12` desbordarían `s16`).
+- Coordenadas de pantalla (0..256) y su `zp`: `q0`.
+- Traslación de cámara (p. ej. -256): el original usa **`q4`** (`fx4i(i)=i<<4`), no `q12`.
+- Matriz de rotación y normales: **`q12`** (`fx12i`), que es el caso normalizado.
+
+Regla: elegir los bits de fracción por **rango** (valor máximo) y **precisión** necesaria.
+`q12` es el defecto para lo normalizado (`eng::real`); `q0`/`q4` para posiciones
+(`eng::coord`). El problema de diseño no es "elegir mal el exponente", sino **reutilizar un
+mismo `Point3D` para coordenadas y para ángulos/escalas**: un `q12` universal es imposible
+(no cabe la malla) y un `q0` universal pierde fracción en la rotación. Tiparlo bien exige
+**tipos distintos** (`Coord` vs `Angle`/`Ratio`), no un tipo único con varios exponentes.
+
+## 11. Nota de rendimiento: rotación con los tres ángulos iguales
+
+`math3d::load_rotate` recompone `Rx(ax)·Ry(ay)·Rz(az)` (≈11 `muls.w` + 6 lookups de tabla).
+Cuando los tres ángulos son iguales (`ax=ay=az=θ`, patrón de `bobs3d`), el resultado tiene
+**eje fijo** `(1,1,1)/√3` (por simetría cíclica), pero **no hay ganancia clara**: Rodrigues
+necesita ~18 `muls.w` (más que los 11 actuales) y una tabla de 4096 matrices son 72 kB. Se
+documenta como propiedad, no como optimización (medido: `load_rotate` = 2.676 ciclos, 0,9 %
+en `bobs3d`).

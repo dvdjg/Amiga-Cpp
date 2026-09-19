@@ -47,6 +47,7 @@ constexpr unsigned short blt_use_d = 0x0100;
 constexpr unsigned short blt_minterm_cookie_cut = 0x00ca;
 constexpr unsigned short blt_minterm_copy_c = 0x00aa;
 constexpr unsigned short blt_minterm_copy_a = 0x00f0;   // D = A (canal A, con barrel shifter)
+constexpr unsigned short blt_minterm_a_or_b = 0x00fc;   // D = A | B (con B = D, OR aditivo)
 constexpr unsigned short blt_desc = 0x0002;             // BLTCON1 BLITREVERSE (modo descendente)
 
 void write_custom_pointer(unsigned short word_offset, const void* pointer) {
@@ -678,15 +679,20 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 					static_cast<u16>(job.source_shift) << 12u
 				);
 			} else if (or_blob) {
-				// BOB OR (bobs3d): A = objeto (con barrel shift), B = D = destino,
+				// BOB OR (bobs3d): A = objeto (con barrel shift ASH), B = D = destino,
 				// minterm $FC (D = A | D). El canal C no interviene.
+				//
+				// OJO: BLTCON1 bits 15-12 son **BSH** (shift del canal B), NO un duplicado
+				// de ASH. B aqui es el DESTINO (B=D), asi que poner BSH!=0 desplaza la
+				// lectura del fondo y emborrona el BOB (cola horizontal). El original
+				// (`bobs3d.c`) deja `bltcon1=0`; solo desplaza A via BLTCON0. Ver AHRM 3. a
+				// (BLTCON1) y `amiga-bootcamp/08_graphics/blitter_programming.md` ("Shift
+				// and Alignment").
 				custom_base[custom_bltcon0_offset] = static_cast<u16>(
 					(static_cast<u16>(job.source_shift) << 12u) |
 					blt_use_a | blt_use_b | blt_use_d | job.minterm
 				);
-				custom_base[custom_bltcon1_offset] = static_cast<u16>(
-					static_cast<u16>(job.source_shift) << 12u
-				);
+				custom_base[custom_bltcon1_offset] = 0u;
 			} else if (job.source_shift != 0u) {
 				// Copia con desplazamiento fino. El barrel shifter del Blitter solo
 				// actua sobre los canales A y B (AHRM 6, "Shifting"), asi que la
@@ -1065,6 +1071,33 @@ bool MinimalBackend::blitter_clear(eng::PlaneBytes dst, u8 planes, u16 row_bytes
 		}
 	}
 	return wait ? wait_blitter() : true;
+}
+
+void MinimalBackend::blitter_or_bobs_begin(u16 words, u16 height, s16 source_modulo,
+					   s16 dest_modulo) {
+	// Misma implementacion que el camino `inline` de coste cero (blob.hpp): una sola
+	// fuente de verdad para la secuencia de registros.
+	m_or_bob.begin(custom_base, words, height, source_modulo, dest_modulo);
+}
+
+void MinimalBackend::blitter_or_bobs_one(const void* source, void* dest, u8 shift) {
+	m_or_bob.one(source, dest, shift);
+}
+
+bool MinimalBackend::blitter_or_bobs_end() {
+	return m_or_bob.end();
+}
+
+bool MinimalBackend::blitter_or_bobs(const OrBobEntry* entries, u32 count, u16 words, u16 height,
+				     s16 source_modulo, s16 dest_modulo) {
+	if (entries == nullptr || count == 0u || words == 0u || height == 0u) {
+		return false;
+	}
+	blitter_or_bobs_begin(words, height, source_modulo, dest_modulo);
+	for (u32 i = 0; i < count; ++i) {
+		blitter_or_bobs_one(entries[i].source, entries[i].dest, entries[i].shift);
+	}
+	return blitter_or_bobs_end();
 }
 
 bool MinimalBackend::blitter_clear_rect(eng::PlaneBytes plane, u16 row_bytes, u16 wx0, s16 y0, u16 words, u16 rows,

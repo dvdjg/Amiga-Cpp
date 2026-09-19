@@ -142,15 +142,16 @@ bool fixed_math_selftest() {
 	// rotate2 por ángulo: (1,0) girado π/2 -> (0,1) (sincos en una pasada).
 	volatile eng::s16 q_rot_raw = 6434;
 	const eng::math::Vec<2, q12> rv = eng::math::rotate2(
-		eng::math::Vec<2, q12> {q12 {4096}, q12 {0}}, q12 {q_rot_raw});
+		eng::math::Vec<2, q12> {q12 {4096}, q12 {0}},
+		eng::math::Angle<q12, eng::math::angle::radians> {q12 {q_rot_raw}});
 	if (!(rv.v[0].v >= -100 && rv.v[0].v <= 100 && rv.v[1].v >= 4000 && rv.v[1].v <= 4100)) {
 		return false;
 	}
 	// apuntado: angle_of/from_angle (atan2 + sincos fixed) para un vector hacia arriba.
 	volatile eng::s16 q_aim_dy = 4096;
-	const q12 aim_ang = eng::math::angle_of(
+	const auto aim_ang = eng::math::angle_of(
 		eng::math::Vec<2, q12> {q12 {0}, q12 {q_aim_dy}}); // π/2
-	if (!(aim_ang.v >= 6300 && aim_ang.v <= 6550)) {
+	if (!(aim_ang.value.v >= 6300 && aim_ang.value.v <= 6550)) {
 		return false;
 	}
 	const eng::math::Vec<2, q12> aim_dir = eng::math::from_angle(aim_ang); // ≈ (0,1)
@@ -360,7 +361,7 @@ struct DemoGame {
 			fg.fill_rect(m_enemy_x, m_enemy_y, 24, 24, 0); // borra cuerpo + cañón previos
 			const qa ddx = eng::math::scalar_traits<qa>::from_int(ship_cx - ex);
 			const qa ddy = eng::math::scalar_traits<qa>::from_int(ship_cy - ey);
-			const qa aim = eng::math::angle_of(eng::math::Vec<2, qa> {{ddx, ddy}});
+			const auto aim = eng::math::angle_of(eng::math::Vec<2, qa> {{ddx, ddy}});
 			const eng::math::Vec<2, qa> dir = eng::math::from_angle(aim);
 			for (eng::s16 i = 2; i <= 7; i += 2) {
 				const qa li = eng::math::scalar_traits<qa>::from_int(i);

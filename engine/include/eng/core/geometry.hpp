@@ -105,38 +105,38 @@ template <typename S>
 		 mul_norm(s, v.v[0]) + mul_norm(c, v.v[1])}};
 }
 
-/// Rotación 2D por **ángulo** (en radianes, del propio escalar): obtiene `(cos, sin)` con
-/// `scalar_sincos<S>` (una sola pasada) y delega en `rotate2(v, c, s)`. Para fixed con
-/// `fixed_math.hpp` esto lee la tabla de seno una vez, no dos.
-template <typename S>
-[[nodiscard]] constexpr Vec<2, S> rotate2(const Vec<2, S>& v, S angle) {
+/// Rotación 2D por **ángulo** (`Angle<S,Unit>`: la unidad va en el tipo): obtiene
+/// `(cos, sin)` con `angle_sincos` (una sola pasada) y delega en `rotate2(v, c, s)`.
+template <typename S, typename Unit>
+[[nodiscard]] constexpr Vec<2, S> rotate2(const Vec<2, S>& v, Angle<S, Unit> angle) {
 	S s {};
 	S c {};
-	scalar_sincos<S>::op(angle, s, c);
+	angle_sincos<S, Unit>::op(angle, s, c);
 	return rotate2(v, c, s);
 }
 
-/// Ángulo (radianes) de un vector 2D: `atan2(v.y, v.x)`, en `(-π, π]`. Lo aporta el
-/// escalar vía `scalar_atan2` (`MiniFloat16` de serie; `Fixed` con `fixed_math.hpp`).
+/// Ángulo (radianes) de un vector 2D: `atan2(v.y, v.x)`, **garantizado en `(-π, π]`**
+/// (se aplica `wrap`), como `Angle<S,radians>`. Lo aporta el escalar vía `scalar_atan2`
+/// (`MiniFloat16` de serie; `Fixed` con `fixed_math.hpp`).
 template <typename S>
-[[nodiscard]] constexpr S angle_of(const Vec<2, S>& v) {
-	return scalar_atan2<S>::op(v.v[1], v.v[0]);
+[[nodiscard]] constexpr Angle<S, angle::radians> angle_of(const Vec<2, S>& v) {
+	return wrap(Angle<S, angle::radians> {scalar_atan2<S>::op(v.v[1], v.v[0])});
 }
 
-/// Vector **unitario** en la dirección `angle` (radianes): `(cos, sin)`, con
-/// `scalar_sincos<S>` en una sola pasada.
-template <typename S>
-[[nodiscard]] constexpr Vec<2, S> from_angle(S angle) {
+/// Vector **unitario** en la dirección `angle` (`Angle<S,Unit>`): `(cos, sin)`, con
+/// `angle_sincos` en una sola pasada.
+template <typename S, typename Unit>
+[[nodiscard]] constexpr Vec<2, S> from_angle(Angle<S, Unit> angle) {
 	S s {};
 	S c {};
-	scalar_sincos<S>::op(angle, s, c);
+	angle_sincos<S, Unit>::op(angle, s, c);
 	return {{c, s}};
 }
 
 /// Ángulo (radianes) de `from` a `to`: `atan2(to.y − from.y, to.x − from.x)`. La base del
 /// apuntado de IA (torreta/enemigo hacia el objetivo).
 template <typename S>
-[[nodiscard]] constexpr S angle_to(const Vec<2, S>& from, const Vec<2, S>& to) {
+[[nodiscard]] constexpr Angle<S, angle::radians> angle_to(const Vec<2, S>& from, const Vec<2, S>& to) {
 	return angle_of(to - from);
 }
 

@@ -238,9 +238,9 @@ Mesh3D pilka = {
   .edges = 90,
   .faces = 32,
   .materials = 1,
-  .data = _pilka_data,
-  .vertexGroups = (short *)((char *)_pilka_data + 2420),
-  .edgeGroups = (short *)((char *)_pilka_data + 2544),
-  .faceGroups = (short *)((char *)_pilka_data + 2728),
+  .bytes = eng::Span<eng::u8> {reinterpret_cast<eng::u8*>(_pilka_data), sizeof(_pilka_data)},
+  .vertexGroups = eng::Span<eng::s16> {reinterpret_cast<eng::s16*>((char*)_pilka_data + 2420), 62},
+  .edgeGroups = eng::Span<eng::s16> {reinterpret_cast<eng::s16*>((char*)_pilka_data + 2544), 92},
+  .faceGroups = eng::Span<eng::s16> {reinterpret_cast<eng::s16*>((char*)_pilka_data + 2728), 34},
   .objects = (short *)((char *)_pilka_data + 2796)
 };

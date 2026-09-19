@@ -1,3 +1,4 @@
+#define ENG_SCALAR_RETRO16  // host: instancia retro (eng::real=q12, coord=q0)
 // HOST-053 — tabla dorada de `lib3d::transform_vertices` (la proyección con `div_wide`)
 // a ángulo FIJO. Fija los valores proyectados y la bounding-box para que ningún cambio
 // en la capa de cálculo (matrices, exponentes, redondeo) los altere en silencio.
@@ -41,7 +42,7 @@ static void build_mesh() {
 int main() {
 	Object3D obj {};
 	Mesh3D mesh {};
-	mesh.data = g_objdat;
+	mesh.bytes = eng::Span<eng::u8>(g_objdat);
 	mesh.vertexGroups = g_vertexGroups;
 	mesh.edgeGroups = g_edgeGroups;
 	mesh.faceGroups = g_faceGroups;
@@ -50,8 +51,10 @@ int main() {
 	build_mesh();
 	// Ángulo FIJO: es lo que hace reproducible la proyección.
 	const s16 angle = 1000;
-	obj.rotate = {angle, angle, angle};
-	obj.translate = {0, 0, -4000};
+	obj.rotate = {eng::retro::turns(static_cast<eng::u16>(angle)),
+		      eng::retro::turns(static_cast<eng::u16>(angle)),
+		      eng::retro::turns(static_cast<eng::u16>(angle))};
+	obj.translate = {eng::retro::q0 {0}, eng::retro::q0 {0}, eng::retro::q0 {-4000}};
 	eng::object3d::update_object_transformation(obj);
 	update_face_visibility(obj);
 	update_edge_visibility_convex(obj);
@@ -65,7 +68,7 @@ int main() {
 
 	// Tabla DORADA (malla + angulo 1000 fijos): si la capa de calculo cambia un valor,
 	// estos asserts lo detectan. Es un trinquete de regresion, no un juicio de belleza.
-	ck(obj.camera.x == 3988 && obj.camera.y == 291 && obj.camera.z == 4, "camara (golden)");
+	ck(obj.camera.x.v == 3988 && obj.camera.y.v == 291 && obj.camera.z.v == 4, "camara (golden)");
 	ck(rd16(0 + 8) == 128 && rd16(0 + 10) == 128 && rd16(0 + 12) == -3901, "nodo0 vertex (golden)");
 	ck(rd16(14 + 8) == 128 && rd16(14 + 10) == 134 && rd16(14 + 12) == -3993, "nodo1 vertex (golden)");
 	ck(rd16(28 + 8) == 122 && rd16(28 + 10) == 128 && rd16(28 + 12) == -4000, "nodo2 vertex (golden)");

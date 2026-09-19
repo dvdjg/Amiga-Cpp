@@ -53,14 +53,14 @@ Este documento convierte el roadmap general en una tabla de trabajo mantenible. 
 | 19 | Ball | `effects/ball` | `NO_INICIADO` | `DX19_ball` | blit runtime helpers | Caso pequeno de movimiento y render por frame. |
 | 20 | Blurred | `effects/blurred` | `NO_INICIADO` | `DX20_blurred` | blur buffer ops | Coste por frame importante; documentar bien CPU/blitter. |
 | 21 | Blurred3D | `effects/blurred3d` | `NO_INICIADO` | `DX21_blurred3d` | 3D + accumulation | Mejor tras wireframe/flatshade. |
-| 22 | Bobs3D | `effects/bobs3d` | `NO_INICIADO` | `DX22_bobs3d` | object/scene helpers | Mezcla 3D con BOBs; no abrir sin base fuerte. |
+| 22 | Bobs3D | `effects/bobs3d` | `VALIDADO` | `117_bobs3d` | `eng::amiga::OrBlobBatch` + `object3d` + `math::projector` + `copper::Scheduler` | Porte fiel en `demos/amiga/117_bobs3d` (DPF 3+2, paleta por línea, BOB OR intercalado, `BLTPRI`, clear solapado con transform, 2 buffers sincronizados). **25 fps (2,0 campos) con `K_117_MAXBLOBS=56`** (60 BOBs ≈ 20 fps, como el original); paridad por componente medida con el profiler del propio original (draw 194k, transform 83k). Test host `176_or_blob_batch`. Bug de fidelidad BSH corregido en el backend OR-BOB. Ver `BOBS3D_PORT_PLAN.md`. |
 | 23 | Bumpmap RGB | `effects/bumpmap-rgb` | `NO_INICIADO` | `DX23_bumpmap_rgb` | lighting helpers | Tardia por coste y formato. |
 | 24 | Butterfly-gears | `effects/butterfly-gears` | `NO_INICIADO` | `DX24_butterfly_gears` | loops especializados | Buena referencia de optimizacion micro. |
 | 25 | Carrion | `effects/carrion` | `NO_INICIADO` | `DX25_carrion` | blit por trozos | Caso muy especifico. |
 | 26 | Cathedral | `effects/cathedral` | `NO_INICIADO` | `DX26_cathedral` | ray casting + copper | Avanzado; mejor despues. |
 | 27 | Credits | `effects/credits` | `NO_INICIADO` | `DX27_credits` | texto/paleta | Caso facil de UI/texto. |
 | 28 | Darkroom | `effects/darkroom` | `NO_INICIADO` | `DX28_darkroom` | palette LUT helpers | Bueno para fades y LUTs. |
-| 29 | Dna3D | `effects/dna3d` | `NO_INICIADO` | `DX29_dna3d` | `engine_3d_*` + paleta | Puede servir para profundidad por paleta. |
+| 29 | Dna3D | `effects/dna3d` | `PARCIAL` | `DX29_dna3d` | `engine_3d_*` + paleta | Plan [DNA3D_PORT_PLAN.md](DNA3D_PORT_PLAN.md). Demo `118_dna3d`: hélice generada (`Turns`+`load_rotate`), `transform` MULVERTEX y **links** por línea (validado el generador por HOST-178). Faltan **flares** (BOBs OR), fondo `necrocoq` y doble buffer limpio. |
 | 30 | FlatShade | `effects/flatshade` | `NO_INICIADO` | `DX30_flatshade` | polyfill / 3D fill | Alta prioridad dentro de la oleada 3D. |
 | 31 | FlatShade-convex | `effects/flatshade-convex` | `NO_INICIADO` | `DX31_flatshade_convex` | convex fill helpers | Variante util para API especializada. |
 | 32 | Floor-old | `effects/floor-old` | `NO_INICIADO` | `DX32_floor_old` | scroll comparisons | Referencia secundaria frente a `08-floor`. |

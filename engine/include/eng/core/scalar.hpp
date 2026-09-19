@@ -20,6 +20,12 @@
 /// Regla de alcance: esto es para **escalares de simulacion**. Los tipos de **dominio**
 /// (pixeles, tiles, registros, layout/ABI de hardware) siguen a 16 bits (`u8`/`s16`/`u16`)
 /// y **no** se generalizan. Ver `docs/guides/roadmap/REFACTOR_SCALAR_GENERICO.md`.
+///
+/// **Alcance consolidado.** `intw` es de núcleo (lo usa `eng::board`). `real`/`coord` son
+/// la **instancia por defecto del target** para la capa de plataforma/3D: hoy sólo los
+/// consume `platform/amiga/gfx3d.hpp` como defecto de `Mat3`/`Affine3`/`P3`. El resto del
+/// engine es plantilla y no los nombra. Se mantienen aquí —una sola selección por
+/// target— en vez de moverlos a `platform/`, que duplicaría las macros de selección.
 
 #include <eng/core/fixed.hpp>
 #include <eng/core/types.hpp>
@@ -51,9 +57,14 @@ using real = math::Fixed<s16, 12>;
 using coord = math::Fixed<s16, 0>;
 #elif ENG__SCALAR_MODE == 2
 inline constexpr const char* scalar_mode = "retro32";
+/// Entero de palabra natural a 32 bits en 68020.
 using intw = s32;
-using real = math::Fixed<s32, 12>;
-using coord = math::Fixed<s32, 0>;
+/// **Los formatos de assets son de 16 bits.** En 68020 se reutilizan los MISMOS assets
+/// que en 68000 (mallas `obj2c`, tablas 4.12), asi que `real`/`coord` siguen a 16 bits y
+/// lo unico que cambia respecto a retro16 es el entero de palabra (`intw`). Un fixed de
+/// 32 bits seria una decision aparte (no por target).
+using real = math::Fixed<s16, 12>;
+using coord = math::Fixed<s16, 0>;
 #else
 inline constexpr const char* scalar_mode = "native";
 using intw = int;

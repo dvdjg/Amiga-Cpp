@@ -42,6 +42,7 @@ La separación de capas es la misma que en `VISUAL_EFFECT_SPRITE_DESIGN.md` §2:
 | Contenido animado (`Animation`, `Frame`, `SpriteSheet`) | EXISTE | `engine/include/eng/graphics/animation.hpp` |
 | Plan de Blits (`FramePlan`, `BlitJob`, `BlitJobKind`, `DirtyRect`, `BlitBudget`) | EXISTE | `engine/include/eng/graphics/frame_plan.hpp` |
 | BOB de bitmap (`Bob`, `BobTarget`, `bob_draw`, `bob_erase_box`) | EXISTE | `engine/include/eng/graphics/bob.hpp` |
+| Lote de BOBs OR intercalado (mismo tamaño, 1 blit/objeto, sin `jsr` por objeto) (`OrBlobBatch`, `begin/one/end`) | EXISTE | `engine/include/eng/platform/amiga/blob.hpp` (test HOST-176) |
 | Construcción del BOB desde un `Visual` (`bob_from_visual`) | EXISTE | `engine/include/eng/scene/actor.hpp` |
 | Plantilla de sprite (`SpriteTemplate`, `SpriteSegment`, `SpritePaletteSwitch`) | EXISTE | `engine/include/eng/graphics/sprite.hpp` |
 | Asignación de canales (`SpriteAllocator`, `SpriteSlot` con `as_bob`) | EXISTE | `engine/include/eng/graphics/sprite_allocator.hpp` |

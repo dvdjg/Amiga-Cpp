@@ -12,6 +12,7 @@ docs/engine/
 │   ├── MEMORY_MODEL.md              → modelo de memoria del engine
 │   ├── GRAPHICS_DRIVERS.md          → drivers de gráficos
 │   ├── GAME_AI_LIBRARY.md           → IA de juego (planificación/GOAP, decisión, navegación…)
+│   ├── SIM_ECOSYSTEM.md             → ecosistema vivo (eng::sim): criaturas, mente, sociedad y LOD
 │   ├── BOARD_GAME_AI.md             → motores de tablero (ajedrez/Go), footprint y NLG
 │   ├── CARD_GAME_AI.md              → motores de naipes (póker): baraja, reglas, equity, IA y simulación
 │   ├── PARALLEL_AND_THREADS.md      → concurrencia abstracta (eng::parallel): no-op m68k, std en host

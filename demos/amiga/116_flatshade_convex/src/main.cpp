@@ -158,22 +158,21 @@ eng::s16 g_bbox[4] = {32767, -32768, 32767, -32768};
 /// sin depender de la paridad del area fill XOR, a cambio de mas blits por cara.
 void draw_faces(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::MinimalBackend& backend,
 		eng::MaskBuffer mask) {
-	void* objdat = object.objdat;
 	eng::s16* group = object.faceGroups;
 	eng::s16 xs[kMaxFaceVerts];
 	eng::s16 ys[kMaxFaceVerts];
 	do {
 		eng::s16 f;
 		while ((f = *group++)) {
-			obj::Face* face = obj::face3d(objdat, f);
+			obj::Face* face = object.face(f);
 			if (face->flags < 0 || face->count < 3 || face->count > kMaxFaceVerts) {
 				continue;
 			}
 			const obj::FaceIndex* idx = obj::face_indices(face);
 			for (eng::s16 k = 0; k < face->count; ++k) {
-				const obj::Point3D* v = obj::vertex3d(objdat, idx[k].vertex);
-				xs[k] = v->x;
-				ys[k] = v->y;
+				const obj::Point3D* v = object.vertex(idx[k].vertex);
+				xs[k] = v->x.v;
+				ys[k] = v->y.v;
 			}
 			backend.blitter_fill_polygon(planes, kPlanes, kBytesPerRow, kPlaneBytes,
 						     xs, ys, static_cast<eng::u8>(face->count),
@@ -243,7 +242,6 @@ void draw_edges(obj::Object3D& object, eng::PlaneBytes planes,
 	eng::u32 n_edges = 0u;
 	eng::u32 n_lines = 0u;
 	eng::u32 px_total = 0u;
-	void* objdat = object.objdat;
 	eng::s16* group = object.edgeGroups;
 	eng::s16 e;
 #if !FLATSHADE_SKIP_EDGES
@@ -255,17 +253,17 @@ void draw_edges(obj::Object3D& object, eng::PlaneBytes planes,
 	backend.blitter_lines_eor_begin(kBytesPerRow);
 	do {
 		while ((e = *group++)) {
-			obj::Edge* edge = obj::edge3d(objdat, e);
+			obj::Edge* edge = object.edge(e);
 			const eng::s8 edgeColor = edge->flags;
 			if (edgeColor > 0) {
 				++n_edges;
 				edge->flags = 0;
-				const obj::Point3D* a = obj::vertex3d(objdat, edge->point[0]);
-				const obj::Point3D* b = obj::vertex3d(objdat, edge->point[1]);
-				eng::s16 x0 = a->x;
-				eng::s16 y0 = a->y;
-				eng::s16 x1 = b->x;
-				eng::s16 y1 = b->y;
+				const obj::Point3D* a = object.vertex(edge->point[0]);
+				const obj::Point3D* b = object.vertex(edge->point[1]);
+				eng::s16 x0 = a->x.v;
+				eng::s16 y0 = a->y.v;
+				eng::s16 x1 = b->x.v;
+				eng::s16 y1 = b->y.v;
 				if (y0 == y1) {
 					continue;
 				}
@@ -310,7 +308,7 @@ void draw_edges(obj::Object3D& object, eng::PlaneBytes planes,
 		}
 	} while (*group);
 #else
-	(void)group; (void)e; (void)objdat;
+	(void)group; (void)e;
 #endif
 	const eng::u32 t1 = rcycles();
 	g_eng_prof.v[10] = n_edges;
@@ -421,12 +419,13 @@ struct FlatShadeDemo {
 		backend.set_blitter_priority(true);
 
 		obj::new_object3d(m_object, pilka);
-		m_object.translate.z = static_cast<eng::s16>(-4000); // fx4i(-250)
+		m_object.translate.z = eng::retro::q0 {-4000}; // fx4i(-250)
 
 		// Pipeline de doble/triple buffer: el estado del objeto para el primer dibujo se
 		// precalcula aqu?? (lo que en `update` ocurre durante el fill del frame previo).
 		m_angle = 0;
-		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z = m_angle;
+		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z =
+			eng::retro::turns(static_cast<eng::u16>(m_angle));
 		obj::update_object_transformation(m_object);
 #if K_FLATSHADE_ASM
 		prepare_fs_args(m_scenes.slot(0).bitplanes(), m_object);
@@ -498,7 +497,8 @@ struct FlatShadeDemo {
 #else
 		m_angle = static_cast<eng::s16>(m_angle + 8);
 #endif
-		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z = m_angle;
+		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z =
+			eng::retro::turns(static_cast<eng::u16>(m_angle));
 		obj::update_object_transformation(m_object);
 		const eng::u32 ta = rcycles();
 		#if K_FLATSHADE_ASM

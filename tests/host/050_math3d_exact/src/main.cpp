@@ -1,7 +1,8 @@
+#define ENG_SCALAR_RETRO16  // host: instancia retro (eng::real=q12, coord=q0)
 // HOST-050 — Red de seguridad de F3: las versiones NUEVAS (librería genérica) deben dar
 // EXACTAMENTE los mismos 12 valores que las viejas (math3d), para todos los ángulos.
 // Cualquier diferencia es un fallo, no una mejora.
-#include <eng/retro/angles.hpp>
+#include <eng/retro/fixed_trig.hpp>
 #include <eng/core/linalg.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 
@@ -14,9 +15,9 @@ using eng::u16;
 
 // --- Implementaciones NUEVAS, espejo de math3d::load_rotate / load_reverse_rotate ---
 static Mat<3, q12> new_load_rotate(u16 ax, u16 ay, u16 az) {
-	const q12 sinX {eng::retro::sin_q12(ax)}, cosX {eng::retro::cos_q12(ax)};
-	const q12 sinY {eng::retro::sin_q12(ay)}, cosY {eng::retro::cos_q12(ay)};
-	const q12 sinZ {eng::retro::sin_q12(az)}, cosZ {eng::retro::cos_q12(az)};
+	const q12 sinX {eng::retro::sin(turns(ax)).v}, cosX {eng::retro::cos(turns(ax)).v};
+	const q12 sinY {eng::retro::sin(turns(ay)).v}, cosY {eng::retro::cos(turns(ay)).v};
+	const q12 sinZ {eng::retro::sin(turns(az)).v}, cosZ {eng::retro::cos(turns(az)).v};
 
 	const q12 tmp0 = dot(sinY, cosZ);
 	const q12 tmp1 = dot(sinY, sinZ);
@@ -35,9 +36,9 @@ static Mat<3, q12> new_load_rotate(u16 ax, u16 ay, u16 az) {
 }
 
 static Mat<3, q12> new_load_reverse_rotate(u16 ax, u16 ay, u16 az) {
-	const q12 sinX {eng::retro::sin_q12(ax)}, cosX {eng::retro::cos_q12(ax)};
-	const q12 sinY {eng::retro::sin_q12(ay)}, cosY {eng::retro::cos_q12(ay)};
-	const q12 sinZ {eng::retro::sin_q12(az)}, cosZ {eng::retro::cos_q12(az)};
+	const q12 sinX {eng::retro::sin(turns(ax)).v}, cosX {eng::retro::cos(turns(ax)).v};
+	const q12 sinY {eng::retro::sin(turns(ay)).v}, cosY {eng::retro::cos(turns(ay)).v};
+	const q12 sinZ {eng::retro::sin(turns(az)).v}, cosZ {eng::retro::cos(turns(az)).v};
 
 	const q12 tmp0 = dot(sinX, sinY);
 	const q12 tmp1 = dot(cosX, sinY);
@@ -69,8 +70,9 @@ int main() {
 	// Los 4096 ángulos, con los tres ejes iguales (el caso de la demo) y con ejes
 	// distintos, para load_rotate y load_reverse_rotate.
 	for (u16 a = 0; a < 4096; ++a) {
-		eng::math3d::Mat3 o {};
-		eng::math3d::load_rotate(o, a, a, a);
+		eng::math3d::Mat3<> o {};
+		eng::math3d::load_rotate(o, eng::retro::turns(a), eng::retro::turns(a),
+					 eng::retro::turns(a));
 		const Mat<3, q12> n = new_load_rotate(a, a, a);
 		cmp("load_rotate", o.m[0][0].v, n.m[0][0].v, a, "m00");
 		cmp("load_rotate", o.m[0][1].v, n.m[0][1].v, a, "m01");
@@ -85,8 +87,10 @@ int main() {
 		const u16 ax = static_cast<u16>(a * 3u);
 		const u16 ay = static_cast<u16>(a * 7u);
 		const u16 az = static_cast<u16>(a * 11u);
-		eng::math3d::Mat3 o2 {};
-		eng::math3d::load_reverse_rotate(o2, ax, ay, az);
+		eng::math3d::Mat3<> o2 {};
+		eng::math3d::load_reverse_rotate(o2, eng::retro::turns(ax),
+						 eng::retro::turns(ay),
+						 eng::retro::turns(az));
 		const Mat<3, q12> n2 = new_load_reverse_rotate(ax, ay, az);
 		cmp("reverse", o2.m[0][0].v, n2.m[0][0].v, a, "m00");
 		cmp("reverse", o2.m[0][1].v, n2.m[0][1].v, a, "m01");

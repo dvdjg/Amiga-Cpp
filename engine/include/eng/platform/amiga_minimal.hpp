@@ -17,6 +17,7 @@
 #include <eng/core/types.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/platform/amiga/blob.hpp>
 
 namespace eng::amiga {
 
@@ -254,6 +255,12 @@ public:
 	/// internos de su copperlist.
 	bool execute_frame_plan(const graphics::FramePlan& plan);
 
+	/// Base de registros custom (`$dff000`). Para rutinas de lote `inline` (p. ej.
+	/// `eng::amiga::OrBlobBatch`) que programan hardware sin un `jsr` por objeto.
+	volatile u16* custom_registers() const {
+		return reinterpret_cast<volatile u16*>(0xdff000);
+	}
+
 	/// Rellena triangulos planos con el **Blitter**: por cada triangulo dibuja el
 	/// contorno (line mode XOR, ONEDOT) + area fill inclusivo en un plano-mascara
 	/// de 1 bit y luego hace cookie-cut de la mascara a cada bitplane segun el
@@ -363,6 +370,42 @@ public:
 	bool blitter_clear_rect(eng::PlaneBytes plane, u16 row_bytes, u16 wx0, s16 y0, u16 words, u16 rows,
 				bool wait = true);
 
+	/// Una entrada del lote de BOBs OR intercalados (port de `DrawObject` de bobs3d).
+	struct OrBobEntry {
+		const void* source = nullptr; ///< atlas: inicio del frame (fila 0, plano 0)
+		void* dest = nullptr;         ///< destino: plano 0 de la scanline del objeto
+		u8 shift = 0;                 ///< desplazamiento fino X (0..15)
+	};
+
+	/// Dibuja un **lote de BOBs OR intercalados** fijando los campos CONSTANTES del
+	/// blit UNA sola vez (`BLTCON1`, `BLTAFWM/ALWM`, `BLTAMOD`, `BLTBMOD`, `BLTDMOD`,
+	/// `BLTSIZE`); por objeto solo escribe `BLTCON0` (minterm `A_OR_B` + ASH),
+	/// `BLTAPT`, `BLT(B/D)PT` y espera. Es el bucle exacto de `DrawObject` de
+	/// `demoscene-repo-orig/effects/bobs3d/bobs3d.c` (`A_OR_B`, `B = D = destino`,
+	/// atlas **denso** sin guarda y 3 palabras por fila).
+	///
+	/// `words` = palabras por fila (`BOBW/16`), `height` = filas totales
+	/// (`BOB alto * planos`), `source_modulo` = `BLTAMOD` (0 con atlas denso),
+	/// `dest_modulo` = `BLTBMOD`=`BLTDMOD` (`bytes_por_fila_plano - words*2`).
+	/// Las entradas se procesan en orden; el Blitter se espera antes de programar
+	/// cada una (como el original). Es la ruta de coste cero para muchos BOBs.
+	bool blitter_or_bobs(const OrBobEntry* entries, u32 count, u16 words, u16 height,
+			     s16 source_modulo, s16 dest_modulo);
+
+	/// Variante **en streaming** del lote de BOBs, sin array intermedio: el llamador
+	/// recorre sus datos y por cada objeto calcula su entrada y la lanza. Es la
+	/// estructura exacta de `DrawObject` (el calculo del vertice y la programacion del
+	/// blit en el mismo bucle), y evita escribir/leer la lista de entradas.
+	///
+	///   blitter_or_bobs_begin(words, height, amod, dmod);
+	///   for (cada objeto) blitter_or_bobs_one(src, dst, shift);
+	///   blitter_or_bobs_end();
+	void blitter_or_bobs_begin(u16 words, u16 height, s16 source_modulo, s16 dest_modulo);
+	/// Lanza UN BOB (espera al anterior, escribe `BLTCON0` OR + `APT/BPT/DPT` + start).
+	void blitter_or_bobs_one(const void* source, void* dest, u8 shift);
+	/// Espera al ultimo BOB. `false` si el Blitter no responde.
+	bool blitter_or_bobs_end();
+
 	/// Area fill `XOR` del mismo rectangulo de UN plano (semilla = ultima palabra
 	/// del rectangulo, recorrido descendente). Port de `BitmapFillFast` acotado a
 	/// una caja, para no barrer el bitmap completo cada frame.
@@ -453,6 +496,9 @@ private:
 	void* m_frame_alloc = nullptr;
 	u32 m_frame_alloc_size = 0;
 	u32 m_blitter_starts = 0;
+	/// Estado del lote de BOBs no-inline (`blitter_or_bobs_begin/one/end`): delega en
+	/// la misma implementacion `inline` de `blob.hpp` que usa el camino de coste cero.
+	eng::amiga::OrBlobBatch m_or_bob {};
 	/// true una vez que la primera copperlist ha tomado el control completo del
 	/// display (INTENA/INTREQ/DMACON apagados e interrupciones del sistema
 	/// congeladas). Las instalaciones posteriores son solo swaps de puntero.

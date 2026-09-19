@@ -1,3 +1,4 @@
+#define ENG_SCALAR_RETRO16  // host: instancia retro (eng::real=q12, coord=q0)
 // HOST-055 — inversa de una transformación rígida (`math3d::inverse_rigid`).
 //
 // La parte lineal ortonormal se invierte trasponiendo y la traslación con `-mT·t`, sin
@@ -31,12 +32,13 @@ int main() {
 	const s16 txs[] = {-1000, 1000};
 	for (const auto& r : rot) {
 		for (const s16 tx : txs) {
-			Affine3 a {};
-			load_rotate(a.m, r[0], r[1], r[2]);
-			a.t = P3 {{q0 {tx}, q0 {static_cast<s16>(-200)}, q0 {300}}};
+			Affine3<> a {};
+			load_rotate(a.m, eng::retro::turns(r[0]), eng::retro::turns(r[1]),
+				    eng::retro::turns(r[2]));
+			a.t = P3<> {{q0 {tx}, q0 {static_cast<s16>(-200)}, q0 {300}}};
 
-			const Affine3 ai = inverse_rigid(a);
-			const Affine3 c = compose(a, ai);
+			const Affine3<> ai = inverse_rigid(a);
+			const Affine3<> c = compose(a, ai);
 			for (int i = 0; i < 3; ++i) {
 				for (int j = 0; j < 3; ++j) {
 					const s16 want = (i == j) ? 4096 : 0;
@@ -50,7 +52,7 @@ int main() {
 				all_identity = false;
 			}
 
-			const Affine3 back = inverse_rigid(ai);
+			const Affine3<> back = inverse_rigid(ai);
 			for (int i = 0; i < 3; ++i) {
 				for (int j = 0; j < 3; ++j) {
 					if (back.m.m[i][j].v != a.m.m[i][j].v) all_twice = false;
