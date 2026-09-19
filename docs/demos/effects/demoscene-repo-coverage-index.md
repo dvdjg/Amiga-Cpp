@@ -60,7 +60,7 @@ Este documento convierte el roadmap general en una tabla de trabajo mantenible. 
 | 26 | Cathedral | `effects/cathedral` | `NO_INICIADO` | `DX26_cathedral` | ray casting + copper | Avanzado; mejor despues. |
 | 27 | Credits | `effects/credits` | `NO_INICIADO` | `DX27_credits` | texto/paleta | Caso facil de UI/texto. |
 | 28 | Darkroom | `effects/darkroom` | `NO_INICIADO` | `DX28_darkroom` | palette LUT helpers | Bueno para fades y LUTs. |
-| 29 | Dna3D | `effects/dna3d` | `NO_INICIADO` | `DX29_dna3d` | `engine_3d_*` + paleta | Puede servir para profundidad por paleta. |
+| 29 | Dna3D | `effects/dna3d` | `PLANIFICADO` | `DX29_dna3d` | `engine_3d_*` + paleta | Plan en [DNA3D_PORT_PLAN.md](DNA3D_PORT_PLAN.md): hélice generada en runtime (`Turns`+`load_rotate`), flares (`OrBlobBatch`), links (líneas EOR), doble playfield `necrocoq` con color por línea. Motor listo; port de efecto pendiente. |
 | 30 | FlatShade | `effects/flatshade` | `NO_INICIADO` | `DX30_flatshade` | polyfill / 3D fill | Alta prioridad dentro de la oleada 3D. |
 | 31 | FlatShade-convex | `effects/flatshade-convex` | `NO_INICIADO` | `DX31_flatshade_convex` | convex fill helpers | Variante util para API especializada. |
 | 32 | Floor-old | `effects/floor-old` | `NO_INICIADO` | `DX32_floor_old` | scroll comparisons | Referencia secundaria frente a `08-floor`. |
