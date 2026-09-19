@@ -1395,6 +1395,22 @@ extern "C" s16 c_math3d_order_convex(s16 a) {
 		eng::Span<eng::math3d::ConvexFace>(out, 12));
 	return static_cast<s16>(n + out[0].index);
 }
+extern "C" s16 c_math3d_poly_cull(s16 a) {
+	static eng::math3d::Vec3 verts[8];
+	static eng::u16 indices[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+	static eng::math3d::FaceSpan faces[2] = {{0, 4}, {4, 4}};
+	static eng::math3d::Vec3 normals[2];
+	static eng::math3d::PolyMeshView mesh {
+		eng::Span<const eng::math3d::Vec3>(verts, 8), eng::Span<const eng::u16>(indices, 8),
+		eng::Span<const eng::math3d::FaceSpan>(faces, 2),
+		eng::Span<const eng::math3d::Vec3>(normals, 2)};
+	eng::math3d::FaceOrder out[2] {};
+	const eng::math3d::Vec3 cam = eng::math3d::vec3(0, 0, a);
+	const eng::u32 n = eng::math3d::mesh_patches_order_lit(
+		mesh, eng::Span<const eng::math3d::Vec3>(verts, 8), cam,
+		eng::Span<eng::math3d::FaceOrder>(out, 2));
+	return static_cast<s16>(n + out[0].index);
+}
 extern "C" s16 c_math3d_order_concave(s16 a) {
 	static eng::math3d::Vec3 verts[8];
 	static eng::math3d::Face faces[12];

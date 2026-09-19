@@ -34,6 +34,7 @@ template <class S = eng::coord>
 inline PolyMeshCounts build_poly_mesh(const Object3D& object, eng::Span<eng::math3d::Vec3t<S>> verts,
 				      eng::Span<s16> offsets, eng::Span<eng::u16> indices,
 				      eng::Span<eng::math3d::FaceSpan> faces,
+				      eng::Span<eng::math3d::Vec3t<S>> normals,
 				      eng::math3d::PolyMeshViewT<S>& out) {
 	using T = eng::math::scalar_traits<S>;
 	PolyMeshCounts c {};
@@ -99,6 +100,13 @@ inline PolyMeshCounts build_poly_mesh(const Object3D& object, eng::Span<eng::mat
 				}
 				faces[c.faces].first = static_cast<u16>(save);
 				faces[c.faces].count = static_cast<u16>(cnt);
+				if (c.faces < normals.size()) {
+					// La normal del obj2c es un ratio (q12); se guarda cruda como
+					// escalar del vértice (solo importa el signo del culling).
+					normals[c.faces] = eng::math3d::Vec3t<S> {
+						{T::from_int(f->normal[0].v), T::from_int(f->normal[1].v),
+						 T::from_int(f->normal[2].v)}};
+				}
 				++c.faces;
 			}
 		} while (room && *fg != 0);
@@ -107,6 +115,7 @@ inline PolyMeshCounts build_poly_mesh(const Object3D& object, eng::Span<eng::mat
 	out.vertices = eng::Span<const eng::math3d::Vec3t<S>>(verts.data(), c.vertices);
 	out.indices = eng::Span<const eng::u16>(indices.data(), c.indices);
 	out.faces = eng::Span<const eng::math3d::FaceSpan>(faces.data(), c.faces);
+	out.normals = eng::Span<const eng::math3d::Vec3t<S>>(normals.data(), c.faces);
 	return c;
 }
 

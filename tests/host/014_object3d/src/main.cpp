@@ -103,11 +103,13 @@ int main() {
 		s16 qoffsets[8];
 		eng::u16 qindices[16];
 		eng::math3d::FaceSpan qfaces[4];
+		eng::math3d::Vec3 qnorm[4];
 		eng::math3d::PolyMeshView qview {};
 		const PolyMeshCounts qc = build_poly_mesh(
 			qobj, eng::Span<eng::math3d::Vec3>(qverts, 8), eng::Span<s16>(qoffsets, 8),
 			eng::Span<eng::u16>(qindices, 16),
-			eng::Span<eng::math3d::FaceSpan>(qfaces, 4), qview);
+			eng::Span<eng::math3d::FaceSpan>(qfaces, 4),
+			eng::Span<eng::math3d::Vec3>(qnorm, 4), qview);
 		check(qc.vertices == 4 && qc.faces == 1 && qc.indices == 4, "adaptador: conteos");
 		check(qview.face_indices(0).size() == 4 && qview.face_indices(0)[2] == 2,
 		      "adaptador: FaceIndex offset -> indice");
@@ -130,11 +132,13 @@ int main() {
 		static s16 poff[64];
 		static eng::u16 pidx[256];
 		static eng::math3d::FaceSpan pface[64];
+		static eng::math3d::Vec3 pnorm[64];
 		eng::math3d::PolyMeshView pview {};
 		const PolyMeshCounts c = build_poly_mesh(
 			po, eng::Span<eng::math3d::Vec3>(pverts, 64), eng::Span<s16>(poff, 64),
 			eng::Span<eng::u16>(pidx, 256),
-			eng::Span<eng::math3d::FaceSpan>(pface, 64), pview);
+			eng::Span<eng::math3d::FaceSpan>(pface, 64),
+			eng::Span<eng::math3d::Vec3>(pnorm, 64), pview);
 		check(c.vertices == 60 && c.faces == 32, "pilka: 60 vertices / 32 caras");
 		eng::u32 tris = 0;
 		for (eng::u32 i = 0; i < c.faces; ++i) {
@@ -172,16 +176,24 @@ int main() {
 		static s16 moff[64];
 		static eng::u16 midx[256];
 		static eng::math3d::FaceSpan mface[64];
+		static eng::math3d::Vec3 mnorm[64];
 		eng::math3d::PolyMeshView mview {};
 		build_poly_mesh(po, eng::Span<eng::math3d::Vec3>(mv, 64), eng::Span<s16>(moff, 64),
 				eng::Span<eng::u16>(midx, 256),
-				eng::Span<eng::math3d::FaceSpan>(mface, 64), mview);
+				eng::Span<eng::math3d::FaceSpan>(mface, 64),
+				eng::Span<eng::math3d::Vec3>(mnorm, 64), mview);
 		const eng::math3d::Vec3 mcam {{po.camera.x, po.camera.y, po.camera.z}};
 		static eng::math3d::FaceOrder morder[64];
 		const eng::u32 m3d_visible = eng::math3d::mesh_patches_order(
 			mview, mview.vertices, mcam, eng::Span<eng::math3d::FaceOrder>(morder, 64));
 		check(lib3d_visible == m3d_visible,
-		      "pilka: math3d n-gon == lib3d (caras visibles)");
+		      "pilka: math3d n-gon (Newell) == lib3d (caras visibles)");
+		// El cull por normal almacenada (apto 68000) coincide EXACTO con lib3d.
+		static eng::math3d::FaceOrder morder_lit[64];
+		const eng::u32 lit_visible = eng::math3d::mesh_patches_order_lit(
+			mview, mview.vertices, mcam, eng::Span<eng::math3d::FaceOrder>(morder_lit, 64));
+		check(lit_visible == lib3d_visible,
+		      "pilka: math3d n-gon (normal almacenada) == lib3d (caras visibles)");
 	}
 
 	if (failures == 0) {

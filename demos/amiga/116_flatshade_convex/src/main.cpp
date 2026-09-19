@@ -18,6 +18,7 @@
 #include <eng/platform/amiga/lib3d.hpp>
 #include <eng/retro/lib2d.hpp>
 #include <eng/platform/amiga/object3d.hpp>
+#include <eng/platform/amiga/object3d_poly.hpp>
 #include <eng/core/types.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
@@ -128,6 +129,19 @@ constexpr eng::u16 kMaxFaceVerts = 8;
 /// (rutina asm, via `g_fs_args.bbox`).
 eng::s16 g_bbox[4] = {32767, -32768, 32767, -32768};
 
+/// Ruta n-gon (ruta B): vista `PolyMeshView` de la `pilka` (con la normal por cara del
+/// `obj2c`) + offset de byte de cada cara. El orden usa `mesh_patches_order_lit` (cull por
+/// normal, sin 64 bits) con la cámara en espacio objeto; el relleno, la coordenada de
+/// pantalla ya proyectada.
+eng::math3d::Vec3 g_poly_verts[64];
+eng::s16 g_poly_offs[64];
+eng::u16 g_poly_idx[256];
+eng::math3d::FaceSpan g_poly_faces[64];
+eng::math3d::Vec3 g_poly_norm[64];
+eng::math3d::PolyMeshView g_poly {};
+eng::s16 g_face_off[64];
+eng::u32 g_face_off_n = 0;
+
 // ============================================================================
 //  Perfil de coste (demo 116, WinUAE-DBG, 68000, -O1; frame representativo)
 // ============================================================================
@@ -158,27 +172,28 @@ eng::s16 g_bbox[4] = {32767, -32768, 32767, -32768};
 /// sin depender de la paridad del area fill XOR, a cambio de mas blits por cara.
 void draw_faces(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::MinimalBackend& backend,
 		eng::MaskBuffer mask) {
-	eng::s16* group = object.faceGroups;
+	// Orden n-gon por math3d: culling por la normal almacenada (sin 64 bits) + pintor.
+	eng::math3d::FaceOrder order[64];
+	const eng::math3d::Vec3 cam {{object.camera.x, object.camera.y, object.camera.z}};
+	const eng::u32 n = eng::math3d::mesh_patches_order_lit(
+		g_poly, g_poly.vertices, cam, eng::Span<eng::math3d::FaceOrder>(order, 64));
 	eng::s16 xs[kMaxFaceVerts];
 	eng::s16 ys[kMaxFaceVerts];
-	do {
-		eng::s16 f;
-		while ((f = *group++)) {
-			obj::Face* face = object.face(f);
-			if (face->flags < 0 || face->count < 3 || face->count > kMaxFaceVerts) {
-				continue;
-			}
-			const obj::FaceIndex* idx = obj::face_indices(face);
-			for (eng::s16 k = 0; k < face->count; ++k) {
-				const obj::Point3D* v = object.vertex(idx[k].vertex);
-				xs[k] = v->x.v;
-				ys[k] = v->y.v;
-			}
-			backend.blitter_fill_polygon(planes, kPlanes, kBytesPerRow, kPlaneBytes,
-						     xs, ys, static_cast<eng::u8>(face->count),
-						     static_cast<eng::u8>(face->flags), mask);
+	for (eng::u32 oi = 0; oi < n; ++oi) {
+		obj::Face* face = object.face(g_face_off[order[oi].index]);
+		if (face->count < 3 || face->count > kMaxFaceVerts) {
+			continue;
 		}
-	} while (*group);
+		const obj::FaceIndex* idx = obj::face_indices(face);
+		for (eng::s16 k = 0; k < face->count; ++k) {
+			const obj::Point3D* v = object.vertex(idx[k].vertex);
+			xs[k] = v->x.v;
+			ys[k] = v->y.v;
+		}
+		backend.blitter_fill_polygon(planes, kPlanes, kBytesPerRow, kPlaneBytes, xs, ys,
+					     static_cast<eng::u8>(face->count),
+					     static_cast<eng::u8>(face->flags), mask);
+	}
 }
 
 // Seleccion de ruta y perfilado por secciones (todo por defecto a 0/1).
@@ -420,6 +435,25 @@ struct FlatShadeDemo {
 
 		obj::new_object3d(m_object, pilka);
 		m_object.translate.z = eng::retro::q0 {-4000}; // fx4i(-250)
+
+		// Ruta B: vista n-gon de la pilka (con normales) + offset de byte de cada cara.
+		obj::build_poly_mesh(m_object, eng::Span<eng::math3d::Vec3>(g_poly_verts, 64),
+				     eng::Span<eng::s16>(g_poly_offs, 64),
+				     eng::Span<eng::u16>(g_poly_idx, 256),
+				     eng::Span<eng::math3d::FaceSpan>(g_poly_faces, 64),
+				     eng::Span<eng::math3d::Vec3>(g_poly_norm, 64), g_poly);
+		g_face_off_n = 0;
+		{
+			const eng::s16* fg = m_object.faceGroups;
+			if (fg != nullptr) {
+				do {
+					eng::s16 off;
+					while ((off = *fg++) != 0) {
+						g_face_off[g_face_off_n++] = off;
+					}
+				} while (*fg != 0);
+			}
+		}
 
 		// Pipeline de doble/triple buffer: el estado del objeto para el primer dibujo se
 		// precalcula aqu?? (lo que en `update` ocurre durante el fill del frame previo).

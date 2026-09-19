@@ -164,6 +164,11 @@ struct PolyMeshViewT {
 	Span<const Vec3t<S>> vertices {};
 	Span<const u16> indices {}; // índices de vértice, concatenados por cara
 	Span<const FaceSpan> faces {};
+	/// Normales por cara **opcionales** (vacío = se calculan por Newell). Se guardan con el
+	/// escalar del vértice aunque la normal «real» sea un ratio: para el culling solo importa
+	/// el **signo** de `n·(cam-p0)`, invariante a un reescalado del vector. Así el cull con
+	/// normal almacenada es `q0·q0` (sin 64 bits), apto para el 68000.
+	Span<const Vec3t<S>> normals {};
 
 	[[nodiscard]] constexpr u32 vertex_count() const { return static_cast<u32>(vertices.size()); }
 	[[nodiscard]] constexpr u32 face_count() const { return static_cast<u32>(faces.size()); }
@@ -179,6 +184,12 @@ using PolyMeshView = PolyMeshViewT<Coord>;
 
 /// Visibilidad de una cara n-gon planar `f` desde `cam`: signo de la normal de **Newell**
 /// (válida también para caras no convexas) contra la vista `cam - p0`.
+///
+/// Nota de rango: el producto acumula en el exponente ancho del escalar (para `Fixed<s16,0>`
+/// usa 64 bits en el último producto), así que **no** es apto para el camino retro optimizado
+/// (que trunca a 32 bits): para una cámara lejana el signo puede invertirse. Una
+/// especialización retro correcta necesitaría la normal **normalizada** por cara (como guarda
+/// `obj2c` y usa `lib3d`), no la arista cruda.
 template <class S>
 [[nodiscard]] inline s32 poly_face_signed_area(const PolyMeshViewT<S>& mesh, u32 f,
 					       Span<const Vec3t<S>> verts, const Vec3t<S>& cam) {
@@ -206,6 +217,29 @@ template <class S>
 [[nodiscard]] inline bool poly_face_visible(const PolyMeshViewT<S>& mesh, u32 f,
 					    Span<const Vec3t<S>> verts, const Vec3t<S>& cam) {
 	return poly_face_signed_area<S>(mesh, f, verts, cam) >= 0;
+}
+
+/// Visibilidad usando la **normal almacenada** por cara (`mesh.normals[f]`): `signo(n·(cam-p0))`.
+/// Es la ruta **apta para 68000** (`n` y `cam-p0` son del mismo tipo → producto s32, sin
+/// 64 bits), equivalente al culling de `lib3d`. Requiere `mesh.normals` no vacío.
+template <class S>
+[[nodiscard]] inline s32 poly_face_signed_area_normal(const PolyMeshViewT<S>& mesh, u32 f,
+						      Span<const Vec3t<S>> verts,
+						      const Vec3t<S>& cam) {
+	const Vec3t<S>& n = mesh.normals[f];
+	const Vec3t<S>& p0 = verts[mesh.indices[mesh.faces[f].first]];
+	const auto d = n.v[0] * (cam.v[0] - p0.v[0]) + n.v[1] * (cam.v[1] - p0.v[1]) +
+		       n.v[2] * (cam.v[2] - p0.v[2]);
+	const auto zero = decltype(d) {};
+	return d < zero ? -1 : (d > zero ? 1 : 0);
+}
+
+/// ¿Es visible la cara `f` por su normal almacenada?
+template <class S>
+[[nodiscard]] inline bool poly_face_visible_normal(const PolyMeshViewT<S>& mesh, u32 f,
+						   Span<const Vec3t<S>> verts,
+						   const Vec3t<S>& cam) {
+	return poly_face_signed_area_normal<S>(mesh, f, verts, cam) >= 0;
 }
 
 /// Clave de orden Z por MÍNIMO de los z de la cara n-gon `f`.
@@ -274,6 +308,9 @@ struct ConvexFace {
 struct ConvexSolid {};
 struct ConcaveMesh {};
 struct ConvexPatches {};
+/// Como `ConvexPatches` pero con la **normal almacenada** por cara (obj2c/lib3d): cull sin
+/// 64 bits, apto para el 68000. Requiere `PolyMeshViewT::normals`.
+struct ConvexPatchesLit {};
 
 /// Qué necesita el algoritmo para cada cualidad (punto de extensión). El primario es el caso
 /// general (seguro: clave + sort); `ConvexSolid` lo especializa. Añadir una cualidad =
@@ -282,11 +319,20 @@ template <class Kind>
 struct mesh_order_traits {
 	static constexpr bool depth_key = true;
 	static constexpr bool sorts = true;
+	/// Culling por la normal **almacenada** (en vez de Newell): evita el producto de 64 bits.
+	static constexpr bool cull_normal = false;
 };
 template <>
 struct mesh_order_traits<ConvexSolid> {
 	static constexpr bool depth_key = false;
 	static constexpr bool sorts = false;
+	static constexpr bool cull_normal = false;
+};
+template <>
+struct mesh_order_traits<ConvexPatchesLit> {
+	static constexpr bool depth_key = true;
+	static constexpr bool sorts = true;
+	static constexpr bool cull_normal = true;
 };
 
 /// Tipo de la lista de salida por cualidad: el convexo no guarda clave; el resto (general) sí.
@@ -385,7 +431,15 @@ public:
 			if (!ok) {
 				continue;
 			}
-			if (double_sided || poly_face_visible<S>(mesh, i, verts, cam)) {
+			bool vis = double_sided;
+			if (!vis) {
+				if constexpr (Tr::cull_normal) {
+					vis = poly_face_visible_normal<S>(mesh, i, verts, cam);
+				} else {
+					vis = poly_face_visible<S>(mesh, i, verts, cam);
+				}
+			}
+			if (vis) {
 				out[n].index = static_cast<u16>(i);
 				if constexpr (Tr::depth_key) {
 					out[n].z = poly_face_z_min<S>(mesh, i, verts);
@@ -424,6 +478,17 @@ inline u32 mesh_patches_order(const PolyMeshViewT<S>& mesh, Span<const Vec3t<S>>
 			      Span<FaceOrderT<typename mesh_traits<S>::key>> out,
 			      bool double_sided = false) {
 	return MeshFaceOrder<ConvexPatches, S>::order(mesh, verts, cam, out, double_sided);
+}
+
+/// Igual que `mesh_patches_order` pero con la **normal almacenada** por cara
+/// (`ConvexPatchesLit`): cull sin producto de 64 bits, apto para el 68000. Requiere
+/// `mesh.normals` (p. ej. del adaptador `obj2c`).
+template <class S = Coord>
+inline u32 mesh_patches_order_lit(const PolyMeshViewT<S>& mesh, Span<const Vec3t<S>> verts,
+				  const Vec3t<S>& cam,
+				  Span<FaceOrderT<typename mesh_traits<S>::key>> out,
+				  bool double_sided = false) {
+	return MeshFaceOrder<ConvexPatchesLit, S>::order(mesh, verts, cam, out, double_sided);
 }
 
 } // namespace eng::math3d

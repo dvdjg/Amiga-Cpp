@@ -61,6 +61,15 @@ internas. Para evitarlo:
   normal de **Newell** (`poly_face_visible`), válida también para caras no convexas, y la clave
   de orden es el mínimo z de la cara. `mesh_patches_order` ordena los parches convexos con el
   mismo `MeshFaceOrder<ConvexPatches>` (pintor por parche).
+
+  **Límite de rango y ruta retro:** Newell acumula en el exponente ancho del escalar (para
+  `Fixed<s16,0>` el último producto pasa a 64 bits → `__muldi3`, inviable en 68000). Por eso,
+  para el camino retro, la vista lleva **normal por cara** (`PolyMeshViewT::normals`, la del
+  `obj2c`) y se ordena con `mesh_patches_order_lit` (`ConvexPatchesLit`): el cull es
+  `signo(n·(cam-p0))` con `n` y `cam-p0` del mismo tipo → producto `s32`, **sin 64 bits** y
+  coincidente con `lib3d`. La sonda `c_math3d_poly_cull` lo fija (162 instr, 3 `muls.w`, 0
+  libcalls). La demo 116, ruta B (`-DFLATSHADE_FAITHFUL=0`), rellena los parches en ese orden
+  con `blitter_fill_polygon` (validado visualmente: la `pilka` sale con caras n-gon sólidas).
 - **`convex_spans`** (`eng/core/polygon.hpp`): genera los spans `(y, xl, xr)` de un polígono
   convexo por **dos cadenas** (izquierda/derecha desde el vértice superior al inferior),
   O(altura) frente a O(lados·altura) del barrido por mínimo/máximo. Es el generador de spans

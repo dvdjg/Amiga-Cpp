@@ -562,7 +562,7 @@ Ambos se han reducido con la forma amiga del raster (el relleno es de **polígon
 
 Efecto esperado en el número de `write_planes` (trabajo, no ciclos): para un relleno de `W` píxeles de ancho y `H` de alto baja de `W·H` a `⌈W/16⌉·H` por plano (~**16×** menos RMW del bitmap cuando el ancho cubre palabras enteras).
 
-> Medición en objetivo pendiente: requiere el emulador (perfil por secciones de la demo 078). El contador determinista de `write_planes` y la equivalencia de píxeles los fijan HOST-045 y HOST-046.
+> Medición en objetivo pendiente: requiere el emulador (perfil por secciones). **Banco correcto**: la demo 078 **no** usa `Playfield::fill_polygon` (tiene su propio `Canvas`); la ruta cambiada la consume `Surface` (HOST-046 o un demo de GUI). Medir ahí, no en la 078. El contador determinista de `write_planes` y la equivalencia de píxeles los fijan HOST-045 y HOST-046.
 
 
 
