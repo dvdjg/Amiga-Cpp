@@ -23,7 +23,7 @@
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/graphics/drivers/ham_scene.hpp>
+#include <eng/graphics/drivers/planar_scene.hpp>
 #include <eng/graphics/drivers/multi_buffered.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
@@ -399,11 +399,11 @@ struct FlatShadeDemo {
 			return;
 		}
 
-		// Triple buffer generico: `MultiBuffered<HamScene, 3>` reserva los 3 bitmaps
+		// Triple buffer generico: `MultiBuffered<PlanarScene, 3>` reserva los 3 bitmaps
 		// (4 planos contiguos cada uno) y sus 3 copperlists. La semantica coincide con la
 		// pipeline del original: se dibuja en `back()`, se lanza el fill y `commit()`
 		// publica el recien dibujado (se vera en el swap del frame siguiente) y rota.
-		drivers::HamSceneConfig scene_cfg {};
+		drivers::PlanarSceneConfig scene_cfg {};
 		scene_cfg.bytes_per_row = kBytesPerRow;
 		scene_cfg.rows = kHeight;
 		scene_cfg.planes = kPlanes;
@@ -414,7 +414,7 @@ struct FlatShadeDemo {
 		scene_cfg.ddfstop = kDdfstop;
 		scene_cfg.row_repeat = 1u;
 		scene_cfg.bplcon1_shift = kBplcon1;
-		// `HamScene` emite la lista POR LINEA (WAIT + BPLMOD + BPLCON1 por cada una de las
+		// `PlanarScene` emite la lista POR LINEA (WAIT + BPLMOD + BPLCON1 por cada una de las
 		// 256 lineas) aunque `row_repeat=1`; son ~2 KB por bloque (el original usaba una
 		// lista plana de 512 B). Se reserva de sobra.
 		scene_cfg.copper_bytes = 6144u;
@@ -579,7 +579,7 @@ private:
 	bool m_init_ok = false;
 	bool m_memory_ok = false;
 	eng::s16 m_angle = 0;
-	drivers::MultiBuffered<drivers::HamScene, kBuffers> m_scenes {};
+	drivers::MultiBuffered<drivers::PlanarScene, kBuffers> m_scenes {};
 	eng::Block<eng::MaskTag> m_mask_block {};
 	eng::object3d::Object3D m_object {};
 };

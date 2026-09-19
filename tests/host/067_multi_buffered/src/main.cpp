@@ -11,7 +11,7 @@
 //   3) `commit` instala la copperlist del buffer en escritura y rota (0->1->0 con N=2).
 //   4) `takeover` muestra el slot 0.
 //   5) N=1 equivale a driver suelto (back siempre 0, sin flip efectivo).
-//   6) Integracion real: `HamScene` con N=2 produce dos copperlists distintas (cada una
+//   6) Integracion real: `PlanarScene` con N=2 produce dos copperlists distintas (cada una
 //      apunta a su propio bitmap), que es lo que demuestra la separacion
 //      "emision de copperlist" / "bloque de planos" (`bind`).
 //
@@ -26,7 +26,7 @@
 #include <eng/core/types.hpp>
 #include <eng/graphics/driver.hpp>
 #include <eng/graphics/drivers/ehb_scene.hpp>
-#include <eng/graphics/drivers/ham_scene.hpp>
+#include <eng/graphics/drivers/planar_scene.hpp>
 #include <eng/graphics/drivers/multi_buffered.hpp>
 #include <eng/memory/arena.hpp>
 
@@ -156,13 +156,13 @@ int main() {
 		}
 	}
 
-	// --- 6) Integracion con un driver real: HamScene, N=2 ------------------------
+	// --- 6) Integracion con un driver real: PlanarScene, N=2 ------------------------
 	{
-		using eng::graphics::drivers::HamScene;
-		using eng::graphics::drivers::HamSceneConfig;
+		using eng::graphics::drivers::PlanarScene;
+		using eng::graphics::drivers::PlanarSceneConfig;
 		MemorySystem mem = make_memory();
 
-		HamSceneConfig cfg {};
+		PlanarSceneConfig cfg {};
 		cfg.rows = 64;
 		cfg.planes = 4;
 		cfg.bytes_per_row = 40;
@@ -170,19 +170,19 @@ int main() {
 		cfg.row_repeat = 4;
 		cfg.bplcon1_shift = 0u;
 
-		eng::graphics::drivers::MultiBuffered<HamScene, 2> scenes {};
+		eng::graphics::drivers::MultiBuffered<PlanarScene, 2> scenes {};
 		if (!scenes.init(mem, cfg)) {
-			std::printf("[FAIL] MultiBuffered<HamScene,2>::init fallo\n");
+			std::printf("[FAIL] MultiBuffered<PlanarScene,2>::init fallo\n");
 			return 1;
 		}
-		const u32 planebytes = HamScene::plane_bytes_for(cfg);
+		const u32 planebytes = PlanarScene::plane_bytes_for(cfg);
 		if (scenes.slot(0).plane_bytes() != planebytes || scenes.slot(1).plane_bytes() != planebytes) {
 			std::printf("[FAIL] plane_bytes=%u (esperado %u)\n", (unsigned)scenes.slot(0).plane_bytes(),
 				    (unsigned)planebytes);
 			return 1;
 		}
 		if (scenes.slot(0).bitplanes().data() == scenes.slot(1).bitplanes().data()) {
-			std::printf("[FAIL] HamScene: los dos slots comparten bitmap\n");
+			std::printf("[FAIL] PlanarScene: los dos slots comparten bitmap\n");
 			return 1;
 		}
 		// Las dos listas deben diferir: cada una apunta a su propio bitmap (BPLxPT).
@@ -209,12 +209,12 @@ int main() {
 		MockBackend backend;
 		scenes.takeover(backend);
 		if (backend.taken != c0) {
-			std::printf("[FAIL] HamScene: takeover no usa el slot 0\n");
+			std::printf("[FAIL] PlanarScene: takeover no usa el slot 0\n");
 			return 1;
 		}
 		scenes.commit(backend);
 		if (backend.installed != c1) {
-			std::printf("[FAIL] HamScene: commit no instala el slot 1\n");
+			std::printf("[FAIL] PlanarScene: commit no instala el slot 1\n");
 			return 1;
 		}
 	}

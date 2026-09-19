@@ -299,7 +299,7 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
 - **Fase 3 — hecha**: `BlitSource`/`BlitDest` en `BlitJob`; `SoftDpfComposition::make_copy_*` con
   `Pattern` (con tamaño) + validación; **paleta/copper tipados**: `PalettePatch`/`CopperIntent`
   usan `eng::PaletteWords`, `CopperScheduler::emit_palette`/`emit_palette_zone` también, y los
-  campos `palette` de las configs (`XlimitedConfig`/`XlimitedSceneConfig`/`HamSceneConfig`) son
+  campos `palette` de las configs (`XlimitedConfig`/`XlimitedSceneConfig`/`PlanarSceneConfig`) son
   `PaletteWords` (los arrays de las demos conectan con el constructor de array). Verificado:
   030/040/107/201/202 READY y 111/112 sin regresión. **Copper/mapper tipados**:
   `CopperScheduler::emit_planes_display`/`emit_copper_intents_full` reciben `eng::PlaneBytes`,

@@ -8,7 +8,7 @@
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/graphics/drivers/ham_scene.hpp>
+#include <eng/graphics/drivers/planar_scene.hpp>
 #include <eng/graphics/drivers/multi_buffered.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
@@ -252,7 +252,7 @@ struct FireDemo {
 		// N buffers (planos + copperlist) con swap de COP1LC tras VBlank. El driver
 		// emite su lista sobre los bloques que le pasa el wrapper (`bind`), asi la
 		// demo no calcula DIW/DDF ni palabras de Copper ni reserva bitplanes.
-		drivers::HamSceneConfig scene_cfg {};
+		drivers::PlanarSceneConfig scene_cfg {};
 		scene_cfg.rows = kHeight;
 		scene_cfg.planes = kPlanes;
 		scene_cfg.bytes_per_row = kBytesPerRow;
@@ -423,7 +423,7 @@ private:
 	eng::u8* m_planes[2][kPlanes] = {};
 	short* m_fire = nullptr;
 	// Display HAM + cuadruplicado (una instancia del driver por buffer).
-	drivers::MultiBuffered<drivers::HamScene, K_080_BUFFERS> m_scenes {};
+	drivers::MultiBuffered<drivers::PlanarScene, K_080_BUFFERS> m_scenes {};
 	amiga::MinimalBackend* m_backend = nullptr;
 	// Pipeline del C2P: la fase 0 la arranca `update`; las fases 1..12 las encadena la
 	// IRQ de blit (`on_blit`), que marca `m_c2p_done` al terminar.

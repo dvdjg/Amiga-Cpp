@@ -100,15 +100,19 @@ intencion distinta: preparar columnas, filas o bloques de tilemap en zonas no
 visibles del playfield. La demo compone un bloque 4x4 de tiles en un buffer Chip
 RAM no visible y despues lo publica al playfield EHB con otro blit.
 
-### `HamScene`
+### `PlanarScene`
 
-`engine/include/eng/graphics/drivers/ham_scene.hpp` cubre displays **HAM/planos con
-repeticion de filas** (cuadruplicado), extraido del porte 1:1 de `effects/fire-rgb`:
+`engine/include/eng/graphics/drivers/planar_scene.hpp` cubre displays **planares de N
+bitplanes con repeticion de filas** (cuadruplicado para modos HAM), extraido del porte 1:1
+de `effects/fire-rgb`. Su nombre historico era `HamScene`; se renombro a `PlanarScene`
+porque el alcance es planar generico (HAM y planos normales), no el modo HAM. Los alias
+`HamScene`/`HamSceneConfig` siguen existiendo por compatibilidad (`ham_scene.hpp` es un
+shim que reexporta `planar_scene.hpp`).
 
-- `HamSceneConfig`: geometria (DIW/DDF, ancho de fila), numero de planos, `BPLCON0`,
+- `PlanarSceneConfig`: geometria (DIW/DDF, ancho de fila), numero de planos, `BPLCON0`,
   filas logicas, factor de repeticion, `BPLCON1` alterno, paleta y reordenado de
   `BPLxPT` (el original usa `bpl[3..0]`).
-- `HamScene`: reserva bitplanes + copperlist en Chip RAM y construye la lista: setup
+- `PlanarScene`: reserva bitplanes + copperlist en Chip RAM y construye la lista: setup
   del display, paleta opcional, y `rows * row_repeat` lineas con
   `BPL1MOD/BPL2MOD = -ancho_de_fila` en todas las lineas del grupo menos la ultima
   (que avanza con modulo 0) y `BPLCON1` alterno.

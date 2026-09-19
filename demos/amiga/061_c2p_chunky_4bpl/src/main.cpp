@@ -9,7 +9,7 @@
 //
 // El efecto es un **rotozoom** (`eng/graphics/effects/rotozoom.hpp`) sobre una textura
 // indexada 64x64, con paleta cíclica de 16 colores. Se genera a 320x64 y el display lo
-// muestra a 320x256 repitiendo cada fila 4 veces por Copper (`HamScene.row_repeat`), el
+// muestra a 320x256 repitiendo cada fila 4 veces por Copper (`PlanarScene.row_repeat`), el
 // mismo truco que la demo 080: llena la pantalla pagando solo 20.480 píxeles.
 //
 // El C2P corre en **asm 68000** (`support/c2p_1x1_4.s`, port de Kalms/Scout 1999) y su
@@ -33,7 +33,7 @@
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/graphics/c2p.hpp>
-#include <eng/graphics/drivers/ham_scene.hpp>
+#include <eng/graphics/drivers/planar_scene.hpp>
 #include <eng/graphics/drivers/multi_buffered.hpp>
 #include <eng/graphics/effects/rotozoom.hpp>
 #include <eng/platform/amiga_minimal.hpp>
@@ -128,8 +128,8 @@ constexpr eng::ct_array<eng::u8, 64u * 64u> kTexture {[](eng::usize i) -> eng::u
 // Oscilacion de zoom: 98.304 +- 32.768 en 16.16 (1.5x +- 0.5x).
 constexpr eng::SineTable<32768, 256> kZoomSin {};
 
-drivers::HamSceneConfig make_config() {
-	drivers::HamSceneConfig cfg {};
+drivers::PlanarSceneConfig make_config() {
+	drivers::PlanarSceneConfig cfg {};
 	cfg.bytes_per_row = kBytesPerRow;
 	cfg.rows = kChunkyH;
 	cfg.planes = kPlanes;
@@ -182,7 +182,7 @@ struct RotozoomDemo {
 			return false;
 		}
 
-		const drivers::HamSceneConfig cfg = make_config();
+		const drivers::PlanarSceneConfig cfg = make_config();
 		// Doble buffer generico: el wrapper es dueno de la memoria y enlaza cada slot
 		// con el driver; el swap es de copperlist (COP1LC) tras VBlank.
 		if (!m_scenes.init(backend.memory(), cfg)) {
@@ -301,7 +301,7 @@ private:
 		return eng::IndexedTexture {kTexture.data(), kTexture.size()};
 	}
 
-	drivers::MultiBuffered<drivers::HamScene, K_061_BUFFERS> m_scenes {};
+	drivers::MultiBuffered<drivers::PlanarScene, K_061_BUFFERS> m_scenes {};
 	eng::Block<eng::ChunkyTag> m_chunky[2] {};
 	eng::Block<eng::PlaneTag> m_ref {};
 	eng::graphics::Rotozoom m_rot {};

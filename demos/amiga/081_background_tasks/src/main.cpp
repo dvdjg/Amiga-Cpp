@@ -5,7 +5,7 @@
 // tarea NO bloquea el frame: el engine la drena en el hueco de VBlank (prioridad al
 // bucle principal) y solo cuando el CPU estaria esperando.
 //
-//   - Display: 4 planos 320x256 (driver `HamScene`, sin cuadruplicado).
+//   - Display: 4 planos 320x256 (driver `PlanarScene`, sin cuadruplicado).
 //   - Fondo (COLOR00): lo pulsa el bucle principal por CPU cada frame -> prueba viva
 //     de que el juego sigue corriendo (la copperlist NO toca COLOR00).
 //   - Barra (COLOR01, blanco): la rellena la tarea de fondo fila a fila. Su longitud
@@ -17,7 +17,7 @@
 #include <eng/core/util/ring_buffer.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
-#include <eng/graphics/drivers/ham_scene.hpp>
+#include <eng/graphics/drivers/planar_scene.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/task/background.hpp>
@@ -107,7 +107,7 @@ struct BackgroundDemo {
 			return;
 		}
 
-		drivers::HamSceneConfig cfg {};
+		drivers::PlanarSceneConfig cfg {};
 		cfg.planes = kPlanes;
 		cfg.rows = kHeight;
 		cfg.bytes_per_row = kBytesPerRow;
@@ -212,7 +212,7 @@ struct BackgroundDemo {
 	}
 
 private:
-	drivers::HamScene m_scene {};
+	drivers::PlanarScene m_scene {};
 	eng::PlaneBytes m_plane0 {};
 	eng::PlaneBytes m_plane1 {};
 	FillTask m_fill {};

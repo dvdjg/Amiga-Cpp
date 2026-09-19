@@ -1,11 +1,11 @@
 // ============================================================================
-// Test HOST-016: driver reutilizable `HamScene` (display planar con repeticion
+// Test HOST-016: driver reutilizable `PlanarScene` (display planar con repeticion
 // de filas / cuadruplicado, extraido del porte de fire-rgb).
 // ============================================================================
 //
 // Valida en host, sin emulador, que el driver construye la geometria correcta:
 //
-//   1) `GraphicsDriver<HamScene, Backend>` (contrato takeover/install + id).
+//   1) `GraphicsDriver<PlanarScene, Backend>` (contrato takeover/install + id).
 //   2) `emit_planes_display`: BPLCON0, DIW/DDF y punteros BPLxPT (reordenados).
 //   3) Repeticion de filas: BPL1MOD/BPL2MOD = -bytes_per_row en todas las lineas
 //      del grupo menos la ultima (que avanza con modulo 0); BPLCON1 alterno.
@@ -22,7 +22,7 @@
 
 #include <eng/core/types.hpp>
 #include <eng/graphics/copper/copper.hpp>
-#include <eng/graphics/drivers/ham_scene.hpp>
+#include <eng/graphics/drivers/planar_scene.hpp>
 #include <eng/graphics/driver.hpp>
 #include <eng/memory/arena.hpp>
 
@@ -33,8 +33,8 @@ using eng::MemorySystem;
 using eng::LinearArena;
 using eng::u16;
 using eng::u32;
-using eng::graphics::drivers::HamScene;
-using eng::graphics::drivers::HamSceneConfig;
+using eng::graphics::drivers::PlanarScene;
+using eng::graphics::drivers::PlanarSceneConfig;
 
 /// Backend minimo que satisface los metodos que usan los drivers (templates).
 struct MockBackend {
@@ -45,8 +45,8 @@ struct MockBackend {
 };
 
 // El driver cumple el contrato completo de driver grafico.
-static_assert(eng::GraphicsDriver<HamScene, MockBackend>);
-static_assert(eng::DisplayDriver<HamScene, MockBackend>);
+static_assert(eng::GraphicsDriver<PlanarScene, MockBackend>);
+static_assert(eng::DisplayDriver<PlanarScene, MockBackend>);
 
 alignas(16) eng::u8 g_chip[256 * 1024];
 
@@ -98,7 +98,7 @@ int main() {
 	// --- 1) HAM + cuadruplicado (config de la demo 080) -----------------------
 	{
 		MemorySystem mem = make_memory();
-		HamSceneConfig cfg {};
+		PlanarSceneConfig cfg {};
 		cfg.rows = 64;
 		cfg.planes = 4;
 		cfg.bytes_per_row = 40;
@@ -111,9 +111,9 @@ int main() {
 		cfg.palette = palette;
 		cfg.palette_count = 16;
 
-		HamScene scene;
+		PlanarScene scene;
 		if (!scene.init(mem, cfg)) {
-			std::printf("[FAIL] HamScene::init fallo\n");
+			std::printf("[FAIL] PlanarScene::init fallo\n");
 			return 1;
 		}
 		if (scene.plane_bytes() != 40u * 64u || scene.plane_count() != 4u) {
@@ -167,7 +167,7 @@ int main() {
 	// --- 2) Parametrico: sin repeticion, 5 planos, otro BPLCON0 ---------------
 	{
 		MemorySystem mem = make_memory();
-		HamSceneConfig cfg {};
+		PlanarSceneConfig cfg {};
 		cfg.rows = 128;
 		cfg.planes = 5;
 		cfg.bytes_per_row = 40;
@@ -177,9 +177,9 @@ int main() {
 		cfg.palette = {};
 		cfg.palette_count = 0;
 
-		HamScene scene;
+		PlanarScene scene;
 		if (!scene.init(mem, cfg) || !scene.ok()) {
-			std::printf("[FAIL] HamScene::init (config plano) fallo\n");
+			std::printf("[FAIL] PlanarScene::init (config plano) fallo\n");
 			return 1;
 		}
 		const u16 row_back = static_cast<u16>(0u - 40u);
@@ -197,6 +197,6 @@ int main() {
 		}
 	}
 
-	std::printf("OK: HamScene valida display planar + repeticion de filas (cuadruplicado) y es parametrico.\n");
+	std::printf("OK: PlanarScene valida display planar + repeticion de filas (cuadruplicado) y es parametrico.\n");
 	return 0;
 }

@@ -21,7 +21,8 @@ namespace eng {
 /// principio las familias de composicion que queremos soportar.
 enum class GraphicsDriverId : u8 {
 	EhbScene,
-	HamScene,
+	PlanarScene,
+	CanvasScene,
 	CopperChunky,
 	Standard5,
 	Standard4,

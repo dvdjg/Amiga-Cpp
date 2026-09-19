@@ -63,11 +63,11 @@ master** (ver 0.8).
 temporal (bit3=active, bit2=active-1, …); no son buffers de display con bitmap propio.
 `116_flatshade_convex` **sí** encaja: 3 bitmaps completos (4 planos cada uno) + 3
 copperlists con semántica exacta de `commit()` (dibuja en el trasero, convierte y publica
-el recién escrito; rota). **Migrado**: usa `MultiBuffered<HamScene, 3>` y `commit()`;
+el recién escrito; rota). **Migrado**: usa `MultiBuffered<PlanarScene, 3>` y `commit()`;
 verificado READY + **20,33 fps** (el README dice ~20,7), `verify-116` PASS y visión de
 secuencia sin anomalías (poliedro convexo girando).
 
-**Hallazgo F2**: `HamScene` emite la lista **por línea** (WAIT + BPLMOD + BPLCON1 por cada
+**Hallazgo F2**: `PlanarScene` emite la lista **por línea** (WAIT + BPLMOD + BPLCON1 por cada
 una de las 256 líneas) **aunque `row_repeat == 1`**, donde no hace falta ninguna: ~2 KB de
 copperlist y trabajo de Copper por línea regalados. El original de la 116 usaba una lista
 plana de 512 B. Es una mejora pendiente del driver (no rompe nada, pero cuesta DMA).
