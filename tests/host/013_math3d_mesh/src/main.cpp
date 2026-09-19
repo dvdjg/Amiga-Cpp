@@ -69,6 +69,25 @@ int main() {
 		check(m == 1, "capacidad de salida acotada");
 	}
 
+	// Genericidad: la MISMA malla instanciada con coordenada `float` (sin tocar el engine).
+	{
+		using Vf = eng::math3d::Vec3t<float>;
+		const Vf vf[3] = {eng::math3d::vec3<float>(0, 0, 0), eng::math3d::vec3<float>(10, 0, 0),
+				  eng::math3d::vec3<float>(0, 10, 0)};
+		const Face ff[1] = {{0, 1, 2}};
+		const eng::math3d::MeshViewT<float> meshf {eng::Span<const Vf>(vf, 3),
+							   eng::Span<const Face>(ff, 1)};
+		Vf wf[3];
+		const eng::math::Affine<3, float, float> idf =
+			eng::math::Affine<3, float, float>::identity();
+		eng::math3d::mesh_transform(meshf.vertices, idf, eng::Span<Vf>(wf, 3));
+		eng::math3d::FaceOrder of[1];
+		const eng::u32 nf = eng::math3d::mesh_painter_order(
+			meshf, eng::Span<const Vf>(wf, 3), eng::math3d::vec3<float>(0, 0, 100),
+			eng::Span<eng::math3d::FaceOrder>(of, 1));
+		check(nf == 1 && wf[1].v[0] == 10.0f, "mesh3d generico: misma malla con float");
+	}
+
 	if (failures == 0) {
 		std::printf("OK: math3d mesh (transform + culling + painter) validado.\n");
 		return 0;

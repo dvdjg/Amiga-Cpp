@@ -18,13 +18,19 @@
 /// radio 64 se obtiene redondeando al entero más cercano.
 
 #include <eng/core/linalg.hpp>
+#include <eng/core/scalar.hpp>
 #include <eng/core/sinetable.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::scene {
 
-/// Coordenada de pantalla/mundo en LONGITUD (píxeles) como escalar tipado.
-using Coord = eng::math::Fixed<eng::s16, 0>;
+/// Coordenada de pantalla/mundo en LONGITUD (píxeles): el escalar de coordenada central.
+using Coord = eng::coord;
+
+/// Crudo (entero s16) de una coordenada, genérico sobre el escalar.
+[[nodiscard]] constexpr eng::s16 coord_raw(Coord c) {
+	return static_cast<eng::s16>(eng::math::scalar_traits<Coord>::to_int(c));
+}
 
 /// Cámara de ruta por fases.
 struct RouteCamera {
@@ -56,8 +62,8 @@ struct RouteCamera {
 	eng::u32 rng = 0x12345678u;
 
 	/// Coordenadas de la cámara para el consumidor (píxeles).
-	[[nodiscard]] eng::u16 x() const { return static_cast<eng::u16>(pos.v[0].v); }
-	[[nodiscard]] eng::u16 y() const { return static_cast<eng::u16>(pos.v[1].v); }
+	[[nodiscard]] eng::u16 x() const { return static_cast<eng::u16>(coord_raw(pos.v[0])); }
+	[[nodiscard]] eng::u16 y() const { return static_cast<eng::u16>(coord_raw(pos.v[1])); }
 
 	/// Fija la posición (píxeles) sin espejo.
 	void set(eng::u16 nx, eng::u16 ny) {
@@ -185,7 +191,7 @@ private:
 
 	/// Aplica el espejo horizontal y guarda la posición.
 	void store(eng::math::Vec<2, Coord> route) {
-		const eng::s16 rx = route.v[0].v;
+		const eng::s16 rx = coord_raw(route.v[0]);
 		route.v[0] = Coord {mirror_x
 			? static_cast<eng::s16>(static_cast<eng::u32>(max_x) + min_x - static_cast<eng::u32>(static_cast<eng::u16>(rx)))
 			: rx};
