@@ -1,3 +1,4 @@
+#define ENG_SCALAR_RETRO16  // host: instancia retro (eng::real=q12, coord=q0)
 // Test host de eng::math3d (especialización 4.12 sobre la librería genérica).
 // Valida identidad, escala, rotación sobre Z, composición, transform y el afín.
 #include <eng/platform/amiga/gfx3d.hpp>
@@ -26,10 +27,10 @@ static void near(int got, int want, int tol, const char *msg) {
 		++failures;
 	}
 }
-static s16 mv(const Mat3 &m, int r, int c) { return m.m[r][c].v; }
+static s16 mv(const Mat3<> &m, int r, int c) { return m.m[r][c].v; }
 
 int main() {
-	Mat3 m = Mat3::identity();
+	Mat3<> m = Mat3<>::identity();
 	Vec3 out[2];
 
 	// Identidad.
@@ -43,15 +44,15 @@ int main() {
 	check(out[1].x().v == -50 && out[1].y().v == 25 && out[1].z().v == -75, "transform identidad p1");
 
 	// Escala 0.5.
-	m = Mat3::identity();
+	m = Mat3<>::identity();
 	scale(m, q12 {2048}, q12 {2048}, q12 {2048});
 	transform(m, out, in, 2);
 	check(out[0].x().v == 50 && out[0].y().v == 100 && out[0].z().v == 150, "scale 0.5 p0");
 	check(out[1].x().v == -25 && out[1].y().v == 12 && out[1].z().v == -38, "scale 0.5 p1 (truncado)");
 
 	// Rotación sobre Z 90° (az=1024): (x,y,z) -> (y,-x,z).
-	m = Mat3::identity();
-	load_rotate(m, 0, 0, 1024);
+	m = Mat3<>::identity();
+	load_rotate(m, angle_to_radians(0), angle_to_radians(0), angle_to_radians(1024));
 	{
 		const Vec3 p = vec3(100, 0, 0);
 		transform(m, out, &p, 1);
@@ -66,18 +67,18 @@ int main() {
 	}
 
 	// compose(I, R) == R  (la composición ahora es el `operator*` de la librería).
-	const Mat3 id = Mat3::identity();
-	Mat3 r = Mat3::identity();
-	load_rotate(r, 0, 0, 1024);
-	const Mat3 c = id * r;
+	const Mat3<> id = Mat3<>::identity();
+	Mat3<> r = Mat3<>::identity();
+	load_rotate(r, angle_to_radians(0), angle_to_radians(0), angle_to_radians(1024));
+	const Mat3<> c = id * r;
 	check(mv(c, 0, 0) == mv(r, 0, 0) && mv(c, 0, 1) == mv(r, 0, 1) && mv(c, 1, 0) == mv(r, 1, 0) &&
 		      mv(c, 1, 1) == mv(r, 1, 1),
 	      "compose(I,R) == R");
 
 	// R*R con R = Rz(90°) da Rz(180°) = diag(-1,-1).
-	Mat3 r2 = Mat3::identity();
-	load_rotate(r2, 0, 0, 1024);
-	const Mat3 r180 = r * r2;
+	Mat3<> r2 = Mat3<>::identity();
+	load_rotate(r2, angle_to_radians(0), angle_to_radians(0), angle_to_radians(1024));
+	const Mat3<> r180 = r * r2;
 	near(mv(r180, 0, 0), -4096, 2, "Rz90*Rz90 (0,0)");
 	near(mv(r180, 0, 1), 0, 2, "Rz90*Rz90 (0,1)");
 	near(mv(r180, 1, 0), 0, 2, "Rz90*Rz90 (1,0)");
@@ -85,7 +86,7 @@ int main() {
 
 	// Transformación AFÍN: M*p + t, con la traslación en LONGITUD (q0).
 	{
-		Affine<3, q12, q0> a {Mat3::identity(), Vec<3, q0> {{q0 {10}, q0 {-20}, q0 {30}}}};
+		Affine<3, q12, q0> a {Mat3<>::identity(), Vec<3, q0> {{q0 {10}, q0 {-20}, q0 {30}}}};
 		const Vec<3, q0> p {{q0 {100}, q0 {200}, q0 {300}}};
 		const Vec<3, q0> q = eng::math::transform(a, p);
 		check(q.x().v == 110 && q.y().v == 180 && q.z().v == 330, "afin: M*p + t");

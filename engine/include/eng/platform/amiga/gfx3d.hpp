@@ -1,85 +1,94 @@
 #pragma once
 
 /// \file gfx3d.hpp
-/// Especialización **para gráficos de Amiga** de la librería genérica
-/// (`eng/core/linalg.hpp`): rotaciones construidas con la tabla de seno 4.12 y los
-/// tipos concretos que usan los efectos (`Mat3` = `Mat<3,q12>`, `Affine3` =
-/// `Affine<3,q12,q0>`, `Vec3` en crudo). La aritmética de matrices vive en `eng::math`;
-/// aquí sólo queda lo que depende del **formato 4.12** (los senos) o del chipset.
+/// **Gráficos 3D** sobre el álgebra genérica (`eng/core/linalg.hpp`): construcción de
+/// rotaciones, escala y transformación afín, **plantillados sobre el escalar**.
 ///
-/// Convención: `out = M·v + t` con la parte lineal en 4.12 (RATIO) y la traslación en
-/// LONGITUD. Eso es exactamente `Affine<3, q12, q0>`.
+/// No hay un tipo único de matriz/vector: `Mat3<S>`, `Affine3<SR, SL>` y `P3<S>` son
+/// alias de plantilla y cada uso instancia el escalar que le corresponde (por defecto el
+/// escalar del target: `eng::real`/`eng::coord`). El mismo `load_rotate` sirve para
+/// `float` y para `q12`: el ángulo va en **radianes** en el propio escalar y las
+/// operaciones concretas (seno, coseno, producto normalizado) las aporta `S`.
+///
+/// Convención: `out = M·v + t` con la parte lineal en RATIO (`SR`) y la traslación en
+/// LONGITUD (`SL`).
 
-#include <eng/retro/angles.hpp>
 #include <eng/core/fixed.hpp>
 #include <eng/core/linalg.hpp>
 #include <eng/core/mesh3d.hpp>
+#include <eng/core/scalar.hpp>
+#include <eng/core/scalar_math.hpp>
 #include <eng/core/types.hpp>
-#include <eng/retro/fixed_q.hpp>
+#include <eng/retro/fixed_trig.hpp>
 
 namespace eng::math3d {
 
-using eng::retro::cos_q12;
-using eng::retro::fix;
-using eng::retro::sin_q12;
+/// Matriz lineal 3×3 de ratios (por defecto, el escalar `eng::real` del target).
+template <class S = eng::real>
+using Mat3 = eng::math::Mat<3, S>;
+/// Transformación afín: lineal (RATIO `SR`) + traslación (LONGITUD `SL`).
+template <class SR = eng::real, class SL = eng::coord>
+using Affine3 = eng::math::Affine<3, SR, SL>;
+/// Punto de LONGITUD del álgebra genérica (`eng::coord` por defecto).
+template <class S = eng::coord>
+using P3 = eng::math::Vec<3, S>;
 
-/// Matriz lineal 3×3 de ratios en 4.12.
-using Mat3 = eng::math::Mat<3, eng::retro::q12>;
-/// Transformación afín completa: lineal (RATIO 4.12) + traslación (LONGITUD entera).
-using Affine3 = eng::math::Affine<3, eng::retro::q12, eng::retro::q0>;
-/// Punto en LONGITUD del álgebra genérica. Es EXACTAMENTE el vértice de malla
-/// (`Vec3 = Vec<3, Coord>`), porque `retro::q0` y `math3d::Coord` son el mismo
-/// `math::Fixed<s16,0>`: ya no hace falta convertir `{s16 x,y,z}` a `Vec<3,q0>`.
-using P3 = eng::math::Vec<3, eng::retro::q0>;
-static_assert(sizeof(P3) == sizeof(Vec3), "math3d::P3 y math3d::Vec3 deben coincidir");
+namespace detail {
 
-// `Vec3`, `Face` y el back-face culling son del MODELO de malla, no de este formato:
-// viven en `eng/core/mesh3d.hpp`. Aquí sólo queda lo que usa el 4.12.
-
-/// Carga `M = Rx(ax)·Ry(ay)·Rz(az)` (igual que `LoadRotate3D`).
-inline void load_rotate(Mat3& m, u16 ax, u16 ay, u16 az) {
-	using eng::retro::q12;
-	const fix sinX = sin_q12(ax), cosX = cos_q12(ax);
-	const fix sinY = sin_q12(ay), cosY = cos_q12(ay);
-	const fix sinZ = sin_q12(az), cosZ = cos_q12(az);
-
-	const fix tmp0 = eng::math::dot(q12 {sinY}, q12 {cosZ}).v;
-	const fix tmp1 = eng::math::dot(q12 {sinY}, q12 {sinZ}).v;
-
-	m.m[0][0] = eng::math::dot(q12 {cosY}, q12 {cosZ});
-	m.m[0][1] = -eng::math::dot(q12 {cosY}, q12 {sinZ});
-	m.m[0][2] = q12 {sinY};
-	m.m[1][0] = eng::math::dot(q12 {cosX}, q12 {sinZ}, q12 {sinX}, q12 {tmp0});
-	m.m[1][1] = eng::math::dot(q12 {cosX}, q12 {cosZ}, -q12 {sinX}, q12 {tmp1});
-	m.m[1][2] = -eng::math::dot(q12 {sinX}, q12 {cosY});
-	m.m[2][0] = eng::math::dot(q12 {sinX}, q12 {sinZ}, -q12 {cosX}, q12 {tmp0});
-	m.m[2][1] = eng::math::dot(q12 {sinX}, q12 {cosZ}, q12 {cosX}, q12 {tmp1});
-	m.m[2][2] = eng::math::dot(q12 {cosX}, q12 {cosY});
+/// `a·b + c·d` con la normalización **fusionada** (una sola, como el `dot` de 4 términos):
+/// exacto para fixed y óptimo para float. Es el ladrillo de las filas de `load_rotate`.
+template <class S>
+[[nodiscard]] constexpr S ratio2(S a, S b, S c, S d) {
+	return eng::math::dot(eng::math::Vec<2, S> {{a, c}}, eng::math::Vec<2, S> {{b, d}});
 }
 
-/// Carga `M = Rz(az)·Ry(ay)·Rx(ax)` (igual que `LoadReverseRotate3D`).
-inline void load_reverse_rotate(Mat3& m, u16 ax, u16 ay, u16 az) {
-	using eng::retro::q12;
-	const fix sinX = sin_q12(ax), cosX = cos_q12(ax);
-	const fix sinY = sin_q12(ay), cosY = cos_q12(ay);
-	const fix sinZ = sin_q12(az), cosZ = cos_q12(az);
+} // namespace detail
 
-	const fix tmp0 = eng::math::dot(q12 {sinX}, q12 {sinY}).v;
-	const fix tmp1 = eng::math::dot(q12 {cosX}, q12 {sinY}).v;
+/// Carga `M = Rx(ax)·Ry(ay)·Rz(az)` (igual que `LoadRotate3D`). Ángulos en **radianes**.
+template <class S>
+inline void load_rotate(Mat3<S>& m, S ax, S ay, S az) {
+	const S sinX = eng::math::scalar_sin<S>::op(ax), cosX = eng::math::scalar_cos<S>::op(ax);
+	const S sinY = eng::math::scalar_sin<S>::op(ay), cosY = eng::math::scalar_cos<S>::op(ay);
+	const S sinZ = eng::math::scalar_sin<S>::op(az), cosZ = eng::math::scalar_cos<S>::op(az);
 
-	m.m[0][0] = eng::math::dot(q12 {cosY}, q12 {cosZ});
-	m.m[0][1] = eng::math::dot(q12 {tmp0}, q12 {cosZ}, -q12 {cosX}, q12 {sinZ});
-	m.m[0][2] = eng::math::dot(q12 {tmp1}, q12 {cosZ}, q12 {sinX}, q12 {sinZ});
-	m.m[1][0] = eng::math::dot(q12 {cosY}, q12 {sinZ});
-	m.m[1][1] = eng::math::dot(q12 {tmp0}, q12 {sinZ}, q12 {cosX}, q12 {cosZ});
-	m.m[1][2] = eng::math::dot(q12 {tmp1}, q12 {sinZ}, -q12 {sinX}, q12 {cosZ});
-	m.m[2][0] = -q12 {sinY};
-	m.m[2][1] = eng::math::dot(q12 {sinX}, q12 {cosY});
-	m.m[2][2] = eng::math::dot(q12 {cosX}, q12 {cosY});
+	const S tmp0 = eng::math::mul_norm(sinY, cosZ);
+	const S tmp1 = eng::math::mul_norm(sinY, sinZ);
+
+	m.m[0][0] = eng::math::mul_norm(cosY, cosZ);
+	m.m[0][1] = -eng::math::mul_norm(cosY, sinZ);
+	m.m[0][2] = sinY;
+	m.m[1][0] = detail::ratio2(cosX, sinZ, sinX, tmp0);
+	m.m[1][1] = detail::ratio2(cosX, cosZ, -sinX, tmp1);
+	m.m[1][2] = -eng::math::mul_norm(sinX, cosY);
+	m.m[2][0] = detail::ratio2(sinX, sinZ, -cosX, tmp0);
+	m.m[2][1] = detail::ratio2(sinX, cosZ, cosX, tmp1);
+	m.m[2][2] = eng::math::mul_norm(cosX, cosY);
 }
 
-/// Escala la parte lineal in situ (factores RATIO en 4.12, el mismo escalar que la matriz).
-inline void scale(Mat3& m, eng::retro::q12 sx, eng::retro::q12 sy, eng::retro::q12 sz) {
+/// Carga `M = Rz(az)·Ry(ay)·Rx(ax)` (igual que `LoadReverseRotate3D`). Ángulos en radianes.
+template <class S>
+inline void load_reverse_rotate(Mat3<S>& m, S ax, S ay, S az) {
+	const S sinX = eng::math::scalar_sin<S>::op(ax), cosX = eng::math::scalar_cos<S>::op(ax);
+	const S sinY = eng::math::scalar_sin<S>::op(ay), cosY = eng::math::scalar_cos<S>::op(ay);
+	const S sinZ = eng::math::scalar_sin<S>::op(az), cosZ = eng::math::scalar_cos<S>::op(az);
+
+	const S tmp0 = eng::math::mul_norm(sinX, sinY);
+	const S tmp1 = eng::math::mul_norm(cosX, sinY);
+
+	m.m[0][0] = eng::math::mul_norm(cosY, cosZ);
+	m.m[0][1] = detail::ratio2(tmp0, cosZ, -cosX, sinZ);
+	m.m[0][2] = detail::ratio2(tmp1, cosZ, sinX, sinZ);
+	m.m[1][0] = eng::math::mul_norm(cosY, sinZ);
+	m.m[1][1] = detail::ratio2(tmp0, sinZ, cosX, cosZ);
+	m.m[1][2] = detail::ratio2(tmp1, sinZ, -sinX, cosZ);
+	m.m[2][0] = -sinY;
+	m.m[2][1] = eng::math::mul_norm(sinX, cosY);
+	m.m[2][2] = eng::math::mul_norm(cosX, cosY);
+}
+
+/// Escala la parte lineal in situ (factores RATIO del mismo escalar que la matriz).
+template <class S>
+inline void scale(Mat3<S>& m, S sx, S sy, S sz) {
 	for (int i = 0; i < 3; ++i) {
 		m.m[i][0] = eng::math::mul_norm(m.m[i][0], sx);
 		m.m[i][1] = eng::math::mul_norm(m.m[i][1], sy);
@@ -87,23 +96,27 @@ inline void scale(Mat3& m, eng::retro::q12 sx, eng::retro::q12 sy, eng::retro::q
 	}
 }
 
-/// `out = M·in` (sin traslación). Los vértices son LONGITUDES (`Coord`), el MISMO escalar
-/// del álgebra: no hay conversión, solo `dot(fila, vértice)` (producto fusionado exacto).
-inline void transform(const Mat3& m, Vec3* out, const Vec3* in, u32 n) {
+/// `out = M·in` (sin traslación). Genérico sobre el escalar de la matriz y del vector.
+template <class SR, class SL>
+inline void transform(const eng::math::Mat<3, SR>& m, eng::math::Vec<3, SL>* out,
+		      const eng::math::Vec<3, SL>* in, u32 n) {
 	for (u32 i = 0; i < n; ++i) {
-		const Vec3& p = in[i];
-		out[i] = Vec3 {{eng::math::dot(m.row(0), p), eng::math::dot(m.row(1), p),
-				eng::math::dot(m.row(2), p)}};
+		const eng::math::Vec<3, SL>& p = in[i];
+		out[i] = eng::math::Vec<3, SL> {eng::math::dot(m.row(0), p),
+						eng::math::dot(m.row(1), p),
+						eng::math::dot(m.row(2), p)};
 	}
 }
 
 /// `out = M·in + t` (afín). Es lo que usa el mesh: su "model" lleva traslación.
-inline void transform(const Affine3& a, Vec3* out, const Vec3* in, u32 n) {
+template <class SR, class SL>
+inline void transform(const eng::math::Affine<3, SR, SL>& a, eng::math::Vec<3, SL>* out,
+		      const eng::math::Vec<3, SL>* in, u32 n) {
 	for (u32 i = 0; i < n; ++i) {
-		const Vec3& p = in[i];
-		out[i] = Vec3 {{eng::math::dot(a.m.row(0), p) + a.t.v[0],
-				eng::math::dot(a.m.row(1), p) + a.t.v[1],
-				eng::math::dot(a.m.row(2), p) + a.t.v[2]}};
+		const eng::math::Vec<3, SL>& p = in[i];
+		out[i] = eng::math::Vec<3, SL> {eng::math::dot(a.m.row(0), p) + a.t.v[0],
+						eng::math::dot(a.m.row(1), p) + a.t.v[1],
+						eng::math::dot(a.m.row(2), p) + a.t.v[2]};
 	}
 }
 
@@ -112,14 +125,16 @@ inline void transform(const Affine3& a, Vec3* out, const Vec3* in, u32 n) {
 
 /// Inversa de una transformación **rígida** (rotación + traslación, sin escala ni
 /// cizalla): la parte lineal es ortonormal, así que `m⁻¹ = mᵀ` y `t⁻¹ = −mᵀ·t`, sin
-/// divisiones. `compose(a, inverse_rigid(a))` vuelve a la identidad (redondeo 4.12 aparte).
+/// divisiones. `compose(a, inverse_rigid(a))` vuelve a la identidad (redondeo aparte).
 ///
 /// Para una transformación con escala por ejes, la inversa necesita los recíprocos `1/s`
 /// (una división por eje): no la cubre esta función.
-[[nodiscard]] inline Affine3 inverse_rigid(const Affine3& a) {
-	const Mat3 mt = eng::math::transpose(a.m);
-	const P3 t = -eng::math::transform(Affine3 {mt, {}}, a.t);
-	return Affine3 {mt, t};
+template <class SR, class SL>
+[[nodiscard]] inline eng::math::Affine<3, SR, SL> inverse_rigid(
+	const eng::math::Affine<3, SR, SL>& a) {
+	const eng::math::Mat<3, SR> mt = eng::math::transpose(a.m);
+	const eng::math::Vec<3, SL> t = -eng::math::transform(eng::math::Affine<3, SR, SL> {mt, {}}, a.t);
+	return eng::math::Affine<3, SR, SL> {mt, t};
 }
 
 } // namespace eng::math3d

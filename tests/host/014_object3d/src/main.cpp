@@ -1,3 +1,4 @@
+#define ENG_SCALAR_RETRO16  // host: instancia retro (eng::real=q12, coord=q0)
 // Test host de eng::object3d (modelo obj2c + Object3D portado de lib3d).
 #include <eng/platform/amiga/object3d.hpp>
 
@@ -27,7 +28,7 @@ int main() {
 	Object3D obj {};
 	new_object3d(obj, mesh);
 	check(obj.objdat == data, "new_object3d enlaza objdat");
-	check(obj.scale.x == (1 << 12) && obj.scale.y == (1 << 12), "scale inicial 1.0 (4.12)");
+	check(obj.scale.x.v == (1 << 12) && obj.scale.y.v == (1 << 12), "scale inicial 1.0 (4.12)");
 
 	// Offsets de las macros (indice = offset de byte; primer vertice = 2).
 	const Point3D* p = point3d(data, 2);
@@ -37,14 +38,15 @@ int main() {
 	check(reinterpret_cast<short*>(node3d(data, 2)) == data, "node3d(i) = objdat + i - 2");
 
 	// Transformacion: identidad + traslacion.
-	obj.rotate = {0, 0, 0};
-	obj.scale = {1 << 12, 1 << 12, 1 << 12};
-	obj.translate = {100, 200, 300};
+	obj.rotate = {};
+	obj.scale = {eng::retro::q12 {1 << 12}, eng::retro::q12 {1 << 12}, eng::retro::q12 {1 << 12}};
+	obj.translate = {eng::retro::q0 {100}, eng::retro::q0 {200}, eng::retro::q0 {300}};
 	update_object_transformation(obj);
 	check(obj.objectToWorld.m.m[0][0].v == (1 << 12) && obj.objectToWorld.m.m[1][1].v == (1 << 12), "objectToWorld identidad");
 	check(obj.objectToWorld.t.x().v == 100 && obj.objectToWorld.t.y().v == 200 && obj.objectToWorld.t.z().v == 300, "objectToWorld traslacion");
 	check(obj.worldToObject.t.x().v == -100 && obj.worldToObject.t.y().v == -200 && obj.worldToObject.t.z().v == -300, "worldToObject traslacion inversa");
-	check(obj.camera.x == -100 && obj.camera.y == -200 && obj.camera.z == -300, "camara en espacio objeto");
+	check(obj.camera.x.v == -100 && obj.camera.y.v == -200 && obj.camera.z.v == -300,
+	      "camara en espacio objeto");
 
 	if (failures == 0) {
 		std::printf("OK: object3d (obj2c + Object3D) validado.\n");

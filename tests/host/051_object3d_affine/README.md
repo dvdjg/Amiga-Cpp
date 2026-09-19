@@ -13,6 +13,9 @@ implementación sin riesgo.
 - **La cámara**: `normfx(M · t)` — una **LONGITUD** (exp 0), no un 4.12.
 - Barrido de los 4096 ángulos (paso 7) con la configuración de la demo
   (`scale = 1.0`, `translate = (0,0,−4000)`), comparando los 12 valores y la cámara.
+- `Object3D::rotate` va en **radianes** (`Angle3` = `q12`); el test construye el ángulo con
+  `angle_to_radians` y el espejo con la tabla directa, así que la exactitud se fija contra
+  la tabla del original.
 
 ## Por qué importa
 

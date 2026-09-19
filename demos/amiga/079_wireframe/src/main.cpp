@@ -73,9 +73,9 @@ constexpr eng::u16 kBplcon1 = 0x0000;    // fine scroll 0 (calculado)
 // --- Recorrido del object model (PORTADO VERBATIM de wireframe.c) ------------
 
 void update_face_visibility_fast(obj::Object3D& object) {
-	const eng::s16 cx = object.camera.x;
-	const eng::s16 cy = object.camera.y;
-	const eng::s16 cz = object.camera.z;
+	const eng::s16 cx = object.camera.x.v;
+	const eng::s16 cy = object.camera.y.v;
+	const eng::s16 cz = object.camera.z.v;
 	void* objdat = object.objdat;
 	eng::s16* group = object.faceGroups;
 	eng::s16 f;
@@ -145,7 +145,7 @@ void update_edge_visibility(obj::Object3D& object) {
 }
 
 void transform_vertices(obj::Object3D& object) {
-	eng::math3d::Affine3& M = object.objectToWorld;
+	eng::math3d::Affine3<>& M = object.objectToWorld;
 	void* objdat = object.objdat;
 	eng::s16* group = object.vertexGroups;
 
@@ -239,7 +239,7 @@ struct WireframeDemo {
 
 		obj::new_object3d(m_object, pilka);
 		// fx4i(-250) = -250 * 16 = -4000 (4.12).
-		m_object.translate.z = static_cast<eng::s16>(-4000);
+		m_object.translate.z = eng::retro::q0 {-4000};
 
 		eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(pilka.vertices));
 	}
@@ -259,7 +259,7 @@ struct WireframeDemo {
 		backend.blitter_clear(plane, 1, kBytesPerRow, kPlaneBytes, kWidth, kHeight);
 
 		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z =
-			static_cast<eng::s16>(context.frame.frame_index * 8u);
+			eng::retro::angle_to_radians(context.frame.frame_index * 8u);
 
 		obj::update_object_transformation(m_object);
 		update_face_visibility_fast(m_object);

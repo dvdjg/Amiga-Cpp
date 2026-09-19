@@ -224,7 +224,7 @@ enum {
 /// proyeccion en `vertex`. Usa el `projector` del engine, que reproduce el
 /// empaquetado `(c0+y)(c1+x)+c2*z-xy` del `MULVERTEX` original.
 void transform_all_vertices(obj::Object3D& object) {
-	using Proj = eng::math::projector<eng::math3d::Affine3>;
+	using Proj = eng::math::projector<eng::math3d::Affine3<>>;
 	const Proj::cache pc = Proj::make(object.objectToWorld);
 	void* objdat = object.objdat;
 	s16* group = object.vertexGroups;
@@ -281,7 +281,7 @@ struct Bobs3DDemo {
 
 		obj::new_object3d(m_object, pilka);
 		// fx4i(-256): (-256) << 4 en 4.12 = -4096.
-		m_object.translate.z = static_cast<s16>(static_cast<u16>(-256) << 4u);
+		m_object.translate.z = eng::retro::q0 {-4096}; // fx4i(-256)
 
 		eng::debug::mark_ready(g_eng_run_status, static_cast<u32>(pilka.vertices));
 	}
@@ -311,7 +311,7 @@ struct Bobs3DDemo {
 
 #if K_117_WORK
 		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z =
-			static_cast<s16>(context.frame.frame_index * 12u);
+			eng::retro::angle_to_radians(context.frame.frame_index * 12u);
 
 		P_BEGIN(kProfTransform);
 		// bobs3d no usa la inversa ni la camara: solo la matriz directa para proyectar.

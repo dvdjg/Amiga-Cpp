@@ -1,3 +1,4 @@
+#define ENG_SCALAR_RETRO16  // host: instancia retro (eng::real=q12, coord=q0)
 // Test host de `eng::graphics::mesh_renderer` (malla 3D -> Surface):
 // proyección en perspectiva, back-face culling (mesh_painter_order) y relleno de
 // las caras visibles vía `Surface::fill_polygon`. `Playfield` de prueba en RAM.
@@ -63,7 +64,7 @@ int main() {
 				 math3d::vec3(96, 96, 1024), math3d::vec3(-96, 96, 1024)};
 	math3d::Face faces[2] = {{0, 1, 2}, {0, 2, 3}};
 	const math3d::MeshView mesh {Span<const math3d::Vec3>(verts, 4), Span<const math3d::Face>(faces, 2)};
-	const math3d::Affine3 model = math3d::Affine3::identity();
+	const math3d::Affine3<> model = math3d::Affine3<>::identity();
 
 	// 2) Cara mirando a la camara ({0,0,2048}) -> 2 caras visibles rellenadas.
 	{
@@ -147,7 +148,7 @@ int main() {
 		math3d::Vec3 world[8];
 		math3d::FaceOrder order[12];
 		s16 sx[8], sy[8];
-		math3d::Affine3 m = math3d::Affine3::identity();
+		math3d::Affine3<> m = math3d::Affine3<>::identity();
 		m.t = eng::math::Vec<3, eng::retro::q0> {{eng::retro::q0 {0}, eng::retro::q0 {0}, eng::retro::q0 {320}}};
 		const auto color = [](u16) -> u8 { return 1; };
 		const u32 drawn = mesh_render_filled(cube, m, math3d::vec3(0, 0, 0), 160, 32, 32,

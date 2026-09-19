@@ -131,9 +131,9 @@ inline constexpr u16 kInvSqrt[512] = {
 /// Coste: producto punto + magnitud² + luz ≈ 7 `mul_wide`/`mulu_wide` por cara.
 /// No usa `sqrt`: la magnitud² (parte alta) indexa `kInvSqrt`.
 inline void update_face_visibility(Object3D& object) {
-	const s16 cx = object.camera.x;
-	const s16 cy = object.camera.y;
-	const s16 cz = object.camera.z;
+	const s16 cx = object.camera.x.v;
+	const s16 cy = object.camera.y.v;
+	const s16 cz = object.camera.z.v;
 	void* objdat = object.objdat;
 	s16* group = object.faceGroups;
 	s16 f;
@@ -219,13 +219,13 @@ inline void update_edge_visibility_convex(Object3D& object) {
 /// + 2 `divs.w` más la carga de la matriz). En asm el ideal es la matriz en
 /// registros y un `muls.w`/`divs.w` por operación, sin recargar `objdat`.
 inline void transform_vertices(Object3D& object, s16 half_w, s16 half_h, s16 bbox[4]) {
-	math3d::Affine3& M = object.objectToWorld;
+	math3d::Affine3<>& M = object.objectToWorld;
 	void* objdat = object.objdat;
 	s16* group = object.vertexGroups;
 
 	// Lo precalculable UNA vez por matriz (términos de traslación plegados) lo guarda
 	// la caché del proyector; el backend 68000 mete ahí lo que necesite.
-	using Proj = eng::math::projector<math3d::Affine3>;
+	using Proj = eng::math::projector<math3d::Affine3<>>;
 	const Proj::cache pc = Proj::make(M);
 
 	bbox[0] = 32767; bbox[1] = -32768; bbox[2] = 32767; bbox[3] = -32768;

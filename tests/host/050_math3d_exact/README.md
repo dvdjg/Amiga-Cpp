@@ -12,6 +12,10 @@ dan **exactamente** los mismos valores que las viejas.
 - Compara los 9 elementos de la matriz **valor a valor** (`==`). Cualquier diferencia es
   un fallo, no una mejora: la migración no debe cambiar ni un píxel.
 
+El ángulo entra en **radianes** (`retro::angle_to_radians`); el espejo usa la tabla directa
+(`sin_q12`). Como índice→radianes→índice es exacto, el test sigue fijando la exactitud
+contra la tabla del original.
+
 Se apoya en que la normalización fusionada (`dot`) es bit-idéntica al `normfx(mul_wide)`
 del original, y en que el exponente va en el tipo (misma representación `s16`, mismo
 resultado).

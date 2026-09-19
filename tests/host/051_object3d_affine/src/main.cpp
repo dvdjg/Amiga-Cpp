@@ -1,7 +1,8 @@
+#define ENG_SCALAR_RETRO16  // host: instancia retro (eng::real=q12, coord=q0)
 // HOST-051 — Red de seguridad para migrar `object3d` a Affine: la transformación del
 // objeto construida con la librería genérica debe dar EXACTAMENTE los mismos 12 valores
 // y la misma cámara que `object3d::update_object_transformation` actual.
-#include <eng/retro/angles.hpp>
+#include <eng/retro/fixed_trig.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/core/linalg.hpp>
 #include <eng/platform/amiga/object3d.hpp>
@@ -86,9 +87,10 @@ int main() {
 	// casos con escalas/traslaciones distintas (como la demo: scale 1.0, t=(0,0,-4000)).
 	for (u16 a = 0; a < 4096; a += 7) {
 		eng::object3d::Object3D o {};
-		o.rotate = {static_cast<s16>(a), static_cast<s16>(a), static_cast<s16>(a)};
-		o.scale = {4096, 4096, 4096};
-		o.translate = {0, 0, -4000};
+	o.rotate = {eng::retro::angle_to_radians(a), eng::retro::angle_to_radians(a),
+		    eng::retro::angle_to_radians(a)};
+	o.scale = {eng::retro::q12 {4096}, eng::retro::q12 {4096}, eng::retro::q12 {4096}};
+	o.translate = {eng::retro::q0 {0}, eng::retro::q0 {0}, eng::retro::q0 {-4000}};
 		eng::object3d::update_object_transformation(o);
 		const NewTransform n = new_update(static_cast<s16>(a), static_cast<s16>(a), static_cast<s16>(a), 4096, 4096,
 						  4096, 0, 0, -4000);
@@ -100,9 +102,9 @@ int main() {
 		cmp("w2o.m00", o.worldToObject.m.m[0][0].v, n.w2o.m.m[0][0].v);
 		cmp("w2o.m12", o.worldToObject.m.m[1][2].v, n.w2o.m.m[1][2].v);
 		cmp("w2o.y", o.worldToObject.t.y().v, n.w2o.t.y().v);
-		cmp("cam.x", o.camera.x, n.camera.x().v);
-		cmp("cam.y", o.camera.y, n.camera.y().v);
-		cmp("cam.z", o.camera.z, n.camera.z().v);
+	cmp("cam.x", o.camera.x.v, n.camera.x().v);
+	cmp("cam.y", o.camera.y.v, n.camera.y().v);
+	cmp("cam.z", o.camera.z.v, n.camera.z().v);
 	}
 
 	if (bad == 0) {

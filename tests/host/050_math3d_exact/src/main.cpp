@@ -1,7 +1,8 @@
+#define ENG_SCALAR_RETRO16  // host: instancia retro (eng::real=q12, coord=q0)
 // HOST-050 — Red de seguridad de F3: las versiones NUEVAS (librería genérica) deben dar
 // EXACTAMENTE los mismos 12 valores que las viejas (math3d), para todos los ángulos.
 // Cualquier diferencia es un fallo, no una mejora.
-#include <eng/retro/angles.hpp>
+#include <eng/retro/fixed_trig.hpp>
 #include <eng/core/linalg.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 
@@ -69,8 +70,9 @@ int main() {
 	// Los 4096 ángulos, con los tres ejes iguales (el caso de la demo) y con ejes
 	// distintos, para load_rotate y load_reverse_rotate.
 	for (u16 a = 0; a < 4096; ++a) {
-		eng::math3d::Mat3 o {};
-		eng::math3d::load_rotate(o, a, a, a);
+		eng::math3d::Mat3<> o {};
+		eng::math3d::load_rotate(o, eng::retro::angle_to_radians(a), eng::retro::angle_to_radians(a),
+					 eng::retro::angle_to_radians(a));
 		const Mat<3, q12> n = new_load_rotate(a, a, a);
 		cmp("load_rotate", o.m[0][0].v, n.m[0][0].v, a, "m00");
 		cmp("load_rotate", o.m[0][1].v, n.m[0][1].v, a, "m01");
@@ -85,8 +87,10 @@ int main() {
 		const u16 ax = static_cast<u16>(a * 3u);
 		const u16 ay = static_cast<u16>(a * 7u);
 		const u16 az = static_cast<u16>(a * 11u);
-		eng::math3d::Mat3 o2 {};
-		eng::math3d::load_reverse_rotate(o2, ax, ay, az);
+		eng::math3d::Mat3<> o2 {};
+		eng::math3d::load_reverse_rotate(o2, eng::retro::angle_to_radians(ax),
+						 eng::retro::angle_to_radians(ay),
+						 eng::retro::angle_to_radians(az));
 		const Mat<3, q12> n2 = new_load_reverse_rotate(ax, ay, az);
 		cmp("reverse", o2.m[0][0].v, n2.m[0][0].v, a, "m00");
 		cmp("reverse", o2.m[0][1].v, n2.m[0][1].v, a, "m01");

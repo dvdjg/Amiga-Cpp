@@ -200,7 +200,7 @@ void draw_edge(Canvas& c, const Vec3* w, eng::u16 p, eng::u16 q, eng::u8 col) {
 /// ejemplo por overflow de 16 bits en `normfx`), el conteo o el orden cambiarian
 /// y la demo iria a Failed en vez de Ready.
 bool verify_mesh() {
-	const eng::math3d::Affine3 id = eng::math3d::Affine3::identity();
+	const eng::math3d::Affine3<> id = eng::math3d::Affine3<>::identity();
 	Vec3 w[8];
 	const MeshView mesh {eng::Span<const Vec3>(kVertices, 8), eng::Span<const Face>(kFaces, 12)};
 	eng::math3d::mesh_transform(mesh.vertices, id, eng::Span<Vec3>(w, 8));
@@ -263,9 +263,10 @@ struct DemoGame {
 		// 12 bits (4096 = vuelta completa), asi que el cubo da una vuelta cada
 		// ~240 frames (~5 s a 50 fps): lo bastante rapido para "tumbar" el cubo y
 		// ver 3 caras, lo bastante lento para leer la geometria.
-		eng::math3d::Affine3 m = eng::math3d::Affine3::identity();
-		eng::math3d::load_rotate(m.m, static_cast<eng::u16>(f * 17u), static_cast<eng::u16>(f * 11u),
-					 static_cast<eng::u16>(f * 7u));
+		eng::math3d::Affine3<> m = eng::math3d::Affine3<>::identity();
+		eng::math3d::load_rotate(m.m, eng::retro::angle_to_radians(f * 17u),
+					 eng::retro::angle_to_radians(f * 11u),
+					 eng::retro::angle_to_radians(f * 7u));
 
 		Vec3 world[8];
 		const MeshView mesh {eng::Span<const Vec3>(kVertices, 8), eng::Span<const Face>(kFaces, 12)};

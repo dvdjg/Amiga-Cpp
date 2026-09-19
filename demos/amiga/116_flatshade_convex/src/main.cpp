@@ -421,12 +421,13 @@ struct FlatShadeDemo {
 		backend.set_blitter_priority(true);
 
 		obj::new_object3d(m_object, pilka);
-		m_object.translate.z = static_cast<eng::s16>(-4000); // fx4i(-250)
+		m_object.translate.z = eng::retro::q0 {-4000}; // fx4i(-250)
 
 		// Pipeline de doble/triple buffer: el estado del objeto para el primer dibujo se
 		// precalcula aqu?? (lo que en `update` ocurre durante el fill del frame previo).
 		m_angle = 0;
-		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z = m_angle;
+		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z =
+			eng::retro::angle_to_radians(static_cast<eng::u32>(m_angle));
 		obj::update_object_transformation(m_object);
 #if K_FLATSHADE_ASM
 		prepare_fs_args(m_scenes.slot(0).bitplanes(), m_object);
@@ -498,7 +499,8 @@ struct FlatShadeDemo {
 #else
 		m_angle = static_cast<eng::s16>(m_angle + 8);
 #endif
-		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z = m_angle;
+		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z =
+			eng::retro::angle_to_radians(static_cast<eng::u32>(m_angle));
 		obj::update_object_transformation(m_object);
 		const eng::u32 ta = rcycles();
 		#if K_FLATSHADE_ASM

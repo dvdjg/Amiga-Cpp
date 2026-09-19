@@ -13,19 +13,19 @@
 /// Uso:
 ///   Object3D obj {};
 ///   new_object3d(obj, pilka);          // enlaza el mesh (sin alloc dinámica)
-///   obj.rotate.x = obj.rotate.y = obj.rotate.z = frame * 8;
+///   obj.rotate.x = obj.rotate.y = obj.rotate.z = eng::retro::angle_to_radians(frame * 8);
 ///   update_object_transformation(obj);
 ///
 /// **Por qué los structs siguen en `s16`.** `Point3D`/`Node3D`/`Edge`/`Face` son el
 /// layout empaquetado del `objdat` (los grupos se indexan por offset de byte), así que
 /// retiparlos a `Fixed` cambiaría el binario del mesh generado y rompería los macros del
-/// original. La capa de cálculo que los consume **sí** es tipada: `math3d::Affine3`,
-/// `Vec<3,Coord>` (`P3`), `load_rotate`/`reverse_rotate` y `scale(q12)`. La crudeza vive
-/// solo en el almacenamiento, no en la aritmética.
+/// original. La capa de cálculo que los consume **sí** es tipada y genérica:
+/// `math3d::Affine3<>`, `Vec<3,eng::coord>` (`P3<>`), `math3d::load_rotate`/`scale` (con
+/// el ángulo en radianes). La crudeza vive solo en el almacenamiento, no en la aritmética.
 
 #include <eng/core/arith.hpp>
-#include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/core/types.hpp>
+#include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/retro/fixed_q.hpp>
 
 namespace eng::object3d {
@@ -37,6 +37,28 @@ using eng::u8;
 using eng::u16;
 using eng::math::div_wide;
 using eng::retro::normfx;
+
+/// Punto/vector **tipado** para el estado de runtime del `Object3D` (posiciones, escala,
+/// camara). NO es el layout empaquetado del `objdat` (ese sigue en `Point3D` crudo porque
+/// lo genera `obj2c` y se indexa por offset de byte). `S` fija escalar y exponente: el
+/// compilador **rechaza mezclar** tipos distintos (no hace falta `static_cast`).
+template <class S>
+struct Point3S {
+	S x {};
+	S y {};
+	S z {};
+};
+
+/// Posiciones en el mundo (escalar de coordenada `eng::coord`).
+using Point3C = Point3S<eng::retro::q0>;
+/// Escala/ratios normalizados (escalar `eng::real`). El caller puede instanciar
+/// `Point3S<S>` con otro fixed (p. ej. `Fixed<s32,E>`); el compilador rechaza mezclas.
+using Point3R = Point3S<eng::retro::q12>;
+
+/// Ángulo de rotación en **radianes** (escalar `eng::real`, por defecto `q12`). El mismo
+/// tipo que la escala (`Point3R`): el álgebra 3D trabaja en radianes y la tabla retro se
+/// consulta dentro del escalar (`scalar_sin<q12>`).
+using Angle3 = Point3R;
 
 /// Punto/vector 3D (mismo layout que `Point3D`).
 struct Point3D {
@@ -97,14 +119,14 @@ struct Object3D {
 	s16* faceGroups = nullptr;
 	s16* objects = nullptr;
 
-	Point3D rotate {};
-	Point3D scale {};
-	Point3D translate {};
+	Angle3 rotate {};    // ángulo en radianes (q12)
+	Point3R scale {};    // escala (q12)
+	Point3C translate {}; // posicion (q0)
 
-	math3d::Affine3 objectToWorld {}; // objeto -> mundo (RATIO 4.12 + LONGITUD)
-	math3d::Affine3 worldToObject {}; // mundo -> objeto
+	math3d::Affine3<> objectToWorld {}; // objeto -> mundo (RATIO 4.12 + LONGITUD)
+	math3d::Affine3<> worldToObject {}; // mundo -> objeto
 
-	Point3D camera {}; // posición de cámara en espacio objeto
+	Point3C camera {}; // posicion de camara en espacio objeto (q0)
 };
 
 /// Enlaza el mesh al objeto (equivalente a `NewObject3D` sin reservar memoria: el
@@ -115,9 +137,7 @@ inline void new_object3d(Object3D& object, Mesh3D& mesh) {
 	object.edgeGroups = mesh.edgeGroups;
 	object.faceGroups = mesh.faceGroups;
 	object.objects = mesh.objects;
-	object.scale.x = static_cast<s16>(1 << 12);
-	object.scale.y = static_cast<s16>(1 << 12);
-	object.scale.z = static_cast<s16>(1 << 12);
+	object.scale = Point3R {eng::retro::q12 {1 << 12}, eng::retro::q12 {1 << 12}, eng::retro::q12 {1 << 12}};
 }
 
 // --- Acceso al `objdat` empaquetado (macros del original) --------------------
@@ -146,16 +166,16 @@ inline FaceIndex* face_indices(Face* face) {
 /// Actualiza `objectToWorld`/`worldToObject` y la cámara en espacio objeto.
 /// Port 1:1 de `UpdateObjectTransformation` (lib3d).
 inline void update_object_transformation(Object3D& object) {
-	const Point3D& r = object.rotate;
-	const Point3D& s = object.scale;
-	const Point3D& t = object.translate;
+	const Angle3& r = object.rotate;
+	const Point3R& s = object.scale;
+	const Point3C& t = object.translate;
 
 	// objeto -> mundo: Rx * Ry * Rz * S * T
 	{
-		math3d::Affine3& a = object.objectToWorld;
-		math3d::load_rotate(a.m, static_cast<u16>(r.x), static_cast<u16>(r.y), static_cast<u16>(r.z));
-		math3d::scale(a.m, eng::retro::q12 {s.x}, eng::retro::q12 {s.y}, eng::retro::q12 {s.z});
-		a.t = eng::math::Vec<3, eng::retro::q0> {{eng::retro::q0 {t.x}, eng::retro::q0 {t.y}, eng::retro::q0 {t.z}}};
+		math3d::Affine3<>& a = object.objectToWorld;
+		math3d::load_rotate(a.m, r.x, r.y, r.z);
+		math3d::scale(a.m, s.x, s.y, s.z);
+		a.t = eng::math::Vec<3, eng::retro::q0> {{t.x, t.y, t.z}};
 	}
 
 	// mundo -> objeto: T * S * Rz * Ry * Rx
@@ -168,29 +188,27 @@ inline void update_object_transformation(Object3D& object) {
 	// comportamiento y HOST-014 lo fija, así que NO se corrige aquí. Para una inversa
 	// completa de una transformación rígida usa `math3d::inverse_rigid` (HOST-055).
 	{
-		math3d::Affine3 m_scale {};
-		m_scale.m = math3d::Mat3::identity();
-		m_scale.t = eng::math::Vec<3, eng::retro::q0> {{eng::retro::q0 {static_cast<s16>(-t.x)},
-			eng::retro::q0 {static_cast<s16>(-t.y)}, eng::retro::q0 {static_cast<s16>(-t.z)}}};
+		math3d::Affine3<> m_scale {};
+		m_scale.m = math3d::Mat3<>::identity();
+		m_scale.t = eng::math::Vec<3, eng::retro::q0> {{-t.x, -t.y, -t.z}};
 		// 1/s en 4.12: numerador 1.0 en 8.24 (`kOne8_24`) para que el cociente de
 		// `div_wide` (16 bits) quede ya en 4.12 sin normalizar.
-		m_scale.m.m[0][0] = eng::retro::q12 {div_wide(eng::retro::kOne8_24, s.x)};
-		m_scale.m.m[1][1] = eng::retro::q12 {div_wide(eng::retro::kOne8_24, s.y)};
-		m_scale.m.m[2][2] = eng::retro::q12 {div_wide(eng::retro::kOne8_24, s.z)};
+		m_scale.m.m[0][0] = eng::retro::q12 {div_wide(eng::retro::kOne8_24, s.x.v)};
+		m_scale.m.m[1][1] = eng::retro::q12 {div_wide(eng::retro::kOne8_24, s.y.v)};
+		m_scale.m.m[2][2] = eng::retro::q12 {div_wide(eng::retro::kOne8_24, s.z.v)};
 
-		math3d::Mat3 m_rotate = math3d::Mat3::identity();
-		math3d::load_reverse_rotate(m_rotate, static_cast<u16>(-r.x), static_cast<u16>(-r.y),
-					    static_cast<u16>(-r.z));
-		object.worldToObject = eng::math::compose(m_scale, math3d::Affine3 {m_rotate, {}});
+		math3d::Mat3<> m_rotate = math3d::Mat3<>::identity();
+		math3d::load_reverse_rotate(m_rotate, -r.x, -r.y, -r.z);
+		object.worldToObject = eng::math::compose(m_scale, math3d::Affine3<> {m_rotate, {}});
 	}
 
 	// cámara en espacio objeto (la cámara está en (0,0,0) del mundo)
 	{
-		const math3d::Affine3& M = object.worldToObject;
-		const math3d::P3 t = M.t;
-		object.camera.x = static_cast<s16>(eng::math::dot(M.m.row(0), t).v);
-		object.camera.y = static_cast<s16>(eng::math::dot(M.m.row(1), t).v);
-		object.camera.z = static_cast<s16>(eng::math::dot(M.m.row(2), t).v);
+		const math3d::Affine3<>& M = object.worldToObject;
+		const math3d::P3<> t = M.t;
+		object.camera.x = eng::retro::q0 {static_cast<s16>(eng::math::dot(M.m.row(0), t).v)};
+		object.camera.y = eng::retro::q0 {static_cast<s16>(eng::math::dot(M.m.row(1), t).v)};
+		object.camera.z = eng::retro::q0 {static_cast<s16>(eng::math::dot(M.m.row(2), t).v)};
 	}
 }
 
@@ -201,18 +219,17 @@ inline void update_object_transformation(Object3D& object) {
 /// `UpdateObjectTransformation` original). La salida de `objectToWorld` es identica a la
 /// de `update_object_transformation`.
 inline void update_object_transformation_forward(Object3D& object) {
-	const Point3D& r = object.rotate;
-	const Point3D& s = object.scale;
-	const Point3D& t = object.translate;
-	math3d::Affine3& a = object.objectToWorld;
-	math3d::load_rotate(a.m, static_cast<u16>(r.x), static_cast<u16>(r.y), static_cast<u16>(r.z));
+	const Angle3& r = object.rotate;
+	const Point3R& s = object.scale;
+	const Point3C& t = object.translate;
+	math3d::Affine3<>& a = object.objectToWorld;
+	math3d::load_rotate(a.m, r.x, r.y, r.z);
 	// La mayoria de efectos (p. ej. bobs3d) usan escala 1.0 (4.12: 4096), asi que el
 	// `scale` seria una identidad de 9 `muls.w`. Se salta cuando no aporta nada.
-	if (s.x != (1 << 12) || s.y != (1 << 12) || s.z != (1 << 12)) {
-		math3d::scale(a.m, eng::retro::q12 {s.x}, eng::retro::q12 {s.y}, eng::retro::q12 {s.z});
+	if (s.x.v != (1 << 12) || s.y.v != (1 << 12) || s.z.v != (1 << 12)) {
+		math3d::scale(a.m, s.x, s.y, s.z);
 	}
-	a.t = eng::math::Vec<3, eng::retro::q0> {
-		{eng::retro::q0 {t.x}, eng::retro::q0 {t.y}, eng::retro::q0 {t.z}}};
+	a.t = eng::math::Vec<3, eng::retro::q0> {{t.x, t.y, t.z}};
 }
 
 } // namespace eng::object3d

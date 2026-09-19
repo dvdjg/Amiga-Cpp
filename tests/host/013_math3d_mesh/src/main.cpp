@@ -1,3 +1,4 @@
+#define ENG_SCALAR_RETRO16  // host: instancia retro (eng::real=q12, coord=q0)
 // Test host de eng::math3d::MeshView (malla + transform + back-face culling + orden painter).
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/core/mesh3d.hpp>
@@ -29,7 +30,7 @@ int main() {
 
 	// Transform identidad -> mismos vertices.
 	Vec3 world[6];
-	Affine3 id = Affine3::identity();
+	Affine3<> id = Affine3<>::identity();
 	mesh_transform(mesh.vertices, id, eng::Span<Vec3>(world, 6));
 	check(world[1].x().v == 10 && world[5].z().v == 50, "mesh_transform identidad");
 
