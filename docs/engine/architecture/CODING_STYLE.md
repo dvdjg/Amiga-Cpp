@@ -77,6 +77,13 @@ aporta sus propias piezas de seguridad de C++23 sin depender de `std::span`:
   punteros. El sufijo `*` solo vive dentro del almacenamiento de estas vistas.
 - **Polimorfismo estatico**: cuando un backend o politica varia (fuente de bloques, reloj,
   escalar, juego), se usa un tipo/`concept` en plantilla, no un puntero a funcion ni `void*`.
+- **Referencias no propietarias**: para "usa este objeto, pero no es su dueno" (p. ej.
+  `Surface` sobre `Playfield`, `copper::Plan` sobre `DoubleBuffer`) se usa `eng::Ref<T>`
+  (anulable) o `eng::NonNull<T>` (contrato no nulo) de `core/ptr.hpp`, **no** `T*` en miembros
+  ni en firmas; `eng::Opt<T>` cubre el opcional **en sitio** (sin `std::optional`/heap). Los
+  buffers siguen con `Span`/`Bytes<Tag>`; solo la frontera de hardware (Copper/Blitter/DMA) usa
+  el puntero crudo. El gate `tools/check/raw-pointer-members.mjs` avisa si aparece un
+  `Tipo* m_campo` nuevo (baseline para buffers de almacenamiento).
 - **Enteros de maquina**: para acumuladores e indices cuyo rango cabe en palabra, usar el
   entero elegido en compilacion (`eng::intw`; p. ej. `eng::board::board_int`), no `s32`
   por defecto. Reservar `s32`/`u64` para cuando el rango lo exige (puntuaciones de

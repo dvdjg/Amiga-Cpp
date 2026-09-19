@@ -1,18 +1,8 @@
-# Baseline de `raw-pointer-members.mjs`: miembros con puntero a objeto no propietario
-# aceptados temporalmente. Triage:
-#   - audio/game_audio.hpp:m_audio              -> migrar a eng::Ref<AudioSystem>
-#   - board/search/search.hpp:m_stop            -> migrar a eng::Ref<const StopToken>
-#   - core/util/arena_alloc.hpp:m_arena         -> migrar a eng::Ref<LinearArena>
-#   - parallel/parallel.hpp:m_mutex             -> migrar a eng::Ref<Mutex>
-#   - board/storage/file_block_source.hpp:m_file-> std::FILE* (C, se acepta)
-#   - core/util/dynamic_hash_map.hpp:m_used     -> buffer de almacenamiento (se acepta)
-#   - graphics/tilemap/tile_scroll.hpp:m_cells  -> buffer de almacenamiento (se acepta)
-#   - scene/virtual_scene.hpp:m_tile_layers     -> base de array (se acepta)
-eng/audio/game_audio.hpp:m_audio
-eng/board/search/search.hpp:m_stop
+# Baseline de `raw-pointer-members.mjs`: punteros a objeto no propietario aceptados.
+# Triage: los 4 punteros de OBJETO ya se migraron a eng::Ref (game_audio/game_audio,
+# search/StopToken, arena_alloc/LinearArena, parallel/Mutex). Los que quedan son
+# **buffers/almacenamiento** (se aceptan): no son observadores de objeto.
 eng/board/storage/file_block_source.hpp:m_file
-eng/core/util/arena_alloc.hpp:m_arena
 eng/core/util/dynamic_hash_map.hpp:m_used
 eng/graphics/tilemap/tile_scroll.hpp:m_cells
-eng/parallel/parallel.hpp:m_mutex
 eng/scene/virtual_scene.hpp:m_tile_layers
