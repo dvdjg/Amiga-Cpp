@@ -324,3 +324,11 @@ Pasos:
   (el asm lee `objdat`@0, grupos@4/8/12, `objectToWorld`@38…); meter un `Span`/tipo más
   ancho en esos campos movería los offsets. La generalización aplica a la **aritmética**
   (`Affine3<>`/`P3<>`/`load_rotate`), no al layout empaquetado.
+- **`scalar.hpp` consolidado**: se queda en `core/` como **única** selección por target.
+  `intw` lo usa el núcleo (`eng::board`); `real`/`coord` son la instancia por defecto de la
+  capa de plataforma/3D (hoy sólo `gfx3d` los consume). El resto del engine es plantilla y
+  no los nombra. No se mueven a `platform/` para no duplicar las macros de selección.
+- **Ángulo con unidad en el tipo**: `eng::math::Angle<S, Unit>` (`radians`/`turns`/
+  `degrees`/`unit`) + `sin`/`cos` (punto de entrada único). El ángulo-vueltas del original
+  es `Turns = Angle<q12, turns>` con `sin`/`cos` por tabla exacta; se eliminan
+  `sin_q12`/`cos_q12` y las funciones con el formato en el nombre.

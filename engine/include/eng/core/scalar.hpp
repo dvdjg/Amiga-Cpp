@@ -20,6 +20,12 @@
 /// Regla de alcance: esto es para **escalares de simulacion**. Los tipos de **dominio**
 /// (pixeles, tiles, registros, layout/ABI de hardware) siguen a 16 bits (`u8`/`s16`/`u16`)
 /// y **no** se generalizan. Ver `docs/guides/roadmap/REFACTOR_SCALAR_GENERICO.md`.
+///
+/// **Alcance consolidado.** `intw` es de núcleo (lo usa `eng::board`). `real`/`coord` son
+/// la **instancia por defecto del target** para la capa de plataforma/3D: hoy sólo los
+/// consume `platform/amiga/gfx3d.hpp` como defecto de `Mat3`/`Affine3`/`P3`. El resto del
+/// engine es plantilla y no los nombra. Se mantienen aquí —una sola selección por
+/// target— en vez de moverlos a `platform/`, que duplicaría las macros de selección.
 
 #include <eng/core/fixed.hpp>
 #include <eng/core/types.hpp>
