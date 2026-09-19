@@ -396,6 +396,13 @@ template <class S, class Unit>
 	return Angle<S, Unit> {wrap_angle(a.value)};
 }
 
+/// Diferencia `a − b` reducida a `(-π, π]`: el delta angular más corto (apuntado,
+/// torreta/enemigo). `angle_of` ya devuelve `(-π, π]`.
+template <class S, class Unit>
+[[nodiscard]] constexpr Angle<S, Unit> angle_diff(Angle<S, Unit> a, Angle<S, Unit> b) {
+	return Angle<S, Unit> {wrap_angle(a.value - b.value)};
+}
+
 /// Paso de una unidad de ángulo a radianes del escalar `S`.
 template <class S, class Unit>
 struct angle_radians;

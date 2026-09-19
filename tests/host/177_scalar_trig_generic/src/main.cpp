@@ -166,6 +166,29 @@ int main() {
 			std::printf("[FAIL] load_rotate_from_sincos != load_rotate\n");
 			++fails;
 		}
+		// La inversa con `sincos(-a) = (-sin, cos)` == `load_reverse_rotate(-a)`.
+		eng::math::Mat<3, q12> m3 {};
+		eng::math::Mat<3, q12> m4 {};
+		const decltype(sc) scn {-sc.sinX, sc.cosX, -sc.sinY, sc.cosY, -sc.sinZ, sc.cosZ};
+		eng::math3d::load_reverse_rotate_from_sincos(m3, scn);
+		eng::math3d::load_reverse_rotate(m4, eng::retro::radians(-x), eng::retro::radians(-y),
+						 eng::retro::radians(-z));
+		bool eqr = true;
+		for (int i = 0; i < 3; ++i)
+			for (int j = 0; j < 3; ++j)
+				if (m3.m[i][j].v != m4.m[i][j].v) eqr = false;
+		if (!eqr) {
+			std::printf("[FAIL] reverse con sincos(-a) != load_reverse_rotate(-a)\n");
+			++fails;
+		}
+		// `angle_diff` da el delta mas corto (6 rad -> 6 - 2pi ~ -0.283).
+		const float dd = eng::math::angle_diff(Angle<float, radians> {3.0f},
+						       Angle<float, radians> {-3.0f})
+					 .value;
+		if (dd < -0.29f || dd > -0.27f) {
+			std::printf("[FAIL] angle_diff(3,-3) = %g\n", static_cast<double>(dd));
+			++fails;
+		}
 	}
 
 	if (fails) {
