@@ -1191,9 +1191,9 @@ extern "C" s16 c_fx_rotate2_twice(s16 angle, s16 x, s16 y) {
 }
 extern "C" s16 c_fx_aim(s16 dx, s16 dy) {
 	const Vec<2, q12> d {q12 {dx}, q12 {dy}};
-	const q12 ang = angle_of(d);          // atan2 fixed (tabla de atan)
-	const Vec<2, q12> dir = from_angle(Angle<q12, angle::radians> {ang}); // sincos fixed (tabla de seno)
-	return static_cast<s16>(ang.v + dir.v[0].v + dir.v[1].v);
+	const auto ang = angle_of(d);          // atan2 fixed (tabla de atan)
+	const Vec<2, q12> dir = from_angle(ang); // sincos fixed (tabla de seno)
+	return static_cast<s16>(ang.value.v + dir.v[0].v + dir.v[1].v);
 }
 
 // --- eng::board / eng::parallel: generacion legal y perft no deben arrastrar

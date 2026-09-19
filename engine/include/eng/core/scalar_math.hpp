@@ -353,6 +353,21 @@ struct Angle {
 	S value {};
 };
 
+/// Aritmética de ángulos de la **misma** unidad (sumar/restar/negar). La reduce la
+/// aplicación (o `wrap_angle`) si necesita mantenerla en rango.
+template <class S, class Unit>
+[[nodiscard]] constexpr Angle<S, Unit> operator+(Angle<S, Unit> a, Angle<S, Unit> b) {
+	return Angle<S, Unit> {a.value + b.value};
+}
+template <class S, class Unit>
+[[nodiscard]] constexpr Angle<S, Unit> operator-(Angle<S, Unit> a, Angle<S, Unit> b) {
+	return Angle<S, Unit> {a.value - b.value};
+}
+template <class S, class Unit>
+[[nodiscard]] constexpr Angle<S, Unit> operator-(Angle<S, Unit> a) {
+	return Angle<S, Unit> {-a.value};
+}
+
 /// Paso de una unidad de ángulo a radianes del escalar `S`.
 template <class S, class Unit>
 struct angle_radians;

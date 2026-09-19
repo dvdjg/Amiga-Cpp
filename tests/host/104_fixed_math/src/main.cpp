@@ -234,11 +234,11 @@ int main() {
 	{
 		const em::Vec<2, er::q12> right {q(1.0f), q(0.0f)};
 		const em::Vec<2, er::q12> up {q(0.0f), q(1.0f)};
-		check(std::fabs(em::to_double(em::angle_of(right))) <= 2.0e-2, "angle_of(1,0) = 0");
-		check(std::fabs(em::to_double(em::angle_of(up)) - 1.5707963) <= 2.5e-2,
+		check(std::fabs(em::to_double(em::angle_of(right).value)) <= 2.0e-2, "angle_of(1,0) = 0");
+		check(std::fabs(em::to_double(em::angle_of(up).value) - 1.5707963) <= 2.5e-2,
 		      "angle_of(0,1) = pi/2");
 		const em::Vec<2, er::q12> origin {q(0.0f), q(0.0f)};
-		check(std::fabs(em::to_double(em::angle_to(origin, up)) - 1.5707963) <= 2.5e-2,
+		check(std::fabs(em::to_double(em::angle_to(origin, up).value) - 1.5707963) <= 2.5e-2,
 		      "angle_to((0,0),(0,1)) = pi/2");
 		const em::Vec<2, er::q12> h =
 			em::from_angle(em::Angle<er::q12, em::angle::radians> {q(1.5707963f)}); // pi/2 -> (0,1)

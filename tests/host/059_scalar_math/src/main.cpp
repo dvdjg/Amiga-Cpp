@@ -145,13 +145,13 @@ void geometry_for(const char* tag, float tol) {
 		const V2 up {S(0.0f), S(1.0f)};
 		const V2 origin {S(0.0f), S(0.0f)};
 		const double half_pi = 1.57079632679489661923;
-		check(std::fabs(em::to_double(em::angle_of(up)) - half_pi) <=
+		check(std::fabs(em::to_double(em::angle_of(up).value) - half_pi) <=
 			      static_cast<double>(tol) * 3.0,
 		      "angle_of(0,1) = pi/2");
 		const V2 unit = em::from_angle(em::Angle<S, em::angle::radians> {S(1.5707963f)});
 		check(std::fabs(em::to_double(unit.v[1]) - 1.0) <= static_cast<double>(tol) * 3.0,
 		      "from_angle(pi/2).y = 1");
-		check(std::fabs(em::to_double(em::angle_to(origin, up)) - half_pi) <=
+		check(std::fabs(em::to_double(em::angle_to(origin, up).value) - half_pi) <=
 			      static_cast<double>(tol) * 3.0,
 		      "angle_to((0,0),(0,1)) = pi/2");
 	}
