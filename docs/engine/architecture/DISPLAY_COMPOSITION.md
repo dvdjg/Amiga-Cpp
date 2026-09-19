@@ -57,7 +57,7 @@ la memoria (N parejas planos + copperlist), delega en el driver la **emisión** 
 el llamador la **decisión** de cuándo publicar.
 
 ```cpp
-using Display = drivers::MultiBuffered<drivers::HamScene, 2>;   // 1 = sin DB, 3 = triple
+using Display = drivers::MultiBuffered<drivers::PlanarScene, 2>;   // 1 = sin DB, 3 = triple
 Display display;
 display.init(backend.memory(), cfg);   // reserva N buffers
 display.takeover(backend);             // una vez: muestra el slot 0
@@ -185,3 +185,4 @@ Ejemplo vivo: **demo 085 `copper_plan_scene`** (cielo por bandas de la escena + 
 | Política sin implementación | `virtual_scene.hpp:168/186` (`DoubleBufferedHiddenMargins`) | F0 |
 | Doc↔código | `xlimited.hpp:1488-1491` (promete 13 words, reemite la lista) | F0 |
 | Supervisión de copper por escena | **no existe** (`CopperPlan`) | F4 |
+| **Eje Driver ↔ Field/Surface**: los drivers (`PlanarScene`, `EhbScene`, `CopperChunkyScene`) exponen `bitplanes()` crudos pero **no** una `Surface`; los `Playfield` (`CanvasPlayfield`, `XlimitedPlayfield`, …) exponen `Surface` pero **no** encajan con `MultiBuffered<Driver,N>` (ni `bind()` de memoria externa). Consecuencia: un efecto que quiera dibujar con `Surface` no puede usar el doble buffer de display, y uno que use `MultiBuffered` no tiene `Surface`. Normalización propuesta: un driver planar que **envuelva un `Playfield`** (o `CanvasPlayfield::bind()` sobre memoria externa) y exponga `surface()` + el contrato de driver. Detalle del hueco: `WIREFRAME_PORT_PLAN.md` («falta playfield genérico W/H/planos»). | F2 (junto al doble buffer de display a mano) |
