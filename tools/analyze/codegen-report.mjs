@@ -79,6 +79,8 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/sim/mental_map.hpp>
 #include <eng/sim/object.hpp>
 #include <eng/sim/pack.hpp>
+#include <eng/sim/persona.hpp>
+#include <eng/sim/expression.hpp>
 #include <eng/sim/planner.hpp>
 #include <eng/sim/rumor.hpp>
 #include <eng/sim/season.hpp>
@@ -150,6 +152,18 @@ static_assert(sizeof(eng::cards::EquityResult) == 6u, "cards::EquityResult");
 static_assert(sizeof(eng::cards::BotParams) == 14u, "cards::BotParams");
 static_assert(sizeof(eng::cards::OpponentModel) == 122u, "cards::OpponentModel");
 static_assert(sizeof(eng::cards::SessionStats) == 72u, "cards::SessionStats");
+
+// Gate de layout de la capa de persona (m68k): rasgos, aptitudes, defectos y expresion.
+static_assert(sizeof(eng::sim::PsycheTraits) == 20u, "sim::PsycheTraits");
+static_assert(sizeof(eng::sim::Skills) == 15u, "sim::Skills");
+static_assert(sizeof(eng::sim::Flaws) == 4u, "sim::Flaws");
+static_assert(sizeof(eng::sim::Persona) == 52u, "sim::Persona");
+static_assert(sizeof(eng::sim::ArchetypeDef) == 54u, "sim::ArchetypeDef");
+static_assert(sizeof(eng::sim::GestureDef) == 3u, "sim::GestureDef");
+static_assert(sizeof(eng::sim::LeakedGesture) == 3u, "sim::LeakedGesture");
+static_assert(sizeof(eng::sim::LeakList) == 28u, "sim::LeakList");
+static_assert(sizeof(eng::sim::ExpressionParams) == 6u, "sim::ExpressionParams");
+static_assert(sizeof(eng::sim::LeakContext) == 5u, "sim::LeakContext");
 // Gate de layout del modelo de ecosistema (m68k): fija los sizeof medidos. Si cambian,
 // la compilacion cruzada falla y hay que revisar el presupuesto de RAM por criatura.
 static_assert(sizeof(eng::sim::Needs) == 7u, "Sim::Needs");
@@ -928,6 +942,29 @@ extern "C" u16 c_sim_input_ops(u16 seed) {
 	in.interact = (seed & 1u) != 0u;
 	const bool acted = player_control(w, p, in);
 	return static_cast<u16>(acted ? 1u : 0u) + static_cast<u16>(w.find(p)->x);
+}
+extern "C" u16 c_sim_persona_ops(u16 seed) {
+	using namespace eng::sim;
+	const ArchetypeDef& def = archetype_def(static_cast<Archetype>(
+		static_cast<eng::u8>(seed % static_cast<eng::u16>(Archetype::Count))));
+	const PsycheTraits& t = def.psyche;
+	return static_cast<u16>(t.composure) + t.deceit + static_cast<u16>(def.flaws.count()) +
+	       static_cast<u16>(composure_mod(t)) + static_cast<u16>(archetype_name(def.id)[0]);
+}
+extern "C" u16 c_sim_expression_ops(u16 seed) {
+	using namespace eng::sim;
+	Mind m;
+	m.emotions.fear = static_cast<eng::u8>(seed % 256u);
+	m.emotions.anger = static_cast<eng::u8>((seed * 3u) % 256u);
+	LeakContext ctx {};
+	ctx.composure_base = static_cast<eng::u8>(seed % 101u);
+	ctx.tilt = static_cast<eng::u8>((seed * 5u) % 256u);
+	constexpr GestureKind kCandidates[4] {GestureKind::BlinkFast, GestureKind::HandTremor,
+					      GestureKind::StareDown, GestureKind::Smile};
+	LeakList out;
+	compute_leaks(m, ctx, kCandidates, out);
+	return static_cast<u16>(out.size()) +
+	       static_cast<u16>(effective_composure(ctx, ExpressionParams {}));
 }
 extern "C" u16 c_sim_planner_ops(u16 seed) {
 	using namespace eng::sim;

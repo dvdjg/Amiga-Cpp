@@ -432,6 +432,64 @@ Este apartado define el **sustrato** del Mus (convenciones, disimulo, descubrimi
    └──────────────┘  eventos └──────────────┘   tell leído    └──────────────┘
 ```
 
+### 10.1 El humano también es un personaje
+
+La capa de persona es **bidireccional**: el humano no es un observador externo, es un
+personaje más con sus gestos y su estado, y **los NPC lo leen** igual que él los lee a
+ellos. El motor no distingue el origen de una acción (IA o humano): ambos producen los
+mismos eventos y las mismas fugas.
+
+- **Gestos del humano**: el juego traduce la **entrada** a los canales de expresión. La
+  interfaz puede capturar gestos de forma **explícita** (botones o combinaciones pactadas,
+  como en el Mus) o **implícita** (el *timing*: cuánto tarda en responder, cuánto tarda en
+  igualar, si apuesta de golpe). El canal `Timing` es el más natural para el humano: el
+  **tiempo de respuesta** es una fuga objetiva que no depende de dibujar una cara.
+- **Estado del humano**: el motor puede inferir tensión o prisa a partir del ritmo de
+  entrada (respuestas rápidas y erráticas, pausas largas) y reflejarla en el estado del
+  avatar humano, que los NPC leen.
+- **Simetría de lectura**: `ReadModel` se construye sobre **cualquier** asiento, humano o
+  IA. Un NPC puede aprender los tells del humano (que siempre tarda con mano fuerte, que
+  hace *instant call* con basura) exactamente con el mismo mecanismo de §7.
+- **El humano transmite a propósito**: además de los gestos involuntarios, puede emitir
+  señales voluntarias (`SignalKind`, §9 y `communication.hpp`) hacia los NPC —burlarse,
+  amenazar, calmar, pactar una convención— con las mismas reglas de credibilidad y
+  disimulo. En el Mus, el humano es un jugador más del pacto de señas.
+
+```text
+   entrada (joystick/ratón/teclado)          mesa de juego
+   ┌───────────────────────────┐            ┌──────────────────────┐
+   │ gesto explícito (botón)   │ ─────────► │ Expression del humano│
+   │ timing implícito (pausas) │            │  → ReadModel de los  │
+   └───────────────────────────┘            │    NPC (aprenden)    │
+                                            └──────────────────────┘
+```
+
+### 10.2 La misma capa sirve a ajedrez y Go
+
+La expresión no es exclusiva de las cartas: cualquier juego por turnos se beneficia de un
+rival **legible y vivo**. En `games/100_chess` y `games/101_go` el NPC usa los mismos
+canales para reaccionar al **ritmo del humano**:
+
+- **Bostezo** cuando el humano tarda demasiado en responder (canal `FaceMouth`, gesto
+  `yawn`; disparado por `time_pressure` del lado humano y por `patience`/`boredom` del
+  NPC).
+- **Resoplido** (`sigh`) tras una jugada lenta o repetitiva; **impaciencia** (`finger_tap`,
+  `leg_bounce`) mientras piensa el humano.
+- **Sorpresa o incomodidad** cuando el humano juega una jugada fuerte o inesperada
+  (`brow_raise`, `lean_back`, `swallow`), leída por el NPC como señal.
+- **Satisfacción contenida** (`smirk`, `lean_back`) tras una buena jugada propia; **ira
+  contenida** (`fist_clench`, `jaw_drop`) tras perder material.
+
+En ajedrez y Go no hay información oculta que leer, así que el valor está en la
+**experiencia**: el rival parece un contrincante real, con carácter y humor, no un motor
+silencioso. El humano también puede emitir gestos (rendirse con desdén, celebrar), y el
+NPC los interpreta para modular su propio estado (sube su `confidence` si el humano se
+desanima, o su `aggression` si le provocan). La maquinaria es la misma que la de §5–§8; el
+juego solo elige qué gestos tienen sentido en su contexto (un `yawn` no significa lo mismo
+en un póker que en un tablero, y el **catálogo de gestos relevantes por juego** es parte
+de la configuración).
+
+
 ## 11. Presupuesto y footprint
 
 Todo entero, sin heap y por bloques de capacidad fija, como el resto de `eng::sim`. Tamaños objetivo (a fijar por la sonda de codegen en la fase de implementación):
@@ -457,3 +515,24 @@ La verificación sigue las reglas de `docs/testing/README.md`: test host por pie
 - **Perfiles físicos** (fuerza, resistencia, destreza): pertenecen a la genética y al cuerpo de `eng::sim` (`genetics.hpp`, `body.hpp`); se abordarán para otros juegos, no ahora.
 - **Voz sintetizada**: el canal `Voice` se modela como gesto (suspiro, carraspeo) sin audio real; si hay audio, se conectará a `eng::audio` como un evento más.
 - **Reglas del Mus**: este documento define el sustrato (convenciones, disimulo, descubrimiento); el juego del Mus tendrá su propio diseño.
+
+## 14. Inventario
+
+| Área | Estado |
+|---|---|
+| `sim/psyche_traits.hpp` (20 rasgos de psique, 15 aptitudes, 16 defectos) | **Implementado**: HOST-199 |
+| `sim/archetypes.hpp` (catálogo de ~39 arquetipos) | **Implementado**: HOST-199 |
+| `sim/persona.hpp` (`Persona`, `materialize` con jitter) | **Implementado**: HOST-199 |
+| `sim/expression.hpp` (canales, ~72 gestos, control, compostura y fuga) | **Implementado**: HOST-200 |
+| `sim/read.hpp` (lectura de tells: Bayes-lite, prior, suspicacia) | Pendiente (P2) |
+| `sim/psyche.hpp` (estado temporal y evolución de partida) | Pendiente (P3) |
+| `sim/convention.hpp` (convenciones secretas, base del Mus) | Pendiente (P4) |
+| Integración con `eng::cards` y avatares del juego | Pendiente (P5) |
+| Humano como personaje y expresión en ajedrez/Go | Pendiente (P6) |
+
+> Estado: P0 (persona/arquetipos) y P1 (expresión/fuga) implementados y verificados por
+> test host (HOST-199/200); el codegen 68000 está libre de libcalls e instrucciones 68020 y
+> los tamaños m68k están fijados (`Persona` 52 B, `LeakList` 28 B, `PsycheTraits` 20 B…).
+> El plan por fases y los criterios de cierre están en
+> [ROADMAP_NPC_PSYCHOLOGY.md](../../guides/roadmap/ROADMAP_NPC_PSYCHOLOGY.md), fuente única
+> del avance. Este documento describe el diseño vigente y no se duplica allí.

@@ -35,6 +35,9 @@ leerlos** con el tiempo. Debe ser determinista, entero, sin heap y con footprint
 - **Primer consumidor previsto**: `games/200_holdem` y el futuro juego de póker con
   avatares.
 
+> Actualización: P0 (persona/arquetipos, HOST-199) y P1 (expresión/fuga, HOST-200) están
+> implementados; el resto sigue pendiente.
+
 ## 3. Reglas transversales (criterios de aceptación)
 
 - **Sin heap, entero, determinista**: rasgos y estado en `u8`, conversión con `trait_mod`/
@@ -59,9 +62,9 @@ leerlos** con el tiempo. Debe ser determinista, entero, sin heap y con footprint
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| P0.1 | `sim/psyche_traits.hpp` | `PsycheTraits` (20 rasgos `u8`), `Skills` (15 aptitudes), `Flaws` (16 defectos) | **HOST-199** |
-| P0.2 | `sim/persona.hpp` | `Persona` (rasgos base + psique + aptitudes + defectos + arquetipo) y `materialize` con jitter determinista | **HOST-199** |
-| P0.3 | `sim/archetypes.hpp` | Tabla `kArchetypes[]` con los ~35 arquetipos del catálogo y `archetype_of` | **HOST-199** |
+| P0.1 | `sim/psyche_traits.hpp` | `PsycheTraits` (20 rasgos `u8`), `Skills` (15 aptitudes), `Flaws` (16 defectos) | **HOST-199** (hecho) |
+| P0.2 | `sim/persona.hpp` | `Persona` (rasgos base + psique + aptitudes + defectos + arquetipo) y `materialize` con jitter determinista | **HOST-199** (hecho) |
+| P0.3 | `sim/archetypes.hpp` | Tabla `kArchetypes[]` con los ~39 arquetipos del catálogo y `archetype_of` | **HOST-199** (hecho) |
 
 Cierre: una persona es una fila de tabla materializada; dos individuos del mismo arquetipo
 difieren por jitter. La tabla cubre el catálogo de §4 de la referencia.
@@ -70,10 +73,10 @@ difieren por jitter. La tabla cubre el catálogo de §4 de la referencia.
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| P1.1 | `sim/expression.hpp` | `ExpressionChannel`, `GestureKind` (catálogo de ~60 gestos) y `control`/`detect` por gesto | **HOST-200** |
-| P1.2 | `sim/expression.hpp` | `ExpressionParams` y `leak()`: emoción × compostura × control → intensidad de fuga por canal | **HOST-200** |
-| P1.3 | `sim/expression.hpp` | Microexpresiones (duración corta + detectabilidad) y composición de varios gestos | **HOST-200** |
-| P1.4 | `sim/body.hpp` (extensión) | `pose_from_gesture`: el gesto se refleja en la postura existente | **HOST-200** |
+| P1.1 | `sim/expression.hpp` | `ExpressionChannel`, `GestureKind` (catálogo de ~72 gestos) y `control`/`detect` por gesto | **HOST-200** (hecho) |
+| P1.2 | `sim/expression.hpp` | `ExpressionParams` y `leak()`: emoción × compostura × control → intensidad de fuga por canal | **HOST-200** (hecho) |
+| P1.3 | `sim/expression.hpp` | Microexpresiones (duración corta + detectabilidad) y composición de varios gestos | **HOST-200** (hecho) |
+| P1.4 | `sim/body.hpp` (extensión) | `pose_from_gesture`: el gesto se refleja en la postura existente | Pendiente (mejora) |
 
 Cierre: dado un estado, se calcula qué gestos se fugan y con qué intensidad; los canales
 autonómicos delatan siempre, los volitivos se controlan.
@@ -125,6 +128,18 @@ disimulo, un observador puede inferirlo.
 Cierre: la mesa de póker muestra personajes que se delatan, se leen y evolucionan; el juego
 es el consumidor real que retira el estado "NO VERIFICADA".
 
+### P6 — Humano como personaje y expresión en juegos de información perfecta
+
+| Paso | Entrega | Detalle | Verificación |
+|---|---|---|---|
+| P6.1 | `sim/expression.hpp` | `expression_from_input`: la entrada (gesto explícito + timing implícito) produce fugas del humano | **HOST-204** |
+| P6.2 | `sim/read.hpp` | El `ReadModel` se construye igual sobre asientos humanos (simetría de lectura) | **HOST-204** |
+| P6.3 | `games/100_chess` / `games/101_go` | NPC reactivo al ritmo del humano: bostezo si tarda, resoplido, impaciencia, sorpresa; catálogo de gestos por juego | build → run → analyze |
+| P6.4 | `sim/communication.hpp` | El humano emite señales voluntarias (burlarse, amenazar, calmar) y el NPC las interpreta | Juego/demo |
+
+Cierre: el humano es un personaje más (sus gestos se leen y se emiten a propósito) y los
+rivales de ajedrez/Go se comportan como contrincantes vivos, no como motores silenciosos.
+
 ## 5. Dependencias entre fases
 
 ```text
@@ -139,10 +154,15 @@ es el consumidor real que retira el estado "NO VERIFICADA".
                  │
                  ▼
             P5 integración con eng::cards y el juego
+                 │
+                 ▼
+            P6 humano como personaje y expresión en ajedrez/Go
 ```
 
 P0 es cimiento. P1 produce lo que P2 aprende a leer. P3 da la dinámica temporal que ambas
-usan. P4 se apoya en P1–P2 (gesto + disimulo + inferencia). P5 cierra con el juego real.
+usan. P4 se apoya en P1–P2 (gesto + disimulo + inferencia). P5 cierra con el juego real. P6
+hace bidireccional el sistema (el humano también emite y es leído) y lo lleva a los juegos
+de información perfecta.
 
 ## 6. Distribución de tests host
 
@@ -152,12 +172,13 @@ crear cada pieza se comprueba que no duplica una primitiva de `eng::sim`/`eng::u
 
 | Test | Cubre | Estado |
 |---|---|---|
-| HOST-199 | `psyche_traits.hpp` + `persona.hpp` + `archetypes.hpp`: rasgos, aptitudes, defectos y materialización por arquetipo | Planificado |
-| HOST-200 | `expression.hpp`: canales, control por gesto, fuga y microexpresiones | Planificado |
+| HOST-199 | `psyche_traits.hpp` + `persona.hpp` + `archetypes.hpp`: rasgos, aptitudes, defectos y materialización por arquetipo | **Hecho** |
+| HOST-200 | `expression.hpp`: canales, control por gesto, fuga y microexpresiones | **Hecho** |
 | HOST-201 | `read.hpp`: aprendizaje de tells, Bayes-lite, prior de arquetipo y suspicacia | Planificado |
 | HOST-202 | `psyche.hpp`: estado, eventos de mesa y evolución (tilt/racha/compostura) | Planificado |
 | HOST-203 | `convention.hpp`: emisión/decodificación, disimulo e inferencia de convención | Planificado |
-| HOST-204+ | Integración con cartas y escenarios de mesa | Planificado |
+| HOST-204 | Humano como personaje: `expression_from_input` (gesto explícito + timing) y lectura simétrica | Planificado |
+| HOST-205+ | Integración con cartas y escenarios de mesa | Planificado |
 
 ## 7. Decisiones y descartado
 
@@ -175,6 +196,11 @@ crear cada pieza se comprueba que no duplica una primitiva de `eng::sim`/`eng::u
   `eng::sim`, para otros juegos.
 - **Reglas del Mus fuera de alcance**: aquí se define el sustrato (convenciones, disimulo,
   descubrimiento), no el juego.
+- **El humano es un personaje, no un observador**: el sistema es **bidireccional**; los NPC
+  leen sus gestos (explícitos y de *timing*) igual que él lee a los NPC, y él puede emitir
+  señales voluntarias. Aplica a póker, ajedrez, Go y el Mus.
+- **Catálogo de gestos por juego**: los mismos canales sirven a todos, pero qué gestos son
+  relevantes (un `yawn` en un tablero, un `tell` en el póker) lo configura el juego.
 
 ## 8. Cómo se cierra cada paso
 

@@ -239,3 +239,5 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-196 | [cards_omaha](196_cards_omaha/README.md) | Omaha de extremo a extremo: `equity_vs_random_omaha` (4 cartas) y `run_session` con `variant=Omaha` (conservación, determinismo y comodines). |
 | HOST-197 | [cards_stud](197_cards_stud/README.md) | `eng/cards/rules/seven_stud.hpp`: Seven-Card Stud (ante, bring-in, 5 calles, showdown y retirada). |
 | HOST-198 | [cards_five_draw](198_cards_five_draw/README.md) | `eng/cards/rules/five_draw.hpp` + `evaluate_deuces_wild`: Five-Card Draw con descarte y Deuces Wild. |
+| HOST-199 | [sim_persona](199_sim_persona/README.md) | `eng/sim/{psyche_traits,archetypes,persona}.hpp`: rasgos de psique, aptitudes, defectos, catálogo de ~39 arquetipos y `materialize` con jitter determinista. |
+| HOST-200 | [sim_expression](200_sim_expression/README.md) | `eng/sim/expression.hpp`: canales y gestos, control por gesto, compostura efectiva y cálculo de la fuga (autonómicos vs volitivos, microexpresiones). |
