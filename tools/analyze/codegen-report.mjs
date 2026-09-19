@@ -23,7 +23,6 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/spline.hpp>
 #include <eng/core/mesh3d.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
-#include <eng/platform/amiga/object3d.hpp>
 #include <eng/core/minifloat.hpp>
 #include <eng/core/minifloat_math.hpp>
 #include <eng/retro/fixed_q.hpp>
@@ -1179,7 +1178,7 @@ extern "C" s16 c_scalar16_trig(s16 a, s16 b) {
 }
 extern "C" s16 c_fx_rotate2_angle(s16 angle, s16 x, s16 y) {
 	const Vec<2, q12> v {q12 {x}, q12 {y}};
-	const Vec<2, q12> r = rotate2(v, q12 {angle}); // scalar_sincos: un solo indice
+	const Vec<2, q12> r = rotate2(v, Angle<q12, angle::radians> {q12 {angle}}); // sincos: un indice
 	return static_cast<s16>(r.v[0].v + r.v[1].v);
 }
 extern "C" s16 c_fx_rotate2_twice(s16 angle, s16 x, s16 y) {
@@ -1193,7 +1192,7 @@ extern "C" s16 c_fx_rotate2_twice(s16 angle, s16 x, s16 y) {
 extern "C" s16 c_fx_aim(s16 dx, s16 dy) {
 	const Vec<2, q12> d {q12 {dx}, q12 {dy}};
 	const q12 ang = angle_of(d);          // atan2 fixed (tabla de atan)
-	const Vec<2, q12> dir = from_angle(ang); // sincos fixed (tabla de seno)
+	const Vec<2, q12> dir = from_angle(Angle<q12, angle::radians> {ang}); // sincos fixed (tabla de seno)
 	return static_cast<s16>(ang.v + dir.v[0].v + dir.v[1].v);
 }
 
@@ -1204,7 +1203,8 @@ extern "C" s16 c_math3d_load_rotate(s16 ax, s16 ay, s16 az) {
 	const q12 y {ay};
 	const q12 z {az};
 	eng::math3d::Mat3<> m {};
-	eng::math3d::load_rotate(m, x, y, z);
+	eng::math3d::load_rotate(m, Angle<q12, angle::radians> {x}, Angle<q12, angle::radians> {y},
+				 Angle<q12, angle::radians> {z});
 	s16 s = 0;
 	for (int i = 0; i < 3; ++i)
 		for (int j = 0; j < 3; ++j) s = static_cast<s16>(s + m.m[i][j].v);
@@ -1217,6 +1217,35 @@ extern "C" s16 c_object3d_update(s16 ax, s16 ay, s16 az) {
 	o.translate = {q0 {10}, q0 {20}, q0 {-4000}};
 	eng::object3d::update_object_transformation(o);
 	return static_cast<s16>(o.camera.x.v + o.camera.y.v + o.camera.z.v);
+}
+static eng::u8 g_l3d_blob[64] {};
+static eng::s16 g_l3d_vgroups[2] = {2, 0};
+static eng::s16 g_l3d_fgroups[2] = {14, 0};
+static eng::object3d::Object3D& l3d_object() {
+	static eng::object3d::Object3D o {};
+	o.objdat = g_l3d_blob;
+	o.objdat_size = sizeof(g_l3d_blob);
+	o.vertexGroups = g_l3d_vgroups;
+	o.edgeGroups = g_l3d_vgroups;
+	o.faceGroups = g_l3d_fgroups;
+	o.scale = {q12 {1 << 12}, q12 {1 << 12}, q12 {1 << 12}};
+	return o;
+}
+extern "C" s16 c_lib3d_facevis(s16 a) {
+	auto& o = l3d_object();
+	o.rotate = {q12 {a}, q12 {a}, q12 {a}};
+	eng::object3d::update_object_transformation(o);
+	eng::lib3d::update_face_visibility(o);
+	return static_cast<s16>(o.camera.x.v);
+}
+extern "C" s16 c_lib3d_transform(s16 a, s16 hw, s16 hh) {
+	auto& o = l3d_object();
+	o.rotate = {q12 {a}, q12 {a}, q12 {a}};
+	eng::object3d::update_object_transformation(o);
+	eng::lib3d::update_edge_visibility_convex(o);
+	eng::s16 bbox[4] {};
+	eng::lib3d::transform_vertices(o, hw, hh, bbox);
+	return bbox[0];
 }
 extern "C" u16 c_chess_gen() {
 	using R = eng::board::ChessRules;
