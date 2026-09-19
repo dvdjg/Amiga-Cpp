@@ -1,4 +1,5 @@
 #pragma once
+#include <eng/core/scalar_fwd.hpp>
 
 /// \file numeric_traits.hpp
 /// **Rasgos numéricos** de un escalar, para que los algoritmos genéricos (interpolación,

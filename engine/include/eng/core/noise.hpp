@@ -1,4 +1,5 @@
 #pragma once
+#include <eng/core/scalar_fwd.hpp>
 
 /// \file noise.hpp
 /// **Ruido procedural value-noise** 1D/2D/3D y **fbm** (suma de octavas), genérico

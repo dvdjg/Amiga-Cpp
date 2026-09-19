@@ -1,4 +1,5 @@
 #pragma once
+#include <eng/core/scalar_fwd.hpp>
 
 /// \file scalar_math.hpp
 /// **Puntos de extensión de funciones matemáticas escalares** (`sqrt`, `sin`, `cos`,

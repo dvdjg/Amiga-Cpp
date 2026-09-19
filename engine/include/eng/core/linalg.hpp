@@ -1,4 +1,5 @@
 #pragma once
+#include <eng/core/scalar_fwd.hpp>
 
 /// \file linalg.hpp
 /// Álgebra lineal **genérica** sobre un escalar (`docs/engine/architecture/MATH_LIBRARY.md`):
@@ -62,6 +63,9 @@ struct scalar_traits {
 	/// Conversión desde/hacia entero crudo (por defecto, el `static_cast` del escalar).
 	static constexpr S from_int(int i) { return static_cast<S>(i); }
 	static constexpr int to_int(S a) { return static_cast<int>(a); }
+	/// ¿Conviene acumular en un ancho mayor (p. ej. `Fixed<s16>` → s32) al sumar muchas
+	/// muestras? Lo consulta `stats` para no saturar. Por defecto, acumula en `S`.
+	static constexpr bool wide_accum = false;
 	/// Los productos ya viven en el mismo espacio: no hay que normalizar.
 	template <typename Prod>
 	static constexpr S norm_from(Prod p) {
@@ -97,11 +101,14 @@ struct scalar_traits<Fixed<R, E, P>> {
 	}
 
 	static constexpr bool needs_normalize = true;
+	/// Sumar muchas muestras puede saturar el `s16`; el acumulador ancho es `s32`.
+	static constexpr bool wide_accum = true;
 };
 
 template <>
 struct scalar_traits<float> {
 	using scalar = float;
+	static constexpr bool wide_accum = false;
 
 	static constexpr float inner(float a, float b) { return a * b; }
 
@@ -124,6 +131,7 @@ struct scalar_traits<float> {
 template <>
 struct scalar_traits<double> {
 	using scalar = double;
+	static constexpr bool wide_accum = false;
 
 	static constexpr double inner(double a, double b) { return a * b; }
 
@@ -147,6 +155,7 @@ struct scalar_traits<double> {
 template <>
 struct scalar_traits<MiniFloat16> {
 	using scalar = MiniFloat16;
+	static constexpr bool wide_accum = false;
 
 	static constexpr MiniFloat16 inner(MiniFloat16 a, MiniFloat16 b) { return a * b; }
 
