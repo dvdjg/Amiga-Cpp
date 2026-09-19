@@ -83,6 +83,10 @@ struct mesh_traits<eng::math::Fixed<s32, E, P>> {
 	using scalar = eng::math::Fixed<s32, E, P>;
 	using key = s32;
 
+	/// Culling de una cara con coordenada ancha `Fixed<s32,E>`: el producto mixto
+	/// (`32×32→64` y `64×32→96`) excede los `Repr` disponibles, así que sólo se evalúa el
+	/// **signo** en `__int128` (host/68020). En 68000 sin `__int128` el `static_assert` guía
+	/// a `Fixed<s16,0>`.
 	[[nodiscard]] static constexpr s32 face_signed_area(const Vec3t<scalar>& a,
 							    const Vec3t<scalar>& b,
 							    const Vec3t<scalar>& c,
@@ -109,11 +113,14 @@ struct mesh_traits<eng::math::Fixed<s32, E, P>> {
 #endif
 	}
 
+	/// Clave de painter por **suma** de las `z` (`s32`, sin envoltura intencionada).
 	[[nodiscard]] static constexpr key z_sum(const Vec3t<scalar>& a, const Vec3t<scalar>& b,
 						 const Vec3t<scalar>& c) {
 		return a.v[2].v + b.v[2].v + c.v[2].v;
 	}
 
+	/// Clave de painter por **mínimo** de las `z` (`s32`); la usa `MeshFaceOrder` en mallas
+	/// de coordenada ancha.
 	[[nodiscard]] static constexpr key z_min(const Vec3t<scalar>& a, const Vec3t<scalar>& b,
 						 const Vec3t<scalar>& c) {
 		const s32 ab = a.v[2].v < b.v[2].v ? a.v[2].v : b.v[2].v;

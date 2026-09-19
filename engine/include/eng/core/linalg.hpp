@@ -208,6 +208,9 @@ struct Vec {
 	}
 };
 
+/// Operadores de `Vec`: **suma** y **resta** componente a componente (mismo escalar). El
+/// diagnóstico de tipos/dimensiones mixtas tiene sus propias sobrecargas más abajo. Los usan
+/// `geometry`/`interp` y las demos.
 template <int N, typename S>
 [[nodiscard]] constexpr Vec<N, S> operator+(const Vec<N, S>& a, const Vec<N, S>& b) {
 	Vec<N, S> r {};
@@ -221,6 +224,7 @@ template <int N, typename S>
 	return r;
 }
 
+/// Negación de `Vec`: cambia el signo de cada componente.
 template <int N, typename S>
 [[nodiscard]] constexpr Vec<N, S> operator-(const Vec<N, S>& a) {
 	Vec<N, S> r {};

@@ -31,6 +31,17 @@
 ///
 /// Coste (68000, verificado en el `.s`): `muls.w` nativo, `add.l` para las sumas y un
 /// único `asr.l` (o `add` + `asr` con redondeo) por normalización. Sin libcalls.
+///
+/// ```text
+///   Fixed<Repr, Exp, Policy>   =   struct { Repr v; }      valor = v * 2^-Exp
+///   ┌───────────────────────────────────────────────────────────────────┐
+///   │ 4.12 = <s16,12>       q0 = <s16,0>       8.24 = <s32,24>          │
+///   └──────────────┬──────────────────────────────┬─────────────────────┘
+///        * : SUMA exponentes, ENSANCHA             + , - : MISMO Exp/Policy (o no compila)
+///     a*b -> Fixed<wide<Repr>, Ea+Eb>        a+b -> Fixed<common<Ra,Rb>, E>
+///   rescale<Exp> (redondeo)  ·  cast<Repr> (estrecha/satura)  ·  retag<Policy> (gratis)
+///   extension por CPU/escalar: arith<Repr>, scalar_traits<Fixed>, scalar_div<Fixed>
+/// ```
 
 #include <eng/core/arith.hpp>
 #include <eng/core/numeric_traits.hpp>

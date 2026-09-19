@@ -66,6 +66,8 @@ private:
 	static constexpr u16 kDmaMaster = 0x0200;
 	static constexpr u16 kAudioMask = 0x000f; // bits AUD0..3EN
 
+	/// `DMACON` ($dff096) como palabra: se escribe con `kSetClr` para activar/desactivar el
+	/// DMA de audio (`kAudioMask` = AUD0..3EN). Lo usan `start`/`stop`.
 	volatile u16* dmacon_w() const {
 		return reinterpret_cast<volatile u16*>(0xdff096u);
 	}
@@ -78,18 +80,23 @@ private:
 		base[1] = static_cast<u16>(raw & 0xffffu); // AUDxLCL (15 bits bajos)
 	}
 
+	/// Longitud de la muestra en **palabras** (no bytes) → `AUDxLEN`.
 	void set_length(u8 channel, u16 words) {
 		channel_regs(channel)[2] = words; // AUDxLEN
 	}
 
+	/// Periodo del canal (`AUDxPER`): fija la frecuencia de reproducción (mayor = más grave).
 	void set_period(u8 channel, u16 period) {
 		channel_regs(channel)[3] = period; // AUDxPER
 	}
 
+	/// Volumen del canal 0..64 (`AUDxVOL`, 6 bits; se enmascara).
 	void set_volume(u8 channel, u8 volume) {
 		channel_regs(channel)[4] = static_cast<u16>(volume & 0x7fu); // AUDxVOL (6 bits)
 	}
 
+	/// Base de los registros del canal `channel` (0..3): `$dff0a0 + channel*8`, con el orden
+	/// `[AUDxLCH, AUDxLCL, AUDxLEN, AUDxPER, AUDxVOL]`. La usan los `set_*`.
 	volatile u16* channel_regs(u8 channel) {
 		return reinterpret_cast<volatile u16*>(0xdff0a0u) + static_cast<u32>(channel) * 8u;
 	}

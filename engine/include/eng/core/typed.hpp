@@ -11,6 +11,15 @@
 /// - `Block<Tag>`: resultado tipado de una reserva de arena.
 /// - Direcciones/base: `BitmapBase`, `FrontBase`, `ChipAddress`.
 ///
+/// ```text
+///   reserva de arena                vistas tipadas (Tag)                frontera unsafe
+///   ──────────────────              ────────────────────────────       ───────────────
+///   Block<Tag> (MemoryKind+dom) ──► Bytes<Tag> / ByteView<Tag> ─raw()─► u8* / u16* (backend)
+///                                   Words<Tag> / WordView<Tag>          (Blitter / DMA / Copper)
+///   ChipAddress / BitmapBase / FrontBase: direcciones y roles con semantica propia
+///   un uso de dominio cruzado (p. ej. audio como plano grafico) NO compila
+/// ```
+///
 /// Vocabulario deliberadamente **sin escalares fuertes**: ancho, alto, `row_bytes`,
 /// `plane_bytes` y número de planos van como enteros a secas (ver §3.3 de
 /// `INTERNAL_TYPE_SYSTEM.md`); solo se tipan buffers, punteros, direcciones y roles.

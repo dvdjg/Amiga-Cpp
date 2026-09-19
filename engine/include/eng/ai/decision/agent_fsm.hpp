@@ -45,6 +45,7 @@ public:
 	[[nodiscard]] constexpr State current() const noexcept { return m_fsm.current(); }
 	[[nodiscard]] constexpr State previous() const noexcept { return m_previous; }
 	[[nodiscard]] constexpr bool is(State s) const noexcept { return m_fsm.is(s); }
+	/// Número de transiciones de la tabla (diagnóstico del FSM subyacente).
 	[[nodiscard]] constexpr eng::usize transition_count() const noexcept {
 		return m_fsm.transition_count();
 	}
@@ -78,16 +79,19 @@ public:
 	}
 
 private:
+	/// Índice del slot de efectos del estado `s` (el valor entero del enum `State`).
 	[[nodiscard]] static constexpr eng::usize index(State s) noexcept {
 		return static_cast<eng::usize>(s);
 	}
 
+	/// Ejecuta el efecto de **entrada** de `s` si se registró con `on_enter`. Lo llama `dispatch`.
 	void run_enter(State s) noexcept {
 		const eng::usize i = index(s);
 		if (m_has_enter.test(i)) {
 			m_enter[i]();
 		}
 	}
+	/// Ejecuta el efecto de **salida** de `s` si se registró con `on_exit`. Lo llama `dispatch`.
 	void run_exit(State s) noexcept {
 		const eng::usize i = index(s);
 		if (m_has_exit.test(i)) {

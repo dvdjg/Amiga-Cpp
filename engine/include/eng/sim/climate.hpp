@@ -35,6 +35,7 @@ template <eng::u8 MaxRooms>
 struct Climate {
 	RegionHazard regions[MaxRooms] {};
 
+	/// Reinicia el clima de todas las regiones (ningún peligro). Lo usa el arranque del mundo.
 	constexpr void clear() noexcept {
 		for (eng::u8 i = 0; i < MaxRooms; ++i) {
 			regions[i] = RegionHazard {};
@@ -59,12 +60,15 @@ struct Climate {
 		regions[r].severity = u8_sat_add(regions[r].severity, amount);
 	}
 
+	/// Peligro de la región `r` (vacío si está fuera de rango). Lo consultan la IA/percepción.
 	[[nodiscard]] constexpr RegionHazard at(RoomId r) const noexcept {
 		return r < MaxRooms ? regions[r] : RegionHazard {};
 	}
+	/// Severidad de la región `r` (0 si está fuera de rango).
 	[[nodiscard]] constexpr eng::u8 severity(RoomId r) const noexcept {
 		return r < MaxRooms ? regions[r].severity : 0u;
 	}
+	/// ¿La región `r` llega al umbral `threshold` (por defecto 100 = peligro serio)?
 	[[nodiscard]] constexpr bool severe(RoomId r, eng::u8 threshold = 100u) const noexcept {
 		return severity(r) >= threshold;
 	}
@@ -92,6 +96,7 @@ struct Climate {
 		return best;
 	}
 
+	/// Severidad máxima entre todas las regiones (0 si no hay peligro); resumen para HUD/IA.
 	[[nodiscard]] constexpr eng::u8 max_severity() const noexcept {
 		eng::u8 top = 0u;
 		for (eng::u8 i = 0; i < MaxRooms; ++i) {

@@ -29,6 +29,8 @@ struct PolygonFillService {
 	MinimalBackend* backend = nullptr;
 	eng::MaskBuffer mask {};
 
+	/// Callback C del `PolygonFillSink` (sin captura): recupera el `PolygonFillService` de
+	/// `ctx` y delega en `MinimalBackend::blitter_fill_polygon_strided`. Lo instala `sink()`.
 	static bool dispatch(void* ctx, eng::u8* plane_base, eng::u8 planes, eng::u32 plane_stride,
 			     eng::u32 row_stride, eng::u16 row_bytes, eng::u16 bitmap_w, eng::u16 bitmap_h,
 			     const eng::s16* xs, const eng::s16* ys, eng::u8 n, eng::u8 color) {

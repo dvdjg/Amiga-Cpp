@@ -55,6 +55,10 @@ struct BgSplitRects {
 	u8 count = 1u;
 };
 
+/// Desglosa el blit de fondo en 1 o 2 rectángulos que compensan el **split vertical** del
+/// corkscrew (`d` = desplazamiento del split en filas). El fondo se muestrea siempre en filas
+/// contiguas `[bg_y, bg_y+viewport_h)`. Devuelve `BgSplitRects` (1 rect, o 2 si el split cae
+/// dentro de la ventana). Lo usa el driver corkscrew / soft-DPF.
 constexpr BgSplitRects bg_split_rects(u16 d, u16 display_h, u16 viewport_h, u16 bg_y) {
 	BgSplitRects r {};
 	if (display_h == 0u || viewport_h == 0u) { r.count = 0u; return r; }
@@ -84,6 +88,9 @@ struct BgShift {
 	u8 shift = 0;         // 0..15
 };
 
+/// Reparte un offset horizontal en píxeles al **barrel shifter** del Blitter: devuelve el
+/// `BgShift` (offset de word para el canal A + `shift` 0..15) tal que el píxel `src_x` cae en
+/// el píxel 0 del destino.
 constexpr BgShift bg_shift_for(u16 src_x_pixels) {
 	const u16 s = static_cast<u16>((16u - (src_x_pixels & 15u)) & 15u);
 	const u16 q = static_cast<u16>(src_x_pixels + s);
@@ -99,6 +106,9 @@ struct BgWindow {
 	u16 src_x = 0;
 };
 
+/// Calcula la **ventana horizontal** del blit de fondo (`BgWindow`): copia lo que el display
+/// puede leer + 1 word de guarda, con `dest_byte_off`/`words` y `src_x` (píxel de patrón
+/// visible en el píxel 0). Usa `fixed_bg_offset_px` (definido arriba) y `camx`/`period_px`.
 constexpr BgWindow bg_window_for(s32 camx, u16 period_px, u16 fetch_bytes) {
 	BgWindow w {};
 	if (period_px == 0u || fetch_bytes < 2u) return w;

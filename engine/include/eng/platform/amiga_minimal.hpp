@@ -111,6 +111,8 @@ public:
 		void* ctx = nullptr;
 	};
 
+	/// Trampolín C de un servicio: **reconstruye** el `Service<C>` desde los bytes del slot
+	/// (sin `std::function`) y lo invoca con `(ctx, vpos)`. Es el `thunk` que fija `fill_slot`.
 	template <class C>
 	static void service_thunk(void* slot_bytes, u16 vpos) {
 		auto* s = static_cast<ServiceSlot*>(slot_bytes);
@@ -119,6 +121,8 @@ public:
 		fn(*static_cast<C*>(s->ctx), vpos);
 	}
 
+	/// Registra un servicio en un `ServiceSlot`: guarda el funtor como **bytes** (tamaño fijo,
+	/// apto para el ABI de interrupción) y su contexto. Empareja con `service_thunk<C>`.
 	template <class C>
 	static void fill_slot(ServiceSlot& slot, Service<C> fn, C& ctx) {
 		slot.thunk = &MinimalBackend::service_thunk<C>;
@@ -135,6 +139,8 @@ public:
 		Service<C> fn = nullptr;
 	};
 
+	/// Trampolín de `wait_vblank` para el token directo: el funtor viaja EN el token (no en un
+	/// slot persistente), así que sólo lo invoca con `(ctx, vpos)`.
 	template <class C>
 	static void direct_thunk(void* token_bytes, u16 vpos) {
 		auto* t = static_cast<DirectToken<C>*>(token_bytes);
