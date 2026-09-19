@@ -21,6 +21,7 @@ Reglas principales (ver también `docs/STRUCTURE.md` §6):
 | Análisis de demos | `docs/testing/PIXEL_FRAME_ASSERTIONS.md`, `docs/demos/tile-pipeline/PIPELINE_TILES_EHB.md` | `tools/analyze/*` |
 | Depuración (WinUAE-DBG/DAP) | `docs/debugging/DEBUG-WINUAE-V2-GUIDE.md`, `tools/dap-test/README.md` | `tools/debug/*`, `tools/dap-test/*` |
 | Profiling | `tools/profile/README.md`, `docs/tools/PROFILING_FROM_AGENT.md`, `docs/guides/optimization/METODOLOGIA_PROFILING.md` | `tools/profile/*`, `tools/debug/{measure-fps,record-fps,check-fps,profile,winuae-profile}.mjs`, `tools/analyze/profile-{samples,report}.mjs`, `tools/run-fps-gate.sh` |
+| Codegen 68000 | `docs/engine/architecture/EXPRESSION_TEMPLATES.md`, `docs/engine/architecture/MATH_LIBRARY.md` §4 | `tools/analyze/codegen-report.mjs`, `tools/analyze/expr-asm-compare.mjs` |
 | Verificación visual | `tools/vision-review/README.md`, `docs/testing/VISION_REVIEW_ROADMAP.md` | `tools/vision-review/*` |
 | Pipeline de tiles/sprites | `tools/amiga-tiles/README.md`, `docs/demos/tile-pipeline/` | `tools/amiga-tiles/*`, `tools/ehb/*`, `tools/demo202/*` |
 | Assets (UAF-R) | `docs/tools/UAF_PACK.md` | `tools/assets/uaf-pack.ts` |
@@ -96,6 +97,16 @@ trampas) está en `docs/tools/PROFILING_FROM_AGENT.md` y la metodología general
 | `tools/analyze/profile-report.mjs <perfil.amigaprofile> [--top N] [--json]` | Top de rutinas/archivos de un perfil JSON exportado desde VSCode (incluye además `[IRQ]` del depurador). |
 
 `--json` emite una tabla compacta apta para pasársela a un modelo local sin gastar contexto.
+
+## Codegen 68000 (qué genera g++)
+
+Compilan una sonda a ensamblador del 68000 (`-S`) y la inspeccionan; sirven para decidir si
+una construcción es aceptable antes de adoptarla, no solo para depurar.
+
+| Tool | Devuelve |
+|---|---|
+| `tools/analyze/codegen-report.mjs` | Compila una sonda con una función por construcción (fixed, `Vec`/`Mat`, escalares, IA…) y reporta instrucciones, `muls.w`, desplazamientos, libcalls y si el bucle queda plegado. **Falla** si aparecen libcalls de libgcc de 32/64 bits o instrucciones 68020 en los caminos calientes. |
+| `tools/analyze/expr-asm-compare.mjs` | Compara la MISMA expresión escrita con operadores sueltos y con `eng::math::et` (escalar `MiniFloat16` y `Vec<3>`), y reporta instrucciones, escrituras a pila, llamadas y si el bucle se desenrolla. Es la evidencia de "qué ahorra la fusión" (ver `docs/engine/architecture/EXPRESSION_TEMPLATES.md` §5). |
 
 ## Sondas de emisión de sprites (depuración de custom chips)
 
