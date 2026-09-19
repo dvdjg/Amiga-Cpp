@@ -68,6 +68,8 @@ struct Face {
 template <class S>
 struct mesh_traits {
 	using scalar = S;
+	/// Tipo de la clave de orden Z (profundidad); por defecto `s16`.
+	using key = s16;
 
 	/// Producto mixto `(B-A)·[(C-A)×(cam-A)]` (signo = visibilidad; sin normalizar).
 	[[nodiscard]] static constexpr s32 face_signed_area(const Vec3t<S>& a, const Vec3t<S>& b,
@@ -88,17 +90,17 @@ struct mesh_traits {
 	}
 
 	/// Clave de orden Z por SUMA de los z de la cara.
-	[[nodiscard]] static constexpr s16 z_sum(const Vec3t<S>& a, const Vec3t<S>& b,
+	[[nodiscard]] static constexpr key z_sum(const Vec3t<S>& a, const Vec3t<S>& b,
 						 const Vec3t<S>& c) {
-		return static_cast<s16>(
+		return static_cast<key>(
 			eng::math::scalar_traits<S>::to_int(a.v[2] + b.v[2] + c.v[2]));
 	}
 
 	/// Clave de orden Z por MÍNIMO de los z de la cara.
-	[[nodiscard]] static constexpr s16 z_min(const Vec3t<S>& a, const Vec3t<S>& b,
+	[[nodiscard]] static constexpr key z_min(const Vec3t<S>& a, const Vec3t<S>& b,
 						 const Vec3t<S>& c) {
 		const S ab = a.v[2] < b.v[2] ? a.v[2] : b.v[2];
-		return static_cast<s16>(eng::math::scalar_traits<S>::to_int(ab < c.v[2] ? ab : c.v[2]));
+		return static_cast<key>(eng::math::scalar_traits<S>::to_int(ab < c.v[2] ? ab : c.v[2]));
 	}
 };
 
@@ -118,13 +120,17 @@ template <class S>
 
 /// Clave de orden Z por SUMA de los z de la cara (como `SortFaces`).
 template <class S>
-[[nodiscard]] constexpr s16 face_z_sum(const Vec3t<S>& a, const Vec3t<S>& b, const Vec3t<S>& c) {
+[[nodiscard]] constexpr typename mesh_traits<S>::key face_z_sum(const Vec3t<S>& a,
+								const Vec3t<S>& b,
+								const Vec3t<S>& c) {
 	return mesh_traits<S>::z_sum(a, b, c);
 }
 
 /// Clave de orden Z por MÍNIMO de los z de la cara (como `SortFacesMinZ`).
 template <class S>
-[[nodiscard]] constexpr s16 face_z_min(const Vec3t<S>& a, const Vec3t<S>& b, const Vec3t<S>& c) {
+[[nodiscard]] constexpr typename mesh_traits<S>::key face_z_min(const Vec3t<S>& a,
+								const Vec3t<S>& b,
+								const Vec3t<S>& c) {
 	return mesh_traits<S>::z_min(a, b, c);
 }
 
@@ -161,49 +167,124 @@ inline void mesh_transform(Span<const Vec3t<S>> in, const eng::math::Affine<N, S
 	}
 }
 
-/// Cara visible + clave de profundidad para el orden de pintado.
-struct FaceOrder {
+/// Cara visible + clave de profundidad para el orden de pintado. La clave `Key` la fija
+/// `mesh_traits<S>::key` (por defecto `s16`; `s32` para escalares anchos).
+template <class Key = s16>
+struct FaceOrderT {
 	u16 index = 0; // índice de la cara en `MeshView::faces`
-	s16 z = 0;     // clave painter (`face_z_min`); menor = más lejana
+	Key z = 0;     // clave painter (`face_z_min`); menor = más lejana
 };
 
-/// Clasifica por **back-face culling** desde `cam` y ordena las caras visibles de lejos a
-/// cerca (pintor). Escribe hasta `out.size()` entradas y devuelve cuántas caben. Ordenación
-/// por **shell sort** in-place (sin memoria extra); las caras con índices fuera de rango se
-/// descartan.
+/// Instancia por defecto (clave `s16`).
+using FaceOrder = FaceOrderT<s16>;
+
+/// Cara visible **sin clave de profundidad**: el caso convexo no ordena, así que no guarda
+/// `z` (lista de 2 B/cara en vez de 4 B).
+struct ConvexFace {
+	u16 index = 0; // índice de la cara en `MeshView::faces`
+};
+
+/// **Cualidad de compilación** que selecciona el algoritmo de orden de caras.
+/// - `ConvexSolid`: sólido convexo. Tras descartar las caras traseras, las visibles
+///   particionan la silueta y **no se solapan** en proyección: basta el culling, sin clave
+///   de profundidad ni ordenación.
+/// - `ConcaveMesh`: malla general. Necesita el **orden de pintor** (lejos→cerca).
+struct ConvexSolid {};
+struct ConcaveMesh {};
+
+/// Qué necesita el algoritmo para cada cualidad (punto de extensión). El primario es el caso
+/// general (seguro); `ConvexSolid` lo especializa. Añadir una cualidad = especializar aquí.
+template <class Kind>
+struct mesh_order_traits {
+	static constexpr bool depth_key = true;
+	static constexpr bool sorts = true;
+};
+template <>
+struct mesh_order_traits<ConvexSolid> {
+	static constexpr bool depth_key = false;
+	static constexpr bool sorts = false;
+};
+
+/// Tipo de la lista de salida por cualidad: el convexo no guarda clave de profundidad.
+template <class Kind, class S>
+struct mesh_order_item;
+template <class S>
+struct mesh_order_item<ConvexSolid, S> {
+	using type = ConvexFace;
+};
+template <class S>
+struct mesh_order_item<ConcaveMesh, S> {
+	using type = FaceOrderT<typename mesh_traits<S>::key>;
+};
+template <class Kind, class S>
+using mesh_order_item_t = typename mesh_order_item<Kind, S>::type;
+
+/// **Ordenador de caras**, elegido en compilación por la cualidad `Kind`. Comparte el bucle
+/// de culling; `if constexpr` genera una versión por caso (convexo: sin clave ni sort;
+/// cóncavo: pintor). No rasteriza: sólo clasifica las caras visibles.
+template <class Kind, class S = Coord>
+class MeshFaceOrder {
+public:
+	using item_type = mesh_order_item_t<Kind, S>;
+	static constexpr bool kSorts = mesh_order_traits<Kind>::sorts;
+
+	/// Clasifica por **back-face culling** desde `cam` y, si la cualidad lo pide, ordena de
+	/// lejos a cerca (shell sort in-place, sin memoria extra). Escribe hasta `out.size()`
+	/// entradas, devuelve cuántas caben y descarta caras con índice fuera de rango.
+	static u32 order(const MeshViewT<S>& mesh, Span<const Vec3t<S>> verts,
+			 const Vec3t<S>& cam, Span<item_type> out, bool double_sided = false) {
+		using Tr = mesh_order_traits<Kind>;
+		const u32 nv = mesh.vertex_count();
+		const u32 cap = static_cast<u32>(out.size());
+		u32 n = 0;
+		for (u32 i = 0; i < mesh.face_count() && n < cap; ++i) {
+			const Face& f = mesh.faces[i];
+			if (f.a >= nv || f.b >= nv || f.c >= nv) {
+				continue;
+			}
+			const Vec3t<S>& a = verts[f.a];
+			const Vec3t<S>& b = verts[f.b];
+			const Vec3t<S>& c = verts[f.c];
+			if (double_sided || face_visible<S>(a, b, c, cam)) {
+				out[n].index = static_cast<u16>(i);
+				if constexpr (Tr::depth_key) {
+					out[n].z = face_z_min<S>(a, b, c);
+				}
+				++n;
+			}
+		}
+		if constexpr (Tr::sorts) {
+			for (u32 gap = n / 2u; gap > 0u; gap /= 2u) {
+				for (u32 i = gap; i < n; ++i) {
+					const item_type tmp = out[i];
+					u32 j = i;
+					while (j >= gap && out[j - gap].z > tmp.z) {
+						out[j] = out[j - gap];
+						j -= gap;
+					}
+					out[j] = tmp;
+				}
+			}
+		}
+		return n;
+	}
+};
+
+/// Orden de **pintor** para una malla general (cóncava): culling + sort lejos→cerca.
 template <class S = Coord>
 inline u32 mesh_painter_order(const MeshViewT<S>& mesh, Span<const Vec3t<S>> verts,
-			      const Vec3t<S>& cam, Span<FaceOrder> out, bool double_sided = false) {
-	const u32 nv = mesh.vertex_count();
-	const u32 cap = static_cast<u32>(out.size());
-	u32 n = 0;
-	for (u32 i = 0; i < mesh.face_count() && n < cap; ++i) {
-		const Face& f = mesh.faces[i];
-		if (f.a >= nv || f.b >= nv || f.c >= nv) {
-			continue;
-		}
-		const Vec3t<S>& a = verts[f.a];
-		const Vec3t<S>& b = verts[f.b];
-		const Vec3t<S>& c = verts[f.c];
-		if (double_sided || face_visible<S>(a, b, c, cam)) {
-			out[n].index = static_cast<u16>(i);
-			out[n].z = face_z_min<S>(a, b, c);
-			++n;
-		}
-	}
+			      const Vec3t<S>& cam,
+			      Span<FaceOrderT<typename mesh_traits<S>::key>> out,
+			      bool double_sided = false) {
+	return MeshFaceOrder<ConcaveMesh, S>::order(mesh, verts, cam, out, double_sided);
+}
 
-	for (u32 gap = n / 2u; gap > 0u; gap /= 2u) {
-		for (u32 i = gap; i < n; ++i) {
-			const FaceOrder tmp = out[i];
-			u32 j = i;
-			while (j >= gap && out[j - gap].z > tmp.z) {
-				out[j] = out[j - gap];
-				j -= gap;
-			}
-			out[j] = tmp;
-		}
-	}
-	return n;
+/// Orden para un **sólido convexo**: sólo culling (las caras visibles no se solapan, así que
+/// el orden es indiferente).
+template <class S = Coord>
+inline u32 mesh_convex_order(const MeshViewT<S>& mesh, Span<const Vec3t<S>> verts,
+			     const Vec3t<S>& cam, Span<ConvexFace> out, bool double_sided = false) {
+	return MeshFaceOrder<ConvexSolid, S>::order(mesh, verts, cam, out, double_sided);
 }
 
 } // namespace eng::math3d

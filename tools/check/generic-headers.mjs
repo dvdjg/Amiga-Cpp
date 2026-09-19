@@ -1,7 +1,9 @@
 // Comprueba la "regla de oro" de diseño: las cabeceras GENÉRICAS del engine no deben fijar
 // un escalar concreto. Sólo las cabeceras de una implementación concreta (`retro/`,
 // `platform/`, `cpu/`) y las del propio escalar (`fixed*.hpp`, `minifloat*.hpp`) pueden
-// nombrar representaciones concretas (`Fixed<s16,s32>`, `q0/q8/q12/q24`, `MiniFloat16`).
+// nombrar representaciones concretas (`Fixed<s16,s32>`, `q0/q8/q12/q24`, `MiniFloat16`) ni
+// incluir el soporte matemático (`fixed_math.hpp`/`minifloat_math.hpp`) o un backend
+// (`retro/…`). Los alias locales (`using X = Fixed<…>`) los cubren los patrones de tipo.
 //
 // Los infractores históricos (mientras se completa la reubicación de las especializaciones)
 // se aceptan de forma explícita en `generic-headers-baseline.txt`. Cualquier fichero NUEVO
@@ -18,8 +20,9 @@ const ENG = path.join(ROOT, 'engine/include/eng');
 
 const QUIET = process.argv.includes('--quiet');
 
-// Directorios/cabeceras exentas (implementación concreta o del propio escalar).
-const EXEMPT_DIR = [/(^|\/)(retro|platform|cpu)\//];
+// Directorios/cabeceras exentas (implementación concreta o del propio escalar). `field/` es
+// la capa de dispositivo de display (playfield/surface = hardware Amiga), como `platform/`.
+const EXEMPT_DIR = [/(^|\/)(retro|platform|cpu|field)\//];
 const EXEMPT_FILE = [/fixed(_math)?\.hpp$/, /minifloat(_math)?\.hpp$/, /scalar\.hpp$/, /scalar_fwd\.hpp$/];
 
 // Patrones de tipo concreto (en código, no en comentarios).
@@ -27,6 +30,9 @@ const PATTERNS = [
 	/Fixed<\s*(eng::)?s(8|16|32|64)/,
 	/\bq(0|8|12|24)\b/,
 	/\bMiniFloat16\b/,
+	// Una cabecera genérica tampoco debe incluir el soporte matemático de un escalar ni un
+	// backend retro: eso la ata a esa representación (se incluye el escalar, no su formato).
+	/#\s*include\s*[<"]eng\/(core\/(fixed_math|minifloat_math)\.hpp|retro\/)/,
 ];
 
 const baseline = new Set(

@@ -340,5 +340,5 @@ Pasos:
   registros, `amiga_minimal` callbacks). `object3d`/`lib3d` no tienen `void*` y sus campos
   llevan su escala (`Point3D` q0, `Face::normal` q12); el blob empaquetado y los offsets
   `s16` son ABI. `mesh_traits<S>` (default) cubre escalares aritméticos (`float`/`double`/
-  enteros) y `Fixed` hasta `s16` (host); `Fixed<s32,E>` necesitaría su propia
-  especialización (el producto mixto del culling sale de los `Repr` disponibles).
+  enteros) y `Fixed` hasta `s16` (host); `Fixed<s32,E>` tiene su especialización en
+  `retro/fixed_mesh.hpp` (sólo el signo, en 128 bits, con clave de orden `s32`; host/68020).

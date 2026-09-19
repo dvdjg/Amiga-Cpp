@@ -69,6 +69,29 @@ int main() {
 		check(m == 1, "capacidad de salida acotada");
 	}
 
+	// Orden elegido en compilacion por la cualidad del solido.
+	static_assert(eng::math3d::mesh_order_traits<eng::math3d::ConvexSolid>::sorts == false &&
+			      eng::math3d::mesh_order_traits<eng::math3d::ConcaveMesh>::sorts == true,
+		      "convexo no ordena; concavo si");
+	static_assert(eng::math3d::mesh_order_traits<eng::math3d::ConvexSolid>::depth_key == false,
+		      "convexo no calcula clave de profundidad");
+	static_assert(sizeof(eng::math3d::ConvexFace) == 2, "ConvexFace = indice (2 B/cara)");
+	{
+		using K = eng::math3d::MeshFaceOrder<eng::math3d::ConvexSolid>;
+		static_assert(K::kSorts == false, "MeshFaceOrder<ConvexSolid> no ordena");
+		eng::math3d::ConvexFace cv[3];
+		const eng::u32 nc = K::order(mesh, eng::Span<const Vec3>(world, 6), cam,
+					     eng::Span<eng::math3d::ConvexFace>(cv, 3));
+		check(nc == 2 && ((cv[0].index == 0 && cv[1].index == 1) ||
+					  (cv[0].index == 1 && cv[1].index == 0)),
+		      "convexo: 2 caras frontales (culling, sin ordenar)");
+		eng::math3d::ConvexFace cc[3];
+		const eng::u32 ncc = eng::math3d::mesh_convex_order(
+			mesh, eng::Span<const Vec3>(world, 6), cam,
+			eng::Span<eng::math3d::ConvexFace>(cc, 3));
+		check(ncc == 2, "mesh_convex_order: 2 caras");
+	}
+
 	// Genericidad: la MISMA malla instanciada con coordenada `float` (sin tocar el engine).
 	{
 		using Vf = eng::math3d::Vec3t<float>;
@@ -107,8 +130,6 @@ int main() {
 		check(nd == 1 && wd[1].v[0] == 10.0, "mesh3d generico: misma malla con double");
 	}
 	// Genericidad: coordenada `Fixed<s16,8>` (Fixed no-q0 por el camino generico, host).
-	// Nota: `Fixed<s32,E>` NO lo cubre el default (el producto mixto ensancharia a un
-	// `Repr` no definido); necesitaria su propia especializacion de `mesh_traits`.
 	{
 		using S8 = eng::math::Fixed<eng::s16, 8>;
 		using V8 = eng::math3d::Vec3t<S8>;
@@ -126,6 +147,27 @@ int main() {
 			eng::Span<eng::math3d::FaceOrder>(o8, 1));
 		check(n8 == 1 && w8[1].v[0].v == (10 << 8),
 		      "mesh3d generico: misma malla con Fixed<s16,8>");
+	}
+
+	// Genericidad: coordenada ancha `Fixed<s32,12>` (su propia especializacion de mesh_traits,
+	// con clave de orden `s32`).
+	{
+		using S32 = eng::math::Fixed<eng::s32, 12>;
+		using V32 = eng::math3d::Vec3t<S32>;
+		const V32 v32[3] = {eng::math3d::vec3<S32>(0, 0, 0), eng::math3d::vec3<S32>(10, 0, 0),
+				    eng::math3d::vec3<S32>(0, 10, 0)};
+		const Face f32[1] = {{0, 1, 2}};
+		const eng::math3d::MeshViewT<S32> m32 {eng::Span<const V32>(v32, 3),
+						       eng::Span<const Face>(f32, 1)};
+		V32 w32[3];
+		const eng::math::Affine<3, S32, S32> id32 = eng::math::Affine<3, S32, S32>::identity();
+		eng::math3d::mesh_transform(m32.vertices, id32, eng::Span<V32>(w32, 3));
+		eng::math3d::FaceOrderT<eng::s32> o32[1];
+		const eng::u32 n32 = eng::math3d::mesh_painter_order(
+			m32, eng::Span<const V32>(w32, 3), eng::math3d::vec3<S32>(0, 0, 100),
+			eng::Span<eng::math3d::FaceOrderT<eng::s32>>(o32, 1));
+		check(n32 == 1 && w32[1].v[0].v == (10 << 12) && o32[0].z == 0,
+		      "mesh3d generico: misma malla con Fixed<s32,12> (clave s32)");
 	}
 
 	if (failures == 0) {

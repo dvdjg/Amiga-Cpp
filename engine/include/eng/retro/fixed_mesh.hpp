@@ -35,6 +35,7 @@ namespace detail {
 template <typename P>
 struct mesh_traits<eng::math::Fixed<s16, 0, P>> {
 	using scalar = eng::math::Fixed<s16, 0, P>;
+	using key = s16;
 
 	[[nodiscard]] static constexpr s32 face_signed_area(const Vec3t<scalar>& a,
 							    const Vec3t<scalar>& b,
@@ -62,6 +63,53 @@ struct mesh_traits<eng::math::Fixed<s16, 0, P>> {
 	[[nodiscard]] static constexpr s16 z_min(const Vec3t<scalar>& a, const Vec3t<scalar>& b,
 						 const Vec3t<scalar>& c) {
 		const s16 ab = a.v[2].v < b.v[2].v ? a.v[2].v : b.v[2].v;
+		return ab < c.v[2].v ? ab : c.v[2].v;
+	}
+};
+
+/// `mesh_traits` para la coordenada ancha `Fixed<s32,E>` (host / 68020): el producto mixto del
+/// culling (`32×32 -> 64` y `64×32 -> 96`) excede los `Repr` disponibles, así que sólo se
+/// evalúa el **signo** en 128 bits (clave de orden `s32`). En 68000 no hay `__int128` nativo:
+/// la malla objetivo allí es `Fixed<s16,0>`.
+template <int E, typename P>
+struct mesh_traits<eng::math::Fixed<s32, E, P>> {
+	using scalar = eng::math::Fixed<s32, E, P>;
+	using key = s32;
+
+	[[nodiscard]] static constexpr s32 face_signed_area(const Vec3t<scalar>& a,
+							    const Vec3t<scalar>& b,
+							    const Vec3t<scalar>& c,
+							    const Vec3t<scalar>& cam) {
+#if defined(__SIZEOF_INT128__) && !defined(__m68k__)
+		const long long ux = static_cast<long long>(b.v[0].v) - a.v[0].v;
+		const long long uy = static_cast<long long>(b.v[1].v) - a.v[1].v;
+		const long long uz = static_cast<long long>(b.v[2].v) - a.v[2].v;
+		const long long vx = static_cast<long long>(c.v[0].v) - a.v[0].v;
+		const long long vy = static_cast<long long>(c.v[1].v) - a.v[1].v;
+		const long long vz = static_cast<long long>(c.v[2].v) - a.v[2].v;
+		const __int128 nx = static_cast<__int128>(uy) * vz - static_cast<__int128>(uz) * vy;
+		const __int128 ny = static_cast<__int128>(uz) * vx - static_cast<__int128>(ux) * vz;
+		const __int128 nz = static_cast<__int128>(ux) * vy - static_cast<__int128>(uy) * vx;
+		const __int128 wx = static_cast<long long>(cam.v[0].v) - a.v[0].v;
+		const __int128 wy = static_cast<long long>(cam.v[1].v) - a.v[1].v;
+		const __int128 wz = static_cast<long long>(cam.v[2].v) - a.v[2].v;
+		const __int128 d = nx * wx + ny * wy + nz * wz;
+		return d < 0 ? -1 : (d > 0 ? 1 : 0);
+#else
+		static_assert(sizeof(P) == 0,
+			      "mesh Fixed<s32>: sin __int128 en el objetivo; usar Fixed<s16,0>");
+		return 0;
+#endif
+	}
+
+	[[nodiscard]] static constexpr key z_sum(const Vec3t<scalar>& a, const Vec3t<scalar>& b,
+						 const Vec3t<scalar>& c) {
+		return a.v[2].v + b.v[2].v + c.v[2].v;
+	}
+
+	[[nodiscard]] static constexpr key z_min(const Vec3t<scalar>& a, const Vec3t<scalar>& b,
+						 const Vec3t<scalar>& c) {
+		const s32 ab = a.v[2].v < b.v[2].v ? a.v[2].v : b.v[2].v;
 		return ab < c.v[2].v ? ab : c.v[2].v;
 	}
 };
