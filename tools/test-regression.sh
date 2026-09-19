@@ -152,6 +152,20 @@ if [ -f "$LINKS_CHECK" ]; then
 	fi
 fi
 
+# --- Regla de oro: cabeceras genericas sin escalares concretos ---
+GENERIC_HEADERS_CHECK="$ROOT/tools/check/generic-headers.mjs"
+if [ -f "$GENERIC_HEADERS_CHECK" ]; then
+	if command -v node >/dev/null 2>&1; then
+		echo "== generic-headers =="
+		if ! node "$GENERIC_HEADERS_CHECK"; then
+			echo "generic-headers fallo: tipo concreto en cabecera generica." >&2
+			exit 1
+		fi
+	else
+		echo "node no disponible; se omite generic-headers." >&2
+	fi
+fi
+
 # --- Gate de fps (opt-in): mide las demos de la bitacora y detecta deriva ---
 # Lanza WinUAE por cada fila de la tabla trazable; por eso es opt-in. Falla si una
 # demo medida en la misma fase (`detail`) baja del umbral (por defecto -10 %).

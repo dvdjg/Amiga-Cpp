@@ -332,3 +332,13 @@ Pasos:
   `degrees`/`unit`) + `sin`/`cos` (punto de entrada único). El ángulo-vueltas del original
   es `Turns = Angle<q12, turns>` con `sin`/`cos` por tabla exacta; se eliminan
   `sin_q12`/`cos_q12` y las funciones con el formato en el nombre.
+- **Auditoría de genericidad (hecha)**: el gate `tools/check/generic-headers.mjs` pasa con
+  **baseline vacío** — ninguna cabecera genérica nombra `Fixed<s16/s32>`, `q0/q8/q12/q24` ni
+  `MiniFloat16`. Los `s16`/`s32` que quedan en cabeceras son **dominio** (píxeles/tile/luz/
+  registros: `broadphase`, `collision`, `grid`, `bob`, `light`) y no se generalizan; los
+  `void*` que quedan son la **frontera unsafe del backend** (`platform/amiga/blob.hpp`
+  registros, `amiga_minimal` callbacks). `object3d`/`lib3d` no tienen `void*` y sus campos
+  llevan su escala (`Point3D` q0, `Face::normal` q12); el blob empaquetado y los offsets
+  `s16` son ABI. `mesh_traits<S>` (default) cubre escalares aritméticos (`float`/`double`/
+  enteros) y `Fixed` hasta `s16` (host); `Fixed<s32,E>` necesitaría su propia
+  especialización (el producto mixto del culling sale de los `Repr` disponibles).

@@ -83,7 +83,8 @@ struct mesh_traits {
 		const auto nz = ux * vy - uy * vx;
 		const auto d = nx * (cam.v[0] - a.v[0]) + ny * (cam.v[1] - a.v[1]) +
 			       nz * (cam.v[2] - a.v[2]);
-		return static_cast<s32>(eng::math::scalar_traits<S>::to_int(d));
+		const auto zero = decltype(d) {};
+		return d < zero ? -1 : (d > zero ? 1 : 0);
 	}
 
 	/// Clave de orden Z por SUMA de los z de la cara.

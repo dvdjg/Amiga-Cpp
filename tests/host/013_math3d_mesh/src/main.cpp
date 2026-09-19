@@ -88,6 +88,46 @@ int main() {
 		check(nf == 1 && wf[1].v[0] == 10.0f, "mesh3d generico: misma malla con float");
 	}
 
+	// Genericidad: coordenada `double` (default generico del mesh_traits).
+	{
+		using Vd = eng::math3d::Vec3t<double>;
+		const Vd vd[3] = {eng::math3d::vec3<double>(0, 0, 0), eng::math3d::vec3<double>(10, 0, 0),
+				  eng::math3d::vec3<double>(0, 10, 0)};
+		const Face fd[1] = {{0, 1, 2}};
+		const eng::math3d::MeshViewT<double> md {eng::Span<const Vd>(vd, 3),
+							 eng::Span<const Face>(fd, 1)};
+		Vd wd[3];
+		const eng::math::Affine<3, double, double> idd =
+			eng::math::Affine<3, double, double>::identity();
+		eng::math3d::mesh_transform(md.vertices, idd, eng::Span<Vd>(wd, 3));
+		eng::math3d::FaceOrder od[1];
+		const eng::u32 nd = eng::math3d::mesh_painter_order(
+			md, eng::Span<const Vd>(wd, 3), eng::math3d::vec3<double>(0, 0, 100),
+			eng::Span<eng::math3d::FaceOrder>(od, 1));
+		check(nd == 1 && wd[1].v[0] == 10.0, "mesh3d generico: misma malla con double");
+	}
+	// Genericidad: coordenada `Fixed<s16,8>` (Fixed no-q0 por el camino generico, host).
+	// Nota: `Fixed<s32,E>` NO lo cubre el default (el producto mixto ensancharia a un
+	// `Repr` no definido); necesitaria su propia especializacion de `mesh_traits`.
+	{
+		using S8 = eng::math::Fixed<eng::s16, 8>;
+		using V8 = eng::math3d::Vec3t<S8>;
+		const V8 v8[3] = {eng::math3d::vec3<S8>(0, 0, 0), eng::math3d::vec3<S8>(10, 0, 0),
+				  eng::math3d::vec3<S8>(0, 10, 0)};
+		const Face f8[1] = {{0, 1, 2}};
+		const eng::math3d::MeshViewT<S8> m8 {eng::Span<const V8>(v8, 3),
+						     eng::Span<const Face>(f8, 1)};
+		V8 w8[3];
+		const eng::math::Affine<3, S8, S8> id8 = eng::math::Affine<3, S8, S8>::identity();
+		eng::math3d::mesh_transform(m8.vertices, id8, eng::Span<V8>(w8, 3));
+		eng::math3d::FaceOrder o8[1];
+		const eng::u32 n8 = eng::math3d::mesh_painter_order(
+			m8, eng::Span<const V8>(w8, 3), eng::math3d::vec3<S8>(0, 0, 100),
+			eng::Span<eng::math3d::FaceOrder>(o8, 1));
+		check(n8 == 1 && w8[1].v[0].v == (10 << 8),
+		      "mesh3d generico: misma malla con Fixed<s16,8>");
+	}
+
 	if (failures == 0) {
 		std::printf("OK: math3d mesh (transform + culling + painter) validado.\n");
 		return 0;

@@ -135,6 +135,7 @@ arrastrar código no usado.
 - **Versátil para cualquier configuración**: el API debe funcionar igual para EHB, single/double playfield, 4/5/6 planos, interleaved/separate y cualquier resolución. No diseñar funciones o clases que solo funcionen en EHB, en DPF o en un tamaño concreto; la abstracción expone un «pincel/contexto» que la propia superficie configura internamente según sus parámetros.
 - **Prueba de diseño**: una función de dibujo debe poder expresarse igualmente sobre un contexto EHB de 6 planos, uno single de 4 planos y uno DPF, con la misma llamada y solo cambiando la configuración del contexto; el llamador nunca ve qué modo es.
 - Lo que sí puede ser específico de un modo (registros, copper, DMA) queda **dentro del driver/surface** o en capas backend, nunca filtrado al llamador.
+- **Genericidad de cabeceras (regla de oro)**: una cabecera es lo más genérica posible y no fija el escalar; lo concreto vive en el propio escalar o en `retro/`/`platform/`/`cpu/`. Se detalla en `CODING_STYLE.md` (§Reglas obligatorias) y lo verifica `tools/check/generic-headers.mjs`.
 
 ## 13. Referencias
 

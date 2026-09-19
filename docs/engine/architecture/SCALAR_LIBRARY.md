@@ -320,19 +320,20 @@ coma fija: ahí `s16` es correcto (es el `int` de palabra natural del 68000; `en
 desplaza (coma fija)? → `Fixed`. ¿Es un tamaño, índice, coordenada de pantalla, palabra de
 registro o campo de un formato? → `s16` crudo.
 
-### 9.3 Bloqueo para unificar `object3d`/`math3d` en `eng::coord`/`eng::real`
+### 9.3 `object3d`/`math3d` sobre `eng::coord`/`eng::real`
 
-`math3d` (`gfx3d.hpp`) y el `objdat` usan hoy `retro::q0`/`q12` (siempre `Fixed<s16,E>`).
-Cambiar los alias a `eng::coord`/`eng::real` (seleccionables) **no compila fuera de
-retro16**: en retro32/host `eng::real = Fixed<s32,12>`/`float`, pero la trigonometria de la
-que dependen (`retro::sin_q12`/`cos_q12`) devuelve `Fixed<s16,12>`, y `load_rotate` mezcla
-ambos. Lo destapa el `codegen (68020)`: `Fixed<long int,12>` vs `Fixed<short int,12>`.
+`gfx3d`/`object3d` **no fijan** `retro::q0`/`q12`: `Mat3<S>`, `Affine3<SR,SL>`, `P3<S>` y
+`load_rotate<S,Unit>`/`load_reverse_rotate<S,Unit>` son plantillas, y la trigonometría se resuelve
+por escalar (`scalar_sin<S>`/`scalar_cos<S>`; la tabla 4.12 exacta está especializada en
+`retro/fixed_trig.hpp` para `q12`). Por eso los alias pueden ser `eng::coord`/`eng::real`
+(seleccionables por target): en retro32/host un `Fixed<s32,12>`/`float` funciona sin tocar el
+algoritmo.
 
-Para unificar de verdad hay que **generalizar la trigonometria por escalar** (el pendiente
-de `REFACTOR_SCALAR_GENERICO.md` §2: `fixed_math.hpp` solo tiene tablas para `Fixed<s16,E>`).
-Mientras tanto, el piloto de `Object3D` usa `Point3S<S>` con `retro::q0`/`q12` (identicos a
-`eng::coord`/`eng::real` en retro16); cambiar el alias a `eng::coord`/`eng::real` sera una
-linea cuando la trig este generalizada.
+La **regla de oro de genericidad de cabeceras** (una cabecera es lo más genérica posible; lo
+concreto vive en el propio escalar o en `retro/`/`platform/`/`cpu/`) y su gate
+(`tools/check/generic-headers.mjs`) están en `CODING_STYLE.md`. El blob `objdat` sigue siendo el
+formato empaquetado 16 bits (dominio/ABI): sus campos llevan su escala (`Point3D` q0,
+`Face::normal` q12) y los grupos/offsets son `s16`.
 
 ## 10. Por qué no todo es `q12`: rango frente a precisión
 
