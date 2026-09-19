@@ -124,6 +124,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/util/dsp.hpp>
 #include <eng/core/fixed_math.hpp>
 #include <eng/core/geometry.hpp>
+#include <eng/core/expr.hpp>
 #include <eng/core/sort.hpp>
 #include <eng/graphics/mesh_renderer.hpp>
 #include <eng/platform/amiga/lib3d.hpp>
@@ -1061,6 +1062,20 @@ extern "C" u16 c_cards_range_tells_ops(u16 seed) {
 	HandRange out;
 	opponent_range_with_tells(model, reads, t, 0u, &table, out);
 	return static_cast<u16>(out.class_count() + (seed & 0u));
+}
+extern "C" u16 c_math_expr_ops(u16 seed) {
+	using namespace eng::math;
+	using namespace eng::math::et;
+	const Fixed<s16, 12> a {static_cast<s16>(seed & 0x0FFFu)};
+	const Fixed<s16, 12> b {static_cast<s16>((seed >> 4) & 0x0FFFu)};
+	// Cadena del mismo exponente (fusiona el arbol) + producto por componente que sube a
+	// 4.24 y et_set reescala al destino: ejercita nodos, converter y bucle fusionado.
+	const Fixed<s16, 8> s = evaluate<Fixed<s16, 8>>(val(a) + val(b) - val(b));
+	const Vec<2, Fixed<s16, 12>> va {{a, b}};
+	Vec<2, Fixed<s16, 12>> out {};
+	eval_into(out, val(va) * val(va));
+	const MiniFloat16 m = evaluate<MiniFloat16>(val(MiniFloat16 {0.5f}) + val(MiniFloat16 {0.25f}));
+	return static_cast<u16>(static_cast<eng::s16>(s.v) + out.v[0].v + out.v[1].v + m.raw);
 }
 extern "C" u16 c_sim_introspect_ops(u16 seed) {
 	using namespace eng::sim;

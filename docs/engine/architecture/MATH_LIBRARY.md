@@ -406,6 +406,17 @@ Prueba de concepto ya medida (prototipo, 68000 `-O2`), para `dot` fusionado:
 Es el código ideal: dos `muls.w`, una suma larga y un desplazamiento. Sin libcalls,
 sin temporales.
 
+### 4.1 Expression templates lite
+
+Para las cadenas de operadores que no pasan por `dot`/`transform`/`Mat*Vec` está
+`eng/core/expr.hpp` (`eng::math::et`): un árbol de expresión en compilación que se evalúa
+**una sola vez**, sin un temporal por operador, con **acumulador ancho** para `Fixed` (`a + b*c`
+promueve el término al exponente del producto y normaliza al final) y fusión **componente a
+componente** de `Vec`/`Mat`. Medido con `tools/analyze/expr-asm-compare.mjs`: gana en escalares
+`MiniFloat16` (menos escrituras a pila) y no compensa en `Vec<3>`/`Mat<2>`, donde el compilador
+ya elimina los temporales. Detalle, uso y límites: [EXPRESSION_TEMPLATES.md](EXPRESSION_TEMPLATES.md);
+verificado por HOST-207 y la sonda de codegen `c_math_expr_ops`.
+
 ## 5. Plan por fases (tests primero)
 
 - **F0 — Especificación ejecutable.** Tests host que fijan: suma de exponentes en el

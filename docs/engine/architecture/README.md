@@ -11,6 +11,7 @@ en C del repo hermano (`Cursor-Amiga-C`) está en [../c-engine/](../c-engine/REA
 | [CODING_STYLE.md](CODING_STYLE.md) | Restricciones y estilo: `gnu++23`, sin exceptions, sin RTTI, sin asignación dinámica en gameplay. |
 | [MATH_LIBRARY.md](MATH_LIBRARY.md) | Modelo de la librería de matemáticas genérica: `Fixed<Repr,Exp,Policy>`, `Vec`/`Mat`/`Affine`, escalar como parámetro de plantilla. |
 | [SCALAR_LIBRARY.md](SCALAR_LIBRARY.md) | **Estructura de la librería escalar-independiente**: capas (algoritmo genérico ↔ rasgos ↔ escalar concreto ↔ backend), `numeric_traits` y guards de límites en compilación, límites por algoritmo. |
+| [EXPRESSION_TEMPLATES.md](EXPRESSION_TEMPLATES.md) | **Expression templates lite** (`eng/core/expr.hpp`): árbol en compilación, evaluación única, `converter` para `Fixed`, fusión por componente de `Vec`/`Mat` y sus límites. |
 | [TEMPLATE_LIBRARY.md](TEMPLATE_LIBRARY.md) | **Librería de plantillas de utilidades** (`eng::util`): rasgos, `<bit>`, algoritmos sobre `Span` y contenedores de capacidad fija sin STL ni heap. |
 | [MINIFLOAT16.md](MINIFLOAT16.md) | Escalar de coma flotante de 16 bits `MiniFloat16` para 68000: formato 1\|5\|10, rango/precisión, rangos seguros de uso y coste. |
 | [GRAPHICS_DRIVERS.md](GRAPHICS_DRIVERS.md) | Modelo de drivers gráficos (estrategia de composición), `EhbScene` implementado y drivers planificados. |
