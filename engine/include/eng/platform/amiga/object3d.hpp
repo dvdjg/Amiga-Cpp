@@ -61,11 +61,12 @@ using Point3R = Point3S<eng::retro::q12>;
 /// consulta dentro del escalar (`scalar_sin<q12>`).
 using Angle3 = Point3R;
 
-/// Punto/vector 3D (mismo layout que `Point3D`).
+/// Punto/vector 3D (mismo layout que `Point3D`). Coordenada LONGITUD (`q0`): un entero
+/// tipado de 16 bits, así el campo dice su escala y el layout sigue siendo 3×2 bytes.
 struct Point3D {
-	s16 x = 0;
-	s16 y = 0;
-	s16 z = 0;
+	eng::retro::q0 x {};
+	eng::retro::q0 y {};
+	eng::retro::q0 z {};
 };
 
 /// Nodo de vértice: flags de visibilidad + punto original + punto transformado.
@@ -90,9 +91,10 @@ struct FaceIndex {
 };
 
 /// Cara: normal (para culling/iluminación) + flags/material + nº de índices.
-/// Los `FaceIndex` van a continuación (offset 10); se accede vía `face_indices`.
+/// La normal es un RATIO (`q12`); los `FaceIndex` van a continuación (offset 10); se
+/// accede vía `face_indices`.
 struct Face {
-	s16 normal[3] = {0, 0, 0};
+	eng::retro::q12 normal[3] = {};
 	s8 flags = 0;
 	s8 material = 0;
 	s16 count = 0;

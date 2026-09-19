@@ -144,16 +144,15 @@ inline void update_face_visibility(Object3D& object) {
 			{
 				const s16 i = object3d::face_indices(face)[0].vertex;
 				const Point3D* p = object3d::point3d(objdat, i);
-				px = static_cast<s16>(cx - p->x);
-				py = static_cast<s16>(cy - p->y);
-				pz = static_cast<s16>(cz - p->z);
+				px = static_cast<s16>(cx - p->x.v);
+				py = static_cast<s16>(cy - p->y.v);
+				pz = static_cast<s16>(cz - p->z.v);
 			}
-			s16* fn = face->normal;
 			// Normal = RATIO (4.12); camara-vertice = LONGITUD (entero). El producto
 			// `q12*q0` da el mismo `muls.w` que `mul_wide`, con el formato explicito, y
 			// aqui NO se normaliza: el original usa la escala cruda para el signo y la
 			// magnitud² de la luz.
-			const eng::retro::q12 nx {fn[0]}, ny {fn[1]}, nz {fn[2]};
+			const eng::retro::q12 nx = face->normal[0], ny = face->normal[1], nz = face->normal[2];
 			const eng::retro::q0 vx {px}, vy {py}, vz {pz};
 			const s32 v = (nx * vx).v + (ny * vy).v + (nz * vz).v;
 			const s32 e1_sq = (vx * vx).v + (vy * vy).v + (vz * vz).v;

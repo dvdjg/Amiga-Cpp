@@ -86,16 +86,15 @@ void update_face_visibility_fast(obj::Object3D& object) {
 				obj::Face* face = obj::face3d(objdat, f);
 				const eng::s16 i = obj::face_indices(face)[0].vertex;
 				const obj::Point3D* p = obj::point3d(objdat, i);
-				px = static_cast<eng::s16>(cx - p->x);
-				py = static_cast<eng::s16>(cy - p->y);
-				pz = static_cast<eng::s16>(cz - p->z);
+				px = static_cast<eng::s16>(cx - p->x.v);
+				py = static_cast<eng::s16>(cy - p->y.v);
+				pz = static_cast<eng::s16>(cz - p->z.v);
 			}
 			{
 				obj::Face* face = obj::face3d(objdat, f);
-				eng::s16* fn = face->normal;
-				const eng::s32 v = static_cast<eng::s32>(fn[0]) * px +
-						   static_cast<eng::s32>(fn[1]) * py +
-						   static_cast<eng::s32>(fn[2]) * pz;
+				const eng::s32 v = static_cast<eng::s32>(face->normal[0].v) * px +
+						   static_cast<eng::s32>(face->normal[1].v) * py +
+						   static_cast<eng::s32>(face->normal[2].v) * pz;
 				face->flags = static_cast<eng::s8>(v >= 0 ? 0 : -1);
 			}
 		}
@@ -203,10 +202,10 @@ void draw_object(obj::Object3D& object, eng::PlaneBytes bplpt, eng::amiga::Minim
 			const eng::s16 e1 = edge->point[1];
 			edge->flags = 0; // limpia visibilidad
 
-			x0 = obj::vertex3d(objdat, e0)->x;
-			y0 = obj::vertex3d(objdat, e0)->y;
-			x1 = obj::vertex3d(objdat, e1)->x;
-			y1 = obj::vertex3d(objdat, e1)->y;
+			x0 = obj::vertex3d(objdat, e0)->x.v;
+			y0 = obj::vertex3d(objdat, e0)->y.v;
+			x1 = obj::vertex3d(objdat, e1)->x.v;
+			y1 = obj::vertex3d(objdat, e1)->y.v;
 
 			backend.blitter_line(bplpt, kBytesPerRow, x0, y0, x1, y1);
 		}

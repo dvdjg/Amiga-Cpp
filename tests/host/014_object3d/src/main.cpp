@@ -33,9 +33,9 @@ int main() {
 
 	// Offsets de las macros (indice = offset de byte; primer vertice = 2).
 	const Point3D* p = point3d(bytes, 2);
-	check(p->x == 111 && p->y == 222 && p->z == 333, "point3d(i) -> point del nodo");
+	check(p->x.v == 111 && p->y.v == 222 && p->z.v == 333, "point3d(i) -> point del nodo");
 	const Point3D* v = vertex3d(bytes, 2);
-	check(v->x == 0 && v->y == 0 && v->z == 0, "vertex3d(i) -> vertex del nodo");
+	check(v->x.v == 0 && v->y.v == 0 && v->z.v == 0, "vertex3d(i) -> vertex del nodo");
 	check(reinterpret_cast<short*>(node3d(bytes, 2)) == data, "node3d(i) = objdat + i - 2");
 
 	// Transformacion: identidad + traslacion.

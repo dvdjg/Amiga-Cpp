@@ -233,10 +233,12 @@ void transform_all_vertices(obj::Object3D& object) {
 		while ((i = *group++)) {
 			obj::Point3D* p = obj::point3d(objdat, i);
 			obj::Point3D* v = obj::vertex3d(objdat, i);
-			const eng::math::Projected3 pr = Proj::project(pc, p->x, p->y, p->z);
-			v->x = static_cast<s16>(eng::math::div_wide(pr.xp, static_cast<s16>(pr.zp)) + kWidth / 2u);
-			v->y = static_cast<s16>(eng::math::div_wide(pr.yp, static_cast<s16>(pr.zp)) + kHeight / 2u);
-			v->z = static_cast<s16>(pr.zp);
+			const eng::math::Projected3 pr = Proj::project(pc, p->x.v, p->y.v, p->z.v);
+			v->x = eng::retro::q0 {static_cast<s16>(
+				eng::math::div_wide(pr.xp, static_cast<s16>(pr.zp)) + kWidth / 2u)};
+			v->y = eng::retro::q0 {static_cast<s16>(
+				eng::math::div_wide(pr.yp, static_cast<s16>(pr.zp)) + kHeight / 2u)};
+			v->z = eng::retro::q0 {static_cast<s16>(pr.zp)};
 		}
 	} while (*group);
 }
@@ -395,9 +397,9 @@ private:
 				}
 				++drawn;
 				obj::Point3D* data = obj::vertex3d(objdat, v);
-				s16 x = static_cast<s16>(data->x - 16);
-				const s16 y = static_cast<s16>(data->y - 16);
-				s16 z = data->z;
+				s16 x = static_cast<s16>(data->x.v - 16);
+				const s16 y = static_cast<s16>(data->y.v - 16);
+				s16 z = data->z.v;
 
 				z >>= 4;
 				z -= static_cast<s16>(-256);
@@ -461,9 +463,9 @@ private:
 			s16 v;
 			while ((v = *group++)) {
 				obj::Point3D* data = obj::vertex3d(objdat, v);
-				s16 x = data->x;
-				s16 y = data->y;
-				s16 z = data->z;
+				s16 x = data->x.v;
+				s16 y = data->y.v;
+				s16 z = data->z.v;
 
 				x -= 16;
 				y -= 16;

@@ -172,8 +172,8 @@ void draw_faces(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::Minim
 			const obj::FaceIndex* idx = obj::face_indices(face);
 			for (eng::s16 k = 0; k < face->count; ++k) {
 				const obj::Point3D* v = obj::vertex3d(objdat, idx[k].vertex);
-				xs[k] = v->x;
-				ys[k] = v->y;
+				xs[k] = v->x.v;
+				ys[k] = v->y.v;
 			}
 			backend.blitter_fill_polygon(planes, kPlanes, kBytesPerRow, kPlaneBytes,
 						     xs, ys, static_cast<eng::u8>(face->count),
@@ -262,10 +262,10 @@ void draw_edges(obj::Object3D& object, eng::PlaneBytes planes,
 				edge->flags = 0;
 				const obj::Point3D* a = obj::vertex3d(objdat, edge->point[0]);
 				const obj::Point3D* b = obj::vertex3d(objdat, edge->point[1]);
-				eng::s16 x0 = a->x;
-				eng::s16 y0 = a->y;
-				eng::s16 x1 = b->x;
-				eng::s16 y1 = b->y;
+				eng::s16 x0 = a->x.v;
+				eng::s16 y0 = a->y.v;
+				eng::s16 x1 = b->x.v;
+				eng::s16 y1 = b->y.v;
 				if (y0 == y1) {
 					continue;
 				}
