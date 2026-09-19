@@ -64,3 +64,26 @@ final los totales de showdowns, retiradas y acciones. Con `--out` escribe el inf
 a `out/cards/selfplay/` (gitignored).
 
 Compilación: usa `CXX` (por defecto `g++` del PATH) con `-I engine/include`.
+
+## `regression.sh` — detector de regresiones de nivel
+
+```bash
+tools/cards/regression.sh [--update]
+# se invoca desde tools/run-host-tests.sh en la pasada completa
+```
+
+Compila el selfplay y ejecuta un barrido **determinista** (`--compare --sweep` con
+semilla fija, 200 manos, 4 sesiones, `--table-samples 32`) y compara el CSV contra la
+**línea base congelada** `tools/cards/regression-baseline.csv`
+(`tools/cards/check-regression.mjs`).
+
+Como la simulación es determinista (misma semilla, aritmética entera), cualquier
+cambio en reglas, equity, IA o perfiles altera los números y hace **fallar** el gate:
+obliga a revisar si la regresión es intencionada y, si lo es, a regenerar la base con
+`--update`. Es la forma de detectar que una optimización o un cambio de nivel no
+degradó el juego.
+
+Además de comparar con la base, el checker valida invariantes independientes (todas
+las filas han jugado manos y tienen acciones). En esta versión la base tiene 5 filas
+(una por perfil).
+

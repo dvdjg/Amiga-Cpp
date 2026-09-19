@@ -119,13 +119,13 @@ Pendiente: rangos de subida, farol inducido por el tablero y equilibrio (bluff/v
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
 | C4.1 | `sim/session.hpp` | `run_session`: N manos, botón rota, net y `bb/100` | **HOST-165** (hecho) |
-| C4.2 | `tools/cards/selfplay` | Herramienta host de torneos CPU vs CPU (perfiles, estilos, tabla y rango) | **Hecho** (ejecutada) |
-| C4.3 | Matriz de rendimiento | Manos/s y muestras/s por CPU (68000/020/030) y perfil | **A500 hecho**: `demos/amiga/124_cards_bench` mide por TOD (50 Hz); `N20` ≈ 30 u/s, `N64` ≈ 1 u/s (685 ms), `N128` ≈ 6 s (no jugable). `N256`/`N512` y 020/030 pendientes |
+| C4.2 | `tools/cards/selfplay` | Herramienta host de torneos CPU vs CPU (perfiles, estilos, tabla y rango) | **Hecho** (ejecutada); **regresión de nivel** `regression.sh` + línea base, integrada en `run-host-tests.sh` |
+| C4.3 | Matriz de rendimiento | Manos/s y muestras/s por CPU (68000/020/030) y perfil | **A500 completo**: `demos/amiga/124_cards_bench` mide por TOD (50 Hz) — `N20` 30 u/s (33 ms), `N64` 1 u/s (641 ms), `N128` 2,75 s, `N256` 5,09 s, `N512` 44,6 s por unidad. Solo N20/N64 viables en 68000. 020/030 pendientes |
 
 Cierre: el nivel se ajusta desde host sin emulador; la matriz fija qué perfil es jugable en
-un A500 base. Primer resultado: **N20 y N64 son viables en A500**; `N128` y superiores no.
-Las muestras por perfil de `core/budget.hpp` se recalibraron con esta matriz (de 32/96/224/448
-a 8/16/32/64).
+un A500 base. Resultado: **solo N20 y N64 son viables en A500**; `N128`+ quedan para máquinas
+ampliadas. Las muestras por perfil de `core/budget.hpp` se recalibraron con esta matriz (de
+32/96/224/448 a 8/16/32/64).
 
 ### C5 — Juego en hardware
 

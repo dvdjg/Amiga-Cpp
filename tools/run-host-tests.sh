@@ -119,6 +119,16 @@ else
 		[ -d "$test_dir" ] || continue
 		run_test "${test_dir%/}"
 	done
+	# Regresion de nivel de los naipes: barrido determinista de selfplay contra la
+	# linea base congelada. Solo en la pasada completa (necesita g++ y node).
+	CARDS_REGRESSION="$ROOT/tools/cards/regression.sh"
+	if [ -f "$CARDS_REGRESSION" ]; then
+		echo "== cards regression =="
+		if ! CXX="$CXX" bash "$CARDS_REGRESSION"; then
+			echo "cards regression fallo: el nivel de eng::cards cambio (revisar/--update)" >&2
+			exit 1
+		fi
+	fi
 fi
 
 echo "Host tests finalizados."

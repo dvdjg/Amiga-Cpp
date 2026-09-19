@@ -17,19 +17,21 @@ y lo dibuja en pantalla. El perfil se elige en compilación con
 
 ## Evidencia medida (18/09/2026, A500/68000, release `-O2`, `--warp`)
 
-Unidad = 1 mano heads-up + 1 muestra de equity. Tiempo **emulado** (TOD a 50 Hz):
+Unidad = 1 mano heads-up + 1 muestra de equity. Tiempo **emulado** (TOD a 50 Hz),
+ventana de 10 s (varias unidades promediadas salvo en los perfiles lentos):
 
 | Perfil | Muestras MC/jugada | Unidades/s | ms/unidad | ¿Jugable en A500? |
 |---|---:|---:|---:|---|
-| `N20` | 0 (heurística) | **30** | 32 | sí |
-| `N64` | 8 | **1** | 685 | sí (≈0,1 s/decisión) |
-| `N128` | 16 | 0 | 6000 | no (muy lento) |
-| `N256` | 32 | — | — | no completó la ventana |
-| `N512` | 64 | — | — | no completó la ventana |
+| `N20` | 0 (heurística) | **30** | 33 | sí |
+| `N64` | 8 | **1** | 641 | sí (≈0,1 s/decisión) |
+| `N128` | 16 | 0 | 2750 | no |
+| `N256` | 32 | 0 | 5090 | no |
+| `N512` | 64 | 0 | 44600 | no |
 
-Conclusión: en un A500 base son viables `N20` y `N64`; `N128` y superiores apuntan a
-máquinas ampliadas (A1200/030). Las muestras por perfil de `core/budget.hpp` se
-calibraron con esta tabla (antes `N64`=32 tardaba ~6,5 s/mano).
+Conclusión: en un A500 base son viables **`N20` y `N64`**; `N128` y superiores (2,7–44,6 s
+por mano) **no** son jugables en tiempo real en un 68000 y quedan para máquinas ampliadas
+(A1200/030). Las muestras por perfil de `core/budget.hpp` se calibraron con esta tabla
+(antes `N64`=32 tardaba ~6,5 s/mano).
 
 Evidencia: `out/run/124_cards_bench/A500_release/run-report.json` (`status=ok`).
 
@@ -51,8 +53,7 @@ detail = (unidades_s << 16) | ms_por_unidad
 ## Estado
 
 - **Build OK** (toolchain m68k) y **run → READY OK** en WinUAE con `--warp`.
-- Matriz A500 de los cinco perfiles: N20/N64 medidos y calibrados; N128 medido (no
-  jugable); N256/N512 agotan la ventana de captura (pendiente una ventana mayor o
-  telemetría IRQ).
+- Matriz A500 **completa** (los cinco perfiles): N20/N64 viables y calibrados; N128,
+  N256 y N512 medidos como no jugables en 68000.
 - Pendiente: comparar CPU (68000 vs 020/030) con builds `-m68020` y config de
   emulador A1200 (el `build-demo.sh` fija `-m68000`).

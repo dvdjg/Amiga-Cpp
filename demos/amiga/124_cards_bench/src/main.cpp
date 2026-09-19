@@ -62,7 +62,7 @@ constexpr CardProfile kProfile = static_cast<CardProfile>(CARDS_BENCH_PROFILE);
 constexpr eng::u16 kTableSamples = 8u;
 constexpr eng::u8 kSeats = 2u;          // heads-up: mano corta
 constexpr eng::u16 kEquityBatch = 1u;   // muestras de equity dentro de la unidad
-constexpr eng::u32 kTargetTicks = 200u; // presupuesto de medida: 4 s emulados (50 Hz)
+constexpr eng::u32 kTargetTicks = 500u; // presupuesto de medida: 10 s emulados (50 Hz)
 constexpr eng::u32 kMaxUnits = 200000u;
 
 void append(char* dst, const char* src) {

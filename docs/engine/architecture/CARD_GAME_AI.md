@@ -82,9 +82,9 @@ materializa en un `CardPlan` (`core/budget.hpp`); ningún tamaño se fija con ma
 
 Las muestras están **calibradas en un A500 real** con `demos/amiga/124_cards_bench`
 (unidad = 1 mano + 1 muestra, cronometrada por TOD a 50 Hz): `N20` ≈ 30 unidades/s
-(32 ms), `N64` ≈ 1 unidad/s (685 ms) y `N128` ≈ 6 s/unidad (no jugable en un A500).
-`N20`/`N64` son los perfiles viables en un A500 base; `N128` y superiores apuntan a
-máquinas ampliadas (A1200/030).
+(33 ms), `N64` ≈ 1 unidad/s (641 ms), `N128` ≈ 2,75 s, `N256` ≈ 5,09 s y `N512` ≈ 44,6 s
+por unidad. `N20`/`N64` son los perfiles viables en un A500 base; `N128` y superiores
+apuntan a máquinas ampliadas (A1200/030).
 
 Notas:
 
