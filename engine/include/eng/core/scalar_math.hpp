@@ -334,4 +334,68 @@ struct scalar_const<Fixed<R, E, P>> {
 	}
 };
 
+// ============================================================================
+//  Ángulos: la unidad va en el TIPO
+// ============================================================================
+
+/// Unidades de ángulo. Son **tags** (el comportamiento lo aporta cada unidad).
+namespace angle {
+struct radians {}; ///< 2π = vuelta.
+struct turns {};   ///< 1.0 = vuelta (el índice 0..4095 del original en 4.12).
+struct degrees {}; ///< 360.0 = vuelta.
+struct unit {};    ///< 1.0 = vuelta (fracción 0..1).
+} // namespace angle
+
+/// Valor de ángulo `value` en la unidad `Unit`. Al llevar la unidad en el tipo, las
+/// funciones son `sin(angle)`/`cos(angle)` — nunca `cos_q12`/`sin_degrees`.
+template <class S, class Unit>
+struct Angle {
+	S value {};
+};
+
+/// Paso de una unidad de ángulo a radianes del escalar `S`.
+template <class S, class Unit>
+struct angle_radians;
+template <class S>
+struct angle_radians<S, angle::radians> {
+	static constexpr S op(S v) { return v; }
+};
+template <class S>
+struct angle_radians<S, angle::turns> {
+	static constexpr S op(S v) { return v * scalar_const<S>::from(6.28318530717958647692); }
+};
+template <class S>
+struct angle_radians<S, angle::unit> {
+	static constexpr S op(S v) { return v * scalar_const<S>::from(6.28318530717958647692); }
+};
+template <class S>
+struct angle_radians<S, angle::degrees> {
+	static constexpr S op(S v) { return v * scalar_const<S>::from(0.01745329251994329577); }
+};
+
+/// `sin`/`cos` de un `Angle<S,Unit>`: convierte a radianes y delega en `scalar_sin`/`cos`.
+/// Cada unidad/representación puede especializarlo (p. ej. `turns` sobre `q12` va a tabla).
+template <class S, class Unit>
+struct angle_sin {
+	static constexpr S op(Angle<S, Unit> a) {
+		return scalar_sin<S>::op(angle_radians<S, Unit>::op(a.value));
+	}
+};
+template <class S, class Unit>
+struct angle_cos {
+	static constexpr S op(Angle<S, Unit> a) {
+		return scalar_cos<S>::op(angle_radians<S, Unit>::op(a.value));
+	}
+};
+
+/// `sin`/`cos` de un ángulo: el punto de entrada. La unidad va en el tipo del argumento.
+template <class S, class Unit>
+[[nodiscard]] constexpr S sin(Angle<S, Unit> a) {
+	return angle_sin<S, Unit>::op(a);
+}
+template <class S, class Unit>
+[[nodiscard]] constexpr S cos(Angle<S, Unit> a) {
+	return angle_cos<S, Unit>::op(a);
+}
+
 } // namespace eng::math

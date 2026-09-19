@@ -102,6 +102,27 @@ int main() {
 		}
 	}
 
+	// 4) El angulo lleva la unidad en el TIPO (`Angle<S, Unit>`): un mismo `sin` sirve
+	//    para grados, vueltas y radianes sin funciones con el formato en el nombre.
+	{
+		using eng::math::Angle;
+		using namespace eng::math::angle;
+		const float s90 = eng::math::sin(Angle<float, degrees> {90.0f});
+		const float c_turn = eng::math::cos(Angle<float, turns> {0.25f}); // 1/4 vuelta
+		const float r = eng::math::sin(Angle<float, radians> {1.5707963268f});
+		if (s90 < 0.999f || s90 > 1.001f || c_turn > 0.001f || c_turn < -0.001f || r < 0.999f ||
+		    r > 1.001f) {
+			std::printf("[FAIL] Angle<degrees/turns/radians> (%.4f %.4f %.4f)\n", s90, c_turn, r);
+			++fails;
+		}
+		// `turns` sobre q12 va a la tabla exacta (índice == crudo del 4.12).
+		if (eng::retro::sin(eng::retro::turns(1024)).v != eng::retro::kSinQ12[1024] ||
+		    eng::retro::cos(eng::retro::turns(0)).v != eng::retro::kSinQ12[1024]) {
+			std::printf("[FAIL] turns/q12 no usa kSinTab\n");
+			++fails;
+		}
+	}
+
 	if (fails) {
 		std::printf("[FAIL] HOST-177: %d comprobacion(es)\n", fails);
 		return 1;

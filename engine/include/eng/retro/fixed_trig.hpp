@@ -31,24 +31,16 @@ inline constexpr u16 kHalfPi = 1024;
 /// Pasos por vuelta de la tabla de seno.
 inline constexpr u32 kAngleSteps = 4096;
 
-/// Ángulo medido en **vueltas** (1 vuelta = 4096 pasos = `1.0` en 4.12). Es la
-/// convención del original (`SIN(a)` con `a` un índice). La **unidad va en el tipo**, así
-/// que las funciones son `sin`/`cos` genéricas sobre el tipo de ángulo, no `cos_q12`.
-struct Turns {
-	q12 value {};
-};
+/// Ángulo medido en **vueltas** sobre `q12`: es `Angle<q12, angle::turns>` (la unidad va
+/// en el tipo, así que `sin`/`cos` son genéricas y no hay `cos_q12`).
+using Turns = eng::math::Angle<q12, eng::math::angle::turns>;
 
 /// Construye un ángulo en vueltas desde el índice entero `0..4095` del original.
 constexpr Turns turns(u16 a) { return Turns {q12 {static_cast<s16>(a)}}; }
 
-/// Seno de un ángulo en vueltas (tabla 4.12 **exacta** del original).
-constexpr q12 sin(Turns a) {
-	return q12 {kSinQ12[static_cast<u16>(a.value.v) & (kAngleSteps - 1u)]};
-}
-/// Coseno de un ángulo en vueltas.
-constexpr q12 cos(Turns a) {
-	return q12 {kSinQ12[(static_cast<u16>(a.value.v) + kHalfPi) & (kAngleSteps - 1u)]};
-}
+/// Reexporta `sin`/`cos` genéricos para que `eng::retro::sin(angle)` funcione.
+using eng::math::cos;
+using eng::math::sin;
 
 /// Convierte un **índice** de ángulo (0..4095 = 0..2π) a radianes 4.12. Redondeo al más
 /// cercano; el viaje índice→radianes→índice es exacto (se comprueba en HOST-177).
@@ -61,6 +53,24 @@ constexpr q12 angle_to_radians(u32 steps) {
 } // namespace eng::retro
 
 namespace eng::math {
+
+/// `sin`/`cos` de un ángulo en vueltas sobre `q12`: tabla 4.12 **exacta** del original
+/// (el índice es el crudo del 4.12, así que el viaje es exacto).
+template <typename P>
+struct angle_sin<Fixed<s16, 12, P>, angle::turns> {
+	static constexpr Fixed<s16, 12, P> op(Angle<Fixed<s16, 12, P>, angle::turns> a) {
+		return Fixed<s16, 12, P> {
+			eng::retro::kSinQ12[static_cast<u16>(a.value.v) & (eng::retro::kAngleSteps - 1u)]};
+	}
+};
+template <typename P>
+struct angle_cos<Fixed<s16, 12, P>, angle::turns> {
+	static constexpr Fixed<s16, 12, P> op(Angle<Fixed<s16, 12, P>, angle::turns> a) {
+		return Fixed<s16, 12, P> {eng::retro::kSinQ12[(static_cast<u16>(a.value.v) +
+								eng::retro::kHalfPi) &
+							       (eng::retro::kAngleSteps - 1u)]};
+	}
+};
 
 namespace detail {
 
