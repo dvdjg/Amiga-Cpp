@@ -15,9 +15,9 @@ using eng::u16;
 
 // --- Implementaciones NUEVAS, espejo de math3d::load_rotate / load_reverse_rotate ---
 static Mat<3, q12> new_load_rotate(u16 ax, u16 ay, u16 az) {
-	const q12 sinX {eng::retro::sin_q12(ax)}, cosX {eng::retro::cos_q12(ax)};
-	const q12 sinY {eng::retro::sin_q12(ay)}, cosY {eng::retro::cos_q12(ay)};
-	const q12 sinZ {eng::retro::sin_q12(az)}, cosZ {eng::retro::cos_q12(az)};
+	const q12 sinX {eng::retro::sin(turns(ax)).v}, cosX {eng::retro::cos(turns(ax)).v};
+	const q12 sinY {eng::retro::sin(turns(ay)).v}, cosY {eng::retro::cos(turns(ay)).v};
+	const q12 sinZ {eng::retro::sin(turns(az)).v}, cosZ {eng::retro::cos(turns(az)).v};
 
 	const q12 tmp0 = dot(sinY, cosZ);
 	const q12 tmp1 = dot(sinY, sinZ);
@@ -36,9 +36,9 @@ static Mat<3, q12> new_load_rotate(u16 ax, u16 ay, u16 az) {
 }
 
 static Mat<3, q12> new_load_reverse_rotate(u16 ax, u16 ay, u16 az) {
-	const q12 sinX {eng::retro::sin_q12(ax)}, cosX {eng::retro::cos_q12(ax)};
-	const q12 sinY {eng::retro::sin_q12(ay)}, cosY {eng::retro::cos_q12(ay)};
-	const q12 sinZ {eng::retro::sin_q12(az)}, cosZ {eng::retro::cos_q12(az)};
+	const q12 sinX {eng::retro::sin(turns(ax)).v}, cosX {eng::retro::cos(turns(ax)).v};
+	const q12 sinY {eng::retro::sin(turns(ay)).v}, cosY {eng::retro::cos(turns(ay)).v};
+	const q12 sinZ {eng::retro::sin(turns(az)).v}, cosZ {eng::retro::cos(turns(az)).v};
 
 	const q12 tmp0 = dot(sinX, sinY);
 	const q12 tmp1 = dot(cosX, sinY);

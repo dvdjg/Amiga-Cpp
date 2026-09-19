@@ -792,18 +792,18 @@ void t_integer_utils() {
 // ============================================================================
 
 void t_angles() {
-	case_begin("sin_q12/cos_q12 (tabla)", 1, 8);
-	eqi(er::sin_q12(0), 0);
-	eqi(er::sin_q12(er::kHalfPi), 4096); // sin(π/2) = 1.0
-	eqi(er::sin_q12(2048), 0);           // sin(π) = 0
-	eqi(er::sin_q12(3072), -4096);       // sin(3π/2) = -1.0
-	eqi(er::cos_q12(0), 4096);           // cos(0) = 1.0
-	eqi(er::cos_q12(er::kHalfPi), 0);
-	eqi(er::cos_q12(2048), -4096);       // cos(π) = -1.0
+	case_begin("sin/cos (turns)", 1, 8);
+	eqi(er::sin(er::turns(0)).v, 0);
+	eqi(er::sin(er::turns(er::kHalfPi)).v, 4096); // sin(π/2) = 1.0
+	eqi(er::sin(er::turns(2048)).v, 0);           // sin(π) = 0
+	eqi(er::sin(er::turns(3072)).v, -4096);       // sin(3π/2) = -1.0
+	eqi(er::cos(er::turns(0)).v, 4096);           // cos(0) = 1.0
+	eqi(er::cos(er::turns(er::kHalfPi)).v, 0);
+	eqi(er::cos(er::turns(2048)).v, -4096);       // cos(π) = -1.0
 	// Identidad pitagórica sobre toda la tabla (el redondeo del 4.12 deja ~ULPs).
 	for (eng::u16 a = 0; a < er::kAngleSteps; a = static_cast<eng::u16>(a + 137u)) {
-		const s32 s = er::sin_q12(a);
-		const s32 c = er::cos_q12(a);
+		const s32 s = er::sin(er::turns(a)).v;
+		const s32 c = er::cos(er::turns(a)).v;
 		eqi(((s * s + c * c) + 2048) >> 12, 4096); // 1.0 en 4.12
 	}
 	case_end();

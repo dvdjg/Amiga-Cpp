@@ -10,9 +10,11 @@
 ///   va en **radianes** (igual que en `float`/`double` y que en `fixed_math.hpp`). Es la
 ///   que usan los algoritmos genéricos (p. ej. `math3d::load_rotate`), de modo que un mismo
 ///   algoritmo se instancia con `float` o con `q12` sin cambios.
-/// - **De índice** (`sin_q12`/`cos_q12`, índice `0..4095`): es la forma cruda del original
-///   y la que usan los generadores de tablas que necesitan la posición exacta (`plasma`,
-///   tests de la tabla). `angle_to_radians` convierte el índice a radianes.
+/// - **Ángulo en vueltas** (`Turns` + `sin`/`cos`): la convención del original, con el
+///   índice `0..4095` (vueltas) **en el tipo**, no en el nombre de la función. Es la que
+///   usan los generadores de tablas que necesitan la posición exacta (`plasma`, tests de
+///   la tabla). `angle_to_radians` convierte vueltas/índice a radianes para las APIs
+///   genéricas.
 ///
 /// Sólo esta cabecera (retro) nombra `Fixed<s16,12>`; el núcleo no conoce el formato Q.
 
@@ -29,10 +31,24 @@ inline constexpr u16 kHalfPi = 1024;
 /// Pasos por vuelta de la tabla de seno.
 inline constexpr u32 kAngleSteps = 4096;
 
-/// Seno de un ángulo `a` (índice 0..4095 = 0..2π) en 4.12 (tabla del original).
-constexpr fix sin_q12(u16 a) { return kSinTab[a & (kAngleSteps - 1u)]; }
-/// Coseno de un ángulo `a` (índice) en 4.12.
-constexpr fix cos_q12(u16 a) { return kSinTab[(a + kHalfPi) & (kAngleSteps - 1u)]; }
+/// Ángulo medido en **vueltas** (1 vuelta = 4096 pasos = `1.0` en 4.12). Es la
+/// convención del original (`SIN(a)` con `a` un índice). La **unidad va en el tipo**, así
+/// que las funciones son `sin`/`cos` genéricas sobre el tipo de ángulo, no `cos_q12`.
+struct Turns {
+	q12 value {};
+};
+
+/// Construye un ángulo en vueltas desde el índice entero `0..4095` del original.
+constexpr Turns turns(u16 a) { return Turns {q12 {static_cast<s16>(a)}}; }
+
+/// Seno de un ángulo en vueltas (tabla 4.12 **exacta** del original).
+constexpr q12 sin(Turns a) {
+	return q12 {kSinQ12[static_cast<u16>(a.value.v) & (kAngleSteps - 1u)]};
+}
+/// Coseno de un ángulo en vueltas.
+constexpr q12 cos(Turns a) {
+	return q12 {kSinQ12[(static_cast<u16>(a.value.v) + kHalfPi) & (kAngleSteps - 1u)]};
+}
 
 /// Convierte un **índice** de ángulo (0..4095 = 0..2π) a radianes 4.12. Redondeo al más
 /// cercano; el viaje índice→radianes→índice es exacto (se comprueba en HOST-177).

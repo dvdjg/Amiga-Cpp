@@ -77,10 +77,10 @@ int main() {
 	}
 
 	// Tabla de seno (4.12).
-	check(sin_q12(0) == 0, "sin 0");
-	near(sin_q12(1024), 4096, 1, "sin pi/2");
-	near(sin_q12(2048), 0, 1, "sin pi");
-	near(cos_q12(0), 4096, 1, "cos 0");
+	check(sin(turns(0)).v == 0, "sin 0");
+	near(sin(turns(1024)).v, 4096, 1, "sin pi/2");
+	near(sin(turns(2048)).v, 0, 1, "sin pi");
+	near(cos(turns(0)).v, 4096, 1, "cos 0");
 
 	// Flags de punto respecto a la ventana.
 	const Rect win = rect(0, 0, 320, 256);
