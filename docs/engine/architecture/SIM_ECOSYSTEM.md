@@ -13,6 +13,10 @@ Esta familia es **distinta de `eng::ai`** ([GAME_AI_LIBRARY.md](GAME_AI_LIBRARY.
 percepción); `eng::sim` aporta el **modelo de entidad viva** y reutiliza esas primitivas.
 El eje `eng::board` ([BOARD_GAME_AI.md](BOARD_GAME_AI.md)) cubre la búsqueda por turnos.
 
+La **capa de persona** ([NPC_PSYCHOLOGY.md](NPC_PSYCHOLOGY.md)) extiende `eng::sim` con
+arquetipos, expresión no verbal, lectura de tells y evolución psicológica de partida; el
+primer consumidor es `eng::cards` ([CARD_GAME_AI.md](CARD_GAME_AI.md)).
+
 ## 1. Principio: tres planos y un LOD de simulación
 
 La viabilidad en un A500 (7 MHz, 512 KB–1 MB) no sale de un algoritmo aislado, sino de

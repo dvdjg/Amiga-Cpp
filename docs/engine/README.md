@@ -13,6 +13,7 @@ docs/engine/
 │   ├── GRAPHICS_DRIVERS.md          → drivers de gráficos
 │   ├── GAME_AI_LIBRARY.md           → IA de juego (planificación/GOAP, decisión, navegación…)
 │   ├── SIM_ECOSYSTEM.md             → ecosistema vivo (eng::sim): criaturas, mente, sociedad y LOD
+│   ├── NPC_PSYCHOLOGY.md            → perfil psicológico de NPC (arquetipos, expresión no verbal, lectura de tells, evolución, convenciones)
 │   ├── BOARD_GAME_AI.md             → motores de tablero (ajedrez/Go), footprint y NLG
 │   ├── CARD_GAME_AI.md              → motores de naipes (póker): baraja, reglas, equity, IA y simulación
 │   ├── PARALLEL_AND_THREADS.md      → concurrencia abstracta (eng::parallel): no-op m68k, std en host

@@ -17,6 +17,11 @@ primitivas de `eng::util`, `eng::math` y el PRNG `eng::Xoroshiro64pp`, y no las 
 Plan de crecimiento y catálogo de fases: [ROADMAP_CARD_GAMES.md](../../guides/roadmap/ROADMAP_CARD_GAMES.md).
 Estructura del repositorio: [STRUCTURE.md](../../STRUCTURE.md) §3.
 
+El **perfil psicológico de los jugadores** (arquetipos, expresión no verbal, lectura de
+tells y evolución de partida) es una capa transversal de `eng::sim` que consume este motor:
+[NPC_PSYCHOLOGY.md](NPC_PSYCHOLOGY.md) (diseño) y
+[ROADMAP_NPC_PSYCHOLOGY.md](../../guides/roadmap/ROADMAP_NPC_PSYCHOLOGY.md) (plan).
+
 ## 1. Capas y estructura
 
 La familia se organiza por **responsabilidad**, con el núcleo abajo y los consumidores
