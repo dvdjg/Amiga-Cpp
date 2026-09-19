@@ -140,9 +140,49 @@ struct Object3D {
 	eng::u32 objdat_size = 0; // tamaño del blob (para la vista `Span<u8>`)
 };
 
+/// Diagnóstico: el descriptor de malla no cuadra con su blob. `illegal` en m68k.
+[[noreturn]] inline void mesh_invalid() { __builtin_trap(); }
+
+/// Valida lo mínimo del descriptor de malla: que los grupos referenciados quepan en el
+/// blob. El recorrido está acotado al propio blob (no lee fuera aunque el asset no
+/// termine en 0). Devuelve `false` si el asset está corrupto o sin `bytes`.
+[[nodiscard]] inline bool mesh_validate(const Mesh3D& mesh) {
+	if (mesh.bytes.empty()) {
+		return false;
+	}
+	const eng::u8* base = mesh.bytes.data();
+	const eng::u32 n = static_cast<eng::u32>(mesh.bytes.size());
+	const eng::u8* end = base + n;
+	const s16* groups[] = {mesh.vertexGroups, mesh.edgeGroups, mesh.faceGroups, mesh.objects};
+	for (const s16* g : groups) {
+		if (g == nullptr) {
+			continue;
+		}
+		const eng::u8* gp = reinterpret_cast<const eng::u8*>(g);
+		if (gp < base || gp + 2 > end) {
+			return false;
+		}
+		for (const s16* p = g; reinterpret_cast<const eng::u8*>(p) + 2 <= end; ++p) {
+			const s16 off = *p;
+			if (off == 0) {
+				break;
+			}
+			if (off < 0 || static_cast<eng::u32>(off) >= n) {
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
 /// Enlaza el mesh al objeto (equivalente a `NewObject3D` sin reservar memoria: el
-/// `Object3D` es del llamador). `scale` queda a 1.0 (4.12).
+/// `Object3D` es del llamador). `scale` queda a 1.0 (4.12). **Valida** el descriptor
+/// antes de enlazarlo: un asset corrupto detiene la CPU en vez de corromper memoria en
+/// el recorrido por offsets.
 inline void new_object3d(Object3D& object, const Mesh3D& mesh) {
+	if (!mesh_validate(mesh)) {
+		mesh_invalid();
+	}
 	object.objdat = mesh.bytes.data();
 	object.objdat_size = static_cast<eng::u32>(mesh.bytes.size());
 	object.vertexGroups = mesh.vertexGroups;
@@ -155,28 +195,6 @@ inline void new_object3d(Object3D& object, const Mesh3D& mesh) {
 /// Vista de bytes del blob de un `Object3D` (mutable): lo que consumen los accesores.
 [[nodiscard]] inline eng::Span<eng::u8> object_bytes(const Object3D& object) {
 	return eng::Span<eng::u8> {object.objdat, object.objdat_size};
-}
-
-/// Valida lo mínimo del descriptor de malla: que los grupos referenciados quepan en el
-/// blob. Devuelve `false` si el asset está corrupto o sin `bytes`.
-[[nodiscard]] inline bool mesh_validate(const Mesh3D& mesh) {
-	if (mesh.bytes.empty()) {
-		return false;
-	}
-	const eng::u32 n = static_cast<eng::u32>(mesh.bytes.size());
-	const s16* groups[] = {mesh.vertexGroups, mesh.edgeGroups, mesh.faceGroups, mesh.objects};
-	for (const s16* g : groups) {
-		if (g == nullptr) {
-			continue;
-		}
-		for (const s16* p = g; *p; ++p) {
-			const s16 off = *p;
-			if (off < 0 || static_cast<eng::u32>(off) >= n) {
-				return false;
-			}
-		}
-	}
-	return true;
 }
 
 // --- Acceso al `objdat` empaquetado (macros del original) --------------------

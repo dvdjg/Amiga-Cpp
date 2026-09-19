@@ -316,3 +316,11 @@ Pasos:
 - **Instancia por defecto**: los alias usan `eng::real`/`eng::coord`; los tests host de la
   capa Amiga fijan `-DENG_SCALAR_RETRO16` para validar la instancia de producción
   (`eng::real=q12`, `coord=q0`).
+- **Blob `obj2c` tipado** (`object3d`): `Mesh3D::bytes`/`Object3D::objdat` son `Span<u8>`
+  (ya no `void*`), los campos llevan su escala (`Point3D` q0, `Face::normal` q12) y
+  `new_object3d` valida el descriptor (`mesh_validate`). Los **grupos y offsets siguen
+  `s16`**: son offsets de byte del `obj2c` (y del asm `flatshade_asm.s`), no escalares.
+- **Por qué `Object3D`/`Mesh3D` no se plantillan sobre el escalar**: su layout es ABI
+  (el asm lee `objdat`@0, grupos@4/8/12, `objectToWorld`@38…); meter un `Span`/tipo más
+  ancho en esos campos movería los offsets. La generalización aplica a la **aritmética**
+  (`Affine3<>`/`P3<>`/`load_rotate`), no al layout empaquetado.

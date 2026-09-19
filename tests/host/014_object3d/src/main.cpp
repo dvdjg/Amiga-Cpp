@@ -31,6 +31,18 @@ int main() {
 	check(obj.objdat == bytes.data() && obj.objdat_size == bytes.size(), "new_object3d enlaza objdat");
 	check(obj.scale.x.v == (1 << 12) && obj.scale.y.v == (1 << 12), "scale inicial 1.0 (4.12)");
 
+	// Validacion del descriptor: blob no vacio y grupos dentro de rango.
+	check(mesh_validate(mesh), "mesh_validate: malla valida");
+	{
+		Mesh3D no_blob = mesh;
+		no_blob.bytes = {};
+		check(!mesh_validate(no_blob), "mesh_validate: sin blob -> false");
+		static short bad_group[2] = {1000, 0};
+		Mesh3D out_of_range = mesh;
+		out_of_range.vertexGroups = bad_group;
+		check(!mesh_validate(out_of_range), "mesh_validate: grupo fuera de rango -> false");
+	}
+
 	// Offsets de las macros (indice = offset de byte; primer vertice = 2).
 	const Point3D* p = point3d(bytes, 2);
 	check(p->x.v == 111 && p->y.v == 222 && p->z.v == 333, "point3d(i) -> point del nodo");
