@@ -439,4 +439,51 @@ constexpr void compute_leaks(const Mind& mind, const LeakContext& ctx,
 	}
 }
 
+/// Entrada del **humano** como personaje: gestos explícitos (botones/combinaciones) y
+/// gestos **implícitos** por *timing* (cuánto tarda en responder). El motor no distingue
+/// el origen: produce las mismas `LeakedGesture` que un NPC, de modo que la mesa lo lee
+/// igual (`read.hpp`).
+struct InputExpression {
+	bool gesture_a = false;       ///< gesto pactado A (p. ej. picor de oreja)
+	bool gesture_b = false;       ///< gesto pactado B (p. ej. fosas nasales)
+	bool gesture_c = false;       ///< gesto pactado C (p. ej. relamerse)
+	bool quick_response = false;  ///< respondió de golpe (instant call/raise)
+	bool long_tank = false;       ///< tardó mucho en responder (piensa/trampa)
+	bool fidget = false;          ///< entrada errática (nervios)
+};
+
+/// Convierte la entrada del humano en fugas visibles. El *timing* es el canal más
+/// natural: responder de golpe o tardar mucho son tells objetivos que no dependen de
+/// dibujar una cara.
+[[nodiscard]] constexpr LeakList expression_from_input(const InputExpression& in,
+                                                       const ExpressionParams& p =
+                                                           ExpressionParams {}) noexcept {
+	LeakList out;
+	const eng::u8 visible = p.leak_visible;
+	auto add = [&](GestureKind g, eng::u8 intensity) {
+		if (intensity >= visible) {
+			(void)out.push_back(LeakedGesture {g, intensity, intensity <= p.micro_max});
+		}
+	};
+	if (in.gesture_a) {
+		add(GestureKind::EarScratch, 80u);
+	}
+	if (in.gesture_b) {
+		add(GestureKind::NoseFlare, 80u);
+	}
+	if (in.gesture_c) {
+		add(GestureKind::LickLips, 80u);
+	}
+	if (in.quick_response) {
+		add(GestureKind::InstantCall, 70u);
+	}
+	if (in.long_tank) {
+		add(GestureKind::Tank, 70u);
+	}
+	if (in.fidget) {
+		add(GestureKind::Fidget, 60u);
+	}
+	return out;
+}
+
 } // namespace eng::sim

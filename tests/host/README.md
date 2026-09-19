@@ -244,4 +244,5 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-201 | [sim_read](201_sim_read/README.md) | `eng/sim/read.hpp`: lectura de tells (aprendizaje en showdown, Bayes-lite, prior por arquetipo y suspicacia; pardillo vs listillo). |
 | HOST-202 | [sim_psyche](202_sim_psyche/README.md) | `eng/sim/psyche.hpp`: estado temporal (tilt, confianza, racha, fatiga) y evolución por eventos de mesa. |
 | HOST-203 | [sim_convention](203_sim_convention/README.md) | `eng/sim/convention.hpp`: convenciones secretas (pacto gesto→señal, disimulo, exposición e inferencia) — base del Mus. |
-| HOST-204 | [cards_persona](204_cards_persona/README.md) | `eng/cards/ai/persona_bot.hpp`: parámetros del bot por arquetipo/estado, emisión de tells y lectura de rivales. |
+| HOST-204 | [cards_persona](204_cards_persona/README.md) | `eng/cards/ai/persona_bot.hpp`: parámetros del bot por arquetipo/estado, emisión de tells, lectura de rivales y rango combinado con tells. |
+| HOST-205 | [sim_input_expression](205_sim_input_expression/README.md) | `eng/sim/expression.hpp::expression_from_input`: el humano como personaje (gestos explícitos + timing) y lectura simétrica por la mesa. |

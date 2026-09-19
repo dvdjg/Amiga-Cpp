@@ -151,4 +151,68 @@ inline void read_showdown(eng::sim::ReadModel<MaxTargets, NumGestures>& model, u
 	                         leaked.span());
 }
 
+/// Indicio agregado de los tells de `target`: el `tell_indicio` de mayor magnitud entre
+/// los gestos vistos (positivo = suele tener mano fuerte; negativo = suele tener débil).
+template <eng::usize MaxTargets, eng::usize NumGestures>
+[[nodiscard]] inline eng::s16 tell_signal(const eng::sim::ReadModel<MaxTargets, NumGestures>& model,
+                                          u8 target,
+                                          const eng::sim::ReadParams& p =
+                                              eng::sim::ReadParams {}) noexcept {
+	eng::s16 best = 0;
+	for (u8 g = 0u; g < kPokerGestureCount; ++g) {
+		const eng::s16 ind = eng::sim::tell_indicio(model, target, g, p);
+		const eng::s16 mag = ind < 0 ? static_cast<eng::s16>(-ind) : ind;
+		const eng::s16 best_mag = best < 0 ? static_cast<eng::s16>(-best) : best;
+		if (mag > best_mag) {
+			best = ind;
+		}
+	}
+	return best;
+}
+
+/// Rango de un rival combinando su **línea de apuesta** (`opponent_range_from_model`) con
+/// el **tell leído** (`ReadModel`). Un tell que apunta a mano fuerte **estrecha** el rango
+/// (juega menos manos y mejores); uno que apunta a debilidad lo **ensancha**. Requiere la
+/// tabla preflop; si no está, deja el rango completo.
+template <eng::usize MaxTargets, eng::usize NumGestures>
+inline void opponent_range_with_tells(const OpponentModel& model,
+                                      const eng::sim::ReadModel<MaxTargets, NumGestures>& reads,
+                                      const Table& t, u8 hero_seat, const PreflopTable* table,
+                                      HandRange& out, const eng::sim::ReadParams& rp =
+                                          eng::sim::ReadParams {}) noexcept {
+	if (table == nullptr || !table->ready) {
+		out.set_all();
+		return;
+	}
+	const u16 base_wide = opponent_range_width_permille(model, t, hero_seat);
+	// Indicio medio de los rivales vivos: estrecha si positivo, ensancha si negativo.
+	eng::s16 signal_sum = 0;
+	u8 n = 0u;
+	for (u8 i = 0u; i < t.seat_count; ++i) {
+		const SeatStatus st = t.seats[i].status;
+		if (i != hero_seat && (st == SeatStatus::Active || st == SeatStatus::AllIn)) {
+			signal_sum = static_cast<eng::s16>(signal_sum + tell_signal(reads, i, rp));
+			++n;
+		}
+	}
+	if (n == 0u) {
+		make_range_by_percentile(*table, out, base_wide);
+		return;
+	}
+	const eng::s16 signal = eng::math::div_wide(static_cast<eng::s32>(signal_sum),
+	                                            static_cast<eng::s16>(n));
+	// El tell ajusta el ancho hasta ±33 ‰ (indicio ±100 / 3). Un tell de **fuerza**
+	// (positivo) estrecha el rango; uno de debilidad (negativo) lo ensancha.
+	const eng::s16 adjust = eng::math::div_wide(static_cast<eng::s32>(signal),
+	                                            static_cast<eng::s16>(3));
+	eng::s32 wide = static_cast<eng::s32>(base_wide) - adjust;
+	if (wide < 80) {
+		wide = 80;
+	}
+	if (wide > 850) {
+		wide = 850;
+	}
+	make_range_by_percentile(*table, out, static_cast<u16>(wide));
+}
+
 } // namespace eng::cards

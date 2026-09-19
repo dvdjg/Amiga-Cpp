@@ -529,13 +529,16 @@ La verificación sigue las reglas de `docs/testing/README.md`: test host por pie
 | `sim/convention.hpp` (convenciones secretas, base del Mus) | **Implementado**: HOST-203 |
 | `eng/cards/ai/persona_bot.hpp` (integración con `eng::cards`) | **Implementado**: HOST-204 |
 | `sim/body.hpp` `pose_from_gesture` (postura desde gesto) | **Implementado** (cubierto por HOST-204/200) |
-| Avatares del juego y humano como personaje (ajedrez/Go) | Pendiente (P5 avatares, P6) |
+| `expression_from_input` (humano como personaje) | **Implementado**: HOST-205 |
+| Avatares del juego | **Implementado en `games/200_holdem`**: caras que reflejan los tells (build → run → analyze OK) |
+| NPC reactivo al ritmo del humano en ajedrez/Go (P6.3) y señales voluntarias (P6.4) | Pendiente |
 
 > Estado: P0 (persona/arquetipos), P1 (expresión/fuga), P2 (lectura), P3 (evolución), P4
-> (convenciones) y P5 (integración con `eng::cards`) implementados y verificados por test
-> host (HOST-199…204); el codegen 68000 está libre de libcalls e instrucciones 68020 y los
-> tamaños m68k están fijados (`Persona` 52 B, `PsycheState` 8 B, `Convention` 22 B…). Queda
-> pendiente la representación (avatares) en el juego y P6 (humano como personaje y
-> expresión en ajedrez/Go). El plan por fases y los criterios de cierre están en
+> (convenciones), P5 (integración con `eng::cards`, rango con tells y avatares del juego) y
+> P6.1/P6.2 (humano como personaje) implementados y verificados por test host
+> (HOST-199…205) y, el juego, por build → run → analyze. El codegen 68000 está libre de
+> libcalls e instrucciones 68020 y los tamaños m68k están fijados. Queda pendiente P6.3
+> (NPC de ajedrez/Go reactivo al ritmo del humano) y P6.4 (señales voluntarias). El plan por
+> fases y los criterios de cierre están en
 > [ROADMAP_NPC_PSYCHOLOGY.md](../../guides/roadmap/ROADMAP_NPC_PSYCHOLOGY.md), fuente única
 > del avance. Este documento describe el diseño vigente y no se duplica allí.

@@ -267,16 +267,12 @@ namespace detail {
 	return category_strength_permille(seat_hand_value(t, seat));
 }
 
-/// Rango de rival derivado del modelo observado: un rival que se retira mucho juega
-/// menos manos (rango estrecho) y uno agresivo/pegajoso juega más. Requiere la tabla
-/// preflop lista para ordenar por equity; si no lo está, deja el rango completo.
-/// Coste O(N) sobre `table->order`.
-inline void opponent_range_from_model(const OpponentModel& model, const Table& t, u8 hero_seat,
-                                      const PreflopTable* table, HandRange& out) noexcept {
-	if (table == nullptr || !table->ready) {
-		out.set_all();
-		return;
-	}
+/// Ancho de rango (por mil) que sugiere el modelo observado: 400 ‰ por defecto;
+/// retirarse mucho estrecha el rango y la agresividad sostenida lo ensancha. La **línea de
+/// la calle actual** manda: si el rival sube, juega menos manos y mejores, así que estrecha
+/// el rango. Rango de salida `[80, 850]`.
+[[nodiscard]] inline u16 opponent_range_width_permille(const OpponentModel& model, const Table& t,
+                                                       u8 hero_seat) noexcept {
 	u16 fold_sum = 0u;
 	u16 aggr_sum = 0u;
 	u16 line_sum = 0u;
@@ -291,15 +287,11 @@ inline void opponent_range_from_model(const OpponentModel& model, const Table& t
 		}
 	}
 	if (n == 0u) {
-		out.set_all();
-		return;
+		return 400u;
 	}
 	const u16 fold = static_cast<u16>(div32(fold_sum, n));
 	const u16 aggr = static_cast<u16>(div32(aggr_sum, n));
 	const u16 line = static_cast<u16>(div32(line_sum, n));
-	// 400 ‰ por defecto; retirarse mucho estrecha el rango y la agresividad sostenida
-	// lo ensancha. La **línea de la calle actual** manda: si el rival sube, juega menos
-	// manos y mejores, así que estrecha el rango.
 	s32 wide = 400 + (300 - static_cast<s32>(fold)) + (static_cast<s32>(aggr) - 300) / 2 -
 	           (static_cast<s32>(line) - 300) / 2;
 	if (wide < 80) {
@@ -308,7 +300,19 @@ inline void opponent_range_from_model(const OpponentModel& model, const Table& t
 	if (wide > 850) {
 		wide = 850;
 	}
-	make_range_by_percentile(*table, out, static_cast<u16>(wide));
+	return static_cast<u16>(wide);
+}
+
+/// Rango de rival derivado del modelo observado (usa `opponent_range_width_permille`).
+/// Requiere la tabla preflop lista para ordenar por equity; si no lo está, deja el rango
+/// completo. Coste O(N) sobre `table->order`.
+inline void opponent_range_from_model(const OpponentModel& model, const Table& t, u8 hero_seat,
+                                      const PreflopTable* table, HandRange& out) noexcept {
+	if (table == nullptr || !table->ready) {
+		out.set_all();
+		return;
+	}
+	make_range_by_percentile(*table, out, opponent_range_width_permille(model, t, hero_seat));
 }
 
 /// Decide la acción de `seat`. Respeta siempre la lista de acciones legales.

@@ -31,11 +31,12 @@ leerlos** con el tiempo. Debe ser determinista, entero, sin heap y con footprint
 - **Implementado**: rasgos de psique/aptitudes/defectos y arquetipos (`psyche_traits.hpp`,
   `archetypes.hpp`, `persona.hpp`, HOST-199), expresión y fuga (`expression.hpp`, HOST-200),
   lectura de tells (`read.hpp`, HOST-201), evolución de partida (`psyche.hpp`, HOST-202),
-  convenciones secretas (`convention.hpp`, HOST-203), postura desde gesto (`body.hpp`) e
-  integración con `eng::cards` (`cards/ai/persona_bot.hpp`, HOST-204).
-- **Pendiente**: representación (avatares en el juego), rango de apuesta combinado con
-  tells, escenarios de mesa en `docs/debugging/` y P6 (humano como personaje y expresión en
-  ajedrez/Go).
+  convenciones secretas (`convention.hpp`, HOST-203), postura desde gesto (`body.hpp`),
+  integración con `eng::cards` (`cards/ai/persona_bot.hpp`, HOST-204), rango con tells,
+  avatares con expresión en `games/200_holdem` y **humano como personaje**
+  (`expression_from_input`, HOST-205).
+- **Pendiente**: NPC reactivo al ritmo del humano en ajedrez/Go (P6.3), señales voluntarias
+  del humano (P6.4) y escenarios de mesa en `docs/debugging/`.
 
 ## 3. Reglas transversales (criterios de aceptación)
 
@@ -121,8 +122,8 @@ disimulo, un observador puede inferirlo.
 |---|---|---|---|
 | P5.1 | `eng::cards/ai/persona_bot.hpp` | `Persona`/`PsycheState` por asiento y `BotParams` derivados del arquetipo | **HOST-204** (hecho) |
 | P5.2 | `eng::cards/ai/persona_bot.hpp` | `emit_tells`/`read_showdown`: emisión de tells y lectura por los rivales | **HOST-204** (hecho) |
-| P5.3 | `eng::cards` | El rango dinámico combina línea de apuesta + tells leídos | Pendiente |
-| P5.4 | `games/200_holdem` | Avatares con expresión visible (caras y postura) y evolución en la partida | Pendiente |
+| P5.3 | `eng::cards` | El rango dinámico combina línea de apuesta + tells leídos | **HOST-204** (hecho) |
+| P5.4 | `games/200_holdem` | Avatares con expresión visible (caras y postura) y evolución en la partida | **build → run → analyze OK** (avatares con cara) |
 
 Cierre: la mesa de póker muestra personajes que se delatan, se leen y evolucionan; el juego
 es el consumidor real que retira el estado "NO VERIFICADA".
@@ -131,10 +132,10 @@ es el consumidor real que retira el estado "NO VERIFICADA".
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| P6.1 | `sim/expression.hpp` | `expression_from_input`: la entrada (gesto explícito + timing implícito) produce fugas del humano | **HOST-204** |
-| P6.2 | `sim/read.hpp` | El `ReadModel` se construye igual sobre asientos humanos (simetría de lectura) | **HOST-204** |
-| P6.3 | `games/100_chess` / `games/101_go` | NPC reactivo al ritmo del humano: bostezo si tarda, resoplido, impaciencia, sorpresa; catálogo de gestos por juego | build → run → analyze |
-| P6.4 | `sim/communication.hpp` | El humano emite señales voluntarias (burlarse, amenazar, calmar) y el NPC las interpreta | Juego/demo |
+| P6.1 | `sim/expression.hpp` | `expression_from_input`: la entrada (gesto explícito + timing implícito) produce fugas del humano | **HOST-205** (hecho) |
+| P6.2 | `sim/read.hpp` | El `ReadModel` se construye igual sobre asientos humanos (simetría de lectura) | **HOST-205** (hecho) |
+| P6.3 | `games/100_chess` / `games/101_go` | NPC reactivo al ritmo del humano: bostezo si tarda, resoplido, impaciencia, sorpresa; catálogo de gestos por juego | Pendiente |
+| P6.4 | `sim/communication.hpp` | El humano emite señales voluntarias (burlarse, amenazar, calmar) y el NPC las interpreta | Pendiente |
 
 Cierre: el humano es un personaje más (sus gestos se leen y se emiten a propósito) y los
 rivales de ajedrez/Go se comportan como contrincantes vivos, no como motores silenciosos.
@@ -176,8 +177,9 @@ crear cada pieza se comprueba que no duplica una primitiva de `eng::sim`/`eng::u
 | HOST-201 | `read.hpp`: aprendizaje de tells, Bayes-lite, prior de arquetipo y suspicacia | **Hecho** |
 | HOST-202 | `psyche.hpp`: estado, eventos de mesa y evolución (tilt/racha/compostura) | **Hecho** |
 | HOST-203 | `convention.hpp`: emisión/decodificación, disimulo e inferencia de convención | **Hecho** |
-| HOST-204 | `eng/cards/ai/persona_bot.hpp`: parámetros por arquetipo/estado, tells y lectura | **Hecho** |
-| HOST-205+ | Avatares del juego, rango con tells y escenarios de mesa | Pendiente |
+| HOST-204 | `eng/cards/ai/persona_bot.hpp`: parámetros por arquetipo/estado, tells, lectura y rango con tells | **Hecho** |
+| HOST-205 | Humano como personaje: `expression_from_input` (gesto explícito + timing) y lectura simétrica | **Hecho** |
+| HOST-206+ | Avatares en ajedrez/Go (P6.3), señales voluntarias del humano y escenarios de mesa | Pendiente |
 
 ## 7. Decisiones y descartado
 

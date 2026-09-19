@@ -14,16 +14,23 @@ CPU (asientos 1 y 2) con el joystick.
 - `eng::cards::Table` (Texas Hold'em No-Limit): ciegas, botón, calles (preflop/flop/
   turn/river), acciones legales, **botes laterales** por niveles de aportación y
   showdown.
-- `decide_with_plan` con perfil **N20** (heurística preflop + fuerza de mano, sin
-  Monte Carlo) para los bots: cabe sobradamente en un A500 (ver
+- **Personajes**: cada asiento tiene una `eng::sim::Persona` (arquetipo) y su
+  `PsycheState`. El humano es el **flemático**; la CPU 1 un **pardillo** y la CPU 2 un
+  **engreído**. Los bots deciden con `decide_with_persona` (parámetros derivados del
+  arquetipo y del estado) y su **cara refleja sus tells** (fugas de `expression.hpp`).
+- La mesa **lee** los tells: en cada showdown, `ReadModel` etiqueta los gestos vistos como
+  mano fuerte/débil y los rivales aprenden a leer al pardillo. La psique evoluciona por
+  mano (ganar/perder → confianza, tilt, racha).
+- Perfil de memoria **N20** (heurística + fuerza, sin Monte Carlo): cabe en un A500 (ver
   `demos/amiga/124_cards_bench`).
-- Display: `StaticEhbScene` (320×256) rasterizado a los bitplanes por CPU (patrón de
-  la demo 060).
+- Display: `StaticEhbScene` (320×256) rasterizado a los bitplanes por CPU (patrón de la
+  demo 060).
 
 ## Visual
 
-Cartas comunitarias, bote y apuesta viva, stacks de los tres asientos, las dos cartas
-del jugador, las de la CPU tapadas, y el menú de acciones resaltando la elegida.
+Cartas comunitarias, bote y apuesta viva, stacks de los tres asientos, las dos cartas del
+jugador, las de la CPU tapadas, **avatares** (cara que sonríe, se frunce, sube las cejas o
+tiembla según los tells del asiento) y el menú de acciones resaltando la elegida.
 
 ## Build / run / analyze
 

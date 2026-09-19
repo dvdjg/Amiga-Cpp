@@ -1030,6 +1030,36 @@ extern "C" u16 c_cards_persona_ops(u16 seed) {
 	return static_cast<u16>(bp.aggression_permille + bp.bluff_permille +
 				bp.call_margin_permille);
 }
+extern "C" u16 c_sim_input_expr_ops(u16 seed) {
+	using namespace eng::sim;
+	InputExpression in {};
+	in.gesture_a = (seed & 1u) != 0u;
+	in.quick_response = (seed & 2u) != 0u;
+	in.long_tank = (seed & 4u) != 0u;
+	const LeakList l = expression_from_input(in);
+	return static_cast<u16>(l.size());
+}
+extern "C" u16 c_cards_range_tells_ops(u16 seed) {
+	using namespace eng::cards;
+	using namespace eng::sim;
+	static PreflopTable table;
+	static bool built = false;
+	static eng::Xoroshiro64pp trng {1u, 2u};
+	if (!built) {
+		build_preflop_table(table, trng, 8u);
+		built = true;
+	}
+	Table t;
+	eng::Xoroshiro64pp hrng {3u, 4u};
+	start_hand(t, hrng, 3u, 1000, 5, 10, 0u);
+	OpponentModel model;
+	model.observe(1u, ActionType::Call, Street::Preflop);
+	ReadModel<4, 4> reads;
+	reads.reset();
+	HandRange out;
+	opponent_range_with_tells(model, reads, t, 0u, &table, out);
+	return static_cast<u16>(out.class_count() + (seed & 0u));
+}
 extern "C" u16 c_sim_planner_ops(u16 seed) {
 	using namespace eng::sim;
 	using Ai = SimGoap;

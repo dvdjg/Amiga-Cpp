@@ -22,6 +22,7 @@
 
 #include <eng/cards/ai/bot.hpp>
 #include <eng/cards/core/budget.hpp>
+#include <eng/cards/ai/persona_bot.hpp>
 #include <eng/cards/rules/texas_holdem.hpp>
 #include <eng/core/random.hpp>
 #include <eng/core/types.hpp>
@@ -34,6 +35,8 @@
 #include <eng/input/input.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/platform/input_poll.hpp>
+#include <eng/sim/persona.hpp>
+#include <eng/sim/psyche.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -99,9 +102,17 @@ struct HoldemGame {
 		}
 
 		m_plan = card_profile_plan(CardProfile::N20);
-		m_styles[kHuman] = BotStyle::Balanced;
-		m_styles[1] = BotStyle::TightAggressive;
-		m_styles[2] = BotStyle::LoosePassive;
+		// Cada asiento es un personaje con arquetipo propio; el humano tambien tiene el suyo.
+		eng::Xoroshiro64pp persona_rng {0xbeefu, 0x1234u};
+		m_personas[kHuman] = eng::sim::make_persona(eng::sim::Archetype::Flematico, persona_rng, 12u);
+		m_personas[1] = eng::sim::make_persona(eng::sim::Archetype::Pardillo, persona_rng, 12u);
+		m_personas[2] = eng::sim::make_persona(eng::sim::Archetype::Engreido, persona_rng, 12u);
+		for (u8 i = 0u; i < kSeats; ++i) {
+			m_psyche[i] = eng::sim::initial_psyche(m_personas[i]);
+			m_tells[i].clear();
+			m_last_action[i] = ActionType::Check;
+		}
+		m_model.reset();
 
 		new_hand();
 		backend.takeover_display(m_scene.copper_words_ptr());
@@ -110,6 +121,7 @@ struct HoldemGame {
 
 	void update(eng::amiga::MinimalBackend&, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
+		++m_frame_count;
 		if (!m_memory_ok || !m_scene_ok) {
 			return;
 		}
@@ -141,7 +153,9 @@ struct HoldemGame {
 					changed = true;
 				}
 				if (input.pad0.fire && !m_fire_held) {
+					emit_and_record_tells(kHuman);
 					apply_action(m_table, m_legal[m_menu]);
+					m_last_action[kHuman] = m_legal[m_menu].type;
 					m_menu = 0u;
 					run_cpu_turns();
 					changed = true;
@@ -163,10 +177,15 @@ struct HoldemGame {
 
 private:
 	void new_hand() {
+		// Cierra la mano anterior: evoluciona la psique y la lectura de la mesa.
+		if (m_hand_started) {
+			settle_psyche();
+		}
 		start_hand(m_table, m_rng, kSeats, kStack, kSb, kBigBlind, m_button);
 		m_button = static_cast<u8>((m_button + 1u) % kSeats);
 		m_menu = 0u;
 		m_legal_count = 0u;
+		m_hand_started = true;
 		if (m_table.to_act != kHuman) {
 			run_cpu_turns();
 		}
@@ -187,10 +206,46 @@ private:
 			if (actor == kNoSeat) {
 				break;
 			}
-			const Action action =
-			    decide_with_plan(m_table, actor, m_styles[actor], m_plan, nullptr, m_rng);
+			// Decision modulada por la persona y su estado; la mesa lee sus tells.
+			const Action action = decide_with_persona(m_table, actor, m_personas[actor],
+			                                          m_psyche[actor], m_plan,
+			                                          BotStyle::Balanced, &m_opp_model, m_rng);
+			emit_and_record_tells(actor);
 			apply_action(m_table, action);
+			m_opp_model.observe(actor, action.type, m_table.street);
+			m_last_action[actor] = action.type;
 			++guard;
+		}
+	}
+
+	/// Calcula y guarda los tells del asiento tras decidir (para que la mesa los lea).
+	void emit_and_record_tells(u8 actor) {
+		// El afecto refleja el resultado reciente; se aproxima con la racha/tilt del estado.
+		eng::sim::Mind mind {};
+		mind.emotions.fear = m_psyche[actor].tension;
+		mind.emotions.anger = m_psyche[actor].tilt;
+		mind.emotions.joy = m_psyche[actor].mood;
+		mind.emotions.hatred = m_psyche[actor].tilt / 2u;
+		m_tells[actor] = emit_tells(mind, m_psyche[actor], m_personas[actor]);
+	}
+
+	/// Cierra la mano: reparte el resultado psicologico a cada asiento segun si gano o no.
+	void settle_psyche() {
+		// Ganador del bote (mayor stack delta no es fiable; usamos el ganador de la mesa).
+		for (u8 i = 0u; i < kSeats; ++i) {
+			eng::sim::Mind mind {};
+			mind.emotions.fear = m_psyche[i].tension;
+			mind.emotions.anger = m_psyche[i].tilt;
+			mind.emotions.joy = m_psyche[i].mood;
+			const bool won = (m_table.winner_seat == i) ||
+			                 (m_table.street == Street::Showdown && m_table.seats[i].stack > kStack);
+			const eng::sim::TableEventKind ev = won
+			    ? eng::sim::TableEventKind::WonShowdown
+			    : eng::sim::TableEventKind::LostShowdown;
+			eng::sim::psyche_observe(m_psyche[i], mind, ev, m_personas[i]);
+			eng::sim::psyche_update(m_psyche[i], mind, m_personas[i]);
+			// La mesa aprende: los tells vistos se etiquetan con el resultado (fuerte = gano).
+			read_showdown(m_model, i, won, m_tells[i]);
 		}
 	}
 
@@ -280,6 +335,57 @@ private:
 		text(planes, x, y, s.c_str(), color);
 	}
 
+	/// Busca la intensidad de un gesto en la lista de fugas del asiento.
+	[[nodiscard]] u8 tell_intensity(u8 seat, eng::sim::GestureKind g) const {
+		for (eng::usize i = 0u; i < m_tells[seat].size(); ++i) {
+			if (m_tells[seat][i].kind == g) {
+				return m_tells[seat][i].intensity;
+			}
+		}
+		return 0u;
+	}
+
+	/// Dibuja un avatar sencillo (cara) cuyo gesto refleja los tells del asiento: la boca
+	/// sonríe o se frunce, las cejas suben o bajan y tiembla si esta muy nervioso.
+	void draw_avatar(eng::u8* planes, eng::s32 x, eng::s32 y, u8 seat, bool active) {
+		const eng::u8 face = active ? kColorSel : kColorCard;
+		fill_rect(planes, x, y, 34, 40, face);
+		fill_rect(planes, x + 2, y + 2, 30, 36, kColorFelt);
+		// Ojos.
+		fill_rect(planes, x + 8, y + 12, 5, 5, kColorText);
+		fill_rect(planes, x + 21, y + 12, 5, 5, kColorText);
+		// Cejas segun brow_raise / brow_furrow.
+		const u8 raise = tell_intensity(seat, eng::sim::GestureKind::BrowRaise);
+		const u8 furrow = tell_intensity(seat, eng::sim::GestureKind::BrowFurrow);
+		const eng::s32 brow_dy = (raise > furrow) ? -3 : (furrow > raise ? 2 : 0);
+		fill_rect(planes, x + 7, y + 9 + brow_dy, 7, 2, kColorText);
+		fill_rect(planes, x + 20, y + 9 + brow_dy, 7, 2, kColorText);
+		// Boca segun smile / grimace / smirk.
+		const u8 smile = tell_intensity(seat, eng::sim::GestureKind::Smile);
+		const u8 grimace = tell_intensity(seat, eng::sim::GestureKind::Grimace);
+		const u8 smirk = tell_intensity(seat, eng::sim::GestureKind::Smirk);
+		if (smile >= grimace && smile >= smirk && smile > 0u) {
+			fill_rect(planes, x + 10, y + 26, 14, 2, kColorText);
+			fill_rect(planes, x + 9, y + 24, 2, 2, kColorText);
+			fill_rect(planes, x + 23, y + 24, 2, 2, kColorText);
+		} else if (grimace > 0u) {
+			fill_rect(planes, x + 10, y + 28, 14, 2, kColorWarn);
+			fill_rect(planes, x + 9, y + 30, 2, 2, kColorWarn);
+			fill_rect(planes, x + 23, y + 30, 2, 2, kColorWarn);
+		} else if (smirk > 0u) {
+			fill_rect(planes, x + 12, y + 26, 12, 2, kColorText);
+			fill_rect(planes, x + 22, y + 24, 2, 2, kColorText);
+		} else {
+			fill_rect(planes, x + 12, y + 27, 10, 2, kColorDim);
+		}
+		// Temblor: un temblor de mano alto marca la cara con un borde parpadeante.
+		const u8 tremor = tell_intensity(seat, eng::sim::GestureKind::HandTremor);
+		if (tremor > 40u && ((m_frame_count & 1u) == 0u)) {
+			fill_rect(planes, x, y, 34, 2, kColorWarn);
+			fill_rect(planes, x, y + 38, 34, 2, kColorWarn);
+		}
+	}
+
 	void redraw() {
 		eng::u8* planes = m_scene.bitplanes().data();
 		for (eng::u32 i = 0u; i < kPlaneBytes * kPlanes; ++i) {
@@ -310,6 +416,11 @@ private:
 		draw_card(planes, 42, 96, m_table.seats[1].hole[1], true);
 		draw_card(planes, 200, 96, m_table.seats[2].hole[0], true);
 		draw_card(planes, 230, 96, m_table.seats[2].hole[1], true);
+
+		// Avatares de los jugadores CPU (la cara refleja sus tells).
+		draw_avatar(planes, 268, 96, 1u, m_table.to_act == 1u);
+		draw_avatar(planes, 268, 140, 2u, m_table.to_act == 2u);
+		text(planes, 268, 84, "CPU", kColorDim);
 
 		// Cartas del jugador.
 		text(planes, 12, 150, "TU:", kColorText);
@@ -355,13 +466,20 @@ private:
 	drivers::StaticEhbScene m_scene {};
 	Table m_table {};
 	CardPlan m_plan {};
-	BotStyle m_styles[kMaxSeats] {};
+	eng::sim::Persona m_personas[kMaxSeats] {};
+	eng::sim::PsycheState m_psyche[kMaxSeats] {};
+	eng::sim::LeakList m_tells[kMaxSeats] {};
+	eng::sim::ReadModel<kSeats, kPokerGestureCount> m_model {};
+	OpponentModel m_opp_model {};
+	ActionType m_last_action[kMaxSeats] {};
 	eng::Xoroshiro64pp m_rng {0x200u, 0xa11u};
 	Action m_legal[12] {};
 	u8 m_legal_count = 0u;
 	u8 m_menu = 0u;
 	u8 m_button = 0u;
+	u32 m_frame_count = 0u;
 	bool m_fire_held = false;
+	bool m_hand_started = false;
 	bool m_memory_ok = false;
 	bool m_scene_ok = false;
 };

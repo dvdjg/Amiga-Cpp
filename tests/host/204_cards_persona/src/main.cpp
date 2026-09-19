@@ -150,6 +150,55 @@ void test_decide_with_persona() {
 	check(a_legal && b_legal, "decision: ambas acciones son legales");
 }
 
+void test_range_with_tells() {
+	eng::Xoroshiro64pp rng {21u, 22u};
+	eng::Xoroshiro64pp table_rng {31u, 32u};
+	PreflopTable table;
+	build_preflop_table(table, table_rng, 24u);
+
+	Table t;
+	eng::Xoroshiro64pp hand_rng {41u, 42u};
+	start_hand(t, hand_rng, 3u, 1000, 5, 10, 0u);
+	const u8 hero = 0u;
+
+	OpponentModel model;
+	for (u8 i = 0u; i < 10u; ++i) {
+		model.observe(1u, ActionType::Call, Street::Preflop);
+		model.observe(2u, ActionType::Call, Street::Preflop);
+	}
+	model.reset_street(Street::Flop);
+
+	// Sin tells: rango base.
+	ReadModel<4, kPokerGestureCount> empty_reads;
+	empty_reads.reset();
+	HandRange base;
+	opponent_range_with_tells(model, empty_reads, t, hero, &table, base);
+
+	// Con un tell que apunta a mano fuerte (el rival se delata con mano fuerte), el
+	// rango debe estrecharse (menos clases).
+	const Persona pardillo = make_persona(Archetype::Pardillo, rng, 0u);
+	Mind excited;
+	excited.emotions.fear = 230u;
+	excited.emotions.anger = 120u;
+	PsycheState s {};
+	s.composure = 40u;
+	s.tension = 150u;
+	const LeakList leaked = emit_tells(excited, s, pardillo);
+
+	ReadModel<4, kPokerGestureCount> reads;
+	reads.reset();
+	for (u8 i = 0u; i < 12u; ++i) {
+		read_showdown(reads, 1u, true, leaked);
+		read_showdown(reads, 2u, true, leaked);
+	}
+	HandRange with_tell;
+	opponent_range_with_tells(model, reads, t, hero, &table, with_tell);
+
+	check(with_tell.class_count() > 0u, "rango+tells: rango no vacio");
+	check(with_tell.class_count() <= base.class_count(),
+	      "rango+tells: un tell de fuerza estrecha el rango");
+}
+
 } // namespace
 
 int main() {
@@ -159,6 +208,7 @@ int main() {
 	test_emit_tells();
 	test_read_showdown();
 	test_decide_with_persona();
+	test_range_with_tells();
 
 	if (g_fail == 0u) {
 		std::printf("OK: eng::cards persona (parametros por arquetipo, tells y lectura)\n");
