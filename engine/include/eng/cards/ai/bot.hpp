@@ -206,16 +206,27 @@ namespace detail {
                                                 const PreflopTable* table = nullptr,
                                                 const HandRange* opponent_range = nullptr) noexcept {
 	const u8 opponents = opponents_in_hand(t, seat);
+	const bool omaha = t.variant == PokerVariant::Omaha;
+	const u8 hole_count = omaha ? kSeatCards : kMaxHoleCards;
 	if (params.use_mc && params.mc_samples > 0u && t.board_count <= kBoardCards) {
-		const eng::Span<const Card> hole {t.seats[seat].hole, kMaxHoleCards};
+		const eng::Span<const Card> hole {t.seats[seat].hole, hole_count};
 		const eng::Span<const Card> board {t.board, t.board_count};
 		const EquityResult equity =
-		    (opponent_range != nullptr)
-		        ? equity_vs_range(hole, board, *opponent_range, opponents, params.mc_samples, rng)
-		        : equity_vs_random(hole, board, opponents, params.mc_samples, rng);
+		    omaha ? equity_vs_random_omaha(hole, board, opponents, params.mc_samples, rng,
+		                                   t.with_jokers)
+		          : ((opponent_range != nullptr)
+		                 ? equity_vs_range(hole, board, *opponent_range, opponents,
+		                                   params.mc_samples, rng, t.with_jokers)
+		                 : equity_vs_random(hole, board, opponents, params.mc_samples, rng,
+		                                    t.with_jokers));
 		return equity.equity_permille;
 	}
 	if (t.board_count < 3u) {
+		if (omaha) {
+			// Omaha: heurística sobre la mejor pareja de las 4 privadas; la tabla de
+			// 169 clases es de Hold'em y no aplica.
+			return omaha_preflop_strength_permille(t.seats[seat].hole, hole_count);
+		}
 		if (table != nullptr && table->ready) {
 			const u16 hu = preflop_equity(*table, t.seats[seat].hole[0], t.seats[seat].hole[1]);
 			return multiway_from_heads_up(hu, opponents);

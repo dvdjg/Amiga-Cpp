@@ -73,10 +73,10 @@ constexpr u8 top_ranks(u16 mask, u8* out, u8 need) noexcept {
 
 } // namespace detail
 
-/// Evalúa una mano de 5 a 7 cartas y devuelve el `HandValue` de la mejor de 5.
-/// Cartas inválidas (`kNoCard`) se ignoran; con menos de 5 cartas válidas el
-/// resultado es `kHandValueNone`.
-[[nodiscard]] constexpr HandValue evaluate_hand(const Card* cards, u8 count) noexcept {
+/// Evalúa una mano de 5 a 7 cartas **sin comodines** y devuelve el `HandValue` de la
+/// mejor de 5. Cartas inválidas (`kNoCard`) se ignoran; con menos de 5 cartas válidas
+/// el resultado es `kHandValueNone`. Es el evaluador de conteo directo.
+[[nodiscard]] constexpr HandValue evaluate_plain(const Card* cards, u8 count) noexcept {
 	u8 rank_counts[kRankCount] {};
 	u8 suit_counts[kSuitCount] {};
 	u16 rank_mask = 0u;
@@ -241,6 +241,70 @@ constexpr u8 top_ranks(u16 mask, u8* out, u8 need) noexcept {
 	}
 
 	return best;
+}
+
+namespace detail {
+
+/// Asigna a cada comodín una carta distinta no usada y evalúa la mejor combinación.
+/// `plain`/`plain_count` son las cartas reales; `work` es el hueco para las
+/// sustituciones (tamaño >= plain_count + wilds). Recursión de profundidad `wilds`.
+[[nodiscard]] constexpr HandValue best_wild_fill(const Card* plain, u8 plain_count, u8 wilds,
+                                                 Card* work, bool* used, u8 depth) noexcept {
+	if (depth == wilds) {
+		return evaluate_plain(work, static_cast<u8>(plain_count + wilds));
+	}
+	HandValue best = kHandValueNone;
+	for (u8 card = 0u; card < kDeckSize; ++card) {
+		if (used[card]) {
+			continue;
+		}
+		used[card] = true;
+		work[plain_count + depth] = card;
+		const HandValue value = best_wild_fill(plain, plain_count, wilds, work, used,
+		                                       static_cast<u8>(depth + 1u));
+		if (value > best) {
+			best = value;
+		}
+		used[card] = false;
+	}
+	return best;
+}
+
+} // namespace detail
+
+/// Evalúa una mano de 5 a 9 cartas y devuelve el `HandValue` de la mejor de 5. Los
+/// **comodines** (`card_is_joker`) se sustituyen por la mejor carta posible que no
+/// esté ya en la mano. Sin comodines delega en `evaluate_plain` (coste cero añadido).
+///
+/// Coste con comodines: `O(52^wilds)`; pensado para el showdown (1–2 comodines). No
+/// usar con muchos comodines en barridos Monte Carlo grandes.
+[[nodiscard]] constexpr HandValue evaluate_hand(const Card* cards, u8 count) noexcept {
+	Card plain[kMaxHandCards] {};
+	u8 plain_count = 0u;
+	u8 wilds = 0u;
+	for (u8 i = 0u; i < count && i < kMaxHandCards; ++i) {
+		const Card card = cards[i];
+		if (card_is_joker(card)) {
+			++wilds;
+		} else if (card_valid(card)) {
+			plain[plain_count++] = card;
+		}
+	}
+	if (wilds == 0u) {
+		return evaluate_plain(plain, plain_count);
+	}
+	if (plain_count + wilds < 5u || wilds > 3u) {
+		return evaluate_plain(plain, plain_count);
+	}
+	Card work[kMaxHandCards + 3] {};
+	for (u8 i = 0u; i < plain_count; ++i) {
+		work[i] = plain[i];
+	}
+	bool used[kDeckSize] {};
+	for (u8 i = 0u; i < plain_count; ++i) {
+		used[plain[i]] = true;
+	}
+	return detail::best_wild_fill(plain, plain_count, wilds, work, used, 0u);
 }
 
 /// Evalúa exactamente 5 cartas (atajo para tablas y tests).

@@ -16,7 +16,8 @@
 //   selfplay.sh [hands] [--seats N] [--seed S] [--stack N] [--sb N] [--bb N]
 //               [--profile N20|N64|N128|N256|N512] [--sessions N]
 //               [--table-samples N] [--range-classes N] [--range-mode dynamic|table|none]
-//               [--styles tp,ta,lp,la,eq] [--compare] [--sweep] [--csv ruta.csv]
+//               [--styles tp,ta,lp,la,eq] [--variant holdem|omaha] [--jokers]
+//               [--compare] [--sweep] [--csv ruta.csv]
 //               [--out ruta.txt] [--quiet]
 //   por defecto: 200 --seats 6 --seed 1 --profile N512 --range-mode dynamic
 //
@@ -60,6 +61,8 @@ struct Cli {
 	RangeMode range_mode = RangeMode::Dynamic;
 	bool compare = false;
 	bool sweep = false;
+	bool jokers = false;
+	PokerVariant variant = PokerVariant::TexasHoldem;
 	bool quiet = false;
 	std::string out = "out/cards/selfplay/selfplay.txt";
 	std::string csv;
@@ -176,6 +179,8 @@ BotStyle default_style(u8 seat) {
 }
 
 void apply_styles(const Cli& cli, SessionConfig& cfg) {
+	cfg.variant = cli.variant;
+	cfg.with_jokers = cli.jokers;
 	for (u8 i = 0u; i < kSeats; ++i) {
 		cfg.styles[i] = default_style(i);
 	}
@@ -316,6 +321,18 @@ int main(int argc, char** argv) {
 			cli.compare = true;
 		} else if (arg == "--sweep") {
 			cli.sweep = true;
+		} else if (arg == "--variant") {
+			const std::string variant = next("--variant");
+			if (variant == "omaha") {
+				cli.variant = PokerVariant::Omaha;
+			} else if (variant == "holdem") {
+				cli.variant = PokerVariant::TexasHoldem;
+			} else {
+				std::fprintf(stderr, "variant desconocida; usa holdem|omaha\n");
+				return 2;
+			}
+		} else if (arg == "--jokers") {
+			cli.jokers = true;
 		} else if (arg == "--csv") {
 			cli.csv = next("--csv");
 		} else if (arg == "--out") {

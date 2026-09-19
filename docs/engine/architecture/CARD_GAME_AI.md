@@ -89,7 +89,7 @@ apuntan a máquinas ampliadas (A1200/030).
 Notas:
 
 - Los **tamaños reales en m68k** están fijados en la sonda de codegen
-  (`tools/analyze/codegen-report.mjs`): `Seat` 18 B, `Table` 270 B, `Deck` 53 B,
+  (`tools/analyze/codegen-report.mjs`): `Seat` 18 B, `Table` 274 B, `Deck` 55 B,
   `CardPlan` 34 B, `HandRange` 24 B, `PreflopTable` 512 B, `EquityResult` 6 B,
   `BotParams` 14 B, `OpponentModel` 82 B y `SessionStats` 72 B. El estado de una mano
   completa cabe en ~300 B; lo demás es caché de conocimiento (tabla, modelo, histórico).
@@ -108,9 +108,10 @@ Notas:
 
 - La **carta** es un `u8`: `rank << 2 | suit`, con `rank` 0..12 (2..A) y `suit` 0..3. El
   índice de baraja es 0..51; el centinela es `kNoCard` (`0xff`). Sin `unsigned long long`.
-- La **baraja** (`Deck`) es un array inline de 52 B más un contador de cartas vivas.
+- La **baraja** (`Deck`) es un array inline de hasta 54 B más un contador de cartas vivas.
   `shuffle` es Fisher-Yates sobre el PRNG; `remove` saca cartas conocidas; `deal` reparte
-  desde el final. Mismo PRNG + misma semilla ⇒ misma permutación en host y en Amiga.
+  desde el final. `reset(true)` añade **dos comodines** (54 cartas, `card_is_joker`).
+  Mismo PRNG + misma semilla ⇒ misma permutación en host y en Amiga.
 - La **mesa** (`Table`) es un struct de tamaño fijo sin punteros: 2..10 asientos, tablero,
   baraja, apuesta viva, mínimo de subida, botón y asiento al turno.
 
@@ -129,6 +130,11 @@ Notas:
   posición a la izquierda del botón).
 - Si todos menos uno se retiran, el que queda gana el bote sin mostrar. Si todos están
   *all-in*, se corre el tablero y se resuelve por showdown.
+- **Variantes y estructura** (`rules/variants.hpp`): `PokerVariant` (Texas Hold'em / Omaha)
+  decide cuántas privadas se reparten (2 / 4) y qué evaluador usa el showdown;
+  `BettingStructure` (No-Limit / Limit) decide la subida: libre o **fija** (ciega pequeña en
+  preflop/flop, grande en turn/river) con tope de `kLimitMaxRaises` subidas por calle.
+  `Table::with_jokers` reparte de un mazo de 54 cartas.
 
 ### 3.3 Evaluación de manos (`rules/hand_rank.hpp`)
 
@@ -141,18 +147,25 @@ Notas:
   escalera de color. El as puede ser alto o bajo (escalera A-2-3-4-5).
 - Casos cubiertos por el test: color + escalera (gana color), full sobre color, empates por
   *kicker*, mejor de 7.
+- **Variantes**: `evaluate_omaha` forma la mano con **exactamente 2** de las 4 privadas y
+  **exactamente 3** del tablero (60 combinaciones), reutilizando el evaluador de conteo.
+- **Comodines**: `evaluate_hand` detecta los jokers y los sustituye por la mejor carta
+  posible que no esté ya en la mano (`O(52^wilds)`, pensado para 1–2 comodines en el
+  showdown). Sin comodines delega en `evaluate_plain` sin coste añadido.
 
 ## 4. Equity y pot odds (`eval/equity.hpp`)
 
 - **Equity Monte Carlo**: se reparten `samples` tableros/rivales aleatorios, se evalúa la
   mejor mano del héroe contra la de cada rival y se cuentan victorias y empates. El
   resultado va en **por mil** (`u16`), sin `float`.
-- `equity_vs_random(hole, board, opponents, samples, rng)` es determinista por semilla y se
-  reutiliza en la decisión y en la simulación.
+- El núcleo `equity_core<Ranker>` es **agnóstico de variante**: `HoldemRanker` (2+5) y
+  `OmahaRanker` (2 de 4 + 3 de 5). `equity_vs_random` (Hold'em) y `equity_vs_random_omaha`
+  (4 cartas privadas) son deterministas por semilla; `with_jokers` usa el mazo de 54.
 - **Pot odds**: `to_call / (pot + to_call)` en por mil. El bot exige un colchón de estilo
   sobre las pot odds antes de igualar.
 - **Heurística preflop** (`preflop_strength_permille`): aproxima Chen (pareja, cartas altas,
-  *suited*, conectores) para el perfil `N20`, que no gasta muestras.
+  *suited*, conectores) para el perfil `N20`, que no gasta muestras. Un comodín cuenta como
+  as; `omaha_preflop_strength_permille` usa la mejor pareja de las 4 cartas.
 
 ### 4.1 Rangos y tabla preflop (`eval/range.hpp`)
 
@@ -221,13 +234,17 @@ Notas:
 | `eval/equity.hpp` (Monte Carlo, pot odds, heurística preflop) | **Implementado**: HOST-164 |
 | `eval/range.hpp` (169 clases, rangos, tabla preflop) | **Implementado**: HOST-166 |
 | `ai/bot.hpp` + `sim/session.hpp` (estilos, modelo de rival, sesiones) | **Implementado**: HOST-165 |
+| `rules/variants.hpp` + `evaluate_omaha` (Omaha, Limit) | **Implementado**: HOST-167 |
+| Comodines (mazo de 54 + sustitución en `evaluate_hand`) | **Implementado**: HOST-168 |
+| Omaha de extremo a extremo (equity 4 cartas + sesión) | **Implementado**: HOST-169 |
 | Herramienta host `tools/cards/selfplay.sh` | **Implementado y ejecutado** (torneos CPU vs CPU) |
 | Benchmark hardware `demos/amiga/124_cards_bench` | **Implementado y medido en A500**: `N20` ≈ 30 unidades/s, `N64` (8 muestras) ≈ 685 ms/unidad; `N128`+ no jugables. Muestras por perfil calibradas con esta tabla |
 | Juego con UI en `games/` | **Pendiente** (los motores están **NO VERIFICADOS** en hardware) |
 
-> Estado: núcleo, reglas, evaluación (equity/rangos), IA y simulación implementados y
-> verificados por test host (HOST-161…166); el codegen 68000 está libre de libcalls y de
-> instrucciones 68020. El juego con interfaz en el Amiga, el pulido visual y la medida de
-> rendimiento por CPU quedan pendientes. El plan por fases y los criterios de cierre están en
+> Estado: núcleo, reglas (incluidas Omaha/Limit), evaluación (equity/rangos), comodines, IA
+> y simulación implementados y verificados por test host (HOST-161…169); el codegen 68000
+> está libre de libcalls y de instrucciones 68020. El juego con interfaz en el Amiga, el
+> pulido visual, Seven-Card Stud y la medida por CPU quedan pendientes. El plan por fases y
+> los criterios de cierre están en
 > [ROADMAP_CARD_GAMES.md](../../guides/roadmap/ROADMAP_CARD_GAMES.md), fuente única del
 > avance. Este documento describe el diseño vigente y no se duplica allí.

@@ -10,8 +10,8 @@ las mismas reglas, IA y perfiles de memoria que consumirá el juego.
 tools/cards/selfplay.sh [hands] [--seats N] [--seed S] [--stack N] [--sb N] [--bb N]
   [--profile N20|N64|N128|N256|N512] [--sessions N]
   [--table-samples N] [--range-classes N] [--range-mode dynamic|table|none]
-  [--styles tp,ta,lp,la,eq] [--compare] [--sweep] [--csv ruta.csv]
-  [--out ruta.txt] [--quiet]
+  [--styles tp,ta,lp,la,eq] [--variant holdem|omaha] [--jokers]
+  [--compare] [--sweep] [--csv ruta.csv] [--out ruta.txt] [--quiet]
 # por defecto: 200 --seats 6 --seed 1 --profile N512 --range-mode dynamic
 ```
 
@@ -44,6 +44,11 @@ Comparación de nivel:
 
 La tabla preflop se construye una vez con Monte Carlo determinista (`--table-samples`, por
 defecto 64).
+
+**Variantes**: `--variant omaha` juega Omaha (4 cartas privadas, 2+3 en el showdown) con
+equity Monte Carlo de 4 cartas; `--jokers` usa un mazo de 54 cartas con dos comodines
+(que el evaluador sustituye por la mejor carta). El rango de 169 clases es de Hold'em, así
+que en Omaha el rival del Monte Carlo es aleatorio.
 
 Ejemplo: mesa de 6 con estilos fijos, 500 manos y semilla reproducible:
 

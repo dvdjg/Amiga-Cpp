@@ -90,6 +90,7 @@ struct Table {
 	s32 small_blind = 0;
 	s32 big_blind = 0;
 	bool hand_over = false;
+	bool with_jokers = false; ///< mazo de 54 cartas con 2 comodines
 	u8 winner_seat = kNoSeat; ///< ganador único al retirarse todos (si procede)
 };
 
@@ -251,7 +252,8 @@ constexpr void deal_board(Table& t, u8 n) noexcept {
 inline void start_hand(Table& t, eng::Xoroshiro64pp& rng, u8 seat_count, s32 starting_stack,
                        s32 small_blind, s32 big_blind, u8 button,
                        PokerVariant variant = PokerVariant::TexasHoldem,
-                       BettingStructure structure = BettingStructure::NoLimit) noexcept {
+                       BettingStructure structure = BettingStructure::NoLimit,
+                       bool with_jokers = false) noexcept {
 	t = Table {};
 	t.seat_count = seat_count > kMaxSeats ? kMaxSeats : seat_count;
 	t.small_blind = small_blind;
@@ -259,6 +261,7 @@ inline void start_hand(Table& t, eng::Xoroshiro64pp& rng, u8 seat_count, s32 sta
 	t.min_raise = big_blind;
 	t.variant = variant;
 	t.structure = structure;
+	t.with_jokers = with_jokers;
 	t.button = detail::ring_add(0u, button, t.seat_count);
 	for (u8 i = 0u; i < t.seat_count; ++i) {
 		t.seats[i].status = starting_stack > 0 ? SeatStatus::Active : SeatStatus::Out;
@@ -268,7 +271,7 @@ inline void start_hand(Table& t, eng::Xoroshiro64pp& rng, u8 seat_count, s32 sta
 		}
 	}
 
-	t.deck.reset();
+	t.deck.reset(with_jokers);
 	t.deck.shuffle(rng);
 
 	const u8 count = t.seat_count;

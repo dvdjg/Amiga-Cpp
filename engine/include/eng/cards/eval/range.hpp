@@ -168,8 +168,9 @@ struct RangeOpponentDealer {
 	const HandRange* range = nullptr;
 	eng::Xoroshiro64pp* rng = nullptr;
 
-	[[nodiscard]] constexpr bool operator()(Deck& deck, Card& first, Card& second) const noexcept {
-		if (range == nullptr || rng == nullptr) {
+	/// Llena 2 cartas del rival (Hold'em) desde el rango. `out.size()` debe ser >= 2.
+	[[nodiscard]] constexpr bool operator()(Deck& deck, Span<Card> out) const noexcept {
+		if (range == nullptr || rng == nullptr || out.size() < 2u) {
 			return false;
 		}
 		for (u8 attempt = 0u; attempt < 12u; ++attempt) {
@@ -186,8 +187,8 @@ struct RangeOpponentDealer {
 			}
 			deck.remove(a);
 			deck.remove(b);
-			first = a;
-			second = b;
+			out[0] = a;
+			out[1] = b;
 			return true;
 		}
 		return false;
@@ -198,9 +199,10 @@ struct RangeOpponentDealer {
 [[nodiscard]] inline EquityResult equity_vs_range(eng::Span<const Card> hole,
                                                   eng::Span<const Card> board, const HandRange& range,
                                                   u8 opponents, u16 samples,
-                                                  eng::Xoroshiro64pp& rng) noexcept {
+                                                  eng::Xoroshiro64pp& rng,
+                                                  bool with_jokers = false) noexcept {
 	RangeOpponentDealer dealer {&range, &rng};
-	return equity_vs_dealer(hole, board, opponents, samples, rng, dealer);
+	return equity_vs_dealer(hole, board, opponents, samples, rng, dealer, with_jokers);
 }
 
 /// Tabla preflop: equity (por mil, heads-up vs mano aleatoria) de cada una de las 169 clases,

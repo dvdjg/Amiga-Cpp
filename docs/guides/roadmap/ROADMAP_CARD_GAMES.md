@@ -27,8 +27,10 @@ CPU vs CPU para ajustar el nivel; el juego con UI en el Amiga cierra la verifica
   evaluador de 5/7 y `rules/texas_holdem.hpp` con ciegas, calles, acciones legales, botes
   laterales y showdown), evaluación (`eval/equity.hpp`: Monte Carlo, pot odds y heurística
   preflop; `eval/range.hpp`: 169 clases, rangos y tabla preflop), IA (`ai/bot.hpp`: estilos y
-  modelo de rival) y simulación (`sim/session.hpp`: sesiones CPU vs CPU). Verificado por
-  HOST-161…166.
+  modelo de rival) y simulación (`sim/session.hpp`: sesiones CPU vs CPU). **Variantes**:
+  Omaha de extremo a extremo (equity de 4 cartas, bot y sesión) y estructura Limit, más
+  **comodines** (mazo de 54 cartas con sustitución en el evaluador). Verificado por
+  HOST-161…169.
 - **Implementado (herramienta)**: `tools/cards/selfplay.sh` juega torneos CPU vs CPU en host
   con perfiles, estilos, tabla preflop y rango de rival, y reporta net/bb-100.
 - **Verificado el target 68000**: `tools/analyze/codegen-report.mjs` compila las rutas de
@@ -75,7 +77,7 @@ CPU vs CPU para ajustar el nivel; el juego con UI en el Amiga cierra la verifica
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
 | C0.1 | `core/types.hpp` | `Suit`, `Rank`, `Card` (`rank<<2\|suit`), `Street`, `Hand`, `HandValue` | **HOST-161** (hecho) |
-| C0.2 | `core/deck.hpp` | Baraja de 52 cartas, `shuffle`/`remove`/`deal` sobre el PRNG común | **HOST-161** (hecho) |
+| C0.2 | `core/deck.hpp` | Baraja de 52/54 cartas (comodines), `shuffle`/`remove`/`deal` sobre el PRNG común | **HOST-161/168** (hecho) |
 | C0.3 | `core/budget.hpp` | Perfiles `N20`…`N512` y `plan_cards_memory` | **HOST-161** (hecho) |
 
 Cierre: tipos y presupuesto verificados; baraja reproducible por semilla.
@@ -87,9 +89,11 @@ Cierre: tipos y presupuesto verificados; baraja reproducible por semilla.
 | C1.1 | `rules/hand_rank.hpp` | Evaluador de 5/7 por conteo, mejor de 5 entre 7, escalera de as bajo | **HOST-162** (hecho) |
 | C1.2 | `rules/texas_holdem.hpp` | Ciegas, botón, calles, acciones legales y secuencia hasta el showdown | **HOST-163** (hecho) |
 | C1.3 | `rules/texas_holdem.hpp` | Botes laterales por niveles y resolución por retirada | **HOST-163** (hecho) |
+| C1.4 | `rules/variants.hpp` + `hand_rank.hpp` | Omaha (2 de 4 + 3 de 5) y estructura Limit; **comodines** (mazo 54) | **HOST-167/168/169** (hecho) |
 
 Cierre: manos y categorías correctas; botes laterales y showdown verificados con casos
-controlados. Pendiente de evaluar: variantes (Limit, Omaha, torneos con ciegas crecientes).
+controlados; Omaha y Limit jugables de extremo a extremo y comodines soportados. Pendiente:
+Seven-Card Stud y torneos con ciegas crecientes.
 
 ### C2 — Evaluación y equidad
 
@@ -161,7 +165,7 @@ verificación real.
 
 ## 6. Distribución de tests host
 
-Los números son únicos y no reutilizables; el siguiente libre es **167**. Antes de crear cada
+Los números son únicos y no reutilizables; el siguiente libre es **170**. Antes de crear cada
 pieza se comprueba que no duplica una primitiva de `eng::util`/`eng::parallel`.
 
 | Test | Cubre | Estado |
@@ -172,7 +176,10 @@ pieza se comprueba que no duplica una primitiva de `eng::util`/`eng::parallel`.
 | HOST-164 | `eval/equity.hpp`: Monte Carlo, heurística preflop y pot odds | **Hecho** |
 | HOST-165 | `ai/bot.hpp` + `sim/session.hpp`: conservación, determinismo y perfiles | **Hecho** |
 | HOST-166 | `eval/range.hpp`: 169 clases, `HandRange`, equity vs rango y tabla preflop | **Hecho** |
-| HOST-167+ | Rangos dinámicos, variantes de póker, torneos y UI | Pendiente |
+| HOST-167 | `rules/variants.hpp` + `evaluate_omaha`: Omaha 2+3, reparto y estructura Limit | **Hecho** |
+| HOST-168 | Comodines: mazo de 54, sustitución en `evaluate_hand` y showdown | **Hecho** |
+| HOST-169 | Omaha de extremo a extremo: equity de 4 cartas y `run_session` | **Hecho** |
+| HOST-170+ | Seven-Card Stud, rangos de subida dinámicos, torneos y UI | Pendiente |
 
 ## 7. Extensiones, decisiones tomadas y descartado
 
@@ -183,8 +190,14 @@ pieza se comprueba que no duplica una primitiva de `eng::util`/`eng::parallel`.
 - **Aritmética sin libcalls** (`core/intmath.hpp`): productos 16×16 con `mulu16` y división
   `u32/u16` con `divu.w` por mitades; `divmod32` es `noinline` porque GCC inlineado reconoce
   el patrón y lo cambia por `__divsi3`. El gate de codegen falla si aparece una libcall.
-- **Texas Hold'em primero**: variantes (Omaha, Seven-Card Stud, Limit) se añaden como
-  políticas de reglas sobre el mismo evaluador y presupuesto.
+- **Variantes**: **Omaha** de extremo a extremo (`evaluate_omaha` 2+3, `equity_vs_random_omaha`
+  y bot con 4 cartas) y **Limit** (apuesta fija con tope) implementados como políticas sobre
+  el mismo evaluador y presupuesto; `PokerVariant`/`BettingStructure` (`rules/variants.hpp`).
+  Pendiente: **Seven-Card Stud** (bring-in, cartas descubiertas) y torneos con ciegas crecientes.
+- **Comodines**: soportados con un mazo de 54 cartas (`Deck::reset(true)`); `evaluate_hand`
+  sustituye cada joker por la mejor carta posible (coste `O(52^wilds)`, para 1–2 comodines en
+  el showdown). Los rangos de 169 clases son de Hold'em, así que en Omaha/comodines el rival
+  del Monte Carlo es aleatorio.
 - **Equity vs rangos**: extensión de C2; los rangos de arranque son un conjunto de 169
   manos canónicas, no una tabla de póker profesional (footprint acotado).
 - **Redes neuronales / CFR profundo**: descartados; el objetivo es el comportamiento

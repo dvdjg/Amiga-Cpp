@@ -33,9 +33,11 @@ using cards_int = eng::intw;
 inline constexpr u8 kSuitCount = 4u;
 inline constexpr u8 kRankCount = 13u;
 inline constexpr u8 kDeckSize = 52u;
+inline constexpr u8 kMaxDeckSize = 54u; ///< 52 + 2 comodines
 inline constexpr u8 kMaxHoleCards = 2u;  ///< Texas Hold'em
 inline constexpr u8 kSeatCards = 4u;     ///< máximo por asiento (Omaha usa 4)
 inline constexpr u8 kBoardCards = 5u;
+inline constexpr u8 kMaxHandCards = 9u;  ///< 4 privadas (Omaha) + 5 comunitarias
 
 /// Palo de la baraja francesa. El orden no implica fuerza.
 enum class Suit : u8 {
@@ -66,6 +68,10 @@ enum class Rank : u8 {
 using Card = u8;
 inline constexpr Card kNoCard = 0xffu;
 
+/// Primer comodín (joker). Los comodines son `kDeckSize` y `kDeckSize+1`; no tienen
+/// rango ni palo y el evaluador los sustituye por la mejor carta posible.
+inline constexpr Card kJoker = kDeckSize;
+
 [[nodiscard]] constexpr Card make_card(Rank rank, Suit suit) noexcept {
 	return static_cast<Card>((static_cast<u8>(rank) << 2u) | static_cast<u8>(suit));
 }
@@ -79,6 +85,16 @@ inline constexpr Card kNoCard = 0xffu;
 }
 
 [[nodiscard]] constexpr bool card_valid(Card card) noexcept { return card < kDeckSize; }
+
+/// ¿Es un comodín (joker)?
+[[nodiscard]] constexpr bool card_is_joker(Card card) noexcept {
+	return card >= kDeckSize && card < kMaxDeckSize;
+}
+
+/// ¿Es una carta de la baraja ampliada (normal o comodín)?
+[[nodiscard]] constexpr bool card_playable(Card card) noexcept {
+	return card_valid(card) || card_is_joker(card);
+}
 
 /// Calle de apuestas de una mano de póker.
 enum class Street : u8 {

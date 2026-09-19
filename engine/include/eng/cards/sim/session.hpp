@@ -29,6 +29,8 @@ struct SessionConfig {
 	s32 big_blind = 10;
 	u32 hands = 200u;
 	u32 seed = 1u;
+	PokerVariant variant = PokerVariant::TexasHoldem;
+	bool with_jokers = false;
 	BotStyle styles[kMaxSeats] {};
 };
 
@@ -79,7 +81,8 @@ inline void run_session(const SessionConfig& config, const CardPlan& plan, Sessi
 
 	for (u32 hand = 0u; hand < config.hands; ++hand) {
 		Table table {};
-		start_hand(table, rng, seats, config.starting_stack, config.small_blind, config.big_blind, button);
+		start_hand(table, rng, seats, config.starting_stack, config.small_blind, config.big_blind,
+		           button, config.variant, BettingStructure::NoLimit, config.with_jokers);
 		// Rota el botón sin `%` (evita `__umodsi3` en 68000).
 		const u8 next_button = static_cast<u8>(button + 1u);
 		button = next_button >= seats ? 0u : next_button;

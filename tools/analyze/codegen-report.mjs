@@ -111,8 +111,8 @@ static_assert(sizeof(eng::ai::Goap<64>::Planner<256>) == 12630u, "Goap<64>::Plan
 // Gate de layout de eng::cards (m68k): fija los sizeof del estado de poker. Si cambian,
 // la compilacion cruzada falla y hay que revisar el presupuesto de RAM por perfil.
 static_assert(sizeof(eng::cards::Seat) == 18u, "cards::Seat");
-static_assert(sizeof(eng::cards::Table) == 270u, "cards::Table");
-static_assert(sizeof(eng::cards::Deck) == 53u, "cards::Deck");
+static_assert(sizeof(eng::cards::Table) == 274u, "cards::Table");
+static_assert(sizeof(eng::cards::Deck) == 55u, "cards::Deck");
 static_assert(sizeof(eng::cards::CardPlan) == 34u, "cards::CardPlan");
 static_assert(sizeof(eng::cards::HandRange) == 24u, "cards::HandRange");
 static_assert(sizeof(eng::cards::PreflopTable) == 512u, "cards::PreflopTable");
@@ -941,6 +941,16 @@ extern "C" eng::u16 c_cards_limit() {
 	eng::cards::Action legal[12];
 	const eng::u8 n = eng::cards::legal_actions(t, legal, 12u);
 	return static_cast<eng::u16>(n + static_cast<eng::u8>(t.raises_this_street));
+}
+extern "C" eng::u32 c_cards_wild(const eng::u8* cards) {
+	return static_cast<eng::u32>(eng::cards::evaluate_hand(cards, 7u));
+}
+extern "C" eng::u16 c_cards_omaha_eq(eng::u8 a, eng::u8 b, eng::u8 c, eng::u8 d, eng::u16 samples) {
+	static eng::Xoroshiro64pp rng {15u, 16u};
+	const eng::u8 hole[4] = {a, b, c, d};
+	const eng::cards::EquityResult r = eng::cards::equity_vs_random_omaha(
+	    eng::Span<const eng::u8> {hole, 4u}, eng::Span<const eng::u8> {}, 1u, samples, rng);
+	return r.equity_permille;
 }
 `;
 
