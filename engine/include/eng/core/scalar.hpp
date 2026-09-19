@@ -51,9 +51,14 @@ using real = math::Fixed<s16, 12>;
 using coord = math::Fixed<s16, 0>;
 #elif ENG__SCALAR_MODE == 2
 inline constexpr const char* scalar_mode = "retro32";
+/// Entero de palabra natural a 32 bits en 68020.
 using intw = s32;
-using real = math::Fixed<s32, 12>;
-using coord = math::Fixed<s32, 0>;
+/// **Los formatos de assets son de 16 bits.** En 68020 se reutilizan los MISMOS assets
+/// que en 68000 (mallas `obj2c`, tablas 4.12), asi que `real`/`coord` siguen a 16 bits y
+/// lo unico que cambia respecto a retro16 es el entero de palabra (`intw`). Un fixed de
+/// 32 bits seria una decision aparte (no por target).
+using real = math::Fixed<s16, 12>;
+using coord = math::Fixed<s16, 0>;
 #else
 inline constexpr const char* scalar_mode = "native";
 using intw = int;

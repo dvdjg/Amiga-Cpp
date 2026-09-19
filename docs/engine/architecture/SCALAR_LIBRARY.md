@@ -296,7 +296,9 @@ segundo caso no es deuda pendiente: cambiarlo rompería el contrato.
 
 | Zona | Por qué entero crudo |
 |---|---|
-| `object3d.hpp` (`Point3D`, `Node3D`, `Edge`, `Face`) | **Semántica, no tamaño.** `Fixed<R,Exp,Policy>` es `struct { R v; }`: mismo `sizeof` y layout que `R` (verificado: `sizeof(Fixed<s16,12>)==2`, standard-layout, trivially copyable, mismo `sizeof`/offsets que `s16`; reinterpretar los bytes del `objdat` funciona). El motivo no es el binario, es que el `objdat` es **heterogéneo** y **reutiliza el mismo `Point3D` con escalas distintas**: `point`/`vertex` son `q0` (enteros), `normal` es `q12`, y `Object3D.rotate`/`scale` son `q12` mientras `translate` es `q0` — todo con el mismo tipo `Point3D`. No hay un exponente único que valga, y `Fixed` **prohíbe mezclar exponentes**. Además `flags`/`count`/`Edge.point`/`FaceIndex` son booleanos/índices/offsets de byte (no coma fija). La *aritmética* que lo consume (`math3d::Affine3`, `projector`) ya es `q12` tipada. **Tiparlo bien exigiría tipos separados** (`PointQ0`/`AngleQ12`/`ScaleQ12`) sin cambiar el layout; es un refactor legítimo, no una imposibilidad. |
+| `object3d.hpp` **`objdat` empaquetado** (`Point3D`, `Node3D`, `Edge`, `Face`) | **Semántica, no tamaño.** `Fixed<R,Exp,Policy>` es `struct { R v; }`: mismo `sizeof` y layout que `R` (verificado: `sizeof(Fixed<s16,12>)==2`, standard-layout, trivially copyable; reinterpretar los bytes del `objdat` funciona). El motivo no es el binario: el `objdat` mezcla escalas (`point`/`vertex` `q0`, `normal` `q12`) y **reutiliza el mismo `Point3D`** para varias; además `flags`/`count`/`Edge.point`/`FaceIndex` son booleanos/índices/offsets de byte. Por eso el blob se deja crudo. |
+
+**Piloto hecho (2026):** los campos de **runtime** de `Object3D` —que **no** son el ABI del `objdat`— ya estan tipados: `Angle3 rotate` (indice de angulo 0..4095, **no** coma fija), `Point3R scale` (`q12`) y `Point3C translate`/`camera` (`q0`), con `Point3S<S>` **templado** (el caller puede instanciar con otro fixed y el compilador rechaza mezclas; se eliminaron los `static_cast` de la transformacion). El `objdat` empaquetado (`Point3D`/`Node3D`/`Face`) sigue crudo por lo anterior. Guardas: HOST-014/047/051/053 (053 es tabla dorada **bit-exacta**) y `codegen-report` (``muls.w`/`divs.w`, sin libcalls).
 | `amiga_minimal.hpp`, `blob.hpp` (registros, `blitter_*`, copper) | palabras de registro custom y offsets de hardware; 16 bits es parte del protocolo del chipset. |
 | `mesh3d.hpp` (`Coord = Fixed<s16,0>`, `mul32x16`) | tipo de dominio pantalla/tile: ya es `Fixed`, con exponente 0 (`q0`) por coste 68000. |
 | `bitmap.hpp`, `bob.hpp` (`u16 width/height/row_bytes`, `s16 x/y`), `sprite*` | geometría en píxeles/palabras (enteros de dominio), no coma fija. |
@@ -317,6 +319,20 @@ coma fija: ahí `s16` es correcto (es el `int` de palabra natural del 68000; `en
 **Prueba rápida para clasificar un `s16`:** ¿el valor se suma/multiplica con otros y se
 desplaza (coma fija)? → `Fixed`. ¿Es un tamaño, índice, coordenada de pantalla, palabra de
 registro o campo de un formato? → `s16` crudo.
+
+### 9.3 Bloqueo para unificar `object3d`/`math3d` en `eng::coord`/`eng::real`
+
+`math3d` (`gfx3d.hpp`) y el `objdat` usan hoy `retro::q0`/`q12` (siempre `Fixed<s16,E>`).
+Cambiar los alias a `eng::coord`/`eng::real` (seleccionables) **no compila fuera de
+retro16**: en retro32/host `eng::real = Fixed<s32,12>`/`float`, pero la trigonometria de la
+que dependen (`retro::sin_q12`/`cos_q12`) devuelve `Fixed<s16,12>`, y `load_rotate` mezcla
+ambos. Lo destapa el `codegen (68020)`: `Fixed<long int,12>` vs `Fixed<short int,12>`.
+
+Para unificar de verdad hay que **generalizar la trigonometria por escalar** (el pendiente
+de `REFACTOR_SCALAR_GENERICO.md` §2: `fixed_math.hpp` solo tiene tablas para `Fixed<s16,E>`).
+Mientras tanto, el piloto de `Object3D` usa `Point3S<S>` con `retro::q0`/`q12` (identicos a
+`eng::coord`/`eng::real` en retro16); cambiar el alias a `eng::coord`/`eng::real` sera una
+linea cuando la trig este generalizada.
 
 ## 10. Por qué no todo es `q12`: rango frente a precisión
 
