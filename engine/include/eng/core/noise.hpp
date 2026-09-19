@@ -51,10 +51,6 @@ template <typename S>
 struct noise_traits {
 	static constexpr double max_coord = 1.0e30;
 };
-template <>
-struct noise_traits<MiniFloat16> {
-	static constexpr double max_coord = 2048.0;
-};
 
 namespace noise_detail {
 

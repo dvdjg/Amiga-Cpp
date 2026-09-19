@@ -60,7 +60,8 @@ for (const abs of walk(ENG)) {
 	lines.forEach((line, i) => {
 		const t = line.trim();
 		if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) return;
-		if (PATTERNS.some((re) => re.test(line))) {
+		const code = line.replace(/"[^"]*"/g, '""'); // ignora literales de cadena (mensajes)
+		if (PATTERNS.some((re) => re.test(code))) {
 			hit = true;
 			if (!baseline.has(rel)) problems.push(`eng/${rel}:${i + 1}: tipo concreto en cabecera genérica`);
 		}

@@ -74,37 +74,6 @@ struct scalar_traits {
 	static constexpr bool needs_normalize = false;
 };
 
-template <typename R, int E, typename P>
-struct scalar_traits<Fixed<R, E, P>> {
-	using scalar = Fixed<R, E, P>;
-
-	/// Producto INTERNO crudo (sin normalizar): el dot acumula estos y normaliza una
-	/// vez, que es lo preciso.
-	static constexpr auto inner(scalar a, scalar b) { return a * b; }
-
-	static constexpr scalar zero() { return scalar {0}; }
-	static constexpr scalar one() { return scalar {static_cast<R>(static_cast<R>(1) << E)}; }
-	static constexpr scalar from_int(int i) {
-		if consteval {
-			constexpr double mx = numeric_traits<scalar>::max_finite;
-			if (!(static_cast<double>(i) >= -mx && static_cast<double>(i) <= mx))
-				scalar_from_int_out_of_range();
-		}
-		return scalar {static_cast<R>(static_cast<R>(i) << E)};
-	}
-	static constexpr int to_int(scalar a) { return static_cast<int>(a.template rescale<0>().v); }
-
-	/// Normaliza un producto (de cualquier exponente) a este escalar. Un redondeo.
-	template <typename Prod>
-	static constexpr scalar norm_from(Prod p) {
-		return p.template rescale<E>().template cast<R>();
-	}
-
-	static constexpr bool needs_normalize = true;
-	/// Sumar muchas muestras puede saturar el `s16`; el acumulador ancho es `s32`.
-	static constexpr bool wide_accum = true;
-};
-
 template <>
 struct scalar_traits<float> {
 	using scalar = float;
@@ -143,64 +112,6 @@ struct scalar_traits<double> {
 	template <typename Prod>
 	static constexpr double norm_from(Prod p) {
 		return static_cast<double>(p);
-	}
-
-	static constexpr bool needs_normalize = false;
-};
-
-/// Coma flotante de 16 bits (`MiniFloat16`): el producto ya vive en el mismo espacio
-/// (no hay exponente separado que normalizar), así que los rasgos son los del cuerpo.
-/// Sólo hay que fijar el `uno` real (por defecto la plantilla primaria usaría `S{1}`,
-/// que en este formato es un valor denormal, no 1.0).
-template <>
-struct scalar_traits<MiniFloat16> {
-	using scalar = MiniFloat16;
-	static constexpr bool wide_accum = false;
-
-	static constexpr MiniFloat16 inner(MiniFloat16 a, MiniFloat16 b) { return a * b; }
-
-	static constexpr MiniFloat16 zero() { return MiniFloat16::zero(); }
-	static constexpr MiniFloat16 one() { return MiniFloat16::one(); }
-
-	/// Multiply-accumulate de un solo redondeo (FMA): lo usan `Mat*Mat`/`Mat*Vec`.
-	static constexpr MiniFloat16 mac(MiniFloat16 a, MiniFloat16 b, MiniFloat16 acc) {
-		return mul_add(a, b, acc);
-	}
-
-	/// Entero -> MF sin `float` (construcción por bits): en 68000 un `(float)i`
-	/// arrastraría `__floatsisf`. Exacto hasta 2048; por encima, redondeo de mantisa.
-	static constexpr MiniFloat16 from_int(int i) {
-		if (i == 0) return MiniFloat16::zero();
-		const bool neg = i < 0;
-		eng::u32 a = static_cast<eng::u32>(neg ? -i : i);
-		int msb = 0;
-		while ((a >> (msb + 1)) != 0u) ++msb;
-		const int e = msb + MiniFloat16::bias;
-		if (e >= MiniFloat16::exp_inf)
-			return MiniFloat16::from_raw(static_cast<eng::u16>(
-				(neg ? MiniFloat16::sign_mask : 0u) | MiniFloat16::exp_mask));
-		eng::u16 mant;
-		if (msb > 10)
-			mant = static_cast<eng::u16>((a >> (msb - 10)) & 0x3FFu);
-		else
-			mant = static_cast<eng::u16>((a << (10 - msb)) & 0x3FFu);
-		return MiniFloat16::from_raw(static_cast<eng::u16>(
-			(neg ? MiniFloat16::sign_mask : 0u) | (static_cast<eng::u16>(e) << 10) | mant));
-	}
-
-	/// MF -> entero truncando hacia cero, sin `float`; satura fuera de `s16`.
-	static constexpr int to_int(MiniFloat16 x) {
-		const int e = static_cast<int>((x.raw >> 10) & 31) - MiniFloat16::bias;
-		if (e < 0) return 0;
-		if (e > 14) return (x.raw & MiniFloat16::sign_mask) != 0u ? -32767 : 32767;
-		const int mant = 0x400 | (x.raw & MiniFloat16::man_mask);
-		const int v = (e <= 10) ? (mant >> (10 - e)) : (mant << (e - 10));
-		return (x.raw & MiniFloat16::sign_mask) != 0u ? -v : v;
-	}
-
-	template <typename Prod>
-	static constexpr MiniFloat16 norm_from(Prod p) {
-		return static_cast<MiniFloat16>(p);
 	}
 
 	static constexpr bool needs_normalize = false;
@@ -250,61 +161,6 @@ template <typename S>
 [[nodiscard]] constexpr S div_norm(S a, S b) {
 	return scalar_div<S>::op(a, b);
 }
-
-/// División explícita para fixed 4.12/8.8 (`s16`): `raw = (a.v << E) / b.v`, saturada.
-/// Evita el silencio del `operator/` ausente sin abrir la puerta a divisiones
-/// implícitas. Usa `arith<s16>::div` (en 68000, `divs.w` nativo 32/16) tras comprobar
-/// que el cociente cabe en `s16` (`divs.w` desborda en silencio si no). Válida para
-/// `E <= 15` (el intermedio `a.v << E` cabe en `s32`).
-template <int E, typename P>
-struct scalar_div<Fixed<s16, E, P>> {
-	using S = Fixed<s16, E, P>;
-	[[nodiscard]] static constexpr S op(S a, S b) {
-		constexpr eng::s32 mx = 32767;
-		constexpr eng::s32 mn = -32768;
-		if (b.v == 0) return S {static_cast<eng::s16>(a.v < 0 ? mn : mx)}; // satura con signo
-		const eng::s32 num = static_cast<eng::s32>(a.v) << E;
-		const eng::s32 den = b.v;
-		const eng::s32 lim = mx * (den < 0 ? -den : den); // |num| <= lim  =>  cociente en s16
-		if (num > lim) return S {static_cast<eng::s16>(mx)};
-		if (num < -lim) return S {static_cast<eng::s16>(mn)};
-		return S {arith<s16>::div(num, static_cast<eng::s16>(den))}; // divs.w nativo
-	}
-};
-
-/// División de `Fixed<s32,E>` (32 bits): el intermedio `a.v·2^E` no cabe en 32 bits, así
-/// que usa `s64`. **No disponible en m68k** (la aritmética de 64 bits son libcalls de
-/// libgcc): allí usa `Fixed<s16,E>`. En host/32 bits nativo es una división de máquina.
-template <int E, typename P>
-struct scalar_div<Fixed<s32, E, P>> {
-	using S = Fixed<s32, E, P>;
-	[[nodiscard]] static constexpr S op(S a, S b) {
-#if defined(__m68k__)
-		(void)a;
-		(void)b;
-		static_assert(sizeof(S) == 0u,
-			      "eng::math::div_norm de Fixed<s32,E> usaria libgcc de 64 bits en "
-			      "m68k; usa Fixed<s16,E> o compila para host/32 bits nativo");
-		return S {0};
-#else
-		constexpr eng::s64 mx = 2147483647LL;
-		constexpr eng::s64 mn = -2147483648LL;
-		if (b.v == 0) {
-			return S {static_cast<eng::s32>(a.v < 0 ? mn : mx)};
-		}
-		const eng::s64 num =
-			static_cast<eng::s64>(a.v) * (static_cast<eng::s64>(1) << E);
-		const eng::s64 q = num / b.v;
-		if (q > mx) {
-			return S {static_cast<eng::s32>(mx)};
-		}
-		if (q < mn) {
-			return S {static_cast<eng::s32>(mn)};
-		}
-		return S {static_cast<eng::s32>(q)};
-#endif
-	}
-};
 
 // ============================================================================
 //  Vector
