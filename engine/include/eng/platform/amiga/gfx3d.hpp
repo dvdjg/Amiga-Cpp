@@ -115,6 +115,17 @@ inline void load_reverse_rotate(Mat3<S>& m, eng::math::Angle<S, Unit> ax,
 	load_reverse_rotate_from_sincos(m, sincos3(ax, ay, az));
 }
 
+/// Variantes que reciben los `(sin, cos)` ya calculados (`sincos3`): reutilízalos cuando
+/// varias matrices comparten los mismos ángulos (p. ej. directa + inversa).
+template <class S>
+inline void load_rotate(Mat3<S>& m, const SinCos3<S>& sc) {
+	load_rotate_from_sincos(m, sc);
+}
+template <class S>
+inline void load_reverse_rotate(Mat3<S>& m, const SinCos3<S>& sc) {
+	load_reverse_rotate_from_sincos(m, sc);
+}
+
 /// Escala la parte lineal in situ (factores RATIO del mismo escalar que la matriz).
 template <class S>
 inline void scale(Mat3<S>& m, S sx, S sy, S sz) {

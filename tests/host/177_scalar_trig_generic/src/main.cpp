@@ -13,6 +13,7 @@
 #include <eng/core/fixed.hpp>
 #include <eng/core/linalg.hpp>
 #include <eng/core/scalar_math.hpp>
+#include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/retro/fixed_q.hpp>
 #include <eng/retro/fixed_trig.hpp>
 
@@ -119,6 +120,50 @@ int main() {
 		if (eng::retro::sin(eng::retro::turns(1024)).v != eng::retro::kSinQ12[1024] ||
 		    eng::retro::cos(eng::retro::turns(0)).v != eng::retro::kSinQ12[1024]) {
 			std::printf("[FAIL] turns/q12 no usa kSinTab\n");
+			++fails;
+		}
+	}
+
+	// 5) Aritmetica de `Angle` (misma unidad), `wrap` a (-pi, pi] y `sincos3` compartido.
+	{
+		using eng::math::Angle;
+		using namespace eng::math::angle;
+		const Angle<float, radians> a1 {0.5f};
+		const Angle<float, radians> a2 {0.25f};
+		const float sum = (a1 + a2).value;
+		const float dif = (a1 - a2).value;
+		const float neg = (-a1).value;
+		if (sum < 0.749f || sum > 0.751f || dif < 0.249f || dif > 0.251f || neg != -0.5f) {
+			std::printf("[FAIL] Angle +,-,neg (%.4f %.4f %.4f)\n", sum, dif, neg);
+			++fails;
+		}
+		const float w = eng::math::wrap(Angle<float, radians> {7.0f}).value; // 7 - 2pi ~ 0.7168
+		if (w < 0.70f || w > 0.73f) {
+			std::printf("[FAIL] wrap(7) = %g\n", static_cast<double>(w));
+			++fails;
+		}
+		// `sincos3` == sin/cos por eje, y `load_rotate_from_sincos` == `load_rotate`.
+		const q12 x = eng::retro::angle_to_radians(300).value;
+		const q12 y = eng::retro::angle_to_radians(700).value;
+		const q12 z = eng::retro::angle_to_radians(1100).value;
+		const auto sc = eng::math3d::sincos3(eng::retro::radians(x), eng::retro::radians(y),
+						     eng::retro::radians(z));
+		if (sc.sinX.v != eng::math::scalar_sin<q12>::op(x).v ||
+		    sc.cosZ.v != eng::math::scalar_cos<q12>::op(z).v) {
+			std::printf("[FAIL] sincos3 != sin/cos\n");
+			++fails;
+		}
+		eng::math::Mat<3, q12> m1 {};
+		eng::math::Mat<3, q12> m2 {};
+		eng::math3d::load_rotate_from_sincos(m1, sc);
+		eng::math3d::load_rotate(m2, eng::retro::radians(x), eng::retro::radians(y),
+					 eng::retro::radians(z));
+		bool eq = true;
+		for (int i = 0; i < 3; ++i)
+			for (int j = 0; j < 3; ++j)
+				if (m1.m[i][j].v != m2.m[i][j].v) eq = false;
+		if (!eq) {
+			std::printf("[FAIL] load_rotate_from_sincos != load_rotate\n");
 			++fails;
 		}
 	}

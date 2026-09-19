@@ -368,6 +368,34 @@ template <class S, class Unit>
 	return Angle<S, Unit> {-a.value};
 }
 
+/// `wrap_angle` de coma flotante: reduce a `(-π, π]`. Los fixed (`fixed_math.hpp`) y
+/// `MiniFloat16` (`minifloat_math.hpp`) lo aportan para su escalar.
+[[nodiscard]] constexpr float wrap_angle(float x) {
+	constexpr float two_pi = 6.28318530717958647692f;
+	constexpr float pi = 3.14159265358979323846f;
+	const float turns = static_cast<float>(static_cast<long>(x / two_pi + (x < 0.0f ? -0.5f : 0.5f)));
+	float r = x - two_pi * turns;
+	if (r <= -pi) r += two_pi;
+	if (r > pi) r -= two_pi;
+	return r;
+}
+[[nodiscard]] constexpr double wrap_angle(double x) {
+	constexpr double two_pi = 6.28318530717958647692;
+	constexpr double pi = 3.14159265358979323846;
+	const double turns = static_cast<double>(static_cast<long>(x / two_pi + (x < 0.0 ? -0.5 : 0.5)));
+	double r = x - two_pi * turns;
+	if (r <= -pi) r += two_pi;
+	if (r > pi) r -= two_pi;
+	return r;
+}
+
+/// Reduce un ángulo a `(-π, π]` (usa el `wrap_angle` del escalar; los ángulos en vueltas
+/// ya están en rango 0..1).
+template <class S, class Unit>
+[[nodiscard]] constexpr Angle<S, Unit> wrap(Angle<S, Unit> a) {
+	return Angle<S, Unit> {wrap_angle(a.value)};
+}
+
 /// Paso de una unidad de ángulo a radianes del escalar `S`.
 template <class S, class Unit>
 struct angle_radians;
