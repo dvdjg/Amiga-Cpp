@@ -42,7 +42,7 @@ static void build_mesh() {
 int main() {
 	Object3D obj {};
 	Mesh3D mesh {};
-	mesh.data = g_objdat;
+	mesh.bytes = eng::Span<eng::u8>(g_objdat);
 	mesh.vertexGroups = g_vertexGroups;
 	mesh.edgeGroups = g_edgeGroups;
 	mesh.faceGroups = g_faceGroups;

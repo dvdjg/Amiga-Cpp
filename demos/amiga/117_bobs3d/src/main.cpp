@@ -226,7 +226,7 @@ enum {
 void transform_all_vertices(obj::Object3D& object) {
 	using Proj = eng::math::projector<eng::math3d::Affine3<>>;
 	const Proj::cache pc = Proj::make(object.objectToWorld);
-	void* objdat = object.objdat;
+	eng::Span<eng::u8> objdat = eng::object3d::object_bytes(object);
 	s16* group = object.vertexGroups;
 	do {
 		s16 i;
@@ -381,7 +381,7 @@ private:
 	/// Calcula el vertice y lanza su BOB en el MISMO bucle (estructura de `DrawObject`),
 	/// via el lote en streaming del backend: sin array intermedio.
 	void draw_bobs_stream(eng::amiga::MinimalBackend& backend, u8* screen) {
-		void* objdat = m_object.objdat;
+		eng::Span<eng::u8> objdat = eng::object3d::object_bytes(m_object);
 		s16* group = m_object.vertexGroups;
 
 		eng::amiga::OrBlobBatch batch;
@@ -439,7 +439,7 @@ private:
 	/// Dibuja un BOB OR por vertice, como `DrawObject`: posicion (x-16, y-16), `z`
 	/// selecciona el frame (chispa) del atlas y el blit es intercalado (1 job/objeto).
 	void draw_bobs(u8* screen) {
-		void* objdat = m_object.objdat;
+		eng::Span<eng::u8> objdat = eng::object3d::object_bytes(m_object);
 		s16* group = m_object.vertexGroups;
 
 		graphics::Bob bob {};

@@ -24,6 +24,7 @@
 /// el ángulo en radianes). La crudeza vive solo en el almacenamiento, no en la aritmética.
 
 #include <eng/core/arith.hpp>
+#include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/retro/fixed_q.hpp>
@@ -104,7 +105,10 @@ struct Mesh3D {
 	s16 edges = 0;
 	s16 faces = 0;
 	s16 materials = 0;
-	void* data = nullptr;
+	/// Blob empaquetado de `obj2c` como **bytes tipados** (los grupos lo indexan por
+	/// offset de byte). Sustituye al `void*` crudo: el formato por campo lo describen los
+	/// structs `Point3D`/`Node3D`/`Edge`/`Face` de más abajo.
+	eng::Span<eng::u8> bytes {};
 	s16* vertexGroups = nullptr;
 	s16* edgeGroups = nullptr;
 	s16* faceGroups = nullptr;
@@ -112,8 +116,11 @@ struct Mesh3D {
 };
 
 /// Objeto 3D: mesh enlazado + estado de transformación + cámara en espacio objeto.
+///
+/// **Layout estable**: el asm (`flatshade_asm.s`) lee `objdat`@0, los grupos@4/8/12 y
+/// `objectToWorld`@38..; `objdat_size` va **al final** para no mover esos offsets.
 struct Object3D {
-	void* objdat = nullptr;
+	eng::u8* objdat = nullptr;
 	s16* vertexGroups = nullptr;
 	s16* edgeGroups = nullptr;
 	s16* faceGroups = nullptr;
@@ -127,12 +134,15 @@ struct Object3D {
 	math3d::Affine3<> worldToObject {}; // mundo -> objeto
 
 	Point3C camera {}; // posicion de camara en espacio objeto (q0)
+
+	eng::u32 objdat_size = 0; // tamaño del blob (para la vista `Span<u8>`)
 };
 
 /// Enlaza el mesh al objeto (equivalente a `NewObject3D` sin reservar memoria: el
 /// `Object3D` es del llamador). `scale` queda a 1.0 (4.12).
-inline void new_object3d(Object3D& object, Mesh3D& mesh) {
-	object.objdat = mesh.data;
+inline void new_object3d(Object3D& object, const Mesh3D& mesh) {
+	object.objdat = mesh.bytes.data();
+	object.objdat_size = static_cast<eng::u32>(mesh.bytes.size());
 	object.vertexGroups = mesh.vertexGroups;
 	object.edgeGroups = mesh.edgeGroups;
 	object.faceGroups = mesh.faceGroups;
@@ -140,27 +150,55 @@ inline void new_object3d(Object3D& object, Mesh3D& mesh) {
 	object.scale = Point3R {eng::retro::q12 {1 << 12}, eng::retro::q12 {1 << 12}, eng::retro::q12 {1 << 12}};
 }
 
+/// Vista de bytes del blob de un `Object3D` (mutable): lo que consumen los accesores.
+[[nodiscard]] inline eng::Span<eng::u8> object_bytes(const Object3D& object) {
+	return eng::Span<eng::u8> {object.objdat, object.objdat_size};
+}
+
+/// Valida lo mínimo del descriptor de malla: que los grupos referenciados quepan en el
+/// blob. Devuelve `false` si el asset está corrupto o sin `bytes`.
+[[nodiscard]] inline bool mesh_validate(const Mesh3D& mesh) {
+	if (mesh.bytes.empty()) {
+		return false;
+	}
+	const eng::u32 n = static_cast<eng::u32>(mesh.bytes.size());
+	const s16* groups[] = {mesh.vertexGroups, mesh.edgeGroups, mesh.faceGroups, mesh.objects};
+	for (const s16* g : groups) {
+		if (g == nullptr) {
+			continue;
+		}
+		for (const s16* p = g; *p; ++p) {
+			const s16 off = *p;
+			if (off < 0 || static_cast<eng::u32>(off) >= n) {
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
 // --- Acceso al `objdat` empaquetado (macros del original) --------------------
-inline u8* objdat_byte(void* objdat, s16 i) {
-	return static_cast<u8*>(objdat) + static_cast<s32>(i);
+// Reciben la vista `Span<u8>` del blob; devuelven punteros a los structs de formato.
+inline eng::u8* objdat_byte(eng::Span<eng::u8> bytes, s16 i) {
+	return bytes.data() + static_cast<s32>(i);
 }
-inline Node3D* node3d(void* objdat, s16 i) {
-	return reinterpret_cast<Node3D*>(objdat_byte(objdat, static_cast<s16>(i - 2)));
+inline Node3D* node3d(eng::Span<eng::u8> bytes, s16 i) {
+	return reinterpret_cast<Node3D*>(objdat_byte(bytes, static_cast<s16>(i - 2)));
 }
-inline Point3D* point3d(void* objdat, s16 i) {
-	return reinterpret_cast<Point3D*>(objdat_byte(objdat, i));
+inline Point3D* point3d(eng::Span<eng::u8> bytes, s16 i) {
+	return reinterpret_cast<Point3D*>(objdat_byte(bytes, i));
 }
-inline Point3D* vertex3d(void* objdat, s16 i) {
-	return reinterpret_cast<Point3D*>(objdat_byte(objdat, static_cast<s16>(i + 6)));
+inline Point3D* vertex3d(eng::Span<eng::u8> bytes, s16 i) {
+	return reinterpret_cast<Point3D*>(objdat_byte(bytes, static_cast<s16>(i + 6)));
 }
-inline Edge* edge3d(void* objdat, s16 i) {
-	return reinterpret_cast<Edge*>(objdat_byte(objdat, i));
+inline Edge* edge3d(eng::Span<eng::u8> bytes, s16 i) {
+	return reinterpret_cast<Edge*>(objdat_byte(bytes, i));
 }
-inline Face* face3d(void* objdat, s16 i) {
-	return reinterpret_cast<Face*>(objdat_byte(objdat, i));
+inline Face* face3d(eng::Span<eng::u8> bytes, s16 i) {
+	return reinterpret_cast<Face*>(objdat_byte(bytes, i));
 }
 inline FaceIndex* face_indices(Face* face) {
-	return reinterpret_cast<FaceIndex*>(reinterpret_cast<u8*>(face) + 10);
+	return reinterpret_cast<FaceIndex*>(reinterpret_cast<eng::u8*>(face) + 10);
 }
 
 /// Actualiza `objectToWorld`/`worldToObject` y la cámara en espacio objeto.

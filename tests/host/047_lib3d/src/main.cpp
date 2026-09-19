@@ -69,7 +69,7 @@ int main() {
 	// Objeto: malla minima + camara detras del origen (translate z negativo).
 	eng::object3d::Object3D obj {};
 	eng::object3d::Mesh3D mesh {};
-	mesh.data = g_objdat;
+	mesh.bytes = eng::Span<eng::u8>(g_objdat);
 	mesh.vertexGroups = g_vertexGroups;
 	mesh.edgeGroups = g_edgeGroups;
 	mesh.faceGroups = g_faceGroups;

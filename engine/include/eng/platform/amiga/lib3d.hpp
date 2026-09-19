@@ -134,7 +134,7 @@ inline void update_face_visibility(Object3D& object) {
 	const s16 cx = object.camera.x.v;
 	const s16 cy = object.camera.y.v;
 	const s16 cz = object.camera.z.v;
-	void* objdat = object.objdat;
+	eng::Span<eng::u8> objdat = eng::object3d::object_bytes(object);
 	s16* group = object.faceGroups;
 	s16 f;
 	do {
@@ -178,7 +178,7 @@ inline void update_face_visibility(Object3D& object) {
 /// Coste: recorrido puro de índices (sin multiplicaciones).
 inline void update_edge_visibility_convex(Object3D& object) {
 	const s8 s = 1;
-	void* objdat = object.objdat;
+	eng::Span<eng::u8> objdat = eng::object3d::object_bytes(object);
 	s16* group = object.faceGroups;
 	s16 f;
 	do {
@@ -220,7 +220,7 @@ inline void update_edge_visibility_convex(Object3D& object) {
 /// registros y un `muls.w`/`divs.w` por operación, sin recargar `objdat`.
 inline void transform_vertices(Object3D& object, s16 half_w, s16 half_h, s16 bbox[4]) {
 	math3d::Affine3<>& M = object.objectToWorld;
-	void* objdat = object.objdat;
+	eng::Span<eng::u8> objdat = eng::object3d::object_bytes(object);
 	s16* group = object.vertexGroups;
 
 	// Lo precalculable UNA vez por matriz (términos de traslación plegados) lo guarda

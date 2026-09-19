@@ -17,9 +17,10 @@ static void check(bool ok, const char* msg) {
 int main() {
 	// Mesh minimo: 1 vertice empaquetado [flags, ox, oy, oz, x, y, z].
 	static short data[7] = {0, 111, 222, 333, 0, 0, 0};
+	const eng::Span<eng::u8> bytes {reinterpret_cast<eng::u8*>(data), sizeof(data)};
 	Mesh3D mesh {};
 	mesh.vertices = 1;
-	mesh.data = data;
+	mesh.bytes = bytes;
 	mesh.vertexGroups = data;
 	mesh.edgeGroups = data;
 	mesh.faceGroups = data;
@@ -27,15 +28,15 @@ int main() {
 
 	Object3D obj {};
 	new_object3d(obj, mesh);
-	check(obj.objdat == data, "new_object3d enlaza objdat");
+	check(obj.objdat == bytes.data() && obj.objdat_size == bytes.size(), "new_object3d enlaza objdat");
 	check(obj.scale.x.v == (1 << 12) && obj.scale.y.v == (1 << 12), "scale inicial 1.0 (4.12)");
 
 	// Offsets de las macros (indice = offset de byte; primer vertice = 2).
-	const Point3D* p = point3d(data, 2);
+	const Point3D* p = point3d(bytes, 2);
 	check(p->x == 111 && p->y == 222 && p->z == 333, "point3d(i) -> point del nodo");
-	const Point3D* v = vertex3d(data, 2);
+	const Point3D* v = vertex3d(bytes, 2);
 	check(v->x == 0 && v->y == 0 && v->z == 0, "vertex3d(i) -> vertex del nodo");
-	check(reinterpret_cast<short*>(node3d(data, 2)) == data, "node3d(i) = objdat + i - 2");
+	check(reinterpret_cast<short*>(node3d(bytes, 2)) == data, "node3d(i) = objdat + i - 2");
 
 	// Transformacion: identidad + traslacion.
 	obj.rotate = {};

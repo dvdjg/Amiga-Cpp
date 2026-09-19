@@ -76,7 +76,7 @@ void update_face_visibility_fast(obj::Object3D& object) {
 	const eng::s16 cx = object.camera.x.v;
 	const eng::s16 cy = object.camera.y.v;
 	const eng::s16 cz = object.camera.z.v;
-	void* objdat = object.objdat;
+	eng::Span<eng::u8> objdat = eng::object3d::object_bytes(object);
 	eng::s16* group = object.faceGroups;
 	eng::s16 f;
 	do {
@@ -104,7 +104,7 @@ void update_face_visibility_fast(obj::Object3D& object) {
 
 void update_edge_visibility(obj::Object3D& object) {
 	const eng::s16 s = 1;
-	void* objdat = object.objdat;
+	eng::Span<eng::u8> objdat = eng::object3d::object_bytes(object);
 	eng::s16* group = object.faceGroups;
 	eng::s16 f;
 	do {
@@ -146,7 +146,7 @@ void update_edge_visibility(obj::Object3D& object) {
 
 void transform_vertices(obj::Object3D& object) {
 	eng::math3d::Affine3<>& M = object.objectToWorld;
-	void* objdat = object.objdat;
+	eng::Span<eng::u8> objdat = eng::object3d::object_bytes(object);
 	eng::s16* group = object.vertexGroups;
 
 	eng::s32 m0 = (static_cast<eng::s32>(M.t.x().v) -
@@ -187,7 +187,7 @@ void transform_vertices(obj::Object3D& object) {
 }
 
 void draw_object(obj::Object3D& object, eng::PlaneBytes bplpt, eng::amiga::MinimalBackend& backend) {
-	void* objdat = object.objdat;
+	eng::Span<eng::u8> objdat = eng::object3d::object_bytes(object);
 	eng::s16* group = object.edgeGroups;
 
 	do {

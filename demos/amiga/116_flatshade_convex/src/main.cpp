@@ -158,7 +158,7 @@ eng::s16 g_bbox[4] = {32767, -32768, 32767, -32768};
 /// sin depender de la paridad del area fill XOR, a cambio de mas blits por cara.
 void draw_faces(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::MinimalBackend& backend,
 		eng::MaskBuffer mask) {
-	void* objdat = object.objdat;
+	eng::Span<eng::u8> objdat = eng::object3d::object_bytes(object);
 	eng::s16* group = object.faceGroups;
 	eng::s16 xs[kMaxFaceVerts];
 	eng::s16 ys[kMaxFaceVerts];
@@ -243,7 +243,7 @@ void draw_edges(obj::Object3D& object, eng::PlaneBytes planes,
 	eng::u32 n_edges = 0u;
 	eng::u32 n_lines = 0u;
 	eng::u32 px_total = 0u;
-	void* objdat = object.objdat;
+	eng::Span<eng::u8> objdat = eng::object3d::object_bytes(object);
 	eng::s16* group = object.edgeGroups;
 	eng::s16 e;
 #if !FLATSHADE_SKIP_EDGES
