@@ -2,22 +2,22 @@
 // Demo 124: benchmark del motor de naipes (`eng::cards`) en Amiga.
 // ============================================================================
 //
-// Mide en **lineas de raster** (frame PAL = 313) el coste de una unidad de trabajo
-// por frame: 1 mano completa + N muestras de equity. Se lee `current_raster_line()`
-// antes y despues de la unidad (patron de polling como 000/100_chess).
+// Mide **unidades/s** con el contador TOD de la CIA-A (50 Hz PAL), sin depender de
+// que la unidad quepa en un frame: repite "1 mano + N muestras de equity" hasta
+// agotar un presupuesto de tiempo emulado y calcula la tasa real. El perfil se elige
+// en compilación con `-DCARDS_BENCH_PROFILE=<0..4>` (0=N20 … 4=N512).
 //
 // Publica en `g_eng_run_status.detail`:
-//   bits 31..16  lineas del tick mas caro (max_lines)
-//   bits 15..0   unidades/s si la unidad cabe en un frame (0 si no cabe)
+//   bits 31..16  unidades/s
+//   bits 15..0   ms por unidad
 //
-// y lo dibuja en pantalla. Cambiar `kProfile` mide el coste del Monte Carlo; cambiar
-// el target (`TARGET_MACHINE`) compara CPU.
+// y lo dibuja en pantalla. Cambiar el target (`TARGET_MACHINE`) compararia CPU.
 //
 // Build/run/analyze (mismos wrappers que una demo):
 //   bash tools/build/build-demo.sh demos/amiga/124_cards_bench --release --clean
 //   bash tools/run/run-demo.sh demos/amiga/124_cards_bench --warp
 //
-// Verificacion: build -> run -> analyze (pendiente de cierre en emulador).
+// Verificacion: build -> run -> READY OK (evidencia en el README).
 
 #include <eng/core/random.hpp>
 #include <eng/core/types.hpp>
@@ -58,11 +58,12 @@ using namespace eng::cards;
 #define CARDS_BENCH_PROFILE 0 // 0=N20, 1=N64, 2=N128, 3=N256, 4=N512
 #endif
 constexpr CardProfile kProfile = static_cast<CardProfile>(CARDS_BENCH_PROFILE);
-constexpr eng::u16 kTableSamples = 4u;
-constexpr eng::u8 kSeats = 2u;
-constexpr eng::u16 kEquityBatch = 1u;    // muestras de equity por tick
-constexpr eng::u16 kMeasureTicks = 40u;  // ~0.8 s a 50 Hz
-constexpr eng::u16 kPalLines = 313u;
+
+constexpr eng::u16 kTableSamples = 8u;
+constexpr eng::u8 kSeats = 2u;          // heads-up: mano corta
+constexpr eng::u16 kEquityBatch = 1u;   // muestras de equity dentro de la unidad
+constexpr eng::u32 kTargetTicks = 200u; // presupuesto de medida: 4 s emulados (50 Hz)
+constexpr eng::u32 kMaxUnits = 200000u;
 
 void append(char* dst, const char* src) {
 	while (*dst != '\0') {
@@ -93,52 +94,34 @@ struct CardsBench {
 			m_cfg.styles[i] =
 			    (i % 2u) == 0u ? BotStyle::TightAggressive : BotStyle::LoosePassive;
 		}
+
+		// Ventana de medida adaptativa por TOD (50 Hz): se repite la unidad hasta
+		// agotar `kTargetTicks` o `kMaxUnits`, lo que llegue antes.
+		const eng::u32 start = backend.cia_tod_ticks();
+		eng::u32 units = 0u;
+		eng::u32 elapsed = 0u;
+		while (units < kMaxUnits) {
+			run_unit();
+			++units;
+			elapsed = (backend.cia_tod_ticks() - start) & 0x00ffffffu;
+			if (elapsed >= kTargetTicks) {
+				break;
+			}
+		}
+		m_units = units;
+		m_elapsed_ticks = elapsed;
+		m_units_per_s = elapsed == 0u ? 0u : div32(units * 50u, elapsed);
+		// ms por unidad = elapsed_ticks * 20 / units (1 tick = 20 ms; 20 = 16+4).
+		const eng::u32 per_unit_ms = units == 0u
+		                                 ? 0u
+		                                 : div32((elapsed << 4u) + (elapsed << 2u), units);
+		g_eng_run_status.detail =
+		    (m_units_per_s << 16u) | (per_unit_ms > 0xffffu ? 0xffffu : per_unit_ms);
+		eng::debug::mark_ready(g_eng_run_status, g_eng_run_status.detail);
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+	void update(eng::amiga::MinimalBackend&, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
-		if (!m_memory_ok) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00000001u);
-			return;
-		}
-		if (m_measured) {
-			return;
-		}
-
-		const eng::u16 start = backend.current_raster_line();
-
-		SessionConfig run_cfg = m_cfg;
-		run_cfg.seed = m_seed++;
-		SessionStats stats {};
-		run_session(run_cfg, m_plan, stats, nullptr);
-		m_hands += stats.hands_played;
-		m_showdowns += stats.showdowns;
-
-		const eng::u8 hole[2] {make_card(Rank::Ace, Suit::Spades),
-		                       make_card(Rank::King, Suit::Spades)};
-		const eng::u8 board[3] {make_card(Rank::Two, Suit::Clubs),
-		                        make_card(Rank::Seven, Suit::Hearts),
-		                        make_card(Rank::Nine, Suit::Diamonds)};
-		(void)equity_vs_random(eng::Span<const eng::u8> {hole, 2u},
-		                       eng::Span<const eng::u8> {board, 3u}, 1u, kEquityBatch, m_rng);
-
-		const eng::u16 end = backend.current_raster_line();
-		eng::u16 lines = (end >= start) ? static_cast<eng::u16>(end - start)
-		                                : static_cast<eng::u16>(end + kPalLines - start);
-		if (lines > m_max_lines) {
-			m_max_lines = lines;
-		}
-
-		if (context.frame.frame_index + 1u >= kMeasureTicks) {
-			// unidades/s = 50 * 313 / lineas, sin libgcc (15650 = 50*313).
-			m_units_per_s = (m_max_lines == 0u || m_max_lines > kPalLines)
-			                    ? 0u
-			                    : div32(50u * kPalLines, m_max_lines);
-			g_eng_run_status.detail = (static_cast<eng::u32>(m_max_lines) << 16u) |
-			                          (m_units_per_s & 0xffffu);
-			eng::debug::mark_ready(g_eng_run_status, g_eng_run_status.detail);
-			m_measured = true;
-		}
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
@@ -157,8 +140,8 @@ struct CardsBench {
 		char line[56];
 
 		line[0] = '\0';
-		append(line, "lineas maxima: ");
-		append(line, number(m_max_lines));
+		append(line, "perfil: ");
+		append(line, number(static_cast<eng::u32>(kProfile)));
 		debug.text(60, 90, line, 0x0080ff80);
 
 		line[0] = '\0';
@@ -167,29 +150,39 @@ struct CardsBench {
 		debug.text(60, 120, line, 0x00ffff00);
 
 		line[0] = '\0';
-		append(line, "manos: ");
-		append(line, number(m_hands));
+		append(line, "unidades: ");
+		append(line, number(m_units));
 		debug.text(60, 150, line, 0x00ffc040);
-
-		line[0] = '\0';
-		append(line, "showdowns: ");
-		append(line, number(m_showdowns));
-		debug.text(60, 180, line, 0x00ffc040);
 
 		eng::debug::probe_when_ready(g_eng_run_status, 0u);
 	}
 
 private:
+	void run_unit() {
+		SessionConfig run_cfg = m_cfg;
+		run_cfg.seed = m_seed++;
+		SessionStats stats {};
+		run_session(run_cfg, m_plan, stats, nullptr);
+		m_hands += stats.hands_played;
+
+		const eng::u8 hole[2] {make_card(Rank::Ace, Suit::Spades),
+		                       make_card(Rank::King, Suit::Spades)};
+		const eng::u8 board[3] {make_card(Rank::Two, Suit::Clubs),
+		                        make_card(Rank::Seven, Suit::Hearts),
+		                        make_card(Rank::Nine, Suit::Diamonds)};
+		(void)equity_vs_random(eng::Span<const eng::u8> {hole, 2u},
+		                       eng::Span<const eng::u8> {board, 3u}, 1u, kEquityBatch, m_rng);
+	}
+
 	PreflopTable m_table {};
 	CardPlan m_plan {};
 	SessionConfig m_cfg {};
 	eng::Xoroshiro64pp m_rng {0x9e37u, 0x79b9u};
 	eng::u32 m_seed = 1u;
 	eng::u32 m_hands = 0u;
-	eng::u32 m_showdowns = 0u;
+	eng::u32 m_units = 0u;
+	eng::u32 m_elapsed_ticks = 0u;
 	eng::u32 m_units_per_s = 0u;
-	eng::u16 m_max_lines = 0u;
-	bool m_measured = false;
 	bool m_memory_ok = false;
 };
 

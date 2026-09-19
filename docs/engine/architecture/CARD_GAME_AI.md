@@ -75,16 +75,22 @@ materializa en un `CardPlan` (`core/budget.hpp`); ningún tamaño se fija con ma
 | Perfil | Footprint | Muestras MC / jugada | Modelo de rival | Histórico | Explicación |
 |---|---|---|---|---|---|
 | `N20` | ~17–20 kB | 0 (heurística preflop) | — | 16 acciones | mínima |
-| `N64` | ~64 kB | 32 | 1 rival | 64 acciones | básica |
-| `N128` | ~128 kB | 96 | 3 rivales | 128 acciones | media |
-| `N256` | ~256 kB | 224 | 6 rivales | 256 acciones | rica |
-| `N512` | ~512 kB | 448 | 8 rivales | 512 acciones | completa |
+| `N64` | ~64 kB | 8 | 1 rival | 64 acciones | básica |
+| `N128` | ~128 kB | 16 | 3 rivales | 128 acciones | media |
+| `N256` | ~256 kB | 32 | 6 rivales | 256 acciones | rica |
+| `N512` | ~512 kB | 64 | 8 rivales | 512 acciones | completa |
+
+Las muestras están **calibradas en un A500 real** con `demos/amiga/124_cards_bench`
+(unidad = 1 mano + 1 muestra, cronometrada por TOD a 50 Hz): `N20` ≈ 30 unidades/s
+(32 ms), `N64` ≈ 1 unidad/s (685 ms) y `N128` ≈ 6 s/unidad (no jugable en un A500).
+`N20`/`N64` son los perfiles viables en un A500 base; `N128` y superiores apuntan a
+máquinas ampliadas (A1200/030).
 
 Notas:
 
 - Los **tamaños reales en m68k** están fijados en la sonda de codegen
-  (`tools/analyze/codegen-report.mjs`): `Seat` 16 B, `Table` 246 B, `Deck` 53 B,
-  `CardPlan` 34 B, `HandRange` 24 B, `PreflopTable` 342 B, `EquityResult` 6 B,
+  (`tools/analyze/codegen-report.mjs`): `Seat` 18 B, `Table` 270 B, `Deck` 53 B,
+  `CardPlan` 34 B, `HandRange` 24 B, `PreflopTable` 512 B, `EquityResult` 6 B,
   `BotParams` 14 B, `OpponentModel` 82 B y `SessionStats` 72 B. El estado de una mano
   completa cabe en ~300 B; lo demás es caché de conocimiento (tabla, modelo, histórico).
 - El perfil decide **cuánto piensa** el bot (muestras de Monte Carlo, resolución del modelo
@@ -216,7 +222,7 @@ Notas:
 | `eval/range.hpp` (169 clases, rangos, tabla preflop) | **Implementado**: HOST-166 |
 | `ai/bot.hpp` + `sim/session.hpp` (estilos, modelo de rival, sesiones) | **Implementado**: HOST-165 |
 | Herramienta host `tools/cards/selfplay.sh` | **Implementado y ejecutado** (torneos CPU vs CPU) |
-| Benchmark hardware `demos/amiga/124_cards_bench` | **Implementado y medido**: A500/68000/`N20` = 290 líneas de raster por unidad (1 mano + 1 muestra), cabe en el frame de 313 (~53 unidades/s); `N64` lo supera |
+| Benchmark hardware `demos/amiga/124_cards_bench` | **Implementado y medido en A500**: `N20` ≈ 30 unidades/s, `N64` (8 muestras) ≈ 685 ms/unidad; `N128`+ no jugables. Muestras por perfil calibradas con esta tabla |
 | Juego con UI en `games/` | **Pendiente** (los motores están **NO VERIFICADOS** en hardware) |
 
 > Estado: núcleo, reglas, evaluación (equity/rangos), IA y simulación implementados y

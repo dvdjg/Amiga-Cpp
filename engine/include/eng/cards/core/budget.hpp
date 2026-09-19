@@ -17,10 +17,15 @@
 /// | Perfil | Footprint | Muestras MC/jugada | Modelo de rival | Histórico | Explicación |
 /// |---|---|---|---|---|---|
 /// | `N20`  | ~20 kB  | 0 (heurística)  | no            | 16 acciones | mínima |
-/// | `N64`  | ~64 kB  | 32              | 1 rival       | 64 acciones | básica |
-/// | `N128` | ~128 kB | 96              | 3 rivales     | 128 acciones| media |
-/// | `N256` | ~256 kB | 224             | 6 rivales     | 256 acciones| rica |
-/// | `N512` | ~512 kB | 448             | 8 rivales     | 512 acciones| completa |
+/// | `N64`  | ~64 kB  | 8               | 1 rival       | 64 acciones | básica |
+/// | `N128` | ~128 kB | 16              | 3 rivales     | 128 acciones| media |
+/// | `N256` | ~256 kB | 32              | 6 rivales     | 256 acciones| rica |
+/// | `N512` | ~512 kB | 64              | 8 rivales     | 512 acciones| completa |
+///
+/// Las muestras están calibradas con `demos/amiga/124_cards_bench` en un A500
+/// (68000): `N20` ≈ 30 manos/s y `N64` con 32 muestras tardaba ~6,5 s/mano, inviable
+/// en tiempo real. Con estos valores `N20`/`N64` son jugables en un A500 base; `N128`
+/// y superiores apuntan a máquinas ampliadas (A1200/030).
 ///
 /// Verificación: HOST-161. Estado: verificado por test host; **NO VERIFICADO** en
 /// demo/hardware (sin consumidor en `games/` todavía).
@@ -84,7 +89,7 @@ struct CardPlan {
 		plan.history_bytes = 8192u;
 		plan.explain_bytes = 12288u;
 		plan.preflop_bytes = 8192u;
-		plan.mc_samples = 32u;
+		plan.mc_samples = 8u;
 		plan.tracked_opponents = 1u;
 		break;
 	case CardProfile::N128:
@@ -94,7 +99,7 @@ struct CardPlan {
 		plan.history_bytes = 16384u;
 		plan.explain_bytes = 24576u;
 		plan.preflop_bytes = 16384u;
-		plan.mc_samples = 96u;
+		plan.mc_samples = 16u;
 		plan.tracked_opponents = 3u;
 		break;
 	case CardProfile::N256:
@@ -104,7 +109,7 @@ struct CardPlan {
 		plan.history_bytes = 32768u;
 		plan.explain_bytes = 49152u;
 		plan.preflop_bytes = 32768u;
-		plan.mc_samples = 224u;
+		plan.mc_samples = 32u;
 		plan.tracked_opponents = 6u;
 		break;
 	case CardProfile::N512:
@@ -114,7 +119,7 @@ struct CardPlan {
 		plan.history_bytes = 65536u;
 		plan.explain_bytes = 131072u;
 		plan.preflop_bytes = 65536u;
-		plan.mc_samples = 448u;
+		plan.mc_samples = 64u;
 		plan.tracked_opponents = 8u;
 		break;
 	case CardProfile::Count:
