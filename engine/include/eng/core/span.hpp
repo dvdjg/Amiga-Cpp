@@ -18,6 +18,15 @@
 /// La clase no posee memoria: es la misma idea de `std::span`, pensada para
 /// buffers de arenas, planos de bitplane, caches de tiles y listas de comandos
 /// del Copper.
+///
+/// ```text
+///   productor (arena/bitplanes)          Span<T> / Bytes<Tag> (NO posee)        consumidor
+///   ───────────────────────────          ─────────────────────────────         ──────────
+///   allocate_block<PlaneTag>(...).view ─► [data ›››][size]  ── operator[] ──►  demos / algoritmos
+///                                          │      │           at() bounds-check   / backends
+///                                          │      └─ first/last/subspan (acotan)
+///                                          └─ sin puntero suelto: tamano viaja con la vista
+/// ```
 
 #include <eng/core/types.hpp>
 

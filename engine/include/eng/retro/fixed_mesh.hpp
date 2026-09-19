@@ -37,6 +37,9 @@ struct mesh_traits<eng::math::Fixed<s16, 0, P>> {
 	using scalar = eng::math::Fixed<s16, 0, P>;
 	using key = s16;
 
+	/// Culling de una cara desde `cam` con aritmética **cruda `s16`/`s32`**: diferencias `s16`,
+	/// productos con `mul_wide` (`muls.w`) y el mixto `32×16` con `mul32x16` (sin `__mulsi3`).
+	/// Mismo signo que el genérico; lo consume `MeshFaceOrder`/`face_visible`.
 	[[nodiscard]] static constexpr s32 face_signed_area(const Vec3t<scalar>& a,
 							    const Vec3t<scalar>& b,
 							    const Vec3t<scalar>& c,
@@ -55,11 +58,15 @@ struct mesh_traits<eng::math::Fixed<s16, 0, P>> {
 		       detail::mul32x16(nz, static_cast<s16>(cam.v[2].v - a.v[2].v));
 	}
 
+	/// Clave de painter por **suma** de las `z` crudas (`s16`, con envoltura como el original);
+	/// usada por `face_z_sum` en efectos que ordenan por profundidad acumulada.
 	[[nodiscard]] static constexpr s16 z_sum(const Vec3t<scalar>& a, const Vec3t<scalar>& b,
 						 const Vec3t<scalar>& c) {
 		return static_cast<s16>(a.v[2].v + b.v[2].v + c.v[2].v);
 	}
 
+	/// Clave de painter por **mínimo** de las `z` crudas (`s16`); la usa el `MeshFaceOrder`
+	/// de la cualidad `ConcaveMesh` (pintor lejos→cerca).
 	[[nodiscard]] static constexpr s16 z_min(const Vec3t<scalar>& a, const Vec3t<scalar>& b,
 						 const Vec3t<scalar>& c) {
 		const s16 ab = a.v[2].v < b.v[2].v ? a.v[2].v : b.v[2].v;

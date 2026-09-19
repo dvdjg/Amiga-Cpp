@@ -134,6 +134,15 @@ if [ "$#" -eq 0 ]; then
 			exit 1
 		fi
 	fi
+	# Documentacion: toda funcion nueva debe llevar comentario descriptivo (baseline aparte).
+	DOC_COV="$ROOT/tools/check/doc-coverage.mjs"
+	if [ -f "$DOC_COV" ] && command -v node >/dev/null 2>&1; then
+		echo "== doc-coverage =="
+		if ! node "$DOC_COV"; then
+			echo "doc-coverage fallo: funcion nueva sin comentario descriptivo." >&2
+			exit 1
+		fi
+	fi
 fi
 
 # Selección de tests.

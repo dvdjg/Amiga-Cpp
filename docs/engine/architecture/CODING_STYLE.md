@@ -20,6 +20,22 @@ abstraccion, pero sin perder control sobre memoria, coste y layout.
 - Los comentarios deben aclarar decisiones close-to-the-metal: registros, DMA,
   memoria, blitter, copper, VBlank/HBlank o uso del ROM kernel.
 
+### Documentación de código (obligatoria)
+
+- **Toda función** lleva al menos un comentario descriptivo: **qué hace**, **quién la usa** y en
+  **qué contexto**, y **qué otras funciones/clases usa** desde ahí (si es relevante). Se
+  documentan **parámetros de entrada y de salida** (incluido el valor de retorno y su rango).
+- **Estructuras y clases auxiliares, constantes, variables globales, macros y `enum`** también
+  llevan su comentario (cometido y, si aplica, unidades/rango/layout/ABI).
+- **Bug arreglado u optimización**: se documenta **en el código** (y en el commit) *por qué* se
+  hizo así, para que una refactorización futura **no lo deshaga** (p. ej. "no copiar 512 B por
+  frame: `retarget`"; "no zero-init de la timeline: bitset de tocadas").
+- **Preservar los comentarios antiguos**: adaptarlos o corregirlos, no reescribirlos; **sólo se
+  borran** si ya no aplican o son falsos.
+- **Clase fundamental de la arquitectura** (mucha del engine): acompañarla de un **diagrama
+  ASCII** de arquitectura que deje claro su **cometido** y su **relación** con las demás piezas
+  (formato: cajas `┌─┐` para layout/relaciones; ver §2 de `AGENTS.md`).
+
 ## Arquitectura
 
 La logica de juego debe depender de abstracciones del engine, no del Amiga. El Amiga

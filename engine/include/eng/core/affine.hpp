@@ -59,6 +59,9 @@ struct projector<Affine<N, SR, SL>> {
 		s16 tz; // fila z: la traslación va sin plegar (la fila z normaliza)
 	};
 
+	/// Precalcula el `cache` de una afín: pliega la traslación una vez por matriz
+	/// (`e0`/`e1` ya con el `<<8`; `tz` sin plegar). Lo llama el compositor/efecto **una vez
+	/// por frame**, no por vértice; `project` consume el cache en el camino caliente.
 	[[nodiscard]] static cache make(const affine_t& a) {
 		return cache {
 			a,
@@ -76,6 +79,9 @@ struct projector<Affine<N, SR, SL>> {
 		       arith<typename SR::repr>::mul(c2.v, z.v);
 	}
 
+	/// Proyecta un vértice crudo con un `cache` previo: devuelve los **numeradores** de la
+	/// perspectiva (`xp`/`yp`/`zp`); el llamador los lleva a pantalla con `div_wide(xp, zp)`
+	/// (y `yp, zp`). Calcula `xy = x·y` una vez y lo comparte con `row` para las tres filas.
 	[[nodiscard]] static Projected3 project(const cache& c, s16 x, s16 y, s16 z) {
 		const length_t px {x}, py {y}, pz {z};
 		// `x·y` se comparte entre las tres filas: la identidad empaquetada del 68000 lo

@@ -11,6 +11,17 @@
 /// variante optimizada para `Fixed<s16,0>` —`muls.w`— vive en `eng/retro/fixed_mesh.hpp`).
 /// La instancia por defecto de los alias (`Vec3`, `MeshView`) es `eng::coord`.
 ///
+/// ```text
+///   vistas de malla                    ordenador (cualidad de compilacion)          salida
+///   ───────────────                    ────────────────────────────────────         ──────
+///   MeshViewT<S>   (triangulos) ─┐     ┌─ ConvexSolid    : cull, SIN sort  (ConvexFace, 2 B)
+///                                ├────►│  MeshFaceOrder<Kind>  (+ mesh_traits<S>)
+///   PolyMeshViewT<S> (n-gon) ────┘     ├─ ConcaveMesh    : pintor por triangulo
+///                                      └─ ConvexPatches  : pintor por parche n-gon (n-gon convexo)
+///
+///   mesh_transform(M, verts) ─► world ─► order(...) ─► { index,[z] } ─► relleno (convex_spans/blitter)
+/// ```
+///
 /// Patrón de uso:
 ///
 ///   Vec3 world[N];                     // scratch del llamador

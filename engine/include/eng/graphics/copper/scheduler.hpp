@@ -18,6 +18,24 @@
 /// - fondos por sprites;
 /// - cambios de prioridad;
 /// - efectos raster de demoscene.
+///
+/// ```text
+///   consumidores                      SchedulerT<Report>                       salida
+///   ────────────                      ──────────────────                       ──────
+///   driver (ehb/ham/tile_scroll) ─┐   ┌───────────────┐  move/wait  ┌──────────────┐
+///   copper::Plan (intents) ───────┼──►│ ListBuilder    │◄───────────│ MOVE / WAIT  │
+///   demos (125, 053, ...) ────────┘   ├───────────────┤             └──────┬───────┘
+///                                     │ Timeline       │  reserve_*         │
+///                                     │ (bitset 32 B)  │◄───────────────────┘
+///                                     ├───────────────┤
+///                                     │ ScheduleReport │  (solo si Report)
+///                                     └───────┬───────┘
+///                                             │ data() / ok()
+///                                             ▼
+///                                     Chip RAM (copperlist) ──► Copper (DMA)
+/// ```
+/// `Report = false` omite Timeline y contadores (hot path mas rapido). El `retarget(...)`
+/// re-apunta el emisor a otra lista **sin copiar** la Timeline.
 
 #include <eng/core/types.hpp>
 #include <eng/graphics/copper/copper.hpp>
