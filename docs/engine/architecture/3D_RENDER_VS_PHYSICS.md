@@ -119,3 +119,6 @@ Camino mínimo, reutilizando lo existente: **spatial hash 3D** sobre `Vec<3,s16>
 (para cajas/convexos) o **GJK+EPA** (convexos arbitrarios) + integración de volumen si hiciera
 falta; y una **jerarquía de transforms** (`compose` en cascada) para la composición de objetos.
 No es prioritario en A500 por presupuesto de RAM/ciclos.
+
+El estudio de qué opciones caben de verdad en el A500, con costes medidos por kernel y la opción
+preferida por hitos, vive en [3D_PHYSICS.md](3D_PHYSICS.md).
