@@ -48,11 +48,16 @@ struct ScheduleReport {
 };
 
 /// Compositor central de Copper para las primeras escenas.
-class Scheduler {
+///
+/// `Report = false` genera una version **sin contadores de informe** en el hot path
+/// (no incrementa `display_moves`/`waits` por MOVE/WAIT): el lever real para listas
+/// largas donde el coste por operacion importa. `Scheduler` = `SchedulerT<true>`.
+template <bool Report = true>
+class SchedulerT {
 public:
-	Scheduler() = default;
+	SchedulerT() = default;
 
-	explicit Scheduler(MemoryBlock block)
+	explicit SchedulerT(MemoryBlock block)
 		: m_builder(block) {}
 
 	/// Construye desde una reserva tipada de copperlist (`Block<CopperTag>`).
@@ -60,8 +65,17 @@ public:
 	/// La `Timeline` se posee **por valor** pero **no borra** sus arrays al construirse
 	/// (inicialización perezosa por líneas tocadas): así construir el `Scheduler` en el
 	/// hot path no cuesta ~25k ciclos de limpieza en Chip RAM.
-	explicit Scheduler(eng::Block<eng::CopperTag> block)
+	explicit SchedulerT(eng::Block<eng::CopperTag> block)
 		: m_builder(block) {}
+
+	/// Re-apunta el emisor a otro bloque **sin reconstruir ni copiar** la `Timeline`
+	/// (que es grande). Sustituye a `sched = Scheduler{block}`, que copiaba 512+ B por
+	/// frame. Limpia el bitset de la timeline (32 B) y el informe.
+	void retarget(eng::Block<eng::CopperTag> block) {
+		m_builder = ListBuilder {block};
+		m_timeline.reset();
+		m_report = {};
+	}
 
 	/// Emite un MOVE generico.
 	///
@@ -70,18 +84,24 @@ public:
 	/// deberia usarse cada vez menos fuera del scheduler. Camino caliente: `always_inline`.
 	__attribute__((always_inline)) inline void move(Register reg, u16 value) {
 		m_builder.move(reg, value);
-		++m_report.display_moves;
+		if constexpr (Report) {
+			++m_report.display_moves;
+		}
 	}
 
 	__attribute__((always_inline)) inline void move(u16 custom_register_offset, u16 value) {
 		m_builder.move(custom_register_offset, value);
-		++m_report.display_moves;
+		if constexpr (Report) {
+			++m_report.display_moves;
+		}
 	}
 
 	/// MOVE con escritura de 32 bits (1 store); útil en copperlists largas por línea.
 	__attribute__((always_inline)) inline void move32(u16 custom_register_offset, u16 value) {
 		m_builder.move32(custom_register_offset, value);
-		++m_report.display_moves;
+		if constexpr (Report) {
+			++m_report.display_moves;
+		}
 	}
 
 	/// Emite un MOVE y devuelve un **handle** (índice de la word de instrucción) para
@@ -122,8 +142,10 @@ public:
 	/// Emite un WAIT de raster sin asociarlo a una paleta. Camino caliente.
 	__attribute__((always_inline)) inline void wait_line(u8 line) {
 		m_builder.wait_line(line);
-		m_timeline.reserve_wait(line);
-		++m_report.waits;
+		if constexpr (Report) {
+			m_timeline.reserve_wait(line);
+			++m_report.waits;
+		}
 	}
 
 	/// Emite un WAIT a una linea PAL completa (0..311) manejando el overflow.
@@ -133,10 +155,12 @@ public:
 	/// inferior/VBlank no compiten por H-BLANK y no se presupuestan aqui.
 	__attribute__((always_inline)) inline void wait_line_safe(u16 line) {
 		m_builder.wait_line_pal(line);
-		if (line <= 255u) {
-			m_timeline.reserve_wait(static_cast<u8>(line & 0xffu));
+		if constexpr (Report) {
+			if (line <= 255u) {
+				m_timeline.reserve_wait(static_cast<u8>(line & 0xffu));
+			}
+			++m_report.waits;
 		}
-		++m_report.waits;
 	}
 
 	/// Emite un WAIT a una posicion concreta (V y H): para "copper bars" a mitad de
@@ -421,11 +445,13 @@ public:
 		m_builder.end();
 		m_report.words_used = m_builder.words_used();
 		m_report.ok = m_builder.ok();
-		const TimelineReport timeline = m_timeline.finish();
-		m_report.timeline_over_budget_lines = timeline.over_budget_lines;
-		m_report.heaviest_line = timeline.heaviest_line;
-		m_report.heaviest_line_moves = timeline.heaviest_line_moves;
-		m_report.has_visible_timeline_spill = timeline.has_visible_spill;
+		if constexpr (Report) {
+			const TimelineReport timeline = m_timeline.finish();
+			m_report.timeline_over_budget_lines = timeline.over_budget_lines;
+			m_report.heaviest_line = timeline.heaviest_line;
+			m_report.heaviest_line_moves = timeline.heaviest_line_moves;
+			m_report.has_visible_timeline_spill = timeline.has_visible_spill;
+		}
 	}
 
 	constexpr bool ok() const { return m_builder.ok(); }
@@ -510,5 +536,8 @@ private:
 	Timeline m_timeline; // por valor; NO se limpia al construir (ver timeline.hpp)
 	ScheduleReport m_report {};
 };
+
+/// Instancia por defecto: con informe de presupuesto.
+using Scheduler = SchedulerT<true>;
 
 } // namespace eng::copper

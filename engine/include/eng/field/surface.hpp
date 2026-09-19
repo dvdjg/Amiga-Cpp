@@ -24,6 +24,7 @@
 
 #include <eng/retro/lib2d.hpp>
 #include <eng/core/utf8.hpp>
+#include <eng/core/ptr.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/graphics/font5x7.hpp>
 #include <eng/graphics/font8.hpp>
@@ -43,10 +44,10 @@ class Surface {
 public:
     Surface() = default;
     Surface(Playfield& target, const SurfaceRect& clip)
-        : m_target(&target), m_clip(clip) {}
+        : m_target(target), m_clip(clip) {}
 
-    constexpr bool valid() const { return m_target != nullptr; }
-    constexpr const Playfield* target() const { return m_target; }
+    constexpr bool valid() const { return m_target.valid(); }
+    constexpr const Playfield* target() const { return m_target.get(); }
     constexpr const SurfaceRect& clip() const { return m_clip; }
 
     /// ¿El punto (mundo/pantalla) está dentro del clip?
@@ -309,7 +310,7 @@ private:
         }
     }
 
-    Playfield* m_target = nullptr; // no-propietario; Ref es un refactor pendiente
+    eng::Ref<Playfield> m_target {}; // no-propietario (Ref, sin puntero crudo)
     SurfaceRect m_clip {};
 };
 

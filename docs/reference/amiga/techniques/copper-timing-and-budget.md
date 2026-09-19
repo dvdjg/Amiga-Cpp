@@ -101,6 +101,12 @@ en la pila (Chip RAM), costaba **~25 k ciclos/frame solo en borrar memoria**. Ar
 hot path**; usar inicialización perezosa o almacenamiento del llamador. Se añadió además una
 librería de punteros no propietarios sin heap (`eng/core/ptr.hpp`: `Ref`/`NonNull`/`Opt`).
 
+**Auditoría del hot path (2026):** no quedan `fill(0)`/`memset` ni arrays grandes locales en
+`graphics/`/`field/`. Sí había un **copia de objeto grande por frame**: `Plan::begin_frame()`
+hacía `m_sched = inactive_scheduler()` (copia 512+ B); ahora usa `Scheduler::retarget(block)`
+que re-apunta el emisor sin copiar la `Timeline`. Regla: **poseer una vez / re-apuntar, no
+copiar**. `Surface` pasó su `Playfield*` a `eng::Ref<Playfield>` (sin punteros crudos).
+
 **MOVEM/ráfaga**: en la copperlist las palabras van intercaladas `[reg, dato, …]` → los datos
 **no** son contiguos (stride 4 B); un `memcpy`/`movem` reescribiría también los registros (más
 palabras). No es la palanca mientras el cuello sea "muchos accesos × ~100 ciclos".

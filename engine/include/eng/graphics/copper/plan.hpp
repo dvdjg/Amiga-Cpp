@@ -79,7 +79,7 @@ public:
 	void begin_frame() {
 		m_count = 0;
 		m_overflow = false;
-		m_sched = m_copper->inactive_scheduler();
+		m_sched.retarget(m_copper->inactive_block()); // sin copiar la Timeline (512+ B)
 	}
 
 	/// Emisor del frame (bloque trasero). El llamador emite aquí la parte estática.

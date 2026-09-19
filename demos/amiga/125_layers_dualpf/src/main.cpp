@@ -108,7 +108,7 @@ constexpr u16 kVstrt = 0x2c;	 // DIWSTRT alto: linea visible 0 -> vpos 0x2c+y
 
 constexpr u16 kDmacon = 0x8380; // SET | MASTER | COPPER | BITPLANE
 
-constexpr u8 kLists = 2;
+constexpr u8 kLists = 5; // anillo: con overrun, no se escribe la lista que el Copper ejecuta
 constexpr u32 kCopperWords = 2048;
 constexpr s16 kStep = 8; // banda de gradiente en lineas
 // Conmutador de perfilado: a `false` no emite las escrituras de color por banda (para medir
@@ -201,7 +201,7 @@ private:
 	bool build_copper(u8 list) {
 		const eng::Bytes<eng::CopperTag> slice =
 			m_copper_block.view.subspan(static_cast<u32>(list) * kCopperWords, kCopperWords);
-		copper::Scheduler sched {eng::Block<eng::CopperTag> {slice, m_copper_block.kind}};
+		copper::SchedulerT<false> sched {eng::Block<eng::CopperTag> {slice, m_copper_block.kind}};
 
 		// --- display base ---
 		sched.move(copper::Register::DMACON, kDmacon);
@@ -248,7 +248,7 @@ private:
 
 	/// `SetupRaster` del original: paleta base + cambios de banda cada 8 lineas y wrap
 	/// vertical por modulo, con WAIT seguro (vpos > 255).
-	bool emit_raster(copper::Scheduler& sched) {
+	bool emit_raster(copper::SchedulerT<false>& sched) {
 		const u16* bg_pal = bg_gradient_pixels;
 		const u16* fg_pal = fg_gradient_pixels;
 		s16 wrap_bg = -1;
