@@ -17,11 +17,10 @@
 /// `bitplanes()` sin `Surface` (PlanarScene/EhbScene) y los **playfields** dan `Surface`
 /// sin composition multi-buffer. `CanvasScene` da `Surface` con display propio.
 ///
-/// Limitacion presente: es **un solo buffer**. La composition multi-buffer sobre un
-/// `Playfield` exige `bind()` de memoria externa en `CanvasPlayfield`/`gfx::Bitmap`
-/// (deuda del eje Driver ↔ Field, `DISPLAY_COMPOSITION.md` §7); hasta entonces, el doble
-/// buffer se hace con dos `CanvasScene` (patron de 080/116) o con `PlanarScene` +
-/// `MultiBuffered`.
+/// Para doble/triple buffer se usa `MultiBuffered<CanvasScene, N>`: `CanvasScene` ofrece
+/// `bind()` (planos + copperlist ya reservados) y `bitplane_bytes_for()` sin poseer la
+/// memoria, y `CanvasPlayfield::bind()` acepta bitplanes externos. El llamador dibuja en
+/// `back().surface()` y publica con `commit()`.
 
 #include <eng/core/domains.hpp>
 #include <eng/core/types.hpp>
@@ -77,13 +76,21 @@ public:
 
 	/// Reserva el bitmap (interleaved) + la copperlist en Chip RAM y construye la lista.
 	bool init(MemorySystem& memory, const CanvasSceneConfig& config) {
+		return bind(memory.chip.allocate_block<eng::PlaneTag>(bitplane_bytes_for(config) + 16u, 16),
+			    memory.chip.allocate_block<eng::CopperTag>(config.copper_bytes, 16), config);
+	}
+
+	/// Construye sobre bloques **ya reservados** (mismo contrato que `init`, sin reservar
+	/// memoria). Es lo que usa `MultiBuffered<CanvasScene, N>` para repartir N buffers.
+	bool bind(eng::Block<eng::PlaneTag> bitplanes, eng::Block<eng::CopperTag> copper,
+		  const CanvasSceneConfig& config) {
 		m_config = config;
-		if (!m_playfield.begin(memory, field::CanvasPlayfield::Config {config.width, config.height, config.planes})) {
+		m_copper_block = copper;
+		if (!m_copper_block.valid()) {
 			m_ok = false;
 			return false;
 		}
-		m_copper_block = memory.chip.allocate_block<eng::CopperTag>(config.copper_bytes, 16);
-		if (!m_copper_block.valid()) {
+		if (!m_playfield.bind(bitplanes, field::CanvasPlayfield::Config {config.width, config.height, config.planes})) {
 			m_ok = false;
 			return false;
 		}
@@ -153,6 +160,8 @@ public:
 
 	const field::CanvasPlayfield& playfield() const { return m_playfield; }
 	field::CanvasPlayfield& playfield() { return m_playfield; }
+	/// Planos del lienzo (interleaved de la escena).
+	[[nodiscard]] constexpr eng::PlaneBytes bitplanes() const { return m_playfield.bitplanes(); }
 	constexpr bool ok() const { return m_ok; }
 	constexpr u16 copper_words() const { return m_copper_words; }
 	constexpr const u16* copper_words_ptr() const { return m_copper_ptr; }

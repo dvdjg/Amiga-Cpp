@@ -71,6 +71,30 @@ Una abstraccion es buena si:
 - no oculta asignaciones ni copias caras;
 - permite cambiar de driver grafico sin reescribir la logica de juego.
 
+## `inline` no es una sugerencia de inline
+
+En una libreria **header-only** como esta, `inline` en una funcion de cabecera es un
+especificador de **enlace** (permite la definicion en varias unidades de traduccion sin
+colision de simbolo, requisito ODR), **no** una orden ni una sugerencia de inline. Los
+`template` y las funciones `constexpr` (con cuerpo en la cabecera) ya son implicitamente
+`inline`; marcarlos `inline` es redundante pero es la convencion del repo (explicita).
+
+Que una funcion sea `inline` **no obliga** al compilador a inlinearla: la decision es suya,
+por coste/tamaño. Una funcion grande marcada `inline` (p. ej. `mesh_render_poly_filled`)
+simplemente se emite una vez por programa y se llama como cualquier otra; no hay que
+"quitarle el inline" para evitar inlinarla (quitarlo, de hecho, romperia el enlace si la
+cabecera se incluye en mas de una unidad).
+
+El control real de inlining son los atributos, y se usan con criterio:
+
+- `[[gnu::always_inline]]`: **forzar** el inline. Reservado a helpers **diminutos y
+  calientes** donde el `jsr` pesa mas que el cuerpo (`lerp`, `move_towards`, `bezier*`,
+  `Scheduler::move`, los accesos de nodo de `expr.hpp` que deben fundirse en el bucle). Si
+  se pone en una funcion grande, se hincha el binario y crece el tiempo de compilacion.
+- `[[gnu::noinline]]`: **prohibir** el inline (p. ej. para aislar un punto de medida).
+
+Regla: no marcar `always_inline` por costumbre; justificarlo con el perfil o el `.s`.
+
 ## Seguridad de tipos sobre punteros crudos
 
 El runtime Amiga es freestanding (`-nostdlib`, sin STL hosted), asi que el engine

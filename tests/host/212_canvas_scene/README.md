@@ -12,7 +12,9 @@ exponiendo una `Surface` de dibujo más la copperlist de display.
    bitmap interleaved (interior con el color pedido, exterior vacío).
 3. **Contrato de driver**: `takeover`/`install` instalan el puntero de la copperlist
    (`GraphicsDriver`/`DisplayDriver` satisfechos, `static_assert`).
-4. La copperlist usa los módulos interleaved del `Playfield`
+4. **Multi-buffer**: `MultiBuffered<CanvasScene, 2>` reparte 2 buffers con `bind()` (sin
+   poseer memoria); los dos slots tienen bitmaps y copperlists distintos.
+5. La copperlist usa los módulos interleaved del `Playfield`
    (`BPL1MOD = planes*row − row`) y los punteros BPLx por plano.
 
 ## Salida de referencia

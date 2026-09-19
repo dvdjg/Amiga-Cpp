@@ -296,6 +296,33 @@ public:
         return true;
     }
 
+    /// Construye el lienzo sobre bitplanes **ya reservados** (sin reservar memoria), con
+    /// el mismo mapeo que `begin`. Separa la propiedad de la memoria de la emisión, de
+    /// modo que el llamador puede repartir N buffers (p. ej. `MultiBuffered<CanvasScene, N>`).
+    /// `bitplanes.view.size()` debe cubrir `(width/8 & ~1) * planes * height`.
+    bool bind(eng::Block<eng::PlaneTag> bitplanes, const Config& cfg) {
+        if (!bitplanes.valid() || cfg.width == 0u || cfg.height == 0u || cfg.planes == 0u ||
+            cfg.planes > 6u) {
+            return false;
+        }
+        const u16 row = static_cast<u16>((cfg.width / 8u) & ~1u);
+        const u32 need = static_cast<u32>(row) * cfg.planes * cfg.height;
+        if (static_cast<u32>(bitplanes.view.size()) < need) return false;
+        m_bound = bitplanes;
+        m_width = cfg.width;
+        m_height = cfg.height;
+        m_planes = cfg.planes;
+        m_bytes_per_row = row;
+        m_total_bytes = need;
+        m_frontbuffer = bitplanes.view.data(); // vía cruda interna (núcleo)
+        m_initialized = true;
+        return true;
+    }
+
+    /// Planos del lienzo cuando se construyó con `bind` (vacío si se usó `begin`, cuyo
+    /// framebuffer propietario se lee con `bitmap()`).
+    [[nodiscard]] constexpr eng::PlaneBytes bitplanes() const { return m_bound.view; }
+
     // --- Hooks (layout plano) ---------------------------------------------
     u32 planeline_for(s32 wy) const override {
         return static_cast<u32>(wy) * m_planes;
@@ -418,6 +445,8 @@ private:
         m_frontbuffer = m_bitmap.bytes().data(); // vía cruda interna (núcleo)
     }
     gfx::Bitmap m_bitmap {};
+    /// Bitplanes externos cuando el lienzo se construyó con `bind` (vacio con `begin`).
+    eng::Block<eng::PlaneTag> m_bound {};
 };
 
 } // namespace eng::field

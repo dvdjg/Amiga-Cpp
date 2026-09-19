@@ -8,6 +8,7 @@
 #include <cstdio>
 
 #include <eng/graphics/drivers/canvas_scene.hpp>
+#include <eng/graphics/drivers/multi_buffered.hpp>
 
 using namespace eng;
 using namespace eng::graphics::drivers;
@@ -35,8 +36,8 @@ MemorySystem make_memory() {
 
 /// Color (0..15) de un pixel del bitmap interleaved del lienzo.
 u8 color_at(const field::CanvasPlayfield& pf, s32 x, s32 y) {
-	const u8* base = pf.bitmap().bytes().data();
-	const u32 row = pf.bitmap().row_bytes();
+	const u8* base = pf.bitplanes().data();
+	const u32 row = pf.bytes_per_row();
 	const u32 planes = pf.planes();
 	const u32 byte = static_cast<u32>(y) * planes * row +
 			 (static_cast<u32>(x / 8) & ~1u);
@@ -84,6 +85,16 @@ int main() {
 	check(backend.taken == scene.copper_words_ptr(), "takeover instala la copperlist");
 	scene.install(backend);
 	check(backend.installed == scene.copper_words_ptr(), "install hace el swap");
+
+	// Composition multi-buffer: `MultiBuffered<CanvasScene, 2>` reparte 2 buffers (planos +
+	// copperlist) y los drivers los emiten con `bind()` (sin poseer memoria).
+	graphics::drivers::MultiBuffered<CanvasScene, 2> mb {};
+	check(mb.init(mem, cfg), "MultiBuffered<CanvasScene,2>::init");
+	check(mb.slot(0).ok() && mb.slot(1).ok(), "ambos slots ok");
+	check(mb.slot(0).bitplanes().data() != mb.slot(1).bitplanes().data(),
+	      "los dos slots tienen bitmaps distintos");
+	check(mb.slot(0).copper_words_ptr() != mb.slot(1).copper_words_ptr(),
+	      "los dos slots tienen copperlists distintas");
 
 	if (failures == 0) {
 		std::printf("OK: CanvasScene (Surface sobre CanvasPlayfield + copperlist interleaved).\n");
