@@ -22,6 +22,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/scalar_ops.hpp>
 #include <eng/core/spline.hpp>
 #include <eng/core/mesh3d.hpp>
+#include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/core/minifloat.hpp>
 #include <eng/core/minifloat_math.hpp>
 #include <eng/retro/fixed_q.hpp>
@@ -1197,6 +1198,17 @@ extern "C" s16 c_fx_aim(s16 dx, s16 dy) {
 
 // --- eng::board / eng::parallel: generacion legal y perft no deben arrastrar
 // libcalls de libgcc (la busqueda por nodo sera el camino caliente en 68000). ---
+extern "C" s16 c_math3d_load_rotate(s16 ax, s16 ay, s16 az) {
+	const q12 x {ax};
+	const q12 y {ay};
+	const q12 z {az};
+	eng::math3d::Mat3<> m {};
+	eng::math3d::load_rotate(m, x, y, z);
+	s16 s = 0;
+	for (int i = 0; i < 3; ++i)
+		for (int j = 0; j < 3; ++j) s = static_cast<s16>(s + m.m[i][j].v);
+	return s;
+}
 extern "C" u16 c_chess_gen() {
 	using R = eng::board::ChessRules;
 	R::Position pos = R::initial();
