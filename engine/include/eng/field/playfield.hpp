@@ -24,6 +24,19 @@
 /// `Surface` (que enruta por el mapeo) y blits con `Span` (el tamaño es el
 /// contrato). El acceso crudo optimizado vive dentro del engine (núcleo), no en
 /// el código de la aplicación.
+///
+/// ```text
+///   Playfield (base abstracta)  ── framebuffer Chip + geometría + primitivas CPU (hooks de mapeo)
+///   ├─ CanvasPlayfield      lienzo plano (blits / HUD)
+///   ├─ XLimitedPlayfield    corkscrew 8-way (xlimited.hpp)
+///   └─ Flat / Mirror / DoubleBufferPlayfield (en sus headers)
+///            │ expone
+///            ▼
+///   PlayfieldHardwareView   BPLxPT · scroll fino/coarse · mods · split (wrap vertical)
+///            ▲
+///   Surface → primitivas validadas (set_pixel/fill_rect/draw_line/draw_text/blit), SIN puntero crudo
+///   Scene = compone N playfields + sprites + paletas + copperlist (nunca se accede por índice)
+/// ```
 
 #include <eng/core/polygon.hpp>
 #include <eng/core/span.hpp>
@@ -309,6 +322,8 @@ public:
         return wx >= 0 && wy >= 0 && static_cast<u32>(wx) < m_width && static_cast<u32>(wy) < m_height;
     }
 
+    /// Vista de hardware del playfield (base de planos, strides, alto): lo que consume el
+    /// backend/Compositor para programar `BPLxPT`/módulos. `CanvasPlayfield` la expone tal cual.
     PlayfieldHardwareView hardware_view() const override {
         PlayfieldHardwareView v;
         v.bitplanes = m_frontbuffer;

@@ -75,6 +75,8 @@ struct PlayerParams {
 }
 
 namespace detail {
+/// Mueve un eje (`v`) **un paso** hacia `target`, recortando a `[0, limit]`. Lo usan los
+/// movimientos de avatar (p. ej. seguir una meta a velocidad fija).
 constexpr void step_axis(eng::s16& v, eng::s16 target, eng::s16 limit) noexcept {
 	if (v < target) {
 		v = static_cast<eng::s16>(v + 1);

@@ -28,6 +28,18 @@
 ///
 /// Reglas del engine: sin heap dinámico, sin RTTI, gnu++23. Los mapas y paletas
 /// los aporta la aplicación (arrays estáticos o `MemoryBlock`).
+///
+/// ```text
+///   XlimitedScene = ESCENA (composición, NO algoritmo)
+///   ┌────────────────────────────────────────────────────────────────────┐
+///   │ XLimitedPlayfield fg ─┐                                             │
+///   │ XLimitedPlayfield bg ─┼──► compositores (single / dual) ──────► Copper (listas)
+///   │ CanvasPlayfield HUD ──┤            ▲                                │
+///   │ sprites (SpriteManager)┘            │                                │
+///   └────────────────────────────────────────────────────────────────────┘
+///   ciclo por frame: update → fill / pre_scroll → compose → install
+///   El ALGORITMO (corkscrew/XYLimited) vive en ScrollEngine/XlimitedField, no aquí.
+/// ```
 
 #include <eng/core/sinetable.hpp>
 #include <eng/core/span.hpp>

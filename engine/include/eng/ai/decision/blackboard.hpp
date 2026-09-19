@@ -19,6 +19,16 @@
 ///   bb.set(Belief::Ammo, 30);
 ///   if (const eng::s32* ammo = bb.find(Belief::Ammo)) { ... }
 ///
+/// ```text
+///   enum Key [0, MaxKeys)              Blackboard (sin heap)                  sistemas
+///   ────────────────────               ────────────────────                   ────────
+///   Target, LastSeen, Ammo … ───────► [ values[MaxKeys] ][ present BitSet ]
+///                                           ▲    │
+///                      set(key, v) ─────────┘    └──────► find(key) → const Value* (O(1), índice directo)
+///
+///   difundir cambios = eng::util::Event APARTE (el blackboard no emite)
+/// ```
+///
 /// Verificación: HOST-111.
 
 #include <eng/core/types.hpp>

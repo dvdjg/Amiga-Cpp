@@ -69,6 +69,8 @@ constexpr eng::u8 hex_glyph_row(eng::u8 glyph, eng::u8 row) {
 	return rows[static_cast<eng::u16>(glyph & 0x0fu) * 7u + (row % 7u)];
 }
 
+/// Máscara con `width` bits a 1 a partir de la columna `left` (bit 15 = columna 0). Base para
+/// pintar filas de glifos/tiles.
 constexpr eng::u16 row_mask_range(eng::u8 left, eng::u8 width) {
 	eng::u16 mask = 0;
 	for (eng::u8 i = 0; i < width; ++i) {
@@ -77,6 +79,8 @@ constexpr eng::u16 row_mask_range(eng::u8 left, eng::u8 width) {
 	return mask;
 }
 
+/// Máscara de la fila `y` del glifo hexadecimal `glyph` en una celda de 8×14 (cada fila del
+/// glifo ocupa 2 líneas de pantalla). Devuelve 0 fuera del área del glifo. Lo usa el demo de tiles.
 constexpr eng::u16 glyph_row_mask(eng::u8 glyph, eng::u8 y) {
 	if (y < 1u || y >= 15u) {
 		return 0;
@@ -92,6 +96,9 @@ constexpr eng::u16 glyph_row_mask(eng::u8 glyph, eng::u8 y) {
 	return mask;
 }
 
+/// Marcas de esquina que identifican la variante de tile (`variant`): cuadros de 2–3 px en la
+/// esquina superior y, si `variant >= 2`, también en la inferior. Sirve para distinguir variantes
+/// en depuración.
 constexpr eng::u16 variant_marker_mask(eng::u8 variant, eng::u8 y) {
 	const eng::u8 marker_size = static_cast<eng::u8>(2u + (variant & 1u));
 	eng::u16 mask = 0;

@@ -21,6 +21,19 @@
 /// de planos, layouts ni registros. `Surface` es el contexto de dispositivo:
 /// dibuja igual sobre un playfield EHB, single 4p o DPF, recortado contra su
 /// clip, con independencia del modo (el mapeo lo gestiona el `Playfield`).
+///
+/// ```text
+///   Playfield (framebuffer hardware + mapeo lógico→físico)   ← NO dibuja
+///   ├─ FlatPlayfield          (chunky / un plano)
+///   ├─ MirrorPlayfield        (varios planos espejados)
+///   └─ DoubleBufferPlayfield  (2 buffers + swap)
+///            ▲ m_target (Ref, no propietario)
+///   Surface (origen + tamaño + clip)   ← ÚNICO contexto de dibujo
+///     set_pixel · fill_rect · draw_line · draw_text · blit · blit_masked
+///            ▲
+///   Widget (Surface + draw() + hit_test(punto))
+///   → PlayfieldHardwareView (BPLxPT, módulos, alto): lo que consume el backend/Compositor
+/// ```
 
 #include <eng/retro/lib2d.hpp>
 #include <eng/core/utf8.hpp>

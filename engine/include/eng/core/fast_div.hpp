@@ -79,14 +79,18 @@ struct fast_div {
     static constexpr bool is_pow2 = ct_is_pow2(N);
     static constexpr u32 exp      = ct_ilog2(N); // shift válido solo si is_pow2
 
+    /// Cociente `v / N`: desplazamiento si `N` es potencia de dos, si no división (con `N`
+    /// constante el compilador la optimiza). Camino caliente del corkscrew.
     static constexpr u32 q(u32 v) {
         if constexpr (is_pow2) return v >> exp;
         return v / N;
     }
+    /// Resto `v % N`: máscara si `N` es potencia de dos, si no `%`.
     static constexpr u32 r(u32 v) {
         if constexpr (is_pow2) return v & (N - 1u);
         return v % N;
     }
+    /// Cociente y resto en UNA pasada (evita calcular la división dos veces).
     static constexpr void qr(u32 v, u32& q_, u32& r_) {
         if constexpr (is_pow2) { q_ = v >> exp; r_ = v & (N - 1u); }
         else if constexpr (true) { q_ = v / N; r_ = v % N; }
@@ -97,14 +101,18 @@ struct fast_div {
 /// En m68k ambos salen de un único `divu.w`/`divuw.l`; evita llamar dos veces a
 /// `__udivsi3` cuando se necesitan ambos (aunque el denominador sea runtime).
 struct runtime_div {
+    /// Cociente `v / n` con `n` **runtime** (un `divu.w`).
     static u32 q(u32 v, u32 n) {
         u32 q_ = v / n;
         return q_;
     }
+    /// Resto `v % n` con `n` runtime (un `divu.w`).
     static u32 r(u32 v, u32 n) {
         u32 r_ = v % n;
         return r_;
     }
+    /// Cociente y resto con un **único** `divu`: el resto sale de `v - q*n` (sin `%`). Así no
+    /// se llama dos veces a `__udivsi3` cuando se necesitan ambos.
     static void qr(u32 v, u32 n, u32& q_, u32& r_) {
         q_ = v / n;
         r_ = v - q_ * n; // un único divu; el resto sale de la resta (sin %)

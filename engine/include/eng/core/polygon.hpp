@@ -7,6 +7,18 @@
 /// recalcula el mínimo/máximo sobre todas las aristas en cada fila. Es la forma amiga del
 /// raster Amiga (rellena polígonos convexos): el llamador escribe cada span como quiera
 /// (píxel a píxel, un `write_span`, o un blit).
+///
+/// ```text
+///   polígono convexo (vértices en orden de giro)           por cada scanline y:
+///   ────────────────────────────────────────────           emit(y, xl, xr)
+///            top (vértice superior)                            ▲
+///            /  \                 cadena A ──► (avanza)  ──────┤ xl
+///           /    \                cadena B ──◄ (retrocede) ────┘ xr
+///          /      \                     │
+///         /        \                    ▼
+///        bottom (vértice inferior)  O(altura)  vs  O(lados · altura) del barrido ingenuo
+///   La fila inferior queda semiaabierta (igual que el barrido de referencia).
+/// ```
 
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>

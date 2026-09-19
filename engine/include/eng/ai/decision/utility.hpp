@@ -22,6 +22,14 @@
 ///   const eng::usize elegida = sel.best();
 ///
 /// Referencia y encaje: `docs/engine/architecture/GAME_AI_LIBRARY.md`.
+/// ```text
+///   consideraciones (valor, peso)          Utility                  UtilitySelector<N>
+///   ─────────────────────────────          ───────                  ──────────────────
+///   distancia 800, peso 2 ─┐            [ Σ valor·peso / Σ peso ] ─► add(score) por opción
+///   munición  200, peso 1 ─┴──────────► score() ∈ [0, 1000]      ─► best() = índice mayor
+///                                        enteros, determinista        (empate → índice menor)
+/// ```
+///
 /// Verificación: HOST-112.
 
 #include <eng/core/types.hpp>

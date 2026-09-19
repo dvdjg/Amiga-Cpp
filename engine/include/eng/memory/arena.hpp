@@ -17,6 +17,15 @@
 /// otro backend le entrega. Esto permite dos estrategias futuras:
 /// - OS-friendly: reservar con Exec/AllocMem.
 /// - Close-to-the-metal: tomar el sistema y construir arenas sobre rangos fisicos.
+///
+/// ```text
+///   backend (entrega el bloque)        LinearArena (NO pide memoria)          consumidor
+///   ──────────────────────────         ────────────────────────────           ──────────
+///   Exec/AllocMem | rango físico ───►  [ pool base · cursor · límites ]
+///   (MemoryKind: Chip/Slow/Fast/Any)          │
+///                                      allocate(size, alineación) ──► MemoryBlock {data,size,kind}
+///                                      reset() / mark·release ──────► cursor atrás (sin free por bloque)
+/// ```
 
 #include <eng/core/memory_kind.hpp>
 #include <eng/core/types.hpp>

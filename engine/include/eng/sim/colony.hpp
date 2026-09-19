@@ -16,6 +16,15 @@
 /// El resultado son rutas de forrajeo que se refuerzan solas, reclutamiento hacia la
 /// comida y evitación de zonas marcadas como peligro, sin coordinador central.
 ///
+/// ```text
+///   genoma (castas)            Colony (censo + reparto de roles)      entorno (feromonas)
+///   ───────────────            ────────────────────────────────       ───────────────────
+///   reina / obrera / soldado ─► ColonyParams (proporciones) ─────► pide la casta más necesaria
+///   zángano / exploradora /          │ note_birth / note_death            ▲
+///   nodriza                          └─ census[Caste] → population()      │ depositar / decaer / seguir
+///   estigmergia: reutiliza eng::ai::InfluenceMap ──────────────────────────┘ (sin coordinador central)
+/// ```
+///
 /// Verificación: HOST-154.
 
 #include <eng/ai/perception/influence_map.hpp>
@@ -51,18 +60,22 @@ struct Colony {
 					     static_cast<eng::s16>(actual));
 	}
 
+	/// Registra un nacimiento en la casta `c` (censos por casta, saturado a 255). Lo llaman
+	/// los eventos de reproducción/migración.
 	constexpr void note_birth(Caste c) noexcept {
 		eng::u8& n = census[static_cast<eng::usize>(c)];
 		if (n < 255u) {
 			++n;
 		}
 	}
+	/// Registra una muerte en la casta `c` (no baja de 0).
 	constexpr void note_death(Caste c) noexcept {
 		eng::u8& n = census[static_cast<eng::usize>(c)];
 		if (n > 0u) {
 			--n;
 		}
 	}
+	/// Población total (suma de castas, saturada a 255); la consultan economía/IA.
 	[[nodiscard]] constexpr eng::u8 population() const noexcept {
 		eng::u16 sum = 0u;
 		for (eng::usize i = 0; i < static_cast<eng::usize>(Caste::Count); ++i) {

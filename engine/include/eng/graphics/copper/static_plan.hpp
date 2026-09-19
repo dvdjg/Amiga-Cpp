@@ -28,6 +28,17 @@
 ///   // init:  copiar kList.words[0..word_count) a los bloques de copperlist + parchear
 ///   //        las ranuras de punteros con las direcciones reales
 ///   // frame: kList.words[kList.value_word[i]] = nuevo_valor;     // parche de dato
+///
+/// ```text
+///   mismo vocabulario: graphics::CopperIntent
+///        │
+///        ├─ camino DINÁMICO  Plan + Scheduler   ── ordena + materializa CADA frame (versátil, caro)
+///        └─ camino ESTÁTICO  compile_intents()  ── constexpr: la lista fija se compila UNA vez
+///                        │                         (palabra a palabra igual que el dinámico)
+///                        ├─ words[]                 → se copia a Chip una vez
+///                        └─ value_word[] (ranuras)  → por frame: words[value_word[i]] = valor (parche)
+///   Las DIRECCIONES (planos/sprites) no existen en compilación: se emiten a 0 y `init()` las parchea.
+/// ```
 
 #include <eng/core/types.hpp>
 #include <eng/core/util/array.hpp>

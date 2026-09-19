@@ -15,6 +15,15 @@
 /// BOBs sin escribir registros custom desde el juego. La tercera pieza es la lista
 /// de dirty rects: las areas de pantalla que un frame ha tocado y que, por tanto,
 /// pueden necesitar restauracion, redraw o analisis de presupuesto.
+///
+/// ```text
+///   lógica de juego/efectos          FramePlan (portable)               driver Amiga
+///   ──────────────────────           ────────────────────               ────────────
+///   "cambia paleta 1..7"  ──►  PalettePatch[] ─┐
+///   "copia/restaura BOB"  ──►  BlitJob[]      ─┼──► decide la materialización: parches de
+///                                              │    copperlist · blits · sprites hardware ·
+///   área tocada           ──►  dirty rects   ─┘    escrituras CPU (según el backend)
+/// ```
 
 #include <eng/core/domains.hpp>
 #include <eng/core/types.hpp>

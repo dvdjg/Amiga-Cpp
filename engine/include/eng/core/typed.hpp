@@ -18,6 +18,7 @@
 ///                                   Words<Tag> / WordView<Tag>          (Blitter / DMA / Copper)
 ///   ChipAddress / BitmapBase / FrontBase: direcciones y roles con semantica propia
 ///   un uso de dominio cruzado (p. ej. audio como plano grafico) NO compila
+///   Span<T> (SIN tag): la vista contigua corriente; Bytes/Words anaden el TAG encima
 /// ```
 ///
 /// Vocabulario deliberadamente **sin escalares fuertes**: ancho, alto, `row_bytes`,

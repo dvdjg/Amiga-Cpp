@@ -23,6 +23,16 @@
 ///   eng::Point2s path[8];
 ///   const eng::usize n = mesh.find_path({5,5}, {15,5}, g, came, closed, path);
 ///
+/// ```text
+///   mundo transitable              NavMesh (polígonos convexos)              agente
+///   ─────────────────              ────────────────────────────              ──────
+///   add_polygon(vértices) ──► [ polígonos convexos: vértices + adyacencia ]
+///   add_portal(a,b,p0,p1) ──► [ portales: arista compartida a↔b ] ──► A* por adyacencia (sin heap)
+///                                                                        │
+///                        find_path ─────────► puntos MEDIOS de portales ─┘
+///                        find_smooth_path ──► string-pulling (embudo) = solo esquinas visibles
+/// ```
+///
 /// Verificación: HOST-118.
 
 #include <eng/core/span.hpp>
@@ -220,6 +230,8 @@ private:
 		return eng::math::mul_wide(abx, apy) - eng::math::mul_wide(aby, apx);
 	}
 
+	/// Distancia Manhattan `|dx| + |dy|` (saturada a `u16`). Es **admisible** para la
+	/// heurística del A* y se usa también como métrica auxiliar.
 	[[nodiscard]] static constexpr eng::u16 manhattan(eng::Point2s a,
 							  eng::Point2s b) noexcept {
 		eng::s32 dx = static_cast<eng::s32>(a.x) - b.x;
@@ -239,10 +251,13 @@ private:
 		return manhattan(m_verts[a][0], m_verts[b][0]);
 	}
 
+	/// Heurística admisible del A* entre los nodos `from`/`to` (Manhattan entre sus vértices
+	/// ancla). La usa el cálculo de caminos (`find_path`).
 	[[nodiscard]] constexpr eng::u16 heuristic(eng::u16 from, eng::u16 to) const noexcept {
 		return manhattan(m_verts[from][0], m_verts[to][0]);
 	}
 
+	/// Punto medio entre `a` y `b`. Lo usa la construcción de portales entre polígonos.
 	[[nodiscard]] static constexpr eng::Point2s midpoint(eng::Point2s a,
 							     eng::Point2s b) noexcept {
 		return eng::Point2s {

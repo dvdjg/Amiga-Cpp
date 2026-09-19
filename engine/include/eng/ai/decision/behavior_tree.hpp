@@ -23,6 +23,18 @@
 ///   bt.set_root(root);
 ///   bt.tick();
 ///
+/// ```text
+///   Selector(root)                       Nodos en array (capacidad fija, SIN heap)
+///   ├─ Sequence(shoot)                   ┌─────┬──────────┬─────────────┬────────────┐
+///   │    ├─ has_ammo  (hoja)             │ idx │ kind     │ first_child │ child_count│
+///   │    └─ fire      (hoja)             ├─────┼──────────┼─────────────┼────────────┤
+///   └─ reload        (hoja)              │  …  │ Leaf/Seq/│  rango contiguo de hijos   │
+///                                        │     │ Selector │                            │
+///   tick() = run(root) recursivo         └─────┴──────────┴─────────────┴────────────┘
+///   Sequence: falla al 1er hijo que falla          hojas = FunctionRef<BtStatus()>
+///   Selector: acierta al 1er hijo que acierta
+/// ```
+///
 /// Referencia y encaje: `docs/engine/architecture/GAME_AI_LIBRARY.md`.
 /// Verificación: HOST-113.
 
@@ -81,6 +93,8 @@ private:
 		eng::u16 child_count;
 	};
 
+	/// Registra un nodo **compuesto** (`Sequence`/`Selector`) sobre los `count` hijos
+	/// contiguos desde `first_child`. Devuelve su índice, o `no_node` si no cabe.
 	[[nodiscard]] constexpr eng::u16 add_composite(Kind kind, eng::u16 first_child,
 						       eng::u16 count) noexcept {
 		if (m_count >= MaxNodes) {
@@ -90,6 +104,9 @@ private:
 		return static_cast<eng::u16>(m_count++);
 	}
 
+	/// Evalúa el subárbol del nodo `index` (recursivo, sin heap): hoja → su tarea; `Sequence`
+	/// falla al primer hijo que falla; `Selector` acierta al primero que acierta. Lo llama el
+	/// agente una vez por tick.
 	[[nodiscard]] BtStatus run(eng::u16 index) const noexcept {
 		if (index >= m_count) {
 			return BtStatus::Failure;
