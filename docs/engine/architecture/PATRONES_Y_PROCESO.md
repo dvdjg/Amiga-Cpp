@@ -133,6 +133,34 @@ silueta y no se solapan** → el sort es gasto puro. Medición (`codegen-report.
 
 Detalle y coste en `OPTIMIZACION_GPP_68000.md` §13 y `3D_RENDER_VS_PHYSICS.md` §1.
 
+### 5.b Copperlist: estructura fija + parcheo (`copper::Template`)
+
+Coste real de una copperlist: en el A500 escribir en chip RAM durante el display de varios
+planos cuesta **decenas de ciclos por palabra** (la CPU compite con el DMA de bitplanes).
+Medido en la demo `125_layers_dualpf` (6 planos): **reconstruir** ~900 palabras por frame
+cuesta ~76k ciclos y baja el frame de 1 a 1.5 campos (**49.9 → 32.5 fps**); **sin reconstruir**
+vuelve a 1 campo. Es coste de bus, no de CPU (release ≈ debug) — por eso la compilación
+estática / expression templates **no** lo resuelven por sí solos: reducen instrucciones, no
+escrituras.
+
+La palanca es **escribir menos palabras**: separar **estructura** (fija) de **datos** (por
+frame) con `eng::copper::Template` (`copper/template.hpp`):
+
+```cpp
+copper::Template t {block};
+u16 c = t.move_slot(Register::COLOR01, 0);   // slot de DATO
+u16 w = t.wait_slot(0);                       // slot de la INSTRUCCION WAIT
+t.end();
+... por frame ...
+t.set(c, color);        // 1 palabra
+t.set_wait(w, line);    // 1 palabra (patch_wait: la linea vive en word0)
+```
+
+Límite: si la **estructura depende del frame** (p. ej. las líneas de banda de `layers` se
+desplazan con el scroll), no se puede parchear sin reordenar slots; ahí o se reservan slots
+fijos (y se parchea también el registro) o se reconstruye. `patch_wait` solo es seguro para
+`vpos` 0..255 (por encima, el par de overflow debe recolocarse).
+
 ---
 
 ## 6. Metodología: cómo se verifica (orden obligatorio)

@@ -98,6 +98,16 @@ public:
 	/// Sobrescribe el dato de un MOVE emitido con `move_at` (mismo handle).
 	void patch_data(u16 instruction_word, u16 value) { m_builder.patch_data(instruction_word, value); }
 
+	/// Sobrescribe el REGISTRO (destino) de un MOVE emitido con `move_at`.
+	void patch_move_reg(u16 instruction_word, u16 reg) {
+		m_builder.patch_move_reg(instruction_word, reg);
+	}
+
+	/// Sobrescribe la LINEA de un WAIT emitido antes (indice de su word0).
+	void patch_wait(u16 instruction_word, u16 vpos, u8 hpos = 1) {
+		m_builder.patch_wait(instruction_word, vpos, hpos);
+	}
+
 	/// Carga un puntero BPLxPT desde una intención de display. Mantiene los dos
 	/// MOVEs del puntero en el scheduler, también para los splits verticales.
 	void move_bitplane_pointer(u8 plane, eng::ChipAddress address) {

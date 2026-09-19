@@ -12,6 +12,7 @@
 
 #include <eng/core/types.hpp>
 #include <eng/graphics/copper/copper.hpp>
+#include <eng/graphics/copper/template.hpp>
 #include <eng/memory/arena.hpp>
 
 namespace {
@@ -76,6 +77,38 @@ int main() {
 		return 1;
 	}
 
-	std::printf("OK: copper chunky (SKIP 0xffff, MOVE32 reg+2/reg, patch) validado.\n");
+	// --- Template: estructura una vez + parcheo de datos/linea por frame ---
+	{
+		eng::u16 tw[64];
+		MemoryBlock tb {tw, sizeof(tw), MemoryKind::Chip};
+		eng::copper::Template t {tb};
+		const u16 c1 = t.move_slot(static_cast<u16>(0x182u), 0x0111u); // COLOR01
+		const u16 w1 = t.wait_slot(0x2cu);
+		const u16 c2 = t.move_slot(static_cast<u16>(0x184u), 0x0222u); // COLOR02
+		t.end();
+		if (!t.ok()) {
+			std::printf("[FAIL] template no ok\n");
+			return 1;
+		}
+		// Estructura: WAIT(0x2c) luego MOVE COLOR02.
+		if (tw[w1] != 0x2c01u || tw[c2] != 0x0184u || tw[c2 + 1u] != 0x0222u) {
+			std::printf("[FAIL] template estructura: %04x %04x %04x\n", tw[w1], tw[c2],
+				    tw[c2 + 1u]);
+			return 1;
+		}
+		// Parcheo por frame: 1 palabra por slot.
+		t.set(c1, 0xa1a1u);
+		t.set(c2, 0xb2b2u);
+		t.set_wait(w1, 0x50u);
+		t.set_reg(c2, 0x0190u); // reasigna el destino de c2 a COLOR08
+		if (tw[c1 + 1u] != 0xa1a1u || tw[c2 + 1u] != 0xb2b2u || tw[w1] != 0x5001u ||
+		    tw[c2] != 0x0190u) {
+			std::printf("[FAIL] template patch: %04x %04x %04x %04x\n", tw[c1 + 1u],
+				    tw[c2 + 1u], tw[w1], tw[c2]);
+			return 1;
+		}
+	}
+
+	std::printf("OK: copper chunky (SKIP 0xffff, MOVE32 reg+2/reg, patch, Template) validado.\n");
 	return 0;
 }

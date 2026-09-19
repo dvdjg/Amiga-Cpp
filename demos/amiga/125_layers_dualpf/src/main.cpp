@@ -156,17 +156,12 @@ struct LayersDemo {
 			return;
 		}
 		compute_scroll(context.frame.frame_index);
-#if 1
-		// EXPERIMENTO: no reconstruir la copperlist (usar la de init).
-		backend.install_copper_list(m_copper_ptrs[0]);
-#else
 		if (!build_copper(m_active)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012504u);
 			return;
 		}
 		backend.install_copper_list(m_copper_ptrs[m_active]);
 		m_active = static_cast<u8>((m_active + 1u) % kLists);
-#endif
 	}
 
 	void render(eng::amiga::MinimalBackend&, eng::GameContext& context) {

@@ -245,6 +245,25 @@ public:
 		}
 	}
 
+	/// Parchea la **linea** (word0) de un WAIT ya emitido (indice devuelto por `wait_raw`,
+	/// `wait_line`, `skip`...). Deja la mascara (word1). Solo seguro para `vpos` 0..255: por
+	/// encima, la lista debe llevar ya el par de overflow y hay que recolocarlo.
+	__attribute__((always_inline)) inline void patch_wait(u16 instruction_word, u16 vpos,
+							      u8 hpos = 1) {
+		if (m_ok && (instruction_word + 1u) < m_used_words) {
+			m_words[instruction_word] =
+				wait_word(static_cast<u8>(vpos & 0xffu), hpos);
+		}
+	}
+
+	/// Parchea el **registro** (word0) de un MOVE ya emitido: permite que un slot cambie
+	/// de destino (p. ej. escribir COLOR01..06 o COLOR09..13 segun la fase del efecto).
+	__attribute__((always_inline)) inline void patch_move_reg(u16 instruction_word, u16 reg) {
+		if (m_ok && (instruction_word + 1u) < m_used_words) {
+			m_words[instruction_word] = reg;
+		}
+	}
+
 	/// SKIP: WAIT con mascara `0xffff` (bit 0 = 1 => salta la instruccion siguiente si el
 	/// beam ya paso por (vpos, hpos)). Codificacion de `CopSkip` de libgfx (verbatim).
 	/// `hpos` en unidades de color-clock (se divide por 2 como en el original).
