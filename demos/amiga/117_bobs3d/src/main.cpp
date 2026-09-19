@@ -312,7 +312,7 @@ struct Bobs3DDemo {
 
 #if K_117_WORK
 		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z =
-			eng::retro::angle_to_radians(context.frame.frame_index * 12u).value;
+			eng::retro::turns(static_cast<eng::u16>(context.frame.frame_index * 12u));
 
 		P_BEGIN(kProfTransform);
 		// bobs3d no usa la inversa ni la camara: solo la matriz directa para proyectar.

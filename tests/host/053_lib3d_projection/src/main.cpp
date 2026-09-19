@@ -51,9 +51,9 @@ int main() {
 	build_mesh();
 	// Ángulo FIJO: es lo que hace reproducible la proyección.
 	const s16 angle = 1000;
-	obj.rotate = {eng::retro::angle_to_radians(static_cast<eng::u32>(angle)).value,
-		      eng::retro::angle_to_radians(static_cast<eng::u32>(angle)).value,
-		      eng::retro::angle_to_radians(static_cast<eng::u32>(angle)).value};
+	obj.rotate = {eng::retro::turns(static_cast<eng::u16>(angle)),
+		      eng::retro::turns(static_cast<eng::u16>(angle)),
+		      eng::retro::turns(static_cast<eng::u16>(angle))};
 	obj.translate = {eng::retro::q0 {0}, eng::retro::q0 {0}, eng::retro::q0 {-4000}};
 	eng::object3d::update_object_transformation(obj);
 	update_face_visibility(obj);

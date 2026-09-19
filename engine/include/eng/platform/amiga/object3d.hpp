@@ -13,7 +13,7 @@
 /// Uso:
 ///   Object3D obj {};
 ///   new_object3d(obj, pilka);          // enlaza el mesh (sin alloc dinámica)
-///   obj.rotate.x = obj.rotate.y = obj.rotate.z = eng::retro::angle_to_radians(frame * 8);
+///   obj.rotate.x = obj.rotate.y = obj.rotate.z = eng::retro::turns(static_cast<eng::u16>(frame * 8));
 ///   update_object_transformation(obj);
 ///
 /// **Por qué los structs siguen en `s16`.** `Point3D`/`Node3D`/`Edge`/`Face` son el
@@ -56,10 +56,9 @@ using Point3C = Point3S<eng::retro::q0>;
 /// `Point3S<S>` con otro fixed (p. ej. `Fixed<s32,E>`); el compilador rechaza mezclas.
 using Point3R = Point3S<eng::retro::q12>;
 
-/// Ángulo de rotación en **radianes** (escalar `eng::real`, por defecto `q12`). El mismo
-/// tipo que la escala (`Point3R`): el álgebra 3D trabaja en radianes y la tabla retro se
-/// consulta dentro del escalar (`scalar_sin<q12>`).
-using Angle3 = Point3R;
+/// Ángulo de rotación en **vueltas** (el índice del original): cada eje es un
+/// `eng::retro::Turns`. Mismo layout que antes (3×2 B). El álgebra 3D recibe `Angle`.
+using Angle3 = Point3S<eng::retro::Turns>;
 
 /// Punto/vector 3D (mismo layout que `Point3D`). Coordenada LONGITUD (`q0`): un entero
 /// tipado de 16 bits, así el campo dice su escala y el layout sigue siendo 3×2 bytes.
@@ -273,11 +272,13 @@ inline void update_object_transformation(Object3D& object) {
 	const Point3R& s = object.scale;
 	const Point3C& t = object.translate;
 
+	// `(sin, cos)` de los ejes UNA vez: la matriz directa y la inversa los comparten.
+	const auto sc = math3d::sincos3(r.x, r.y, r.z);
+
 	// objeto -> mundo: Rx * Ry * Rz * S * T
 	{
 		math3d::Affine3<>& a = object.objectToWorld;
-		math3d::load_rotate(a.m, eng::retro::radians(r.x), eng::retro::radians(r.y),
-				    eng::retro::radians(r.z));
+		math3d::load_rotate_from_sincos(a.m, sc);
 		math3d::scale(a.m, s.x, s.y, s.z);
 		a.t = eng::math::Vec<3, eng::retro::q0> {{t.x, t.y, t.z}};
 	}
@@ -302,8 +303,9 @@ inline void update_object_transformation(Object3D& object) {
 		m_scale.m.m[2][2] = eng::retro::q12 {div_wide(eng::retro::kOne8_24, s.z.v)};
 
 		math3d::Mat3<> m_rotate = math3d::Mat3<>::identity();
-		math3d::load_reverse_rotate(m_rotate, eng::retro::radians(-r.x), eng::retro::radians(-r.y),
-					    eng::retro::radians(-r.z));
+		// `sincos(-a)` = `(-sin a, cos a)` (la tabla es impar/par exacta).
+		const decltype(sc) scn {-sc.sinX, sc.cosX, -sc.sinY, sc.cosY, -sc.sinZ, sc.cosZ};
+		math3d::load_reverse_rotate_from_sincos(m_rotate, scn);
 		object.worldToObject = eng::math::compose(m_scale, math3d::Affine3<> {m_rotate, {}});
 	}
 
@@ -328,8 +330,7 @@ inline void update_object_transformation_forward(Object3D& object) {
 	const Point3R& s = object.scale;
 	const Point3C& t = object.translate;
 	math3d::Affine3<>& a = object.objectToWorld;
-	math3d::load_rotate(a.m, eng::retro::radians(r.x), eng::retro::radians(r.y),
-			    eng::retro::radians(r.z));
+	math3d::load_rotate(a.m, r.x, r.y, r.z);
 	// La mayoria de efectos (p. ej. bobs3d) usan escala 1.0 (4.12: 4096), asi que el
 	// `scale` seria una identidad de 9 `muls.w`. Se salta cuando no aporta nada.
 	if (s.x.v != (1 << 12) || s.y.v != (1 << 12) || s.z.v != (1 << 12)) {

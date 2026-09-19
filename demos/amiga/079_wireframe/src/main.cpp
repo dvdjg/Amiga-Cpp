@@ -254,7 +254,7 @@ struct WireframeDemo {
 		backend.blitter_clear(plane, 1, kBytesPerRow, kPlaneBytes, kWidth, kHeight);
 
 		m_object.rotate.x = m_object.rotate.y = m_object.rotate.z =
-			eng::retro::angle_to_radians(context.frame.frame_index * 8u).value;
+			eng::retro::turns(static_cast<eng::u16>(context.frame.frame_index * 8u));
 
 		obj::update_object_transformation(m_object);
 		update_face_visibility_fast(m_object);

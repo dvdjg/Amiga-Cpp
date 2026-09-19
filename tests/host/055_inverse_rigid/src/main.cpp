@@ -33,8 +33,8 @@ int main() {
 	for (const auto& r : rot) {
 		for (const s16 tx : txs) {
 			Affine3<> a {};
-			load_rotate(a.m, eng::retro::angle_to_radians(r[0]), eng::retro::angle_to_radians(r[1]),
-				    eng::retro::angle_to_radians(r[2]));
+			load_rotate(a.m, eng::retro::turns(r[0]), eng::retro::turns(r[1]),
+				    eng::retro::turns(r[2]));
 			a.t = P3<> {{q0 {tx}, q0 {static_cast<s16>(-200)}, q0 {300}}};
 
 			const Affine3<> ai = inverse_rigid(a);

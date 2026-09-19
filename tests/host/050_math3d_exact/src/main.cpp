@@ -71,8 +71,8 @@ int main() {
 	// distintos, para load_rotate y load_reverse_rotate.
 	for (u16 a = 0; a < 4096; ++a) {
 		eng::math3d::Mat3<> o {};
-		eng::math3d::load_rotate(o, eng::retro::angle_to_radians(a), eng::retro::angle_to_radians(a),
-					 eng::retro::angle_to_radians(a));
+		eng::math3d::load_rotate(o, eng::retro::turns(a), eng::retro::turns(a),
+					 eng::retro::turns(a));
 		const Mat<3, q12> n = new_load_rotate(a, a, a);
 		cmp("load_rotate", o.m[0][0].v, n.m[0][0].v, a, "m00");
 		cmp("load_rotate", o.m[0][1].v, n.m[0][1].v, a, "m01");
@@ -88,9 +88,9 @@ int main() {
 		const u16 ay = static_cast<u16>(a * 7u);
 		const u16 az = static_cast<u16>(a * 11u);
 		eng::math3d::Mat3<> o2 {};
-		eng::math3d::load_reverse_rotate(o2, eng::retro::angle_to_radians(ax),
-						 eng::retro::angle_to_radians(ay),
-						 eng::retro::angle_to_radians(az));
+		eng::math3d::load_reverse_rotate(o2, eng::retro::turns(ax),
+						 eng::retro::turns(ay),
+						 eng::retro::turns(az));
 		const Mat<3, q12> n2 = new_load_reverse_rotate(ax, ay, az);
 		cmp("reverse", o2.m[0][0].v, n2.m[0][0].v, a, "m00");
 		cmp("reverse", o2.m[0][1].v, n2.m[0][1].v, a, "m01");

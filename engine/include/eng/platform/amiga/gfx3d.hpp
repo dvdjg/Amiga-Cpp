@@ -44,60 +44,75 @@ template <class S>
 
 } // namespace detail
 
+/// Senos/cosenos de los tres ejes de una rotación, calculados una vez (una pasada por eje).
+template <class S>
+struct SinCos3 {
+	S sinX {};
+	S cosX {};
+	S sinY {};
+	S cosY {};
+	S sinZ {};
+	S cosZ {};
+};
+
+/// Calcula los `(sin, cos)` de los tres ejes (una lectura de tabla por eje).
+template <class S, class Unit>
+[[nodiscard]] constexpr SinCos3<S> sincos3(eng::math::Angle<S, Unit> ax,
+					   eng::math::Angle<S, Unit> ay,
+					   eng::math::Angle<S, Unit> az) {
+	SinCos3<S> sc {};
+	eng::math::angle_sincos<S, Unit>::op(ax, sc.sinX, sc.cosX);
+	eng::math::angle_sincos<S, Unit>::op(ay, sc.sinY, sc.cosY);
+	eng::math::angle_sincos<S, Unit>::op(az, sc.sinZ, sc.cosZ);
+	return sc;
+}
+
+/// Carga `M = Rx·Ry·Rz` (igual que `LoadRotate3D`) desde los `(sin, cos)` ya calculados.
+template <class S>
+inline void load_rotate_from_sincos(Mat3<S>& m, const SinCos3<S>& sc) {
+	const S tmp0 = eng::math::mul_norm(sc.sinY, sc.cosZ);
+	const S tmp1 = eng::math::mul_norm(sc.sinY, sc.sinZ);
+
+	m.m[0][0] = eng::math::mul_norm(sc.cosY, sc.cosZ);
+	m.m[0][1] = -eng::math::mul_norm(sc.cosY, sc.sinZ);
+	m.m[0][2] = sc.sinY;
+	m.m[1][0] = detail::ratio2(sc.cosX, sc.sinZ, sc.sinX, tmp0);
+	m.m[1][1] = detail::ratio2(sc.cosX, sc.cosZ, -sc.sinX, tmp1);
+	m.m[1][2] = -eng::math::mul_norm(sc.sinX, sc.cosY);
+	m.m[2][0] = detail::ratio2(sc.sinX, sc.sinZ, -sc.cosX, tmp0);
+	m.m[2][1] = detail::ratio2(sc.sinX, sc.cosZ, sc.cosX, tmp1);
+	m.m[2][2] = eng::math::mul_norm(sc.cosX, sc.cosY);
+}
+
+/// Carga `M = Rz·Ry·Rx` (igual que `LoadReverseRotate3D`) desde los `(sin, cos)` ya calculados.
+template <class S>
+inline void load_reverse_rotate_from_sincos(Mat3<S>& m, const SinCos3<S>& sc) {
+	const S tmp0 = eng::math::mul_norm(sc.sinX, sc.sinY);
+	const S tmp1 = eng::math::mul_norm(sc.cosX, sc.sinY);
+
+	m.m[0][0] = eng::math::mul_norm(sc.cosY, sc.cosZ);
+	m.m[0][1] = detail::ratio2(tmp0, sc.cosZ, -sc.cosX, sc.sinZ);
+	m.m[0][2] = detail::ratio2(tmp1, sc.cosZ, sc.sinX, sc.sinZ);
+	m.m[1][0] = eng::math::mul_norm(sc.cosY, sc.sinZ);
+	m.m[1][1] = detail::ratio2(tmp0, sc.sinZ, sc.cosX, sc.cosZ);
+	m.m[1][2] = detail::ratio2(tmp1, sc.sinZ, -sc.sinX, sc.cosZ);
+	m.m[2][0] = -sc.sinY;
+	m.m[2][1] = eng::math::mul_norm(sc.sinX, sc.cosY);
+	m.m[2][2] = eng::math::mul_norm(sc.cosX, sc.cosY);
+}
+
 /// Carga `M = Rx(ax)·Ry(ay)·Rz(az)` (igual que `LoadRotate3D`). Ángulos `Angle<S,Unit>`.
 template <class S, class Unit>
 inline void load_rotate(Mat3<S>& m, eng::math::Angle<S, Unit> ax, eng::math::Angle<S, Unit> ay,
 			eng::math::Angle<S, Unit> az) {
-	S sinX {};
-	S cosX {};
-	S sinY {};
-	S cosY {};
-	S sinZ {};
-	S cosZ {};
-	eng::math::angle_sincos<S, Unit>::op(ax, sinX, cosX);
-	eng::math::angle_sincos<S, Unit>::op(ay, sinY, cosY);
-	eng::math::angle_sincos<S, Unit>::op(az, sinZ, cosZ);
-
-	const S tmp0 = eng::math::mul_norm(sinY, cosZ);
-	const S tmp1 = eng::math::mul_norm(sinY, sinZ);
-
-	m.m[0][0] = eng::math::mul_norm(cosY, cosZ);
-	m.m[0][1] = -eng::math::mul_norm(cosY, sinZ);
-	m.m[0][2] = sinY;
-	m.m[1][0] = detail::ratio2(cosX, sinZ, sinX, tmp0);
-	m.m[1][1] = detail::ratio2(cosX, cosZ, -sinX, tmp1);
-	m.m[1][2] = -eng::math::mul_norm(sinX, cosY);
-	m.m[2][0] = detail::ratio2(sinX, sinZ, -cosX, tmp0);
-	m.m[2][1] = detail::ratio2(sinX, cosZ, cosX, tmp1);
-	m.m[2][2] = eng::math::mul_norm(cosX, cosY);
+	load_rotate_from_sincos(m, sincos3(ax, ay, az));
 }
 
 /// Carga `M = Rz(az)·Ry(ay)·Rx(ax)` (igual que `LoadReverseRotate3D`). Ángulos `Angle<S,Unit>`.
 template <class S, class Unit>
-inline void load_reverse_rotate(Mat3<S>& m, eng::math::Angle<S, Unit> ax, eng::math::Angle<S, Unit> ay,
-				eng::math::Angle<S, Unit> az) {
-	S sinX {};
-	S cosX {};
-	S sinY {};
-	S cosY {};
-	S sinZ {};
-	S cosZ {};
-	eng::math::angle_sincos<S, Unit>::op(ax, sinX, cosX);
-	eng::math::angle_sincos<S, Unit>::op(ay, sinY, cosY);
-	eng::math::angle_sincos<S, Unit>::op(az, sinZ, cosZ);
-
-	const S tmp0 = eng::math::mul_norm(sinX, sinY);
-	const S tmp1 = eng::math::mul_norm(cosX, sinY);
-
-	m.m[0][0] = eng::math::mul_norm(cosY, cosZ);
-	m.m[0][1] = detail::ratio2(tmp0, cosZ, -cosX, sinZ);
-	m.m[0][2] = detail::ratio2(tmp1, cosZ, sinX, sinZ);
-	m.m[1][0] = eng::math::mul_norm(cosY, sinZ);
-	m.m[1][1] = detail::ratio2(tmp0, sinZ, cosX, cosZ);
-	m.m[1][2] = detail::ratio2(tmp1, sinZ, -sinX, cosZ);
-	m.m[2][0] = -sinY;
-	m.m[2][1] = eng::math::mul_norm(sinX, cosY);
-	m.m[2][2] = eng::math::mul_norm(cosX, cosY);
+inline void load_reverse_rotate(Mat3<S>& m, eng::math::Angle<S, Unit> ax,
+				eng::math::Angle<S, Unit> ay, eng::math::Angle<S, Unit> az) {
+	load_reverse_rotate_from_sincos(m, sincos3(ax, ay, az));
 }
 
 /// Escala la parte lineal in situ (factores RATIO del mismo escalar que la matriz).

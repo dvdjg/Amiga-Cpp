@@ -349,9 +349,9 @@ struct DemoGame {
 		// 2) Rasterizado del solido: rotacion + culling + orden painter + relleno.
 		const eng::u32 f = context.frame.frame_index;
 		eng::math3d::Affine3<> m = eng::math3d::Affine3<>::identity();
-		eng::math3d::load_rotate(m.m, eng::retro::angle_to_radians(f * 17u),
-					 eng::retro::angle_to_radians(f * 11u),
-					 eng::retro::angle_to_radians(f * 7u));
+		eng::math3d::load_rotate(m.m, eng::retro::turns(static_cast<eng::u16>(f * 17u)),
+					 eng::retro::turns(static_cast<eng::u16>(f * 11u)),
+					 eng::retro::turns(static_cast<eng::u16>(f * 7u)));
 
 		Vec3 world[8];
 		eng::math3d::mesh_transform(m_mesh.vertices, m, eng::Span<Vec3>(world, 8));

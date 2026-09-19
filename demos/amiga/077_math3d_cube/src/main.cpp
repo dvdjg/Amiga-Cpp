@@ -264,9 +264,9 @@ struct DemoGame {
 		// ~240 frames (~5 s a 50 fps): lo bastante rapido para "tumbar" el cubo y
 		// ver 3 caras, lo bastante lento para leer la geometria.
 		eng::math3d::Affine3<> m = eng::math3d::Affine3<>::identity();
-		eng::math3d::load_rotate(m.m, eng::retro::angle_to_radians(f * 17u),
-					 eng::retro::angle_to_radians(f * 11u),
-					 eng::retro::angle_to_radians(f * 7u));
+		eng::math3d::load_rotate(m.m, eng::retro::turns(static_cast<eng::u16>(f * 17u)),
+					 eng::retro::turns(static_cast<eng::u16>(f * 11u)),
+					 eng::retro::turns(static_cast<eng::u16>(f * 7u)));
 
 		Vec3 world[8];
 		const MeshView mesh {eng::Span<const Vec3>(kVertices, 8), eng::Span<const Face>(kFaces, 12)};

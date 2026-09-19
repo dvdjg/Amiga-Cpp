@@ -52,7 +52,7 @@ int main() {
 
 	// Rotación sobre Z 90° (az=1024): (x,y,z) -> (y,-x,z).
 	m = Mat3<>::identity();
-	load_rotate(m, angle_to_radians(0), angle_to_radians(0), angle_to_radians(1024));
+	load_rotate(m, turns(0), turns(0), turns(1024));
 	{
 		const Vec3 p = vec3(100, 0, 0);
 		transform(m, out, &p, 1);
@@ -69,7 +69,7 @@ int main() {
 	// compose(I, R) == R  (la composición ahora es el `operator*` de la librería).
 	const Mat3<> id = Mat3<>::identity();
 	Mat3<> r = Mat3<>::identity();
-	load_rotate(r, angle_to_radians(0), angle_to_radians(0), angle_to_radians(1024));
+	load_rotate(r, turns(0), turns(0), turns(1024));
 	const Mat3<> c = id * r;
 	check(mv(c, 0, 0) == mv(r, 0, 0) && mv(c, 0, 1) == mv(r, 0, 1) && mv(c, 1, 0) == mv(r, 1, 0) &&
 		      mv(c, 1, 1) == mv(r, 1, 1),
@@ -77,7 +77,7 @@ int main() {
 
 	// R*R con R = Rz(90°) da Rz(180°) = diag(-1,-1).
 	Mat3<> r2 = Mat3<>::identity();
-	load_rotate(r2, angle_to_radians(0), angle_to_radians(0), angle_to_radians(1024));
+	load_rotate(r2, turns(0), turns(0), turns(1024));
 	const Mat3<> r180 = r * r2;
 	near(mv(r180, 0, 0), -4096, 2, "Rz90*Rz90 (0,0)");
 	near(mv(r180, 0, 1), 0, 2, "Rz90*Rz90 (0,1)");
