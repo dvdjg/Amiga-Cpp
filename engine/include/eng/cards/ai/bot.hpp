@@ -14,7 +14,7 @@
 /// expone frecuencias en por mil, que el bot usa para ajustar el farol y el valor
 /// fino. Va dimensionado por el `CardPlan` (`tracked_opponents`).
 ///
-/// Verificación: HOST-165. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
+/// Verificación: HOST-192. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
 
 #include <eng/core/random.hpp>
 #include <eng/core/types.hpp>

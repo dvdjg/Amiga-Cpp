@@ -21,7 +21,7 @@
 /// Como los rangos caben en 4 bits y las categorías son crecientes, comparar
 /// valores enteros da exactamente el orden de manos (sin `float` ni multiplicar).
 ///
-/// Verificación: HOST-162. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
+/// Verificación: HOST-189. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
 
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>

@@ -105,6 +105,6 @@ Ver `tools/board/README.md`.
   amarillo y el turno de las negras; `analyze-demo.sh` da **OK**.
 - **Partidas completas en host** (`tools/board/selfplay.sh`): con `--swap`, dos
   partidas terminadas y exportadas a PGN con `[Result]` correcto (una victoria de
-  cada color); HOST-160 cubre el escritor PGN y el libro.
+  cada color); HOST-187 cubre el escritor PGN y el libro.
 - **Pendiente**: sondeo de tablas de finales en la partida y modo "humano vs.
   máquina" con joystick.

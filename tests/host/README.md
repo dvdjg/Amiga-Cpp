@@ -192,23 +192,23 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-149 | [chess_explain](149_chess_explain/README.md) | `eng/board/explain/`: NLG por plantillas ES/EN (jaque, material, dama prematura, desarrollo, rey en el centro), tono y truncado seguro. |
 | HOST-150 | [binary](150_binary/README.md) | `eng/core/util/binary.hpp`: `ByteReader`/`ByteWriter` little-endian sobre `Span` con comprobación de límites (round-trip, bounds, copia de bloques). |
 | HOST-151 | [board_file](151_board_file/README.md) | `eng/board/storage/file_block_source.hpp`: E/S real de bloques desde un fichero del PC; cadena entradas→fichero→`BlockCache`→`probe_book`. |
-| HOST-152 | [go_rules](152_go_rules/README.md) | `eng/board/rules/go/`: tablero 9×9, grupos/libertades, captura, suicidio y ko simple; jugada con flag de captura. |
-| HOST-153 | [go_search](153_go_search/README.md) | `eng/board/eval/go_eval.hpp` + `rules/go/rules.hpp`: territorio/capturas/atari, `GoSearcher` (negamax/αβ/TT) encuentra la captura. |
-| HOST-154 | [chess_variants](154_chess_variants/README.md) | `rules/chess/variant.hpp` (Chess960: 960 disposiciones y enroque generalizado) y `tournament.hpp` (torneos rápidos con presupuesto de nodos). |
-| HOST-155 | [go_complete](155_go_complete/README.md) | Go: pase/dos pases (`GameEnded`), superko (historial de claves) y apertura (`knowledge/patterns.hpp`). |
-| HOST-156 | [chess_variants_cond](156_chess_variants_cond/README.md) | Ajedrez: variantes de condición King of the Hill y Three-check vía `variant_score`. |
-| HOST-157 | [chess_knowledge](157_chess_knowledge/README.md) | Ajedrez: sonda del libro de aperturas (`opening.hpp`) y finales teóricos en la evaluación. |
-| HOST-158 | [goap_numeric](158_goap_numeric/README.md) | `ai/planning/numeric_goap.hpp`: GOAP con variables numéricas cuantizadas (enteros y decimales), saturación y caché (memo de planes + sufijo). |
-| HOST-159 | [goap_numeric_relaxed](159_goap_numeric_relaxed/README.md) | GOAP numérico con heurística relajada (h_max) y memo de heurística entre llamadas. |
-| HOST-160 | [pgn](160_pgn/README.md) | `rules/chess/pgn.hpp` (escritor PGN sin heap ni I/O) y `rules/chess/opening_book.hpp` (líneas de apertura incorporadas que comparten demo y selfplay). |
-| HOST-161 | [cards_core](161_cards_core/README.md) | `eng/cards/core/{types,deck,budget}.hpp`: tipos de carta, baraja determinista (mismo PRNG+semilla) y presupuesto de naipes `N20`…`N512`. |
-| HOST-162 | [cards_hand_rank](162_cards_hand_rank/README.md) | `eng/cards/rules/hand_rank.hpp`: evaluador de 5/7 cartas por conteo, categorías, orden total, escalera de as bajo y kickers. |
-| HOST-163 | [cards_holdem](163_cards_holdem/README.md) | `eng/cards/rules/texas_holdem.hpp`: reparto/ciegas, calles, acciones legales, resolución por retirada y botes laterales. |
-| HOST-164 | [cards_equity](164_cards_equity/README.md) | `eng/cards/eval/equity.hpp`: equity Monte Carlo determinista, heurística preflop y pot odds. |
-| HOST-165 | [cards_selfplay](165_cards_selfplay/README.md) | `eng/cards/{ai/bot,sim/session}.hpp`: estilos, modelo de rival, sesiones CPU vs CPU, conservación y determinismo. |
-| HOST-166 | [cards_range](166_cards_range/README.md) | `eng/cards/eval/range.hpp`: 169 clases de mano inicial, `HandRange`, equity contra rango y tabla preflop (`build_preflop_table`). |
-| HOST-167 | [cards_variants](167_cards_variants/README.md) | `eng/cards/rules/variants.hpp` + `evaluate_omaha`: Omaha (2 hole + 3 board), reparto por variante y estructura Limit (apuesta fija y tope de subidas). |
-| HOST-168 | [cards_wildcards](168_cards_wildcards/README.md) | Comodines: mazo de 54 cartas, sustitución por la mejor carta en `evaluate_hand`, heurística preflop y showdown con comodín. |
-| HOST-169 | [cards_omaha](169_cards_omaha/README.md) | Omaha de extremo a extremo: `equity_vs_random_omaha` (4 cartas) y `run_session` con `variant=Omaha` (conservación, determinismo y comodines). |
-| HOST-170 | [cards_stud](170_cards_stud/README.md) | `eng/cards/rules/seven_stud.hpp`: Seven-Card Stud (ante, bring-in, 5 calles, showdown y retirada). |
-| HOST-171 | [cards_five_draw](171_cards_five_draw/README.md) | `eng/cards/rules/five_draw.hpp` + `evaluate_deuces_wild`: Five-Card Draw con descarte y Deuces Wild. |
+| HOST-179 | [go_rules](179_go_rules/README.md) | `eng/board/rules/go/`: tablero 9×9, grupos/libertades, captura, suicidio y ko simple; jugada con flag de captura. |
+| HOST-180 | [go_search](180_go_search/README.md) | `eng/board/eval/go_eval.hpp` + `rules/go/rules.hpp`: territorio/capturas/atari, `GoSearcher` (negamax/αβ/TT) encuentra la captura. |
+| HOST-181 | [chess_variants](181_chess_variants/README.md) | `rules/chess/variant.hpp` (Chess960: 960 disposiciones y enroque generalizado) y `tournament.hpp` (torneos rápidos con presupuesto de nodos). |
+| HOST-182 | [go_complete](182_go_complete/README.md) | Go: pase/dos pases (`GameEnded`), superko (historial de claves) y apertura (`knowledge/patterns.hpp`). |
+| HOST-183 | [chess_variants_cond](183_chess_variants_cond/README.md) | Ajedrez: variantes de condición King of the Hill y Three-check vía `variant_score`. |
+| HOST-184 | [chess_knowledge](184_chess_knowledge/README.md) | Ajedrez: sonda del libro de aperturas (`opening.hpp`) y finales teóricos en la evaluación. |
+| HOST-185 | [goap_numeric](185_goap_numeric/README.md) | `ai/planning/numeric_goap.hpp`: GOAP con variables numéricas cuantizadas (enteros y decimales), saturación y caché (memo de planes + sufijo). |
+| HOST-186 | [goap_numeric_relaxed](186_goap_numeric_relaxed/README.md) | GOAP numérico con heurística relajada (h_max) y memo de heurística entre llamadas. |
+| HOST-187 | [pgn](187_pgn/README.md) | `rules/chess/pgn.hpp` (escritor PGN sin heap ni I/O) y `rules/chess/opening_book.hpp` (líneas de apertura incorporadas que comparten demo y selfplay). |
+| HOST-188 | [cards_core](188_cards_core/README.md) | `eng/cards/core/{types,deck,budget}.hpp`: tipos de carta, baraja determinista (mismo PRNG+semilla) y presupuesto de naipes `N20`…`N512`. |
+| HOST-189 | [cards_hand_rank](189_cards_hand_rank/README.md) | `eng/cards/rules/hand_rank.hpp`: evaluador de 5/7 cartas por conteo, categorías, orden total, escalera de as bajo y kickers. |
+| HOST-190 | [cards_holdem](190_cards_holdem/README.md) | `eng/cards/rules/texas_holdem.hpp`: reparto/ciegas, calles, acciones legales, resolución por retirada y botes laterales. |
+| HOST-191 | [cards_equity](191_cards_equity/README.md) | `eng/cards/eval/equity.hpp`: equity Monte Carlo determinista, heurística preflop y pot odds. |
+| HOST-192 | [cards_selfplay](192_cards_selfplay/README.md) | `eng/cards/{ai/bot,sim/session}.hpp`: estilos, modelo de rival, sesiones CPU vs CPU, conservación y determinismo. |
+| HOST-193 | [cards_range](193_cards_range/README.md) | `eng/cards/eval/range.hpp`: 169 clases de mano inicial, `HandRange`, equity contra rango y tabla preflop (`build_preflop_table`). |
+| HOST-194 | [cards_variants](194_cards_variants/README.md) | `eng/cards/rules/variants.hpp` + `evaluate_omaha`: Omaha (2 hole + 3 board), reparto por variante y estructura Limit (apuesta fija y tope de subidas). |
+| HOST-195 | [cards_wildcards](195_cards_wildcards/README.md) | Comodines: mazo de 54 cartas, sustitución por la mejor carta en `evaluate_hand`, heurística preflop y showdown con comodín. |
+| HOST-196 | [cards_omaha](196_cards_omaha/README.md) | Omaha de extremo a extremo: `equity_vs_random_omaha` (4 cartas) y `run_session` con `variant=Omaha` (conservación, determinismo y comodines). |
+| HOST-197 | [cards_stud](197_cards_stud/README.md) | `eng/cards/rules/seven_stud.hpp`: Seven-Card Stud (ante, bring-in, 5 calles, showdown y retirada). |
+| HOST-198 | [cards_five_draw](198_cards_five_draw/README.md) | `eng/cards/rules/five_draw.hpp` + `evaluate_deuces_wild`: Five-Card Draw con descarte y Deuces Wild. |

@@ -54,8 +54,8 @@ y (si tiene consumidor natural) una demo/juego exitoso.
 | G1.1 | `planning/goap.hpp` | Hechos booleanos, acciones (pre/efectos/coste), A* con heurística de objetivos pendientes; presupuesto `MaxNodes` | **HOST-107** (Hanoi, pastel, soldado) |
 | G1.2 | `planning/htn.hpp` (opcional) | Redes de tareas jerárquicas: descomponer un objetivo en subtareas con métodos alternativos | HOST propio; demo si hay consumidor |
 | G1.3 | `planning/goap.hpp` (caché) | Cachear planes por `(estado, objetivo)` para no replanificar lo mismo cada vez | **Entregado**: `plan_cached` en HOST-107 |
-| G1.4 | `planning/numeric_goap.hpp` | GOAP con **variables numéricas cuantizadas** (enteros y decimales por escala), saturación, `plan_cached` y reutilización de sufijo (`plan_reusing`) | **Entregado**: HOST-158 |
-| G1.5 | `planning/numeric_goap.hpp` (heurística) | **Heurística de grafo relajado** (`h_max`) + cota numérica, con memo de `h` entre llamadas (`plan_relaxed`, `heuristic_hits`) | **Entregado**: HOST-159 |
+| G1.4 | `planning/numeric_goap.hpp` | GOAP con **variables numéricas cuantizadas** (enteros y decimales por escala), saturación, `plan_cached` y reutilización de sufijo (`plan_reusing`) | **Entregado**: HOST-185 |
+| G1.5 | `planning/numeric_goap.hpp` (heurística) | **Heurística de grafo relajado** (`h_max`) + cota numérica, con memo de `h` entre llamadas (`plan_relaxed`, `heuristic_hits`) | **Entregado**: HOST-186 |
 
 **Estado: G1.1 completa.** GOAP verificado por HOST-107. Candidatos: HTN (G1.2) y caché de
 planes (G1.3), ambos solo con consumidor.
@@ -129,8 +129,8 @@ patrones descritos en §5.
 | Influence maps | percepción | `ai/perception/influence_map.hpp` | (técnica de RTS) | **Entregado** (HOST-117) |
 | Memoria del agente / creencias | percepción | `ai/perception/agent_memory.hpp` | — | **Entregado** (HOST-117) |
 | Caché de planes GOAP | planificación | `ai/planning/goap.hpp` (`plan_cached`) | — | **Entregado** (HOST-107) |
-| GOAP numérico cuantizado (enteros y decimales) | planificación | `ai/planning/numeric_goap.hpp` | Alex/Orkin (extensión numérica) | **Entregado** (HOST-158) |
-| Heurística relajada (h_max) + memo de h | planificación | `ai/planning/numeric_goap.hpp` (`plan_relaxed`) | relajación por borrado (Hoffmann/Nebel) | **Entregado** (HOST-159) |
+| GOAP numérico cuantizado (enteros y decimales) | planificación | `ai/planning/numeric_goap.hpp` | Alex/Orkin (extensión numérica) | **Entregado** (HOST-185) |
+| Heurística relajada (h_max) + memo de h | planificación | `ai/planning/numeric_goap.hpp` (`plan_relaxed`) | relajación por borrado (Hoffmann/Nebel) | **Entregado** (HOST-186) |
 | HFSM (FSM jerárquica) | decisión | `ai/decision/` | — | Candidato (estados anidados) |
 | Pursuit/evade/wander y evasión de obstáculos | movimiento | `ai/steering/steering.hpp` | C. Reynolds | **Entregado** (HOST-115) |
 | Formación / asignación de huecos | movimiento | `ai/steering/` | — | Candidato opcional |

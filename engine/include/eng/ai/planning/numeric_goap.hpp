@@ -25,7 +25,7 @@
 /// Límites: `MaxFacts <= 32` y `MaxVars <= 4` (clave de 64 bits exacta). Para más
 /// variables, componer dominios o usar el planner numérico general (fase B).
 ///
-/// Verificación: HOST-158.
+/// Verificación: HOST-185.
 
 #include <eng/ai/planning/goap.hpp>
 #include <eng/core/span.hpp>

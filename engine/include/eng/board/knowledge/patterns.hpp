@@ -6,7 +6,7 @@
 /// jugadas. Es la base de un futuro banco de patrones más rico (3×3/5×5) cargable
 /// desde disquete.
 ///
-/// Verificación: HOST-155.
+/// Verificación: HOST-182.
 
 #include <eng/board/rules/go/board.hpp>
 

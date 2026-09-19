@@ -6,7 +6,7 @@
 /// jugada resultante lleva el flag de captura (`go_move(point, captures)`) para que
 /// la ordenación y la quiescence no tengan que simular.
 ///
-/// Verificación: HOST-152.
+/// Verificación: HOST-179.
 
 #include <eng/board/core/types.hpp>
 #include <eng/board/rules/go/board.hpp>

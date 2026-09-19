@@ -193,7 +193,7 @@ hechos + 32 de niveles) y el planner es el mismo A* determinista, sin heap.
   variables, componer dominios o esperar al planner numérico general (heurística de
   grafo relajado completa).
 
-Verificación: HOST-158 (enteros, decimales, saturación, memo y sufijo) y HOST-159
+Verificación: HOST-185 (enteros, decimales, saturación, memo y sufijo) y HOST-186
 (heurística relajada con memo).
 
 ## 4. Decisión por tick (`eng/ai/decision/`)
@@ -272,7 +272,7 @@ HOST-117.
 | Cabecera | Tipos / funciones | Estado |
 |---|---|---|
 | `planning/goap.hpp` | `Goap<MaxFacts>` (dominio: `State`/`state`/`Action`/`Builder`/`Goal`/`Planner`), caché de planes (`plan_cached`), `Fact`, `applicable`, `apply`, `satisfies`, `goal_distance` | Implementado, HOST-107 |
-| `planning/numeric_goap.hpp` | `NumericGoap<MaxVars>`: GOAP con variables numéricas cuantizadas (enteros y decimales), `plan_cached`, `plan_reusing`, `plan_relaxed` con heurística `h_max` y memo | Implementado, HOST-158/159 |
+| `planning/numeric_goap.hpp` | `NumericGoap<MaxVars>`: GOAP con variables numéricas cuantizadas (enteros y decimales), `plan_cached`, `plan_reusing`, `plan_relaxed` con heurística `h_max` y memo | Implementado, HOST-185/159 |
 | `decision/agent_fsm.hpp` | `AgentFsm<State,Event,MaxStates>`: FSM de agente con efectos de entrada/salida sobre `eng::util::StateMachine` | Implementado, HOST-110 |
 | `decision/utility.hpp` | `Utility`/`UtilitySelector<MaxOptions>`: utilidad ponderada; entero y determinista | Implementado, HOST-112 |
 | `decision/behavior_tree.hpp` | `BehaviorTree<MaxNodes>`, `BtStatus`, `BtTask`: secuencia/selector sin heap | Implementado, HOST-113 |

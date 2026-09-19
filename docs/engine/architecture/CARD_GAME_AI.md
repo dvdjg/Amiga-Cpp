@@ -230,25 +230,25 @@ Notas:
 
 | Área | Estado |
 |---|---|
-| `core/` (tipos, baraja, presupuesto `N20`…`N512`) | **Implementado**: HOST-161 |
+| `core/` (tipos, baraja, presupuesto `N20`…`N512`) | **Implementado**: HOST-188 |
 | `core/intmath.hpp` (división `divu.w` / `mulu16` sin libcalls) | **Implementado**: codegen-report (68000 sin libgcc) |
-| `rules/hand_rank.hpp` (evaluador 5/7) | **Implementado**: HOST-162 |
-| `rules/texas_holdem.hpp` (reglas, calles, acciones, side pots, showdown) | **Implementado**: HOST-163 |
-| `eval/equity.hpp` (Monte Carlo, pot odds, heurística preflop) | **Implementado**: HOST-164 |
-| `eval/range.hpp` (169 clases, rangos, tabla preflop) | **Implementado**: HOST-166 |
-| `ai/bot.hpp` + `sim/session.hpp` (estilos, modelo de rival, sesiones) | **Implementado**: HOST-165 |
-| `rules/variants.hpp` + `evaluate_omaha` (Omaha, Limit) | **Implementado**: HOST-167 |
-| Comodines (mazo de 54 + sustitución en `evaluate_hand`) | **Implementado**: HOST-168 |
-| Omaha de extremo a extremo (equity 4 cartas + sesión) | **Implementado**: HOST-169 |
-| `rules/seven_stud.hpp` (Seven-Card Stud: ante, bring-in, 5 calles) | **Implementado**: HOST-170 |
-| `rules/five_draw.hpp` + `evaluate_deuces_wild` (Draw / Deuces Wild) | **Implementado**: HOST-171 |
+| `rules/hand_rank.hpp` (evaluador 5/7) | **Implementado**: HOST-189 |
+| `rules/texas_holdem.hpp` (reglas, calles, acciones, side pots, showdown) | **Implementado**: HOST-190 |
+| `eval/equity.hpp` (Monte Carlo, pot odds, heurística preflop) | **Implementado**: HOST-191 |
+| `eval/range.hpp` (169 clases, rangos, tabla preflop) | **Implementado**: HOST-193 |
+| `ai/bot.hpp` + `sim/session.hpp` (estilos, modelo de rival, sesiones) | **Implementado**: HOST-192 |
+| `rules/variants.hpp` + `evaluate_omaha` (Omaha, Limit) | **Implementado**: HOST-194 |
+| Comodines (mazo de 54 + sustitución en `evaluate_hand`) | **Implementado**: HOST-195 |
+| Omaha de extremo a extremo (equity 4 cartas + sesión) | **Implementado**: HOST-196 |
+| `rules/seven_stud.hpp` (Seven-Card Stud: ante, bring-in, 5 calles) | **Implementado**: HOST-197 |
+| `rules/five_draw.hpp` + `evaluate_deuces_wild` (Draw / Deuces Wild) | **Implementado**: HOST-198 |
 | Herramienta host `tools/cards/selfplay.sh` | **Implementado y ejecutado** (torneos CPU vs CPU) |
 | Benchmark hardware `demos/amiga/124_cards_bench` | **Implementado y medido en A500**: `N20` ≈ 30 unidades/s, `N64` (8 muestras) ≈ 685 ms/unidad; `N128`+ no jugables. Muestras por perfil calibradas con esta tabla |
 | Juego `games/200_holdem` (UI, N20) | **Implementado y verificado**: build → run → analyze OK (READY y captura con contenido) |
 
 > Estado: núcleo, reglas (Hold'em, Omaha, Limit, Seven-Card Stud, Five-Card Draw), comodines
 > (jokers y rangos comodín), evaluación, IA, simulación y el juego `games/200_holdem`
-> implementados y verificados por test host (HOST-161…171) y, el juego, por build → run →
+> implementados y verificados por test host (HOST-188…198) y, el juego, por build → run →
 > analyze. El codegen 68000 está libre de libcalls e instrucciones 68020. Quedan pendientes
 > el pulido visual del juego y la medida de rendimiento por CPU (020/030). El plan por fases
 > y los criterios de cierre están en

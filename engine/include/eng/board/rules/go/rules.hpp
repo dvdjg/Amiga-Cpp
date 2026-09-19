@@ -11,7 +11,7 @@
 ///   o sin movimientos): la puntuación la da la evaluación (territorio + capturas).
 /// - El **pase** (`kGoPass`) y las dos pasadas consecutivas quedan pendientes.
 ///
-/// Verificación: HOST-152 (reglas) y HOST-153 (evaluación y búsqueda).
+/// Verificación: HOST-179 (reglas) y HOST-180 (evaluación y búsqueda).
 
 #include <eng/board/core/game.hpp>
 #include <eng/board/core/types.hpp>

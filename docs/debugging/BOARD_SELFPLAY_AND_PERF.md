@@ -30,8 +30,8 @@ Bugs del motor encontrados y corregidos durante esta campaña:
    p. ej. rey f1 / torre g1) perdía la torre en `make`/`unmake`; posiciones así solo
    generaban 5 jugadas legales. Corregido con make/unmake conscientes del solape.
 
-Cobertura de tests: HOST-143 (jugada parcial), HOST-154 (enroque con solape) y
-HOST-160 (PGN + libro). Toda la batería de tablero (HOST-138…160) pasa.
+Cobertura de tests: HOST-143 (jugada parcial), HOST-181 (enroque con solape) y
+HOST-187 (PGN + libro). Toda la batería de tablero (HOST-138…151 y HOST-179…187) pasa.
 
 ## 2. Estilos (200 partidas Chess960, `--swap`)
 

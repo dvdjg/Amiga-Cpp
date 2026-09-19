@@ -11,7 +11,7 @@
 /// `set_start_960` usa la numeración estándar de Scharnagl (0..959), de modo que la
 /// misma semilla produce siempre la misma posición (tournaments reproducibles).
 ///
-/// Verificación: HOST-154.
+/// Verificación: HOST-181.
 
 #include <eng/board/rules/chess/board.hpp>
 

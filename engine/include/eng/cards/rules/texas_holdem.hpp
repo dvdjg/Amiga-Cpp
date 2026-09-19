@@ -19,7 +19,7 @@
 /// - Una subida corta *all-in* no reabre la acción: los que ya actuaron solo
 ///   pueden igualar o retirarse (se conserva `acted`).
 ///
-/// Verificación: HOST-163 (reglas, acción legal, botes laterales y showdown).
+/// Verificación: HOST-190 (reglas, acción legal, botes laterales y showdown).
 /// Estado: verificado por test host y consumido por `games/200_holdem`
 /// (build → run → analyze OK).
 

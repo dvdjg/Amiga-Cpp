@@ -10,7 +10,7 @@
 /// validar cambios de evaluación/búsqueda o para enfrentar profundidades/semillas.
 /// En el Amiga se puede usar para un modo "el motor juega solo".
 ///
-/// Verificación: HOST-154 y herramienta `tools/board/arena.cpp`.
+/// Verificación: HOST-181 y herramienta `tools/board/arena.cpp`.
 
 #include <eng/board/rules/chess/rules.hpp>
 #include <eng/board/rules/chess/variant.hpp>

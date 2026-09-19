@@ -15,7 +15,7 @@
 ///   con una única libertad (la casilla capturada), se prohíbe recapturar ahí de
 ///   inmediato. El ko de superposición (superko) queda pendiente.
 ///
-/// Verificación: HOST-152.
+/// Verificación: HOST-179.
 
 #include <eng/board/core/types.hpp>
 #include <eng/board/core/zobrist.hpp>

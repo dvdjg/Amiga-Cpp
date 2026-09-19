@@ -17,7 +17,7 @@
 /// Todas las funciones son `constexpr`: en host se pliegan y en 68000 generan código
 /// nativo. La sonda de codegen verifica que no aparece ninguna libcall.
 ///
-/// Verificación: HOST-164/166 (corrección) y codegen-report (sin libgcc en 68000).
+/// Verificación: HOST-191/166 (corrección) y codegen-report (sin libgcc en 68000).
 
 #include <eng/core/arith.hpp>
 #include <eng/core/types.hpp>

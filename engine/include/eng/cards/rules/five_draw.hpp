@@ -8,7 +8,7 @@
 /// Reutiliza `evaluate_hand`/`evaluate_deuces_wild` y los mismos tipos (`Action`,
 /// `SeatStatus`) que Hold'em/Stud. La apuesta es **Limit** (fija con tope de subidas).
 ///
-/// Verificación: HOST-171. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
+/// Verificación: HOST-198. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
 
 #include <eng/core/random.hpp>
 #include <eng/core/types.hpp>

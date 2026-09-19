@@ -16,7 +16,7 @@
 /// Cada escritura es segura ante buffers pequeños: la longitud lógica sigue
 /// contando, pero `ok()` pasa a `false` si algo no cupo.
 ///
-/// Verificación: HOST-160.
+/// Verificación: HOST-187.
 
 #include <eng/board/rules/chess/board.hpp>
 #include <eng/core/span.hpp>

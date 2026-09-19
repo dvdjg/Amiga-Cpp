@@ -9,7 +9,7 @@
 /// Es deliberadamente simple: no hay ojos, influencia a distancia ni patrones todavía
 /// (líneas futuras de B7); sirve para que la búsqueda tenga una señal estable.
 ///
-/// Verificación: HOST-153.
+/// Verificación: HOST-180.
 
 #include <eng/board/core/types.hpp>
 #include <eng/board/rules/go/board.hpp>

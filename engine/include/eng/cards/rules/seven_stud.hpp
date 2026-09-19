@@ -13,7 +13,7 @@
 /// Distribución de las 7 cartas por posición: `[0],[1]` tapadas, `[2]..[5]`
 /// descubiertas y `[6]` tapada.
 ///
-/// Verificación: HOST-170. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
+/// Verificación: HOST-197. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
 
 #include <eng/core/random.hpp>
 #include <eng/core/types.hpp>

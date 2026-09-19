@@ -361,9 +361,9 @@ coste bajo (8–50 kB según riqueza).
 | `eval/` (ajedrez: material, PST, movilidad, peones, rasgos) | **Implementado**: HOST-145; `eval/go` planificado (B7) |
 | `knowledge/` + `storage/` (BlockSource RAM/fichero, caché LRU, libro, tablas) | **Implementado**: HOST-146/147/151 y packer `tools/board/pack-book.sh`; trackloader Amiga y packers de tablas/patrones pendientes |
 | `explain/` (NLG ES/EN por plantillas) | **Implementado**: HOST-149; detección por patrón, packer y assets pendientes |
-| `rules/go/` + `eval/go` | **Implementado**: HOST-152/153/155 (tablero/grupos/captura/suicidio/ko simple, pase/dos pases, superko, apertura y `GoSearcher`); patrones 3×3/5×5 desde disquete pendientes |
-| `rules/chess/variant.hpp` + `tournament.hpp` | **Implementado**: HOST-154/156 (Chess960 con enroque generalizado, torneos rápidos, King of the Hill y Three-check) |
-| `rules/chess/opening.hpp` + finales en `eval/` | **Implementado**: HOST-157 (sonda del libro por clave y finales teóricos en la evaluación) |
+| `rules/go/` + `eval/go` | **Implementado**: HOST-179/153/155 (tablero/grupos/captura/suicidio/ko simple, pase/dos pases, superko, apertura y `GoSearcher`); patrones 3×3/5×5 desde disquete pendientes |
+| `rules/chess/variant.hpp` + `tournament.hpp` | **Implementado**: HOST-181/156 (Chess960 con enroque generalizado, torneos rápidos, King of the Hill y Three-check) |
+| `rules/chess/opening.hpp` + finales en `eval/` | **Implementado**: HOST-184 (sonda del libro por clave y finales teóricos en la evaluación) |
 | Motores de concurrencia (`eng::parallel`) | **Implementado**: HOST-137; ver [PARALLEL_AND_THREADS.md](PARALLEL_AND_THREADS.md) |
 | Juegos en `games/` | **Iniciados y verificados**: `games/100_chess` y `games/101_go`, build → run → analyze OK; pulido visual pendiente |
 

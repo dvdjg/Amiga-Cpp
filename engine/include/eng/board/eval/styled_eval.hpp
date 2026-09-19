@@ -12,7 +12,7 @@
 /// `tools/board/selfplay.cpp`, de modo que ambas usan **exactamente la misma**
 /// evaluación por estilo.
 ///
-/// Verificación: demo `123_chess_match` (build → run → analyze) y HOST-160.
+/// Verificación: demo `123_chess_match` (build → run → analyze) y HOST-187.
 
 #include <eng/board/eval/chess_eval.hpp>
 

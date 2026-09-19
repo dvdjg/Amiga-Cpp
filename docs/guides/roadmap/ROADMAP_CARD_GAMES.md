@@ -31,7 +31,7 @@ CPU vs CPU para ajustar el nivel; el juego con UI en el Amiga cierra la verifica
   (`sim/session.hpp`). **Variantes**: Omaha de extremo a extremo, estructura Limit,
   **Seven-Card Stud** (`rules/seven_stud.hpp`) y **Five-Card Draw / Deuces Wild**
   (`rules/five_draw.hpp`), más **comodines** (mazo de 54 y rangos comodín). Verificado por
-  HOST-161…171.
+  HOST-188…198.
 - **Implementado (juego)**: `games/200_holdem` (Texas Hold'em No-Limit, jugador + 2 bots
   con perfil `N20`); build → run → analyze **OK** en emulador.
 - **Implementado (herramienta)**: `tools/cards/selfplay.sh` juega torneos CPU vs CPU en host
@@ -80,9 +80,9 @@ CPU vs CPU para ajustar el nivel; el juego con UI en el Amiga cierra la verifica
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| C0.1 | `core/types.hpp` | `Suit`, `Rank`, `Card` (`rank<<2\|suit`), `Street`, `Hand`, `HandValue` | **HOST-161** (hecho) |
-| C0.2 | `core/deck.hpp` | Baraja de 52/54 cartas (comodines), `shuffle`/`remove`/`deal` sobre el PRNG común | **HOST-161/168** (hecho) |
-| C0.3 | `core/budget.hpp` | Perfiles `N20`…`N512` y `plan_cards_memory` | **HOST-161** (hecho) |
+| C0.1 | `core/types.hpp` | `Suit`, `Rank`, `Card` (`rank<<2\|suit`), `Street`, `Hand`, `HandValue` | **HOST-188** (hecho) |
+| C0.2 | `core/deck.hpp` | Baraja de 52/54 cartas (comodines), `shuffle`/`remove`/`deal` sobre el PRNG común | **HOST-188/168** (hecho) |
+| C0.3 | `core/budget.hpp` | Perfiles `N20`…`N512` y `plan_cards_memory` | **HOST-188** (hecho) |
 
 Cierre: tipos y presupuesto verificados; baraja reproducible por semilla.
 
@@ -90,10 +90,10 @@ Cierre: tipos y presupuesto verificados; baraja reproducible por semilla.
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| C1.1 | `rules/hand_rank.hpp` | Evaluador de 5/7 por conteo, mejor de 5 entre 7, escalera de as bajo | **HOST-162** (hecho) |
-| C1.2 | `rules/texas_holdem.hpp` | Ciegas, botón, calles, acciones legales y secuencia hasta el showdown | **HOST-163** (hecho) |
-| C1.3 | `rules/texas_holdem.hpp` | Botes laterales por niveles y resolución por retirada | **HOST-163** (hecho) |
-| C1.4 | `rules/variants.hpp` + `hand_rank.hpp` | Omaha (2 de 4 + 3 de 5) y estructura Limit; **comodines** (mazo 54) | **HOST-167/168/169** (hecho) |
+| C1.1 | `rules/hand_rank.hpp` | Evaluador de 5/7 por conteo, mejor de 5 entre 7, escalera de as bajo | **HOST-189** (hecho) |
+| C1.2 | `rules/texas_holdem.hpp` | Ciegas, botón, calles, acciones legales y secuencia hasta el showdown | **HOST-190** (hecho) |
+| C1.3 | `rules/texas_holdem.hpp` | Botes laterales por niveles y resolución por retirada | **HOST-190** (hecho) |
+| C1.4 | `rules/variants.hpp` + `hand_rank.hpp` | Omaha (2 de 4 + 3 de 5) y estructura Limit; **comodines** (mazo 54) | **HOST-194/168/169** (hecho) |
 
 Cierre: manos y categorías correctas; botes laterales y showdown verificados con casos
 controlados; Omaha y Limit jugables de extremo a extremo y comodines soportados. Pendiente:
@@ -103,10 +103,10 @@ Seven-Card Stud y torneos con ciegas crecientes.
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| C2.1 | `eval/equity.hpp` | Equity Monte Carlo determinista contra rivales aleatorios | **HOST-164** (hecho) |
-| C2.2 | `eval/equity.hpp` | Pot odds y heurística preflop (fallback `N20`) | **HOST-164** (hecho) |
-| C2.3 | `eval/range.hpp` | 169 clases canónicas, `HandRange` y `equity_vs_range` | **HOST-166** (hecho) |
-| C2.4 | `eval/range.hpp` | `PreflopTable` (169 valores, MC una vez) y rango por percentil | **HOST-166** (hecho) |
+| C2.1 | `eval/equity.hpp` | Equity Monte Carlo determinista contra rivales aleatorios | **HOST-191** (hecho) |
+| C2.2 | `eval/equity.hpp` | Pot odds y heurística preflop (fallback `N20`) | **HOST-191** (hecho) |
+| C2.3 | `eval/range.hpp` | 169 clases canónicas, `HandRange` y `equity_vs_range` | **HOST-193** (hecho) |
+| C2.4 | `eval/range.hpp` | `PreflopTable` (169 valores, MC una vez) y rango por percentil | **HOST-193** (hecho) |
 
 Cierre: el equity ordena manos conocidas (AA > 72o), una mano hecha gana siempre, las pot
 odds son correctas y el rival puede restringirse a un rango. Pendiente: rangos de subida
@@ -116,8 +116,8 @@ dinámicos (leídos de las acciones) y más resolución para perfiles altos.
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| C3.1 | `ai/bot.hpp` | Estilos tight/loose × passive/aggressive + balanced y decisión por equity/pot odds | **HOST-165** (hecho) |
-| C3.2 | `ai/bot.hpp` | `OpponentModel`: frecuencias por asiento y ajuste del farol | **HOST-165** (hecho) |
+| C3.1 | `ai/bot.hpp` | Estilos tight/loose × passive/aggressive + balanced y decisión por equity/pot odds | **HOST-192** (hecho) |
+| C3.2 | `ai/bot.hpp` | `OpponentModel`: frecuencias por asiento y ajuste del farol | **HOST-192** (hecho) |
 
 Cierre: dos estilos producen planes distintos y la actividad (subidas/showdowns) es visible.
 Pendiente: rangos de subida, farol inducido por el tablero y equilibrio (bluff/value ratio).
@@ -126,7 +126,7 @@ Pendiente: rangos de subida, farol inducido por el tablero y equilibrio (bluff/v
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| C4.1 | `sim/session.hpp` | `run_session`: N manos, botón rota, net y `bb/100` | **HOST-165** (hecho) |
+| C4.1 | `sim/session.hpp` | `run_session`: N manos, botón rota, net y `bb/100` | **HOST-192** (hecho) |
 | C4.2 | `tools/cards/selfplay` | Herramienta host de torneos CPU vs CPU (perfiles, estilos, tabla y rango) | **Hecho** (ejecutada); **regresión de nivel** `regression.sh` + línea base, integrada en `run-host-tests.sh` |
 | C4.3 | Matriz de rendimiento | Manos/s y muestras/s por CPU (68000/020/030) y perfil | **A500 completo**: `demos/amiga/124_cards_bench` mide por TOD (50 Hz) — `N20` 30 u/s (33 ms), `N64` 1 u/s (641 ms), `N128` 2,75 s, `N256` 5,09 s, `N512` 44,6 s por unidad. Solo N20/N64 viables en 68000. 020/030 pendientes |
 
@@ -175,17 +175,17 @@ pieza se comprueba que no duplica una primitiva de `eng::util`/`eng::parallel`.
 
 | Test | Cubre | Estado |
 |---|---|---|
-| HOST-161 | `core/`: tipos, baraja determinista y presupuesto `N20`…`N512` | **Hecho** |
-| HOST-162 | `rules/hand_rank.hpp`: categorías, orden, mejor de 7 y kickers | **Hecho** |
-| HOST-163 | `rules/texas_holdem.hpp`: reparto, calles, retirada y botes laterales | **Hecho** |
-| HOST-164 | `eval/equity.hpp`: Monte Carlo, heurística preflop y pot odds | **Hecho** |
-| HOST-165 | `ai/bot.hpp` + `sim/session.hpp`: conservación, determinismo y perfiles | **Hecho** |
-| HOST-166 | `eval/range.hpp`: 169 clases, `HandRange`, equity vs rango y tabla preflop | **Hecho** |
-| HOST-167 | `rules/variants.hpp` + `evaluate_omaha`: Omaha 2+3, reparto y estructura Limit | **Hecho** |
-| HOST-168 | Comodines: mazo de 54, sustitución en `evaluate_hand` y showdown | **Hecho** |
-| HOST-169 | Omaha de extremo a extremo: equity de 4 cartas y `run_session` | **Hecho** |
-| HOST-170 | `rules/seven_stud.hpp`: ante, bring-in, 5 calles, showdown y retirada | **Hecho** |
-| HOST-171 | `rules/five_draw.hpp` + `evaluate_deuces_wild`: descarte y Deuces Wild | **Hecho** |
+| HOST-188 | `core/`: tipos, baraja determinista y presupuesto `N20`…`N512` | **Hecho** |
+| HOST-189 | `rules/hand_rank.hpp`: categorías, orden, mejor de 7 y kickers | **Hecho** |
+| HOST-190 | `rules/texas_holdem.hpp`: reparto, calles, retirada y botes laterales | **Hecho** |
+| HOST-191 | `eval/equity.hpp`: Monte Carlo, heurística preflop y pot odds | **Hecho** |
+| HOST-192 | `ai/bot.hpp` + `sim/session.hpp`: conservación, determinismo y perfiles | **Hecho** |
+| HOST-193 | `eval/range.hpp`: 169 clases, `HandRange`, equity vs rango y tabla preflop | **Hecho** |
+| HOST-194 | `rules/variants.hpp` + `evaluate_omaha`: Omaha 2+3, reparto y estructura Limit | **Hecho** |
+| HOST-195 | Comodines: mazo de 54, sustitución en `evaluate_hand` y showdown | **Hecho** |
+| HOST-196 | Omaha de extremo a extremo: equity de 4 cartas y `run_session` | **Hecho** |
+| HOST-197 | `rules/seven_stud.hpp`: ante, bring-in, 5 calles, showdown y retirada | **Hecho** |
+| HOST-198 | `rules/five_draw.hpp` + `evaluate_deuces_wild`: descarte y Deuces Wild | **Hecho** |
 | HOST-172+ | Rangos de subida, torneos con ciegas crecientes y UI de variantes | Pendiente |
 
 ## 7. Extensiones, decisiones tomadas y descartado

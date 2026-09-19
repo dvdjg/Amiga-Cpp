@@ -4,7 +4,7 @@
 /// Puente entre el **libro de aperturas** (`eng::board::BookEntry`) y una posición de
 /// ajedrez: consulta el libro por la clave Zobrist de la posición.
 ///
-/// Verificación: HOST-157.
+/// Verificación: HOST-184.
 
 #include <eng/board/knowledge/book.hpp>
 #include <eng/board/rules/chess/board.hpp>

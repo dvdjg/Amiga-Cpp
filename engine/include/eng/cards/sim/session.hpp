@@ -8,7 +8,7 @@
 /// miles de manos con semilla fija y comparan net (bb/100), frecuencia de showdown
 /// y reparto de botes entre estilos. Todo determinista y sin I/O.
 ///
-/// Verificación: HOST-165. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
+/// Verificación: HOST-192. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
 
 #include <eng/core/random.hpp>
 #include <eng/core/types.hpp>

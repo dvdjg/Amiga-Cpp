@@ -9,7 +9,7 @@
 /// Sin heap ni I/O: el llamador aporta el almacenamiento. La demo reserva 64 entradas
 /// en estática; la simulación host puede usar más.
 ///
-/// Verificación: HOST-160 y demo `123_chess_match`.
+/// Verificación: HOST-187 y demo `123_chess_match`.
 
 #include <eng/board/knowledge/book.hpp>
 #include <eng/board/rules/chess/board.hpp>

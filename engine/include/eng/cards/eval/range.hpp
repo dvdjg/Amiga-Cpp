@@ -19,7 +19,7 @@
 /// combinación concreta; es una aproximación suficiente para un rival modelado, no
 /// un muestreo equiprobable por combinación.
 ///
-/// Verificación: HOST-166. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
+/// Verificación: HOST-193. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
 
 #include <eng/core/random.hpp>
 #include <eng/core/span.hpp>

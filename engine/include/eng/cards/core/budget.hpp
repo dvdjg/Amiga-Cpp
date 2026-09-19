@@ -27,7 +27,7 @@
 /// en tiempo real. Con estos valores `N20`/`N64` son jugables en un A500 base; `N128`
 /// y superiores apuntan a máquinas ampliadas (A1200/030).
 ///
-/// Verificación: HOST-161. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
+/// Verificación: HOST-188. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
 
 #include <eng/core/types.hpp>
 
