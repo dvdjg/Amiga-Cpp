@@ -29,6 +29,14 @@ piezas (letras `K Q R B N P` de `Font8`) y el estado se rasterizan a los bitplan
 por CPU (patrón de la demo 060): el tablero solo se redibuja cuando hay jugada o se
 mueve el cursor, así que no hace falta Blitter ni doble buffer.
 
+En la esquina se dibuja una **cara del NPC** que refleja su estado: sonríe si su jugada
+le convence, entrecierra los ojos si duda, se sorprende ante una jugada fuerte del humano
+y **bosteza o se impacienta si el humano tarda** (`gestures_for_pace`). Esa expresión sale
+de la **introspección simulada** (`eng/sim/introspection.hpp`): el motor convierte el margen
+de su propia búsqueda (mejor vs. segunda jugada, Multi-PV), el libro y el tiempo restante en
+confianza, duda, presión, sorpresa y satisfacción. El puente con `eng::board` está en
+`eng/board/persona.hpp`; ver `docs/debugging/NPC_TABLE_SCENARIOS.md` y HOST-206.
+
 ## Build / run / analyze
 
 ```bash
@@ -39,7 +47,8 @@ bash tools/analyze/analyze-demo.sh games/100_chess
 
 ## Estado
 
-- **Compila y enlaza** con el flujo canónico (`build-demo.sh`, verificado).
+- **Compila y enlaza** con el flujo canónico (`build-demo.sh`, verificado) y con el
+  toolchain m68k (sin libcalls de 32 bits ni instrucciones 68020 en los caminos calientes).
 - **Ejecutado en WinUAE** (`run-demo.sh --warp`): alcanza READY y captura
   `out/run/100_chess/A500_debug/screenshot.png`; `analyze-demo.sh` da **OK** (tablero
   dibujado: hay píxeles no azules). Evidencia build → run → analyze.

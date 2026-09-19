@@ -37,6 +37,7 @@
 #include <eng/platform/input_poll.hpp>
 #include <eng/sim/persona.hpp>
 #include <eng/sim/psyche.hpp>
+#include <eng/sim/body.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>
@@ -345,26 +346,50 @@ private:
 		return 0u;
 	}
 
-	/// Dibuja un avatar sencillo (cara) cuyo gesto refleja los tells del asiento: la boca
-	/// sonríe o se frunce, las cejas suben o bajan y tiembla si esta muy nervioso.
+	/// Postura combinada de los tells del asiento (suma de `pose_from_gesture` por gesto).
+	[[nodiscard]] eng::sim::BodyPose tell_pose(u8 seat) const {
+		eng::sim::BodyPose total {};
+		for (eng::usize i = 0u; i < m_tells[seat].size(); ++i) {
+			total = eng::sim::pose_add(
+				total, eng::sim::pose_from_gesture(m_tells[seat][i].kind,
+				                                   m_tells[seat][i].intensity));
+		}
+		return total;
+	}
+
+	/// Dibuja un avatar (cara + postura) cuyo gesto refleja los tells del asiento: la boca
+	/// sonríe o se frunce, las cejas suben o bajan, tiembla si está muy nervioso y **se
+	/// inclina/retrocede** según la postura combinada.
 	void draw_avatar(eng::u8* planes, eng::s32 x, eng::s32 y, u8 seat, bool active) {
+		const eng::sim::BodyPose pose = tell_pose(seat);
+		// La postura desplaza el conjunto (lean = hacia delante, recoil = hacia atrás).
+		const eng::s32 shift_x = pose.lean / 20 - pose.recoil / 20;
+		x += shift_x;
+		y += pose.crouch / 12;
+
 		const eng::u8 face = active ? kColorSel : kColorCard;
 		fill_rect(planes, x, y, 34, 40, face);
 		fill_rect(planes, x + 2, y + 2, 30, 36, kColorFelt);
-		// Ojos.
-		fill_rect(planes, x + 8, y + 12, 5, 5, kColorText);
-		fill_rect(planes, x + 21, y + 12, 5, 5, kColorText);
+		// Ojos (pupilas mas grandes con pupil_dilate/wide_eyes = sorpresa/interes).
+		const u8 wide = tell_intensity(seat, eng::sim::GestureKind::WideEyes);
+		const u8 dilate = tell_intensity(seat, eng::sim::GestureKind::PupilDilate);
+		const eng::s32 eye = (wide > 0u || dilate > 0u) ? 7 : 5;
+		fill_rect(planes, x + 8, y + 12 - (eye - 5) / 2, eye, eye, kColorText);
+		fill_rect(planes, x + 21, y + 12 - (eye - 5) / 2, eye, eye, kColorText);
 		// Cejas segun brow_raise / brow_furrow.
 		const u8 raise = tell_intensity(seat, eng::sim::GestureKind::BrowRaise);
 		const u8 furrow = tell_intensity(seat, eng::sim::GestureKind::BrowFurrow);
 		const eng::s32 brow_dy = (raise > furrow) ? -3 : (furrow > raise ? 2 : 0);
 		fill_rect(planes, x + 7, y + 9 + brow_dy, 7, 2, kColorText);
 		fill_rect(planes, x + 20, y + 9 + brow_dy, 7, 2, kColorText);
-		// Boca segun smile / grimace / smirk.
+		// Boca segun smile / grimace / smirk / jaw_drop.
 		const u8 smile = tell_intensity(seat, eng::sim::GestureKind::Smile);
 		const u8 grimace = tell_intensity(seat, eng::sim::GestureKind::Grimace);
 		const u8 smirk = tell_intensity(seat, eng::sim::GestureKind::Smirk);
-		if (smile >= grimace && smile >= smirk && smile > 0u) {
+		const u8 jaw = tell_intensity(seat, eng::sim::GestureKind::JawDrop);
+		if (jaw > 40u) {
+			fill_rect(planes, x + 13, y + 25, 8, 6, kColorText); // boca abierta
+		} else if (smile >= grimace && smile >= smirk && smile > 0u) {
 			fill_rect(planes, x + 10, y + 26, 14, 2, kColorText);
 			fill_rect(planes, x + 9, y + 24, 2, 2, kColorText);
 			fill_rect(planes, x + 23, y + 24, 2, 2, kColorText);
@@ -384,6 +409,12 @@ private:
 			fill_rect(planes, x, y, 34, 2, kColorWarn);
 			fill_rect(planes, x, y + 38, 34, 2, kColorWarn);
 		}
+		// Barra de estado: confianza (verde) y presion/tilt (rojo) del asiento.
+		const eng::u8 conf = m_psyche[seat].confidence;
+		const eng::u8 tilt = m_psyche[seat].tilt;
+		fill_rect(planes, x, y + 42, 34, 3, kColorDim);
+		fill_rect(planes, x, y + 42, (static_cast<eng::s32>(conf) * 34) / 100, 3,
+		          tilt > 120u ? kColorWarn : kColorSel);
 	}
 
 	void redraw() {

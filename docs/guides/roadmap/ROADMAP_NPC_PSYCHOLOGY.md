@@ -33,10 +33,11 @@ leerlos** con el tiempo. Debe ser determinista, entero, sin heap y con footprint
   lectura de tells (`read.hpp`, HOST-201), evolución de partida (`psyche.hpp`, HOST-202),
   convenciones secretas (`convention.hpp`, HOST-203), postura desde gesto (`body.hpp`),
   integración con `eng::cards` (`cards/ai/persona_bot.hpp`, HOST-204), rango con tells,
-  avatares con expresión en `games/200_holdem` y **humano como personaje**
-  (`expression_from_input`, HOST-205).
-- **Pendiente**: NPC reactivo al ritmo del humano en ajedrez/Go (P6.3), señales voluntarias
-  del humano (P6.4) y escenarios de mesa en `docs/debugging/`.
+  avatares con expresión en `games/200_holdem`, **humano como personaje**
+  (`expression_from_input`, HOST-205) e **introspección simulada**
+  (`introspection.hpp` + `board/persona.hpp`, HOST-206) con NPC reactivo al ritmo del humano
+  en `games/100_chess` y `games/101_go`.
+- **Pendiente**: señales voluntarias del humano que el NPC interprete (P6.4).
 
 ## 3. Reglas transversales (criterios de aceptación)
 
@@ -134,8 +135,9 @@ es el consumidor real que retira el estado "NO VERIFICADA".
 |---|---|---|---|
 | P6.1 | `sim/expression.hpp` | `expression_from_input`: la entrada (gesto explícito + timing implícito) produce fugas del humano | **HOST-205** (hecho) |
 | P6.2 | `sim/read.hpp` | El `ReadModel` se construye igual sobre asientos humanos (simetría de lectura) | **HOST-205** (hecho) |
-| P6.3 | `games/100_chess` / `games/101_go` | NPC reactivo al ritmo del humano: bostezo si tarda, resoplido, impaciencia, sorpresa; catálogo de gestos por juego | Pendiente |
-| P6.4 | `sim/communication.hpp` | El humano emite señales voluntarias (burlarse, amenazar, calmar) y el NPC las interpreta | Pendiente |
+| P6.3 | `games/100_chess` / `games/101_go` | NPC reactivo al ritmo del humano: bostezo si tarda, resoplido, impaciencia; introspección simulada (confianza/duda/presión/sorpresa) desde la búsqueda | **HOST-206** + compilación m68k (hecho) |
+| P6.4 | `sim/communication.hpp` | El humano emite señales voluntarias (burlarse, amenazar, calmar) y el NPC las interpreta para modular su estado | Pendiente (parcial: `expression_from_input`) |
+| P6.5 | `docs/debugging/NPC_TABLE_SCENARIOS.md` | Escenarios de mesa: pardillo, listillo, observador que aprende, irascible en tilt, humano lento | Hecho |
 
 Cierre: el humano es un personaje más (sus gestos se leen y se emiten a propósito) y los
 rivales de ajedrez/Go se comportan como contrincantes vivos, no como motores silenciosos.
@@ -166,7 +168,7 @@ de información perfecta.
 
 ## 6. Distribución de tests host
 
-Los números son únicos y no reutilizables; el siguiente libre es **199** (bloque D,
+Los números son únicos y no reutilizables; el siguiente libre es **207** (bloque D,
 `feature/optimize`; ver [NUMBERING.md](../../ai-dev-environment/NUMBERING.md)). Antes de
 crear cada pieza se comprueba que no duplica una primitiva de `eng::sim`/`eng::util`.
 
@@ -179,7 +181,8 @@ crear cada pieza se comprueba que no duplica una primitiva de `eng::sim`/`eng::u
 | HOST-203 | `convention.hpp`: emisión/decodificación, disimulo e inferencia de convención | **Hecho** |
 | HOST-204 | `eng/cards/ai/persona_bot.hpp`: parámetros por arquetipo/estado, tells, lectura y rango con tells | **Hecho** |
 | HOST-205 | Humano como personaje: `expression_from_input` (gesto explícito + timing) y lectura simétrica | **Hecho** |
-| HOST-206+ | Avatares en ajedrez/Go (P6.3), señales voluntarias del humano y escenarios de mesa | Pendiente |
+| HOST-206 | Introspección simulada: `introspection.hpp`, puente `board/persona.hpp` y `gestures_for_pace` (ritmo del humano) | **Hecho** |
+| HOST-207+ | Señales voluntarias del humano que el NPC interprete (P6.4) | Pendiente |
 
 ## 7. Decisiones y descartado
 

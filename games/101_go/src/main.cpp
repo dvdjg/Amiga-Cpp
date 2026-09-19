@@ -25,6 +25,9 @@
 // Pendiente: pase/dos pases, superko, patrones y pulido visual.
 
 #include <eng/board/rules/go/rules.hpp>
+#include <eng/board/persona.hpp>
+#include <eng/sim/expression.hpp>
+#include <eng/sim/introspection.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/util/static_string.hpp>
 #include <eng/core/util/text.hpp>
@@ -118,6 +121,12 @@ struct GoGame {
 		eng::input::InputAggregator input;
 		eng::amiga::poll_input(input);
 		bool changed = false;
+		// Ritmo del humano: si tarda en colocar, el NPC se impacienta.
+		if (!terminal_is_over(GoRules::terminal(m_pos))) {
+			const bool any_dir = input.pad0.left || input.pad0.right || input.pad0.up || input.pad0.down;
+			m_human_wait = any_dir ? 0u : static_cast<u8>(m_human_wait > 250u ? 255u : m_human_wait + 1u);
+		}
+		m_wait_tells = eng::sim::gestures_for_pace(m_human_wait);
 		if (input.pad0.left && point_file(m_cursor) > 0u) {
 			m_cursor = static_cast<u8>(m_cursor - 1u);
 			changed = true;
@@ -179,8 +188,45 @@ private:
 		if (result.depth == 0u || go_is_pass(result.best_move)) {
 			return;
 		}
+		// Introspeccion: margen entre la mejor y la segunda jugada + tiempo del humano.
+		GoSearcher::Line lines[3] {};
+		const eng::u32 n_lines = g_searcher.search_multi_pv(m_pos, limits, 3u, eng::Span<GoSearcher::Line> {lines, 3u});
+		eng::board::Score line_scores[2] {result.score, result.score};
+		if (n_lines >= 2u) {
+			line_scores[1] = lines[1].score;
+		}
+		const eng::u8 time_left = m_human_wait > 200u ? 40u : 200u;
+		const eng::sim::DecisionFacts facts = eng::board::facts_from_search(
+		    result.score, eng::Span<const eng::board::Score> {line_scores, 2u},
+		    static_cast<eng::u8>(legal_count()), false, time_left);
+		m_intro = eng::sim::introspect(facts);
+		const eng::sim::DecisionFacts after = eng::board::facts_after_opponent(
+		    m_prev_eval, result.score, time_left);
+		const eng::sim::Introspection opp = eng::sim::introspect(after);
+		m_intro.surprise = opp.surprise;
+		m_intro.alert = opp.alert;
+		m_prev_eval = result.score;
+		m_ai_tells = eng::sim::LeakList {};
+		if (m_intro.alert > 80u) {
+			(void)m_ai_tells.push_back(eng::sim::LeakedGesture {eng::sim::GestureKind::Smirk, m_intro.alert, false});
+		}
+		if (m_intro.surprise > 80u) {
+			(void)m_ai_tells.push_back(eng::sim::LeakedGesture {eng::sim::GestureKind::BrowRaise, m_intro.surprise, false});
+		}
+		if (m_intro.doubt > 100u) {
+			(void)m_ai_tells.push_back(eng::sim::LeakedGesture {eng::sim::GestureKind::Squint, m_intro.doubt, false});
+		}
+		if (m_intro.confidence > 160u) {
+			(void)m_ai_tells.push_back(eng::sim::LeakedGesture {eng::sim::GestureKind::Smile, m_intro.confidence, false});
+		}
 		Undo undo;
 		GoRules::make(m_pos, result.best_move, undo);
+	}
+
+	eng::u32 legal_count() const {
+		MoveList legal;
+		generate_legal(m_pos, legal);
+		return static_cast<eng::u32>(legal.size());
 	}
 
 	void report() {
@@ -249,6 +295,48 @@ private:
 		}
 	}
 
+	/// Cara del NPC (negras) en la cabecera: boca/cejas segun sus gestos y su espera.
+	void draw_npc_face(eng::u8* planes) {
+		const eng::s32 x = 84;
+		const eng::s32 y = 2;
+		fill_rect(planes, x, y, 28, 20, kColorCursor);
+		fill_rect(planes, x + 1, y + 1, 26, 18, kColorGrid);
+		bool smile = false;
+		bool frown = false;
+		bool yawn = false;
+		bool brow_up = false;
+		bool squint = false;
+		for (eng::usize i = 0u; i < m_ai_tells.size(); ++i) {
+			switch (m_ai_tells[i].kind) {
+			case eng::sim::GestureKind::Smile: smile = true; break;
+			case eng::sim::GestureKind::Squint: squint = true; break;
+			case eng::sim::GestureKind::BrowRaise: brow_up = true; break;
+			default: break;
+			}
+		}
+		for (eng::usize i = 0u; i < m_wait_tells.size(); ++i) {
+			if (m_wait_tells[i].kind == eng::sim::GestureKind::Yawn) { yawn = true; }
+			if (m_wait_tells[i].kind == eng::sim::GestureKind::Sigh) { frown = true; }
+			if (m_wait_tells[i].kind == eng::sim::GestureKind::Slump) { squint = true; }
+		}
+		const eng::s32 eh = squint ? 2 : 4;
+		fill_rect(planes, x + 6, y + 6, 4, eh, kColorWhiteStone);
+		fill_rect(planes, x + 18, y + 6, 4, eh, kColorWhiteStone);
+		if (brow_up) {
+			fill_rect(planes, x + 5, y + 3, 6, 1, kColorWhiteStone);
+			fill_rect(planes, x + 17, y + 3, 6, 1, kColorWhiteStone);
+		}
+		if (yawn) {
+			fill_rect(planes, x + 11, y + 12, 6, 4, kColorWhiteStone);
+		} else if (smile) {
+			fill_rect(planes, x + 8, y + 15, 12, 1, kColorWhiteStone);
+		} else if (frown) {
+			fill_rect(planes, x + 8, y + 16, 12, 1, kColorWarn);
+		} else {
+			fill_rect(planes, x + 10, y + 15, 8, 1, kColorGrid);
+		}
+	}
+
 	void redraw() {
 		eng::u8* planes = m_scene.bitplanes().data();
 		for (eng::u32 i = 0u; i < kPlaneBytes * kPlanes; ++i) {
@@ -257,6 +345,7 @@ private:
 
 		// Rejilla.
 		draw_text(planes, 8, 4, "GO 9x9", kColorWhiteStone);
+		draw_npc_face(planes);
 		for (eng::s32 i = 0; i < static_cast<eng::s32>(kSize); ++i) {
 			const eng::s32 x = kBoardX + i * kCell;
 			const eng::s32 y = kBoardY + i * kCell;
@@ -321,6 +410,11 @@ private:
 	u8 m_cursor = make_point(4u, 4u);
 	bool m_fire_held = false;
 	char m_status[kStatusCap] {};
+	eng::sim::Introspection m_intro {};
+	eng::sim::LeakList m_ai_tells {};
+	eng::sim::LeakList m_wait_tells {};
+	eng::board::Score m_prev_eval = 0;
+	u8 m_human_wait = 0u;
 };
 
 } // namespace

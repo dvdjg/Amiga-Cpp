@@ -489,6 +489,47 @@ juego solo elige qué gestos tienen sentido en su contexto (un `yawn` no signifi
 en un póker que en un tablero, y el **catálogo de gestos relevantes por juego** es parte
 de la configuración).
 
+### 10.3 Introspección simulada
+
+Un NPC de información perfecta no lee al rival para decidir: lee **sus propios hechos de
+motor**. La introspección simulada (`sim/introspection.hpp`) convierte lo que el juego ya
+sabe en un estado afectivo que la cara y el cuerpo muestran:
+
+```text
+   hechos del motor                    introspección simulada
+   ┌────────────────────────┐          ┌───────────────────────────┐
+   │ mejor / segunda jugada │          │ confidence  (margen claro)│
+   │ evaluación anterior    │ ───────► │ doubt       (margen fino) │
+   │ libro de aperturas     │          │ pressure    (poco tiempo, │
+   │ tiempo restante        │          │              desventaja)  │
+   │ nº de jugadas legales  │          │ surprise / alert          │
+   └────────────────────────┘          │ satisfaction / knowledge  │
+                                       └───────────────────────────┘
+                                                   │
+                                                   ▼
+                                        afecto (`Mind`) + estado (`PsycheState`)
+                                                   │
+                                                   ▼
+                                             gestos y postura
+```
+
+- **Hechos** (`DecisionFacts`): margen entre la mejor y la segunda jugada (`best_score` −
+  `second_score`), evaluación previa (`prev_eval`, para la sorpresa por la jugada del
+  rival), acierto de libro, tiempo y número de jugadas. El puente
+  `board/persona.hpp` los arma desde la búsqueda (`facts_from_search`) y tras la jugada del
+  rival (`facts_after_opponent`), de modo que `eng::board` no conoce `eng::sim`.
+- **Salidas** (`Introspection`): `confidence`, `doubt`, `pressure`, `surprise`, `satisfaction`,
+  `alert` y `knowledge`. `introspection_apply` los vuelca en `Mind`/`PsycheState` (con
+  `introspection_dominant` para elegir el nombre legible del estado).
+- **Ritmo del rival**: `gestures_for_pace` (en `expression.hpp`) convierte la espera del
+  humano (0 = responde ya, 255 = no responde) en impaciencia (`foot_tap`, `finger_tap`),
+  resoplido (`sigh`) y, con esperas muy largas, bostezo (`yawn`) y desplome (`slump`). Un
+  motor que espera **no es un motor mudo**: muestra que está esperando.
+
+La introspección se calcula en el juego (que conoce búsqueda, libro y reloj) y alimenta la
+misma maquinaria de expresión y lectura de §5–§8; sirve igual a ajedrez, Go o cualquier
+juego con un motor evaluable. Verificación: HOST-206.
+
 
 ## 11. Presupuesto y footprint
 
@@ -506,7 +547,7 @@ Perfiles, coherentes con los de `eng::cards` (`N20`…`N512`): en el perfil mín
 
 ## 12. Determinismo y verificación
 
-Todo el sistema es determinista: con la misma semilla y la misma secuencia de eventos, la personalidad, las fugas, las lecturas y la evolución son idénticas, en host y en Amiga. Eso permite **test host** reproducibles y **escenarios** (como `docs/debugging/SIM_ECOSYSTEM_SCENARIOS.md`): un pardillo al que se le escapa el póker, un listillo que finge, un observador que aprende tras N showdowns, un irascible que entra en tilt.
+Todo el sistema es determinista: con la misma semilla y la misma secuencia de eventos, la personalidad, las fugas, las lecturas y la evolución son idénticas, en host y en Amiga. Eso permite **test host** reproducibles y **escenarios** (como `docs/debugging/NPC_TABLE_SCENARIOS.md`): un pardillo al que se le escapa el póker, un listillo que finge, un observador que aprende tras N showdowns, un irascible que entra en tilt.
 
 La verificación sigue las reglas de `docs/testing/README.md`: test host por pieza (`tests/host/NNN`), cruce `m68k` con la sonda de codegen (sin libcalls ni 68020) y, cuando exista, demo/juego como consumidor real. El plan por fases y la distribución de tests están en [ROADMAP_NPC_PSYCHOLOGY.md](../../guides/roadmap/ROADMAP_NPC_PSYCHOLOGY.md).
 
@@ -530,15 +571,19 @@ La verificación sigue las reglas de `docs/testing/README.md`: test host por pie
 | `eng/cards/ai/persona_bot.hpp` (integración con `eng::cards`) | **Implementado**: HOST-204 |
 | `sim/body.hpp` `pose_from_gesture` (postura desde gesto) | **Implementado** (cubierto por HOST-204/200) |
 | `expression_from_input` (humano como personaje) | **Implementado**: HOST-205 |
-| Avatares del juego | **Implementado en `games/200_holdem`**: caras que reflejan los tells (build → run → analyze OK) |
-| NPC reactivo al ritmo del humano en ajedrez/Go (P6.3) y señales voluntarias (P6.4) | Pendiente |
+| `sim/introspection.hpp` + `board/persona.hpp` (introspección simulada) | **Implementado**: HOST-206 |
+| Avatares del juego | **Implementado en `games/200_holdem`**: caras y postura que reflejan los tells (build → run → analyze OK) |
+| NPC reactivo al ritmo del humano en ajedrez/Go (P6.3) | **Implementado en `games/100_chess` y `games/101_go`**: cara que bosteza/se impacienta según la espera (`gestures_for_pace`) y expresiones desde la búsqueda (`introspect`) |
+| Señales voluntarias del humano (P6.4) | **Parcial**: `expression_from_input` (HOST-205); falta que el NPC module su estado con las señales del humano |
+| Escenarios de mesa (`docs/debugging/`) | **Implementado**: `docs/debugging/NPC_TABLE_SCENARIOS.md` |
 
 > Estado: P0 (persona/arquetipos), P1 (expresión/fuga), P2 (lectura), P3 (evolución), P4
-> (convenciones), P5 (integración con `eng::cards`, rango con tells y avatares del juego) y
-> P6.1/P6.2 (humano como personaje) implementados y verificados por test host
-> (HOST-199…205) y, el juego, por build → run → analyze. El codegen 68000 está libre de
-> libcalls e instrucciones 68020 y los tamaños m68k están fijados. Queda pendiente P6.3
-> (NPC de ajedrez/Go reactivo al ritmo del humano) y P6.4 (señales voluntarias). El plan por
+> (convenciones), P5 (integración con `eng::cards`, rango con tells y avatares del juego),
+> P6.1/P6.2 (humano como personaje) y P6.3 (NPC reactivo al ritmo del humano en ajedrez/Go
+> con introspección simulada) implementados y verificados por test host (HOST-199…206) y,
+> los juegos, por compilación m68k y build → run → analyze. El codegen 68000 está libre de
+> libcalls e instrucciones 68020 y los tamaños m68k están fijados. Queda pendiente P6.4
+> (que el NPC module su estado con las señales voluntarias del humano). El plan por
 > fases y los criterios de cierre están en
 > [ROADMAP_NPC_PSYCHOLOGY.md](../../guides/roadmap/ROADMAP_NPC_PSYCHOLOGY.md), fuente única
 > del avance. Este documento describe el diseño vigente y no se duplica allí.

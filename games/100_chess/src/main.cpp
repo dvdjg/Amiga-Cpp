@@ -27,7 +27,10 @@
 // Verificacion: build -> run -> analyze (pendiente de ejecucion en emulador).
 
 #include <eng/board/explain/explain.hpp>
+#include <eng/board/persona.hpp>
 #include <eng/board/rules/chess/history.hpp>
+#include <eng/sim/expression.hpp>
+#include <eng/sim/introspection.hpp>
 #include <eng/board/rules/chess/notation.hpp>
 #include <eng/board/rules/chess/rules.hpp>
 #include <eng/board/rules/chess/variant.hpp>
@@ -131,6 +134,14 @@ struct ChessGame {
 		eng::input::InputAggregator input;
 		eng::amiga::poll_input(input);
 		bool changed = false;
+		// Ritmo del humano: si tarda en mover, el NPC se impacienta (gestos de espera).
+		if (to_move(m_pos) == Color::White && !terminal_is_over(terminal(m_pos))) {
+			const bool any_dir = input.pad0.left || input.pad0.right || input.pad0.up || input.pad0.down;
+			m_human_wait = any_dir ? 0u : static_cast<eng::u8>(m_human_wait > 250u ? 255u : m_human_wait + 1u);
+		} else {
+			m_human_wait = 0u;
+		}
+		m_wait_tells = eng::sim::gestures_for_pace(m_human_wait);
 		if (input.pad0.left && square_file(m_cursor) > 0u) {
 			m_cursor = static_cast<Square>(m_cursor - 1u);
 			changed = true;
@@ -224,6 +235,45 @@ private:
 		if (move_none(result.best_move)) {
 			return;
 		}
+		// Introspeccion simulada: margen entre la mejor y la segunda jugada (Multi-PV),
+		// libro de aperturas y tiempo restante. El motor aporta hechos; la persona los
+		// convierte en afecto y gestos.
+		ChessSearcher::Line lines[3] {};
+		const eng::u32 n_lines = g_searcher.search_multi_pv(m_pos, limits, 3u, eng::Span<ChessSearcher::Line> {lines, 3u});
+		eng::board::Score line_scores[2] {result.score, result.score};
+		if (n_lines >= 2u) {
+			line_scores[1] = lines[1].score;
+		}
+		const eng::u8 time_left = m_human_wait > 200u ? 40u : 200u;
+		const eng::sim::DecisionFacts facts = eng::board::facts_from_search(
+		    result.score, eng::Span<const eng::board::Score> {line_scores, 2u},
+		    static_cast<eng::u8>(legal_move_count()), false, time_left);
+		m_intro = eng::sim::introspect(facts);
+		// El rival (humano) puede haber hecho una jugada que cambia la evaluacion: sorpresa
+		// o alerta segun el salto.
+		const eng::sim::DecisionFacts after = eng::board::facts_after_opponent(
+		    m_prev_eval, result.score, time_left);
+		const eng::sim::Introspection opp = eng::sim::introspect(after);
+		m_intro.surprise = opp.surprise;
+		m_intro.alert = opp.alert;
+		m_prev_eval = result.score;
+		m_ai_tells = eng::sim::LeakList {};
+		// Traduce la introspeccion a gestos por el mismo canal que el poker.
+		if (m_intro.alert > 80u) {
+			(void)m_ai_tells.push_back(eng::sim::LeakedGesture {eng::sim::GestureKind::Smirk, m_intro.alert, false});
+		}
+		if (m_intro.surprise > 80u) {
+			(void)m_ai_tells.push_back(eng::sim::LeakedGesture {eng::sim::GestureKind::BrowRaise, m_intro.surprise, false});
+		}
+		if (m_intro.doubt > 100u) {
+			(void)m_ai_tells.push_back(eng::sim::LeakedGesture {eng::sim::GestureKind::Squint, m_intro.doubt, false});
+		}
+		if (m_intro.pressure > 100u) {
+			(void)m_ai_tells.push_back(eng::sim::LeakedGesture {eng::sim::GestureKind::FistClench, m_intro.pressure, false});
+		}
+		if (m_intro.confidence > 160u) {
+			(void)m_ai_tells.push_back(eng::sim::LeakedGesture {eng::sim::GestureKind::Smile, m_intro.confidence, false});
+		}
 		char san[12];
 		const eng::usize n = to_san(m_pos, result.best_move, eng::Span<char> {san, sizeof(san)}, false);
 		for (eng::usize i = 0u; i < n && i < sizeof(m_ai_san) - 1u; ++i) {
@@ -233,6 +283,12 @@ private:
 		Undo undo;
 		make_move(m_pos, result.best_move, undo);
 		m_history.push(m_pos.key);
+	}
+
+	eng::u32 legal_move_count() const {
+		MoveList legal;
+		generate_legal(m_pos, legal);
+		return static_cast<eng::u32>(legal.size());
 	}
 
 	bool has_legal(const Position& pos) {
@@ -348,7 +404,10 @@ private:
 		fill_rect(planes, cx, cy, 2, kSquare, cursor_color);
 		fill_rect(planes, cx + kSquare - 2, cy, 2, kSquare, cursor_color);
 
-		// 3) Barra de estado.
+		// 3) Cara del NPC (refleja sus gestos y su impaciencia si el humano tarda).
+		draw_npc_face(planes);
+
+		// 4) Barra de estado.
 		if (terminal_is_over(terminal(m_pos)) || in_check(m_pos, to_move(m_pos))) {
 			draw_text(planes, 8, kBoardY + 8 * kSquare + 8, m_status, kColorWarn);
 		} else {
@@ -390,6 +449,52 @@ private:
 
 	static constexpr eng::usize kStatusCap = 120;
 
+	/// Dibuja una cara sencilla del NPC en la esquina: la boca y las cejas reflejan sus
+	/// gestos (satisfaccion, sorpresa, duda, presion) y los de espera (bostezo, resoplido).
+	void draw_npc_face(eng::u8* planes) {
+		const eng::s32 x = 4;
+		const eng::s32 y = 4;
+		fill_rect(planes, x, y, 34, 34, kColorCursor);
+		fill_rect(planes, x + 2, y + 2, 30, 30, kColorLight);
+		bool smile = false;
+		bool frown = false;
+		bool yawn = false;
+		bool brow_up = false;
+		bool squint = false;
+		for (eng::usize i = 0u; i < m_ai_tells.size(); ++i) {
+			switch (m_ai_tells[i].kind) {
+			case eng::sim::GestureKind::Smile: smile = true; break;
+			case eng::sim::GestureKind::FistClench: frown = true; break;
+			case eng::sim::GestureKind::BrowRaise: brow_up = true; break;
+			case eng::sim::GestureKind::Squint: squint = true; break;
+			default: break;
+			}
+		}
+		for (eng::usize i = 0u; i < m_wait_tells.size(); ++i) {
+			if (m_wait_tells[i].kind == eng::sim::GestureKind::Yawn) { yawn = true; }
+			if (m_wait_tells[i].kind == eng::sim::GestureKind::Sigh) { frown = true; }
+			if (m_wait_tells[i].kind == eng::sim::GestureKind::Slump) { squint = true; }
+		}
+		// Ojos (entrecerrados si duda).
+		const eng::s32 eh = squint ? 2 : 5;
+		fill_rect(planes, x + 8, y + 12, 5, eh, kColorText);
+		fill_rect(planes, x + 21, y + 12, 5, eh, kColorText);
+		// Cejas.
+		const eng::s32 by = brow_up ? y + 7 : y + 10;
+		fill_rect(planes, x + 7, by, 7, 2, kColorText);
+		fill_rect(planes, x + 20, by, 7, 2, kColorText);
+		// Boca.
+		if (yawn) {
+			fill_rect(planes, x + 13, y + 22, 8, 7, kColorText);
+		} else if (smile) {
+			fill_rect(planes, x + 10, y + 25, 14, 2, kColorText);
+		} else if (frown) {
+			fill_rect(planes, x + 10, y + 27, 14, 2, kColorWarn);
+		} else {
+			fill_rect(planes, x + 12, y + 26, 10, 2, kColorBlack);
+		}
+	}
+
 	drivers::StaticEhbScene m_scene {};
 	bool m_memory_ok = false;
 	bool m_scene_ok = false;
@@ -400,6 +505,11 @@ private:
 	bool m_fire_held = false;
 	char m_status[kStatusCap] {};
 	char m_ai_san[12] {};
+	eng::sim::Introspection m_intro {};
+	eng::sim::LeakList m_ai_tells {};
+	eng::sim::LeakList m_wait_tells {};
+	eng::board::Score m_prev_eval = 0;
+	eng::u8 m_human_wait = 0u;
 };
 
 } // namespace

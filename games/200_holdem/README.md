@@ -29,8 +29,12 @@ CPU (asientos 1 y 2) con el joystick.
 ## Visual
 
 Cartas comunitarias, bote y apuesta viva, stacks de los tres asientos, las dos cartas del
-jugador, las de la CPU tapadas, **avatares** (cara que sonríe, se frunce, sube las cejas o
-tiembla según los tells del asiento) y el menú de acciones resaltando la elegida.
+jugador, las de la CPU tapadas, **avatares** y el menú de acciones resaltando la elegida.
+Cada avatar dibuja una **cara** que sonríe, se frunce, sube las cejas, abre la boca o
+tiembla según los tells del asiento, y además una **postura corporal** combinada
+(`pose_from_gesture`): se inclina al atacar, retrocede al defenderse, se desploma al
+desanimarse y se encoge al temblar. Bajo cada cara, una barra muestra **confianza**
+(verde) y **tilt** (rojo) del asiento, de modo que la evolución de la psique se ve sin menús.
 
 ## Build / run / analyze
 

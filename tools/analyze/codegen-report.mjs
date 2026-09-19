@@ -84,6 +84,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/sim/read.hpp>
 #include <eng/sim/psyche.hpp>
 #include <eng/sim/convention.hpp>
+#include <eng/sim/introspection.hpp>
 #include <eng/sim/planner.hpp>
 #include <eng/sim/rumor.hpp>
 #include <eng/sim/season.hpp>
@@ -1059,6 +1060,20 @@ extern "C" u16 c_cards_range_tells_ops(u16 seed) {
 	HandRange out;
 	opponent_range_with_tells(model, reads, t, 0u, &table, out);
 	return static_cast<u16>(out.class_count() + (seed & 0u));
+}
+extern "C" u16 c_sim_introspect_ops(u16 seed) {
+	using namespace eng::sim;
+	DecisionFacts f {};
+	f.best_score = static_cast<eng::s32>(seed % 600u) - 300;
+	f.second_score = f.best_score - static_cast<eng::s32>(seed % 200u);
+	f.time_left = static_cast<eng::u8>(seed % 256u);
+	f.moves_available = static_cast<eng::u8>((seed % 8u) + 1u);
+	f.book_hit = (seed & 1u) != 0u;
+	const Introspection in = introspect(f);
+	Mind mind;
+	PsycheState s {};
+	introspection_apply(in, mind, s);
+	return static_cast<u16>(in.confidence) + in.doubt + in.pressure + s.tension;
 }
 extern "C" u16 c_sim_planner_ops(u16 seed) {
 	using namespace eng::sim;

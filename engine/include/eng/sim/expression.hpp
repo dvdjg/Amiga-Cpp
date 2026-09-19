@@ -486,4 +486,34 @@ struct InputExpression {
 	return out;
 }
 
+/// Gestos que un rival **pasivo** (que espera al humano) muestra según cuánto tarda este:
+/// `idle` es el tiempo de espera normalizado (0 = nada, 255 = muchísimo). A partir de un
+/// umbral bosteza; antes, muestra impaciencia creciente. Sirve a ajedrez y Go (un `yawn`
+/// no significa lo mismo que en el póker, pero el canal y el gesto son los mismos).
+[[nodiscard]] constexpr LeakList gestures_for_pace(eng::u8 idle,
+                                                   const ExpressionParams& p =
+                                                       ExpressionParams {}) noexcept {
+	LeakList out;
+	auto add = [&](GestureKind g, eng::u8 intensity) {
+		if (intensity >= p.leak_visible) {
+			(void)out.push_back(LeakedGesture {g, intensity, intensity <= p.micro_max});
+		}
+	};
+	if (idle < 60u) {
+		return out;
+	}
+	// Impaciencia: pie y dedo.
+	add(GestureKind::FootTap, static_cast<eng::u8>(idle > 140u ? 100u : idle - 40u));
+	add(GestureKind::FingerTap, static_cast<eng::u8>(idle > 160u ? 100u : idle - 60u));
+	if (idle >= 120u) {
+		add(GestureKind::Sigh, static_cast<eng::u8>(idle - 60u));
+	}
+	if (idle >= 180u) {
+		// Hartazgo: bostezo y desplome.
+		add(GestureKind::Yawn, static_cast<eng::u8>(idle - 80u));
+		add(GestureKind::Slump, static_cast<eng::u8>(idle - 100u));
+	}
+	return out;
+}
+
 } // namespace eng::sim

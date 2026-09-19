@@ -25,9 +25,14 @@ con el joystick y el motor juega las **blancas**.
 por CPU), el cursor y el estado. El tablero solo se redibuja cuando hay jugada o se
 mueve el cursor.
 
+En la cabecera se dibuja una **cara del NPC** (las blancas) que refleja su estado desde la
+**introspección simulada** (`eng/sim/introspection.hpp`): sonríe si su búsqueda está clara,
+entrecierra los ojos si duda y **bosteza/se impacienta si el humano tarda**
+(`gestures_for_pace`). Ver `docs/debugging/NPC_TABLE_SCENARIOS.md` y HOST-206.
+
 ## Estado
 
-- **Compila y enlaza** (`build-demo.sh`, verificado).
+- **Compila y enlaza** (`build-demo.sh`, verificado) y con el toolchain m68k.
 - **Ejecutado en WinUAE** (`run-demo.sh --warp`): READY + captura;
   `analyze-demo.sh` da **OK**. Evidencia build → run → analyze.
 - **Pendiente**: pase/dos pases, superko, patrones de fuseki, conteo final de
