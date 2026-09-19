@@ -53,6 +53,7 @@ enum class ChunkType : u16 {
 	Modules = 11,
 	Mesh = 12,
 	WorldMap = 13,
+	MeshPoly = 14,
 };
 
 /// Referencia validada a un chunk dentro del blob.
@@ -459,6 +460,79 @@ public:
 			read_be16(m_bytes.data() + off + 2u),
 			read_be16(m_bytes.data() + off + 4u),
 		};
+	}
+
+private:
+	Span<const u8> m_bytes {};
+};
+
+/// Vista tipada de un chunk de **malla n-gon** (caras de longitud variable):
+///
+///   header { u16 vertex_count, u16 face_count, u16 index_count }
+///   vertex[] { s16 x, s16 y, s16 z }        (big-endian)
+///   index[]  { u16 }                        (big-endian; índices de vértice, concatenados)
+///   face[]   { u16 first, u16 count }       (big-endian; rango en index[])
+///
+/// Es la forma amiga del raster (rellena polígonos convexos) y evita triangular caras de
+/// 5-6 lados. `vertex(i)`/`index(i)`/`face(i)` decodifican big-endian, así que funcionan
+/// igual en host (x86) que en Amiga; `view()` copia a buffers del llamador y devuelve un
+/// `math3d::PolyMeshView` listo para `math3d::mesh_patches_order`.
+class PolyMeshAssetView {
+public:
+	constexpr PolyMeshAssetView() = default;
+	explicit constexpr PolyMeshAssetView(eng::UafPayload bytes) : m_bytes(bytes.raw()) {}
+
+	u32 vertex_count() const { return m_bytes.size() >= 2u ? read_be16(m_bytes.data()) : 0u; }
+	u32 face_count() const { return m_bytes.size() >= 4u ? read_be16(m_bytes.data() + 2u) : 0u; }
+	u32 index_count() const { return m_bytes.size() >= 6u ? read_be16(m_bytes.data() + 4u) : 0u; }
+
+	/// ¿El chunk contiene cabecera + todos los vértices, índices y caras declarados?
+	bool valid() const {
+		const u32 needed = 6u + vertex_count() * 6u + index_count() * 2u + face_count() * 4u;
+		return m_bytes.size() >= needed;
+	}
+
+	math3d::Vec3 vertex(u32 i) const {
+		const u32 off = 6u + i * 6u;
+		return math3d::vec3(static_cast<s16>(read_be16(m_bytes.data() + off)),
+				    static_cast<s16>(read_be16(m_bytes.data() + off + 2u)),
+				    static_cast<s16>(read_be16(m_bytes.data() + off + 4u)));
+	}
+	u16 index(u32 i) const {
+		const u32 off = 6u + vertex_count() * 6u + i * 2u;
+		return read_be16(m_bytes.data() + off);
+	}
+	eng::math3d::FaceSpan face(u32 i) const {
+		const u32 off = 6u + vertex_count() * 6u + index_count() * 2u + i * 4u;
+		return {read_be16(m_bytes.data() + off), read_be16(m_bytes.data() + off + 2u)};
+	}
+
+	/// Copia a buffers del llamador (sin heap) y devuelve la vista n-gon. La vista apunta a
+	/// `verts`/`indices`/`faces`; se acota a lo que quepa.
+	template <class S = eng::coord>
+	eng::math3d::PolyMeshViewT<S> view(eng::Span<eng::math3d::Vec3t<S>> verts,
+					   eng::Span<eng::u16> indices,
+					   eng::Span<eng::math3d::FaceSpan> faces) const {
+		using T = eng::math::scalar_traits<S>;
+		using TC = eng::math::scalar_traits<eng::coord>;
+		u32 nv = vertex_count();
+		if (nv > verts.size()) nv = static_cast<u32>(verts.size());
+		for (u32 i = 0; i < nv; ++i) {
+			const eng::math3d::Vec3 v = vertex(i);
+			verts[i] = eng::math3d::Vec3t<S> {
+				{T::from_int(TC::to_int(v.v[0])), T::from_int(TC::to_int(v.v[1])),
+				 T::from_int(TC::to_int(v.v[2]))}};
+		}
+		u32 ni = index_count();
+		if (ni > indices.size()) ni = static_cast<u32>(indices.size());
+		for (u32 i = 0; i < ni; ++i) indices[i] = index(i);
+		u32 nf = face_count();
+		if (nf > faces.size()) nf = static_cast<u32>(faces.size());
+		for (u32 i = 0; i < nf; ++i) faces[i] = face(i);
+		return eng::math3d::PolyMeshViewT<S> {
+			eng::Span<const eng::math3d::Vec3t<S>>(verts.data(), nv),
+			eng::Span<const eng::u16>(indices.data(), ni),
+			eng::Span<const eng::math3d::FaceSpan>(faces.data(), nf)};
 	}
 
 private:

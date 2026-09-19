@@ -66,6 +66,15 @@ internas. Para evitarlo:
   O(altura) frente a O(lados·altura) del barrido por mínimo/máximo. Es el generador de spans
   que usa el relleno CPU (`Playfield::fill_polygon`), con un `emit` que escribe el span
   (píxel a píxel, un `write_span` o un blit).
+- **`Playfield::draw_span`**: escribe un tramo horizontal con **una palabra por plano** (16
+  píxeles) en vez de píxel a píxel; `fill_polygon` lo usa con `convex_spans`.
+- **Adaptador `obj2c` -> `PolyMeshView`** (`eng/platform/amiga/object3d_poly.hpp`): extrae
+  vértices y caras **n-gon** de un `Object3D` (los `FaceIndex` son offsets de byte; se mapean
+  a índice de vértice) a buffers del llamador, listo para `mesh_patches_order`.
+- **Chunk UAF-R `MeshPoly`** (`eng/assets/uaf.hpp` + cocedor `polyMeshChunkData`): malla con
+  caras de longitud variable (`{vertex_count, face_count, index_count}` + vértices + índices
+  concatenados + `{first,count}`), junto al `Mesh` triangular existente. `PolyMeshAssetView`
+  lo decodifica big-endian (host y Amiga) y lo copia a un `PolyMeshView`.
 
 ## 2. Lo que NO hay (colisión/física 3D)
 

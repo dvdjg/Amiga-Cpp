@@ -150,6 +150,29 @@ public:
         return true;
     }
 
+    /// Escribe un tramo horizontal `[x0, x1]` (inclusive) en la fila `wy`. Un byte completo
+    /// (16 píxeles) se resuelve con una sola escritura por plano; los extremos parciales van
+    /// con máscara. Es la versión rápida del bucle de `write_pixel` para el relleno de
+    /// polígonos (`fill_polygon`).
+    bool draw_span(s32 x0, s32 x1, s32 wy, u8 color) {
+        if (!m_initialized || !in_bounds(x0, wy) || x1 < x0) return false;
+        const u32 pl = planeline_for(wy);
+        const u32 mir = mirror_planelines();
+        for (s32 x = x0; x <= x1;) {
+            const u32 byte = byte_for(x);
+            if (!supports_walk() && byte >= m_bytes_per_row) break;
+            const u32 bit = static_cast<u32>(x) & 15u;
+            const s32 remain = static_cast<s32>(16u - bit);
+            const s32 run = (x1 - x + 1 < remain) ? (x1 - x + 1) : remain;
+            const u16 hi = static_cast<u16>(0xFFFFu << (16u - static_cast<u32>(run)));
+            const u16 mask = static_cast<u16>(hi >> bit);
+            write_planes(pl, byte, mask, color);
+            if (mir != 0u) write_planes(pl + mir, byte, mask, color);
+            x += run;
+        }
+        return true;
+    }
+
     // --- Layout planar para el sink de relleno (strides) ------------------
     /// Stride entre planos consecutivos y entre filas del MISMO plano. Los
     /// playfields del engine son INTERLEAVED (una fila de cada plano seguida),
@@ -189,9 +212,7 @@ public:
         }
         eng::math3d::convex_spans(
             eng::Span<const s32>(x32, n), eng::Span<const s32>(y32, n),
-            [&](s32 y, s32 xl, s32 xr) {
-                for (s32 x = xl; x <= xr; ++x) write_pixel(x, y, color);
-            });
+            [&](s32 y, s32 xl, s32 xr) { draw_span(xl, xr, y, color); });
         return true;
     }
 

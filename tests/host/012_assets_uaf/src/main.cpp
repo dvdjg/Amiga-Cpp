@@ -2,6 +2,7 @@
 // Test host de eng::assets::Blob (contenedor UAF-R, big-endian).
 // Construye un blob mínimo (header + chunks) y valida bind/find/data y errores.
 #include <eng/assets/uaf.hpp>
+#include <eng/core/mesh3d.hpp>
 
 #include <cstdio>
 #include <cstring>
@@ -214,6 +215,65 @@ int main() {
 		check(f0.a == 0 && f0.b == 1 && f0.c == 1, "MeshAssetView face 0");
 		const MeshAssetView bad {eng::UafPayload(mesh, 8)};
 		check(!bad.valid(), "MeshAssetView truncado -> !valid");
+	}
+
+	// Chunk MeshPoly (n-gon): hexagono (6 vertices, 1 cara de 6 lados) + orden por parches.
+	{
+		constexpr eng::u32 kPayload = 6u + 6u * 6u + 6u * 2u + 4u; // 58
+		constexpr eng::u32 kPadded = (kPayload + 3u) & ~3u;	   // 60 (datos 4-alineados)
+		eng::u8 pbuf[8u + kChunkHeaderSize + kPadded];
+		std::memset(pbuf, 0, sizeof(pbuf));
+		w32(pbuf, 0, kUafMagic);
+		w16(pbuf, 4, kUafVersion);
+		w16(pbuf, 6, 1);
+		const eng::u32 p = 8u;
+		w16(pbuf, p, static_cast<eng::u16>(ChunkType::MeshPoly));
+		w16(pbuf, p + 2, 1);
+		w32(pbuf, p + 4, kPayload);
+		eng::u8* d = pbuf + p + kChunkHeaderSize;
+		w16(d, 0, 6); // vertices
+		w16(d, 2, 1); // caras
+		w16(d, 4, 6); // indices
+		const eng::s16 vx[6] = {0, 100, 150, 100, 0, -50};
+		const eng::s16 vy[6] = {0, 0, 80, 160, 160, 80};
+		eng::u32 o = 6;
+		for (int i = 0; i < 6; ++i) {
+			w16(d, o, static_cast<eng::u16>(vx[i]));
+			w16(d, o + 2, static_cast<eng::u16>(vy[i]));
+			w16(d, o + 4, 0);
+			o += 6;
+		}
+		for (int i = 0; i < 6; ++i) {
+			w16(d, o, static_cast<eng::u16>(i));
+			o += 2;
+		}
+		w16(d, o, 0);	  // face.first
+		w16(d, o + 2, 6); // face.count
+
+		Blob pb;
+		check(pb.bind({pbuf, sizeof(pbuf)}), "MeshPoly: bind");
+		const ChunkRef* pc = pb.find(ChunkType::MeshPoly);
+		check(pc != nullptr, "MeshPoly: find");
+		const PolyMeshAssetView pv {pb.data(*pc)};
+		check(pv.valid() && pv.vertex_count() == 6 && pv.face_count() == 1 &&
+			      pv.index_count() == 6,
+		      "MeshPoly: cabecera");
+		check(pv.face(0).first == 0 && pv.face(0).count == 6, "MeshPoly: face span");
+
+		eng::math3d::Vec3 pverts[8];
+		eng::u16 pind[8];
+		eng::math3d::FaceSpan pfaces[2];
+		const eng::math3d::PolyMeshView mv =
+			pv.view(eng::Span<eng::math3d::Vec3>(pverts, 8), eng::Span<eng::u16>(pind, 8),
+				eng::Span<eng::math3d::FaceSpan>(pfaces, 2));
+		check(mv.vertex_count() == 6 && mv.face_count() == 1 && mv.face_indices(0).size() == 6,
+		      "MeshPoly: PolyMeshView");
+
+		eng::math3d::FaceOrder ord[2];
+		const eng::u32 n = eng::math3d::mesh_patches_order(
+			mv, mv.vertices, eng::math3d::vec3<eng::coord>(50, 80, 300),
+			eng::Span<eng::math3d::FaceOrder>(ord, 2));
+		check(n == 1 && ord[0].index == 0, "MeshPoly: mesh_patches_order (1 parche visible)");
 	}
 
 	if (failures == 0) {
