@@ -409,6 +409,58 @@ template <typename R, int E, typename P>
 	return mul_add(a, b, acc);
 }
 
+// ============================================================================
+//  Operadores de asignacion compuesta e incremento (Fixed como un primitivo)
+// ============================================================================
+
+/// Unario `+` (identidad).
+template <typename R, int E, typename P>
+[[nodiscard]] constexpr Fixed<R, E, P> operator+(Fixed<R, E, P> a) {
+	return a;
+}
+
+/// Suma/resta en sitio (mismo exponente y representacion).
+template <typename R, int E, typename P>
+constexpr Fixed<R, E, P>& operator+=(Fixed<R, E, P>& a, Fixed<R, E, P> b) {
+	a = a + b;
+	return a;
+}
+template <typename R, int E, typename P>
+constexpr Fixed<R, E, P>& operator-=(Fixed<R, E, P>& a, Fixed<R, E, P> b) {
+	a = a - b;
+	return a;
+}
+/// `a *= b`: producto normalizado de vuelta al exponente y representacion de `a`.
+template <typename R, int E, typename P>
+constexpr Fixed<R, E, P>& operator*=(Fixed<R, E, P>& a, Fixed<R, E, P> b) {
+	a = dot(a, b);
+	return a;
+}
+
+/// Pre/post incremento y decremento en una unidad (`one()` = `1.0`).
+template <typename R, int E, typename P>
+constexpr Fixed<R, E, P>& operator++(Fixed<R, E, P>& a) {
+	a = a + scalar_traits<Fixed<R, E, P>>::one();
+	return a;
+}
+template <typename R, int E, typename P>
+constexpr Fixed<R, E, P> operator++(Fixed<R, E, P>& a, int) {
+	const Fixed<R, E, P> t = a;
+	++a;
+	return t;
+}
+template <typename R, int E, typename P>
+constexpr Fixed<R, E, P>& operator--(Fixed<R, E, P>& a) {
+	a = a - scalar_traits<Fixed<R, E, P>>::one();
+	return a;
+}
+template <typename R, int E, typename P>
+constexpr Fixed<R, E, P> operator--(Fixed<R, E, P>& a, int) {
+	const Fixed<R, E, P> t = a;
+	--a;
+	return t;
+}
+
 /// Comparaciones (mismo tipo, exponente y política).
 template <typename R, int E, typename P>
 [[nodiscard]] constexpr bool operator==(Fixed<R, E, P> a, Fixed<R, E, P> b) {

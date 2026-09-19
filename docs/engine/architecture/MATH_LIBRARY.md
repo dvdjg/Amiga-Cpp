@@ -163,6 +163,22 @@ Operaciones, sin temporales y desenrolladas (N constante):
    transpose, identity, inverse (2x2/3x3 analíticas)
 ```
 
+### 3.3.b Operadores (escalares y álgebra como primitivos)
+
+Los escalares (`Fixed`, `MiniFloat16`, `float`/`double`) y los tipos de álgebra (`Vec`, `Mat`)
+ofrecen el juego completo de operadores para usarse como tipos primitivos:
+
+```
+   escalar:  +  -  *  (y / en MiniFloat/float)      +=  -=  *=  [/=]
+             == != < > <= >=     +a     ++a  a++  --a  a--
+   Vec/Mat:  +  -  (unario +)   += -=   [Mat*Mat -> *= | escalar -> *=]   == !=
+   Vec:      []   Vec*k   k*Vec   Vec/k   *=   /=
+```
+
+`Fixed` **no** define `/` ni `%` (el núcleo lo prohíbe a propósito; se divide con
+`div_norm`/`scalar_div`), así que tampoco define `/=`/`%=`. `Vec*k` y `Mat*k` usan `mul_norm`
+(producto normalizado, válido para fixed); `Vec/k` usa `scalar_div` (saturante en retro).
+
 ### 3.4 Lo que NO se permite (la regla)
 
 - **Ninguna conversión implícita** entre exponentes ni entre representaciones.

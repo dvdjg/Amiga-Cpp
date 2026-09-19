@@ -89,6 +89,27 @@ static_assert(q12 {2048} <= q12 {4096} && q12 {4096} >= q12 {2048}, "<= / >=");
 static_assert(q12 {4096} <= q12 {4096} && q12 {4096} >= q12 {4096}, "<= / >= con iguales");
 static_assert(!(q12 {4096} <= q12 {2048}) && !(q12 {2048} >= q12 {4096}), "negaciones");
 
+// Operadores de asignacion compuesta e incremento (Fixed como un primitivo): constexpr.
+constexpr q12 fixed_ops() {
+	q12 a {4096};	 // 1.0
+	a += q12 {2048}; // 1.5
+	a -= q12 {1024}; // 1.25
+	a *= q12 {8192}; // * 2.0 = 2.5
+	q12 r = +a;	 // unario +
+	r++;		 // 3.5
+	++r;		 // 4.5
+	r--;		 // 3.5
+	--r;		 // 2.5
+	return r;
+}
+static_assert(fixed_ops() == q12 {10240}, "Fixed: += -= *= ++ -- y unario +");
+constexpr q12 fixed_post_inc() {
+	q12 a {2048};
+	const q12 b = a++;
+	return b - a; // 0.5 - 1.5 = -1.0
+}
+static_assert(fixed_post_inc() == q12 {-4096}, "Fixed: post-incremento devuelve el previo");
+
 int main() {
 	// Comprobaciones en runtime equivalentes (por si el optimizador oculta algo).
 	const q12 a {4096}; // 1.0

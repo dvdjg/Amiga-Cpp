@@ -197,6 +197,10 @@ struct Vec {
 		return v[2];
 	}
 
+	/// Acceso por índice (como un array); alternativa a `.v[i]`.
+	constexpr S& operator[](int i) { return v[i]; }
+	constexpr const S& operator[](int i) const { return v[i]; }
+
 	static constexpr Vec zero() {
 		Vec r {};
 		for (int i = 0; i < N; ++i) r.v[i] = scalar_traits<S>::zero();
@@ -243,6 +247,65 @@ template <int N, typename S, int M, typename T>
 		      "eng::math: restar Vec con escalares distintos (p. ej. float - 4.12). Usa el "
 		      "MISMO escalar: convierte con rescale<Exp>()/cast<Repr>()/from_int().");
 	return {};
+}
+
+/// Unario `+` (identidad): completa el conjunto de operadores del álgebra.
+template <int N, typename S>
+[[nodiscard]] constexpr Vec<N, S> operator+(const Vec<N, S>& a) {
+	return a;
+}
+template <int N, typename S>
+constexpr Vec<N, S>& operator+=(Vec<N, S>& a, const Vec<N, S>& b) {
+	for (int i = 0; i < N; ++i) a.v[i] = a.v[i] + b.v[i];
+	return a;
+}
+template <int N, typename S>
+constexpr Vec<N, S>& operator-=(Vec<N, S>& a, const Vec<N, S>& b) {
+	for (int i = 0; i < N; ++i) a.v[i] = a.v[i] - b.v[i];
+	return a;
+}
+
+/// Producto por un escalar (normalizado: vale también para fixed); conmutativo.
+template <int N, typename S>
+[[nodiscard]] constexpr Vec<N, S> operator*(const Vec<N, S>& a, S k) {
+	Vec<N, S> r {};
+	for (int i = 0; i < N; ++i) r.v[i] = mul_norm(a.v[i], k);
+	return r;
+}
+template <int N, typename S>
+[[nodiscard]] constexpr Vec<N, S> operator*(S k, const Vec<N, S>& a) {
+	return a * k;
+}
+/// División por un escalar (a través de `scalar_div`: saturante en fixed).
+template <int N, typename S>
+[[nodiscard]] constexpr Vec<N, S> operator/(const Vec<N, S>& a, S k) {
+	Vec<N, S> r {};
+	for (int i = 0; i < N; ++i) r.v[i] = scalar_div<S>::op(a.v[i], k);
+	return r;
+}
+template <int N, typename S>
+constexpr Vec<N, S>& operator*=(Vec<N, S>& a, S k) {
+	a = a * k;
+	return a;
+}
+template <int N, typename S>
+constexpr Vec<N, S>& operator/=(Vec<N, S>& a, S k) {
+	a = a / k;
+	return a;
+}
+
+template <int N, typename S>
+[[nodiscard]] constexpr bool operator==(const Vec<N, S>& a, const Vec<N, S>& b) {
+	for (int i = 0; i < N; ++i) {
+		if (!(a.v[i] == b.v[i])) {
+			return false;
+		}
+	}
+	return true;
+}
+template <int N, typename S>
+[[nodiscard]] constexpr bool operator!=(const Vec<N, S>& a, const Vec<N, S>& b) {
+	return !(a == b);
 }
 
 /// Producto escalar: acumula los productos EXACTOS y normaliza UNA vez al escalar.
@@ -342,6 +405,55 @@ template <int N, typename S>
 		}
 	}
 	return r;
+}
+
+/// Unario `+`, asignación compuesta y comparación (completan el álgebra de la matriz).
+template <int N, typename S>
+[[nodiscard]] constexpr Mat<N, S> operator+(const Mat<N, S>& a) {
+	return a;
+}
+template <int N, typename S>
+constexpr Mat<N, S>& operator+=(Mat<N, S>& a, const Mat<N, S>& b) {
+	for (int i = 0; i < N; ++i)
+		for (int j = 0; j < N; ++j) a.m[i][j] = a.m[i][j] + b.m[i][j];
+	return a;
+}
+template <int N, typename S>
+constexpr Mat<N, S>& operator-=(Mat<N, S>& a, const Mat<N, S>& b) {
+	for (int i = 0; i < N; ++i)
+		for (int j = 0; j < N; ++j) a.m[i][j] = a.m[i][j] - b.m[i][j];
+	return a;
+}
+/// `a *= b`: producto matricial (el resultado vive en el mismo escalar).
+template <int N, typename S>
+constexpr Mat<N, S>& operator*=(Mat<N, S>& a, const Mat<N, S>& b) {
+	a = a * b;
+	return a;
+}
+/// Producto por un escalar (componente a componente; normalizado para fixed).
+template <int N, typename S>
+[[nodiscard]] constexpr Mat<N, S> operator*(const Mat<N, S>& a, S k) {
+	Mat<N, S> r {};
+	for (int i = 0; i < N; ++i)
+		for (int j = 0; j < N; ++j) r.m[i][j] = mul_norm(a.m[i][j], k);
+	return r;
+}
+template <int N, typename S>
+[[nodiscard]] constexpr Mat<N, S> operator*(S k, const Mat<N, S>& a) {
+	return a * k;
+}
+template <int N, typename S>
+[[nodiscard]] constexpr bool operator==(const Mat<N, S>& a, const Mat<N, S>& b) {
+	for (int i = 0; i < N; ++i)
+		for (int j = 0; j < N; ++j)
+			if (!(a.m[i][j] == b.m[i][j])) {
+				return false;
+			}
+	return true;
+}
+template <int N, typename S>
+[[nodiscard]] constexpr bool operator!=(const Mat<N, S>& a, const Mat<N, S>& b) {
+	return !(a == b);
 }
 
 /// `Mat*Mat` con escalares distintos: diagnóstico en vez de "no match".

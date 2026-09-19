@@ -413,6 +413,21 @@ constexpr MiniFloat16& operator-=(MiniFloat16& a, MiniFloat16 b) { return a = a 
 constexpr MiniFloat16& operator*=(MiniFloat16& a, MiniFloat16 b) { return a = a * b; }
 constexpr MiniFloat16& operator/=(MiniFloat16& a, MiniFloat16 b) { return a = a / b; }
 
+/// Unario `+` (identidad) e incremento/decremento en una unidad.
+[[nodiscard]] constexpr MiniFloat16 operator+(MiniFloat16 a) { return a; }
+constexpr MiniFloat16& operator++(MiniFloat16& a) { return a = a + MiniFloat16::one(); }
+constexpr MiniFloat16 operator++(MiniFloat16& a, int) {
+	const MiniFloat16 t = a;
+	++a;
+	return t;
+}
+constexpr MiniFloat16& operator--(MiniFloat16& a) { return a = a - MiniFloat16::one(); }
+constexpr MiniFloat16 operator--(MiniFloat16& a, int) {
+	const MiniFloat16 t = a;
+	--a;
+	return t;
+}
+
 [[nodiscard]] ENG_MF16_AI constexpr bool operator==(MiniFloat16 a, MiniFloat16 b) {
 	return detail::mf16_order_key(a.raw) == detail::mf16_order_key(b.raw);
 }

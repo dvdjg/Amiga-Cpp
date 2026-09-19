@@ -61,10 +61,11 @@ internas. Para evitarlo:
   normal de **Newell** (`poly_face_visible`), válida también para caras no convexas, y la clave
   de orden es el mínimo z de la cara. `mesh_patches_order` ordena los parches convexos con el
   mismo `MeshFaceOrder<ConvexPatches>` (pintor por parche).
-- **`convex_spans`**: genera los spans `(y, xl, xr)` de un polígono convexo por **dos cadenas**
-  (izquierda/derecha desde el vértice superior al inferior), O(altura) frente a O(lados·altura)
-  del barrido por mínimo/máximo. Es el generador de spans para el relleno CPU/Blitter; un
-  llamador escribe cada span con un blit o un `write_span`.
+- **`convex_spans`** (`eng/core/polygon.hpp`): genera los spans `(y, xl, xr)` de un polígono
+  convexo por **dos cadenas** (izquierda/derecha desde el vértice superior al inferior),
+  O(altura) frente a O(lados·altura) del barrido por mínimo/máximo. Es el generador de spans
+  que usa el relleno CPU (`Playfield::fill_polygon`), con un `emit` que escribe el span
+  (píxel a píxel, un `write_span` o un blit).
 
 ## 2. Lo que NO hay (colisión/física 3D)
 
