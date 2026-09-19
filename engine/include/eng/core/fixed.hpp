@@ -33,6 +33,8 @@
 /// único `asr.l` (o `add` + `asr` con redondeo) por normalización. Sin libcalls.
 
 #include <eng/core/arith.hpp>
+#include <eng/core/numeric_traits.hpp>
+#include <eng/core/scalar_fwd.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::math {
@@ -407,6 +409,58 @@ template <typename R, int E, typename P>
 	return mul_add(a, b, acc);
 }
 
+// ============================================================================
+//  Operadores de asignacion compuesta e incremento (Fixed como un primitivo)
+// ============================================================================
+
+/// Unario `+` (identidad).
+template <typename R, int E, typename P>
+[[nodiscard]] constexpr Fixed<R, E, P> operator+(Fixed<R, E, P> a) {
+	return a;
+}
+
+/// Suma/resta en sitio (mismo exponente y representacion).
+template <typename R, int E, typename P>
+constexpr Fixed<R, E, P>& operator+=(Fixed<R, E, P>& a, Fixed<R, E, P> b) {
+	a = a + b;
+	return a;
+}
+template <typename R, int E, typename P>
+constexpr Fixed<R, E, P>& operator-=(Fixed<R, E, P>& a, Fixed<R, E, P> b) {
+	a = a - b;
+	return a;
+}
+/// `a *= b`: producto normalizado de vuelta al exponente y representacion de `a`.
+template <typename R, int E, typename P>
+constexpr Fixed<R, E, P>& operator*=(Fixed<R, E, P>& a, Fixed<R, E, P> b) {
+	a = dot(a, b);
+	return a;
+}
+
+/// Pre/post incremento y decremento en una unidad (`one()` = `1.0`).
+template <typename R, int E, typename P>
+constexpr Fixed<R, E, P>& operator++(Fixed<R, E, P>& a) {
+	a = a + scalar_traits<Fixed<R, E, P>>::one();
+	return a;
+}
+template <typename R, int E, typename P>
+constexpr Fixed<R, E, P> operator++(Fixed<R, E, P>& a, int) {
+	const Fixed<R, E, P> t = a;
+	++a;
+	return t;
+}
+template <typename R, int E, typename P>
+constexpr Fixed<R, E, P>& operator--(Fixed<R, E, P>& a) {
+	a = a - scalar_traits<Fixed<R, E, P>>::one();
+	return a;
+}
+template <typename R, int E, typename P>
+constexpr Fixed<R, E, P> operator--(Fixed<R, E, P>& a, int) {
+	const Fixed<R, E, P> t = a;
+	--a;
+	return t;
+}
+
 /// Comparaciones (mismo tipo, exponente y política).
 template <typename R, int E, typename P>
 [[nodiscard]] constexpr bool operator==(Fixed<R, E, P> a, Fixed<R, E, P> b) {
@@ -490,5 +544,123 @@ template <typename Ra, int Ea, typename Rb, int Eb, typename P>
 		      "from_int().");
 	return false;
 }
+
+// ============================================================================
+//  Puntos de extensión para `Fixed` (viven en la cabecera del propio escalar)
+// ============================================================================
+
+/// Rasgos numéricos de `Fixed<R,E>`: rango simétrico `[-(2^(bits-1)-1), 2^(bits-1)-1]·2^-E`.
+/// **No** tiene `operator/` (el núcleo lo prohíbe), de ahí `has_division = false`.
+template <typename R, int E, typename P>
+struct numeric_traits<Fixed<R, E, P>> {
+	static constexpr double scale = pow2i(-E);
+	static constexpr double max_finite = static_cast<double>(limits<R>::max) * scale;
+	static constexpr double min_normal = scale; ///< 1 ulp
+	static constexpr double epsilon = scale;    ///< ulp absoluto
+	static constexpr bool is_fractional = E > 0;
+	static constexpr bool has_division = false;
+	static constexpr bool has_inf = false;
+	static constexpr bool has_nan = false;
+	static constexpr const char* name = "Fixed";
+	static constexpr double to_double(Fixed<R, E, P> x) { return static_cast<double>(x.v) * scale; }
+};
+
+/// Rasgos de álgebra de `Fixed<R,E,P>` (producto fusionado con `muls.w`, normalización).
+template <typename R, int E, typename P>
+struct scalar_traits<Fixed<R, E, P>> {
+	using scalar = Fixed<R, E, P>;
+
+	/// Producto INTERNO crudo (sin normalizar): el dot acumula estos y normaliza una
+	/// vez, que es lo preciso.
+	static constexpr auto inner(scalar a, scalar b) { return a * b; }
+
+	static constexpr scalar zero() { return scalar {0}; }
+	static constexpr scalar one() { return scalar {static_cast<R>(static_cast<R>(1) << E)}; }
+	static constexpr scalar from_int(int i) {
+		if consteval {
+			constexpr double mx = numeric_traits<scalar>::max_finite;
+			if (!(static_cast<double>(i) >= -mx && static_cast<double>(i) <= mx))
+				scalar_from_int_out_of_range();
+		}
+		return scalar {static_cast<R>(static_cast<R>(i) << E)};
+	}
+	static constexpr int to_int(scalar a) { return static_cast<int>(a.template rescale<0>().v); }
+
+	/// Normaliza un producto (de cualquier exponente) a este escalar. Un redondeo.
+	template <typename Prod>
+	static constexpr scalar norm_from(Prod p) {
+		return p.template rescale<E>().template cast<R>();
+	}
+
+	static constexpr bool needs_normalize = true;
+	/// Sumar muchas muestras puede saturar el `s16`; el acumulador ancho es `s32`.
+	static constexpr bool wide_accum = true;
+};
+
+/// Constante escalar desde un `double` de compilación para `Fixed<R,E>` (cuantiza a `E`
+/// bits fraccionarios, redondeo al más cercano).
+template <typename R, int E, typename P>
+struct scalar_const<Fixed<R, E, P>> {
+	static constexpr Fixed<R, E, P> from(double v) {
+		if consteval {
+			constexpr double mx = numeric_traits<Fixed<R, E, P>>::max_finite;
+			if (!(v >= -mx && v <= mx)) detail::scalar_const_fixed_out_of_range();
+		}
+		const double scaled = v * static_cast<double>(1 << E);
+		const double rounded = scaled < 0.0 ? scaled - 0.5 : scaled + 0.5;
+		return Fixed<R, E, P> {static_cast<R>(static_cast<long>(rounded))};
+	}
+};
+
+/// División explícita para fixed (`s16`): `raw = (a.v << E) / b.v`, saturada. Usa
+/// `arith<s16>::div` (en 68000, `divs.w` nativo 32/16) tras comprobar que el cociente cabe
+/// en `s16`. Válida para `E <= 15`.
+template <int E, typename P>
+struct scalar_div<Fixed<s16, E, P>> {
+	using S = Fixed<s16, E, P>;
+	[[nodiscard]] static constexpr S op(S a, S b) {
+		constexpr eng::s32 mx = 32767;
+		constexpr eng::s32 mn = -32768;
+		if (b.v == 0) return S {static_cast<eng::s16>(a.v < 0 ? mn : mx)};
+		const eng::s32 num = static_cast<eng::s32>(a.v) << E;
+		const eng::s32 den = b.v;
+		const eng::s32 lim = mx * (den < 0 ? -den : den);
+		if (num > lim) return S {static_cast<eng::s16>(mx)};
+		if (num < -lim) return S {static_cast<eng::s16>(mn)};
+		return S {arith<s16>::div(num, static_cast<eng::s16>(den))};
+	}
+};
+
+/// División de `Fixed<s32,E>`: el intermedio `a.v·2^E` no cabe en 32 bits, así que usa `s64`.
+/// **No disponible en m68k** (libcalls de 64 bits); allí usa `Fixed<s16,E>`.
+template <int E, typename P>
+struct scalar_div<Fixed<s32, E, P>> {
+	using S = Fixed<s32, E, P>;
+	[[nodiscard]] static constexpr S op(S a, S b) {
+#if defined(__m68k__)
+		(void)a;
+		(void)b;
+		static_assert(sizeof(S) == 0u,
+			      "eng::math::div_norm de Fixed<s32,E> usaria libgcc de 64 bits en "
+			      "m68k; usa Fixed<s16,E> o compila para host/32 bits nativo");
+		return S {0};
+#else
+		constexpr eng::s64 mx = 2147483647LL;
+		constexpr eng::s64 mn = -2147483648LL;
+		if (b.v == 0) {
+			return S {static_cast<eng::s32>(a.v < 0 ? mn : mx)};
+		}
+		const eng::s64 num = static_cast<eng::s64>(a.v) * (static_cast<eng::s64>(1) << E);
+		const eng::s64 q = num / b.v;
+		if (q > mx) {
+			return S {static_cast<eng::s32>(mx)};
+		}
+		if (q < mn) {
+			return S {static_cast<eng::s32>(mn)};
+		}
+		return S {static_cast<eng::s32>(q)};
+#endif
+	}
+};
 
 } // namespace eng::math

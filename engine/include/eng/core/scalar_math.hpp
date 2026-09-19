@@ -1,4 +1,5 @@
 #pragma once
+#include <eng/core/scalar_fwd.hpp>
 
 /// \file scalar_math.hpp
 /// **Puntos de extensión de funciones matemáticas escalares** (`sqrt`, `sin`, `cos`,
@@ -316,22 +317,6 @@ struct scalar_sincos<double> {
 template <typename S>
 struct scalar_const {
 	static constexpr S from(double v) { return static_cast<S>(v); }
-};
-template <>
-struct scalar_const<MiniFloat16> {
-	static constexpr MiniFloat16 from(double v) { return MiniFloat16(static_cast<float>(v)); }
-};
-template <typename R, int E, typename P>
-struct scalar_const<Fixed<R, E, P>> {
-	static constexpr Fixed<R, E, P> from(double v) {
-		if consteval {
-			constexpr double mx = numeric_traits<Fixed<R, E, P>>::max_finite;
-			if (!(v >= -mx && v <= mx)) detail::scalar_const_fixed_out_of_range();
-		}
-		const double scaled = v * static_cast<double>(1 << E);
-		const double rounded = scaled < 0.0 ? scaled - 0.5 : scaled + 0.5;
-		return Fixed<R, E, P> {static_cast<R>(static_cast<long>(rounded))};
-	}
 };
 
 // ============================================================================

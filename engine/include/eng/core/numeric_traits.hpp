@@ -1,4 +1,5 @@
 #pragma once
+#include <eng/core/scalar_fwd.hpp>
 
 /// \file numeric_traits.hpp
 /// **Rasgos numéricos** de un escalar, para que los algoritmos genéricos (interpolación,
@@ -20,8 +21,6 @@
 /// `min_normal`, `epsilon`, los flags (`is_fractional`, `has_division`, `has_inf`,
 /// `has_nan`) y `to_double`. El resto de la librería lo usa tal cual.
 
-#include <eng/core/fixed.hpp>
-#include <eng/core/minifloat.hpp>
 #include <eng/core/types.hpp>
 
 namespace eng::math {
@@ -66,37 +65,6 @@ struct numeric_traits<double> {
 	static constexpr bool has_nan = true;
 	static constexpr const char* name = "double";
 	static constexpr double to_double(double x) { return x; }
-};
-
-/// Fixed-point `Repr·2^-Exp`: rango simétrico `[-(2^(bits-1)-1), 2^(bits-1)-1]·2^-Exp`.
-/// **No** tiene `operator/` (el núcleo lo prohíbe), de ahí `has_division = false`.
-template <typename R, int E, typename P>
-struct numeric_traits<Fixed<R, E, P>> {
-	static constexpr double scale = pow2i(-E);
-	static constexpr double max_finite = static_cast<double>(limits<R>::max) * scale;
-	static constexpr double min_normal = scale; ///< 1 ulp
-	static constexpr double epsilon = scale;    ///< ulp absoluto
-	static constexpr bool is_fractional = E > 0;
-	static constexpr bool has_division = false;
-	static constexpr bool has_inf = false;
-	static constexpr bool has_nan = false;
-	static constexpr const char* name = "Fixed";
-	static constexpr double to_double(Fixed<R, E, P> x) { return static_cast<double>(x.v) * scale; }
-};
-
-template <>
-struct numeric_traits<MiniFloat16> {
-	static constexpr double max_finite = 65504.0;
-	static constexpr double min_normal = 6.103515625e-5; ///< 2^-14
-	static constexpr double epsilon = 9.765625e-4;       ///< 2^-10 (ulp relativo en 1.0)
-	static constexpr bool is_fractional = true;
-	static constexpr bool has_division = true;
-	static constexpr bool has_inf = true;
-	static constexpr bool has_nan = false; ///< overflow → ∞, no hay NaN
-	static constexpr const char* name = "MiniFloat16";
-	static constexpr double to_double(MiniFloat16 x) {
-		return static_cast<double>(static_cast<float>(x));
-	}
 };
 
 /// Valor del escalar como `double` (solo para comprobaciones de compilación/telemetría).

@@ -37,17 +37,6 @@ using eng::math::scalar_traits;
 
 namespace detail {
 
-/// ¿`S` es un `Fixed<s16,…>`? En ese caso `sum`/`mean` acumulan en **32 bits** (`add.l`)
-/// y solo estrechan al final, para no saturar al sumar muchos valores pequeños.
-template <class S>
-struct is_fixed_s16 {
-	static constexpr bool value = false;
-};
-template <int E, typename P>
-struct is_fixed_s16<eng::math::Fixed<eng::s16, E, P>> {
-	static constexpr bool value = true;
-};
-
 [[nodiscard]] constexpr s16 sat_s16(s32 v) noexcept {
 	if (v > 32767) return static_cast<s16>(32767);
 	if (v < -32768) return static_cast<s16>(-32768);
@@ -56,11 +45,12 @@ struct is_fixed_s16<eng::math::Fixed<eng::s16, E, P>> {
 
 } // namespace detail
 
-/// Suma de todos los elementos (0 si la vista está vacía). Con `Fixed<s16>` el
-/// acumulador es **s32** (`add.l`) y solo el resultado se estrecha a `s16`.
+/// Suma de todos los elementos (0 si la vista está vacía). Si el escalar pide acumulador
+/// ancho (`scalar_traits<S>::wide_accum`, p. ej. `Fixed<s16>`) acumula en **s32** (`add.l`)
+/// y solo el resultado se estrecha.
 template <class S>
 [[nodiscard]] constexpr S sum(Span<const S> xs) {
-	if constexpr (detail::is_fixed_s16<S>::value) {
+	if constexpr (scalar_traits<S>::wide_accum) {
 		s32 acc = 0;
 		for (const S& x : xs) {
 			acc += static_cast<s32>(x.v);
@@ -75,14 +65,14 @@ template <class S>
 	}
 }
 
-/// Media aritmética. Con `Fixed<s16>` suma en **s32** y divide con `div_wide` (`divs.w`),
+/// Media aritmética. Con acumulador ancho suma en **s32** y divide con `div_wide` (`divs.w`),
 /// así la suma intermedia no satura; el tamaño de la vista debe caber en `s16`.
 template <class S>
 [[nodiscard]] constexpr S mean(Span<const S> xs) {
 	if (xs.empty()) {
 		return scalar_traits<S>::zero();
 	}
-	if constexpr (detail::is_fixed_s16<S>::value) {
+	if constexpr (scalar_traits<S>::wide_accum) {
 		s32 acc = 0;
 		for (const S& x : xs) {
 			acc += static_cast<s32>(x.v);

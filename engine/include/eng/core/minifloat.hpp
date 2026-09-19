@@ -54,6 +54,8 @@
 
 #include <eng/core/arith.hpp>
 #include <eng/core/ct_array.hpp>
+#include <eng/core/numeric_traits.hpp>
+#include <eng/core/scalar_fwd.hpp>
 #include <eng/core/types.hpp>
 
 /// Fuerza el inline de los operadores (en 68000 un `jsr`/`rts` cuesta más que la propia
@@ -411,6 +413,21 @@ constexpr MiniFloat16& operator-=(MiniFloat16& a, MiniFloat16 b) { return a = a 
 constexpr MiniFloat16& operator*=(MiniFloat16& a, MiniFloat16 b) { return a = a * b; }
 constexpr MiniFloat16& operator/=(MiniFloat16& a, MiniFloat16 b) { return a = a / b; }
 
+/// Unario `+` (identidad) e incremento/decremento en una unidad.
+[[nodiscard]] constexpr MiniFloat16 operator+(MiniFloat16 a) { return a; }
+constexpr MiniFloat16& operator++(MiniFloat16& a) { return a = a + MiniFloat16::one(); }
+constexpr MiniFloat16 operator++(MiniFloat16& a, int) {
+	const MiniFloat16 t = a;
+	++a;
+	return t;
+}
+constexpr MiniFloat16& operator--(MiniFloat16& a) { return a = a - MiniFloat16::one(); }
+constexpr MiniFloat16 operator--(MiniFloat16& a, int) {
+	const MiniFloat16 t = a;
+	--a;
+	return t;
+}
+
 [[nodiscard]] ENG_MF16_AI constexpr bool operator==(MiniFloat16 a, MiniFloat16 b) {
 	return detail::mf16_order_key(a.raw) == detail::mf16_order_key(b.raw);
 }
@@ -488,6 +505,88 @@ constexpr MiniFloat16& operator/=(MiniFloat16& a, MiniFloat16 b) { return a = a 
 [[nodiscard]] ENG_MF16_AI constexpr MiniFloat16 mac(MiniFloat16 a, MiniFloat16 b, MiniFloat16 acc) {
 	return mul_add(a, b, acc);
 }
+
+// ============================================================================
+//  Puntos de extensión para `MiniFloat16` (viven en la cabecera del propio escalar)
+// ============================================================================
+
+template <>
+struct numeric_traits<MiniFloat16> {
+	static constexpr double max_finite = 65504.0;
+	static constexpr double min_normal = 6.103515625e-5; ///< 2^-14
+	static constexpr double epsilon = 9.765625e-4;       ///< 2^-10 (ulp relativo en 1.0)
+	static constexpr bool is_fractional = true;
+	static constexpr bool has_division = true;
+	static constexpr bool has_inf = true;
+	static constexpr bool has_nan = false; ///< overflow → ∞, no hay NaN
+	static constexpr const char* name = "MiniFloat16";
+	static constexpr double to_double(MiniFloat16 x) {
+		return static_cast<double>(static_cast<float>(x));
+	}
+};
+
+/// Rasgos de álgebra de `MiniFloat16`: el producto ya vive en el mismo espacio (sin
+/// exponente que normalizar), con FMA (`mac`) para `Mat*Mat`/`Mat*Vec` y conversiones
+/// entero↔MF por bits (sin `float`).
+template <>
+struct scalar_traits<MiniFloat16> {
+	using scalar = MiniFloat16;
+	static constexpr bool wide_accum = false;
+
+	static constexpr MiniFloat16 inner(MiniFloat16 a, MiniFloat16 b) { return a * b; }
+
+	static constexpr MiniFloat16 zero() { return MiniFloat16::zero(); }
+	static constexpr MiniFloat16 one() { return MiniFloat16::one(); }
+
+	/// Multiply-accumulate de un solo redondeo (FMA): lo usan `Mat*Mat`/`Mat*Vec`.
+	static constexpr MiniFloat16 mac(MiniFloat16 a, MiniFloat16 b, MiniFloat16 acc) {
+		return mul_add(a, b, acc);
+	}
+
+	/// Entero -> MF sin `float` (construcción por bits): en 68000 un `(float)i`
+	/// arrastraría `__floatsisf`. Exacto hasta 2048; por encima, redondeo de mantisa.
+	static constexpr MiniFloat16 from_int(int i) {
+		if (i == 0) return MiniFloat16::zero();
+		const bool neg = i < 0;
+		eng::u32 a = static_cast<eng::u32>(neg ? -i : i);
+		int msb = 0;
+		while ((a >> (msb + 1)) != 0u) ++msb;
+		const int e = msb + MiniFloat16::bias;
+		if (e >= MiniFloat16::exp_inf)
+			return MiniFloat16::from_raw(static_cast<eng::u16>(
+				(neg ? MiniFloat16::sign_mask : 0u) | MiniFloat16::exp_mask));
+		eng::u16 mant;
+		if (msb > 10)
+			mant = static_cast<eng::u16>((a >> (msb - 10)) & 0x3FFu);
+		else
+			mant = static_cast<eng::u16>((a << (10 - msb)) & 0x3FFu);
+		return MiniFloat16::from_raw(static_cast<eng::u16>(
+			(neg ? MiniFloat16::sign_mask : 0u) | (static_cast<eng::u16>(e) << 10) | mant));
+	}
+
+	/// MF -> entero truncando hacia cero, sin `float`; satura fuera de `s16`.
+	static constexpr int to_int(MiniFloat16 x) {
+		const int e = static_cast<int>((x.raw >> 10) & 31) - MiniFloat16::bias;
+		if (e < 0) return 0;
+		if (e > 14) return (x.raw & MiniFloat16::sign_mask) != 0u ? -32767 : 32767;
+		const int mant = 0x400 | (x.raw & MiniFloat16::man_mask);
+		const int v = (e <= 10) ? (mant >> (10 - e)) : (mant << (e - 10));
+		return (x.raw & MiniFloat16::sign_mask) != 0u ? -v : v;
+	}
+
+	template <typename Prod>
+	static constexpr MiniFloat16 norm_from(Prod p) {
+		return static_cast<MiniFloat16>(p);
+	}
+
+	static constexpr bool needs_normalize = false;
+};
+
+/// Constante escalar desde un `double` para `MiniFloat16` (constructor de `float`).
+template <>
+struct scalar_const<MiniFloat16> {
+	static constexpr MiniFloat16 from(double v) { return MiniFloat16(static_cast<float>(v)); }
+};
 
 } // namespace eng::math
 

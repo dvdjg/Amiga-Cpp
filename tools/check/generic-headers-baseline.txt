@@ -1,0 +1,2 @@
+# Cabeceras genéricas con tipos concretos, pendientes de reubicar. Hoy vacío: las
+# especializaciones de Fixed/MiniFloat16 viven en fixed.hpp/minifloat.hpp (+minifloat_math).

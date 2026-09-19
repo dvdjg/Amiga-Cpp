@@ -129,7 +129,8 @@ void f() { MiniFloat16 e = eng::math::exp(MiniFloat16(v)); (void)e; }
 void g() { (void)a; (void)b; (void)c; (void)d; }"
 
 # Ruido: coordenada constante fuera del rango de celda exacta, y octavas < 1.
-PRE4='#include <eng/core/noise.hpp>
+PRE4='#include <eng/core/minifloat_math.hpp>
+#include <eng/core/noise.hpp>
 using eng::math::MiniFloat16;'
 
 expect_fail noise_coord_oob "noise_domain_coord_out_of_range" "$PRE4

@@ -1,3 +1,4 @@
+#include <eng/retro/fixed_mesh.hpp>
 // Demo 078 - Solido 3D relleno (math3d + mesh3d + Blitter).
 //
 // Extiende la 077: en vez de alambre, pinta las caras RELLENAS en orden
@@ -346,7 +347,7 @@ struct DemoGame {
 		}
 		backend.execute_frame_plan(plan);
 
-		// 2) Rasterizado del solido: rotacion + culling + orden painter + relleno.
+		// 2) Rasterizado del solido (cubo = convexo): rotacion + culling, SIN orden painter.
 		const eng::u32 f = context.frame.frame_index;
 		eng::math3d::Affine3<> m = eng::math3d::Affine3<>::identity();
 		eng::math3d::load_rotate(m.m, eng::retro::turns(static_cast<eng::u16>(f * 17u)),
@@ -356,10 +357,11 @@ struct DemoGame {
 		Vec3 world[8];
 		eng::math3d::mesh_transform(m_mesh.vertices, m, eng::Span<Vec3>(world, 8));
 
-		eng::math3d::FaceOrder order[12];
+		eng::math3d::ConvexFace order[12];
 		const Vec3 cam = vec3(0, 0, kCamZ);
-		const eng::u32 visible = eng::math3d::mesh_painter_order(
-			m_mesh, eng::Span<const Vec3>(world, 8), cam, eng::Span<eng::math3d::FaceOrder>(order, 12));
+		const eng::u32 visible = eng::math3d::mesh_convex_order(
+			m_mesh, eng::Span<const Vec3>(world, 8), cam,
+			eng::Span<eng::math3d::ConvexFace>(order, 12));
 
 #if K_FILL_BLITTER
 		Canvas mc {m_mask, 1}; // mascara 1 bit (Chip)

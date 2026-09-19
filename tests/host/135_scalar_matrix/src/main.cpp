@@ -144,6 +144,66 @@ void test_integers() {
 
 } // namespace
 
+/// F3: operadores como primitivos: algebra de Vec/Mat y escalares (Fixed/MiniFloat).
+void test_operators() {
+	// Vec: [], +, -, unario +, +=, -=, *, /, *=, /=, ==, !=.
+	{
+		using V = Vec<3, double>;
+		const V a {{1.0, 2.0, 3.0}};
+		const V b {{4.0, 5.0, 6.0}};
+		check((a + b) == V {{5.0, 7.0, 9.0}}, "Vec +");
+		check((b - a) == V {{3.0, 3.0, 3.0}}, "Vec -");
+		check((2.0 * a) == V {{2.0, 4.0, 6.0}}, "2 * Vec");
+		check((a * 3.0) == V {{3.0, 6.0, 9.0}}, "Vec * 3");
+		check((b / 2.0) == V {{2.0, 2.5, 3.0}}, "Vec / 2");
+		check(a[0] == 1.0 && a.z() == 3.0, "Vec [] y z()");
+		V c {{1.0, 1.0, 1.0}};
+		c += a;
+		c -= a;
+		c *= 2.0;
+		c /= 2.0;
+		check(c == V {{1.0, 1.0, 1.0}}, "Vec += -= *= /=");
+		check(+a == a, "unario + Vec");
+		check(!(a == b) && a != b, "Vec == !=");
+	}
+	// Vec<q12>: * y / normalizados (mul_norm / scalar_div).
+	{
+		using Q = Fixed<eng::s16, 12>;
+		const Vec<2, Q> v {{Q {4096}, Q {8192}}}; // (1.0, 2.0)
+		check((v * Q {2048}) == (Vec<2, Q> {{Q {2048}, Q {4096}}}), "Vec<q12> * escalar");
+		check((v / Q {4096}) == v, "Vec<q12> / escalar");
+	}
+	// Mat: +, -, *, por escalar, +=, -=, ==, !=.
+	{
+		using M = Mat<2, double>;
+		const M id = M::identity();
+		check((id + id) == (id * 2.0), "Mat + y * escalar");
+		check((id * id) == id, "Mat * Mat identidad");
+		M m = id;
+		m += id;
+		m -= id;
+		check(m == id, "Mat += -=");
+		check(M {} != id, "Mat != ");
+	}
+	// Escalares como primitivos.
+	{
+		using Q = Fixed<eng::s16, 12>;
+		Q a {4096};
+		a += Q {2048};
+		a -= Q {1024};
+		a *= Q {8192}; // 2.5
+		check(a == Q {10240}, "Fixed += -= *=");
+		check(++a == Q {14336} && a-- == Q {14336} && a == Q {10240}, "Fixed ++ --");
+		check(+a == a, "Fixed unario +");
+		MiniFloat16 m = MiniFloat16::one();
+		m += MiniFloat16::one(); // 2.0
+		check(m == MiniFloat16(2.0f), "MiniFloat +=");
+		++m; // 3.0
+		check(m == MiniFloat16(3.0f) && m-- == MiniFloat16(3.0f) && m == MiniFloat16(2.0f),
+		      "MiniFloat ++ --");
+	}
+}
+
 int main() {
 	std::printf("ScalarMatrix:\n");
 	test_scalars();
@@ -151,6 +211,7 @@ int main() {
 	test_fixed32_math();
 	test_fixed32_extra();
 	test_integers();
+	test_operators();
 
 	if (g_fail == 0u) {
 		std::printf("OK: matriz de escalares (double/float/MF/Fixed s16 y s32) validada\n");

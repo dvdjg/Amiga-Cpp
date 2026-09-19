@@ -53,6 +53,7 @@
 #include <eng/core/arith.hpp>
 #include <eng/core/minifloat.hpp>
 #include <eng/core/numeric_traits.hpp>
+#include <eng/core/scalar_fwd.hpp>
 
 /// Fuerza el inline donde una llamada cuesta más que el cálculo (68000). Se anula al
 /// final del fichero para no contaminar al que incluye.
@@ -636,6 +637,13 @@ ENG_MF_AI constexpr void sincos(MiniFloat16 x, MiniFloat16& out_sin, MiniFloat16
 	if ((d.raw & MiniFloat16::sign_mask) != 0u) d = MF::zero();
 	return atan2(sqrt(d), x);
 }
+
+/// `noise_traits` de `MiniFloat16` (vive en la cabecera del propio escalar): `MiniFloat16`
+/// solo representa enteros exactos hasta 2048, así que la coordenada de ruido se acota.
+template <>
+struct noise_traits<MiniFloat16> {
+	static constexpr double max_coord = 2048.0;
+};
 
 } // namespace eng::math
 

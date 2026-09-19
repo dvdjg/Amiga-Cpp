@@ -116,6 +116,15 @@ if [ "$#" -eq 0 ]; then
 			exit 1
 		fi
 	fi
+	# Regla de oro: cabeceras genericas sin escalares concretos (fixed/minifloat/q*).
+	GENERIC_HEADERS="$ROOT/tools/check/generic-headers.mjs"
+	if [ -f "$GENERIC_HEADERS" ] && command -v node >/dev/null 2>&1; then
+		echo "== generic-headers =="
+		if ! node "$GENERIC_HEADERS"; then
+			echo "generic-headers fallo: tipo concreto en cabecera generica." >&2
+			exit 1
+		fi
+	fi
 fi
 
 # Selección de tests.

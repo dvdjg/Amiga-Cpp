@@ -1,4 +1,5 @@
 #pragma once
+#include <eng/core/scalar_fwd.hpp>
 
 /// \file noise.hpp
 /// **Ruido procedural value-noise** 1D/2D/3D y **fbm** (suma de octavas), genérico
@@ -49,10 +50,6 @@ namespace eng::math {
 template <typename S>
 struct noise_traits {
 	static constexpr double max_coord = 1.0e30;
-};
-template <>
-struct noise_traits<MiniFloat16> {
-	static constexpr double max_coord = 2048.0;
 };
 
 namespace noise_detail {

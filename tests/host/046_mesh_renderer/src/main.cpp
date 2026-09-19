@@ -1,4 +1,5 @@
 #define ENG_SCALAR_RETRO16  // host: instancia retro (eng::real=q12, coord=q0)
+#include <eng/retro/fixed_mesh.hpp>
 // Test host de `eng::graphics::mesh_renderer` (malla 3D -> Surface):
 // proyección en perspectiva, back-face culling (mesh_painter_order) y relleno de
 // las caras visibles vía `Surface::fill_polygon`. `Playfield` de prueba en RAM.

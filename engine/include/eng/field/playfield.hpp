@@ -25,6 +25,7 @@
 /// contrato). El acceso crudo optimizado vive dentro del engine (núcleo), no en
 /// el código de la aplicación.
 
+#include <eng/core/polygon.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/graphics/bitmap.hpp>
@@ -176,29 +177,21 @@ public:
             return m_fill_sink.fn(m_fill_sink.ctx, m_frontbuffer, m_planes, plane_stride(),
                                   row_stride(), m_bytes_per_row, m_width, m_height, xs, ys, n, color);
         }
-        s32 ymin = ys[0], ymax = ys[0];
-        for (u8 i = 1u; i < n; ++i) {
-            if (ys[i] < ymin) ymin = ys[i];
-            if (ys[i] > ymax) ymax = ys[i];
+        // Relleno CPU por DOS CADENAS (poligono convexo): O(altura) frente a O(lados*altura)
+        // del barrido que recalcula min/max por scanline. El polígono ya llega convexo.
+        constexpr u8 kMaxFillVerts = 16u;
+        if (n > kMaxFillVerts) return false;
+        s32 x32[kMaxFillVerts];
+        s32 y32[kMaxFillVerts];
+        for (u8 i = 0u; i < n; ++i) {
+            x32[i] = xs[i];
+            y32[i] = ys[i];
         }
-        for (s32 y = ymin; y <= ymax; ++y) {
-            s32 xl = 32767, xr = -32768;
-            for (u8 i = 0u; i < n; ++i) {
-                const u8 j = (static_cast<u8>(i + 1u) == n) ? 0u : static_cast<u8>(i + 1u);
-                s32 y0 = ys[i], y1 = ys[j], x0 = xs[i], x1 = xs[j];
-                if (y0 == y1) continue;
-                if (y0 > y1) {
-                    const s32 t = y0; y0 = y1; y1 = t;
-                    const s32 u = x0; x0 = x1; x1 = u;
-                }
-                if (y < y0 || y >= y1) continue; // semiabierto: sin doble cuenta
-                const s32 x = x0 + (x1 - x0) * (y - y0) / (y1 - y0);
-                if (x < xl) xl = x;
-                if (x > xr) xr = x;
-            }
-            if (xl > xr) continue;
-            for (s32 x = xl; x <= xr; ++x) write_pixel(x, y, color);
-        }
+        eng::math3d::convex_spans(
+            eng::Span<const s32>(x32, n), eng::Span<const s32>(y32, n),
+            [&](s32 y, s32 xl, s32 xr) {
+                for (s32 x = xl; x <= xr; ++x) write_pixel(x, y, color);
+            });
         return true;
     }
 

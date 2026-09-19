@@ -63,34 +63,17 @@ template <typename S>
 	return a + mul_norm(b - a, t);
 }
 
-/// Inverso de `lerp`: `t` tal que `lerp(a,b,t) == v`. Necesita división.
+/// Inverso de `lerp`: `t` tal que `lerp(a,b,t) == v`. Necesita división (la aporta el
+/// escalar por `scalar_div<S>`: `float`/enteros con `/`, `Fixed` con `divs.w` saturante).
 template <typename S>
 [[nodiscard]] constexpr S inv_lerp(S a, S b, S v) {
-	require_division<S>();
-	return (v - a) / (b - a);
+	return eng::math::scalar_div<S>::op(v - a, b - a);
 }
 
-/// Reescala `v` del rango `[in_lo, in_hi]` al `[out_lo, out_hi]`. Necesita división.
+/// Reescala `v` del rango `[in_lo, in_hi]` al `[out_lo, out_hi]` (división por `scalar_div`).
 template <typename S>
 [[nodiscard]] constexpr S remap(S v, S in_lo, S in_hi, S out_lo, S out_hi) {
-	require_division<S>();
-	return out_lo + (v - in_lo) / (in_hi - in_lo) * (out_hi - out_lo);
-}
-
-/// `inv_lerp` para fixed: usa `div_norm` (división **explícita** y saturante) en vez de
-/// `operator/`, que el núcleo no ofrece. Todos los argumentos con el mismo exponente.
-template <int E, typename P>
-[[nodiscard]] constexpr Fixed<s16, E, P> inv_lerp(Fixed<s16, E, P> a, Fixed<s16, E, P> b,
-						  Fixed<s16, E, P> v) {
-	return div_norm(v - a, b - a);
-}
-
-/// `remap` para fixed, por la misma vía explícita (`div_norm` + `mul_norm`).
-template <int E, typename P>
-[[nodiscard]] constexpr Fixed<s16, E, P> remap(Fixed<s16, E, P> v, Fixed<s16, E, P> in_lo,
-					       Fixed<s16, E, P> in_hi, Fixed<s16, E, P> out_lo,
-					       Fixed<s16, E, P> out_hi) {
-	const Fixed<s16, E, P> t = div_norm(v - in_lo, in_hi - in_lo);
+	const S t = eng::math::scalar_div<S>::op(v - in_lo, in_hi - in_lo);
 	return out_lo + mul_norm(t, out_hi - out_lo);
 }
 

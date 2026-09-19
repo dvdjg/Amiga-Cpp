@@ -1,4 +1,5 @@
 #define ENG_SCALAR_RETRO16  // host: instancia retro (eng::real=q12, coord=q0)
+#include <eng/retro/fixed_mesh.hpp>
 // Test host de eng::math3d (especialización 4.12 sobre la librería genérica).
 // Valida identidad, escala, rotación sobre Z, composición, transform y el afín.
 #include <eng/platform/amiga/gfx3d.hpp>

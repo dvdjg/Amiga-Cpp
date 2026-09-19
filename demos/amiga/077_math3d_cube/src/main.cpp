@@ -1,3 +1,4 @@
+#include <eng/retro/fixed_mesh.hpp>
 // Demo 077 - Cubo 3D en alambre (math3d + mesh3d) sobre EHB.
 //
 // Objetivo: validar EN HARDWARE (68000, sin soft-float) la cadena

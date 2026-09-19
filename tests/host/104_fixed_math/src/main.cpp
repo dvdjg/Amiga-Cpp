@@ -276,6 +276,20 @@ int main() {
 		std::printf("  sin err: 1024=%.4f 256=%.4f\n", e_def, e_lo);
 	}
 
+	// --- Repr ancho (`Fixed<s32,12>`): misma maquinaria, doble ancho (host/32 bits) ------
+	{
+		using W = em::Fixed<eng::s32, 12>;
+		const W half_pi {static_cast<eng::s32>(std::lround(kPi / 2.0f * 4096.0f))};
+		check(std::fabs(em::to_double(em::scalar_sin<W>::op(half_pi)) - 1.0) <= 3.0e-3,
+		      "sin<Fixed<s32,12>>(pi/2) = 1");
+		check(std::fabs(em::to_double(em::scalar_sqrt<W>::op(W {4 << 12})) - 2.0) <= 4.0e-3,
+		      "sqrt<Fixed<s32,12>>(4) = 2");
+		check(std::fabs(em::to_double(em::scalar_exp2<W>::op(W {1 << 12})) - 2.0) <= 8.0e-3,
+		      "exp2<Fixed<s32,12>>(1) = 2");
+		check(std::fabs(em::to_double(em::scalar_log2<W>::op(W {4 << 12})) - 2.0) <= 8.0e-3,
+		      "log2<Fixed<s32,12>>(4) = 2");
+	}
+
 	if (g_fail != 0) {
 		std::printf("%d fallo(s)\n", g_fail);
 		return 1;

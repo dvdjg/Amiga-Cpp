@@ -159,6 +159,27 @@ struct Object3D {
 	[[nodiscard]] Face* face(s16 i) { return face3d(object_bytes(*this), i); }
 };
 
+// Invariante de layout: los tipos con escala (`q0`/`q12`) describen el `objdat` empaquetado
+// de `obj2c` sin cambiar ni el tamano ni los offsets de campo.
+static_assert(sizeof(Point3D) == 6, "objdat: Point3D = 3x s16 (LONGITUD)");
+static_assert(sizeof(Node3D) == 14 && __builtin_offsetof(Node3D, point) == 2 &&
+		      __builtin_offsetof(Node3D, vertex) == 8,
+	      "objdat: Node3D flags+pad, point@2, vertex@8");
+static_assert(sizeof(Edge) == 6 && sizeof(FaceIndex) == 4, "objdat: Edge 6 B, FaceIndex 4 B");
+static_assert(sizeof(Face) == 10 && __builtin_offsetof(Face, count) == 8,
+	      "objdat: Face normal(6)+flags+material+count@8");
+static_assert(__builtin_offsetof(Mesh3D, materials) == 8, "objdat: cabecera 5x s16");
+
+// Offsets que lee `flatshade_asm.s` (solo en la ABI de 32 bits del objetivo m68k).
+#if defined(__SIZEOF_POINTER__) && __SIZEOF_POINTER__ == 4
+static_assert(__builtin_offsetof(Object3D, objdat) == 0 &&
+		      __builtin_offsetof(Object3D, vertexGroups) == 4 &&
+		      __builtin_offsetof(Object3D, edgeGroups) == 8 &&
+		      __builtin_offsetof(Object3D, faceGroups) == 12 &&
+		      __builtin_offsetof(Object3D, objectToWorld) == 38,
+	      "Object3D: offsets leidos por flatshade_asm.s");
+#endif
+
 /// Diagnóstico: el descriptor de malla no cuadra con su blob. `illegal` en m68k.
 [[noreturn]] inline void mesh_invalid() { __builtin_trap(); }
 
