@@ -14,6 +14,9 @@ vértices de cada par de bases. Rotación del objeto `turns(frame*6)` y fase de 
   puntos generados son 12.4).
 - **Links** (`draw_links`): port de `DrawLinks` (una línea por cara del asset `dna.c`,
   formato línea: dos índices contiguos).
+- **Las dos hebras** (`draw_strands`): conecta nodos consecutivos de cada strand. Sin esto
+  sólo se veían los pares de bases; con las hebras la **doble hélice** se reconoce (validado
+  a ojo y con Ollama, que antes decía "no se ve un ADN").
 - **Asset** `data/dna.c` → `Mesh3D` del engine (`Span<u8>` + grupos `Span<s16>`).
 
 ## Qué falta (ver `docs/demos/effects/DNA3D_PORT_PLAN.md`)

@@ -171,6 +171,21 @@ void draw_links(obj::Object3D& object, eng::PlaneBytes plane, eng::amiga::Minima
 	} while (*group);
 }
 
+/// Las DOS hebras (backbone): conecta nodos consecutivos de cada strand. Strand A =
+/// nodos pares; strand B = impares (`GenCircularDoubleHelix` escribe 2 nodos por paso).
+void draw_strands(obj::Object3D& object, eng::PlaneBytes plane, eng::amiga::MinimalBackend& backend) {
+	for (int i = 0; i < kNPoints - 1; ++i) {
+		const s16 a0 = static_cast<s16>(2 + 14 * (2 * i));
+		const s16 a1 = static_cast<s16>(2 + 14 * (2 * i + 2));
+		const s16 b0 = static_cast<s16>(2 + 14 * (2 * i + 1));
+		const s16 b1 = static_cast<s16>(2 + 14 * (2 * i + 3));
+		backend.blitter_line(plane, kBytesPerRow, object.vertex(a0)->x.v, object.vertex(a0)->y.v,
+				     object.vertex(a1)->x.v, object.vertex(a1)->y.v);
+		backend.blitter_line(plane, kBytesPerRow, object.vertex(b0)->x.v, object.vertex(b0)->y.v,
+				     object.vertex(b1)->x.v, object.vertex(b1)->y.v);
+	}
+}
+
 struct Dna3DDemo {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
@@ -215,6 +230,7 @@ struct Dna3DDemo {
 		gen_helix(m_object, static_cast<s16>(f * 24u));
 		transform_all(m_object);
 		draw_links(m_object, plane, backend);
+		draw_strands(m_object, plane, backend);
 
 		backend.install_copper_list(m_copper_ptrs[active]);
 		m_active = static_cast<u8>((active + 1u) % kRing);
