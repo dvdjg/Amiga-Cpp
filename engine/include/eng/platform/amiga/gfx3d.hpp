@@ -44,12 +44,19 @@ template <class S>
 
 } // namespace detail
 
-/// Carga `M = Rx(ax)·Ry(ay)·Rz(az)` (igual que `LoadRotate3D`). Ángulos en **radianes**.
-template <class S>
-inline void load_rotate(Mat3<S>& m, S ax, S ay, S az) {
-	const S sinX = eng::math::scalar_sin<S>::op(ax), cosX = eng::math::scalar_cos<S>::op(ax);
-	const S sinY = eng::math::scalar_sin<S>::op(ay), cosY = eng::math::scalar_cos<S>::op(ay);
-	const S sinZ = eng::math::scalar_sin<S>::op(az), cosZ = eng::math::scalar_cos<S>::op(az);
+/// Carga `M = Rx(ax)·Ry(ay)·Rz(az)` (igual que `LoadRotate3D`). Ángulos `Angle<S,Unit>`.
+template <class S, class Unit>
+inline void load_rotate(Mat3<S>& m, eng::math::Angle<S, Unit> ax, eng::math::Angle<S, Unit> ay,
+			eng::math::Angle<S, Unit> az) {
+	S sinX {};
+	S cosX {};
+	S sinY {};
+	S cosY {};
+	S sinZ {};
+	S cosZ {};
+	eng::math::angle_sincos<S, Unit>::op(ax, sinX, cosX);
+	eng::math::angle_sincos<S, Unit>::op(ay, sinY, cosY);
+	eng::math::angle_sincos<S, Unit>::op(az, sinZ, cosZ);
 
 	const S tmp0 = eng::math::mul_norm(sinY, cosZ);
 	const S tmp1 = eng::math::mul_norm(sinY, sinZ);
@@ -65,12 +72,19 @@ inline void load_rotate(Mat3<S>& m, S ax, S ay, S az) {
 	m.m[2][2] = eng::math::mul_norm(cosX, cosY);
 }
 
-/// Carga `M = Rz(az)·Ry(ay)·Rx(ax)` (igual que `LoadReverseRotate3D`). Ángulos en radianes.
-template <class S>
-inline void load_reverse_rotate(Mat3<S>& m, S ax, S ay, S az) {
-	const S sinX = eng::math::scalar_sin<S>::op(ax), cosX = eng::math::scalar_cos<S>::op(ax);
-	const S sinY = eng::math::scalar_sin<S>::op(ay), cosY = eng::math::scalar_cos<S>::op(ay);
-	const S sinZ = eng::math::scalar_sin<S>::op(az), cosZ = eng::math::scalar_cos<S>::op(az);
+/// Carga `M = Rz(az)·Ry(ay)·Rx(ax)` (igual que `LoadReverseRotate3D`). Ángulos `Angle<S,Unit>`.
+template <class S, class Unit>
+inline void load_reverse_rotate(Mat3<S>& m, eng::math::Angle<S, Unit> ax, eng::math::Angle<S, Unit> ay,
+				eng::math::Angle<S, Unit> az) {
+	S sinX {};
+	S cosX {};
+	S sinY {};
+	S cosY {};
+	S sinZ {};
+	S cosZ {};
+	eng::math::angle_sincos<S, Unit>::op(ax, sinX, cosX);
+	eng::math::angle_sincos<S, Unit>::op(ay, sinY, cosY);
+	eng::math::angle_sincos<S, Unit>::op(az, sinZ, cosZ);
 
 	const S tmp0 = eng::math::mul_norm(sinX, sinY);
 	const S tmp1 = eng::math::mul_norm(cosX, sinY);

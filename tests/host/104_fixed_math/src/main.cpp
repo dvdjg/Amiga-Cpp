@@ -223,7 +223,8 @@ int main() {
 	// --- rotate2 por ángulo (sincos en una pasada) --------------------------
 	{
 		const em::Vec<2, er::q12> v {q(1.0f), q(0.0f)};
-		const em::Vec<2, er::q12> r = em::rotate2(v, q(kPi / 2.0f)); // (0, 1)
+		const em::Vec<2, er::q12> r =
+			em::rotate2(v, em::Angle<er::q12, em::angle::radians> {q(kPi / 2.0f)}); // (0, 1)
 		check(std::fabs(em::to_double(r.v[0])) <= 8.0e-3 &&
 			      std::fabs(em::to_double(r.v[1]) - 1.0) <= 8.0e-3,
 		      "rotate2<q12>(ángulo pi/2) = (0,1)");
@@ -239,7 +240,8 @@ int main() {
 		const em::Vec<2, er::q12> origin {q(0.0f), q(0.0f)};
 		check(std::fabs(em::to_double(em::angle_to(origin, up)) - 1.5707963) <= 2.5e-2,
 		      "angle_to((0,0),(0,1)) = pi/2");
-		const em::Vec<2, er::q12> h = em::from_angle(q(1.5707963f)); // pi/2 -> (0,1)
+		const em::Vec<2, er::q12> h =
+			em::from_angle(em::Angle<er::q12, em::angle::radians> {q(1.5707963f)}); // pi/2 -> (0,1)
 		check(std::fabs(em::to_double(h.v[0])) <= 3.0e-2 &&
 			      std::fabs(em::to_double(h.v[1]) - 1.0) <= 3.0e-2,
 		      "from_angle(pi/2) = (0,1)");

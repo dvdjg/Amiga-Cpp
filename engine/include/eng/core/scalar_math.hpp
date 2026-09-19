@@ -398,4 +398,16 @@ template <class S, class Unit>
 	return angle_cos<S, Unit>::op(a);
 }
 
+/// `sincos` de un ángulo en **una sola pasada** (un índice de tabla para ambos).
+template <class S, class Unit>
+struct angle_sincos {
+	static constexpr void op(Angle<S, Unit> a, S& out_sin, S& out_cos) {
+		scalar_sincos<S>::op(angle_radians<S, Unit>::op(a.value), out_sin, out_cos);
+	}
+};
+template <class S, class Unit>
+constexpr void sincos(Angle<S, Unit> a, S& out_sin, S& out_cos) {
+	angle_sincos<S, Unit>::op(a, out_sin, out_cos);
+}
+
 } // namespace eng::math

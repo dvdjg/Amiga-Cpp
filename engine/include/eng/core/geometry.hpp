@@ -105,14 +105,13 @@ template <typename S>
 		 mul_norm(s, v.v[0]) + mul_norm(c, v.v[1])}};
 }
 
-/// Rotación 2D por **ángulo** (en radianes, del propio escalar): obtiene `(cos, sin)` con
-/// `scalar_sincos<S>` (una sola pasada) y delega en `rotate2(v, c, s)`. Para fixed con
-/// `fixed_math.hpp` esto lee la tabla de seno una vez, no dos.
-template <typename S>
-[[nodiscard]] constexpr Vec<2, S> rotate2(const Vec<2, S>& v, S angle) {
+/// Rotación 2D por **ángulo** (`Angle<S,Unit>`: la unidad va en el tipo): obtiene
+/// `(cos, sin)` con `angle_sincos` (una sola pasada) y delega en `rotate2(v, c, s)`.
+template <typename S, typename Unit>
+[[nodiscard]] constexpr Vec<2, S> rotate2(const Vec<2, S>& v, Angle<S, Unit> angle) {
 	S s {};
 	S c {};
-	scalar_sincos<S>::op(angle, s, c);
+	angle_sincos<S, Unit>::op(angle, s, c);
 	return rotate2(v, c, s);
 }
 
@@ -123,13 +122,13 @@ template <typename S>
 	return scalar_atan2<S>::op(v.v[1], v.v[0]);
 }
 
-/// Vector **unitario** en la dirección `angle` (radianes): `(cos, sin)`, con
-/// `scalar_sincos<S>` en una sola pasada.
-template <typename S>
-[[nodiscard]] constexpr Vec<2, S> from_angle(S angle) {
+/// Vector **unitario** en la dirección `angle` (`Angle<S,Unit>`): `(cos, sin)`, con
+/// `angle_sincos` en una sola pasada.
+template <typename S, typename Unit>
+[[nodiscard]] constexpr Vec<2, S> from_angle(Angle<S, Unit> angle) {
 	S s {};
 	S c {};
-	scalar_sincos<S>::op(angle, s, c);
+	angle_sincos<S, Unit>::op(angle, s, c);
 	return {{c, s}};
 }
 

@@ -42,12 +42,18 @@ constexpr Turns turns(u16 a) { return Turns {q12 {static_cast<s16>(a)}}; }
 using eng::math::cos;
 using eng::math::sin;
 
-/// Convierte un **índice** de ángulo (0..4095 = 0..2π) a radianes 4.12. Redondeo al más
-/// cercano; el viaje índice→radianes→índice es exacto (se comprueba en HOST-177).
-constexpr q12 angle_to_radians(u32 steps) {
+/// Ángulo en **radianes** sobre `q12`: es `Angle<q12, angle::radians>`.
+using Radians = eng::math::Angle<q12, eng::math::angle::radians>;
+
+/// Construye un ángulo en radianes desde un `q12` (el escalar ya en radianes).
+constexpr Radians radians(q12 a) { return Radians {a}; }
+
+/// Convierte un **índice** de ángulo (0..4095 = 0..2π) a un ángulo en radianes. Redondeo
+/// al más cercano; el viaje índice→radianes→índice es exacto (se comprueba en HOST-177).
+constexpr Radians angle_to_radians(u32 steps) {
 	static_assert(sizeof(q12) == 2, "angle_to_radians: q12 es de 16 bits");
-	return q12 {static_cast<s16>(
-		(static_cast<s32>(steps & (kAngleSteps - 1u)) * 411774 + 32768) >> 16)};
+	return Radians {q12 {static_cast<s16>(
+		(static_cast<s32>(steps & (kAngleSteps - 1u)) * 411774 + 32768) >> 16)}};
 }
 
 } // namespace eng::retro
@@ -69,6 +75,18 @@ struct angle_cos<Fixed<s16, 12, P>, angle::turns> {
 		return Fixed<s16, 12, P> {eng::retro::kSinQ12[(static_cast<u16>(a.value.v) +
 								eng::retro::kHalfPi) &
 							       (eng::retro::kAngleSteps - 1u)]};
+	}
+};
+
+/// `sincos` de un ángulo en vueltas sobre `q12`: un índice, dos lecturas de tabla.
+template <typename P>
+struct angle_sincos<Fixed<s16, 12, P>, angle::turns> {
+	static constexpr void op(Angle<Fixed<s16, 12, P>, angle::turns> a,
+				 Fixed<s16, 12, P>& out_sin, Fixed<s16, 12, P>& out_cos) {
+		const s32 idx = static_cast<u16>(a.value.v);
+		out_sin = Fixed<s16, 12, P> {eng::retro::kSinQ12[idx & (eng::retro::kAngleSteps - 1u)]};
+		out_cos = Fixed<s16, 12, P> {
+			eng::retro::kSinQ12[(idx + eng::retro::kHalfPi) & (eng::retro::kAngleSteps - 1u)]};
 	}
 };
 

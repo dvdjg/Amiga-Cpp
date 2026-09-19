@@ -133,7 +133,7 @@ void geometry_for(const char* tag, float tol) {
 		S sc_sin {};
 		S sc_cos {};
 		em::scalar_sincos<S>::op(S(0.6f), sc_sin, sc_cos);
-		const V2 r_ang = em::rotate2(a, S(0.6f));
+		const V2 r_ang = em::rotate2(a, em::Angle<S, em::angle::radians> {S(0.6f)});
 		const V2 r_cs = em::rotate2(a, sc_cos, sc_sin);
 		check(em::to_double(r_ang.v[0]) == em::to_double(r_cs.v[0]) &&
 			      em::to_double(r_ang.v[1]) == em::to_double(r_cs.v[1]),
@@ -148,7 +148,7 @@ void geometry_for(const char* tag, float tol) {
 		check(std::fabs(em::to_double(em::angle_of(up)) - half_pi) <=
 			      static_cast<double>(tol) * 3.0,
 		      "angle_of(0,1) = pi/2");
-		const V2 unit = em::from_angle(S(1.5707963f));
+		const V2 unit = em::from_angle(em::Angle<S, em::angle::radians> {S(1.5707963f)});
 		check(std::fabs(em::to_double(unit.v[1]) - 1.0) <= static_cast<double>(tol) * 3.0,
 		      "from_angle(pi/2).y = 1");
 		check(std::fabs(em::to_double(em::angle_to(origin, up)) - half_pi) <=

@@ -276,7 +276,8 @@ inline void update_object_transformation(Object3D& object) {
 	// objeto -> mundo: Rx * Ry * Rz * S * T
 	{
 		math3d::Affine3<>& a = object.objectToWorld;
-		math3d::load_rotate(a.m, r.x, r.y, r.z);
+		math3d::load_rotate(a.m, eng::retro::radians(r.x), eng::retro::radians(r.y),
+				    eng::retro::radians(r.z));
 		math3d::scale(a.m, s.x, s.y, s.z);
 		a.t = eng::math::Vec<3, eng::retro::q0> {{t.x, t.y, t.z}};
 	}
@@ -301,7 +302,8 @@ inline void update_object_transformation(Object3D& object) {
 		m_scale.m.m[2][2] = eng::retro::q12 {div_wide(eng::retro::kOne8_24, s.z.v)};
 
 		math3d::Mat3<> m_rotate = math3d::Mat3<>::identity();
-		math3d::load_reverse_rotate(m_rotate, -r.x, -r.y, -r.z);
+		math3d::load_reverse_rotate(m_rotate, eng::retro::radians(-r.x), eng::retro::radians(-r.y),
+					    eng::retro::radians(-r.z));
 		object.worldToObject = eng::math::compose(m_scale, math3d::Affine3<> {m_rotate, {}});
 	}
 
@@ -326,7 +328,8 @@ inline void update_object_transformation_forward(Object3D& object) {
 	const Point3R& s = object.scale;
 	const Point3C& t = object.translate;
 	math3d::Affine3<>& a = object.objectToWorld;
-	math3d::load_rotate(a.m, r.x, r.y, r.z);
+	math3d::load_rotate(a.m, eng::retro::radians(r.x), eng::retro::radians(r.y),
+			    eng::retro::radians(r.z));
 	// La mayoria de efectos (p. ej. bobs3d) usan escala 1.0 (4.12: 4096), asi que el
 	// `scale` seria una identidad de 9 `muls.w`. Se salta cuando no aporta nada.
 	if (s.x.v != (1 << 12) || s.y.v != (1 << 12) || s.z.v != (1 << 12)) {

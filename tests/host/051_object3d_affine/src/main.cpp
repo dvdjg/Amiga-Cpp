@@ -87,8 +87,8 @@ int main() {
 	// casos con escalas/traslaciones distintas (como la demo: scale 1.0, t=(0,0,-4000)).
 	for (u16 a = 0; a < 4096; a += 7) {
 		eng::object3d::Object3D o {};
-	o.rotate = {eng::retro::angle_to_radians(a), eng::retro::angle_to_radians(a),
-		    eng::retro::angle_to_radians(a)};
+	o.rotate = {eng::retro::angle_to_radians(a).value, eng::retro::angle_to_radians(a).value,
+		    eng::retro::angle_to_radians(a).value};
 	o.scale = {eng::retro::q12 {4096}, eng::retro::q12 {4096}, eng::retro::q12 {4096}};
 	o.translate = {eng::retro::q0 {0}, eng::retro::q0 {0}, eng::retro::q0 {-4000}};
 		eng::object3d::update_object_transformation(o);
