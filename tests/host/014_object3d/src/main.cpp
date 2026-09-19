@@ -17,30 +17,37 @@ static void check(bool ok, const char* msg) {
 int main() {
 	// Mesh minimo: 1 vertice empaquetado [flags, ox, oy, oz, x, y, z].
 	static short data[7] = {0, 111, 222, 333, 0, 0, 0};
+	static short empty_group[1] = {0};
 	const eng::Span<eng::u8> bytes {reinterpret_cast<eng::u8*>(data), sizeof(data)};
 	Mesh3D mesh {};
 	mesh.vertices = 1;
 	mesh.bytes = bytes;
-	mesh.vertexGroups = data;
-	mesh.edgeGroups = data;
-	mesh.faceGroups = data;
-	mesh.objects = data;
+	mesh.vertexGroups = empty_group;
+	mesh.edgeGroups = empty_group;
+	mesh.faceGroups = empty_group;
+	mesh.objects = nullptr;
 
 	Object3D obj {};
 	new_object3d(obj, mesh);
 	check(obj.objdat == bytes.data() && obj.objdat_size == bytes.size(), "new_object3d enlaza objdat");
 	check(obj.scale.x.v == (1 << 12) && obj.scale.y.v == (1 << 12), "scale inicial 1.0 (4.12)");
 
-	// Validacion del descriptor: blob no vacio y grupos dentro de rango.
+	// Validacion del descriptor: blob no vacio, grupos dentro de rango y sin trampa.
 	check(mesh_validate(mesh), "mesh_validate: malla valida");
+	check(new_object3d_checked(obj, mesh), "new_object3d_checked: malla valida -> true");
 	{
 		Mesh3D no_blob = mesh;
 		no_blob.bytes = {};
 		check(!mesh_validate(no_blob), "mesh_validate: sin blob -> false");
+		check(!new_object3d_checked(obj, no_blob), "new_object3d_checked: sin blob -> false");
 		static short bad_group[2] = {1000, 0};
 		Mesh3D out_of_range = mesh;
 		out_of_range.vertexGroups = bad_group;
 		check(!mesh_validate(out_of_range), "mesh_validate: grupo fuera de rango -> false");
+		static short odd_group[2] = {3, 0};
+		Mesh3D misaligned = mesh;
+		misaligned.vertexGroups = odd_group;
+		check(!mesh_validate(misaligned), "mesh_validate: offset impar -> false");
 	}
 
 	// Offsets de las macros (indice = offset de byte; primer vertice = 2).

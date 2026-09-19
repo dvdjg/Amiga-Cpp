@@ -111,9 +111,12 @@ struct Mesh3D {
 	/// offset de byte). Sustituye al `void*` crudo: el formato por campo lo describen los
 	/// structs `Point3D`/`Node3D`/`Edge`/`Face` de más abajo.
 	eng::Span<eng::u8> bytes {};
-	s16* vertexGroups = nullptr;
-	s16* edgeGroups = nullptr;
-	s16* faceGroups = nullptr;
+	/// Grupos de índices (offsets de byte) terminados por 0, dentro de `bytes`.
+	eng::Span<s16> vertexGroups {};
+	eng::Span<s16> edgeGroups {};
+	eng::Span<s16> faceGroups {};
+	/// Lista de objetos (`#grupos, [vertex edge face]..., 0`): no es un grupo de índices,
+	/// así que se queda cruda (y sin validar como grupo).
 	s16* objects = nullptr;
 };
 
@@ -143,9 +146,9 @@ struct Object3D {
 /// Diagnóstico: el descriptor de malla no cuadra con su blob. `illegal` en m68k.
 [[noreturn]] inline void mesh_invalid() { __builtin_trap(); }
 
-/// Valida lo mínimo del descriptor de malla: que los grupos referenciados quepan en el
-/// blob. El recorrido está acotado al propio blob (no lee fuera aunque el asset no
-/// termine en 0). Devuelve `false` si el asset está corrupto o sin `bytes`.
+/// Valida el descriptor de malla contra su blob: cada offset de grupo dentro de `bytes` y
+/// alineado a palabra (`s16`), y cada cara con `count >= 0` y sus `FaceIndex` dentro del
+/// blob. Un asset corrupto devuelve `false` (no se recorre memoria fuera del blob).
 [[nodiscard]] inline bool mesh_validate(const Mesh3D& mesh) {
 	if (mesh.bytes.empty()) {
 		return false;
@@ -153,43 +156,59 @@ struct Object3D {
 	const eng::u8* base = mesh.bytes.data();
 	const eng::u32 n = static_cast<eng::u32>(mesh.bytes.size());
 	const eng::u8* end = base + n;
-	const s16* groups[] = {mesh.vertexGroups, mesh.edgeGroups, mesh.faceGroups, mesh.objects};
-	for (const s16* g : groups) {
-		if (g == nullptr) {
-			continue;
-		}
-		const eng::u8* gp = reinterpret_cast<const eng::u8*>(g);
-		if (gp < base || gp + 2 > end) {
-			return false;
-		}
-		for (const s16* p = g; reinterpret_cast<const eng::u8*>(p) + 2 <= end; ++p) {
-			const s16 off = *p;
+	auto valid_group = [&](const eng::Span<s16>& g) {
+		for (s16 off : g) {
 			if (off == 0) {
-				break;
+				continue;
 			}
-			if (off < 0 || static_cast<eng::u32>(off) >= n) {
+			if (off < 0 || static_cast<eng::u32>(off) >= n || (off & 1) != 0) {
 				return false;
 			}
+		}
+		return true;
+	};
+	if (!valid_group(mesh.vertexGroups) || !valid_group(mesh.edgeGroups) ||
+	    !valid_group(mesh.faceGroups)) {
+		return false;
+	}
+	for (s16 off : mesh.faceGroups) {
+		if (off == 0) {
+			continue;
+		}
+		const Face* f = reinterpret_cast<const Face*>(base + off);
+		if (f->count < 0) {
+			return false;
+		}
+		if (base + off + 10 + static_cast<eng::u32>(f->count) * 4u > end) {
+			return false;
 		}
 	}
 	return true;
 }
 
-/// Enlaza el mesh al objeto (equivalente a `NewObject3D` sin reservar memoria: el
-/// `Object3D` es del llamador). `scale` queda a 1.0 (4.12). **Valida** el descriptor
-/// antes de enlazarlo: un asset corrupto detiene la CPU en vez de corromper memoria en
-/// el recorrido por offsets.
-inline void new_object3d(Object3D& object, const Mesh3D& mesh) {
+/// Enlaza el mesh al objeto validando primero (sin detener la CPU): devuelve `false` si
+/// el descriptor no cuadra. Úsalo cuando quieras gestionar el asset corrupto.
+[[nodiscard]] inline bool new_object3d_checked(Object3D& object, const Mesh3D& mesh) {
 	if (!mesh_validate(mesh)) {
-		mesh_invalid();
+		return false;
 	}
 	object.objdat = mesh.bytes.data();
 	object.objdat_size = static_cast<eng::u32>(mesh.bytes.size());
-	object.vertexGroups = mesh.vertexGroups;
-	object.edgeGroups = mesh.edgeGroups;
-	object.faceGroups = mesh.faceGroups;
+	object.vertexGroups = mesh.vertexGroups.data();
+	object.edgeGroups = mesh.edgeGroups.data();
+	object.faceGroups = mesh.faceGroups.data();
 	object.objects = mesh.objects;
 	object.scale = Point3R {eng::retro::q12 {1 << 12}, eng::retro::q12 {1 << 12}, eng::retro::q12 {1 << 12}};
+	return true;
+}
+
+/// Enlaza el mesh al objeto (equivalente a `NewObject3D` sin reservar memoria: el
+/// `Object3D` es del llamador). `scale` queda a 1.0 (4.12). Detiene la CPU si el
+/// descriptor no valida (usa `new_object3d_checked` para gestionarlo sin trampa).
+inline void new_object3d(Object3D& object, const Mesh3D& mesh) {
+	if (!new_object3d_checked(object, mesh)) {
+		mesh_invalid();
+	}
 }
 
 /// Vista de bytes del blob de un `Object3D` (mutable): lo que consumen los accesores.
