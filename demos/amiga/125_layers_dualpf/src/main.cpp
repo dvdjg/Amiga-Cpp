@@ -111,6 +111,9 @@ constexpr u16 kDmacon = 0x8380; // SET | MASTER | COPPER | BITPLANE
 constexpr u8 kLists = 2;
 constexpr u32 kCopperWords = 2048;
 constexpr s16 kStep = 8; // banda de gradiente en lineas
+// Conmutador de perfilado: a `false` no emite las escrituras de color por banda (para medir
+// su coste aislado). Con `true`, el efecto completo.
+constexpr bool kBands = true;
 
 /// `normfx` de libgfx: normaliza un producto fijo a entero (`(x) >> 12`).
 [[nodiscard]] constexpr s16 norm12(s32 x) {
@@ -328,8 +331,12 @@ private:
 					bg_pal = bg_gradient_pixels;
 				}
 				bg_pal++;
-				for (u16 i = 0; i < 6u; ++i) {
-					sched.move32(static_cast<u16>(0x180u + (i + 1u) * 2u), *bg_pal++);
+				if constexpr (kBands) {
+					for (u16 i = 0; i < 6u; ++i) {
+						sched.move32(static_cast<u16>(0x180u + (i + 1u) * 2u),
+							     *bg_pal);
+						++bg_pal;
+					}
 				}
 			}
 			if (f & 32u) {
@@ -337,8 +344,12 @@ private:
 					fg_pal = fg_gradient_pixels;
 				}
 				fg_pal++;
-				for (u16 i = 0; i < 5u; ++i) {
-					sched.move32(static_cast<u16>(0x180u + (i + 9u) * 2u), *fg_pal++);
+				if constexpr (kBands) {
+					for (u16 i = 0; i < 5u; ++i) {
+						sched.move32(static_cast<u16>(0x180u + (i + 9u) * 2u),
+							     *fg_pal);
+						++fg_pal;
+					}
 				}
 			}
 		}
