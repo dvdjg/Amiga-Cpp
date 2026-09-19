@@ -386,9 +386,16 @@ esa abstracción (fija formatos y convenciones a fuego), así que al portarlo ha
   con `eng::retro::angle_to_radians(a)` (el viaje índice→radianes→tabla es exacto, así que
   el valor no cambia). No metas índices en una firma tipada ni llames a `sin_q12` desde
   código nuevo.
-- **Tabla de seno.** `sin_q12`/`cos_q12` (tabla 4.12 exacta) sólo para **generar tablas**
-  idénticas al original (p. ej. `plasma`); para cálculo en runtime usa
-  `scalar_sin<S>`/`scalar_cos<S>`.
+- **Tabla de seno.** Para generar tablas idénticas al original (p. ej. `plasma`) usa el
+  ángulo en **vueltas** (`eng::retro::Turns` + `sin`/`cos`, índice `0..4095`), que lleva la
+  unidad **en el tipo**; para cálculo en runtime usa `scalar_sin<S>`/`scalar_cos<S>`
+  (radianes). No añadir funciones con el formato en el nombre (`cos_q12`).
+- **Inventario del corpus.** La convención está en `include/fx.h` (`SIN_MASK 0xfff`, tabla
+  `sintab[4096]`, `SIN`/`COS` inline). Efectos que usan `SIN(`/`COS(`: `anim`, `ball`,
+  `blurred`, `bumpmap-rgb`, `butterfly-gears`, `credits`, `dna3d`, `floor`, `floor-old`,
+  `growing-tree`, `layers`, `metaballs`, `plasma`, `plotter`, `prisms`, `rotator`,
+  `sea-anemone`, `shapes`, `spooky-tree`, `starfox`, `stripes`, `thunders`, `tiles8`,
+  `transparency`, `twister-rgb`, `uvmap-rgb`, `weave`.
 - **Escalar del tipo.** Donde el original escribe `Fixed`/`s16`/`fix` a fuego, deja que la
   plantilla decida: instancia `q12` (RATIO) o `q0` (LONGITUD) y deja que el compilador
   rechace mezclas. El alias concreto sólo debe aparecer en `retro/`/`platform`.

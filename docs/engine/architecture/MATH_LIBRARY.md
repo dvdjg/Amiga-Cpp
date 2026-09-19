@@ -304,7 +304,7 @@ no llamen a libgcc (`__mulsi3`/`__divsi3`) ni usen instrucciones de 68020.
 |---|---|---|
 | `core/mesh3d.hpp` | tipada (dominio) | `Vec3 = Vec<3, Fixed<s16,0>>` (LONGITUD, la coordenada del asset `obj2c`); el producto mixto usa `arith<s16>` (`muls.w`) y `mul32x16`, sin `__mulsi3` |
 | `platform/amiga/gfx3d.hpp` | tipada y **genérica sobre el escalar** | `Mat3<S>`/`Affine3<SR,SL>`/`P3<S>` son alias de plantilla; `load_rotate`/`load_reverse_rotate`/`scale`/`transform`/`inverse_rigid` reciben el escalar por plantilla y el **ángulo en radianes**; sólo usan `scalar_sin<S>`/`scalar_cos<S>` (ninguna firma nombra `q12`/`q0`/`fix`/`u16`) |
-| `retro/fixed_trig.hpp` | tipada | vista genérica de la tabla 4.12: `scalar_sin`/`scalar_cos`/`scalar_sincos<Fixed<s16,12,P>>` (ángulo en radianes) + `sin_q12`/`cos_q12` (índice exacto) y `angle_to_radians` |
+| `retro/fixed_trig.hpp` | tipada | tabla 4.12 del original: `scalar_sin`/`scalar_cos`/`scalar_sincos<Fixed<s16,12,P>>` (ángulo en radianes), el tipo de ángulo `Turns` con `sin`/`cos` (vueltas = índice exacto `0..4095`) y `angle_to_radians` |
 | `graphics/mesh_renderer.hpp` | tipada | opera sobre `Vec3` tipado; `focal` sigue en 4.12 crudo (convención) |
 | `assets/uaf.hpp` | tipada | las sub-vistas exponen vistas de dominio (`AudioSample`, `PlaneViewBytes`, `IndexedTiles`, `PaletteWords`, `SpriteWords`, `CopperWords`, `MeshAssetView`→`Vec3`); el contenedor/lectura sigue en big-endian portable |
 | `retro/lib2d.hpp` | tipada | `Vec2`/`Mat2x2`/`Rect` tipados y `translate`/`scale`/`rotate` toman `q0`/`q12` (el ángulo de `rotate` en radianes); el recorte (`clip_*`, Liang-Barsky/Sutherland-Hodgman) es aritmética de enteros de píxel por diseño |
