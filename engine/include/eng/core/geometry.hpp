@@ -115,12 +115,12 @@ template <typename S, typename Unit>
 	return rotate2(v, c, s);
 }
 
-/// Ángulo (radianes) de un vector 2D: `atan2(v.y, v.x)`, en `(-π, π]`, como
-/// `Angle<S,radians>`. Lo aporta el escalar vía `scalar_atan2` (`MiniFloat16` de serie;
-/// `Fixed` con `fixed_math.hpp`).
+/// Ángulo (radianes) de un vector 2D: `atan2(v.y, v.x)`, **garantizado en `(-π, π]`**
+/// (se aplica `wrap`), como `Angle<S,radians>`. Lo aporta el escalar vía `scalar_atan2`
+/// (`MiniFloat16` de serie; `Fixed` con `fixed_math.hpp`).
 template <typename S>
 [[nodiscard]] constexpr Angle<S, angle::radians> angle_of(const Vec<2, S>& v) {
-	return Angle<S, angle::radians> {scalar_atan2<S>::op(v.v[1], v.v[0])};
+	return wrap(Angle<S, angle::radians> {scalar_atan2<S>::op(v.v[1], v.v[0])});
 }
 
 /// Vector **unitario** en la dirección `angle` (`Angle<S,Unit>`): `(cos, sin)`, con

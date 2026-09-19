@@ -59,11 +59,14 @@ código nuevo.
 5. Doble playfield con el fondo `necrocoq` y color por línea (Copper).
 6. Test host del generador/malla + validación visual y codegen (gate §4-ter).
 
-## 6. Decisiones abiertas
+## 6. Decisiones
 
-- **Fondo**: portar los 11 frames `necrocoq` (59 KB + 10×9 KB) o dejar un degradado y marcar
-  el fondo como parcial.
-- **`TransformVertices` propia vs `lib3d::transform_vertices`**: la del original usa
-  `div16`/`MULVERTEX`; la del engine (`projector` + `div_wide`) da otra proyección. Mantener
-  la propia en la demo (fiel) o unificar (más limpio).
-- **`phi_offset`**: ¿avanza por frame como el original o `turns(frame*k)`?
+- **Fondo**: se porta el **fondo completo** `necrocoq` (11 frames + color por línea), no un
+  degradado: la foto es parte de la identidad del efecto y la política de port pide
+  fidelidad 1:1. Los assets viven en `assets/` (fuente) y se incrustan por `incbin`/include
+  como en el original.
+- **`TransformVertices`**: se **conserva la del original** (`div16`/`MULVERTEX`) en la demo,
+  porque su proyección difiere de `lib3d::transform_vertices` (`projector` + `div_wide`) y
+  el look depende de ella. `lib3d` queda para lo que comparte comportamiento (visibilidad).
+- **`phi_offset`**: avanza **por frame** como el original (no `turns(frame*k)`), para que la
+  animación sea idéntica (incluida la deriva por el `alpha += 1638` con `u16`).
