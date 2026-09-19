@@ -373,6 +373,32 @@ porque las palancas restantes (~2,5k de `load_rotate`) no compensaban el coste/r
 Ver también: [METODOLOGIA_PROFILING.md](../../guides/optimization/METODOLOGIA_PROFILING.md)
 y §12 de [OPTIMIZACION_GPP_68000.md](../../guides/optimization/OPTIMIZACION_GPP_68000.md).
 
+## 4-quater. Adaptar el original al sistema de plantillas (escalares y ángulos)
+
+El engine es **genérico sobre el escalar**: la matemática es plantilla y el tipo (fixed
+4.12, `float`, otro) se instancia según quién la use. Un original del demoscene no conoce
+esa abstracción (fija formatos y convenciones a fuego), así que al portarlo hay que
+**traducir** sus convenciones, no copiarlas:
+
+- **Ángulo.** El original suele medir el ángulo como **índice entero** de una tabla de 4096
+  pasos (`SIN(a)` con `a` en `0..4095`). Las APIs de math3d (`load_rotate`,
+  `scalar_sin`/`scalar_cos`) usan **radianes** del propio escalar. Convierte en el límite
+  con `eng::retro::angle_to_radians(a)` (el viaje índice→radianes→tabla es exacto, así que
+  el valor no cambia). No metas índices en una firma tipada ni llames a `sin_q12` desde
+  código nuevo.
+- **Tabla de seno.** `sin_q12`/`cos_q12` (tabla 4.12 exacta) sólo para **generar tablas**
+  idénticas al original (p. ej. `plasma`); para cálculo en runtime usa
+  `scalar_sin<S>`/`scalar_cos<S>`.
+- **Escalar del tipo.** Donde el original escribe `Fixed`/`s16`/`fix` a fuego, deja que la
+  plantilla decida: instancia `q12` (RATIO) o `q0` (LONGITUD) y deja que el compilador
+  rechace mezclas. El alias concreto sólo debe aparecer en `retro/`/`platform`.
+- **Vértices/geometría.** El layout empaquetado del `obj2c` (blob `Span<u8>`, campos `q0`,
+  `normal` `q12`, grupos `s16`) es contrato/ABI: se porta 1:1 y sobre él se tipa la
+  aritmética.
+- **Verificar.** Tras adaptar, pasar el gate de codegen 68000 (sin `__mulsi3`/`__divsi3`) y
+  comparar fps/captura con el original (§4-ter). Un cambio de unidades mal hecho se suele
+  ver como una rotación más rápida, lenta o desfasada, no como un fallo de compilación.
+
 ## 5. Índice de cobertura (seguimiento por librería)
 
 Estado por librería (actualizarlo en cada cambio de estado):

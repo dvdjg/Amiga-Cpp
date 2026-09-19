@@ -111,6 +111,14 @@ Para cada librería/oleada, SIN saltarse pasos:
 7. **Promoción**: dejar en `engine/` solo lo estable y validado; actualizar el
    índice de cobertura (§5 del roadmap) y este roadmap en la misma pasada.
 
+**Aviso — encajar el original en el sistema de plantillas.** El engine es genérico sobre el
+escalar (la matemática es plantilla; el tipo se instancia al usarla). Antes de portar,
+traduce las convenciones del original, no las copies: el **ángulo** del original suele ser
+un índice `0..4095` de tabla, mientras que `load_rotate`/`scalar_sin` trabajan en
+**radianes** (`eng::retro::angle_to_radians(a)`); `sin_q12` sólo para generar tablas
+exactas. Detalle y reglas en §4-quater del
+[roadmap de importación](LIBRARIES-CPP23-IMPORT-ROADMAP.md).
+
 ## Reglas de rendimiento 68000 (releer OPTIMIZACION_GPP_68000.md)
 
 - Preferir algoritmos **rápidos y exactos** a lentos y precisos (p. ej. el
