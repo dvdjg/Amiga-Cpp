@@ -98,7 +98,8 @@ public:
     /// tampoco funciona en la 054 (0 sprites), lo que apunta a la estructura de la lista
     /// que construye el compositor: falta verificar el punto de bucle de `end()` y el
     /// armado del DMA de sprite antes de tocar esto.
-    void emit_into(copper::Scheduler& sched) const {
+    template <class Sched>
+    void emit_into(Sched& sched) const {
         for (u8 i = 0; i < 8; ++i) {
             const SpriteConfig& s = m_spr[i];
             if (!s.enabled || s.data.empty()) continue;
@@ -118,9 +119,9 @@ public:
     /// Requiere que la `SpriteTemplate` describa segmentos con `data_offset` creciente
     /// (words desde el inicio de `bitmap`); cada linea de sprite ocupa
     /// `width_words*2` words (DAT y DATB intercalados).
-    template <u8 MS, u8 MP>
+    template <u8 MS, u8 MP, class Sched>
     void emit_template_into(
-        copper::Scheduler& sched,
+        Sched& sched,
         const SpriteTemplate<MS, MP>& tpl,
         u8 channel,
         u16 base_y,
@@ -206,7 +207,8 @@ private:
     ///            solo se colocan en posiciones pares).
     ///   SPRxCTL: bits 15-8 = VSTOP[7:0], bit 3 = VSTART[8], bit 2 = VSTOP[8],
     ///            bit 1 = HSTART[0], bit 0 = ATTACH.
-    static void emit_config(copper::Scheduler& sched, u8 channel, const SpriteConfig& s, Span<const u16> data) {
+    template <class Sched>
+    static void emit_config(Sched& sched, u8 channel, const SpriteConfig& s, Span<const u16> data) {
         const u16 pos = static_cast<u16>(((s.vstart & 0xff) << 8) | ((s.hpos >> 1) & 0xff));
         const u16 ctl = static_cast<u16>(
             ((s.vstop & 0xff) << 8) |

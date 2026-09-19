@@ -125,6 +125,15 @@ if [ "$#" -eq 0 ]; then
 			exit 1
 		fi
 	fi
+	# No-propietarios: los punteros a objeto en miembros deben ser eng::Ref/NonNull.
+	RAW_PTR="$ROOT/tools/check/raw-pointer-members.mjs"
+	if [ -f "$RAW_PTR" ] && command -v node >/dev/null 2>&1; then
+		echo "== raw-pointer-members =="
+		if ! node "$RAW_PTR"; then
+			echo "raw-pointer-members fallo: miembro con puntero a objeto no propietario." >&2
+			exit 1
+		fi
+	fi
 fi
 
 # Selección de tests.

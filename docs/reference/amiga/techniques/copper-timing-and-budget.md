@@ -100,6 +100,9 @@ en la pila (Chip RAM), costaba **~25 k ciclos/frame solo en borrar memoria**. Ar
 (y 44.5 con `ListBuilder` directo). Lección general: **no construir/limpiar objetos grandes en el
 hot path**; usar inicialización perezosa o almacenamiento del llamador. Se añadió además una
 librería de punteros no propietarios sin heap (`eng/core/ptr.hpp`: `Ref`/`NonNull`/`Opt`).
+Regla: los **no-propietarios a objeto** son `eng::Ref<T>`/`eng::NonNull<T>`, no `T*`
+(`Surface`, `copper::Plan` ya migrados). Ayuda: `node tools/check/raw-pointer-members.mjs`
+(aviso, lista candidatos `Tipo* m_campo`; contenedores/buffers son legítimos).
 
 **Auditoría del hot path (2026):** no quedan `fill(0)`/`memset` ni arrays grandes locales en
 `graphics/`/`field/`. Sí había un **copia de objeto grande por frame**: `Plan::begin_frame()`
