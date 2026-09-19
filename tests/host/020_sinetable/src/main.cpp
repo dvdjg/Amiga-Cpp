@@ -7,7 +7,7 @@
 //
 //   bash tools/run-host-tests.sh tests/host/020_sinetable
 
-#include <eng/retro/angles.hpp>
+#include <eng/retro/fixed_trig.hpp>
 #include <cstdio>
 
 #include <eng/retro/lib2d.hpp>

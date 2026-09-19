@@ -15,6 +15,7 @@
 #include <eng/core/types.hpp>
 #include <eng/core/arith.hpp>
 #include <eng/retro/fixed_q.hpp>
+#include <eng/retro/fixed_trig.hpp>
 
 namespace eng::retro {
 
@@ -48,6 +49,18 @@ constexpr void scale(Mat2x2& m, q12 sx, q12 sy) {
 		m.m.m[i][0] = eng::math::mul_norm(m.m.m[i][0], sx);
 		m.m.m[i][1] = eng::math::mul_norm(m.m.m[i][1], sy);
 	}
+}
+
+/// Rota la parte lineal por un ángulo en **radianes** (4.12), igual que `Rotate2D`.
+inline void rotate(Mat2x2& m, q12 a) {
+	const q12 s = eng::math::scalar_sin<q12>::op(a);
+	const q12 c = eng::math::scalar_cos<q12>::op(a);
+	const s16 m00 = m.m.m[0][0].v, m01 = m.m.m[0][1].v;
+	const s16 m10 = m.m.m[1][0].v, m11 = m.m.m[1][1].v;
+	m.m.m[0][0] = q12 {normfx(static_cast<s32>(m00) * c.v - static_cast<s32>(m01) * s.v)};
+	m.m.m[0][1] = q12 {normfx(static_cast<s32>(m00) * s.v + static_cast<s32>(m01) * c.v)};
+	m.m.m[1][0] = q12 {normfx(static_cast<s32>(m10) * c.v - static_cast<s32>(m11) * s.v)};
+	m.m.m[1][1] = q12 {normfx(static_cast<s32>(m10) * s.v + static_cast<s32>(m11) * c.v)};
 }
 
 // ============================================================================

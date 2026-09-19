@@ -1,0 +1,98 @@
+#pragma once
+
+/// \file fixed_trig.hpp
+/// **Vocabulario trigonométrico retro** (Q 4.12): la tabla de seno exacta del original
+/// (`kSinTab`, 4096 pasos) y sus dos vistas.
+///
+/// ## Dos vistas de la misma tabla
+///
+/// - **Genérica** (`scalar_sin`/`scalar_cos`/`scalar_sincos<Fixed<s16,12,P>>`): el ángulo
+///   va en **radianes** (igual que en `float`/`double` y que en `fixed_math.hpp`). Es la
+///   que usan los algoritmos genéricos (p. ej. `math3d::load_rotate`), de modo que un mismo
+///   algoritmo se instancia con `float` o con `q12` sin cambios.
+/// - **De índice** (`sin_q12`/`cos_q12`, índice `0..4095`): es la forma cruda del original
+///   y la que usan los generadores de tablas que necesitan la posición exacta (`plasma`,
+///   tests de la tabla). `angle_to_radians` convierte el índice a radianes.
+///
+/// Sólo esta cabecera (retro) nombra `Fixed<s16,12>`; el núcleo no conoce el formato Q.
+
+#include <eng/core/fixed.hpp>
+#include <eng/core/scalar_math.hpp>
+#include <eng/core/types.hpp>
+#include <eng/retro/fixed_q.hpp>
+#include <eng/retro/sintab.hpp>
+
+namespace eng::retro {
+
+/// π/2 como índice de ángulo (4096 pasos por vuelta).
+inline constexpr u16 kHalfPi = 1024;
+/// Pasos por vuelta de la tabla de seno.
+inline constexpr u32 kAngleSteps = 4096;
+
+/// Seno de un ángulo `a` (índice 0..4095 = 0..2π) en 4.12 (tabla del original).
+constexpr fix sin_q12(u16 a) { return kSinTab[a & (kAngleSteps - 1u)]; }
+/// Coseno de un ángulo `a` (índice) en 4.12.
+constexpr fix cos_q12(u16 a) { return kSinTab[(a + kHalfPi) & (kAngleSteps - 1u)]; }
+
+/// Convierte un **índice** de ángulo (0..4095 = 0..2π) a radianes 4.12. Redondeo al más
+/// cercano; el viaje índice→radianes→índice es exacto (se comprueba en HOST-177).
+constexpr q12 angle_to_radians(u32 steps) {
+	static_assert(sizeof(q12) == 2, "angle_to_radians: q12 es de 16 bits");
+	return q12 {static_cast<s16>(
+		(static_cast<s32>(steps & (kAngleSteps - 1u)) * 411774 + 32768) >> 16)};
+}
+
+} // namespace eng::retro
+
+namespace eng::math {
+
+namespace detail {
+
+/// `1/(2π)` en 16.16 (redondeado): `indice = (raw · kInv2PiFx + 0.5) >> 16`.
+inline constexpr s32 kInv2PiFx = 10430;
+/// 0.5 en 16.16 (redondeo al más cercano en el paso a índice).
+inline constexpr s32 kFxHalf = 32768;
+/// Máscara de la tabla (4096 pasos).
+inline constexpr s32 kRetroSinMask = 4095;
+/// Un cuarto de vuelta (desfase del coseno).
+inline constexpr s32 kRetroSinQuarter = 1024;
+
+/// Índice de `kSinTab` para un ángulo en radianes 4.12 (redondeo al más cercano).
+[[nodiscard]] constexpr s32 retro_sin_index(s32 raw) {
+	return (raw * kInv2PiFx + kFxHalf) >> 16;
+}
+
+} // namespace detail
+
+/// `sin` de `q12`: ángulo en radianes, resultado en 4.12 por la tabla del original.
+template <typename P>
+struct scalar_sin<Fixed<s16, 12, P>> {
+	static constexpr Fixed<s16, 12, P> op(Fixed<s16, 12, P> x) {
+		const s32 idx = detail::retro_sin_index(static_cast<s32>(x.v)) & detail::kRetroSinMask;
+		return Fixed<s16, 12, P> {eng::retro::kSinQ12[idx]};
+	}
+};
+
+/// `cos` de `q12`: misma tabla, desfase de un cuarto de vuelta.
+template <typename P>
+struct scalar_cos<Fixed<s16, 12, P>> {
+	static constexpr Fixed<s16, 12, P> op(Fixed<s16, 12, P> x) {
+		const s32 idx = (detail::retro_sin_index(static_cast<s32>(x.v)) + detail::kRetroSinQuarter) &
+				detail::kRetroSinMask;
+		return Fixed<s16, 12, P> {eng::retro::kSinQ12[idx]};
+	}
+};
+
+/// `sin` y `cos` de `q12` en **una sola pasada**: índice una vez y dos lecturas de tabla.
+template <typename P>
+struct scalar_sincos<Fixed<s16, 12, P>> {
+	static constexpr void op(Fixed<s16, 12, P> x, Fixed<s16, 12, P>& out_sin,
+				 Fixed<s16, 12, P>& out_cos) {
+		const s32 idx = detail::retro_sin_index(static_cast<s32>(x.v));
+		out_sin = Fixed<s16, 12, P> {eng::retro::kSinQ12[idx & detail::kRetroSinMask]};
+		out_cos = Fixed<s16, 12, P> {
+			eng::retro::kSinQ12[(idx + detail::kRetroSinQuarter) & detail::kRetroSinMask]};
+	}
+};
+
+} // namespace eng::math

@@ -48,7 +48,7 @@
 #include <eng/core/light.hpp>
 #include <eng/core/mesh3d.hpp>
 #include <eng/core/minifloat_math.hpp>
-#include <eng/retro/angles.hpp>
+#include <eng/retro/fixed_trig.hpp>
 #include <eng/retro/fixed_q.hpp>
 #include <eng/retro/minifloat_fixed.hpp>
 #include <eng/retro/sintab.hpp>

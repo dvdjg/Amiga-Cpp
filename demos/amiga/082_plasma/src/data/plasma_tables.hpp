@@ -11,7 +11,7 @@
 /// (`eng/core/sinetable.hpp` via `eng/retro::sin_q12`). El `>> 16` es aritmetico (como el C original,
 /// que asigna a `char`).
 
-#include <eng/retro/angles.hpp>
+#include <eng/retro/fixed_trig.hpp>
 #include <eng/retro/lib2d.hpp>
 #include <eng/core/types.hpp>
 

@@ -1,6 +1,6 @@
 // Test host de eng::retro (lib2d 4.12): geometría 2D tipada sobre los tipos genéricos
 // (Vec2 = Vec<2,q0>, Mat2x2 = Affine<2,q12,q0>), rotación con la tabla y recorte 2D.
-#include <eng/retro/angles.hpp>
+#include <eng/retro/fixed_trig.hpp>
 #include <eng/retro/lib2d.hpp>
 
 #include <cstdio>
@@ -55,7 +55,7 @@ int main() {
 
 	// Rotación 90° (índice 1024): en coordenadas de pantalla (x,y) -> (y,-x).
 	m = Mat2x2::identity();
-	rotate(m, 1024);
+	rotate(m, angle_to_radians(1024));
 	{
 		const Vec2 o = eng::math::transform(m, v2(100, 0));
 		near(o.x().v, 0, 2, "rot90 (100,0).x");
@@ -69,7 +69,7 @@ int main() {
 
 	// Rotación 180° (índice 2048): niega.
 	m = Mat2x2::identity();
-	rotate(m, 2048);
+	rotate(m, angle_to_radians(2048));
 	{
 		const Vec2 o = eng::math::transform(m, v2(100, 50));
 		near(o.x().v, -100, 2, "rot180 x");
