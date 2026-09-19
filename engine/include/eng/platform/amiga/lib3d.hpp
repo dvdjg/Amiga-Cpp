@@ -134,16 +134,15 @@ inline void update_face_visibility(Object3D& object) {
 	const s16 cx = object.camera.x.v;
 	const s16 cy = object.camera.y.v;
 	const s16 cz = object.camera.z.v;
-	eng::Span<eng::u8> objdat = eng::object3d::object_bytes(object);
 	s16* group = object.faceGroups;
 	s16 f;
 	do {
 		while ((f = *group++)) {
-			object3d::Face* face = object3d::face3d(objdat, f);
+			object3d::Face* face = object.face(f);
 			s16 px, py, pz;
 			{
 				const s16 i = object3d::face_indices(face)[0].vertex;
-				const Point3D* p = object3d::point3d(objdat, i);
+				const Point3D* p = object.point(i);
 				px = static_cast<s16>(cx - p->x.v);
 				py = static_cast<s16>(cy - p->y.v);
 				pz = static_cast<s16>(cz - p->z.v);
@@ -177,24 +176,23 @@ inline void update_face_visibility(Object3D& object) {
 /// Coste: recorrido puro de índices (sin multiplicaciones).
 inline void update_edge_visibility_convex(Object3D& object) {
 	const s8 s = 1;
-	eng::Span<eng::u8> objdat = eng::object3d::object_bytes(object);
 	s16* group = object.faceGroups;
 	s16 f;
 	do {
 		while ((f = *group++)) {
-			object3d::Face* face = object3d::face3d(objdat, f);
+			object3d::Face* face = object.face(f);
 			const s8 flags = face->flags;
 			if (flags >= 0) {
 				s16* index = reinterpret_cast<s16*>(object3d::face_indices(face));
 				s16 vertices = static_cast<s16>(face->count - 3);
 				s16 i;
-				i = *index++; object3d::node3d(objdat, i)->flags = s;
-				i = *index++; object3d::edge3d(objdat, i)->flags = static_cast<s8>(object3d::edge3d(objdat, i)->flags ^ flags);
-				i = *index++; object3d::node3d(objdat, i)->flags = s;
-				i = *index++; object3d::edge3d(objdat, i)->flags = static_cast<s8>(object3d::edge3d(objdat, i)->flags ^ flags);
+				i = *index++; object.node(i)->flags = s;
+				i = *index++; object.edge(i)->flags = static_cast<s8>(object.edge(i)->flags ^ flags);
+				i = *index++; object.node(i)->flags = s;
+				i = *index++; object.edge(i)->flags = static_cast<s8>(object.edge(i)->flags ^ flags);
 				do {
-					i = *index++; object3d::node3d(objdat, i)->flags = s;
-					i = *index++; object3d::edge3d(objdat, i)->flags = static_cast<s8>(object3d::edge3d(objdat, i)->flags ^ flags);
+					i = *index++; object.node(i)->flags = s;
+					i = *index++; object.edge(i)->flags = static_cast<s8>(object.edge(i)->flags ^ flags);
 				} while (--vertices != -1);
 			}
 		}
@@ -219,7 +217,6 @@ inline void update_edge_visibility_convex(Object3D& object) {
 /// registros y un `muls.w`/`divs.w` por operación, sin recargar `objdat`.
 inline void transform_vertices(Object3D& object, s16 half_w, s16 half_h, s16 bbox[4]) {
 	math3d::Affine3<>& M = object.objectToWorld;
-	eng::Span<eng::u8> objdat = eng::object3d::object_bytes(object);
 	s16* group = object.vertexGroups;
 
 	// Lo precalculable UNA vez por matriz (términos de traslación plegados) lo guarda
@@ -231,7 +228,7 @@ inline void transform_vertices(Object3D& object, s16 half_w, s16 half_h, s16 bbo
 	do {
 		s16 i;
 		while ((i = *group++)) {
-			object3d::Node3D* node = object3d::node3d(objdat, i);
+			object3d::Node3D* node = object.node(i);
 			if (node->flags) {
 				s16* pt = reinterpret_cast<s16*>(node);
 				s16 x, y, z;

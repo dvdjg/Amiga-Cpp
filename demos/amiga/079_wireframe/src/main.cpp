@@ -76,22 +76,21 @@ void update_face_visibility_fast(obj::Object3D& object) {
 	const eng::s16 cx = object.camera.x.v;
 	const eng::s16 cy = object.camera.y.v;
 	const eng::s16 cz = object.camera.z.v;
-	eng::Span<eng::u8> objdat = eng::object3d::object_bytes(object);
 	eng::s16* group = object.faceGroups;
 	eng::s16 f;
 	do {
 		while ((f = *group++)) {
 			eng::s16 px, py, pz;
 			{
-				obj::Face* face = obj::face3d(objdat, f);
+				obj::Face* face = object.face(f);
 				const eng::s16 i = obj::face_indices(face)[0].vertex;
-				const obj::Point3D* p = obj::point3d(objdat, i);
+				const obj::Point3D* p = object.point(i);
 				px = static_cast<eng::s16>(cx - p->x.v);
 				py = static_cast<eng::s16>(cy - p->y.v);
 				pz = static_cast<eng::s16>(cz - p->z.v);
 			}
 			{
-				obj::Face* face = obj::face3d(objdat, f);
+				obj::Face* face = object.face(f);
 				const eng::s32 v = static_cast<eng::s32>(face->normal[0].v) * px +
 						   static_cast<eng::s32>(face->normal[1].v) * py +
 						   static_cast<eng::s32>(face->normal[2].v) * pz;
@@ -103,23 +102,22 @@ void update_face_visibility_fast(obj::Object3D& object) {
 
 void update_edge_visibility(obj::Object3D& object) {
 	const eng::s16 s = 1;
-	eng::Span<eng::u8> objdat = eng::object3d::object_bytes(object);
 	eng::s16* group = object.faceGroups;
 	eng::s16 f;
 	do {
 		while ((f = *group++)) {
-			obj::Face* face = obj::face3d(objdat, f);
+			obj::Face* face = object.face(f);
 			if (face->flags >= 0) {
 				eng::s16* index = reinterpret_cast<eng::s16*>(obj::face_indices(face));
 				eng::s16 vertices = static_cast<eng::s16>(face->count - 3);
 				eng::s16 i;
-				i = *index++; obj::node3d(objdat, i)->flags = static_cast<eng::s8>(s);
-				i = *index++; obj::edge3d(objdat, i)->flags = static_cast<eng::s8>(s);
-				i = *index++; obj::node3d(objdat, i)->flags = static_cast<eng::s8>(s);
-				i = *index++; obj::edge3d(objdat, i)->flags = static_cast<eng::s8>(s);
+				i = *index++; object.node(i)->flags = static_cast<eng::s8>(s);
+				i = *index++; object.edge(i)->flags = static_cast<eng::s8>(s);
+				i = *index++; object.node(i)->flags = static_cast<eng::s8>(s);
+				i = *index++; object.edge(i)->flags = static_cast<eng::s8>(s);
 				do {
-					i = *index++; obj::node3d(objdat, i)->flags = static_cast<eng::s8>(s);
-					i = *index++; obj::edge3d(objdat, i)->flags = static_cast<eng::s8>(s);
+					i = *index++; object.node(i)->flags = static_cast<eng::s8>(s);
+					i = *index++; object.edge(i)->flags = static_cast<eng::s8>(s);
 				} while (--vertices != -1);
 			}
 		}
@@ -145,7 +143,6 @@ void update_edge_visibility(obj::Object3D& object) {
 
 void transform_vertices(obj::Object3D& object) {
 	eng::math3d::Affine3<>& M = object.objectToWorld;
-	eng::Span<eng::u8> objdat = eng::object3d::object_bytes(object);
 	eng::s16* group = object.vertexGroups;
 
 	eng::s32 m0 = (static_cast<eng::s32>(M.t.x().v) -
@@ -161,7 +158,7 @@ void transform_vertices(obj::Object3D& object) {
 	do {
 		eng::s16 i;
 		while ((i = *group++)) {
-			obj::Node3D* node = obj::node3d(objdat, i);
+			obj::Node3D* node = object.node(i);
 			if (node->flags) {
 				eng::s16* pt = reinterpret_cast<eng::s16*>(node);
 				eng::s16 x, y, z, zp;
@@ -186,13 +183,12 @@ void transform_vertices(obj::Object3D& object) {
 }
 
 void draw_object(obj::Object3D& object, eng::PlaneBytes bplpt, eng::amiga::MinimalBackend& backend) {
-	eng::Span<eng::u8> objdat = eng::object3d::object_bytes(object);
 	eng::s16* group = object.edgeGroups;
 
 	do {
 		eng::s16 i;
 		while ((i = *group++)) {
-			obj::Edge* edge = obj::edge3d(objdat, i);
+			obj::Edge* edge = object.edge(i);
 			eng::s16 x0, y0, x1, y1;
 
 			if (edge->flags == 0) {
@@ -202,10 +198,10 @@ void draw_object(obj::Object3D& object, eng::PlaneBytes bplpt, eng::amiga::Minim
 			const eng::s16 e1 = edge->point[1];
 			edge->flags = 0; // limpia visibilidad
 
-			x0 = obj::vertex3d(objdat, e0)->x.v;
-			y0 = obj::vertex3d(objdat, e0)->y.v;
-			x1 = obj::vertex3d(objdat, e1)->x.v;
-			y1 = obj::vertex3d(objdat, e1)->y.v;
+			x0 = object.vertex(e0)->x.v;
+			y0 = object.vertex(e0)->y.v;
+			x1 = object.vertex(e1)->x.v;
+			y1 = object.vertex(e1)->y.v;
 
 			backend.blitter_line(bplpt, kBytesPerRow, x0, y0, x1, y1);
 		}

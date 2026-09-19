@@ -120,6 +120,15 @@ struct Mesh3D {
 	s16* objects = nullptr;
 };
 
+// Declaraciones para los accesores de `Object3D` (se definen más abajo).
+struct Object3D;
+[[nodiscard]] inline eng::Span<eng::u8> object_bytes(const Object3D& object);
+inline Node3D* node3d(eng::Span<eng::u8> bytes, s16 i);
+inline Point3D* point3d(eng::Span<eng::u8> bytes, s16 i);
+inline Point3D* vertex3d(eng::Span<eng::u8> bytes, s16 i);
+inline Edge* edge3d(eng::Span<eng::u8> bytes, s16 i);
+inline Face* face3d(eng::Span<eng::u8> bytes, s16 i);
+
 /// Objeto 3D: mesh enlazado + estado de transformación + cámara en espacio objeto.
 ///
 /// **Layout estable**: el asm (`flatshade_asm.s`) lee `objdat`@0, los grupos@4/8/12 y
@@ -141,6 +150,14 @@ struct Object3D {
 	Point3C camera {}; // posicion de camara en espacio objeto (q0)
 
 	eng::u32 objdat_size = 0; // tamaño del blob (para la vista `Span<u8>`)
+
+	/// Accesores tipados al blob empaquetado (evitan manejar el `Span` a mano en los
+	/// efectos). Reenvían a `point3d`/`face`… con la vista del propio objeto.
+	[[nodiscard]] Node3D* node(s16 i) { return node3d(object_bytes(*this), i); }
+	[[nodiscard]] Point3D* point(s16 i) { return point3d(object_bytes(*this), i); }
+	[[nodiscard]] Point3D* vertex(s16 i) { return vertex3d(object_bytes(*this), i); }
+	[[nodiscard]] Edge* edge(s16 i) { return edge3d(object_bytes(*this), i); }
+	[[nodiscard]] Face* face(s16 i) { return face3d(object_bytes(*this), i); }
 };
 
 /// Diagnóstico: el descriptor de malla no cuadra con su blob. `illegal` en m68k.
@@ -181,6 +198,15 @@ struct Object3D {
 		}
 		if (base + off + 10 + static_cast<eng::u32>(f->count) * 4u > end) {
 			return false;
+		}
+		const FaceIndex* fi = reinterpret_cast<const FaceIndex*>(base + off + 10);
+		for (s16 k = 0; k < f->count; ++k) {
+			if (fi[k].vertex < 0 || static_cast<eng::u32>(fi[k].vertex) >= n) {
+				return false;
+			}
+			if (fi[k].edge < 0 || static_cast<eng::u32>(fi[k].edge) >= n) {
+				return false;
+			}
 		}
 	}
 	return true;

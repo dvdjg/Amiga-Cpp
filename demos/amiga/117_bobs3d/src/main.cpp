@@ -226,13 +226,12 @@ enum {
 void transform_all_vertices(obj::Object3D& object) {
 	using Proj = eng::math::projector<eng::math3d::Affine3<>>;
 	const Proj::cache pc = Proj::make(object.objectToWorld);
-	eng::Span<eng::u8> objdat = eng::object3d::object_bytes(object);
 	s16* group = object.vertexGroups;
 	do {
 		s16 i;
 		while ((i = *group++)) {
-			obj::Point3D* p = obj::point3d(objdat, i);
-			obj::Point3D* v = obj::vertex3d(objdat, i);
+			obj::Point3D* p = object.point(i);
+			obj::Point3D* v = object.vertex(i);
 			const eng::math::Projected3 pr = Proj::project(pc, p->x.v, p->y.v, p->z.v);
 			v->x = eng::retro::q0 {static_cast<s16>(
 				eng::math::div_wide(pr.xp, static_cast<s16>(pr.zp)) + kWidth / 2u)};
@@ -383,7 +382,6 @@ private:
 	/// Calcula el vertice y lanza su BOB en el MISMO bucle (estructura de `DrawObject`),
 	/// via el lote en streaming del backend: sin array intermedio.
 	void draw_bobs_stream(eng::amiga::MinimalBackend& backend, u8* screen) {
-		eng::Span<eng::u8> objdat = eng::object3d::object_bytes(m_object);
 		s16* group = m_object.vertexGroups;
 
 		eng::amiga::OrBlobBatch batch;
@@ -396,7 +394,7 @@ private:
 					break;
 				}
 				++drawn;
-				obj::Point3D* data = obj::vertex3d(objdat, v);
+				obj::Point3D* data = m_object.vertex(v);
 				s16 x = static_cast<s16>(data->x.v - 16);
 				const s16 y = static_cast<s16>(data->y.v - 16);
 				s16 z = data->z.v;
@@ -441,7 +439,6 @@ private:
 	/// Dibuja un BOB OR por vertice, como `DrawObject`: posicion (x-16, y-16), `z`
 	/// selecciona el frame (chispa) del atlas y el blit es intercalado (1 job/objeto).
 	void draw_bobs(u8* screen) {
-		eng::Span<eng::u8> objdat = eng::object3d::object_bytes(m_object);
 		s16* group = m_object.vertexGroups;
 
 		graphics::Bob bob {};
@@ -462,7 +459,7 @@ private:
 		do {
 			s16 v;
 			while ((v = *group++)) {
-				obj::Point3D* data = obj::vertex3d(objdat, v);
+				obj::Point3D* data = m_object.vertex(v);
 				s16 x = data->x.v;
 				s16 y = data->y.v;
 				s16 z = data->z.v;
