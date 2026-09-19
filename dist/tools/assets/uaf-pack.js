@@ -39,6 +39,7 @@ export var UafChunkType;
     UafChunkType[UafChunkType["Modules"] = 11] = "Modules";
     UafChunkType[UafChunkType["Mesh"] = 12] = "Mesh";
     UafChunkType[UafChunkType["WorldMap"] = 13] = "WorldMap";
+    UafChunkType[UafChunkType["MeshPoly"] = 14] = "MeshPoly";
 })(UafChunkType || (UafChunkType = {}));
 /** Cabecera de bitplanes (igual que `eng::assets::BitplanesView`). */
 export const BITPLANES_HEADER_BYTES = 10;
@@ -255,6 +256,45 @@ export function meshChunkData(vertices, faces) {
             out.writeUInt16BE(f[i] & 0xffff, o);
             o += 2;
         }
+    }
+    return out;
+}
+/**
+ * Datos del chunk de malla **n-gon** (caras de longitud variable): cabecera
+ * (nº de vértices/caras/índices) + vértices `s16` big-endian + índices `u16` concatenados +
+ * caras `{first,count}`. Consumido por `eng::assets::PolyMeshAssetView`. Es la forma amiga
+ * del raster (rellena polígonos convexos): evita triangular caras de 5-6 lados.
+ */
+export function polyMeshChunkData(vertices, faces) {
+    let indexCount = 0;
+    for (const f of faces)
+        indexCount += f.length;
+    const out = Buffer.alloc(6 + vertices.length * 6 + indexCount * 2 + faces.length * 4);
+    out.writeUInt16BE(vertices.length, 0);
+    out.writeUInt16BE(faces.length, 2);
+    out.writeUInt16BE(indexCount, 4);
+    let o = 6;
+    for (const v of vertices) {
+        if (v.length !== 3) {
+            throw new Error('vértice debe tener 3 componentes');
+        }
+        for (let i = 0; i < 3; i++) {
+            out.writeInt16BE(v[i] | 0, o);
+            o += 2;
+        }
+    }
+    for (const f of faces) {
+        for (const idx of f) {
+            out.writeUInt16BE(idx & 0xffff, o);
+            o += 2;
+        }
+    }
+    let first = 0;
+    for (const f of faces) {
+        out.writeUInt16BE(first, o);
+        out.writeUInt16BE(f.length, o + 2);
+        first += f.length;
+        o += 4;
     }
     return out;
 }

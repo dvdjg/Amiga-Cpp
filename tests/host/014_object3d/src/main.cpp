@@ -7,6 +7,9 @@
 
 using namespace eng::object3d;
 
+// La `pilka` real (icosaedro truncado, asset de la demo 116) para el adaptador n-gon.
+#include "../../../../demos/amiga/116_flatshade_convex/src/data/pilka.c"
+
 static int failures = 0;
 static void check(bool ok, const char* msg) {
 	if (!ok) {
@@ -116,6 +119,32 @@ int main() {
 			eng::Span<eng::math3d::FaceOrder>(qorder, 4));
 		check(qn == 1 && qorder[0].index == 0,
 		      "adaptador: mesh_patches_order (1 parche visible)");
+	}
+
+	// Pilka real (obj2c): el adaptador da 32 parches n-gon; triangular serian 116.
+	{
+		Object3D po {};
+		new_object3d(po, pilka);
+		static eng::math3d::Vec3 pverts[64];
+		static s16 poff[64];
+		static eng::u16 pidx[256];
+		static eng::math3d::FaceSpan pface[64];
+		eng::math3d::PolyMeshView pview {};
+		const PolyMeshCounts c = build_poly_mesh(
+			po, eng::Span<eng::math3d::Vec3>(pverts, 64), eng::Span<s16>(poff, 64),
+			eng::Span<eng::u16>(pidx, 256),
+			eng::Span<eng::math3d::FaceSpan>(pface, 64), pview);
+		check(c.vertices == 60 && c.faces == 32, "pilka: 60 vertices / 32 caras");
+		eng::u32 tris = 0;
+		for (eng::u32 i = 0; i < c.faces; ++i) {
+			tris += static_cast<eng::u32>(pview.faces[i].count) - 2u;
+		}
+		check(c.indices == 180 && tris == 116, "pilka: 180 indices = 116 triangulos");
+		static eng::math3d::FaceOrder porder[64];
+		const eng::u32 vis = eng::math3d::mesh_patches_order(
+			pview, pview.vertices, eng::math3d::vec3<eng::coord>(0, 0, 6000),
+			eng::Span<eng::math3d::FaceOrder>(porder, 64));
+		check(vis > 0 && vis < 32, "pilka: culling parcial de parches");
 	}
 
 	if (failures == 0) {

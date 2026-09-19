@@ -548,6 +548,22 @@ El informe `tools/analyze/codegen-report.mjs` fija el asm del camino 3D en 68000
 - El producto q12×q12 va a `Fixed<s32,24>` (**8.24**, `wide<s16> = s32`) y normaliza **una vez** por `dot`/`mul_norm`; en 68000 es `muls.w`, nunca `__mulsi3`.
 - **`sincos3` compartido**: `update_object_transformation` calcula `(sin, cos)` por eje una sola vez y los reutiliza en la matriz directa y la inversa (`sincos(-a) = (-sin a, cos a)`, exacto porque la tabla es impar/par), ahorrando 3 lecturas de tabla por frame. La exactitud la fijan HOST-050/051 y la tabla dorada HOST-053.
 
+## 13. Relleno CPU de polígonos: dos cadenas + palabra por plano
+
+El relleno CPU (`Playfield::fill_polygon`) trabajaba en **dos bucles anidados de coste alto**:
+
+1. **Por scanline, recorría TODAS las aristas** recalculando el mínimo/máximo de `x` → O(lados·altura).
+2. **Por píxel**, llamaba a `write_pixel` → un `write_planes` (RMW en cada plano) por píxel.
+
+Ambos se han reducido con la forma amiga del raster (el relleno es de **polígonos convexos**):
+
+- **`convex_spans`** (`eng/core/polygon.hpp`) recorre el polígono por **dos cadenas** (izquierda/derecha desde el vértice superior al inferior) y emite `(y, xl, xr)` con coste **O(altura)**. Evita reapuntar la arista por cada fila y está validado contra el barrido de referencia (HOST-013).
+- **`Playfield::draw_span`** escribe un tramo con **una palabra por plano** (16 píxeles) y máscara solo en los extremos parciales; en vez de 16 `write_planes` por cada 16 píxeles hace **1**. `fill_polygon`, `Surface::fill_rect` y los tramos horizontales de `Surface::draw_line` lo usan.
+
+Efecto esperado en el número de `write_planes` (trabajo, no ciclos): para un relleno de `W` píxeles de ancho y `H` de alto baja de `W·H` a `⌈W/16⌉·H` por plano (~**16×** menos RMW del bitmap cuando el ancho cubre palabras enteras).
+
+> Medición en objetivo pendiente: requiere el emulador (perfil por secciones de la demo 078). El contador determinista de `write_planes` y la equivalencia de píxeles los fijan HOST-045 y HOST-046.
+
 
 
 

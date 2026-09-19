@@ -63,13 +63,26 @@ public:
     }
 
     /// Rectángulo relleno (CPU), recortado. true si todo el rect estaba dentro.
+    /// Escribe una palabra por plano en cada fila (`Playfield::draw_span`).
     bool fill_rect(s32 x, s32 y, u16 w, u16 h, u8 color) {
         if (!valid()) return false;
-        bool ok = true;
-        for (u16 dy = 0; dy < h; ++dy)
-            for (u16 dx = 0; dx < w; ++dx)
-                if (!set_pixel(x + dx, y + dy, color)) ok = false;
-        return ok;
+        if (w == 0u || h == 0u) return true;
+        const s32 x1 = x + static_cast<s32>(w) - 1;
+        const s32 y1 = y + static_cast<s32>(h) - 1;
+        const s32 cx0 = m_clip.x;
+        const s32 cy0 = m_clip.y;
+        const s32 cx1 = m_clip.x + static_cast<s32>(m_clip.w) - 1;
+        const s32 cy1 = m_clip.y + static_cast<s32>(m_clip.h) - 1;
+        const bool fully_inside = x >= cx0 && y >= cy0 && x1 <= cx1 && y1 <= cy1;
+        const s32 rx0 = x < cx0 ? cx0 : x;
+        const s32 rx1 = x1 > cx1 ? cx1 : x1;
+        const s32 ry0 = y < cy0 ? cy0 : y;
+        const s32 ry1 = y1 > cy1 ? cy1 : y1;
+        if (rx1 < rx0 || ry1 < ry0) return false; // rect fuera del clip
+        for (s32 gy = ry0; gy <= ry1; ++gy) {
+            m_target->draw_span(rx0, rx1, gy, color);
+        }
+        return fully_inside;
     }
 
     /// Polígono **convexo** relleno, recortado contra el clip de la superficie.
@@ -105,9 +118,22 @@ public:
         return m_target->fill_polygon(cx, cy, static_cast<u8>(m), color);
     }
 
-    /// Línea oblicua (Bresenham, CPU), recortada.
+    /// Línea oblicua (Bresenham, CPU), recortada. Un tramo **horizontal** (`y0 == y1`) se
+    /// resuelve con `Playfield::draw_span` (una palabra por plano).
     bool draw_line(s32 x0, s32 y0, s32 x1, s32 y1, u8 color) {
         if (!valid()) return false;
+        if (y0 == y1) {
+            s32 a = x0 < x1 ? x0 : x1;
+            s32 b = x0 < x1 ? x1 : x0;
+            const s32 cx0 = m_clip.x;
+            const s32 cx1 = m_clip.x + static_cast<s32>(m_clip.w) - 1;
+            const bool inside = a >= cx0 && b <= cx1 && y0 >= m_clip.y &&
+                                y0 < m_clip.y + static_cast<s32>(m_clip.h);
+            if (a < cx0) a = cx0;
+            if (b > cx1) b = cx1;
+            if (b < a || y0 < m_clip.y || y0 >= m_clip.y + static_cast<s32>(m_clip.h)) return false;
+            return m_target->draw_span(a, b, y0, color) && inside;
+        }
         const s32 dx = x1 > x0 ? x1 - x0 : x0 - x1;
         const s32 dy = y1 > y0 ? y1 - y0 : y0 - y1;
         const s32 sx = x0 < x1 ? 1 : -1;

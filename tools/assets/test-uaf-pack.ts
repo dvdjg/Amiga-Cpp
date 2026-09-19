@@ -5,7 +5,7 @@
 import {
 	packUaf, parseUaf, bitplanesFromIndexed, paletteChunkData,
 	bitplanesChunkData, stringsChunkData, tilesChunkData,
-	copperChunkData, spritesChunkData, meshChunkData, UafChunkType, UAF_MAGIC,
+	copperChunkData, spritesChunkData, meshChunkData, polyMeshChunkData, UafChunkType, UAF_MAGIC,
 } from './uaf-pack.js';
 
 let failures = 0;
@@ -91,9 +91,26 @@ function testConsumers() {
 	check(mesh.readInt16BE(4) === -48 && mesh.readInt16BE(6) === -48 && mesh.readUInt16BE(16) === 0, 'mesh datos BE');
 }
 
+function testPolyMesh() {
+	console.log('uaf-pack: chunk MeshPoly (n-gon)');
+	const verts = [[0, 0, 0], [100, 0, 0], [150, 80, 0], [100, 160, 0], [0, 160, 0], [-50, 80, 0]];
+	const data = Buffer.from(polyMeshChunkData(verts, [[0, 1, 2, 3, 4, 5]]));
+	check(data.readUInt16BE(0) === 6, 'MeshPoly vertex_count');
+	check(data.readUInt16BE(2) === 1, 'MeshPoly face_count');
+	check(data.readUInt16BE(4) === 6, 'MeshPoly index_count');
+	check(data.length === 6 + 6 * 6 + 6 * 2 + 4, `MeshPoly longitud (${data.length})`);
+	// Hexagono + pentagono: index_count = 6 + 5.
+	const d2 = Buffer.from(polyMeshChunkData(verts, [[0, 1, 2, 3, 4, 5], [0, 1, 2, 3, 4]]));
+	check(d2.readUInt16BE(4) === 11, 'MeshPoly index_count (6+5)');
+	const blob = packUaf([{ type: UafChunkType.MeshPoly, count: 1, data }]);
+	const chunks = parseUaf(blob);
+	check(chunks[0].type === UafChunkType.MeshPoly, 'MeshPoly empaquetado y parseado');
+}
+
 testRoundtrip();
 testChunkyToPlanar();
 testConsumers();
+testPolyMesh();
 testErrors();
 
 if (failures === 0) {
