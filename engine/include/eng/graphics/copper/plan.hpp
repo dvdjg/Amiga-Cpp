@@ -26,6 +26,7 @@
 /// Ver `docs/engine/architecture/DISPLAY_COMPOSITION.md` §5.
 
 #include <eng/core/domains.hpp>
+#include <eng/core/ptr.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/util/algorithm.hpp>
 #include <eng/core/util/array.hpp>
@@ -60,7 +61,7 @@ public:
 		m_count = 0;
 		m_overflow = false;
 		m_ok = m_owned.begin(memory, cfg.copper_bytes);
-		m_copper = &m_owned;
+		m_copper = m_owned;
 		return m_ok;
 	}
 
@@ -69,7 +70,7 @@ public:
 	/// ser dueño de la buffering de copperlist; solo la orquesta (orden + presupuesto +
 	/// publicación).
 	void attach(DoubleBuffer& copper) {
-		m_copper = &copper;
+		m_copper = copper;
 		m_count = 0;
 		m_overflow = false;
 		m_ok = copper.ok();
@@ -228,7 +229,7 @@ private:
 
 	PlanConfig m_cfg {};
 	DoubleBuffer m_owned {};
-	DoubleBuffer* m_copper = nullptr;
+	eng::Ref<DoubleBuffer> m_copper {}; // no-propietario
 	Scheduler m_sched {};
 	/// `Array` (no `T v[N]`) para que el tamaño viaje con el objeto; mismo layout y
 	/// coste cero (`eng::util::Array`). `max_intents`/256 líneas.
