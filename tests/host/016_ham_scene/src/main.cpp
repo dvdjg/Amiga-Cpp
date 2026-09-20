@@ -93,6 +93,7 @@ int main() {
 		Scene sc;
 		if (!eng::graphics::scene::compose(
 			    sc, mem, res,
+			    eng::graphics::scene::ocs_a500,
 			    eng::graphics::scene::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x7a00u),
 			    eng::graphics::scene::palette(eng::PaletteWords {palette, 16}, 0u, 16u),
 			    eng::graphics::scene::row_repeat(4u, 0x2cu, 0x0022u))) {
@@ -150,6 +151,7 @@ int main() {
 		Scene sc;
 		if (!eng::graphics::scene::compose(
 			    sc, mem, res,
+			    eng::graphics::scene::ocs_a500,
 			    eng::graphics::scene::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x5000u))) {
 			std::printf("[FAIL] compose (config plano) fallo\n");
 			return 1;

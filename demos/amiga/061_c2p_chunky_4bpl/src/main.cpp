@@ -172,7 +172,7 @@ struct RotozoomDemo {
 		res.buffers = static_cast<eng::u8>(K_061_BUFFERS);
 		if (!scene::compose(m_scene, backend.memory(), res,
 				    scene::ocs_a500,
-				    scene::display(scene::kPal320x256, scene::kBplcon0_4Planes),
+				    scene::display(res),
 				    scene::palette(eng::PaletteWords {kColors, 16u}, 0u, 16u),
 				    scene::row_repeat(kRepeat, 0x2cu, 0u))) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006102u);

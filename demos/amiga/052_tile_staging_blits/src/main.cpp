@@ -174,7 +174,7 @@ struct DemoGame {
 		res.mode = gfx::SceneMode::Ehb;
 		if (!gfx::compose(m_scene, backend.memory(), res,
 				    gfx::ocs_a500,
-				    gfx::display(gfx::kPal320x256, gfx::kBplcon0_Ehb),
+				    gfx::display(res),
 				    gfx::palette(eng::PaletteWords {palette.color, 32u}, 0u, 32u))) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000053u);
 			return;

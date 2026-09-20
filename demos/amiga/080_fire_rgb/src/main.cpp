@@ -257,7 +257,7 @@ struct FireDemo {
 		res.buffers = static_cast<eng::u8>(K_080_BUFFERS);
 		if (!scene::compose(m_scene, backend.memory(), res,
 				    scene::ocs_a500,
-				    scene::display(scene::kPal320x256, scene::kBplcon0_Ham6),
+				    scene::display(res, scene::kBplcon0_Ham6),
 				    scene::palette(eng::PaletteWords {kZeroPalette, 16}, 0u, 16u),
 				    scene::reverse_ptrs(),
 				    scene::row_repeat(4u, 0x2cu, 0x0022u))) {

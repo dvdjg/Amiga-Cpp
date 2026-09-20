@@ -154,7 +154,14 @@ declarado por la máquina y la validación es agnóstica.
   (336 es válido; 384 supera los 368 visibles; 300 no es múltiplo de 16; 7 planos exigen AGA).
 - **Dinámica (ejecución)**: `compose(scene, mem, res, limits, etapas...)` valida antes de
   reservar; el rechazo queda en `scene.config_error()` (`code` + `message`), con código por
-  causa (1 ancho, 4 alto, 5 planos, 8/9 modo, 10 DDF…).
+  causa (1 ancho, 4 alto, 5 planos, 8/9 modo, 10 DDF…). El perfil es **obligatorio**: no hay
+  variante de `compose` sin `limits` (solo `compose_unchecked`, reservado a tests de bajo
+  nivel). Las demos usan `display(res)`, que deriva geometría (`geometry_for`) y `BPLCON0`
+  (`bplcon0_for(mode, planes)`).
+- **Rendimiento**: las validaciones de copperlist (presupuesto por línea, overflow) viven en
+  `materialize`/`end_frame` (**una vez por frame**), nunca en la emisión por MOVE
+  (`move`/`wait` son `always_inline` y no validan). Regla: **estáticas siempre; dinámicas solo
+  en setup/cierre de frame**.
 
 ## 7. Relación con lo que ya existe
 

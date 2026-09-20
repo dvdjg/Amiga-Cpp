@@ -141,7 +141,7 @@ struct DemoGame {
 		res.mode = scene::SceneMode::Ehb;
 		m_scene_ok = scene::compose(m_scene, backend.memory(), res,
 				    scene::ocs_a500,
-				    scene::display(scene::kPal320x256, scene::kBplcon0_Ehb),
+				    scene::display(res),
 				    scene::palette_patchable(eng::PaletteWords {source_palette.color, 32u}, 0u, 32u, &m_base_zone),
 				    scene::palette_zones(eng::Span<const scene::PaletteZone> {gfx_zones, gfx_zone_count}));
 		if (m_scene.ok()) {

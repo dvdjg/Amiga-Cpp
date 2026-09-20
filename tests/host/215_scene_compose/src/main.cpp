@@ -38,7 +38,7 @@ int main() {
 	graphics::scene::Scene s;
 	copper::PatchHandle sky {};
 	const bool composed = graphics::scene::compose(
-		s, mem, graphics::scene::planar(320, 256, 4),
+		s, mem, graphics::scene::planar(320, 256, 4), graphics::scene::ocs_a500,
 		graphics::scene::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x4200),
 		graphics::scene::palette(eng::PaletteWords {pal, 4}, 0, 4),
 		// Etapa propia: emite un MOVE parcheable (p. ej. el color de fondo por frame).
@@ -75,6 +75,7 @@ int main() {
 	};
 	const bool ok2 = graphics::scene::compose(
 		s2, mem, r2,
+		graphics::scene::ocs_a500,
 		graphics::scene::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x7a00),
 		graphics::scene::palette_zones(eng::Span<const graphics::scene::PaletteZone> {zones, 2}),
 		graphics::scene::row_repeat(4, 0x2c, 0x0022));
@@ -85,7 +86,7 @@ int main() {
 	graphics::scene::Scene s3;
 	graphics::scene::SceneResources r3 = graphics::scene::planar(64, 64, 4);
 	r3.layout = graphics::scene::SceneLayout::Interleaved;
-	const bool ok3 = graphics::scene::compose(s3, mem, r3,
+	const bool ok3 = graphics::scene::compose(s3, mem, r3, graphics::scene::ocs_a500,
 						  graphics::scene::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x4200));
 	check(ok3 && s3.ok(), "escena interleaved compone");
 	check(s3.playfield().bitplanes().data() != nullptr, "el playfield tiene bitplanes");
@@ -101,6 +102,7 @@ int main() {
 	r4.rows = 8;
 	const bool ok4 = graphics::scene::compose(
 		s4, mem, r4,
+		graphics::scene::ocs_a500,
 		graphics::scene::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x7a00),
 		graphics::scene::reverse_ptrs(),
 		graphics::scene::row_repeat(4, 0x2c, 0x0022));
@@ -112,7 +114,7 @@ int main() {
 		graphics::CopperIntentKind::PaletteLine, 100, 100, 0,
 		eng::PaletteWords {pal, 4}, 0, 4};
 	const bool ok5 = graphics::scene::compose(
-		s5, mem, graphics::scene::planar(320, 256, 4),
+		s5, mem, graphics::scene::planar(320, 256, 4), graphics::scene::ocs_a500,
 		graphics::scene::display(graphics::scene::kPal320x256, graphics::scene::kBplcon0_4Planes),
 		graphics::scene::intents(eng::Span<const graphics::CopperIntent> {&it, 1}));
 	check(ok5 && s5.ok(), "escena con intents de Copper compone");
@@ -126,7 +128,7 @@ int main() {
 		graphics::scene::PaletteZone {32, eng::PaletteWords {pal, 4}, 0, 4},
 	};
 	const bool ok6 = graphics::scene::compose(
-		s6, mem, graphics::scene::planar(320, 256, 4),
+		s6, mem, graphics::scene::planar(320, 256, 4), graphics::scene::ocs_a500,
 		graphics::scene::display(graphics::scene::kPal320x256, graphics::scene::kBplcon0_4Planes),
 		graphics::scene::palette_zones(
 			eng::Span<const graphics::scene::PaletteZone> {zones2, 2},
@@ -146,7 +148,7 @@ int main() {
 		{copper::Register::BPL2MOD, 0x0040},
 	};
 	const bool ok7 = graphics::scene::compose(
-		s7, mem, graphics::scene::planar(320, 256, 4),
+		s7, mem, graphics::scene::planar(320, 256, 4), graphics::scene::ocs_a500,
 		graphics::scene::display(graphics::scene::kPal320x256, graphics::scene::kBplcon0_4Planes),
 		graphics::scene::patchable_zone(
 			40, eng::Span<const graphics::scene::PatchSlot> {mod_slots, 2}, &mod_zone));
@@ -162,6 +164,7 @@ int main() {
 	r8.buffers = 2;
 	const bool ok8 = graphics::scene::compose(
 		s8, mem, r8,
+		graphics::scene::ocs_a500,
 		graphics::scene::display(graphics::scene::kPal320x256, graphics::scene::kBplcon0_4Planes));
 	check(ok8 && s8.ok(), "escena con 2 buffers de display compone");
 	check(s8.buffer_count() == 2u, "hay 2 buffers de display");
@@ -178,7 +181,7 @@ int main() {
 	      "kPal320x256 es la geometria DIW/DDF de 320x256");
 	graphics::scene::Scene s9;
 	const bool ok9 = graphics::scene::compose(
-		s9, mem, graphics::scene::planar(320, 256, 6),
+		s9, mem, graphics::scene::planar(320, 256, 6), graphics::scene::ocs_a500,
 		graphics::scene::display(graphics::scene::kPal320x256, graphics::scene::kBplcon0_Ehb));
 	check(ok9 && s9.ok(), "preset ehb compone");
 	check(s9.planes() == 6u, "el preset ehb usa 6 planos");

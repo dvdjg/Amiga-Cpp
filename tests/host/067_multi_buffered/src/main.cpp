@@ -58,7 +58,7 @@ int main() {
 		res.buffers = 2;
 		Scene sc;
 		check(eng::graphics::scene::compose(
-			      sc, mem, res,
+			      sc, mem, res, eng::graphics::scene::ocs_a500,
 			      eng::graphics::scene::display(eng::graphics::scene::kPal320x256,
 							    eng::graphics::scene::kBplcon0_4Planes)),
 		      "compose N=2");
@@ -83,6 +83,7 @@ int main() {
 		Scene sc;
 		check(eng::graphics::scene::compose(
 			      sc, mem, eng::graphics::scene::planar(320, 256, 4),
+			      eng::graphics::scene::ocs_a500,
 			      eng::graphics::scene::display(eng::graphics::scene::kPal320x256,
 							    eng::graphics::scene::kBplcon0_4Planes)),
 		      "compose N=1");
@@ -102,7 +103,7 @@ int main() {
 		res.copper_bytes = 8192u;
 		Scene sc;
 		check(eng::graphics::scene::compose(
-			      sc, mem, res,
+			      sc, mem, res, eng::graphics::scene::ocs_a500,
 			      eng::graphics::scene::display(eng::graphics::scene::kPal320x256,
 							    eng::graphics::scene::kBplcon0_Ham6),
 			      eng::graphics::scene::reverse_ptrs(),

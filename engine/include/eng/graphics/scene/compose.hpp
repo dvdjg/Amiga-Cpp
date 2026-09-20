@@ -86,18 +86,20 @@ public:
 	/// Crea la escena reservando los bitplanes (según `res`) y la copperlist en Chip RAM,
 	/// **validando antes** `res` contra las capacidades de `limits` (perfil de la máquina).
 	/// El motivo del rechazo queda en `config_error()`. Devuelve `false` si no es válida o no
-	/// hay memoria.
+	/// hay memoria. El perfil es **obligatorio**: no existe una vía que acepte configuraciones
+	/// que el hardware no permite.
 	bool init(MemorySystem& memory, const SceneResources& res, const DisplayLimits& limits) {
 		const ConfigError e = validate(res, limits);
 		if (!e.ok()) {
 			m_config_error = e;
 			return false;
 		}
-		return init(memory, res);
+		return init_unchecked(memory, res);
 	}
 
 	/// Devuelve `false` si la geometría o la memoria no son válidas.
-	bool init(MemorySystem& memory, const SceneResources& res) {
+	/// (Interno: solo lo llama `init(...)` tras validar; no valida el perfil.)
+	bool init_unchecked(MemorySystem& memory, const SceneResources& res) {
 		m_res = res;
 		const u16 row = row_bytes();
 		const u16 logical_rows = res.rows != 0u ? res.rows : res.height;
@@ -431,10 +433,16 @@ inline constexpr u16 kBplcon0_Ham6 = 0x7a00;         ///< HAM6 (6 planos, COLOR,
 		g.ddfstrt = res.ddfstrt;
 		g.ddfstop = res.ddfstop;
 	} else {
+		// Estándar lores: `DDFSTRT = 0x38`, y `DDFSTOP` tal que cubra `width`. Palabras de
+		// fetch = (ddfstop - ddfstrt)/8 + 1 (paso de DDF = 8 B = 1 palabra de 16 px). Para
+		// 320 px -> (0xD0-0x38)/8+1 = 20 palabras (el estándar). Se acota al máximo hw 0xD8.
 		g.ddfstrt = 0x0038u;
-		// Cada paso de DDF (2 bytes) añade 1 palabra de fetch (16 px). Para cubrir `width`:
 		const u16 words = static_cast<u16>((res.width + 15u) / 16u);
-		g.ddfstop = static_cast<u16>(g.ddfstrt + 2u * (words - 1u));
+		u16 stop = static_cast<u16>(g.ddfstrt + 8u * (words - 1u));
+		if (stop > 0x00d8u) {
+			stop = 0x00d8u;
+		}
+		g.ddfstop = stop;
 	}
 	return g;
 }
@@ -649,10 +657,14 @@ using ZoneBinding = PatchZone;
 	};
 }
 
-/// Compone: inicia la escena con `res` y ejecuta las etapas en orden, cierra la lista.
+/// Compone: **valida** `res` contra las capacidades de `limits`, inicializa la escena y
+/// ejecuta las etapas en orden, cierra la lista. El perfil es **obligatorio**. El motivo del
+/// rechazo queda en `scene.config_error()`. Para configs conocidas en compilación, además,
+/// usar `static_assert(valid_scene(res, limits))`.
 template <class... Stages>
-bool compose(Scene& scene, MemorySystem& memory, const SceneResources& res, Stages... stages) {
-	if (!scene.init(memory, res)) {
+bool compose(Scene& scene, MemorySystem& memory, const SceneResources& res,
+	     const DisplayLimits& limits, Stages... stages) {
+	if (!scene.init(memory, res, limits)) {
 		return false;
 	}
 	scene.begin_build();
@@ -660,15 +672,12 @@ bool compose(Scene& scene, MemorySystem& memory, const SceneResources& res, Stag
 	return scene.end_build();
 }
 
-/// Igual que `compose`, pero **valida** `res` contra las capacidades de `limits` antes de
-/// reservar memoria. El motivo del rechazo queda en `scene.config_error()`. Es la variante
-/// recomendada cuando la configuración no es constante en compilación (o cuando se quiere
-/// diagnóstico en runtime); para configs conocidas en compilación, además, usar
-/// `static_assert(valid_scene(res, limits))`.
+/// Variante **sin validar** (solo tests de bajo nivel / casos ya validados aparte): no
+/// comprueba el perfil. No usar en código de aplicación.
 template <class... Stages>
-bool compose(Scene& scene, MemorySystem& memory, const SceneResources& res,
-	     const DisplayLimits& limits, Stages... stages) {
-	if (!scene.init(memory, res, limits)) {
+bool compose_unchecked(Scene& scene, MemorySystem& memory, const SceneResources& res,
+		       Stages... stages) {
+	if (!scene.init_unchecked(memory, res)) {
 		return false;
 	}
 	scene.begin_build();

@@ -79,6 +79,7 @@ int main() {
 	Scene s2;
 	check(graphics::scene::compose(
 		      s2, mem, res,
+		      graphics::scene::ocs_a500,
 		      graphics::scene::display(graphics::scene::kPal320x256,
 					       graphics::scene::kBplcon0_4Planes)),
 	      "escena con 2 buffers compone");

@@ -40,3 +40,30 @@ Notas de deuda de diseño detectadas al trabajar en el modelo de escena, para un
   `install()` por frame. **Verificar en WinUAE** que el display sigue correcto y, si hace falta
   publicar cambios estáticos una vez, decidir dónde (`takeover` ya publica; documentar la
   semántica exacta de "estático vs por-frame").
+
+## 4. Validación de copperlist (dinámica en setup, no en hot path)
+
+- El modelo ya valida presupuesto **por línea** (`copper::Timeline`/`ScheduleReport`:
+  `heavy_palette_zones`, `timeline_over_budget_lines`, `has_visible_timeline_spill`) y
+  **overflow** de capacidad (`Plan::overflow`/`ok`), ambos en `materialize`/`end_frame` (una
+  vez por frame, no por MOVE). La emisión (`move`/`wait`, `always_inline`) no valida nada por
+  diseño (hot path).
+- **Pendiente**: exponer esas validaciones de copperlist a la app de forma tipada (p. ej.
+  `Scene::copper_report()` ya existe), añadir validación **estática** de la forma de las etapas
+  que se conocen en compilación, y estudiar si `end_build()` debe rechazar/reportar el desborde
+  en vez de solo marcarlo. Regla: **estáticas siempre; dinámicas solo en setup/cierre de frame
+  nunca en el camino de emisión por MOVE**.
+
+## 5. Mínimo ancho por número de planos (DMA de Agnus)
+
+- Documentar con fuente fiable el **ancho mínimo de fetch según el nº de planos** (el DMA de
+  Agnus necesita más ancho cuantos más planos: la última palabra de cada plano debe terminar a
+  tiempo). No hay tabla en el AHRM 3.ª del repo; obtenerla (AHRM Apéndice C, guías de Agnus o
+  pruebas en hardware/WinUAE) antes de añadirla a `validate` (código nuevo). No inventar valores.
+
+## 6. ECS/AGA: afinar perfiles
+
+- `ecs` y `aga_a1200` existen con valores conservadores. Afinar con el **Apéndice C** del AHRM
+  (ECS: mayor ancho/fetch, blitter 16368×16384) y documentación AGA (FMODE, HAM8, 24-bit,
+  DPF 4+4) cuando se incorpore al workspace.
+

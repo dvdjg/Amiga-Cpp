@@ -225,9 +225,11 @@ inline constexpr DisplayLimits aga_a1200 {
 		    res.ddfstop <= res.ddfstrt) {
 			return {10u, "DDFSTRT/DDFSTOP fuera de los limites hw del backend"};
 		}
-		// Palabras de fetch = 1 + (ddfstop - ddfstrt) / 2  (cada paso de DDF = 1 palabra).
+		// Palabras de fetch lores = (ddfstop - ddfstrt)/8 + 1  (paso de DDF = 8 bytes = 1
+		// palabra de 16 px). Estándar 0x38..0xD0 -> (0xD0-0x38)/8+1 = 20 palabras = 320 px;
+		// máximo hw 0x18..0xD8 -> 25 palabras (AHRM Tabla 3-14).
 		const u16 fetch_words =
-			static_cast<u16>(1u + (static_cast<u16>(res.ddfstop - res.ddfstrt) / 2u));
+			static_cast<u16>((static_cast<u16>(res.ddfstop - res.ddfstrt) / 8u) + 1u);
 		if (fetch_words > l.max_fetch_words) {
 			return {10u, "DDFSTRT/DDFSTOP superan las palabras de fetch maximas del backend"};
 		}
