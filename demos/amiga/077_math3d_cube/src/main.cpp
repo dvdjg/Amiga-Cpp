@@ -40,6 +40,7 @@ namespace {
 
 namespace scene = eng::graphics::scene;
 namespace field = eng::field;
+namespace graphics = eng::graphics;
 
 constexpr eng::u16 kWidth = 320;
 constexpr eng::u16 kHeight = 256;
@@ -164,6 +165,19 @@ struct DemoGame {
 		if (m_memory_ok && m_scene_ok) {
 			backend.install_raster(m_scene); // Blitter/CPU según las caps del backend
 			draw_static();
+			// Validacion de la **linea por Blitter** (seam): dibuja un triangulo fijo con
+			// el Blitter (FramePlan) y lo ejecuta; evidencia de la ruta BlitJobKind::Line.
+			{
+				field::Surface s = m_scene.surface();
+				graphics::FramePlan plan {};
+				(void)s.draw_line(20, 20, 60, 20, 8u, &plan);
+				(void)s.draw_line(60, 20, 40, 50, 8u, &plan);
+				(void)s.draw_line(40, 50, 20, 20, 8u, &plan);
+				if (!backend.execute_frame_plan(plan)) {
+					eng::debug::mark_failed(g_eng_run_status, 0x00007702u);
+					return;
+				}
+			}
 			m_scene.takeover(backend);
 			if (!verify_mesh()) {
 				eng::debug::mark_failed(g_eng_run_status, 0x00007701u);

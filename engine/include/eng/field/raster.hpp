@@ -36,6 +36,46 @@ struct ClipRect {
 	eng::s32 y1 = 0;
 };
 
+/// **Recorta el segmento** `(x0,y0)-(x1,y1)` al rect `clip` (Cohen-Sutherland entero).
+/// Devuelve `false` si no hay intersección; si `true`, deja el segmento recortado en los
+/// mismos parámetros. Se usa antes de encolar una línea al Blitter (que no recorta). La
+/// intersección usa una división de 32 bits (una vez por lado recortado, no por píxel).
+[[nodiscard]] inline bool clip_segment(const ClipRect& clip, eng::s32& x0, eng::s32& y0,
+				       eng::s32& x1, eng::s32& y1) {
+	enum : int { kLeft = 1, kRight = 2, kTop = 4, kBottom = 8 };
+	auto code = [&](eng::s32 x, eng::s32 y) -> int {
+		int c = 0;
+		if (x < clip.x0) c |= kLeft;
+		else if (x > clip.x1) c |= kRight;
+		if (y < clip.y0) c |= kTop;
+		else if (y > clip.y1) c |= kBottom;
+		return c;
+	};
+	for (;;) {
+		const int c0 = code(x0, y0);
+		const int c1 = code(x1, y1);
+		if ((c0 | c1) == 0) return true;   // dentro
+		if ((c0 & c1) != 0) return false;  // fuera por el mismo lado
+		const int c = (c0 != 0) ? c0 : c1;
+		eng::s32 x = 0;
+		eng::s32 y = 0;
+		if ((c & kTop) != 0) {
+			y = clip.y0;
+			x = x0 + (x1 - x0) * (clip.y0 - y0) / (y1 - y0);
+		} else if ((c & kBottom) != 0) {
+			y = clip.y1;
+			x = x0 + (x1 - x0) * (clip.y1 - y0) / (y1 - y0);
+		} else if ((c & kRight) != 0) {
+			x = clip.x1;
+			y = y0 + (y1 - y0) * (clip.x1 - x0) / (x1 - x0);
+		} else {
+			x = clip.x0;
+			y = y0 + (y1 - y0) * (clip.x0 - x0) / (x1 - x0);
+		}
+		if (c == c0) { x0 = x; y0 = y; } else { x1 = x; y1 = y; }
+	}
+}
+
 /// Interfaz de rasterizado. `Surface` no sabe qué implementación hay detrás.
 class Rasterizer {
 public:
@@ -153,21 +193,16 @@ public:
 					static_cast<eng::s16>(y + h - 1), static_cast<eng::s16>(y + h - 1)};
 		return pf.fill_polygon(xs, ys, 4u, color);
 	}
-	/// Línea por **Blitter** si hay `plan` y la línea cae **dentro** del clip (el Blitter
-	/// no recorta): encola una `BlitJobKind::Line` por plano. Si no, CPU (Bresenham).
+	/// Línea por **Blitter** si hay `plan`: recorta el segmento al clip (Cohen-Sutherland)
+	/// y encola una `BlitJobKind::Line` por plano. Si no hay plan (o no cabe), CPU.
 	bool draw_line(Playfield& pf, const ClipRect& clip, eng::s32 x0, eng::s32 y0,
 		       eng::s32 x1, eng::s32 y1, eng::u8 color,
 		       graphics::FramePlan* plan = nullptr) override {
 		if (plan != nullptr) {
-			const eng::s32 xa = x0 < x1 ? x0 : x1;
-			const eng::s32 xb = x0 < x1 ? x1 : x0;
-			const eng::s32 ya = y0 < y1 ? y0 : y1;
-			const eng::s32 yb = y0 < y1 ? y1 : y0;
-			const bool inside = xa >= clip.x0 && xb <= clip.x1 &&
-					    ya >= clip.y0 && yb <= clip.y1;
-			if (inside &&
-			    pf.add_line(*plan, static_cast<eng::s16>(x0), static_cast<eng::s16>(y0),
-					static_cast<eng::s16>(x1), static_cast<eng::s16>(y1), color)) {
+			eng::s32 cx0 = x0, cy0 = y0, cx1 = x1, cy1 = y1;
+			if (clip_segment(clip, cx0, cy0, cx1, cy1) &&
+			    pf.add_line(*plan, static_cast<eng::s16>(cx0), static_cast<eng::s16>(cy0),
+					static_cast<eng::s16>(cx1), static_cast<eng::s16>(cy1), color)) {
 				return true;
 			}
 		}

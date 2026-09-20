@@ -757,7 +757,7 @@ public:
         if (base == nullptr || width == 0u || height == 0u || planes == 0u || planes > 6u) {
             return false;
         }
-        const u16 row = static_cast<u16>((width / 8u) & ~1u);
+        const u16 row = static_cast<u16>(((width / 8u) + 3u) & ~3u);
         const u32 pbytes = (plane_stride != 0u) ? plane_stride
                                                 : static_cast<u32>(row) * height;
         const u32 need = pbytes * planes;

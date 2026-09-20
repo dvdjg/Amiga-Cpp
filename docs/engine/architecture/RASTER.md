@@ -55,26 +55,25 @@ backend host (sin Blitter) declara `RasterCaps{ .blitter = false }` y se usa `kC
 ## Estado y extensión
 
 - **Hecho**: `RasterOp` (CPU), relleno CPU/Blitter (con umbral `Auto`), **línea CPU y por
-  Blitter** (`BlitJobKind::Line` + `Rasterizer::draw_line`), copia CPU (32 bits) y Blitter con
-  `source_shift`/`descending`, copia enmascarada CPU y Blitter; `install_raster` con `RasterCaps`
-  OCS/AGA por target.
+  Blitter** (`BlitJobKind::Line` + `Rasterizer::draw_line`, con recorte de segmento), copia CPU
+  (32 bits) y Blitter con `source_shift`/`descending`, copia enmascarada CPU y Blitter;
+  `install_raster` con `RasterCaps` OCS/AGA por target; `row_bytes` alineado a 4.
 - **Operaciones Blitter que aún NO cubre el seam** (ver `frame_plan.hpp`/AHRM cap. 6):
   - **Relleno de rect directo** (FILL mode): hoy el rect se rellena como polígono vía
-    `PolygonFillSink`; un `FillRect` propio evitaría el camino de polígono.
+    `PolygonFillSink`, que ya usa `blit_fill_region` (FILL_OR) del Blitter; un `FillRect` propio
+    evitaría el camino de polígono (micro-optimización, no una capacidad que falte).
   - **C2P** (chunky→planar): uso especializado multi-fase del Blitter (ver `C2P_BLITTER.md`).
-  - **Copia CPU siempre de 32 bits**: hoy el camino ancho requiere origen y destino alineados a
-    4; con `row_bytes % 4 == 0` (p. ej. 320 px) aplica, si no cae a 16 bits por fila. Alinear
-    los buffers en `bind` (o padear `row_bytes` a 4) lo haría universal.
-  - **Línea parcialmente fuera del clip**: el Blitter no recorta, así que hoy va a CPU; un
-    recorte de segmento (Liang-Barsky entero) permitiría la ruta Blitter.
 
 ## Verificación
 
 - **HOST-212**: `RasterOp` (`Xor` dos veces = 0, `Or`/`And`/`Clear`), `BlitterRaster` (fill y
-  copia por `FramePlan`) y copia CPU/enmascarada CPU (pixeles + `blit_job_count`).
+  copia por `FramePlan`), copia CPU/enmascarada CPU (píxeles + `blit_job_count`), **línea por
+  Blitter** (encolado por plano y recorte con `clip_segment`) y `AccelMode::Auto`.
 - **Sonda de codegen** `docs/guides/optimization/_probe_raster_copy.cpp`: 68000/68020 sin
   libcalls (`__mulsi3`/`__udivsi3`) y con `move.l` en la copia.
-- **Demo**: `077_math3d_cube` instala el rasterizador del backend y dibuja con `Surface`.
+- **Demo (hardware)**: `077_math3d_cube` instala el rasterizador del backend, dibuja el cubo por
+  CPU y un **triángulo fijo por Blitter** (`draw_line(&plan, …)` + `execute_frame_plan`), visible
+  en la captura; verificado `build -> run -> analyze`.
 
 Referencias: `SCENE_COMPOSITION.md` §6.2, `DISPLAY_COMPOSITION.md`, `playfield.hpp`
 (`PolygonFillSink`), `frame_plan.hpp` (`BlitJob`/`minterm`).

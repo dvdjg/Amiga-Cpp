@@ -161,9 +161,10 @@ public:
 	}
 	/// Bytes de un plano completo (`row_bytes * alloc_rows`).
 	[[nodiscard]] constexpr u32 plane_bytes() const { return m_plane_bytes; }
-	/// Bytes por fila de un plano (`width/8`, redondeado a par).
+	/// Bytes por fila de un plano (`width/8`, **redondeado a 4**). El padding a 4 deja
+	/// las filas alineadas para la copia CPU de 32 bits (`copy_rect_cpu`).
 	[[nodiscard]] constexpr u16 row_bytes() const {
-		return static_cast<u16>((m_res.width / 8u) & ~1u);
+		return static_cast<u16>(((m_res.width / 8u) + 3u) & ~3u);
 	}
 	/// Nº de planos de bitplane de la escena.
 	[[nodiscard]] constexpr u8 planes() const { return m_res.planes; }

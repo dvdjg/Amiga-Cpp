@@ -226,8 +226,21 @@ int main() {
 	check(s6.surface().draw_line(0, 0, 31, 15, 5u, &line_plan), "BlitterRaster::draw_line encola");
 	check(line_plan.blit_job_count() == 2u, "linea por Blitter = 1 job por plano (color 5 = planos 0,2)");
 	graphics::FramePlan line_plan2 {};
-	(void)s6.surface().draw_line(-100, -100, -50, -50, 5u, &line_plan2);
-	check(line_plan2.blit_job_count() == 0u, "linea fuera del clip no encola (CPU)");
+	check(s6.surface().draw_line(-10, 8, 40, 8, 5u, &line_plan2), "linea parcial se recorta y encola");
+	check(line_plan2.blit_job_count() == 2u, "linea parcial = 1 job por plano (recortada)");
+	graphics::FramePlan line_plan3 {};
+	(void)s6.surface().draw_line(-100, -100, -50, -50, 5u, &line_plan3);
+	check(line_plan3.blit_job_count() == 0u, "linea fuera del clip no encola (CPU)");
+
+	// Recorte de segmento directo (Cohen-Sutherland entero).
+	{
+		field::ClipRect cr {0, 0, 31, 31};
+		eng::s32 a = -10, b = 8, c = 40, d = 8;
+		check(field::clip_segment(cr, a, b, c, d) && a == 0 && c == 31,
+		      "clip_segment recorta a [0,31]");
+		eng::s32 e = -100, f = -100, g = -50, h = -50;
+		check(!field::clip_segment(cr, e, f, g, h), "clip_segment rechaza el segmento fuera");
+	}
 
 	if (failures == 0) {
 		std::printf("OK: scene::compose interleaved y contiguo (Surface + copperlist).\n");
