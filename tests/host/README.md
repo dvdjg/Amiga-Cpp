@@ -256,4 +256,7 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-216 | [scene_display_limits](216_scene_display_limits/README.md) | `eng/graphics/scene/limits.hpp`: perfiles OCS/ECS/AGA, validación `validate`/`valid_scene` y coste de bus `dma_cost` (fetch 1×/2×/4×, slots 226/27). |
 | HOST-217 | [polygon_planes](217_polygon_planes/README.md) | `eng/graphics/polygon_planes.hpp`: relleno de polígonos **compuesto por bitplane** (CPU): un fill por plano según los bits del color, con cancelación de aristas compartidas (even-odd). |
 | HOST-218 | [seam_c2p](218_seam_c2p/README.md) | `Rasterizer::c2p` (seam): chunky→planar unificado (CPU vía `c2p_1x1_4`/`naive`), comparado con la referencia. |
+| HOST-231 | [box](231_box/README.md) | `eng::Box` (rect 16 bits) + adaptadores a/desde `SurfaceRect`/`ClipRect`/`DirtyRect` (round-trip y bordes). |
+| HOST-232 | [draw_target](232_draw_target/README.md) | `field::DrawTarget` (Surface+Rasterizer+FramePlan+clip): `fill`/`line`/`frame`/`c2p` y `box()`. |
+| HOST-233 | [api_facade](233_api_facade/README.md) | Fachada pública `eng/api/api.hpp`: un solo include expone la API estable (Box, FramePlan, raster, entrada, tareas, paleta, `GameModule`). |
 | HOST-208 | [ptr](208_ptr/README.md) | `eng/core/ptr.hpp`: punteros "inteligentes" sin heap (`Ref` observador no propietario y anulable, `NonNull`, `Opt` opcional en sitio). |

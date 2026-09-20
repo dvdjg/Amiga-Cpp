@@ -26,6 +26,7 @@
 /// ```
 
 #include <eng/core/arith.hpp>
+#include <eng/core/box.hpp>
 #include <eng/core/domains.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/util/array.hpp>
@@ -157,6 +158,18 @@ struct DirtyRect {
 		return valid() ? static_cast<u16>(bottom - top) : 0;
 	}
 };
+
+/// Conversión `eng::Box` → `DirtyRect` (bordes `right`/`bottom` **exclusivos**).
+[[nodiscard]] constexpr DirtyRect dirty_rect_of(const eng::Box& b) {
+	return { b.x, b.y, static_cast<s16>(b.x + b.w), static_cast<s16>(b.y + b.h) };
+}
+
+/// Conversión `DirtyRect` → `eng::Box` (inclusivo en `right`/`bottom`).
+[[nodiscard]] constexpr eng::Box box_of(const DirtyRect& d) {
+	return d.valid() ? eng::Box::from_ltrb(d.left, d.top, static_cast<s16>(d.right - 1),
+					       static_cast<s16>(d.bottom - 1))
+			 : eng::Box {};
+}
 
 /// Metricas de dirty rects tras fusionar.
 struct DirtyReport {

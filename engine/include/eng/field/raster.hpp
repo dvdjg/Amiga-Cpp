@@ -30,6 +30,7 @@
 ///   La app/escena fija la política (AccelMode::Auto + umbral); el consumidor no sabe qué hay detrás.
 /// ```
 
+#include <eng/core/box.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/graphics/c2p.hpp>
 #include <eng/graphics/frame_plan.hpp>
@@ -45,6 +46,17 @@ struct ClipRect {
 	eng::s32 x1 = 0;
 	eng::s32 y1 = 0;
 };
+
+/// Conversión `eng::Box` → `ClipRect` inclusivo (bordes `x1`/`y1`).
+[[nodiscard]] constexpr ClipRect clip_rect_of(const eng::Box& b) {
+	return { b.x, b.y, b.right(), b.bottom() };
+}
+
+/// Conversión `ClipRect` → `eng::Box`.
+[[nodiscard]] constexpr eng::Box box_of(const ClipRect& c) {
+	return eng::Box::from_ltrb(static_cast<eng::s16>(c.x0), static_cast<eng::s16>(c.y0),
+				   static_cast<eng::s16>(c.x1), static_cast<eng::s16>(c.y1));
+}
 
 /// **Recorta el segmento** `(x0,y0)-(x1,y1)` al rect `clip` (Cohen-Sutherland entero).
 /// Devuelve `false` si no hay intersección; si `true`, deja el segmento recortado en los
@@ -328,12 +340,5 @@ public:
 /// Instancias estáticas (sin heap): el llamador pasa `&kCpuRaster`/`&kBlitterRaster`.
 inline CpuRaster kCpuRaster {};
 inline BlitterRaster kBlitterRaster {};
-
-/// Definición de `Playfield::rasterize_c2p` (declarado en `playfield.hpp`): necesita
-/// `Rasterizer`/`kCpuRaster` completos, por eso no vive en `playfield.hpp`.
-inline bool Playfield::rasterize_c2p(const C2pRequest& req, graphics::FramePlan* plan) {
-	Rasterizer* r = (m_rasterizer != nullptr) ? m_rasterizer : &kCpuRaster;
-	return r->c2p(req, plan);
-}
 
 } // namespace eng::field

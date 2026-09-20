@@ -73,46 +73,17 @@ la `Surface` del destino (pantalla o backing de ventana).
 
 ## 4. Rectángulo de UI
 
-Los rects de UI viven en coordenadas de pantalla (≤ 320×256) o locales de ventana, así que un
-`Rect` de 16 bits es más barato en el 68000 que el `SurfaceRect` de 32 bits del engine. Se define
-un tipo propio y se convierte al llamar a `Surface`:
+La GUI usa **`eng::Box`** (`eng/core/box.hpp`), el rectángulo único de 16 bits del engine (ver
+[ENGINE_STRUCTURE_REVIEW.md](ENGINE_STRUCTURE_REVIEW.md) D2): origen + tamaño, con `contains`
+inclusivo, `inset`, `overlaps`, `intersect`, `merge` y `translate`. Para llamar a `Surface` se
+convierte con `field::surface_rect_of(box)`; los dirty rects del engine se convierten con
+`graphics::dirty_rect_of(box)`.
 
-```cpp
-namespace eng::ui {
+Así la GUI no introduce un quinto rectángulo: los rects de widget, de ventana y de dirty son
+`Box`, y las conversiones viven en la capa que ya conocía cada tipo (`SurfaceRect`, `ClipRect`,
+`DirtyRect`).
 
-/// Rectángulo de UI en coordenadas de pantalla o de ventana (16 bits).
-struct Rect {
-	eng::s16 x = 0;
-	eng::s16 y = 0;
-	eng::u16 w = 0;
-	eng::u16 h = 0;
-
-	[[nodiscard]] constexpr bool empty() const { return w == 0u || h == 0u; }
-	[[nodiscard]] constexpr eng::s16 right() const { return static_cast<eng::s16>(x + w - 1); }
-	[[nodiscard]] constexpr eng::s16 bottom() const { return static_cast<eng::s16>(y + h - 1); }
-
-	[[nodiscard]] constexpr bool contains(eng::s16 px, eng::s16 py) const {
-		return px >= x && py >= y && px <= right() && py <= bottom();
-	}
-
-	[[nodiscard]] constexpr Rect inset(eng::u8 n) const {
-		return { static_cast<eng::s16>(x + n), static_cast<eng::s16>(y + n),
-			 static_cast<eng::u16>(w > 2u * n ? w - 2u * n : 0u),
-			 static_cast<eng::u16>(h > 2u * n ? h - 2u * n : 0u) };
-	}
-
-	/// Conversión al rect lógico del engine (para llamar a `Surface`).
-	[[nodiscard]] constexpr eng::field::SurfaceRect surface_rect() const {
-		return { x, y, w, h };
-	}
-};
-
-[[nodiscard]] constexpr Rect intersect(Rect a, Rect b);
-[[nodiscard]] constexpr bool overlaps(Rect a, Rect b);
-[[nodiscard]] constexpr Rect merge(Rect a, Rect b); ///< rect mínimo que cubre ambos
-
-} // namespace eng::ui
-```
+> En el resto de este documento, donde aparezca `Rect` léase `eng::Box`.
 
 ## 5. `UiPainter`: chrome sobre `Surface`
 

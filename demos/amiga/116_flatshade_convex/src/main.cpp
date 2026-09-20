@@ -26,6 +26,7 @@
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/scene/compose.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/graphics/blitter_state.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 #include <exec/execbase.h>
@@ -347,7 +348,7 @@ void draw_edges(obj::Object3D& object, eng::PlaneBytes planes,
 				// Par??metros Bresenham calculados UNA vez por arista (independientes
 				// del plano) y reutilizados en los N planos del color, como el original
 				// (avanza `bltcpt += plane_bytes` sin recalcular el octante).
-				eng::amiga::MinimalBackend::LineEorParams line;
+				eng::graphics::LineEor line;
 				if (backend.blitter_line_eor_prepare(line, kBytesPerRow, x0, y0, x1, y1)) {
 					for (eng::u8 p = 0; p < kPlanes; ++p) {
 						if ((edgeColor & (1 << p)) != 0) {

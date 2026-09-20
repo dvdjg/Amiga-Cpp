@@ -36,6 +36,7 @@
 /// ```
 
 #include <eng/retro/lib2d.hpp>
+#include <eng/core/box.hpp>
 #include <eng/core/utf8.hpp>
 #include <eng/core/ptr.hpp>
 #include <eng/field/playfield.hpp>
@@ -52,6 +53,16 @@ struct SurfaceRect {
     u16 w = 0;
     u16 h = 0;
 };
+
+/// Conversión `eng::Box` → `SurfaceRect` (el rect lógico de 32 bits que usa `Surface`).
+[[nodiscard]] constexpr SurfaceRect surface_rect_of(const eng::Box& b) {
+    return { b.x, b.y, b.w, b.h };
+}
+
+/// Conversión `SurfaceRect` → `eng::Box` (acota a 16 bits: en pantalla no desborda).
+[[nodiscard]] constexpr eng::Box box_of(const SurfaceRect& r) {
+    return { static_cast<eng::s16>(r.x), static_cast<eng::s16>(r.y), r.w, r.h };
+}
 
 /// Contexto de dibujo con clip sobre un playfield.
 class Surface {

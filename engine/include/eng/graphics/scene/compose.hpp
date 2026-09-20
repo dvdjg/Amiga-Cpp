@@ -40,6 +40,7 @@
 #include <eng/core/types.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/core/util/function_ref.hpp>
+#include <eng/field/draw_target.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/field/raster.hpp>
 #include <eng/field/surface.hpp>
@@ -237,11 +238,22 @@ public:
 		m_contiguous.set_polygon_fill_sink(sink);
 	}
 
+	/// **Objetivo de dibujo** de la escena: `Surface` + `Rasterizer` + `FramePlan` + clip.
+	/// Es la puerta única a las primitivas (fill/línea/texto/blit/c2p) sobre el buffer de
+	/// dibujo activo, sea la escena contigua o interleaved.
+	[[nodiscard]] field::DrawTarget draw_target(graphics::FramePlan* plan = nullptr) {
+		const bool interleaved = (m_res.layout == SceneLayout::Interleaved);
+		field::Playfield& pf = interleaved
+					       ? static_cast<field::Playfield&>(m_playfield)
+					       : static_cast<field::Playfield&>(m_contiguous);
+		return field::DrawTarget { surface(), pf.rasterizer(), plan };
+	}
+
 	/// **Chunky→planar** a través del rasterizador de la escena: con `BlitterRaster` y
 	/// un `plan` encola un `BlitJobKind::C2P` (el backend ejecuta las 13 fases); con el
 	/// rasterizador CPU convierte ya sin usar `plan`.
 	[[nodiscard]] bool c2p(const field::C2pRequest& req, graphics::FramePlan* plan = nullptr) {
-		return m_playfield.rasterize_c2p(req, plan);
+		return draw_target(plan).c2p(req);
 	}
 
 	/// Toma el control mostrando el buffer 0 (una vez).

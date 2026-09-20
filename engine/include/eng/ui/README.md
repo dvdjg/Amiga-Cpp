@@ -18,12 +18,11 @@ No depende del mini-SO (`eng::os`), pero se integra con él por el puente `os::M
 
 | Cabecera | Contenido |
 |---|---|
-| `rect.hpp` | `Rect` (UI, 16 bits) + `intersect`/`overlaps`/`merge`. |
 | `theme.hpp` | `UiTheme` (colores lógicos + métricas) y presets (`kThemeWb13`/`kThemeWb2`/`kThemeFlat`). |
 | `painter.hpp` | `UiPainter`: *chrome* sobre `Surface` (fills, marcos, bevels, paneles, glifos). |
 | `text.hpp` | `text_width`, `draw_text_clipped` (reusa `Font8`/`Font5x7`). |
 | `widget.hpp` | `WidgetType`, `WidgetFlags` y `Widget` (árbol intrusivo, sin heap). |
-| `dirty.hpp` | `DirtyList<Max>` con fusión de regiones. |
+| `dirty.hpp` | `DirtyList<Max>` con fusión de regiones (rects = `eng::Box`). |
 | `event.hpp` | `UiEvent`, `UiEventKind`. |
 | `widgets.hpp` | `Panel`, `Label`, `Button`, `CheckBox`, `RadioButton`. |
 | `editbox.hpp` | `EditBox` (buffer externo, caret, foco). |
@@ -34,6 +33,6 @@ No depende del mini-SO (`eng::os`), pero se integra con él por el puente `os::M
 | `context.hpp` | `UiContext` (dirty, foco, hit-test, dispatch, paint). |
 | `ui_bridge.hpp` | Puente `eng::os::Msg` → `UiEvent`. |
 
-Reglas del engine: sin heap en el camino caliente, sin excepciones ni RTTI, `gnu++23`, tipos de
-`eng/core`, despacho por tipo (no `virtual` en caliente), capacidad fija y temas/métricas
-`constexpr`.
+Los rectángulos de UI son `eng::Box` (`eng/core/box.hpp`); no hay un `rect.hpp` propio. Reglas del
+engine: sin heap en el camino caliente, sin excepciones ni RTTI, `gnu++23`, tipos de `eng/core`,
+despacho por tipo (no `virtual` en caliente), capacidad fija y temas/métricas `constexpr`.

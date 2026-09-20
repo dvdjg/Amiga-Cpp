@@ -16,6 +16,7 @@
 #include <eng/field/surface.hpp>
 #include <eng/graphics/palette32.hpp>
 #include <eng/graphics/scene/compose.hpp>
+#include <eng/graphics/blitter_state.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 #include <proto/exec.h>
@@ -136,10 +137,10 @@ struct CollideGame {
 		//    posicion (1 word de ancho, 8 filas), AND $80 + escaneo.
 		backend.blitter_clear(m_band_a.view, 1u, kBytesPerRow, kBandPlaneBytes, kWidth, 8u, true);
 		backend.blitter_clear(m_band_b.view, 1u, kBytesPerRow, kBandPlaneBytes, kWidth, 8u, true);
-		const eng::amiga::MinimalBackend::OrBobEntry pa {
+		const eng::graphics::OrBob pa {
 			m_player_mask.view.data(),
 			m_band_a.view.data() + static_cast<eng::u32>(m_px) * 2u, 0u};
-		const eng::amiga::MinimalBackend::OrBobEntry hb {
+		const eng::graphics::OrBob hb {
 			m_hazard_mask.view.data(),
 			m_band_b.view.data() + static_cast<eng::u32>(kHazardWord) * 2u, 0u};
 		(void)backend.blitter_or_bobs(&pa, 1u, 1u, 8u,

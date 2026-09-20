@@ -168,16 +168,18 @@ struct DemoGame {
 			// Validacion de la **linea por Blitter** (seam): dibuja un triangulo fijo con
 			// el Blitter (FramePlan) y lo ejecuta; evidencia de la ruta BlitJobKind::Line.
 			{
-				field::Surface s = m_scene.surface();
 				graphics::FramePlan plan {};
-				(void)s.draw_line(20, 20, 60, 20, 8u, &plan);
-				(void)s.draw_line(60, 20, 40, 50, 8u, &plan);
-				(void)s.draw_line(40, 50, 20, 20, 8u, &plan);
+				// `DrawTarget` agrupa Surface + Rasterizer + plan: las lineas se encolan
+				// en el mismo plan sin pasar el `&plan` en cada llamada.
+				field::DrawTarget dt = m_scene.draw_target(&plan);
+				(void)dt.line(20, 20, 60, 20, 8u);
+				(void)dt.line(60, 20, 40, 50, 8u);
+				(void)dt.line(40, 50, 20, 20, 8u);
 				// Triangulo EOR (ONEDOT) en el MISMO plan: el backend fija los comunes
 				// de la racha EOR una vez (`blitter_lines_eor_begin`).
-				(void)s.draw_line(260, 20, 300, 20, 8u, &plan, field::RasterOp::Xor);
-				(void)s.draw_line(300, 20, 280, 50, 8u, &plan, field::RasterOp::Xor);
-				(void)s.draw_line(280, 50, 260, 20, 8u, &plan, field::RasterOp::Xor);
+				(void)dt.line(260, 20, 300, 20, 8u, field::RasterOp::Xor);
+				(void)dt.line(300, 20, 280, 50, 8u, field::RasterOp::Xor);
+				(void)dt.line(280, 50, 260, 20, 8u, field::RasterOp::Xor);
 				if (!backend.execute_frame_plan(plan)) {
 					eng::debug::mark_failed(g_eng_run_status, 0x00007702u);
 					return;

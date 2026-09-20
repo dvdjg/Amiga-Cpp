@@ -17,6 +17,7 @@
 #include <eng/core/ptr.hpp>
 #include <eng/core/types.hpp>
 #include <eng/field/raster.hpp>
+#include <eng/graphics/blitter_state.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/polygon_planes.hpp>
 #include <eng/memory/arena.hpp>
@@ -362,15 +363,9 @@ public:
 	/// el Bresenham UNA vez por arista y reutilizarlo en los N planos del color,
 	/// como hace el `DrawObject` del original (que avanza `bltcpt += plane_bytes`).
 	/// `row_offset` es el desplazamiento de la línea dentro del plano.
-	struct LineEorParams {
-		u16 bltcon0 = 0; ///< BLTCON0 (minterm/desplazamiento de la línea)
-		u16 bltcon1 = 0; ///< BLTCON1 (modo línea, signos)
-		u16 bltamod = 0; ///< BLTAMOD (módulo de A)
-		u16 bltbmod = 0; ///< BLTBMOD (módulo de B)
-		u16 bltsize = 0; ///< BLTSIZE (alto/ancho del blit)
-		s16 derr = 0;    ///< error inicial del algoritmo de Bresenham (BLTAPT)
-		u32 row_offset = 0; ///< desplazamiento de la línea dentro del plano
-	};
+	/// Alias del tipo de dominio `eng::graphics::LineEor` (las demos usan el nombre de
+	/// dominio; el backend rellena sus campos).
+	using LineEorParams = eng::graphics::LineEor;
 
 	/// Calcula los parámetros de una línea EOR sin programar el Blitter. Devuelve
 	/// `false` para aristas horizontales (`y0 == y1`), que no aportan contorno.
@@ -422,11 +417,8 @@ public:
 				bool wait = true);
 
 	/// Una entrada del lote de BOBs OR intercalados (port de `DrawObject` de bobs3d).
-	struct OrBobEntry {
-		const void* source = nullptr; ///< atlas: inicio del frame (fila 0, plano 0)
-		void* dest = nullptr;         ///< destino: plano 0 de la scanline del objeto
-		u8 shift = 0;                 ///< desplazamiento fino X (0..15)
-	};
+	/// Alias del tipo de dominio `eng::graphics::OrBob`.
+	using OrBobEntry = eng::graphics::OrBob;
 
 	/// Dibuja un **lote de BOBs OR intercalados** fijando los campos CONSTANTES del
 	/// blit UNA sola vez (`BLTCON1`, `BLTAFWM/ALWM`, `BLTAMOD`, `BLTBMOD`, `BLTDMOD`,
@@ -468,14 +460,9 @@ public:
 	void set_bitplane_dat(u8 plane, u16 value);
 
 	/// Estado del C2P 4 bpp por Blitter (portado de `ChunkyToPlanar` de fire-rgb).
-	/// `chunky` es el buffer (su segunda mitad es el destino planar). `planes` son
-	/// los 4 punteros de bitplane; `bytes` = `BLTSIZE` del original (10240).
-	struct C2p4State {
-		u8 phase = 0;    ///< fase actual del C2P (0..12)
-		u8* chunky = nullptr; ///< buffer chunky (su 2ª mitad es el destino planar)
-		u8* planes[4] = {nullptr, nullptr, nullptr, nullptr}; ///< punteros a los 4 bitplanes
-		u16 bytes = 0;   ///< `BLTSIZE` del original (10240)
-	};
+	/// Alias del tipo de dominio `eng::graphics::C2p4` (las demos usan el nombre de
+	/// dominio; el backend programa las fases).
+	using C2p4State = eng::graphics::C2p4;
 
 	/// Ejecuta UNA fase del C2P 4 bpp (0..12, como el original) y espera al Blitter.
 	/// Devuelve false si el Blitter no responde. La fase 12 (parcheo de BPLxPT) la

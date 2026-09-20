@@ -19,9 +19,9 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 
 ### G0 — `UiPainter` + `UiTheme` + texto
 
-- **Entregable**: `eng/ui/rect.hpp` (`Rect` + `intersect`/`overlaps`/`merge`), `eng/ui/theme.hpp`
-  (`UiTheme` + presets `kThemeWb13`/`kThemeWb2`/`kThemeFlat`), `eng/ui/painter.hpp` (`UiPainter`
-  sobre `Surface`) y `eng/ui/text.hpp` (`text_width`, `draw_text_clipped`).
+- **Entregable**: `eng/ui/theme.hpp` (`UiTheme` + presets `kThemeWb13`/`kThemeWb2`/`kThemeFlat`),
+  `eng/ui/painter.hpp` (`UiPainter` sobre `Surface`) y `eng/ui/text.hpp` (`text_width`,
+  `draw_text_clipped`). Los rectángulos son `eng::Box` (`eng/core/box.hpp`).
 - **Reutiliza**: `Surface::{fill_rect,draw_line,draw_text,draw_text_literal}`, `Font8`/`Font5x7`.
 - **Verificación**: **HOST-223** — `bevel_out`/`bevel_in` pintan los 4 lados con los colores del
   tema en la posición correcta; `panel` rellena + bevel; `text_width` mide; `Rect` helpers
@@ -118,9 +118,8 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 - **Memoria de backings (A500).** El límite principal es la Chip RAM: hay que fijar el pool
   (nº y tamaño máximo de ventanas) y decidir el comportamiento al no caber (fallo limpio vs
   *clamp*).
-- **`ui::Rect` vs `SurfaceRect`.** Se define un rect de 16 bits para UI (más barato en 68000) con
-  conversión trivial al de 32 bits de `Surface`; documentar que no es un duplicado sino la
-  especialización de UI.
+- **Rectángulo de UI.** Resuelto: la GUI usa `eng::Box` (rect único del engine, HOST-231) con
+  adaptadores a `SurfaceRect`/`ClipRect`/`DirtyRect`; no define un rect propio.
 - **Despacho de widgets.** `switch` por tipo (exhaustivo) frente a tabla estática de funciones;
   decidir en G1 y mantenerlo estable.
 - **`fill_rect` D-only.** Añadir el camino de *fill* por Blitter sin fuentes al raster mejora los

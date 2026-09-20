@@ -10,6 +10,7 @@
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/scene/compose.hpp>
 #include <eng/memory/arena.hpp>
+#include <eng/graphics/blitter_state.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 // Perfilado de ciclos NO cuantizados: `K_FIRE_PROF=1` publica en
@@ -351,7 +352,7 @@ struct FireDemo {
 
 		// C2P: 13 fases (sincrono) del plano `active` a sus bitplanes.
 		if (!kDiagSkipC2p) {
-			amiga::MinimalBackend::C2p4State s {};
+			eng::graphics::C2p4 s {};
 			s.chunky = m_chunky[active];
 			s.bytes = kChunkyBytes;
 			for (eng::u8 pl = 0; pl < kPlanes; ++pl) {
@@ -428,7 +429,7 @@ private:
 	amiga::MinimalBackend* m_backend = nullptr;
 	// Pipeline del C2P: la fase 0 la arranca `update`; las fases 1..12 las encadena la
 	// IRQ de blit (`on_blit`), que marca `m_c2p_done` al terminar.
-	amiga::MinimalBackend::C2p4State m_c2p {};
+	eng::graphics::C2p4 m_c2p {};
 	bool m_c2p_pending = false;
 	bool m_c2p_irq = false;
 	eng::u8 m_c2p_buf = 0;
