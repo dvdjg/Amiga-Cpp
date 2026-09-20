@@ -18,6 +18,7 @@
 #include <eng/core/types.hpp>
 #include <eng/field/raster.hpp>
 #include <eng/graphics/frame_plan.hpp>
+#include <eng/graphics/polygon_planes.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga/blob.hpp>
 
@@ -328,6 +329,15 @@ public:
 	/// **Verificada en hardware**: self-test de la demo 077 (colisión y no-colisión).
 	bool blitter_collide(eng::PlaneBytes a, eng::PlaneBytes b, eng::PlaneBytes scratch,
 			     u8 planes, u16 row_bytes, u32 plane_bytes, u16 words, u16 rows);
+
+	/// **Relleno de polígonos compuesto por bitplane** (Blitter): para cada plano `p`,
+	/// limpia el plano, dibuja el contorno XOR (ONEDOT) de las caras cuyo color tiene el
+	/// bit `p` a 1 y hace **un area fill** (`FILL_XOR`); un fill por plano en vez de uno
+	/// por polígono. `dest` es el bitmap contiguo (se escribe en su sitio). Referencia CPU:
+	/// `graphics::fill_polygons_by_plane_cpu`. **NO VERIFICADA** (sin demo).
+	bool fill_polygons_by_plane(const graphics::PlanePolygon* faces, u32 n_faces,
+				    eng::PlaneBytes dest, u16 row_bytes, u32 plane_bytes,
+				    u8 planes, u16 width, u16 height);
 
 	/// Línea por Blitter en modo `ONEDOT` con minterm **EOR** (`BC0F_LINE_EOR`),
 	/// secuencia EXACTA de `DrawObject` de `flatshade-convex`: se usa para el

@@ -478,3 +478,14 @@ prioridad:
    el camino de polígono) o alinear/padear más los buffers.
 7. **Migrar 116** (opcional): su ruta por defecto ya es `retro::flat_shade_xor` (HOST-213); las
    rutas `draw_edges`/asm son opt-in de diagnóstico.
+
+### Relleno de polígonos compuesto por bitplane (hecho; falta demo)
+
+`eng/graphics/polygon_planes.hpp` implementa la composición por bitplane: el Blitter rellena
+máscaras de 1 bit y el color es un patrón de bits, así que se rellena **por plano** (un fill por
+plano) en vez de polígono a polígono, cancelando las aristas compartidas por caras del mismo bit.
+- **Referencia CPU** `fill_polygons_by_plane_cpu` (even-odd scanline por plano), test **HOST-217**.
+- **Camino Blitter** `MinimalBackend::fill_polygons_by_plane` (contorno XOR ONEDOT + area fill
+  `FILL_XOR` por plano) — **NO VERIFICADA** (sin demo).
+- **Pendiente**: una demo de un motor poligonal 2D/3D que lo consuma, y una API de alto nivel
+  (`SubmitPoly`/`EndFrame` o `BuildPlaneOutlines`/`BlitFillPlanes`) por encima.

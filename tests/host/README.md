@@ -254,4 +254,5 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-214 | [copper_patch](214_copper_patch/README.md) | `eng/copper::PatchHandle` (`scheduler.hpp`): MOVE parcheable por frame (precisión quirúrgica en el modelo de composición de escenas). |
 | HOST-215 | [scene_compose](215_scene_compose/README.md) | `eng/graphics/scene/compose.hpp`: escena planar por etapas (display + paleta + etapa propia con `PatchHandle`); presets en vez de clases por driver. |
 | HOST-216 | [scene_display_limits](216_scene_display_limits/README.md) | `eng/graphics/scene/limits.hpp`: perfiles OCS/ECS/AGA, validación `validate`/`valid_scene` y coste de bus `dma_cost` (fetch 1×/2×/4×, slots 226/27). |
+| HOST-217 | [polygon_planes](217_polygon_planes/README.md) | `eng/graphics/polygon_planes.hpp`: relleno de polígonos **compuesto por bitplane** (CPU): un fill por plano según los bits del color, con cancelación de aristas compartidas (even-odd). |
 | HOST-208 | [ptr](208_ptr/README.md) | `eng/core/ptr.hpp`: punteros "inteligentes" sin heap (`Ref` observador no propietario y anulable, `NonNull`, `Opt` opcional en sitio). |

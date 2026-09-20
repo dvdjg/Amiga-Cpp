@@ -1018,6 +1018,38 @@ bool MinimalBackend::blitter_collide(eng::PlaneBytes a, eng::PlaneBytes b, eng::
 	return false;
 }
 
+bool MinimalBackend::fill_polygons_by_plane(const graphics::PlanePolygon* faces, u32 n_faces,
+					    eng::PlaneBytes dest, u16 row_bytes, u32 plane_bytes,
+					    u8 planes, u16 width, u16 height) {
+	if (faces == nullptr || n_faces == 0u || dest.data() == nullptr || planes == 0u ||
+	    row_bytes == 0u || plane_bytes == 0u) {
+		return false;
+	}
+	for (u8 p = 0; p < planes; ++p) {
+		eng::PlaneBytes plane =
+			dest.subspan(static_cast<u32>(p) * plane_bytes, plane_bytes);
+		// 1) limpia el plano.
+		blitter_clear(plane, 1u, row_bytes, plane_bytes, width, height);
+		// 2) contorno XOR (ONEDOT) de las caras cuyo color tiene el bit `p` a 1; las
+		//    aristas compartidas por dos caras del mismo bit se dibujan dos veces y el
+		//    fill even-odd las cancela.
+		for (u32 f = 0; f < n_faces; ++f) {
+			const graphics::PlanePolygon& face = faces[f];
+			if ((face.color & (1u << p)) == 0u || face.count < 3u) {
+				continue;
+			}
+			for (u8 i = 0; i < face.count; ++i) {
+				const u8 j = static_cast<u8>((i + 1u) % face.count);
+				blitter_line_eor(plane, row_bytes, face.xs[i], face.ys[i],
+						 face.xs[j], face.ys[j], plane.data());
+			}
+		}
+		// 3) area fill (FILL_XOR) del plano in situ (un fill por plano).
+		blitter_area_fill(plane, 1u, row_bytes, plane_bytes, width, height, true);
+	}
+	return true;
+}
+
 bool MinimalBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1,
 				      eng::u8* d_base) {
 	// Variante autónoma: begin + prepare/draw + wait final.
