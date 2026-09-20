@@ -33,8 +33,7 @@
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/graphics/c2p.hpp>
-#include <eng/graphics/drivers/planar_scene.hpp>
-#include <eng/graphics/drivers/multi_buffered.hpp>
+#include <eng/graphics/scene/compose.hpp>
 #include <eng/graphics/effects/rotozoom.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
@@ -55,7 +54,7 @@
 #ifndef K_061_BUFFERS
 #define K_061_BUFFERS 2
 #endif
-static_assert(K_061_BUFFERS >= 1 && K_061_BUFFERS <= 4, "K_061_BUFFERS fuera de rango");
+static_assert(K_061_BUFFERS >= 1 && K_061_BUFFERS <= 3, "K_061_BUFFERS fuera de rango");
 
 struct ExecBase* SysBase = nullptr;
 
@@ -94,7 +93,7 @@ void c2p_1x1_4_asm(eng::u32 chunkyx, eng::u32 chunkyy, eng::u32 bplsize, const v
 
 namespace {
 
-namespace drivers = eng::graphics::drivers;
+namespace scene = eng::graphics::scene;
 
 // Geometria: se genera a 320x64 (20.480 px, la mitad de 320x256) y el driver repite
 // cada fila 4 veces -> display 320x256. La fila logica (40 B) coincide con la del
@@ -128,20 +127,6 @@ constexpr eng::ct_array<eng::u8, 64u * 64u> kTexture {[](eng::usize i) -> eng::u
 // Oscilacion de zoom: 98.304 +- 32.768 en 16.16 (1.5x +- 0.5x).
 constexpr eng::SineTable<32768, 256> kZoomSin {};
 
-drivers::PlanarSceneConfig make_config() {
-	drivers::PlanarSceneConfig cfg {};
-	cfg.bytes_per_row = kBytesPerRow;
-	cfg.rows = kChunkyH;
-	cfg.planes = kPlanes;
-	cfg.bplcon0 = 0x4200; // 4 planos lowres + COLOR (BPLCON0: BPU=4, bit 9)
-	cfg.row_repeat = kRepeat;
-	cfg.bplcon1_shift = 0; // sin el dither de HAM de la 080
-	cfg.palette = eng::PaletteWords {kColors, 16u};
-	cfg.palette_first = 0;
-	cfg.palette_count = 16;
-	cfg.reverse_plane_ptrs = false; // el c2p escribe plano p = bit p
-	return cfg;
-}
 
 /// Genera el rotozoom en `dst` con la ruta elegida. Ambas parten de los MISMOS
 /// `RotozoomSteps`, así que deben escribir el mismo buffer byte a byte.
@@ -182,10 +167,13 @@ struct RotozoomDemo {
 			return false;
 		}
 
-		const drivers::PlanarSceneConfig cfg = make_config();
-		// Doble buffer generico: el wrapper es dueno de la memoria y enlaza cada slot
-		// con el driver; el swap es de copperlist (COP1LC) tras VBlank.
-		if (!m_scenes.init(backend.memory(), cfg)) {
+		scene::SceneResources res = scene::planar4(320u, 256u, kPlanes);
+		res.rows = kChunkyH;
+		res.buffers = static_cast<eng::u8>(K_061_BUFFERS);
+		if (!scene::compose(m_scene, backend.memory(), res,
+				    scene::display(scene::kPal320x256, scene::kBplcon0_4Planes),
+				    scene::palette(eng::PaletteWords {kColors, 16u}, 0u, 16u),
+				    scene::row_repeat(kRepeat, 0x2cu, 0u))) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006102u);
 			return false;
 		}
@@ -249,8 +237,8 @@ struct RotozoomDemo {
 		}
 #endif
 		const eng::ChunkyBuffer src = m_chunky[0].view;
-		eng::u8* planes = m_scenes.slot(0).bitplanes().data();
-		c2p_1x1_4_asm(kChunkyW, kChunkyH, m_scenes.slot(0).plane_bytes(), src.data(), planes);
+		eng::u8* planes = m_scene.buffer(0).data();
+		c2p_1x1_4_asm(kChunkyW, kChunkyH, m_scene.plane_bytes(), src.data(), planes);
 		eng::graphics::c2p_1x1_4(kChunkyW, kChunkyH, kPlaneBytes, src.as_const(),
 					 m_ref.view);
 
@@ -258,14 +246,14 @@ struct RotozoomDemo {
 		eng::u32 diffs = 0;
 		for (eng::u32 p = 0; p < kPlanes; ++p) {
 			for (eng::u32 i = 0; i < kPlaneBytes; ++i) {
-				if (ref[p * kPlaneBytes + i] != planes[p * m_scenes.slot(0).plane_bytes() + i]) {
+				if (ref[p * kPlaneBytes + i] != planes[p * m_scene.plane_bytes() + i]) {
 					++diffs;
 				}
 			}
 		}
 
 		m_rot = eng::graphics::Rotozoom {0, 65536, 0, 0};
-		m_scenes.takeover(backend);
+		m_scene.takeover(backend);
 		// `detail` = bytes distintos entre la asm y la referencia C++ (0 = identicos).
 		eng::debug::mark_ready(g_eng_run_status, diffs);
 		return true;
@@ -281,18 +269,18 @@ struct RotozoomDemo {
 		m_rot.offset_x += 12288;
 		m_rot.offset_y += 7168;
 
-		const eng::u8 buf = m_scenes.back_slot();
-		render_rotozoom(m_rot, m_chunky[buf].view, kChunkyW, kChunkyH);
-		c2p_1x1_4_asm(kChunkyW, kChunkyH, m_scenes.back().plane_bytes(),
+		const eng::u8 buf = m_scene.back_index();
+		render_rotozoom(m_rot, m_chunky[buf % 2u].view, kChunkyW, kChunkyH);
+		c2p_1x1_4_asm(kChunkyW, kChunkyH, m_scene.plane_bytes(),
 			      m_chunky[buf].view.data(),
-			      m_scenes.back().bitplanes().data());
+			      m_scene.back().data());
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		// Swap de copperlist tras VBlank (el motor lo garantiza antes de `render`):
 		// el display muestra el buffer recien convertido, nunca el que se escribe.
-		m_scenes.commit(backend);
+		m_scene.commit();
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -301,7 +289,7 @@ private:
 		return eng::IndexedTexture {kTexture.data(), kTexture.size()};
 	}
 
-	drivers::MultiBuffered<drivers::PlanarScene, K_061_BUFFERS> m_scenes {};
+	scene::Scene m_scene {};
 	eng::Block<eng::ChunkyTag> m_chunky[2] {};
 	eng::Block<eng::PlaneTag> m_ref {};
 	eng::graphics::Rotozoom m_rot {};

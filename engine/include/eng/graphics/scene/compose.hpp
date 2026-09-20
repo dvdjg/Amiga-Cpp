@@ -142,6 +142,9 @@ public:
 		return (i < m_buffer_count) ? m_buffers[i].view : eng::PlaneBytes {};
 	}
 	[[nodiscard]] constexpr u8 buffer_count() const { return m_buffer_count; }
+
+	/// Indice del buffer trasero (el que se dibuja y que `commit()` publicara).
+	[[nodiscard]] constexpr u8 back_index() const { return m_back; }
 	/// Plano `i` del bitmap (layout contiguo; vacío si fuera de rango).
 	[[nodiscard]] constexpr eng::PlaneBytes plane(u8 i) const {
 		return (i < m_res.planes)
