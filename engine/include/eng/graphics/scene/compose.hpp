@@ -67,20 +67,25 @@ inline constexpr u8 kMaxScenePlanes = 6;  ///< planos de bitplane
 /// **Valor de 32 bits parcheable** = pareja de MOVEs (`hi`/`lo`), p. ej. un puntero
 /// `BPLxPTH` + `BPLxPTL` o un parámetro de 32 bits. Es el caso **multi-registro** de la base
 /// común: un valor lógico que ocupa varios MOVEs.
+///
+/// No guarda el emisor: los índices se aplican sobre la **lista activa** del `Plan`
+/// (`Scene::patch_plane_pointers`), que es el bloque que el Copper ejecuta. Guardar un
+/// `PatchHandle` (ligado al `Scheduler`) no serviría aquí: `Plan::begin_frame`/`end_frame`
+/// reorientan el emisor al bloque inactivo, así que el parche caería en el bitmap equivocado.
 struct Patch32 {
-	copper::PatchHandle hi {}; ///< MOVE de la mitad alta (p. ej. `BPLxPTH`)
-	copper::PatchHandle lo {}; ///< MOVE de la mitad baja (p. ej. `BPLxPTL`)
+	u16 hi_index = 0; ///< índice del MOVE de la mitad alta (p. ej. `BPLxPTH`)
+	u16 lo_index = 0; ///< índice del MOVE de la mitad baja (p. ej. `BPLxPTL`)
 
-	/// Escribe `value` repartido en `hi`/`lo` (parcheo de 32 bits en dos MOVEs).
-	void set(eng::u32 value) const {
-		hi.set(static_cast<u16>(value >> 16));
-		lo.set(static_cast<u16>(value & 0xffffu));
+	/// Escribe `value` repartido en `hi`/`lo` sobre `words` (la lista activa).
+	void apply(u16* words, eng::u32 value) const {
+		words[hi_index + 1u] = static_cast<u16>(value >> 16);
+		words[lo_index + 1u] = static_cast<u16>(value & 0xffffu);
 	}
 };
 
 /// Construye un `Patch32` a partir del índice del MOVE `hi` (el `lo` va 2 words después).
-[[nodiscard]] inline Patch32 patch32_at(copper::Scheduler& s, u16 hi_index) {
-	return Patch32 {s.patch_handle(hi_index), s.patch_handle(static_cast<u16>(hi_index + 2u))};
+[[nodiscard]] inline Patch32 patch32_at(copper::Scheduler&, u16 hi_index) {
+	return Patch32 {hi_index, static_cast<u16>(hi_index + 2u)};
 }
 
 /// Escena viva: posee los bitplanes (contiguos) y la copperlist, y el emisor de Copper.
@@ -248,8 +253,9 @@ private:
 			return;
 		}
 		const eng::u8* addr = m_buffers[index].view.data();
+		u16* words = m_plan.active_words();
 		for (u8 p = 0u; p < m_res.planes; ++p) {
-			m_plane_patch[p].set(static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(addr)));
+			m_plane_patch[p].apply(words, static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(addr)));
 			addr += m_plane_bytes;
 		}
 	}

@@ -1,32 +1,21 @@
-// Test host de `eng::graphics::drivers::CanvasScene`: driver planar que expone una
+// Test host de `scene::compose` con layout *interleaved* (`scene::canvas`): expone una
 // `Surface` de dibujo sobre un `CanvasPlayfield` (bitmap interleaved) + su copperlist.
-// Cierra el hueco «efecto -> dibujo con Surface».
+// Cierra el hueco «efecto -> dibujo con Surface» sin depender de `CanvasScene`.
 //
 // Ejecución:
 //   bash tools/run-host-tests.sh tests/host/212_canvas_scene
 
 #include <cstdio>
 
-#include <eng/graphics/drivers/canvas_scene.hpp>
-#include <eng/graphics/drivers/multi_buffered.hpp>
+#include <eng/graphics/scene/compose.hpp>
 
 using namespace eng;
-using namespace eng::graphics::drivers;
+using eng::graphics::scene::Scene;
+using eng::graphics::scene::SceneResources;
 
 namespace {
 
-struct MockBackend {
-	const u16* taken = nullptr;
-	const u16* installed = nullptr;
-	void takeover_display(const u16* words) { taken = words; }
-	void install_copper_list(const u16* words) { installed = words; }
-};
-
-// Cumple el contrato completo de driver grafico.
-static_assert(eng::GraphicsDriver<CanvasScene, MockBackend>);
-static_assert(eng::DisplayDriver<CanvasScene, MockBackend>);
-
-alignas(16) u8 g_chip[256 * 1024];
+alignas(16) u8 g_chip[512 * 1024];
 
 MemorySystem make_memory() {
 	MemorySystem mem;
@@ -62,42 +51,43 @@ void check(bool ok, const char* msg) {
 
 int main() {
 	MemorySystem mem = make_memory();
-	CanvasScene scene;
-	CanvasSceneConfig cfg {};
-	cfg.width = 320;
-	cfg.height = 256;
-	cfg.planes = 4;
 
-	check(scene.init(mem, cfg), "CanvasScene::init reserva bitmap + copperlist");
-	check(scene.ok(), "CanvasScene::ok tras init");
-	check(scene.copper_words() > 0u, "la copperlist tiene palabras");
+	// --- Lienzo interleaved (preset `canvas`) ---------------------------------
+	Scene sc;
+	check(graphics::scene::compose(
+		      sc, mem, graphics::scene::canvas(320, 256, 4),
+		      graphics::scene::display(graphics::scene::kPal320x256,
+					       graphics::scene::kBplcon0_4Planes)),
+	      "scene::compose (canvas) reserva bitmap + copperlist");
+	check(sc.ok(), "la escena queda ok tras compose");
+	check(sc.words() > 0u, "la copperlist tiene palabras");
+	check(sc.playfield().bitplanes().data() != nullptr, "el playfield tiene bitplanes");
 
-	field::Surface surf = scene.surface();
+	field::Surface surf = sc.surface();
 	// Cuadrado relleno con color 5.
 	const s16 xs[4] = {40, 120, 120, 40};
 	const s16 ys[4] = {40, 40, 120, 120};
 	check(surf.fill_polygon(xs, ys, 4, 5), "Surface::fill_polygon sobre la escena");
-	check(color_at(scene.playfield(), 80, 80) == 5u, "interior con el color pedido");
-	check(color_at(scene.playfield(), 10, 10) == 0u, "fuera del cuadrado vacio");
+	check(color_at(sc.playfield(), 80, 80) == 5u, "interior con el color pedido");
+	check(color_at(sc.playfield(), 10, 10) == 0u, "fuera del cuadrado vacio");
 
-	MockBackend backend;
-	scene.takeover(backend);
-	check(backend.taken == scene.copper_words_ptr(), "takeover instala la copperlist");
-	scene.install(backend);
-	check(backend.installed == scene.copper_words_ptr(), "install hace el swap");
-
-	// Composition multi-buffer: `MultiBuffered<CanvasScene, 2>` reparte 2 buffers (planos +
-	// copperlist) y los drivers los emiten con `bind()` (sin poseer memoria).
-	graphics::drivers::MultiBuffered<CanvasScene, 2> mb {};
-	check(mb.init(mem, cfg), "MultiBuffered<CanvasScene,2>::init");
-	check(mb.slot(0).ok() && mb.slot(1).ok(), "ambos slots ok");
-	check(mb.slot(0).bitplanes().data() != mb.slot(1).bitplanes().data(),
-	      "los dos slots tienen bitmaps distintos");
-	check(mb.slot(0).copper_words_ptr() != mb.slot(1).copper_words_ptr(),
-	      "los dos slots tienen copperlists distintas");
+	// --- Doble buffer contiguo: `buffers = 2` y `commit()` --------------------
+	SceneResources res = graphics::scene::planar4(320, 256, 4);
+	res.buffers = 2;
+	Scene s2;
+	check(graphics::scene::compose(
+		      s2, mem, res,
+		      graphics::scene::display(graphics::scene::kPal320x256,
+					       graphics::scene::kBplcon0_4Planes)),
+	      "escena con 2 buffers compone");
+	check(s2.buffer_count() == 2u, "hay 2 buffers de display");
+	check(s2.buffer(0).data() != s2.buffer(1).data(), "los dos buffers son distintos");
+	const u8 before = s2.back_index();
+	s2.commit();
+	check(s2.back_index() != before, "commit avanza el buffer trasero");
 
 	if (failures == 0) {
-		std::printf("OK: CanvasScene (Surface sobre CanvasPlayfield + copperlist interleaved).\n");
+		std::printf("OK: scene::compose canvas (Surface sobre CanvasPlayfield + copperlist interleaved).\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobacion(es) fallaron\n", failures);

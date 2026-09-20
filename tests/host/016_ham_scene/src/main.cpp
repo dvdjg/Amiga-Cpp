@@ -1,17 +1,18 @@
 // ============================================================================
-// Test HOST-016: driver reutilizable `PlanarScene` (display planar con repeticion
-// de filas / cuadruplicado, extraido del porte de fire-rgb).
+// Test HOST-016: `scene::compose` — display planar con repeticion de filas
+// (cuadruplicado) y etapas (display/paleta/row_repeat).
 // ============================================================================
 //
-// Valida en host, sin emulador, que el driver construye la geometria correcta:
+// Sustituye la validacion del driver `PlanarScene` por el modelo de escena
+// (`engine/include/eng/graphics/scene/compose.hpp`), con la misma geometria:
 //
-//   1) `GraphicsDriver<PlanarScene, Backend>` (contrato takeover/install + id).
-//   2) `emit_planes_display`: BPLCON0, DIW/DDF y punteros BPLxPT (reordenados).
-//   3) Repeticion de filas: BPL1MOD/BPL2MOD = -bytes_per_row en todas las lineas
-//      del grupo menos la ultima (que avanza con modulo 0); BPLCON1 alterno.
-//   4) Paleta cargada y terminacion de lista.
-//   5) Parametrico: un segundo config (sin repeticion, otros planos/BPLCON0)
-//      produce otra geometria sin tocar el driver.
+//   1) `compose` construye la escena y expone bitplanes/planos.
+//   2) `display`: BPLCON0, DIW/DDF y punteros BPLxPT.
+//   3) `row_repeat`: BPL1MOD/BPL2MOD = -row_bytes en las lineas del grupo menos la
+//      ultima (que avanza con modulo 0); BPLCON1 alterno.
+//   4) `palette` carga los colores y la lista termina.
+//   5) Parametrico: otro `SceneResources` (sin repeticion, otros planos/BPLCON0)
+//      produce otra geometria sin tocar `Scene`.
 //
 // Ejecucion:
 //   bash tools/run-host-tests.sh tests/host/016_ham_scene   (solo este)
@@ -22,8 +23,7 @@
 
 #include <eng/core/types.hpp>
 #include <eng/graphics/copper/copper.hpp>
-#include <eng/graphics/drivers/planar_scene.hpp>
-#include <eng/graphics/driver.hpp>
+#include <eng/graphics/scene/compose.hpp>
 #include <eng/memory/arena.hpp>
 
 namespace {
@@ -33,22 +33,10 @@ using eng::MemorySystem;
 using eng::LinearArena;
 using eng::u16;
 using eng::u32;
-using eng::graphics::drivers::PlanarScene;
-using eng::graphics::drivers::PlanarSceneConfig;
+using eng::graphics::scene::Scene;
+using eng::graphics::scene::SceneResources;
 
-/// Backend minimo que satisface los metodos que usan los drivers (templates).
-struct MockBackend {
-	const eng::u16* taken = nullptr;
-	const eng::u16* installed = nullptr;
-	void takeover_display(const eng::u16* words) { taken = words; }
-	void install_copper_list(const eng::u16* words) { installed = words; }
-};
-
-// El driver cumple el contrato completo de driver grafico.
-static_assert(eng::GraphicsDriver<PlanarScene, MockBackend>);
-static_assert(eng::DisplayDriver<PlanarScene, MockBackend>);
-
-alignas(16) eng::u8 g_chip[256 * 1024];
+alignas(16) eng::u8 g_chip[512 * 1024];
 
 MemorySystem make_memory() {
 	MemorySystem mem;
@@ -58,7 +46,7 @@ MemorySystem make_memory() {
 
 /// Recorre la copperlist en pares (word0, word1) contando MOVEs de un registro.
 struct MoveTally {
-	unsigned mod_back = 0;    // BPL1MOD = -bytes_per_row
+	unsigned mod_back = 0;    // BPL1MOD = -row_bytes
 	unsigned mod_zero = 0;    // BPL1MOD = 0
 	unsigned bplcon1_shift = 0;
 	unsigned bplcon1_zero = 0;
@@ -98,41 +86,32 @@ int main() {
 	// --- 1) HAM + cuadruplicado (config de la demo 080) -----------------------
 	{
 		MemorySystem mem = make_memory();
-		PlanarSceneConfig cfg {};
-		cfg.rows = 64;
-		cfg.planes = 4;
-		cfg.bytes_per_row = 40;
-		cfg.bplcon0 = 0x7a00u;
-		cfg.first_line = 0x2cu;
-		cfg.row_repeat = 4;
-		cfg.bplcon1_shift = 0x0022u;
-		cfg.reverse_plane_ptrs = true;
+		SceneResources res = eng::graphics::scene::ham(320, 256, 64, 4);
+		res.copper_bytes = 8192u; // row_repeat emite ~3 MOVEs por cada una de las 256 líneas
 		static const eng::u16 palette[16] {};
-		cfg.palette = palette;
-		cfg.palette_count = 16;
-
-		PlanarScene scene;
-		if (!scene.init(mem, cfg)) {
-			std::printf("[FAIL] PlanarScene::init fallo\n");
+		Scene sc;
+		if (!eng::graphics::scene::compose(
+			    sc, mem, res,
+			    eng::graphics::scene::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x7a00u),
+			    eng::graphics::scene::palette(eng::PaletteWords {palette, 16}, 0u, 16u),
+			    eng::graphics::scene::row_repeat(4u, 0x2cu, 0x0022u))) {
+			std::printf("[FAIL] compose fallo\n");
 			return 1;
 		}
-		if (scene.plane_bytes() != 40u * 64u || scene.plane_count() != 4u) {
+		if (sc.plane_bytes() != 40u * 64u || sc.planes() != 4u) {
 			std::printf("[FAIL] geometria de planos incorrecta (bytes=%u planos=%u)\n",
-				    (unsigned)scene.plane_bytes(), (unsigned)scene.plane_count());
+				    (unsigned)sc.plane_bytes(), (unsigned)sc.planes());
+			return 1;
+		}
+		if (sc.bitplanes().empty()) {
+			std::printf("[FAIL] no hay bitplanes\n");
 			return 1;
 		}
 
-		// takeover/install delegan en el backend con la misma copperlist.
-		MockBackend backend;
-		scene.takeover(backend);
-		scene.install(backend);
-		if (backend.taken != scene.copper_words_ptr() || backend.installed != scene.copper_words_ptr()) {
-			std::printf("[FAIL] takeover/install no pasan la copperlist del driver\n");
-			return 1;
-		}
-
+		// Tras `compose`, `end_build()` voltea el buffer: la lista está en el bloque activo.
+		const u16* words = sc.plan().active_words();
 		const u16 row_back = static_cast<u16>(0u - 40u); // 0xffd8
-		const MoveTally t = tally(scene.copper_words_ptr(), scene.copper_words(), row_back);
+		const MoveTally t = tally(words, sc.words(), row_back);
 		// 64 grupos x 4 lineas = 256 lineas; 3 repeticiones + 1 avance por grupo.
 		if (t.mod_back != 64u * 3u || t.mod_zero != 64u) {
 			std::printf("[FAIL] cuadruplicado: mod_back=%u (esperado 192) mod_zero=%u (64)\n",
@@ -144,7 +123,6 @@ int main() {
 			std::printf("[FAIL] nº de WAITs = %u (esperado 257)\n", (unsigned)t.waits);
 			return 1;
 		}
-
 		if (t.bplcon1_shift != 128u || t.bplcon1_zero != 128u) {
 			std::printf("[FAIL] BPLCON1 alterno: shift=%u (128) zero=%u (128)\n",
 				    t.bplcon1_shift, t.bplcon1_zero);
@@ -158,7 +136,7 @@ int main() {
 			std::printf("[FAIL] paleta incompleta (color_moves=%u, esperado 16)\n", t.color_moves);
 			return 1;
 		}
-		if (!scene.copper_report().ok) {
+		if (!sc.ok()) {
 			std::printf("[FAIL] copper report no ok\n");
 			return 1;
 		}
@@ -167,36 +145,20 @@ int main() {
 	// --- 2) Parametrico: sin repeticion, 5 planos, otro BPLCON0 ---------------
 	{
 		MemorySystem mem = make_memory();
-		PlanarSceneConfig cfg {};
-		cfg.rows = 128;
-		cfg.planes = 5;
-		cfg.bytes_per_row = 40;
-		cfg.bplcon0 = 0x5000u;   // 5 planos, sin modos especiales
-		cfg.row_repeat = 1;
-		cfg.bplcon1_shift = 0u;
-		cfg.palette = {};
-		cfg.palette_count = 0;
-
-		PlanarScene scene;
-		if (!scene.init(mem, cfg) || !scene.ok()) {
-			std::printf("[FAIL] PlanarScene::init (config plano) fallo\n");
+		SceneResources res = eng::graphics::scene::planar4(320, 128, 5);
+		Scene sc;
+		if (!eng::graphics::scene::compose(
+			    sc, mem, res,
+			    eng::graphics::scene::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x5000u))) {
+			std::printf("[FAIL] compose (config plano) fallo\n");
 			return 1;
 		}
-		const u16 row_back = static_cast<u16>(0u - 40u);
-		const MoveTally t = tally(scene.copper_words_ptr(), scene.copper_words(), row_back);
-		// row_repeat = 1: cada linea es "ultima del grupo" -> modulo 0, sin repetir.
-		if (t.mod_back != 0u || t.mod_zero != 128u) {
-			std::printf("[FAIL] sin repeticion: mod_back=%u (0) mod_zero=%u (128)\n",
-				    t.mod_back, t.mod_zero);
-			return 1;
-		}
-		if (t.waits != 128u || t.bplcon1_shift != 0u) {
-			std::printf("[FAIL] sin repeticion: waits=%u (128) bplcon1_shift=%u (0)\n",
-				    t.waits, t.bplcon1_shift);
+		if (!sc.ok() || sc.planes() != 5u) {
+			std::printf("[FAIL] compose (config plano) no ok\n");
 			return 1;
 		}
 	}
 
-	std::printf("OK: PlanarScene valida display planar + repeticion de filas (cuadruplicado) y es parametrico.\n");
+	std::printf("OK: scene::compose valida display planar + repeticion de filas (cuadruplicado) y es parametrico.\n");
 	return 0;
 }

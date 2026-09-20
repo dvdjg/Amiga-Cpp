@@ -14,6 +14,7 @@
 
 #include <eng/audio/audio_system.hpp>
 #include <eng/core/domains.hpp>
+#include <eng/core/ptr.hpp>
 #include <eng/core/types.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/memory/arena.hpp>
@@ -26,11 +27,11 @@ namespace eng::amiga {
 /// Este perfil describe nuestras expectativas de diseno, no una deteccion dinamica
 /// completa. `A500_1MB_Slow` significa 512 KB Chip + 512 KB trapdoor/bogo.
 struct HardwareProfile {
-	const char* id;
-	u16 chip_kb;
-	u16 slow_kb;
-	u16 fast_kb;
-	bool pal;
+	const char* id; ///< nombre del perfil (etiqueta legible)
+	u16 chip_kb;    ///< Chip RAM en KB (la que ve el chipset por DMA)
+	u16 slow_kb;    ///< Slow RAM en KB (trapdoor/bogo)
+	u16 fast_kb;    ///< Fast RAM en KB (solo CPU)
+	bool pal;       ///< `true` = timing PAL (50 Hz), `false` = NTSC
 };
 
 /// Perfil inicial realista para la maquina del proyecto.
@@ -55,13 +56,13 @@ struct DebugOverlay {
 
 /// Triangulo plano (coordenadas de pantalla) para el relleno por Blitter.
 struct FlatTriangle {
-	s16 x0 = 0;
-	s16 y0 = 0;
-	s16 x1 = 0;
-	s16 y1 = 0;
-	s16 x2 = 0;
-	s16 y2 = 0;
-	u8 color = 0;
+	s16 x0 = 0; ///< X del vértice 0 (pantalla, píxeles)
+	s16 y0 = 0; ///< Y del vértice 0
+	s16 x1 = 0; ///< X del vértice 1
+	s16 y1 = 0; ///< Y del vértice 1
+	s16 x2 = 0; ///< X del vértice 2
+	s16 y2 = 0; ///< Y del vértice 2
+	u8 color = 0; ///< índice de color (paleta)
 };
 
 /// Backend Amiga minimo.
@@ -106,9 +107,9 @@ public:
 	/// Almacenamiento de un servicio tipado: el thunk (instanciado por `C`) recupera
 	/// la rutina y el contexto. El llamador conserva vivo su contexto.
 	struct ServiceSlot {
-		void (*thunk)(void* slot, u16 vpos) = nullptr;
-		alignas(void*) eng::u8 fn[sizeof(void*)] {};
-		void* ctx = nullptr;
+		void (*thunk)(void* slot, u16 vpos) = nullptr; ///< trampolín que reconstruye e invoca el servicio
+		alignas(void*) eng::u8 fn[sizeof(void*)] {};   ///< bytes del funtor (tamaño fijo, ABI de IRQ)
+		void* ctx = nullptr;                           ///< contexto del llamador (vivo durante el servicio)
 	};
 
 	/// Trampolín C de un servicio: **reconstruye** el `Service<C>` desde los bytes del slot
@@ -135,16 +136,17 @@ public:
 	/// Token para `wait_vblank` (la rutina no se almacena: se pasa al bucle directo).
 	template <class C>
 	struct DirectToken {
-		C* ctx = nullptr;
-		Service<C> fn = nullptr;
+		eng::Ref<C> ctx {};      ///< contexto del llamador (no propietario, anulable)
+		Service<C> fn = nullptr; ///< rutina de espera (viaja dentro del token)
 	};
 
 	/// Trampolín de `wait_vblank` para el token directo: el funtor viaja EN el token (no en un
-	/// slot persistente), así que sólo lo invoca con `(ctx, vpos)`.
+	/// slot persistente), así que sólo lo invoca con `(ctx, vpos)`. El contexto se guarda
+	/// como `eng::Ref<C>` (observador **no propietario**, anulable) en vez de `C*`.
 	template <class C>
 	static void direct_thunk(void* token_bytes, u16 vpos) {
 		auto* t = static_cast<DirectToken<C>*>(token_bytes);
-		t->fn(*t->ctx, vpos);
+		t->fn(*t->ctx.get(), vpos);
 	}
 
 	/// `task`/`user` son un **hook de tarea ociosa** opcional: se ejecuta repetidamente
@@ -155,7 +157,7 @@ public:
 	/// `Engine::run_frames`.
 	template <class C>
 	void wait_vblank(Service<C> task, C& ctx) {
-		DirectToken<C> token { &ctx, task };
+		DirectToken<C> token { eng::Ref<C> {ctx}, task };
 		wait_vblank_run(&MinimalBackend::direct_thunk<C>, &token);
 	}
 	void wait_vblank() { wait_vblank_run(nullptr, nullptr); }
@@ -318,13 +320,13 @@ public:
 	/// como hace el `DrawObject` del original (que avanza `bltcpt += plane_bytes`).
 	/// `row_offset` es el desplazamiento de la línea dentro del plano.
 	struct LineEorParams {
-		u16 bltcon0 = 0;
-		u16 bltcon1 = 0;
-		u16 bltamod = 0;
-		u16 bltbmod = 0;
-		u16 bltsize = 0;
-		s16 derr = 0;
-		u32 row_offset = 0;
+		u16 bltcon0 = 0; ///< BLTCON0 (minterm/desplazamiento de la línea)
+		u16 bltcon1 = 0; ///< BLTCON1 (modo línea, signos)
+		u16 bltamod = 0; ///< BLTAMOD (módulo de A)
+		u16 bltbmod = 0; ///< BLTBMOD (módulo de B)
+		u16 bltsize = 0; ///< BLTSIZE (alto/ancho del blit)
+		s16 derr = 0;    ///< error inicial del algoritmo de Bresenham (BLTAPT)
+		u32 row_offset = 0; ///< desplazamiento de la línea dentro del plano
 	};
 
 	/// Calcula los parámetros de una línea EOR sin programar el Blitter. Devuelve
@@ -426,10 +428,10 @@ public:
 	/// `chunky` es el buffer (su segunda mitad es el destino planar). `planes` son
 	/// los 4 punteros de bitplane; `bytes` = `BLTSIZE` del original (10240).
 	struct C2p4State {
-		u8 phase = 0;
-		u8* chunky = nullptr;
-		u8* planes[4] = {nullptr, nullptr, nullptr, nullptr};
-		u16 bytes = 0;
+		u8 phase = 0;    ///< fase actual del C2P (0..12)
+		u8* chunky = nullptr; ///< buffer chunky (su 2ª mitad es el destino planar)
+		u8* planes[4] = {nullptr, nullptr, nullptr, nullptr}; ///< punteros a los 4 bitplanes
+		u16 bytes = 0;   ///< `BLTSIZE` del original (10240)
 	};
 
 	/// Ejecuta UNA fase del C2P 4 bpp (0..12, como el original) y espera al Blitter.
@@ -486,22 +488,22 @@ private:
 	bool install_blit_service(ServiceSlot& slot);
 	bool install_timer_service(u16 latch, ServiceSlot& slot);
 
-	Profile m_profile;
-	MemorySystem m_memory {};
-	MemoryReport m_memory_report {};
-	DebugOverlay m_debug {};
-	eng::audio::AudioSystem m_audio {};
-	ServiceSlot m_blitter_slot {};
-	ServiceSlot m_vblank_slot {};
-	ServiceSlot m_blit_slot {};
-	ServiceSlot m_timer_slot {};
-	void* m_chip_alloc = nullptr;
-	u32 m_chip_alloc_size = 0;
-	void* m_slow_alloc = nullptr;
-	u32 m_slow_alloc_size = 0;
-	void* m_frame_alloc = nullptr;
-	u32 m_frame_alloc_size = 0;
-	u32 m_blitter_starts = 0;
+	Profile m_profile; ///< perfil de máquina configurado
+	MemorySystem m_memory {}; ///< arenas (Chip/Slow/Frame) entregadas al engine
+	MemoryReport m_memory_report {}; ///< informe de la reserva de memoria
+	DebugOverlay m_debug {}; ///< overlay de debug (host/WinUAE)
+	eng::audio::AudioSystem m_audio {}; ///< sistema de audio
+	ServiceSlot m_blitter_slot {}; ///< servicio de espera de Blitter
+	ServiceSlot m_vblank_slot {}; ///< servicio de VBlank
+	ServiceSlot m_blit_slot {}; ///< servicio de fin de blit (IRQ de blit)
+	ServiceSlot m_timer_slot {}; ///< servicio del timer de CIA
+	void* m_chip_alloc = nullptr; ///< bloque base de Chip RAM reservado
+	u32 m_chip_alloc_size = 0; ///< tamaño (KB) del bloque de Chip RAM
+	void* m_slow_alloc = nullptr; ///< bloque base de Slow RAM reservado
+	u32 m_slow_alloc_size = 0; ///< tamaño (KB) del bloque de Slow RAM
+	void* m_frame_alloc = nullptr; ///< bloque base de Frame scratch reservado
+	u32 m_frame_alloc_size = 0; ///< tamaño (KB) del bloque de Frame scratch
+	u32 m_blitter_starts = 0; ///< contador de blits lanzados (diagnóstico)
 	/// Estado del lote de BOBs no-inline (`blitter_or_bobs_begin/one/end`): delega en
 	/// la misma implementacion `inline` de `blob.hpp` que usa el camino de coste cero.
 	eng::amiga::OrBlobBatch m_or_bob {};

@@ -1085,8 +1085,9 @@ extern "C" u16 c_scene_commit_ops(u16 seed) {
 	eng::copper::PatchHandle h {};
 	h.set(seed);
 	Patch32 p {};
-	p.set(seed);
-	return static_cast<u16>(g_scene.words() + seed);
+	u16 w[8] {};
+	p.apply(w, seed);
+	return static_cast<u16>(g_scene.words() + seed + w[1]);
 }
 extern "C" u16 c_sim_introspect_ops(u16 seed) {
 	using namespace eng::sim;

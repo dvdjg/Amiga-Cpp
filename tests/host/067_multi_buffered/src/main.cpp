@@ -1,19 +1,17 @@
 // ============================================================================
-// Test HOST-067: `MultiBuffered<Driver, N>` (N buffers de display + swap COP1LC)
+// Test HOST-067: doble/triple buffer de display en `scene::compose` (parcheo
+// de `BPLxPT` en `commit`).
 // ============================================================================
 //
-// Valida en host (g++ nativo, sin WinAmiga) la abstraccion que generaliza el patron
-// "2 buffers + install tras VBlank" que las demos 061/080/082/083 repetian a mano:
+// Sustituye a `MultiBuffered<Driver, N>`: el modelo de escena ya cubre el patron
+// "N buffers de display + swap" parcheando los `BPLxPT` de la copperlist en
+// `Scene::commit()`. Valida en host (g++ nativo, sin WinAmiga):
 //
-//   1) `init` reserva N parejas (planos + copperlist) y enlaza cada driver (`bind`).
-//   2) Con N>1 arranca escribiendo en el slot 1: el 0 es el que se muestra, asi el
-//      primer frame no se dibuja sobre lo visible.
-//   3) `commit` instala la copperlist del buffer en escritura y rota (0->1->0 con N=2).
-//   4) `takeover` muestra el slot 0.
-//   5) N=1 equivale a driver suelto (back siempre 0, sin flip efectivo).
-//   6) Integracion real: `PlanarScene` con N=2 produce dos copperlists distintas (cada una
-//      apunta a su propio bitmap), que es lo que demuestra la separacion
-//      "emision de copperlist" / "bloque de planos" (`bind`).
+//   1) `buffers = N` reserva N bitmaps distintos y arranca dibujando en el trasero.
+//   2) `commit` repunta los `BPLxPT` al buffer publicado y rota (0->1->0 con N=2).
+//   3) N=1: un solo buffer, `commit` no cambia de buffer.
+//   4) `reverse_ptrs` registra los parches incluso en orden inverso (case fire-rgb).
+//   5) Los `BPLxPT` de dos buffers distintos difieren (cada lista apunta a su bitmap).
 //
 // El backend es de pega (solo registra que copperlist se toma/instala): nada de
 // hardware ni RAM Amiga.
@@ -24,10 +22,8 @@
 #include <cstdio>
 
 #include <eng/core/types.hpp>
-#include <eng/graphics/driver.hpp>
-#include <eng/graphics/drivers/ehb_scene.hpp>
-#include <eng/graphics/drivers/planar_scene.hpp>
-#include <eng/graphics/drivers/multi_buffered.hpp>
+#include <eng/graphics/copper/copper.hpp>
+#include <eng/graphics/scene/compose.hpp>
 #include <eng/memory/arena.hpp>
 
 namespace {
@@ -35,51 +31,13 @@ namespace {
 using eng::MemoryKind;
 using eng::MemorySystem;
 using eng::LinearArena;
+using eng::u8;
 using eng::u16;
 using eng::u32;
+using eng::graphics::scene::Scene;
+using eng::graphics::scene::SceneResources;
 
-/// Backend de pega: registra la ultima copperlist tomada e instalada.
-struct MockBackend {
-	const eng::u16* taken = nullptr;
-	const eng::u16* installed = nullptr;
-	unsigned installs = 0;
-	void takeover_display(const eng::u16* words) { taken = words; }
-	void install_copper_list(const eng::u16* words) {
-		installed = words;
-		++installs;
-	}
-};
-
-/// Driver de pega: solo geometria y contabilidad (sin hardware). Cada slot guarda sus
-/// propios bloques; la "copperlist" es el propio bloque (su puntero).
-struct StubDriver {
-	struct Config {
-		u32 bitplane_bytes = 64;
-		u32 copper_bytes = 16;
-	};
-	static constexpr u32 bitplane_bytes_for(const Config& c) { return c.bitplane_bytes; }
-
-	bool bind(eng::Block<eng::PlaneTag> p, eng::Block<eng::CopperTag> c, const Config&) {
-		m_planes = p;
-		m_copper = c;
-		return m_planes.valid() && m_copper.valid();
-	}
-	template <class Backend>
-	void takeover(Backend& b) const {
-		b.takeover_display(reinterpret_cast<const u16*>(m_copper.view.data()));
-	}
-	template <class Backend>
-	void install(Backend& b) const {
-		b.install_copper_list(reinterpret_cast<const u16*>(m_copper.view.data()));
-	}
-	eng::PlaneBytes bitplanes() const { return m_planes.view; }
-	const eng::u16* copper_ptr() const { return reinterpret_cast<const u16*>(m_copper.view.data()); }
-
-	eng::Block<eng::PlaneTag> m_planes {};
-	eng::Block<eng::CopperTag> m_copper {};
-};
-
-alignas(16) eng::u8 g_chip[256 * 1024];
+alignas(16) eng::u8 g_chip[512 * 1024];
 
 MemorySystem make_memory() {
 	MemorySystem mem;
@@ -87,169 +45,129 @@ MemorySystem make_memory() {
 	return mem;
 }
 
+/// Extrae los punteros BPLxPT (par hi/lo por plano). Como `reverse_ptrs` reemite los
+/// punteros (el último manda), se toma el **último** `BPLxPTH` de cada plano.
+struct PlanePtrs {
+	u32 addr[4] = {0u, 0u, 0u, 0u};
+};
+
+PlanePtrs bplxpt(const u16* words, u16 count) {
+	PlanePtrs p {};
+	for (u16 i = 0; i + 1u < count; i += 2u) {
+		for (u8 plane = 0; plane < 4u; ++plane) {
+			if (words[i] == static_cast<u16>(eng::copper::bitplane_pointer_high_register(plane))) {
+				p.addr[plane] = (static_cast<u32>(words[i + 1u]) << 16) |
+						(words[i + 3u] & 0xffffu);
+			}
+		}
+	}
+	return p;
+}
+
 } // namespace
 
 int main() {
-	// --- 1..5) Logica del wrapper con un driver de pega, N=2 y N=1 ---------------
+	// --- 1..2) N=2: dos bitmaps y commit rota y repunta -----------------------
 	{
 		MemorySystem mem = make_memory();
-		eng::graphics::drivers::MultiBuffered<StubDriver, 2> mb {};
-		StubDriver::Config cfg {};
-		if (!mb.init(mem, cfg)) {
-			std::printf("[FAIL] init N=2 fallo\n");
+		SceneResources res = eng::graphics::scene::planar4(320, 256, 4);
+		res.buffers = 2;
+		Scene sc;
+		if (!eng::graphics::scene::compose(
+			    sc, mem, res,
+			    eng::graphics::scene::display(eng::graphics::scene::kPal320x256,
+							  eng::graphics::scene::kBplcon0_4Planes))) {
+			std::printf("[FAIL] compose N=2 fallo\n");
 			return 1;
 		}
-		if (mb.back_slot() != 1u) {
-			std::printf("[FAIL] back_slot inicial = %u (esperado 1: no escribir lo visible)\n",
-				    (unsigned)mb.back_slot());
+		if (sc.buffer_count() != 2u) {
+			std::printf("[FAIL] buffer_count=%u (esperado 2)\n", (unsigned)sc.buffer_count());
 			return 1;
 		}
-		if (mb.slot(0).bitplanes().data() == mb.slot(1).bitplanes().data()) {
-			std::printf("[FAIL] los slots comparten el bloque de planos\n");
+		if (sc.buffer(0).data() == sc.buffer(1).data()) {
+			std::printf("[FAIL] los buffers comparten el bloque de planos\n");
 			return 1;
 		}
-		if (mb.slot(0).copper_ptr() == mb.slot(1).copper_ptr()) {
-			std::printf("[FAIL] los slots comparten la copperlist\n");
+		if (sc.back_index() != 1u) {
+			std::printf("[FAIL] back_index inicial=%u (esperado 1: no dibujar lo visible)\n",
+				    (unsigned)sc.back_index());
 			return 1;
 		}
 
-		MockBackend backend;
-		mb.takeover(backend);
-		if (backend.taken != mb.slot(0).copper_ptr()) {
-			std::printf("[FAIL] takeover no muestra el slot 0\n");
+		// `display` emite los punteros del buffer trasero inicial (1); `commit` publica el
+		// buffer dibujado y rota: el primer commit confirma el 1, el segundo repunta al 0.
+		const u16* w = sc.plan().active_words();
+		const PlanePtrs p1 = bplxpt(w, sc.words());
+		sc.commit(); // publica el buffer 1 y rota a 0
+		if (sc.back_index() != 0u) {
+			std::printf("[FAIL] commit no rota 1->0\n");
 			return 1;
 		}
-
-		// commit instala el buffer en escritura y rota.
-		mb.commit(backend);
-		if (backend.installed != mb.slot(1).copper_ptr() || mb.back_slot() != 0u) {
-			std::printf("[FAIL] commit 1: installed=%p back=%u\n", (const void*)backend.installed,
-				    (unsigned)mb.back_slot());
+		sc.commit(); // publica el buffer 0: aquí sí se repuntan los BPLxPT
+		const PlanePtrs p0 = bplxpt(w, sc.words());
+		if (p1.addr[0] == p0.addr[0] || p1.addr[0] == 0u) {
+			std::printf("[FAIL] los BPLxPT no se repuntan en commit\n");
 			return 1;
 		}
-		mb.commit(backend);
-		if (backend.installed != mb.slot(0).copper_ptr() || mb.back_slot() != 1u) {
-			std::printf("[FAIL] commit 2: no rota 0->1\n");
-			return 1;
-		}
-		if (backend.installs != 2u) {
-			std::printf("[FAIL] installs=%u (esperado 2)\n", backend.installs);
-			return 1;
-		}
-	}
-	{
-		MemorySystem mem = make_memory();
-		eng::graphics::drivers::MultiBuffered<StubDriver, 1> mb {};
-		if (!mb.init(mem, StubDriver::Config {})) {
-			std::printf("[FAIL] init N=1 fallo\n");
-			return 1;
-		}
-		if (mb.back_slot() != 0u) {
-			std::printf("[FAIL] N=1: back_slot=%u (esperado 0)\n", (unsigned)mb.back_slot());
-			return 1;
-		}
-		MockBackend backend;
-		mb.commit(backend);
-		if (backend.installed != mb.slot(0).copper_ptr() || mb.back_slot() != 0u) {
-			std::printf("[FAIL] N=1: commit debe quedarse en el slot 0\n");
+		if (sc.back_index() != 1u) {
+			std::printf("[FAIL] commit no rota 0->1\n");
 			return 1;
 		}
 	}
 
-	// --- 6) Integracion con un driver real: PlanarScene, N=2 ------------------------
+	// --- 3) N=1: un solo buffer, commit no cambia de buffer -------------------
 	{
-		using eng::graphics::drivers::PlanarScene;
-		using eng::graphics::drivers::PlanarSceneConfig;
 		MemorySystem mem = make_memory();
-
-		PlanarSceneConfig cfg {};
-		cfg.rows = 64;
-		cfg.planes = 4;
-		cfg.bytes_per_row = 40;
-		cfg.bplcon0 = 0x4200u;
-		cfg.row_repeat = 4;
-		cfg.bplcon1_shift = 0u;
-
-		eng::graphics::drivers::MultiBuffered<PlanarScene, 2> scenes {};
-		if (!scenes.init(mem, cfg)) {
-			std::printf("[FAIL] MultiBuffered<PlanarScene,2>::init fallo\n");
+		Scene sc;
+		if (!eng::graphics::scene::compose(
+			    sc, mem, eng::graphics::scene::planar4(320, 256, 4),
+			    eng::graphics::scene::display(eng::graphics::scene::kPal320x256,
+							  eng::graphics::scene::kBplcon0_4Planes))) {
+			std::printf("[FAIL] compose N=1 fallo\n");
 			return 1;
 		}
-		const u32 planebytes = PlanarScene::plane_bytes_for(cfg);
-		if (scenes.slot(0).plane_bytes() != planebytes || scenes.slot(1).plane_bytes() != planebytes) {
-			std::printf("[FAIL] plane_bytes=%u (esperado %u)\n", (unsigned)scenes.slot(0).plane_bytes(),
-				    (unsigned)planebytes);
+		if (sc.buffer_count() != 1u || sc.back_index() != 0u) {
+			std::printf("[FAIL] N=1: count=%u back=%u (esperado 1/0)\n",
+				    (unsigned)sc.buffer_count(), (unsigned)sc.back_index());
 			return 1;
 		}
-		if (scenes.slot(0).bitplanes().data() == scenes.slot(1).bitplanes().data()) {
-			std::printf("[FAIL] PlanarScene: los dos slots comparten bitmap\n");
-			return 1;
-		}
-		// Las dos listas deben diferir: cada una apunta a su propio bitmap (BPLxPT).
-		const u16* c0 = scenes.slot(0).copper_words_ptr();
-		const u16* c1 = scenes.slot(1).copper_words_ptr();
-		const u16 n0 = scenes.slot(0).copper_words();
-		const u16 n1 = scenes.slot(1).copper_words();
-		if (n0 == 0u || n1 == 0u) {
-			std::printf("[FAIL] copperlist vacia (n0=%u n1=%u)\n", (unsigned)n0, (unsigned)n1);
-			return 1;
-		}
-		unsigned diff = 0;
-		const u16 n = (n0 < n1) ? n0 : n1;
-		for (u16 i = 0; i < n; ++i) {
-			if (c0[i] != c1[i]) {
-				++diff;
-			}
-		}
-		if (diff == 0u) {
-			std::printf("[FAIL] las copperlists de los dos slots son identicas (mismo bitmap)\n");
-			return 1;
-		}
-
-		MockBackend backend;
-		scenes.takeover(backend);
-		if (backend.taken != c0) {
-			std::printf("[FAIL] PlanarScene: takeover no usa el slot 0\n");
-			return 1;
-		}
-		scenes.commit(backend);
-		if (backend.installed != c1) {
-			std::printf("[FAIL] PlanarScene: commit no instala el slot 1\n");
+		const u16* w = sc.plan().active_words();
+		const u32 a0 = bplxpt(w, sc.words()).addr[0];
+		sc.commit();
+		const u32 a1 = bplxpt(w, sc.words()).addr[0];
+		if (sc.back_index() != 0u || a0 != a1) {
+			std::printf("[FAIL] N=1: commit debe quedarse en el buffer 0\n");
 			return 1;
 		}
 	}
 
-	// --- 7) StaticEhbScene tambien admite bind() (geometria fija) ----------------
+	// --- 4) reverse_ptrs: los parches de plano siguen registrandose -----------
 	{
-		using eng::graphics::drivers::EhbPalette;
-		using eng::graphics::drivers::StaticEhbScene;
-		using eng::graphics::drivers::StaticEhbSceneConfig;
 		MemorySystem mem = make_memory();
-		static const EhbPalette pal {};
-		const StaticEhbSceneConfig cfg {&pal, nullptr, 0u, 1024u};
-
-		eng::graphics::drivers::MultiBuffered<StaticEhbScene, 2> scenes {};
-		if (!scenes.init(mem, cfg)) {
-			std::printf("[FAIL] MultiBuffered<StaticEhbScene,2>::init fallo\n");
+		SceneResources res = eng::graphics::scene::ham(320, 256, 64, 4);
+		res.buffers = 2;
+		res.copper_bytes = 8192u;
+		Scene sc;
+		if (!eng::graphics::scene::compose(
+			    sc, mem, res,
+			    eng::graphics::scene::display(eng::graphics::scene::kPal320x256,
+							  eng::graphics::scene::kBplcon0_Ham6),
+			    eng::graphics::scene::reverse_ptrs(),
+			    eng::graphics::scene::row_repeat(4u, 0x2cu, 0x0022u))) {
+			std::printf("[FAIL] compose reverse_ptrs fallo\n");
 			return 1;
 		}
-		if (scenes.slot(0).bitplanes().data() == scenes.slot(1).bitplanes().data()) {
-			std::printf("[FAIL] StaticEhbScene: los dos slots comparten bitmap\n");
-			return 1;
-		}
-		MockBackend backend;
-		scenes.takeover(backend);
-		if (backend.taken != scenes.slot(0).copper_words_ptr()) {
-			std::printf("[FAIL] StaticEhbScene: takeover no usa el slot 0\n");
-			return 1;
-		}
-		scenes.commit(backend);
-		if (backend.installed != scenes.slot(1).copper_words_ptr()) {
-			std::printf("[FAIL] StaticEhbScene: commit no instala el slot 1\n");
+		const u16* w = sc.plan().active_words();
+		const u32 b1 = bplxpt(w, sc.words()).addr[0];
+		sc.commit();
+		sc.commit();
+		const u32 b0 = bplxpt(w, sc.words()).addr[0];
+		if (b1 == b0 || b1 == 0u) {
+			std::printf("[FAIL] reverse_ptrs: commit no repunta el BPLxPT efectivo\n");
 			return 1;
 		}
 	}
 
-	std::printf("OK: MultiBuffered (N buffers + swap COP1LC) y bind() sin dueno de memoria.\n");
+	std::printf("OK: scene::compose doble buffer (parcheo de BPLxPT en commit).\n");
 	return 0;
 }
