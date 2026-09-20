@@ -1450,6 +1450,17 @@ extern "C" s16 c_math3d_order_concave(s16 a) {
 		eng::Span<eng::math3d::FaceOrder>(out, 12));
 	return static_cast<s16>(n + out[0].index);
 }
+// --- determinante/inversa 3x3: no deben arrastrar libcalls de 64 bits (__muldi3/__divdi3). ---
+extern "C" s16 c_math_det3_inv(s16 a) {
+	const eng::retro::q12 v {a};
+	eng::math::Mat<3, eng::retro::q12> m {};
+	m.m[0][0] = v;                   m.m[0][1] = eng::retro::q12 {4096}; m.m[0][2] = eng::retro::q12 {0};
+	m.m[1][0] = eng::retro::q12 {0}; m.m[1][1] = v;                      m.m[1][2] = eng::retro::q12 {2048};
+	m.m[2][0] = eng::retro::q12 {0}; m.m[2][1] = eng::retro::q12 {0};    m.m[2][2] = v;
+	const eng::retro::q12 d = eng::math::determinant(m);
+	const eng::math::Mat<3, eng::retro::q12> inv = eng::math::inverse(m);
+	return static_cast<s16>(d.v + inv.m[0][0].v + inv.m[2][2].v);
+}
 extern "C" s16 c_object3d_update(s16 ax, s16 ay, s16 az) {
 	static eng::object3d::Object3D o {};
 	o.rotate = {q12 {ax}, q12 {ay}, q12 {az}};

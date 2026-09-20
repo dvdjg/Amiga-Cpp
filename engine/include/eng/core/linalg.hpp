@@ -510,6 +510,19 @@ template <typename S>
 	return scalar_traits<S>::norm_from(d);
 }
 
+/// Inversa 2x2 analítica (`adj / det`, con `div_norm`/`mul_norm`): funciona sobre cualquier
+/// escalar con `scalar_div` (incluido `Fixed`, sin `operator/`). `det = 0` → resultado saturado.
+template <typename S>
+[[nodiscard]] constexpr Mat<2, S> inverse(const Mat<2, S>& a) {
+	const S inv = div_norm(scalar_traits<S>::one(), determinant(a));
+	Mat<2, S> r {};
+	r.m[0][0] = mul_norm(a.m[1][1], inv);
+	r.m[0][1] = -mul_norm(a.m[0][1], inv);
+	r.m[1][0] = -mul_norm(a.m[1][0], inv);
+	r.m[1][1] = mul_norm(a.m[0][0], inv);
+	return r;
+}
+
 /// Determinante 3x3 por **cofactores 2x2** (regla de Laplace): cada menor se normaliza a `S`
 /// y la suma final de los tres productos se normaliza una vez. Evita los productos
 /// encadenados `a*b*c` (que pedirían 64 bits en `Fixed`); para `Fixed` tiene la misma
@@ -521,6 +534,28 @@ template <typename S>
 	const S m2 = scalar_traits<S>::norm_from((a.m[1][0] * a.m[2][1]) - (a.m[1][1] * a.m[2][0]));
 	const auto det = (a.m[0][0] * m0) - (a.m[0][1] * m1) + (a.m[0][2] * m2);
 	return scalar_traits<S>::norm_from(det);
+}
+
+/// Inversa 3x3 analítica (`adj / det`, regla de Laplace): cada cofactor se normaliza a `S` y
+/// se multiplica por `1/det` con `mul_norm`. Como `determinant`, evita productos encadenados;
+/// `det = 0` → resultado saturado.
+template <typename S>
+[[nodiscard]] constexpr Mat<3, S> inverse(const Mat<3, S>& a) {
+	const S inv = div_norm(scalar_traits<S>::one(), determinant(a));
+	const auto minor = [](S p, S q, S r, S s) {
+		return scalar_traits<S>::norm_from((p * q) - (r * s));
+	};
+	Mat<3, S> m {};
+	m.m[0][0] = mul_norm( minor(a.m[1][1], a.m[2][2], a.m[1][2], a.m[2][1]), inv);
+	m.m[0][1] = mul_norm(-minor(a.m[0][1], a.m[2][2], a.m[0][2], a.m[2][1]), inv);
+	m.m[0][2] = mul_norm( minor(a.m[0][1], a.m[1][2], a.m[0][2], a.m[1][1]), inv);
+	m.m[1][0] = mul_norm(-minor(a.m[1][0], a.m[2][2], a.m[1][2], a.m[2][0]), inv);
+	m.m[1][1] = mul_norm( minor(a.m[0][0], a.m[2][2], a.m[0][2], a.m[2][0]), inv);
+	m.m[1][2] = mul_norm(-minor(a.m[0][0], a.m[1][2], a.m[0][2], a.m[1][0]), inv);
+	m.m[2][0] = mul_norm( minor(a.m[1][0], a.m[2][1], a.m[1][1], a.m[2][0]), inv);
+	m.m[2][1] = mul_norm(-minor(a.m[0][0], a.m[2][1], a.m[0][1], a.m[2][0]), inv);
+	m.m[2][2] = mul_norm( minor(a.m[0][0], a.m[1][1], a.m[0][1], a.m[1][0]), inv);
+	return m;
 }
 
 // ============================================================================
