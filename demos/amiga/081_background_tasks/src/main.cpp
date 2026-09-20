@@ -100,6 +100,16 @@ eng::u16 fill_bar_step(FillTask& t, const task::TaskSlice& slice) {
 }
 
 struct BackgroundDemo {
+	/// Tarea del ciclo de vida: pulsa el fondo (COLOR00) por frame, ligada a la escena.
+	struct FrameTask {
+		BackgroundDemo* self = nullptr;
+		void operator()() const { self->pulse_color(); }
+	};
+	void pulse_color() {
+		m_hue = static_cast<eng::u8>((m_hue + 1u) & 0x0fu);
+		m_backend->set_color(0, kRainbow[m_hue]);
+	}
+
 	void init(amiga::MinimalBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({96u * 1024u, 4u * 1024u, 4u * 1024u})) {
@@ -121,6 +131,11 @@ struct BackgroundDemo {
 			m_plane0[i] = 0u;
 		}
 		m_scene.takeover(backend);
+
+		// Tarea del ciclo de vida de la escena: pulsa el fondo cada frame (`tick()`).
+		m_backend = &backend;
+		m_frame_task.self = this;
+		m_scene.on_frame(m_frame_task);
 
 		// Proceso de fondo: la barra progresa fila a fila. El engine lo drena en el
 		// hueco de VBlank; el bucle principal sigue teniendo prioridad.
@@ -144,10 +159,10 @@ struct BackgroundDemo {
 		if (!m_init_ok) return;
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 
-		// Bucle principal vivo: pulsa el fondo (COLOR00) por CPU cada frame. El Copper
-		// no toca COLOR00, asi que el valor persiste hasta el frame siguiente.
-		m_hue = static_cast<eng::u8>((m_hue + 1u) & 0x0fu);
-		backend.set_color(0, kRainbow[m_hue]);
+		// Bucle principal vivo: pulsa el fondo (COLOR00) por CPU cada frame, via la tarea
+		// de ciclo de vida de la escena. El Copper no toca COLOR00, asi que el valor
+		// persiste hasta el frame siguiente.
+		m_scene.tick();
 
 		// Elemento animado del bucle principal, dibujado por HW: limpia una banda y
 		// traza una linea que baja. Ambos blits esperan al Blitter, y ahi el engine
@@ -205,6 +220,8 @@ struct BackgroundDemo {
 
 private:
 	scene::Scene m_scene {};
+	amiga::MinimalBackend* m_backend = nullptr;
+	FrameTask m_frame_task {};
 	eng::PlaneBytes m_plane0 {};
 	eng::PlaneBytes m_plane1 {};
 	FillTask m_fill {};
