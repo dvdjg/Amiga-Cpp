@@ -14,7 +14,7 @@ en vez de una clase por driver. Ver `docs/engine/architecture/SCENE_COMPOSITION.
 ## Salida de referencia
 
 ```
-OK: scene::compose (escena por etapas + PatchHandle).
+OK: scene::compose (escena por etapas + PatchHandle + ciclo de vida).
 ```
 
 ## Ejecutar

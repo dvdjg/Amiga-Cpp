@@ -56,8 +56,16 @@ int main() {
 	const u16* words = s.scheduler().data();
 	check(words[sky.index + 1u] == 0x0abcu, "el PatchHandle parchea el color por frame");
 
+	// Ciclo de vida: una tarea de frame ligada a la escena.
+	int frames = 0;
+	auto frame_fn = [&]() { ++frames; };
+	s.on_frame(graphics::scene::Task::of(frame_fn));
+	s.tick();
+	s.tick();
+	check(frames == 2, "la tarea de frame corre una vez por tick");
+
 	if (failures == 0) {
-		std::printf("OK: scene::compose (escena por etapas + PatchHandle).\n");
+		std::printf("OK: scene::compose (escena por etapas + PatchHandle + ciclo de vida).\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobacion(es) fallaron\n", failures);

@@ -27,6 +27,24 @@
 
 namespace eng::graphics::scene {
 
+/// **Tarea del ciclo de vida** (plano de comportamiento): función + contexto, sin heap ni
+/// virtuales. Se liga a un punto (`setup`/`frame`/`teardown`). `of(f)` liga un functor o
+/// lambda que debe vivir más que la tarea (buffer del llamador).
+struct Task {
+	void* ctx = nullptr;
+	void (*run_fn)(void*) = nullptr;
+
+	void run() const {
+		if (run_fn != nullptr) run_fn(ctx);
+	}
+	[[nodiscard]] constexpr bool valid() const { return run_fn != nullptr; }
+
+	template <class F>
+	[[nodiscard]] static Task of(F& f) {
+		return Task {&f, [](void* p) { (*static_cast<F*>(p))(); }};
+	}
+};
+
 /// **Recursos** que una escena planar necesita (plano de recursos del modelo).
 struct SceneResources {
 	u16 width = 320;   ///< ancho visible (múltiplo de 16)
@@ -79,12 +97,24 @@ public:
 		if (m_sched.ok()) backend.takeover_display(m_sched.data());
 	}
 
+	// --- Ciclo de vida (plano de comportamiento) ------------------------------------
+	/// Liga una tarea a cada punto del ciclo de vida de la escena.
+	Scene& on_setup(Task t) { m_setup = t; return *this; }
+	Scene& on_frame(Task t) { m_frame = t; return *this; }
+	Scene& on_teardown(Task t) { m_teardown = t; return *this; }
+	void setup() { m_setup.run(); }
+	void tick() { m_frame.run(); } ///< una vez por frame (hot path)
+	void teardown() { m_teardown.run(); }
+
 private:
 	SceneResources m_res {};
 	eng::Block<eng::PlaneTag> m_bitplanes {};
 	eng::Block<eng::CopperTag> m_copper {};
 	copper::Scheduler m_sched {};
 	u32 m_plane_bytes = 0;
+	Task m_setup {};
+	Task m_frame {};
+	Task m_teardown {};
 };
 
 /// Preset: escena planar de 4 planos por defecto.
