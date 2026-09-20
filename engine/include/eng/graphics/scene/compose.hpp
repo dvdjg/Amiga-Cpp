@@ -20,6 +20,7 @@
 /// `SceneResources`; no hay clase por efecto. El **programa** es data (Copper) que ejecuta
 /// el chip; la **variabilidad** se hace con `copper::PatchHandle` (`scheduler().patchable`).
 
+#include <eng/core/arith.hpp>
 #include <eng/core/domains.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/util/array.hpp>
@@ -285,8 +286,14 @@ private:
 		const eng::u8* base = sc.bitplanes().data();
 		const u32 pb = sc.plane_bytes();
 		for (eng::u8 p = 0u; p < sc.planes(); ++p) {
-			const eng::u32 src = static_cast<eng::u32>(sc.planes() - 1u - p) * pb;
-			s.move_bitplane_pointer(p, eng::ChipAddress {reinterpret_cast<eng::uintptr>(base + src)});
+			const eng::u32 src = eng::math::mulu16(static_cast<u16>(sc.planes() - 1u - p),
+							      static_cast<u16>(pb));
+			const eng::uintptr ip = reinterpret_cast<eng::uintptr>(base + src);
+			const u16 idx = s.move_at(copper::bitplane_pointer_high_register(p),
+						  static_cast<u16>(ip >> 16));
+			(void)s.move_at(copper::bitplane_pointer_low_register(p),
+					static_cast<u16>(ip & 0xffffu));
+			(void)idx;
 		}
 	};
 }
