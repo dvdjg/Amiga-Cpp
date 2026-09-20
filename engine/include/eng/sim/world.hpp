@@ -1197,7 +1197,7 @@ private:
 		(void)transfer_knowledge(c.id, child->id);
 	}
 
-	/// Inicializa una criatura recién creada/reciclada.
+	/// Inicia una criatura recién creada/reciclada.
 	constexpr void init_creature(Creature& c, EntityId id, SpeciesId species, FactionId faction,
 				     RoomId room, eng::s16 x, eng::s16 y) noexcept {
 		c = Creature {};

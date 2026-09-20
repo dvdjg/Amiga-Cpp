@@ -17,7 +17,7 @@ Los cambios más relevantes para Amiga son:
 
 ## Valor para este proyecto
 
-El binding explícito al workspace es especialmente valioso porque pueden estar abiertas a la vez `Amiga-Cpp`, `Universal-Asset-Format` y otros proyectos. El uso de IPv4 evita problemas de resolución de `localhost` en Windows. Los reintentos adicionales cubren el arranque lento de una extensión que inicializa el adaptador DAP.
+El binding explícito al workspace es especialmente valioso porque pueden estar abiertas a la vez `Amiga-Cpp`, `Universal-Asset-Format` y otros proyectos. El uso de IPv4 evita problemas de resolución de `localhost` en Windows. Los reintentos adicionales cubren el arranque lento de una extensión que inicia el adaptador DAP.
 
 Para depuración de la CPU Amiga, el canal principal seguirá siendo `mcp-winuae-emu` más el canal lateral `:2346`. `mcp-debug-tools` será útil cuando queramos controlar desde el IDE la sesión DAP de Bartman, inspeccionar configuraciones `launch.json` o coordinar el estado de VS Code.
 

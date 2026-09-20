@@ -307,7 +307,7 @@ public:
 	bool blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1,
 			      eng::u8* d_base = nullptr);
 
-	/// Inicializa los registros comunes del modo línea EOR (ONEDOT) para una
+	/// Inicia los registros comunes del modo línea EOR (ONEDOT) para una
 	/// secuencia de líneas. Escribe `BLTAFWM/ALWM`, `BLTADAT`, `BLTBDAT`,
 	/// `BLTCMOD`, `BLTDMOD` una sola vez, como el preludio de `DrawObject` de
 	/// `flatshade-convex`. NO espera al Blitter: el llamador sincroniza antes de la
@@ -455,7 +455,7 @@ public:
 	/// sincroniza aqui antes de reprogramar registros o mostrar el buffer.
 	bool wait_blitter();
 
-	/// Inicializa el subsistema de audio (SFX mixer + reproductores de música).
+	/// Inicia el subsistema de audio (SFX mixer + reproductores de música).
 	/// Debe llamarse después de `configure_memory` (necesita el bloque Chip para el
 	/// buffer del mixer) y después de `takeover_display` (el mixer instala su
 	/// interrupción de audio).

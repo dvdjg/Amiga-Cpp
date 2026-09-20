@@ -119,7 +119,7 @@ Cada caso real debe aportar un programa C propio en `src/main.c`, su documentaci
 La batería no es un producto paralelo al engine. Su función es:
 
 1. demostrar que una capacidad concreta del hardware Amiga es viable;
-2. documentar cómo se inicializa, verifica y depura;
+2. documentar cómo se inicia, verifica y depura;
 3. servir de base para extraer esa capacidad a `engine/` cuando ya sea reusable.
 
 Por tanto, el estado objetivo es que los casos usen cada vez más biblioteca común (`engine/` + `tests/amiga-battery/common/`) y cada vez menos código hardware duplicado.

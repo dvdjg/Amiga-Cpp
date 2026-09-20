@@ -649,7 +649,7 @@ using ZoneBinding = PatchZone;
 	};
 }
 
-/// Compone: inicializa la escena con `res` y ejecuta las etapas en orden, cierra la lista.
+/// Compone: inicia la escena con `res` y ejecuta las etapas en orden, cierra la lista.
 template <class... Stages>
 bool compose(Scene& scene, MemorySystem& memory, const SceneResources& res, Stages... stages) {
 	if (!scene.init(memory, res)) {

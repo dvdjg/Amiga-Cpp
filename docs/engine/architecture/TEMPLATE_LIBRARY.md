@@ -68,7 +68,7 @@ Puntos de reutilización explícitos:
   detección de potencia de dos.
 - El orden de elementos lo cubre `eng/core/sort.hpp` (`quick_sort`/`sort_items`, más `stable_sort`, `nth_element`, `partial_sort` e `is_sorted`; `radix_sort_u16` para claves de 16 bits); `algorithm.hpp` no incluye una segunda ordenación.
 - `Array<T,N>` y `ct_array<T,N>` son distintos a propósito: el primero es un agregado
-  que se inicializa con llaves como un array C; el segundo genera su contenido en
+  que se inicia con llaves como un array C; el segundo genera su contenido en
   compilación desde un functor.
 - El crecimiento va por el concepto `Allocator` (`allocator.hpp`): `BumpAlloc`/
   `InlineAlloc`/`NullAlloc` y, sobre el modelo de memoria del engine, `ArenaAlloc`

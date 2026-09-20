@@ -6,7 +6,7 @@ en vez de una clase por driver. Ver `docs/engine/architecture/SCENE_COMPOSITION.
 
 ## Qué comprueba
 
-1. `compose(scene, memory, recursos, etapas...)` inicializa la escena y ejecuta las etapas.
+1. `compose(scene, memory, recursos, etapas...)` inicia la escena y ejecuta las etapas.
 2. Las etapas de `display`/`palette` emiten BPLCON0/DIW/DDF/punteros y la paleta.
 3. Una etapa propia (`lambda`) emite un `PatchHandle`; `set()` lo parchea por frame.
 4. Ciclo de vida: una `Task` (`eng::util::FunctionRef<void()>`) ligada con `on_frame` corre una vez por `tick()`.

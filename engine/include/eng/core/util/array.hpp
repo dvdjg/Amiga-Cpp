@@ -5,7 +5,7 @@
 /// freestanding).
 ///
 /// A diferencia de `eng::ct_array` (una tabla generada en compilación por un
-/// functor), `Array` es un **agregado** que se inicializa con llaves como un array
+/// functor), `Array` es un **agregado** que se inicia con llaves como un array
 /// C, pero con tamaño, iteradores y comprobación de rango. Su razón de ser en el
 /// engine es eliminar el patrón `T v[N]` desnudo: el tamaño viaja con el objeto y
 /// un índice fuera de rango se detecta en el punto del fallo en vez de corromper

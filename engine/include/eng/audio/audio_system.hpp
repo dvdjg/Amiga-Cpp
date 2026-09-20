@@ -38,7 +38,7 @@ public:
 	AudioSystem(const AudioSystem&) = delete;
 	AudioSystem& operator=(const AudioSystem&) = delete;
 
-	/// Inicializa el SFX mixer (reserva el buffer Chip y arranca). La música se
+	/// Inicia el SFX mixer (reserva el buffer Chip y arranca). La música se
 	/// arranca aparte con `play_music()`.
 	bool init(MemorySystem& memory) {
 		return m_sfx.init(memory);
