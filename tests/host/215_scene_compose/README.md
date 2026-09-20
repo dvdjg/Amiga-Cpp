@@ -1,6 +1,6 @@
 # HOST-215: `scene::compose` (escena por etapas)
 
-Test host del prototipo de **composición de escenas** (`eng/graphics/scene/compose.hpp`):
+Test host del prototipo de **composición de escenas** (`eng/graphics/composition/compose.hpp`):
 una escena planar se construye uniendo **etapas** (recursos + emisión de Copper + handles),
 en vez de una clase por driver. Ver `docs/engine/architecture/SCENE_COMPOSITION.md`.
 

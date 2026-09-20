@@ -3,7 +3,7 @@
 // (cuadruplicado) y etapas (display/paleta/row_repeat).
 // ============================================================================
 //
-// Valida el modelo de escena en `engine/include/eng/graphics/scene/compose.hpp`:
+// Valida el modelo de escena en `engine/include/eng/graphics/composition/compose.hpp`:
 //
 //   1) `compose` construye la escena y expone bitplanes/planos.
 //   2) `display`: BPLCON0, DIW/DDF y punteros BPLxPT.
@@ -23,7 +23,7 @@
 
 #include <eng/core/types.hpp>
 #include <eng/graphics/copper/copper.hpp>
-#include <eng/graphics/scene/compose.hpp>
+#include <eng/graphics/composition/compose.hpp>
 #include <eng/memory/arena.hpp>
 
 namespace {
@@ -33,23 +33,23 @@ using eng::MemorySystem;
 using eng::LinearArena;
 using eng::u16;
 using eng::u32;
-using eng::graphics::scene::Scene;
-using eng::graphics::scene::SceneResources;
+using eng::graphics::composition::Scene;
+using eng::graphics::composition::SceneResources;
 
 // Huella estatica de `row_repeat` (etapa de forma conocida): 64 filas x 4 = 256 lineas,
 // 8 palabras por linea (WAIT + 3 MOVEs) mas el par de overflow al cruzar la 255.
 constexpr SceneResources kBig = [] {
-	SceneResources r = eng::graphics::scene::planar(320, 256, 4);
+	SceneResources r = eng::graphics::composition::planar(320, 256, 4);
 	r.rows = 64;
 	r.copper_bytes = 8192u;
 	return r;
 }();
-static_assert(eng::graphics::scene::row_repeat_words(64u, 4u, 0x2cu) == 2050u,
+static_assert(eng::graphics::composition::row_repeat_words(64u, 4u, 0x2cu) == 2050u,
 	      "row_repeat: 256 lineas x 8 palabras + 2 de overflow");
-static_assert(eng::graphics::scene::row_repeat_words(64u, 4u, 0x2cu) <=
-		      eng::graphics::scene::copper_word_budget(kBig),
+static_assert(eng::graphics::composition::row_repeat_words(64u, 4u, 0x2cu) <=
+		      eng::graphics::composition::copper_word_budget(kBig),
 	      "la etapa cabe en el presupuesto de copperlist (4096 palabras)");
-static_assert(eng::graphics::scene::row_repeat_words(256u, 1u, 0x2cu) == 2050u,
+static_assert(eng::graphics::composition::row_repeat_words(256u, 1u, 0x2cu) == 2050u,
 	      "sin repeticion y arrancando en 0x2c la huella es la misma (256 lineas)");
 
 alignas(16) eng::u8 g_chip[512 * 1024];
@@ -102,17 +102,17 @@ int main() {
 	// --- 1) HAM + cuadruplicado (config de la demo 080) -----------------------
 	{
 		MemorySystem mem = make_memory();
-		SceneResources res = eng::graphics::scene::planar(320, 256, 4);
+		SceneResources res = eng::graphics::composition::planar(320, 256, 4);
 		res.rows = 64; // cuadruplicado: 64 filas logicas x 4 = 256 lineas
 		res.copper_bytes = 8192u; // row_repeat emite ~3 MOVEs por cada una de las 256 líneas
 		static const eng::u16 palette[16] {};
 		Scene sc;
-		if (!eng::graphics::scene::compose(
+		if (!eng::graphics::composition::compose(
 			    sc, mem, res,
-			    eng::graphics::scene::ocs_a500,
-			    eng::graphics::scene::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x7a00u),
-			    eng::graphics::scene::palette(eng::PaletteWords {palette, 16}, 0u, 16u),
-			    eng::graphics::scene::row_repeat(4u, 0x2cu, 0x0022u))) {
+			    eng::graphics::composition::ocs_a500,
+			    eng::graphics::composition::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x7a00u),
+			    eng::graphics::composition::palette(eng::PaletteWords {palette, 16}, 0u, 16u),
+			    eng::graphics::composition::row_repeat(4u, 0x2cu, 0x0022u))) {
 			std::printf("[FAIL] compose fallo\n");
 			return 1;
 		}
@@ -163,12 +163,12 @@ int main() {
 	// --- 2) Parametrico: sin repeticion, 5 planos, otro BPLCON0 ---------------
 	{
 		MemorySystem mem = make_memory();
-		SceneResources res = eng::graphics::scene::planar(320, 128, 5);
+		SceneResources res = eng::graphics::composition::planar(320, 128, 5);
 		Scene sc;
-		if (!eng::graphics::scene::compose(
+		if (!eng::graphics::composition::compose(
 			    sc, mem, res,
-			    eng::graphics::scene::ocs_a500,
-			    eng::graphics::scene::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x5000u))) {
+			    eng::graphics::composition::ocs_a500,
+			    eng::graphics::composition::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x5000u))) {
 			std::printf("[FAIL] compose (config plano) fallo\n");
 			return 1;
 		}
@@ -181,22 +181,22 @@ int main() {
 	// --- 3) La huella estatica coincide con la emision real de `row_repeat` -----
 	{
 		MemorySystem mem = make_memory();
-		SceneResources res = eng::graphics::scene::planar(320, 256, 4);
+		SceneResources res = eng::graphics::composition::planar(320, 256, 4);
 		res.rows = 64;
 		res.copper_bytes = 8192u;
 		Scene sc;
-		if (!sc.init(mem, res, eng::graphics::scene::ocs_a500)) {
+		if (!sc.init(mem, res, eng::graphics::composition::ocs_a500)) {
 			std::printf("[FAIL] init fallo\n");
 			return 1;
 		}
 		sc.begin_build();
-		eng::graphics::scene::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x7a00u)(sc);
+		eng::graphics::composition::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x7a00u)(sc);
 		const u16 before = sc.scheduler().words_used();
-		eng::graphics::scene::row_repeat(4u, 0x2cu, 0x0022u)(sc);
+		eng::graphics::composition::row_repeat(4u, 0x2cu, 0x0022u)(sc);
 		const u16 after = sc.scheduler().words_used();
 		(void)sc.end_build();
 		const u16 emitted = static_cast<u16>(after - before);
-		const u16 expected = eng::graphics::scene::row_repeat_words(64u, 4u, 0x2cu);
+		const u16 expected = eng::graphics::composition::row_repeat_words(64u, 4u, 0x2cu);
 		if (emitted != expected) {
 			std::printf("[FAIL] huella de row_repeat: emitidas=%u, formula=%u\n",
 				    (unsigned)emitted, (unsigned)expected);

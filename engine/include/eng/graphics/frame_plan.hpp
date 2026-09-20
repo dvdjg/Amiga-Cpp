@@ -30,6 +30,7 @@
 #include <eng/core/domains.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/util/array.hpp>
+#include <eng/graphics/blit_job.hpp>
 
 namespace eng::graphics {
 
@@ -53,39 +54,6 @@ struct PalettePatch {
 };
 
 /// Tipos de trabajo de Blitter soportados por el plan actual.
-enum class BlitJobKind : u8 {
-	CopyRect,
-	RestoreRect,
-	TileBlockCopy,
-	MaskedBobCookieCut,
-	MaskedBlobNoSave,
-	/// Borrado del rectangulo: un blit sin fuentes (solo D). Con bitmaps
-	/// intercalados borra la caja del objeto en UN blit (`height = alto*planos`).
-	ClearRect,
-	/// BOB **OR por desplazamiento** (estilo `bobs3d`): `A` = bitmap del objeto,
-	/// `B = D` = destino, minterm `$FC` (`D = A | D`). Sin mascara: los ceros del
-	/// objeto dejan el fondo (aditivo/glow). Con destino intercalado es UN blit.
-	OrBlob,
-	/// **Línea por Blitter** (`BLTCON1` LINE): usa `line_x0..line_y1` y
-	/// `line_row_bytes`; el `destination` apunta al plano. Sin fuentes ni mascara.
-	Line,
-	/// **Línea EOR (ONEDOT)** (`blitter_line_eor`): como `Line` pero XOR con `line_base`
-	/// (el canal D), base del contorno XOR de `flatshade-convex` (demo 116).
-	LineEor,
-	/// **Blit con operación lógica** (`B = D`): `A` = fuente, `B` = destino (mismo puntero),
-	/// minterm del job (`Or`/`And`/`Xor`). Base de sombras/glow/máscaras. Ver `RasterOp`.
-	LogicBlit,
-	/// **Relleno con patrón** (suelos/techos 3D, UI texturizada): `A` = patrón, `B = D` =
-	/// destino, minterm `$FC` (`D = A | D`). El patrón es **una fila** de `words_per_row`
-	/// palabras; el módulo de A (`source_modulo_bytes = -(words_per_row*2)`) la repite en
-	/// todas las filas (patrón uniforme en vertical). Un patrón de varias filas necesita
-	/// más blits o reprogramar A por fila. Reusa el camino `OrBlob` del backend.
-	PatternFill,
-	/// **Chunky→planar por Blitter** (13 fases): convierte `c2p_chunky` a los 4 planos
-	/// `c2p_planes` (ver `MinimalBackend::c2p_4bpp_step`). Es la vía Blitter del seam
-	/// `Rasterizer::c2p`.
-	C2P,
-};
 
 /// Presupuesto acumulado de Blitter.
 ///
@@ -179,105 +147,6 @@ struct DirtyReport {
 	bool overflow = false;
 };
 
-/// Trabajo planar de Blitter.
-///
-/// `CopyRect`, `RestoreRect` y `TileBlockCopy` son copias rectangulares:
-///
-/// `dest = source`
-///
-/// `TileBlockCopy` existe como categoria propia aunque use el mismo minterm de
-/// copia. Su contrato representa cargas de tiles/metatiles hacia zonas no visibles
-/// del playfield: columnas nuevas de scroll, buffers de staging, mapas retenidos o
-/// cualquier region que se puede sobrescribir completa sin save/restore.
-///
-/// `MaskedBobCookieCut` y `MaskedBlobNoSave` usan el clasico cookie-cut:
-///
-/// `dest = (mask & source) | (~mask & dest)`
-///
-/// La diferencia entre ambos en esta fase es semantica y de presupuesto:
-/// `MaskedBobCookieCut` representa un actor que normalmente necesitara save/restore
-/// si se mueve; `MaskedBlobNoSave` representa la tecnica tipo Mega Typhoon para
-/// blobs no solapados o regiones de playfield que se pueden sobrescribir sin guardar
-/// el fondo previo.
-///
-/// Restricciones de esta primera version:
-///
-/// - `destination` debe apuntar a una posicion alineada a word dentro del primer
-///   bitplane de destino;
-/// - `source_shift` permite desplazar A/B de 0..15 pixels para X no alineada;
-/// - no hay clipping automatico;
-/// - si `kind` es enmascarado, `mask` es un unico plano de 1 bit compartido por
-///   todos los bitplanes;
-/// - `source` contiene los planos del BOB/rect en formato planar contiguo.
-///
-/// Son restricciones intencionadas: nos dan una base verificable antes de meter
-/// scroll fino, clipping, restauracion de fondo y dirty rects.
-/// Rol de **origen** de un blit (solo lectura). Junto con `BlitDest` evita pasar
-/// un `BlitDest` donde se espera un `BlitSource` (o viceversa) en las firmas
-/// internas. La construcción desde crudo es implícita por ergonomía de los
-/// agregados (`BlitJob{...}`); el rol tipado no se convierte entre sí.
-struct BlitSource {
-	const u16* words = nullptr;
-	constexpr BlitSource() noexcept = default;
-	constexpr BlitSource(const u16* w) noexcept : words(w) {}
-};
-
-/// Rol de **destino** de un blit (escritura).
-struct BlitDest {
-	u16* words = nullptr;
-	constexpr BlitDest() noexcept = default;
-	constexpr BlitDest(u16* w) noexcept : words(w) {}
-};
-
-struct BlitJob {
-	BlitJobKind kind = BlitJobKind::MaskedBobCookieCut;
-	BlitSource mask {};
-	BlitSource source {};
-	BlitDest destination {};
-	u16 words_per_row = 0;
-	u16 height = 0;
-	s16 source_modulo_bytes = 0;
-	s16 destination_modulo_bytes = 0;
-	u8 bitplane_count = 0;
-	u8 source_shift = 0;
-	u32 source_plane_stride_bytes = 0;
-	u32 destination_plane_stride_bytes = 0;
-	/// Procesa el blit en orden descendente (BLTCON1 DESC): necesario para copias
-	/// de regiones solapadas en las que el destino queda por delante del origen
-	/// (p. ej. desplazar el scroll ring hacia la derecha/abajo).
-	bool descending = false;
-	/// Minterm del Blitter (BLTCON0 bits 7..0). Permite el MISMO camino para
-	/// **cookie-cut** `$CA` (`D=A·B+¬A·C`, con mascara), **OR aditivo por
-	/// desplazamiento** `$FC` (`D=A|D`, bobs/glow sin mascara, ver
-	/// `demoscene-repo-orig/effects/bobs3d/bobs3d.c`), **copia** `$F0`/`$AA` y
-	/// **borrado** `$00`. Referencia: `amiga-bootcamp/08_graphics/blitter_programming.md`
-	/// (tabla de minterms).
-	u8 minterm = 0xCAu;
-	/// El destino es un bitmap **INTERCALADO**: una sola "columna" de canales y
-	/// `height` ya incluye los planos (filas = alto_objeto * planos), con los modulos
-	/// del bitmap. Es el truco de **un blit por objeto** (AHRM 6; `blitter_programming.md`
-	/// *Use Case 4: interleaved bitplane BOBs*). Exime de dar strides de plano.
-	bool interleaved = false;
-	// --- Línea (BlitJobKind::Line): coordenadas + módulo de fila del plano -----------
-	s16 line_x0 = 0;        ///< x del punto inicial
-	s16 line_y0 = 0;        ///< y del punto inicial
-	s16 line_x1 = 0;        ///< x del punto final
-	s16 line_y1 = 0;        ///< y del punto final
-	u16 line_row_bytes = 0; ///< bytes por fila del plano destino (módulo de la línea)
-	/// Base del bitmap para el canal D en una **línea EOR** (`BlitJobKind::LineEor`);
-	/// `nullptr` = usar el propio plano. Ver `blitter_line_eor`.
-	BlitDest line_base {};
-	// --- C2P (BlitJobKind::C2P): chunky -> planar por fases -------------------------
-	/// Buffer chunky en Chip RAM; su segunda mitad (`+ c2p_bytes`) es el staging planar
-	/// que el C2P usa como destino intermedio.
-	eng::u8* c2p_chunky = nullptr;
-	/// Base de los 4 planos destino (a `c2p_planes + p*c2p_plane_stride`).
-	eng::u8* c2p_planes = nullptr;
-	/// Bytes entre planos destino.
-	u32 c2p_plane_stride = 0;
-	/// `bytes` del C2P (p. ej. `width*height/2` en 4 bpp); fija el `BLTSIZE`.
-	u16 c2p_bytes = 0;
-};
 
 /// Plan de render de un frame.
 ///
@@ -416,11 +285,11 @@ public:
 		return add_blit_job(job, BlitJobKind::PatternFill);
 	}
 
-	/// **Chunky→planar por Blitter** (`BlitJobKind::C2P`): `c2p_chunky` (Chip RAM, 2×
-	/// `c2p_bytes`) → `c2p_planes` (4 planos). La vía Blitter del seam `Rasterizer::c2p`.
+	/// **Chunky→planar por Blitter** (`BlitJobKind::C2P`): `c2p.chunky` (Chip RAM, 2×
+	/// `c2p.bytes`) → `c2p.planes` (4 planos). La vía Blitter del seam `Rasterizer::c2p`.
 	bool add_c2p(const BlitJob& job) {
-		if (job.c2p_chunky == nullptr || job.c2p_planes == nullptr ||
-		    job.c2p_bytes == 0u || job.c2p_plane_stride == 0u) {
+		if (job.c2p.chunky == nullptr || job.c2p.planes == nullptr ||
+		    job.c2p.bytes == 0u || job.c2p.plane_stride == 0u) {
 			m_ok = false;
 			return false;
 		}
@@ -432,17 +301,17 @@ public:
 		j.kind = BlitJobKind::C2P;
 		m_blit_jobs[m_blit_job_count++] = j;
 		m_blit_budget.jobs = m_blit_job_count;
-		m_blit_budget.words += eng::math::mulu16(job.c2p_bytes, 13u); // 13 fases
+		m_blit_budget.words += eng::math::mulu16(job.c2p.bytes, 13u); // 13 fases
 		++m_blit_budget.copy_jobs;
 		rebuild_blit_budget_report();
 		return true;
 	}
 
 	/// **Línea por Blitter** (`BLTCON1` LINE) o **EOR/ONEDOT** (`LineEor`): `destination`
-	/// = plano, `line_x0..line_y1` las coordenadas y `line_row_bytes` el módulo de fila.
-	/// Sin fuentes/máscara. Para `LineEor`, `line_base` es la base del canal D.
+	/// = plano, `line.x0..line.y1` las coordenadas y `line.row_bytes` el módulo de fila.
+	/// Sin fuentes/máscara. Para `LineEor`, `line.base` es la base del canal D.
 	bool add_line(const BlitJob& job, BlitJobKind kind = BlitJobKind::Line) {
-		if (job.destination.words == nullptr || job.line_row_bytes == 0u ||
+		if (job.destination.words == nullptr || job.line.row_bytes == 0u ||
 		    job.bitplane_count == 0u) {
 			m_ok = false;
 			return false;
@@ -457,8 +326,8 @@ public:
 		m_blit_budget.jobs = m_blit_job_count;
 		// Coste aproximado: una word por fila de la línea + 2 de arranque por plano
 		// (`mulu16` = `mulu.w`, sin `__mulsi3`).
-		const s32 dy = job.line_y1 > job.line_y0 ? job.line_y1 - job.line_y0
-							 : job.line_y0 - job.line_y1;
+		const s32 dy = job.line.y1 > job.line.y0 ? job.line.y1 - job.line.y0
+							 : job.line.y0 - job.line.y1;
 		m_blit_budget.words += eng::math::mulu16(static_cast<u16>(dy + 3),
 							 job.bitplane_count);
 		++m_blit_budget.copy_jobs;

@@ -1,7 +1,7 @@
 # HOST-067: doble/triple buffer de display en `scene::compose`
 
 Test host del **doble/triple buffer de display** en el modelo de escena
-(`engine/include/eng/graphics/scene/compose.hpp`): `SceneResources.buffers` reserva N bitmaps
+(`engine/include/eng/graphics/composition/compose.hpp`): `SceneResources.buffers` reserva N bitmaps
 y `Scene::commit()` repunta los `BPLxPT` al buffer trasero (swap sin `COPJMP1`). Sustituye a
 `MultiBuffered<Driver, N>` y lo observa con `Scene::display_plane_uses` (sin recorrer la
 copperlist con punteros crudos).

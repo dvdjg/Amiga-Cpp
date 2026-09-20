@@ -105,7 +105,7 @@ RAM no visible y despues lo publica al playfield EHB con otro blit.
 
 El display planar paramétrico (HAM4/6 o cualquier planar) y las escenas EHB/HAM se construyen
 hoy con el **modelo de etapas** `scene::compose`
-(`engine/include/eng/graphics/scene/compose.hpp`): recursos (`SceneResources`) + etapas
+(`engine/include/eng/graphics/composition/compose.hpp`): recursos (`SceneResources`) + etapas
 (`display`, `palette`, `palette_zones`, `row_repeat`, `reverse_ptrs`, `intents`) + handles de
 parcheo. Es **paramétrico** (no hay un "320x256 HAM6" cableado): sirve igual para EHB, HAM4/6
 o cualquier planar, y con `row_repeat = 1` es un display normal. Las demos

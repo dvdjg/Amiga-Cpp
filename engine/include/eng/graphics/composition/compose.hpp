@@ -8,10 +8,10 @@
 /// Uso:
 ///
 /// ```cpp
-/// scene::Scene s;
-/// scene::compose(s, memory, scene::planar4(320, 256),
-///     scene::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x4200),
-///     scene::palette(pal, 0, 16));
+/// composition::Scene s;
+/// composition::compose(s, memory, composition::planar4(320, 256),
+///     composition::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x4200),
+///     composition::palette(pal, 0, 16));
 /// s.install(backend);        // o takeover
 /// ```
 ///
@@ -23,7 +23,7 @@
 /// ```text
 ///   escena = unión de ETAPAS (no una clase por driver)
 ///   ┌──────────────────────────────────────────────────────────────────┐
-///   │ scene::Scene                                                       │
+///   │ composition::Scene                                                       │
 ///   │  recursos: geometría · planos · buffers · paleta                   │
 ///   │  ├─ display()        ─┐                                            │
 ///   │  ├─ palette()        ─┼─► piden recursos y emiten al copper::Scheduler
@@ -47,10 +47,10 @@
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/graphics/scene/limits.hpp>
+#include <eng/graphics/composition/limits.hpp>
 #include <eng/memory/arena.hpp>
 
-namespace eng::graphics::scene {
+namespace eng::graphics::composition {
 
 /// **Tarea del ciclo de vida** (plano de comportamiento): referencia **no propietaria** a
 /// un callable sin argumentos (`eng::util::FunctionRef<void()>`, el análogo de
@@ -821,4 +821,4 @@ bool compose(Scene& scene, MemorySystem& memory, const SceneResources& res,
 	return scene.end_build();
 }
 
-} // namespace eng::graphics::scene
+} // namespace eng::graphics::composition

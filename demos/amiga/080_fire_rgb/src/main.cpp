@@ -8,7 +8,7 @@
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/graphics/scene/compose.hpp>
+#include <eng/graphics/composition/compose.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/graphics/blitter_state.hpp>
 #include <eng/platform/amiga_minimal.hpp>
@@ -97,7 +97,7 @@ void fire_loop(void);
 namespace {
 
 namespace amiga = eng::amiga;
-namespace scene = eng::graphics::scene;
+namespace scene = eng::graphics::composition;
 
 short *chunky[2];
 short *fire;
@@ -256,6 +256,8 @@ struct FireDemo {
 		res.mode = scene::SceneMode::Ham; // HAM6 (los 2 bits HAM fijos van por set_bitplane_dat)
 		res.rows = kHeight; // bitmap de `kHeight` filas logicas; row_repeat las cuadruplica
 		res.buffers = static_cast<eng::u8>(K_080_BUFFERS);
+		// display + palette + row_repeat(64*4 lineas): 4096 B no bastan.
+		res.copper_bytes = 8192u;
 		if (!scene::compose(m_scene, backend.memory(), res,
 				    scene::ocs_a500,
 				    scene::display(res, scene::kBplcon0_Ham6),

@@ -1,7 +1,7 @@
 # HOST-016 — `scene::compose` (display planar con repetición de filas)
 
 Valida en host, sin emulador, el modelo de escena `scene::compose`
-(`engine/include/eng/graphics/scene/compose.hpp`) con la geometría de un HAM
+(`engine/include/eng/graphics/composition/compose.hpp`) con la geometría de un HAM
 cuadruplicado: `display` + `palette` + `row_repeat`.
 
 ## Qué cubre

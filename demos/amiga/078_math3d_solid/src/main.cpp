@@ -16,7 +16,7 @@
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/graphics/palette32.hpp>
-#include <eng/graphics/scene/compose.hpp>
+#include <eng/graphics/composition/compose.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
@@ -65,7 +65,7 @@ extern "C" const unsigned char g_cube_uafr_end[];
 
 namespace {
 
-namespace scene = eng::graphics::scene;
+namespace scene = eng::graphics::composition;
 namespace field = eng::field;
 
 constexpr eng::u16 kWidth = 320;

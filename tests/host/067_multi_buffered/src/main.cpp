@@ -20,7 +20,7 @@
 #include <cstdio>
 
 #include <eng/core/types.hpp>
-#include <eng/graphics/scene/compose.hpp>
+#include <eng/graphics/composition/compose.hpp>
 #include <eng/memory/arena.hpp>
 
 namespace {
@@ -29,8 +29,8 @@ using eng::MemoryKind;
 using eng::MemorySystem;
 using eng::LinearArena;
 using eng::u8;
-using eng::graphics::scene::Scene;
-using eng::graphics::scene::SceneResources;
+using eng::graphics::composition::Scene;
+using eng::graphics::composition::SceneResources;
 
 alignas(16) eng::u8 g_chip[512 * 1024];
 
@@ -54,13 +54,13 @@ int main() {
 	// --- 1..2) N=2: dos bitmaps, commit rota y repunta ------------------------
 	{
 		MemorySystem mem = make_memory();
-		SceneResources res = eng::graphics::scene::planar(320, 256, 4);
+		SceneResources res = eng::graphics::composition::planar(320, 256, 4);
 		res.buffers = 2;
 		Scene sc;
-		check(eng::graphics::scene::compose(
-			      sc, mem, res, eng::graphics::scene::ocs_a500,
-			      eng::graphics::scene::display(eng::graphics::scene::kPal320x256,
-							    eng::graphics::scene::kBplcon0_4Planes)),
+		check(eng::graphics::composition::compose(
+			      sc, mem, res, eng::graphics::composition::ocs_a500,
+			      eng::graphics::composition::display(eng::graphics::composition::kPal320x256,
+							    eng::graphics::composition::kBplcon0_4Planes)),
 		      "compose N=2");
 		check(sc.buffer_count() == 2u, "buffer_count == 2");
 		check(sc.buffer(0).data() != sc.buffer(1).data(), "los buffers son distintos");
@@ -81,11 +81,11 @@ int main() {
 	{
 		MemorySystem mem = make_memory();
 		Scene sc;
-		check(eng::graphics::scene::compose(
-			      sc, mem, eng::graphics::scene::planar(320, 256, 4),
-			      eng::graphics::scene::ocs_a500,
-			      eng::graphics::scene::display(eng::graphics::scene::kPal320x256,
-							    eng::graphics::scene::kBplcon0_4Planes)),
+		check(eng::graphics::composition::compose(
+			      sc, mem, eng::graphics::composition::planar(320, 256, 4),
+			      eng::graphics::composition::ocs_a500,
+			      eng::graphics::composition::display(eng::graphics::composition::kPal320x256,
+							    eng::graphics::composition::kBplcon0_4Planes)),
 		      "compose N=1");
 		check(sc.buffer_count() == 1u && sc.back_index() == 0u, "N=1: count/back 1/0");
 		check(sc.display_plane_uses(0u, 0u), "el plano 0 usa el buffer 0");
@@ -97,17 +97,17 @@ int main() {
 	// --- 4) reverse_ptrs: los parches de plano siguen registrandose ----------
 	{
 		MemorySystem mem = make_memory();
-		SceneResources res = eng::graphics::scene::planar(320, 256, 4);
+		SceneResources res = eng::graphics::composition::planar(320, 256, 4);
 		res.rows = 64;
 		res.buffers = 2;
 		res.copper_bytes = 8192u;
 		Scene sc;
-		check(eng::graphics::scene::compose(
-			      sc, mem, res, eng::graphics::scene::ocs_a500,
-			      eng::graphics::scene::display(eng::graphics::scene::kPal320x256,
-							    eng::graphics::scene::kBplcon0_Ham6),
-			      eng::graphics::scene::reverse_ptrs(),
-			      eng::graphics::scene::row_repeat(4u, 0x2cu, 0x0022u)),
+		check(eng::graphics::composition::compose(
+			      sc, mem, res, eng::graphics::composition::ocs_a500,
+			      eng::graphics::composition::display(eng::graphics::composition::kPal320x256,
+							    eng::graphics::composition::kBplcon0_Ham6),
+			      eng::graphics::composition::reverse_ptrs(),
+			      eng::graphics::composition::row_repeat(4u, 0x2cu, 0x0022u)),
 		      "compose reverse_ptrs");
 		check(sc.display_plane_uses(0u, 1u), "reverse_ptrs: el plano 0 usa el buffer 1");
 		sc.commit();

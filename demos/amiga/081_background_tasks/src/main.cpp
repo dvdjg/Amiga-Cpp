@@ -17,7 +17,7 @@
 #include <eng/core/util/ring_buffer.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
-#include <eng/graphics/scene/compose.hpp>
+#include <eng/graphics/composition/compose.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/task/background.hpp>
@@ -42,7 +42,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 namespace {
 
 namespace amiga = eng::amiga;
-namespace scene = eng::graphics::scene;
+namespace scene = eng::graphics::composition;
 namespace task = eng::task;
 
 constexpr eng::u16 kWidth = 320;

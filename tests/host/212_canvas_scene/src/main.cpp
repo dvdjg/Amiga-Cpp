@@ -7,11 +7,11 @@
 
 #include <cstdio>
 
-#include <eng/graphics/scene/compose.hpp>
+#include <eng/graphics/composition/compose.hpp>
 
 using namespace eng;
-using eng::graphics::scene::Scene;
-using eng::graphics::scene::SceneResources;
+using eng::graphics::composition::Scene;
+using eng::graphics::composition::SceneResources;
 
 namespace {
 
@@ -78,13 +78,13 @@ int main() {
 	MemorySystem mem = make_memory();
 
 	// --- Lienzo interleaved: layout `Interleaved` + `surface()` ----------------
-	SceneResources creq = graphics::scene::planar(320, 256, 4);
-	creq.layout = graphics::scene::SceneLayout::Interleaved;
+	SceneResources creq = graphics::composition::planar(320, 256, 4);
+	creq.layout = graphics::composition::SceneLayout::Interleaved;
 	Scene sc;
-	check(graphics::scene::compose(
-		      sc, mem, creq, graphics::scene::ocs_a500,
-		      graphics::scene::display(graphics::scene::kPal320x256,
-					       graphics::scene::kBplcon0_4Planes)),
+	check(graphics::composition::compose(
+		      sc, mem, creq, graphics::composition::ocs_a500,
+		      graphics::composition::display(graphics::composition::kPal320x256,
+					       graphics::composition::kBplcon0_4Planes)),
 	      "scene::compose (interleaved) reserva bitmap + copperlist");
 	check(sc.ok(), "la escena queda ok tras compose");
 	check(sc.words() > 0u, "la copperlist tiene palabras");
@@ -99,14 +99,14 @@ int main() {
 	check(color_at(sc.playfield(), 10, 10) == 0u, "fuera del cuadrado vacio");
 
 	// --- Doble buffer contiguo: `buffers = 2` y `commit()` --------------------
-	SceneResources res = graphics::scene::planar(320, 256, 4);
+	SceneResources res = graphics::composition::planar(320, 256, 4);
 	res.buffers = 2;
 	Scene s2;
-	check(graphics::scene::compose(
+	check(graphics::composition::compose(
 		      s2, mem, res,
-		      graphics::scene::ocs_a500,
-		      graphics::scene::display(graphics::scene::kPal320x256,
-					       graphics::scene::kBplcon0_4Planes)),
+		      graphics::composition::ocs_a500,
+		      graphics::composition::display(graphics::composition::kPal320x256,
+					       graphics::composition::kBplcon0_4Planes)),
 	      "escena con 2 buffers compone");
 	check(s2.buffer_count() == 2u, "hay 2 buffers de display");
 	check(s2.buffer(0).data() != s2.buffer(1).data(), "los dos buffers son distintos");
@@ -116,10 +116,10 @@ int main() {
 
 	// --- Lienzo CONTIGUO: el mismo `surface()` sobre planos uno tras otro -----
 	Scene s3;
-	check(graphics::scene::compose(
-		      s3, mem, graphics::scene::planar(320, 256, 4), graphics::scene::ocs_a500,
-		      graphics::scene::display(graphics::scene::kPal320x256,
-					       graphics::scene::kBplcon0_4Planes)),
+	check(graphics::composition::compose(
+		      s3, mem, graphics::composition::planar(320, 256, 4), graphics::composition::ocs_a500,
+		      graphics::composition::display(graphics::composition::kPal320x256,
+					       graphics::composition::kBplcon0_4Planes)),
 	      "scene::compose (contiguo) compone");
 	check(s3.ok(), "la escena contigua queda ok");
 	field::Surface ksurf = s3.surface();
@@ -170,10 +170,10 @@ int main() {
 
 	// --- RasterOp: operaciones logicas uniformes (seam CPU/Blitter) -----------
 	Scene s4;
-	check(graphics::scene::compose(
-		      s4, mem, graphics::scene::planar(320, 256, 4), graphics::scene::ocs_a500,
-		      graphics::scene::display(graphics::scene::kPal320x256,
-					       graphics::scene::kBplcon0_4Planes)),
+	check(graphics::composition::compose(
+		      s4, mem, graphics::composition::planar(320, 256, 4), graphics::composition::ocs_a500,
+		      graphics::composition::display(graphics::composition::kPal320x256,
+					       graphics::composition::kBplcon0_4Planes)),
 	      "escena para RasterOp compone");
 	field::Surface r4 = s4.surface();
 	r4.fill_rect(0, 0, 32, 8, 3u, field::RasterOp::Copy);
@@ -189,10 +189,10 @@ int main() {
 
 	// BlitterRaster: el relleno va por `fill_polygon` (sink/Blitter si lo hay; CPU si no).
 	Scene s5;
-	check(graphics::scene::compose(
-		      s5, mem, graphics::scene::planar(320, 256, 4), graphics::scene::ocs_a500,
-		      graphics::scene::display(graphics::scene::kPal320x256,
-					       graphics::scene::kBplcon0_4Planes)),
+	check(graphics::composition::compose(
+		      s5, mem, graphics::composition::planar(320, 256, 4), graphics::composition::ocs_a500,
+		      graphics::composition::display(graphics::composition::kPal320x256,
+					       graphics::composition::kBplcon0_4Planes)),
 	      "escena para BlitterRaster compone");
 	s5.set_raster(&field::kBlitterRaster, field::RasterPolicy {field::AccelMode::Blitter, 0u, true});
 	field::Surface r5 = s5.surface();
@@ -201,10 +201,10 @@ int main() {
 
 	// --- AccelMode::Auto: umbral de area para ir al Blitter (sink) -----------
 	Scene s6;
-	check(graphics::scene::compose(
-		      s6, mem, graphics::scene::planar(320, 256, 4), graphics::scene::ocs_a500,
-		      graphics::scene::display(graphics::scene::kPal320x256,
-					       graphics::scene::kBplcon0_4Planes)),
+	check(graphics::composition::compose(
+		      s6, mem, graphics::composition::planar(320, 256, 4), graphics::composition::ocs_a500,
+		      graphics::composition::display(graphics::composition::kPal320x256,
+					       graphics::composition::kBplcon0_4Planes)),
 	      "escena para Auto compone");
 	s6.set_polygon_fill_sink(field::PolygonFillSink {&g_fill_rec, record_fill});
 	s6.set_raster(&field::kBlitterRaster, field::RasterPolicy {field::AccelMode::Auto, 64u, true});

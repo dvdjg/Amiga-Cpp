@@ -24,7 +24,7 @@
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/graphics/scene/compose.hpp>
+#include <eng/graphics/composition/compose.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/graphics/blitter_state.hpp>
 #include <eng/platform/amiga_minimal.hpp>
@@ -100,7 +100,7 @@ namespace {
 
 namespace obj = eng::object3d;
 namespace copper = eng::copper;
-namespace scene = eng::graphics::scene;
+namespace scene = eng::graphics::composition;
 
 // Geometria del original (256x256, 4 planos).
 constexpr eng::u16 kWidth = 256;

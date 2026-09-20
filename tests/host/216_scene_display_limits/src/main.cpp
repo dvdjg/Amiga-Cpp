@@ -19,12 +19,12 @@
 #include <cstdio>
 
 #include <eng/core/types.hpp>
-#include <eng/graphics/scene/compose.hpp>
-#include <eng/graphics/scene/limits.hpp>
+#include <eng/graphics/composition/compose.hpp>
+#include <eng/graphics/composition/limits.hpp>
 
 namespace {
 
-using namespace eng::graphics::scene;
+using namespace eng::graphics::composition;
 
 constexpr SceneResources ham6() {
 	SceneResources r = planar(320, 256, 6);

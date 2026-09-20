@@ -267,7 +267,7 @@ cubrir el cierre (unas decenas de bytes; 3–4 punteros suele bastar).
 
 ## 11. Estado del prototipo
 
-`engine/include/eng/graphics/scene/compose.hpp` (verificado por HOST-215):
+`engine/include/eng/graphics/composition/compose.hpp` (verificado por HOST-215):
 
 - **Recursos**: `SceneResources` (geometría, `rows` lógicas, planos, `layout` contiguo/
   interleaved, tamaño de copper).

@@ -1,7 +1,7 @@
 #include <eng/engine.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/graphics/palette32.hpp>
-#include <eng/graphics/scene/compose.hpp>
+#include <eng/graphics/composition/compose.hpp>
 #include <eng/graphics/tilemap/tile_scroll.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/scene/virtual_scene.hpp>
@@ -26,7 +26,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-namespace gfx = eng::graphics::scene;
+namespace gfx = eng::graphics::composition;
 namespace scene = eng::scene;
 namespace tilemap = eng::graphics::tilemap;
 

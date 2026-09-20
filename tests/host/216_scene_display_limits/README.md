@@ -1,6 +1,6 @@
 # HOST-216: `scene/limits.hpp` (perfiles, validación y coste de bus)
 
-Test host de los **límites de display** (`eng/graphics/scene/limits.hpp`): el perfil de
+Test host de los **límites de display** (`eng/graphics/composition/limits.hpp`): el perfil de
 capacidades por máquina (`DisplayLimits`), sus perfiles de datos (`ocs_a500`, `ecs`,
 `aga_a1200`), la validación estática/runtime (`validate`/`valid_scene`) y el **coste de bus**
 informativo (`dma_cost`). Ver `docs/engine/architecture/SCENE_COMPOSITION.md` §6.1.

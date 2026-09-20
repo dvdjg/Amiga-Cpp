@@ -406,13 +406,13 @@ public:
             graphics::BlitJob job {};
             job.destination = graphics::BlitDest {
                 reinterpret_cast<u16*>(m_frontbuffer + static_cast<u32>(p) * pstride)};
-            job.line_base = graphics::BlitDest {reinterpret_cast<u16*>(m_frontbuffer)};
+            job.line.base = graphics::BlitDest {reinterpret_cast<u16*>(m_frontbuffer)};
             job.bitplane_count = 1;
-            job.line_x0 = x0;
-            job.line_y0 = y0;
-            job.line_x1 = x1;
-            job.line_y1 = y1;
-            job.line_row_bytes = rstride;
+            job.line.x0 = x0;
+            job.line.y0 = y0;
+            job.line.x1 = x1;
+            job.line.y1 = y1;
+            job.line.row_bytes = rstride;
             if (!plan.add_line(job, kind)) return false;
         }
         return true;

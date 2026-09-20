@@ -324,10 +324,10 @@ public:
 			const eng::u32 px = req.width * req.height;
 			if (px >= 2u && px / 2u <= 0xffffu) {
 				graphics::BlitJob job {};
-				job.c2p_chunky = const_cast<eng::u8*>(req.chunky.data());
-				job.c2p_planes = req.planes.data();
-				job.c2p_plane_stride = req.plane_stride;
-				job.c2p_bytes = static_cast<eng::u16>(px / 2u);
+				job.c2p.chunky = const_cast<eng::u8*>(req.chunky.data());
+				job.c2p.planes = req.planes.data();
+				job.c2p.plane_stride = req.plane_stride;
+				job.c2p.bytes = static_cast<eng::u16>(px / 2u);
 				if (plan->add_c2p(job)) {
 					return true;
 				}

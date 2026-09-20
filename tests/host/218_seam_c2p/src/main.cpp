@@ -100,9 +100,9 @@ int main() {
 		check(plan.blit_job_count() == 1u &&
 			      plan.blit_job(0u).kind == eng::graphics::BlitJobKind::C2P,
 		      "job C2P encolado");
-		check(plan.blit_job(0u).c2p_bytes == static_cast<eng::u16>(kW * kH / 2u),
+		check(plan.blit_job(0u).c2p.bytes == static_cast<eng::u16>(kW * kH / 2u),
 		      "c2p_bytes = width*height/2");
-		check(plan.blit_job(0u).c2p_planes == dst, "destino planar del job");
+		check(plan.blit_job(0u).c2p.planes == dst, "destino planar del job");
 	}
 
 	// BlitterRaster sin plan (o !=4 planos) -> cae a CPU.

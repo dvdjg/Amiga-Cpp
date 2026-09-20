@@ -33,7 +33,7 @@
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/graphics/c2p.hpp>
-#include <eng/graphics/scene/compose.hpp>
+#include <eng/graphics/composition/compose.hpp>
 #include <eng/graphics/effects/rotozoom.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
@@ -93,7 +93,7 @@ void c2p_1x1_4_asm(eng::u32 chunkyx, eng::u32 chunkyy, eng::u32 bplsize, const v
 
 namespace {
 
-namespace scene = eng::graphics::scene;
+namespace scene = eng::graphics::composition;
 
 // Geometria: se genera a 320x64 (20.480 px, la mitad de 320x256) y el driver repite
 // cada fila 4 veces -> display 320x256. La fila logica (40 B) coincide con la del

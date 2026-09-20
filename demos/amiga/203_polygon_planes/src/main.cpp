@@ -24,7 +24,7 @@
 #include <eng/graphics/palette32.hpp>
 #include <eng/graphics/pattern_fill.hpp>
 #include <eng/graphics/polygon_planes.hpp>
-#include <eng/graphics/scene/compose.hpp>
+#include <eng/graphics/composition/compose.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/retro/fixed_mesh.hpp>
@@ -48,7 +48,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-namespace scene = eng::graphics::scene;
+namespace scene = eng::graphics::composition;
 namespace graphics = eng::graphics;
 
 using eng::math3d::Affine3;

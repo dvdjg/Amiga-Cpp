@@ -12,7 +12,7 @@
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/graphics/palette32.hpp>
-#include <eng/graphics/scene/compose.hpp>
+#include <eng/graphics/composition/compose.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/retro/minifloat_fixed.hpp>
 
@@ -35,7 +35,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-namespace scene = eng::graphics::scene;
+namespace scene = eng::graphics::composition;
 namespace field = eng::field;
 namespace em = eng::math;
 using MF = em::MiniFloat16;

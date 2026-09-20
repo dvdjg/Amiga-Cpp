@@ -26,6 +26,6 @@
 #include <eng/graphics/blitter_state.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/palette32.hpp>
-#include <eng/graphics/scene/compose.hpp>
+#include <eng/graphics/composition/compose.hpp>
 #include <eng/input/input.hpp>
 #include <eng/task/background.hpp>

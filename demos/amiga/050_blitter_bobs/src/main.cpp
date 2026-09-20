@@ -1,7 +1,7 @@
 #include <eng/engine.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/graphics/palette32.hpp>
-#include <eng/graphics/scene/compose.hpp>
+#include <eng/graphics/composition/compose.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
@@ -24,7 +24,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-namespace scene = eng::graphics::scene;
+namespace scene = eng::graphics::composition;
 
 constexpr eng::u16 screen_width = 320u;
 constexpr eng::u16 screen_height = 256u;

@@ -24,7 +24,7 @@ close-to-the-metal: bitplanes EHB, punteros BPLx, modulo, DMA y cambios de palet
 por raster.
 
 La demo ya no programa esos registros directamente desde `main.cpp`. Usa
-`scene::compose` (`engine/include/eng/graphics/scene/compose.hpp`) para reservar bitplanes y
+`scene::compose` (`engine/include/eng/graphics/composition/compose.hpp`) para reservar bitplanes y
 copperlist en Chip RAM, activar 6 planos EHB y compilar zonas de paleta a Copper.
 El codigo de la demo solo genera el patron planar de prueba y declara las paletas.
 

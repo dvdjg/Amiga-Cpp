@@ -36,7 +36,7 @@
 
 #include <eng/core/types.hpp>
 
-namespace eng::graphics::scene {
+namespace eng::graphics::composition {
 
 /// **Layout de los bitplanes** en memoria.
 enum class SceneLayout : eng::u8 {
@@ -285,8 +285,8 @@ inline constexpr DisplayLimits aga_a1200 {
 /// un `static_assert` cuando `res` y `l` se conocen en compilación:
 ///
 /// ```cpp
-/// constexpr auto r = scene::planar(320, 256, 6);
-/// static_assert(scene::valid_scene(r, scene::ocs_a500));
+/// constexpr auto r = composition::planar(320, 256, 6);
+/// static_assert(composition::valid_scene(r, composition::ocs_a500));
 /// ```
 [[nodiscard]] consteval bool valid_scene(const SceneResources& res,
 					 const DisplayLimits& l) {
@@ -373,4 +373,4 @@ struct DmaCost {
 			static_cast<u16>(total > used16 ? total - used16 : 0u)};
 }
 
-} // namespace eng::graphics::scene
+} // namespace eng::graphics::composition

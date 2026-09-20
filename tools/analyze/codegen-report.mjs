@@ -125,7 +125,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/fixed_math.hpp>
 #include <eng/core/geometry.hpp>
 #include <eng/core/expr.hpp>
-#include <eng/graphics/scene/compose.hpp>
+#include <eng/graphics/composition/compose.hpp>
 #include <eng/core/sort.hpp>
 #include <eng/graphics/mesh_renderer.hpp>
 #include <eng/platform/amiga/lib3d.hpp>
@@ -1078,9 +1078,9 @@ extern "C" u16 c_math_expr_ops(u16 seed) {
 	const MiniFloat16 m = evaluate<MiniFloat16>(val(MiniFloat16 {0.5f}) + val(MiniFloat16 {0.25f}));
 	return static_cast<u16>(static_cast<eng::s16>(s.v) + out.v[0].v + out.v[1].v + m.raw);
 }
-static eng::graphics::scene::Scene g_scene;
+static eng::graphics::composition::Scene g_scene;
 extern "C" u16 c_scene_commit_ops(u16 seed) {
-	using namespace eng::graphics::scene;
+	using namespace eng::graphics::composition;
 	g_scene.commit();
 	eng::copper::PatchHandle h {};
 	h.set(seed);
