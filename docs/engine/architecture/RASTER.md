@@ -64,10 +64,11 @@ backend host (sin Blitter) declara `RasterCaps{ .blitter = false }` y se usa `kC
     evitaría el camino de polígono (micro-optimización, no una capacidad que falte; sin medición
     que lo justifique).
   - **C2P** (chunky→planar): uso especializado multi-fase del Blitter (ver `C2P_BLITTER.md`).
-  - **Línea EOR en lote**: la demo 116 prepara los parámetros Bresenham **una vez** por arista y
-    los reutiliza en N planos (evita reescribir los registros comunes); el seam encola un job por
-    plano y el backend vuelve a fijarlos. Migrar 116 al seam regresaría, así que 116 conserva su
-    ruta optimizada; un seam con "lote de líneas" (begin una vez) lo unificaría.
+  - **Línea EOR en lote**: el backend agrupa una **racha** de jobs `LineEor` y fija los registros
+    comunes una sola vez (`blitter_lines_eor_begin`), reprogramando solo los 8 registros por
+    arista/plano — la misma optimización que hacía la demo 116 a mano, ahora en el seam (077 la
+    ejercita con un triángulo EOR). Migrar 116 al seam ya no regresaría (pendiente por su ruta
+    asm/buffers).
 
 ## Verificación
 

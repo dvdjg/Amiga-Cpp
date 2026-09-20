@@ -623,6 +623,7 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 	}
 
 	m_blitter_starts = 0;
+	bool eor_open = false; // racha de líneas EOR con los registros comunes ya fijados
 	for (u8 job_index = 0; job_index < plan.blit_job_count(); ++job_index) {
 		const graphics::BlitJob& job = plan.blit_job(job_index);
 		const bool masked =
@@ -647,16 +648,28 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 			eng::u8* d_base = job.line_base.words != nullptr
 						  ? reinterpret_cast<eng::u8*>(job.line_base.words)
 						  : nullptr;
-			const bool ok = line
-				? blitter_line(pb, job.line_row_bytes, job.line_x0, job.line_y0,
-					       job.line_x1, job.line_y1)
-				: blitter_line_eor(pb, job.line_row_bytes, job.line_x0, job.line_y0,
-						   job.line_x1, job.line_y1, d_base);
-			if (!ok) {
-				return false;
+			if (line) {
+				eor_open = false;
+				if (!blitter_line(pb, job.line_row_bytes, job.line_x0, job.line_y0,
+						  job.line_x1, job.line_y1)) {
+					return false;
+				}
+			} else {
+				// Racha EOR: fija los registros comunes UNA vez (no por arista×plano).
+				if (!eor_open) {
+					blitter_lines_eor_begin(job.line_row_bytes);
+					eor_open = true;
+				}
+				LineEorParams p;
+				if (blitter_line_eor_prepare(p, job.line_row_bytes, job.line_x0,
+							     job.line_y0, job.line_x1, job.line_y1)) {
+					blitter_line_eor_draw(p, reinterpret_cast<eng::u8*>(job.destination.words),
+							      d_base);
+				}
 			}
 			continue;
 		}
+		eor_open = false; // cualquier otro job cierra la racha EOR
 
 		custom_base[custom_dmacon_offset] = dma_setclr | dma_master | dma_blitter;
 

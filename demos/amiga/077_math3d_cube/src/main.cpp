@@ -173,6 +173,11 @@ struct DemoGame {
 				(void)s.draw_line(20, 20, 60, 20, 8u, &plan);
 				(void)s.draw_line(60, 20, 40, 50, 8u, &plan);
 				(void)s.draw_line(40, 50, 20, 20, 8u, &plan);
+				// Triangulo EOR (ONEDOT) en el MISMO plan: el backend fija los comunes
+				// de la racha EOR una vez (`blitter_lines_eor_begin`).
+				(void)s.draw_line(260, 20, 300, 20, 8u, &plan, field::RasterOp::Xor);
+				(void)s.draw_line(300, 20, 280, 50, 8u, &plan, field::RasterOp::Xor);
+				(void)s.draw_line(280, 50, 260, 20, 8u, &plan, field::RasterOp::Xor);
 				if (!backend.execute_frame_plan(plan)) {
 					eng::debug::mark_failed(g_eng_run_status, 0x00007702u);
 					return;
