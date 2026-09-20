@@ -26,20 +26,35 @@
 
 namespace eng::field {
 
+/// **Rectángulo de recorte** inclusivo (en píxeles) que `Surface` pasa al rasterizador.
+/// Evita que `raster.hpp` dependa de `surface.hpp` (que lo incluye) y permite que un
+/// futuro rasterizador Blitter recorte la línea antes de emitirla.
+struct ClipRect {
+	eng::s32 x0 = 0;
+	eng::s32 y0 = 0;
+	eng::s32 x1 = 0;
+	eng::s32 y1 = 0;
+};
+
 /// Interfaz de rasterizado. `Surface` no sabe qué implementación hay detrás.
 class Rasterizer {
 public:
 	/// Rellena un rectángulo (ya recortado por `Surface`) con `color` y `op`.
 	virtual bool fill_rect(Playfield& pf, eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h,
 			       eng::u8 color, RasterOp op) = 0;
+	/// Traza una línea recortada al `clip` (el rasterizador decide CPU/Blitter).
+	virtual bool draw_line(Playfield& pf, const ClipRect& clip, eng::s32 x0, eng::s32 y0,
+			       eng::s32 x1, eng::s32 y1, eng::u8 color) = 0;
 	/// Copia rectangular (blit planar): encola el trabajo en `plan`.
 	virtual bool copy_rect(Playfield& pf, graphics::FramePlan& plan, eng::Span<const eng::u16> src,
 			       eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h,
-			       eng::u16 src_row_bytes, eng::u32 src_plane_stride, eng::u8 planes) = 0;
+			       eng::u16 src_row_bytes, eng::u32 src_plane_stride, eng::u8 planes,
+			       eng::u8 source_shift = 0u, bool descending = false) = 0;
 	/// BOB enmascarado (cookie-cut): encola el trabajo en `plan`.
 	virtual bool copy_masked(Playfield& pf, graphics::FramePlan& plan, eng::Span<const eng::u16> src,
 				 eng::Span<const eng::u16> mask, eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h,
-				 eng::u16 src_row_bytes, eng::u32 src_plane_stride, eng::u8 planes) = 0;
+				 eng::u16 src_row_bytes, eng::u32 src_plane_stride, eng::u8 planes,
+				 eng::u8 source_shift = 0u) = 0;
 };
 
 /// Rasterizador **CPU**: relleno por scanline (`Playfield::draw_span_op`, con
@@ -47,6 +62,7 @@ public:
 /// backend). Es el rasterizador por defecto.
 class CpuRaster : public Rasterizer {
 public:
+	/// Rellena un rectángulo por CPU (`Playfield::draw_span_op`).
 	bool fill_rect(Playfield& pf, eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h,
 		       eng::u8 color, RasterOp op) override {
 		if (!pf.initialized() || w == 0u || h == 0u) return false;
@@ -57,19 +73,56 @@ public:
 		}
 		return true;
 	}
+	/// Línea por CPU (Bresenham), recortada al `clip` (un tramo horizontal usa `draw_span`).
+	bool draw_line(Playfield& pf, const ClipRect& clip, eng::s32 x0, eng::s32 y0,
+		       eng::s32 x1, eng::s32 y1, eng::u8 color) override {
+		if (y0 == y1) {
+			if (y0 < clip.y0 || y0 > clip.y1) return false;
+			eng::s32 a = x0 < x1 ? x0 : x1;
+			eng::s32 b = x0 < x1 ? x1 : x0;
+			const bool inside = a >= clip.x0 && b <= clip.x1;
+			if (a < clip.x0) a = clip.x0;
+			if (b > clip.x1) b = clip.x1;
+			if (b < a) return false;
+			return pf.draw_span(a, b, y0, color) && inside;
+		}
+		const eng::s32 dx = x1 > x0 ? x1 - x0 : x0 - x1;
+		const eng::s32 dy = y1 > y0 ? y1 - y0 : y0 - y1;
+		const eng::s32 sx = x0 < x1 ? 1 : -1;
+		const eng::s32 sy = y0 < y1 ? 1 : -1;
+		eng::s32 err = dx - dy;
+		bool ok = true;
+		for (;;) {
+			if (x0 >= clip.x0 && x0 <= clip.x1 && y0 >= clip.y0 && y0 <= clip.y1) {
+				pf.write_pixel(x0, y0, color);
+			} else {
+				ok = false;
+			}
+			if (x0 == x1 && y0 == y1) break;
+			const eng::s32 e2 = 2 * err;
+			if (e2 > -dy) { err -= dy; x0 += sx; }
+			if (e2 < dx) { err += dx; y0 += sy; }
+		}
+		return ok;
+	}
 	/// Copia rectangular por **CPU** (`Playfield::copy_rect_cpu`, con ruta de 32 bits en
-	/// 68020+); no encola trabajo.
+	/// 68020+); no encola trabajo. `source_shift`/`descending` no aplican al camino CPU.
 	bool copy_rect(Playfield& pf, graphics::FramePlan& plan, eng::Span<const eng::u16> src,
 		       eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h,
-		       eng::u16 src_row_bytes, eng::u32 src_plane_stride, eng::u8 planes) override {
+		       eng::u16 src_row_bytes, eng::u32 src_plane_stride, eng::u8 planes,
+		       eng::u8 source_shift = 0u, bool descending = false) override {
 		(void)plan;
+		(void)source_shift;
+		(void)descending;
 		return pf.copy_rect_cpu(src, x, y, w, h, src_row_bytes, src_plane_stride, planes);
 	}
 	/// BOB enmascarado por **CPU** (`Playfield::copy_masked_cpu`); no encola trabajo.
 	bool copy_masked(Playfield& pf, graphics::FramePlan& plan, eng::Span<const eng::u16> src,
 			 eng::Span<const eng::u16> mask, eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h,
-			 eng::u16 src_row_bytes, eng::u32 src_plane_stride, eng::u8 planes) override {
+			 eng::u16 src_row_bytes, eng::u32 src_plane_stride, eng::u8 planes,
+			 eng::u8 source_shift = 0u) override {
 		(void)plan;
+		(void)source_shift;
 		return pf.copy_masked_cpu(src, mask, x, y, w, h, src_row_bytes, src_plane_stride, planes);
 	}
 };
@@ -96,18 +149,21 @@ public:
 					static_cast<eng::s16>(y + h - 1), static_cast<eng::s16>(y + h - 1)};
 		return pf.fill_polygon(xs, ys, 4u, color);
 	}
-	/// Copia por **Blitter**: encola el `CopyRect` en el `FramePlan`.
+	/// Copia por **Blitter**: encola el `CopyRect` en el `FramePlan` (con shift/DESC).
 	bool copy_rect(Playfield& pf, graphics::FramePlan& plan, eng::Span<const eng::u16> src,
 		       eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h,
-		       eng::u16 src_row_bytes, eng::u32 src_plane_stride, eng::u8 planes) override {
-		return pf.add_world_bitmap(plan, src, x, y, w, h, src_row_bytes, src_plane_stride, planes);
+		       eng::u16 src_row_bytes, eng::u32 src_plane_stride, eng::u8 planes,
+		       eng::u8 source_shift = 0u, bool descending = false) override {
+		return pf.add_world_bitmap(plan, src, x, y, w, h, src_row_bytes, src_plane_stride,
+					   planes, source_shift, descending);
 	}
-	/// BOB enmascarado por **Blitter**: encola el cookie-cut en el `FramePlan`.
+	/// BOB enmascarado por **Blitter**: encola el cookie-cut en el `FramePlan` (con shift).
 	bool copy_masked(Playfield& pf, graphics::FramePlan& plan, eng::Span<const eng::u16> src,
 			 eng::Span<const eng::u16> mask, eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h,
-			 eng::u16 src_row_bytes, eng::u32 src_plane_stride, eng::u8 planes) override {
+			 eng::u16 src_row_bytes, eng::u32 src_plane_stride, eng::u8 planes,
+			 eng::u8 source_shift = 0u) override {
 		return pf.add_world_bitmap_masked(plan, src, mask, x, y, w, h, src_row_bytes,
-						  src_plane_stride, planes);
+						  src_plane_stride, planes, source_shift);
 	}
 };
 

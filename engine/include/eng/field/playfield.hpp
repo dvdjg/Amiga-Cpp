@@ -407,11 +407,13 @@ public:
     virtual bool add_world_bitmap(graphics::FramePlan& plan, Span<const u16> src,
                                   s32 wx, s32 wy, u16 w, u16 h,
                                   u16 src_row_bytes, u32 src_plane_stride,
-                                  u8 planes) = 0;
+                                  u8 planes, u8 source_shift = 0u,
+                                  bool descending = false) = 0;
     virtual bool add_world_bitmap_masked(graphics::FramePlan& plan, Span<const u16> src,
                                          Span<const u16> mask, s32 wx, s32 wy,
                                          u16 w, u16 h, u16 src_row_bytes,
-                                         u32 src_plane_stride, u8 planes) = 0;
+                                         u32 src_plane_stride, u8 planes,
+                                         u8 source_shift = 0u) = 0;
 
     // --- Scroll (especialización del playfield) ---------------------------
     /// Avanza el scroll 1 px por eje (o 0). Por defecto no scrollea (lienzo).
@@ -620,7 +622,7 @@ public:
     bool add_world_bitmap(graphics::FramePlan& plan, Span<const u16> src,
                           s32 wx, s32 wy, u16 w, u16 h,
                           u16 src_row_bytes, u32 src_plane_stride,
-                          u8 planes) override {
+                          u8 planes, u8 source_shift = 0u, bool descending = false) override {
         if (!m_initialized || src.empty() || planes == 0) return false;
         if (wx < 0 || (wx & 15) != 0 || static_cast<u32>(wx / 8) + (w / 8u) > m_bytes_per_row) return false;
         if (wy < 0 || static_cast<u32>(wy) + h > m_height) return false;
@@ -640,7 +642,7 @@ public:
             graphics::BlitJob job {
                 graphics::BlitJobKind::CopyRect, graphics::BlitSource {}, graphics::BlitSource {s}, graphics::BlitDest {d},
                 words, h, src_mod, dst_mod,
-                1, 0, src_plane_stride, eng::math::mulu16(m_bytes_per_row, m_planes), false
+                1, source_shift, src_plane_stride, eng::math::mulu16(m_bytes_per_row, m_planes), descending
             };
             if (!plan.add_copy_rect(job)) return false;
         }
@@ -651,7 +653,8 @@ public:
     bool add_world_bitmap_masked(graphics::FramePlan& plan, Span<const u16> src,
                                  Span<const u16> mask, s32 wx, s32 wy,
                                  u16 w, u16 h, u16 src_row_bytes,
-                                 u32 src_plane_stride, u8 planes) override {
+                                 u32 src_plane_stride, u8 planes,
+                                 u8 source_shift = 0u) override {
         if (!m_initialized || src.empty() || mask.empty() || planes == 0) return false;
         if (wx < 0 || (wx & 15) != 0 || static_cast<u32>(wx / 8) + (w / 8u) > m_bytes_per_row) return false;
         if (wy < 0 || static_cast<u32>(wy) + h > m_height) return false;
@@ -676,7 +679,7 @@ public:
             graphics::BlitJob job {
                 graphics::BlitJobKind::MaskedBobCookieCut, graphics::BlitSource {mbase}, graphics::BlitSource {s}, graphics::BlitDest {d},
                 words, h, src_mod, dst_mod,
-                1, 0, src_plane_stride, eng::math::mulu16(m_bytes_per_row, m_planes), false
+                1, source_shift, src_plane_stride, eng::math::mulu16(m_bytes_per_row, m_planes), false
             };
             if (!plan.add_masked_bob(job)) return false;
         }
@@ -787,7 +790,7 @@ public:
     bool add_world_bitmap(graphics::FramePlan& plan, Span<const u16> src,
                           s32 wx, s32 wy, u16 w, u16 h,
                           u16 src_row_bytes, u32 src_plane_stride,
-                          u8 planes) override {
+                          u8 planes, u8 source_shift = 0u, bool descending = false) override {
         if (!m_initialized || src.empty() || planes == 0u) return false;
         if (wx < 0 || (wx & 15) != 0 || static_cast<u32>(wx / 8) + (w / 8u) > m_bytes_per_row) return false;
         if (wy < 0 || static_cast<u32>(wy) + h > m_height) return false;
@@ -809,7 +812,7 @@ public:
             graphics::BlitJob job {
                 graphics::BlitJobKind::CopyRect, graphics::BlitSource {}, graphics::BlitSource {s}, graphics::BlitDest {d},
                 words, h, src_mod, dst_mod,
-                1, 0, src_plane_stride, m_plane_stride, false
+                1, source_shift, src_plane_stride, m_plane_stride, descending
             };
             if (!plan.add_copy_rect(job)) return false;
             sp += src_plane_stride;
@@ -823,7 +826,8 @@ public:
     bool add_world_bitmap_masked(graphics::FramePlan& plan, Span<const u16> src,
                                  Span<const u16> mask, s32 wx, s32 wy,
                                  u16 w, u16 h, u16 src_row_bytes,
-                                 u32 src_plane_stride, u8 planes) override {
+                                 u32 src_plane_stride, u8 planes,
+                                 u8 source_shift = 0u) override {
         if (!m_initialized || src.empty() || mask.empty() || planes == 0u) return false;
         if (wx < 0 || (wx & 15) != 0 || static_cast<u32>(wx / 8) + (w / 8u) > m_bytes_per_row) return false;
         if (wy < 0 || static_cast<u32>(wy) + h > m_height) return false;
@@ -848,7 +852,7 @@ public:
             graphics::BlitJob job {
                 graphics::BlitJobKind::MaskedBobCookieCut, graphics::BlitSource {mbase}, graphics::BlitSource {s}, graphics::BlitDest {d},
                 words, h, src_mod, dst_mod,
-                1, 0, src_plane_stride, m_plane_stride, false
+                1, source_shift, src_plane_stride, m_plane_stride, false
             };
             if (!plan.add_masked_bob(job)) return false;
             sp += src_plane_stride;

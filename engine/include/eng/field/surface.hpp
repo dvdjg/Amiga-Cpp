@@ -120,36 +120,14 @@ public:
         return m_target->fill_polygon(cx, cy, static_cast<u8>(m), color);
     }
 
-    /// Línea oblicua (Bresenham, CPU), recortada. Un tramo **horizontal** (`y0 == y1`) se
-    /// resuelve con `Playfield::draw_span` (una palabra por plano).
+    /// Línea, recortada al clip de la superficie. Delegada en el `Rasterizer` (CPU por
+    /// defecto; un rasterizador Blitter puede trazarla por hardware).
     bool draw_line(s32 x0, s32 y0, s32 x1, s32 y1, u8 color) {
         if (!valid()) return false;
-        if (y0 == y1) {
-            s32 a = x0 < x1 ? x0 : x1;
-            s32 b = x0 < x1 ? x1 : x0;
-            const s32 cx0 = m_clip.x;
-            const s32 cx1 = m_clip.x + static_cast<s32>(m_clip.w) - 1;
-            const bool inside = a >= cx0 && b <= cx1 && y0 >= m_clip.y &&
-                                y0 < m_clip.y + static_cast<s32>(m_clip.h);
-            if (a < cx0) a = cx0;
-            if (b > cx1) b = cx1;
-            if (b < a || y0 < m_clip.y || y0 >= m_clip.y + static_cast<s32>(m_clip.h)) return false;
-            return m_target->draw_span(a, b, y0, color) && inside;
-        }
-        const s32 dx = x1 > x0 ? x1 - x0 : x0 - x1;
-        const s32 dy = y1 > y0 ? y1 - y0 : y0 - y1;
-        const s32 sx = x0 < x1 ? 1 : -1;
-        const s32 sy = y0 < y1 ? 1 : -1;
-        s32 err = dx - dy;
-        bool ok = true;
-        for (;;) {
-            if (!set_pixel(x0, y0, color)) ok = false;
-            if (x0 == x1 && y0 == y1) break;
-            const s32 e2 = 2 * err;
-            if (e2 > -dy) { err -= dy; x0 += sx; }
-            if (e2 < dx)  { err += dx; y0 += sy; }
-        }
-        return ok;
+        const ClipRect clip {m_clip.x, m_clip.y,
+                             m_clip.x + static_cast<s32>(m_clip.w) - 1,
+                             m_clip.y + static_cast<s32>(m_clip.h) - 1};
+        return rasterizer()->draw_line(*m_target.get(), clip, x0, y0, x1, y1, color);
     }
 
     /// Texto en una fuente 8×8, a nivel de contexto (sin punteros ni planos).
@@ -247,27 +225,30 @@ public:
         return true;
     }
 
-    /// Blit planar en el mundo (delega en el playfield; la costura/espejo las
-    /// gestiona el layout). Recorta el rect contra el clip. La fuente viaja como
-    /// `Span` (el tamaño es el contrato que el playfield valida).
+    /// Blit planar en el mundo (delega en el `Rasterizer`: CPU o Blitter). Recorta el
+    /// rect contra el clip. `source_shift` (shifts A/B) y `descending` (blits solapados)
+    /// solo aplican al camino Blitter. La fuente viaja como `Span`.
     bool blit(graphics::FramePlan& plan, Span<const u16> src, s32 x, s32 y,
-              u16 w, u16 h, u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
+              u16 w, u16 h, u16 src_row_bytes, u32 src_plane_stride, u8 planes,
+              u8 source_shift = 0u, bool descending = false) {
         if (!valid() || x < m_clip.x || y < m_clip.y ||
             x + static_cast<s32>(w) > m_clip.x + m_clip.w ||
             y + static_cast<s32>(h) > m_clip.y + m_clip.h) return false;
         return rasterizer()->copy_rect(*m_target.get(), plan, src, x, y, w, h,
-                                       src_row_bytes, src_plane_stride, planes);
+                                       src_row_bytes, src_plane_stride, planes,
+                                       source_shift, descending);
     }
 
     /// BOB enmascarado (cookie-cut) en el mundo, recortado contra el clip.
     bool blit_masked(graphics::FramePlan& plan, Span<const u16> src, Span<const u16> mask,
                      s32 x, s32 y, u16 w, u16 h,
-                     u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
+                     u16 src_row_bytes, u32 src_plane_stride, u8 planes,
+                     u8 source_shift = 0u) {
         if (!valid() || x < m_clip.x || y < m_clip.y ||
             x + static_cast<s32>(w) > m_clip.x + m_clip.w ||
             y + static_cast<s32>(h) > m_clip.y + m_clip.h) return false;
         return rasterizer()->copy_masked(*m_target.get(), plan, src, mask, x, y, w, h,
-                                         src_row_bytes, src_plane_stride, planes);
+                                         src_row_bytes, src_plane_stride, planes, source_shift);
     }
 
 private:

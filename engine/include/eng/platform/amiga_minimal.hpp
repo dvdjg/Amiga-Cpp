@@ -267,7 +267,13 @@ public:
 	/// AGA admite FMODE 32/64) con fill/line/shift/minterms. Un backend host declararía
 	/// `blitter = false`. Ver `field::RasterCaps`.
 	[[nodiscard]] constexpr eng::field::RasterCaps raster_caps() const {
+#if defined(K_AGA)
+		// Target AGA (A1200/A4000/CD32): bus de 64 bits con FMODE=4x.
+		return eng::field::RasterCaps { true, 64u, true, true, true, true, 60u };
+#else
+		// Target OCS (A500): bus de 16 bits.
 		return eng::field::RasterCaps { true, 16u, true, true, true, true, 60u };
+#endif
 	}
 
 	/// Instala en la escena el **rasterizador** coherente con `raster_caps()` (Blitter si

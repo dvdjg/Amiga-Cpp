@@ -26,13 +26,16 @@ transparente esa elección.
 
 ## Implementaciones
 
-- **`CpuRaster`**: relleno por scanline (`Playfield::draw_span_op`, con `RasterOp`) y copias por
-  CPU (`Playfield::copy_rect_cpu` / `copy_masked_cpu`). La copia usa stores de **32 bits**
-  cuando `RasterPolicy::cpu_fast` está activo y origen/destino quedan alineados a 4 (ruta
-  `move.l`; *CPU blit assist* del 68020, ver `../guides/optimization/OPTIMIZACION_GPP_68000.md`).
-  Sin multiplicaciones de 32 bits en el bucle (`mulu16` + avance de punteros).
+- **`CpuRaster`**: relleno por scanline (`Playfield::draw_span_op`, con `RasterOp`), **línea**
+  (Bresenham recortada al `ClipRect`) y copias por CPU (`Playfield::copy_rect_cpu` /
+  `copy_masked_cpu`). La copia usa stores de **32 bits** cuando `RasterPolicy::cpu_fast` está
+  activo y origen/destino quedan alineados a 4 (ruta `move.l`; *CPU blit assist* del 68020, ver
+  `../guides/optimization/OPTIMIZACION_GPP_68000.md`). Sin multiplicaciones de 32 bits en el
+  bucle (`mulu16` + avance de punteros).
 - **`BlitterRaster`**: relleno por `Playfield::fill_polygon` (usa el `PolygonFillSink`/Blitter si
-  está instalado; si no, CPU) y copias por el `FramePlan` (`CopyRect`/`MaskedBobCookieCut`).
+  está instalado; si no, CPU) y copias por el `FramePlan` (`CopyRect`/`MaskedBobCookieCut`, con
+  `source_shift` y `descending`); **línea** por CPU (el `BlitJob` de línea por Blitter está
+  pendiente).
 
 ## Selección (backend → escena)
 
@@ -50,19 +53,18 @@ backend host (sin Blitter) declara `RasterCaps{ .blitter = false }` y se usa `kC
 
 ## Estado y extensión
 
-- **Hecho**: `RasterOp` (CPU), relleno CPU/Blitter (con umbral `Auto`), copia CPU (32 bits) y
-  Blitter, copia enmascarada CPU y Blitter; `install_raster` en el backend Amiga.
+- **Hecho**: `RasterOp` (CPU), relleno CPU/Blitter (con umbral `Auto`), **línea** en la API
+  (`Rasterizer::draw_line`, CPU), copia CPU (32 bits) y Blitter con `source_shift`/`descending`,
+  copia enmascarada CPU y Blitter; `install_raster` con `RasterCaps` OCS/AGA por target.
 - **Operaciones Blitter que aún NO cubre el seam** (ver `frame_plan.hpp`/AHRM cap. 6):
-  - **Líneas** (`BLTCON1` LINE): `Surface::draw_line` es CPU (Bresenham); falta un `BlitJob` de
-    línea y `Rasterizer::draw_line`. Es la operación más pedida (wireframe/vectores/contornos).
+  - **Línea por Blitter** (`BLTCON1` LINE): falta un `BlitJobKind::Line` (con sus coordenadas) y
+    que `BlitterRaster::draw_line` lo encole; hoy la línea es CPU.
   - **Relleno de rect directo** (FILL mode): hoy el rect se rellena como polígono vía
     `PolygonFillSink`; un `FillRect` propio evitaría el camino de polígono.
   - **C2P** (chunky→planar): uso especializado multi-fase del Blitter (ver `C2P_BLITTER.md`).
   - **Copia CPU siempre de 32 bits**: hoy el camino ancho requiere origen y destino alineados a
     4; con `row_bytes % 4 == 0` (p. ej. 320 px) aplica, si no cae a 16 bits por fila. Alinear
     los buffers en `bind` (o padear `row_bytes` a 4) lo haría universal.
-  - **Shifts A/B y DESC** ya existen en `BlitJob` (`source_shift`, `descending`); exponerlos en
-    `RasterOp`/`Rasterizer` es extensión natural.
 
 ## Verificación
 
