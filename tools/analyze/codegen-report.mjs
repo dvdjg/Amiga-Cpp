@@ -1744,6 +1744,13 @@ if (!/\bdivs(\.w)?\b/.test(asmText)) {
   console.error('\n[codegen] FAIL: no aparece divs.w (la division de fixed deberia ser nativa).');
   process.exit(1);
 }
+// Evidencia positiva: el tamano/presupuesto de escena usa `mulu.w` nativo (mulu32x16), no
+// `__mulsi3`. `c_scene_commit_ops` pasa por `commit()` -> `patch_plane_pointers`/`bind_raw`.
+const sceneProbe = fns.find((f) => f.name === 'c_scene_commit_ops');
+if (sceneProbe && sceneProbe.mul === 0) {
+  console.error('\n[codegen] FAIL: c_scene_commit_ops sin mulu.w (mulu32x16 no emitido).');
+  process.exit(1);
+}
 
 // El bucle de minifloat_math debe quedar INLINEADO (sin `jsr` a funciones propias): un
 // `jsr` por operacion dentro de un bucle caliente cuesta mas que el propio calculo.

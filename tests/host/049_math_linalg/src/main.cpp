@@ -93,6 +93,10 @@ int main() {
 	check(determinant(f) == 1.0f, "det(float 3x3) = 1");
 	check((f * inverse(f)).m[0][0] == 1.0f && (f * inverse(f)).m[1][1] == 1.0f, "float: f * inverse(f) = I");
 
+	// --- mulu32x16: producto u32*u16 sin libgcc (presupuestos/tamanos) ---
+	check(eng::math::mulu32x16(0x12345u, 0x6789u) == 0x12345u * 0x6789u,
+	      "mulu32x16 coincide con u32*u16");
+
 	if (failures == 0) {
 		std::printf("OK: linalg (Vec/Mat/Affine genericos sobre el escalar) validado.\n");
 		return 0;
