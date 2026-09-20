@@ -105,6 +105,9 @@ struct DisplayLimits {
 
 	// --- Buffers de display -----------------------------------------------------------
 	u8 max_buffers = 3;    ///< buffers de display soportados (doble/triple buffer)
+	u8 dma_slots_per_word = 1; ///< slots de bus por palabra de bitplane y línea (AGA FMODE ↓)
+	u8 fixed_dma_slots = 27;   ///< slots fijos por línea (refresh, sprites, Copper, audio)
+	u16 slots_per_line = 227;  ///< slots de bus usables por línea (PAL lores, 7.09 MHz)
 };
 
 // ---------------------------------------------------------------------------------------
@@ -256,6 +259,27 @@ inline constexpr DisplayLimits aga_a1200 {
 [[nodiscard]] consteval bool valid_scene(const SceneResources& res,
 					 const DisplayLimits& l) {
 	return validate(res, l).ok();
+}
+
+/// **Coste de bus** de un playfield (informativo; **no** es validez). El nº de planos no
+/// cambia el ancho de fetch, pero cada plano consume slots de Chip RAM por línea que
+/// compiten con CPU/Blitter/Copper: a 6 planos lores ya se usa ~65 % del bus y queda ~35 %
+/// para la CPU (fuente: `amiga-bootcamp/01_hardware/common/dma_architecture.md`).
+struct DmaCost {
+	u16 fetch_words = 0;   ///< palabras de fetch por línea y plano
+	u32 bitplane_slots = 0;///< slots de bus consumidos por los bitplanes (por línea)
+	u16 cpu_slots = 0;     ///< slots restantes para CPU/Blitter (por línea)
+};
+
+/// Calcula el coste de bus de `res` bajo `l` (ver `DmaCost`). `planes` = planos de bitplane.
+[[nodiscard]] constexpr DmaCost dma_cost(const SceneResources& res, const DisplayLimits& l) {
+	const DisplayGeometry g = geometry_for(res);
+	const u16 fetch_words = static_cast<u16>(
+		(static_cast<u16>(g.ddfstop - g.ddfstrt) / 8u) + 1u);
+	const u32 bp = static_cast<u32>(fetch_words) * res.planes * l.dma_slots_per_word;
+	const u16 total = l.slots_per_line;
+	const u16 used = static_cast<u16>(bp + l.fixed_dma_slots);
+	return DmaCost {fetch_words, bp, static_cast<u16>(used < total ? total - used : 0u)};
 }
 
 } // namespace eng::graphics::scene
