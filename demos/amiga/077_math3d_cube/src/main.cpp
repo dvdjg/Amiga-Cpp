@@ -183,6 +183,37 @@ struct DemoGame {
 					return;
 				}
 			}
+			// Self-test de **colision pixel-perfect por Blitter** (`blitter_collide`):
+			// dos mascaras de 16x8x1; con el bit (0,0) en ambas hay colision, con bits
+			// distintos no. Valida la ruta de hardware (antes NO VERIFICADA).
+			{
+				constexpr eng::u16 kCw = 16, kCh = 8;
+				constexpr eng::u16 kCRow = kCw / 8u;      // 2 bytes/fila
+				constexpr eng::u32 kCPlane = kCRow * kCh; // 16 bytes/plano
+				auto ca = backend.memory().chip.allocate_block<eng::PlaneTag>(kCPlane + 16u, 16);
+				auto cb = backend.memory().chip.allocate_block<eng::PlaneTag>(kCPlane + 16u, 16);
+				auto cs = backend.memory().chip.allocate_block<eng::PlaneTag>(kCPlane + 16u, 16);
+				if (!ca.valid() || !cb.valid() || !cs.valid()) {
+					eng::debug::mark_failed(g_eng_run_status, 0x00007703u);
+					return;
+				}
+				for (eng::u32 i = 0; i < kCPlane; ++i) {
+					ca.view.data()[i] = 0u;
+					cb.view.data()[i] = 0u;
+					cs.view.data()[i] = 0u;
+				}
+				ca.view.data()[0] = 0x80u; // pixel (0,0)
+				cb.view.data()[0] = 0x80u; // mismo pixel -> colision
+				if (!backend.blitter_collide(ca.view, cb.view, cs.view, 1u, kCRow, kCPlane, 1u, 1u)) {
+					eng::debug::mark_failed(g_eng_run_status, 0x00007704u);
+					return;
+				}
+				cb.view.data()[0] = 0x40u; // pixel distinto -> sin colision
+				if (backend.blitter_collide(ca.view, cb.view, cs.view, 1u, kCRow, kCPlane, 1u, 1u)) {
+					eng::debug::mark_failed(g_eng_run_status, 0x00007705u);
+					return;
+				}
+			}
 			m_scene.takeover(backend);
 			if (!verify_mesh()) {
 				eng::debug::mark_failed(g_eng_run_status, 0x00007701u);

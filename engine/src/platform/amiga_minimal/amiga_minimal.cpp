@@ -988,8 +988,8 @@ bool MinimalBackend::blitter_collide(eng::PlaneBytes a, eng::PlaneBytes b, eng::
 		return false;
 	}
 	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
-	// D = A & B (minterm $80) por plano, a un scratch; luego escaneo CPU del scratch.
-	custom_base[custom_bltcon0_offset] = static_cast<u16>(blt_use_a | blt_use_b | blt_use_d | 0x0080);
+	// D = A & B (minterm $C0) por plano, a un scratch; luego escaneo CPU del scratch.
+	custom_base[custom_bltcon0_offset] = static_cast<u16>(blt_use_a | blt_use_b | blt_use_d | 0x00c0);
 	custom_base[custom_bltcon1_offset] = 0;
 	custom_base[custom_bltafwm_offset] = 0xffff;
 	custom_base[custom_bltalwm_offset] = 0xffff;

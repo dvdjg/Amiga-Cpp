@@ -76,13 +76,13 @@ struct RasterPolicy {
 };
 
 /// **Minterm del Blitter** para una operación lógica de **blit** con `B = D` (fuente por
-/// A): `Or`=`$FC` (`D=A|D`), `And`=`$80` (`D=A&D`), `Xor`=`$60` (`D=A^D`). `Copy` no usa
-/// esta ruta (va por C). Ver AHRM 6.
+/// A): `Or`=`$FC` (`D=A|B`), `And`=`$C0` (`D=A&B`), `Xor`=`$3C` (`D=A^B`). `Copy` no usa
+/// esta ruta (va por C). Ver AHRM 6 (tabla de minterms).
 [[nodiscard]] constexpr eng::u8 raster_op_minterm(RasterOp op) {
 	switch (op) {
 		case RasterOp::Or: return 0xFCu;
-		case RasterOp::And: return 0x80u;
-		case RasterOp::Xor: return 0x60u;
+		case RasterOp::And: return 0xC0u;
+		case RasterOp::Xor: return 0x3Cu;
 		default: return 0xF0u;
 	}
 }

@@ -58,14 +58,13 @@ backend host (sin Blitter) declara `RasterCaps{ .blitter = false }` y se usa `kC
   Blitter y EOR/ONEDOT** (`BlitJobKind::Line`/`LineEor` + `Rasterizer::draw_line`, con recorte
   de segmento), copia CPU (32 bits) y Blitter con `source_shift`/`descending`, **blit lógico**
   (`BlitJobKind::LogicBlit`, `B = D` + minterm: sombras/glow/máscaras), copia enmascarada CPU y
-  Blitter, y **colisión pixel-perfect** (`field::collide_cpu` + `MinimalBackend::blitter_collide`);
-  `install_raster` con `RasterCaps` OCS/AGA por target; `row_bytes` alineado a 4.
+  Blitter, y **colisión pixel-perfect** (`field::collide_cpu` + `MinimalBackend::blitter_collide`,
+  verificada en hardware por el self-test de 077); `install_raster` con `RasterCaps` OCS/AGA por
+  target; `row_bytes` alineado a 4.
 - **Operaciones Blitter que aún NO cubre el seam** (ver `frame_plan.hpp`/AHRM cap. 6):
   - **Relleno con patrón** (suelos/techos 3D): `fill_polygon` con una fuente de patrón en vez de
     color plano.
   - **C2P** (chunky→planar): uso especializado multi-fase del Blitter (ver `C2P_BLITTER.md`).
-  - **`blitter_collide` NO VERIFICADA** (sin demo): validada por `collide_cpu` en host; falta una
-    demo de juego que la use en hardware.
   - **Línea EOR en lote**: el backend ya fija los comunes una vez por racha `LineEor` (077 la
     ejercita); migrar 116 al seam queda pendiente por su ruta asm/buffers.
 
@@ -77,9 +76,10 @@ backend host (sin Blitter) declara `RasterCaps{ .blitter = false }` y se usa `kC
 - **Sonda de codegen** `docs/guides/optimization/_probe_raster_copy.cpp`: 68000/68020 sin
   libcalls (`__mulsi3`/`__udivsi3`) y con `move.l` en la copia.
 - **Demo (hardware)**: `077_math3d_cube` instala el rasterizador del backend, dibuja el cubo por
-  CPU y un **triángulo fijo por Blitter** (`draw_line(&plan, …)` + `execute_frame_plan`), visible
-  en la captura; `079_wireframe` dibuja todo el alambre por el seam (`Surface::draw_line` sobre
-  un `ContiguousPlayfield` con `kBlitterRaster`) — visible en la captura. Verificado
+  CPU y **triángulos OR y EOR por Blitter** (`draw_line(&plan, …)` + `execute_frame_plan`),
+  visibles en la captura, y hace un **self-test de `blitter_collide`** (colisión y no-colisión)
+  en `init` (READY solo si pasa). `079_wireframe` dibuja todo el alambre por el seam
+  (`Surface::draw_line` sobre un `ContiguousPlayfield` con `kBlitterRaster`). Verificado
   `build -> run -> analyze` (077; 079 renderiza aunque su `analyze` genérico pide colores de
   overlay que su paleta no tiene, deuda previa).
 - **`RasterCaps` por target**: `raster_caps()` declara bus 16 (OCS) o 64 (`K_AGA`); 077 compila

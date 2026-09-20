@@ -322,10 +322,10 @@ public:
 	/// fila del plano (el original usa WIDTH/8). Linea OR sobre el destino.
 	bool blitter_line(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1);
 
-	/// **Colisión pixel-perfect por Blitter**: hace `scratch = a & b` (minterm `$80`) por
+	/// **Colisión pixel-perfect por Blitter**: hace `scratch = a & b` (minterm `$C0`) por
 	/// plano y devuelve `true` si alguna palabra del rect es distinta de 0. `words`×`rows`
 	/// es el rect (en palabras de 16 px × filas). Referencia CPU: `field::collide_cpu`.
-	/// **NO VERIFICADA** (sin demo): pendiente de una demo de juego que la use.
+	/// **Verificada en hardware**: self-test de la demo 077 (colisión y no-colisión).
 	bool blitter_collide(eng::PlaneBytes a, eng::PlaneBytes b, eng::PlaneBytes scratch,
 			     u8 planes, u16 row_bytes, u32 plane_bytes, u16 words, u16 rows);
 
