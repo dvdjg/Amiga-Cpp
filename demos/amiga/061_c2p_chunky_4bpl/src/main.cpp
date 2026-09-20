@@ -170,6 +170,8 @@ struct RotozoomDemo {
 		scene::SceneResources res = scene::planar(320u, 256u, kPlanes);
 		res.rows = kChunkyH;
 		res.buffers = static_cast<eng::u8>(K_061_BUFFERS);
+		// display + palette + row_repeat(64*4 lineas): 2048 B no bastan.
+		res.copper_bytes = 8192u;
 		if (!scene::compose(m_scene, backend.memory(), res,
 				    scene::ocs_a500,
 				    scene::display(res),

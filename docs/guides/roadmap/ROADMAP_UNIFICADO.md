@@ -474,9 +474,9 @@ prioridad:
 3. **C2P en el seam**: `Rasterizer::c2p(C2pRequest, plan)` unifica chunky→planar: CPU
    (`c2p_1x1_4`/`c2p_1x1_naive`) y **Blitter** (`BlitJobKind::C2P`, 13 fases) por la misma
    interfaz; `Scene::c2p` lo expone. HOST-218 valida la ruta CPU (equivalente a la referencia) y
-   el encolado `C2P` del `BlitterRaster`. **Pendiente**: una demo que lo consuma (bloqueada por el
-   fallo de `copper_bytes` con `row_repeat` que tiene **061 también en master**: compose con 4096 B
-   no cabe y la demo queda FAILED; ver 061).
+   el encolado `C2P` del `BlitterRaster`. **Pendiente**: una demo que lo consuma; el intento
+   (rotozoom + `Scene::c2p`) no renderiza pese a que `c2p` devuelve `true` y 061 (mismo escenario,
+   C2P directo) sí — falta aislar por qué el buffer escrito no llega al display.
 4. **`FMODE` por target**: programar 2×/4× según `raster_caps().bus` (AGA) en copias/fills; hoy
    solo se declara la capacidad.
 5. **Demo de `blit_shadow`/`blit_glow`** en un actor real (no solo el host test) e integración en
