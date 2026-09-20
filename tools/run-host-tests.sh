@@ -143,6 +143,15 @@ if [ "$#" -eq 0 ]; then
 			exit 1
 		fi
 	fi
+	# Arquitectura: cabeceras fundamentales con diagrama ASCII (estricto).
+	DIAGRAMS="$ROOT/tools/check/architecture-diagrams.mjs"
+	if [ -f "$DIAGRAMS" ] && command -v node >/dev/null 2>&1; then
+		echo "== architecture-diagrams =="
+		if ! node "$DIAGRAMS" --strict; then
+			echo "architecture-diagrams fallo: cabecera fundamental sin diagrama ASCII." >&2
+			exit 1
+		fi
+	fi
 fi
 
 # Selección de tests.
