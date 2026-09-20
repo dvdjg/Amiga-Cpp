@@ -164,9 +164,12 @@ declarado por la máquina y la validación es agnóstica.
   variante de `compose` sin `limits`. Las demos usan `display(res)`, que deriva geometría
   (`geometry_for`) y `BPLCON0` (`bplcon0_for(mode, planes)`).
 - **Huella estática de etapas**: las etapas de **forma conocida** exponen su tamaño en
-  palabras como `constexpr` (`row_repeat_words(rows, repeat, first_line)`), comparable con
-  `copper_word_budget(res)` en un `static_assert`; HOST-016 verifica que la fórmula coincide
-  con la emisión real (`scheduler().words_used()`).
+  palabras como `constexpr` (`display_words(res)`, `palette_words(first, count, size)`,
+  `palette_zone_words(...)`, `row_repeat_words(rows, repeat, first_line)`), comparable con
+  `copper_word_budget(res)` en un `static_assert`; HOST-016/215 verifican que las fórmulas
+  coinciden con la emisión real (`scheduler().words_used()`/`Scene::words()`) y la demo 081
+  usa el gate en compilación. El modelo es **lores**; hires/SuperHires/`DIWHIGH` (ECS/AGA) se
+  retomarán cuando haya un consumidor (ver `pending-verification.md` §6).
 - **Rendimiento**: las validaciones de copperlist (presupuesto por línea, overflow) viven en
   `materialize`/`end_frame` (**una vez por frame**), nunca en la emisión por MOVE
   (`move`/`wait` son `always_inline` y no validan). Regla: **estáticas siempre; dinámicas solo
@@ -256,6 +259,7 @@ cubrir el cierre (unas decenas de bytes; 3–4 punteros suele bastar).
   dinámico del copper (colores, `BPL1MOD/BPL2MOD`, `BPLxPT`, `BPLCON1`…), no solo paletas.
 - **Constantes y helpers**: `DisplayGeometry`/`kPal320x256` (en `limits.hpp`),
   `kBplcon0_{4Planes,4PlanesNoColor,Ehb,Ham6}`, `bplcon0_for(mode, planes)`,
+  `display_words(res)`/`palette_words(...)`/`palette_zone_words(...)`/
   `row_repeat_words(...)`/`copper_word_budget(res)` (huella estática de etapas).
 - **Configuración**: una sola función paramétrica `planar(width, height, planes)`; los
   escenarios (EHB = 6 planos, HAM/cuadruplicado = `rows` + `row_repeat`, canvas =

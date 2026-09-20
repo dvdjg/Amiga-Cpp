@@ -74,9 +74,12 @@ Notas de deuda de diseño detectadas al trabajar en el modelo de escena, para un
   y `fetch_width_max=4` (`FMODE` 4×); `ecs` queda igual que OCS en **lores** (mismos planos,
   modos y fetch). Fuente: `aga_a1200_a4000/{chipset_aga,aga_display_modes}.md` y AHRM
   Apéndice C. Verificado por HOST-216.
-- **Pendiente**: ECS añade SuperHires (1280 px, ≤ 2 planos) y `DIWHIGH` (rangos de ventana
-  mayores); AGA añade hires/superhires y 24-bit. Están fuera del modelo lores actual
-  (`SceneResources` solo describe lores) y se añadirán cuando haya consumidor.
+- **Diferido (decisión)**: ECS añade SuperHires (1280 px, ≤ 2 planos) y `DIWHIGH` (rangos de
+  ventana mayores); AGA añade hires/superhires y 24-bit. El modelo `SceneResources` es
+  **lores-only** (`display`/`geometry_for` derivan DDF de lores) y hoy **no hay consumidor**,
+  así que no se añade API especulativa (§1.6) ni geometría hires sin fijar antes la fórmula
+  DDF en el AHRM y validarla contra hardware (§1.7). Se retomará cuando exista una demo
+  hires/superhires que lo ejercite.
 
 ## 7. `compose_unchecked` / `init_unchecked`: retirados
 
