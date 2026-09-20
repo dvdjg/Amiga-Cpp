@@ -160,9 +160,20 @@ public:
         const u32 pl = planeline_for(wy);
         const u32 mir = mirror_planelines();
         for (s32 x = x0; x <= x1;) {
+            const u32 bit = static_cast<u32>(x) & 15u;
+            // Tramo de 32 px alineado: 2 palabras por plano en un store de 32 bits
+            // (en Chip RAM cuesta ~lo mismo que uno de 16). Es lo que hace que
+            // `Surface::fill_rect` rinda como el `clear_rect` optimizado a mano.
+            if (bit == 0u && x + 31 <= x1) {
+                const u32 wb = byte_for(x);
+                if (!supports_walk() && wb >= m_bytes_per_row) break;
+                write_planes32(pl, wb, 0xffffffffu, color);
+                if (mir != 0u) write_planes32(pl + mir, wb, 0xffffffffu, color);
+                x += 32;
+                continue;
+            }
             const u32 byte = byte_for(x);
             if (!supports_walk() && byte >= m_bytes_per_row) break;
-            const u32 bit = static_cast<u32>(x) & 15u;
             const s32 remain = static_cast<s32>(16u - bit);
             const s32 run = (x1 - x + 1 < remain) ? (x1 - x + 1) : remain;
             const u16 hi = static_cast<u16>(0xFFFFu << (16u - static_cast<u32>(run)));
@@ -248,14 +259,50 @@ protected:
     /// de la planelínea `planeline` en la word `word_byte`. Acota contra el
     /// tamaño total del bitmap (el *walk* horizontal cruza planelíneas).
     void write_planes(u32 planeline, u32 word_byte, u16 mask, u8 color) {
-        const u32 row = static_cast<u32>(m_bytes_per_row);
-        u8* base = m_frontbuffer + eng::math::mulu16(static_cast<u16>(planeline), static_cast<u16>(row));
+        // Strides por layout: por defecto (0) se deriva el INTERLEAVED, donde
+        // `planeline` ya incluye el índice de plano (`wy*planes + walk`) y cada plano
+        // está a `m_bytes_per_row`. Un playfield CONTIGUO fija `m_plane_stride` y
+        // `m_row_stride` en su `bind` (planos uno tras otro). El offset por plano se
+        // acumula (suma) para no meter un producto de 32 bits en el camino por píxel.
+        const u32 pstride = (m_plane_stride != 0u) ? m_plane_stride : m_bytes_per_row;
+        const u32 rstride = (m_row_stride != 0u) ? m_row_stride : m_bytes_per_row;
+        u8* base = m_frontbuffer +
+                   eng::math::mulu16(static_cast<u16>(planeline), static_cast<u16>(rstride));
+        u32 off = word_byte;
         for (u8 p = 0; p < m_planes; ++p) {
-            const u32 b = eng::math::mulu16(static_cast<u16>(p), static_cast<u16>(row)) + word_byte;
-            if (b >= m_total_bytes) return; // fuera del bitmap
-            u16* w = reinterpret_cast<u16*>(base + b);
+            if (off >= m_total_bytes) return; // fuera del bitmap
+            u16* w = reinterpret_cast<u16*>(base + off);
             if ((color & (1u << p)) != 0u) *w |= mask;
             else *w &= ~mask;
+            off += pstride;
+        }
+    }
+
+    /// Igual que `write_planes` pero para **dos palabras contiguas** (32 px) con un solo
+    /// store de 32 bits por plano. Si el destino no queda alineado a 4 bytes (posible en
+    /// planos contiguos con `row_bytes` no múltiplo de 4), cae a dos stores de 16 bits
+    /// (nunca un acceso desalineado, que en 68000 sería una excepción de dirección).
+    void write_planes32(u32 planeline, u32 word_byte, u32 mask32, u8 color) {
+        const u32 pstride = (m_plane_stride != 0u) ? m_plane_stride : m_bytes_per_row;
+        const u32 rstride = (m_row_stride != 0u) ? m_row_stride : m_bytes_per_row;
+        u8* base = m_frontbuffer +
+                   eng::math::mulu16(static_cast<u16>(planeline), static_cast<u16>(rstride));
+        u32 off = word_byte;
+        for (u8 p = 0; p < m_planes; ++p) {
+            if (off + 3u >= m_total_bytes) return; // fuera del bitmap
+            u8* addr = base + off;
+            if ((reinterpret_cast<eng::uintptr>(addr) & 3u) == 0u) {
+                u32* w = reinterpret_cast<u32*>(addr);
+                if ((color & (1u << p)) != 0u) *w |= mask32;
+                else *w &= ~mask32;
+            } else {
+                u16* w = reinterpret_cast<u16*>(addr);
+                const u16 lo = static_cast<u16>(mask32 & 0xffffu);
+                const u16 hi = static_cast<u16>(mask32 >> 16);
+                if ((color & (1u << p)) != 0u) { w[0] |= lo; w[1] |= hi; }
+                else { w[0] &= static_cast<u16>(~lo); w[1] &= static_cast<u16>(~hi); }
+            }
+            off += pstride;
         }
     }
 
@@ -265,6 +312,8 @@ protected:
     u16 m_bytes_per_row = 0;     ///< bytes por fila de un plano
     u8 m_planes = 0;             ///< nº de planos de bitplane
     u32 m_total_bytes = 0;       ///< bytes totales del bitmap (`row * plano * planos`)
+    u32 m_plane_stride = 0;      ///< bytes entre planos (0 = interleaved: `m_bytes_per_row`)
+    u32 m_row_stride = 0;        ///< bytes entre filas del mismo plano (0 = `m_bytes_per_row`)
     bool m_initialized = false;  ///< el playfield quedó listo para dibujar
     PolygonFillSink m_fill_sink {}; ///< motor de relleno por hardware (vacío = CPU)
 };
@@ -450,6 +499,85 @@ private:
     gfx::Bitmap m_bitmap {};
     /// Bitplanes externos cuando el lienzo se construyó con `bind` (vacio con `begin`).
     eng::Block<eng::PlaneTag> m_bound {};
+};
+
+/// Lienzo planar **contiguo**: los planos van uno tras otro (`plano p` en
+/// `base + p*plane_bytes`), el layout que usan las escenas EHB/HAM del modelo de
+/// composición. Implementa el mismo contrato que `CanvasPlayfield`, de modo que
+/// `Surface` (`set_pixel`/`draw_line`/`fill_rect`/`fill_polygon`/`draw_text`) dibuja
+/// igual sobre contiguo o interleaved sin que la app vea planos, punteros ni layouts.
+///
+/// No posee memoria: el `Scene` le pasa sus buffers con `bind`. Los blits
+/// (`add_world_bitmap*`) no están implementados para este layout (sin consumidor).
+class ContiguousPlayfield : public Playfield {
+public:
+    /// Construye el lienzo sobre bitplanes YA reservados. `bitplanes.view.size()` debe
+    /// cubrir `plane_stride * planes`. `plane_stride` es el tamaño de un plano completo
+    /// (`row_bytes * filas_lógicas`); 0 = derivarlo de `height`.
+    bool bind(eng::Block<eng::PlaneTag> bitplanes, u16 width, u16 height, u8 planes,
+              u32 plane_stride = 0u) {
+        if (!bitplanes.valid() || width == 0u || height == 0u || planes == 0u || planes > 6u) {
+            return false;
+        }
+        const u16 row = static_cast<u16>((width / 8u) & ~1u);
+        const u32 pbytes = (plane_stride != 0u) ? plane_stride
+                                                : static_cast<u32>(row) * height;
+        const u32 need = pbytes * planes;
+        if (static_cast<u32>(bitplanes.view.size()) < need) return false;
+        m_bound = bitplanes;
+        m_width = width;
+        m_height = height;
+        m_planes = planes;
+        m_bytes_per_row = row;
+        m_total_bytes = need;
+        m_frontbuffer = bitplanes.view.data(); // vía cruda interna (núcleo)
+        m_plane_stride = pbytes;
+        m_row_stride = row;
+        m_initialized = true;
+        return true;
+    }
+
+    /// Planos del lienzo (vista de dominio, sin punteros crudos).
+    [[nodiscard]] constexpr eng::PlaneBytes bitplanes() const { return m_bound.view; }
+
+    // --- Hooks (layout contiguo) ------------------------------------------
+    u32 planeline_for(s32 wy) const override { return static_cast<u32>(wy); }
+    u32 byte_for(s32 wx) const override { return static_cast<u32>(wx / 8) & ~1u; }
+    bool in_bounds(s32 wx, s32 wy) const override {
+        return wx >= 0 && wy >= 0 && static_cast<u32>(wx) < m_width &&
+               static_cast<u32>(wy) < m_height;
+    }
+    // Strides que ve el sink de relleno (Blitter): planos contiguos.
+    u32 plane_stride() const override { return m_plane_stride; }
+    u32 row_stride() const override { return m_row_stride; }
+
+    PlayfieldHardwareView hardware_view() const override {
+        PlayfieldHardwareView v;
+        v.bitplanes = m_frontbuffer;
+        v.real_base = m_frontbuffer;
+        v.bitmap_bytes_per_row = m_bytes_per_row;
+        v.plane_bytes = m_plane_stride;
+        v.planes = m_planes;
+        v.bitmap_height = m_height;
+        v.display_height = m_height;
+        v.bpl1mod = 0; // planos contiguos: sin módulo entre filas de un plano
+        v.bpl2mod = 0;
+        v.viewport_w = m_width;
+        v.viewport_h = m_height;
+        return v;
+    }
+
+    bool add_world_bitmap(graphics::FramePlan&, Span<const u16>, s32, s32, u16, u16,
+                          u16, u32, u8) override {
+        return false; // blits sobre lienzo contiguo: pendiente (sin consumidor)
+    }
+    bool add_world_bitmap_masked(graphics::FramePlan&, Span<const u16>, Span<const u16>,
+                                 s32, s32, u16, u16, u16, u32, u8) override {
+        return false;
+    }
+
+private:
+    eng::Block<eng::PlaneTag> m_bound {}; ///< bitplanes externos (sin propiedad)
 };
 
 } // namespace eng::field

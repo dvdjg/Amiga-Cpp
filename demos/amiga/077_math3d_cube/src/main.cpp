@@ -7,10 +7,10 @@
 // dibujando un cubo que gira a 50 fps. Solo se pintan las caras VISIBLES y en
 // orden lejos->cerca, que es justo lo que devuelve `mesh_painter_order`.
 //
-// El "canvas" planar de dibujo vive en la demo (cocina), como en la 030: la escena
-// (`scene::compose`) entrega los bitplanes y aqui se escriben con un set_pixel/line
-// minimos. El trazado se hace en `render()` (durante el vblank): escribir CPU al Chip
-// RAM con el DMA de bitplanes activo roba ciclos y produce scanlines negros (ver 107).
+// El dibujo va por `scene.surface()` (un `field::Surface` sobre los planos contiguos):
+// la demo pide lineas/pixeles y el engine enruta al layout, sin que la app vea planos
+// ni punteros. El trazado se hace en `render()` (durante el vblank): escribir CPU al
+// Chip RAM con el DMA de bitplanes activo roba ciclos y produce scanlines negros (ver 107).
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/core/mesh3d.hpp>
 #include <eng/debug/run_status.hpp>
@@ -39,12 +39,11 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 namespace {
 
 namespace scene = eng::graphics::scene;
+namespace field = eng::field;
 
 constexpr eng::u16 kWidth = 320;
 constexpr eng::u16 kHeight = 256;
-constexpr eng::u16 kRowBytes = kWidth / 8;
 constexpr eng::u8 kPlanes = 6;
-constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kRowBytes) * kHeight;
 
 /// Escena EHB 320x256 (6 planos) sobre `scene::compose`: perfil y presupuesto validados
 /// en compilacion.
@@ -59,79 +58,6 @@ constexpr eng::Palette32 kPalette {{
 	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
 	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
 }};
-
-/// Canvas planar minimo de la demo (escritura directa a los 6 bitplanes EHB).
-///
-/// Se escribe bit a bit en cada plano: `index & (1<<p)` decide el bit del plano
-/// `p`. Es el mismo mapeo que usaria el driver, pero local a la demo para no
-/// arrastrar toda la maquinaria de `Playfield` en un test de matematicas.
-struct Canvas {
-	eng::u8* planes = nullptr;
-
-	void px(eng::s32 x, eng::s32 y, eng::u8 color) {
-		if (x < 0 || y < 0 || x >= static_cast<eng::s32>(kWidth) || y >= static_cast<eng::s32>(kHeight)) {
-			return;
-		}
-		const eng::u32 off = static_cast<eng::u32>(y) * kRowBytes + static_cast<eng::u32>(x >> 3);
-		const eng::u8 mask = static_cast<eng::u8>(0x80u >> (x & 7));
-		// Los colores < 8 (toda la rampa del cubo) solo usan los planos 0..2. Como
-		// la zona del cubo se borra a 0 antes de pintarlo, los planos 3..5 son 0 y
-		// saltarlos ahorra la mitad de los accesos a Chip RAM (regla de rendimiento).
-		const eng::u8 np = (color < 8u) ? 3u : kPlanes;
-		for (eng::u8 p = 0; p < np; ++p) {
-			eng::u8* base = planes + static_cast<eng::u32>(p) * kPlaneBytes;
-			if (color & (1u << p)) {
-				base[off] = static_cast<eng::u8>(base[off] | mask);
-			} else {
-				base[off] = static_cast<eng::u8>(base[off] & static_cast<eng::u8>(~mask));
-			}
-		}
-	}
-
-	/// Línea oblicua (Bresenham entero, sin divisiones ni floats).
-	void line(eng::s32 x0, eng::s32 y0, eng::s32 x1, eng::s32 y1, eng::u8 color) {
-		const eng::s32 dx = x1 > x0 ? x1 - x0 : x0 - x1;
-		const eng::s32 dy = y1 > y0 ? y1 - y0 : y0 - y1;
-		const eng::s32 sx = x0 < x1 ? 1 : -1;
-		const eng::s32 sy = y0 < y1 ? 1 : -1;
-		eng::s32 err = dx - dy;
-		for (;;) {
-			px(x0, y0, color);
-			if (x0 == x1 && y0 == y1) {
-				break;
-			}
-			const eng::s32 e2 = 2 * err;
-			if (e2 > -dy) { err -= dy; x0 += sx; }
-			if (e2 < dx)  { err += dx; y0 += sy; }
-		}
-	}
-
-	/// Borra (a 0 = fondo) una zona alineada a byte. `x` se redondea a la baja y
-	/// `x1` al alza para cubrir el borde redondeado sin dejar restos del frame
-	/// anterior. Usa stores de 32 bits en el tramo alineado: escribir 4 bytes de
-	/// golpe cuesta ~lo mismo que 1 byte en Chip RAM, así que el borrado baja a
-	/// ~1/4 de accesos (clave para que el redibujado quepa en el frame).
-	void clear_rect(eng::s32 x0, eng::s32 y0, eng::s32 x1, eng::s32 y1) {
-		if (x0 < 0) x0 = 0;
-		if (y0 < 0) y0 = 0;
-		if (x1 > static_cast<eng::s32>(kWidth) - 1) x1 = static_cast<eng::s32>(kWidth) - 1;
-		if (y1 > static_cast<eng::s32>(kHeight) - 1) y1 = static_cast<eng::s32>(kHeight) - 1;
-		if (x0 > x1 || y0 > y1) return;
-		const eng::u32 bx0 = static_cast<eng::u32>(x0) >> 3;
-		const eng::u32 bx1 = static_cast<eng::u32>(x1) >> 3;
-		for (eng::u8 p = 0; p < kPlanes; ++p) {
-			eng::u8* base = planes + static_cast<eng::u32>(p) * kPlaneBytes;
-			for (eng::s32 y = y0; y <= y1; ++y) {
-				eng::u8* row = base + static_cast<eng::u32>(y) * kRowBytes;
-				eng::u32 i = bx0;
-				for (; i <= bx1 && (i & 3u) != 0u; ++i) row[i] = 0u; // cabeza hasta alinear
-				eng::u32* lp = reinterpret_cast<eng::u32*>(row + i);
-				for (; i + 4u <= bx1 + 1u; i += 4u) *lp++ = 0u;      // cuerpo alineado
-				for (; i <= bx1; ++i) row[i] = 0u;                    // cola
-			}
-		}
-	}
-};
 
 using eng::math3d::Face;
 using eng::math3d::MeshView;
@@ -193,11 +119,11 @@ eng::u8 shade_of(eng::s16 zsum) {
 
 /// Dibuja una arista de una cara SI es una de las 12 aristas del cubo (descarta
 /// las diagonales de triangulacion).
-void draw_edge(Canvas& c, const Vec3* w, eng::u16 p, eng::u16 q, eng::u8 col) {
+void draw_edge(field::Surface& c, const Vec3* w, eng::u16 p, eng::u16 q, eng::u8 col) {
 	if (!is_cube_edge(p, q)) {
 		return;
 	}
-	c.line(kCX + w[p].x().v, kCY - w[p].y().v, kCX + w[q].x().v, kCY - w[q].y().v, col);
+	c.draw_line(kCX + w[p].x().v, kCY - w[p].y().v, kCX + w[q].x().v, kCY - w[q].y().v, col);
 }
 
 /// Auto-test EN HARDWARE (misma comprobacion que HOST-013, sobre el 68000): con
@@ -258,7 +184,7 @@ struct DemoGame {
 			return;
 		}
 		(void)backend;
-		Canvas c {m_scene.bitplanes().data()};
+		field::Surface c = m_scene.surface();
 		const eng::u32 f = context.frame.frame_index;
 
 		// Rotacion compuesta Rx(f*17)·Ry(f*11)·Rz(f*7) en 4.12. Los angulos son de
@@ -279,7 +205,9 @@ struct DemoGame {
 		const eng::u32 visible = eng::math3d::mesh_painter_order(
 			mesh, eng::Span<const Vec3>(world, 8), cam, eng::Span<eng::math3d::FaceOrder>(order, 12));
 
-		c.clear_rect(kCX - kHalfSpan, kCY - kHalfSpan, kCX + kHalfSpan, kCY + kHalfSpan);
+		c.fill_rect(kCX - kHalfSpan, kCY - kHalfSpan,
+			    static_cast<eng::u16>(2 * kHalfSpan + 1),
+			    static_cast<eng::u16>(2 * kHalfSpan + 1), 0);
 
 		// Proyeccion ortografica (sin division): x a la derecha, y hacia arriba.
 		for (eng::u32 i = 0; i < visible; ++i) {
@@ -297,17 +225,17 @@ private:
 	/// Marco y estrellas estaticas: solo se pintan una vez. El borrado por frame
 	/// toca unicamente la zona central del cubo, asi que el marco no se pierde.
 	void draw_static() {
-		Canvas c {m_scene.bitplanes().data()};
+		field::Surface c = m_scene.surface();
 
 		// Doble marco.
 		for (eng::s32 i = 0; i < 2; ++i) {
 			const eng::s32 x0 = 6 + i * 4, y0 = 6 + i * 4;
 			const eng::s32 x1 = static_cast<eng::s32>(kWidth) - 7 - i * 4;
 			const eng::s32 y1 = static_cast<eng::s32>(kHeight) - 7 - i * 4;
-			c.line(x0, y0, x1, y0, 8);
-			c.line(x1, y0, x1, y1, 8);
-			c.line(x1, y1, x0, y1, 8);
-			c.line(x0, y1, x0, y0, 8);
+			c.draw_line(x0, y0, x1, y0, 8);
+			c.draw_line(x1, y0, x1, y1, 8);
+			c.draw_line(x1, y1, x0, y1, 8);
+			c.draw_line(x0, y1, x0, y0, 8);
 		}
 
 		// Estrellas (LCG de 16 bits) fuera de la zona del cubo. Sin modulo: se
@@ -323,7 +251,7 @@ private:
 			    y > kCY - kHalfSpan - 4 && y < kCY + kHalfSpan + 4) {
 				continue; // no ensuciar la zona que se borra cada frame
 			}
-			c.px(x, y, (i & 1u) ? 9 : 10);
+			c.set_pixel(x, y, (i & 1u) ? 9 : 10);
 		}
 	}
 

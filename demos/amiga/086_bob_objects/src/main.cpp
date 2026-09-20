@@ -38,7 +38,7 @@
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/graphics/copper/plan.hpp>
-#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/palette32.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/scene/actor.hpp>
@@ -80,7 +80,6 @@ namespace {
 
 namespace scene = eng::scene;
 namespace graphics = eng::graphics;
-namespace drivers = eng::graphics::drivers;
 
 /// Secciones medidas con `eng::debug::g_eng_prof` (ver tools/debug/profile.mjs).
 enum {
@@ -135,7 +134,7 @@ constexpr eng::u8 kObjCopperSteps = 4u;   // pasos de degradado de copper por ob
 
 // Paleta base: fondo + colores de los tres objetos (COLOR01..). El cielo reescribe
 // COLOR00 por línea; cada objeto reescribe COLOR01.. con su degradado.
-constexpr drivers::EhbPalette kPalette {{
+constexpr eng::Palette32 kPalette {{
 	0x013, 0xf00, 0x0f0, 0xff0, 0x333, 0x333, 0x333, 0x333,
 	0x333, 0x333, 0x333, 0x333, 0x333, 0x333, 0x333, 0x333,
 	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,

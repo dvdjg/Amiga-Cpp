@@ -18,7 +18,7 @@ de **fondo** cooperativo, que la IRQ preempta.
 
 ## Invariantes / diseño
 
-- Display 4 planos 320×256 con el driver `HamScene` (`row_repeat = 1`).
+- Display 4 planos 320×256 con `scene::compose` (sin repetición de filas).
 - **Modo interrupt-driven** (`Engine::run_frames`, el **por defecto**): el tick del juego
   (update+render) corre en la IRQ de VBlank (`support/vbl_irq.s` + `set_vblank_service`); el
   bucle principal hace `while (frames < N) background.run_slice(...)`. La IRQ tiene prioridad

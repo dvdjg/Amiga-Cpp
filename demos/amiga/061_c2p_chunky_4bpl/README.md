@@ -44,10 +44,10 @@ El efecto se genera a 320×64 (20.480 px, la mitad de una pantalla completa) por
   indexado. Ver test host `tests/host/022_rotozoom`.
 - **C2P**: `support/c2p_1x1_4.s`, port a GAS del c2p de Kalms/Scout (1999). Corre en
   **asm 68000** con la ABI del original (d0/d1/d5 + a0/a1).
-- **Display**: `HamScene` paramétrico (4 planos, `bplcon0=0x4200`, `row_repeat=4`) con
-  **doble buffer genérico**: `MultiBuffered<HamScene, 2>` reserva N buffers (planos +
-  copperlist por slot), enlaza cada driver con `bind()` y hace el swap de `COP1LC` tras
-  VBlank (nunca `COPJMP1`). El llamador dibuja en `back()` y publica con `commit()`.
+- **Display**: `scene::compose` paramétrico (4 planos, `bplcon0=0x4200`, `row_repeat=4`) con
+  **doble buffer de display** (`SceneResources.buffers = 2`): el `Scene` reserva N buffers de
+  planos y repunta los `BPLxPT` al buffer trasero en `commit()`, sin `COPJMP1`. El llamador
+  dibuja en `back()` y publica con `commit()`.
 - **Paleta**: 16 colores RGB444 (`kColors`); los planos 5/6 no existen (4 planos).
 
 ## Gate de equivalencia asm vs C++ (en `init`)

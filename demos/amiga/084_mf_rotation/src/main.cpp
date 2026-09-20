@@ -36,6 +36,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 namespace {
 
 namespace scene = eng::graphics::scene;
+namespace field = eng::field;
 namespace em = eng::math;
 using MF = em::MiniFloat16;
 using V3 = em::Vec<3, eng::retro::q0>;
@@ -43,9 +44,7 @@ using Periph = eng::debug::DebugPeripheral;
 
 constexpr eng::u16 kWidth = 320;
 constexpr eng::u16 kHeight = 256;
-constexpr eng::u16 kRowBytes = kWidth / 8;
 constexpr eng::u8 kPlanes = 6;
-constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kRowBytes) * kHeight;
 
 /// Escena EHB 320x256 (6 planos) sobre `scene::compose`: el perfil y el presupuesto se
 /// validan en compilacion.
@@ -60,64 +59,6 @@ constexpr eng::Palette32 kPalette {{
 	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
 	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
 }};
-
-/// Canvas planar minimo (escritura directa a los 6 bitplanes EHB), igual que la 077.
-struct Canvas {
-	eng::u8* planes = nullptr;
-
-	void px(eng::s32 x, eng::s32 y, eng::u8 color) {
-		if (x < 0 || y < 0 || x >= static_cast<eng::s32>(kWidth) || y >= static_cast<eng::s32>(kHeight)) {
-			return;
-		}
-		const eng::u32 off = static_cast<eng::u32>(y) * kRowBytes + static_cast<eng::u32>(x >> 3);
-		const eng::u8 mask = static_cast<eng::u8>(0x80u >> (x & 7));
-		const eng::u8 np = (color < 8u) ? 3u : kPlanes;
-		for (eng::u8 p = 0; p < np; ++p) {
-			eng::u8* base = planes + static_cast<eng::u32>(p) * kPlaneBytes;
-			if (color & (1u << p)) {
-				base[off] = static_cast<eng::u8>(base[off] | mask);
-			} else {
-				base[off] = static_cast<eng::u8>(base[off] & static_cast<eng::u8>(~mask));
-			}
-		}
-	}
-
-	void line(eng::s32 x0, eng::s32 y0, eng::s32 x1, eng::s32 y1, eng::u8 color) {
-		const eng::s32 dx = x1 > x0 ? x1 - x0 : x0 - x1;
-		const eng::s32 dy = y1 > y0 ? y1 - y0 : y0 - y1;
-		const eng::s32 sx = x0 < x1 ? 1 : -1;
-		const eng::s32 sy = y0 < y1 ? 1 : -1;
-		eng::s32 err = dx - dy;
-		for (;;) {
-			px(x0, y0, color);
-			if (x0 == x1 && y0 == y1) break;
-			const eng::s32 e2 = 2 * err;
-			if (e2 > -dy) { err -= dy; x0 += sx; }
-			if (e2 < dx)  { err += dx; y0 += sy; }
-		}
-	}
-
-	void clear_rect(eng::s32 x0, eng::s32 y0, eng::s32 x1, eng::s32 y1) {
-		if (x0 < 0) x0 = 0;
-		if (y0 < 0) y0 = 0;
-		if (x1 > static_cast<eng::s32>(kWidth) - 1) x1 = static_cast<eng::s32>(kWidth) - 1;
-		if (y1 > static_cast<eng::s32>(kHeight) - 1) y1 = static_cast<eng::s32>(kHeight) - 1;
-		if (x0 > x1 || y0 > y1) return;
-		const eng::u32 bx0 = static_cast<eng::u32>(x0) >> 3;
-		const eng::u32 bx1 = static_cast<eng::u32>(x1) >> 3;
-		for (eng::u8 p = 0; p < kPlanes; ++p) {
-			eng::u8* base = planes + static_cast<eng::u32>(p) * kPlaneBytes;
-			for (eng::s32 y = y0; y <= y1; ++y) {
-				eng::u8* row = base + static_cast<eng::u32>(y) * kRowBytes;
-				eng::u32 i = bx0;
-				for (; i <= bx1 && (i & 3u) != 0u; ++i) row[i] = 0u;
-				eng::u32* lp = reinterpret_cast<eng::u32*>(row + i);
-				for (; i + 4u <= bx1 + 1u; i += 4u) *lp++ = 0u;
-				for (; i <= bx1; ++i) row[i] = 0u;
-			}
-		}
-	}
-};
 
 constexpr eng::s16 kR = 54;
 const V3 kVerts[8] = {
@@ -167,7 +108,7 @@ struct DemoGame {
 		}
 		draw_static();
 		{
-			Canvas c {m_scene.bitplanes().data()};
+			field::Surface c = m_scene.surface();
 			compute_projection();
 			draw_cube(c); // un frame ya pintado antes de tomar el display
 		}
@@ -189,7 +130,7 @@ struct DemoGame {
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		if (!m_scene.ok()) return;
 		(void)backend;
-		Canvas c {m_scene.bitplanes().data()};
+		field::Surface c = m_scene.surface();
 		draw_cube(c); // solo traza (rapido) durante el vblank
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
@@ -218,17 +159,17 @@ private:
 		Periph::counter_value(1, tb - ta);
 	}
 
-	void draw_cube(Canvas& c) {
+	void draw_cube(field::Surface& c) {
 		// Borra SOLO las aristas del frame anterior (no un rectangulo): el display nunca
 		// queda vacio a mitad de frame (un `clear_rect` hacia que la captura cogiera el
 		// hueco) y se ahorra escribir toda la zona.
 		if (m_have_prev) {
 			for (const auto& e : kEdges) {
-				c.line(m_prev[e[0]][0], m_prev[e[0]][1], m_prev[e[1]][0], m_prev[e[1]][1], 0);
+				c.draw_line(m_prev[e[0]][0], m_prev[e[0]][1], m_prev[e[1]][0], m_prev[e[1]][1], 0);
 			}
 		}
 		for (const auto& e : kEdges) {
-			c.line(m_scr[e[0]][0], m_scr[e[0]][1], m_scr[e[1]][0], m_scr[e[1]][1],
+			c.draw_line(m_scr[e[0]][0], m_scr[e[0]][1], m_scr[e[1]][0], m_scr[e[1]][1],
 			       shade_of(m_wz[e[0]], m_wz[e[1]]));
 		}
 		for (int i = 0; i < 8; ++i) {
@@ -269,15 +210,15 @@ private:
 	}
 
 	void draw_static() {
-		Canvas c {m_scene.bitplanes().data()};
+		field::Surface c = m_scene.surface();
 		for (eng::s32 i = 0; i < 2; ++i) {
 			const eng::s32 x0 = 6 + i * 4, y0 = 6 + i * 4;
 			const eng::s32 x1 = static_cast<eng::s32>(kWidth) - 7 - i * 4;
 			const eng::s32 y1 = static_cast<eng::s32>(kHeight) - 7 - i * 4;
-			c.line(x0, y0, x1, y0, 8);
-			c.line(x1, y0, x1, y1, 8);
-			c.line(x1, y1, x0, y1, 8);
-			c.line(x0, y1, x0, y0, 8);
+			c.draw_line(x0, y0, x1, y0, 8);
+			c.draw_line(x1, y0, x1, y1, 8);
+			c.draw_line(x1, y1, x0, y1, 8);
+			c.draw_line(x0, y1, x0, y0, 8);
 		}
 		eng::u16 s = 0xace1u;
 		for (eng::u16 i = 0; i < 140; ++i) {
@@ -289,7 +230,7 @@ private:
 			    y > kCY - kHalfSpan - 4 && y < kCY + kHalfSpan + 4) {
 				continue;
 			}
-			c.px(x, y, (i & 1u) ? 9 : 10);
+			c.set_pixel(x, y, (i & 1u) ? 9 : 10);
 		}
 	}
 

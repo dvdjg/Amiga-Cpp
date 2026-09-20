@@ -303,7 +303,7 @@ Lecciones del bucle de fuego de `fire-rgb` (demo 080), que en el original fija *
   (x de `cols-1` a 0, así que el bloque 0 recibe `xbuf[cols-1]`).
 - **Solución**: bucle gas aparte `support/plasma_chunky.s` (idéntico al del original, con
   `moveq #0,d0` para zero-extender y `dbra`), alimentado con **punteros de fila** del driver
-  (`CopperChunkyScene::chunky_row`, análogo a `PlanarScene::bitplanes()`). Sin indirección por píxel.
+  (`CopperChunkyScene::chunky_row`, análogo a `scene::Scene::plane()`). Sin indirección por píxel.
 - **Resultado**: **36.5 fps** (194 185 ciclos/frame), ~3x. El resto es el 68000 sobre RAM lenta
   (~78 ciclos con las 6 instrucciones); no hay más margen sin fast RAM en A500.
 - **Método de medida reutilizable**: contador de ciclos del periférico (`0xB7E928`) leído dentro

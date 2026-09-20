@@ -168,7 +168,7 @@ aporta sus propias piezas de seguridad de C++23 sin depender de `std::span`:
   (`engine/include/eng/field/xlimited_scene.hpp`); así el banco aliaseado no exige `const_cast` y
   el propietario recibe el dominio correcto.
 - **El tipo dueño expone la conversión al dominio**: si un tipo posee el array/puntero (p. ej.
-  `EhbPalette` con `color[32]`), ofrece la vista (`operator PaletteWords`, `words()`) para que el
+  `Palette32` con `color[32]`), ofrece la vista (`operator PaletteWords`, `words()`) para que el
   llamador pase el objeto; no se escribe `PaletteWords{ arr }` a mano.
 - **Frontera `unsafe`**: `from_raw()`/`raw()` son explícitos y solo los usa la capa de
   backend/`BlitJob`; el resto del engine consume tipos de dominio.

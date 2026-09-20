@@ -3,13 +3,13 @@
 Este documento fija cómo el engine describe y gestiona **escenas** (configuraciones del
 hardware Amiga) de forma versátil, sustituyendo la familia de "drivers" por efecto. Nace del
 problema observado al importar efectos de `demoscene-repo-orig`: cada efecto traía su propia
-configuración cableada como una clase (`PlanarScene`, `StaticEhbScene`, `CopperChunkyScene`,
-`CanvasScene`), con tres consecuencias.
+configuración cableada como una clase (`StaticEhbScene`, `CopperChunkyScene`, `CanvasScene`,
+`TileScrollScene`), con tres consecuencias.
 
 ## 1. El problema
 
 - **Reutilización forzada**: una configuración creada para un efecto se acaba usando para
-  otra cosa, ignorando lo que no aplica (`PlanarScene` usado como display planar plano con
+  otra cosa, ignorando lo que no aplica (un driver EHB usado como display planar plano con
   `row_repeat = 1`, sin `bplcon1_shift`).
 - **Interfaces arbitrarias**: cada driver expone métodos elegidos a dedo; no hay un contrato
   común más allá del `concept` `GraphicsDriver` (`bind` + `bitplane_bytes_for` + `takeover`/
@@ -187,11 +187,13 @@ declarado por la máquina y la validación es agnóstica.
 
 ## 8. Migración
 
-1. `StaticEhbScene` → `ehb_preset(base, zones)` (añadir zonas de paleta a las etapas).
-2. `PlanarScene` → `planar_preset(...)` + etapas `row_repeat`/`bplcon1`/`reverse_ptrs`.
-3. `CanvasScene` → etapa `surface(...)` (enlaza `CanvasPlayfield` sobre los planos).
+1. `StaticEhbScene` → etapas `display`+`palette`/`palette_zones` (hecho en 030).
+2. Display planar paramétrico → `scene::planar` + etapas `row_repeat`/`reverse_ptrs` (hecho;
+   `planar_scene.hpp` retirado).
+3. `CanvasScene` → `layout = Interleaved` + `surface()` (hecho, HOST-212); el layout contiguo
+   también expone `surface()` vía `ContiguousPlayfield`.
 4. `CopperChunkyScene` → etapa `copper_chunky(...)` (lista propia, sin bitplanes).
-5. Demos/tests migran a los presets; se conservan las clases como `using`/shim hasta cerrar.
+5. Demos/tests migran a las etapas; se conservan las clases como `using`/shim hasta cerrar.
 
 ## 9. Verificación
 
@@ -282,10 +284,10 @@ las 3D `077_math3d_cube`, `078_math3d_solid` y `084_mf_rotation`, sin `install` 
    común de parcheo). El interleaved usa un único `CanvasPlayfield`.
 2. **Migrar 030 (EHB)**: **hecho** (usa `palette_patchable`/`palette_zones`).
 3. **Migrar 080 (HAM+C2P)**: **hecho** (`display`+`row_repeat`+`reverse_ptrs`+`buffers=2`).
-4. **Retirar `PlanarScene`/`StaticEhbScene`/`CanvasScene`**: las demos ya no usan
-   `StaticEhbScene` (quedan tests 001/069); `planar_scene.hpp` no tiene consumidores. Falta
-   sacar `EhbPalette`/`black_palette` (alias de `Palette32`) de `ehb_scene.hpp` para poder
-   retirar el driver.
+4. **Retirar drivers obsoletos**: `planar_scene.hpp` ya **retirado** (sin consumidores) y
+   `EhbPalette`/`black_palette` sustituidos por `eng::Palette32`/`eng::kBlackPalette`
+   (`palette32.hpp`). `StaticEhbScene`/`CanvasScene`/`CopperChunkyScene` quedan solo en tests
+   (001/069); se retirarán cuando esos tests se migren a `scene::compose`.
 5. **Medición**: el `runner.uae` lo genera `run-demo.ts`; en entornos sin Git Bash se
    construye a mano para `measure-fps` (como se hizo con 081).
 

@@ -2,7 +2,7 @@
 #include <eng/debug/run_status.hpp>
 #include <eng/graphics/scene/compose.hpp>
 #include <eng/graphics/effects/palette_transition.hpp>
-#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/palette32.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 #include <proto/exec.h>
@@ -26,8 +26,7 @@ namespace {
 
 namespace scene = eng::graphics::scene;
 namespace effects = eng::graphics::effects;
-using eng::graphics::drivers::EhbPalette;
-using eng::graphics::drivers::black_palette;
+using eng::Palette32;
 
 /// Duracion de cada rampa del encendido/apagon (frames), tiempo encendido/apagado en
 /// meseta, y frames de arranque antes de marcar READY (siempre con la escena encendida).
@@ -46,7 +45,7 @@ constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * kHeight;
 /// En EHB, los indices 0..31 usan estos registros directamente y los indices
 /// 32..63 muestran una version a media intensidad de esos mismos 32 colores. No
 /// existe una segunda paleta fisica: el sexto bitplane activa el modo half-brite.
-constexpr EhbPalette top_palette {{
+constexpr Palette32 top_palette {{
 	0x000, 0xf00, 0x0f0, 0x00f, 0xff0, 0xf0f, 0x0ff, 0xfff,
 	0x800, 0x080, 0x008, 0x880, 0x808, 0x088, 0xaaa, 0x444,
 	0xf80, 0x8f0, 0x08f, 0xf08, 0x80f, 0x0f8, 0xc44, 0x4c4,
@@ -55,7 +54,7 @@ constexpr EhbPalette top_palette {{
 
 /// Segunda zona: colores mas calidos para demostrar que el Copper puede cambiar
 /// totalmente el significado de los mismos indices graficos a media pantalla.
-constexpr EhbPalette middle_palette {{
+constexpr Palette32 middle_palette {{
 	0x000, 0xf40, 0xe60, 0xc80, 0xfa0, 0xfca, 0xa42, 0xfff,
 	0x520, 0x730, 0x950, 0xb70, 0xd90, 0xeb0, 0xfd0, 0x321,
 	0x600, 0x810, 0xa20, 0xc30, 0xe40, 0xf62, 0xf84, 0xfa6,
@@ -64,7 +63,7 @@ constexpr EhbPalette middle_palette {{
 
 /// Tercera zona: colores frios. La misma memoria de bitplanes produce otra
 /// lectura visual porque los COLORxx cambian durante el barrido.
-constexpr EhbPalette bottom_palette {{
+constexpr Palette32 bottom_palette {{
 	0x000, 0x04f, 0x06e, 0x08c, 0x0af, 0x2cf, 0x4ef, 0xfff,
 	0x014, 0x026, 0x038, 0x04a, 0x05c, 0x06e, 0x08f, 0x123,
 	0x008, 0x119, 0x22a, 0x33b, 0x44c, 0x55d, 0x66e, 0x88f,
@@ -124,7 +123,7 @@ struct DemoGame {
 		// Despues la demo cicla encendido/apagon con el mismo efecto (ida sin vuelta en
 		// cada rampa): ver `drive_fade`.
 		m_fade_in.configure({0, 32, kFadeFrames, false});
-		m_fade_in.bind(black_palette, top_palette);
+		m_fade_in.bind(eng::kBlackPalette, top_palette);
 
 		if (!scene::compose(m_scene, backend.memory(),
 				    scene::planar(kWidth, kHeight, 6), scene::ocs_a500,
@@ -181,16 +180,16 @@ struct DemoGame {
 		const eng::u32 cycle = 2u * (hold + fade);
 		const eng::u32 t = static_cast<eng::u32>(frame) % cycle;
 		if (t < hold) {                    // encendido estable
-			m_fade_in.bind(black_palette, top_palette);
+			m_fade_in.bind(eng::kBlackPalette, top_palette);
 			m_fade_in.update(kFadeFrames);
 		} else if (t < hold + fade) {      // apagon
-			m_fade_in.bind(top_palette, black_palette);
+			m_fade_in.bind(top_palette, eng::kBlackPalette);
 			m_fade_in.update(static_cast<eng::u16>(t - hold));
 		} else if (t < 2u * hold + fade) { // apagado estable
-			m_fade_in.bind(top_palette, black_palette);
+			m_fade_in.bind(top_palette, eng::kBlackPalette);
 			m_fade_in.update(kFadeFrames);
 		} else {                           // encendido
-			m_fade_in.bind(black_palette, top_palette);
+			m_fade_in.bind(eng::kBlackPalette, top_palette);
 			m_fade_in.update(static_cast<eng::u16>(t - (2u * hold + fade)));
 		}
 	}

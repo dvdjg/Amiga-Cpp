@@ -14,7 +14,7 @@
 /// - `bitplanes()`/`bitmap()`: por si el efecto prefiere escribir el bitmap a mano.
 ///
 /// Es el puente entre las dos lineas del engine: los **drivers** de efecto daban
-/// `bitplanes()` sin `Surface` (PlanarScene/EhbScene) y los **playfields** dan `Surface`
+/// `bitplanes()` sin `Surface` (StaticEhbScene) y los **playfields** dan `Surface`
 /// sin composition multi-buffer. `CanvasScene` da `Surface` con display propio.
 ///
 /// Para doble/triple buffer se usa `MultiBuffered<CanvasScene, N>`: `CanvasScene` ofrece

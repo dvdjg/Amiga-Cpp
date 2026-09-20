@@ -33,7 +33,7 @@ struct PaletteTransitionRange {
 	u16 frames = 64;     // frames por sentido (0 se corrige a 1)
 	bool ping_pong = true; // ida y vuelta; false = una sola vez y se queda en `to`
 	/// Si `>= 0`, el parche es de **zona** (cambia la paleta a partir de esa linea raster,
-	/// como `EhbPaletteZone`); si es negativo, es de **base** (`COLORxx` globales).
+	/// como `Palette32Zone`); si es negativo, es de **base** (`COLORxx` globales).
 	s16 zone_line = -1;
 };
 

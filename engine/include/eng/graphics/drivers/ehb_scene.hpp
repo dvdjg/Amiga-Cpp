@@ -28,23 +28,14 @@
 
 namespace eng::graphics::drivers {
 
-/// Paleta EHB: 32 colores fisicos. Es el tipo de valor comun `eng::Palette32`.
-using EhbPalette = eng::Palette32;
-
-/// Paleta totalmente negra, compartida (fundidos de paleta).
-inline constexpr EhbPalette black_palette = eng::kBlackPalette;
-
-/// Cambio de paleta en una linea concreta (zona Copper).
-using EhbPaletteZone = eng::Palette32Zone;
-
 /// Configuracion de display EHB 320x256.
 ///
 /// Esta version fija el formato para mantener el primer driver auditable. Mas
 /// adelante apareceran variantes con overscan, split screen, scroll fino y buffers
 /// dobles, pero la demo base no debe pagar esa complejidad todavia.
 struct StaticEhbSceneConfig {
-	const EhbPalette* base_palette = nullptr;
-	const EhbPaletteZone* zones = nullptr;
+	const eng::Palette32* base_palette = nullptr;
+	const eng::Palette32Zone* zones = nullptr;
 	u8 zone_count = 0;
 	u32 copper_bytes = 1024;
 };
@@ -118,7 +109,7 @@ public:
 		m_base_palette_value_word = static_cast<u16>(scheduler.words_used() + 1u);
 		scheduler.emit_palette(*config.base_palette);
 		for (u8 i = 0; i < config.zone_count; ++i) {
-			const EhbPaletteZone& zone = config.zones[i];
+			const eng::Palette32Zone& zone = config.zones[i];
 			if (zone.palette != nullptr) {
 				if (m_zone_binding_count < max_palette_zone_bindings) {
 					m_zone_bindings[m_zone_binding_count++] = {

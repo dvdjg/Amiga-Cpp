@@ -181,10 +181,15 @@ public:
 	[[nodiscard]] field::CanvasPlayfield& playfield() { return m_playfield; }
 	/// Playfield (versión const, solo lectura).
 	[[nodiscard]] const field::CanvasPlayfield& playfield() const { return m_playfield; }
-	/// Superficie de dibujo con clip (solo layout `Interleaved`).
+	/// Superficie de dibujo con clip (cualquier layout): `Surface` enruta por el mapeo
+	/// del playfield, así que la app dibuja igual sobre contiguo o interleaved sin ver
+	/// planos ni punteros. En contiguo con varios buffers apunta al **trasero** (el que
+	/// se publica en `commit`).
 	[[nodiscard]] field::Surface surface() {
-		return field::Surface {m_playfield,
-				       field::SurfaceRect {0, 0, m_res.width, m_res.height}};
+		field::Playfield& pf = (m_res.layout == SceneLayout::Interleaved)
+					       ? static_cast<field::Playfield&>(m_playfield)
+					       : static_cast<field::Playfield&>(m_contiguous);
+		return field::Surface {pf, field::SurfaceRect {0, 0, m_res.width, m_res.height}};
 	}
 	/// `true` si la construcción de la copperlist cupo en el presupuesto.
 	[[nodiscard]] bool ok() const { return m_plan.ok(); }
@@ -213,6 +218,11 @@ public:
 		++m_back;
 		if (m_back >= m_buffer_count) {
 			m_back = 0u;
+		}
+		// Contiguo con varios buffers: el lienzo de dibujo sigue al trasero.
+		if (m_res.layout == SceneLayout::Contiguous && m_buffer_count > 1u) {
+			(void)m_contiguous.bind(m_buffers[m_back], m_res.width, m_res.height,
+						m_res.planes, m_plane_bytes);
 		}
 	}
 
@@ -283,11 +293,16 @@ private:
 				return false;
 			}
 		}
-		if (res.layout == SceneLayout::Interleaved &&
-		    !m_playfield.bind(m_buffers[0], field::CanvasPlayfield::Config {res.width, res.height, res.planes})) {
+		m_back = (buffers > 1u) ? 1u : 0u;
+		if (res.layout == SceneLayout::Interleaved) {
+			if (!m_playfield.bind(m_buffers[0],
+					     field::CanvasPlayfield::Config {res.width, res.height, res.planes})) {
+				return false;
+			}
+		} else if (!m_contiguous.bind(m_buffers[m_back], res.width, res.height, res.planes,
+					      m_plane_bytes)) {
 			return false;
 		}
-		m_back = (buffers > 1u) ? 1u : 0u;
 		copper::PlanConfig pcfg {};
 		pcfg.copper_bytes = res.copper_bytes;
 		pcfg.first_line = res.first_line;
@@ -318,6 +333,7 @@ private:
 	SceneResources m_res {}; ///< geometría/recursos de la escena (copiados en `init`)
 	eng::util::Array<eng::Block<eng::PlaneTag>, kMaxSceneBuffers> m_buffers {}; ///< buffers de bitplanes (Chip)
 	field::CanvasPlayfield m_playfield {}; ///< playfield del layout interleaved (base de `surface()`)
+	field::ContiguousPlayfield m_contiguous {}; ///< playfield del layout contiguo (base de `surface()`)
 	copper::Plan m_plan {}; ///< programa de Copper (lista + presupuesto + emisor)
 	u32 m_plane_bytes = 0; ///< bytes de un plano completo (`row_bytes * alloc_rows`)
 	u8 m_buffer_count = 1; ///< buffers de display en uso (1..`kMaxSceneBuffers`)

@@ -39,6 +39,20 @@ u8 color_at(const field::CanvasPlayfield& pf, s32 x, s32 y) {
 	return c;
 }
 
+/// Color (0..15) de un pixel del bitmap CONTIGUO de la escena (planos uno tras otro).
+u8 color_at_contiguous(const Scene& sc, s32 x, s32 y) {
+	const u32 row = static_cast<u32>(sc.width() / 8u) & ~1u;
+	const u32 byte = static_cast<u32>(x / 8) & ~1u;
+	const u16 mask = static_cast<u16>(0x8000u >> (x & 15));
+	u8 c = 0;
+	for (u8 p = 0; p < sc.planes(); ++p) {
+		const u8* base = sc.plane(p).data();
+		const u16 v = *reinterpret_cast<const u16*>(base + static_cast<u32>(y) * row + byte);
+		if ((v & mask) != 0u) c |= static_cast<u8>(1u << p);
+	}
+	return c;
+}
+
 int failures = 0;
 void check(bool ok, const char* msg) {
 	if (!ok) {
@@ -89,8 +103,26 @@ int main() {
 	s2.commit();
 	check(s2.back_index() != before, "commit avanza el buffer trasero");
 
+	// --- Lienzo CONTIGUO: el mismo `surface()` sobre planos uno tras otro -----
+	Scene s3;
+	check(graphics::scene::compose(
+		      s3, mem, graphics::scene::planar(320, 256, 4), graphics::scene::ocs_a500,
+		      graphics::scene::display(graphics::scene::kPal320x256,
+					       graphics::scene::kBplcon0_4Planes)),
+	      "scene::compose (contiguo) compone");
+	check(s3.ok(), "la escena contigua queda ok");
+	field::Surface ksurf = s3.surface();
+	check(ksurf.valid(), "surface() valido en layout contiguo");
+	const s16 kxs[4] = {40, 120, 120, 40};
+	const s16 kys[4] = {40, 40, 120, 120};
+	check(ksurf.fill_polygon(kxs, kys, 4, 5), "Surface::fill_polygon contiguo");
+	check(color_at_contiguous(s3, 80, 80) == 5u, "interior contiguo con el color pedido");
+	check(color_at_contiguous(s3, 10, 10) == 0u, "fuera del cuadrado contiguo vacio");
+	check(ksurf.draw_line(0, 5, 15, 5, 2), "draw_line contiguo");
+	check(color_at_contiguous(s3, 8, 5) == 2u, "la linea contigua cae en el plano 1");
+
 	if (failures == 0) {
-		std::printf("OK: scene::compose interleaved (Surface sobre CanvasPlayfield + copperlist).\n");
+		std::printf("OK: scene::compose interleaved y contiguo (Surface + copperlist).\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobacion(es) fallaron\n", failures);

@@ -26,7 +26,7 @@
 #include <eng/core/types.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/double_buffer.hpp>
-#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/palette32.hpp>
 #include <eng/graphics/drivers/tile_scroll.hpp>
 #include <eng/memory/arena.hpp>
 
@@ -114,7 +114,7 @@ int main() {
 		using Scene = TileScrollScene<TileScrollMode::ehb()>;
 
 		MemorySystem mem = make_memory();
-		static const EhbPalette pal {};
+		static const eng::Palette32 pal {};
 		TileScrollConfig cfg {};
 		cfg.base_palette = &pal;
 		cfg.copper_bytes = 1536u;

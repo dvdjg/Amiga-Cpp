@@ -39,8 +39,9 @@ zonas verticales.
 El primer bloque reutilizable ya existe en
 `engine/include/eng/graphics/drivers/ehb_scene.hpp`:
 
-- `EhbPalette`: 32 colores fisicos RGB444.
-- `EhbPaletteZone`: cambio de paleta asociado a una linea raster.
+- `eng::Palette32` / `eng::Palette32Zone` (`engine/include/eng/graphics/palette32.hpp`): 32
+  colores físicos RGB444 y cambio de paleta asociado a una línea raster. Son tipos de valor
+  del engine, independientes de cualquier driver.
 - `StaticEhbSceneConfig`: descripcion de una escena EHB estatica.
 - `StaticEhbScene`: reserva bitplanes/copperlist en Chip RAM, programa display
   320x256 EHB, activa bitplane DMA y construye la copperlist final.
@@ -100,28 +101,17 @@ intencion distinta: preparar columnas, filas o bloques de tilemap en zonas no
 visibles del playfield. La demo compone un bloque 4x4 de tiles en un buffer Chip
 RAM no visible y despues lo publica al playfield EHB con otro blit.
 
-### `PlanarScene`
+### `scene::compose` (modelo de escena)
 
-`engine/include/eng/graphics/drivers/planar_scene.hpp` cubre displays **planares de N
-bitplanes con repeticion de filas** (cuadruplicado para modos HAM), extraido del porte 1:1
-de `effects/fire-rgb`. Su nombre historico era `HamScene`; se renombro a `PlanarScene`
-porque el alcance es planar generico (HAM y planos normales), no el modo HAM. Los alias
-`HamScene`/`HamSceneConfig` siguen existiendo por compatibilidad de fuente; el fichero
-`ham_scene.hpp` (shim) se retiro.
-
-- `PlanarSceneConfig`: geometria (DIW/DDF, ancho de fila), numero de planos, `BPLCON0`,
-  filas logicas, factor de repeticion, `BPLCON1` alterno, paleta y reordenado de
-  `BPLxPT` (el original usa `bpl[3..0]`).
-- `PlanarScene`: reserva bitplanes + copperlist en Chip RAM y construye la lista: setup
-  del display, paleta opcional, y `rows * row_repeat` lineas con
-  `BPL1MOD/BPL2MOD = -ancho_de_fila` en todas las lineas del grupo menos la ultima
-  (que avanza con modulo 0) y `BPLCON1` alterno.
-
-Es **parametrico** (no hay un "320x256 HAM6" cableado): sirve igual para EHB, HAM4/6
-o cualquier planar, y con `row_repeat = 1` es un display normal. La demo
-`demos/amiga/080_fire_rgb` lo usa con dos instancias (una por buffer de doble buffer,
-para el C2P) y el test host `tests/host/016_ham_scene` verifica la geometria de la
-copperlist resultante.
+El display planar paramétrico (HAM4/6 o cualquier planar) y las escenas EHB/HAM se construyen
+hoy con el **modelo de etapas** `scene::compose`
+(`engine/include/eng/graphics/scene/compose.hpp`): recursos (`SceneResources`) + etapas
+(`display`, `palette`, `palette_zones`, `row_repeat`, `reverse_ptrs`, `intents`) + handles de
+parcheo. Es **paramétrico** (no hay un "320x256 HAM6" cableado): sirve igual para EHB, HAM4/6
+o cualquier planar, y con `row_repeat = 1` es un display normal. Las demos
+`080_fire_rgb` (HAM + cuadruplicado + doble buffer), `081_background_tasks` y las 3D
+`077`/`078`/`084` lo usan; `tests/host/016_ham_scene` verifica la geometría de la copperlist
+resultante. Detalle del modelo: `SCENE_COMPOSITION.md`.
 
 El primer modelo retenido para scroll vive en
 `engine/include/eng/graphics/tilemap/tile_scroll.hpp`. `TileMap16` no sabe nada de

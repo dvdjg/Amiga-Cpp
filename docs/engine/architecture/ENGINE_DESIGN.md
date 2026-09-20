@@ -84,7 +84,7 @@ Ya existe y se irá ampliando desde demoscene `libmisc`/`libc`.
 - `frame_plan.hpp`: `FramePlan` (blits, paleta, dirty rects, presupuesto). Crece para
   admitir `SpriteIntent` (asignación de canales) y más presupuestos (DMA unificado).
 - `blit/` (nuevo): `BlitterQueue`, `BlitterBudget`, minterms reutilizables. Mapea demoscene `libblit`.
-- `drivers/`: `StaticEhbScene`, `PlanarScene`, `TileScrollScene`, `Standard4/5`, `FakeDPF`,
+- `drivers/`: `StaticEhbScene`, `TileScrollScene`, `Standard4/5`, `FakeDPF`,
   `DualPlayfield`, `SpriteBackdrop`, `CopperHeavy` (roadmap §20.5).
 - `effects/`: `Effect` concept + `PaletteCycleEffect`, `PaletteTransitionEffect`,
   `RasterGradientEffect`, `RasterDistortionEffect`, `CopperScript`, etc. (roadmap §20.6).

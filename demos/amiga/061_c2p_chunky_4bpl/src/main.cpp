@@ -9,7 +9,7 @@
 //
 // El efecto es un **rotozoom** (`eng/graphics/effects/rotozoom.hpp`) sobre una textura
 // indexada 64x64, con paleta cíclica de 16 colores. Se genera a 320x64 y el display lo
-// muestra a 320x256 repitiendo cada fila 4 veces por Copper (`PlanarScene.row_repeat`), el
+// muestra a 320x256 repitiendo cada fila 4 veces por Copper (`scene::row_repeat`), el
 // mismo truco que la demo 080: llena la pantalla pagando solo 20.480 píxeles.
 //
 // El C2P corre en **asm 68000** (`support/c2p_1x1_4.s`, port de Kalms/Scout 1999) y su
