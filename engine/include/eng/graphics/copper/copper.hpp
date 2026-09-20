@@ -355,11 +355,11 @@ private:
 		m_used_words = static_cast<u16>(used + 2u);
 	}
 
-	u16* m_words = nullptr;
-	u16 m_capacity_words = 0;
-	u16 m_used_words = 0;
-	bool m_ok = false;
-	bool m_overflow_sent = false;
+	u16* m_words = nullptr; ///< buffer de la copperlist (Chip RAM), base de escritura
+	u16 m_capacity_words = 0; ///< capacidad del buffer en palabras
+	u16 m_used_words = 0; ///< palabras escritas hasta ahora
+	bool m_ok = false; ///< no se ha desbordado la capacidad
+	bool m_overflow_sent = false; ///< ya se marcó un desborde (evita repetir el aviso)
 };
 
 } // namespace eng::copper

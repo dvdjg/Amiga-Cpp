@@ -20,16 +20,16 @@ namespace eng {
 /// No todos estan implementados. La enumeracion existe para documentar desde el
 /// principio las familias de composicion que queremos soportar.
 enum class GraphicsDriverId : u8 {
-	EhbScene,
-	PlanarScene,
-	CanvasScene,
-	CopperChunky,
-	Standard5,
-	Standard4,
-	FakeDualPlayfield,
-	DualPlayfield,
-	SpriteBackdrop,
-	CopperHeavy,
+	EhbScene,         ///< EHB estático 320×256 (6 planos)
+	PlanarScene,      ///< display planar paramétrico (contiguo, p. ej. HAM)
+	CanvasScene,      ///< planar interleaved con `Surface`
+	CopperChunky,     ///< modo chunky con Copper
+	Standard5,        ///< 5 planos estándar
+	Standard4,        ///< 4 planos estándar
+	FakeDualPlayfield,///< doble playfield simulado por prioridad
+	DualPlayfield,    ///< doble playfield real (parallax)
+	SpriteBackdrop,   ///< fondo por sprites
+	CopperHeavy,      ///< uso intensivo de Copper
 };
 
 /// Contadores ligeros de frame.
@@ -38,16 +38,16 @@ enum class GraphicsDriverId : u8 {
 /// iran alimentando desde blitter, copper y sprites para que las demos puedan fallar
 /// antes de saturar el hardware.
 struct FrameStats {
-	u32 frame_index = 0;
-	u16 blit_jobs = 0;
-	u16 copper_patches = 0;
-	u16 hardware_sprites = 0;
-	u16 software_sprites = 0;
+	u32 frame_index = 0;       ///< nº de frame desde el arranque
+	u16 blit_jobs = 0;         ///< trabajos de Blitter encolados este frame
+	u16 copper_patches = 0;    ///< parches de Copper aplicados este frame
+	u16 hardware_sprites = 0;  ///< sprites de hardware en uso
+	u16 software_sprites = 0;  ///< sprites de software (blit) en uso
 };
 
 /// Contexto entregado a un driver durante el render.
 struct RenderContext {
-	FrameStats* stats = nullptr;
+	FrameStats* stats = nullptr; ///< contadores del frame actual (puede ser nulo)
 };
 
 /// Contrato compile-time del ciclo de instalacion del display.
