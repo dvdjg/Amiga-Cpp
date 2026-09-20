@@ -199,8 +199,9 @@ cubrir el cierre (unas decenas de bytes; 3–4 punteros suele bastar).
   `patchable_zone` (genérica) + `palette_zones_patchable` (caso particular), `row_repeat`,
   `reverse_ptrs`, `intents` (CopperIntent ordenadas por el `Plan`).
 - **Base común de parcheo**: `PatchSlot` (registro + valor), `PatchZone` (grupo en una
-  línea, `handle(s, i)`) y `PatchHandle` (un MOVE). Sirve para **cualquier** valor dinámico
-  del copper (colores, `BPL1MOD/BPL2MOD`, `BPLxPT`, `BPLCON1`…), no solo paletas.
+  línea, `handle(s, i)`), `PatchHandle` (un MOVE) y `Patch32` (valor de 32 bits = pareja de
+  MOVEs, p. ej. `BPLxPTH`+`BPLxPTL`, caso **multi-registro**). Sirve para **cualquier** valor
+  dinámico del copper (colores, `BPL1MOD/BPL2MOD`, `BPLxPT`, `BPLCON1`…), no solo paletas.
 - **Constantes**: `DisplayGeometry`/`kPal320x256`, `kBplcon0_{4Planes,4PlanesNoColor,Ehb,Ham6}`
   (nada de hexadecimales sueltos en las llamadas).
 - **Presets** (funciones): `planar4`, `canvas` (interleaved con `surface()`), `ham`

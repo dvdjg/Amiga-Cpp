@@ -63,6 +63,24 @@ struct SceneResources {
 inline constexpr u8 kMaxSceneBuffers = 3; ///< buffers de display
 inline constexpr u8 kMaxScenePlanes = 6;  ///< planos de bitplane
 
+/// **Valor de 32 bits parcheable** = pareja de MOVEs (`hi`/`lo`), p. ej. un puntero
+/// `BPLxPTH` + `BPLxPTL` o un parámetro de 32 bits. Es el caso **multi-registro** de la base
+/// común: un valor lógico que ocupa varios MOVEs.
+struct Patch32 {
+	copper::PatchHandle hi {};
+	copper::PatchHandle lo {};
+
+	void set(eng::u32 value) const {
+		hi.set(static_cast<u16>(value >> 16));
+		lo.set(static_cast<u16>(value & 0xffffu));
+	}
+};
+
+/// Construye un `Patch32` a partir del índice del MOVE `hi` (el `lo` va 2 words después).
+[[nodiscard]] inline Patch32 patch32_at(copper::Scheduler& s, u16 hi_index) {
+	return Patch32 {s.patch_handle(hi_index), s.patch_handle(static_cast<u16>(hi_index + 2u))};
+}
+
 /// Escena viva: posee los bitplanes (contiguos) y la copperlist, y el emisor de Copper.
 /// No reserva al sistema más que a través de la `MemorySystem` del backend.
 class Scene {
@@ -163,10 +181,10 @@ public:
 		m_back = static_cast<u8>((m_back + 1u) % m_buffer_count);
 	}
 
-	/// Registra el índice del MOVE de `BPLxPTH` del plano `p` (lo llama la etapa `display`).
-	void set_plane_patch(u8 p, u16 pth_index) {
+	/// Registra el parcheo de 32 bits del puntero `BPLxPT` del plano `p` (lo llama `display`).
+	void set_plane_patch(u8 p, Patch32 patch) {
 		if (p < kMaxScenePlanes) {
-			m_plane_patch[p] = pth_index;
+			m_plane_patch[p] = patch;
 		}
 	}
 
@@ -196,9 +214,7 @@ private:
 		for (u8 p = 0u; p < m_res.planes; ++p) {
 			const eng::uintptr ip = reinterpret_cast<eng::uintptr>(
 				base + static_cast<eng::u32>(p) * m_plane_bytes);
-			m_plan.scheduler().patch_handle(m_plane_patch[p]).set(static_cast<u16>(ip >> 16));
-			m_plan.scheduler().patch_handle(static_cast<u16>(m_plane_patch[p] + 2u))
-				.set(static_cast<u16>(ip & 0xffffu));
+			m_plane_patch[p].set(static_cast<eng::u32>(ip));
 		}
 	}
 
@@ -209,7 +225,7 @@ private:
 	u32 m_plane_bytes = 0;
 	u8 m_buffer_count = 1;
 	u8 m_back = 0;
-	u16 m_plane_patch[kMaxScenePlanes] {};
+	Patch32 m_plane_patch[kMaxScenePlanes] {};
 	Task m_setup {};
 	Task m_frame {};
 	Task m_teardown {};
@@ -339,7 +355,7 @@ inline constexpr u16 kBplcon0_Ham6 = 0x7a00;         ///< HAM6 (6 planos, COLOR,
 							  static_cast<u16>(ip >> 16));
 				(void)s.move_at(copper::bitplane_pointer_low_register(p),
 						static_cast<u16>(ip & 0xffffu));
-				sc.set_plane_patch(p, idx);
+				sc.set_plane_patch(p, patch32_at(s, idx));
 			}
 		}
 	};
