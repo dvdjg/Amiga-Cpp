@@ -22,28 +22,19 @@
 
 #include <eng/core/domains.hpp>
 #include <eng/core/types.hpp>
+#include <eng/core/util/function_ref.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/memory/arena.hpp>
 
 namespace eng::graphics::scene {
 
-/// **Tarea del ciclo de vida** (plano de comportamiento): función + contexto, sin heap ni
-/// virtuales. Se liga a un punto (`setup`/`frame`/`teardown`). `of(f)` liga un functor o
-/// lambda que debe vivir más que la tarea (buffer del llamador).
-struct Task {
-	void* ctx = nullptr;
-	void (*run_fn)(void*) = nullptr;
-
-	void run() const {
-		if (run_fn != nullptr) run_fn(ctx);
-	}
-	[[nodiscard]] constexpr bool valid() const { return run_fn != nullptr; }
-
-	template <class F>
-	[[nodiscard]] static Task of(F& f) {
-		return Task {&f, [](void* p) { (*static_cast<F*>(p))(); }};
-	}
-};
+/// **Tarea del ciclo de vida** (plano de comportamiento): referencia **no propietaria** a
+/// un callable sin argumentos (`eng::util::FunctionRef<void()>`, el análogo de
+/// `std::function_ref` del engine). Admite lambdas/functors directamente
+/// (`scene.on_frame([&]{ ... })` con el lambda **con nombre**: la referencia no lo copia).
+/// El callable debe vivir más que la escena (buffer del llamador): sin heap ni copia del
+/// cierre. `std::function` no está disponible (freestanding, sin heap, sin excepciones).
+using Task = eng::util::FunctionRef<void()>;
 
 /// **Recursos** que una escena planar necesita (plano de recursos del modelo).
 struct SceneResources {
@@ -102,11 +93,17 @@ public:
 	Scene& on_setup(Task t) { m_setup = t; return *this; }
 	Scene& on_frame(Task t) { m_frame = t; return *this; }
 	Scene& on_teardown(Task t) { m_teardown = t; return *this; }
-	void setup() { m_setup.run(); }
-	void tick() { m_frame.run(); } ///< una vez por frame (hot path)
-	void teardown() { m_teardown.run(); }
+	void setup() { run(m_setup); }
+	void tick() { run(m_frame); } ///< una vez por frame (hot path)
+	void teardown() { run(m_teardown); }
 
 private:
+	static void run(Task t) {
+		if (t.valid()) {
+			t();
+		}
+	}
+
 	SceneResources m_res {};
 	eng::Block<eng::PlaneTag> m_bitplanes {};
 	eng::Block<eng::CopperTag> m_copper {};
