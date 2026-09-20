@@ -211,6 +211,24 @@ private:
 	};
 }
 
+/// **Geometría de display predefinida** (DIWSTRT/DIWSTOP/DDFSTRT/DDFSTOP). Evita cablear
+/// los valores habituales en cada llamada a `display(...)`.
+struct DisplayGeometry {
+	u16 diwstrt = 0x2c81;
+	u16 diwstop = 0x2cc1;
+	u16 ddfstrt = 0x0038;
+	u16 ddfstop = 0x00d0;
+};
+
+/// PAL lowres **320×256** con *fetch* estándar (40 B/fila): la geometría de las demos.
+inline constexpr DisplayGeometry kPal320x256 {0x2c81, 0x2cc1, 0x0038, 0x00d0};
+
+/// **`BPLCON0` habituales** (BPU + COLOR / HAM / EHB).
+inline constexpr u16 kBplcon0_4Planes = 0x4200;      ///< 4 planos, COLOR
+inline constexpr u16 kBplcon0_4PlanesNoColor = 0x4000; ///< 4 planos, sin COLOR
+inline constexpr u16 kBplcon0_Ehb = 0x6200;          ///< EHB (6 planos, COLOR)
+inline constexpr u16 kBplcon0_Ham6 = 0x7a00;         ///< HAM6 (6 planos, COLOR, HAM)
+
 /// Etapa de **display**: BPLCON0, DIW/DDF y punteros BPLxPT. Con layout `Interleaved` usa
 /// los módulos del `CanvasPlayfield` (un plano por fila) y expone `surface()`; con
 /// `Contiguous` usa `emit_planes_display` (un plano tras otro).
@@ -243,6 +261,11 @@ private:
 					      bplcon0, sc.planes(), sc.bitplanes(), sc.plane_bytes());
 		}
 	};
+}
+
+/// Etapa de **display** con geometría predefinida (`kPal320x256`).
+[[nodiscard]] inline auto display(DisplayGeometry g, u16 bplcon0) {
+	return display(g.diwstrt, g.diwstop, g.ddfstrt, g.ddfstop, bplcon0);
 }
 
 /// Etapa de **paleta**: carga `count` colores desde `first`.

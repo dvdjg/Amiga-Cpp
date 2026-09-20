@@ -109,7 +109,7 @@ struct BackgroundDemo {
 
 		if (!scene::compose(m_scene, backend.memory(),
 				    scene::planar4(kWidth, kHeight, kPlanes),
-				    scene::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x4200),
+				    scene::display(scene::kPal320x256, scene::kBplcon0_4Planes),
 				    scene::palette(eng::PaletteWords {kPalette, 16}, 1u, 15u))) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008102u);
 			return;
