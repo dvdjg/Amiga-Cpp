@@ -15,7 +15,7 @@
 ///   doble buffer de copperlist o incluso otro backend futuro.
 
 #include <eng/core/types.hpp>
-#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/palette32.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/raster_intent.hpp>
 
@@ -77,8 +77,8 @@ public:
 	/// retained-mode: los assets cocinados permanecen inmutables y cada frame se
 	/// generan vistas/runtime state baratas.
 	void apply(
-		const drivers::EhbPalette& source,
-		drivers::EhbPalette& destination
+		const eng::Palette32& source,
+		eng::Palette32& destination
 	) const {
 		for (u8 i = 0; i < 32u; ++i) {
 			destination.color[i] = source.color[i];
@@ -97,13 +97,13 @@ public:
 	/// El efecto produce su propia paleta runtime (ver `runtime_palette()`) y, al
 	/// llamar a `apply_into`, aporta el parche al plan. Asi la demo no coordina
 	/// paletas a mano: solo enlaza el asset una vez y llama `update`+`apply_into`.
-	void bind_source(const drivers::EhbPalette& source) {
+	void bind_source(const eng::Palette32& source) {
 		m_source = source.color;
 		m_runtime = source;
 	}
 
 	/// Paleta runtime derivada (la rota respecto a la fuente vinculada).
-	constexpr const drivers::EhbPalette& runtime_palette() const { return m_runtime; }
+	constexpr const eng::Palette32& runtime_palette() const { return m_runtime; }
 
 	/// Aporta este efecto al plan: rota la fuente vinculada en la paleta runtime y
 	/// registra un parche base de paleta con el tramo `first/count`. Es el metodo del
@@ -133,7 +133,7 @@ private:
 	PaletteCycleRange m_range { 0, 1, 1 };
 	u8 m_phase = 0;
 	const u16* m_source = nullptr;
-	drivers::EhbPalette m_runtime {};
+	eng::Palette32 m_runtime {};
 };
 
 // Evidencia del contrato: el primer efecto reutilizable cumple `Effect<E, FramePlan>`.

@@ -23,40 +23,19 @@
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/driver.hpp>
 #include <eng/graphics/frame_plan.hpp>
+#include <eng/graphics/palette32.hpp>
 #include <eng/memory/arena.hpp>
 
 namespace eng::graphics::drivers {
 
-/// Paleta fisica EHB.
-///
-/// Aunque visualmente hay 64 indices, solo existen 32 registros fisicos. El engine
-/// habla en terminos de esta paleta base; los colores half-brite se obtienen por
-/// hardware usando el sexto bitplane.
-struct EhbPalette {
-	u16 color[32] {};
+/// Paleta EHB: 32 colores fisicos. Es el tipo de valor comun `eng::Palette32`.
+using EhbPalette = eng::Palette32;
 
-	/// Vista de dominio de la paleta. Permite pasar un `EhbPalette` directamente a
-	/// las APIs que piden `PaletteWords` (p. ej. `emit_palette`), sin casts.
-	constexpr operator eng::PaletteWords() const noexcept {
-		return eng::PaletteWords { color, 32u };
-	}
-};
+/// Paleta totalmente negra, compartida (fundidos de paleta).
+inline constexpr EhbPalette black_palette = eng::kBlackPalette;
 
-/// Paleta totalmente negra, compartida. Es el origen/destino natural de un fundido de
-/// paleta (`PaletteTransitionEffect`); vive aqui para no repetir el literal de 32 ceros en
-/// cada demo.
-inline constexpr EhbPalette black_palette {};
-
-/// Cambio de paleta en una linea concreta.
-///
-/// `line` usa el mismo espacio que `Copper::wait_line`: valores de raster visibles
-/// aproximados en PAL lowres. `palette` debe apuntar a datos vivos durante la
-/// construccion de la copperlist. Despues de construirla, el Copper ya contiene
-/// copias de los 32 valores RGB444.
-struct EhbPaletteZone {
-	u8 line = 0;
-	const EhbPalette* palette = nullptr;
-};
+/// Cambio de paleta en una linea concreta (zona Copper).
+using EhbPaletteZone = eng::Palette32Zone;
 
 /// Configuracion de display EHB 320x256.
 ///

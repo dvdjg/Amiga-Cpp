@@ -72,14 +72,14 @@ constexpr eng::u8 pf_foreground = 0; // PF1 (delante, colores 0..7, transparenci
 // Paleta OCS (RGB444). PF1 usa registros 0-7 (vivos, para el primer plano);
 // PF2 usa 8-15 (verdes, para el fondo). El color 0 de cada banco es
 // transparente en DPF y se deja a 0x000 (se vera el otro playfield / borde).
-constexpr drivers::EhbPalette dual_palette {{
+constexpr eng::Palette32 dual_palette {{
 	// PF1 (primer plano): registros 0..7. Color 0 = transparente.
 	0x000, 0xf0c, 0x0cf, 0xff0, 0xf80, 0x84f, 0xf44, 0xfff,
 	// PF2 (fondo): registros 8..15. Color 8 = transparente.
 	0x000, 0x021, 0x063, 0x0a5, 0x2d7, 0xdfa, 0xce7, 0xfff,
 }};
 
-constexpr drivers::EhbPaletteZone palette_zones[] {};
+constexpr eng::Palette32Zone palette_zones[] {};
 
 // --- Glifos y tiles simbolicos (3 planos por playfield, como la demo 102) -----
 

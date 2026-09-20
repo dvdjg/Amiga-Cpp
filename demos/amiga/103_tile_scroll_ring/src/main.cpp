@@ -44,14 +44,14 @@ constexpr eng::u16 map_tiles_y = 128;
 constexpr eng::u16 tile_pattern_count = 64;
 constexpr eng::u16 tile_update_budget = 18;
 
-constexpr drivers::EhbPalette ring_palette {{
+constexpr eng::Palette32 ring_palette {{
 	0x000, 0x222, 0x08f, 0x0cf, 0xf0c, 0xff0, 0x0f4, 0xf80,
 	0x84f, 0x0a6, 0xf44, 0x6df, 0xf8f, 0xfff, 0x888, 0x444,
 	0x000, 0x111, 0x048, 0x068, 0x806, 0x880, 0x082, 0x840,
 	0x426, 0x053, 0x822, 0x368, 0x846, 0x888, 0x444, 0x222,
 }};
 
-constexpr drivers::EhbPaletteZone palette_zones[] {};
+constexpr eng::Palette32Zone palette_zones[] {};
 
 // --- Glifos y tiles simbolicos (igual que la demo 101) -----------------------
 

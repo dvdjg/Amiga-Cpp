@@ -34,11 +34,11 @@ constexpr eng::u16 kMapHeight = 128;
 constexpr eng::u8 kBackground = 0;
 constexpr eng::u8 kForeground = 1;
 
-constexpr drivers::EhbPalette kPalette {{
+constexpr eng::Palette32 kPalette {{
 	0x000, 0xf24, 0xf90, 0xff0, 0x0cf, 0x84f, 0xf4c, 0xfff,
 	0x000, 0x013, 0x057, 0x08a, 0x0ad, 0x2d8, 0x8fc, 0xdff,
 }};
-constexpr drivers::EhbPaletteZone kZones[] {};
+constexpr eng::Palette32Zone kZones[] {};
 
 constexpr eng::u32 hash(eng::u32 value) {
 	value ^= value >> 16u; value *= 0x7feb352du; value ^= value >> 15u; return value;
