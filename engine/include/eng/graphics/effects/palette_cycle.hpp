@@ -105,6 +105,10 @@ public:
 	/// Paleta runtime derivada (la rota respecto a la fuente vinculada).
 	constexpr const eng::Palette32& runtime_palette() const { return m_runtime; }
 
+	/// Recalcula `runtime_palette()` desde el estado actual (`bind_source`+`update`)
+	/// **sin** tocar un `FramePlan`: para quien parchea la paleta por handles.
+	void refresh() { apply_fixed(); }
+
 	/// Aporta este efecto al plan: rota la fuente vinculada en la paleta runtime y
 	/// registra un parche base de paleta con el tramo `first/count`. Es el metodo del
 	/// concepto `Effect<PaletteCycleEffect, FramePlan>`.

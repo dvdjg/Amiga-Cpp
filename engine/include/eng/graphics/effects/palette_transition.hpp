@@ -97,6 +97,10 @@ public:
 	/// aplicarla al plan, o usa el puntero estable para el `scene_config` del driver.
 	constexpr const eng::Palette32& runtime_palette() const { return m_runtime; }
 
+	/// Recalcula `runtime_palette()` desde el estado actual (`bind`+`update`) **sin**
+	/// tocar un `FramePlan`: para quien parchea la paleta por handles (`scene::PatchZone`).
+	void refresh() { apply_fixed(); }
+
 	constexpr u16 num() const { return m_num; }
 	constexpr u16 den() const { return m_den; }
 	constexpr PaletteTransitionRange range() const { return m_range; }
