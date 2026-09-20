@@ -24,8 +24,7 @@
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/graphics/drivers/planar_scene.hpp>
-#include <eng/graphics/drivers/multi_buffered.hpp>
+#include <eng/graphics/scene/compose.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
@@ -100,7 +99,7 @@ namespace {
 
 namespace obj = eng::object3d;
 namespace copper = eng::copper;
-namespace drivers = eng::graphics::drivers;
+namespace scene = eng::graphics::scene;
 
 // Geometria del original (256x256, 4 planos).
 constexpr eng::u16 kWidth = 256;
@@ -440,33 +439,20 @@ struct FlatShadeDemo {
 			return;
 		}
 
-		// Triple buffer generico: `MultiBuffered<PlanarScene, 3>` reserva los 3 bitmaps
-		// (4 planos contiguos cada uno) y sus 3 copperlists. La semantica coincide con la
+		// Triple buffer sobre `scene::compose`: 3 buffers (4 planos contiguos cada uno) con
+		// triple buffer por parcheo de `BPLxPT` en `commit()`. La semantica coincide con la
 		// pipeline del original: se dibuja en `back()`, se lanza el fill y `commit()`
 		// publica el recien dibujado (se vera en el swap del frame siguiente) y rota.
-		drivers::PlanarSceneConfig scene_cfg {};
-		scene_cfg.bytes_per_row = kBytesPerRow;
-		scene_cfg.rows = kHeight;
-		scene_cfg.planes = kPlanes;
-		scene_cfg.bplcon0 = kBplcon0;
-		scene_cfg.diwstrt = kDiwstrt;
-		scene_cfg.diwstop = kDiwstop;
-		scene_cfg.ddfstrt = kDdfstrt;
-		scene_cfg.ddfstop = kDdfstop;
-		scene_cfg.row_repeat = 1u;
-		scene_cfg.bplcon1_shift = kBplcon1;
-		// `PlanarScene` emite la lista POR LINEA (WAIT + BPLMOD + BPLCON1 por cada una de las
-		// 256 lineas) aunque `row_repeat=1`; son ~2 KB por bloque (el original usaba una
-		// lista plana de 512 B). Se reserva de sobra.
-		scene_cfg.copper_bytes = 6144u;
-		scene_cfg.palette = eng::PaletteWords {flatshade_colors, 16u};
-		scene_cfg.palette_first = 0;
-		scene_cfg.palette_count = 16;
-		if (!m_scenes.init(backend.memory(), scene_cfg)) {
+		// Geometria propia del original (256x256): DIW/DDF y BPLCON0 crudos.
+		scene::SceneResources res = scene::planar4(kWidth, kHeight, kPlanes);
+		res.buffers = static_cast<eng::u8>(kBuffers);
+		if (!scene::compose(m_scene, backend.memory(), res,
+				    scene::display(kDiwstrt, kDiwstop, kDdfstrt, kDdfstop, kBplcon0),
+				    scene::palette(eng::PaletteWords {flatshade_colors, 16u}, 0u, 16u))) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011603u);
 			return;
 		}
-		m_scenes.takeover(backend);
+		m_scene.takeover(backend);
 
 		// El original activa `DMAF_BLITHOG` (BLTPRI): el Blitter no cede slots de bus a
 		// la CPU durante el fill/lines. Con la pipeline, el transform corre durante el
@@ -503,7 +489,7 @@ struct FlatShadeDemo {
 			eng::retro::turns(static_cast<eng::u16>(m_angle));
 		obj::update_object_transformation(m_object);
 #if K_FLATSHADE_ASM
-		prepare_fs_args(m_scenes.slot(0).bitplanes(), m_object);
+		prepare_fs_args(m_scene.buffer(0), m_object);
 		fs_update_face_visibility();
 		fs_update_edge_visibility_convex();
 		fs_transform_vertices();
@@ -515,7 +501,7 @@ struct FlatShadeDemo {
 
 		// Pre-clear todos los buffers: el primer `update` dibuja sobre `back()` sin esperar.
 		for (eng::u8 b = 0; b < kBuffers; ++b) {
-			backend.blitter_clear(m_scenes.slot(b).bitplanes(), kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight, true);
+			backend.blitter_clear(m_scene.buffer(b), kPlanes, kBytesPerRow, kPlaneBytes, kWidth, kHeight, true);
 		}
 
 		m_init_ok = true;
@@ -536,7 +522,7 @@ struct FlatShadeDemo {
 		}
 
 		// El buffer en el que se dibuja este frame (el trasero del triple buffer).
-		eng::PlaneBytes planes = m_scenes.back().bitplanes();
+		eng::PlaneBytes planes = m_scene.back();
 
 		const eng::u32 t0 = rcycles();
 
@@ -617,9 +603,9 @@ struct FlatShadeDemo {
 		// 6) Publicar y rotar: `commit` instala la copperlist del buffer recien dibujado y
 		//    pasa al siguiente; despues se pre-cleara ESE (ni en pantalla ni en dibujo
 		//    ahora), sin esperar, para que quede colgado tras el fill.
-		m_scenes.commit(backend);
+		m_scene.commit();
 #if !FLATSHADE_SKIP_CLEAR
-		backend.blitter_clear(m_scenes.back().bitplanes(), kPlanes, kBytesPerRow, kPlaneBytes,
+		backend.blitter_clear(m_scene.back(), kPlanes, kBytesPerRow, kPlaneBytes,
 				      kWidth, kHeight, false);
 #endif
 
@@ -638,7 +624,7 @@ private:
 	bool m_init_ok = false;
 	bool m_memory_ok = false;
 	eng::s16 m_angle = 0;
-	drivers::MultiBuffered<drivers::PlanarScene, kBuffers> m_scenes {};
+	scene::Scene m_scene {};
 	eng::Block<eng::MaskTag> m_mask_block {};
 	eng::object3d::Object3D m_object {};
 };
