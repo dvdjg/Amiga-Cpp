@@ -7,16 +7,16 @@
 // dibujando un cubo que gira a 50 fps. Solo se pintan las caras VISIBLES y en
 // orden lejos->cerca, que es justo lo que devuelve `mesh_painter_order`.
 //
-// El "canvas" planar de dibujo vive en la demo (cocina), como en la 030: el
-// driver `StaticEhbScene` entrega los bitplanes y aqui se escriben con un
-// set_pixel/line minimos. El trazado se hace en `render()` (durante el vblank):
-// escribir CPU al Chip RAM con el DMA de bitplanes activo roba ciclos y produce
-// scanlines negros (ver 107).
+// El "canvas" planar de dibujo vive en la demo (cocina), como en la 030: la escena
+// (`scene::compose`) entrega los bitplanes y aqui se escriben con un set_pixel/line
+// minimos. El trazado se hace en `render()` (durante el vblank): escribir CPU al Chip
+// RAM con el DMA de bitplanes activo roba ciclos y produce scanlines negros (ver 107).
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/core/mesh3d.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
-#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/palette32.hpp>
+#include <eng/graphics/scene/compose.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 #include <proto/exec.h>
@@ -38,17 +38,22 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-namespace ehb = eng::graphics::drivers;
+namespace scene = eng::graphics::scene;
 
-constexpr eng::u16 kWidth = ehb::StaticEhbScene::width;
-constexpr eng::u16 kHeight = ehb::StaticEhbScene::height;
-constexpr eng::u16 kRowBytes = ehb::StaticEhbScene::bytes_per_row;
-constexpr eng::u8 kPlanes = ehb::StaticEhbScene::plane_count;
-constexpr eng::u32 kPlaneBytes = ehb::StaticEhbScene::plane_bytes;
+constexpr eng::u16 kWidth = 320;
+constexpr eng::u16 kHeight = 256;
+constexpr eng::u16 kRowBytes = kWidth / 8;
+constexpr eng::u8 kPlanes = 6;
+constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kRowBytes) * kHeight;
+
+/// Escena EHB 320x256 (6 planos) sobre `scene::compose`: perfil y presupuesto validados
+/// en compilacion.
+constexpr scene::SceneResources kRes = scene::planar(kWidth, kHeight, kPlanes);
+static_assert(scene::valid_scene(kRes, scene::ocs_a500), "077: EHB 320x256 en A500");
 
 /// Paleta EHB de 32 colores base (los indices 32..63 son su mitad de brillo). El
 /// indice 0 es el fondo; 1..7 son la rampa del cubo; 8 el marco; 9/10 las estrellas.
-constexpr ehb::EhbPalette kPalette {{
+constexpr eng::Palette32 kPalette {{
 	0x012, 0x111, 0x22a, 0x33c, 0x44e, 0x55f, 0x77f, 0x9bf,
 	0x0ff, 0x046, 0x024, 0x000, 0x000, 0x000, 0x000, 0x000,
 	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
@@ -225,13 +230,10 @@ struct DemoGame {
 			4u * 1024u,  // Frame scratch.
 		});
 
-		const ehb::StaticEhbSceneConfig scene_config {
-			&kPalette,
-			nullptr,
-			0,
-			1024,
-		};
-		m_scene_ok = m_scene.init(backend.memory(), scene_config);
+		m_scene_ok = m_memory_ok &&
+			     scene::compose(m_scene, backend.memory(), kRes, scene::ocs_a500,
+					    scene::display(scene::kPal320x256, scene::kBplcon0_Ehb),
+					    scene::palette(kPalette, 0u, 32u));
 
 		if (m_memory_ok && m_scene_ok) {
 			draw_static();
@@ -240,7 +242,7 @@ struct DemoGame {
 				eng::debug::mark_failed(g_eng_run_status, 0x00007701u);
 				return;
 			}
-			eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_scene.copper_words()));
+			eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_scene.words()));
 		} else {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000077u);
 		}
@@ -248,15 +250,14 @@ struct DemoGame {
 
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
-		if (m_scene.ok()) {
-			m_scene.install(backend);
-		}
+		(void)backend; // la lista es estatica: `takeover` ya la instalo
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		if (!m_scene.ok()) {
 			return;
 		}
+		(void)backend;
 		Canvas c {m_scene.bitplanes().data()};
 		const eng::u32 f = context.frame.frame_index;
 
@@ -289,7 +290,6 @@ struct DemoGame {
 			draw_edge(c, world, fc.c, fc.a, col);
 		}
 
-		m_scene.install(backend);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -329,7 +329,7 @@ private:
 
 	bool m_memory_ok = false;
 	bool m_scene_ok = false;
-	ehb::StaticEhbScene m_scene {};
+	scene::Scene m_scene {};
 };
 
 } // namespace

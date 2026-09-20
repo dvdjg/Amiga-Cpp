@@ -11,7 +11,8 @@
 #include <eng/debug/peripheral.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
-#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/palette32.hpp>
+#include <eng/graphics/scene/compose.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/retro/minifloat_fixed.hpp>
 
@@ -34,21 +35,26 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-namespace ehb = eng::graphics::drivers;
+namespace scene = eng::graphics::scene;
 namespace em = eng::math;
 using MF = em::MiniFloat16;
 using V3 = em::Vec<3, eng::retro::q0>;
 using Periph = eng::debug::DebugPeripheral;
 
-constexpr eng::u16 kWidth = ehb::StaticEhbScene::width;
-constexpr eng::u16 kHeight = ehb::StaticEhbScene::height;
-constexpr eng::u16 kRowBytes = ehb::StaticEhbScene::bytes_per_row;
-constexpr eng::u8 kPlanes = ehb::StaticEhbScene::plane_count;
-constexpr eng::u32 kPlaneBytes = ehb::StaticEhbScene::plane_bytes;
+constexpr eng::u16 kWidth = 320;
+constexpr eng::u16 kHeight = 256;
+constexpr eng::u16 kRowBytes = kWidth / 8;
+constexpr eng::u8 kPlanes = 6;
+constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kRowBytes) * kHeight;
+
+/// Escena EHB 320x256 (6 planos) sobre `scene::compose`: el perfil y el presupuesto se
+/// validan en compilacion.
+constexpr scene::SceneResources kRes = scene::planar(kWidth, kHeight, kPlanes);
+static_assert(scene::valid_scene(kRes, scene::ocs_a500), "084: EHB 320x256 en A500");
 
 /// Fondo azul oscuro; 1..7 rampa del cubo (azul -> cian -> dorado -> blanco, por
 /// profundidad); 8 marco; 9/10 estrellas.
-constexpr ehb::EhbPalette kPalette {{
+constexpr eng::Palette32 kPalette {{
 	0x013, 0x024, 0x02F, 0x05F, 0x0AF, 0xFF4, 0xFF9, 0xFFF,
 	0x112, 0x024, 0x011, 0x000, 0x000, 0x000, 0x000, 0x000,
 	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
@@ -151,9 +157,11 @@ struct DemoGame {
 		Periph::counter_name(0, reinterpret_cast<eng::u32>("mf_calc_cycles"));
 		Periph::counter_name(1, reinterpret_cast<eng::u32>("mf_matrix_cycles"));
 		m_memory_ok = backend.configure_memory({70u * 1024u, 8u * 1024u, 4u * 1024u});
-		const ehb::StaticEhbSceneConfig scene_config {&kPalette, nullptr, 0, 1024};
-		m_scene_ok = m_scene.init(backend.memory(), scene_config);
-		if (!(m_memory_ok && m_scene_ok)) {
+		m_scene_ok = m_memory_ok &&
+			     scene::compose(m_scene, backend.memory(), kRes, scene::ocs_a500,
+					    scene::display(scene::kPal320x256, scene::kBplcon0_Ehb),
+					    scene::palette(kPalette, 0u, 32u));
+		if (!m_scene_ok) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008401u);
 			return;
 		}
@@ -169,20 +177,20 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008402u);
 			return;
 		}
-		eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_scene.copper_words()));
+		eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_scene.words()));
 	}
 
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		compute_projection(); // matematica FUERA del vblank
-		if (m_scene.ok()) m_scene.install(backend);
+		(void)backend;        // la lista es estatica: `takeover` ya la instalo
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		if (!m_scene.ok()) return;
+		(void)backend;
 		Canvas c {m_scene.bitplanes().data()};
 		draw_cube(c); // solo traza (rapido) durante el vblank
-		m_scene.install(backend);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -287,7 +295,7 @@ private:
 
 	bool m_memory_ok = false;
 	bool m_scene_ok = false;
-	ehb::StaticEhbScene m_scene {};
+	scene::Scene m_scene {};
 	MF m_ax {0.0f}, m_ay {0.0f}, m_az {0.0f};
 	eng::s16 m_scr[8][2] {};
 	eng::s16 m_wz[8] {};

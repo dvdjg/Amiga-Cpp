@@ -29,6 +29,17 @@ void check(bool ok, const char* msg) {
 	}
 }
 
+// Intenciones de compilacion para fijar la huella estatica de `intents`.
+constexpr u16 kPal4[4] = {0x000u, 0x123u, 0x456u, 0x789u};
+constexpr graphics::CopperIntent kIntentLine {
+	graphics::CopperIntentKind::PaletteLine, 100u, 100u, 0u,
+	eng::PaletteWords {kPal4, 4u}, 0u, 4u};
+constexpr graphics::CopperIntent kIntentOver {
+	graphics::CopperIntentKind::PaletteLine, 300u, 300u, 0u,
+	eng::PaletteWords {kPal4, 1u}, 0u, 1u};
+constexpr graphics::CopperIntent kIntentSplit {
+	graphics::CopperIntentKind::BitplaneSplit, 100u, 100u, 0u, {}, 0u, 0u};
+
 } // namespace
 
 int main() {
@@ -263,6 +274,15 @@ int main() {
 	static_assert(graphics::scene::palette_words(0u, 4u, 4u) == 8u);
 	static_assert(graphics::scene::palette_words(1u, 15u, 16u) == 30u);
 	static_assert(graphics::scene::palette_zone_words(0u, 4u, 4u) == 10u);
+	static_assert(graphics::scene::reverse_ptrs_words(graphics::scene::planar(320, 256, 4)) == 16u);
+	static_assert(graphics::scene::patchable_zone_words(2u) == 6u);
+	// Intents: PaletteLine = WAIT(2) + 4 colores x 2; con top>255 suma el par de overflow.
+	static_assert(graphics::scene::intent_words(kIntentLine) == 10u);
+	static_assert(graphics::scene::intents_words(&kIntentLine, 1u) == 10u);
+	static_assert(graphics::scene::intent_words(kIntentOver) == 4u);
+	static_assert(graphics::scene::intents_words(&kIntentOver, 1u) == 6u);
+	// BitplaneSplit via `intents` no lo materializa el Plan (sin layout): 0 palabras.
+	static_assert(graphics::scene::intent_words(kIntentSplit) == 0u);
 	{
 		// s1: display(36) + palette(8) + patch(2) + fin de lista(2).
 		const u16 expected_s1 =
@@ -277,6 +297,25 @@ int main() {
 			graphics::scene::row_repeat_words(8u, 4u, 0x2cu) + 2u);
 		check(s2.words() == expected_s2,
 		      "s2: display+zonas+row_repeat coinciden con la huella estatica");
+		// s4: display(36) + reverse_ptrs(16) + row_repeat(256) + fin(2).
+		const u16 expected_s4 = static_cast<u16>(
+			graphics::scene::display_words(r4) +
+			graphics::scene::reverse_ptrs_words(r4) +
+			graphics::scene::row_repeat_words(8u, 4u, 0x2cu) + 2u);
+		check(s4.words() == expected_s4,
+		      "s4: display+reverse_ptrs+row_repeat coinciden con la huella estatica");
+		// s5: display(36) + 1 intent PaletteLine(10) + fin(2).
+		const u16 expected_s5 = static_cast<u16>(
+			graphics::scene::display_words(s5.resources()) +
+			graphics::scene::intents_words(&it, 1u) + 2u);
+		check(s5.words() == expected_s5,
+		      "s5: display+intents coinciden con la huella estatica");
+		// s7: display(36) + patchable_zone(6) + fin(2).
+		const u16 expected_s7 = static_cast<u16>(
+			graphics::scene::display_words(s7.resources()) +
+			graphics::scene::patchable_zone_words(2u) + 2u);
+		check(s7.words() == expected_s7,
+		      "s7: display+patchable_zone coinciden con la huella estatica");
 	}
 
 	if (failures == 0) {

@@ -14,7 +14,7 @@ en vez de una clase por driver. Ver `docs/engine/architecture/SCENE_COMPOSITION.
 6. Preset `canvas` (layout interleaved): expone `surface()` y `fill_polygon` pinta sobre ella.
 7. `intents`: una lista de `CopperIntent` se registra en el `Plan` (ordenada por scanline).
 8. Geometría/BPLCON0 por constantes (`kPal320x256`, `kBplcon0_*`) + `display(geometry, bplcon0)`. La escena queda `ok()` con bitplanes y copperlist válidos.
-9. **Huella estática** de las etapas (`display_words`/`palette_words`/`palette_zone_words`/`row_repeat_words`): `static_assert` de sus valores y contraste con `Scene::words()` real (display+palette+patch y display+zonas+row_repeat).
+9. **Huella estática** de las etapas (`display_words`/`palette_words`/`palette_zone_words`/`reverse_ptrs_words`/`patchable_zone_words`/`intent_words`/`intents_words`/`row_repeat_words`): `static_assert` de sus valores y contraste con `Scene::words()` real (display+palette+patch, display+zonas+row_repeat, display+reverse_ptrs+row_repeat, display+intents, display+patchable_zone).
 
 ## Salida de referencia
 

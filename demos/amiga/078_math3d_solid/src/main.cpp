@@ -15,7 +15,8 @@
 #include <eng/core/mesh3d.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
-#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/palette32.hpp>
+#include <eng/graphics/scene/compose.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
@@ -64,16 +65,21 @@ extern "C" const unsigned char g_cube_uafr_end[];
 
 namespace {
 
-namespace ehb = eng::graphics::drivers;
+namespace scene = eng::graphics::scene;
 
-constexpr eng::u16 kWidth = ehb::StaticEhbScene::width;
-constexpr eng::u16 kHeight = ehb::StaticEhbScene::height;
-constexpr eng::u16 kRowBytes = ehb::StaticEhbScene::bytes_per_row;
-constexpr eng::u8 kPlanes = ehb::StaticEhbScene::plane_count;
-constexpr eng::u32 kPlaneBytes = ehb::StaticEhbScene::plane_bytes;
+constexpr eng::u16 kWidth = 320;
+constexpr eng::u16 kHeight = 256;
+constexpr eng::u16 kRowBytes = kWidth / 8;
+constexpr eng::u8 kPlanes = 6;
+constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kRowBytes) * kHeight;
+
+/// Escena EHB 320x256 (6 planos) sobre `scene::compose`: perfil y presupuesto validados
+/// en compilacion.
+constexpr scene::SceneResources kRes = scene::planar(kWidth, kHeight, kPlanes);
+static_assert(scene::valid_scene(kRes, scene::ocs_a500), "078: EHB 320x256 en A500");
 
 /// Paleta EHB: 0 fondo, 1..7 rampa del solido, 8 marco, 9/10 estrellas.
-constexpr ehb::EhbPalette kPalette {{
+constexpr eng::Palette32 kPalette {{
 	0x012, 0x123, 0x246, 0x358, 0x47a, 0x58c, 0x6ae, 0x8cf,
 	0x0ff, 0x046, 0x024, 0x000, 0x000, 0x000, 0x000, 0x000,
 	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
@@ -277,8 +283,10 @@ struct DemoGame {
 			4u * 1024u,
 		});
 
-		const ehb::StaticEhbSceneConfig scene_config {&kPalette, nullptr, 0, 1024};
-		m_scene_ok = m_scene.init(backend.memory(), scene_config);
+		m_scene_ok = m_memory_ok &&
+			     scene::compose(m_scene, backend.memory(), kRes, scene::ocs_a500,
+					    scene::display(scene::kPal320x256, scene::kBplcon0_Ehb),
+					    scene::palette(kPalette, 0u, 32u));
 
 		// Buffer en blanco (Chip RAM: el Blitter solo direcciona Chip) para el
 		// CopyRect que borra la zona del solido cada frame.
@@ -309,7 +317,7 @@ struct DemoGame {
 				eng::debug::mark_failed(g_eng_run_status, 0x00007801u);
 				return;
 			}
-			eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_scene.copper_words()));
+			eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_scene.words()));
 		} else {
 			eng::debug::mark_failed(g_eng_run_status, m_mesh_ok ? 0x00000078u : 0x00007803u);
 		}
@@ -317,9 +325,7 @@ struct DemoGame {
 
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
-		if (m_scene.ok()) {
-			m_scene.install(backend);
-		}
+		(void)backend; // la lista es estatica: `takeover` ya la instalo
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
@@ -405,7 +411,6 @@ struct DemoGame {
 #endif
 		}
 
-		m_scene.install(backend);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -486,7 +491,7 @@ private:
 	const eng::u16* m_blank = nullptr;
 	eng::Block<eng::MaskTag> m_mask_block {};
 	eng::u8* m_mask = nullptr;
-	ehb::StaticEhbScene m_scene {};
+	scene::Scene m_scene {};
 };
 
 } // namespace

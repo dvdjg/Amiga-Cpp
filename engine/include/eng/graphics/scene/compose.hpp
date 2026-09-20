@@ -637,6 +637,60 @@ using ZoneBinding = PatchZone;
 	return static_cast<u16>(2u + palette_words(first, count, palette_size));
 }
 
+/// **Huella en palabras** de la etapa `reverse_ptrs()`: reemite el par
+/// `BPLxPTH`+`BPLxPTL` de cada plano (4 palabras por plano).
+[[nodiscard]] constexpr u16 reverse_ptrs_words(const SceneResources& res) {
+	return static_cast<u16>(4u * res.planes);
+}
+
+/// **Huella en palabras** de la etapa `patchable_zone(line, slots, out)`: WAIT de línea (2)
+/// más 2 por slot (un MOVE por slot).
+[[nodiscard]] constexpr u16 patchable_zone_words(eng::usize slot_count) {
+	return static_cast<u16>(2u + 2u * slot_count);
+}
+
+/// **Huella en palabras de UNA intención** de la etapa `intents`, incluido su WAIT, tal como
+/// la materializa el `Plan` (que **no** conoce el layout del display): `BitplaneSplit` y
+/// `ShiftLines` quedan **sin manejar** (0 palabras) y `SpriteRearm` requiere `sprite_ptr`.
+[[nodiscard]] constexpr u16 intent_words(const graphics::CopperIntent& it) {
+	switch (it.kind) {
+		case graphics::CopperIntentKind::PaletteLine:
+		case graphics::CopperIntentKind::PaletteSpan:
+			return static_cast<u16>(2u + palette_words(it.first, it.count, it.colors.size()));
+		case graphics::CopperIntentKind::SpriteRearm:
+			return (it.sprite_ptr == nullptr) ? 0u : 6u; // WAIT + 2 MOVEs
+		case graphics::CopperIntentKind::Priority:
+			return 4u; // WAIT + 1 MOVE
+		case graphics::CopperIntentKind::BitplaneSplit:
+		case graphics::CopperIntentKind::ShiftLines:
+		default:
+			return 0u;
+	}
+}
+
+/// **Huella en palabras** de la etapa `intents(list)`: suma de `intent_words` más el par de
+/// overflow de VPOS (2 palabras) si alguna intención manejada espera una línea > 255
+/// (`wait_line_safe` lo emite **una vez**). No depende del orden en que el `Plan` las
+/// materialice: el recuento total es el mismo. Asume que la lista es la primera que cruza la
+/// 255 (sin un `row_repeat` previo).
+[[nodiscard]] constexpr u16 intents_words(const graphics::CopperIntent* list, eng::usize count) {
+	u16 words = 0;
+	bool overflow = false;
+	for (eng::usize i = 0; i < count; ++i) {
+		const graphics::CopperIntent& it = list[i];
+		const u16 w = intent_words(it);
+		words = static_cast<u16>(words + w);
+		// Solo `PaletteSpan` usa `wait_position` (sin overflow); el resto, `wait_line_safe`.
+		if (w != 0u && it.kind != graphics::CopperIntentKind::PaletteSpan && it.top > 255u) {
+			overflow = true;
+		}
+	}
+	if (overflow) {
+		words = static_cast<u16>(words + 2u);
+	}
+	return words;
+}
+
 /// **Huella en palabras** de la etapa `row_repeat(rows, repeat, first_line)`: un WAIT de
 /// línea (2 palabras, +2 la primera vez que el contador cruza la 255 por el par de overflow)
 /// más 3 MOVEs (6 palabras) por cada una de las `rows * repeat` líneas. Etapa de **forma

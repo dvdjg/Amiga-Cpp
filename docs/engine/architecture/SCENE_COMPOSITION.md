@@ -164,12 +164,13 @@ declarado por la máquina y la validación es agnóstica.
   variante de `compose` sin `limits`. Las demos usan `display(res)`, que deriva geometría
   (`geometry_for`) y `BPLCON0` (`bplcon0_for(mode, planes)`).
 - **Huella estática de etapas**: las etapas de **forma conocida** exponen su tamaño en
-  palabras como `constexpr` (`display_words(res)`, `palette_words(first, count, size)`,
-  `palette_zone_words(...)`, `row_repeat_words(rows, repeat, first_line)`), comparable con
-  `copper_word_budget(res)` en un `static_assert`; HOST-016/215 verifican que las fórmulas
-  coinciden con la emisión real (`scheduler().words_used()`/`Scene::words()`) y la demo 081
-  usa el gate en compilación. El modelo es **lores**; hires/SuperHires/`DIWHIGH` (ECS/AGA) se
-  retomarán cuando haya un consumidor (ver `pending-verification.md` §6).
+  palabras como `constexpr` (`display_words`, `palette_words`, `palette_zone_words`,
+  `reverse_ptrs_words`, `patchable_zone_words`, `intent_words`/`intents_words`,
+  `row_repeat_words`), comparable con `copper_word_budget(res)` en un `static_assert`;
+  HOST-016/215 verifican que las fórmulas coinciden con la emisión real
+  (`scheduler().words_used()`/`Scene::words()`) y la demo 081 usa el gate en compilación. El
+  modelo es **lores**; hires/SuperHires/`DIWHIGH` (ECS/AGA) se retomarán cuando haya un
+  consumidor (ver `pending-verification.md` §6).
 - **Rendimiento**: las validaciones de copperlist (presupuesto por línea, overflow) viven en
   `materialize`/`end_frame` (**una vez por frame**), nunca en la emisión por MOVE
   (`move`/`wait` son `always_inline` y no validan). Regla: **estáticas siempre; dinámicas solo
@@ -259,8 +260,9 @@ cubrir el cierre (unas decenas de bytes; 3–4 punteros suele bastar).
   dinámico del copper (colores, `BPL1MOD/BPL2MOD`, `BPLxPT`, `BPLCON1`…), no solo paletas.
 - **Constantes y helpers**: `DisplayGeometry`/`kPal320x256` (en `limits.hpp`),
   `kBplcon0_{4Planes,4PlanesNoColor,Ehb,Ham6}`, `bplcon0_for(mode, planes)`,
-  `display_words(res)`/`palette_words(...)`/`palette_zone_words(...)`/
-  `row_repeat_words(...)`/`copper_word_budget(res)` (huella estática de etapas).
+  `display_words`/`palette_words`/`palette_zone_words`/`reverse_ptrs_words`/
+  `patchable_zone_words`/`intent_words`/`intents_words`/`row_repeat_words`/
+  `copper_word_budget` (huella estática de etapas).
 - **Configuración**: una sola función paramétrica `planar(width, height, planes)`; los
   escenarios (EHB = 6 planos, HAM/cuadruplicado = `rows` + `row_repeat`, canvas =
   `layout = Interleaved`, doble buffer = `buffers = N`) van en el doc-comment.
@@ -269,17 +271,21 @@ cubrir el cierre (unas decenas de bytes; 3–4 punteros suele bastar).
 
 **Validado en demo**: `081_background_tasks` migrada a `scene::compose` (display+palette) con
 el latido de COLOR00 como `Scene::on_frame` → **49.75 fps (142 576 ciclos = 1 campo)**; el
-ciclo de vida cuesta ~474 ciclos/frame.
+ciclo de vida cuesta ~474 ciclos/frame. Migradas también al modelo (display EHB + paleta)
+las 3D `077_math3d_cube`, `078_math3d_solid` y `084_mf_rotation`, sin `install` por frame
+(la lista es estática: `takeover` la instala una vez); verificadas `build -> run -> analyze`.
 
 **Pendiente**:
 1. **Doble buffer de display**: **hecho** en layout contiguo. `SceneResources.buffers` (1/2/3)
    reserva N bitmaps; la etapa `display` emite los `BPLxPT` como MOVEs **parcheables**
    (`move_at`) y `Scene::commit()` repunta los punteros al buffer trasero (reutiliza la base
    común de parcheo). El interleaved usa un único `CanvasPlayfield`.
-2. **Migrar 030 (EHB)**: su fundido usa `FramePlan`/`apply_frame_plan`; reescribirlo sobre
-   `PatchZone::handle`/`zone_color` (la base ya existe).
-3. **Migrar 080 (HAM+C2P)**: `ham` + `row_repeat` + `reverse_ptrs` + `buffers=2`.
-4. **Retirar `PlanarScene`/`StaticEhbScene`/`CanvasScene`** cuando ninguna demo los use.
+2. **Migrar 030 (EHB)**: **hecho** (usa `palette_patchable`/`palette_zones`).
+3. **Migrar 080 (HAM+C2P)**: **hecho** (`display`+`row_repeat`+`reverse_ptrs`+`buffers=2`).
+4. **Retirar `PlanarScene`/`StaticEhbScene`/`CanvasScene`**: las demos ya no usan
+   `StaticEhbScene` (quedan tests 001/069); `planar_scene.hpp` no tiene consumidores. Falta
+   sacar `EhbPalette`/`black_palette` (alias de `Palette32`) de `ehb_scene.hpp` para poder
+   retirar el driver.
 5. **Medición**: el `runner.uae` lo genera `run-demo.ts`; en entornos sin Git Bash se
    construye a mano para `measure-fps` (como se hizo con 081).
 
