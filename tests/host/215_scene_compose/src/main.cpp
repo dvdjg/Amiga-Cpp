@@ -13,7 +13,7 @@ using namespace eng;
 
 namespace {
 
-alignas(16) u8 g_chip[192 * 1024];
+alignas(16) u8 g_chip[256 * 1024];
 
 MemorySystem make_memory() {
 	MemorySystem mem;
@@ -132,6 +132,24 @@ int main() {
 	zone_h.set(0x0aaau);
 	const u16* zwords = s6.scheduler().data();
 	check(zwords[zone_h.index + 1u] == 0x0aaau, "un color de zona se parchea por frame");
+
+	// Base comun: una zona parcheable de CUALQUIER registro (aqui offsets de scanline).
+	graphics::scene::Scene s7;
+	graphics::scene::PatchZone mod_zone {};
+	const graphics::scene::PatchSlot mod_slots[2] = {
+		{copper::Register::BPL1MOD, 0x0040},
+		{copper::Register::BPL2MOD, 0x0040},
+	};
+	const bool ok7 = graphics::scene::compose(
+		s7, mem, graphics::scene::planar4(320, 256, 4),
+		graphics::scene::display(graphics::scene::kPal320x256, graphics::scene::kBplcon0_4Planes),
+		graphics::scene::patchable_zone(
+			40, eng::Span<const graphics::scene::PatchSlot> {mod_slots, 2}, &mod_zone));
+	check(ok7 && s7.ok(), "zona parcheable generica (offsets de scanline) compone");
+	const copper::PatchHandle mod_h = mod_zone.handle(s7.scheduler(), 0);
+	mod_h.set(0x0050u);
+	const u16* mw = s7.scheduler().data();
+	check(mw[mod_h.index + 1u] == 0x0050u, "un offset BPL1MOD se parchea por frame");
 
 	if (failures == 0) {
 		std::printf("OK: scene::compose (etapas display/paleta/zonas/row_repeat + PatchHandle + ciclo de vida).\n");

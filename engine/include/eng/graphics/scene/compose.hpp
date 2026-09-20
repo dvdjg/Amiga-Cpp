@@ -303,26 +303,62 @@ struct PaletteZone {
 	};
 }
 
-/// **Binding de una zona de paleta** para parchear sus colores por frame: índice de la
-/// instrucción del primer `COLORxx` de la zona y su rango. Obtenido de
-/// `palette_zones_patchable`.
-struct ZoneBinding {
-	u16 first_move = 0; ///< índice (words) del MOVE del primer color de la zona
-	u8 count = 0;       ///< nº de colores de la zona
-	u8 line = 0;        ///< línea de raster de la zona
+/// **Un MOVE parcheable dentro de una zona**: registro destino + valor inicial. Es la
+/// unidad de la base común de toda modificación dinámica del copper (un color, un
+/// `BPL1MOD` de scanline, un puntero `BPLxPT`, un `BPLCON1`…).
+struct PatchSlot {
+	copper::Register reg = copper::Register::COLOR00;
+	u16 value = 0;
 };
 
-/// Etapa de **zonas de paleta parcheables**: como `palette_zones` pero además escribe en
-/// `out` el `ZoneBinding` de cada zona, para que el llamador reescriba colores por frame
-/// con `zone_color(...)` (fundidos, ciclos, daño). Nº de zonas = mínimo de los dos spans.
-[[nodiscard]] inline auto palette_zones_patchable(eng::Span<const PaletteZone> zones,
-						  eng::Span<ZoneBinding> out) {
+/// **Grupo de MOVEs parcheables emitidos en una línea** (base común). Guarda el índice del
+/// primer MOVE; cada slot es una instrucción de 2 words (MOVE + dato), de ahí el `+2*i`.
+struct PatchZone {
+	u8 line = 0;
+	u16 first_move = 0;
+	u8 count = 0;
+
+	/// Handle al slot `i` para parchearlo por frame (cualquier registro).
+	[[nodiscard]] copper::PatchHandle handle(copper::Scheduler& s, u8 i) const {
+		return s.patch_handle(static_cast<u16>(first_move + 2u * static_cast<u16>(i)));
+	}
+};
+
+/// Etapa **genérica**: emite `WAIT(line)` + un MOVE por slot (con `move_at`) y escribe el
+/// `PatchZone` resultante en `*out`. Sirve para paletas, offsets de scanline o cualquier
+/// registro; las modificaciones dinámicas comparten esta base.
+[[nodiscard]] inline auto patchable_zone(u8 line, eng::Span<const PatchSlot> slots,
+					 PatchZone* out) {
 	return [=](Scene& sc) {
 		copper::Scheduler& s = sc.scheduler();
+		s.wait_line(line);
+		PatchZone z {};
+		z.line = line;
+		z.count = static_cast<u8>(slots.size());
+		for (eng::usize i = 0; i < slots.size(); ++i) {
+			const u16 idx = s.move_at(slots[i].reg, slots[i].value);
+			if (i == 0u) {
+				z.first_move = idx;
+			}
+		}
+		if (out != nullptr) {
+			*out = z;
+		}
+	};
+}
+
+/// Binding de una zona de **paleta** (caso particular de `PatchZone`).
+using ZoneBinding = PatchZone;
+
+/// Etapa de **zonas de paleta parcheables**: convierte cada zona a slots `COLORxx`, los
+/// emite con la base común (`patchable_zone`) y escribe su `PatchZone` en `out`.
+[[nodiscard]] inline auto palette_zones_patchable(eng::Span<const PaletteZone> zones,
+						  eng::Span<PatchZone> out) {
+	return [=](Scene& sc) {
 		const eng::usize n = zones.size() < out.size() ? zones.size() : out.size();
+		PatchSlot slots[32];
 		for (eng::usize i = 0; i < n; ++i) {
 			const PaletteZone& z = zones[i];
-			s.wait_line(z.line);
 			u8 first = z.first;
 			u8 count = z.count;
 			if (first >= 32u) {
@@ -334,28 +370,21 @@ struct ZoneBinding {
 			if (static_cast<eng::u32>(first) + count > z.colors.size()) {
 				count = static_cast<u8>(z.colors.size() - first);
 			}
-			ZoneBinding b {};
-			b.line = z.line;
-			b.count = count;
 			for (u8 k = 0u; k < count; ++k) {
-				const u16 idx = s.move_at(
-					static_cast<copper::Register>(copper::color_register(
-						static_cast<u8>(first + k))),
-					z.colors[first + k]);
-				if (k == 0u) {
-					b.first_move = idx;
-				}
+				slots[k] = PatchSlot {
+					static_cast<copper::Register>(
+						copper::color_register(static_cast<u8>(first + k))),
+					z.colors[first + k]};
 			}
-			out[i] = b;
+			patchable_zone(z.line, eng::Span<const PatchSlot> {slots, count}, &out[i])(sc);
 		}
 	};
 }
 
-/// Handle al color `i` de una zona (para parchearlo por frame). Cada MOVE ocupa 2 words
-/// (instrucción + dato), de ahí el `+ 2*i`.
+/// Handle al color `i` de una zona de paleta (azúcar sobre `PatchZone::handle`).
 [[nodiscard]] inline copper::PatchHandle zone_color(copper::Scheduler& s,
-						    const ZoneBinding& b, u8 i) {
-	return s.patch_handle(static_cast<u16>(b.first_move + 2u * i));
+						    const PatchZone& z, u8 i) {
+	return z.handle(s, i);
 }
 
 /// Etapa de **repetición de filas** (cuadruplicado HAM): cada fila lógica ocupa `repeat`
