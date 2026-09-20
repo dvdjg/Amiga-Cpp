@@ -77,6 +77,7 @@ enum class TransparencyMode : eng::u8 {
 	ColorKey0,  ///< el índice 0 es transparente (requiere máscara derivada).
 	Mask1Bit,   ///< cookie-cut `$CA` con plano de máscara.
 	AdditiveOr, ///< `D = A | D` (`$FC`): aditivo/glow, sin máscara.
+	SubtractiveAnd, ///< `D = A & D` (`$C0`): sombra/sustractivo, sin máscara.
 };
 
 /// Política de gestión del fondo bajo el objeto.
@@ -117,6 +118,8 @@ constexpr TransparencyPlan transparency_plan(TransparencyMode mode) {
 			return {0xcau, true};
 		case TransparencyMode::AdditiveOr:
 			return {0xfcu, false};
+		case TransparencyMode::SubtractiveAnd:
+			return {0xc0u, false};
 	}
 	return {0xf0u, false};
 }
@@ -126,6 +129,8 @@ constexpr BobDraw bob_draw_for(TransparencyMode mode) {
 	switch (mode) {
 		case TransparencyMode::AdditiveOr:
 			return BobDraw::Or;
+		case TransparencyMode::SubtractiveAnd:
+			return BobDraw::And;
 		case TransparencyMode::Opaque:
 			return BobDraw::Opaque;
 		case TransparencyMode::ColorKey0:

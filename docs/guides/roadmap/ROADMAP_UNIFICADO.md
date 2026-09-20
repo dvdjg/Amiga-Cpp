@@ -453,3 +453,28 @@ desarrolla en varios turnos; el orden es 1→2→3.
 Pendiente: una demo que ejercite el relleno poligonal por frame exige **abaratarla** (menos blits por cara) y **doble buffer del lienzo FG** (`DoubleBufferScrollPlayfield` es la base para scroll; falta el equivalente para el FG del DPF). Hasta entonces el sink y la ruta Amiga quedan respaldados solo por **HOST-062** (NO VERIFICADA por hardware) e importar `flatshade`/`stencil3d` sobre él no es prioritario. Nota: el Blitter de `amiga_minimal` cobra ~57 ciclos por escritura a registro custom y cada blit espera al anterior, así que el número de blits por cara domina el coste.
 
 **Capa de bobs/personajes**: ver opción A del roadmap general (capa de objetos en el FG lineal DPF, 110/111 ya a medio pulir).
+
+## Rasterizado acelerado (seam `Surface`/`Rasterizer`) — próximas mejoras (2026-09)
+
+El seam está en `engine/include/eng/field/raster.hpp` (`Rasterizer` + `CpuRaster`/`BlitterRaster`,
+`RasterOp`, `RasterCaps`/`RasterPolicy`) y `Surface` es el contexto de dispositivo. Detalle en
+`docs/engine/architecture/RASTER.md`. Estado: relleno CPU/Blitter, copia CPU/Blitter (32 bits,
+shifts/DESC), **líneas** OR y EOR/ONEDOT (con recorte de segmento y lote EOR), **blit lógico**
+(`blit_shadow` `$C0` / `blit_glow` `$FC`), **colisión pixel-perfect** (`blitter_collide`,
+verificada por self-test de 077) y `RasterCaps` OCS/AGA por target. Mejoras pendientes, por
+prioridad:
+
+1. **Demo de juego que use colisión** (`blitter_collide`) en el bucle (plataformas/shmup: BOB vs
+   fondo) — hoy solo la valida el self-test de 077.
+2. **Relleno con patrón** (suelos/techos 3D, UI texturizada): `BlitJob` de fill con canal de
+   patrón (más complejo que el `FILL_OR` del `PolygonFillSink`).
+3. **C2P en el seam** (`Rasterizer::c2p` / `BlitJobKind::C2P`): unificar chunky→planar (las 13
+   fases de `fire-rgb`, `C2P_BLITTER.md`) bajo la misma interfaz; hoy vive fuera.
+4. **`FMODE` por target**: programar 2×/4× según `raster_caps().bus` (AGA) en copias/fills; hoy
+   solo se declara la capacidad.
+5. **Demo de `blit_shadow`/`blit_glow`** en un actor real (no solo el host test) e integración en
+   `actor` (la política `SubtractiveAnd`/`AdditiveOr` ya existe; falta el consumidor).
+6. **Rendimiento**: medir con `Timeline`/perfil y decidir si conviene un `FillRect` propio (evitar
+   el camino de polígono) o alinear/padear más los buffers.
+7. **Migrar 116** (opcional): su ruta por defecto ya es `retro::flat_shade_xor` (HOST-213); las
+   rutas `draw_edges`/asm son opt-in de diagnóstico.
