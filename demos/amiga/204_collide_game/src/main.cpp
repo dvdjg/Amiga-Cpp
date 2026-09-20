@@ -10,13 +10,7 @@
 // el self-test de 077). La visualizacion (jugador/obstaculo) va por `Surface::fill_rect`.
 //
 // Display 256x256x4 con doble buffer (`Scene::commit`).
-#include <eng/core/types.hpp>
-#include <eng/debug/run_status.hpp>
-#include <eng/engine.hpp>
-#include <eng/field/surface.hpp>
-#include <eng/graphics/palette32.hpp>
-#include <eng/graphics/composition/compose.hpp>
-#include <eng/graphics/blitter_state.hpp>
+#include <eng/api/api.hpp>          // fachada: escena, dibujo, paleta, blitter preparado, run_status
 #include <eng/platform/amiga_minimal.hpp>
 
 #include <proto/exec.h>
