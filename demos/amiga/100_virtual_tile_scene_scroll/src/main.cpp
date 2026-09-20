@@ -1,6 +1,7 @@
 #include <eng/engine.hpp>
 #include <eng/debug/run_status.hpp>
-#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/palette32.hpp>
+#include <eng/graphics/scene/compose.hpp>
 #include <eng/graphics/tilemap/tile_scroll.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/scene/virtual_scene.hpp>
@@ -25,15 +26,15 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-namespace drivers = eng::graphics::drivers;
+namespace gfx = eng::graphics::scene;
 namespace scene = eng::scene;
 namespace tilemap = eng::graphics::tilemap;
 
-constexpr eng::u16 screen_width = drivers::StaticEhbScene::width;
-constexpr eng::u16 screen_height = drivers::StaticEhbScene::height;
-constexpr eng::u16 bytes_per_row = drivers::StaticEhbScene::bytes_per_row;
-constexpr eng::u8 plane_count = drivers::StaticEhbScene::plane_count;
-constexpr eng::u32 plane_bytes = drivers::StaticEhbScene::plane_bytes;
+constexpr eng::u16 screen_width = 320u;
+constexpr eng::u16 screen_height = 256u;
+constexpr eng::u16 bytes_per_row = 40u;
+constexpr eng::u8 plane_count = 6u;
+constexpr eng::u32 plane_bytes = 10240u;
 constexpr eng::u16 map_tiles_x = 64;
 constexpr eng::u16 map_tiles_y = 16;
 constexpr eng::u16 tile_size = 16;
@@ -235,7 +236,7 @@ void draw_viewport(
 	const eng::u16 tile_words[16][plane_count][tile_size],
 	const scene::Camera2D& camera
 ) {
-	eng::Span<eng::u8> planes_span { planes, drivers::StaticEhbScene::bitplane_bytes };
+	eng::Span<eng::u8> planes_span { planes, 61440u };
 	planes_span.clear();
 
 	const tilemap::ScrollPosition scroll = camera.scroll_position();
@@ -278,13 +279,16 @@ struct DemoGame {
 			return;
 		}
 
-		const drivers::StaticEhbSceneConfig scene_config {
-			&sky_palette,
-			palette_zones,
-			static_cast<eng::u8>(sizeof(palette_zones) / sizeof(palette_zones[0])),
-			1536,
-		};
-		if (!m_scene.init(backend.memory(), scene_config)) {
+		const eng::usize gfx_zone_count = sizeof(palette_zones) / sizeof(palette_zones[0]);
+		gfx::PaletteZone gfx_zones[sizeof(palette_zones) / sizeof(palette_zones[0])] {};
+		for (eng::usize i = 0; i < gfx_zone_count; ++i) {
+			gfx_zones[i] = gfx::PaletteZone {palette_zones[i].line, eng::PaletteWords {palette_zones[i].palette->color, 32u}, 0u, 32u};
+		}
+		const gfx::SceneResources res = gfx::ehb(320u, 256u);
+		if (!gfx::compose(m_scene, backend.memory(), res,
+				gfx::display(gfx::kPal320x256, gfx::kBplcon0_Ehb),
+				gfx::palette(eng::PaletteWords {sky_palette.color, 32u}, 0u, 32u),
+				gfx::palette_zones(eng::Span<const gfx::PaletteZone> {gfx_zones, gfx_zone_count}))) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000101u);
 			return;
 		}
@@ -335,12 +339,10 @@ struct DemoGame {
 		if (!m_ready_to_run) {
 			return;
 		}
-		m_scene.install(backend);
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		if (m_scene.ok()) {
-			m_scene.install(backend);
 		}
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
@@ -374,11 +376,10 @@ struct DemoGame {
 		}
 
 		draw_viewport(m_scene.bitplanes().data(), m_cells, m_tile_words, camera);
-		m_scene.install(backend);
 	}
 
 	bool m_ready_to_run = false;
-	drivers::StaticEhbScene m_scene {};
+	gfx::Scene m_scene {};
 	tilemap::PackedTileCell m_cells[map_tiles_x * map_tiles_y] {};
 	eng::u16 m_tile_words[16][plane_count][tile_size] {};
 	tilemap::TileMap16 m_map {};

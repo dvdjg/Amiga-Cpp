@@ -34,7 +34,8 @@
 #include <eng/core/utf8.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
-#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/palette32.hpp>
+#include <eng/graphics/scene/compose.hpp>
 #include <eng/graphics/font8.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
@@ -57,13 +58,13 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-namespace drivers = eng::graphics::drivers;
+namespace scene = eng::graphics::scene;
 
-constexpr eng::u16 kScreenW = drivers::StaticEhbScene::width;
-constexpr eng::u16 kScreenH = drivers::StaticEhbScene::height;
-constexpr eng::u16 kBytesPerRow = drivers::StaticEhbScene::bytes_per_row;
-constexpr eng::u8 kPlanes = drivers::StaticEhbScene::plane_count;
-constexpr eng::u32 kPlaneBytes = drivers::StaticEhbScene::plane_bytes;
+constexpr eng::u16 kScreenW = 320u;
+constexpr eng::u16 kScreenH = 256u;
+constexpr eng::u16 kBytesPerRow = 40u;
+constexpr eng::u8 kPlanes = 6u;
+constexpr eng::u32 kPlaneBytes = 10240u;
 
 // Índices EHB (0..63): texto blanco 31, amarillo 30, rojo 26, cian 20 (pie).
 // Con EHB el 6.º plano suma 32 (half-brite); los índices aquí son de la paleta
@@ -193,17 +194,17 @@ struct CoreSelfcheckDemo {
 			4u * 1024u,  // Frame scratch
 		});
 
-		const drivers::EhbPalette palette {
+		const eng::Palette32 palette {
 			0x000, 0x06a, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
 			0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
 			0x000, 0x000, 0x000, 0x000, 0x0aa, 0x000, 0xf00, 0x000,
 			0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0xff0, 0xfff,
 		};
-		const drivers::StaticEhbSceneConfig scene_config {
-			&palette, nullptr, 0, 1024,
-		};
+		const scene::SceneResources res = scene::ehb(320u, 256u);
 
-		m_scene_ok = m_scene.init(backend.memory(), scene_config);
+		m_scene_ok = scene::compose(m_scene, backend.memory(), res,
+				scene::display(scene::kPal320x256, scene::kBplcon0_Ehb),
+				scene::palette(eng::PaletteWords {palette.color, 32u}, 0u, 32u));
 		if (!m_memory_ok || !m_scene_ok) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000050u);
 			return;
@@ -237,7 +238,7 @@ struct CoreSelfcheckDemo {
 		// Toma el control del display una sola vez (apaga interrupciones/DMA
 		// del sistema y arranca la primera copperlist alineada al VBL). La
 		// pantalla es estatica, asi que no hay swaps por frame.
-		backend.takeover_display(m_scene.copper_words_ptr());
+		m_scene.takeover(backend);
 
 		if (g_check.ok()) {
 			eng::debug::mark_ready(g_eng_run_status, g_check.detail());
@@ -300,17 +301,11 @@ private:
         }
     }
 
-	drivers::StaticEhbScene m_scene {};
+	scene::Scene m_scene {};
 	bool m_memory_ok = false;
 	bool m_scene_ok = false;
 };
 
-// Evidencia viva de los contratos del driver (driver.hpp): el driver y el backend
-// concretos deben exponer el ciclo de instalacion del display completo (takeover
-// una sola vez + install como swap) y, por ser un driver grafico, su identidad y
-// los hooks de frame. Si una pieza pierde uno de los metodos, falla en compilacion.
-static_assert(eng::DisplayDriver<drivers::StaticEhbScene, eng::amiga::MinimalBackend>);
-static_assert(eng::GraphicsDriver<drivers::StaticEhbScene, eng::amiga::MinimalBackend>);
 
 } // namespace
 
