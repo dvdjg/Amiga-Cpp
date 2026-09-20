@@ -196,8 +196,11 @@ cubrir el cierre (unas decenas de bytes; 3–4 punteros suele bastar).
 - **Escena**: `Scene` posee bitplanes + copperlist + `Scheduler` + tareas + `surface()` (con
   layout interleaved, sobre un `CanvasPlayfield` interno).
 - **Etapas**: `display` (contigua o interleaved), `palette`, `palette_zones`,
-  `palette_zones_patchable` (+ `ZoneBinding`/`zone_color`), `row_repeat`, `reverse_ptrs`,
-  `intents` (CopperIntent ordenadas por el `Plan`).
+  `patchable_zone` (genérica) + `palette_zones_patchable` (caso particular), `row_repeat`,
+  `reverse_ptrs`, `intents` (CopperIntent ordenadas por el `Plan`).
+- **Base común de parcheo**: `PatchSlot` (registro + valor), `PatchZone` (grupo en una
+  línea, `handle(s, i)`) y `PatchHandle` (un MOVE). Sirve para **cualquier** valor dinámico
+  del copper (colores, `BPL1MOD/BPL2MOD`, `BPLxPT`, `BPLCON1`…), no solo paletas.
 - **Constantes**: `DisplayGeometry`/`kPal320x256`, `kBplcon0_{4Planes,4PlanesNoColor,Ehb,Ham6}`
   (nada de hexadecimales sueltos en las llamadas).
 - **Presets** (funciones): `planar4`, `canvas` (interleaved con `surface()`), `ham`
@@ -209,14 +212,17 @@ el latido de COLOR00 como `Scene::on_frame` → **49.75 fps (142 576 ciclos = 1 
 ciclo de vida cuesta ~474 ciclos/frame.
 
 **Pendiente**:
-1. **`Scene` con doble buffer** (o `MultiBuffered<Scene, N>`): hoy `Scene` es monobuffer;
-   lo pide la migración de 080 (C2P + HAM).
-2. **Migrar 030 (EHB)**: su fundido usa `FramePlan`/`apply_frame_plan` (patcheo por frame);
-   hay que reescribirlo sobre `zone_color`/`PatchHandle` (la etapa ya existe).
-3. **Migrar 080 (HAM+C2P)**: `ham` + `row_repeat` + `reverse_ptrs` + doble buffer.
+1. **Doble buffer de display en `Scene`**: `MultiBuffered<Scene,N>` es un desajuste (N
+   buffers de display frente a los 2 de la copperlist del `Plan`). En el modelo nuevo lo
+   correcto es emitir los `BPLxPT` como **`PatchSlot`** y parchearlos al buffer trasero en
+   `commit()` (reutiliza la base común); lo pide la migración de 080.
+2. **Migrar 030 (EHB)**: su fundido usa `FramePlan`/`apply_frame_plan`; reescribirlo sobre
+   `PatchZone::handle`/`zone_color` (la base ya existe).
+3. **Migrar 080 (HAM+C2P)**: `ham` + `row_repeat` + `reverse_ptrs` + doble buffer (punto 1).
 4. **Retirar `PlanarScene`/`StaticEhbScene`/`CanvasScene`** cuando ninguna demo los use.
 5. **Medición**: el `runner.uae` lo genera `run-demo.ts`; en entornos sin Git Bash se
    construye a mano para `measure-fps` (como se hizo con 081).
+
 
 
 
