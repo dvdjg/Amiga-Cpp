@@ -195,18 +195,28 @@ cubrir el cierre (unas decenas de bytes; 3–4 punteros suele bastar).
   interleaved, tamaño de copper).
 - **Escena**: `Scene` posee bitplanes + copperlist + `Scheduler` + tareas + `surface()` (con
   layout interleaved, sobre un `CanvasPlayfield` interno).
-- **Etapas**: `display` (contigua o interleaved), `palette`, `palette_zones`, `row_repeat`.
+- **Etapas**: `display` (contigua o interleaved), `palette`, `palette_zones`,
+  `palette_zones_patchable` (+ `ZoneBinding`/`zone_color`), `row_repeat`, `reverse_ptrs`,
+  `intents` (CopperIntent ordenadas por el `Plan`).
+- **Constantes**: `DisplayGeometry`/`kPal320x256`, `kBplcon0_{4Planes,4PlanesNoColor,Ehb,Ham6}`
+  (nada de hexadecimales sueltos en las llamadas).
 - **Presets** (funciones): `planar4`, `canvas` (interleaved con `surface()`), `ham`
-  (planos contiguos con `rows` para cuadruplicado).
+  (planos contiguos con `rows` para cuadruplicado), `ehb` (6 planos).
 - **Composición**: `compose(scene, memory, recursos, etapas...)`.
 
+**Validado en demo**: `081_background_tasks` migrada a `scene::compose` (display+palette) con
+el latido de COLOR00 como `Scene::on_frame` → **49.75 fps (142 576 ciclos = 1 campo)**; el
+ciclo de vida cuesta ~474 ciclos/frame.
+
 **Pendiente**:
-1. Integrar `copper::Plan` como el **Programa** de `Scene` (timeline ordenado por scanline +
-   `ScheduleReport` + doble buffer de copperlist), en vez del `Scheduler` crudo; hoy las
-   etapas emiten en orden de construcción.
-2. **Migrar** `PlanarScene`/`StaticEhbScene`/`CanvasScene` a presets y las demos (030/080/116)
-   a `compose`; validar con `build → run → analyze`.
-3. **Medir en emulador** el ciclo de vida (tareas por frame) en una demo migrada para
-   confirmar que el `jsr` indirecto es marginal en el frame real.
+1. **`Scene` con doble buffer** (o `MultiBuffered<Scene, N>`): hoy `Scene` es monobuffer;
+   lo pide la migración de 080 (C2P + HAM).
+2. **Migrar 030 (EHB)**: su fundido usa `FramePlan`/`apply_frame_plan` (patcheo por frame);
+   hay que reescribirlo sobre `zone_color`/`PatchHandle` (la etapa ya existe).
+3. **Migrar 080 (HAM+C2P)**: `ham` + `row_repeat` + `reverse_ptrs` + doble buffer.
+4. **Retirar `PlanarScene`/`StaticEhbScene`/`CanvasScene`** cuando ninguna demo los use.
+5. **Medición**: el `runner.uae` lo genera `run-demo.ts`; en entornos sin Git Bash se
+   construye a mano para `measure-fps` (como se hizo con 081).
+
 
 
