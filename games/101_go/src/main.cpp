@@ -14,7 +14,7 @@
 // piedra negra (si es legal) y el motor responde. La barra inferior muestra el turno
 // y las capturas de cada color.
 //
-// Display: `StaticEhbScene` (320x256, 6 planos EHB), dibujo directo a bitplanes
+// Display: escena EHB (320x256, 6 planos) sobre `scene::compose`, dibujo directo a bitplanes
 // (patron de las demos 060/100). Solo se redibuja cuando hay jugada o se mueve el
 // cursor.
 //

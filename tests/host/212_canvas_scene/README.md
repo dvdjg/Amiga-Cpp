@@ -1,26 +1,30 @@
-# HOST-212: `CanvasScene` (driver planar con `Surface`)
+# HOST-212: `scene::compose` con `Surface` (interleaved y contiguo)
 
-Test host de `eng::graphics::drivers::CanvasScene`: cierra el hueco «efecto → dibujo con
-`Surface`» envolviendo un `field::CanvasPlayfield` (bitmap planar interleaved) y
-exponiendo una `Surface` de dibujo más la copperlist de display.
+Test host del **contexto de dibujo `field::Surface`** sobre el modelo de escena
+(`engine/include/eng/graphics/scene/compose.hpp`), en los dos layouts:
+
+- **Interleaved**: `SceneResources.layout = Interleaved` enlaza un `field::CanvasPlayfield`.
+- **Contiguo**: el layout por defecto enlaza un `field::ContiguousPlayfield` (planos uno tras
+  otro, el de las escenas EHB/HAM).
+
+En ambos, `Scene::surface()` devuelve un `Surface` con el mismo contrato
+(`set_pixel`/`draw_line`/`fill_rect`/`fill_polygon`/`blit`), sin que la app vea planos,
+punteros ni layouts.
 
 ## Qué comprueba
 
-1. **`init`** reserva bitmap (interleaved) + copperlist en Chip RAM y reconstruye la lista
-   (`ok()`, `copper_words() > 0`).
-2. **`surface()`**: `Surface::fill_polygon` pinta sobre la escena; se lee el color del
-   bitmap interleaved (interior con el color pedido, exterior vacío).
-3. **Contrato de driver**: `takeover`/`install` instalan el puntero de la copperlist
-   (`GraphicsDriver`/`DisplayDriver` satisfechos, `static_assert`).
-4. **Multi-buffer**: `MultiBuffered<CanvasScene, 2>` reparte 2 buffers con `bind()` (sin
-   poseer memoria); los dos slots tienen bitmaps y copperlists distintos.
-5. La copperlist usa los módulos interleaved del `Playfield`
-   (`BPL1MOD = planes*row − row`) y los punteros BPLx por plano.
+1. `compose` reserva bitmap + copperlist y la escena queda `ok()`.
+2. `surface().fill_polygon` (interleaved y contiguo): interior con el color pedido, exterior
+   vacío (lectura de color por plano).
+3. `surface().draw_line` en contiguo cae en el plano correcto.
+4. `surface().blit`/`blit_masked` en contiguo encolan **un `CopyRect`/`MaskedBobCookieCut`
+   por plano** en el `FramePlan` (`blit_job_count() == planes`).
+5. Doble buffer contiguo (`buffers = 2`): `commit()` avanza el buffer trasero.
 
 ## Salida de referencia
 
 ```
-OK: CanvasScene (Surface sobre CanvasPlayfield + copperlist interleaved).
+OK: scene::compose interleaved y contiguo (Surface + copperlist).
 ```
 
 ## Ejecutar

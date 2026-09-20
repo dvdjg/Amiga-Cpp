@@ -8,7 +8,7 @@
 ///
 /// Es un tipo de valor del engine, independiente de cualquier driver grafico: los
 /// efectos (`PaletteTransitionEffect`, `PaletteCycleEffect`) y el tile scroll lo usan
-/// sin depender de `StaticEhbScene`.
+/// sin depender de una escena concreta.
 
 #include <eng/core/domains.hpp>
 #include <eng/core/types.hpp>
@@ -23,6 +23,7 @@ struct Palette32 {
 	/// `PaletteWords` (p. ej. `emit_palette`), sin casts.
 	constexpr operator PaletteWords() const noexcept { return PaletteWords {color, 32u}; }
 
+	/// Vista de dominio de los 32 colores (para APIs que piden `PaletteWords`).
 	[[nodiscard]] constexpr PaletteWords words() const noexcept {
 		return PaletteWords {color, 32u};
 	}

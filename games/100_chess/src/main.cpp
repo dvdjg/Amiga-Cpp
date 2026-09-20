@@ -16,7 +16,7 @@
 // destino mueve. La barra inferior muestra el turno, la ultima jugada del motor y la
 // explicacion.
 //
-// Display: `StaticEhbScene` (320x256, 6 planos EHB). El tablero y el texto se
+// Display: escena EHB (320x256, 6 planos) sobre `scene::compose`. El tablero y el texto se
 // rasterizan a los bitplanes por CPU (patron de la demo 060) porque el tablero solo
 // cambia cuando hay jugada o el cursor se mueve; no hace falta Blitter.
 //

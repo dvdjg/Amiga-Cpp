@@ -14,7 +14,7 @@
 /// - `bitplanes()`/`bitmap()`: por si el efecto prefiere escribir el bitmap a mano.
 ///
 /// Es el puente entre las dos lineas del engine: los **drivers** de efecto daban
-/// `bitplanes()` sin `Surface` (StaticEhbScene) y los **playfields** dan `Surface`
+/// `bitplanes()` sin `Surface` y los **playfields** dan `Surface`
 /// sin composition multi-buffer. `CanvasScene` da `Surface` con display propio.
 ///
 /// Para doble/triple buffer se usa `MultiBuffered<CanvasScene, N>`: `CanvasScene` ofrece
@@ -138,10 +138,12 @@ public:
 		return m_ok;
 	}
 
+	/// Toma el control del display mostrando la copperlist del lienzo (una vez).
 	template <typename Backend>
 	void takeover(Backend& backend) const {
 		if (m_ok && m_copper_ptr != nullptr) backend.takeover_display(m_copper_ptr);
 	}
+	/// Instala la copperlist del lienzo (swap de puntero COP1LC; no toma el control).
 	template <typename Backend>
 	void install(Backend& backend) const {
 		if (m_ok && m_copper_ptr != nullptr) backend.install_copper_list(m_copper_ptr);

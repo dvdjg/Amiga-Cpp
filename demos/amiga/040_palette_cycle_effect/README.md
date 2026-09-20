@@ -7,7 +7,7 @@ paletas).
 La imagen EHB permanece fija en memoria Chip. Lo que cambia cada frame son paletas
 runtime de 32 colores. La demo genera un `FramePlan` con un parche de
 `COLOR01..COLOR07` (ciclo) y otro de `COLOR16..COLOR31` (fundido entre la paleta base y
-una atenuada), y `StaticEhbScene` modifica solo las words de valor ya existentes en la
+una atenuada), y la escena modifica solo las words de valor ya existentes en la
 copperlist. La zona superior usa indices 1..7 para que el ciclo sea evidente; la zona
 inferior mantiene una paleta Copper fija para comprobar que los efectos animados, una
 zona raster y varios parches de paleta conviven bajo el `CopperScheduler`.

@@ -516,29 +516,46 @@ public:
     /// (`row_bytes * filas_lógicas`); 0 = derivarlo de `height`.
     bool bind(eng::Block<eng::PlaneTag> bitplanes, u16 width, u16 height, u8 planes,
               u32 plane_stride = 0u) {
-        if (!bitplanes.valid() || width == 0u || height == 0u || planes == 0u || planes > 6u) {
+        if (!bitplanes.valid()) return false;
+        if (!bind_raw(bitplanes.view.data(), static_cast<u32>(bitplanes.view.size()),
+                      width, height, planes, plane_stride)) {
+            return false;
+        }
+        m_bound = bitplanes;
+        return true;
+    }
+
+    /// Igual que `bind` pero sobre memoria **cruda** (base + bytes): permite enlazar
+    /// buffers con otro tag de dominio (p. ej. una máscara de 1 bit) sin acoplar el
+    /// playfield a ese tag. El llamador garantiza que la memoria es Chip y del tamaño.
+    bool bind_raw(eng::u8* base, u32 bytes, u16 width, u16 height, u8 planes,
+                  u32 plane_stride = 0u) {
+        if (base == nullptr || width == 0u || height == 0u || planes == 0u || planes > 6u) {
             return false;
         }
         const u16 row = static_cast<u16>((width / 8u) & ~1u);
         const u32 pbytes = (plane_stride != 0u) ? plane_stride
                                                 : static_cast<u32>(row) * height;
         const u32 need = pbytes * planes;
-        if (static_cast<u32>(bitplanes.view.size()) < need) return false;
-        m_bound = bitplanes;
+        if (bytes < need) return false;
+        m_bound = {};
         m_width = width;
         m_height = height;
         m_planes = planes;
         m_bytes_per_row = row;
         m_total_bytes = need;
-        m_frontbuffer = bitplanes.view.data(); // vía cruda interna (núcleo)
+        m_frontbuffer = base; // vía cruda interna (núcleo)
         m_plane_stride = pbytes;
         m_row_stride = row;
         m_initialized = true;
         return true;
     }
 
-    /// Planos del lienzo (vista de dominio, sin punteros crudos).
-    [[nodiscard]] constexpr eng::PlaneBytes bitplanes() const { return m_bound.view; }
+    /// Planos del lienzo (vista de dominio; vacía si se enlazó con `bind_raw`).
+    [[nodiscard]] constexpr eng::PlaneBytes bitplanes() const {
+        return m_bound.valid() ? m_bound.view
+                               : eng::PlaneBytes {m_frontbuffer, m_total_bytes};
+    }
 
     // --- Hooks (layout contiguo) ------------------------------------------
     u32 planeline_for(s32 wy) const override { return static_cast<u32>(wy); }
@@ -567,13 +584,72 @@ public:
         return v;
     }
 
-    bool add_world_bitmap(graphics::FramePlan&, Span<const u16>, s32, s32, u16, u16,
-                          u16, u32, u8) override {
-        return false; // blits sobre lienzo contiguo: pendiente (sin consumidor)
+    /// Blit planar (copia rectangular) sobre lienzo **contiguo**: encola un `CopyRect`
+    /// por plano, con `destination_plane_stride = plane_bytes` y módulo de fila = una
+    /// fila de un plano. `wx` debe ser múltiplo de 16.
+    bool add_world_bitmap(graphics::FramePlan& plan, Span<const u16> src,
+                          s32 wx, s32 wy, u16 w, u16 h,
+                          u16 src_row_bytes, u32 src_plane_stride,
+                          u8 planes) override {
+        if (!m_initialized || src.empty() || planes == 0u) return false;
+        if (wx < 0 || (wx & 15) != 0 || static_cast<u32>(wx / 8) + (w / 8u) > m_bytes_per_row) return false;
+        if (wy < 0 || static_cast<u32>(wy) + h > m_height) return false;
+        const u16 words = static_cast<u16>(w / 16u);
+        const u32 need_src = (planes > 1u ? eng::math::mulu16(static_cast<u16>(planes - 1u), static_cast<u16>(src_plane_stride / 2u)) : 0u)
+                           + (h > 1u ? eng::math::mulu16(static_cast<u16>(h - 1u), static_cast<u16>(src_row_bytes / 2u)) : 0u)
+                           + static_cast<u32>(words);
+        if (src.size() < need_src) return false;
+        const u16 x_byte = static_cast<u16>(wx / 8u);
+        const s16 src_mod = static_cast<s16>(src_row_bytes - words * 2);
+        const s16 dst_mod = static_cast<s16>(m_bytes_per_row - words * 2);
+        const u16* sbase = src.data();
+        for (u8 p = 0; p < planes; ++p) {
+            const u16* s = sbase + eng::math::mulu16(p, static_cast<u16>(src_plane_stride / 2u));
+            u16* d = reinterpret_cast<u16*>(m_frontbuffer + static_cast<u32>(p) * m_plane_stride +
+                                            static_cast<u32>(wy) * m_row_stride + x_byte);
+            graphics::BlitJob job {
+                graphics::BlitJobKind::CopyRect, graphics::BlitSource {}, graphics::BlitSource {s}, graphics::BlitDest {d},
+                words, h, src_mod, dst_mod,
+                1, 0, src_plane_stride, m_plane_stride, false
+            };
+            if (!plan.add_copy_rect(job)) return false;
+        }
+        return true;
     }
-    bool add_world_bitmap_masked(graphics::FramePlan&, Span<const u16>, Span<const u16>,
-                                 s32, s32, u16, u16, u16, u32, u8) override {
-        return false;
+
+    /// BOB enmascarado (cookie-cut) sobre lienzo **contiguo**: un `MaskedBobCookieCut`
+    /// por plano, con la máscara de 1 bit compartida.
+    bool add_world_bitmap_masked(graphics::FramePlan& plan, Span<const u16> src,
+                                 Span<const u16> mask, s32 wx, s32 wy,
+                                 u16 w, u16 h, u16 src_row_bytes,
+                                 u32 src_plane_stride, u8 planes) override {
+        if (!m_initialized || src.empty() || mask.empty() || planes == 0u) return false;
+        if (wx < 0 || (wx & 15) != 0 || static_cast<u32>(wx / 8) + (w / 8u) > m_bytes_per_row) return false;
+        if (wy < 0 || static_cast<u32>(wy) + h > m_height) return false;
+        const u16 words = static_cast<u16>(w / 16u);
+        const u32 need_src = (planes > 1u ? eng::math::mulu16(static_cast<u16>(planes - 1u), static_cast<u16>(src_plane_stride / 2u)) : 0u)
+                           + (h > 1u ? eng::math::mulu16(static_cast<u16>(h - 1u), static_cast<u16>(src_row_bytes / 2u)) : 0u)
+                           + static_cast<u32>(words);
+        const u32 need_mask = (h > 1u ? eng::math::mulu16(static_cast<u16>(h - 1u), static_cast<u16>(src_row_bytes / 2u)) : 0u)
+                            + static_cast<u32>(words);
+        if (src.size() < need_src || mask.size() < need_mask) return false;
+        const u16 x_byte = static_cast<u16>(wx / 8u);
+        const s16 src_mod = static_cast<s16>(src_row_bytes - words * 2);
+        const s16 dst_mod = static_cast<s16>(m_bytes_per_row - words * 2);
+        const u16* sbase = src.data();
+        const u16* mbase = mask.data();
+        for (u8 p = 0; p < planes; ++p) {
+            const u16* s = sbase + eng::math::mulu16(p, static_cast<u16>(src_plane_stride / 2u));
+            u16* d = reinterpret_cast<u16*>(m_frontbuffer + static_cast<u32>(p) * m_plane_stride +
+                                            static_cast<u32>(wy) * m_row_stride + x_byte);
+            graphics::BlitJob job {
+                graphics::BlitJobKind::MaskedBobCookieCut, graphics::BlitSource {mbase}, graphics::BlitSource {s}, graphics::BlitDest {d},
+                words, h, src_mod, dst_mod,
+                1, 0, src_plane_stride, m_plane_stride, false
+            };
+            if (!plan.add_masked_bob(job)) return false;
+        }
+        return true;
     }
 
 private:

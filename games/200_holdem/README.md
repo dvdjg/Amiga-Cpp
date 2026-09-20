@@ -23,7 +23,7 @@ CPU (asientos 1 y 2) con el joystick.
   mano (ganar/perder → confianza, tilt, racha).
 - Perfil de memoria **N20** (heurística + fuerza, sin Monte Carlo): cabe en un A500 (ver
   `demos/amiga/124_cards_bench`).
-- Display: `StaticEhbScene` (320×256) rasterizado a los bitplanes por CPU (patrón de la
+- Display: escena EHB `scene::compose` (320×256) rasterizada a los bitplanes por CPU (patrón de la
   demo 060).
 
 ## Visual

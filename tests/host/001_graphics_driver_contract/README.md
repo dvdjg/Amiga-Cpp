@@ -6,8 +6,8 @@ compilación los conceptos del ciclo de instalación del display definidos en
 
 | Concepto | Qué exige | Qué tipos lo cumplen |
 |---|---|---|
-| `DisplayDriver<Driver, Backend>` | `takeover(backend)` + `install(backend)` | drivers y compositores que producen copperlist: `StaticEhbScene`, `TileScrollScene` (single/dual), `XlimitedDisplayComposer`, `XlimitedDualComposer`, `DpfDisplayComposer`, `XlimitedScene`. |
-| `GraphicsDriver<Driver, Backend>` | todo lo de `DisplayDriver` + `Driver::id` + `begin_frame/end_frame` | solo drivers gráficos completos: `StaticEhbScene`. |
+| `DisplayDriver<Driver, Backend>` | `takeover(backend)` + `install(backend)` | drivers y compositores que producen copperlist: `CanvasScene`, `TileScrollScene` (single/dual), `XlimitedDisplayComposer`, `XlimitedDualComposer`, `DpfDisplayComposer`, `XlimitedScene`. |
+| `GraphicsDriver<Driver, Backend>` | todo lo de `DisplayDriver` + `Driver::id` + `begin_frame/end_frame` | solo drivers gráficos completos: `CanvasScene`. |
 
 El test no instancia ni ejecuta nada: los `static_assert` fuerzan la resolución
 de las expresiones `requires`, de modo que si un driver pierde un método o un

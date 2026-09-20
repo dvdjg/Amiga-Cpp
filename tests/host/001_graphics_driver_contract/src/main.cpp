@@ -28,7 +28,7 @@
 #include <cstdio>
 
 #include <eng/graphics/driver.hpp>
-#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/drivers/canvas_scene.hpp>
 #include <eng/graphics/drivers/ehb_tile_scroll.hpp>
 #include <eng/graphics/drivers/tile_scroll.hpp>
 #include <eng/field/xlimited.hpp>
@@ -48,9 +48,9 @@ struct MockBackend {
 using eng::DisplayDriver;
 using eng::GraphicsDriver;
 
-// 1) Driver grafico completo: StaticEhbScene tiene id + begin/end_frame.
-static_assert(DisplayDriver<eng::graphics::drivers::StaticEhbScene, MockBackend>);
-static_assert(GraphicsDriver<eng::graphics::drivers::StaticEhbScene, MockBackend>);
+// 1) Driver grafico completo: CanvasScene tiene id + begin/end_frame.
+static_assert(DisplayDriver<eng::graphics::drivers::CanvasScene, MockBackend>);
+static_assert(GraphicsDriver<eng::graphics::drivers::CanvasScene, MockBackend>);
 
 // 2) Driver de scroll (single/dual): solo ciclo de display (no tiene id/hooks).
 static_assert(DisplayDriver<eng::graphics::drivers::EhbTileScrollScene, MockBackend>);

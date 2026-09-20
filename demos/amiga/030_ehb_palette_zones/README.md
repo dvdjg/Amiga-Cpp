@@ -24,8 +24,7 @@ close-to-the-metal: bitplanes EHB, punteros BPLx, modulo, DMA y cambios de palet
 por raster.
 
 La demo ya no programa esos registros directamente desde `main.cpp`. Usa
-`StaticEhbScene`, definido en
-`engine/include/eng/graphics/drivers/ehb_scene.hpp`, para reservar bitplanes y
+`scene::compose` (`engine/include/eng/graphics/scene/compose.hpp`) para reservar bitplanes y
 copperlist en Chip RAM, activar 6 planos EHB y compilar zonas de paleta a Copper.
 El codigo de la demo solo genera el patron planar de prueba y declara las paletas.
 
@@ -40,7 +39,7 @@ La demo arranca en negro y sube hasta `top_palette` en 32 frames mediante
 `PaletteTransitionEffect` (`eng/graphics/effects/palette_transition.hpp`) en modo una sola
 pasada (`ping_pong = false`). Despues repite un ciclo encendido/apagon de forma periodica
 con el mismo efecto, re-enlazando origen/destino por fase (cada rampa es una sola pasada).
-El efecto aporta un parche de paleta base al `FramePlan` y `StaticEhbScene` parchea los
+El efecto aporta un parche de paleta base y la escena (`palette_patchable`) parchea los
 `COLORxx`; la demo no toca registros. READY se marca cuando el primer encendido ha
 terminado (`kReadyFrame`), de modo que la captura del runner es siempre la escena
 encendida, no un frame de la transicion.

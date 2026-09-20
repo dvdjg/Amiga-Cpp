@@ -111,7 +111,7 @@ void build_cycle_test_pattern(eng::PlaneBytes planes) {
 /// La demo no redibuja pixels ni recompila toda la copperlist cada frame. Dos efectos
 /// aportan **parches de paleta distintos** al mismo `FramePlan`: el ciclo rota el tramo
 /// `COLOR01..07` y la transicion funde `COLOR16..31` entre la paleta base y una atenuada.
-/// `StaticEhbScene` parchea solo las words de valor de los MOVEs correspondientes. Ese es
+/// La escena parchea solo las words de valor de los MOVEs correspondientes. Ese es
 /// el patron que luego usaremos en drivers mas ambiciosos: el juego pide efectos, el plan
 /// describe los cambios y el driver decide como escribirlos en el hardware.
 struct DemoGame {

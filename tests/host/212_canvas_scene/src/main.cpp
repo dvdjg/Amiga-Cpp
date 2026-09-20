@@ -121,6 +121,19 @@ int main() {
 	check(ksurf.draw_line(0, 5, 15, 5, 2), "draw_line contiguo");
 	check(color_at_contiguous(s3, 8, 5) == 2u, "la linea contigua cae en el plano 1");
 
+	// Blit planar contiguo: un `CopyRect` por plano en el `FramePlan`.
+	u16 src[64] {};
+	u16 mask[16] {};
+	graphics::FramePlan plan {};
+	check(ksurf.blit(plan, Span<const u16> {src, 64}, 0, 0, 32, 4, 4, 16, 4),
+	      "Surface::blit contiguo encola");
+	check(plan.blit_job_count() == 4u, "blit contiguo = 1 job por plano");
+	graphics::FramePlan plan2 {};
+	check(ksurf.blit_masked(plan2, Span<const u16> {src, 64}, Span<const u16> {mask, 16},
+				0, 8, 32, 4, 4, 16, 4),
+	      "Surface::blit_masked contiguo encola");
+	check(plan2.blit_job_count() == 4u, "blit enmascarado contiguo = 1 job por plano");
+
 	if (failures == 0) {
 		std::printf("OK: scene::compose interleaved y contiguo (Surface + copperlist).\n");
 		return 0;

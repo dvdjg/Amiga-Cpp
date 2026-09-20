@@ -6,7 +6,7 @@
 // dibujando el resultado en BITPLANES REALES visibles en la ventana del Amiga
 // (no solo overlay del depurador).
 //
-// Display: `StaticEhbScene` (320x256, 6 planos EHB) — el mismo driver probado
+// Display: escena EHB (320x256, 6 planos) sobre `scene::compose` — el mismo modelo probado
 // de las demos 030/050. El texto se rasteriza por CPU con la fuente `Font8`
 // (LATIN-1) en el formato filas bit0=izquierda, coherente con el raster host.
 //
@@ -266,7 +266,7 @@ struct CoreSelfcheckDemo {
 
 private:
 /// Rasteriza un code point (UTF-8 ya decodificado) en los bitplanes EHB.
-    /// `planes` es la base de `StaticEhbScene`, que usa layout SEPARATE: cada
+    /// `planes` es la base de los planos EHB, con layout contiguo (SEPARATE): cada
     /// plano p vive a `planes + p*kPlaneBytes` y dentro del plano el byte es
     /// `y*kBytesPerRow + x/8` (BPLMOD=0 en el display). El glifo usa filas
     /// bit0=izquierda (Font8); el píxel (x+k,y+r) marca el bit 0x80>>((x+k)&7).

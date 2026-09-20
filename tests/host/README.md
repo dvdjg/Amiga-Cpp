@@ -42,7 +42,7 @@ dependen de hardware y no necesitan WinUAE.
 | ID | Test | Qué cubre |
 |----|------|-----------|
 | HOST-000 | [eng_core_math](000_eng_core_math/README.md) | `eng::core::isqrt`, `eng::core::quick_sort`, `eng::core::sort_items`, `Span` (port de `libmisc` de `demoscene-repo-orig`). |
-| HOST-001 | [graphics_driver_contract](001_graphics_driver_contract/README.md) | Conceptos `eng::DisplayDriver` y `eng::GraphicsDriver` del ciclo de instalación del display (takeover + install): validación compile-time con `static_assert` sobre `StaticEhbScene`, `TileScrollScene`, `XlimitedScene` y compositores DPF. |
+| HOST-001 | [graphics_driver_contract](001_graphics_driver_contract/README.md) | Conceptos `eng::DisplayDriver` y `eng::GraphicsDriver` del ciclo de instalación del display (takeover + install): validación compile-time con `static_assert` sobre `CanvasScene`, `TileScrollScene`, `XlimitedScene` y compositores DPF. |
 | HOST-002 | [raster_intent](002_raster_intent/README.md) | Vocabulario portable de intenciones de display: `Visual`, `CopperIntent`, `SpriteIntent` y concept `Effect` (base de la Oleada 1 de demoscene). |
 | HOST-003 | [sprite_allocator](003_sprite_allocator/README.md) | `eng::graphics::SpriteAllocator`: reparto de `SpriteIntent` entre 8 canales con multiplexado vertical y decisión overflow → BOB (paso 4 de `ENGINE_DESIGN.md` §5). |
 | HOST-004 | [input](004_input/README.md) | `eng::input::InputAggregator`: estado portable de entrada (pad CD32, ratón, teclado) — paso 6 de `ENGINE_DESIGN.md` §5. |
@@ -249,7 +249,7 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-206 | [sim_introspection](206_sim_introspection/README.md) | `eng/sim/introspection.hpp` (afecto desde los hechos del motor) + puente `eng/board/persona.hpp`; y `gestures_for_pace` (impaciencia/bostezo si el humano tarda). |
 | HOST-207 | [math_expr](207_math_expr/README.md) | `eng/core/expr.hpp`: expression templates lite (árbol en compilación, evaluación única, `converter` para `Fixed`, fusión por componente de `Vec`/`Mat`). |
 | HOST-211 | [mesh_poly_render](211_mesh_poly_render/README.md) | `eng/graphics/mesh_renderer.hpp::mesh_render_poly_filled`: malla n-gon (transform + culling por normal + `Surface::fill_polygon`) con `project_perspective` genérica sobre el escalar. |
-| HOST-212 | [canvas_scene](212_canvas_scene/README.md) | `eng/graphics/drivers/canvas_scene.hpp`: driver planar que expone `Surface` (`CanvasPlayfield` + copperlist interleaved), contrato `GraphicsDriver`/`DisplayDriver`. |
+| HOST-212 | [canvas_scene](212_canvas_scene/README.md) | `eng/graphics/scene/compose.hpp`: `field::Surface` sobre escena en layout **interleaved** y **contiguo** (`ContiguousPlayfield`): `fill_polygon`/`draw_line`/`blit` y doble buffer. |
 | HOST-213 | [outline_xor](213_outline_xor/README.md) | `eng/retro/flat_shade_xor.hpp`: técnica Amiga de contorno EOR + área fill XOR (secuencia de Blitter, horizontales descartadas, un fill). |
 | HOST-214 | [copper_patch](214_copper_patch/README.md) | `eng/copper::PatchHandle` (`scheduler.hpp`): MOVE parcheable por frame (precisión quirúrgica en el modelo de composición de escenas). |
 | HOST-215 | [scene_compose](215_scene_compose/README.md) | `eng/graphics/scene/compose.hpp`: escena planar por etapas (display + paleta + etapa propia con `PatchHandle`); presets en vez de clases por driver. |

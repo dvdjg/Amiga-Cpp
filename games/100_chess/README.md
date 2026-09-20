@@ -24,7 +24,7 @@ joystick (puerto 0) y el motor juega las **negras**.
 
 ## Visual
 
-`StaticEhbScene` (320×256, 6 planos EHB). El tablero (8×8 casillas de 24×24), las
+escena EHB `scene::compose` (320×256, 6 planos). El tablero (8×8 casillas de 24×24), las
 piezas (letras `K Q R B N P` de `Font8`) y el estado se rasterizan a los bitplanes
 por CPU (patrón de la demo 060): el tablero solo se redibuja cuando hay jugada o se
 mueve el cursor, así que no hace falta Blitter ni doble buffer.

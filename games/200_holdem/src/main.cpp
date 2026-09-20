@@ -9,7 +9,7 @@
 //     showdown) en No-Limit.
 //   * IA: `decide_with_plan` con perfil `N20` (heuristica preflop + fuerza de mano,
 //     sin Monte Carlo) para que quepa sobradamente en un A500.
-//   * DISPLAY: `StaticEhbScene`(320x256) rasterizado por CPU (patron de la demo 060).
+//   * DISPLAY: escena EHB (320x256) sobre `scene::compose`, rasterizada por CPU (patron de la demo 060).
 //
 // Controles: izquierda/derecha eligen accion; FIRE la confirma. Al terminar la mano,
 // FIRE reparte la siguiente.

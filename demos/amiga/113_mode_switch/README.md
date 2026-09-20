@@ -18,7 +18,7 @@ Es la pieza de Fase 1b del refactor de playfields (`REFACTOR_PLAYFIELD_SCROLL.md
 ```
 
 - **Campo**: `BPLCON0 = 0x5200` (BPU=5), `emit_planes_display` con 5 planos
-  contiguos (mod=0, mismo layout que `StaticEhbScene`).
+  contiguos (mod=0, layout contiguo).
 - **HUD**: `ModeSwitchZone` con `BPLCON0 = 0x2200` (BPU=2), el mismo `DDF`/módulos y
   los punteros a un bloque de 2 planos. Detrás van 3 planos "veneno" a `0xFF`: si la
   conmutación no se aplicara y el HUD siguiera leyendo 5 planos, los bits altos

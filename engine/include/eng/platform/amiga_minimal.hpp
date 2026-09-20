@@ -259,8 +259,7 @@ public:
 	/// Ejecuta los trabajos hardware descritos por un `FramePlan`.
 	///
 	/// Por ahora solo materializa BOBs enmascarados mediante Blitter. Los parches de
-	/// paleta pertenecen al driver grafico (`StaticEhbScene`) porque son offsets
-	/// internos de su copperlist.
+	/// paleta pertenecen a la escena (offsets internos de su copperlist).
 	bool execute_frame_plan(const graphics::FramePlan& plan);
 
 	/// Base de registros custom (`$dff000`). Para rutinas de lote `inline` (p. ej.

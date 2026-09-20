@@ -39,7 +39,7 @@ namespace {
 ///   │ barras que reciclan 4 colores │
 ///   └──────────────────────────────┘  y=256
 ///
-/// El campo usa 5 planos interleaved-contiguos (mod=0, como `StaticEhbScene`) y el
+/// El campo usa 5 planos interleaved-contiguos (mod=0, layout contiguo) y el
 /// HUD cambia, en el raster de corte, `BPLCON0` (BPU 5 -> 2) y los punteros, con el
 /// orden canónico MI09. Detrás de los 2 planos del HUD se colocan 3 planos "veneno"
 /// a 0xFF: si la conmutación no se aplica y el HUD siguiera leyendo 5 planos, las

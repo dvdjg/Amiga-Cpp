@@ -36,17 +36,17 @@ La primera prueba ejecutable es `demos/amiga/030_ehb_palette_zones`: genera una 
 planar de indices 0..63 y usa el Copper para cambiar la paleta completa en tres
 zonas verticales.
 
-El primer bloque reutilizable ya existe en
-`engine/include/eng/graphics/drivers/ehb_scene.hpp`:
+La escena EHB se construye con el modelo de etapas `scene::compose` (ver más abajo) sobre los
+tipos de valor del engine:
 
 - `eng::Palette32` / `eng::Palette32Zone` (`engine/include/eng/graphics/palette32.hpp`): 32
   colores físicos RGB444 y cambio de paleta asociado a una línea raster. Son tipos de valor
   del engine, independientes de cualquier driver.
-- `StaticEhbSceneConfig`: descripcion de una escena EHB estatica.
-- `StaticEhbScene`: reserva bitplanes/copperlist en Chip RAM, programa display
-  320x256 EHB, activa bitplane DMA y construye la copperlist final.
+- `scene::SceneResources` + etapas `display`/`palette`/`palette_zones`: reservan
+  bitplanes/copperlist en Chip RAM, programan el display EHB 320×256, activan bitplane DMA y
+  construyen la copperlist final.
 
-La copperlist ya pasa por `engine/include/eng/graphics/copper/scheduler.hpp`.
+La copperlist pasa por `engine/include/eng/graphics/copper/scheduler.hpp`.
 Este `CopperScheduler` minimo no resuelve todavia conflictos complejos, pero ya
 centraliza el setup EHB, las paletas y las zonas raster, y devuelve un informe de
 coste para que las pruebas y el futuro exportador UAF-R puedan detectar escenas
@@ -69,7 +69,7 @@ degradados por **linea/banda** (`COLORxx` por franja) esta `RasterGradientEffect
 colores clave y las aporta al `copper::Plan`, que las **ordena por scanline** y las
 presupuesta (ver `plan.hpp`); la demo `085_copper_plan_scene` lo usa para el cielo.
 La demo ya usa `engine/include/eng/graphics/frame_plan.hpp`: cada efecto genera un
-parche de paleta en `FramePlan` y `StaticEhbScene` actualiza solo los valores de
+parche de paleta en `FramePlan` y la escena actualiza solo los valores de
 los MOVEs `COLORxx` existentes, sin recompilar la copperlist completa. Los parches de
 efectos distintos se componen sin solaparse.
 
