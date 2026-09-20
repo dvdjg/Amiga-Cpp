@@ -33,7 +33,8 @@
 #include <eng/core/util/text.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
-#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/palette32.hpp>
+#include <eng/graphics/scene/compose.hpp>
 #include <eng/graphics/font8.hpp>
 #include <eng/input/input.hpp>
 #include <eng/platform/amiga_minimal.hpp>
@@ -58,7 +59,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-namespace drivers = eng::graphics::drivers;
+namespace scene = eng::graphics::scene;
 using namespace eng::board;
 using namespace eng::board::go;
 using eng::u8;
@@ -66,11 +67,11 @@ using eng::u16;
 using eng::u32;
 using eng::s32;
 
-constexpr eng::u16 kScreenW = drivers::StaticEhbScene::width;
-constexpr eng::u16 kScreenH = drivers::StaticEhbScene::height;
-constexpr eng::u16 kBytesPerRow = drivers::StaticEhbScene::bytes_per_row;
-constexpr eng::u8 kPlanes = drivers::StaticEhbScene::plane_count;
-constexpr eng::u32 kPlaneBytes = drivers::StaticEhbScene::plane_bytes;
+constexpr eng::u16 kScreenW = 320u;
+constexpr eng::u16 kScreenH = 256u;
+constexpr eng::u16 kBytesPerRow = 40u;
+constexpr eng::u8 kPlanes = 6u;
+constexpr eng::u32 kPlaneBytes = 10240u;
 
 constexpr eng::s32 kCell = 20;
 constexpr eng::s32 kBoardX = 64;
@@ -91,14 +92,16 @@ struct GoGame {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({96u * 1024u, 24u * 1024u, 4u * 1024u});
 
-		const drivers::EhbPalette palette {
+		const eng::Palette32 palette {
 			0x000, 0x123, 0x5b3, 0x263, 0xff0, 0xf00, 0x000, 0x000,
 			0x210, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
 			0x000, 0x000, 0x000, 0x000, 0x0cf, 0x000, 0x000, 0x000,
 			0x610, 0x000, 0xf40, 0x000, 0x000, 0x000, 0xff0, 0xfff,
 		};
-		const drivers::StaticEhbSceneConfig scene_config {&palette, nullptr, 0, 1024};
-		m_scene_ok = m_scene.init(backend.memory(), scene_config);
+		scene::SceneResources res = scene::ehb(320, 256);
+		m_scene_ok = scene::compose(m_scene, backend.memory(), res,
+					scene::display(scene::kPal320x256, scene::kBplcon0_Ehb),
+					scene::palette(eng::PaletteWords {palette.color, 32u}, 0u, 32u));
 		if (!m_memory_ok || !m_scene_ok) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00010101u);
 			return;
@@ -110,7 +113,7 @@ struct GoGame {
 		copy_text(m_status, "Tu turno (negras): coloca una piedra con FIRE");
 
 		redraw();
-		backend.takeover_display(m_scene.copper_words_ptr());
+		m_scene.takeover(backend);
 		eng::debug::mark_ready(g_eng_run_status, 0x000101FFu);
 	}
 
@@ -403,7 +406,7 @@ private:
 
 	static constexpr eng::usize kStatusCap = 120;
 
-	drivers::StaticEhbScene m_scene {};
+	scene::Scene m_scene {};
 	bool m_memory_ok = false;
 	bool m_scene_ok = false;
 	Position m_pos {};
