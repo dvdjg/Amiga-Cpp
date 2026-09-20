@@ -52,4 +52,8 @@ tiene 4 colores (fondo, barra, **línea amarilla** por Blitter, borde). `runStat
 lleva la media móvil del throughput del fondo (bits 16+, `RingBuffer`) y los segundos del
 RTC (bits bajos). Analizador propio (`analyze-screenshot.sh`).
 
+La config (`kSceneResources`) es `constexpr`: `static_assert` valida la escena contra
+`ocs_a500` y comprueba que `display_words`+`palette_words` caben en `copper_word_budget`
+(puerta de presupuesto en compilación, sin ejecutar la escena).
+
 Ver `docs/engine/architecture/BACKGROUND_TASKS.md`.

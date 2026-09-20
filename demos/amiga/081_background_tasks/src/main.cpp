@@ -62,6 +62,18 @@ constexpr eng::u16 kLineBandTop = 176;
 constexpr eng::u16 kLineBandRows = 24;
 constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * kHeight;
 
+/// Recursos de la escena (constantes de compilación): validan la config contra el perfil y
+/// acotan el presupuesto de Copper con `static_assert`, sin ejecutar la escena.
+constexpr scene::SceneResources kSceneResources = scene::planar(kWidth, kHeight, kPlanes);
+static_assert(scene::valid_scene(kSceneResources, scene::ocs_a500),
+	      "081: config valida para el A500 (320x256, 4 planos)");
+static_assert(scene::display_words(kSceneResources) == 36u,
+	      "081: display emite 20 MOVEs fijos + 4 por plano");
+static_assert(scene::palette_words(1u, 15u, 16u) == 30u, "081: palette = 15 colores x 2 palabras");
+static_assert(scene::display_words(kSceneResources) + scene::palette_words(1u, 15u, 16u) <=
+		      scene::copper_word_budget(kSceneResources),
+	      "081: display + palette caben en la copperlist");
+
 /// Paleta: COLOR00 lo controla el bucle principal (no la lista); COLOR01 = blanco
 /// (la barra); COLOR02 = amarillo (la linea). El resto a negro.
 constexpr eng::u16 kPalette[32] = {
@@ -118,7 +130,7 @@ struct BackgroundDemo {
 		}
 
 		if (!scene::compose(m_scene, backend.memory(),
-				    scene::planar(kWidth, kHeight, kPlanes), scene::ocs_a500,
+				    kSceneResources, scene::ocs_a500,
 				    scene::display(scene::kPal320x256, scene::kBplcon0_4Planes),
 				    scene::palette(eng::PaletteWords {kPalette, 16}, 1u, 15u))) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008102u);

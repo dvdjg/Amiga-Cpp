@@ -255,6 +255,30 @@ int main() {
 		check(e.code == 5u, "validate: 7 planos en OCS = codigo 5 (planos)");
 	}
 
+	// --- Huella estatica de las etapas de forma conocida ---------------------------
+	// Las funciones `*_words` permiten `static_assert` sobre el presupuesto; aqui se fijan
+	// sus valores y se comprueba que coinciden con la emision real (`Scene::words()`).
+	static_assert(graphics::scene::display_words(graphics::scene::planar(320, 256, 4)) == 36u);
+	static_assert(graphics::scene::display_words(graphics::scene::planar(320, 256, 6)) == 44u);
+	static_assert(graphics::scene::palette_words(0u, 4u, 4u) == 8u);
+	static_assert(graphics::scene::palette_words(1u, 15u, 16u) == 30u);
+	static_assert(graphics::scene::palette_zone_words(0u, 4u, 4u) == 10u);
+	{
+		// s1: display(36) + palette(8) + patch(2) + fin de lista(2).
+		const u16 expected_s1 =
+			static_cast<u16>(graphics::scene::display_words(s.resources()) +
+					 graphics::scene::palette_words(0u, 4u, 4u) + 2u + 2u);
+		check(s.words() == expected_s1,
+		      "s1: display+palette+patch coinciden con la huella estatica");
+		// s2: display(36) + 2 zonas(10 cada una) + row_repeat(256) + fin(2).
+		const u16 expected_s2 = static_cast<u16>(
+			graphics::scene::display_words(r2) +
+			2u * graphics::scene::palette_zone_words(0u, 4u, 4u) +
+			graphics::scene::row_repeat_words(8u, 4u, 0x2cu) + 2u);
+		check(s2.words() == expected_s2,
+		      "s2: display+zonas+row_repeat coinciden con la huella estatica");
+	}
+
 	if (failures == 0) {
 		std::printf("OK: scene::compose (etapas display/paleta/zonas/row_repeat + PatchHandle + ciclo de vida).\n");
 		return 0;

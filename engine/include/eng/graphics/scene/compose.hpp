@@ -606,6 +606,37 @@ using ZoneBinding = PatchZone;
 	return static_cast<u16>(res.copper_bytes / 2u);
 }
 
+/// **Huella en palabras** de la etapa `display(res, ...)`: 10 MOVEs fijos (`DMACON`,
+/// `BPLCON0`, `BPLCON1`, `BPLCON2`, `BPL1MOD`, `BPL2MOD`, `DIWSTRT`, `DIWSTOP`, `DDFSTRT`,
+/// `DDFSTOP`) más el par `BPLxPTH`+`BPLxPTL` de cada plano. Igual en layout contiguo e
+/// interleaved.
+[[nodiscard]] constexpr u16 display_words(const SceneResources& res) {
+	return static_cast<u16>(20u + 4u * res.planes);
+}
+
+/// **Huella en palabras** de la etapa `palette(colors, first, count)`: 2 por color efectivo,
+/// con el mismo recorte que `Scheduler::emit_palette` (a `32 - first` y al tamaño de la
+/// paleta).
+[[nodiscard]] constexpr u16 palette_words(u8 first, u8 count, eng::u32 palette_size) {
+	if (first >= 32u || palette_size == 0u || static_cast<eng::u32>(first) >= palette_size) {
+		return 0u;
+	}
+	eng::u32 c = count;
+	if (static_cast<eng::u32>(first) + c > 32u) {
+		c = 32u - first;
+	}
+	if (static_cast<eng::u32>(first) + c > palette_size) {
+		c = palette_size - static_cast<eng::u32>(first);
+	}
+	return static_cast<u16>(c * 2u);
+}
+
+/// **Huella en palabras** de una zona de `palette_zones`: WAIT de línea (2) más 2 por color
+/// efectivo (`Scheduler::emit_palette_zone_at`).
+[[nodiscard]] constexpr u16 palette_zone_words(u8 first, u8 count, eng::u32 palette_size) {
+	return static_cast<u16>(2u + palette_words(first, count, palette_size));
+}
+
 /// **Huella en palabras** de la etapa `row_repeat(rows, repeat, first_line)`: un WAIT de
 /// línea (2 palabras, +2 la primera vez que el contador cruza la 255 por el par de overflow)
 /// más 3 MOVEs (6 palabras) por cada una de las `rows * repeat` líneas. Etapa de **forma
