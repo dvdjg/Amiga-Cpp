@@ -121,18 +121,60 @@ int main() {
 	check(ksurf.draw_line(0, 5, 15, 5, 2), "draw_line contiguo");
 	check(color_at_contiguous(s3, 8, 5) == 2u, "la linea contigua cae en el plano 1");
 
-	// Blit planar contiguo: un `CopyRect` por plano en el `FramePlan`.
+	// Blit planar contiguo por **Blitter** (BlitterRaster): un `CopyRect` por plano.
+	s3.set_raster(&field::kBlitterRaster);
 	u16 src[64] {};
 	u16 mask[16] {};
 	graphics::FramePlan plan {};
 	check(ksurf.blit(plan, Span<const u16> {src, 64}, 0, 0, 32, 4, 4, 16, 4),
-	      "Surface::blit contiguo encola");
+	      "Surface::blit (Blitter) encola");
 	check(plan.blit_job_count() == 4u, "blit contiguo = 1 job por plano");
 	graphics::FramePlan plan2 {};
 	check(ksurf.blit_masked(plan2, Span<const u16> {src, 64}, Span<const u16> {mask, 16},
 				0, 8, 32, 4, 4, 16, 4),
-	      "Surface::blit_masked contiguo encola");
+	      "Surface::blit_masked (Blitter) encola");
 	check(plan2.blit_job_count() == 4u, "blit enmascarado contiguo = 1 job por plano");
+
+	// Blit por **CPU** (CpuRaster): copia los pixeles sin encolar jobs.
+	s3.set_raster(&field::kCpuRaster);
+	u16 src2[64];
+	for (u16 i = 0; i < 64u; ++i) src2[i] = 0xffffu;
+	graphics::FramePlan plan3 {};
+	check(ksurf.blit(plan3, Span<const u16> {src2, 64}, 0, 16, 32, 4, 4, 16, 4),
+	      "Surface::blit (CPU) copia");
+	check(plan3.blit_job_count() == 0u, "blit CPU no encola jobs");
+	check(color_at_contiguous(s3, 0, 16) == 0x0fu, "blit CPU escribe los pixeles");
+
+	// --- RasterOp: operaciones logicas uniformes (seam CPU/Blitter) -----------
+	Scene s4;
+	check(graphics::scene::compose(
+		      s4, mem, graphics::scene::planar(320, 256, 4), graphics::scene::ocs_a500,
+		      graphics::scene::display(graphics::scene::kPal320x256,
+					       graphics::scene::kBplcon0_4Planes)),
+	      "escena para RasterOp compone");
+	field::Surface r4 = s4.surface();
+	r4.fill_rect(0, 0, 32, 8, 3u, field::RasterOp::Copy);
+	check(color_at_contiguous(s4, 0, 0) == 3u, "RasterOp::Copy escribe el color");
+	r4.fill_rect(0, 0, 32, 8, 3u, field::RasterOp::Xor);
+	check(color_at_contiguous(s4, 0, 0) == 0u, "Xor dos veces = 0");
+	r4.fill_rect(0, 0, 32, 8, 1u, field::RasterOp::Or);
+	check(color_at_contiguous(s4, 0, 0) == 1u, "Or enciende el plano");
+	r4.fill_rect(0, 0, 32, 8, 1u, field::RasterOp::And);
+	check(color_at_contiguous(s4, 0, 0) == 1u, "And conserva el plano 1");
+	r4.fill_rect(0, 0, 32, 8, 0u, field::RasterOp::Clear);
+	check(color_at_contiguous(s4, 0, 0) == 0u, "Clear borra");
+
+	// BlitterRaster: el relleno va por `fill_polygon` (sink/Blitter si lo hay; CPU si no).
+	Scene s5;
+	check(graphics::scene::compose(
+		      s5, mem, graphics::scene::planar(320, 256, 4), graphics::scene::ocs_a500,
+		      graphics::scene::display(graphics::scene::kPal320x256,
+					       graphics::scene::kBplcon0_4Planes)),
+	      "escena para BlitterRaster compone");
+	s5.set_raster(&field::kBlitterRaster, field::RasterPolicy {field::AccelMode::Blitter, 0u, true});
+	field::Surface r5 = s5.surface();
+	check(r5.fill_rect(0, 0, 32, 8, 5u), "BlitterRaster::fill_rect encola/pinta");
+	check(color_at_contiguous(s5, 8, 4) == 5u, "BlitterRaster pinta el color pedido");
 
 	if (failures == 0) {
 		std::printf("OK: scene::compose interleaved y contiguo (Surface + copperlist).\n");

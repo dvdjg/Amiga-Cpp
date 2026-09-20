@@ -26,6 +26,7 @@
 #include <eng/core/utf8.hpp>
 #include <eng/core/ptr.hpp>
 #include <eng/field/playfield.hpp>
+#include <eng/field/raster.hpp>
 #include <eng/graphics/font5x7.hpp>
 #include <eng/graphics/font8.hpp>
 
@@ -63,9 +64,9 @@ public:
         return m_target->write_pixel(x, y, color);
     }
 
-    /// Rectángulo relleno (CPU), recortado. true si todo el rect estaba dentro.
-    /// Escribe una palabra por plano en cada fila (`Playfield::draw_span`).
-    bool fill_rect(s32 x, s32 y, u16 w, u16 h, u8 color) {
+    /// Rectángulo relleno (CPU o Blitter según el `Rasterizer` del playfield), recortado,
+    /// con la operación lógica `op` (`Copy` por defecto). true si todo el rect estaba dentro.
+    bool fill_rect(s32 x, s32 y, u16 w, u16 h, u8 color, RasterOp op = RasterOp::Copy) {
         if (!valid()) return false;
         if (w == 0u || h == 0u) return true;
         const s32 x1 = x + static_cast<s32>(w) - 1;
@@ -80,9 +81,9 @@ public:
         const s32 ry0 = y < cy0 ? cy0 : y;
         const s32 ry1 = y1 > cy1 ? cy1 : y1;
         if (rx1 < rx0 || ry1 < ry0) return false; // rect fuera del clip
-        for (s32 gy = ry0; gy <= ry1; ++gy) {
-            m_target->draw_span(rx0, rx1, gy, color);
-        }
+        rasterizer()->fill_rect(*m_target.get(), rx0, ry0,
+                                static_cast<u16>(rx1 - rx0 + 1),
+                                static_cast<u16>(ry1 - ry0 + 1), color, op);
         return fully_inside;
     }
 
@@ -254,8 +255,8 @@ public:
         if (!valid() || x < m_clip.x || y < m_clip.y ||
             x + static_cast<s32>(w) > m_clip.x + m_clip.w ||
             y + static_cast<s32>(h) > m_clip.y + m_clip.h) return false;
-        return m_target->add_world_bitmap(plan, src, x, y, w, h,
-                                          src_row_bytes, src_plane_stride, planes);
+        return rasterizer()->copy_rect(*m_target.get(), plan, src, x, y, w, h,
+                                       src_row_bytes, src_plane_stride, planes);
     }
 
     /// BOB enmascarado (cookie-cut) en el mundo, recortado contra el clip.
@@ -265,11 +266,16 @@ public:
         if (!valid() || x < m_clip.x || y < m_clip.y ||
             x + static_cast<s32>(w) > m_clip.x + m_clip.w ||
             y + static_cast<s32>(h) > m_clip.y + m_clip.h) return false;
-        return m_target->add_world_bitmap_masked(plan, src, mask, x, y, w, h,
-                                                 src_row_bytes, src_plane_stride, planes);
+        return rasterizer()->copy_masked(*m_target.get(), plan, src, mask, x, y, w, h,
+                                         src_row_bytes, src_plane_stride, planes);
     }
 
 private:
+    /// Rasterizador efectivo: el del playfield o el CPU por defecto.
+    Rasterizer* rasterizer() const {
+        Rasterizer* r = m_target->rasterizer();
+        return (r != nullptr) ? r : &kCpuRaster;
+    }
     /// Pinta los bits ACTIVOS de una fila de glifo como tramos horizontales (una palabra por
     /// plano, `Playfield::draw_span`). `msb_first` = el bit `nbits-1` es la columna 0 (fuente 5x7).
     void draw_glyph_row(s32 x, s32 y, u8 bits, u8 nbits, bool msb_first, u8 color) {

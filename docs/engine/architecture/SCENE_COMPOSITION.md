@@ -176,6 +176,26 @@ declarado por la máquina y la validación es agnóstica.
   (`move`/`wait` son `always_inline` y no validan). Regla: **estáticas siempre; dinámicas solo
   en setup/cierre de frame**.
 
+### 6.2 Rasterizado CPU/Blitter (`field/raster.hpp`)
+
+`Surface` es el **contexto de dispositivo**: expone la misma API
+(`set_pixel`/`draw_line`/`fill_rect`/`fill_polygon`/`blit`/`blit_masked`/`draw_text`) sin que
+el consumidor sepa si detrás hay CPU o Blitter. El seam está en `field::Rasterizer`:
+
+- `RasterOp` (`Copy`/`Or`/`And`/`Xor`/`Clear`): operación lógica de una escritura, uniforme
+  para CPU (lógica de palabras) y Blitter (`BlitJob::minterm`).
+- `RasterCaps` (lo declara el **backend**: hay Blitter, ancho de bus, fill/line/shift/minterms)
+  y `RasterPolicy` (lo elige la app: `AccelMode::Auto`/`Cpu`/`Blitter`, umbral de área,
+  `cpu_fast`).
+- `CpuRaster` (relleno por `draw_span_op`; copia por `Playfield::copy_rect_cpu`, con stores de
+  32 bits en 68020+) y `BlitterRaster` (relleno por `fill_polygon` → `PolygonFillSink`/Blitter;
+  copia por el `FramePlan`).
+- `Scene::set_raster(rasterizer, policy)` elige la implementación; `Surface` la lee del
+  playfield. El `PolygonFillSink` existente queda como una de las operaciones del seam.
+
+Extensión pendiente: relleno de rect **directo por Blitter** (BLTCON fill) y copia
+enmascarada por CPU con rutas por target.
+
 ## 7. Relación con lo que ya existe
 
 | Plano | Pieza existente | Falta |

@@ -35,6 +35,48 @@
 
 namespace eng::field {
 
+/// **Operación lógica** de una escritura sobre el bitmap: qué hace el dato con el
+/// contenido previo. El CPU la aplica con lógica de palabras; el Blitter, con el
+/// `minterm` equivalente (`BlitJob::minterm`). Permite una API de dibujo uniforme
+/// (`Surface::fill_rect(..., RasterOp::Xor)`) independiente de la implementación.
+enum class RasterOp : eng::u8 {
+	Copy = 0,  ///< `D = color` (por máscara)
+	Or = 1,    ///< `D |= color`
+	And = 2,   ///< `D &= color`
+	Xor = 3,   ///< `D ^= color`
+	Clear = 4, ///< `D = 0` (borrado)
+};
+
+/// **Modo de aceleración** de dibujo: elige la implementación (CPU/Blitter) de las
+/// operaciones de `Surface`. `Auto` decide por coste (área frente a `setup_cycles`).
+enum class AccelMode : eng::u8 {
+	Auto = 0,   ///< el rasterizador decide por coste
+	Cpu = 1,    ///< fuerza CPU
+	Blitter = 2 ///< prefiere Blitter (si el backend lo declara)
+};
+
+/// **Capacidades de rasterizado** que declara el backend: si hay Blitter y qué sabe
+/// hacer. El `RasterPolicy` (de la app) se contrasta con esto para elegir CPU/Blitter.
+struct RasterCaps {
+	bool blitter = false;        ///< ¿hay Blitter?
+	eng::u8 bus = 16;            ///< ancho de bus (16 OCS; 32/64 AGA con FMODE)
+	bool fill = false;           ///< relleno de polígonos (BLTCON fill)
+	bool line = false;           ///< trazado de líneas (BLTCON line)
+	bool shift = false;          ///< shifts A/B (origen no alineado a 16)
+	bool minterms = false;       ///< operaciones lógicas (minterm)
+	eng::u16 setup_cycles = 60;  ///< coste de arrancar un blit (para `Auto`)
+};
+
+/// **Política de rasterizado** (la elige la app/escena). No depende del backend; el
+/// backend solo declara sus `RasterCaps`.
+struct RasterPolicy {
+	AccelMode mode = AccelMode::Auto; ///< modo de aceleración
+	eng::u16 min_blit_pixels = 64;    ///< en `Auto`, área mínima para ir al Blitter
+	bool cpu_fast = true;             ///< rutas CPU de 32 bits (68020+)
+};
+
+class Rasterizer; ///< seam de rasterizado (definido en `raster.hpp`)
+
 /// Vista de hardware que el compositor de la escena necesita para programar el
 /// Copper. Es el contrato común de TODOS los playfields: BPL pointers, scroll
 /// fino/coarse, modulos y, en los playfields con wrap vertical (corkscrew), el
@@ -185,6 +227,75 @@ public:
         return true;
     }
 
+    /// `draw_span` con **operación lógica**. `Copy`/`Clear` reutilizan la ruta rápida
+    /// (`draw_span`); `Or`/`And`/`Xor` van por `write_planes_op` (palabra a palabra).
+    bool draw_span_op(s32 x0, s32 x1, s32 wy, u8 color, RasterOp op) {
+        if (op == RasterOp::Copy) return draw_span(x0, x1, wy, color);
+        if (op == RasterOp::Clear) return draw_span(x0, x1, wy, 0u);
+        if (!m_initialized || !in_bounds(x0, wy) || x1 < x0) return false;
+        const u32 pl = planeline_for(wy);
+        const u32 mir = mirror_planelines();
+        for (s32 x = x0; x <= x1;) {
+            const u32 byte = byte_for(x);
+            if (!supports_walk() && byte >= m_bytes_per_row) break;
+            const u32 bit = static_cast<u32>(x) & 15u;
+            const s32 remain = static_cast<s32>(16u - bit);
+            const s32 run = (x1 - x + 1 < remain) ? (x1 - x + 1) : remain;
+            const u16 hi = static_cast<u16>(0xFFFFu << (16u - static_cast<u32>(run)));
+            const u16 mask = static_cast<u16>(hi >> bit);
+            write_planes_op(pl, byte, mask, color, op);
+            if (mir != 0u) write_planes_op(pl + mir, byte, mask, color, op);
+            x += run;
+        }
+        return true;
+    }
+
+    /// Copia rectangular por **CPU** (palabra a palabra) sobre los planos. Cuando
+    /// `m_raster_policy.cpu_fast` está activo y origen y destino quedan alineados a 4
+    /// bytes, copia de 32 en 32 (ruta 68020+: `move.l`; *CPU blit assist*, ver
+    /// `docs/guides/optimization/OPTIMIZACION_GPP_68000.md`). No encola nada.
+    bool copy_rect_cpu(Span<const u16> src, s32 wx, s32 wy, u16 w, u16 h,
+                       u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
+        if (!m_initialized || src.empty() || planes == 0u) return false;
+        if (wx < 0 || (wx & 15) != 0 ||
+            static_cast<u32>(wx / 8) + (w / 8u) > m_bytes_per_row) {
+            return false;
+        }
+        if (wy < 0 || static_cast<u32>(wy) + h > m_height) return false;
+        const u16 words = static_cast<u16>(w / 16u);
+        const u32 need_src =
+            (planes > 1u ? eng::math::mulu16(static_cast<u16>(planes - 1u), static_cast<u16>(src_plane_stride / 2u)) : 0u) +
+            (h > 1u ? eng::math::mulu16(static_cast<u16>(h - 1u), static_cast<u16>(src_row_bytes / 2u)) : 0u) +
+            static_cast<u32>(words);
+        if (src.size() < need_src) return false;
+        const u16 x_byte = static_cast<u16>(wx / 8u);
+        const u16* sbase = src.data();
+        for (u8 p = 0; p < planes; ++p) {
+            const u16* s = sbase + eng::math::mulu16(p, static_cast<u16>(src_plane_stride / 2u));
+            for (u16 row = 0; row < h; ++row) {
+                const u16* srow = reinterpret_cast<const u16*>(
+                    reinterpret_cast<const eng::u8*>(s) + static_cast<u32>(row) * src_row_bytes);
+                u16* drow = reinterpret_cast<u16*>(
+                    m_frontbuffer + static_cast<u32>(p) * m_plane_stride +
+                    static_cast<u32>(wy + row) * m_row_stride + x_byte);
+                const bool wide = m_raster_policy.cpu_fast && words >= 2u &&
+                                  (reinterpret_cast<eng::uintptr>(srow) & 3u) == 0u &&
+                                  (reinterpret_cast<eng::uintptr>(drow) & 3u) == 0u;
+                u16 i = 0;
+                if (wide) {
+                    for (; i + 1u < words; i += 2u) {
+                        *reinterpret_cast<u32*>(drow + i) =
+                            *reinterpret_cast<const u32*>(srow + i);
+                    }
+                }
+                for (; i < words; ++i) {
+                    drow[i] = srow[i];
+                }
+            }
+        }
+        return true;
+    }
+
     // --- Layout planar para el sink de relleno (strides) ------------------
     /// Stride entre planos consecutivos y entre filas del MISMO plano. Los
     /// playfields del engine son INTERLEAVED (una fila de cada plano seguida),
@@ -197,6 +308,14 @@ public:
     /// Instala (o borra, con `{}`) el motor de **relleno por hardware** del
     /// playfield. Ver `PolygonFillSink`.
     void set_polygon_fill_sink(PolygonFillSink sink) { m_fill_sink = sink; }
+
+    /// **Rasterizador** (seam CPU/Blitter) que usan las `Surface` de este playfield.
+    /// `nullptr` = rasterizador CPU por defecto (lo resuelve `Surface`).
+    void set_rasterizer(Rasterizer* r) { m_rasterizer = r; }
+    [[nodiscard]] Rasterizer* rasterizer() const { return m_rasterizer; }
+    /// Política de aceleración (modo + umbrales); ver `RasterPolicy`.
+    void set_raster_policy(const RasterPolicy& p) { m_raster_policy = p; }
+    [[nodiscard]] const RasterPolicy& raster_policy() const { return m_raster_policy; }
 
     // --- Relleno de polígono (hook; el backend puede usar Blitter) --------
     /// Rellena un polígono **convexo** (scanline even-odd, CPU) con `color`. El
@@ -306,6 +425,28 @@ protected:
         }
     }
 
+    /// `write_planes` con **operación lógica** (`RasterOp`): aplica `color` a la palabra
+    /// con `|=`, `&=`, `^=` o `=`. Camino no caliente (la ruta `Copy` va por `draw_span`).
+    void write_planes_op(u32 planeline, u32 word_byte, u16 mask, u8 color, RasterOp op) {
+        const u32 pstride = (m_plane_stride != 0u) ? m_plane_stride : m_bytes_per_row;
+        const u32 rstride = (m_row_stride != 0u) ? m_row_stride : m_bytes_per_row;
+        u8* base = m_frontbuffer +
+                   eng::math::mulu16(static_cast<u16>(planeline), static_cast<u16>(rstride));
+        u32 off = word_byte;
+        for (u8 p = 0; p < m_planes; ++p) {
+            if (off >= m_total_bytes) return;
+            u16* w = reinterpret_cast<u16*>(base + off);
+            const u16 v = ((color & (1u << p)) != 0u) ? 0xffffu : 0x0000u;
+            switch (op) {
+                case RasterOp::Or: *w = static_cast<u16>(*w | (v & mask)); break;
+                case RasterOp::And: *w = static_cast<u16>(*w & static_cast<u16>(v | static_cast<u16>(~mask))); break;
+                case RasterOp::Xor: *w = static_cast<u16>(*w ^ (v & mask)); break;
+                default: *w = static_cast<u16>((*w & static_cast<u16>(~mask)) | (v & mask)); break;
+            }
+            off += pstride;
+        }
+    }
+
     u8* m_frontbuffer = nullptr; ///< base de los bitplanes (Chip RAM) del playfield
     u16 m_width = 0;             ///< ancho visible en píxeles
     u16 m_height = 0;            ///< alto en filas
@@ -316,6 +457,8 @@ protected:
     u32 m_row_stride = 0;        ///< bytes entre filas del mismo plano (0 = `m_bytes_per_row`)
     bool m_initialized = false;  ///< el playfield quedó listo para dibujar
     PolygonFillSink m_fill_sink {}; ///< motor de relleno por hardware (vacío = CPU)
+    Rasterizer* m_rasterizer = nullptr; ///< seam CPU/Blitter (nullptr = CPU por defecto)
+    RasterPolicy m_raster_policy {};    ///< política de aceleración
 };
 
 /// Lienzo plano: un playfield SIN tiles ni scroll, para blits y primitivas de

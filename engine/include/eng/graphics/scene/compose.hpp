@@ -202,6 +202,16 @@ public:
 	/// Palabras de Copper usadas por el programa.
 	[[nodiscard]] constexpr u16 words() const { return m_plan.words(); }
 
+	/// **Elige el rasterizador** (CPU/Blitter) de `surface()` y su política. El backend
+	/// declara sus `RasterCaps`; la app decide el `RasterPolicy` (`Auto`/`Cpu`/`Blitter`).
+	/// `nullptr` deja el CPU por defecto. No cambia la API de dibujo.
+	void set_raster(field::Rasterizer* r, const field::RasterPolicy& policy = {}) {
+		m_playfield.set_rasterizer(r);
+		m_playfield.set_raster_policy(policy);
+		m_contiguous.set_rasterizer(r);
+		m_contiguous.set_raster_policy(policy);
+	}
+
 	/// Toma el control mostrando el buffer 0 (una vez).
 	template <typename Backend>
 	void takeover(Backend& backend) {
