@@ -252,4 +252,5 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-212 | [canvas_scene](212_canvas_scene/README.md) | `eng/graphics/drivers/canvas_scene.hpp`: driver planar que expone `Surface` (`CanvasPlayfield` + copperlist interleaved), contrato `GraphicsDriver`/`DisplayDriver`. |
 | HOST-213 | [outline_xor](213_outline_xor/README.md) | `eng/retro/flat_shade_xor.hpp`: técnica Amiga de contorno EOR + área fill XOR (secuencia de Blitter, horizontales descartadas, un fill). |
 | HOST-214 | [copper_patch](214_copper_patch/README.md) | `eng/copper::PatchHandle` (`scheduler.hpp`): MOVE parcheable por frame (precisión quirúrgica en el modelo de composición de escenas). |
+| HOST-215 | [scene_compose](215_scene_compose/README.md) | `eng/graphics/scene/compose.hpp`: escena planar por etapas (display + paleta + etapa propia con `PatchHandle`); presets en vez de clases por driver. |
 | HOST-208 | [ptr](208_ptr/README.md) | `eng/core/ptr.hpp`: punteros "inteligentes" sin heap (`Ref` observador no propietario y anulable, `NonNull`, `Opt` opcional en sitio). |
