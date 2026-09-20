@@ -175,10 +175,15 @@ public:
 	}
 
 	/// Publica el buffer dibujado (`m_back`) repuntando los `BPLxPT` y avanza. La lista ya
-	/// está instalada; solo se parchean los punteros (doble buffer por `BPLxPT`).
+	/// está instalada; solo se parchean los punteros (doble buffer por `BPLxPT`). Sin
+	/// libcalls: el avance es comparación (no `%`) y el recorrido de planos avanza el
+	/// puntero (no `p * plane_bytes`).
 	void commit() {
 		patch_plane_pointers(m_back);
-		m_back = static_cast<u8>((m_back + 1u) % m_buffer_count);
+		++m_back;
+		if (m_back >= m_buffer_count) {
+			m_back = 0u;
+		}
 	}
 
 	/// Registra el parcheo de 32 bits del puntero `BPLxPT` del plano `p` (lo llama `display`).
@@ -205,16 +210,16 @@ private:
 	}
 
 	/// Repunta los `BPLxPT` al buffer `index` parcheando el copper. No aplica al interleaved
-	/// (usa un único `CanvasPlayfield`).
+	/// (usa un único `CanvasPlayfield`). Recorre los planos **avanzando el puntero** (sin
+	/// `p * plane_bytes`, que emitiría `__mulsi3` en 68000).
 	void patch_plane_pointers(u8 index) {
 		if (m_res.layout == SceneLayout::Interleaved || index >= m_buffer_count) {
 			return;
 		}
-		const eng::u8* base = m_buffers[index].view.data();
+		const eng::u8* addr = m_buffers[index].view.data();
 		for (u8 p = 0u; p < m_res.planes; ++p) {
-			const eng::uintptr ip = reinterpret_cast<eng::uintptr>(
-				base + static_cast<eng::u32>(p) * m_plane_bytes);
-			m_plane_patch[p].set(static_cast<eng::u32>(ip));
+			m_plane_patch[p].set(static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(addr)));
+			addr += m_plane_bytes;
 		}
 	}
 

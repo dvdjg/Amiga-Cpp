@@ -25,6 +25,7 @@
 /// contrato). El acceso crudo optimizado vive dentro del engine (núcleo), no en
 /// el código de la aplicación.
 
+#include <eng/core/arith.hpp>
 #include <eng/core/polygon.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
@@ -325,7 +326,9 @@ public:
 
     // --- Hooks (layout plano) ---------------------------------------------
     u32 planeline_for(s32 wy) const override {
-        return static_cast<u32>(wy) * m_planes;
+        // `wy * planes` con `mulu.w` (16x16 -> 32), no `__mulsi3`: es el camino por fila de
+        // las primitivas de `Surface` (write_pixel/draw_span) y del relleno de polígono.
+        return eng::math::mulu16(static_cast<u16>(wy), m_planes);
     }
     u32 byte_for(s32 wx) const override {
         return static_cast<u32>(wx / 8) & ~1u;
@@ -356,7 +359,7 @@ public:
         // canvas plano se muestra con fetch estándar (el compositor lo programa
         // así en su zona overlay); si se mostrara bajo el DDF $30 del corkscrew,
         // el offset de 16 px lo descuadraría (ver XlimitedDisplayComposer).
-        v.bpl1mod = static_cast<u16>(static_cast<u32>(m_bytes_per_row) * m_planes - (m_width / 8u));
+        v.bpl1mod = static_cast<u16>(eng::math::mulu16(m_bytes_per_row, m_planes) - (m_width / 8u));
         v.bpl2mod = v.bpl1mod;
         return v;
     }
@@ -376,22 +379,22 @@ public:
         if (wx < 0 || (wx & 15) != 0 || static_cast<u32>(wx / 8) + (w / 8u) > m_bytes_per_row) return false;
         if (wy < 0 || static_cast<u32>(wy) + h > m_height) return false;
         const u16 words = static_cast<u16>(w / 16u);
-        const u32 need_src = (planes > 1u ? (static_cast<u32>(planes - 1u) * (src_plane_stride / 2u)) : 0u)
-                           + (h > 1u ? (static_cast<u32>(h - 1u) * (src_row_bytes / 2u)) : 0u)
+        const u32 need_src = (planes > 1u ? eng::math::mulu16(static_cast<u16>(planes - 1u), static_cast<u16>(src_plane_stride / 2u)) : 0u)
+                           + (h > 1u ? eng::math::mulu16(static_cast<u16>(h - 1u), static_cast<u16>(src_row_bytes / 2u)) : 0u)
                            + static_cast<u32>(words);
         if (src.size() < need_src) return false;
         const u16 x_byte = static_cast<u16>(wx / 8u);
-        const u32 pl = static_cast<u32>(wy) * m_planes;
+        const u32 pl = eng::math::mulu16(static_cast<u16>(wy), m_planes);
         const s16 src_mod = static_cast<s16>(src_row_bytes - words * 2);
-        const s16 dst_mod = static_cast<s16>(m_bytes_per_row * m_planes - words * 2);
+        const s16 dst_mod = static_cast<s16>(eng::math::mulu16(m_bytes_per_row, m_planes) - words * 2);
         const u16* sbase = src.data();
         for (u8 p = 0; p < planes; ++p) {
-            const u16* s = sbase + static_cast<u32>(p) * (src_plane_stride / 2u);
-            u16* d = reinterpret_cast<u16*>(m_frontbuffer + (pl + static_cast<u32>(p)) * m_bytes_per_row + x_byte);
+            const u16* s = sbase + eng::math::mulu16(p, static_cast<u16>(src_plane_stride / 2u));
+            u16* d = reinterpret_cast<u16*>(m_frontbuffer + eng::math::mulu16(static_cast<u16>(pl + p), m_bytes_per_row) + x_byte);
             graphics::BlitJob job {
                 graphics::BlitJobKind::CopyRect, graphics::BlitSource {}, graphics::BlitSource {s}, graphics::BlitDest {d},
                 words, h, src_mod, dst_mod,
-                1, 0, src_plane_stride, static_cast<u32>(m_bytes_per_row * m_planes), false
+                1, 0, src_plane_stride, eng::math::mulu16(m_bytes_per_row, m_planes), false
             };
             if (!plan.add_copy_rect(job)) return false;
         }
@@ -409,25 +412,25 @@ public:
         const u16 words = static_cast<u16>(w / 16u);
         // El origen debe cubrir los `planes` planos; la máscara es UN plano de 1
         // bit, así que basta con una viaje de fila (h líneas de `src_row_bytes`).
-        const u32 need_src = (planes > 1u ? (static_cast<u32>(planes - 1u) * (src_plane_stride / 2u)) : 0u)
-                           + (h > 1u ? (static_cast<u32>(h - 1u) * (src_row_bytes / 2u)) : 0u)
+        const u32 need_src = (planes > 1u ? eng::math::mulu16(static_cast<u16>(planes - 1u), static_cast<u16>(src_plane_stride / 2u)) : 0u)
+                           + (h > 1u ? eng::math::mulu16(static_cast<u16>(h - 1u), static_cast<u16>(src_row_bytes / 2u)) : 0u)
                            + static_cast<u32>(words);
-        const u32 need_mask = (h > 1u ? (static_cast<u32>(h - 1u) * (src_row_bytes / 2u)) : 0u)
+        const u32 need_mask = (h > 1u ? eng::math::mulu16(static_cast<u16>(h - 1u), static_cast<u16>(src_row_bytes / 2u)) : 0u)
                             + static_cast<u32>(words);
         if (src.size() < need_src || mask.size() < need_mask) return false;
         const u16 x_byte = static_cast<u16>(wx / 8u);
-        const u32 pl = static_cast<u32>(wy) * m_planes;
+        const u32 pl = eng::math::mulu16(static_cast<u16>(wy), m_planes);
         const s16 src_mod = static_cast<s16>(src_row_bytes - words * 2);
-        const s16 dst_mod = static_cast<s16>(m_bytes_per_row * m_planes - words * 2);
+        const s16 dst_mod = static_cast<s16>(eng::math::mulu16(m_bytes_per_row, m_planes) - words * 2);
         const u16* sbase = src.data();
         const u16* mbase = mask.data();
         for (u8 p = 0; p < planes; ++p) {
-            const u16* s = sbase + static_cast<u32>(p) * (src_plane_stride / 2u);
-            u16* d = reinterpret_cast<u16*>(m_frontbuffer + (pl + static_cast<u32>(p)) * m_bytes_per_row + x_byte);
+            const u16* s = sbase + eng::math::mulu16(p, static_cast<u16>(src_plane_stride / 2u));
+            u16* d = reinterpret_cast<u16*>(m_frontbuffer + eng::math::mulu16(static_cast<u16>(pl + p), m_bytes_per_row) + x_byte);
             graphics::BlitJob job {
                 graphics::BlitJobKind::MaskedBobCookieCut, graphics::BlitSource {mbase}, graphics::BlitSource {s}, graphics::BlitDest {d},
                 words, h, src_mod, dst_mod,
-                1, 0, src_plane_stride, static_cast<u32>(m_bytes_per_row * m_planes), false
+                1, 0, src_plane_stride, eng::math::mulu16(m_bytes_per_row, m_planes), false
             };
             if (!plan.add_masked_bob(job)) return false;
         }
