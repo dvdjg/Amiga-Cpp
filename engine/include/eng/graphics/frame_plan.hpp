@@ -61,6 +61,9 @@ enum class BlitJobKind : u8 {
 	/// **Línea EOR (ONEDOT)** (`blitter_line_eor`): como `Line` pero XOR con `line_base`
 	/// (el canal D), base del contorno XOR de `flatshade-convex` (demo 116).
 	LineEor,
+	/// **Blit con operación lógica** (`B = D`): `A` = fuente, `B` = destino (mismo puntero),
+	/// minterm del job (`Or`/`And`/`Xor`). Base de sombras/glow/máscaras. Ver `RasterOp`.
+	LogicBlit,
 };
 
 /// Presupuesto acumulado de Blitter.
@@ -354,6 +357,12 @@ public:
 	/// El llamador rellena `source`/`destination` y deja `mask` vacia.
 	__attribute__((always_inline)) inline bool add_or_blob(const BlitJob& job) {
 		return add_blit_job(job, BlitJobKind::OrBlob);
+	}
+
+	/// **Blit con operación lógica** (`B = D`, minterm en `job.minterm`): `A` = fuente.
+	/// El llamador fija `source`/`destination` y el minterm (`Or`/`And`/`Xor`).
+	__attribute__((always_inline)) inline bool add_logic_blit(const BlitJob& job) {
+		return add_blit_job(job, BlitJobKind::LogicBlit);
 	}
 
 	/// **Línea por Blitter** (`BLTCON1` LINE) o **EOR/ONEDOT** (`LineEor`): `destination`

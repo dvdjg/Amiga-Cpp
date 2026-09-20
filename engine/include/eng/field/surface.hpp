@@ -229,16 +229,17 @@ public:
 
     /// Blit planar en el mundo (delega en el `Rasterizer`: CPU o Blitter). Recorta el
     /// rect contra el clip. `source_shift` (shifts A/B) y `descending` (blits solapados)
-    /// solo aplican al camino Blitter. La fuente viaja como `Span`.
+    /// solo aplican al camino Blitter. `op` (`Or`/`And`/`Xor`) aplica la operación lógica
+    /// (sombras/glow/máscaras). La fuente viaja como `Span`.
     bool blit(graphics::FramePlan& plan, Span<const u16> src, s32 x, s32 y,
               u16 w, u16 h, u16 src_row_bytes, u32 src_plane_stride, u8 planes,
-              u8 source_shift = 0u, bool descending = false) {
+              u8 source_shift = 0u, bool descending = false, RasterOp op = RasterOp::Copy) {
         if (!valid() || x < m_clip.x || y < m_clip.y ||
             x + static_cast<s32>(w) > m_clip.x + m_clip.w ||
             y + static_cast<s32>(h) > m_clip.y + m_clip.h) return false;
         return rasterizer()->copy_rect(*m_target.get(), plan, src, x, y, w, h,
                                        src_row_bytes, src_plane_stride, planes,
-                                       source_shift, descending);
+                                       source_shift, descending, op);
     }
 
     /// BOB enmascarado (cookie-cut) en el mundo, recortado contra el clip.

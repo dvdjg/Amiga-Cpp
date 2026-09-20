@@ -234,6 +234,32 @@ int main() {
 	check(eor_plan.blit_job_count() == 2u &&
 		      eor_plan.blit_job(0).kind == graphics::BlitJobKind::LineEor,
 	      "linea EOR usa BlitJobKind::LineEor");
+
+	// Blit con operacion logica (B=D, minterm por op): sombras/glow/mascaras.
+	s3.set_raster(&field::kBlitterRaster);
+	graphics::FramePlan or_plan {};
+	check(ksurf.blit(or_plan, Span<const u16> {src, 64}, 0, 48, 32, 4, 4, 16, 4, 0u, false,
+			 field::RasterOp::Or),
+	      "blit con RasterOp::Or encola");
+	check(or_plan.blit_job_count() == 4u &&
+		      or_plan.blit_job(0).kind == graphics::BlitJobKind::LogicBlit,
+	      "blit Or usa BlitJobKind::LogicBlit");
+
+	// Colision pixel-perfect por CPU (referencia del camino Blitter).
+	{
+		eng::u8 ma[64] = {};
+		eng::u8 mb[64] = {};
+		ma[0] = 0x80; // pixel (0,0) de la mascara A
+		mb[0] = 0x80; // mismo pixel -> colision
+		check(field::collide_cpu(eng::PlaneBytes {ma, 64}, eng::PlaneBytes {mb, 64},
+					 16u, 2u, 1u, 0u, 0u, 1u, 1u),
+		      "collide_cpu detecta el solape");
+		mb[0] = 0x40; // pixel distinto -> sin colision
+		check(!field::collide_cpu(eng::PlaneBytes {ma, 64}, eng::PlaneBytes {mb, 64},
+					  16u, 2u, 1u, 0u, 0u, 1u, 1u),
+		      "collide_cpu sin solape");
+	}
+
 	graphics::FramePlan line_plan3 {};
 	(void)s6.surface().draw_line(-100, -100, -50, -50, 5u, &line_plan3);
 	check(line_plan3.blit_job_count() == 0u, "linea fuera del clip no encola (CPU)");

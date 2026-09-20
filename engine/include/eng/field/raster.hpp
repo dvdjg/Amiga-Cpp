@@ -76,6 +76,32 @@ struct ClipRect {
 	}
 }
 
+/// **Colisión pixel-perfect por CPU** (referencia del camino Blitter): `true` si algún
+/// bit de `a & b` (mismos planos, layout contiguo) está a 1 en el rect de `words`×`rows`
+/// que empieza en `(x_word, y)`. El backend hace el AND con el Blitter (`$80`) y escanea
+/// el resultado; esta es la misma prueba sin hardware.
+[[nodiscard]] inline bool collide_cpu(eng::PlaneBytes a, eng::PlaneBytes b,
+				      eng::u32 plane_bytes, eng::u16 row_bytes, eng::u8 planes,
+				      eng::u16 x_word, eng::u16 y, eng::u16 words, eng::u16 rows) {
+	if (a.empty() || b.empty() || planes == 0u) return false;
+	for (eng::u8 p = 0; p < planes; ++p) {
+		const eng::u8* pa = a.data() + static_cast<eng::u32>(p) * plane_bytes;
+		const eng::u8* pb = b.data() + static_cast<eng::u32>(p) * plane_bytes;
+		for (eng::u16 r = 0; r < rows; ++r) {
+			const eng::u16* wa = reinterpret_cast<const eng::u16*>(
+				pa + static_cast<eng::u32>(y + r) * row_bytes +
+				static_cast<eng::u32>(x_word) * 2u);
+			const eng::u16* wb = reinterpret_cast<const eng::u16*>(
+				pb + static_cast<eng::u32>(y + r) * row_bytes +
+				static_cast<eng::u32>(x_word) * 2u);
+			for (eng::u16 i = 0; i < words; ++i) {
+				if ((wa[i] & wb[i]) != 0u) return true;
+			}
+		}
+	}
+	return false;
+}
+
 /// Interfaz de rasterizado. `Surface` no sabe qué implementación hay detrás.
 class Rasterizer {
 public:
@@ -89,11 +115,13 @@ public:
 			       eng::s32 x1, eng::s32 y1, eng::u8 color,
 			       graphics::FramePlan* plan = nullptr,
 			       RasterOp op = RasterOp::Copy) = 0;
-	/// Copia rectangular (blit planar): encola el trabajo en `plan`.
+	/// Copia rectangular (blit planar): encola el trabajo en `plan`. `op` (`Or`/`And`/
+	/// `Xor`) aplica la operación lógica con `B = D` (sombras/glow/máscaras).
 	virtual bool copy_rect(Playfield& pf, graphics::FramePlan& plan, eng::Span<const eng::u16> src,
 			       eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h,
 			       eng::u16 src_row_bytes, eng::u32 src_plane_stride, eng::u8 planes,
-			       eng::u8 source_shift = 0u, bool descending = false) = 0;
+			       eng::u8 source_shift = 0u, bool descending = false,
+			       RasterOp op = RasterOp::Copy) = 0;
 	/// BOB enmascarado (cookie-cut): encola el trabajo en `plan`.
 	virtual bool copy_masked(Playfield& pf, graphics::FramePlan& plan, eng::Span<const eng::u16> src,
 				 eng::Span<const eng::u16> mask, eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h,
@@ -158,10 +186,12 @@ public:
 	bool copy_rect(Playfield& pf, graphics::FramePlan& plan, eng::Span<const eng::u16> src,
 		       eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h,
 		       eng::u16 src_row_bytes, eng::u32 src_plane_stride, eng::u8 planes,
-		       eng::u8 source_shift = 0u, bool descending = false) override {
+		       eng::u8 source_shift = 0u, bool descending = false,
+		       RasterOp op = RasterOp::Copy) override {
 		(void)plan;
 		(void)source_shift;
 		(void)descending;
+		(void)op;
 		return pf.copy_rect_cpu(src, x, y, w, h, src_row_bytes, src_plane_stride, planes);
 	}
 	/// BOB enmascarado por **CPU** (`Playfield::copy_masked_cpu`); no encola trabajo.
@@ -214,13 +244,14 @@ public:
 		}
 		return CpuRaster::draw_line(pf, clip, x0, y0, x1, y1, color, plan, op);
 	}
-	/// Copia por **Blitter**: encola el `CopyRect` en el `FramePlan` (con shift/DESC).
+	/// Copia por **Blitter**: encola el `CopyRect`/`LogicBlit` en el `FramePlan`.
 	bool copy_rect(Playfield& pf, graphics::FramePlan& plan, eng::Span<const eng::u16> src,
 		       eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h,
 		       eng::u16 src_row_bytes, eng::u32 src_plane_stride, eng::u8 planes,
-		       eng::u8 source_shift = 0u, bool descending = false) override {
+		       eng::u8 source_shift = 0u, bool descending = false,
+		       RasterOp op = RasterOp::Copy) override {
 		return pf.add_world_bitmap(plan, src, x, y, w, h, src_row_bytes, src_plane_stride,
-					   planes, source_shift, descending);
+					   planes, source_shift, descending, op);
 	}
 	/// BOB enmascarado por **Blitter**: encola el cookie-cut en el `FramePlan` (con shift).
 	bool copy_masked(Playfield& pf, graphics::FramePlan& plan, eng::Span<const eng::u16> src,

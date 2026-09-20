@@ -30,7 +30,7 @@ struct MockPlayfield : Playfield {
 		return wx >= 0 && wy >= 0 && static_cast<u32>(wx) < m_width && static_cast<u32>(wy) < m_height;
 	}
 	PlayfieldHardwareView hardware_view() const override { return {}; }
-	bool add_world_bitmap(graphics::FramePlan&, Span<const u16>, s32, s32, u16, u16, u16, u32, u8, u8, bool) override {
+	bool add_world_bitmap(graphics::FramePlan&, Span<const u16>, s32, s32, u16, u16, u16, u32, u8, u8, bool, RasterOp) override {
 		return false;
 	}
 	bool add_world_bitmap_masked(graphics::FramePlan&, Span<const u16>, Span<const u16>, s32, s32, u16, u16, u16, u32, u8, u8) override {

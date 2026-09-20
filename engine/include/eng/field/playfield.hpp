@@ -75,6 +75,18 @@ struct RasterPolicy {
 	bool cpu_fast = true;             ///< rutas CPU de 32 bits (68020+)
 };
 
+/// **Minterm del Blitter** para una operación lógica de **blit** con `B = D` (fuente por
+/// A): `Or`=`$FC` (`D=A|D`), `And`=`$80` (`D=A&D`), `Xor`=`$60` (`D=A^D`). `Copy` no usa
+/// esta ruta (va por C). Ver AHRM 6.
+[[nodiscard]] constexpr eng::u8 raster_op_minterm(RasterOp op) {
+	switch (op) {
+		case RasterOp::Or: return 0xFCu;
+		case RasterOp::And: return 0x80u;
+		case RasterOp::Xor: return 0x60u;
+		default: return 0xF0u;
+	}
+}
+
 class Rasterizer; ///< seam de rasterizado (definido en `raster.hpp`)
 
 /// Vista de hardware que el compositor de la escena necesita para programar el
@@ -437,7 +449,8 @@ public:
                                   s32 wx, s32 wy, u16 w, u16 h,
                                   u16 src_row_bytes, u32 src_plane_stride,
                                   u8 planes, u8 source_shift = 0u,
-                                  bool descending = false) = 0;
+                                  bool descending = false,
+                                  RasterOp op = RasterOp::Copy) = 0;
     virtual bool add_world_bitmap_masked(graphics::FramePlan& plan, Span<const u16> src,
                                          Span<const u16> mask, s32 wx, s32 wy,
                                          u16 w, u16 h, u16 src_row_bytes,
@@ -651,7 +664,8 @@ public:
     bool add_world_bitmap(graphics::FramePlan& plan, Span<const u16> src,
                           s32 wx, s32 wy, u16 w, u16 h,
                           u16 src_row_bytes, u32 src_plane_stride,
-                          u8 planes, u8 source_shift = 0u, bool descending = false) override {
+                          u8 planes, u8 source_shift = 0u, bool descending = false,
+                          RasterOp op = RasterOp::Copy) override {
         if (!m_initialized || src.empty() || planes == 0) return false;
         if (wx < 0 || (wx & 15) != 0 || static_cast<u32>(wx / 8) + (w / 8u) > m_bytes_per_row) return false;
         if (wy < 0 || static_cast<u32>(wy) + h > m_height) return false;
@@ -660,6 +674,7 @@ public:
                            + (h > 1u ? eng::math::mulu16(static_cast<u16>(h - 1u), static_cast<u16>(src_row_bytes / 2u)) : 0u)
                            + static_cast<u32>(words);
         if (src.size() < need_src) return false;
+        const bool logic = op != RasterOp::Copy;
         const u16 x_byte = static_cast<u16>(wx / 8u);
         const u32 pl = eng::math::mulu16(static_cast<u16>(wy), m_planes);
         const s16 src_mod = static_cast<s16>(src_row_bytes - words * 2);
@@ -673,7 +688,8 @@ public:
                 words, h, src_mod, dst_mod,
                 1, source_shift, src_plane_stride, eng::math::mulu16(m_bytes_per_row, m_planes), descending
             };
-            if (!plan.add_copy_rect(job)) return false;
+            job.minterm = logic ? raster_op_minterm(op) : job.minterm;
+            if (logic ? !plan.add_logic_blit(job) : !plan.add_copy_rect(job)) return false;
         }
         return true;
     }
@@ -819,7 +835,8 @@ public:
     bool add_world_bitmap(graphics::FramePlan& plan, Span<const u16> src,
                           s32 wx, s32 wy, u16 w, u16 h,
                           u16 src_row_bytes, u32 src_plane_stride,
-                          u8 planes, u8 source_shift = 0u, bool descending = false) override {
+                          u8 planes, u8 source_shift = 0u, bool descending = false,
+                          RasterOp op = RasterOp::Copy) override {
         if (!m_initialized || src.empty() || planes == 0u) return false;
         if (wx < 0 || (wx & 15) != 0 || static_cast<u32>(wx / 8) + (w / 8u) > m_bytes_per_row) return false;
         if (wy < 0 || static_cast<u32>(wy) + h > m_height) return false;
@@ -828,6 +845,7 @@ public:
                            + (h > 1u ? eng::math::mulu16(static_cast<u16>(h - 1u), static_cast<u16>(src_row_bytes / 2u)) : 0u)
                            + static_cast<u32>(words);
         if (src.size() < need_src) return false;
+        const bool logic = op != RasterOp::Copy;
         const u16 x_byte = static_cast<u16>(wx / 8u);
         const s16 src_mod = static_cast<s16>(src_row_bytes - words * 2);
         const s16 dst_mod = static_cast<s16>(m_bytes_per_row - words * 2);
@@ -843,7 +861,8 @@ public:
                 words, h, src_mod, dst_mod,
                 1, source_shift, src_plane_stride, m_plane_stride, descending
             };
-            if (!plan.add_copy_rect(job)) return false;
+            job.minterm = logic ? raster_op_minterm(op) : job.minterm;
+            if (logic ? !plan.add_logic_blit(job) : !plan.add_copy_rect(job)) return false;
             sp += src_plane_stride;
             dp += m_plane_stride;
         }

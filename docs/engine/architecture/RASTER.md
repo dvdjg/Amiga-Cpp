@@ -56,19 +56,18 @@ backend host (sin Blitter) declara `RasterCaps{ .blitter = false }` y se usa `kC
 
 - **Hecho**: `RasterOp` (CPU), relleno CPU/Blitter (con umbral `Auto`), **línea CPU, por
   Blitter y EOR/ONEDOT** (`BlitJobKind::Line`/`LineEor` + `Rasterizer::draw_line`, con recorte
-  de segmento), copia CPU (32 bits) y Blitter con `source_shift`/`descending`, copia enmascarada
-  CPU y Blitter; `install_raster` con `RasterCaps` OCS/AGA por target; `row_bytes` alineado a 4.
+  de segmento), copia CPU (32 bits) y Blitter con `source_shift`/`descending`, **blit lógico**
+  (`BlitJobKind::LogicBlit`, `B = D` + minterm: sombras/glow/máscaras), copia enmascarada CPU y
+  Blitter, y **colisión pixel-perfect** (`field::collide_cpu` + `MinimalBackend::blitter_collide`);
+  `install_raster` con `RasterCaps` OCS/AGA por target; `row_bytes` alineado a 4.
 - **Operaciones Blitter que aún NO cubre el seam** (ver `frame_plan.hpp`/AHRM cap. 6):
-  - **Relleno de rect directo** (FILL mode): hoy el rect se rellena como polígono vía
-    `PolygonFillSink`, que ya usa `blit_fill_region` (FILL_OR) del Blitter; un `FillRect` propio
-    evitaría el camino de polígono (micro-optimización, no una capacidad que falte; sin medición
-    que lo justifique).
+  - **Relleno con patrón** (suelos/techos 3D): `fill_polygon` con una fuente de patrón en vez de
+    color plano.
   - **C2P** (chunky→planar): uso especializado multi-fase del Blitter (ver `C2P_BLITTER.md`).
-  - **Línea EOR en lote**: el backend agrupa una **racha** de jobs `LineEor` y fija los registros
-    comunes una sola vez (`blitter_lines_eor_begin`), reprogramando solo los 8 registros por
-    arista/plano — la misma optimización que hacía la demo 116 a mano, ahora en el seam (077 la
-    ejercita con un triángulo EOR). Migrar 116 al seam ya no regresaría (pendiente por su ruta
-    asm/buffers).
+  - **`blitter_collide` NO VERIFICADA** (sin demo): validada por `collide_cpu` en host; falta una
+    demo de juego que la use en hardware.
+  - **Línea EOR en lote**: el backend ya fija los comunes una vez por racha `LineEor` (077 la
+    ejercita); migrar 116 al seam queda pendiente por su ruta asm/buffers.
 
 ## Verificación
 
