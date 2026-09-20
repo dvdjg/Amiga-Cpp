@@ -14,7 +14,9 @@
 #include <eng/core/types.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
+#include <eng/field/surface.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
+#include <eng/graphics/frame_plan.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
@@ -47,6 +49,8 @@ namespace {
 
 namespace obj = eng::object3d;
 namespace copper = eng::copper;
+namespace field = eng::field;
+namespace graphics = eng::graphics;
 
 // Geometria del original (256x256, 4 planos).
 constexpr eng::u16 kWidth = 256;
@@ -182,7 +186,8 @@ void transform_vertices(obj::Object3D& object) {
 	} while (*group);
 }
 
-void draw_object(obj::Object3D& object, eng::PlaneBytes bplpt, eng::amiga::MinimalBackend& backend) {
+void draw_object(obj::Object3D& object, field::Surface& surf, graphics::FramePlan& plan,
+		 eng::u8 color) {
 	eng::s16* group = object.edgeGroups;
 
 	do {
@@ -203,7 +208,8 @@ void draw_object(obj::Object3D& object, eng::PlaneBytes bplpt, eng::amiga::Minim
 			x1 = object.vertex(e1)->x.v;
 			y1 = object.vertex(e1)->y.v;
 
-			backend.blitter_line(bplpt, kBytesPerRow, x0, y0, x1, y1);
+			// Línea por el seam (`Surface::draw_line` con plan → Blitter; ver RASTER.md).
+			(void)surf.draw_line(x0, y0, x1, y1, color, &plan);
 		}
 	} while (*group);
 }
@@ -223,6 +229,12 @@ struct WireframeDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00007902u);
 			return;
 		}
+		// Lienzo contiguo sobre el anillo de planos, con rasterizador Blitter: las líneas
+		// se dibujan por el seam (`Surface::draw_line` + `FramePlan`).
+		(void)m_lines_pf.bind_raw(m_bitplane_block.view.data(),
+					  static_cast<eng::u32>(m_bitplane_block.view.size()),
+					  kWidth, kHeight, kRing, kPlaneBytes);
+		m_lines_pf.set_rasterizer(&field::kBlitterRaster);
 
 		for (eng::u8 a = 0; a < kRing; ++a) {
 			if (!build_copper(a)) {
@@ -260,7 +272,14 @@ struct WireframeDemo {
 		update_face_visibility_fast(m_object);
 		update_edge_visibility(m_object);
 		transform_vertices(m_object);
-		draw_object(m_object, plane, backend);
+		// Líneas por el seam: color = bit del plano activo (el Copper lo muestra como bit 3).
+		field::Surface surf {m_lines_pf, field::SurfaceRect {0, 0, kWidth, kHeight}};
+		graphics::FramePlan plan {};
+		draw_object(m_object, surf, plan, static_cast<eng::u8>(1u << active));
+		if (!backend.execute_frame_plan(plan)) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00007904u);
+			return;
+		}
 
 		backend.install_copper_list(m_copper_ptrs[active]);
 		m_active = static_cast<eng::u8>((active + 1u) % kRing);
@@ -295,6 +314,7 @@ private:
 	bool m_memory_ok = false;
 	eng::u8 m_active = 0;
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
+	field::ContiguousPlayfield m_lines_pf {}; ///< lienzo contiguo para las líneas (seam)
 	eng::Block<eng::CopperTag> m_copper_block {};
 	const eng::u16* m_copper_ptrs[kRing] = {nullptr, nullptr, nullptr, nullptr, nullptr};
 	eng::object3d::Object3D m_object {};

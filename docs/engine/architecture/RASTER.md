@@ -73,7 +73,13 @@ backend host (sin Blitter) declara `RasterCaps{ .blitter = false }` y se usa `kC
   libcalls (`__mulsi3`/`__udivsi3`) y con `move.l` en la copia.
 - **Demo (hardware)**: `077_math3d_cube` instala el rasterizador del backend, dibuja el cubo por
   CPU y un **triángulo fijo por Blitter** (`draw_line(&plan, …)` + `execute_frame_plan`), visible
-  en la captura; verificado `build -> run -> analyze`.
+  en la captura; `079_wireframe` dibuja todo el alambre por el seam (`Surface::draw_line` sobre
+  un `ContiguousPlayfield` con `kBlitterRaster`) — visible en la captura. Verificado
+  `build -> run -> analyze` (077; 079 renderiza aunque su `analyze` genérico pide colores de
+  overlay que su paleta no tiene, deuda previa).
+- **`RasterCaps` por target**: `raster_caps()` declara bus 16 (OCS) o 64 (`K_AGA`); 077 compila
+  con `EXTRA_DEFINES="-DK_AGA=1"`. Programar `FMODE` (para usar de verdad 32/64 bits) es el paso
+  siguiente del backend.
 
 Referencias: `SCENE_COMPOSITION.md` §6.2, `DISPLAY_COMPOSITION.md`, `playfield.hpp`
 (`PolygonFillSink`), `frame_plan.hpp` (`BlitJob`/`minterm`).
