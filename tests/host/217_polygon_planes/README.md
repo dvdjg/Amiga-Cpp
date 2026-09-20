@@ -14,9 +14,12 @@ tiene el bit `p` a 1. Las **aristas compartidas** por caras con el mismo bit se 
 2. **Colores distintos** (1 y 2): el plano 0 rellena solo el triángulo A y el plano 1 solo
    el triángulo B (reparto por bits del color).
 3. **`color == 0`** no rellena nada.
+4. **Builder** `PlaneFillBuilder<MaxFaces>` (`submit`/`fill_cpu`/`faces`), patrón `SubmitPoly`/`EndFrame`.
+5. **Plan de patrón** `FramePlan::add_pattern_fill` (kind `PatternFill`, minterm `$FC`, módulo de A).
 
 Es la referencia CPU del camino Blitter (1 fill por plano en vez de 1 por polígono); el
-backend Amiga hace lo mismo con línea + `area fill` + copia por plano.
+backend Amiga hace lo mismo con línea + `area fill` + copia por plano, y su self-test en 077
+lo verifica en hardware.
 
 ## Salida de referencia
 

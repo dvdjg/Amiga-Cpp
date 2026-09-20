@@ -634,7 +634,8 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 			job.kind == graphics::BlitJobKind::RestoreRect ||
 			job.kind == graphics::BlitJobKind::TileBlockCopy;
 		const bool clear = job.kind == graphics::BlitJobKind::ClearRect;
-		const bool or_blob = job.kind == graphics::BlitJobKind::OrBlob;
+		const bool or_blob = job.kind == graphics::BlitJobKind::OrBlob ||
+				     job.kind == graphics::BlitJobKind::PatternFill;
 		const bool logic = job.kind == graphics::BlitJobKind::LogicBlit;
 		const bool line = job.kind == graphics::BlitJobKind::Line;
 		const bool line_eor = job.kind == graphics::BlitJobKind::LineEor;
@@ -1032,7 +1033,9 @@ bool MinimalBackend::fill_polygons_by_plane(const graphics::PlanePolygon* faces,
 		blitter_clear(plane, 1u, row_bytes, plane_bytes, width, height);
 		// 2) contorno XOR (ONEDOT) de las caras cuyo color tiene el bit `p` a 1; las
 		//    aristas compartidas por dos caras del mismo bit se dibujan dos veces y el
-		//    fill even-odd las cancela.
+		//    fill even-odd las cancela. Los registros comunes EOR se fijan UNA vez por
+		//    plano (`blitter_lines_eor_begin`), no por arista.
+		blitter_lines_eor_begin(row_bytes);
 		for (u32 f = 0; f < n_faces; ++f) {
 			const graphics::PlanePolygon& face = faces[f];
 			if ((face.color & (1u << p)) == 0u || face.count < 3u) {
@@ -1040,8 +1043,11 @@ bool MinimalBackend::fill_polygons_by_plane(const graphics::PlanePolygon* faces,
 			}
 			for (u8 i = 0; i < face.count; ++i) {
 				const u8 j = static_cast<u8>((i + 1u) % face.count);
-				blitter_line_eor(plane, row_bytes, face.xs[i], face.ys[i],
-						 face.xs[j], face.ys[j], plane.data());
+				LineEorParams eor;
+				if (blitter_line_eor_prepare(eor, row_bytes, face.xs[i], face.ys[i],
+							     face.xs[j], face.ys[j])) {
+					blitter_line_eor_draw(eor, plane.data(), plane.data());
+				}
 			}
 		}
 		// 3) area fill (FILL_XOR) del plano in situ (un fill por plano).

@@ -17,6 +17,7 @@
 #include <cstdio>
 
 #include <eng/core/types.hpp>
+#include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/polygon_planes.hpp>
 
 namespace {
@@ -100,6 +101,41 @@ int main() {
 			eng::Span<const PlanePolygon> {faces, 1},
 			eng::PlaneBytes {g_dest, kPlane * kPlanes}, kRow, kPlane, kPlanes, kW, kH);
 		check(spans == 0u, "color 0 no escribe ningun span");
+	}
+
+	// 4) Builder de alto nivel (patron SubmitPoly/EndFrame).
+	{
+		clear();
+		eng::graphics::PlaneFillBuilder<4> fb;
+		check(fb.submit(kAx, kAy, 3u, 1u) && fb.submit(kBx, kBy, 3u, 1u),
+		      "builder acepta las caras");
+		check(fb.count() == 2u, "builder cuenta 2 caras");
+		const eng::u32 spans = fb.fill_cpu(eng::PlaneBytes {g_dest, kPlane * kPlanes},
+						   kRow, kPlane, kPlanes, kW, kH);
+		check(spans > 0u, "builder rellena (fill_cpu)");
+		check(bit(g_dest, 2, 2) && bit(g_dest, 13, 5), "builder: cuadrado lleno");
+	}
+
+	// 5) Plan de relleno con patron (FramePlan::add_pattern_fill reusa OrBlob: A=patron,
+	//    B=D, minterm $FC, patron repetido en vertical con el modulo de A).
+	{
+		eng::graphics::FramePlan plan {};
+		eng::graphics::BlitJob job {};
+		job.source = eng::graphics::BlitSource(
+			reinterpret_cast<const eng::u16*>(g_dest));
+		job.destination = eng::graphics::BlitDest(reinterpret_cast<eng::u16*>(g_dest));
+		job.words_per_row = 2u;
+		job.height = 8u;
+		job.bitplane_count = 1u;
+		job.source_plane_stride_bytes = kPlane;
+		job.destination_plane_stride_bytes = kPlane;
+		job.source_modulo_bytes = static_cast<eng::s16>(-2);
+		job.minterm = 0xFCu;
+		check(plan.add_pattern_fill(job), "plan acepta pattern fill");
+		check(plan.blit_job_count() == 1u &&
+			      plan.blit_job(0u).kind == eng::graphics::BlitJobKind::PatternFill,
+		      "plan registra PatternFill");
+		check(plan.blit_job(0u).minterm == 0xFCu, "minterm $FC (D=A|D)");
 	}
 
 	if (failures == 0) {

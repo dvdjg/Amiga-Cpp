@@ -64,6 +64,11 @@ enum class BlitJobKind : u8 {
 	/// **Blit con operación lógica** (`B = D`): `A` = fuente, `B` = destino (mismo puntero),
 	/// minterm del job (`Or`/`And`/`Xor`). Base de sombras/glow/máscaras. Ver `RasterOp`.
 	LogicBlit,
+	/// **Relleno con patrón** (suelos/techos 3D, UI texturizada): `A` = patrón (tile planar
+	/// pequeño), `B = D` = destino, minterm `$FC` (`D = A | D`). El patrón se repite en
+	/// vertical con `source_modulo_bytes` (BLTAMOD = `-(words_per_row*(alto_patrón-1))`).
+	/// Reusa el camino `OrBlob` del backend.
+	PatternFill,
 };
 
 /// Presupuesto acumulado de Blitter.
@@ -363,6 +368,13 @@ public:
 	/// El llamador fija `source`/`destination` y el minterm (`Or`/`And`/`Xor`).
 	__attribute__((always_inline)) inline bool add_logic_blit(const BlitJob& job) {
 		return add_blit_job(job, BlitJobKind::LogicBlit);
+	}
+
+	/// **Relleno con patrón** (`A` = patrón, `B = D` = destino, minterm `$FC`): el patrón se
+	/// repite en vertical con `source_modulo_bytes`. El llamador fija `source` (tile),
+	/// `destination`, `words_per_row`, `height`, `bitplane_count` y el módulo del patrón.
+	__attribute__((always_inline)) inline bool add_pattern_fill(const BlitJob& job) {
+		return add_blit_job(job, BlitJobKind::PatternFill);
 	}
 
 	/// **Línea por Blitter** (`BLTCON1` LINE) o **EOR/ONEDOT** (`LineEor`): `destination`

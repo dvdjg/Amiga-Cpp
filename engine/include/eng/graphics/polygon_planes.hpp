@@ -27,6 +27,7 @@
 #include <eng/core/domains.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
+#include <eng/core/util/array.hpp>
 
 namespace eng::graphics {
 
@@ -133,5 +134,46 @@ inline eng::u32 fill_polygons_by_plane_cpu(eng::Span<const PlanePolygon> faces,
 	}
 	return spans;
 }
+
+/// **Acumulador de caras** para el relleno por bitplane (patrón `SubmitPoly`/`EndFrame`):
+/// el llamador **posee los vértices** (el builder guarda solo las vistas, sin heap) y, al
+/// cerrar el frame, se rellena por plano (CPU o Blitter) con una sola pasada.
+///
+/// ```cpp
+/// PlaneFillBuilder<64> fb;
+/// fb.submit(xs, ys, n, color);      // ... por cada polígono (no dibuja aún)
+/// fb.fill_cpu(dest, row_bytes, plane_bytes, planes, width, height);  // EndFrame
+/// // o, en el backend: backend.fill_polygons_by_plane(fb.faces().data(), fb.count(), ...);
+/// ```
+template <eng::u16 MaxFaces>
+class PlaneFillBuilder {
+public:
+	/// Añade un polígono (vértices en pantalla + color). `false` si está lleno o `count < 3`.
+	bool submit(const eng::s16* xs, const eng::s16* ys, eng::u8 count, eng::u8 color) {
+		if (m_count >= MaxFaces || xs == nullptr || ys == nullptr || count < 3u) {
+			return false;
+		}
+		m_faces[m_count++] = PlanePolygon {xs, ys, count, color};
+		return true;
+	}
+
+	/// Rellena por CPU los planos de `dest` (ver `fill_polygons_by_plane_cpu`).
+	eng::u32 fill_cpu(eng::PlaneBytes dest, eng::u16 row_bytes, eng::u32 plane_bytes,
+			  eng::u8 planes, eng::u16 width, eng::u16 height) const {
+		return fill_polygons_by_plane_cpu(eng::Span<const PlanePolygon> {m_faces.data(), m_count},
+						  dest, row_bytes, plane_bytes, planes, width, height);
+	}
+
+	/// Caras acumuladas (para el camino Blitter del backend).
+	[[nodiscard]] eng::Span<const PlanePolygon> faces() const {
+		return eng::Span<const PlanePolygon> {m_faces.data(), m_count};
+	}
+	[[nodiscard]] eng::u16 count() const { return m_count; }
+	void reset() { m_count = 0u; }
+
+private:
+	eng::util::Array<PlanePolygon, MaxFaces> m_faces {};
+	eng::u16 m_count = 0u;
+};
 
 } // namespace eng::graphics

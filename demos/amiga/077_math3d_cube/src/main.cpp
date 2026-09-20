@@ -214,6 +214,53 @@ struct DemoGame {
 					return;
 				}
 			}
+			// Self-test del **relleno compuesto por bitplane** (`fill_polygons_by_plane`):
+			// dos triangulos con el MISMO color (1) que forman un cuadrado. El plano 0
+			// debe quedar lleno (union; la diagonal compartida se cancela por el doble
+			// cruce) y el plano 1 vacio. Valida la ruta Blitter (antes NO VERIFICADA).
+			{
+				constexpr eng::u16 kPw = 32, kPh = 16, kPlanes = 2;
+				constexpr eng::u16 kPRow = kPw / 8u;      // 4 bytes/fila
+				constexpr eng::u32 kPPlane = kPRow * kPh; // 64 bytes/plano
+				auto pm = backend.memory().chip.allocate_block<eng::PlaneTag>(
+					kPPlane * kPlanes + 16u, 16);
+				if (!pm.valid()) {
+					eng::debug::mark_failed(g_eng_run_status, 0x00007706u);
+					return;
+				}
+				for (eng::u32 i = 0; i < kPPlane * kPlanes; ++i) {
+					pm.view.data()[i] = 0u;
+				}
+				static const eng::s16 ax[3] = {0, 31, 0};
+				static const eng::s16 ay[3] = {0, 0, 15};
+				static const eng::s16 bx[3] = {31, 31, 0};
+				static const eng::s16 by[3] = {0, 15, 15};
+				const eng::graphics::PlanePolygon faces[2] = {
+					{ax, ay, 3u, 1u},
+					{bx, by, 3u, 1u},
+				};
+				if (!backend.fill_polygons_by_plane(faces, 2u, pm.view, kPRow, kPPlane,
+								    kPlanes, kPw, kPh)) {
+					eng::debug::mark_failed(g_eng_run_status, 0x00007707u);
+					return;
+				}
+				const eng::u8* p0 = pm.view.data();
+				const eng::u8* p1 = pm.view.data() + kPPlane;
+				auto on = [](const eng::u8* pl, eng::u16 row, eng::u16 x, eng::u16 y) {
+					return (pl[static_cast<eng::u32>(y) * row + (x >> 3)] &
+						(0x80u >> (x & 7u))) != 0u;
+				};
+				bool fill_ok = on(p0, kPRow, 2, 2) && on(p0, kPRow, 29, 13);
+				for (eng::u32 i = 0; i < kPPlane; ++i) {
+					if (p1[i] != 0u) {
+						fill_ok = false;
+					}
+				}
+				if (!fill_ok) {
+					eng::debug::mark_failed(g_eng_run_status, 0x00007708u);
+					return;
+				}
+			}
 			m_scene.takeover(backend);
 			if (!verify_mesh()) {
 				eng::debug::mark_failed(g_eng_run_status, 0x00007701u);

@@ -466,8 +466,9 @@ prioridad:
 
 1. **Demo de juego que use colisión** (`blitter_collide`) en el bucle (plataformas/shmup: BOB vs
    fondo) — hoy solo la valida el self-test de 077.
-2. **Relleno con patrón** (suelos/techos 3D, UI texturizada): `BlitJob` de fill con canal de
-   patrón (más complejo que el `FILL_OR` del `PolygonFillSink`).
+2. **Relleno con patrón**: `FramePlan::add_pattern_fill` (kind `PatternFill`, reusa el camino
+   `OrBlob`: A = patrón, B = D, minterm `$FC`, patrón repetido en vertical con el módulo de A);
+   falta una demo (suelos/techos 3D, UI texturizada) que lo consuma.
 3. **C2P en el seam** (`Rasterizer::c2p` / `BlitJobKind::C2P`): unificar chunky→planar (las 13
    fases de `fire-rgb`, `C2P_BLITTER.md`) bajo la misma interfaz; hoy vive fuera.
 4. **`FMODE` por target**: programar 2×/4× según `raster_caps().bus` (AGA) en copias/fills; hoy
@@ -479,13 +480,15 @@ prioridad:
 7. **Migrar 116** (opcional): su ruta por defecto ya es `retro::flat_shade_xor` (HOST-213); las
    rutas `draw_edges`/asm son opt-in de diagnóstico.
 
-### Relleno de polígonos compuesto por bitplane (hecho; falta demo)
+### Relleno de polígonos compuesto por bitplane (hecho; falta demo dedicada)
 
 `eng/graphics/polygon_planes.hpp` implementa la composición por bitplane: el Blitter rellena
 máscaras de 1 bit y el color es un patrón de bits, así que se rellena **por plano** (un fill por
 plano) en vez de polígono a polígono, cancelando las aristas compartidas por caras del mismo bit.
 - **Referencia CPU** `fill_polygons_by_plane_cpu` (even-odd scanline por plano), test **HOST-217**.
-- **Camino Blitter** `MinimalBackend::fill_polygons_by_plane` (contorno XOR ONEDOT + area fill
-  `FILL_XOR` por plano) — **NO VERIFICADA** (sin demo).
-- **Pendiente**: una demo de un motor poligonal 2D/3D que lo consuma, y una API de alto nivel
-  (`SubmitPoly`/`EndFrame` o `BuildPlaneOutlines`/`BlitFillPlanes`) por encima.
+- **API de alto nivel** `PlaneFillBuilder<MaxFaces>` (`submit`/`fill_cpu`/`faces`), patrón
+  `SubmitPoly`/`EndFrame`; el llamador posee los vértices (sin heap).
+- **Camino Blitter** `MinimalBackend::fill_polygons_by_plane` (contorno XOR ONEDOT en lote por
+  plano + area fill `FILL_XOR`), **verificado por el self-test de 077**.
+- **Pendiente**: una demo de un motor poligonal 2D/3D que consuma el relleno por plano y una demo
+  de juego que use colisión (`blitter_collide`) en el bucle.

@@ -334,7 +334,7 @@ public:
 	/// limpia el plano, dibuja el contorno XOR (ONEDOT) de las caras cuyo color tiene el
 	/// bit `p` a 1 y hace **un area fill** (`FILL_XOR`); un fill por plano en vez de uno
 	/// por polígono. `dest` es el bitmap contiguo (se escribe en su sitio). Referencia CPU:
-	/// `graphics::fill_polygons_by_plane_cpu`. **NO VERIFICADA** (sin demo).
+	/// `graphics::fill_polygons_by_plane_cpu`. Verificada por el self-test de 077.
 	bool fill_polygons_by_plane(const graphics::PlanePolygon* faces, u32 n_faces,
 				    eng::PlaneBytes dest, u16 row_bytes, u32 plane_bytes,
 				    u8 planes, u16 width, u16 height);
