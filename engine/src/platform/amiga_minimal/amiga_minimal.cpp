@@ -634,9 +634,20 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 			job.kind == graphics::BlitJobKind::TileBlockCopy;
 		const bool clear = job.kind == graphics::BlitJobKind::ClearRect;
 		const bool or_blob = job.kind == graphics::BlitJobKind::OrBlob;
+		const bool line = job.kind == graphics::BlitJobKind::Line;
 
-		if (!masked && !copy && !clear && !or_blob) {
+		if (!masked && !copy && !clear && !or_blob && !line) {
 			return false;
+		}
+
+		if (line) {
+			// Línea por Blitter (BLTCON1 LINE) sobre el plano del `destination`.
+			eng::PlaneBytes pb {reinterpret_cast<eng::u8*>(job.destination.words), 0u};
+			if (!blitter_line(pb, job.line_row_bytes, job.line_x0, job.line_y0,
+					  job.line_x1, job.line_y1)) {
+				return false;
+			}
+			continue;
 		}
 
 		custom_base[custom_dmacon_offset] = dma_setclr | dma_master | dma_blitter;

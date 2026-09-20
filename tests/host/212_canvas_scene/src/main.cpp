@@ -220,6 +220,15 @@ int main() {
 	(void)s6.surface().fill_rect(0, 0, 4, 4, 5u);
 	check(g_fill_rec.calls == 1, "Blitter: fuerza el sink aunque el area sea pequena");
 
+	// Linea por Blitter: con plan y dentro del clip, una `Line` por plano del color.
+	s6.set_raster(&field::kBlitterRaster, field::RasterPolicy {field::AccelMode::Blitter, 0u, true});
+	graphics::FramePlan line_plan {};
+	check(s6.surface().draw_line(0, 0, 31, 15, 5u, &line_plan), "BlitterRaster::draw_line encola");
+	check(line_plan.blit_job_count() == 2u, "linea por Blitter = 1 job por plano (color 5 = planos 0,2)");
+	graphics::FramePlan line_plan2 {};
+	(void)s6.surface().draw_line(-100, -100, -50, -50, 5u, &line_plan2);
+	check(line_plan2.blit_job_count() == 0u, "linea fuera del clip no encola (CPU)");
+
 	if (failures == 0) {
 		std::printf("OK: scene::compose interleaved y contiguo (Surface + copperlist).\n");
 		return 0;

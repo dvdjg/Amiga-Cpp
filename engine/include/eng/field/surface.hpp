@@ -121,13 +121,14 @@ public:
     }
 
     /// Línea, recortada al clip de la superficie. Delegada en el `Rasterizer` (CPU por
-    /// defecto; un rasterizador Blitter puede trazarla por hardware).
-    bool draw_line(s32 x0, s32 y0, s32 x1, s32 y1, u8 color) {
+    /// defecto; un rasterizador Blitter la traza por hardware si se pasa `plan`).
+    bool draw_line(s32 x0, s32 y0, s32 x1, s32 y1, u8 color,
+                   graphics::FramePlan* plan = nullptr) {
         if (!valid()) return false;
         const ClipRect clip {m_clip.x, m_clip.y,
                              m_clip.x + static_cast<s32>(m_clip.w) - 1,
                              m_clip.y + static_cast<s32>(m_clip.h) - 1};
-        return rasterizer()->draw_line(*m_target.get(), clip, x0, y0, x1, y1, color);
+        return rasterizer()->draw_line(*m_target.get(), clip, x0, y0, x1, y1, color, plan);
     }
 
     /// Texto en una fuente 8×8, a nivel de contexto (sin punteros ni planos).

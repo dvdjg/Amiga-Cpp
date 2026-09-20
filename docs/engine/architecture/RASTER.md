@@ -33,9 +33,10 @@ transparente esa elección.
   `../guides/optimization/OPTIMIZACION_GPP_68000.md`). Sin multiplicaciones de 32 bits en el
   bucle (`mulu16` + avance de punteros).
 - **`BlitterRaster`**: relleno por `Playfield::fill_polygon` (usa el `PolygonFillSink`/Blitter si
-  está instalado; si no, CPU) y copias por el `FramePlan` (`CopyRect`/`MaskedBobCookieCut`, con
-  `source_shift` y `descending`); **línea** por CPU (el `BlitJob` de línea por Blitter está
-  pendiente).
+  está instalado; si no, CPU); copias por el `FramePlan` (`CopyRect`/`MaskedBobCookieCut`, con
+  `source_shift` y `descending`); **línea** por Blitter si se pasa un `FramePlan` y la línea cae
+  dentro del clip (encola `BlitJobKind::Line`, que el backend ejecuta con `blitter_line` por
+  plano); si no, CPU (Bresenham).
 
 ## Selección (backend → escena)
 
@@ -53,18 +54,19 @@ backend host (sin Blitter) declara `RasterCaps{ .blitter = false }` y se usa `kC
 
 ## Estado y extensión
 
-- **Hecho**: `RasterOp` (CPU), relleno CPU/Blitter (con umbral `Auto`), **línea** en la API
-  (`Rasterizer::draw_line`, CPU), copia CPU (32 bits) y Blitter con `source_shift`/`descending`,
-  copia enmascarada CPU y Blitter; `install_raster` con `RasterCaps` OCS/AGA por target.
+- **Hecho**: `RasterOp` (CPU), relleno CPU/Blitter (con umbral `Auto`), **línea CPU y por
+  Blitter** (`BlitJobKind::Line` + `Rasterizer::draw_line`), copia CPU (32 bits) y Blitter con
+  `source_shift`/`descending`, copia enmascarada CPU y Blitter; `install_raster` con `RasterCaps`
+  OCS/AGA por target.
 - **Operaciones Blitter que aún NO cubre el seam** (ver `frame_plan.hpp`/AHRM cap. 6):
-  - **Línea por Blitter** (`BLTCON1` LINE): falta un `BlitJobKind::Line` (con sus coordenadas) y
-    que `BlitterRaster::draw_line` lo encole; hoy la línea es CPU.
   - **Relleno de rect directo** (FILL mode): hoy el rect se rellena como polígono vía
     `PolygonFillSink`; un `FillRect` propio evitaría el camino de polígono.
   - **C2P** (chunky→planar): uso especializado multi-fase del Blitter (ver `C2P_BLITTER.md`).
   - **Copia CPU siempre de 32 bits**: hoy el camino ancho requiere origen y destino alineados a
     4; con `row_bytes % 4 == 0` (p. ej. 320 px) aplica, si no cae a 16 bits por fila. Alinear
     los buffers en `bind` (o padear `row_bytes` a 4) lo haría universal.
+  - **Línea parcialmente fuera del clip**: el Blitter no recorta, así que hoy va a CPU; un
+    recorte de segmento (Liang-Barsky entero) permitiría la ruta Blitter.
 
 ## Verificación
 
