@@ -303,6 +303,61 @@ struct PaletteZone {
 	};
 }
 
+/// **Binding de una zona de paleta** para parchear sus colores por frame: índice de la
+/// instrucción del primer `COLORxx` de la zona y su rango. Obtenido de
+/// `palette_zones_patchable`.
+struct ZoneBinding {
+	u16 first_move = 0; ///< índice (words) del MOVE del primer color de la zona
+	u8 count = 0;       ///< nº de colores de la zona
+	u8 line = 0;        ///< línea de raster de la zona
+};
+
+/// Etapa de **zonas de paleta parcheables**: como `palette_zones` pero además escribe en
+/// `out` el `ZoneBinding` de cada zona, para que el llamador reescriba colores por frame
+/// con `zone_color(...)` (fundidos, ciclos, daño). Nº de zonas = mínimo de los dos spans.
+[[nodiscard]] inline auto palette_zones_patchable(eng::Span<const PaletteZone> zones,
+						  eng::Span<ZoneBinding> out) {
+	return [=](Scene& sc) {
+		copper::Scheduler& s = sc.scheduler();
+		const eng::usize n = zones.size() < out.size() ? zones.size() : out.size();
+		for (eng::usize i = 0; i < n; ++i) {
+			const PaletteZone& z = zones[i];
+			s.wait_line(z.line);
+			u8 first = z.first;
+			u8 count = z.count;
+			if (first >= 32u) {
+				continue;
+			}
+			if (static_cast<eng::u32>(first) + count > 32u) {
+				count = static_cast<u8>(32u - first);
+			}
+			if (static_cast<eng::u32>(first) + count > z.colors.size()) {
+				count = static_cast<u8>(z.colors.size() - first);
+			}
+			ZoneBinding b {};
+			b.line = z.line;
+			b.count = count;
+			for (u8 k = 0u; k < count; ++k) {
+				const u16 idx = s.move_at(
+					static_cast<copper::Register>(copper::color_register(
+						static_cast<u8>(first + k))),
+					z.colors[first + k]);
+				if (k == 0u) {
+					b.first_move = idx;
+				}
+			}
+			out[i] = b;
+		}
+	};
+}
+
+/// Handle al color `i` de una zona (para parchearlo por frame). Cada MOVE ocupa 2 words
+/// (instrucción + dato), de ahí el `+ 2*i`.
+[[nodiscard]] inline copper::PatchHandle zone_color(copper::Scheduler& s,
+						    const ZoneBinding& b, u8 i) {
+	return s.patch_handle(static_cast<u16>(b.first_move + 2u * i));
+}
+
 /// Etapa de **repetición de filas** (cuadruplicado HAM): cada fila lógica ocupa `repeat`
 /// líneas; en las `repeat-1` primeras `BPL1MOD/BPL2MOD = -row_bytes` (misma fila) y en la
 /// última `0` (avanza). `bplcon1_shift` alterna `BPLCON1` en líneas impares (dither).

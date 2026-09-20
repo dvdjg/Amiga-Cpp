@@ -165,6 +165,15 @@ public:
 			index};
 	}
 
+	/// Handle a un MOVE **ya emitido**, por su índice (p. ej. una zona de paleta emitida
+	/// con `move_at`), para parchearlo por frame.
+	[[nodiscard]] PatchHandle patch_handle(u16 index) {
+		return PatchHandle {
+			this,
+			[](void* o, u16 i, u16 v) { static_cast<SchedulerT*>(o)->patch_data(i, v); },
+			index};
+	}
+
 	/// Sobrescribe el dato de un MOVE emitido con `move_at` (mismo handle).
 	void patch_data(u16 instruction_word, u16 value) { m_builder.patch_data(instruction_word, value); }
 

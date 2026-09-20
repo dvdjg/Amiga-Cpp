@@ -113,6 +113,26 @@ int main() {
 	check(ok5 && s5.ok(), "escena con intents de Copper compone");
 	check(s5.plan().intent_count() == 1u, "la intencion se registra en el Plan");
 
+	// Zonas de paleta PARCHEABLES: se emiten y devuelven su binding para reescribir colores.
+	graphics::scene::Scene s6;
+	graphics::scene::ZoneBinding bindings[2] {};
+	const graphics::scene::PaletteZone zones2[2] = {
+		graphics::scene::PaletteZone {16, eng::PaletteWords {pal, 4}, 0, 4},
+		graphics::scene::PaletteZone {32, eng::PaletteWords {pal, 4}, 0, 4},
+	};
+	const bool ok6 = graphics::scene::compose(
+		s6, mem, graphics::scene::planar4(320, 256, 4),
+		graphics::scene::display(graphics::scene::kPal320x256, graphics::scene::kBplcon0_4Planes),
+		graphics::scene::palette_zones_patchable(
+			eng::Span<const graphics::scene::PaletteZone> {zones2, 2},
+			eng::Span<graphics::scene::ZoneBinding> {bindings, 2}));
+	check(ok6 && s6.ok(), "escena con zonas de paleta parcheables compone");
+	check(bindings[1].line == 32u && bindings[1].count == 4u, "los bindings de zona son correctos");
+	const copper::PatchHandle zone_h = graphics::scene::zone_color(s6.scheduler(), bindings[1], 2);
+	zone_h.set(0x0aaau);
+	const u16* zwords = s6.scheduler().data();
+	check(zwords[zone_h.index + 1u] == 0x0aaau, "un color de zona se parchea por frame");
+
 	if (failures == 0) {
 		std::printf("OK: scene::compose (etapas display/paleta/zonas/row_repeat + PatchHandle + ciclo de vida).\n");
 		return 0;
