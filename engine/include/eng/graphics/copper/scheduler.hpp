@@ -65,6 +65,23 @@ struct ScheduleReport {
 	bool has_visible_timeline_spill = false;
 };
 
+/// **Handle tipado a un MOVE de la lista** para parchearlo por frame con precisión
+/// quirúrgica. Guarda el emisor (el `Plan` lo reorienta al bloque trasero cada frame, así
+/// que el handle sigue siendo válido tras el swap) y el índice de la instrucción.
+/// `set(value)` escribe el word de valor; coste ~1 store tras una comprobación barata.
+struct PatchHandle {
+	void* owner = nullptr;
+	void (*apply)(void*, u16, u16) = nullptr; ///< `apply(owner, index, value)`
+	u16 index = 0;
+
+	[[nodiscard]] constexpr bool valid() const { return apply != nullptr; }
+	void set(u16 value) const {
+		if (apply != nullptr) {
+			apply(owner, index, value);
+		}
+	}
+};
+
 /// Compositor central de Copper para las primeras escenas.
 ///
 /// `Report = false` genera una version **sin contadores de informe** en el hot path
@@ -135,6 +152,17 @@ public:
 	u16 move_at(u16 custom_register_offset, u16 value) {
 		++m_report.display_moves;
 		return m_builder.move_at(custom_register_offset, value);
+	}
+
+	/// Emite un MOVE **parcheable** y devuelve un `PatchHandle` (guarda el índice y este
+	/// emisor). La app lo escribe por frame con `set(value)`; el `Plan` reorienta el
+	/// scheduler al bloque trasero, así que el handle sigue válido tras el swap.
+	[[nodiscard]] PatchHandle patchable(Register reg, u16 value) {
+		const u16 index = move_at(reg, value);
+		return PatchHandle {
+			this,
+			[](void* o, u16 i, u16 v) { static_cast<SchedulerT*>(o)->patch_data(i, v); },
+			index};
 	}
 
 	/// Sobrescribe el dato de un MOVE emitido con `move_at` (mismo handle).

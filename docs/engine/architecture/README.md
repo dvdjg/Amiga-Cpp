@@ -11,6 +11,7 @@ en C del repo hermano (`Cursor-Amiga-C`) está en [../c-engine/](../c-engine/REA
 | [CODING_STYLE.md](CODING_STYLE.md) | Restricciones y estilo: `gnu++23`, sin exceptions, sin RTTI, sin asignación dinámica en gameplay. |
 | [MATH_LIBRARY.md](MATH_LIBRARY.md) | Modelo de la librería de matemáticas genérica: `Fixed<Repr,Exp,Policy>`, `Vec`/`Mat`/`Affine`, escalar como parámetro de plantilla. |
 | [3D_PHYSICS.md](3D_PHYSICS.md) | **Física 3D realista en A500**: opciones (cinemática de estados, cuerpos rígidos arcade, SAT-3D de OBB, proxy de colisión), costes medidos por kernel y opción preferida por hitos. |
+| [SCENE_COMPOSITION.md](SCENE_COMPOSITION.md) | **Composición de escenas**: modelo de tres planos (recursos / programa de Copper / comportamiento), etapas + presets + handles de parcheo, y por qué el CRTP/la familia de drivers sobran. |
 | [SCALAR_LIBRARY.md](SCALAR_LIBRARY.md) | **Estructura de la librería escalar-independiente**: capas (algoritmo genérico ↔ rasgos ↔ escalar concreto ↔ backend), `numeric_traits` y guards de límites en compilación, límites por algoritmo. |
 | [EXPRESSION_TEMPLATES.md](EXPRESSION_TEMPLATES.md) | **Expression templates lite** (`eng/core/expr.hpp`): árbol en compilación, evaluación única, `converter` para `Fixed`, fusión por componente de `Vec`/`Mat` y sus límites. |
 | [TEMPLATE_LIBRARY.md](TEMPLATE_LIBRARY.md) | **Librería de plantillas de utilidades** (`eng::util`): rasgos, `<bit>`, algoritmos sobre `Span` y contenedores de capacidad fija sin STL ni heap. |

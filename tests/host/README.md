@@ -251,4 +251,5 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-211 | [mesh_poly_render](211_mesh_poly_render/README.md) | `eng/graphics/mesh_renderer.hpp::mesh_render_poly_filled`: malla n-gon (transform + culling por normal + `Surface::fill_polygon`) con `project_perspective` genérica sobre el escalar. |
 | HOST-212 | [canvas_scene](212_canvas_scene/README.md) | `eng/graphics/drivers/canvas_scene.hpp`: driver planar que expone `Surface` (`CanvasPlayfield` + copperlist interleaved), contrato `GraphicsDriver`/`DisplayDriver`. |
 | HOST-213 | [outline_xor](213_outline_xor/README.md) | `eng/retro/flat_shade_xor.hpp`: técnica Amiga de contorno EOR + área fill XOR (secuencia de Blitter, horizontales descartadas, un fill). |
+| HOST-214 | [copper_patch](214_copper_patch/README.md) | `eng/copper::PatchHandle` (`scheduler.hpp`): MOVE parcheable por frame (precisión quirúrgica en el modelo de composición de escenas). |
 | HOST-208 | [ptr](208_ptr/README.md) | `eng/core/ptr.hpp`: punteros "inteligentes" sin heap (`Ref` observador no propietario y anulable, `NonNull`, `Opt` opcional en sitio). |
