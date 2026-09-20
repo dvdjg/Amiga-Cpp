@@ -24,7 +24,21 @@
 /// `Surface` (que enruta por el mapeo) y blits con `Span` (el tamaño es el
 /// contrato). El acceso crudo optimizado vive dentro del engine (núcleo), no en
 /// el código de la aplicación.
+///
+/// ```text
+///   Playfield (base abstracta)  ── framebuffer Chip + geometría + primitivas CPU (hooks de mapeo)
+///   ├─ CanvasPlayfield      lienzo plano (blits / HUD)
+///   ├─ XLimitedPlayfield    corkscrew 8-way (xlimited.hpp)
+///   └─ Flat / Mirror / DoubleBufferPlayfield (en sus headers)
+///            │ expone
+///            ▼
+///   PlayfieldHardwareView   BPLxPT · scroll fino/coarse · mods · split (wrap vertical)
+///            ▲
+///   Surface → primitivas validadas (set_pixel/fill_rect/draw_line/draw_text/blit), SIN puntero crudo
+///   Scene = compone N playfields + sprites + paletas + copperlist (nunca se accede por índice)
+/// ```
 
+#include <eng/core/arith.hpp>
 #include <eng/core/arith.hpp>
 #include <eng/core/polygon.hpp>
 #include <eng/core/span.hpp>
@@ -413,9 +427,9 @@ public:
     void set_raster_policy(const RasterPolicy& p) { m_raster_policy = p; }
     [[nodiscard]] const RasterPolicy& raster_policy() const { return m_raster_policy; }
 
-    /// **Chunky→planar** a través del rasterizador: resuelve `m_rasterizer` (o el CPU
-    /// por defecto) y delega. Definido en `playfield_impl.hpp` (donde `Rasterizer` y
-    /// `C2pRequest` ya están completos).
+    /// **Chunky→planar** a través del rasterizador: resuelve `m_rasterizer` (o el CPU por
+    /// defecto) y delega. Definido en `raster.hpp` (donde `Rasterizer`/`C2pRequest` están
+    /// completos).
     [[nodiscard]] bool rasterize_c2p(const C2pRequest& req, graphics::FramePlan* plan);
 
     // --- Relleno de polígono (hook; el backend puede usar Blitter) --------
@@ -603,8 +617,7 @@ public:
             return false;
         }
         const u16 row = static_cast<u16>((cfg.width / 8u) & ~1u);
-        const u32 need = eng::math::mulu16(
-            static_cast<u16>(eng::math::mulu16(row, cfg.planes)), cfg.height);
+        const u32 need = static_cast<u32>(row) * cfg.planes * cfg.height;
         if (static_cast<u32>(bitplanes.view.size()) < need) return false;
         m_bound = bitplanes;
         m_width = cfg.width;
@@ -636,6 +649,8 @@ public:
         return wx >= 0 && wy >= 0 && static_cast<u32>(wx) < m_width && static_cast<u32>(wy) < m_height;
     }
 
+    /// Vista de hardware del playfield (base de planos, strides, alto): lo que consume el
+    /// backend/Compositor para programar `BPLxPT`/módulos. `CanvasPlayfield` la expone tal cual.
     PlayfieldHardwareView hardware_view() const override {
         PlayfieldHardwareView v;
         v.bitplanes = m_frontbuffer;
@@ -786,21 +801,10 @@ public:
             return false;
         }
         const u16 row = static_cast<u16>(((width / 8u) + 3u) & ~3u);
-        // `pbytes * planes` sin `__mulsi3`: con `plane_stride` derivado, `row * planes`
-        // cabe en u16 (row <= 80, planes <= 6) y el producto final es `mulu.w` (16x16);
-        // con `plane_stride` dado, se acumula por suma (planes <= 6).
-        u32 pbytes;
-        u32 need;
-        if (plane_stride != 0u) {
-            pbytes = plane_stride;
-            need = 0u;
-            for (u8 p = 0u; p < planes; ++p) {
-                need += plane_stride;
-            }
-        } else {
-            pbytes = eng::math::mulu16(row, height);
-            need = eng::math::mulu16(static_cast<u16>(eng::math::mulu16(row, planes)), height);
-        }
+        const u32 pbytes = (plane_stride != 0u)
+                               ? plane_stride
+                               : eng::math::mulu32x16(static_cast<u32>(row), height);
+        const u32 need = eng::math::mulu32x16(pbytes, static_cast<u16>(planes));
         if (bytes < need) return false;
         m_bound = {};
         m_width = width;

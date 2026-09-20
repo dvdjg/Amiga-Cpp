@@ -16,6 +16,18 @@
 /// costaría más CPU/Blitter/Chip RAM. Todos los comentarios tutoriales están
 /// en español con ortografía correcta.
 ///
+/// ```text
+///   Ring (corkscrew): el bitmap es un ANILLO vertical de display_height ≈ SCREENHEIGHT + EXTRAHEIGHT
+///   ┌───────────────────────────────┐  ◄─ base (BPLxPT), línea 0
+///   │ ventana visible               │
+///   ├───────────────────────────────┤  línea split_line: el display ENVUELVE aquí
+///   │ banda de staging (2 bloques)  │     (display_offset avanza por frame)
+///   │  (se pre-pinta la fila nueva) │
+///   └───────────────────────────────┘  ◄─ vuelve a la base (wrap a display_height)
+///   Al cruzar el split se re-pinta la banda entrante en staging ANTES de que el display la alcance.
+///   Variante SÓLO horizontal (Scroller_XLimited) → sin split ni staging.
+/// ```
+///
 /// -----------------------------------------------------------------------------
 /// 1. Geometría canónica parametrizada (fuentes primarias: xlimited.c:45-73, weiju/xlimited.c:68)
 /// -----------------------------------------------------------------------------

@@ -153,8 +153,10 @@ const V   aim = eng::math::rotate2(base, ang);     // gira el cañón/sprite por
 | `angle_of`/`from_angle`/`angle_to`/`rotate2(v,ángulo)` | `Fixed`/`MiniFloat16`/`float`/`double` | **funcionan** con la trig del escalar (`atan2`+`sincos`): `angle_of` = ángulo de un vector, `from_angle` = vector unitario, `angle_to` = apuntado hacia un objetivo (`float`/`double` usan `atan2_d`/`sincos_d`, series `constexpr` sin libm); el **vector de entrada** debe caber en el formato (4.12 solo cubre ±8: para deltas de pantalla en píxeles usa un formato mayor como `Fixed<s16,6>` o escala el delta) |
 | `value_noise`/`fbm` | `Fixed` | **no compilan**: necesitan división (sin `operator/`) |
 
-El detalle del escalar de 16 bits está en [MINIFLOAT16.md](MINIFLOAT16.md); el modelo del
-álgebra, en [MATH_LIBRARY.md](MATH_LIBRARY.md).
+El detalle del escalar de 16 bits está en [MINIFLOAT16.md](MINIFLOAT16.md); la optimización
+de su suma/resta (referencia de investigación), en
+[MINIFLOAT16_SUMA_RESTA.md](../../guides/optimization/MINIFLOAT16_SUMA_RESTA.md); el modelo
+del álgebra, en [MATH_LIBRARY.md](MATH_LIBRARY.md).
 
 ## 5. Cabeceras de la capa A
 

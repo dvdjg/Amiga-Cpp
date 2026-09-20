@@ -20,6 +20,15 @@
 /// `Playfield::fill_polygon` (que usa el `PolygonFillSink`/Blitter si está instalado).
 /// El relleno de rect **directo por Blitter** (BLTCON fill) y la copia **por CPU**
 /// (con rutas de 32 bits / *blit-assist* en 68020+) quedan como extensión del seam.
+///
+/// ```text
+///   Surface (API de dibujo uniforme)        Rasterizer (seam)              destino
+///   ───────────────────────────────         ─────────────────              ───────
+///   fill_rect / draw_line / fill_polygon ─► ¿CPU o Blitter? ──► CpuRaster     → píxeles (CPU)
+///   blit                                    según RasterPolicy   BlitterRaster → Playfield::fill_polygon
+///                                           vs RasterCaps(backend)              (PolygonFillSink / Blitter)
+///   La app/escena fija la política (AccelMode::Auto + umbral); el consumidor no sabe qué hay detrás.
+/// ```
 
 #include <eng/field/playfield.hpp>
 #include <eng/graphics/c2p.hpp>

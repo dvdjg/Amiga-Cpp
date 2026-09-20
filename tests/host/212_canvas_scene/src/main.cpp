@@ -287,6 +287,16 @@ int main() {
 		check(!field::clip_segment(cr, e, f, g, h), "clip_segment rechaza el segmento fuera");
 	}
 
+	// --- bind_raw: tamano de plano con dimensiones no triviales (regresion mulu32x16) ---
+	{
+		alignas(16) static u8 buf[61440u + 16u];
+		field::ContiguousPlayfield cp;
+		// 320x256, 6 planos: row = ((320/8)+3)&~3 = 40; need = 40*256*6 = 61440.
+		check(cp.bind_raw(buf, 61440u, 320u, 256u, 6u), "bind_raw 320x256x6 con tamano exacto");
+		field::ContiguousPlayfield cp2;
+		check(!cp2.bind_raw(buf, 61439u, 320u, 256u, 6u), "bind_raw 1 byte corto falla");
+	}
+
 	if (failures == 0) {
 		std::printf("OK: scene::compose interleaved y contiguo (Surface + copperlist).\n");
 		return 0;

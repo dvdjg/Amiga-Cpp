@@ -81,6 +81,9 @@ aritmética `float` en sí es lo caro y no debe aparecer en el camino caliente.
 El precio en memoria son las dos tablas: **256 B** (renormalización) + **2 KB**
 (recíprocos) de datos constantes, compartidas por todas las instancias.
 
+Optimización de la suma/resta (modelo de coste y técnicas candidatas, referencia de
+investigación): [MINIFLOAT16_SUMA_RESTA.md](../../guides/optimization/MINIFLOAT16_SUMA_RESTA.md).
+
 ## 5. Reglas de uso (rangos seguros)
 
 1. **Trabajar dentro de `[2^-14, 65504]`.** Fuera de ahí el resultado satura (a 0 o a

@@ -50,6 +50,27 @@ int main() {
 	check(transpose(r90).m[0][1] == q12 {4096}, "transpose intercambia");
 	check(determinant(r90) == q12 {4096}, "det(R90) = 1");
 
+	// --- Determinante 3x3 por cofactores (sin productos encadenados) ---
+	Mat<3, q12> r90z {};
+	r90z.m[0][0] = q12 {0};    r90z.m[0][1] = q12 {-4096}; r90z.m[0][2] = q12 {0};
+	r90z.m[1][0] = q12 {4096}; r90z.m[1][1] = q12 {0};     r90z.m[1][2] = q12 {0};
+	r90z.m[2][0] = q12 {0};    r90z.m[2][1] = q12 {0};     r90z.m[2][2] = q12 {4096};
+	check(determinant(r90z) == q12 {4096}, "det(R90 3x3) = 1");
+	check(determinant(Mat<3, q12>::identity()) == q12 {4096}, "det(I 3x3) = 1");
+
+	// --- Inversa analítica (adj/det) 2x2 y 3x3 ---
+	const Mat<2, q12> ir = inverse(r90);
+	check(ir.m[0][0] == q12 {0} && ir.m[0][1] == q12 {4096} && ir.m[1][0] == q12 {-4096} && ir.m[1][1] == q12 {0},
+	      "inverse(R90) = R(-90)");
+	const Mat<2, q12> rr = r90 * ir;
+	check(rr.m[0][0] == q12 {4096} && rr.m[0][1] == q12 {0} && rr.m[1][0] == q12 {0} && rr.m[1][1] == q12 {4096},
+	      "R90 * inverse(R90) = I");
+
+	const Mat<3, q12> rz = r90z * inverse(r90z);
+	check(rz.m[0][0] == q12 {4096} && rz.m[1][1] == q12 {4096} && rz.m[2][2] == q12 {4096} &&
+	      rz.m[0][1] == q12 {0} && rz.m[1][0] == q12 {0},
+	      "R * inverse(R) = I (3x3)");
+
 	// --- Afín: M*p + t, con t en LONGITUD (el caso que el tipado resuelve) ---
 	Affine<2, q12, q0> tr {};
 	tr.m = r90;
@@ -69,6 +90,12 @@ int main() {
 	const Vec<3, float> fv {{1.0f, 1.0f, 1.0f}};
 	const Vec<3, float> fo = f * fv;
 	check(fo.x() == 6.0f && fo.y() == 1.0f, "float: mat*vec");
+	check(determinant(f) == 1.0f, "det(float 3x3) = 1");
+	check((f * inverse(f)).m[0][0] == 1.0f && (f * inverse(f)).m[1][1] == 1.0f, "float: f * inverse(f) = I");
+
+	// --- mulu32x16: producto u32*u16 sin libgcc (presupuestos/tamanos) ---
+	check(eng::math::mulu32x16(0x12345u, 0x6789u) == 0x12345u * 0x6789u,
+	      "mulu32x16 coincide con u32*u16");
 
 	if (failures == 0) {
 		std::printf("OK: linalg (Vec/Mat/Affine genericos sobre el escalar) validado.\n");

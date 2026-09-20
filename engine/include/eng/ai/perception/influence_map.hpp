@@ -15,6 +15,18 @@
 ///   danger.decay(10);            // el tiempo la difumina
 ///   const eng::u16 focus = danger.strongest();
 ///
+/// ```text
+///   sistemas (percepción/táctica)        InfluenceMap<W,H> (inline, sin heap)      agente
+///   ────────────────────────────         ───────────────────────────────────       ──────
+///   deposit(idx, amenaza) ────────────► [ W×H celdas s32 ]
+///   decay(amount) cada tick  ─────────► (se difumina; recorta a >= 0)
+///                                           │
+///                                           ├─ at(idx)      → valor de una celda
+///                                           └─ strongest()  → celda más "caliente"
+///                                              (empate → índice menor; no_cell si todas <= 0)
+///   Reutilizado por sim::Colony como feromonas (Food / Danger / Home / Recruit).
+/// ```
+///
 /// Verificación: HOST-117.
 
 #include <eng/core/types.hpp>

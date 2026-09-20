@@ -15,6 +15,18 @@
 /// limpiar memoria. Ahora los contadores **no se inicializan**: se marcan las líneas
 /// tocadas con un bitset de 32 bytes (lo único que se pone a cero), y `finish()`/las
 /// consultas ignoran las líneas no tocadas. `reset()` limpia el bitset si se reutiliza.
+///
+/// ```text
+///   línea de raster 0 … 255                Timeline (bitset de líneas "tocadas", 32 B)
+///   ───────────────────────                ─────────────────────────────────────────
+///   [0] … [n] … [255]  ◄─ línea actual     touched: 1 bit por línea (una palabra u32 por 32)
+///     │
+///     └─ WAITs / MOVEs registrados por el Scheduler por línea
+///                 └─ ¿moves de esa línea > budget HBlank (20)? → over_budget_lines / has_visible_spill
+///
+///   Las líneas NO tocadas no se inicializan (no cuestan 256 cargas/frame); `finish()` recorre
+///   solo las marcadas. Orientativa: el presupuesto de CPU de una línea PAL es ~227 ciclos.
+/// ```
 
 #include <eng/core/types.hpp>
 

@@ -10,6 +10,16 @@
 /// un puntero a función: `StreamingWorldMap<…, WorldMapChunkLoader>` conoce su backend
 /// en compilación. Un `NullChunkSource` (por defecto) no sirve ningún chunk.
 ///
+/// ```text
+///   ventana visible (tiles)         StreamingWorldMap                     pool de residentes (Chip RAM)
+///   ───────────────────────         ──────────────────                     ─────────────────────────────
+///   [x0,x1)×[y0,y1) ──prefetch()─► ChunkCache ──¿residente?─sí─► tile_at() SOLO-residentes
+///                                        │  no                            │
+///                                        ▼                                └─► tile (vive en el pool)
+///                                 Source::load(cx,cy,TileBankBuffer) ─────► escribe el slot
+///                                 (tipo en compilación; NullChunkSource = todo Empty)
+/// ```
+///
 /// Ver `docs/engine/architecture/CONTENT_AND_TILEMAP.md` §2.
 
 #include <eng/core/span.hpp>

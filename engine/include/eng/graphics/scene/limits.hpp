@@ -22,6 +22,17 @@
 /// `DisplayLimits`. Las restricciones concretas de Amiga OCS/ECS/AGA se documentan junto a
 /// cada campo y se derivan de `docs/reference/amiga/hardware/amiga-chipset-matrix.md` y
 /// `docs/reference/amiga/techniques/amiga-display-setup-checklist.md`.
+///
+/// ```text
+///   SceneResources ──validate(res, limits)──► primer rechazo (runtime: código + mensaje)
+///        │                  │
+///        │                  └─ valid_scene(res, limits) = consteval → static_assert en compilación
+///        ▼
+///   DisplayLimits (perfil del backend: ocs_a500 / ecs / aga_a1200)   ← agnóstico: qué admite
+///   SceneLayout {Contiguous, Interleaved} · SceneMode {Standard, Ham, Ehb, DualPlayfield}
+///   FetchWidth {X1, X2, X4} ──► dma_cost(res, limits, fw): coste de bus (informativo, no validez)
+///   geometry_for(res) ──► DisplayGeometry (DIW/DDF derivados)
+/// ```
 
 #include <eng/core/types.hpp>
 

@@ -9,6 +9,13 @@
 /// Es un tipo de valor del engine, independiente de cualquier driver grafico: los
 /// efectos (`PaletteTransitionEffect`, `PaletteCycleEffect`) y el tile scroll lo usan
 /// sin depender de una escena concreta.
+///
+/// ```text
+///   Palette32 (DUEÑO, 32 × u16 RGB444)  ──►  PaletteWords (vista de dominio, sin cast)
+///     color[0..31]                              { ptr, 32 }
+///   la usan: escena EHB · fundido (PaletteTransitionEffect) · ciclo (PaletteCycleEffect) · tile scroll
+///   Palette32Zone { line, *palette }: cambio de paleta en una línea (zona de Copper)
+/// ```
 
 #include <eng/core/domains.hpp>
 #include <eng/core/types.hpp>

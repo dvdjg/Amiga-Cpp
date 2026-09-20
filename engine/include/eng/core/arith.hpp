@@ -78,6 +78,13 @@ template <typename R>
 /// `mulu_wide<s16>`: fija `R = s16` y acepta cualquier entero convertible a `u16`.
 [[nodiscard]] constexpr u32 mulu16(u16 a, u16 b) { return mulu_wide<s16>(a, b); }
 
+/// Producto `u32 × u16 -> u32` (32 bits bajos) **sin `__mulsi3`**: dos `mulu.w` (mitad baja
+/// y alta) sumadas. Para presupuestos/áreas (p. ej. `words_per_row·height·planes`), donde
+/// un `u32 * u32` acabaría en libgcc.
+[[nodiscard]] constexpr u32 mulu32x16(u32 a, u16 b) {
+	return mulu16(static_cast<u16>(a), b) + (mulu16(static_cast<u16>(a >> 16), b) << 16);
+}
+
 /// Cociente de un valor ensanchado por `R`, con el cociente en `R` (`divs.w` con 16 bits).
 template <typename R>
 [[nodiscard]] constexpr R div_wide(typename arith_wide<R>::signed_t a, R b) {

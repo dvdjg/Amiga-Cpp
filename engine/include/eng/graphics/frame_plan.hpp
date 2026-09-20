@@ -15,6 +15,15 @@
 /// BOBs sin escribir registros custom desde el juego. La tercera pieza es la lista
 /// de dirty rects: las areas de pantalla que un frame ha tocado y que, por tanto,
 /// pueden necesitar restauracion, redraw o analisis de presupuesto.
+///
+/// ```text
+///   lógica de juego/efectos          FramePlan (portable)               driver Amiga
+///   ──────────────────────           ────────────────────               ────────────
+///   "cambia paleta 1..7"  ──►  PalettePatch[] ─┐
+///   "copia/restaura BOB"  ──►  BlitJob[]      ─┼──► decide la materialización: parches de
+///                                              │    copperlist · blits · sprites hardware ·
+///   área tocada           ──►  dirty rects   ─┘    escrituras CPU (según el backend)
+/// ```
 
 #include <eng/core/arith.hpp>
 #include <eng/core/domains.hpp>
@@ -510,13 +519,9 @@ private:
 
 		m_blit_jobs[m_blit_job_count++] = job;
 		m_blit_budget.jobs = m_blit_job_count;
-		// Presupuesto `words_per_row × planos × altura` con multiplicaciones de 16×16
-		// (`mulu.w`): es por trabajo de Blitter (no camino caliente), pero el gate de
-		// codegen prohíbe arrastrar `__mulsi3`. `words_per_row` (≤64, 6 bits de BLTSIZE)
-		// × planos (≤8) cabe en u16, así que ambos productos son de 16×16.
-		m_blit_budget.words += eng::math::mulu16(
-			static_cast<u16>(eng::math::mulu16(job.words_per_row, job.bitplane_count)),
-			job.height);
+		m_blit_budget.words += eng::math::mulu32x16(
+			eng::math::mulu16(job.words_per_row, job.height),
+			static_cast<u16>(job.bitplane_count));
 		if (masked) {
 			++m_blit_budget.masked_jobs;
 		} else {

@@ -12,6 +12,17 @@
 /// Reglas del engine: sin heap (el bloque viene del `MemorySystem`), sin RTTI,
 /// gnu++23. Este header es el punto donde vive la memoria; `Playfield` y
 /// `Surface` la consumen.
+///
+/// ```text
+///   roles (de abajo arriba)
+///   ───────────────────────
+///   Bitmap    : memoria + geometría + layout + addressing (byte_offset)   ← ESTE header (no dibuja)
+///   Playfield : mapeo lógico→físico + display                             (field/playfield.hpp)
+///   Surface   : dibujo con clip                                           (field/surface.hpp)
+///
+///   Layout  : Interleaved (planelínea = fila*planes + plano) | Separate (plano contiguo)
+///   Dominio : Chip (DMA: Blitter/bitplanes/audio/Copper) | Fast (solo CPU) | Any
+/// ```
 
 #include <eng/core/domains.hpp>
 #include <eng/core/span.hpp>

@@ -25,6 +25,18 @@
 ///   copper.inactive_words()[m_handle + 1u] = nuevo_valor;
 ///   copper.flip();
 ///   copper.install(backend);
+///
+/// ```text
+///   CPU (escribe)                              Copper (ejecuta)
+///   ─────────────                              ────────────────
+///   inactive_block() ──► [ bloque INACTIVO ]   [ bloque ACTIVO ] ──► salida de vídeo
+///   (reemitir con Scheduler o parchear             ▲
+///    inactive_words()[handle])                     │ COP1LC (se recarga al inicio del VBlank)
+///        │                                         │
+///        └──────────── flip() (intercambia) ───────┘
+///
+///   install(backend) = swap de COP1LC; NUNCA COPJMP1 (no se ve una lista a medio escribir)
+/// ```
 
 #include <eng/core/domains.hpp>
 #include <eng/core/types.hpp>

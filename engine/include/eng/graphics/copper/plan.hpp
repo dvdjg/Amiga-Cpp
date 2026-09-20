@@ -23,6 +23,19 @@
 ///   // tras VBlank:
 ///   plan.commit(backend);                     // instala la lista (swap de COP1LC)
 ///
+/// ```text
+///   capas / efectos                     Plan (no posee la lista)               Copper
+///   ───────────────                     ───────────────────────                ──────
+///   graphics::CopperIntent ──add()──► [ intents (máx. 320, SIN ordenar) ]
+///                                           │
+///                                     materialize() ── ordena por línea RELATIVA (first_line)
+///                                           │            y emite con el Scheduler
+///                                           ▼
+///   Scheduler / ListBuilder ──────────► buffer TRASERO del DoubleBuffer ──commit()──► COP1LC
+///   (el CPU escribe mientras el           (el CPU rellena el trasero;        swap en VBlank
+///    Copper ejecuta el frontal)            el Copper ejecuta el frontal)      = se publica
+/// ```
+///
 /// Ver `docs/engine/architecture/DISPLAY_COMPOSITION.md` §5.
 
 #include <eng/core/domains.hpp>

@@ -14,6 +14,13 @@
 /// una forma segura de construir listas pequenas sin que cada demo escriba words
 /// magicas a mano. Mas adelante el `CopperScheduler` compondra contribuciones de
 /// drivers, efectos UAF y patches runtime.
+///
+/// ```text
+///   instrucción de Copper en Chip RAM (2 words big-endian, 4 bytes)
+///   ┌───────────────┬───────────────┐   MOVE: word0 = offset de registro custom, word1 = valor
+///   │     word 0    │     word 1    │   WAIT: word0 = posición v/h,           word1 = máscara/comparación
+///   └───────────────┴───────────────┘   FIN : 0xffff, 0xfffe (termina la lista)
+/// ```
 
 #include <eng/core/domains.hpp>
 #include <eng/core/types.hpp>

@@ -24,6 +24,15 @@
 /// `BPLCON0`/`DDF`/`BPLxMOD` del campo) es `CopperIntentKind::BitplaneSplit`; ambas
 /// conviven: `BitplaneSplit` es la opción conservadora y `ModeSwitchZone` la que
 /// habilita tramos de distinto número de planos.
+///
+/// ```text
+///   frame (campo principal)                       tramo del ModeSwitchZone (p. ej. HUD)
+///   ───────────────────────                       ──────────────────────────────────
+///   …                                             WAIT al raster de `top`, y en ORDEN canónico:
+///   [ corte en `top` ] ────────────────────────►   BPLCON0(BPU+modo) → DDFSTRT/DDFSTOP → BPL1MOD/BPL2MOD
+///   …                                               → BPLxPT (alto/bajo por plano) → [BPLCON4] → [BPLCON1] → [paleta]
+///   El DDF/mods van ANTES de los punteros; BPLCON4/BPLCON1 DESPUÉS (intercalarlos pierde el último plano).
+/// ```
 
 #include <eng/core/domains.hpp>
 #include <eng/core/types.hpp>

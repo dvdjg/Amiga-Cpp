@@ -19,6 +19,21 @@
 /// planos) y emite al `copper::Scheduler`. Los **presets** son funciones que devuelven un
 /// `SceneResources`; no hay clase por efecto. El **programa** es data (Copper) que ejecuta
 /// el chip; la **variabilidad** se hace con `copper::PatchHandle` (`scheduler().patchable`).
+///
+/// ```text
+///   escena = unión de ETAPAS (no una clase por driver)
+///   ┌──────────────────────────────────────────────────────────────────┐
+///   │ scene::Scene                                                       │
+///   │  recursos: geometría · planos · buffers · paleta                   │
+///   │  ├─ display()        ─┐                                            │
+///   │  ├─ palette()        ─┼─► piden recursos y emiten al copper::Scheduler
+///   │  ├─ palette_zones()  ─┤                                            │
+///   │  └─ reverse_ptrs()   ─┘                                            │
+///   │  ciclo de vida: Task = FunctionRef<void()> (por frame)             │
+///   │  variabilidad : copper::PatchHandle (scheduler().patchable)        │
+///   └──────────────────────────────────────────────────────────────────┘
+///   El PROGRAMA es data (Copper) que ejecuta el chip; los presets devuelven un SceneResources.
+/// ```
 
 #include <eng/core/arith.hpp>
 #include <eng/core/domains.hpp>
@@ -151,13 +166,14 @@ public:
 		const u8 src = (m_plane_source[p] < m_res.planes) ? m_plane_source[p] : p;
 		const eng::u8* base = m_buffers[index].view.data();
 		const eng::uintptr want =
-			reinterpret_cast<eng::uintptr>(base) + m_plane_off[src];
+			reinterpret_cast<eng::uintptr>(base) + static_cast<eng::u32>(src) * m_plane_bytes;
 		return display_plane_address(p) == static_cast<u32>(want);
 	}
 	/// Plano `i` del bitmap (layout contiguo; vacío si fuera de rango).
 	[[nodiscard]] constexpr eng::PlaneBytes plane(u8 i) const {
 		return (i < m_res.planes)
-			? bitplanes().subspan(m_plane_off[i], m_plane_bytes)
+			? bitplanes().subspan(eng::math::mulu32x16(m_plane_bytes, static_cast<u16>(i)),
+					      m_plane_bytes)
 			: eng::PlaneBytes {};
 	}
 	/// Bytes de un plano completo (`row_bytes * alloc_rows`).
@@ -302,16 +318,7 @@ private:
 			return false;
 		}
 		const u16 alloc_rows = (res.layout == SceneLayout::Interleaved) ? res.height : logical_rows;
-		m_plane_bytes = static_cast<u32>(row) * alloc_rows;
-		// Offsets de plano `p * plane_bytes` por suma (no multiplicación de 32 bits:
-		// `__mulsi3` en 68000). Se usan en el parcheo por frame de `patch_plane_pointers`.
-		{
-			u32 off = 0u;
-			for (u8 p = 0u; p < kMaxScenePlanes; ++p) {
-				m_plane_off[p] = off;
-				off += m_plane_bytes;
-			}
-		}
+		m_plane_bytes = eng::math::mulu32x16(static_cast<u32>(row), alloc_rows);
 		// Doble/triple buffer solo en layout contiguo (la doble buffer se hace parcheando los
 		// BPLxPT; el interleaved usa un único `CanvasPlayfield`).
 		u8 buffers = res.buffers;
@@ -323,7 +330,8 @@ private:
 		}
 		m_buffer_count = buffers;
 		for (u8 b = 0u; b < buffers; ++b) {
-			m_buffers[b] = memory.chip.allocate_block<eng::PlaneTag>(m_plane_bytes * res.planes + 16u, 16);
+			m_buffers[b] = memory.chip.allocate_block<eng::PlaneTag>(
+				eng::math::mulu32x16(m_plane_bytes, static_cast<u16>(res.planes)) + 16u, 16);
 			if (!m_buffers[b].valid()) {
 				return false;
 			}
@@ -359,7 +367,7 @@ private:
 		u16* words = m_plan.active_words();
 		for (u8 p = 0u; p < m_res.planes; ++p) {
 			const u8 src = (m_plane_source[p] < m_res.planes) ? m_plane_source[p] : p;
-			const eng::u32 off = m_plane_off[src];
+			const eng::u32 off = eng::math::mulu32x16(m_plane_bytes, static_cast<u16>(src));
 			m_plane_patch[p].apply(words, static_cast<eng::u32>(
 							 reinterpret_cast<eng::uintptr>(addr + off)));
 		}
@@ -371,7 +379,6 @@ private:
 	field::ContiguousPlayfield m_contiguous {}; ///< playfield del layout contiguo (base de `surface()`)
 	copper::Plan m_plan {}; ///< programa de Copper (lista + presupuesto + emisor)
 	u32 m_plane_bytes = 0; ///< bytes de un plano completo (`row_bytes * alloc_rows`)
-	u32 m_plane_off[kMaxScenePlanes] {}; ///< offset de cada plano (`p * m_plane_bytes`, por suma)
 	u8 m_buffer_count = 1; ///< buffers de display en uso (1..`kMaxSceneBuffers`)
 	u8 m_back = 0; ///< índice del buffer trasero (el que se dibuja/publica)
 	Patch32 m_plane_patch[kMaxScenePlanes] {}; ///< parcheo `BPLxPT` por registro (doble/triple buffer)

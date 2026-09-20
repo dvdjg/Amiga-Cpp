@@ -18,6 +18,15 @@
 ///
 /// Reglas del engine: sin heap, sin RTTI, gnu++23. La DATA del sprite la aporta
 /// la aplicación (bloque Chip); el manager solo la referencia y la posición.
+///
+/// ```text
+///   app (bitmaps)                     SpriteManager (componente de escena)        chipset
+///   ─────────────                     ──────────────────────────────────         ───────
+///   SpriteConfig[i] (data,w,h,pos) ─► 8 canales: config + Chip DATA ──► MOVEs de Copper
+///   sprite_data() escribe Chip RAM        │                            SPRxPT / SPRxPOS / SPRxCTL
+///                                         └─ COLOR16-31 (compartidos con PF2 en DPF)
+///   Prioridad: BPLCON2 (PF1P/PF2P) fija sprite vs playfield; entre sprites, por canal.
+/// ```
 
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>

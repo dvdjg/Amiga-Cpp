@@ -26,6 +26,18 @@
 ///
 /// `Backend` es la capa de plataforma (`MinimalBackend` en Amiga) que aporta las
 /// primitivas de Blitter; esta cabecera no conoce registros.
+///
+/// ```text
+///   ┌─ relleno por contorno + area fill XOR (sólido convexo) ─────────────┐
+///   │ 1. blitter_lines_eor_begin      fija los comunes del modo línea      │
+///   │ 2. por arista visible y plano:  blitter_line_eor_draw (EOR, ONEDOT,  │
+///   │                                 BLTDPTR = base del bitmap)           │
+///   │    (las aristas horizontales se descartan)                           │
+///   │ 3. blitter_area_fill (XOR ↓)    conmuta el interior por PARIDAD      │
+///   └──────────────────────────────────────────────────────────────────────┘
+///   color de arista = XOR de las luces de las caras adyacentes (las internas se cancelan)
+///   Exige sólido CONVEXO (contorno cerrado); frágil → gate VISUAL (freeze-diff), no cobertura
+/// ```
 
 #include <eng/core/domains.hpp>
 #include <eng/core/span.hpp>
