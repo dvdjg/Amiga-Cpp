@@ -123,7 +123,7 @@ int main() {
 	const bool ok6 = graphics::scene::compose(
 		s6, mem, graphics::scene::planar4(320, 256, 4),
 		graphics::scene::display(graphics::scene::kPal320x256, graphics::scene::kBplcon0_4Planes),
-		graphics::scene::palette_zones_patchable(
+		graphics::scene::palette_zones(
 			eng::Span<const graphics::scene::PaletteZone> {zones2, 2},
 			eng::Span<graphics::scene::ZoneBinding> {bindings, 2}));
 	check(ok6 && s6.ok(), "escena con zonas de paleta parcheables compone");

@@ -405,6 +405,29 @@ public:
 		}
 	}
 
+	/// Como `emit_palette` pero emitido con `move_at`, devolviendo el índice del primer MOVE
+	/// (para parchear los colores por frame). Mismo registro en el informe.
+	u16 emit_palette_at(eng::PaletteWords colors, u8 first = 0, u8 count = 32) {
+		if (colors.empty() || first >= 32) {
+			return 0u;
+		}
+		if (first + count > 32) {
+			count = static_cast<u8>(32 - first);
+		}
+		if (static_cast<eng::u32>(first) + count > colors.size()) {
+			count = static_cast<u8>(colors.size() - first);
+		}
+		u16 first_index = 0u;
+		for (u8 i = 0; i < count; ++i) {
+			const u16 idx = move_at(color_register(static_cast<u8>(first + i)), colors[first + i]);
+			if (i == 0u) {
+				first_index = idx;
+			}
+			++m_report.palette_moves;
+		}
+		return first_index;
+	}
+
 	/// Espera a una linea y aplica una paleta.
 	///
 	/// Un cambio de 32 colores en una linea visible es caro: no lo prohibimos porque
@@ -420,6 +443,19 @@ public:
 			}
 		}
 		emit_palette(colors, first, count);
+	}
+
+	/// Igual que `emit_palette_zone` pero devuelve el índice del primer MOVE (parcheable).
+	u16 emit_palette_zone_at(u8 line, eng::PaletteWords colors, u8 first = 0, u8 count = 32) {
+		wait_line(line);
+		m_timeline.reserve_moves(line, count);
+		if (count >= 16) {
+			++m_report.heavy_palette_zones;
+			if (line >= 0x2c && line <= 0xf0) {
+				m_report.has_visible_heavy_palette_zone = true;
+			}
+		}
+		return emit_palette_at(colors, first, count);
 	}
 
 	/// Emite una lista de `CopperIntent` (vocabulario portable de la escena).

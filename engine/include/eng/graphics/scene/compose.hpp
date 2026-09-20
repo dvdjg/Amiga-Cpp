@@ -389,16 +389,6 @@ struct PaletteZone {
 	u8 count = 32;
 };
 
-/// Etapa de **zonas de paleta** (cambios por línea/banda).
-[[nodiscard]] inline auto palette_zones(eng::Span<const PaletteZone> zones) {
-	return [=](Scene& sc) {
-		for (eng::usize i = 0; i < zones.size(); ++i) {
-			const PaletteZone& z = zones[i];
-			sc.scheduler().emit_palette_zone(z.line, z.colors, z.first, z.count);
-		}
-	};
-}
-
 /// **Un MOVE parcheable dentro de una zona**: registro destino + valor inicial. Es la
 /// unidad de la base común de toda modificación dinámica del copper (un color, un
 /// `BPL1MOD` de scanline, un puntero `BPLxPT`, un `BPLCON1`…).
@@ -446,14 +436,17 @@ struct PatchZone {
 /// Binding de una zona de **paleta** (caso particular de `PatchZone`).
 using ZoneBinding = PatchZone;
 
-/// Etapa de **zonas de paleta parcheables**: convierte cada zona a slots `COLORxx`, los
-/// emite con la base común (`patchable_zone`) y escribe su `PatchZone` en `out`.
-[[nodiscard]] inline auto palette_zones_patchable(eng::Span<const PaletteZone> zones,
-						  eng::Span<PatchZone> out) {
+/// Etapa de **zonas de paleta** (cambios por línea/banda). Si `out` no está vacío, escribe
+/// el `PatchZone` de cada zona para parchear sus colores por frame; si está vacío, solo las
+/// emite (conserva el informe de zona pesada del `Scheduler`). Unifica la versión estática y
+/// la parcheable sobre la base común.
+[[nodiscard]] inline auto palette_zones(eng::Span<const PaletteZone> zones,
+					eng::Span<PatchZone> out = {}) {
 	return [=](Scene& sc) {
-		const eng::usize n = zones.size() < out.size() ? zones.size() : out.size();
-		PatchSlot slots[32];
-		for (eng::usize i = 0; i < n; ++i) {
+		const bool record = !out.empty();
+		const eng::usize total = record ? (zones.size() < out.size() ? zones.size() : out.size())
+						: zones.size();
+		for (eng::usize i = 0; i < total; ++i) {
 			const PaletteZone& z = zones[i];
 			u8 first = z.first;
 			u8 count = z.count;
@@ -466,13 +459,22 @@ using ZoneBinding = PatchZone;
 			if (static_cast<eng::u32>(first) + count > z.colors.size()) {
 				count = static_cast<u8>(z.colors.size() - first);
 			}
-			for (u8 k = 0u; k < count; ++k) {
-				slots[k] = PatchSlot {
-					static_cast<copper::Register>(
-						copper::color_register(static_cast<u8>(first + k))),
-					z.colors[first + k]};
+			const u16 idx = sc.scheduler().emit_palette_zone_at(z.line, z.colors, first, count);
+			if (record) {
+				out[i] = PatchZone {z.line, idx, count};
 			}
-			patchable_zone(z.line, eng::Span<const PatchSlot> {slots, count}, &out[i])(sc);
+		}
+	};
+}
+
+/// Etapa de **paleta base parcheable**: como `palette` pero escribe su `PatchZone` en `*out`
+/// para reescribir los colores por frame (fundidos, ciclos).
+[[nodiscard]] inline auto palette_patchable(eng::PaletteWords colors, u8 first, u8 count,
+					    PatchZone* out) {
+	return [=](Scene& sc) {
+		const u16 idx = sc.scheduler().emit_palette_at(colors, first, count);
+		if (out != nullptr) {
+			*out = PatchZone {0u, idx, count};
 		}
 	};
 }
