@@ -124,6 +124,7 @@ struct FireBenchDemo {
 		for (eng::u8 i = 0; i < 32u; ++i) palette.color[i] = kFirePalette[i];
 		const scene::SceneResources res = scene::planar(320u, 256u, 6);
 		m_scene_ok = scene::compose(m_scene, backend.memory(), res,
+				    scene::ocs_a500,
 				scene::display(scene::kPal320x256, scene::kBplcon0_Ehb),
 				scene::palette(eng::PaletteWords {palette.color, 32u}, 0u, 32u));
 		if (!m_scene_ok) {

@@ -57,7 +57,7 @@ int main() {
 	creq.layout = graphics::scene::SceneLayout::Interleaved;
 	Scene sc;
 	check(graphics::scene::compose(
-		      sc, mem, creq,
+		      sc, mem, creq, graphics::scene::ocs_a500,
 		      graphics::scene::display(graphics::scene::kPal320x256,
 					       graphics::scene::kBplcon0_4Planes)),
 	      "scene::compose (interleaved) reserva bitmap + copperlist");

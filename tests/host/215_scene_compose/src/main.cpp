@@ -197,6 +197,44 @@ int main() {
 	}
 	check(found_ham, "el display emite BPLCON0 = 0x7a00 (HAM6)");
 
+	// --- Validacion de configuraciones contra el perfil de la maquina ---------------
+	// Estatica (compile-time): configs conocidas en compilacion.
+	static_assert(graphics::scene::valid_scene(graphics::scene::planar(320, 256, 6),
+						   graphics::scene::ocs_a500));
+	static_assert(graphics::scene::valid_scene(graphics::scene::planar(288, 256, 4),
+						   graphics::scene::ocs_a500));
+	// 336 no es valido en OCS (fetch > 0xD0); 7 planos tampoco; 320 con 7 planos en AGA si.
+	static_assert(!graphics::scene::valid_scene(graphics::scene::planar(336, 256, 4),
+						    graphics::scene::ocs_a500));
+	static_assert(!graphics::scene::valid_scene(graphics::scene::planar(320, 256, 7),
+						    graphics::scene::ocs_a500));
+	static_assert(graphics::scene::valid_scene(graphics::scene::planar(320, 256, 7),
+						   graphics::scene::aga_a1200));
+
+	// Dinamica (runtime): el rechazo queda en `config_error()`.
+	{
+		graphics::scene::Scene bad;
+		graphics::scene::SceneResources wide = graphics::scene::planar(336, 256, 4);
+		const bool okw = graphics::scene::compose(
+			bad, mem, wide, graphics::scene::ocs_a500,
+			graphics::scene::display(graphics::scene::kPal320x256,
+						 graphics::scene::kBplcon0_4Planes));
+		check(!okw, "compose rechaza width=336 en OCS");
+		check(!bad.config_error().ok(), "config_error marca el rechazo");
+
+		graphics::scene::Scene rec;
+		const bool okr = graphics::scene::compose(
+			rec, mem, graphics::scene::planar(320, 256, 4), graphics::scene::ocs_a500,
+			graphics::scene::display(graphics::scene::kPal320x256,
+						 graphics::scene::kBplcon0_4Planes));
+		check(okr && rec.config_error().ok(), "compose acepta una config valida");
+
+		const graphics::scene::ConfigError e =
+			graphics::scene::validate(graphics::scene::planar(320, 256, 7),
+						  graphics::scene::ocs_a500);
+		check(e.code == 5u, "validate: 7 planos en OCS = codigo 5 (planos)");
+	}
+
 	if (failures == 0) {
 		std::printf("OK: scene::compose (etapas display/paleta/zonas/row_repeat + PatchHandle + ciclo de vida).\n");
 		return 0;

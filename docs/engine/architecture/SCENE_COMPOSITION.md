@@ -120,6 +120,36 @@ Guardarraíl: medir *code bloat* y tiempo de compilación si se usa ET a fondo (
   composición. **No** hace falta una base CRTP: no hay varias clases hermanas de las que
   extraerla.
 
+### 6.1 Validación de configuraciones contra el backend (`scene/limits.hpp`)
+
+`SceneResources` puede expresar combinaciones que la función acepta pero el **hardware no
+permite** (p. ej. `width = 336` en Amiga, o 7 planos por playfield en un A500). Eso es una
+dependencia del **backend**, no del modelo: por eso el perfil de capacidades es un dato
+declarado por la máquina y la validación es agnóstica.
+
+```text
+   SceneResources ──┐
+                    ├──► validate(res, limits) ──► ConfigError{ code, message }
+   DisplayLimits ───┘         (constexpr)              ok() / !ok()
+      (perfil)          │
+                        ├─ consteval valid_scene()  → static_assert  (config en compilación)
+                        └─ runtime                  → init/compose(..., limits) + config_error()
+```
+
+- **`DisplayLimits`**: qué admite el backend (ancho mín/máx/granularidad, altura, planos
+  normal/DPF/HAM/EHB, modos soportados, buffers). Perfiles como **datos**:
+  `ocs_a500`, `ecs`, `aga_a1200` (`aga_a1200.max_planes = 8`, `max_planes_dpf = 4`, HAM8).
+  Otro backend (Mega Drive, Neo Geo) declara el suyo.
+- **Estática (compilación)**: `consteval bool valid_scene(res, limits)` → `static_assert`
+  cuando la config se conoce al compilar:
+  `static_assert(scene::valid_scene(scene::planar(288, 256, 4), scene::ocs_a500));`
+- **Dinámica (ejecución)**: `compose(scene, mem, res, limits, etapas...)` valida antes de
+  reservar; el rechazo queda en `scene.config_error()` (`code` + `message`, para depurar).
+- Restricciones reales (ver `docs/reference/amiga/hardware/amiga-chipset-matrix.md` y
+  `.../techniques/amiga-display-setup-checklist.md`): en OCS lores `DDFSTOP ≤ 0xD0` acota el
+  ancho a **320 px** (288 válido, 336 no); DPF reparte 3+3 planos; HAM6/EHB = 6; AGA sube a
+  8 planos y 4+4 en DPF. Las no obvias se amplían ahí, con el motivo del rechazo.
+
 ## 7. Relación con lo que ya existe
 
 | Plano | Pieza existente | Falta |

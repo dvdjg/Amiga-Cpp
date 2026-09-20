@@ -447,6 +447,7 @@ struct FlatShadeDemo {
 		scene::SceneResources res = scene::planar(kWidth, kHeight, kPlanes);
 		res.buffers = static_cast<eng::u8>(kBuffers);
 		if (!scene::compose(m_scene, backend.memory(), res,
+				    scene::ocs_a500,
 				    scene::display(kDiwstrt, kDiwstop, kDdfstrt, kDdfstop, kBplcon0),
 				    scene::palette(eng::PaletteWords {flatshade_colors, 16u}, 0u, 16u))) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00011603u);

@@ -98,6 +98,7 @@ struct HoldemGame {
 		};
 		scene::SceneResources res = scene::planar(320, 256, 6);
 		m_scene_ok = scene::compose(m_scene, backend.memory(), res,
+				    scene::ocs_a500,
 					scene::display(scene::kPal320x256, scene::kBplcon0_Ehb),
 					scene::palette(eng::PaletteWords {palette.color, 32u}, 0u, 32u));
 		if (!m_memory_ok || !m_scene_ok) {

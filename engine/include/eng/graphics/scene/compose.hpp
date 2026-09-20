@@ -30,6 +30,7 @@
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
+#include <eng/graphics/scene/limits.hpp>
 #include <eng/memory/arena.hpp>
 
 namespace eng::graphics::scene {
@@ -43,22 +44,11 @@ namespace eng::graphics::scene {
 using Task = eng::util::FunctionRef<void()>;
 
 /// **Layout de los bitplanes** en memoria.
-enum class SceneLayout : eng::u8 {
-	Contiguous = 0, ///< un plano tras otro (cada fila de un plano, contiguas)
-	Interleaved = 1, ///< fila a fila con los N planos (el que espera `CanvasPlayfield`)
-};
+// (`SceneLayout` y `SceneResources` viven en `limits.hpp`, el contrato de display que
+// `validate()` necesita conocer; se reexportan aquí por conveniencia.)
 
 /// **Recursos** que una escena planar necesita (plano de recursos del modelo).
-struct SceneResources {
-	u16 width = 320;   ///< ancho visible (múltiplo de 16)
-	u16 height = 256;  ///< filas del display
-	u16 rows = 0;      ///< filas lógicas del bitmap (0 = igual a `height`)
-	u8 planes = 4;     ///< planos de bitplane
-	SceneLayout layout = SceneLayout::Contiguous; ///< disposición de los bitplanes
-	u8 buffers = 1;    ///< nº de buffers de display (1/2/3); >1 = doble/triple buffer
-	u32 copper_bytes = 4096; ///< capacidad de la copperlist (bytes) reservada en Chip
-	u16 first_line = 0x2c; ///< línea de raster donde arranca la ventana visible (Plan)
-};
+// (definidos en `limits.hpp`)
 
 /// Máximos del modelo de escena (capacidad fija, sin heap).
 inline constexpr u8 kMaxSceneBuffers = 3; ///< buffers de display
@@ -93,6 +83,19 @@ struct Patch32 {
 class Scene {
 public:
 	/// Crea la escena: reserva los bitplanes (según `res`) y la copperlist en Chip RAM.
+	/// Crea la escena reservando los bitplanes (según `res`) y la copperlist en Chip RAM,
+	/// **validando antes** `res` contra las capacidades de `limits` (perfil de la máquina).
+	/// El motivo del rechazo queda en `config_error()`. Devuelve `false` si no es válida o no
+	/// hay memoria.
+	bool init(MemorySystem& memory, const SceneResources& res, const DisplayLimits& limits) {
+		const ConfigError e = validate(res, limits);
+		if (!e.ok()) {
+			m_config_error = e;
+			return false;
+		}
+		return init(memory, res);
+	}
+
 	/// Devuelve `false` si la geometría o la memoria no son válidas.
 	bool init(MemorySystem& memory, const SceneResources& res) {
 		m_res = res;
@@ -223,6 +226,10 @@ public:
 	}
 	/// `true` si la construcción de la copperlist cupo en el presupuesto.
 	[[nodiscard]] bool ok() const { return m_plan.ok(); }
+
+	/// Motivo del último rechazo de configuración (`init` con `DisplayLimits`); `ok()` si
+	/// la escena se creó. Útil para diagnóstico de una config inválida.
+	[[nodiscard]] constexpr ConfigError config_error() const { return m_config_error; }
 	/// Informe del plan (desbordes, zonas pesadas) para diagnóstico.
 	[[nodiscard]] const copper::ScheduleReport& report() const { return m_plan.report(); }
 	/// Palabras de Copper usadas por el programa.
@@ -288,8 +295,9 @@ private:
 	}
 
 	/// Repunta los `BPLxPT` al buffer `index` parcheando el copper. No aplica al interleaved
-	/// (usa un único `CanvasPlayfield`). Recorre los planos **avanzando el puntero** (sin
-	/// `p * plane_bytes`, que emitiría `__mulsi3` en 68000).
+	/// (usa un único `CanvasPlayfield`). Corre una vez por `commit` (no es hot path), así que
+	/// el offset del plano va con multiplicación de 32 bits normal (un `mulu16` desbordaría si
+	/// `src * plane_bytes` supera 65535).
 	void patch_plane_pointers(u8 index) {
 		if (m_res.layout == SceneLayout::Interleaved || index >= m_buffer_count) {
 			return;
@@ -298,8 +306,7 @@ private:
 		u16* words = m_plan.active_words();
 		for (u8 p = 0u; p < m_res.planes; ++p) {
 			const u8 src = (m_plane_source[p] < m_res.planes) ? m_plane_source[p] : p;
-			const eng::u32 off = eng::math::mulu16(static_cast<u16>(src),
-							      static_cast<u16>(m_plane_bytes));
+			const eng::u32 off = static_cast<eng::u32>(src) * m_plane_bytes;
 			m_plane_patch[p].apply(words, static_cast<eng::u32>(
 							 reinterpret_cast<eng::uintptr>(addr + off)));
 		}
@@ -317,6 +324,7 @@ private:
 	Task m_setup {}; ///< tarea de setup (una vez)
 	Task m_frame {}; ///< tarea de frame (por `tick`)
 	Task m_teardown {}; ///< tarea de teardown
+	ConfigError m_config_error {}; ///< motivo del último rechazo de configuración (vacío = ok)
 };
 
 /// **Recursos de una escena planar**, parametrizados (no hay preset por caso de uso: la
@@ -597,6 +605,22 @@ using ZoneBinding = PatchZone;
 template <class... Stages>
 bool compose(Scene& scene, MemorySystem& memory, const SceneResources& res, Stages... stages) {
 	if (!scene.init(memory, res)) {
+		return false;
+	}
+	scene.begin_build();
+	(stages(scene), ...);
+	return scene.end_build();
+}
+
+/// Igual que `compose`, pero **valida** `res` contra las capacidades de `limits` antes de
+/// reservar memoria. El motivo del rechazo queda en `scene.config_error()`. Es la variante
+/// recomendada cuando la configuración no es constante en compilación (o cuando se quiere
+/// diagnóstico en runtime); para configs conocidas en compilación, además, usar
+/// `static_assert(valid_scene(res, limits))`.
+template <class... Stages>
+bool compose(Scene& scene, MemorySystem& memory, const SceneResources& res,
+	     const DisplayLimits& limits, Stages... stages) {
+	if (!scene.init(memory, res, limits)) {
 		return false;
 	}
 	scene.begin_build();

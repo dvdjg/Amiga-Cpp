@@ -142,6 +142,7 @@ struct DemoGame {
 		const scene::SceneResources res = scene::planar(320u, 256u, 6);
 
 		if (!scene::compose(m_scene, backend.memory(), res,
+				    scene::ocs_a500,
 				    scene::display(scene::kPal320x256, scene::kBplcon0_Ehb),
 				    scene::palette(eng::PaletteWords {palette.color, 32u}, 0u, 32u))) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000052u);

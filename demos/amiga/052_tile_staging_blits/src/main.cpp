@@ -172,6 +172,7 @@ struct DemoGame {
 
 		const gfx::SceneResources res = gfx::planar(320u, 256u, 6);
 		if (!gfx::compose(m_scene, backend.memory(), res,
+				    gfx::ocs_a500,
 				    gfx::display(gfx::kPal320x256, gfx::kBplcon0_Ehb),
 				    gfx::palette(eng::PaletteWords {palette.color, 32u}, 0u, 32u))) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000053u);
