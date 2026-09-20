@@ -95,6 +95,12 @@ public:
 	[[nodiscard]] copper::Scheduler& scheduler() { return m_plan.scheduler(); }
 	[[nodiscard]] const copper::Scheduler& scheduler() const { return m_plan.scheduler(); }
 	[[nodiscard]] constexpr eng::PlaneBytes bitplanes() const { return m_bitplanes.view; }
+	/// Plano `i` del bitmap (layout contiguo; vacío si fuera de rango).
+	[[nodiscard]] constexpr eng::PlaneBytes plane(u8 i) const {
+		return (i < m_res.planes)
+			? bitplanes().subspan(static_cast<eng::u32>(i) * m_plane_bytes, m_plane_bytes)
+			: eng::PlaneBytes {};
+	}
 	[[nodiscard]] constexpr u32 plane_bytes() const { return m_plane_bytes; }
 	[[nodiscard]] constexpr u16 row_bytes() const {
 		return static_cast<u16>((m_res.width / 8u) & ~1u);

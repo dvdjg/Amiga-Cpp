@@ -5,7 +5,7 @@
 // tarea NO bloquea el frame: el engine la drena en el hueco de VBlank (prioridad al
 // bucle principal) y solo cuando el CPU estaria esperando.
 //
-//   - Display: 4 planos 320x256 (driver `PlanarScene`, sin cuadruplicado).
+//   - Display: 4 planos 320x256 (`scene::compose`, etapa display, sin cuadruplicado).
 //   - Fondo (COLOR00): lo pulsa el bucle principal por CPU cada frame -> prueba viva
 //     de que el juego sigue corriendo (la copperlist NO toca COLOR00).
 //   - Barra (COLOR01, blanco): la rellena la tarea de fondo fila a fila. Su longitud
@@ -17,7 +17,7 @@
 #include <eng/core/util/ring_buffer.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
-#include <eng/graphics/drivers/planar_scene.hpp>
+#include <eng/graphics/scene/compose.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/task/background.hpp>
@@ -42,7 +42,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 namespace {
 
 namespace amiga = eng::amiga;
-namespace drivers = eng::graphics::drivers;
+namespace scene = eng::graphics::scene;
 namespace task = eng::task;
 
 constexpr eng::u16 kWidth = 320;
@@ -107,18 +107,10 @@ struct BackgroundDemo {
 			return;
 		}
 
-		drivers::PlanarSceneConfig cfg {};
-		cfg.planes = kPlanes;
-		cfg.rows = kHeight;
-		cfg.bytes_per_row = kBytesPerRow;
-		cfg.bplcon0 = 0x4200u;     // 4 planos, sin modos especiales
-		cfg.row_repeat = 1u;       // sin cuadruplicado
-		cfg.first_line = 0x2cu;
-		cfg.bplcon1_shift = 0u;
-		cfg.palette = kPalette;
-		cfg.palette_first = 1u;    // NO tocar COLOR00: lo pulsa el bucle principal
-		cfg.palette_count = 15u;
-		if (!m_scene.init(backend.memory(), cfg)) {
+		if (!scene::compose(m_scene, backend.memory(),
+				    scene::planar4(kWidth, kHeight, kPlanes),
+				    scene::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x4200),
+				    scene::palette(eng::PaletteWords {kPalette, 16}, 1u, 15u))) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008102u);
 			return;
 		}
@@ -212,7 +204,7 @@ struct BackgroundDemo {
 	}
 
 private:
-	drivers::PlanarScene m_scene {};
+	scene::Scene m_scene {};
 	eng::PlaneBytes m_plane0 {};
 	eng::PlaneBytes m_plane1 {};
 	FillTask m_fill {};
