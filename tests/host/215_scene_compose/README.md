@@ -9,12 +9,14 @@ en vez de una clase por driver. Ver `docs/engine/architecture/SCENE_COMPOSITION.
 1. `compose(scene, memory, recursos, etapas...)` inicializa la escena y ejecuta las etapas.
 2. Las etapas de `display`/`palette` emiten BPLCON0/DIW/DDF/punteros y la paleta.
 3. Una etapa propia (`lambda`) emite un `PatchHandle`; `set()` lo parchea por frame.
-4. La escena queda `ok()` con bitplanes y copperlist válidos.
+4. Ciclo de vida: una `Task` (`eng::util::FunctionRef<void()>`) ligada con `on_frame` corre una vez por `tick()`.
+5. Etapas HAM/EHB: `row_repeat` (cuadruplicado) + `palette_zones` (zonas de paleta por raster) componen.
+6. La escena queda `ok()` con bitplanes y copperlist válidos.
 
 ## Salida de referencia
 
 ```
-OK: scene::compose (escena por etapas + PatchHandle + ciclo de vida).
+OK: scene::compose (etapas display/paleta/zonas/row_repeat + PatchHandle + ciclo de vida).
 ```
 
 ## Ejecutar

@@ -65,8 +65,24 @@ int main() {
 	s.tick();
 	check(frames == 2, "la tarea de frame corre una vez por tick");
 
+	// Escena con etapas HAM/EHB: repeticion de filas (cuadruplicado) + zonas de paleta.
+	graphics::scene::Scene s2;
+	graphics::scene::SceneResources r2 = graphics::scene::planar4(320, 32, 4);
+	r2.rows = 8; // 8 filas logicas x 4 = 32 lineas de display
+	const graphics::scene::PaletteZone zones[2] = {
+		graphics::scene::PaletteZone {0, eng::PaletteWords {pal, 4}, 0, 4},
+		graphics::scene::PaletteZone {16, eng::PaletteWords {pal, 4}, 0, 4},
+	};
+	const bool ok2 = graphics::scene::compose(
+		s2, mem, r2,
+		graphics::scene::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x7a00),
+		graphics::scene::palette_zones(eng::Span<const graphics::scene::PaletteZone> {zones, 2}),
+		graphics::scene::row_repeat(4, 0x2c, 0x0022));
+	check(ok2 && s2.ok(), "escena con row_repeat + zonas de paleta compone");
+	check(s2.scheduler().words_used() > 0u, "la copperlist con row_repeat no esta vacia");
+
 	if (failures == 0) {
-		std::printf("OK: scene::compose (escena por etapas + PatchHandle + ciclo de vida).\n");
+		std::printf("OK: scene::compose (etapas display/paleta/zonas/row_repeat + PatchHandle + ciclo de vida).\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobacion(es) fallaron\n", failures);

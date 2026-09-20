@@ -146,3 +146,44 @@ Guardarraíl: medir *code bloat* y tiempo de compilación si se usa ET a fondo (
 
 Referencias: `DISPLAY_COMPOSITION.md` (buffers y copper), `GRAPHICS_DRIVERS.md` (estado
 actual y criterio), `3D_RENDER_VS_PHYSICS.md` (frontera render), `CODING_STYLE.md` (§`inline`).
+
+## 10. Callables del ciclo de vida (plano de comportamiento)
+
+La tarea del comportamiento es **`eng::util::FunctionRef<void()>`** (alias `scene::Task`), la
+referencia **no propietaria** del engine (análogo de `std::function_ref`), no `std::function`:
+el runtime es freestanding (sin `libstdc++`, sin heap, sin excepciones) y `std::function`
+reservaría y arrastraría `<functional>`. `FunctionRef` son **dos punteros** y acepta lambdas
+(functors) directamente.
+
+- **Vida**: no posee el callable → debe vivir más que la escena (buffer del llamador). No
+  construir la tarea desde un temporal; usar un lambda **con nombre**.
+- **Secuencias que esperan ticks** (setup/teardown largos): reutilizar
+  `eng::util::TaskSequence<N>` + `TaskStatus` (`eng/core/util/task.hpp`), no inventar otro
+  patrón.
+
+### Coste medido (68000, `-O2`, `out/tmp/task-probe.cpp`)
+
+| Caso | Instrucciones | Llamadas |
+|---|---:|---:|
+| Tarea vía `FunctionRef` en punto **opaco** (parámetro) | 10 | 1 (`jsr (aN)` indirecta) |
+| Mismo cuerpo por **plantilla** (functor inline) | 5 | 0 |
+
+Una tarea por invocación cuesta **~1 llamada indirecta (~20–25 ciclos)** y pierde el inlining
+del cuerpo. Para el ciclo de vida **por frame** (unas pocas tareas) es **despreciable** frente
+a los ~142 000 ciclos de un campo, así que `FunctionRef` se mantiene: da un `Scene` **no
+plantilla** y uniforme. Si un hook fuera **por scanline o por elemento**, ahí sí conviene un
+hook por **plantilla** (inline, sin `jsr`), a cambio de templatizar el programa (bloat).
+
+Nota: a `-O2`, un lambda **local conocido** se inlinea incluso a través de `FunctionRef`; el
+`jsr` aparece solo cuando el callable llega **opaco** (guardado y llamado desde otro punto),
+que es el caso real de una tarea almacenada.
+
+### ¿Hace falta poseer el callable? (`InlineFunction<Sig,N>`)
+
+Evaluado: **no ahora**. El llamador ya es dueño del lambda; `FunctionRef` basta. Si algún día
+se necesitara guardar un cierre **por valor** con tipo uniforme sin variable con nombre
+(p. ej. tareas creadas al vuelo), la pieza sería una `eng::util::InlineFunction<Sig,N>` con
+**SBO de capacidad fija** (sin heap) y un `static_assert` del tamaño del cierre; no existe
+todavía y se añadiría **solo con consumidor real**. Límite a documentar entonces: `N` debe
+cubrir el cierre (unas decenas de bytes; 3–4 punteros suele bastar).
+

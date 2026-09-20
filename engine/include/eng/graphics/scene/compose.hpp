@@ -76,6 +76,7 @@ public:
 	[[nodiscard]] constexpr u8 planes() const { return m_res.planes; }
 	[[nodiscard]] constexpr u16 width() const { return m_res.width; }
 	[[nodiscard]] constexpr u16 height() const { return m_res.height; }
+	[[nodiscard]] constexpr u16 rows() const { return m_res.rows != 0u ? m_res.rows : m_res.height; }
 	[[nodiscard]] bool ok() const { return m_sched.ok(); }
 	[[nodiscard]] const copper::ScheduleReport& report() const { return m_sched.report(); }
 
@@ -137,6 +138,44 @@ private:
 /// Etapa de **paleta**: carga `count` colores desde `first`.
 [[nodiscard]] inline auto palette(eng::PaletteWords colors, u8 first = 0, u8 count = 32) {
 	return [=](Scene& sc) { sc.scheduler().emit_palette(colors, first, count); };
+}
+
+/// Zona de paleta por raster (franja horizontal).
+struct PaletteZone {
+	u8 line = 0;
+	eng::PaletteWords colors {};
+	u8 first = 0;
+	u8 count = 32;
+};
+
+/// Etapa de **zonas de paleta** (cambios por línea/banda).
+[[nodiscard]] inline auto palette_zones(eng::Span<const PaletteZone> zones) {
+	return [=](Scene& sc) {
+		for (eng::usize i = 0; i < zones.size(); ++i) {
+			const PaletteZone& z = zones[i];
+			sc.scheduler().emit_palette_zone(z.line, z.colors, z.first, z.count);
+		}
+	};
+}
+
+/// Etapa de **repetición de filas** (cuadruplicado HAM): cada fila lógica ocupa `repeat`
+/// líneas; en las `repeat-1` primeras `BPL1MOD/BPL2MOD = -row_bytes` (misma fila) y en la
+/// última `0` (avanza). `bplcon1_shift` alterna `BPLCON1` en líneas impares (dither).
+[[nodiscard]] inline auto row_repeat(u8 repeat, u16 first_line, u16 bplcon1_shift = 0u) {
+	return [=](Scene& sc) {
+		const u16 r = repeat == 0u ? 1u : repeat;
+		const u16 back = static_cast<u16>(0u - sc.row_bytes());
+		const u32 total = static_cast<u32>(sc.rows()) * r;
+		for (u32 i = 0; i < total; ++i) {
+			sc.scheduler().wait_line_safe(static_cast<u16>(first_line + i));
+			const bool last = ((i % r) == (r - 1u));
+			const u16 mod = last ? 0u : back;
+			sc.scheduler().move(copper::Register::BPL1MOD, mod);
+			sc.scheduler().move(copper::Register::BPL2MOD, mod);
+			sc.scheduler().move(copper::Register::BPLCON1,
+					    ((i & 1u) != 0u) ? bplcon1_shift : 0u);
+		}
+	};
 }
 
 /// Compone: inicializa la escena con `res` y ejecuta las etapas en orden, cierra la lista.
