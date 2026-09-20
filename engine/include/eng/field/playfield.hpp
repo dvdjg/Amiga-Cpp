@@ -45,24 +45,24 @@ struct PlayfieldHardwareView {
     u32 planeaddx = 0;             // coarse X en bytes
     u32 planeaddy = 0;             // offset Y interleaved = display_offset*planes*bytes
     u16 bplcon1 = 0;               // scroll fino duplicado en ambos nibbles
-    u16 bpl1mod = 0;
-    u16 bpl2mod = 0;
+    u16 bpl1mod = 0;               // módulo del plano 1 (bytes ignorados al saltar de fila)
+    u16 bpl2mod = 0;               // módulo del plano 2 (ídem)
     u16 bitmap_bytes_per_row = 0;  // bytes por fila (ej. viewport_w+32)/8
     u32 plane_bytes = 0;           // bytes totales (para validación)
-    u8 planes = 0;
+    u8 planes = 0;                 // nº de planos de bitplane
     u16 bitmap_height = 0;         // altura física total (allocation)
     u16 display_height = 0;        // bucle vertical del display (viewport_h + EXTRAHEIGHT si corkscrew)
     u16 display_offset = 0;        // yoffset = (videoposy + tile_height) % display_height
     u16 split_line = 0;            // filas dentro de la ventana donde ocurre el wrap
     bool split_active = false;     // split_line < viewport_h (hace falta Copper split)
     u32 split_planeaddy = 0;       // offset Y de los punteros del split (fila 0)
-    u16 viewport_w = 0;
-    u16 viewport_h = 0;
+    u16 viewport_w = 0;            // ancho de la ventana visible en píxeles
+    u16 viewport_h = 0;            // alto de la ventana visible en filas
     // Parallax por plano (RoboCod): si `parallax_plane < planes`, ESE plano usa
     // `parallax_planeaddx` (coarse X propio) en vez de `planeaddx`, de modo que su
     // contenido (p. ej. un patrón de fondo) scrollea a otra velocidad.
-    u8 parallax_plane = 0xffu;
-    u32 parallax_planeaddx = 0;
+    u8 parallax_plane = 0xffu;     // plano con parallax propio (0xff = ninguno)
+    u32 parallax_planeaddx = 0;    // coarse X propio del plano de parallax (bytes)
     const u8* bg_plane_base = nullptr; // base del plano de fondo si es doble-buffer
                                         // (soft DPF): ESE plano se lee de aquí, no de real_base
     s32 videoposx = 0;
@@ -259,14 +259,14 @@ protected:
         }
     }
 
-    u8* m_frontbuffer = nullptr;
-    u16 m_width = 0;
-    u16 m_height = 0;
-    u16 m_bytes_per_row = 0;
-    u8 m_planes = 0;
-    u32 m_total_bytes = 0;
-    bool m_initialized = false;
-    PolygonFillSink m_fill_sink {};
+    u8* m_frontbuffer = nullptr; ///< base de los bitplanes (Chip RAM) del playfield
+    u16 m_width = 0;             ///< ancho visible en píxeles
+    u16 m_height = 0;            ///< alto en filas
+    u16 m_bytes_per_row = 0;     ///< bytes por fila de un plano
+    u8 m_planes = 0;             ///< nº de planos de bitplane
+    u32 m_total_bytes = 0;       ///< bytes totales del bitmap (`row * plano * planos`)
+    bool m_initialized = false;  ///< el playfield quedó listo para dibujar
+    PolygonFillSink m_fill_sink {}; ///< motor de relleno por hardware (vacío = CPU)
 };
 
 /// Lienzo plano: un playfield SIN tiles ni scroll, para blits y primitivas de
@@ -276,9 +276,9 @@ protected:
 class CanvasPlayfield : public Playfield {
 public:
     struct Config {
-        u16 width = 320;      // en píxeles
-        u16 height = 32;      // p. ej. franja HUD
-        u8 planes = 4;
+        u16 width = 320;      // ancho visible en píxeles
+        u16 height = 32;      // alto en filas (p. ej. franja HUD)
+        u8 planes = 4;        // nº de planos de bitplane
     };
 
     /// Reserva el framebuffer en Chip RAM (interleaved, `width/8*height*planes`).
