@@ -19,6 +19,7 @@
 #include <eng/retro/lib2d.hpp>
 #include <eng/platform/amiga/object3d.hpp>
 #include <eng/platform/amiga/object3d_poly.hpp>
+#include <eng/retro/flat_shade_xor.hpp>
 #include <eng/core/types.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
@@ -235,6 +236,46 @@ void draw_faces(obj::Object3D& object, eng::PlaneBytes planes, eng::amiga::Minim
 #define FLATSHADE_SKIP_EDGES 1
 #define FLATSHADE_SKIP_FILL 1
 #endif
+
+// Ruta de dibujo de la via fiel:
+//   0 (defecto) = `eng::retro::flat_shade_xor` (contorno EOR + area fill XOR viven en el
+//                 engine; `main` solo reune las aristas visibles).
+//   1           = ruta legacy `draw_edges` + `area_fill_planes` (para perfilar por
+//                 secciones con los flags FLATSHADE_SKIP_*).
+// Los builds de perfilado por secciones fuerzan la legacy (los SKIP_* no aplican al helper).
+#if FLATSHADE_SKIP_EDGES || FLATSHADE_SKIP_FILL || FLATSHADE_SKIP_CLEAR
+#undef FLATSHADE_LEGACY_DRAW
+#define FLATSHADE_LEGACY_DRAW 1
+#endif
+#ifndef FLATSHADE_LEGACY_DRAW
+#define FLATSHADE_LEGACY_DRAW 0
+#endif
+
+/// Reune las aristas VISIBLES (`edge->flags > 0`) del objeto en `out` (coordenadas ya
+/// proyectadas + mascara de color) y limpia el flag para que el XOR del frame siguiente
+/// parta de cero. Devuelve cuantas. Es el unico punto que toca el `Object3D` para dibujar:
+/// la secuencia de Blitter la pone `eng::retro::flat_shade_xor`.
+inline eng::u32 gather_visible_edges(obj::Object3D& object, eng::retro::OutlineEdge* out,
+				     eng::u32 cap) {
+	eng::u32 n = 0u;
+	eng::s16* group = object.edgeGroups;
+	eng::s16 e;
+	do {
+		while ((e = *group++)) {
+			obj::Edge* edge = object.edge(e);
+			const eng::s8 edgeColor = edge->flags;
+			if (edgeColor > 0 && n < cap) {
+				edge->flags = 0;
+				const obj::Point3D* a = object.vertex(edge->point[0]);
+				const obj::Point3D* b = object.vertex(edge->point[1]);
+				out[n++] = eng::retro::OutlineEdge {
+					a->x.v, a->y.v, b->x.v, b->y.v, static_cast<eng::u8>(edgeColor)};
+			}
+		}
+	} while (*group);
+	return n;
+}
+
 
 /// Dibuja las aristas VISIBLES (`edgeColor > 0`) con `blitter_line_eor` (ONEDOT+EOR)
 /// replicadas en cada plano seg??n el color de arista (camino FIEL del original
@@ -506,13 +547,28 @@ struct FlatShadeDemo {
 		// 2) El swap de display lo hace `commit()` al final del update: publica el buffer
 		//    recien dibujado (se vera en el VBlank siguiente) y rota el trasero.
 
-		// 3) Contorno sobre el buffer pre-clearado (estado del objeto ya precalculado).
+		// 3) Contorno (+ fill) sobre el buffer pre-clearado (estado ya precalculado).
 #if FLATSHADE_FAITHFUL
 #if K_FLATSHADE_ASM
 		prepare_fs_args(planes, m_object);
 		const eng::u32 td0 = rcycles();
 		fs_draw_edges();
 		g_eng_prof.v[2] = rcycles() - td0;
+#elif !FLATSHADE_LEGACY_DRAW
+		// Via del engine: reunir las aristas visibles y lanzar contorno EOR + area fill
+		// XOR con `retro::flat_shade_xor` (sin esperar el fill; se solapa con el
+		// transform del frame siguiente). No hay primitivas de Blitter en `main`.
+		eng::retro::OutlineEdge edges[64];
+		const eng::u32 td0 = rcycles();
+		const eng::u32 ne = gather_visible_edges(m_object, edges, 64u);
+		if (ne != 0u) {
+			eng::retro::flat_shade_xor(
+				backend, planes, kBytesPerRow, kPlaneBytes, kPlanes, kWidth, kHeight,
+				eng::Span<const eng::retro::OutlineEdge> {edges, ne},
+				/*area_fill_wait=*/false);
+		}
+		g_eng_prof.v[2] = rcycles() - td0;
+		g_eng_prof.v[10] = ne;
 #else
 		draw_edges(m_object, planes, backend);
 #endif
@@ -521,8 +577,11 @@ struct FlatShadeDemo {
 #endif
 		const eng::u32 t1 = rcycles();
 
-		// 4) Lanzar el fill SIN esperarlo: se mostrar?? en el swap del pr??ximo update.
+		// 4) El fill lo lanza la via del engine dentro de `flat_shade_xor`; la ruta legacy
+		//    (y la asm) lo lanzan aqui SIN esperarlo, para el swap del proximo update.
+#if FLATSHADE_LEGACY_DRAW || K_FLATSHADE_ASM
 		area_fill_planes(planes, backend, false);
+#endif
 
 		// 5) Durante el fill (Blitter ocupado), precalcular el estado del frame siguiente
 		//    (transform + luz + visibilidad de aristas) sobre el object model.

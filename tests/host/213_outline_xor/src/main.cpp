@@ -25,6 +25,7 @@ struct MockBackend {
 	u16 fill_planes = 0;
 	u16 fill_w = 0;
 	u16 fill_h = 0;
+	bool fill_wait = true;
 
 	void blitter_lines_eor_begin(u16) { ++begins; }
 	bool blitter_line_eor_prepare(LineEorParams& out, u16, s16, s16, s16, s16) {
@@ -33,11 +34,12 @@ struct MockBackend {
 		return true;
 	}
 	void blitter_line_eor_draw(const LineEorParams&, u8*, u8*) { ++draws; }
-	bool blitter_area_fill(eng::PlaneBytes, u8 planes, u16, u32, u16 w, u16 h, bool) {
+	bool blitter_area_fill(eng::PlaneBytes, u8 planes, u16, u32, u16 w, u16 h, bool wait) {
 		++fills;
 		fill_planes = planes;
 		fill_w = w;
 		fill_h = h;
+		fill_wait = wait;
 		return true;
 	}
 };
@@ -71,6 +73,12 @@ int main() {
 	check(backend.fills == 1, "un solo area fill XOR");
 	check(backend.fill_planes == 4u && backend.fill_w == 256u && backend.fill_h == 256u,
 	      "el area fill cubre los planos y la pantalla pedidos");
+	check(backend.fill_wait, "el area fill espera por defecto");
+
+	// `area_fill_wait = false`: el fill se encola (para solapar con la CPU).
+	(void)flat_shade_xor(backend, eng::PlaneBytes {}, 40u, 8192u, 4u, 256u, 256u,
+			     eng::Span<const OutlineEdge> {edges, 3u}, /*area_fill_wait=*/false);
+	check(!backend.fill_wait, "area_fill_wait=false se propaga al backend");
 
 	if (failures == 0) {
 		std::printf("OK: flat_shade_xor (contorno EOR por plano + un area fill XOR).\n");

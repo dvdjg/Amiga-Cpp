@@ -44,12 +44,15 @@ struct OutlineEdge {
 };
 
 /// Dibuja un contorno convexo + area fill XOR sobre `planes`. Devuelve el número de
-/// líneas-plano lanzadas (0 si no hay aristas). `wait` del area fill = `true` (el
-/// llamador sincroniza cuando lo necesite). `plane_count` = planos del color.
+/// líneas-plano lanzadas (0 si no hay aristas). `area_fill_wait` decide si el area fill
+/// espera al Blitter (por defecto sí); con `false` se encola y el llamador lo sincroniza
+/// más tarde (solape con la CPU, patrón de la pipeline de 3 buffers). `plane_count` =
+/// planos del color.
 template <class Backend>
 inline eng::u32 flat_shade_xor(Backend& backend, eng::PlaneBytes planes, eng::u16 row_bytes,
 			       eng::u32 plane_bytes, eng::u8 plane_count, eng::u16 width,
-			       eng::u16 height, eng::Span<const OutlineEdge> edges) {
+			       eng::u16 height, eng::Span<const OutlineEdge> edges,
+			       bool area_fill_wait = true) {
 	backend.blitter_lines_eor_begin(row_bytes);
 	eng::u8* base = planes.data();
 	eng::u32 lines = 0u;
@@ -71,7 +74,8 @@ inline eng::u32 flat_shade_xor(Backend& backend, eng::PlaneBytes planes, eng::u1
 			}
 		}
 	}
-	backend.blitter_area_fill(planes, plane_count, row_bytes, plane_bytes, width, height, true);
+	backend.blitter_area_fill(planes, plane_count, row_bytes, plane_bytes, width, height,
+				  area_fill_wait);
 	return lines;
 }
 
