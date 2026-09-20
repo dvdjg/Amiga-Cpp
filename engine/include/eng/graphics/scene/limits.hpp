@@ -261,6 +261,47 @@ inline constexpr DisplayLimits aga_a1200 {
 	return validate(res, l).ok();
 }
 
+// ---------------------------------------------------------------------------------------
+// Geometría de display derivada de los recursos.
+// ---------------------------------------------------------------------------------------
+
+/// **Geometría de display** (DIWSTRT/DIWSTOP/DDFSTRT/DDFSTOP): ventana visible y rango de
+/// fetch de bitplanes. Es data de composición derivada de `SceneResources`.
+struct DisplayGeometry {
+	u16 diwstrt = 0x2c81; ///< DIWSTRT (ventana visible, esquina superior)
+	u16 diwstop = 0x2cc1; ///< DIWSTOP (ventana visible, esquina inferior)
+	u16 ddfstrt = 0x0038; ///< DDFSTRT (inicio del fetch de bitplanes)
+	u16 ddfstop = 0x00d0; ///< DDFSTOP (fin del fetch de bitplanes)
+};
+
+/// PAL lowres **320×256** con *fetch* estándar (40 B/fila): geometría habitual.
+inline constexpr DisplayGeometry kPal320x256 {0x2c81, 0x2cc1, 0x0038, 0x00d0};
+
+/// **Geometría de display** coherente con los recursos (DIW/DDF). Si `res` la especifica
+/// (campos != 0) se respeta; si no, se deriva del ancho estándar lores: DIW `0x2c81/0x2cc1`
+/// y DDF `0x0038` + palabras de fetch del ancho. La consumen las etapas de composición.
+[[nodiscard]] constexpr DisplayGeometry geometry_for(const SceneResources& res) {
+	DisplayGeometry g {};
+	g.diwstrt = (res.diwstrt != 0u) ? res.diwstrt : 0x2c81u;
+	g.diwstop = (res.diwstop != 0u) ? res.diwstop : 0x2cc1u;
+	if (res.ddfstrt != 0u || res.ddfstop != 0u) {
+		g.ddfstrt = res.ddfstrt;
+		g.ddfstop = res.ddfstop;
+	} else {
+		// Estándar lores: `DDFSTRT = 0x38`, y `DDFSTOP` tal que cubra `width`. Palabras de
+		// fetch = (ddfstop - ddfstrt)/8 + 1 (paso de DDF = 8 B = 1 palabra de 16 px). Para
+		// 320 px -> (0xD0-0x38)/8+1 = 20 palabras (el estándar). Se acota al máximo hw 0xD8.
+		g.ddfstrt = 0x0038u;
+		const u16 words = static_cast<u16>((res.width + 15u) / 16u);
+		u16 stop = static_cast<u16>(g.ddfstrt + 8u * (words - 1u));
+		if (stop > 0x00d8u) {
+			stop = 0x00d8u;
+		}
+		g.ddfstop = stop;
+	}
+	return g;
+}
+
 /// **Coste de bus** de un playfield (informativo; **no** es validez). El nº de planos no
 /// cambia el ancho de fetch, pero cada plano consume slots de Chip RAM por línea que
 /// compiten con CPU/Blitter/Copper: a 6 planos lores ya se usa ~65 % del bus y queda ~35 %

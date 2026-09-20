@@ -386,18 +386,6 @@ private:
 	};
 }
 
-/// **Geometría de display predefinida** (DIWSTRT/DIWSTOP/DDFSTRT/DDFSTOP). Evita cablear
-/// los valores habituales en cada llamada a `display(...)`.
-struct DisplayGeometry {
-	u16 diwstrt = 0x2c81; ///< DIWSTRT (ventana visible, esquina superior)
-	u16 diwstop = 0x2cc1; ///< DIWSTOP (ventana visible, esquina inferior)
-	u16 ddfstrt = 0x0038; ///< DDFSTRT (inicio del fetch de bitplanes)
-	u16 ddfstop = 0x00d0; ///< DDFSTOP (fin del fetch de bitplanes)
-};
-
-/// PAL lowres **320×256** con *fetch* estándar (40 B/fila): la geometría de las demos.
-inline constexpr DisplayGeometry kPal320x256 {0x2c81, 0x2cc1, 0x0038, 0x00d0};
-
 /// **`BPLCON0` habituales** (BPU + COLOR / HAM / EHB).
 inline constexpr u16 kBplcon0_4Planes = 0x4200;      ///< 4 planos, COLOR
 inline constexpr u16 kBplcon0_4PlanesNoColor = 0x4000; ///< 4 planos, sin COLOR
@@ -420,31 +408,6 @@ inline constexpr u16 kBplcon0_Ham6 = 0x7a00;         ///< HAM6 (6 planos, COLOR,
 		default:
 			return static_cast<u16>(bpu | kColor);
 	}
-}
-
-/// **Geometría de display** coherente con los recursos (DIW/DDF). Si `res` la especifica
-/// (campos != 0) se respeta; si no, se deriva del ancho estándar lores: DIW `0x2c81/0x2cc1`
-/// y DDF `0x0038` + palabras de fetch del ancho. Es lo que consume la etapa `display`.
-[[nodiscard]] constexpr DisplayGeometry geometry_for(const SceneResources& res) {
-	DisplayGeometry g {};
-	g.diwstrt = (res.diwstrt != 0u) ? res.diwstrt : 0x2c81u;
-	g.diwstop = (res.diwstop != 0u) ? res.diwstop : 0x2cc1u;
-	if (res.ddfstrt != 0u || res.ddfstop != 0u) {
-		g.ddfstrt = res.ddfstrt;
-		g.ddfstop = res.ddfstop;
-	} else {
-		// Estándar lores: `DDFSTRT = 0x38`, y `DDFSTOP` tal que cubra `width`. Palabras de
-		// fetch = (ddfstop - ddfstrt)/8 + 1 (paso de DDF = 8 B = 1 palabra de 16 px). Para
-		// 320 px -> (0xD0-0x38)/8+1 = 20 palabras (el estándar). Se acota al máximo hw 0xD8.
-		g.ddfstrt = 0x0038u;
-		const u16 words = static_cast<u16>((res.width + 15u) / 16u);
-		u16 stop = static_cast<u16>(g.ddfstrt + 8u * (words - 1u));
-		if (stop > 0x00d8u) {
-			stop = 0x00d8u;
-		}
-		g.ddfstop = stop;
-	}
-	return g;
 }
 
 /// Etapa de **display**: BPLCON0, DIW/DDF y punteros BPLxPT. Con layout `Interleaved` usa
