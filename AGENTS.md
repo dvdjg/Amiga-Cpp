@@ -71,8 +71,10 @@ contexto irrelevante a quien trabaja en otra cosa.
 
 ### 1.8 Commits por turno
 
-- Por defecto, **al comenzar un turno, hacer commit de lo que quedó del turno anterior** (solo lo hecho en el hilo actual).
-- **No** hacer el commit final de lo desarrollado en el propio turno: el trabajo del turno en curso se deja sin commitear salvo que el usuario lo pida.
+El objetivo es que el usuario pueda **revisar** el trabajo antes de que se consolide en git.
+
+- **Al comenzar un turno**, hacer commit de lo que quedó **sin commitear** del turno anterior (solo lo hecho en el hilo actual), ya revisado.
+- El trabajo producido en el **turno en curso** no se commitea en ese mismo turno, aunque complete una tarea pendiente o un arreglo: se deja sin commitear para que el usuario lo repase, y se commitea al inicio del turno siguiente salvo que el usuario pida lo contrario.
 - No incluir en ese commit cambios ajenos al hilo actual.
 
 ---

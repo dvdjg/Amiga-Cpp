@@ -15,7 +15,8 @@
 #include <eng/core/mesh3d.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
-#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/palette32.hpp>
+#include <eng/graphics/scene/compose.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
@@ -64,124 +65,28 @@ extern "C" const unsigned char g_cube_uafr_end[];
 
 namespace {
 
-namespace ehb = eng::graphics::drivers;
+namespace scene = eng::graphics::scene;
+namespace field = eng::field;
 
-constexpr eng::u16 kWidth = ehb::StaticEhbScene::width;
-constexpr eng::u16 kHeight = ehb::StaticEhbScene::height;
-constexpr eng::u16 kRowBytes = ehb::StaticEhbScene::bytes_per_row;
-constexpr eng::u8 kPlanes = ehb::StaticEhbScene::plane_count;
-constexpr eng::u32 kPlaneBytes = ehb::StaticEhbScene::plane_bytes;
+constexpr eng::u16 kWidth = 320;
+constexpr eng::u16 kHeight = 256;
+constexpr eng::u16 kRowBytes = kWidth / 8;
+constexpr eng::u8 kPlanes = 6;
+constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kRowBytes) * kHeight;
+
+/// Escena EHB 320x256 (6 planos) sobre `scene::compose`: perfil y presupuesto validados
+/// en compilacion.
+constexpr scene::SceneResources kRes = scene::planar(kWidth, kHeight, kPlanes);
+static_assert(scene::valid_scene(kRes, scene::ocs_a500), "078: EHB 320x256 en A500");
 
 /// Paleta EHB: 0 fondo, 1..7 rampa del solido, 8 marco, 9/10 estrellas.
-constexpr ehb::EhbPalette kPalette {{
+constexpr eng::Palette32 kPalette {{
 	0x012, 0x123, 0x246, 0x358, 0x47a, 0x58c, 0x6ae, 0x8cf,
 	0x0ff, 0x046, 0x024, 0x000, 0x000, 0x000, 0x000, 0x000,
 	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
 	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
 }};
 
-/// Canvas planar minimo (demo). Colores < 8 usan solo planos 0..2 (la zona del
-/// solido se borra por Blitter a 0 antes de pintarla).
-struct Canvas {
-	eng::u8* planes = nullptr;
-	eng::u8 plane_count = kPlanes;
-
-	void px(eng::s32 x, eng::s32 y, eng::u8 color) {
-		if (x < 0 || y < 0 || x >= static_cast<eng::s32>(kWidth) || y >= static_cast<eng::s32>(kHeight)) {
-			return;
-		}
-		const eng::u32 off = static_cast<eng::u32>(y) * kRowBytes + static_cast<eng::u32>(x >> 3);
-		const eng::u8 mask = static_cast<eng::u8>(0x80u >> (x & 7));
-		// Colores < 8 (rampa) usan hasta 3 planos; el resto, todos los del canvas.
-		eng::u8 np = plane_count;
-		if (color < 8u && np > 3u) np = 3u;
-		for (eng::u8 p = 0; p < np; ++p) {
-			eng::u8* base = planes + static_cast<eng::u32>(p) * kPlaneBytes;
-			if (color & (1u << p)) {
-				base[off] = static_cast<eng::u8>(base[off] | mask);
-			} else {
-				base[off] = static_cast<eng::u8>(base[off] & static_cast<eng::u8>(~mask));
-			}
-		}
-	}
-
-	void line(eng::s32 x0, eng::s32 y0, eng::s32 x1, eng::s32 y1, eng::u8 color) {
-		const eng::s32 dx = x1 > x0 ? x1 - x0 : x0 - x1;
-		const eng::s32 dy = y1 > y0 ? y1 - y0 : y0 - y1;
-		const eng::s32 sx = x0 < x1 ? 1 : -1;
-		const eng::s32 sy = y0 < y1 ? 1 : -1;
-		eng::s32 err = dx - dy;
-		for (;;) {
-			px(x0, y0, color);
-			if (x0 == x1 && y0 == y1) break;
-			const eng::s32 e2 = 2 * err;
-			if (e2 > -dy) { err -= dy; x0 += sx; }
-			if (e2 < dx)  { err += dx; y0 += sy; }
-		}
-	}
-
-	/// Rellena una fila [xl, xr] de un color PLANO escribiendo bytes/words
-	/// completos, no píxel a píxel. Es LA diferencia de rendimiento del relleno:
-	/// un tramo de 120 px pasa de ~120 RMW por plano a ~4 escrituras por plano.
-	/// Solo toca los planos 0..2 (la rampa del sólido usa índices < 8).
-	void fill_span(eng::s32 xl, eng::s32 xr, eng::s32 y, eng::u8 color) {
-		if (y < 0 || y >= static_cast<eng::s32>(kHeight)) return;
-		if (xl > xr) { const eng::s32 t = xl; xl = xr; xr = t; }
-		if (xl < 0) xl = 0;
-		if (xr > static_cast<eng::s32>(kWidth) - 1) xr = static_cast<eng::s32>(kWidth) - 1;
-		if (xl > xr) return;
-
-		const eng::u32 b0 = static_cast<eng::u32>(xl) >> 3;
-		const eng::u32 b1 = static_cast<eng::u32>(xr) >> 3;
-		const eng::u8 first_mask = static_cast<eng::u8>(0xffu >> (xl & 7));
-		const eng::u8 last_mask = static_cast<eng::u8>(0xffu << (7 - (xr & 7)));
-
-		for (eng::u8 p = 0; p < plane_count; ++p) {
-			eng::u8* row = planes + static_cast<eng::u32>(p) * kPlaneBytes +
-				       static_cast<eng::u32>(y) * kRowBytes;
-			const eng::u8 v = (color & (1u << p)) ? 0xffu : 0x00u;
-			if (b0 == b1) {
-				const eng::u8 m = static_cast<eng::u8>(first_mask & last_mask);
-				row[b0] = v ? static_cast<eng::u8>(row[b0] | m)
-					    : static_cast<eng::u8>(row[b0] & static_cast<eng::u8>(~m));
-				continue;
-			}
-			row[b0] = v ? static_cast<eng::u8>(row[b0] | first_mask)
-				    : static_cast<eng::u8>(row[b0] & static_cast<eng::u8>(~first_mask));
-			row[b1] = v ? static_cast<eng::u8>(row[b1] | last_mask)
-				    : static_cast<eng::u8>(row[b1] & static_cast<eng::u8>(~last_mask));
-			// Bytes completos b0+1 .. b1-1, con words en el tramo alineado.
-			eng::u32 i = b0 + 1u;
-			const eng::u32 end = b1;
-			for (; i < end && (i & 1u) != 0u; ++i) row[i] = v;
-			eng::u16* wp = reinterpret_cast<eng::u16*>(row + i);
-			const eng::u16 vw = static_cast<eng::u16>((static_cast<eng::u16>(v) << 8) | v);
-			const eng::u32 words = (end - i) / 2u;
-			for (eng::u32 w = 0; w < words; ++w) wp[w] = vw;
-			i += words * 2u;
-			for (; i < end; ++i) row[i] = v;
-		}
-	}
-
-	/// Borra (a 0) el bbox alineado a byte de los planos del canvas (CPU). Se usa
-	/// para limpiar la mascara antes de pintar cada cara.
-	void clear_rect(eng::s32 x0, eng::s32 y0, eng::s32 x1, eng::s32 y1) {
-		if (x0 < 0) x0 = 0;
-		if (y0 < 0) y0 = 0;
-		if (x1 > static_cast<eng::s32>(kWidth) - 1) x1 = static_cast<eng::s32>(kWidth) - 1;
-		if (y1 > static_cast<eng::s32>(kHeight) - 1) y1 = static_cast<eng::s32>(kHeight) - 1;
-		if (x0 > x1 || y0 > y1) return;
-		const eng::u32 b0 = static_cast<eng::u32>(x0) >> 3;
-		const eng::u32 b1 = static_cast<eng::u32>(x1) >> 3;
-		for (eng::u8 p = 0; p < plane_count; ++p) {
-			eng::u8* base = planes + static_cast<eng::u32>(p) * kPlaneBytes;
-			for (eng::s32 y = y0; y <= y1; ++y) {
-				eng::u8* row = base + static_cast<eng::u32>(y) * kRowBytes;
-				for (eng::u32 i = b0; i <= b1; ++i) row[i] = 0u;
-			}
-		}
-	}
-};
 
 using eng::math3d::Face;
 using eng::math3d::MeshView;
@@ -210,60 +115,6 @@ eng::u8 shade_of(eng::s16 zsum) {
 	return 2;
 }
 
-/// DDA entero y sin divisiones: recorre la x de una arista al avanzar la y.
-struct Dda {
-	eng::s32 x = 0;
-	eng::s32 adx = 0;
-	eng::s32 dy = 0;
-	eng::s32 sx = 1;
-	eng::s32 e = 0;
-
-	void init(eng::s32 xs, eng::s32 ys, eng::s32 xe, eng::s32 ye) {
-		dy = ye - ys;
-		if (dy < 0) dy = -dy;
-		const eng::s32 dx = xe - xs;
-		adx = dx < 0 ? -dx : dx;
-		sx = dx < 0 ? -1 : 1;
-		x = xs;
-		e = 0;
-	}
-	void step() {
-		e += adx;
-		while (e >= dy && dy > 0) {
-			e -= dy;
-			x += sx;
-		}
-	}
-};
-
-/// Rellena un triangulo por scanline (dos tramos: arriba->medio, medio->abajo),
-/// con DDAs enteros (sin divisiones ni floats). Ruta CPU; se conserva aunque
-/// K_FILL_BLITTER use el Blitter.
-[[maybe_unused]] void fill_tri(Canvas& c, eng::s32 x0, eng::s32 y0, eng::s32 x1, eng::s32 y1,
-	      eng::s32 x2, eng::s32 y2, eng::u8 color) {
-	eng::s32 xa = x0, ya = y0, xb = x1, yb = y1, xc = x2, yc = y2;
-	if (ya > yb) { const eng::s32 t = xa; xa = xb; xb = t; const eng::s32 u = ya; ya = yb; yb = u; }
-	if (ya > yc) { const eng::s32 t = xa; xa = xc; xc = t; const eng::s32 u = ya; ya = yc; yc = u; }
-	if (yb > yc) { const eng::s32 t = xb; xb = xc; xc = t; const eng::s32 u = yb; yb = yc; yc = u; }
-	if (ya == yc) return;
-
-	Dda ac, ab, bc;
-	ac.init(xa, ya, xc, yc);
-	ab.init(xa, ya, xb, yb);
-	bc.init(xb, yb, xc, yc);
-
-	for (eng::s32 y = ya; y < yb; ++y) {
-		c.fill_span(ab.x, ac.x, y, color);
-		ab.step();
-		ac.step();
-	}
-	for (eng::s32 y = yb; y < yc; ++y) {
-		c.fill_span(bc.x, ac.x, y, color);
-		bc.step();
-		ac.step();
-	}
-}
-
 /// Auto-test en hardware (igual que HOST-013): con rotacion identidad solo la
 /// cara +Z (triangulos 0 y 1) es visible.
 
@@ -277,8 +128,10 @@ struct DemoGame {
 			4u * 1024u,
 		});
 
-		const ehb::StaticEhbSceneConfig scene_config {&kPalette, nullptr, 0, 1024};
-		m_scene_ok = m_scene.init(backend.memory(), scene_config);
+		m_scene_ok = m_memory_ok &&
+			     scene::compose(m_scene, backend.memory(), kRes, scene::ocs_a500,
+					    scene::display(scene::kPal320x256, scene::kBplcon0_Ehb),
+					    scene::palette(kPalette, 0u, 32u));
 
 		// Buffer en blanco (Chip RAM: el Blitter solo direcciona Chip) para el
 		// CopyRect que borra la zona del solido cada frame.
@@ -292,7 +145,9 @@ struct DemoGame {
 		// Plano-mascara 1 bit (Chip RAM) para el relleno por Blitter.
 		m_mask_block = backend.memory().chip.allocate_block<eng::MaskTag>(kPlaneBytes, 16);
 		if (m_mask_block.valid()) {
-			m_mask = m_mask_block.view.data();
+			(void)m_mask_pf.bind_raw(m_mask_block.view.data(),
+						 static_cast<eng::u32>(m_mask_block.view.size()),
+						 kWidth, kHeight, 1u, kPlaneBytes);
 		}
 #endif
 
@@ -303,13 +158,14 @@ struct DemoGame {
 		const bool mask_ok = true;
 #endif
 		if (m_memory_ok && m_scene_ok && m_blank_block.valid() && mask_ok && m_mesh_ok) {
+			backend.install_raster(m_scene); // Blitter/CPU según las caps del backend
 			draw_static();
 			m_scene.takeover(backend);
 			if (!verify_mesh()) {
 				eng::debug::mark_failed(g_eng_run_status, 0x00007801u);
 				return;
 			}
-			eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_scene.copper_words()));
+			eng::debug::mark_ready(g_eng_run_status, static_cast<eng::u32>(m_scene.words()));
 		} else {
 			eng::debug::mark_failed(g_eng_run_status, m_mesh_ok ? 0x00000078u : 0x00007803u);
 		}
@@ -317,9 +173,7 @@ struct DemoGame {
 
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
-		if (m_scene.ok()) {
-			m_scene.install(backend);
-		}
+		(void)backend; // la lista es estatica: `takeover` ya la instalo
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
@@ -364,9 +218,9 @@ struct DemoGame {
 			eng::Span<eng::math3d::ConvexFace>(order, 12));
 
 #if K_FILL_BLITTER
-		Canvas mc {m_mask, 1}; // mascara 1 bit (Chip)
+		field::Surface mc = mask_surface(); // mascara 1 bit (Chip)
 #else
-		Canvas c {m_scene.bitplanes().data()};
+		field::Surface c = m_scene.surface();
 #endif
 		for (eng::u32 i = 0; i < visible; ++i) {
 			const Face& fc = m_faces[order[i].index];
@@ -389,8 +243,11 @@ struct DemoGame {
 			if (by > ymax) ymax = by;
 			if (cy < ymin) ymin = cy;
 			if (cy > ymax) ymax = cy;
-			mc.clear_rect(xmin, ymin, xmax, ymax);
-			fill_tri(mc, ax, ay, bx, by, cx, cy, 1u);
+			mc.fill_rect(xmin, ymin, static_cast<eng::u16>(xmax - xmin + 1),
+				     static_cast<eng::u16>(ymax - ymin + 1), 0);
+			const eng::s16 tri_x[3] = {ax, bx, cx};
+			const eng::s16 tri_y[3] = {ay, by, cy};
+			mc.fill_polygon(tri_x, tri_y, 3u, 1u);
 			if (!backend.blit_fill_from_mask(
 				    m_mask_block.view.as_const(), m_scene.bitplanes(),
 				    kPlanes, kRowBytes, kPlaneBytes,
@@ -401,15 +258,20 @@ struct DemoGame {
 				return;
 			}
 #else
-			fill_tri(c, ax, ay, bx, by, cx, cy, col);
+			const eng::s16 tri_x[3] = {ax, bx, cx};
+			const eng::s16 tri_y[3] = {ay, by, cy};
+			c.fill_polygon(tri_x, tri_y, 3u, col);
 #endif
 		}
 
-		m_scene.install(backend);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
 private:
+	/// Contexto de dibujo de la máscara de 1 plano (solo ruta `K_FILL_BLITTER`).
+	field::Surface mask_surface() {
+		return field::Surface {m_mask_pf, field::SurfaceRect {0, 0, kWidth, kHeight}};
+	}
 	/// Carga la malla del blob UAF-R incbinado: `Blob::bind` -> `find(Mesh)` ->
 	/// `MeshAssetView` -> copia a buffers del llamador -> `MeshView`. Es el mismo
 	/// camino que usaria cualquier asset cocinado (sin parsing pesado en Amiga).
@@ -451,15 +313,15 @@ private:
 	}
 
 	void draw_static() {
-		Canvas c {m_scene.bitplanes().data()};
+		field::Surface c = m_scene.surface();
 		for (eng::s32 i = 0; i < 2; ++i) {
 			const eng::s32 x0 = 6 + i * 4, y0 = 6 + i * 4;
 			const eng::s32 x1 = static_cast<eng::s32>(kWidth) - 7 - i * 4;
 			const eng::s32 y1 = static_cast<eng::s32>(kHeight) - 7 - i * 4;
-			c.line(x0, y0, x1, y0, 8);
-			c.line(x1, y0, x1, y1, 8);
-			c.line(x1, y1, x0, y1, 8);
-			c.line(x0, y1, x0, y0, 8);
+			c.draw_line(x0, y0, x1, y0, 8);
+			c.draw_line(x1, y0, x1, y1, 8);
+			c.draw_line(x1, y1, x0, y1, 8);
+			c.draw_line(x0, y1, x0, y0, 8);
 		}
 		// Estrellas fuera de la region del solido (que borra el Blitter).
 		eng::u16 s = 0xbeefu;
@@ -472,7 +334,7 @@ private:
 			    y >= kClearY - 4 && y <= kClearY + kClearH + 4) {
 				continue;
 			}
-			c.px(x, y, (i & 1u) ? 9 : 10);
+			c.set_pixel(x, y, (i & 1u) ? 9 : 10);
 		}
 	}
 
@@ -485,8 +347,8 @@ private:
 	eng::Block<eng::PatternTag> m_blank_block {};
 	const eng::u16* m_blank = nullptr;
 	eng::Block<eng::MaskTag> m_mask_block {};
-	eng::u8* m_mask = nullptr;
-	ehb::StaticEhbScene m_scene {};
+	field::ContiguousPlayfield m_mask_pf {}; ///< lienzo 1 plano sobre `m_mask_block` (K_FILL_BLITTER)
+	scene::Scene m_scene {};
 };
 
 } // namespace

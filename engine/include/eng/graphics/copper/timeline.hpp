@@ -143,9 +143,9 @@ private:
 	}
 
 	u8 m_moves_by_line[line_count]; // sin inicializar: válido solo si `touched`
-	u8 m_waits_by_line[line_count];
-	u32 m_touched[words] {}; // bitset (32 B a cero en construcción, no 512)
-	TimelineReport m_report {};
+	u8 m_waits_by_line[line_count]; ///< waits por línea (sin iniciar: válido si `touched`)
+	u32 m_touched[words] {}; ///< bitset de líneas tocadas (32 B a cero en construcción, no 512)
+	TimelineReport m_report {}; ///< informe acumulado en `finish()`
 };
 
 } // namespace eng::copper

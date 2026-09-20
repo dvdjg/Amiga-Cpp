@@ -69,7 +69,7 @@ propietaria de la esquina y la banda Y se recorta una celda, por lo que no hay
 duplicados ni trabajos para filas o columnas opuestas.
 
 La línea `surface_h - 1` es `guard_line` cuando `scroll_y` está activo. No forma
-parte de `tile_rows`, no se rellena con una celda del mapa y se inicializa a cero.
+parte de `tile_rows`, no se rellena con una celda del mapa y se inicia a cero.
 Para 320x256, tiles 16x16 y margen 2, la geometría es `352x289`, con `18` filas
 de tiles y guardia en la línea `288`.
 

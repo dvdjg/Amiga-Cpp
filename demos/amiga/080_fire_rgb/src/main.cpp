@@ -8,8 +8,7 @@
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/graphics/drivers/ham_scene.hpp>
-#include <eng/graphics/drivers/multi_buffered.hpp>
+#include <eng/graphics/scene/compose.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
@@ -97,7 +96,7 @@ void fire_loop(void);
 namespace {
 
 namespace amiga = eng::amiga;
-namespace drivers = eng::graphics::drivers;
+namespace scene = eng::graphics::scene;
 
 short *chunky[2];
 short *fire;
@@ -157,7 +156,7 @@ void RandomizeBottom(void) {
 #ifndef K_080_BUFFERS
 #define K_080_BUFFERS 2
 #endif
-static_assert(K_080_BUFFERS >= 1 && K_080_BUFFERS <= 4, "K_080_BUFFERS fuera de rango");
+static_assert(K_080_BUFFERS >= 1 && K_080_BUFFERS <= 3, "K_080_BUFFERS fuera de rango");
 
 #define FIRE_ITER_C() \
 		vl = (*Eptr++) + (*Bptr++) + (*Dptr++) + (*Cptr++); \
@@ -248,40 +247,37 @@ struct FireDemo {
 		chunky[1] = reinterpret_cast<short*>(m_chunky[1]);
 		fire = m_fire;
 
-		// Display HAM + cuadruplicado con doble buffer generico (`MultiBuffered`):
-		// N buffers (planos + copperlist) con swap de COP1LC tras VBlank. El driver
-		// emite su lista sobre los bloques que le pasa el wrapper (`bind`), asi la
-		// demo no calcula DIW/DDF ni palabras de Copper ni reserva bitplanes.
-		drivers::HamSceneConfig scene_cfg {};
-		scene_cfg.rows = kHeight;
-		scene_cfg.planes = kPlanes;
-		scene_cfg.bytes_per_row = kBytesPerRow;
-		scene_cfg.bplcon0 = 0x7a00u;         // HAM6 (BPU=7, COLOR, HAM)
-		scene_cfg.first_line = 0x2cu;
-		scene_cfg.row_repeat = 4u;           // cuadruplicado de lineas
-		scene_cfg.bplcon1_shift = 0x0022u;   // dither fino alterno del original
-		scene_cfg.palette = kZeroPalette;    // CopLoadColor(0,15,0)
-		scene_cfg.palette_count = 16u;
-		scene_cfg.reverse_plane_ptrs = true; // BPLxPT como el original (bpl[3..0])
-		// Doble buffer generico (N buffers + bind): el wrapper es dueno de la memoria.
-		if (!m_scenes.init(backend.memory(), scene_cfg)) {
+		// Display planar + cuadruplicado sobre `scene::compose`: N buffers de display (doble
+		// buffer por parcheo de `BPLxPT` en `commit`). La demo describe la escena por
+		// etapas (display + palette + reverse_ptrs + row_repeat); no calcula
+		// DIW/DDF ni palabras de Copper ni reserva bitplanes.
+		scene::SceneResources res = scene::planar(kScreenW, kScreenH, kPlanes);
+		res.mode = scene::SceneMode::Ham; // HAM6 (los 2 bits HAM fijos van por set_bitplane_dat)
+		res.rows = kHeight; // bitmap de `kHeight` filas logicas; row_repeat las cuadruplica
+		res.buffers = static_cast<eng::u8>(K_080_BUFFERS);
+		if (!scene::compose(m_scene, backend.memory(), res,
+				    scene::ocs_a500,
+				    scene::display(res, scene::kBplcon0_Ham6),
+				    scene::palette(eng::PaletteWords {kZeroPalette, 16}, 0u, 16u),
+				    scene::reverse_ptrs(),
+				    scene::row_repeat(4u, 0x2cu, 0x0022u))) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008003u);
 			return;
 		}
-		for (eng::u8 b = 0; b < 2; ++b) {
-			for (eng::u8 pl = 0; pl < kPlanes; ++pl) m_planes[b][pl] = m_scenes.slot(b).plane(pl).data();
-		}
 
 		for (eng::u8 b = 0; b < 2; ++b) {
+			for (eng::u32 i = 0; i < kChunkyBuffer; ++i) m_chunky[b][i] = 0u;
+		}
+		for (eng::u8 b = 0; b < m_scene.buffer_count(); ++b) {
 			for (eng::u8 pl = 0; pl < kPlanes; ++pl) {
-				eng::u8* q = m_planes[b][pl];
+				eng::u8* q = m_scene.buffer(b).data() +
+					     static_cast<eng::u32>(pl) * kPlaneBytes;
 				for (eng::u32 i = 0; i < kPlaneBytes; ++i) q[i] = 0u;
 			}
-			for (eng::u32 i = 0; i < kChunkyBuffer; ++i) m_chunky[b][i] = 0u;
 		}
 		for (eng::u32 i = 0; i < static_cast<eng::u32>(kWidth) * kHeight; ++i) m_fire[i] = 0;
 
-		m_scenes.takeover(backend);
+		m_scene.takeover(backend);
 
 		// Bits HAM fijos de los planos 4/5 (rgbb: 0111 / 1100), como el original.
 		backend.set_bitplane_dat(4, 0x7777);
@@ -319,7 +315,7 @@ struct FireDemo {
 		// Si por lo que sea no llego a completarse (raro), completalo aqui.
 		if (m_c2p_pending) {
 			FinishC2p(backend);
-			m_scenes.slot(m_c2p_buf).install(backend);
+			m_scene.commit();
 			m_c2p_pending = false;
 		}
 
@@ -328,7 +324,10 @@ struct FireDemo {
 		if (!kDiagSkipC2p) {
 			m_c2p.chunky = m_chunky[active];
 			m_c2p.bytes = kChunkyBytes;
-			for (eng::u8 pl = 0; pl < kPlanes; ++pl) m_c2p.planes[pl] = m_planes[active][pl];
+			for (eng::u8 pl = 0; pl < kPlanes; ++pl) {
+				m_c2p.planes[pl] = m_scene.buffer(static_cast<eng::u8>(active)).data() +
+						   static_cast<eng::u32>(pl) * kPlaneBytes;
+			}
 			m_c2p.phase = 0;
 			if (!backend.c2p_4bpp_program(m_c2p)) {
 				eng::debug::mark_failed(g_eng_run_status, 0x00008004u);
@@ -338,7 +337,7 @@ struct FireDemo {
 			m_c2p_irq = true;
 			m_c2p_buf = active;
 		} else {
-			m_scenes.slot(active).install(backend);
+			m_scene.commit();
 		}
 		active ^= 1;
 #else
@@ -355,7 +354,10 @@ struct FireDemo {
 			amiga::MinimalBackend::C2p4State s {};
 			s.chunky = m_chunky[active];
 			s.bytes = kChunkyBytes;
-			for (eng::u8 pl = 0; pl < kPlanes; ++pl) s.planes[pl] = m_planes[active][pl];
+			for (eng::u8 pl = 0; pl < kPlanes; ++pl) {
+				s.planes[pl] = m_scene.buffer(static_cast<eng::u8>(active)).data() +
+					       static_cast<eng::u32>(pl) * kPlaneBytes;
+			}
 			// 13 fases (todas): las impares NO son redundantes (saltarlas rompe el
 			// C2P). Probablemente el Blitter deja los punteros avanzados y la impar
 			// procesa el bloque siguiente con el mismo bltsize.
@@ -364,8 +366,8 @@ struct FireDemo {
 			}
 		}
 
-		// Swap de buffer (la copperlist del driver apunta a los 4 planos de `active`).
-		m_scenes.slot(active).install(backend);
+		// Swap de buffer: `commit()` repunta los BPLxPT al buffer recien convertido.
+		m_scene.commit();
 		active ^= 1;
 #endif
 #if K_FIRE_PROF
@@ -393,11 +395,11 @@ struct FireDemo {
 		if (self.m_c2p.phase >= 13u) {
 			self.m_c2p_irq = false;
 			self.m_c2p_pending = false;
-			// Instala la copperlist del buffer recien convertido AQUI (no en el proximo
-			// update): el Copper la recarga en el siguiente VBlank, asi que el display
-			// muestra el buffer ya convertido y NUNCA el que se esta convirtiendo (evita
-			// el tearing de la zona caliente).
-			self.m_scenes.slot(self.m_c2p_buf).install(*self.m_backend);
+			// Publica el buffer recien convertido AQUI (no en el proximo update): el
+			// Copper la recarga en el siguiente VBlank, asi que el display muestra el
+			// buffer ya convertido y NUNCA el que se esta convirtiendo (evita el tearing
+			// de la zona caliente).
+			self.m_scene.commit();
 		}
 	}
 
@@ -420,10 +422,9 @@ private:
 	bool m_init_ok = false;
 	eng::Block<eng::ChunkyTag> m_block {};
 	eng::u8* m_chunky[2] = {nullptr, nullptr};
-	eng::u8* m_planes[2][kPlanes] = {};
 	short* m_fire = nullptr;
-	// Display HAM + cuadruplicado (una instancia del driver por buffer).
-	drivers::MultiBuffered<drivers::HamScene, K_080_BUFFERS> m_scenes {};
+	// Escena: display HAM + cuadruplicado con N buffers (doble buffer por BPLxPT).
+	scene::Scene m_scene {};
 	amiga::MinimalBackend* m_backend = nullptr;
 	// Pipeline del C2P: la fase 0 la arranca `update`; las fases 1..12 las encadena la
 	// IRQ de blit (`on_blit`), que marca `m_c2p_done` al terminar.

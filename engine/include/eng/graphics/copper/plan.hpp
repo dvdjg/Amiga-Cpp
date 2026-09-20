@@ -240,25 +240,25 @@ private:
 		return static_cast<u8>((static_cast<u16>(top) - m_cfg.first_line) & 0xffu);
 	}
 
-	PlanConfig m_cfg {};
-	DoubleBuffer m_owned {};
+	PlanConfig m_cfg {}; ///< configuración del plan (tamaño de bloque, `first_line`)
+	DoubleBuffer m_owned {}; ///< doble buffer propio (dueño) de la copperlist
 	eng::Ref<DoubleBuffer> m_copper {}; // no-propietario
-	Scheduler m_sched {};
+	Scheduler m_sched {}; ///< emisor de MOVE/WAIT compartido con el `Plan`
 	/// `Array` (no `T v[N]`) para que el tamaño viaje con el objeto; mismo layout y
 	/// coste cero (`eng::util::Array`). `max_intents`/256 líneas.
-	eng::util::Array<graphics::CopperIntent, max_intents> m_intents {};
+	eng::util::Array<graphics::CopperIntent, max_intents> m_intents {}; ///< intenciones registradas este frame
 	eng::util::Array<u16, max_intents> m_prio {};      ///< (superficie << 8) | z
-	eng::util::Array<u16, max_intents> m_perm {};
+	eng::util::Array<u16, max_intents> m_perm {};      ///< orden de emisión (índices a `m_intents`)
 	eng::util::Array<u16, 257u> m_line_start {};       ///< inicio de grupo por línea
 	/// Contadores del counting sort: miembros (no pila) para que el compilador no
 	/// reconstruya el marco ni recalcule punteros a la pila en cada acceso.
-	eng::util::Array<u16, 256u> m_count_by_line {};
-	eng::util::Array<u16, 256u> m_line_cursor {};
-	u16 m_count = 0;
-	u16 m_words = 0;
-	ScheduleReport m_report {};
-	bool m_overflow = false;
-	bool m_ok = false;
+	eng::util::Array<u16, 256u> m_count_by_line {};    ///< nº de intenciones por línea
+	eng::util::Array<u16, 256u> m_line_cursor {};      ///< cursor de relleno por línea (counting)
+	u16 m_count = 0;       ///< nº de intenciones registradas
+	u16 m_words = 0;       ///< palabras de Copper de la última lista materializada
+	ScheduleReport m_report {}; ///< informe del scheduler de la última materialización
+	bool m_overflow = false;    ///< se superó `max_intents`
+	bool m_ok = false;          ///< la última lista cupo y quedó publicada
 };
 
 } // namespace eng::copper

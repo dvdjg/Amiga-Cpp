@@ -1,6 +1,7 @@
 #include <eng/engine.hpp>
 #include <eng/debug/run_status.hpp>
-#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/palette32.hpp>
+#include <eng/graphics/scene/compose.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
@@ -23,13 +24,13 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-namespace drivers = eng::graphics::drivers;
+namespace scene = eng::graphics::scene;
 
-constexpr eng::u16 screen_width = drivers::StaticEhbScene::width;
-constexpr eng::u16 screen_height = drivers::StaticEhbScene::height;
-constexpr eng::u16 bytes_per_row = drivers::StaticEhbScene::bytes_per_row;
-constexpr eng::u8 plane_count = drivers::StaticEhbScene::plane_count;
-constexpr eng::u32 plane_bytes = drivers::StaticEhbScene::plane_bytes;
+constexpr eng::u16 screen_width = 320u;
+constexpr eng::u16 screen_height = 256u;
+constexpr eng::u16 bytes_per_row = 40u;
+constexpr eng::u8 plane_count = 6u;
+constexpr eng::u32 plane_bytes = 10240u;
 constexpr eng::u16 bob_width = 32;
 constexpr eng::u16 bob_height = 32;
 constexpr eng::u16 bob_words_per_row = bob_width / 16;
@@ -45,7 +46,7 @@ constexpr eng::u16 blob_y = 150;
 /// Seguimos en EHB aunque esta demo solo necesite pocos colores porque queremos
 /// validar que el Blitter trabaja sobre el mismo layout de 6 bitplanes que usaran
 /// aventuras EHB y escenas ricas.
-constexpr drivers::EhbPalette palette {{
+constexpr eng::Palette32 palette {{
 	0x000, 0x024, 0x048, 0x06c, 0xff0, 0xf80, 0x0ff, 0xf0f,
 	0x246, 0x468, 0x68a, 0x8ac, 0xace, 0xcdf, 0xfff, 0x111,
 	0x012, 0x123, 0x234, 0x345, 0x456, 0x567, 0x678, 0x789,
@@ -206,14 +207,13 @@ struct DemoGame {
 			4u * 1024u,
 		});
 
-		const drivers::StaticEhbSceneConfig scene_config {
-			&palette,
-			nullptr,
-			0,
-			1024,
-		};
+		scene::SceneResources res = scene::planar(320u, 256u, 6);
+		res.mode = scene::SceneMode::Ehb;
 
-		m_scene_ok = m_scene.init(backend.memory(), scene_config);
+		m_scene_ok = scene::compose(m_scene, backend.memory(), res,
+				    scene::ocs_a500,
+				    scene::display(res),
+				    scene::palette(eng::PaletteWords {palette.color, 32u}, 0u, 32u));
 		if (!m_memory_ok || !m_scene_ok) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000050u);
 			return;
@@ -356,7 +356,6 @@ struct DemoGame {
 		m_last_dirty_rects = m_frame_plan.dirty_report().rects;
 		m_last_dirty_merges = m_frame_plan.dirty_report().merges;
 
-		m_scene.install(backend);
 
 		if (context.frame.frame_index >= 12u) {
 			eng::debug::mark_ready(
@@ -373,7 +372,6 @@ struct DemoGame {
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		if (m_scene.ok()) {
-			m_scene.install(backend);
 		}
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
@@ -381,7 +379,7 @@ struct DemoGame {
 	bool m_memory_ok = false;
 	bool m_scene_ok = false;
 	bool m_blit_ok = false;
-	drivers::StaticEhbScene m_scene {};
+	scene::Scene m_scene {};
 	eng::graphics::FramePlan m_frame_plan {};
 	eng::Block<eng::MaskTag> m_mask_block {};
 	eng::Block<eng::PlaneTag> m_source_block {};

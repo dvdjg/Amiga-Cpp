@@ -22,7 +22,7 @@
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/palette32.hpp>
 #include <eng/graphics/raster_intent.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
@@ -45,8 +45,6 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-namespace drivers = eng::graphics::drivers;
-
 // Geometría del display EHB 320x256 (igual que StaticEhbScene).
 constexpr eng::u16 kBytesPerRow = 40;
 constexpr eng::u8  kPlanes = 6;
@@ -63,7 +61,7 @@ constexpr eng::u16 kVStart = 60;       // primera línea del efecto
 constexpr eng::u16 kSpriteHeight = 8;  // alto del sprite (líneas que cubre el efecto)
 
 /// Fondo navy + grises; COLOR17/18/19 se usan para los tramos (vía paleta del efecto).
-constexpr drivers::EhbPalette kBasePalette {{
+constexpr eng::Palette32 kBasePalette {{
 	0x013, 0x111, 0x222, 0x333, 0x444, 0x555, 0x666, 0x777,
 	0x888, 0x999, 0xaaa, 0xbbb, 0xccc, 0xddd, 0xeee, 0xfff,
 	0xf00, 0x0f0, 0x00f,          // COLOR16/17/18: rojo, verde, azul (cuerpo de los tramos)

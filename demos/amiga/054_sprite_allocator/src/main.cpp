@@ -31,7 +31,7 @@
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/palette32.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/sprite_manager.hpp>
 #include <eng/platform/amiga_minimal.hpp>
@@ -56,7 +56,6 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-namespace drivers = eng::graphics::drivers;
 namespace scene = eng::scene;
 
 constexpr eng::u16 kBytesPerRow = 40;
@@ -80,7 +79,7 @@ constexpr eng::u16 kHposStep = 32;
 
 // Fondo navy + parejas de color de sprite: COLOR17=rojo, COLOR21=verde,
 // COLOR25=azul, COLOR29=amarillo (cada par de canales comparte su gama).
-constexpr drivers::EhbPalette kBasePalette {{
+constexpr eng::Palette32 kBasePalette {{
 	0x013, 0x111, 0x222, 0x333, 0x444, 0x555, 0x666, 0x777,
 	0x888, 0x999, 0xaaa, 0xbbb, 0xccc, 0xddd, 0xeee, 0xfff,
 	0x111, 0xf00, 0x111, 0x111,   // COLOR16-19

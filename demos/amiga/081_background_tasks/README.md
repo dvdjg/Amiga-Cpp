@@ -18,7 +18,7 @@ de **fondo** cooperativo, que la IRQ preempta.
 
 ## Invariantes / diseño
 
-- Display 4 planos 320×256 con el driver `HamScene` (`row_repeat = 1`).
+- Display 4 planos 320×256 con `scene::compose` (sin repetición de filas).
 - **Modo interrupt-driven** (`Engine::run_frames`, el **por defecto**): el tick del juego
   (update+render) corre en la IRQ de VBlank (`support/vbl_irq.s` + `set_vblank_service`); el
   bucle principal hace `while (frames < N) background.run_slice(...)`. La IRQ tiene prioridad
@@ -51,5 +51,9 @@ reinicia) y el color de fondo cambia (el juego sigue pulsando desde la IRQ); la 
 tiene 4 colores (fondo, barra, **línea amarilla** por Blitter, borde). `runStatus.detail`
 lleva la media móvil del throughput del fondo (bits 16+, `RingBuffer`) y los segundos del
 RTC (bits bajos). Analizador propio (`analyze-screenshot.sh`).
+
+La config (`kSceneResources`) es `constexpr`: `static_assert` valida la escena contra
+`ocs_a500` y comprueba que `display_words`+`palette_words` caben en `copper_word_budget`
+(puerta de presupuesto en compilación, sin ejecutar la escena).
 
 Ver `docs/engine/architecture/BACKGROUND_TASKS.md`.

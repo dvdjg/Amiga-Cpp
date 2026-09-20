@@ -20,7 +20,7 @@
 #include <eng/engine.hpp>
 #include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/palette32.hpp>
 #include <eng/graphics/raster_intent.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
@@ -62,7 +62,7 @@ constexpr eng::u16 kRainbow[kRainbowLen] = {
 };
 
 // Paleta base: COLOR00=negro (el fondo lo pintan las franjas), resto grises.
-constexpr eng::graphics::drivers::EhbPalette kBasePalette {{
+constexpr eng::Palette32 kBasePalette {{
 	0x000, 0x111, 0x222, 0x333, 0x444, 0x555, 0x666, 0x777,
 	0x888, 0x999, 0xaaa, 0xbbb, 0xccc, 0xddd, 0xeee, 0xfff,
 	0x111, 0x222, 0x333, 0x444, 0x555, 0x666, 0x777, 0x888,

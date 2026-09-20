@@ -458,8 +458,6 @@ eng/graphics/copper/scheduler.hpp:__attribute__
 eng/graphics/drivers/copper_chunky.hpp:init
 eng/graphics/drivers/copper_chunky.hpp:install
 eng/graphics/drivers/copper_chunky.hpp:takeover
-eng/graphics/drivers/ehb_scene.hpp:find_zone_palette_value_word
-eng/graphics/drivers/ehb_scene.hpp:patch_palette_values
 eng/graphics/drivers/ham_scene.hpp:plane
 eng/graphics/drivers/tile_scroll.hpp:column_ready
 eng/graphics/drivers/tile_scroll.hpp:dual

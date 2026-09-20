@@ -16,7 +16,7 @@
 // destino mueve. La barra inferior muestra el turno, la ultima jugada del motor y la
 // explicacion.
 //
-// Display: `StaticEhbScene` (320x256, 6 planos EHB). El tablero y el texto se
+// Display: escena EHB (320x256, 6 planos) sobre `scene::compose`. El tablero y el texto se
 // rasterizan a los bitplanes por CPU (patron de la demo 060) porque el tablero solo
 // cambia cuando hay jugada o el cursor se mueve; no hace falta Blitter.
 //
@@ -37,7 +37,8 @@
 #include <eng/core/types.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
-#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/palette32.hpp>
+#include <eng/graphics/scene/compose.hpp>
 #include <eng/graphics/font8.hpp>
 #include <eng/input/input.hpp>
 #include <eng/platform/amiga_minimal.hpp>
@@ -62,18 +63,18 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-namespace drivers = eng::graphics::drivers;
+namespace scene = eng::graphics::scene;
 using namespace eng::board;
 using namespace eng::board::chess;
 
 using Position = ChessRules::Position;
 using MoveList = ChessRules::MoveList;
 
-constexpr eng::u16 kScreenW = drivers::StaticEhbScene::width;
-constexpr eng::u16 kScreenH = drivers::StaticEhbScene::height;
-constexpr eng::u16 kBytesPerRow = drivers::StaticEhbScene::bytes_per_row;
-constexpr eng::u8 kPlanes = drivers::StaticEhbScene::plane_count;
-constexpr eng::u32 kPlaneBytes = drivers::StaticEhbScene::plane_bytes;
+constexpr eng::u16 kScreenW = 320u;
+constexpr eng::u16 kScreenH = 256u;
+constexpr eng::u16 kBytesPerRow = 40u;
+constexpr eng::u8 kPlanes = 6u;
+constexpr eng::u32 kPlaneBytes = 10240u;
 
 // Geometria del tablero: casillas de 24x24, origen (8,16) -> 192x192.
 constexpr eng::s32 kSquare = 24;
@@ -102,14 +103,18 @@ struct ChessGame {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({96u * 1024u, 16u * 1024u, 4u * 1024u});
 
-		const drivers::EhbPalette palette {
+		const eng::Palette32 palette {
 			0x000, 0x123, 0x5b3, 0x263, 0xff0, 0xf00, 0x000, 0x000,
 			0x210, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
 			0x000, 0x000, 0x000, 0x000, 0x0cf, 0x000, 0x000, 0x000,
 			0x000, 0x000, 0xf40, 0x000, 0x000, 0x000, 0xff0, 0xfff,
 		};
-		const drivers::StaticEhbSceneConfig scene_config {&palette, nullptr, 0, 1024};
-		m_scene_ok = m_scene.init(backend.memory(), scene_config);
+		scene::SceneResources res = scene::planar(320, 256, 6);
+		res.mode = scene::SceneMode::Ehb;
+		m_scene_ok = scene::compose(m_scene, backend.memory(), res,
+				    scene::ocs_a500,
+					scene::display(res),
+					scene::palette(eng::PaletteWords {palette.color, 32u}, 0u, 32u));
 		if (!m_memory_ok || !m_scene_ok) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00010001u);
 			return;
@@ -123,7 +128,7 @@ struct ChessGame {
 		copy_text(m_status, "Tu turno (blancas): mueve con el joystick");
 
 		redraw();
-		backend.takeover_display(m_scene.copper_words_ptr());
+		m_scene.takeover(backend);
 		eng::debug::mark_ready(g_eng_run_status, 0x000100FFu);
 	}
 
@@ -495,7 +500,7 @@ private:
 		}
 	}
 
-	drivers::StaticEhbScene m_scene {};
+	scene::Scene m_scene {};
 	bool m_memory_ok = false;
 	bool m_scene_ok = false;
 	Position m_pos {};

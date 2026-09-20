@@ -14,8 +14,11 @@
 
 #include <eng/audio/audio_system.hpp>
 #include <eng/core/domains.hpp>
+#include <eng/core/ptr.hpp>
 #include <eng/core/types.hpp>
+#include <eng/field/raster.hpp>
 #include <eng/graphics/frame_plan.hpp>
+#include <eng/graphics/polygon_planes.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga/blob.hpp>
 
@@ -26,11 +29,11 @@ namespace eng::amiga {
 /// Este perfil describe nuestras expectativas de diseno, no una deteccion dinamica
 /// completa. `A500_1MB_Slow` significa 512 KB Chip + 512 KB trapdoor/bogo.
 struct HardwareProfile {
-	const char* id;
-	u16 chip_kb;
-	u16 slow_kb;
-	u16 fast_kb;
-	bool pal;
+	const char* id; ///< nombre del perfil (etiqueta legible)
+	u16 chip_kb;    ///< Chip RAM en KB (la que ve el chipset por DMA)
+	u16 slow_kb;    ///< Slow RAM en KB (trapdoor/bogo)
+	u16 fast_kb;    ///< Fast RAM en KB (solo CPU)
+	bool pal;       ///< `true` = timing PAL (50 Hz), `false` = NTSC
 };
 
 /// Perfil inicial realista para la maquina del proyecto.
@@ -55,13 +58,13 @@ struct DebugOverlay {
 
 /// Triangulo plano (coordenadas de pantalla) para el relleno por Blitter.
 struct FlatTriangle {
-	s16 x0 = 0;
-	s16 y0 = 0;
-	s16 x1 = 0;
-	s16 y1 = 0;
-	s16 x2 = 0;
-	s16 y2 = 0;
-	u8 color = 0;
+	s16 x0 = 0; ///< X del vértice 0 (pantalla, píxeles)
+	s16 y0 = 0; ///< Y del vértice 0
+	s16 x1 = 0; ///< X del vértice 1
+	s16 y1 = 0; ///< Y del vértice 1
+	s16 x2 = 0; ///< X del vértice 2
+	s16 y2 = 0; ///< Y del vértice 2
+	u8 color = 0; ///< índice de color (paleta)
 };
 
 /// Backend Amiga minimo.
@@ -106,9 +109,9 @@ public:
 	/// Almacenamiento de un servicio tipado: el thunk (instanciado por `C`) recupera
 	/// la rutina y el contexto. El llamador conserva vivo su contexto.
 	struct ServiceSlot {
-		void (*thunk)(void* slot, u16 vpos) = nullptr;
-		alignas(void*) eng::u8 fn[sizeof(void*)] {};
-		void* ctx = nullptr;
+		void (*thunk)(void* slot, u16 vpos) = nullptr; ///< trampolín que reconstruye e invoca el servicio
+		alignas(void*) eng::u8 fn[sizeof(void*)] {};   ///< bytes del funtor (tamaño fijo, ABI de IRQ)
+		void* ctx = nullptr;                           ///< contexto del llamador (vivo durante el servicio)
 	};
 
 	/// Trampolín C de un servicio: **reconstruye** el `Service<C>` desde los bytes del slot
@@ -135,16 +138,17 @@ public:
 	/// Token para `wait_vblank` (la rutina no se almacena: se pasa al bucle directo).
 	template <class C>
 	struct DirectToken {
-		C* ctx = nullptr;
-		Service<C> fn = nullptr;
+		eng::Ref<C> ctx {};      ///< contexto del llamador (no propietario, anulable)
+		Service<C> fn = nullptr; ///< rutina de espera (viaja dentro del token)
 	};
 
 	/// Trampolín de `wait_vblank` para el token directo: el funtor viaja EN el token (no en un
-	/// slot persistente), así que sólo lo invoca con `(ctx, vpos)`.
+	/// slot persistente), así que sólo lo invoca con `(ctx, vpos)`. El contexto se guarda
+	/// como `eng::Ref<C>` (observador **no propietario**, anulable) en vez de `C*`.
 	template <class C>
 	static void direct_thunk(void* token_bytes, u16 vpos) {
 		auto* t = static_cast<DirectToken<C>*>(token_bytes);
-		t->fn(*t->ctx, vpos);
+		t->fn(*t->ctx.get(), vpos);
 	}
 
 	/// `task`/`user` son un **hook de tarea ociosa** opcional: se ejecuta repetidamente
@@ -155,7 +159,7 @@ public:
 	/// `Engine::run_frames`.
 	template <class C>
 	void wait_vblank(Service<C> task, C& ctx) {
-		DirectToken<C> token { &ctx, task };
+		DirectToken<C> token { eng::Ref<C> {ctx}, task };
 		wait_vblank_run(&MinimalBackend::direct_thunk<C>, &token);
 	}
 	void wait_vblank() { wait_vblank_run(nullptr, nullptr); }
@@ -257,9 +261,34 @@ public:
 	/// Ejecuta los trabajos hardware descritos por un `FramePlan`.
 	///
 	/// Por ahora solo materializa BOBs enmascarados mediante Blitter. Los parches de
-	/// paleta pertenecen al driver grafico (`StaticEhbScene`) porque son offsets
-	/// internos de su copperlist.
+	/// paleta pertenecen a la escena (offsets internos de su copperlist).
 	bool execute_frame_plan(const graphics::FramePlan& plan);
+
+	/// **Capacidades de rasterizado** del backend: OCS/AGA tienen Blitter (bus de 16 bits;
+	/// AGA admite FMODE 32/64) con fill/line/shift/minterms. Un backend host declararía
+	/// `blitter = false`. Ver `field::RasterCaps`.
+	[[nodiscard]] constexpr eng::field::RasterCaps raster_caps() const {
+#if defined(K_AGA)
+		// Target AGA (A1200/A4000/CD32): bus de 64 bits con FMODE=4x.
+		return eng::field::RasterCaps { true, 64u, true, true, true, true, 60u };
+#else
+		// Target OCS (A500): bus de 16 bits.
+		return eng::field::RasterCaps { true, 16u, true, true, true, true, 60u };
+#endif
+	}
+
+	/// Instala en la escena el **rasterizador** coherente con `raster_caps()` (Blitter si
+	/// lo hay, CPU si no) y una `RasterPolicy` por defecto (`Auto` + umbral). La escena no
+	/// conoce al backend: este solo le pasa la elección.
+	template <class Scene>
+	void install_raster(Scene& scene) const {
+		const eng::field::RasterCaps caps = raster_caps();
+		const eng::field::AccelMode mode =
+			caps.blitter ? eng::field::AccelMode::Auto : eng::field::AccelMode::Cpu;
+		const eng::u16 min_px = caps.blitter ? static_cast<eng::u16>(64u) : static_cast<eng::u16>(0u);
+		scene.set_raster(caps.blitter ? &eng::field::kBlitterRaster : &eng::field::kCpuRaster,
+				 eng::field::RasterPolicy {mode, min_px, true});
+	}
 
 	/// Base de registros custom (`$dff000`). Para rutinas de lote `inline` (p. ej.
 	/// `eng::amiga::OrBlobBatch`) que programan hardware sin un `jsr` por objeto.
@@ -294,6 +323,22 @@ public:
 	/// fila del plano (el original usa WIDTH/8). Linea OR sobre el destino.
 	bool blitter_line(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1);
 
+	/// **Colisión pixel-perfect por Blitter**: hace `scratch = a & b` (minterm `$C0`) por
+	/// plano y devuelve `true` si alguna palabra del rect es distinta de 0. `words`×`rows`
+	/// es el rect (en palabras de 16 px × filas). Referencia CPU: `field::collide_cpu`.
+	/// **Verificada en hardware**: self-test de la demo 077 (colisión y no-colisión).
+	bool blitter_collide(eng::PlaneBytes a, eng::PlaneBytes b, eng::PlaneBytes scratch,
+			     u8 planes, u16 row_bytes, u32 plane_bytes, u16 words, u16 rows);
+
+	/// **Relleno de polígonos compuesto por bitplane** (Blitter): para cada plano `p`,
+	/// limpia el plano, dibuja el contorno XOR (ONEDOT) de las caras cuyo color tiene el
+	/// bit `p` a 1 y hace **un area fill** (`FILL_XOR`); un fill por plano en vez de uno
+	/// por polígono. `dest` es el bitmap contiguo (se escribe en su sitio). Referencia CPU:
+	/// `graphics::fill_polygons_by_plane_cpu`. Verificada por el self-test de 077.
+	bool fill_polygons_by_plane(const graphics::PlanePolygon* faces, u32 n_faces,
+				    eng::PlaneBytes dest, u16 row_bytes, u32 plane_bytes,
+				    u8 planes, u16 width, u16 height);
+
 	/// Línea por Blitter en modo `ONEDOT` con minterm **EOR** (`BC0F_LINE_EOR`),
 	/// secuencia EXACTA de `DrawObject` de `flatshade-convex`: se usa para el
 	/// contorno de polígonos (un píxel por fila) que luego rellena
@@ -305,7 +350,7 @@ public:
 	bool blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1,
 			      eng::u8* d_base = nullptr);
 
-	/// Inicializa los registros comunes del modo línea EOR (ONEDOT) para una
+	/// Inicia los registros comunes del modo línea EOR (ONEDOT) para una
 	/// secuencia de líneas. Escribe `BLTAFWM/ALWM`, `BLTADAT`, `BLTBDAT`,
 	/// `BLTCMOD`, `BLTDMOD` una sola vez, como el preludio de `DrawObject` de
 	/// `flatshade-convex`. NO espera al Blitter: el llamador sincroniza antes de la
@@ -318,13 +363,13 @@ public:
 	/// como hace el `DrawObject` del original (que avanza `bltcpt += plane_bytes`).
 	/// `row_offset` es el desplazamiento de la línea dentro del plano.
 	struct LineEorParams {
-		u16 bltcon0 = 0;
-		u16 bltcon1 = 0;
-		u16 bltamod = 0;
-		u16 bltbmod = 0;
-		u16 bltsize = 0;
-		s16 derr = 0;
-		u32 row_offset = 0;
+		u16 bltcon0 = 0; ///< BLTCON0 (minterm/desplazamiento de la línea)
+		u16 bltcon1 = 0; ///< BLTCON1 (modo línea, signos)
+		u16 bltamod = 0; ///< BLTAMOD (módulo de A)
+		u16 bltbmod = 0; ///< BLTBMOD (módulo de B)
+		u16 bltsize = 0; ///< BLTSIZE (alto/ancho del blit)
+		s16 derr = 0;    ///< error inicial del algoritmo de Bresenham (BLTAPT)
+		u32 row_offset = 0; ///< desplazamiento de la línea dentro del plano
 	};
 
 	/// Calcula los parámetros de una línea EOR sin programar el Blitter. Devuelve
@@ -426,10 +471,10 @@ public:
 	/// `chunky` es el buffer (su segunda mitad es el destino planar). `planes` son
 	/// los 4 punteros de bitplane; `bytes` = `BLTSIZE` del original (10240).
 	struct C2p4State {
-		u8 phase = 0;
-		u8* chunky = nullptr;
-		u8* planes[4] = {nullptr, nullptr, nullptr, nullptr};
-		u16 bytes = 0;
+		u8 phase = 0;    ///< fase actual del C2P (0..12)
+		u8* chunky = nullptr; ///< buffer chunky (su 2ª mitad es el destino planar)
+		u8* planes[4] = {nullptr, nullptr, nullptr, nullptr}; ///< punteros a los 4 bitplanes
+		u16 bytes = 0;   ///< `BLTSIZE` del original (10240)
 	};
 
 	/// Ejecuta UNA fase del C2P 4 bpp (0..12, como el original) y espera al Blitter.
@@ -453,7 +498,7 @@ public:
 	/// sincroniza aqui antes de reprogramar registros o mostrar el buffer.
 	bool wait_blitter();
 
-	/// Inicializa el subsistema de audio (SFX mixer + reproductores de música).
+	/// Inicia el subsistema de audio (SFX mixer + reproductores de música).
 	/// Debe llamarse después de `configure_memory` (necesita el bloque Chip para el
 	/// buffer del mixer) y después de `takeover_display` (el mixer instala su
 	/// interrupción de audio).
@@ -486,22 +531,22 @@ private:
 	bool install_blit_service(ServiceSlot& slot);
 	bool install_timer_service(u16 latch, ServiceSlot& slot);
 
-	Profile m_profile;
-	MemorySystem m_memory {};
-	MemoryReport m_memory_report {};
-	DebugOverlay m_debug {};
-	eng::audio::AudioSystem m_audio {};
-	ServiceSlot m_blitter_slot {};
-	ServiceSlot m_vblank_slot {};
-	ServiceSlot m_blit_slot {};
-	ServiceSlot m_timer_slot {};
-	void* m_chip_alloc = nullptr;
-	u32 m_chip_alloc_size = 0;
-	void* m_slow_alloc = nullptr;
-	u32 m_slow_alloc_size = 0;
-	void* m_frame_alloc = nullptr;
-	u32 m_frame_alloc_size = 0;
-	u32 m_blitter_starts = 0;
+	Profile m_profile; ///< perfil de máquina configurado
+	MemorySystem m_memory {}; ///< arenas (Chip/Slow/Frame) entregadas al engine
+	MemoryReport m_memory_report {}; ///< informe de la reserva de memoria
+	DebugOverlay m_debug {}; ///< overlay de debug (host/WinUAE)
+	eng::audio::AudioSystem m_audio {}; ///< sistema de audio
+	ServiceSlot m_blitter_slot {}; ///< servicio de espera de Blitter
+	ServiceSlot m_vblank_slot {}; ///< servicio de VBlank
+	ServiceSlot m_blit_slot {}; ///< servicio de fin de blit (IRQ de blit)
+	ServiceSlot m_timer_slot {}; ///< servicio del timer de CIA
+	void* m_chip_alloc = nullptr; ///< bloque base de Chip RAM reservado
+	u32 m_chip_alloc_size = 0; ///< tamaño (KB) del bloque de Chip RAM
+	void* m_slow_alloc = nullptr; ///< bloque base de Slow RAM reservado
+	u32 m_slow_alloc_size = 0; ///< tamaño (KB) del bloque de Slow RAM
+	void* m_frame_alloc = nullptr; ///< bloque base de Frame scratch reservado
+	u32 m_frame_alloc_size = 0; ///< tamaño (KB) del bloque de Frame scratch
+	u32 m_blitter_starts = 0; ///< contador de blits lanzados (diagnóstico)
 	/// Estado del lote de BOBs no-inline (`blitter_or_bobs_begin/one/end`): delega en
 	/// la misma implementacion `inline` de `blob.hpp` que usa el camino de coste cero.
 	eng::amiga::OrBlobBatch m_or_bob {};

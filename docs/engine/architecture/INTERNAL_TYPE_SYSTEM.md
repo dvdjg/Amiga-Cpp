@@ -31,7 +31,7 @@ criterio:
 - **El valor está en los valores devueltos**: los productores devuelven tipos de dominio
   (p. ej. `Bitmap::bitplanes() -> PlaneBytes`, `MemoryBlock::buffer<Tag>()`), de modo que los
   consumidores se conectan **sin casts** y el compilador rechaza mezclas de dominio.
-- **El tipo dueño expone la conversión**: quien posee un array/puntero (p. ej. `EhbPalette` con su
+- **El tipo dueño expone la conversión**: quien posee un array/puntero (p. ej. `Palette32` con su
   `color[32]` o una escena con su banco) ofrece la vista de dominio (operador/método), de modo que
   el llamador pasa **el objeto**, no `Dominio{ ptr, size }`. Escribir `PaletteWords{ arr }` u otra
   conversión manual desde un primitivo/array/puntero es un punto donde se pierde la comprobación:
@@ -299,13 +299,13 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
 - **Fase 3 — hecha**: `BlitSource`/`BlitDest` en `BlitJob`; `SoftDpfComposition::make_copy_*` con
   `Pattern` (con tamaño) + validación; **paleta/copper tipados**: `PalettePatch`/`CopperIntent`
   usan `eng::PaletteWords`, `CopperScheduler::emit_palette`/`emit_palette_zone` también, y los
-  campos `palette` de las configs (`XlimitedConfig`/`XlimitedSceneConfig`/`HamSceneConfig`) son
+  campos `palette` de las configs (`XlimitedConfig`/`XlimitedSceneConfig`) son
   `PaletteWords` (los arrays de las demos conectan con el constructor de array). Verificado:
   030/040/107/201/202 READY y 111/112 sin regresión. **Copper/mapper tipados**:
   `CopperScheduler::emit_planes_display`/`emit_copper_intents_full` reciben `eng::PlaneBytes`,
   `Copper::move_bitplane_pointer`/`move32`/`patch_move32`/`instruction_address` usan
   `eng::ChipAddress` y `CopperIntent::bitplanes`/`colors` son `PlaneBytes`/`PaletteWords`; las
-  escenas y demos pasan sus vistas (`bitplanes()`, `EhbPalette` con `operator PaletteWords`).
+  escenas y demos pasan sus vistas (`bitplanes()`, `Palette32` con `operator PaletteWords`).
 - **Fase 4 — hecha**: `Blob`/`Reader`/`BlobWriter`, las vistas UAF y `WorldView::read` usan
   `eng::UafPayload` (`ByteView<UafTag>`); `ChunkCache::Loader`, `StreamingWorldMap::Source`,
   `WorldMapChunkLoader` y `WorldView::decode_chunk<Tag>` usan `eng::TileBankBuffer`; el **pool** de
@@ -330,7 +330,7 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
 - **Fase 7 — hecha (API)**: `eng::Block<Tag>` (`typed.hpp`) y reservas tipadas
   `LinearArena::allocate_block<Tag>()` / `MemoryBlock::block<Tag>()`; HOST-041. **Migración a
   campo etiquetado hecha**: los dueños guardan `Block<Tag>`/vistas de dominio desde el origen
-  (drivers `ehb_scene`/`ham_scene`/`tile_scroll`; demos de planos, sprites, patrón, máscaras,
+   (drivers `ehb_scene`/`planar_scene`/`tile_scroll`; demos de planos, sprites, patrón, máscaras,
   chunky, audio y **copperlist**). `Block<Tag>` lleva dominio + `MemoryKind`, así que la
   copperlist es `Block<CopperTag>` (el builder valida Chip) y el medio queda separado del dato
   (permite construir/copiar la lista con el Blitter). También nacen tipados `Bitmap`

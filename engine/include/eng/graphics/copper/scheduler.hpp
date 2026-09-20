@@ -51,18 +51,37 @@ namespace eng::copper {
 /// futuras herramientas UAF-R puedan decir "esto cabe pero es caro" antes de que
 /// aparezcan corrupciones visuales dificiles de depurar.
 struct ScheduleReport {
-	u16 words_used = 0;
-	u16 display_moves = 0;
-	u16 palette_moves = 0;
-	u16 waits = 0;
-	u16 heavy_palette_zones = 0;
-	u16 timeline_over_budget_lines = 0;
-	u8 heaviest_line = 0;
-	u8 heaviest_line_moves = 0;
+	u16 words_used = 0;               ///< palabras de Copper escritas en total
+	u16 display_moves = 0;            ///< MOVEs de display (DMACON/BPLxPT/DIW/DDF…)
+	u16 palette_moves = 0;            ///< MOVEs de color (COLORxx)
+	u16 waits = 0;                    ///< instrucciones WAIT emitidas
+	u16 heavy_palette_zones = 0;      ///< zonas de paleta que exceden el presupuesto de línea
+	u16 timeline_over_budget_lines = 0; ///< líneas cuyo coste supera el presupuesto de la Timeline
+	u8 heaviest_line = 0;             ///< línea de raster más cargada
+	u8 heaviest_line_moves = 0;       ///< nº de MOVEs de la línea más cargada
 	u8 unhandled_intents = 0;   // intents que el scheduler base no materializa (ver emit_copper_intents)
-	bool ok = false;
-	bool has_visible_heavy_palette_zone = false;
-	bool has_visible_timeline_spill = false;
+	bool ok = false;                  ///< `true` si la lista cupo en el bloque reservado
+	bool has_visible_heavy_palette_zone = false; ///< hay zona de paleta pesada en área visible
+	bool has_visible_timeline_spill = false;     ///< hay desborde de Timeline en área visible
+};
+
+/// **Handle tipado a un MOVE de la lista** para parchearlo por frame con precisión
+/// quirúrgica. Guarda el emisor (el `Plan` lo reorienta al bloque trasero cada frame, así
+/// que el handle sigue siendo válido tras el swap) y el índice de la instrucción.
+/// `set(value)` escribe el word de valor; coste ~1 store tras una comprobación barata.
+struct PatchHandle {
+	void* owner = nullptr; ///< objeto emisor del MOVE (p. ej. el `ListBuilder`/`Plan`)
+	void (*apply)(void*, u16, u16) = nullptr; ///< `apply(owner, index, value)`
+	u16 index = 0; ///< índice de la word de instrucción (el dato va en `index + 1`)
+
+	/// `true` si el handle apunta a una instrucción (no nulo).
+	[[nodiscard]] constexpr bool valid() const { return apply != nullptr; }
+	/// Escribe el word de valor del MOVE referenciado (no-op si el handle es nulo).
+	void set(u16 value) const {
+		if (apply != nullptr) {
+			apply(owner, index, value);
+		}
+	}
 };
 
 /// Compositor central de Copper para las primeras escenas.
@@ -137,10 +156,32 @@ public:
 		return m_builder.move_at(custom_register_offset, value);
 	}
 
+	/// Emite un MOVE **parcheable** y devuelve un `PatchHandle` (guarda el índice y este
+	/// emisor). La app lo escribe por frame con `set(value)`; el `Plan` reorienta el
+	/// scheduler al bloque trasero, así que el handle sigue válido tras el swap.
+	[[nodiscard]] PatchHandle patchable(Register reg, u16 value) {
+		const u16 index = move_at(reg, value);
+		return PatchHandle {
+			this,
+			[](void* o, u16 i, u16 v) { static_cast<SchedulerT*>(o)->patch_data(i, v); },
+			index};
+	}
+
+	/// Handle a un MOVE **ya emitido**, por su índice (p. ej. una zona de paleta emitida
+	/// con `move_at`), para parchearlo por frame.
+	[[nodiscard]] PatchHandle patch_handle(u16 index) {
+		return PatchHandle {
+			this,
+			[](void* o, u16 i, u16 v) { static_cast<SchedulerT*>(o)->patch_data(i, v); },
+			index};
+	}
+
 	/// Sobrescribe el dato de un MOVE emitido con `move_at` (mismo handle).
+	/// `instruction_word` = índice del MOVE; `value` = nueva palabra de dato.
 	void patch_data(u16 instruction_word, u16 value) { m_builder.patch_data(instruction_word, value); }
 
 	/// Sobrescribe el REGISTRO (destino) de un MOVE emitido con `move_at`.
+	/// `instruction_word` = índice del MOVE; `reg` = offset del registro destino.
 	void patch_move_reg(u16 instruction_word, u16 reg) {
 		m_builder.patch_move_reg(instruction_word, reg);
 	}
@@ -368,6 +409,29 @@ public:
 		}
 	}
 
+	/// Como `emit_palette` pero emitido con `move_at`, devolviendo el índice del primer MOVE
+	/// (para parchear los colores por frame). Mismo registro en el informe.
+	u16 emit_palette_at(eng::PaletteWords colors, u8 first = 0, u8 count = 32) {
+		if (colors.empty() || first >= 32) {
+			return 0u;
+		}
+		if (first + count > 32) {
+			count = static_cast<u8>(32 - first);
+		}
+		if (static_cast<eng::u32>(first) + count > colors.size()) {
+			count = static_cast<u8>(colors.size() - first);
+		}
+		u16 first_index = 0u;
+		for (u8 i = 0; i < count; ++i) {
+			const u16 idx = move_at(color_register(static_cast<u8>(first + i)), colors[first + i]);
+			if (i == 0u) {
+				first_index = idx;
+			}
+			++m_report.palette_moves;
+		}
+		return first_index;
+	}
+
 	/// Espera a una linea y aplica una paleta.
 	///
 	/// Un cambio de 32 colores en una linea visible es caro: no lo prohibimos porque
@@ -383,6 +447,19 @@ public:
 			}
 		}
 		emit_palette(colors, first, count);
+	}
+
+	/// Igual que `emit_palette_zone` pero devuelve el índice del primer MOVE (parcheable).
+	u16 emit_palette_zone_at(u8 line, eng::PaletteWords colors, u8 first = 0, u8 count = 32) {
+		wait_line(line);
+		m_timeline.reserve_moves(line, count);
+		if (count >= 16) {
+			++m_report.heavy_palette_zones;
+			if (line >= 0x2c && line <= 0xf0) {
+				m_report.has_visible_heavy_palette_zone = true;
+			}
+		}
+		return emit_palette_at(colors, first, count);
 	}
 
 	/// Emite una lista de `CopperIntent` (vocabulario portable de la escena).
@@ -472,9 +549,13 @@ public:
 		}
 	}
 
+	/// `true` si la lista cupo en el bloque reservado (sin desbordes).
 	constexpr bool ok() const { return m_builder.ok(); }
+	/// Puntero a las palabras de la copperlist (`u16`, Chip RAM).
 	constexpr u16* data() const { return m_builder.data(); }
+	/// Nº de palabras de Copper usadas hasta ahora.
 	constexpr u16 words_used() const { return m_builder.words_used(); }
+	/// Informe de presupuesto acumulado (válido solo si `Report`).
 	constexpr const ScheduleReport& report() const { return m_report; }
 
 private:
@@ -550,9 +631,9 @@ private:
 		}
 	}
 
-	ListBuilder m_builder {};
+	ListBuilder m_builder {}; ///< emisor de MOVE/WAIT sobre el bloque de copperlist
 	Timeline m_timeline; // por valor; NO se limpia al construir (ver timeline.hpp)
-	ScheduleReport m_report {};
+	ScheduleReport m_report {}; ///< contadores de presupuesto (solo si `Report`)
 };
 
 /// Instancia por defecto: con informe de presupuesto.

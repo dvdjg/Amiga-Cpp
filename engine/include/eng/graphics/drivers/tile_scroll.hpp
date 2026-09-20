@@ -39,7 +39,7 @@
 #include <eng/core/util/array.hpp>
 #include <eng/graphics/copper/double_buffer.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/palette32.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/tilemap/tile_scroll.hpp>
 #include <eng/memory/arena.hpp>
@@ -129,11 +129,11 @@ struct TileScrollMode {
 };
 
 /// Zona de paleta aplicada por copper en una linea concreta.
-using PaletteZone = EhbPaletteZone;
+using PaletteZone = eng::Palette32Zone;
 
 /// Configuracion de la escena de scroll.
 struct TileScrollConfig {
-	const EhbPalette* base_palette = nullptr;
+	const eng::Palette32* base_palette = nullptr;
 	const PaletteZone* zones = nullptr;
 	u8 zone_count = 0;
 	u32 copper_bytes = 1536;

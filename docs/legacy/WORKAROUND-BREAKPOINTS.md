@@ -182,6 +182,6 @@ if (strncmp(packet, "Offsets", 7) == 0) {
 **Investigación necesaria:**
 1. ¿AROS expone los procesos de la misma forma que AmigaOS clásico?
 2. ¿El `debugging_trigger` está correctamente configurado?
-3. ¿La `segList` se inicializa correctamente en AROS?
+3. ¿La `segList` se inicia correctamente en AROS?
 
 Ver `doc/CONTEXTO-DEPURACION-C.md` para más detalles.

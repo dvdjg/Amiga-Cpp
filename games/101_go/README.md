@@ -21,7 +21,7 @@ con el joystick y el motor juega las **blancas**.
 
 ## Visual
 
-`StaticEhbScene` (320×256, 6 planos EHB). Se dibuja la rejilla, las piedras (círculos
+escena EHB `scene::compose` (320×256, 6 planos). Se dibuja la rejilla, las piedras (círculos
 por CPU), el cursor y el estado. El tablero solo se redibuja cuando hay jugada o se
 mueve el cursor.
 

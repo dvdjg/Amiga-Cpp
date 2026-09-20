@@ -25,7 +25,7 @@ Blitter** y display **HAM6 320×256** con **cuadruplicado de líneas por Copper*
   con los punteros de los 4 planos nuevos; cada blit lo encadena la **IRQ de blit**
   (`on_blit`), de modo que la **CPU no espera al Blitter** (*CPU y Blitter en paralelo*: el
   mecanismo del original, `ChunkyToPlanar` en la IRQ).
-- **Display**: `eng::graphics::drivers::HamScene` con `row_repeat = 4` (el escalado
+- **Display**: `scene::compose` (HAM6 320×256) con `row_repeat = 4` (el escalado
   vertical es gratis por Copper) y doble buffer.
 
 ### Detalles del original que importan
@@ -119,7 +119,7 @@ Flags de diagnóstico del build (`EXTRA_DEFINES="..."`):
 
 - Plan de porte y análisis del original (hot verbatim, fases del C2P, Copper, doble buffer,
   IRQ de blit, y el análisis de rendimiento): `docs/demos/effects/FIRE_RGB_PORT_PLAN.md`.
-- `HamScene` (HAM + repetición de líneas): test **HOST-016**; la simulación del fuego:
+- `scene::compose` (HAM + repetición de líneas): test **HOST-016**; la simulación del fuego:
   `tests/host/015_fire_sim`.
 - `support/fire_loop.s` (el bucle); C2P: `MinimalBackend::c2p_4bpp_step`/`c2p_4bpp_program`.
 - Benchmark aislado de la simulación (C++ vs asm): `playground/fire-benchmark`.

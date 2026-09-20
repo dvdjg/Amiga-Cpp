@@ -15,7 +15,6 @@
 #include <eng/graphics/frame_plan.hpp>
 
 namespace effects = eng::graphics::effects;
-namespace drivers = eng::graphics::drivers;
 
 namespace {
 
@@ -28,8 +27,8 @@ void check(bool ok, const char* what) {
 	}
 }
 
-drivers::EhbPalette solid(eng::u16 color) {
-	drivers::EhbPalette p {};
+eng::Palette32 solid(eng::u16 color) {
+	eng::Palette32 p {};
 	for (eng::u8 i = 0; i < 32u; ++i) {
 		p.color[i] = color;
 	}
@@ -41,8 +40,8 @@ drivers::EhbPalette solid(eng::u16 color) {
 int main() {
 	std::printf("== HOST-133 palette_transition ==\n");
 
-	const drivers::EhbPalette black = solid(0x000u);
-	const drivers::EhbPalette white = solid(0xfffu);
+	const eng::Palette32 black = solid(0x000u);
+	const eng::Palette32 white = solid(0xfffu);
 
 	// --- Una sola pasada: 0 -> den y se queda (ping_pong = false) -------------
 	{
@@ -52,7 +51,7 @@ int main() {
 		eng::graphics::FramePlan plan;
 
 		// `runtime_palette()` se refresca en `apply_into` (igual que `PaletteCycleEffect`).
-		auto at = [&](eng::u16 frame) -> const drivers::EhbPalette& {
+		auto at = [&](eng::u16 frame) -> const eng::Palette32& {
 			e.update(frame);
 			plan.clear();
 			e.apply_into(plan);

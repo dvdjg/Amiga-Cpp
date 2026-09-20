@@ -51,6 +51,9 @@ enum class BobDraw : u8 {
 	Or,
 	/// `D = A` (minterm `$F0`): **opaco**, sin máscara; sobrescribe el fondo.
 	Opaque,
+	/// `D = A & D` (minterm `$C0`, `B = D`): **sombra**/sustractivo, sin máscara; los
+	/// unos del objeto oscurecen el fondo.
+	And,
 	/// `D = A·B + ¬A·C` (minterm `$CA`): **cookie-cut** con máscara (transparencia).
 	CookieCut,
 };
@@ -216,7 +219,8 @@ __attribute__((always_inline)) inline bool bob_draw(FramePlan& plan, const Bob& 
 	job.destination_plane_stride_bytes = inter ? 0u : t.plane_bytes;
 	job.interleaved = inter;
 	job.minterm = (bob.draw == BobDraw::Or) ? 0x00fcu
-		    : (bob.draw == BobDraw::Opaque ? 0x00f0u : 0x00cau);
+		    : (bob.draw == BobDraw::Opaque ? 0x00f0u
+		    : (bob.draw == BobDraw::And ? 0x00c0u : 0x00cau));
 	if (bob.draw == BobDraw::CookieCut) {
 		if (bob.mask == nullptr) {
 			return false; // cookie-cut sin mascara

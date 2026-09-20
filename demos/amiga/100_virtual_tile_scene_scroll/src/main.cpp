@@ -1,6 +1,7 @@
 #include <eng/engine.hpp>
 #include <eng/debug/run_status.hpp>
-#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/palette32.hpp>
+#include <eng/graphics/scene/compose.hpp>
 #include <eng/graphics/tilemap/tile_scroll.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/scene/virtual_scene.hpp>
@@ -25,15 +26,15 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-namespace drivers = eng::graphics::drivers;
+namespace gfx = eng::graphics::scene;
 namespace scene = eng::scene;
 namespace tilemap = eng::graphics::tilemap;
 
-constexpr eng::u16 screen_width = drivers::StaticEhbScene::width;
-constexpr eng::u16 screen_height = drivers::StaticEhbScene::height;
-constexpr eng::u16 bytes_per_row = drivers::StaticEhbScene::bytes_per_row;
-constexpr eng::u8 plane_count = drivers::StaticEhbScene::plane_count;
-constexpr eng::u32 plane_bytes = drivers::StaticEhbScene::plane_bytes;
+constexpr eng::u16 screen_width = 320u;
+constexpr eng::u16 screen_height = 256u;
+constexpr eng::u16 bytes_per_row = 40u;
+constexpr eng::u8 plane_count = 6u;
+constexpr eng::u32 plane_bytes = 10240u;
 constexpr eng::u16 map_tiles_x = 64;
 constexpr eng::u16 map_tiles_y = 16;
 constexpr eng::u16 tile_size = 16;
@@ -45,7 +46,7 @@ constexpr eng::u16 screen_words_per_row = bytes_per_row / sizeof(eng::u16);
 /// La demo usa indices pequenos para que las zonas Copper cambien el ambiente sin
 /// tocar los bitplanes. Es el mismo truco conceptual que usaremos en aventuras EHB:
 /// los assets son estables, pero el Copper reinterpreta franjas de la escena.
-constexpr drivers::EhbPalette sky_palette {{
+constexpr eng::Palette32 sky_palette {{
 	0x001, 0x014, 0x06e, 0x0af, 0x7df, 0xfff, 0xfd6, 0xff0,
 	0x86b, 0xb9d, 0x263, 0x4a5, 0x6d7, 0xd8f, 0xf5b, 0x222,
 	0x002, 0x025, 0x047, 0x069, 0x08b, 0x0ad, 0x4cf, 0x8ef,
@@ -53,7 +54,7 @@ constexpr drivers::EhbPalette sky_palette {{
 }};
 
 /// Zona media: jungla saturada y ruinas claras.
-constexpr drivers::EhbPalette jungle_palette {{
+constexpr eng::Palette32 jungle_palette {{
 	0x000, 0x021, 0x063, 0x0a5, 0x2d7, 0xdfa, 0xce7, 0xff0,
 	0x451, 0x783, 0x0f4, 0x4f8, 0x9fc, 0xfd7, 0xf6a, 0x222,
 	0x010, 0x031, 0x052, 0x073, 0x094, 0x0b5, 0x3d7, 0x7f9,
@@ -61,14 +62,14 @@ constexpr drivers::EhbPalette jungle_palette {{
 }};
 
 /// Zona inferior: piedra calida, agua y media intensidad EHB para sombras.
-constexpr drivers::EhbPalette under_palette {{
+constexpr eng::Palette32 under_palette {{
 	0x000, 0x112, 0x246, 0x48a, 0x7bd, 0xfff, 0xfc8, 0xf90,
 	0x421, 0x742, 0x085, 0x0aa, 0x4dd, 0xf6c, 0xf3a, 0x221,
 	0x100, 0x211, 0x322, 0x533, 0x744, 0x955, 0xb76, 0xd98,
 	0x012, 0x124, 0x236, 0x348, 0x45a, 0x66c, 0x88e, 0x333,
 }};
 
-constexpr drivers::EhbPaletteZone palette_zones[] {
+constexpr eng::Palette32Zone palette_zones[] {
 	{0x74, &jungle_palette},
 	{0xb8, &under_palette},
 };
@@ -235,7 +236,7 @@ void draw_viewport(
 	const eng::u16 tile_words[16][plane_count][tile_size],
 	const scene::Camera2D& camera
 ) {
-	eng::Span<eng::u8> planes_span { planes, drivers::StaticEhbScene::bitplane_bytes };
+	eng::Span<eng::u8> planes_span { planes, 61440u };
 	planes_span.clear();
 
 	const tilemap::ScrollPosition scroll = camera.scroll_position();
@@ -278,13 +279,18 @@ struct DemoGame {
 			return;
 		}
 
-		const drivers::StaticEhbSceneConfig scene_config {
-			&sky_palette,
-			palette_zones,
-			static_cast<eng::u8>(sizeof(palette_zones) / sizeof(palette_zones[0])),
-			1536,
-		};
-		if (!m_scene.init(backend.memory(), scene_config)) {
+		const eng::usize gfx_zone_count = sizeof(palette_zones) / sizeof(palette_zones[0]);
+		gfx::PaletteZone gfx_zones[sizeof(palette_zones) / sizeof(palette_zones[0])] {};
+		for (eng::usize i = 0; i < gfx_zone_count; ++i) {
+			gfx_zones[i] = gfx::PaletteZone {palette_zones[i].line, eng::PaletteWords {palette_zones[i].palette->color, 32u}, 0u, 32u};
+		}
+		gfx::SceneResources res = gfx::planar(320u, 256u, 6);
+		res.mode = gfx::SceneMode::Ehb;
+		if (!gfx::compose(m_scene, backend.memory(), res,
+				    gfx::ocs_a500,
+				gfx::display(res),
+				gfx::palette(eng::PaletteWords {sky_palette.color, 32u}, 0u, 32u),
+				gfx::palette_zones(eng::Span<const gfx::PaletteZone> {gfx_zones, gfx_zone_count}))) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000101u);
 			return;
 		}
@@ -335,12 +341,10 @@ struct DemoGame {
 		if (!m_ready_to_run) {
 			return;
 		}
-		m_scene.install(backend);
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		if (m_scene.ok()) {
-			m_scene.install(backend);
 		}
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
@@ -374,11 +378,10 @@ struct DemoGame {
 		}
 
 		draw_viewport(m_scene.bitplanes().data(), m_cells, m_tile_words, camera);
-		m_scene.install(backend);
 	}
 
 	bool m_ready_to_run = false;
-	drivers::StaticEhbScene m_scene {};
+	gfx::Scene m_scene {};
 	tilemap::PackedTileCell m_cells[map_tiles_x * map_tiles_y] {};
 	eng::u16 m_tile_words[16][plane_count][tile_size] {};
 	tilemap::TileMap16 m_map {};

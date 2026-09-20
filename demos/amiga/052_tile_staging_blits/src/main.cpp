@@ -1,6 +1,7 @@
 #include <eng/engine.hpp>
 #include <eng/debug/run_status.hpp>
-#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/palette32.hpp>
+#include <eng/graphics/scene/compose.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/tilemap/tile_scroll.hpp>
 #include <eng/platform/amiga_minimal.hpp>
@@ -25,15 +26,15 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-namespace drivers = eng::graphics::drivers;
+namespace gfx = eng::graphics::scene;
 namespace scene = eng::scene;
 namespace tilemap = eng::graphics::tilemap;
 
-constexpr eng::u16 screen_width = drivers::StaticEhbScene::width;
-constexpr eng::u16 screen_height = drivers::StaticEhbScene::height;
-constexpr eng::u16 screen_bytes_per_row = drivers::StaticEhbScene::bytes_per_row;
-constexpr eng::u8 plane_count = drivers::StaticEhbScene::plane_count;
-constexpr eng::u32 screen_plane_bytes = drivers::StaticEhbScene::plane_bytes;
+constexpr eng::u16 screen_width = 320u;
+constexpr eng::u16 screen_height = 256u;
+constexpr eng::u16 screen_bytes_per_row = 40u;
+constexpr eng::u8 plane_count = 6u;
+constexpr eng::u32 screen_plane_bytes = 10240u;
 constexpr eng::u16 tile_size = 16;
 constexpr eng::u16 tile_words_per_row = 1;
 constexpr eng::u16 tile_count = 4;
@@ -49,7 +50,7 @@ constexpr eng::u32 staging_plane_bytes = staging_bytes_per_row * staging_height;
 constexpr eng::u16 present_x = 96;
 constexpr eng::u16 present_y = 88;
 
-constexpr drivers::EhbPalette palette {{
+constexpr eng::Palette32 palette {{
 	0x000, 0x024, 0x048, 0x06c, 0xff0, 0xf80, 0x0ff, 0xf0f,
 	0x246, 0x468, 0x68a, 0x8ac, 0xace, 0xcdf, 0xfff, 0x111,
 	0x012, 0x123, 0x234, 0x345, 0x456, 0x567, 0x678, 0x789,
@@ -169,13 +170,12 @@ struct DemoGame {
 			return;
 		}
 
-		const drivers::StaticEhbSceneConfig scene_config {
-			&palette,
-			nullptr,
-			0,
-			1024,
-		};
-		if (!m_scene.init(backend.memory(), scene_config)) {
+		gfx::SceneResources res = gfx::planar(320u, 256u, 6);
+		res.mode = gfx::SceneMode::Ehb;
+		if (!gfx::compose(m_scene, backend.memory(), res,
+				    gfx::ocs_a500,
+				    gfx::display(res),
+				    gfx::palette(eng::PaletteWords {palette.color, 32u}, 0u, 32u))) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000053u);
 			return;
 		}
@@ -237,7 +237,6 @@ struct DemoGame {
 			return;
 		}
 
-		m_scene.install(backend);
 		if (context.frame.frame_index >= 3u) {
 			eng::debug::mark_ready(
 				g_eng_run_status,
@@ -251,7 +250,6 @@ struct DemoGame {
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		if (m_scene.ok()) {
-			m_scene.install(backend);
 		}
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
@@ -301,7 +299,7 @@ struct DemoGame {
 	}
 
 	bool m_ready = false;
-	drivers::StaticEhbScene m_scene {};
+	gfx::Scene m_scene {};
 	eng::graphics::FramePlan m_frame_plan {};
 	eng::Block<eng::TileBankTag> m_tiles_block {};
 	eng::Block<eng::PlaneTag> m_staging_block {};

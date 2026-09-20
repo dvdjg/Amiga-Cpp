@@ -39,6 +39,7 @@
 #include <eng/core/utf8.hpp>
 #include <eng/core/ptr.hpp>
 #include <eng/field/playfield.hpp>
+#include <eng/field/raster.hpp>
 #include <eng/graphics/font5x7.hpp>
 #include <eng/graphics/font8.hpp>
 
@@ -76,9 +77,9 @@ public:
         return m_target->write_pixel(x, y, color);
     }
 
-    /// Rectángulo relleno (CPU), recortado. true si todo el rect estaba dentro.
-    /// Escribe una palabra por plano en cada fila (`Playfield::draw_span`).
-    bool fill_rect(s32 x, s32 y, u16 w, u16 h, u8 color) {
+    /// Rectángulo relleno (CPU o Blitter según el `Rasterizer` del playfield), recortado,
+    /// con la operación lógica `op` (`Copy` por defecto). true si todo el rect estaba dentro.
+    bool fill_rect(s32 x, s32 y, u16 w, u16 h, u8 color, RasterOp op = RasterOp::Copy) {
         if (!valid()) return false;
         if (w == 0u || h == 0u) return true;
         const s32 x1 = x + static_cast<s32>(w) - 1;
@@ -93,9 +94,9 @@ public:
         const s32 ry0 = y < cy0 ? cy0 : y;
         const s32 ry1 = y1 > cy1 ? cy1 : y1;
         if (rx1 < rx0 || ry1 < ry0) return false; // rect fuera del clip
-        for (s32 gy = ry0; gy <= ry1; ++gy) {
-            m_target->draw_span(rx0, rx1, gy, color);
-        }
+        rasterizer()->fill_rect(*m_target.get(), rx0, ry0,
+                                static_cast<u16>(rx1 - rx0 + 1),
+                                static_cast<u16>(ry1 - ry0 + 1), color, op);
         return fully_inside;
     }
 
@@ -132,36 +133,16 @@ public:
         return m_target->fill_polygon(cx, cy, static_cast<u8>(m), color);
     }
 
-    /// Línea oblicua (Bresenham, CPU), recortada. Un tramo **horizontal** (`y0 == y1`) se
-    /// resuelve con `Playfield::draw_span` (una palabra por plano).
-    bool draw_line(s32 x0, s32 y0, s32 x1, s32 y1, u8 color) {
+    /// Línea, recortada al clip de la superficie. Delegada en el `Rasterizer` (CPU por
+    /// defecto; un rasterizador Blitter la traza por hardware si se pasa `plan`;
+    /// `op == Xor` usa la variante EOR/ONEDOT).
+    bool draw_line(s32 x0, s32 y0, s32 x1, s32 y1, u8 color,
+                   graphics::FramePlan* plan = nullptr, RasterOp op = RasterOp::Copy) {
         if (!valid()) return false;
-        if (y0 == y1) {
-            s32 a = x0 < x1 ? x0 : x1;
-            s32 b = x0 < x1 ? x1 : x0;
-            const s32 cx0 = m_clip.x;
-            const s32 cx1 = m_clip.x + static_cast<s32>(m_clip.w) - 1;
-            const bool inside = a >= cx0 && b <= cx1 && y0 >= m_clip.y &&
-                                y0 < m_clip.y + static_cast<s32>(m_clip.h);
-            if (a < cx0) a = cx0;
-            if (b > cx1) b = cx1;
-            if (b < a || y0 < m_clip.y || y0 >= m_clip.y + static_cast<s32>(m_clip.h)) return false;
-            return m_target->draw_span(a, b, y0, color) && inside;
-        }
-        const s32 dx = x1 > x0 ? x1 - x0 : x0 - x1;
-        const s32 dy = y1 > y0 ? y1 - y0 : y0 - y1;
-        const s32 sx = x0 < x1 ? 1 : -1;
-        const s32 sy = y0 < y1 ? 1 : -1;
-        s32 err = dx - dy;
-        bool ok = true;
-        for (;;) {
-            if (!set_pixel(x0, y0, color)) ok = false;
-            if (x0 == x1 && y0 == y1) break;
-            const s32 e2 = 2 * err;
-            if (e2 > -dy) { err -= dy; x0 += sx; }
-            if (e2 < dx)  { err += dx; y0 += sy; }
-        }
-        return ok;
+        const ClipRect clip {m_clip.x, m_clip.y,
+                             m_clip.x + static_cast<s32>(m_clip.w) - 1,
+                             m_clip.y + static_cast<s32>(m_clip.h) - 1};
+        return rasterizer()->draw_line(*m_target.get(), clip, x0, y0, x1, y1, color, plan, op);
     }
 
     /// Texto en una fuente 8×8, a nivel de contexto (sin punteros ni planos).
@@ -259,30 +240,55 @@ public:
         return true;
     }
 
-    /// Blit planar en el mundo (delega en el playfield; la costura/espejo las
-    /// gestiona el layout). Recorta el rect contra el clip. La fuente viaja como
-    /// `Span` (el tamaño es el contrato que el playfield valida).
+    /// Blit planar en el mundo (delega en el `Rasterizer`: CPU o Blitter). Recorta el
+    /// rect contra el clip. `source_shift` (shifts A/B) y `descending` (blits solapados)
+    /// solo aplican al camino Blitter. `op` (`Or`/`And`/`Xor`) aplica la operación lógica
+    /// (sombras/glow/máscaras). La fuente viaja como `Span`.
     bool blit(graphics::FramePlan& plan, Span<const u16> src, s32 x, s32 y,
-              u16 w, u16 h, u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
+              u16 w, u16 h, u16 src_row_bytes, u32 src_plane_stride, u8 planes,
+              u8 source_shift = 0u, bool descending = false, RasterOp op = RasterOp::Copy) {
         if (!valid() || x < m_clip.x || y < m_clip.y ||
             x + static_cast<s32>(w) > m_clip.x + m_clip.w ||
             y + static_cast<s32>(h) > m_clip.y + m_clip.h) return false;
-        return m_target->add_world_bitmap(plan, src, x, y, w, h,
-                                          src_row_bytes, src_plane_stride, planes);
+        return rasterizer()->copy_rect(*m_target.get(), plan, src, x, y, w, h,
+                                       src_row_bytes, src_plane_stride, planes,
+                                       source_shift, descending, op);
+    }
+
+    /// **Sombra** (oscurece donde la máscara de `src` está a 1): `blit` con `RasterOp::And`.
+    /// Requiere rasterizador Blitter (la CPU no aplica la operación lógica).
+    bool blit_shadow(graphics::FramePlan& plan, Span<const u16> src, s32 x, s32 y,
+                     u16 w, u16 h, u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
+        return blit(plan, src, x, y, w, h, src_row_bytes, src_plane_stride, planes, 0u, false,
+                    RasterOp::And);
+    }
+
+    /// **Glow/aditivo** (ilumina donde la máscara de `src` está a 1): `blit` con `RasterOp::Or`.
+    /// Requiere rasterizador Blitter (la CPU no aplica la operación lógica).
+    bool blit_glow(graphics::FramePlan& plan, Span<const u16> src, s32 x, s32 y,
+                   u16 w, u16 h, u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
+        return blit(plan, src, x, y, w, h, src_row_bytes, src_plane_stride, planes, 0u, false,
+                    RasterOp::Or);
     }
 
     /// BOB enmascarado (cookie-cut) en el mundo, recortado contra el clip.
     bool blit_masked(graphics::FramePlan& plan, Span<const u16> src, Span<const u16> mask,
                      s32 x, s32 y, u16 w, u16 h,
-                     u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
+                     u16 src_row_bytes, u32 src_plane_stride, u8 planes,
+                     u8 source_shift = 0u) {
         if (!valid() || x < m_clip.x || y < m_clip.y ||
             x + static_cast<s32>(w) > m_clip.x + m_clip.w ||
             y + static_cast<s32>(h) > m_clip.y + m_clip.h) return false;
-        return m_target->add_world_bitmap_masked(plan, src, mask, x, y, w, h,
-                                                 src_row_bytes, src_plane_stride, planes);
+        return rasterizer()->copy_masked(*m_target.get(), plan, src, mask, x, y, w, h,
+                                         src_row_bytes, src_plane_stride, planes, source_shift);
     }
 
 private:
+    /// Rasterizador efectivo: el del playfield o el CPU por defecto.
+    Rasterizer* rasterizer() const {
+        Rasterizer* r = m_target->rasterizer();
+        return (r != nullptr) ? r : &kCpuRaster;
+    }
     /// Pinta los bits ACTIVOS de una fila de glifo como tramos horizontales (una palabra por
     /// plano, `Playfield::draw_span`). `msb_first` = el bit `nbits-1` es la columna 0 (fuente 5x7).
     void draw_glyph_row(s32 x, s32 y, u8 bits, u8 nbits, bool msb_first, u8 color) {

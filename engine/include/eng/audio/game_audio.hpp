@@ -42,7 +42,7 @@ public:
 	/// Enlaza este `GameAudio` a un `AudioSystem` (p. ej. `backend.audio()`).
 	void attach(AudioSystem& system) { m_audio = system; }
 
-	/// Inicializa el SFX mixer del `AudioSystem` referenciado (buffer Chip +
+	/// Inicia el SFX mixer del `AudioSystem` referenciado (buffer Chip +
 	/// handler). La música se arranca con `play_music`.
 	bool init(MemorySystem& memory) {
 		return m_audio->init(memory);

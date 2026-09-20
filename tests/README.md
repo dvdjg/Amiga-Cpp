@@ -18,7 +18,7 @@ inferiores (eso es lo realista), pero ejercita principalmente la suya:
 | [l0_bare_metal/](l0_bare_metal/README.md) | L0 | Registros custom, bitplanes planares, copperlist a mano, DMA y Blitter. |
 | `l1_backend/` | L1 | APIs de `MinimalBackend` (memoria, VBlank, copper, FramePlan). |
 | `l2_copper_frameplan/` | L2 | `CopperScheduler`, `CopperTimeline`, `FramePlan` y presupuestos. |
-| `l3_drivers/` | L3 | Drivers gráficos (`StaticEhbScene`, futuro `Standard5`, `DualPlayfield`...). |
+| `l3_drivers/` | L3 | Drivers gráficos (`CanvasScene`, futuro `Standard5`, `DualPlayfield`...). |
 | `l4_scene/` | L4 | `VirtualScene`, `Camera2D`, `TileLayer`, escenas retenidas. |
 
 ## Convenciones de cada test

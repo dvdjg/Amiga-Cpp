@@ -623,6 +623,7 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 	}
 
 	m_blitter_starts = 0;
+	bool eor_open = false; // racha de líneas EOR con los registros comunes ya fijados
 	for (u8 job_index = 0; job_index < plan.blit_job_count(); ++job_index) {
 		const graphics::BlitJob& job = plan.blit_job(job_index);
 		const bool masked =
@@ -633,11 +634,44 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 			job.kind == graphics::BlitJobKind::RestoreRect ||
 			job.kind == graphics::BlitJobKind::TileBlockCopy;
 		const bool clear = job.kind == graphics::BlitJobKind::ClearRect;
-		const bool or_blob = job.kind == graphics::BlitJobKind::OrBlob;
+		const bool or_blob = job.kind == graphics::BlitJobKind::OrBlob ||
+				     job.kind == graphics::BlitJobKind::PatternFill;
+		const bool logic = job.kind == graphics::BlitJobKind::LogicBlit;
+		const bool line = job.kind == graphics::BlitJobKind::Line;
+		const bool line_eor = job.kind == graphics::BlitJobKind::LineEor;
 
-		if (!masked && !copy && !clear && !or_blob) {
+		if (!masked && !copy && !clear && !or_blob && !logic && !line && !line_eor) {
 			return false;
 		}
+
+		if (line || line_eor) {
+			// Línea por Blitter (LINE) o EOR/ONEDOT sobre el plano del `destination`.
+			eng::PlaneBytes pb {reinterpret_cast<eng::u8*>(job.destination.words), 0u};
+			eng::u8* d_base = job.line_base.words != nullptr
+						  ? reinterpret_cast<eng::u8*>(job.line_base.words)
+						  : nullptr;
+			if (line) {
+				eor_open = false;
+				if (!blitter_line(pb, job.line_row_bytes, job.line_x0, job.line_y0,
+						  job.line_x1, job.line_y1)) {
+					return false;
+				}
+			} else {
+				// Racha EOR: fija los registros comunes UNA vez (no por arista×plano).
+				if (!eor_open) {
+					blitter_lines_eor_begin(job.line_row_bytes);
+					eor_open = true;
+				}
+				LineEorParams p;
+				if (blitter_line_eor_prepare(p, job.line_row_bytes, job.line_x0,
+							     job.line_y0, job.line_x1, job.line_y1)) {
+					blitter_line_eor_draw(p, reinterpret_cast<eng::u8*>(job.destination.words),
+							      d_base);
+				}
+			}
+			continue;
+		}
+		eor_open = false; // cualquier otro job cierra la racha EOR
 
 		custom_base[custom_dmacon_offset] = dma_setclr | dma_master | dma_blitter;
 
@@ -678,9 +712,10 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 				custom_base[custom_bltcon1_offset] = static_cast<u16>(
 					static_cast<u16>(job.source_shift) << 12u
 				);
-			} else if (or_blob) {
-				// BOB OR (bobs3d): A = objeto (con barrel shift ASH), B = D = destino,
-				// minterm $FC (D = A | D). El canal C no interviene.
+			} else if (or_blob || logic) {
+				// BOB OR (bobs3d) o blit lógico: A = objeto (con barrel shift ASH),
+				// B = D = destino, minterm del job (`$FC` D=A|D, `$80` A&D, `$60` A^D).
+				// El canal C no interviene.
 				//
 				// OJO: BLTCON1 bits 15-12 son **BSH** (shift del canal B), NO un duplicado
 				// de ASH. B aqui es el DESTINO (B=D), asi que poner BSH!=0 desplaza la
@@ -717,19 +752,19 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 					job.descending ? blt_desc : 0x0000
 				);
 			}
-			const bool shifted_copy = !masked && !or_blob && job.source_shift != 0u;
-			const bool source_by_a = masked || or_blob || shifted_copy;
+			const bool shifted_copy = !masked && !or_blob && !logic && job.source_shift != 0u;
+			const bool source_by_a = masked || or_blob || logic || shifted_copy;
 			// En copias/OR con shift, la ultima word de cada fila se enmascara para que
 			// los bits desplazados hacia fuera (que el Blitter reinyecta al principio
 			// de la fila siguiente) sean cero: deja una guarda de `shift` px al
 			// principio del bitmap, nunca datos erroneos de la fila anterior.
 			custom_base[custom_bltafwm_offset] = 0xffff;
-			custom_base[custom_bltalwm_offset] = (shifted_copy || or_blob)
+			custom_base[custom_bltalwm_offset] = (shifted_copy || or_blob || logic)
 				? static_cast<u16>(0xffffu << job.source_shift)
 				: 0xffff;
 			custom_base[custom_bltamod_offset] = static_cast<u16>(source_by_a ? job.source_modulo_bytes : 0);
 			custom_base[custom_bltbmod_offset] = static_cast<u16>(
-				masked ? job.source_modulo_bytes : (or_blob ? job.destination_modulo_bytes : 0));
+				masked ? job.source_modulo_bytes : ((or_blob || logic) ? job.destination_modulo_bytes : 0));
 			custom_base[custom_bltcmod_offset] = static_cast<u16>(masked ? job.destination_modulo_bytes : job.source_modulo_bytes);
 			custom_base[custom_bltdmod_offset] = static_cast<u16>(job.destination_modulo_bytes);
 
@@ -737,8 +772,8 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 				write_custom_pointer(custom_bltapt_offset, job.mask.words);
 				write_custom_pointer(custom_bltbpt_offset, source_plane);
 				write_custom_pointer(custom_bltcpt_offset, destination_plane);
-			} else if (or_blob) {
-				// B = D = destino (el mismo puntero): D = A | D.
+			} else if (or_blob || logic) {
+				// B = D = destino (el mismo puntero): aplica el minterm del job.
 				write_custom_pointer(custom_bltapt_offset, source_plane);
 				write_custom_pointer(custom_bltbpt_offset, destination_plane);
 			} else if (shifted_copy) {
@@ -945,6 +980,80 @@ bool MinimalBackend::blitter_line(eng::PlaneBytes plane, u16 row_bytes, s16 x0, 
 	write_custom_pointer(custom_bltdpt_offset, data);
 	custom_base[custom_bltsize_offset] = bltsize;
 	return wait_blitter();
+}
+
+bool MinimalBackend::blitter_collide(eng::PlaneBytes a, eng::PlaneBytes b, eng::PlaneBytes scratch,
+				     u8 planes, u16 row_bytes, u32 plane_bytes, u16 words, u16 rows) {
+	if (a.data() == nullptr || b.data() == nullptr || scratch.data() == nullptr ||
+	    planes == 0u || words == 0u || rows == 0u) {
+		return false;
+	}
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
+	// D = A & B (minterm $C0) por plano, a un scratch; luego escaneo CPU del scratch.
+	custom_base[custom_bltcon0_offset] = static_cast<u16>(blt_use_a | blt_use_b | blt_use_d | 0x00c0);
+	custom_base[custom_bltcon1_offset] = 0;
+	custom_base[custom_bltafwm_offset] = 0xffff;
+	custom_base[custom_bltalwm_offset] = 0xffff;
+	custom_base[custom_bltamod_offset] = static_cast<u16>(row_bytes - words * 2u);
+	custom_base[custom_bltbmod_offset] = static_cast<u16>(row_bytes - words * 2u);
+	custom_base[custom_bltdmod_offset] = static_cast<u16>(row_bytes - words * 2u);
+	for (u8 p = 0; p < planes; ++p) {
+		if (!wait_blitter()) return false;
+		write_custom_pointer(custom_bltapt_offset, a.data() + static_cast<u32>(p) * plane_bytes);
+		write_custom_pointer(custom_bltbpt_offset, b.data() + static_cast<u32>(p) * plane_bytes);
+		write_custom_pointer(custom_bltdpt_offset, scratch.data() + static_cast<u32>(p) * plane_bytes);
+		custom_base[custom_bltsize_offset] =
+			static_cast<u16>((static_cast<u16>(rows) << 6u) | words);
+		++m_blitter_starts;
+	}
+	if (!wait_blitter()) return false;
+	for (u8 p = 0; p < planes; ++p) {
+		const eng::u8* s = scratch.data() + static_cast<u32>(p) * plane_bytes;
+		for (u16 r = 0; r < rows; ++r) {
+			const u16* w = reinterpret_cast<const u16*>(s + static_cast<u32>(r) * row_bytes);
+			for (u16 i = 0; i < words; ++i) {
+				if (w[i] != 0u) return true;
+			}
+		}
+	}
+	return false;
+}
+
+bool MinimalBackend::fill_polygons_by_plane(const graphics::PlanePolygon* faces, u32 n_faces,
+					    eng::PlaneBytes dest, u16 row_bytes, u32 plane_bytes,
+					    u8 planes, u16 width, u16 height) {
+	if (faces == nullptr || n_faces == 0u || dest.data() == nullptr || planes == 0u ||
+	    row_bytes == 0u || plane_bytes == 0u) {
+		return false;
+	}
+	for (u8 p = 0; p < planes; ++p) {
+		eng::PlaneBytes plane =
+			dest.subspan(static_cast<u32>(p) * plane_bytes, plane_bytes);
+		// 1) limpia el plano.
+		blitter_clear(plane, 1u, row_bytes, plane_bytes, width, height);
+		// 2) contorno XOR (ONEDOT) de las caras cuyo color tiene el bit `p` a 1; las
+		//    aristas compartidas por dos caras del mismo bit se dibujan dos veces y el
+		//    fill even-odd las cancela. Los registros comunes EOR se fijan UNA vez por
+		//    plano (`blitter_lines_eor_begin`), no por arista.
+		blitter_lines_eor_begin(row_bytes);
+		for (u32 f = 0; f < n_faces; ++f) {
+			const graphics::PlanePolygon& face = faces[f];
+			if ((face.color & (1u << p)) == 0u || face.count < 3u) {
+				continue;
+			}
+			for (u8 i = 0; i < face.count; ++i) {
+				const u8 j = static_cast<u8>((i + 1u) % face.count);
+				LineEorParams eor;
+				if (blitter_line_eor_prepare(eor, row_bytes, face.xs[i], face.ys[i],
+							     face.xs[j], face.ys[j])) {
+					blitter_line_eor_draw(eor, plane.data(), plane.data());
+				}
+			}
+		}
+		// 3) area fill (FILL_XOR) del plano in situ (un fill por plano).
+		blitter_area_fill(plane, 1u, row_bytes, plane_bytes, width, height, true);
+	}
+	return true;
 }
 
 bool MinimalBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1,

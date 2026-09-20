@@ -84,7 +84,7 @@ Ya existe y se irá ampliando desde demoscene `libmisc`/`libc`.
 - `frame_plan.hpp`: `FramePlan` (blits, paleta, dirty rects, presupuesto). Crece para
   admitir `SpriteIntent` (asignación de canales) y más presupuestos (DMA unificado).
 - `blit/` (nuevo): `BlitterQueue`, `BlitterBudget`, minterms reutilizables. Mapea demoscene `libblit`.
-- `drivers/`: `StaticEhbScene`, `HamScene`, `TileScrollScene`, `Standard4/5`, `FakeDPF`,
+- `drivers/`: `CanvasScene`, `TileScrollScene`, `Standard4/5`, `FakeDPF`,
   `DualPlayfield`, `SpriteBackdrop`, `CopperHeavy` (roadmap §20.5).
 - `effects/`: `Effect` concept + `PaletteCycleEffect`, `PaletteTransitionEffect`,
   `RasterGradientEffect`, `RasterDistortionEffect`, `CopperScript`, etc. (roadmap §20.6).
@@ -204,7 +204,7 @@ concretos; el engine mantiene su propio `Span`/estilo freestanding.
 ## 5. Conversión del sistema actual (plan por pasos)
 
 El sistema actual ya tiene: `FramePlan`, `CopperScheduler`, `SpriteManager`, drivers
-(`StaticEhbScene`, `TileScrollScene`, `XlimitedScene`), `input_poll`, `engine` loop,
+(`CanvasScene`, `TileScrollScene`, `XlimitedScene`), `input_poll`, `engine` loop,
 `DisplayDriver`/`GraphicsDriver`, `AssetRuntime` no formalizado. Falta: vocabularlo de
 intenciones (CopperIntent unificado), audio, assets, y las piezas 3D/2D.
 
@@ -238,7 +238,7 @@ scheduler, falta abstracción.
 - Un juego de prueba (micro-aventura EHB de una pantalla, roadmap §11) se escribe **sin
   ninguna referencia a Amiga** en la lógica: pide escena, actores, música, sfx, input y
   efectos por intención.
-- Cambiar de driver (`StaticEhbScene` → `Standard4` → `DualPlayfield`) no reescribe la
+- Cambiar de driver (`CanvasScene` → `Standard4` → `DualPlayfield`) no reescribe la
   lógica de juego.
 - Cada subsistema tiene dueño único de su coprocesador y expone presupuesto.
 - Los subsistemas puros (`core`, `input` lógico, `math2d/3d`) se validan en host; los de

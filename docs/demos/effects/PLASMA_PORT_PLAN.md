@@ -86,7 +86,7 @@ Método: `docs/guides/roadmap/PORT_PROMPT_1A1.md`. Técnica: `docs/reference/ami
   generaba `dbra`. El original usa **asm con puntero incremental y direccionamiento `(An,Dn.w)`**
   (6 instrucciones) y escribe la fila de una pasada. Se sustituyó por un bucle gas idéntico al
   del original (`support/plasma_chunky.s`) alimentado con **punteros de fila** del driver
-  (`CopperChunkyScene::chunky_row`, análogo a `HamScene::bitplanes()`), de modo que no hay
+  (`CopperChunkyScene::chunky_row`, análogo a `PlanarScene::bitplanes()`), de modo que no hay
   indirección por píxel. Resultado: **36.5 fps (194 185 ciclos/frame)**, ~3x. El coste restante
   es el propio 68000 sobre RAM lenta (~78 ciclos/iteración con las 6 instrucciones); el original
   enlace a VMA 0x0 con `.datachip` aparte, pero en A500 sin fast RAM corre en el mismo tipo de

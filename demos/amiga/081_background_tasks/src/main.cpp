@@ -5,7 +5,7 @@
 // tarea NO bloquea el frame: el engine la drena en el hueco de VBlank (prioridad al
 // bucle principal) y solo cuando el CPU estaria esperando.
 //
-//   - Display: 4 planos 320x256 (driver `HamScene`, sin cuadruplicado).
+//   - Display: 4 planos 320x256 (`scene::compose`, etapa display, sin cuadruplicado).
 //   - Fondo (COLOR00): lo pulsa el bucle principal por CPU cada frame -> prueba viva
 //     de que el juego sigue corriendo (la copperlist NO toca COLOR00).
 //   - Barra (COLOR01, blanco): la rellena la tarea de fondo fila a fila. Su longitud
@@ -17,7 +17,7 @@
 #include <eng/core/util/ring_buffer.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
-#include <eng/graphics/drivers/ham_scene.hpp>
+#include <eng/graphics/scene/compose.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/task/background.hpp>
@@ -42,7 +42,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 namespace {
 
 namespace amiga = eng::amiga;
-namespace drivers = eng::graphics::drivers;
+namespace scene = eng::graphics::scene;
 namespace task = eng::task;
 
 constexpr eng::u16 kWidth = 320;
@@ -61,6 +61,18 @@ constexpr eng::u16 kBarRows = 64;
 constexpr eng::u16 kLineBandTop = 176;
 constexpr eng::u16 kLineBandRows = 24;
 constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * kHeight;
+
+/// Recursos de la escena (constantes de compilación): validan la config contra el perfil y
+/// acotan el presupuesto de Copper con `static_assert`, sin ejecutar la escena.
+constexpr scene::SceneResources kSceneResources = scene::planar(kWidth, kHeight, kPlanes);
+static_assert(scene::valid_scene(kSceneResources, scene::ocs_a500),
+	      "081: config valida para el A500 (320x256, 4 planos)");
+static_assert(scene::display_words(kSceneResources) == 36u,
+	      "081: display emite 20 MOVEs fijos + 4 por plano");
+static_assert(scene::palette_words(1u, 15u, 16u) == 30u, "081: palette = 15 colores x 2 palabras");
+static_assert(scene::display_words(kSceneResources) + scene::palette_words(1u, 15u, 16u) <=
+		      scene::copper_word_budget(kSceneResources),
+	      "081: display + palette caben en la copperlist");
 
 /// Paleta: COLOR00 lo controla el bucle principal (no la lista); COLOR01 = blanco
 /// (la barra); COLOR02 = amarillo (la linea). El resto a negro.
@@ -100,6 +112,16 @@ eng::u16 fill_bar_step(FillTask& t, const task::TaskSlice& slice) {
 }
 
 struct BackgroundDemo {
+	/// Tarea del ciclo de vida: pulsa el fondo (COLOR00) por frame, ligada a la escena.
+	struct FrameTask {
+		BackgroundDemo* self = nullptr;
+		void operator()() const { self->pulse_color(); }
+	};
+	void pulse_color() {
+		m_hue = static_cast<eng::u8>((m_hue + 1u) & 0x0fu);
+		m_backend->set_color(0, kRainbow[m_hue]);
+	}
+
 	void init(amiga::MinimalBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		if (!backend.configure_memory({96u * 1024u, 4u * 1024u, 4u * 1024u})) {
@@ -107,18 +129,10 @@ struct BackgroundDemo {
 			return;
 		}
 
-		drivers::HamSceneConfig cfg {};
-		cfg.planes = kPlanes;
-		cfg.rows = kHeight;
-		cfg.bytes_per_row = kBytesPerRow;
-		cfg.bplcon0 = 0x4200u;     // 4 planos, sin modos especiales
-		cfg.row_repeat = 1u;       // sin cuadruplicado
-		cfg.first_line = 0x2cu;
-		cfg.bplcon1_shift = 0u;
-		cfg.palette = kPalette;
-		cfg.palette_first = 1u;    // NO tocar COLOR00: lo pulsa el bucle principal
-		cfg.palette_count = 15u;
-		if (!m_scene.init(backend.memory(), cfg)) {
+		if (!scene::compose(m_scene, backend.memory(),
+				    kSceneResources, scene::ocs_a500,
+				    scene::display(scene::kPal320x256, scene::kBplcon0_4Planes),
+				    scene::palette(eng::PaletteWords {kPalette, 16}, 1u, 15u))) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008102u);
 			return;
 		}
@@ -129,6 +143,11 @@ struct BackgroundDemo {
 			m_plane0[i] = 0u;
 		}
 		m_scene.takeover(backend);
+
+		// Tarea del ciclo de vida de la escena: pulsa el fondo cada frame (`tick()`).
+		m_backend = &backend;
+		m_frame_task.self = this;
+		m_scene.on_frame(m_frame_task);
 
 		// Proceso de fondo: la barra progresa fila a fila. El engine lo drena en el
 		// hueco de VBlank; el bucle principal sigue teniendo prioridad.
@@ -152,10 +171,10 @@ struct BackgroundDemo {
 		if (!m_init_ok) return;
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 
-		// Bucle principal vivo: pulsa el fondo (COLOR00) por CPU cada frame. El Copper
-		// no toca COLOR00, asi que el valor persiste hasta el frame siguiente.
-		m_hue = static_cast<eng::u8>((m_hue + 1u) & 0x0fu);
-		backend.set_color(0, kRainbow[m_hue]);
+		// Bucle principal vivo: pulsa el fondo (COLOR00) por CPU cada frame, via la tarea
+		// de ciclo de vida de la escena. El Copper no toca COLOR00, asi que el valor
+		// persiste hasta el frame siguiente.
+		m_scene.tick();
 
 		// Elemento animado del bucle principal, dibujado por HW: limpia una banda y
 		// traza una linea que baja. Ambos blits esperan al Blitter, y ahi el engine
@@ -212,7 +231,9 @@ struct BackgroundDemo {
 	}
 
 private:
-	drivers::HamScene m_scene {};
+	scene::Scene m_scene {};
+	amiga::MinimalBackend* m_backend = nullptr;
+	FrameTask m_frame_task {};
 	eng::PlaneBytes m_plane0 {};
 	eng::PlaneBytes m_plane1 {};
 	FillTask m_fill {};

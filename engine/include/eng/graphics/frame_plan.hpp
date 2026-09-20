@@ -64,6 +64,20 @@ enum class BlitJobKind : u8 {
 	/// `B = D` = destino, minterm `$FC` (`D = A | D`). Sin mascara: los ceros del
 	/// objeto dejan el fondo (aditivo/glow). Con destino intercalado es UN blit.
 	OrBlob,
+	/// **Línea por Blitter** (`BLTCON1` LINE): usa `line_x0..line_y1` y
+	/// `line_row_bytes`; el `destination` apunta al plano. Sin fuentes ni mascara.
+	Line,
+	/// **Línea EOR (ONEDOT)** (`blitter_line_eor`): como `Line` pero XOR con `line_base`
+	/// (el canal D), base del contorno XOR de `flatshade-convex` (demo 116).
+	LineEor,
+	/// **Blit con operación lógica** (`B = D`): `A` = fuente, `B` = destino (mismo puntero),
+	/// minterm del job (`Or`/`And`/`Xor`). Base de sombras/glow/máscaras. Ver `RasterOp`.
+	LogicBlit,
+	/// **Relleno con patrón** (suelos/techos 3D, UI texturizada): `A` = patrón (tile planar
+	/// pequeño), `B = D` = destino, minterm `$FC` (`D = A | D`). El patrón se repite en
+	/// vertical con `source_modulo_bytes` (BLTAMOD = `-(words_per_row*(alto_patrón-1))`).
+	/// Reusa el camino `OrBlob` del backend.
+	PatternFill,
 };
 
 /// Presupuesto acumulado de Blitter.
@@ -225,6 +239,15 @@ struct BlitJob {
 	/// del bitmap. Es el truco de **un blit por objeto** (AHRM 6; `blitter_programming.md`
 	/// *Use Case 4: interleaved bitplane BOBs*). Exime de dar strides de plano.
 	bool interleaved = false;
+	// --- Línea (BlitJobKind::Line): coordenadas + módulo de fila del plano -----------
+	s16 line_x0 = 0;        ///< x del punto inicial
+	s16 line_y0 = 0;        ///< y del punto inicial
+	s16 line_x1 = 0;        ///< x del punto final
+	s16 line_y1 = 0;        ///< y del punto final
+	u16 line_row_bytes = 0; ///< bytes por fila del plano destino (módulo de la línea)
+	/// Base del bitmap para el canal D en una **línea EOR** (`BlitJobKind::LineEor`);
+	/// `nullptr` = usar el propio plano. Ver `blitter_line_eor`.
+	BlitDest line_base {};
 };
 
 /// Plan de render de un frame.
@@ -348,6 +371,45 @@ public:
 	/// El llamador rellena `source`/`destination` y deja `mask` vacia.
 	__attribute__((always_inline)) inline bool add_or_blob(const BlitJob& job) {
 		return add_blit_job(job, BlitJobKind::OrBlob);
+	}
+
+	/// **Blit con operación lógica** (`B = D`, minterm en `job.minterm`): `A` = fuente.
+	/// El llamador fija `source`/`destination` y el minterm (`Or`/`And`/`Xor`).
+	__attribute__((always_inline)) inline bool add_logic_blit(const BlitJob& job) {
+		return add_blit_job(job, BlitJobKind::LogicBlit);
+	}
+
+	/// **Relleno con patrón** (`A` = patrón, `B = D` = destino, minterm `$FC`): el patrón se
+	/// repite en vertical con `source_modulo_bytes`. El llamador fija `source` (tile),
+	/// `destination`, `words_per_row`, `height`, `bitplane_count` y el módulo del patrón.
+	__attribute__((always_inline)) inline bool add_pattern_fill(const BlitJob& job) {
+		return add_blit_job(job, BlitJobKind::PatternFill);
+	}
+
+	/// **Línea por Blitter** (`BLTCON1` LINE) o **EOR/ONEDOT** (`LineEor`): `destination`
+	/// = plano, `line_x0..line_y1` las coordenadas y `line_row_bytes` el módulo de fila.
+	/// Sin fuentes/máscara. Para `LineEor`, `line_base` es la base del canal D.
+	bool add_line(const BlitJob& job, BlitJobKind kind = BlitJobKind::Line) {
+		if (job.destination.words == nullptr || job.line_row_bytes == 0u ||
+		    job.bitplane_count == 0u) {
+			m_ok = false;
+			return false;
+		}
+		if (m_blit_job_count >= max_blit_jobs) {
+			m_ok = false;
+			return false;
+		}
+		BlitJob j = job;
+		j.kind = kind;
+		m_blit_jobs[m_blit_job_count++] = j;
+		m_blit_budget.jobs = m_blit_job_count;
+		// Coste aproximado: una word por fila de la línea + 2 de arranque por plano.
+		const s32 dy = job.line_y1 > job.line_y0 ? job.line_y1 - job.line_y0
+							 : job.line_y0 - job.line_y1;
+		m_blit_budget.words += static_cast<u32>(dy + 3) * job.bitplane_count;
+		++m_blit_budget.copy_jobs;
+		rebuild_blit_budget_report();
+		return true;
 	}
 
 private:

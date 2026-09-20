@@ -27,6 +27,14 @@ abstraccion, pero sin perder control sobre memoria, coste y layout.
   documentan **parámetros de entrada y de salida** (incluido el valor de retorno y su rango).
 - **Estructuras y clases auxiliares, constantes, variables globales, macros y `enum`** también
   llevan su comentario (cometido y, si aplica, unidades/rango/layout/ABI).
+- **Miembros de clase: uno a uno, todos documentados.** Cada **método** (público o privado) y cada
+  **dato miembro** (público, protegido o privado) lleva **su propia descripción** de al menos una
+  línea, aunque el nombre parezca obvio; igual para **constantes** (`constexpr`/`static constexpr`),
+  **variables estáticas** (de clase o de función) y **campos de `struct`**. No se admite un miembro
+  sin comentario (p. ej. `m_buffer_count`, handles, contadores, punteros de estado): describe qué
+  guarda, su rango/unidades y, si aplica, su relación con el layout/hardware. Un grupo de miembros
+  homogéneo puede documentarse con un comentario de bloque **siempre que** cada campo quede
+  explicitado (no vale un comentario que solo cubra el primero).
 - **Bug arreglado u optimización**: se documenta **en el código** (y en el commit) *por qué* se
   hizo así, para que una refactorización futura **no lo deshaga** (p. ej. "no copiar 512 B por
   frame: `retarget`"; "no zero-init de la timeline: bitset de tocadas").
@@ -70,6 +78,30 @@ Una abstraccion es buena si:
 - puede verificarse con tests o profiler;
 - no oculta asignaciones ni copias caras;
 - permite cambiar de driver grafico sin reescribir la logica de juego.
+
+## `inline` no es una sugerencia de inline
+
+En una libreria **header-only** como esta, `inline` en una funcion de cabecera es un
+especificador de **enlace** (permite la definicion en varias unidades de traduccion sin
+colision de simbolo, requisito ODR), **no** una orden ni una sugerencia de inline. Los
+`template` y las funciones `constexpr` (con cuerpo en la cabecera) ya son implicitamente
+`inline`; marcarlos `inline` es redundante pero es la convencion del repo (explicita).
+
+Que una funcion sea `inline` **no obliga** al compilador a inlinearla: la decision es suya,
+por coste/tamaño. Una funcion grande marcada `inline` (p. ej. `mesh_render_poly_filled`)
+simplemente se emite una vez por programa y se llama como cualquier otra; no hay que
+"quitarle el inline" para evitar inlinarla (quitarlo, de hecho, romperia el enlace si la
+cabecera se incluye en mas de una unidad).
+
+El control real de inlining son los atributos, y se usan con criterio:
+
+- `[[gnu::always_inline]]`: **forzar** el inline. Reservado a helpers **diminutos y
+  calientes** donde el `jsr` pesa mas que el cuerpo (`lerp`, `move_towards`, `bezier*`,
+  `Scheduler::move`, los accesos de nodo de `expr.hpp` que deben fundirse en el bucle). Si
+  se pone en una funcion grande, se hincha el binario y crece el tiempo de compilacion.
+- `[[gnu::noinline]]`: **prohibir** el inline (p. ej. para aislar un punto de medida).
+
+Regla: no marcar `always_inline` por costumbre; justificarlo con el perfil o el `.s`.
 
 ## Seguridad de tipos sobre punteros crudos
 
@@ -136,7 +168,7 @@ aporta sus propias piezas de seguridad de C++23 sin depender de `std::span`:
   (`engine/include/eng/field/xlimited_scene.hpp`); así el banco aliaseado no exige `const_cast` y
   el propietario recibe el dominio correcto.
 - **El tipo dueño expone la conversión al dominio**: si un tipo posee el array/puntero (p. ej.
-  `EhbPalette` con `color[32]`), ofrece la vista (`operator PaletteWords`, `words()`) para que el
+  `Palette32` con `color[32]`), ofrece la vista (`operator PaletteWords`, `words()`) para que el
   llamador pase el objeto; no se escribe `PaletteWords{ arr }` a mano.
 - **Frontera `unsafe`**: `from_raw()`/`raw()` son explícitos y solo los usa la capa de
   backend/`BlitJob`; el resto del engine consume tipos de dominio.
@@ -155,6 +187,8 @@ aporta sus propias piezas de seguridad de C++23 sin depender de `std::span`:
 Estas reglas hay que preservarlas en todo el código. `AGENTS.md` las enruta aquí.
 
 - **APIs paramétricas, nunca de tamaño fijo**: no generar funciones con geometría/tamaño embebido (p. ej. `emit_ehb_320x256_display`); el engine expone métodos paramétricos (registros/planos/ancho, etc.) y el llamador decide los valores. Los «magic numbers» de un caso concreto viven en la demo/config, no como API.
+- **Sin wrappers elementales ni nombres de caso concreto**: no crear funciones «preset» que solo rellenan 2-3 campos de un struct de configuración o que empaquetan una llamada trivial (`planar4`, `canvas`, `ham`, `ehb`, `make_*` de una línea). Desde fuera sugieren implementaciones distintas y son *vanilla*; además **reducen** la comprensión. Preferir **una función paramétrica** reutilizable y bien documentada; si hay escenarios de uso que destacar, ponerlos en **comentarios de uso** (doc-comment con ejemplos), no como funciones nuevas. Regla general: **los nombres de métodos y clases deben ser genéricos y describir el mecanismo, no una configuración concreta**. Batida de deuda y detalle: `docs/debugging/pending-verification.md` §1.
+- **El estado observable debe estar modelado, no leerse crudo**: si la única forma de consultar/verificar algo (a qué bitmap apunta un `BPLxPT`, qué registro está activo…) es recorrer palabras de Copper o punteros raw desde la app/los tests, **falta una abstracción**: añadir la consulta tipada (p. ej. `Scene::display_plane_address/display_plane_uses`) en vez de exponer `active_words()`/`u16*`.
 - **La lógica de juego es agnóstica del backend**: los registros/DMA específicos de Amiga viven en las capas backend/driver, nunca en la lógica de alto nivel (ver «Arquitectura»).
 - **Comentarios didácticos**: el código nuevo de hardware Amiga debe incluir comentarios breves, en español y con estilo de tutorial, que expliquen qué registro o mecanismo del chipset interviene, qué invariantes mantiene el algoritmo y por qué una alternativa aparentemente más simple consumiría más CPU, Blitter o Chip RAM. Cuando una decisión sea difícil de inferir, enlazar al MD técnico correspondiente y usar un pequeño esquema ASCII si aclara la geometría de buffers, Copper, bitplanes o zonas visibles.
 - **Regla de oro de genericidad de cabeceras**: una cabecera debe ser **lo más genérica posible**. Sólo las de una **implementación concreta** específica de hardware (`eng/retro/`, `eng/platform/`, `eng/cpu/`) o del **propio escalar** (`fixed*.hpp`, `minifloat*.hpp`) pueden nombrar representaciones concretas (`Fixed<s16,…>`/`Fixed<s32,…>`, `q0/q8/q12/q24`, `MiniFloat16`). Un algoritmo **no fija el escalar**: lo recibe por plantilla (`S`) y pide lo que necesite por los **puntos de extensión** (`scalar_traits`, `scalar_div`, `scalar_const`, `numeric_traits`, `noise_traits`, `scalar_sin`/`scalar_cos`…, `mesh_traits`), que el escalar especializa en **su** cabecera. Ejemplo: `mesh3d` se plantilla sobre el escalar de coordenada y el culling 16 bits (`muls.w`) vive en `eng/retro/fixed_mesh.hpp`. El gate `tools/check/generic-headers.mjs` lo verifica en cada pasada (con baseline de la deuda histórica en `generic-headers-baseline.txt`).

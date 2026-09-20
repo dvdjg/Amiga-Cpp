@@ -113,7 +113,7 @@ public:
 	constexpr TileFieldState& state() { return m_state; }
 	constexpr const TileFieldState& state() const { return m_state; }
 
-	/// Inicializa el campo. Bitmap y Canvas son validos aunque no tengan mapa:
+	/// Inicia el campo. Bitmap y Canvas son validos aunque no tengan mapa:
 	/// otro driver puede pintar su superficie y este controlador no emite scroll.
 	bool begin(Scene& scene, u16 initial_x = 1, u16 initial_y = 1) {
 		m_state.x = initial_x;

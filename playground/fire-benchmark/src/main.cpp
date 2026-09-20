@@ -24,7 +24,8 @@
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/graphics/c2p.hpp>
-#include <eng/graphics/drivers/ehb_scene.hpp>
+#include <eng/graphics/palette32.hpp>
+#include <eng/graphics/scene/compose.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 #include <exec/execbase.h>
@@ -55,7 +56,7 @@ extern "C" void fire_asm(unsigned short* fire, unsigned short width, unsigned sh
 
 namespace {
 
-namespace drivers = eng::graphics::drivers;
+namespace scene = eng::graphics::scene;
 
 constexpr eng::u16 kFireW = 80;
 constexpr eng::u16 kFireH = 64;
@@ -63,8 +64,8 @@ constexpr eng::u8  kPlanes = 5;            // 32 colores
 constexpr eng::u16 kRowBytes = kFireW / 8;
 constexpr eng::u32 kPlaneBytes = kRowBytes * kFireH; // 640
 constexpr eng::u8  kScale = 4;
-constexpr eng::u32 kDispPlaneBytes = drivers::StaticEhbScene::plane_bytes;
-constexpr eng::u16 kDispRowBytes = drivers::StaticEhbScene::bytes_per_row;
+constexpr eng::u32 kDispPlaneBytes = 10240u;
+constexpr eng::u16 kDispRowBytes = 40u;
 
 template <eng::usize N>
 struct Expand4Table {
@@ -119,10 +120,14 @@ struct FireBenchDemo {
 			return;
 		}
 
-		drivers::EhbPalette palette {};
+		eng::Palette32 palette {};
 		for (eng::u8 i = 0; i < 32u; ++i) palette.color[i] = kFirePalette[i];
-		const drivers::StaticEhbSceneConfig scene_config { &palette, nullptr, 0, 1024 };
-		m_scene_ok = m_scene.init(backend.memory(), scene_config);
+		scene::SceneResources res = scene::planar(320u, 256u, 6);
+		res.mode = scene::SceneMode::Ehb;
+		m_scene_ok = scene::compose(m_scene, backend.memory(), res,
+				    scene::ocs_a500,
+				scene::display(res),
+				scene::palette(eng::PaletteWords {palette.color, 32u}, 0u, 32u));
 		if (!m_scene_ok) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00006302u);
 			return;
@@ -233,7 +238,7 @@ private:
 	bool m_memory_ok = false;
 	bool m_scene_ok = false;
 	bool m_benchmarked = false;
-	drivers::StaticEhbScene m_scene {};
+	scene::Scene m_scene {};
 	eng::u16* m_fire = nullptr;    // fuego u16 80x64 (0..31)
 	eng::ChunkyBuffer m_chunky {}; // chunky u8 80x64 (entrada del c2p)
 	eng::PlaneBytes m_planar {};   // planar temporal 5x(80x64)
