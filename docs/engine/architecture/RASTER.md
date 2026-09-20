@@ -50,11 +50,19 @@ backend host (sin Blitter) declara `RasterCaps{ .blitter = false }` y se usa `kC
 
 ## Estado y extensión
 
-- **Hecho**: `RasterOp` (CPU), relleno CPU/Blitter, copia CPU (32 bits) y Blitter, copia
-  enmascarada CPU y Blitter; `install_raster` en el backend Amiga.
-- **Extensión**: relleno de rect **directo por Blitter** (BLTCON fill) como `BlitJob` propio, y
-  copia CPU de 32 bits **siempre** alineada (alinear buffers en `bind`). El `PolygonFillSink`
-  existente queda como una de las operaciones del seam.
+- **Hecho**: `RasterOp` (CPU), relleno CPU/Blitter (con umbral `Auto`), copia CPU (32 bits) y
+  Blitter, copia enmascarada CPU y Blitter; `install_raster` en el backend Amiga.
+- **Operaciones Blitter que aún NO cubre el seam** (ver `frame_plan.hpp`/AHRM cap. 6):
+  - **Líneas** (`BLTCON1` LINE): `Surface::draw_line` es CPU (Bresenham); falta un `BlitJob` de
+    línea y `Rasterizer::draw_line`. Es la operación más pedida (wireframe/vectores/contornos).
+  - **Relleno de rect directo** (FILL mode): hoy el rect se rellena como polígono vía
+    `PolygonFillSink`; un `FillRect` propio evitaría el camino de polígono.
+  - **C2P** (chunky→planar): uso especializado multi-fase del Blitter (ver `C2P_BLITTER.md`).
+  - **Copia CPU siempre de 32 bits**: hoy el camino ancho requiere origen y destino alineados a
+    4; con `row_bytes % 4 == 0` (p. ej. 320 px) aplica, si no cae a 16 bits por fila. Alinear
+    los buffers en `bind` (o padear `row_bytes` a 4) lo haría universal.
+  - **Shifts A/B y DESC** ya existen en `BlitJob` (`source_shift`, `descending`); exponerlos en
+    `RasterOp`/`Rasterizer` es extensión natural.
 
 ## Verificación
 

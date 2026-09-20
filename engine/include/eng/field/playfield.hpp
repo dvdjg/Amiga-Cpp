@@ -360,6 +360,8 @@ public:
     /// Instala (o borra, con `{}`) el motor de **relleno por hardware** del
     /// playfield. Ver `PolygonFillSink`.
     void set_polygon_fill_sink(PolygonFillSink sink) { m_fill_sink = sink; }
+    /// `true` si hay un motor de relleno por hardware instalado.
+    [[nodiscard]] constexpr bool has_fill_sink() const { return m_fill_sink.ready(); }
 
     /// **Rasterizador** (seam CPU/Blitter) que usan las `Surface` de este playfield.
     /// `nullptr` = rasterizador CPU por defecto (lo resuelve `Surface`).

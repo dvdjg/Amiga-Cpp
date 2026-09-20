@@ -17,9 +17,12 @@ punteros ni layouts.
 2. `surface().fill_polygon` (interleaved y contiguo): interior con el color pedido, exterior
    vacío (lectura de color por plano).
 3. `surface().draw_line` en contiguo cae en el plano correcto.
-4. `surface().blit`/`blit_masked` en contiguo encolan **un `CopyRect`/`MaskedBobCookieCut`
-   por plano** en el `FramePlan` (`blit_job_count() == planes`).
-5. Doble buffer contiguo (`buffers = 2`): `commit()` avanza el buffer trasero.
+4. `surface().blit`/`blit_masked` en contiguo: por **Blitter** (`BlitterRaster`) encolan un
+   `CopyRect`/`MaskedBobCookieCut` por plano (`blit_job_count() == planes`); por **CPU**
+   (`CpuRaster`) copian los píxeles sin encolar jobs.
+5. **`RasterOp`** (`Xor` dos veces = 0, `Or`/`And`/`Clear`) y **`AccelMode`**: `Auto` usa el
+   sink/Blitter si el área supera el umbral y hay sink; si no, CPU.
+6. Doble buffer contiguo (`buffers = 2`): `commit()` avanza el buffer trasero.
 
 ## Salida de referencia
 

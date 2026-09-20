@@ -212,6 +212,13 @@ public:
 		m_contiguous.set_raster_policy(policy);
 	}
 
+	/// Instala el **motor de relleno por hardware** (Blitter) en los playfields de la
+	/// escena. Lo usa el backend (`PolygonFillService`); `BlitterRaster` lo aprovecha.
+	void set_polygon_fill_sink(field::PolygonFillSink sink) {
+		m_playfield.set_polygon_fill_sink(sink);
+		m_contiguous.set_polygon_fill_sink(sink);
+	}
+
 	/// Toma el control mostrando el buffer 0 (una vez).
 	template <typename Backend>
 	void takeover(Backend& backend) {

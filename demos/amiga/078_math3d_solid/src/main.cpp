@@ -158,6 +158,7 @@ struct DemoGame {
 		const bool mask_ok = true;
 #endif
 		if (m_memory_ok && m_scene_ok && m_blank_block.valid() && mask_ok && m_mesh_ok) {
+			backend.install_raster(m_scene); // Blitter/CPU según las caps del backend
 			draw_static();
 			m_scene.takeover(backend);
 			if (!verify_mesh()) {

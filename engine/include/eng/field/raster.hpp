@@ -83,6 +83,13 @@ public:
 		       eng::u8 color, RasterOp op) override {
 		if (op != RasterOp::Copy) return CpuRaster::fill_rect(pf, x, y, w, h, color, op);
 		if (!pf.initialized() || w == 0u || h == 0u) return false;
+		// `Auto` decide por coste: usa el Blitter si hay sink y el área supera el umbral.
+		const RasterPolicy& pol = pf.raster_policy();
+		const eng::u32 area = static_cast<eng::u32>(w) * static_cast<eng::u32>(h);
+		const bool use_blit =
+			(pol.mode == AccelMode::Blitter) ||
+			(pol.mode == AccelMode::Auto && pf.has_fill_sink() && area >= pol.min_blit_pixels);
+		if (!use_blit) return CpuRaster::fill_rect(pf, x, y, w, h, color, op);
 		const eng::s16 xs[4] = {static_cast<eng::s16>(x), static_cast<eng::s16>(x + w - 1),
 					static_cast<eng::s16>(x + w - 1), static_cast<eng::s16>(x)};
 		const eng::s16 ys[4] = {static_cast<eng::s16>(y), static_cast<eng::s16>(y),

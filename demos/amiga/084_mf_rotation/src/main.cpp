@@ -106,6 +106,7 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008401u);
 			return;
 		}
+		backend.install_raster(m_scene); // Blitter/CPU según las caps del backend
 		draw_static();
 		{
 			field::Surface c = m_scene.surface();

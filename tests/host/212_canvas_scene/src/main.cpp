@@ -61,6 +61,17 @@ void check(bool ok, const char* msg) {
 	}
 }
 
+/// Sink de relleno de prueba: solo registra cuantas veces lo llama el rasterizador.
+struct FillRec {
+	int calls = 0;
+};
+FillRec g_fill_rec {};
+bool record_fill(void* ctx, eng::u8*, eng::u8, eng::u32, eng::u32, eng::u16, eng::u16, eng::u16,
+		 const eng::s16*, const eng::s16*, eng::u8, eng::u8) {
+	static_cast<FillRec*>(ctx)->calls++;
+	return true;
+}
+
 } // namespace
 
 int main() {
@@ -187,6 +198,27 @@ int main() {
 	field::Surface r5 = s5.surface();
 	check(r5.fill_rect(0, 0, 32, 8, 5u), "BlitterRaster::fill_rect encola/pinta");
 	check(color_at_contiguous(s5, 8, 4) == 5u, "BlitterRaster pinta el color pedido");
+
+	// --- AccelMode::Auto: umbral de area para ir al Blitter (sink) -----------
+	Scene s6;
+	check(graphics::scene::compose(
+		      s6, mem, graphics::scene::planar(320, 256, 4), graphics::scene::ocs_a500,
+		      graphics::scene::display(graphics::scene::kPal320x256,
+					       graphics::scene::kBplcon0_4Planes)),
+	      "escena para Auto compone");
+	s6.set_polygon_fill_sink(field::PolygonFillSink {&g_fill_rec, record_fill});
+	s6.set_raster(&field::kBlitterRaster, field::RasterPolicy {field::AccelMode::Auto, 64u, true});
+	g_fill_rec.calls = 0;
+	(void)s6.surface().fill_rect(0, 0, 16, 16, 5u); // 256 >= 64 -> sink
+	check(g_fill_rec.calls == 1, "Auto: area grande usa el sink (Blitter)");
+	g_fill_rec.calls = 0;
+	(void)s6.surface().fill_rect(0, 0, 4, 4, 5u); // 16 < 64 -> CPU
+	check(g_fill_rec.calls == 0, "Auto: area pequena usa CPU");
+	check(color_at_contiguous(s6, 0, 0) == 5u, "Auto CPU pinta el pixel");
+	s6.set_raster(&field::kBlitterRaster, field::RasterPolicy {field::AccelMode::Blitter, 0u, true});
+	g_fill_rec.calls = 0;
+	(void)s6.surface().fill_rect(0, 0, 4, 4, 5u);
+	check(g_fill_rec.calls == 1, "Blitter: fuerza el sink aunque el area sea pequena");
 
 	if (failures == 0) {
 		std::printf("OK: scene::compose interleaved y contiguo (Surface + copperlist).\n");
