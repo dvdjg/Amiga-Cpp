@@ -51,18 +51,18 @@ namespace eng::copper {
 /// futuras herramientas UAF-R puedan decir "esto cabe pero es caro" antes de que
 /// aparezcan corrupciones visuales dificiles de depurar.
 struct ScheduleReport {
-	u16 words_used = 0;
-	u16 display_moves = 0;
-	u16 palette_moves = 0;
-	u16 waits = 0;
-	u16 heavy_palette_zones = 0;
-	u16 timeline_over_budget_lines = 0;
-	u8 heaviest_line = 0;
-	u8 heaviest_line_moves = 0;
+	u16 words_used = 0;               ///< palabras de Copper escritas en total
+	u16 display_moves = 0;            ///< MOVEs de display (DMACON/BPLxPT/DIW/DDF…)
+	u16 palette_moves = 0;            ///< MOVEs de color (COLORxx)
+	u16 waits = 0;                    ///< instrucciones WAIT emitidas
+	u16 heavy_palette_zones = 0;      ///< zonas de paleta que exceden el presupuesto de línea
+	u16 timeline_over_budget_lines = 0; ///< líneas cuyo coste supera el presupuesto de la Timeline
+	u8 heaviest_line = 0;             ///< línea de raster más cargada
+	u8 heaviest_line_moves = 0;       ///< nº de MOVEs de la línea más cargada
 	u8 unhandled_intents = 0;   // intents que el scheduler base no materializa (ver emit_copper_intents)
-	bool ok = false;
-	bool has_visible_heavy_palette_zone = false;
-	bool has_visible_timeline_spill = false;
+	bool ok = false;                  ///< `true` si la lista cupo en el bloque reservado
+	bool has_visible_heavy_palette_zone = false; ///< hay zona de paleta pesada en área visible
+	bool has_visible_timeline_spill = false;     ///< hay desborde de Timeline en área visible
 };
 
 /// **Handle tipado a un MOVE de la lista** para parchearlo por frame con precisión
@@ -70,11 +70,13 @@ struct ScheduleReport {
 /// que el handle sigue siendo válido tras el swap) y el índice de la instrucción.
 /// `set(value)` escribe el word de valor; coste ~1 store tras una comprobación barata.
 struct PatchHandle {
-	void* owner = nullptr;
+	void* owner = nullptr; ///< objeto emisor del MOVE (p. ej. el `ListBuilder`/`Plan`)
 	void (*apply)(void*, u16, u16) = nullptr; ///< `apply(owner, index, value)`
-	u16 index = 0;
+	u16 index = 0; ///< índice de la word de instrucción (el dato va en `index + 1`)
 
+	/// `true` si el handle apunta a una instrucción (no nulo).
 	[[nodiscard]] constexpr bool valid() const { return apply != nullptr; }
+	/// Escribe el word de valor del MOVE referenciado (no-op si el handle es nulo).
 	void set(u16 value) const {
 		if (apply != nullptr) {
 			apply(owner, index, value);
@@ -175,9 +177,11 @@ public:
 	}
 
 	/// Sobrescribe el dato de un MOVE emitido con `move_at` (mismo handle).
+	/// `instruction_word` = índice del MOVE; `value` = nueva palabra de dato.
 	void patch_data(u16 instruction_word, u16 value) { m_builder.patch_data(instruction_word, value); }
 
 	/// Sobrescribe el REGISTRO (destino) de un MOVE emitido con `move_at`.
+	/// `instruction_word` = índice del MOVE; `reg` = offset del registro destino.
 	void patch_move_reg(u16 instruction_word, u16 reg) {
 		m_builder.patch_move_reg(instruction_word, reg);
 	}
@@ -545,9 +549,13 @@ public:
 		}
 	}
 
+	/// `true` si la lista cupo en el bloque reservado (sin desbordes).
 	constexpr bool ok() const { return m_builder.ok(); }
+	/// Puntero a las palabras de la copperlist (`u16`, Chip RAM).
 	constexpr u16* data() const { return m_builder.data(); }
+	/// Nº de palabras de Copper usadas hasta ahora.
 	constexpr u16 words_used() const { return m_builder.words_used(); }
+	/// Informe de presupuesto acumulado (válido solo si `Report`).
 	constexpr const ScheduleReport& report() const { return m_report; }
 
 private:
@@ -623,9 +631,9 @@ private:
 		}
 	}
 
-	ListBuilder m_builder {};
+	ListBuilder m_builder {}; ///< emisor de MOVE/WAIT sobre el bloque de copperlist
 	Timeline m_timeline; // por valor; NO se limpia al construir (ver timeline.hpp)
-	ScheduleReport m_report {};
+	ScheduleReport m_report {}; ///< contadores de presupuesto (solo si `Report`)
 };
 
 /// Instancia por defecto: con informe de presupuesto.
