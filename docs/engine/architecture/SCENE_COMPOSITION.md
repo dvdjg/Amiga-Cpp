@@ -187,3 +187,26 @@ se necesitara guardar un cierre **por valor** con tipo uniforme sin variable con
 todavía y se añadiría **solo con consumidor real**. Límite a documentar entonces: `N` debe
 cubrir el cierre (unas decenas de bytes; 3–4 punteros suele bastar).
 
+## 11. Estado del prototipo
+
+`engine/include/eng/graphics/scene/compose.hpp` (verificado por HOST-215):
+
+- **Recursos**: `SceneResources` (geometría, `rows` lógicas, planos, `layout` contiguo/
+  interleaved, tamaño de copper).
+- **Escena**: `Scene` posee bitplanes + copperlist + `Scheduler` + tareas + `surface()` (con
+  layout interleaved, sobre un `CanvasPlayfield` interno).
+- **Etapas**: `display` (contigua o interleaved), `palette`, `palette_zones`, `row_repeat`.
+- **Presets** (funciones): `planar4`, `canvas` (interleaved con `surface()`), `ham`
+  (planos contiguos con `rows` para cuadruplicado).
+- **Composición**: `compose(scene, memory, recursos, etapas...)`.
+
+**Pendiente**:
+1. Integrar `copper::Plan` como el **Programa** de `Scene` (timeline ordenado por scanline +
+   `ScheduleReport` + doble buffer de copperlist), en vez del `Scheduler` crudo; hoy las
+   etapas emiten en orden de construcción.
+2. **Migrar** `PlanarScene`/`StaticEhbScene`/`CanvasScene` a presets y las demos (030/080/116)
+   a `compose`; validar con `build → run → analyze`.
+3. **Medir en emulador** el ciclo de vida (tareas por frame) en una demo migrada para
+   confirmar que el `jsr` indirecto es marginal en el frame real.
+
+
