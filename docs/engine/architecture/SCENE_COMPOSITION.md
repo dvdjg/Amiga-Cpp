@@ -212,13 +212,13 @@ el latido de COLOR00 como `Scene::on_frame` → **49.75 fps (142 576 ciclos = 1 
 ciclo de vida cuesta ~474 ciclos/frame.
 
 **Pendiente**:
-1. **Doble buffer de display en `Scene`**: `MultiBuffered<Scene,N>` es un desajuste (N
-   buffers de display frente a los 2 de la copperlist del `Plan`). En el modelo nuevo lo
-   correcto es emitir los `BPLxPT` como **`PatchSlot`** y parchearlos al buffer trasero en
-   `commit()` (reutiliza la base común); lo pide la migración de 080.
+1. **Doble buffer de display**: **hecho** en layout contiguo. `SceneResources.buffers` (1/2/3)
+   reserva N bitmaps; la etapa `display` emite los `BPLxPT` como MOVEs **parcheables**
+   (`move_at`) y `Scene::commit()` repunta los punteros al buffer trasero (reutiliza la base
+   común de parcheo). El interleaved usa un único `CanvasPlayfield`.
 2. **Migrar 030 (EHB)**: su fundido usa `FramePlan`/`apply_frame_plan`; reescribirlo sobre
    `PatchZone::handle`/`zone_color` (la base ya existe).
-3. **Migrar 080 (HAM+C2P)**: `ham` + `row_repeat` + `reverse_ptrs` + doble buffer (punto 1).
+3. **Migrar 080 (HAM+C2P)**: `ham` + `row_repeat` + `reverse_ptrs` + `buffers=2`.
 4. **Retirar `PlanarScene`/`StaticEhbScene`/`CanvasScene`** cuando ninguna demo los use.
 5. **Medición**: el `runner.uae` lo genera `run-demo.ts`; en entornos sin Git Bash se
    construye a mano para `measure-fps` (como se hizo con 081).

@@ -13,7 +13,7 @@ using namespace eng;
 
 namespace {
 
-alignas(16) u8 g_chip[256 * 1024];
+alignas(16) u8 g_chip[512 * 1024];
 
 MemorySystem make_memory() {
 	MemorySystem mem;
@@ -150,6 +150,19 @@ int main() {
 	mod_h.set(0x0050u);
 	const u16* mw = s7.scheduler().data();
 	check(mw[mod_h.index + 1u] == 0x0050u, "un offset BPL1MOD se parchea por frame");
+
+	// Doble buffer de display: los BPLxPT se parchean al buffer trasero en commit().
+	graphics::scene::Scene s8;
+	graphics::scene::SceneResources r8 = graphics::scene::planar4(320, 256, 4);
+	r8.buffers = 2;
+	const bool ok8 = graphics::scene::compose(
+		s8, mem, r8,
+		graphics::scene::display(graphics::scene::kPal320x256, graphics::scene::kBplcon0_4Planes));
+	check(ok8 && s8.ok(), "escena con 2 buffers de display compone");
+	check(s8.buffer_count() == 2u, "hay 2 buffers de display");
+	check(s8.buffer(0).data() != s8.buffer(1).data(), "los dos buffers son distintos");
+	s8.commit();
+	check(s8.back().data() == s8.buffer(0).data(), "commit avanza al buffer trasero");
 
 	if (failures == 0) {
 		std::printf("OK: scene::compose (etapas display/paleta/zonas/row_repeat + PatchHandle + ciclo de vida).\n");

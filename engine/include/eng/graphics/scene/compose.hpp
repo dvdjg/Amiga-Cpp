@@ -22,6 +22,7 @@
 
 #include <eng/core/domains.hpp>
 #include <eng/core/types.hpp>
+#include <eng/core/util/array.hpp>
 #include <eng/core/util/function_ref.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/field/surface.hpp>
@@ -53,9 +54,14 @@ struct SceneResources {
 	u16 rows = 0;      ///< filas lógicas del bitmap (0 = igual a `height`)
 	u8 planes = 4;     ///< planos de bitplane
 	SceneLayout layout = SceneLayout::Contiguous; ///< disposición de los bitplanes
+	u8 buffers = 1;    ///< nº de buffers de display (1/2/3); >1 = doble/triple buffer
 	u32 copper_bytes = 4096;
 	u16 first_line = 0x2c; ///< línea de raster donde arranca la ventana visible (Plan)
 };
+
+/// Máximos del modelo de escena (capacidad fija, sin heap).
+inline constexpr u8 kMaxSceneBuffers = 3; ///< buffers de display
+inline constexpr u8 kMaxScenePlanes = 6;  ///< planos de bitplane
 
 /// Escena viva: posee los bitplanes (contiguos) y la copperlist, y el emisor de Copper.
 /// No reserva al sistema más que a través de la `MemorySystem` del backend.
@@ -70,14 +76,27 @@ public:
 		}
 		const u16 alloc_rows = (res.layout == SceneLayout::Interleaved) ? res.height : logical_rows;
 		m_plane_bytes = static_cast<u32>(row) * alloc_rows;
-		m_bitplanes = memory.chip.allocate_block<eng::PlaneTag>(m_plane_bytes * res.planes + 16u, 16);
-		if (!m_bitplanes.valid()) {
-			return false;
+		// Doble/triple buffer solo en layout contiguo (la doble buffer se hace parcheando los
+		// BPLxPT; el interleaved usa un único `CanvasPlayfield`).
+		u8 buffers = res.buffers;
+		if (res.layout == SceneLayout::Interleaved || buffers < 1u) {
+			buffers = 1u;
+		}
+		if (buffers > kMaxSceneBuffers) {
+			buffers = kMaxSceneBuffers;
+		}
+		m_buffer_count = buffers;
+		for (u8 b = 0u; b < buffers; ++b) {
+			m_buffers[b] = memory.chip.allocate_block<eng::PlaneTag>(m_plane_bytes * res.planes + 16u, 16);
+			if (!m_buffers[b].valid()) {
+				return false;
+			}
 		}
 		if (res.layout == SceneLayout::Interleaved &&
-		    !m_playfield.bind(m_bitplanes, field::CanvasPlayfield::Config {res.width, res.height, res.planes})) {
+		    !m_playfield.bind(m_buffers[0], field::CanvasPlayfield::Config {res.width, res.height, res.planes})) {
 			return false;
 		}
+		m_back = (buffers > 1u) ? 1u : 0u;
 		copper::PlanConfig pcfg {};
 		pcfg.copper_bytes = res.copper_bytes;
 		pcfg.first_line = res.first_line;
@@ -96,7 +115,14 @@ public:
 	[[nodiscard]] const copper::Scheduler& scheduler() const { return m_plan.scheduler(); }
 	[[nodiscard]] copper::Plan& plan() { return m_plan; }
 	[[nodiscard]] const copper::Plan& plan() const { return m_plan; }
-	[[nodiscard]] constexpr eng::PlaneBytes bitplanes() const { return m_bitplanes.view; }
+	[[nodiscard]] constexpr eng::PlaneBytes bitplanes() const { return m_buffers[m_back].view; }
+	/// Buffer de display que se está dibujando (el trasero).
+	[[nodiscard]] constexpr eng::PlaneBytes back() const { return m_buffers[m_back].view; }
+	/// Buffer de display `i` (para leer/escribir otro).
+	[[nodiscard]] constexpr eng::PlaneBytes buffer(u8 i) const {
+		return (i < m_buffer_count) ? m_buffers[i].view : eng::PlaneBytes {};
+	}
+	[[nodiscard]] constexpr u8 buffer_count() const { return m_buffer_count; }
 	/// Plano `i` del bitmap (layout contiguo; vacío si fuera de rango).
 	[[nodiscard]] constexpr eng::PlaneBytes plane(u8 i) const {
 		return (i < m_res.planes)
@@ -123,13 +149,25 @@ public:
 	[[nodiscard]] const copper::ScheduleReport& report() const { return m_plan.report(); }
 	[[nodiscard]] constexpr u16 words() const { return m_plan.words(); }
 
+	/// Toma el control mostrando el buffer 0 (una vez).
 	template <typename Backend>
-	void install(Backend& backend) const {
-		m_plan.commit(backend);
-	}
-	template <typename Backend>
-	void takeover(Backend& backend) const {
+	void takeover(Backend& backend) {
+		patch_plane_pointers(0u);
 		m_plan.takeover(backend);
+	}
+
+	/// Publica el buffer dibujado (`m_back`) repuntando los `BPLxPT` y avanza. La lista ya
+	/// está instalada; solo se parchean los punteros (doble buffer por `BPLxPT`).
+	void commit() {
+		patch_plane_pointers(m_back);
+		m_back = static_cast<u8>((m_back + 1u) % m_buffer_count);
+	}
+
+	/// Registra el índice del MOVE de `BPLxPTH` del plano `p` (lo llama la etapa `display`).
+	void set_plane_patch(u8 p, u16 pth_index) {
+		if (p < kMaxScenePlanes) {
+			m_plane_patch[p] = pth_index;
+		}
 	}
 
 	// --- Ciclo de vida (plano de comportamiento) ------------------------------------
@@ -148,11 +186,30 @@ private:
 		}
 	}
 
+	/// Repunta los `BPLxPT` al buffer `index` parcheando el copper. No aplica al interleaved
+	/// (usa un único `CanvasPlayfield`).
+	void patch_plane_pointers(u8 index) {
+		if (m_res.layout == SceneLayout::Interleaved || index >= m_buffer_count) {
+			return;
+		}
+		const eng::u8* base = m_buffers[index].view.data();
+		for (u8 p = 0u; p < m_res.planes; ++p) {
+			const eng::uintptr ip = reinterpret_cast<eng::uintptr>(
+				base + static_cast<eng::u32>(p) * m_plane_bytes);
+			m_plan.scheduler().patch_handle(m_plane_patch[p]).set(static_cast<u16>(ip >> 16));
+			m_plan.scheduler().patch_handle(static_cast<u16>(m_plane_patch[p] + 2u))
+				.set(static_cast<u16>(ip & 0xffffu));
+		}
+	}
+
 	SceneResources m_res {};
-	eng::Block<eng::PlaneTag> m_bitplanes {};
+	eng::util::Array<eng::Block<eng::PlaneTag>, kMaxSceneBuffers> m_buffers {};
 	field::CanvasPlayfield m_playfield {};
 	copper::Plan m_plan {};
 	u32 m_plane_bytes = 0;
+	u8 m_buffer_count = 1;
+	u8 m_back = 0;
+	u16 m_plane_patch[kMaxScenePlanes] {};
 	Task m_setup {};
 	Task m_frame {};
 	Task m_teardown {};
@@ -259,8 +316,31 @@ inline constexpr u16 kBplcon0_Ham6 = 0x7a00;         ///< HAM6 (6 planos, COLOR,
 				s.move_bitplane_pointer(p, eng::ChipAddress {addr});
 			}
 		} else {
-			s.emit_planes_display(diwstrt, diwstop, ddfstrt, ddfstop, sc.row_bytes(),
-					      bplcon0, sc.planes(), sc.bitplanes(), sc.plane_bytes());
+			s.move(copper::Register::DMACON,
+			       static_cast<u16>(copper::DmaSetClear | copper::DmaMaster |
+						copper::DmaCopper | copper::DmaBitplane));
+			s.move(copper::Register::BPLCON0, bplcon0);
+			s.move(copper::Register::BPLCON1, 0x0000);
+			s.move(copper::Register::BPLCON2, 0x0000);
+			s.move(copper::Register::BPL1MOD, 0x0000);
+			s.move(copper::Register::BPL2MOD, 0x0000);
+			s.move(copper::Register::DIWSTRT, diwstrt);
+			s.move(copper::Register::DIWSTOP, diwstop);
+			s.move(copper::Register::DDFSTRT, ddfstrt);
+			s.move(copper::Register::DDFSTOP, ddfstop);
+			// Punteros BPLxPT parcheables (uno por plano): habilitan el doble buffer por
+			// parcheo (`Scene::commit`). `move_at` devuelve el índice del MOVE (PTH); el
+			// PTL va 2 words después.
+			const eng::u8* base = sc.bitplanes().data();
+			for (u8 p = 0u; p < sc.planes(); ++p) {
+				const eng::uintptr ip = reinterpret_cast<eng::uintptr>(
+					base + static_cast<eng::u32>(p) * sc.plane_bytes());
+				const u16 idx = s.move_at(copper::bitplane_pointer_high_register(p),
+							  static_cast<u16>(ip >> 16));
+				(void)s.move_at(copper::bitplane_pointer_low_register(p),
+						static_cast<u16>(ip & 0xffffu));
+				sc.set_plane_patch(p, idx);
+			}
 		}
 	};
 }
