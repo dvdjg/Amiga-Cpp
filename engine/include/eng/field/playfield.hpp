@@ -39,6 +39,7 @@
 /// ```
 
 #include <eng/core/arith.hpp>
+#include <eng/core/arith.hpp>
 #include <eng/core/polygon.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
@@ -794,9 +795,10 @@ public:
             return false;
         }
         const u16 row = static_cast<u16>(((width / 8u) + 3u) & ~3u);
-        const u32 pbytes = (plane_stride != 0u) ? plane_stride
-                                                : static_cast<u32>(row) * height;
-        const u32 need = pbytes * planes;
+        const u32 pbytes = (plane_stride != 0u)
+                               ? plane_stride
+                               : eng::math::mulu32x16(static_cast<u32>(row), height);
+        const u32 need = eng::math::mulu32x16(pbytes, static_cast<u16>(planes));
         if (bytes < need) return false;
         m_bound = {};
         m_width = width;

@@ -171,7 +171,8 @@ public:
 	/// Plano `i` del bitmap (layout contiguo; vacío si fuera de rango).
 	[[nodiscard]] constexpr eng::PlaneBytes plane(u8 i) const {
 		return (i < m_res.planes)
-			? bitplanes().subspan(static_cast<eng::u32>(i) * m_plane_bytes, m_plane_bytes)
+			? bitplanes().subspan(eng::math::mulu32x16(m_plane_bytes, static_cast<u16>(i)),
+					      m_plane_bytes)
 			: eng::PlaneBytes {};
 	}
 	/// Bytes de un plano completo (`row_bytes * alloc_rows`).
@@ -309,7 +310,7 @@ private:
 			return false;
 		}
 		const u16 alloc_rows = (res.layout == SceneLayout::Interleaved) ? res.height : logical_rows;
-		m_plane_bytes = static_cast<u32>(row) * alloc_rows;
+		m_plane_bytes = eng::math::mulu32x16(static_cast<u32>(row), alloc_rows);
 		// Doble/triple buffer solo en layout contiguo (la doble buffer se hace parcheando los
 		// BPLxPT; el interleaved usa un único `CanvasPlayfield`).
 		u8 buffers = res.buffers;
@@ -321,7 +322,8 @@ private:
 		}
 		m_buffer_count = buffers;
 		for (u8 b = 0u; b < buffers; ++b) {
-			m_buffers[b] = memory.chip.allocate_block<eng::PlaneTag>(m_plane_bytes * res.planes + 16u, 16);
+			m_buffers[b] = memory.chip.allocate_block<eng::PlaneTag>(
+				eng::math::mulu32x16(m_plane_bytes, static_cast<u16>(res.planes)) + 16u, 16);
 			if (!m_buffers[b].valid()) {
 				return false;
 			}
@@ -357,7 +359,7 @@ private:
 		u16* words = m_plan.active_words();
 		for (u8 p = 0u; p < m_res.planes; ++p) {
 			const u8 src = (m_plane_source[p] < m_res.planes) ? m_plane_source[p] : p;
-			const eng::u32 off = static_cast<eng::u32>(src) * m_plane_bytes;
+			const eng::u32 off = eng::math::mulu32x16(m_plane_bytes, static_cast<u16>(src));
 			m_plane_patch[p].apply(words, static_cast<eng::u32>(
 							 reinterpret_cast<eng::uintptr>(addr + off)));
 		}

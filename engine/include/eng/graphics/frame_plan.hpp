@@ -25,6 +25,7 @@
 ///   área tocada           ──►  dirty rects   ─┘    escrituras CPU (según el backend)
 /// ```
 
+#include <eng/core/arith.hpp>
 #include <eng/core/domains.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/util/array.hpp>
@@ -478,10 +479,9 @@ private:
 
 		m_blit_jobs[m_blit_job_count++] = job;
 		m_blit_budget.jobs = m_blit_job_count;
-		m_blit_budget.words +=
-			static_cast<u32>(job.words_per_row) *
-			static_cast<u32>(job.height) *
-			static_cast<u32>(job.bitplane_count);
+		m_blit_budget.words += eng::math::mulu32x16(
+			eng::math::mulu16(job.words_per_row, job.height),
+			static_cast<u16>(job.bitplane_count));
 		if (masked) {
 			++m_blit_budget.masked_jobs;
 		} else {
