@@ -26,6 +26,7 @@
 #include <eng/field/playfield.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/graphics/copper/copper.hpp>
+#include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/memory/arena.hpp>
 
@@ -53,6 +54,7 @@ struct SceneResources {
 	u8 planes = 4;     ///< planos de bitplane
 	SceneLayout layout = SceneLayout::Contiguous; ///< disposición de los bitplanes
 	u32 copper_bytes = 4096;
+	u16 first_line = 0x2c; ///< línea de raster donde arranca la ventana visible (Plan)
 };
 
 /// Escena viva: posee los bitplanes (contiguos) y la copperlist, y el emisor de Copper.
@@ -69,20 +71,29 @@ public:
 		const u16 alloc_rows = (res.layout == SceneLayout::Interleaved) ? res.height : logical_rows;
 		m_plane_bytes = static_cast<u32>(row) * alloc_rows;
 		m_bitplanes = memory.chip.allocate_block<eng::PlaneTag>(m_plane_bytes * res.planes + 16u, 16);
-		m_copper = memory.chip.allocate_block<eng::CopperTag>(res.copper_bytes, 16);
-		if (!m_bitplanes.valid() || !m_copper.valid()) {
+		if (!m_bitplanes.valid()) {
 			return false;
 		}
 		if (res.layout == SceneLayout::Interleaved &&
 		    !m_playfield.bind(m_bitplanes, field::CanvasPlayfield::Config {res.width, res.height, res.planes})) {
 			return false;
 		}
-		m_sched.retarget(m_copper);
+		copper::PlanConfig pcfg {};
+		pcfg.copper_bytes = res.copper_bytes;
+		pcfg.first_line = res.first_line;
+		if (!m_plan.begin(memory, pcfg)) {
+			return false;
+		}
 		return true;
 	}
 
-	[[nodiscard]] copper::Scheduler& scheduler() { return m_sched; }
-	[[nodiscard]] const copper::Scheduler& scheduler() const { return m_sched; }
+	/// Abre la construcción del programa (retarget del emisor al bloque trasero).
+	void begin_build() { m_plan.begin_frame(); }
+	/// Cierra el programa (orden + presupuesto) y voltea el buffer. `false` si no cupo.
+	[[nodiscard]] bool end_build() { return m_plan.end_frame(); }
+
+	[[nodiscard]] copper::Scheduler& scheduler() { return m_plan.scheduler(); }
+	[[nodiscard]] const copper::Scheduler& scheduler() const { return m_plan.scheduler(); }
 	[[nodiscard]] constexpr eng::PlaneBytes bitplanes() const { return m_bitplanes.view; }
 	[[nodiscard]] constexpr u32 plane_bytes() const { return m_plane_bytes; }
 	[[nodiscard]] constexpr u16 row_bytes() const {
@@ -100,16 +111,17 @@ public:
 		return field::Surface {m_playfield,
 				       field::SurfaceRect {0, 0, m_res.width, m_res.height}};
 	}
-	[[nodiscard]] bool ok() const { return m_sched.ok(); }
-	[[nodiscard]] const copper::ScheduleReport& report() const { return m_sched.report(); }
+	[[nodiscard]] bool ok() const { return m_plan.ok(); }
+	[[nodiscard]] const copper::ScheduleReport& report() const { return m_plan.report(); }
+	[[nodiscard]] constexpr u16 words() const { return m_plan.words(); }
 
 	template <typename Backend>
 	void install(Backend& backend) const {
-		if (m_sched.ok()) backend.install_copper_list(m_sched.data());
+		m_plan.commit(backend);
 	}
 	template <typename Backend>
 	void takeover(Backend& backend) const {
-		if (m_sched.ok()) backend.takeover_display(m_sched.data());
+		m_plan.takeover(backend);
 	}
 
 	// --- Ciclo de vida (plano de comportamiento) ------------------------------------
@@ -130,9 +142,8 @@ private:
 
 	SceneResources m_res {};
 	eng::Block<eng::PlaneTag> m_bitplanes {};
-	eng::Block<eng::CopperTag> m_copper {};
 	field::CanvasPlayfield m_playfield {};
-	copper::Scheduler m_sched {};
+	copper::Plan m_plan {};
 	u32 m_plane_bytes = 0;
 	Task m_setup {};
 	Task m_frame {};
@@ -169,6 +180,29 @@ private:
 	r.rows = rows;
 	r.planes = planes;
 	return r;
+}
+
+/// Preset: escena EHB estática (6 planos contiguos; `bplcon0` EHB = 0x6200 en la etapa).
+[[nodiscard]] constexpr SceneResources ehb(u16 width = 320, u16 height = 256) {
+	SceneResources r {};
+	r.width = width;
+	r.height = height;
+	r.planes = 6;
+	return r;
+}
+
+/// Etapa de **punteros BPLxPT en orden inverso** (`bpl[N-1..0]`, como fire-rgb). Re-emite
+/// los punteros tras `display`, de modo que el orden inverso (última escritura) manda.
+[[nodiscard]] inline auto reverse_ptrs() {
+	return [](Scene& sc) {
+		copper::Scheduler& s = sc.scheduler();
+		const eng::u8* base = sc.bitplanes().data();
+		const u32 pb = sc.plane_bytes();
+		for (eng::u8 p = 0u; p < sc.planes(); ++p) {
+			const eng::u32 src = static_cast<eng::u32>(sc.planes() - 1u - p) * pb;
+			s.move_bitplane_pointer(p, eng::ChipAddress {reinterpret_cast<eng::uintptr>(base + src)});
+		}
+	};
 }
 
 /// Etapa de **display**: BPLCON0, DIW/DDF y punteros BPLxPT. Con layout `Interleaved` usa
@@ -254,9 +288,9 @@ bool compose(Scene& scene, MemorySystem& memory, const SceneResources& res, Stag
 	if (!scene.init(memory, res)) {
 		return false;
 	}
+	scene.begin_build();
 	(stages(scene), ...);
-	scene.scheduler().end();
-	return scene.ok();
+	return scene.end_build();
 }
 
 } // namespace eng::graphics::scene

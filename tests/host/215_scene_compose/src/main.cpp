@@ -13,7 +13,7 @@ using namespace eng;
 
 namespace {
 
-alignas(16) u8 g_chip[64 * 1024];
+alignas(16) u8 g_chip[192 * 1024];
 
 MemorySystem make_memory() {
 	MemorySystem mem;
@@ -91,6 +91,15 @@ int main() {
 	const s16 xs[3] = {8, 40, 8};
 	const s16 ys[3] = {8, 8, 40};
 	check(surf.fill_polygon(xs, ys, 3, 3), "surface() pinta un poligono");
+
+	// Preset ham: repeticion de filas + punteros inversos (caso fire-rgb).
+	graphics::scene::Scene s4;
+	const bool ok4 = graphics::scene::compose(
+		s4, mem, graphics::scene::ham(320, 256, 8, 4),
+		graphics::scene::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x7a00),
+		graphics::scene::reverse_ptrs(),
+		graphics::scene::row_repeat(4, 0x2c, 0x0022));
+	check(ok4 && s4.ok(), "preset ham (row_repeat + reverse_ptrs) compone");
 
 	if (failures == 0) {
 		std::printf("OK: scene::compose (etapas display/paleta/zonas/row_repeat + PatchHandle + ciclo de vida).\n");
