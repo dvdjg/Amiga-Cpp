@@ -140,12 +140,14 @@ struct DemoGame {
 			return;
 		}
 
-		build_ehb_test_pattern(m_scene.bitplanes());
-		m_scene.takeover(backend);
 		m_scene_ok = m_memory_ok;
 		if (!m_memory_ok) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000030u);
+			return;
 		}
+
+		build_ehb_test_pattern(m_scene.bitplanes());
+		m_scene.takeover(backend);
 	}
 
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
