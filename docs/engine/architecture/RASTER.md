@@ -1,0 +1,68 @@
+# Rasterizado: CPU y Blitter tras una interfaz uniforme
+
+`field::Surface` es el **contexto de dispositivo** del engine: expone una API de dibujo
+uniforme (`set_pixel`, `draw_line`, `fill_rect`, `fill_polygon`, `blit`, `blit_masked`,
+`draw_text`) sin que el consumidor sepa si detrás hay **CPU** o **Blitter**. Este documento
+describe el *seam* `field::Rasterizer` (`engine/include/eng/field/raster.hpp`) que hace
+transparente esa elección.
+
+```
+   Surface  (API estable)
+      │  fill_rect / blit / blit_masked
+      ▼
+   Rasterizer  (seam)
+   ├── CpuRaster      → Playfield::draw_span_op (RasterOp) / copy_rect_cpu
+   └── BlitterRaster  → Playfield::fill_polygon (PolygonFillSink/Blitter) / FramePlan
+```
+
+## Tipos
+
+| Tipo | Quién lo define | Qué describe |
+|---|---|---|
+| `RasterOp` (`Copy`/`Or`/`And`/`Xor`/`Clear`) | engine | Operación lógica de una escritura (CPU: lógica de palabras; Blitter: `minterm`). |
+| `RasterCaps` | **backend** | Hay Blitter, ancho de bus (16 OCS / 32-64 AGA), fill/line/shift/minterms, `setup_cycles`. |
+| `RasterPolicy` | **app/escena** | `AccelMode::Auto`/`Cpu`/`Blitter`, área mínima para el Blitter, `cpu_fast`. |
+| `Rasterizer` | engine | Interfaz: `fill_rect` / `copy_rect` / `copy_masked`. |
+
+## Implementaciones
+
+- **`CpuRaster`**: relleno por scanline (`Playfield::draw_span_op`, con `RasterOp`) y copias por
+  CPU (`Playfield::copy_rect_cpu` / `copy_masked_cpu`). La copia usa stores de **32 bits**
+  cuando `RasterPolicy::cpu_fast` está activo y origen/destino quedan alineados a 4 (ruta
+  `move.l`; *CPU blit assist* del 68020, ver `../guides/optimization/OPTIMIZACION_GPP_68000.md`).
+  Sin multiplicaciones de 32 bits en el bucle (`mulu16` + avance de punteros).
+- **`BlitterRaster`**: relleno por `Playfield::fill_polygon` (usa el `PolygonFillSink`/Blitter si
+  está instalado; si no, CPU) y copias por el `FramePlan` (`CopyRect`/`MaskedBobCookieCut`).
+
+## Selección (backend → escena)
+
+El backend declara sus capacidades y ofrece un atajo para instalar el rasterizador; la escena
+no conoce al backend:
+
+```cpp
+// amiga_minimal (OCS/AGA): Blitter de 16 bits, fill/line/shift/minterms
+backend.install_raster(scene);   // elige kBlitterRaster/kCpuRaster segun raster_caps()
+scene.surface().fill_rect(x, y, w, h, color, field::RasterOp::Xor); // misma llamada
+```
+
+`Scene::set_raster(rasterizer, policy)` fija la elección; `Surface` la lee del playfield. Un
+backend host (sin Blitter) declara `RasterCaps{ .blitter = false }` y se usa `kCpuRaster`.
+
+## Estado y extensión
+
+- **Hecho**: `RasterOp` (CPU), relleno CPU/Blitter, copia CPU (32 bits) y Blitter, copia
+  enmascarada CPU y Blitter; `install_raster` en el backend Amiga.
+- **Extensión**: relleno de rect **directo por Blitter** (BLTCON fill) como `BlitJob` propio, y
+  copia CPU de 32 bits **siempre** alineada (alinear buffers en `bind`). El `PolygonFillSink`
+  existente queda como una de las operaciones del seam.
+
+## Verificación
+
+- **HOST-212**: `RasterOp` (`Xor` dos veces = 0, `Or`/`And`/`Clear`), `BlitterRaster` (fill y
+  copia por `FramePlan`) y copia CPU/enmascarada CPU (pixeles + `blit_job_count`).
+- **Sonda de codegen** `docs/guides/optimization/_probe_raster_copy.cpp`: 68000/68020 sin
+  libcalls (`__mulsi3`/`__udivsi3`) y con `move.l` en la copia.
+- **Demo**: `077_math3d_cube` instala el rasterizador del backend y dibuja con `Surface`.
+
+Referencias: `SCENE_COMPOSITION.md` §6.2, `DISPLAY_COMPOSITION.md`, `playfield.hpp`
+(`PolygonFillSink`), `frame_plan.hpp` (`BlitJob`/`minterm`).

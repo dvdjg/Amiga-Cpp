@@ -65,11 +65,12 @@ public:
 		(void)plan;
 		return pf.copy_rect_cpu(src, x, y, w, h, src_row_bytes, src_plane_stride, planes);
 	}
+	/// BOB enmascarado por **CPU** (`Playfield::copy_masked_cpu`); no encola trabajo.
 	bool copy_masked(Playfield& pf, graphics::FramePlan& plan, eng::Span<const eng::u16> src,
 			 eng::Span<const eng::u16> mask, eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h,
 			 eng::u16 src_row_bytes, eng::u32 src_plane_stride, eng::u8 planes) override {
-		return pf.add_world_bitmap_masked(plan, src, mask, x, y, w, h, src_row_bytes,
-						  src_plane_stride, planes);
+		(void)plan;
+		return pf.copy_masked_cpu(src, mask, x, y, w, h, src_row_bytes, src_plane_stride, planes);
 	}
 };
 

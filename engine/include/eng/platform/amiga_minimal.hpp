@@ -16,6 +16,7 @@
 #include <eng/core/domains.hpp>
 #include <eng/core/ptr.hpp>
 #include <eng/core/types.hpp>
+#include <eng/field/raster.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga/blob.hpp>
@@ -261,6 +262,26 @@ public:
 	/// Por ahora solo materializa BOBs enmascarados mediante Blitter. Los parches de
 	/// paleta pertenecen a la escena (offsets internos de su copperlist).
 	bool execute_frame_plan(const graphics::FramePlan& plan);
+
+	/// **Capacidades de rasterizado** del backend: OCS/AGA tienen Blitter (bus de 16 bits;
+	/// AGA admite FMODE 32/64) con fill/line/shift/minterms. Un backend host declararía
+	/// `blitter = false`. Ver `field::RasterCaps`.
+	[[nodiscard]] constexpr eng::field::RasterCaps raster_caps() const {
+		return eng::field::RasterCaps { true, 16u, true, true, true, true, 60u };
+	}
+
+	/// Instala en la escena el **rasterizador** coherente con `raster_caps()` (Blitter si
+	/// lo hay, CPU si no) y una `RasterPolicy` por defecto (`Auto` + umbral). La escena no
+	/// conoce al backend: este solo le pasa la elección.
+	template <class Scene>
+	void install_raster(Scene& scene) const {
+		const eng::field::RasterCaps caps = raster_caps();
+		const eng::field::AccelMode mode =
+			caps.blitter ? eng::field::AccelMode::Auto : eng::field::AccelMode::Cpu;
+		const eng::u16 min_px = caps.blitter ? static_cast<eng::u16>(64u) : static_cast<eng::u16>(0u);
+		scene.set_raster(caps.blitter ? &eng::field::kBlitterRaster : &eng::field::kCpuRaster,
+				 eng::field::RasterPolicy {mode, min_px, true});
+	}
 
 	/// Base de registros custom (`$dff000`). Para rutinas de lote `inline` (p. ej.
 	/// `eng::amiga::OrBlobBatch`) que programan hardware sin un `jsr` por objeto.

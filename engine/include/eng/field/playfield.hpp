@@ -269,29 +269,81 @@ public:
             static_cast<u32>(words);
         if (src.size() < need_src) return false;
         const u16 x_byte = static_cast<u16>(wx / 8u);
-        const u16* sbase = src.data();
+        // Sin multiplicaciones de 32 bits en el bucle: `wy*m_row_stride` con `mulu16`
+        // y avance por suma de punteros (evita `__mulsi3` en 68000).
+        const u32 y0_off = eng::math::mulu16(static_cast<u16>(wy), static_cast<u16>(m_row_stride));
+        const u8* srow0 = reinterpret_cast<const u8*>(src.data());
+        u8* drow0 = m_frontbuffer + y0_off + x_byte;
         for (u8 p = 0; p < planes; ++p) {
-            const u16* s = sbase + eng::math::mulu16(p, static_cast<u16>(src_plane_stride / 2u));
+            const u8* srow = srow0;
+            u8* drow = drow0;
             for (u16 row = 0; row < h; ++row) {
-                const u16* srow = reinterpret_cast<const u16*>(
-                    reinterpret_cast<const eng::u8*>(s) + static_cast<u32>(row) * src_row_bytes);
-                u16* drow = reinterpret_cast<u16*>(
-                    m_frontbuffer + static_cast<u32>(p) * m_plane_stride +
-                    static_cast<u32>(wy + row) * m_row_stride + x_byte);
+                const u16* s = reinterpret_cast<const u16*>(srow);
+                u16* d = reinterpret_cast<u16*>(drow);
                 const bool wide = m_raster_policy.cpu_fast && words >= 2u &&
-                                  (reinterpret_cast<eng::uintptr>(srow) & 3u) == 0u &&
-                                  (reinterpret_cast<eng::uintptr>(drow) & 3u) == 0u;
+                                  (reinterpret_cast<eng::uintptr>(s) & 3u) == 0u &&
+                                  (reinterpret_cast<eng::uintptr>(d) & 3u) == 0u;
                 u16 i = 0;
                 if (wide) {
                     for (; i + 1u < words; i += 2u) {
-                        *reinterpret_cast<u32*>(drow + i) =
-                            *reinterpret_cast<const u32*>(srow + i);
+                        *reinterpret_cast<u32*>(d + i) = *reinterpret_cast<const u32*>(s + i);
                     }
                 }
                 for (; i < words; ++i) {
-                    drow[i] = srow[i];
+                    d[i] = s[i];
                 }
+                srow += src_row_bytes;
+                drow += m_row_stride;
             }
+            srow0 += src_plane_stride;
+            drow0 += m_plane_stride;
+        }
+        return true;
+    }
+
+    /// Copia rectangular **enmascarada** (cookie-cut) por **CPU**: `D = (D & ~m) | (S & m)`
+    /// palabra a palabra, con la máscara de 1 bit (misma geometría que
+    /// `add_world_bitmap_masked`). No encola nada.
+    bool copy_masked_cpu(Span<const u16> src, Span<const u16> mask, s32 wx, s32 wy,
+                         u16 w, u16 h, u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
+        if (!m_initialized || src.empty() || mask.empty() || planes == 0u) return false;
+        if (wx < 0 || (wx & 15) != 0 ||
+            static_cast<u32>(wx / 8) + (w / 8u) > m_bytes_per_row) {
+            return false;
+        }
+        if (wy < 0 || static_cast<u32>(wy) + h > m_height) return false;
+        const u16 words = static_cast<u16>(w / 16u);
+        const u32 need_src =
+            (planes > 1u ? eng::math::mulu16(static_cast<u16>(planes - 1u), static_cast<u16>(src_plane_stride / 2u)) : 0u) +
+            (h > 1u ? eng::math::mulu16(static_cast<u16>(h - 1u), static_cast<u16>(src_row_bytes / 2u)) : 0u) +
+            static_cast<u32>(words);
+        const u32 need_mask =
+            (h > 1u ? eng::math::mulu16(static_cast<u16>(h - 1u), static_cast<u16>(src_row_bytes / 2u)) : 0u) +
+            static_cast<u32>(words);
+        if (src.size() < need_src || mask.size() < need_mask) return false;
+        const u16 x_byte = static_cast<u16>(wx / 8u);
+        const u32 y0_off = eng::math::mulu16(static_cast<u16>(wy), static_cast<u16>(m_row_stride));
+        const u8* srow0 = reinterpret_cast<const u8*>(src.data());
+        const u8* mrow0 = reinterpret_cast<const u8*>(mask.data());
+        u8* drow0 = m_frontbuffer + y0_off + x_byte;
+        for (u8 p = 0; p < planes; ++p) {
+            const u8* srow = srow0;
+            const u8* mrow = mrow0;
+            u8* drow = drow0;
+            for (u16 row = 0; row < h; ++row) {
+                const u16* s = reinterpret_cast<const u16*>(srow);
+                const u16* mrow16 = reinterpret_cast<const u16*>(mrow);
+                u16* d = reinterpret_cast<u16*>(drow);
+                for (u16 i = 0; i < words; ++i) {
+                    const u16 m = mrow16[i];
+                    d[i] = static_cast<u16>((d[i] & static_cast<u16>(~m)) | (s[i] & m));
+                }
+                srow += src_row_bytes;
+                mrow += src_row_bytes;
+                drow += m_row_stride;
+            }
+            srow0 += src_plane_stride;
+            drow0 += m_plane_stride;
         }
         return true;
     }
@@ -746,16 +798,20 @@ public:
         const s16 src_mod = static_cast<s16>(src_row_bytes - words * 2);
         const s16 dst_mod = static_cast<s16>(m_bytes_per_row - words * 2);
         const u16* sbase = src.data();
+        const u32 y0_off = eng::math::mulu16(static_cast<u16>(wy), static_cast<u16>(m_row_stride));
+        const u8* sp = reinterpret_cast<const u8*>(sbase);
+        u8* dp = m_frontbuffer + y0_off + x_byte;
         for (u8 p = 0; p < planes; ++p) {
-            const u16* s = sbase + eng::math::mulu16(p, static_cast<u16>(src_plane_stride / 2u));
-            u16* d = reinterpret_cast<u16*>(m_frontbuffer + static_cast<u32>(p) * m_plane_stride +
-                                            static_cast<u32>(wy) * m_row_stride + x_byte);
+            const u16* s = reinterpret_cast<const u16*>(sp);
+            u16* d = reinterpret_cast<u16*>(dp);
             graphics::BlitJob job {
                 graphics::BlitJobKind::CopyRect, graphics::BlitSource {}, graphics::BlitSource {s}, graphics::BlitDest {d},
                 words, h, src_mod, dst_mod,
                 1, 0, src_plane_stride, m_plane_stride, false
             };
             if (!plan.add_copy_rect(job)) return false;
+            sp += src_plane_stride;
+            dp += m_plane_stride;
         }
         return true;
     }
@@ -781,16 +837,20 @@ public:
         const s16 dst_mod = static_cast<s16>(m_bytes_per_row - words * 2);
         const u16* sbase = src.data();
         const u16* mbase = mask.data();
+        const u32 y0_off = eng::math::mulu16(static_cast<u16>(wy), static_cast<u16>(m_row_stride));
+        const u8* sp = reinterpret_cast<const u8*>(sbase);
+        u8* dp = m_frontbuffer + y0_off + x_byte;
         for (u8 p = 0; p < planes; ++p) {
-            const u16* s = sbase + eng::math::mulu16(p, static_cast<u16>(src_plane_stride / 2u));
-            u16* d = reinterpret_cast<u16*>(m_frontbuffer + static_cast<u32>(p) * m_plane_stride +
-                                            static_cast<u32>(wy) * m_row_stride + x_byte);
+            const u16* s = reinterpret_cast<const u16*>(sp);
+            u16* d = reinterpret_cast<u16*>(dp);
             graphics::BlitJob job {
                 graphics::BlitJobKind::MaskedBobCookieCut, graphics::BlitSource {mbase}, graphics::BlitSource {s}, graphics::BlitDest {d},
                 words, h, src_mod, dst_mod,
                 1, 0, src_plane_stride, m_plane_stride, false
             };
             if (!plan.add_masked_bob(job)) return false;
+            sp += src_plane_stride;
+            dp += m_plane_stride;
         }
         return true;
     }

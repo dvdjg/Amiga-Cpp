@@ -162,6 +162,7 @@ struct DemoGame {
 					    scene::palette(kPalette, 0u, 32u));
 
 		if (m_memory_ok && m_scene_ok) {
+			backend.install_raster(m_scene); // Blitter/CPU según las caps del backend
 			draw_static();
 			m_scene.takeover(backend);
 			if (!verify_mesh()) {
@@ -212,10 +213,14 @@ struct DemoGame {
 		// Proyeccion ortografica (sin division): x a la derecha, y hacia arriba.
 		for (eng::u32 i = 0; i < visible; ++i) {
 			const Face& fc = kFaces[order[i].index];
-			const eng::u8 col = shade_of(eng::math3d::face_z_sum(world[fc.a], world[fc.b], world[fc.c]));
-			draw_edge(c, world, fc.a, fc.b, col);
-			draw_edge(c, world, fc.b, fc.c, col);
-			draw_edge(c, world, fc.c, fc.a, col);
+			// Sombreado POR ARISTA (segun la profundidad de sus dos extremos): da
+			// varios niveles en una misma captura (validacion determinista).
+			draw_edge(c, world, fc.a, fc.b,
+				  shade_of(static_cast<eng::s16>(world[fc.a].z().v + world[fc.b].z().v)));
+			draw_edge(c, world, fc.b, fc.c,
+				  shade_of(static_cast<eng::s16>(world[fc.b].z().v + world[fc.c].z().v)));
+			draw_edge(c, world, fc.c, fc.a,
+				  shade_of(static_cast<eng::s16>(world[fc.c].z().v + world[fc.a].z().v)));
 		}
 
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);

@@ -145,6 +145,18 @@ int main() {
 	check(plan3.blit_job_count() == 0u, "blit CPU no encola jobs");
 	check(color_at_contiguous(s3, 0, 16) == 0x0fu, "blit CPU escribe los pixeles");
 
+	// Copia enmascarada CPU: solo se copian los pixeles con mascara a 1 (fila 0).
+	u16 src3[64];
+	for (u16 i = 0; i < 64u; ++i) src3[i] = 0xffffu;
+	u16 mask3[8] = {0xffffu, 0xffffu, 0, 0, 0, 0, 0, 0};
+	graphics::FramePlan plan4 {};
+	check(ksurf.blit_masked(plan4, Span<const u16> {src3, 64}, Span<const u16> {mask3, 8},
+				0, 32, 32, 4, 4, 16, 4),
+	      "Surface::blit_masked (CPU) copia");
+	check(plan4.blit_job_count() == 0u, "blit_masked CPU no encola jobs");
+	check(color_at_contiguous(s3, 0, 32) == 0x0fu, "mascara 1 copia el pixel");
+	check(color_at_contiguous(s3, 0, 33) == 0x00u, "mascara 0 deja el pixel");
+
 	// --- RasterOp: operaciones logicas uniformes (seam CPU/Blitter) -----------
 	Scene s4;
 	check(graphics::scene::compose(
