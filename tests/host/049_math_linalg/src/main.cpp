@@ -50,6 +50,14 @@ int main() {
 	check(transpose(r90).m[0][1] == q12 {4096}, "transpose intercambia");
 	check(determinant(r90) == q12 {4096}, "det(R90) = 1");
 
+	// --- Determinante 3x3 por cofactores (sin productos encadenados) ---
+	Mat<3, q12> r90z {};
+	r90z.m[0][0] = q12 {0};    r90z.m[0][1] = q12 {-4096}; r90z.m[0][2] = q12 {0};
+	r90z.m[1][0] = q12 {4096}; r90z.m[1][1] = q12 {0};     r90z.m[1][2] = q12 {0};
+	r90z.m[2][0] = q12 {0};    r90z.m[2][1] = q12 {0};     r90z.m[2][2] = q12 {4096};
+	check(determinant(r90z) == q12 {4096}, "det(R90 3x3) = 1");
+	check(determinant(Mat<3, q12>::identity()) == q12 {4096}, "det(I 3x3) = 1");
+
 	// --- Afín: M*p + t, con t en LONGITUD (el caso que el tipado resuelve) ---
 	Affine<2, q12, q0> tr {};
 	tr.m = r90;
@@ -69,6 +77,7 @@ int main() {
 	const Vec<3, float> fv {{1.0f, 1.0f, 1.0f}};
 	const Vec<3, float> fo = f * fv;
 	check(fo.x() == 6.0f && fo.y() == 1.0f, "float: mat*vec");
+	check(determinant(f) == 1.0f, "det(float 3x3) = 1");
 
 	if (failures == 0) {
 		std::printf("OK: linalg (Vec/Mat/Affine genericos sobre el escalar) validado.\n");

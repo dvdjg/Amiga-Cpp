@@ -510,9 +510,18 @@ template <typename S>
 	return scalar_traits<S>::norm_from(d);
 }
 
-// Nota: el determinante 3x3 necesita productos ENCADENADOS (`a*b*c`), que multiplican
-// exponentes otra vez y mezclan representaciones. Queda pendiente de una policy de
-// anchura de acumulador (ver el roadmap), no de un `*` ingenuo.
+/// Determinante 3x3 por **cofactores 2x2** (regla de Laplace): cada menor se normaliza a `S`
+/// y la suma final de los tres productos se normaliza una vez. Evita los productos
+/// encadenados `a*b*c` (que pedirían 64 bits en `Fixed`); para `Fixed` tiene la misma
+/// semántica de saturación que `dot` (válido mientras los términos quepan en el acumulador).
+template <typename S>
+[[nodiscard]] constexpr S determinant(const Mat<3, S>& a) {
+	const S m0 = scalar_traits<S>::norm_from((a.m[1][1] * a.m[2][2]) - (a.m[1][2] * a.m[2][1]));
+	const S m1 = scalar_traits<S>::norm_from((a.m[1][0] * a.m[2][2]) - (a.m[1][2] * a.m[2][0]));
+	const S m2 = scalar_traits<S>::norm_from((a.m[1][0] * a.m[2][1]) - (a.m[1][1] * a.m[2][0]));
+	const auto det = (a.m[0][0] * m0) - (a.m[0][1] * m1) + (a.m[0][2] * m2);
+	return scalar_traits<S>::norm_from(det);
+}
 
 // ============================================================================
 //  Transformación afín (lineal + traslación)
