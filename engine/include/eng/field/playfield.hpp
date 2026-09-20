@@ -249,9 +249,9 @@ protected:
     /// tamaño total del bitmap (el *walk* horizontal cruza planelíneas).
     void write_planes(u32 planeline, u32 word_byte, u16 mask, u8 color) {
         const u32 row = static_cast<u32>(m_bytes_per_row);
-        u8* base = m_frontbuffer + planeline * row;
+        u8* base = m_frontbuffer + eng::math::mulu16(static_cast<u16>(planeline), static_cast<u16>(row));
         for (u8 p = 0; p < m_planes; ++p) {
-            const u32 b = static_cast<u32>(p) * row + word_byte;
+            const u32 b = eng::math::mulu16(static_cast<u16>(p), static_cast<u16>(row)) + word_byte;
             if (b >= m_total_bytes) return; // fuera del bitmap
             u16* w = reinterpret_cast<u16*>(base + b);
             if ((color & (1u << p)) != 0u) *w |= mask;
