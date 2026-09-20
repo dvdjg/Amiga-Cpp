@@ -215,9 +215,9 @@ struct DemoGame {
 				}
 			}
 			// Self-test del **relleno compuesto por bitplane** (`fill_polygons_by_plane`):
-			// dos triangulos con el MISMO color (1) que forman un cuadrado. El plano 0
-			// debe quedar lleno (union; la diagonal compartida se cancela por el doble
-			// cruce) y el plano 1 vacio. Valida la ruta Blitter (antes NO VERIFICADA).
+			// dos triangulos DISJUNTOS con el MISMO color (1). El plano 0 debe quedar
+			// lleno en AMBOS (valida que un solo area fill barre varias regiones) y el
+			// plano 1 vacio. Valida la ruta Blitter (antes NO VERIFICADA).
 			{
 				constexpr eng::u16 kPw = 32, kPh = 16, kPlanes = 2;
 				constexpr eng::u16 kPRow = kPw / 8u;      // 4 bytes/fila
@@ -231,10 +231,10 @@ struct DemoGame {
 				for (eng::u32 i = 0; i < kPPlane * kPlanes; ++i) {
 					pm.view.data()[i] = 0u;
 				}
-				static const eng::s16 ax[3] = {0, 31, 0};
-				static const eng::s16 ay[3] = {0, 0, 15};
-				static const eng::s16 bx[3] = {31, 31, 0};
-				static const eng::s16 by[3] = {0, 15, 15};
+				static const eng::s16 ax[3] = {2, 13, 2};
+				static const eng::s16 ay[3] = {2, 2, 9};
+				static const eng::s16 bx[3] = {18, 29, 29};
+				static const eng::s16 by[3] = {2, 2, 9};
 				const eng::graphics::PlanePolygon faces[2] = {
 					{ax, ay, 3u, 1u},
 					{bx, by, 3u, 1u},
@@ -250,7 +250,7 @@ struct DemoGame {
 					return (pl[static_cast<eng::u32>(y) * row + (x >> 3)] &
 						(0x80u >> (x & 7u))) != 0u;
 				};
-				bool fill_ok = on(p0, kPRow, 2, 2) && on(p0, kPRow, 29, 13);
+				bool fill_ok = on(p0, kPRow, 5, 3) && on(p0, kPRow, 26, 3);
 				for (eng::u32 i = 0; i < kPPlane; ++i) {
 					if (p1[i] != 0u) {
 						fill_ok = false;

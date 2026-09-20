@@ -64,10 +64,11 @@ enum class BlitJobKind : u8 {
 	/// **Blit con operación lógica** (`B = D`): `A` = fuente, `B` = destino (mismo puntero),
 	/// minterm del job (`Or`/`And`/`Xor`). Base de sombras/glow/máscaras. Ver `RasterOp`.
 	LogicBlit,
-	/// **Relleno con patrón** (suelos/techos 3D, UI texturizada): `A` = patrón (tile planar
-	/// pequeño), `B = D` = destino, minterm `$FC` (`D = A | D`). El patrón se repite en
-	/// vertical con `source_modulo_bytes` (BLTAMOD = `-(words_per_row*(alto_patrón-1))`).
-	/// Reusa el camino `OrBlob` del backend.
+	/// **Relleno con patrón** (suelos/techos 3D, UI texturizada): `A` = patrón, `B = D` =
+	/// destino, minterm `$FC` (`D = A | D`). El patrón es **una fila** de `words_per_row`
+	/// palabras; el módulo de A (`source_modulo_bytes = -(words_per_row*2)`) la repite en
+	/// todas las filas (patrón uniforme en vertical). Un patrón de varias filas necesita
+	/// más blits o reprogramar A por fila. Reusa el camino `OrBlob` del backend.
 	PatternFill,
 };
 
@@ -370,9 +371,10 @@ public:
 		return add_blit_job(job, BlitJobKind::LogicBlit);
 	}
 
-	/// **Relleno con patrón** (`A` = patrón, `B = D` = destino, minterm `$FC`): el patrón se
-	/// repite en vertical con `source_modulo_bytes`. El llamador fija `source` (tile),
-	/// `destination`, `words_per_row`, `height`, `bitplane_count` y el módulo del patrón.
+	/// **Relleno con patrón** (`A` = patrón, `B = D` = destino, minterm `$FC`): el patrón es
+	/// una fila de `words_per_row` palabras repetida en vertical con `source_modulo_bytes`.
+	/// El llamador fija `source` (fila del patrón), `destination`, `words_per_row`,
+	/// `height`, `bitplane_count` y `source_modulo_bytes = -(words_per_row*2)`.
 	__attribute__((always_inline)) inline bool add_pattern_fill(const BlitJob& job) {
 		return add_blit_job(job, BlitJobKind::PatternFill);
 	}

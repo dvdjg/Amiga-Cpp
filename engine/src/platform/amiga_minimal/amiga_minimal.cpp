@@ -1050,8 +1050,11 @@ bool MinimalBackend::fill_polygons_by_plane(const graphics::PlanePolygon* faces,
 				}
 			}
 		}
-		// 3) area fill (FILL_XOR) del plano in situ (un fill por plano).
-		blitter_area_fill(plane, 1u, row_bytes, plane_bytes, width, height, true);
+		// 3) area fill (FILL_XOR) del plano in situ (un fill por plano). Se acota al
+		//    plano (`blitter_area_fill_rect`): `blitter_area_fill` barre 1024 filas
+		//    (pensado para el bitmap multicapa contiguo de 116) y desbordaria el plano.
+		blitter_area_fill_rect(plane, row_bytes, 0, 0, static_cast<u16>(width / 16u), height,
+				       true);
 	}
 	return true;
 }
