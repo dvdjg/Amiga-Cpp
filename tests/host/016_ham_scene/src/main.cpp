@@ -3,8 +3,7 @@
 // (cuadruplicado) y etapas (display/paleta/row_repeat).
 // ============================================================================
 //
-// Sustituye la validacion del driver `PlanarScene` por el modelo de escena
-// (`engine/include/eng/graphics/scene/compose.hpp`), con la misma geometria:
+// Valida el modelo de escena en `engine/include/eng/graphics/scene/compose.hpp`:
 //
 //   1) `compose` construye la escena y expone bitplanes/planos.
 //   2) `display`: BPLCON0, DIW/DDF y punteros BPLxPT.
@@ -13,6 +12,7 @@
 //   4) `palette` carga los colores y la lista termina.
 //   5) Parametrico: otro `SceneResources` (sin repeticion, otros planos/BPLCON0)
 //      produce otra geometria sin tocar `Scene`.
+//   6) La huella estatica (`row_repeat_words`) coincide con la emision real de la etapa.
 //
 // Ejecucion:
 //   bash tools/run-host-tests.sh tests/host/016_ham_scene   (solo este)
@@ -35,6 +35,22 @@ using eng::u16;
 using eng::u32;
 using eng::graphics::scene::Scene;
 using eng::graphics::scene::SceneResources;
+
+// Huella estatica de `row_repeat` (etapa de forma conocida): 64 filas x 4 = 256 lineas,
+// 8 palabras por linea (WAIT + 3 MOVEs) mas el par de overflow al cruzar la 255.
+constexpr SceneResources kBig = [] {
+	SceneResources r = eng::graphics::scene::planar(320, 256, 4);
+	r.rows = 64;
+	r.copper_bytes = 8192u;
+	return r;
+}();
+static_assert(eng::graphics::scene::row_repeat_words(64u, 4u, 0x2cu) == 2050u,
+	      "row_repeat: 256 lineas x 8 palabras + 2 de overflow");
+static_assert(eng::graphics::scene::row_repeat_words(64u, 4u, 0x2cu) <=
+		      eng::graphics::scene::copper_word_budget(kBig),
+	      "la etapa cabe en el presupuesto de copperlist (4096 palabras)");
+static_assert(eng::graphics::scene::row_repeat_words(256u, 1u, 0x2cu) == 2050u,
+	      "sin repeticion y arrancando en 0x2c la huella es la misma (256 lineas)");
 
 alignas(16) eng::u8 g_chip[512 * 1024];
 
@@ -158,6 +174,32 @@ int main() {
 		}
 		if (!sc.ok() || sc.planes() != 5u) {
 			std::printf("[FAIL] compose (config plano) no ok\n");
+			return 1;
+		}
+	}
+
+	// --- 3) La huella estatica coincide con la emision real de `row_repeat` -----
+	{
+		MemorySystem mem = make_memory();
+		SceneResources res = eng::graphics::scene::planar(320, 256, 4);
+		res.rows = 64;
+		res.copper_bytes = 8192u;
+		Scene sc;
+		if (!sc.init(mem, res, eng::graphics::scene::ocs_a500)) {
+			std::printf("[FAIL] init fallo\n");
+			return 1;
+		}
+		sc.begin_build();
+		eng::graphics::scene::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x7a00u)(sc);
+		const u16 before = sc.scheduler().words_used();
+		eng::graphics::scene::row_repeat(4u, 0x2cu, 0x0022u)(sc);
+		const u16 after = sc.scheduler().words_used();
+		(void)sc.end_build();
+		const u16 emitted = static_cast<u16>(after - before);
+		const u16 expected = eng::graphics::scene::row_repeat_words(64u, 4u, 0x2cu);
+		if (emitted != expected) {
+			std::printf("[FAIL] huella de row_repeat: emitidas=%u, formula=%u\n",
+				    (unsigned)emitted, (unsigned)expected);
 			return 1;
 		}
 	}

@@ -14,6 +14,9 @@
 ///   motivo de rechazo, con un código y mensaje de depuración).
 /// - `valid_scene(res, limits)`: comprobación **en tiempo de compilación** (`consteval`),
 ///   usable en `static_assert` cuando la configuración se conoce en compilación.
+/// - `geometry_for(res)` / `DisplayGeometry`: DIW/DDF derivados de los recursos.
+/// - `dma_cost(res, limits, fw)` / `FetchWidth`: **coste de bus** del display (informativo,
+///   no validez) según planos y ancho de fetch (`FMODE` en AGA).
 ///
 /// El modelo no depende del Amiga: otro backend (Mega Drive, Neo Geo…) declara su propio
 /// `DisplayLimits`. Las restricciones concretas de Amiga OCS/ECS/AGA se documentan junto a
@@ -36,8 +39,18 @@ enum class SceneLayout : eng::u8 {
 enum class SceneMode : eng::u8 {
 	Standard = 0,     ///< playfield normal (color indexado, N planos)
 	Ham = 1,          ///< HAM (OCS/ECS HAM6 = 6 planos; AGA HAM8 = 8)
-	Ehb = 2,          ///< extra half-brite (6 planos)
+	Ehb = 2,          ///< extra half-brite (6 planos, también en AGA)
 	DualPlayfield = 3 ///< doble playfield (planos repartidos entre los dos PF)
+};
+
+/// **Ancho de fetch de bitplanes** (AGA `FMODE` de planos): palabras de 16 bits que
+/// Agnus/Alice leen por slot de bus. OCS/ECS solo 1×; AGA admite 2× y 4×. Solo cambia el
+/// **coste de bus** del display (`dma_cost`), no su validez. Fuentes: `chipset_aga.md`
+/// (codificación de `FMODE`) y `dma_architecture.md` (tabla de slots por modo).
+enum class FetchWidth : eng::u8 {
+	X1 = 1, ///< 16 bits por slot (OCS/ECS; AGA `FMODE`=00)
+	X2 = 2, ///< 32 bits por slot (AGA `FMODE`=01)
+	X4 = 4, ///< 64 bits por slot (AGA `FMODE`=10)
 };
 
 /// **Recursos** que una escena planar necesita (plano de recursos del modelo).
@@ -82,7 +95,7 @@ struct DisplayLimits {
 	u16 fetch_strt_min = 0x0018u; ///< DDFSTRT mínimo admisible por el hardware
 	u16 fetch_stop_max = 0x00d8u; ///< DDFSTOP máximo admisible por el hardware
 	u16 fetch_strt_std = 0x0038u; ///< DDFSTRT estándar lores (referencia de `width` estándar)
-	u16 fetch_stop_std = 0x00d0u; ///< DDFSTOP estándar lores (21 palabras = 336 px de fetch)
+	u16 fetch_stop_std = 0x00d0u; ///< DDFSTOP estándar lores (20 palabras = 320 px de fetch)
 	u8 max_fetch_words = 25;      ///< palabras de fetch máximas por línea en lores
 	u16 min_width = 16;           ///< ancho mínimo en píxeles de una escena
 	u16 max_width = 400;          ///< ancho máximo *fetchable* lores (25 palabras); visible ≤ 368
@@ -95,7 +108,7 @@ struct DisplayLimits {
 	u8 max_planes = 6;    ///< planos máximos por playfield sin modos especiales (OCS lores)
 	u8 max_planes_dpf = 3;///< planos máximos por playfield en **dual playfield** (OCS: 3+3)
 	u8 max_planes_ham = 6;///< planos para HAM (OCS/ECS HAM6 = 6; AGA HAM8 = 8)
-	u8 max_planes_ehb = 6;///< planos para EHB (OCS/ECS = 6)
+	u8 max_planes_ehb = 6;///< planos para EHB (64 colores = 6 planos, también en AGA)
 
 	// --- Modos soportados -------------------------------------------------------------
 	bool supports_ham = true;  ///< ¿HAM disponible? (OCS/ECS/AGA sí)
@@ -103,11 +116,18 @@ struct DisplayLimits {
 	bool supports_dpf = true;  ///< ¿dual playfield real disponible? (OCS/ECS/AGA sí)
 	bool supports_aga = false; ///< ¿capacidades AGA (BPLCON3, FMODE, >6 planos)? (A1200 sí)
 
-	// --- Buffers de display -----------------------------------------------------------
+	// --- Buffers de display y coste de bus --------------------------------------------
 	u8 max_buffers = 3;    ///< buffers de display soportados (doble/triple buffer)
-	u8 dma_slots_per_word = 1; ///< slots de bus por palabra de bitplane y línea (AGA FMODE ↓)
-	u8 fixed_dma_slots = 27;   ///< slots fijos por línea (refresh, sprites, Copper, audio)
-	u16 slots_per_line = 227;  ///< slots de bus usables por línea (PAL lores, 7.09 MHz)
+	/// Palabras de 16 bits por slot que el bitplane puede leer: 1 en OCS/ECS; 4 en AGA
+	/// (`FMODE`=4×). Ver `FetchWidth` y `dma_cost`.
+	u8 fetch_width_max = 1;
+	/// Slots fijos por línea: 4 refresh + 3 disk + 4 audio + 16 sprites (FMODE=0).
+	/// **No** se liberan a la CPU al desactivar el canal. Fuente: `dma_architecture.md`
+	/// ("Fixed-Position Channels").
+	u8 fixed_dma_slots = 27;
+	/// Slots usables por línea en PAL: 227.5 color clocks − ~1.5 de sync/blanking.
+	/// Fuente: `dma_architecture.md` ("The Scanline Budget").
+	u16 slots_per_line = 226;
 };
 
 // ---------------------------------------------------------------------------------------
@@ -121,28 +141,29 @@ inline constexpr DisplayLimits ocs_a500 {
 	368, 256,                                          // visible / alto
 	6, 3, 6, 6,                                        // planos: normal/DPF/HAM/EHB
 	true, true, true, false,                           // HAM/EHB/DPF sí, AGA no
-	3,                                                 // buffers
+	3, 1, 27, 226,                                     // buffers, fetch 1×, slots
 };
 
-/// **ECS** (A500+/A600/A3000): como OCS en lores (los modos ECS de mayor ancho son
-/// producto; aquí el display base comparte límites OCS).
+/// **ECS** (A500+/A600/A3000): en **lores** comparte los límites de OCS (mismos planos,
+/// modos y fetch). ECS añade SuperHires (1280 px, ≤ 2 planos) y `DIWHIGH`, fuera del
+/// alcance de este perfil lores.
 inline constexpr DisplayLimits ecs {
 	"ECS",
 	0x0018u, 0x00d8u, 0x0038u, 0x00d0u, 25, 16, 400,
 	368, 256,
 	6, 3, 6, 6,
 	true, true, true, false,
-	3,
+	3, 1, 27, 226,
 };
 
-/// **AGA** (A1200/A4000/CD32): hasta 8 planos, HAM8, DPF 4+4, 24-bit, FMODE.
+/// **AGA** (A1200/A4000/CD32): hasta 8 planos (256 colores), HAM8, DPF 4+4, `FMODE`.
 inline constexpr DisplayLimits aga_a1200 {
 	"AGA/A1200",
 	0x0018u, 0x00d8u, 0x0038u, 0x00d0u, 25, 16, 400,
 	368, 256,
-	8, 4, 8, 6,      // hasta 8 planos; DPF hasta 4+4; HAM8 = 8
+	8, 4, 8, 6,      // 8 planos normales y HAM8; DPF 4+4; EHB sigue 6
 	true, true, true, true,
-	3,
+	3, 4, 27, 226,   // fetch hasta 4× (FMODE=4×)
 };
 
 // ---------------------------------------------------------------------------------------
@@ -302,25 +323,43 @@ inline constexpr DisplayGeometry kPal320x256 {0x2c81, 0x2cc1, 0x0038, 0x00d0};
 	return g;
 }
 
+/// `true` si `l` admite el ancho de fetch `fw` (comparado con `l.fetch_width_max`).
+[[nodiscard]] constexpr bool valid_fetch_width(const DisplayLimits& l, FetchWidth fw) {
+	return static_cast<u8>(fw) <= l.fetch_width_max;
+}
+
 /// **Coste de bus** de un playfield (informativo; **no** es validez). El nº de planos no
 /// cambia el ancho de fetch, pero cada plano consume slots de Chip RAM por línea que
-/// compiten con CPU/Blitter/Copper: a 6 planos lores ya se usa ~65 % del bus y queda ~35 %
-/// para la CPU (fuente: `amiga-bootcamp/01_hardware/common/dma_architecture.md`).
+/// compiten con CPU/Blitter/Copper: a 6 planos lores el display consume ~65 % del bus y
+/// queda ~35 % para la CPU. Fuente: `amiga-bootcamp/01_hardware/common/dma_architecture.md`
+/// ("Bitplane DMA Slots Per Mode", "Bandwidth Calculation Cookbook").
 struct DmaCost {
 	u16 fetch_words = 0;   ///< palabras de fetch por línea y plano
 	u32 bitplane_slots = 0;///< slots de bus consumidos por los bitplanes (por línea)
+	u16 total_slots = 0;   ///< slots usables por línea (`DisplayLimits::slots_per_line`)
+	u16 used_slots = 0;    ///< bitplanes + fijos (`fixed_dma_slots`)
 	u16 cpu_slots = 0;     ///< slots restantes para CPU/Blitter (por línea)
 };
 
-/// Calcula el coste de bus de `res` bajo `l` (ver `DmaCost`). `planes` = planos de bitplane.
-[[nodiscard]] constexpr DmaCost dma_cost(const SceneResources& res, const DisplayLimits& l) {
+/// Calcula el coste de bus de `res` bajo `l` para el ancho de fetch `fw` (ver `DmaCost`).
+/// `bitplane_slots = palabras_de_fetch × planos / fw`; `cpu_slots = slots_per_line −
+/// (bitplane_slots + fixed_dma_slots)`. `fw` se acota a `l.fetch_width_max`; validar antes
+/// con `valid_fetch_width`. Ejemplos (PAL, 320 px): 4 planos OCS = 80 slots de bitplane y
+/// 119 de CPU; 6 planos = 120/79; AGA 8 planos a 4× = 40/159.
+[[nodiscard]] constexpr DmaCost dma_cost(const SceneResources& res, const DisplayLimits& l,
+					 FetchWidth fw = FetchWidth::X1) {
 	const DisplayGeometry g = geometry_for(res);
 	const u16 fetch_words = static_cast<u16>(
 		(static_cast<u16>(g.ddfstop - g.ddfstrt) / 8u) + 1u);
-	const u32 bp = static_cast<u32>(fetch_words) * res.planes * l.dma_slots_per_word;
+	const u8 width = (static_cast<u8>(fw) <= l.fetch_width_max) ? static_cast<u8>(fw)
+								   : l.fetch_width_max;
+	const u8 divisor = (width == 0u) ? 1u : width;
+	const u32 bp = (static_cast<u32>(fetch_words) * res.planes) / divisor;
 	const u16 total = l.slots_per_line;
-	const u16 used = static_cast<u16>(bp + l.fixed_dma_slots);
-	return DmaCost {fetch_words, bp, static_cast<u16>(used < total ? total - used : 0u)};
+	const u32 used = bp + l.fixed_dma_slots;
+	const u16 used16 = static_cast<u16>(used < total ? used : total);
+	return DmaCost {fetch_words, bp, total, used16,
+			static_cast<u16>(total > used16 ? total - used16 : 0u)};
 }
 
 } // namespace eng::graphics::scene

@@ -82,7 +82,6 @@ struct Patch32 {
 /// No reserva al sistema más que a través de la `MemorySystem` del backend.
 class Scene {
 public:
-	/// Crea la escena: reserva los bitplanes (según `res`) y la copperlist en Chip RAM.
 	/// Crea la escena reservando los bitplanes (según `res`) y la copperlist en Chip RAM,
 	/// **validando antes** `res` contra las capacidades de `limits` (perfil de la máquina).
 	/// El motivo del rechazo queda en `config_error()`. Devuelve `false` si no es válida o no
@@ -94,48 +93,7 @@ public:
 			m_config_error = e;
 			return false;
 		}
-		return init_unchecked(memory, res);
-	}
-
-	/// Devuelve `false` si la geometría o la memoria no son válidas.
-	/// (Interno: solo lo llama `init(...)` tras validar; no valida el perfil.)
-	bool init_unchecked(MemorySystem& memory, const SceneResources& res) {
-		m_res = res;
-		const u16 row = row_bytes();
-		const u16 logical_rows = res.rows != 0u ? res.rows : res.height;
-		if (row == 0u || res.height == 0u || res.planes == 0u) {
-			return false;
-		}
-		const u16 alloc_rows = (res.layout == SceneLayout::Interleaved) ? res.height : logical_rows;
-		m_plane_bytes = static_cast<u32>(row) * alloc_rows;
-		// Doble/triple buffer solo en layout contiguo (la doble buffer se hace parcheando los
-		// BPLxPT; el interleaved usa un único `CanvasPlayfield`).
-		u8 buffers = res.buffers;
-		if (res.layout == SceneLayout::Interleaved || buffers < 1u) {
-			buffers = 1u;
-		}
-		if (buffers > kMaxSceneBuffers) {
-			buffers = kMaxSceneBuffers;
-		}
-		m_buffer_count = buffers;
-		for (u8 b = 0u; b < buffers; ++b) {
-			m_buffers[b] = memory.chip.allocate_block<eng::PlaneTag>(m_plane_bytes * res.planes + 16u, 16);
-			if (!m_buffers[b].valid()) {
-				return false;
-			}
-		}
-		if (res.layout == SceneLayout::Interleaved &&
-		    !m_playfield.bind(m_buffers[0], field::CanvasPlayfield::Config {res.width, res.height, res.planes})) {
-			return false;
-		}
-		m_back = (buffers > 1u) ? 1u : 0u;
-		copper::PlanConfig pcfg {};
-		pcfg.copper_bytes = res.copper_bytes;
-		pcfg.first_line = res.first_line;
-		if (!m_plan.begin(memory, pcfg)) {
-			return false;
-		}
-		return true;
+		return init_raw(memory, res);
 	}
 
 	/// Abre la construcción del programa (retarget del emisor al bloque trasero).
@@ -296,6 +254,47 @@ private:
 		if (t.valid()) {
 			t();
 		}
+	}
+
+	/// Reserva bitplanes y copperlist según `res`. Interno: solo lo llama `init(...)` tras
+	/// validar `res` contra el perfil. Devuelve `false` si la geometría o la memoria fallan.
+	bool init_raw(MemorySystem& memory, const SceneResources& res) {
+		m_res = res;
+		const u16 row = row_bytes();
+		const u16 logical_rows = res.rows != 0u ? res.rows : res.height;
+		if (row == 0u || res.height == 0u || res.planes == 0u) {
+			return false;
+		}
+		const u16 alloc_rows = (res.layout == SceneLayout::Interleaved) ? res.height : logical_rows;
+		m_plane_bytes = static_cast<u32>(row) * alloc_rows;
+		// Doble/triple buffer solo en layout contiguo (la doble buffer se hace parcheando los
+		// BPLxPT; el interleaved usa un único `CanvasPlayfield`).
+		u8 buffers = res.buffers;
+		if (res.layout == SceneLayout::Interleaved || buffers < 1u) {
+			buffers = 1u;
+		}
+		if (buffers > kMaxSceneBuffers) {
+			buffers = kMaxSceneBuffers;
+		}
+		m_buffer_count = buffers;
+		for (u8 b = 0u; b < buffers; ++b) {
+			m_buffers[b] = memory.chip.allocate_block<eng::PlaneTag>(m_plane_bytes * res.planes + 16u, 16);
+			if (!m_buffers[b].valid()) {
+				return false;
+			}
+		}
+		if (res.layout == SceneLayout::Interleaved &&
+		    !m_playfield.bind(m_buffers[0], field::CanvasPlayfield::Config {res.width, res.height, res.planes})) {
+			return false;
+		}
+		m_back = (buffers > 1u) ? 1u : 0u;
+		copper::PlanConfig pcfg {};
+		pcfg.copper_bytes = res.copper_bytes;
+		pcfg.first_line = res.first_line;
+		if (!m_plan.begin(memory, pcfg)) {
+			return false;
+		}
+		return true;
 	}
 
 	/// Repunta los `BPLxPT` al buffer `index` parcheando el copper. No aplica al interleaved
@@ -600,9 +599,40 @@ using ZoneBinding = PatchZone;
 	return z.handle(s, i);
 }
 
+/// **Presupuesto de palabras de Copper** de un `SceneResources` (`copper_bytes` en palabras
+/// de 16 bits). Es el límite contra el que un `static_assert` de una etapa de forma conocida
+/// compara su huella (`row_repeat_words`), sin ejecutar la escena.
+[[nodiscard]] constexpr u16 copper_word_budget(const SceneResources& res) {
+	return static_cast<u16>(res.copper_bytes / 2u);
+}
+
+/// **Huella en palabras** de la etapa `row_repeat(rows, repeat, first_line)`: un WAIT de
+/// línea (2 palabras, +2 la primera vez que el contador cruza la 255 por el par de overflow)
+/// más 3 MOVEs (6 palabras) por cada una de las `rows * repeat` líneas. Etapa de **forma
+/// conocida**: permite `static_assert` sobre `copper_word_budget(res)` en compilación, con
+/// la misma cuenta que hace la emisión dinámica. Para las dinámicas (intenciones), el
+/// presupuesto se comprueba en `materialize`/`end_frame`, nunca por MOVE.
+[[nodiscard]] constexpr u16 row_repeat_words(u16 rows, u8 repeat, u16 first_line) {
+	const u16 r = (repeat == 0u) ? 1u : repeat;
+	const u32 total = static_cast<u32>(rows) * r;
+	u16 words = 0;
+	bool overflow_sent = false;
+	for (u32 i = 0; i < total; ++i) {
+		const u16 line = static_cast<u16>(first_line + i);
+		words = static_cast<u16>(words + 2u); // WAIT de línea
+		if (line > 255u && !overflow_sent) {
+			overflow_sent = true;
+			words = static_cast<u16>(words + 2u); // par de overflow (0xffdf/0xfffe)
+		}
+		words = static_cast<u16>(words + 6u); // BPL1MOD + BPL2MOD + BPLCON1
+	}
+	return words;
+}
+
 /// Etapa de **repetición de filas** (cuadruplicado HAM): cada fila lógica ocupa `repeat`
 /// líneas; en las `repeat-1` primeras `BPL1MOD/BPL2MOD = -row_bytes` (misma fila) y en la
 /// última `0` (avanza). `bplcon1_shift` alterna `BPLCON1` en líneas impares (dither).
+/// Huella en palabras: `row_repeat_words(rows, repeat, first_line)`.
 [[nodiscard]] inline auto row_repeat(u8 repeat, u16 first_line, u16 bplcon1_shift = 0u) {
 	return [=](Scene& sc) {
 		const u16 r = repeat == 0u ? 1u : repeat;
@@ -628,19 +658,6 @@ template <class... Stages>
 bool compose(Scene& scene, MemorySystem& memory, const SceneResources& res,
 	     const DisplayLimits& limits, Stages... stages) {
 	if (!scene.init(memory, res, limits)) {
-		return false;
-	}
-	scene.begin_build();
-	(stages(scene), ...);
-	return scene.end_build();
-}
-
-/// Variante **sin validar** (solo tests de bajo nivel / casos ya validados aparte): no
-/// comprueba el perfil. No usar en código de aplicación.
-template <class... Stages>
-bool compose_unchecked(Scene& scene, MemorySystem& memory, const SceneResources& res,
-		       Stages... stages) {
-	if (!scene.init_unchecked(memory, res)) {
 		return false;
 	}
 	scene.begin_build();
