@@ -109,7 +109,7 @@ struct ChessGame {
 			0x000, 0x000, 0x000, 0x000, 0x0cf, 0x000, 0x000, 0x000,
 			0x000, 0x000, 0xf40, 0x000, 0x000, 0x000, 0xff0, 0xfff,
 		};
-		scene::SceneResources res = scene::ehb(320, 256);
+		scene::SceneResources res = scene::planar(320, 256, 6);
 		m_scene_ok = scene::compose(m_scene, backend.memory(), res,
 					scene::display(scene::kPal320x256, scene::kBplcon0_Ehb),
 					scene::palette(eng::PaletteWords {palette.color, 32u}, 0u, 32u));

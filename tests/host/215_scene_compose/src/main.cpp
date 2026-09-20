@@ -38,7 +38,7 @@ int main() {
 	graphics::scene::Scene s;
 	copper::PatchHandle sky {};
 	const bool composed = graphics::scene::compose(
-		s, mem, graphics::scene::planar4(320, 256, 4),
+		s, mem, graphics::scene::planar(320, 256, 4),
 		graphics::scene::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x4200),
 		graphics::scene::palette(eng::PaletteWords {pal, 4}, 0, 4),
 		// Etapa propia: emite un MOVE parcheable (p. ej. el color de fondo por frame).
@@ -67,7 +67,7 @@ int main() {
 
 	// Escena con etapas HAM/EHB: repeticion de filas (cuadruplicado) + zonas de paleta.
 	graphics::scene::Scene s2;
-	graphics::scene::SceneResources r2 = graphics::scene::planar4(320, 32, 4);
+	graphics::scene::SceneResources r2 = graphics::scene::planar(320, 32, 4);
 	r2.rows = 8; // 8 filas logicas x 4 = 32 lineas de display
 	const graphics::scene::PaletteZone zones[2] = {
 		graphics::scene::PaletteZone {0, eng::PaletteWords {pal, 4}, 0, 4},
@@ -81,25 +81,30 @@ int main() {
 	check(ok2 && s2.ok(), "escena con row_repeat + zonas de paleta compone");
 	check(s2.scheduler().words_used() > 0u, "la copperlist con row_repeat no esta vacia");
 
-	// Preset `canvas` (interleaved): expone surface() para dibujar con primitivas.
+	// Layout interleaved: expone surface() para dibujar con primitivas.
 	graphics::scene::Scene s3;
-	const bool ok3 = graphics::scene::compose(s3, mem, graphics::scene::canvas(64, 64, 4),
+	graphics::scene::SceneResources r3 = graphics::scene::planar(64, 64, 4);
+	r3.layout = graphics::scene::SceneLayout::Interleaved;
+	const bool ok3 = graphics::scene::compose(s3, mem, r3,
 						  graphics::scene::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x4200));
-	check(ok3 && s3.ok(), "escena canvas (interleaved) compone");
+	check(ok3 && s3.ok(), "escena interleaved compone");
 	check(s3.playfield().bitplanes().data() != nullptr, "el playfield tiene bitplanes");
 	field::Surface surf = s3.surface();
 	const s16 xs[3] = {8, 40, 8};
 	const s16 ys[3] = {8, 8, 40};
 	check(surf.fill_polygon(xs, ys, 3, 3), "surface() pinta un poligono");
 
-	// Preset ham: repeticion de filas + punteros inversos (caso fire-rgb).
+	// Filas logicas + punteros inversos (caso fire-rgb):
+	// `rows` reduce el bitmap y `row_repeat` cuadruplica las filas en pantalla.
 	graphics::scene::Scene s4;
+	graphics::scene::SceneResources r4 = graphics::scene::planar(320, 256, 4);
+	r4.rows = 8;
 	const bool ok4 = graphics::scene::compose(
-		s4, mem, graphics::scene::ham(320, 256, 8, 4),
+		s4, mem, r4,
 		graphics::scene::display(0x2c81, 0x2cc1, 0x0038, 0x00d0, 0x7a00),
 		graphics::scene::reverse_ptrs(),
 		graphics::scene::row_repeat(4, 0x2c, 0x0022));
-	check(ok4 && s4.ok(), "preset ham (row_repeat + reverse_ptrs) compone");
+	check(ok4 && s4.ok(), "escena con reverse_ptrs + row_repeat compone");
 
 	// Etapa de intents de Copper (capa dinamica ordenada por scanline por el Plan).
 	graphics::scene::Scene s5;
@@ -107,7 +112,7 @@ int main() {
 		graphics::CopperIntentKind::PaletteLine, 100, 100, 0,
 		eng::PaletteWords {pal, 4}, 0, 4};
 	const bool ok5 = graphics::scene::compose(
-		s5, mem, graphics::scene::planar4(320, 256, 4),
+		s5, mem, graphics::scene::planar(320, 256, 4),
 		graphics::scene::display(graphics::scene::kPal320x256, graphics::scene::kBplcon0_4Planes),
 		graphics::scene::intents(eng::Span<const graphics::CopperIntent> {&it, 1}));
 	check(ok5 && s5.ok(), "escena con intents de Copper compone");
@@ -121,7 +126,7 @@ int main() {
 		graphics::scene::PaletteZone {32, eng::PaletteWords {pal, 4}, 0, 4},
 	};
 	const bool ok6 = graphics::scene::compose(
-		s6, mem, graphics::scene::planar4(320, 256, 4),
+		s6, mem, graphics::scene::planar(320, 256, 4),
 		graphics::scene::display(graphics::scene::kPal320x256, graphics::scene::kBplcon0_4Planes),
 		graphics::scene::palette_zones(
 			eng::Span<const graphics::scene::PaletteZone> {zones2, 2},
@@ -141,7 +146,7 @@ int main() {
 		{copper::Register::BPL2MOD, 0x0040},
 	};
 	const bool ok7 = graphics::scene::compose(
-		s7, mem, graphics::scene::planar4(320, 256, 4),
+		s7, mem, graphics::scene::planar(320, 256, 4),
 		graphics::scene::display(graphics::scene::kPal320x256, graphics::scene::kBplcon0_4Planes),
 		graphics::scene::patchable_zone(
 			40, eng::Span<const graphics::scene::PatchSlot> {mod_slots, 2}, &mod_zone));
@@ -153,7 +158,7 @@ int main() {
 
 	// Doble buffer de display: los BPLxPT se parchean al buffer trasero en commit().
 	graphics::scene::Scene s8;
-	graphics::scene::SceneResources r8 = graphics::scene::planar4(320, 256, 4);
+	graphics::scene::SceneResources r8 = graphics::scene::planar(320, 256, 4);
 	r8.buffers = 2;
 	const bool ok8 = graphics::scene::compose(
 		s8, mem, r8,
@@ -173,7 +178,7 @@ int main() {
 	      "kPal320x256 es la geometria DIW/DDF de 320x256");
 	graphics::scene::Scene s9;
 	const bool ok9 = graphics::scene::compose(
-		s9, mem, graphics::scene::ehb(320, 256),
+		s9, mem, graphics::scene::planar(320, 256, 6),
 		graphics::scene::display(graphics::scene::kPal320x256, graphics::scene::kBplcon0_Ehb));
 	check(ok9 && s9.ok(), "preset ehb compone");
 	check(s9.planes() == 6u, "el preset ehb usa 6 planos");

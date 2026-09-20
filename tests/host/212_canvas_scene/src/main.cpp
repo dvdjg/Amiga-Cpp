@@ -52,13 +52,15 @@ void check(bool ok, const char* msg) {
 int main() {
 	MemorySystem mem = make_memory();
 
-	// --- Lienzo interleaved (preset `canvas`) ---------------------------------
+	// --- Lienzo interleaved: layout `Interleaved` + `surface()` ----------------
+	SceneResources creq = graphics::scene::planar(320, 256, 4);
+	creq.layout = graphics::scene::SceneLayout::Interleaved;
 	Scene sc;
 	check(graphics::scene::compose(
-		      sc, mem, graphics::scene::canvas(320, 256, 4),
+		      sc, mem, creq,
 		      graphics::scene::display(graphics::scene::kPal320x256,
 					       graphics::scene::kBplcon0_4Planes)),
-	      "scene::compose (canvas) reserva bitmap + copperlist");
+	      "scene::compose (interleaved) reserva bitmap + copperlist");
 	check(sc.ok(), "la escena queda ok tras compose");
 	check(sc.words() > 0u, "la copperlist tiene palabras");
 	check(sc.playfield().bitplanes().data() != nullptr, "el playfield tiene bitplanes");
@@ -72,7 +74,7 @@ int main() {
 	check(color_at(sc.playfield(), 10, 10) == 0u, "fuera del cuadrado vacio");
 
 	// --- Doble buffer contiguo: `buffers = 2` y `commit()` --------------------
-	SceneResources res = graphics::scene::planar4(320, 256, 4);
+	SceneResources res = graphics::scene::planar(320, 256, 4);
 	res.buffers = 2;
 	Scene s2;
 	check(graphics::scene::compose(
@@ -87,7 +89,7 @@ int main() {
 	check(s2.back_index() != before, "commit avanza el buffer trasero");
 
 	if (failures == 0) {
-		std::printf("OK: scene::compose canvas (Surface sobre CanvasPlayfield + copperlist interleaved).\n");
+		std::printf("OK: scene::compose interleaved (Surface sobre CanvasPlayfield + copperlist).\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobacion(es) fallaron\n", failures);

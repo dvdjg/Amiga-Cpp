@@ -127,7 +127,7 @@ struct DemoGame {
 		m_fade_in.bind(black_palette, top_palette);
 
 		if (!scene::compose(m_scene, backend.memory(),
-				    scene::ehb(kWidth, kHeight),
+				    scene::planar(kWidth, kHeight, 6),
 				    scene::display(scene::kPal320x256, scene::kBplcon0_Ehb),
 				    scene::palette_patchable(
 					    eng::PaletteWords {top_palette.color, 32u}, 0u, 32u, &m_base_zone),

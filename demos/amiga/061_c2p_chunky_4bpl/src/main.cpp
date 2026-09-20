@@ -167,7 +167,7 @@ struct RotozoomDemo {
 			return false;
 		}
 
-		scene::SceneResources res = scene::planar4(320u, 256u, kPlanes);
+		scene::SceneResources res = scene::planar(320u, 256u, kPlanes);
 		res.rows = kChunkyH;
 		res.buffers = static_cast<eng::u8>(K_061_BUFFERS);
 		if (!scene::compose(m_scene, backend.memory(), res,

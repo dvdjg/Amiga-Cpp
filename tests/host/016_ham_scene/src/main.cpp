@@ -86,7 +86,8 @@ int main() {
 	// --- 1) HAM + cuadruplicado (config de la demo 080) -----------------------
 	{
 		MemorySystem mem = make_memory();
-		SceneResources res = eng::graphics::scene::ham(320, 256, 64, 4);
+		SceneResources res = eng::graphics::scene::planar(320, 256, 4);
+		res.rows = 64; // cuadruplicado: 64 filas logicas x 4 = 256 lineas
 		res.copper_bytes = 8192u; // row_repeat emite ~3 MOVEs por cada una de las 256 líneas
 		static const eng::u16 palette[16] {};
 		Scene sc;
@@ -145,7 +146,7 @@ int main() {
 	// --- 2) Parametrico: sin repeticion, 5 planos, otro BPLCON0 ---------------
 	{
 		MemorySystem mem = make_memory();
-		SceneResources res = eng::graphics::scene::planar4(320, 128, 5);
+		SceneResources res = eng::graphics::scene::planar(320, 128, 5);
 		Scene sc;
 		if (!eng::graphics::scene::compose(
 			    sc, mem, res,

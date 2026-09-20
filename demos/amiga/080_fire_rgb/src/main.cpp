@@ -247,11 +247,12 @@ struct FireDemo {
 		chunky[1] = reinterpret_cast<short*>(m_chunky[1]);
 		fire = m_fire;
 
-		// Display HAM + cuadruplicado sobre `scene::compose`: N buffers de display (doble
+		// Display planar + cuadruplicado sobre `scene::compose`: N buffers de display (doble
 		// buffer por parcheo de `BPLxPT` en `commit`). La demo describe la escena por
-		// presets/etapas (ham + display + palette + reverse_ptrs + row_repeat); no calcula
+		// etapas (display + palette + reverse_ptrs + row_repeat); no calcula
 		// DIW/DDF ni palabras de Copper ni reserva bitplanes.
-		scene::SceneResources res = scene::ham(kScreenW, kScreenH, kHeight, kPlanes);
+		scene::SceneResources res = scene::planar(kScreenW, kScreenH, kPlanes);
+		res.rows = kHeight; // bitmap de `kHeight` filas logicas; row_repeat las cuadruplica
 		res.buffers = static_cast<eng::u8>(K_080_BUFFERS);
 		if (!scene::compose(m_scene, backend.memory(), res,
 				    scene::display(scene::kPal320x256, scene::kBplcon0_Ham6),

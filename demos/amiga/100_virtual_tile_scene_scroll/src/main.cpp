@@ -284,7 +284,7 @@ struct DemoGame {
 		for (eng::usize i = 0; i < gfx_zone_count; ++i) {
 			gfx_zones[i] = gfx::PaletteZone {palette_zones[i].line, eng::PaletteWords {palette_zones[i].palette->color, 32u}, 0u, 32u};
 		}
-		const gfx::SceneResources res = gfx::ehb(320u, 256u);
+		const gfx::SceneResources res = gfx::planar(320u, 256u, 6);
 		if (!gfx::compose(m_scene, backend.memory(), res,
 				gfx::display(gfx::kPal320x256, gfx::kBplcon0_Ehb),
 				gfx::palette(eng::PaletteWords {sky_palette.color, 32u}, 0u, 32u),

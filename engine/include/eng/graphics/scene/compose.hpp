@@ -159,6 +159,37 @@ public:
 
 	/// Indice del buffer trasero (el que se dibuja y que `commit()` publicara).
 	[[nodiscard]] constexpr u8 back_index() const { return m_back; }
+
+	/// Dirección **efectiva** del plano `p` en la copperlist activa (la que el Copper
+	/// ejecuta ahora): lee el `BPLxPT` (par hi/lo) en el punto donde `display` lo emitió.
+	/// Es la forma de observar el doble buffer sin recorrer la lista a mano. `0` si el
+	/// plano no tiene puntero parcheable o está fuera de rango.
+	[[nodiscard]] u32 display_plane_address(u8 p) const {
+		if (p >= m_res.planes || p >= kMaxScenePlanes) {
+			return 0u;
+		}
+		const Patch32& patch = m_plane_patch[p];
+		if (patch.hi_index == 0u && patch.lo_index == 0u) {
+			return 0u;
+		}
+		const u16* words = m_plan.active_words();
+		return (static_cast<u32>(words[patch.hi_index + 1u]) << 16) |
+		       static_cast<u32>(words[patch.lo_index + 1u]);
+	}
+
+	/// `true` si el `BPLxPT` del registro `p` apunta al **plano de bitmap** `source` del buffer
+	/// `index` (verificación de doble buffer sin tocar punteros raw). El plano fuente por
+	/// defecto es `p`; `reverse_ptrs` lo permuta. `false` si no es parcheable o fuera de rango.
+	[[nodiscard]] bool display_plane_uses(u8 p, u8 index) const {
+		if (p >= m_res.planes || p >= kMaxScenePlanes || index >= m_buffer_count) {
+			return false;
+		}
+		const u8 src = (m_plane_source[p] < m_res.planes) ? m_plane_source[p] : p;
+		const eng::u8* base = m_buffers[index].view.data();
+		const eng::uintptr want =
+			reinterpret_cast<eng::uintptr>(base) + static_cast<eng::u32>(src) * m_plane_bytes;
+		return display_plane_address(p) == static_cast<u32>(want);
+	}
 	/// Plano `i` del bitmap (layout contiguo; vacío si fuera de rango).
 	[[nodiscard]] constexpr eng::PlaneBytes plane(u8 i) const {
 		return (i < m_res.planes)
@@ -220,6 +251,17 @@ public:
 	void set_plane_patch(u8 p, Patch32 patch) {
 		if (p < kMaxScenePlanes) {
 			m_plane_patch[p] = patch;
+			m_plane_source[p] = p; // por defecto, el registro `p` muestra el plano `p`
+		}
+	}
+
+	/// Registra el parcheo del registro `BPLxPT` `p` pero haciendo que muestre el **plano
+	/// de bitmap** `source` (permutación, p. ej. `reverse_ptrs`: `bpl[N-1..0]`). Sin esto,
+	/// `commit` repuntaría el registro `p` al plano `p` y desharía la permutación.
+	void set_plane_patch_source(u8 p, u8 source, Patch32 patch) {
+		if (p < kMaxScenePlanes) {
+			m_plane_patch[p] = patch;
+			m_plane_source[p] = source;
 		}
 	}
 
@@ -255,8 +297,11 @@ private:
 		const eng::u8* addr = m_buffers[index].view.data();
 		u16* words = m_plan.active_words();
 		for (u8 p = 0u; p < m_res.planes; ++p) {
-			m_plane_patch[p].apply(words, static_cast<eng::u32>(reinterpret_cast<eng::uintptr>(addr)));
-			addr += m_plane_bytes;
+			const u8 src = (m_plane_source[p] < m_res.planes) ? m_plane_source[p] : p;
+			const eng::u32 off = eng::math::mulu16(static_cast<u16>(src),
+							      static_cast<u16>(m_plane_bytes));
+			m_plane_patch[p].apply(words, static_cast<eng::u32>(
+							 reinterpret_cast<eng::uintptr>(addr + off)));
 		}
 	}
 
@@ -267,50 +312,41 @@ private:
 	u32 m_plane_bytes = 0; ///< bytes de un plano completo (`row_bytes * alloc_rows`)
 	u8 m_buffer_count = 1; ///< buffers de display en uso (1..`kMaxSceneBuffers`)
 	u8 m_back = 0; ///< índice del buffer trasero (el que se dibuja/publica)
-	Patch32 m_plane_patch[kMaxScenePlanes] {}; ///< parcheo `BPLxPT` por plano (doble/triple buffer)
+	Patch32 m_plane_patch[kMaxScenePlanes] {}; ///< parcheo `BPLxPT` por registro (doble/triple buffer)
+	u8 m_plane_source[kMaxScenePlanes] {}; ///< qué plano de bitmap muestra cada registro `BPLxPT`
 	Task m_setup {}; ///< tarea de setup (una vez)
 	Task m_frame {}; ///< tarea de frame (por `tick`)
 	Task m_teardown {}; ///< tarea de teardown
 };
 
-/// Preset: escena planar de 4 planos por defecto.
-[[nodiscard]] constexpr SceneResources planar4(u16 width = 320, u16 height = 256,
-						u8 planes = 4) {
-	SceneResources r {};
-	r.width = width;
-	r.height = height;
-	r.planes = planes;
-	return r;
-}
-
-/// Preset: escena planar **interleaved** con `surface()` (caso `CanvasScene`).
-[[nodiscard]] constexpr SceneResources canvas(u16 width = 320, u16 height = 256,
+/// **Recursos de una escena planar**, parametrizados (no hay preset por caso de uso: la
+/// geometría y el layout los decide el llamador). `SceneResources` tiene valores por
+/// defecto razonables para 320x256 y se sobrescriben los campos que hagan falta.
+///
+/// Escenarios de uso (ilustrativos; no son funciones, solo configuraciones):
+///
+/// ```cpp
+/// // EHB 320x256 (6 planos) + `kBplcon0_Ehb`:
+/// SceneResources e = planar(320, 256, 6);
+///
+/// // HAM6 con cuadruplicado de filas (64 filas lógicas, 4 planos):
+/// SceneResources h = planar(320, 256, 4);
+/// h.rows = 64;                       // bitmap de 64 filas; `row_repeat(4, ...)` lo cuadruplica
+///
+/// // Lienzo interleaved con `surface()` para dibujo por primitivas:
+/// SceneResources c = planar(320, 256, 4);
+/// c.layout = SceneLayout::Interleaved;
+///
+/// // Doble/triple buffer de display:
+/// SceneResources db = planar(320, 256, 4);
+/// db.buffers = 2;                    // o 3
+/// ```
+[[nodiscard]] constexpr SceneResources planar(u16 width = 320, u16 height = 256,
 					      u8 planes = 4) {
 	SceneResources r {};
 	r.width = width;
 	r.height = height;
 	r.planes = planes;
-	r.layout = SceneLayout::Interleaved;
-	return r;
-}
-
-/// Preset: escena para efecto HAM/cuadruplicado (`rows` lógicas, planos contiguos).
-[[nodiscard]] constexpr SceneResources ham(u16 width = 320, u16 height = 256,
-					   u16 rows = 64, u8 planes = 4) {
-	SceneResources r {};
-	r.width = width;
-	r.height = height;
-	r.rows = rows;
-	r.planes = planes;
-	return r;
-}
-
-/// Preset: escena EHB estática (6 planos contiguos; `bplcon0` EHB = 0x6200 en la etapa).
-[[nodiscard]] constexpr SceneResources ehb(u16 width = 320, u16 height = 256) {
-	SceneResources r {};
-	r.width = width;
-	r.height = height;
-	r.planes = 6;
 	return r;
 }
 
@@ -329,9 +365,11 @@ private:
 						  static_cast<u16>(ip >> 16));
 			(void)s.move_at(copper::bitplane_pointer_low_register(p),
 					static_cast<u16>(ip & 0xffffu));
-			// Registra este MOVE como el parche del plano `p`: en doble buffer, `commit()`
-			// repunta el BPLxPT efectivo (el de orden inverso, que es el que manda).
-			sc.set_plane_patch(p, patch32_at(s, idx));
+			// Registra este MOVE como el parche del registro `p`, pero mostrando el plano
+			// `planes-1-p` (la permutación inversa). Así `commit` repunta correctamente en
+			// doble buffer sin deshacer la inversión.
+			sc.set_plane_patch_source(p, static_cast<u8>(sc.planes() - 1u - p),
+						  patch32_at(s, idx));
 		}
 	};
 }

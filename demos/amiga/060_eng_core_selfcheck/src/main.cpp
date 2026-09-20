@@ -200,7 +200,7 @@ struct CoreSelfcheckDemo {
 			0x000, 0x000, 0x000, 0x000, 0x0aa, 0x000, 0xf00, 0x000,
 			0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0xff0, 0xfff,
 		};
-		const scene::SceneResources res = scene::ehb(320u, 256u);
+		const scene::SceneResources res = scene::planar(320u, 256u, 6);
 
 		m_scene_ok = scene::compose(m_scene, backend.memory(), res,
 				scene::display(scene::kPal320x256, scene::kBplcon0_Ehb),

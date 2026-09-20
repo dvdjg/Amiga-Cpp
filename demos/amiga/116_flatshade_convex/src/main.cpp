@@ -444,7 +444,7 @@ struct FlatShadeDemo {
 		// pipeline del original: se dibuja en `back()`, se lanza el fill y `commit()`
 		// publica el recien dibujado (se vera en el swap del frame siguiente) y rota.
 		// Geometria propia del original (256x256): DIW/DDF y BPLCON0 crudos.
-		scene::SceneResources res = scene::planar4(kWidth, kHeight, kPlanes);
+		scene::SceneResources res = scene::planar(kWidth, kHeight, kPlanes);
 		res.buffers = static_cast<eng::u8>(kBuffers);
 		if (!scene::compose(m_scene, backend.memory(), res,
 				    scene::display(kDiwstrt, kDiwstop, kDdfstrt, kDdfstop, kBplcon0),
