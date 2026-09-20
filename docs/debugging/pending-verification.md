@@ -48,22 +48,42 @@ Notas de deuda de diseño detectadas al trabajar en el modelo de escena, para un
   **overflow** de capacidad (`Plan::overflow`/`ok`), ambos en `materialize`/`end_frame` (una
   vez por frame, no por MOVE). La emisión (`move`/`wait`, `always_inline`) no valida nada por
   diseño (hot path).
-- **Pendiente**: exponer esas validaciones de copperlist a la app de forma tipada (p. ej.
-  `Scene::copper_report()` ya existe), añadir validación **estática** de la forma de las etapas
-  que se conocen en compilación, y estudiar si `end_build()` debe rechazar/reportar el desborde
-  en vez de solo marcarlo. Regla: **estáticas siempre; dinámicas solo en setup/cierre de frame
-  nunca en el camino de emisión por MOVE**.
+- **Aplicado (estático)**: `scene::row_repeat_words(rows, repeat, first_line)` (huella
+  `constexpr` de la etapa) y `scene::copper_word_budget(res)` permiten `static_assert` en
+  compilación; HOST-016 fija el valor (2050 palabras para 64×4 desde `0x2c`) y comprueba que
+  coincide con `scheduler().words_used()` antes/después de la etapa. Regla: **estáticas
+  siempre; dinámicas solo en setup/cierre de frame**, nunca en la emisión por MOVE.
+- **Pendiente**: cubrir con la misma huella otras etapas de forma conocida (`display`,
+  `palette`, `palette_zones`) y estudiar si `end_build()` debe rechazar/reportar el desborde
+  en vez de solo marcarlo.
 
 ## 5. Mínimo ancho por número de planos (DMA de Agnus)
 
-- Documentar con fuente fiable el **ancho mínimo de fetch según el nº de planos** (el DMA de
-  Agnus necesita más ancho cuantos más planos: la última palabra de cada plano debe terminar a
-  tiempo). No hay tabla en el AHRM 3.ª del repo; obtenerla (AHRM Apéndice C, guías de Agnus o
-  pruebas en hardware/WinUAE) antes de añadirla a `validate` (código nuevo). No inventar valores.
+- **Reinterpretado con fuente**: no existe un **ancho mínimo de fetch** ligado al nº de
+  planos; el ancho de fetch depende de `DDFSTRT/DDFSTOP`, no del *depth*. Lo que sí cambia con
+  los planos es el **coste de bus** (slots/línea que compiten con la CPU). Fuente:
+  `amiga-bootcamp/01_hardware/common/dma_architecture.md` (20 palabras/plano a 320 px; a 6
+  planos el display usa ~65 % del bus).
+- **Aplicado**: `scene::DmaCost` + `scene::dma_cost(res, limits, fw)` (informativo, **no**
+  rechazo) y `scene::FetchWidth` (1×/2×/4×, `FMODE` en AGA). HOST-216 fija los valores
+  (4 planos OCS = 80 slots de bitplane/119 de CPU; 6 = 120/79; AGA 8 a 4× = 40/159).
 
-## 6. ECS/AGA: afinar perfiles
+## 6. ECS/AGA: perfiles reales
 
-- `ecs` y `aga_a1200` existen con valores conservadores. Afinar con el **Apéndice C** del AHRM
-  (ECS: mayor ancho/fetch, blitter 16368×16384) y documentación AGA (FMODE, HAM8, 24-bit,
-  DPF 4+4) cuando se incorpore al workspace.
+- **Aplicado**: `aga_a1200` pasa a 8 planos (256 colores), HAM8 (`max_planes_ham=8`), DPF 4+4
+  y `fetch_width_max=4` (`FMODE` 4×); `ecs` queda igual que OCS en **lores** (mismos planos,
+  modos y fetch). Fuente: `aga_a1200_a4000/{chipset_aga,aga_display_modes}.md` y AHRM
+  Apéndice C. Verificado por HOST-216.
+- **Pendiente**: ECS añade SuperHires (1280 px, ≤ 2 planos) y `DIWHIGH` (rangos de ventana
+  mayores); AGA añade hires/superhires y 24-bit. Están fuera del modelo lores actual
+  (`SceneResources` solo describe lores) y se añadirán cuando haya consumidor.
+
+## 7. `compose_unchecked` / `init_unchecked`: retirados
+
+- Se comprobó que **ningún test ni demo** los usaba (solo el propio `compose.hpp` y la doc).
+  No aportaban una vía real (el perfil ya es obligatorio), así que se eliminó
+  `compose_unchecked` y `Scene::init_unchecked` pasó a `init_raw` **privado**. La única vía
+  pública de construcción es `init`/`compose` con `DisplayLimits`.
+
+
 

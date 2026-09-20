@@ -123,7 +123,7 @@ Guardarraíl: medir *code bloat* y tiempo de compilación si se usa ET a fondo (
 ### 6.1 Validación de configuraciones contra el backend (`scene/limits.hpp`)
 
 `SceneResources` puede expresar combinaciones que la función acepta pero el **hardware no
-permite** (p. ej. `width = 336` en Amiga, o 7 planos por playfield en un A500). Eso es una
+permite** (p. ej. `width = 300` en Amiga, o 7 planos por playfield en un A500). Eso es una
 dependencia del **backend**, no del modelo: por eso el perfil de capacidades es un dato
 declarado por la máquina y la validación es agnóstica.
 
@@ -139,15 +139,21 @@ declarado por la máquina y la validación es agnóstica.
 - **`DisplayLimits`**: qué admite el backend. Cubre **fetch horizontal** (`DDFSTRT` mín
   `0x18`, `DDFSTOP` máx `0xD8`, ≤ 25 palabras lores = 400 px fetchables, 368 px visibles por
   blanking — AHRM Tabla 3-14), altura (PAL 256), planos **por modo**
-  (normal/DPF/HAM/EHB), modos soportados y buffers. Perfiles como **datos**: `ocs_a500`
-  (6 planos, DPF 3+3, HAM6/EHB6), `ecs`, `aga_a1200` (8 planos, DPF 4+4, HAM8). Otro backend
-  (Mega Drive, Neo Geo) declara el suyo.
+  (normal/DPF/HAM/EHB), modos soportados, buffers y **coste de bus** (`slots_per_line` = 226,
+  `fixed_dma_slots` = 27, `fetch_width_max`). Perfiles como **datos**: `ocs_a500`
+  (6 planos, DPF 3+3, HAM6/EHB6, fetch 1×), `ecs` (idéntico en lores), `aga_a1200`
+  (8 planos, DPF 4+4, HAM8, fetch 4×). Otro backend (Mega Drive, Neo Geo) declara el suyo.
 - **`SceneMode`** (`Standard`/`Ham`/`Ehb`/`DualPlayfield`) en `SceneResources`: determina qué
   límite de planos aplica (p. ej. DPF en OCS = 3+3; HAM6/EHB = 6; HAM8 en AGA = 8) y qué
   `BPLCON0` genera `bplcon0_for(mode, planes)`.
 - **Geometría derivada**: `geometry_for(res)` produce DIW/DDF coherentes con `width` (DDF
   estándar `0x38` + palabras de fetch) si `res` no los especifica; la etapa
   `display(res, bplcon0=0)` usa `geometry_for` + `bplcon0_for(mode, planes)`.
+- **Coste de bus** (`DmaCost` / `dma_cost(res, limits, fw)` + `FetchWidth`): informativo, **no**
+  es validez. `bitplane_slots = palabras_de_fetch × planos / fw` y `cpu_slots = slots_per_line −
+  (bitplane_slots + fixed_dma_slots)`. A 320 px y 6 planos OCS: 120 + 27 = 147 → 79 slots de
+  CPU (~35 %). En AGA, `fmode` 4× reduce el coste ×4 (8 planos = 40 slots). Fuente:
+  `amiga-bootcamp/01_hardware/common/dma_architecture.md`.
 - **Estática (compilación)**: `consteval bool valid_scene(res, limits)` → `static_assert`
   cuando la config se conoce al compilar:
   `static_assert(scene::valid_scene(scene::planar(288, 256, 4), scene::ocs_a500));`
@@ -155,9 +161,12 @@ declarado por la máquina y la validación es agnóstica.
 - **Dinámica (ejecución)**: `compose(scene, mem, res, limits, etapas...)` valida antes de
   reservar; el rechazo queda en `scene.config_error()` (`code` + `message`), con código por
   causa (1 ancho, 4 alto, 5 planos, 8/9 modo, 10 DDF…). El perfil es **obligatorio**: no hay
-  variante de `compose` sin `limits` (solo `compose_unchecked`, reservado a tests de bajo
-  nivel). Las demos usan `display(res)`, que deriva geometría (`geometry_for`) y `BPLCON0`
-  (`bplcon0_for(mode, planes)`).
+  variante de `compose` sin `limits`. Las demos usan `display(res)`, que deriva geometría
+  (`geometry_for`) y `BPLCON0` (`bplcon0_for(mode, planes)`).
+- **Huella estática de etapas**: las etapas de **forma conocida** exponen su tamaño en
+  palabras como `constexpr` (`row_repeat_words(rows, repeat, first_line)`), comparable con
+  `copper_word_budget(res)` en un `static_assert`; HOST-016 verifica que la fórmula coincide
+  con la emisión real (`scheduler().words_used()`).
 - **Rendimiento**: las validaciones de copperlist (presupuesto por línea, overflow) viven en
   `materialize`/`end_frame` (**una vez por frame**), nunca en la emisión por MOVE
   (`move`/`wait` son `always_inline` y no validan). Regla: **estáticas siempre; dinámicas solo
@@ -245,11 +254,14 @@ cubrir el cierre (unas decenas de bytes; 3–4 punteros suele bastar).
   línea, `handle(s, i)`), `PatchHandle` (un MOVE) y `Patch32` (valor de 32 bits = pareja de
   MOVEs, p. ej. `BPLxPTH`+`BPLxPTL`, caso **multi-registro**). Sirve para **cualquier** valor
   dinámico del copper (colores, `BPL1MOD/BPL2MOD`, `BPLxPT`, `BPLCON1`…), no solo paletas.
-- **Constantes**: `DisplayGeometry`/`kPal320x256`, `kBplcon0_{4Planes,4PlanesNoColor,Ehb,Ham6}`
-  (nada de hexadecimales sueltos en las llamadas).
-- **Presets** (funciones): `planar4`, `canvas` (interleaved con `surface()`), `ham`
-  (planos contiguos con `rows` para cuadruplicado), `ehb` (6 planos).
-- **Composición**: `compose(scene, memory, recursos, etapas...)`.
+- **Constantes y helpers**: `DisplayGeometry`/`kPal320x256` (en `limits.hpp`),
+  `kBplcon0_{4Planes,4PlanesNoColor,Ehb,Ham6}`, `bplcon0_for(mode, planes)`,
+  `row_repeat_words(...)`/`copper_word_budget(res)` (huella estática de etapas).
+- **Configuración**: una sola función paramétrica `planar(width, height, planes)`; los
+  escenarios (EHB = 6 planos, HAM/cuadruplicado = `rows` + `row_repeat`, canvas =
+  `layout = Interleaved`, doble buffer = `buffers = N`) van en el doc-comment.
+- **Composición**: `compose(scene, memory, recursos, limits, etapas...)`; `Scene::init_raw`
+  es privado (la única vía pública valida el perfil).
 
 **Validado en demo**: `081_background_tasks` migrada a `scene::compose` (display+palette) con
 el latido de COLOR00 como `Scene::on_frame` → **49.75 fps (142 576 ciclos = 1 campo)**; el
