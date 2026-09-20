@@ -164,6 +164,34 @@ int main() {
 	s8.commit();
 	check(s8.back().data() == s8.buffer(0).data(), "commit avanza al buffer trasero");
 
+	// Preset EHB: 6 planos y display con BPLCON0 EHB. `kPal320x256` debe coincidir con la
+	// geometria DIW/DDF que usan los drivers EHB/HAM (0x2c81/0x2cc1/0x38/0xd0).
+	check(graphics::scene::kPal320x256.diwstrt == 0x2c81u &&
+		      graphics::scene::kPal320x256.diwstop == 0x2cc1u &&
+		      graphics::scene::kPal320x256.ddfstrt == 0x0038u &&
+		      graphics::scene::kPal320x256.ddfstop == 0x00d0u,
+	      "kPal320x256 es la geometria DIW/DDF de 320x256");
+	graphics::scene::Scene s9;
+	const bool ok9 = graphics::scene::compose(
+		s9, mem, graphics::scene::ehb(320, 256),
+		graphics::scene::display(graphics::scene::kPal320x256, graphics::scene::kBplcon0_Ehb));
+	check(ok9 && s9.ok(), "preset ehb compone");
+	check(s9.planes() == 6u, "el preset ehb usa 6 planos");
+	bool found_ehb = false;
+	for (u16 i = 0; i < s9.scheduler().words_used(); ++i) {
+		if (s9.scheduler().data()[i] == graphics::scene::kBplcon0_Ehb) {
+			found_ehb = true;
+		}
+	}
+	check(found_ehb, "el display emite BPLCON0 = 0x6200 (EHB)");
+	bool found_ham = false;
+	for (u16 i = 0; i < s4.scheduler().words_used(); ++i) {
+		if (s4.scheduler().data()[i] == graphics::scene::kBplcon0_Ham6) {
+			found_ham = true;
+		}
+	}
+	check(found_ham, "el display emite BPLCON0 = 0x7a00 (HAM6)");
+
 	if (failures == 0) {
 		std::printf("OK: scene::compose (etapas display/paleta/zonas/row_repeat + PatchHandle + ciclo de vida).\n");
 		return 0;

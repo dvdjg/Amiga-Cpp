@@ -293,7 +293,9 @@ private:
 						  static_cast<u16>(ip >> 16));
 			(void)s.move_at(copper::bitplane_pointer_low_register(p),
 					static_cast<u16>(ip & 0xffffu));
-			(void)idx;
+			// Registra este MOVE como el parche del plano `p`: en doble buffer, `commit()`
+			// repunta el BPLxPT efectivo (el de orden inverso, que es el que manda).
+			sc.set_plane_patch(p, patch32_at(s, idx));
 		}
 	};
 }
