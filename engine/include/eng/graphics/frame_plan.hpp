@@ -58,6 +58,9 @@ enum class BlitJobKind : u8 {
 	/// **Línea por Blitter** (`BLTCON1` LINE): usa `line_x0..line_y1` y
 	/// `line_row_bytes`; el `destination` apunta al plano. Sin fuentes ni mascara.
 	Line,
+	/// **Línea EOR (ONEDOT)** (`blitter_line_eor`): como `Line` pero XOR con `line_base`
+	/// (el canal D), base del contorno XOR de `flatshade-convex` (demo 116).
+	LineEor,
 };
 
 /// Presupuesto acumulado de Blitter.
@@ -225,6 +228,9 @@ struct BlitJob {
 	s16 line_x1 = 0;        ///< x del punto final
 	s16 line_y1 = 0;        ///< y del punto final
 	u16 line_row_bytes = 0; ///< bytes por fila del plano destino (módulo de la línea)
+	/// Base del bitmap para el canal D en una **línea EOR** (`BlitJobKind::LineEor`);
+	/// `nullptr` = usar el propio plano. Ver `blitter_line_eor`.
+	BlitDest line_base {};
 };
 
 /// Plan de render de un frame.
@@ -350,9 +356,10 @@ public:
 		return add_blit_job(job, BlitJobKind::OrBlob);
 	}
 
-	/// **Línea por Blitter** (`BLTCON1` LINE): `destination` = plano, `line_x0..line_y1`
-	/// las coordenadas y `line_row_bytes` el módulo de fila. No lleva fuentes/máscara.
-	bool add_line(const BlitJob& job) {
+	/// **Línea por Blitter** (`BLTCON1` LINE) o **EOR/ONEDOT** (`LineEor`): `destination`
+	/// = plano, `line_x0..line_y1` las coordenadas y `line_row_bytes` el módulo de fila.
+	/// Sin fuentes/máscara. Para `LineEor`, `line_base` es la base del canal D.
+	bool add_line(const BlitJob& job, BlitJobKind kind = BlitJobKind::Line) {
 		if (job.destination.words == nullptr || job.line_row_bytes == 0u ||
 		    job.bitplane_count == 0u) {
 			m_ok = false;
@@ -363,7 +370,7 @@ public:
 			return false;
 		}
 		BlitJob j = job;
-		j.kind = BlitJobKind::Line;
+		j.kind = kind;
 		m_blit_jobs[m_blit_job_count++] = j;
 		m_blit_budget.jobs = m_blit_job_count;
 		// Coste aproximado: una word por fila de la línea + 2 de arranque por plano.

@@ -35,8 +35,8 @@ transparente esa elección.
 - **`BlitterRaster`**: relleno por `Playfield::fill_polygon` (usa el `PolygonFillSink`/Blitter si
   está instalado; si no, CPU); copias por el `FramePlan` (`CopyRect`/`MaskedBobCookieCut`, con
   `source_shift` y `descending`); **línea** por Blitter si se pasa un `FramePlan` y la línea cae
-  dentro del clip (encola `BlitJobKind::Line`, que el backend ejecuta con `blitter_line` por
-  plano); si no, CPU (Bresenham).
+  dentro del clip (encola `BlitJobKind::Line`, o `LineEor` si `op == RasterOp::Xor`, que el
+  backend ejecuta con `blitter_line`/`blitter_line_eor` por plano); si no, CPU (Bresenham).
 
 ## Selección (backend → escena)
 
@@ -54,15 +54,20 @@ backend host (sin Blitter) declara `RasterCaps{ .blitter = false }` y se usa `kC
 
 ## Estado y extensión
 
-- **Hecho**: `RasterOp` (CPU), relleno CPU/Blitter (con umbral `Auto`), **línea CPU y por
-  Blitter** (`BlitJobKind::Line` + `Rasterizer::draw_line`, con recorte de segmento), copia CPU
-  (32 bits) y Blitter con `source_shift`/`descending`, copia enmascarada CPU y Blitter;
-  `install_raster` con `RasterCaps` OCS/AGA por target; `row_bytes` alineado a 4.
+- **Hecho**: `RasterOp` (CPU), relleno CPU/Blitter (con umbral `Auto`), **línea CPU, por
+  Blitter y EOR/ONEDOT** (`BlitJobKind::Line`/`LineEor` + `Rasterizer::draw_line`, con recorte
+  de segmento), copia CPU (32 bits) y Blitter con `source_shift`/`descending`, copia enmascarada
+  CPU y Blitter; `install_raster` con `RasterCaps` OCS/AGA por target; `row_bytes` alineado a 4.
 - **Operaciones Blitter que aún NO cubre el seam** (ver `frame_plan.hpp`/AHRM cap. 6):
   - **Relleno de rect directo** (FILL mode): hoy el rect se rellena como polígono vía
     `PolygonFillSink`, que ya usa `blit_fill_region` (FILL_OR) del Blitter; un `FillRect` propio
-    evitaría el camino de polígono (micro-optimización, no una capacidad que falte).
+    evitaría el camino de polígono (micro-optimización, no una capacidad que falte; sin medición
+    que lo justifique).
   - **C2P** (chunky→planar): uso especializado multi-fase del Blitter (ver `C2P_BLITTER.md`).
+  - **Línea EOR en lote**: la demo 116 prepara los parámetros Bresenham **una vez** por arista y
+    los reutiliza en N planos (evita reescribir los registros comunes); el seam encola un job por
+    plano y el backend vuelve a fijarlos. Migrar 116 al seam regresaría, así que 116 conserva su
+    ruta optimizada; un seam con "lote de líneas" (begin una vez) lo unificaría.
 
 ## Verificación
 

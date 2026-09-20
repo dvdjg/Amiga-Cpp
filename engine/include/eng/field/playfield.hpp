@@ -363,26 +363,31 @@ public:
     /// `true` si hay un motor de relleno por hardware instalado.
     [[nodiscard]] constexpr bool has_fill_sink() const { return m_fill_sink.ready(); }
 
-    /// **Línea por Blitter** (`BLTCON1` LINE): encola una `BlitJobKind::Line` por plano
-    /// cuyo bit de color está activo. Usa `plane_stride()`/`row_stride()` del layout, así
-    /// que sirve para contiguo e interleaved. Referencia: `blitter_line` del backend y
-    /// las demos de wireframe (079/116).
-    bool add_line(graphics::FramePlan& plan, s16 x0, s16 y0, s16 x1, s16 y1, u8 color) {
+    /// **Línea por Blitter** (`BLTCON1` LINE) o **EOR/ONEDOT** (`eor`): encola una
+    /// `BlitJobKind::Line`/`LineEor` por plano cuyo bit de color está activo. Usa
+    /// `plane_stride()`/`row_stride()`, así que sirve para contiguo e interleaved. La
+    /// base del canal D (EOR) es el propio bitmap. Referencia: `blitter_line`/
+    /// `blitter_line_eor` del backend.
+    bool add_line(graphics::FramePlan& plan, s16 x0, s16 y0, s16 x1, s16 y1, u8 color,
+                  bool eor = false) {
         if (!m_initialized || color == 0u) return false;
         const u32 pstride = plane_stride();
         const u16 rstride = static_cast<u16>(row_stride());
+        const graphics::BlitJobKind kind =
+            eor ? graphics::BlitJobKind::LineEor : graphics::BlitJobKind::Line;
         for (u8 p = 0; p < m_planes; ++p) {
             if ((color & (1u << p)) == 0u) continue;
             graphics::BlitJob job {};
             job.destination = graphics::BlitDest {
                 reinterpret_cast<u16*>(m_frontbuffer + static_cast<u32>(p) * pstride)};
+            job.line_base = graphics::BlitDest {reinterpret_cast<u16*>(m_frontbuffer)};
             job.bitplane_count = 1;
             job.line_x0 = x0;
             job.line_y0 = y0;
             job.line_x1 = x1;
             job.line_y1 = y1;
             job.line_row_bytes = rstride;
-            if (!plan.add_line(job)) return false;
+            if (!plan.add_line(job, kind)) return false;
         }
         return true;
     }

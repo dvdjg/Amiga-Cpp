@@ -83,10 +83,12 @@ public:
 	virtual bool fill_rect(Playfield& pf, eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h,
 			       eng::u8 color, RasterOp op) = 0;
 	/// Traza una línea recortada al `clip` (el rasterizador decide CPU/Blitter). Si
-	/// `plan != nullptr` y el backend tiene Blitter, se encola una `Line` en el plan.
+	/// `plan != nullptr` y el backend tiene Blitter, se encola una `Line` en el plan;
+	/// `op == Xor` usa la variante **EOR/ONEDOT** (`LineEor`).
 	virtual bool draw_line(Playfield& pf, const ClipRect& clip, eng::s32 x0, eng::s32 y0,
 			       eng::s32 x1, eng::s32 y1, eng::u8 color,
-			       graphics::FramePlan* plan = nullptr) = 0;
+			       graphics::FramePlan* plan = nullptr,
+			       RasterOp op = RasterOp::Copy) = 0;
 	/// Copia rectangular (blit planar): encola el trabajo en `plan`.
 	virtual bool copy_rect(Playfield& pf, graphics::FramePlan& plan, eng::Span<const eng::u16> src,
 			       eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h,
@@ -118,8 +120,10 @@ public:
 	/// Línea por CPU (Bresenham), recortada al `clip` (un tramo horizontal usa `draw_span`).
 	bool draw_line(Playfield& pf, const ClipRect& clip, eng::s32 x0, eng::s32 y0,
 		       eng::s32 x1, eng::s32 y1, eng::u8 color,
-		       graphics::FramePlan* plan = nullptr) override {
+		       graphics::FramePlan* plan = nullptr,
+		       RasterOp op = RasterOp::Copy) override {
 		(void)plan;
+		(void)op; // el camino CPU dibuja con Copy (el EOR es del Blitter)
 		if (y0 == y1) {
 			if (y0 < clip.y0 || y0 > clip.y1) return false;
 			eng::s32 a = x0 < x1 ? x0 : x1;
@@ -197,16 +201,18 @@ public:
 	/// y encola una `BlitJobKind::Line` por plano. Si no hay plan (o no cabe), CPU.
 	bool draw_line(Playfield& pf, const ClipRect& clip, eng::s32 x0, eng::s32 y0,
 		       eng::s32 x1, eng::s32 y1, eng::u8 color,
-		       graphics::FramePlan* plan = nullptr) override {
+		       graphics::FramePlan* plan = nullptr,
+		       RasterOp op = RasterOp::Copy) override {
 		if (plan != nullptr) {
 			eng::s32 cx0 = x0, cy0 = y0, cx1 = x1, cy1 = y1;
 			if (clip_segment(clip, cx0, cy0, cx1, cy1) &&
 			    pf.add_line(*plan, static_cast<eng::s16>(cx0), static_cast<eng::s16>(cy0),
-					static_cast<eng::s16>(cx1), static_cast<eng::s16>(cy1), color)) {
+					static_cast<eng::s16>(cx1), static_cast<eng::s16>(cy1), color,
+					op == RasterOp::Xor)) {
 				return true;
 			}
 		}
-		return CpuRaster::draw_line(pf, clip, x0, y0, x1, y1, color, plan);
+		return CpuRaster::draw_line(pf, clip, x0, y0, x1, y1, color, plan, op);
 	}
 	/// Copia por **Blitter**: encola el `CopyRect` en el `FramePlan` (con shift/DESC).
 	bool copy_rect(Playfield& pf, graphics::FramePlan& plan, eng::Span<const eng::u16> src,

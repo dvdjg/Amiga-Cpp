@@ -228,6 +228,12 @@ int main() {
 	graphics::FramePlan line_plan2 {};
 	check(s6.surface().draw_line(-10, 8, 40, 8, 5u, &line_plan2), "linea parcial se recorta y encola");
 	check(line_plan2.blit_job_count() == 2u, "linea parcial = 1 job por plano (recortada)");
+	graphics::FramePlan eor_plan {};
+	check(s6.surface().draw_line(0, 0, 31, 15, 5u, &eor_plan, field::RasterOp::Xor),
+	      "draw_line Xor (EOR) encola");
+	check(eor_plan.blit_job_count() == 2u &&
+		      eor_plan.blit_job(0).kind == graphics::BlitJobKind::LineEor,
+	      "linea EOR usa BlitJobKind::LineEor");
 	graphics::FramePlan line_plan3 {};
 	(void)s6.surface().draw_line(-100, -100, -50, -50, 5u, &line_plan3);
 	check(line_plan3.blit_job_count() == 0u, "linea fuera del clip no encola (CPU)");

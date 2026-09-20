@@ -635,16 +635,24 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 		const bool clear = job.kind == graphics::BlitJobKind::ClearRect;
 		const bool or_blob = job.kind == graphics::BlitJobKind::OrBlob;
 		const bool line = job.kind == graphics::BlitJobKind::Line;
+		const bool line_eor = job.kind == graphics::BlitJobKind::LineEor;
 
-		if (!masked && !copy && !clear && !or_blob && !line) {
+		if (!masked && !copy && !clear && !or_blob && !line && !line_eor) {
 			return false;
 		}
 
-		if (line) {
-			// Línea por Blitter (BLTCON1 LINE) sobre el plano del `destination`.
+		if (line || line_eor) {
+			// Línea por Blitter (LINE) o EOR/ONEDOT sobre el plano del `destination`.
 			eng::PlaneBytes pb {reinterpret_cast<eng::u8*>(job.destination.words), 0u};
-			if (!blitter_line(pb, job.line_row_bytes, job.line_x0, job.line_y0,
-					  job.line_x1, job.line_y1)) {
+			eng::u8* d_base = job.line_base.words != nullptr
+						  ? reinterpret_cast<eng::u8*>(job.line_base.words)
+						  : nullptr;
+			const bool ok = line
+				? blitter_line(pb, job.line_row_bytes, job.line_x0, job.line_y0,
+					       job.line_x1, job.line_y1)
+				: blitter_line_eor(pb, job.line_row_bytes, job.line_x0, job.line_y0,
+						   job.line_x1, job.line_y1, d_base);
+			if (!ok) {
 				return false;
 			}
 			continue;
