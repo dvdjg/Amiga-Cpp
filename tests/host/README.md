@@ -57,7 +57,7 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-013 | [math3d_mesh](013_math3d_mesh/README.md) | `eng::math3d` mesh: `mesh_transform`, `mesh_painter_order` (culling + painter). |
 | HOST-014 | [object3d](014_object3d/README.md) | `eng::object3d`: port 1:1 de `lib3d` (`Object3D`, transform, aristas/caras). |
 | HOST-015 | [fire_sim](015_fire_sim/README.md) | Fuego de `fire-rgb`: simulación (abajo caliente) + `dualtab` C++23 `constexpr` verificado contra el original. |
-| HOST-016 | [ham_scene](016_ham_scene/README.md) | `eng::graphics::drivers::HamScene`: display planar con repetición de filas (cuadruplicado) — geometría de la copperlist y parametricidad. |
+| HOST-016 | [ham_scene](016_ham_scene/README.md) | `eng::graphics::drivers::PlanarScene` (ex-HamScene): display planar con repetición de filas (cuadruplicado) — geometría de la copperlist y parametricidad. |
 | HOST-017 | [background_task](017_background_task/README.md) | `eng::task::BackgroundQueue`: tareas de fondo cooperativas (progreso/rendimiento, adaptación por `vpos`, prioridad al bucle principal). |
 | HOST-018 | [rtc](018_rtc/README.md) | `eng::time::from_tod`: reloj de tiempo real desde el contador TOD de la CIA-A (50/60 Hz, wrap 24 h). |
 | HOST-019 | [copper_ext](019_copper_ext/README.md) | Extensiones de Copper para *copper chunky*: `SKIP` (máscara `0xffff`), `MOVE32` (orden `reg+2`/`reg`) y parcheo de instrucciones (`move_at`/`patch_data`). |

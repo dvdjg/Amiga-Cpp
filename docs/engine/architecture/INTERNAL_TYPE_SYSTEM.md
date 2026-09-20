@@ -330,7 +330,7 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
 - **Fase 7 — hecha (API)**: `eng::Block<Tag>` (`typed.hpp`) y reservas tipadas
   `LinearArena::allocate_block<Tag>()` / `MemoryBlock::block<Tag>()`; HOST-041. **Migración a
   campo etiquetado hecha**: los dueños guardan `Block<Tag>`/vistas de dominio desde el origen
-  (drivers `ehb_scene`/`ham_scene`/`tile_scroll`; demos de planos, sprites, patrón, máscaras,
+   (drivers `ehb_scene`/`planar_scene`/`tile_scroll`; demos de planos, sprites, patrón, máscaras,
   chunky, audio y **copperlist**). `Block<Tag>` lleva dominio + `MemoryKind`, así que la
   copperlist es `Block<CopperTag>` (el builder valida Chip) y el medio queda separado del dato
   (permite construir/copiar la lista con el Blitter). También nacen tipados `Bitmap`

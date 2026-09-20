@@ -106,8 +106,8 @@ RAM no visible y despues lo publica al playfield EHB con otro blit.
 bitplanes con repeticion de filas** (cuadruplicado para modos HAM), extraido del porte 1:1
 de `effects/fire-rgb`. Su nombre historico era `HamScene`; se renombro a `PlanarScene`
 porque el alcance es planar generico (HAM y planos normales), no el modo HAM. Los alias
-`HamScene`/`HamSceneConfig` siguen existiendo por compatibilidad (`ham_scene.hpp` es un
-shim que reexporta `planar_scene.hpp`).
+`HamScene`/`HamSceneConfig` siguen existiendo por compatibilidad de fuente; el fichero
+`ham_scene.hpp` (shim) se retiro.
 
 - `PlanarSceneConfig`: geometria (DIW/DDF, ancho de fila), numero de planos, `BPLCON0`,
   filas logicas, factor de repeticion, `BPLCON1` alterno, paleta y reordenado de

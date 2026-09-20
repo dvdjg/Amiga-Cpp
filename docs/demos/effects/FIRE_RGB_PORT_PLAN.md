@@ -77,7 +77,7 @@ system/*        (bucle de efecto, vectores de interrupcion/VBR, memoria)
 2. **"Pantalla dividida"**: era el desfase vertical — se usaba `wait_line(i)` (VPOS 0..255) en vez de `CopWaitSafe(Y(i))` con `Y(i)=i+0x2c`; corregido con `wait_line_safe(i+0x2c)`. El cuadruplicado ya cuadra (angosto del original: DDFSTOP `0xD1`, DIWSTOP `0x2CC3` por el `+2`).
 3. **Diff 1:1** contra `fire-rgb.exe` (frames + `readPng` + vision). Nota: el original usa un **bootloader propio** (`.adf` con `addchip.bootblock`), no corre como `a.exe` bajo AmigaDOS.
 4. ✅ **Escena HAM + cuadruplicado promovida al engine**: `drivers::PlanarScene`
-   (`engine/include/eng/graphics/drivers/ham_scene.hpp`) + test host HOST-016. La demo
+   (`engine/include/eng/graphics/drivers/planar_scene.hpp`) + test host HOST-016. La demo
    ya no escribe DIW/DDF ni palabras de Copper. ✅ **C2P encadenado por la IRQ de blit**
    (`FireDemo::on_blit`), el mecanismo fiel del original.
 

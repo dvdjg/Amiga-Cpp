@@ -1,12 +1,12 @@
-# HOST-016 — `HamScene` (display planar con repetición de filas)
+# HOST-016 — `PlanarScene` (ex-HamScene) (display planar con repetición de filas)
 
 Valida en host, sin emulador, el driver reutilizable
-`engine/include/eng/graphics/drivers/ham_scene.hpp`, extraído del porte 1:1 de
+`engine/include/eng/graphics/drivers/planar_scene.hpp`, extraído del porte 1:1 de
 `effects/fire-rgb`.
 
 ## Qué cubre
 
-- **Contrato**: `HamScene` cumple `eng::GraphicsDriver` / `eng::DisplayDriver`
+- **Contrato**: `PlanarScene` cumple `eng::GraphicsDriver` / `eng::DisplayDriver`
   (`static_assert`), y `takeover()`/`install()` delegan en el backend con la misma
   copperlist.
 - **Display**: se emite `BPLCON0`, DIW/DDF y los `BPLxPT` (con `reverse_plane_ptrs`
