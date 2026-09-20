@@ -101,6 +101,18 @@ int main() {
 		graphics::scene::row_repeat(4, 0x2c, 0x0022));
 	check(ok4 && s4.ok(), "preset ham (row_repeat + reverse_ptrs) compone");
 
+	// Etapa de intents de Copper (capa dinamica ordenada por scanline por el Plan).
+	graphics::scene::Scene s5;
+	const graphics::CopperIntent it {
+		graphics::CopperIntentKind::PaletteLine, 100, 100, 0,
+		eng::PaletteWords {pal, 4}, 0, 4};
+	const bool ok5 = graphics::scene::compose(
+		s5, mem, graphics::scene::planar4(320, 256, 4),
+		graphics::scene::display(graphics::scene::kPal320x256, graphics::scene::kBplcon0_4Planes),
+		graphics::scene::intents(eng::Span<const graphics::CopperIntent> {&it, 1}));
+	check(ok5 && s5.ok(), "escena con intents de Copper compone");
+	check(s5.plan().intent_count() == 1u, "la intencion se registra en el Plan");
+
 	if (failures == 0) {
 		std::printf("OK: scene::compose (etapas display/paleta/zonas/row_repeat + PatchHandle + ciclo de vida).\n");
 		return 0;

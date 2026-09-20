@@ -94,6 +94,8 @@ public:
 
 	[[nodiscard]] copper::Scheduler& scheduler() { return m_plan.scheduler(); }
 	[[nodiscard]] const copper::Scheduler& scheduler() const { return m_plan.scheduler(); }
+	[[nodiscard]] copper::Plan& plan() { return m_plan; }
+	[[nodiscard]] const copper::Plan& plan() const { return m_plan; }
 	[[nodiscard]] constexpr eng::PlaneBytes bitplanes() const { return m_bitplanes.view; }
 	/// Plano `i` del bitmap (layout contiguo; vacío si fuera de rango).
 	[[nodiscard]] constexpr eng::PlaneBytes plane(u8 i) const {
@@ -271,6 +273,16 @@ inline constexpr u16 kBplcon0_Ham6 = 0x7a00;         ///< HAM6 (6 planos, COLOR,
 /// Etapa de **paleta**: carga `count` colores desde `first`.
 [[nodiscard]] inline auto palette(eng::PaletteWords colors, u8 first = 0, u8 count = 32) {
 	return [=](Scene& sc) { sc.scheduler().emit_palette(colors, first, count); };
+}
+
+/// Etapa de **intenciones de Copper** (capas dinámicas: paleta por línea, splits…). En vez
+/// de emitir en orden de construcción, se las da al `Plan`, que las **ordena por scanline**
+/// (y por prioridad) y las materializa en el punto actual de la lista.
+[[nodiscard]] inline auto intents(eng::Span<const graphics::CopperIntent> list) {
+	return [=](Scene& sc) {
+		sc.plan().add(list.data(), static_cast<eng::u16>(list.size()));
+		sc.plan().materialize();
+	};
 }
 
 /// Zona de paleta por raster (franja horizontal).

@@ -10,9 +10,10 @@ en vez de una clase por driver. Ver `docs/engine/architecture/SCENE_COMPOSITION.
 2. Las etapas de `display`/`palette` emiten BPLCON0/DIW/DDF/punteros y la paleta.
 3. Una etapa propia (`lambda`) emite un `PatchHandle`; `set()` lo parchea por frame.
 4. Ciclo de vida: una `Task` (`eng::util::FunctionRef<void()>`) ligada con `on_frame` corre una vez por `tick()`.
-5. Etapas HAM/EHB: `row_repeat` (cuadruplicado) + `palette_zones` (zonas de paleta por raster) componen.
+5. Etapas HAM/EHB: `row_repeat` (cuadruplicado) + `palette_zones` (zonas de paleta por raster) y `reverse_ptrs` (BPLxPT inversos) componen.
 6. Preset `canvas` (layout interleaved): expone `surface()` y `fill_polygon` pinta sobre ella.
-7. La escena queda `ok()` con bitplanes y copperlist válidos.
+7. `intents`: una lista de `CopperIntent` se registra en el `Plan` (ordenada por scanline).
+8. Geometría/BPLCON0 por constantes (`kPal320x256`, `kBplcon0_*`) + `display(geometry, bplcon0)`. La escena queda `ok()` con bitplanes y copperlist válidos.
 
 ## Salida de referencia
 
