@@ -16,6 +16,7 @@
 /// de dirty rects: las areas de pantalla que un frame ha tocado y que, por tanto,
 /// pueden necesitar restauracion, redraw o analisis de presupuesto.
 
+#include <eng/core/arith.hpp>
 #include <eng/core/domains.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/util/array.hpp>
@@ -396,10 +397,12 @@ public:
 		j.kind = kind;
 		m_blit_jobs[m_blit_job_count++] = j;
 		m_blit_budget.jobs = m_blit_job_count;
-		// Coste aproximado: una word por fila de la línea + 2 de arranque por plano.
+		// Coste aproximado: una word por fila de la línea + 2 de arranque por plano
+		// (`mulu16` = `mulu.w`, sin `__mulsi3`).
 		const s32 dy = job.line_y1 > job.line_y0 ? job.line_y1 - job.line_y0
 							 : job.line_y0 - job.line_y1;
-		m_blit_budget.words += static_cast<u32>(dy + 3) * job.bitplane_count;
+		m_blit_budget.words += eng::math::mulu16(static_cast<u16>(dy + 3),
+							 job.bitplane_count);
 		++m_blit_budget.copy_jobs;
 		rebuild_blit_budget_report();
 		return true;
@@ -471,10 +474,13 @@ private:
 
 		m_blit_jobs[m_blit_job_count++] = job;
 		m_blit_budget.jobs = m_blit_job_count;
-		m_blit_budget.words +=
-			static_cast<u32>(job.words_per_row) *
-			static_cast<u32>(job.height) *
-			static_cast<u32>(job.bitplane_count);
+		// Presupuesto `words_per_row × planos × altura` con multiplicaciones de 16×16
+		// (`mulu.w`): es por trabajo de Blitter (no camino caliente), pero el gate de
+		// codegen prohíbe arrastrar `__mulsi3`. `words_per_row` (≤64, 6 bits de BLTSIZE)
+		// × planos (≤8) cabe en u16, así que ambos productos son de 16×16.
+		m_blit_budget.words += eng::math::mulu16(
+			static_cast<u16>(eng::math::mulu16(job.words_per_row, job.bitplane_count)),
+			job.height);
 		if (masked) {
 			++m_blit_budget.masked_jobs;
 		} else {

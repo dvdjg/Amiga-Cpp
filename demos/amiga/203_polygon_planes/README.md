@@ -33,9 +33,9 @@ Un cubo gira; cada cara visible se sombrea por profundidad (`shade_of`) y se acu
 con `MinimalBackend::fill_polygons_by_plane` (camino Blitter, verificado en hardware). La
 referencia CPU del mismo algoritmo es `fill_polygons_by_plane_cpu` (test **HOST-217**).
 
-Sobre la banda inferior se OR-ado un **suelo texturizado** con `FramePlan::add_pattern_fill`
-(patrón de una fila de 16 palabras repetida en vertical con el módulo de A, camino `OrBlob`),
-que valida ese relleno en hardware.
+Sobre la banda inferior se OR-ado un **suelo texturizado** con `graphics::add_rect_pattern`
+(patrón planar **multifila**: un `PatternFill` por fila del patrón, camino `OrBlob`), que valida
+ese relleno en hardware.
 
 - Display 256×256×4 (mismos registros que el port de `flatshade-convex`), doble buffer por swap
   de copperlist (`Scene::commit`).

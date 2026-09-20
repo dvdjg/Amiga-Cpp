@@ -597,7 +597,8 @@ public:
             return false;
         }
         const u16 row = static_cast<u16>((cfg.width / 8u) & ~1u);
-        const u32 need = static_cast<u32>(row) * cfg.planes * cfg.height;
+        const u32 need = eng::math::mulu16(
+            static_cast<u16>(eng::math::mulu16(row, cfg.planes)), cfg.height);
         if (static_cast<u32>(bitplanes.view.size()) < need) return false;
         m_bound = bitplanes;
         m_width = cfg.width;
@@ -779,9 +780,21 @@ public:
             return false;
         }
         const u16 row = static_cast<u16>(((width / 8u) + 3u) & ~3u);
-        const u32 pbytes = (plane_stride != 0u) ? plane_stride
-                                                : static_cast<u32>(row) * height;
-        const u32 need = pbytes * planes;
+        // `pbytes * planes` sin `__mulsi3`: con `plane_stride` derivado, `row * planes`
+        // cabe en u16 (row <= 80, planes <= 6) y el producto final es `mulu.w` (16x16);
+        // con `plane_stride` dado, se acumula por suma (planes <= 6).
+        u32 pbytes;
+        u32 need;
+        if (plane_stride != 0u) {
+            pbytes = plane_stride;
+            need = 0u;
+            for (u8 p = 0u; p < planes; ++p) {
+                need += plane_stride;
+            }
+        } else {
+            pbytes = eng::math::mulu16(row, height);
+            need = eng::math::mulu16(static_cast<u16>(eng::math::mulu16(row, planes)), height);
+        }
         if (bytes < need) return false;
         m_bound = {};
         m_width = width;

@@ -22,6 +22,7 @@
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/graphics/palette32.hpp>
+#include <eng/graphics/pattern_fill.hpp>
 #include <eng/graphics/polygon_planes.hpp>
 #include <eng/graphics/scene/compose.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
@@ -155,17 +156,22 @@ struct PolygonPlanesDemo {
 		}
 		m_scene.takeover(backend);
 
-		// Patron del suelo: UNA fila de `kBytesPerRow` palabras (256 px) que el Blitter
-		// repite en vertical con el modulo de A (`source_modulo_bytes`). Debe vivir en
-		// Chip RAM (el Blitter solo accede a Chip).
-		m_pattern = backend.memory().chip.allocate_block<eng::PlaneTag>(kBytesPerRow + 16u, 16);
+		// Patron del suelo: DOS filas de `kBytesPerRow` palabras (tablero 4x2 px
+		// desplazado). El relleno multifila (`add_rect_pattern`) emite un blit por fila
+		// del patron. Debe vivir en Chip RAM (el Blitter no lee .rodata).
+		constexpr eng::u8 kPatRows = 2u;
+		m_pattern = backend.memory().chip.allocate_block<eng::PlaneTag>(
+			static_cast<eng::u32>(kBytesPerRow) * kPatRows + 16u, 16);
 		if (!m_pattern.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020303u);
 			return;
 		}
-		for (eng::u32 i = 0; i < kBytesPerRow / 2u; ++i) {
-			reinterpret_cast<eng::u16*>(m_pattern.view.data())[i] =
-				(i & 1u) != 0u ? 0xccccu : 0x3333u;
+		for (eng::u32 r = 0; r < kPatRows; ++r) {
+			eng::u16* row = reinterpret_cast<eng::u16*>(m_pattern.view.data()) +
+					r * (kBytesPerRow / 2u);
+			for (eng::u32 i = 0; i < kBytesPerRow / 2u; ++i) {
+				row[i] = (r == 0u) ? 0xf0f0u : 0x0f0fu;
+			}
 		}
 
 		// Pre-clear de ambos buffers: el relleno limpia cada plano igualmente, pero
@@ -228,25 +234,20 @@ struct PolygonPlanesDemo {
 					      kWidth, kHeight, false);
 		}
 
-		// Suelo texturizado: relleno con patron (una fila de 16 palabras repetida en
-		// vertical) OR-ado en el plano 0 sobre la banda inferior.
+		// Suelo texturizado: relleno con patron MULTIFILA (2 filas, tablero) OR-ado en
+		// el plano 0 sobre la banda inferior (un blit por fila del patron).
 		{
 			constexpr eng::u16 kFloorY = 200u;
 			constexpr eng::u16 kFloorH = kHeight - kFloorY;
+			constexpr eng::u8 kPatRows = 2u;
 			graphics::FramePlan plan {};
-			graphics::BlitJob job {};
-			job.source = graphics::BlitSource(
-				reinterpret_cast<const eng::u16*>(m_pattern.view.data()));
-			job.destination = graphics::BlitDest(reinterpret_cast<eng::u16*>(
-				planes.data() + static_cast<eng::u32>(kFloorY) * kBytesPerRow));
-			job.words_per_row = static_cast<eng::u16>(kBytesPerRow / 2u);
-			job.height = kFloorH;
-			job.bitplane_count = 1u;
-			job.source_plane_stride_bytes = kBytesPerRow;
-			job.destination_plane_stride_bytes = kPlaneBytes;
-			job.source_modulo_bytes = static_cast<eng::s16>(-static_cast<eng::s16>(kBytesPerRow));
-			job.minterm = 0xFCu;
-			if (plan.add_pattern_fill(job)) {
+			if (graphics::add_rect_pattern(
+				    plan, graphics::BlitDest(reinterpret_cast<eng::u16*>(planes.data())),
+				    kBytesPerRow, 0u, kFloorY, static_cast<eng::u16>(kBytesPerRow / 2u),
+				    kFloorH,
+				    reinterpret_cast<const eng::u16*>(m_pattern.view.data()),
+				    static_cast<eng::u16>(kBytesPerRow / 2u), kBytesPerRow, kPatRows,
+				    static_cast<eng::u32>(kBytesPerRow) * kPatRows, 1u)) {
 				(void)backend.execute_frame_plan(plan);
 			}
 		}

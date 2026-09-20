@@ -464,14 +464,16 @@ shifts/DESC), **líneas** OR y EOR/ONEDOT (con recorte de segmento y lote EOR), 
 verificada por self-test de 077) y `RasterCaps` OCS/AGA por target. Mejoras pendientes, por
 prioridad:
 
-1. **Demo de juego que use colisión** (`blitter_collide`) en el bucle (plataformas/shmup: BOB vs
-   fondo) — hoy solo la valida el self-test de 077.
+1. **Colisión en un juego**: `blitter_collide` en el bucle con bandas de 1 plano + flash —
+   demo **204_collide_game** (verificada: jugador se mueve y la colisión dispara el flash).
 2. **Relleno con patrón**: `FramePlan::add_pattern_fill` (kind `PatternFill`, reusa el camino
    `OrBlob`: A = patrón de **una fila** repetida en vertical con el módulo de A, B = D, minterm
-   `$FC`) — **verificado en hardware** por la demo 203 (suelo texturizado); un patrón de varias
-   filas necesita más blits.
-3. **C2P en el seam** (`Rasterizer::c2p` / `BlitJobKind::C2P`): unificar chunky→planar (las 13
-   fases de `fire-rgb`, `C2P_BLITTER.md`) bajo la misma interfaz; hoy vive fuera.
+   `$FC`) y `graphics::add_rect_pattern` (patrón **multifila**: un `PatternFill` por fila del
+   patrón) — **verificados en hardware** por la demo 203 (suelo con tablero de 2 filas) y por
+   HOST-217.
+3. **C2P en el seam**: `Rasterizer::c2p(C2pRequest)` unifica chunky→planar (CPU vía
+   `c2p_1x1_4`/`c2p_1x1_naive`, HOST-218); **pendiente** que un `Rasterizer` con backend
+   sobreescriba la vía Blitter por fases (demo 061/080) y que `Surface` exponga `c2p`.
 4. **`FMODE` por target**: programar 2×/4× según `raster_caps().bus` (AGA) en copias/fills; hoy
    solo se declara la capacidad.
 5. **Demo de `blit_shadow`/`blit_glow`** en un actor real (no solo el host test) e integración en

@@ -18,6 +18,7 @@
 
 #include <eng/core/types.hpp>
 #include <eng/graphics/frame_plan.hpp>
+#include <eng/graphics/pattern_fill.hpp>
 #include <eng/graphics/polygon_planes.hpp>
 
 namespace {
@@ -136,6 +137,25 @@ int main() {
 			      plan.blit_job(0u).kind == eng::graphics::BlitJobKind::PatternFill,
 		      "plan registra PatternFill");
 		check(plan.blit_job(0u).minterm == 0xFCu, "minterm $FC (D=A|D)");
+	}
+
+	// 6) Relleno de patron MULTIFILA (add_rect_pattern): un PatternFill por fila del
+	//    patron, con el modulo de A (repite la fila) y el de D (salta ph filas).
+	{
+		eng::graphics::FramePlan plan {};
+		eng::u16 pat[32] {};
+		const bool ok = eng::graphics::add_rect_pattern(
+			plan, eng::graphics::BlitDest(reinterpret_cast<eng::u16*>(g_dest)),
+			kRow, 0u, 0u, 2u, 8u, pat, 2u, 8u, 2u, kPlane, 1u);
+		check(ok, "add_rect_pattern acepta");
+		check(plan.blit_job_count() == 2u, "2 jobs (una por fila del patron)");
+		check(plan.blit_job(0u).kind == eng::graphics::BlitJobKind::PatternFill &&
+			      plan.blit_job(1u).kind == eng::graphics::BlitJobKind::PatternFill,
+		      "ambos son PatternFill");
+		check(plan.blit_job(0u).source_modulo_bytes == static_cast<eng::s16>(-4),
+		      "modulo A = -words*2 (repite la fila)");
+		check(plan.blit_job(0u).destination_modulo_bytes == static_cast<eng::s16>(4),
+		      "modulo D = ph*row_bytes - words*2");
 	}
 
 	if (failures == 0) {

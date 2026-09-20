@@ -22,6 +22,7 @@
 /// (con rutas de 32 bits / *blit-assist* en 68020+) quedan como extensión del seam.
 
 #include <eng/field/playfield.hpp>
+#include <eng/graphics/c2p.hpp>
 #include <eng/graphics/frame_plan.hpp>
 
 namespace eng::field {
@@ -102,6 +103,18 @@ struct ClipRect {
 	return false;
 }
 
+/// **Conversión chunky→planar** pedida a través del seam: la misma llamada con CPU
+/// (Kalms `c2p_1x1_4`) o Blitter detrás. `chunky` = 1 byte por pixel (nibble bajo =
+/// índice), `planes` = destino planar contiguo, `plane_stride` = bytes entre planos.
+struct C2pRequest {
+	eng::ChunkyView chunky {};
+	eng::PlaneBytes planes {};
+	eng::u32 width = 0;
+	eng::u32 height = 0;
+	eng::u32 plane_stride = 0;
+	eng::u8 plane_count = 4;
+};
+
 /// Interfaz de rasterizado. `Surface` no sabe qué implementación hay detrás.
 class Rasterizer {
 public:
@@ -127,6 +140,10 @@ public:
 				 eng::Span<const eng::u16> mask, eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h,
 				 eng::u16 src_row_bytes, eng::u32 src_plane_stride, eng::u8 planes,
 				 eng::u8 source_shift = 0u) = 0;
+	/// **Chunky→planar** bajo la misma interfaz: la CPU usa el merge de Kalms
+	/// (`c2p_1x1_4`, o `c2p_1x1_naive` para 1..6 planos). Un rasterizador con backend
+	/// Blitter puede sobreescribirla para usar el C2P por fases (demo 061/080).
+	virtual bool c2p(const C2pRequest& req) = 0;
 };
 
 /// Rasterizador **CPU**: relleno por scanline (`Playfield::draw_span_op`, con
@@ -202,6 +219,21 @@ public:
 		(void)plan;
 		(void)source_shift;
 		return pf.copy_masked_cpu(src, mask, x, y, w, h, src_row_bytes, src_plane_stride, planes);
+	}
+	/// Chunky→planar por CPU: `c2p_1x1_4` (4 planos) o `c2p_1x1_naive` (1..6).
+	bool c2p(const C2pRequest& req) override {
+		if (req.chunky.empty() || req.planes.empty() || req.width == 0u ||
+		    req.height == 0u || req.plane_count == 0u) {
+			return false;
+		}
+		if (req.plane_count == 4u) {
+			graphics::c2p_1x1_4(req.width, req.height, req.plane_stride, req.chunky,
+					    req.planes);
+		} else {
+			graphics::c2p_1x1_naive(req.width, req.height, req.plane_count,
+						req.plane_stride, req.chunky, req.planes);
+		}
+		return true;
 	}
 };
 

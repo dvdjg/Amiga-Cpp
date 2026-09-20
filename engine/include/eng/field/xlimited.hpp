@@ -1116,7 +1116,14 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
     /// La fuente viaja como `Span`: se valida que cubra `src_plane_stride*planes`.
     bool add_world_bitmap(graphics::FramePlan& plan, // override de Playfield
                           Span<const u16> src, s32 wx, s32 wy, u16 w, u16 h,
-                          u16 src_row_bytes, u32 src_plane_stride, u8 planes) override {
+                          u16 src_row_bytes, u32 src_plane_stride, u8 planes,
+                          u8 source_shift = 0u, bool descending = false,
+                          RasterOp op = RasterOp::Copy) override {
+        // El layout corkscrew no usa shift fino / descendente / op lógica en el
+        // camino de world bitmap (los consumidores no los pasan); se ignoran.
+        (void)source_shift;
+        (void)descending;
+        (void)op;
         if (!m_initialized || src.empty() || planes == 0) return false;
         if (wx < 0 || (wx & 15) != 0) return false;
         const s32 loop = dmod2(wy);
@@ -1180,7 +1187,8 @@ graphics::BlitJob draw_block_job(u16 x, u16 y, u16 mapx, u16 mapy) const {
     bool add_world_bitmap_masked(graphics::FramePlan& plan, // override de Playfield
                                  Span<const u16> src, Span<const u16> mask, s32 wx, s32 wy,
                                  u16 w, u16 h, u16 src_row_bytes, u32 src_plane_stride,
-                                 u8 planes) override {
+                                 u8 planes, u8 source_shift = 0u) override {
+        (void)source_shift; // el corkscrew no usa shift fino en world bitmap
         if (!m_initialized || src.empty() || mask.empty() || planes == 0) return false;
         if (wx < 0 || (wx & 15) != 0) return false;
         const s32 loop = dmod2(wy);

@@ -150,13 +150,13 @@ public:
 		const u8 src = (m_plane_source[p] < m_res.planes) ? m_plane_source[p] : p;
 		const eng::u8* base = m_buffers[index].view.data();
 		const eng::uintptr want =
-			reinterpret_cast<eng::uintptr>(base) + static_cast<eng::u32>(src) * m_plane_bytes;
+			reinterpret_cast<eng::uintptr>(base) + m_plane_off[src];
 		return display_plane_address(p) == static_cast<u32>(want);
 	}
 	/// Plano `i` del bitmap (layout contiguo; vacío si fuera de rango).
 	[[nodiscard]] constexpr eng::PlaneBytes plane(u8 i) const {
 		return (i < m_res.planes)
-			? bitplanes().subspan(static_cast<eng::u32>(i) * m_plane_bytes, m_plane_bytes)
+			? bitplanes().subspan(m_plane_off[i], m_plane_bytes)
 			: eng::PlaneBytes {};
 	}
 	/// Bytes de un plano completo (`row_bytes * alloc_rows`).
@@ -295,6 +295,15 @@ private:
 		}
 		const u16 alloc_rows = (res.layout == SceneLayout::Interleaved) ? res.height : logical_rows;
 		m_plane_bytes = static_cast<u32>(row) * alloc_rows;
+		// Offsets de plano `p * plane_bytes` por suma (no multiplicación de 32 bits:
+		// `__mulsi3` en 68000). Se usan en el parcheo por frame de `patch_plane_pointers`.
+		{
+			u32 off = 0u;
+			for (u8 p = 0u; p < kMaxScenePlanes; ++p) {
+				m_plane_off[p] = off;
+				off += m_plane_bytes;
+			}
+		}
 		// Doble/triple buffer solo en layout contiguo (la doble buffer se hace parcheando los
 		// BPLxPT; el interleaved usa un único `CanvasPlayfield`).
 		u8 buffers = res.buffers;
@@ -342,7 +351,7 @@ private:
 		u16* words = m_plan.active_words();
 		for (u8 p = 0u; p < m_res.planes; ++p) {
 			const u8 src = (m_plane_source[p] < m_res.planes) ? m_plane_source[p] : p;
-			const eng::u32 off = static_cast<eng::u32>(src) * m_plane_bytes;
+			const eng::u32 off = m_plane_off[src];
 			m_plane_patch[p].apply(words, static_cast<eng::u32>(
 							 reinterpret_cast<eng::uintptr>(addr + off)));
 		}
@@ -354,6 +363,7 @@ private:
 	field::ContiguousPlayfield m_contiguous {}; ///< playfield del layout contiguo (base de `surface()`)
 	copper::Plan m_plan {}; ///< programa de Copper (lista + presupuesto + emisor)
 	u32 m_plane_bytes = 0; ///< bytes de un plano completo (`row_bytes * alloc_rows`)
+	u32 m_plane_off[kMaxScenePlanes] {}; ///< offset de cada plano (`p * m_plane_bytes`, por suma)
 	u8 m_buffer_count = 1; ///< buffers de display en uso (1..`kMaxSceneBuffers`)
 	u8 m_back = 0; ///< índice del buffer trasero (el que se dibuja/publica)
 	Patch32 m_plane_patch[kMaxScenePlanes] {}; ///< parcheo `BPLxPT` por registro (doble/triple buffer)
