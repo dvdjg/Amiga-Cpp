@@ -252,6 +252,7 @@ struct FireDemo {
 		// etapas (display + palette + reverse_ptrs + row_repeat); no calcula
 		// DIW/DDF ni palabras de Copper ni reserva bitplanes.
 		scene::SceneResources res = scene::planar(kScreenW, kScreenH, kPlanes);
+		res.mode = scene::SceneMode::Ham; // HAM6 (los 2 bits HAM fijos van por set_bitplane_dat)
 		res.rows = kHeight; // bitmap de `kHeight` filas logicas; row_repeat las cuadruplica
 		res.buffers = static_cast<eng::u8>(K_080_BUFFERS);
 		if (!scene::compose(m_scene, backend.memory(), res,

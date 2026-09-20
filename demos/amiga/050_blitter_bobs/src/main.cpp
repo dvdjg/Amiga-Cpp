@@ -207,7 +207,8 @@ struct DemoGame {
 			4u * 1024u,
 		});
 
-		const scene::SceneResources res = scene::planar(320u, 256u, 6);
+		scene::SceneResources res = scene::planar(320u, 256u, 6);
+		res.mode = scene::SceneMode::Ehb;
 
 		m_scene_ok = scene::compose(m_scene, backend.memory(), res,
 				    scene::ocs_a500,

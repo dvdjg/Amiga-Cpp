@@ -136,19 +136,25 @@ declarado por la máquina y la validación es agnóstica.
                         └─ runtime                  → init/compose(..., limits) + config_error()
 ```
 
-- **`DisplayLimits`**: qué admite el backend (ancho mín/máx/granularidad, altura, planos
-  normal/DPF/HAM/EHB, modos soportados, buffers). Perfiles como **datos**:
-  `ocs_a500`, `ecs`, `aga_a1200` (`aga_a1200.max_planes = 8`, `max_planes_dpf = 4`, HAM8).
-  Otro backend (Mega Drive, Neo Geo) declara el suyo.
+- **`DisplayLimits`**: qué admite el backend. Cubre **fetch horizontal** (`DDFSTRT` mín
+  `0x18`, `DDFSTOP` máx `0xD8`, ≤ 25 palabras lores = 400 px fetchables, 368 px visibles por
+  blanking — AHRM Tabla 3-14), altura (PAL 256), planos **por modo**
+  (normal/DPF/HAM/EHB), modos soportados y buffers. Perfiles como **datos**: `ocs_a500`
+  (6 planos, DPF 3+3, HAM6/EHB6), `ecs`, `aga_a1200` (8 planos, DPF 4+4, HAM8). Otro backend
+  (Mega Drive, Neo Geo) declara el suyo.
+- **`SceneMode`** (`Standard`/`Ham`/`Ehb`/`DualPlayfield`) en `SceneResources`: determina qué
+  límite de planos aplica (p. ej. DPF en OCS = 3+3; HAM6/EHB = 6; HAM8 en AGA = 8) y qué
+  `BPLCON0` genera `bplcon0_for(mode, planes)`.
+- **Geometría derivada**: `geometry_for(res)` produce DIW/DDF coherentes con `width` (DDF
+  estándar `0x38` + palabras de fetch) si `res` no los especifica; la etapa
+  `display(res, bplcon0=0)` usa `geometry_for` + `bplcon0_for(mode, planes)`.
 - **Estática (compilación)**: `consteval bool valid_scene(res, limits)` → `static_assert`
   cuando la config se conoce al compilar:
   `static_assert(scene::valid_scene(scene::planar(288, 256, 4), scene::ocs_a500));`
+  (336 es válido; 384 supera los 368 visibles; 300 no es múltiplo de 16; 7 planos exigen AGA).
 - **Dinámica (ejecución)**: `compose(scene, mem, res, limits, etapas...)` valida antes de
-  reservar; el rechazo queda en `scene.config_error()` (`code` + `message`, para depurar).
-- Restricciones reales (ver `docs/reference/amiga/hardware/amiga-chipset-matrix.md` y
-  `.../techniques/amiga-display-setup-checklist.md`): en OCS lores `DDFSTOP ≤ 0xD0` acota el
-  ancho a **320 px** (288 válido, 336 no); DPF reparte 3+3 planos; HAM6/EHB = 6; AGA sube a
-  8 planos y 4+4 en DPF. Las no obvias se amplían ahí, con el motivo del rechazo.
+  reservar; el rechazo queda en `scene.config_error()` (`code` + `message`), con código por
+  causa (1 ancho, 4 alto, 5 planos, 8/9 modo, 10 DDF…).
 
 ## 7. Relación con lo que ya existe
 

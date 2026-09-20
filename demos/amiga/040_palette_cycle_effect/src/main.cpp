@@ -137,12 +137,13 @@ struct DemoGame {
 		for (eng::usize i = 0; i < gfx_zone_count; ++i) {
 			gfx_zones[i] = scene::PaletteZone {palette_zones[i].line, eng::PaletteWords {palette_zones[i].palette->color, 32u}, 0u, 32u};
 		}
-		const scene::SceneResources res = scene::planar(320u, 256u, 6);
+		scene::SceneResources res = scene::planar(320u, 256u, 6);
+		res.mode = scene::SceneMode::Ehb;
 		m_scene_ok = scene::compose(m_scene, backend.memory(), res,
 				    scene::ocs_a500,
-					    scene::display(scene::kPal320x256, scene::kBplcon0_Ehb),
-					    scene::palette_patchable(eng::PaletteWords {source_palette.color, 32u}, 0u, 32u, &m_base_zone),
-					    scene::palette_zones(eng::Span<const scene::PaletteZone> {gfx_zones, gfx_zone_count}));
+				    scene::display(scene::kPal320x256, scene::kBplcon0_Ehb),
+				    scene::palette_patchable(eng::PaletteWords {source_palette.color, 32u}, 0u, 32u, &m_base_zone),
+				    scene::palette_zones(eng::Span<const scene::PaletteZone> {gfx_zones, gfx_zone_count}));
 		if (m_scene.ok()) {
 			build_cycle_test_pattern(m_scene.bitplanes());
 			m_scene.takeover(backend);

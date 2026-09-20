@@ -170,7 +170,8 @@ struct DemoGame {
 			return;
 		}
 
-		const gfx::SceneResources res = gfx::planar(320u, 256u, 6);
+		gfx::SceneResources res = gfx::planar(320u, 256u, 6);
+		res.mode = gfx::SceneMode::Ehb;
 		if (!gfx::compose(m_scene, backend.memory(), res,
 				    gfx::ocs_a500,
 				    gfx::display(gfx::kPal320x256, gfx::kBplcon0_Ehb),

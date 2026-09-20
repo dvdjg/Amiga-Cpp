@@ -203,23 +203,40 @@ int main() {
 						   graphics::scene::ocs_a500));
 	static_assert(graphics::scene::valid_scene(graphics::scene::planar(288, 256, 4),
 						   graphics::scene::ocs_a500));
-	// 336 no es valido en OCS (fetch > 0xD0); 7 planos tampoco; 320 con 7 planos en AGA si.
-	static_assert(!graphics::scene::valid_scene(graphics::scene::planar(336, 256, 4),
+	// 336 cabe en el fetch hw (21 palabras <= 25) pero no en los 368 px visibles... en
+	// realidad 336 < 368, si es visible; 384 supera 368 y no es valido en OCS.
+	static_assert(graphics::scene::valid_scene(graphics::scene::planar(336, 256, 4),
+						   graphics::scene::ocs_a500));
+	static_assert(!graphics::scene::valid_scene(graphics::scene::planar(384, 256, 4),
+						    graphics::scene::ocs_a500));
+	// 300 no es valido: no es multiplo de 16. 7 planos tampoco en OCS; en AGA si.
+	static_assert(!graphics::scene::valid_scene(graphics::scene::planar(300, 256, 4),
 						    graphics::scene::ocs_a500));
 	static_assert(!graphics::scene::valid_scene(graphics::scene::planar(320, 256, 7),
 						    graphics::scene::ocs_a500));
 	static_assert(graphics::scene::valid_scene(graphics::scene::planar(320, 256, 7),
 						   graphics::scene::aga_a1200));
 
+	// HAM/EHB/DPF: los planos del modo se validan aparte.
+	{
+		constexpr graphics::scene::SceneResources ham = [] { auto r = graphics::scene::planar(320, 256, 6); r.mode = graphics::scene::SceneMode::Ham; return r; }();
+
+		static_assert(graphics::scene::valid_scene(ham, graphics::scene::ocs_a500));
+		constexpr graphics::scene::SceneResources dpf = [] { auto r = graphics::scene::planar(320, 256, 4); r.mode = graphics::scene::SceneMode::DualPlayfield; return r; }();
+
+		// DPF en OCS admite 3+3: 4 planos por PF no es valido.
+		static_assert(!graphics::scene::valid_scene(dpf, graphics::scene::ocs_a500));
+	}
+
 	// Dinamica (runtime): el rechazo queda en `config_error()`.
 	{
 		graphics::scene::Scene bad;
-		graphics::scene::SceneResources wide = graphics::scene::planar(336, 256, 4);
+		graphics::scene::SceneResources wide = graphics::scene::planar(384, 256, 4);
 		const bool okw = graphics::scene::compose(
 			bad, mem, wide, graphics::scene::ocs_a500,
 			graphics::scene::display(graphics::scene::kPal320x256,
 						 graphics::scene::kBplcon0_4Planes));
-		check(!okw, "compose rechaza width=336 en OCS");
+		check(!okw, "compose rechaza width=384 en OCS (>368 visibles)");
 		check(!bad.config_error().ok(), "config_error marca el rechazo");
 
 		graphics::scene::Scene rec;

@@ -30,6 +30,16 @@ enum class SceneLayout : eng::u8 {
 	Interleaved = 1, ///< fila a fila con los N planos (el que espera `CanvasPlayfield`)
 };
 
+/// **Modo de playfield**: determina qué límites de planos y fetch aplican (y qué `BPLCON0`).
+/// No es "cómo se programa" (eso lo hace la etapa `display`), sino el contrato que valida
+/// `validate()`.
+enum class SceneMode : eng::u8 {
+	Standard = 0,     ///< playfield normal (color indexado, N planos)
+	Ham = 1,          ///< HAM (OCS/ECS HAM6 = 6 planos; AGA HAM8 = 8)
+	Ehb = 2,          ///< extra half-brite (6 planos)
+	DualPlayfield = 3 ///< doble playfield (planos repartidos entre los dos PF)
+};
+
 /// **Recursos** que una escena planar necesita (plano de recursos del modelo).
 struct SceneResources {
 	u16 width = 320;   ///< ancho visible (múltiplo de 16)
@@ -37,9 +47,16 @@ struct SceneResources {
 	u16 rows = 0;      ///< filas lógicas del bitmap (0 = igual a `height`)
 	u8 planes = 4;     ///< planos de bitplane
 	SceneLayout layout = SceneLayout::Contiguous; ///< disposición de los bitplanes
+	SceneMode mode = SceneMode::Standard; ///< modo de playfield (valida planos/fetch por modo)
 	u8 buffers = 1;    ///< nº de buffers de display (1/2/3); >1 = doble/triple buffer
 	u32 copper_bytes = 4096; ///< capacidad de la copperlist (bytes) reservada en Chip
 	u16 first_line = 0x2c; ///< línea de raster donde arranca la ventana visible (Plan)
+
+	// --- Geometría de display (0 = derivar de `width`/`height`) ----------------------
+	u16 diwstrt = 0;   ///< DIWSTRT del display (0 = derivar); la etapa `display` lo recibe
+	u16 diwstop = 0;   ///< DIWSTOP del display (0 = derivar)
+	u16 ddfstrt = 0;   ///< DDFSTRT del fetch (0 = derivar); en lores OCS estándar = 0x0038
+	u16 ddfstop = 0;   ///< DDFSTOP del fetch (0 = derivar); en lores OCS estándar = 0x00d0
 };
 
 /// Rechazo de una configuración de display (código + mensaje legible).
@@ -53,19 +70,28 @@ struct ConfigError {
 
 /// **Capacidades de display de una máquina/backend**: qué geometrías y modos admite.
 /// Cada backend declara el suyo; el engine valida contra él sin conocer el hardware.
+///
+/// Los valores por defecto son de **OCS lores**. Fuente: AHRM 3.ª ed., "Playfield Hardware"
+/// Tabla 3-14 (límites hw de DDF: `DDFSTRT ≥ 0x18`, `DDFSTOP ≤ 0xD8`, ≤ 25 palabras lores) y
+/// Tabla 3-13 (líneas visibles PAL/NTSC); y `docs/reference/amiga/hardware/amiga-chipset-matrix.md`.
 struct DisplayLimits {
 	/// Nombre del perfil (depuración/informe).
 	const char* name = "generic";
 
-	// --- Fetch / anchura visible (palabras de 16 px por unidad de DDF en lores) ------
-	u16 min_width = 16;   ///< ancho mínimo en píxeles (≥ 1 palabra de fetch)
-	u16 max_width = 320;  ///< ancho máximo por playfield (lores OCS: DDFSTOP≤0xD0 → 320)
-	u16 width_granularity = 16; ///< el ancho debe ser múltiplo de esto (fetch bajo = 16 px)
+	// --- Fetch horizontal (palabras de 16 px en lores) --------------------------------
+	u16 fetch_strt_min = 0x0018u; ///< DDFSTRT mínimo admisible por el hardware
+	u16 fetch_stop_max = 0x00d8u; ///< DDFSTOP máximo admisible por el hardware
+	u16 fetch_strt_std = 0x0038u; ///< DDFSTRT estándar lores (referencia de `width` estándar)
+	u16 fetch_stop_std = 0x00d0u; ///< DDFSTOP estándar lores (21 palabras = 336 px de fetch)
+	u8 max_fetch_words = 25;      ///< palabras de fetch máximas por línea en lores
+	u16 min_width = 16;           ///< ancho mínimo en píxeles de una escena
+	u16 max_width = 400;          ///< ancho máximo *fetchable* lores (25 palabras); visible ≤ 368
 
-	// --- Altura ----------------------------------------------------------------------
-	u16 max_height = 256; ///< líneas visibles máximas (PAL: 256)
+	// --- Ventana visible --------------------------------------------------------------
+	u16 max_visible_pixels = 368; ///< píxeles visibles máximos por línea (blanking hw, lores)
+	u16 max_height = 256;         ///< líneas visibles máximas del display (PAL: 256)
 
-	// --- Bitplanes -------------------------------------------------------------------
+	// --- Bitplanes por modo -----------------------------------------------------------
 	u8 max_planes = 6;    ///< planos máximos por playfield sin modos especiales (OCS lores)
 	u8 max_planes_dpf = 3;///< planos máximos por playfield en **dual playfield** (OCS: 3+3)
 	u8 max_planes_ham = 6;///< planos para HAM (OCS/ECS HAM6 = 6; AGA HAM8 = 8)
@@ -88,29 +114,29 @@ struct DisplayLimits {
 /// **OCS** (A500/A1000/A2000): 6 planos lores, DPF 3+3, HAM6/EHB6, sin AGA.
 inline constexpr DisplayLimits ocs_a500 {
 	"OCS/A500",
-	16, 320, 16,     // fetch: ancho 16..320, múltiplo de 16
-	256,             // altura
-	6, 3, 6, 6,      // planos: normal/DPF/HAM/EHB
-	true, true, true, false, // HAM/EHB/DPF sí, AGA no
-	3,               // buffers
+	0x0018u, 0x00d8u, 0x0038u, 0x00d0u, 25, 16, 400, // fetch / ancho
+	368, 256,                                          // visible / alto
+	6, 3, 6, 6,                                        // planos: normal/DPF/HAM/EHB
+	true, true, true, false,                           // HAM/EHB/DPF sí, AGA no
+	3,                                                 // buffers
 };
 
-/// **ECS** (A500+/A600/A3000): como OCS en lores, más chip RAM y modos producto; aquí el
-/// display lores comparte límites con OCS (los modos ECS de mayor ancho son opcionales).
+/// **ECS** (A500+/A600/A3000): como OCS en lores (los modos ECS de mayor ancho son
+/// producto; aquí el display base comparte límites OCS).
 inline constexpr DisplayLimits ecs {
 	"ECS",
-	16, 320, 16,
-	256,
+	0x0018u, 0x00d8u, 0x0038u, 0x00d0u, 25, 16, 400,
+	368, 256,
 	6, 3, 6, 6,
 	true, true, true, false,
 	3,
 };
 
-/// **AGA** (A1200/A4000/CD32): hasta 8 planos, HAM8, 24-bit; DPF más flexible.
+/// **AGA** (A1200/A4000/CD32): hasta 8 planos, HAM8, DPF 4+4, 24-bit, FMODE.
 inline constexpr DisplayLimits aga_a1200 {
 	"AGA/A1200",
-	16, 320, 16,
-	256,
+	0x0018u, 0x00d8u, 0x0038u, 0x00d0u, 25, 16, 400,
+	368, 256,
 	8, 4, 8, 6,      // hasta 8 planos; DPF hasta 4+4; HAM8 = 8
 	true, true, true, true,
 	3,
@@ -120,23 +146,26 @@ inline constexpr DisplayLimits aga_a1200 {
 // Validación en tiempo de compilación (consteval) y de ejecución (constexpr).
 // ---------------------------------------------------------------------------------------
 
-/// Comprueba `res` contra `l`. `mode_planes` es el nº de planos del modo especial si aplica
-/// (HAM/EHB); se pasa como `res.planes`, así que basta con validar el rango normal.
+/// Comprueba `res` contra el perfil `l`. Devuelve el **primer** motivo de rechazo
+/// (código/mensaje); `ok()` si la configuración es admisible. Es `constexpr`, así que sirve
+/// tanto para `static_assert` (config conocida en compilación) como para el chequeo runtime.
 ///
-/// Devuelve el **primer** motivo de rechazo (código/mensaje); `ok()` si la configuración es
-/// admisible. Un solo `constexpr` sirve a la vez para `static_assert` (config conocida en
-/// compilación) y para el chequeo en runtime (config calculada).
+/// Códigos: 1 ancho no múltiplo de 16 · 2/3 ancho fuera de rango · 4 alto · 5 planos ·
+/// 6 filas lógicas · 7 buffers · 8 modo no soportado · 9 planos del modo · 10 DDF incoherente.
 [[nodiscard]] constexpr ConfigError validate(const SceneResources& res,
 					     const DisplayLimits& l) {
-	// 1) Anchura: múltiplo de la granularidad de fetch y dentro del rango del backend.
-	if (res.width == 0u || (res.width % l.width_granularity) != 0u) {
-		return {1u, "width debe ser multiplo de la granularidad de fetch (16 px)"};
+	// 1) Anchura: múltiplo de la palabra de fetch (16 px), dentro del rango fetchable/visible.
+	if (res.width == 0u || (res.width % 16u) != 0u) {
+		return {1u, "width debe ser multiplo de 16 (palabra de fetch lores)"};
 	}
 	if (res.width < l.min_width) {
 		return {2u, "width por debajo del minimo del backend"};
 	}
 	if (res.width > l.max_width) {
-		return {3u, "width por encima del maximo del backend (OCS lores: 320)"};
+		return {3u, "width por encima del maximo fetchable del backend (OCS lores: 400)"};
+	}
+	if (res.width > l.max_visible_pixels) {
+		return {3u, "width supera los pixeles visibles del backend (blanking, OCS lores: 368)"};
 	}
 
 	// 2) Altura.
@@ -144,21 +173,70 @@ inline constexpr DisplayLimits aga_a1200 {
 		return {4u, "height fuera de rango del backend"};
 	}
 
-	// 3) Planos: por playfield, y por modo especial.
-	if (res.planes == 0u || res.planes > l.max_planes) {
-		return {5u, "nº de planos por encima del maximo del backend"};
-	}
-	if (res.planes > l.max_planes_ham && res.planes == l.max_planes_ham + 1u) {
-		// permite exactamente el máximo de HAM; valores por encima ya se rechazaron arriba
-	}
-
-	// 4) Filas lógicas: no pueden superar la altura física del display salvo cuadruplicado
-	//    (el bitmap puede ser más bajo: `rows <= height`).
+	// 3) Filas lógicas: no pueden superar la altura física del display (el bitmap puede ser
+	//    más bajo: `rows <= height`, p. ej. para cuadruplicado).
 	if (res.rows != 0u && res.rows > res.height) {
 		return {6u, "rows (filas logicas) no puede superar height"};
 	}
 
-	// 5) Buffers de display.
+	// 4) Planos: normal y por modo (HAM/EHB/DPF).
+	if (res.planes == 0u || res.planes > l.max_planes) {
+		return {5u, "nº de planos por encima del maximo del backend"};
+	}
+	switch (res.mode) {
+		case SceneMode::Standard:
+			break;
+		case SceneMode::Ham:
+			if (!l.supports_ham) {
+				return {8u, "el backend no soporta HAM"};
+			}
+			if (res.planes > l.max_planes_ham) {
+				return {9u, "nº de planos por encima del maximo de HAM del backend"};
+			}
+			break;
+		case SceneMode::Ehb:
+			if (!l.supports_ehb) {
+				return {8u, "el backend no soporta EHB"};
+			}
+			if (res.planes > l.max_planes_ehb) {
+				return {9u, "nº de planos por encima del maximo de EHB del backend"};
+			}
+			break;
+		case SceneMode::DualPlayfield:
+			if (!l.supports_dpf) {
+				return {8u, "el backend no soporta dual playfield"};
+			}
+			if (res.planes > l.max_planes_dpf) {
+				return {9u, "nº de planos por encima del maximo de dual playfield del backend"};
+			}
+			break;
+	}
+	// Cualquier plano > 6 exige AGA (capacidades extendidas).
+	if (res.planes > 6u && !l.supports_aga) {
+		return {5u, "nº de planos > 6 requiere AGA"};
+	}
+
+	// 5) DDF coherente con el ancho (solo si se especifica; 0 = derivar). El fetch en lores
+	//    es `2 + (ddfstop - ddfstrt)/2 * 2 = 2 + (ddfstop-ddfstrt)` palabras de 2 bytes, es
+	//    decir palabras = 1 + (ddfstop - ddfstrt)/2 * ... ; la comprobación práctica: el fetch
+	//    debe cubrir el ancho pedido y respetar los límites hw de DDFSTRT/DDFSTOP.
+	if (res.ddfstrt != 0u || res.ddfstop != 0u) {
+		if (res.ddfstrt < l.fetch_strt_min || res.ddfstop > l.fetch_stop_max ||
+		    res.ddfstop <= res.ddfstrt) {
+			return {10u, "DDFSTRT/DDFSTOP fuera de los limites hw del backend"};
+		}
+		// Palabras de fetch = 1 + (ddfstop - ddfstrt) / 2  (cada paso de DDF = 1 palabra).
+		const u16 fetch_words =
+			static_cast<u16>(1u + (static_cast<u16>(res.ddfstop - res.ddfstrt) / 2u));
+		if (fetch_words > l.max_fetch_words) {
+			return {10u, "DDFSTRT/DDFSTOP superan las palabras de fetch maximas del backend"};
+		}
+		if (static_cast<u32>(fetch_words) * 16u < res.width) {
+			return {10u, "DDFSTRT/DDFSTOP no cubren el ancho pedido"};
+		}
+	}
+
+	// 6) Buffers de display.
 	if (res.buffers == 0u || res.buffers > l.max_buffers) {
 		return {7u, "nº de buffers de display fuera de rango del backend"};
 	}

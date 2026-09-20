@@ -110,6 +110,7 @@ struct ChessGame {
 			0x000, 0x000, 0xf40, 0x000, 0x000, 0x000, 0xff0, 0xfff,
 		};
 		scene::SceneResources res = scene::planar(320, 256, 6);
+		res.mode = scene::SceneMode::Ehb;
 		m_scene_ok = scene::compose(m_scene, backend.memory(), res,
 				    scene::ocs_a500,
 					scene::display(scene::kPal320x256, scene::kBplcon0_Ehb),

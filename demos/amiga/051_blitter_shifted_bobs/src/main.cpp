@@ -139,7 +139,8 @@ struct DemoGame {
 			return;
 		}
 
-		const scene::SceneResources res = scene::planar(320u, 256u, 6);
+		scene::SceneResources res = scene::planar(320u, 256u, 6);
+		res.mode = scene::SceneMode::Ehb;
 
 		if (!scene::compose(m_scene, backend.memory(), res,
 				    scene::ocs_a500,

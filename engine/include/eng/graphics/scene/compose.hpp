@@ -215,6 +215,8 @@ public:
 	[[nodiscard]] constexpr u16 rows() const { return m_res.rows != 0u ? m_res.rows : m_res.height; }
 	/// Disposición de los bitplanes (contiguos o interleaved).
 	[[nodiscard]] constexpr SceneLayout layout() const { return m_res.layout; }
+	/// Recursos de la escena (geometría, modo, layout, buffers) tal como se configuraron.
+	[[nodiscard]] constexpr const SceneResources& resources() const { return m_res; }
 	/// Playfield (solo layout interleaved): base de `surface()`.
 	[[nodiscard]] field::CanvasPlayfield& playfield() { return m_playfield; }
 	/// Playfield (versión const, solo lectura).
@@ -400,6 +402,43 @@ inline constexpr u16 kBplcon0_4PlanesNoColor = 0x4000; ///< 4 planos, sin COLOR
 inline constexpr u16 kBplcon0_Ehb = 0x6200;          ///< EHB (6 planos, COLOR)
 inline constexpr u16 kBplcon0_Ham6 = 0x7a00;         ///< HAM6 (6 planos, COLOR, HAM)
 
+/// `BPLCON0` coherente con `mode` y `planes` (BPU = nº de planos, COLOR, y HAM/EHB si
+/// aplica). Evita cablear el registro en cada demo; para el caso estándar de 4 planos da
+/// `0x4200`. No cubre AGA (BPLCON3/FMODE aparte).
+[[nodiscard]] constexpr u16 bplcon0_for(SceneMode mode, u8 planes) {
+	const u16 bpu = static_cast<u16>((static_cast<u16>(planes) & 0x7u) << 12u);
+	constexpr u16 kColor = 0x0200u; ///< bit COLOR (color indexado)
+	constexpr u16 kHam = 0x0800u;   ///< bit HAM
+	constexpr u16 kEhb = 0x0040u;   ///< BPU bit 0 extra para 6 planos (EHB usa BPU=6)
+	switch (mode) {
+		case SceneMode::Ham:
+			return static_cast<u16>(bpu | kColor | kHam);
+		case SceneMode::Ehb:
+			return static_cast<u16>(bpu | kColor | kEhb);
+		default:
+			return static_cast<u16>(bpu | kColor);
+	}
+}
+
+/// **Geometría de display** coherente con los recursos (DIW/DDF). Si `res` la especifica
+/// (campos != 0) se respeta; si no, se deriva del ancho estándar lores: DIW `0x2c81/0x2cc1`
+/// y DDF `0x0038` + palabras de fetch del ancho. Es lo que consume la etapa `display`.
+[[nodiscard]] constexpr DisplayGeometry geometry_for(const SceneResources& res) {
+	DisplayGeometry g {};
+	g.diwstrt = (res.diwstrt != 0u) ? res.diwstrt : 0x2c81u;
+	g.diwstop = (res.diwstop != 0u) ? res.diwstop : 0x2cc1u;
+	if (res.ddfstrt != 0u || res.ddfstop != 0u) {
+		g.ddfstrt = res.ddfstrt;
+		g.ddfstop = res.ddfstop;
+	} else {
+		g.ddfstrt = 0x0038u;
+		// Cada paso de DDF (2 bytes) añade 1 palabra de fetch (16 px). Para cubrir `width`:
+		const u16 words = static_cast<u16>((res.width + 15u) / 16u);
+		g.ddfstop = static_cast<u16>(g.ddfstrt + 2u * (words - 1u));
+	}
+	return g;
+}
+
 /// Etapa de **display**: BPLCON0, DIW/DDF y punteros BPLxPT. Con layout `Interleaved` usa
 /// los módulos del `CanvasPlayfield` (un plano por fila) y expone `surface()`; con
 /// `Contiguous` usa `emit_planes_display` (un plano tras otro).
@@ -460,6 +499,15 @@ inline constexpr u16 kBplcon0_Ham6 = 0x7a00;         ///< HAM6 (6 planos, COLOR,
 /// Etapa de **display** con geometría predefinida (`kPal320x256`).
 [[nodiscard]] inline auto display(DisplayGeometry g, u16 bplcon0) {
 	return display(g.diwstrt, g.diwstop, g.ddfstrt, g.ddfstop, bplcon0);
+}
+
+/// Etapa de **display** desde los recursos de la escena: deriva la geometría
+/// (`geometry_for`) y usa `bplcon0_for(mode, planes)` si `bplcon0 == 0`. Es la forma
+/// recomendada: la demo describe la escena y el `mode`, no los registros.
+[[nodiscard]] inline auto display(const SceneResources& res, u16 bplcon0 = 0u) {
+	const DisplayGeometry g = geometry_for(res);
+	const u16 con = (bplcon0 != 0u) ? bplcon0 : bplcon0_for(res.mode, res.planes);
+	return display(g.diwstrt, g.diwstop, g.ddfstrt, g.ddfstop, con);
 }
 
 /// Etapa de **paleta**: carga `count` colores desde `first`.
