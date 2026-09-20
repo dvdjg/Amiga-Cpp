@@ -58,15 +58,18 @@ backend host (sin Blitter) declara `RasterCaps{ .blitter = false }` y se usa `kC
   Blitter y EOR/ONEDOT** (`BlitJobKind::Line`/`LineEor` + `Rasterizer::draw_line`, con recorte
   de segmento), copia CPU (32 bits) y Blitter con `source_shift`/`descending`, **blit lógico**
   (`BlitJobKind::LogicBlit`, `B = D` + minterm: sombras/glow/máscaras), copia enmascarada CPU y
-  Blitter, y **colisión pixel-perfect** (`field::collide_cpu` + `MinimalBackend::blitter_collide`,
-  verificada en hardware por el self-test de 077); `install_raster` con `RasterCaps` OCS/AGA por
-  target; `row_bytes` alineado a 4.
+  Blitter, **blit lógico** (`BlitJobKind::LogicBlit`, `B = D` + minterm: `Surface::blit_shadow`
+  `$C0` / `blit_glow` `$FC`), copia enmascarada CPU y Blitter, y **colisión pixel-perfect**
+  (`field::collide_cpu` + `MinimalBackend::blitter_collide`, verificada en hardware por el
+  self-test de 077); `install_raster` con `RasterCaps` OCS/AGA por target; `row_bytes` a 4.
 - **Operaciones Blitter que aún NO cubre el seam** (ver `frame_plan.hpp`/AHRM cap. 6):
   - **Relleno con patrón** (suelos/techos 3D): `fill_polygon` con una fuente de patrón en vez de
-    color plano.
+    color plano; requiere un `BlitJob` de fill con canal de patrón (más complejo que el FILL_OR
+    actual).
   - **C2P** (chunky→planar): uso especializado multi-fase del Blitter (ver `C2P_BLITTER.md`).
   - **Línea EOR en lote**: el backend ya fija los comunes una vez por racha `LineEor` (077 la
-    ejercita); migrar 116 al seam queda pendiente por su ruta asm/buffers.
+    ejercita). La demo 116 **no** se migra: su ruta por defecto ya es una utilidad del engine
+    (`retro::flat_shade_xor`, HOST-213) y las rutas `draw_edges`/asm son opt-in de diagnóstico.
 
 ## Verificación
 

@@ -242,6 +242,22 @@ public:
                                        source_shift, descending, op);
     }
 
+    /// **Sombra** (oscurece donde la máscara de `src` está a 1): `blit` con `RasterOp::And`.
+    /// Requiere rasterizador Blitter (la CPU no aplica la operación lógica).
+    bool blit_shadow(graphics::FramePlan& plan, Span<const u16> src, s32 x, s32 y,
+                     u16 w, u16 h, u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
+        return blit(plan, src, x, y, w, h, src_row_bytes, src_plane_stride, planes, 0u, false,
+                    RasterOp::And);
+    }
+
+    /// **Glow/aditivo** (ilumina donde la máscara de `src` está a 1): `blit` con `RasterOp::Or`.
+    /// Requiere rasterizador Blitter (la CPU no aplica la operación lógica).
+    bool blit_glow(graphics::FramePlan& plan, Span<const u16> src, s32 x, s32 y,
+                   u16 w, u16 h, u16 src_row_bytes, u32 src_plane_stride, u8 planes) {
+        return blit(plan, src, x, y, w, h, src_row_bytes, src_plane_stride, planes, 0u, false,
+                    RasterOp::Or);
+    }
+
     /// BOB enmascarado (cookie-cut) en el mundo, recortado contra el clip.
     bool blit_masked(graphics::FramePlan& plan, Span<const u16> src, Span<const u16> mask,
                      s32 x, s32 y, u16 w, u16 h,

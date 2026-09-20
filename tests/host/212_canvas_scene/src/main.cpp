@@ -245,6 +245,19 @@ int main() {
 		      or_plan.blit_job(0).kind == graphics::BlitJobKind::LogicBlit,
 	      "blit Or usa BlitJobKind::LogicBlit");
 
+	// Azucar de alto nivel: sombra (And) y glow (Or).
+	graphics::FramePlan shadow_plan {};
+	check(ksurf.blit_shadow(shadow_plan, Span<const u16> {src, 64}, 0, 64, 32, 4, 4, 16, 4),
+	      "blit_shadow encola");
+	check(shadow_plan.blit_job_count() == 4u &&
+		      shadow_plan.blit_job(0).kind == graphics::BlitJobKind::LogicBlit &&
+		      shadow_plan.blit_job(0).minterm == 0xC0u,
+	      "blit_shadow usa LogicBlit con minterm $C0 (A&B)");
+	graphics::FramePlan glow_plan {};
+	check(ksurf.blit_glow(glow_plan, Span<const u16> {src, 64}, 0, 64, 32, 4, 4, 16, 4),
+	      "blit_glow encola");
+	check(glow_plan.blit_job(0).minterm == 0xFCu, "blit_glow usa minterm $FC (A|B)");
+
 	// Colision pixel-perfect por CPU (referencia del camino Blitter).
 	{
 		eng::u8 ma[64] = {};
