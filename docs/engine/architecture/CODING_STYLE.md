@@ -27,6 +27,14 @@ abstraccion, pero sin perder control sobre memoria, coste y layout.
   documentan **parámetros de entrada y de salida** (incluido el valor de retorno y su rango).
 - **Estructuras y clases auxiliares, constantes, variables globales, macros y `enum`** también
   llevan su comentario (cometido y, si aplica, unidades/rango/layout/ABI).
+- **Miembros de clase: uno a uno, todos documentados.** Cada **método** (público o privado) y cada
+  **dato miembro** (público, protegido o privado) lleva **su propia descripción** de al menos una
+  línea, aunque el nombre parezca obvio; igual para **constantes** (`constexpr`/`static constexpr`),
+  **variables estáticas** (de clase o de función) y **campos de `struct`**. No se admite un miembro
+  sin comentario (p. ej. `m_buffer_count`, handles, contadores, punteros de estado): describe qué
+  guarda, su rango/unidades y, si aplica, su relación con el layout/hardware. Un grupo de miembros
+  homogéneo puede documentarse con un comentario de bloque **siempre que** cada campo quede
+  explicitado (no vale un comentario que solo cubra el primero).
 - **Bug arreglado u optimización**: se documenta **en el código** (y en el commit) *por qué* se
   hizo así, para que una refactorización futura **no lo deshaga** (p. ej. "no copiar 512 B por
   frame: `retarget`"; "no zero-init de la timeline: bitset de tocadas").

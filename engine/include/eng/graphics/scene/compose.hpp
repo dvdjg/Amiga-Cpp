@@ -56,7 +56,7 @@ struct SceneResources {
 	u8 planes = 4;     ///< planos de bitplane
 	SceneLayout layout = SceneLayout::Contiguous; ///< disposición de los bitplanes
 	u8 buffers = 1;    ///< nº de buffers de display (1/2/3); >1 = doble/triple buffer
-	u32 copper_bytes = 4096;
+	u32 copper_bytes = 4096; ///< capacidad de la copperlist (bytes) reservada en Chip
 	u16 first_line = 0x2c; ///< línea de raster donde arranca la ventana visible (Plan)
 };
 
@@ -68,9 +68,10 @@ inline constexpr u8 kMaxScenePlanes = 6;  ///< planos de bitplane
 /// `BPLxPTH` + `BPLxPTL` o un parámetro de 32 bits. Es el caso **multi-registro** de la base
 /// común: un valor lógico que ocupa varios MOVEs.
 struct Patch32 {
-	copper::PatchHandle hi {};
-	copper::PatchHandle lo {};
+	copper::PatchHandle hi {}; ///< MOVE de la mitad alta (p. ej. `BPLxPTH`)
+	copper::PatchHandle lo {}; ///< MOVE de la mitad baja (p. ej. `BPLxPTL`)
 
+	/// Escribe `value` repartido en `hi`/`lo` (parcheo de 32 bits en dos MOVEs).
 	void set(eng::u32 value) const {
 		hi.set(static_cast<u16>(value >> 16));
 		lo.set(static_cast<u16>(value & 0xffffu));
@@ -86,6 +87,8 @@ struct Patch32 {
 /// No reserva al sistema más que a través de la `MemorySystem` del backend.
 class Scene {
 public:
+	/// Crea la escena: reserva los bitplanes (según `res`) y la copperlist en Chip RAM.
+	/// Devuelve `false` si la geometría o la memoria no son válidas.
 	bool init(MemorySystem& memory, const SceneResources& res) {
 		m_res = res;
 		const u16 row = row_bytes();
@@ -130,17 +133,23 @@ public:
 	/// Cierra el programa (orden + presupuesto) y voltea el buffer. `false` si no cupo.
 	[[nodiscard]] bool end_build() { return m_plan.end_frame(); }
 
+	/// Emisor de Copper de esta escena (las etapas emiten por aquí).
 	[[nodiscard]] copper::Scheduler& scheduler() { return m_plan.scheduler(); }
+	/// Emisor de Copper (versión const, solo lectura).
 	[[nodiscard]] const copper::Scheduler& scheduler() const { return m_plan.scheduler(); }
+	/// Programa de Copper de la escena (orden + presupuesto de las intenciones).
 	[[nodiscard]] copper::Plan& plan() { return m_plan; }
+	/// Programa de Copper (versión const, solo lectura).
 	[[nodiscard]] const copper::Plan& plan() const { return m_plan; }
+	/// Vista de los bitplanes del buffer trasero (el que se está dibujando).
 	[[nodiscard]] constexpr eng::PlaneBytes bitplanes() const { return m_buffers[m_back].view; }
 	/// Buffer de display que se está dibujando (el trasero).
 	[[nodiscard]] constexpr eng::PlaneBytes back() const { return m_buffers[m_back].view; }
-	/// Buffer de display `i` (para leer/escribir otro).
+	/// Buffer de display `i` (para leer/escribir otro); vacío si `i` fuera de rango.
 	[[nodiscard]] constexpr eng::PlaneBytes buffer(u8 i) const {
 		return (i < m_buffer_count) ? m_buffers[i].view : eng::PlaneBytes {};
 	}
+	/// Nº de buffers de display en uso (1 = simple, 2/3 = doble/triple).
 	[[nodiscard]] constexpr u8 buffer_count() const { return m_buffer_count; }
 
 	/// Indice del buffer trasero (el que se dibuja y que `commit()` publicara).
@@ -151,24 +160,36 @@ public:
 			? bitplanes().subspan(static_cast<eng::u32>(i) * m_plane_bytes, m_plane_bytes)
 			: eng::PlaneBytes {};
 	}
+	/// Bytes de un plano completo (`row_bytes * alloc_rows`).
 	[[nodiscard]] constexpr u32 plane_bytes() const { return m_plane_bytes; }
+	/// Bytes por fila de un plano (`width/8`, redondeado a par).
 	[[nodiscard]] constexpr u16 row_bytes() const {
 		return static_cast<u16>((m_res.width / 8u) & ~1u);
 	}
+	/// Nº de planos de bitplane de la escena.
 	[[nodiscard]] constexpr u8 planes() const { return m_res.planes; }
+	/// Ancho visible en píxeles.
 	[[nodiscard]] constexpr u16 width() const { return m_res.width; }
+	/// Alto del display en filas.
 	[[nodiscard]] constexpr u16 height() const { return m_res.height; }
+	/// Filas lógicas del bitmap (`rows` o, si es 0, `height`).
 	[[nodiscard]] constexpr u16 rows() const { return m_res.rows != 0u ? m_res.rows : m_res.height; }
+	/// Disposición de los bitplanes (contiguos o interleaved).
 	[[nodiscard]] constexpr SceneLayout layout() const { return m_res.layout; }
+	/// Playfield (solo layout interleaved): base de `surface()`.
 	[[nodiscard]] field::CanvasPlayfield& playfield() { return m_playfield; }
+	/// Playfield (versión const, solo lectura).
 	[[nodiscard]] const field::CanvasPlayfield& playfield() const { return m_playfield; }
 	/// Superficie de dibujo con clip (solo layout `Interleaved`).
 	[[nodiscard]] field::Surface surface() {
 		return field::Surface {m_playfield,
 				       field::SurfaceRect {0, 0, m_res.width, m_res.height}};
 	}
+	/// `true` si la construcción de la copperlist cupo en el presupuesto.
 	[[nodiscard]] bool ok() const { return m_plan.ok(); }
+	/// Informe del plan (desbordes, zonas pesadas) para diagnóstico.
 	[[nodiscard]] const copper::ScheduleReport& report() const { return m_plan.report(); }
+	/// Palabras de Copper usadas por el programa.
 	[[nodiscard]] constexpr u16 words() const { return m_plan.words(); }
 
 	/// Toma el control mostrando el buffer 0 (una vez).
@@ -198,15 +219,21 @@ public:
 	}
 
 	// --- Ciclo de vida (plano de comportamiento) ------------------------------------
-	/// Liga una tarea a cada punto del ciclo de vida de la escena.
+	/// Liga la tarea de **setup** (una vez, tras `init`).
 	Scene& on_setup(Task t) { m_setup = t; return *this; }
+	/// Liga la tarea de **frame** (una vez por `tick`): el trabajo por frame.
 	Scene& on_frame(Task t) { m_frame = t; return *this; }
+	/// Liga la tarea de **teardown** (al desmontar la escena).
 	Scene& on_teardown(Task t) { m_teardown = t; return *this; }
+	/// Ejecuta la tarea de setup (si la hay).
 	void setup() { run(m_setup); }
-	void tick() { run(m_frame); } ///< una vez por frame (hot path)
+	/// Ejecuta la tarea de frame (si la hay). **Una vez por frame (hot path).**
+	void tick() { run(m_frame); }
+	/// Ejecuta la tarea de teardown (si la hay).
 	void teardown() { run(m_teardown); }
 
 private:
+	/// Invoca una `Task` solo si es válida (no nula).
 	static void run(Task t) {
 		if (t.valid()) {
 			t();
@@ -227,17 +254,17 @@ private:
 		}
 	}
 
-	SceneResources m_res {};
-	eng::util::Array<eng::Block<eng::PlaneTag>, kMaxSceneBuffers> m_buffers {};
-	field::CanvasPlayfield m_playfield {};
-	copper::Plan m_plan {};
-	u32 m_plane_bytes = 0;
-	u8 m_buffer_count = 1;
-	u8 m_back = 0;
-	Patch32 m_plane_patch[kMaxScenePlanes] {};
-	Task m_setup {};
-	Task m_frame {};
-	Task m_teardown {};
+	SceneResources m_res {}; ///< geometría/recursos de la escena (copiados en `init`)
+	eng::util::Array<eng::Block<eng::PlaneTag>, kMaxSceneBuffers> m_buffers {}; ///< buffers de bitplanes (Chip)
+	field::CanvasPlayfield m_playfield {}; ///< playfield del layout interleaved (base de `surface()`)
+	copper::Plan m_plan {}; ///< programa de Copper (lista + presupuesto + emisor)
+	u32 m_plane_bytes = 0; ///< bytes de un plano completo (`row_bytes * alloc_rows`)
+	u8 m_buffer_count = 1; ///< buffers de display en uso (1..`kMaxSceneBuffers`)
+	u8 m_back = 0; ///< índice del buffer trasero (el que se dibuja/publica)
+	Patch32 m_plane_patch[kMaxScenePlanes] {}; ///< parcheo `BPLxPT` por plano (doble/triple buffer)
+	Task m_setup {}; ///< tarea de setup (una vez)
+	Task m_frame {}; ///< tarea de frame (por `tick`)
+	Task m_teardown {}; ///< tarea de teardown
 };
 
 /// Preset: escena planar de 4 planos por defecto.
@@ -306,10 +333,10 @@ private:
 /// **Geometría de display predefinida** (DIWSTRT/DIWSTOP/DDFSTRT/DDFSTOP). Evita cablear
 /// los valores habituales en cada llamada a `display(...)`.
 struct DisplayGeometry {
-	u16 diwstrt = 0x2c81;
-	u16 diwstop = 0x2cc1;
-	u16 ddfstrt = 0x0038;
-	u16 ddfstop = 0x00d0;
+	u16 diwstrt = 0x2c81; ///< DIWSTRT (ventana visible, esquina superior)
+	u16 diwstop = 0x2cc1; ///< DIWSTOP (ventana visible, esquina inferior)
+	u16 ddfstrt = 0x0038; ///< DDFSTRT (inicio del fetch de bitplanes)
+	u16 ddfstop = 0x00d0; ///< DDFSTOP (fin del fetch de bitplanes)
 };
 
 /// PAL lowres **320×256** con *fetch* estándar (40 B/fila): la geometría de las demos.
@@ -400,26 +427,26 @@ inline constexpr u16 kBplcon0_Ham6 = 0x7a00;         ///< HAM6 (6 planos, COLOR,
 
 /// Zona de paleta por raster (franja horizontal).
 struct PaletteZone {
-	u8 line = 0;
-	eng::PaletteWords colors {};
-	u8 first = 0;
-	u8 count = 32;
+	u8 line = 0;                 ///< línea de raster donde entra la zona
+	eng::PaletteWords colors {}; ///< colores RGB444 de la zona
+	u8 first = 0;                ///< primer color de la zona (`COLORfirst`)
+	u8 count = 32;               ///< nº de colores de la zona
 };
 
 /// **Un MOVE parcheable dentro de una zona**: registro destino + valor inicial. Es la
 /// unidad de la base común de toda modificación dinámica del copper (un color, un
 /// `BPL1MOD` de scanline, un puntero `BPLxPT`, un `BPLCON1`…).
 struct PatchSlot {
-	copper::Register reg = copper::Register::COLOR00;
-	u16 value = 0;
+	copper::Register reg = copper::Register::COLOR00; ///< registro destino del MOVE
+	u16 value = 0; ///< valor inicial escrito (un dato = una palabra)
 };
 
 /// **Grupo de MOVEs parcheables emitidos en una línea** (base común). Guarda el índice del
 /// primer MOVE; cada slot es una instrucción de 2 words (MOVE + dato), de ahí el `+2*i`.
 struct PatchZone {
-	u8 line = 0;
-	u16 first_move = 0;
-	u8 count = 0;
+	u8 line = 0;        ///< línea de raster donde se emite la zona
+	u16 first_move = 0; ///< índice del primer MOVE de la zona en la copperlist
+	u8 count = 0;       ///< nº de MOVEs (slots) de la zona
 
 	/// Handle al slot `i` para parchearlo por frame (cualquier registro).
 	[[nodiscard]] copper::PatchHandle handle(copper::Scheduler& s, u8 i) const {
