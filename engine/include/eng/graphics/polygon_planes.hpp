@@ -21,6 +21,16 @@
 /// polígonos adyacentes de pocos colores, el número de fills cae de
 /// «N polígonos × planos afectados» a «≈ número de planos».
 ///
+/// ```text
+///   por polígono (caro)                      por PLANO (barato)
+///   ───────────────────                      ──────────────────
+///   cara → outline + fill + aplicar          plano p: aristas de TODAS las caras con el bit p = 1
+///   a cada plano de su color                     → 1 fill → máscara del plano p → escribir el plano p
+///   ≈ N · planos fills                       ≈ nº de planos fills
+///   Aristas compartidas: mismo bit → se dibujan 2× y el even-odd las cancela (sin frontera);
+///   bits distintos → 1 vez (frontera real).
+/// ```
+///
 /// Esta es la **referencia CPU** (host-testable); el backend Amiga hace lo mismo con el
 /// Blitter (línea + `area fill` + copia por plano) sin cambiar la API.
 

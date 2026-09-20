@@ -19,6 +19,21 @@
 /// planos) y emite al `copper::Scheduler`. Los **presets** son funciones que devuelven un
 /// `SceneResources`; no hay clase por efecto. El **programa** es data (Copper) que ejecuta
 /// el chip; la **variabilidad** se hace con `copper::PatchHandle` (`scheduler().patchable`).
+///
+/// ```text
+///   escena = unión de ETAPAS (no una clase por driver)
+///   ┌──────────────────────────────────────────────────────────────────┐
+///   │ scene::Scene                                                       │
+///   │  recursos: geometría · planos · buffers · paleta                   │
+///   │  ├─ display()        ─┐                                            │
+///   │  ├─ palette()        ─┼─► piden recursos y emiten al copper::Scheduler
+///   │  ├─ palette_zones()  ─┤                                            │
+///   │  └─ reverse_ptrs()   ─┘                                            │
+///   │  ciclo de vida: Task = FunctionRef<void()> (por frame)             │
+///   │  variabilidad : copper::PatchHandle (scheduler().patchable)        │
+///   └──────────────────────────────────────────────────────────────────┘
+///   El PROGRAMA es data (Copper) que ejecuta el chip; los presets devuelven un SceneResources.
+/// ```
 
 #include <eng/core/arith.hpp>
 #include <eng/core/domains.hpp>
