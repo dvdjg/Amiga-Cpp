@@ -141,9 +141,10 @@ public:
 				 eng::u16 src_row_bytes, eng::u32 src_plane_stride, eng::u8 planes,
 				 eng::u8 source_shift = 0u) = 0;
 	/// **Chunky→planar** bajo la misma interfaz: la CPU usa el merge de Kalms
-	/// (`c2p_1x1_4`, o `c2p_1x1_naive` para 1..6 planos). Un rasterizador con backend
-	/// Blitter puede sobreescribirla para usar el C2P por fases (demo 061/080).
-	virtual bool c2p(const C2pRequest& req) = 0;
+	/// (`c2p_1x1_4`, o `c2p_1x1_naive` para 1..6 planos). El `BlitterRaster`, si recibe
+	/// un `plan` y 4 planos, **encola** un `BlitJobKind::C2P` (el backend ejecuta las 13
+	/// fases); sin plan, cae a CPU.
+	virtual bool c2p(const C2pRequest& req, graphics::FramePlan* plan = nullptr) = 0;
 };
 
 /// Rasterizador **CPU**: relleno por scanline (`Playfield::draw_span_op`, con
@@ -221,7 +222,8 @@ public:
 		return pf.copy_masked_cpu(src, mask, x, y, w, h, src_row_bytes, src_plane_stride, planes);
 	}
 	/// Chunky→planar por CPU: `c2p_1x1_4` (4 planos) o `c2p_1x1_naive` (1..6).
-	bool c2p(const C2pRequest& req) override {
+	bool c2p(const C2pRequest& req, graphics::FramePlan* plan = nullptr) override {
+		(void)plan; // la CPU convierte ya; no encola trabajo
 		if (req.chunky.empty() || req.planes.empty() || req.width == 0u ||
 		    req.height == 0u || req.plane_count == 0u) {
 			return false;
@@ -293,10 +295,36 @@ public:
 		return pf.add_world_bitmap_masked(plan, src, mask, x, y, w, h, src_row_bytes,
 						  src_plane_stride, planes, source_shift);
 	}
+	/// C2P por **Blitter** si hay `plan` y 4 planos: encola `BlitJobKind::C2P` (el
+	/// backend ejecuta las 13 fases). Sin plan (o distinto de 4 planos), CPU.
+	bool c2p(const C2pRequest& req, graphics::FramePlan* plan = nullptr) override {
+		if (plan != nullptr && req.plane_count == 4u && req.chunky.data() != nullptr &&
+		    req.planes.data() != nullptr) {
+			const eng::u32 px = req.width * req.height;
+			if (px >= 2u && px / 2u <= 0xffffu) {
+				graphics::BlitJob job {};
+				job.c2p_chunky = const_cast<eng::u8*>(req.chunky.data());
+				job.c2p_planes = req.planes.data();
+				job.c2p_plane_stride = req.plane_stride;
+				job.c2p_bytes = static_cast<eng::u16>(px / 2u);
+				if (plan->add_c2p(job)) {
+					return true;
+				}
+			}
+		}
+		return CpuRaster::c2p(req, plan);
+	}
 };
 
 /// Instancias estáticas (sin heap): el llamador pasa `&kCpuRaster`/`&kBlitterRaster`.
 inline CpuRaster kCpuRaster {};
 inline BlitterRaster kBlitterRaster {};
+
+/// Definición de `Playfield::rasterize_c2p` (declarado en `playfield.hpp`): necesita
+/// `Rasterizer`/`kCpuRaster` completos, por eso no vive en `playfield.hpp`.
+inline bool Playfield::rasterize_c2p(const C2pRequest& req, graphics::FramePlan* plan) {
+	Rasterizer* r = (m_rasterizer != nullptr) ? m_rasterizer : &kCpuRaster;
+	return r->c2p(req, plan);
+}
 
 } // namespace eng::field

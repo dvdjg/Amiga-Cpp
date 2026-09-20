@@ -639,8 +639,9 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 		const bool logic = job.kind == graphics::BlitJobKind::LogicBlit;
 		const bool line = job.kind == graphics::BlitJobKind::Line;
 		const bool line_eor = job.kind == graphics::BlitJobKind::LineEor;
+		const bool c2p = job.kind == graphics::BlitJobKind::C2P;
 
-		if (!masked && !copy && !clear && !or_blob && !logic && !line && !line_eor) {
+		if (!masked && !copy && !clear && !or_blob && !logic && !line && !line_eor && !c2p) {
 			return false;
 		}
 
@@ -672,6 +673,24 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 			continue;
 		}
 		eor_open = false; // cualquier otro job cierra la racha EOR
+
+		if (c2p) {
+			// Chunky->planar por Blitter: 13 fases encadenadas (cada `step` espera al
+			// Blitter). Es la via Blitter del seam `Rasterizer::c2p`.
+			C2p4State st {};
+			st.chunky = job.c2p_chunky;
+			st.bytes = job.c2p_bytes;
+			for (u8 pl = 0; pl < 4u; ++pl) {
+				st.planes[pl] = job.c2p_planes +
+						static_cast<u32>(pl) * job.c2p_plane_stride;
+			}
+			for (u8 ph = 0; ph < 13u; ++ph) {
+				if (!c2p_4bpp_step(st)) {
+					return false;
+				}
+			}
+			continue;
+		}
 
 		custom_base[custom_dmacon_offset] = dma_setclr | dma_master | dma_blitter;
 

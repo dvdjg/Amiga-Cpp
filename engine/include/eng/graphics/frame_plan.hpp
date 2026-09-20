@@ -71,6 +71,10 @@ enum class BlitJobKind : u8 {
 	/// todas las filas (patrón uniforme en vertical). Un patrón de varias filas necesita
 	/// más blits o reprogramar A por fila. Reusa el camino `OrBlob` del backend.
 	PatternFill,
+	/// **Chunky→planar por Blitter** (13 fases): convierte `c2p_chunky` a los 4 planos
+	/// `c2p_planes` (ver `MinimalBackend::c2p_4bpp_step`). Es la vía Blitter del seam
+	/// `Rasterizer::c2p`.
+	C2P,
 };
 
 /// Presupuesto acumulado de Blitter.
@@ -241,6 +245,16 @@ struct BlitJob {
 	/// Base del bitmap para el canal D en una **línea EOR** (`BlitJobKind::LineEor`);
 	/// `nullptr` = usar el propio plano. Ver `blitter_line_eor`.
 	BlitDest line_base {};
+	// --- C2P (BlitJobKind::C2P): chunky -> planar por fases -------------------------
+	/// Buffer chunky en Chip RAM; su segunda mitad (`+ c2p_bytes`) es el staging planar
+	/// que el C2P usa como destino intermedio.
+	eng::u8* c2p_chunky = nullptr;
+	/// Base de los 4 planos destino (a `c2p_planes + p*c2p_plane_stride`).
+	eng::u8* c2p_planes = nullptr;
+	/// Bytes entre planos destino.
+	u32 c2p_plane_stride = 0;
+	/// `bytes` del C2P (p. ej. `width*height/2` en 4 bpp); fija el `BLTSIZE`.
+	u16 c2p_bytes = 0;
 };
 
 /// Plan de render de un frame.
@@ -378,6 +392,28 @@ public:
 	/// `height`, `bitplane_count` y `source_modulo_bytes = -(words_per_row*2)`.
 	__attribute__((always_inline)) inline bool add_pattern_fill(const BlitJob& job) {
 		return add_blit_job(job, BlitJobKind::PatternFill);
+	}
+
+	/// **Chunky→planar por Blitter** (`BlitJobKind::C2P`): `c2p_chunky` (Chip RAM, 2×
+	/// `c2p_bytes`) → `c2p_planes` (4 planos). La vía Blitter del seam `Rasterizer::c2p`.
+	bool add_c2p(const BlitJob& job) {
+		if (job.c2p_chunky == nullptr || job.c2p_planes == nullptr ||
+		    job.c2p_bytes == 0u || job.c2p_plane_stride == 0u) {
+			m_ok = false;
+			return false;
+		}
+		if (m_blit_job_count >= max_blit_jobs) {
+			m_ok = false;
+			return false;
+		}
+		BlitJob j = job;
+		j.kind = BlitJobKind::C2P;
+		m_blit_jobs[m_blit_job_count++] = j;
+		m_blit_budget.jobs = m_blit_job_count;
+		m_blit_budget.words += eng::math::mulu16(job.c2p_bytes, 13u); // 13 fases
+		++m_blit_budget.copy_jobs;
+		rebuild_blit_budget_report();
+		return true;
 	}
 
 	/// **Línea por Blitter** (`BLTCON1` LINE) o **EOR/ONEDOT** (`LineEor`): `destination`

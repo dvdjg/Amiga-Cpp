@@ -84,6 +84,36 @@ int main() {
 	});
 	check(ok6, "CpuRaster::c2p con 6 planos (via naive)");
 
+	// BlitterRaster + plan + 4 planos -> ENCOLA un BlitJobKind::C2P (no convierte).
+	{
+		eng::graphics::FramePlan plan {};
+		eng::u8 dst[kPlaneBytes] {};
+		const bool queued = eng::field::kBlitterRaster.c2p(eng::field::C2pRequest {
+			eng::ChunkyView {chunky, sizeof(chunky)},
+			eng::PlaneBytes {dst, sizeof(dst)},
+			kW,
+			kH,
+			kPlaneStride,
+			4u,
+		}, &plan);
+		check(queued, "BlitterRaster::c2p encola con plan");
+		check(plan.blit_job_count() == 1u &&
+			      plan.blit_job(0u).kind == eng::graphics::BlitJobKind::C2P,
+		      "job C2P encolado");
+		check(plan.blit_job(0u).c2p_bytes == static_cast<eng::u16>(kW * kH / 2u),
+		      "c2p_bytes = width*height/2");
+		check(plan.blit_job(0u).c2p_planes == dst, "destino planar del job");
+	}
+
+	// BlitterRaster sin plan (o !=4 planos) -> cae a CPU.
+	{
+		eng::u8 dst[kPlaneBytes] {};
+		check(eng::field::kBlitterRaster.c2p(eng::field::C2pRequest {
+			      eng::ChunkyView {chunky, sizeof(chunky)},
+			      eng::PlaneBytes {dst, sizeof(dst)}, kW, kH, kPlaneStride, 4u}),
+		      "BlitterRaster::c2p sin plan cae a CPU");
+	}
+
 	if (failures == 0) {
 		std::printf("OK: seam C2P (Rasterizer::c2p) valida chunky->planar.\n");
 		return 0;

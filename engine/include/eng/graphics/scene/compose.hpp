@@ -26,6 +26,7 @@
 #include <eng/core/util/array.hpp>
 #include <eng/core/util/function_ref.hpp>
 #include <eng/field/playfield.hpp>
+#include <eng/field/raster.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/plan.hpp>
@@ -218,6 +219,13 @@ public:
 	void set_polygon_fill_sink(field::PolygonFillSink sink) {
 		m_playfield.set_polygon_fill_sink(sink);
 		m_contiguous.set_polygon_fill_sink(sink);
+	}
+
+	/// **Chunky→planar** a través del rasterizador de la escena: con `BlitterRaster` y
+	/// un `plan` encola un `BlitJobKind::C2P` (el backend ejecuta las 13 fases); con el
+	/// rasterizador CPU convierte ya sin usar `plan`.
+	[[nodiscard]] bool c2p(const field::C2pRequest& req, graphics::FramePlan* plan = nullptr) {
+		return m_playfield.rasterize_c2p(req, plan);
 	}
 
 	/// Toma el control mostrando el buffer 0 (una vez).

@@ -471,9 +471,12 @@ prioridad:
    `$FC`) y `graphics::add_rect_pattern` (patrón **multifila**: un `PatternFill` por fila del
    patrón) — **verificados en hardware** por la demo 203 (suelo con tablero de 2 filas) y por
    HOST-217.
-3. **C2P en el seam**: `Rasterizer::c2p(C2pRequest)` unifica chunky→planar (CPU vía
-   `c2p_1x1_4`/`c2p_1x1_naive`, HOST-218); **pendiente** que un `Rasterizer` con backend
-   sobreescriba la vía Blitter por fases (demo 061/080) y que `Surface` exponga `c2p`.
+3. **C2P en el seam**: `Rasterizer::c2p(C2pRequest, plan)` unifica chunky→planar: CPU
+   (`c2p_1x1_4`/`c2p_1x1_naive`) y **Blitter** (`BlitJobKind::C2P`, 13 fases) por la misma
+   interfaz; `Scene::c2p` lo expone. HOST-218 valida la ruta CPU (equivalente a la referencia) y
+   el encolado `C2P` del `BlitterRaster`. **Pendiente**: una demo que lo consuma (bloqueada por el
+   fallo de `copper_bytes` con `row_repeat` que tiene **061 también en master**: compose con 4096 B
+   no cabe y la demo queda FAILED; ver 061).
 4. **`FMODE` por target**: programar 2×/4× según `raster_caps().bus` (AGA) en copias/fills; hoy
    solo se declara la capacidad.
 5. **Demo de `blit_shadow`/`blit_glow`** en un actor real (no solo el host test) e integración en

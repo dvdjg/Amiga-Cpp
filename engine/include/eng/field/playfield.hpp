@@ -88,6 +88,7 @@ struct RasterPolicy {
 }
 
 class Rasterizer; ///< seam de rasterizado (definido en `raster.hpp`)
+struct C2pRequest; ///< petición chunky→planar (definida en `raster.hpp`)
 
 /// Vista de hardware que el compositor de la escena necesita para programar el
 /// Copper. Es el contrato común de TODOS los playfields: BPL pointers, scroll
@@ -411,6 +412,11 @@ public:
     /// Política de aceleración (modo + umbrales); ver `RasterPolicy`.
     void set_raster_policy(const RasterPolicy& p) { m_raster_policy = p; }
     [[nodiscard]] const RasterPolicy& raster_policy() const { return m_raster_policy; }
+
+    /// **Chunky→planar** a través del rasterizador: resuelve `m_rasterizer` (o el CPU
+    /// por defecto) y delega. Definido en `playfield_impl.hpp` (donde `Rasterizer` y
+    /// `C2pRequest` ya están completos).
+    [[nodiscard]] bool rasterize_c2p(const C2pRequest& req, graphics::FramePlan* plan);
 
     // --- Relleno de polígono (hook; el backend puede usar Blitter) --------
     /// Rellena un polígono **convexo** (scanline even-odd, CPU) con `color`. El
