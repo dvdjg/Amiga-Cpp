@@ -128,4 +128,70 @@ private:
 	graphics::Rotozoom m_r {};
 };
 
+/// **Capa de fondo con canales de sprite rearmados horizontalmente** (sprite-as-playfield):
+/// los canales se reposicionan y recargan su DATA a lo largo de cada línea para cubrir el
+/// ancho de la pantalla, **sin coste de bitplanes**. Es una capa de **fondo**: los sprites
+/// quedan detrás del playfield (prioridad `BPLCON2`). Ver
+/// `docs/reference/amiga/techniques/sprite-horizontal-multiplex.md`.
+class SpriteLayer {
+public:
+	struct Config {
+		u16 first_line = 0; ///< primera línea del efecto
+		u16 lines = 0;      ///< nº de líneas que cubre
+		u8 channels = 8;    ///< canales usados (1..8)
+		u16 hpos0 = 0;      ///< x del primer tramo (low-res px)
+		u16 hpos_step = 0;  ///< separación entre tramos (>=24 px; carrera contra el haz)
+		u16 data_high = 0;  ///< SPRxDATA (primera palabra de la fila)
+		u16 data_low = 0;   ///< SPRxDATB (segunda palabra)
+		u16 bplcon2 = 0;    ///< prioridad (`BPLCON2`); sprites detrás del playfield = fondo
+	};
+
+	/// Configura la capa. `false` si `lines == 0`, `channels` fuera de 1..8 o `hpos_step < 24`.
+	[[nodiscard]] bool attach(Config cfg) {
+		if (cfg.lines == 0u || cfg.channels == 0u || cfg.channels > 8u ||
+		    cfg.hpos_step < 24u) {
+			return false;
+		}
+		m_cfg = cfg;
+		return true;
+	}
+
+	/// Desplaza la capa horizontalmente (px low-res; el paso entre tramos no cambia).
+	void set_scroll(u16 x) noexcept { m_scroll = x; }
+
+	/// Emite la capa completa: `BPLCON2` una vez y, por (línea, canal), un rearm horizontal
+	/// (1 `WAIT` + 4 MOVEs). El llamador debe haber abierto la construcción (`begin_build`).
+	template <class Sched>
+	void emit_into(Sched& sched) const {
+		sched.move(copper::Register::BPLCON2, m_cfg.bplcon2); // prioridad de fondo
+		const u16 last = static_cast<u16>(m_cfg.first_line + m_cfg.lines);
+		for (u16 line = m_cfg.first_line; line < last; ++line) {
+			for (u8 ch = 0u; ch < m_cfg.channels; ++ch) {
+				graphics::SpriteHorizontalRearm r {};
+				r.channel = ch;
+				r.vstart = line;
+				r.vstop = static_cast<u16>(line + 1u);
+				r.hpos = static_cast<u16>(m_cfg.hpos0 +
+							  static_cast<u16>(ch) * m_cfg.hpos_step + m_scroll);
+				r.data_high = m_cfg.data_high;
+				r.data_low = m_cfg.data_low;
+				sched.emit_sprite_horizontal_rearm(r);
+			}
+		}
+	}
+
+	/// Emite la capa al plan de la escena (azúcar de `emit_into(scene.scheduler())`).
+	void frame(graphics::composition::Scene& scene) { emit_into(scene.scheduler()); }
+
+	[[nodiscard]] const Config& config() const noexcept { return m_cfg; }
+	/// Huella estimada en palabras de Copper (para `EffectCost`): 1 MOVE + 10 words/(línea·canal).
+	[[nodiscard]] u16 words_estimate() const noexcept {
+		return static_cast<u16>(2u + static_cast<u32>(m_cfg.lines) * m_cfg.channels * 10u);
+	}
+
+private:
+	Config m_cfg {};
+	u16 m_scroll = 0;
+};
+
 } // namespace eng::effects

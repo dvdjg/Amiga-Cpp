@@ -124,7 +124,7 @@ necesidad de máscara en RAM.
 | Asignación con degradado a BOB | **sí** | `SpriteAllocator` (first-fit; `as_bob`) |
 | **Rearmado horizontal** | **sí** | `SpriteHorizontalRearm` + `Scheduler::emit_sprite_horizontal_rearm`, intent `SpriteRearm` |
 | **Attached (15 colores)** | **no** | `SpriteConfig` no tiene `attach`; el allocator lo declara pendiente |
-| **Sprite-as-playfield** (abstracción) | **no** | construible con el rearmado horizontal; falta la capa |
+| **Sprite-as-playfield** (capa de fondo) | **sí** | `effects::SpriteLayer` (sobre el rearmado horizontal) |
 | **Colisión hardware** (CLXCON/CLXDAT) | **sí** (utilidad + backend) | `graphics/sprite_collision.hpp`, `MinimalBackend::set/read_sprite_collision` |
 | **Prioridad BPLCON2 por sprite** | parcial | `BPLCON2`/intent `Priority`, sin API de sprites |
 

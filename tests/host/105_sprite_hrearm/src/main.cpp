@@ -16,6 +16,7 @@
 
 #include <cstdio>
 
+#include <eng/api/effects.hpp>
 #include <eng/core/types.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
@@ -231,6 +232,42 @@ void test_collision() {
 	CHECK(r2.even_bpl_vs_sprite(2u), "CLXDAT pares vs 4/5");
 }
 
+/// `effects::SpriteLayer`: un rearm por (linea, canal) y prioridad de fondo (BPLCON2).
+void test_sprite_layer() {
+	struct FakeSched {
+		int rearms = 0;
+		eng::u16 bplcon2 = 0xffffu;
+		void move(eng::copper::Register reg, eng::u16 v) {
+			if (reg == eng::copper::Register::BPLCON2) {
+				bplcon2 = v;
+			}
+		}
+		void emit_sprite_horizontal_rearm(const eng::graphics::SpriteHorizontalRearm&) {
+			++rearms;
+		}
+	};
+	eng::effects::SpriteLayer layer;
+	eng::effects::SpriteLayer::Config cfg {};
+	cfg.first_line = 100u;
+	cfg.lines = 4u;
+	cfg.channels = 8u;
+	cfg.hpos0 = 64u;
+	cfg.hpos_step = 32u;
+	cfg.bplcon2 = 0x0008u;
+	CHECK(layer.attach(cfg), "SpriteLayer attach");
+	FakeSched fs;
+	layer.emit_into(fs);
+	CHECK(fs.rearms == 32, "SpriteLayer: 4 lineas x 8 canales = 32 rearms");
+	CHECK(fs.bplcon2 == 0x0008u, "SpriteLayer: BPLCON2 de fondo");
+	CHECK(layer.words_estimate() == 2u + 4u * 8u * 10u, "SpriteLayer: huella");
+
+	eng::effects::SpriteLayer bad;
+	eng::effects::SpriteLayer::Config bad_cfg {};
+	bad_cfg.lines = 0u;
+	bad_cfg.hpos_step = 32u;
+	CHECK(!bad.attach(bad_cfg), "SpriteLayer: lines=0 -> false");
+}
+
 } // namespace
 
 int main() {
@@ -238,6 +275,7 @@ int main() {
 	test_list_order();
 	test_attach();
 	test_collision();
+	test_sprite_layer();
 	if (g_fail == 0u) {
 		std::printf("OK: sprite horizontal rearm (codificacion, secuencia, orden de lista)\n");
 		return 0;
