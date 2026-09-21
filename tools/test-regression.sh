@@ -166,6 +166,20 @@ if [ -f "$GENERIC_HEADERS_CHECK" ]; then
 	fi
 fi
 
+# --- Fachada publica: la logica de demo/juego no incluye headers cubiertos ni tipos del backend ---
+API_FACADE_CHECK="$ROOT/tools/check/api-facade.mjs"
+if [ -f "$API_FACADE_CHECK" ]; then
+	if command -v node >/dev/null 2>&1; then
+		echo "== api-facade =="
+		if ! node "$API_FACADE_CHECK"; then
+			echo "api-facade fallo: la logica de demo/juego debe usar eng/api/api.hpp (AGENTS 1.9)." >&2
+			exit 1
+		fi
+	else
+		echo "node no disponible; se omite api-facade." >&2
+	fi
+fi
+
 # --- Gate de fps (opt-in): mide las demos de la bitacora y detecta deriva ---
 # Lanza WinUAE por cada fila de la tabla trazable; por eso es opt-in. Falla si una
 # demo medida en la misma fase (`detail`) baja del umbral (por defecto -10 %).

@@ -28,15 +28,10 @@
 #include <eng/board/persona.hpp>
 #include <eng/sim/expression.hpp>
 #include <eng/sim/introspection.hpp>
-#include <eng/core/types.hpp>
+#include <eng/api/api.hpp>
 #include <eng/core/util/static_string.hpp>
 #include <eng/core/util/text.hpp>
-#include <eng/debug/run_status.hpp>
-#include <eng/engine.hpp>
-#include <eng/graphics/palette32.hpp>
-#include <eng/graphics/composition/compose.hpp>
 #include <eng/graphics/font8.hpp>
-#include <eng/input/input.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/platform/input_poll.hpp>
 

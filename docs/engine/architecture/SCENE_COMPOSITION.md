@@ -309,8 +309,14 @@ las 3D `077_math3d_cube`, `078_math3d_solid` y `084_mf_rotation`, sin `install` 
    HOST-212 usa `CanvasPlayfield`); `EhbPalette`/`black_palette` sustituidos por
    `eng::Palette32`/`eng::kBlackPalette` (`palette32.hpp`). `CopperChunkyScene` **se mantiene**: no
    es un «scene» planar sino una **técnica de display por Copper** (bloques de `COLOR00`, sin
-   bitplanes) que `scene::compose` no expresa (exige ≥1 plano); 082/083 lo usan con
-   `MultiBuffered`. Retirarlo exigiría un modo copper-chunky en el modelo de composición.
+   bitplanes) que `scene::compose` no expresa. Retirarlo exige un **modo copper-chunky** en el
+   modelo de composición, con estos puntos: (a) `SceneMode::CopperChunky` en `limits.hpp` y permitir
+   `planes == 0` para ese modo en `validate`; (b) `Scene::init_raw` sin reserva de bitplanes ni
+   `bind` de playfield (guarda para `planes == 0`), con copperlist grande (`copper_bytes`); (c) una
+   etapa `copper_chunky(cfg, out)` que emita la lista de bloques y exponga los slots de color
+   (equivalente a `chunky_row`); (d) `Scene::commit` que solo publique la copperlist (sin parchear
+   `BPLxPT`). Hecho eso, 082/083 migran y `MultiBuffered` (usado solo por ellos) se retira, ya que
+   `scene::compose` con `buffers > 1` cubre el doble buffer planar.
 5. **Medición**: el `runner.uae` lo genera `run-demo.ts`; en entornos sin Git Bash se
    construye a mano para `measure-fps` (como se hizo con 081).
 
