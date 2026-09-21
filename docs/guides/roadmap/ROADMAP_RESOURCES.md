@@ -23,7 +23,11 @@ presupuesto/prioridad/LRU y **loader de código relocatable**, sobre la E/S así
   E/S `IoUser { tag, id }` y `FileOp` con Create/Delete/Rename.
 - **Verificación**: **HOST-244** — sobre un backend de ficheros simulado, create/open/read/write/
   delete/rename devuelven el resultado esperado y el `FileDone` lleva el `IoUser` correcto.
-- **Estado**: pendiente.
+- **Estado**: **casi entregado**. Entregado: el **contrato** `eng/os/file.hpp` y su implementación
+  Amiga sobre **`dos.library`** (`file_open`/`close`/`read_sync`/`write_sync`/`make_dir`/`delete`/
+  `rename`; **demo 211** verifica lectura de directorios + escritura + relectura), más el cookie
+  `IoUser` (**HOST-255**). Pendiente: `trackdisk` (sin DOS) y un test host de las operaciones sobre
+  un backend simulado.
 
 ### R1 — AssetCache: núcleo
 
@@ -32,7 +36,8 @@ presupuesto/prioridad/LRU y **loader de código relocatable**, sobre la E/S así
   `set_priority`, `on_file_done`, `set_frame`).
 - **Verificación**: **HOST-245** — `get` lanza carga y devuelve `nullptr`; al llegar `FileDone`
   pasa a `Ready` y `get` devuelve datos; `add_ref`/`release` y `pin` se reflejan en el estado.
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`eng/res/asset_cache.hpp` con `Backend` de `alloc`/`free`/`load`;
+  cubierto junto con R2 por **HOST-254**).
 
 ### R2 — Política de desalojo
 
@@ -41,7 +46,8 @@ presupuesto/prioridad/LRU y **loader de código relocatable**, sobre la E/S así
 - **Verificación**: **HOST-246** — con presupuesto pequeño, al pedir un asset nuevo se desaloja el
   de menor prioridad; a igualdad de prioridad, el más viejo; los fijados y referenciados nunca se
   desalojan; sin víctima, la carga falla con `AssetError`.
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`ensure_space`/`pick_victim`: menor prioridad y, a igualdad, LRU;
+  `pin`/`refcount` protegen; HOST-254).
 
 ### R3 — Mensajes de recurso e integración con el bucle
 
@@ -49,16 +55,21 @@ presupuesto/prioridad/LRU y **loader de código relocatable**, sobre la E/S así
   enruta `FileDone` por `IoUser::tag` (caché/loader/stream).
 - **Verificación**: **HOST-247** — el enrutado por `tag` entrega cada `FileDone` al subsistema
   correcto y no cruza consumidores; `AssetReady` se postea una vez por asset.
-- **Estado**: pendiente.
+- **Estado**: **parcial**. Entregado: el **enrutado** `eng/res/resources.hpp` (`route_io` por
+  `IoUser::tag`; **HOST-255**). Pendiente: los mensajes de recurso
+  (`AssetReady`/`AssetEvicted`/`AssetError`) y su posteo desde la caché.
 
 ### R4 — DynLoader (código relocatable)
 
-- **Entregable**: `eng/res/dynloader.hpp` (`LibHandle`, `declare`/`load_async`/`unload`,
-  `add_ref`/`release`, `symbol`), formato `.englib` (header + relocs + exports) y `relocate`;
-  `MsgType::LibLoaded/LibError/LibUnloaded`.
-- **Verificación**: **HOST-248** — un `.englib` de prueba (generado en el host) se carga, se
-  relocaliza y `symbol` devuelve una función que se llama; `unload` solo libera con `refcount==0`.
-- **Estado**: pendiente.
+- **Entregable**: `eng/res/dynloader.hpp` (`LibHandle`, `declare`/`load`/`unload`, `symbol`,
+  `format`), formato `.englib` (header + relocs + exports), formato **HUNK** nativo
+  (`eng/res/hunk.hpp`) y `relocate`; `MsgType::LibLoaded/LibError/LibUnloaded`.
+- **Verificación**: **HOST-248** (`.englib`: relocaciones + símbolos) y **HOST-258** (HUNK:
+  segmentos en `LinearArena`, `HUNK_RELOC32`/`RELOC32SHORT`, `HUNK_SYMBOL`); **demo 211_fs_test**
+  carga y ejecuta los **dos** formatos en la Amiga (`answer()` → 42).
+- **Estado**: **entregado** (`DynLoader` con **detección de formato** `.englib`/HUNK, relocaciones y
+  símbolos por hash FNV-1a; **HOST-248** y **HOST-258**; demo 211 con ambos). Pendiente: el
+  **generador host** que emite `.englib` desde código real del engine.
 
 ### R5 — Fachada y ejemplo por zonas
 
@@ -77,6 +88,7 @@ presupuesto/prioridad/LRU y **loader de código relocatable**, sobre la E/S así
 | HOST-246 | test | Desalojo: prioridad + LRU + presupuestos; pin/refcount. |
 | HOST-247 | test | Mensajes de recurso y enrutado por `tag`. |
 | HOST-248 | test | DynLoader: `.englib`, relocación, símbolos y unload. |
+| HOST-258 | test | Cargador HUNK: segmentos en `LinearArena`, relocaciones (32/32SHORT) y símbolos; detección `.englib`/HUNK. |
 | 210_zone_resources | demo | Transición de zona: prefetch + LRU + overlay de código. |
 
 ## Riesgos y decisiones abiertas

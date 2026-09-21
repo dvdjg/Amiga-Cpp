@@ -21,6 +21,12 @@ UI (`eng::ui`).
   `eng::task::BackgroundQueue` (trabajo diferido), `eng::input::InputAggregator` (estado de
   nivel), `eng::util::Event` (eventos intra-frame) y el servicio CIA ya existente
   (`install_timer_service`). Ver §2 del diseño.
+- **Políticas de mensaje por tipo** (requisito, ver §10/§13 de `MINI_OS_MESSAGE_LOOP.md`): los
+  eventos de flanco (`KeyDown/Up`, `MouseButton`, `FileDone`, `Timer` one-shot) son **FIFO** (no se
+  pierden); el movimiento (`MouseMove`) se **coalesce** (gana el último, `push_mouse_coalesced`); el
+  **VBlank** es **latched** (como máximo uno pendiente, con secuencia y `missed`); joystick/gamepad
+  pueden ser latched (estado). La **prioridad** (`Low`/`Normal`/`High`) hace que los `High`
+  (entrada/quit) **se cuelen** sobre la E-S en `pop`. `peek` permite mirar sin retirar.
 - **HOST primero.** El núcleo (`Msg`, `MsgQueue`, `MsgPort`, prioridad, latched, servicios y
   puente) es puro y host-testable: se valida con tests HOST antes de tocar el backend Amiga.
 - **Evidencia.** Cada fase cierra con su test HOST; la integración en hardware se valida con una
@@ -32,11 +38,12 @@ UI (`eng::ui`).
 ### M0 — Núcleo de mensajes
 
 - **Entregable**: `eng/os/message.hpp` (`MsgType` contiguo, `Msg`, `MsgPayload`, `Signal`) y
-  `eng/os/port.hpp` (`MsgQueue<N>`, `MsgPort<N>` con `signal`/`take_signals`/`wait`).
+  `eng/os/port.hpp` (`MsgQueue<N>` con `push_isr`/`pop`/`peek`, `MsgPort<N>` con
+  `signal`/`take_signals`/`post`/`peek`).
 - **Verificación**: **HOST-219** — anillo lleno/vacío, orden FIFO, `overflows()`, coalescing de
   señales, `take_signals` consume solo los bits pedidos, `Msg` trivialmente copiable
   (`static_assert`), `MsgType` con `switch` exhaustivo.
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`message.hpp` + `port.hpp`; HOST-219).
 
 ### M1 — VBlank latched (secuencia y frames perdidos)
 
@@ -47,7 +54,10 @@ UI (`eng::ui`).
 - **Verificación**: **HOST-236** (junto con M5) — la secuencia avanza aunque no se consuma, solo
   hay un VBlank pendiente y `missed` cuenta los pisados. Demo: contar frames por mensaje y
   compararlos con `context.frame.frame_index` (sin sondear `VPOSR`).
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`VBlankLatch`/`take_vblank` en `port.hpp`; HOST-236). El **productor**
+  del backend es `eng::os::tick` (`amiga_minimal_os.cpp`): latcha el VBlank y pollea la entrada; lo
+  llama el bucle por frame (demo 208). La variante **por IRQ** (`set_vblank_service`) queda como
+  mejora cuando el bucle sea interrupt-driven.
 
 ### M2 — Entrada por registros → mensajes
 
@@ -58,24 +68,32 @@ UI (`eng::ui`).
 - **Detalle**: [`MINI_OS_INPUT.md`](../../engine/architecture/MINI_OS_INPUT.md).
 - **Verificación**: el decodificado puro ya está cubierto por HOST-006/HOST-007; se añade un test
   de que un cambio de registro produce **exactamente un mensaje** (y ninguno si no cambia).
-- **Estado**: pendiente.
+- **Estado**: **casi entregado**. Entregado: los **productores puros** (`eng/os/input.hpp`:
+  `JoyProducer`/`PadProducer`/`MouseProducer`/`KeyProducer` emiten solo al cambiar / por scancode;
+  **HOST-252/256**), la **lectura de registros** en el backend (`eng::os::tick`: `JOYxDAT` +
+  CIA-A PRA) y el **teclado** por IRQ de CIA-A serie (`os::enable_keyboard`, `SP` → `KeyDown`/`KeyUp`).
+  Pendiente: verificar el teclado en hardware (el runner **no inyecta teclas**: no hay opción de
+  inyección, solo `--automation-key`, que escribe un valor en memoria para el selector de técnicas).
 
 ### M3 — Puente a la UI
 
-- **Entregable**: `eng/ui/ui_context.hpp` (`UiEvent`, `UiContext`) y `eng/ui/ui_bridge.hpp`
-  (`Msg` → `UiEvent`).
+- **Entregable**: `eng/ui/event.hpp` (`UiEvent`, `UiEventKind`) y `eng/ui/ui_bridge.hpp`
+  (`Msg` → `UiEvent`); `UiContext` (foco/widgets) es de la GUI (`ROADMAP_GUI.md`).
 - **Verificación**: **HOST-220** — el puente traduce cada `MsgType` de entrada a su `UiEvent` y
   descarta los que no son de entrada; un `UiContext` de prueba recibe foco y despacha.
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`event.hpp` + `ui_bridge.hpp`; HOST-220). `UiContext` llega con la GUI.
 
 ### M4 — Bucle reactivo como `Game`
 
 - **Entregable**: `MessagePumpGame<App>` que drena el puerto en `update`, saca el VBlank latched
   primero y despacha por tipo; patrón "esperar señales → drenar → lógica".
-- **Verificación**: **demo 206_message_loop** — una escena mínima que reacciona a VBlank, a teclas
+- **Verificación**: **demo 208_message_loop** — una escena mínima que reacciona a VBlank, a teclas
   y al ratón **sin leer hardware**; el gate visual comprueba que la escena cambia con la entrada y
   que el frame avanza.
-- **Estado**: pendiente.
+- **Estado**: **entregado**. `eng/os/message_pump.hpp` (`MessagePumpGame<App>` drena el puerto y
+  llama a `on_frame`/`on_render`; **HOST-253**) y la **demo 208_message_loop** (VBlank + input por
+  mensajes; overlay con frames/mensajes/joystick). El bucle es de **polling** (`os::tick` por
+  frame); el modo por IRQ queda como mejora.
 
 ### M5 — Prioridad, peek, coalescing y despacho
 
@@ -85,7 +103,8 @@ UI (`eng::ui`).
 - **Detalle**: §13–14 de [`MINI_OS_MESSAGE_LOOP.md`](../../engine/architecture/MINI_OS_MESSAGE_LOOP.md).
 - **Verificación**: **HOST-236** (prioridad + coalescing + latched) y **HOST-237** (la tabla cubre
   todos los `MsgType` y despacha al handler correcto).
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`PrioMsgQueue`/`prio_of`/`wait` y `HandlerTable`/`dispatch_all`;
+  HOST-236/237).
 
 ### M6 — Tiempo, timers y profiling
 
@@ -94,7 +113,8 @@ UI (`eng::ui`).
 - **Detalle**: [`MINI_OS_TIME.md`](../../engine/architecture/MINI_OS_TIME.md).
 - **Verificación**: **HOST-222** (timers de frames, periódicos y one-shot con ticks sintéticos) y
   **HOST-238** (TickClock: coherencia de lectura y conversión µs↔ticks).
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`time.hpp` + `timer.hpp`; HOST-222/238). La lectura del CIA
+  (`TickClock`) la aporta el backend como `TickSource`.
 
 ### M7 — E/S asíncrona
 
@@ -107,7 +127,20 @@ UI (`eng::ui`).
   ([`ROADMAP_RESOURCES.md`](ROADMAP_RESOURCES.md)).
 - **Verificación**: **HOST-221** — una E/S simulada (host) publica `FileDone` con el resultado y la
   señal `SigFile`; la decodificación diferida avanza por rebanadas.
-- **Estado**: pendiente.
+- **Estado**: **casi entregado**. Entregado: el **contrato** `eng/os/file.hpp`, su implementación
+  Amiga sobre **`dos.library`** (`amiga_minimal_file.cpp`: `Open`/`Read`/`Write`/`Seek`/`Close`,
+  `CreateDir`/`DeleteFile`/`Rename`; la asíncrona como **diferida** con `file_pump` que postea
+  `FileDone`/`FileError`), el **enrutado** `eng/res/resources.hpp` (HOST-255) y la **demo 211**
+  (lee texto/imagen/sonido, carga un `.englib` y prueba la escritura). **Disquete a bajo nivel**
+  (`eng/os/floppy.hpp` + `amiga_minimal_floppy.cpp`): DMA crudo (CIA-B PRB + `DSKPT`/`DSKLEN` doble +
+  `DSKBLK`) y decode MFM en CPU — **sin `trackdisk.device`**. La DMA **funciona** en la demo
+  `214_floppy_raw` (motor/seek/lectura de pista + syncs `$4489`); el decode del sector necesita
+  búsqueda de sync **bit a bit** (pendiente). `eng/os/trackdisk.hpp` queda como alternativa
+  documentada y no verificada (`td_open` se cuelga en `-nostdlib`). Decisión y detalle en
+  `docs/debugging/CONSULTA-GROK-DISCO-Y-LOADER.md`; errata CIA-B en `docs/reference/ahrm/ERRATA_Y_NOTAS.md` §5. **Imágenes de disquete**: `tools/fs/make-volume.mjs --adf` genera un
+  ADF (FFS/OFS con `xdftool`) y `run-demo.sh --disk <adf>` lo monta en `DF0:`; el disquete se monta,
+  pero **leer `df0:` desde una demo se bloquea** en el entorno sin Workbench (el volumen no queda
+  montado), así que la lectura se prueba con el `DH1:` (demo 211).
 
 ### M8 — Streaming desde disquete
 
@@ -116,7 +149,8 @@ UI (`eng::ui`).
 - **Detalle**: §5 de [`MINI_OS_IO.md`](../../engine/architecture/MINI_OS_IO.md).
 - **Verificación**: **HOST-239** — con E/S simulada, el stream llena N buffers, detecta *underrun*
   y termina en EOF sin perder chunks. Demo en hardware: audio continuo desde disquete.
-- **Estado**: pendiente.
+- **Estado**: **parcial**. Entregado: la **máquina de estados** `eng/os/stream.hpp`
+  (`ChunkStream<NumBuffers>`; **HOST-257**). Pendiente: la lectura real (`trackdisk`) y la demo.
 
 ### M9 — Telemetría
 
@@ -160,7 +194,7 @@ UI (`eng::ui`).
 | HOST-239 | test | Streaming (doble buffer, underrun, EOF) con E/S simulada. |
 | HOST-250 | test | Tareas de fondo: idle/preempt, ciclo de vida y `wait_or_idle`. |
 | HOST-251 | test | Tareas-corrutina (`co_await idle_yield`) y codegen 68000. |
-| 206_message_loop | demo | Bucle reactivo en hardware: VBlank + input + UI sin sondeo. |
+| 208_message_loop | demo | Bucle reactivo en hardware: VBlank + input + UI sin sondeo. |
 | 209_audio_stream | demo | Audio continuo desde disquete con `AudioStream`. |
 
 ## Riesgos y decisiones abiertas

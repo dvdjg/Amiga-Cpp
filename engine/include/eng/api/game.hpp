@@ -101,7 +101,7 @@ public:
 	/// callback de blit), de modo que son correctos aunque el juego consuma o drene el puerto.
 	void pump() noexcept {
 		eng::os::Msg m;
-		while (m_port.try_get(m)) {
+		while (m_port.pop(m)) {
 		}
 	}
 	[[nodiscard]] u32 vblank_count() const noexcept { return m_vblank_count; }
@@ -191,13 +191,19 @@ private:
 		auto& self = *static_cast<App*>(user);
 		const u32 seq = self.m_vblank_count + 1u;
 		self.m_vblank_count = seq;
-		self.m_port.post(eng::os::Msg {eng::os::MsgType::VBlank, 0u, seq});
+		eng::os::Msg msg {};
+		msg.type = eng::os::MsgType::VBlank;
+		msg.time_stamp = seq;
+		self.m_port.post(msg);
 	}
 	/// Productor de fin de blit: sube el contador y publica `BlitDone` (IRQ-safe).
 	static void on_blit_done(App& self, u16) noexcept {
 		const u32 seq = self.m_blitdone_count + 1u;
 		self.m_blitdone_count = seq;
-		self.m_port.post(eng::os::Msg {eng::os::MsgType::BlitDone, 0u, seq});
+		eng::os::Msg msg {};
+		msg.type = eng::os::MsgType::BlitDone;
+		msg.time_stamp = seq;
+		self.m_port.post(msg);
 	}
 
 	Backend& m_backend;

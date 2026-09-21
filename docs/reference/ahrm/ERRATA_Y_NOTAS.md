@@ -67,3 +67,25 @@ rearmado **después del fetch DMA** (`DDFSTRT`) y antes de la primera columna.
 (fetch e incremento de `s->pt`), `custom.cpp:4018-4083` (`sprstartstop`/`SPRxCTL`). Detalle:
 `docs/reference/emulators/winuae/sprite-dma.md`; validado en `demos/amiga/207_sprite_layer` (sin
 fantasma y con la DATA del Copper visible).
+
+## 6. Disquete: el control va por CIA-B **PRB** (`$BFD100`), no PRA
+
+El AHRM es **correcto** (Table 8-5: `CIABPRB $BFD100` = «eight output bits for disk selection,
+control and stepping»), pero `amiga-bootcamp/01_hardware/common/floppy_hardware.md` lo atribuye a
+CIA-B **PRA** (`$BFD000`) y `.../common/cia_chips.md` dice que PRA son las salidas de disco. Es
+**erróneo**. Layout de `CIABPRB` (activos a 0 salvo `SIDE`/`DIR`):
+
+```
+  bit 7  /MTR     motor (0 = on)
+  bits 6-3 /SEL3../SEL0   selección (/SEL0 = 0 -> DF0)
+  bit 2  SIDE     cara (0 = superior)
+  bit 1  DIR      dirección (0 = hacia el centro; pista 0 está fuera)
+  bit 0  /STEP    pulso (alto -> bajo -> alto)
+```
+
+Estado en **CIA-A PRA** (`$BFE001`): `/RDY`(5), `/TK0`(4), `/WPRO`(3), `/CHNG`(2).
+
+**Origen**: AHRM Table 8-5 + contraste con WinUAE-DBG (`cia.cpp:2431` decodifica el registro con
+`(addr & 0xf00) >> 8`, ignorando A0; `identify.cpp:83,98` dan `CIAB PRA` en `$BFD000` y `CIAA PRA`
+en `$BFE001`). Implementado en `eng/os/floppy.hpp` + `amiga_minimal_floppy.cpp`; la DMA cruda se
+valida en la demo `214_floppy_raw`.

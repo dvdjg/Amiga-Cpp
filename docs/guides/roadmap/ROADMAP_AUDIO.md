@@ -69,7 +69,9 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
 - **Detalle**: [`AUDIO_STREAMING.md`](../../engine/architecture/AUDIO_STREAMING.md).
 - **Verificación**: **HOST-239** (con E/S simulada: llena N buffers, detecta *underrun*, termina en
   EOF) y **demo 209_audio_stream** (grabación continua desde disquete en hardware).
-- **Estado**: pendiente.
+- **Estado**: **parcial**. Entregado: la **máquina de estados** de buffers `eng/os/stream.hpp`
+  (`ChunkStream<NumBuffers>`: `request_mask`/`on_chunk_ready`/`advance`/`underrun`/`eof`; **HOST-257**).
+  Pendiente: `PcmStream` sobre la E/S real (`trackdisk`), el *swap* en la IRQ de audio y la demo 209.
 
 ### A6 — API unificada y ejemplo de juego
 

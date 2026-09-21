@@ -12,17 +12,21 @@ núcleo, [`MINI_OS_INPUT.md`](../../../../docs/engine/architecture/MINI_OS_INPUT
 [`MINI_OS_IO.md`](../../../../docs/engine/architecture/MINI_OS_IO.md)), y el plan de fases en
 [`docs/guides/roadmap/ROADMAP_MINI_OS.md`](../../../../docs/guides/roadmap/ROADMAP_MINI_OS.md).
 
-## Cabeceras previstas
+## Cabeceras
 
-| Cabecera | Contenido |
-|---|---|
-| `message.hpp` | `MsgType` (contiguo), `Msg` (unión de payloads), `Signal` (máscara de bits). |
-| `port.hpp` | `MsgQueue<N>` (anillo SPSC IRQ-safe) y `MsgPort` (cola + `signalled` + `wait`/`signal`), `MsgPrio`/`PrioMsgQueue` y VBlank latched. |
-| `os.hpp` | Fachada de servicios: `init`, `system_port`, `frame_count`, `add_timer`, `input_enable`, `post_user`, `request_quit`. |
-| `time.hpp` | Tiempo: `TickClock` (µs sobre CIA-B), `ScopedTimer`, `beam_now`. |
-| `timer.hpp` | `TimerService` (timers de frames/µs → `MsgType::Timer`) y one-shot de CIA. |
-| `task.hpp` | `TaskSystem`: tareas de fondo con ciclo de vida, scheduler de idle, `request_preempt`/`yield_if_preempt`, `TaskMsgPort` propio y tareas-corrutina. |
-| `file.hpp` | E/S asíncrona: `FileHandle`, `file_open`/`read_async`/`write_async`/`close`, `IoNotify`, `AudioStream` y `MsgType::FileDone`/`FileError`. |
+| Cabecera | Contenido | Estado |
+|---|---|---|
+| `message.hpp` | `MsgType` (contiguo), `Msg` (unión de payloads), `Signal` (máscara de bits). | **Implementado** (HOST-219) |
+| `port.hpp` | `MsgQueue<N>` (anillo SPSC IRQ-safe), `PrioMsgQueue<N>`/`MsgPrio`, `MsgPort<N>`, `VBlankLatch`/`take_vblank`. | **Implementado** (HOST-219/236) |
+| `dispatch.hpp` | `HandlerTable<Ctx>` (despacho por tabla indexada por `MsgType`) y `dispatch_all`. | **Implementado** (HOST-237) |
+| `os.hpp` | Fachada: `system_port`, `frame_count`, `tick`, `post_user`, `request_quit`. | **Implementado** (backend Amiga, demo 208) |
+| `file.hpp` | E/S asíncrona: `FileHandle`, `file_open`/`read_async`/`write_async`/`close`/`delete`/`rename`, `IoNotify`/`IoUser`. | **Contrato** (HOST-255); backend `dos`/`trackdisk` previsto |
+| `stream.hpp` | `ChunkStream<NumBuffers>`: doble/triple buffer con `request_mask`/`on_chunk_ready`/`advance`/`underrun`/`eof`. | **Implementado** (HOST-257) |
+| `time.hpp` | Tiempo: conversiones ticks↔µs (PAL/NTSC) y `TickSource`/`ScopedTimer`. | **Implementado** (HOST-238) |
+| `timer.hpp` | `TimerService` (timers de frames/µs → `MsgType::Timer`). | **Implementado** (HOST-222) |
+| `input.hpp` | Productores puros de entrada (`JoyProducer`/`PadProducer`/`MouseProducer`): emiten solo al cambiar. | **Implementado** (HOST-252) |
+| `message_pump.hpp` | `MessagePumpGame<App>`: drena el puerto en `update` y llama a `on_frame`/`on_render`. | **Implementado** (HOST-253) |
+| `task.hpp` | `TaskSystem`: tareas de fondo con ciclo de vida, scheduler de idle, `request_preempt`/`yield_if_preempt`, `TaskMsgPort` propio y tareas-corrutina. | prevista |
 
 Reglas del engine: sin heap, sin excepciones ni RTTI, `gnu++23`, tipos de `eng/core`, API
 paramétrica y agnóstica del backend. El backend Amiga (`amiga_minimal`) es quien produce los

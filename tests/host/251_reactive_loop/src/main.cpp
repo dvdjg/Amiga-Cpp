@@ -83,7 +83,7 @@ struct TestGame {
 	}
 	void update(auto& app) {
 		os::Msg m;
-		while (app.port().try_get(m)) {
+		while (app.port().pop(m)) {
 			if (m.type == os::MsgType::VBlank) {
 				++vblank_seen;
 			} else if (m.type == os::MsgType::BlitDone) {

@@ -59,9 +59,22 @@ int main() {
 	cfg.planes = kPlanes;
 	cfg.fetch_bytes = 42;
 
+	// El display posee los DOS bitmaps; la superficie solo los liga.
+	eng::gfx::BitmapConfig bc {};
+	bc.width = kWorldW;
+	bc.height = kWorldH;
+	bc.planes = kPlanes;
+	bc.layout = eng::gfx::PlaneLayout::Interleaved;
+	eng::gfx::Bitmap b0;
+	eng::gfx::Bitmap b1;
+	if (!b0.init(mem, bc) || !b1.init(mem, bc)) {
+		std::printf("[FAIL] init de los bitmaps\n");
+		return 1;
+	}
+
 	DoubleBufferScrollPlayfield pf;
-	if (!pf.begin(mem, cfg)) {
-		std::printf("[FAIL] begin() fallo con un mundo valido\n");
+	if (!pf.bind(cfg, b0, b1)) {
+		std::printf("[FAIL] bind() fallo con un mundo valido\n");
 		return 1;
 	}
 
@@ -160,8 +173,8 @@ int main() {
 		bad_cfg.view_w = kViewW;
 		bad_cfg.view_h = kViewH;
 		bad_cfg.planes = kPlanes;
-		if (bad.begin(mem, bad_cfg)) {
-			std::printf("[FAIL] begin() acepto un mundo menor que el viewport\n");
+		if (bad.bind(bad_cfg, b0, b1)) {
+			std::printf("[FAIL] bind() acepto un mundo menor que el viewport\n");
 			return 1;
 		}
 	}

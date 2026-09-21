@@ -1,5 +1,5 @@
 // ============================================================================
-// Test HOST-252: Copper lanza blits (Tecnica A) — `CopperIntentKind::BlitterJob`.
+// Test HOST-260: Copper lanza blits (Tecnica A) — `CopperIntentKind::BlitterJob`.
 // ============================================================================
 //
 // Valida en host (sin Amiga):
@@ -9,7 +9,7 @@
 //      la ventana se emite; fuera se cuenta como `unhandled_intents` y no escribe registros.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/252_copper_blitter
+//   bash tools/run-host-tests.sh tests/host/260_copper_blitter
 
 #include <cstdio>
 

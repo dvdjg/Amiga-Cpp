@@ -1,13 +1,22 @@
-// Test host del puerto de mensajes del mini-SO (`eng/os/port.hpp`).
+// ============================================================================
+// Test HOST-250: `eng::os::MsgQueue` (anillo SPSC) y `MsgPort` (prioridad + senal).
+// ============================================================================
+//
+// Ejecucion:
+//   bash tools/run-host-tests.sh tests/host/250_os_port
+
 #include <cstdio>
 
+#include <eng/os/message.hpp>
 #include <eng/os/port.hpp>
 
 using eng::os::Msg;
 using eng::os::MsgPort;
+using eng::os::MsgQueue;
 using eng::os::MsgType;
 
 namespace {
+
 int g_fail = 0;
 void check(bool ok, const char* what) {
 	if (!ok) {
@@ -15,38 +24,57 @@ void check(bool ok, const char* what) {
 		++g_fail;
 	}
 }
+
+Msg make(MsgType t) {
+	Msg m {};
+	m.type = t;
+	return m;
+}
+
+void test_queue() {
+	MsgQueue<4> q;
+	check(q.empty(), "MsgQueue: recien creada vacia");
+	check(q.push_isr(make(MsgType::BlitDone)), "MsgQueue: push_isr 1");
+	check(q.push_isr(make(MsgType::VBlank)), "MsgQueue: push_isr 2");
+	Msg m {};
+	check(q.peek(m) && m.type == MsgType::BlitDone, "MsgQueue: peek sin retirar");
+	check(q.pop(m) && m.type == MsgType::BlitDone, "MsgQueue: pop FIFO 1");
+	check(q.pop(m) && m.type == MsgType::VBlank, "MsgQueue: pop FIFO 2");
+	check(!q.pop(m), "MsgQueue: vacia tras drenar");
+
+	// Capacidad N: caben N-1 (una ranura de separacion); al llenar, descarta y cuenta.
+	for (int i = 0; i < 3; ++i) {
+		(void)q.push_isr(make(MsgType::User));
+	}
+	check(!q.push_isr(make(MsgType::User)), "MsgQueue: llena -> false");
+	check(q.overflows() == 1u, "MsgQueue: overflow contado");
+}
+
+void test_port_priority() {
+	MsgPort<8> p;
+	check(p.empty(), "MsgPort: vacio");
+
+	Msg low = make(MsgType::BlitDone); // prioridad Low
+	Msg normal = make(MsgType::VBlank); // prioridad Normal
+	check(p.post(low), "MsgPort: post Low");
+	check(p.post(normal), "MsgPort: post Normal");
+	check(!p.empty(), "MsgPort: no vacio");
+
+	Msg m {};
+	check(p.pop(m) && m.type == MsgType::VBlank, "MsgPort: el Normal se cuela ante el Low");
+	check(p.pop(m) && m.type == MsgType::BlitDone, "MsgPort: despues el Low");
+	check(!p.pop(m), "MsgPort: vacio tras drenar");
+	check(p.peek(m) == false, "MsgPort: peek en vacio -> false");
+}
+
 } // namespace
 
 int main() {
 	std::printf("== HOST-250 os_port ==\n");
-
-	MsgPort<4> p;
-	check(p.empty(), "recien creado: vacio");
-	check(!p.signalled(), "sin senal");
-
-	check(p.post(Msg {MsgType::BlitDone, 1u, 0x1234u}), "post 1");
-	check(p.post(Msg {MsgType::VBlank, 2u, 0u}), "post 2");
-	check(p.signalled(), "senalado tras post");
-	check(!p.empty(), "no vacio");
-
-	Msg m {};
-	check(p.try_get(m) && m.type == MsgType::BlitDone && m.code == 1u && m.data == 0x1234u,
-	      "FIFO: primero BlitDone");
-	check(p.try_get(m) && m.type == MsgType::VBlank, "FIFO: segundo VBlank");
-	check(!p.try_get(m), "vacio tras drenar");
-
-	// Cola de capacidad N: cabe N-1 (una ranura de separacion).
-	MsgPort<4> q;
-	for (int i = 0; i < 3; ++i) {
-		check(q.post(Msg {MsgType::User, static_cast<eng::u16>(i), 0u}), "post hasta llenar");
-	}
-	check(!q.post(Msg {MsgType::User, 9u, 0u}), "post en cola llena -> false");
-	q.clear();
-	check(q.empty(), "clear vacia");
-	check(!q.signalled(), "clear quita la senal");
-
+	test_queue();
+	test_port_priority();
 	if (g_fail == 0) {
-		std::printf("OK: os::MsgPort validado (FIFO, llena, senal, clear).\n");
+		std::printf("OK: os::MsgQueue (SPSC) + MsgPort (prioridad) validados.\n");
 		return 0;
 	}
 	std::printf("FAIL: %d\n", g_fail);

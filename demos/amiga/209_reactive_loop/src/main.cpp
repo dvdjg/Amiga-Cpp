@@ -59,7 +59,7 @@ struct ReactiveDemo {
 	void update(auto& app) {
 		// Drena el puerto: VBlank (latido de frame) y BlitDone (fin de copia).
 		eng::os::Msg m;
-		while (app.port().try_get(m)) {
+		while (app.port().pop(m)) {
 			if (m.type == eng::os::MsgType::VBlank) {
 				++m_vblank_seen;
 			} else if (m.type == eng::os::MsgType::BlitDone) {

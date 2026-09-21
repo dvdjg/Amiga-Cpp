@@ -18,6 +18,7 @@
 /// Endianness: el blob está en **big-endian** (nativo m68k). Los lectores `read_be16/32`
 /// funcionan igual en host (x86) que en Amiga.
 
+#include <eng/core/byte_order.hpp>
 #include <eng/core/domains.hpp>
 #include <eng/core/fast_div.hpp>
 #include <eng/core/mesh3d.hpp>
@@ -64,27 +65,14 @@ struct ChunkRef {
 	u32 size = 0;   // bytes de datos
 };
 
-/// Lector big-endian (2 bytes).
-constexpr u16 read_be16(const u8* p) {
-	return static_cast<u16>((static_cast<u16>(p[0]) << 8u) | p[1]);
-}
-/// Lector big-endian (4 bytes).
-constexpr u32 read_be32(const u8* p) {
-	return (static_cast<u32>(p[0]) << 24u) | (static_cast<u32>(p[1]) << 16u) |
-	       (static_cast<u32>(p[2]) << 8u) | static_cast<u32>(p[3]);
-}
-/// Escritor big-endian (2 bytes).
-constexpr void write_be16(u8* p, u16 v) {
-	p[0] = static_cast<u8>(v >> 8u);
-	p[1] = static_cast<u8>(v);
-}
-/// Escritor big-endian (4 bytes).
-constexpr void write_be32(u8* p, u32 v) {
-	p[0] = static_cast<u8>(v >> 24u);
-	p[1] = static_cast<u8>(v >> 16u);
-	p[2] = static_cast<u8>(v >> 8u);
-	p[3] = static_cast<u8>(v);
-}
+/// Lector big-endian (2 bytes). Alias de `eng::read_be16` (primitiva común del engine).
+using eng::read_be16;
+/// Lector big-endian (4 bytes). Alias de `eng::read_be32`.
+using eng::read_be32;
+/// Escritor big-endian (2 bytes). Alias de `eng::write_be16`.
+using eng::write_be16;
+/// Escritor big-endian (4 bytes). Alias de `eng::write_be32`.
+using eng::write_be32;
 
 /// Cursor tipado de LECTURA sobre un `Span<const u8>` (big-endian), con
 /// comprobación de límites. Si una lectura agota los datos, `ok()` pasa a `false`

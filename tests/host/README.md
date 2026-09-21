@@ -256,14 +256,29 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-216 | [scene_display_limits](216_scene_display_limits/README.md) | `eng/graphics/composition/limits.hpp`: perfiles OCS/ECS/AGA, validación `validate`/`valid_scene` y coste de bus `dma_cost` (fetch 1×/2×/4×, slots 226/27). |
 | HOST-217 | [polygon_planes](217_polygon_planes/README.md) | `eng/graphics/polygon_planes.hpp`: relleno de polígonos **compuesto por bitplane** (CPU): un fill por plano según los bits del color, con cancelación de aristas compartidas (even-odd). |
 | HOST-218 | [seam_c2p](218_seam_c2p/README.md) | `Rasterizer::c2p` (seam): chunky→planar unificado (CPU vía `c2p_1x1_4`/`naive`), comparado con la referencia. |
+| HOST-219 | [os_core](219_os_core/README.md) | Mini-SO núcleo (`eng/os/message.hpp` + `port.hpp`): `Msg` trivial, `MsgQueue` SPSC (FIFO/peek/overflow) y señales OR-eadas. |
+| HOST-220 | [ui_bridge](220_ui_bridge/README.md) | Mini-SO: puente `os::Msg` → `ui::UiEvent` (ratón, teclado con modificadores, joystick/pad; descarta lo que no es entrada). |
+| HOST-222 | [os_timer](222_os_timer/README.md) | Mini-SO: `TimerService` (frames/µs, one-shot/periódico, `stop`, capacidad). |
 | HOST-231 | [box](231_box/README.md) | `eng::Box` (rect 16 bits) + adaptadores a/desde `SurfaceRect`/`ClipRect`/`DirtyRect` (round-trip y bordes). |
 | HOST-232 | [draw_target](232_draw_target/README.md) | `field::DrawTarget` (Surface+Rasterizer+FramePlan+clip): `fill`/`line`/`frame`/`c2p` y `box()`. |
 | HOST-233 | [api_facade](233_api_facade/README.md) | Fachada pública `eng/api/api.hpp`: un solo include expone la API estable (Box, FramePlan, raster, entrada, tareas, paleta, `GameModule`). |
 | HOST-234 | [app_screen](234_app_screen/README.md) | Fachada de juego `eng::App` + `eng::Screen` (`eng/api/game.hpp`): bucle + contexto de dibujo sin exponer backend/`FramePlan`. |
 | HOST-235 | [hw_info](235_hw_info/README.md) | Inventario de hardware `eng::hw` (`eng/hw/info.hpp`): consultas de capacidad, display, nombres y heurísticas (modelo, RAM, RTC). |
+| HOST-236 | [os_latched](236_os_latched/README.md) | Mini-SO: prioridad (`PrioMsgQueue`, los `High` se cuelan), `peek`, coalescing de `MouseMove` y VBlank latched (secuencia + `missed`). |
+| HOST-237 | [os_dispatch](237_os_dispatch/README.md) | Mini-SO: despacho por tabla (`HandlerTable`) indexada por `MsgType`, cobertura y `dispatch_all`. |
+| HOST-238 | [os_time](238_os_time/README.md) | Mini-SO: `eng/os/time.hpp` — conversiones ticks↔µs (PAL/NTSC) y `ScopedTimer` con `TickSource`. |
 | HOST-242 | [pcm_codec](242_pcm_codec/README.md) | Codec PCM Delta + RLE (`eng/audio/pcm_codec.hpp`): round-trip byte a byte, ratio y rechazos (codec/destino/truncado). |
 | HOST-249 | [crowd](249_crowd/README.md) | Crowd genérico (`eng/ai/steering/crowd.hpp`): separación/evasión con fase amplia como política (`SpatialHash`, no `O(N²)`), probado con `s32` y `float`. |
-| HOST-250 | [os_port](250_os_port/README.md) | Puerto de mensajes del mini-SO (`eng/os/port.hpp`): `MsgQueue` SPSC (FIFO, cola llena, `clear`) y `MsgPort` (`post`/`try_get`/`signalled`). |
+| HOST-250 | [os_port](250_os_port/README.md) | Puerto de mensajes del mini-SO (`eng/os/port.hpp`): anillo SPSC (`push_isr`/`pop`/`peek`/`overflows`) y `MsgPort`. |
 | HOST-251 | [reactive_loop](251_reactive_loop/README.md) | Bucle reactivo sobre `eng::App`: hook de VBlank del `Engine` → `MsgType::VBlank`, consumo en `update`, blit asíncrono → `MsgType::BlitDone`, `vblank_count`/`blitdone_count`, `pump`. |
-| HOST-252 | [copper_blitter](252_copper_blitter/README.md) | Copper lanza blits (Técnica A): `CopperIntentKind::BlitterJob` (`BLTCON*`/punteros/módulos/`BLTSIZE`) y **ventana segura** (`set_blitter_window`) que lo serializa con los blits de CPU. |
+| HOST-252 | [os_input](252_os_input/README.md) | Mini-SO: productores de entrada (`eng/os/input.hpp`) que emiten joystick/gamepad/ratón **solo al cambiar**, con posición clampada. |
+| HOST-253 | [os_pump](253_os_pump/README.md) | Mini-SO: bucle reactivo `MessagePumpGame` (drena el puerto, `on_frame`/`on_render`). |
+| HOST-254 | [asset_cache](254_asset_cache/README.md) | Recursos: `AssetCache` (`eng/res/asset_cache.hpp`) — ciclo, presupuesto, desalojo por prioridad/LRU y `pin`/`refcount`. |
+| HOST-255 | [io_route](255_io_route/README.md) | Recursos: `IoUser` (cookie) y `route_io` (`eng/res/resources.hpp`) — enrutado de `FileDone`/`FileError` por `tag` sin cruzar consumidores. |
+| HOST-256 | [os_keyboard](256_os_keyboard/README.md) | Mini-SO: teclado (`eng/os/input.hpp`) — bit-reverse del scancode de la CIA, down/up y modificadores. |
+| HOST-257 | [os_stream](257_os_stream/README.md) | Mini-SO: `ChunkStream` (`eng/os/stream.hpp`) — doble buffer, underrun y EOF. |
+| HOST-248 | [dynloader](248_dynloader/README.md) | Recursos: `DynLoader` (`eng/res/dynloader.hpp`) — `.englib` relocatable (relocaciones + símbolos). |
+| HOST-258 | [hunk_loader](258_hunk_loader/README.md) | Recursos: cargador **HUNK** (`eng/res/hunk.hpp`) — segmentos en `LinearArena`, relocaciones (32/32SHORT) y símbolos; detección de formato `.englib`/HUNK en `DynLoader`. |
+| HOST-259 | [floppy_mfm](259_floppy_mfm/README.md) | Disquete: decodificación **MFM** (`eng/os/floppy.hpp`) — `mfm_decode_long` inverso y `floppy_find_sector` sobre una pista AmigaDOS sintética (encoder = el del emulador). |
+| HOST-260 | [copper_blitter](260_copper_blitter/README.md) | Copper lanza blits (Técnica A): `CopperIntentKind::BlitterJob` (`BLTCON*`/punteros/módulos/`BLTSIZE`) y **ventana segura** (`set_blitter_window`) que lo serializa con los blits de CPU. |
 | HOST-208 | [ptr](208_ptr/README.md) | `eng/core/ptr.hpp`: punteros "inteligentes" sin heap (`Ref` observador no propietario y anulable, `NonNull`, `Opt` opcional en sitio). |

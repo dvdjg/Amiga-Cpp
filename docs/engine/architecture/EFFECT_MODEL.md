@@ -51,10 +51,22 @@ Sin heap ni virtuals: la lista son `eng::util::FunctionRef<void(Scene&)>` (el mi
 mecanismo que `Task`), o un número fijo de *slots* tipados si se quiere evitar el *type
 erasure*.
 
+> **El `FunctionRef` no es propietario**: el callable debe **sobrevivir** a la escena. Pasar una
+> **lambda temporal** a `add_effect` (o a `on_frame`) deja una referencia colgante. El patrón es
+> un **functor miembro** del juego (como `FrameTask` en la demo `081_background_tasks`).
+> `Scene::add_effect` **lo impide en compilación** (`static_assert` sobre `F&&`: no acepta
+> rvalues); así el fallo es claro en vez de un coste basura en runtime.
+
 ```cpp
+struct SkyEffect {                 // functor miembro: vive tanto como la escena
+    Game* self = nullptr;
+    void operator()(Scene& s) const { self->sky.set_phase(s.frame()); self->sky.frame(s); }
+};
+
 eng::effects::Gradient sky;
-sky.attach(scene, {.first_line = 0x2c, .band_height = 8, .bands = 24, .first = 0}, keys);
-scene.add_effect([&sky](Scene& s) { sky.update(s.frame()); sky.apply_into(s.plan()); });
+sky.attach({.first_line = 0x2c, .band_height = 8, .bands = 24, .first = 0}, keys);
+m_sky_effect.self = this;
+scene.add_effect(m_sky_effect);    // NO `[&](Scene& s) { ... }` (temporal -> cuelga)
 ```
 
 ## 4. Propiedad de banda y resolución de conflictos

@@ -13,7 +13,7 @@ que no se usan y no son prioritarios **salen solos**. Es lo que permite moverse 
   ┌───────────────────┐
   │  AssetCache       │  refcount + prioridad + LRU, carga async
   ├───────────────────┤
-  │  DynLoader        │  .englib / overlays relocables, load/unload
+  │  DynLoader        │  .englib / HUNK nativo, reloc + simbolos, load/unload
   ├───────────────────┤
   │  Vfs / File IO    │  open/read/write/create/delete + FileDone   (MINI_OS_IO.md)
   └─────────┬─────────┘
@@ -185,21 +185,32 @@ En Amiga "a pelo" no hay `dlopen` del OS: hace falta un formato **simple y reloc
 loader que lo cargue en RAM, aplique las relocaciones y exponga símbolos. Así se pueden tener
 **overlays** de código (jefe de zona, minijuego) que se cargan y descargan según la zona.
 
-### Formato `.englib`
+### Formatos: `.englib` y HUNK
+
+El loader acepta **dos formatos** y los distingue por el primer longword:
+
+- **`.englib`** (magic `'ENGL'`): contenedor propio compacto, en orden nativo de la máquina. El
+  código vive **in situ** en la imagen y las relocaciones se aplican sobre ella.
+- **HUNK** (magic `HUNK_HEADER`, `0x000003F3`): el formato **nativo de AmigaOS** (`hunk.hpp`). Los
+  segmentos (`HUNK_CODE`/`HUNK_DATA`/`HUNK_BSS`) se reservan en una `eng::LinearArena` del llamador
+  y se copian; la imagen puede liberarse tras cargar. Soporta `HUNK_RELOC32`, `HUNK_RELOC32SHORT`,
+  `HUNK_DREL32`, `HUNK_RELOC16/8`, `HUNK_ABSRELOC16` y `HUNK_RELRELOC32`, más `HUNK_SYMBOL`.
 
 ```text
-Header:
-  magic "ENGL", version
-  code_size, data_size, bss_size
-  entry_offset            // +0 = init (se llama al cargar)
-  reloc_count, export_count
-Relocs:  [offset32]...    // celdas a las que sumar la dirección base (modelo abs)
-Exports: [name_hash u32][offset32]...
-Code · Data
+.englib  Header: magic "ENGL", version, code_size, data_size, bss_size,
+                 entry_offset, reloc_count, export_count
+         Relocs:  [offset32]...   // celdas a las que sumar la dirección base (modelo abs)
+         Exports: [name_hash u32][offset32]...
+         Code · Data
+
+HUNK     HUNK_HEADER [0][num][first][last][size×num]
+         HUNK_CODE/DATA/BSS · HUNK_RELOC32/RELOC32SHORT · HUNK_SYMBOL · HUNK_END
 ```
 
-El binario se enlaza con base 0 (o `-fPIC`) y las relocaciones las genera un script host. También
-vale un Hunk Amiga (`HUNK_CODE` + `HUNK_RELOC32`) parseado por el loader.
+Ambos se enlazan con **base 0** y comparten la búsqueda de símbolos por hash **FNV-1a**
+(`eng/res/symbol_hash.hpp`). El `.englib` lo genera un script host; el HUNK lo produce el propio
+toolchain (`elf2hunk`) o cualquier ensamblador/enlazador Amiga. La cabecera `dos/doshunks.h` (NDK)
+es la referencia de los códigos de hunk.
 
 ```cpp
 class DynLoader {
@@ -207,14 +218,14 @@ public:
 	bool init(void* heap, eng::u32 budget, eng::u16 max_libs = 8);
 
 	LibHandle declare(const char* path);
-	bool load_async(LibHandle h);              ///< leer → relocalizar → Ready
-	bool unload(LibHandle h);                  ///< solo si refcount==0 y !pinned
-	void add_ref(LibHandle h);
-	void release(LibHandle h);
+	bool load(LibHandle h, eng::Span<eng::u8> image, eng::LinearArena* pool = nullptr); ///< detecta formato
+	bool unload(LibHandle h);                  ///< el llamador libera la imagen y/o la arena
+	LibState state(LibHandle h) const;
+	LibFormat format(LibHandle h) const;       ///< EngLib o Hunk
 
 	void* symbol(LibHandle h, const char* name);
 	void* symbol(LibHandle h, eng::u32 name_hash);
-	void on_file_done(os::FileHandle fh, eng::s32 result, const os::IoUser& user);
+	void on_file_done(os::FileHandle fh, eng::s32 result, const os::IoUser& user); ///< E/S async (diseño)
 };
 ```
 
@@ -323,7 +334,7 @@ Sale zona B
 |---|---|
 | VFS ([`MINI_OS_IO.md`](MINI_OS_IO.md)) | create/open/read/write/delete + `FileDone` |
 | `AssetCache` | declare/prefetch/get, pin, prioridad, LRU, presupuestos Chip/Fast |
-| `DynLoader` | `.englib` con relocs y exports, load/unload async |
+| `DynLoader` | `.englib` **y HUNK** (nativo) con relocs y símbolos; `load`/`unload` |
 | Mensajes | `AssetReady`/`Evicted`/`Error`, `LibLoaded`/`Error`/`Unloaded` sobre `FileDone` |
 | Juego | prefetch por zona; `get` devuelve `nullptr` mientras `Loading` |
 

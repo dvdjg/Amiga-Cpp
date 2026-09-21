@@ -42,7 +42,9 @@ struct PostDone {
 	eng::os::MsgPort<8>* port;
 };
 void post_done(PostDone& s, eng::u16) {
-	s.port->post(eng::os::Msg {eng::os::MsgType::BlitDone, 0u, 0u});
+	eng::os::Msg msg {};
+	msg.type = eng::os::MsgType::BlitDone;
+	s.port->post(msg);
 }
 
 struct DemoGame {
@@ -81,7 +83,7 @@ struct DemoGame {
 			return;
 		}
 		eng::os::Msg m;
-		while (g_port.try_get(m)) {
+		while (g_port.pop(m)) {
 			if (m.type == eng::os::MsgType::BlitDone) {
 				m_async_done = true;
 			}
