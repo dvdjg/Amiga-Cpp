@@ -85,6 +85,9 @@ inline void* g_cia_task_user = nullptr;
 inline unsigned long g_cia_old_vector = 0;
 inline bool g_cia_installed = false;
 
+// Teclado del mini-SO (CIA-A serie, SP): el despachador lo llama si la IRQ es de SP.
+inline void (*g_os_kbd_isr)() = nullptr;
+
 // CIA-A: registros a 0xBFE001 + reg*0x100 (ver <hardware/cia.h> y cia_chips.md).
 inline volatile unsigned char* ciaa_reg(unsigned short index) {
 	return reinterpret_cast<volatile unsigned char*>(0xbfe001)

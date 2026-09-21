@@ -110,4 +110,61 @@ private:
 	}
 };
 
+/// **Productor de teclado**: recibe el byte crudo de la CIA-A (`SDR`), corrige el **bit-reverse**
+/// del scancode, mantiene los modificadores y emite `KeyDown`/`KeyUp`. Cada scancode es un evento
+/// (siempre emite).
+struct KeyProducer {
+	eng::u16 qual = 0u; ///< bits `kQual*`
+
+	/// Procesa un byte crudo de `SDR` (`bit7` = 1 → suelta). Devuelve `true` y rellena `out`.
+	bool update(eng::u8 raw, eng::u32 stamp, Msg& out) noexcept {
+		const bool up = (raw & 0x80u) != 0u;
+		const eng::u8 code = reverse_bits7(static_cast<eng::u8>(raw & 0x7fu));
+		update_qual(code, up);
+		out = Msg {};
+		out.type = up ? MsgType::KeyUp : MsgType::KeyDown;
+		out.time_stamp = stamp;
+		out.payload.key = {code, qual};
+		return true;
+	}
+
+	/// Invierte los 7 bits de un scancode de la CIA (el teclado los manda al revés).
+	[[nodiscard]] static constexpr eng::u8 reverse_bits7(eng::u8 v) noexcept {
+		eng::u8 r = 0u;
+		for (eng::u8 i = 0u; i < 7u; ++i) {
+			r = static_cast<eng::u8>((r << 1u) | (v & 1u));
+			v = static_cast<eng::u8>(v >> 1u);
+		}
+		return r;
+	}
+
+private:
+	/// Pone o quita un bit de modificador.
+	void set_qual(eng::u16 mask, bool on) noexcept {
+		qual = on ? static_cast<eng::u16>(qual | mask) : static_cast<eng::u16>(qual & ~mask);
+	}
+	/// Actualiza los modificadores segun el scancode (Shift/Ctrl/Alt/Amiga) y down/up.
+	void update_qual(eng::u8 code, bool up) noexcept {
+		switch (code) {
+		case 0x60u: // LShift
+		case 0x61u: // RShift
+			set_qual(kQualShift, !up);
+			break;
+		case 0x63u: // Ctrl
+			set_qual(kQualCtrl, !up);
+			break;
+		case 0x64u: // LAlt
+		case 0x65u: // RAlt
+			set_qual(kQualAlt, !up);
+			break;
+		case 0x66u: // LAmiga
+		case 0x67u: // RAmiga
+			set_qual(kQualAmiga, !up);
+			break;
+		default:
+			break;
+		}
+	}
+};
+
 } // namespace eng::os

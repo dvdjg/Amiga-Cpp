@@ -28,4 +28,8 @@ void post_user(eng::u32 code, eng::u32 a, eng::u32 b);
 /// Pide terminar el bucle (postea `MsgType::Quit`).
 void request_quit();
 
+/// **Habilita el teclado** (CIA-A serie, IRQ de nivel 2): a partir de aquí los scancodes llegan
+/// como `KeyDown`/`KeyUp` por el puerto del sistema. Lo implementa el backend Amiga.
+void enable_keyboard();
+
 } // namespace eng::os

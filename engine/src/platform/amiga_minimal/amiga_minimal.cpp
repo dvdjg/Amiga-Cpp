@@ -228,8 +228,11 @@ void MinimalBackend::set_blitter_priority(bool enabled) {
 
 // Despachador de la IRQ de la CIA-A (nivel 2): lo llama `support/cia_irq.s`.
 extern "C" void cia_dispatch() {
-	(void)*ciaa_reg(0x0du);                        // leer ICR reconoce la IRQ de la CIA
+	const unsigned char icr = *ciaa_reg(0x0du);    // leer ICR reconoce la IRQ (limpia flags)
 	custom_base[custom_intreq_offset] = 0x0008u;   // limpiar PORTS (por si acaso)
+	if ((icr & 0x08u) != 0u && g_os_kbd_isr != nullptr) {
+		g_os_kbd_isr();                            // SP: scancode del teclado (mini-SO)
+	}
 	if (g_cia_task != nullptr) {
 		g_cia_task(g_cia_task_user, static_cast<unsigned short>((*vpos_long & 0x1ff00u) >> 8));
 	}

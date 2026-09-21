@@ -68,10 +68,11 @@ UI (`eng::ui`).
 - **Detalle**: [`MINI_OS_INPUT.md`](../../engine/architecture/MINI_OS_INPUT.md).
 - **Verificación**: el decodificado puro ya está cubierto por HOST-006/HOST-007; se añade un test
   de que un cambio de registro produce **exactamente un mensaje** (y ninguno si no cambia).
-- **Estado**: **parcial**. Entregado: los **productores puros** (`eng/os/input.hpp`:
-  `JoyProducer`/`PadProducer`/`MouseProducer` emiten solo al cambiar; **HOST-252**). Pendiente: la
-  **lectura de registros** en el backend (CIA-A serie/IRQ, `JOYxDAT`, `POTGO`) reutilizando
-  `input_poll.hpp` (`decode_joystick`).
+- **Estado**: **casi entregado**. Entregado: los **productores puros** (`eng/os/input.hpp`:
+  `JoyProducer`/`PadProducer`/`MouseProducer`/`KeyProducer` emiten solo al cambiar / por scancode;
+  **HOST-252/256**), la **lectura de registros** en el backend (`eng::os::tick`: `JOYxDAT` +
+  CIA-A PRA) y el **teclado** por IRQ de CIA-A serie (`os::enable_keyboard`, `SP` → `KeyDown`/`KeyUp`).
+  Pendiente: verificar el teclado en hardware (el runner no inyecta teclas).
 
 ### M3 — Puente a la UI
 
@@ -125,7 +126,9 @@ UI (`eng::ui`).
   ([`ROADMAP_RESOURCES.md`](ROADMAP_RESOURCES.md)).
 - **Verificación**: **HOST-221** — una E/S simulada (host) publica `FileDone` con el resultado y la
   señal `SigFile`; la decodificación diferida avanza por rebanadas.
-- **Estado**: pendiente.
+- **Estado**: **parcial**. Entregado: el **contrato** `eng/os/file.hpp` (`FileHandle`, `FileMode`,
+  `IoNotify`/`IoUser`) y el **enrutado** `eng/res/resources.hpp` (**HOST-255**). Pendiente: la
+  implementación sobre `dos`/`trackdisk`.
 
 ### M8 — Streaming desde disquete
 
@@ -134,7 +137,8 @@ UI (`eng::ui`).
 - **Detalle**: §5 de [`MINI_OS_IO.md`](../../engine/architecture/MINI_OS_IO.md).
 - **Verificación**: **HOST-239** — con E/S simulada, el stream llena N buffers, detecta *underrun*
   y termina en EOF sin perder chunks. Demo en hardware: audio continuo desde disquete.
-- **Estado**: pendiente.
+- **Estado**: **parcial**. Entregado: la **máquina de estados** `eng/os/stream.hpp`
+  (`ChunkStream<NumBuffers>`; **HOST-257**). Pendiente: la lectura real (`trackdisk`) y la demo.
 
 ### M9 — Telemetría
 

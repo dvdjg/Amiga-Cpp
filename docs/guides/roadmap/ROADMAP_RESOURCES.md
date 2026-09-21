@@ -65,7 +65,9 @@ presupuesto/prioridad/LRU y **loader de código relocatable**, sobre la E/S así
   `MsgType::LibLoaded/LibError/LibUnloaded`.
 - **Verificación**: **HOST-248** — un `.englib` de prueba (generado en el host) se carga, se
   relocaliza y `symbol` devuelve una función que se llama; `unload` solo libera con `refcount==0`.
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`eng/res/dynloader.hpp`: cabecera `.englib`, relocaciones y símbolos
+  por hash; **HOST-248**). Pendiente: el **generador host** que emite `.englib` desde código real y
+  su carga en Amiga (memoria ejecutable).
 
 ### R5 — Fachada y ejemplo por zonas
 

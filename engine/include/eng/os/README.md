@@ -21,6 +21,7 @@ núcleo, [`MINI_OS_INPUT.md`](../../../../docs/engine/architecture/MINI_OS_INPUT
 | `dispatch.hpp` | `HandlerTable<Ctx>` (despacho por tabla indexada por `MsgType`) y `dispatch_all`. | **Implementado** (HOST-237) |
 | `os.hpp` | Fachada: `system_port`, `frame_count`, `tick`, `post_user`, `request_quit`. | **Implementado** (backend Amiga, demo 206) |
 | `file.hpp` | E/S asíncrona: `FileHandle`, `file_open`/`read_async`/`write_async`/`close`/`delete`/`rename`, `IoNotify`/`IoUser`. | **Contrato** (HOST-255); backend `dos`/`trackdisk` previsto |
+| `stream.hpp` | `ChunkStream<NumBuffers>`: doble/triple buffer con `request_mask`/`on_chunk_ready`/`advance`/`underrun`/`eof`. | **Implementado** (HOST-257) |
 | `time.hpp` | Tiempo: conversiones ticks↔µs (PAL/NTSC) y `TickSource`/`ScopedTimer`. | **Implementado** (HOST-238) |
 | `timer.hpp` | `TimerService` (timers de frames/µs → `MsgType::Timer`). | **Implementado** (HOST-222) |
 | `input.hpp` | Productores puros de entrada (`JoyProducer`/`PadProducer`/`MouseProducer`): emiten solo al cambiar. | **Implementado** (HOST-252) |
