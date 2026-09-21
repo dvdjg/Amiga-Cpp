@@ -51,12 +51,12 @@ Método: `docs/guides/roadmap/PORT_PROMPT_1A1.md`. Técnica: `docs/reference/ami
 | **`COP2LC` + `COPJMP2`** (bucle de 4 líneas por fila) | **falta** en `ListBuilder`/`Scheduler` |
 | **Instrucción direccionable/parcheable** (`CopInsSet32`/`CopSetColor` sobre un puntero) | **falta**: el builder debe poder devolver el índice de la instrucción y parchear su `data` |
 | `CopWaitH` (mascara de VP con el bit 7) | **falta** (el engine tiene `wait_line_safe`, otra variante) |
-| Driver de display copper-chunky reutilizable | **falta**: `eng/graphics/drivers/copper_chunky.hpp` |
+| Driver de display copper-chunky reutilizable | **existe**: `eng/graphics/composition/copper_chunky.hpp` (modo `SceneMode::CopperChunky`) |
 
 ## 5. Orden de porte
 
 1. **Ampliar `copper`**: `skip()`, `move32_ptr()`, `cop2lc`/`copjmp2`, e **instrucción parcheable** (índice + escritura del `data`) + test host de la codificación.
-2. **Driver `CopperChunkyScene`**: construye la lista (WAIT/label/36 colores/SKIP/copjmp2) con doble buffer y expone los punteros de color por fila (para parchear).
+2. **Modo `SceneMode::CopperChunky`** (con `composition::CopperChunkyLayer`): construye la lista (WAIT/label/36 colores/SKIP/copjmp2) con doble buffer y expone los punteros de color por fila (para parchear).
 3. **Plasma**: `data/plasma-colors.hpp` (`constexpr`), tablas (`fx4i`/`SIN`) y `UpdateChunky` verbatim → escribe los colores en las instrucciones.
 4. **Demo `082_plasma`**: READY, doble buffer, `install_copper_list` cada frame; `analyze` + visión.
 5. **Diff 1:1** contra `plasma.exe` (mismos frames + `readPng` + `ollama-desc`); ajustar hasta 1:1.
@@ -69,7 +69,7 @@ Método: `docs/guides/roadmap/PORT_PROMPT_1A1.md`. Técnica: `docs/reference/ami
   host HOST-019.
 - ✅ **Sintab exacta** (`eng/core/sinetable.hpp`, constexpr) reutilizada por `math2d` (HOST-020).
 - ✅ **Datos del plasma** (tablas `tab1/2/3` verbatim + paleta 256) — HOST-021.
-- ✅ **Driver `CopperChunkyScene`** (`eng/graphics/drivers/copper_chunky.hpp`) y **demo
+- ✅ **Modo `SceneMode::CopperChunky`** (`eng/graphics/composition/copper_chunky.hpp`) y **demo
   `082_plasma`** (doble buffer, `set(row,col,color)`, `takeover/install`).
 - ✅ **BUG RESUELTO — HP del label del bucle de fila**: el plasma se dibujaba pero con
   **franjas/zonas negras** porque `CopperChunkyConfig.label_hpos` estaba en `0x7d` en lugar de
@@ -86,7 +86,7 @@ Método: `docs/guides/roadmap/PORT_PROMPT_1A1.md`. Técnica: `docs/reference/ami
   generaba `dbra`. El original usa **asm con puntero incremental y direccionamiento `(An,Dn.w)`**
   (6 instrucciones) y escribe la fila de una pasada. Se sustituyó por un bucle gas idéntico al
   del original (`support/plasma_chunky.s`) alimentado con **punteros de fila** del driver
-  (`CopperChunkyScene::chunky_row`, análogo a `PlanarScene::bitplanes()`), de modo que no hay
+  (`CopperChunkyLayer::row`, análogo a `PlanarScene::bitplanes()`), de modo que no hay
   indirección por píxel. Resultado: **36.5 fps (194 185 ciclos/frame)**, ~3x. El coste restante
   es el propio 68000 sobre RAM lenta (~78 ciclos/iteración con las 6 instrucciones); el original
   enlace a VMA 0x0 con `.datachip` aparte, pero en A500 sin fast RAM corre en el mismo tipo de

@@ -101,8 +101,16 @@ struct PlasmaDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008203u);
 			return;
 		}
-		// Rellena el primer frame antes de tomar el display (evita basura inicial).
-		build_frame();
+		// Estructura de la lista UNA vez en AMBOS bloques del `Plan` (el coste por frame es
+		// solo parchear los colores, no re-emitir ~2700 instrucciones).
+		m_scene.begin_build();
+		m_layer.emit(m_scene.scheduler());
+		m_scene.end_build();
+		m_scene.begin_build();
+		m_layer.emit(m_scene.scheduler());
+		m_scene.end_build();
+		// Colores iniciales en el bloque activo (evita basura en el primer frame).
+		fill_colors(m_scene.active_words());
 		m_scene.takeover(backend);
 		m_init_ok = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x0082u);
@@ -111,7 +119,9 @@ struct PlasmaDemo {
 	void update(amiga::MinimalBackend& backend, eng::GameContext&) {
 		if (!m_init_ok) return;
 		m_plasma.advance();
-		build_frame();
+		// Solo colores en el bloque inactivo (se muestra el activo) + flip + install.
+		fill_colors(m_scene.inactive_words());
+		m_scene.flip_copper();
 		m_scene.present(backend);
 	}
 
@@ -121,15 +131,13 @@ struct PlasmaDemo {
 	}
 
 private:
-	/// Emite la lista en el bloque inactivo y rellena los colores del frame.
-	void build_frame() {
-		m_scene.begin_build();
-		m_layer.emit(m_scene.scheduler(), m_scene.inactive_words());
+	/// Escribe los colores del plasma en el bloque `base` (coste: `cols*rows` words).
+	void fill_colors(const eng::u16* base) {
 		g_plasma_chunky_args[1] = reinterpret_cast<eng::u32>(m_plasma.xbuf);
 		g_plasma_chunky_args[3] = reinterpret_cast<eng::u32>(plasma_data::kColors);
 		g_plasma_chunky_args[4] = kCols;
 		for (eng::u8 y = 0; y < kRows; ++y) {
-			eng::u16* p = m_layer.row(y);
+			eng::u16* p = m_layer.row(base, y);
 			if (p == nullptr) {
 				return;
 			}
@@ -137,7 +145,6 @@ private:
 			g_plasma_chunky_args[2] = m_plasma.ybuf[y];
 			plasma_chunky_row();
 		}
-		m_scene.end_build();
 	}
 
 	Plasma m_plasma {};

@@ -91,7 +91,15 @@ struct FbmDemo {
 		build_coarse();
 		build_palette();
 
-		build_frame();
+		// Estructura de la lista UNA vez en AMBOS bloques del `Plan`; por frame solo se
+		// parchean los colores (no se re-emite la lista).
+		m_scene.begin_build();
+		m_layer.emit(m_scene.scheduler());
+		m_scene.end_build();
+		m_scene.begin_build();
+		m_layer.emit(m_scene.scheduler());
+		m_scene.end_build();
+		fill_colors(m_scene.active_words());
 		m_scene.takeover(backend);
 		m_init_ok = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x0083u);
@@ -107,7 +115,8 @@ struct FbmDemo {
 		if (m_oy >= (3 << 8)) { m_oy = 3 << 8; m_dy = -1; }
 		else if (m_oy <= 0) { m_oy = 0; m_dy = 1; }
 
-		build_frame();
+		fill_colors(m_scene.inactive_words());
+		m_scene.flip_copper();
 		m_scene.present(backend);
 	}
 
@@ -172,20 +181,13 @@ private:
 		return m_coarse[gy * kGW + gx];
 	}
 
-	/// Emite la lista en el bloque inactivo y rellena los colores del frame.
-	void build_frame() {
-		m_scene.begin_build();
-		m_layer.emit(m_scene.scheduler(), m_scene.inactive_words());
-		fill_colors();
-		m_scene.end_build();
-	}
-
-	void fill_colors() {
+	/// Escribe los colores del campo en el bloque `base` (coste: `cols*rows` words).
+	void fill_colors(const eng::u16* base) {
 		// Escalas de muestreo de la rejilla gruesa a la rejilla de bloques (Q8).
 		constexpr int kStepX = (kGW << 8) / kCols;
 		constexpr int kStepY = (kGH << 8) / kRows;
 		for (u8 y = 0; y < kRows; ++y) {
-			u16* p = m_layer.row(y);
+			u16* p = m_layer.row(base, y);
 			if (p == nullptr) {
 				return;
 			}

@@ -162,6 +162,11 @@ public:
 		m_copper->install(backend);
 	}
 
+	/// Voltea el bloque activo/inactivo **sin re-emitir** la lista. Lo usa un modo que
+	/// preconstruye la estructura en ambos bloques y por frame solo parchea datos (copper
+	/// chunky): escribir en el inactivo → `flip()` → `commit(backend)`.
+	void flip() { m_copper->flip(); }
+
 	/// Toma el control del display mostrando el buffer delantero (una vez).
 	template <typename Backend>
 	void takeover(Backend& backend) const {

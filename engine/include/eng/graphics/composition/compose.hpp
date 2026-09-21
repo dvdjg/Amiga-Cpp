@@ -294,6 +294,11 @@ public:
 		m_plan.commit(backend);
 	}
 
+	/// Voltea el bloque de copperlist activo/inactivo **sin re-emitir**. Para un modo que
+	/// preconstruye la estructura en ambos bloques y por frame solo parchea datos (copper
+	/// chunky): escribir los colores en `inactive_words()` → `flip_copper()` → `present`.
+	void flip_copper() { m_plan.flip(); }
+
 	/// Registra el parcheo de 32 bits del puntero `BPLxPT` del plano `p` (lo llama `display`).
 	void set_plane_patch(u8 p, Patch32 patch) {
 		if (p < kMaxScenePlanes) {

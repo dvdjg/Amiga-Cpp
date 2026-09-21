@@ -5,16 +5,21 @@
 /// de `block_h` líneas a lo largo de cada fila, re-ejecutando la misma "línea de color" vía
 /// `COP2LC`/`COPJMP2` y saliendo con un `SKIP`. Porte de `effects/plasma`.
 ///
-/// Se usa con una escena en modo `SceneMode::CopperChunky` (`planes == 0`): la capa emite la
-/// lista en el bloque **inactivo** del `copper::Plan` y expone los `data` de cada `COLOR00`
-/// (`row()`), de modo que el efecto escribe los colores del frame. El bucle es:
+/// Se usa con una escena en modo `SceneMode::CopperChunky` (`planes == 0`). El coste del
+/// efecto es **solo parchear los colores** (`cols*rows` words/frame), no re-emitir la lista:
+/// la **estructura** (WAIT/MOVE/SKIP/COPJMP2) se emite UNA vez en **ambos** bloques del
+/// `copper::Plan`; por frame se escribe en el bloque **inactivo** y se publica con `flip`:
 ///
 /// ```cpp
-/// scene.begin_build();
-/// layer.emit(scene.scheduler(), scene.inactive_words());
-/// for (y...) { u16* p = layer.row(y); for (x...) { p[0] = rgb; p += 2; } }
-/// scene.end_build();
-/// scene.present(backend);   // publica la copperlist nueva
+/// // init (una vez): estructura en los dos bloques + colores iniciales
+/// scene.begin_build(); layer.emit(scene.scheduler()); scene.end_build();  // bloque A
+/// scene.begin_build(); layer.emit(scene.scheduler()); scene.end_build();  // bloque B
+/// fill_colors(scene.active_words());
+/// scene.takeover(backend);
+/// // por frame: solo colores en el inactivo + flip + install
+/// fill_colors(scene.inactive_words());
+/// scene.flip_copper();
+/// scene.present(backend);
 /// ```
 ///
 /// Estructura de la lista, por fila (verbatim de `MakeCopperList`):
@@ -55,13 +60,13 @@ public:
 		return true;
 	}
 
-	/// Emite la lista completa en el bloque que emite `s` (`base` = `Scene::inactive_words()`).
-	/// Guarda el índice de cada `COLOR00` para `row()`. Reejecutable cada frame.
-	void emit(copper::Scheduler& s, const eng::u16* base) {
+	/// Emite la **estructura** de la lista en el bloque que emite `s` y guarda el índice de
+	/// cada `COLOR00` (los offsets son los mismos en cualquier bloque). Se llama una vez por
+	/// bloque (dos veces) al arrancar; **no** se re-emite por frame.
+	void emit(copper::Scheduler& s) {
 		if (!m_ok) {
 			return;
 		}
-		m_base = base;
 		s.wait_raw(m_cfg.first_line, 0u, 0xfffeu); // CopWait(Y(0), HP(0))
 		for (eng::u16 y = 0; y < m_cfg.rows; ++y) {
 			const eng::u16 row_line = static_cast<eng::u16>(
@@ -82,14 +87,15 @@ public:
 		// El cierre de la lista lo hace `Scene::end_build` (Plan::end_frame -> `Scheduler::end`).
 	}
 
-	/// Puntero al `data` del bloque 0 de la fila `row` en la lista recién emitida (válido hasta
-	/// el siguiente `emit`). Para rellenar la fila de golpe se escriben los `cols` colores con
-	/// **paso de 2 words** (cada `COLOR00` son `[registro, data]`): `p[0] = c; p += 2;`.
-	[[nodiscard]] eng::u16* row(eng::u8 r) const {
-		if (!m_ok || m_base == nullptr || r >= m_cfg.rows) {
+	/// Puntero al `data` del bloque 0 de la fila `row` en el bloque `base`
+	/// (`Scene::active_words()`/`inactive_words()`). Para rellenar la fila de golpe se
+	/// escriben los `cols` colores con **paso de 2 words** (cada `COLOR00` son
+	/// `[registro, data]`): `p[0] = c; p += 2;`.
+	[[nodiscard]] eng::u16* row(const eng::u16* base, eng::u8 r) const {
+		if (!m_ok || base == nullptr || r >= m_cfg.rows) {
 			return nullptr;
 		}
-		return const_cast<eng::u16*>(m_base + m_slot[static_cast<eng::u16>(r) * MaxCols] + 1u);
+		return const_cast<eng::u16*>(base + m_slot[static_cast<eng::u16>(r) * MaxCols] + 1u);
 	}
 
 	[[nodiscard]] constexpr eng::u8 cols() const { return m_cfg.cols; }
@@ -98,7 +104,6 @@ public:
 
 private:
 	CopperChunkyConfig m_cfg {};
-	const eng::u16* m_base = nullptr; ///< base del bloque emitido (para `row()`)
 	eng::u16 m_slot[MaxRows * MaxCols] {}; ///< índice de la instrucción `COLOR00` de (r,c)
 	bool m_ok = false;
 };
