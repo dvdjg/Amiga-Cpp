@@ -25,11 +25,9 @@
 // Referencias: `docs/guides/roadmap/SCROLL_DEMOS_CLEANUP.md`,
 // `docs/engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md` §2/§5.
 
-#include <eng/engine.hpp>
-#include <eng/debug/run_status.hpp>
+#include <eng/api/api.hpp>
 #include <eng/field/flat_playfield.hpp>
 #include <eng/field/xlimited.hpp>
-#include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 #include <proto/exec.h>

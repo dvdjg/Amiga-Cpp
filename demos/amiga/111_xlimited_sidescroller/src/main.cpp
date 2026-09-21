@@ -13,11 +13,8 @@
 //
 // DPF: BG = tilemap XLimited (PF1) + FG = lienzo plano de objetos (PF2, delante).
 
-#include <eng/engine.hpp>
-#include <eng/debug/run_status.hpp>
-#include <eng/memory/arena.hpp>
+#include <eng/api/api.hpp>
 #include <eng/platform/amiga_minimal.hpp>
-#include <eng/graphics/frame_plan.hpp>
 #include <eng/field/xlimited_scene.hpp>
 #include <eng/field/streaming_map.hpp>
 #include <eng/field/tile_source.hpp>

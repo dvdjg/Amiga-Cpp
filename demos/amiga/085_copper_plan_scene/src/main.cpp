@@ -27,13 +27,10 @@
 //   bash ./tools/run/run-demo.sh demos/amiga/085_copper_plan_scene
 
 #include <eng/core/sinetable.hpp>
-#include <eng/core/types.hpp>
-#include <eng/debug/run_status.hpp>
-#include <eng/engine.hpp>
+#include <eng/api/api.hpp>
 #include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/effects/raster_gradient.hpp>
 #include <eng/graphics/raster_intent.hpp>
-#include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 #include <exec/execbase.h>

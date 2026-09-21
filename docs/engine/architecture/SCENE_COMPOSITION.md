@@ -304,10 +304,13 @@ las 3D `077_math3d_cube`, `078_math3d_solid` y `084_mf_rotation`, sin `install` 
    común de parcheo). El interleaved usa un único `CanvasPlayfield`.
 2. **Migrar 030 (EHB)**: **hecho** (usa `palette_patchable`/`palette_zones`).
 3. **Migrar 080 (HAM+C2P)**: **hecho** (`display`+`row_repeat`+`reverse_ptrs`+`buffers=2`).
-4. **Retirar drivers obsoletos**: `planar_scene.hpp` y `ehb_scene.hpp` (`StaticEhbScene`) ya
-   **retirados** (HOST-001 migrado a `CanvasScene`); `EhbPalette`/`black_palette` sustituidos
-   por `eng::Palette32`/`eng::kBlackPalette` (`palette32.hpp`). `CanvasScene`/`CopperChunkyScene`
-   quedan como referencia; se retirarán cuando sus consumidores (HOST-212, 082/083) migren.
+4. **Retirar drivers obsoletos**: `planar_scene.hpp`/`ehb_scene.hpp` (`StaticEhbScene`) y
+   `canvas_scene.hpp` (`CanvasScene`) **retirados** (HOST-001 usa un `MockGraphicsDriver` local y
+   HOST-212 usa `CanvasPlayfield`); `EhbPalette`/`black_palette` sustituidos por
+   `eng::Palette32`/`eng::kBlackPalette` (`palette32.hpp`). `CopperChunkyScene` **se mantiene**: no
+   es un «scene» planar sino una **técnica de display por Copper** (bloques de `COLOR00`, sin
+   bitplanes) que `scene::compose` no expresa (exige ≥1 plano); 082/083 lo usan con
+   `MultiBuffered`. Retirarlo exigiría un modo copper-chunky en el modelo de composición.
 5. **Medición**: el `runner.uae` lo genera `run-demo.ts`; en entornos sin Git Bash se
    construye a mano para `measure-fps` (como se hizo con 081).
 

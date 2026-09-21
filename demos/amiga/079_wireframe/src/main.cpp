@@ -11,13 +11,8 @@
 // buffer con swap de copperlist por frame (el original rota 5 planos y parchea
 // BPLxPT; aqui se usan 2 buffers de 4 planos, equivalente sin tearing).
 #include <eng/platform/amiga/object3d.hpp>
-#include <eng/core/types.hpp>
-#include <eng/debug/run_status.hpp>
-#include <eng/engine.hpp>
-#include <eng/field/surface.hpp>
+#include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/graphics/frame_plan.hpp>
-#include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 #include <exec/execbase.h>

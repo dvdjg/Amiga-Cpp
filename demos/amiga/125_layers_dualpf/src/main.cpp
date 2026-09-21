@@ -24,11 +24,8 @@
 // Build/run:
 //   bash ./tools/build/build-demo.sh demos/amiga/125_layers_dualpf --debug
 //   bash ./tools/run/run-demo.sh demos/amiga/125_layers_dualpf --warp
-#include <eng/core/types.hpp>
-#include <eng/debug/run_status.hpp>
-#include <eng/engine.hpp>
+#include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/retro/fixed_trig.hpp>
 

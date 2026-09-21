@@ -11,12 +11,9 @@
 // miles de evaluaciones de ruido. La paleta codifica agua/arena/verde/roca/nieve.
 #include <eng/core/minifloat_math.hpp>
 #include <eng/core/noise.hpp>
-#include <eng/core/types.hpp>
-#include <eng/debug/run_status.hpp>
-#include <eng/engine.hpp>
+#include <eng/api/api.hpp>
 #include <eng/graphics/drivers/copper_chunky.hpp>
 #include <eng/graphics/drivers/multi_buffered.hpp>
-#include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 #include <exec/execbase.h>

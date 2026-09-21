@@ -10,12 +10,9 @@
 //     separable (xbuf/ybuf + incrementos) y el mapeo `cmap[v]`.
 //   - adaptado: la copperlist la genera `drivers::CopperChunkyScene` (frontera display);
 //     doble buffer con dos instancias; vblank via el engine.
-#include <eng/core/types.hpp>
-#include <eng/debug/run_status.hpp>
-#include <eng/engine.hpp>
+#include <eng/api/api.hpp>
 #include <eng/graphics/drivers/copper_chunky.hpp>
 #include <eng/graphics/drivers/multi_buffered.hpp>
-#include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 #include <exec/execbase.h>

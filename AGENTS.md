@@ -77,6 +77,12 @@ El objetivo es que el usuario pueda **revisar** el trabajo antes de que se conso
 - El trabajo producido en el **turno en curso** no se commitea en ese mismo turno, aunque complete una tarea pendiente o un arreglo: se deja sin commitear para que el usuario lo repase, y se commitea al inicio del turno siguiente salvo que el usuario pida lo contrario.
 - No incluir en ese commit cambios ajenos al hilo actual.
 
+### 1.9 API pública y backends
+
+- La lógica de demo/juego incluye la **fachada** `eng/api/api.hpp` (un solo include con la API estable) y, si es una demo Amiga, su backend. No acumular includes sueltos de `eng/core`, `eng/engine.hpp`, `eng/graphics/composition`… salvo lo que no cubra la fachada (3D, efectos, utilidades concretas).
+- La lógica de demo **no nombra tipos del backend** (`MinimalBackend::C2p4State`, `…::OrBobEntry`, `…::LineEorParams`): usa el **tipo de dominio** (`eng::graphics::C2p4`/`OrBob`/`LineEor`) o la API del seam (`FramePlan`, `Rasterizer`, `DrawTarget`). El backend se instancia en `main()` y se pasa al `Engine`.
+- El backend no expone registros ni punteros a la app; si una demo necesita un valor preparado por hardware, se declara en la capa de dominio y el backend lo **aliasa** (ver `docs/engine/architecture/ENGINE_STRUCTURE_REVIEW.md`).
+
 ---
 
 ## 2. El repositorio

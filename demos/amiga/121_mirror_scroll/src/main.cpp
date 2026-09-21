@@ -17,11 +17,9 @@
 // `eng::field::map_flat_scroll` (HOST-061). Art: atlas *Beginning Fields* a 8
 // colores desde el banco X-Limited incrustado en `.MEMF_CHIP`.
 
-#include <eng/engine.hpp>
-#include <eng/debug/run_status.hpp>
+#include <eng/api/api.hpp>
 #include <eng/field/mirror_playfield.hpp>
 #include <eng/field/xlimited.hpp>
-#include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 #include <proto/exec.h>

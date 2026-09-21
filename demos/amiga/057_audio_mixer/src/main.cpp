@@ -16,11 +16,8 @@
 // canal lateral que el DMA de audio quedó activo.
 
 #include <eng/audio/audio.hpp>
-#include <eng/core/types.hpp>
-#include <eng/debug/run_status.hpp>
-#include <eng/engine.hpp>
+#include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/input/input.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/platform/audio_paula.hpp>
 #include <eng/platform/input_poll.hpp>

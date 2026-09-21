@@ -4,13 +4,8 @@
 // lineas por Copper. La simulacion de fuego (MainLoop/fastrand/RandomizeBottom) se
 // copia VERBATIM (asm a mano); el C2P de 13 fases es `MinimalBackend::c2p_4bpp_step`
 // (portado de ChunkyToPlanar) y los bits HAM fijos van por `set_bitplane_dat`.
-#include <eng/core/types.hpp>
-#include <eng/debug/run_status.hpp>
-#include <eng/engine.hpp>
+#include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/graphics/composition/compose.hpp>
-#include <eng/memory/arena.hpp>
-#include <eng/graphics/blitter_state.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 // Perfilado de ciclos NO cuantizados: `K_FIRE_PROF=1` publica en

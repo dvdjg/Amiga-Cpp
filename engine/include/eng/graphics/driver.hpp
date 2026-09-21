@@ -21,7 +21,7 @@ namespace eng {
 /// principio las familias de composicion que queremos soportar.
 enum class GraphicsDriverId : u8 {
 	EhbScene,         ///< EHB estático 320×256 (6 planos)
-	CanvasScene,      ///< planar interleaved con `Surface`
+	CanvasScene,      ///< planar interleaved con `Surface` (driver retirado; id histórico)
 	CopperChunky,     ///< modo chunky con Copper
 	Standard5,        ///< 5 planos estándar
 	Standard4,        ///< 4 planos estándar

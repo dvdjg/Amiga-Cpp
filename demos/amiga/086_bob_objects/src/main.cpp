@@ -31,17 +31,12 @@
 //   EXTRA_DEFINES="-DK_086_BOBS=8 -DK_086_STATIC_COPPER=0" bash ./tools/build/build-demo.sh demos/amiga/086_bob_objects --debug
 //   bash ./tools/run/run-demo.sh demos/amiga/086_bob_objects
 
+#include <eng/api/api.hpp>          // fachada: escena, actores, dibujo, paleta, run_status
 #include <eng/core/sinetable.hpp>
-#include <eng/core/types.hpp>
 #include <eng/core/util/color.hpp>
 #include <eng/debug/prof.hpp>
-#include <eng/debug/run_status.hpp>
-#include <eng/engine.hpp>
 #include <eng/graphics/copper/plan.hpp>
-#include <eng/graphics/palette32.hpp>
-#include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
-#include <eng/scene/actor.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>

@@ -17,9 +17,7 @@
 #include <eng/audio/game_audio.hpp>
 #include <eng/audio/wave_tables.hpp>
 #include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
-#include <eng/debug/run_status.hpp>
-#include <eng/engine.hpp>
+#include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 

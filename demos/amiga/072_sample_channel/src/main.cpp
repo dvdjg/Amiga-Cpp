@@ -11,9 +11,7 @@
 //
 // Evidencia: `mark_ready` guarda DMACONR (bit 0 = AUD0EN) y la longitud en words.
 
-#include <eng/core/types.hpp>
-#include <eng/debug/run_status.hpp>
-#include <eng/engine.hpp>
+#include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 

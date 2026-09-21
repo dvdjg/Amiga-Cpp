@@ -29,4 +29,6 @@
 #include <eng/graphics/palette32.hpp>
 #include <eng/graphics/composition/compose.hpp>
 #include <eng/input/input.hpp>
+#include <eng/memory/arena.hpp>
+#include <eng/scene/actor.hpp>
 #include <eng/task/background.hpp>

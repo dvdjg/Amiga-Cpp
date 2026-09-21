@@ -24,17 +24,14 @@
 //
 //   X: Finite (mundo X cabe en el bitmap)   Y: usada (corkscrew)
 
-#include <eng/engine.hpp>
-#include <eng/debug/run_status.hpp>
+#include <eng/api/api.hpp>
 #ifdef K_DIAG_CYCLES
 #include <eng/debug/peripheral.hpp>
 #endif
 #if defined(K_DIAG_BG) || defined(K_DIAG_TOTAL)
 #include <eng/debug/peripheral.hpp>
 #endif
-#include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
-#include <eng/graphics/frame_plan.hpp>
 #include <eng/field/xlimited_scene.hpp>
 #include <eng/field/tile_demo.hpp>
 

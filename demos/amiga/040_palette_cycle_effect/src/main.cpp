@@ -1,11 +1,7 @@
-#include <eng/engine.hpp>
-#include <eng/debug/run_status.hpp>
+#include <eng/api/api.hpp>
 #include <eng/core/util/color.hpp>
-#include <eng/graphics/palette32.hpp>
-#include <eng/graphics/composition/compose.hpp>
 #include <eng/graphics/effects/palette_cycle.hpp>
 #include <eng/graphics/effects/palette_transition.hpp>
-#include <eng/graphics/frame_plan.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 #include <proto/exec.h>

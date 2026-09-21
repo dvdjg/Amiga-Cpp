@@ -12,11 +12,8 @@
 // (inyectada por el host vía `--automation-key`) cambia su color de forma
 // determinista. Así se valida la entrada sin pulsar teclas físicamente.
 
-#include <eng/core/types.hpp>
-#include <eng/debug/run_status.hpp>
-#include <eng/engine.hpp>
+#include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/input/input.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/platform/input_poll.hpp>
 

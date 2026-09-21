@@ -1,8 +1,6 @@
-#include <eng/engine.hpp>
-#include <eng/debug/run_status.hpp>
+#include <eng/api/api.hpp>
 #include <eng/debug/peripheral.hpp>
 #include <eng/graphics/drivers/ehb_tile_scroll.hpp>
-#include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/tilemap/tile_scroll.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/scene/route_camera.hpp>

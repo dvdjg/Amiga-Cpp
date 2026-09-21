@@ -1,9 +1,7 @@
-#include <eng/engine.hpp>
-#include <eng/debug/run_status.hpp>
+#include <eng/api/api.hpp>
 #include <eng/debug/peripheral.hpp>
 #include <eng/field/tile_demo.hpp>
 #include <eng/field/xlimited_scene.hpp>
-#include <eng/graphics/frame_plan.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/platform/input_poll.hpp>
 #include <eng/core/span.hpp>

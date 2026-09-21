@@ -1,7 +1,5 @@
-#include <eng/engine.hpp>
-#include <eng/debug/run_status.hpp>
+#include <eng/api/api.hpp>
 #include <eng/graphics/drivers/tile_scroll.hpp>
-#include <eng/graphics/frame_plan.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/core/span.hpp>
 

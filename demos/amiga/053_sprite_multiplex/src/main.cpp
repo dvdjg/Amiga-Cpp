@@ -16,11 +16,8 @@
 // Fondo EHB estático (6 planos) con COLOR00 navy para que los sprites destaquen.
 
 #include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
-#include <eng/debug/run_status.hpp>
-#include <eng/engine.hpp>
+#include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
-#include <eng/graphics/palette32.hpp>
 #include <eng/graphics/sprite.hpp>
 #include <eng/graphics/sprite_manager.hpp>
 #include <eng/platform/amiga_minimal.hpp>

@@ -13,14 +13,9 @@
 //   - La tarea se adapta al barrido del CRT: si el raster ya va tarde (vpos > 220),
 //     procesa la mitad por rebanada.
 #include <eng/core/rtc.hpp>
-#include <eng/core/types.hpp>
+#include <eng/api/api.hpp>
 #include <eng/core/util/ring_buffer.hpp>
-#include <eng/debug/run_status.hpp>
-#include <eng/engine.hpp>
-#include <eng/graphics/composition/compose.hpp>
-#include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
-#include <eng/task/background.hpp>
 
 #include <exec/execbase.h>
 #include <proto/exec.h>

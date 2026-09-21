@@ -39,7 +39,7 @@ public:
 
     /// Construye el lienzo sobre bitplanes **ya reservados** (sin reservar memoria), con
     /// el mismo mapeo que `begin`. Separa la propiedad de la memoria de la emisión, de
-    /// modo que el llamador puede repartir N buffers (p. ej. `MultiBuffered<CanvasScene, N>`).
+    /// modo que el llamador puede repartir N buffers (con `scene::compose` y `buffers > 1`).
     /// `bitplanes.view.size()` debe cubrir `(width/8 & ~1) * planes * height`.
     bool bind(eng::Block<eng::PlaneTag> bitplanes, const Config& cfg) {
         if (!bitplanes.valid() || cfg.width == 0u || cfg.height == 0u || cfg.planes == 0u ||

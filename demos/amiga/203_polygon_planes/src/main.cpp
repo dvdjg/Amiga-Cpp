@@ -17,14 +17,10 @@
 //
 // Display 256x256x4 (mismos registros que el port de `flatshade-convex`) con doble
 // buffer por swap de copperlist (`commit`).
+#include <eng/api/api.hpp>          // fachada: escena, dibujo, paleta, run_status
 #include <eng/core/mesh3d.hpp>
-#include <eng/core/types.hpp>
-#include <eng/debug/run_status.hpp>
-#include <eng/engine.hpp>
-#include <eng/graphics/palette32.hpp>
 #include <eng/graphics/pattern_fill.hpp>
 #include <eng/graphics/polygon_planes.hpp>
-#include <eng/graphics/composition/compose.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/retro/fixed_mesh.hpp>

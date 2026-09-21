@@ -28,7 +28,6 @@
 #include <cstdio>
 
 #include <eng/graphics/driver.hpp>
-#include <eng/graphics/drivers/canvas_scene.hpp>
 #include <eng/graphics/drivers/ehb_tile_scroll.hpp>
 #include <eng/graphics/drivers/tile_scroll.hpp>
 #include <eng/field/xlimited.hpp>
@@ -45,12 +44,23 @@ struct MockBackend {
 	void install_copper_list(const eng::u16*) {}
 };
 
+/// Driver grafico completo de pega: id + ciclo de display + hooks de frame. Es el
+/// ejemplar del contrato `GraphicsDriver` sin depender de un driver concreto (antes se
+/// usaba `CanvasScene`, ya retirado).
+struct MockGraphicsDriver {
+	static constexpr eng::GraphicsDriverId id = eng::GraphicsDriverId::CanvasScene;
+	void takeover(MockBackend& backend) const { backend.takeover_display(nullptr); }
+	void install(MockBackend& backend) const { backend.install_copper_list(nullptr); }
+	void begin_frame(eng::RenderContext&) {}
+	void end_frame(eng::RenderContext&) {}
+};
+
 using eng::DisplayDriver;
 using eng::GraphicsDriver;
 
-// 1) Driver grafico completo: CanvasScene tiene id + begin/end_frame.
-static_assert(DisplayDriver<eng::graphics::drivers::CanvasScene, MockBackend>);
-static_assert(GraphicsDriver<eng::graphics::drivers::CanvasScene, MockBackend>);
+// 1) Driver grafico completo: tiene id + begin/end_frame.
+static_assert(DisplayDriver<MockGraphicsDriver, MockBackend>);
+static_assert(GraphicsDriver<MockGraphicsDriver, MockBackend>);
 
 // 2) Driver de scroll (single/dual): solo ciclo de display (no tiene id/hooks).
 static_assert(DisplayDriver<eng::graphics::drivers::EhbTileScrollScene, MockBackend>);

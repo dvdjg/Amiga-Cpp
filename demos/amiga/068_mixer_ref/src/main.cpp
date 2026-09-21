@@ -20,9 +20,7 @@
 // interrupciones del mixer (MIXER_COUNTER=1) en `detail`/`frame`.
 
 #include <eng/audio/sfx_mixer.hpp>
-#include <eng/core/types.hpp>
-#include <eng/debug/run_status.hpp>
-#include <eng/engine.hpp>
+#include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 

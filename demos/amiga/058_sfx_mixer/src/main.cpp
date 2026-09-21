@@ -17,9 +17,7 @@
 // y el número de canales del mixer, para verificar que el DMA de audio arrancó.
 
 #include <eng/audio/sfx_mixer.hpp>
-#include <eng/core/types.hpp>
-#include <eng/debug/run_status.hpp>
-#include <eng/engine.hpp>
+#include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/platform/input_poll.hpp>

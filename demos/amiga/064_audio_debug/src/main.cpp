@@ -15,9 +15,7 @@
 // y checksum/mín/máx/media del seno para comparar con el generador host.
 
 #include <eng/audio/wave_tables.hpp>
-#include <eng/core/types.hpp>
-#include <eng/debug/run_status.hpp>
-#include <eng/engine.hpp>
+#include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 

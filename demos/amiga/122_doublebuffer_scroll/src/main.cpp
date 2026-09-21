@@ -14,11 +14,9 @@
 // Superficie en el engine: `eng::field::DoubleBufferScrollPlayfield`. Art: atlas
 // *Beginning Fields* a 8 colores (banco X-Limited incrustado en `.MEMF_CHIP`).
 
-#include <eng/engine.hpp>
-#include <eng/debug/run_status.hpp>
+#include <eng/api/api.hpp>
 #include <eng/field/double_buffer_playfield.hpp>
 #include <eng/field/xlimited.hpp>
-#include <eng/memory/arena.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 #include <proto/exec.h>

@@ -30,12 +30,8 @@
 #include <eng/core/random.hpp>
 #include <eng/core/sort.hpp>
 #include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/api/api.hpp>
 #include <eng/core/utf8.hpp>
-#include <eng/debug/run_status.hpp>
-#include <eng/engine.hpp>
-#include <eng/graphics/palette32.hpp>
-#include <eng/graphics/composition/compose.hpp>
 #include <eng/graphics/font8.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 

@@ -9,10 +9,7 @@
 // EMULADOS del calculo por frame (counter 0 = total, 1 = matriz).
 #include <eng/core/minifloat_math.hpp>
 #include <eng/debug/peripheral.hpp>
-#include <eng/debug/run_status.hpp>
-#include <eng/engine.hpp>
-#include <eng/graphics/palette32.hpp>
-#include <eng/graphics/composition/compose.hpp>
+#include <eng/api/api.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/retro/minifloat_fixed.hpp>
 

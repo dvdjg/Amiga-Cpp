@@ -13,12 +13,7 @@
 #include <eng/assets/uaf.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/core/mesh3d.hpp>
-#include <eng/debug/run_status.hpp>
-#include <eng/engine.hpp>
-#include <eng/graphics/palette32.hpp>
-#include <eng/graphics/composition/compose.hpp>
-#include <eng/graphics/frame_plan.hpp>
-#include <eng/memory/arena.hpp>
+#include <eng/api/api.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 #include <proto/exec.h>

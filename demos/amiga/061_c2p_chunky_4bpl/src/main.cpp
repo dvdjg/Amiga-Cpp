@@ -29,11 +29,8 @@
 
 #include <eng/core/ct_array.hpp>
 #include <eng/core/sinetable.hpp>
-#include <eng/core/types.hpp>
-#include <eng/debug/run_status.hpp>
-#include <eng/engine.hpp>
+#include <eng/api/api.hpp>
 #include <eng/graphics/c2p.hpp>
-#include <eng/graphics/composition/compose.hpp>
 #include <eng/graphics/effects/rotozoom.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
