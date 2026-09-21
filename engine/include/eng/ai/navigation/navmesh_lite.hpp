@@ -62,6 +62,22 @@ struct NavCross2 {
 	}
 };
 
+/// **Política de cruz ancha para coordenadas `s16`**: producto 16×16→32 (`eng::math::mul_wide`) para
+/// evitar el desbordamiento de `NavCross2` en `s16`. Es una **política genérica de navegación** (no
+/// de un backend): solo el producto ancho aprovecha el `muls.w` del 68000; el concepto (acumular el
+/// producto en un tipo más ancho) vale para cualquier plataforma.
+struct NavCrossWide {
+	using result = eng::s32;
+	[[nodiscard]] static constexpr result op(NavPoint<eng::s16> a, NavPoint<eng::s16> b,
+						 NavPoint<eng::s16> p) noexcept {
+		const eng::s16 abx = static_cast<eng::s16>(b.x - a.x);
+		const eng::s16 aby = static_cast<eng::s16>(b.y - a.y);
+		const eng::s16 apx = static_cast<eng::s16>(p.x - a.x);
+		const eng::s16 apy = static_cast<eng::s16>(p.y - a.y);
+		return eng::math::mul_wide(abx, apy) - eng::math::mul_wide(aby, apx);
+	}
+};
+
 /// **Perfil de movimiento**: qué bits de terreno puede cruzar el agente. Filtra los portales
 /// (`Portal::terrain`); los que no pasan el filtro no se expanden en el A*.
 struct MovementProfile {

@@ -1137,21 +1137,9 @@ extern "C" u16 c_waypoints_ops(u16 start, u16 goal) {	eng::ai::WaypointGraph<eng
 					     eng::Span<eng::u16> {path, 8});
 	return static_cast<u16>(n + (g[t] == 0xffffu ? 0u : g[t]));
 }
-// Politica de cruz ancha para s16 (muls.w, resultado s32): la que evita __mulsi3 en 68000.
-struct NavCrossWide {
-	using result = eng::s32;
-	[[nodiscard]] static constexpr eng::s32 op(eng::ai::NavPoint<eng::s16> a,
-						   eng::ai::NavPoint<eng::s16> b,
-						   eng::ai::NavPoint<eng::s16> p) noexcept {
-		const eng::s16 abx = static_cast<eng::s16>(b.x - a.x);
-		const eng::s16 aby = static_cast<eng::s16>(b.y - a.y);
-		const eng::s16 apx = static_cast<eng::s16>(p.x - a.x);
-		const eng::s16 apy = static_cast<eng::s16>(p.y - a.y);
-		return eng::math::mul_wide(abx, apy) - eng::math::mul_wide(aby, apx);
-	}
-};
+// Politica de cruz ancha para s16 (muls.w, resultado s32): la que evita libgcc en 68000.
 extern "C" u16 c_navmesh_ops(u16 seed) {
-	using Mesh = eng::ai::NavMesh<eng::s16, 8, 4, 8, NavCrossWide>;
+	using Mesh = eng::ai::NavMesh<eng::s16, 8, 4, 8, eng::ai::NavCrossWide>;
 	using P = eng::ai::NavPoint<eng::s16>;
 	Mesh mesh;
 	const P a_verts[4] = {{0, 0}, {10, 0}, {10, 10}, {0, 10}};

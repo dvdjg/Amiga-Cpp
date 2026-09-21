@@ -126,6 +126,26 @@ UI (`eng::ui`).
   que la telemetría lo refleja.
 - **Estado**: pendiente.
 
+### M10 — Tareas asíncronas de fondo (`eng::os::TaskSystem`)
+
+- **Entregable**: `eng/os/task.hpp` (`TaskState`, `TaskId`, `TaskMsgPort`, `TaskDesc`, `TaskSystem`)
+  con ciclo de vida (`create`/`start`/`suspend`/`resume`/`abort`/`join`), scheduler de **idle**
+  (`run_idle`), `request_preempt`/`yield_if_preempt` y `wait_or_idle`.
+- **Detalle**: [`MINI_OS_TASKS.md`](../../engine/architecture/MINI_OS_TASKS.md).
+- **Verificación**: **HOST-250** — una tarea `poll()` avanza por rebanadas solo en idle; al marcar
+  preempt (simulado) sale y vuelve a `Ready` sin perder el progreso; `suspend`/`resume`/`abort` y
+  `TaskFinished` se comportan; `wait_or_idle` drena la cola principal antes que el fondo.
+- **Estado**: pendiente.
+
+### M11 — Tareas-corrutina (opcional)
+
+- **Entregable**: tareas con `co_await idle_yield{}`/`co_await wait_for_signal{}` sobre el mismo
+  `TaskSystem` (frame en buffer fijo, sin heap).
+- **Detalle**: §8 de [`MINI_OS_TASKS.md`](../../engine/architecture/MINI_OS_TASKS.md).
+- **Verificación**: **HOST-251** — una corrutina cede y reanuda conservando estado; medición de
+  codegen en 68000 (sin libcalls) y comparación con la tarea `poll()`.
+- **Estado**: pendiente.
+
 ## Tests y demos previstos
 
 | ID | Tipo | Contenido |
@@ -138,6 +158,8 @@ UI (`eng::ui`).
 | HOST-237 | test | Despacho por tabla: cobertura de todos los `MsgType`. |
 | HOST-238 | test | `TickClock` (coherencia y conversión µs↔ticks) y `beam_now`. |
 | HOST-239 | test | Streaming (doble buffer, underrun, EOF) con E/S simulada. |
+| HOST-250 | test | Tareas de fondo: idle/preempt, ciclo de vida y `wait_or_idle`. |
+| HOST-251 | test | Tareas-corrutina (`co_await idle_yield`) y codegen 68000. |
 | 206_message_loop | demo | Bucle reactivo en hardware: VBlank + input + UI sin sondeo. |
 | 209_audio_stream | demo | Audio continuo desde disquete con `AudioStream`. |
 

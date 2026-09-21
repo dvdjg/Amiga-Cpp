@@ -21,6 +21,7 @@ núcleo, [`MINI_OS_INPUT.md`](../../../../docs/engine/architecture/MINI_OS_INPUT
 | `os.hpp` | Fachada de servicios: `init`, `system_port`, `frame_count`, `add_timer`, `input_enable`, `post_user`, `request_quit`. |
 | `time.hpp` | Tiempo: `TickClock` (µs sobre CIA-B), `ScopedTimer`, `beam_now`. |
 | `timer.hpp` | `TimerService` (timers de frames/µs → `MsgType::Timer`) y one-shot de CIA. |
+| `task.hpp` | `TaskSystem`: tareas de fondo con ciclo de vida, scheduler de idle, `request_preempt`/`yield_if_preempt`, `TaskMsgPort` propio y tareas-corrutina. |
 | `file.hpp` | E/S asíncrona: `FileHandle`, `file_open`/`read_async`/`write_async`/`close`, `IoNotify`, `AudioStream` y `MsgType::FileDone`/`FileError`. |
 
 Reglas del engine: sin heap, sin excepciones ni RTTI, `gnu++23`, tipos de `eng/core`, API
