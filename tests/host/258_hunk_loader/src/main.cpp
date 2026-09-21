@@ -138,6 +138,13 @@ void test_reloc32() {
 	check(img.symbol("foo") == img.hunk(0).base, "symbol foo = base del code");
 	check(img.symbol("bar") == nullptr, "symbol inexistente = nullptr");
 	check(img.symbol_count() == 1u, "1 simbolo indexado");
+
+	// Exports propios: enumerables por hash + direccion (para ligar sin conocer los nombres).
+	check(img.export_count() == 1u, "1 export enumerable");
+	check(img.export_hash(0u) == symbol_hash("foo"), "export 0 = hash de foo");
+	check(img.export_address(0u) == img.hunk(0).base, "export 0 = base del code");
+	check(img.export_address(1u) == nullptr, "export fuera de rango = nullptr");
+	check(img.export_hash(1u) == 0u, "hash fuera de rango = 0");
 }
 
 void test_reloc32short() {

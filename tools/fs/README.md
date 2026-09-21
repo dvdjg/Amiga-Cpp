@@ -18,6 +18,11 @@ Contenido: `data/text/hello.txt`, `data/images/logo.raw` (16×16), `data/audio/b
 módulos con `answer()` → 42: `data/code/answer.englib` (formato propio, con celda relocable) y
 `data/code/answer.hunk` (formato **nativo HUNK**, con símbolo `answer`).
 
+El **código** de ambos módulos se **ensambla con vasm** (`tools/fs/stub_answer.s` →
+`tools/fs/assemble.mjs`, `-Fbin`), no se escriben bytes a mano (un `moveq` mal codificado dio
+`answer=106` en vez de 42). `assemble.mjs` localiza `vasmm68k_mot` por `AMIGA_BIN_PATH` o por las
+rutas de la extensión Bartman; si no lo encuentra, `make-volume.mjs` falla con un mensaje claro.
+
 La imagen ADF se construye con **`xdftool`** (paquete `amitools`, `python -m amitools.tools.xdftool`).
 
 ## Montar la imagen en el runner

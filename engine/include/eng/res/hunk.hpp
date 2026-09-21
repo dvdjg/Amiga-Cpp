@@ -239,6 +239,19 @@ public:
 	[[nodiscard]] const HunkSegment& hunk(eng::u16 i) const noexcept { return m_hunks[i]; }
 	/// Nº de símbolos indexados.
 	[[nodiscard]] eng::u16 symbol_count() const noexcept { return m_symbol_count; }
+
+	/// Nº de **exports** enumerables (los símbolos indexados del módulo).
+	[[nodiscard]] eng::u16 export_count() const noexcept { return m_symbol_count; }
+	/// Hash del nombre del export `i` (0 si fuera de rango), para ligarlo por `symbol_hash`.
+	[[nodiscard]] eng::u32 export_hash(eng::u16 i) const noexcept {
+		return i < m_symbol_count ? m_symbols[i].name_hash : 0u;
+	}
+	/// Dirección del export `i` (base del hunk + offset), o `nullptr` si fuera de rango.
+	/// Permite a un juego **enumerar y ligar** los exports del módulo sin conocer los nombres.
+	[[nodiscard]] eng::u8* export_address(eng::u16 i) const noexcept {
+		return i < m_symbol_count ? m_hunks[m_symbols[i].hunk].base + m_symbols[i].offset
+					  : nullptr;
+	}
 	/// Punto de entrada por convención: base del primer hunk (código), o `nullptr`.
 	[[nodiscard]] eng::u8* entry() const noexcept { return m_count != 0u ? m_hunks[0].base : nullptr; }
 

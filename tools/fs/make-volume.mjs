@@ -11,10 +11,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { assemble68k } from './assemble.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../..');
 const PYTHON = process.env.PYTHON || 'python';
+
+// Codigo del stub (answer() -> 42), ENSAMBLADO con vasm (no bytes a mano).
+const STUB = assemble68k(fs.readFileSync(path.join(__dirname, 'stub_answer.s'), 'ascii'));
 
 function argValue(name, def) {
 	const i = process.argv.indexOf(name);
@@ -50,8 +54,8 @@ function buildHunk() {
 	const parts = [];
 	// HUNK_HEADER: magic, resident=0, num=1, first=0, last=0, size[0]=1 long.
 	parts.push(be32(0x000003f3), be32(0), be32(1), be32(0), be32(0), be32(1));
-	// HUNK_CODE: tag, 1 long, 0x702a4e75 (moveq #42,%d0 ; rts).
-	parts.push(be32(1001), be32(1), be32(0x702a4e75));
+	// HUNK_CODE: tag, 1 long, moveq #42,%d0 ; rts (ensamblado con vasm).
+	parts.push(be32(1001), be32(1), Buffer.from(STUB));
 	// HUNK_SYMBOL: tag, name_len=2 longs, "answer\0\0", value=0, terminador=0.
 	const name = Buffer.alloc(8);
 	name.write('answer', 0, 'ascii');
@@ -65,8 +69,7 @@ function buildHunk() {
 // code: 70 2a 4e 75 (moveq #42,%d0 ; rts) + 4 bytes de celda relocable.
 function buildEngLib() {
 	const code = Buffer.alloc(8);
-	code[0] = 0x70; code[1] = 0x2a; // moveq #42,%d0
-	code[2] = 0x4e; code[3] = 0x75; // rts
+	STUB.copy(code, 0); // moveq #42,%d0 ; rts (vasm); code[4..7] = celda relocable (0)
 
 	const hdr = Buffer.alloc(24);
 	hdr.writeUInt32BE(0x454e474c, 0); // 'ENGL'

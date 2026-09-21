@@ -190,3 +190,24 @@ Tras la respuesta de Grok, esto es lo **comprobado en el repo** y lo **decidido*
 veces** para disparar; `DSKBYTR` se recarga cada 8 bits y **no** durante escritura; el fin de DMA
 levanta `INTREQ` bit 1 (**DSKBLK**). Citas `fichero:línea` en
 `docs/reference/emulators/winuae/trackdisk.md`.
+
+## Decisión de arquitectura: disco a bajo nivel (disquete vs HD)
+
+**Disquete → rutinas propias (DMA + MFM), no `trackdisk.device`.** La DMA del chipset mueve el
+**MFM crudo** a Chip RAM en ambos casos, así que el device **no ahorra la transferencia**; solo
+aporta el *decode* MFM + retries + cache de pista, **dentro de un handler ROM** al que accedemos
+por `OpenDevice`/`DoIO`/`Wait` (que además **se cuelga** en nuestro entorno `-nostdlib`). Las
+rutinas propias:
+
+- **No dependen del OS** (solo `custom` + CIA-B) → funcionan sin Workbench y sin DOS.
+- **Decode propio** (tabla `mfmencodetable` del emulador) → podemos optimizarlo y medirlo.
+- **Control total**: pista/sector, copy-protection, formatos no-DOS, bootblocks.
+- Referencias ya en el repo: `docs/reference/emulators/winuae/trackdisk.md` (registros + MFM) y el
+  AHRM (cap. del controlador de disco).
+
+**HD → `dos.library` (filesystem).** `trackdisk` es solo floppy; el HD va por el controlador
+(SCSI/IDE) o por el filesystem. Un driver SCSI/IDE propio no compensa ahora.
+
+**Consecuencia**: `eng/os/trackdisk.hpp` + `amiga_minimal_trackdisk.cpp` quedan como
+**implementación documentada y no verificada** (el cuelgue de `td_open` no se depura); la vía de
+disquete será un módulo propio (`eng/os/floppy` o similar) sobre la ficha del emulador.
