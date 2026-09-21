@@ -378,6 +378,13 @@ public:
 	bool blitter_memcpy_strided(u16* dst, s16 dst_mod, const u16* src, s16 src_mod,
 				    u16 words, bool wait = true);
 
+	/// **Blit A→D de un bloque con módulos** (Blitter): copia `width_words × height` palabras
+	/// de `src` a `dst`, con `src_mod`/`dst_mod` (bytes) tras cada fila. Base de las copias por
+	/// fila de un scroll (`width_words = 20`, `dst_mod = src_mod = 2`): desplaza la pantalla
+	/// una columna. `D = A`; `dst_mod`/`src_mod` negativos encogen el stride.
+	bool blitter_blit_strided(u16* dst, s16 dst_mod, const u16* src, s16 src_mod,
+				  u16 width_words, u16 height, bool wait = true);
+
 	/// **Parchea los datos de una copperlist con el Blitter** (Técnica B): escribe `count`
 	/// valores en los **data words** de `count` MOVEs consecutivos. `first_data` apunta al
 	/// **primer data word** (no al registro); el stride es 4 B (`[reg, dato]`). Cada dato de

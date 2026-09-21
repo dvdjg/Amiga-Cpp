@@ -47,7 +47,7 @@ PostDone svc {&port};
 backend.blitter_memcpy_async(dst, src, post_done, svc);   // arranca + arma la IRQ BLIT
 // ... y en el bucle reactivo:
 eng::os::Msg m;
-if (port.try_get(m) && m.type == eng::os::MsgType::BlitDone) { /* copia terminada */ }
+if (port.pop(m) && m.type == eng::os::MsgType::BlitDone) { /* copia terminada */ }
 ```
 
 `clear_blit_service()` desarma el IRQ cuando ya no se necesita.
@@ -69,12 +69,17 @@ El Blitter es un **único recurso**: solo hay **una** operación en curso. Escri
   el Blitter esté libre. Eso protege contra un blit **ya** lanzado, pero **no** contra uno que
   se lance **después** (p. ej. un `BLTSIZE` disparado por el Copper a mitad de frame mientras
   corre una copia asíncrona `wait=false`).
-- **Hoy el engine no dispara blits desde el Copper** (los `CopperIntent` son paleta/layout; el
-  Blitter lo ejecuta la CPU en `execute_frame_plan`, que también hace `wait_blitter`). Si en el
-  futuro se añade un blit disparado por Copper, hay que **serializar**:
-  - no mezclar blits Copper y CPU en el mismo frame, o hacerlo en **ventanas** distintas
-    (VBlank/borde), y
-  - no usar `wait=false` si el Copper puede lanzar un blit; esperar con `wait_blitter()` antes
-    de ceder el control.
+- **El engine SÍ puede disparar blits desde el Copper** (Técnica A):
+  `CopperIntentKind::BlitterJob` + `Scheduler::emit_blitter_job` programan el Blitter y escriben
+  `BLTSIZE` en una línea; la **ventana segura** (`set_blitter_window`) los limita a una zona sin
+  blits de CPU (p. ej. el borde inferior). Requiere `COPCON`/`CDANG`
+  (`docs/reference/emulators/winuae/copper.md`). Aun así hay que **serializar**:
+  - no solapar la ventana del blit de Copper con los blits de CPU (`execute_frame_plan`), y
+  - no usar `wait=false` si el Copper puede lanzar un blit dentro del mismo frame.
+- Además de la copia lineal hay variantes **con módulos**: `blitter_memcpy_strided`
+  (1 word de ancho con stride) y `blitter_blit_strided` (bloque `w×h` con módulos por fila).
+  Con ellas se implementan el **borde de scroll** (`Dmod = src_mod = 2`, desplaza la pantalla una
+  columna) y el **parcheo de copperlist** (`blitter_patch_copper_data`, `Dmod = 2`, escribe los
+  data words de MOVEs consecutivos). Ver `demos/amiga/210_copper_blitter`.
 - El chip expone `BBUSY` (`DMACONR` bit 14) → `backend.blitter_busy()`; el Copper **no** lo
   consulta, así que la coordinación es responsabilidad del software.

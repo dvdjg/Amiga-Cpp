@@ -647,10 +647,16 @@ bool MinimalBackend::blitter_memcpy(eng::Span<u8> dst, eng::Span<const u8> src, 
 
 bool MinimalBackend::blitter_memcpy_strided(u16* dst, s16 dst_mod, const u16* src, s16 src_mod,
 					    u16 words, bool wait) {
-	if (dst == nullptr || src == nullptr || words == 0u) {
+	// Caso 1 fila de ancho: el "alto" es el numero de words.
+	return blitter_blit_strided(dst, dst_mod, src, src_mod, 1u, words, wait);
+}
+
+bool MinimalBackend::blitter_blit_strided(u16* dst, s16 dst_mod, const u16* src, s16 src_mod,
+					  u16 width_words, u16 height, bool wait) {
+	if (dst == nullptr || src == nullptr || width_words == 0u || height == 0u) {
 		return false;
 	}
-	// D = A, 1 word de ancho y `words` de alto; los modulos dan el stride por palabra.
+	// D = A, bloque `width_words x height`; los modulos dan el stride por fila.
 	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
 	custom_base[custom_bltcon0_offset] = static_cast<u16>(blt_use_a | blt_use_d | blt_minterm_copy_a);
 	custom_base[custom_bltcon1_offset] = 0;
@@ -665,7 +671,7 @@ bool MinimalBackend::blitter_memcpy_strided(u16* dst, s16 dst_mod, const u16* sr
 	}
 	write_custom_pointer(custom_bltapt_offset, const_cast<u16*>(src));
 	write_custom_pointer(custom_bltdpt_offset, dst);
-	custom_base[custom_bltsize_offset] = static_cast<u16>((words << 6u) | 1u);
+	custom_base[custom_bltsize_offset] = static_cast<u16>((height << 6u) | width_words);
 	return wait ? wait_blitter() : true;
 }
 
