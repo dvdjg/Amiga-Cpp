@@ -94,8 +94,9 @@ dejar la colisión de hardware para efectos (bala-terreno).
 (geométrica/SAT: polígono, segmento, círculo; `tests/host/095_collision`, `125_convex_sat`),
 `field::collide_cpu` (máscara **pixel-perfect** por CPU) y `Backend::blitter_collide` (la misma
 comprobación por **Blitter**, minterm `B = A & D`; `field/raster.hpp` la documenta como
-referencia CPU). Lo que **falta** es la colisión de **hardware de sprites** (`CLXCON`/`CLXDAT`),
-que no necesita máscara en RAM.
+referencia CPU). La colisión de **hardware de sprites** (`CLXCON`/`CLXDAT`) está en
+`graphics/sprite_collision.hpp` (`encode_clxcon`/`decode_clxdat`, AHRM Table 7-3/7-4), sin
+necesidad de máscara en RAM.
 
 ## 9. Límites
 
@@ -124,7 +125,7 @@ que no necesita máscara en RAM.
 | **Rearmado horizontal** | **sí** | `SpriteHorizontalRearm` + `Scheduler::emit_sprite_horizontal_rearm`, intent `SpriteRearm` |
 | **Attached (15 colores)** | **no** | `SpriteConfig` no tiene `attach`; el allocator lo declara pendiente |
 | **Sprite-as-playfield** (abstracción) | **no** | construible con el rearmado horizontal; falta la capa |
-| **Colisión hardware** (CLXCON/CLXDAT) | **no** | — |
+| **Colisión hardware** (CLXCON/CLXDAT) | **sí** (codificación/decodificación) | `graphics/sprite_collision.hpp` |
 | **Prioridad BPLCON2 por sprite** | parcial | `BPLCON2`/intent `Priority`, sin API de sprites |
 
 ## 12. Referencias

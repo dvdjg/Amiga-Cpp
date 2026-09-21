@@ -20,6 +20,7 @@
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/raster_intent.hpp>
+#include <eng/graphics/sprite_collision.hpp>
 #include <eng/graphics/sprite_manager.hpp>
 #include <eng/memory/arena.hpp>
 
@@ -211,12 +212,32 @@ void test_attach() {
 	CHECK(found, "SPR1CTL emitido por SpriteManager");
 }
 
+/// Colision de hardware: codificacion de CLXCON y decodificacion de CLXDAT (AHRM 7-3/7-4).
+void test_collision() {
+	using eng::graphics::decode_clxdat;
+	using eng::graphics::encode_clxcon;
+	using eng::graphics::SpriteCollisionConfig;
+	CHECK(encode_clxcon(SpriteCollisionConfig {0x1u, 0x01u, 0x01u}) == 0x1041u,
+	      "CLXCON: ENSP1 + ENBP1 + MVBP1");
+	CHECK(encode_clxcon(SpriteCollisionConfig {0xFu, 0x3Fu, 0x3Fu}) == 0xFFFFu,
+	      "CLXCON: todo habilitado = 0xFFFF");
+	const auto r = decode_clxdat(static_cast<u16>((1u << 0) | (1u << 9)));
+	CHECK(r.even_vs_odd_bitplanes(), "CLXDAT bit 0 (pares vs impares)");
+	CHECK(r.sprite_vs_sprite(0u, 1u), "CLXDAT sprite 0/1 vs 2/3");
+	CHECK(!r.sprite_vs_sprite(1u, 2u), "CLXDAT sin 2/3 vs 4/5");
+	CHECK(r.sprite_vs_sprite(1u, 0u), "CLXDAT par desordenado se normaliza");
+	const auto r2 = decode_clxdat(static_cast<u16>((1u << 1) | (1u << 7)));
+	CHECK(r2.odd_bpl_vs_sprite(0u), "CLXDAT impares vs 0/1");
+	CHECK(r2.even_bpl_vs_sprite(2u), "CLXDAT pares vs 4/5");
+}
+
 } // namespace
 
 int main() {
 	test_encoding();
 	test_list_order();
 	test_attach();
+	test_collision();
 	if (g_fail == 0u) {
 		std::printf("OK: sprite horizontal rearm (codificacion, secuencia, orden de lista)\n");
 		return 0;
