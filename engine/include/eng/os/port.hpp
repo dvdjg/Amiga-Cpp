@@ -45,6 +45,15 @@ public:
 		return true;
 	}
 
+	/// Mira el siguiente mensaje **sin retirarlo**. `false` si está vacía.
+	[[nodiscard]] bool peek(Msg& out) const noexcept {
+		if (m_tail == m_head) {
+			return false;
+		}
+		out = m_buf[m_tail];
+		return true;
+	}
+
 	[[nodiscard]] bool empty() const noexcept { return m_head == m_tail; }
 	[[nodiscard]] eng::u16 overflows() const noexcept { return m_overflows; }
 

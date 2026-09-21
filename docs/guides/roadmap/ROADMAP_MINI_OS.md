@@ -21,6 +21,12 @@ UI (`eng::ui`).
   `eng::task::BackgroundQueue` (trabajo diferido), `eng::input::InputAggregator` (estado de
   nivel), `eng::util::Event` (eventos intra-frame) y el servicio CIA ya existente
   (`install_timer_service`). Ver §2 del diseño.
+- **Políticas de mensaje por tipo** (requisito, ver §10/§13 de `MINI_OS_MESSAGE_LOOP.md`): los
+  eventos de flanco (`KeyDown/Up`, `MouseButton`, `FileDone`, `Timer` one-shot) son **FIFO** (no se
+  pierden); el movimiento (`MouseMove`) se **coalesce** (gana el último, `push_mouse_coalesced`); el
+  **VBlank** es **latched** (como máximo uno pendiente, con secuencia y `missed`); joystick/gamepad
+  pueden ser latched (estado). La **prioridad** (`Low`/`Normal`/`High`) hace que los `High`
+  (entrada/quit) **se cuelen** sobre la E-S en `pop`. `peek` permite mirar sin retirar.
 - **HOST primero.** El núcleo (`Msg`, `MsgQueue`, `MsgPort`, prioridad, latched, servicios y
   puente) es puro y host-testable: se valida con tests HOST antes de tocar el backend Amiga.
 - **Evidencia.** Cada fase cierra con su test HOST; la integración en hardware se valida con una
@@ -32,7 +38,8 @@ UI (`eng::ui`).
 ### M0 — Núcleo de mensajes
 
 - **Entregable**: `eng/os/message.hpp` (`MsgType` contiguo, `Msg`, `MsgPayload`, `Signal`) y
-  `eng/os/port.hpp` (`MsgQueue<N>`, `MsgPort<N>` con `signal`/`take_signals`/`wait`).
+  `eng/os/port.hpp` (`MsgQueue<N>` con `push_isr`/`pop`/`peek`, `MsgPort<N>` con
+  `signal`/`take_signals`/`post`/`peek`).
 - **Verificación**: **HOST-219** — anillo lleno/vacío, orden FIFO, `overflows()`, coalescing de
   señales, `take_signals` consume solo los bits pedidos, `Msg` trivialmente copiable
   (`static_assert`), `MsgType` con `switch` exhaustivo.
@@ -63,11 +70,11 @@ UI (`eng::ui`).
 
 ### M3 — Puente a la UI
 
-- **Entregable**: `eng/ui/ui_context.hpp` (`UiEvent`, `UiContext`) y `eng/ui/ui_bridge.hpp`
-  (`Msg` → `UiEvent`).
+- **Entregable**: `eng/ui/event.hpp` (`UiEvent`, `UiEventKind`) y `eng/ui/ui_bridge.hpp`
+  (`Msg` → `UiEvent`); `UiContext` (foco/widgets) es de la GUI (`ROADMAP_GUI.md`).
 - **Verificación**: **HOST-220** — el puente traduce cada `MsgType` de entrada a su `UiEvent` y
   descarta los que no son de entrada; un `UiContext` de prueba recibe foco y despacha.
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`event.hpp` + `ui_bridge.hpp`; HOST-220). `UiContext` llega con la GUI.
 
 ### M4 — Bucle reactivo como `Game`
 
@@ -96,7 +103,8 @@ UI (`eng::ui`).
 - **Detalle**: [`MINI_OS_TIME.md`](../../engine/architecture/MINI_OS_TIME.md).
 - **Verificación**: **HOST-222** (timers de frames, periódicos y one-shot con ticks sintéticos) y
   **HOST-238** (TickClock: coherencia de lectura y conversión µs↔ticks).
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`time.hpp` + `timer.hpp`; HOST-222/238). La lectura del CIA
+  (`TickClock`) la aporta el backend como `TickSource`.
 
 ### M7 — E/S asíncrona
 

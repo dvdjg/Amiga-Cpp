@@ -47,6 +47,10 @@ void test_queue() {
 	m.payload.user = {7u, 8u, 9u};
 	check(q.push_isr(m), "push 3");
 
+	Msg pk {};
+	check(q.peek(pk) && pk.payload.user.code == 1u, "peek no retira el primero");
+	check(q.peek(pk) && pk.payload.user.code == 1u, "peek sigue devolviendo el primero");
+
 	Msg out {};
 	check(q.pop(out) && out.payload.user.code == 1u, "FIFO 1");
 	check(q.pop(out) && out.payload.user.code == 4u, "FIFO 2");

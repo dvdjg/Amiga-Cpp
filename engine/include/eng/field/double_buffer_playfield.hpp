@@ -8,16 +8,17 @@
 /// filas visibles (a diferencia del bitmap único, que solo puede escribir en la
 /// banda de staging).
 ///
-/// El scroll por punteros lo aporta el mapper flat (`map_flat_scroll`); esta
-/// superficie añade el par de bitmaps y la conmutación. Verificada por la demo
+/// **No posee memoria**: `bind` la liga a **dos bitmaps del display** que reserva el llamador
+/// (la escena/el display poseen los buffers; la superficie solo escribe y conmuta). El scroll por
+/// punteros lo aporta el mapper flat (`map_flat_scroll`). Verificada por la demo
 /// `demos/amiga/122_doublebuffer_scroll`.
 
+#include <eng/core/ptr.hpp>
 #include <eng/core/types.hpp>
 #include <eng/field/amiga_display_mapper.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/field/scroll_engine.hpp>
 #include <eng/graphics/bitmap.hpp>
-#include <eng/memory/arena.hpp>
 
 namespace eng::field {
 
@@ -32,16 +33,15 @@ struct DoubleBufferScrollConfig {
 
 class DoubleBufferScrollPlayfield {
 public:
-    bool begin(MemorySystem& memory, const DoubleBufferScrollConfig& cfg) {
+    /// Liga la superficie a **dos bitmaps del display** (no los posee; los reserva el llamador) y
+    /// fija la configuración de scroll. `false` si la geometría no cuadra o los bitmaps no son
+    /// válidos.
+    bool bind(const DoubleBufferScrollConfig& cfg, gfx::Bitmap& b0, gfx::Bitmap& b1) {
         if (cfg.world_w == 0 || cfg.world_h == 0 || cfg.view_w == 0 || cfg.view_h == 0) return false;
         if (cfg.world_w < cfg.view_w || cfg.world_h < cfg.view_h) return false;
-        gfx::BitmapConfig bc;
-        bc.width = cfg.world_w;
-        bc.height = cfg.world_h;
-        bc.planes = cfg.planes;
-        bc.layout = gfx::PlaneLayout::Interleaved;
-        if (!m_buf[0].init(memory, bc)) return false;
-        if (!m_buf[1].init(memory, bc)) return false;
+        if (b0.row_bytes() == 0 || b1.row_bytes() == 0) return false;
+        m_buf[0] = b0;
+        m_buf[1] = b1;
         m_cfg = cfg;
         m_cam_x.min_pos = 1;
         m_cam_x.max_pos = static_cast<s32>(cfg.world_w - cfg.view_w);
@@ -53,8 +53,8 @@ public:
 
     /// Base de escritura del buffer `idx` (0/1). El llamador pinta el mundo en los
     /// DOS buffers antes de empezar a mostrar (init).
-    u8* buffer_bytes(u8 idx) { return m_buf[idx & 1u].bytes().data(); }
-    u16 row_bytes() const { return m_buf[0].row_bytes(); }
+    u8* buffer_bytes(u8 idx) { return m_buf[idx & 1u].get()->bytes().data(); }
+    u16 row_bytes() const { return m_buf[0].get()->row_bytes(); }
     u8 front_index() const { return m_front; }
 
     /// Conmuta el buffer delantero (el compositor leerá el nuevo).
@@ -66,7 +66,7 @@ public:
     const BigBufferScroll& cam_y() const { return m_cam_y; }
 
     PlayfieldHardwareView hardware_view() const {
-        const gfx::Bitmap& b = m_buf[m_front];
+        const gfx::Bitmap& b = *m_buf[m_front].get();
         const u8* const base = b.bytes().data();
         const FlatDisplayMapping m =
             map_flat_scroll(m_cam_x.position, m_cam_y.position, b.row_bytes(), b.planes(), m_cfg.fetch_bytes);
@@ -97,10 +97,11 @@ public:
 
 private:
     DoubleBufferScrollConfig m_cfg {};
-    gfx::Bitmap m_buf[2] {};
+    eng::Ref<gfx::Bitmap> m_buf[2] {}; ///< bitmaps del display (no propietarios)
     u8 m_front = 0;
     BigBufferScroll m_cam_x {};
     BigBufferScroll m_cam_y {};
 };
 
 } // namespace eng::field
+

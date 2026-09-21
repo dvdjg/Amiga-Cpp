@@ -63,6 +63,8 @@ constexpr eng::u32 kChipNeed =
 
 struct DemoGame {
 	field::DoubleBufferScrollPlayfield m_pf {};
+	eng::gfx::Bitmap m_b0 {};
+	eng::gfx::Bitmap m_b1 {};
 	field::XlimitedDisplayComposer m_comp {};
 	eng::u16 m_palette[8] {};
 	eng::s32 m_dir_x = 1;
@@ -75,7 +77,14 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012201u);
 			return;
 		}
-		if (!m_pf.begin(backend.memory(), {kWorldW, kWorldH, kViewW, kViewH, kPlanes, 42u})) {
+		// El display posee los DOS bitmaps; la superficie de scroll solo los liga (F3).
+		eng::gfx::BitmapConfig bc {};
+		bc.width = kWorldW;
+		bc.height = kWorldH;
+		bc.planes = kPlanes;
+		bc.layout = eng::gfx::PlaneLayout::Interleaved;
+		if (!m_b0.init(backend.memory(), bc) || !m_b1.init(backend.memory(), bc) ||
+		    !m_pf.bind({kWorldW, kWorldH, kViewW, kViewH, kPlanes, 42u}, m_b0, m_b1)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00012202u);
 			return;
 		}

@@ -53,6 +53,14 @@ enum Signal : eng::u32 {
 	SigAll    = 0x7fu,
 };
 
+/// Bits de `MsgPayload::key.qual` (modificadores del teclado).
+enum KeyQual : eng::u16 {
+	kQualShift = 1u << 0,
+	kQualCtrl  = 1u << 1,
+	kQualAlt   = 1u << 2,
+	kQualAmiga = 1u << 3,
+};
+
 /// Payload de un mensaje. Unión **trivial** (sin constructores salvo el por defecto): se escribe el
 /// campo del tipo que toca. Todos los miembros son copiables en la ISR.
 union MsgPayload {

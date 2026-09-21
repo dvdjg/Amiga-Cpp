@@ -23,7 +23,7 @@ No depende del mini-SO (`eng::os`), pero se integra con él por el puente `os::M
 | `text.hpp` | `text_width`, `draw_text_clipped` (reusa `Font8`/`Font5x7`). |
 | `widget.hpp` | `WidgetType`, `WidgetFlags` y `Widget` (árbol intrusivo, sin heap). |
 | `dirty.hpp` | `DirtyList<Max>` con fusión de regiones (rects = `eng::Box`). |
-| `event.hpp` | `UiEvent`, `UiEventKind`. |
+| `event.hpp` | `UiEvent`, `UiEventKind`. **Implementado** (HOST-220). |
 | `widgets.hpp` | `Panel`, `Label`, `Button`, `CheckBox`, `RadioButton`. |
 | `editbox.hpp` | `EditBox` (buffer externo, caret, foco). |
 | `layout.hpp` | `layout_stack_v`/`layout_stack_h` y anclaje. |
@@ -31,7 +31,7 @@ No depende del mini-SO (`eng::os`), pero se integra con él por el puente `os::M
 | `backing.hpp` | `WindowBacking` (`FlatPlayfield` + `Surface` en Chip RAM). |
 | `compositor.hpp` | `Compositor` (move/resize/raise/damage/present; *copies* de backings a pantalla). |
 | `context.hpp` | `UiContext` (dirty, foco, hit-test, dispatch, paint). |
-| `ui_bridge.hpp` | Puente `eng::os::Msg` → `UiEvent`. |
+| `ui_bridge.hpp` | Puente `eng::os::Msg` → `UiEvent`. **Implementado** (HOST-220). |
 
 Los rectángulos de UI son `eng::Box` (`eng/core/box.hpp`); no hay un `rect.hpp` propio. Reglas del
 engine: sin heap en el camino caliente, sin excepciones ni RTTI, `gnu++23`, tipos de `eng/core`,

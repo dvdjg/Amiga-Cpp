@@ -20,8 +20,8 @@ núcleo, [`MINI_OS_INPUT.md`](../../../../docs/engine/architecture/MINI_OS_INPUT
 | `port.hpp` | `MsgQueue<N>` (anillo SPSC IRQ-safe), `PrioMsgQueue<N>`/`MsgPrio`, `MsgPort<N>`, `VBlankLatch`/`take_vblank`. | **Implementado** (HOST-219/236) |
 | `dispatch.hpp` | `HandlerTable<Ctx>` (despacho por tabla indexada por `MsgType`) y `dispatch_all`. | **Implementado** (HOST-237) |
 | `os.hpp` | Fachada de servicios: `init`, `system_port`, `frame_count`, `add_timer`, `input_enable`, `post_user`, `request_quit`. | prevista |
-| `time.hpp` | Tiempo: `TickClock` (µs sobre CIA-B), `ScopedTimer`, `beam_now`. | prevista |
-| `timer.hpp` | `TimerService` (timers de frames/µs → `MsgType::Timer`) y one-shot de CIA. | prevista |
+| `time.hpp` | Tiempo: conversiones ticks↔µs (PAL/NTSC) y `TickSource`/`ScopedTimer`. | **Implementado** (HOST-238) |
+| `timer.hpp` | `TimerService` (timers de frames/µs → `MsgType::Timer`). | **Implementado** (HOST-222) |
 | `task.hpp` | `TaskSystem`: tareas de fondo con ciclo de vida, scheduler de idle, `request_preempt`/`yield_if_preempt`, `TaskMsgPort` propio y tareas-corrutina. | prevista |
 | `file.hpp` | E/S asíncrona: `FileHandle`, `file_open`/`read_async`/`write_async`/`close`, `IoNotify`, `AudioStream` y `MsgType::FileDone`/`FileError`. | prevista |
 

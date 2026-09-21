@@ -98,8 +98,8 @@ compilan y **082 con N=1 arranca** (`A500_k_082_buffers1_debug`).
 
 | # | Tarea | Fichero | Estado |
 |---|---|---|---|
-| 3.1 | `DoubleBufferScrollPlayfield` pasa a **superficie ligada a slots** (conserva cámaras/mapper/`hardware_view`; deja de poseer `Bitmap[2]`) | `engine/include/eng/field/double_buffer_playfield.hpp:100` | pendiente (contrato: recibe dos vistas de plano del display, no reserva `Bitmap`) |
-| 3.2 | Migrar la demo `122` al nuevo contrato | `demos/amiga/122_doublebuffer_scroll` | pendiente |
+| 3.1 | `DoubleBufferScrollPlayfield` pasa a **superficie ligada a slots** (conserva cámaras/mapper/`hardware_view`; deja de poseer `Bitmap[2]`) | `engine/include/eng/field/double_buffer_playfield.hpp:100` | **hecho**: `bind(cfg, gfx::Bitmap&, gfx::Bitmap&)` liga los dos bitmaps del display con `eng::Ref` (no posee memoria); `buffer_bytes`/`row_bytes`/`flip`/`hardware_view` igual. Gate: **HOST-068** |
+| 3.2 | Migrar la demo `122` al nuevo contrato | `demos/amiga/122_doublebuffer_scroll` | **hecho**: la demo reserva los dos bitmaps y `bind`; **READY** + mapa correcto |
 | 3.3 | Decidir el destino de `FlatScrollPlayfield`/`MirrorScrollPlayfield` (misma regla: no poseer memoria) | `engine/include/eng/field/{flat,mirror}_playfield.hpp` | **decidido**: misma regla que el resto — **superficies sin memoria**; la memoria la posee la escena/el display. El refactor va con 3.1/3.2 |
 | 3.4 | `PlaneView`/`SoftDpfComposition`: documentar que es flip **de un plano** (excepción deliberada) | `plane_view.hpp:43-65`, `soft_dpf.hpp` | **hecho**: `DISPLAY_COMPOSITION.md` §6 lo documenta como excepción deliberada («`PlaneView`/`SoftDpfComposition` hacen flip de un plano dentro del buffer que les da el display») |
 
