@@ -36,7 +36,7 @@ UI (`eng::ui`).
 - **Verificación**: **HOST-219** — anillo lleno/vacío, orden FIFO, `overflows()`, coalescing de
   señales, `take_signals` consume solo los bits pedidos, `Msg` trivialmente copiable
   (`static_assert`), `MsgType` con `switch` exhaustivo.
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`message.hpp` + `port.hpp`; HOST-219).
 
 ### M1 — VBlank latched (secuencia y frames perdidos)
 
@@ -47,7 +47,8 @@ UI (`eng::ui`).
 - **Verificación**: **HOST-236** (junto con M5) — la secuencia avanza aunque no se consuma, solo
   hay un VBlank pendiente y `missed` cuenta los pisados. Demo: contar frames por mensaje y
   compararlos con `context.frame.frame_index` (sin sondear `VPOSR`).
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`VBlankLatch`/`take_vblank` en `port.hpp`; HOST-236). Falta el
+  productor en la IRQ del backend (integración, ver M2/M4).
 
 ### M2 — Entrada por registros → mensajes
 
@@ -85,7 +86,8 @@ UI (`eng::ui`).
 - **Detalle**: §13–14 de [`MINI_OS_MESSAGE_LOOP.md`](../../engine/architecture/MINI_OS_MESSAGE_LOOP.md).
 - **Verificación**: **HOST-236** (prioridad + coalescing + latched) y **HOST-237** (la tabla cubre
   todos los `MsgType` y despacha al handler correcto).
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`PrioMsgQueue`/`prio_of`/`wait` y `HandlerTable`/`dispatch_all`;
+  HOST-236/237).
 
 ### M6 — Tiempo, timers y profiling
 

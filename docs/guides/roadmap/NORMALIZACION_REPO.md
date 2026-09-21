@@ -4,6 +4,18 @@ Plan por fases para dejar **un único dueño por responsabilidad** tras la mezcl
 eliminar desarrollos duplicados y marcar lo que no está verificado. El modelo objetivo de
 buffers y copper está en `docs/engine/architecture/DISPLAY_COMPOSITION.md`.
 
+> **Re-baseline (2026-09).** Estado vivo tras la migración al modelo de composición:
+> - **F0/F1**: hechas (salvo F0.8, sesión GDB aparte).
+> - **F2**: **absorbida/superada** por el modelo de composición. `multi_buffered.hpp`
+>   (`MultiBuffered`), `canvas_scene.hpp` (`CanvasScene`), `copper_chunky.hpp`
+>   (`CopperChunkyScene`), `planar_scene.hpp` y `ehb_scene.hpp` (`StaticEhbScene`) están
+>   **retirados**; el doble/triple buffer es `SceneResources.buffers` + `Scene::commit()` y el
+>   display por Copper sin bitplanes es `SceneMode::CopperChunky`. 082/083 y 116 usan
+>   `graphics::composition` (ver `SCENE_COMPOSITION.md` §4). Lo que queda de F2 es solo su
+>   **hallazgo** (lista de `PlanarScene` emitida por línea sin necesidad).
+> - **F3/F4.5/F4.6/F5/F6.6**: abiertas (lo demás de F4/F6, hecho).
+> - **F6**: 6.1–6.5 hechas; solo **6.6** (objeto CPU 2D sobre `Surface`) sigue pendiente.
+
 ## Principios de trabajo
 
 - **Por partes**: una fase = un commit (o unos pocos) con su **gate** propio; si el gate
@@ -28,7 +40,7 @@ buffers y copper está en `docs/engine/architecture/DISPLAY_COMPOSITION.md`.
 | 0.5 | Test host de `TileScrollScene` (geometría de la lista + alternancia de los 2 bloques + 13 words parcheadas) | `tests/host/069_copper_double_buffer` | **hecho** |
 | 0.6 | Crear los documentos canónicos de F0: contrato (`DISPLAY_COMPOSITION.md`) y roadmap (este) + enlazarlos en los índices | `docs/engine/architecture/`, `docs/guides/roadmap/` | **hecho** |
 | 0.7 | Re-medir y corregir las cifras de fps de `BITACORA_SCROLL_TILES.md` (101/102/103/104) o indicar su contexto de medida; hoy 103 mide 32,7 y no 50 | `docs/guides/roadmap/BITACORA_SCROLL_TILES.md` | **hecho**: tabla trazable 2026-09-17 + `measure-fps` corregido (ver abajo) |
-| 0.8 | **Demo canónica rota**: 107 (corkscrew 8-way) **no alcanza READY**. Estado: la demo escribe su marcador previo a `scene.begin` (`detail=0x107ab`) y luego **muere antes de la primera instrucción de `XlimitedScene::begin`** (instrumentado el `begin` con marcas de paso en el engine: ninguna se ejecutó, ni con build limpio). PC clavado en ROM de Kickstart y marcador superviviente → **guru sin reboot**. A/B con y sin F1.3 → pre-existente. Hipótesis: fallo en la **entrada/llamada** (desbordamiento del marco de pila o arena corrupta antes), no en el cuerpo de `begin`. Requiere sesión GDB (breakpoint en la entrada + volcado de pila); la instrumentación temporal ya se retiró | `demos/amiga/107_xlimited_corkscrew`, `engine/include/eng/field/xlimited_scene.hpp` | **localizado, pendiente (no es de un turno)** |
+| 0.8 | **Demo canónica rota**: 107 (corkscrew 8-way) **no alcanza READY**. Estado: la demo escribe su marcador previo a `scene.begin` (`detail=0x107ab`) y luego **muere antes de la primera instrucción de `XlimitedScene::begin`** (instrumentado el `begin` con marcas de paso en el engine: ninguna se ejecutó, ni con build limpio). PC clavado en ROM de Kickstart y marcador superviviente → **guru sin reboot**. A/B con y sin F1.3 → pre-existente. Hipótesis: fallo en la **entrada/llamada** (desbordamiento del marco de pila o arena corrupta antes), no en el cuerpo de `begin`. Requiere sesión GDB (breakpoint en la entrada + volcado de pila); la instrumentación temporal ya se retiró | `demos/amiga/107_xlimited_corkscrew`, `engine/include/eng/field/xlimited_scene.hpp` | **localizado, pendiente (no es de un turno)**. Re-confirmado 2026-09: compila y **sigue sin alcanzar READY** (timeout por canal lateral). Plan: sesión GDB dedicada (breakpoint en la entrada de `begin` + volcado de pila) |
 | 0.9 | **Triaje runtime de demos**: barrido de salud con `tools/analyze/sweep-demo-health.sh` → **53 OK, 0 FAILED, 3 TIMEOUT (070, 071, 107), 4 NOEXE (assets sin construir: 072/073/074/076)**. El build da 0 FAIL; las "rotas" son runtime y son 3, no "muchas" | todas | **hecho** |
 
 Gate: suite host + encoding. Sin cambios de comportamiento, así que no exige regresión de demos.
@@ -40,7 +52,7 @@ Gate: suite host + encoding. Sin cambios de comportamiento, así que no exige re
 | 1.1 | Extraer `eng::copper::DoubleBuffer` (2 bloques + `flip` + `install`/`takeover` + `inactive_scheduler`), con soporte de **handles** de parcheo en `Scheduler` (`move_at`/`patch_data`) | `engine/include/eng/graphics/copper/double_buffer.hpp`, `copper/scheduler.hpp` | **hecho** |
 | 1.2 | Usarlo en `TileScrollScene`, sustituyendo los offsets cableados (`words[5]`, `words[21+4p]`) por handles | `engine/include/eng/graphics/drivers/tile_scroll.hpp` | **hecho** |
 | 1.3 | Usarlo en `XlimitedDisplayComposer` y `XlimitedDualComposer` (y decidir `Patch` vs `Reemit` con dato de coste) | `engine/include/eng/field/xlimited.hpp:1739,1928` | **hecho** (política sigue `Reemit`) |
-| 1.4 | Documentar la receta «2 bloques + install tras VBlank, nunca COPJMP1» en `C2P_BLITTER.md`/`GRAPHICS_DRIVERS.md` | `docs/engine/architecture/` | pendiente |
+| 1.4 | Documentar la receta «2 bloques + install tras VBlank, nunca COPJMP1» en `C2P_BLITTER.md`/`GRAPHICS_DRIVERS.md` | `docs/engine/architecture/` | **hecho**: la receta canónica vive en `DISPLAY_COMPOSITION.md` §6 («El swap es solo `COP1LC` y nunca lleva `COPJMP1`»; «Nada de `COPJMP1` fuera del arranque (`takeover`)»), que es el contrato de buffers/copper |
 
 Gate F1.2: demos `101/103/104/105` idénticas (analyze + fps). Gate F1.3: demos
 `107/110/111/112/120/121/201/202`.
@@ -86,10 +98,10 @@ compilan y **082 con N=1 arranca** (`A500_k_082_buffers1_debug`).
 
 | # | Tarea | Fichero | Estado |
 |---|---|---|---|
-| 3.1 | `DoubleBufferScrollPlayfield` pasa a **superficie ligada a slots** (conserva cámaras/mapper/`hardware_view`; deja de poseer `Bitmap[2]`) | `engine/include/eng/field/double_buffer_playfield.hpp:100` | pendiente |
+| 3.1 | `DoubleBufferScrollPlayfield` pasa a **superficie ligada a slots** (conserva cámaras/mapper/`hardware_view`; deja de poseer `Bitmap[2]`) | `engine/include/eng/field/double_buffer_playfield.hpp:100` | pendiente (contrato: recibe dos vistas de plano del display, no reserva `Bitmap`) |
 | 3.2 | Migrar la demo `122` al nuevo contrato | `demos/amiga/122_doublebuffer_scroll` | pendiente |
-| 3.3 | Decidir el destino de `FlatScrollPlayfield`/`MirrorScrollPlayfield` (misma regla: no poseer memoria) | `engine/include/eng/field/{flat,mirror}_playfield.hpp` | pendiente |
-| 3.4 | `PlaneView`/`SoftDpfComposition`: documentar que es flip **de un plano** (excepción deliberada) | `plane_view.hpp:43-65`, `soft_dpf.hpp` | pendiente |
+| 3.3 | Decidir el destino de `FlatScrollPlayfield`/`MirrorScrollPlayfield` (misma regla: no poseer memoria) | `engine/include/eng/field/{flat,mirror}_playfield.hpp` | **decidido**: misma regla que el resto — **superficies sin memoria**; la memoria la posee la escena/el display. El refactor va con 3.1/3.2 |
+| 3.4 | `PlaneView`/`SoftDpfComposition`: documentar que es flip **de un plano** (excepción deliberada) | `plane_view.hpp:43-65`, `soft_dpf.hpp` | **hecho**: `DISPLAY_COMPOSITION.md` §6 lo documenta como excepción deliberada («`PlaneView`/`SoftDpfComposition` hacen flip de un plano dentro del buffer que les da el display») |
 
 Gate: demo `122` + gate visual/secuencia; host `038/039`.
 
@@ -102,7 +114,7 @@ Gate: demo `122` + gate visual/secuencia; host `038/039`.
 | 4.3 | Portar como **tracks** los casos que hoy emiten copper a mano: empezar por `055_copper_rainbow` | demo `055` | **hecho** (055 usa ya el plan y gana doble buffer de copperlist) |
 | 4.4 | Test host del `CopperPlan` (orden por línea, patch vs reemisión, handles válidos, presupuesto) | `tests/host/070_copper_plan` | **hecho** |
 | 4.5 | **Topología de display conocida por el plan**: declarar zonas (rango de líneas + ventana de contenido) para que un efecto exprese su necesidad en coordenadas de contenido y el plan la traduzca a raster — el caso XYlimited, que reparte la pantalla en campos/splits, debe ser transparente para los efectos | `engine/include/eng/graphics/copper/plan.hpp`, `xlimited*` | pendiente |
-| 4.6 | **Gradiente por línea**: hoy el `Plan` ya lo soporta (capacidad 320 + sort O(n)), pero en la 085 el cielo con 256 intenciones dispara el frame a **14 campos** y el BOB por Blitter a **3** (update ~65k, bucle ~425k). Medido en la **086** con el perfil por secciones (`tools/debug/profile.mjs`): 8 BOBs + cielo por línea = **9,01 campos**, de los cuales **`build_frame` (el Plan) = 1.078.660 ciclos/frame (84 %)**, `actor_emit` = 139.772 (10,9 %), blits = 44.001 (3,4 %) y la espera de VBlank + `render` = **16.485 (1,3 %)**. ⇒ No es espera: es **CPU propio del `Plan`**, ~3.7k ciclos por intención con código O(1) en toda la ruta (`add`/`sort_by_top`/`sort_priority_within_lines`/`emit_copper_intents`/`write_pair`). Siguiente: partir `build_frame` en subsecciones (cielo / intenciones de objeto / `materialize`) para localizar el coste | `demos/amiga/085…`, `demos/amiga/086_bob_objects` | pendiente |
+| 4.6 | **Gradiente por línea**: hoy el `Plan` ya lo soporta (capacidad 320 + sort O(n)), pero en la 085 el cielo con 256 intenciones dispara el frame a **14 campos** y el BOB por Blitter a **3** (update ~65k, bucle ~425k). Medido en la **086** con el perfil por secciones (`tools/debug/profile.mjs`): 8 BOBs + cielo por línea = **9,01 campos**, de los cuales **`build_frame` (el Plan) = 1.078.660 ciclos/frame (84 %)**, `actor_emit` = 139.772 (10,9 %), blits = 44.001 (3,4 %) y la espera de VBlank + `render` = **16.485 (1,3 %)**. ⇒ No es espera: es **CPU propio del `Plan`**, ~3.7k ciclos por intención con código O(1) en toda la ruta (`add`/`sort_by_top`/`sort_priority_within_lines`/`emit_copper_intents`/`write_pair`). Siguiente: partir `build_frame` en subsecciones (cielo / intenciones de objeto / `materialize`) para localizar el coste | `demos/amiga/085…`, `demos/amiga/086_bob_objects` | pendiente (sesión de perfil dedicada; el plan es instrumentar `build_frame` por subsecciones con `tools/debug/profile.mjs`) |
 
 **Resultado de F4.1/F4.3/F4.4**: `eng::copper::Plan` implementado
 (`begin`/`begin_frame`/`scheduler`/`add`/`materialize`/`end_frame`/`commit`/`takeover`),
@@ -122,7 +134,7 @@ Gate: demos de copper idénticas + test host + informe de presupuesto sin spill.
 | 5.1 | Unificar el mapper de scroll (`map_ring_scroll` vs `TileScrollScene::compute_display`) | `amiga_display_mapper.hpp:52`, `tile_scroll.hpp:670` | pendiente |
 | 5.2 | Decidir el destino de `TileScrollScene` y de las demos `100/101/103/104/105` (¿canónica, laboratorio o retirada?) | `SCROLL_DEMOS_CLEANUP.md` | pendiente |
 | 5.3 | Unificar cámaras (`Camera2D`, `RouteCamera`, `BigBufferScroll`, `CameraQ16`) en un solo vocabulario | `scene/`, `field/` | pendiente |
-| 5.4 | Decidir `XlimitedScene` vs `VirtualScene` (y si nace `DisplayComposition`) | `field/xlimited_scene.hpp`, `scene/virtual_scene.hpp` | pendiente |
+| 5.4 | Decidir `XlimitedScene` vs `VirtualScene` (y si nace `DisplayComposition`) | `field/xlimited_scene.hpp`, `scene/virtual_scene.hpp` | **decidido**: son **capas distintas, no se fusionan**. `VirtualScene` (`eng::scene`) es la **escena/intención** abstracta (cámara, capas, mundo, estrategias, backend-agnóstica); `XlimitedScene` (`eng::field`) es una **composición concreta** de la familia XLimited (playfields + compositor + HUD + sprites). El **seam** entre ambas es `DisplayComposition` (`PLAYFIELD_SCROLL_ARCHITECTURE.md` §4), que `XlimitedScene` implementa. La deuda real no es fusionarlas sino el **mapper** (5.1) y las **cámaras** (5.3) |
 
 Gate: regresión de las demos de scroll + docs actualizados.
 
