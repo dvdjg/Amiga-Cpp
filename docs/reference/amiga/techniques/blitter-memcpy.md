@@ -37,3 +37,22 @@ CPU con *stalls* de bus).
 - **No** solapar origen y destino (el Blitter no lo garantiza).
 - Chipset: `BLTSIZE` = anchura (6 bits, 1..64 words) × altura (10 bits, 1..1024); la rutina
   encadena varios blits para copias mayores.
+
+## Concurrencia: el Blitter es **uno solo**
+
+El Blitter es un **único recurso**: solo hay **una** operación en curso. Escribir `BLTSIZE`
+(por CPU **o por Copper**) mientras hay un blit activo **aborta/clobber** el anterior.
+
+- `blitter_memcpy` (síncrona) hace `wait_blitter()` **antes de cada blit**, así que espera a que
+  el Blitter esté libre. Eso protege contra un blit **ya** lanzado, pero **no** contra uno que
+  se lance **después** (p. ej. un `BLTSIZE` disparado por el Copper a mitad de frame mientras
+  corre una copia asíncrona `wait=false`).
+- **Hoy el engine no dispara blits desde el Copper** (los `CopperIntent` son paleta/layout; el
+  Blitter lo ejecuta la CPU en `execute_frame_plan`, que también hace `wait_blitter`). Si en el
+  futuro se añade un blit disparado por Copper, hay que **serializar**:
+  - no mezclar blits Copper y CPU en el mismo frame, o hacerlo en **ventanas** distintas
+    (VBlank/borde), y
+  - no usar `wait=false` si el Copper puede lanzar un blit; esperar con `wait_blitter()` antes
+    de ceder el control.
+- El chip expone `BBUSY` (`DMACONR` bit 14) → `backend.blitter_busy()`; el Copper **no** lo
+  consulta, así que la coordinación es responsabilidad del software.

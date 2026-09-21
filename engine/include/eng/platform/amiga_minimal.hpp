@@ -348,6 +348,10 @@ public:
 	/// trabajo de CPU que **solapar** con la copia (el bus es el mismo, pero la CPU queda
 	/// libre) o para copias grandes sin solape de CPU que quepan en un solo blit. Ver
 	/// `docs/reference/amiga/techniques/blitter-memcpy.md`.
+	///
+	/// **OJO — el Blitter es único**: si algo más puede lanzar blits (p. ej. el Copper),
+	/// hay que **serializar** y **no** usar `wait = false`. Ver la sección «Concurrencia»
+	/// de `blitter-memcpy.md` y `docs/guides/roadmap/ROADMAP_BLITTER_COPPER.md`.
 	bool blitter_memcpy(eng::Span<u8> dst, eng::Span<const u8> src, bool wait = true);
 
 	/// **Relleno de polígonos compuesto por bitplane** (Blitter): para cada plano `p`,
