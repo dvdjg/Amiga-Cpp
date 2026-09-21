@@ -297,6 +297,24 @@ int main() {
 		check(!cp2.bind_raw(buf, 61439u, 320u, 256u, 6u), "bind_raw 1 byte corto falla");
 	}
 
+	// --- Efectos de escena: add_effect + run_effects los ejecuta en orden -----
+	{
+		Scene s7;
+		check(graphics::composition::compose(
+			      s7, mem, graphics::composition::planar(320, 256, 4),
+			      graphics::composition::ocs_a500,
+			      graphics::composition::display(graphics::composition::kPal320x256,
+							     graphics::composition::kBplcon0_4Planes)),
+		      "escena para efectos compone");
+		int calls = 0;
+		const auto e1 = [&calls](Scene&) { calls += 1; };
+		const auto e2 = [&calls](Scene&) { calls += 10; };
+		s7.add_effect(e1).add_effect(e2);
+		check(s7.effect_count() == 2u, "2 efectos registrados");
+		s7.run_effects();
+		check(calls == 11, "los efectos corren en orden de registro");
+	}
+
 	if (failures == 0) {
 		std::printf("OK: scene::compose interleaved y contiguo (Surface + copperlist).\n");
 		return 0;

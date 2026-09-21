@@ -16,10 +16,13 @@
 
 #include <cstdio>
 
+#include <eng/api/effects.hpp>
 #include <eng/core/types.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/raster_intent.hpp>
+#include <eng/graphics/sprite_collision.hpp>
+#include <eng/graphics/sprite_manager.hpp>
 #include <eng/memory/arena.hpp>
 
 namespace {
@@ -103,10 +106,10 @@ void test_encoding() {
 	Mv mv[8] {};
 	const unsigned nm = collect_moves(w, count, mv, 8u);
 
-	// POS esperado: (VSTART[7:0]<<8) | (hpos>>1). CTL: VSTOP[7:0]<<8 | VSTART[8]<<3 |
-	// VSTOP[8]<<2 | hpos[0]<<1 | attach.
+	// POS: (VSTART[7:0]<<8) | (hpos>>1). CTL (AHRM): VSTOP[7:0]<<8 | ATTACH(bit7) |
+	// VSTART[8](bit2) | VSTOP[8](bit1) | HSTART[0](bit0).
 	const u16 pos_expected = static_cast<u16>((0x2cu << 8u) | ((0x46u >> 1u) & 0xffu));
-	const u16 ctl_expected = static_cast<u16>((0x31u << 8u) | ((0x46u & 1u) << 1u) | 1u);
+	const u16 ctl_expected = static_cast<u16>((0x31u << 8u) | 0x0080u);
 
 	CHECK(nm == 4u, "el rearm emite exactamente 4 MOVEs");
 	if (nm == 4u) {
@@ -178,11 +181,126 @@ void test_list_order() {
 	CHECK(!saw_ch1, "el canal del rearm atrasado no se programa");
 }
 
+/// `SpriteManager` emite el bit ATTACH (0) de `SPRxCTL` cuando el sprite va attached.
+void test_attach() {
+	MemorySystem mem = make_memory();
+	eng::graphics::SpriteManager sm;
+	CHECK(sm.init(mem, 128u), "SpriteManager init");
+	const eng::Span<u8> data = sm.sprite_data();
+	eng::graphics::SpriteConfig cfg {};
+	cfg.enabled = true;
+	cfg.data = eng::Span<const eng::u16> {reinterpret_cast<const eng::u16*>(data.data()), 4u};
+	cfg.width_words = 1;
+	cfg.height = 1;
+	cfg.hpos = 20;
+	cfg.vstart = 10;
+	cfg.vstop = 10;
+	cfg.attach = true;
+	sm.set(1u, cfg);
+
+	eng::copper::Scheduler s = make_scheduler(mem, 64u);
+	sm.emit_into(s);
+	s.end();
+	Mv mv[32] {};
+	const unsigned n = collect_moves(s.data(), s.words_used(), mv, 32u);
+	bool found = false;
+	for (unsigned i = 0; i < n; ++i) {
+		if (mv[i].reg == 0x142u + 1u * 8u) {
+			found = true;
+			CHECK((mv[i].val & 0x0080u) != 0u, "SPR1CTL lleva el bit ATTACH (bit 7)");
+		}
+	}
+	CHECK(found, "SPR1CTL emitido por SpriteManager");
+}
+
+/// Colision de hardware: codificacion de CLXCON y decodificacion de CLXDAT (AHRM 7-3/7-4).
+void test_collision() {
+	using eng::graphics::decode_clxdat;
+	using eng::graphics::encode_clxcon;
+	using eng::graphics::SpriteCollisionConfig;
+	CHECK(encode_clxcon(SpriteCollisionConfig {0x1u, 0x01u, 0x01u}) == 0x1041u,
+	      "CLXCON: ENSP1 + ENBP1 + MVBP1");
+	CHECK(encode_clxcon(SpriteCollisionConfig {0xFu, 0x3Fu, 0x3Fu}) == 0xFFFFu,
+	      "CLXCON: todo habilitado = 0xFFFF");
+	const auto r = decode_clxdat(static_cast<u16>((1u << 0) | (1u << 9)));
+	CHECK(r.even_vs_odd_bitplanes(), "CLXDAT bit 0 (pares vs impares)");
+	CHECK(r.sprite_vs_sprite(0u, 1u), "CLXDAT sprite 0/1 vs 2/3");
+	CHECK(!r.sprite_vs_sprite(1u, 2u), "CLXDAT sin 2/3 vs 4/5");
+	CHECK(r.sprite_vs_sprite(1u, 0u), "CLXDAT par desordenado se normaliza");
+	const auto r2 = decode_clxdat(static_cast<u16>((1u << 1) | (1u << 7)));
+	CHECK(r2.odd_bpl_vs_sprite(0u), "CLXDAT impares vs 0/1");
+	CHECK(r2.even_bpl_vs_sprite(2u), "CLXDAT pares vs 4/5");
+}
+
+/// `effects::SpriteLayer`: un WAIT por linea + rafaga POS/DATB/DATA, prioridad de fondo.
+void test_sprite_layer() {
+	struct FakeSched {
+		int waits = 0;
+		int moves = 0;
+		eng::u16 bplcon2 = 0xffffu;
+		void move(eng::copper::Register reg, eng::u16 v) {
+			if (reg == eng::copper::Register::BPLCON2) {
+				bplcon2 = v;
+			}
+			++moves;
+		}
+		void wait_line_safe(eng::u16) { ++waits; }
+	};
+	eng::effects::SpriteLayer layer;
+	eng::effects::SpriteLayer::Config cfg {};
+	cfg.first_line = 100u;
+	cfg.lines = 4u;
+	cfg.channels = 8u;
+	cfg.hpos0 = 64u;
+	cfg.hpos_step = 16u;
+	cfg.bplcon2 = 0x0008u;
+	CHECK(layer.attach(cfg), "SpriteLayer attach");
+	FakeSched fs;
+	layer.emit_into(fs);
+	CHECK(fs.waits == 4, "SpriteLayer: 4 lineas -> 4 WAIT");
+	CHECK(fs.moves == 1 + 8 + 4 * 8 * 3, "SpriteLayer: BPLCON2 + CTL + 4*8*3 MOVEs");
+	CHECK(fs.bplcon2 == 0x0008u, "SpriteLayer: BPLCON2 de fondo");
+	CHECK(layer.words_estimate() == 1u + 8u + 4u * (2u + 8u * 6u), "SpriteLayer: huella");
+
+	eng::effects::SpriteLayer bad;
+	eng::effects::SpriteLayer::Config bad_cfg {};
+	bad_cfg.lines = 0u;
+	bad_cfg.hpos_step = 16u;
+	CHECK(!bad.attach(bad_cfg), "SpriteLayer: lines=0 -> false");
+
+	// Canales DMA: SPRxPT a la estructura (cabecera POS+CTL en memoria); sin rearm por linea.
+	eng::u16 dma_col[16] {};
+	eng::effects::SpriteLayer dma;
+	eng::effects::SpriteLayer::Config dcfg {};
+	dcfg.first_line = 100u;
+	dcfg.lines = 4u;
+	dcfg.channels = 8u;
+	dcfg.hpos_step = 16u;
+	dcfg.dma_channels = 2u;
+	dcfg.dma_stride = 8u;
+	dcfg.dma_data = dma_col;
+	CHECK(dma.attach(dcfg), "SpriteLayer DMA attach");
+	FakeSched fd;
+	dma.emit_into(fd);
+	// BPLCON2(1) + DMA 2*2 (PT H/L) + CTL Copper 6 + 4 lineas*(6 canales*3) = 1+4+6+72 = 83.
+	CHECK(fd.moves == 1 + 4 + 6 + 4 * 6 * 3, "SpriteLayer DMA: MOVEs");
+	CHECK(fd.waits == 4, "SpriteLayer DMA: 4 WAIT (solo canales Copper)");
+	eng::effects::SpriteLayer bad2;
+	eng::effects::SpriteLayer::Config b2 {};
+	b2.lines = 1u;
+	b2.hpos_step = 16u;
+	b2.dma_channels = 2u; // sin dma_data
+	CHECK(!bad2.attach(b2), "SpriteLayer: DMA sin data -> false");
+}
+
 } // namespace
 
 int main() {
 	test_encoding();
 	test_list_order();
+	test_attach();
+	test_collision();
+	test_sprite_layer();
 	if (g_fail == 0u) {
 		std::printf("OK: sprite horizontal rearm (codificacion, secuencia, orden de lista)\n");
 		return 0;

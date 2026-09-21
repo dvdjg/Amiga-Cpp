@@ -193,21 +193,6 @@ descartaba el canal que terminaba justo en `top`; ahora es `<= top`. Cubierto po
 Copper ancladas); `SpriteManager::apply` vuelca los placements a los 8 canales. La demo 054 ya lo
 consume. Todo con tests host.
 
-**Nota 6.5b — 054: CERRADA (era el `hpos`, no la emisión).** Síntoma: la 054 mostraba solo **2
-sprites** (azules, par 2 de color). El diagnóstico con sondas en **una sola ejecución**
-(`tools/debug/probe-sprite-emission.mjs`) descartó composición y emisión: la lista contiene la config
-correcta de los 8 canales (`vstart=100 vstop=115`, `hstart=16,48,…,240`, `SPRxPT` por canal), la DATA
-es correcta (con su terminador), la paleta (`COLOR17=f00`, `21=0f0`, `25=00f`, `29=ff0`) y
-`DMACON=0x03A0` también. **Causa real**: los sprites se colocaban en `hpos` 16..240 y la ventana de
-display empieza en `DIWSTRT` (x≈128), así que caían en el **borde**; los dos visibles eran los
-canales 4/5 (par azul), los únicos que entraban. Con `kHpos0 = 144` se ven las parejas
-rojo/verde/azul.
-
-Lecciones de método (válidas para cualquier sonda de custom chips): no comparar dumps **entre
-ejecuciones** (la base de la arena cambia por run); `SPRxPT`/`POS`/`CTL` no son fiables de lectura
-(write-only); hay que cruzar lista + registros + DATA en una sola ejecución. Sondas reutilizables:
-`tools/debug/{read-sprite-regs,decode-copper,probe-sprite-data,probe-sprite-emission}.mjs`.
-
 En el mismo hilo se corrigieron dos defectos reales: `SpriteManager::dma_bits()` (el DMA de sprites es
 un único bit, `SPREN`; ver AHRM `MOVE.W #$83A0,DMACON`) y la falta del terminador de dos palabras a
 cero en la DATA de sprite (AHRM: *"two all-zero words are placed at the end of the data structure to

@@ -46,6 +46,11 @@ struct SpriteConfig {
     u16 vstart = 0;              // línea vertical de inicio
     u16 vstop = 0;               // última línea (vstart + height - 1)
     u8 palette_base = 16;        // COLOR16 + palette_base*4 (defecto 16: COLOR16-19)
+    /// **Attached** al sprite anterior del par (bit 0 de `SPRxCTL`): 4 bits/píxel sobre
+    /// `COLOR16-31` (15 colores). Los pares válidos son 0+1, 2+3, 4+5, 6+7; reduce los
+    /// canales útiles de 8 a 4. Se puede conmutar por zona con el rearmado (el CTL es
+    /// reescribible por línea). Ver `docs/reference/amiga/techniques/sprite-layer.md` §4.
+    bool attach = false;
 };
 
 /// Gestor de hasta 8 sprites hardware (componente de la escena).
@@ -100,20 +105,29 @@ public:
     /// Emite SPRxPT / SPRxPOS / SPRxCTL de los sprites habilitados en el Copper.
     /// Llámala desde el compositor antes de `end()` (paleta y sprites al final).
     ///
-    /// AVISO (defecto conocido, ver `NORMALIZACION_REPO.md` Nota 6.5b): emite un WAIT por
-    /// sprite en su `vstart`. Con dos o más sprites en la MISMA `vstart`, el segundo WAIT
-    /// encuentra el beam ya pasado y espera al frame siguiente, así que los registros se
-    /// programan tarde y el reset del frame los pisa. Programar los 8 en ráfaga sin WAIT
-    /// tampoco funciona en la 054 (0 sprites), lo que apunta a la estructura de la lista
-    /// que construye el compositor: falta verificar el punto de bucle de `end()` y el
-    /// armado del DMA de sprite antes de tocar esto.
+    /// Agrupa por `vstart`: emite **un** `WAIT` por línea distinta (en orden ascendente) y
+    /// luego una **ráfaga** con los sprites de esa línea. Así dos sprites en la misma
+    /// `vstart` no provocan un segundo `WAIT` (que encontraría el haz pasado y esperaría al
+    /// frame siguiente) y el orden no depende del índice de canal.
     template <class Sched>
     void emit_into(Sched& sched) const {
-        for (u8 i = 0; i < 8; ++i) {
-            const SpriteConfig& s = m_spr[i];
-            if (!s.enabled || s.data.empty()) continue;
-            sched.wait_line_safe(s.vstart);
-            emit_config(sched, i, s, s.data);
+        bool done[8] = {};
+        for (u8 pass = 0; pass < 8; ++pass) {
+            u8 pick = 0xff;
+            for (u8 i = 0; i < 8; ++i) {
+                const SpriteConfig& s = m_spr[i];
+                if (done[i] || !s.enabled || s.data.empty()) continue;
+                if (pick == 0xff || s.vstart < m_spr[pick].vstart) pick = i;
+            }
+            if (pick == 0xff) break;
+            const u16 line = m_spr[pick].vstart;
+            sched.wait_line_safe(line);
+            for (u8 i = 0; i < 8; ++i) {
+                const SpriteConfig& s = m_spr[i];
+                if (done[i] || !s.enabled || s.data.empty() || s.vstart != line) continue;
+                emit_config(sched, i, s, s.data);
+                done[i] = true;
+            }
         }
     }
 
@@ -221,9 +235,10 @@ private:
         const u16 pos = static_cast<u16>(((s.vstart & 0xff) << 8) | ((s.hpos >> 1) & 0xff));
         const u16 ctl = static_cast<u16>(
             ((s.vstop & 0xff) << 8) |
-            (((s.vstart >> 8) & 0x1u) << 3) |
-            (((s.vstop >> 8) & 0x1u) << 2) |
-            ((s.hpos & 0x1u) << 1)
+            (s.attach ? 0x0080u : 0x0000u) |     // bit 7: ATTACH (AHRM 4: "bit 7")
+            (((s.vstart >> 8) & 0x1u) << 2) |     // bit 2: VSTART[8]
+            (((s.vstop >> 8) & 0x1u) << 1) |      // bit 1: VSTOP[8]
+            (s.hpos & 0x1u)                       // bit 0: HSTART[0]
         );
         sched.move(static_cast<copper::Register>(0x140 + channel * 8), pos);     // SPRxPOS
         sched.move(static_cast<copper::Register>(0x142 + channel * 8), ctl);     // SPRxCTL

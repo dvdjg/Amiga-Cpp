@@ -121,10 +121,41 @@ pero el build completo (~230 k) no cabe en el hueco de VBlank (~26 k) tal cual �
 
 
 
-## 6. Referencias
+## 7. Antipatrones
+
+| Antipatrón | Por qué falla | Alternativa |
+|---|---|---|
+| **Bucle de espera del Blitter** | `while (BBUSY) {}` no hace nada útil | cómputo solo-registros durante la espera o servicio de fondo: [blitter-cpu-interleaving.md](blitter-cpu-interleaving.md) |
+| **Código caliente en Chip RAM** | cada *fetch* compite con el DMA (en A500 sin Fast no hay alternativa) | Fast/Slow RAM si existe |
+| **Acceso indexado en bucle** (`d(An,Dn.W)`) | rompe el prefetch secuencial del 68000 | puntero secuencial (`(An)+`) o base precalculada |
+| **División en bucle** (`divs.w`) | 44–140 ciclos, la instrucción más cara | tabla de recíprocos → `muls.w` |
+| **Reconstruir la copperlist entera** | paga estructura + datos cada frame | plantilla + parchear solo el dato (§4) |
+
+## 8. SMC aplicable en este engine
+
+Self-modifying code (modificar las **instrucciones** en runtime) es viable en 68000 (sin
+caché de instrucciones), pero el engine es C++ compilado y corre en Chip RAM (A500 sin
+Fast): la ganancia choca con el mismo cuello de bus. Regla: para lo **conocido en
+compilación** se usa especialización por plantilla, no SMC; SMC solo para valores
+**runtime** en bucles ya en asm.
+
+| Uso | Estado | Nota |
+|---|---|---|
+| **Parcheo de copperlist** (SMC «de datos») | **ya implementado** | `PatchHandle`, `Patch32`, `copper::Plan`: escribir solo las palabras que cambian, no la estructura |
+| **Inmediato parcheado** en asm (contador `dbra`, `row_bytes`, ancho, nº de planos) | candidato | rutinas con asm inline: `lib3d` (`update_edge_visibility_convex`, línea), `light`, `sfx_mixer`, `music_player` |
+| **Especializar función** (quitar comprobaciones de estado) | preferir plantilla | `SchedulerT<Report>`, `xlimited` por *policy*, `Rasterizer`/`AccelMode` |
+| **Rama calculada → directa** | preferir plantilla | dispatch de modo/`RasterPolicy` |
+
+Candidatos concretos (requieren **perfilar** antes de tocar): bucles con constantes runtime
+conocidas tras `bind`/config, p. ej. el relleno por plano (`row_bytes`, `plane_count`) y el
+recorrido de caras de `update_edge_visibility_convex`. No adoptar SMC como técnica general:
+rompe `constexpr`, complica tests y `const`; su lugar son las rutinas asm ya portadas.
+
+## 9. Referencias
 
 - `amiga-bootcamp/17_demoscene/timing_optimization.md`, `copper_effects.md`
 - `amiga-bootcamp/01_hardware/ocs_a500/copper.md`
+- [blitter-cpu-interleaving.md](blitter-cpu-interleaving.md) — solape Blitter/CPU
 - AHRM 3.ª, cap. 6 (Copper); `docs/reference/ahrm/`
 - `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` §13 (relleno CPU)
 - `demos/amiga/125_layers_dualpf/` (caso medido)

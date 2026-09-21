@@ -290,6 +290,15 @@ void MinimalBackend::set_color(u8 index, u16 rgb444) {
 	}
 }
 
+void MinimalBackend::set_sprite_collision(graphics::SpriteCollisionConfig cfg) {
+	custom_base[custom_clxcon_offset] = graphics::encode_clxcon(cfg);
+}
+
+graphics::SpriteCollisionResult MinimalBackend::read_sprite_collision() {
+	// CLXDAT se autolimpia al leer: una lectura = el resultado del frame.
+	return graphics::decode_clxdat(custom_base[custom_clxdat_offset]);
+}
+
 void MinimalBackend::takeover_display(const u16* copper_words) {
 	// Al arrancar, Kickstart/AmigaDOS dejan viva toda la maquina de
 	// interrupciones y DMA: exec/graphics/intuition tienen sus handlers

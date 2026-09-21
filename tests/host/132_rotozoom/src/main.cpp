@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <vector>
 
+#include <eng/api/effects.hpp>
 #include <eng/graphics/effects/rotozoom.hpp>
 
 namespace {
@@ -111,6 +112,23 @@ int main() {
 				const eng::u8 want = tex[tx * TH + ty];
 				if (dst[y * W + x] != want) return fail("zoom2x", x, y, dst[y * W + x], want);
 			}
+		}
+	}
+
+	{ // Envoltorio de API `effects::Rotozoom`: mismo resultado que la funcion directa.
+		std::vector<eng::u8> dst_a(W * H, 0);
+		std::vector<eng::u8> dst_b(W * H, 0);
+		const eng::graphics::Rotozoom r {0, 65536, static_cast<eng::s32>(W / 2) << 16,
+						 static_cast<eng::s32>(H / 2) << 16};
+		eng::effects::Rotozoom fx;
+		fx.configure(r);
+		fx.render<TW, TH>(eng::IndexedTexture(tex.data(), tex.size()),
+				  eng::ChunkyBuffer(dst_a.data(), dst_a.size()), W, H);
+		eng::graphics::rotozoom_into<TW, TH>(eng::IndexedTexture(tex.data(), tex.size()), r,
+						    eng::ChunkyBuffer(dst_b.data(), dst_b.size()), W, H);
+		if (dst_a != dst_b) {
+			std::printf("[FAIL] effects::Rotozoom != rotozoom_into\n");
+			return 1;
 		}
 	}
 

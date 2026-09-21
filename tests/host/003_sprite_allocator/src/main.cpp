@@ -193,6 +193,45 @@ void test_strip_bad_order_rejected() {
 	CHECK(slots[0].as_bob && slots[1].as_bob);
 }
 
+void test_attached_pair() {
+	std::printf("SpriteAllocator: par attached en canal par\n");
+
+	// Par attached (15 colores): el par (even) + el impar (`attach = true`).
+	SpriteIntent intents[2] {};
+	intents[0] = make_intent(40, 80);
+	intents[1] = make_intent(40, 80);
+	intents[1].attach = true;
+	SpriteSlot slots[2] {};
+	const eng::u8 in_hw = SpriteAllocator{}.assign(intents, 2, slots);
+	CHECK(in_hw == 2u);
+	CHECK(!slots[0].as_bob && !slots[1].as_bob);
+	CHECK(slots[0].channel % 2u == 0u);
+	CHECK(slots[1].channel == static_cast<eng::u8>(slots[0].channel + 1u));
+
+	// Un suelto ocupa el canal 0; el par attached debe ir al 2/3 (canal par).
+	SpriteIntent intents2[3] {};
+	intents2[0] = make_intent(0, 200);
+	intents2[1] = make_intent(0, 200);
+	intents2[2] = make_intent(0, 200);
+	intents2[2].attach = true;
+	SpriteSlot slots2[3] {};
+	const eng::u8 hw2 = SpriteAllocator{}.assign(intents2, 3, slots2);
+	CHECK(hw2 == 3u);
+	CHECK(slots2[0].channel == 0u);
+	CHECK(slots2[1].channel == 2u && slots2[2].channel == 3u);
+
+	// Sin hueco par libre (0..7 ocupados por solapados), el par no cabe.
+	SpriteIntent intents3[10] {};
+	for (int i = 0; i < 8; ++i) intents3[i] = make_intent(0, 200);
+	intents3[8] = make_intent(0, 200);
+	intents3[9] = make_intent(0, 200);
+	intents3[9].attach = true;
+	SpriteSlot slots3[10] {};
+	const eng::u8 hw3 = SpriteAllocator{}.assign(intents3, 10, slots3);
+	CHECK(hw3 == 8u);
+	CHECK(slots3[8].as_bob && slots3[9].as_bob);
+}
+
 } // namespace
 
 int main() {
@@ -207,6 +246,7 @@ int main() {
 	test_strip_starts_after_busy_channel();
 	test_strip_overflow_to_bob();
 	test_strip_bad_order_rejected();
+	test_attached_pair();
 
 	if (g_failures == 0) {
 		std::printf("OK: asignador de sprites validado (multiplexado/overflow/reuso).\n");

@@ -62,12 +62,34 @@ struct PlanConfig {
 	u16 first_line = 0u;
 };
 
+/// Tramo de raster reclamado por un efecto, para **detectar solapes** entre efectos que
+/// escriben los mismos registros en las mismas líneas. `register_mask` = 0 significa
+/// "cualquier registro" (conflicto con cualquier otro en el tramo). Ver
+/// `docs/engine/architecture/EFFECT_MODEL.md` §4.
+struct BandScope {
+	u16 first_line = 0;
+	u16 last_line = 0;     ///< inclusivo
+	u16 register_mask = 0; ///< bits = registros reclamados (0 = cualquiera)
+};
+
+/// Coste **declarado** de un efecto (huella estimada), para que el plan sume y avise de
+/// quién agota el presupuesto. Ver `docs/engine/architecture/EFFECT_MODEL.md` §5.
+struct EffectCost {
+	u16 intents = 0; ///< nº de intenciones que aportará
+	u16 words = 0;   ///< palabras de Copper estimadas
+};
+
+/// Índice "ningún efecto" de `over_budget_effect()`.
+inline constexpr u8 no_effect = 0xffu;
+
 class Plan {
 public:
 	/// Capacidad de intenciones por frame (fijo, sin heap). `add` marca overflow si se
 	/// supera; `end_frame` devuelve false en ese caso (no se publica una lista parcial).
 	/// Con 320 caben los gradientes **por línea** de una escena (256 líneas + objetos).
 	static constexpr u16 max_intents = 320;
+	/// Capacidad de reservas de banda por frame (fijo, sin heap).
+	static constexpr u8 max_bands = 16;
 
 	bool begin(eng::MemorySystem& memory, const PlanConfig& cfg = {}) {
 		m_cfg = cfg;
@@ -92,6 +114,10 @@ public:
 	/// Abre el frame: limpia las intenciones y sitúa el emisor en el bloque **trasero**.
 	void begin_frame() {
 		m_count = 0;
+		m_band_count = 0;
+		m_cost_words = 0;
+		m_cost_count = 0;
+		m_over_effect = no_effect;
 		m_overflow = false;
 		m_sched.retarget(m_copper->inactive_block()); // sin copiar la Timeline (512+ B)
 	}
@@ -104,6 +130,59 @@ public:
 
 	void add(const graphics::CopperIntent* intents, u16 count) {
 		add_prioritized(intents, count, 0u, 0u);
+	}
+
+	/// Reserva el tramo de raster `[first, last]` para los registros de `register_mask`
+	/// (0 = cualquiera). Devuelve `false` si **solapa** con otra reserva (misma línea y
+	/// registros) o si no caben más; así el conflicto entre efectos se detecta en vez de
+	/// resolverse en silencio. Las reservas se limpian en `begin_frame()`.
+	[[nodiscard]] bool reserve_band(u16 first, u16 last, u16 register_mask = 0u) {
+		if (first > last) {
+			const u16 t = first;
+			first = last;
+			last = t;
+		}
+		for (u8 i = 0; i < m_band_count; ++i) {
+			const BandScope& b = m_bands[i];
+			const bool lines = !(last < b.first_line || first > b.last_line);
+			const bool regs = (register_mask == 0u) || (b.register_mask == 0u) ||
+					  ((register_mask & b.register_mask) != 0u);
+			if (lines && regs) {
+				return false;
+			}
+		}
+		if (m_band_count >= max_bands) {
+			return false;
+		}
+		m_bands[m_band_count++] = BandScope {first, last, register_mask};
+		return true;
+	}
+	/// Nº de reservas de banda del frame.
+	[[nodiscard]] constexpr u8 band_count() const { return m_band_count; }
+
+	/// Registra el **coste declarado** de un efecto y lo suma al del frame. Devuelve
+	/// `false` si con este efecto el total supera la capacidad del bloque; el índice del
+	/// culpable queda en `over_budget_effect()`. Se limpia en `begin_frame()`.
+	[[nodiscard]] bool note_effect_cost(EffectCost c) {
+		if (m_cost_count >= max_bands) {
+			return false;
+		}
+		m_costs[m_cost_count] = c;
+		m_cost_words = static_cast<u16>(m_cost_words + c.words);
+		const bool fits = m_cost_words <= words_capacity();
+		if (!fits) {
+			m_over_effect = m_cost_count;
+		}
+		++m_cost_count;
+		return fits;
+	}
+	/// Índice del primer efecto que agotó el presupuesto, o `no_effect`.
+	[[nodiscard]] constexpr u8 over_budget_effect() const { return m_over_effect; }
+	/// Palabras declaradas acumuladas este frame.
+	[[nodiscard]] constexpr u16 cost_words() const { return m_cost_words; }
+	/// Capacidad del bloque de copperlist en palabras (`copper_bytes / 2`).
+	[[nodiscard]] constexpr u16 words_capacity() const {
+		return static_cast<u16>(m_cfg.copper_bytes / 2u);
 	}
 
 	/// Igual que `add`, pero anotando de quién viene cada intención: `surface` (índice de
@@ -260,6 +339,12 @@ private:
 	eng::util::Array<u16, 256u> m_count_by_line {};    ///< nº de intenciones por línea
 	eng::util::Array<u16, 256u> m_line_cursor {};      ///< cursor de relleno por línea (counting)
 	u16 m_count = 0;       ///< nº de intenciones registradas
+	eng::util::Array<BandScope, max_bands> m_bands {}; ///< reservas de banda del frame
+	u8 m_band_count = 0;   ///< nº de reservas de banda
+	eng::util::Array<EffectCost, max_bands> m_costs {}; ///< costes declarados por efecto
+	u16 m_cost_words = 0;  ///< palabras declaradas acumuladas
+	u8 m_cost_count = 0;   ///< nº de efectos con coste registrado
+	u8 m_over_effect = no_effect; ///< primer efecto que agotó el presupuesto
 	u16 m_words = 0;       ///< palabras de Copper de la última lista materializada
 	ScheduleReport m_report {}; ///< informe del scheduler de la última materialización
 	bool m_overflow = false;    ///< se superó `max_intents`
