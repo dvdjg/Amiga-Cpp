@@ -54,7 +54,10 @@ struct CopperBlitterDemo {
 		m_dst = backend.memory().chip.allocate_block<eng::SpriteTag>(kWords * 2u, 16);
 		m_copper = backend.memory().chip.allocate_block<eng::CopperTag>(4096u, 16);
 		m_bitmap = backend.memory().chip.allocate_block<eng::PlaneTag>(kPlaneBytes, 16);
-		if (!m_src.valid() || !m_dst.valid() || !m_copper.valid() || !m_bitmap.valid()) {
+		m_patch_cl = backend.memory().chip.allocate_block<eng::CopperTag>(64u, 16);
+		m_patch_vals = backend.memory().chip.allocate_block<eng::SpriteTag>(32u, 16);
+		if (!m_src.valid() || !m_dst.valid() || !m_copper.valid() || !m_bitmap.valid() ||
+		    !m_patch_cl.valid() || !m_patch_vals.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021002u);
 			return;
 		}
@@ -64,6 +67,8 @@ struct CopperBlitterDemo {
 		}
 		zero_dst();
 		m_bitmap.view.fill(0u);
+		m_patch_ok = patch_selfcheck(backend);
+		m_scroll_ok = scroll_edge_selfcheck(backend);
 
 		const eng::u16* cl = build_copper();
 		if (cl == nullptr) {
@@ -78,7 +83,9 @@ struct CopperBlitterDemo {
 		// 1) Verifica la copia que dejo el blit del Copper en el frame anterior.
 		m_checked = true;
 		m_last_ok = copied();
-		eng::debug::mark_ready(g_eng_run_status, m_last_ok ? 0x00021f00u : 0x00021000u);
+		eng::debug::mark_ready(g_eng_run_status,
+				       (m_last_ok && m_patch_ok && m_scroll_ok) ? 0x00021fffu
+										: 0x00021000u);
 		// 2) Limpia el destino (CPU) y publica la lista con el blit del Copper.
 		zero_dst();
 		const eng::u16* cl = build_copper();
@@ -97,10 +104,64 @@ struct CopperBlitterDemo {
 		d.text(64, 100, ok ? "copper blit: OK (256 words copiadas por el Copper)"
 				   : (m_checked ? "copper blit: FAIL" : "copper blit: esperando..."),
 		       ok ? 0x0000ff80 : (m_checked ? 0x00ff6060 : 0x00ffff00));
+		d.text(64, 128, m_patch_ok ? "copperlist patch (Blitter->CL): OK"
+					   : "copperlist patch (Blitter->CL): FAIL",
+		       m_patch_ok ? 0x0000ff80 : 0x00ff6060);
+		d.text(64, 152, m_scroll_ok ? "scroll-edge column (strided blit): OK"
+					    : "scroll-edge column (strided blit): FAIL",
+		       m_scroll_ok ? 0x0000ff80 : 0x00ff6060);
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
 private:
+	/// **Tecnica B** (Blitter -> copperlist): parchea con el Blitter los data words de 8
+	/// MOVEs consecutivos y verifica que solo cambian los datos (los registros, no).
+	bool patch_selfcheck(eng::amiga::MinimalBackend& backend) {
+		constexpr eng::u16 n = 8;
+		eng::Words<eng::CopperTag> cl = m_patch_cl.view.as_words();
+		eng::Words<eng::SpriteTag> vals = m_patch_vals.view.as_words();
+		for (eng::u16 i = 0; i < n; ++i) {
+			cl[i * 2u + 0u] = static_cast<eng::u16>(
+				static_cast<eng::u16>(eng::copper::Register::COLOR00) + i * 2u); // registro
+			cl[i * 2u + 1u] = 0u;                                                     // dato (a parchear)
+			vals[i] = static_cast<eng::u16>(0x1111u * static_cast<eng::u16>(i + 1u));
+		}
+		if (!backend.blitter_patch_copper_data(&cl[1], vals.data(), n, true)) {
+			return false;
+		}
+		for (eng::u16 i = 0; i < n; ++i) {
+			if (cl[i * 2u + 0u] != static_cast<eng::u16>(
+						 static_cast<eng::u16>(eng::copper::Register::COLOR00) + i * 2u)) {
+				return false; // el registro no debe tocarse
+			}
+			if (cl[i * 2u + 1u] != vals[i]) {
+				return false; // el dato debe quedar parcheado
+			}
+		}
+		return true;
+	}
+
+	/// **Borde de scroll**: repara la **columna nueva** con un blit con modulo de destino
+	/// (`blitter_memcpy_strided`, `Dmod = row_bytes - 2`): copia 256 words del `src` a la
+	/// columna X del bitplane. Verifica leyendo la columna de vuelta.
+	bool scroll_edge_selfcheck(eng::amiga::MinimalBackend& backend) {
+		m_bitmap.view.fill(0u);
+		constexpr eng::u16 col_word = 64u / 16u; // X = 64 px -> word 4 de la fila
+		eng::u16* plane = reinterpret_cast<eng::u16*>(m_bitmap.view.data());
+		if (!backend.blitter_memcpy_strided(plane + col_word,
+						    static_cast<eng::s16>(kBytesPerRow - 2u),
+						    m_src.view.as_words().data(), 0, 256u, true)) {
+			return false;
+		}
+		const eng::Words<eng::SpriteTag> s = m_src.view.as_words();
+		for (eng::u16 row = 0; row < 256u; row += 32u) {
+			if (plane[static_cast<eng::u32>(row) * (kBytesPerRow / 2u) + col_word] != s[row]) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	void zero_dst() {
 		eng::Words<eng::SpriteTag> d = m_dst.view.as_words();
 		for (eng::u16 i = 0; i < kWords; ++i) {
@@ -164,8 +225,12 @@ private:
 	eng::Block<eng::SpriteTag> m_dst {};
 	eng::Block<eng::CopperTag> m_copper {};
 	eng::Block<eng::PlaneTag> m_bitmap {};
+	eng::Block<eng::CopperTag> m_patch_cl {};
+	eng::Block<eng::SpriteTag> m_patch_vals {};
 	bool m_checked = false;
 	bool m_last_ok = false;
+	bool m_patch_ok = false;
+	bool m_scroll_ok = false;
 };
 
 } // namespace

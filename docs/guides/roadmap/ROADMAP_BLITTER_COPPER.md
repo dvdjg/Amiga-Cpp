@@ -46,6 +46,11 @@ El Blitter trata la copperlist como **destino**: genera o parchea en bloque wait
 - **Riesgo**: presupuesto de Chip y de tiempo de blit; solo compensa con muchos moves.
 - **Fases**: (1) medir (moves/frame reales); (2) prototipo de parcheo por Blitter de un tramo de
   la CL; (3) evaluar.
+- **Estado**: prototipo hecho (fase 2). `MinimalBackend::blitter_memcpy_strided` (copia por
+  palabras con módulos) y `blitter_patch_copper_data` (escribe los **data words** de `count`
+  MOVEs consecutivos: `D = A`, `BLTDMOD = 2`, stride 4 B, sin tocar los registros). Validado en
+  `demos/amiga/210_copper_blitter` (`copperlist patch (Blitter->CL): OK`, `RunStatus.detail =
+  0x21FFF`). Pendiente: (1) medir moves/frame reales y (3) evaluar si compensa.
 
 ## Técnica C — Blitter IRQ → completar / rearmar
 

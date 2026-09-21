@@ -370,6 +370,20 @@ public:
 	/// de `blitter-memcpy.md` y `docs/guides/roadmap/ROADMAP_BLITTER_COPPER.md`.
 	bool blitter_memcpy(eng::Span<u8> dst, eng::Span<const u8> src, bool wait = true);
 
+	/// **Copia por palabras con módulos** (Blitter): copia `words` palabras de `src` a `dst`,
+	/// aplicando `dst_mod`/`src_mod` (en bytes) tras cada palabra. Con `dst_mod = 2` escribe
+	/// **un word sí, otro no** (stride 4 B): la primitiva de la **Técnica B** para parchear los
+	/// **datos** de los MOVEs de una copperlist (`[reg, dato]`, `reg` se salta). `src_mod = 0`
+	/// es un origen contiguo. Serializa con el resto de blits (síncrona salvo `wait = false`).
+	bool blitter_memcpy_strided(u16* dst, s16 dst_mod, const u16* src, s16 src_mod,
+				    u16 words, bool wait = true);
+
+	/// **Parchea los datos de una copperlist con el Blitter** (Técnica B): escribe `count`
+	/// valores en los **data words** de `count` MOVEs consecutivos. `first_data` apunta al
+	/// **primer data word** (no al registro); el stride es 4 B (`[reg, dato]`). Cada dato de
+	/// la lista es `first_data + 2*i`. Ver `docs/guides/roadmap/ROADMAP_BLITTER_COPPER.md`.
+	bool blitter_patch_copper_data(u16* first_data, const u16* values, u16 count, bool wait = true);
+
 	/// **Relleno de polígonos compuesto por bitplane** (Blitter): para cada plano `p`,
 	/// limpia el plano, dibuja el contorno XOR (ONEDOT) de las caras cuyo color tiene el
 	/// bit `p` a 1 y hace **un area fill** (`FILL_XOR`); un fill por plano en vez de uno

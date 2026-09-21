@@ -232,6 +232,24 @@ void test_attached_pair() {
 	CHECK(slots3[8].as_bob && slots3[9].as_bob);
 }
 
+void test_aga_wide_sprite() {
+	std::printf("SpriteAllocator: width_words=2 (AGA 32 px) usa 1 canal\n");
+
+	// El ancho de 32 px no cambia el nº de canales ni la asignación: sigue siendo 1 por
+	// sprite, y el multiplexado vertical (bottom <= top reusa canal) no se altera.
+	SpriteIntent intents[2] {};
+	intents[0] = make_intent(10, 20);
+	intents[0].width_words = 2u; // AGA: 32 px
+	intents[1] = make_intent(30, 40);
+	intents[1].width_words = 1u;
+	SpriteSlot slots[2] {};
+
+	const eng::u8 in_hw = SpriteAllocator{}.assign(intents, 2, slots);
+	CHECK(in_hw == 2u);
+	CHECK(!slots[0].as_bob && slots[0].channel == 0u);
+	CHECK(!slots[1].as_bob && slots[1].channel == 0u); // reusa el canal (no solapan)
+}
+
 } // namespace
 
 int main() {
@@ -247,6 +265,7 @@ int main() {
 	test_strip_overflow_to_bob();
 	test_strip_bad_order_rejected();
 	test_attached_pair();
+	test_aga_wide_sprite();
 
 	if (g_failures == 0) {
 		std::printf("OK: asignador de sprites validado (multiplexado/overflow/reuso).\n");

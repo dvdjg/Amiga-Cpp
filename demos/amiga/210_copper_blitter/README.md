@@ -14,6 +14,10 @@ un blit **sincronizado al haz** sin coste de CPU por el arranque.
 El demo copia 256 words (`src`→`dst`, `D = A`) en cada frame; al siguiente verifica la copia y
 la publica en el overlay y en `RunStatus` (detalle `0x21F00` = OK).
 
+Además valida la **Técnica B** (Blitter → copperlist) con `blitter_patch_copper_data`: el
+Blitter escribe los **data words** de 8 MOVEs consecutivos (`BLTDMOD = 2`, stride 4 B) sin tocar
+los registros; la lista se lee de vuelta y se comprueba. Con ambas OK el detalle es `0x21FFF`.
+
 ```
    bash ./tools/build/build-demo.sh demos/amiga/210_copper_blitter --debug
    bash ./tools/run/run-demo.sh demos/amiga/210_copper_blitter --warp
