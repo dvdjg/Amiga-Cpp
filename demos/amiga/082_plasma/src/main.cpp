@@ -97,21 +97,13 @@ struct PlasmaDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008202u);
 			return;
 		}
-		if (!m_layer.init(cfg)) {
+		if (!m_layer.attach(m_scene, cfg)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008203u);
 			return;
 		}
-		// Estructura de la lista UNA vez en AMBOS bloques del `Plan` (el coste por frame es
-		// solo parchear los colores, no re-emitir ~2700 instrucciones).
-		m_scene.begin_build();
-		m_layer.emit(m_scene.scheduler());
-		m_scene.end_build();
-		m_scene.begin_build();
-		m_layer.emit(m_scene.scheduler());
-		m_scene.end_build();
-		// Colores iniciales en el bloque activo (evita basura en el primer frame).
-		fill_colors(m_scene.active_words());
-		m_scene.takeover(backend);
+		// Primer frame + toma del display (la estructura ya está en ambos bloques; aquí solo
+		// se escriben los colores y se publica).
+		draw_frame(backend);
 		m_init_ok = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x0082u);
 	}
@@ -119,10 +111,7 @@ struct PlasmaDemo {
 	void update(amiga::MinimalBackend& backend, eng::GameContext&) {
 		if (!m_init_ok) return;
 		m_plasma.advance();
-		// Solo colores en el bloque inactivo (se muestra el activo) + flip + install.
-		fill_colors(m_scene.inactive_words());
-		m_scene.flip_copper();
-		m_scene.present(backend);
+		draw_frame(backend);
 	}
 
 	void render(amiga::MinimalBackend& backend, eng::GameContext& context) {
@@ -131,13 +120,20 @@ struct PlasmaDemo {
 	}
 
 private:
-	/// Escribe los colores del plasma en el bloque `base` (coste: `cols*rows` words).
-	void fill_colors(const eng::u16* base) {
+	/// Un frame: colores en el bloque inactivo + flip + install.
+	void draw_frame(amiga::MinimalBackend& backend) {
+		m_layer.begin_frame(m_scene);
+		fill_colors();
+		m_layer.end_frame(m_scene, backend);
+	}
+
+	/// Escribe los colores del plasma en el bloque del frame (coste: `cols*rows` words).
+	void fill_colors() {
 		g_plasma_chunky_args[1] = reinterpret_cast<eng::u32>(m_plasma.xbuf);
 		g_plasma_chunky_args[3] = reinterpret_cast<eng::u32>(plasma_data::kColors);
 		g_plasma_chunky_args[4] = kCols;
 		for (eng::u8 y = 0; y < kRows; ++y) {
-			eng::u16* p = m_layer.row(base, y);
+			eng::u16* p = m_layer.row(y);
 			if (p == nullptr) {
 				return;
 			}

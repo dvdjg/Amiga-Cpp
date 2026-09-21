@@ -84,23 +84,13 @@ struct FbmDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008302u);
 			return;
 		}
-		if (!m_layer.init(cfg)) {
+		if (!m_layer.attach(m_scene, cfg)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008303u);
 			return;
 		}
 		build_coarse();
 		build_palette();
-
-		// Estructura de la lista UNA vez en AMBOS bloques del `Plan`; por frame solo se
-		// parchean los colores (no se re-emite la lista).
-		m_scene.begin_build();
-		m_layer.emit(m_scene.scheduler());
-		m_scene.end_build();
-		m_scene.begin_build();
-		m_layer.emit(m_scene.scheduler());
-		m_scene.end_build();
-		fill_colors(m_scene.active_words());
-		m_scene.takeover(backend);
+		draw_frame(backend); // primer frame + toma del display
 		m_init_ok = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x0083u);
 	}
@@ -115,9 +105,7 @@ struct FbmDemo {
 		if (m_oy >= (3 << 8)) { m_oy = 3 << 8; m_dy = -1; }
 		else if (m_oy <= 0) { m_oy = 0; m_dy = 1; }
 
-		fill_colors(m_scene.inactive_words());
-		m_scene.flip_copper();
-		m_scene.present(backend);
+		draw_frame(backend);
 	}
 
 	void render(amiga::MinimalBackend& backend, eng::GameContext& context) {
@@ -181,31 +169,42 @@ private:
 		return m_coarse[gy * kGW + gx];
 	}
 
-	/// Escribe los colores del campo en el bloque `base` (coste: `cols*rows` words).
-	void fill_colors(const eng::u16* base) {
-		// Escalas de muestreo de la rejilla gruesa a la rejilla de bloques (Q8).
+	/// Un frame: colores en el bloque inactivo + flip + install.
+	void draw_frame(amiga::MinimalBackend& backend) {
+		m_layer.begin_frame(m_scene);
+		fill_colors();
+		m_layer.end_frame(m_scene, backend);
+	}
+
+	/// Escribe los colores del campo en el bloque del frame (coste: `cols*rows` words). El
+	/// bilineal va con `mul_wide<s16>` (`muls.w`), no con `int` (que emite `__mulsi3`).
+	void fill_colors() {
+		// Escalas de muestreo de la rejilla gruesa a la rejilla de bloques (Q8); 64 = shift.
 		constexpr int kStepX = (kGW << 8) / kCols;
 		constexpr int kStepY = (kGH << 8) / kRows;
 		for (u8 y = 0; y < kRows; ++y) {
-			u16* p = m_layer.row(base, y);
+			u16* p = m_layer.row(y);
 			if (p == nullptr) {
 				return;
 			}
 			const s32 cyq = static_cast<s32>(y) * kStepY + m_oy;
 			const int gy = cyq >> 8;
-			const int fy = cyq & 0xFF;
+			const s16 fy = static_cast<s16>(cyq & 0xFF);
 			for (u8 x = 0; x < kCols; ++x) {
 				const s32 cxq = static_cast<s32>(x) * kStepX + m_ox;
 				const int gx = cxq >> 8;
-				const int fx = cxq & 0xFF;
+				const s16 fx = static_cast<s16>(cxq & 0xFF);
 				// Bilineal con índices acotados a la rejilla.
-				const int v00 = coarse_at(gx, gy);
-				const int v10 = coarse_at(gx + 1, gy);
-				const int v01 = coarse_at(gx, gy + 1);
-				const int v11 = coarse_at(gx + 1, gy + 1);
-				const int a = v00 + (((v10 - v00) * fx) >> 8);
-				const int b = v01 + (((v11 - v01) * fx) >> 8);
-				const int v = a + (((b - a) * fy) >> 8);
+				const s16 v00 = coarse_at(gx, gy);
+				const s16 v10 = coarse_at(gx + 1, gy);
+				const s16 v01 = coarse_at(gx, gy + 1);
+				const s16 v11 = coarse_at(gx + 1, gy + 1);
+				const s16 a = static_cast<s16>(
+					v00 + (eng::math::mul_wide<s16>(static_cast<s16>(v10 - v00), fx) >> 8));
+				const s16 b = static_cast<s16>(
+					v01 + (eng::math::mul_wide<s16>(static_cast<s16>(v11 - v01), fx) >> 8));
+				const s16 v = static_cast<s16>(
+					a + (eng::math::mul_wide<s16>(static_cast<s16>(b - a), fy) >> 8));
 				*p = m_palette[static_cast<u8>(v)];
 				p += 2; // cada COLOR00 son [registro, data]
 			}

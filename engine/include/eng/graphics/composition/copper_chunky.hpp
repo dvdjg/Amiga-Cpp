@@ -5,21 +5,22 @@
 /// de `block_h` líneas a lo largo de cada fila, re-ejecutando la misma "línea de color" vía
 /// `COP2LC`/`COPJMP2` y saliendo con un `SKIP`. Porte de `effects/plasma`.
 ///
-/// Se usa con una escena en modo `SceneMode::CopperChunky` (`planes == 0`). El coste del
-/// efecto es **solo parchear los colores** (`cols*rows` words/frame), no re-emitir la lista:
-/// la **estructura** (WAIT/MOVE/SKIP/COPJMP2) se emite UNA vez en **ambos** bloques del
-/// `copper::Plan`; por frame se escribe en el bloque **inactivo** y se publica con `flip`:
+/// `CopperChunkyLayer` encapsula el patrón completo sobre una escena en modo
+/// `SceneMode::CopperChunky` (`planes == 0`): la **estructura** de la lista se emite UNA vez
+/// en los dos bloques del `copper::Plan`, y por frame el efecto **solo escribe colores** en
+/// el bloque inactivo (coste `cols*rows` words/frame, no re-emitir la lista). El API es:
 ///
 /// ```cpp
-/// // init (una vez): estructura en los dos bloques + colores iniciales
-/// scene.begin_build(); layer.emit(scene.scheduler()); scene.end_build();  // bloque A
-/// scene.begin_build(); layer.emit(scene.scheduler()); scene.end_build();  // bloque B
-/// fill_colors(scene.active_words());
-/// scene.takeover(backend);
-/// // por frame: solo colores en el inactivo + flip + install
-/// fill_colors(scene.inactive_words());
-/// scene.flip_copper();
-/// scene.present(backend);
+/// scene::SceneResources res = scene::planar(288, 256, 0);   // sin bitplanes
+/// res.mode = scene::SceneMode::CopperChunky;
+/// res.copper_bytes = 12288;
+/// scene::compose(scene, memory, res, limits);
+/// layer.attach(scene, {.cols = 36, .rows = 64});   // estructura en ambos bloques
+/// layer.takeover(scene, backend);
+/// // por frame:
+/// layer.begin_frame(scene);                        // destino = bloque inactivo
+/// for (y...) { u16* p = layer.row(y); ... }        // escribe los colores del frame
+/// layer.end_frame(scene, backend);                 // flip + install
 /// ```
 ///
 /// Estructura de la lista, por fila (verbatim de `MakeCopperList`):
@@ -27,6 +28,7 @@
 /// `SKIP Y(y*block_h+3),LASTHP` ; `MOVE COPJMP2`.
 
 #include <eng/core/types.hpp>
+#include <eng/graphics/composition/compose.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 
 namespace eng::graphics::composition {
@@ -41,28 +43,64 @@ struct CopperChunkyConfig {
 	eng::u16 skip_hpos = 0x1bcu;///< `LASTHP` en color-clock (fin de la re-ejecución)
 };
 
-/// Emite la lista copper-chunky sobre un `copper::Scheduler` y expone los slots de color.
+/// Capa copper-chunky sobre un `Scene`: emite la estructura y expone los colores por fila.
 template <eng::u8 MaxCols = 64, eng::u8 MaxRows = 64>
 class CopperChunkyLayer {
 public:
 	[[nodiscard]] static constexpr eng::u8 max_cols() { return MaxCols; }
 	[[nodiscard]] static constexpr eng::u8 max_rows() { return MaxRows; }
 
-	/// Fija la geometría del display (`cols`/`rows`/`block_h`); `false` si no cabe en la
-	/// capacidad de la capa (`MaxCols`/`MaxRows`).
-	[[nodiscard]] bool init(CopperChunkyConfig cfg) {
+	/// Prepara la capa sobre `scene` (debe estar en modo `CopperChunky`): emite la estructura
+	/// en los **dos** bloques del `Plan`. `false` si la geometría no cabe en la capa.
+	[[nodiscard]] bool attach(Scene& scene, CopperChunkyConfig cfg) {
 		if (cfg.cols == 0u || cfg.rows == 0u || cfg.cols > MaxCols || cfg.rows > MaxRows) {
 			m_ok = false;
 			return false;
 		}
 		m_cfg = cfg;
 		m_ok = true;
+		scene.begin_build();
+		emit(scene.scheduler());
+		scene.end_build();
+		scene.begin_build();
+		emit(scene.scheduler());
+		scene.end_build();
 		return true;
 	}
 
+	/// Toma el display mostrando el bloque activo (una vez, tras `attach`).
+	template <typename Backend>
+	void takeover(Scene& scene, Backend& backend) const {
+		scene.takeover(backend);
+	}
+
+	/// Inicia el frame: el destino de `row()` pasa a ser el bloque **inactivo**.
+	void begin_frame(Scene& scene) { m_base = scene.inactive_words(); }
+
+	/// Puntero al `data` del bloque 0 de la fila `row` (válido entre `begin_frame`/`end_frame`).
+	/// Para rellenar la fila de golpe se escriben los `cols` colores con **paso de 2 words**
+	/// (cada `COLOR00` son `[registro, data]`): `p[0] = c; p += 2;`.
+	[[nodiscard]] eng::u16* row(eng::u8 r) const {
+		if (!m_ok || m_base == nullptr || r >= m_cfg.rows) {
+			return nullptr;
+		}
+		return const_cast<eng::u16*>(m_base + m_slot[static_cast<eng::u16>(r) * MaxCols] + 1u);
+	}
+
+	/// Cierra el frame: voltea al bloque recién escrito y lo instala (swap de `COP1LC`).
+	template <typename Backend>
+	void end_frame(Scene& scene, Backend& backend) {
+		scene.flip_copper();
+		scene.present(backend);
+	}
+
+	[[nodiscard]] constexpr eng::u8 cols() const { return m_cfg.cols; }
+	[[nodiscard]] constexpr eng::u8 rows() const { return m_cfg.rows; }
+	[[nodiscard]] constexpr bool ok() const { return m_ok; }
+
+private:
 	/// Emite la **estructura** de la lista en el bloque que emite `s` y guarda el índice de
-	/// cada `COLOR00` (los offsets son los mismos en cualquier bloque). Se llama una vez por
-	/// bloque (dos veces) al arrancar; **no** se re-emite por frame.
+	/// cada `COLOR00` (los offsets son los mismos en cualquier bloque). Interno.
 	void emit(copper::Scheduler& s) {
 		if (!m_ok) {
 			return;
@@ -87,23 +125,8 @@ public:
 		// El cierre de la lista lo hace `Scene::end_build` (Plan::end_frame -> `Scheduler::end`).
 	}
 
-	/// Puntero al `data` del bloque 0 de la fila `row` en el bloque `base`
-	/// (`Scene::active_words()`/`inactive_words()`). Para rellenar la fila de golpe se
-	/// escriben los `cols` colores con **paso de 2 words** (cada `COLOR00` son
-	/// `[registro, data]`): `p[0] = c; p += 2;`.
-	[[nodiscard]] eng::u16* row(const eng::u16* base, eng::u8 r) const {
-		if (!m_ok || base == nullptr || r >= m_cfg.rows) {
-			return nullptr;
-		}
-		return const_cast<eng::u16*>(base + m_slot[static_cast<eng::u16>(r) * MaxCols] + 1u);
-	}
-
-	[[nodiscard]] constexpr eng::u8 cols() const { return m_cfg.cols; }
-	[[nodiscard]] constexpr eng::u8 rows() const { return m_cfg.rows; }
-	[[nodiscard]] constexpr bool ok() const { return m_ok; }
-
-private:
 	CopperChunkyConfig m_cfg {};
+	const eng::u16* m_base = nullptr; ///< bloque destino del frame (inactivo)
 	eng::u16 m_slot[MaxRows * MaxCols] {}; ///< índice de la instrucción `COLOR00` de (r,c)
 	bool m_ok = false;
 };

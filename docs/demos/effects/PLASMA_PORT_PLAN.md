@@ -92,6 +92,9 @@ Método: `docs/guides/roadmap/PORT_PROMPT_1A1.md`. Técnica: `docs/reference/ami
   enlace a VMA 0x0 con `.datachip` aparte, pero en A500 sin fast RAM corre en el mismo tipo de
   RAM, así que queda a la par. Instrumentación de la medición: contador de ciclos del periférico
   (`0xB7E928`), expuesto temporalmente en `g_eng_run_status.detail` (retirado del código final).
+  El modo `SceneMode::CopperChunky` del engine **preserva** ese rendimiento: la estructura de la
+  lista se emite una vez en los dos bloques del `Plan` y por frame solo se parchean los colores
+  (medido 36.2 fps; 49.9 fps con el efecto desactivado, es decir, el engine no añade coste).
 
 ## 6. Notas de fidelidad
 
