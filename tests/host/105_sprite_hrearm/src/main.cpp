@@ -268,8 +268,8 @@ void test_sprite_layer() {
 	bad_cfg.hpos_step = 16u;
 	CHECK(!bad.attach(bad_cfg), "SpriteLayer: lines=0 -> false");
 
-	// Canales DMA: PT+CTL+POS una vez por canal (sin rearm por linea).
-	eng::u16 dma_col[8] {};
+	// Canales DMA: SPRxPT a la estructura (cabecera POS+CTL en memoria); sin rearm por linea.
+	eng::u16 dma_col[16] {};
 	eng::effects::SpriteLayer dma;
 	eng::effects::SpriteLayer::Config dcfg {};
 	dcfg.first_line = 100u;
@@ -277,13 +277,13 @@ void test_sprite_layer() {
 	dcfg.channels = 8u;
 	dcfg.hpos_step = 16u;
 	dcfg.dma_channels = 2u;
-	dcfg.dma_height = 4u;
+	dcfg.dma_stride = 8u;
 	dcfg.dma_data = dma_col;
 	CHECK(dma.attach(dcfg), "SpriteLayer DMA attach");
 	FakeSched fd;
 	dma.emit_into(fd);
-	// BPLCON2(1) + DMA 2*4 + CTL Copper 6 + 4 lineas*(6 canales*3) = 1+8+6+72 = 87.
-	CHECK(fd.moves == 1 + 8 + 6 + 4 * 6 * 3, "SpriteLayer DMA: MOVEs");
+	// BPLCON2(1) + DMA 2*2 (PT H/L) + CTL Copper 6 + 4 lineas*(6 canales*3) = 1+4+6+72 = 83.
+	CHECK(fd.moves == 1 + 4 + 6 + 4 * 6 * 3, "SpriteLayer DMA: MOVEs");
 	CHECK(fd.waits == 4, "SpriteLayer DMA: 4 WAIT (solo canales Copper)");
 	eng::effects::SpriteLayer bad2;
 	eng::effects::SpriteLayer::Config b2 {};

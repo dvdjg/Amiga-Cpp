@@ -144,20 +144,22 @@ public:
 		u16 data_high = 0;  ///< SPRxDATA (primera palabra de la fila) — canales Copper
 		u16 data_low = 0;   ///< SPRxDATB (segunda palabra) — canales Copper
 		u16 bplcon2 = 0;    ///< prioridad (`BPLCON2`); sprites detrás del playfield = fondo
-		/// **Canales DMA** (los `dma_channels` primeros): sprite **alto** (toda la banda) con
-		/// su DATA en Chip RAM y la **posición parcheada** (no se rearman por línea). Cubren
-		/// ancho "gratis" en Copper; el resto de canales son Copper (rearm por línea).
+		/// **Canales DMA** (los `dma_channels` primeros): sprite **alto** (toda la banda) cuya
+		/// estructura en Chip RAM lleva **cabecera `POS`+`CTL`** (`[POS, CTL, DAT0, DATB0, …,
+		/// 0, 0]`); `SPRxPT` apunta al **inicio** de la estructura y Agnus recarga POS/CTL de
+		/// ahí. `SpriteLayer` parchea el POS de la cabecera (scroll). Ver
+		/// `spr_layer/Sprite_Layer/` (Jeroen Knoester).
 		u8 dma_channels = 0;
-		u16 dma_height = 0;   ///< alto de la columna DMA en líneas (0 = `lines`)
-		const u16* dma_data = nullptr; ///< DATA de la columna DMA (`dma_height*2 + 2` words)
+		u16* dma_data = nullptr; ///< estructuras DMA (una por canal, `dma_stride` words cada una)
+		u16 dma_stride = 0;      ///< words por estructura (`2 + dma_height*2 + 2`)
 	};
 
 	/// Configura la capa. `false` si `lines == 0`, `channels` fuera de 1..8, `hpos_step < 16`,
-	/// `dma_channels > channels` o hay canales DMA sin `dma_data`.
+	/// `dma_channels > channels` o hay canales DMA sin `dma_data`/`dma_stride`.
 	[[nodiscard]] bool attach(Config cfg) {
 		if (cfg.lines == 0u || cfg.channels == 0u || cfg.channels > 8u ||
 		    cfg.hpos_step < 16u || cfg.dma_channels > cfg.channels ||
-		    (cfg.dma_channels > 0u && cfg.dma_data == nullptr)) {
+		    (cfg.dma_channels > 0u && (cfg.dma_data == nullptr || cfg.dma_stride == 0u))) {
 			return false;
 		}
 		m_cfg = cfg;
@@ -176,25 +178,22 @@ public:
 		sched.move(copper::Register::BPLCON2, m_cfg.bplcon2); // prioridad de fondo
 		const u16 vstop = static_cast<u16>(m_cfg.first_line + m_cfg.lines);
 
-		// --- Canales DMA: columna alta, posición parcheada (sin rearm por línea) ---
+		// --- Canales DMA: estructura con CABECERA POS+CTL; SPRxPT apunta a ella ---
 		if (m_cfg.dma_channels > 0u) {
-			const u16 dh = (m_cfg.dma_height != 0u) ? m_cfg.dma_height : m_cfg.lines;
-			const u16 dma_vstop = static_cast<u16>(m_cfg.first_line + dh - 1u);
-			const eng::uintptr dptr = reinterpret_cast<eng::uintptr>(m_cfg.dma_data);
-			const u16 dma_ctl = static_cast<u16>(((dma_vstop & 0xffu) << 8u) |
-							     (((m_cfg.first_line >> 8u) & 0x1u) << 2u) |
-							     (((dma_vstop >> 8u) & 0x1u) << 1u));
+			const eng::uintptr base = reinterpret_cast<eng::uintptr>(m_cfg.dma_data);
 			for (u8 ch = 0u; ch < m_cfg.dma_channels; ++ch) {
-				sched.move(static_cast<copper::Register>(0x120u + ch * 4u),
-					   static_cast<u16>(dptr >> 16));                        // SPRxPTH
-				sched.move(static_cast<copper::Register>(0x122u + ch * 4u),
-					   static_cast<u16>(dptr & 0xffffu));                    // SPRxPTL
-				sched.move(static_cast<copper::Register>(0x142u + ch * 8u), dma_ctl); // SPRxCTL
 				const u16 hpos = static_cast<u16>(m_cfg.hpos0 +
 								  static_cast<u16>(ch) * m_cfg.hpos_step + m_scroll);
 				const u16 pos = static_cast<u16>(((m_cfg.first_line & 0xffu) << 8u) |
 								 ((hpos >> 1u) & 0xffu));
-				sched.move(static_cast<copper::Register>(0x140u + ch * 8u), pos); // SPRxPOS
+				// Parchear el POS de la cabecera DMA (memoria) y apuntar PT a la estructura.
+				m_cfg.dma_data[static_cast<eng::u32>(ch) * m_cfg.dma_stride] = pos;
+				const eng::uintptr addr =
+					base + static_cast<eng::uintptr>(ch) * m_cfg.dma_stride * 2u;
+				sched.move(static_cast<copper::Register>(0x120u + ch * 4u),
+					   static_cast<u16>(addr >> 16));                 // SPRxPTH
+				sched.move(static_cast<copper::Register>(0x122u + ch * 4u),
+					   static_cast<u16>(addr & 0xffffu));             // SPRxPTL
 			}
 		}
 

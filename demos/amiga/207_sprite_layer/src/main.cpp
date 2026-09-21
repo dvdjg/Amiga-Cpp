@@ -47,8 +47,8 @@ constexpr eng::u16 kHpos0 = 32;
 constexpr eng::u16 kHposStep = 16;     // columnas de 16 px contiguas
 constexpr eng::u16 kSpriteWords = 4u;  // 1 línea (DAT/DATB) + terminador (sprite "armado")
 constexpr eng::u16 kDmaHeight = kBandLines;
-constexpr eng::u16 kDmaWords = static_cast<eng::u16>(kDmaHeight) * 2u + 2u; // columna alta + terminador
-constexpr eng::u8  kDmaChannels = 0u;  // 0 = solo Copper (DMA implementado pero pendiente de validar)
+constexpr eng::u16 kDmaStride = static_cast<eng::u16>(2u + kDmaHeight * 2u + 2u); // POS+CTL + DATA + terminador
+constexpr eng::u8  kDmaChannels = 4u;  // canales DMA (columna alta con cabecera); el resto, Copper
 
 // COLOR00 fondo navy; COLOR17 = color 1 del par 0/1 (el patrón de la capa).
 constexpr eng::Palette32 kPalette {{
@@ -70,7 +70,7 @@ struct SpriteLayerDemo {
 		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
 		m_copper_block = backend.memory().chip.allocate_block<eng::CopperTag>(16384u, 16);
 		m_sprite_block = backend.memory().chip.allocate_block<eng::SpriteTag>(
-			static_cast<eng::u32>(kSpriteWords + kDmaWords) * 2u, 16);
+			static_cast<eng::u32>(kSpriteWords + kDmaChannels * kDmaStride) * 2u, 16);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || !m_sprite_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020702u);
 			return;
@@ -83,15 +83,21 @@ struct SpriteLayerDemo {
 		sd[2] = 0u;      // terminador
 		sd[3] = 0u;
 
-		// Columna DMA (sprite ALTO): patrón alterno por línea + terminador. Es la DATA que
-		// los canales DMA muestran toda la banda con solo parchear su POSICIÓN.
-		eng::u16* dma_col = sd.data() + kSpriteWords;
-		for (eng::u16 l = 0; l < kDmaHeight; ++l) {
-			dma_col[l * 2u + 0u] = ((l & 1u) != 0u) ? 0x5555u : 0xAAAAu; // DAT
-			dma_col[l * 2u + 1u] = 0x0000u;                              // DATB
+		// Estructuras DMA (una por canal): [POS, CTL, DAT0, DATB0, ..., 0, 0]. El `POS` lo
+		// parchea `SpriteLayer` con el scroll; el `CTL` fija VSTART..VSTOP de la banda.
+		eng::u16* dma = sd.data() + kSpriteWords;
+		for (eng::u8 ch = 0; ch < kDmaChannels; ++ch) {
+			eng::u16* s = dma + static_cast<eng::u32>(ch) * kDmaStride;
+			s[0] = 0u; // POS (parcheado por SpriteLayer)
+			// CTL: VSTOP = first_line + height (N líneas de DATA = VSTOP - VSTART).
+			s[1] = static_cast<eng::u16>((kBandLine0 + kDmaHeight) << 8);
+			for (eng::u16 l = 0; l < kDmaHeight; ++l) {
+				s[2u + l * 2u + 0u] = ((l & 1u) != 0u) ? 0x5555u : 0xAAAAu; // DAT
+				s[2u + l * 2u + 1u] = 0x0000u;                              // DATB
+			}
+			s[2u + kDmaHeight * 2u + 0u] = 0u; // terminador del canal DMA
+			s[2u + kDmaHeight * 2u + 1u] = 0u;
 		}
-		dma_col[kDmaHeight * 2u + 0u] = 0u; // terminador del canal DMA
-		dma_col[kDmaHeight * 2u + 1u] = 0u;
 
 		eng::effects::SpriteLayer::Config cfg {};
 		cfg.first_line = kBandLine0;
@@ -103,8 +109,8 @@ struct SpriteLayerDemo {
 		cfg.data_low = 0x0000u;
 		cfg.bplcon2 = 0x0008u;   // sprites DETRÁS de PF1 (capa de fondo)
 		cfg.dma_channels = kDmaChannels;
-		cfg.dma_height = kDmaHeight;
-		cfg.dma_data = dma_col;
+		cfg.dma_data = dma;
+		cfg.dma_stride = kDmaStride;
 		if (!m_layer.attach(cfg)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020703u);
 			return;

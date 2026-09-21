@@ -30,8 +30,10 @@ frame. Cada canal mide **16 px** (32/64 en AGA), **3 colores + transparencia** (
 
 - **Color del píxel** = `(DATB<<1) | DATA`: `00` transparente, `01`/`10`/`11` colores 1–3.
 - **SPRxPOS**: `VSTART[7:0]` (bits 15-8), `HSTART[8:1]` (bits 7-0).
-- **SPRxCTL**: `VSTOP[7:0]`, `VSTART[8]` (bit 3), `VSTOP[8]` (bit 2), `HSTART[0]` (bit 1),
-  **`ATTACH`** (bit 0).
+- **SPRxCTL** (AHRM cap. 4): `VSTOP[7:0]` (bits 15-8), **`ATTACH` (bit 7)**, bits 6-3 sin usar,
+  **`VSTART[8]` (bit 2)**, **`VSTOP[8]` (bit 1)**, **`HSTART[0]` (bit 0)**. *Cuidado: el
+  bootcamp `sprites.md` lista ATTACH en el bit 0 — es un error; el AHRM dice «bit 7 in sprite
+  control word 2».*
 - **X solo en píxeles lores pares** (HSTART va ÷2): en hires la posición es más gruesa que
   el playfield.
 
@@ -124,6 +126,7 @@ necesidad de máscara en RAM.
 | Asignación con degradado a BOB | **sí** | `SpriteAllocator` (first-fit; `as_bob`) |
 | **Rearmado horizontal** | **sí** | `SpriteHorizontalRearm` + `Scheduler::emit_sprite_horizontal_rearm`, intent `SpriteRearm` |
 | **Attached (15 colores)** | **no** | `SpriteConfig` no tiene `attach`; el allocator lo declara pendiente |
+| **Sprite DMA** (columna alta) | **sí** | `SpriteLayer` con `dma_channels` (estructura **con cabecera POS+CTL**; `SPRxPT`→cabecera) |
 | **Sprite-as-playfield** (capa de fondo) | **sí** | `effects::SpriteLayer` (sobre el rearmado horizontal) |
 | **Colisión hardware** (CLXCON/CLXDAT) | **sí** (utilidad + backend) | `graphics/sprite_collision.hpp`, `MinimalBackend::set/read_sprite_collision` |
 | **Prioridad BPLCON2 por sprite** | parcial | `BPLCON2`/intent `Priority`, sin API de sprites |
