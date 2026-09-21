@@ -43,7 +43,7 @@ constexpr eng::u32 kBitplaneBytes = kPlaneBytes * kPlanes;
 constexpr eng::u16 kBandLine0 = 60;    // primera línea del efecto
 constexpr eng::u16 kBandLines = 40;    // líneas que cubre (40 x 8 x 10 words = 3200 words)
 constexpr eng::u8  kChannels = 8;
-constexpr eng::u16 kHpos0 = 32;
+constexpr eng::u16 kHpos0 = 144;
 constexpr eng::u16 kHposStep = 16;     // columnas de 16 px contiguas
 constexpr eng::u16 kSpriteWords = 4u;  // 1 línea (DAT/DATB) + terminador (sprite "armado")
 constexpr eng::u16 kDmaHeight = kBandLines;
@@ -76,13 +76,13 @@ struct SpriteLayerDemo {
 			return;
 		}
 
-		// Estructura "nula" (POS=0, CTL=0, terminador): los canales Copper apuntan aquí, así
-		// el DMA los deja inactivos y los controla solo el Copper (rearm por línea).
+		// Estructura "nula" TERMINADA (POS=0, CTL=0, 0, 0) para los canales Copper: el DMA la
+		// deja inactiva (VSTART=VSTOP=0) y los controla solo el Copper (rearm por línea).
 		eng::Words<eng::SpriteTag> sd = m_sprite_block.view.as_words();
 		sd[0] = 0u; // POS (VSTART=0, HSTART=0)
 		sd[1] = 0u; // CTL (VSTOP=0)
 		sd[2] = 0u; // terminador
-		sd[3] = 0u;
+		sd[3] = 0u; // terminador
 
 		// Estructuras DMA (una por canal): [POS, CTL, DAT0, DATB0, ..., 0, 0]. El `POS` lo
 		// parchea `SpriteLayer` con el scroll; el `CTL` fija VSTART..VSTOP de la banda.

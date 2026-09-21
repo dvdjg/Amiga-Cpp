@@ -258,9 +258,9 @@ void test_sprite_layer() {
 	FakeSched fs;
 	layer.emit_into(fs);
 	CHECK(fs.waits == 4, "SpriteLayer: 4 lineas -> 4 WAIT");
-	CHECK(fs.moves == 1 + 8 + 4 * 8 * 3, "SpriteLayer: BPLCON2 + CTL + 4*8*3 MOVEs");
+	CHECK(fs.moves == 1 + 4 * 8 * 4, "SpriteLayer: BPLCON2 + 4 lineas*8 canales*4 MOVEs");
 	CHECK(fs.bplcon2 == 0x0008u, "SpriteLayer: BPLCON2 de fondo");
-	CHECK(layer.words_estimate() == 1u + 8u + 4u * (2u + 8u * 6u), "SpriteLayer: huella");
+	CHECK(layer.words_estimate() == 1u + 4u * (2u + 8u * 8u), "SpriteLayer: huella");
 
 	eng::effects::SpriteLayer bad;
 	eng::effects::SpriteLayer::Config bad_cfg {};
@@ -282,8 +282,8 @@ void test_sprite_layer() {
 	CHECK(dma.attach(dcfg), "SpriteLayer DMA attach");
 	FakeSched fd;
 	dma.emit_into(fd);
-	// BPLCON2(1) + DMA 2*2 (PT H/L) + CTL Copper 6 + 4 lineas*(6 canales*3) = 1+4+6+72 = 83.
-	CHECK(fd.moves == 1 + 4 + 6 + 4 * 6 * 3, "SpriteLayer DMA: MOVEs");
+	// BPLCON2(1) + DMA 2*2 (PT H/L) + 4 lineas*(6 canales*4) = 1+4+96 = 101.
+	CHECK(fd.moves == 1 + 4 + 4 * 6 * 4, "SpriteLayer DMA: MOVEs");
 	CHECK(fd.waits == 4, "SpriteLayer DMA: 4 WAIT (solo canales Copper)");
 	eng::effects::SpriteLayer bad2;
 	eng::effects::SpriteLayer::Config b2 {};
