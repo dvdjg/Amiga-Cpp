@@ -23,7 +23,10 @@ presupuesto/prioridad/LRU y **loader de código relocatable**, sobre la E/S así
   E/S `IoUser { tag, id }` y `FileOp` con Create/Delete/Rename.
 - **Verificación**: **HOST-244** — sobre un backend de ficheros simulado, create/open/read/write/
   delete/rename devuelven el resultado esperado y el `FileDone` lleva el `IoUser` correcto.
-- **Estado**: pendiente.
+- **Estado**: **parcial**. Entregado: el **contrato** `eng/os/file.hpp` (`FileMode::Create`,
+  `file_delete`, `file_rename`, `IoUser`/`IoNotify`/`FileDonePayload`) y su cookie (`IoUser`
+  encode/decode; **HOST-255**). Pendiente: la **implementación** en el backend (`dos.library` /
+  `trackdisk`) y el test de las operaciones.
 
 ### R1 — AssetCache: núcleo
 
@@ -51,7 +54,9 @@ presupuesto/prioridad/LRU y **loader de código relocatable**, sobre la E/S así
   enruta `FileDone` por `IoUser::tag` (caché/loader/stream).
 - **Verificación**: **HOST-247** — el enrutado por `tag` entrega cada `FileDone` al subsistema
   correcto y no cruza consumidores; `AssetReady` se postea una vez por asset.
-- **Estado**: pendiente.
+- **Estado**: **parcial**. Entregado: el **enrutado** `eng/res/resources.hpp` (`route_io` por
+  `IoUser::tag`; **HOST-255**). Pendiente: los mensajes de recurso
+  (`AssetReady`/`AssetEvicted`/`AssetError`) y su posteo desde la caché.
 
 ### R4 — DynLoader (código relocatable)
 

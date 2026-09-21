@@ -46,7 +46,7 @@ struct App {
 		++frames;
 		last_frame = f;
 	}
-	void on_render() { ++renders; }
+	void on_render(auto&) { ++renders; }
 };
 
 void test_pump() {

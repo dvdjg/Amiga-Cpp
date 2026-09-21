@@ -33,6 +33,7 @@ template <class App, eng::u16 N = 32u>
 struct MessagePumpGame {
 	App app {};
 	eng::Ref<MsgPort<N>> port {}; ///< puerto del mini-SO (no propietario)
+	void (*tick)() = nullptr; ///< tick opcional del mini-SO (`os::tick`), antes de drenar
 
 	void bind_port(MsgPort<N>& p) noexcept { port = p; }
 
@@ -42,19 +43,23 @@ struct MessagePumpGame {
 		app.on_start(ctx);
 	}
 
-	/// Drena el puerto (entrega cada mensaje a `app.on_msg`) y luego llama a `app.on_frame`.
+	/// Tick del mini-SO (si lo hay), drena el puerto (entrega cada mensaje a `app.on_msg`) y luego
+	/// llama a `app.on_frame`.
 	template <class Backend, class Ctx>
 	void update(Backend&, Ctx& ctx) {
+		if (tick != nullptr) {
+			tick();
+		}
 		if (port.valid()) {
 			pump_messages(app, *port.get());
 		}
 		app.on_frame(ctx.frame.frame_index);
 	}
 
-	/// Commit de frame: delega en `app.on_render()`.
+	/// Commit de frame: delega en `app.on_render(backend)`.
 	template <class Backend, class Ctx>
-	void render(Backend&, Ctx&) {
-		app.on_render();
+	void render(Backend& backend, Ctx&) {
+		app.on_render(backend);
 	}
 };
 

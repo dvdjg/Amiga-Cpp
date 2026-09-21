@@ -12,6 +12,7 @@ y el plan en [`docs/guides/roadmap/ROADMAP_RESOURCES.md`](../../../../docs/guide
 | Cabecera | Contenido | Estado |
 |---|---|---|
 | `asset_cache.hpp` | `AssetCache<Backend, MaxAssets>`: `declare`/`get`/`prefetch`/`pin`/`set_priority`/`add_ref`/`release`/`on_load_done`/`set_frame`; presupuesto Chip/Fast y desalojo por prioridad+LRU. | **Implementado** (HOST-254) |
+| `resources.hpp` | `route_io`: enruta `FileDone`/`FileError` al subsistema por `IoUser::tag`. | **Implementado** (HOST-255) |
 | `dynloader.hpp` | `DynLoader`: formato `.englib` (relocs + exports), `load_async`/`unload`/`symbol`. | prevista |
 
 El `Backend` de la caché aporta `alloc(bytes, bank)`, `free(block, bank)` y `load(id, path, dst)`;

@@ -54,8 +54,10 @@ UI (`eng::ui`).
 - **Verificación**: **HOST-236** (junto con M5) — la secuencia avanza aunque no se consuma, solo
   hay un VBlank pendiente y `missed` cuenta los pisados. Demo: contar frames por mensaje y
   compararlos con `context.frame.frame_index` (sin sondear `VPOSR`).
-- **Estado**: **entregado** (`VBlankLatch`/`take_vblank` en `port.hpp`; HOST-236). Falta el
-  productor en la IRQ del backend (integración, ver M2/M4).
+- **Estado**: **entregado** (`VBlankLatch`/`take_vblank` en `port.hpp`; HOST-236). El **productor**
+  del backend es `eng::os::tick` (`amiga_minimal_os.cpp`): latcha el VBlank y pollea la entrada; lo
+  llama el bucle por frame (demo 206). La variante **por IRQ** (`set_vblank_service`) queda como
+  mejora cuando el bucle sea interrupt-driven.
 
 ### M2 — Entrada por registros → mensajes
 
@@ -86,9 +88,10 @@ UI (`eng::ui`).
 - **Verificación**: **demo 206_message_loop** — una escena mínima que reacciona a VBlank, a teclas
   y al ratón **sin leer hardware**; el gate visual comprueba que la escena cambia con la entrada y
   que el frame avanza.
-- **Estado**: **parcial**. Entregado: `eng/os/message_pump.hpp` (`MessagePumpGame<App>` drena el
-  puerto y llama a `on_frame`/`on_render`; **HOST-253**). Pendiente: la **demo 206** (necesita los
-  productores de backend de M1/M2).
+- **Estado**: **entregado**. `eng/os/message_pump.hpp` (`MessagePumpGame<App>` drena el puerto y
+  llama a `on_frame`/`on_render`; **HOST-253**) y la **demo 206_message_loop** (VBlank + input por
+  mensajes; overlay con frames/mensajes/joystick). El bucle es de **polling** (`os::tick` por
+  frame); el modo por IRQ queda como mejora.
 
 ### M5 — Prioridad, peek, coalescing y despacho
 
