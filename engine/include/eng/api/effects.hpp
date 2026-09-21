@@ -146,36 +146,46 @@ public:
 		u16 bplcon2 = 0;    ///< prioridad (`BPLCON2`); sprites detrás del playfield = fondo
 	};
 
-	/// Configura la capa. `false` si `lines == 0`, `channels` fuera de 1..8 o `hpos_step < 24`.
+	/// Configura la capa. `false` si `lines == 0`, `channels` fuera de 1..8 o `hpos_step < 16`
+	/// (columnas de 16 px contiguas).
 	[[nodiscard]] bool attach(Config cfg) {
 		if (cfg.lines == 0u || cfg.channels == 0u || cfg.channels > 8u ||
-		    cfg.hpos_step < 24u) {
+		    cfg.hpos_step < 16u) {
 			return false;
 		}
 		m_cfg = cfg;
 		return true;
 	}
 
-	/// Desplaza la capa horizontalmente (px low-res; el paso entre tramos no cambia).
+	/// Desplaza la capa horizontalmente (px low-res; el paso entre columnas no cambia).
 	void set_scroll(u16 x) noexcept { m_scroll = x; }
 
-	/// Emite la capa completa: `BPLCON2` una vez y, por (línea, canal), un rearm horizontal
-	/// (1 `WAIT` + 4 MOVEs). El llamador debe haber abierto la construcción (`begin_build`).
+	/// Emite la capa completa. Patrón de Jeroen Knoester (`spr-layer.html`): **un `WAIT` al
+	/// inicio de cada línea** y luego una **ráfaga** con `SPRxPOS`+`SPRxDATB`+`SPRxDATA` de
+	/// todos los canales (el `SPRxCTL` se fija **una vez** por banda). Escribir `SPRxDATA`
+	/// arma el canal para esa línea; el orden DATB→DATA importa.
 	template <class Sched>
 	void emit_into(Sched& sched) const {
 		sched.move(copper::Register::BPLCON2, m_cfg.bplcon2); // prioridad de fondo
-		const u16 last = static_cast<u16>(m_cfg.first_line + m_cfg.lines);
-		for (u16 line = m_cfg.first_line; line < last; ++line) {
+		const u16 vstop = static_cast<u16>(m_cfg.first_line + m_cfg.lines);
+		// CTL una vez por canal: VSTART/VSTOP cubren toda la banda.
+		for (u8 ch = 0u; ch < m_cfg.channels; ++ch) {
+			const u16 ctl = static_cast<u16>(((vstop & 0xffu) << 8u) |
+							 (((m_cfg.first_line >> 8u) & 0x1u) << 3u) |
+							 (((vstop >> 8u) & 0x1u) << 2u));
+			sched.move(static_cast<copper::Register>(0x142u + ch * 8u), ctl); // SPRxCTL
+		}
+		// Por línea: UN WAIT al inicio + POS/DATB/DATA de todos los canales.
+		for (u16 line = m_cfg.first_line; line < vstop; ++line) {
+			sched.wait_line_safe(line);
 			for (u8 ch = 0u; ch < m_cfg.channels; ++ch) {
-				graphics::SpriteHorizontalRearm r {};
-				r.channel = ch;
-				r.vstart = line;
-				r.vstop = static_cast<u16>(line + 1u);
-				r.hpos = static_cast<u16>(m_cfg.hpos0 +
-							  static_cast<u16>(ch) * m_cfg.hpos_step + m_scroll);
-				r.data_high = m_cfg.data_high;
-				r.data_low = m_cfg.data_low;
-				sched.emit_sprite_horizontal_rearm(r);
+				const u16 hpos = static_cast<u16>(m_cfg.hpos0 +
+								  static_cast<u16>(ch) * m_cfg.hpos_step + m_scroll);
+				const u16 pos = static_cast<u16>(((line & 0xffu) << 8u) |
+								 ((hpos >> 1u) & 0xffu));
+				sched.move(static_cast<copper::Register>(0x140u + ch * 8u), pos);          // SPRxPOS
+				sched.move(static_cast<copper::Register>(0x146u + ch * 8u), m_cfg.data_low);  // SPRxDATB
+				sched.move(static_cast<copper::Register>(0x144u + ch * 8u), m_cfg.data_high); // SPRxDATA (arma)
 			}
 		}
 	}
@@ -184,9 +194,12 @@ public:
 	void frame(graphics::composition::Scene& scene) { emit_into(scene.scheduler()); }
 
 	[[nodiscard]] const Config& config() const noexcept { return m_cfg; }
-	/// Huella estimada en palabras de Copper (para `EffectCost`): 1 MOVE + 10 words/(línea·canal).
+	/// Huella estimada en palabras de Copper (para `EffectCost`): `BPLCON2` + `CTL` por canal
+	/// + por línea [`WAIT` (2) + 3 MOVEs por canal].
 	[[nodiscard]] u16 words_estimate() const noexcept {
-		return static_cast<u16>(2u + static_cast<u32>(m_cfg.lines) * m_cfg.channels * 10u);
+		return static_cast<u16>(1u + m_cfg.channels +
+					static_cast<u32>(m_cfg.lines) *
+						(2u + static_cast<u32>(m_cfg.channels) * 6u));
 	}
 
 private:

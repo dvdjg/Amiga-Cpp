@@ -232,19 +232,19 @@ void test_collision() {
 	CHECK(r2.even_bpl_vs_sprite(2u), "CLXDAT pares vs 4/5");
 }
 
-/// `effects::SpriteLayer`: un rearm por (linea, canal) y prioridad de fondo (BPLCON2).
+/// `effects::SpriteLayer`: un WAIT por linea + rafaga POS/DATB/DATA, prioridad de fondo.
 void test_sprite_layer() {
 	struct FakeSched {
-		int rearms = 0;
+		int waits = 0;
+		int moves = 0;
 		eng::u16 bplcon2 = 0xffffu;
 		void move(eng::copper::Register reg, eng::u16 v) {
 			if (reg == eng::copper::Register::BPLCON2) {
 				bplcon2 = v;
 			}
+			++moves;
 		}
-		void emit_sprite_horizontal_rearm(const eng::graphics::SpriteHorizontalRearm&) {
-			++rearms;
-		}
+		void wait_line_safe(eng::u16) { ++waits; }
 	};
 	eng::effects::SpriteLayer layer;
 	eng::effects::SpriteLayer::Config cfg {};
@@ -252,19 +252,20 @@ void test_sprite_layer() {
 	cfg.lines = 4u;
 	cfg.channels = 8u;
 	cfg.hpos0 = 64u;
-	cfg.hpos_step = 32u;
+	cfg.hpos_step = 16u;
 	cfg.bplcon2 = 0x0008u;
 	CHECK(layer.attach(cfg), "SpriteLayer attach");
 	FakeSched fs;
 	layer.emit_into(fs);
-	CHECK(fs.rearms == 32, "SpriteLayer: 4 lineas x 8 canales = 32 rearms");
+	CHECK(fs.waits == 4, "SpriteLayer: 4 lineas -> 4 WAIT");
+	CHECK(fs.moves == 1 + 8 + 4 * 8 * 3, "SpriteLayer: BPLCON2 + CTL + 4*8*3 MOVEs");
 	CHECK(fs.bplcon2 == 0x0008u, "SpriteLayer: BPLCON2 de fondo");
-	CHECK(layer.words_estimate() == 2u + 4u * 8u * 10u, "SpriteLayer: huella");
+	CHECK(layer.words_estimate() == 1u + 8u + 4u * (2u + 8u * 6u), "SpriteLayer: huella");
 
 	eng::effects::SpriteLayer bad;
 	eng::effects::SpriteLayer::Config bad_cfg {};
 	bad_cfg.lines = 0u;
-	bad_cfg.hpos_step = 32u;
+	bad_cfg.hpos_step = 16u;
 	CHECK(!bad.attach(bad_cfg), "SpriteLayer: lines=0 -> false");
 }
 
