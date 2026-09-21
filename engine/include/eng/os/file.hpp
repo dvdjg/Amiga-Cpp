@@ -70,6 +70,14 @@ bool file_write_async(FileHandle h, eng::Span<const eng::u8> src, eng::u32 offse
 
 /// Síncrona (bloquea): solo herramientas o pantallas de carga.
 eng::s32 file_read_sync(FileHandle h, eng::Span<eng::u8> dst, eng::u32 offset);
+eng::s32 file_write_sync(FileHandle h, eng::Span<const eng::u8> src, eng::u32 offset);
+
+/// Crea un directorio (y sus padres si el backend lo permite). `false` si falla.
+bool file_make_dir(const char* path);
+
+/// Ejecuta **una** operación asíncrona pendiente y postea su `FileDone`/`FileError`. La llama el
+/// bucle (o el tick). Devuelve `true` si ejecutó algo.
+bool file_pump();
 
 eng::u32 file_size(FileHandle h);
 bool file_is_busy(FileHandle h);

@@ -72,7 +72,8 @@ UI (`eng::ui`).
   `JoyProducer`/`PadProducer`/`MouseProducer`/`KeyProducer` emiten solo al cambiar / por scancode;
   **HOST-252/256**), la **lectura de registros** en el backend (`eng::os::tick`: `JOYxDAT` +
   CIA-A PRA) y el **teclado** por IRQ de CIA-A serie (`os::enable_keyboard`, `SP` → `KeyDown`/`KeyUp`).
-  Pendiente: verificar el teclado en hardware (el runner no inyecta teclas).
+  Pendiente: verificar el teclado en hardware (el runner **no inyecta teclas**: no hay opción de
+  inyección, solo `--automation-key`, que escribe un valor en memoria para el selector de técnicas).
 
 ### M3 — Puente a la UI
 
@@ -126,9 +127,12 @@ UI (`eng::ui`).
   ([`ROADMAP_RESOURCES.md`](ROADMAP_RESOURCES.md)).
 - **Verificación**: **HOST-221** — una E/S simulada (host) publica `FileDone` con el resultado y la
   señal `SigFile`; la decodificación diferida avanza por rebanadas.
-- **Estado**: **parcial**. Entregado: el **contrato** `eng/os/file.hpp` (`FileHandle`, `FileMode`,
-  `IoNotify`/`IoUser`) y el **enrutado** `eng/res/resources.hpp` (**HOST-255**). Pendiente: la
-  implementación sobre `dos`/`trackdisk`.
+- **Estado**: **casi entregado**. Entregado: el **contrato** `eng/os/file.hpp`, su implementación
+  Amiga sobre **`dos.library`** (`amiga_minimal_file.cpp`: `Open`/`Read`/`Write`/`Seek`/`Close`,
+  `CreateDir`/`DeleteFile`/`Rename`; la asíncrona como **diferida** con `file_pump` que postea
+  `FileDone`/`FileError`), el **enrutado** `eng/res/resources.hpp` (HOST-255) y la **demo 211**
+  (lee texto/imagen/sonido, carga un `.englib` y prueba la escritura). Pendiente: `trackdisk` para
+  streaming de disquete sin DOS.
 
 ### M8 — Streaming desde disquete
 

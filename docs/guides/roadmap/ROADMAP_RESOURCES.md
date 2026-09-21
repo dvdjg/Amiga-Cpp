@@ -23,10 +23,11 @@ presupuesto/prioridad/LRU y **loader de código relocatable**, sobre la E/S así
   E/S `IoUser { tag, id }` y `FileOp` con Create/Delete/Rename.
 - **Verificación**: **HOST-244** — sobre un backend de ficheros simulado, create/open/read/write/
   delete/rename devuelven el resultado esperado y el `FileDone` lleva el `IoUser` correcto.
-- **Estado**: **parcial**. Entregado: el **contrato** `eng/os/file.hpp` (`FileMode::Create`,
-  `file_delete`, `file_rename`, `IoUser`/`IoNotify`/`FileDonePayload`) y su cookie (`IoUser`
-  encode/decode; **HOST-255**). Pendiente: la **implementación** en el backend (`dos.library` /
-  `trackdisk`) y el test de las operaciones.
+- **Estado**: **casi entregado**. Entregado: el **contrato** `eng/os/file.hpp` y su implementación
+  Amiga sobre **`dos.library`** (`file_open`/`close`/`read_sync`/`write_sync`/`make_dir`/`delete`/
+  `rename`; **demo 211** verifica lectura de directorios + escritura + relectura), más el cookie
+  `IoUser` (**HOST-255**). Pendiente: `trackdisk` (sin DOS) y un test host de las operaciones sobre
+  un backend simulado.
 
 ### R1 — AssetCache: núcleo
 
