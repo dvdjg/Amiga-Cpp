@@ -10,6 +10,24 @@ La aplicación se escribe **sin ningún concepto de hardware**: no conoce bitpla
 `BPLCON`, Copper, Blitter, registros, punteros ni modos de vídeo. Describe **qué quiere ver**
 (capas, cámaras, sprites, efectos) y el engine decide **cómo** materializarlo en el chipset.
 
+### 1.1 Regla de diseño prioritaria (intuitivo, simple, sin restricciones)
+
+El **API público final** —no necesariamente las interfaces intermedias del engine— debe ser:
+
+- **Lo más intuitivo y simple posible**: un desarrollador de juego lo entiende **sin conocer el
+  engine** (nombres del dominio del juego, no del chipset ni de la implementación; la llamada
+  habitual en una línea).
+- **Tan bien diseñado que no restrinja funcionalidad**: la simplicidad no puede venir de recortar
+  lo que el juego puede hacer. Si una capacidad exige una API retorcida, el diseño está mal: se
+  rediseña, no se limita.
+
+Mientras falten módulos, se **escribe el API de lo que ya existe** (aunque sea parcial) y se
+**adapta** cuando lleguen los demás; es preferible un API claro y evolutivo que esperar al final.
+Guía concreta para lo ya disponible: [PUBLIC_GAME_API.md](PUBLIC_GAME_API.md).
+
+Corolario de proceso: al añadir o tocar un módulo, preguntar «¿cómo lo pediría un juego?» y exponer
+esa llamada; los tipos internos (planos, `FramePlan`, `Rasterizer`, `Scheduler`) se quedan dentro.
+
 ## 2. Frontera público / interno
 
 - Público: `engine/include/eng/api/` (y tipos de valor de `eng/core/`). Interno: el resto de

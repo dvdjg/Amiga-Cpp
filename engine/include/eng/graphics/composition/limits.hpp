@@ -233,6 +233,8 @@ inline constexpr DisplayLimits aga_a1200 {
 	switch (res.mode) {
 		case SceneMode::Standard:
 			break;
+		case SceneMode::CopperChunky:
+			break; // ya se ha resuelto arriba (planes == 0, sin fetch de planos)
 		case SceneMode::Ham:
 			if (!l.supports_ham) {
 				return {8u, "el backend no soporta HAM"};
