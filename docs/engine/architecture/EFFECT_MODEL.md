@@ -54,6 +54,8 @@ erasure*.
 > **El `FunctionRef` no es propietario**: el callable debe **sobrevivir** a la escena. Pasar una
 > **lambda temporal** a `add_effect` (o a `on_frame`) deja una referencia colgante. El patrón es
 > un **functor miembro** del juego (como `FrameTask` en la demo `081_background_tasks`).
+> `Scene::add_effect` **lo impide en compilación** (`static_assert` sobre `F&&`: no acepta
+> rvalues); así el fallo es claro en vez de un coste basura en runtime.
 
 ```cpp
 struct SkyEffect {                 // functor miembro: vive tanto como la escena

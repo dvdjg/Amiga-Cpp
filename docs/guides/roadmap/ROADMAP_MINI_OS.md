@@ -131,8 +131,11 @@ UI (`eng::ui`).
   Amiga sobre **`dos.library`** (`amiga_minimal_file.cpp`: `Open`/`Read`/`Write`/`Seek`/`Close`,
   `CreateDir`/`DeleteFile`/`Rename`; la asíncrona como **diferida** con `file_pump` que postea
   `FileDone`/`FileError`), el **enrutado** `eng/res/resources.hpp` (HOST-255) y la **demo 211**
-  (lee texto/imagen/sonido, carga un `.englib` y prueba la escritura). Pendiente: `trackdisk` para
-  streaming de disquete sin DOS. **Imágenes de disquete**: `tools/fs/make-volume.mjs --adf` genera un
+  (lee texto/imagen/sonido, carga un `.englib` y prueba la escritura). **`trackdisk`** (`eng/os/trackdisk.hpp`
+  + `amiga_minimal_trackdisk.cpp`: `td_open`/`td_close`/`td_motor`/`td_read_sync`/`td_change_state`/`td_change_num`
+  sobre `OpenDevice`+`IOExtTD`+`DoIO`, buffers Chip RAM): **implementado, sin verificar** — la demo que lo usa
+  se cuelga dentro de `td_open` (incluso con unidad ausente), así que es el `OpenDevice`/`CreateMsgPort`
+  genérico en el entorno `-nostdlib`, no el disco. Ver `docs/debugging/CONSULTA-GROK-DISCO-Y-LOADER.md`. **Imágenes de disquete**: `tools/fs/make-volume.mjs --adf` genera un
   ADF (FFS/OFS con `xdftool`) y `run-demo.sh --disk <adf>` lo monta en `DF0:`; el disquete se monta,
   pero **leer `df0:` desde una demo se bloquea** en el entorno sin Workbench (el volumen no queda
   montado), así que la lectura se prueba con el `DH1:` (demo 211).

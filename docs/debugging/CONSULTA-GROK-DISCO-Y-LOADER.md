@@ -167,3 +167,26 @@ como unidad de datos sin que Kickstart intente arrancar?
 - **F4.6**: `build_frame` consume ~84 % del frame (pendiente instrumentación/perfilado).
 - **HOST-013** (`math3d_mesh`): falla `convex_spans: pentagono == referencia`.
 - **4 demos de audio** sin assets `.raw` (quedan en `ASSET`, no en `ok`).
+
+---
+
+## Respuestas verificadas (nuestro lado)
+
+Tras la respuesta de Grok, esto es lo **comprobado en el repo** y lo **decidido**:
+
+| Tema | Respuesta de Grok | Estado en el repo |
+|---|---|---|
+| Flags HUNK (§4.1-4.2) | NDK: `ADVISORY=1<<29`, `CHIP=1<<30`, `FAST=1<<31`; tipo `& 0x1FFFFFFF`; tamaño `& 0x3FFFFFFF` | **Ya correcto**: `eng/res/hunk.hpp` usa esos valores y máscaras. Verificado en host (**HOST-258**) y en Amiga (demo 211: `.englib` + `.hunk` → `answer()==42`) |
+| `HUNK_RELRELOC32` (§4.3) | `*patch += target − (patch+4)` | Implementado así; sin caso real que lo ejercite (raro) |
+| `RELOC32SHORT`/`DREL32` (§4.4) | 16 bits + padding si words impar | Implementado y probado (HOST-258) |
+| Símbolos HUNK (§4.5) | No depender de `HUNK_SYMBOL`; **exports propios** | **Decidido**: el `.englib` ya lleva exports propios; para HUNK, el pipeline debe emitir una tabla de exports propia (pendiente) |
+| Stub `.englib` (§5) | Generar con **vasm/CI**, no a mano | **Decidido** (pendiente): hoy se emite byte a byte en `tools/fs/make-volume.mjs` |
+| `df0:` sin Workbench (§1) | `Open` **espera** al volumen; montar en KS 1.3 no es fiable | **Confirmado**: demo 211 llega a READY con ADF insertado (no toca `df0:`); el volumen no queda montado. Ficha nueva: `docs/reference/emulators/winuae/trackdisk.md` |
+| `trackdisk` (§2) | `OpenDevice` + `IOExtTD` + `DoIO`, buffers Chip RAM, `DSKBLK` | **Implementado** (`eng/os/trackdisk.hpp` + `amiga_minimal_trackdisk.cpp`). **Bloqueado**: la demo que lo usa se **cuelga dentro de `td_open`** incluso con unidad ausente (`DF3:`) → es el `OpenDevice`/`CreateMsgPort` genérico en nuestro entorno `-nostdlib`, no el disco. Necesita sesión de depuración |
+| Teclado (§6) | Inyectar en el **mismo** post que la ISR, o foco+tecla | **Decidido**: inyección por el canal lateral al mismo `post_msg` (pendiente) |
+| E/S async (§7) | El diferido es un scheduler sobre DOS, no `SendIO` | Confirmado; `trackdisk` (cuando funcione) irá por `SendIO` + señal → `Msg` |
+
+**Hallazgo del emulador** (ficha nueva, patrón `AGENTS.md` §1.11): `DSKLEN` se escribe **dos
+veces** para disparar; `DSKBYTR` se recarga cada 8 bits y **no** durante escritura; el fin de DMA
+levanta `INTREQ` bit 1 (**DSKBLK**). Citas `fichero:línea` en
+`docs/reference/emulators/winuae/trackdisk.md`.

@@ -368,9 +368,18 @@ public:
 	// --- Efectos (aportan intenciones/trabajos al plan del frame) -------------------
 	/// Registra un **efecto**: callable `void(Scene&)` que aporta al `plan()` del frame.
 	/// Se ejecutan en orden de registro (dentro de `tick()`, tras `begin_build()`).
-	Scene& add_effect(EffectFn fn) {
-		if (m_effect_count < kMaxEffects && fn.valid()) {
-			m_effects[m_effect_count++] = fn;
+	///
+	/// El callable debe **sobrevivir** a la escena (`EffectFn` es un `FunctionRef` **no
+	/// propietario**): pasa un **functor miembro** (como `FrameTask` en
+	/// `081_background_tasks`), no una lambda temporal. El `static_assert` lo impide en
+	/// compilación en vez de dejar una referencia colgante.
+	template <class F>
+	Scene& add_effect(F&& fn) {
+		static_assert(!eng::util::is_rvalue_reference_v<F&&>,
+			      "add_effect: el callable debe sobrevivir a la escena; usa un functor miembro, no una lambda temporal");
+		const EffectFn ref { fn };
+		if (m_effect_count < kMaxEffects && ref.valid()) {
+			m_effects[m_effect_count++] = ref;
 		}
 		return *this;
 	}
