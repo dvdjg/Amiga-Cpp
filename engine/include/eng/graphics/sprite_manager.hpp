@@ -105,20 +105,29 @@ public:
     /// Emite SPRxPT / SPRxPOS / SPRxCTL de los sprites habilitados en el Copper.
     /// Llámala desde el compositor antes de `end()` (paleta y sprites al final).
     ///
-    /// AVISO (defecto conocido, ver `NORMALIZACION_REPO.md` Nota 6.5b): emite un WAIT por
-    /// sprite en su `vstart`. Con dos o más sprites en la MISMA `vstart`, el segundo WAIT
-    /// encuentra el beam ya pasado y espera al frame siguiente, así que los registros se
-    /// programan tarde y el reset del frame los pisa. Programar los 8 en ráfaga sin WAIT
-    /// tampoco funciona en la 054 (0 sprites), lo que apunta a la estructura de la lista
-    /// que construye el compositor: falta verificar el punto de bucle de `end()` y el
-    /// armado del DMA de sprite antes de tocar esto.
+    /// Agrupa por `vstart`: emite **un** `WAIT` por línea distinta (en orden ascendente) y
+    /// luego una **ráfaga** con los sprites de esa línea. Así dos sprites en la misma
+    /// `vstart` no provocan un segundo `WAIT` (que encontraría el haz pasado y esperaría al
+    /// frame siguiente) y el orden no depende del índice de canal.
     template <class Sched>
     void emit_into(Sched& sched) const {
-        for (u8 i = 0; i < 8; ++i) {
-            const SpriteConfig& s = m_spr[i];
-            if (!s.enabled || s.data.empty()) continue;
-            sched.wait_line_safe(s.vstart);
-            emit_config(sched, i, s, s.data);
+        bool done[8] = {};
+        for (u8 pass = 0; pass < 8; ++pass) {
+            u8 pick = 0xff;
+            for (u8 i = 0; i < 8; ++i) {
+                const SpriteConfig& s = m_spr[i];
+                if (done[i] || !s.enabled || s.data.empty()) continue;
+                if (pick == 0xff || s.vstart < m_spr[pick].vstart) pick = i;
+            }
+            if (pick == 0xff) break;
+            const u16 line = m_spr[pick].vstart;
+            sched.wait_line_safe(line);
+            for (u8 i = 0; i < 8; ++i) {
+                const SpriteConfig& s = m_spr[i];
+                if (done[i] || !s.enabled || s.data.empty() || s.vstart != line) continue;
+                emit_config(sched, i, s, s.data);
+                done[i] = true;
+            }
         }
     }
 
