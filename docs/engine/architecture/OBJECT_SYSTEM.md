@@ -48,7 +48,7 @@ La separación de capas es la misma que en `VISUAL_EFFECT_SPRITE_DESIGN.md` §2:
 | Asignación de canales (`SpriteAllocator`, `SpriteSlot` con `as_bob`) | EXISTE | `engine/include/eng/graphics/sprite_allocator.hpp` |
 | Emisión de sprites (`SpriteManager`) | EXISTE | `engine/include/eng/graphics/sprite_manager.hpp` |
 | Orquestación de Copper (`copper::Plan`, `Scheduler`, `DoubleBuffer`) | EXISTE | `engine/include/eng/graphics/copper/` |
-| Buffers de display (`MultiBuffered<Driver,N>`) | EXISTE | `engine/include/eng/graphics/drivers/multi_buffered.hpp` |
+| Buffers de display (`scene::compose`, `SceneResources.buffers`) | EXISTE | `engine/include/eng/graphics/composition/compose.hpp` |
 | Superficie de dibujo (`Surface`, `SurfaceRect`) | EXISTE | `engine/include/eng/field/surface.hpp` |
 | Telemetría (`FrameTelemetry`, `RunStatus`) | EXISTE | `engine/include/eng/debug/run_status.hpp` |
 | Estado de actor retenido (`Actor`, `ActorStore<Max>` con handles generacionales) | EXISTE | `engine/include/eng/scene/actor.hpp` |
@@ -93,7 +93,7 @@ Actor (id estable con generación)
   │    ├─ anclaje (hot-spot) y offset (shake/recoil)                 [EXISTE]
   │    ├─ modo de transparencia y política de fondo                  [EXISTE]
   │    └─ representación actual (la que eligió el planner)          [parcial]
-  └─ estado por buffer (N = 1..3 de MultiBuffered)
+  └─ estado por buffer (N = 1..3 de `scene::compose`)
        └─ rectángulo anterior (save-under) por buffer trasero        [EXISTE]
 ```
 

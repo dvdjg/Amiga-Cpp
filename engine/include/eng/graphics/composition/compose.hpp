@@ -280,6 +280,20 @@ public:
 		}
 	}
 
+	/// Words de la copperlist **activa** (la que el Copper ejecuta) y **inactiva** (la que se
+	/// está construyendo). Las usa una etapa de Copper (p. ej. `copper_chunky`) para exponer
+	/// los `data` de las instrucciones que emite.
+	[[nodiscard]] constexpr const u16* active_words() const { return m_plan.active_words(); }
+	[[nodiscard]] constexpr const u16* inactive_words() const { return m_plan.inactive_words(); }
+
+	/// Publica la copperlist recién construida con `end_build` (la instala en el backend por
+	/// `COP1LC`). La ruta **planar** no lo necesita (lista estática + parcheo de `BPLxPT`); la
+	/// usa el modo **copper chunky**, cuya lista cambia cada frame.
+	template <typename Backend>
+	void present(Backend& backend) {
+		m_plan.commit(backend);
+	}
+
 	/// Registra el parcheo de 32 bits del puntero `BPLxPT` del plano `p` (lo llama `display`).
 	void set_plane_patch(u8 p, Patch32 patch) {
 		if (p < kMaxScenePlanes) {
@@ -326,14 +340,19 @@ private:
 		m_res = res;
 		const u16 row = row_bytes();
 		const u16 logical_rows = res.rows != 0u ? res.rows : res.height;
-		if (row == 0u || res.height == 0u || res.planes == 0u) {
+		if (row == 0u || res.height == 0u) {
 			return false;
 		}
+		// Copper chunky: sin bitplanes (el color lo escribe el Copper). No se reservan planos
+		// ni se enlaza playfield; solo la copperlist (grande).
+		const bool copper_chunky = (res.planes == 0u);
 		const u16 alloc_rows = (res.layout == SceneLayout::Interleaved) ? res.height : logical_rows;
-		m_plane_bytes = eng::math::mulu32x16(static_cast<u32>(row), alloc_rows);
+		m_plane_bytes = copper_chunky
+					? 0u
+					: eng::math::mulu32x16(static_cast<u32>(row), alloc_rows);
 		// Doble/triple buffer solo en layout contiguo (la doble buffer se hace parcheando los
 		// BPLxPT; el interleaved usa un único `CanvasPlayfield`).
-		u8 buffers = res.buffers;
+		u8 buffers = copper_chunky ? 1u : res.buffers;
 		if (res.layout == SceneLayout::Interleaved || buffers < 1u) {
 			buffers = 1u;
 		}
@@ -341,22 +360,26 @@ private:
 			buffers = kMaxSceneBuffers;
 		}
 		m_buffer_count = buffers;
-		for (u8 b = 0u; b < buffers; ++b) {
-			m_buffers[b] = memory.chip.allocate_block<eng::PlaneTag>(
-				eng::math::mulu32x16(m_plane_bytes, static_cast<u16>(res.planes)) + 16u, 16);
-			if (!m_buffers[b].valid()) {
+		if (copper_chunky) {
+			m_back = 0u;
+		} else {
+			for (u8 b = 0u; b < buffers; ++b) {
+				m_buffers[b] = memory.chip.allocate_block<eng::PlaneTag>(
+					eng::math::mulu32x16(m_plane_bytes, static_cast<u16>(res.planes)) + 16u, 16);
+				if (!m_buffers[b].valid()) {
+					return false;
+				}
+			}
+			m_back = (buffers > 1u) ? 1u : 0u;
+			if (res.layout == SceneLayout::Interleaved) {
+				if (!m_playfield.bind(m_buffers[0],
+						     field::CanvasPlayfield::Config {res.width, res.height, res.planes})) {
+					return false;
+				}
+			} else if (!m_contiguous.bind(m_buffers[m_back], res.width, res.height, res.planes,
+						      m_plane_bytes)) {
 				return false;
 			}
-		}
-		m_back = (buffers > 1u) ? 1u : 0u;
-		if (res.layout == SceneLayout::Interleaved) {
-			if (!m_playfield.bind(m_buffers[0],
-					     field::CanvasPlayfield::Config {res.width, res.height, res.planes})) {
-				return false;
-			}
-		} else if (!m_contiguous.bind(m_buffers[m_back], res.width, res.height, res.planes,
-					      m_plane_bytes)) {
-			return false;
 		}
 		copper::PlanConfig pcfg {};
 		pcfg.copper_bytes = res.copper_bytes;

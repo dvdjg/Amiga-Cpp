@@ -304,23 +304,16 @@ las 3D `077_math3d_cube`, `078_math3d_solid` y `084_mf_rotation`, sin `install` 
    común de parcheo). El interleaved usa un único `CanvasPlayfield`.
 2. **Migrar 030 (EHB)**: **hecho** (usa `palette_patchable`/`palette_zones`).
 3. **Migrar 080 (HAM+C2P)**: **hecho** (`display`+`row_repeat`+`reverse_ptrs`+`buffers=2`).
-4. **Retirar drivers obsoletos**: `planar_scene.hpp`/`ehb_scene.hpp` (`StaticEhbScene`) y
-   `canvas_scene.hpp` (`CanvasScene`) **retirados** (HOST-001 usa un `MockGraphicsDriver` local y
-   HOST-212 usa `CanvasPlayfield`); `EhbPalette`/`black_palette` sustituidos por
-   `eng::Palette32`/`eng::kBlackPalette` (`palette32.hpp`). `CopperChunkyScene` **se mantiene**: no
-   es un «scene» planar sino una **técnica de display por Copper** (bloques de `COLOR00`, sin
-   bitplanes) que `scene::compose` no expresa. Retirarlo exige un **modo copper-chunky** en el
-   modelo de composición, con estos puntos: (a) `SceneMode::CopperChunky` en `limits.hpp` y permitir
-   `planes == 0` para ese modo en `validate`; (b) `Scene::init_raw` sin reserva de bitplanes ni
-   `bind` de playfield (guarda para `planes == 0`), con copperlist grande (`copper_bytes`); (c) una
-   etapa `copper_chunky(cfg, out)` que emita la lista de bloques en el bloque **inactivo** y exponga
-   los slots de color (equivalente a `chunky_row`); (d) `Plan::end_frame` ya hace `flip()` (el bloque
-   emitido pasa a activo), pero `Scene::commit()` **no recibe backend**: hace falta un
-   `Scene::present(backend)` que llame a `Plan::commit(backend)` para publicar la lista nueva (la
-   ruta planar no lo necesita porque la lista es estática y solo parchea `BPLxPT`). Hecho eso,
-   082/083 migran (bucle por frame: `begin_build` → `copper_chunky` → escribir colores →
-   `end_build` → `present`) y `MultiBuffered` (usado solo por ellos) se retira, ya que
-   `scene::compose` con `buffers > 1` cubre el doble buffer planar.
+4. **Retirar drivers obsoletos**: **hecho**. `planar_scene.hpp`/`ehb_scene.hpp` (`StaticEhbScene`),
+   `canvas_scene.hpp` (`CanvasScene`) y `copper_chunky.hpp` (`CopperChunkyScene`) más
+   `multi_buffered.hpp` (`MultiBuffered`) **retirados**; `EhbPalette`/`black_palette` sustituidos
+   por `eng::Palette32`/`eng::kBlackPalette` (`palette32.hpp`). El display por Copper sin
+   bitplanes es ahora el **modo `SceneMode::CopperChunky`** (`planes == 0`): la escena no reserva
+   planos ni enlaza playfield, y la etapa `composition::CopperChunkyLayer` emite la lista de
+   bloques en el bloque inactivo del `Plan` y expone los `data` de cada `COLOR00` (`row()`); el
+   doble buffer lo da el propio `Plan` (`end_build` hace `flip` y `Scene::present(backend)`
+   publica). 082 y 083 usan ese modo (bucle: `begin_build` → `emit` → colores → `end_build` →
+   `present`). El doble buffer planar sigue siendo `scene::compose` con `buffers > 1`.
 5. **Medición**: el `runner.uae` lo genera `run-demo.ts`; en entornos sin Git Bash se
    construye a mano para `measure-fps` (como se hizo con 081).
 

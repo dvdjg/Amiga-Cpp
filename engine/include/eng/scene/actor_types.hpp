@@ -58,7 +58,7 @@ using eng::graphics::SpriteSlot;
 using eng::graphics::Visual;
 using eng::graphics::VisualKind;
 
-/// Buffers de display soportados por actor (paralelo a `MultiBuffered<Driver,N>`).
+/// Buffers de display soportados por actor (paralelo a los `buffers` de `scene::compose`).
 inline constexpr eng::u8 kActorBuffers = 3u;
 
 /// Identificador estable de actor: índice de slot más generación. Un id con la

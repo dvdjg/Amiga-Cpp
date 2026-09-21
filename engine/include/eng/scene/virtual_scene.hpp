@@ -167,9 +167,8 @@ enum class LayerKind : u8 {
 /// intencion sin respaldo; el engine no tiene doble buffer de display para tile
 /// layers (solo flags de dirty buffer en `graphics/tilemap/tile_scroll.hpp`). Su
 /// unico consumidor, la demo 100, es didactica. La implementacion real de N buffers
-/// es `graphics/drivers/multi_buffered.hpp` (ver
-/// `docs/engine/architecture/DISPLAY_COMPOSITION.md` y F2 de
-/// `docs/guides/roadmap/NORMALIZACION_REPO.md`).
+/// es `scene::compose` con `SceneResources.buffers > 1` (ver
+/// `docs/engine/architecture/DISPLAY_COMPOSITION.md`).
 enum class TileFramebufferStrategy : u8 {
 	Static,
 	HiddenMargins,

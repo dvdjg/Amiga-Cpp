@@ -108,7 +108,7 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-064 | [spline_easing](064_spline_easing/README.md) | `eng/core/spline.hpp` (Hermite/Catmull-Rom) y easing de `interp.hpp`: genéricos sobre `double`, `MiniFloat16` y `q12`. |
 | HOST-065 | [scalar_ops](065_scalar_ops/README.md) | `eng/core/scalar_ops.hpp`, easings `_back`/`smooth_damp`/`repeat`/`pingpong` y `bezier2`/`bezier3`: genéricos sobre `double`, `MiniFloat16` y `q12`. |
 | HOST-066 | [route_camera](066_route_camera/README.md) | `eng/scene/route_camera.hpp`: fases de la ruta, círculo sobre `radius_scale` (vía `eng::SineTable`), espejo `mirror_x` y modo salto dentro de límites. |
-| HOST-067 | [multi_buffered](067_multi_buffered/README.md) | `eng::graphics::MultiBuffered<Driver,N>`: N buffers de display, `commit()` (publica y rota) y `bind()` sin dueño de memoria. |
+| HOST-067 | [multi_buffered](067_multi_buffered/README.md) | `scene::compose` con `SceneResources.buffers`: N buffers de display, `commit()` (publica y rota) y parcheo de `BPLxPT` sin dueño de memoria externa. |
 | HOST-068 | [double_buffer_scroll](068_double_buffer_scroll/README.md) | `eng::field::DoubleBufferScrollPlayfield`: 2 bitmaps, `flip()` y `hardware_view()` del delantero. |
 | HOST-069 | [copper_double_buffer](069_copper_double_buffer/README.md) | `eng::copper::DoubleBuffer`: 2 bloques de copperlist, `flip`, publicar; y `TileScrollScene` parcheando el bloque inactivo. |
 | HOST-070 | [copper_plan](070_copper_plan/README.md) | `eng::copper::Plan`: orden por scanline, **prioridad `(superficie, z)`**, doble buffer de copperlist, publicación y rechazo por overflow. |

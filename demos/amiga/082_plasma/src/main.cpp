@@ -8,11 +8,11 @@
 // Verbatim vs adaptado:
 //   - verbatim: punteros por memoria (a0-a4), tablas (data/plasma_tables.hpp), update
 //     separable (xbuf/ybuf + incrementos) y el mapeo `cmap[v]`.
-//   - adaptado: la copperlist la genera `drivers::CopperChunkyScene` (frontera display);
-//     doble buffer con dos instancias; vblank via el engine.
+//   - adaptado: la escena es modo `CopperChunky` (`scene::compose`) y la lista la emite
+//     `composition::CopperChunkyLayer`; doble buffer por el `copper::Plan` (flip + present);
+//     vblank via el engine.
 #include <eng/api/api.hpp>
-#include <eng/graphics/drivers/copper_chunky.hpp>
-#include <eng/graphics/drivers/multi_buffered.hpp>
+#include <eng/graphics/composition/copper_chunky.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 #include <exec/execbase.h>
@@ -49,11 +49,11 @@ void plasma_chunky_row();
 namespace {
 
 namespace amiga = eng::amiga;
-namespace drivers = eng::graphics::drivers;
+namespace scene = eng::graphics::composition;
+namespace comp = eng::graphics::composition;
 
 constexpr eng::u8 kCols = 36; // HTILES = WIDTH/8
 constexpr eng::u8 kRows = 64; // VTILES = HEIGHT/4
-constexpr eng::u8 kBuffers = K_082_BUFFERS;
 
 /// Simulacion del plasma (verbatim de `UpdateXBUF`/`UpdateYBUF`/`UpdateChunky`).
 struct Plasma {
@@ -84,18 +84,26 @@ struct PlasmaDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008201u);
 			return;
 		}
-		drivers::CopperChunkyConfig cfg {};
+		comp::CopperChunkyConfig cfg {};
 		cfg.cols = kCols;
 		cfg.rows = kRows;
-		// Doble buffer generico: el driver no tiene bitplanes, asi que `MultiBuffered`
-		// reserva solo las DOS copperlists (su "buffer" real) y alterna con COP1LC.
-		if (!m_scenes.init(backend.memory(), cfg)) {
+		// Escena en modo copper chunky (sin bitplanes): reserva solo la copperlist. El doble
+		// buffer lo da el `copper::Plan` (dos bloques; `end_build` hace flip y `present`
+		// publica la lista nueva con COP1LC).
+		scene::SceneResources res = scene::planar(288u, 256u, 0u);
+		res.mode = scene::SceneMode::CopperChunky;
+		res.copper_bytes = 12288u; // ~11 KB para 36x64 bloques
+		if (!scene::compose(m_scene, backend.memory(), res, scene::ocs_a500)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008202u);
 			return;
 		}
+		if (!m_layer.init(cfg)) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00008203u);
+			return;
+		}
 		// Rellena el primer frame antes de tomar el display (evita basura inicial).
-		draw_into(m_scenes.slot(0));
-		m_scenes.takeover(backend);
+		build_frame();
+		m_scene.takeover(backend);
 		m_init_ok = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x0082u);
 	}
@@ -103,8 +111,8 @@ struct PlasmaDemo {
 	void update(amiga::MinimalBackend& backend, eng::GameContext&) {
 		if (!m_init_ok) return;
 		m_plasma.advance();
-		draw_into(m_scenes.back());
-		m_scenes.commit(backend);
+		build_frame();
+		m_scene.present(backend);
 	}
 
 	void render(amiga::MinimalBackend& backend, eng::GameContext& context) {
@@ -113,12 +121,15 @@ struct PlasmaDemo {
 	}
 
 private:
-	void draw_into(drivers::CopperChunkyScene& scene) {
+	/// Emite la lista en el bloque inactivo y rellena los colores del frame.
+	void build_frame() {
+		m_scene.begin_build();
+		m_layer.emit(m_scene.scheduler(), m_scene.inactive_words());
 		g_plasma_chunky_args[1] = reinterpret_cast<eng::u32>(m_plasma.xbuf);
 		g_plasma_chunky_args[3] = reinterpret_cast<eng::u32>(plasma_data::kColors);
 		g_plasma_chunky_args[4] = kCols;
 		for (eng::u8 y = 0; y < kRows; ++y) {
-			eng::u16* p = scene.chunky_row(y);
+			eng::u16* p = m_layer.row(y);
 			if (p == nullptr) {
 				return;
 			}
@@ -126,10 +137,12 @@ private:
 			g_plasma_chunky_args[2] = m_plasma.ybuf[y];
 			plasma_chunky_row();
 		}
+		m_scene.end_build();
 	}
 
 	Plasma m_plasma {};
-	drivers::MultiBuffered<drivers::CopperChunkyScene, kBuffers> m_scenes {};
+	scene::Scene m_scene {};
+	comp::CopperChunkyLayer<kCols, kRows> m_layer {};
 	bool m_init_ok = false;
 };
 

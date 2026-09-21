@@ -51,7 +51,11 @@ enum class SceneMode : eng::u8 {
 	Standard = 0,     ///< playfield normal (color indexado, N planos)
 	Ham = 1,          ///< HAM (OCS/ECS HAM6 = 6 planos; AGA HAM8 = 8)
 	Ehb = 2,          ///< extra half-brite (6 planos, también en AGA)
-	DualPlayfield = 3 ///< doble playfield (planos repartidos entre los dos PF)
+	DualPlayfield = 3, ///< doble playfield (planos repartidos entre los dos PF)
+	/// **Copper chunky**: sin bitplanes (`planes == 0`); el Copper escribe `COLOR00` por
+	/// bloques a lo largo de cada línea. La escena solo reserva copperlist grande; la
+	/// dibuja la etapa `copper_chunky` (ver `composition/copper_chunky.hpp`).
+	CopperChunky = 4,
 };
 
 /// **Ancho de fetch de bitplanes** (AGA `FMODE` de planos): palabras de 16 bits que
@@ -214,7 +218,15 @@ inline constexpr DisplayLimits aga_a1200 {
 		return {6u, "rows (filas logicas) no puede superar height"};
 	}
 
-	// 4) Planos: normal y por modo (HAM/EHB/DPF).
+	// 4) Planos: normal y por modo (HAM/EHB/DPF). **Copper chunky** no tiene bitplanes: el
+	//    color lo escribe el Copper por bloques, así que `planes` debe ser 0 y no aplican las
+	//    comprobaciones de fetch/planos.
+	if (res.mode == SceneMode::CopperChunky) {
+		if (res.planes != 0u) {
+			return {5u, "copper chunky no usa bitplanes (planes debe ser 0)"};
+		}
+		return {};
+	}
 	if (res.planes == 0u || res.planes > l.max_planes) {
 		return {5u, "nº de planos por encima del maximo del backend"};
 	}

@@ -27,7 +27,7 @@ objetivo dan por supuesta (`PLAYFIELD_SCROLL_ARCHITECTURE.md`).
 
 ```
                      +-------------------------------+   quién
-  display completo   | N buffers (planos+copperlist)  |   MultiBuffered<Driver, N>
+  display completo   | N buffers (planos+copperlist)  |   scene::compose (buffers=N)
                      | swap de COP1LC tras VBlank     |
                      +-------------------------------+
                                    ^  emite sobre un buffer
@@ -47,23 +47,23 @@ objetivo dan por supuesta (`PLAYFIELD_SCROLL_ARCHITECTURE.md`).
 ```
 
 Las tres son ortogonales y **coexisten**: `TileScrollScene` (hoy) tiene doble buffer de
-copperlist con bitmap único; `MultiBuffered` tiene doble buffer de display completo; el soft
+copperlist con bitmap único; `scene::compose` con `buffers>1` tiene doble buffer de display completo; el soft
 DPF de la 112 tiene doble buffer de **un** plano.
 
-## 3. Capa 1 — buffers de display: `MultiBuffered<Driver, N>`
+## 3. Capa 1 — buffers de display: `scene::compose` (`SceneResources.buffers`)
 
-Es la abstracción canónica de «cuántos buffers y cuándo se enseña cada uno». Propietaria de
-la memoria (N parejas planos + copperlist), delega en el driver la **emisión** (`bind`) y en
-el llamador la **decisión** de cuándo publicar.
+Es la abstracción canónica de «cuántos buffers y cuándo se enseña cada uno». La posee la
+**escena**: `SceneResources.buffers` (1/2/3) reserva N bitmaps y la etapa `display` emite los
+`BPLxPT` como MOVEs parcheables; `Scene::commit()` repunta los punteros al buffer trasero. El
+doble buffer **de display** es eso; el doble buffer **de copperlist** es `copper::DoubleBuffer`
+(lo orquesta el `Plan`). (El antiguo `drivers::MultiBuffered<Driver, N>` está **retirado**; el
+modo `SceneMode::CopperChunky` cubre el caso sin bitplanes.)
 
 ```cpp
-using Display = drivers::MultiBuffered<drivers::CopperChunkyScene, 2>;   // 1 = sin DB, 3 = triple
-Display display;
-display.init(backend.memory(), cfg);   // reserva N buffers
-display.takeover(backend);             // una vez: muestra el slot 0
-// por frame:
-paint(display.back());                 // back().bitplanes(), back().plane(i)
-display.commit(backend);               // publica (tras VBlank o en la IRQ de blit)
+scene::SceneResources res = scene::planar(320, 256, 4);
+res.buffers = 2;                       // 1 = sin DB, 3 = triple
+scene::compose(scene, memory, res, limits, /* etapas */);
+scene.commit();                        // publica el buffer trasero (parchea BPLxPT)
 ```
 
 Reglas:
@@ -73,9 +73,12 @@ Reglas:
   desacoplar un productor que tarda más de un campo (añade un frame de latencia).
 - **El swap es solo `COP1LC`** y nunca lleva `COPJMP1` (`amiga_minimal.cpp:602-617`).
 - **Quien posee memoria, posee el buffer**: una superficie de scroll o de efecto **no**
-  reserva bitmaps ni decide el flip; escribe en el slot que le da el display.
+  reserva bitmaps ni decide el flip; escribe en el buffer trasero de la escena.
 - Excepción documentada: `PlaneView`/`SoftDpfComposition` hacen flip **de un plano** dentro
   del mismo display buffer (DDAs con fondo independiente). No se expresan como N buffers.
+- **Modo sin bitplanes** (`SceneMode::CopperChunky`, `planes == 0`): la escena solo reserva
+  copperlist; la lista la emite `composition::CopperChunkyLayer` y se publica con
+  `Scene::present(backend)`.
 
 ## 4. Capa 2 — emisión: `Scheduler` y `ListBuilder`
 
@@ -156,7 +159,7 @@ registros con handle (`Scheduler::move_at`) se parchean; la estructura se reemit
 
 ## 6. Reglas para desarrollos nuevos
 
-1. Una escena = **1 composición de display** (`MultiBuffered` con su N) + **1 supervisor de
+1. Una escena = **1 composición de display** (`scene::compose` con `buffers=N`) + **1 supervisor de
    copper** (`CopperPlan`); no se emite copper desde la lógica de juego ni desde un efecto.
 2. Las superficies/capas **no poseen memoria de display** ni hacen flip: escriben en el
    buffer que les da el display.
@@ -167,10 +170,10 @@ registros con handle (`Scheduler::move_at`) se parchean; la estructura se reemit
    alternancia de buffer, handles de parcheo) además del gate visual de su demo.
 6. El copper se orquesta con `eng::copper::Plan` (`engine/include/eng/graphics/copper/plan.hpp`),
    no emitiendo a mano. Los efectos/capas **no hablan de registros**: aportan `graphics::CopperIntent` (vocabulario portable de `raster_intent.hpp`) al plan, que **ordena por scanline relativo al inicio del display** (el listado envuelve a 256 líneas), lo materializa en el bloque **trasero** de su doble buffer de copperlist y publica con el swap de `COP1LC` (`Plan::commit`).
-7. **No llamar `install_copper_list`/`takeover_display` a mano** en código nuevo: usar `Plan::commit`/`Plan::takeover` o `MultiBuffered<Driver,N>::commit`/`takeover`.
-8. **Dos granularidades distintas, no confundirlas**: *buffers de display* (bitmaps) → `drivers::MultiBuffered<Driver, N>` (`N` = 1/2/3 por configuración `K_<DEMO>_BUFFERS`); *buffers de copperlist* → `copper::DoubleBuffer` (lo que usa el `Plan`; `attach()` permite orquestar uno externo).
-9. Un driver sin bitplanes (p. ej. `CopperChunkyScene`) declara `bitplane_bytes_for == 0`.
-10. **Nº de buffers de display frente a la carga del frame (anti-tearing).** El swap de bitmap es `COP1LC` y solo surte efecto **al comienzo del siguiente VBlank**. Con un `update` que **arranca alineado a VBlank** y dura `W` campos, **2 buffers** bastan sin tearing: se dibuja el buffer que acaba de salir de pantalla (patrón de `effects/bobs3d`: clear/draw + `TaskWaitVBlank` + swap). Si `W` **no** esta alineado (p. ej. `Engine::run_frames` relanza `update` a media pantalla cuando `W > 1` campo), con 2 buffers el dibujo del destino empieza antes del swap y hay **tearing**; entonces hacen falta **`ceil(W/campo) + 1` buffers** (habitualmente 3 = triple buffer), que desacoplan dibujo y visualización. Regla practica: si el efecto no cabe en 1 campo, `run_frames_polling` + 2 buffers es lo mas simple y sin tearing; usar 3 buffers (`drivers::MultiBuffered<Driver, 3>`, `K_<DEMO>_BUFFERS=3`) cuando se necesite no alinear. Caso medido y documentado: **demo 117_bobs3d** (`docs/demos/effects/BOBS3D_PORT_PLAN.md` §6 y §9.3).
+7. **No llamar `install_copper_list`/`takeover_display` a mano** en código nuevo: usar `Plan::commit`/`Plan::takeover` (o `Scene::present`/`takeover` en el modo copper-chunky).
+8. **Dos granularidades distintas, no confundirlas**: *buffers de display* (bitmaps) → `scene::compose` (`SceneResources.buffers` = 1/2/3); *buffers de copperlist* → `copper::DoubleBuffer` (lo que usa el `Plan`; `attach()` permite orquestar uno externo).
+9. Un display sin bitplanes usa el modo `SceneMode::CopperChunky` (`planes == 0`); la escena no reserva planos.
+10. **Nº de buffers de display frente a la carga del frame (anti-tearing).** El swap de bitmap es `COP1LC` y solo surte efecto **al comienzo del siguiente VBlank**. Con un `update` que **arranca alineado a VBlank** y dura `W` campos, **2 buffers** bastan sin tearing: se dibuja el buffer que acaba de salir de pantalla (patrón de `effects/bobs3d`: clear/draw + `TaskWaitVBlank` + swap). Si `W` **no** esta alineado (p. ej. `Engine::run_frames` relanza `update` a media pantalla cuando `W > 1` campo), con 2 buffers el dibujo del destino empieza antes del swap y hay **tearing**; entonces hacen falta **`ceil(W/campo) + 1` buffers** (habitualmente 3 = triple buffer), que desacoplan dibujo y visualización. Regla practica: si el efecto no cabe en 1 campo, `run_frames_polling` + 2 buffers es lo mas simple y sin tearing; usar 3 buffers (`SceneResources.buffers = 3`) cuando se necesite no alinear. Caso medido y documentado: **demo 117_bobs3d** (`docs/demos/effects/BOBS3D_PORT_PLAN.md` §6 y §9.3).
 
 Ejemplo vivo: **demo 085 `copper_plan_scene`** (cielo por bandas de la escena + BOB con degradado anclado a su Y, dos fuentes que el plan ordena por scanline).
 
@@ -179,10 +182,10 @@ Ejemplo vivo: **demo 085 `copper_plan_scene`** (cielo por bandas de la escena + 
 | Duplicidad | Sitios | Fase |
 |---|---|---|
 | Doble buffer de copperlist | `tile_scroll.hpp:791`, `xlimited.hpp:1739/1928`, demos `079`/`116` | F1 |
-| Doble buffer de display a mano | `082`, `083` (2 instancias), `079` (5), `116` (3) | F2 |
+| Doble buffer de display a mano | `079` (5), `116` (3) | F2 |
 | Superficie de scroll con memoria propia | `double_buffer_playfield.hpp:100`, `flat_playfield.hpp`, `mirror_playfield.hpp` | F3 |
 | Mapper de scroll duplicado | `amiga_display_mapper.hpp:52` vs `tile_scroll.hpp:670` | F5 |
 | Política sin implementación | `virtual_scene.hpp:168/186` (`DoubleBufferedHiddenMargins`) | F0 |
 | Doc↔código | `xlimited.hpp:1488-1491` (promete 13 words, reemite la lista) | F0 |
 | Supervisión de copper por escena | **no existe** (`CopperPlan`) | F4 |
-| **Eje Driver ↔ Field/Surface**: los drivers (`CanvasScene`, `CopperChunkyScene`) exponen `bitplanes()` crudos pero **no** una `Surface`; los `Playfield` (`CanvasPlayfield`, `XlimitedPlayfield`, …) exponen `Surface` pero **no** encajan con `MultiBuffered<Driver,N>` (ni `bind()` de memoria externa). Consecuencia: un efecto que quiera dibujar con `Surface` no puede usar el doble buffer de display, y uno que use `MultiBuffered` no tiene `Surface`. Normalización **hecha salvo `XLimitedPlayfield`**: `CanvasPlayfield::bind()` y `ContiguousPlayfield::bind()` aceptan bitplanes externos, y `scene::compose` con `buffers > 1` da el doble/triple buffer sobre esos playfields (HOST-212); el driver `CanvasScene` se retiró. `XLimitedPlayfield` (scroll, memoria propia) no ofrece `bind()`; no hay consumidor de `MultiBuffered<XLimitedPlayfield>`. Detalle del hueco: `WIREFRAME_PORT_PLAN.md` («falta playfield genérico W/H/planos»). | F2 |
+| **Eje Driver ↔ Field/Surface** (resuelto): los drivers legacy exponían `bitplanes()` crudos sin `Surface`, y los `Playfield` no encajaban con un doble buffer de display. Normalización **hecha**: `scene::compose` con `buffers > 1` da el doble/triple buffer sobre `CanvasPlayfield`/`ContiguousPlayfield` (HOST-212); los drivers `CanvasScene`/`CopperChunkyScene` y `MultiBuffered` están **retirados** (el display sin bitplanes es `SceneMode::CopperChunky`). `XLimitedPlayfield` (scroll, memoria propia) no ofrece `bind()`; no hay doble buffer de scroll sobre él. | F2 |

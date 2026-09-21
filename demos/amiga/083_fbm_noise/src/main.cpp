@@ -12,8 +12,7 @@
 #include <eng/core/minifloat_math.hpp>
 #include <eng/core/noise.hpp>
 #include <eng/api/api.hpp>
-#include <eng/graphics/drivers/copper_chunky.hpp>
-#include <eng/graphics/drivers/multi_buffered.hpp>
+#include <eng/graphics/composition/copper_chunky.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 #include <exec/execbase.h>
@@ -43,7 +42,8 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 namespace {
 
 namespace amiga = eng::amiga;
-namespace drivers = eng::graphics::drivers;
+namespace scene = eng::graphics::composition;
+namespace comp = eng::graphics::composition;
 using eng::u8;
 using eng::u16;
 using eng::s16;
@@ -52,7 +52,6 @@ using MF = eng::math::MiniFloat16;
 
 constexpr u8 kCols = 36;
 constexpr u8 kRows = 64;
-constexpr u8 kBuffers = K_083_BUFFERS;
 constexpr int kGW = 16; // rejilla gruesa del campo fbm
 constexpr int kGH = 16;
 
@@ -74,19 +73,26 @@ struct FbmDemo {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008301u);
 			return;
 		}
-		drivers::CopperChunkyConfig cfg {};
+		comp::CopperChunkyConfig cfg {};
 		cfg.cols = kCols;
 		cfg.rows = kRows;
-		// Doble buffer generico (driver sin bitplanes: 2 copperlists).
-		if (!m_scenes.init(backend.memory(), cfg)) {
+		// Escena copper chunky (sin bitplanes); doble buffer por el `copper::Plan`.
+		scene::SceneResources res = scene::planar(288u, 256u, 0u);
+		res.mode = scene::SceneMode::CopperChunky;
+		res.copper_bytes = 12288u;
+		if (!scene::compose(m_scene, backend.memory(), res, scene::ocs_a500)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008302u);
+			return;
+		}
+		if (!m_layer.init(cfg)) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00008303u);
 			return;
 		}
 		build_coarse();
 		build_palette();
 
-		draw_into(m_scenes.slot(0));
-		m_scenes.takeover(backend);
+		build_frame();
+		m_scene.takeover(backend);
 		m_init_ok = true;
 		eng::debug::mark_ready(g_eng_run_status, 0x0083u);
 	}
@@ -101,8 +107,8 @@ struct FbmDemo {
 		if (m_oy >= (3 << 8)) { m_oy = 3 << 8; m_dy = -1; }
 		else if (m_oy <= 0) { m_oy = 0; m_dy = 1; }
 
-		draw_into(m_scenes.back());
-		m_scenes.commit(backend);
+		build_frame();
+		m_scene.present(backend);
 	}
 
 	void render(amiga::MinimalBackend& backend, eng::GameContext& context) {
@@ -166,12 +172,23 @@ private:
 		return m_coarse[gy * kGW + gx];
 	}
 
-	void draw_into(drivers::CopperChunkyScene& scene) {
+	/// Emite la lista en el bloque inactivo y rellena los colores del frame.
+	void build_frame() {
+		m_scene.begin_build();
+		m_layer.emit(m_scene.scheduler(), m_scene.inactive_words());
+		fill_colors();
+		m_scene.end_build();
+	}
+
+	void fill_colors() {
 		// Escalas de muestreo de la rejilla gruesa a la rejilla de bloques (Q8).
 		constexpr int kStepX = (kGW << 8) / kCols;
 		constexpr int kStepY = (kGH << 8) / kRows;
 		for (u8 y = 0; y < kRows; ++y) {
-			u16* p = scene.chunky_row(y);
+			u16* p = m_layer.row(y);
+			if (p == nullptr) {
+				return;
+			}
 			const s32 cyq = static_cast<s32>(y) * kStepY + m_oy;
 			const int gy = cyq >> 8;
 			const int fy = cyq & 0xFF;
@@ -193,7 +210,8 @@ private:
 		}
 	}
 
-	drivers::MultiBuffered<drivers::CopperChunkyScene, kBuffers> m_scenes {};
+	scene::Scene m_scene {};
+	comp::CopperChunkyLayer<kCols, kRows> m_layer {};
 	u8 m_coarse[kGW * kGH] {};
 	u16 m_palette[256] {};
 	s32 m_ox = 0, m_oy = 0;

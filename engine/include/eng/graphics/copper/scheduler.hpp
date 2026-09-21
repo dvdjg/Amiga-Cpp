@@ -191,6 +191,21 @@ public:
 		m_builder.patch_wait(instruction_word, vpos, hpos);
 	}
 
+	// --- Primitivas crudas (para etapas que emiten su propia lista, p. ej. copper chunky).
+	//     Delegan en el `ListBuilder` del scheduler (sin contabilidad de Timeline). ---
+	u16 wait_raw(u16 vp, u16 hp, u16 mask) { return m_builder.wait_raw(vp, hp, mask); }
+	u16 wait_masked(u16 vp, u16 hp, u16 vpmask, u16 hpmask) {
+		return m_builder.wait_masked(vp, hp, vpmask, hpmask);
+	}
+	u16 move32(Register reg, eng::ChipAddress address) { return m_builder.move32(reg, address); }
+	void patch_move32(u16 instruction_word, eng::ChipAddress address) {
+		m_builder.patch_move32(instruction_word, address);
+	}
+	[[nodiscard]] constexpr eng::ChipAddress instruction_address(u16 instruction_word) const {
+		return m_builder.instruction_address(instruction_word);
+	}
+	u16 skip(u16 vpos, u16 hpos) { return m_builder.skip(vpos, hpos); }
+
 	/// Carga un puntero BPLxPT desde una intención de display. Mantiene los dos
 	/// MOVEs del puntero en el scheduler, también para los splits verticales.
 	void move_bitplane_pointer(u8 plane, eng::ChipAddress address) {
