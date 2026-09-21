@@ -370,26 +370,15 @@ public:
 	/// de `blitter-memcpy.md` y `docs/guides/roadmap/ROADMAP_BLITTER_COPPER.md`.
 	bool blitter_memcpy(eng::Span<u8> dst, eng::Span<const u8> src, bool wait = true);
 
-	/// **Copia por palabras con módulos** (Blitter): copia `words` palabras de `src` a `dst`,
-	/// aplicando `dst_mod`/`src_mod` (en bytes) tras cada palabra. Con `dst_mod = 2` escribe
-	/// **un word sí, otro no** (stride 4 B): la primitiva de la **Técnica B** para parchear los
-	/// **datos** de los MOVEs de una copperlist (`[reg, dato]`, `reg` se salta). `src_mod = 0`
-	/// es un origen contiguo. Serializa con el resto de blits (síncrona salvo `wait = false`).
-	bool blitter_memcpy_strided(u16* dst, s16 dst_mod, const u16* src, s16 src_mod,
-				    u16 words, bool wait = true);
-
-	/// **Blit A→D de un bloque con módulos** (Blitter): copia `width_words × height` palabras
-	/// de `src` a `dst`, con `src_mod`/`dst_mod` (bytes) tras cada fila. Base de las copias por
-	/// fila de un scroll (`width_words = 20`, `dst_mod = src_mod = 2`): desplaza la pantalla
-	/// una columna. `D = A`; `dst_mod`/`src_mod` negativos encogen el stride.
-	bool blitter_blit_strided(u16* dst, s16 dst_mod, const u16* src, s16 src_mod,
-				  u16 width_words, u16 height, bool wait = true);
-
-	/// **Parchea los datos de una copperlist con el Blitter** (Técnica B): escribe `count`
-	/// valores en los **data words** de `count` MOVEs consecutivos. `first_data` apunta al
-	/// **primer data word** (no al registro); el stride es 4 B (`[reg, dato]`). Cada dato de
-	/// la lista es `first_data + 2*i`. Ver `docs/guides/roadmap/ROADMAP_BLITTER_COPPER.md`.
-	bool blitter_patch_copper_data(u16* first_data, const u16* values, u16 count, bool wait = true);
+	/// **Ejecuta UN trabajo de Blitter** (`graphics::BlitJob`): es el mismo camino que
+	/// `execute_frame_plan` (que encadena varios jobs), pero para un blit suelto sin montar
+	/// un `FramePlan`. El descriptor cubre copias rectangulares (`CopyRect`, con
+	/// `words_per_row`/`height`/`source_modulo_bytes`/`destination_modulo_bytes`: copias
+	/// **lineales o strided**), BOBs cookie-cut, OR/lógicas, líneas, C2P, etc. Así el borde de
+	/// scroll (`D = A`, `dst_mod = src_mod = 2`) y el parcheo de la copperlist
+	/// (`words_per_row = 1`, `destination_modulo_bytes = 2`) no necesitan firmas propias ni
+	/// punteros crudos: se describen con `BlitJob`.
+	bool blitter_submit(const graphics::BlitJob& job, bool wait = true);
 
 	/// **Relleno de polígonos compuesto por bitplane** (Blitter): para cada plano `p`,
 	/// limpia el plano, dibuja el contorno XOR (ONEDOT) de las caras cuyo color tiene el
@@ -577,6 +566,9 @@ private:
 	bool install_vblank_service(ServiceSlot& slot);
 	bool install_blit_service(ServiceSlot& slot);
 	bool install_timer_service(u16 latch, ServiceSlot& slot);
+	/// Cuerpo común de `execute_frame_plan` (encadena varios) y `blitter_submit` (uno):
+	/// programa un `BlitJob`. `eor_open` mantiene la racha de líneas EOR entre jobs.
+	bool submit_blit_job(const graphics::BlitJob& job, bool& eor_open);
 
 	Profile m_profile; ///< perfil de máquina configurado
 	MemorySystem m_memory {}; ///< arenas (Chip/Slow/Frame) entregadas al engine

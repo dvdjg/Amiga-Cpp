@@ -5,10 +5,14 @@
 // Tres cosas, todas con el Blitter:
 //   1) **Tecnica A**: un `CopperIntentKind::BlitterJob` programa el Blitter y escribe
 //      `BLTSIZE` en el borde inferior (blit sincronizado al haz); copia `src`->`dst`.
-//   2) **Tecnica B**: `blitter_patch_copper_data` escribe los data words de una copperlist.
+//   2) **Tecnica B**: un `BlitJob` (CopyRect, 1 word de ancho, `dst_mod = 2`) parchea los
+//      data words de una copperlist con el Blitter.
 //   3) **Borde de scroll**: la pantalla (buffer anular de 21 words/fila, 320 px visibles) se
-//      desplaza una columna a la izquierda con `blitter_blit_strided` y la **columna nueva**
-//      entra por la derecha con `blitter_memcpy_strided`; se verifica el buffer resultante.
+//      desplaza una columna a la izquierda con un `BlitJob` (CopyRect 20x256, mods 2) y la
+//      **columna nueva** entra por la derecha con otro `BlitJob` (1x256); se verifica el buffer.
+//
+// Los blits sueltos se envian con `blitter_submit(BlitJob)` (un job); `execute_frame_plan`
+// encadena varios por el mismo camino.
 //
 // El Copper solo puede tocar el Blitter si `COPCON` tiene `CDANG`; `takeover_display` lo
 // activa (`docs/reference/emulators/winuae/copper.md`).
@@ -145,7 +149,16 @@ private:
 	bool scroll_step(eng::amiga::MinimalBackend& backend) {
 		eng::u16* plane = plane_words();
 		// 1) Shift: words 0..19 = words 1..20 (una columna a la izquierda).
-		if (!backend.blitter_blit_strided(plane, 2, plane + 1, 2, kDispWords, kRows, true)) {
+		eng::graphics::BlitJob shift {};
+		shift.kind = eng::graphics::BlitJobKind::CopyRect;
+		shift.source = plane + 1;
+		shift.destination = plane;
+		shift.words_per_row = kDispWords;
+		shift.height = kRows;
+		shift.source_modulo_bytes = 2;
+		shift.destination_modulo_bytes = 2;
+		shift.bitplane_count = 1u;
+		if (!backend.blitter_submit(shift, true)) {
 			return false;
 		}
 		// 2) Columna nueva en el word 20 (la absoluta `m_col+1`).
@@ -154,8 +167,16 @@ private:
 		for (eng::u16 r = 0; r < kRows; ++r) {
 			col[r] = col_value(m_col, r);
 		}
-		if (!backend.blitter_memcpy_strided(plane + kDispColWord, kRowBytes - 2, col.data(), 0,
-						    kRows, true)) {
+		eng::graphics::BlitJob draw {};
+		draw.kind = eng::graphics::BlitJobKind::CopyRect;
+		draw.source = col.data();
+		draw.destination = plane + kDispColWord;
+		draw.words_per_row = 1u;
+		draw.height = kRows;
+		draw.source_modulo_bytes = 0;
+		draw.destination_modulo_bytes = static_cast<eng::s16>(kRowBytes - 2u);
+		draw.bitplane_count = 1u;
+		if (!backend.blitter_submit(draw, true)) {
 			return false;
 		}
 		// 3) Verificacion: el buffer queda coherente con el scroll.
@@ -183,10 +204,19 @@ private:
 			cl[i * 2u + 1u] = 0u;                                                     // dato (a parchear)
 			vals[i] = static_cast<eng::u16>(0x1111u * static_cast<eng::u16>(i + 1u));
 		}
-		if (!backend.blitter_patch_copper_data(&cl[1], vals.data(), n, true)) {
+		// El stride 4 B se describe con `BlitJob`: 1 word de ancho, dst_mod = 2.
+		eng::graphics::BlitJob job {};
+		job.kind = eng::graphics::BlitJobKind::CopyRect;
+		job.source = vals.data();
+		job.destination = &cl[1];
+		job.words_per_row = 1u;
+		job.height = n;
+		job.source_modulo_bytes = 0;
+		job.destination_modulo_bytes = 2;
+		job.bitplane_count = 1u;
+		if (!backend.blitter_submit(job, true)) {
 			return false;
-		}
-		for (eng::u16 i = 0; i < n; ++i) {
+		}		for (eng::u16 i = 0; i < n; ++i) {
 			if (cl[i * 2u + 0u] != static_cast<eng::u16>(
 						 static_cast<eng::u16>(eng::copper::Register::COLOR00) + i * 2u)) {
 				return false; // el registro no debe tocarse

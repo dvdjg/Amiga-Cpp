@@ -76,10 +76,13 @@ El Blitter es un **único recurso**: solo hay **una** operación en curso. Escri
   (`docs/reference/emulators/winuae/copper.md`). Aun así hay que **serializar**:
   - no solapar la ventana del blit de Copper con los blits de CPU (`execute_frame_plan`), y
   - no usar `wait=false` si el Copper puede lanzar un blit dentro del mismo frame.
-- Además de la copia lineal hay variantes **con módulos**: `blitter_memcpy_strided`
-  (1 word de ancho con stride) y `blitter_blit_strided` (bloque `w×h` con módulos por fila).
-  Con ellas se implementan el **borde de scroll** (`Dmod = src_mod = 2`, desplaza la pantalla una
-  columna) y el **parcheo de copperlist** (`blitter_patch_copper_data`, `Dmod = 2`, escribe los
-  data words de MOVEs consecutivos). Ver `demos/amiga/210_copper_blitter`.
+- Además de la copia lineal (`blitter_memcpy`) y del plan (`execute_frame_plan`), el backend
+  expone **`blitter_submit(job, wait)`**: ejecuta **un** `graphics::BlitJob` por el mismo camino
+  (`submit_blit_job`). El descriptor cubre copias **con módulos** (`CopyRect` con
+  `words_per_row`/`height`/`source_modulo_bytes`/`destination_modulo_bytes`), BOBs, líneas, C2P…
+  Con él se implementan el **borde de scroll** (`CopyRect 20×256`, `mods = 2`, desplaza la
+  pantalla una columna) y el **parcheo de copperlist** (`CopyRect 1×N`, `dst_mod = 2`, escribe
+  los data words de MOVEs consecutivos). Así no hacen falta firmas propias ni punteros crudos:
+  todo se describe con `BlitJob`. Ver `demos/amiga/210_copper_blitter`.
 - El chip expone `BBUSY` (`DMACONR` bit 14) → `backend.blitter_busy()`; el Copper **no** lo
   consulta, así que la coordinación es responsabilidad del software.
