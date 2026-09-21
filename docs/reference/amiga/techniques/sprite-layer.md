@@ -136,5 +136,7 @@ necesidad de máscara en RAM.
 - `amiga-bootcamp/08_graphics/sprites.md` (y `01_hardware/ocs_a500/sprites.md`)
 - [Free Form Sprite Layer](https://www.powerprograms.nl/amiga/spr-layer.html) (Jeroen Knoester) — capa de sprites *free-form* con scroll
 - [sprite-horizontal-multiplex.md](sprite-horizontal-multiplex.md) — rearmado horizontal
+- [WinUAE — colisión CLXCON/CLXDAT](../../emulators/winuae/collision.md) — fuente del emulador
+  (`collision_level` + trampa par/impar del `match`)
 - AHRM 3.ª, cap. 4 (Sprite); [índice](../../ahrm/amiga-hardware-manual-index.md)
 - `engine/include/eng/graphics/{sprite_manager,sprite_allocator,sprite}.hpp`
