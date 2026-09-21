@@ -28,8 +28,8 @@ a mano **no compensa**; implementar **cola de pedidos de sector + doble buffer +
 // eng/os/file.hpp
 namespace eng::os {
 
-enum class FileMode : eng::u8 { Read, Write, ReadWrite };
-enum class FileOp   : eng::u8 { Read, Write, Seek };
+enum class FileMode : eng::u8 { Read, Write, ReadWrite, Create };
+enum class FileOp   : eng::u8 { Read, Write, Seek, Create, Delete, Rename };
 
 using FileHandle = eng::u16;  // 0 = inválido
 
@@ -42,6 +42,8 @@ struct IoNotify {
 
 FileHandle file_open(const char* path, FileMode mode);
 void       file_close(FileHandle h);
+bool       file_delete(const char* path);              ///< sync o async según backend
+bool       file_rename(const char* old_path, const char* new_path);
 
 /// Asíncrona: vuelve al momento; el resultado llega por mensaje/callback.
 bool file_read_async (FileHandle h, eng::Span<eng::u8> dst, eng::u32 offset, const IoNotify& n = {});
@@ -58,7 +60,21 @@ bool     file_is_busy(FileHandle h);
 
 El buffer va como **vista** (`eng::Span`) y no como puntero crudo, para mantener el tipado de
 dominio del engine (`INTERNAL_TYPE_SYSTEM.md`). El payload del mensaje lleva `handle`, `result`
-(bytes o error), `op` y un `cookie` del llamador (p. ej. el índice de buffer de un stream).
+(bytes o error), `op` y un **cookie** del llamador que discrimina el consumidor: la caché de
+assets, el loader de código o un stream. El cookie se empaqueta con una etiqueta para no confundir
+consumidores:
+
+```cpp
+/// Cookie de E/S: quién pidió la operación y con qué id.
+struct IoUser {
+	eng::u8  tag;  ///< 'A' asset (caché), 'L' lib (loader), 'S' stream
+	eng::u16 id;
+};
+```
+
+Los mensajes de E/S (`FileDone`/`FileError`) los consume la fachada de recursos
+([`RESOURCE_SYSTEM.md`](RESOURCE_SYSTEM.md)), que los enruta al subsistema que corresponda según el
+`tag`.
 
 ## 3. Backend con Kickstart (Exec vivo)
 
@@ -169,6 +185,7 @@ Prioridad: la E/S va en `MsgPrio::Low` para no pisar la entrada (cola prioritari
 
 ## 8. Referencias
 
+- `RESOURCE_SYSTEM.md` — caché de assets (LRU/prioridad) y loader de código sobre esta E/S.
 - `STREAMING_LOADER.md` (loader de chunks, trackloader de hardware, MFM, `ChunkCache`).
 - `GAME_AUDIO.md` (reproducción de samples y música; buffers de Paula).
 - `BACKGROUND_TASKS.md` (decodificado diferido).

@@ -173,6 +173,7 @@ Estas reglas son obligatorias, pero solo son relevantes cuando se toca su domini
 | **Concurrencia y portabilidad multinúcleo (hilos/mutex/atómicos)** | `docs/engine/architecture/PARALLEL_AND_THREADS.md` |
 | **Mini-SO de mensajes y UI reactiva** (`eng::os`/`eng::ui`: puerto, prioridad, VBlank latched, entrada por registros, timers, E/S asíncrona) | `docs/engine/architecture/MINI_OS_MESSAGE_LOOP.md` (+ `MINI_OS_INPUT.md`, `MINI_OS_TIME.md`, `MINI_OS_IO.md`, `GUI_LIBRARY.md`) |
 | **Audio** (`eng::audio`: modos/canales, mixer, música P61/pt/OctaMED, streaming desde disquete y codecs) | `docs/engine/architecture/GAME_AUDIO.md` (+ `AUDIO_MIXER.md`, `MUSIC_PLAYER.md`, `AUDIO_STREAMING.md`, `ROADMAP_AUDIO.md`) |
+| **Caché de assets y código dinámico** (`eng::res`: LRU/prioridad/refcount, presupuestos Chip/Fast, DynLoader `.englib`) | `docs/engine/architecture/RESOURCE_SYSTEM.md` (+ `ROADMAP_RESOURCES.md`, `MINI_OS_IO.md`) |
 | **Inventario de hardware** (`eng::hw`: CPU/FPU, chipset, RAM por tipo, display, puertos) | `docs/engine/architecture/HARDWARE_INVENTORY.md` |
 | **Estado vigente y próximas direcciones del engine** | `docs/guides/roadmap/ROADMAP_UNIFICADO.md` |
 | **Numeración de demos/tests entre ramas** (anti-solape: bloques reservados) | `docs/ai-dev-environment/NUMBERING.md` |

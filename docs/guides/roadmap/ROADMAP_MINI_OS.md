@@ -101,7 +101,10 @@ UI (`eng::ui`).
 - **Entregable**: `eng/os/file.hpp` (`FileHandle`, `file_open`/`read_async`/`write_async`/
   `close`, `IoNotify`) y `MsgType::FileDone`/`FileError`; backend `dos.library` (task auxiliar) y
   `trackdisk`; el decodificado se registra como tarea de `BackgroundQueue`.
-- **Detalle**: [`MINI_OS_IO.md`](../../engine/architecture/MINI_OS_IO.md).
+- **Detalle**: [`MINI_OS_IO.md`](../../engine/architecture/MINI_OS_IO.md). La **caché de assets** y
+  el **loader de código** que se construyen encima tienen su propio diseño
+  ([`RESOURCE_SYSTEM.md`](../../engine/architecture/RESOURCE_SYSTEM.md)) y plan
+  ([`ROADMAP_RESOURCES.md`](ROADMAP_RESOURCES.md)).
 - **Verificación**: **HOST-221** — una E/S simulada (host) publica `FileDone` con el resultado y la
   señal `SigFile`; la decodificación diferida avanza por rebanadas.
 - **Estado**: pendiente.
