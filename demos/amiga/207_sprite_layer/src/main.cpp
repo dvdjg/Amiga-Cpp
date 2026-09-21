@@ -45,7 +45,6 @@ constexpr eng::u16 kBandLines = 40;    // líneas que cubre (40 x 8 x 10 words =
 constexpr eng::u8  kChannels = 8;
 constexpr eng::u16 kHpos0 = 144;
 constexpr eng::u16 kHposStep = 16;     // columnas de 16 px contiguas
-constexpr eng::u16 kSpriteWords = 4u;  // 1 línea (DAT/DATB) + terminador (sprite "armado")
 constexpr eng::u16 kDmaHeight = kBandLines;
 constexpr eng::u16 kDmaStride = static_cast<eng::u16>(2u + kDmaHeight * 2u + 2u); // POS+CTL + DATA + terminador
 constexpr eng::u8  kDmaChannels = 4u;  // canales DMA (columna alta con cabecera); el resto, Copper
@@ -70,24 +69,19 @@ struct SpriteLayerDemo {
 		m_bitplane_block = backend.memory().chip.allocate_block<eng::PlaneTag>(kBitplaneBytes, 16);
 		m_copper_block = backend.memory().chip.allocate_block<eng::CopperTag>(16384u, 16);
 		m_sprite_block = backend.memory().chip.allocate_block<eng::SpriteTag>(
-			static_cast<eng::u32>(kSpriteWords + kDmaChannels * kDmaStride) * 2u, 16);
+			static_cast<eng::u32>(kChannels * kDmaStride) * 2u, 16);
 		if (!m_bitplane_block.valid() || !m_copper_block.valid() || !m_sprite_block.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020702u);
 			return;
 		}
 
-		// Estructura "nula" TERMINADA (POS=0, CTL=0, 0, 0) para los canales Copper: el DMA la
-		// deja inactiva (VSTART=VSTOP=0) y los controla solo el Copper (rearm por línea).
+		// Una estructura DMA por canal: `[POS, CTL, DAT0, DATB0, …, 0, 0]`. `SpriteLayer`
+		// parchea el `POS` (scroll) y apunta `SPRxPT` a cada estructura. Los canales Copper
+		// también la necesitan: aunque el Copper reescriba POS/DATA por línea, el DMA del
+		// canal debe recorrer una estructura válida (con terminador) y no memoria cualquiera.
 		eng::Words<eng::SpriteTag> sd = m_sprite_block.view.as_words();
-		sd[0] = 0u; // POS (VSTART=0, HSTART=0)
-		sd[1] = 0u; // CTL (VSTOP=0)
-		sd[2] = 0u; // terminador
-		sd[3] = 0u; // terminador
-
-		// Estructuras DMA (una por canal): [POS, CTL, DAT0, DATB0, ..., 0, 0]. El `POS` lo
-		// parchea `SpriteLayer` con el scroll; el `CTL` fija VSTART..VSTOP de la banda.
-		eng::u16* dma = sd.data() + kSpriteWords;
-		for (eng::u8 ch = 0; ch < kDmaChannels; ++ch) {
+		eng::u16* dma = sd.data();
+		for (eng::u8 ch = 0; ch < kChannels; ++ch) {
 			eng::u16* s = dma + static_cast<eng::u32>(ch) * kDmaStride;
 			s[0] = 0u; // POS (parcheado por SpriteLayer)
 			// CTL: VSTOP = first_line + height (N líneas de DATA = VSTOP - VSTART).
@@ -96,7 +90,7 @@ struct SpriteLayerDemo {
 				s[2u + l * 2u + 0u] = ((l & 1u) != 0u) ? 0x5555u : 0xAAAAu; // DAT
 				s[2u + l * 2u + 1u] = 0x0000u;                              // DATB
 			}
-			s[2u + kDmaHeight * 2u + 0u] = 0u; // terminador del canal DMA
+			s[2u + kDmaHeight * 2u + 0u] = 0u; // terminador del canal
 			s[2u + kDmaHeight * 2u + 1u] = 0u;
 		}
 
@@ -143,13 +137,16 @@ private:
 		eng::copper::SchedulerT<false> sched { m_copper_block };
 		sched.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0, kBytesPerRow, 0x4200,
 					  kPlanes, m_bitplane_block.view, kPlaneBytes);
+		// Estado inicial de los sprites (desarmados) y `SPRxPT` a la estructura de cada
+		// canal; `emit_into` vuelve a fijarlos (con el scroll del frame) más abajo.
 		const eng::uintptr sprite_base =
 			reinterpret_cast<eng::uintptr>(m_sprite_block.view.data());
-		for (eng::u8 c = 0; c < 8u; ++c) {
+		for (eng::u8 c = 0; c < kChannels; ++c) {
+			const eng::uintptr addr = sprite_base + static_cast<eng::uintptr>(c) * kDmaStride * 2u;
 			sched.move(static_cast<eng::u16>(0x120u + c * 4u),
-				   static_cast<eng::u16>(sprite_base >> 16));
+				   static_cast<eng::u16>(addr >> 16));
 			sched.move(static_cast<eng::u16>(0x122u + c * 4u),
-				   static_cast<eng::u16>(sprite_base & 0xffffu));
+				   static_cast<eng::u16>(addr & 0xffffu));
 			sched.move(static_cast<eng::u16>(0x142u + c * 8u), 0x0000u);
 			sched.move(static_cast<eng::u16>(0x140u + c * 8u), 0x0000u);
 		}

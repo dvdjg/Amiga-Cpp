@@ -52,3 +52,18 @@ primer `DAT`. Un buffer con solo `DAT/DATB`+terminador se interpreta como cabece
 
 **Origen**: contraste con el ejemplo `spr_layer/Sprite_Layer/` (Jeroen Knoester) y validación en
 la demo `206_sprite_collision`/`207_sprite_layer`.
+
+## 5. Sprite DMA: el puntero avanza siempre (columna fantasma si el Copper alimenta el canal)
+
+Aunque el Copper reescriba `SPRxPOS`/`SPRxDATA`/`SPRxCTL` por línea, el DMA de sprites **sigue
+avanzando** el `SPRxPT` del canal mientras esté activo, y cuando `dmastate==0` interpreta lo
+leído como **cabecera** `POS`/`CTL`. Un canal alimentado por Copper con `SPRxPT` a una
+estructura corta («nula») acaba leyendo la DATA de la estructura siguiente como cabecera → el
+sprite recibe un `VSTART`/`VSTOP` basura y queda **armado hasta el fin del frame** (columna
+fantasma). Corregir con **una estructura DMA válida por canal** y colocando el `WAIT` de
+rearmado **después del fetch DMA** (`DDFSTRT`) y antes de la primera columna.
+
+**Origen**: WinUAE-DBG `custom.cpp:10055-10120` (`generate_sprites`), `custom.cpp:12012-12023`
+(fetch e incremento de `s->pt`), `custom.cpp:4018-4083` (`sprstartstop`/`SPRxCTL`). Detalle:
+`docs/reference/emulators/winuae/sprite-dma.md`; validado en `demos/amiga/207_sprite_layer` (sin
+fantasma y con la DATA del Copper visible).
