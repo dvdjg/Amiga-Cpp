@@ -29,12 +29,17 @@ numeración se reparte en **bloques reservados por rama/workstream**, con este d
 | A | 000-099 | histórico (pre-bloques) | cerrado |
 | B | 100-149 | `master` | en uso |
 | C | 150-198 | `feature/optimize` (board/cards 179-198) + `master` (sim/engine 152-178) | **cerrado** (fusionado; no se reutiliza) |
-| D | 199-299 | `feature/optimize` (trabajo nuevo) | reservado |
+| D | 199-299 | `feature/optimize` (trabajo nuevo) + `master` (201-207) | en uso |
 | E | 300-399 | siguiente rama que cree numerados | libre |
 | F | 400-499 | siguiente rama | libre |
 
 > El rango C quedó mezclado tras la fusión (`master` 152-178, `feature/optimize` 179-198); se
 > cierra y no se reutiliza. El primer número libre global es **199** (bloque D).
+>
+> Colisión real en el bloque D: `master` numeró `206_sprite_collision`/`207_sprite_layer` y
+> `feature/optimize` ya tenía `206_message_loop`. Al fusionar `master` en la rama se renumeró la
+> demo de `feature/optimize` (`206_message_loop` → `208_message_loop`), por ser la de menor
+> impacto (menos referencias y solo en la rama). `master` queda con `201-207`.
 
 ## Cómo reservar un bloque
 

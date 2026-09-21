@@ -30,8 +30,8 @@ namespace {
 // bucle reactivo (`MessagePumpGame`) drena el puerto y entrega cada mensaje al App
 // antes de la lógica de frame. La caja se mueve con el joystick.
 //
-//   bash ./tools/build/build-demo.sh demos/amiga/206_message_loop --debug --clean
-//   bash ./tools/run/run-demo.sh demos/amiga/206_message_loop --wait-ms 8000
+//   bash ./tools/build/build-demo.sh demos/amiga/208_message_loop --debug --clean
+//   bash ./tools/run/run-demo.sh demos/amiga/208_message_loop --wait-ms 8000
 // -----------------------------------------------------------------------------
 
 eng::s16 clamp_s16(eng::s16 v, eng::s16 lo, eng::s16 hi) {

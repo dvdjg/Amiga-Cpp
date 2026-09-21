@@ -1,4 +1,5 @@
 #include <eng/api/api.hpp>
+#include <eng/api/effects.hpp>
 #include <eng/hw/info.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
@@ -42,6 +43,12 @@ constexpr eng::u16 kHeight = 256;
 constexpr eng::u8 kPlanes = 5;
 // BPLCON0 = 5 planos (BPU=5 -> 5<<12) + COLOR (bit 9).
 constexpr eng::u16 kBplcon0_5Planes = 0x5200;
+
+// Claves del degradado (registro COLOR00) y tramo que reclama el efecto.
+constexpr eng::u16 kGradientKeys[8] { 0x000, 0x124, 0x246, 0x368, 0x48a, 0x5ac, 0x7df, 0xfff };
+constexpr eng::u16 kFxFirstLine = 0x2cu;
+constexpr eng::u8 kFxBands = 24u;
+constexpr eng::u16 kFxBandHeight = 8u;
 
 constexpr eng::u16 kPalette[32] {
 	0x000, 0x00f, 0x0f0, 0x0ff, 0xf00, 0xf0f, 0xff0, 0xfff,
@@ -102,8 +109,20 @@ struct DemoGame {
 			composition::display(composition::kPal320x256, kBplcon0_5Planes),
 			composition::palette(eng::PaletteWords { kPalette, 32u }));
 
+		// 4) Efecto por la **lista ordenada** de la escena: un degradado de bandas que declara
+		//    su tramo y su coste al plan (se ejecuta en `Scene::tick`, cada frame).
+		const eng::graphics::effects::RasterGradientRange range { kFxFirstLine, kFxBandHeight,
+									  kFxBands, 0u };
+		m_fx_ok = m_sky.attach(range, eng::Span<const eng::u16> { kGradientKeys, 8u });
+		if (m_fx_ok) {
+			m_fx_bands = m_sky.bands();
+			m_effect_task.self = this;
+			m_scene.add_effect(m_effect_task);
+			m_fx_registered = m_scene.effect_count() == 1u;
+		}
+
 		m_ok = m_probed && composed && m_scene.ok() && m_hw.chip_ram_bytes > 0u &&
-		       m_hw.cpu != eng::hw::CpuKind::Unknown;
+		       m_hw.cpu != eng::hw::CpuKind::Unknown && m_fx_ok && m_fx_registered;
 
 		KPrintF("AMG205 model=%s chipset=%s cpu=%s chip=%ld fast=%ld slow=%ld kick=%ld.%ld disp=%ldx%ldx%ld\n",
 			eng::hw::model_name(m_hw.model),
@@ -127,6 +146,16 @@ struct DemoGame {
 
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
+		if (m_fx_registered) {
+			// Ciclo del plan: abrir -> efectos (`tick` = `run_effects`) -> materializar -> cerrar.
+			m_scene.begin_build();
+			m_scene.tick();
+			m_scene.plan().materialize();
+			m_fx_budget_ok = m_scene.end_build();
+			m_fx_cost = m_scene.plan().cost_words();
+			m_fx_capacity = m_scene.plan().words_capacity();
+			m_fx_phase = static_cast<eng::u16>(m_fx_phase + 1u);
+		}
 		(void)backend;
 	}
 
@@ -233,14 +262,64 @@ struct DemoGame {
 			d.text(64, y, line, 0x00ffffff);
 		}
 		y += 26;
+		{
+			char* p = append(line, "fx (lista): ");
+			p = append(p, m_fx_registered ? "1 efecto" : "ninguno");
+			p = append(p, "   bands: ");
+			p = append_u32(p, m_fx_bands);
+			p = append(p, "   decl: ");
+			p = append_u32(p, m_fx_intents);
+			p = append(p, "+");
+			p = append_u32(p, m_fx_words);
+			p = append(p, "   coste: ");
+			p = append_u32(p, m_fx_cost);
+			p = append(p, "/");
+			p = append_u32(p, m_fx_capacity);
+			p = append(p, m_fx_budget_ok ? " ok" : " OVER");
+			*p = '\0';
+			d.text(64, y, line, m_fx_budget_ok ? 0x00ff80ff : 0x00ff6060);
+		}
+		y += 26;
 		d.text(64, y, "Port1: mouse   Port2: joystick   (assumed, not detected)", 0x00aaaaaa);
 
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
+	/// Callable del efecto: `Scene::add_effect` guarda un `FunctionRef` **no propietario**, así
+	/// que el functor debe vivir en el demo (una lambda temporal quedaría colgando).
+	struct EffectTask {
+		DemoGame* self = nullptr;
+		void operator()(composition::Scene& s) const { self->run_effect(s); }
+	};
+
+	/// Efecto registrado en la **lista ordenada** de la escena (`EFFECT_MODEL`): declara su
+	/// tramo de raster (`reserve_band`, que detecta solapes) y su coste (`note_effect_cost`,
+	/// que suma al presupuesto del frame), y aporta el degradado al plan.
+	void run_effect(composition::Scene& scene) {
+		eng::copper::Plan& plan = scene.plan();
+		const eng::u16 last = static_cast<eng::u16>(kFxFirstLine + kFxBands * kFxBandHeight);
+		plan.reserve_band(kFxFirstLine, last, 0x0001u);
+		m_fx_intents = static_cast<eng::u16>(m_sky.bands());
+		m_fx_words = static_cast<eng::u16>(m_fx_intents * 4u);
+		plan.note_effect_cost({ m_fx_intents, m_fx_words });
+		m_sky.set_phase(m_fx_phase);
+		m_sky.frame(scene);
+	}
+
 private:
 	composition::Scene m_scene {};
+	eng::effects::Gradient m_sky {};
+	EffectTask m_effect_task {};
 	eng::hw::HwInfo m_hw {};
+	eng::u16 m_fx_phase = 0u;
+	eng::u16 m_fx_cost = 0u;
+	eng::u16 m_fx_capacity = 0u;
+	eng::u16 m_fx_bands = 0u;
+	eng::u16 m_fx_intents = 0u;
+	eng::u16 m_fx_words = 0u;
+	bool m_fx_registered = false;
+	bool m_fx_ok = false;
+	bool m_fx_budget_ok = true;
 	bool m_probed = false;
 	bool m_ok = false;
 };

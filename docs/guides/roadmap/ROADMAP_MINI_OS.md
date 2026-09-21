@@ -56,7 +56,7 @@ UI (`eng::ui`).
   compararlos con `context.frame.frame_index` (sin sondear `VPOSR`).
 - **Estado**: **entregado** (`VBlankLatch`/`take_vblank` en `port.hpp`; HOST-236). El **productor**
   del backend es `eng::os::tick` (`amiga_minimal_os.cpp`): latcha el VBlank y pollea la entrada; lo
-  llama el bucle por frame (demo 206). La variante **por IRQ** (`set_vblank_service`) queda como
+  llama el bucle por frame (demo 208). La variante **por IRQ** (`set_vblank_service`) queda como
   mejora cuando el bucle sea interrupt-driven.
 
 ### M2 — Entrada por registros → mensajes
@@ -87,11 +87,11 @@ UI (`eng::ui`).
 
 - **Entregable**: `MessagePumpGame<App>` que drena el puerto en `update`, saca el VBlank latched
   primero y despacha por tipo; patrón "esperar señales → drenar → lógica".
-- **Verificación**: **demo 206_message_loop** — una escena mínima que reacciona a VBlank, a teclas
+- **Verificación**: **demo 208_message_loop** — una escena mínima que reacciona a VBlank, a teclas
   y al ratón **sin leer hardware**; el gate visual comprueba que la escena cambia con la entrada y
   que el frame avanza.
 - **Estado**: **entregado**. `eng/os/message_pump.hpp` (`MessagePumpGame<App>` drena el puerto y
-  llama a `on_frame`/`on_render`; **HOST-253**) y la **demo 206_message_loop** (VBlank + input por
+  llama a `on_frame`/`on_render`; **HOST-253**) y la **demo 208_message_loop** (VBlank + input por
   mensajes; overlay con frames/mensajes/joystick). El bucle es de **polling** (`os::tick` por
   frame); el modo por IRQ queda como mejora.
 
@@ -189,7 +189,7 @@ UI (`eng::ui`).
 | HOST-239 | test | Streaming (doble buffer, underrun, EOF) con E/S simulada. |
 | HOST-250 | test | Tareas de fondo: idle/preempt, ciclo de vida y `wait_or_idle`. |
 | HOST-251 | test | Tareas-corrutina (`co_await idle_yield`) y codegen 68000. |
-| 206_message_loop | demo | Bucle reactivo en hardware: VBlank + input + UI sin sondeo. |
+| 208_message_loop | demo | Bucle reactivo en hardware: VBlank + input + UI sin sondeo. |
 | 209_audio_stream | demo | Audio continuo desde disquete con `AudioStream`. |
 
 ## Riesgos y decisiones abiertas

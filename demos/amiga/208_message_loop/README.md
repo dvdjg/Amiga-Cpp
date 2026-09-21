@@ -1,4 +1,4 @@
-# Demo 206 — bucle reactivo del mini-SO (`eng::os`)
+# Demo 208 — bucle reactivo del mini-SO (`eng::os`)
 
 Primera demo del mini-SO: el juego **no sondea hardware**. El tick del mini-SO (`eng::os::tick`)
 latcha el VBlank y pollea los productores de entrada (ratón puerto 1, joystick puerto 2),
@@ -13,8 +13,8 @@ mensaje al `App` **antes** de la lógica de frame. La caja se mueve con el joyst
 ## Compilar / ejecutar
 
 ```bash
-bash ./tools/build/build-demo.sh demos/amiga/206_message_loop --debug --clean
-bash ./tools/run/run-demo.sh demos/amiga/206_message_loop --wait-ms 8000
+bash ./tools/build/build-demo.sh demos/amiga/208_message_loop --debug --clean
+bash ./tools/run/run-demo.sh demos/amiga/208_message_loop --wait-ms 8000
 ```
 
 ## Resultado de referencia (A500)

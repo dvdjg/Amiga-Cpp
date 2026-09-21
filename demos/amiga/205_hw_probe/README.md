@@ -8,6 +8,13 @@ El display **no se declara a mano**: la escena de composición (`composition::Sc
 modo (320x256x5) y lo publica en el `HwInfo` con `bind_hw_info` → `hw::set_display`; la demo solo
 lee `hw.display`. El resto (CPU, chipset, Kickstart, RAM, modelo) sale del sondeo real.
 
+Además registra un **efecto por la lista ordenada** de la escena (`Scene::add_effect`, ver
+`docs/engine/architecture/EFFECT_MODEL.md`): un degradado de bandas que declara su tramo
+(`Plan::reserve_band`, que detecta solapes) y su coste (`Plan::note_effect_cost`, que suma al
+presupuesto). El overlay muestra la huella declarada (`decl`) y el coste acumulado frente a la
+capacidad. El callable es un **functor miembro** (`EffectTask`): `add_effect` guarda un
+`FunctionRef` no propietario y una lambda temporal quedaría colgando.
+
 Documentación y fuentes del sondeo: `docs/engine/architecture/HARDWARE_INVENTORY.md`.
 Test de la parte pura: `tests/host/235_hw_info`.
 
@@ -33,6 +40,7 @@ Total RAM: 1015 KB   regions: 2
 Display: 320x256x5   colors: 32   (scene)
 hires: no   lace: no   HAM: no   EHB: no
 Caps: ecs=no aga=no akiko=no c2p_hw=no mmu=no
+fx (lista): 1 efecto   bands: 24   decl: 24+96   coste: 96/2048 ok
 Port1: mouse   Port2: joystick   (assumed, not detected)
 ```
 
