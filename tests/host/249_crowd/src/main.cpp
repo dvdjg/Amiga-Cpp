@@ -12,6 +12,8 @@
 #include <cstdio>
 
 #include <eng/ai/steering/crowd.hpp>
+#include <eng/core/fixed_math.hpp>
+#include <eng/retro/fixed_q.hpp>
 
 using namespace eng;
 using namespace eng::ai;
@@ -178,6 +180,32 @@ void test_float_generic() {
 	check(agents[1].position.x() > 110.0f, "float: el agente 1 se separa");
 }
 
+/// El mismo algoritmo con `q12` (fixed-point retro, 4.12).
+void test_q12_generic() {
+	using Q = eng::retro::q12;
+	using VQ = eng::math::Vec<2, Q>;
+	const Q one = eng::math::scalar_traits<Q>::from_int(1);
+	const Q two = eng::math::scalar_traits<Q>::from_int(2);
+	CrowdAgent<Q> agents[2] {};
+	agents[0].position = VQ {{one, one}};
+	agents[0].radius = eng::math::div_norm(one, two); // 0.5
+	agents[0].max_speed = one;
+	agents[1] = agents[0];
+	agents[1].position = VQ {{two, one}};             // a 1.0 del otro
+	CrowdParams<Q> p {};
+	p.separation_radius = one;
+	p.separation_weight = one;
+	p.obstacle_weight = one;
+	p.look_ahead = one;
+	p.max_force = one;
+	Crowd<Q, BruteForceBroadphase<Q, 8>> crowd {};
+	for (int i = 0; i < 8; ++i) {
+		(void)crowd.update(Span<CrowdAgent<Q>> {agents, 2}, p, one);
+	}
+	check(agents[0].position.x() < one, "q12: el agente 0 se separa");
+	check(agents[1].position.x() > two, "q12: el agente 1 se separa");
+}
+
 } // namespace
 
 int main() {
@@ -190,9 +218,10 @@ int main() {
 	test_speed_clamp();
 	test_obstacles();
 	test_float_generic();
+	test_q12_generic();
 
 	if (failures == 0) {
-		std::printf("OK: crowd generico (rejilla, separacion, limites, float) validado.\n");
+		std::printf("OK: crowd generico (rejilla, separacion, limites, float, q12) validado.\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobaciones\n", failures);

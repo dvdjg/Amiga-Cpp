@@ -58,6 +58,7 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/ai/navigation/waypoints.hpp>
 #include <eng/ai/navigation/navmesh_lite.hpp>
 #include <eng/ai/steering/steering.hpp>
+#include <eng/ai/steering/crowd.hpp>
 #include <eng/ai/perception/influence_map.hpp>
 #include <eng/ai/perception/agent_memory.hpp>
 #include <eng/sim/avatar.hpp>
@@ -1118,7 +1119,7 @@ extern "C" u16 c_sim_planner_ops(u16 seed) {
 	const bool ok = driver.replan(start, goal, acts.span());
 	return static_cast<u16>(ok ? 1u : 0u) + driver.current();
 }
-extern "C" u16 c_waypoints_ops(u16 start, u16 goal) {	eng::ai::WaypointGraph<8, 8> graph;
+extern "C" u16 c_waypoints_ops(u16 start, u16 goal) {	eng::ai::WaypointGraph<eng::s16, 8, 8> graph;
 	const eng::u16 a = graph.add_node({0, 0});
 	const eng::u16 b = graph.add_node({10, 0});
 	const eng::u16 c = graph.add_node({20, 0});
@@ -1136,27 +1137,63 @@ extern "C" u16 c_waypoints_ops(u16 start, u16 goal) {	eng::ai::WaypointGraph<8, 
 					     eng::Span<eng::u16> {path, 8});
 	return static_cast<u16>(n + (g[t] == 0xffffu ? 0u : g[t]));
 }
+// Politica de cruz ancha para s16 (muls.w, resultado s32): la que evita __mulsi3 en 68000.
+struct NavCrossWide {
+	using result = eng::s32;
+	[[nodiscard]] static constexpr eng::s32 op(eng::ai::NavPoint<eng::s16> a,
+						   eng::ai::NavPoint<eng::s16> b,
+						   eng::ai::NavPoint<eng::s16> p) noexcept {
+		const eng::s16 abx = static_cast<eng::s16>(b.x - a.x);
+		const eng::s16 aby = static_cast<eng::s16>(b.y - a.y);
+		const eng::s16 apx = static_cast<eng::s16>(p.x - a.x);
+		const eng::s16 apy = static_cast<eng::s16>(p.y - a.y);
+		return eng::math::mul_wide(abx, apy) - eng::math::mul_wide(aby, apx);
+	}
+};
 extern "C" u16 c_navmesh_ops(u16 seed) {
-	using Mesh = eng::ai::NavMesh<8, 4, 8>;
+	using Mesh = eng::ai::NavMesh<eng::s16, 8, 4, 8, NavCrossWide>;
+	using P = eng::ai::NavPoint<eng::s16>;
 	Mesh mesh;
-	const eng::Point2s a_verts[4] = {{0, 0}, {10, 0}, {10, 10}, {0, 10}};
-	const eng::Point2s b_verts[4] = {{10, 0}, {20, 0}, {20, 10}, {10, 10}};
-	const eng::u16 a = mesh.add_polygon(eng::Span<const eng::Point2s> {a_verts, 4});
-	const eng::u16 b = mesh.add_polygon(eng::Span<const eng::Point2s> {b_verts, 4});
+	const P a_verts[4] = {{0, 0}, {10, 0}, {10, 10}, {0, 10}};
+	const P b_verts[4] = {{10, 0}, {20, 0}, {20, 10}, {10, 10}};
+	const eng::u16 a = mesh.add_polygon(eng::Span<const P> {a_verts, 4});
+	const eng::u16 b = mesh.add_polygon(eng::Span<const P> {b_verts, 4});
 	mesh.add_portal(a, b, {10, 0}, {10, 10});
 	eng::u16 g[8];
 	eng::s16 came[8];
 	eng::u8 closed[8];
-	eng::Point2s path[8];
+	P path[8];
 	const eng::s16 gx = static_cast<eng::s16>(seed % 15u);
 	const eng::usize n = mesh.find_path(
 		{5, 5}, {gx, 5}, eng::Span<eng::u16> {g, 8}, eng::Span<eng::s16> {came, 8},
-		eng::Span<eng::u8> {closed, 8}, eng::Span<eng::Point2s> {path, 8});
+		eng::Span<eng::u8> {closed, 8}, eng::Span<P> {path, 8});
 	const eng::usize sn = mesh.find_smooth_path(
 		{5, 5}, {gx, 5}, eng::Span<eng::u16> {g, 8}, eng::Span<eng::s16> {came, 8},
-		eng::Span<eng::u8> {closed, 8}, eng::Span<eng::Point2s> {path, 8});
-	const eng::u16 loc = mesh.locate({5, 5});
+		eng::Span<eng::u8> {closed, 8}, eng::Span<P> {path, 8});
+	const eng::u16 loc = mesh.locate_from({5, 5}, static_cast<eng::u16>(seed % 2u));
 	return static_cast<u16>(n + sn + (loc == Mesh::no_poly ? 0u : loc));
+}
+extern "C" eng::u32 c_crowd_ops(u16 count) {
+	using S = eng::retro::q12;
+	using Crowd = eng::ai::Crowd<S, eng::ai::BruteForceBroadphase<S, 32>>;
+	const S unit = eng::math::scalar_traits<S>::from_int(1);
+	const S half = eng::math::div_norm(unit, eng::math::scalar_traits<S>::from_int(2));
+	eng::ai::CrowdAgent<S> agents[16];
+	for (eng::u16 i = 0; i < 16u; ++i) {
+		agents[i].position = eng::math::Vec<2, S> {{unit, unit}};
+		agents[i].radius = half;
+		agents[i].max_speed = unit;
+	}
+	eng::ai::CrowdParams<S> p {};
+	p.separation_radius = unit;
+	p.separation_weight = unit;
+	p.obstacle_weight = unit;
+	p.look_ahead = unit;
+	p.max_force = unit;
+	Crowd crowd;
+	const eng::u16 n = static_cast<eng::u16>(count % 16u);
+	return crowd.update(eng::Span<eng::ai::CrowdAgent<S>> {agents, n}, p, unit) +
+	       crowd.neighbor_checks();
 }
 extern "C" s32 c_influence_map_ops(u16 cell, s32 amount) {
 	eng::ai::InfluenceMap<8, 8> map;

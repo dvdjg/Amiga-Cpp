@@ -125,19 +125,20 @@ virtual (el engine usa funciones libres y buffers externos).
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| G6.1 | `steering/crowd.hpp` | `Crowd<S, Broadphase>` **genérico sobre el escalar** (separación + evasión + integración); fase amplia de vecinos como política (`SpatialHashBroadphase` evita el `O(N²)`, `BruteForceBroadphase` vale para cualquier escalar) | **Entregado**: HOST-249 (con `s32` y `float`) |
-| G6.2 | `navmesh_lite.hpp` | Cache/atajo de `locate`: recordar el polígono actual y probar vecinos antes del bucle lineal | HOST propio |
-| G6.3 | `navmesh_lite.hpp`/`waypoints.hpp` | **Coste por portal** (terreno/peligro) y `MovementProfile` (can_climb/can_swim/max_slope) que filtra portales/costes | HOST propio |
+| G6.1 | `steering/crowd.hpp` | `Crowd<S, Broadphase>` **genérico sobre el escalar** (separación + evasión + integración); fase amplia de vecinos como política (`SpatialHashBroadphase` evita el `O(N²)`, `BruteForceBroadphase` vale para cualquier escalar) | **Entregado**: HOST-249 (`s32`, `float`, `q12`) |
+| G6.2 | `navmesh_lite.hpp` | **Cache/atajo de `locate`**: `locate_from(p, hint)` prueba el polígono anterior y sus vecinos por portal antes del recorrido lineal | **Entregado**: HOST-118 |
+| G6.3 | `navmesh_lite.hpp`/`waypoints.hpp` | **Coste por portal** (`add_portal(..., cost, terrain)`) y `MovementProfile` (máscara de terreno) que filtra los portales del A* | **Entregado**: HOST-118 |
 | G6.4 | navegación | **Reutilización de paths**: recalcular solo si el objetivo se movió o el agente se desvió (patrón de la caché de planes del GOAP) | HOST propio |
 | G6.5 | `navmesh_lite.hpp` | **Budget explícito** de nodos expandidos por agente y frame | HOST propio |
-| G6.6 | `steering/crowd.hpp` | Crowd **fixed-point pura** (sin `/` ni `isqrt` por vecino) y sonda de codegen | HOST + `codegen-report.mjs` |
+| G6.6 | `steering/crowd.hpp` | Crowd **fixed-point** (instanciado con `q12`) y sonda de codegen `c_crowd_ops` | **Entregado**: HOST-249 + `codegen-report.mjs` |
+| G6.7 | `navmesh_lite.hpp`/`steering/crowd.hpp` | **Políticas nativas del 68000**: cruz ancha del navmesh (`NavCrossWide`, `muls.w`) y escalado del crowd sin `__divsi3`; con enteros crudos (`s16`/`s32`) el escalado/división genera libcalls, así que en Amiga se usa un fixed o una política | codegen + consumidor |
 
-G6.1 está entregado y verificado por test host; G6.2–G6.6 quedan **pendientes** (se abordan cuando
-haya un consumidor de movimiento con muchos agentes). El crowd es **genérico sobre el escalar** y
-recibe la **fase amplia de vecinos como política** (regla de genericidad, `AGENTS.md` §1.10): la
-variante `SpatialHashBroadphase` reutiliza la rejilla de colisiones ya existente
-(`eng::util::SpatialHash`, `broadphase.hpp`) para evitar el `O(N²)`; `BruteForceBroadphase` cubre
-cualquier escalar. Así el algoritmo no queda atado a `s16` ni a una rejilla concreta.
+G6.1–G6.3 y G6.6 están entregados y verificados (HOST-118/249 + gate de codegen); G6.4, G6.5 y G6.7
+quedan **pendientes**. El crowd y el navmesh son **genéricos sobre el escalar** y reciben lo atado al
+tipo como **política** (regla de genericidad, `AGENTS.md` §1.10): `Broadphase` en el crowd, `Cross`
+en el navmesh; la variante `SpatialHashBroadphase` reutiliza la rejilla de colisiones
+(`eng::util::SpatialHash`) para evitar el `O(N²)` y `NavCrossWide`/`q12` evitan las libcalls en el
+68000.
 
 ## 5. Catálogo de técnicas a incorporar
 
@@ -163,7 +164,7 @@ cualquier escalar. Así el algoritmo no queda atado a `s16` ni a una rejilla con
 | HFSM (FSM jerárquica) | decisión | `ai/decision/` | — | Candidato (estados anidados) |
 | Pursuit/evade/wander y evasión de obstáculos | movimiento | `ai/steering/steering.hpp` | C. Reynolds | **Entregado** (HOST-115) |
 | Crowd (separación + evasión local) | movimiento | `ai/steering/crowd.hpp` | — | **Entregado** (HOST-249) |
-| Cache de `locate` / coste por portal + `MovementProfile` | navegación | `ai/navigation/navmesh_lite.hpp` | Recast/Detour | Pendiente (G6.2–G6.3) |
+| Cache de `locate` / coste por portal + `MovementProfile` | navegación | `ai/navigation/navmesh_lite.hpp` | Recast/Detour | **Entregado** (HOST-118) |
 | Reutilización de paths + budget de expansión | navegación | navegación | — | Pendiente (G6.4–G6.5) |
 | Formación / asignación de huecos | movimiento | `ai/steering/` | — | Candidato opcional |
 | Heurística parametrizable (grilla) | navegación | `util/pathfinding.hpp` | — | Candidato menor |

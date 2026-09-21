@@ -9,25 +9,28 @@
 /// compartida entre dos polígonos) más el destino.
 ///
 /// La malla la aporta el juego (`add_polygon`/`add_portal`); no se genera ni se cuece.
-/// Dos consultas: `find_path` (puntos medios de los portales, sin zigzag solo si el
-/// pasillo es recto) y `find_smooth_path`, que aplica **string-pulling** con el algoritmo
-/// del embudo (*simple stupid funnel*) y devuelve solo las esquinas visibles. Todo sin heap
-/// y sin división por valores de runtime (los costes usan el **primer vértice** de cada
-/// polígono como ancla, no el centroide).
+/// **Genérico sobre el escalar `S`** (posiciones `NavPoint<S>`), con el producto cruz como
+/// **política** (`Cross`): en el 68000 con `s16` conviene una política con `muls.w`. `find_path`
+/// devuelve los puntos medios de los portales; `find_smooth_path` aplica **string-pulling** (embudo)
+/// y devuelve solo las esquinas visibles. `locate_from` acepta una **pista** (caché por agente) y
+/// `MovementProfile` filtra portales por terreno; el coste de un portal puede ser propio o la
+/// distancia entre anclas. Todo sin heap.
 ///
 /// Uso:
-///   eng::ai::NavMesh<8, 4, 8> mesh;
-///   const eng::u16 a = mesh.add_polygon({{0,0},{10,0},{10,10},{0,10}});
-///   const eng::u16 b = mesh.add_polygon({{10,0},{20,0},{20,10},{10,10}});
+///   eng::ai::NavMesh<eng::s32, 8, 4, 8> mesh;
+///   const eng::ai::NavPoint<eng::s32> v0[4] {{0,0},{10,0},{10,10},{0,10}};
+///   const eng::ai::NavPoint<eng::s32> v1[4] {{10,0},{20,0},{20,10},{10,10}};
+///   const eng::u16 a = mesh.add_polygon(v0);
+///   const eng::u16 b = mesh.add_polygon(v1);
 ///   mesh.add_portal(a, b, {10, 0}, {10, 10});
-///   eng::Point2s path[8];
+///   eng::ai::NavPoint<eng::s32> path[8];
 ///   const eng::usize n = mesh.find_path({5,5}, {15,5}, g, came, closed, path);
 ///
 /// ```text
 ///   mundo transitable              NavMesh (polígonos convexos)              agente
 ///   ─────────────────              ────────────────────────────              ──────
 ///   add_polygon(vértices) ──► [ polígonos convexos: vértices + adyacencia ]
-///   add_portal(a,b,p0,p1) ──► [ portales: arista compartida a↔b ] ──► A* por adyacencia (sin heap)
+///   add_portal(a,b,p0,p1) ──► [ portales: coste + terreno + arista a↔b ] ─► A* (sin heap)
 ///                                                                        │
 ///                        find_path ─────────► puntos MEDIOS de portales ─┘
 ///                        find_smooth_path ──► string-pulling (embudo) = solo esquinas visibles
@@ -35,12 +38,40 @@
 ///
 /// Verificación: HOST-118.
 
+#include <eng/ai/navigation/point.hpp>
+#include <eng/core/arith.hpp>
+#include <eng/core/geometry.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/util/priority_queue.hpp>
-#include <eng/core/arith.hpp>
 
 namespace eng::ai {
+
+/// **Punto 2D genérico** del navmesh (compartido con `waypoints`): mismos campos `x`/`y` que
+/// `Point2s`, pero sobre el escalar `S` (`s16`/`s32`/`float`…). Definido en `navigation/point.hpp`.
+
+/// **Política de producto cruz 2D por defecto**: `(b-a) x (p-a)` en el propio escalar. Para el
+/// 68000 con `S = s16` conviene una política con `muls.w` y resultado ancho (p. ej. `s32`); el
+/// algoritmo solo usa el signo, así que cualquier tipo con signo sirve.
+template <class S>
+struct NavCross2 {
+	using result = S;
+	[[nodiscard]] static constexpr result op(NavPoint<S> a, NavPoint<S> b,
+						 NavPoint<S> p) noexcept {
+		return static_cast<S>((b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x));
+	}
+};
+
+/// **Perfil de movimiento**: qué bits de terreno puede cruzar el agente. Filtra los portales
+/// (`Portal::terrain`); los que no pasan el filtro no se expanden en el A*.
+struct MovementProfile {
+	eng::u16 allowed = 0xffffu; ///< máscara de bits de terreno transitables
+
+	/// ¿Puede el agente cruzar un portal de este terreno? (`terrain` debe estar en la máscara).
+	[[nodiscard]] constexpr bool allows(eng::u16 terrain) const noexcept {
+		return (terrain & static_cast<eng::u16>(~allowed)) == 0u;
+	}
+};
 
 namespace detail {
 
@@ -60,13 +91,16 @@ struct NavCmp {
 
 } // namespace detail
 
-template <eng::u16 MaxPolys, eng::u16 MaxVertsPerPoly, eng::u16 MaxPortals>
+template <class S, eng::u16 MaxPolys, eng::u16 MaxVertsPerPoly, eng::u16 MaxPortals,
+	  class Cross = NavCross2<S>>
 class NavMesh {
 	static_assert(MaxPolys > 0u, "NavMesh: MaxPolys debe ser mayor que 0");
 	static_assert(MaxVertsPerPoly >= 3u, "NavMesh: un poligono necesita 3 vertices");
 	static_assert(MaxPortals > 0u, "NavMesh: MaxPortals debe ser mayor que 0");
 
 public:
+	using Point = NavPoint<S>;
+
 	static constexpr eng::u16 no_poly = 0xffffu;
 
 	[[nodiscard]] constexpr eng::u16 poly_count() const noexcept { return m_poly_count; }
@@ -74,7 +108,7 @@ public:
 
 	/// Añade un polígono **convexo** (3..`MaxVertsPerPoly` vértices); devuelve su índice
 	/// o `no_poly` si no cabe.
-	[[nodiscard]] constexpr eng::u16 add_polygon(eng::Span<const eng::Point2s> verts) noexcept {
+	[[nodiscard]] constexpr eng::u16 add_polygon(eng::Span<const Point> verts) noexcept {
 		if (m_poly_count >= MaxPolys || verts.size() < 3u ||
 		    verts.size() > MaxVertsPerPoly) {
 			return no_poly;
@@ -86,28 +120,30 @@ public:
 		return m_poly_count++;
 	}
 
-	/// Declara un **portal** (arista compartida) entre `a` y `b`, con sus dos extremos
-	/// `p0`/`p1`. `false` si no cabe o los polígonos no existen.
-	[[nodiscard]] constexpr bool add_portal(eng::u16 a, eng::u16 b, eng::Point2s p0,
-						eng::Point2s p1) noexcept {
+	/// Declara un **portal** (arista compartida) entre `a` y `b`, con sus dos extremos `p0`/`p1`,
+	/// un **coste** de cruce (`0` = usar la distancia entre anclas) y un bit de **terreno**.
+	/// `false` si no cabe o los polígonos no existen.
+	[[nodiscard]] constexpr bool add_portal(eng::u16 a, eng::u16 b, Point p0, Point p1,
+						eng::u16 cost = 0u,
+						eng::u16 terrain = 0u) noexcept {
 		if (a >= m_poly_count || b >= m_poly_count || a == b ||
 		    m_portal_count >= MaxPortals) {
 			return false;
 		}
-		m_portals[m_portal_count] = Portal {a, b, p0, p1};
+		m_portals[m_portal_count] = Portal {a, b, p0, p1, cost, terrain};
 		++m_portal_count;
 		return true;
 	}
 
 	/// ¿Está `p` dentro del polígono convexo `poly`? (incluye el borde).
-	[[nodiscard]] constexpr bool contains(eng::u16 poly, eng::Point2s p) const noexcept {
+	[[nodiscard]] constexpr bool contains(eng::u16 poly, Point p) const noexcept {
 		const eng::u16 n = m_counts[poly];
 		bool pos = false;
 		bool neg = false;
 		for (eng::u16 i = 0u; i < n; ++i) {
-			const eng::Point2s a = m_verts[poly][i];
-			const eng::Point2s b = m_verts[poly][static_cast<eng::u16>((i + 1u) % n)];
-			const eng::s32 c = cross(a, b, p);
+			const Point a = m_verts[poly][i];
+			const Point b = m_verts[poly][static_cast<eng::u16>((i + 1u) % n)];
+			const auto c = cross(a, b, p);
 			if (c > 0) {
 				pos = true;
 			} else if (c < 0) {
@@ -120,8 +156,32 @@ public:
 		return true;
 	}
 
-	/// Polígono que contiene `p`, o `no_poly`.
-	[[nodiscard]] constexpr eng::u16 locate(eng::Point2s p) const noexcept {
+	/// Polígono que contiene `p`, o `no_poly`. Recorre todos los polígonos (búsqueda lineal).
+	[[nodiscard]] constexpr eng::u16 locate(Point p) const noexcept {
+		return locate_from(p, no_poly);
+	}
+
+	/// Como `locate`, pero probando primero la **pista** `hint` (el polígono donde estaba el agente)
+	/// y sus **vecinos** por portal antes del recorrido lineal. Es la caché de `locate` por agente:
+	/// el llamador guarda el polígono actual y lo reutiliza mientras el agente no cruce un portal.
+	[[nodiscard]] constexpr eng::u16 locate_from(Point p, eng::u16 hint) const noexcept {
+		if (hint < m_poly_count && contains(hint, p)) {
+			return hint;
+		}
+		if (hint < m_poly_count) {
+			for (eng::u16 e = 0u; e < m_portal_count; ++e) {
+				const Portal& portal = m_portals[e];
+				eng::u16 nb = no_poly;
+				if (portal.a == hint) {
+					nb = portal.b;
+				} else if (portal.b == hint) {
+					nb = portal.a;
+				}
+				if (nb != no_poly && contains(nb, p)) {
+					return nb;
+				}
+			}
+		}
 		for (eng::u16 i = 0u; i < m_poly_count; ++i) {
 			if (contains(i, p)) {
 				return i;
@@ -133,12 +193,12 @@ public:
 	/// A* sobre la adyacencia de polígonos de `start` a `goal`. Rellena `g_score`,
 	/// `came_from` y `closed` (por polígono), y escribe en `out` los puntos medios de los
 	/// portales intermedios más el destino. Devuelve el número de puntos (>= 1), o `0` si
-	/// no hay camino / algún punto cae fuera de la malla / no cabe.
-	[[nodiscard]] constexpr eng::usize find_path(eng::Point2s start, eng::Point2s goal,
+	/// no hay camino / algún punto cae fuera de la malla / no cabe. `profile` filtra portales.
+	[[nodiscard]] constexpr eng::usize find_path(Point start, Point goal,
 						     eng::Span<eng::u16> g_score,
 						     eng::Span<eng::s16> came_from,
-						     eng::Span<eng::u8> closed,
-						     eng::Span<eng::Point2s> out) const noexcept {
+						     eng::Span<eng::u8> closed, eng::Span<Point> out,
+						     const MovementProfile& profile = {}) const noexcept {
 		constexpr eng::usize N = MaxPolys;
 		if (g_score.size() < N || came_from.size() < N || closed.size() < N ||
 		    out.empty()) {
@@ -153,7 +213,7 @@ public:
 			out[0] = goal;
 			return 1u;
 		}
-		if (!search_polys(s, g, g_score, came_from, closed)) {
+		if (!search_polys(s, g, profile, g_score, came_from, closed)) {
 			return 0u;
 		}
 		return emit_path(s, g, goal, came_from, out);
@@ -162,11 +222,11 @@ public:
 	/// Como `find_path`, pero aplica **string-pulling** (funnel) sobre los portales: el
 	/// camino sale como la secuencia de esquinas visibles (menos puntos y sin zigzag).
 	/// Mismos requisitos y valores de retorno que `find_path`.
-	[[nodiscard]] constexpr eng::usize find_smooth_path(eng::Point2s start, eng::Point2s goal,
+	[[nodiscard]] constexpr eng::usize find_smooth_path(Point start, Point goal,
 							    eng::Span<eng::u16> g_score,
 							    eng::Span<eng::s16> came_from,
-							    eng::Span<eng::u8> closed,
-							    eng::Span<eng::Point2s> out) const noexcept {
+							    eng::Span<eng::u8> closed, eng::Span<Point> out,
+							    const MovementProfile& profile = {}) const noexcept {
 		constexpr eng::usize N = MaxPolys;
 		if (g_score.size() < N || came_from.size() < N || closed.size() < N ||
 		    out.empty()) {
@@ -181,7 +241,7 @@ public:
 			out[0] = goal;
 			return 1u;
 		}
-		if (!search_polys(s, g, g_score, came_from, closed)) {
+		if (!search_polys(s, g, profile, g_score, came_from, closed)) {
 			return 0u;
 		}
 		eng::u16 seq[MaxPolys] {};
@@ -191,8 +251,8 @@ public:
 			return 0u;
 		}
 
-		eng::Point2s lefts[MaxPolys] {};
-		eng::Point2s rights[MaxPolys] {};
+		Point lefts[MaxPolys] {};
+		Point rights[MaxPolys] {};
 		eng::usize portals = 0u;
 		for (eng::usize i = 0u; i + 1u < len; ++i) {
 			const Portal* portal = find_portal(seq[i], seq[i + 1u]);
@@ -207,48 +267,53 @@ public:
 			out[0] = goal;
 			return 1u;
 		}
-		return funnel(start, goal, eng::Span<const eng::Point2s> {lefts, portals},
-			      eng::Span<const eng::Point2s> {rights, portals}, out);
+		return funnel(start, goal, eng::Span<const Point> {lefts, portals},
+			      eng::Span<const Point> {rights, portals}, out);
 	}
 
 private:
 	struct Portal {
 		eng::u16 a;
 		eng::u16 b;
-		eng::Point2s p0;
-		eng::Point2s p1;
+		Point p0;
+		Point p1;
+		eng::u16 cost;    ///< coste de cruce (0 = usar la distancia entre anclas)
+		eng::u16 terrain; ///< bit de terreno (colina/agua/puerta…) para `MovementProfile`
 	};
 
-	/// Producto vectorial `(b-a) x (p-a)` con `muls.w` (16x16 -> 32): las diferencias
-	/// deben caber en `s16` (coordenadas de malla pequeñas).
-	[[nodiscard]] static constexpr eng::s32 cross(eng::Point2s a, eng::Point2s b,
-						      eng::Point2s p) noexcept {
-		const eng::s16 abx = static_cast<eng::s16>(b.x - a.x);
-		const eng::s16 aby = static_cast<eng::s16>(b.y - a.y);
-		const eng::s16 apx = static_cast<eng::s16>(p.x - a.x);
-		const eng::s16 apy = static_cast<eng::s16>(p.y - a.y);
-		return eng::math::mul_wide(abx, apy) - eng::math::mul_wide(aby, apx);
+	/// Producto cruz `(b-a) x (p-a)` por la **política** `Cross` (genérica; en el 68000 con `s16`,
+	/// `muls.w` y resultado ancho). El algoritmo solo usa el signo.
+	[[nodiscard]] static constexpr auto cross(Point a, Point b, Point p) noexcept {
+		return Cross::op(a, b, p);
+	}
+
+	/// Valor absoluto del escalar (para la métrica Manhattan).
+	[[nodiscard]] static constexpr S abs_s(S v) noexcept {
+		return v < eng::math::scalar_traits<S>::zero() ? static_cast<S>(-v) : v;
 	}
 
 	/// Distancia Manhattan `|dx| + |dy|` (saturada a `u16`). Es **admisible** para la
 	/// heurística del A* y se usa también como métrica auxiliar.
-	[[nodiscard]] static constexpr eng::u16 manhattan(eng::Point2s a,
-							  eng::Point2s b) noexcept {
-		eng::s32 dx = static_cast<eng::s32>(a.x) - b.x;
-		if (dx < 0) {
-			dx = -dx;
+	[[nodiscard]] static constexpr eng::u16 manhattan(Point a, Point b) noexcept {
+		const S d = static_cast<S>(abs_s(static_cast<S>(a.x - b.x)) +
+					   abs_s(static_cast<S>(a.y - b.y)));
+		const S cap = eng::math::scalar_traits<S>::from_int(0xffff);
+		if (cap < d) {
+			return 0xffffu;
 		}
-		eng::s32 dy = static_cast<eng::s32>(a.y) - b.y;
-		if (dy < 0) {
-			dy = -dy;
-		}
-		const eng::s32 d = dx + dy;
-		return d > 0xffff ? static_cast<eng::u16>(0xffffu) : static_cast<eng::u16>(d);
+		return static_cast<eng::u16>(eng::math::scalar_traits<S>::to_int(d));
 	}
 
 	/// Ancla = primer vértice (evita dividir para el centroide).
 	[[nodiscard]] constexpr eng::u16 anchor_distance(eng::u16 a, eng::u16 b) const noexcept {
 		return manhattan(m_verts[a][0], m_verts[b][0]);
+	}
+
+	/// Coste de cruzar un portal: su coste propio (terreno/peligro) o, si es 0, la distancia entre
+	/// las anclas de los polígonos.
+	[[nodiscard]] constexpr eng::u16 portal_cost(const Portal& portal, eng::u16 cur,
+						     eng::u16 nb) const noexcept {
+		return portal.cost != 0u ? portal.cost : anchor_distance(cur, nb);
 	}
 
 	/// Heurística admisible del A* entre los nodos `from`/`to` (Manhattan entre sus vértices
@@ -258,15 +323,17 @@ private:
 	}
 
 	/// Punto medio entre `a` y `b`. Lo usa la construcción de portales entre polígonos.
-	[[nodiscard]] static constexpr eng::Point2s midpoint(eng::Point2s a,
-							     eng::Point2s b) noexcept {
-		return eng::Point2s {
-			static_cast<eng::s16>((static_cast<eng::s32>(a.x) + b.x) / 2),
-			static_cast<eng::s16>((static_cast<eng::s32>(a.y) + b.y) / 2)};
+	[[nodiscard]] static constexpr Point midpoint(Point a,
+						     Point b) noexcept {
+		const S two = eng::math::scalar_traits<S>::from_int(2);
+		return Point {eng::math::div_norm(static_cast<S>(a.x + b.x), two),
+			      eng::math::div_norm(static_cast<S>(a.y + b.y), two)};
 	}
 
-	/// A* sobre la adyacencia; deja `came_from`/`g_score`/`closed` y dice si llegó a `g`.
+	/// A* sobre la adyacencia; deja `came_from`/`g_score`/`closed` y dice si llegó a `g`. Los
+	/// portales que el `profile` no permite (`terrain`) no se expanden.
 	[[nodiscard]] constexpr bool search_polys(eng::u16 s, eng::u16 g,
+						  const MovementProfile& profile,
 						  eng::Span<eng::u16> g_score,
 						  eng::Span<eng::s16> came_from,
 						  eng::Span<eng::u8> closed) const noexcept {
@@ -301,11 +368,11 @@ private:
 				} else {
 					continue;
 				}
-				if (closed[nb] != 0u) {
+				if (closed[nb] != 0u || !profile.allows(portal.terrain)) {
 					continue;
 				}
 				const eng::u32 ng = static_cast<eng::u32>(g_score[cur.idx]) +
-						    anchor_distance(cur.idx, nb);
+						    portal_cost(portal, cur.idx, nb);
 				if (ng < g_score[nb]) {
 					g_score[nb] = static_cast<eng::u16>(ng > 0xffffu ? 0xffffu : ng);
 					came_from[nb] = static_cast<eng::s16>(cur.idx);
@@ -358,19 +425,19 @@ private:
 		return nullptr;
 	}
 
-	[[nodiscard]] static constexpr bool eq(eng::Point2s a, eng::Point2s b) noexcept {
+	[[nodiscard]] static constexpr bool eq(Point a, Point b) noexcept {
 		return a.x == b.x && a.y == b.y;
 	}
 
 	/// Orienta los extremos del portal como izquierda/derecha del sentido de avance,
 	/// usando un vértice interior del polígono vecino.
-	constexpr void orient(eng::u16 interior_poly, eng::Point2s p0, eng::Point2s p1,
-			      eng::Point2s& left, eng::Point2s& right) const noexcept {
+	constexpr void orient(eng::u16 interior_poly, Point p0, Point p1,
+			      Point& left, Point& right) const noexcept {
 		const eng::u16 n = m_counts[interior_poly];
-		eng::Point2s other {};
+		Point other {};
 		bool found = false;
 		for (eng::u16 i = 0u; i < n; ++i) {
-			const eng::Point2s v = m_verts[interior_poly][i];
+			const Point v = m_verts[interior_poly][i];
 			if (!eq(v, p0) && !eq(v, p1)) {
 				other = v;
 				found = true;
@@ -382,7 +449,7 @@ private:
 			right = p1;
 			return;
 		}
-		const eng::Point2s mid = midpoint(p0, p1);
+		const Point mid = midpoint(p0, p1);
 		if (cross(mid, other, p0) > 0) {
 			left = p0;
 			right = p1;
@@ -395,24 +462,24 @@ private:
 	/// Algoritmo del embudo (simple stupid funnel): encoge el pasillo de portales a la
 	/// secuencia de esquinas visibles.
 	[[nodiscard]] static constexpr eng::usize funnel(
-		eng::Point2s start, eng::Point2s goal,
-		eng::Span<const eng::Point2s> lefts, eng::Span<const eng::Point2s> rights,
-		eng::Span<eng::Point2s> out) noexcept {
+		Point start, Point goal,
+		eng::Span<const Point> lefts, eng::Span<const Point> rights,
+		eng::Span<Point> out) noexcept {
 		if (out.empty()) {
 			return 0u;
 		}
 		eng::usize count = 0u;
 		out[count++] = start;
-		eng::Point2s apex = start;
-		eng::Point2s left = start;
-		eng::Point2s right = start;
+		Point apex = start;
+		Point left = start;
+		Point right = start;
 		eng::s32 apex_i = -1;
 		eng::s32 left_i = -1;
 		eng::s32 right_i = -1;
 		const eng::s32 n = static_cast<eng::s32>(lefts.size());
 		for (eng::s32 i = 0; i < n; ++i) {
-			const eng::Point2s p_left = lefts[static_cast<eng::usize>(i)];
-			const eng::Point2s p_right = rights[static_cast<eng::usize>(i)];
+			const Point p_left = lefts[static_cast<eng::usize>(i)];
+			const Point p_right = rights[static_cast<eng::usize>(i)];
 			if (cross(apex, right, p_right) <= 0) {
 				if (right_i == apex_i || cross(apex, left, p_right) > 0) {
 					right = p_right;
@@ -458,9 +525,9 @@ private:
 	}
 
 	[[nodiscard]] constexpr eng::usize emit_path(eng::u16 s, eng::u16 g,
-						     eng::Point2s goal,
+						     Point goal,
 						     eng::Span<eng::s16> came_from,
-						     eng::Span<eng::Point2s> out) const noexcept {
+						     eng::Span<Point> out) const noexcept {
 		eng::u16 seq[MaxPolys] {};
 		const eng::usize len = reconstruct_seq(
 			s, g, came_from, eng::Span<eng::u16> {seq, MaxPolys});
@@ -485,7 +552,7 @@ private:
 		return count;
 	}
 
-	eng::Point2s m_verts[MaxPolys][MaxVertsPerPoly] {};
+	Point m_verts[MaxPolys][MaxVertsPerPoly] {};
 	eng::u16 m_counts[MaxPolys] {};
 	Portal m_portals[MaxPortals] {};
 	eng::u16 m_poly_count = 0u;

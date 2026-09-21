@@ -7,10 +7,11 @@
 /// **posiciones** y la heurística Manhattan. Complementa al campo de flujo (para muchos
 /// agentes hacia un mismo destino): aquí el destino cambia por agente.
 ///
-/// El `scratch` lo aporta el llamador (sin heap), como en `eng::util::pathfinding`.
+/// **Genérico sobre el escalar `S`** (posiciones `NavPoint<S>`). El `scratch` lo aporta el
+/// llamador (sin heap), como en `eng::util::pathfinding`.
 ///
 /// Uso:
-///   eng::ai::WaypointGraph<16, 24> graph;
+///   eng::ai::WaypointGraph<eng::s32, 16, 24> graph;
 ///   const eng::u16 a = graph.add_node({0, 0});
 ///   const eng::u16 b = graph.add_node({10, 0});
 ///   graph.add_edge(a, b, 10);
@@ -19,13 +20,15 @@
 ///
 /// Verificación: HOST-116.
 
+#include <eng/ai/navigation/point.hpp>
+#include <eng/core/geometry.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/util/graph.hpp>
 
 namespace eng::ai {
 
-template <eng::u16 MaxNodes, eng::u16 MaxEdges>
+template <class S, eng::u16 MaxNodes, eng::u16 MaxEdges>
 class WaypointGraph {
 	static_assert(MaxNodes > 0u, "WaypointGraph: MaxNodes debe ser mayor que 0");
 	static_assert(MaxEdges > 0u, "WaypointGraph: MaxEdges debe ser mayor que 0");
@@ -36,7 +39,7 @@ public:
 	[[nodiscard]] constexpr eng::u16 node_count() const noexcept { return m_graph.node_count(); }
 	/// Número de aristas **lógicas** añadidas (cada una ocupa dos dirigidas en el grafo).
 	[[nodiscard]] constexpr eng::u16 edge_count() const noexcept { return m_edges; }
-	[[nodiscard]] constexpr eng::Point2s position(eng::u16 node) const noexcept {
+	[[nodiscard]] constexpr NavPoint<S> position(eng::u16 node) const noexcept {
 		return m_pos[node];
 	}
 
@@ -46,7 +49,7 @@ public:
 	}
 
 	/// Añade un nodo; devuelve su índice o `no_node` si no cabe.
-	[[nodiscard]] constexpr eng::u16 add_node(eng::Point2s p) noexcept {
+	[[nodiscard]] constexpr eng::u16 add_node(NavPoint<S> p) noexcept {
 		const eng::u16 id = m_graph.add_node();
 		if (id != no_node) {
 			m_pos[id] = p;
@@ -80,22 +83,25 @@ public:
 
 private:
 	[[nodiscard]] eng::u16 heuristic(eng::u16 from, eng::u16 to) const noexcept {
-		const eng::Point2s a = m_pos[from];
-		const eng::Point2s b = m_pos[to];
-		eng::s32 dx = static_cast<eng::s32>(a.x) - b.x;
-		if (dx < 0) {
-			dx = -dx;
+		const NavPoint<S> a = m_pos[from];
+		const NavPoint<S> b = m_pos[to];
+		const S dx = abs_s(static_cast<S>(a.x - b.x));
+		const S dy = abs_s(static_cast<S>(a.y - b.y));
+		const S d = static_cast<S>(dx + dy);
+		const S cap = eng::math::scalar_traits<S>::from_int(0xffff);
+		if (cap < d) {
+			return 0xffffu;
 		}
-		eng::s32 dy = static_cast<eng::s32>(a.y) - b.y;
-		if (dy < 0) {
-			dy = -dy;
-		}
-		const eng::s32 d = dx + dy;
-		return d > 0xffff ? static_cast<eng::u16>(0xffffu) : static_cast<eng::u16>(d);
+		return static_cast<eng::u16>(eng::math::scalar_traits<S>::to_int(d));
+	}
+
+	/// Valor absoluto del escalar (para la métrica Manhattan).
+	[[nodiscard]] static constexpr S abs_s(S v) noexcept {
+		return v < eng::math::scalar_traits<S>::zero() ? static_cast<S>(-v) : v;
 	}
 
 	eng::util::Graph<MaxNodes, MaxEdges> m_graph {};
-	eng::Point2s m_pos[MaxNodes] {};
+	NavPoint<S> m_pos[MaxNodes] {};
 	eng::u16 m_edges = 0u;
 };
 

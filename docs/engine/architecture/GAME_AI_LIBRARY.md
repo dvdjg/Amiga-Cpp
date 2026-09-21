@@ -230,24 +230,21 @@ Coste medido: `compute_flow_field<8,8>` (sonda `c_flow_field_ops`) 40 instruccio
 libcalls. El `PriorityQueue` interno es `W*H` inline: se calcula en `init`/fondo.
 Verificación: HOST-114.
 
-`waypoints.hpp`: `WaypointGraph<MaxNodes,MaxEdges>` (nodos con posición y aristas
+`waypoints.hpp`: `WaypointGraph<S,MaxNodes,MaxEdges>` (nodos con posición `NavPoint<S>` y aristas
 bidireccionales con coste) y A* sobre el grafo con heurística Manhattan y `scratch` del
-llamador. Es el complemento del campo de flujo: aquí el destino cambia por agente y el
-camino se calcula a petición.
-
-Coste medido: `find_path` sobre un grafo de 3 nodos (sonda `c_waypoints_ops`) 74
-instrucciones, sin libcalls. Verificación: HOST-116.
+llamador. **Genérico sobre el escalar** `S`. Es el complemento del campo de flujo: aquí el destino
+cambia por agente y el camino se calcula a petición. Verificación: HOST-116.
 
 `navmesh_lite.hpp`: versión mínima de Recast/Detour. El mundo transitable se divide en
 **polígonos convexos** (`add_polygon`) unidos por **portales** (`add_portal`, la arista
 compartida); A* recorre la adyacencia. `find_path` devuelve los puntos medios de los
 portales y `find_smooth_path` aplica **string-pulling** con el algoritmo del embudo (*simple
-stupid funnel*) para quedarse solo con las esquinas visibles. Incluye `locate` (punto en
-polígono) pero no el cocido de la malla: la malla la construye el juego. Usa el primer
-vértice como ancla (evita dividir) y `muls.w` para el producto vectorial.
-
-Coste medido: localizar + A* con y sin suavizado entre 2 polígonos (sonda `c_navmesh_ops`)
-661 instrucciones y 12 `muls.w`, sin libcalls. Verificación: HOST-118.
+stupid funnel*) para quedarse solo con las esquinas visibles. Es **genérico sobre el escalar**
+(`NavPoint<S>`), con el producto cruz como **política** (`Cross`; `NavCrossWide` con `muls.w` para
+`s16`). `locate_from(p, hint)` es la **caché de `locate`** por agente (prueba el polígono anterior
+y sus vecinos); `add_portal` admite **coste** y **terreno**, y `MovementProfile` filtra los portales
+que el agente puede cruzar. Usa el primer vértice como ancla (evita dividir). Verificación:
+HOST-118.
 
 ## 6. Movimiento: steering (`eng/ai/steering/steering.hpp`)
 
@@ -297,8 +294,8 @@ HOST-117.
 | `decision/behavior_tree.hpp` | `BehaviorTree<MaxNodes>`, `BtStatus`, `BtTask`: secuencia/selector sin heap | Implementado, HOST-113 |
 | `decision/blackboard.hpp` | `Blackboard<Key,Value,MaxKeys>`: memoria compartida `O(1)` | Implementado, HOST-111 |
 | `navigation/flow_field.hpp` | `compute_flow_field<W,H>`, `flow_next<W>`, `FlowDir`: campo de flujo multi-fuente | Implementado, HOST-114 |
-| `navigation/waypoints.hpp` | `WaypointGraph<MaxNodes,MaxEdges>`, `find_path` (A* Manhattan) | Implementado, HOST-116 |
-| `navigation/navmesh_lite.hpp` | `NavMesh`, `locate`, `find_path` (A* por portales) | Implementado, HOST-118 |
+| `navigation/waypoints.hpp` | `WaypointGraph<S,MaxNodes,MaxEdges>`, `find_path` (A* Manhattan) | Implementado, HOST-116 |
+| `navigation/navmesh_lite.hpp` | `NavMesh<S,...>` (cruz como política), `locate`/`locate_from`, `find_path`/`find_smooth_path`, coste+terreno por portal, `MovementProfile` | Implementado, HOST-118 |
 | `steering/steering.hpp` | `seek`/`flee`/`arrive`, `separation`/`cohesion`/`alignment`/`flock`, `pursue`/`evade`/`wander`/`avoid_circles` | Implementado, HOST-115 |
 | `steering/crowd.hpp` | `Crowd<S, Broadphase>`: crowd genérico sobre el escalar (separación + evasión + integración), con fase amplia de vecinos como política (`SpatialHash`/fuerza bruta) | Implementado, HOST-249 |
 | `perception/influence_map.hpp` | `InfluenceMap<W,H>`: deposit/decay/strongest | Implementado, HOST-117 |

@@ -30,7 +30,7 @@ void check(bool ok, const char* what) {
 	}
 }
 
-using Graph = eng::ai::WaypointGraph<8, 8>;
+using Graph = eng::ai::WaypointGraph<eng::s32, 8, 8>;
 u16 g_g[8] {};
 s16 g_came[8] {};
 u8 g_closed[8] {};
