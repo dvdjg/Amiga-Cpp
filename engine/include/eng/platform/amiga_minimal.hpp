@@ -20,6 +20,7 @@
 #include <eng/graphics/blitter_state.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/polygon_planes.hpp>
+#include <eng/graphics/sprite_collision.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/platform/amiga/blob.hpp>
 
@@ -330,6 +331,14 @@ public:
 	/// **Verificada en hardware**: self-test de la demo 077 (colisión y no-colisión).
 	bool blitter_collide(eng::PlaneBytes a, eng::PlaneBytes b, eng::PlaneBytes scratch,
 			     u8 planes, u16 row_bytes, u32 plane_bytes, u16 words, u16 rows);
+
+	/// **Colisión de hardware de sprites**: configura `CLXCON` (`$DFF098`) según
+	/// `graphics::sprite_collision.hpp` (qué pares de sprite y bitplanes participan).
+	void set_sprite_collision(graphics::SpriteCollisionConfig cfg);
+
+	/// Lee y decodifica `CLXDAT` (`$DFF00E`). **Se autolimpia al leer**: llamar una vez por
+	/// frame. Devuelve qué colisiones se registraron desde la última lectura.
+	[[nodiscard]] graphics::SpriteCollisionResult read_sprite_collision();
 
 	/// **Relleno de polígonos compuesto por bitplane** (Blitter): para cada plano `p`,
 	/// limpia el plano, dibuja el contorno XOR (ONEDOT) de las caras cuyo color tiene el

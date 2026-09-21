@@ -34,8 +34,10 @@ struct SpriteSlot {
 /// terminó en `<= top` (`bottom` es exclusivo), de modo que dos sprites contiguos
 /// comparten canal y uno que empieza en la línea 0 también encuentra canal. El
 /// `channel` de cada `SpriteIntent` se trata como preferencia y se ignora en esta
-/// versión mínima (el asignador decide). No modela aún los pares attached (15 colores,
-/// 2 canales) ni el ancho de 32 px de AGA; se asume 16 px no attached por defecto.
+/// versión mínima (el asignador decide). **Sí** modela los pares **attached** (15 colores):
+/// el par va en un canal PAR y el intent impar (`attach = true`) en el contiguo. El ancho
+/// de 32 px de AGA (`width_words = 2`) no cambia el nº de canales (1 por sprite), solo el
+/// coste de DMA; no altera la asignación.
 class SpriteAllocator {
 public:
 	static constexpr u8 kChannels = 8;
@@ -95,6 +97,43 @@ public:
 				} else {
 					out[i] = SpriteSlot {0u, true}; // la tira no cabe entera
 				}
+				continue;
+			}
+			// Attached (15 colores): el par va en un canal PAR (0+1, 2+3, ...) y el
+			// siguiente intent (el impar, `attach = true`) ocupa el canal contiguo.
+			const bool pair_leader =
+				(static_cast<u8>(i + 1u) < count) && intents[i + 1u].attach;
+			if (pair_leader) {
+				u8 even = 0xff;
+				for (u8 c = 0; static_cast<u8>(c + 1u) < kChannels;
+				     c = static_cast<u8>(c + 2u)) {
+					if (busy_until[c] <= it.top && busy_until[c + 1u] <= it.top) {
+						even = c;
+						break;
+					}
+				}
+				if (even == 0xff) {
+					out[i] = SpriteSlot {0u, true};
+				} else {
+					out[i] = SpriteSlot {even, false};
+					busy_until[even] = it.bottom;
+					++in_hardware;
+				}
+				continue;
+			}
+			if (it.attach) {
+				if (i > 0u && !out[i - 1u].as_bob) {
+					const u8 even = out[i - 1u].channel;
+					const u8 odd = static_cast<u8>(even + 1u);
+					if ((even % 2u) == 0u && odd < kChannels &&
+					    busy_until[odd] <= it.top) {
+						out[i] = SpriteSlot {odd, false};
+						busy_until[odd] = it.bottom;
+						++in_hardware;
+						continue;
+					}
+				}
+				out[i] = SpriteSlot {0u, true}; // el par no cabe: el impar va a BOB
 				continue;
 			}
 			u8 channel = 0xff;

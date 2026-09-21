@@ -125,7 +125,7 @@ necesidad de máscara en RAM.
 | **Rearmado horizontal** | **sí** | `SpriteHorizontalRearm` + `Scheduler::emit_sprite_horizontal_rearm`, intent `SpriteRearm` |
 | **Attached (15 colores)** | **no** | `SpriteConfig` no tiene `attach`; el allocator lo declara pendiente |
 | **Sprite-as-playfield** (abstracción) | **no** | construible con el rearmado horizontal; falta la capa |
-| **Colisión hardware** (CLXCON/CLXDAT) | **sí** (codificación/decodificación) | `graphics/sprite_collision.hpp` |
+| **Colisión hardware** (CLXCON/CLXDAT) | **sí** (utilidad + backend) | `graphics/sprite_collision.hpp`, `MinimalBackend::set/read_sprite_collision` |
 | **Prioridad BPLCON2 por sprite** | parcial | `BPLCON2`/intent `Priority`, sin API de sprites |
 
 ## 12. Referencias
