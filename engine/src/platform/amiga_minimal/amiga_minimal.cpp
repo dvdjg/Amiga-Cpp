@@ -325,6 +325,12 @@ void MinimalBackend::takeover_display(const u16* copper_words) {
 	//    ve porque esto esta en el blanking del arranque.
 	custom_base[custom_dmacon_offset] = dma_clear_all;   // DMACON=0x7FFF
 
+	// 3b) CDANG (COPCON): permite que el Copper escriba los registros del Blitter
+	//     (<0x80). Sin esto, la primera escritura del Copper a un registro del
+	//     Blitter lo detiene (`test_copper_dangerous`, custom.cpp:2835-2840). Es la
+	//     base de la Tecnica A (Copper lanza blits).
+	custom_base[custom_copcon_offset] = copcon_cdang;
+
 	// 4) Programar nuestra copperlist (puntero COP1LC como LONG).
 	*cop1lc = reinterpret_cast<u32>(copper_words);
 

@@ -32,6 +32,7 @@ enum class MsgType : eng::u8 {
 
 	// Sistema / E-S
 	FileDone, FileError, DiskChange,
+	BlitDone, ///< fin de blit (IRQ BLIT)
 
 	// Aplicación
 	User, Quit,

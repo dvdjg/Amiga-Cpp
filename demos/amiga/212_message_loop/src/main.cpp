@@ -23,15 +23,15 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 namespace {
 
 // -----------------------------------------------------------------------------
-// Demo 206 — bucle reactivo del mini-SO (eng::os)
+// Demo 212 — bucle reactivo del mini-SO (eng::os)
 // -----------------------------------------------------------------------------
 // El juego NO sondea hardware: el tick del mini-SO latcha el VBlank y pollea los
 // productores de entrada (ratón puerto 1, joystick puerto 2) posteando mensajes; el
 // bucle reactivo (`MessagePumpGame`) drena el puerto y entrega cada mensaje al App
 // antes de la lógica de frame. La caja se mueve con el joystick.
 //
-//   bash ./tools/build/build-demo.sh demos/amiga/208_message_loop --debug --clean
-//   bash ./tools/run/run-demo.sh demos/amiga/208_message_loop --wait-ms 8000
+//   bash ./tools/build/build-demo.sh demos/amiga/212_message_loop --debug --clean
+//   bash ./tools/run/run-demo.sh demos/amiga/212_message_loop --wait-ms 8000
 // -----------------------------------------------------------------------------
 
 eng::s16 clamp_s16(eng::s16 v, eng::s16 lo, eng::s16 hi) {
@@ -49,7 +49,7 @@ struct DemoApp {
 
 	void on_start(auto&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		eng::debug::mark_ready(g_eng_run_status, 0x00020600u);
+		eng::debug::mark_ready(g_eng_run_status, 0x00021200u);
 	}
 
 	void on_msg(const eng::os::Msg& m) {
@@ -83,7 +83,7 @@ struct DemoApp {
 		d.clear();
 		d.filled_rect(40, 40, 720, 520, 0x00082030);
 		d.rect(40, 40, 720, 520, 0x00ffffff);
-		d.text(64, 60, "AMG demo 206 - mini-OS message loop", 0x00ffffff);
+		d.text(64, 60, "AMG demo 212 - mini-OS message loop", 0x00ffffff);
 		d.text(64, 88, "VBlank + input por mensajes (sin sondear hardware)", 0x0000ff80);
 
 		char line[64];

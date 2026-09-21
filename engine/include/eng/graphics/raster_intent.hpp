@@ -55,12 +55,13 @@ struct Visual {
 
 /// Qué registro/grupo de registros cambia una intención de Copper.
 ///
-/// El vocabulario cubre las familias de efecto por raster que usan las demos. Para
-/// "barrer todo lo que se puede hacer con el Copper" faltan explícitamente:
+/// El vocabulario cubre las familias de efecto por raster que usan las demos. `BlitterJob`
+/// cubre el lanzamiento de un blit (`BLTCON*`/punteros/módulos/`BLTSIZE`). Para "barrer todo
+/// lo que se puede hacer con el Copper" faltan explícitamente:
 ///
 /// - `Wait`/`Skip` crudos y `MoveSequence` opacos: hoy se emiten con
 ///   `Scheduler::wait_position`/`move` directamente; un kind portable capturaría efectos
-///   que no son "paleta" ni "layout" (p. ej. cambiar `DMACON`/`BLTCON` en una línea).
+///   que no son "paleta" ni "layout" (p. ej. cambiar `DMACON` en una línea).
 /// - `SpriteAttach` como intención explícita (hoy viaja en `SpriteIntent::attach`).
 /// - `BitplaneModulo` por franja (`BPL1MOD`/`BPL2MOD`), base de los trucos de
 ///   `modulo-tricks.md` (fetch discontinuo, líneas de repetición).
@@ -76,6 +77,51 @@ enum class CopperIntentKind : u8 {
     BitplaneSplit,  // reapuntar planos a media pantalla (HUD, bandas)
     SpriteRearm,    // reapuntar SPRxPT/POS/CTL (multiplexado vertical)
     Priority,       // cambiar prioridad sprite/playfield (BPLCON2)
+    BlitterJob,     // programar el Blitter y escribir BLTSIZE (blit lanzado por el Copper)
+};
+
+/// **Trabajo de Blitter lanzado por el Copper** (Técnica A: Copper → Blitter).
+///
+/// El Copper programa los registros del Blitter en la linea `CopperIntent::top` y escribe
+/// `BLTSIZE` **al final** (arranca el blit). Sirve para un blit **sincronizado al haz**
+/// (reparar el borde de un scroll, copiar la columna nueva, HUD, cola de blits) sin coste de
+/// CPU por el arranque.
+///
+/// El Blitter es **único**: este job se serializa con los blits de CPU. El `Scheduler`
+/// solo lo emite si la linea cae en la **ventana segura** declarada con
+/// `Scheduler::set_blitter_window` (p. ej. el borde inferior, fuera del fetch de bitplanes y
+/// de los blits de CPU que hace `present`). Ver
+/// `docs/reference/amiga/techniques/blitter-cpu-interleaving.md` y
+/// `docs/guides/roadmap/ROADMAP_BLITTER_COPPER.md`.
+///
+/// Los punteros nulos se omiten (no se escriben). Convención de uso: para `D = A` (copia)
+/// basta `bltcon0 = USEA|USED|minterm $F0`; para `D = A | D` (BOB OR) `USEA|USEB|USED|$FC`
+/// con B = D = destino.
+struct BlitterJob {
+    u16 bltcon0 = 0;
+    u16 bltcon1 = 0;
+    u16 bltafwm = 0xffff;
+    u16 bltalwm = 0xffff;
+    s16 bltamod = 0;
+    s16 bltbmod = 0;
+    s16 bltcmod = 0;
+    s16 bltdmod = 0;
+    const void* bltapt = nullptr;
+    const void* bltbpt = nullptr;
+    const void* bltcpt = nullptr;
+    void* bltdpt = nullptr;
+    u16 bltsize = 0; ///< se escribe el ULTIMO: dispara el blit
+};
+
+/// **Ventana segura** (rango de líneas, inclusivo) para lanzar un `BlitterJob` desde el
+/// Copper. Debe excluir el área visible (fetch de bitplanes) y el momento en que la CPU
+/// lanza blits (`present`); lo típico es el borde inferior o el VBlank.
+struct BlitterWindow {
+    u16 first = 0;
+    u16 last = 0;
+    [[nodiscard]] constexpr bool contains(u16 line) const noexcept {
+        return line >= first && line <= last;
+    }
 };
 
 /// **Rearmado horizontal de un canal de sprite** (multiplexado horizontal por línea).
@@ -127,6 +173,7 @@ struct CopperIntent {
     eng::PlaneBytes bitplanes {};  // BitplaneSplit (base del primer plano)
     u8  sprite_channel = 0;       // SpriteRearm
     const u16* sprite_ptr = nullptr; // SpriteRearm (nueva DATA del canal)
+    const BlitterJob* blitter_job = nullptr; // BlitterJob (registros a programar)
 };
 
 /// Asignacion de un sprite hardware a un canal, para el `SpriteAllocator`.

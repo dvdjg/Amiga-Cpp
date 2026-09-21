@@ -144,18 +144,25 @@ public:
 		u16 data_high = 0;  ///< SPRxDATA (primera palabra de la fila) — canales Copper
 		u16 data_low = 0;   ///< SPRxDATB (segunda palabra) — canales Copper
 		u16 bplcon2 = 0;    ///< prioridad (`BPLCON2`); sprites detrás del playfield = fondo
+		u16 arm_hpos = 0x40; ///< posición H del `WAIT` de rearmado: debe caer **después** del
+		                     ///< fetch DMA de sprites (`DDFSTRT`) y **antes** de la primera
+		                     ///< columna, para que la DATA del Copper gane a la del DMA.
 		/// **Canales DMA** (los `dma_channels` primeros): sprite **alto** (toda la banda) cuya
 		/// estructura en Chip RAM lleva **cabecera `POS`+`CTL`** (`[POS, CTL, DAT0, DATB0, …,
 		/// 0, 0]`); `SPRxPT` apunta al **inicio** de la estructura y Agnus recarga POS/CTL de
-		/// ahí. `SpriteLayer` parchea el POS de la cabecera (scroll). Ver
+		/// ahí. `SpriteLayer` parchea el POS de la cabecera (scroll). El resto de canales
+		/// (Copper) rearman POS/DATA por línea, pero **también necesitan** su estructura:
+		/// sin cabecera/terminador válidos el DMA del canal avanza por memoria y lee una
+		/// cabecera basura (columna fantasma fuera de la banda). Ver
 		/// `spr_layer/Sprite_Layer/` (Jeroen Knoester).
 		u8 dma_channels = 0;
-		u16* dma_data = nullptr; ///< estructuras DMA (una por canal, `dma_stride` words cada una)
+		u16* dma_data = nullptr; ///< estructura DMA por canal (`channels` estructuras de `dma_stride` words)
 		u16 dma_stride = 0;      ///< words por estructura (`2 + dma_height*2 + 2`)
 	};
 
 	/// Configura la capa. `false` si `lines == 0`, `channels` fuera de 1..8, `hpos_step < 16`,
-	/// `dma_channels > channels` o hay canales DMA sin `dma_data`/`dma_stride`.
+	/// `dma_channels > channels` o hay canales DMA sin `dma_data`/`dma_stride`. Si se da
+	/// `dma_data`, debe haber **una estructura por canal** (`dma_stride` words cada una).
 	[[nodiscard]] bool attach(Config cfg) {
 		if (cfg.lines == 0u || cfg.channels == 0u || cfg.channels > 8u ||
 		    cfg.hpos_step < 16u || cfg.dma_channels > cfg.channels ||
@@ -169,24 +176,32 @@ public:
 	/// Desplaza la capa horizontalmente (px low-res; el paso entre columnas no cambia).
 	void set_scroll(u16 x) noexcept { m_scroll = x; }
 
-	/// Emite la capa completa. **Canales DMA**: `SPRxPT`+`CTL`+`POS` (columna alta, posición
-	/// con el scroll; no se rearman por línea). **Canales Copper**: patrón de Jeroen Knoester
-	/// (`spr-layer.html`) — **un `WAIT` al inicio de cada línea** y luego **ráfaga** de
-	/// `SPRxPOS`+`SPRxDATB`+`SPRxDATA` (el `SPRxCTL` se fija una vez por banda; `DATA` arma).
+	/// Emite la capa completa. **Todos los canales** reciben `SPRxPT` apuntando a su
+	/// estructura (`dma_data`), con `POS`+`CTL`: es lo que impide que el DMA de un canal
+	/// Copper siga avanzando por memoria tras el terminador. **Canales DMA** (los primeros):
+	/// solo la estructura (columna alta, posición parcheada con el scroll). **Canales
+	/// Copper**: además, por cada línea, un `WAIT` en `arm_hpos` (después del fetch DMA) y
+	/// una **ráfaga** de `SPRxCTL`+`SPRxPOS`+`SPRxDATB`+`SPRxDATA` que reescribe posición y
+	/// data de la línea; `DATA` arma el sprite.
 	template <class Sched>
 	void emit_into(Sched& sched) const {
 		sched.move(copper::Register::BPLCON2, m_cfg.bplcon2); // prioridad de fondo
 		const u16 vstop = static_cast<u16>(m_cfg.first_line + m_cfg.lines);
 
-		// --- Canales DMA: estructura con CABECERA POS+CTL; SPRxPT apunta a ella ---
-		if (m_cfg.dma_channels > 0u) {
+		// --- Estructuras DMA: SPRxPT + cabecera POS+CTL para TODOS los canales ---
+		// Cada canal (DMA y Copper) apunta a una estructura válida con cabecera y
+		// terminador. Si un canal Copper quedara apuntando a una estructura nula corta,
+		// el DMA del canal seguiría avanzando por memoria y leería basura como cabecera
+		// (columna fantasma fuera de la banda). El Copper reescribe POS/DATA por línea
+		// (más abajo), pero el DMA necesita una estructura consistente.
+		if (m_cfg.dma_data != nullptr && m_cfg.dma_stride != 0u) {
 			const eng::uintptr base = reinterpret_cast<eng::uintptr>(m_cfg.dma_data);
-			for (u8 ch = 0u; ch < m_cfg.dma_channels; ++ch) {
+			for (u8 ch = 0u; ch < m_cfg.channels; ++ch) {
 				const u16 hpos = static_cast<u16>(m_cfg.hpos0 +
 								  static_cast<u16>(ch) * m_cfg.hpos_step + m_scroll);
 				const u16 pos = static_cast<u16>(((m_cfg.first_line & 0xffu) << 8u) |
 								 ((hpos >> 1u) & 0xffu));
-				// Parchear el POS de la cabecera DMA (memoria) y apuntar PT a la estructura.
+				// Parchear el POS de la cabecera y apuntar PT a la estructura del canal.
 				m_cfg.dma_data[static_cast<eng::u32>(ch) * m_cfg.dma_stride] = pos;
 				const eng::uintptr addr =
 					base + static_cast<eng::uintptr>(ch) * m_cfg.dma_stride * 2u;
@@ -199,7 +214,7 @@ public:
 
 		// --- Canales Copper: rearm por línea (WAIT + CTL/POS/DATB/DATA) ---
 		for (u16 line = m_cfg.first_line; line < vstop; ++line) {
-			sched.wait_line_safe(line);
+			sched.wait_position_safe(line, static_cast<u8>(m_cfg.arm_hpos & 0xfeu));
 			const u16 lstop = static_cast<u16>(line + 1u);
 			const u16 ctl = static_cast<u16>(((lstop & 0xffu) << 8u) |
 							 (((line >> 8u) & 0x1u) << 2u) |
@@ -220,12 +235,49 @@ public:
 	/// Emite la capa al plan de la escena (azúcar de `emit_into(scene.scheduler())`).
 	void frame(graphics::composition::Scene& scene) { emit_into(scene.scheduler()); }
 
+	/// Contrato `Effect`: avanza el estado temporal. La capa no anima por sí sola (el
+	/// llamador fija el scroll con `set_scroll`), así que aquí no hace nada.
+	void update(eng::u16) noexcept {}
+
+	/// Tramo de raster que reclama la capa (`reserve_band`): la banda que cubre, con
+	/// `register_mask` = 0 (cualquier registro). Sirve para detectar solapes con otros
+	/// efectos que escriban la misma banda.
+	[[nodiscard]] copper::BandScope band_scope() const noexcept {
+		const u16 last = static_cast<u16>(m_cfg.first_line + m_cfg.lines - 1u);
+		return copper::BandScope {m_cfg.first_line, last, 0u};
+	}
+
+	/// **Coste declarado** del efecto (huella estimada): nº de "aportaciones" (1 `BPLCON2`
+	/// + un rearm por línea y canal Copper) y palabras de Copper (`words_estimate`).
+	[[nodiscard]] copper::EffectCost effect_cost() const noexcept {
+		const u32 copper_ch = static_cast<u32>(m_cfg.channels - m_cfg.dma_channels);
+		const u32 intents = 1u + static_cast<u32>(m_cfg.lines) * copper_ch;
+		return copper::EffectCost {
+			static_cast<u16>(intents), static_cast<u16>(words_estimate())};
+	}
+
+	/// **Contrato `Effect`** sobre el plan de la escena: reserva la banda (`reserve_band`),
+	/// anota el coste (`note_effect_cost`) y emite la capa. Devuelve `false` si la banda
+	/// **solapa** con otro efecto o si el coste no cabe en el presupuesto; la lista se
+	/// emite igualmente (el llamador decide abortar). Registrar como:
+	/// `scene.add_effect([&layer](Scene& s) { layer.update(s.frame()); layer.apply_into(s.plan()); });`
+	[[nodiscard]] bool apply_into(copper::Plan& plan) const {
+		const copper::BandScope band = band_scope();
+		const bool free = plan.reserve_band(band.first_line, band.last_line, band.register_mask);
+		const bool fits = plan.note_effect_cost(effect_cost());
+		emit_into(plan.scheduler());
+		return free && fits;
+	}
+
 	[[nodiscard]] const Config& config() const noexcept { return m_cfg; }
-	/// Huella estimada en palabras de Copper (para `EffectCost`): `BPLCON2` + 2 por canal DMA
-	/// (PT H/L) + por línea [`WAIT` (2) + 4 MOVEs por canal Copper].
+	/// Huella estimada en palabras de Copper (para `EffectCost`): `BPLCON2` + 2 por canal
+	/// con estructura (`SPRxPT` H/L) + por línea [`WAIT` (2) + 4 MOVEs por canal Copper].
 	[[nodiscard]] u16 words_estimate() const noexcept {
 		const u32 cop = static_cast<u32>(m_cfg.channels - m_cfg.dma_channels);
-		return static_cast<u16>(1u + static_cast<u32>(m_cfg.dma_channels) * 2u +
+		const u32 struct_ch = (m_cfg.dma_data != nullptr && m_cfg.dma_stride != 0u)
+					      ? static_cast<u32>(m_cfg.channels)
+					      : static_cast<u32>(m_cfg.dma_channels);
+		return static_cast<u16>(1u + struct_ch * 2u +
 					static_cast<u32>(m_cfg.lines) * (2u + cop * 8u));
 	}
 
@@ -235,3 +287,4 @@ private:
 };
 
 } // namespace eng::effects
+

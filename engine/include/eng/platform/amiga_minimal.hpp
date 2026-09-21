@@ -210,6 +210,22 @@ public:
 		return install_blit_service(m_blit_slot);
 	}
 
+	/// **Copia asíncrona con notificación**: arranca `blitter_memcpy(wait = false)` y registra
+	/// la IRQ **BLIT** para ejecutar `on_done(user, vpos)` cuando el Blitter termina (típico:
+	/// `port.post(eng::os::Msg{MsgType::BlitDone, ...})`). El IRQ queda armado (llamar
+	/// `clear_blit_service` para desarmarlo). `on_done` **no** captura por lambda: se pasa el
+	/// functor + su `user` (el IRQ no puede capturar). Ver
+	/// `docs/reference/amiga/techniques/blitter-memcpy.md` (modo asíncrono).
+	template <class C>
+	bool blitter_memcpy_async(eng::Span<u8> dst, eng::Span<const u8> src, Service<C> on_done,
+				  C& user) {
+		if (on_done == nullptr) return false;
+		if (!blitter_memcpy(dst, src, false)) {
+			return false;
+		}
+		return set_blit_service(on_done, user);
+	}
+
 	/// Desinstala el servicio de blit.
 	void clear_blit_service();
 
@@ -339,6 +355,30 @@ public:
 	/// Lee y decodifica `CLXDAT` (`$DFF00E`). **Se autolimpia al leer**: llamar una vez por
 	/// frame. Devuelve qué colisiones se registraron desde la última lectura.
 	[[nodiscard]] graphics::SpriteCollisionResult read_sprite_collision();
+
+	/// **Copia lineal por Blitter** (`memcpy` de RAM arbitraria): `D = A` (minterm `$F0`),
+	/// módulos 0, palabras contiguas (Chip/Fast). `wait = true` espera al Blitter (síncrona);
+	/// `wait = false` es **asíncrona**: lanza la copia y vuelve, y el llamador sincroniza con
+	/// `blitter_busy()` (polling) o el **servicio de fondo** (`set_blitter_service`, que se
+	/// drena durante la espera). **Cuándo conviene** frente a una copia CPU: cuando hay
+	/// trabajo de CPU que **solapar** con la copia (el bus es el mismo, pero la CPU queda
+	/// libre) o para copias grandes sin solape de CPU que quepan en un solo blit. Ver
+	/// `docs/reference/amiga/techniques/blitter-memcpy.md`.
+	///
+	/// **OJO — el Blitter es único**: si algo más puede lanzar blits (p. ej. el Copper),
+	/// hay que **serializar** y **no** usar `wait = false`. Ver la sección «Concurrencia»
+	/// de `blitter-memcpy.md` y `docs/guides/roadmap/ROADMAP_BLITTER_COPPER.md`.
+	bool blitter_memcpy(eng::Span<u8> dst, eng::Span<const u8> src, bool wait = true);
+
+	/// **Ejecuta UN trabajo de Blitter** (`graphics::BlitJob`): es el mismo camino que
+	/// `execute_frame_plan` (que encadena varios jobs), pero para un blit suelto sin montar
+	/// un `FramePlan`. El descriptor cubre copias rectangulares (`CopyRect`, con
+	/// `words_per_row`/`height`/`source_modulo_bytes`/`destination_modulo_bytes`: copias
+	/// **lineales o strided**), BOBs cookie-cut, OR/lógicas, líneas, C2P, etc. Así el borde de
+	/// scroll (`D = A`, `dst_mod = src_mod = 2`) y el parcheo de la copperlist
+	/// (`words_per_row = 1`, `destination_modulo_bytes = 2`) no necesitan firmas propias ni
+	/// punteros crudos: se describen con `BlitJob`.
+	bool blitter_submit(const graphics::BlitJob& job, bool wait = true);
 
 	/// **Relleno de polígonos compuesto por bitplane** (Blitter): para cada plano `p`,
 	/// limpia el plano, dibuja el contorno XOR (ONEDOT) de las caras cuyo color tiene el
@@ -526,6 +566,9 @@ private:
 	bool install_vblank_service(ServiceSlot& slot);
 	bool install_blit_service(ServiceSlot& slot);
 	bool install_timer_service(u16 latch, ServiceSlot& slot);
+	/// Cuerpo común de `execute_frame_plan` (encadena varios) y `blitter_submit` (uno):
+	/// programa un `BlitJob`. `eor_open` mantiene la racha de líneas EOR entre jobs.
+	bool submit_blit_job(const graphics::BlitJob& job, bool& eor_open);
 
 	Profile m_profile; ///< perfil de máquina configurado
 	MemorySystem m_memory {}; ///< arenas (Chip/Slow/Frame) entregadas al engine

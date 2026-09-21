@@ -121,6 +121,21 @@ pero el build completo (~230 k) no cabe en el hueco de VBlank (~26 k) tal cual �
 
 
 
+## 6. Copper y Blitter: `CDANG` y ventana segura
+
+El Copper **no puede escribir los registros del Blitter** (`$DFF040-$DFF074`, offset `< $80`)
+salvo que `COPCON` (`$DFF02E`) tenga el bit **`CDANG`** (bit 1). Sin `CDANG`, la primera
+escritura del Copper a un registro `< $80` **detiene el Copper** (`COP_stop`), no la ignora
+(`WinUAE-DBG/custom.cpp:2835-2846`, `test_copper_dangerous`). `takeover_display`
+(`amiga_minimal.cpp`) activa `CDANG`, así que la **Técnica A** (Copper lanza blits,
+`CopperIntentKind::BlitterJob`) es viable en el engine. Detalle: `winuae/copper.md`.
+
+El Blitter es **único**: un blit lanzado por Copper debe **serializarse** con los de CPU. El
+`Scheduler::set_blitter_window` declara la **ventana segura** (rango de líneas fuera del área
+visible y de los blits de CPU, p. ej. el borde inferior) y `emit_blitter_job` solo materializa el
+trabajo dentro de ella; fuera, cuenta como no manejado. Demos/tests:
+`demos/amiga/210_copper_blitter`, `tests/host/260_copper_blitter`.
+
 ## 7. Antipatrones
 
 | Antipatrón | Por qué falla | Alternativa |
@@ -156,6 +171,7 @@ rompe `constexpr`, complica tests y `const`; su lugar son las rutinas asm ya por
 - `amiga-bootcamp/17_demoscene/timing_optimization.md`, `copper_effects.md`
 - `amiga-bootcamp/01_hardware/ocs_a500/copper.md`
 - [blitter-cpu-interleaving.md](blitter-cpu-interleaving.md) — solape Blitter/CPU
+- [../../emulators/winuae/copper.md](../../emulators/winuae/copper.md) — `CDANG` (fuente del emulador)
 - AHRM 3.ª, cap. 6 (Copper); `docs/reference/ahrm/`
 - `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` §13 (relleno CPU)
 - `demos/amiga/125_layers_dualpf/` (caso medido)

@@ -245,6 +245,7 @@ void test_sprite_layer() {
 			++moves;
 		}
 		void wait_line_safe(eng::u16) { ++waits; }
+		void wait_position_safe(eng::u16, eng::u8) { ++waits; }
 	};
 	eng::effects::SpriteLayer layer;
 	eng::effects::SpriteLayer::Config cfg {};
@@ -268,8 +269,9 @@ void test_sprite_layer() {
 	bad_cfg.hpos_step = 16u;
 	CHECK(!bad.attach(bad_cfg), "SpriteLayer: lines=0 -> false");
 
-	// Canales DMA: SPRxPT a la estructura (cabecera POS+CTL en memoria); sin rearm por linea.
-	eng::u16 dma_col[16] {};
+	// Canales DMA: SPRxPT a la estructura (cabecera POS+CTL en memoria) de CADA canal;
+	// sin rearm por linea en los canales DMA.
+	eng::u16 dma_col[64] {};
 	eng::effects::SpriteLayer dma;
 	eng::effects::SpriteLayer::Config dcfg {};
 	dcfg.first_line = 100u;
@@ -282,8 +284,8 @@ void test_sprite_layer() {
 	CHECK(dma.attach(dcfg), "SpriteLayer DMA attach");
 	FakeSched fd;
 	dma.emit_into(fd);
-	// BPLCON2(1) + DMA 2*2 (PT H/L) + 4 lineas*(6 canales*4) = 1+4+96 = 101.
-	CHECK(fd.moves == 1 + 4 + 4 * 6 * 4, "SpriteLayer DMA: MOVEs");
+	// BPLCON2(1) + PT de 8 canales*2 (H/L) + 4 lineas*(6 canales*4) = 1+16+96 = 113.
+	CHECK(fd.moves == 1 + 8 * 2 + 4 * 6 * 4, "SpriteLayer DMA: MOVEs");
 	CHECK(fd.waits == 4, "SpriteLayer DMA: 4 WAIT (solo canales Copper)");
 	eng::effects::SpriteLayer bad2;
 	eng::effects::SpriteLayer::Config b2 {};
@@ -291,6 +293,41 @@ void test_sprite_layer() {
 	b2.hpos_step = 16u;
 	b2.dma_channels = 2u; // sin dma_data
 	CHECK(!bad2.attach(b2), "SpriteLayer: DMA sin data -> false");
+}
+
+/// Integracion con el plan de la escena: `apply_into` (Effect) reserva la banda, anota el
+/// coste y emite; un solape de banda se detecta con `reserve_band`.
+void test_layer_effect() {
+	MemorySystem mem = make_memory();
+	eng::copper::Plan plan;
+	eng::copper::PlanConfig pcfg {};
+	pcfg.copper_bytes = 4096u;
+	CHECK(plan.begin(mem, pcfg), "plan begin");
+	plan.begin_frame();
+
+	eng::u16 dma_col[64] {};
+	eng::effects::SpriteLayer layer;
+	eng::effects::SpriteLayer::Config cfg {};
+	cfg.first_line = 100u;
+	cfg.lines = 8u;
+	cfg.channels = 8u;
+	cfg.hpos0 = 64u;
+	cfg.hpos_step = 16u;
+	cfg.dma_channels = 2u;
+	cfg.dma_stride = 8u;
+	cfg.dma_data = dma_col;
+	CHECK(layer.attach(cfg), "layer attach");
+
+	CHECK(layer.apply_into(plan), "apply_into: reserva + coste OK");
+	CHECK(plan.band_count() == 1u, "apply_into reserva la banda");
+	CHECK(plan.cost_words() == layer.words_estimate(), "coste declarado = words_estimate");
+	CHECK(layer.band_scope().first_line == 100u && layer.band_scope().last_line == 107u,
+	      "band_scope cubre [first_line, first_line+lines-1]");
+
+	// Otra capa en la MISMA banda solapa: `reserve_band` falla y `apply_into` lo refleja.
+	eng::effects::SpriteLayer other;
+	CHECK(other.attach(cfg), "other attach");
+	CHECK(!other.apply_into(plan), "solape de banda detectado");
 }
 
 } // namespace
@@ -301,8 +338,9 @@ int main() {
 	test_attach();
 	test_collision();
 	test_sprite_layer();
+	test_layer_effect();
 	if (g_fail == 0u) {
-		std::printf("OK: sprite horizontal rearm (codificacion, secuencia, orden de lista)\n");
+		std::printf("OK: sprite horizontal rearm (codificacion, secuencia, orden, plan)\n");
 		return 0;
 	}
 	std::printf("FALLOS: %u\n", g_fail);

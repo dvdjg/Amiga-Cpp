@@ -40,6 +40,11 @@ numeración se reparte en **bloques reservados por rama/workstream**, con este d
 > `feature/optimize` ya tenía `206_message_loop`. Al fusionar `master` en la rama se renumeró la
 > demo de `feature/optimize` (`206_message_loop` → `208_message_loop`), por ser la de menor
 > impacto (menos referencias y solo en la rama). `master` queda con `201-207`.
+>
+> Al fusionar de vuelta `feature/optimize` en `master` vuelve a colisionar el `208`
+> (`master` ya tiene `208_blitter_memcpy`): se renumera otra vez la demo de la rama
+> (`208_message_loop` → `212_message_loop`). En tests, `master` tenía `252_copper_blitter` y la
+> rama `252_os_input`: se renumera el de `master` a `260_copper_blitter`.
 
 ## Cómo reservar un bloque
 
