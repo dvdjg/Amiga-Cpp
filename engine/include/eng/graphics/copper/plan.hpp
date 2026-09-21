@@ -72,6 +72,16 @@ struct BandScope {
 	u16 register_mask = 0; ///< bits = registros reclamados (0 = cualquiera)
 };
 
+/// Coste **declarado** de un efecto (huella estimada), para que el plan sume y avise de
+/// quién agota el presupuesto. Ver `docs/engine/architecture/EFFECT_MODEL.md` §5.
+struct EffectCost {
+	u16 intents = 0; ///< nº de intenciones que aportará
+	u16 words = 0;   ///< palabras de Copper estimadas
+};
+
+/// Índice "ningún efecto" de `over_budget_effect()`.
+inline constexpr u8 no_effect = 0xffu;
+
 class Plan {
 public:
 	/// Capacidad de intenciones por frame (fijo, sin heap). `add` marca overflow si se
@@ -105,6 +115,9 @@ public:
 	void begin_frame() {
 		m_count = 0;
 		m_band_count = 0;
+		m_cost_words = 0;
+		m_cost_count = 0;
+		m_over_effect = no_effect;
 		m_overflow = false;
 		m_sched.retarget(m_copper->inactive_block()); // sin copiar la Timeline (512+ B)
 	}
@@ -146,6 +159,31 @@ public:
 	}
 	/// Nº de reservas de banda del frame.
 	[[nodiscard]] constexpr u8 band_count() const { return m_band_count; }
+
+	/// Registra el **coste declarado** de un efecto y lo suma al del frame. Devuelve
+	/// `false` si con este efecto el total supera la capacidad del bloque; el índice del
+	/// culpable queda en `over_budget_effect()`. Se limpia en `begin_frame()`.
+	[[nodiscard]] bool note_effect_cost(EffectCost c) {
+		if (m_cost_count >= max_bands) {
+			return false;
+		}
+		m_costs[m_cost_count] = c;
+		m_cost_words = static_cast<u16>(m_cost_words + c.words);
+		const bool fits = m_cost_words <= words_capacity();
+		if (!fits) {
+			m_over_effect = m_cost_count;
+		}
+		++m_cost_count;
+		return fits;
+	}
+	/// Índice del primer efecto que agotó el presupuesto, o `no_effect`.
+	[[nodiscard]] constexpr u8 over_budget_effect() const { return m_over_effect; }
+	/// Palabras declaradas acumuladas este frame.
+	[[nodiscard]] constexpr u16 cost_words() const { return m_cost_words; }
+	/// Capacidad del bloque de copperlist en palabras (`copper_bytes / 2`).
+	[[nodiscard]] constexpr u16 words_capacity() const {
+		return static_cast<u16>(m_cfg.copper_bytes / 2u);
+	}
 
 	/// Igual que `add`, pero anotando de quién viene cada intención: `surface` (índice de
 	/// la superficie de la composición) y `z` (orden dentro de ella). En conflicto — dos
@@ -303,6 +341,10 @@ private:
 	u16 m_count = 0;       ///< nº de intenciones registradas
 	eng::util::Array<BandScope, max_bands> m_bands {}; ///< reservas de banda del frame
 	u8 m_band_count = 0;   ///< nº de reservas de banda
+	eng::util::Array<EffectCost, max_bands> m_costs {}; ///< costes declarados por efecto
+	u16 m_cost_words = 0;  ///< palabras declaradas acumuladas
+	u8 m_cost_count = 0;   ///< nº de efectos con coste registrado
+	u8 m_over_effect = no_effect; ///< primer efecto que agotó el presupuesto
 	u16 m_words = 0;       ///< palabras de Copper de la última lista materializada
 	ScheduleReport m_report {}; ///< informe del scheduler de la última materialización
 	bool m_overflow = false;    ///< se superó `max_intents`

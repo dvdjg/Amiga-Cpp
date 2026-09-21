@@ -23,7 +23,7 @@ Resúmenes operativos para la IA y el desarrollador: **qué problema resuelve**,
 | [blitter-cpu-interleaving.md](blitter-cpu-interleaving.md) | Solape Blitter/CPU: arrancar el blit y hacer cómputo solo-registros durante la espera; estado del seam (`wait_blitter`, servicio de fondo, espera diferida) |
 | [cpu-blit-assist.md](cpu-blit-assist.md) | CPU + blitter en paralelo (A1200+) |
 | [audio-mixing.md](audio-mixing.md) | Mezcla de audio para juegos |
-| [sprite-layer.md](sprite-layer.md) | Capa tipo sprite / prioridades |
+| [sprite-layer.md](sprite-layer.md) | Sprites hardware (OCS/ECS/AGA): formato, colores por par, **attached (15 colores)**, prioridad `BPLCON2`, multiplexado vertical/horizontal, **sprite-as-playfield**, colisión `CLXCON/CLXDAT`, antipatrones y estado en el engine |
 | [sprite-horizontal-multiplex.md](sprite-horizontal-multiplex.md) | Multiplexado **horizontal** de sprites: rearmado de canal por línea (fondos tipo Risky Woods / Free Form, coste DMA por línea) |
 | [dual-playfield-fastbobs.md](dual-playfield-fastbobs.md) | BOBs rápidos con dual playfield |
 | [trackloading.md](trackloading.md) | Carga en segundo plano desde disquete (`trackdisk.device` vs. trackloader de hardware) y equivalente desde HD |

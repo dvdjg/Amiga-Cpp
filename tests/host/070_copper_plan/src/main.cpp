@@ -133,6 +133,14 @@ int main() {
 	if (!plan.reserve_band(200u, 220u, 0u)) { std::printf("[FAIL] tramo disjunto\n"); return 1; }
 	if (plan.reserve_band(210u, 230u, 0u)) { std::printf("[FAIL] mask 0 no solapa\n"); return 1; }
 	if (plan.band_count() != 3u) { std::printf("[FAIL] band_count != 3\n"); return 1; }
+
+	// --- Coste declarado por efecto: avisa de quien agota el presupuesto ---------
+	if (!plan.note_effect_cost({8u, 200u})) { std::printf("[FAIL] coste 1\n"); return 1; }
+	if (!plan.note_effect_cost({8u, 200u})) { std::printf("[FAIL] coste 2\n"); return 1; }
+	if (plan.over_budget_effect() != eng::copper::no_effect) { std::printf("[FAIL] sin culpable aun\n"); return 1; }
+	if (plan.note_effect_cost({8u, 200u})) { std::printf("[FAIL] 600>512 deberia fallar\n"); return 1; }
+	if (plan.over_budget_effect() != 2u) { std::printf("[FAIL] culpable != 2\n"); return 1; }
+	if (plan.cost_words() != 600u) { std::printf("[FAIL] cost_words\n"); return 1; }
 	plan.scheduler().emit_palette(eng::PaletteWords {kBase, 4});
 	plan.add(palette_intent(100u, &kC1));
 	plan.add(palette_intent(40u, &kC2));
