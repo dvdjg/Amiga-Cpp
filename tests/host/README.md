@@ -264,4 +264,6 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-242 | [pcm_codec](242_pcm_codec/README.md) | Codec PCM Delta + RLE (`eng/audio/pcm_codec.hpp`): round-trip byte a byte, ratio y rechazos (codec/destino/truncado). |
 | HOST-249 | [crowd](249_crowd/README.md) | Crowd genérico (`eng/ai/steering/crowd.hpp`): separación/evasión con fase amplia como política (`SpatialHash`, no `O(N²)`), probado con `s32` y `float`. |
 | HOST-250 | [os_port](250_os_port/README.md) | Puerto de mensajes del mini-SO (`eng/os/port.hpp`): `MsgQueue` SPSC (FIFO, cola llena, `clear`) y `MsgPort` (`post`/`try_get`/`signalled`). |
+| HOST-251 | [reactive_loop](251_reactive_loop/README.md) | Bucle reactivo sobre `eng::App`: hook de VBlank del `Engine` → `MsgType::VBlank`, consumo en `update`, blit asíncrono → `MsgType::BlitDone`, `vblank_count`/`blitdone_count`, `pump`. |
+| HOST-252 | [copper_blitter](252_copper_blitter/README.md) | Copper lanza blits (Técnica A): `CopperIntentKind::BlitterJob` (`BLTCON*`/punteros/módulos/`BLTSIZE`) y **ventana segura** (`set_blitter_window`) que lo serializa con los blits de CPU. |
 | HOST-208 | [ptr](208_ptr/README.md) | `eng/core/ptr.hpp`: punteros "inteligentes" sin heap (`Ref` observador no propietario y anulable, `NonNull`, `Opt` opcional en sitio). |

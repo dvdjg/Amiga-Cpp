@@ -46,6 +46,8 @@ constexpr unsigned short custom_bpldat_offset = 0x110 / 2;  // BPL1DAT (+2 por p
 constexpr unsigned short custom_color_offset = 0x180 / 2;
 constexpr unsigned short custom_clxcon_offset = 0x098 / 2; // CLXCON (colision de sprites, escritura)
 constexpr unsigned short custom_clxdat_offset = 0x00e / 2; // CLXDAT (colision, lectura, autolimpia)
+constexpr unsigned short custom_copcon_offset = 0x02e / 2; // COPCON (CDANG: acceso del Copper al Blitter)
+constexpr unsigned short copcon_cdang = 0x0002;
 constexpr unsigned short custom_copjmp1_offset = 0x088 / 2;
 constexpr unsigned short custom_dmacon_offset = 0x096 / 2;
 constexpr unsigned short custom_intena_offset = 0x09a / 2;
@@ -57,14 +59,14 @@ constexpr unsigned short dma_copper = 0x0080;
 constexpr unsigned short dma_blitter = 0x0040;
 constexpr unsigned short dma_clear_all = 0x7fff;
 constexpr unsigned short dmaconr_blitter_busy = 0x4000;
-constexpr unsigned short blt_use_a = 0x0800;
-constexpr unsigned short blt_use_b = 0x0400;
-constexpr unsigned short blt_use_c = 0x0200;
-constexpr unsigned short blt_use_d = 0x0100;
+constexpr unsigned short blt_use_a = eng::graphics::kBlitterUseA;
+constexpr unsigned short blt_use_b = eng::graphics::kBlitterUseB;
+constexpr unsigned short blt_use_c = eng::graphics::kBlitterUseC;
+constexpr unsigned short blt_use_d = eng::graphics::kBlitterUseD;
 constexpr unsigned short blt_minterm_cookie_cut = 0x00ca;
 constexpr unsigned short blt_minterm_copy_c = 0x00aa;
-constexpr unsigned short blt_minterm_copy_a = 0x00f0;   // D = A (canal A, con barrel shifter)
-constexpr unsigned short blt_minterm_a_or_b = 0x00fc;   // D = A | B (con B = D, OR aditivo)
+constexpr unsigned short blt_minterm_copy_a = eng::graphics::kBlitterMintermCopyA; // D = A
+constexpr unsigned short blt_minterm_a_or_b = eng::graphics::kBlitterMintermAOrB;  // D = A | B
 constexpr unsigned short blt_desc = 0x0002;             // BLTCON1 BLITREVERSE (modo descendente)
 
 inline void write_custom_pointer(unsigned short word_offset, const void* pointer) {

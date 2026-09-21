@@ -235,6 +235,40 @@ public:
 	/// Emite la capa al plan de la escena (azúcar de `emit_into(scene.scheduler())`).
 	void frame(graphics::composition::Scene& scene) { emit_into(scene.scheduler()); }
 
+	/// Contrato `Effect`: avanza el estado temporal. La capa no anima por sí sola (el
+	/// llamador fija el scroll con `set_scroll`), así que aquí no hace nada.
+	void update(eng::u16) noexcept {}
+
+	/// Tramo de raster que reclama la capa (`reserve_band`): la banda que cubre, con
+	/// `register_mask` = 0 (cualquier registro). Sirve para detectar solapes con otros
+	/// efectos que escriban la misma banda.
+	[[nodiscard]] copper::BandScope band_scope() const noexcept {
+		const u16 last = static_cast<u16>(m_cfg.first_line + m_cfg.lines - 1u);
+		return copper::BandScope {m_cfg.first_line, last, 0u};
+	}
+
+	/// **Coste declarado** del efecto (huella estimada): nº de "aportaciones" (1 `BPLCON2`
+	/// + un rearm por línea y canal Copper) y palabras de Copper (`words_estimate`).
+	[[nodiscard]] copper::EffectCost effect_cost() const noexcept {
+		const u32 copper_ch = static_cast<u32>(m_cfg.channels - m_cfg.dma_channels);
+		const u32 intents = 1u + static_cast<u32>(m_cfg.lines) * copper_ch;
+		return copper::EffectCost {
+			static_cast<u16>(intents), static_cast<u16>(words_estimate())};
+	}
+
+	/// **Contrato `Effect`** sobre el plan de la escena: reserva la banda (`reserve_band`),
+	/// anota el coste (`note_effect_cost`) y emite la capa. Devuelve `false` si la banda
+	/// **solapa** con otro efecto o si el coste no cabe en el presupuesto; la lista se
+	/// emite igualmente (el llamador decide abortar). Registrar como:
+	/// `scene.add_effect([&layer](Scene& s) { layer.update(s.frame()); layer.apply_into(s.plan()); });`
+	[[nodiscard]] bool apply_into(copper::Plan& plan) const {
+		const copper::BandScope band = band_scope();
+		const bool free = plan.reserve_band(band.first_line, band.last_line, band.register_mask);
+		const bool fits = plan.note_effect_cost(effect_cost());
+		emit_into(plan.scheduler());
+		return free && fits;
+	}
+
 	[[nodiscard]] const Config& config() const noexcept { return m_cfg; }
 	/// Huella estimada en palabras de Copper (para `EffectCost`): `BPLCON2` + 2 por canal
 	/// con estructura (`SPRxPT` H/L) + por línea [`WAIT` (2) + 4 MOVEs por canal Copper].
@@ -253,3 +287,4 @@ private:
 };
 
 } // namespace eng::effects
+

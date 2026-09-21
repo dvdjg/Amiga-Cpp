@@ -295,6 +295,41 @@ void test_sprite_layer() {
 	CHECK(!bad2.attach(b2), "SpriteLayer: DMA sin data -> false");
 }
 
+/// Integracion con el plan de la escena: `apply_into` (Effect) reserva la banda, anota el
+/// coste y emite; un solape de banda se detecta con `reserve_band`.
+void test_layer_effect() {
+	MemorySystem mem = make_memory();
+	eng::copper::Plan plan;
+	eng::copper::PlanConfig pcfg {};
+	pcfg.copper_bytes = 4096u;
+	CHECK(plan.begin(mem, pcfg), "plan begin");
+	plan.begin_frame();
+
+	eng::u16 dma_col[64] {};
+	eng::effects::SpriteLayer layer;
+	eng::effects::SpriteLayer::Config cfg {};
+	cfg.first_line = 100u;
+	cfg.lines = 8u;
+	cfg.channels = 8u;
+	cfg.hpos0 = 64u;
+	cfg.hpos_step = 16u;
+	cfg.dma_channels = 2u;
+	cfg.dma_stride = 8u;
+	cfg.dma_data = dma_col;
+	CHECK(layer.attach(cfg), "layer attach");
+
+	CHECK(layer.apply_into(plan), "apply_into: reserva + coste OK");
+	CHECK(plan.band_count() == 1u, "apply_into reserva la banda");
+	CHECK(plan.cost_words() == layer.words_estimate(), "coste declarado = words_estimate");
+	CHECK(layer.band_scope().first_line == 100u && layer.band_scope().last_line == 107u,
+	      "band_scope cubre [first_line, first_line+lines-1]");
+
+	// Otra capa en la MISMA banda solapa: `reserve_band` falla y `apply_into` lo refleja.
+	eng::effects::SpriteLayer other;
+	CHECK(other.attach(cfg), "other attach");
+	CHECK(!other.apply_into(plan), "solape de banda detectado");
+}
+
 } // namespace
 
 int main() {
@@ -303,8 +338,9 @@ int main() {
 	test_attach();
 	test_collision();
 	test_sprite_layer();
+	test_layer_effect();
 	if (g_fail == 0u) {
-		std::printf("OK: sprite horizontal rearm (codificacion, secuencia, orden de lista)\n");
+		std::printf("OK: sprite horizontal rearm (codificacion, secuencia, orden, plan)\n");
 		return 0;
 	}
 	std::printf("FALLOS: %u\n", g_fail);

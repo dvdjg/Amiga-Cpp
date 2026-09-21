@@ -23,6 +23,7 @@
 
 #include <eng/core/box.hpp>
 #include <eng/core/ptr.hpp>
+#include <eng/core/span.hpp>
 #include <eng/engine.hpp>
 #include <eng/field/draw_target.hpp>
 #include <eng/graphics/composition/compose.hpp>
@@ -75,8 +76,12 @@ public:
 	App(const App&) = delete;
 	App& operator=(const App&) = delete;
 
-	/// Ejecuta el bucle del engine (`run_frames`: por defecto interrupt-driven).
-	void run(u32 frames = 0xffffffffu) { m_engine.run_frames(frames); }
+	/// Ejecuta el bucle del engine (`run_frames`: por defecto interrupt-driven). Registra el
+	/// **hook de VBlank** que alimenta el puerto de mensajes: cada tick publica `MsgType::VBlank`.
+	void run(u32 frames = 0xffffffffu) {
+		m_engine.set_vblank_hook(&App::on_vblank, this);
+		m_engine.run_frames(frames);
+	}
 
 	[[nodiscard]] u32 frame() const noexcept { return m_frame; }
 	[[nodiscard]] task::BackgroundQueue& tasks() noexcept { return *m_context.get()->background; }
@@ -86,30 +91,57 @@ public:
 	/// (`eng::platform::poll_input(app.input())`) hasta que el mini-SO de mensajes lo sustituya.
 	[[nodiscard]] input::InputAggregator& input() noexcept { return m_input; }
 
-	/// **Puerto de mensajes del sistema** (mini-SO `eng::os`): la IRQ (VBlank/BLIT) publica
-	/// aquí; el juego lo consume en `update` (`while (app.port().try_get(m)) { ... }`).
+	/// **Puerto de mensajes del sistema** (mini-SO `eng::os`): el hook de VBlank y la IRQ BLIT
+	/// publican aquí; el juego lo consume en `update` con `while (app.port().try_get(m)) { ... }`.
 	[[nodiscard]] eng::os::MsgPort<16>& port() noexcept { return m_port; }
 
-	/// Drena el puerto y actualiza los contadores del sistema. Lo llama el adaptador antes de
-	/// `update`; el juego puede además consumir `port()` directamente.
+	/// **Drena** el puerto de mensajes (sin bloquear) y descarta lo que no se vaya a procesar;
+	/// el juego lo llama si no consume `port()` directamente. Los contadores del sistema
+	/// (`vblank_count`/`blitdone_count`) los actualizan los **productores** (hook de VBlank y
+	/// callback de blit), de modo que son correctos aunque el juego consuma o drene el puerto.
 	void pump() noexcept {
 		eng::os::Msg m;
 		while (m_port.try_get(m)) {
-			if (m.type == eng::os::MsgType::VBlank) {
-				++m_vblank_count;
-			} else if (m.type == eng::os::MsgType::BlitDone) {
-				++m_blitdone_count;
-			}
 		}
 	}
 	[[nodiscard]] u32 vblank_count() const noexcept { return m_vblank_count; }
 	[[nodiscard]] u32 blitdone_count() const noexcept { return m_blitdone_count; }
+
+	/// **Blit asíncrono con notificación al puerto**: arranca la copia por Blitter y, cuando
+	/// termina la IRQ BLIT, publica un `MsgType::BlitDone` (y sube `blitdone_count`). `false`
+	/// si el backend no lo soporta o no cabe. La lógica puede encadenar trabajo en `update`.
+	bool blitter_memcpy_async(eng::Span<u8> dst, eng::Span<const u8> src) {
+		if constexpr (requires(Backend& b, eng::Span<u8> d, eng::Span<const u8> s, App& a) {
+				      b.blitter_memcpy_async(d, s, &App::on_blit_done, a);
+			      }) {
+			return m_backend.blitter_memcpy_async(dst, src, &App::on_blit_done, *this);
+		} else {
+			(void)dst;
+			(void)src;
+			return false;
+		}
+	}
 
 	/// **Audio del backend** (SFX + música) si lo expone: `app.audio().play_sfx(...)`. Es un
 	/// template para no exigir `audio()` a backends que no lo tengan (se instancia al usarlo).
 	template <class B = Backend>
 	[[nodiscard]] decltype(auto) audio() {
 		return m_backend.audio();
+	}
+
+	/// **Overlay de depuración del backend** (texto/rectángulos sobre el frame), si lo expone.
+	/// Es la vía de las demos para rotular estado sin romper la abstracción. Template para no
+	/// exigir `debug()` a backends que no lo tengan.
+	template <class B = Backend>
+	[[nodiscard]] decltype(auto) debug() {
+		return m_backend.debug();
+	}
+
+	/// **Memoria del backend** si la expone (`app.memory().chip.allocate_block<T>(...)`). El
+	/// juego la usa para reservar buffers de hardware (Chip RAM) sin conocer el backend.
+	template <class B = Backend>
+	[[nodiscard]] decltype(auto) memory() {
+		return m_backend.memory();
 	}
 
 	/// El juego registra su escena (en `init`); `screen()`/`present()` la usan.
@@ -146,8 +178,7 @@ private:
 		void update(Backend&, GameContext& ctx) {
 			self->m_context = ctx;
 			self->m_frame = ctx.frame.frame_index;
-			self->pump();
-			self->m_game.update(*self);
+			self->m_game.update(*self); // el juego consume `port()` aquí
 		}
 		void render(Backend&, GameContext& ctx) {
 			self->m_context = ctx;
@@ -155,14 +186,28 @@ private:
 		}
 	};
 
+	/// Productor del hook de VBlank: sube el contador y publica en el puerto (IRQ-safe).
+	static void on_vblank(void* user) noexcept {
+		auto& self = *static_cast<App*>(user);
+		const u32 seq = self.m_vblank_count + 1u;
+		self.m_vblank_count = seq;
+		self.m_port.post(eng::os::Msg {eng::os::MsgType::VBlank, 0u, seq});
+	}
+	/// Productor de fin de blit: sube el contador y publica `BlitDone` (IRQ-safe).
+	static void on_blit_done(App& self, u16) noexcept {
+		const u32 seq = self.m_blitdone_count + 1u;
+		self.m_blitdone_count = seq;
+		self.m_port.post(eng::os::Msg {eng::os::MsgType::BlitDone, 0u, seq});
+	}
+
 	Backend& m_backend;
 	Game& m_game;
 	Adapter m_adapter {};
 	Engine<Backend, Adapter> m_engine;
 	eng::Ref<GameContext> m_context {};                 ///< contexto del engine (no propietario)
 	eng::os::MsgPort<16> m_port {};                     ///< puerto de mensajes del sistema
-	u32 m_vblank_count = 0;                             ///< VBlanks consumidos del puerto
-	u32 m_blitdone_count = 0;                           ///< fines de blit consumidos del puerto
+	volatile u32 m_vblank_count = 0;                    ///< VBlanks publicados (IRQ)
+	volatile u32 m_blitdone_count = 0;                  ///< fines de blit publicados (IRQ)
 	eng::Ref<graphics::composition::Scene> m_scene {};  ///< escena del juego (no propietaria)
 	input::InputAggregator m_input {};                  ///< entrada del frame (la lee/rellena el juego)
 	graphics::FramePlan m_plan {};

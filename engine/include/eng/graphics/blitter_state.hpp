@@ -17,6 +17,16 @@
 
 namespace eng::graphics {
 
+/// Flags de canal y minterms de uso común de `BLTCON0` (AHRM cap. 6, Blitter). Son los
+/// valores que el backend programa y que la lógica de dominio reutiliza al describir un
+/// `BlitterJob`/`OrBob` sin escribir números mágicos.
+inline constexpr u16 kBlitterUseA = 0x0800u;          ///< habilita el canal A
+inline constexpr u16 kBlitterUseB = 0x0400u;          ///< habilita el canal B
+inline constexpr u16 kBlitterUseC = 0x0200u;          ///< habilita el canal C
+inline constexpr u16 kBlitterUseD = 0x0100u;          ///< habilita el canal D
+inline constexpr u16 kBlitterMintermCopyA = 0x00f0u;  ///< `D = A` (copia desde A)
+inline constexpr u16 kBlitterMintermAOrB = 0x00fcu;   ///< `D = A | B` (con `B = D`, OR)
+
 /// Entrada de un lote de **BOBs OR por desplazamiento** (`D = A | D`): origen (frame del
 /// atlas), destino (plano 0 de la scanline) y desplazamiento fino X (0..15).
 struct OrBob {

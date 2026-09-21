@@ -62,6 +62,12 @@ concept GameIdle = requires(Game game, Backend& backend, GameContext& context) {
 	game.idle(backend, context);
 };
 
+/// **Hook de VBlank**: aviso de que ha llegado un latido de frame. No sustituye al
+/// servicio de VBlank (que sigue siendo el que corre `update`/`render`): viaja **con** él
+/// y lo usa el mini-SO (`eng::os`) para publicar el mensaje `VBlank` en el puerto. Se llama
+/// una vez por tick, **antes** de `update`/`render`. No captura: recibe el `user` del Engine.
+using VBlankHook = void (*)(void* user);
+
 /// Bombea el trabajo de fondo durante el hueco de VBlank.
 ///
 /// El engine lo pasa al backend como tarea ociosa: solo corre mientras el CPU
@@ -107,6 +113,8 @@ struct InterruptTick {
 	GameContext* context = nullptr;
 	volatile u32 frames = 0u;
 	u32 frame_count = 0u;
+	VBlankHook vblank_hook = nullptr; ///< aviso de VBlank (p. ej. publicar `MsgType::VBlank`)
+	void* vblank_user = nullptr;
 
 	static u16 raster_line(InterruptTick& tick, u16 fallback) {
 		if constexpr (requires { tick.backend->current_raster_line(); }) {
@@ -121,6 +129,11 @@ struct InterruptTick {
 			return;
 		}
 		tick.context->frame.frame_index = tick.frames;
+		// El latido de VBlank se anuncia ANTES de `update`: el juego puede drenarlo del
+		// puerto en la misma pasada (el `App::pump` posterior recoge lo no consumido).
+		if (tick.vblank_hook != nullptr) {
+			tick.vblank_hook(tick.vblank_user);
+		}
 
 		// Presupuesto: cuanto raster consume el tick (update+render). Si se pasa del
 		// objetivo, `overruns` avisa de que el juego invade el frame/el fondo.
@@ -176,6 +189,9 @@ public:
 
 		for (u32 i = 0; i < frame_count; ++i) {
 			context.frame.frame_index = i;
+			if (m_vblank_hook != nullptr) {
+				m_vblank_hook(m_vblank_user);
+			}
 			m_game.update(m_backend, context);
 			// `render` es el punto de commit, no de simulacion. En Amiga esto importa:
 			// instalar una copperlist con COPJMP1 fuera de VBlank reinicia el Copper
@@ -197,6 +213,15 @@ public:
 	/// Cola de tareas de fondo (el juego la usa via `GameContext::background`).
 	task::BackgroundQueue& background() { return m_background; }
 
+	/// Registra un **hook de VBlank** (`nullptr` para quitarlo). Se llama una vez por tick,
+	/// antes de `update`/`render`, tanto en modo interrupt-driven como polling. Es el punto
+	/// que usa el `App` para reenviar el latido al puerto de mensajes del mini-SO sin abrir
+	/// un segundo servicio de VBlank.
+	void set_vblank_hook(VBlankHook hook, void* user) noexcept {
+		m_vblank_hook = hook;
+		m_vblank_user = user;
+	}
+
 	/// Ejecuta `frame_count` frames en el modo **por defecto: interrupt-driven**.
 	///
 	/// La IRQ de VBlank corre `update`/`render` (el latido del juego, deadline de 1
@@ -212,7 +237,8 @@ public:
 		m_backend.boot();
 		m_game.init(m_backend, context);
 
-		InterruptTick<Backend, Game> tick {&m_game, &m_backend, &context, 0u, frame_count};
+		InterruptTick<Backend, Game> tick {&m_game, &m_backend, &context, 0u, frame_count,
+						    m_vblank_hook, m_vblank_user};
 		if constexpr (requires { m_backend.set_vblank_service(&InterruptTick<Backend, Game>::run, tick); }) {
 			if (m_backend.set_vblank_service(&InterruptTick<Backend, Game>::run, tick)) {
 				// Al salir (por donde sea) hay que devolver el hardware al estado base:
@@ -245,6 +271,8 @@ private:
 	Backend& m_backend;
 	Game& m_game;
 	task::BackgroundQueue m_background {};
+	VBlankHook m_vblank_hook = nullptr;
+	void* m_vblank_user = nullptr;
 };
 
 } // namespace eng

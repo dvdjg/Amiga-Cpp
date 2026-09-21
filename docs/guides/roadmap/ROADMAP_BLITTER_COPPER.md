@@ -29,6 +29,11 @@ cola de blits).
 - **Riesgo**: el Blitter es **único** → serializar con los blits de CPU (huecos seguros:
   post-`DIWSTOP`, bordes, fuera del fetch); ver `blitter-memcpy.md` §Concurrencia.
 - **Fases**: (1) intent + emisión; (2) política de «ventana segura»; (3) demo (borde de scroll).
+- **Estado**: hecho. `CopperIntentKind::BlitterJob` + `BlitterJob` (`raster_intent.hpp`) +
+  `Scheduler::emit_blitter_job`/`set_blitter_window` (ventana segura). `takeover_display`
+  activa **`COPCON`/`CDANG`**: sin él el Copper **no puede** escribir los registros del Blitter
+  (<0x80) y su primera escritura lo detiene (`WinUAE custom.cpp:2835-2840`). Validado en
+  `tests/host/252_copper_blitter` y en `demos/amiga/210_copper_blitter`.
 
 ## Técnica B — Blitter escribe/parchea la copperlist (Blitter → Copper)
 

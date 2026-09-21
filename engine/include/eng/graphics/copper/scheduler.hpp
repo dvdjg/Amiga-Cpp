@@ -325,6 +325,43 @@ public:
 		     static_cast<u16>((static_cast<u16>(vline) << 8u) | ((hpos >> 1u) & 0xffu)));
 	}
 
+	/// Declara la **ventana segura** (rango de líneas inclusivo) para lanzar trabajos de
+	/// Blitter desde el Copper. `emit_blitter_job`/`CopperIntentKind::BlitterJob` solo se
+	/// materializan si su línea cae dentro; fuera se cuentan como no manejados. El
+	/// llamador la fija al borde inferior/VBlank (fuera del fetch y de los blits de CPU).
+	void set_blitter_window(graphics::BlitterWindow window) {
+		m_blitter_window = window;
+		m_has_blitter_window = true;
+	}
+
+	/// **Lanza un blit desde el Copper** (Técnica A): espera a `top`, programa los registros
+	/// del Blitter y escribe `BLTSIZE` al final (arranca el blit). Es un blit sincronizado al
+	/// haz; se serializa con la CPU a través de la ventana segura (ver `set_blitter_window`).
+	void emit_blitter_job(u16 top, const graphics::BlitterJob& job) {
+		wait_line_safe(top);
+		move(Register::BLTCON0, job.bltcon0);
+		move(Register::BLTCON1, job.bltcon1);
+		move(Register::BLTAFWM, job.bltafwm);
+		move(Register::BLTALWM, job.bltalwm);
+		move(Register::BLTCMOD, static_cast<u16>(job.bltcmod));
+		move(Register::BLTBMOD, static_cast<u16>(job.bltbmod));
+		move(Register::BLTAMOD, static_cast<u16>(job.bltamod));
+		move(Register::BLTDMOD, static_cast<u16>(job.bltdmod));
+		if (job.bltapt != nullptr) {
+			(void)move32(Register::BLTAPTH, eng::ChipAddress {reinterpret_cast<uintptr>(job.bltapt)});
+		}
+		if (job.bltbpt != nullptr) {
+			(void)move32(Register::BLTBPTH, eng::ChipAddress {reinterpret_cast<uintptr>(job.bltbpt)});
+		}
+		if (job.bltcpt != nullptr) {
+			(void)move32(Register::BLTCPTH, eng::ChipAddress {reinterpret_cast<uintptr>(job.bltcpt)});
+		}
+		if (job.bltdpt != nullptr) {
+			(void)move32(Register::BLTDPTH, eng::ChipAddress {reinterpret_cast<uintptr>(job.bltdpt)});
+		}
+		move(Register::BLTSIZE, job.bltsize); // arranca el blit (ULTIMO)
+	}
+
 	/// Configura una pantalla de PLANOS EHB/plana genérica (paramétrica).
 	///
 	/// No asume tamaño: el llamador decide la geometría (DIW/DDF) y la anchura de
@@ -640,6 +677,15 @@ private:
 				// del playfield, 0x0040; 0 = sprites delante).
 				move(Register::BPLCON2, static_cast<u16>(intent.shift_x));
 				break;
+			case graphics::CopperIntentKind::BlitterJob:
+				// Serializacion con los blits de CPU: solo dentro de la ventana segura.
+				if (intent.blitter_job == nullptr ||
+				    (m_has_blitter_window && !m_blitter_window.contains(intent.top))) {
+					m_report.unhandled_intents = static_cast<u8>(m_report.unhandled_intents + 1u);
+					break;
+				}
+				emit_blitter_job(intent.top, *intent.blitter_job);
+				break;
 			default:
 				m_report.unhandled_intents = static_cast<u8>(m_report.unhandled_intents + 1u);
 				break;
@@ -649,6 +695,8 @@ private:
 	ListBuilder m_builder {}; ///< emisor de MOVE/WAIT sobre el bloque de copperlist
 	Timeline m_timeline; // por valor; NO se limpia al construir (ver timeline.hpp)
 	ScheduleReport m_report {}; ///< contadores de presupuesto (solo si `Report`)
+	graphics::BlitterWindow m_blitter_window {}; ///< ventana segura para blits de Copper
+	bool m_has_blitter_window = false;
 };
 
 /// Instancia por defecto: con informe de presupuesto.
