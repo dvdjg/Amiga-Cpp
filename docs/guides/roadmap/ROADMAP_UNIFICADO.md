@@ -216,6 +216,24 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   gcc 16.2.0** de HOST-001 quedó resuelto moviendo `SineTable` a definición
   out-of-class en `xlimited_scene.hpp` (bug del compilador, no del código).
 
+## Inventario de hardware (`eng::hw`) — estado (2026-09)
+
+- **Hecho**: `eng/hw/info.hpp` (tipos POD, consultas de capacidad, heurísticas puras, `probe`
+  declarado) y sondeo Amiga en `amiga_minimal_hw.cpp` (Exec `AttnFlags`/versión, `DENISEID`,
+  `MemList`, `DIWSTRT/STOP`). Display **publicado por la composición**: `Scene::bind_hw_info` →
+  `hw::set_display` al programar el modo (paso 4). Verificado en **A500** por la demo 205 y por
+  HOST-234 (publicación) y HOST-235 (consultas/heurísticas). Doc:
+  `docs/engine/architecture/HARDWARE_INVENTORY.md`.
+- **Pendiente**:
+  1. **Sondeo de Akiko/CD32**: implementar la detección con un registro verificado (hoy
+     `caps.akiko`/`caps.c2p_hw` existen pero nunca se activan).
+  2. **Integrar `hw` en el arranque del engine**: `probe()` una vez en `boot()` y exponerlo como
+     `app.hw()` en `App` (paso natural tras `PUBLIC_GAME_API.md`).
+  3. **Verificación AGA en emulador** (A1200/A4000): opción de máquina en el runner o variante de
+     demo, para pasar de cobertura lógica (HOST-235) a real.
+  4. **Consumir el inventario en el mini-SO/GUI** (panel de diagnóstico) reutilizando el overlay de
+     la demo 010.
+
 ## Decisiones tomadas en 202 (a respetar)
 
 1. El scroll debe ser **un único algoritmo toroidal** (sin modos de borde finito);

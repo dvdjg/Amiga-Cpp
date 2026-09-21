@@ -21,23 +21,34 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
+namespace composition = eng::graphics::composition;
+
 // -----------------------------------------------------------------------------
 // Demo 205 — inventario de hardware (eng::hw::probe)
 // -----------------------------------------------------------------------------
 // Llama a `eng::hw::probe` UNA vez y muestra el `HwInfo` en el overlay del
-// depurador: modelo, chipset, CPU/FPU, Kickstart, RAM por tipo, display y
-// puertos de entrada. El display vigente lo declara la app/el engine con
-// `hw::set_display` (los registros de vídeo son de solo escritura); aquí se
-// declara el modo que la demo usaría (320x256x5). Evidencia de la API pública:
-// `docs/engine/architecture/HARDWARE_INVENTORY.md`.
+// depurador: modelo, chipset, CPU/FPU, Kickstart, RAM por tipo, display y puertos.
+//
+// El display NO se declara a mano: la escena de composición (`composition::Scene`)
+// programa el modo y lo publica en el `HwInfo` con `hw::set_display` (bind_hw_info);
+// la demo solo lee `hw.display`. Es la integración del paso 4.
 //
 //   bash ./tools/build/build-demo.sh demos/amiga/205_hw_probe --debug --clean
-//   bash ./tools/run/run-demo.sh demos/amiga/205_hw_probe
+//   bash ./tools/run/run-demo.sh demos/amiga/205_hw_probe --wait-ms 8000
 // -----------------------------------------------------------------------------
 
 constexpr eng::u16 kWidth = 320;
 constexpr eng::u16 kHeight = 256;
 constexpr eng::u8 kPlanes = 5;
+// BPLCON0 = 5 planos (BPU=5 -> 5<<12) + COLOR (bit 9).
+constexpr eng::u16 kBplcon0_5Planes = 0x5200;
+
+constexpr eng::u16 kPalette[32] {
+	0x000, 0x00f, 0x0f0, 0x0ff, 0xf00, 0xf0f, 0xff0, 0xfff,
+	0x124, 0x246, 0x368, 0x48a, 0x5ac, 0x6ce, 0x7df, 0x9ef,
+	0x012, 0x024, 0x036, 0x048, 0x05a, 0x06c, 0x07e, 0x08f,
+	0x210, 0x420, 0x630, 0x840, 0xa50, 0xc60, 0xe70, 0xaaa,
+};
 
 char* append(char* p, const char* s) {
 	while (*s != '\0') {
@@ -73,21 +84,28 @@ const char* yes_no(bool v) {
 struct DemoGame {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		if (!backend.configure_memory({ 16u * 1024u, 8u * 1024u, 4u * 1024u })) {
+		if (!backend.configure_memory({ 80u * 1024u, 8u * 1024u, 4u * 1024u })) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00020501u);
 			return;
 		}
 
+		// 1) Inventario de hardware (CPU, chipset, RAM, modelo...).
 		m_probed = eng::hw::probe(m_hw);
-		// El engine declara el modo de display que programa (aquí, el que usaría
-		// la demo). `probe` solo da una estimación del arranque, no fiable.
-		if (m_probed) {
-			eng::hw::set_display(m_hw, kWidth, kHeight, kPlanes);
-		}
-		// Saneado mínimo: con Exec presente el chip RAM y la CPU deben conocerse.
-		m_ok = m_probed && m_hw.chip_ram_bytes > 0u && m_hw.cpu != eng::hw::CpuKind::Unknown;
+		// 2) La escena publica el display que programa en el HwInfo ligado.
+		m_scene.bind_hw_info(m_hw);
 
-		KPrintF("AMG205 model=%s chipset=%s cpu=%s chip=%ld fast=%ld slow=%ld kick=%ld.%ld\n",
+		// 3) Compone un display planar 320x256x5: al inicializar, la escena programa
+		//    el modo y actualiza `m_hw.display` (width/height/depth/colores).
+		const bool composed = composition::compose(
+			m_scene, backend.memory(), composition::planar(kWidth, kHeight, kPlanes),
+			composition::ocs_a500,
+			composition::display(composition::kPal320x256, kBplcon0_5Planes),
+			composition::palette(eng::PaletteWords { kPalette, 32u }));
+
+		m_ok = m_probed && composed && m_scene.ok() && m_hw.chip_ram_bytes > 0u &&
+		       m_hw.cpu != eng::hw::CpuKind::Unknown;
+
+		KPrintF("AMG205 model=%s chipset=%s cpu=%s chip=%ld fast=%ld slow=%ld kick=%ld.%ld disp=%ldx%ldx%ld\n",
 			eng::hw::model_name(m_hw.model),
 			eng::hw::chipset_name(m_hw.chipset),
 			eng::hw::cpu_name(m_hw.cpu),
@@ -95,7 +113,10 @@ struct DemoGame {
 			static_cast<eng::u32>(m_hw.fast_ram_bytes),
 			static_cast<eng::u32>(m_hw.slow_ram_bytes),
 			static_cast<eng::u32>(m_hw.kick_major),
-			static_cast<eng::u32>(m_hw.kick_minor));
+			static_cast<eng::u32>(m_hw.kick_minor),
+			static_cast<eng::u32>(m_hw.display.width),
+			static_cast<eng::u32>(m_hw.display.height),
+			static_cast<eng::u32>(m_hw.display.depth));
 
 		if (m_ok) {
 			eng::debug::mark_ready(g_eng_run_status, 0x00020500u);
@@ -106,8 +127,7 @@ struct DemoGame {
 
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
-		const eng::u16 pulse = static_cast<eng::u16>((context.frame.frame_index >> 2) & 0x0f);
-		backend.set_color(0, static_cast<eng::u16>((pulse << 8) | 0x004));
+		(void)backend;
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
@@ -180,7 +200,7 @@ struct DemoGame {
 			p = append_u32(p, m_hw.display.depth);
 			p = append(p, "   colors: ");
 			p = append_u32(p, m_hw.display.max_colors);
-			p = append(p, "   (declared)");
+			p = append(p, "   (scene)");
 			*p = '\0';
 			d.text(64, y, line, 0x00ffffff);
 		}
@@ -213,15 +233,13 @@ struct DemoGame {
 			d.text(64, y, line, 0x00ffffff);
 		}
 		y += 26;
-		{
-			char* p = append(line, "Port1: mouse   Port2: joystick   (assumed, not detected)");
-			*p = '\0';
-			d.text(64, y, line, 0x00aaaaaa);
-		}
+		d.text(64, y, "Port1: mouse   Port2: joystick   (assumed, not detected)", 0x00aaaaaa);
 
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
+private:
+	composition::Scene m_scene {};
 	eng::hw::HwInfo m_hw {};
 	bool m_probed = false;
 	bool m_ok = false;

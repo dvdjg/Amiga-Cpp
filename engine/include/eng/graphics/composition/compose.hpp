@@ -37,6 +37,7 @@
 
 #include <eng/core/arith.hpp>
 #include <eng/core/domains.hpp>
+#include <eng/core/ptr.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/core/util/function_ref.hpp>
@@ -48,6 +49,7 @@
 #include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/composition/limits.hpp>
+#include <eng/hw/info.hpp>
 #include <eng/memory/arena.hpp>
 
 namespace eng::graphics::composition {
@@ -221,6 +223,29 @@ public:
 	/// Palabras de Copper usadas por el programa.
 	[[nodiscard]] constexpr u16 words() const { return m_plan.words(); }
 
+	/// **Display vigente** derivado de los recursos de la escena (modo, planos, geometría). El
+	/// perfil de composición es lores (sin hires/lace); HAM/EHB salen del `SceneMode`.
+	[[nodiscard]] constexpr hw::DisplayInfo display_info() const {
+		return hw::make_display(m_res.width, m_res.height, m_res.planes, false, false,
+					m_res.mode == SceneMode::Ham,
+					m_res.mode == SceneMode::Ehb);
+	}
+
+	/// Liga un inventario de hardware (`eng::hw`) y **declara el modo vigente** de la escena en
+	/// él (`hw::set_display`). Desde aquí, `init` lo vuelve a publicar al configurar los recursos,
+	/// de modo que el juego lee el display real por `HwInfo::display` sin conocer registros.
+	void bind_hw_info(hw::HwInfo& info) {
+		m_hw_info = info;
+		publish_display();
+	}
+
+	/// Publica el display vigente en el `HwInfo` ligado (si lo hay). Lo llama `init`.
+	void publish_display() {
+		if (m_hw_info.valid()) {
+			hw::set_display(*m_hw_info.get(), display_info());
+		}
+	}
+
 	/// **Elige el rasterizador** (CPU/Blitter) de `surface()` y su política. El backend
 	/// declara sus `RasterCaps`; la app decide el `RasterPolicy` (`Auto`/`Cpu`/`Blitter`).
 	/// `nullptr` deja el CPU por defecto. No cambia la API de dibujo.
@@ -392,6 +417,7 @@ private:
 		if (!m_plan.begin(memory, pcfg)) {
 			return false;
 		}
+		publish_display(); // declara el modo vigente en el HwInfo ligado (si lo hay)
 		return true;
 	}
 
@@ -427,6 +453,7 @@ private:
 	Task m_frame {}; ///< tarea de frame (por `tick`)
 	Task m_teardown {}; ///< tarea de teardown
 	ConfigError m_config_error {}; ///< motivo del último rechazo de configuración (vacío = ok)
+	eng::Ref<hw::HwInfo> m_hw_info {}; ///< inventario ligado (no propietario); publica el display
 };
 
 /// **Recursos de una escena planar**, parametrizados (no hay preset por caso de uso: la

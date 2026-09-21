@@ -12,6 +12,7 @@
 #include <cstdio>
 
 #include <eng/api/game.hpp>
+#include <eng/hw/info.hpp>
 
 using namespace eng;
 
@@ -91,6 +92,16 @@ int main() {
 		graphics::composition::display(graphics::composition::kPal320x256,
 					       graphics::composition::kBplcon0_4Planes));
 	check(composed && scene.ok(), "compose() construye la escena");
+
+	// La composicion declara el display vigente en el inventario de hardware (paso 4):
+	// `bind_hw_info` publica el modo de la escena con `hw::set_display`.
+	hw::HwInfo hw {};
+	scene.bind_hw_info(hw);
+	check(hw.display.width == 320u && hw.display.height == 256u,
+	      "Scene publica el tamano del display");
+	check(hw.display.depth == 4u && hw.display.max_colors == 16u,
+	      "Scene publica profundidad y colores");
+	check(!hw.display.ham && !hw.display.extrahalfbrite, "Scene publica el modo estandar");
 
 	MockBackend backend {};
 	TestGame game {};

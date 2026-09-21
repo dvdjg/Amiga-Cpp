@@ -4,9 +4,9 @@ Ejecuta `eng::hw::probe()` **una vez** y muestra el `HwInfo` resultante en el ov
 modelo, chipset, CPU/FPU, Kickstart, RAM por tipo (chip/fast/slow/total y nº de regiones), display
 vigente y puertos de entrada. Es la evidencia visual del sondeo y un ejemplo de la API pública.
 
-El display lo declara la app con `hw::set_display` (los registros de vídeo son de solo escritura);
-la demo declara el modo que usaría (320x256x5). El resto (CPU, chipset, Kickstart, RAM, modelo) sale
-del sondeo real.
+El display **no se declara a mano**: la escena de composición (`composition::Scene`) programa el
+modo (320x256x5) y lo publica en el `HwInfo` con `bind_hw_info` → `hw::set_display`; la demo solo
+lee `hw.display`. El resto (CPU, chipset, Kickstart, RAM, modelo) sale del sondeo real.
 
 Documentación y fuentes del sondeo: `docs/engine/architecture/HARDWARE_INVENTORY.md`.
 Test de la parte pura: `tests/host/235_hw_info`.
@@ -30,7 +30,7 @@ Chip RAM: 512 KB
 Fast RAM: 0 KB
 Slow RAM: 504 KB
 Total RAM: 1015 KB   regions: 2
-Display: 320x256x5   colors: 32   (declared)
+Display: 320x256x5   colors: 32   (scene)
 hires: no   lace: no   HAM: no   EHB: no
 Caps: ecs=no aga=no akiko=no c2p_hw=no mmu=no
 Port1: mouse   Port2: joystick   (assumed, not detected)

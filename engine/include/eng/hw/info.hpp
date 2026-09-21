@@ -287,25 +287,35 @@ struct HwInfo {
 	}
 }
 
+/// Construye un `DisplayInfo` desde parámetros y calcula `max_colors` (indexado/HAM/EHB). Es la
+/// base de `set_display`; la composición la usa para declarar el modo vigente.
+[[nodiscard]] constexpr DisplayInfo make_display(u16 width, u16 height, u8 depth,
+						 bool hires = false, bool lace = false,
+						 bool ham = false, bool ehb = false) noexcept {
+	DisplayInfo d {};
+	d.width = width;
+	d.height = height;
+	d.depth = depth;
+	d.hires = hires;
+	d.lace = lace;
+	d.ham = ham;
+	d.extrahalfbrite = ehb;
+	if (ham) {
+		d.max_colors = depth >= 8u ? 262144u : 4096u;
+	} else if (ehb) {
+		d.max_colors = 64u;
+	} else {
+		d.max_colors = depth < 32u ? (1u << depth) : 0u;
+	}
+	return d;
+}
+
 /// Fija el modo de display **vigente** (lo llama el engine al programar un modo). El display
 /// no se puede leer de forma fiable de los registros (BPLCON0 es de solo escritura), así que
 /// la app/el engine lo declaran aquí; `probe()` solo da una estimación validada al arranque.
 inline void set_display(HwInfo& h, u16 width, u16 height, u8 depth, bool hires = false,
 			bool lace = false, bool ham = false, bool ehb = false) noexcept {
-	h.display.width = width;
-	h.display.height = height;
-	h.display.depth = depth;
-	h.display.hires = hires;
-	h.display.lace = lace;
-	h.display.ham = ham;
-	h.display.extrahalfbrite = ehb;
-	if (ham) {
-		h.display.max_colors = depth >= 8u ? 262144u : 4096u;
-	} else if (ehb) {
-		h.display.max_colors = 64u;
-	} else {
-		h.display.max_colors = depth < 32u ? (1u << depth) : 0u;
-	}
+	h.display = make_display(width, height, depth, hires, lace, ham, ehb);
 }
 
 /// Fija el display desde una estructura ya construida.

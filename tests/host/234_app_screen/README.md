@@ -12,6 +12,7 @@ dibujo de alto nivel (análogo al `RastPort`).
 3. `app.frame()` = 0 en el primer frame.
 4. `app.screen()` + `s.fill(Box, color)` dibujan; `app.present()` publica.
 5. El `fill` de 4×4 color 1 deja 16 bits en el plano 0 y nada en el plano 1.
+6. `scene.bind_hw_info(hw)` publica el display de la escena en el `HwInfo` (320×256×4, 16 colores).
 
 El backend de prueba es mínimo (`boot` + `wait_vblank`), sin `execute_frame_plan`: `App::present`
 lo omite con `if constexpr` (el juego normal no lo ve).

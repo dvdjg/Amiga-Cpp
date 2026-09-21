@@ -53,7 +53,7 @@ Display: `set_display(HwInfo&, width, height, depth, hires, lace, ham, ehb)` (o 
 | Akiko / C2P | **pendiente**: el campo `caps.akiko`/`caps.c2p_hw` existe y `is_cd32`/`guess_model` lo usan, pero el sondeo no está implementado (sin detección verificada en el runner, solo A500) |
 | Chip / Fast / Slow | `ExecBase->MemList` (`MemHeader`), clasificado por `MEMF_CHIP`/`MEMF_FAST` y dirección |
 | Modelo | heurística `guess_model` (chipset + RAM de chip + Akiko) |
-| Display | lo declara la app con `set_display` (ver abajo) |
+| Display | lo **publica la composición** (`Scene::bind_hw_info` → `hw::set_display`) al programar el modo; la app también puede declararlo con `set_display` |
 | Puertos 1/2 | política del juego (ratón / joystick); el CD32 pad se sondea por POTGO |
 
 ## Sondeo: decisiones
@@ -68,9 +68,11 @@ Display: `set_display(HwInfo&, width, height, depth, hires, lace, ham, ehb)` (o 
   atributos y base: el **slow RAM** (ranger, `$C00000-$D80000`) es `MEMF_CHIP` pero Agnus no lo ve,
   así que se clasifica por **dirección** (gana a `MEMF_CHIP`); Zorro II (`$200000-$A00000`) es Fast.
 - **Display**: `BPLCON0` es de **solo escritura** (leerlo devuelve basura), así que el modo vigente
-  no se puede leer de forma fiable. La app/el engine lo **declaran** con `set_display` al programar
-  un modo; `probe()` solo deja una estimación validada al arranque (ventana DIWSTRT/DIWSTOP +
-  `BPLCON0`, descartada si no cuadra con los planos máximos del chipset).
+  no se puede leer de forma fiable. Lo **publica la composición**: `Scene::bind_hw_info(hw)` liga el
+  inventario y, al inicializar la escena, `publish_display()` llama a `hw::set_display` con el modo
+  derivado de los recursos (`Scene::display_info()`: ancho, alto, planos y HAM/EHB del `SceneMode`).
+  `probe()` solo deja una estimación validada al arranque (ventana DIWSTRT/DIWSTOP + `BPLCON0`,
+  descartada si no cuadra con los planos máximos del chipset).
 - **Entrada**: el hardware no enumera de forma fiable qué hay enchufado. `port1`/`port2` llevan la
   **política** del juego (ratón en el 1, joystick en el 2) con `detected=false`; el sondeo real del
   CD32 pad (protocolo POT, `input_cd32`) marcaría `detected=true`.
@@ -84,19 +86,27 @@ Display: `set_display(HwInfo&, width, height, depth, hires, lace, ham, ehb)` (o 
 eng::hw::HwInfo hw {};
 eng::hw::probe(hw);
 
+// La escena declara el display vigente al programar el modo:
+scene.bind_hw_info(hw);
+composition::compose(scene, mem, composition::planar(320, 256, 6),
+                     composition::ocs_a500,
+                     composition::display(composition::kPal320x256, kBplcon0_Ehb));
+
 const eng::u8 depth = eng::hw::max_planes(hw);          // 6 OCS/ECS, 8 AGA
 playfield.set_max_depth(depth);
 asset_cache.set_fast_budget(hw.fast_ram_bytes / 2);
 input.enable_cd32_port2(hw.port2.is_cd32_pad);
 
-// Al programar el modo de vídeo, la app actualiza el display vigente:
-eng::hw::set_display(hw, 320, 256, depth);
+// `hw.display` refleja el modo de la escena (320x256x6, EHB, 64 colores).
 ```
 
 ## Verificación
 
-- **Demo 205** (`demos/amiga/205_hw_probe`): ejecuta `probe()` y muestra el `HwInfo` en el overlay
-  del depurador. Verificada en **A500 (OCS, 68000, Kickstart 34.2, 512 KB chip + 504 KB slow)**.
+- **Demo 205** (`demos/amiga/205_hw_probe`): ejecuta `probe()`, liga la escena con
+  `bind_hw_info` (el display sale de la composición) y muestra el `HwInfo` en el overlay del
+  depurador. Verificada en **A500 (OCS, 68000, Kickstart 34.2, 512 KB chip + 504 KB slow)**.
+- **HOST-234**: comprueba que `Scene::bind_hw_info` publica el tamaño, la profundidad y los colores
+  de la escena en el `HwInfo`.
 - **HOST-235** (`tests/host/235_hw_info`): cubre consultas, display, nombres y heurísticas, incluidas
   las ramas **AGA** y **CD32** por lógica (el runner solo emula A500).
 
