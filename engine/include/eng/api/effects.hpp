@@ -197,20 +197,19 @@ public:
 			}
 		}
 
-		// --- Canales Copper: CTL una vez + rearm por línea (WAIT + POS/DATB/DATA) ---
-		for (u8 ch = m_cfg.dma_channels; ch < m_cfg.channels; ++ch) {
-			const u16 ctl = static_cast<u16>(((vstop & 0xffu) << 8u) |
-							 (((m_cfg.first_line >> 8u) & 0x1u) << 2u) |
-							 (((vstop >> 8u) & 0x1u) << 1u));
-			sched.move(static_cast<copper::Register>(0x142u + ch * 8u), ctl); // SPRxCTL
-		}
+		// --- Canales Copper: rearm por línea (WAIT + CTL/POS/DATB/DATA) ---
 		for (u16 line = m_cfg.first_line; line < vstop; ++line) {
 			sched.wait_line_safe(line);
+			const u16 lstop = static_cast<u16>(line + 1u);
+			const u16 ctl = static_cast<u16>(((lstop & 0xffu) << 8u) |
+							 (((line >> 8u) & 0x1u) << 2u) |
+							 (((lstop >> 8u) & 0x1u) << 1u));
 			for (u8 ch = m_cfg.dma_channels; ch < m_cfg.channels; ++ch) {
 				const u16 hpos = static_cast<u16>(m_cfg.hpos0 +
 								  static_cast<u16>(ch) * m_cfg.hpos_step + m_scroll);
 				const u16 pos = static_cast<u16>(((line & 0xffu) << 8u) |
 								 ((hpos >> 1u) & 0xffu));
+				sched.move(static_cast<copper::Register>(0x142u + ch * 8u), ctl);          // SPRxCTL
 				sched.move(static_cast<copper::Register>(0x140u + ch * 8u), pos);          // SPRxPOS
 				sched.move(static_cast<copper::Register>(0x146u + ch * 8u), m_cfg.data_low);  // SPRxDATB
 				sched.move(static_cast<copper::Register>(0x144u + ch * 8u), m_cfg.data_high); // SPRxDATA (arma)
@@ -222,12 +221,12 @@ public:
 	void frame(graphics::composition::Scene& scene) { emit_into(scene.scheduler()); }
 
 	[[nodiscard]] const Config& config() const noexcept { return m_cfg; }
-	/// Huella estimada en palabras de Copper (para `EffectCost`): `BPLCON2` + `CTL` por canal
-	/// + por línea [`WAIT` (2) + 3 MOVEs por canal].
+	/// Huella estimada en palabras de Copper (para `EffectCost`): `BPLCON2` + 2 por canal DMA
+	/// (PT H/L) + por línea [`WAIT` (2) + 4 MOVEs por canal Copper].
 	[[nodiscard]] u16 words_estimate() const noexcept {
-		return static_cast<u16>(1u + m_cfg.channels +
-					static_cast<u32>(m_cfg.lines) *
-						(2u + static_cast<u32>(m_cfg.channels) * 6u));
+		const u32 cop = static_cast<u32>(m_cfg.channels - m_cfg.dma_channels);
+		return static_cast<u16>(1u + static_cast<u32>(m_cfg.dma_channels) * 2u +
+					static_cast<u32>(m_cfg.lines) * (2u + cop * 8u));
 	}
 
 private:
