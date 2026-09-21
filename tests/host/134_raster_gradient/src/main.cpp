@@ -11,6 +11,7 @@
 
 #include <cstdio>
 
+#include <eng/api/effects.hpp>
 #include <eng/graphics/effects/raster_gradient.hpp>
 
 namespace effects = eng::graphics::effects;
@@ -111,6 +112,21 @@ int main() {
 		FakePlan plan;
 		e.apply_into(plan);
 		check(plan.count == 8u && plan.last != nullptr, "apply_into: plan.add con 8");
+	}
+
+	// --- effects::Gradient (envoltorio de API, mismo contrato `Effect`) ------
+	{
+		eng::effects::Gradient g;
+		const eng::u16 keys[2] = {0x000u, 0xfffu};
+		check(g.attach({0x2cu, 8u, 4u, 0u}, eng::Span<const eng::u16> {keys}),
+		      "Gradient: attach con claves");
+		FakePlan plan;
+		g.apply_into(plan);
+		check(plan.count == 4u && plan.last != nullptr, "Gradient: apply_into emite 4 intenciones");
+
+		eng::effects::Gradient empty;
+		check(!empty.attach({0x2cu, 8u, 4u, 0u}, eng::Span<const eng::u16> {}),
+		      "Gradient: sin claves -> false");
 	}
 
 	if (g_fail != 0) {
