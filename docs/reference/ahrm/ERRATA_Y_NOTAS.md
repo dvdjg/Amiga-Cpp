@@ -89,3 +89,8 @@ Estado en **CIA-A PRA** (`$BFE001`): `/RDY`(5), `/TK0`(4), `/WPRO`(3), `/CHNG`(2
 `(addr & 0xf00) >> 8`, ignorando A0; `identify.cpp:83,98` dan `CIAB PRA` en `$BFD000` y `CIAA PRA`
 en `$BFE001`). Implementado en `eng/os/floppy.hpp` + `amiga_minimal_floppy.cpp`; la DMA cruda se
 valida en la demo `214_floppy_raw`.
+
+Matiz sobre `SIDE` (bit 2): WinUAE lo **invierte** al traducir la cara física a índice de cara
+(`side = 1 - ((data >> 2) & 1)`, `disk.cpp:3482-3491`). Así, la **primera cara del ADF** se lee con
+`SIDE = 1`, no con `SIDE = 0`; el backend del engine escribe el bit invertido para que el parámetro
+`side` sea el índice de cara del ADF (0 = primera cara).

@@ -76,6 +76,44 @@ El DMA transfiere ese **bitstream MFM**, no bytes decodificados: coincide con el
 controlador no decodifica MFM en hardware»). `tracklen` es la longitud de la pista en bits
 (`disk.cpp:203, 1032`).
 
+### 5.1 Pista AmigaDOS y arranque de la DMA
+
+`decode_amigados` (`disk.cpp:2168-2277`) construye una pista DD de `11 * 544 + FLOPPY_GAP_LEN`
+palabras (`FLOPPY_GAP_LEN = FLOPPY_WRITE_LEN - 11*544 = 350` con el valor PAL por defecto). Cada
+sector son **544 palabras**:
+
+```text
+  [0,1]     $AAAA $AAAA     pad
+  [2,3]     $4489 $4489     sync (dos palabras)
+  [4..7]    cabecera        dodd_hi, dodd_lo, deven_hi, deven_lo   (format, track, sector, to_gap)
+  [8..23]   etiqueta        16 B (dodd, luego deven)
+  [24..27]  hck             XOR de los longs **crudos** de [4..23]
+  [28..31]  dck             XOR de los longs **crudos** de [32..543]
+  [32..287] datos dodd      256 words
+  [288..543] datos deven     256 words
+```
+
+Después, `mfmcode(mfmbuf + 4, 541)` (`disk.cpp:2264`) **OR-ea los bits de reloj** en las
+posiciones impares de todo lo que va tras el sync; por eso el decoder debe **enmascarar
+`& 0x5555`** antes de reconstruir `dodd`/`deven`. Los `$4489` del sync quedan fuera del `mfmcode`.
+
+El arranque de la DMA fija la alineación: `wordsync_detected` (`disk.cpp:4317-4319`) pone
+`bitoffset = 15`, y `doreaddma` (`disk.cpp:4254-4284`) transfiere cuando `bitoffset == 15`, de modo
+que **la primera palabra transferida es la siguiente al sync detectado**. En una pareja `$4489
+$4489`, la DMA engancha el **primero** y el buffer empieza en el **segundo**: la pareja del sector
+de arranque queda partida y ese sector solo reaparece completo en la **vuelta siguiente** (de ahí
+`kMfmReadWords`, dos revoluciones). Alrededor del hueco de pista el flujo puede aparecer además
+**desalineado a bit**, así que el decode busca el sync a nivel de bit y prueba la cabecera tanto a
+**2** palabras del sync (se volcaron los dos) como a **1** (solo el segundo).
+
+**Selección de cara**: `fetch_DISK_select` (`disk.cpp:3482-3491`) calcula `side = 1 - ((data >> 2)
+& 1)`: el bit `SIDE` de CIA-B PRB va **invertido** respecto a la cara lógica (cara 0 → `SIDE = 1`).
+
+**Rearme**: al terminar una DMA hay que **borrar** el bit de disco de `DMACON` (`disk.cpp:3842`,
+`disk_dmafinished` deja `dskdmaen = OFF`, pero el bit de `DMACON` sigue puesto). El backend escribe
+`DMACON = DMADISK` (SETCLR=0) y `DSKLEN = 0` antes de rearmar para que la primera escritura cargue
+y la segunda dispare.
+
 ## 6. Lo que **no** es del emulador: montar `df0:`
 
 Que `Open("df0:...")` funcione o se quede esperando depende de Kickstart/`dos.library` y del

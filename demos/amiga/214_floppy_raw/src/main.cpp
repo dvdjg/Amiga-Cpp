@@ -26,28 +26,22 @@ namespace {
 // Demo 214 — disquete a bajo nivel (DMA crudo + decode MFM en CPU)
 // -----------------------------------------------------------------------------
 // Lee la pista 0 (cara 0) de DF0: con DMA crudo de Paula (DSKPT/DSKLEN doble + WORDSYNC),
-// decodifica el sector 0 en CPU y valida el bootblock: firma DOS\0/DOS\1 + checksum
-// (suma de los 256 longs BE de 4..1023 == 0xFFFFFFFF). NO usa trackdisk.device ni dos.library.
+// decodifica los dos primeros sectores en CPU y valida el bootblock: firma DOS\0/DOS\1 y los
+// checksums propios de cada sector AmigaDOS (hck/dck). NO usa trackdisk.device ni dos.library.
 //
 //   node tools/fs/make-volume.mjs
 //   bash ./tools/build/build-demo.sh demos/amiga/214_floppy_raw --debug --clean
 //   bash ./tools/run/run-demo.sh demos/amiga/214_floppy_raw --disk out/fs/211_fs_test.adf --wait-ms 12000
 // -----------------------------------------------------------------------------
 
-constexpr eng::u16 kTrackWords = 6400u;
+// Una revolución completa + un sector de margen: el DMA arranca en el primer sync que ve y
+// parte el sector de ese sync, que así reaparece entero en la vuelta siguiente.
+constexpr eng::u16 kTrackWords = eng::os::kMfmReadWords;
 constexpr eng::u16 kTrackBytes = kTrackWords * 2u;
 
 char* append(char* p, const char* s) {
 	while (*s != '\0') {
 		*p++ = *s++;
-	}
-	return p;
-}
-
-char* append_hex(char* p, eng::u16 v) {
-	const char* hex = "0123456789abcdef";
-	for (eng::s8 s = 12; s >= 0; s -= 4) {
-		*p++ = hex[(v >> s) & 0xfu];
 	}
 	return p;
 }
@@ -83,47 +77,44 @@ struct DemoGame {
 		}
 
 		m_motor = eng::os::floppy_motor(0u, true);
-		m_words = eng::os::floppy_read_track(
-			0u, 0u, false, eng::Span<eng::u16> { m_track, kTrackWords });
-
-		if (m_words != 0u) {
-			for (eng::u16 i = 0u; i + 1u < kTrackWords; ++i) {
-				if (m_track[i] == eng::os::kMfmSync &&
-				    m_track[i + 1u] == eng::os::kMfmSync) {
-					++m_syncs;
+		// La fase de rotación varía entre lecturas, así que se reintenta (como `trackdisk`)
+		// hasta verificar los dos sectores del bootblock.
+		for (eng::u8 attempt = 0u; attempt < 4u; ++attempt) {
+			if (attempt > 0u) {
+				// Desfase respecto a la vuelta anterior: sin esto cada lectura arranca en la
+				// misma fase y el reintento no aporta nada.
+				for (volatile eng::u32 d = 0u; d < 300000u; ++d) {
 				}
 			}
-			m_w0 = m_track[0];
-			m_w1 = m_track[1];
-			m_w2 = m_track[2];
-			m_w3 = m_track[3];
-			eng::os::FloppySectorHeader hdr {};
-			m_sec_ok = eng::os::floppy_find_sector(
+			m_words = eng::os::floppy_read_track(
+				0u, 0u, false, eng::Span<eng::u16> { m_track, kTrackWords });
+			if (m_words == 0u) {
+				break; // la DMA no completo (DSKBLK): no insistir
+			}
+			eng::os::FloppySectorHeader hdr0 {};
+			const bool sec0 = eng::os::floppy_find_sector(
 				eng::Span<const eng::u16> { m_track, kTrackWords }, 0u,
-				eng::Span<eng::u8> { m_boot, 512u }, &hdr);
-			m_hdr_track = hdr.track;
-			m_hdr_sector = hdr.sector;
+				eng::Span<eng::u8> { m_boot, 512u }, &hdr0, true);
+			const bool sec1 = eng::os::floppy_find_sector(
+				eng::Span<const eng::u16> { m_track, kTrackWords }, 1u,
+				eng::Span<eng::u8> { m_boot + 512u, 512u }, nullptr, true);
+			m_sec_ok = sec0 && sec1;
 			if (m_sec_ok) {
+				m_hdr_track = hdr0.track;
+				m_hdr_sector = hdr0.sector;
 				m_sig = (m_boot[0] == 'D' && m_boot[1] == 'O' && m_boot[2] == 'S' &&
 					 m_boot[3] <= 1u);
 				m_kind = m_boot[3];
-				eng::u32 sum = 0u;
-				for (eng::u32 i = 4u; i < 1024u; i += 4u) {
-					sum += eng::read_be32(m_boot + i);
-				}
-				m_boot_sum = sum;
-				m_sum = (sum == 0xFFFFFFFFu);
+				break;
 			}
 		}
 		(void)eng::os::floppy_motor(0u, false);
 
-		m_ok = m_motor && m_words != 0u && m_sec_ok && m_sig && m_sum;
-		const eng::u32 flags = (m_words != 0u ? 1u : 0u) | (m_sig ? 2u : 0u) |
-				       (m_sum ? 4u : 0u);
+		m_ok = m_motor && m_words != 0u && m_sec_ok && m_sig;
 		if (m_ok) {
-			eng::debug::mark_ready(g_eng_run_status, 0x00021400u | flags);
+			eng::debug::mark_ready(g_eng_run_status, 0x00021400u);
 		} else {
-			eng::debug::mark_ready(g_eng_run_status, 0x00021410u | flags); // DIAG
+			eng::debug::mark_failed(g_eng_run_status, 0x00021410u);
 		}
 	}
 
@@ -150,8 +141,8 @@ struct DemoGame {
 		}
 		y += 26;
 		{
-			char* p = append(line, "sector 0: ");
-			p = append(p, m_sec_ok ? "decodificado" : "NO");
+			char* p = append(line, "sectores bootblock 0/1: ");
+			p = append(p, m_sec_ok ? "OK (hck/dck)" : "NO");
 			p = append(p, "   hdr track=");
 			p = append_u32(p, m_hdr_track);
 			p = append(p, " sector=");
@@ -164,26 +155,10 @@ struct DemoGame {
 			char* p = append(line, "bootblock: ");
 			p = append(p, m_sig ? "DOS" : "?");
 			p = append(p, m_kind <= 1u ? (m_kind == 0u ? "0 (OFS)" : "1 (FFS)") : "?");
-			p = append(p, "   checksum: ");
-			p = append_u32(p, m_boot_sum);
-			p = append(p, m_sum ? " OK" : " MAL");
+			p = append(p, "   firma: ");
+			p = append(p, m_sig ? "OK" : "MAL");
 			*p = '\0';
-			d.text(64, y, line, m_sum ? 0x0000ff80 : 0x00ff6060);
-		}
-		y += 26;
-		{
-			char* p = append(line, "syncs: ");
-			p = append_u32(p, m_syncs);
-			p = append(p, "   w0..3: ");
-			p = append_hex(p, m_w0);
-			p = append(p, " ");
-			p = append_hex(p, m_w1);
-			p = append(p, " ");
-			p = append_hex(p, m_w2);
-			p = append(p, " ");
-			p = append_hex(p, m_w3);
-			*p = '\0';
-			d.text(64, y, line, 0x00ffff00);
+			d.text(64, y, line, m_sig ? 0x0000ff80 : 0x00ff6060);
 		}
 		y += 26;
 		d.text(64, y, "sin trackdisk.device ni dos.library; buffer en Chip RAM", 0x00aaaaaa);
@@ -193,21 +168,14 @@ struct DemoGame {
 
 private:
 	eng::u16* m_track = nullptr;
-	eng::u32 m_boot_sum = 0u;
 	eng::u16 m_words = 0u;
-	eng::u16 m_syncs = 0u;
-	eng::u16 m_w0 = 0u;
-	eng::u16 m_w1 = 0u;
-	eng::u16 m_w2 = 0u;
-	eng::u16 m_w3 = 0u;
-	eng::u8 m_boot[512] {};
+	eng::u8 m_boot[1024] {}; // bootblock completo (2 sectores)
 	eng::u8 m_kind = 0xffu;
 	eng::u8 m_hdr_track = 0xffu;
 	eng::u8 m_hdr_sector = 0xffu;
 	bool m_motor = false;
 	bool m_sec_ok = false;
 	bool m_sig = false;
-	bool m_sum = false;
 	bool m_ok = false;
 };
 
