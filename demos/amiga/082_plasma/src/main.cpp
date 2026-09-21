@@ -12,7 +12,7 @@
 //     `composition::CopperChunkyLayer`; doble buffer por el `copper::Plan` (flip + present);
 //     vblank via el engine.
 #include <eng/api/api.hpp>
-#include <eng/graphics/composition/copper_chunky.hpp>
+#include <eng/api/effects.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 #include <exec/execbase.h>
@@ -87,18 +87,10 @@ struct PlasmaDemo {
 		comp::CopperChunkyConfig cfg {};
 		cfg.cols = kCols;
 		cfg.rows = kRows;
-		// Escena en modo copper chunky (sin bitplanes): reserva solo la copperlist. El doble
-		// buffer lo da el `copper::Plan` (dos bloques; `end_build` hace flip y `present`
-		// publica la lista nueva con COP1LC).
-		scene::SceneResources res = scene::planar(288u, 256u, 0u);
-		res.mode = scene::SceneMode::CopperChunky;
-		res.copper_bytes = 12288u; // ~11 KB para 36x64 bloques
-		if (!scene::compose(m_scene, backend.memory(), res, scene::ocs_a500)) {
+		// Efecto copper-chunky de alto nivel: compone la escena (sin bitplanes) y emite la
+		// estructura de la lista. El doble buffer lo da el `copper::Plan` (flip + present).
+		if (!m_fx.init(m_scene, backend.memory(), scene::ocs_a500, cfg)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008202u);
-			return;
-		}
-		if (!m_layer.attach(m_scene, cfg)) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00008203u);
 			return;
 		}
 		// Primer frame + toma del display (la estructura ya está en ambos bloques; aquí solo
@@ -122,9 +114,9 @@ struct PlasmaDemo {
 private:
 	/// Un frame: colores en el bloque inactivo + flip + install.
 	void draw_frame(amiga::MinimalBackend& backend) {
-		m_layer.begin_frame(m_scene);
+		m_fx.begin_frame(m_scene);
 		fill_colors();
-		m_layer.end_frame(m_scene, backend);
+		m_fx.end_frame(m_scene, backend);
 	}
 
 	/// Escribe los colores del plasma en el bloque del frame (coste: `cols*rows` words).
@@ -133,7 +125,7 @@ private:
 		g_plasma_chunky_args[3] = reinterpret_cast<eng::u32>(plasma_data::kColors);
 		g_plasma_chunky_args[4] = kCols;
 		for (eng::u8 y = 0; y < kRows; ++y) {
-			eng::u16* p = m_layer.row(y);
+			eng::u16* p = m_fx.row(y);
 			if (p == nullptr) {
 				return;
 			}
@@ -145,7 +137,7 @@ private:
 
 	Plasma m_plasma {};
 	scene::Scene m_scene {};
-	comp::CopperChunkyLayer<kCols, kRows> m_layer {};
+	eng::effects::CopperChunky<kCols, kRows> m_fx {};
 	bool m_init_ok = false;
 };
 

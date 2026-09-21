@@ -27,6 +27,7 @@
 #include <eng/field/draw_target.hpp>
 #include <eng/graphics/composition/compose.hpp>
 #include <eng/graphics/frame_plan.hpp>
+#include <eng/input/input.hpp>
 #include <eng/task/background.hpp>
 
 namespace eng {
@@ -80,6 +81,18 @@ public:
 	[[nodiscard]] u32 frame() const noexcept { return m_frame; }
 	[[nodiscard]] task::BackgroundQueue& tasks() noexcept { return *m_context.get()->background; }
 
+	/// **Estado de entrada del frame** (joystick/pads, ratón, teclado). El juego lo lee
+	/// (`app.input().pad0.fire`) o lo rellena con el sondeo de plataforma
+	/// (`eng::platform::poll_input(app.input())`) hasta que el mini-SO de mensajes lo sustituya.
+	[[nodiscard]] input::InputAggregator& input() noexcept { return m_input; }
+
+	/// **Audio del backend** (SFX + música) si lo expone: `app.audio().play_sfx(...)`. Es un
+	/// template para no exigir `audio()` a backends que no lo tengan (se instancia al usarlo).
+	template <class B = Backend>
+	[[nodiscard]] decltype(auto) audio() {
+		return m_backend.audio();
+	}
+
 	/// El juego registra su escena (en `init`); `screen()`/`present()` la usan.
 	void bind_scene(graphics::composition::Scene& scene) noexcept { m_scene = scene; }
 
@@ -128,6 +141,7 @@ private:
 	Engine<Backend, Adapter> m_engine;
 	eng::Ref<GameContext> m_context {};                 ///< contexto del engine (no propietario)
 	eng::Ref<graphics::composition::Scene> m_scene {};  ///< escena del juego (no propietaria)
+	input::InputAggregator m_input {};                  ///< entrada del frame (la lee/rellena el juego)
 	graphics::FramePlan m_plan {};
 	u32 m_frame = 0;
 };

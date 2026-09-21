@@ -48,10 +48,23 @@ struct MyGame {
 |---|---|---|
 | `app.frame()` | índice de frame | `context.frame.frame_index` |
 | `app.screen()` | **contexto de dibujo** (`Screen`) | `scene.surface()` + `FramePlan` + `Rasterizer` |
-| `app.input()` | estado de entrada del frame | `input::InputAggregator` (vía backend) |
+| `app.input()` | estado de entrada del frame | `input::InputAggregator` (vía `poll_input`) |
+| `app.audio()` | audio del backend (SFX + música) | `backend.audio()` |
 | `app.tasks()` | tareas de fondo | `context.background` |
 | `app.scene()` | la escena (para configurarla en `init`) | `scene::Scene` |
 | `app.present()` | publica el frame (copper/swap) | `scene.commit()`/`present()` |
+
+**Efectos** (borrador, `eng/api/effects.hpp`): el juego pide el efecto, no la secuencia de
+primitivas de Copper.
+
+```cpp
+eng::effects::CopperChunky fx;                                   // display sin bitplanes
+fx.init(scene, memory, limits, {.cols = 36, .rows = 64});
+// por frame:
+fx.begin_frame(scene);
+for (y...) { u16* p = fx.row(y); /* colores */ }
+fx.end_frame(scene, backend);                                    // flip + install
+```
 
 `Screen` (contexto de dibujo de alto nivel, análogo al `RastPort`): **la app nunca ve planos,
 `FramePlan` ni `Rasterizer`**.
@@ -78,9 +91,10 @@ app.present();            // ejecuta el plan del frame y publica
 | `backend.memory().chip` / `Block<Tag>` | gestión de recursos del `App`/`World` |
 | `task::BackgroundQueue` | `app.tasks()` |
 | `input::InputAggregator` | `app.input()` |
-| `composition::CopperChunkyLayer` | `world.add_effect(CopperChunky{...})` |
+| `composition::CopperChunkyLayer` | `effects::CopperChunky` (`eng/api/effects.hpp`) |
 | `eng::scene::Actor`/`ActorStore` | `world.add_actor({...})` |
 | `graphics::FramePlan` (jobs de Blitter) | interno del `Screen`/planner |
+| `backend.audio()` | `app.audio()` |
 
 ## 4. Reglas de diseño del API público
 
@@ -98,13 +112,14 @@ app.present();            // ejecuta el plan del frame y publica
 
 ## 5. Plan de adopción (evolutivo)
 
-1. **`App` + `Screen`** sobre `Engine`/`Scene`/`Surface`/`FramePlan` (borrador en
-   `eng/api/game.hpp`): migrar una demo sencilla (p. ej. `204_collide_game`) como prueba de que
-   oculta `backend`/`GameContext`/`FramePlan`.
-2. **`input()`/`tasks()`/`frame()`** expuestos por `App` (wrappers baratos).
-3. **Efectos** como concepto (`CopperChunky`, degradados, etc.) sobre `world`/`App`.
+1. **`App` + `Screen`** sobre `Engine`/`Scene`/`Surface`/`FramePlan`: **hecho** (HOST-234);
+   migrar una demo de juego al `App` (p. ej. `204_collide_game`) es el siguiente paso.
+2. **`input()`/`audio()`/`tasks()`/`frame()`** expuestos por `App`: **hecho** (wrappers baratos;
+   `input()` se rellena con `poll_input` hasta que el mini-SO de mensajes lo sustituya).
+3. **Efectos** como concepto: **hecho** para copper-chunky (`effects::CopperChunky`, usado por
+   082/083); faltan degradados y otros.
 4. **Actores** (`ActorStore`) tras la representación elegida por el engine.
-5. **Audio/UI** cuando sus módulos estén listos.
+5. **UI** (`eng::ui`) cuando se implemente.
 
 Mientras tanto, el API de `eng/api/api.hpp` (fachada de tipos) sigue siendo la puerta de lo
 existente; `App`/`Screen` lo envuelven para el caso de juego.

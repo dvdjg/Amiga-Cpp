@@ -12,7 +12,7 @@
 #include <eng/core/minifloat_math.hpp>
 #include <eng/core/noise.hpp>
 #include <eng/api/api.hpp>
-#include <eng/graphics/composition/copper_chunky.hpp>
+#include <eng/api/effects.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 
 #include <exec/execbase.h>
@@ -76,16 +76,9 @@ struct FbmDemo {
 		comp::CopperChunkyConfig cfg {};
 		cfg.cols = kCols;
 		cfg.rows = kRows;
-		// Escena copper chunky (sin bitplanes); doble buffer por el `copper::Plan`.
-		scene::SceneResources res = scene::planar(288u, 256u, 0u);
-		res.mode = scene::SceneMode::CopperChunky;
-		res.copper_bytes = 12288u;
-		if (!scene::compose(m_scene, backend.memory(), res, scene::ocs_a500)) {
+		// Efecto copper-chunky de alto nivel (compone la escena sin bitplanes + estructura).
+		if (!m_fx.init(m_scene, backend.memory(), scene::ocs_a500, cfg)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00008302u);
-			return;
-		}
-		if (!m_layer.attach(m_scene, cfg)) {
-			eng::debug::mark_failed(g_eng_run_status, 0x00008303u);
 			return;
 		}
 		build_coarse();
@@ -171,9 +164,9 @@ private:
 
 	/// Un frame: colores en el bloque inactivo + flip + install.
 	void draw_frame(amiga::MinimalBackend& backend) {
-		m_layer.begin_frame(m_scene);
+		m_fx.begin_frame(m_scene);
 		fill_colors();
-		m_layer.end_frame(m_scene, backend);
+		m_fx.end_frame(m_scene, backend);
 	}
 
 	/// Escribe los colores del campo en el bloque del frame (coste: `cols*rows` words). El
@@ -183,7 +176,7 @@ private:
 		constexpr int kStepX = (kGW << 8) / kCols;
 		constexpr int kStepY = (kGH << 8) / kRows;
 		for (u8 y = 0; y < kRows; ++y) {
-			u16* p = m_layer.row(y);
+			u16* p = m_fx.row(y);
 			if (p == nullptr) {
 				return;
 			}
@@ -212,7 +205,7 @@ private:
 	}
 
 	scene::Scene m_scene {};
-	comp::CopperChunkyLayer<kCols, kRows> m_layer {};
+	eng::effects::CopperChunky<kCols, kRows> m_fx {};
 	u8 m_coarse[kGW * kGH] {};
 	u16 m_palette[256] {};
 	s32 m_ox = 0, m_oy = 0;
