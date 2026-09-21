@@ -29,12 +29,12 @@ constexpr eng::u16 kAdkcon = 0x09eu / 2u;
 constexpr eng::u16 kDmaDisk = 0x0010u;    // DMACON bit 4
 constexpr eng::u16 kIntDskblk = 0x0002u;  // INTREQ/INTREQR bit 1
 constexpr eng::u16 kAdkWordsync = 0x8400u; // SETCLR | WORDSYNC (bit 10)
-constexpr eng::u16 kTrackWords = 6400u;   // ~ una pista DD (11 sectores + gaps)
+constexpr eng::u16 kDsklenMax = 0x3fffu;   // DSKLEN: longitudes de 14 bits
 
 // Bits de CIA-B PRB (activos a 0 salvo SIDE/DIR).
 constexpr eng::u8 kMtr = 0x80u;  // /MTR
 constexpr eng::u8 kSel0 = 0x08u; // /SEL0 (DF0)
-constexpr eng::u8 kSide = 0x04u; // SIDE (0 = cara superior)
+constexpr eng::u8 kSide = 0x04u; // SIDE (WinUAE: cara = 1 - bit, disk.cpp:3489)
 constexpr eng::u8 kDir = 0x02u;  // DIR (0 = hacia el centro; pista 0 esta fuera)
 constexpr eng::u8 kStep = 0x01u; // /STEP (pulso)
 
@@ -112,32 +112,44 @@ bool eng::os::floppy_present(eng::u16 unit) {
 
 eng::u16 eng::os::floppy_read_track(eng::u16 unit, eng::u8 track, bool side,
 				    eng::Span<eng::u16> dst) {
-	if (unit != 0u || dst.size() < kTrackWords) {
-		return 0u;
+	if (unit != 0u || dst.size() < kMfmWordsPerSector) {
+		return 0u; // hace falta al menos un sector
+	}
+	// DSKLEN solo admite longitudes de 14 bits; se redondea a palabra.
+	eng::u16 words = static_cast<eng::u16>(dst.size() & ~1u);
+	if (words > kDsklenMax) {
+		words = kDsklenMax;
 	}
 	seek_track(track);
-	prb_set(side ? static_cast<eng::u8>(prb() | kSide) : static_cast<eng::u8>(prb() & ~kSide));
+	// El parametro `side` es el indice de cara del ADF (0 = primera cara). WinUAE calcula
+	// `side = 1 - ((prb >> 2) & 1)` (disk.cpp:3489), asi que el bit SIDE va invertido:
+	// cara 0 -> SIDE = 1 (bit puesto), cara 1 -> SIDE = 0.
+	prb_set(side ? static_cast<eng::u8>(prb() & ~kSide) : static_cast<eng::u8>(prb() | kSide));
 	spin(2000u);
 
 	// DMA crudo: WORDSYNC + DSKSYNC, puntero a Chip RAM, DSKLEN (doble escritura).
+	// Limpiar WORDSYNC antes de armarlo rearma la deteccion de sync tras una lectura previa.
+	d::custom_base[kAdkcon] = 0x0400u; // SETCLR=0: borra WORDSYNC
 	d::custom_base[kAdkcon] = kAdkWordsync;
 	d::custom_base[kDsksync] = kMfmSync;
 	d::write_custom_pointer(kDskpt, dst.data());
 	d::custom_base[d::custom_dmacon_offset] =
 		static_cast<eng::u16>(d::dma_setclr | d::dma_master | d::dma_copper | kDmaDisk);
-	const eng::u16 len = static_cast<eng::u16>(0x8000u | kTrackWords);
+	// DSKLEN=0 deja `prevlen` sin DMAEN, de modo que la primera escritura cargue y la segunda
+	// dispare (necesario al rearmar tras una lectura previa).
+	d::custom_base[kDsklen] = 0u;
+	const eng::u16 len = static_cast<eng::u16>(0x8000u | words);
 	d::custom_base[kDsklen] = len;
 	d::custom_base[kDsklen] = len; // segunda escritura: dispara la DMA
 
-	// Espera de fin de bloque (DSKBLK), con tope anti-bloqueo.
-	eng::u32 guard = 0x00ffffffu;
+	// Espera de fin de bloque (DSKBLK), con tope anti-bloqueo (acotado para no agotar el arranque).
+	eng::u32 guard = 0x007fffffu;
 	while ((d::custom_base[d::custom_intreqr_offset] & kIntDskblk) == 0u) {
 		if (--guard == 0u) {
 			break;
 		}
 	}
 	d::custom_base[d::custom_intreq_offset] = kIntDskblk; // limpiar el flag
-	d::custom_base[d::custom_dmacon_offset] =
-		static_cast<eng::u16>(d::dma_setclr | d::dma_master | d::dma_copper);
-	return guard != 0u ? kTrackWords : 0u;
+	d::custom_base[d::custom_dmacon_offset] = kDmaDisk; // SETCLR=0: borra la DMA de disco
+	return guard != 0u ? words : 0u;
 }
