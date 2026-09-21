@@ -269,4 +269,7 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-238 | [os_time](238_os_time/README.md) | Mini-SO: `eng/os/time.hpp` — conversiones ticks↔µs (PAL/NTSC) y `ScopedTimer` con `TickSource`. |
 | HOST-242 | [pcm_codec](242_pcm_codec/README.md) | Codec PCM Delta + RLE (`eng/audio/pcm_codec.hpp`): round-trip byte a byte, ratio y rechazos (codec/destino/truncado). |
 | HOST-249 | [crowd](249_crowd/README.md) | Crowd genérico (`eng/ai/steering/crowd.hpp`): separación/evasión con fase amplia como política (`SpatialHash`, no `O(N²)`), probado con `s32` y `float`. |
+| HOST-252 | [os_input](252_os_input/README.md) | Mini-SO: productores de entrada (`eng/os/input.hpp`) que emiten joystick/gamepad/ratón **solo al cambiar**, con posición clampada. |
+| HOST-253 | [os_pump](253_os_pump/README.md) | Mini-SO: bucle reactivo `MessagePumpGame` (drena el puerto, `on_frame`/`on_render`). |
+| HOST-254 | [asset_cache](254_asset_cache/README.md) | Recursos: `AssetCache` (`eng/res/asset_cache.hpp`) — ciclo, presupuesto, desalojo por prioridad/LRU y `pin`/`refcount`. |
 | HOST-208 | [ptr](208_ptr/README.md) | `eng/core/ptr.hpp`: punteros "inteligentes" sin heap (`Ref` observador no propietario y anulable, `NonNull`, `Opt` opcional en sitio). |

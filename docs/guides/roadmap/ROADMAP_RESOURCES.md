@@ -32,7 +32,8 @@ presupuesto/prioridad/LRU y **loader de código relocatable**, sobre la E/S así
   `set_priority`, `on_file_done`, `set_frame`).
 - **Verificación**: **HOST-245** — `get` lanza carga y devuelve `nullptr`; al llegar `FileDone`
   pasa a `Ready` y `get` devuelve datos; `add_ref`/`release` y `pin` se reflejan en el estado.
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`eng/res/asset_cache.hpp` con `Backend` de `alloc`/`free`/`load`;
+  cubierto junto con R2 por **HOST-254**).
 
 ### R2 — Política de desalojo
 
@@ -41,7 +42,8 @@ presupuesto/prioridad/LRU y **loader de código relocatable**, sobre la E/S así
 - **Verificación**: **HOST-246** — con presupuesto pequeño, al pedir un asset nuevo se desaloja el
   de menor prioridad; a igualdad de prioridad, el más viejo; los fijados y referenciados nunca se
   desalojan; sin víctima, la carga falla con `AssetError`.
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`ensure_space`/`pick_victim`: menor prioridad y, a igualdad, LRU;
+  `pin`/`refcount` protegen; HOST-254).
 
 ### R3 — Mensajes de recurso e integración con el bucle
 

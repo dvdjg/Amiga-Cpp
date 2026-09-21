@@ -66,7 +66,10 @@ UI (`eng::ui`).
 - **Detalle**: [`MINI_OS_INPUT.md`](../../engine/architecture/MINI_OS_INPUT.md).
 - **Verificación**: el decodificado puro ya está cubierto por HOST-006/HOST-007; se añade un test
   de que un cambio de registro produce **exactamente un mensaje** (y ninguno si no cambia).
-- **Estado**: pendiente.
+- **Estado**: **parcial**. Entregado: los **productores puros** (`eng/os/input.hpp`:
+  `JoyProducer`/`PadProducer`/`MouseProducer` emiten solo al cambiar; **HOST-252**). Pendiente: la
+  **lectura de registros** en el backend (CIA-A serie/IRQ, `JOYxDAT`, `POTGO`) reutilizando
+  `input_poll.hpp` (`decode_joystick`).
 
 ### M3 — Puente a la UI
 
@@ -83,7 +86,9 @@ UI (`eng::ui`).
 - **Verificación**: **demo 206_message_loop** — una escena mínima que reacciona a VBlank, a teclas
   y al ratón **sin leer hardware**; el gate visual comprueba que la escena cambia con la entrada y
   que el frame avanza.
-- **Estado**: pendiente.
+- **Estado**: **parcial**. Entregado: `eng/os/message_pump.hpp` (`MessagePumpGame<App>` drena el
+  puerto y llama a `on_frame`/`on_render`; **HOST-253**). Pendiente: la **demo 206** (necesita los
+  productores de backend de M1/M2).
 
 ### M5 — Prioridad, peek, coalescing y despacho
 

@@ -22,6 +22,8 @@ núcleo, [`MINI_OS_INPUT.md`](../../../../docs/engine/architecture/MINI_OS_INPUT
 | `os.hpp` | Fachada de servicios: `init`, `system_port`, `frame_count`, `add_timer`, `input_enable`, `post_user`, `request_quit`. | prevista |
 | `time.hpp` | Tiempo: conversiones ticks↔µs (PAL/NTSC) y `TickSource`/`ScopedTimer`. | **Implementado** (HOST-238) |
 | `timer.hpp` | `TimerService` (timers de frames/µs → `MsgType::Timer`). | **Implementado** (HOST-222) |
+| `input.hpp` | Productores puros de entrada (`JoyProducer`/`PadProducer`/`MouseProducer`): emiten solo al cambiar. | **Implementado** (HOST-252) |
+| `message_pump.hpp` | `MessagePumpGame<App>`: drena el puerto en `update` y llama a `on_frame`/`on_render`. | **Implementado** (HOST-253) |
 | `task.hpp` | `TaskSystem`: tareas de fondo con ciclo de vida, scheduler de idle, `request_preempt`/`yield_if_preempt`, `TaskMsgPort` propio y tareas-corrutina. | prevista |
 | `file.hpp` | E/S asíncrona: `FileHandle`, `file_open`/`read_async`/`write_async`/`close`, `IoNotify`, `AudioStream` y `MsgType::FileDone`/`FileError`. | prevista |
 
