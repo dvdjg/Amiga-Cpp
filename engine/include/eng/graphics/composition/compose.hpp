@@ -101,6 +101,12 @@ struct Patch32 {
 /// No reserva al sistema más que a través de la `MemorySystem` del backend.
 class Scene {
 public:
+	/// **Efecto de escena**: callable que recibe la escena y aporta intenciones/trabajos al
+	/// plan del frame. Ver `docs/engine/architecture/EFFECT_MODEL.md`.
+	using EffectFn = eng::util::FunctionRef<void(Scene&)>;
+	/// Máximo de efectos registrados por escena (capacidad fija, sin heap).
+	static constexpr u8 kMaxEffects = 8;
+
 	/// Crea la escena reservando los bitplanes (según `res`) y la copperlist en Chip RAM,
 	/// **validando antes** `res` contra las capacidades de `limits` (perfil de la máquina).
 	/// El motivo del rechazo queda en `config_error()`. Devuelve `false` si no es válida o no
@@ -351,10 +357,31 @@ public:
 	Scene& on_teardown(Task t) { m_teardown = t; return *this; }
 	/// Ejecuta la tarea de setup (si la hay).
 	void setup() { run(m_setup); }
-	/// Ejecuta la tarea de frame (si la hay). **Una vez por frame (hot path).**
-	void tick() { run(m_frame); }
+	/// Ejecuta los **efectos** y la tarea de frame (si las hay). **Una vez por frame.**
+	void tick() {
+		run_effects();
+		run(m_frame);
+	}
 	/// Ejecuta la tarea de teardown (si la hay).
 	void teardown() { run(m_teardown); }
+
+	// --- Efectos (aportan intenciones/trabajos al plan del frame) -------------------
+	/// Registra un **efecto**: callable `void(Scene&)` que aporta al `plan()` del frame.
+	/// Se ejecutan en orden de registro (dentro de `tick()`, tras `begin_build()`).
+	Scene& add_effect(EffectFn fn) {
+		if (m_effect_count < kMaxEffects && fn.valid()) {
+			m_effects[m_effect_count++] = fn;
+		}
+		return *this;
+	}
+	/// Ejecuta los efectos registrados, en orden de registro.
+	void run_effects() {
+		for (u8 i = 0; i < m_effect_count; ++i) {
+			m_effects[i](*this);
+		}
+	}
+	/// Nº de efectos registrados.
+	[[nodiscard]] constexpr u8 effect_count() const { return m_effect_count; }
 
 private:
 	/// Invoca una `Task` solo si es válida (no nula).
@@ -452,6 +479,8 @@ private:
 	Task m_setup {}; ///< tarea de setup (una vez)
 	Task m_frame {}; ///< tarea de frame (por `tick`)
 	Task m_teardown {}; ///< tarea de teardown
+	eng::util::Array<EffectFn, kMaxEffects> m_effects {}; ///< efectos (orden de registro)
+	u8 m_effect_count = 0; ///< nº de efectos registrados
 	ConfigError m_config_error {}; ///< motivo del último rechazo de configuración (vacío = ok)
 	eng::Ref<hw::HwInfo> m_hw_info {}; ///< inventario ligado (no propietario); publica el display
 };

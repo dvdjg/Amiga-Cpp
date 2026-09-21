@@ -125,6 +125,14 @@ int main() {
 
 	// --- Frame 1: intenciones anadidas DESORDENADAS (100, 40, 70) ---------------
 	plan.begin_frame();
+
+	// --- Reserva de banda: deteccion de solape entre efectos --------------------
+	if (!plan.reserve_band(40u, 120u, 0x0001u)) { std::printf("[FAIL] reserva 40..120\n"); return 1; }
+	if (plan.reserve_band(100u, 140u, 0x0001u)) { std::printf("[FAIL] solape mismo reg no detectado\n"); return 1; }
+	if (!plan.reserve_band(100u, 140u, 0x0002u)) { std::printf("[FAIL] mismo tramo, otro reg\n"); return 1; }
+	if (!plan.reserve_band(200u, 220u, 0u)) { std::printf("[FAIL] tramo disjunto\n"); return 1; }
+	if (plan.reserve_band(210u, 230u, 0u)) { std::printf("[FAIL] mask 0 no solapa\n"); return 1; }
+	if (plan.band_count() != 3u) { std::printf("[FAIL] band_count != 3\n"); return 1; }
 	plan.scheduler().emit_palette(eng::PaletteWords {kBase, 4});
 	plan.add(palette_intent(100u, &kC1));
 	plan.add(palette_intent(40u, &kC2));
