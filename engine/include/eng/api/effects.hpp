@@ -140,17 +140,24 @@ public:
 		u16 lines = 0;      ///< nº de líneas que cubre
 		u8 channels = 8;    ///< canales usados (1..8)
 		u16 hpos0 = 0;      ///< x del primer tramo (low-res px)
-		u16 hpos_step = 0;  ///< separación entre tramos (>=24 px; carrera contra el haz)
-		u16 data_high = 0;  ///< SPRxDATA (primera palabra de la fila)
-		u16 data_low = 0;   ///< SPRxDATB (segunda palabra)
+		u16 hpos_step = 0;  ///< separación entre tramos (>=16 px; columnas contiguas)
+		u16 data_high = 0;  ///< SPRxDATA (primera palabra de la fila) — canales Copper
+		u16 data_low = 0;   ///< SPRxDATB (segunda palabra) — canales Copper
 		u16 bplcon2 = 0;    ///< prioridad (`BPLCON2`); sprites detrás del playfield = fondo
+		/// **Canales DMA** (los `dma_channels` primeros): sprite **alto** (toda la banda) con
+		/// su DATA en Chip RAM y la **posición parcheada** (no se rearman por línea). Cubren
+		/// ancho "gratis" en Copper; el resto de canales son Copper (rearm por línea).
+		u8 dma_channels = 0;
+		u16 dma_height = 0;   ///< alto de la columna DMA en líneas (0 = `lines`)
+		const u16* dma_data = nullptr; ///< DATA de la columna DMA (`dma_height*2 + 2` words)
 	};
 
-	/// Configura la capa. `false` si `lines == 0`, `channels` fuera de 1..8 o `hpos_step < 16`
-	/// (columnas de 16 px contiguas).
+	/// Configura la capa. `false` si `lines == 0`, `channels` fuera de 1..8, `hpos_step < 16`,
+	/// `dma_channels > channels` o hay canales DMA sin `dma_data`.
 	[[nodiscard]] bool attach(Config cfg) {
 		if (cfg.lines == 0u || cfg.channels == 0u || cfg.channels > 8u ||
-		    cfg.hpos_step < 16u) {
+		    cfg.hpos_step < 16u || cfg.dma_channels > cfg.channels ||
+		    (cfg.dma_channels > 0u && cfg.dma_data == nullptr)) {
 			return false;
 		}
 		m_cfg = cfg;
@@ -160,25 +167,47 @@ public:
 	/// Desplaza la capa horizontalmente (px low-res; el paso entre columnas no cambia).
 	void set_scroll(u16 x) noexcept { m_scroll = x; }
 
-	/// Emite la capa completa. Patrón de Jeroen Knoester (`spr-layer.html`): **un `WAIT` al
-	/// inicio de cada línea** y luego una **ráfaga** con `SPRxPOS`+`SPRxDATB`+`SPRxDATA` de
-	/// todos los canales (el `SPRxCTL` se fija **una vez** por banda). Escribir `SPRxDATA`
-	/// arma el canal para esa línea; el orden DATB→DATA importa.
+	/// Emite la capa completa. **Canales DMA**: `SPRxPT`+`CTL`+`POS` (columna alta, posición
+	/// con el scroll; no se rearman por línea). **Canales Copper**: patrón de Jeroen Knoester
+	/// (`spr-layer.html`) — **un `WAIT` al inicio de cada línea** y luego **ráfaga** de
+	/// `SPRxPOS`+`SPRxDATB`+`SPRxDATA` (el `SPRxCTL` se fija una vez por banda; `DATA` arma).
 	template <class Sched>
 	void emit_into(Sched& sched) const {
 		sched.move(copper::Register::BPLCON2, m_cfg.bplcon2); // prioridad de fondo
 		const u16 vstop = static_cast<u16>(m_cfg.first_line + m_cfg.lines);
-		// CTL una vez por canal: VSTART/VSTOP cubren toda la banda.
-		for (u8 ch = 0u; ch < m_cfg.channels; ++ch) {
+
+		// --- Canales DMA: columna alta, posición parcheada (sin rearm por línea) ---
+		if (m_cfg.dma_channels > 0u) {
+			const u16 dh = (m_cfg.dma_height != 0u) ? m_cfg.dma_height : m_cfg.lines;
+			const u16 dma_vstop = static_cast<u16>(m_cfg.first_line + dh - 1u);
+			const eng::uintptr dptr = reinterpret_cast<eng::uintptr>(m_cfg.dma_data);
+			const u16 dma_ctl = static_cast<u16>(((dma_vstop & 0xffu) << 8u) |
+							     (((m_cfg.first_line >> 8u) & 0x1u) << 2u) |
+							     (((dma_vstop >> 8u) & 0x1u) << 1u));
+			for (u8 ch = 0u; ch < m_cfg.dma_channels; ++ch) {
+				sched.move(static_cast<copper::Register>(0x120u + ch * 4u),
+					   static_cast<u16>(dptr >> 16));                        // SPRxPTH
+				sched.move(static_cast<copper::Register>(0x122u + ch * 4u),
+					   static_cast<u16>(dptr & 0xffffu));                    // SPRxPTL
+				sched.move(static_cast<copper::Register>(0x142u + ch * 8u), dma_ctl); // SPRxCTL
+				const u16 hpos = static_cast<u16>(m_cfg.hpos0 +
+								  static_cast<u16>(ch) * m_cfg.hpos_step + m_scroll);
+				const u16 pos = static_cast<u16>(((m_cfg.first_line & 0xffu) << 8u) |
+								 ((hpos >> 1u) & 0xffu));
+				sched.move(static_cast<copper::Register>(0x140u + ch * 8u), pos); // SPRxPOS
+			}
+		}
+
+		// --- Canales Copper: CTL una vez + rearm por línea (WAIT + POS/DATB/DATA) ---
+		for (u8 ch = m_cfg.dma_channels; ch < m_cfg.channels; ++ch) {
 			const u16 ctl = static_cast<u16>(((vstop & 0xffu) << 8u) |
-							 (((m_cfg.first_line >> 8u) & 0x1u) << 3u) |
-							 (((vstop >> 8u) & 0x1u) << 2u));
+							 (((m_cfg.first_line >> 8u) & 0x1u) << 2u) |
+							 (((vstop >> 8u) & 0x1u) << 1u));
 			sched.move(static_cast<copper::Register>(0x142u + ch * 8u), ctl); // SPRxCTL
 		}
-		// Por línea: UN WAIT al inicio + POS/DATB/DATA de todos los canales.
 		for (u16 line = m_cfg.first_line; line < vstop; ++line) {
 			sched.wait_line_safe(line);
-			for (u8 ch = 0u; ch < m_cfg.channels; ++ch) {
+			for (u8 ch = m_cfg.dma_channels; ch < m_cfg.channels; ++ch) {
 				const u16 hpos = static_cast<u16>(m_cfg.hpos0 +
 								  static_cast<u16>(ch) * m_cfg.hpos_step + m_scroll);
 				const u16 pos = static_cast<u16>(((line & 0xffu) << 8u) |

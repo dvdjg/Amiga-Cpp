@@ -275,10 +275,10 @@ public:
 		const u16 pos = static_cast<u16>(((r.vstart & 0xffu) << 8u) | ((r.hpos >> 1u) & 0xffu));
 		const u16 ctl = static_cast<u16>(
 			((r.vstop & 0xffu) << 8u) |
-			(((r.vstart >> 8u) & 0x1u) << 3u) |
-			(((r.vstop >> 8u) & 0x1u) << 2u) |
-			((r.hpos & 0x1u) << 1u) |
-			(r.attach ? 1u : 0u)
+			(r.attach ? 0x0080u : 0x0000u) |     // bit 7: ATTACH
+			(((r.vstart >> 8u) & 0x1u) << 2u) |   // bit 2: VSTART[8]
+			(((r.vstop >> 8u) & 0x1u) << 1u) |    // bit 1: VSTOP[8]
+			(r.hpos & 0x1u)                       // bit 0: HSTART[0]
 		);
 		move(static_cast<u16>(0x140u + ch * 8u), pos);   // SPRxPOS
 		move(static_cast<u16>(0x142u + ch * 8u), ctl);   // SPRxCTL

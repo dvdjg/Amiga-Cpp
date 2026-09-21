@@ -235,10 +235,10 @@ private:
         const u16 pos = static_cast<u16>(((s.vstart & 0xff) << 8) | ((s.hpos >> 1) & 0xff));
         const u16 ctl = static_cast<u16>(
             ((s.vstop & 0xff) << 8) |
-            (((s.vstart >> 8) & 0x1u) << 3) |
-            (((s.vstop >> 8) & 0x1u) << 2) |
-            ((s.hpos & 0x1u) << 1) |
-            (s.attach ? 0x1u : 0x0u) // ATTACH: une con el sprite par anterior (15 colores)
+            (s.attach ? 0x0080u : 0x0000u) |     // bit 7: ATTACH (AHRM 4: "bit 7")
+            (((s.vstart >> 8) & 0x1u) << 2) |     // bit 2: VSTART[8]
+            (((s.vstop >> 8) & 0x1u) << 1) |      // bit 1: VSTOP[8]
+            (s.hpos & 0x1u)                       // bit 0: HSTART[0]
         );
         sched.move(static_cast<copper::Register>(0x140 + channel * 8), pos);     // SPRxPOS
         sched.move(static_cast<copper::Register>(0x142 + channel * 8), ctl);     // SPRxCTL

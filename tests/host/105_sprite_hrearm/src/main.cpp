@@ -106,10 +106,10 @@ void test_encoding() {
 	Mv mv[8] {};
 	const unsigned nm = collect_moves(w, count, mv, 8u);
 
-	// POS esperado: (VSTART[7:0]<<8) | (hpos>>1). CTL: VSTOP[7:0]<<8 | VSTART[8]<<3 |
-	// VSTOP[8]<<2 | hpos[0]<<1 | attach.
+	// POS: (VSTART[7:0]<<8) | (hpos>>1). CTL (AHRM): VSTOP[7:0]<<8 | ATTACH(bit7) |
+	// VSTART[8](bit2) | VSTOP[8](bit1) | HSTART[0](bit0).
 	const u16 pos_expected = static_cast<u16>((0x2cu << 8u) | ((0x46u >> 1u) & 0xffu));
-	const u16 ctl_expected = static_cast<u16>((0x31u << 8u) | ((0x46u & 1u) << 1u) | 1u);
+	const u16 ctl_expected = static_cast<u16>((0x31u << 8u) | 0x0080u);
 
 	CHECK(nm == 4u, "el rearm emite exactamente 4 MOVEs");
 	if (nm == 4u) {
@@ -207,7 +207,7 @@ void test_attach() {
 	for (unsigned i = 0; i < n; ++i) {
 		if (mv[i].reg == 0x142u + 1u * 8u) {
 			found = true;
-			CHECK((mv[i].val & 0x1u) != 0u, "SPR1CTL lleva el bit ATTACH");
+			CHECK((mv[i].val & 0x0080u) != 0u, "SPR1CTL lleva el bit ATTACH (bit 7)");
 		}
 	}
 	CHECK(found, "SPR1CTL emitido por SpriteManager");
@@ -267,6 +267,30 @@ void test_sprite_layer() {
 	bad_cfg.lines = 0u;
 	bad_cfg.hpos_step = 16u;
 	CHECK(!bad.attach(bad_cfg), "SpriteLayer: lines=0 -> false");
+
+	// Canales DMA: PT+CTL+POS una vez por canal (sin rearm por linea).
+	eng::u16 dma_col[8] {};
+	eng::effects::SpriteLayer dma;
+	eng::effects::SpriteLayer::Config dcfg {};
+	dcfg.first_line = 100u;
+	dcfg.lines = 4u;
+	dcfg.channels = 8u;
+	dcfg.hpos_step = 16u;
+	dcfg.dma_channels = 2u;
+	dcfg.dma_height = 4u;
+	dcfg.dma_data = dma_col;
+	CHECK(dma.attach(dcfg), "SpriteLayer DMA attach");
+	FakeSched fd;
+	dma.emit_into(fd);
+	// BPLCON2(1) + DMA 2*4 + CTL Copper 6 + 4 lineas*(6 canales*3) = 1+8+6+72 = 87.
+	CHECK(fd.moves == 1 + 8 + 6 + 4 * 6 * 3, "SpriteLayer DMA: MOVEs");
+	CHECK(fd.waits == 4, "SpriteLayer DMA: 4 WAIT (solo canales Copper)");
+	eng::effects::SpriteLayer bad2;
+	eng::effects::SpriteLayer::Config b2 {};
+	b2.lines = 1u;
+	b2.hpos_step = 16u;
+	b2.dma_channels = 2u; // sin dma_data
+	CHECK(!bad2.attach(b2), "SpriteLayer: DMA sin data -> false");
 }
 
 } // namespace
