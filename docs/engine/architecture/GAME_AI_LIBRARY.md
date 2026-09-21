@@ -263,6 +263,15 @@ Coste medido: `seek`+`arrive` con q12 (sonda `c_steering_ops`) 411 instrucciones
 `muls.w`, sin libcalls. Límite q12: `length_sq` desborda si las componentes pasan de ~2.
 Verificación: HOST-115.
 
+`crowd.hpp`: orquestador de **movimiento local** para muchos agentes. Actualiza un pool
+(`Span<CrowdAgent>`, sin heap) con **separación**, **evasión de obstáculos** y un vector
+**deseado** (del path/flow/seek), e integra posición y velocidad. Los vecinos se buscan con la
+**rejilla espacial** `eng::util::SpatialHash` (fase amplia de colisiones), de modo que el coste
+depende de la densidad local y **no de `N²`**; `neighbor_checks()` informa del trabajo real.
+Aritmética entera (`s16` posiciones, `s32` intermedios) con **una** `isqrt` por límite y ninguna
+división por vecino: el mundo de navegación es `Point2s`, así que no reutiliza `steering.hpp`
+(genérico sobre escalar para velocidades normalizadas). Verificación: HOST-249.
+
 ## 7. Percepción (`eng/ai/perception/`)
 
 - `influence_map.hpp`: `InfluenceMap<W,H>`, rejilla de influencia (`s32` por celda) con
@@ -289,6 +298,7 @@ HOST-117.
 | `navigation/waypoints.hpp` | `WaypointGraph<MaxNodes,MaxEdges>`, `find_path` (A* Manhattan) | Implementado, HOST-116 |
 | `navigation/navmesh_lite.hpp` | `NavMesh`, `locate`, `find_path` (A* por portales) | Implementado, HOST-118 |
 | `steering/steering.hpp` | `seek`/`flee`/`arrive`, `separation`/`cohesion`/`alignment`/`flock`, `pursue`/`evade`/`wander`/`avoid_circles` | Implementado, HOST-115 |
+| `steering/crowd.hpp` | `Crowd<...>`: actualización de crowd con separación + evasión + integración, vecinos por `SpatialHash` (no `O(N²)`) | Implementado, HOST-249 |
 | `perception/influence_map.hpp` | `InfluenceMap<W,H>`: deposit/decay/strongest | Implementado, HOST-117 |
 | `perception/agent_memory.hpp` | `AgentMemory`: see/tick/fresh/stale/forget | Implementado, HOST-117 |
 | `design/…` | director de dificultad, recompensas | Planificado (ROADMAP_GAME_AI) |

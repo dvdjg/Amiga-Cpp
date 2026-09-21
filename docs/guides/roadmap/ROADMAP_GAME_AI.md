@@ -115,6 +115,29 @@ map y memoria; HOST-115/117). Candidatos G4.4 (pursue/evade/wander/evasión) y G
 G5 exige un consumidor real (juego en `games/`); hasta entonces estas técnicas viven como
 patrones descritos en §5.
 
+### G6 — Crowd y mejoras de navegación
+
+Recoge la revisión de las mejoras propuestas para la navegación lite (`navmesh_lite`/`flow_field`/
+`waypoints`) y el crowd. Lo que **ya existía** no se duplica: el campo de amenaza/interés es
+`perception/influence_map.hpp`, la separación/evasión/flocking es `steering.hpp`, el eje
+Abstract/Realized es el LOD de `eng::sim` (`lod.hpp`), y no se añade una interfaz `INavigator`
+virtual (el engine usa funciones libres y buffers externos).
+
+| Paso | Entrega | Detalle | Verificación |
+|---|---|---|---|
+| G6.1 | `steering/crowd.hpp` | Crowd (separación + evasión de obstáculos + integración) con **vecinos por `SpatialHash`**, no `O(N²)`; pool de agentes externo, aritmética entera | **Entregado**: HOST-249 |
+| G6.2 | `navmesh_lite.hpp` | Cache/atajo de `locate`: recordar el polígono actual y probar vecinos antes del bucle lineal | HOST propio |
+| G6.3 | `navmesh_lite.hpp`/`waypoints.hpp` | **Coste por portal** (terreno/peligro) y `MovementProfile` (can_climb/can_swim/max_slope) que filtra portales/costes | HOST propio |
+| G6.4 | navegación | **Reutilización de paths**: recalcular solo si el objetivo se movió o el agente se desvió (patrón de la caché de planes del GOAP) | HOST propio |
+| G6.5 | `navmesh_lite.hpp` | **Budget explícito** de nodos expandidos por agente y frame | HOST propio |
+| G6.6 | `steering/crowd.hpp` | Crowd **fixed-point pura** (sin `/` ni `isqrt` por vecino) y sonda de codegen | HOST + `codegen-report.mjs` |
+
+G6.1 está entregado y verificado por test host; G6.2–G6.6 quedan **pendientes** (se abordan cuando
+haya un consumidor de movimiento con muchos agentes). El crowd reutiliza la fase amplia de
+colisiones ya existente (`eng::util::SpatialHash`, `broadphase.hpp`); `steering.hpp` no se reutiliza
+directamente porque es genérico sobre el escalar (`q12`/`float`) para velocidades normalizadas,
+mientras que el mundo de navegación es `s16` (`Point2s`).
+
 ## 5. Catálogo de técnicas a incorporar
 
 ### 5.1 IA clásica
@@ -138,6 +161,9 @@ patrones descritos en §5.
 | Heurística relajada (h_max) + memo de h | planificación | `ai/planning/numeric_goap.hpp` (`plan_relaxed`) | relajación por borrado (Hoffmann/Nebel) | **Entregado** (HOST-186) |
 | HFSM (FSM jerárquica) | decisión | `ai/decision/` | — | Candidato (estados anidados) |
 | Pursuit/evade/wander y evasión de obstáculos | movimiento | `ai/steering/steering.hpp` | C. Reynolds | **Entregado** (HOST-115) |
+| Crowd (separación + evasión local) | movimiento | `ai/steering/crowd.hpp` | — | **Entregado** (HOST-249) |
+| Cache de `locate` / coste por portal + `MovementProfile` | navegación | `ai/navigation/navmesh_lite.hpp` | Recast/Detour | Pendiente (G6.2–G6.3) |
+| Reutilización de paths + budget de expansión | navegación | navegación | — | Pendiente (G6.4–G6.5) |
 | Formación / asignación de huecos | movimiento | `ai/steering/` | — | Candidato opcional |
 | Heurística parametrizable (grilla) | navegación | `util/pathfinding.hpp` | — | Candidato menor |
 | SAT 2D (polígonos convexos) | colisión (`util`) | `util/collision.hpp` | — | Candidato |
