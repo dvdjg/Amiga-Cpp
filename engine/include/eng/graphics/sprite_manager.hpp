@@ -46,6 +46,11 @@ struct SpriteConfig {
     u16 vstart = 0;              // línea vertical de inicio
     u16 vstop = 0;               // última línea (vstart + height - 1)
     u8 palette_base = 16;        // COLOR16 + palette_base*4 (defecto 16: COLOR16-19)
+    /// **Attached** al sprite anterior del par (bit 0 de `SPRxCTL`): 4 bits/píxel sobre
+    /// `COLOR16-31` (15 colores). Los pares válidos son 0+1, 2+3, 4+5, 6+7; reduce los
+    /// canales útiles de 8 a 4. Se puede conmutar por zona con el rearmado (el CTL es
+    /// reescribible por línea). Ver `docs/reference/amiga/techniques/sprite-layer.md` §4.
+    bool attach = false;
 };
 
 /// Gestor de hasta 8 sprites hardware (componente de la escena).
@@ -223,7 +228,8 @@ private:
             ((s.vstop & 0xff) << 8) |
             (((s.vstart >> 8) & 0x1u) << 3) |
             (((s.vstop >> 8) & 0x1u) << 2) |
-            ((s.hpos & 0x1u) << 1)
+            ((s.hpos & 0x1u) << 1) |
+            (s.attach ? 0x1u : 0x0u) // ATTACH: une con el sprite par anterior (15 colores)
         );
         sched.move(static_cast<copper::Register>(0x140 + channel * 8), pos);     // SPRxPOS
         sched.move(static_cast<copper::Register>(0x142 + channel * 8), ctl);     // SPRxCTL

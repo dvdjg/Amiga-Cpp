@@ -90,6 +90,13 @@ devuelve el resultado y **se autolimpia al leer** (leer una vez por frame). Es
 *pixel-perfect* pero **sin posición**: la lógica de juego suele usar cajas software y
 dejar la colisión de hardware para efectos (bala-terreno).
 
+**Colisión por software que ya tiene el engine** (buscar `collide`): `core/util/collision.hpp`
+(geométrica/SAT: polígono, segmento, círculo; `tests/host/095_collision`, `125_convex_sat`),
+`field::collide_cpu` (máscara **pixel-perfect** por CPU) y `Backend::blitter_collide` (la misma
+comprobación por **Blitter**, minterm `B = A & D`; `field/raster.hpp` la documenta como
+referencia CPU). Lo que **falta** es la colisión de **hardware de sprites** (`CLXCON`/`CLXDAT`),
+que no necesita máscara en RAM.
+
 ## 9. Límites
 
 - **Robo de slots con 5+ planos**: el fetch ancho puede comerse los slots de los canales
@@ -123,6 +130,7 @@ dejar la colisión de hardware para efectos (bala-terreno).
 ## 12. Referencias
 
 - `amiga-bootcamp/08_graphics/sprites.md` (y `01_hardware/ocs_a500/sprites.md`)
+- [Free Form Sprite Layer](https://www.powerprograms.nl/amiga/spr-layer.html) (Jeroen Knoester) — capa de sprites *free-form* con scroll
 - [sprite-horizontal-multiplex.md](sprite-horizontal-multiplex.md) — rearmado horizontal
 - AHRM 3.ª, cap. 4 (Sprite); [índice](../../ahrm/amiga-hardware-manual-index.md)
 - `engine/include/eng/graphics/{sprite_manager,sprite_allocator,sprite}.hpp`

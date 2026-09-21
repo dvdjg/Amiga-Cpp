@@ -20,6 +20,7 @@
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/raster_intent.hpp>
+#include <eng/graphics/sprite_manager.hpp>
 #include <eng/memory/arena.hpp>
 
 namespace {
@@ -178,11 +179,44 @@ void test_list_order() {
 	CHECK(!saw_ch1, "el canal del rearm atrasado no se programa");
 }
 
+/// `SpriteManager` emite el bit ATTACH (0) de `SPRxCTL` cuando el sprite va attached.
+void test_attach() {
+	MemorySystem mem = make_memory();
+	eng::graphics::SpriteManager sm;
+	CHECK(sm.init(mem, 128u), "SpriteManager init");
+	const eng::Span<u8> data = sm.sprite_data();
+	eng::graphics::SpriteConfig cfg {};
+	cfg.enabled = true;
+	cfg.data = eng::Span<const eng::u16> {reinterpret_cast<const eng::u16*>(data.data()), 4u};
+	cfg.width_words = 1;
+	cfg.height = 1;
+	cfg.hpos = 20;
+	cfg.vstart = 10;
+	cfg.vstop = 10;
+	cfg.attach = true;
+	sm.set(1u, cfg);
+
+	eng::copper::Scheduler s = make_scheduler(mem, 64u);
+	sm.emit_into(s);
+	s.end();
+	Mv mv[32] {};
+	const unsigned n = collect_moves(s.data(), s.words_used(), mv, 32u);
+	bool found = false;
+	for (unsigned i = 0; i < n; ++i) {
+		if (mv[i].reg == 0x142u + 1u * 8u) {
+			found = true;
+			CHECK((mv[i].val & 0x1u) != 0u, "SPR1CTL lleva el bit ATTACH");
+		}
+	}
+	CHECK(found, "SPR1CTL emitido por SpriteManager");
+}
+
 } // namespace
 
 int main() {
 	test_encoding();
 	test_list_order();
+	test_attach();
 	if (g_fail == 0u) {
 		std::printf("OK: sprite horizontal rearm (codificacion, secuencia, orden de lista)\n");
 		return 0;
