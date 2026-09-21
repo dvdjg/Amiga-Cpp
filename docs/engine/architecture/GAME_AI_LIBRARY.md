@@ -264,13 +264,15 @@ Coste medido: `seek`+`arrive` con q12 (sonda `c_steering_ops`) 411 instrucciones
 Verificación: HOST-115.
 
 `crowd.hpp`: orquestador de **movimiento local** para muchos agentes. Actualiza un pool
-(`Span<CrowdAgent>`, sin heap) con **separación**, **evasión de obstáculos** y un vector
-**deseado** (del path/flow/seek), e integra posición y velocidad. Los vecinos se buscan con la
-**rejilla espacial** `eng::util::SpatialHash` (fase amplia de colisiones), de modo que el coste
-depende de la densidad local y **no de `N²`**; `neighbor_checks()` informa del trabajo real.
-Aritmética entera (`s16` posiciones, `s32` intermedios) con **una** `isqrt` por límite y ninguna
-división por vecino: el mundo de navegación es `Point2s`, así que no reutiliza `steering.hpp`
-(genérico sobre escalar para velocidades normalizadas). Verificación: HOST-249.
+(`Span<CrowdAgent<S>>`, sin heap) con **separación**, **evasión de obstáculos** y un vector
+**deseado** (del path/flow/seek), e integra posición y velocidad. Es **genérico sobre el escalar**
+`S` (como `steering.hpp`): vale para `float`/`double`, fixed-point y enteros (`s16`/`s32`), con
+`eng::math` (`Vec<2,S>`, `scalar_traits`, `scalar_sqrt`, `div_norm`/`mul_norm`). La **fase amplia
+de vecinos es una política de plantilla** (`Crowd<S, Broadphase>`): `SpatialHashBroadphase`
+(rejilla uniforme `s16`, la que evita el `O(N²)`) o `BruteForceBroadphase` (cualquier escalar).
+`neighbor_checks()` informa del trabajo real. La aritmética evita truncar a cero con enteros
+(escala componente a componente y suaviza dividiendo el numerador). Verificación: HOST-249 (con
+`s32` y `float`).
 
 ## 7. Percepción (`eng/ai/perception/`)
 
@@ -298,7 +300,7 @@ HOST-117.
 | `navigation/waypoints.hpp` | `WaypointGraph<MaxNodes,MaxEdges>`, `find_path` (A* Manhattan) | Implementado, HOST-116 |
 | `navigation/navmesh_lite.hpp` | `NavMesh`, `locate`, `find_path` (A* por portales) | Implementado, HOST-118 |
 | `steering/steering.hpp` | `seek`/`flee`/`arrive`, `separation`/`cohesion`/`alignment`/`flock`, `pursue`/`evade`/`wander`/`avoid_circles` | Implementado, HOST-115 |
-| `steering/crowd.hpp` | `Crowd<...>`: actualización de crowd con separación + evasión + integración, vecinos por `SpatialHash` (no `O(N²)`) | Implementado, HOST-249 |
+| `steering/crowd.hpp` | `Crowd<S, Broadphase>`: crowd genérico sobre el escalar (separación + evasión + integración), con fase amplia de vecinos como política (`SpatialHash`/fuerza bruta) | Implementado, HOST-249 |
 | `perception/influence_map.hpp` | `InfluenceMap<W,H>`: deposit/decay/strongest | Implementado, HOST-117 |
 | `perception/agent_memory.hpp` | `AgentMemory`: see/tick/fresh/stale/forget | Implementado, HOST-117 |
 | `design/…` | director de dificultad, recompensas | Planificado (ROADMAP_GAME_AI) |

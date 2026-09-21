@@ -85,6 +85,14 @@ El objetivo es que el usuario pueda **revisar** el trabajo antes de que se conso
 - **API público final**: debe ser **lo más intuitivo y simple posible** y **no restringir funcionalidad** (ver §1.1 de `docs/engine/architecture/PUBLIC_API.md`). Las interfaces **intermedias** del engine pueden ser técnicas; lo que consume el juego, no. Mientras falten módulos, se escribe el API de lo que ya existe y se adapta después. Al tocar un módulo, preguntar «¿cómo lo pediría un juego?».
 - **Fast RAM**: los juegos detectan en **runtime** si hay Fast RAM (Agnus no la ve, CPU a plena velocidad) y la usan para tareas intensivas de CPU. **No** usar Slow RAM para eso (comparte el bus DMA pero Agnus no la ve: lo peor de ambos).
 
+### 1.10 Genericidad de las cabeceras
+
+- Una cabecera del engine debe ser **genérica sobre lo que varía** (escalar, dimensión, capacidad, política) siempre que el algoritmo no dependa de un tipo concreto. **No** fijar `s16`/`float`/`u32` en la firma si el algoritmo vale para cualquier tipo con las operaciones requeridas.
+- Usar el **patrón del repo**: `template <class S>` con `eng::math` (`Vec<2,S>`, `scalar_traits`, `scalar_sqrt`, `div_norm`/`mul_norm`) para el escalar; parámetros `constexpr` de plantilla para capacidades; `Span`/vistas para buffers. Ejemplos de referencia: `eng/ai/steering/steering.hpp`, `eng/core/linalg.hpp`, `eng/core/geometry.hpp`.
+- Si una parte **no** puede ser genérica (p. ej. una fase amplia atada a `s16`), **decoplarla como política de plantilla** o recibirla como parámetro, en vez de hardcodear el tipo en el algoritmo. Ejemplo: `eng/ai/steering/crowd.hpp` (`Crowd<S, Broadphase>`).
+- El test host de una cabecera genérica debe ejercitarla con **al menos dos escalares** cuando aplique (p. ej. `s32` y `float`), además de los casos límite.
+- Al tocar una cabecera existente, preguntar «¿esto vale solo para este tipo?»; si la respuesta es sí y no hay motivo, generalizarla en la misma pasada.
+
 ---
 
 ## 2. El repositorio

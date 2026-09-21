@@ -1,10 +1,10 @@
 // ============================================================================
-// Test HOST-249: crowd con vecinos por rejilla espacial (eng/ai/steering/crowd.hpp).
+// Test HOST-249: crowd generico con vecinos por rejilla espacial (eng/ai/steering/crowd.hpp).
 // ============================================================================
 //
-// Valida que `Crowd` actualiza los agentes (separacion, evasion, integracion) usando la rejilla
-// espacial (`SpatialHash`) en vez de fuerza bruta `N^2`, y las reglas basicas: separacion efectiva,
-// no interaccion a distancia, capas, agentes inactivos y limites de fuerza/velocidad.
+// Valida que `Crowd<S, Broadphase>` actualiza los agentes (separacion, evasion, integracion)
+// usando la rejilla espacial (`SpatialHash`) en vez de fuerza bruta `N^2`, y que el algoritmo es
+// generico sobre el escalar (se prueba con `s32` y con `float`).
 //
 // Ejecucion:
 //   bash tools/run-host-tests.sh tests/host/249_crowd
@@ -26,118 +26,156 @@ void check(bool ok, const char* msg) {
 	}
 }
 
-constexpr s16 kDt = 256; // 8.8: un tick
+using V = eng::math::Vec<2, s32>;
 
-using TestCrowd = ai::Crowd<16, 32, 32, 128>;
+CrowdParams<s32> params() {
+	CrowdParams<s32> p {};
+	p.separation_radius = 18;
+	p.separation_weight = 40;
+	p.obstacle_weight = 50;
+	p.look_ahead = 12;
+	p.max_force = 32;
+	return p;
+}
 
-CrowdAgent make_agent(s16 x, s16 y) {
-	CrowdAgent a {};
-	a.position = Point2s {x, y};
+CrowdAgent<s32> make_agent(s32 x, s32 y) {
+	CrowdAgent<s32> a {};
+	a.position = V {{x, y}};
+	a.radius = 6;
+	a.max_speed = 24;
 	return a;
 }
 
-s32 dist2(const CrowdAgent& a, const CrowdAgent& b) {
-	const s32 dx = a.position.x - b.position.x;
-	const s32 dy = a.position.y - b.position.y;
+s32 dist2(const CrowdAgent<s32>& a, const CrowdAgent<s32>& b) {
+	const s32 dx = a.position.x() - b.position.x();
+	const s32 dy = a.position.y() - b.position.y();
 	return dx * dx + dy * dy;
 }
 
+using GridCrowd = Crowd<s32, SpatialHashBroadphase<16, 32, 32, 128>>;
+using BruteCrowd = Crowd<s32, BruteForceBroadphase<s32, 128>>;
+
 /// Muchos agentes separados: la rejilla debe hacer MUCHAS menos comprobaciones que N^2.
 void test_spatial_saving() {
-	CrowdAgent agents[64] {};
+	CrowdAgent<s32> agents[64] {};
 	for (u16 i = 0; i < 64; ++i) {
-		agents[i] = make_agent(static_cast<s16>(20 + (i % 8) * 40),
-				       static_cast<s16>(20 + (i / 8) * 40));
+		agents[i] = make_agent(static_cast<s32>(20 + (i % 8) * 40),
+				       static_cast<s32>(20 + (i / 8) * 40));
 	}
-	TestCrowd crowd {};
-	ai::CrowdParams p {};
-	p.separation_radius = 18;
-	const u32 checks = crowd.update(Span<CrowdAgent> {agents, 64}, p, kDt);
-	const u32 brute = 64u * 63u; // pares ordenados de la fuerza bruta
+	GridCrowd crowd {};
+	const u32 checks = crowd.update(Span<CrowdAgent<s32>> {agents, 64}, params(), 1);
+	const u32 brute = 64u * 63u;
 	check(checks < brute / 4u, "la rejilla ahorra frente a N^2");
 	check(checks >= 64u, "cada agente se comprueba a si mismo");
 }
 
-/// Dos agentes solapados: se separan con las actualizaciones.
+/// Dos agentes solapados: se separan con las actualizaciones (misma conducta con ambas fases).
 void test_separation() {
-	CrowdAgent agents[2] {make_agent(100, 100), make_agent(110, 100)};
+	CrowdAgent<s32> agents[2] {make_agent(100, 100), make_agent(110, 100)};
 	const s32 d0 = dist2(agents[0], agents[1]);
-	TestCrowd crowd {};
-	ai::CrowdParams p {};
+	GridCrowd crowd {};
 	for (int i = 0; i < 8; ++i) {
-		(void)crowd.update(Span<CrowdAgent> {agents, 2}, p, kDt);
+		(void)crowd.update(Span<CrowdAgent<s32>> {agents, 2}, params(), 1);
 	}
-	const s32 d1 = dist2(agents[0], agents[1]);
-	check(d1 > d0, "los agentes solapados se separan");
-	check(agents[0].position.x < 100, "el agente 0 se mueve en contra del 1");
-	check(agents[1].position.x > 110, "el agente 1 se mueve en contra del 0");
+	check(dist2(agents[0], agents[1]) > d0, "los agentes solapados se separan");
+	check(agents[0].position.x() < 100, "el agente 0 se mueve en contra del 1");
+	check(agents[1].position.x() > 110, "el agente 1 se mueve en contra del 0");
+}
+
+/// La fuerza bruta da la misma separacion (mismo algoritmo, otra fase amplia).
+void test_brute_same() {
+	CrowdAgent<s32> a[2] {make_agent(100, 100), make_agent(110, 100)};
+	CrowdAgent<s32> b[2] {make_agent(100, 100), make_agent(110, 100)};
+	GridCrowd grid {};
+	BruteCrowd brute {};
+	for (int i = 0; i < 8; ++i) {
+		(void)grid.update(Span<CrowdAgent<s32>> {a, 2}, params(), 1);
+		(void)brute.update(Span<CrowdAgent<s32>> {b, 2}, params(), 1);
+	}
+	check(a[0].position.x() == b[0].position.x() && a[0].position.y() == b[0].position.y(),
+	      "rejilla y fuerza bruta coinciden");
 }
 
 /// Dos agentes lejos y sin deseo: no interactuan.
 void test_no_interaction() {
-	CrowdAgent agents[2] {make_agent(100, 100), make_agent(300, 100)};
-	TestCrowd crowd {};
-	ai::CrowdParams p {};
+	CrowdAgent<s32> agents[2] {make_agent(100, 100), make_agent(300, 100)};
+	GridCrowd crowd {};
 	for (int i = 0; i < 4; ++i) {
-		(void)crowd.update(Span<CrowdAgent> {agents, 2}, p, kDt);
+		(void)crowd.update(Span<CrowdAgent<s32>> {agents, 2}, params(), 1);
 	}
-	check(agents[0].position.x == 100 && agents[0].position.y == 100, "agente lejano 0 quieto");
-	check(agents[1].position.x == 300 && agents[1].position.y == 100, "agente lejano 1 quieto");
+	check(agents[0].position.x() == 100 && agents[0].position.y() == 100, "agente lejano 0 quieto");
+	check(agents[1].position.x() == 300 && agents[1].position.y() == 100, "agente lejano 1 quieto");
 }
 
 /// Capas distintas no se repelen.
 void test_layers() {
-	CrowdAgent agents[2] {make_agent(100, 100), make_agent(105, 100)};
-	agents[0].layer = 0;
+	CrowdAgent<s32> agents[2] {make_agent(100, 100), make_agent(105, 100)};
 	agents[1].layer = 1;
-	TestCrowd crowd {};
-	ai::CrowdParams p {};
+	GridCrowd crowd {};
 	for (int i = 0; i < 4; ++i) {
-		(void)crowd.update(Span<CrowdAgent> {agents, 2}, p, kDt);
+		(void)crowd.update(Span<CrowdAgent<s32>> {agents, 2}, params(), 1);
 	}
-	check(agents[0].position.x == 100 && agents[1].position.x == 105, "capas distintas no se repelen");
+	check(agents[0].position.x() == 100 && agents[1].position.x() == 105, "capas distintas no repelen");
 }
 
 /// Los agentes inactivos no se mueven ni participan.
 void test_inactive() {
-	CrowdAgent agents[2] {make_agent(100, 100), make_agent(105, 100)};
-	agents[1].flags = 0; // inactivo
-	agents[1].desired = Point2s {1000, 0};
-	TestCrowd crowd {};
-	ai::CrowdParams p {};
+	CrowdAgent<s32> agents[2] {make_agent(100, 100), make_agent(105, 100)};
+	agents[1].flags = 0;
+	agents[1].desired = V {{1000, 0}};
+	GridCrowd crowd {};
 	for (int i = 0; i < 4; ++i) {
-		(void)crowd.update(Span<CrowdAgent> {agents, 2}, p, kDt);
+		(void)crowd.update(Span<CrowdAgent<s32>> {agents, 2}, params(), 1);
 	}
-	check(agents[1].position.x == 105, "el inactivo no se mueve");
+	check(agents[1].position.x() == 105, "el inactivo no se mueve");
 }
 
 /// La velocidad se limita a `max_speed`.
 void test_speed_clamp() {
-	CrowdAgent agents[1] {make_agent(100, 100)};
-	agents[0].desired = Point2s {1000, 0};
-	agents[0].max_speed = 24;
-	TestCrowd crowd {};
-	ai::CrowdParams p {};
+	CrowdAgent<s32> agents[1] {make_agent(100, 100)};
+	agents[0].desired = V {{1000, 0}};
+	GridCrowd crowd {};
 	for (int i = 0; i < 8; ++i) {
-		(void)crowd.update(Span<CrowdAgent> {agents, 1}, p, kDt);
+		(void)crowd.update(Span<CrowdAgent<s32>> {agents, 1}, params(), 1);
 	}
-	check(agents[0].velocity.x <= 24, "velocidad limitada a max_speed");
-	check(agents[0].velocity.x == 24, "la velocidad llega a max_speed con deseo grande");
-	check(agents[0].position.x > 100, "el agente avanza con deseo");
+	check(agents[0].velocity.x() <= 24, "velocidad limitada a max_speed");
+	check(agents[0].velocity.x() == 24, "la velocidad llega a max_speed con deseo grande");
+	check(agents[0].position.x() > 100, "el agente avanza con deseo");
 }
 
 /// Los obstaculos estaticos empujan al agente.
 void test_obstacles() {
-	CrowdAgent agents[1] {make_agent(100, 100)};
-	const Point2s obstacles[1] {Point2s {108, 100}};
-	const s16 radii[1] {6};
-	TestCrowd crowd {};
-	ai::CrowdParams p {};
+	CrowdAgent<s32> agents[1] {make_agent(100, 100)};
+	const V obstacles[1] {V {{108, 100}}};
+	const s32 radii[1] {6};
+	GridCrowd crowd {};
 	for (int i = 0; i < 8; ++i) {
-		(void)crowd.update(Span<CrowdAgent> {agents, 1}, Span<const Point2s> {obstacles, 1},
-				   Span<const s16> {radii, 1}, p, kDt);
+		(void)crowd.update(Span<CrowdAgent<s32>> {agents, 1}, Span<const V> {obstacles, 1},
+				   Span<const s32> {radii, 1}, params(), 1);
 	}
-	check(agents[0].position.x < 100, "el obstaculo empuja al agente en contra");
+	check(agents[0].position.x() < 100, "el obstaculo empuja al agente en contra");
+}
+
+/// El mismo algoritmo con `float` (generico sobre el escalar).
+void test_float_generic() {
+	CrowdAgent<float> agents[2] {};
+	agents[0].position = eng::math::Vec<2, float> {{100.0f, 100.0f}};
+	agents[0].radius = 6.0f;
+	agents[0].max_speed = 24.0f;
+	agents[1] = agents[0];
+	agents[1].position = eng::math::Vec<2, float> {{110.0f, 100.0f}};
+	CrowdParams<float> p {};
+	p.separation_radius = 18.0f;
+	p.separation_weight = 40.0f;
+	p.obstacle_weight = 50.0f;
+	p.look_ahead = 12.0f;
+	p.max_force = 32.0f;
+	Crowd<float, BruteForceBroadphase<float, 8>> crowd {};
+	for (int i = 0; i < 8; ++i) {
+		(void)crowd.update(Span<CrowdAgent<float>> {agents, 2}, p, 1.0f);
+	}
+	check(agents[0].position.x() < 100.0f, "float: los agentes se separan");
+	check(agents[1].position.x() > 110.0f, "float: el agente 1 se separa");
 }
 
 } // namespace
@@ -145,14 +183,16 @@ void test_obstacles() {
 int main() {
 	test_spatial_saving();
 	test_separation();
+	test_brute_same();
 	test_no_interaction();
 	test_layers();
 	test_inactive();
 	test_speed_clamp();
 	test_obstacles();
+	test_float_generic();
 
 	if (failures == 0) {
-		std::printf("OK: crowd (vecinos por rejilla, separacion, limites) validado.\n");
+		std::printf("OK: crowd generico (rejilla, separacion, limites, float) validado.\n");
 		return 0;
 	}
 	std::printf("FAIL: %d comprobaciones\n", failures);

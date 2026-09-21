@@ -6,25 +6,25 @@
 /// posición y velocidad. Es el orquestador de movimiento local que faltaba sobre
 /// `steering.hpp`.
 ///
-/// La clave para Amiga es **no comparar todos contra todos**: los vecinos se buscan con la
-/// **rejilla espacial** `eng::util::SpatialHash` (fase amplia de colisiones ya existente), de
-/// modo que el coste depende de la densidad local, no de `N²`. Los agentes viven en un pool
-/// que aporta el llamador (`Span<CrowdAgent>`), sin heap.
+/// **Genérico sobre el escalar `S`** (como `steering.hpp`): vale para `float`/`double`
+/// (host/tests), fixed-point (`q12`, `Fixed<...>`) y enteros (`s16`/`s32`) siempre que el
+/// escalar tenga `scalar_traits` y `scalar_sqrt` (el engine ya los aporta para float, double,
+/// fixed y enteros). Las posiciones/velocidades son `eng::math::Vec<2,S>`.
 ///
-/// Aritmética **entera** (`s16` posiciones, `s32` intermedios): el mundo de navegación usa
-/// `Point2s`, mientras que `steering.hpp` es genérico sobre el escalar (`q12`/`float`) para
-/// velocidades normalizadas. Aquí se replican las conductas (separación, evasión, límite de
-/// fuerza/velocidad) en el dominio entero, con **una** raíz (`isqrt`) por agente y ninguna
-/// división por vecino.
+/// La fase amplia (vecinos) es una **política** de plantilla para no atar el algoritmo a una
+/// rejilla concreta: el llamador elige `BruteForceBroadphase` (cualquier `S`) o
+/// `SpatialHashBroadphase` (rejilla uniforme `s16`, la que evita el `O(N²)` en Amiga). Los
+/// agentes viven en un pool externo (`Span<CrowdAgent<S>>`), sin heap.
 ///
 /// Uso:
-///   eng::ai::Crowd<16, 20, 16, 64> crowd;
-///   crowd.update(agents, params, /*dt=*/256);           // dt en 8.8 (256 = 1 tick)
-///   const eng::u32 checks = crowd.neighbor_checks();     // para medir el ahorro vs O(N²)
+///   eng::ai::Crowd<eng::s32, eng::ai::SpatialHashBroadphase<16, 20, 16, 64>> crowd;
+///   crowd.update(agents, params, /*dt=*/1);          // dt en la unidad del escalar (1 tick)
+///   const eng::u32 checks = crowd.neighbor_checks(); // trabajo real de vecinos
 ///
 /// Verificación: HOST-249.
 
-#include <eng/core/isqrt.hpp>
+#include <eng/core/arith.hpp>
+#include <eng/core/geometry.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/util/broadphase.hpp>
@@ -32,55 +32,122 @@
 
 namespace eng::ai {
 
-/// Agente del crowd (POD, sin heap). `desired` es una **velocidad deseada** (del path/flow/seek).
+/// Agente del crowd (POD, sin heap), genérico sobre el escalar `S`. `desired` es una **velocidad
+/// deseada** (del path/flow/seek).
+template <class S>
 struct CrowdAgent {
-	eng::u16 id = 0;            ///< identificador del juego (informativo; la rejilla usa el índice)
-	eng::Point2s position {};   ///< posición en el mundo (píxeles)
-	eng::Point2s velocity {};   ///< velocidad actual (px/tick, escala del juego)
-	eng::Point2s desired {};    ///< velocidad deseada (px/tick)
-	eng::s16 radius = 6;        ///< radio de colisión
-	eng::s16 max_speed = 24;    ///< velocidad máxima (px/tick)
-	eng::u8 layer = 0;          ///< capas distintas no se repelen
-	eng::u8 flags = 1;          ///< bit 0 = activo
+	eng::u16 id = 0;                  ///< identificador del juego (la fase amplia usa el índice)
+	eng::math::Vec<2, S> position {}; ///< posición en el mundo
+	eng::math::Vec<2, S> velocity {}; ///< velocidad actual
+	eng::math::Vec<2, S> desired {};  ///< velocidad deseada
+	S radius {};                      ///< radio de colisión
+	S max_speed {};                   ///< velocidad máxima
+	eng::u8 layer = 0;                ///< capas distintas no se repelen
+	eng::u8 flags = 1;                ///< bit 0 = activo
 
 	[[nodiscard]] constexpr bool active() const noexcept { return (flags & 1u) != 0u; }
 };
 
-/// Parámetros del crowd (tunables; mismos nombres que la propuesta de diseño).
+/// Parámetros del crowd (tunables; mismo escalar que las coordenadas).
+template <class S>
 struct CrowdParams {
-	eng::s16 separation_radius = 18; ///< radio extra de separación entre agentes
-	eng::s16 separation_weight = 40; ///< peso de la separación (escala 64 = 1.0)
-	eng::s16 obstacle_weight = 50;   ///< peso de la evasión de obstáculos (escala 64)
-	eng::s16 look_ahead = 12;        ///< margen de detección de obstáculos
-	eng::s16 max_force = 32;         ///< límite de la fuerza de steering (px/tick)
+	S separation_radius {}; ///< radio extra de separación entre agentes
+	S separation_weight {}; ///< peso de la separación
+	S obstacle_weight {};   ///< peso de la evasión de obstáculos
+	S look_ahead {};        ///< margen de detección de obstáculos
+	S max_force {};         ///< límite de la fuerza de steering
 };
 
-/// **Crowd** con rejilla de vecinos. `CellSize` (potencia de dos) debe ser del orden del radio de
-/// separación; `CellsX×CellsY` debe cubrir el mundo; `MaxItems` ≥ nº de agentes.
+/// **Fase amplia por fuerza bruta** (genérica sobre `S`): recorre todas las entradas en cada
+/// consulta. Útil para tests, crowds pequeños o escalares que no encajen en una rejilla `s16`.
+template <class S, eng::u16 MaxItems>
+class BruteForceBroadphase {
+public:
+	constexpr void clear() noexcept { m_count = 0u; }
+	constexpr bool insert(eng::u16 id, const eng::math::Vec<2, S>& p) noexcept {
+		if (m_count >= MaxItems) {
+			return false;
+		}
+		m_ids[m_count] = id;
+		m_pos[m_count] = p;
+		++m_count;
+		return true;
+	}
+	template <class Fn>
+	constexpr void for_each_near(const eng::math::Vec<2, S>&, S, Fn fn) const {
+		for (eng::u16 i = 0u; i < m_count; ++i) {
+			fn(m_ids[i], m_pos[i]);
+		}
+	}
+
+private:
+	eng::u16 m_ids[MaxItems] {};
+	eng::math::Vec<2, S> m_pos[MaxItems] {};
+	eng::u16 m_count = 0u;
+};
+
+/// **Fase amplia por rejilla uniforme** (`s16`): adapta `eng::util::SpatialHash`. Las posiciones
+/// `Vec<2,S>` se convierten a coordenadas de rejilla con `scalar_traits<S>::to_int`. Es la que
+/// hace que el coste dependa de la densidad local y **no de `N²`**.
 template <eng::u16 CellSize, eng::u16 CellsX, eng::u16 CellsY, eng::u16 MaxItems>
+class SpatialHashBroadphase {
+public:
+	constexpr void clear() noexcept { m_grid.clear(); }
+	template <class S>
+	constexpr bool insert(eng::u16 id, const eng::math::Vec<2, S>& p) noexcept {
+		return m_grid.insert(id, to_cell(p.x()), to_cell(p.y()));
+	}
+	template <class S, class Fn>
+	constexpr void for_each_near(const eng::math::Vec<2, S>& center, S reach, Fn fn) const {
+		const eng::s16 r = to_cell(reach);
+		const eng::s16 cx = to_cell(center.x());
+		const eng::s16 cy = to_cell(center.y());
+		const eng::util::Aabb box {
+			static_cast<eng::s16>(cx - r), static_cast<eng::s16>(cy - r),
+			static_cast<eng::s16>(cx + r), static_cast<eng::s16>(cy + r)};
+		m_grid.for_each_in(box, [&](eng::u16 id, eng::s16 x, eng::s16 y) {
+			fn(id, eng::math::Vec<2, S> {{eng::math::scalar_traits<S>::from_int(x),
+						      eng::math::scalar_traits<S>::from_int(y)}});
+		});
+	}
+
+private:
+	/// Convierte una coordenada escalar a coordenada de rejilla `s16` (con `scalar_traits`).
+	template <class S>
+	[[nodiscard]] static constexpr eng::s16 to_cell(S v) noexcept {
+		return static_cast<eng::s16>(eng::math::scalar_traits<S>::to_int(v));
+	}
+
+	eng::util::SpatialHash<CellSize, CellsX, CellsY, MaxItems> m_grid {};
+};
+
+/// **Crowd** genérico sobre el escalar `S` y la fase amplia `Broadphase` (ver el fichero).
+template <class S, class Broadphase>
 class Crowd {
 public:
 	/// Actualiza todos los agentes activos (sin obstáculos). Devuelve el nº de **comprobaciones de
 	/// vecino** hechas (para medir el ahorro frente a `N²`).
-	[[nodiscard]] eng::u32 update(eng::Span<CrowdAgent> agents, const CrowdParams& p,
-				      eng::s16 dt) noexcept {
-		return update(agents, eng::Span<const eng::Point2s> {}, eng::Span<const eng::s16> {}, p, dt);
+	[[nodiscard]] eng::u32 update(eng::Span<CrowdAgent<S>> agents, const CrowdParams<S>& p,
+				      S dt) noexcept {
+		return update(agents, eng::Span<const eng::math::Vec<2, S>> {},
+			      eng::Span<const S> {}, p, dt);
 	}
 
-	/// Igual, con obstáculos estáticos (posiciones + radios, mismo tamaño). `dt` en 8.8 (256 = 1).
-	[[nodiscard]] eng::u32 update(eng::Span<CrowdAgent> agents,
-				      eng::Span<const eng::Point2s> obstacles,
-				      eng::Span<const eng::s16> obstacle_radii, const CrowdParams& p,
-				      eng::s16 dt) noexcept {
+	/// Igual, con obstáculos estáticos (posiciones + radios, mismo tamaño). `dt` en la unidad del
+	/// juego (p. ej. 8.8 → 256 = 1).
+	[[nodiscard]] eng::u32 update(eng::Span<CrowdAgent<S>> agents,
+				      eng::Span<const eng::math::Vec<2, S>> obstacles,
+				      eng::Span<const S> obstacle_radii, const CrowdParams<S>& p,
+				      S dt) noexcept {
 		rebuild(agents);
 		m_checks = 0u;
 		for (eng::u16 i = 0u; i < agents.size(); ++i) {
-			CrowdAgent& a = agents[i];
+			CrowdAgent<S>& a = agents[i];
 			if (!a.active()) {
 				continue;
 			}
-			const eng::Point2s sep = separation(agents, i, a, p);
-			const eng::Point2s obs = avoid(obstacles, obstacle_radii, a, p);
+			const eng::math::Vec<2, S> sep = separation(agents, i, a, p);
+			const eng::math::Vec<2, S> obs = avoid(obstacles, obstacle_radii, a, p);
 			integrate(a, sep, obs, p, dt);
 		}
 		return m_checks;
@@ -90,104 +157,106 @@ public:
 	[[nodiscard]] constexpr eng::u32 neighbor_checks() const noexcept { return m_checks; }
 
 private:
-	/// Reconstruye la fase amplia con las posiciones actuales de los agentes activos.
-	void rebuild(eng::Span<CrowdAgent> agents) noexcept {
-		m_grid.clear();
+	/// Reconstruye la fase amplia con las posiciones actuales y calcula el radio máximo.
+	void rebuild(eng::Span<CrowdAgent<S>> agents) noexcept {
+		m_broad.clear();
+		m_max_radius = eng::math::scalar_traits<S>::zero();
 		for (eng::u16 i = 0u; i < agents.size(); ++i) {
-			if (agents[i].active()) {
-				(void)m_grid.insert(i, agents[i].position.x, agents[i].position.y);
+			if (!agents[i].active()) {
+				continue;
+			}
+			(void)m_broad.insert(i, agents[i].position);
+			if (m_max_radius < agents[i].radius) {
+				m_max_radius = agents[i].radius;
 			}
 		}
 	}
 
-	/// Suma de repulsión de los vecinos dentro de `radius` (consulta por la rejilla, no `N²`).
-	[[nodiscard]] eng::Point2s separation(eng::Span<CrowdAgent> agents, eng::u16 self,
-					      const CrowdAgent& a, const CrowdParams& p) noexcept {
-		const eng::s16 reach = static_cast<eng::s16>(a.radius + p.separation_radius);
-		const eng::util::Aabb box {
-			static_cast<eng::s16>(a.position.x - reach),
-			static_cast<eng::s16>(a.position.y - reach),
-			static_cast<eng::s16>(a.position.x + reach),
-			static_cast<eng::s16>(a.position.y + reach)};
-		eng::s32 sx = 0, sy = 0;
-		m_grid.for_each_in(box, [&](eng::u16 id, eng::s16 bx, eng::s16 by) {
+	/// Suma de repulsión de los vecinos dentro de `radius` (consulta por la fase amplia). El cajón
+	/// de consulta usa el **radio máximo** de los agentes, para no dejar fuera a un vecino cuyo
+	/// radio haga que el umbral de separación supere `a.radius + separation_radius`.
+	[[nodiscard]] eng::math::Vec<2, S> separation(eng::Span<CrowdAgent<S>> agents, eng::u16 self,
+						      const CrowdAgent<S>& a,
+						      const CrowdParams<S>& p) noexcept {
+		const S reach = a.radius + m_max_radius + p.separation_radius;
+		eng::math::Vec<2, S> push {};
+		m_broad.for_each_near(a.position, reach, [&](eng::u16 id, const eng::math::Vec<2, S>& bp) {
 			++m_checks;
 			if (id == self) {
 				return;
 			}
-			const CrowdAgent& b = agents[id];
+			const CrowdAgent<S>& b = agents[id];
 			if (!b.active() || b.layer != a.layer) {
 				return;
 			}
-			const eng::s32 dx = static_cast<eng::s32>(a.position.x) - bx;
-			const eng::s32 dy = static_cast<eng::s32>(a.position.y) - by;
-			const eng::s32 rr = a.radius + b.radius + p.separation_radius;
-			if (dx * dx + dy * dy < rr * rr) {
-				sx += dx;
-				sy += dy;
+			const eng::math::Vec<2, S> d = a.position - bp;
+			const S rr = a.radius + b.radius + p.separation_radius;
+			if (eng::math::length_sq(d) < eng::math::mul_norm(rr, rr)) {
+				push = push + d;
 			}
 		});
-		return eng::Point2s {static_cast<eng::s16>(sx), static_cast<eng::s16>(sy)};
+		return push;
 	}
 
 	/// Suma de repulsión de los obstáculos dentro de `radius + look_ahead`.
-	[[nodiscard]] static eng::Point2s avoid(eng::Span<const eng::Point2s> obstacles,
-						eng::Span<const eng::s16> radii,
-						const CrowdAgent& a, const CrowdParams& p) noexcept {
+	[[nodiscard]] static eng::math::Vec<2, S> avoid(eng::Span<const eng::math::Vec<2, S>> obstacles,
+							eng::Span<const S> radii,
+							const CrowdAgent<S>& a,
+							const CrowdParams<S>& p) noexcept {
 		const eng::usize n = obstacles.size() < radii.size() ? obstacles.size() : radii.size();
-		eng::s32 ox = 0, oy = 0;
+		eng::math::Vec<2, S> push {};
 		for (eng::usize k = 0u; k < n; ++k) {
-			const eng::s32 dx = static_cast<eng::s32>(a.position.x) - obstacles[k].x;
-			const eng::s32 dy = static_cast<eng::s32>(a.position.y) - obstacles[k].y;
-			const eng::s32 rr = a.radius + radii[k] + p.look_ahead;
-			if (dx * dx + dy * dy < rr * rr) {
-				ox += dx;
-				oy += dy;
+			const eng::math::Vec<2, S> d = a.position - obstacles[k];
+			const S rr = a.radius + radii[k] + p.look_ahead;
+			if (eng::math::length_sq(d) < eng::math::mul_norm(rr, rr)) {
+				push = push + d;
 			}
 		}
-		return eng::Point2s {static_cast<eng::s16>(ox), static_cast<eng::s16>(oy)};
+		return push;
 	}
 
 	/// Combina deseado + separación + obstáculos, limita la fuerza, suaviza, limita la velocidad e
-	/// integra la posición. Aritmética `s32` con una raíz (`isqrt`) por límite.
-	static void integrate(CrowdAgent& a, eng::Point2s sep, eng::Point2s obs, const CrowdParams& p,
-			      eng::s16 dt) noexcept {
-		eng::s32 fx = a.desired.x + ((static_cast<eng::s32>(sep.x) * p.separation_weight) >> 6) +
-			      ((static_cast<eng::s32>(obs.x) * p.obstacle_weight) >> 6);
-		eng::s32 fy = a.desired.y + ((static_cast<eng::s32>(sep.y) * p.separation_weight) >> 6) +
-			      ((static_cast<eng::s32>(obs.y) * p.obstacle_weight) >> 6);
-		limit(fx, fy, p.max_force);
+	/// integra la posición. `dt` va en la unidad del escalar (1 = un tick para escalares enteros;
+	/// una fracción para fixed/float).
+	static void integrate(CrowdAgent<S>& a, const eng::math::Vec<2, S>& sep,
+			      const eng::math::Vec<2, S>& obs, const CrowdParams<S>& p, S dt) noexcept {
+		eng::math::Vec<2, S> force = a.desired +
+					     eng::math::vscale(sep, p.separation_weight) +
+					     eng::math::vscale(obs, p.obstacle_weight);
+		limit(force, p.max_force);
 
-		eng::s32 vx = (static_cast<eng::s32>(a.velocity.x) * 3 + fx) / 4;
-		eng::s32 vy = (static_cast<eng::s32>(a.velocity.y) * 3 + fy) / 4;
-		limit(vx, vy, a.max_speed);
-		a.velocity.x = static_cast<eng::s16>(vx);
-		a.velocity.y = static_cast<eng::s16>(vy);
-
-		a.position.x = static_cast<eng::s16>(a.position.x +
-						     (static_cast<eng::s32>(a.velocity.x) * dt) / 256);
-		a.position.y = static_cast<eng::s16>(a.position.y +
-						     (static_cast<eng::s32>(a.velocity.y) * dt) / 256);
+		// Suavizado `(v*3 + f) / 4` componente a componente: con escalares enteros, dividir por
+		// `div_norm(1,4)` (que sería 0) rompería; dividir el numerador sí es correcto.
+		const S three = eng::math::scalar_traits<S>::from_int(3);
+		const S four = eng::math::scalar_traits<S>::from_int(4);
+		eng::math::Vec<2, S> vel = eng::math::vscale(a.velocity, three) + force;
+		vel.x() = eng::math::div_norm(vel.x(), four);
+		vel.y() = eng::math::div_norm(vel.y(), four);
+		limit(vel, a.max_speed);
+		a.velocity = vel;
+		a.position = a.position + eng::math::vscale(a.velocity, dt);
 	}
 
-	/// Escala `(x,y)` si su módulo supera `max` (una `isqrt`; sin división si no hace falta).
-	static void limit(eng::s32& x, eng::s32& y, eng::s32 max) noexcept {
-		const eng::s32 len2 = x * x + y * y;
-		if (len2 <= max * max) {
+	/// Escala `v` si su módulo supera `max`. Escala **componente a componente** (`(v*max)/len`):
+	/// con escalares enteros, `div_norm(max,len)` truncaría a 0 cuando `max < len`.
+	static void limit(eng::math::Vec<2, S>& v, S max) noexcept {
+		const S len2 = eng::math::length_sq(v);
+		const S max2 = eng::math::mul_norm(max, max);
+		if (!(max2 < len2)) {
 			return;
 		}
-		const eng::s32 len = static_cast<eng::s32>(eng::isqrt(static_cast<eng::u32>(len2)));
-		if (len == 0) {
-			x = 0;
-			y = 0;
+		const S len = eng::math::length(v);
+		if (len == eng::math::scalar_traits<S>::zero()) {
+			v = {};
 			return;
 		}
-		x = (x * max) / len;
-		y = (y * max) / len;
+		v.x() = eng::math::div_norm(eng::math::mul_norm(v.x(), max), len);
+		v.y() = eng::math::div_norm(eng::math::mul_norm(v.y(), max), len);
 	}
 
-	eng::util::SpatialHash<CellSize, CellsX, CellsY, MaxItems> m_grid {};
+	Broadphase m_broad {};
 	eng::u32 m_checks = 0u;
+	S m_max_radius {}; ///< radio máximo de los agentes activos (cota del cajón de consulta)
 };
 
 } // namespace eng::ai

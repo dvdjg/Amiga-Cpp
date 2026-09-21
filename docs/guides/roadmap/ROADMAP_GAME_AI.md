@@ -125,7 +125,7 @@ virtual (el engine usa funciones libres y buffers externos).
 
 | Paso | Entrega | Detalle | Verificación |
 |---|---|---|---|
-| G6.1 | `steering/crowd.hpp` | Crowd (separación + evasión de obstáculos + integración) con **vecinos por `SpatialHash`**, no `O(N²)`; pool de agentes externo, aritmética entera | **Entregado**: HOST-249 |
+| G6.1 | `steering/crowd.hpp` | `Crowd<S, Broadphase>` **genérico sobre el escalar** (separación + evasión + integración); fase amplia de vecinos como política (`SpatialHashBroadphase` evita el `O(N²)`, `BruteForceBroadphase` vale para cualquier escalar) | **Entregado**: HOST-249 (con `s32` y `float`) |
 | G6.2 | `navmesh_lite.hpp` | Cache/atajo de `locate`: recordar el polígono actual y probar vecinos antes del bucle lineal | HOST propio |
 | G6.3 | `navmesh_lite.hpp`/`waypoints.hpp` | **Coste por portal** (terreno/peligro) y `MovementProfile` (can_climb/can_swim/max_slope) que filtra portales/costes | HOST propio |
 | G6.4 | navegación | **Reutilización de paths**: recalcular solo si el objetivo se movió o el agente se desvió (patrón de la caché de planes del GOAP) | HOST propio |
@@ -133,10 +133,11 @@ virtual (el engine usa funciones libres y buffers externos).
 | G6.6 | `steering/crowd.hpp` | Crowd **fixed-point pura** (sin `/` ni `isqrt` por vecino) y sonda de codegen | HOST + `codegen-report.mjs` |
 
 G6.1 está entregado y verificado por test host; G6.2–G6.6 quedan **pendientes** (se abordan cuando
-haya un consumidor de movimiento con muchos agentes). El crowd reutiliza la fase amplia de
-colisiones ya existente (`eng::util::SpatialHash`, `broadphase.hpp`); `steering.hpp` no se reutiliza
-directamente porque es genérico sobre el escalar (`q12`/`float`) para velocidades normalizadas,
-mientras que el mundo de navegación es `s16` (`Point2s`).
+haya un consumidor de movimiento con muchos agentes). El crowd es **genérico sobre el escalar** y
+recibe la **fase amplia de vecinos como política** (regla de genericidad, `AGENTS.md` §1.10): la
+variante `SpatialHashBroadphase` reutiliza la rejilla de colisiones ya existente
+(`eng::util::SpatialHash`, `broadphase.hpp`) para evitar el `O(N²)`; `BruteForceBroadphase` cubre
+cualquier escalar. Así el algoritmo no queda atado a `s16` ni a una rejilla concreta.
 
 ## 5. Catálogo de técnicas a incorporar
 

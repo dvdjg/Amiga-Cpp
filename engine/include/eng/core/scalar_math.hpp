@@ -21,6 +21,7 @@
 ///   argumentos pequeños (`|x| <= 64`). Para `MiniFloat16` sí es la versión completa del
 ///   núcleo Q1.14.
 
+#include <eng/core/isqrt.hpp>
 #include <eng/core/numeric_traits.hpp>
 #include <eng/core/types.hpp>
 
@@ -179,6 +180,34 @@ template <>
 struct scalar_sqrt<double> {
 	static constexpr double op(double x) {
 		return detail::sqrt_newton<double, unsigned long long, 52, 0x7FFu, 1023, 8>(x);
+	}
+};
+
+/// Enteros: `sqrt` por `isqrt`. La entrada viene de `length_sq` (no negativa), así que el
+/// `static_cast` a sin signo es seguro. Habilita `eng::math` (`length`/`normalize`) con
+/// escalares enteros, como las coordenadas de mundo de la navegación.
+template <>
+struct scalar_sqrt<eng::s16> {
+	static constexpr eng::s16 op(eng::s16 x) {
+		return static_cast<eng::s16>(eng::isqrt(static_cast<eng::u32>(x)));
+	}
+};
+template <>
+struct scalar_sqrt<eng::s32> {
+	static constexpr eng::s32 op(eng::s32 x) {
+		return static_cast<eng::s32>(eng::isqrt(static_cast<eng::u32>(x)));
+	}
+};
+template <>
+struct scalar_sqrt<eng::u16> {
+	static constexpr eng::u16 op(eng::u16 x) {
+		return static_cast<eng::u16>(eng::isqrt(static_cast<eng::u32>(x)));
+	}
+};
+template <>
+struct scalar_sqrt<eng::u32> {
+	static constexpr eng::u32 op(eng::u32 x) {
+		return eng::isqrt(x);
 	}
 };
 
