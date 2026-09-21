@@ -4,6 +4,10 @@
 
 **`Amiga Hardware Reference Manual 3rd edition (Commodore Amiga Inc.) (Z-Library).cat.md`**
 
+> **Erratas y notas**: [ERRATA_Y_NOTAS.md](ERRATA_Y_NOTAS.md) — aclaraciones/correcciones del
+> manual obtenidas del **fuente del emulador** (mecanismo en `AGENTS.md` §1.11), con la cita de
+> dónde se obtuvo cada una.
+
 ## Cómo usar este índice
 
 - **Ir a una sección:** abre el `.cat.md` y salta a la línea indicada (Ctrl+G en la mayoría de editores).

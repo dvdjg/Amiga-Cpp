@@ -76,11 +76,12 @@ struct SpriteLayerDemo {
 			return;
 		}
 
-		// Sprite "armado" válido (1 línea + terminador) al que apuntan los SPRxPT de reset.
+		// Estructura "nula" (POS=0, CTL=0, terminador): los canales Copper apuntan aquí, así
+		// el DMA los deja inactivos y los controla solo el Copper (rearm por línea).
 		eng::Words<eng::SpriteTag> sd = m_sprite_block.view.as_words();
-		sd[0] = 0xAAAAu; // DAT
-		sd[1] = 0x0000u; // DATB
-		sd[2] = 0u;      // terminador
+		sd[0] = 0u; // POS (VSTART=0, HSTART=0)
+		sd[1] = 0u; // CTL (VSTOP=0)
+		sd[2] = 0u; // terminador
 		sd[3] = 0u;
 
 		// Estructuras DMA (una por canal): [POS, CTL, DAT0, DATB0, ..., 0, 0]. El `POS` lo

@@ -93,6 +93,14 @@ El objetivo es que el usuario pueda **revisar** el trabajo antes de que se conso
 - El test host de una cabecera genérica debe ejercitarla con **al menos dos escalares** cuando aplique (p. ej. `s32` y `float`), además de los casos límite.
 - Al tocar una cabecera existente, preguntar «¿esto vale solo para este tipo?»; si la respuesta es sí y no hay motivo, generalizarla en la misma pasada.
 
+### 1.11 Si el hardware no funciona: fuente del emulador
+
+- Cuando un mecanismo del chipset **no se comporta como se espera** y la documentación de referencia (`docs/reference/ahrm/`, `../amiga-bootcamp/`, datasheets) no lo explica, la **implementación del emulador es la referencia de facto**: leer su **código fuente**.
+- **Fuente local**: `../WinUAE-DBG/`. Ficheros clave: `custom.cpp` (registros custom: handlers de escritura/lectura, p. ej. `CLXCON`/`CLXDAT`), `drawing.cpp` (render por píxel/línea: colisión, sprites, playfield), `include/custom.h` (mapa de registros), `cfgfile.cpp` (preferencias como `collision_level`).
+- **Procedimiento**: (1) localizar con `grep -rnE '<REG>|<término>'`; (2) leer el handler en `custom.cpp` y la lógica por píxel/línea en `drawing.cpp`; (3) comprobar **preferencias** que puedan desactivar la función (p. ej. `currprefs.collision_level`); (4) contrastar con el AHRM y **anotar la discrepancia**; (5) validar en emulador con una demo (caso positivo **y** negativo).
+- Documentar el hallazgo en `docs/reference/emulators/<emulador>/<tema>.md` (índice en `docs/reference/emulators/README.md`), citando **fichero y línea**.
+- **Completar la referencia**: si el emulador aclara o corrige la doc del manual, añadir la aclaración a la copia local (`docs/reference/ahrm/ERRATA_Y_NOTAS.md` o la ficha de técnica), indicando **de dónde se obtuvo** (emulador + `fichero:línea`).
+
 ---
 
 ## 2. El repositorio

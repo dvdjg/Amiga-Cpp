@@ -11,7 +11,7 @@ al **fuente** (fichero y línea).
 
 | Emulador | Ruta local | Fichas |
 |---|---|---|
-| WinUAE-DBG | `../WinUAE-DBG/` (fuente) | [winuae/collision.md](winuae/collision.md) |
+| WinUAE-DBG | `../WinUAE-DBG/` (fuente) | [winuae/collision.md](winuae/collision.md), [winuae/sprite-dma.md](winuae/sprite-dma.md) |
 
 ## Cómo añadir una ficha
 
