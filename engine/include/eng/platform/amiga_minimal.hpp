@@ -340,6 +340,16 @@ public:
 	/// frame. Devuelve qué colisiones se registraron desde la última lectura.
 	[[nodiscard]] graphics::SpriteCollisionResult read_sprite_collision();
 
+	/// **Copia lineal por Blitter** (`memcpy` de RAM arbitraria): `D = A` (minterm `$F0`),
+	/// módulos 0, palabras contiguas (Chip/Fast). `wait = true` espera al Blitter (síncrona);
+	/// `wait = false` es **asíncrona**: lanza la copia y vuelve, y el llamador sincroniza con
+	/// `blitter_busy()` (polling) o el **servicio de fondo** (`set_blitter_service`, que se
+	/// drena durante la espera). **Cuándo conviene** frente a una copia CPU: cuando hay
+	/// trabajo de CPU que **solapar** con la copia (el bus es el mismo, pero la CPU queda
+	/// libre) o para copias grandes sin solape de CPU que quepan en un solo blit. Ver
+	/// `docs/reference/amiga/techniques/blitter-memcpy.md`.
+	bool blitter_memcpy(eng::Span<u8> dst, eng::Span<const u8> src, bool wait = true);
+
 	/// **Relleno de polígonos compuesto por bitplane** (Blitter): para cada plano `p`,
 	/// limpia el plano, dibuja el contorno XOR (ONEDOT) de las caras cuyo color tiene el
 	/// bit `p` a 1 y hace **un area fill** (`FILL_XOR`); un fill por plano en vez de uno

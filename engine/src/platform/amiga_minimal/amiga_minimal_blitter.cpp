@@ -595,6 +595,56 @@ bool MinimalBackend::blitter_clear(eng::PlaneBytes dst, u8 planes, u16 row_bytes
 	return wait ? wait_blitter() : true;
 }
 
+bool MinimalBackend::blitter_memcpy(eng::Span<u8> dst, eng::Span<const u8> src, bool wait) {
+	if (dst.data() == nullptr || src.data() == nullptr || dst.size() < src.size()) {
+		return false;
+	}
+	const u32 bytes = static_cast<u32>(src.size()) & ~1u; // solo palabras completas
+	if (bytes == 0u) {
+		return true;
+	}
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
+	// D = A (minterm $F0): BLTCON0 = USEA|USED|$F0; sin shift; módulos 0 (RAM lineal).
+	custom_base[custom_bltcon0_offset] = static_cast<u16>(blt_use_a | blt_use_d | blt_minterm_copy_a);
+	custom_base[custom_bltcon1_offset] = 0;
+	custom_base[custom_bltafwm_offset] = 0xffff;
+	custom_base[custom_bltalwm_offset] = 0xffff;
+	custom_base[custom_bltamod_offset] = 0;
+	custom_base[custom_bltbmod_offset] = 0;
+	custom_base[custom_bltcmod_offset] = 0;
+	custom_base[custom_bltdmod_offset] = 0;
+
+	const u16* s = reinterpret_cast<const u16*>(src.data());
+	u16* d = reinterpret_cast<u16*>(dst.data());
+	u32 words = bytes / 2u;
+	while (words > 0u) {
+		if (!wait_blitter()) {
+			return false;
+		}
+		u16 width;
+		u16 height;
+		if (words >= 64u) {
+			u32 h = words / 64u;
+			if (h > 1024u) {
+				h = 1024u;
+			}
+			width = 64u;
+			height = static_cast<u16>(h);
+		} else {
+			width = static_cast<u16>(words);
+			height = 1u;
+		}
+		write_custom_pointer(custom_bltapt_offset, const_cast<u16*>(s));
+		write_custom_pointer(custom_bltdpt_offset, d);
+		custom_base[custom_bltsize_offset] = static_cast<u16>((height << 6) | width);
+		const u32 copied = static_cast<u32>(width) * height;
+		s += copied;
+		d += copied;
+		words -= copied;
+	}
+	return wait ? wait_blitter() : true;
+}
+
 void MinimalBackend::blitter_or_bobs_begin(u16 words, u16 height, s16 source_modulo,
 					   s16 dest_modulo) {
 	// Misma implementacion que el camino `inline` de coste cero (blob.hpp): una sola
