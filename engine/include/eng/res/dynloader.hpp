@@ -1,23 +1,32 @@
 #pragma once
 
 /// \file dynloader.hpp
-/// **Loader de código relocatable** (`eng::res`): carga una imagen **`.englib`** en RAM, aplica las
+/// **Loader de código relocatable** (`eng::res`): carga un módulo dinámico en RAM, aplica las
 /// **relocaciones** y expone **símbolos** por hash. Permite overlays de código (jefe de zona,
 /// minijuego) cargables/descargables. Ver `docs/engine/architecture/RESOURCE_SYSTEM.md` §2.
 ///
-/// El loader **no posee** la imagen (la reserva el llamador, p. ej. desde la `AssetCache`); aquí
-/// está el parseo + relocación + búsqueda de símbolos, **puro** y host-testable.
+/// Soporta **dos formatos**, detectados por el primer longword:
+/// - **`.englib`** (magic `'ENGL'`): contenedor propio compacto, en orden nativo de la máquina.
+///   El código vive **in situ** en la imagen (la imagen debe permanecer válida).
+/// - **HUNK** (magic `HUNK_HEADER`): el formato nativo de AmigaOS (`hunk.hpp`). Los segmentos se
+///   copian a una `eng::LinearArena` del llamador, así que la imagen puede liberarse tras cargar.
+///
+/// El loader **no posee** la memoria (la reserva el llamador, p. ej. desde la `AssetCache`);
+/// aquí está el parseo + relocación + búsqueda de símbolos, **puro** y host-testable.
 ///
 /// ```text
-///   Header (24 B): magic 'ENGL', version, code_size, data_size, bss_size,
-///                  entry_offset, reloc_count, export_count
-///   Code (code_size B, multiplo de 4)
-///   Relocs:  reloc_count x u32 (offset dentro del code)
-///   Exports: export_count x { u32 name_hash; u32 offset }
+///   .englib  Header (24 B): magic 'ENGL', version, code_size, data_size, bss_size,
+///                          entry_offset, reloc_count, export_count
+///            Code (code_size B, multiplo de 4) · Relocs · Exports { name_hash, offset }
+///   HUNK     ver hunk.hpp (HUNK_HEADER + CODE/DATA/BSS + RELOC/SYMBOL + HUNK_END)
 /// ```
 
+#include <eng/core/byte_order.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
+#include <eng/memory/arena.hpp>
+#include <eng/res/hunk.hpp>
+#include <eng/res/symbol_hash.hpp>
 
 namespace eng::res {
 
@@ -25,6 +34,9 @@ using LibHandle = eng::u16; ///< 0 = inválido
 
 /// Estado de una lib.
 enum class LibState : eng::u8 { Empty = 0, Ready, Error };
+
+/// Formato del módulo cargado.
+enum class LibFormat : eng::u8 { None = 0, EngLib, Hunk };
 
 /// Entrada de export.
 struct LibExport {
@@ -46,7 +58,7 @@ struct EngLibHeader {
 
 inline constexpr eng::u32 kEngLibMagic = 0x454e474cu; // 'ENGL'
 
-/// **Loader de código relocatable** (capacidad fija, sin heap).
+/// **Loader de código relocatable** (capacidad fija, sin heap). Acepta `.englib` y HUNK.
 class DynLoader {
 public:
 	static constexpr eng::u16 kMaxLibs = 8u;
@@ -63,12 +75,32 @@ public:
 		return static_cast<LibHandle>(m_count);
 	}
 
-	/// Carga y relocaliza la imagen `.englib` (no la posee). `false` si el formato no es válido.
-	bool load(LibHandle h, eng::Span<eng::u8> image) noexcept {
+	/// Carga y relocaliza la imagen (no la posee). Detecta el formato por el primer longword:
+	/// **`.englib`** (relocalización **in situ**, `pool` no se usa) o **HUNK** (se copia a
+	/// `pool`, que entonces es obligatorio). `false` si el formato no es válido o no cabe.
+	bool load(LibHandle h, eng::Span<eng::u8> image, eng::LinearArena* pool = nullptr) noexcept {
 		if (!valid(h)) {
 			return false;
 		}
 		Lib& l = m_libs[h - 1u];
+		if (image.size() < 4u) {
+			l.state = LibState::Error;
+			return false;
+		}
+		const eng::u32 be = eng::read_be32(image.data());
+		if (be == kHunkHeaderMagic) {
+			if (pool == nullptr || !l.hunk.load(image, *pool)) {
+				l.state = LibState::Error;
+				return false;
+			}
+			l.fmt = LibFormat::Hunk;
+			l.state = LibState::Ready;
+			return true;
+		}
+		if (be != kEngLibMagic && eng::read_le32(image.data()) != kEngLibMagic) {
+			l.state = LibState::Error;
+			return false;
+		}
 		if (image.size() < sizeof(EngLibHeader)) {
 			l.state = LibState::Error;
 			return false;
@@ -92,6 +124,7 @@ public:
 		l.size = hdr->code_size;
 		l.exports = reinterpret_cast<LibExport*>(relocs + hdr->reloc_count);
 		l.export_count = hdr->export_count;
+		l.fmt = LibFormat::EngLib;
 		l.state = LibState::Ready;
 		return true;
 	}
@@ -104,6 +137,9 @@ public:
 		const Lib& l = m_libs[h - 1u];
 		if (l.state != LibState::Ready) {
 			return nullptr;
+		}
+		if (l.fmt == LibFormat::Hunk) {
+			return l.hunk.symbol(name_hash);
 		}
 		for (eng::u16 i = 0u; i < l.export_count; ++i) {
 			if (l.exports[i].name_hash == name_hash) {
@@ -118,7 +154,7 @@ public:
 		return symbol(h, hash_name(name));
 	}
 
-	/// Descarga la lib (el llamador libera la imagen).
+	/// Descarga la lib (el llamador libera la imagen y/o la arena de segmentos).
 	void unload(LibHandle h) noexcept {
 		if (valid(h)) {
 			m_libs[h - 1u] = Lib {};
@@ -129,26 +165,25 @@ public:
 	[[nodiscard]] LibState state(LibHandle h) const noexcept {
 		return valid(h) ? m_libs[h - 1u].state : LibState::Empty;
 	}
+	/// Formato del módulo cargado (`None` si no está listo).
+	[[nodiscard]] LibFormat format(LibHandle h) const noexcept {
+		return valid(h) ? m_libs[h - 1u].fmt : LibFormat::None;
+	}
 	[[nodiscard]] eng::u16 count() const noexcept { return m_count; }
 
-	/// Hash FNV-1a de 32 bits del nombre de un símbolo.
-	[[nodiscard]] static constexpr eng::u32 hash_name(const char* s) noexcept {
-		eng::u32 h = 2166136261u;
-		while (*s != '\0') {
-			h = (h ^ static_cast<eng::u8>(*s)) * 16777619u;
-			++s;
-		}
-		return h;
-	}
+	/// Hash FNV-1a de 32 bits del nombre de un símbolo (común a `.englib` y HUNK).
+	[[nodiscard]] static constexpr eng::u32 hash_name(const char* s) noexcept { return symbol_hash(s); }
 
 private:
 	struct Lib {
 		const char* path = nullptr;
 		LibState state = LibState::Empty;
+		LibFormat fmt = LibFormat::None;
 		eng::u8* base = nullptr;
 		eng::u32 size = 0u;
 		LibExport* exports = nullptr;
 		eng::u16 export_count = 0u;
+		HunkImage hunk {}; ///< segmentos + símbolos cuando el formato es HUNK
 	};
 
 	[[nodiscard]] bool valid(LibHandle h) const noexcept { return h >= 1u && h <= m_count; }

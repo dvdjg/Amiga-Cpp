@@ -40,6 +40,9 @@ constexpr eng::u32 kLibMax = 128u;
 struct DemoGame {
 	eng::res::DynLoader m_dl {};
 	eng::u8 m_lib[kLibMax] {};
+	eng::u8 m_hunk[kLibMax] {};
+	eng::u8 m_pool_buf[256] {};
+	eng::LinearArena m_pool {m_pool_buf, sizeof(m_pool_buf), eng::MemoryKind::Any};
 
 	bool m_text_ok = false;
 	eng::u32 m_text_len = 0;
@@ -48,6 +51,8 @@ struct DemoGame {
 	eng::u32 m_snd_len = 0;
 	bool m_lib_ok = false;
 	eng::s32 m_answer = -1;
+	bool m_hunk_ok = false;
+	eng::s32 m_hunk_answer = -1;
 	bool m_write_ok = false;
 	eng::u32 m_readback = 0;
 	bool m_dir_ok = false;
@@ -112,6 +117,28 @@ struct DemoGame {
 			}
 		}
 
+		// --- codigo nativo HUNK: cargar (deteccion de formato) y ejecutar ---
+		{
+			const eng::os::FileHandle h =
+				eng::os::file_open("data/code/answer.hunk", eng::os::FileMode::Read);
+			if (h != 0u) {
+				const eng::s32 n = eng::os::file_read_sync(
+					h, eng::Span<eng::u8> {m_hunk, kLibMax}, 0u);
+				eng::os::file_close(h);
+				const eng::res::LibHandle lib = m_dl.declare("answer.hunk");
+				if (n > 0 && m_dl.load(lib,
+						eng::Span<eng::u8> {m_hunk, static_cast<eng::usize>(n)},
+						&m_pool)) {
+					using Fn = eng::s32 (*)();
+					auto fn = reinterpret_cast<Fn>(m_dl.symbol(lib, "answer"));
+					if (fn != nullptr) {
+						m_hunk_answer = fn();
+						m_hunk_ok = (m_hunk_answer == 42);
+					}
+				}
+			}
+		}
+
 		// --- escritura: crear out/, escribir y releer ---
 		{
 			m_dir_ok = eng::os::file_make_dir("out");
@@ -141,7 +168,7 @@ struct DemoGame {
 		}
 
 		const eng::u32 flags = (m_text_ok ? 1u : 0u) | (m_lib_ok ? 2u : 0u) |
-				       (m_write_ok ? 4u : 0u);
+				       (m_write_ok ? 4u : 0u) | (m_hunk_ok ? 8u : 0u);
 		eng::debug::mark_ready(g_eng_run_status, 0x00021100u | flags);
 	}
 
@@ -175,6 +202,14 @@ struct DemoGame {
 			d.text(64, 182, line, m_lib_ok ? 0x0000ff80 : 0x00ff6060);
 		}
 		{
+			char* q = append(line, "hunk: ");
+			q = append(q, m_hunk_ok ? "OK (answer=" : "FALLO (answer=");
+			q = append_u32(q, static_cast<eng::u32>(m_hunk_answer));
+			q = append(q, ")");
+			*q = '\0';
+			d.text(64, 214, line, m_hunk_ok ? 0x0000ff80 : 0x00ff6060);
+		}
+		{
 			char* q = append(line, "escritura: ");
 			q = append(q, m_write_ok ? "OK" : "FALLO");
 			q = append(q, "   releidos: ");
@@ -182,7 +217,7 @@ struct DemoGame {
 			q = append(q, "   mkdir out: ");
 			q = append(q, m_dir_ok ? "si" : "ya existia");
 			*q = '\0';
-			d.text(64, 214, line, m_write_ok ? 0x0000ff80 : 0x00ff6060);
+			d.text(64, 246, line, m_write_ok ? 0x0000ff80 : 0x00ff6060);
 		}
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}

@@ -1,16 +1,20 @@
-// Genera el contenido de un "volumen" (el DH1: que monta el runner) para la demo de
-// sistema de archivos: directorios + texto + imagen + sonido + un `.englib` (codigo
-// relocatable) para probar la carga dinamica. Uso:
+// Genera el contenido de un "volumen" para las demos de sistema de archivos:
+//   - un arbol de directorios en disco (el DH1: que monta el runner), y
+//   - una imagen de disquete ADF (FFS) con el mismo contenido (DF0:).
+// Contenido: texto, imagen, sonido y codigo relocatable en DOS formatos (`.englib` propio y
+// **HUNK** nativo de AmigaOS) para la carga dinamica.
 //
-//   node tools/fs/make-volume.mjs [--out <dir>]
+//   node tools/fs/make-volume.mjs [--out <dir>] [--adf <path>]
 //
-// Defecto: out/run/211_fs_test/A500_debug/dh1 (el dir que el runner monta como DH1:).
+// Defectos: out/run/211_fs_test/A500_debug/dh1  y  out/fs/211_fs_test.adf
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../..');
+const PYTHON = process.env.PYTHON || 'python';
 
 function argValue(name, def) {
 	const i = process.argv.indexOf(name);
@@ -18,6 +22,8 @@ function argValue(name, def) {
 }
 
 const outDir = path.resolve(argValue('--out', path.join(ROOT, 'out/run/211_fs_test/A500_debug/dh1')));
+const adfPath = path.resolve(argValue('--adf', path.join(ROOT, 'out/fs/211_fs_test.adf')));
+const contentDir = path.join(ROOT, 'out/fs/content');
 
 function mkdirp(p) {
 	fs.mkdirSync(p, { recursive: true });
@@ -33,65 +39,116 @@ function hashName(s) {
 	return h >>> 0;
 }
 
+// HUNK: ejecutable nativo de AmigaOS con 1 hunk de codigo (moveq #42,%d0 ; rts) y el
+// simbolo "answer". Todo big-endian. Ver engine/include/eng/res/hunk.hpp y dos/doshunks.h.
+function buildHunk() {
+	const be32 = (v) => {
+		const b = Buffer.alloc(4);
+		b.writeUInt32BE(v >>> 0, 0);
+		return b;
+	};
+	const parts = [];
+	// HUNK_HEADER: magic, resident=0, num=1, first=0, last=0, size[0]=1 long.
+	parts.push(be32(0x000003f3), be32(0), be32(1), be32(0), be32(0), be32(1));
+	// HUNK_CODE: tag, 1 long, 0x702a4e75 (moveq #42,%d0 ; rts).
+	parts.push(be32(1001), be32(1), be32(0x702a4e75));
+	// HUNK_SYMBOL: tag, name_len=2 longs, "answer\0\0", value=0, terminador=0.
+	const name = Buffer.alloc(8);
+	name.write('answer', 0, 'ascii');
+	parts.push(be32(1008), be32(2), name, be32(0), be32(0));
+	// HUNK_END.
+	parts.push(be32(1010));
+	return Buffer.concat(parts);
+}
+
 // .englib: header(24) + code(8) + 1 reloc + 1 export ("answer" -> 0).
-// code: 70 6a 4e 75 (moveq #42,d0 ; rts) + 4 bytes de celda relocable.
+// code: 70 2a 4e 75 (moveq #42,%d0 ; rts) + 4 bytes de celda relocable.
 function buildEngLib() {
 	const code = Buffer.alloc(8);
 	code[0] = 0x70; code[1] = 0x2a; // moveq #42,%d0
 	code[2] = 0x4e; code[3] = 0x75; // rts
-	// code[4..7] = celda relocable (0)
 
 	const hdr = Buffer.alloc(24);
 	hdr.writeUInt32BE(0x454e474c, 0); // 'ENGL'
-	hdr.writeUInt16BE(1, 4);          // version
-	hdr.writeUInt16BE(8, 6);          // code_size
-	hdr.writeUInt32BE(0, 8);          // data_size
-	hdr.writeUInt32BE(0, 12);         // bss_size
-	hdr.writeUInt32BE(0, 16);         // entry_offset
-	hdr.writeUInt16BE(1, 20);         // reloc_count
-	hdr.writeUInt16BE(1, 22);         // export_count
+	hdr.writeUInt16BE(1, 4);
+	hdr.writeUInt16BE(8, 6);
+	hdr.writeUInt32BE(0, 8);
+	hdr.writeUInt32BE(0, 12);
+	hdr.writeUInt32BE(0, 16);
+	hdr.writeUInt16BE(1, 20);
+	hdr.writeUInt16BE(1, 22);
 
 	const relocs = Buffer.alloc(4);
-	relocs.writeUInt32BE(4, 0); // reloc en code+4
+	relocs.writeUInt32BE(4, 0);
 
 	const exports = Buffer.alloc(8);
 	exports.writeUInt32BE(hashName('answer'), 0);
-	exports.writeUInt32BE(0, 4); // offset 0 (la funcion)
+	exports.writeUInt32BE(0, 4);
 
 	return Buffer.concat([hdr, code, relocs, exports]);
 }
 
-function writeVolume() {
-	mkdirp(path.join(outDir, 'data/text'));
-	mkdirp(path.join(outDir, 'data/images'));
-	mkdirp(path.join(outDir, 'data/audio'));
-	mkdirp(path.join(outDir, 'data/code'));
-	mkdirp(path.join(outDir, 'out'));
-
-	fs.writeFileSync(path.join(outDir, 'data/text/hello.txt'),
-		'Hola desde el sistema de archivos del Amiga.\nLinea 2 con tilde: accion.\n', 'utf8');
-
-	// Imagen 16x16 8-bit (gradiente).
+function buildContent() {
 	const img = Buffer.alloc(16 * 16);
 	for (let y = 0; y < 16; ++y) {
 		for (let x = 0; x < 16; ++x) {
 			img[y * 16 + x] = ((x * 16 + y) & 0xff);
 		}
 	}
-	fs.writeFileSync(path.join(outDir, 'data/images/logo.raw'), img);
-
-	// Sonido: 256 muestras 8-bit (una sinusoide simple).
 	const snd = Buffer.alloc(256);
 	for (let i = 0; i < 256; ++i) {
 		snd[i] = Math.round(127 * Math.sin((i / 256) * 2 * Math.PI)) & 0xff;
 	}
-	fs.writeFileSync(path.join(outDir, 'data/audio/beep.raw'), snd);
-
-	// Codigo relocatable.
-	fs.writeFileSync(path.join(outDir, 'data/code/answer.englib'), buildEngLib());
-
-	console.log(`volumen generado en ${outDir}`);
-	console.log('  data/text/hello.txt, data/images/logo.raw, data/audio/beep.raw, data/code/answer.englib');
+	return {
+		'data/text/hello.txt': Buffer.from('Hola desde el sistema de archivos del Amiga.\nLinea 2 con tilde: accion.\n', 'utf8'),
+		'data/images/logo.raw': img,
+		'data/audio/beep.raw': snd,
+		'data/code/answer.englib': buildEngLib(),
+		'data/code/answer.hunk': buildHunk(),
+	};
 }
 
-writeVolume();
+const files = buildContent();
+
+// 1) Volumen en disco (DH1:).
+for (const [rel, buf] of Object.entries(files)) {
+	const dst = path.join(outDir, rel);
+	mkdirp(path.dirname(dst));
+	fs.writeFileSync(dst, buf);
+}
+mkdirp(path.join(outDir, 'out'));
+
+// 2) Ficheros fuente para xdftool.
+for (const [rel, buf] of Object.entries(files)) {
+	const dst = path.join(contentDir, rel);
+	mkdirp(path.dirname(dst));
+	fs.writeFileSync(dst, buf);
+}
+
+// 3) Imagen de disquete ADF (FFS) con el mismo contenido.
+function runXdftool(args) {
+	const r = spawnSync(PYTHON, ['-m', 'amitools.tools.xdftool', adfPath, ...args], { encoding: 'utf8' });
+	if (r.status !== 0) {
+		console.error(r.stdout || '');
+		console.error(r.stderr || '');
+		throw new Error('xdftool fallo: ' + args.join(' '));
+	}
+}
+
+mkdirp(path.dirname(adfPath));
+if (fs.existsSync(adfPath)) {
+	fs.unlinkSync(adfPath);
+}
+runXdftool(['create', '+', 'format', 'AMG211', 'ffs']);
+for (const dir of ['data', 'data/text', 'data/images', 'data/audio', 'data/code', 'out']) {
+	runXdftool(['makedir', dir]);
+}
+for (const rel of Object.keys(files)) {
+	runXdftool(['write', path.join(contentDir, rel), rel]);
+}
+
+// NOTA: el bootblock queda valido (arrancable). Para que la demo se ejecute, el runner
+// monta la imagen y el harness sigue arrancando de DH0 (ver run-demo `--disk`).
+
+console.log(`volumen generado en ${outDir}`);
+console.log(`imagen de disquete generada en ${adfPath}`);

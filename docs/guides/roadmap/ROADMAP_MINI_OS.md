@@ -132,7 +132,10 @@ UI (`eng::ui`).
   `CreateDir`/`DeleteFile`/`Rename`; la asíncrona como **diferida** con `file_pump` que postea
   `FileDone`/`FileError`), el **enrutado** `eng/res/resources.hpp` (HOST-255) y la **demo 211**
   (lee texto/imagen/sonido, carga un `.englib` y prueba la escritura). Pendiente: `trackdisk` para
-  streaming de disquete sin DOS.
+  streaming de disquete sin DOS. **Imágenes de disquete**: `tools/fs/make-volume.mjs --adf` genera un
+  ADF (FFS/OFS con `xdftool`) y `run-demo.sh --disk <adf>` lo monta en `DF0:`; el disquete se monta,
+  pero **leer `df0:` desde una demo se bloquea** en el entorno sin Workbench (el volumen no queda
+  montado), así que la lectura se prueba con el `DH1:` (demo 211).
 
 ### M8 — Streaming desde disquete
 

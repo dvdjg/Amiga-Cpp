@@ -163,7 +163,7 @@ function findExtensionRoot() {
   throw new Error('No se encontro la extension bartmanabyss.amiga-debug-*.');
 }
 
-function patchConfig(configText, extensionRoot, stagedOutDir, warpEnabled, immediateBlits) {
+function patchConfig(configText, extensionRoot, stagedOutDir, warpEnabled, immediateBlits, diskAdf = '') {
   const dh0 = path.join(extensionRoot, 'bin/dh0');
   const normalizedDh0 = dh0.replace(/\//g, '\\');
   const normalizedOut = stagedOutDir.replace(/\//g, '\\');
@@ -175,6 +175,13 @@ function patchConfig(configText, extensionRoot, stagedOutDir, warpEnabled, immed
     out = out.replace(/^filesystem2=rw,dh1:.*$/m, `filesystem2=rw,dh1:dh1:${normalizedOut},-128`);
   } else {
     out += `\r\nfilesystem2=rw,dh1:dh1:${normalizedOut},-128\r\n`;
+  }
+
+  // Disquete opcional (imagen ADF) montado como DF0: (lectura/escritura).
+  if (diskAdf !== '') {
+    const normalizedAdf = diskAdf.replace(/\//g, '\\');
+    out = setConfigValue(out, 'floppy0', normalizedAdf);
+    out = setConfigValue(out, 'floppy0type', '0'); // 3.5" DD
   }
 
   if (/^debugging_trigger=.*$/m.test(out)) {
@@ -857,7 +864,9 @@ const sequenceCameraX = sequenceCameraXArg === ''
 const telemetrySamples = Math.max(0, parseInt(argValue('--telemetry-samples', '0'), 10));
 const telemetryIntervalMs = Math.max(10, parseInt(argValue('--telemetry-interval-ms', '120'), 10));
 const warpEnabled = hasArg('--warp');
-  const immediateBlits = hasArg('--immediate-blits');
+const immediateBlits = hasArg('--immediate-blits');
+const diskArg = argValue('--disk', '');
+const diskAdf = diskArg !== '' ? path.resolve(diskArg) : '';
 const mousePath = buildMousePathFromArgs();
 const mouseDelayMs = Math.max(0, parseInt(argValue('--mouse-duration-ms', '800'), 10)) / Math.max(1, mousePath.length - 1);
 const mouseButton = Math.max(0, parseInt(argValue('--mouse-button', '0'), 10));
@@ -892,7 +901,7 @@ fs.writeFileSync(startupPath, 'stack 131072\ncd dh1:\n:a.exe\n', 'utf8');
 const baseConfigPath = path.join(root, 'config/mcp-amiga-c-debug.uae');
 const runnerConfigPath = path.join(outputDir, 'runner.uae');
 const configText = fs.readFileSync(baseConfigPath, 'utf8');
-fs.writeFileSync(runnerConfigPath, patchConfig(configText, extensionRoot, stagedDir, warpEnabled, immediateBlits), 'utf8');
+fs.writeFileSync(runnerConfigPath, patchConfig(configText, extensionRoot, stagedDir, warpEnabled, immediateBlits, diskAdf), 'utf8');
 
 const gdbPort = parseInt(process.env.WINUAE_GDB_PORT || '2345', 10);
 

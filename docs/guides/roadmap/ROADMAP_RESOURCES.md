@@ -61,14 +61,15 @@ presupuesto/prioridad/LRU y **loader de código relocatable**, sobre la E/S así
 
 ### R4 — DynLoader (código relocatable)
 
-- **Entregable**: `eng/res/dynloader.hpp` (`LibHandle`, `declare`/`load_async`/`unload`,
-  `add_ref`/`release`, `symbol`), formato `.englib` (header + relocs + exports) y `relocate`;
-  `MsgType::LibLoaded/LibError/LibUnloaded`.
-- **Verificación**: **HOST-248** — un `.englib` de prueba (generado en el host) se carga, se
-  relocaliza y `symbol` devuelve una función que se llama; `unload` solo libera con `refcount==0`.
-- **Estado**: **entregado** (`eng/res/dynloader.hpp`: cabecera `.englib`, relocaciones y símbolos
-  por hash; **HOST-248**). Pendiente: el **generador host** que emite `.englib` desde código real y
-  su carga en Amiga (memoria ejecutable).
+- **Entregable**: `eng/res/dynloader.hpp` (`LibHandle`, `declare`/`load`/`unload`, `symbol`,
+  `format`), formato `.englib` (header + relocs + exports), formato **HUNK** nativo
+  (`eng/res/hunk.hpp`) y `relocate`; `MsgType::LibLoaded/LibError/LibUnloaded`.
+- **Verificación**: **HOST-248** (`.englib`: relocaciones + símbolos) y **HOST-258** (HUNK:
+  segmentos en `LinearArena`, `HUNK_RELOC32`/`RELOC32SHORT`, `HUNK_SYMBOL`); **demo 211_fs_test**
+  carga y ejecuta los **dos** formatos en la Amiga (`answer()` → 42).
+- **Estado**: **entregado** (`DynLoader` con **detección de formato** `.englib`/HUNK, relocaciones y
+  símbolos por hash FNV-1a; **HOST-248** y **HOST-258**; demo 211 con ambos). Pendiente: el
+  **generador host** que emite `.englib` desde código real del engine.
 
 ### R5 — Fachada y ejemplo por zonas
 
@@ -87,6 +88,7 @@ presupuesto/prioridad/LRU y **loader de código relocatable**, sobre la E/S así
 | HOST-246 | test | Desalojo: prioridad + LRU + presupuestos; pin/refcount. |
 | HOST-247 | test | Mensajes de recurso y enrutado por `tag`. |
 | HOST-248 | test | DynLoader: `.englib`, relocación, símbolos y unload. |
+| HOST-258 | test | Cargador HUNK: segmentos en `LinearArena`, relocaciones (32/32SHORT) y símbolos; detección `.englib`/HUNK. |
 | 210_zone_resources | demo | Transición de zona: prefetch + LRU + overlay de código. |
 
 ## Riesgos y decisiones abiertas
