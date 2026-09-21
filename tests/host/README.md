@@ -263,4 +263,5 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-235 | [hw_info](235_hw_info/README.md) | Inventario de hardware `eng::hw` (`eng/hw/info.hpp`): consultas de capacidad, display, nombres y heurísticas (modelo, RAM, RTC). |
 | HOST-242 | [pcm_codec](242_pcm_codec/README.md) | Codec PCM Delta + RLE (`eng/audio/pcm_codec.hpp`): round-trip byte a byte, ratio y rechazos (codec/destino/truncado). |
 | HOST-249 | [crowd](249_crowd/README.md) | Crowd genérico (`eng/ai/steering/crowd.hpp`): separación/evasión con fase amplia como política (`SpatialHash`, no `O(N²)`), probado con `s32` y `float`. |
+| HOST-250 | [os_port](250_os_port/README.md) | Puerto de mensajes del mini-SO (`eng/os/port.hpp`): `MsgQueue` SPSC (FIFO, cola llena, `clear`) y `MsgPort` (`post`/`try_get`/`signalled`). |
 | HOST-208 | [ptr](208_ptr/README.md) | `eng/core/ptr.hpp`: punteros "inteligentes" sin heap (`Ref` observador no propietario y anulable, `NonNull`, `Opt` opcional en sitio). |

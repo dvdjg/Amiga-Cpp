@@ -47,11 +47,13 @@ El Blitter trata la copperlist como **destino**: genera o parchea en bloque wait
 El fin de blit genera IRQ (nivel 3); el handler marca una bandera / encola en
 `task::BackgroundQueue` o `eng::os`, o rearma la siguiente oleada.
 
-- **Encaje**: el backend ya tiene `level3_irq` y `set_blitter_service`; falta exponer una
-  **notificación de fin** (callback/flag) que desbloquee el modo asíncrono.
-- **Beneficio**: uso asíncrono **seguro** de `blitter_memcpy`/jobs (saber cuándo terminó sin
-  polling).
-- **Fases**: (1) `on_blit_complete(callback)`; (2) usarlo en `blitter_memcpy(wait=false)`.
+- **Estado**: la **IRQ de Blitter ya existe** — `level3_dispatch` (atiende el bit `BLIT`) llama a
+  la tarea de `install_blit_service`/`set_blit_service`. Esa tarea **es** la notificación de fin
+  (opcionalmente programable).
+- **Falta**: (1) el **puerto de mensajes del mini-SO** (`eng::os`, documentado, sin implementar)
+  para que el aviso sea un `Msg` de la cola; (2) una API cómoda de «fin de copia» sobre
+  `blitter_memcpy(wait=false)`.
+- **Beneficio**: uso asíncrono **seguro** sin polling.
 
 ## Prioridad
 

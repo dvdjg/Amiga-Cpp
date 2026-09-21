@@ -23,10 +23,15 @@ CPU con *stalls* de bus).
 `wait = false` lanza la copia y vuelve. Para saber si terminó:
 
 - **Polling**: `backend.blitter_busy()` (bit `BBUSY` de `DMACONR`).
+- **IRQ de fin de Blit (recomendado)**: el chipset genera la interrupción **BLIT** (nivel 3) al
+  terminar; el backend la despacha en `level3_dispatch` (`amiga_minimal.cpp`) y llama a la tarea
+  registrada con **`install_blit_service`/`set_blit_service`** (slot `ServiceSlot`). Esa tarea
+  **es la notificación de fin**, opcionalmente programable: la app puede encolar un mensaje en su
+  cola (`task::BackgroundQueue`) o, cuando exista, en el **puerto de mensajes del mini-SO**
+  (`eng::os`; ver `engine/include/eng/os/README.md`) — o marcar una bandera. Registrar el
+  servicio **solo cuando** haga falta (arma/desarma el IRQ).
 - **Servicio de fondo**: `backend.set_blitter_service(fn, user)` — `wait_blitter()` lo **drena**
-  mientras espera (patrón de la demo `081_background_tasks`). El servicio puede encolar el
-  aviso en la cola del SO (`task::BackgroundQueue`, o el mini-SO de mensajes `eng::os`) o
-  marcar una bandera que el juego consulte.
+  mientras espera (patrón de la demo `081_background_tasks`).
 - **Sincronización obligatoria**: `wait_blitter()` (o `blitter_busy() == false`) **antes** de
   leer el destino o de relanzar el Blitter.
 
