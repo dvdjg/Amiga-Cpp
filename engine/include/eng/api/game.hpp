@@ -28,6 +28,7 @@
 #include <eng/graphics/composition/compose.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/input/input.hpp>
+#include <eng/os/port.hpp>
 #include <eng/task/background.hpp>
 
 namespace eng {
@@ -61,7 +62,6 @@ public:
 private:
 	field::DrawTarget m_target;
 };
-
 /// **Aplicación de juego**: bucle + pantalla + tareas, sin exponer el backend ni `GameContext`.
 /// El juego implementa `init(App&)`, `update(App&)` y `render(App&)` (con `auto&` para no nombrar
 /// el tipo concreto).
@@ -85,6 +85,25 @@ public:
 	/// (`app.input().pad0.fire`) o lo rellena con el sondeo de plataforma
 	/// (`eng::platform::poll_input(app.input())`) hasta que el mini-SO de mensajes lo sustituya.
 	[[nodiscard]] input::InputAggregator& input() noexcept { return m_input; }
+
+	/// **Puerto de mensajes del sistema** (mini-SO `eng::os`): la IRQ (VBlank/BLIT) publica
+	/// aquí; el juego lo consume en `update` (`while (app.port().try_get(m)) { ... }`).
+	[[nodiscard]] eng::os::MsgPort<16>& port() noexcept { return m_port; }
+
+	/// Drena el puerto y actualiza los contadores del sistema. Lo llama el adaptador antes de
+	/// `update`; el juego puede además consumir `port()` directamente.
+	void pump() noexcept {
+		eng::os::Msg m;
+		while (m_port.try_get(m)) {
+			if (m.type == eng::os::MsgType::VBlank) {
+				++m_vblank_count;
+			} else if (m.type == eng::os::MsgType::BlitDone) {
+				++m_blitdone_count;
+			}
+		}
+	}
+	[[nodiscard]] u32 vblank_count() const noexcept { return m_vblank_count; }
+	[[nodiscard]] u32 blitdone_count() const noexcept { return m_blitdone_count; }
 
 	/// **Audio del backend** (SFX + música) si lo expone: `app.audio().play_sfx(...)`. Es un
 	/// template para no exigir `audio()` a backends que no lo tengan (se instancia al usarlo).
@@ -127,6 +146,7 @@ private:
 		void update(Backend&, GameContext& ctx) {
 			self->m_context = ctx;
 			self->m_frame = ctx.frame.frame_index;
+			self->pump();
 			self->m_game.update(*self);
 		}
 		void render(Backend&, GameContext& ctx) {
@@ -140,6 +160,9 @@ private:
 	Adapter m_adapter {};
 	Engine<Backend, Adapter> m_engine;
 	eng::Ref<GameContext> m_context {};                 ///< contexto del engine (no propietario)
+	eng::os::MsgPort<16> m_port {};                     ///< puerto de mensajes del sistema
+	u32 m_vblank_count = 0;                             ///< VBlanks consumidos del puerto
+	u32 m_blitdone_count = 0;                           ///< fines de blit consumidos del puerto
 	eng::Ref<graphics::composition::Scene> m_scene {};  ///< escena del juego (no propietaria)
 	input::InputAggregator m_input {};                  ///< entrada del frame (la lee/rellena el juego)
 	graphics::FramePlan m_plan {};
