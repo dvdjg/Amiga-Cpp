@@ -35,6 +35,23 @@ CPU con *stalls* de bus).
 - **Sincronización obligatoria**: `wait_blitter()` (o `blitter_busy() == false`) **antes** de
   leer el destino o de relanzar el Blitter.
 
+### Ejemplo: asíncrona + puerto del mini-SO
+
+```cpp
+// Functor del servicio (la IRQ no captura lambdas): publica BlitDone en el puerto.
+struct PostDone { eng::os::MsgPort<8>* port; };
+void post_done(PostDone& s, eng::u16) {
+    s.port->post(eng::os::Msg {eng::os::MsgType::BlitDone});
+}
+PostDone svc {&port};
+backend.blitter_memcpy_async(dst, src, post_done, svc);   // arranca + arma la IRQ BLIT
+// ... y en el bucle reactivo:
+eng::os::Msg m;
+if (port.try_get(m) && m.type == eng::os::MsgType::BlitDone) { /* copia terminada */ }
+```
+
+`clear_blit_service()` desarma el IRQ cuando ya no se necesita.
+
 ## Límites
 
 - Solo **palabras completas** (se descarta un byte impar final).

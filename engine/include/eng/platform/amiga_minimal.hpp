@@ -210,6 +210,22 @@ public:
 		return install_blit_service(m_blit_slot);
 	}
 
+	/// **Copia asíncrona con notificación**: arranca `blitter_memcpy(wait = false)` y registra
+	/// la IRQ **BLIT** para ejecutar `on_done(user, vpos)` cuando el Blitter termina (típico:
+	/// `port.post(eng::os::Msg{MsgType::BlitDone, ...})`). El IRQ queda armado (llamar
+	/// `clear_blit_service` para desarmarlo). `on_done` **no** captura por lambda: se pasa el
+	/// functor + su `user` (el IRQ no puede capturar). Ver
+	/// `docs/reference/amiga/techniques/blitter-memcpy.md` (modo asíncrono).
+	template <class C>
+	bool blitter_memcpy_async(eng::Span<u8> dst, eng::Span<const u8> src, Service<C> on_done,
+				  C& user) {
+		if (on_done == nullptr) return false;
+		if (!blitter_memcpy(dst, src, false)) {
+			return false;
+		}
+		return set_blit_service(on_done, user);
+	}
+
 	/// Desinstala el servicio de blit.
 	void clear_blit_service();
 
