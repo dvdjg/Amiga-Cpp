@@ -10,6 +10,12 @@ El modelo es el clásico de Exec (puertos, mensajes y señales) reimplementado e
 hay multitarea preemptiva ni SO real, pero la **API de la aplicación es la misma** que tendría
 sobre un sistema con *message loop*.
 
+La familia de documentos del mini-SO es: este núcleo (modelo de mensajes, puerto, prioridad,
+latched y despacho), [`MINI_OS_INPUT.md`](MINI_OS_INPUT.md) (registros de hardware → mensajes),
+[`MINI_OS_TIME.md`](MINI_OS_TIME.md) (tiempo, timers y profiling) y [`MINI_OS_IO.md`](MINI_OS_IO.md)
+(E/S asíncrona y streaming). El plan de fases está en
+[`ROADMAP_MINI_OS.md`](../../guides/roadmap/ROADMAP_MINI_OS.md).
+
 ## 1. Motivación y alcance
 
 En Amiga "a pelo" el control lo toma el programa: `update`/`render` corren atados a la IRQ de
@@ -81,15 +87,18 @@ una entrada de la cola y copiarse en la ISR sin coste apreciable.
 
 namespace eng::os {
 
-/// Tipo de mensaje. Los valores se agrupan por rango (entrada / tiempo / E-S / app) para
-/// que un filtro de prioridad sea una comparación de rango.
+/// Tipo de mensaje. Los valores son **contiguos desde 0** y se agrupan por rango (entrada /
+/// tiempo / E-S / app): la contigüidad permite que el `switch` baje a **tabla de saltos** en
+/// m68k y que el despacho por tabla sea un índice directo; el rango permite priorizar por
+/// comparación (`prio_of`).
 enum class MsgType : eng::u8 {
 	None = 0,
 
-	// Entrada (flancos)
+	// Entrada (flancos / estado)
 	KeyDown, KeyUp,
 	MouseMove, MouseButton,
-	Joystick,
+	Joystick,   ///< joystick digital (1 botón)
+	Gamepad,    ///< CD32 / multi-botón
 
 	// Tiempo
 	VBlank,
@@ -102,6 +111,8 @@ enum class MsgType : eng::u8 {
 	// Aplicación
 	User,
 	Quit,
+
+	COUNT,      ///< nº de tipos (índice máximo + 1): tamaño de la tabla de despacho
 };
 
 /// Máscara de señales (modelo Exec): cada subsistema tiene su bit. La cola lleva los
@@ -122,9 +133,11 @@ enum Signal : eng::u32 {
 union MsgPayload {
 	struct { eng::u16 code; eng::u16 qual; } key;      ///< scancode Amiga + modificadores
 	struct { eng::s16 x, y; eng::s8 dx, dy; eng::u8 buttons; } mouse;
-	struct { eng::u8 port; eng::u16 state; } joy;      ///< direcciones + botones
+	struct { eng::u8 port; eng::u8 dirs; eng::u8 fire; } joy; ///< direcciones (bits) + fuego
+	struct { eng::u8 port; eng::u16 buttons; } pad;    ///< CD32: bitmask de botones
+	struct { eng::u32 sequence; eng::u16 missed; } vblank; ///< secuencia + frames perdidos
 	struct { eng::u16 id; } timer;
-	struct { eng::u16 handle; eng::s32 result; } file; ///< bytes o error
+	struct { eng::u16 handle; eng::s32 result; eng::u8 op; eng::u32 cookie; } file;
 	struct { eng::u32 code; eng::u32 a; eng::u32 b; } user;
 
 	constexpr MsgPayload() noexcept : user {} {}
@@ -252,12 +265,15 @@ Cada productor vive en el backend (código de máquina) y solo hace dos cosas: l
 
 ### 6.1 VBlank
 
+El VBlank **no se encola** en la FIFO: se guarda en un *latch* con número de secuencia (§10) y se
+marca `SigVBlank`. Así la cola nunca acumula frames atrasados.
+
 ```cpp
 void amiga_vblank_isr() {
-	Msg m {};
-	m.type = MsgType::VBlank;
-	m.time_stamp = ++g_frame_counter;      // lo lee os::frame_count()
-	g_port.queue.push_isr(m);
+	++g_frame_counter;                     // lo lee os::frame_count()
+	if (g_vblank.pending) { ++g_vblank.missed; }
+	g_vblank.sequence = g_frame_counter;
+	g_vblank.pending = 1u;
 	g_port.signal(SigVBlank);
 }
 ```
@@ -462,16 +478,77 @@ os::request_quit()
 Opcional: **varios puertos** (`input_port`, `io_port`) para drenar siempre la entrada antes que
 la E/S, o un anillo de prioridad (rango de `MsgType`). La decisión se documenta en el roadmap.
 
-## 10. VBlank como despertador universal
+## 10. VBlank latched: secuencia y frames perdidos
 
 Emitir siempre un `VBlank` da un único ritmo de sistema (50/60 Hz) que sirve de frame, de tick
-de UI (caret, *toasts*) y de base de timers. El juego no necesita `WaitTOF` a mano: espera
-`SigVBlank`.
+de UI (caret, *toasts*) y de base de timers: el juego no necesita `WaitTOF` a mano, espera
+`SigVBlank`. Pero el VBlank **no es un evento que deba acumularse**: si el frame se atrasa, encolar
+N copias llena la cola, procesa varios "frames" de golpe y desincroniza el contador real del que
+cree la app.
 
-Si un frame se alarga, el productor puede **coalescer**: emitir un `VBlank` con
-`flags |= kMsgLate` y un contador de frames perdidos en `payload.user.a`, en lugar de encolar
-dos mensajes idénticos. El consumidor decide si pinta un frame o acumula lógica. La alternativa
-(siempre un `VBlank` por retrazo) se descarta por ruido.
+Por eso el VBlank es un **slot de último valor (latched)**, no una entrada FIFO: como máximo hay
+**uno pendiente**, cada IRQ **actualiza** la secuencia y cuenta los que se pisaron.
+
+| Tipo | Política |
+|---|---|
+| KeyDown/Up, MouseButton, FileDone, Timer one-shot | FIFO (no perder) |
+| MouseMove | coalescer (gana el último) |
+| **VBlank** | **latch: sobrescribir** |
+| Joystick/Gamepad (estado) | latch opcional (último estado) |
+
+```cpp
+struct VBlankLatch {
+	volatile eng::u32 sequence = 0u;    ///< monotónico; lo incrementa la ISR
+	volatile eng::u8  pending = 0u;     ///< 0/1: hay un VBlank sin consumir
+	volatile eng::u16 missed = 0u;      ///< cuántos se pisaron sin consumir
+};
+
+/// VERTB ISR: no encola en la FIFO; actualiza el latch y marca la señal.
+void vertb_isr() {
+	++g_frame;                          ///< tiempo global real (siempre avanza)
+	if (g_vblank.pending) { ++g_vblank.missed; } // se pierde como evento, no como tiempo
+	g_vblank.sequence = g_frame;
+	g_vblank.pending = 1u;
+	g_port.signal(SigVBlank);
+}
+
+/// App: saca el VBlank latched (como máximo uno). Lectura coherente con la IRQ bloqueada.
+bool take_vblank(Msg& out) {
+	if (g_vblank.pending == 0u) { return false; }
+	disable_interrupts();
+	const eng::u32 seq = g_vblank.sequence;
+	const eng::u16 missed = g_vblank.missed;
+	g_vblank.pending = 0u;
+	g_vblank.missed = 0u;
+	enable_interrupts();
+
+	out.type = MsgType::VBlank;
+	out.time_stamp = seq;
+	out.payload.vblank = { seq, missed };
+	return true;
+}
+```
+
+La app saca el VBlank latched **primero** y luego drena la FIFO (input, E-S, timers):
+
+```cpp
+Msg vb;
+if (take_vblank(vb)) {
+	on_vblank(ui, vb.payload.vblank.sequence, vb.payload.vblank.missed);
+}
+Msg m;
+while (g_port.queue.pop(m)) {
+	if (m.type == MsgType::VBlank) { continue; } // por si quedó uno antiguo
+	dispatch(m);
+}
+```
+
+En `on_vblank`, `missed > 0` indica retraso: el juego decide entre recuperar la lógica con N pasos
+fijos (`for i in missed: fixed_step()`) o hacer un solo update y anotar *lag*. La secuencia
+**nunca se detiene** (la lleva la ISR), pero la cola **nunca acumula VBlanks**.
+
+La misma política aplica a otros mensajes de **estado** (joystick/gamepad: solo importa el estado
+actual) con un `StateLatch<T>`; **no** se aplica a `KeyDown` ni `FileDone`, que son eventos.
 
 ## 11. ¿Busy-wait eliminado?
 
@@ -519,14 +596,111 @@ Notas propias para que la implementación sea de muy baja sobrecarga y encaje co
 - **Incrementar la integración futura.** Si algún día se corre bajo Exec real, este diseño mapea
   casi 1:1 a `Wait(sigmask)` + `GetMsg(port)` + `DoIO`, cambiando solo el backend.
 
-## 13. Referencias
+## 13. Prioridad, peek y coalescing
+
+No todos los mensajes urgen igual. Tres niveles bastan en un juego:
+
+```cpp
+enum class MsgPrio : eng::u8 {
+	Low = 0,     ///< FileDone, User
+	Normal = 1,  ///< VBlank, Timer, MouseMove, Joystick, Gamepad
+	High = 2,    ///< KeyDown/Up, MouseButton, Quit
+	COUNT,
+};
+
+/// Prioridad por tipo (tabla `constexpr`, no una cadena de `if`).
+[[nodiscard]] constexpr MsgPrio prio_of(MsgType t) noexcept {
+	switch (t) {
+	case MsgType::Quit:
+	case MsgType::KeyDown:
+	case MsgType::KeyUp:
+	case MsgType::MouseButton: return MsgPrio::High;
+	case MsgType::VBlank:
+	case MsgType::Timer:
+	case MsgType::MouseMove:
+	case MsgType::Joystick:
+	case MsgType::Gamepad: return MsgPrio::Normal;
+	default: return MsgPrio::Low;
+	}
+}
+```
+
+La cola son **tres anillos** (uno por prioridad); `pop` devuelve siempre el de mayor prioridad
+disponible, de modo que un `KeyDown` **se cuela** ante la E-S aunque haya llegado después:
+
+```cpp
+template <eng::u16 N>
+class PrioMsgQueue {
+public:
+	bool push(const Msg& m, MsgPrio p);   ///< encola en el anillo de su prioridad
+	bool pop(Msg& out, MsgPrio* out_p = nullptr);  ///< el de mayor prioridad disponible
+	bool peek(Msg& out, MsgPrio* out_p = nullptr) const; ///< mira sin retirar
+	[[nodiscard]] bool has_at_least(MsgPrio min) const;
+	bool push_mouse_coalesced(const Msg& m); ///< sustituye el último MouseMove sin consumir
+private:
+	Msg m_buf[static_cast<eng::u8>(MsgPrio::COUNT)][N] {};
+	volatile eng::u16 m_head[3] {}, m_tail[3] {};
+};
+```
+
+- **`peek`** permite decidir sin retirar: p. ej. preparar un buffer antes de consumir un
+  `FileDone`, o drenar solo `High` a mitad de frame (`service_high_priority`) para que la tecla se
+  note aunque el frame se alargue.
+- **`push_mouse_coalesced`** evita el spam: si el último `MouseMove` de la cola no se ha
+  consumido, se sobrescribe en vez de encolar cien movimientos por frame. Menos mensajes ahorra
+  más que cualquier optimización del despacho.
+- **`wait` con timeout** (`wait(mask, timeout_frames)`) acota la espera por si la señal no llega.
+
+Los mensajes `High` deben ser **pocos**; si un subsistema necesita más, se le da su propio puerto
+antes que abusar del anillo de alta prioridad.
+
+## 14. Despacho por tipo
+
+El bucle drena la cola y resuelve el tipo. Con `MsgType` **contiguo desde 0**, un `switch` denso
+baja a **tabla de saltos** en m68k; si el `switch` crece o los valores se dispersan, la forma
+predecible es una **tabla de handlers** indexada por el enum, construida en `constexpr`:
+
+```cpp
+using MsgHandler = void (*)(ui::UiContext&, const os::Msg&);
+
+constexpr eng::util::Array<MsgHandler, static_cast<eng::u8>(MsgType::COUNT)> kHandlers = [] {
+	eng::util::Array<MsgHandler, static_cast<eng::u8>(MsgType::COUNT)> h {};
+	h.fill(&on_none);
+	h[static_cast<eng::u8>(MsgType::VBlank)]      = &on_vblank;
+	h[static_cast<eng::u8>(MsgType::KeyDown)]     = &on_key;
+	h[static_cast<eng::u8>(MsgType::KeyUp)]       = &on_key;
+	h[static_cast<eng::u8>(MsgType::MouseMove)]   = &on_mouse;
+	h[static_cast<eng::u8>(MsgType::MouseButton)] = &on_mouse;
+	h[static_cast<eng::u8>(MsgType::Joystick)]    = &on_joy;
+	h[static_cast<eng::u8>(MsgType::Gamepad)]     = &on_pad;
+	h[static_cast<eng::u8>(MsgType::Quit)]        = &on_quit;
+	return h;
+}();
+
+void dispatch_all(ui::UiContext& ui) {
+	eng::os::Msg m;
+	while (g_port.queue.pop(m)) {
+		const eng::u8 i = static_cast<eng::u8>(m.type);
+		if (i < kHandlers.size()) { kHandlers[i](ui, m); }
+	}
+}
+```
+
+Coste por mensaje: **bounds check + carga de puntero + `jsr`**, estable e independiente de la
+densidad del `switch`. C++23 aporta aquí sobre todo la **inicialización `constexpr`** de la tabla,
+no un codegen milagroso; `std::visit`/`variant` **no** convienen (más código y peores saltos). El
+presupuesto de CPU se va antes en **no generar mensajes de más** (coalescer) y en el pintado que
+en el despacho.
+
+## 15. Referencias
 
 - Modelo de puertos/mensajes/señales: Amiga ROM Kernel Reference Manual *Libraries* (Exec:
   `CreatePort`, `PutMsg`, `Wait`, `Signal`, `DoIO`) y AHRM 3.ª edición cap. 7 (interrupciones)
   para el productor VBlank.
-- Entrada de hardware (CIA/potgo/joyport): `docs/reference/amiga/` (técnicas de input) y
-  `engine/include/eng/platform/input_poll.hpp`.
-- E/S de disco (trackdisk / trackloader): `docs/engine/architecture/STREAMING_LOADER.md`.
+- Entrada de hardware (CIA/potgo/joyport) como productor de mensajes: `MINI_OS_INPUT.md`.
+- Tiempo, timers de hardware y profiling: `MINI_OS_TIME.md`.
+- E/S asíncrona de disco y streaming: `MINI_OS_IO.md` y `STREAMING_LOADER.md`.
 - Tareas cooperativas: `docs/engine/architecture/BACKGROUND_TASKS.md`.
 - Bucle del engine y servicios de VBlank/blit: `docs/engine/architecture/ENGINE_DESIGN.md` y
   `engine/include/eng/engine.hpp`.
+- Plan de fases: `docs/guides/roadmap/ROADMAP_MINI_OS.md`.

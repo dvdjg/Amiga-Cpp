@@ -5,19 +5,23 @@ productores de eventos (VBlank, entrada, E/S de disco, timers). Sustituye la esp
 un **bucle reactivo**: la aplicación pide `wait(signals)` y consume mensajes, igual que un
 *message pump* de un SO de escritorio, pero sin SO: en la máquina tomada el motor es la IRQ.
 
-El diseño canónico (modelo, contrato de cada pieza y decisiones) está en
-[`docs/engine/architecture/MINI_OS_MESSAGE_LOOP.md`](../../../../docs/engine/architecture/MINI_OS_MESSAGE_LOOP.md)
-y el plan de fases en
+El diseño canónico está en la familia de documentos del mini-SO
+([`MINI_OS_MESSAGE_LOOP.md`](../../../../docs/engine/architecture/MINI_OS_MESSAGE_LOOP.md) para el
+núcleo, [`MINI_OS_INPUT.md`](../../../../docs/engine/architecture/MINI_OS_INPUT.md),
+[`MINI_OS_TIME.md`](../../../../docs/engine/architecture/MINI_OS_TIME.md) y
+[`MINI_OS_IO.md`](../../../../docs/engine/architecture/MINI_OS_IO.md)), y el plan de fases en
 [`docs/guides/roadmap/ROADMAP_MINI_OS.md`](../../../../docs/guides/roadmap/ROADMAP_MINI_OS.md).
 
 ## Cabeceras previstas
 
 | Cabecera | Contenido |
 |---|---|
-| `message.hpp` | `MsgType`, `Msg` (unión de payloads), `Signal` (máscara de bits). |
-| `port.hpp` | `MsgQueue<N>` (anillo SPSC IRQ-safe) y `MsgPort` (cola + `signalled` + `wait`/`signal`). |
+| `message.hpp` | `MsgType` (contiguo), `Msg` (unión de payloads), `Signal` (máscara de bits). |
+| `port.hpp` | `MsgQueue<N>` (anillo SPSC IRQ-safe) y `MsgPort` (cola + `signalled` + `wait`/`signal`), `MsgPrio`/`PrioMsgQueue` y VBlank latched. |
 | `os.hpp` | Fachada de servicios: `init`, `system_port`, `frame_count`, `add_timer`, `input_enable`, `post_user`, `request_quit`. |
-| `file.hpp` | E/S asíncrona: `FileHandle`, `file_open`/`read_async`/`write_async`/`close`, y `MsgType::FileDone`/`FileError`. |
+| `time.hpp` | Tiempo: `TickClock` (µs sobre CIA-B), `ScopedTimer`, `beam_now`. |
+| `timer.hpp` | `TimerService` (timers de frames/µs → `MsgType::Timer`) y one-shot de CIA. |
+| `file.hpp` | E/S asíncrona: `FileHandle`, `file_open`/`read_async`/`write_async`/`close`, `IoNotify`, `AudioStream` y `MsgType::FileDone`/`FileError`. |
 
 Reglas del engine: sin heap, sin excepciones ni RTTI, `gnu++23`, tipos de `eng/core`, API
 paramétrica y agnóstica del backend. El backend Amiga (`amiga_minimal`) es quien produce los

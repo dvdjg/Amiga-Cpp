@@ -171,6 +171,8 @@ Estas reglas son obligatorias, pero solo son relevantes cuando se toca su domini
 | **Pipeline de tiles/EHB** (cuantizar antes de extraer, comparar al 100 %, etc.) | `docs/guides/roadmap/REGLAS_PIPELINE_TILES.md` |
 | **Motores de tablero (ajedrez/Go), footprint 20 kB–1 MB y conocimiento en disquete** | `docs/engine/architecture/BOARD_GAME_AI.md` + `docs/guides/roadmap/ROADMAP_BOARD_GAMES.md` |
 | **Concurrencia y portabilidad multinúcleo (hilos/mutex/atómicos)** | `docs/engine/architecture/PARALLEL_AND_THREADS.md` |
+| **Mini-SO de mensajes y UI reactiva** (`eng::os`/`eng::ui`: puerto, prioridad, VBlank latched, entrada por registros, timers, E/S asíncrona) | `docs/engine/architecture/MINI_OS_MESSAGE_LOOP.md` (+ `MINI_OS_INPUT.md`, `MINI_OS_TIME.md`, `MINI_OS_IO.md`, `GUI_LIBRARY.md`) |
+| **Audio** (`eng::audio`: modos/canales, mixer, música P61/pt/OctaMED, streaming desde disquete y codecs) | `docs/engine/architecture/GAME_AUDIO.md` (+ `AUDIO_MIXER.md`, `MUSIC_PLAYER.md`, `AUDIO_STREAMING.md`, `ROADMAP_AUDIO.md`) |
 | **Inventario de hardware** (`eng::hw`: CPU/FPU, chipset, RAM por tipo, display, puertos) | `docs/engine/architecture/HARDWARE_INVENTORY.md` |
 | **Estado vigente y próximas direcciones del engine** | `docs/guides/roadmap/ROADMAP_UNIFICADO.md` |
 | **Numeración de demos/tests entre ramas** (anti-solape: bloques reservados) | `docs/ai-dev-environment/NUMBERING.md` |

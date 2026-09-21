@@ -261,4 +261,5 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-233 | [api_facade](233_api_facade/README.md) | Fachada pública `eng/api/api.hpp`: un solo include expone la API estable (Box, FramePlan, raster, entrada, tareas, paleta, `GameModule`). |
 | HOST-234 | [app_screen](234_app_screen/README.md) | Fachada de juego `eng::App` + `eng::Screen` (`eng/api/game.hpp`): bucle + contexto de dibujo sin exponer backend/`FramePlan`. |
 | HOST-235 | [hw_info](235_hw_info/README.md) | Inventario de hardware `eng::hw` (`eng/hw/info.hpp`): consultas de capacidad, display, nombres y heurísticas (modelo, RAM, RTC). |
+| HOST-242 | [pcm_codec](242_pcm_codec/README.md) | Codec PCM Delta + RLE (`eng/audio/pcm_codec.hpp`): round-trip byte a byte, ratio y rechazos (codec/destino/truncado). |
 | HOST-208 | [ptr](208_ptr/README.md) | `eng/core/ptr.hpp`: punteros "inteligentes" sin heap (`Ref` observador no propietario y anulable, `NonNull`, `Opt` opcional en sitio). |

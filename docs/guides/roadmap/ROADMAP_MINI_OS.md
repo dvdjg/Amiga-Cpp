@@ -5,83 +5,122 @@ Plan de implementación de la capa descrita en
 puerto de mensajes, productores de eventos y bucle de aplicación reactivo, más el puente a la
 UI (`eng::ui`).
 
+## Documentos de la familia
+
+| Documento | Contenido |
+|---|---|
+| [MINI_OS_MESSAGE_LOOP.md](../../engine/architecture/MINI_OS_MESSAGE_LOOP.md) | Núcleo: `Msg`/`MsgPort`, señales, prioridad, VBlank latched y despacho por tabla. |
+| [MINI_OS_INPUT.md](../../engine/architecture/MINI_OS_INPUT.md) | Registros de hardware → mensajes (ratón, joystick, CD32, teclado). |
+| [MINI_OS_TIME.md](../../engine/architecture/MINI_OS_TIME.md) | Tiempo, timers de hardware, `TimerService` y profiling. |
+| [MINI_OS_IO.md](../../engine/architecture/MINI_OS_IO.md) | E/S asíncrona y streaming desde disquete. |
+| [GUI_LIBRARY.md](../../engine/architecture/GUI_LIBRARY.md) + [ROADMAP_GUI.md](ROADMAP_GUI.md) | Capa de UI (`eng::ui`) que consume los mensajes. |
+
 ## Principios
 
 - **Componer, no duplicar.** El mini-SO se apoya en `eng::Engine` (VBlank interrupt-driven),
   `eng::task::BackgroundQueue` (trabajo diferido), `eng::input::InputAggregator` (estado de
-  nivel) y `eng::util::Event` (eventos intra-frame). Ver §2 del diseño.
-- **HOST primero.** El núcleo (`Msg`, `MsgQueue`, `MsgPort`, servicios y puente) es puro y
-  host-testable: se valida con tests HOST antes de tocar el backend Amiga.
+  nivel), `eng::util::Event` (eventos intra-frame) y el servicio CIA ya existente
+  (`install_timer_service`). Ver §2 del diseño.
+- **HOST primero.** El núcleo (`Msg`, `MsgQueue`, `MsgPort`, prioridad, latched, servicios y
+  puente) es puro y host-testable: se valida con tests HOST antes de tocar el backend Amiga.
 - **Evidencia.** Cada fase cierra con su test HOST; la integración en hardware se valida con una
   demo (build → run → analyze) y el canal lateral, como el resto del repo.
 - **Sin heap ni excepciones** en el camino caliente; capacidad fija y parámetros de plantilla.
 
 ## Fases
 
-### M0 — Núcleo de mensajes (hecho cuando pase HOST)
+### M0 — Núcleo de mensajes
 
-- **Entregable**: `eng/os/message.hpp` (`MsgType`, `Msg`, `MsgPayload`, `Signal`) y
+- **Entregable**: `eng/os/message.hpp` (`MsgType` contiguo, `Msg`, `MsgPayload`, `Signal`) y
   `eng/os/port.hpp` (`MsgQueue<N>`, `MsgPort<N>` con `signal`/`take_signals`/`wait`).
 - **Verificación**: **HOST-219** — anillo lleno/vacío, orden FIFO, `overflows()`, coalescing de
-  señales (dos mensajes, una señal), `take_signals` consume solo los bits pedidos, `Msg` es
-  trivialmente copiable (`static_assert`), `MsgType` con `switch` exhaustivo.
+  señales, `take_signals` consume solo los bits pedidos, `Msg` trivialmente copiable
+  (`static_assert`), `MsgType` con `switch` exhaustivo.
 - **Estado**: pendiente.
 
-### M1 — Productor de VBlank
+### M1 — VBlank latched (secuencia y frames perdidos)
 
-- **Entregable**: contador de frames y emisión de `MsgType::VBlank` desde la IRQ de VBlank del
-  backend Amiga; `os::frame_count()`; coalescing (`flags` de frame atrasado) si procede.
-- **Integración**: reutiliza el `set_vblank_service` que ya usa `eng::Engine`.
-- **Verificación**: demo de arranque que cuente frames por mensaje y los compare con
-  `context.frame.frame_index` (sin sondeo de `VPOSR`).
+- **Entregable**: contador de frames y **latch** de VBlank (`sequence` + `pending` + `missed`) en
+  la IRQ de VBlank del backend; `os::frame_count()`; `take_vblank()`.
+- **Integración**: reutiliza el `set_vblank_service` que ya usa `eng::Engine`; el VBlank **no**
+  entra en la FIFO.
+- **Verificación**: **HOST-236** (junto con M5) — la secuencia avanza aunque no se consuma, solo
+  hay un VBlank pendiente y `missed` cuenta los pisados. Demo: contar frames por mensaje y
+  compararlos con `context.frame.frame_index` (sin sondear `VPOSR`).
 - **Estado**: pendiente.
 
-### M2 — Entrada por mensajes y puente a la UI
+### M2 — Entrada por registros → mensajes
 
-- **Entregable**: productores de teclado/ratón/joystick (CIA/potgo/joyport) que emiten
-  `KeyDown`/`KeyUp`/`MouseMove`/`MouseButton`/`Joystick`; snapshot de nivel en
-  `InputAggregator`; `eng/ui/ui_context.hpp` (`UiEvent`, `UiContext`) y
-  `eng/ui/ui_bridge.hpp` (`Msg` → `UiEvent`).
-- **Verificación**: **HOST-220** — el puente traduce cada `MsgType` de entrada a su `UiEvent`
-  (posición, botón, tecla, modificadores) y descarta los tipos que no son de entrada; un
-  `UiContext` de prueba recibe foco y despacha.
+- **Entregable**: productores de teclado (CIA-A serie, IRQ), ratón (`JOY0DAT` + CIA/POTINP),
+  joystick (`JOY1DAT`) y pad CD32 (`POTGO`/`POTINP`) que emiten `KeyDown`/`KeyUp`/`MouseMove`/
+  `MouseButton`/`Joystick`/`Gamepad`; snapshot de nivel en `InputAggregator`. Reutiliza
+  `eng/platform/input_poll.hpp` (`decode_joy`) y `eng/input/input.hpp` (`PadState`).
+- **Detalle**: [`MINI_OS_INPUT.md`](../../engine/architecture/MINI_OS_INPUT.md).
+- **Verificación**: el decodificado puro ya está cubierto por HOST-006/HOST-007; se añade un test
+  de que un cambio de registro produce **exactamente un mensaje** (y ninguno si no cambia).
 - **Estado**: pendiente.
 
-### M3 — Bucle reactivo como `Game`
+### M3 — Puente a la UI
 
-- **Entregable**: `MessagePumpGame<App>` (o un adaptador equivalente) que drena el puerto en
-  `update`, despacha por tipo y llama a `on_frame`; patrón de "esperar señales → drenar →
-  lógica".
-- **Verificación**: **demo 206_message_loop** — una escena mínima que reacciona a VBlank, a
-  teclas y al ratón **sin leer hardware**; el gate visual comprueba que la escena cambia con la
-  entrada y que el frame avanza.
+- **Entregable**: `eng/ui/ui_context.hpp` (`UiEvent`, `UiContext`) y `eng/ui/ui_bridge.hpp`
+  (`Msg` → `UiEvent`).
+- **Verificación**: **HOST-220** — el puente traduce cada `MsgType` de entrada a su `UiEvent` y
+  descarta los que no son de entrada; un `UiContext` de prueba recibe foco y despacha.
 - **Estado**: pendiente.
 
-### M4 — E/S asíncrona de disco
+### M4 — Bucle reactivo como `Game`
+
+- **Entregable**: `MessagePumpGame<App>` que drena el puerto en `update`, saca el VBlank latched
+  primero y despacha por tipo; patrón "esperar señales → drenar → lógica".
+- **Verificación**: **demo 206_message_loop** — una escena mínima que reacciona a VBlank, a teclas
+  y al ratón **sin leer hardware**; el gate visual comprueba que la escena cambia con la entrada y
+  que el frame avanza.
+- **Estado**: pendiente.
+
+### M5 — Prioridad, peek, coalescing y despacho
+
+- **Entregable**: `MsgPrio` + `prio_of` + `PrioMsgQueue` (tres anillos, `pop` por prioridad,
+  `peek`, `has_at_least`, `push_mouse_coalesced`); `wait(mask, timeout)`; `service_high_priority`;
+  **tabla de handlers** `constexpr` indexada por `MsgType`.
+- **Detalle**: §13–14 de [`MINI_OS_MESSAGE_LOOP.md`](../../engine/architecture/MINI_OS_MESSAGE_LOOP.md).
+- **Verificación**: **HOST-236** (prioridad + coalescing + latched) y **HOST-237** (la tabla cubre
+  todos los `MsgType` y despacha al handler correcto).
+- **Estado**: pendiente.
+
+### M6 — Tiempo, timers y profiling
+
+- **Entregable**: `eng/os/time.hpp` (`TickClock` sobre CIA-B, `ScopedTimer`, `beam_now`) y
+  `eng/os/timer.hpp` (`TimerService` en frames/µs → `MsgType::Timer`); one-shot de CIA.
+- **Detalle**: [`MINI_OS_TIME.md`](../../engine/architecture/MINI_OS_TIME.md).
+- **Verificación**: **HOST-222** (timers de frames, periódicos y one-shot con ticks sintéticos) y
+  **HOST-238** (TickClock: coherencia de lectura y conversión µs↔ticks).
+- **Estado**: pendiente.
+
+### M7 — E/S asíncrona
 
 - **Entregable**: `eng/os/file.hpp` (`FileHandle`, `file_open`/`read_async`/`write_async`/
-  `close`) y `MsgType::FileDone`/`FileError`; el decodificado se registra como tarea de
-  `BackgroundQueue`.
-- **Verificación**: **HOST-221** — una E/S simulada (host) publica `FileDone` con el resultado y
-  la señal `SigFile`; la decodificación diferida avanza por rebanadas. En hardware, demo que
-  carga un recurso y muestra el progreso por mensaje.
+  `close`, `IoNotify`) y `MsgType::FileDone`/`FileError`; backend `dos.library` (task auxiliar) y
+  `trackdisk`; el decodificado se registra como tarea de `BackgroundQueue`.
+- **Detalle**: [`MINI_OS_IO.md`](../../engine/architecture/MINI_OS_IO.md).
+- **Verificación**: **HOST-221** — una E/S simulada (host) publica `FileDone` con el resultado y la
+  señal `SigFile`; la decodificación diferida avanza por rebanadas.
 - **Estado**: pendiente.
 
-### M5 — Timers de usuario y mensajes de aplicación
+### M8 — Streaming desde disquete
 
-- **Entregable**: `os::add_timer(id, frames)` → `MsgType::Timer`; `os::post_user(code, a, b)` →
-  `MsgType::User`; `os::request_quit()` → `MsgType::Quit`.
-- **Verificación**: **HOST-222** — un timer de `N` frames emite a los `N` (contando ticks
-  sintéticos); `post_user` desde otro subsistema llega en orden.
+- **Entregable**: `AudioStream` (doble/triple buffer) que pide el siguiente chunk en cada
+  `FileDone` y hace *swap* en la IRQ de audio; `file_read_async` en `MsgPrio::Low`.
+- **Detalle**: §5 de [`MINI_OS_IO.md`](../../engine/architecture/MINI_OS_IO.md).
+- **Verificación**: **HOST-239** — con E/S simulada, el stream llena N buffers, detecta *underrun*
+  y termina en EOF sin perder chunks. Demo en hardware: audio continuo desde disquete.
 - **Estado**: pendiente.
 
-### M6 — Prioridad y telemetría
+### M9 — Telemetría
 
-- **Entregable**: decisión de **varios puertos** (`input_port`, `io_port`) frente a un anillo
-  con prioridad por rango de `MsgType`; telemetría (`overflows`, frames perdidos) accesible
-  como `IrqTelemetry`.
-- **Verificación**: test que inunda el puerto de E/S y comprueba que la entrada se drena antes;
-  informe de saturación sin fallo silencioso.
+- **Entregable**: `overflows`, `missed` de VBlank y marcas de agua de la cola expuestas como
+  `IrqTelemetry`; informe de saturación sin fallo silencioso.
+- **Verificación**: test que inunda el puerto de E/S y comprueba que la entrada se drena antes y
+  que la telemetría lo refleja.
 - **Estado**: pendiente.
 
 ## Tests y demos previstos
@@ -91,23 +130,29 @@ UI (`eng::ui`).
 | HOST-219 | test | Núcleo: `MsgQueue`/`MsgPort`/señales/coalescing. |
 | HOST-220 | test | Puente `Msg` → `UiEvent` y `UiContext` mínimo. |
 | HOST-221 | test | E/S asíncrona simulada + decodificado diferido por tareas. |
-| HOST-222 | test | Timers y mensajes de aplicación. |
+| HOST-222 | test | Timers de usuario (frames/µs) y mensajes de aplicación. |
+| HOST-236 | test | Prioridad, `peek`, coalescing y VBlank latched. |
+| HOST-237 | test | Despacho por tabla: cobertura de todos los `MsgType`. |
+| HOST-238 | test | `TickClock` (coherencia y conversión µs↔ticks) y `beam_now`. |
+| HOST-239 | test | Streaming (doble buffer, underrun, EOF) con E/S simulada. |
 | 206_message_loop | demo | Bucle reactivo en hardware: VBlank + input + UI sin sondeo. |
+| 209_audio_stream | demo | Audio continuo desde disquete con `AudioStream`. |
 
 ## Riesgos y decisiones abiertas
 
-- **Máscara de señales y pérdida de VBlanks.** Un solo bit no distingue "un frame" de "dos
-  frames atrasados": hay que decidir entre coalescer (contar perdidos) o encolar varios; el
-  diseño propone coalescer con contador.
-- **IRQ vs soft-int para el input.** La entrada por flanco de CIA es más limpia, pero exige
-  gestionar el vector con cuidado (convivencia con el VBlank); la alternativa es un soft-int
-  lanzado tras el sondeo de `potgo`, con coste por frame.
-- **Alineación del payload.** La unión de `Msg` debe quedar alineada a `u32` para que la copia
-  en la ISR sea barata; el test M0 lo fija con `static_assert`.
+- **IRQ vs soft-int para el input.** La entrada por flanco de CIA es más limpia, pero comparte el
+  autovector de nivel 2 con el timer de fondo; la alternativa es un soft-int tras el sondeo de
+  `potgo`, con coste por frame.
+- **Orden de bits del CD32.** El bitmask del pad se calibra una vez contra hardware/WinUAE; el
+  diseño fija el mecanismo, no el orden.
+- **Alineación del payload.** La unión de `Msg` debe quedar alineada a `u32` para que la copia en
+  la ISR sea barata; el test M0 lo fija con `static_assert`.
+- **CIA-A vs CIA-B.** El timer de fondo usa CIA-A Timer A; el reloj libre de µs conviene en CIA-B
+  para no colisionar ni con el fondo ni con el teclado.
 - **Puertos por subsistema.** Antes de añadir un *lock* o un anillo multi-productor, preferir un
   puerto propio por productor.
-- **Compatibilidad con Exec.** Si el juego corriera bajo un SO real, el backend debe poder
-  mapear a `Wait`/`GetMsg`/`DoIO`; conviene no cerrar esa puerta en la API pública.
+- **Compatibilidad con Exec.** Si el juego corriera bajo un SO real, el backend debe poder mapear a
+  `Wait`/`GetMsg`/`DoIO`; conviene no cerrar esa puerta en la API pública.
 
 ## Estado
 

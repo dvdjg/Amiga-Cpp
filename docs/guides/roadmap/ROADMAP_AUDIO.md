@@ -1,0 +1,109 @@
+# Roadmap de audio (`eng::audio`)
+
+Plan para completar la capa de audio del engine: modos y reparto de canales, reproductores de
+música, integración con el mini-SO, **streaming digital desde disquete** y **decodificadores**.
+Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
+[`AUDIO_MIXER.md`](../../engine/architecture/AUDIO_MIXER.md),
+[`MUSIC_PLAYER.md`](../../engine/architecture/MUSIC_PLAYER.md) y
+[`AUDIO_STREAMING.md`](../../engine/architecture/AUDIO_STREAMING.md).
+
+## Principios
+
+- **Componer, no duplicar.** El mixer de Photon (`AUDIO_MIXER.md`) y los reproductores
+  (`MUSIC_PLAYER.md`) ya existen; el roadmap los **unifica** por modos y añade lo que falta.
+- **HOST primero.** Los codecs y la lógica pura (reparto de canales, cabecera de stream, máquina de
+  estados del buffer) se validan con tests HOST; el hardware, con demos build → run → analyze.
+- **Sin heap ni excepciones** en el camino caliente; capacidad fija y buffers en Chip donde Paula
+  los necesita.
+
+## Fases
+
+### A0 — Modos de audio y reparto de canales
+
+- **Entregable**: `eng::audio::AudioMode` (`Game`/`GameSfxOnly`/`TitleOctaMED`/`Silent`),
+  `AudioConfig`, `init`/`shutdown`/`set_mode`/`mode`; helpers `eng::audio::paula`
+  (`period_for_hz`, `dmacon_set`/`clr`, `stop_channels`, `set_buffer`).
+- **Detalle**: §7 de [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md).
+- **Verificación**: **HOST-240** — `set_mode` reparte las máscaras correctas por modo y la parada
+  es ordenada (`vol=0` + `DMACON` clear); `period_for_hz` acota 124..65535.
+- **Estado**: pendiente.
+
+### A1 — Reproductor OctaMED (títulos, 8 canales SW)
+
+- **Entregable**: `eng::audio::OctaMedPlayer` envolviendo `KONEY/octamed_playroutines_amiga`;
+  `MusicFormat::OctaMED`; modo `TitleOctaMED` que ocupa los 4 canales HW.
+- **Detalle**: [`MUSIC_PLAYER.md`](../../engine/architecture/MUSIC_PLAYER.md).
+- **Verificación**: demo de pantalla de título con módulo MED incrustado; gate visual de que suena
+  y que al volver a `Game` el mixer+P61 recuperan sus canales.
+- **Estado**: pendiente.
+
+### A2 — Integración con el mini-SO
+
+- **Entregable**: `tick_frame()` en VBlank para los players frame-driven; mensajes opcionales
+  `MsgType::MusicEnd` y `MsgType::AudioUnderrun`; regla "mixer por su IRQ, música por VBlank/CIA".
+- **Detalle**: §8 de [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md).
+- **Verificación**: **HOST-241** — un `MusicEnd` se postea al terminar un módulo sin loop y no se
+  postea por buffer; el underrun se refleja una sola vez por evento.
+- **Estado**: pendiente.
+
+### A3 — Codec Delta + RLE (ByteRun1)
+
+- **Entregable**: `eng/audio/pcm_codec.hpp` (`decode(comprimido, destino, tipo)`, freestanding, sin
+  heap) con el formato **Delta + RLE**; decodifica directo a Chip.
+- **Verificación**: **HOST-242** — un compresor de prueba genera vectores (silencios, rampas,
+  ruido), el decodificador los reconstruye **byte a byte** y respeta el tamaño de destino.
+- **Estado**: hecho (implementación y test en este repo).
+
+### A4 — Descompresores ZX0 / aPLib
+
+- **Entregable**: port de `unzx0_68000` y `aPLib` con el mismo contrato `decode`; cabecera de
+  archivo (`AUZX`) con `compression` (0=ZX0, 1=aPLib, 2=delta+RLE).
+- **Verificación**: **HOST-243** — vectores ZX0/aPLib generados en el host (compresor de
+  referencia) se decodifican a la misma PCM; comparación byte a byte.
+- **Estado**: pendiente.
+
+### A5 — Streaming digital desde disquete
+
+- **Entregable**: `PcmStream` (doble/triple buffer) con la IRQ de audio cambiando de buffer y la
+  descompresión en tarea de fondo; `file_read_async` para los chunks.
+- **Detalle**: [`AUDIO_STREAMING.md`](../../engine/architecture/AUDIO_STREAMING.md).
+- **Verificación**: **HOST-239** (con E/S simulada: llena N buffers, detecta *underrun*, termina en
+  EOF) y **demo 209_audio_stream** (grabación continua desde disquete en hardware).
+- **Estado**: pendiente.
+
+### A6 — API unificada y ejemplo de juego
+
+- **Entregable**: consolidar `init`/`set_mode`/`play_sfx`/`play_music`/`stop_*` como la superficie
+  estable (junto con `GameAudio` para la política de juego) y un ejemplo de uso completo
+  (boot → gameplay → título → pausa).
+- **Verificación**: demo que ejercita todos los modos y la política de SFX sin tocar registros.
+- **Estado**: pendiente.
+
+## Tests y demos previstos
+
+| ID | Tipo | Contenido |
+|---|---|---|
+| HOST-240 | test | Modos de audio y reparto de canales; `period_for_hz`. |
+| HOST-241 | test | `MusicEnd`/`AudioUnderrun` (semántica, sin mensaje por buffer). |
+| HOST-242 | test | Codec Delta + RLE (round-trip byte a byte). |
+| HOST-243 | test | Descompresores ZX0 / aPLib (vectores de referencia). |
+| HOST-239 | test | Streaming (doble buffer, underrun, EOF) con E/S simulada. |
+| 209_audio_stream | demo | Grabación continua desde disquete con `PcmStream`. |
+
+## Riesgos y decisiones abiertas
+
+- **Canales fijos del mixer.** El mixer de Photon es de configuración fija; el reparto por modos
+  debe respetar `mixer_hw_mask`/`music_hw_mask` y no solaparlos nunca.
+- **Módulos a 3 canales.** P61 debe limitarse a los canales de música; si el player no lo permite,
+  el módulo se compone sin notas en el canal del mixer.
+- **Orden de arranque.** Arrancar la música **antes** que el mixer (los players inicializan todos
+  los canales).
+- **Codec por defecto.** Delta+RLE es rápido pero comprime menos; ZX0/aPLib dan mejor ratio a
+  cambio de un descompresor mayor. La elección es por archivo (`compression` en la cabecera).
+- **IRQ de audio vs VBlank.** El mixer y el streaming usan la IRQ de Paula (nivel 4); la música de
+  tracker frame-driven, el VBlank. No mezclar ambas vías en el mismo backend.
+
+## Estado
+
+La capa de juego (`GameAudio`), el mixer y P61/Protracker **ya existen** (demos 058–062). El codec
+**Delta + RLE** está implementado (A3). El resto de fases están **pendientes**.

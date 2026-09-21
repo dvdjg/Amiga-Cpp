@@ -31,7 +31,8 @@ todo desde el punto de vista del juego.
 - **Capa de backend**: `SfxMixer` (mezcla software de efectos) y los reproductores
   de música (ptplayer/P61). Viven sobre el hardware Amiga.
 - **Reparto de canales**: el mixer de SFX usa `AUD0`; la música usa `AUD1..AUD3`
-  (configurable). Así pueden sonar a la vez sin pisarse.
+  (configurable). Así pueden sonar a la vez sin pisarse. El reparto exacto lo fija el
+  **modo de audio** (`AudioMode`, §7), no el juego.
 
 ## 2. API de juego (`GameAudio`)
 
@@ -101,6 +102,9 @@ resuelta en esa configuración.
 - **P61 (.p61)**: `P61Player` (Photon/Scoopex). Frame-driven: llamar
   `update_music()` una vez por frame.
 - **AHX (.ahx)**: pendiente (necesita el blob del replayer + libc).
+- **OctaMED (8 canales SW)**: playroutine de KONEY (`octamed_playroutines_amiga`) para pantallas de
+  presentación: usa los **4 canales HW** con mezcla software de 8 voces. Modo `TitleOctaMED` (§7).
+  Estado y plan en [MUSIC_PLAYER.md](MUSIC_PLAYER.md).
 
 ## 5. Generar música desde herramientas externas
 
@@ -213,7 +217,108 @@ Los SFX son **muestras PCM 8 bits con signo**, preprocesadas.
 - Los **sonidos muy cortos** (< 1/50 s) en bucle cuestan más CPU; alárgalos o
   actívalos como `Once`.
 
-## 7. Resumen de posibilidades y límites
+## 7. Modos de audio y reparto de canales
+
+Paula solo tiene **4 canales DMA**. El engine no deja que el juego reparta canales a mano: fija
+**perfiles (`AudioMode`)** que reparten los 4 canales entre los backends. El juego llama a
+`set_mode` y el reparto queda encapsulado.
+
+| Modo | Canales HW | Uso |
+|---|---|---|
+| `Game` | 1 → Mixer (SFX), 3 → P61 (música) | jugable |
+| `GameSfxOnly` | 1–4 → Mixer | sin música de tracker |
+| `TitleOctaMED` | 4 HW + mezcla SW de 8 voces (OctaMED) | pantallas / menú |
+| `Silent` | DMA de audio off | pausa total |
+
+```cpp
+enum class AudioMode : eng::u8 { Silent, Game, GameSfxOnly, TitleOctaMED };
+
+struct AudioConfig {
+	AudioMode mode = AudioMode::Game;
+	u16 mixer_period = 322;    ///< ~11 kHz PAL (3546895 / period)
+	u8  mixer_hw_mask = 0x1;   ///< AUD0 para SFX
+	u8  mixer_sw_voices = 4;
+	u8  music_hw_mask = 0xE;   ///< AUD1..AUD3 para música (modo Game)
+	u8  master_sfx_vol = 64, master_music_vol = 64;
+	bool post_music_end_msg = true;
+	bool post_underrun_msg = false;
+};
+
+// La fachada existente `AudioSystem` (eng/audio/audio_system.hpp) gana el modo y su config:
+bool init(MemorySystem& memory, const AudioConfig& cfg);
+void shutdown();
+bool set_mode(AudioMode mode);   ///< para y reasigna canales (política: corta música/SFX)
+AudioMode mode();
+```
+
+`MusicFormat` (`audio_system.hpp`) incorpora `OctaMED` junto a `P61`/`Protracker`.
+
+`set_mode` es el **único** sitio (junto con `init`) que toca `mixer_hw_mask`/`music_hw_mask`: para
+la reproducción actual, corta los canales con `vol=0` + `DMACON` y vuelve a enlazar los backends.
+En modo `Game`, `GameAudio` (capa de juego, §2) sigue aplicando su política (prioridad, cooldown,
+ducking) sobre el mixer; el reparto de canales es responsabilidad del modo.
+
+```cpp
+void enter_title_screen() {
+	eng::audio::set_mode(eng::audio::AudioMode::TitleOctaMED);
+	eng::audio::play_music(g_mus_title, eng::audio::MusicFormat::OctaMED);
+}
+void enter_gameplay() {
+	eng::audio::set_mode(eng::audio::AudioMode::Game);
+	eng::audio::play_music(g_mus_level, eng::audio::MusicFormat::P61);
+}
+```
+
+### Helpers de Paula
+
+La capa de bajo nivel (`eng::audio::paula`) encapsula los registros y las cuentas que el juego
+nunca debería repetir: dirección y longitud de cada canal (`AUDnLCH/LCL/LEN/PER/VOL`), `DMACON`
+con `set`/`clear`, parada ordenada por máscara y periodo a partir de la frecuencia.
+
+```cpp
+[[nodiscard]] constexpr u16 period_for_hz(u32 hz);  ///< 3546895 / hz (PAL), acotado 124..65535
+void dmacon_set(u16 bits);   ///< DMACON = SETCLR | bits
+void dmacon_clr(u16 bits);   ///< DMACON = bits (bit 15 = 0)
+void stop_channels(u8 mask); ///< quita DMA de los canales y pone vol=0 (sin clic)
+```
+
+### Garantías del API de audio
+
+1. **Sin solapar DMA**: `init`/`set_mode` son el único punto que reparte los canales.
+2. **Samples SFX preprocesados** según `AUDIO_MIXER.md` (amplitud y múltiplo de 4); HQ opcional.
+3. **Módulos de música** pensados para los canales que les toca (P61 a 3 canales) o player
+   limitado por máscara.
+4. **Volumen master separado** SFX/música (se escala antes de llamar al backend).
+5. **Prioridad SFX** (`SfxDef::priority`) para no ahogar sonidos importantes.
+6. **Silent/pausa** cortan el DMA de forma ordenada (`vol=0` + `DMACON` clear), sin clics.
+
+## 8. Integración con el mini-SO
+
+El audio se integra en el bucle de mensajes ([MINI_OS_MESSAGE_LOOP.md](MINI_OS_MESSAGE_LOOP.md))
+sin meter un productor por buffer:
+
+- **Música frame-driven** (P61): `tick_frame()` una vez por VBlank, antes de la lógica de frame.
+- **Música por CIA** (Protracker/ptplayer): la IRQ de CIA-B la lleva; **no** se tickea en VBlank.
+- **Mixer**: lleva su propia **IRQ de audio** (nivel 4); no se mezcla en VBlank.
+- **Mensajes opcionales** (pocos): `MsgType::MusicEnd` (el módulo terminó, si no hay loop) y
+  `MsgType::AudioUnderrun` (el mixer o un stream se quedó sin datos). No se postea nada por buffer.
+
+```cpp
+void on_vblank(ui::UiContext& ui, u32 seq, u16 missed) {
+	eng::audio::tick_frame();   // P61/OctaMED; el mixer va por su IRQ
+	game_update();
+	ui.paint(&plan);
+	render();
+}
+```
+
+El **streaming de samples/música desde disquete** (carga diferida) reutiliza la E/S asíncrona del
+mini-SO (`MsgType::FileDone`): se carga a Chip/Fast y luego se registra o se reproduce. Los módulos
+de tracker clásicos **no** se streamean por patrones con facilidad: se carga el módulo completo a
+Fast antes de `play_music`. El streaming **digital** de una grabación (con descompresión en vivo)
+se detalla en [AUDIO_STREAMING.md](AUDIO_STREAMING.md).
+
+## 9. Resumen de posibilidades y límites
 
 | Necesidad | Cómo | Estado |
 |---|---|---|
@@ -225,10 +330,11 @@ Los SFX son **muestras PCM 8 bits con signo**, preprocesadas.
 | Mixing adaptativo en runtime | No (config fija en `mixer_config.i`) | No aplica |
 | AHX | — | Pendiente |
 
-## 8. Referencias
+## 10. Referencias
 
 - [AUDIO_MIXER.md](AUDIO_MIXER.md) — requisitos y configuración del mixer de Photon.
-- [MUSIC_PLAYER.md](MUSIC_PLAYER.md) — reproductores de música y plan.
+- [MUSIC_PLAYER.md](MUSIC_PLAYER.md) — reproductores de música y plan (P61, Protracker, AHX, OctaMED).
+- [AUDIO_STREAMING.md](AUDIO_STREAMING.md) — streaming digital desde disquete y descompresión.
 - `support/audio_mixer/mixer_config.i` — configuración del mixer.
 - `tools/audio/sample-converter.ts` — preprocesado de muestras (escala + relleno).
 - Demos: `058_sfx_mixer` (SFX), `060_music_pt` (música), `061_audio_system`

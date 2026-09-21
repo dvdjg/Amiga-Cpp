@@ -10,6 +10,7 @@ asm del demoscene-repo como backends de la intención `eng::audio::MusicEvent`
 |---|---|---|
 | P61 | `lib/libp61/p61.asm` + `P6112-Play.i` | **Importado**: `support/music/p61.asm`; envoltura `eng::audio::P61Player` en `music_player.hpp`. Demo `059` lo enlaza. |
 | Protracker (MOD) | `lib/libpt/pt.asm` + `ptplayer.i` (95 KB) | **Importado**: `support/music/pt.asm` (+ `ptplayer.i`, `vbr.s` con `_ExcVecBase=0`). Ensambla y enlaza. **Pendiente**: envoltura + demo. |
+| OctaMED (8 canales SW) | `KONEY/octamed_playroutines_amiga` | **Pendiente**: playroutine de 8 voces SW sobre los 4 canales HW, para pantallas de título (modo `TitleOctaMED`). |
 | AHX | `lib/libahx/ahx.asm` + `AHX-Replayer000.BIN` | **Pendiente**: necesita el blob `.BIN` y la libc del demoscene-repo (`MemAlloc`/`OpenFile`/`FileRead`/`FileClose`). |
 
 ## API de los reproductores
@@ -21,6 +22,9 @@ asm del demoscene-repo como backends de la intención `eng::audio::MusicEvent`
   `mt_install`/`mt_remove` (opcional, por CIA). Para coexistir con el mixer usa
   `mt_EnableChannelMask` (Frank Wille, dominio público). El wrapper `pt.asm` del
   demoscene-repo expone `PtInit`/`PtEnd`/`PtInstallCIA`/`PtRemoveCIA`/`PtEnable`.
+- **OctaMED** (KONEY): `Init`/`Play`/`Stop` sobre un módulo MED; mezcla **8 voces software** en los
+  4 canales HW (ocupa toda Paula). Se usa en el modo `TitleOctaMED`
+  ([GAME_AUDIO.md](GAME_AUDIO.md) §7); al salir del título se para y se vuelve al modo `Game`.
 
 ## Pasos pendientes
 
@@ -32,6 +36,8 @@ asm del demoscene-repo como backends de la intención `eng::audio::MusicEvent`
    `AUD1..AUD3`, y el módulo no toca el canal del mixer.
 3. AHX: incbin del `AHX-Replayer000.BIN` + shims de `MemAlloc`/`MemFree`/`OpenFile`/
    `FileRead`/`FileClose`.
+4. OctaMED (KONEY): importar la playroutine de 8 voces SW, envolverla (`eng::audio::OctaMedPlayer`)
+   y enlazarla con el modo `TitleOctaMED`; demo de pantalla de título.
 
 ## Convenio mixer + música
 
@@ -51,3 +57,5 @@ todos los canales al arrancar, incluso los vacíos).
 - Cabeceras: `demoscene-repo-orig/include/p61.h`, `ptplayer.h`, `ahx.h`.
 - Ejemplos: `effects/playp61/playp61.c`, `effects/playahx/playahx.c`.
 - Tutoriales: `docs/tutoriales/46-playp61.md`, `47-playprotracker.md`, `44-playahx.md`.
+- Reproductores externos: P61 (`cahirwpz/demoscene`, `effects/playp61/playp61.c`), OctaMED
+  (`KONEY/octamed_playroutines_amiga`), Protracker (`Frank Wille`, `ptplayer`).
