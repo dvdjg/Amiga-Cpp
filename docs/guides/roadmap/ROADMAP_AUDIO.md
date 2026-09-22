@@ -43,7 +43,7 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
   `support/music/med.asm`) que **ensambla y enlaza** (spike validado), envoltura
   `eng::audio::OctaMedPlayer` + `MusicFormat::OctaMED` (opt-in `-DENG_AUDIO_OCTAMED`), modo
   `TitleOctaMED`. **Pendiente**: `jsr _startmusic` **cuelga** bajo el engine (no alcanza READY);
-  falta depurarlo (ver `docs/debugging/octamed-startmusic-hang.md`) y la demo de título.
+  falta depurarlo (ver `docs/debugging/investigaciones/octamed-startmusic-hang.md`) y la demo de título.
 
 ### A2 — Integración con el mini-SO
 
@@ -90,7 +90,7 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
   hardware: la **IRQ de audio nivel 4** (`support/level4_irq.s` + `install_audio_service`) y la
   **programación de Paula por voz** (`PaulaAudio::set_buffer`/`start_channel`). La demo
   `272_audio_stream` (streaming desde RAM) queda **sin verificar**: la IRQ de audio dispara ~34× más
-  rápido que `AUDxPER * AUDxLEN` (ver `docs/debugging/audio-stream-irq-rate.md`). Pendiente: resolver
+  rápido que `AUDxPER * AUDxLEN` (ver `docs/debugging/investigaciones/audio-stream-irq-rate.md`). Pendiente: resolver
   ese ritmo, el *swap* real en hardware y la E/S desde `trackdisk`.
 
 ### A6 — API unificada y ejemplo de juego
@@ -135,6 +135,6 @@ Entregados: **A0** (modos y reparto de canales, HOST-269), **A2** (eventos
 `MusicEnd`/`AudioUnderrun`, HOST-270), **A3** (codec Delta + RLE, HOST-242) y **A6** (ejemplo de
 juego, demo `217_audio_game_example`). **A1** tiene la **infra lista** (ASM vendorizado + 
 `OctaMedPlayer`) pero el **runtime `_startmusic` cuelga** (ver
-`docs/debugging/octamed-startmusic-hang.md`). **A5** es parcial (`ChunkStream` HOST-257 +
+`docs/debugging/investigaciones/octamed-startmusic-hang.md`). **A5** es parcial (`ChunkStream` HOST-257 +
 `PcmStream` HOST-239; falta la E/S real y la demo en hardware).
 **A4**: ZX0 entregado y verificado (HOST-271); aPLib pendiente.

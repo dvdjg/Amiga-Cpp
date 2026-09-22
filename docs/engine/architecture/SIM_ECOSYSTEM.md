@@ -347,7 +347,7 @@ el 68000; **percepción imperfecta** (ruidos sin fuente, olores que engañan) pa
 y errores creíbles; **capacidad por región** (aforo por bioma en vez de un tope global) para
 poblaciones más fieles; y **tácticas de manada** más ricas (emboscada, relevos, roles
 dinámicos). El laboratorio de escenarios y sus ajustes se documentan en
-`docs/debugging/sim-ecosystem-scenarios.md`. Cada pieza entra con test host y su sonda de
+`docs/debugging/investigaciones/sim-ecosystem-scenarios.md`. Cada pieza entra con test host y su sonda de
 codegen si toca el bucle por frame.
 
 > Navegación general: [DOC-MAP-PRINCIPAL.md](../../ai-dev-environment/DOC-MAP-PRINCIPAL.md).

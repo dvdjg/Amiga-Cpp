@@ -31,7 +31,7 @@ y código de salida 0 (éxito).
 ## Relación con el bug de arranque/display
 
 Este contrato formaliza el patrón que corrigió el bug de "doble texto + banda
-cian" (`docs/debugging/debug-demo-arranque-doble-texto-banda.md`): la separación
+cian" (`docs/debugging/investigaciones/debug-demo-arranque-doble-texto-banda.md`): la separación
 obligatoria entre `takeover` (toma de control del display, una sola vez, alineada
 al VBlank) y `install` (swap de puntero COP1LC por frame, sin COPJMP1). Ver
 también `MinimalBackend::takeover_display` y la política close-to-metal en

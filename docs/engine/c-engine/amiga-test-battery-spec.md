@@ -140,7 +140,7 @@ Por tanto, el estado objetivo es que los casos usen cada vez más biblioteca com
 | **Log de asserts/eventos en RAM** | Recomendado para todos los casos nuevos | Capturar `g_battery_evidence_log` en `evidence-log.json` / `evidence-log.md` con `run_id`, `last_stage`, `final_status`, `assert_failures` y anillo de eventos. Debe validarse firma (`BATTERY_EVIDENCE_MAGIC`) y permitir demostrar que el test alcanzó su checkpoint final aunque la imagen falle o no sea concluyente. |
 | **Traza ligera de SO/custom** | Recomendado en casos DOS o de depuración de vídeo | Emitir eventos `battery_sys_trace_*` (por ejemplo `OpenLibrary`, `CloseLibrary`, `LoadView`, y muestras de `VPOSR/VHPOSR`) dentro del `evidence-log` para confirmar actividad del sistema y presentación de frames. |
 | **Bitmap decodificado** | Comparar playfield / bob con golden image | Cuando exista herramienta §2.4 |
-| **Perfil de frame** | CPU vs blitter vs copper | `winuae_profile` (WinUAE-DBG); analizar con `scripts/parse-amigaprofile.sh` — ver [debug-with-ai.md](../../debugging/debug-with-ai.md) |
+| **Perfil de frame** | CPU vs blitter vs copper | `winuae_profile` (WinUAE-DBG); analizar con `scripts/parse-amigaprofile.sh` — ver [debug-with-ai.md](../../debugging/system/debug-with-ai.md) |
 | **Copper list** | Pruebas copper | `winuae_copper_disassemble` con dirección de `COP1LC` |
 
 Infra común disponible:

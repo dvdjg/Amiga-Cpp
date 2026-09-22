@@ -206,4 +206,4 @@ objetivo.
   `docs/guides/roadmap/ROADMAP_UNIFICADO.md`.
 - Plan de refactor por fases: `docs/guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md`.
 - Soft DPF / doble buffer: `docs/reference/amiga/techniques/robocod-layered-scroll.md`,
-  `docs/debugging/112_bg-flicker.md`.
+  `docs/debugging/investigaciones/112_bg-flicker.md`.

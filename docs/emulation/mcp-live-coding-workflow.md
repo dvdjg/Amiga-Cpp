@@ -152,7 +152,7 @@ hex: "4e714e75", address: "$80000", pc: "$80000", continue_after: false
 
 ## 8. Referencias cruzadas
 
-- Depuración general (DAP, overlay, perfil): [debug-with-ai.md](../debugging/debug-with-ai.md)
+- Depuración general (DAP, overlay, perfil): [debug-with-ai.md](../debugging/system/debug-with-ai.md)
 - Reglas del workspace y WinUAE: `.cursor/rules/amiga-verification-flow.mdc`, `amiga-debug-with-mcp.mdc`
 ## Actualización: memoria y cargas directas
 

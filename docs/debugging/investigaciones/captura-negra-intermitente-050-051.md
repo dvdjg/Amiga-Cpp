@@ -44,4 +44,4 @@ el mismo emulador y configuración.
 3. Reproducir con un lazo `run → histograma` para acotar cuándo el display queda negro
    (por ejemplo, si depende de haber ejecutado otras demos antes).
 
-Referencias: `docs/build/BUILD_AND_RUN.md` (runner/telemetría), `docs/debugging/debug-winuae-v2-guide.md`.
+Referencias: `docs/build/BUILD_AND_RUN.md` (runner/telemetría), `docs/debugging/system/debug-winuae-v2-guide.md`.

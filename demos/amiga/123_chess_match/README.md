@@ -27,7 +27,7 @@ independiente narra la partida.
 - **Búsqueda por rebanadas** (32 nodos por frame, hasta 8 frames por jugada) para no
   bloquear el frame; el libro de aperturas lo usan los dos bandos, así que la
   apertura se juega al instante. El presupuesto es reducido porque la generación de
-  jugadas es el cuello medido en el A500; ver `docs/debugging/board-selfplay-and-perf.md`.
+  jugadas es el cuello medido en el A500; ver `docs/debugging/investigaciones/board-selfplay-and-perf.md`.
 - **Última jugada resaltada en amarillo** (casillas de origen y destino) y marca
   `PENSANDO...` en el panel del bando que piensa.
 

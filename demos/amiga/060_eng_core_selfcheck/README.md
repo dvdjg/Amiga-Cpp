@@ -72,7 +72,7 @@ secuencia larga con GDB activo puede mostrar la banda de 1 frame.
 
 El overlay `debug_*` (`debug_cmd` → `UaeLib` en `0xf0ff60`) solo existe en
 WinUAE-DBG y no se ve en la ventana Amiga normal ni en hardware real
-(ver `docs/debugging/diagnostico-adf-negro.md`). Una demo que debe "verse
+(ver `docs/debugging/investigaciones/diagnostico-adf-negro.md`). Una demo que debe "verse
 ejecutándose" dibuja en el playfield; el overlay queda como complemento de
 depuración, no como salida principal. Esta demo demuestra el patrón.
 

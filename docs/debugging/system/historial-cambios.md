@@ -342,7 +342,7 @@ if (activetask == processptr || gdb_match_process_name(name, command, processnam
 ### Documentación Añadida
 | Archivo | Contenido |
 |---------|-----------|
-| `doc/debugging/summary.md` | Documento completo de arquitectura y diagnóstico |
+| `doc/debugging/system/summary.md` | Documento completo de arquitectura y diagnóstico |
 | `docs/WINUAE-DBG-ARCHITECTURE.md` | Añadida sección de detección de proceso, bug del `:`, tabla de errores |
 
 ---

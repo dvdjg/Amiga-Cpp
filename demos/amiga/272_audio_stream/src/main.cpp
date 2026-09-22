@@ -17,7 +17,7 @@
 // **Estado: WIP, sin verificar.** El informe objetivo es `mark_ready` en el frame
 // `kFrameReport` si hubo IRQs, cambios de buffer y cero underruns (`detail = (irq << 16) |
 // swaps`); hoy NO se cumple: la IRQ de audio dispara ~34x mas rapido que `AUDxPER * AUDxLEN`
-// (underruns). Hallazgos y siguientes pasos: docs/debugging/audio-stream-irq-rate.md.
+// (underruns). Hallazgos y siguientes pasos: docs/debugging/investigaciones/audio-stream-irq-rate.md.
 // Ver tambien docs/engine/architecture/AUDIO_STREAMING.md y ROADMAP_AUDIO.md (A5).
 // ============================================================================
 

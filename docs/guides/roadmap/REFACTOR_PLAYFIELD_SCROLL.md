@@ -203,7 +203,7 @@ compositores, `tile_scroll.hpp` (103/104) y `TileLayerMap`/`tile_map.hpp`.
 ## Riesgos
 
 - **Jitter/tearing**: el mapping Amiga y la composición están entrelazados con el timing; mover la
-  responsabilidad puede reintroducir el flash de 1 px (`docs/debugging/112_bg-flicker.md`). Medir
+  responsabilidad puede reintroducir el flash de 1 px (`docs/debugging/investigaciones/112_bg-flicker.md`). Medir
   en cada fase.
 - **Rendimiento**: el inventario de `hardware_view` es barato; moverlo al mapper no debe añadir
   divisiones/modulos por frame (cuidar `fast_div`).

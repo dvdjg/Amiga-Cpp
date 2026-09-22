@@ -2,7 +2,7 @@
 
 Este documento describe cómo dejar que la IA depure y analice el proyecto Amiga de forma autónoma: puntos de interrupción, inspección de memoria y registros, call stack, variables, y uso del overlay/pantalla.
 
-**Flujo MCP (WinUAE-GDB, compilar → desplegar → verificar, multi-máquina, `winuae_exec_chunk`, modos live):** ver [mcp-live-coding-workflow.md](../emulation/mcp-live-coding-workflow.md).
+**Flujo MCP (WinUAE-GDB, compilar → desplegar → verificar, multi-máquina, `winuae_exec_chunk`, modos live):** ver [mcp-live-coding-workflow.md](../../emulation/mcp-live-coding-workflow.md).
 
 ## Arquitectura
 
@@ -234,7 +234,7 @@ En este proyecto Plan B usa **Playwright MCP** (y opcionalmente el **browser nat
 
 Cuando quieras usar Plan B, di “usa Coppenheimer” o “inspección con Coppenheimer” y usaré Playwright (o Cursor browser si está activo) para automatizar, o te pido capturas si prefieres manual.
 
-**Documentación detallada de la UI**: [coppenheimer-ui.md](../emulation/coppenheimer-ui.md) describe todos los elementos de la interfaz (controles de ejecución, ROM/DF0/DF1, DMA usage, monitor de memoria, Guess!, etc.), la **vAmiga Retro Shell** (comandos `help`, `cpu`, `agnus`, `df0`, etc., con ejemplos de salida) y cómo la IA puede usar la UI vía Cursor Browser. **Procedimiento**: en el diálogo Kickstart ROM usar **Install AROS m68k ROMS** (por defecto). Kickstart 1.3 (KICK13.rom) solo para casos muy específicos; entonces el usuario sube la ROM manualmente. La subida de ADF (DF0/DF1) sigue siendo manual (Drop file or click).
+**Documentación detallada de la UI**: [coppenheimer-ui.md](../../emulation/coppenheimer-ui.md) describe todos los elementos de la interfaz (controles de ejecución, ROM/DF0/DF1, DMA usage, monitor de memoria, Guess!, etc.), la **vAmiga Retro Shell** (comandos `help`, `cpu`, `agnus`, `df0`, etc., con ejemplos de salida) y cómo la IA puede usar la UI vía Cursor Browser. **Procedimiento**: en el diálogo Kickstart ROM usar **Install AROS m68k ROMS** (por defecto). Kickstart 1.3 (KICK13.rom) solo para casos muy específicos; entonces el usuario sube la ROM manualmente. La subida de ADF (DF0/DF1) sigue siendo manual (Drop file or click).
 
 ---
 
@@ -284,7 +284,7 @@ Una consideración estratégica para desarrollar juegos en Amiga es tener **acce
 
 **Recomendación**: Para desarrollo día a día con breakpoints en el editor, usa **F5 + "AROS (debug, breakpoints fiables)"** y dap-proxy. Para depuración avanzada (memoria, registros, comandos monitor) sin UI, usa **mcp-amiga-debug** con `launch-debug` y no F5. A medio plazo, la vía más rica sería **extender el dap-proxy** para que, cuando la sesión sea Amiga, exponga herramientas que reenvíen las custom requests de la extensión (ReadMemory, read-registers), así la IA tendría memoria y registros **sin** renunciar a F5.
 
-Detalle técnico de la extensión y memoria/Custom: [winuae-extensión-internals.md](../emulation/winuae-extension-internals.md).
+Detalle técnico de la extensión y memoria/Custom: [winuae-extensión-internals.md](../../emulation/winuae-extension-internals.md).
 
 ### Simular "entrar en demo" y "salir con ambos botones" (MCP winuae-emu, sin ratón)
 
@@ -359,7 +359,7 @@ de handshake GDB) incorpora comandos `monitor` estilo engine9000, expuestos por
 
 Detalles completos y notas del motor (descomposición de escrituras de 32 bits
 del 68000, requisito de input recording para rewind, issue x64):
-[WinUAE-DBG/docs/WINUAE-MONITOR-EXTENSIONS.md](../../../WinUAE-DBG/docs/WINUAE-MONITOR-EXTENSIONS.md)
+[WinUAE-DBG/docs/WINUAE-MONITOR-EXTENSIONS.md](../../../../WinUAE-DBG/docs/WINUAE-MONITOR-EXTENSIONS.md)
 y `mcp-winuae-emu/scripts/verify-monitor-extensions.mjs`.
 
 ---
@@ -368,4 +368,4 @@ y `mcp-winuae-emu/scripts/verify-monitor-extensions.mjs`.
 
 - **No** hace falta un MCP específico para “Amiga”. El depurador es el de la extensión vscode-amiga-debug (DAP).
 - **Sí** hace falta el bridge **MCP ↔ DAP** (MCP Debug Tools) para que la IA pueda, desde Cursor, lanzar la depuración, poner breakpoints, inspeccionar memoria/registros (vía variables y estado del debugger), ver call stack y controlar la ejecución de forma autónoma.
-- Para “ver” la pantalla del emulator de forma automática haría falta en el futuro un MCP o herramienta que capture la ventana de WinUAE (por ahora no está cubierto aquí). Detalle de cómo la extensión accede a imagen, memoria y Custom: [winuae-extensión-internals.md](../emulation/winuae-extension-internals.md).
+- Para “ver” la pantalla del emulator de forma automática haría falta en el futuro un MCP o herramienta que capture la ventana de WinUAE (por ahora no está cubierto aquí). Detalle de cómo la extensión accede a imagen, memoria y Custom: [winuae-extensión-internals.md](../../emulation/winuae-extension-internals.md).

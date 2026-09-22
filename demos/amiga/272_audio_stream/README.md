@@ -11,7 +11,7 @@ rellena el buffer libre (`PcmStream::provide`), y la **IRQ de audio (nivel 4, vo
 La infraestructura funciona (el servicio de nivel 4 se instala, la IRQ dispara y el ISR reprograma la
 voz), pero la IRQ dispara ~34× más rápido que la duración del buffer → *underruns* y comportamiento
 errático. Detalle, lo descartado y los bugs corregidos de paso:
-[`docs/debugging/audio-stream-irq-rate.md`](../../../docs/debugging/audio-stream-irq-rate.md).
+[`docs/debugging/investigaciones/audio-stream-irq-rate.md`](../../../docs/debugging/investigaciones/audio-stream-irq-rate.md).
 
 El informe objetivo (frame 240) es `irq > 0 && swap > 0 && underrun == 0`; hoy no se cumple.
 

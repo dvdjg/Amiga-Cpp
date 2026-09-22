@@ -137,7 +137,7 @@ UI (`eng::ui`).
   `214_floppy_raw` (motor/seek/lectura de pista + syncs `$4489`); el decode del sector necesita
   búsqueda de sync **bit a bit** (pendiente). `eng/os/trackdisk.hpp` queda como alternativa
   documentada y no verificada (`td_open` se cuelga en `-nostdlib`). Decisión y detalle en
-  `docs/debugging/consulta-grok-disco-y-loader.md`; errata CIA-B en `docs/reference/ahrm/ERRATA_Y_NOTAS.md` §5. **Imágenes de disquete**: `tools/fs/make-volume.mjs --adf` genera un
+  `docs/debugging/investigaciones/consulta-grok-disco-y-loader.md`; errata CIA-B en `docs/reference/ahrm/ERRATA_Y_NOTAS.md` §5. **Imágenes de disquete**: `tools/fs/make-volume.mjs --adf` genera un
   ADF (FFS/OFS con `xdftool`) y `run-demo.sh --disk <adf>` lo monta en `DF0:`; el disquete se monta,
   pero **leer `df0:` desde una demo se bloquea** en el entorno sin Workbench (el volumen no queda
   montado), así que la lectura se prueba con el `DH1:` (demo 211).

@@ -47,7 +47,7 @@ seguirlos con el depurador.
 - `INTREQ` a limpiar = `0x0780` (AUD0..3); con **una** voz basta con armar su bit.
 - El ritmo esperado es `1 / (AUDxPER * AUDxLEN)` (en ciclos); si se observa mucho mayor hay que
   instrumentar la longitud/el puntero en el emulador (no basta con releer los registros, §3). Caso
-  abierto en [`audio-stream-irq-rate.md`](../../../debugging/audio-stream-irq-rate.md).
+  abierto en [`audio-stream-irq-rate.md`](../../../debugging/investigaciones/audio-stream-irq-rate.md).
 
 ## Referencias
 

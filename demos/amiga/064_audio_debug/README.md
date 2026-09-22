@@ -1,7 +1,7 @@
 # Demo 064: audio debug — onda senoidal pura en un canal
 
 Primer eslabón del procedimiento de depuración de sonido
-(`docs/debugging/audio-debug.md`): reproduce un ciclo de seno (64 muestras, ±127)
+(`docs/debugging/investigaciones/audio-debug.md`): reproduce un ciclo de seno (64 muestras, ±127)
 en bucle por AUD0, sin mixer ni música, y expone el estado real del hardware.
 
 ```bash
