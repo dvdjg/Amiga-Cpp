@@ -32,12 +32,18 @@ exigiendo AUD0..3EN en `DMACONR` (es decir, que el playroutine esté **reproduci
 
 ## Qué comprueba y qué encontró
 
-- **`_startmusic` retorna**: con `OCTAMED_READY_FRAME=0` marca READY (`detail=0x27401`).
-- **Cuelga después**: con `OCTAMED_READY_FRAME=60` → **timeout** (con **mammagamma** y
-  **playroutine_test** por igual): el cuelgue está en los frames siguientes, con el playroutine en
-  marcha, **no** dentro de `_startmusic`.
+- **`_startmusic` retorna y SUENA**: con `OCTAMED_READY_FRAME=0` la demo arranca y **se oye la música**
+  (`detail=0x27401`, el playroutine ya escribió sus primeros buffers).
+- **Cuelga al esperar frames**: con `OCTAMED_READY_FRAME=60` → **timeout**: el playroutine necesita su
+  timing de VBlank y el `INTENA` del takeover lo deja apagado (§ Causa raíz en la nota de debugging).
 - **Sonda `$dff007`** (VHPOSR bajo): confirma que el contador H **sí cambia** → el bucle `_Wait1line`
   no es el que gira sin fin.
+
+### Escuchar (script)
+
+`tools/audio/listen-octamed.sh <n> [segundos]`: compila, fuerza la config y deja el emulador **vivo**
+y **sin `--warp`** (a velocidad real) para oír el módulo. `n`: 0 octamed_test · 1 mammagamma · 2
+mammagamma_SPD · 3 playroutine_test.
 
 Detalle, hipótesis descartadas y siguiente paso:
 [`docs/debugging/investigaciones/octamed-startmusic-hang.md`](../../../docs/debugging/investigaciones/octamed-startmusic-hang.md).

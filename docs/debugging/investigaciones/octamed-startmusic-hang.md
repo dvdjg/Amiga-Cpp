@@ -41,6 +41,25 @@ WINUAE_SIDE_CHANNEL_PORT=2421 bash tools/run/run-demo.sh demos/amiga/274_octamed
    `MOVEA.L 14(A1),A6` **no** resolvió el cuelgue → **no es la (única) causa**, pero es un fallo real
    a corregir cuando se retome. (Cambio **revertido**: no se deja código vendado sin verificar.)
 
+## Causa raíz (nueva, medida)
+
+**El `INTENA` del takeover.** `MinimalBackend::takeover_display` hace
+`INTENA = 0x7FFF` (`amiga_minimal.cpp:372`) — desarma **todo**, incluido el **master INTEN** — y lo
+deja apagado. El playroutine instala su timing por **`AddIntServer` (VBlank)**, que necesita **INTENA
+armado**; con el master apagado, su handler no corre.
+
+El contraste lo demuestra:
+
+- **`OCTAMED_READY_FRAME=0`** (READY justo tras `_startmusic`, **sin** esperar ningún VBlank): la demo
+  **arranca y SUENA** (el usuario lo ha oído; `detail=0x27401`, el emulador sigue vivo). El playroutine
+  ya ha escrito los primeros buffers.
+- **`OCTAMED_READY_FRAME=60`** (el bucle **espera** frames, el playroutine necesita su IRQ): **cuelga**.
+
+Coincide con el wrapper de Photon: **«DONT RESET [INTENA] FOR MED PLAYER»**. **Rearmar el master
+INTEN (+VERTB) tras el takeover NO lo resolvió** (probado) → el playroutine necesita además que su
+propio estado de interrupción de VBlank corra; el arreglo limpio es **no apagar `INTENA` en el
+takeover para el modo MED** (o rearmar exactamente lo que el playroutine dejó). Pendiente de GDB.
+
 ## Hipótesis (actualizada)
 
 El cuelgue está **después** del arranque, con el playroutine ya en marcha (o tras su relocalización del
