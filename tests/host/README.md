@@ -275,6 +275,7 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-236 | [os_latched](236_os_latched/README.md) | Mini-SO: prioridad (`PrioMsgQueue`, los `High` se cuelan), `peek`, coalescing de `MouseMove` y VBlank latched (secuencia + `missed`). |
 | HOST-237 | [os_dispatch](237_os_dispatch/README.md) | Mini-SO: despacho por tabla (`HandlerTable`) indexada por `MsgType`, cobertura y `dispatch_all`. |
 | HOST-238 | [os_time](238_os_time/README.md) | Mini-SO: `eng/os/time.hpp` — conversiones ticks↔µs (PAL/NTSC) y `ScopedTimer` con `TickSource`. |
+| HOST-239 | [audio_stream](239_audio_stream/README.md) | Streaming PCM (`eng/audio/pcm_stream.hpp`): `PcmStream` sobre `ChunkStream` + codec real (Delta+RLE); doble buffer, underrun, EOF y chunk inválido con E/S simulada. |
 | HOST-242 | [pcm_codec](242_pcm_codec/README.md) | Codec PCM Delta + RLE (`eng/audio/pcm_codec.hpp`): round-trip byte a byte, ratio y rechazos (codec/destino/truncado). |
 | HOST-249 | [crowd](249_crowd/README.md) | Crowd genérico (`eng/ai/steering/crowd.hpp`): separación/evasión con fase amplia como política (`SpatialHash`, no `O(N²)`), probado con `s32` y `float`. |
 | HOST-250 | [os_port](250_os_port/README.md) | Puerto de mensajes del mini-SO (`eng/os/port.hpp`): anillo SPSC (`push_isr`/`pop`/`peek`/`overflows`) y `MsgPort`. |

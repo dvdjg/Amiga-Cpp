@@ -84,8 +84,10 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
 - **Verificación**: **HOST-239** (con E/S simulada: llena N buffers, detecta *underrun*, termina en
   EOF) y **demo 209_audio_stream** (grabación continua desde disquete en hardware).
 - **Estado**: **parcial**. Entregado: la **máquina de estados** de buffers `eng/os/stream.hpp`
-  (`ChunkStream<NumBuffers>`: `request_mask`/`on_chunk_ready`/`advance`/`underrun`/`eof`; **HOST-257**).
-  Pendiente: `PcmStream` sobre la E/S real (`trackdisk`), el *swap* en la IRQ de audio y la demo 209.
+  (`ChunkStream<NumBuffers>`: `request_mask`/`on_chunk_ready`/`advance`/`underrun`/`eof`; **HOST-257**)
+  y `eng/audio/pcm_stream.hpp` (`PcmStream<NumBuffers>`: une `ChunkStream` + el codec y reparte
+  llamador (E/S + `provide`) / IRQ (`advance` + `play_pcm`) / fin de stream; **HOST-239**). Pendiente:
+  la E/S real (`trackdisk`), el *swap* de Paula dentro de la IRQ de audio y la demo de hardware.
 
 ### A6 — API unificada y ejemplo de juego
 
@@ -106,8 +108,8 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
 | HOST-270 | test | `MusicEnd`/`AudioUnderrun` (semántica, sin mensaje por buffer; planificado como HOST-241). |
 | HOST-242 | test | Codec Delta + RLE (round-trip byte a byte). |
 | HOST-271 | test | Descompresor ZX0 con vector del compresor de referencia (planificado como HOST-243); aPLib pendiente. |
-| HOST-239 | test | Streaming (doble buffer, underrun, EOF) con E/S simulada. |
-| 209_audio_stream | demo | Grabación continua desde disquete con `PcmStream`. |
+| HOST-239 | test | Streaming (`PcmStream<NumBuffers>`: doble buffer, underrun, EOF, chunk inválido) con E/S simulada. **Entregado**. |
+| (por numerar) | demo | Grabación continua desde disquete con `PcmStream` (elegir nº libre del bloque D; `209` lo ocupa `209_reactive_loop`). |
 
 ## Riesgos y decisiones abiertas
 
@@ -129,5 +131,6 @@ Entregados: **A0** (modos y reparto de canales, HOST-269), **A2** (eventos
 `MusicEnd`/`AudioUnderrun`, HOST-270), **A3** (codec Delta + RLE, HOST-242) y **A6** (ejemplo de
 juego, demo `217_audio_game_example`). **A1** tiene la **infra lista** (ASM vendorizado + 
 `OctaMedPlayer`) pero el **runtime `_startmusic` cuelga** (ver
-`docs/debugging/octamed-startmusic-hang.md`). **A5** es parcial (`ChunkStream`, HOST-257).
+`docs/debugging/octamed-startmusic-hang.md`). **A5** es parcial (`ChunkStream` HOST-257 +
+`PcmStream` HOST-239; falta la E/S real y la demo en hardware).
 **A4**: ZX0 entregado y verificado (HOST-271); aPLib pendiente.
