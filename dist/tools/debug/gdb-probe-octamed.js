@@ -2,15 +2,16 @@
 /**
  * gdb-probe-octamed.mjs (fuente TS) — Diagnostico del cuelgue de A1 (OctaMED) con GDB.
  *
- * Lanza WinUAE con la demo 274, pone breakpoints en simbolos del playroutine
- * (resolviendo la direccion RUNTIME, porque WinUAE-DBG relocaliza) y reporta paradas
- * con PC/registros. Sirve para ver donde se atasca, en vez de parchear a ciegas.
+ * Lanza WinUAE con la demo 274, pide las SECCIONES RUNTIME por el canal lateral, resuelve
+ * los simbolos del playroutine a su direccion runtime, pone breakpoints y reporta PC/
+ * registros en cada parada. Sirve para ver donde se atasca, en vez de parchear a ciegas.
  *
- * Uso:
+ * Uso (con el emulador lanzado por el propio probe):
  *   node dist/tools/debug/gdb-probe-octamed.js \
- *       [--config <id>] [--bps _startmusic,_endmusic] [--hold-ms 8000]
+ *       [--config <id>] [--bps _startmusic,_endmusic] [--hold-ms 12000] [--side-port 2421]
  */
 import * as fs from 'fs';
+import * as net from 'net';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
 import { repoRoot } from '../lib/paths.js';
@@ -22,20 +23,16 @@ function argValue(name, fallback = undefined) {
     return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : fallback;
 }
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
-function parseHex(v) { return parseInt(v.replace(/^0x/i, ''), 16); }
+function parseHex(v) { return parseInt(String(v).replace(/^0x/i, ''), 16); }
 function setConfigValue(t, k, v) {
     const re = new RegExp(`^${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}=.*$`, 'm');
     const line = `${k}=${v}`;
     return re.test(t) ? t.replace(re, line) : `${t.replace(/\s*$/, '')}\r\n${line}\r\n`;
 }
 function findExtensionRoot() {
-    if (process.env.AMIGA_DEBUG_EXT && fs.existsSync(process.env.AMIGA_DEBUG_EXT)) {
+    if (process.env.AMIGA_DEBUG_EXT && fs.existsSync(process.env.AMIGA_DEBUG_EXT))
         return path.resolve(process.env.AMIGA_DEBUG_EXT);
-    }
-    for (const base of [
-        path.join(process.env.USERPROFILE || '', '.cursor/extensions'),
-        path.join(process.env.USERPROFILE || '', '.vscode/extensions'),
-    ]) {
+    for (const base of [path.join(process.env.USERPROFILE || '', '.cursor/extensions'), path.join(process.env.USERPROFILE || '', '.vscode/extensions')]) {
         if (!fs.existsSync(base))
             continue;
         let best = '';
@@ -85,9 +82,49 @@ function resolveRuntime(linked, mapSections, runtime) {
         return null;
     return parseHex(runtime[idx]) + (linked - cand[0].start);
 }
-const demoName = path.basename(argValue('--demo', 'demos/amiga/274_octamed_probe').replace(/\\/g, '/'));
+/// Cliente del canal lateral (2346/2421): conectar -> saludar -> `<ord>\n` -> JSON.
+function sideCommand(port, command, timeoutMs = 2500) {
+    return new Promise((resolve, reject) => {
+        const socket = net.createConnection({ host: '127.0.0.1', port });
+        socket.setEncoding('utf8');
+        let pending = '';
+        let greeting = false;
+        let done = false;
+        const timer = setTimeout(() => { if (!done) {
+            socket.destroy();
+            reject(new Error(`timeout canal lateral (${command})`));
+        } }, timeoutMs);
+        socket.on('data', (chunk) => {
+            pending += chunk;
+            for (;;) {
+                const eol = pending.indexOf('\n');
+                if (eol < 0)
+                    break;
+                const line = pending.slice(0, eol).trim();
+                pending = pending.slice(eol + 1);
+                if (!greeting) {
+                    greeting = true;
+                    socket.write(`${command}\n`);
+                    continue;
+                }
+                done = true;
+                clearTimeout(timer);
+                socket.end();
+                try {
+                    resolve(JSON.parse(line));
+                }
+                catch {
+                    resolve(line);
+                }
+                return;
+            }
+        });
+        socket.on('error', (e) => { clearTimeout(timer); done = true; socket.destroy(); reject(e); });
+    });
+}
+const demoName = path.basename(String(argValue('--demo', 'demos/amiga/274_octamed_probe')).replace(/\\/g, '/'));
 const demoDir = path.join(root, 'out/demos', demoName);
-const forced = argValue('--config', '');
+const forced = String(argValue('--config', ''));
 let cfg = forced, exe = '', map = '';
 if (forced) {
     exe = path.join(demoDir, forced, `${demoName}.${forced}.exe`);
@@ -112,9 +149,11 @@ else {
     exe = best.exe;
     map = best.map;
 }
-const bpNames = argValue('--bps', '_startmusic,_endmusic').split(',').map((s) => s.trim()).filter(Boolean);
-const holdMs = parseInt(argValue('--hold-ms', '8000'), 10);
-console.log(`[gdb-probe] demo=${demoName} config=${cfg}\n[gdb-probe] exe=${exe}`);
+const bpNames = String(argValue('--bps', '_startmusic,_endmusic')).split(',').map((s) => s.trim()).filter(Boolean);
+const holdMs = parseInt(String(argValue('--hold-ms', '12000')), 10);
+const sidePort = parseInt(String(argValue('--side-port', process.env.WINUAE_SIDE_CHANNEL_PORT || '2421')), 10);
+console.log(`[gdb-probe] demo=${demoName} config=${cfg} side=${sidePort}`);
+console.log(`[gdb-probe] exe=${exe}`);
 const extensionRoot = findExtensionRoot();
 const outputDir = path.join(root, 'out/run', demoName, cfg);
 const stagedDir = path.join(outputDir, 'dh1');
@@ -132,53 +171,48 @@ configText = setConfigValue(configText, 'filesystem2', `rw,dh1:dh1:${stagedDir.r
 configText = setConfigValue(configText, 'debugging_trigger', ':a.exe');
 configText = setConfigValue(configText, 'warp', 'false');
 fs.writeFileSync(cfgPath, configText, 'utf8');
-const conn = new WinUAEConnection({
-    winuaePath: path.join(extensionRoot, 'bin/win32'),
-    configFile: cfgPath,
-    gdbPort: parseInt(process.env.WINUAE_GDB_PORT || '2345', 10),
-});
+const conn = new WinUAEConnection({ winuaePath: path.join(extensionRoot, 'bin/win32'), configFile: cfgPath, gdbPort: parseInt(process.env.WINUAE_GDB_PORT || '2345', 10) });
 const report = { demo: demoName, config: cfg, breakpoints: [], stops: [] };
 try {
     await conn.connect({ forceBreak: false, initializeStopped: true });
     const proto = conn.getProtocol();
-    const state = await proto.sendMonitorCommand ? null : null; // noop
-    // Necesitamos las secciones runtime: usamos el canal lateral via protocolo si esta, si no
-    // el propio gdbserver `qOffsets`. Aquí leemos `info files`-like via monitor no disponible;
-    // usamos el canal lateral de run-demo no conectado, asi que pedimos secciones por GDB.
-    const mapSections = findMapAllocSections(map);
-    // Runtime sections: usar el symbol `g_eng_run_status` (seccion .bss) como ancla no basta;
-    // pedir al gdbserver las direcciones de seccion. WinUAE-DBG expone `qOffsets`.
+    // Secciones runtime por el canal lateral (el probe no lo "posee": solo lee `state`).
     let runtimeSections = [];
-    try {
-        const offsets = await proto.sendMonitorCommand('qOffsets', 5000);
-        // qOffsets devuelve "Text=... Data=...” (direcciones runtime de las secciones).
-        const hex = Buffer.from(offsets, 'hex').toString('utf8');
-        const text = (/Text=([0-9a-fA-F]+)/.exec(hex) || [])[1];
-        const data = (/Data=([0-9a-fA-F]+)/.exec(hex) || [])[1];
-        if (text)
-            runtimeSections = ['0x' + text];
-        if (data)
-            runtimeSections.push('0x' + data);
+    for (let i = 0; i < 20 && runtimeSections.length === 0; i++) {
+        try {
+            const st = await sideCommand(sidePort, 'state');
+            if (st && st.ok && Array.isArray(st.sections))
+                runtimeSections = st.sections;
+        }
+        catch { /* aun no */ }
+        if (runtimeSections.length === 0)
+            await sleep(500);
     }
-    catch { /* qOffsets no soportado */ }
+    report.runtimeSections = runtimeSections;
+    const mapSections = findMapAllocSections(map);
     for (const name of bpNames) {
         const linked = findMapSymbol(map, name);
-        let addr = null;
-        if (linked !== null && runtimeSections.length)
-            addr = resolveRuntime(linked, mapSections, runtimeSections);
-        report.breakpoints.push({ name, linked: linked !== null ? `0x${linked.toString(16)}` : null, runtime: addr !== null ? `0x${addr.toString(16)}` : null });
+        const addr = linked !== null && runtimeSections.length ? resolveRuntime(linked, mapSections, runtimeSections) : null;
+        const entry = { name, linked: linked === null ? null : `0x${linked.toString(16)}`, runtime: addr === null ? null : `0x${addr.toString(16)}` };
         if (addr !== null && addr > 0) {
             try {
                 await proto.setBreakpoint('*0x' + addr.toString(16));
+                entry.set = true;
             }
             catch (e) {
-                report.breakpoints[report.breakpoints.length - 1].error = String(e);
+                entry.error = String(e);
             }
         }
+        report.breakpoints.push(entry);
     }
+    // Tras el arranque, step-by-step N instrucciones desde `_startmusic` para ver si RETORNA
+    // y a donde salta (si se queda girando dentro, lo delata).
+    const stepCount = parseInt(String(argValue('--steps-after', '20')), 10);
+    const startBp = report.breakpoints.find((b) => b.name === '_startmusic');
     await proto.continue();
+    let stopped = false;
     const start = Date.now();
-    while (Date.now() - start < holdMs) {
+    while (Date.now() - start < holdMs + 6000 && !stopped) {
         let stop;
         try {
             stop = await proto.waitForStop(1500);
@@ -190,11 +224,36 @@ try {
             report.stops.push({ kind: 'exit', reply: stop });
             break;
         }
-        const regs = await proto.readRegisters().catch(() => null);
-        report.stops.push({ pc: regs ? '0x' + (regs.PC >>> 0).toString(16) : null, regs: regs ? { D0: regs.D0, A0: regs.A0, A1: regs.A1, A6: regs.A6 } : null });
-        await proto.continue();
-        if (report.stops.length > 40)
-            break;
+        stopped = true;
+        const regs0 = await proto.readRegisters().catch(() => null);
+        const pc0 = regs0 ? (regs0.PC >>> 0) : null;
+        report.stops.push({ pc: pc0 === null ? null : `0x${pc0.toString(16)}`, at: startBp && pc0 !== null && Math.abs(pc0 - parseHex(startBp.runtime)) <= 24 ? '_startmusic' : null });
+        // Stepping: registra el PC de cada instruccion; si pasa de la direccion de retorno (vuelve
+        // a `main`/a territorio del engine) o se estanca, se ve.
+        const trace = [];
+        let prevPc = pc0;
+        let stuck = 0;
+        for (let i = 0; i < stepCount; i++) {
+            const r = await proto.step().catch(() => null);
+            if (!r)
+                break;
+            const rr = await proto.readRegisters().catch(() => null);
+            const pc = rr ? (rr.PC >>> 0) : null;
+            trace.push(pc === null ? '?' : '0x' + pc.toString(16));
+            if (pc !== null && pc === prevPc) {
+                stuck++;
+            }
+            else {
+                stuck = 0;
+            }
+            prevPc = pc;
+            if (stuck > 3) {
+                trace.push('(PC estancado)');
+                break;
+            }
+        }
+        report.stops[report.stops.length - 1].stepTrace = trace;
+        break;
     }
     console.log(JSON.stringify(report, null, 2));
 }
