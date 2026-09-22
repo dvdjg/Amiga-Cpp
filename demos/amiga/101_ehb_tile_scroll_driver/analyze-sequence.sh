@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
 # Secuencia de verificacion temporal de la demo 101_ehb_tile_scroll_driver.
-# Sustituye a analyze-sequence.ps1. Cadena:
-#   run-demo (secuencia 12 frames) -> analyze-frame-sequence (-ExpectAnimated)
-#   -> assert-no-inner-black -> telemetria run-report (frame>=200, camera<=128,
-#   prefetch X/Y) -> assert-pixel-contract (opcional) -> FrameScope
-#   (amiga-scroll) -> analyze-fine-scroll -> Vision Review (opcional).
+#
+# Cadena: step-shift-check (captura frames consecutivos en la fase HORIZONTAL +
+# comprueba 1 px/frame con shifted_region_match) -> analyze-frame-sequence
+# (-ExpectAnimated) -> assert-no-inner-black -> telemetria de los frames capturados
+# -> FrameScope (amiga-scroll) -> analyze-fine-scroll -> Vision Review (opcional).
+#
 # Uso: analyze-sequence.sh [--warp] [--pixel-assert] [--require-pixel-assert-ok]
 #       [--vision-review] [--require-vision-review-ok]
 #       [--vision-provider <ruta>] [--vision-send-mode <modo>]
@@ -14,10 +15,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 DEMO="demos/amiga/101_ehb_tile_scroll_driver"
-RUN="$ROOT/tools/run/run-demo.sh"
 SEQ_ANALYZER="$ROOT/tools/analyze/analyze-frame-sequence.sh"
 INNER_BLACK="$ROOT/tools/analyze/assert-no-inner-black.sh"
-PIXEL_ASSERT="$ROOT/tools/analyze/assert-pixel-contract.sh"
+STEP_SHIFT="$ROOT/tools/analyze/step-shift-check.sh"
 FRAME_SCOPE="$ROOT/tools/framescope/frame-scope.sh"
 VISION_REVIEW="$ROOT/tools/vision-review/vision-review.sh"
 FINE_SCROLL="$(dirname "${BASH_SOURCE[0]}")/analyze-fine-scroll.sh"
@@ -27,16 +27,14 @@ SEQ_DIR="$ROOT/out/run/101_ehb_tile_scroll_driver/A500_debug/sequence"
 RUN_REPORT="$ROOT/out/run/101_ehb_tile_scroll_driver/A500_debug/run-report.json"
 FRAME_SCOPE_OUT="$ROOT/out/framescope/101_ehb_tile_scroll_driver"
 VISION_OUT="$ROOT/out/vision-review/101_ehb_tile_scroll_driver"
-PIXEL_OUT="$ROOT/out/analysis/101_ehb_tile_scroll_driver/pixel-assert"
 
-WARP=0; PA=0; REQUIRE_PA=0; VR=0; REQUIRE_VR=0
+WARP=0; VR=0; REQUIRE_VR=0
 VISION_PROVIDER=""
 VISION_SEND_MODE="multi-image"
 while [ "$#" -gt 0 ]; do
 	case "$1" in
 		--warp) WARP=1; shift ;;
-		--pixel-assert) PA=1; shift ;;
-		--require-pixel-assert-ok) PA=1; REQUIRE_PA=1; shift ;;
+		--pixel-assert|--require-pixel-assert-ok) shift ;;
 		--vision-review) VR=1; shift ;;
 		--require-vision-review-ok) VR=1; REQUIRE_VR=1; shift ;;
 		--vision-provider) VISION_PROVIDER="$2"; shift 2 ;;
@@ -45,15 +43,17 @@ while [ "$#" -gt 0 ]; do
 	esac
 done
 
-# 1) Captura 14 frames CONSECUTIVOS (1 frame entre capturas) en la fase HORIZONTAL
-# (1 px/frame): el step capture congela la CPU en el ready probe; start-fine=2 evita
-# el cruce de word. El settle corto mantiene la captura dentro de la fase horizontal
-# (frames 0..191, camara a 1 px/frame) antes de que empiece la vertical (frame 192).
 extra=()
 [ "$WARP" -eq 1 ] && extra+=(--warp)
-"$RUN" "$DEMO" --settle-ms 800 \
-	--sequence-step-frames 14 --sequence-step-start-fine 2 "${extra[@]}" \
-	|| { echo "No se pudo capturar la secuencia step de 101_ehb_tile_scroll_driver." >&2; exit 1; }
+
+# 1) Captura 14 frames CONSECUTIVOS (1 frame entre capturas) en la fase HORIZONTAL
+# (1 px/frame) y comprueba con shifted_region_match que el contenido se desplaza
+# 1 px logico por frame. El settle corto mantiene la captura dentro de la fase
+# horizontal (frames 0..191) antes de la vertical (frame 192); start-fine=2 evita
+# el cruce de word.
+"$STEP_SHIFT" --demo "$DEMO" --contract "$PIXEL_CONTRACT" \
+	--frames 14 --start-fine 2 --settle-ms 800 "${extra[@]}" \
+	|| { echo "La demo 101 no scrollea 1 px/frame en la fase horizontal." >&2; exit 1; }
 
 # 2) La secuencia debe demostrar animacion.
 "$SEQ_ANALYZER" "$SEQ_DIR" --expect-animated \
@@ -94,24 +94,18 @@ console.log(`OK telemetry frames=${frames.length} first=${frames[0].frozenFrame}
 ' "$RUN_REPORT" \
 	|| { echo "Telemetria de 101 invalida." >&2; exit 1; }
 
-# 5) Pixel Assertions (opcional pero exigible).
-if [ "$PA" -eq 1 ]; then
-	"$PIXEL_ASSERT" --sequence-dir "$SEQ_DIR" --contract "$PIXEL_CONTRACT" --run-report "$RUN_REPORT" --out-dir "$PIXEL_OUT" \
-		|| { echo "Pixel Assertions detecto una desviacion de render en la secuencia." >&2; exit 1; }
-fi
-
-# 6) FrameScope con perfil amiga-scroll.
+# 5) FrameScope con perfil amiga-scroll.
 "$FRAME_SCOPE" --source "$SEQ_DIR" --out-dir "$FRAME_SCOPE_OUT" --profile amiga-scroll \
 	--grid-width 64 --grid-height 48 --search-radius 12 --max-profile-mismatches 1 --expect-animated \
 	|| { echo "FrameScope no pudo validar el diagnostico amiga-scroll." >&2; exit 1; }
 
-# 7) Transicion de fine scroll 14,15,0,1.
+# 6) Transicion de fine scroll 14,15,0,1.
 if ! "$FINE_SCROLL" "${extra[@]}"; then
 	echo "La transicion fine scroll no es continua." >&2
 	exit 1
 fi
 
-# 8) Vision Review (opcional).
+# 7) Vision Review (opcional).
 if [ "$VR" -eq 1 ]; then
 	if [ -z "$VISION_PROVIDER" ]; then
 		VISION_PROVIDER="$ROOT/tools/vision-review/providers/lmstudio.legion.json"

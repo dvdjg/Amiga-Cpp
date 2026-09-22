@@ -174,6 +174,39 @@ Notas:
   -SequenceIntervalMs 120
 ```
 
+### Captura frame-step (1 frame por captura)
+
+Para medir el desplazamiento **por frame** (p. ej. 1 px/frame de scroll fino) la captura por
+tiempo real no sirve: separa mucho las capturas y, con un patrón periódico, el desplazamiento se
+alia. El runner tiene un modo **frame-step** que congela la CPU en cada impacto del *ready probe*
+(`eng_debug_ready_probe`, que las demos llaman una vez por frame desde `probe_when_ready`) y
+captura **frames consecutivos** (1 frame entre capturas), de modo que el run status y la imagen
+quedan en el mismo frame:
+
+```bash
+bash ./tools/run/run-demo.sh demos/amiga/210_copper_blitter --warp \
+  --sequence-step-frames 14 --sequence-step-start-fine 2
+```
+
+- `--sequence-step-frames N`: número de frames consecutivos.
+- `--sequence-step-start-fine F`: espera a que `cameraX & 15 == F` antes de capturar; alinea la
+  fase para evitar el cruce de word (*wrap*) de cada 16 frames, cuya actualización de columna
+  ensucia el par.
+
+El helper `tools/analyze/step-shift-check.sh` encapsula la captura y la comprobación (flags y
+rutas, que incluyen el `CONFIG_ID`):
+
+```bash
+bash ./tools/analyze/step-shift-check.sh --demo demos/amiga/210_copper_blitter \
+  --contract demos/amiga/210_copper_blitter/pixel-contract.json \
+  --frames 14 --start-fine 2 --settle-ms 1200 --warp
+```
+
+El contrato usa `shifted_region_match` con el `dx` esperado **en px lógicos** (se escalan a px de
+imagen con `viewport.logicalWidth`). Para scroll fino de **1 px/frame** el contrato lleva
+`dx = -1`. Demos canónicas: `210_copper_blitter` (1 px/frame) y `101_ehb_tile_scroll_driver`
+(fase horizontal, cámara a 1 px/frame).
+
 ### Ejecucion de aserciones de pixel
 
 ```powershell

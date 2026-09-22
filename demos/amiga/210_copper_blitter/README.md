@@ -52,6 +52,11 @@ frame-exacta por valor de `fine` con `--sequence-fine-x`); Ollama
   probe*, 1 frame entre capturas) y el `pixel-contract.json` verifica con
   `shifted_region_match` (dx = −1 px lógico = −2 px de imagen a 2×) que el contenido se
   desplaza exactamente 1 px por frame (peor error ≈ 0,07 %).
+- **Transitorio del cruce de word**: en el frame que cruza de `fine` 15 a 0 (cada 16 frames) el
+  buffer de la pantalla se modifica *in situ* (shift + columna) mientras el display aún corre la
+  copperlist anterior, así que ese frame no es un desplazamiento puro (error ~10-19 % del ROI).
+  Por eso la captura se alinea a `fine = 2` (`--sequence-step-start-fine 2`), que deja la
+  transición fuera de la ventana verificada.
 
 ## Referencias
 
