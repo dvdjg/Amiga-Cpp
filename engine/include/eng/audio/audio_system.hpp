@@ -32,6 +32,7 @@ enum class MusicFormat : u8 {
 	None = 0,
 	Protracker = 1, // .mod (PtPlayer)
 	P61 = 2,        // .p61 (P61Player)
+	OctaMED = 3,    // módulo MED incrustado (OctaMedPlayer, A1)
 };
 
 /// Sistema de audio del engine (SFX + música).
@@ -116,6 +117,11 @@ public:
 			case MusicFormat::Protracker:
 				if (m_pt.play(module)) { m_format = MusicFormat::Protracker; }
 				break;
+#if defined(ENG_AUDIO_OCTAMED)
+			case MusicFormat::OctaMED:
+				if (m_med.play(module)) { m_format = MusicFormat::OctaMED; }
+				break;
+#endif
 			default:
 				break;
 		}
@@ -125,15 +131,23 @@ public:
 	void stop_music() {
 		m_p61.stop();
 		m_pt.stop();
+#if defined(ENG_AUDIO_OCTAMED)
+		m_med.stop();
+#endif
 		m_format = MusicFormat::None;
 	}
 
-	/// Avanza la música una vez por frame. P61 es frame-driven; Protracker usa la
+	/// Avanza la música una vez por frame. P61 y OctaMED son frame-driven; Protracker usa la
 	/// interrupción CIA y no necesita esta llamada.
 	void update_music() {
 		if (m_format == MusicFormat::P61) {
 			m_p61.update();
 		}
+#if defined(ENG_AUDIO_OCTAMED)
+		else if (m_format == MusicFormat::OctaMED) {
+			m_med.update();
+		}
+#endif
 	}
 
 	/// Marca un **underrun** (el mixer o un stream se quedó sin datos). Lo consume `tick_frame`:
@@ -200,6 +214,9 @@ private:
 	SfxMixer m_sfx {};
 	P61Player m_p61 {};
 	PtPlayer m_pt {};
+#if defined(ENG_AUDIO_OCTAMED)
+	OctaMedPlayer m_med {}; ///< opt-in: solo si se define `ENG_AUDIO_OCTAMED` (bloat del módulo)
+#endif
 	MusicFormat m_format = MusicFormat::None;
 	AudioMode m_mode = AudioMode::Game;
 	AudioConfig m_cfg {};

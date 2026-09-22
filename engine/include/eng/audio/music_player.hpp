@@ -262,4 +262,40 @@ private:
 	bool m_playing = false;
 };
 
+/// Reproductor de música **OctaMED** (KONEY/OctaMED-R): 8 voces software sobre los 4 canales HW.
+///
+/// El módulo va **incrustado** en `support/music/med.asm` (sección `ChipData`, símbolo
+/// `MED_MODULE`), así que `play()` **ignora** el argumento `MusicModule`: el módulo es fijo por
+/// build. Se arranca con `jsr _startmusic` y se para con `jsr _endmusic`. Es **frame-driven**
+/// (`update()` por VBlank) y ocupa **toda** Paula: úsalo solo en modo `AudioMode::TitleOctaMED`
+/// (ver `audio_mode.hpp`). Ver `docs/engine/architecture/MUSIC_PLAYER.md` (A1).
+class OctaMedPlayer {
+public:
+	/// Arranca el módulo incrustado. `false` si el build no incluye el playroutine MED.
+	bool play(const MusicModule& module) {
+		(void)module; // el módulo va incrustado en el ASM (MED_MODULE)
+		__asm__ volatile("jsr _startmusic" : : : "cc", "memory");
+		m_playing = true;
+		return true;
+	}
+
+	/// Para el módulo. `_endmusic` (no re-arranca: un segundo `_startmusic` relocalizaría el
+	/// módulo y daría Guru).
+	void stop() {
+		if (m_playing) {
+			__asm__ volatile("jsr _endmusic" : : : "cc", "memory");
+			m_playing = false;
+		}
+	}
+
+	/// Avanza la reproducción (frame-driven). El playroutine se engancha a su propio timing
+	/// (VBlank/CIA según `med_feature_control.i`); esta llamada es un punto de enganche.
+	void update() {}
+
+	[[nodiscard]] bool playing() const { return m_playing; }
+
+private:
+	bool m_playing = false;
+};
+
 } // namespace eng::audio

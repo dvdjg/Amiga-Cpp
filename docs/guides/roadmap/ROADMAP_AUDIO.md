@@ -39,7 +39,11 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
 - **Detalle**: [`MUSIC_PLAYER.md`](../../engine/architecture/MUSIC_PLAYER.md).
 - **Verificación**: demo de pantalla de título con módulo MED incrustado; gate visual de que suena
   y que al volver a `Game` el mixer+P61 recuperan sus canales.
-- **Estado**: pendiente.
+- **Estado**: **infra lista; runtime abierto**. Hecho: ASM vendorizado (`support/music/octamed/` +
+  `support/music/med.asm`) que **ensambla y enlaza** (spike validado), envoltura
+  `eng::audio::OctaMedPlayer` + `MusicFormat::OctaMED` (opt-in `-DENG_AUDIO_OCTAMED`), modo
+  `TitleOctaMED`. **Pendiente**: `jsr _startmusic` **cuelga** bajo el engine (no alcanza READY);
+  falta depurarlo (ver `docs/debugging/octamed-startmusic-hang.md`) y la demo de título.
 
 ### A2 — Integración con el mini-SO
 
