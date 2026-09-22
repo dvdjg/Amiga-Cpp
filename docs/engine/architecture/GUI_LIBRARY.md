@@ -461,7 +461,7 @@ public:
 	void invalidate_content(Window* w, Rect local);
 	void damage_screen(Rect r);
 
-	void present(eng::graphics::FramePlan& plan); ///< 1) widgets→backing 2) backings→pantalla
+	void present_blit(eng::graphics::FramePlan& plan); ///< 1) widgets→backing 2) backings→pantalla (Blitter)
 };
 ```
 
