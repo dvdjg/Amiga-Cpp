@@ -8,8 +8,9 @@
 // (o crashea), el runner reporta `side_channel_unavailable` -> es la repro del bloqueo
 // documentado en docs/debugging/investigaciones/octamed-startmusic-hang.md.
 //
-// Build (opt-in del playroutine MED):
-//   EXTRA_DEFINES="-DENG_AUDIO_OCTAMED" bash tools/build/build-demo.sh demos/amiga/274_octamed_probe --debug
+// Build (opt-in del playroutine MED + modulo concreto + frame de READY):
+//   EXTRA_DEFINES='-DENG_AUDIO_OCTAMED -DMED_MODULE_FILE="mammagamma.med" -DOCTAMED_READY_FRAME=0' \
+//     bash tools/build/build-demo.sh demos/amiga/274_octamed_probe --debug
 // ============================================================================
 
 #include <eng/api/api.hpp>
@@ -39,13 +40,21 @@ namespace {
 constexpr eng::u16 kBytesPerRow = 40u;
 constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * 256u;
 
+/// Frame en el que se marca READY. `0` = justo tras `_startmusic` (arranque); `N` = espera N
+/// frames y **exige** que el playroutine haya encendido el DMA de audio (AUD0..3EN en DMACONR).
+/// Se elige con `EXTRA_DEFINES=... -DOCTAMED_READY_FRAME=<n>`.
+#ifndef OCTAMED_READY_FRAME
+#define OCTAMED_READY_FRAME 0
+#endif
+constexpr eng::u32 kReadyFrame = static_cast<eng::u32>(OCTAMED_READY_FRAME);
+
 struct OctaMedProbe {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-#if !defined(ENG_AUDIO_OCTAMED)
-		// El reproductor MED es **opt-in**: sin `EXTRA_DEFINES=-DENG_AUDIO_OCTAMED` no se compila
-		// (`OctaMedPlayer`/`AudioSystem::play_music(OctaMED)`), asi que la demo marca READY sin
-		// ejercitar nada. Con el opt-in, reproduce/diagnostica el bloqueo de A1.
+#if !defined(ENG_AUDIO_OCTAMED) || !defined(MED_MODULE_NUM)
+		// El reproductor MED es **opt-in**: sin `-DENG_AUDIO_OCTAMED -DMED_MODULE_NUM=<n>` no se
+		// compila (`OctaMedPlayer`/`play_music(OctaMED)` ni `_startmusic`), asi que la demo
+		// marca READY sin ejercitar nada. Con el opt-in, reproduce/diagnostica A1.
 		eng::debug::mark_ready(g_eng_run_status, 0x00027400u);
 		return;
 #endif
@@ -98,24 +107,25 @@ struct OctaMedProbe {
 			return;
 		}
 		m_ok = true;
+		if (kReadyFrame == 0u) {
+			eng::debug::mark_ready(g_eng_run_status, 0x00027401u); // `_startmusic` retorno
+		}
 	}
 
 	void update(eng::amiga::MinimalBackend&, eng::GameContext& context) {
 		m_audio.update_music(); // el playroutine MED es frame-driven
-		if (!m_ok) {
+		if (!m_ok || kReadyFrame == 0u) {
 			return;
 		}
-		// A los ~0,5 s comprueba que el playroutine esta **reproduciendo**: enciende el DMA
-		// de audio de Paula (DMACONR bits 0..3 = AUD0..3EN). Si estan a 1, el playroutine
-		// engancho su timing y suena.
-		if (context.frame.frame_index == 30u) {
+		// A `kReadyFrame` comprueba que el playroutine esta **reproduciendo**: enciende el DMA
+		// de audio de Paula (DMACONR bits 0..3 = AUD0..3EN). Si estan a 1, engancho su timing.
+		if (context.frame.frame_index == kReadyFrame) {
 			const eng::u16 dmaconr = *reinterpret_cast<volatile eng::u16*>(0xdff002u);
 			const bool playing = (dmaconr & 0x000fu) == 0x000fu;
 			eng::debug::mark_ready(g_eng_run_status,
 					       (static_cast<eng::u32>(dmaconr) << 16u) |
 						       (playing ? 0x00027401u : 0x00027406u));
 		}
-		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
 	void render(eng::amiga::MinimalBackend&, eng::GameContext& context) {

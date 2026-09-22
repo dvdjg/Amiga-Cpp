@@ -7,15 +7,26 @@ del frame 30, y **no** está en la ruta de interrupción del playroutine.
 ## Repro
 
 ```bash
-EXTRA_DEFINES="-DENG_AUDIO_OCTAMED" bash tools/build/build-demo.sh demos/amiga/274_octamed_probe --debug
-WINUAE_SIDE_CHANNEL_PORT=2421 bash tools/run/run-demo.sh demos/amiga/274_octamed_probe --warp --wait-port 300
+export EXTRA_DEFINES='-DENG_AUDIO_OCTAMED -DMED_MODULE_NUM=1 -DOCTAMED_READY_FRAME=0'  # mammagamma
+bash tools/build/build-demo.sh demos/amiga/274_octamed_probe --debug
+CFG=$(ls -dt out/demos/274_octamed_probe/A500_eng_audio_octamed* | head -1 | xargs basename)
+WINUAE_SIDE_CHANNEL_PORT=2421 bash tools/run/run-demo.sh demos/amiga/274_octamed_probe --config "$CFG" --warp --wait-port 300
 ```
 
-- Marca READY **justo después** de `play_music(.., OctaMED)` → alcanza READY con `detail=0x00027401`:
-  `_startmusic` **retorna** y `play_music` va bien. (El síntoma anterior —«no alcanza READY»— ya no se
-  da con la repro mínima actual.)
-- Con la comprobación retrasada a **frame 30** (leer `DMACONR` y exigir AUD0..3EN): **timeout** → el
-  cuelgue está en los frames siguientes al arranque, no dentro de `_startmusic`.
+> **Trampa del runner**: prioriza `A500_debug` (build **default**) sobre la de flags; hay que forzar
+> `--config <id>` o se ejecuta la default (sin OctaMED). La primera vez que se probó «sin forzar» dio
+> un **falso READY** por esto.
+
+- `OCTAMED_READY_FRAME=0` → READY justo tras `play_music(.., OctaMED)` (`detail=0x27401`):
+  `_startmusic` **retorna**. (El síntoma original —«no alcanza READY»— ya no se da.)
+- `OCTAMED_READY_FRAME=60` (leer `DMACONR` y exigir AUD0..3EN) → **timeout**, con **mammagamma**
+  (191 KB) y **playroutine_test** (45 KB) por igual: el cuelgue está **después** del arranque, no
+  dentro de `_startmusic`.
+
+### Banco de escucha
+
+`assets/amiga/audio/` incluye módulos de KONEY para elegir con `-DMED_MODULE_NUM`:
+`0`=octamed_test, `1`=mammagamma (191 KB), `2`=mammagamma_SPD, `3`=playroutine_test.
 
 ## Qué se ha medido (y descarta)
 
