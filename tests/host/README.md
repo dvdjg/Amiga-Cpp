@@ -298,6 +298,9 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-301 | [ui_hardware_cursor](301_ui_hardware_cursor/README.md) | Cursor por sprite de hardware (`HardwareCursor`): estructura DMA + emisión SPR0PT/SPREN. |
 | HOST-302 | [ui_keymap_specials](302_ui_keymap_specials/README.md) | Teclas comunes del keymap (0x40–0x5F) validadas contra la AHRM 3.ª. |
 | HOST-303 | [ui_editbox_utf8](303_ui_editbox_utf8/README.md) | `EditBox` UTF-8: inserción/borrado/movimiento por code point (incluye cirílico). |
+| HOST-304 | [os_telemetry](304_os_telemetry/README.md) | Mini-SO: telemetría de saturación (`IrqTelemetry`: overflows/missed/marcas de agua). |
+| HOST-305 | [os_tasks](305_os_tasks/README.md) | Mini-SO: tareas de fondo (`TaskSystem`: ciclo de vida, idle, preempt, prioridad). |
+| HOST-306 | [os_file_stream](306_os_file_stream/README.md) | Mini-SO: feeder fichero→`ChunkStream` (lecturas secuenciales, EOF, underrun). |
 | HOST-260 | [copper_blitter](260_copper_blitter/README.md) | Copper lanza blits (Técnica A): `CopperIntentKind::BlitterJob` (`BLTCON*`/punteros/módulos/`BLTSIZE`) y **ventana segura** (`set_blitter_window`) que lo serializa con los blits de CPU. |
 | HOST-267 | [fine_scroll](267_fine_scroll/README.md) | `eng::effects::FineScroll`: scroll horizontal fino de una capa planar (1 px/frame) — `step`/`bplcon1`/columna y `BlitJob` de desplazamiento + columna entrante. |
 | HOST-268 | [ui_compositor_blit](268_ui_compositor_blit/README.md) | Compositor GUI por `Surface::blit` (`Compositor::present_blit`): copia backings con el `Rasterizer` (CPU/Blitter) y cae a CPU si el rect no está alineado a palabra; equivalencia píxel a píxel con `present()`. |

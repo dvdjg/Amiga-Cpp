@@ -125,8 +125,9 @@ UI (`eng::ui`).
   el **loader de código** que se construyen encima tienen su propio diseño
   ([`RESOURCE_SYSTEM.md`](../../engine/architecture/RESOURCE_SYSTEM.md)) y plan
   ([`ROADMAP_RESOURCES.md`](ROADMAP_RESOURCES.md)).
-- **Verificación**: **HOST-221** — una E/S simulada (host) publica `FileDone` con el resultado y la
-  señal `SigFile`; la decodificación diferida avanza por rebanadas.
+- **Verificación**: **HOST-255** (`IoUser` + `route_io`) y la **demo 211** (lee texto/imagen/sonido,
+  carga un `.englib` y prueba la escritura sobre `DH1:`). La E/S asíncrona real se valida en
+  hardware con la demo; la decodificación diferida avanza por rebanadas de `BackgroundQueue`.
 - **Estado**: **casi entregado**. Entregado: el **contrato** `eng/os/file.hpp`, su implementación
   Amiga sobre **`dos.library`** (`amiga_minimal_file.cpp`: `Open`/`Read`/`Write`/`Seek`/`Close`,
   `CreateDir`/`DeleteFile`/`Rename`; la asíncrona como **diferida** con `file_pump` que postea
@@ -147,18 +148,23 @@ UI (`eng::ui`).
 - **Entregable**: `AudioStream` (doble/triple buffer) que pide el siguiente chunk en cada
   `FileDone` y hace *swap* en la IRQ de audio; `file_read_async` en `MsgPrio::Low`.
 - **Detalle**: §5 de [`MINI_OS_IO.md`](../../engine/architecture/MINI_OS_IO.md).
-- **Verificación**: **HOST-239** — con E/S simulada, el stream llena N buffers, detecta *underrun*
-  y termina en EOF sin perder chunks. Demo en hardware: audio continuo desde disquete.
-- **Estado**: **parcial**. Entregado: la **máquina de estados** `eng/os/stream.hpp`
-  (`ChunkStream<NumBuffers>`; **HOST-257**). Pendiente: la lectura real (`trackdisk`) y la demo.
+- **Verificación**: **HOST-257** (`ChunkStream<NumBuffers>`: doble buffer, underrun, EOF) y
+  **HOST-239**/**HOST-271** (`PcmStream` sobre `ChunkStream` + decoder ZX0, con IRQ de Paula).
+- **Estado**: **contrato, audio y puente fichero entregados**. `eng/os/stream.hpp` (`ChunkStream`;
+  HOST-257), el **streaming PCM** de audio (`eng/audio/pcm_stream.hpp` + `eng/audio/zx0.hpp`;
+  HOST-239/271, demo **272_audio_stream** con IRQ de nivel 4) y el **feeder fichero→ChunkStream**
+  (`eng/os/file_stream.hpp`; HOST-306: lecturas secuenciales por buffer, EOF/underrun). **Pendiente**:
+  la **demo en hardware** que lee el fichero grande (512 KB) de la imagen de disquete por rebanadas y
+  lo reproduce (la imagen `out/fs/211_fs_test.adf` ya lo incluye).
 
 ### M9 — Telemetría
 
 - **Entregable**: `overflows`, `missed` de VBlank y marcas de agua de la cola expuestas como
   `IrqTelemetry`; informe de saturación sin fallo silencioso.
-- **Verificación**: test que inunda el puerto de E/S y comprueba que la entrada se drena antes y
-  que la telemetría lo refleja.
-- **Estado**: pendiente.
+- **Verificación**: **HOST-304** — inunda la cola (descartes), acumula VBlank pisados, y comprueba
+  las marcas de agua (`peak_depth`/`peak_high`), `note_vblank`/`observe`/`reset`/`saturated`.
+- **Estado**: **entregado** (`eng/os/telemetry.hpp`; HOST-304). `MsgQueue`/`PrioMsgQueue` exponen
+  `depth`/`depth_total` para las marcas de agua.
 
 ### M10 — Tareas asíncronas de fondo (`eng::os::TaskSystem`)
 
@@ -166,10 +172,13 @@ UI (`eng::ui`).
   con ciclo de vida (`create`/`start`/`suspend`/`resume`/`abort`/`join`), scheduler de **idle**
   (`run_idle`), `request_preempt`/`yield_if_preempt` y `wait_or_idle`.
 - **Detalle**: [`MINI_OS_TASKS.md`](../../engine/architecture/MINI_OS_TASKS.md).
-- **Verificación**: **HOST-250** — una tarea `poll()` avanza por rebanadas solo en idle; al marcar
-  preempt (simulado) sale y vuelve a `Ready` sin perder el progreso; `suspend`/`resume`/`abort` y
-  `TaskFinished` se comportan; `wait_or_idle` drena la cola principal antes que el fondo.
-- **Estado**: pendiente.
+- **Verificación**: **HOST-305** — una tarea `poll()` avanza por rebanadas solo en idle; `preempt`
+  detiene el idle y `yield_if_preempt` lo ve; `suspend`/`resume`/`abort`/`join` y `block`/`unblock`
+  se comportan; con dos `Ready` se elige la de mayor prioridad.
+- **Estado**: **núcleo entregado** (`eng/os/task.hpp`; HOST-305): `create/start/suspend/resume/
+  abort/join/state/block/unblock/run_idle/request_preempt/yield_if_preempt`. **Pendiente**:
+  `TaskMsgPort` propio (`own_port`), `stack_words` (stack propio) y la integración del `run_idle`
+  en el bucle de mensajes (`wait_or_idle`).
 
 ### M11 — Tareas-corrutina (opcional)
 
@@ -186,16 +195,18 @@ UI (`eng::ui`).
 |---|---|---|
 | HOST-219 | test | Núcleo: `MsgQueue`/`MsgPort`/señales/coalescing. |
 | HOST-220 | test | Puente `Msg` → `UiEvent` y `UiContext` mínimo. |
-| HOST-221 | test | E/S asíncrona simulada + decodificado diferido por tareas. |
 | HOST-222 | test | Timers de usuario (frames/µs) y mensajes de aplicación. |
+| HOST-255 | test | Recursos: `IoUser` (cookie) y `route_io`. |
 | HOST-236 | test | Prioridad, `peek`, coalescing y VBlank latched. |
 | HOST-237 | test | Despacho por tabla: cobertura de todos los `MsgType`. |
 | HOST-238 | test | `TickClock` (coherencia y conversión µs↔ticks) y `beam_now`. |
-| HOST-239 | test | Streaming (doble buffer, underrun, EOF) con E/S simulada. |
-| HOST-250 | test | Tareas de fondo: idle/preempt, ciclo de vida y `wait_or_idle`. |
-| HOST-251 | test | Tareas-corrutina (`co_await idle_yield`) y codegen 68000. |
+| HOST-239 | test | Streaming PCM (`PcmStream` sobre `ChunkStream`): doble buffer, underrun, EOF. |
+| HOST-271 | test | Decoder ZX0 (`eng/audio/zx0.hpp`) verificado con vector del compresor de referencia. |
+| HOST-304 | test | Telemetría de saturación (`IrqTelemetry`): overflows, VBlank pisados, marcas de agua. |
+| HOST-305 | test | Tareas de fondo (`TaskSystem`): ciclo de vida, idle/preempt, prioridad. |
+| HOST-306 | test | Feeder fichero→`ChunkStream`: lecturas secuenciales por buffer, EOF/underrun. |
 | 208_message_loop | demo | Bucle reactivo en hardware: VBlank + input + UI sin sondeo. |
-| 209_audio_stream | demo | Audio continuo desde disquete con `AudioStream`. |
+| 272_audio_stream | demo | Streaming PCM de audio desde RAM con IRQ de Paula. |
 
 ## Riesgos y decisiones abiertas
 
@@ -218,13 +229,19 @@ UI (`eng::ui`).
 En Workbench el mini-SO **no sustituye a Exec**: unifica IDCMP, E/S y timers en los mismos `Msg`. El
 plan está en [`ROADMAP_WORKBENCH.md`](ROADMAP_WORKBENCH.md) (fases W5/W6): `wait` = `Wait(señales
 Exec)` + volcado `Exec → Msg`; la app, el despacho y el puente a `eng::ui` **no cambian** (solo los
-productores y la espera). Requiere implementar **`MsgPort::wait(mask)`**, hoy inexistente.
+productores y la espera). El soporte ya está: **`os::wait(mask)`** (`eng/os/os.hpp`) y
+**`MsgPort::pending(mask)`** (`eng/os/port.hpp`); en el engine `wait` coopera con `tick()` (ritmo de
+VBlank) y en Workbench se mapea a `Wait` de Exec.
 
 ## Estado
 
 Entregados: **M0** (núcleo; HOST-219), **M1** (VBlank latched; HOST-236), **M3** (puente UI;
-HOST-220), **M4** (bucle reactivo; HOST-251), **M5** (prioridad/despacho; HOST-236/237) y **M6**
-(tiempo/timers; HOST-222/238). **M2** (entrada) y **M7** (E/S async) están casi entregados (falta
-verificar teclado en hardware y el decode de sector MFM); **M8** (streaming) es parcial; **M9–M11**
-(telemetría, `TaskSystem`, corrutinas) están **pendientes**. La estructura de código
-(`engine/include/eng/os/`, `engine/include/eng/ui/`) y el diseño están fijados.
+HOST-220), **M4** (bucle reactivo; HOST-253 + demo 208), **M5** (prioridad/despacho; HOST-236/237) y
+**M6** (tiempo/timers; HOST-222/238). **M2** (entrada) y **M7** (E/S async) están casi entregados
+(falta verificar teclado en hardware y el decode de sector MFM); **M8** (streaming) tiene el contrato
+(`stream.hpp`, HOST-257) y el **streaming PCM** de audio (`pcm_stream.hpp`/`zx0.hpp`, HOST-239/271 +
+demo 272), pero falta la **lectura real por `trackdisk`** desde una demo; **M9** (telemetría) está
+**entregado** (`telemetry.hpp`; HOST-304) y **M10** (`TaskSystem`) tiene el **núcleo entregado**
+(`task.hpp`; HOST-305). **M11** (corrutinas) sigue **pendiente**. La estructura de código
+(`engine/include/eng/os/`, `engine/include/eng/ui/`) y el diseño están fijados. Soporte de
+**Workbench** (W5/W6): `os::wait` + `MsgPort::pending` ya existen.

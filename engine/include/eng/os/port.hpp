@@ -57,6 +57,11 @@ public:
 	[[nodiscard]] bool empty() const noexcept { return m_head == m_tail; }
 	[[nodiscard]] eng::u16 overflows() const noexcept { return m_overflows; }
 
+	/// Profundidad actual (nº de mensajes encolados). Para telemetría (marcas de agua).
+	[[nodiscard]] eng::u16 depth() const noexcept {
+		return static_cast<eng::u16>((m_head - m_tail) & (N - 1u));
+	}
+
 private:
 	Msg m_buf[N] {};
 	volatile eng::u16 m_head = 0u;      ///< escribe el productor (ISR)
@@ -201,6 +206,21 @@ public:
 		eng::u16 total = 0u;
 		for (eng::u8 i = 0u; i < kLevels; ++i) {
 			total = static_cast<eng::u16>(total + m_overflows[i]);
+		}
+		return total;
+	}
+
+	/// Profundidad del anillo de prioridad `p`. Para telemetría (marcas de agua).
+	[[nodiscard]] eng::u16 depth(MsgPrio p) const noexcept {
+		const eng::u8 i = static_cast<eng::u8>(p);
+		return static_cast<eng::u16>((m_head[i] - m_tail[i]) & (N - 1u));
+	}
+
+	/// Profundidad total (suma de los tres anillos).
+	[[nodiscard]] eng::u16 depth_total() const noexcept {
+		eng::u16 total = 0u;
+		for (eng::u8 i = 0u; i < kLevels; ++i) {
+			total = static_cast<eng::u16>(total + ((m_head[i] - m_tail[i]) & (N - 1u)));
 		}
 		return total;
 	}

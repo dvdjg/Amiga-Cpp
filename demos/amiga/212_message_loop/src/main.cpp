@@ -46,9 +46,14 @@ struct DemoApp {
 	eng::u32 vblank_seq = 0;
 	eng::u16 missed = 0;
 	eng::u8 joy_dirs = 0;
+	eng::u32 keys = 0;
+	eng::u16 key_last = 0u;
 
 	void on_start(auto&) {
 		eng::debug::mark_init_started(g_eng_run_status);
+		// Teclado por IRQ de CIA-A serie: a partir de aqui los scancodes llegan como
+		// KeyDown/KeyUp por el puerto (el runner los inyecta con `--keys <hex>`).
+		eng::os::enable_keyboard();
 		eng::debug::mark_ready(g_eng_run_status, 0x00021200u);
 	}
 
@@ -57,6 +62,13 @@ struct DemoApp {
 		switch (m.type) {
 		case eng::os::MsgType::Joystick:
 			joy_dirs = m.payload.joy.dirs;
+			break;
+		case eng::os::MsgType::KeyDown:
+			key_last = m.payload.key.code;
+			++keys;
+			// Reporta el conteo por el run-status (el runner lo lee por el canal lateral):
+			// evidencia de que el teclado por IRQ llega (0x2120KKKK).
+			g_eng_run_status.detail = 0x21200000u | keys;
 			break;
 		case eng::os::MsgType::MouseMove:
 			// El ratón (puerto 1) también mueve la caja (posición absoluta ya escalada).
@@ -94,6 +106,10 @@ struct DemoApp {
 		p = append_u32(p, msgs);
 		p = append(p, "   joy: ");
 		p = append_u32(p, joy_dirs);
+		p = append(p, "   keys: ");
+		p = append_u32(p, keys);
+		p = append(p, "   last: 0x");
+		p = append_hex(p, key_last);
 		*p = '\0';
 		d.text(64, 118, line, 0x00ffff00);
 		d.text(64, 148, "mueve la caja con el joystick (puerto 2) o el raton (puerto 1)", 0x00aaaaaa);
@@ -114,6 +130,14 @@ private:
 		eng::u8 n = 0;
 		do { tmp[n++] = static_cast<char>('0' + (v % 10u)); v /= 10u; } while (v != 0u && n < 10u);
 		while (n > 0u) { *p++ = tmp[--n]; }
+		return p;
+	}
+	/// Añade `v` en hex de 4 dígitos (p. ej. el último rawkey).
+	static char* append_hex(char* p, eng::u16 v) {
+		constexpr char kHex[] = "0123456789abcdef";
+		for (eng::s8 shift = 12; shift >= 0; shift = static_cast<eng::s8>(shift - 4)) {
+			*p++ = kHex[(v >> shift) & 0x0fu];
+		}
 		return p;
 	}
 };

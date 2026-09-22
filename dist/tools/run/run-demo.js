@@ -1241,6 +1241,29 @@ try {
             dragged: hasArg('--mouse-drag'),
         };
     }
+    // --keys: inyecta teclas Amiga por scancode crudo (WinUAE `input key <sc> <1|0>`); sirve para
+    // validar la entrada de teclado por IRQ (mini-SO `os::enable_keyboard`), que el runner no puede
+    // provocar de otro modo. Scancodes en hex, separados por comas (p. ej. --keys 0x20,0x21).
+    const keysToInject = argValue('--keys', '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter((value) => value !== '');
+    if (keysToInject.length > 0) {
+        const keyHoldMs = Math.max(10, parseInt(argValue('--key-hold-ms', '60'), 10));
+        console.log(`[run-demo] injecting ${keysToInject.length} keys`);
+        let keyCount = 0;
+        for (const raw of keysToInject) {
+            const sc = parseInt(raw, 16); // scancode hex
+            if (Number.isNaN(sc))
+                continue;
+            await protocol.sendMonitorCommand(`input key ${sc} 1`, 5000);
+            await sleep(keyHoldMs);
+            await protocol.sendMonitorCommand(`input key ${sc} 0`, 5000);
+            await sleep(keyHoldMs);
+            keyCount++;
+        }
+        report.keys = { count: keyCount, scancodes: keysToInject };
+    }
     if (sequenceCameraX.length > 0) {
         console.log(`[run-demo] capturing sequence by cameraX targets ${sequenceCameraX.join(',')}`);
         report.sequence = await captureFrameSequenceByRunStatusTarget(protocol, path.join(outputDir, 'sequence'), sequenceCameraX, {

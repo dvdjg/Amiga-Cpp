@@ -9,6 +9,7 @@
 #include <eng/core/ptr.hpp>
 #include <eng/os/dispatch.hpp>
 #include <eng/os/port.hpp>
+#include <eng/os/telemetry.hpp>
 
 namespace eng::os {
 
@@ -34,8 +35,11 @@ struct MessagePumpGame {
 	App app {};
 	eng::Ref<MsgPort<N>> port {}; ///< puerto del mini-SO (no propietario)
 	void (*tick)() = nullptr; ///< tick opcional del mini-SO (`os::tick`), antes de drenar
+	IrqTelemetry* telemetry = nullptr; ///< telemetría de saturación opcional (no propietaria)
 
 	void bind_port(MsgPort<N>& p) noexcept { port = p; }
+	/// Liga la telemetría: se muestrea el puerto cada frame (descartes + marcas de agua).
+	void bind_telemetry(IrqTelemetry& t) noexcept { telemetry = &t; }
 
 	/// Arranque: delega en `app.on_start(ctx)`.
 	template <class Backend, class Ctx>
@@ -52,6 +56,9 @@ struct MessagePumpGame {
 		}
 		if (port.valid()) {
 			pump_messages(app, *port.get());
+			if (telemetry != nullptr) {
+				telemetry->sample_port(*port.get());
+			}
 		}
 		app.on_frame(ctx.frame.frame_index);
 	}
