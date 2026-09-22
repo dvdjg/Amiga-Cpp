@@ -110,10 +110,11 @@ int main() {
 	// --- measure -----------------------------------------------------------
 	eng::ui::Label l;
 	l.text = "ABC";
-	check(eng::ui::measure(l).w == 24u && eng::ui::measure(l).h == 8u, "measure Label");
+	check(eng::ui::measure(l, kT).w == 24u && eng::ui::measure(l, kT).h == 8u,
+	      "measure Label");
 	eng::ui::Panel pn;
 	pn.bounds = eng::ui::Rect {1, 2, 10u, 20u};
-	check(eng::ui::measure(pn).w == 10u && eng::ui::measure(pn).h == 20u,
+	check(eng::ui::measure(pn, kT).w == 10u && eng::ui::measure(pn, kT).h == 20u,
 	      "measure Panel = bounds");
 
 	// --- dibujo sobre Surface ---------------------------------------------

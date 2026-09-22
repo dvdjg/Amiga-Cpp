@@ -7,6 +7,7 @@
 /// `docs/engine/architecture/GUI_LIBRARY.md` §5.
 
 #include <eng/core/box.hpp>
+#include <eng/core/ptr.hpp>
 #include <eng/core/types.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/ui/text.hpp>
@@ -37,10 +38,10 @@ public:
 		m_surface.fill_rect(r.x, r.y, r.w, r.h, color);
 	}
 	void hline(eng::s16 x0, eng::s16 x1, eng::s16 y, eng::u8 color) {
-		m_surface.draw_line(x0, y, x1, y, color, m_plan);
+		m_surface.draw_line(x0, y, x1, y, color, m_plan.get());
 	}
 	void vline(eng::s16 x, eng::s16 y0, eng::s16 y1, eng::u8 color) {
-		m_surface.draw_line(x, y0, x, y1, color, m_plan);
+		m_surface.draw_line(x, y0, x, y1, color, m_plan.get());
 	}
 	void frame(Rect r, eng::u8 color);
 	void bevel_out(Rect r); ///< relieve: shine arriba/izquierda, shadow abajo/derecha
@@ -64,11 +65,12 @@ public:
 
 private:
 	eng::field::Surface& m_surface;
-	eng::graphics::FramePlan* m_plan = nullptr;
+	eng::Ref<eng::graphics::FramePlan> m_plan {};
 	const UiTheme& m_theme;
 	Rect m_clip {};
 };
 
+/// Borde de 1 px: las cuatro líneas de `r` con `color`.
 inline void UiPainter::frame(Rect r, eng::u8 color) {
 	if (r.empty()) {
 		return;
@@ -81,6 +83,7 @@ inline void UiPainter::frame(Rect r, eng::u8 color) {
 	vline(x1, r.y, y1, color);
 }
 
+/// Relieve: shine arriba/izquierda, shadow abajo/derecha.
 inline void UiPainter::bevel_out(Rect r) {
 	if (r.empty()) {
 		return;
@@ -93,6 +96,7 @@ inline void UiPainter::bevel_out(Rect r) {
 	vline(x1, r.y, y1, m_theme.shadow);  // derecha
 }
 
+/// Hundido: shadow arriba/izquierda, shine abajo/derecha.
 inline void UiPainter::bevel_in(Rect r) {
 	if (r.empty()) {
 		return;
@@ -105,6 +109,7 @@ inline void UiPainter::bevel_in(Rect r) {
 	vline(x1, r.y, y1, m_theme.shine);
 }
 
+/// Panel: relleno con `theme().fill` y el marco que indique `theme().panel_frame`.
 inline void UiPainter::panel(Rect r) {
 	if (r.empty()) {
 		return;
@@ -126,6 +131,7 @@ inline void UiPainter::panel(Rect r) {
 	}
 }
 
+/// Cara de botón: relleno normal/activo y bisel hundido si está pulsado.
 inline void UiPainter::button_face(Rect r, bool pressed) {
 	if (r.empty()) {
 		return;
@@ -141,6 +147,7 @@ inline void UiPainter::button_face(Rect r, bool pressed) {
 	}
 }
 
+/// Texto con fondo: rellena el rect (medido con `text_width`) y dibuja el texto encima.
 inline void UiPainter::text_bg(eng::s16 x, eng::s16 y, const char* s, eng::u8 fg,
 			       eng::u8 bg) {
 	const eng::u16 w = text_width(s);
@@ -150,6 +157,7 @@ inline void UiPainter::text_bg(eng::s16 x, eng::s16 y, const char* s, eng::u8 fg
 	m_surface.draw_text(x, y, s, fg);
 }
 
+/// Glifo 1-bit por píxel (`set_pixel`): glifos de UI pequeños (tick, flechas, radio).
 inline void UiPainter::glyph(eng::s16 x, eng::s16 y, const eng::u16* bits, eng::u16 w,
 			     eng::u16 h, eng::u8 fg) {
 	if (bits == nullptr || w == 0u || w > 16u) {

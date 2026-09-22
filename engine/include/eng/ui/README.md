@@ -24,13 +24,13 @@ No depende del mini-SO (`eng::os`), pero se integra con él por el puente `os::M
 | `widget.hpp` | `WidgetType`, `WidgetFlags` y `Widget` (árbol intrusivo, sin heap ni `virtual`). **Implementado** (HOST-224). |
 | `dirty.hpp` | `DirtyList<Max>` con fusión de regiones (rects = `eng::Box`). **Implementado** (HOST-224). |
 | `event.hpp` | `UiEvent`, `UiEventKind`. **Implementado** (HOST-220). |
-| `widgets.hpp` | `Panel`, `Label` (G1). Despacho por `switch` exhaustivo y `measure`. **En curso** (HOST-224); `Button`/`CheckBox`/`RadioButton` en G2/G3. |
+| `widgets.hpp` | `Panel`/`Label` (G1), `Button` (G2), `CheckBox`/`RadioButton` (G3). Despacho por `switch` exhaustivo y `measure`. **Implementado** (HOST-224/225/226). |
+| `context.hpp` | `UiContext`: hit-test de delante hacia atrás, foco y despacho. **Implementado** (HOST-225). |
 | `editbox.hpp` | `EditBox` (buffer externo, caret, foco). |
 | `layout.hpp` | `layout_stack_v`/`layout_stack_h` y anclaje. |
 | `window.hpp` | `Window`, `WindowKind` (`Window`/`Popup`/`Toast`/`Dialog`) y Z-order. |
 | `backing.hpp` | `WindowBacking` (`FlatPlayfield` + `Surface` en Chip RAM). |
 | `compositor.hpp` | `Compositor` (move/resize/raise/damage/present; *copies* de backings a pantalla). |
-| `context.hpp` | `UiContext` (dirty, foco, hit-test, dispatch, paint). |
 | `ui_bridge.hpp` | Puente `eng::os::Msg` → `UiEvent`. **Implementado** (HOST-220). |
 
 Los rectángulos de UI son `eng::Box` (`eng/core/box.hpp`); no hay un `rect.hpp` propio. Reglas del

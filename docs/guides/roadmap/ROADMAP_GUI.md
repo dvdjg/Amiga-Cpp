@@ -49,7 +49,8 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
   `Button` (cara + bevel según `WfPressed`, `on_click`).
 - **Verificación**: **HOST-225** — el hit-test devuelve el widget más al frente; un `MouseDown`
   fuera no consume; `MouseDown`+`MouseUp` dentro dispara `on_click` una vez; `MouseUp` fuera no.
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`context.hpp` + `Button`; **HOST-225**). Verificado en host; falta la
+  demo en hardware (G8).
 
 ### G3 — CheckBox, RadioButton y grupos
 
@@ -57,7 +58,8 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
   uno y desactiva el grupo, dirty de todos).
 - **Verificación**: **HOST-226** — toggle de check; un grupo solo tiene un activo; el estado de
   `bool*`/`u8*` externo cambia; los afectados quedan sucios.
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`CheckBox`/`RadioButton`; **HOST-226**). El grupo es por `parent`
+  (hermanos con el mismo `group_id`); verificado en host.
 
 ### G4 — Foco de teclado y EditBox
 
@@ -137,9 +139,10 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 
 ## Estado
 
-**G0–G1 entregados** (`theme.hpp`/`painter.hpp`/`text.hpp` HOST-223; `widget.hpp`/`dirty.hpp`/
-`widgets.hpp` con `Panel`/`Label` HOST-224). G2–G8 pendientes. El siguiente paso es **G2**
-(ratón + hit-test + `Button`), que sigue sin depender del compositor ni del mini-SO.
+**G0–G3 entregados** (`theme.hpp`/`painter.hpp`/`text.hpp` HOST-223; `widget.hpp`/`dirty.hpp`/
+`widgets.hpp` con `Panel`/`Label` HOST-224; `context.hpp` + `Button` HOST-225; `CheckBox`/
+`RadioButton` HOST-226). G4–G8 pendientes. El siguiente paso es **G4** (foco de teclado y
+`EditBox`), que sigue sin depender del compositor ni del mini-SO.
 
 La GUI queda **fuera** de `eng/api/api.hpp` hasta que exista su primer consumidor hardware (demo
 G8); entonces se expondrá solo la superficie estable. El `fill_rect` D-only del raster se deja

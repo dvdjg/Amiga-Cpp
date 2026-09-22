@@ -23,6 +23,8 @@ struct DirtyList {
 
 	void clear() noexcept { count = 0u; }
 
+	/// Añade `r` a la lista: si solapa con una región existente se fusiona; si está llena,
+	/// sustituye todo por `kFullRepaint` (repintado total). Un rect vacío se ignora.
 	void add(Rect r) noexcept {
 		if (r.empty()) {
 			return;
