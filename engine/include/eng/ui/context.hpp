@@ -15,6 +15,7 @@
 #include <eng/core/ptr.hpp>
 #include <eng/core/types.hpp>
 #include <eng/ui/event.hpp>
+#include <eng/ui/keymap.hpp>
 #include <eng/ui/keys.hpp>
 #include <eng/ui/widget.hpp>
 #include <eng/ui/widgets.hpp>
@@ -26,6 +27,9 @@ class UiContext {
 public:
 	Widget* root = nullptr;
 	Widget* focus = nullptr;
+	/// Distribución nacional con la que se traduce el rawkey (ver `keymap.hpp`). La fija la
+	/// aplicación al arrancar (según el país del sistema o su configuración), no va fija en el código.
+	KeyboardLayout layout = KeyboardLayout::Us;
 
 	void set_root(Widget* r) noexcept { root = r; }
 

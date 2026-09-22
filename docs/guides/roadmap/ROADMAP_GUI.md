@@ -108,15 +108,16 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 - **Verificación**: **demo 207_gui_widgets** (G0–G6) y **demo 208_gui_compositor** (G7) en
   hardware, con gate visual (widgets presentes, ventana que se mueve/redimensiona y se recomponen
   los vecinos). Medir con el profiler.
-- **Estado**: **pendiente**. Se intentó la demo `215_gui_widgets` (escena planar EHB 320×256,
-  patrón de la 077): compila y alcanza READY, pero **el renderizado de los widgets no está
-  resuelto** (solo se pintan los paneles; ni texto, ni líneas, ni caras). Aislado con sondas y
-  lectura de píxeles: `Surface::fill_rect`/`draw_line`/`draw_text` y la paleta **sí** funcionan
-  con el árbol apagado; con un `fill` grande (pantalla completa) los dibujos CPU posteriores del
-  mismo frame desaparecen (el `BlitterRaster` de la escena ejecuta el fill por Blitter asíncrono y
-  pisa lo dibujado después); `set_raster(nullptr)` cuelga el arranque. **Requiere sesión de
-  depuración dedicada** (dirty rects + sincronía con VBlank + verificación por canal lateral). La
-  demo se retiró del árbol para no romper la regresión; el código de G0–G7 queda host-verificado.
+- **Demo en hardware**: **`215_gui_widgets`** (escena planar EHB 320×256) ya **renderiza y
+  verifica**. La causa del fallo anterior era dibujar con el **`BlitterRaster` instalado**
+  (`backend.install_raster`): un *fill* grande por Blitter es **asíncrono** y pisaba los trazos
+  CPU del mismo frame. La solución es **no instalar el rasterizador Blitter** en la demo (dibujo
+  CPU, síncrono) y **repintar por zona** (la UI es estática salvo la pista del slider). Gate
+  objetivo: `tools/analyze/verify-gui-widgets.mjs` (panel/texto/bisel/foco presentes y el slider
+  cambia en una banda horizontal entre frames).
+- **Estado**: **demo entregada y verificada**. Queda la **aceleración Blitter** del raster
+  (`fill_rect` D-only, minterm `$FF`, y copias del compositor) y el **cursor por sprite de
+  hardware**, con test de equivalencia contra el camino de polígono.
 
 ## Tests y demos previstos
 
@@ -132,7 +133,8 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 | HOST-230 | test | Compositor y backing store (move/resize/raise/compose). |
 | HOST-261 | test | Entrada por **mensajes** (`os::Msg` → `UiContext`) con `keymap` rawkey→tecla lógica. |
 | HOST-262 | test | `Slider` (click/arrastre y flechas). |
-| `215_gui_widgets` | demo | Widgets y tema en hardware (G0–G6). **Pendiente**: renderizado de widgets sin resolver (ver G8). |
+| HOST-263 | test | Keymaps nacionales (ES/FR/IT/DE/RU) y `dispatch_msg` con el layout del contexto. |
+| `215_gui_widgets` | demo | Widgets y tema en hardware (G0–G6). **Entregada y verificada** (G8). |
 | 208_gui_compositor | demo | Ventanas movibles/redimensionables con backing store (G7). |
 
 ## Riesgos y decisiones abiertas
@@ -156,11 +158,15 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 **G0–G7 entregados** (HOST-223…HOST-230): `theme`/`painter`/`text`, `widget`/`dirty`/`widgets`
 (`Panel`/`Label`/`Button`/`CheckBox`/`RadioButton`/`Slider`), `keys`/`keymap`/`editbox`/`context`
 (foco), `layout`, `window` (Window/Popup/Toast/Dialog), `backing`/`compositor` y la **entrada por
-mensajes** (`msg_adapter` + `ui_bridge`, HOST-261/262). Solo queda **G8**: la **demo en hardware**
-(`215_gui_widgets`, renderizado de widgets sin resolver; ver G8) + aceleración Blitter
-(`fill_rect` D-only, copias del compositor) y el cursor por sprite. En G8 se expondrá la superficie
-estable en `eng/api/api.hpp`.
+mensajes** (`msg_adapter` + `ui_bridge`, HOST-261/262) con **keymaps nacionales** (HOST-263).
 
-La GUI queda **fuera** de `eng/api/api.hpp` hasta que exista su primer consumidor hardware (demo
-G8); entonces se expondrá solo la superficie estable. El `fill_rect` D-only del raster se deja
-para G8, con test de equivalencia.
+**G8 (demo en hardware) entregada**: `215_gui_widgets` renderiza y verifica (gate objetivo con
+`verify-gui-widgets.mjs`). La distribución nacional es **estado del `UiContext`** (`ctx.layout`),
+que fija la aplicación al arrancar; `dispatch_msg` la usa, sin ir fija en la llamada. La superficie
+estable de la GUI se expone en `eng/api/api.hpp` mediante la fachada `eng/ui/ui.hpp`.
+
+Queda pendiente de G8 la **aceleración Blitter** del raster (`fill_rect` D-only, minterm `$FF`, y
+copias del compositor) y el **cursor por sprite de hardware**, con test de equivalencia contra el
+camino de polígono. Los **keymaps** son *best-effort* para el área principal (0x00–0x3F): falta
+validarlos contra el ROM y **componer teclas muertas**; el cirílico (RU) requiere glifos fuera de
+`Font8`/`Font5x7`.

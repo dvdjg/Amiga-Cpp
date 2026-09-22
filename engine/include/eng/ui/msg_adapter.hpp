@@ -13,16 +13,16 @@
 
 namespace eng::ui {
 
-/// Despacha un `os::Msg` de entrada al `UiContext` (traduce rawkey→tecla lógica según `layout`).
+/// Despacha un `os::Msg` de entrada al `UiContext`, traduciendo el rawkey a carácter con la
+/// **distribución del propio contexto** (`ctx.layout`, la que fija la aplicación al arrancar).
 /// `true` si el contexto lo consumió; `false` si el mensaje no es de entrada o nadie lo atendió.
-inline bool dispatch_msg(UiContext& ctx, const eng::os::Msg& m,
-			 KeyboardLayout layout = KeyboardLayout::Us) {
+inline bool dispatch_msg(UiContext& ctx, const eng::os::Msg& m) {
 	UiEvent e {};
 	if (!to_ui_event(m, e)) {
 		return false;
 	}
 	if (e.kind == UiEventKind::KeyDown || e.kind == UiEventKind::KeyUp) {
-		e.key = rawkey_to_key(static_cast<eng::u8>(e.key & 0xffu), e.shift, layout);
+		e.key = rawkey_to_key(static_cast<eng::u8>(e.key & 0xffu), e.shift, ctx.layout);
 	}
 	return ctx.dispatch(e);
 }

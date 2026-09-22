@@ -89,11 +89,12 @@ int main() {
 	eng::ui::UiContext ctx;
 	ctx.set_root(&root);
 	ctx.set_focus(&e);
+	ctx.layout = KeyboardLayout::Es; // la fija la aplicacion, no va en la llamada
 
 	eng::os::Msg m {};
 	m.type = eng::os::MsgType::KeyDown;
 	m.payload.key = {0x15u, 0u}; // posicion de la 'y' en US; 'z' en DE
-	eng::ui::dispatch_msg(ctx, m, KeyboardLayout::De);
+	eng::ui::dispatch_msg(ctx, m);
 	check(buf[0] == 'z' && e.len == 1u, "dispatch_msg con layout DE inserta 'z'");
 
 	if (failures == 0) {

@@ -16,6 +16,9 @@ No depende del mini-SO (`eng::os`), pero se integra con él por el puente `os::M
 
 ## Cabeceras
 
+`ui.hpp` es la **fachada** (un solo include con la superficie estable); la incluye
+`eng/api/api.hpp`.
+
 | Cabecera | Contenido |
 |---|---|
 | `theme.hpp` | `UiTheme` (colores lógicos + métricas) y presets (`kThemeWb13`/`kThemeWb2`/`kThemeFlat`); `Rect` = `eng::Box`. **Implementado** (HOST-223). |
@@ -29,13 +32,13 @@ No depende del mini-SO (`eng::os`), pero se integra con él por el puente `os::M
 | `keymap.hpp` | Traducción **rawkey Amiga → carácter** por **distribución nacional** (US/ES/FR/IT/DE/RU) + Shift. **Implementado** (HOST-261/263); teclas muertas y validación contra el ROM, pendientes. |
 | `editbox.hpp` | `EditBox` (buffer externo, caret, vista horizontal). **Implementado** (HOST-227). |
 | `slider.hpp` | `Slider` (sobre `s16*`, click/arrastre y flechas). **Implementado** (HOST-262). |
-| `context.hpp` | `UiContext`: hit-test, foco (`Tab`), modalidad, `Esc`, popups y TTL de toasts. **Implementado** (HOST-225/229). |
+| `context.hpp` | `UiContext`: hit-test, foco (`Tab`), modalidad, `Esc`, popups, TTL de toasts y la **distribución nacional** (`layout`, la fija la app al arrancar). **Implementado** (HOST-225/229). |
 | `layout.hpp` | `layout_stack_v`/`layout_stack_h` y `anchor`. **Implementado** (HOST-228). |
 | `window.hpp` | `Window`, `WindowKind` (`Window`/`Popup`/`Toast`/`Dialog`) y Z-order. **Implementado** (HOST-229). |
 | `backing.hpp` | `WindowBacking` (lienzo planar + `Surface`). **Implementado** (HOST-230). |
 | `compositor.hpp` | `Compositor` (add/raise/move/resize/damage/present; *copies* de backings a pantalla). **Implementado** (HOST-230). |
 | `ui_bridge.hpp` | Puente `eng::os::Msg` → `UiEvent`. **Implementado** (HOST-220). |
-| `msg_adapter.hpp` | `dispatch_msg`: `os::Msg` de entrada → `UiContext` (con `keymap`). **Implementado** (HOST-261). |
+| `msg_adapter.hpp` | `dispatch_msg`: `os::Msg` de entrada → `UiContext` (traduce con `ctx.layout`). **Implementado** (HOST-261/263). |
 
 Los rectángulos de UI son `eng::Box` (`eng/core/box.hpp`); no hay un `rect.hpp` propio. Reglas del
 engine: sin heap en el camino caliente, sin excepciones ni RTTI, `gnu++23`, tipos de `eng/core`,
