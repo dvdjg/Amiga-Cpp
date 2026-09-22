@@ -19,6 +19,7 @@
 /// `eng/audio/amiga/`) y dejar en `eng/audio/` solo las intenciones. Solo paga
 /// hacerlo cuando haya segunda plataforma o se reutilice `eng/audio` en host.
 
+#include <eng/audio/audio_mode.hpp>
 #include <eng/audio/music_player.hpp>
 #include <eng/audio/sfx_mixer.hpp>
 
@@ -42,6 +43,40 @@ public:
 	/// arranca aparte con `play_music()`.
 	bool init(MemorySystem& memory) {
 		return m_sfx.init(memory);
+	}
+
+	/// Inicia con **modo y config** (A0): arranca el mixer, aplica el reparto de canales del modo.
+	bool init(MemorySystem& memory, const AudioConfig& cfg) {
+		m_cfg = cfg;
+		if (!init(memory)) {
+			return false;
+		}
+		set_sfx_volume(cfg.master_sfx_vol);
+		set_music_volume(cfg.master_music_vol);
+		return set_mode(cfg.mode);
+	}
+
+	/// Modo de audio vigente.
+	[[nodiscard]] AudioMode mode() const { return m_mode; }
+	/// Reparto de canales del modo vigente (sin solape).
+	[[nodiscard]] ChannelQuota quota() const { return channel_quota(m_mode); }
+	[[nodiscard]] const AudioConfig& config() const { return m_cfg; }
+
+	/// Cambia de modo: para la música si el modo no la habilita, ajusta su máscara y deja el
+	/// reparto listo. **Único punto** (junto con `init`) que fija el reparto de canales.
+	///
+	/// Nota: el mixer de SFX tiene máscara **fija** en `mixer_config.i`, así que `GameSfxOnly`
+	/// (mixer a 4 canales) no reconfigura el mixer en runtime; el modo documenta el objetivo y
+	/// corta/ajusta lo que sí es runtime (música y su máscara).
+	bool set_mode(AudioMode mode) {
+		m_mode = mode;
+		const ChannelQuota q = channel_quota(mode);
+		if (!q.music_enabled) {
+			stop_music();
+		} else {
+			set_music_channel_mask(q.music_hw_mask);
+		}
+		return true;
 	}
 
 	/// Detiene música y SFX, y desinstala el handler del mixer.
@@ -139,6 +174,8 @@ private:
 	P61Player m_p61 {};
 	PtPlayer m_pt {};
 	MusicFormat m_format = MusicFormat::None;
+	AudioMode m_mode = AudioMode::Game;
+	AudioConfig m_cfg {};
 };
 
 } // namespace eng::audio

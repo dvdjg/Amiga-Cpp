@@ -24,9 +24,13 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
   `AudioConfig`, `init`/`shutdown`/`set_mode`/`mode`; helpers `eng::audio::paula`
   (`period_for_hz`, `dmacon_set`/`clr`, `stop_channels`, `set_buffer`).
 - **Detalle**: §7 de [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md).
-- **Verificación**: **HOST-240** — `set_mode` reparte las máscaras correctas por modo y la parada
-  es ordenada (`vol=0` + `DMACON` clear); `period_for_hz` acota 124..65535.
-- **Estado**: pendiente.
+- **Verificación**: **HOST-269** (planificado como HOST-240) — `channel_quota` reparte las máscaras
+  correctas por modo sin solapar mixer/música, y `period_for_hz` acota 124..65535. La parada
+  ordenada (`vol=0` + `DMACON`) la hace el backend Amiga.
+- **Estado**: **entregado** (`eng/audio/audio_mode.hpp` + extensión de `AudioSystem` con
+  `init(memory, cfg)`/`set_mode`/`mode`; HOST-269). Nota: el mixer de SFX tiene máscara **fija** en
+  `mixer_config.i`, así que `GameSfxOnly` no reconfigura el mixer en runtime (documentado en el
+  header).
 
 ### A1 — Reproductor OctaMED (títulos, 8 canales SW)
 
@@ -85,7 +89,7 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
 
 | ID | Tipo | Contenido |
 |---|---|---|
-| HOST-240 | test | Modos de audio y reparto de canales; `period_for_hz`. |
+| HOST-269 | test | Modos de audio y reparto de canales; `period_for_hz` (planificado como HOST-240). |
 | HOST-241 | test | `MusicEnd`/`AudioUnderrun` (semántica, sin mensaje por buffer). |
 | HOST-242 | test | Codec Delta + RLE (round-trip byte a byte). |
 | HOST-243 | test | Descompresores ZX0 / aPLib (vectores de referencia). |
