@@ -89,7 +89,7 @@ int main() {
 	eng::ui::UiContext ctx;
 	ctx.set_root(&root);
 	ctx.set_focus(&e);
-	ctx.layout = KeyboardLayout::Es; // la fija la aplicacion, no va en la llamada
+	ctx.layout = KeyboardLayout::De; // la fija la aplicacion, no va en la llamada
 
 	eng::os::Msg m {};
 	m.type = eng::os::MsgType::KeyDown;

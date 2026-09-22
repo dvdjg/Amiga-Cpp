@@ -721,6 +721,85 @@ bool MinimalBackend::blitter_area_fill_rect(eng::PlaneBytes plane, u16 row_bytes
 	return wait ? wait_blitter() : true;
 }
 
+bool MinimalBackend::blitter_fill_rect(eng::u8* plane_base, u8 planes, u32 plane_stride,
+				       u32 row_stride, u16 row_bytes, u16 bitmap_w, u16 bitmap_h,
+				       s32 x, s32 y, u16 w, u16 h, u8 color, bool wait) {
+	if (plane_base == nullptr || planes == 0u || row_bytes == 0u || w == 0u || h == 0u) {
+		return false;
+	}
+	(void)row_bytes; // el stride de fila real es `row_stride` (contiguo == row_bytes)
+	// Recorta el rect a los limites del bitmap.
+	if (x < 0) {
+		const s32 d = -x;
+		if (d >= static_cast<s32>(w)) return true;
+		w = static_cast<u16>(w - d);
+		x = 0;
+	}
+	if (y < 0) {
+		const s32 d = -y;
+		if (d >= static_cast<s32>(h)) return true;
+		h = static_cast<u16>(h - d);
+		y = 0;
+	}
+	if (x >= static_cast<s32>(bitmap_w) || y >= static_cast<s32>(bitmap_h)) {
+		return true;
+	}
+	if (x + static_cast<s32>(w) > static_cast<s32>(bitmap_w)) {
+		w = static_cast<u16>(static_cast<s32>(bitmap_w) - x);
+	}
+	if (y + static_cast<s32>(h) > static_cast<s32>(bitmap_h)) {
+		h = static_cast<u16>(static_cast<s32>(bitmap_h) - y);
+	}
+	// Rango de palabras y mascaras de borde (para x/w no alineados a 16).
+	const u16 wx0 = static_cast<u16>(x & ~15); // pixel x de la primera palabra
+	const u16 wx1 = static_cast<u16>((x + static_cast<s32>(w) - 1) & ~15);
+	const u16 words = static_cast<u16>(((wx1 - wx0) >> 4) + 1u);
+	const u16 afwm = static_cast<u16>(0xffffu >> (x & 15));
+	const u16 alwm = static_cast<u16>(0xffffu << (15 - ((x + static_cast<s32>(w) - 1) & 15)));
+	constexpr u16 kMaxWords = 64u; // >= 20 palabras (320 px); cubre hasta 1024 px de ancho
+	constexpr u16 kMaxRows = 256u; // altura de pantalla; rects mayores se rechazan
+	if (words == 0u || words > kMaxWords || h > kMaxRows) {
+		return false;
+	}
+	const u16 rstride = static_cast<u16>(row_stride);
+	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
+	for (u8 p = 0u; p < planes; ++p) {
+		eng::u8* plane = plane_base + static_cast<u32>(p) * plane_stride;
+		const bool on = (color & (1u << p)) != 0u;
+		const u16 fill = on ? 0xffffu : 0x0000u;
+		// El Blitter rellena palabras COMPLETAS; los bits fuera del rect en la primera y ultima
+		// palabra se preservan guardando su valor y restaurando la parte externa tras el fill
+		// (la mascara por AFWM/ALWM solo aplica al canal A, no a un fill D-only sin fuente).
+		eng::u16 saved_first[kMaxRows];
+		eng::u16 saved_last[kMaxRows];
+		wait_blitter();
+		for (u16 r = 0u; r < h; ++r) {
+			const eng::u16* row = reinterpret_cast<const eng::u16*>(
+				plane + row_offset(static_cast<eng::s16>(y + r), rstride) + (wx0 >> 3));
+			saved_first[r] = row[0];
+			saved_last[r] = row[words - 1u];
+		}
+		if (on) {
+			blit_set_region(plane, rstride, wx0, static_cast<eng::s16>(y), words, h);
+		} else {
+			blit_clear_region(plane, rstride, wx0, static_cast<eng::s16>(y), words, h);
+		}
+		wait_blitter();
+		for (u16 r = 0u; r < h; ++r) {
+			eng::u16* row = reinterpret_cast<eng::u16*>(
+				plane + row_offset(static_cast<eng::s16>(y + r), rstride) + (wx0 >> 3));
+			if (words == 1u) {
+				const u16 m = static_cast<u16>(afwm & alwm);
+				row[0] = static_cast<eng::u16>((saved_first[r] & static_cast<eng::u16>(~m)) | (fill & m));
+			} else {
+				row[0] = static_cast<eng::u16>((saved_first[r] & static_cast<eng::u16>(~afwm)) | (fill & afwm));
+				row[words - 1u] = static_cast<eng::u16>((saved_last[r] & static_cast<eng::u16>(~alwm)) | (fill & alwm));
+			}
+		}
+	}
+	return wait ? wait_blitter() : true;
+}
+
 bool MinimalBackend::blitter_busy() const {
 	return (custom_base[custom_dmaconr_offset] & dmaconr_blitter_busy) != 0u;
 }

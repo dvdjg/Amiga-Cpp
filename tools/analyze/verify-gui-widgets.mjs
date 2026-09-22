@@ -83,10 +83,20 @@ if (image) {
 		console.log(`    ${path.basename(r.imagePath)}: panel=${r.fill} texto=${r.text} bisel=${r.shine} foco=${r.ring}`);
 	}
 	check(results.every((r) => r.fill > 10000 && r.text > 500), 'panel y texto en todos los frames');
-	const d = diff(path.join(seqDir, frames[0]), path.join(seqDir, frames[frames.length - 1]));
-	console.log(`    diff primer/ultimo frame: ${d.n} px, caja ${d.w}x${d.h}`);
-	check(d.n > 100, `la UI anima entre frames (${d.n} px cambian)`);
-	check(d.h > 0 && d.h < 60, `el cambio es una banda horizontal (repintado por zona, alto ${d.h})`);
+	// La animacion se comprueba entre frames CONSECUTIVOS (primero y ultimo pueden coincidir si
+	// el periodo del slider casa con el intervalo de captura).
+	let animated = false;
+	let band = false;
+	for (let i = 1; i < frames.length; ++i) {
+		const d = diff(path.join(seqDir, frames[i - 1]), path.join(seqDir, frames[i]));
+		console.log(`    diff ${frames[i - 1]} -> ${frames[i]}: ${d.n} px, caja ${d.w}x${d.h}`);
+		if (d.n > 100) {
+			animated = true;
+			if (d.h > 0 && d.h < 60) band = true;
+		}
+	}
+	check(animated, 'la UI anima entre frames consecutivos');
+	check(band, 'el cambio se concentra en una banda horizontal (repintado por zona)');
 } else {
 	console.error('Uso: verify-gui-widgets.mjs --image <png> | --sequence-dir <dir>');
 	process.exit(2);

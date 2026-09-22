@@ -30,6 +30,8 @@ public:
 	/// Distribución nacional con la que se traduce el rawkey (ver `keymap.hpp`). La fija la
 	/// aplicación al arrancar (según el país del sistema o su configuración), no va fija en el código.
 	KeyboardLayout layout = KeyboardLayout::Us;
+	/// Acento muerto pendiente de componer (teclas muertas, ver `keymap.hpp`).
+	DeadKeyState dead {};
 
 	void set_root(Widget* r) noexcept { root = r; }
 

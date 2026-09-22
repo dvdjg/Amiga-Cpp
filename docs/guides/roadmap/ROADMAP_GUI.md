@@ -115,9 +115,15 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
   CPU, síncrono) y **repintar por zona** (la UI es estática salvo la pista del slider). Gate
   objetivo: `tools/analyze/verify-gui-widgets.mjs` (panel/texto/bisel/foco presentes y el slider
   cambia en una banda horizontal entre frames).
-- **Estado**: **demo entregada y verificada**. Queda la **aceleración Blitter** del raster
-  (`fill_rect` D-only, minterm `$FF`, y copias del compositor) y el **cursor por sprite de
-  hardware**, con test de equivalencia contra el camino de polígono.
+- **`fill_rect` D-only por Blitter**: **entregado**. `MinimalBackend::blitter_fill_rect` rellena
+  el rect con minterm `$FF`/`$00` (D-only, sin fuente: el Blitter solo ve Chip RAM) y repara por
+  CPU la primera/última palabra para x/w no alineados. Se conecta por el *seam*
+  `field::RectFillSink` (`Playfield::fill_rect_hw`, `Scene::set_rect_fill_sink`), que
+  `BlitterRaster::fill_rect` prefiere al camino de polígono. Contrato en HOST-266; la ruta de
+  hardware se valida con el **self-test de la demo 215** (rect relleno y comprobado por bits).
+- **Estado**: **demo entregada y verificada** (los *fills* de caja van por el Blitter D-only;
+  líneas y texto por CPU). Quedan las **copias del compositor por Blitter** (`CopyRect` en el
+  `FramePlan`) y el **cursor por sprite de hardware**.
 
 ## Tests y demos previstos
 

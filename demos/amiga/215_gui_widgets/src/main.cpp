@@ -70,6 +70,15 @@ ui::UiTheme make_theme() {
 	return t;
 }
 
+/// Callback del `field::RectFillSink`: rellena el rect por el Blitter D-only del backend.
+bool rect_fill_cb(void* ctx, eng::u8* base, eng::u8 planes, eng::u32 plane_stride,
+		  eng::u32 row_stride, eng::u16 row_bytes, eng::u16 bw, eng::u16 bh,
+		  eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h, eng::u8 color) {
+	auto* b = static_cast<eng::amiga::MinimalBackend*>(ctx);
+	return b->blitter_fill_rect(base, planes, plane_stride, row_stride, row_bytes, bw, bh, x, y, w,
+				    h, color, true);
+}
+
 struct DemoGame {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
@@ -89,6 +98,18 @@ struct DemoGame {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000215u);
 			return;
 		}
+
+		// Self-test de hardware del relleno de rect D-only por Blitter (motor del RectFillSink).
+		if (!verify_blitter_fill(backend)) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00021502u);
+			return;
+		}
+
+		// Raster Blitter (los fills de caja van por el Blitter D-only, sincrono) + sink de rect.
+		// Las lineas y el texto siguen por CPU (sin FramePlan): el rect D-only no es asincrono.
+		m_scene.set_rect_fill_sink(eng::field::RectFillSink {&backend, &rect_fill_cb});
+		m_scene.set_raster(&eng::field::kBlitterRaster,
+				   eng::field::RasterPolicy {eng::field::AccelMode::Auto, 64u, true});
 
 		build_tree();
 		if (!verify_ui()) {
@@ -170,6 +191,12 @@ private:
 		m_status.bounds = ui::Rect {24, 150, 260, 10};
 		m_status.text = "Listo. Tab cambia el foco.";
 
+		// Prueba de la fuente cirilica en hardware (HOST-264): el literal UTF-8 se
+		// decodifica y se pinta con los glifos U+04xx de `Font8`.
+		m_cyr.bounds = ui::Rect {24, 166, 260, 10};
+		m_cyr.text = "Привет, Амига! Ёж";
+
+		m_root.add_child(&m_cyr);
 		m_root.add_child(&m_status);
 		m_root.add_child(&m_slider);
 		m_root.add_child(&m_edit);
@@ -184,6 +211,33 @@ private:
 	}
 
 	/// Auto-test EN HARDWARE (misma logica que los tests host de `eng::ui`): el hit-test
+	/// Self-test EN HARDWARE del relleno de rect D-only por Blitter (`blitter_fill_rect`):
+	/// llena el rect (10,2)-(29,4) de un plano 64x16 y comprueba los bits dentro y fuera. Valida
+	/// el motor que consume el `RectFillSink` (equivalencia con el relleno CPU esperado).
+	bool verify_blitter_fill(eng::amiga::MinimalBackend& backend) {
+		constexpr eng::u16 fw = 64;
+		constexpr eng::u16 fh = 16;
+		constexpr eng::u16 frow = fw / 8u; // 8 bytes/fila
+		constexpr eng::u32 fplane = static_cast<eng::u32>(frow) * fh;
+		auto blk = backend.memory().chip.allocate_block<eng::PlaneTag>(fplane + 16u, 16);
+		if (!blk.valid()) {
+			return false;
+		}
+		for (eng::u32 i = 0; i < fplane; ++i) {
+			blk.view.data()[i] = 0u;
+		}
+		if (!backend.blitter_fill_rect(blk.view.data(), 1u, fplane, frow, frow, fw, fh, 10, 2, 20u,
+					       3u, 1u, true)) {
+			return false;
+		}
+		auto on = [&](eng::u16 x, eng::u16 y) {
+			return (blk.view.data()[static_cast<eng::u32>(y) * frow + (x >> 3)] &
+				(0x80u >> (x & 7u))) != 0u;
+		};
+		return on(10, 2) && on(29, 2) && on(10, 4) && on(29, 4) &&
+		       !on(9, 2) && !on(30, 2) && !on(10, 1) && !on(10, 5) && !on(0, 0);
+	}
+
 	/// encuentra el boton en su centro y un click sobre la casilla alterna su valor. Si la
 	/// geometria o el despacho fallaran en m68k, la demo iria a Failed en vez de Ready.
 	bool verify_ui() {
@@ -202,7 +256,17 @@ private:
 		up.x = 128;
 		up.y = 48;
 		m_ctx.dispatch(up);
-		return m_sound != before;
+		if (m_sound == before) {
+			return false;
+		}
+		// Fuente cirilica (HOST-264): А (U+0410) y я (U+044F) deben tener glifo.
+		bool cyr_ok = false;
+		for (eng::u8 r = 0; r < eng::Font8::kRows; ++r) {
+			if (eng::Font8::row(0x0410u, r) != 0u && eng::Font8::row(0x044Fu, r) != 0u) {
+				cyr_ok = true;
+			}
+		}
+		return cyr_ok;
 	}
 
 	/// Pinta el arbol completo una sola vez (la UI es estatica salvo la pista del slider).
@@ -230,6 +294,7 @@ private:
 	ui::EditBox m_edit {};
 	ui::Slider m_slider {};
 	ui::Label m_status {};
+	ui::Label m_cyr {};
 
 	ui::UiTheme m_theme = make_theme();
 	ui::UiContext m_ctx {};
