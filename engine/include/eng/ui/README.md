@@ -14,23 +14,23 @@ No reinventa el dibujo: reutiliza `Surface` (`fill_rect`/`draw_line`/`draw_text`
 `blit_masked`), las fuentes `Font8`/`Font5x7` y `field::FlatPlayfield` como backing de ventana.
 No depende del mini-SO (`eng::os`), pero se integra con él por el puente `os::Msg` → `UiEvent`.
 
-## Cabeceras previstas
+## Cabeceras
 
 | Cabecera | Contenido |
 |---|---|
-| `theme.hpp` | `UiTheme` (colores lógicos + métricas) y presets (`kThemeWb13`/`kThemeWb2`/`kThemeFlat`). |
-| `painter.hpp` | `UiPainter`: *chrome* sobre `Surface` (fills, marcos, bevels, paneles, glifos). |
-| `text.hpp` | `text_width`, `draw_text_clipped` (reusa `Font8`/`Font5x7`). |
-| `widget.hpp` | `WidgetType`, `WidgetFlags` y `Widget` (árbol intrusivo, sin heap). |
-| `dirty.hpp` | `DirtyList<Max>` con fusión de regiones (rects = `eng::Box`). |
+| `theme.hpp` | `UiTheme` (colores lógicos + métricas) y presets (`kThemeWb13`/`kThemeWb2`/`kThemeFlat`); `Rect` = `eng::Box`. **Implementado** (HOST-223). |
+| `painter.hpp` | `UiPainter`: *chrome* sobre `Surface` (fills, marcos, bevels, paneles, glifos). **Implementado** (HOST-223). |
+| `text.hpp` | `text_width`, `draw_text_clipped` (reusa `Font8`/`Font5x7`). **Implementado** (HOST-223). |
+| `widget.hpp` | `WidgetType`, `WidgetFlags` y `Widget` (árbol intrusivo, sin heap ni `virtual`). **Implementado** (HOST-224). |
+| `dirty.hpp` | `DirtyList<Max>` con fusión de regiones (rects = `eng::Box`). **Implementado** (HOST-224). |
 | `event.hpp` | `UiEvent`, `UiEventKind`. **Implementado** (HOST-220). |
-| `widgets.hpp` | `Panel`, `Label`, `Button`, `CheckBox`, `RadioButton`. |
+| `widgets.hpp` | `Panel`/`Label` (G1), `Button` (G2), `CheckBox`/`RadioButton` (G3). Despacho por `switch` exhaustivo y `measure`. **Implementado** (HOST-224/225/226). |
+| `context.hpp` | `UiContext`: hit-test de delante hacia atrás, foco y despacho. **Implementado** (HOST-225). |
 | `editbox.hpp` | `EditBox` (buffer externo, caret, foco). |
 | `layout.hpp` | `layout_stack_v`/`layout_stack_h` y anclaje. |
 | `window.hpp` | `Window`, `WindowKind` (`Window`/`Popup`/`Toast`/`Dialog`) y Z-order. |
 | `backing.hpp` | `WindowBacking` (`FlatPlayfield` + `Surface` en Chip RAM). |
 | `compositor.hpp` | `Compositor` (move/resize/raise/damage/present; *copies* de backings a pantalla). |
-| `context.hpp` | `UiContext` (dirty, foco, hit-test, dispatch, paint). |
 | `ui_bridge.hpp` | Puente `eng::os::Msg` → `UiEvent`. **Implementado** (HOST-220). |
 
 Los rectángulos de UI son `eng::Box` (`eng/core/box.hpp`); no hay un `rect.hpp` propio. Reglas del

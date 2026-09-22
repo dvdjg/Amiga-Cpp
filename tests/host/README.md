@@ -259,6 +259,10 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-219 | [os_core](219_os_core/README.md) | Mini-SO núcleo (`eng/os/message.hpp` + `port.hpp`): `Msg` trivial, `MsgQueue` SPSC (FIFO/peek/overflow) y señales OR-eadas. |
 | HOST-220 | [ui_bridge](220_ui_bridge/README.md) | Mini-SO: puente `os::Msg` → `ui::UiEvent` (ratón, teclado con modificadores, joystick/pad; descarta lo que no es entrada). |
 | HOST-222 | [os_timer](222_os_timer/README.md) | Mini-SO: `TimerService` (frames/µs, one-shot/periódico, `stop`, capacidad). |
+| HOST-223 | [ui_painter](223_ui_painter/README.md) | GUI G0: `eng::ui::UiPainter`/`UiTheme` (chrome: `fill`/`frame`/`bevel_out`/`bevel_in`/`panel`/`button_face`/glifo), medida y recorte de texto (`text_width`/`draw_text_clipped`) y `eng::ui::Rect` = `eng::Box`. |
+| HOST-224 | [ui_widgets](224_ui_widgets/README.md) | GUI G1: árbol de widgets (`eng/ui/widget.hpp`), `DirtyList<Max>` (fusión/desborde) y `Panel`/`Label` con `draw_widget` (`switch` exhaustivo) y `measure`. |
+| HOST-225 | [ui_context](225_ui_context/README.md) | GUI G2: `eng::ui::UiContext` (hit-test de delante hacia atrás, foco, despacho) y `Button` (`on_click` al soltar dentro, una vez). |
+| HOST-226 | [ui_toggle](226_ui_toggle/README.md) | GUI G3: `CheckBox` (alterna `*value` al soltar dentro) y `RadioButton` (activa uno y desactiva el grupo por `group_id`). |
 | HOST-231 | [box](231_box/README.md) | `eng::Box` (rect 16 bits) + adaptadores a/desde `SurfaceRect`/`ClipRect`/`DirtyRect` (round-trip y bordes). |
 | HOST-232 | [draw_target](232_draw_target/README.md) | `field::DrawTarget` (Surface+Rasterizer+FramePlan+clip): `fill`/`line`/`frame`/`c2p` y `box()`. |
 | HOST-233 | [api_facade](233_api_facade/README.md) | Fachada pública `eng/api/api.hpp`: un solo include expone la API estable (Box, FramePlan, raster, entrada, tareas, paleta, `GameModule`). |
