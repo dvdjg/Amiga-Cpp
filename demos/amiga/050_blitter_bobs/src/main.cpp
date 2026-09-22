@@ -198,7 +198,7 @@ struct DemoGame {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({
-			72u * 1024u,
+			scene::chip_bytes_for(scene::planar(320u, 256u, 6)), // bitplanes + copper doble.
 			8u * 1024u,
 			4u * 1024u,
 		});

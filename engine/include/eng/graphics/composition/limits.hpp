@@ -326,7 +326,9 @@ inline constexpr DisplayLimits aga_a1200 {
 		buffers = 3u;
 	}
 	const eng::u32 copper = 2u * res.copper_bytes; // doble buffer del Plan
-	return static_cast<eng::u32>(plane_bytes) * buffers + copper + 1024u; // margen
+	// Margen para la sobrecarga del arena (alineación/metadatos), la `Timeline` y los parches
+	// de paleta/zonas. 4 KB cubre holgadamente una escena EHB estándar.
+	return static_cast<eng::u32>(plane_bytes) * buffers + copper + 4096u;
 }
 
 // ---------------------------------------------------------------------------------------
