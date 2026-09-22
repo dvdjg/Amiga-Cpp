@@ -39,12 +39,12 @@ Este documento convierte el roadmap general en una tabla de trabajo mantenible. 
 | 05 | Fire RGB | `effects/fire-rgb` | `NO_INICIADO` | `DX05_fire_rgb` | `engine_c2p_*` / `engine_blit_*` | Tecnica compuesta; mejor dejarla para oleada tardia. |
 | 06 | Wireframe | `effects/wireframe` | `NO_INICIADO` | `DX06_wireframe` | `engine_3d_*` / `engine_blit_line_*` | Muy util para futura capa 3D del engine. |
 | 07 | Shapes | `effects/shapes` | `NO_INICIADO` | `DX07_shapes_fill` | `engine_2d_*` / `engine_blit_fill_*` | Puede converger con B03/B04 y con libs 2D. |
-| 08 | Floor | `effects/floor` | `NO_INICIADO` | `DX08_floor_scroll` | `engine_scroll_*` / `engine_copper_*` | Muy interesante para scroll y `BPLCON1` por linea. |
+| 08 | Floor | `effects/floor` | `NO_INICIADO` | `DX08_floor_scroll` | `engine_scroll_*` / `engine_copper_*` | Muy interesante para scroll y `BPLCON1` por linea. Ver [copper-road-rasters.md](../../reference/amiga/techniques/copper-road-rasters.md) + [ROADMAP_RASTER_ROAD.md](../../guides/roadmap/ROADMAP_RASTER_ROAD.md). |
 | 09 | TextScroll | `effects/textscroll` | `NO_INICIADO` | `DX09_textscroll` | `engine_textscroll_*` | Alta prioridad para texto y copper `bplpt` por linea. |
 | 10 | Loader | `effects/loader` | `CASO_BATERIA` | `DX10_loader_import` | loader / dev harness / `engine_loader_screen_*` | Fase 1 ya importada: ilustracion y barra de progreso funcionan en vivo con `stage_id=0xDA04`; audio tracker sigue diferido y la evidencia temporal APNG sigue pendiente por el pipeline de secuencias. |
 | 11 | Game of Life | `effects/game-of-life` | `NO_INICIADO` | `DX11_game_of_life` | `engine_blit_minterm_*` | Muy buen caso de blitter creativo. |
 | 12 | Stripes | `effects/stripes` | `NO_INICIADO` | `DX12_stripes_copper` | `engine_copper_color_bands_*` | Caso pequeno de copper por linea. |
-| 13 | Highway | `effects/highway` | `NO_INICIADO` | `DX13_highway` | scroll/zonas/sprites | Tecnica compuesta; no entrar temprano. |
+| 13 | Highway | `effects/highway` | `NO_INICIADO` | `DX13_highway` | scroll/zonas/sprites | Tecnica compuesta; no entrar temprano. Ver [copper-road-rasters.md](../../reference/amiga/techniques/copper-road-rasters.md) + [ROADMAP_RASTER_ROAD.md](../../guides/roadmap/ROADMAP_RASTER_ROAD.md). |
 | 14 | Metaballs | `effects/metaballs` | `NO_INICIADO` | `DX14_metaballs` | blob/blit helpers | Buena referencia de mascaras y doble buffer. |
 | 15 | Indice resto | `docs/tutoriales/15-indice-resto.md` | `REFERENCIA_SOLO` | N/A | N/A | Documento indice, no efecto. |
 | 16 | Abduction | `effects/abduction` | `NO_INICIADO` | `DX16_abduction` | anim/layers helpers | Posible referencia de animacion por frames. |
@@ -72,7 +72,7 @@ Este documento convierte el roadmap general en una tabla de trabajo mantenible. 
 | 38 | Kbtest | `effects/kbtest` | `NO_INICIADO` | `DX38_kbtest` | `engine_input_*` | Alta prioridad por input y sistema. |
 | 39 | Layers | `effects/layers` | `IMPORTADO` | `demos/amiga/125_layers_dualpf` | `copper::Template` (slots), `Patch` de copperlist | Porte en el engine C++23: dual playfield 3+3 (`background`->PF1, `foreground`->PF2), scroll omnidireccional independiente (`BPLxPT`+`BPLCON1`), gradientes por banda cada 8 lineas (`COLOR01..06`/`09..13`) y wrap vertical por `BPL1MOD/BPL2MOD`; assets importados copiados a CHIP (leccion del fallo de residencia). Visual validado (READY + captura). Rendimiento: ~32.5 fps; el cuello medido es la escritura de la copperlist en chip RAM durante el display (no CPU). Analisis tecnico: `docs/demos/effects/dx39-layers-original-analysis.md`. |
 | 40 | Lines | `effects/lines` | `NO_INICIADO` | `DX40_lines` | `engine_blit_line_*` | Util para especializaciones de dibujo. |
-| 41 | Magnifying-glass | `effects/magnifying-glass` | `NO_INICIADO` | `DX41_magnifying_glass` | zoom/copy helpers | Caso de copia y mascara interesante. |
+| 41 | Magnifying-glass | `effects/magnifying-glass` | `NO_INICIADO` | `DX41_magnifying_glass` | zoom/copy helpers | Caso de copia y mascara interesante. Ver [hardware-zoom.md](../../reference/amiga/techniques/hardware-zoom.md) + [ROADMAP_HW_ZOOM.md](../../guides/roadmap/ROADMAP_HW_ZOOM.md). |
 | 42 | MultiPipe | `effects/multipipe` | `NO_INICIADO` | `DX42_multipipe` | 3D fill pipeline | Tardia. |
 | 43 | Neons | `effects/neons` | `NO_INICIADO` | `DX43_neons` | palette cycling / layers | Buen caso visual 2D. |
 | 44 | PlayAHX | `effects/playahx` | `NO_INICIADO` | `DX44_playahx` | `engine_audio_ahx_*` | Prioridad media; requiere pipeline de audio. |

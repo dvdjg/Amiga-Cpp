@@ -221,6 +221,10 @@ struct MsgPort {
 
 	void signal(eng::u32 mask) noexcept { signalled = signalled | mask; }
 
+	/// Bits de señal pedidos que están **puestos, sin consumirlos** (0 si ninguno). No espera:
+	/// lo usa `os::wait` para decidir si puede salir (el *bloqueo* lo pone el host).
+	[[nodiscard]] eng::u32 pending(eng::u32 mask) const noexcept { return signalled & mask; }
+
 	/// Consume del campo `signalled` los bits pedidos que estén puestos (0 si ninguno). No espera.
 	eng::u32 take_signals(eng::u32 mask) noexcept {
 		const eng::u32 s = signalled;

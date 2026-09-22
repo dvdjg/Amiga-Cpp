@@ -195,3 +195,11 @@ del keymap** validadas contra la AHRM 3.ª (HOST-302: Space 0x40, cursores 0x4C/
 
 Pendiente: volcar la asignación de carácter de cada **distribución nacional** y los **Alt+tecla**
 de las teclas muertas desde `DEVS:Keymaps` del ROM (no disponibles en el repo; hoy *best-effort*).
+
+## Portabilidad a Workbench (backend de UI)
+
+El diseño de widgets/eventos ya es **neutral** (widgets sin `virtual`, entrada solo por `UiEvent`),
+así que la misma app puede correr además en **Workbench/Intuition** (ventanas del OS) sin reescribir
+los widgets. El plan está en [`ROADMAP_WORKBENCH.md`](ROADMAP_WORKBENCH.md): añade un *seam* de
+dibujo (**`PaintTarget`**: `Surface` | `RastPort`), un contrato de host (**`UiHost`** por plantilla,
+sin `virtual`) y un puente **IDCMP → `os::Msg` → `UiEvent`**.

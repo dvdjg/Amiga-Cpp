@@ -22,6 +22,12 @@ namespace eng::os {
 /// bucle principal una vez por frame. Lo implementa el backend Amiga.
 void tick();
 
+/// **Espera** a que haya alguna señal de `mask` y devuelve los bits ya listos (consumidos). El
+/// **host** decide cómo se bloquea: en el engine se coopera con `tick()` (ritmo de VBlank); en
+/// Workbench será `Wait(señales Exec)` (ver `ROADMAP_WORKBENCH.md`, W5). No bloquea con el teclado
+/// ni el ratón apagados: si no llega nada, gira en `tick()`.
+[[nodiscard]] eng::u32 wait(eng::u32 mask);
+
 /// Postea un mensaje de usuario (`MsgType::User`); seguro desde cualquier sitio.
 void post_user(eng::u32 code, eng::u32 a, eng::u32 b);
 

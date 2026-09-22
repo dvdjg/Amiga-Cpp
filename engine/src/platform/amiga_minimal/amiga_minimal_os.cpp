@@ -101,4 +101,20 @@ void tick() {
 	}
 }
 
+eng::u32 wait(eng::u32 mask) {
+	// Host del **engine**: se coopera con `tick()` (ritmo de VBlank) hasta que alguna señal de
+	// `mask` está puesta, y se devuelven los bits consumidos. En Workbench este `wait` se sustituye
+	// por `Wait(señales Exec)` + volcado `Exec -> Msg` (ver `ROADMAP_WORKBENCH.md`, W5).
+	if (mask == 0u) {
+		return 0u;
+	}
+	for (;;) {
+		const eng::u32 got = g_port.pending(mask);
+		if (got != 0u) {
+			return g_port.take_signals(got);
+		}
+		tick();
+	}
+}
+
 } // namespace eng::os
