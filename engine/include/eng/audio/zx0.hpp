@@ -31,6 +31,7 @@ struct BitReader {
 	bool backtrack = false;
 	bool ok = true;
 
+	/// Lee el siguiente byte crudo del flujo (`ok=false` si se agota).
 	[[nodiscard]] eng::s32 read_byte() noexcept {
 		if (i >= src.size()) {
 			ok = false;
@@ -39,6 +40,7 @@ struct BitReader {
 		last_byte = src[i++];
 		return last_byte;
 	}
+	/// Lee el siguiente bit (MSB-first; aplica el *backtrack* del bit bajo del LSB).
 	[[nodiscard]] eng::s32 read_bit() noexcept {
 		if (backtrack) {
 			backtrack = false;
@@ -71,6 +73,7 @@ struct BitReader {
 	eng::usize out = 0u;
 	eng::s32 last_offset = 1;
 
+	/// Escribe un byte en `dst` (falso si no cabe).
 	const auto put = [&](eng::s32 v) noexcept -> bool {
 		if (out >= dst.size()) {
 			return false;
@@ -78,6 +81,7 @@ struct BitReader {
 		dst[out++] = static_cast<eng::u8>(v & 0xff);
 		return true;
 	};
+	/// Copia `length` bytes desde `out - offset` (falso si el offset es inválido o no cabe).
 	const auto copy_back = [&](eng::s32 offset, eng::s32 length) noexcept -> bool {
 		if (offset <= 0 || static_cast<eng::usize>(offset) > out) {
 			return false;
