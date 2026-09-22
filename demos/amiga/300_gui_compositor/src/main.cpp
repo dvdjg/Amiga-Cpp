@@ -50,6 +50,16 @@ constexpr eng::Palette32 kPalette {{
 	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
 }};
 
+/// Callback del `field::RectFillSink`: rellena el rect por el Blitter D-only del backend. Lo usa
+/// el compositor para limpiar el escritorio (en vez de `set_pixel` por pixel).
+bool rect_fill_cb(void* ctx, eng::u8* base, eng::u8 planes, eng::u32 plane_stride,
+		  eng::u32 row_stride, eng::u16 row_bytes, eng::u16 bw, eng::u16 bh,
+		  eng::s32 x, eng::s32 y, eng::u16 w, eng::u16 h, eng::u8 color) {
+	auto* b = static_cast<eng::amiga::MinimalBackend*>(ctx);
+	return b->blitter_fill_rect(base, planes, plane_stride, row_stride, row_bytes, bw, bh, x, y, w,
+				    h, color, true);
+}
+
 ui::UiTheme make_theme() {
 	ui::UiTheme t;
 	t.bg = 4u;
@@ -91,8 +101,9 @@ struct CompositorDemo {
 			return;
 		}
 
-		// Copias por Blitter (`CopyRect` en el FramePlan).
+		// Copias por Blitter (`CopyRect` en el FramePlan) y clear del escritorio por Blitter D-only.
 		backend.install_raster(m_scene);
+		m_scene.set_rect_fill_sink(eng::field::RectFillSink {&backend, &rect_fill_cb});
 		m_screen = m_scene.surface(); // vista estable sobre el playfield de la escena
 		m_comp.set_screen(m_screen);
 		m_comp.set_desktop(0u);
@@ -173,12 +184,11 @@ private:
 	/// Mueve las ventanas en pasos de 16 px (copias alineadas a palabra) y dana su region.
 	/// La posicion depende directamente del frame (avanza aunque la tasa sea baja).
 	void animate(eng::u16 f) {
-		// A: horizontal en pasos de 16 px, de x=16 a x=208 (13 posiciones; periodo coprimo con
-		// el intervalo de captura para que se vea movimiento).
-		const eng::s16 ax = static_cast<eng::s16>(16 + (f % 13u) * 16u);
+		// A: horizontal en pasos de 16 px, de x=16 a x=96 (sin solapar con B, en x=208).
+		const eng::s16 ax = static_cast<eng::s16>(16 + (f % 6u) * 16u);
 		m_comp.move_window(*m_win[0].win, ax, 16);
-		// C: vertical en pasos de 16 px, de y=120 a y=200.
-		const eng::s16 cy = static_cast<eng::s16>(120 + (f % 6u) * 16u);
+		// C: vertical en pasos de 16 px, de y=120 a y=168 (sin solapar con A/B).
+		const eng::s16 cy = static_cast<eng::s16>(120 + (f % 4u) * 16u);
 		m_comp.move_window(*m_win[2].win, 112, cy);
 	}
 

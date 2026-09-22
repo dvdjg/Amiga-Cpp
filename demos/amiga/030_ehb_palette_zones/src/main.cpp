@@ -36,6 +36,9 @@ constexpr eng::u16 kHeight = 256;
 constexpr eng::u8 kPlanes = 6;
 constexpr eng::u16 kBytesPerRow = kWidth / 8u;
 constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kBytesPerRow) * kHeight;
+/// Recursos de la escena EHB (320x256x6). `chip_bytes_for` dimensiona la Chip RAM necesaria
+/// (bitplanes + copperlist de doble buffer del Plan + margen).
+constexpr scene::SceneResources kRes = scene::planar(kWidth, kHeight, 6);
 
 /// Paleta RGB444 de 32 colores base para la zona superior.
 ///
@@ -111,7 +114,7 @@ struct DemoGame {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
 		m_memory_ok = backend.configure_memory({
-			68u * 1024u, // Chip: 6 bitplanes EHB + copperlist, sin pedir margen inutil.
+			scene::chip_bytes_for(kRes), // Chip: bitplanes EHB + copperlist doble + margen.
 			8u * 1024u,  // Slow: metadatos futuros del engine.
 			4u * 1024u,  // Frame scratch.
 		});
@@ -123,7 +126,7 @@ struct DemoGame {
 		m_fade_in.bind(eng::kBlackPalette, top_palette);
 
 		if (!scene::compose(m_scene, backend.memory(),
-				    scene::planar(kWidth, kHeight, 6), scene::ocs_a500,
+				    kRes, scene::ocs_a500,
 				    scene::display(scene::kPal320x256, scene::kBplcon0_Ehb),
 				    scene::palette_patchable(
 					    eng::PaletteWords {top_palette.color, 32u}, 0u, 32u, &m_base_zone),

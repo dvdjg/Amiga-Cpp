@@ -307,6 +307,28 @@ inline constexpr DisplayLimits aga_a1200 {
 	return validate(res, l).ok();
 }
 
+/// **Bytes de Chip RAM** que necesita una escena `res`: bitplanes (por buffer) + la
+/// **copperlist de doble buffer** del `copper::Plan` (2 × `res.copper_bytes`, que se usa para
+/// `flip_copper`) + un margen. Es el valor a pedir en el **primer** argumento (Chip) de
+/// `backend.configure_memory`; dimensionarlo mal hace fallar `scene::compose` (no una imagen
+/// incorrecta).
+[[nodiscard]] constexpr eng::u32 chip_bytes_for(const SceneResources& res) {
+	const eng::u16 row = static_cast<eng::u16>(((res.width / 8u) + 3u) & ~3u);
+	const eng::u16 rows = (res.rows != 0u) ? res.rows : res.height;
+	const bool interleaved = (res.layout == SceneLayout::Interleaved);
+	const eng::u16 alloc_rows = interleaved ? res.height : rows;
+	const eng::u32 plane_bytes =
+		(res.planes == 0u) ? 0u
+				   : static_cast<eng::u32>(row) * alloc_rows * res.planes;
+	eng::u8 buffers = (res.planes == 0u || interleaved) ? 1u
+							    : (res.buffers != 0u ? res.buffers : 1u);
+	if (buffers > 3u) {
+		buffers = 3u;
+	}
+	const eng::u32 copper = 2u * res.copper_bytes; // doble buffer del Plan
+	return static_cast<eng::u32>(plane_bytes) * buffers + copper + 1024u; // margen
+}
+
 // ---------------------------------------------------------------------------------------
 // Geometría de display derivada de los recursos.
 // ---------------------------------------------------------------------------------------

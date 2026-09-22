@@ -96,11 +96,9 @@ public:
 		eng::field::Surface& scr = *m_screen;
 		for (eng::u8 d = 0u; d < m_damage.count; ++d) {
 			const Rect region = m_damage.rects[d];
-			for (eng::s16 y = region.y; y <= region.bottom(); ++y) {
-				for (eng::s16 x = region.x; x <= region.right(); ++x) {
-					scr.set_pixel(x, y, m_desktop);
-				}
-			}
+			// Fondo por `fill_rect`: enruta por el rasterizador (con `BlitterRaster` +
+			// `RectFillSink`, relleno D-only por Blitter) en vez de pixel a pixel.
+			scr.fill_rect(region.x, region.y, region.w, region.h, m_desktop);
 			for (eng::u8 i = 0u; i < m_count; ++i) {
 				CompWindow& w = m_wins[m_order[i]];
 				if (!w.backing.valid) {
@@ -136,11 +134,9 @@ public:
 		eng::field::Surface& scr = *m_screen;
 		for (eng::u8 d = 0u; d < m_damage.count; ++d) {
 			const Rect region = m_damage.rects[d];
-			for (eng::s16 y = region.y; y <= region.bottom(); ++y) {
-				for (eng::s16 x = region.x; x <= region.right(); ++x) {
-					scr.set_pixel(x, y, m_desktop);
-				}
-			}
+			// Fondo por `fill_rect`: enruta por el rasterizador (con `BlitterRaster` +
+			// `RectFillSink`, relleno D-only por Blitter) en vez de pixel a pixel.
+			scr.fill_rect(region.x, region.y, region.w, region.h, m_desktop);
 			for (eng::u8 i = 0u; i < m_count; ++i) {
 				CompWindow& w = m_wins[m_order[i]];
 				if (!w.backing.valid) {
