@@ -70,7 +70,13 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
   archivo (`AUZX`) con `compression` (0=ZX0, 1=aPLib, 2=delta+RLE).
 - **Verificación**: **HOST-243** — vectores ZX0/aPLib generados en el host (compresor de
   referencia) se decodifican a la misma PCM; comparación byte a byte.
-- **Estado**: pendiente.
+- **Estado**: **pendiente**. El decoder ZX0 es un port directo de `dzx0.c` (Einar Saukas, MIT,
+  https://github.com/einar-saukas/ZX0): formato v2, Elias gamma **interlazado**, `read_byte` que
+  descarta los bits de padding y el *backtrack* del bit bajo del LSB del offset. El bloqueo para
+  verificarlo es que el **compresor de referencia `zx0`** (el que genera los vectores de HOST-243)
+  no está en el repo: un round-trip con codificador propio solo probaría autoconsistencia, no
+  compatibilidad de formato. Próximo paso: traer/compilar `zx0` (host) para vectores congelados y
+  portar aPLib igual.
 
 ### A5 — Streaming digital desde disquete
 
