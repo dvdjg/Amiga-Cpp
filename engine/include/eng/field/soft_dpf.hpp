@@ -19,6 +19,7 @@
 #include <eng/field/plane_view.hpp>
 #include <eng/graphics/bitmap.hpp>
 #include <eng/graphics/frame_plan.hpp>
+#include <eng/graphics/playfield_scroll.hpp>
 #include <eng/memory/arena.hpp>
 
 namespace eng::field {
@@ -92,7 +93,7 @@ struct BgShift {
 /// `BgShift` (offset de word para el canal A + `shift` 0..15) tal que el píxel `src_x` cae en
 /// el píxel 0 del destino.
 constexpr BgShift bg_shift_for(u16 src_x_pixels) {
-	const u16 s = static_cast<u16>((16u - (src_x_pixels & 15u)) & 15u);
+	const u16 s = graphics::fine_delay(src_x_pixels);
 	const u16 q = static_cast<u16>(src_x_pixels + s);
 	return { static_cast<u16>((q / 16u) * 2u), static_cast<u8>(s) };
 }

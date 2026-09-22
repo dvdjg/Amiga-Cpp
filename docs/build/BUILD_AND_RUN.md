@@ -176,8 +176,13 @@ Con `cameraX` el runner captura **frame-exacto** por telemetria (congela la CPU,
 status y reanuda; no depende del tiempo real):
 
 - `--sequence-camera-x a,b,c` captura un frame por cada valor de `cameraX`.
-- `--sequence-fine-x a,b,c` hace lo mismo con `cameraX & 15` (fine scroll 0..15), lo que
-  permite capturar pasos consecutivos y medir el desplazamiento por frame.
+- `--sequence-fine-x a,b,c` hace lo mismo con `cameraX & 15` (fine scroll 0..15).
+- `--sequence-step-frames N [--sequence-step-start-fine F]` captura **N frames consecutivos**
+  (1 frame entre capturas) usando el breakpoint de `eng_debug_ready_probe`, que las demos
+  llaman una vez por frame desde `probe_when_ready`: al congelar la CPU en cada impacto, el
+  run status y la imagen quedan en el MISMO frame (sin la latencia del polling de los modos
+  anteriores). Con `--sequence-step-start-fine F` se alinea la captura a ese `fine scroll`
+  (p. ej. `2`) para evitar el cruce de word (`15 -> 0`) de cada 16 frames.
 
 Las capturas se guardan en `out/run/<demo>/sequence` como `frame_NNN_cameraXNN.png` /
 `frame_NNN_fineXNN.png`. Que la demo publique su scroll fino en `cameraX` es lo que habilita

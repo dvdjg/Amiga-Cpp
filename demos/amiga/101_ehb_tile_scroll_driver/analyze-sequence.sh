@@ -23,8 +23,8 @@ VISION_REVIEW="$ROOT/tools/vision-review/vision-review.sh"
 FINE_SCROLL="$(dirname "${BASH_SOURCE[0]}")/analyze-fine-scroll.sh"
 PIXEL_CONTRACT="$(dirname "${BASH_SOURCE[0]}")/pixel-contract.json"
 
-SEQ_DIR="$ROOT/out/run/101_ehb_tile_scroll_driver/sequence"
-RUN_REPORT="$ROOT/out/run/101_ehb_tile_scroll_driver/run-report.json"
+SEQ_DIR="$ROOT/out/run/101_ehb_tile_scroll_driver/A500_debug/sequence"
+RUN_REPORT="$ROOT/out/run/101_ehb_tile_scroll_driver/A500_debug/run-report.json"
 FRAME_SCOPE_OUT="$ROOT/out/framescope/101_ehb_tile_scroll_driver"
 VISION_OUT="$ROOT/out/vision-review/101_ehb_tile_scroll_driver"
 PIXEL_OUT="$ROOT/out/analysis/101_ehb_tile_scroll_driver/pixel-assert"
@@ -45,11 +45,15 @@ while [ "$#" -gt 0 ]; do
 	esac
 done
 
-# 1) Captura la secuencia animada de 12 frames.
+# 1) Captura 14 frames CONSECUTIVOS (1 frame entre capturas) en la fase HORIZONTAL
+# (1 px/frame): el step capture congela la CPU en el ready probe; start-fine=2 evita
+# el cruce de word. El settle corto mantiene la captura dentro de la fase horizontal
+# (frames 0..191, camara a 1 px/frame) antes de que empiece la vertical (frame 192).
 extra=()
 [ "$WARP" -eq 1 ] && extra+=(--warp)
-"$RUN" "$DEMO" --settle-ms 3500 --sequence-frames 12 --sequence-interval-ms 120 "${extra[@]}" \
-	|| { echo "No se pudo capturar la secuencia animada de 101_ehb_tile_scroll_driver." >&2; exit 1; }
+"$RUN" "$DEMO" --settle-ms 800 \
+	--sequence-step-frames 14 --sequence-step-start-fine 2 "${extra[@]}" \
+	|| { echo "No se pudo capturar la secuencia step de 101_ehb_tile_scroll_driver." >&2; exit 1; }
 
 # 2) La secuencia debe demostrar animacion.
 "$SEQ_ANALYZER" "$SEQ_DIR" --expect-animated \
@@ -59,23 +63,34 @@ extra=()
 "$INNER_BLACK" "$SEQ_DIR" 0.001 \
 	|| { echo "La secuencia contiene artefactos negros internos." >&2; exit 1; }
 
-# 4) Telemetria: la fase circular con prefetch X/Y valido.
+# 4) Telemetria de los frames capturados: fase horizontal (camara a 1 px/frame),
+#    camY fijo en el centro, prefetch de columnas y frames CONSECUTIVOS.
 node -e '
 const fs = require("fs");
 const report = JSON.parse(fs.readFileSync(process.argv[1], "utf-8"));
-const status = report.finalSideChannel && report.finalSideChannel.ok
-  ? report.finalSideChannel
-  : (report.sideChannel || {}).value;
-const detail = parseInt(status.detail || 0, 10);
-const cameraX = (detail >> 16) & 0xff;
-const cameraY = (detail >> 8) & 0xff;
-const prefetch = detail & 0x0f;
-const frame = parseInt(status.frame || 0, 10);
-if (frame < 200 || cameraX > 128 || cameraY > 128 || (prefetch & 0x3) !== 0x3) {
-  console.error(`La secuencia no alcanzo la fase circular con prefetch X/Y valido: frame=${frame} detail=0x${(detail >>> 0).toString(16).padStart(8, "0")}`);
+const frames = (report.sequence && report.sequence.frames) || [];
+if (frames.length < 4) {
+  console.error("La secuencia step esta vacia.");
   process.exit(1);
 }
-console.log(`OK telemetry frame=${frame} detail=0x${(detail >>> 0).toString(16).padStart(8, "0")}`);
+let prev = -1;
+for (const f of frames) {
+  const d = parseInt((f.runStatus || {}).detail || 0, 10);
+  const camX = (d >> 16) & 0xff;
+  const camY = (d >> 8) & 0xff;
+  const prefetch = d & 0x0f;
+  const fr = Number(f.frozenFrame);
+  if (camY !== 128 || camX === 0 || (prefetch & 0x1) !== 0x1) {
+    console.error(`frame ${fr} fuera de la fase horizontal/prefetch de columnas: detail=0x${(d >>> 0).toString(16).padStart(8, "0")}`);
+    process.exit(1);
+  }
+  if (prev >= 0 && fr !== prev + 1) {
+    console.error(`frames no consecutivos: ${prev} -> ${fr}`);
+    process.exit(1);
+  }
+  prev = fr;
+}
+console.log(`OK telemetry frames=${frames.length} first=${frames[0].frozenFrame} last=${frames[frames.length - 1].frozenFrame}`);
 ' "$RUN_REPORT" \
 	|| { echo "Telemetria de 101 invalida." >&2; exit 1; }
 

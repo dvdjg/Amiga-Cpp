@@ -17,6 +17,8 @@
 
 #include <eng/api/effects.hpp>
 #include <eng/core/types.hpp>
+#include <eng/field/soft_dpf.hpp>
+#include <eng/field/xlimited.hpp>
 
 namespace {
 
@@ -122,6 +124,21 @@ void test_jobs() {
 	CHECK(col.bitplane_count == 1u, "col: 1 plano");
 }
 
+/// **Regresión cruzada**: los consumidores del fine delay usan las mismas fórmulas de
+/// `playfield_scroll.hpp` (una sola fuente para `BPLCON1`/`DDFSTRT`). Si alguno divergiera,
+/// este test lo detecta.
+void test_cross_regression() {
+	// `soft_dpf::bg_shift_for`: el barrel shift del Blitter es el mismo fine delay.
+	for (eng::u16 x = 0u; x < 256u; ++x) {
+		CHECK(eng::field::bg_shift_for(x).shift ==
+			      static_cast<eng::u8>(eng::graphics::fine_delay(x)),
+		      "bg_shift_for(x).shift == fine_delay(x)");
+	}
+	// `xlimited` usa el DDFSTRT adelantado compartido.
+	CHECK(eng::field::xlimited_detail::kDdfStrt == eng::graphics::fine_scroll_ddfstrt,
+	      "xlimited kDdfStrt == fine_scroll_ddfstrt");
+}
+
 } // namespace
 
 int main() {
@@ -131,6 +148,7 @@ int main() {
 	test_step_cadence();
 	test_bplcon1_sequence();
 	test_jobs();
+	test_cross_regression();
 	if (g_fail == 0u) {
 		std::printf("OK: effects::FineScroll (scroll fino 1 px/frame).\n");
 		return 0;

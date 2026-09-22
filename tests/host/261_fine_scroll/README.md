@@ -13,6 +13,9 @@ de 1 px/frame** promovido desde la demo 210 (`demos/amiga/210_copper_blitter`):
 - **`BlitJob`**: desplazamiento (`src = plane+1`, `dst = plane`, `words_per_row = visible_words`,
   módulos `2`) y columna entrante (`src = col`, `dst = plane+visible_words`, `words_per_row = 1`,
   módulo de `D = row_bytes − 2`).
+- **Regresión cruzada**: `soft_dpf::bg_shift_for(x).shift == fine_delay(x)` y
+  `xlimited::kDdfStrt == fine_scroll_ddfstrt`, para que los consumidores del fine delay no
+  diverjan de `playfield_scroll.hpp`.
 
 El patrón del buffer lo genera el llamador (procedural o tilemap); para contenido periódico con
 *ring wrap* real, el driver es `eng/graphics/drivers/tile_scroll.hpp`.

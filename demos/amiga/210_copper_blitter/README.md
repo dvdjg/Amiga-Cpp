@@ -36,14 +36,22 @@ borde superior no molesta; con el de CPU en la misma franja, sí).
 ```
    bash ./tools/build/build-demo.sh demos/amiga/210_copper_blitter --debug
    bash ./tools/run/run-demo.sh demos/amiga/210_copper_blitter --warp
+   bash ./demos/amiga/210_copper_blitter/analyze-sequence.sh --warp
 ```
 
 ## Estado: verificado
 
-`RunStatus.detail = (fine << 16) | 0x1FFF` (`fine` en bits 16-23; permite captura frame-exacta por
-valor de `fine` con `--sequence-fine-x`); Ollama (`qwen3-vl:8b-instruct-q8_0`) confirma rayas
-diagonales blancas sobre azul, sin anomalías. Host: `tests/host/260_copper_blitter` (ventana segura)
-y `tests/host/261_fine_scroll` (cadencia de 1 px/frame del helper).
+`RunStatus.detail = (fine << 16) | 0x1FFF` (`fine` en bits 16-23; permite la captura
+frame-exacta por valor de `fine` con `--sequence-fine-x`); Ollama
+(`qwen3-vl:8b-instruct-q8_0`) confirma rayas diagonales blancas sobre azul, sin anomalías.
+
+- **Host**: `tests/host/260_copper_blitter` (ventana segura) y `tests/host/261_fine_scroll`
+  (cadencia de 1 px/frame del helper).
+- **Emulador (1 px/frame)**: `analyze-sequence.sh` captura frames **consecutivos** con
+  `--sequence-step-frames 14 --sequence-step-start-fine 2` (congelando la CPU en el *ready
+  probe*, 1 frame entre capturas) y el `pixel-contract.json` verifica con
+  `shifted_region_match` (dx = −1 px lógico = −2 px de imagen a 2×) que el contenido se
+  desplaza exactamente 1 px por frame (peor error ≈ 0,07 %).
 
 ## Referencias
 
