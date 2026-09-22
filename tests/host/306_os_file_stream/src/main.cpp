@@ -26,21 +26,17 @@ void check(bool ok, const char* m) {
 	}
 }
 
-struct FakeFile {
+// Fuente fake: provee `read_async` (como hará el backend envolviendo `file_read_async`).
+struct FakeSource {
 	std::vector<eng::u8> data;
-};
-
-// Lectura síncrona: copia `bytes` desde `offset` (fake "file_read_async" inmediato).
-bool fake_read(void* ctx, eng::u8 /*idx*/, eng::u32 offset, eng::u8* dst, eng::u32 bytes) {
-	auto* f = static_cast<FakeFile*>(ctx);
-	if (offset >= f->data.size()) {
-		return false;
+	bool read_async(eng::u8 /*idx*/, eng::u32 offset, eng::u8* dst, eng::u32 bytes) {
+		if (offset >= data.size()) {
+			return false;
+		}
+		std::memcpy(dst, data.data() + offset, bytes);
+		return true;
 	}
-	const eng::u32 n = static_cast<eng::u32>(f->data.size()) - offset;
-	(void)n;
-	std::memcpy(dst, f->data.data() + offset, bytes);
-	return true;
-}
+};
 
 } // namespace
 
@@ -51,16 +47,17 @@ int main() {
 	constexpr eng::u8 kBufs = 2u;
 
 	// Fichero de 3 chunks y medio (28 B): lecturas cortas -> EOF en el ultimo.
-	FakeFile file;
-	file.data.resize(3u * kChunk + 4u);
-	for (eng::u32 i = 0; i < file.data.size(); ++i) {
-		file.data[i] = static_cast<eng::u8>(i + 1u);
+	FakeSource source;
+	source.data.resize(3u * kChunk + 4u);
+	for (eng::u32 i = 0; i < source.data.size(); ++i) {
+		source.data[i] = static_cast<eng::u8>(i + 1u);
 	}
 
 	eng::u8 buffers[kBufs * kChunk] {};
 	eng::os::ChunkStream<kBufs> stream;
-	eng::os::FileChunkFeeder<kBufs> feeder;
-	feeder.init(&stream, buffers, kChunk, static_cast<eng::u32>(file.data.size()), &file, &fake_read);
+	eng::os::FileChunkFeeder<kBufs, FakeSource> feeder;
+	feeder.init(stream, eng::Span<eng::u8>(buffers, sizeof(buffers)), kChunk,
+		    static_cast<eng::u32>(source.data.size()), source);
 
 	// Arranque: lanza las 2 lecturas (offsets 0 y 8).
 	feeder.pump();

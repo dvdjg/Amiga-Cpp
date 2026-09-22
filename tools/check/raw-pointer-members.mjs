@@ -34,7 +34,11 @@ for (const abs of walk(ENG)) {
 	fs.readFileSync(abs, 'utf8').split(/\r?\n/).forEach((line) => {
 		const t = line.trim();
 		if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) return;
-		const m = t.match(/\b([A-Za-z_][A-Za-z0-9_:]*)\*\s+(_?m_[a-z][A-Za-z0-9_]*)\b/);
+		// Cubre también tipos con plantilla de UN nivel (`Foo<T>* m_x`, p. ej. `ChunkStream<N>*`),
+		// que antes se escapaban porque el tipo tenía `<...>`.
+		const m = t.match(
+			/\b([A-Za-z_][A-Za-z0-9_:]*(?:<[^<>]*>)?)\*\s+(_?m_[a-z][A-Za-z0-9_]*)\b/,
+		);
 		if (!m) return;
 		const type = m[1].split('::').pop();
 		if (ALLOW_TYPE.test(type)) return;

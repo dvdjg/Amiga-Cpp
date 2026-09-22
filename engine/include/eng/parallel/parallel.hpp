@@ -245,13 +245,13 @@ public:
 	StopToken() noexcept = default;
 
 	[[nodiscard]] bool stop_requested() const noexcept {
-		return m_flag != nullptr && m_flag->load();
+		return m_flag.valid() && m_flag->load();
 	}
 
 private:
 	friend class StopSource;
-	explicit StopToken(const Atomic<bool>* flag) noexcept : m_flag(flag) {}
-	const Atomic<bool>* m_flag = nullptr;
+	explicit StopToken(const Atomic<bool>& flag) noexcept : m_flag(flag) {}
+	eng::Ref<const Atomic<bool>> m_flag {}; ///< observador no propietario del flag (de la fuente)
 };
 
 /// Fuente de cancelación cooperativa: los hilos/tareas consultan su `StopToken` en
@@ -262,7 +262,7 @@ public:
 	StopSource(const StopSource&) = delete;
 	StopSource& operator=(const StopSource&) = delete;
 
-	[[nodiscard]] StopToken token() const noexcept { return StopToken(&m_flag); }
+	[[nodiscard]] StopToken token() const noexcept { return StopToken(m_flag); }
 	void request_stop() noexcept { m_flag.store(true); }
 	[[nodiscard]] bool stop_requested() const noexcept { return m_flag.load(); }
 
