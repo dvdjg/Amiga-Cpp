@@ -2,7 +2,7 @@
 
 Bitácora de lecciones de proceso del desarrollo del engine C++23 (no son referencia de
 diseño: describen errores y reglas para no repetirlos). Se enlaza desde
-[README.md](README.md).
+[README.md](../README.md).
 
 ## 1. Un caso de test que falta esconde un bug (efecto de paleta)
 

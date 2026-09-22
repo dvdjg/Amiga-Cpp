@@ -180,6 +180,20 @@ if [ -f "$API_FACADE_CHECK" ]; then
 	fi
 fi
 
+# --- Docs de hallazgos: indexados en su README y con nombre kebab-case (AGENTS 1.3) ---
+DOC_INDEX_CHECK="$ROOT/tools/check/doc-index.mjs"
+if [ -f "$DOC_INDEX_CHECK" ]; then
+	if command -v node >/dev/null 2>&1; then
+		echo "== doc-index =="
+		if ! node "$DOC_INDEX_CHECK"; then
+			echo "doc-index fallo: doc de hallazgo huerfano o con nombre fuera de la convencion." >&2
+			exit 1
+		fi
+	else
+		echo "node no disponible; se omite doc-index." >&2
+	fi
+fi
+
 # --- Gate de fps (opt-in): mide las demos de la bitacora y detecta deriva ---
 # Lanza WinUAE por cada fila de la tabla trazable; por eso es opt-in. Falla si una
 # demo medida en la misma fase (`detail`) baja del umbral (por defecto -10 %).

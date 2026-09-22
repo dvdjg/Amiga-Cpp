@@ -89,7 +89,7 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
   **biomas/ecosistemas** (HOST-169), **lenguaje/gestos** atados a emoción y jerarquía
   (HOST-170), **cultura/rituales** y **manadas** (HOST-171/172), un **laboratorio de
   escenarios** con digesto y ajustes (HOST-173; bitácora en
-  `docs/debugging/SIM_ECOSYSTEM_SCENARIOS.md`) y **jugador simulado con LOD** (despertar
+  `docs/debugging/investigaciones/sim-ecosystem-scenarios.md`) y **jugador simulado con LOD** (despertar
   gradual y reparto por frames), **aforo dinámico** (estación/clima) y **entrada humana**
   (HOST-174/175), y **planificación GOAP integrada** con dominio de construcción
   (HOST-155), con gate de codegen 68000. Reutiliza `eng::ai` (utility, percepción,

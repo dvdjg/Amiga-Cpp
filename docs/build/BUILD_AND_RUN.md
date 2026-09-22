@@ -340,4 +340,4 @@ suavidad o depurar visualmente, usa el menu o `run-demo.ps1` sin `-Warp`.
 - Las capturas de secuencia se limpian antes de cada ejecución (`out/run/<demo>/sequence`) para no mezclar frames antiguos.
 - Orden de verificación por defecto: `build -> run -> analyze`; `analyze-demo.sh` espera `.exe/.elf/.map` y valida `out/run/<demo>/screenshot.png` si existe. `tools/test-regression.sh` impone ese orden por demo y ejecuta `analyze-sequence.sh` automáticamente cuando existe.
 - La regresión usa build estilo debug por defecto (`--debug` interno). Usar `--release` solo cuando se necesite comportamiento de optimización release.
-- Varias instancias de WinUAE a la vez: puertos propios, no matar ajenas y limpiar las propias; ver [DEBUG-WINUAE-V2-GUIDE.md](../debugging/DEBUG-WINUAE-V2-GUIDE.md) §1.3.
+- Varias instancias de WinUAE a la vez: puertos propios, no matar ajenas y limpiar las propias; ver [debug-winuae-v2-guide.md](../debugging/system/debug-winuae-v2-guide.md) §1.3.

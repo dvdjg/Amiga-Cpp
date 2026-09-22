@@ -2,7 +2,7 @@
 
 Estrategia para (a) ajustar el nivel de juego por recursos, (b) medir de forma fiable
 el cómputo, (c) comparar configuraciones con estadística y (d) cazar/reparar bugs.
-Continúa `docs/debugging/BOARD_SELFPLAY_AND_PERF.md` (coherencia y primera medida Amiga).
+Continúa `docs/debugging/investigaciones/board-selfplay-and-perf.md` (coherencia y primera medida Amiga).
 
 ## 1. Estrategia de nivel por footprint
 

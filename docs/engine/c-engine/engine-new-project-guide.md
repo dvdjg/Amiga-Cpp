@@ -80,7 +80,7 @@ Detalle de subsistemas: [engine-subsystems.md](engine-subsystems.md).
 | **Batería aislada** | `tests/amiga-battery/`, `BATTERY_CASE=` en [Makefile](../../../legacy/Makefile) | Validar una técnica antes de ensuciar el juego. |
 | **Matriz de cobertura** | [engine-test-battery-matrix.md](engine-test-battery-matrix.md) | Saber qué API tiene ya un test con evidencia. |
 | **Constantes copper sin acoplar** | `ENGINE_CUSTOM_*` en `engine_types.h` | Listas reubicables y legibles. |
-| **Depuración WinUAE + MCP** | [mcp-live-coding-workflow.md](../../emulation/mcp-live-coding-workflow.md), [debug-with-ai.md](../../debugging/debug-with-ai.md) | Regresiones visuales y memoria. |
+| **Depuración WinUAE + MCP** | [mcp-live-coding-workflow.md](../../emulation/mcp-live-coding-workflow.md), [debug-with-ai.md](../../debugging/system/debug-with-ai.md) | Regresiones visuales y memoria. |
 
 ---
 

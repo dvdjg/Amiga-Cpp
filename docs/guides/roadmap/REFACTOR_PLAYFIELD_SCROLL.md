@@ -42,7 +42,7 @@ en el proceso.
   `fill_parallax_pattern` viven en `soft_dpf.hpp`; el playfield solo delega.
 - **Piloto: demo 112.** Reducir a: FG scroll + BG (vista/doble buffer) + su cámara propia.
 - Verificación: `K_DIAG_YONLY`+`K_DIAG_BG_FIXED` (borde constante), `analyze-sequence` (marcador y
-  movimiento), `112_BG_FLICKER.md` sigue siendo la evidencia del flashing.
+  movimiento), `112_bg-flicker.md` sigue siendo la evidencia del flashing.
 - Riesgo: medio. Toca `begin`/`hardware_view`/compositor single.
 
 ### Fase 1b — `ModeSwitchZone` (HUD/capas con menos planos)
@@ -203,7 +203,7 @@ compositores, `tile_scroll.hpp` (103/104) y `TileLayerMap`/`tile_map.hpp`.
 ## Riesgos
 
 - **Jitter/tearing**: el mapping Amiga y la composición están entrelazados con el timing; mover la
-  responsabilidad puede reintroducir el flash de 1 px (`docs/debugging/112_BG_FLICKER.md`). Medir
+  responsabilidad puede reintroducir el flash de 1 px (`docs/debugging/investigaciones/112_bg-flicker.md`). Medir
   en cada fase.
 - **Rendimiento**: el inventario de `hardware_view` es barato; moverlo al mapper no debe añadir
   divisiones/modulos por frame (cuidar `fast_div`).

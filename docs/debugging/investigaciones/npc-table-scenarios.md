@@ -2,7 +2,7 @@
 
 Registro de las **situaciones de mesa** con las que se pone a prueba la capa de psicología de
 NPC (`docs/engine/architecture/NPC_PSYCHOLOGY.md`). No es documentación de referencia del
-engine ni del ecosistema de criaturas (esa vive en `SIM_ECOSYSTEM_SCENARIOS.md`): aquí se
+engine ni del ecosistema de criaturas (esa vive en `sim-ecosystem-scenarios.md`): aquí se
 describen escenarios concretos, qué rasgo o mecanismo ejercitan y cómo se observan.
 
 Un escenario es una **trayectoria** de eventos sobre una mesa, no un test unitario. La misma

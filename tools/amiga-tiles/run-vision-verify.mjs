@@ -13,7 +13,7 @@
 //      corresponden y qué diferencias ve (guarda <resultado>.compare.txt).
 //
 // Salidas: <imagen>.vision.txt, <origen>.ops.txt, <resultado>.compare.txt,
-// <demo>/vision_report.md y VISION_SUMMARY.md.
+// <demo>/vision_report.md y VISION_summary.md.
 // Flags: --model M, --resume, --folder DEMO, --all, --limit N.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -200,7 +200,7 @@ async function main() {
 		const body = fs.readFileSync(mdPath, 'utf8').replace(/^# .*\r?\n/, '').trim();
 		summary.push(`# ${folder}`, '', body, '');
 	}
-	fs.writeFileSync(path.join(DEMOS, 'VISION_SUMMARY.md'), summary.join('\n'), 'utf8');
+	fs.writeFileSync(path.join(DEMOS, 'VISION_summary.md'), summary.join('\n'), 'utf8');
 	console.log(`[vision] informes -> ${DEMOS}`);
 }
 

@@ -6,7 +6,7 @@ en CPU. Valida el bootblock leyendo sus dos primeros sectores: firma `DOS\0`/`DO
 **checksums propios de cada sector AmigaDOS** (`hck`/`dck`).
 
 Es la vía que **sí** funciona sin Workbench (el `Open("df0:")` se bloquea; ver
-`docs/debugging/CONSULTA-GROK-DISCO-Y-LOADER.md`).
+`docs/debugging/investigaciones/consulta-grok-disco-y-loader.md`).
 
 ## Estado: **validada en A500**
 

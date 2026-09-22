@@ -35,7 +35,7 @@ y **bosteza o se impacienta si el humano tarda** (`gestures_for_pace`). Esa expr
 de la **introspección simulada** (`eng/sim/introspection.hpp`): el motor convierte el margen
 de su propia búsqueda (mejor vs. segunda jugada, Multi-PV), el libro y el tiempo restante en
 confianza, duda, presión, sorpresa y satisfacción. El puente con `eng::board` está en
-`eng/board/persona.hpp`; ver `docs/debugging/NPC_TABLE_SCENARIOS.md` y HOST-206.
+`eng/board/persona.hpp`; ver `docs/debugging/investigaciones/npc-table-scenarios.md` y HOST-206.
 
 ## Build / run / analyze
 

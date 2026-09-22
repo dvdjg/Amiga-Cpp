@@ -62,4 +62,4 @@ El MCP hace: `-f <config>` y luego `-s floppy0=...`, así que la config se carga
 | Ventana no se abre   | Probar sin `-G` / sin `use_gui=no` (WINUAE_USE_GUI_NO=0) |
 | “ROM not found”      | Ruta absoluta a la ROM en el .uae y que el archivo exista |
 
-Ver también: [winuae-y-adf.md](../emulation/winuae-y-adf.md), [diagnostico-adf-negro.md](diagnostico-adf-negro.md).
+Ver también: [winuae-y-adf.md](../../emulation/winuae-y-adf.md), [diagnostico-adf-negro.md](diagnostico-adf-negro.md).

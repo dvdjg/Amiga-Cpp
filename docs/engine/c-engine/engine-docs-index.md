@@ -32,10 +32,10 @@ Punto de entrada a la documentación del motor de juegos.
 | [roadmap-amc-wrobel-engine-docs-and-debug.md](../../reference/amc-wrobel/roadmap-amc-wrobel-engine-docs-and-debug.md) | Curso AMC (Mark Wrobel): ingerir espejo local/web, mapa ↔ engine, docs aditivas, auditoría de API, WinUAE/MCP y tests automáticos. |
 | [reference/amc-wrobel/README.md](../../reference/amc-wrobel/README.md) | Carpeta destino del índice de lecciones, topic map y análisis de gaps (rellenar según el roadmap). |
 | [engine-new-project-guide.md](engine-new-project-guide.md) | **Nuevo proyecto**: arrancar juego/demo (dentro del repo o repo aparte), patrones create/loop/destroy, includes, build, checklist. |
-| [verificación-display-por-ia.md](../../debugging/verificacion-display-por-ia.md) | **Verificación del display por la IA**: amigaprofile (yo leo PNG), LM Studio (script con visión), Coppenheimer + Playwright. Script `verify-display-with-lmstudio.mjs`. |
+| [verificación-display-por-ia.md](../../debugging/system/verificacion-display-por-ia.md) | **Verificación del display por la IA**: amigaprofile (yo leo PNG), LM Studio (script con visión), Coppenheimer + Playwright. Script `verify-display-with-lmstudio.mjs`. |
 | [demoscene-effects-integration.md](../../demos/effects/demoscene-effects-integration.md) | Integración de efectos demoscene: catálogo de técnicas, mapeo a APIs del engine, gui.c como referencia, planes de UI, uso del overlay WinUAE. |
 | [development-methodology.md](../../guides/methodology/development-methodology.md) | Metodología general: fases, pruebas, depuración; sección 7.1 aplicada a C/Amiga. |
-| [debug-with-ai.md](../../debugging/debug-with-ai.md) | Depuración con IA: MCP, dap-proxy, mcp-amiga-debug, compilación para depuración (-Og/-O0). |
+| [debug-with-ai.md](../../debugging/system/debug-with-ai.md) | Depuración con IA: MCP, dap-proxy, mcp-amiga-debug, compilación para depuración (-Og/-O0). |
 | [amiga-lowlevel-agent-prompt.md](../../guides/methodology/amiga-lowlevel-agent-prompt.md) | Prompt maestro para pedir a la IA trabajo close-to-the-metal sin implementaciones big-bang ni iteraciones a ciegas. |
 | [amiga-lowlevel-technique-contract-template.md](../../guides/methodology/amiga-lowlevel-technique-contract-template.md) | Plantilla de contrato tecnico para separar init, VBL, copper/DMA, invariantes y evidencia antes de implementar. |
 | [amiga-display-setup-checklist.md](../../reference/amiga/techniques/amiga-display-setup-checklist.md) | Checklist para heredar correctamente contratos de display ya validados y evitar reabrir fallos como `BPL1MOD/BPL2MOD` mal configurados. |
@@ -51,7 +51,7 @@ Punto de entrada a la documentación del motor de juegos.
 | [amiga-implementation-roadmap.md](amiga-implementation-roadmap.md) | **Seguimiento de implementación:** estados PENDIENTE/PARCIAL/HECHO, fases A–E (MCP, infra tests, IDs §8, engine, docs). |
 | `../tests/amiga-battery/README.md` | Índice práctico de la batería: plantilla, harness común, casos abiertos y convenciones de evidencia. |
 | `../tests/amiga-battery/common/README.md` | Harness común de la batería y criterio de cuándo sus utilidades deben migrar al engine. |
-| [diagnóstico-depurador-f5.md](../../debugging/diagnostico-depurador-f5.md) | Diagnóstico cuando F5 o los breakpoints no funcionan. |
+| [diagnóstico-depurador-f5.md](../../debugging/investigaciones/diagnostico-depurador-f5.md) | Diagnóstico cuando F5 o los breakpoints no funcionan. |
 | [winuae-extensión-internals.md](../../emulation/winuae-extension-internals.md) | Cómo la extensión amiga-debug accede a WinUAE (GDB, memoria, Custom). |
 
 ## Fuentes objetivas de hardware/kernel

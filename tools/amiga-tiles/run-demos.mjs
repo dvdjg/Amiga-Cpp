@@ -46,7 +46,7 @@ function stashVision() {
 		for (const e of fs.readdirSync(d, { withFileTypes: true })) {
 			const p = path.join(d, e.name);
 			if (e.isDirectory()) { stack.push(p); continue; }
-			if (/\.(ops|vision|compare)\.txt$/.test(e.name) || e.name === 'vision_report.md' || e.name === 'VISION_SUMMARY.md') {
+			if (/\.(ops|vision|compare)\.txt$/.test(e.name) || e.name === 'vision_report.md' || e.name === 'VISION_summary.md') {
 				stash.push([path.relative(OUT, p), fs.readFileSync(p, 'utf8')]);
 			}
 		}

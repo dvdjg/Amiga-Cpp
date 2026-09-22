@@ -17,9 +17,9 @@ Reglas principales (ver también `docs/STRUCTURE.md` §6):
 | Área | Documentación | Herramientas |
 |---|---|---|
 | Build de demos | `docs/build/BUILD_AND_RUN.md` | `tools/build/build-demo.sh`, `tools/build/build-all-demos.sh`, `tools/test-regression.sh` |
-| Ejecución (runner/emulador) | `docs/build/BUILD_AND_RUN.md`, `docs/debugging/DEBUG-WINUAE-V2-GUIDE.md` | `tools/run/run-demo.sh`/`.ts` |
+| Ejecución (runner/emulador) | `docs/build/BUILD_AND_RUN.md`, `docs/debugging/system/debug-winuae-v2-guide.md` | `tools/run/run-demo.sh`/`.ts` |
 | Análisis de demos | `docs/testing/PIXEL_FRAME_ASSERTIONS.md`, `docs/demos/tile-pipeline/PIPELINE_TILES_EHB.md` | `tools/analyze/*` |
-| Depuración (WinUAE-DBG/DAP) | `docs/debugging/DEBUG-WINUAE-V2-GUIDE.md`, `tools/dap-test/README.md` | `tools/debug/*`, `tools/dap-test/*` |
+| Depuración (WinUAE-DBG/DAP) | `docs/debugging/system/debug-winuae-v2-guide.md`, `tools/dap-test/README.md` | `tools/debug/*`, `tools/dap-test/*` |
 | Profiling | `tools/profile/README.md`, `docs/tools/PROFILING_FROM_AGENT.md`, `docs/guides/optimization/METODOLOGIA_PROFILING.md` | `tools/profile/*`, `tools/debug/{measure-fps,record-fps,check-fps,profile,winuae-profile}.mjs`, `tools/analyze/profile-{samples,report}.mjs`, `tools/run-fps-gate.sh` |
 | Codegen 68000 | `docs/engine/architecture/EXPRESSION_TEMPLATES.md`, `docs/engine/architecture/MATH_LIBRARY.md` §4 | `tools/analyze/codegen-report.mjs`, `tools/analyze/expr-asm-compare.mjs` |
 | Verificación visual | `tools/vision-review/README.md`, `docs/testing/VISION_REVIEW_ROADMAP.md` | `tools/vision-review/*` |
