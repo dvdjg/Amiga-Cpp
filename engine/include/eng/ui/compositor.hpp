@@ -13,6 +13,7 @@
 #include <eng/core/ptr.hpp>
 #include <eng/core/types.hpp>
 #include <eng/field/surface.hpp>
+#include <eng/graphics/frame_plan.hpp>
 #include <eng/ui/backing.hpp>
 #include <eng/ui/dirty.hpp>
 #include <eng/ui/theme.hpp>
@@ -124,10 +125,77 @@ public:
 		m_damage.clear();
 	}
 
+	/// Igual que `present()` pero copia cada backing con `Surface::blit` (ruta del
+	/// `Rasterizer`: CPU o Blitter, encolando `CopyRect` en `plan`). Si un rect no es
+	/// copiable por el rasterizador (p. ej. destino no alineado a palabra con el Blitter),
+	/// cae al copiado por píxel de ese rect, de modo que el resultado es siempre correcto.
+	void present_blit(graphics::FramePlan& plan) noexcept {
+		if (!m_screen.valid()) {
+			return;
+		}
+		eng::field::Surface& scr = *m_screen;
+		for (eng::u8 d = 0u; d < m_damage.count; ++d) {
+			const Rect region = m_damage.rects[d];
+			for (eng::s16 y = region.y; y <= region.bottom(); ++y) {
+				for (eng::s16 x = region.x; x <= region.right(); ++x) {
+					scr.set_pixel(x, y, m_desktop);
+				}
+			}
+			for (eng::u8 i = 0u; i < m_count; ++i) {
+				CompWindow& w = m_wins[m_order[i]];
+				if (!w.backing.valid) {
+					continue;
+				}
+				const Rect I = eng::intersect(region, w.frame);
+				if (I.empty()) {
+					continue;
+				}
+				if (!copy_window_blit(plan, scr, w, I)) {
+					copy_window_cpu(scr, w, I);
+				}
+			}
+		}
+		m_damage.clear();
+	}
+
 	[[nodiscard]] eng::u8 damage_count() const noexcept { return m_damage.count; }
 	[[nodiscard]] eng::u8 window_count() const noexcept { return m_count; }
 
 private:
+	/// Copia la intersección `I` del backing de `w` a la pantalla con `Surface::blit` (encola un
+	/// `CopyRect` en `plan`). `false` si el rasterizador no puede (el Blitter exige destino
+	/// alineado a palabra): el llamador cae a `copy_window_cpu`.
+	static bool copy_window_blit(graphics::FramePlan& plan, eng::field::Surface& scr, CompWindow& w,
+				     Rect I) noexcept {
+		const eng::s16 sx = static_cast<eng::s16>(I.x - w.frame.x);
+		const eng::s16 sy = static_cast<eng::s16>(I.y - w.frame.y);
+		if (sx < 0 || sy < 0 || (sx & 15) != 0 || (I.w & 15u) != 0u) {
+			return false;
+		}
+		const eng::field::ContiguousPlayfield& pf = w.backing.playfield;
+		const eng::u16 rb = pf.bytes_per_row();
+		const eng::u32 pstride = pf.plane_stride();
+		const eng::u32 rstride = pf.row_stride();
+		const eng::u8* p0 = pf.bitplanes().data();
+		const eng::u8* p =
+			p0 + static_cast<eng::u32>(sy) * rstride + (static_cast<eng::u32>(sx) >> 3);
+		const eng::u32 need = (static_cast<eng::u32>(pf.planes()) - 1u) * pstride +
+				      (static_cast<eng::u32>(I.h) - 1u) * rstride + (I.w / 8u);
+		const eng::Span<const eng::u16> src(reinterpret_cast<const eng::u16*>(p), need / 2u);
+		return scr.blit(plan, src, I.x, I.y, I.w, I.h, rb, pstride, pf.planes());
+	}
+
+	/// Copiado por píxel de la intersección `I` (vuelta cuando el blit no aplica).
+	static void copy_window_cpu(eng::field::Surface& scr, CompWindow& w, Rect I) noexcept {
+		for (eng::s16 y = I.y; y <= I.bottom(); ++y) {
+			for (eng::s16 x = I.x; x <= I.right(); ++x) {
+				scr.set_pixel(x, y,
+					      w.backing.pixel_at(static_cast<eng::s16>(x - w.frame.x),
+								 static_cast<eng::s16>(y - w.frame.y)));
+			}
+		}
+	}
+
 	eng::Ref<eng::field::Surface> m_screen {};
 	eng::u8 m_desktop = 0u;
 	CompWindow m_wins[kMaxWindows] {};

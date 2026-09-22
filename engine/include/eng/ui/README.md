@@ -36,7 +36,7 @@ No depende del mini-SO (`eng::os`), pero se integra con él por el puente `os::M
 | `layout.hpp` | `layout_stack_v`/`layout_stack_h` y `anchor`. **Implementado** (HOST-228). |
 | `window.hpp` | `Window`, `WindowKind` (`Window`/`Popup`/`Toast`/`Dialog`) y Z-order. **Implementado** (HOST-229). |
 | `backing.hpp` | `WindowBacking` (lienzo planar + `Surface`). **Implementado** (HOST-230). |
-| `compositor.hpp` | `Compositor` (add/raise/move/resize/damage/present; *copies* de backings a pantalla). **Implementado** (HOST-230). |
+| `compositor.hpp` | `Compositor` (add/raise/move/resize/damage/`present`; `present_blit` copia por `Surface::blit` con vuelta a CPU). **Implementado** (HOST-230/267). |
 | `ui_bridge.hpp` | Puente `eng::os::Msg` → `UiEvent`. **Implementado** (HOST-220). |
 | `msg_adapter.hpp` | `dispatch_msg`: `os::Msg` de entrada → `UiContext` (traduce con `ctx.layout` y compone con `ctx.dead`). **Implementado** (HOST-261/263/265). |
 

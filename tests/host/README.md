@@ -294,5 +294,6 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-264 | [font_cyrillic](264_font_cyrillic/README.md) | Fuente: glifos cirílicos (U+0410–U+044F, Ё/ё) en `Font8` + UTF-8. |
 | HOST-265 | [ui_deadkeys](265_ui_deadkeys/README.md) | GUI: teclas muertas (Alt+acento compone con la letra siguiente). |
 | HOST-266 | [rect_fill_sink](266_rect_fill_sink/README.md) | Relleno de rect por hardware: `RectFillSink` + `fill_rect_hw` + elección del `BlitterRaster`. |
+| HOST-267 | [ui_compositor_blit](267_ui_compositor_blit/README.md) | Compositor por `Surface::blit` (`present_blit`): equivalencia con el copiado por píxel. |
 | HOST-260 | [copper_blitter](260_copper_blitter/README.md) | Copper lanza blits (Técnica A): `CopperIntentKind::BlitterJob` (`BLTCON*`/punteros/módulos/`BLTSIZE`) y **ventana segura** (`set_blitter_window`) que lo serializa con los blits de CPU. |
 | HOST-208 | [ptr](208_ptr/README.md) | `eng/core/ptr.hpp`: punteros "inteligentes" sin heap (`Ref` observador no propietario y anulable, `NonNull`, `Opt` opcional en sitio). |

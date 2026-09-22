@@ -121,9 +121,19 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
   `field::RectFillSink` (`Playfield::fill_rect_hw`, `Scene::set_rect_fill_sink`), que
   `BlitterRaster::fill_rect` prefiere al camino de polígono. Contrato en HOST-266; la ruta de
   hardware se valida con el **self-test de la demo 215** (rect relleno y comprobado por bits).
-- **Estado**: **demo entregada y verificada** (los *fills* de caja van por el Blitter D-only;
-  líneas y texto por CPU). Quedan las **copias del compositor por Blitter** (`CopyRect` en el
-  `FramePlan`) y el **cursor por sprite de hardware**.
+- **Cursor por sprite de hardware**: **entregado**. La demo 215 reserva un canal de sprite (0) con
+  una estructura DMA en Chip RAM (POS/CTL/DAT/DATB + terminador), apunta `SPR0PT` a ella y habilita
+  `DMACON` SPREN como etapa de `compose`; por frame sigue al ratón (`poll_mouse`) reescribiendo
+  POS/CTL. Self-test de la emisión (SPR0PT + SPREN) y de la estructura. **Nota**: la captura PNG del
+  runner **no incluye sprites** (la demo 206 tampoco los muestra), así que el cursor se valida por
+  registros/copperlist, no por el gate de píxeles.
+- **Compositor por Blitter**: **entregado**. `Compositor::present_blit(plan)` copia cada backing con
+  `Surface::blit` (ruta del `Rasterizer`: encola `CopyRect` en el `FramePlan`); si el destino no está
+  alineado a palabra, cae al copiado por píxel de ese rect. Equivalencia con `present()` en
+  HOST-267. La ejecución del plan la hace el llamador (`backend.execute_frame_plan`).
+- **Estado**: **G8 completo**: demo en hardware verificada, *fills* de caja por Blitter D-only,
+  cursor por sprite de hardware y compositor por `Surface::blit`. Queda, fuera de G8, exponer un
+  **cursor de hardware reutilizable** (`eng::ui::HardwareCursor`) y validar los keymaps contra el ROM.
 
 ## Tests y demos previstos
 
