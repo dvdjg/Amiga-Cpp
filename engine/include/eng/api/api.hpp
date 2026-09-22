@@ -5,9 +5,9 @@
 ///
 /// Reúne las cabeceras **estables** de la API —bucle y contrato de juego, escena y
 /// composición, dibujo (`Surface`/`DrawTarget`/`FramePlan`), rasterizado CPU/Blitter,
-/// paleta, entrada, tareas de fondo y los valores preparados de Blitter— sin definir
-/// tipos nuevos: solo incluye las fuentes canónicas, de modo que no hay duplicación ni
-/// una segunda verdad que mantener.
+/// paleta, entrada, tareas de fondo, los valores preparados de Blitter y la librería GUI
+/// (`eng::ui`)— sin definir tipos nuevos: solo incluye las fuentes canónicas, de modo que
+/// no hay duplicación ni una segunda verdad que mantener.
 ///
 /// **No incluye el backend** (p. ej. `eng/platform/amiga_minimal.hpp`): el backend se
 /// instancia en `main()` y se pasa a `eng::Engine`. Un juego portable incluye solo esta
@@ -32,3 +32,4 @@
 #include <eng/memory/arena.hpp>
 #include <eng/scene/actor.hpp>
 #include <eng/task/background.hpp>
+#include <eng/ui/ui.hpp>

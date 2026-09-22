@@ -189,6 +189,23 @@ inline void blit_clear_region(eng::u8* plane, eng::u16 row_bytes, eng::u16 wx0, 
 	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((h << 6) | words);
 }
 
+/// Rellena un rectangulo de palabras de UN plano con 1s (D-only, minterm `$FF`; D=0 con
+/// `blit_clear_region`). `wx0` = x (pixel) de la primera palabra (multiplo de 16). No usa
+/// fuente, asi que no depende de que haya una mascara en Chip RAM.
+inline void blit_set_region(eng::u8* plane, eng::u16 row_stride, eng::u16 wx0, eng::s16 y,
+		    eng::u16 words, eng::u16 h) {
+	eng::u8* d = plane + row_offset(y, row_stride) + (wx0 >> 3);
+	const eng::u16 mod = static_cast<eng::u16>(row_stride - words * 2u);
+	wait_blitter();
+	custom_base[custom_bltcon0_offset] = static_cast<eng::u16>(blt_use_d | 0x00ffu); // minterm $FF => D=1
+	custom_base[custom_bltcon1_offset] = 0;
+	custom_base[custom_bltafwm_offset] = 0xffff;
+	custom_base[custom_bltalwm_offset] = 0xffff;
+	custom_base[custom_bltdmod_offset] = mod;
+	write_custom_pointer(custom_bltdpt_offset, d);
+	custom_base[custom_bltsize_offset] = static_cast<eng::u16>((h << 6) | words);
+}
+
 /// Dibuja una linea con el Blitter (Bresenham hardware, line mode ONEDOT).
 inline void blit_line(eng::u8* plane, eng::u16 row_bytes, eng::s16 x1, eng::s16 y1,
 	       eng::s16 x2, eng::s16 y2) {

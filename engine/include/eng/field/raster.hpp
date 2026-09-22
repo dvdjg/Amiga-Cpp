@@ -272,6 +272,13 @@ public:
 		// `Auto` decide por coste: usa el Blitter si hay sink y el área supera el umbral.
 		const RasterPolicy& pol = pf.raster_policy();
 		const eng::u32 area = static_cast<eng::u32>(w) * static_cast<eng::u32>(h);
+		const bool want_blit =
+			(pol.mode == AccelMode::Blitter) ||
+			(pol.mode == AccelMode::Auto && area >= pol.min_blit_pixels);
+		// Ruta barata: relleno de rect D-only por Blitter (minterm $FF/$00), sin contorno.
+		if (want_blit && pf.has_rect_fill()) {
+			return pf.fill_rect_hw(x, y, w, h, color);
+		}
 		const bool use_blit =
 			(pol.mode == AccelMode::Blitter) ||
 			(pol.mode == AccelMode::Auto && pf.has_fill_sink() && area >= pol.min_blit_pixels);

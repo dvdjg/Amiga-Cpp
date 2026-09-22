@@ -166,6 +166,19 @@ struct PolygonFillSink {
     constexpr bool ready() const { return fn != nullptr && ctx != nullptr; }
 };
 
+/// Motor de **relleno de rectángulo axis-aligned por hardware** (Blitter D-only, minterm
+/// `$FF`/`$00` por plano). Mismo contrato de strides que `PolygonFillSink`. Es la ruta
+/// barata para los *fills* de UI (cajas), frente al relleno de polígono (que traza el
+/// contorno y hace un area-fill). Si no hay sink, `Playfield::fill_rect_hw` cae a CPU.
+struct RectFillSink {
+    using Fn = bool (*)(void* ctx, u8* plane_base, u8 planes, u32 plane_stride,
+                        u32 row_stride, u16 row_bytes, u16 bitmap_w, u16 bitmap_h,
+                        s32 x, s32 y, u16 w, u16 h, u8 color);
+    void* ctx = nullptr;
+    Fn fn = nullptr;
+    constexpr bool ready() const { return fn != nullptr && ctx != nullptr; }
+};
+
 /// Base abstracta de playfield: posee el framebuffer y la geometría, y expone
 /// las primitivas de dibujo (CPU y Blitter) con validación de límites. El mapeo
 /// lógico→físico es un hook virtual que cada tipo concreto implementa:
@@ -389,6 +402,30 @@ public:
     /// `true` si hay un motor de relleno por hardware instalado.
     [[nodiscard]] constexpr bool has_fill_sink() const { return m_fill_sink.ready(); }
 
+    /// Instala (o borra, con `{}`) el motor de **relleno de rect por hardware**. Ver `RectFillSink`.
+    void set_rect_fill_sink(RectFillSink sink) { m_rect_sink = sink; }
+    /// `true` si hay un motor de relleno de rect por hardware instalado.
+    [[nodiscard]] constexpr bool has_rect_fill() const { return m_rect_sink.ready(); }
+
+    /// **Rellena un rectángulo axis-aligned** con `color`: por el sink de hardware si lo hay
+    /// (Blitter D-only), o por CPU (`draw_span` por fila). El llamador (`BlitterRaster`) ya
+    /// decidió la ruta; aquí solo se ejecuta.
+    bool fill_rect_hw(s32 x, s32 y, u16 w, u16 h, u8 color) {
+        if (!m_initialized || w == 0u || h == 0u) return false;
+        if (m_rect_sink.ready()) {
+            return m_rect_sink.fn(m_rect_sink.ctx, m_frontbuffer, m_planes, plane_stride(),
+                                  row_stride(), m_bytes_per_row, m_width, m_height, x, y, w, h,
+                                  color);
+        }
+        const s32 x0 = x;
+        const s32 x1 = static_cast<s32>(x) + static_cast<s32>(w) - 1;
+        const s32 y1 = static_cast<s32>(y) + static_cast<s32>(h) - 1;
+        for (s32 row = y; row <= y1; ++row) {
+            draw_span(x0, x1, row, color);
+        }
+        return true;
+    }
+
     /// **Línea por Blitter** (`BLTCON1` LINE) o **EOR/ONEDOT** (`eor`): encola una
     /// `BlitJobKind::Line`/`LineEor` por plano cuyo bit de color está activo. Usa
     /// `plane_stride()`/`row_stride()`, así que sirve para contiguo e interleaved. La
@@ -569,6 +606,7 @@ protected:
     u32 m_row_stride = 0;        ///< bytes entre filas del mismo plano (0 = `m_bytes_per_row`)
     bool m_initialized = false;  ///< el playfield quedó listo para dibujar
     PolygonFillSink m_fill_sink {}; ///< motor de relleno por hardware (vacío = CPU)
+    RectFillSink m_rect_sink {}; ///< motor de relleno de rect por hardware (vacío = CPU)
     Rasterizer* m_rasterizer = nullptr; ///< seam CPU/Blitter (nullptr = CPU por defecto)
     RasterPolicy m_raster_policy {};    ///< política de aceleración
 };

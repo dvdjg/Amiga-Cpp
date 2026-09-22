@@ -66,8 +66,10 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 - **Entregable**: foco (`WfFocused`, `Tab`/`Shift+Tab`), `EditBox` (buffer externo, caret,
   inserción/borrado, `view` horizontal), `UiEventKind::Tick` para el caret.
 - **Verificación**: **HOST-227** — inserción en medio, backspace, `Left`/`Right`, límite de
-  capacidad, `ensure_caret_visible`; `Tab` cicla solo dentro del modal.
-- **Estado**: pendiente.
+  capacidad, `ensure_caret_visible`; `Tab` cicla dentro del modal (G4 sin modales aún: en todo el
+  árbol).
+- **Estado**: **entregado** (`keys.hpp` + `editbox.hpp` + foco en `context.hpp`; **HOST-227**). La
+  traducción rawkey Amiga → tecla lógica (`keys.hpp`) es del input y está **pendiente**.
 
 ### G5 — Layout y presets de tema
 
@@ -75,7 +77,8 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
   cambio de tema en caliente (dirty de todo).
 - **Verificación**: **HOST-228** — la pila coloca con `gap`/paddings; un botón mide por
   `text_width` + `btn_h`; cambiar de tema recolorea los widgets.
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`layout.hpp` + `mark_all_dirty`; **HOST-228**). Los hijos se colocan
+  en **orden de creación**.
 
 ### G6 — Ventanas: Window/Popup/Toast/Dialog
 
@@ -83,7 +86,7 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
   frames, no capta input) y `Dialog` (modal: filtra hit-test y foco).
 - **Verificación**: **HOST-229** — `raise` cambia el orden; el modal bloquea el escritorio; `Esc`
   cierra el diálogo/popup superior; el toast expira tras su TTL.
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`window.hpp` + modalidad/popups/toasts en `context.hpp`; **HOST-229**).
 
 ### G7 — Compositor con backing store
 
@@ -94,7 +97,8 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 - **Verificación**: **HOST-230** — `move_window` daña origen y destino sin marcar `content_dirty`
   ajeno; `compose_region` copia los trozos correctos de los backings (comparar contra un patrón
   de referencia); `resize` marca solo su ventana; el pool falla limpio si no cabe.
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`backing.hpp` + `compositor.hpp`; **HOST-230**). El *copy* es por CPU
+  (píxel a píxel); en G8 se acelerará con Blitter (`CopyRect`).
 
 ### G8 — Aceleración Blitter y demo en hardware
 
@@ -104,7 +108,22 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 - **Verificación**: **demo 207_gui_widgets** (G0–G6) y **demo 208_gui_compositor** (G7) en
   hardware, con gate visual (widgets presentes, ventana que se mueve/redimensiona y se recomponen
   los vecinos). Medir con el profiler.
-- **Estado**: pendiente.
+- **Demo en hardware**: **`215_gui_widgets`** (escena planar EHB 320×256) ya **renderiza y
+  verifica**. La causa del fallo anterior era dibujar con el **`BlitterRaster` instalado**
+  (`backend.install_raster`): un *fill* grande por Blitter es **asíncrono** y pisaba los trazos
+  CPU del mismo frame. La solución es **no instalar el rasterizador Blitter** en la demo (dibujo
+  CPU, síncrono) y **repintar por zona** (la UI es estática salvo la pista del slider). Gate
+  objetivo: `tools/analyze/verify-gui-widgets.mjs` (panel/texto/bisel/foco presentes y el slider
+  cambia en una banda horizontal entre frames).
+- **`fill_rect` D-only por Blitter**: **entregado**. `MinimalBackend::blitter_fill_rect` rellena
+  el rect con minterm `$FF`/`$00` (D-only, sin fuente: el Blitter solo ve Chip RAM) y repara por
+  CPU la primera/última palabra para x/w no alineados. Se conecta por el *seam*
+  `field::RectFillSink` (`Playfield::fill_rect_hw`, `Scene::set_rect_fill_sink`), que
+  `BlitterRaster::fill_rect` prefiere al camino de polígono. Contrato en HOST-266; la ruta de
+  hardware se valida con el **self-test de la demo 215** (rect relleno y comprobado por bits).
+- **Estado**: **demo entregada y verificada** (los *fills* de caja van por el Blitter D-only;
+  líneas y texto por CPU). Quedan las **copias del compositor por Blitter** (`CopyRect` en el
+  `FramePlan`) y el **cursor por sprite de hardware**.
 
 ## Tests y demos previstos
 
@@ -118,7 +137,10 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 | HOST-228 | test | Layout y cambio de tema. |
 | HOST-229 | test | Ventanas, popup, toast y modal. |
 | HOST-230 | test | Compositor y backing store (move/resize/raise/compose). |
-| 207_gui_widgets | demo | Widgets y tema en hardware (G0–G6). |
+| HOST-261 | test | Entrada por **mensajes** (`os::Msg` → `UiContext`) con `keymap` rawkey→tecla lógica. |
+| HOST-262 | test | `Slider` (click/arrastre y flechas). |
+| HOST-263 | test | Keymaps nacionales (ES/FR/IT/DE/RU) y `dispatch_msg` con el layout del contexto. |
+| `215_gui_widgets` | demo | Widgets y tema en hardware (G0–G6). **Entregada y verificada** (G8). |
 | 208_gui_compositor | demo | Ventanas movibles/redimensionables con backing store (G7). |
 
 ## Riesgos y decisiones abiertas
@@ -139,11 +161,18 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 
 ## Estado
 
-**G0–G3 entregados** (`theme.hpp`/`painter.hpp`/`text.hpp` HOST-223; `widget.hpp`/`dirty.hpp`/
-`widgets.hpp` con `Panel`/`Label` HOST-224; `context.hpp` + `Button` HOST-225; `CheckBox`/
-`RadioButton` HOST-226). G4–G8 pendientes. El siguiente paso es **G4** (foco de teclado y
-`EditBox`), que sigue sin depender del compositor ni del mini-SO.
+**G0–G7 entregados** (HOST-223…HOST-230): `theme`/`painter`/`text`, `widget`/`dirty`/`widgets`
+(`Panel`/`Label`/`Button`/`CheckBox`/`RadioButton`/`Slider`), `keys`/`keymap`/`editbox`/`context`
+(foco), `layout`, `window` (Window/Popup/Toast/Dialog), `backing`/`compositor` y la **entrada por
+mensajes** (`msg_adapter` + `ui_bridge`, HOST-261/262) con **keymaps nacionales** (HOST-263).
 
-La GUI queda **fuera** de `eng/api/api.hpp` hasta que exista su primer consumidor hardware (demo
-G8); entonces se expondrá solo la superficie estable. El `fill_rect` D-only del raster se deja
-para G8, con test de equivalencia.
+**G8 (demo en hardware) entregada**: `215_gui_widgets` renderiza y verifica (gate objetivo con
+`verify-gui-widgets.mjs`). La distribución nacional es **estado del `UiContext`** (`ctx.layout`),
+que fija la aplicación al arrancar; `dispatch_msg` la usa, sin ir fija en la llamada. La superficie
+estable de la GUI se expone en `eng/api/api.hpp` mediante la fachada `eng/ui/ui.hpp`.
+
+Queda pendiente de G8 la **aceleración Blitter** del raster (`fill_rect` D-only, minterm `$FF`, y
+copias del compositor) y el **cursor por sprite de hardware**, con test de equivalencia contra el
+camino de polígono. Los **keymaps** son *best-effort* para el área principal (0x00–0x3F): falta
+validarlos contra el ROM y **componer teclas muertas**; el cirílico (RU) requiere glifos fuera de
+`Font8`/`Font5x7`.

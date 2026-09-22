@@ -504,6 +504,16 @@ public:
 	bool blitter_area_fill_rect(eng::PlaneBytes plane, u16 row_bytes, u16 wx0, s16 y0, u16 words, u16 rows,
 				    bool wait = true);
 
+	/// **Rellena un rectangulo axis-aligned con el Blitter** (D-only, minterm `$FF`/`$00` por
+	/// plano: 1 si el bit del color esta a 1, 0 si no). Geometria en strides explicitos (sirve
+	/// para planos contiguos e interleaved): `plane_stride` = bytes entre planos, `row_stride` =
+	/// bytes entre filas del mismo plano, `row_bytes` = bytes por fila. Enmascara la primera y
+	/// ultima palabra para rectangulos no alineados a palabra. Sincrono (`wait`). Es el motor de
+	/// `field::RectFillSink` (relleno de cajas de UI por hardware).
+	bool blitter_fill_rect(eng::u8* plane_base, u8 planes, u32 plane_stride, u32 row_stride,
+			       u16 row_bytes, u16 bitmap_w, u16 bitmap_h, s32 x, s32 y, u16 w, u16 h,
+			       u8 color, bool wait = true);
+
 	/// Escribe el registro de datos de un bitplane (`BLTxDAT`, $110 + 2*plane). Lo
 	/// usa fire-rgb para los bits HAM fijos de los planos 4/5 (`0x7777`/`0xcccc`).
 	void set_bitplane_dat(u8 plane, u16 value);

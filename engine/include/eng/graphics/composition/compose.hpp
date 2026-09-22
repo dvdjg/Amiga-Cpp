@@ -269,6 +269,13 @@ public:
 		m_contiguous.set_polygon_fill_sink(sink);
 	}
 
+	/// Instala el **motor de relleno de rect por hardware** (Blitter D-only) en los playfields
+	/// de la escena. `BlitterRaster` lo usa para las cajas de UI (más barato que el polígono).
+	void set_rect_fill_sink(field::RectFillSink sink) {
+		m_playfield.set_rect_fill_sink(sink);
+		m_contiguous.set_rect_fill_sink(sink);
+	}
+
 	/// **Objetivo de dibujo** de la escena: `Surface` + `Rasterizer` + `FramePlan` + clip.
 	/// Es la puerta única a las primitivas (fill/línea/texto/blit/c2p) sobre el buffer de
 	/// dibujo activo, sea la escena contigua o interleaved.

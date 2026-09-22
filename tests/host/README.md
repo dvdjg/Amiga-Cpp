@@ -263,6 +263,10 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-224 | [ui_widgets](224_ui_widgets/README.md) | GUI G1: árbol de widgets (`eng/ui/widget.hpp`), `DirtyList<Max>` (fusión/desborde) y `Panel`/`Label` con `draw_widget` (`switch` exhaustivo) y `measure`. |
 | HOST-225 | [ui_context](225_ui_context/README.md) | GUI G2: `eng::ui::UiContext` (hit-test de delante hacia atrás, foco, despacho) y `Button` (`on_click` al soltar dentro, una vez). |
 | HOST-226 | [ui_toggle](226_ui_toggle/README.md) | GUI G3: `CheckBox` (alterna `*value` al soltar dentro) y `RadioButton` (activa uno y desactiva el grupo por `group_id`). |
+| HOST-227 | [ui_edit](227_ui_edit/README.md) | GUI G4: foco de teclado (`Tab`/`Shift+Tab`) y `EditBox` (buffer externo, insertar/borrar, caret y vista horizontal). |
+| HOST-228 | [ui_layout](228_ui_layout/README.md) | GUI G5: `layout_stack_v`/`layout_stack_h`, `anchor`, `measure` de botón y cambio de tema (recolorea). |
+| HOST-229 | [ui_windows](229_ui_windows/README.md) | GUI G6: ventanas (`Window`/`Popup`/`Toast`/`Dialog`), Z/`raise`, modalidad, `Esc`, TTL y popup que cierra al pulsar fuera. |
+| HOST-230 | [ui_compositor](230_ui_compositor/README.md) | GUI G7: compositor con `WindowBacking` (componer de atrás hacia delante, mover/redimensionar sin repintar vecinas, pool con cota). |
 | HOST-231 | [box](231_box/README.md) | `eng::Box` (rect 16 bits) + adaptadores a/desde `SurfaceRect`/`ClipRect`/`DirtyRect` (round-trip y bordes). |
 | HOST-232 | [draw_target](232_draw_target/README.md) | `field::DrawTarget` (Surface+Rasterizer+FramePlan+clip): `fill`/`line`/`frame`/`c2p` y `box()`. |
 | HOST-233 | [api_facade](233_api_facade/README.md) | Fachada pública `eng/api/api.hpp`: un solo include expone la API estable (Box, FramePlan, raster, entrada, tareas, paleta, `GameModule`). |
@@ -284,6 +288,12 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-248 | [dynloader](248_dynloader/README.md) | Recursos: `DynLoader` (`eng/res/dynloader.hpp`) — `.englib` relocatable (relocaciones + símbolos). |
 | HOST-258 | [hunk_loader](258_hunk_loader/README.md) | Recursos: cargador **HUNK** (`eng/res/hunk.hpp`) — segmentos en `LinearArena`, relocaciones (32/32SHORT) y símbolos; detección de formato `.englib`/HUNK en `DynLoader`. |
 | HOST-259 | [floppy_mfm](259_floppy_mfm/README.md) | Disquete: decodificación **MFM** (`eng/os/floppy.hpp`) — `mfm_decode_long` inverso y `floppy_find_sector` sobre una pista AmigaDOS sintética (encoder = el del emulador). |
+| HOST-261 | [ui_msg_input](261_ui_msg_input/README.md) | GUI: entrada por **mensajes** (`os::Msg` → `ui_bridge` → `UiContext`) con `keymap` rawkey Amiga → tecla lógica. |
+| HOST-262 | [ui_slider](262_ui_slider/README.md) | GUI: `Slider` (click/arrastre → valor, flechas con foco, pista + pomo). |
+| HOST-263 | [ui_keymap_layouts](263_ui_keymap_layouts/README.md) | GUI: keymaps nacionales (ES/FR/IT/DE/RU) — `rawkey_to_key(raw, shift, layout)`. |
+| HOST-264 | [font_cyrillic](264_font_cyrillic/README.md) | Fuente: glifos cirílicos (U+0410–U+044F, Ё/ё) en `Font8` + UTF-8. |
+| HOST-265 | [ui_deadkeys](265_ui_deadkeys/README.md) | GUI: teclas muertas (Alt+acento compone con la letra siguiente). |
+| HOST-266 | [rect_fill_sink](266_rect_fill_sink/README.md) | Relleno de rect por hardware: `RectFillSink` + `fill_rect_hw` + elección del `BlitterRaster`. |
 | HOST-260 | [copper_blitter](260_copper_blitter/README.md) | Copper lanza blits (Técnica A): `CopperIntentKind::BlitterJob` (`BLTCON*`/punteros/módulos/`BLTSIZE`) y **ventana segura** (`set_blitter_window`) que lo serializa con los blits de CPU. |
 | HOST-261 | [fine_scroll](261_fine_scroll/README.md) | `eng::effects::FineScroll`: scroll horizontal fino de una capa planar (1 px/frame) — `step`/`bplcon1`/columna y `BlitJob` de desplazamiento + columna entrante. |
 | HOST-208 | [ptr](208_ptr/README.md) | `eng/core/ptr.hpp`: punteros "inteligentes" sin heap (`Ref` observador no propietario y anulable, `NonNull`, `Opt` opcional en sitio). |

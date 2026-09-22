@@ -14,11 +14,15 @@
 ///   check/radio `lado + pad_x + ancho_etiqueta`; contenedores usan su `bounds`.
 
 #include <eng/core/types.hpp>
+#include <eng/ui/editbox.hpp>
 #include <eng/ui/event.hpp>
+#include <eng/ui/layout.hpp>
 #include <eng/ui/painter.hpp>
+#include <eng/ui/slider.hpp>
 #include <eng/ui/text.hpp>
 #include <eng/ui/theme.hpp>
 #include <eng/ui/widget.hpp>
+#include <eng/ui/window.hpp>
 
 namespace eng::ui {
 
@@ -108,6 +112,7 @@ inline constexpr eng::u16 kTickGlyph[8] = {
 	case WidgetType::Edit:
 	case WidgetType::Slider:
 	case WidgetType::List:
+	case WidgetType::Window:
 		return w.bounds;
 	}
 	return w.bounds;
@@ -201,9 +206,16 @@ inline void draw_widget(Widget& w, UiPainter& p) {
 		draw_radio(static_cast<RadioButton&>(w), p);
 		break;
 	case WidgetType::Edit:
+		draw_edit(static_cast<EditBox&>(w), p);
+		break;
+	case WidgetType::Window:
+		draw_window(static_cast<Window&>(w), p);
+		break;
 	case WidgetType::Slider:
+		draw_slider(static_cast<Slider&>(w), p);
+		break;
 	case WidgetType::List:
-		break; // pendientes
+		break; // pendiente
 	}
 }
 
@@ -312,14 +324,31 @@ inline bool event_widget(Widget& w, const UiEvent& ev) {
 		return event_check(static_cast<CheckBox&>(w), ev);
 	case WidgetType::Radio:
 		return event_radio(static_cast<RadioButton&>(w), ev);
+	case WidgetType::Edit:
+		return event_edit(static_cast<EditBox&>(w), ev);
+	case WidgetType::Slider:
+		return event_slider(static_cast<Slider&>(w), ev);
 	case WidgetType::Panel:
 	case WidgetType::Label:
-	case WidgetType::Edit:
-	case WidgetType::Slider:
+	case WidgetType::Window:
 	case WidgetType::List:
 		return false;
 	}
 	return false;
+}
+
+/// Dibuja `w` y su subárbol de **atrás hacia delante** (hijos en orden de creación, para que el
+/// más nuevo —al frente— quede encima). Útil para componer el árbol sobre una `Surface`.
+inline void draw_tree(Widget& w, UiPainter& p) {
+	if (!w.has(WfVisible)) {
+		return;
+	}
+	draw_widget(w, p);
+	Widget* kids[kMaxLayoutChildren];
+	const eng::u8 n = children_creation_order<kMaxLayoutChildren>(w, kids);
+	for (eng::u8 i = 0u; i < n; ++i) {
+		draw_tree(*kids[i], p);
+	}
 }
 
 } // namespace eng::ui
