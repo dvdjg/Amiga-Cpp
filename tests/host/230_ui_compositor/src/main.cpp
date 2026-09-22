@@ -12,6 +12,7 @@
 #include <cstdio>
 
 #include <eng/core/box.hpp>
+#include <eng/graphics/frame_plan.hpp>
 #include <eng/ui/compositor.hpp>
 
 namespace {
@@ -76,6 +77,31 @@ int main() {
 	check(pixel_at(screen_mem, 10, 10) == 3u, "A visible");
 	check(pixel_at(screen_mem, 20, 10) == 5u, "B al frente sobre A");
 	check(pixel_at(screen_mem, 50, 10) == 0u, "escritorio fuera");
+
+	// --- equivalencia: present(plan) (blit planar) == present() (CPU) ---
+	// Las intersecciones de A ({0,0,32,32}) y B ({16,0,32,32}) estan alineadas a palabra,
+	// asi que present(plan) usa `Surface::blit` (CopyRect); con rasterizador CPU el resultado
+	// debe ser identico al bucle de pixeles.
+	{
+		eng::u8 snap[kPlaneStride * kPlanes];
+		for (eng::u32 i = 0u; i < sizeof(snap); ++i) {
+			snap[i] = screen_mem[i];
+		}
+		for (eng::u32 i = 0u; i < sizeof(screen_mem); ++i) {
+			screen_mem[i] = 0u;
+		}
+		comp.damage_screen(eng::ui::Rect {0, 0, kSW, kSH});
+		eng::graphics::FramePlan plan {};
+		comp.present(plan);
+		bool same = true;
+		for (eng::u32 i = 0u; i < sizeof(snap); ++i) {
+			if (screen_mem[i] != snap[i]) {
+				same = false;
+			}
+		}
+		check(same, "present(plan) equivalente a present() en CPU");
+		check(pixel_at(screen_mem, 20, 10) == 5u, "blit planar: B al frente");
+	}
 
 	// --- mover B: dana origen y destino, sin repintar vecinas ---
 	a->backing.needs_repaint = false;

@@ -11,8 +11,10 @@
 /// **copies** de los backings a la pantalla sobre las regiones dañadas.
 
 #include <eng/core/ptr.hpp>
+#include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/field/surface.hpp>
+#include <eng/graphics/frame_plan.hpp>
 #include <eng/ui/backing.hpp>
 #include <eng/ui/dirty.hpp>
 #include <eng/ui/theme.hpp>
@@ -88,18 +90,31 @@ public:
 	void damage_screen(Rect r) noexcept { m_damage.add(r); }
 
 	/// Compone las regiones dañadas: fondo + backings (de atrás hacia delante) y limpia el daño.
-	void present() noexcept {
+	///
+	/// **CPU**: el fondo por `Surface::fill_rect` y los backings píxel a píxel. Es el camino
+	/// agnóstico (sin `FramePlan`).
+	void present() noexcept { compose(nullptr); }
+
+	/// Igual, pero **acelerada**: el fondo entra por `fill_rect` (rasterizador: Blitter si el
+	/// `Surface` lo tiene instalado) y cada intersección **alineada a palabra** (destino `x`, ancho
+	/// y origen `sx` múltiplos de 16) se copia con `Surface::blit` (`CopyRect` por Blitter). El
+	/// `plan` lo ejecuta el backend; las intersecciones no alineadas caen al bucle de píxeles.
+	void present(eng::graphics::FramePlan& plan) noexcept { compose(&plan); }
+
+	[[nodiscard]] eng::u8 damage_count() const noexcept { return m_damage.count; }
+	[[nodiscard]] eng::u8 window_count() const noexcept { return m_count; }
+
+private:
+	/// Compone con o sin plan (`plan == nullptr` = solo CPU). El fondo va por `fill_rect`; cada
+	/// intersección intenta el blit planar y, si no procede, cae al bucle de píxeles.
+	void compose(eng::graphics::FramePlan* plan) noexcept {
 		if (!m_screen.valid()) {
 			return;
 		}
 		eng::field::Surface& scr = *m_screen;
 		for (eng::u8 d = 0u; d < m_damage.count; ++d) {
 			const Rect region = m_damage.rects[d];
-			for (eng::s16 y = region.y; y <= region.bottom(); ++y) {
-				for (eng::s16 x = region.x; x <= region.right(); ++x) {
-					scr.set_pixel(x, y, m_desktop);
-				}
-			}
+			scr.fill_rect(region.x, region.y, region.w, region.h, m_desktop);
 			for (eng::u8 i = 0u; i < m_count; ++i) {
 				CompWindow& w = m_wins[m_order[i]];
 				if (!w.backing.valid) {
@@ -109,14 +124,15 @@ public:
 				if (I.empty()) {
 					continue;
 				}
+				if (plan != nullptr && blit_backing(*plan, scr, w, I)) {
+					continue;
+				}
 				for (eng::s16 y = I.y; y <= I.bottom(); ++y) {
 					for (eng::s16 x = I.x; x <= I.right(); ++x) {
 						scr.set_pixel(x, y,
 							      w.backing.pixel_at(
-								      static_cast<eng::s16>(
-									      x - w.frame.x),
-								      static_cast<eng::s16>(
-									      y - w.frame.y)));
+								      static_cast<eng::s16>(x - w.frame.x),
+								      static_cast<eng::s16>(y - w.frame.y)));
 					}
 				}
 			}
@@ -124,10 +140,37 @@ public:
 		m_damage.clear();
 	}
 
-	[[nodiscard]] eng::u8 damage_count() const noexcept { return m_damage.count; }
-	[[nodiscard]] eng::u8 window_count() const noexcept { return m_count; }
+	/// Copia la intersección `I` del backing de `w` a la pantalla con `Surface::blit`
+	/// (`CopyRect` por Blitter). Solo cuando destino `I.x`, ancho `I.w` y origen `sx` son
+	/// **múltiplos de 16** (el blit planar no desplaza bits); si no, `false` → CPU.
+	[[nodiscard]] static bool blit_backing(eng::graphics::FramePlan& plan,
+					       eng::field::Surface& scr, const CompWindow& w,
+					       const Rect& I) noexcept {
+		if ((I.x & 15) != 0 || (I.w & 15) != 0) {
+			return false;
+		}
+		const eng::s16 sx = static_cast<eng::s16>(I.x - w.frame.x);
+		const eng::s16 sy = static_cast<eng::s16>(I.y - w.frame.y);
+		if (sx < 0 || sy < 0 || (sx & 15) != 0) {
+			return false;
+		}
+		const eng::u16 rb = w.backing.playfield.bytes_per_row();
+		const eng::u32 ps = w.backing.playfield.plane_stride();
+		const eng::u8 np = w.backing.playfield.planes();
+		if (rb == 0u || ps == 0u || np == 0u) {
+			return false;
+		}
+		const eng::u16* base =
+			reinterpret_cast<const eng::u16*>(w.backing.playfield.bitplanes().data());
+		const eng::u16* src = base + static_cast<eng::u32>(sy) * (rb / 2u) +
+				      static_cast<eng::u32>(sx / 16);
+		const eng::u32 need = static_cast<eng::u32>(np - 1u) * (ps / 2u) +
+				      static_cast<eng::u32>(I.h - 1u) * (rb / 2u) +
+				      static_cast<eng::u32>(I.w / 16u);
+		return scr.blit(plan, eng::Span<const eng::u16>(src, need), I.x, I.y, I.w, I.h,
+				rb, ps, np);
+	}
 
-private:
 	eng::Ref<eng::field::Surface> m_screen {};
 	eng::u8 m_desktop = 0u;
 	CompWindow m_wins[kMaxWindows] {};

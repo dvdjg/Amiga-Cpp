@@ -171,8 +171,11 @@ mensajes** (`msg_adapter` + `ui_bridge`, HOST-261/262) con **keymaps nacionales*
 que fija la aplicación al arrancar; `dispatch_msg` la usa, sin ir fija en la llamada. La superficie
 estable de la GUI se expone en `eng/api/api.hpp` mediante la fachada `eng/ui/ui.hpp`.
 
-Queda pendiente de G8 la **aceleración Blitter** del raster (`fill_rect` D-only, minterm `$FF`, y
-copias del compositor) y el **cursor por sprite de hardware**, con test de equivalencia contra el
-camino de polígono. Los **keymaps** son *best-effort* para el área principal (0x00–0x3F): falta
-validarlos contra el ROM y **componer teclas muertas**; el cirílico (RU) requiere glifos fuera de
-`Font8`/`Font5x7`.
+La **aceleración Blitter** del raster está hecha: el `fill_rect` D-only (minterm `$FF`) entra por
+el `RectFillSink` (HOST-266) y las **copias del compositor** por `Surface::blit`
+(`Compositor::present(FramePlan&)`, con **test de equivalencia** contra el camino CPU en
+HOST-230). Las copias solo van al Blitter cuando destino y origen están **alineados a palabra**
+(16 px); si no, caen al bucle de píxeles. Queda pendiente el **cursor por sprite de hardware** y
+validar el compositor en hardware (ninguna demo lo usa aún). Los **keymaps** son *best-effort* para
+el área principal (0x00–0x3F): falta validarlos contra el ROM; el cirílico (RU) requiere glifos
+fuera de `Font8`/`Font5x7` (ya soportados por `Font8`).
