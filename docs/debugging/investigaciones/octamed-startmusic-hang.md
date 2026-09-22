@@ -55,10 +55,26 @@ El contraste lo demuestra:
   ya ha escrito los primeros buffers.
 - **`OCTAMED_READY_FRAME=60`** (el bucle **espera** frames, el playroutine necesita su IRQ): **cuelga**.
 
-Coincide con el wrapper de Photon: **«DONT RESET [INTENA] FOR MED PLAYER»**. **Rearmar el master
-INTEN (+VERTB) tras el takeover NO lo resolvió** (probado) → el playroutine necesita además que su
-propio estado de interrupción de VBlank corra; el arreglo limpio es **no apagar `INTENA` en el
-takeover para el modo MED** (o rearmar exactamente lo que el playroutine dejó). Pendiente de GDB.
+Coincide con el wrapper de Photon: **«DONT RESET [INTENA] FOR MED PLAYER»**.
+
+**Probado y NO resuelve** (dos variantes):
+1. Rearmar `INTEN|VERTB` desde la demo tras el takeover.
+2. Cambiar el propio takeover: `INTENA = $7BFF` (`dma_setclr | (0x7FFF & ~INTEN)`, deja el master
+   armado y desarma niveles). **Sigue colgando** con `READY_FRAME=60`.
+
+→ El `INTENA` es necesario pero **no suficiente**; falta otra cosa (GDB sobre `_startmusic` y, tras
+retornar, sobre el bucle/`_IntHandler`). Los cambios 1/2 están **revertidos** (no se deja hardware
+vendado sin verificar).
+
+## Herramienta de GDB (en progreso)
+
+`tools/debug/gdb-probe-octamed.ts` (compila a `dist/`): pone breakpoints en símbolos del playroutine
+y reporta PC/registros en cada parada. **Estado**: engancha el gdbserver y enumera símbolos, pero la
+**relocalización** de la dirección runtime no está resuelta (`qOffsets` no da las secciones); hay que
+reusar el canal lateral (`state.sections`) como hace `verify-gdb-step-side-channel`, o pasar las
+secciones resueltas. Los símbolos del playroutine disponibles en el `.map` son `_startmusic`,
+`_endmusic`, `_chipzero` (los labels internos `_InitPlayer`/`_PlayModule`/`_IntHandler` **no** son
+globales → no aparecen).
 
 ## Hipótesis (actualizada)
 
