@@ -365,9 +365,13 @@ struct DemoGame {
 		g_eng_run_status.detail = t2 - t0; // ciclos del update completo
 		return;
 #endif
+		// `cameraX` en los bits 16-23 (convención del runner); byte alto del scroll X y
+		// scroll Y en los bits bajos para conservar la posición completa.
+		const eng::u32 scroll_x = static_cast<eng::u32>(scene.bg().mapposx());
 		g_eng_run_status.detail = 0x11200000u |
-			((static_cast<eng::u32>(scene.bg().mapposx()) & 0xffffu) << 8) |
-			(static_cast<eng::u32>(scene.bg().mapposy()) & 0xffu);
+			((scroll_x & 0xffu) << 16) |
+			((static_cast<eng::u32>(scene.bg().mapposy()) & 0xffu) << 8) |
+			((scroll_x >> 8) & 0xffu);
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {

@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "viewport": {
+    "mode": "auto_non_black",
+    "threshold": 8,
+    "logicalWidth": 320,
+    "logicalHeight": 256
+  },
+  "defaults": {
+    "rgbTolerance": 8,
+    "maxErrorRatio": 0.02
+  },
+  "segments": [
+    {
+      "name": "scroll-2px-per-frame",
+      "frames": [0, -1],
+      "checks": [
+        {
+          "name": "shift-left-2px-per-frame",
+          "type": "shifted_region_match",
+          "roi": { "x": 32, "y": 24, "w": 256, "h": 208 },
+          "dx": -2,
+          "dy": 0,
+          "rgbTolerance": 10,
+          "maxErrorRatio": 0.02
+        }
+      ]
+    }
+  ]
+}
