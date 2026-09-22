@@ -1,10 +1,11 @@
-# Roadmap — portabilidad a Workbench (backend de UI + host de mensajes)
+# Roadmap — portabilidad a Workbench (UI + mini-SO + servicios)
 
-Objetivo: que **el mismo código de aplicación** (widgets `eng::ui`, `UiEvent`, despacho) funcione
-**sobre el engine a pelo** (juego/HUD, sin SO) y **sobre Workbench/Intuition** (herramienta con
-ventanas del OS). No se trata de que Intuition «sea» el compositor del engine, sino de introducir un
-**seam** (destino de dibujo + origen de eventos + espera) con dos implementaciones: `EngineHost` y
-`IntuitionHost`.
+Objetivo: que **el mismo código de aplicación** (widgets `eng::ui`, `UiEvent`, despacho, servicios de
+`eng::os`/`eng::res`/`eng::hw`…) funcione **sobre el engine a pelo** (juego/HUD, sin SO, con IRQ y
+`$DFF`) y **sobre Workbench/Intuition** (herramienta con ventanas y Exec/DOS). No se trata de que
+Intuition «sea» el compositor del engine, sino de **misma API de servicio + backend distinto**: un
+*seam* (destino de dibujo + origen de eventos + espera) con dos implementaciones, `EngineHost` y
+`IntuitionHost`, y el mismo patrón para el resto de los subsistemas (§Otros subsistemas).
 
 ```text
         App / widgets (eng::ui: UiContext, Widget, UiEvent)   <- neutral, sin SO
@@ -232,6 +233,104 @@ void app_ui_main(Host& host) {
   `Screen` hi-res con los widgets a proporción correcta.
 - **Alternativa (más barata)**: abrir la app en un **`Screen`/`Window` low-res** (píxel casi
   cuadrado) para no escalar; se documenta como opción, pero el defecto es **adaptarse**.
+- **Estado**: pendiente.
+
+## Otros subsistemas: «misma API, backend OS»
+
+El patrón del backend de UI vale para el resto del engine: **API estable** (la que ya usa una demo o
+un juego) + **backend** que en el engine habla con IRQ y `$DFF`, y en Workbench con
+Exec/DOS/Intuition. El criterio es siempre el mismo: *misma API de servicio*, backend distinto.
+
+| Subsistema | Engine (API estable) | Workbench 1.3 (backend) | Valor / estado |
+|---|---|---|---|
+| **Tiempo/timers** | `eng/os/time.hpp` (`ticks_now`/`ScopedTimer`) + `timer.hpp` (`TimerService`) | `timer.device`, `GetSysTime`, `INTUITICKS`, `WaitTOF` | engine listo; WB pendiente (W6) |
+| **Archivos/streams** | `eng/os/file.hpp` (`file_*`) + `stream.hpp` (`ChunkStream`) | `dos.library` + `SendIO` async | el que **más valor** aporta en herramientas; `file_*` ya va por `dos.library` — falta el `SendIO` real y el `io_reply` en el host (W5/W6) |
+| **Recursos/código dinámico** | `eng/res/` (`AssetCache`, `DynLoader`/`hunk.hpp`) | `AvailMem(MEMF_CHIP/FAST)`/`AllocMem` + `file` + los mismos `Msg` | engine listo (HOST-248/254); el backend WB puede usar heap del SO (W9) |
+| **Audio** | `eng/audio/` (`AudioSystem`, mixer/P61) | `audio.device` (`AllocMem` canales + `IOAudio`) | sin latencia de demo: SFX/música en app (W11) |
+| **Entrada** | `eng/os/input.hpp` (productores → `Msg`) | IDCMP + `input.device`/gameport | cubierto por el host WB (W3/W5) |
+| **Probe de hardware** | `eng/hw/info.hpp` (`HwInfo`) | `ExecBase`, `GfxBase`, `AvailMem`, `AttnFlags` | casi trivial y muy útil para decidir rutas (W10) |
+| **Memoria etiquetada** | `ChipSpan`/arenas (`eng/memory/arena.hpp`) | `AllocMem(MEMF_CHIP/FAST/PUBLIC)` | el wrapper solo implementa el *allocator*; `ChipSpan` sigue protegiendo Blitter/audio (W9) |
+
+### Adaptables a medias
+
+- **Gráficos de bajo nivel** (`eng/field/surface.hpp`, `Rasterizer`, `FramePlan`): un `Surface` sobre
+  `BitMap` + `RastPort` (`InitRastPort`/`BltBitMap`/`RectFill`/`Text`) es posible; **no** lo es el
+  pipeline de display OCS (copper de juego, DPF a pelo, cola de blits sincronizada al haz, compositor
+  fullscreen). Es el *seam* `PaintTarget` de W0/W8 **generalizado** (W12).
+- **Compositor/ventanas con backing**: en WB **el compositor es Intuition**; el pool + *dirty rects*
+  son del backend engine (ya tratado en W1/W4).
+- **Tareas de fondo**: `TaskSystem` (hoy pendiente, `MINI_OS_TASKS.md`/M10) mapearía a `CreateTask` o
+  a un *process* DOS de baja prioridad, no al *idle* del frame OCS; los *jobs* (`unpack`/`load`) y el
+  despertar por `Msg`/`FileDone` son la misma idea.
+
+### Mejor no forzar en WB 1.3
+
+Copper/`FramePlan` de display completo (el OS posee el copper de la pantalla pública), capa de sprites
+de juego (choca con Intuition y con el puntero), toma de `VERTB`/CIA a pelo (rompe el sistema), Paula
+directa multi-efecto (usar `audio.device` o documentar *exclusive*), *boot* de trackdisk/bootblock (no
+aplica a una app lanzada desde WB) y los presupuestos *cycle-exact*/por línea (otro dominio).
+
+### Mapa del wrapper y arranque
+
+```text
+eng::os             → host Workbench (Wait/IDCMP/dos/timer)
+eng::ui             → IntuitionHost (PaintTarget/RastPort)
+eng::os::file       → dos.library
+eng::res            → AllocMem + file + los mismos Msg
+eng::audio          → audio.device (opcional)
+eng::hw             → Exec/GfxBase
+eng::field::Surface → BitMap/RastPort (subset)
+eng::os::task       → Exec tasks (opcional)
+```
+
+```cpp
+#if ENG_HOST_WORKBENCH
+    os::init_workbench(window);   // Wait/IDCMP/dos; NO toma el sistema
+    // host de UI: IntuitionHost
+#else
+    os::init_minimal();           // IRQs, VERTB; toma la máquina
+    // host de UI: EngineHost
+#endif
+```
+
+### Orden de implementación sugerido
+
+1. **`os` host WB** (wait + IDCMP + dos) — desbloquea apps (W5/W6).
+2. **`ui` IntuitionHost** — herramientas (W4).
+3. **`res` + `DynLoader`** — plugins/tools (W9).
+4. **`hw` probe** — trivial y útil (W10).
+5. **`audio.device`** — si hay *tools* con sonido (W11).
+6. **`Surface` → `RastPort`** — solo si se pintan gráficos propios en la ventana (W12).
+
+### Fases adicionales (mismo patrón)
+
+#### W9 — Recursos y código dinámico
+
+- **Entregable**: backend WB de `eng::res` (`AssetCache`/`DynLoader`, `hunk.hpp`) sobre
+  `AllocMem`/`AvailMem` + `dos.library` + los mismos `Msg`; se admite el heap del SO **solo** en el
+  backend.
+- **Verificación**: **HOST** del *allocator* (valores inyectados); demo WB que carga un `.englib`.
+- **Estado**: pendiente.
+
+#### W10 — Probe de hardware
+
+- **Entregable**: `eng::hw::HwInfo` leyendo `ExecBase`/`GfxBase`/`AvailMem`/`AttnFlags` en el host WB
+  (la API no cambia).
+- **Verificación**: **HOST** con valores inyectados; uso real en una herramienta.
+- **Estado**: pendiente.
+
+#### W11 — Audio por `audio.device`
+
+- **Entregable**: backend WB de `eng::audio` sobre `audio.device` (`AllocMem` de canales +
+  `IOAudio`); la política de modos/canales no cambia.
+- **Verificación**: demo WB con un SFX; sin latencia de demo.
+- **Estado**: pendiente.
+
+#### W12 — `Surface` → `RastPort` (subset)
+
+- **Entregable**: un `field::Surface` sobre `BitMap`/`RastPort` (`InitRastPort`, `BltBitMap`,
+  `RectFill`, `Text`) para pintar en la ventana; generaliza el `PaintTarget` de W0/W8.
+- **Verificación**: **HOST** con un `BitMap` simulado; demo WB que pinta sobre `RastPort`.
 - **Estado**: pendiente.
 
 ## Tests y demos previstos
