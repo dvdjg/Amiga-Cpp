@@ -149,9 +149,9 @@ struct DemoGame {
 		eng::debug::mark_init_started(g_eng_run_status);
 
 		m_memory_ok = backend.configure_memory({
-			70u * 1024u, // Chip: 6 bitplanes EHB (61 KB) + copperlist.
-			8u * 1024u,  // Slow.
-			4u * 1024u,  // Frame scratch.
+			scene::chip_bytes_for(kRes), // Chip: bitplanes EHB + copperlist doble + margen.
+			8u * 1024u,                  // Slow.
+			4u * 1024u,                  // Frame scratch.
 		});
 
 		m_scene_ok = m_memory_ok &&
