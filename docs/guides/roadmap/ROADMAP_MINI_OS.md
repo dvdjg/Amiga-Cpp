@@ -213,7 +213,18 @@ UI (`eng::ui`).
 - **Compatibilidad con Exec.** Si el juego corriera bajo un SO real, el backend debe poder mapear a
   `Wait`/`GetMsg`/`DoIO`; conviene no cerrar esa puerta en la API pública.
 
+## Portabilidad a Workbench (host de mensajes)
+
+En Workbench el mini-SO **no sustituye a Exec**: unifica IDCMP, E/S y timers en los mismos `Msg`. El
+plan está en [`ROADMAP_WORKBENCH.md`](ROADMAP_WORKBENCH.md) (fases W5/W6): `wait` = `Wait(señales
+Exec)` + volcado `Exec → Msg`; la app, el despacho y el puente a `eng::ui` **no cambian** (solo los
+productores y la espera). Requiere implementar **`MsgPort::wait(mask)`**, hoy inexistente.
+
 ## Estado
 
-Todas las fases están **pendientes**. La estructura de código (`engine/include/eng/os/`,
-`engine/include/eng/ui/`) y el diseño están fijados; la implementación empieza por M0.
+Entregados: **M0** (núcleo; HOST-219), **M1** (VBlank latched; HOST-236), **M3** (puente UI;
+HOST-220), **M4** (bucle reactivo; HOST-251), **M5** (prioridad/despacho; HOST-236/237) y **M6**
+(tiempo/timers; HOST-222/238). **M2** (entrada) y **M7** (E/S async) están casi entregados (falta
+verificar teclado en hardware y el decode de sector MFM); **M8** (streaming) es parcial; **M9–M11**
+(telemetría, `TaskSystem`, corrutinas) están **pendientes**. La estructura de código
+(`engine/include/eng/os/`, `engine/include/eng/ui/`) y el diseño están fijados.

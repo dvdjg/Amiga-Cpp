@@ -609,7 +609,8 @@ profiler (`docs/guides/optimization/METODOLOGIA_PROFILING.md`).
 - Nada de `virtual`/`dynamic_cast` en el pintado; `switch` por `WidgetType` o tabla estática.
 - Nada de *alpha*, *anti-aliasing* ni sombras gordas.
 - Nada de redibujar el árbol completo cada frame.
-- Nada de depender de Intuition (se toma la máquina).
+- Nada de depender de Intuition en el **build del engine** (se toma la máquina). Que la **misma** app de widgets corra además en Workbench es un **backend aparte** (`-DENG_UI_INTUITION`): ver [`ROADMAP_WORKBENCH.md`](../../guides/roadmap/ROADMAP_WORKBENCH.md).
+- Nada de asumir **píxel cuadrado** si el destino puede ser *hi-res* (Workbench 640, píxel de media anchura): la geometría lógica se adapta con `PaintTarget::aspect_x` y el texto con estirado horizontal o fuente hi-res (fase **W8** del roadmap).
 - Nada de *live resize* caro: *rubber-band*.
 
 ## 19. Notas de implementación (C++23 y sobrecarga cero)
@@ -655,4 +656,6 @@ Notas propias para que la librería sea barata y encaje con el engine:
 - Entrada y mensajes: [MINI_OS_MESSAGE_LOOP.md](MINI_OS_MESSAGE_LOOP.md) y
   `eng/include/eng/input/input.hpp`.
 - Sprites (cursor): `docs/reference/amiga/techniques/` y demos 053/054/087.
-- Plan de fases: [../../guides/roadmap/ROADMAP_GUI.md](../../guides/roadmap/ROADMAP_GUI.md).
+- Plan de fases: [../../guides/roadmap/ROADMAP_GUI.md](../../guides/roadmap/ROADMAP_GUI.md) (engine) y
+  [../../guides/roadmap/ROADMAP_WORKBENCH.md](../../guides/roadmap/ROADMAP_WORKBENCH.md) (la misma app
+  sobre Intuition, con `PaintTarget`/`UiHost`).
