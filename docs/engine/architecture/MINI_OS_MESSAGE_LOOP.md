@@ -237,9 +237,11 @@ struct MsgPort {
 		return got;
 	}
 
-	/// Espera a que haya señales de `mask`. El backend decide **cómo** esperar sin quemar
-	/// CPU (`os_wait_interrupt`): en máquina tomada, `stop` con el vector de IRQ armado; en
-	/// host de test, un `yield`. Devuelve los bits que se consumieron.
+	/// Espera a que haya señales de `mask` y devuelve los bits consumidos. El **host** decide cómo
+	/// se bloquea: el host del engine coopera con `tick()` (ritmo de VBlank, sin girar en un bucle
+	/// apretado); el host de **Workbench** será `Wait(señales Exec)` + volcado `Exec → Msg` (ver
+	/// `ROADMAP_WORKBENCH.md`, W5). Optimización futura: `stop` con el vector de IRQ armado
+	/// (`os_wait_interrupt`) cuando el VBlank llegue por IRQ en vez de por sondeo.
 	eng::u32 wait(eng::u32 mask);
 };
 

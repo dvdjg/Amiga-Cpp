@@ -195,7 +195,8 @@ void app_ui_main(Host& host) {
   exec; WB: `Wait`). El `system_port()` y el bucle `while (pop) dispatch` **no cambian**.
 - **Verificación**: **HOST** — `wait`/`pump` con puertos simulados; **demo WB** alimentada por
   `system_port()` con ventana + DOS en el mismo bucle.
-- **Estado**: pendiente. **Depende de**: implementar `MsgPort::wait` (hoy inexistente).
+- **Estado**: pendiente. El `wait` del host **engine** ya existe (`os::wait` + `MsgPort::pending`,
+  HOST-250); falta el de Workbench (`Wait` de Exec + volcado `Exec → Msg`).
 
 ### W6 — Timers y E/S bajo Workbench
 
@@ -256,8 +257,9 @@ ejecutan `JoyProducer`/`MouseProducer` sobre registros a la vez que Intuition).
 
 ## Arreglos previos (deuda que este roadmap hereda)
 
-1. **`MsgPort::wait` no existe** aunque `MINI_OS_MESSAGE_LOOP.md:243` y `ROADMAP_MINI_OS.md` (M5) lo
-   dan por entregado: implementarlo (o corregir el roadmap).
+1. **`wait` del mini-SO**: ya **implementado para el host engine** (`os::wait` coopera con `tick()`
+   + `MsgPort::pending`/`take_signals`, HOST-250); el de **Workbench** (`Wait` de Exec + volcado
+   `Exec → Msg`) es la fase W5.
 2. **`ROADMAP_MINI_OS.md`**: el "Estado" final dice que **todas** las fases están pendientes,
    contradiciendo el resto; y cita la demo `208_message_loop` cuando es `212_message_loop`.
 3. **`ROADMAP_GUI.md`** cita demos `207`/`208` que hoy son `215`/`300`.

@@ -67,14 +67,27 @@ void test_port_priority() {
 	check(p.peek(m) == false, "MsgPort: peek en vacio -> false");
 }
 
+void test_port_signals() {
+	MsgPort<8> p;
+	p.post(make(MsgType::KeyDown)); // signal_for(KeyDown) = SigInput
+	p.signal(eng::os::SigFile);
+	check(p.pending(eng::os::SigInput) == eng::os::SigInput,
+	      "MsgPort: pending ve la senal de input sin consumirla");
+	check(p.pending(eng::os::SigTimer) == 0u, "MsgPort: pending ignora senales no pedidas");
+	check(p.take_signals(eng::os::SigInput) == eng::os::SigInput, "MsgPort: take_signals consume");
+	check(p.take_signals(eng::os::SigInput) == 0u, "MsgPort: ya consumida");
+	check(p.pending(eng::os::SigFile) == eng::os::SigFile, "MsgPort: la senal file sigue puesta");
+}
+
 } // namespace
 
 int main() {
 	std::printf("== HOST-250 os_port ==\n");
 	test_queue();
 	test_port_priority();
+	test_port_signals();
 	if (g_fail == 0) {
-		std::printf("OK: os::MsgQueue (SPSC) + MsgPort (prioridad) validados.\n");
+		std::printf("OK: os::MsgQueue (SPSC) + MsgPort (prioridad/senales) validados.\n");
 		return 0;
 	}
 	std::printf("FAIL: %d\n", g_fail);
