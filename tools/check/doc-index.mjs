@@ -18,7 +18,8 @@ const ROOT = path.resolve(__dirname, '../..');
 
 // Carpetas indexadas: su README debe enlazar todos los `.md` de debajo.
 const GROUPS = [
-	{ readme: 'docs/debugging/README.md', dir: 'docs/debugging', recurse: true },
+	{ readme: 'docs/debugging/system/README.md', dir: 'docs/debugging/system', recurse: false },
+	{ readme: 'docs/debugging/investigaciones/README.md', dir: 'docs/debugging/investigaciones', recurse: false },
 	{ readme: 'docs/reference/emulators/README.md', dir: 'docs/reference/emulators', recurse: true },
 ];
 
