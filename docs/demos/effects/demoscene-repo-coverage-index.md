@@ -39,12 +39,12 @@ Este documento convierte el roadmap general en una tabla de trabajo mantenible. 
 | 05 | Fire RGB | `effects/fire-rgb` | `NO_INICIADO` | `DX05_fire_rgb` | `engine_c2p_*` / `engine_blit_*` | Tecnica compuesta; mejor dejarla para oleada tardia. |
 | 06 | Wireframe | `effects/wireframe` | `NO_INICIADO` | `DX06_wireframe` | `engine_3d_*` / `engine_blit_line_*` | Muy util para futura capa 3D del engine. |
 | 07 | Shapes | `effects/shapes` | `NO_INICIADO` | `DX07_shapes_fill` | `engine_2d_*` / `engine_blit_fill_*` | Puede converger con B03/B04 y con libs 2D. |
-| 08 | Floor | `effects/floor` | `NO_INICIADO` | `DX08_floor_scroll` | `engine_scroll_*` / `engine_copper_*` | Muy interesante para scroll y `BPLCON1` por linea. |
+| 08 | Floor | `effects/floor` | `NO_INICIADO` | `DX08_floor_scroll` | `engine_scroll_*` / `engine_copper_*` | Muy interesante para scroll y `BPLCON1` por linea. Ver [copper-road-rasters.md](../../reference/amiga/techniques/copper-road-rasters.md) + [ROADMAP_RASTER_ROAD.md](../../guides/roadmap/ROADMAP_RASTER_ROAD.md). |
 | 09 | TextScroll | `effects/textscroll` | `NO_INICIADO` | `DX09_textscroll` | `engine_textscroll_*` | Alta prioridad para texto y copper `bplpt` por linea. |
 | 10 | Loader | `effects/loader` | `CASO_BATERIA` | `DX10_loader_import` | loader / dev harness / `engine_loader_screen_*` | Fase 1 ya importada: ilustracion y barra de progreso funcionan en vivo con `stage_id=0xDA04`; audio tracker sigue diferido y la evidencia temporal APNG sigue pendiente por el pipeline de secuencias. |
 | 11 | Game of Life | `effects/game-of-life` | `NO_INICIADO` | `DX11_game_of_life` | `engine_blit_minterm_*` | Muy buen caso de blitter creativo. |
 | 12 | Stripes | `effects/stripes` | `NO_INICIADO` | `DX12_stripes_copper` | `engine_copper_color_bands_*` | Caso pequeno de copper por linea. |
-| 13 | Highway | `effects/highway` | `NO_INICIADO` | `DX13_highway` | scroll/zonas/sprites | Tecnica compuesta; no entrar temprano. |
+| 13 | Highway | `effects/highway` | `NO_INICIADO` | `DX13_highway` | scroll/zonas/sprites | Tecnica compuesta; no entrar temprano. Ver [copper-road-rasters.md](../../reference/amiga/techniques/copper-road-rasters.md) + [ROADMAP_RASTER_ROAD.md](../../guides/roadmap/ROADMAP_RASTER_ROAD.md). |
 | 14 | Metaballs | `effects/metaballs` | `NO_INICIADO` | `DX14_metaballs` | blob/blit helpers | Buena referencia de mascaras y doble buffer. |
 | 15 | Indice resto | `docs/tutoriales/15-indice-resto.md` | `REFERENCIA_SOLO` | N/A | N/A | Documento indice, no efecto. |
 | 16 | Abduction | `effects/abduction` | `NO_INICIADO` | `DX16_abduction` | anim/layers helpers | Posible referencia de animacion por frames. |
