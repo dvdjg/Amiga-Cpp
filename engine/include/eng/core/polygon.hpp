@@ -66,7 +66,9 @@ inline u32 convex_spans(Span<const s32> xs, Span<const s32> ys, Emit&& emit) {
 		d.sx = dx >= 0 ? 1 : -1;
 		d.adx = dx >= 0 ? dx : -dx;
 		d.x = xs[a];
-		d.rem = d.dy >> 1; // redondeo al más cercano
+		// Truncamiento (half-open), no redondeo: el DDA debe reproducir EXACTAMENTE el
+		// barrido `x0 + (x1-x0)*(y-y0)/(y1-y0)` de la referencia (división entera).
+		d.rem = 0;
 	};
 	auto step = [&](Dda& d) {
 		d.rem += d.adx;
