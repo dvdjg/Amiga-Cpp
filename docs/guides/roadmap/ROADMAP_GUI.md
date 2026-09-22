@@ -108,7 +108,15 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 - **Verificación**: **demo 207_gui_widgets** (G0–G6) y **demo 208_gui_compositor** (G7) en
   hardware, con gate visual (widgets presentes, ventana que se mueve/redimensiona y se recomponen
   los vecinos). Medir con el profiler.
-- **Estado**: pendiente.
+- **Estado**: **pendiente**. Se intentó la demo `215_gui_widgets` (escena planar EHB 320×256,
+  patrón de la 077): compila y alcanza READY, pero **el renderizado de los widgets no está
+  resuelto** (solo se pintan los paneles; ni texto, ni líneas, ni caras). Aislado con sondas y
+  lectura de píxeles: `Surface::fill_rect`/`draw_line`/`draw_text` y la paleta **sí** funcionan
+  con el árbol apagado; con un `fill` grande (pantalla completa) los dibujos CPU posteriores del
+  mismo frame desaparecen (el `BlitterRaster` de la escena ejecuta el fill por Blitter asíncrono y
+  pisa lo dibujado después); `set_raster(nullptr)` cuelga el arranque. **Requiere sesión de
+  depuración dedicada** (dirty rects + sincronía con VBlank + verificación por canal lateral). La
+  demo se retiró del árbol para no romper la regresión; el código de G0–G7 queda host-verificado.
 
 ## Tests y demos previstos
 
@@ -122,7 +130,9 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 | HOST-228 | test | Layout y cambio de tema. |
 | HOST-229 | test | Ventanas, popup, toast y modal. |
 | HOST-230 | test | Compositor y backing store (move/resize/raise/compose). |
-| 207_gui_widgets | demo | Widgets y tema en hardware (G0–G6). |
+| HOST-261 | test | Entrada por **mensajes** (`os::Msg` → `UiContext`) con `keymap` rawkey→tecla lógica. |
+| HOST-262 | test | `Slider` (click/arrastre y flechas). |
+| `215_gui_widgets` | demo | Widgets y tema en hardware (G0–G6). **Pendiente**: renderizado de widgets sin resolver (ver G8). |
 | 208_gui_compositor | demo | Ventanas movibles/redimensionables con backing store (G7). |
 
 ## Riesgos y decisiones abiertas
@@ -144,10 +154,12 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 ## Estado
 
 **G0–G7 entregados** (HOST-223…HOST-230): `theme`/`painter`/`text`, `widget`/`dirty`/`widgets`
-(`Panel`/`Label`/`Button`/`CheckBox`/`RadioButton`), `keys`/`editbox`/`context` (foco), `layout`,
-`window` (Window/Popup/Toast/Dialog) y `backing`/`compositor`. Solo queda **G8**: la **demo en
-hardware** (`207_gui_widgets`) + aceleración Blitter (`fill_rect` D-only, copias del compositor) y
-el cursor por sprite. En G8 se expondrá la superficie estable en `eng/api/api.hpp`.
+(`Panel`/`Label`/`Button`/`CheckBox`/`RadioButton`/`Slider`), `keys`/`keymap`/`editbox`/`context`
+(foco), `layout`, `window` (Window/Popup/Toast/Dialog), `backing`/`compositor` y la **entrada por
+mensajes** (`msg_adapter` + `ui_bridge`, HOST-261/262). Solo queda **G8**: la **demo en hardware**
+(`215_gui_widgets`, renderizado de widgets sin resolver; ver G8) + aceleración Blitter
+(`fill_rect` D-only, copias del compositor) y el cursor por sprite. En G8 se expondrá la superficie
+estable en `eng/api/api.hpp`.
 
 La GUI queda **fuera** de `eng/api/api.hpp` hasta que exista su primer consumidor hardware (demo
 G8); entonces se expondrá solo la superficie estable. El `fill_rect` D-only del raster se deja

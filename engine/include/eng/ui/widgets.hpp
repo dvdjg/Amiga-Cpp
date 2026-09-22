@@ -18,6 +18,7 @@
 #include <eng/ui/event.hpp>
 #include <eng/ui/layout.hpp>
 #include <eng/ui/painter.hpp>
+#include <eng/ui/slider.hpp>
 #include <eng/ui/text.hpp>
 #include <eng/ui/theme.hpp>
 #include <eng/ui/widget.hpp>
@@ -211,8 +212,10 @@ inline void draw_widget(Widget& w, UiPainter& p) {
 		draw_window(static_cast<Window&>(w), p);
 		break;
 	case WidgetType::Slider:
+		draw_slider(static_cast<Slider&>(w), p);
+		break;
 	case WidgetType::List:
-		break; // pendientes
+		break; // pendiente
 	}
 }
 
@@ -323,10 +326,11 @@ inline bool event_widget(Widget& w, const UiEvent& ev) {
 		return event_radio(static_cast<RadioButton&>(w), ev);
 	case WidgetType::Edit:
 		return event_edit(static_cast<EditBox&>(w), ev);
+	case WidgetType::Slider:
+		return event_slider(static_cast<Slider&>(w), ev);
 	case WidgetType::Panel:
 	case WidgetType::Label:
 	case WidgetType::Window:
-	case WidgetType::Slider:
 	case WidgetType::List:
 		return false;
 	}

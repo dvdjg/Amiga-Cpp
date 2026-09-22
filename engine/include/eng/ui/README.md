@@ -24,15 +24,18 @@ No depende del mini-SO (`eng::os`), pero se integra con él por el puente `os::M
 | `widget.hpp` | `WidgetType`, `WidgetFlags` y `Widget` (árbol intrusivo, sin heap ni `virtual`). **Implementado** (HOST-224). |
 | `dirty.hpp` | `DirtyList<Max>` con fusión de regiones (rects = `eng::Box`). **Implementado** (HOST-224). |
 | `event.hpp` | `UiEvent`, `UiEventKind`. **Implementado** (HOST-220). |
-| `widgets.hpp` | `Panel`/`Label` (G1), `Button` (G2), `CheckBox`/`RadioButton` (G3), `Window` (G6). Despacho por `switch` exhaustivo y `measure`. **Implementado** (HOST-224/225/226/229). |
+| `widgets.hpp` | `Panel`/`Label` (G1), `Button` (G2), `CheckBox`/`RadioButton` (G3), `Window` (G6), `Slider`. Despacho por `switch` exhaustivo y `measure`. **Implementado** (HOST-224/225/226/229/262). |
 | `keys.hpp` | Teclas lógicas de la UI (imprimibles ASCII/Latin-1 + edición/navegación). **Implementado** (HOST-227). |
+| `keymap.hpp` | Traducción **rawkey Amiga → tecla lógica** (`keys.hpp`), con Shift. **Implementado** (HOST-261). |
 | `editbox.hpp` | `EditBox` (buffer externo, caret, vista horizontal). **Implementado** (HOST-227). |
+| `slider.hpp` | `Slider` (sobre `s16*`, click/arrastre y flechas). **Implementado** (HOST-262). |
 | `context.hpp` | `UiContext`: hit-test, foco (`Tab`), modalidad, `Esc`, popups y TTL de toasts. **Implementado** (HOST-225/229). |
 | `layout.hpp` | `layout_stack_v`/`layout_stack_h` y `anchor`. **Implementado** (HOST-228). |
 | `window.hpp` | `Window`, `WindowKind` (`Window`/`Popup`/`Toast`/`Dialog`) y Z-order. **Implementado** (HOST-229). |
 | `backing.hpp` | `WindowBacking` (lienzo planar + `Surface`). **Implementado** (HOST-230). |
 | `compositor.hpp` | `Compositor` (add/raise/move/resize/damage/present; *copies* de backings a pantalla). **Implementado** (HOST-230). |
 | `ui_bridge.hpp` | Puente `eng::os::Msg` → `UiEvent`. **Implementado** (HOST-220). |
+| `msg_adapter.hpp` | `dispatch_msg`: `os::Msg` de entrada → `UiContext` (con `keymap`). **Implementado** (HOST-261). |
 
 Los rectángulos de UI son `eng::Box` (`eng/core/box.hpp`); no hay un `rect.hpp` propio. Reglas del
 engine: sin heap en el camino caliente, sin excepciones ni RTTI, `gnu++23`, tipos de `eng/core`,
