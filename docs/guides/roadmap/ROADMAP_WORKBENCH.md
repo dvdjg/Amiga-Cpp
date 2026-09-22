@@ -144,7 +144,10 @@ void app_ui_main(Host& host) {
 - **Verificación**: **HOST** — el painter pinta igual que hoy sobre una `Surface` de prueba
   (reusar los casos de HOST-223/224); los tests GUI existentes siguen verdes sin cambios de
   expectativas.
-- **Estado**: pendiente.
+- **Estado**: **entregado**. `eng/ui/paint_target.hpp` (`PaintTarget` + `from_surface`) y `UiPainter`
+  sobre el destino; el ctor de `Surface` se conserva como atajo. HOST-223…230 verdes sin cambios y
+  demos `215_gui_widgets`/`300_gui_compositor` compilan. `aspect_x` se transporta pero **no** se
+  aplica todavía (fase W8).
 
 ### W1 — Ciclo de vida de ventana (`WindowDesc`/`WindowHandle`)
 
