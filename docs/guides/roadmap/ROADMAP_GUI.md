@@ -26,7 +26,9 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 - **Verificación**: **HOST-223** — `bevel_out`/`bevel_in` pintan los 4 lados con los colores del
   tema en la posición correcta; `panel` rellena + bevel; `text_width` mide; `Rect` helpers
   (`contains`/`inset`/`intersect`/`merge`).
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`theme.hpp`, `painter.hpp`, `text.hpp`; **HOST-223**). Verificado en
+  host pintando sobre `ContiguousPlayfield` y leyendo el color por píxel; falta la demo en
+  hardware (G8).
 
 ### G1 — Widget base + Panel/Label + dirty
 
@@ -35,7 +37,11 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 - **Verificación**: **HOST-224** — el árbol enlaza hijos/padres; `mark_dirty` propaga; la lista de
   dirty fusiona solapes y desborda a full-screen; `Panel`/`Label` dibujan en una `Surface` de
   prueba.
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`widget.hpp` + `dirty.hpp` + `widgets.hpp`; **HOST-224**). Verificado
+  en host leyendo el color por píxel; falta la demo en hardware (G8).
+- **Decisiones fijadas aquí**: despacho con **`switch` exhaustivo** sobre `WidgetType` (no tabla de
+  punteros ni `virtual`), y métrica de `measure` (texto `text_width × 8`; contenedor = `bounds`;
+  botón `text_width + 2*pad_x × btn_h` en G2).
 
 ### G2 — Ratón, hit-test y Button
 
@@ -120,8 +126,8 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
   *clamp*).
 - **Rectángulo de UI.** Resuelto: la GUI usa `eng::Box` (rect único del engine, HOST-231) con
   adaptadores a `SurfaceRect`/`ClipRect`/`DirtyRect`; no define un rect propio.
-- **Despacho de widgets.** `switch` por tipo (exhaustivo) frente a tabla estática de funciones;
-  decidir en G1 y mantenerlo estable.
+- **Despacho de widgets.** **Decidido en G1**: `switch` exhaustivo sobre `WidgetType` (no tabla de
+  punteros ni `virtual`); se mantiene estable.
 - **`fill_rect` D-only.** Añadir el camino de *fill* por Blitter sin fuentes al raster mejora los
   *clears* de UI; conviene hacerlo en G8 con test de equivalencia contra el camino de polígono.
 - **Rubber-band vs live resize.** Para A500, *rubber-band*; el *live* queda como opción si el
@@ -131,6 +137,10 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 
 ## Estado
 
-Todas las fases están **pendientes**. La estructura de código (`engine/include/eng/ui/`) y el
-diseño están fijados; la implementación empieza por G0 (painter + tema + texto), que no depende
-del compositor ni del mini-SO.
+**G0–G1 entregados** (`theme.hpp`/`painter.hpp`/`text.hpp` HOST-223; `widget.hpp`/`dirty.hpp`/
+`widgets.hpp` con `Panel`/`Label` HOST-224). G2–G8 pendientes. El siguiente paso es **G2**
+(ratón + hit-test + `Button`), que sigue sin depender del compositor ni del mini-SO.
+
+La GUI queda **fuera** de `eng/api/api.hpp` hasta que exista su primer consumidor hardware (demo
+G8); entonces se expondrá solo la superficie estable. El `fill_rect` D-only del raster se deja
+para G8, con test de equivalencia.

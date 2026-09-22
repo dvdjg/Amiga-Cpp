@@ -1,0 +1,169 @@
+#pragma once
+
+/// \file painter.hpp
+/// **`eng::ui::UiPainter`**: chrome de UI sobre `field::Surface`. No dibuja píxeles: delega en
+/// `Surface`, que enruta por `Rasterizer` (CPU/Blitter) y recorta contra el clip. Aporta las
+/// operaciones con concepto de UI (marcos, biseles, paneles, texto con fondo, glifos). Ver
+/// `docs/engine/architecture/GUI_LIBRARY.md` §5.
+
+#include <eng/core/box.hpp>
+#include <eng/core/types.hpp>
+#include <eng/field/surface.hpp>
+#include <eng/ui/text.hpp>
+#include <eng/ui/theme.hpp>
+
+namespace eng::graphics {
+class FramePlan;
+}
+
+namespace eng::ui {
+
+/// Dibuja chrome de UI sobre una `Surface` (pantalla o backing de ventana) con un `UiTheme`.
+class UiPainter {
+public:
+	UiPainter(eng::field::Surface& surface, eng::graphics::FramePlan* plan,
+		  const UiTheme& theme) noexcept
+		: m_surface(surface)
+		, m_plan(plan)
+		, m_theme(theme)
+		, m_clip(eng::field::box_of(surface.clip())) {}
+
+	[[nodiscard]] const Rect& clip() const noexcept { return m_clip; }
+	[[nodiscard]] const UiTheme& theme() const noexcept { return m_theme; }
+	[[nodiscard]] eng::field::Surface& surface() noexcept { return m_surface; }
+
+	// --- Primitivas (delegan en Surface/Rasterizer) ---
+	void fill(Rect r, eng::u8 color) {
+		m_surface.fill_rect(r.x, r.y, r.w, r.h, color);
+	}
+	void hline(eng::s16 x0, eng::s16 x1, eng::s16 y, eng::u8 color) {
+		m_surface.draw_line(x0, y, x1, y, color, m_plan);
+	}
+	void vline(eng::s16 x, eng::s16 y0, eng::s16 y1, eng::u8 color) {
+		m_surface.draw_line(x, y0, x, y1, color, m_plan);
+	}
+	void frame(Rect r, eng::u8 color);
+	void bevel_out(Rect r); ///< relieve: shine arriba/izquierda, shadow abajo/derecha
+	void bevel_in(Rect r);  ///< hundido: shadow arriba/izquierda, shine abajo/derecha
+	void panel(Rect r);     ///< relleno + marco según `theme().panel_frame`
+	void button_face(Rect r, bool pressed);
+
+	// --- Texto (reusa Font8; nunca redibuja fuentes) ---
+	void text(eng::s16 x, eng::s16 y, const char* s, eng::u8 fg) {
+		m_surface.draw_text(x, y, s, fg);
+	}
+	void text_bg(eng::s16 x, eng::s16 y, const char* s, eng::u8 fg, eng::u8 bg);
+	/// Un solo code point (lo usa `draw_text_clipped`).
+	void codepoint(eng::s16 x, eng::s16 y, eng::u32 cp, eng::u8 fg) {
+		m_surface.draw_codepoints(x, y, &cp, 1u, fg);
+	}
+
+	/// Glifo 1-bit `w × h` desde filas `bits[row]` (bit `w-1` = columna 0, MSB primero).
+	void glyph(eng::s16 x, eng::s16 y, const eng::u16* bits, eng::u16 w, eng::u16 h,
+		   eng::u8 fg);
+
+private:
+	eng::field::Surface& m_surface;
+	eng::graphics::FramePlan* m_plan = nullptr;
+	const UiTheme& m_theme;
+	Rect m_clip {};
+};
+
+inline void UiPainter::frame(Rect r, eng::u8 color) {
+	if (r.empty()) {
+		return;
+	}
+	const eng::s16 x1 = r.right();
+	const eng::s16 y1 = r.bottom();
+	hline(r.x, x1, r.y, color);
+	hline(r.x, x1, y1, color);
+	vline(r.x, r.y, y1, color);
+	vline(x1, r.y, y1, color);
+}
+
+inline void UiPainter::bevel_out(Rect r) {
+	if (r.empty()) {
+		return;
+	}
+	const eng::s16 x1 = r.right();
+	const eng::s16 y1 = r.bottom();
+	hline(r.x, x1, r.y, m_theme.shine);   // arriba
+	vline(r.x, r.y, y1, m_theme.shine);  // izquierda
+	hline(r.x, x1, y1, m_theme.shadow);  // abajo
+	vline(x1, r.y, y1, m_theme.shadow);  // derecha
+}
+
+inline void UiPainter::bevel_in(Rect r) {
+	if (r.empty()) {
+		return;
+	}
+	const eng::s16 x1 = r.right();
+	const eng::s16 y1 = r.bottom();
+	hline(r.x, x1, r.y, m_theme.shadow);
+	vline(r.x, r.y, y1, m_theme.shadow);
+	hline(r.x, x1, y1, m_theme.shine);
+	vline(x1, r.y, y1, m_theme.shine);
+}
+
+inline void UiPainter::panel(Rect r) {
+	if (r.empty()) {
+		return;
+	}
+	fill(r, m_theme.fill);
+	switch (m_theme.panel_frame) {
+	case FrameStyle::Flat:
+		break;
+	case FrameStyle::Raised:
+		bevel_out(r);
+		break;
+	case FrameStyle::Recessed:
+		bevel_in(r);
+		break;
+	case FrameStyle::Double:
+		frame(r, m_theme.shadow);
+		frame(r.inset(1), m_theme.shine);
+		break;
+	}
+}
+
+inline void UiPainter::button_face(Rect r, bool pressed) {
+	if (r.empty()) {
+		return;
+	}
+	fill(r, pressed ? m_theme.fill_active : m_theme.fill);
+	if (m_theme.button_frame == FrameStyle::Flat) {
+		return;
+	}
+	if (pressed) {
+		bevel_in(r);
+	} else {
+		bevel_out(r);
+	}
+}
+
+inline void UiPainter::text_bg(eng::s16 x, eng::s16 y, const char* s, eng::u8 fg,
+			       eng::u8 bg) {
+	const eng::u16 w = text_width(s);
+	if (w != 0u) {
+		fill(Rect { x, y, w, 8u }, bg);
+	}
+	m_surface.draw_text(x, y, s, fg);
+}
+
+inline void UiPainter::glyph(eng::s16 x, eng::s16 y, const eng::u16* bits, eng::u16 w,
+			     eng::u16 h, eng::u8 fg) {
+	if (bits == nullptr || w == 0u || w > 16u) {
+		return;
+	}
+	for (eng::u16 row = 0u; row < h; ++row) {
+		const eng::u16 b = bits[row];
+		for (eng::u16 col = 0u; col < w; ++col) {
+			if (((b >> (w - 1u - col)) & 1u) != 0u) {
+				m_surface.set_pixel(x + static_cast<eng::s16>(col),
+						    y + static_cast<eng::s16>(row), fg);
+			}
+		}
+	}
+}
+
+} // namespace eng::ui

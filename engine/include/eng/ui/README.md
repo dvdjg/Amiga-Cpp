@@ -14,17 +14,17 @@ No reinventa el dibujo: reutiliza `Surface` (`fill_rect`/`draw_line`/`draw_text`
 `blit_masked`), las fuentes `Font8`/`Font5x7` y `field::FlatPlayfield` como backing de ventana.
 No depende del mini-SO (`eng::os`), pero se integra con él por el puente `os::Msg` → `UiEvent`.
 
-## Cabeceras previstas
+## Cabeceras
 
 | Cabecera | Contenido |
 |---|---|
-| `theme.hpp` | `UiTheme` (colores lógicos + métricas) y presets (`kThemeWb13`/`kThemeWb2`/`kThemeFlat`). |
-| `painter.hpp` | `UiPainter`: *chrome* sobre `Surface` (fills, marcos, bevels, paneles, glifos). |
-| `text.hpp` | `text_width`, `draw_text_clipped` (reusa `Font8`/`Font5x7`). |
-| `widget.hpp` | `WidgetType`, `WidgetFlags` y `Widget` (árbol intrusivo, sin heap). |
-| `dirty.hpp` | `DirtyList<Max>` con fusión de regiones (rects = `eng::Box`). |
+| `theme.hpp` | `UiTheme` (colores lógicos + métricas) y presets (`kThemeWb13`/`kThemeWb2`/`kThemeFlat`); `Rect` = `eng::Box`. **Implementado** (HOST-223). |
+| `painter.hpp` | `UiPainter`: *chrome* sobre `Surface` (fills, marcos, bevels, paneles, glifos). **Implementado** (HOST-223). |
+| `text.hpp` | `text_width`, `draw_text_clipped` (reusa `Font8`/`Font5x7`). **Implementado** (HOST-223). |
+| `widget.hpp` | `WidgetType`, `WidgetFlags` y `Widget` (árbol intrusivo, sin heap ni `virtual`). **Implementado** (HOST-224). |
+| `dirty.hpp` | `DirtyList<Max>` con fusión de regiones (rects = `eng::Box`). **Implementado** (HOST-224). |
 | `event.hpp` | `UiEvent`, `UiEventKind`. **Implementado** (HOST-220). |
-| `widgets.hpp` | `Panel`, `Label`, `Button`, `CheckBox`, `RadioButton`. |
+| `widgets.hpp` | `Panel`, `Label` (G1). Despacho por `switch` exhaustivo y `measure`. **En curso** (HOST-224); `Button`/`CheckBox`/`RadioButton` en G2/G3. |
 | `editbox.hpp` | `EditBox` (buffer externo, caret, foco). |
 | `layout.hpp` | `layout_stack_v`/`layout_stack_h` y anclaje. |
 | `window.hpp` | `Window`, `WindowKind` (`Window`/`Popup`/`Toast`/`Dialog`) y Z-order. |
