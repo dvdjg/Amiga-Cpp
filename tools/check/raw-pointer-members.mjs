@@ -1,8 +1,17 @@
-// Gate: los **punteros a objeto no propietarios en miembros** de cabeceras genéricas del
-// engine deben ser `eng::Ref<T>`/`eng::NonNull<T>` (`eng/core/ptr.hpp`), no `T*`. Los
-// candidatos actuales (triage) van en `raw-pointer-members-baseline.txt`: `:m_audio` =
-// pendiente de migrar a `Ref`; `:m_file`/`:m_used`/`:m_cells`/`:m_tile_layers` = buffers de
-// almacenamiento (se aceptan). Cualquier miembro NUEVO falla.
+// Gate de ESTILO: **punteros crudos a OBJETO** en las cabeceras del engine. La regla
+// (`docs/engine/architecture/CODING_STYLE.md` §"Punteros y tipos") es: un observador no
+// propietario se expresa con `eng::Ref<T>`/`eng::NonNull<T>`; un buffer, con `eng::Span<T>`
+// (`Span<u8>`/`Span<u16>`…); un callback, con una **política de plantilla** (no `void*`+función).
+// El `T*` crudo queda solo para memoria cruda (buffers `u8*`/`u16*`/`s16*`…), y siempre citando el
+// motivo.
+//
+// Detecta (`Foo` = tipo de objeto, no escalar):
+//   - miembros/estáticos:  `Foo* m_x` / `s_x` / `g_x`
+//   - parámetros/retorno:  `Foo* name)` / `Foo* name,` / `Foo* name(`
+//   - locales:             `Foo* name = ...` / `Foo* name;`
+// Candidatos existentes (triage) en `raw-pointer-members-baseline.txt`; cualquier NUEVO falla.
+// Los escalares (`ALLOW_TYPE`) y los tipos con nombre en `OWNERSHIP_TYPE` (Buffers/views/blocks
+// que no son observadores) se aceptan.
 //
 // Uso: node tools/check/raw-pointer-members.mjs [--update-baseline]
 import fs from 'node:fs';
@@ -14,8 +23,10 @@ const ROOT = path.resolve(__dirname, '../..');
 const ENG = path.join(ROOT, 'engine/include/eng');
 const BASELINE = path.join(__dirname, 'raw-pointer-members-baseline.txt');
 
-const EXEMPT_DIR = /(^|\/)(retro|platform|cpu|field)\//;
-const ALLOW_TYPE = /^(std::FILE|FILE|T|A|K|V|U|S|u8|u16|u32|s8|s16|s32|char|void)$/;
+// Tipos escalares: un `u8*`/`s16*`… es memoria cruda, no un observador de objeto.
+const ALLOW_TYPE = /^(std::FILE|FILE|T|A|K|V|U|S|u8|u16|u32|s8|s16|s32|char|void|usize|uintptr)$/;
+// Tipos de propiedad/vista que NO son observadores (no se envuelven en `Ref`).
+const OWNERSHIP_TYPE = /^(Span|PlaneBytes|MaskBytes|Bytes|Stream|Block|WordView|ByteView|View)$/;
 
 function walk(dir) {
 	const out = [];
@@ -27,28 +38,46 @@ function walk(dir) {
 	return out;
 }
 
+const TYPE = String.raw`([A-Za-z_][A-Za-z0-9_:]*(?:<[^<>]*>)?)`;
+const NAME = String.raw`([A-Za-z_][A-Za-z0-9_]*)`;
+const PATTERNS = [
+	// miembro / estático / global
+	new RegExp(String.raw`\b${TYPE}\*\s+([msg]_[a-z][A-Za-z0-9_]*)\b`),
+	// parámetro o retorno de función
+	new RegExp(String.raw`\b${TYPE}\*\s+${NAME}\s*[,)(]`),
+	// variable local declarada (inicializada o cerrada con `;`)
+	new RegExp(String.raw`\b${TYPE}\*\s+${NAME}\s*[=;]`),
+];
+
+function typeOk(type) {
+	const base = type.split('::').pop();
+	return ALLOW_TYPE.test(base) || OWNERSHIP_TYPE.test(base);
+}
+
 const found = [];
 for (const abs of walk(ENG)) {
 	const rel = path.relative(ENG, abs).replace(/\\/g, '/');
-	if (EXEMPT_DIR.test(rel) || rel === 'core/ptr.hpp') continue;
-	fs.readFileSync(abs, 'utf8').split(/\r?\n/).forEach((line) => {
+	if (rel === 'core/ptr.hpp') continue;
+	fs.readFileSync(abs, 'utf8').split(/\r?\n/).forEach((line, i) => {
 		const t = line.trim();
 		if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) return;
-		// Cubre también tipos con plantilla de UN nivel (`Foo<T>* m_x`, p. ej. `ChunkStream<N>*`),
-		// que antes se escapaban porque el tipo tenía `<...>`.
-		const m = t.match(
-			/\b([A-Za-z_][A-Za-z0-9_:]*(?:<[^<>]*>)?)\*\s+(_?m_[a-z][A-Za-z0-9_]*)\b/,
-		);
-		if (!m) return;
-		const type = m[1].split('::').pop();
-		if (ALLOW_TYPE.test(type)) return;
-		found.push(`eng/${rel}:${m[2]}`);
+		for (const re of PATTERNS) {
+			const m = t.match(re);
+			if (!m) continue;
+			if (!typeOk(m[1])) found.push(`eng/${rel}:${m[2]}`);
+			break;
+		}
 	});
 }
 found.sort();
 
 if (process.argv.includes('--update-baseline')) {
-	fs.writeFileSync(BASELINE, found.join('\n') + (found.length ? '\n' : ''), 'utf8');
+	const header =
+		'# Baseline de `raw-pointer-members.mjs`: punteros crudos a OBJETO aceptados (DEUDA).\n' +
+		'# Migrar a eng::Ref/NonNull (observador), eng::Span (buffer) o política de plantilla\n' +
+		'# (callback). Al migrar una entrada, bórrala de aquí (`--update-baseline` la regenera).\n' +
+		'# Ver docs/engine/architecture/CODING_STYLE.md §"Punteros y tipos de C".\n';
+	fs.writeFileSync(BASELINE, header + found.join('\n') + (found.length ? '\n' : ''), 'utf8');
 	console.log(`[raw-pointer-members] baseline actualizada (${found.length} entradas).`);
 	process.exit(0);
 }
@@ -62,10 +91,12 @@ const baseline = new Set(
 
 const problems = found.filter((f) => !baseline.has(f));
 if (problems.length) {
-	for (const p of problems) {
-		console.error(`[raw-pointer-members] FAIL: ${p} (usa eng::Ref/NonNull para no-propietarios)`);
+	for (const p of problems.slice(0, 40)) {
+		console.error(`[raw-pointer-members] FAIL: ${p} (usa eng::Ref/NonNull o eng::Span)`);
 	}
-	console.error(`[raw-pointer-members] ${problems.length} miembro(s) nuevo(s) con puntero a objeto no propietario.`);
+	console.error(
+		`[raw-pointer-members] ${problems.length} puntero(s) a objeto no propietario sin justificar.`,
+	);
 	process.exit(1);
 }
-console.log('[raw-pointer-members] OK: sin punteros a objeto no propietarios nuevos (baseline aparte).');
+console.log('[raw-pointer-members] OK: sin punteros a objeto sin justificar (baseline aparte).');

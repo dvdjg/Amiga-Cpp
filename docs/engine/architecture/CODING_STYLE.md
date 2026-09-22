@@ -125,13 +125,23 @@ aporta sus propias piezas de seguridad de C++23 sin depender de `std::span`:
   punteros. El sufijo `*` solo vive dentro del almacenamiento de estas vistas.
 - **Polimorfismo estatico**: cuando un backend o politica varia (fuente de bloques, reloj,
   escalar, juego), se usa un tipo/`concept` en plantilla, no un puntero a funcion ni `void*`.
-- **Referencias no propietarias**: para "usa este objeto, pero no es su dueno" (p. ej.
-  `Surface` sobre `Playfield`, `copper::Plan` sobre `DoubleBuffer`) se usa `eng::Ref<T>`
-  (anulable) o `eng::NonNull<T>` (contrato no nulo) de `core/ptr.hpp`, **no** `T*` en miembros
-  ni en firmas; `eng::Opt<T>` cubre el opcional **en sitio** (sin `std::optional`/heap). Los
-  buffers siguen con `Span`/`Bytes<Tag>`; solo la frontera de hardware (Copper/Blitter/DMA) usa
-  el puntero crudo. El gate `tools/check/raw-pointer-members.mjs` avisa si aparece un
-  `Tipo* m_campo` nuevo (baseline para buffers de almacenamiento).
+- **Puntero crudo a OBJETO: prohibido; solo memoria cruda.** Un `Tipo*` que apunta a un **objeto**
+  (da igual el sitio: **miembro, parámetro, retorno o local**) es un error de estilo. La alternativa
+  **de coste cero** (mismo tamaño y codegen, sin STL/heap/excepciones) es del propio engine:
+  - observador no propietario y anulable → **`eng::Ref<T>`** (`core/ptr.hpp`);
+  - observador que no puede ser nulo → **`eng::NonNull<T>`**;
+  - opcional en sitio (sin `std::optional`) → **`eng::Opt<T>`**;
+  - buffer/vista contigua → **`eng::Span<T>`** (ver arriba), no "puntero + count";
+  - **callback** → **política de plantilla** (`template <class Source>` o `template <auto Fn>`), con
+    la llamada directa y verificada por el compilador; **no** `void*`+puntero a función ni
+    `std::function`/`std::move_only_function` (pueden reservar).
+  El `T*` crudo queda **solo** para buffers escalares (`u8*`/`u16*`/`s16*`…) y la **frontera de
+  hardware** (Copper/Blitter/DMA), y **citando el motivo**. Regla: si existe una alternativa C++23
+  del engine que sea de coste cero, **usarla**; el `*` crudo hay que justificarlo.
+  - **Gate**: `tools/check/raw-pointer-members.mjs` vigila **todo** `engine/include/eng/` (no solo
+    la frontera): falla ante cualquier `Tipo*` nuevo no escalar en **miembro, parámetro, retorno o
+    local**. La deuda histórica vive en `raw-pointer-members-baseline.txt` (triaje) y **se migra
+    borrando entradas**; al tocar un fichero, migrar los `T*` de ese fichero a `Ref`/`Span`.
 - **Enteros de maquina**: para acumuladores e indices cuyo rango cabe en palabra, usar el
   entero elegido en compilacion (`eng::intw`; p. ej. `eng::board::board_int`), no `s32`
   por defecto. Reservar `s32`/`u64` para cuando el rango lo exige (puntuaciones de
