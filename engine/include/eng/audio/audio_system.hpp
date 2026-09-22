@@ -19,8 +19,11 @@
 /// `eng/audio/amiga/`) y dejar en `eng/audio/` solo las intenciones. Solo paga
 /// hacerlo cuando haya segunda plataforma o se reutilice `eng/audio` en host.
 
+#include <eng/audio/audio_events.hpp>
+#include <eng/audio/audio_mode.hpp>
 #include <eng/audio/music_player.hpp>
 #include <eng/audio/sfx_mixer.hpp>
+#include <eng/os/message.hpp>
 
 namespace eng::audio {
 
@@ -29,6 +32,7 @@ enum class MusicFormat : u8 {
 	None = 0,
 	Protracker = 1, // .mod (PtPlayer)
 	P61 = 2,        // .p61 (P61Player)
+	OctaMED = 3,    // módulo MED incrustado (OctaMedPlayer, A1)
 };
 
 /// Sistema de audio del engine (SFX + música).
@@ -42,6 +46,40 @@ public:
 	/// arranca aparte con `play_music()`.
 	bool init(MemorySystem& memory) {
 		return m_sfx.init(memory);
+	}
+
+	/// Inicia con **modo y config** (A0): arranca el mixer, aplica el reparto de canales del modo.
+	bool init(MemorySystem& memory, const AudioConfig& cfg) {
+		m_cfg = cfg;
+		if (!init(memory)) {
+			return false;
+		}
+		set_sfx_volume(cfg.master_sfx_vol);
+		set_music_volume(cfg.master_music_vol);
+		return set_mode(cfg.mode);
+	}
+
+	/// Modo de audio vigente.
+	[[nodiscard]] AudioMode mode() const { return m_mode; }
+	/// Reparto de canales del modo vigente (sin solape).
+	[[nodiscard]] ChannelQuota quota() const { return channel_quota(m_mode); }
+	[[nodiscard]] const AudioConfig& config() const { return m_cfg; }
+
+	/// Cambia de modo: para la música si el modo no la habilita, ajusta su máscara y deja el
+	/// reparto listo. **Único punto** (junto con `init`) que fija el reparto de canales.
+	///
+	/// Nota: el mixer de SFX tiene máscara **fija** en `mixer_config.i`, así que `GameSfxOnly`
+	/// (mixer a 4 canales) no reconfigura el mixer en runtime; el modo documenta el objetivo y
+	/// corta/ajusta lo que sí es runtime (música y su máscara).
+	bool set_mode(AudioMode mode) {
+		m_mode = mode;
+		const ChannelQuota q = channel_quota(mode);
+		if (!q.music_enabled) {
+			stop_music();
+		} else {
+			set_music_channel_mask(q.music_hw_mask);
+		}
+		return true;
 	}
 
 	/// Detiene música y SFX, y desinstala el handler del mixer.
@@ -79,6 +117,11 @@ public:
 			case MusicFormat::Protracker:
 				if (m_pt.play(module)) { m_format = MusicFormat::Protracker; }
 				break;
+#if defined(ENG_AUDIO_OCTAMED)
+			case MusicFormat::OctaMED:
+				if (m_med.play(module)) { m_format = MusicFormat::OctaMED; }
+				break;
+#endif
 			default:
 				break;
 		}
@@ -88,14 +131,47 @@ public:
 	void stop_music() {
 		m_p61.stop();
 		m_pt.stop();
+#if defined(ENG_AUDIO_OCTAMED)
+		m_med.stop();
+#endif
 		m_format = MusicFormat::None;
 	}
 
-	/// Avanza la música una vez por frame. P61 es frame-driven; Protracker usa la
+	/// Avanza la música una vez por frame. P61 y OctaMED son frame-driven; Protracker usa la
 	/// interrupción CIA y no necesita esta llamada.
 	void update_music() {
 		if (m_format == MusicFormat::P61) {
 			m_p61.update();
+		}
+#if defined(ENG_AUDIO_OCTAMED)
+		else if (m_format == MusicFormat::OctaMED) {
+			m_med.update();
+		}
+#endif
+	}
+
+	/// Marca un **underrun** (el mixer o un stream se quedó sin datos). Lo consume `tick_frame`:
+	/// se postea `AudioUnderrun` **una sola vez** por evento, no por buffer (A2).
+	void notify_underrun() noexcept { m_underrun_now = true; }
+
+	/// **Tick de frame** (VBlank): avanza la música frame-driven y postea al `port` los mensajes
+	/// de audio pendientes (`MusicEnd` al terminar un módulo sin loop; `AudioUnderrun`). No se
+	/// postea nada por buffer: `AudioMsgEdges` emite solo en el flanco (A2).
+	template <class Port>
+	void tick_frame(Port& port) {
+		update_music();
+		const bool ended = (m_format == MusicFormat::P61) && m_p61.ended();
+		const AudioMsgOut out = m_edges.on_tick(ended, m_underrun_now);
+		m_underrun_now = false;
+		if (out.music_end) {
+			eng::os::Msg m {};
+			m.type = eng::os::MsgType::MusicEnd;
+			port.post(m);
+		}
+		if (out.underrun) {
+			eng::os::Msg m {};
+			m.type = eng::os::MsgType::AudioUnderrun;
+			port.post(m);
 		}
 	}
 
@@ -138,7 +214,14 @@ private:
 	SfxMixer m_sfx {};
 	P61Player m_p61 {};
 	PtPlayer m_pt {};
+#if defined(ENG_AUDIO_OCTAMED)
+	OctaMedPlayer m_med {}; ///< opt-in: solo si se define `ENG_AUDIO_OCTAMED` (bloat del módulo)
+#endif
 	MusicFormat m_format = MusicFormat::None;
+	AudioMode m_mode = AudioMode::Game;
+	AudioConfig m_cfg {};
+	AudioMsgEdges m_edges {};
+	bool m_underrun_now = false;
 };
 
 } // namespace eng::audio

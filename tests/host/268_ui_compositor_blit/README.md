@@ -1,8 +1,8 @@
-# HOST-300: compositor por `Surface::blit` (`present_blit`)
+# HOST-268: compositor por `Surface::blit` (`present_blit`)
 
 Test host de `eng/ui/compositor.hpp`: valida la ruta de composición **por `Surface::blit`**
 (`Compositor::present_blit`), que copia cada backing con el `Rasterizer` (CPU o Blitter,
-encolando `CopyRect` en el `FramePlan`).
+encolando `CopyRect` en el `FramePlan`) y compone el fondo por `fill_rect`.
 
 ## Qué comprueba
 
@@ -29,5 +29,5 @@ OK: compositor por blit (equivalencia con el copiado por pixel) validado.
 ## Ejecutar
 
 ```bash
-bash tools/run-host-tests.sh tests/host/300_ui_compositor_blit
+bash tools/run-host-tests.sh tests/host/268_ui_compositor_blit
 ```

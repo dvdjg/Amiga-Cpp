@@ -130,7 +130,7 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 - **Compositor por Blitter**: **entregado**. `Compositor::present_blit(plan)` copia cada backing con
   `Surface::blit` (ruta del `Rasterizer`: encola `CopyRect` en el `FramePlan`); si el destino no está
   alineado a palabra, cae al copiado por píxel de ese rect. Equivalencia con `present()` en
-  HOST-300. La ejecución del plan la hace el llamador (`backend.execute_frame_plan`). **Demo
+  HOST-268. La ejecución del plan la hace el llamador (`backend.execute_frame_plan`). **Demo
   `300_gui_compositor`**: tres ventanas con backing que se mueven (pasos de 16 px, copias alineadas)
   y se recomponen por el Blitter; gate visual `verify-gui-compositor.mjs`.
 - **Estado**: **G8 completo**: demo en hardware verificada, *fills* de caja por Blitter D-only,
@@ -180,15 +180,18 @@ mensajes** (`msg_adapter` + `ui_bridge`, HOST-261/262) con **keymaps nacionales*
 **teclas muertas** (HOST-265). La distribución nacional es **estado del `UiContext`** (`ctx.layout`),
 que fija la aplicación al arrancar; `dispatch_msg` la usa, sin ir fija en la llamada.
 
-**G8 entregado**: demo `215_gui_widgets` en hardware (gate objetivo con `verify-gui-widgets.mjs`),
-*fills* de caja por **Blitter D-only** (`RectFillSink`, HOST-266), **cursor por sprite de hardware**
-y **compositor por `Surface::blit`** (`present_blit`, HOST-300). La superficie estable de la GUI se
-expone en `eng/api/api.hpp` mediante la fachada `eng/ui/ui.hpp`; el **cirílico** (U+04xx) está
-cubierto por `Font8` (HOST-264).
+**G8 entregado**: demo `215_gui_widgets` en hardware (gate `verify-gui-widgets.mjs`) y demo
+`300_gui_compositor` (ventanas movibles con backing). La superficie estable se expone en
+`eng/api/api.hpp` vía `eng/ui/ui.hpp`.
 
-**Extras entregados tras G8**: **`eng::ui::HardwareCursor`** reutilizable (HOST-301), **teclas comunes
-del keymap validadas** contra la AHRM 3.ª (HOST-302: Space 0x40 y cursores 0x4C/0x4D corregidos) y
-**`EditBox` UTF-8** con edición por code point (HOST-303), que permite teclear **cirílico** en campos.
+**Aceleración Blitter**: el `fill_rect` D-only (minterm `$FF`) entra por el `RectFillSink` (HOST-266)
+y el compositor por `Surface::blit` (`Compositor::present_blit(FramePlan&)`, equivalencia CPU/Blitter
+en HOST-268); las copias solo van al Blitter con destino/origen **alineados a palabra** (16 px),
+si no caen al bucle de píxeles.
+
+**Extras tras G8**: **`eng::ui::HardwareCursor`** por sprite de hardware (HOST-301), **teclas comunes
+del keymap** validadas contra la AHRM 3.ª (HOST-302: Space 0x40, cursores 0x4C/0x4D corregidos),
+**cirílico** en `Font8` (HOST-264) y **`EditBox` UTF-8** (HOST-303) para teclearlo en campos.
 
 Pendiente: volcar la asignación de carácter de cada **distribución nacional** y los **Alt+tecla**
 de las teclas muertas desde `DEVS:Keymaps` del ROM (no disponibles en el repo; hoy *best-effort*).

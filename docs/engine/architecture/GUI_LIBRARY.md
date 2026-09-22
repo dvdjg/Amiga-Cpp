@@ -467,7 +467,7 @@ public:
 `present_blit` copia cada backing con `Surface::blit` (con `BlitterRaster` encola `CopyRect` en el
 `FramePlan`, que el llamador ejecuta con `backend.execute_frame_plan`); si el rect no es copiable por
 el Blitter (destino no alineado a palabra), cae al copiado por píxel de ese rect. Equivalencia con
-`present()` en HOST-300 y **verificado en hardware** con la demo `300_gui_compositor` (tres ventanas
+`present()` en HOST-268 y **verificado en hardware** con la demo `300_gui_compositor` (tres ventanas
 que se mueven y se recomponen por el Blitter).
 
 **Mover** (sin repaint de vecinas):

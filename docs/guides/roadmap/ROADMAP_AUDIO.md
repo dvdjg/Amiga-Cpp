@@ -24,9 +24,13 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
   `AudioConfig`, `init`/`shutdown`/`set_mode`/`mode`; helpers `eng::audio::paula`
   (`period_for_hz`, `dmacon_set`/`clr`, `stop_channels`, `set_buffer`).
 - **Detalle**: §7 de [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md).
-- **Verificación**: **HOST-240** — `set_mode` reparte las máscaras correctas por modo y la parada
-  es ordenada (`vol=0` + `DMACON` clear); `period_for_hz` acota 124..65535.
-- **Estado**: pendiente.
+- **Verificación**: **HOST-269** (planificado como HOST-240) — `channel_quota` reparte las máscaras
+  correctas por modo sin solapar mixer/música, y `period_for_hz` acota 124..65535. La parada
+  ordenada (`vol=0` + `DMACON`) la hace el backend Amiga.
+- **Estado**: **entregado** (`eng/audio/audio_mode.hpp` + extensión de `AudioSystem` con
+  `init(memory, cfg)`/`set_mode`/`mode`; HOST-269). Nota: el mixer de SFX tiene máscara **fija** en
+  `mixer_config.i`, así que `GameSfxOnly` no reconfigura el mixer en runtime (documentado en el
+  header).
 
 ### A1 — Reproductor OctaMED (títulos, 8 canales SW)
 
@@ -35,16 +39,22 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
 - **Detalle**: [`MUSIC_PLAYER.md`](../../engine/architecture/MUSIC_PLAYER.md).
 - **Verificación**: demo de pantalla de título con módulo MED incrustado; gate visual de que suena
   y que al volver a `Game` el mixer+P61 recuperan sus canales.
-- **Estado**: pendiente.
+- **Estado**: **infra lista; runtime abierto**. Hecho: ASM vendorizado (`support/music/octamed/` +
+  `support/music/med.asm`) que **ensambla y enlaza** (spike validado), envoltura
+  `eng::audio::OctaMedPlayer` + `MusicFormat::OctaMED` (opt-in `-DENG_AUDIO_OCTAMED`), modo
+  `TitleOctaMED`. **Pendiente**: `jsr _startmusic` **cuelga** bajo el engine (no alcanza READY);
+  falta depurarlo (ver `docs/debugging/octamed-startmusic-hang.md`) y la demo de título.
 
 ### A2 — Integración con el mini-SO
 
 - **Entregable**: `tick_frame()` en VBlank para los players frame-driven; mensajes opcionales
   `MsgType::MusicEnd` y `MsgType::AudioUnderrun`; regla "mixer por su IRQ, música por VBlank/CIA".
 - **Detalle**: §8 de [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md).
-- **Verificación**: **HOST-241** — un `MusicEnd` se postea al terminar un módulo sin loop y no se
-  postea por buffer; el underrun se refleja una sola vez por evento.
-- **Estado**: pendiente.
+- **Verificación**: **HOST-270** (planificado como HOST-241) — `AudioMsgEdges` emite `MusicEnd` /
+  `AudioUnderrun` **una vez por evento** (flanco), no por buffer, y se re-arma al cesar.
+- **Estado**: **entregado** (`MsgType::MusicEnd`/`AudioUnderrun` en `eng/os/message.hpp`;
+  `AudioSystem::tick_frame(port)` + `notify_underrun()` + `P61Player::ended()`; `audio_events.hpp`;
+  HOST-270). La música por CIA (Protracker) no se tickea en VBlank (la lleva su IRQ).
 
 ### A3 — Codec Delta + RLE (ByteRun1)
 
@@ -60,7 +70,13 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
   archivo (`AUZX`) con `compression` (0=ZX0, 1=aPLib, 2=delta+RLE).
 - **Verificación**: **HOST-243** — vectores ZX0/aPLib generados en el host (compresor de
   referencia) se decodifican a la misma PCM; comparación byte a byte.
-- **Estado**: pendiente.
+- **Estado**: **pendiente**. El decoder ZX0 es un port directo de `dzx0.c` (Einar Saukas, MIT,
+  https://github.com/einar-saukas/ZX0): formato v2, Elias gamma **interlazado**, `read_byte` que
+  descarta los bits de padding y el *backtrack* del bit bajo del LSB del offset. El bloqueo para
+  verificarlo es que el **compresor de referencia `zx0`** (el que genera los vectores de HOST-243)
+  no está en el repo: un round-trip con codificador propio solo probaría autoconsistencia, no
+  compatibilidad de formato. Próximo paso: traer/compilar `zx0` (host) para vectores congelados y
+  portar aPLib igual.
 
 ### A5 — Streaming digital desde disquete
 
@@ -79,14 +95,17 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
   estable (junto con `GameAudio` para la política de juego) y un ejemplo de uso completo
   (boot → gameplay → título → pausa).
 - **Verificación**: demo que ejercita todos los modos y la política de SFX sin tocar registros.
-- **Estado**: pendiente.
+- **Estado**: **entregado**. La superficie estable es `AudioSystem` (`init`/`set_mode`/`play_sfx`/
+  `play_music`/`stop_*`) + `GameAudio` (política: banco/cooldown/prioridad/ducking). Demos:
+  **`217_audio_game_example`** (boot→título→gameplay→pausa con modos + SFX) y `216_audio_modes` +
+  `062_game_audio`. Pendiente fino: el *handover* completo mixer↔OctaMED (ver A0).
 
 ## Tests y demos previstos
 
 | ID | Tipo | Contenido |
 |---|---|---|
-| HOST-240 | test | Modos de audio y reparto de canales; `period_for_hz`. |
-| HOST-241 | test | `MusicEnd`/`AudioUnderrun` (semántica, sin mensaje por buffer). |
+| HOST-269 | test | Modos de audio y reparto de canales; `period_for_hz` (planificado como HOST-240). |
+| HOST-270 | test | `MusicEnd`/`AudioUnderrun` (semántica, sin mensaje por buffer; planificado como HOST-241). |
 | HOST-242 | test | Codec Delta + RLE (round-trip byte a byte). |
 | HOST-243 | test | Descompresores ZX0 / aPLib (vectores de referencia). |
 | HOST-239 | test | Streaming (doble buffer, underrun, EOF) con E/S simulada. |
@@ -107,5 +126,10 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
 
 ## Estado
 
-La capa de juego (`GameAudio`), el mixer y P61/Protracker **ya existen** (demos 058–062). El codec
-**Delta + RLE** está implementado (A3). El resto de fases están **pendientes**.
+La capa de juego (`GameAudio`), el mixer y P61/Protracker **ya existen** (demos 058–062).
+Entregados: **A0** (modos y reparto de canales, HOST-269), **A2** (eventos
+`MusicEnd`/`AudioUnderrun`, HOST-270), **A3** (codec Delta + RLE, HOST-242) y **A6** (ejemplo de
+juego, demo `217_audio_game_example`). **A1** tiene la **infra lista** (ASM vendorizado + 
+`OctaMedPlayer`) pero el **runtime `_startmusic` cuelga** (ver
+`docs/debugging/octamed-startmusic-hang.md`). **A5** es parcial (`ChunkStream`, HOST-257).
+**A4** (ZX0/aPLib) pendiente.
