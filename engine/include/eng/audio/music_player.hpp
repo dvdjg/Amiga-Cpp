@@ -271,21 +271,30 @@ private:
 /// (ver `audio_mode.hpp`). Ver `docs/engine/architecture/MUSIC_PLAYER.md` (A1).
 class OctaMedPlayer {
 public:
-	/// Arranca el módulo incrustado. `false` si el build no incluye el playroutine MED.
+	/// Arranca el módulo incrustado. `false` si el build no trae playroutine MED. El módulo
+	/// concreto se elige en el ASM con `-DMED_MODULE_NUM=<n>` (1..3 de `assets/amiga/audio/`,
+	/// 0 = `octamed_test.med`); aquí se exige que el build traiga el define para activar.
 	bool play(const MusicModule& module) {
+#if !defined(ENG_AUDIO_OCTAMED) || !defined(MED_MODULE_NUM)
+		(void)module;
+		return false; // build sin playroutine MED (o sin módulo): no hay `_startmusic`
+#else
 		(void)module; // el módulo va incrustado en el ASM (MED_MODULE)
 		__asm__ volatile("jsr _startmusic" : : : "cc", "memory");
 		m_playing = true;
 		return true;
+#endif
 	}
 
 	/// Para el módulo. `_endmusic` (no re-arranca: un segundo `_startmusic` relocalizaría el
 	/// módulo y daría Guru).
 	void stop() {
+#if defined(ENG_AUDIO_OCTAMED) && defined(MED_MODULE_NUM)
 		if (m_playing) {
 			__asm__ volatile("jsr _endmusic" : : : "cc", "memory");
 			m_playing = false;
 		}
+#endif
 	}
 
 	/// Avanza la reproducción (frame-driven). El playroutine se engancha a su propio timing
