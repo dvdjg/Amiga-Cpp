@@ -32,7 +32,7 @@ numeración se reparte en **bloques reservados por rama/workstream**, con este d
 | B | 100-149 | `master` | en uso |
 | C | 150-198 | `feature/optimize` (board/cards 179-198) + `master` (sim/engine 152-178) | **cerrado** (fusionado; no se reutiliza) |
 | D | 199-299 | `master` | en uso |
-| E | 300-399 | `feature/optimize` (trabajo nuevo) | en uso |
+| E | 300-399 | `feature/optimize` (GUI/compositor) | **fusionado en master** (300-303); no reutilizar |
 | F | 400-499 | siguiente rama que cree numerados | libre |
 
 > El rango C quedó mezclado tras la fusión (`master` 152-178, `feature/optimize` 179-198); se
@@ -54,6 +54,12 @@ numeración se reparte en **bloques reservados por rama/workstream**, con este d
 > `261_ui_msg_input`. Se resolvió renumerando el de `master` a **`267_fine_scroll`**. Con los
 > bloques ya separados (D para `master`, E para la rama) esta situación no puede repetirse: los
 > números nuevos de `feature/optimize` van a partir de **300**.
+>
+> **`feature/optimize` fusionada en `master` (2026-09)**: el bloque **E queda fusionado**; sus
+> números (`300_gui_compositor`, `301_ui_hardware_cursor`, `302_ui_keymap_specials`,
+> `303_ui_editbox_utf8`) ya están en `master` y **no se reutilizan**. Un bloque no se comparte entre
+> ramas: si `feature/optimize` vuelve a crear demos/tests, debe reservar un bloque nuevo
+> (**F, 400-499**) en vez de seguir numerando en E (que ahora es de `master`).
 
 ## Cómo reservar un bloque
 

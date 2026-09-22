@@ -86,8 +86,12 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
 - **Estado**: **parcial**. Entregado: la **máquina de estados** de buffers `eng/os/stream.hpp`
   (`ChunkStream<NumBuffers>`: `request_mask`/`on_chunk_ready`/`advance`/`underrun`/`eof`; **HOST-257**)
   y `eng/audio/pcm_stream.hpp` (`PcmStream<NumBuffers>`: une `ChunkStream` + el codec y reparte
-  llamador (E/S + `provide`) / IRQ (`advance` + `play_pcm`) / fin de stream; **HOST-239**). Pendiente:
-  la E/S real (`trackdisk`), el *swap* de Paula dentro de la IRQ de audio y la demo de hardware.
+  llamador (E/S + `provide`) / IRQ (`advance` + `play_pcm`) / fin de stream; **HOST-239**). En
+  hardware: la **IRQ de audio nivel 4** (`support/level4_irq.s` + `install_audio_service`) y la
+  **programación de Paula por voz** (`PaulaAudio::set_buffer`/`start_channel`). La demo
+  `272_audio_stream` (streaming desde RAM) queda **sin verificar**: la IRQ de audio dispara ~34× más
+  rápido que `AUDxPER * AUDxLEN` (ver `docs/debugging/audio-stream-irq-rate.md`). Pendiente: resolver
+  ese ritmo, el *swap* real en hardware y la E/S desde `trackdisk`.
 
 ### A6 — API unificada y ejemplo de juego
 

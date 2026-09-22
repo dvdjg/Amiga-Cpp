@@ -14,9 +14,11 @@
 //     servicio llama a `advance()` y reprograma `AUDxLCH/LCL/LEN` con el nuevo
 //     buffer (cambio de puntero sin parar el DMA). No descomprime.
 //
-// Evidencia: sobre `kFrameReport` frames, `mark_ready` si hubo IRQs y cambios de
-// buffer y **cero underruns**; `detail = (irq << 16) | swaps`. Ver
-// docs/engine/architecture/AUDIO_STREAMING.md y docs/guides/roadmap/ROADMAP_AUDIO.md (A5).
+// **Estado: WIP, sin verificar.** El informe objetivo es `mark_ready` en el frame
+// `kFrameReport` si hubo IRQs, cambios de buffer y cero underruns (`detail = (irq << 16) |
+// swaps`); hoy NO se cumple: la IRQ de audio dispara ~34x mas rapido que `AUDxPER * AUDxLEN`
+// (underruns). Hallazgos y siguientes pasos: docs/debugging/audio-stream-irq-rate.md.
+// Ver tambien docs/engine/architecture/AUDIO_STREAMING.md y ROADMAP_AUDIO.md (A5).
 // ============================================================================
 
 #include <eng/api/api.hpp>
@@ -129,8 +131,9 @@ struct AudioStreamDemo {
 			} else {
 				eng::debug::mark_failed(
 					g_eng_run_status,
-					0x02720000u | ((m_irq & 0xffu) << 16u) | ((m_swap & 0xffu) << 8u) |
-						(m_underrun & 0xffu));
+					((static_cast<eng::u32>(m_irq)) << 16u) |
+						((static_cast<eng::u32>(m_swap)) << 8u) |
+						static_cast<eng::u32>(m_underrun));
 			}
 		}
 	}
@@ -146,12 +149,12 @@ private:
 	/// **IRQ de audio (nivel 4)**: avanza el buffer de reproduccion y reprograma el puntero de
 	/// la voz. No descomprime (eso se hace en el bucle principal).
 	void on_audio_irq(eng::u16) {
-		m_irq = m_irq + 1u;
+		m_irq = static_cast<eng::u8>(m_irq + 1u);
 		if (m_stream.advance()) {
 			m_paula.set_buffer(kChannel, m_stream.play_pcm(), kChunkSamples / 2u);
-			m_swap = m_swap + 1u;
+			m_swap = static_cast<eng::u8>(m_swap + 1u);
 		} else {
-			m_underrun = m_underrun + 1u;
+			m_underrun = static_cast<eng::u8>(m_underrun + 1u);
 		}
 	}
 
@@ -206,9 +209,11 @@ private:
 	}
 
 	bool m_init_ok = false;
-	volatile eng::u32 m_irq = 0;      ///< compartidos con la IRQ de audio: `volatile`
-	volatile eng::u32 m_swap = 0;
-	volatile eng::u32 m_underrun = 0;
+	// Contadores de 8 bits `volatile` compartidos con la IRQ: el 68000 lee/escribe un byte de
+	// forma atomica (un `u32` se parte en dos accesos al bus y la lectura se desgarra).
+	volatile eng::u8 m_irq = 0;
+	volatile eng::u8 m_swap = 0;
+	volatile eng::u8 m_underrun = 0;
 	const eng::u16* m_copper_ptr = nullptr;
 	eng::Block<eng::PlaneTag> m_bitplane_block {};
 	eng::Block<eng::CopperTag> m_copper_block {};

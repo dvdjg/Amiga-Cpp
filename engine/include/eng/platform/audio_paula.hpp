@@ -35,6 +35,11 @@ public:
 		}
 		// Limpia AUD0..3EN (sin SET/CLR: escribe 0 en esos bits).
 		*dmacon_w() = kAudioMask;
+		// Limpia la modulacion de audio de ADKCON (ATPER/ATVOL/ATPER2/ATVOL2, bits 1..4). Si
+		// quedan set, el periodo/volumen del canal salen de los datos del canal anterior y el
+		// ritmo de la IRQ deja de corresponder a `AUDxPER * AUDxLEN` (ADKCON bit 15 = SET/CLR;
+		// escribir sin el limpia los bits).
+		*adkcon_w() = kAudioModMask;
 	}
 
 	/// Materializa el plan en Paula y arranca el DMA de los canales activos.
@@ -92,7 +97,14 @@ private:
 	static constexpr u8 kChannels = 4;
 	static constexpr u16 kSetClr = 0x8000;
 	static constexpr u16 kDmaMaster = 0x0200;
-	static constexpr u16 kAudioMask = 0x000f; // bits AUD0..3EN
+	static constexpr u16 kAudioMask = 0x000f;    // bits AUD0..3EN
+	static constexpr u16 kAudioModMask = 0x001e; // ADKCON: ATPER/ATVOL/ATPER2/ATVOL2
+
+	/// `ADKCON` ($dff09e, SET/CLR): bits de modulacion de audio y de disco. `silence` lo escribe
+	/// sin bit 15 para limpiar `kAudioModMask`.
+	volatile u16* adkcon_w() const {
+		return reinterpret_cast<volatile u16*>(0xdff09eu);
+	}
 
 	/// `DMACON` ($dff096) como palabra: se escribe con `kSetClr` para activar/desactivar el
 	/// DMA de audio (`kAudioMask` = AUD0..3EN). Lo usan `start`/`stop`.
