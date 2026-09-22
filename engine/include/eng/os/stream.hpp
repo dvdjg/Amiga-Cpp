@@ -71,10 +71,13 @@ public:
 	[[nodiscard]] bool finished() const noexcept { return m_eof && m_ready == 0u; }
 
 private:
-	eng::u8 m_ready = 0u; ///< bit i = buffer i lleno
-	eng::u8 m_play = 0u;  ///< buffer que suena
-	bool m_underrun = false;
-	bool m_eof = false;
+	// `volatile`: el estado lo comparten la IRQ de audio (`advance`/`play_ready`) y el bucle
+	// principal (`on_chunk_ready`/`request_mask`); sin `volatile` el compilador cachea el valor
+	// (el ISR no es visible para el flujo de datos) y el bucle no ve los buffers liberados.
+	volatile eng::u8 m_ready = 0u; ///< bit i = buffer i lleno
+	volatile eng::u8 m_play = 0u;  ///< buffer que suena
+	volatile bool m_underrun = false;
+	volatile bool m_eof = false;
 };
 
 } // namespace eng::os

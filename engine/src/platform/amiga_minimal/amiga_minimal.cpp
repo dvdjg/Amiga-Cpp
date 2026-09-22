@@ -219,6 +219,61 @@ void MinimalBackend::clear_blit_service() {
 	level3_sync();
 }
 
+// Despacha el nivel 4: AUD0..3 comparten vector. Lee INTREQR, limpia el bit de audio que
+// disparo y llama al servicio (que cambia el buffer de la voz en curso, sin parar el DMA).
+extern "C" void level4_dispatch() {
+	const unsigned short req = custom_base[custom_intreqr_offset];
+	const unsigned short audio = static_cast<unsigned short>(req & 0x0780u); // AUD0..3
+	if (audio != 0u) {
+		custom_base[custom_intreq_offset] = audio;
+		if (g_audio_task != nullptr) {
+			g_audio_task(g_audio_task_user,
+				     static_cast<unsigned short>((*vpos_long & 0x1ff00u) >> 8));
+		}
+	}
+}
+
+// Instala/restaura el handler de nivel 4 segun el servicio de audio activo. Solo toca
+// INTEN/AUD0..3; no desarma otros bits de INTENA.
+void level4_sync() {
+	const bool need = (g_audio_task != nullptr);
+	if (need && !g_level4_installed) {
+		volatile eng::u32* const vector4 = reinterpret_cast<volatile eng::u32*>(0x70u);
+		g_level4_old_vector = *vector4;
+		*vector4 = reinterpret_cast<eng::u32>(&level4_irq);
+		g_level4_installed = true;
+	}
+	if (need) {
+		custom_base[custom_intena_offset] = static_cast<unsigned short>(0x8000u | 0x4000u | 0x0780u);
+	} else {
+		custom_base[custom_intena_offset] = 0x0780u; // desarmar AUD0..3 (INTEN se deja)
+		if (g_level4_installed) {
+			*reinterpret_cast<volatile eng::u32*>(0x70u) = g_level4_old_vector;
+			g_level4_installed = false;
+		}
+	}
+}
+
+bool MinimalBackend::install_audio_service(ServiceSlot& slot) {
+	if (g_audio_task != nullptr) {
+		return false;
+	}
+	g_audio_task = slot.thunk;
+	g_audio_task_user = &slot;
+	level4_sync();
+	return true;
+}
+
+void MinimalBackend::clear_audio_service() {
+	if (g_audio_task == nullptr) {
+		return;
+	}
+	custom_base[custom_intreq_offset] = 0x0780u;
+	g_audio_task = nullptr;
+	g_audio_task_user = nullptr;
+	level4_sync();
+}
+
 void MinimalBackend::set_blitter_priority(bool enabled) {
 	// DMACON bit 10 (BLTPRI) = "blitter nasty": el Blitter no deja slots libres a la CPU.
 	// SETCLR (0x8000) activa; sin SETCLR, el bit se limpia. No toca MASTER/BLITTER.

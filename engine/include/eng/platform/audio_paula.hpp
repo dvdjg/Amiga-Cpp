@@ -60,6 +60,34 @@ public:
 		}
 	}
 
+	/// Puntero + longitud (**en palabras**) de la muestra de un canal: `AUDxLCH/AUDxLCL` +
+	/// `AUDxLEN`. Es la reprogramación que hace el streaming dentro de la IRQ de audio (cambio de
+	/// buffer sin parar el DMA).
+	void set_buffer(u8 channel, const u8* sample, u16 words) {
+		set_pointer(channel, sample);
+		set_length(channel, words);
+	}
+
+	/// Periodo del canal (`AUDxPER`): fija la frecuencia de reproducción (mayor = más grave).
+	void set_period(u8 channel, u16 period) {
+		channel_regs(channel)[3] = period; // AUDxPER
+	}
+
+	/// Volumen del canal 0..64 (`AUDxVOL`, 6 bits; se enmascara).
+	void set_volume(u8 channel, u8 volume) {
+		channel_regs(channel)[4] = static_cast<u16>(volume & 0x7fu); // AUDxVOL (6 bits)
+	}
+
+	/// Arranca el DMA del canal (`DMACON` = SET/CLR | DMAEN | AUDxEN).
+	void start_channel(u8 channel) {
+		*dmacon_w() = static_cast<u16>(kSetClr | kDmaMaster | (1u << channel));
+	}
+
+	/// Para el DMA del canal (`DMACON` = SET/CLR | AUDxEN). El puntero y la longitud no cambian.
+	void stop_channel(u8 channel) {
+		*dmacon_w() = static_cast<u16>(kSetClr | (1u << channel));
+	}
+
 private:
 	static constexpr u8 kChannels = 4;
 	static constexpr u16 kSetClr = 0x8000;
@@ -83,16 +111,6 @@ private:
 	/// Longitud de la muestra en **palabras** (no bytes) → `AUDxLEN`.
 	void set_length(u8 channel, u16 words) {
 		channel_regs(channel)[2] = words; // AUDxLEN
-	}
-
-	/// Periodo del canal (`AUDxPER`): fija la frecuencia de reproducción (mayor = más grave).
-	void set_period(u8 channel, u16 period) {
-		channel_regs(channel)[3] = period; // AUDxPER
-	}
-
-	/// Volumen del canal 0..64 (`AUDxVOL`, 6 bits; se enmascara).
-	void set_volume(u8 channel, u8 volume) {
-		channel_regs(channel)[4] = static_cast<u16>(volume & 0x7fu); // AUDxVOL (6 bits)
 	}
 
 	/// Base de los registros del canal `channel` (0..3): `$dff0a0 + channel*8`, con el orden

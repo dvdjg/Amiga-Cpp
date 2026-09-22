@@ -16,6 +16,7 @@
 extern "C" {
 void cia_irq();
 void level3_irq();
+void level4_irq();
 }
 
 namespace eng::amiga::detail {
@@ -106,6 +107,13 @@ inline void (*g_blit_task)(void*, unsigned short) = nullptr;
 inline void* g_blit_task_user = nullptr;
 inline bool g_level3_installed = false;
 inline unsigned long g_level3_old_vector = 0;
+
+// Handler UNICO del autovector de nivel 4 (AUD0..3 comparten vector): la IRQ de audio del
+// streaming digital. El engine la usa para cambiar de buffer PCM sin parar el DMA.
+inline void (*g_audio_task)(void*, unsigned short) = nullptr;
+inline void* g_audio_task_user = nullptr;
+inline bool g_level4_installed = false;
+inline unsigned long g_level4_old_vector = 0;
 
 inline bool wait_blitter() {
 	// El bit BBUSY de DMACONR baja cuando el Blitter queda libre. Camino rapido sin

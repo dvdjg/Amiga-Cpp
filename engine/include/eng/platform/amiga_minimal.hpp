@@ -210,6 +210,22 @@ public:
 		return install_blit_service(m_blit_slot);
 	}
 
+	/// Instala la **IRQ de audio** (nivel 4, AUD0..3) y hace que el backend ejecute
+	/// `task(user, vpos)` cada vez que una voz de Paula agota su buffer. Es la via del
+	/// streaming digital: el servicio reprograma el puntero de la voz (cambio de buffer) y
+	/// **no** debe descomprimir (seria demasiado tiempo dentro de la IRQ). Arma `INTENA` de
+	/// AUD0..3; el llamador solo habilita el DMA de la voz que usa. Devuelve false si ya habia
+	/// una instalada.
+	template <class C>
+	bool set_audio_service(Service<C> task, C& user) {
+		if (task == nullptr) return false;
+		fill_slot(m_audio_slot, task, user);
+		return install_audio_service(m_audio_slot);
+	}
+
+	/// Desinstala la IRQ de audio (restaura el vector de nivel 4 e `INTENA`).
+	void clear_audio_service();
+
 	/// **Copia asíncrona con notificación**: arranca `blitter_memcpy(wait = false)` y registra
 	/// la IRQ **BLIT** para ejecutar `on_done(user, vpos)` cuando el Blitter termina (típico:
 	/// `port.post(eng::os::Msg{MsgType::BlitDone, ...})`). El IRQ queda armado (llamar
@@ -576,6 +592,7 @@ private:
 	bool install_vblank_service(ServiceSlot& slot);
 	bool install_blit_service(ServiceSlot& slot);
 	bool install_timer_service(u16 latch, ServiceSlot& slot);
+	bool install_audio_service(ServiceSlot& slot);
 	/// Cuerpo común de `execute_frame_plan` (encadena varios) y `blitter_submit` (uno):
 	/// programa un `BlitJob`. `eor_open` mantiene la racha de líneas EOR entre jobs.
 	bool submit_blit_job(const graphics::BlitJob& job, bool& eor_open);
@@ -589,6 +606,7 @@ private:
 	ServiceSlot m_vblank_slot {}; ///< servicio de VBlank
 	ServiceSlot m_blit_slot {}; ///< servicio de fin de blit (IRQ de blit)
 	ServiceSlot m_timer_slot {}; ///< servicio del timer de CIA
+	ServiceSlot m_audio_slot {}; ///< servicio de la IRQ de audio (nivel 4, streaming)
 	void* m_chip_alloc = nullptr; ///< bloque base de Chip RAM reservado
 	u32 m_chip_alloc_size = 0; ///< tamaño (KB) del bloque de Chip RAM
 	void* m_slow_alloc = nullptr; ///< bloque base de Slow RAM reservado
