@@ -22,6 +22,7 @@
 ///
 /// Verificación: HOST-154.
 
+#include <eng/core/ptr.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/util/static_vector.hpp>
 #include <eng/sim/types.hpp>
@@ -63,34 +64,34 @@ struct LearningParams {
 	eng::u8 max_confidence = 255u;
 };
 
-/// Busca la creencia de `(kind, subject)` (o `nullptr`).
-[[nodiscard]] constexpr KnowledgeEntry* find_knowledge(KnowledgeSet& set,
-						       KnowledgeKind kind,
-						       eng::u16 subject) noexcept {
+/// Busca la creencia de `(kind, subject)`: `Ref` a la entrada, o `Ref` no válida.
+[[nodiscard]] constexpr eng::Ref<KnowledgeEntry> find_knowledge(KnowledgeSet& set,
+								KnowledgeKind kind,
+								eng::u16 subject) noexcept {
 	for (eng::usize i = 0; i < set.size(); ++i) {
 		if (set[i].kind == kind && set[i].subject == subject) {
-			return &set[i];
+			return eng::Ref<KnowledgeEntry>(&set[i]);
 		}
 	}
-	return nullptr;
+	return eng::Ref<KnowledgeEntry>();
 }
 
-[[nodiscard]] constexpr const KnowledgeEntry* find_knowledge(const KnowledgeSet& set,
-							     KnowledgeKind kind,
-							     eng::u16 subject) noexcept {
+[[nodiscard]] constexpr eng::Ref<const KnowledgeEntry> find_knowledge(const KnowledgeSet& set,
+								      KnowledgeKind kind,
+								      eng::u16 subject) noexcept {
 	for (eng::usize i = 0; i < set.size(); ++i) {
 		if (set[i].kind == kind && set[i].subject == subject) {
-			return &set[i];
+			return eng::Ref<const KnowledgeEntry>(&set[i]);
 		}
 	}
-	return nullptr;
+	return eng::Ref<const KnowledgeEntry>();
 }
 
 /// Aprende/refuerza una creencia. Si la lista está llena y no existe, sustituye la de
 /// menor confianza (solo si la nueva aporta algo). Devuelve la confianza resultante.
 constexpr eng::u8 learn(KnowledgeSet& set, KnowledgeKind kind, eng::u16 subject,
 			eng::u8 gain = 48u, const LearningParams& p = LearningParams {}) noexcept {
-	if (KnowledgeEntry* e = find_knowledge(set, kind, subject); e != nullptr) {
+	if (auto e = find_knowledge(set, kind, subject); e.valid()) {
 		const eng::u16 next = static_cast<eng::u16>(e->confidence) + gain;
 		e->confidence = next > p.max_confidence ? p.max_confidence
 						       : static_cast<eng::u8>(next);
@@ -116,8 +117,8 @@ constexpr eng::u8 learn(KnowledgeSet& set, KnowledgeKind kind, eng::u16 subject,
 /// Confianza sobre `(kind, subject)` (0 si no se sabe).
 [[nodiscard]] constexpr eng::u8 confidence_for(const KnowledgeSet& set, KnowledgeKind kind,
 					       eng::u16 subject) noexcept {
-	const KnowledgeEntry* e = find_knowledge(set, kind, subject);
-	return e != nullptr ? e->confidence : 0u;
+	const eng::Ref<const KnowledgeEntry> e = find_knowledge(set, kind, subject);
+	return e.valid() ? e->confidence : 0u;
 }
 
 /// ¿Se sabe con al menos `threshold` de confianza?
@@ -139,16 +140,16 @@ constexpr void decay_knowledge(KnowledgeSet& set, eng::u8 amount) noexcept {
 	}
 }
 
-/// Creencia más fiable de un tipo (o `nullptr`).
-[[nodiscard]] constexpr const KnowledgeEntry* best_knowledge(const KnowledgeSet& set,
-							     KnowledgeKind kind) noexcept {
-	const KnowledgeEntry* best = nullptr;
+/// Creencia más fiable de un tipo (`Ref` no válida si no hay ninguna).
+[[nodiscard]] constexpr eng::Ref<const KnowledgeEntry> best_knowledge(const KnowledgeSet& set,
+								      KnowledgeKind kind) noexcept {
+	eng::Ref<const KnowledgeEntry> best {};
 	for (eng::usize i = 0; i < set.size(); ++i) {
 		if (set[i].kind != kind) {
 			continue;
 		}
-		if (best == nullptr || set[i].confidence > best->confidence) {
-			best = &set[i];
+		if (!best.valid() || set[i].confidence > best->confidence) {
+			best = eng::Ref<const KnowledgeEntry>(&set[i]);
 		}
 	}
 	return best;

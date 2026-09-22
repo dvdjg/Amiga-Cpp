@@ -46,8 +46,8 @@ void test_integrate() {
 	o1.modalities = static_cast<eng::u8>(sense_bit::sight | sense_bit::hearing);
 	integrate_observations(tr, eng::Span<const Observation> {&o1, 1}, 0u);
 
-	const Tracker* t = find_tracker(tr, 5u, TrackerKind::Threat);
-	check(t != nullptr && t->confidence == 200u &&
+	auto t = find_tracker(tr, 5u, TrackerKind::Threat);
+	check(t.valid() && t->confidence == 200u &&
 		      t->modalities == static_cast<eng::u8>(sense_bit::sight | sense_bit::hearing),
 	      "memoria: la observacion entra en el corto plazo");
 

@@ -83,7 +83,8 @@ void test_symmetric_reading() {
 		label_showdown(reads, 0u, true, eng::Span<const GestureKind> {kTracked, 3u},
 		               leaked.span());
 	}
-	const u8 slot = ReadModel<4, 3>::slot_of(kTracked, 3u, GestureKind::InstantCall);
+	const u8 slot =
+		ReadModel<4, 3>::slot_of(eng::Span<const GestureKind> {kTracked, 3u}, GestureKind::InstantCall);
 	check(slot < 3u, "lectura: InstantCall rastreado");
 	const eng::u16 ps = p_strong(reads, 0u, slot);
 	check(ps > 750u, "lectura: la mesa aprende el tell de timing del humano");

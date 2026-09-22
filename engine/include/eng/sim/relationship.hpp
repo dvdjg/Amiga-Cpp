@@ -21,6 +21,7 @@
 ///
 /// Verificación: HOST-152 y HOST-154.
 
+#include <eng/core/ptr.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/util/static_vector.hpp>
 #include <eng/sim/types.hpp>
@@ -70,27 +71,27 @@ namespace detail {
 }
 } // namespace detail
 
-/// Busca la relación con `target` (o `nullptr`).
+/// Busca la relación con `target`: `Ref` a la entrada, o `Ref` no válida.
 template <eng::usize N>
-[[nodiscard]] constexpr Relationship* find_rel(RelationshipList<N>& list,
-					       EntityId target) noexcept {
+[[nodiscard]] constexpr eng::Ref<Relationship> find_rel(RelationshipList<N>& list,
+							EntityId target) noexcept {
 	for (eng::usize i = 0; i < list.size(); ++i) {
 		if (list[i].target == target) {
-			return &list[i];
+			return eng::Ref<Relationship>(&list[i]);
 		}
 	}
-	return nullptr;
+	return eng::Ref<Relationship>();
 }
 
 template <eng::usize N>
-[[nodiscard]] constexpr const Relationship* find_rel(const RelationshipList<N>& list,
-						     EntityId target) noexcept {
+[[nodiscard]] constexpr eng::Ref<const Relationship> find_rel(const RelationshipList<N>& list,
+							      EntityId target) noexcept {
 	for (eng::usize i = 0; i < list.size(); ++i) {
 		if (list[i].target == target) {
-			return &list[i];
+			return eng::Ref<const Relationship>(&list[i]);
 		}
 	}
-	return nullptr;
+	return eng::Ref<const Relationship>();
 }
 
 /// Crea o actualiza la relación (vínculo y afecto). Si está llena, descarta la de menor
@@ -101,7 +102,7 @@ constexpr void set_relationship(RelationshipList<N>& list, EntityId target, Rela
 	if (target == no_entity) {
 		return;
 	}
-	if (Relationship* r = find_rel(list, target); r != nullptr) {
+	if (auto r = find_rel(list, target); r.valid()) {
 		r->kind = kind;
 		r->affinity = detail::clamp_rel(affinity);
 		r->affect = detail::clamp_rel(affect);
@@ -136,7 +137,7 @@ constexpr void set_relation(RelationshipList<N>& list, EntityId target, Relation
 template <eng::usize N>
 constexpr void adjust_affinity(RelationshipList<N>& list, EntityId target,
 			       RelationKind kind, eng::s16 delta) noexcept {
-	if (Relationship* r = find_rel(list, target); r != nullptr) {
+	if (auto r = find_rel(list, target); r.valid()) {
 		r->affinity = detail::clamp_rel(static_cast<eng::s16>(r->affinity) + delta);
 		return;
 	}
@@ -148,7 +149,7 @@ constexpr void adjust_affinity(RelationshipList<N>& list, EntityId target,
 template <eng::usize N>
 constexpr void adjust_affect(RelationshipList<N>& list, EntityId target, RelationKind kind,
 			     eng::s16 delta) noexcept {
-	if (Relationship* r = find_rel(list, target); r != nullptr) {
+	if (auto r = find_rel(list, target); r.valid()) {
 		r->affect = detail::clamp_rel(static_cast<eng::s16>(r->affect) + delta);
 		return;
 	}
@@ -159,24 +160,24 @@ constexpr void adjust_affect(RelationshipList<N>& list, EntityId target, Relatio
 template <eng::usize N>
 [[nodiscard]] constexpr eng::s8 affinity_toward(const RelationshipList<N>& list,
 						EntityId target) noexcept {
-	const Relationship* r = find_rel(list, target);
-	return r != nullptr ? r->affinity : 0;
+	const eng::Ref<const Relationship> r = find_rel(list, target);
+	return r.valid() ? r->affinity : 0;
 }
 
 /// Carga emocional dirigida a `target` (0 si no hay relación).
 template <eng::usize N>
 [[nodiscard]] constexpr eng::s8 affect_toward(const RelationshipList<N>& list,
 					      EntityId target) noexcept {
-	const Relationship* r = find_rel(list, target);
-	return r != nullptr ? r->affect : 0;
+	const eng::Ref<const Relationship> r = find_rel(list, target);
+	return r.valid() ? r->affect : 0;
 }
 
 /// Puntuación de vínculo total (`affinity + affect`), en `[-200, 200]`.
 template <eng::usize N>
 [[nodiscard]] constexpr eng::s16 bond_score(const RelationshipList<N>& list,
 					    EntityId target) noexcept {
-	const Relationship* r = find_rel(list, target);
-	if (r == nullptr) {
+	const eng::Ref<const Relationship> r = find_rel(list, target);
+	if (!r.valid()) {
 		return 0;
 	}
 	return static_cast<eng::s16>(r->affinity) + r->affect;
@@ -184,17 +185,17 @@ template <eng::usize N>
 
 /// Relación más intensa de un tipo (la de mayor valor absoluto de afinidad).
 template <eng::usize N>
-[[nodiscard]] constexpr const Relationship* strongest_rel(const RelationshipList<N>& list,
-							  RelationKind kind) noexcept {
-	const Relationship* best = nullptr;
+[[nodiscard]] constexpr eng::Ref<const Relationship> strongest_rel(const RelationshipList<N>& list,
+								   RelationKind kind) noexcept {
+	eng::Ref<const Relationship> best {};
 	eng::u8 best_mag = 0u;
 	for (eng::usize i = 0; i < list.size(); ++i) {
 		if (list[i].kind != kind) {
 			continue;
 		}
 		const eng::u8 mag = detail::abs_s8(list[i].affinity);
-		if (best == nullptr || mag > best_mag) {
-			best = &list[i];
+		if (!best.valid() || mag > best_mag) {
+			best = eng::Ref<const Relationship>(&list[i]);
 			best_mag = mag;
 		}
 	}
@@ -203,26 +204,28 @@ template <eng::usize N>
 
 /// Relación con la carga emocional más **positiva** (aliado amado).
 template <eng::usize N>
-[[nodiscard]] constexpr const Relationship* most_loved(const RelationshipList<N>& list) noexcept {
-	const Relationship* best = nullptr;
+[[nodiscard]] constexpr eng::Ref<const Relationship> most_loved(
+	const RelationshipList<N>& list) noexcept {
+	eng::Ref<const Relationship> best {};
 	for (eng::usize i = 0; i < list.size(); ++i) {
-		if (best == nullptr || list[i].affect > best->affect) {
-			best = &list[i];
+		if (!best.valid() || list[i].affect > best->affect) {
+			best = eng::Ref<const Relationship>(&list[i]);
 		}
 	}
-	return (best != nullptr && best->affect > 0) ? best : nullptr;
+	return (best.valid() && best->affect > 0) ? best : eng::Ref<const Relationship>();
 }
 
 /// Relación con la carga emocional más **negativa** (enemigo odiado), si la hay.
 template <eng::usize N>
-[[nodiscard]] constexpr const Relationship* most_hated(const RelationshipList<N>& list) noexcept {
-	const Relationship* best = nullptr;
+[[nodiscard]] constexpr eng::Ref<const Relationship> most_hated(
+	const RelationshipList<N>& list) noexcept {
+	eng::Ref<const Relationship> best {};
 	for (eng::usize i = 0; i < list.size(); ++i) {
-		if (best == nullptr || list[i].affect < best->affect) {
-			best = &list[i];
+		if (!best.valid() || list[i].affect < best->affect) {
+			best = eng::Ref<const Relationship>(&list[i]);
 		}
 	}
-	return (best != nullptr && best->affect < 0) ? best : nullptr;
+	return (best.valid() && best->affect < 0) ? best : eng::Ref<const Relationship>();
 }
 
 } // namespace eng::sim

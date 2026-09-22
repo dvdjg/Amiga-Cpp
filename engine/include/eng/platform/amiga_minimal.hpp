@@ -320,7 +320,9 @@ public:
 		const eng::field::AccelMode mode =
 			caps.blitter ? eng::field::AccelMode::Auto : eng::field::AccelMode::Cpu;
 		const eng::u16 min_px = caps.blitter ? static_cast<eng::u16>(64u) : static_cast<eng::u16>(0u);
-		scene.set_raster(caps.blitter ? &eng::field::kBlitterRaster : &eng::field::kCpuRaster,
+		scene.set_raster(eng::Ref<eng::field::Rasterizer>(
+					 caps.blitter ? &eng::field::kBlitterRaster
+						      : &eng::field::kCpuRaster),
 				 eng::field::RasterPolicy {mode, min_px, true});
 	}
 

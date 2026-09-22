@@ -141,13 +141,13 @@ void test_personality() {
 void test_relationships() {
 	RelationshipList<3> rels;
 	set_relation(rels, 10u, RelationKind::Eats, 20);
-	const Relationship* r = find_rel(rels, 10u);
-	check(r != nullptr && r->kind == RelationKind::Eats && r->affinity == 20,
+	auto r = find_rel(rels, 10u);
+	check(r.valid() && r->kind == RelationKind::Eats && r->affinity == 20,
 	      "rel: alta inicial");
 
 	set_relation(rels, 10u, RelationKind::Rival, -10);
 	r = find_rel(rels, 10u);
-	check(r != nullptr && r->kind == RelationKind::Rival && r->affinity == -10,
+	check(r.valid() && r->kind == RelationKind::Rival && r->affinity == -10,
 	      "rel: set actualiza tipo y afinidad");
 
 	adjust_affinity(rels, 10u, RelationKind::Rival, 5);
@@ -155,16 +155,16 @@ void test_relationships() {
 	adjust_affinity(rels, 20u, RelationKind::Pack, 200);
 	check(affinity_toward(rels, 20u) == 100, "rel: ajuste recorta a +100");
 
-	const Relationship* strongest = strongest_rel(rels, RelationKind::Pack);
-	check(strongest != nullptr && strongest->target == 20u, "rel: la mas intensa del tipo");
+	auto strongest = strongest_rel(rels, RelationKind::Pack);
+	check(strongest.valid() && strongest->target == 20u, "rel: la mas intensa del tipo");
 
 	// Desalojo: con la lista llena se descarta la relacion de menor magnitud.
 	RelationshipList<2> r2;
 	set_relation(r2, 1u, RelationKind::Afraid, -5);
 	set_relation(r2, 2u, RelationKind::Family, 50);
 	set_relation(r2, 3u, RelationKind::Pack, 80);
-	check(find_rel(r2, 1u) == nullptr, "rel: desaloja la mas debil");
-	check(find_rel(r2, 2u) != nullptr && find_rel(r2, 3u) != nullptr,
+	check(!find_rel(r2, 1u).valid(), "rel: desaloja la mas debil");
+	check(find_rel(r2, 2u).valid() && find_rel(r2, 3u).valid(),
 	      "rel: conserva las intensas");
 }
 
@@ -173,15 +173,15 @@ void test_trackers() {
 	TrackerList<3> tr;
 	observe(tr, TrackerKind::Threat, 5u, 0u, 10, 10, 100, 0u);
 	observe(tr, TrackerKind::Threat, 5u, 0u, 20, 20, 50, 5u); // refresco: pos y tick
-	const Tracker* t = find_tracker(tr, 5u, TrackerKind::Threat);
-	check(t != nullptr && t->x == 20 && t->confidence == 100 && t->last_seen == 5u,
+	auto t = find_tracker(tr, 5u, TrackerKind::Threat);
+	check(t.valid() && t->x == 20 && t->confidence == 100 && t->last_seen == 5u,
 	      "tracker: refresca posicion y conserva la confianza mayor");
 	check(confidence_of(tr, 5u, TrackerKind::Threat) == 100, "tracker: consulta de confianza");
 
 	decay(tr, 60);
 	check(confidence_of(tr, 5u, TrackerKind::Threat) == 40, "tracker: decay baja confianza");
 	decay(tr, 50);
-	check(tr.empty() && best_tracker(tr, TrackerKind::Threat) == nullptr,
+	check(tr.empty() && !best_tracker(tr, TrackerKind::Threat).valid(),
 	      "tracker: se olvida al llegar a 0");
 
 	// Desalojo y rechazo: capacidad 2.
@@ -189,15 +189,15 @@ void test_trackers() {
 	observe(tr2, TrackerKind::Prey, 1u, 0u, 0, 0, 30, 0u);
 	observe(tr2, TrackerKind::Prey, 2u, 0u, 0, 0, 50, 0u);
 	observe(tr2, TrackerKind::Prey, 3u, 0u, 0, 0, 10, 0u); // peor que la mas debil
-	check(find_tracker(tr2, 3u, TrackerKind::Prey) == nullptr,
+	check(!find_tracker(tr2, 3u, TrackerKind::Prey).valid(),
 	      "tracker: rechaza lo que no mejora");
 	observe(tr2, TrackerKind::Prey, 3u, 0u, 0, 0, 200, 0u); // desaloja la de 30
-	check(find_tracker(tr2, 1u, TrackerKind::Prey) == nullptr &&
-		      find_tracker(tr2, 3u, TrackerKind::Prey) != nullptr,
+	check(!find_tracker(tr2, 1u, TrackerKind::Prey).valid() &&
+		      find_tracker(tr2, 3u, TrackerKind::Prey).valid(),
 	      "tracker: desaloja el de menor confianza");
 
 	forget(tr2, 2u, TrackerKind::Prey);
-	check(find_tracker(tr2, 2u, TrackerKind::Prey) == nullptr, "tracker: forget puntual");
+	check(!find_tracker(tr2, 2u, TrackerKind::Prey).valid(), "tracker: forget puntual");
 }
 
 // 6) Mente --------------------------------------------------------------------

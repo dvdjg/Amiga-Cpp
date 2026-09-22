@@ -97,8 +97,8 @@ constexpr void step_axis(eng::s16& v, eng::s16 target, eng::s16 limit) noexcept 
 template <class W, class Rng>
 [[nodiscard]] constexpr PlayerIntent player_step(W& w, EntityId id, Rng& rng,
 						 const PlayerParams& p = PlayerParams {}) noexcept {
-	auto* c = w.find(id);
-	if (c == nullptr || !c->alive()) {
+	auto c = w.find(id);
+	if (!c.valid() || !c->alive()) {
 		return PlayerIntent::Wander;
 	}
 	const PlayerIntent intent = intent_for(c->needs, p);
@@ -135,8 +135,8 @@ template <class W, class Rng>
 			break;
 		}
 		case PlayerIntent::Social: {
-			if (const Tracker* fr = best_attention_tracker(c->trackers, TrackerKind::Friend);
-			    fr != nullptr) {
+			if (auto fr = best_attention_tracker(c->trackers, TrackerKind::Friend);
+			    fr.valid()) {
 				tx = fr->x;
 				ty = fr->y;
 			}
@@ -184,8 +184,8 @@ struct PlayerInput {
 template <class W>
 constexpr bool player_control(W& w, EntityId id, const PlayerInput& in,
 			      const PlayerParams& p = PlayerParams {}) noexcept {
-	auto* c = w.find(id);
-	if (c == nullptr || !c->alive()) {
+	auto c = w.find(id);
+	if (!c.valid() || !c->alive()) {
 		return false;
 	}
 	eng::s16 nx = static_cast<eng::s16>(c->x + in.dx);

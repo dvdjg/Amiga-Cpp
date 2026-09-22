@@ -13,6 +13,7 @@
 /// `Finished` si `poll()` devolvió `false`). Las corrutinas (`co_await idle_yield`) son opcionales
 /// (M11).
 
+#include <eng/core/ptr.hpp>
 #include <eng/core/types.hpp>
 #include <eng/os/port.hpp>
 
@@ -295,18 +296,18 @@ public:
 	/// Activa el hook de `yield_if_preempt` ligándolo a este sistema (una instancia activa).
 	void bind_preempt_hook() noexcept {
 		s_preempt_hook = &TaskSystem::hook_query;
-		s_hook_system = this;
+		s_hook_system = eng::Ref<TaskSystem>(*this);
 	}
 	static void unbind_preempt_hook() noexcept {
 		s_preempt_hook = nullptr;
-		s_hook_system = nullptr;
+		s_hook_system.reset();
 	}
 
 private:
-	static inline TaskSystem* s_hook_system = nullptr;
+	static inline eng::Ref<TaskSystem> s_hook_system {}; ///< sistema ligado (no propietario)
 	/// Consulta el flag de `preempt` del sistema ligado (destino de `yield_if_preempt`).
 	static bool hook_query() noexcept {
-		return s_hook_system != nullptr && s_hook_system->m_preempt;
+		return s_hook_system.valid() && s_hook_system->m_preempt;
 	}
 };
 

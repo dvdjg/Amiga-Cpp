@@ -51,10 +51,10 @@ void test_population() {
 	check(full == no_entity, "world: sin sitio -> no_entity");
 	check(w.creature_count() == 2u, "world: cuenta de criaturas");
 
-	const auto* found = w.find(a);
-	check(found != nullptr && found->id == a && found->species == 1u,
+	auto found = w.find(a);
+	check(found.valid() && found->id == a && found->species == 1u,
 	      "world: find por id");
-	check(w.find(no_entity) == nullptr && w.find(static_cast<EntityId>(a + 40u)) == nullptr,
+	check(!w.find(no_entity).valid() && !w.find(static_cast<EntityId>(a + 40u)).valid(),
 	      "world: find de id invalido da nullptr");
 }
 
@@ -97,8 +97,8 @@ void test_realize() {
 void test_tick_realized() {
 	World w;
 	const EntityId id = w.spawn(1u, 0u, 0u, 100, 100);
-	World::Creature* c = w.find(id);
-	check(c != nullptr, "tick_realized: criatura creada");
+	auto c = w.find(id);
+	check(c.valid(), "tick_realized: criatura creada");
 	c->needs.hunger = 200;
 	observe(c->trackers, TrackerKind::Threat, 77u, 0u, 110, 100, 5, 0u);
 	c->set_realized(true);
@@ -124,20 +124,20 @@ void test_tick_abstract() {
 
 	// `stagger_period` por defecto = 4: la primera llamada solo procesa id%4==0 (id 4).
 	w.tick_abstract(rng);
-	check(w.find(a)->needs.hunger == 0u && w.find(b)->needs.hunger == 0u &&
-		      w.find(c)->needs.hunger == 0u && w.find(d)->needs.hunger == 1u,
+	check(w.find(a).get()->needs.hunger == 0u && w.find(b).get()->needs.hunger == 0u &&
+		      w.find(c).get()->needs.hunger == 0u && w.find(d).get()->needs.hunger == 1u,
 	      "abstract: tick escalonado reparte el trabajo");
 
 	for (int i = 0; i < 3; ++i) {
 		w.tick_abstract(rng);
 	}
-	check(w.find(a)->needs.hunger == 1u && w.find(b)->needs.hunger == 1u &&
-		      w.find(c)->needs.hunger == 1u && w.find(d)->needs.hunger == 1u,
+	check(w.find(a).get()->needs.hunger == 1u && w.find(b).get()->needs.hunger == 1u &&
+		      w.find(c).get()->needs.hunger == 1u && w.find(d).get()->needs.hunger == 1u,
 	      "abstract: tras un periodo completo todas avanzan una vez");
 
 	// Migracion al refugio con lluvia: id 1 en room 0, refugio en room 1 (adyacente).
 	w.link_rooms(0u, 1u);
-	World::Creature* ca = w.find(a);
+	auto ca = w.find(a);
 	ca->set_den(1u, 0, 0);
 	w.set_rain(true);
 	for (int i = 0; i < 5; ++i) {
@@ -149,12 +149,12 @@ void test_tick_abstract() {
 	// Muerte por hambre: al llegar a 255 en el tick abstracto se muere.
 	SimWorld<SimTraits, 2, 2, 2, 4> dead_world;
 	const EntityId e = dead_world.spawn(1u, 0u, 0u, 0, 0);
-	dead_world.find(e)->needs.hunger = 254u;
+	dead_world.find(e).get()->needs.hunger = 254u;
 	eng::Xoroshiro64pp rng2 {9u, 9u};
 	// id 1 % 4 == 1: se procesa en la segunda llamada.
 	dead_world.tick_abstract(rng2);
 	dead_world.tick_abstract(rng2);
-	check(!dead_world.find(e)->alive(), "abstract: el hambre extrema mata");
+	check(!dead_world.find(e).get()->alive(), "abstract: el hambre extrema mata");
 }
 
 // 6) Sociedad -----------------------------------------------------------------
@@ -183,22 +183,22 @@ void test_society() {
 }
 
 // 7) Determinismo -------------------------------------------------------------
-void test_determinism() {
-	auto run = [] {
-		World w;
-		(void)w.spawn(1u, 0u, 0u, 10, 10);
-		(void)w.spawn(2u, 0u, 0u, 20, 20);
-		w.realize_room(0u, 8u);
-		eng::Xoroshiro64pp rng {42u, 43u};
-		w.set_rain(true);
-		for (int i = 0; i < 6; ++i) {
-			w.tick_realized(rng);
-			w.tick_abstract(rng);
-		}
-		return w;
-	};
-	const World w1 = run();
-	const World w2 = run();
+void run_world(World& w) {
+	(void)w.spawn(1u, 0u, 0u, 10, 10);
+	(void)w.spawn(2u, 0u, 0u, 20, 20);
+	w.realize_room(0u, 8u);
+	eng::Xoroshiro64pp rng {42u, 43u};
+	w.set_rain(true);
+	for (int i = 0; i < 6; ++i) {
+		w.tick_realized(rng);
+		w.tick_abstract(rng);
+	}
+}
+void test_determinism_run() {
+	World w1;
+	World w2;
+	run_world(w1);
+	run_world(w2);
 	check(w1.creature(0u).behavior == w2.creature(0u).behavior &&
 		      w1.creature(0u).needs.hunger == w2.creature(0u).needs.hunger,
 	      "determinismo: mismo estado y semilla -> mismo resultado");
@@ -209,8 +209,8 @@ void test_world_lifecycle() {
 	SimWorld<SimTraits, 16, 4, 4, 8> w;
 	const EntityId a = w.spawn(1u, 0u, 0u, 0, 0);
 	const EntityId b = w.spawn(1u, 0u, 0u, 1, 0);
-	World::Creature* ca = w.find(a);
-	World::Creature* cb = w.find(b);
+	auto ca = w.find(a);
+	auto cb = w.find(b);
 	ca->age = 120u;
 	cb->age = 120u;
 	ca->set_realized(true);
@@ -220,7 +220,7 @@ void test_world_lifecycle() {
 
 	eng::Xoroshiro64pp rng {9u, 10u};
 	const EntityId initiated = w.try_reproduce(rng);
-	check(initiated == a && w.find(a)->repro.gestating(),
+	check(initiated == a && w.find(a).get()->repro.gestating(),
 	      "world: la pareja inicia la gestacion");
 
 	eng::u8 births = 0u;
@@ -230,15 +230,15 @@ void test_world_lifecycle() {
 	check(w.creature_count() == 3u && births == 1u,
 	      "world: la cria nace al terminar la gestacion");
 	const EntityId child = w.creature(2u).id;
-	check(w.find(child)->age == 0u, "world: la cria nace en la infancia");
-	check(w.find(child)->genome.gene(Gene::Aggression) <= 100u, "world: la cria hereda genoma");
-	check(w.find(a)->needs.hunger > 0u || w.find(b)->needs.hunger > 0u,
+	check(w.find(child).get()->age == 0u, "world: la cria nace en la infancia");
+	check(w.find(child).get()->genome.gene(Gene::Aggression) <= 100u, "world: la cria hereda genoma");
+	check(w.find(a).get()->needs.hunger > 0u || w.find(b).get()->needs.hunger > 0u,
 	      "world: criar cuesta recursos");
 
 	// Vejez: al llegar a la edad limite, la criatura muere.
 	ca->age = 255u;
 	w.tick_realized(rng);
-	check(!w.find(a)->alive(), "world: la vejez mata");
+	check(!w.find(a).get()->alive(), "world: la vejez mata");
 }
 
 // 11) Objetos y economia del mundo -------------------------------------------
@@ -259,8 +259,8 @@ void test_world_objects() {
 	}
 	check(w.items().count_kind(ItemKind::Shelter) == 1u,
 	      "objetos: el plan deja un refugio en el mundo");
-	check(w.find(a)->carrying.count(ItemKind::Tool) == 0u &&
-		      w.find(a)->carrying.count(ItemKind::Material) == 0u,
+	check(w.find(a).get()->carrying.count(ItemKind::Tool) == 0u &&
+		      w.find(a).get()->carrying.count(ItemKind::Material) == 0u,
 	      "objetos: se consumen los materiales al construir");
 
 	const eng::s16 gain = w.offer_gift(0u, 1u, ItemKind::Food, 10u);
@@ -274,7 +274,7 @@ void test_tend_share() {
 	SimWorld<SimTraits, 8, 4, 4, 8> w;
 	const EntityId parent = w.spawn(1u, 0u, 0u, 0, 0);
 	const EntityId kid = w.spawn(1u, 0u, 0u, 1, 0);
-	World::Creature* p = w.find(parent);
+	auto p = w.find(parent);
 	p->set_realized(true);
 	p->personality.empathy = 100u;
 	learn(p->knowledge, KnowledgeKind::FoodSource, 3u, 255u);
@@ -283,7 +283,7 @@ void test_tend_share() {
 	eng::Xoroshiro64pp rng {3u, 3u};
 	w.tick_realized(rng);
 	check(p->behavior == Behavior::Tend, "tend: el adulto dedica el tick a la cria");
-	check(confidence_for(w.find(kid)->knowledge, KnowledgeKind::FoodSource, 3u) >= 128u,
+	check(confidence_for(w.find(kid).get()->knowledge, KnowledgeKind::FoodSource, 3u) >= 128u,
 	      "tend: la cria aprende del adulto");
 }
 
@@ -293,13 +293,13 @@ void test_brood() {
 	Genome queen_g {};
 	queen_g.set(Gene::Size, 90u);
 	const EntityId q = w.spawn(2u, 0u, 0u, 5, 5);
-	w.find(q)->genome = queen_g;
-	w.find(q)->set_realized(true);
+	w.find(q).get()->genome = queen_g;
+	w.find(q).get()->set_realized(true);
 
 	eng::Xoroshiro64pp rng {4u, 4u};
 	const EntityId egg = w.lay_brood(rng);
 	check(egg != no_entity && w.creature_count() == 2u, "colonia: la reina pone un huevo");
-	check(caste_of(w.find(egg)->genome) == Caste::Worker,
+	check(caste_of(w.find(egg).get()->genome) == Caste::Worker,
 	      "colonia: sin censo, la puesta es obrera");
 	check(w.colony().population() == 1u, "colonia: el censo registra la puesta");
 }
@@ -335,7 +335,7 @@ int main() {
 	test_tick_realized();
 	test_tick_abstract();
 	test_society();
-	test_determinism();
+	test_determinism_run();
 	test_world_lifecycle();
 	test_brood();
 	test_world_planning();

@@ -21,6 +21,7 @@
 /// ```
 
 #include <eng/core/box.hpp>
+#include <eng/core/ptr.hpp>
 #include <eng/field/raster.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/graphics/frame_plan.hpp>
@@ -30,15 +31,16 @@ namespace eng::field {
 /// Destino de dibujo: `Surface` + `Rasterizer` + `FramePlan` (opcional).
 class DrawTarget {
 public:
-	DrawTarget(Surface surface, Rasterizer* rasterizer, graphics::FramePlan* plan) noexcept
+	DrawTarget(Surface surface, eng::Ref<Rasterizer> rasterizer,
+		   eng::Ref<graphics::FramePlan> plan) noexcept
 		: m_surface(surface), m_rasterizer(rasterizer), m_plan(plan) {}
 
 	[[nodiscard]] Surface& surface() noexcept { return m_surface; }
 	[[nodiscard]] const Surface& surface() const noexcept { return m_surface; }
-	[[nodiscard]] graphics::FramePlan* plan() const noexcept { return m_plan; }
+	[[nodiscard]] graphics::FramePlan* plan() const noexcept { return m_plan.get(); }
 	/// Rasterizador efectivo del destino (el del playfield o el CPU por defecto).
 	[[nodiscard]] Rasterizer* rasterizer() const noexcept {
-		return (m_rasterizer != nullptr) ? m_rasterizer : &kCpuRaster;
+		return m_rasterizer.valid() ? m_rasterizer.get() : &kCpuRaster;
 	}
 	[[nodiscard]] bool valid() const noexcept { return m_surface.valid(); }
 
@@ -51,7 +53,7 @@ public:
 	}
 	bool line(eng::s16 x0, eng::s16 y0, eng::s16 x1, eng::s16 y1, eng::u8 color,
 		  RasterOp op = RasterOp::Copy) {
-		return m_surface.draw_line(x0, y0, x1, y1, color, m_plan, op);
+		return m_surface.draw_line(x0, y0, x1, y1, color, m_plan.get(), op);
 	}
 	/// Marco de 1 px alrededor de `b` (4 líneas).
 	bool frame(eng::Box b, eng::u8 color) {
@@ -73,12 +75,12 @@ public:
 
 	/// **Chunky→planar** por el seam: con `BlitterRaster` y `plan` encola un
 	/// `BlitJobKind::C2P`; con el rasterizador CPU convierte ya.
-	bool c2p(const C2pRequest& req) { return rasterizer()->c2p(req, m_plan); }
+	bool c2p(const C2pRequest& req) { return rasterizer()->c2p(req, m_plan.get()); }
 
 private:
 	Surface m_surface;
-	Rasterizer* m_rasterizer = nullptr;
-	graphics::FramePlan* m_plan = nullptr;
+	eng::Ref<Rasterizer> m_rasterizer {};          ///< seam CPU/Blitter (no propietario)
+	eng::Ref<graphics::FramePlan> m_plan {};       ///< cola de BlitJobs del frame (no propietaria)
 };
 
 } // namespace eng::field

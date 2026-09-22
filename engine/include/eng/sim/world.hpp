@@ -20,6 +20,7 @@
 ///
 /// Verificación: HOST-153.
 
+#include <eng/core/ptr.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/util/static_vector.hpp>
 #include <eng/sim/behavior.hpp>
@@ -129,7 +130,7 @@ public:
 		if (id == no_entity) {
 			return no_entity;
 		}
-		Creature* c = find(id);
+		auto c = find(id);
 		c->genome = genome;
 		c->personality = genome_to_personality(genome);
 		c->senses = senses_from_genome(genome, m_sense_genome_params);
@@ -139,27 +140,27 @@ public:
 	}
 
 	/// Busca por id (recorrido lineal: el id es monótono y único, nunca se reutiliza).
-	[[nodiscard]] constexpr Creature* find(EntityId id) noexcept {
+	[[nodiscard]] constexpr eng::Ref<Creature> find(EntityId id) noexcept {
 		if (id == no_entity || id == 0u) {
-			return nullptr;
+			return eng::Ref<Creature>();
 		}
 		for (eng::usize i = 0; i < m_creatures.size(); ++i) {
 			if (m_creatures[i].id == id) {
-				return &m_creatures[i];
+				return eng::Ref<Creature>(&m_creatures[i]);
 			}
 		}
-		return nullptr;
+		return eng::Ref<Creature>();
 	}
-	[[nodiscard]] constexpr const Creature* find(EntityId id) const noexcept {
+	[[nodiscard]] constexpr eng::Ref<const Creature> find(EntityId id) const noexcept {
 		if (id == no_entity || id == 0u) {
-			return nullptr;
+			return eng::Ref<const Creature>();
 		}
 		for (eng::usize i = 0; i < m_creatures.size(); ++i) {
 			if (m_creatures[i].id == id) {
-				return &m_creatures[i];
+				return eng::Ref<const Creature>(&m_creatures[i]);
 			}
 		}
-		return nullptr;
+		return eng::Ref<const Creature>();
 	}
 
 	// --- Grafo de habitaciones ---
@@ -504,7 +505,7 @@ public:
 			(void)actions;
 			return false;
 		} else {
-			if (find(id) == nullptr) {
+			if (!find(id).valid()) {
 				return false;
 			}
 			const eng::Span<const typename Ai::Action> span {
@@ -513,8 +514,8 @@ public:
 				abort_plan(id);
 				return false;
 			}
-			Plan* p = get_or_make_plan(id);
-			if (p == nullptr) {
+			auto p = get_or_make_plan(id);
+			if (!p.valid()) {
 				return false;
 			}
 			p->runner = m_planner.driver.runner();
@@ -523,23 +524,23 @@ public:
 	}
 
 	[[nodiscard]] constexpr bool has_plan(EntityId id) const noexcept {
-		const Plan* p = find_plan(id);
-		return p != nullptr && p->runner.active;
+		auto p = find_plan(id);
+		return p.valid() && p->runner.active;
 	}
 
 	[[nodiscard]] constexpr eng::u16 current_action(EntityId id) const noexcept {
-		const Plan* p = find_plan(id);
-		return p != nullptr ? p->runner.current() : static_cast<eng::u16>(0xffffu);
+		auto p = find_plan(id);
+		return p.valid() ? p->runner.current() : static_cast<eng::u16>(0xffffu);
 	}
 
 	constexpr void advance_plan(EntityId id) noexcept {
-		if (Plan* p = find_plan(id); p != nullptr) {
+		if (auto p = find_plan(id); p.valid()) {
 			p->runner.advance();
 		}
 	}
 
 	constexpr void abort_plan(EntityId id) noexcept {
-		if (Plan* p = find_plan(id); p != nullptr) {
+		if (auto p = find_plan(id); p.valid()) {
 			p->runner.abort();
 		}
 	}
@@ -578,8 +579,8 @@ public:
 				if (mag < m_life.repro_min_bond) {
 					continue;
 				}
-				Creature* mate = find(rel.target);
-				if (mate == nullptr || !mate->alive()) {
+				auto mate = find(rel.target);
+				if (!mate.valid() || !mate->alive()) {
 					continue;
 				}
 				// Inicia la gestación (el nacimiento ocurre al avanzar el ciclo).
@@ -611,9 +612,9 @@ public:
 			if (c.repro.gestation > 0u) {
 				--c.repro.gestation;
 				if (c.repro.gestation == 0u) {
-					Creature* mate = find(c.repro.partner);
+					auto mate = find(c.repro.partner);
 					const Genome child_g = newborn_genome(
-						c.genome, mate != nullptr ? mate->genome : c.genome, rng, m_gene);
+						c.genome, mate.valid() ? mate->genome : c.genome, rng, m_gene);
 					if (spawn_with_genome(c.species, c.faction, c.room, c.x, c.y,
 							      child_g) != no_entity) {
 						++births;
@@ -659,8 +660,8 @@ public:
 
 	/// Ejecuta materialmente un paso del dominio sobre la criatura (inventario) y el mundo.
 	constexpr ActionResult execute_action(EntityId id, SimActionKind a) noexcept {
-		Creature* c = find(id);
-		if (c == nullptr || !c->alive()) {
+		auto c = find(id);
+		if (!c.valid() || !c->alive()) {
 			return ActionResult::Unknown;
 		}
 		return execute_domain_action(c->carrying, a, &m_items, c->room, c->x, c->y);
@@ -689,9 +690,9 @@ public:
 	/// Devuelve `true` si el trato se cerró.
 	constexpr bool offer_trade(EntityId a, EntityId b, const TradeOffer& offer,
 				   const TradeParams& p = TradeParams {}) noexcept {
-		Creature* ca = find(a);
-		Creature* cb = find(b);
-		if (ca == nullptr || cb == nullptr) {
+		auto ca = find(a);
+		auto cb = find(b);
+		if (!ca.valid() || !cb.valid()) {
 			return false;
 		}
 		if (!execute_trade(ca->carrying, cb->carrying, m_economy, offer, p)) {
@@ -704,9 +705,9 @@ public:
 
 	/// Transmite conocimiento de una criatura a otra (padre→cría, explorador→manada).
 	constexpr eng::u8 transfer_knowledge(EntityId from, EntityId to) noexcept {
-		Creature* a = find(from);
-		Creature* b = find(to);
-		if (a == nullptr || b == nullptr) {
+		auto a = find(from);
+		auto b = find(to);
+		if (!a.valid() || !b.valid()) {
 			return 0u;
 		}
 		return share(a->knowledge, b->knowledge, m_learning);
@@ -724,8 +725,8 @@ public:
 					      eng::Span<const SenseTarget> targets,
 					      eng::Span<Observation> out, eng::s16 face_x = 1,
 					      eng::s16 face_y = 0) const noexcept {
-		const Creature* c = find(observer);
-		if (c == nullptr) {
+		auto c = find(observer);
+		if (!c.valid()) {
 			return 0u;
 		}
 		Observer o {};
@@ -753,8 +754,8 @@ public:
 	/// Integra las observaciones en la memoria de corto plazo del observador.
 	constexpr void integrate_senses(EntityId id,
 					eng::Span<const Observation> observations) noexcept {
-		Creature* c = find(id);
-		if (c == nullptr) {
+		auto c = find(id);
+		if (!c.valid()) {
 			return;
 		}
 		integrate_observations(c->trackers, observations, m_frame);
@@ -762,8 +763,8 @@ public:
 
 	/// Consolida la memoria de corto plazo en largo plazo (una criatura).
 	constexpr eng::u8 consolidate_memory(EntityId id) noexcept {
-		Creature* c = find(id);
-		if (c == nullptr) {
+		auto c = find(id);
+		if (!c.valid()) {
 			return 0u;
 		}
 		return consolidate(c->trackers, c->knowledge, m_memory_params);
@@ -790,8 +791,8 @@ public:
 
 	/// Deriva los sentidos del genoma de una criatura (al nacer o al cambiar de morfo).
 	constexpr void derive_senses(EntityId id) noexcept {
-		Creature* c = find(id);
-		if (c != nullptr) {
+		auto c = find(id);
+		if (c.valid()) {
 			c->senses = senses_from_genome(c->genome, m_sense_genome_params);
 		}
 	}
@@ -814,8 +815,8 @@ public:
 
 	/// Sesgo de una región según lo que recuerda la criatura (macro).
 	[[nodiscard]] constexpr eng::s16 mental_bias(EntityId id, RoomId room) const noexcept {
-		const Creature* c = find(id);
-		return c != nullptr ? place_bias(c->knowledge, room, m_mental_params) : 0;
+		auto c = find(id);
+		return c.valid() ? place_bias(c->knowledge, room, m_mental_params) : 0;
 	}
 
 	/// Construye la capa de coste del mapa mental de una criatura para `eng::util::astar`.
@@ -823,8 +824,8 @@ public:
 	template <eng::u16 W, eng::u16 H, class RoomAt>
 	constexpr void stamp_mental_overlay(EntityId id, MentalOverlay<W, H>& overlay,
 					    RoomAt room_at) const noexcept {
-		const Creature* c = find(id);
-		if (c != nullptr) {
+		auto c = find(id);
+		if (c.valid()) {
 			overlay.stamp(c->knowledge, room_at, m_mental_params);
 		}
 	}
@@ -833,8 +834,8 @@ public:
 	template <class Map, class RoomAt>
 	constexpr void stamp_mental_danger(EntityId id, Map& influence,
 					   RoomAt room_at) const noexcept {
-		const Creature* c = find(id);
-		if (c != nullptr) {
+		auto c = find(id);
+		if (c.valid()) {
 			deposit_mental_danger(c->knowledge, influence, room_at, m_mental_params);
 		}
 	}
@@ -866,8 +867,8 @@ public:
 	/// Actúa un **ritual** (cultura): efecto emocional propio y lo expresa con una señal a
 	/// los de su región. Devuelve cuántos lo percibieron.
 	constexpr eng::u8 enact_ritual(EntityId id, RitualKind r) noexcept {
-		Creature* c = find(id);
-		if (c == nullptr) {
+		auto c = find(id);
+		if (!c.valid()) {
 			return 0u;
 		}
 		perform_ritual(c->mind, r, m_culture_params);
@@ -901,8 +902,8 @@ public:
 			if (!leader.alive() || !leader.realized()) {
 				continue;
 			}
-			const Tracker* prey = best_attention_tracker(leader.trackers, TrackerKind::Prey);
-			if (prey == nullptr || prey->room != leader.room) {
+			auto prey = best_attention_tracker(leader.trackers, TrackerKind::Prey);
+			if (!prey.valid() || prey->room != leader.room) {
 				continue;
 			}
 			eng::u8 idx = 0u;
@@ -914,8 +915,8 @@ public:
 				if (!m.alive() || !m.realized() || m.room != leader.room) {
 					continue;
 				}
-				const Relationship* rel = find_rel(m.relationships, leader.id);
-				if (rel == nullptr || rel->kind != RelationKind::Pack) {
+				auto rel = find_rel(m.relationships, leader.id);
+				if (!rel.valid() || rel->kind != RelationKind::Pack) {
 					continue;
 				}
 				const PackRole role = pack_role_for(false, idx);
@@ -1140,33 +1141,33 @@ public:
 	}
 
 private:
-	[[nodiscard]] constexpr Plan* find_plan(EntityId id) noexcept {
+	[[nodiscard]] constexpr eng::Ref<Plan> find_plan(EntityId id) noexcept {
 		for (eng::usize i = 0; i < m_plans.size(); ++i) {
 			if (m_plans[i].id == id) {
-				return &m_plans[i];
+				return eng::Ref<Plan>(&m_plans[i]);
 			}
 		}
-		return nullptr;
+		return eng::Ref<Plan>();
 	}
-	[[nodiscard]] constexpr const Plan* find_plan(EntityId id) const noexcept {
+	[[nodiscard]] constexpr eng::Ref<const Plan> find_plan(EntityId id) const noexcept {
 		for (eng::usize i = 0; i < m_plans.size(); ++i) {
 			if (m_plans[i].id == id) {
-				return &m_plans[i];
+				return eng::Ref<const Plan>(&m_plans[i]);
 			}
 		}
-		return nullptr;
+		return eng::Ref<const Plan>();
 	}
-	[[nodiscard]] constexpr Plan* get_or_make_plan(EntityId id) noexcept {
-		if (Plan* p = find_plan(id); p != nullptr) {
+	[[nodiscard]] constexpr eng::Ref<Plan> get_or_make_plan(EntityId id) noexcept {
+		if (auto p = find_plan(id); p.valid()) {
 			return p;
 		}
 		if (m_plans.full()) {
-			return nullptr;
+			return eng::Ref<Plan>();
 		}
 		Plan fresh {};
 		fresh.id = id;
 		(void)m_plans.push_back(fresh);
-		return &m_plans[m_plans.size() - 1u];
+		return eng::Ref<Plan>(&m_plans[m_plans.size() - 1u]);
 	}
 
 	/// Avanza la edad y comprueba muerte natural (solo si la genética/ciclo está activo).
@@ -1186,12 +1187,12 @@ private:
 
 	/// Transmite conocimiento del adulto a la cría que percibe (`Tend`).
 	constexpr void tend_knowledge(Creature& c) noexcept {
-		const Tracker* kin = best_tracker(c.trackers, TrackerKind::Kin);
-		if (kin == nullptr) {
+		auto kin = best_tracker(c.trackers, TrackerKind::Kin);
+		if (!kin.valid()) {
 			return;
 		}
-		Creature* child = find(kin->target);
-		if (child == nullptr) {
+		auto child = find(kin->target);
+		if (!child.valid()) {
 			return;
 		}
 		(void)transfer_knowledge(c.id, child->id);

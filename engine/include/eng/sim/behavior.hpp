@@ -19,6 +19,7 @@
 /// Verificación: HOST-152 (decision), HOST-154 (afectos/jerarquía).
 
 #include <eng/ai/decision/utility.hpp>
+#include <eng/core/ptr.hpp>
 #include <eng/core/random.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/util/bit.hpp>
@@ -123,10 +124,10 @@ struct AttentionWeights {
 
 /// Tracker de un tipo con mayor atención (confianza + saliencia + multimodalidad).
 template <eng::usize N>
-[[nodiscard]] constexpr const Tracker* best_attention_tracker(
+[[nodiscard]] constexpr eng::Ref<const Tracker> best_attention_tracker(
 	const TrackerList<N>& trackers, TrackerKind kind,
 	const AttentionWeights& w = AttentionWeights {}) noexcept {
-	const Tracker* best = nullptr;
+	eng::Ref<const Tracker> best {};
 	Score best_score = -1;
 	for (eng::usize i = 0; i < trackers.size(); ++i) {
 		const Tracker& t = trackers[i];
@@ -134,8 +135,8 @@ template <eng::usize N>
 			continue;
 		}
 		const Score s = attention_score(t, w);
-		if (best == nullptr || s > best_score) {
-			best = &t;
+		if (!best.valid() || s > best_score) {
+			best = eng::Ref<const Tracker>(&t);
 			best_score = s;
 		}
 	}
@@ -144,7 +145,7 @@ template <eng::usize N>
 
 /// Igual que el anterior, partiendo de una criatura (usa su lista de trackers).
 template <class C>
-[[nodiscard]] constexpr const Tracker* best_attention_tracker(
+[[nodiscard]] constexpr eng::Ref<const Tracker> best_attention_tracker(
 	const C& c, TrackerKind kind,
 	const AttentionWeights& w = AttentionWeights {}) noexcept {
 	return best_attention_tracker(c.trackers, kind, w);
@@ -154,9 +155,9 @@ template <class C>
 /// **a quién** ayudar, cortejar o confrontar; `prefer_positive` busca aliado (vínculo
 /// positivo) o enemigo (negativo).
 template <class C>
-[[nodiscard]] constexpr const Tracker* best_bonded_tracker(const C& c, TrackerKind kind,
-							   bool prefer_positive) noexcept {
-	const Tracker* best = nullptr;
+[[nodiscard]] constexpr eng::Ref<const Tracker> best_bonded_tracker(const C& c, TrackerKind kind,
+								    bool prefer_positive) noexcept {
+	eng::Ref<const Tracker> best {};
 	eng::s32 best_score = prefer_positive ? -100000 : 100000;
 	for (eng::usize i = 0; i < c.trackers.size(); ++i) {
 		const Tracker& t = c.trackers[i];
@@ -166,7 +167,7 @@ template <class C>
 		const eng::s32 score = bond_score(c.relationships, t.target);
 		if (prefer_positive ? score > best_score : score < best_score) {
 			best_score = score;
-			best = &t;
+			best = eng::Ref<const Tracker>(&t);
 		}
 	}
 	return best;
@@ -184,7 +185,7 @@ constexpr void score_behaviors(const C& c, const BehaviorContext& ctx, BehaviorS
 	// --- Huir: amenazas percibidas + nerviosismo - valentía (+ miedo afectivo) ---
 	{
 		Score base = 0;
-		if (const Tracker* t = best_attention_tracker(c, TrackerKind::Threat); t != nullptr) {
+		if (auto t = best_attention_tracker(c, TrackerKind::Threat); t.valid()) {
 			eng::ai::Utility u;
 			u.add(t->confidence, 3);
 			u.add(proximity(*t, px, py), 2);
@@ -205,8 +206,8 @@ constexpr void score_behaviors(const C& c, const BehaviorContext& ctx, BehaviorS
 	// --- Cazar: hambre + presa percibida; la agresividad y la ira empujan ---
 	{
 		Score base = 0;
-		if (const Tracker* prey = best_attention_tracker(c, TrackerKind::Prey);
-		    prey != nullptr && c.needs.hunger > 40u) {
+		if (auto prey = best_attention_tracker(c, TrackerKind::Prey);
+		    prey.valid() && c.needs.hunger > 40u) {
 			eng::ai::Utility u;
 			u.add(pressure_score(c.needs.hunger), 3);
 			u.add(prey->confidence, 2);
@@ -225,8 +226,8 @@ constexpr void score_behaviors(const C& c, const BehaviorContext& ctx, BehaviorS
 	{
 		eng::ai::Utility u;
 		u.add(pressure_score(c.needs.hunger), 3);
-		if (const Tracker* food = best_attention_tracker(c, TrackerKind::Item);
-		    food != nullptr) {
+		if (auto food = best_attention_tracker(c, TrackerKind::Item);
+		    food.valid()) {
 			u.add(food->confidence, 2);
 			u.add(proximity(*food, px, py), 1);
 		}
@@ -250,8 +251,8 @@ constexpr void score_behaviors(const C& c, const BehaviorContext& ctx, BehaviorS
 	if constexpr (Traits::society) {
 		eng::ai::Utility u;
 		u.add(pressure_score(c.needs.social), 3);
-		if (const Tracker* ally = best_attention_tracker(c, TrackerKind::Friend);
-		    ally != nullptr) {
+		if (auto ally = best_attention_tracker(c, TrackerKind::Friend);
+		    ally.valid()) {
 			u.add(ally->confidence, 2);
 			u.add(proximity(*ally, px, py), 1);
 		}
@@ -306,8 +307,8 @@ constexpr void score_behaviors(const C& c, const BehaviorContext& ctx, BehaviorS
 			eng::ai::Utility u;
 			u.add(pressure_score(c.needs.social), 1);
 			bool has_kin = false;
-			if (const Tracker* kin = best_attention_tracker(c, TrackerKind::Kin);
-			    kin != nullptr) {
+			if (auto kin = best_attention_tracker(c, TrackerKind::Kin);
+			    kin.valid()) {
 				u.add(kin->confidence, 3);
 				u.add(proximity(*kin, px, py), 2);
 				has_kin = true;
@@ -328,11 +329,11 @@ constexpr void score_behaviors(const C& c, const BehaviorContext& ctx, BehaviorS
 			if constexpr (Traits::emotions) {
 				u.add(u8_scale(c.mind.emotions.compassion, 100u), 3);
 			}
-			const Tracker* friend_t = best_bonded_tracker(c, TrackerKind::Friend, true);
-			if (friend_t == nullptr) {
+			auto friend_t = best_bonded_tracker(c, TrackerKind::Friend, true);
+			if (!friend_t.valid()) {
 				friend_t = best_bonded_tracker(c, TrackerKind::Kin, true);
 			}
-			if (friend_t != nullptr) {
+			if (friend_t.valid()) {
 				const eng::s16 bond = bond_score(c.relationships, friend_t->target);
 				if (bond > 0) {
 					u.add(friend_t->confidence, 2);
@@ -354,11 +355,11 @@ constexpr void score_behaviors(const C& c, const BehaviorContext& ctx, BehaviorS
 				if constexpr (Traits::emotions) {
 					u.add(u8_scale(c.mind.emotions.love, 100u), 3);
 				}
-				const Tracker* mate = best_bonded_tracker(c, TrackerKind::Mate, true);
-				if (mate == nullptr) {
+				auto mate = best_bonded_tracker(c, TrackerKind::Mate, true);
+				if (!mate.valid()) {
 					mate = best_bonded_tracker(c, TrackerKind::Friend, true);
 				}
-				if (mate != nullptr) {
+				if (mate.valid()) {
 					const eng::s16 bond = bond_score(c.relationships, mate->target);
 					if (bond >= 0) {
 						u.add(mate->confidence, 1);
@@ -375,11 +376,11 @@ constexpr void score_behaviors(const C& c, const BehaviorContext& ctx, BehaviorS
 		// --- Venganza selectiva: confrontar a un rival/agresor concreto ---
 		{
 			Score base = 0;
-			const Tracker* foe = best_bonded_tracker(c, TrackerKind::Rival, false);
-			if (foe == nullptr) {
+			auto foe = best_bonded_tracker(c, TrackerKind::Rival, false);
+			if (!foe.valid()) {
 				foe = best_bonded_tracker(c, TrackerKind::Threat, false);
 			}
-			if (foe != nullptr) {
+			if (foe.valid()) {
 				const eng::s16 bond = bond_score(c.relationships, foe->target);
 				if (bond < 0) {
 					eng::ai::Utility u;

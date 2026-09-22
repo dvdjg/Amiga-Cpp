@@ -16,6 +16,7 @@
 ///
 /// Verificación: HOST-152.
 
+#include <eng/core/ptr.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/util/static_vector.hpp>
 #include <eng/sim/types.hpp>
@@ -54,28 +55,28 @@ struct Tracker {
 template <eng::usize N>
 using TrackerList = eng::util::StaticVector<Tracker, N>;
 
-/// Busca el tracker de `(target, kind)` (o `nullptr`).
+/// Busca el tracker de `(target, kind)`: `Ref` a la entrada de la lista, o `Ref` no válida.
 template <eng::usize N>
-[[nodiscard]] constexpr Tracker* find_tracker(TrackerList<N>& list, EntityId target,
-					      TrackerKind kind) noexcept {
+[[nodiscard]] constexpr eng::Ref<Tracker> find_tracker(TrackerList<N>& list, EntityId target,
+						       TrackerKind kind) noexcept {
 	for (eng::usize i = 0; i < list.size(); ++i) {
 		if (list[i].target == target && list[i].kind == kind) {
-			return &list[i];
+			return eng::Ref<Tracker>(&list[i]);
 		}
 	}
-	return nullptr;
+	return eng::Ref<Tracker>();
 }
 
 template <eng::usize N>
-[[nodiscard]] constexpr const Tracker* find_tracker(const TrackerList<N>& list,
-						    EntityId target,
-						    TrackerKind kind) noexcept {
+[[nodiscard]] constexpr eng::Ref<const Tracker> find_tracker(const TrackerList<N>& list,
+							     EntityId target,
+							     TrackerKind kind) noexcept {
 	for (eng::usize i = 0; i < list.size(); ++i) {
 		if (list[i].target == target && list[i].kind == kind) {
-			return &list[i];
+			return eng::Ref<const Tracker>(&list[i]);
 		}
 	}
-	return nullptr;
+	return eng::Ref<const Tracker>();
 }
 
 /// Registra una percepción. Refresca el tracker existente (posición, `confidence` al
@@ -88,7 +89,7 @@ constexpr void observe(TrackerList<N>& list, TrackerKind kind, EntityId target, 
 	if (target == no_entity) {
 		return;
 	}
-	if (Tracker* t = find_tracker(list, target, kind); t != nullptr) {
+	if (auto t = find_tracker(list, target, kind); t.valid()) {
 		t->room = room;
 		t->x = x;
 		t->y = y;
@@ -131,17 +132,17 @@ constexpr void decay(TrackerList<N>& list, eng::u8 amount) noexcept {
 	}
 }
 
-/// Tracker de mayor confianza de un tipo (o `nullptr`).
+/// Tracker de mayor confianza de un tipo (`Ref` no válida si no hay ninguno).
 template <eng::usize N>
-[[nodiscard]] constexpr const Tracker* best_tracker(const TrackerList<N>& list,
-						    TrackerKind kind) noexcept {
-	const Tracker* best = nullptr;
+[[nodiscard]] constexpr eng::Ref<const Tracker> best_tracker(const TrackerList<N>& list,
+							     TrackerKind kind) noexcept {
+	eng::Ref<const Tracker> best {};
 	for (eng::usize i = 0; i < list.size(); ++i) {
 		if (list[i].kind != kind) {
 			continue;
 		}
-		if (best == nullptr || list[i].confidence > best->confidence) {
-			best = &list[i];
+		if (!best.valid() || list[i].confidence > best->confidence) {
+			best = eng::Ref<const Tracker>(&list[i]);
 		}
 	}
 	return best;
@@ -151,8 +152,8 @@ template <eng::usize N>
 template <eng::usize N>
 [[nodiscard]] constexpr eng::u8 confidence_of(const TrackerList<N>& list, EntityId target,
 					      TrackerKind kind) noexcept {
-	const Tracker* t = find_tracker(list, target, kind);
-	return t != nullptr ? t->confidence : 0u;
+	const eng::Ref<const Tracker> t = find_tracker(list, target, kind);
+	return t.valid() ? t->confidence : 0u;
 }
 
 /// Olvida un tracker concreto.

@@ -93,11 +93,11 @@ void test_forget() {
 
 	decay_places(kn, 100u);
 	check(best_known_room(kn, KnowledgeKind::Shelter) == no_room &&
-		      find_knowledge(kn, KnowledgeKind::Danger, 2u) == nullptr,
+		      !find_knowledge(kn, KnowledgeKind::Danger, 2u).valid(),
 	      "olvido: los lugares antiguos desaparecen");
 
 	forget_place(kn, KnowledgeKind::Enemy, 5u);
-	check(find_knowledge(kn, KnowledgeKind::Enemy, 5u) == nullptr,
+	check(!find_knowledge(kn, KnowledgeKind::Enemy, 5u).valid(),
 	      "olvido: se puede olvidar un lugar a mano");
 }
 

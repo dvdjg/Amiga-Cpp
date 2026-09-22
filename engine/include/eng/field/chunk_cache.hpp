@@ -18,6 +18,7 @@
 /// `docs/engine/architecture/STREAMING_LOADER.md`.
 
 #include <eng/core/domains.hpp>
+#include <eng/core/ptr.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/util/array.hpp>
@@ -73,7 +74,7 @@ public:
 	/// tener al menos `kPoolCells` words (Chip RAM del llamador).
 	bool init(Loader& loader, eng::TileBankBuffer pool) {
 		if (pool.size() < kPoolCells) return false;
-		m_loader = &loader;
+		m_loader = eng::Ref<Loader>(&loader);
 		m_pool = pool;
 		for (eng::u8 i = 0; i < Capacity; ++i) m_slots[i] = Slot {};
 		m_index.clear();
@@ -145,7 +146,7 @@ private:
 		eng::u32 stamp = 0;
 		bool valid = false;
 	};
-	Loader* m_loader = nullptr;
+	eng::Ref<Loader> m_loader {}; ///< loader de chunks (referencia no propietaria)
 	eng::TileBankBuffer m_pool {};
 	eng::util::Array<Slot, Capacity> m_slots {};
 	/// Índice `(cx,cy) -> ranura` para no recorrer los slots en cada `find`/`get`.

@@ -52,8 +52,8 @@ void test_knowledge() {
 	check(confidence_for(ks, KnowledgeKind::FoodSource, 3u) == 255u,
 	      "knowledge: el refuerzo satura en 255");
 	check(knows(ks, KnowledgeKind::FoodSource, 3u), "knowledge: se sabe con confianza");
-	const KnowledgeEntry* best = best_knowledge(ks, KnowledgeKind::FoodSource);
-	check(best != nullptr && best->subject == 3u, "knowledge: mejor creencia del tipo");
+	auto best = best_knowledge(ks, KnowledgeKind::FoodSource);
+	check(best.valid() && best->subject == 3u, "knowledge: mejor creencia del tipo");
 
 	// Olvido a largo plazo.
 	decay_knowledge(ks, 155u);
@@ -68,8 +68,8 @@ void test_knowledge() {
 	}
 	check(full.size() == kMaxKnowledge, "knowledge: capacidad llena");
 	learn(full, KnowledgeKind::Danger, 9u, 225u); // supera a la mas debil (25)
-	check(find_knowledge(full, KnowledgeKind::Danger, 1u) == nullptr &&
-		      find_knowledge(full, KnowledgeKind::Danger, 9u) != nullptr,
+	check(!find_knowledge(full, KnowledgeKind::Danger, 1u).valid() &&
+		      find_knowledge(full, KnowledgeKind::Danger, 9u).valid(),
 	      "knowledge: desaloja la mas debil");
 
 	// Transmision (el emisor ensena; el receptor recibe mermado).
@@ -248,12 +248,12 @@ void test_directed_affect() {
 	check(affect_toward(rels, 7u) == -20, "afecto dirigido: el agravio cambia el afecto");
 
 	set_relationship(rels, 8u, RelationKind::Family, 90, 70);
-	const Relationship* loved = most_loved(rels);
-	check(loved != nullptr && loved->target == 8u, "afecto dirigido: aliado mas querido");
+	auto loved = most_loved(rels);
+	check(loved.valid() && loved->target == 8u, "afecto dirigido: aliado mas querido");
 
 	adjust_affect(rels, 9u, RelationKind::Rival, -80);
-	const Relationship* hated = most_hated(rels);
-	check(hated != nullptr && hated->target == 9u, "afecto dirigido: rival mas odiado");
+	auto hated = most_hated(rels);
+	check(hated.valid() && hated->target == 9u, "afecto dirigido: rival mas odiado");
 	check(bond_score(rels, 9u) == -80, "afecto dirigido: bond negativo hacia el rival");
 }
 

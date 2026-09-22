@@ -54,7 +54,8 @@ int main() {
 	check(pf.bind_raw(planes, sizeof(planes), kW, kH, 4u), "bind_raw del playfield");
 
 	eng::field::Surface surf {pf, eng::field::SurfaceRect {0, 0, kW, kH}};
-	eng::field::DrawTarget dt {surf, &eng::field::kCpuRaster, nullptr};
+	eng::field::DrawTarget dt {surf, eng::Ref<eng::field::Rasterizer>(&eng::field::kCpuRaster),
+				   eng::Ref<eng::graphics::FramePlan>()};
 	check(dt.valid(), "DrawTarget valido");
 	check(dt.box().w == kW && dt.box().h == kH, "box() = clip del destino");
 

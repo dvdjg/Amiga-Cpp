@@ -88,13 +88,13 @@ void test_attention() {
 	observe(tr, TrackerKind::Threat, 1u, 0u, 0, 0, 150u, 0u);
 	// Deteccion algo mas debil pero multimodal y saliente.
 	observe(tr, TrackerKind::Threat, 2u, 0u, 0, 0, 120u, 0u);
-	Tracker* multi = find_tracker(tr, 2u, TrackerKind::Threat);
+	auto multi = find_tracker(tr, 2u, TrackerKind::Threat);
 	multi->modalities = static_cast<eng::u8>(sense_bit::sight | sense_bit::hearing |
 						 sense_bit::smell);
 	multi->salience = 100u;
 
-	const Tracker* best = best_attention_tracker(tr, TrackerKind::Threat);
-	check(best != nullptr && best->target == 2u,
+	auto best = best_attention_tracker(tr, TrackerKind::Threat);
+	check(best.valid() && best->target == 2u,
 	      "atencion: lo multimodal+saliente gana a una deteccion fuerte monomodal");
 	check(attention_score(*multi) > attention_score(*find_tracker(tr, 1u, TrackerKind::Threat)),
 	      "atencion: la puntuacion combina confianza, saliencia y modalidades");

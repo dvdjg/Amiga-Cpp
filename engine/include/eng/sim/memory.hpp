@@ -44,7 +44,7 @@ constexpr void integrate_observations(TrackerList<N>& trackers,
 	for (eng::usize i = 0; i < observations.size(); ++i) {
 		const Observation& o = observations[i];
 		observe(trackers, o.kind, o.target, o.room, o.x, o.y, o.strength, tick);
-		if (Tracker* t = find_tracker(trackers, o.target, o.kind); t != nullptr) {
+		if (auto t = find_tracker(trackers, o.target, o.kind); t.valid()) {
 			t->modalities = static_cast<eng::u8>(t->modalities | o.modalities);
 			if (o.salience > t->salience) {
 				t->salience = o.salience;

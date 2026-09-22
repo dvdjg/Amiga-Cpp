@@ -83,7 +83,7 @@ void test_parity() {
 	const PlayerIntent it = player_step(w, p, rng);
 	check(it == PlayerIntent::Feed, "parity: la IA elige comer");
 	(void)player_control(w, p, PlayerInput {1, 1, true, false});
-	check(w.find(p) != nullptr && w.find(p)->alive(), "parity: el mundo sigue coherente");
+	check(w.find(p).valid() && w.find(p)->alive(), "parity: el mundo sigue coherente");
 }
 
 } // namespace

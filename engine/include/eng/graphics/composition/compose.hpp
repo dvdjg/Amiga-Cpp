@@ -254,8 +254,8 @@ public:
 
 	/// **Elige el rasterizador** (CPU/Blitter) de `surface()` y su política. El backend
 	/// declara sus `RasterCaps`; la app decide el `RasterPolicy` (`Auto`/`Cpu`/`Blitter`).
-	/// `nullptr` deja el CPU por defecto. No cambia la API de dibujo.
-	void set_raster(field::Rasterizer* r, const field::RasterPolicy& policy = {}) {
+	/// Vacío deja el CPU por defecto. No cambia la API de dibujo.
+	void set_raster(eng::Ref<field::Rasterizer> r, const field::RasterPolicy& policy = {}) {
 		m_playfield.set_rasterizer(r);
 		m_playfield.set_raster_policy(policy);
 		m_contiguous.set_rasterizer(r);
@@ -284,7 +284,9 @@ public:
 		field::Playfield& pf = interleaved
 					       ? static_cast<field::Playfield&>(m_playfield)
 					       : static_cast<field::Playfield&>(m_contiguous);
-		return field::DrawTarget { surface(), pf.rasterizer(), plan };
+		return field::DrawTarget {surface(),
+					  eng::Ref<field::Rasterizer>(pf.rasterizer()),
+					  eng::Ref<graphics::FramePlan>(plan)};
 	}
 
 	/// **Chunky→planar** a través del rasterizador de la escena: con `BlitterRaster` y

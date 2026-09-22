@@ -82,14 +82,14 @@ void form_pairs(World& w, const Scenario& sc) {
 	for (eng::usize i = 0; i < w.creature_count() && formed < 3u; ++i) {
 		World::Creature& a = w.creature(i);
 		if (!a.alive() || !is_mature(a.age, w.lifecycle()) ||
-		    strongest_rel(a.relationships, RelationKind::Mate) != nullptr) {
+		    strongest_rel(a.relationships, RelationKind::Mate).valid()) {
 			continue;
 		}
 		for (eng::usize j = i + 1u; j < w.creature_count(); ++j) {
 			World::Creature& b = w.creature(j);
 			if (!b.alive() || b.species != a.species || b.room != a.room ||
 			    !is_mature(b.age, w.lifecycle()) ||
-			    strongest_rel(b.relationships, RelationKind::Mate) != nullptr) {
+			    strongest_rel(b.relationships, RelationKind::Mate).valid()) {
 				continue;
 			}
 			set_relationship(a.relationships, b.id, RelationKind::Mate, 70, 75);
@@ -139,12 +139,12 @@ void step(World& w, eng::Xoroshiro64pp& rng, const Scenario& sc, Lab& lab) {
 		if (!p.alive() || !is_predator(p.species)) {
 			continue;
 		}
-		const Tracker* prey = best_attention_tracker(p.trackers, TrackerKind::Prey);
-		if (prey == nullptr) {
+		auto prey = best_attention_tracker(p.trackers, TrackerKind::Prey);
+		if (!prey.valid()) {
 			continue;
 		}
-		World::Creature* v = w.find(prey->target);
-		if (v == nullptr || !v->alive() || v->room != p.room) {
+		auto v = w.find(prey->target);
+		if (!v.valid() || !v->alive() || v->room != p.room) {
 			continue;
 		}
 		if (manhattan(p.x, p.y, v->x, v->y) <= 2u) {

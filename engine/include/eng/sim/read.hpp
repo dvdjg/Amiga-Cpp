@@ -77,10 +77,9 @@ struct ReadModel {
 	}
 
 	/// Índice de un gesto en la lista rastreada, o `NumGestures` si no está.
-	[[nodiscard]] static constexpr eng::u8 slot_of(const GestureKind* tracked,
-	                                               eng::usize count,
+	[[nodiscard]] static constexpr eng::u8 slot_of(eng::Span<const GestureKind> tracked,
 	                                               GestureKind g) noexcept {
-		for (eng::usize i = 0u; i < count; ++i) {
+		for (eng::usize i = 0u; i < tracked.size(); ++i) {
 			if (tracked[i] == g) {
 				return static_cast<eng::u8>(i);
 			}

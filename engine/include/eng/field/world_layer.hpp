@@ -14,6 +14,7 @@
 /// `docs/engine/architecture/STREAMING_LOADER.md`.
 
 #include <eng/assets/uaf.hpp>
+#include <eng/core/ptr.hpp>
 #include <eng/field/streaming_map.hpp>
 #include <eng/field/tile_source.hpp>
 
@@ -29,7 +30,7 @@ public:
 	/// Enlaza con la capa `layer` del mundo (valida índice y datos).
 	bool bind(const eng::assets::WorldView& world, eng::u32 layer) {
 		if (!world.valid() || layer >= world.layer_count()) return false;
-		m_world = &world;
+		m_world = eng::Ref<const eng::assets::WorldView>(&world);
 		m_layer = layer;
 		width = world.layer_width(layer);
 		height = world.layer_height(layer);
@@ -39,14 +40,14 @@ public:
 		return true;
 	}
 
-	constexpr bool has_data() const { return m_world != nullptr; }
-	constexpr bool is_empty(eng::u16 g) const { return m_world == nullptr || g == empty_tile; }
+	constexpr bool has_data() const { return m_world.valid(); }
+	constexpr bool is_empty(eng::u16 g) const { return !m_world.valid() || g == empty_tile; }
 	eng::u16 tile_at(eng::s32 x, eng::s32 y) const {
-		return m_world != nullptr ? m_world->tile_at(m_layer, x, y) : empty_tile;
+		return m_world.valid() ? m_world->tile_at(m_layer, x, y) : empty_tile;
 	}
 
 private:
-	const eng::assets::WorldView* m_world = nullptr;
+	eng::Ref<const eng::assets::WorldView> m_world {}; ///< mundo (referencia no propietaria)
 	eng::u32 m_layer = 0;
 };
 

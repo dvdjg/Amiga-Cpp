@@ -147,7 +147,7 @@ struct DemoGame {
 		// Raster Blitter (los fills de caja van por el Blitter D-only, sincrono) + sink de rect.
 		// Las lineas y el texto siguen por CPU (sin FramePlan): el rect D-only no es asincrono.
 		m_scene.set_rect_fill_sink(eng::field::RectFillSink {&backend, &rect_fill_cb});
-		m_scene.set_raster(&eng::field::kBlitterRaster,
+		m_scene.set_raster(eng::Ref<eng::field::Rasterizer>(&eng::field::kBlitterRaster),
 				   eng::field::RasterPolicy {eng::field::AccelMode::Auto, 64u, true});
 
 		build_tree();

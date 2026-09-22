@@ -41,6 +41,7 @@
 #include <eng/core/arith.hpp>
 #include <eng/core/arith.hpp>
 #include <eng/core/polygon.hpp>
+#include <eng/core/ptr.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/graphics/bitmap.hpp>
@@ -457,8 +458,8 @@ public:
 
     /// **Rasterizador** (seam CPU/Blitter) que usan las `Surface` de este playfield.
     /// `nullptr` = rasterizador CPU por defecto (lo resuelve `Surface`).
-    void set_rasterizer(Rasterizer* r) { m_rasterizer = r; }
-    [[nodiscard]] Rasterizer* rasterizer() const { return m_rasterizer; }
+    void set_rasterizer(eng::Ref<Rasterizer> r) { m_rasterizer = r; }
+    [[nodiscard]] Rasterizer* rasterizer() const { return m_rasterizer.get(); }
     /// Política de aceleración (modo + umbrales); ver `RasterPolicy`.
     void set_raster_policy(const RasterPolicy& p) { m_raster_policy = p; }
     [[nodiscard]] const RasterPolicy& raster_policy() const { return m_raster_policy; }
@@ -607,7 +608,7 @@ protected:
     bool m_initialized = false;  ///< el playfield quedó listo para dibujar
     PolygonFillSink m_fill_sink {}; ///< motor de relleno por hardware (vacío = CPU)
     RectFillSink m_rect_sink {}; ///< motor de relleno de rect por hardware (vacío = CPU)
-    Rasterizer* m_rasterizer = nullptr; ///< seam CPU/Blitter (nullptr = CPU por defecto)
+    eng::Ref<Rasterizer> m_rasterizer {}; ///< seam CPU/Blitter (vacío = CPU por defecto)
     RasterPolicy m_raster_policy {};    ///< política de aceleración
 };
 
