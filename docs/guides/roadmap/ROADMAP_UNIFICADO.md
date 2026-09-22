@@ -498,9 +498,15 @@ prioridad:
 3. **C2P en el seam**: `Rasterizer::c2p(C2pRequest, plan)` unifica chunky→planar: CPU
    (`c2p_1x1_4`/`c2p_1x1_naive`) y **Blitter** (`BlitJobKind::C2P`, 13 fases) por la misma
    interfaz; `Scene::c2p` lo expone. HOST-218 valida la ruta CPU (equivalente a la referencia) y
-   el encolado `C2P` del `BlitterRaster`. **Pendiente**: una demo que lo consuma; el intento
-   (rotozoom + `Scene::c2p`) no renderiza pese a que `c2p` devuelve `true` y 061 (mismo escenario,
-   C2P directo) sí — falta aislar por qué el buffer escrito no llega al display.
+   el encolado `C2P` del `BlitterRaster`. **Bug corregido (2026-09)**: `Scene::c2p(req, plan)` ->
+   `DrawTarget::c2p` usaba el `rasterizer()` del playfield (CPU) **ignorando el `plan`**, así que
+   devolvía `true` sin encolar el C2P del Blitter (la conversión CPU sí se hacía, pero sobre el
+   buffer de la escena mientras el display esperaba el commit). `DrawTarget::c2p` enruta ahora a
+   `kBlitterRaster` cuando hay `plan`. **Pendiente**: demo que consuma el seam con resultado
+   verificado (`demos/amiga/275_c2p_seam` es **WIP**: `detail != 0`, el contrato del buffer
+   `chunky` del `BlitterRaster` exige que su **2ª mitad** sea el *scratch* planar de las 13 fases
+   — `eng/graphics/blitter_state.hpp` `C2p4::chunky`; hay que darle ese layout y comparar con la
+   referencia CPU).
 4. **`FMODE` por target**: programar 2×/4× según `raster_caps().bus` (AGA) en copias/fills; hoy
    solo se declara la capacidad.
 5. **Demo de `blit_shadow`/`blit_glow`** en un actor real (no solo el host test) e integración en

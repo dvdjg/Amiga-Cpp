@@ -73,7 +73,17 @@ public:
 
 	/// **Chunky→planar** por el seam: con `BlitterRaster` y `plan` encola un
 	/// `BlitJobKind::C2P`; con el rasterizador CPU convierte ya.
-	bool c2p(const C2pRequest& req) { return rasterizer()->c2p(req, m_plan); }
+	///
+	/// Se usa el rasterizador **Blitter** cuando hay `plan` (el del backend), para que el
+	/// `BlitJobKind::C2P` se encole ahí; el `rasterizer()` del playfield suele ser el CPU y
+	/// convertiría al instante sin usar el plan (bug: `Scene::c2p` devolvía `true` pero no
+	/// llegaba al display). Sin `plan`, o fuera de 4 planos, se cae al CPU del playfield.
+	bool c2p(const C2pRequest& req) {
+		if (m_plan != nullptr) {
+			return eng::field::kBlitterRaster.c2p(req, m_plan);
+		}
+		return rasterizer()->c2p(req, nullptr);
+	}
 
 private:
 	Surface m_surface;
