@@ -41,6 +41,19 @@ int main() {
 	eng::Ref<Obj> r3 {static_cast<Obj*>(nullptr)};
 	check(!r3.valid(), "Ref explicita desde nullptr");
 
+	// Conversiones implicitas: `&obj` y `nullptr` construyen el `Ref` sin escribir el tipo
+	// (el llamador pasa el puntero crudo o el literal y la API queda legible).
+	struct Takes {
+		static bool by_ref(eng::Ref<Obj> p) { return p.valid() && p->x == 42; }
+		static bool by_ptr(eng::Ref<Obj> p) { return p.valid(); }
+		static bool by_null(eng::Ref<Obj> p) { return !p.valid(); }
+	};
+	check(Takes::by_ref(a), "Ref implicita desde referencia en llamada");
+	check(Takes::by_ptr(&a), "Ref implicita desde puntero en llamada");
+	check(Takes::by_null(nullptr), "Ref implicita desde nullptr en llamada");
+	eng::Ref<const Obj> rc3 = a;
+	check(rc3.valid() && rc3->get() == 42, "Ref<const T> implicita desde referencia no-const");
+
 	// NonNull: no puede ser nulo.
 	eng::NonNull<Obj> nn {a};
 	check(nn->get() == 42 && nn.get() == &a, "NonNull observa el objeto");

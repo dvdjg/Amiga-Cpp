@@ -279,14 +279,12 @@ public:
 	/// **Objetivo de dibujo** de la escena: `Surface` + `Rasterizer` + `FramePlan` + clip.
 	/// Es la puerta única a las primitivas (fill/línea/texto/blit/c2p) sobre el buffer de
 	/// dibujo activo, sea la escena contigua o interleaved.
-	[[nodiscard]] field::DrawTarget draw_target(graphics::FramePlan* plan = nullptr) {
+	[[nodiscard]] field::DrawTarget draw_target(eng::Ref<graphics::FramePlan> plan = {}) {
 		const bool interleaved = (m_res.layout == SceneLayout::Interleaved);
 		field::Playfield& pf = interleaved
 					       ? static_cast<field::Playfield&>(m_playfield)
 					       : static_cast<field::Playfield&>(m_contiguous);
-		return field::DrawTarget {surface(),
-					  eng::Ref<field::Rasterizer>(pf.rasterizer()),
-					  eng::Ref<graphics::FramePlan>(plan)};
+		return field::DrawTarget {surface(), pf.rasterizer(), plan};
 	}
 
 	/// **Chunky→planar** a través del rasterizador de la escena: con `BlitterRaster` y

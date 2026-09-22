@@ -146,7 +146,7 @@ public:
 		}
 		for (eng::usize i = 0; i < m_creatures.size(); ++i) {
 			if (m_creatures[i].id == id) {
-				return eng::Ref<Creature>(&m_creatures[i]);
+				return &m_creatures[i];
 			}
 		}
 		return eng::Ref<Creature>();
@@ -157,7 +157,7 @@ public:
 		}
 		for (eng::usize i = 0; i < m_creatures.size(); ++i) {
 			if (m_creatures[i].id == id) {
-				return eng::Ref<const Creature>(&m_creatures[i]);
+				return &m_creatures[i];
 			}
 		}
 		return eng::Ref<const Creature>();
@@ -1144,7 +1144,7 @@ private:
 	[[nodiscard]] constexpr eng::Ref<Plan> find_plan(EntityId id) noexcept {
 		for (eng::usize i = 0; i < m_plans.size(); ++i) {
 			if (m_plans[i].id == id) {
-				return eng::Ref<Plan>(&m_plans[i]);
+				return &m_plans[i];
 			}
 		}
 		return eng::Ref<Plan>();
@@ -1152,7 +1152,7 @@ private:
 	[[nodiscard]] constexpr eng::Ref<const Plan> find_plan(EntityId id) const noexcept {
 		for (eng::usize i = 0; i < m_plans.size(); ++i) {
 			if (m_plans[i].id == id) {
-				return eng::Ref<const Plan>(&m_plans[i]);
+				return &m_plans[i];
 			}
 		}
 		return eng::Ref<const Plan>();

@@ -189,8 +189,8 @@ void test_dynamic_range() {
 
 	HandRange tight_range;
 	HandRange loose_range;
-	opponent_range_from_model(tight, t, 0u, &table, tight_range);
-	opponent_range_from_model(loose, t, 0u, &table, loose_range);
+	opponent_range_from_model(tight, t, 0u, table, tight_range);
+	opponent_range_from_model(loose, t, 0u, table, loose_range);
 	check(tight_range.class_count() > 0u && loose_range.class_count() > 0u,
 	      "rango dinamico: rangos no vacios");
 	check(tight_range.class_count() < loose_range.class_count(),
@@ -218,8 +218,8 @@ void test_dynamic_range() {
 
 	HandRange raise_range;
 	HandRange check_range;
-	opponent_range_from_model(line_raiser, t, 0u, &table, raise_range);
-	opponent_range_from_model(line_checker, t, 0u, &table, check_range);
+	opponent_range_from_model(line_raiser, t, 0u, table, raise_range);
+	opponent_range_from_model(line_checker, t, 0u, table, check_range);
 	check(raise_range.class_count() < check_range.class_count(),
 	      "rango dinamico: subir en la calle estrecha el rango");
 }

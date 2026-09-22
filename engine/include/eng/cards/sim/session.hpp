@@ -68,9 +68,9 @@ struct SessionStats {
 /// `preflop_table` (opcional) aporta el equity preflop de las 169 clases y
 /// `opponent_range` (opcional) restringe el rival del Monte Carlo.
 inline void run_session(const SessionConfig& config, const CardPlan& plan, SessionStats& stats,
-                        OpponentModel* model = nullptr,
-                        const PreflopTable* preflop_table = nullptr,
-                        const HandRange* opponent_range = nullptr) noexcept {
+                        eng::Ref<OpponentModel> model = {},
+                        eng::Ref<const PreflopTable> preflop_table = {},
+                        eng::Ref<const HandRange> opponent_range = {}) noexcept {
 	stats = SessionStats {};
 	stats.starting_stack = config.starting_stack;
 
@@ -93,8 +93,9 @@ inline void run_session(const SessionConfig& config, const CardPlan& plan, Sessi
 				break;
 			}
 			const BotStyle style = config.styles[actor];
-			const Action action = decide_with_plan(table, actor, style, plan, model, rng,
-			                                       preflop_table, opponent_range);
+			const Action action = decide_with_plan(
+			    table, actor, style, plan, eng::Ref<const OpponentModel>(model.get()), rng,
+			    preflop_table, opponent_range);
 
 			switch (action.type) {
 			case ActionType::Raise:
@@ -110,7 +111,7 @@ inline void run_session(const SessionConfig& config, const CardPlan& plan, Sessi
 			default:
 				break;
 			}
-			if (model != nullptr) {
+			if (model.valid()) {
 				model->observe(actor, action.type, table.street);
 			}
 			apply_action(table, action);

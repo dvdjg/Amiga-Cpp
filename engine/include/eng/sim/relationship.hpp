@@ -77,7 +77,7 @@ template <eng::usize N>
 							EntityId target) noexcept {
 	for (eng::usize i = 0; i < list.size(); ++i) {
 		if (list[i].target == target) {
-			return eng::Ref<Relationship>(&list[i]);
+			return &list[i];
 		}
 	}
 	return eng::Ref<Relationship>();
@@ -88,7 +88,7 @@ template <eng::usize N>
 							      EntityId target) noexcept {
 	for (eng::usize i = 0; i < list.size(); ++i) {
 		if (list[i].target == target) {
-			return eng::Ref<const Relationship>(&list[i]);
+			return &list[i];
 		}
 	}
 	return eng::Ref<const Relationship>();
@@ -195,7 +195,7 @@ template <eng::usize N>
 		}
 		const eng::u8 mag = detail::abs_s8(list[i].affinity);
 		if (!best.valid() || mag > best_mag) {
-			best = eng::Ref<const Relationship>(&list[i]);
+			best = &list[i];
 			best_mag = mag;
 		}
 	}
@@ -209,7 +209,7 @@ template <eng::usize N>
 	eng::Ref<const Relationship> best {};
 	for (eng::usize i = 0; i < list.size(); ++i) {
 		if (!best.valid() || list[i].affect > best->affect) {
-			best = eng::Ref<const Relationship>(&list[i]);
+			best = &list[i];
 		}
 	}
 	return (best.valid() && best->affect > 0) ? best : eng::Ref<const Relationship>();
@@ -222,7 +222,7 @@ template <eng::usize N>
 	eng::Ref<const Relationship> best {};
 	for (eng::usize i = 0; i < list.size(); ++i) {
 		if (!best.valid() || list[i].affect < best->affect) {
-			best = eng::Ref<const Relationship>(&list[i]);
+			best = &list[i];
 		}
 	}
 	return (best.valid() && best->affect < 0) ? best : eng::Ref<const Relationship>();

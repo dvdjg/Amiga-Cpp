@@ -61,7 +61,7 @@ template <eng::usize N>
 						       TrackerKind kind) noexcept {
 	for (eng::usize i = 0; i < list.size(); ++i) {
 		if (list[i].target == target && list[i].kind == kind) {
-			return eng::Ref<Tracker>(&list[i]);
+			return &list[i];
 		}
 	}
 	return eng::Ref<Tracker>();
@@ -73,7 +73,7 @@ template <eng::usize N>
 							     TrackerKind kind) noexcept {
 	for (eng::usize i = 0; i < list.size(); ++i) {
 		if (list[i].target == target && list[i].kind == kind) {
-			return eng::Ref<const Tracker>(&list[i]);
+			return &list[i];
 		}
 	}
 	return eng::Ref<const Tracker>();
@@ -142,7 +142,7 @@ template <eng::usize N>
 			continue;
 		}
 		if (!best.valid() || list[i].confidence > best->confidence) {
-			best = eng::Ref<const Tracker>(&list[i]);
+			best = &list[i];
 		}
 	}
 	return best;

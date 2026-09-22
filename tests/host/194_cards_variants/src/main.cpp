@@ -77,7 +77,7 @@ void test_omaha_evaluator() {
 
 	// La misma mano de 7 en Hold'em (evaluador normal) sí da escalera de color.
 	Card seven[7] {no_hearts[0], no_hearts[1], board[0], board[1], board[2], board[3], board[4]};
-	check(hand_category(evaluate_hand(seven, 7u)) == HandCategory::StraightFlush,
+	check(hand_category(evaluate_hand(eng::Span<const Card> {seven, 7u})) == HandCategory::StraightFlush,
 	      "holdem: 2 hole + 5 board da escalera de color del tablero");
 }
 
@@ -124,21 +124,21 @@ void test_limit_betting() {
 	check(t.structure == BettingStructure::Limit, "limit: estructura fija");
 
 	Action legal[12] {};
-	u8 n = legal_actions(t, legal, 12u);
+	u8 n = legal_actions(t, eng::Span<Action> {legal, 12u});
 	check(has(legal, n, ActionType::Raise), "limit: hay subida");
 	check(find_amount(legal, n, ActionType::Raise) == 15, "limit: subida = apuesta viva + ciega");
 	check(!has(legal, n, ActionType::AllIn), "limit: no se ofrece all-in");
 
 	// Con el tope alcanzado, ya no se ofrece subir.
 	t.raises_this_street = kLimitMaxRaises;
-	n = legal_actions(t, legal, 12u);
+	n = legal_actions(t, eng::Span<Action> {legal, 12u});
 	check(!has(legal, n, ActionType::Raise), "limit: tope de subidas por calle");
 
 	// No-Limit sí ofrece all-in.
 	Table nl {};
 	eng::Xoroshiro64pp rng2 {33u, 34u};
 	start_hand(nl, rng2, 3u, 1000, 5, 10, 0u, PokerVariant::TexasHoldem, BettingStructure::NoLimit);
-	n = legal_actions(nl, legal, 12u);
+	n = legal_actions(nl, eng::Span<Action> {legal, 12u});
 	check(has(legal, n, ActionType::AllIn), "no-limit: ofrece all-in");
 }
 

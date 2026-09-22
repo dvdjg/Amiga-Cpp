@@ -314,7 +314,7 @@ struct DemoGame {
 			0,
 			0,
 		};
-		if (!m_virtual_scene.reset(camera, &m_layer, 1)) {
+		if (!m_virtual_scene.reset(camera, eng::Span<eng::scene::TileLayer> {&m_layer, 1})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000102u);
 			return;
 		}

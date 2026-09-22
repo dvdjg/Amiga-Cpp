@@ -18,6 +18,7 @@
 /// - mantiene los detalles OCS fuera de esta capa, aunque deja pistas para que el
 ///   driver Amiga sepa si debe preparar margenes, doble buffer o scroll fino.
 
+#include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/graphics/tilemap/tile_scroll.hpp>
 
@@ -242,8 +243,8 @@ struct VirtualSceneFrame {
 /// punteros de bitplane, `BPLCON1` y zonas Copper.
 class VirtualScene {
 public:
-	constexpr bool reset(Camera2D camera, TileLayer* tile_layers, u8 tile_layer_count) {
-		if (tile_layer_count > VirtualSceneFrame::max_tile_layers) {
+	constexpr bool reset(Camera2D camera, eng::Span<TileLayer> tile_layers) {
+		if (tile_layers.size() > VirtualSceneFrame::max_tile_layers) {
 			m_tile_layers = tile_layers;
 			m_tile_layer_count = VirtualSceneFrame::max_tile_layers;
 			m_camera = camera;
@@ -253,7 +254,7 @@ public:
 
 		m_camera = camera;
 		m_tile_layers = tile_layers;
-		m_tile_layer_count = tile_layer_count;
+		m_tile_layer_count = static_cast<u8>(tile_layers.size());
 		m_overflow = false;
 		return true;
 	}
@@ -304,7 +305,7 @@ private:
 	}
 
 	Camera2D m_camera {};
-	TileLayer* m_tile_layers = nullptr;
+	eng::Span<TileLayer> m_tile_layers {}; ///< capas externas (no propietario; vista)
 	u8 m_tile_layer_count = 0;
 	bool m_overflow = false;
 };

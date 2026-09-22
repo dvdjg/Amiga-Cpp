@@ -70,7 +70,7 @@ struct LearningParams {
 								eng::u16 subject) noexcept {
 	for (eng::usize i = 0; i < set.size(); ++i) {
 		if (set[i].kind == kind && set[i].subject == subject) {
-			return eng::Ref<KnowledgeEntry>(&set[i]);
+			return &set[i];
 		}
 	}
 	return eng::Ref<KnowledgeEntry>();
@@ -81,7 +81,7 @@ struct LearningParams {
 								      eng::u16 subject) noexcept {
 	for (eng::usize i = 0; i < set.size(); ++i) {
 		if (set[i].kind == kind && set[i].subject == subject) {
-			return eng::Ref<const KnowledgeEntry>(&set[i]);
+			return &set[i];
 		}
 	}
 	return eng::Ref<const KnowledgeEntry>();
@@ -149,7 +149,7 @@ constexpr void decay_knowledge(KnowledgeSet& set, eng::u8 amount) noexcept {
 			continue;
 		}
 		if (!best.valid() || set[i].confidence > best->confidence) {
-			best = eng::Ref<const KnowledgeEntry>(&set[i]);
+			best = &set[i];
 		}
 	}
 	return best;

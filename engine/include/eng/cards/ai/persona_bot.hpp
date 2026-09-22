@@ -103,10 +103,10 @@ namespace eng::cards {
                                                 const eng::sim::Persona& persona,
                                                 const eng::sim::PsycheState& psyche,
                                                 const CardPlan& plan, BotStyle style,
-                                                const OpponentModel* model,
+                                                eng::Ref<const OpponentModel> model,
                                                 eng::Xoroshiro64pp& rng,
-                                                const PreflopTable* table = nullptr,
-                                                const HandRange* opponent_range = nullptr) noexcept {
+                                                eng::Ref<const PreflopTable> table = {},
+                                                eng::Ref<const HandRange> opponent_range = {}) noexcept {
 	BotParams params = params_from_persona(persona, psyche, style);
 	params.mc_samples = plan.mc_samples;
 	params.use_mc = plan.mc_samples > 0u;
@@ -177,10 +177,11 @@ template <eng::usize MaxTargets, eng::usize NumGestures>
 template <eng::usize MaxTargets, eng::usize NumGestures>
 inline void opponent_range_with_tells(const OpponentModel& model,
                                       const eng::sim::ReadModel<MaxTargets, NumGestures>& reads,
-                                      const Table& t, u8 hero_seat, const PreflopTable* table,
-                                      HandRange& out, const eng::sim::ReadParams& rp =
+                                      const Table& t, u8 hero_seat,
+                                      eng::Ref<const PreflopTable> table, HandRange& out,
+                                      const eng::sim::ReadParams& rp =
                                           eng::sim::ReadParams {}) noexcept {
-	if (table == nullptr || !table->ready) {
+	if (!table.valid() || !table->ready) {
 		out.set_all();
 		return;
 	}

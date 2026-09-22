@@ -284,7 +284,7 @@ struct DemoGame {
 		};
 
 		scene::VirtualScene virtual_scene {};
-		if (!virtual_scene.reset(camera, &layer, 1)) {
+		if (!virtual_scene.reset(camera, eng::Span<eng::scene::TileLayer> {&layer, 1})) {
 			return false;
 		}
 

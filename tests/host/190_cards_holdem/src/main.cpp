@@ -55,7 +55,7 @@ void test_start_hand() {
 	check(t.seats[0].hole[0] != t.seats[0].hole[1], "reparto: hole cards distintas");
 
 	Action legal[12] {};
-	const u8 n = legal_actions(t, legal, 12u);
+	const u8 n = legal_actions(t, eng::Span<Action> {legal, 12u});
 	check(has(legal, n, ActionType::Fold), "legal: fold");
 	check(has(legal, n, ActionType::Call), "legal: call");
 	check(has(legal, n, ActionType::Raise), "legal: raise");
@@ -71,7 +71,7 @@ void test_full_hand_checks() {
 	u32 guard = 0u;
 	while (!t.hand_over && guard < 200u) {
 		Action legal[12] {};
-		const u8 n = legal_actions(t, legal, 12u);
+		const u8 n = legal_actions(t, eng::Span<Action> {legal, 12u});
 		if (n == 0u) {
 			break;
 		}

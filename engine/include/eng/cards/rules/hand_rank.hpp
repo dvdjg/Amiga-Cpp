@@ -75,14 +75,14 @@ constexpr u8 top_ranks(u16 mask, u8* out, u8 need) noexcept {
 /// Evalúa una mano de 5 a 7 cartas **sin comodines** y devuelve el `HandValue` de la
 /// mejor de 5. Cartas inválidas (`kNoCard`) se ignoran; con menos de 5 cartas válidas
 /// el resultado es `kHandValueNone`. Es el evaluador de conteo directo.
-[[nodiscard]] constexpr HandValue evaluate_plain(const Card* cards, u8 count) noexcept {
+[[nodiscard]] constexpr HandValue evaluate_plain(eng::Span<const Card> cards) noexcept {
 	u8 rank_counts[kRankCount] {};
 	u8 suit_counts[kSuitCount] {};
 	u16 rank_mask = 0u;
 	u16 suit_mask[kSuitCount] {};
 
 	u8 valid = 0u;
-	for (u8 i = 0u; i < count; ++i) {
+	for (u8 i = 0u; i < static_cast<u8>(cards.size()); ++i) {
 		const Card card = cards[i];
 		if (!card_valid(card)) {
 			continue;
@@ -247,10 +247,12 @@ namespace detail {
 /// Asigna a cada comodín una carta distinta no usada y evalúa la mejor combinación.
 /// `plain`/`plain_count` son las cartas reales; `work` es el hueco para las
 /// sustituciones (tamaño >= plain_count + wilds). Recursión de profundidad `wilds`.
-[[nodiscard]] constexpr HandValue best_wild_fill(const Card* plain, u8 plain_count, u8 wilds,
-                                                 Card* work, bool* used, u8 depth) noexcept {
+[[nodiscard]] constexpr HandValue best_wild_fill(eng::Span<const Card> plain, u8 wilds,
+                                                 eng::Span<Card> work, eng::Span<bool> used,
+                                                 u8 depth) noexcept {
+	const u8 plain_count = static_cast<u8>(plain.size());
 	if (depth == wilds) {
-		return evaluate_plain(work, static_cast<u8>(plain_count + wilds));
+		return evaluate_plain(work.as_const());
 	}
 	HandValue best = kHandValueNone;
 	for (u8 card = 0u; card < kDeckSize; ++card) {
@@ -259,7 +261,7 @@ namespace detail {
 		}
 		used[card] = true;
 		work[plain_count + depth] = card;
-		const HandValue value = best_wild_fill(plain, plain_count, wilds, work, used,
+		const HandValue value = best_wild_fill(plain, wilds, work, used,
 		                                       static_cast<u8>(depth + 1u));
 		if (value > best) {
 			best = value;
@@ -278,12 +280,12 @@ namespace detail {
 ///
 /// Coste con comodines: `O(52^wilds)`; pensado para el showdown (1–2 comodines). No
 /// usar con muchos comodines en barridos Monte Carlo grandes.
-[[nodiscard]] constexpr HandValue evaluate_hand(const Card* cards, u8 count,
+[[nodiscard]] constexpr HandValue evaluate_hand(eng::Span<const Card> cards,
                                                 u16 wild_rank_mask = 0u) noexcept {
 	Card plain[kMaxHandCards] {};
 	u8 plain_count = 0u;
 	u8 wilds = 0u;
-	for (u8 i = 0u; i < count && i < kMaxHandCards; ++i) {
+	for (u8 i = 0u; i < cards.size() && i < kMaxHandCards; ++i) {
 		const Card card = cards[i];
 		if (card_is_joker(card)) {
 			++wilds;
@@ -295,10 +297,10 @@ namespace detail {
 		}
 	}
 	if (wilds == 0u) {
-		return evaluate_plain(plain, plain_count);
+		return evaluate_plain(eng::Span<const Card> {plain, plain_count});
 	}
 	if (plain_count + wilds < 5u || wilds > 3u) {
-		return evaluate_plain(plain, plain_count);
+		return evaluate_plain(eng::Span<const Card> {plain, plain_count});
 	}
 	Card work[kMaxHandCards + 3] {};
 	for (u8 i = 0u; i < plain_count; ++i) {
@@ -308,24 +310,26 @@ namespace detail {
 	for (u8 i = 0u; i < plain_count; ++i) {
 		used[plain[i]] = true;
 	}
-	return detail::best_wild_fill(plain, plain_count, wilds, work, used, 0u);
+	return detail::best_wild_fill(eng::Span<const Card> {plain, plain_count}, wilds,
+	                              eng::Span<Card> {work, static_cast<eng::usize>(plain_count) + wilds},
+	                              eng::Span<bool> {used, kDeckSize}, 0u);
 }
 
 /// Evalúa exactamente 5 cartas (atajo para tablas y tests).
 [[nodiscard]] constexpr HandValue evaluate5(const Card (&cards)[5]) noexcept {
-	return evaluate_hand(cards, 5u);
+	return evaluate_hand(eng::Span<const Card> {cards, 5u});
 }
 
 /// Mejor mano de 5 entre `count` cartas (hasta 7) pasadas como vista.
 [[nodiscard]] constexpr HandValue evaluate_best(eng::Span<const Card> cards) noexcept {
-	return evaluate_hand(cards.data(), static_cast<u8>(cards.size()));
+	return evaluate_hand(cards);
 }
 
 /// **Deuces Wild** (o cualquier juego donde un rango sea comodín): todos los doses son
 /// comodines. `wild_rank` permite cambiar el rango comodín (por defecto, el dos).
-[[nodiscard]] constexpr HandValue evaluate_deuces_wild(const Card* cards, u8 count,
+[[nodiscard]] constexpr HandValue evaluate_deuces_wild(eng::Span<const Card> cards,
                                                        Rank wild_rank = Rank::Two) noexcept {
-	return evaluate_hand(cards, count, static_cast<u16>(1u << static_cast<u8>(wild_rank)));
+	return evaluate_hand(cards, static_cast<u16>(1u << static_cast<u8>(wild_rank)));
 }
 
 /// **Omaha**: la mano se forma con **exactamente 2** de las 4 cartas privadas y
@@ -340,7 +344,8 @@ namespace detail {
 				for (u8 b1 = static_cast<u8>(b0 + 1u); b1 < 4u; ++b1) {
 					for (u8 b2 = static_cast<u8>(b1 + 1u); b2 < 5u; ++b2) {
 						const Card five[5] {hole[h0], hole[h1], board[b0], board[b1], board[b2]};
-						const HandValue value = evaluate_hand(five, 5u, wild_rank_mask);
+						const HandValue value = evaluate_hand(
+							eng::Span<const Card> {five, 5u}, wild_rank_mask);
 						if (value > best) {
 							best = value;
 						}

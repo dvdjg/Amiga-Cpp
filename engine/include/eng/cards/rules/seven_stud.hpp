@@ -124,7 +124,7 @@ struct StudTable {
 	if (s.card_count < 5u) {
 		return kHandValueNone;
 	}
-	return evaluate_hand(s.cards, s.card_count);
+	return evaluate_hand(eng::Span<const Card> {s.cards, s.card_count});
 }
 
 // ---------------------------------------------------------------------------
@@ -365,7 +365,7 @@ inline void stud_runout(StudTable& t) noexcept {
 // Acciones
 // ---------------------------------------------------------------------------
 
-[[nodiscard]] inline u8 stud_legal_actions(const StudTable& t, Action* out, u8 max) noexcept {
+[[nodiscard]] inline u8 stud_legal_actions(const StudTable& t, eng::Span<Action> out) noexcept {
 	if (t.hand_over || t.to_act == kNoSeat) {
 		return 0u;
 	}
@@ -374,6 +374,7 @@ inline void stud_runout(StudTable& t) noexcept {
 	const s32 bet = (t.street == StudStreet::Third || t.street == StudStreet::Fourth) ? t.small_bet
 	                                                                                   : t.big_bet;
 	u8 n = 0u;
+	const u8 max = static_cast<u8>(out.size());
 	auto add = [&](ActionType type, s32 amount) {
 		if (n < max) {
 			out[n].type = type;

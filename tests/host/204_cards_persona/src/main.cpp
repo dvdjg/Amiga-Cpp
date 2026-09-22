@@ -136,7 +136,7 @@ void test_decide_with_persona() {
 	                                     nullptr, rng_b);
 	// Las acciones son legales y el flujo no se rompe.
 	Action legal[12] {};
-	const u8 n = legal_actions(t, legal, 12u);
+	const u8 n = legal_actions(t, eng::Span<Action> {legal, 12u});
 	bool a_legal = false;
 	bool b_legal = false;
 	for (u8 i = 0u; i < n; ++i) {
@@ -172,7 +172,7 @@ void test_range_with_tells() {
 	ReadModel<4, kPokerGestureCount> empty_reads;
 	empty_reads.reset();
 	HandRange base;
-	opponent_range_with_tells(model, empty_reads, t, hero, &table, base);
+	opponent_range_with_tells(model, empty_reads, t, hero, table, base);
 
 	// Con un tell que apunta a mano fuerte (el rival se delata con mano fuerte), el
 	// rango debe estrecharse (menos clases).
@@ -192,7 +192,7 @@ void test_range_with_tells() {
 		read_showdown(reads, 2u, true, leaked);
 	}
 	HandRange with_tell;
-	opponent_range_with_tells(model, reads, t, hero, &table, with_tell);
+	opponent_range_with_tells(model, reads, t, hero, table, with_tell);
 
 	check(with_tell.class_count() > 0u, "rango+tells: rango no vacio");
 	check(with_tell.class_count() <= base.class_count(),

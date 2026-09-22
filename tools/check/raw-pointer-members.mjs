@@ -24,7 +24,8 @@ const ENG = path.join(ROOT, 'engine/include/eng');
 const BASELINE = path.join(__dirname, 'raw-pointer-members-baseline.txt');
 
 // Tipos escalares: un `u8*`/`s16*`… es memoria cruda, no un observador de objeto.
-const ALLOW_TYPE = /^(std::FILE|FILE|T|A|K|V|U|S|u8|u16|u32|s8|s16|s32|char|void|usize|uintptr)$/;
+const ALLOW_TYPE =
+	/^(std::FILE|FILE|T|A|K|V|U|S|word_t|u8|u16|u32|s8|s16|s32|char|void|usize|uintptr)$/;
 // Tipos de propiedad/vista que NO son observadores (no se envuelven en `Ref`).
 const OWNERSHIP_TYPE = /^(Span|PlaneBytes|MaskBytes|Bytes|Stream|Block|WordView|ByteView|View)$/;
 

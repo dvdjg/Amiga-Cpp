@@ -133,7 +133,7 @@ int main() {
 	check(color_at_contiguous(s3, 8, 5) == 2u, "la linea contigua cae en el plano 1");
 
 	// Blit planar contiguo por **Blitter** (BlitterRaster): un `CopyRect` por plano.
-	s3.set_raster(eng::Ref<field::Rasterizer>(&field::kBlitterRaster));
+	s3.set_raster(&field::kBlitterRaster);
 	u16 src[64] {};
 	u16 mask[16] {};
 	graphics::FramePlan plan {};
@@ -147,7 +147,7 @@ int main() {
 	check(plan2.blit_job_count() == 4u, "blit enmascarado contiguo = 1 job por plano");
 
 	// Blit por **CPU** (CpuRaster): copia los pixeles sin encolar jobs.
-	s3.set_raster(eng::Ref<field::Rasterizer>(&field::kCpuRaster));
+	s3.set_raster(&field::kCpuRaster);
 	u16 src2[64];
 	for (u16 i = 0; i < 64u; ++i) src2[i] = 0xffffu;
 	graphics::FramePlan plan3 {};
@@ -194,7 +194,7 @@ int main() {
 		      graphics::composition::display(graphics::composition::kPal320x256,
 					       graphics::composition::kBplcon0_4Planes)),
 	      "escena para BlitterRaster compone");
-	s5.set_raster(eng::Ref<field::Rasterizer>(&field::kBlitterRaster), field::RasterPolicy {field::AccelMode::Blitter, 0u, true});
+	s5.set_raster(&field::kBlitterRaster, field::RasterPolicy {field::AccelMode::Blitter, 0u, true});
 	field::Surface r5 = s5.surface();
 	check(r5.fill_rect(0, 0, 32, 8, 5u), "BlitterRaster::fill_rect encola/pinta");
 	check(color_at_contiguous(s5, 8, 4) == 5u, "BlitterRaster pinta el color pedido");
@@ -207,7 +207,7 @@ int main() {
 					       graphics::composition::kBplcon0_4Planes)),
 	      "escena para Auto compone");
 	s6.set_polygon_fill_sink(field::PolygonFillSink {&g_fill_rec, record_fill});
-	s6.set_raster(eng::Ref<field::Rasterizer>(&field::kBlitterRaster), field::RasterPolicy {field::AccelMode::Auto, 64u, true});
+	s6.set_raster(&field::kBlitterRaster, field::RasterPolicy {field::AccelMode::Auto, 64u, true});
 	g_fill_rec.calls = 0;
 	(void)s6.surface().fill_rect(0, 0, 16, 16, 5u); // 256 >= 64 -> sink
 	check(g_fill_rec.calls == 1, "Auto: area grande usa el sink (Blitter)");
@@ -215,13 +215,13 @@ int main() {
 	(void)s6.surface().fill_rect(0, 0, 4, 4, 5u); // 16 < 64 -> CPU
 	check(g_fill_rec.calls == 0, "Auto: area pequena usa CPU");
 	check(color_at_contiguous(s6, 0, 0) == 5u, "Auto CPU pinta el pixel");
-	s6.set_raster(eng::Ref<field::Rasterizer>(&field::kBlitterRaster), field::RasterPolicy {field::AccelMode::Blitter, 0u, true});
+	s6.set_raster(&field::kBlitterRaster, field::RasterPolicy {field::AccelMode::Blitter, 0u, true});
 	g_fill_rec.calls = 0;
 	(void)s6.surface().fill_rect(0, 0, 4, 4, 5u);
 	check(g_fill_rec.calls == 1, "Blitter: fuerza el sink aunque el area sea pequena");
 
 	// Linea por Blitter: con plan y dentro del clip, una `Line` por plano del color.
-	s6.set_raster(eng::Ref<field::Rasterizer>(&field::kBlitterRaster), field::RasterPolicy {field::AccelMode::Blitter, 0u, true});
+	s6.set_raster(&field::kBlitterRaster, field::RasterPolicy {field::AccelMode::Blitter, 0u, true});
 	graphics::FramePlan line_plan {};
 	check(s6.surface().draw_line(0, 0, 31, 15, 5u, &line_plan), "BlitterRaster::draw_line encola");
 	check(line_plan.blit_job_count() == 2u, "linea por Blitter = 1 job por plano (color 5 = planos 0,2)");
@@ -236,7 +236,7 @@ int main() {
 	      "linea EOR usa BlitJobKind::LineEor");
 
 	// Blit con operacion logica (B=D, minterm por op): sombras/glow/mascaras.
-	s3.set_raster(eng::Ref<field::Rasterizer>(&field::kBlitterRaster));
+	s3.set_raster(&field::kBlitterRaster);
 	graphics::FramePlan or_plan {};
 	check(ksurf.blit(or_plan, Span<const u16> {src, 64}, 0, 48, 32, 4, 4, 16, 4, 0u, false,
 			 field::RasterOp::Or),

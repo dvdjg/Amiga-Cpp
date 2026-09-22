@@ -74,7 +74,7 @@ public:
 	/// tener al menos `kPoolCells` words (Chip RAM del llamador).
 	bool init(Loader& loader, eng::TileBankBuffer pool) {
 		if (pool.size() < kPoolCells) return false;
-		m_loader = eng::Ref<Loader>(&loader);
+		m_loader = &loader;
 		m_pool = pool;
 		for (eng::u8 i = 0; i < Capacity; ++i) m_slots[i] = Slot {};
 		m_index.clear();

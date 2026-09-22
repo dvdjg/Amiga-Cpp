@@ -73,7 +73,7 @@ struct HoldemRanker {
 		for (usize i = 0u; i < board.size() && n < kMaxHandCards; ++i) {
 			cards[n++] = board[i];
 		}
-		return evaluate_hand(cards, n);
+		return evaluate_hand(eng::Span<const Card> {cards, n});
 	}
 };
 
@@ -281,7 +281,8 @@ template <class OpponentDealer>
 }
 
 /// Heurística preflop de Omaha: la mejor pareja de la mano de 4 cartas.
-[[nodiscard]] constexpr u16 omaha_preflop_strength_permille(const Card* hole, u8 count) noexcept {
+[[nodiscard]] constexpr u16 omaha_preflop_strength_permille(eng::Span<const Card> hole) noexcept {
+	const u8 count = static_cast<u8>(hole.size());
 	u16 best = 0u;
 	for (u8 i = 0u; i < count; ++i) {
 		for (u8 j = static_cast<u8>(i + 1u); j < count; ++j) {

@@ -152,7 +152,7 @@ struct Table {
 	for (u8 i = 0u; i < kBoardCards; ++i) {
 		cards[2u + i] = t.board[i];
 	}
-	return evaluate_hand(cards, 7u);
+	return evaluate_hand(eng::Span<const Card> {cards, 7u});
 }
 
 // ---------------------------------------------------------------------------
@@ -303,14 +303,15 @@ inline void start_hand(Table& t, eng::Xoroshiro64pp& rng, u8 seat_count, s32 sta
 // Acciones legales
 // ---------------------------------------------------------------------------
 
-/// Acciones legales de `t.to_act`, escritas en `out` (máximo `max`). Devuelve cuántas.
-[[nodiscard]] inline u8 legal_actions(const Table& t, Action* out, u8 max) noexcept {
+/// Acciones legales de `t.to_act`, escritas en `out` (tope `out.size()`). Devuelve cuántas.
+[[nodiscard]] inline u8 legal_actions(const Table& t, eng::Span<Action> out) noexcept {
 	if (t.hand_over || t.to_act == kNoSeat) {
 		return 0u;
 	}
 	const Seat& s = t.seats[t.to_act];
 	const s32 owe = to_call(t, t.to_act);
 	u8 n = 0u;
+	const u8 max = static_cast<u8>(out.size());
 
 	auto add = [&](ActionType type, s32 amount) {
 		if (n < max) {

@@ -91,8 +91,8 @@ struct DrawTable {
 	if (s.card_count < kDrawCards) {
 		return kHandValueNone;
 	}
-	return t.deuces_wild ? evaluate_deuces_wild(s.cards, kDrawCards)
-	                     : evaluate_hand(s.cards, kDrawCards);
+	return t.deuces_wild ? evaluate_deuces_wild(eng::Span<const Card> {s.cards, kDrawCards})
+	                     : evaluate_hand(eng::Span<const Card> {s.cards, kDrawCards});
 }
 
 // ---------------------------------------------------------------------------
@@ -267,7 +267,7 @@ inline void draw_take(DrawTable& t, u8 seat, u8 discard_mask) noexcept {
 // Acciones (Limit)
 // ---------------------------------------------------------------------------
 
-[[nodiscard]] inline u8 draw_legal_actions(const DrawTable& t, Action* out, u8 max) noexcept {
+[[nodiscard]] inline u8 draw_legal_actions(const DrawTable& t, eng::Span<Action> out) noexcept {
 	if (t.hand_over || t.to_act == kNoSeat || t.street == DrawStreet::Draw ||
 	    t.street == DrawStreet::Showdown) {
 		return 0u;
@@ -276,6 +276,7 @@ inline void draw_take(DrawTable& t, u8 seat, u8 discard_mask) noexcept {
 	const s32 owe = t.current_bet - s.street_bet;
 	const s32 bet = t.street == DrawStreet::Predraw ? t.small_bet : t.big_bet;
 	u8 n = 0u;
+	const u8 max = static_cast<u8>(out.size());
 	auto add = [&](ActionType type, s32 amount) {
 		if (n < max) {
 			out[n].type = type;
@@ -465,8 +466,9 @@ inline void settle_draw_showdown(DrawTable& t) noexcept {
 /// Máscara de descarte recomendada (heurística): conserva parejas o mejor, los
 /// comodines y (si no hay pareja) las `2 + comodines` cartas más altas. Devuelve los
 /// bits a **descartar**.
-[[nodiscard]] constexpr u8 recommended_draw_mask(const Card* cards, u8 count,
+[[nodiscard]] constexpr u8 recommended_draw_mask(eng::Span<const Card> cards,
                                                  bool deuces_wild) noexcept {
+	const u8 count = static_cast<u8>(cards.size());
 	u8 rank_count[13] {};
 	for (u8 i = 0u; i < count; ++i) {
 		if (card_is_joker(cards[i]) ||

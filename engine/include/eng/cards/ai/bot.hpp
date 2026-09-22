@@ -16,6 +16,7 @@
 ///
 /// Verificación: HOST-192. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
 
+#include <eng/core/ptr.hpp>
 #include <eng/core/random.hpp>
 #include <eng/core/types.hpp>
 
@@ -207,9 +208,9 @@ struct OpponentModel {
 namespace detail {
 
 /// Elige la primera acción del tipo pedido de la lista legal; si no está, `Fallback`.
-[[nodiscard]] inline Action pick_action(const Action* legal, u8 count, ActionType type,
+[[nodiscard]] inline Action pick_action(eng::Span<const Action> legal, ActionType type,
                                         Action fallback) noexcept {
-	for (u8 i = 0u; i < count; ++i) {
+	for (u8 i = 0u; i < static_cast<u8>(legal.size()); ++i) {
 		if (legal[i].type == type) {
 			return legal[i];
 		}
@@ -217,8 +218,8 @@ namespace detail {
 	return fallback;
 }
 
-[[nodiscard]] inline bool has_action(const Action* legal, u8 count, ActionType type) noexcept {
-	for (u8 i = 0u; i < count; ++i) {
+[[nodiscard]] inline bool has_action(eng::Span<const Action> legal, ActionType type) noexcept {
+	for (u8 i = 0u; i < static_cast<u8>(legal.size()); ++i) {
 		if (legal[i].type == type) {
 			return true;
 		}
@@ -234,8 +235,8 @@ namespace detail {
 /// (opcional) restringe al rival en el Monte Carlo.
 [[nodiscard]] inline u16 hand_strength_permille(const Table& t, u8 seat, const BotParams& params,
                                                 eng::Xoroshiro64pp& rng,
-                                                const PreflopTable* table = nullptr,
-                                                const HandRange* opponent_range = nullptr) noexcept {
+                                                eng::Ref<const PreflopTable> table = {},
+                                                eng::Ref<const HandRange> opponent_range = {}) noexcept {
 	const u8 opponents = opponents_in_hand(t, seat);
 	const bool omaha = t.variant == PokerVariant::Omaha;
 	const u8 hole_count = omaha ? kSeatCards : kMaxHoleCards;
@@ -245,7 +246,7 @@ namespace detail {
 		const EquityResult equity =
 		    omaha ? equity_vs_random_omaha(hole, board, opponents, params.mc_samples, rng,
 		                                   t.with_jokers)
-		          : ((opponent_range != nullptr)
+		          : (opponent_range.valid()
 		                 ? equity_vs_range(hole, board, *opponent_range, opponents,
 		                                   params.mc_samples, rng, t.with_jokers)
 		                 : equity_vs_random(hole, board, opponents, params.mc_samples, rng,
@@ -256,9 +257,10 @@ namespace detail {
 		if (omaha) {
 			// Omaha: heurística sobre la mejor pareja de las 4 privadas; la tabla de
 			// 169 clases es de Hold'em y no aplica.
-			return omaha_preflop_strength_permille(t.seats[seat].hole, hole_count);
+			return omaha_preflop_strength_permille(
+				eng::Span<const Card> {t.seats[seat].hole, hole_count});
 		}
-		if (table != nullptr && table->ready) {
+		if (table.valid() && table->ready) {
 			const u16 hu = preflop_equity(*table, t.seats[seat].hole[0], t.seats[seat].hole[1]);
 			return multiway_from_heads_up(hu, opponents);
 		}
@@ -307,8 +309,8 @@ namespace detail {
 /// Requiere la tabla preflop lista para ordenar por equity; si no lo está, deja el rango
 /// completo. Coste O(N) sobre `table->order`.
 inline void opponent_range_from_model(const OpponentModel& model, const Table& t, u8 hero_seat,
-                                      const PreflopTable* table, HandRange& out) noexcept {
-	if (table == nullptr || !table->ready) {
+                                      eng::Ref<const PreflopTable> table, HandRange& out) noexcept {
+	if (!table.valid() || !table->ready) {
 		out.set_all();
 		return;
 	}
@@ -317,11 +319,12 @@ inline void opponent_range_from_model(const OpponentModel& model, const Table& t
 
 /// Decide la acción de `seat`. Respeta siempre la lista de acciones legales.
 [[nodiscard]] inline Action decide(const Table& t, u8 seat, const BotParams& params,
-                                   const OpponentModel* model, eng::Xoroshiro64pp& rng,
-                                   const PreflopTable* table = nullptr,
-                                   const HandRange* opponent_range = nullptr) noexcept {
+                                   eng::Ref<const OpponentModel> model, eng::Xoroshiro64pp& rng,
+                                   eng::Ref<const PreflopTable> table = {},
+                                   eng::Ref<const HandRange> opponent_range = {}) noexcept {
 	Action legal[12] {};
-	const u8 legal_count = legal_actions(t, legal, 12u);
+	const eng::Span<Action> legal_span {legal, 12u};
+	const u8 legal_count = legal_actions(t, legal_span);
 	if (legal_count == 0u) {
 		return Action {ActionType::Check, 0};
 	}
@@ -331,17 +334,17 @@ inline void opponent_range_from_model(const OpponentModel& model, const Table& t
 	// Rango dinámico: si hay modelo de rival y no se fijó un rango explícito, se
 	// deriva de sus frecuencias (fold/call/raise) observadas.
 	HandRange dynamic_range;
-	const HandRange* effective_range = opponent_range;
-	if (effective_range == nullptr && model != nullptr && params.use_mc && params.mc_samples > 0u) {
+	eng::Ref<const HandRange> effective_range = opponent_range;
+	if (!effective_range.valid() && model.valid() && params.use_mc && params.mc_samples > 0u) {
 		opponent_range_from_model(*model, t, seat, table, dynamic_range);
-		effective_range = &dynamic_range;
+		effective_range = eng::Ref<const HandRange>(dynamic_range);
 	}
 
 	const u16 strength = hand_strength_permille(t, seat, params, rng, table, effective_range);
 
 	// Ajuste por modelo de rivales: ante rivales que se retiran mucho, más farol.
 	u16 bluff = params.bluff_permille;
-	if (model != nullptr) {
+	if (model.valid()) {
 		u16 fold_sum = 0u;
 		u8 n = 0u;
 		for (u8 i = 0u; i < t.seat_count; ++i) {
@@ -359,13 +362,13 @@ inline void opponent_range_from_model(const OpponentModel& model, const Table& t
 		// Sin apuesta viva: apostar con mano fuerte o farolear; si no, pasar.
 		const bool value_bet = strength >= params.bet_permille;
 		const bool bluff_now = eng::chance(rng, bluff, kPermilleMax);
-		if ((value_bet || bluff_now) && detail::has_action(legal, legal_count, ActionType::Raise)) {
-			return detail::pick_action(legal, legal_count, ActionType::Raise, legal[0]);
+		if ((value_bet || bluff_now) && detail::has_action(legal_span.as_const(), ActionType::Raise)) {
+			return detail::pick_action(legal_span.as_const(), ActionType::Raise, legal[0]);
 		}
-		if (detail::has_action(legal, legal_count, ActionType::AllIn) && strength >= 920u) {
-			return detail::pick_action(legal, legal_count, ActionType::AllIn, legal[0]);
+		if (detail::has_action(legal_span.as_const(), ActionType::AllIn) && strength >= 920u) {
+			return detail::pick_action(legal_span.as_const(), ActionType::AllIn, legal[0]);
 		}
-		return detail::pick_action(legal, legal_count, ActionType::Check, legal[0]);
+		return detail::pick_action(legal_span.as_const(), ActionType::Check, legal[0]);
 	}
 
 	// Con apuesta viva: comparar fuerza con pot odds + colchón de estilo.
@@ -373,33 +376,34 @@ inline void opponent_range_from_model(const OpponentModel& model, const Table& t
 	const u32 required = static_cast<u32>(odds) + params.call_margin_permille;
 	const bool profitable = strength >= required;
 	const bool very_strong = strength >= 780u;
-	const bool can_raise = detail::has_action(legal, legal_count, ActionType::Raise);
+	const bool can_raise = detail::has_action(legal_span.as_const(), ActionType::Raise);
 
 	if (profitable || very_strong) {
 		if (can_raise && (very_strong || eng::chance(rng, params.aggression_permille, kPermilleMax))) {
-			return detail::pick_action(legal, legal_count, ActionType::Raise, legal[0]);
+			return detail::pick_action(legal_span.as_const(), ActionType::Raise, legal[0]);
 		}
-		return detail::pick_action(legal, legal_count, ActionType::Call, legal[0]);
+		return detail::pick_action(legal_span.as_const(), ActionType::Call, legal[0]);
 	}
 
 	// Mano débil: farol ocasional, si no retirarse.
 	if (can_raise && eng::chance(rng, bluff, kPermilleMax)) {
-		return detail::pick_action(legal, legal_count, ActionType::Raise, legal[0]);
+		return detail::pick_action(legal_span.as_const(), ActionType::Raise, legal[0]);
 	}
-	if (detail::has_action(legal, legal_count, ActionType::Check)) {
-		return detail::pick_action(legal, legal_count, ActionType::Check, legal[0]);
+	if (detail::has_action(legal_span.as_const(), ActionType::Check)) {
+		return detail::pick_action(legal_span.as_const(), ActionType::Check, legal[0]);
 	}
-	return detail::pick_action(legal, legal_count, ActionType::Fold, legal[0]);
+	return detail::pick_action(legal_span.as_const(), ActionType::Fold, legal[0]);
 }
 
 /// Bot con `CardPlan`: deriva los parámetros de estilo y aplica las muestras del
 /// perfil de memoria. `table`/`range` (opcionales) activan la tabla preflop y el
 /// modelo de rango del rival.
 [[nodiscard]] inline Action decide_with_plan(const Table& t, u8 seat, BotStyle style,
-                                             const CardPlan& plan, const OpponentModel* model,
+                                             const CardPlan& plan,
+                                             eng::Ref<const OpponentModel> model,
                                              eng::Xoroshiro64pp& rng,
-                                             const PreflopTable* table = nullptr,
-                                             const HandRange* opponent_range = nullptr) noexcept {
+                                             eng::Ref<const PreflopTable> table = {},
+                                             eng::Ref<const HandRange> opponent_range = {}) noexcept {
 	BotParams params = bot_params(style);
 	params.mc_samples = plan.mc_samples;
 	params.use_mc = plan.mc_samples > 0u;

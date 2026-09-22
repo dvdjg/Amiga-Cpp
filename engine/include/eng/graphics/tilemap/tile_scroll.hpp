@@ -15,6 +15,7 @@
 /// La clase es deliberadamente pequena y sin heap. El juego aporta memoria externa
 /// para el mapa, normalmente desde un recurso UAF-R o desde una arena del engine.
 
+#include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 #include <eng/core/util/enum_set.hpp>
 
@@ -210,10 +211,10 @@ public:
 
 	constexpr TileMap16() = default;
 
-	constexpr TileMap16(PackedTileCell* cells, u16 width, u16 height)
+	constexpr TileMap16(eng::Span<PackedTileCell> cells, u16 width, u16 height)
 		: m_cells(cells), m_width(width), m_height(height) {}
 
-	constexpr bool reset(PackedTileCell* cells, u16 width, u16 height) {
+	constexpr bool reset(eng::Span<PackedTileCell> cells, u16 width, u16 height) {
 		m_cells = cells;
 		m_width = width;
 		m_height = height;
@@ -221,7 +222,7 @@ public:
 	}
 
 	constexpr bool ok() const {
-		return m_cells != nullptr && m_width != 0 && m_height != 0;
+		return m_cells.size() != 0u && m_width != 0 && m_height != 0;
 	}
 
 	constexpr u16 width() const { return m_width; }
@@ -315,7 +316,7 @@ private:
 		return a < b ? a : b;
 	}
 
-	PackedTileCell* m_cells = nullptr;
+	eng::Span<PackedTileCell> m_cells {}; ///< celdas externas (no propietario; vista sobre el mapa)
 	u16 m_width = 0;
 	u16 m_height = 0;
 };

@@ -136,7 +136,7 @@ template <eng::usize N>
 		}
 		const Score s = attention_score(t, w);
 		if (!best.valid() || s > best_score) {
-			best = eng::Ref<const Tracker>(&t);
+			best = &t;
 			best_score = s;
 		}
 	}
@@ -167,7 +167,7 @@ template <class C>
 		const eng::s32 score = bond_score(c.relationships, t.target);
 		if (prefer_positive ? score > best_score : score < best_score) {
 			best_score = score;
-			best = eng::Ref<const Tracker>(&t);
+			best = &t;
 		}
 	}
 	return best;

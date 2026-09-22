@@ -17,13 +17,19 @@
 
 namespace eng {
 
-/// Referencia no propietaria y anulable. Construcción desde `T&` (no nula) o `T*` (explícita).
+/// Referencia no propietaria y anulable. Construcción **implícita** desde `T&`, `T*` o
+/// `nullptr`, de modo que en las llamadas se pasa el objeto (o `&objeto`, o `nullptr`) sin
+/// escribir el tipo: `f(t, table, range)` o `f(t, nullptr)`. El puntero crudo es anulable por
+/// contrato, así que la conversión no añade riesgo.
 template <class T>
 class Ref {
 public:
 	constexpr Ref() = default;
-	constexpr Ref(T& ref) : m_ptr(&ref) {}	   // implícita desde referencia: es válida
-	explicit constexpr Ref(T* ptr) : m_ptr(ptr) {}
+	constexpr Ref(T& ref) : m_ptr(&ref) {} // implícita desde referencia: es válida
+	/// Implícitas desde `T*`/`nullptr`: el llamador pasa `&objeto` o `nullptr` y el `Ref`
+	/// se construye solo, sin escribir el tipo (el puntero crudo es anulable por contrato).
+	constexpr Ref(T* ptr) : m_ptr(ptr) {}
+	constexpr Ref(decltype(nullptr)) : m_ptr(nullptr) {}
 
 	[[nodiscard]] constexpr bool valid() const { return m_ptr != nullptr; }
 	explicit constexpr operator bool() const { return m_ptr != nullptr; }

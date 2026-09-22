@@ -21,6 +21,7 @@
 ///
 /// Verificación: HOST-193. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
 
+#include <eng/core/ptr.hpp>
 #include <eng/core/random.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
@@ -164,12 +165,12 @@ struct HandRange {
 /// Reparte la mano del rival desde un `HandRange` (clase uniforme, luego combinación),
 /// evitando cartas ya vistas. Falla solo si tras varios intentos no encuentra hueco.
 struct RangeOpponentDealer {
-	const HandRange* range = nullptr;
-	eng::Xoroshiro64pp* rng = nullptr;
+	eng::Ref<const HandRange> range {}; ///< rango observado (no propietario)
+	eng::Ref<eng::Xoroshiro64pp> rng {}; ///< RNG del llamador (no propietario)
 
 	/// Llena 2 cartas del rival (Hold'em) desde el rango. `out.size()` debe ser >= 2.
 	[[nodiscard]] constexpr bool operator()(Deck& deck, Span<Card> out) const noexcept {
-		if (range == nullptr || rng == nullptr || out.size() < 2u) {
+		if (!range.valid() || !rng.valid() || out.size() < 2u) {
 			return false;
 		}
 		for (u8 attempt = 0u; attempt < 12u; ++attempt) {
@@ -200,7 +201,7 @@ struct RangeOpponentDealer {
                                                   u8 opponents, u16 samples,
                                                   eng::Xoroshiro64pp& rng,
                                                   bool with_jokers = false) noexcept {
-	RangeOpponentDealer dealer {&range, &rng};
+	RangeOpponentDealer dealer {range, rng};
 	return equity_vs_dealer(hole, board, opponents, samples, rng, dealer, with_jokers);
 }
 

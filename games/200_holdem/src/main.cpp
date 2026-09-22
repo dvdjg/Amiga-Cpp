@@ -194,7 +194,7 @@ private:
 	}
 
 	void refresh_legal() {
-		m_legal_count = legal_actions(m_table, m_legal, 12u);
+		m_legal_count = legal_actions(m_table, eng::Span<Action> {m_legal, 12u});
 		if (m_menu >= m_legal_count) {
 			m_menu = 0u;
 		}
@@ -210,7 +210,7 @@ private:
 			// Decision modulada por la persona y su estado; la mesa lee sus tells.
 			const Action action = decide_with_persona(m_table, actor, m_personas[actor],
 			                                          m_psyche[actor], m_plan,
-			                                          BotStyle::Balanced, &m_opp_model, m_rng);
+			                                          BotStyle::Balanced, m_opp_model, m_rng);
 			emit_and_record_tells(actor);
 			apply_action(m_table, action);
 			m_opp_model.observe(actor, action.type, m_table.street);
