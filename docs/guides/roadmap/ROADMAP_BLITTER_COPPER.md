@@ -33,7 +33,11 @@ cola de blits).
   `Scheduler::emit_blitter_job`/`set_blitter_window` (ventana segura). `takeover_display`
   activa **`COPCON`/`CDANG`**: sin él el Copper **no puede** escribir los registros del Blitter
   (<0x80) y su primera escritura lo detiene (`WinUAE custom.cpp:2835-2840`). Validado en
-  `tests/host/252_copper_blitter` y en `demos/amiga/210_copper_blitter`.
+  `tests/host/260_copper_blitter` y en `demos/amiga/210_copper_blitter`.
+  **Serialización obligatoria**: si el blit del Copper cae **mientras corre** un blit de CPU
+  largo, su `BLTSIZE` lo **aborta** y el display de bitplanes se rompe; la ventana segura debe
+  evitar *ese tramo* (en la 210, el borde inferior tras el blit de CPU del scroll). Ver
+  `blitter-memcpy.md` §Concurrencia.
 
 ## Técnica B — Blitter escribe/parchea la copperlist (Blitter → Copper)
 

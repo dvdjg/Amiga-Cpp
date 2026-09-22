@@ -1,21 +1,22 @@
 // ============================================================================
-// Demo 210 — Copper lanza blits + borde de scroll reparado por Blitter
+// Demo 210 — borde de scroll reparado por Blitter (+ Técnica B)
 // ============================================================================
 //
-// Tres cosas, todas con el Blitter:
-//   1) **Tecnica A**: un `CopperIntentKind::BlitterJob` programa el Blitter y escribe
-//      `BLTSIZE` en el borde inferior (blit sincronizado al haz); copia `src`->`dst`.
-//   2) **Tecnica B**: un `BlitJob` (CopyRect, 1 word de ancho, `dst_mod = 2`) parchea los
-//      data words de una copperlist con el Blitter.
-//   3) **Borde de scroll**: la pantalla (buffer anular de 21 words/fila, 320 px visibles) se
-//      desplaza una columna a la izquierda con un `BlitJob` (CopyRect 20x256, mods 2) y la
-//      **columna nueva** entra por la derecha con otro `BlitJob` (1x256); se verifica el buffer.
+// La pantalla (320 px, 1 plano) es un buffer anular: cada frame se desplaza una
+// columna a la izquierda con un `BlitJob` (`CopyRect` 19x256, mods 2) y la
+// **columna nueva** entra por la derecha con otro `BlitJob` (1x256). El buffer
+// resultante se verifica contra el patrón procedural.
 //
-// Los blits sueltos se envian con `blitter_submit(BlitJob)` (un job); `execute_frame_plan`
-// encadena varios por el mismo camino.
+// Tambien valida la **Tecnica B** (Blitter -> copperlist): un `BlitJob` (1 word de
+// ancho, `dst_mod = 2`) parchea los data words de 8 MOVEs consecutivos.
 //
-// El Copper solo puede tocar el Blitter si `COPCON` tiene `CDANG`; `takeover_display` lo
-// activa (`docs/reference/emulators/winuae/copper.md`).
+// Los blits sueltos se envian con `blitter_submit(BlitJob)` (un job); el mismo
+// camino que `execute_frame_plan` (encadena varios).
+//
+// Nota: lanzar un blit **desde el Copper** (`CopperIntentKind::BlitterJob`) en la
+// lista de display rompe el render de bitplanes del emulador (el scroll deja de
+// verse); esa via se valida en `tests/host/260_copper_blitter` (emision + ventana
+// segura) y en `docs/reference/emulators/winuae/copper.md` (`CDANG`).
 //
 //   bash ./tools/build/build-demo.sh demos/amiga/210_copper_blitter --debug
 //   bash ./tools/run/run-demo.sh demos/amiga/210_copper_blitter --warp
@@ -45,48 +46,48 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-constexpr eng::u16 kWords = 256u;             // copia Copper (Tecnica A): 4 filas x 64
-constexpr eng::u16 kBlitLine = 0x130;         // 304: borde inferior (fuera del area visible)
-constexpr eng::u16 kDispWords = 20u;          // 320 px visibles
-constexpr eng::u16 kBufWords = 21u;           // + 1 columna (16 px) para el borde de scroll
-constexpr eng::u16 kRowBytes = kBufWords * 2u; // 42 B/fila
+constexpr eng::u16 kPlaneWords = 20u;            // 320 px / 16
+constexpr eng::u16 kRowBytes = kPlaneWords * 2u; // 40 B/fila
 constexpr eng::u16 kRows = 256u;
-constexpr eng::u32 kBufBytes = static_cast<eng::u32>(kRowBytes) * kRows;
-constexpr eng::u16 kDispColWord = kDispWords; // word de la columna nueva (20)
+constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kRowBytes) * kRows;
+constexpr eng::u16 kLastWord = kPlaneWords - 1u; // 19: ultima columna (entra la nueva)
+constexpr eng::u16 kBlitLine = 0x130;            // 304: borde inferior (tras el blit de CPU)
 
-struct CopperBlitterDemo {
+struct ScrollEdgeDemo {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		if (!backend.configure_memory({ 48u * 1024u, 4u * 1024u, 4u * 1024u })) {
+		if (!backend.configure_memory({ 32u * 1024u, 4u * 1024u, 4u * 1024u })) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021001u);
 			return;
 		}
-		m_src = backend.memory().chip.allocate_block<eng::SpriteTag>(kWords * 2u, 16);
-		m_dst = backend.memory().chip.allocate_block<eng::SpriteTag>(kWords * 2u, 16);
 		m_copper = backend.memory().chip.allocate_block<eng::CopperTag>(4096u, 16);
-		m_bitmap = backend.memory().chip.allocate_block<eng::PlaneTag>(kBufBytes, 16);
+		m_bitmap = backend.memory().chip.allocate_block<eng::PlaneTag>(kPlaneBytes, 16);
+		m_src = backend.memory().chip.allocate_block<eng::SpriteTag>(512u, 16);
+		m_dst = backend.memory().chip.allocate_block<eng::SpriteTag>(512u, 16);
 		m_patch_cl = backend.memory().chip.allocate_block<eng::CopperTag>(64u, 16);
 		m_patch_vals = backend.memory().chip.allocate_block<eng::SpriteTag>(32u, 16);
 		m_col_vals = backend.memory().chip.allocate_block<eng::SpriteTag>(kRows * 2u, 16);
-		if (!m_src.valid() || !m_dst.valid() || !m_copper.valid() || !m_bitmap.valid() ||
+		if (!m_copper.valid() || !m_bitmap.valid() || !m_src.valid() || !m_dst.valid() ||
 		    !m_patch_cl.valid() || !m_patch_vals.valid() || !m_col_vals.valid()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021002u);
 			return;
 		}
-		eng::Words<eng::SpriteTag> s = m_src.view.as_words();
-		for (eng::u16 i = 0; i < kWords; ++i) {
-			s[i] = static_cast<eng::u16>(0xa5a5u ^ (i * 0x1111u));
-		}
-		zero_dst();
 
-		// Buffer inicial: word w = columna absoluta w (m_col = 20 = word de la ultima col).
+		// Patron inicial: columna w = columna absoluta w.
 		eng::u16* plane = plane_words();
-		for (eng::u16 w = 0; w < kBufWords; ++w) {
+		for (eng::u16 w = 0; w < kPlaneWords; ++w) {
 			for (eng::u16 row = 0; row < kRows; ++row) {
 				plane[static_cast<eng::u32>(row) * (kRowBytes / 2u) + w] = col_value(w, row);
 			}
 		}
-		m_col = static_cast<eng::u16>(kBufWords - 1u);
+		m_col = kLastWord;
+
+		// `src`/`dst` para el blit del Copper; `dst` a cero.
+		eng::Words<eng::SpriteTag> s = m_src.view.as_words();
+		for (eng::u16 i = 0; i < 256u; ++i) {
+			s[i] = static_cast<eng::u16>(0xa5a5u ^ (i * 0x1111u));
+		}
+		zero_dst();
 
 		m_patch_ok = patch_selfcheck(backend);
 
@@ -100,13 +101,10 @@ struct CopperBlitterDemo {
 	}
 
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
-		// 1) Verifica la copia que dejo el blit del Copper en el frame anterior.
-		m_checked = true;
+		// Blit del Copper (frame anterior): verifica la copia y limpia el destino.
 		m_last_ok = copied();
-		// 2) Avanza el borde de scroll (shift + columna nueva) y verifica el buffer.
-		m_scroll_ok = scroll_step(backend);
-		// 3) Limpia el destino y publica la lista (display + blit del Copper).
 		zero_dst();
+		m_scroll_ok = scroll_step(backend);
 		const eng::u16* cl = build_copper();
 		if (cl != nullptr) {
 			backend.install_copper_list(cl);
@@ -116,21 +114,8 @@ struct CopperBlitterDemo {
 										: 0x00021000u);
 	}
 
-	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
-		auto& d = backend.debug();
-		d.clear();
-		d.filled_rect(40, 40, 760, 200, 0x00082030);
-		d.rect(40, 40, 760, 200, 0x00ffffff);
-		d.text(56, 56, "AMG 210 - Copper blits + scroll edge (Blitter)", 0x00ffffff);
-		const bool blit_ok = m_checked && m_last_ok;
-		d.text(56, 92, blit_ok ? "copper blit (Tecnica A): OK" : "copper blit: FAIL/esperando",
-		       blit_ok ? 0x0000ff80 : 0x00ffff00);
-		d.text(56, 116, m_patch_ok ? "copperlist patch (Tecnica B): OK"
-					   : "copperlist patch: FAIL",
-		       m_patch_ok ? 0x0000ff80 : 0x00ff6060);
-		d.text(56, 140, m_scroll_ok ? "scroll edge (shift + columna): OK"
-					    : "scroll edge: FAIL",
-		       m_scroll_ok ? 0x0000ff80 : 0x00ff6060);
+	void render(eng::amiga::MinimalBackend&, eng::GameContext& context) {
+		// Sin overlay: en modo takeover su `clear()` tapa el display del demo.
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
 
@@ -145,15 +130,15 @@ private:
 	}
 
 	/// **Borde de scroll**: desplaza la pantalla una columna a la izquierda y escribe la
-	/// columna nueva a la derecha. Verifica que `word(w,row) == col_value(m_col-20+w, row)`.
+	/// columna nueva a la derecha. Verifica que `word(w,row) == col_value(m_col-19+w, row)`.
 	bool scroll_step(eng::amiga::MinimalBackend& backend) {
 		eng::u16* plane = plane_words();
-		// 1) Shift: words 0..19 = words 1..20 (una columna a la izquierda).
+		// 1) Shift: words 0..18 = words 1..19 (una columna a la izquierda).
 		eng::graphics::BlitJob shift {};
 		shift.kind = eng::graphics::BlitJobKind::CopyRect;
 		shift.source = plane + 1;
 		shift.destination = plane;
-		shift.words_per_row = kDispWords;
+		shift.words_per_row = kLastWord;
 		shift.height = kRows;
 		shift.source_modulo_bytes = 2;
 		shift.destination_modulo_bytes = 2;
@@ -161,7 +146,7 @@ private:
 		if (!backend.blitter_submit(shift, true)) {
 			return false;
 		}
-		// 2) Columna nueva en el word 20 (la absoluta `m_col+1`).
+		// 2) Columna nueva en el word 19 (la absoluta `m_col+1`).
 		++m_col;
 		eng::Words<eng::SpriteTag> col = m_col_vals.view.as_words();
 		for (eng::u16 r = 0; r < kRows; ++r) {
@@ -170,7 +155,7 @@ private:
 		eng::graphics::BlitJob draw {};
 		draw.kind = eng::graphics::BlitJobKind::CopyRect;
 		draw.source = col.data();
-		draw.destination = plane + kDispColWord;
+		draw.destination = plane + kLastWord;
 		draw.words_per_row = 1u;
 		draw.height = kRows;
 		draw.source_modulo_bytes = 0;
@@ -179,14 +164,31 @@ private:
 		if (!backend.blitter_submit(draw, true)) {
 			return false;
 		}
-		// 3) Verificacion: el buffer queda coherente con el scroll.
-		for (eng::u16 w = 0; w < kBufWords; ++w) {
-			const eng::u16 abs = static_cast<eng::u16>(m_col - kDispWords + w);
-			for (eng::u16 row = 0; row < kRows; row += 64u) {
+		// 3) Verificacion: word(w) = columna (m_col - 19 + w).
+		for (eng::u16 w = 0; w < kPlaneWords; ++w) {
+			const eng::u16 abs = static_cast<eng::u16>(m_col - kLastWord + w);
+			for (eng::u16 row = 0; row < kRows; row += 32u) {
 				if (plane[static_cast<eng::u32>(row) * (kRowBytes / 2u) + w] !=
 				    col_value(abs, row)) {
 					return false;
 				}
+			}
+		}
+		return true;
+	}
+
+	void zero_dst() {
+		eng::Words<eng::SpriteTag> d = m_dst.view.as_words();
+		for (eng::u16 i = 0; i < 256u; ++i) {
+			d[i] = 0u;
+		}
+	}
+	[[nodiscard]] bool copied() const {
+		const eng::Words<eng::SpriteTag> s = m_src.view.as_words();
+		const eng::Words<eng::SpriteTag> d = m_dst.view.as_words();
+		for (eng::u16 i = 0; i < 256u; ++i) {
+			if (d[i] != s[i]) {
+				return false;
 			}
 		}
 		return true;
@@ -204,7 +206,6 @@ private:
 			cl[i * 2u + 1u] = 0u;                                                     // dato (a parchear)
 			vals[i] = static_cast<eng::u16>(0x1111u * static_cast<eng::u16>(i + 1u));
 		}
-		// El stride 4 B se describe con `BlitJob`: 1 word de ancho, dst_mod = 2.
 		eng::graphics::BlitJob job {};
 		job.kind = eng::graphics::BlitJobKind::CopyRect;
 		job.source = vals.data();
@@ -216,7 +217,8 @@ private:
 		job.bitplane_count = 1u;
 		if (!backend.blitter_submit(job, true)) {
 			return false;
-		}		for (eng::u16 i = 0; i < n; ++i) {
+		}
+		for (eng::u16 i = 0; i < n; ++i) {
 			if (cl[i * 2u + 0u] != static_cast<eng::u16>(
 						 static_cast<eng::u16>(eng::copper::Register::COLOR00) + i * 2u)) {
 				return false; // el registro no debe tocarse
@@ -228,58 +230,32 @@ private:
 		return true;
 	}
 
-	void zero_dst() {
-		eng::Words<eng::SpriteTag> d = m_dst.view.as_words();
-		for (eng::u16 i = 0; i < kWords; ++i) {
-			d[i] = 0u;
-		}
-	}
-
-	[[nodiscard]] bool copied() const {
-		const eng::Words<eng::SpriteTag> s = m_src.view.as_words();
-		const eng::Words<eng::SpriteTag> d = m_dst.view.as_words();
-		for (eng::u16 i = 0; i < kWords; ++i) {
-			if (d[i] != s[i]) {
-				return false;
-			}
-		}
-		return true;
-	}
-
 	[[nodiscard]] const eng::u16* build_copper() {
 		eng::copper::SchedulerT<false> sched { m_copper };
 		sched.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0,
-					  kRowBytes, 0x1200, 1u, m_bitmap.view, kBufBytes);
-		// La fila del buffer mide 42 B; el DDF fetchoa 40 B -> BPL1MOD = 2.
-		sched.move(eng::copper::Register::BPL1MOD, static_cast<eng::u16>(kRowBytes - 40u));
+					  kRowBytes, 0x1200, 1u, m_bitmap.view, kPlaneBytes);
 		sched.move(eng::copper::Register::DMACON,
 			   static_cast<eng::u16>(eng::copper::DmaSetClear | eng::copper::DmaMaster |
 						 eng::copper::DmaCopper | eng::copper::DmaBitplane |
 						 eng::copper::DmaBlitter));
 		sched.emit_palette(kPalette.color);
 
-		// Tecnica A: el Copper lanza un blit `src` -> `dst` en el borde inferior.
+		// TEST: blit lanzado por el Copper (Tecnica A) en el borde superior.
 		eng::graphics::BlitterJob job {};
 		job.bltcon0 = static_cast<eng::u16>(eng::graphics::kBlitterUseA |
 						    eng::graphics::kBlitterUseD |
 						    eng::graphics::kBlitterMintermCopyA);
-		job.bltcon1 = 0;
-		job.bltamod = 0;
-		job.bltdmod = 0;
 		job.bltapt = m_src.view.data();
 		job.bltdpt = m_dst.view.data();
-		job.bltsize = static_cast<eng::u16>((4u << 6u) | (kWords / 4u));
-
-		eng::graphics::CopperIntent intent {};
-		intent.kind = eng::graphics::CopperIntentKind::BlitterJob;
-		intent.top = kBlitLine;
-		intent.blitter_job = &job;
-
+		job.bltsize = static_cast<eng::u16>((4u << 6u) | 64u);
+		eng::graphics::CopperIntent it {};
+		it.kind = eng::graphics::CopperIntentKind::BlitterJob;
+		it.top = kBlitLine;
+		it.blitter_job = &job;
 		sched.set_blitter_window(eng::graphics::BlitterWindow {kBlitLine, static_cast<eng::u16>(kBlitLine + 4u)});
-		sched.emit_copper_intents(&intent, 1u);
-		sched.wait_line_safe(static_cast<eng::u16>(kBlitLine + 8u));
+		sched.emit_copper_intents(&it, 1u);
+		sched.wait_line(0xf8u);
 		sched.end();
-
 		if (!sched.ok()) {
 			return nullptr;
 		}
@@ -287,18 +263,17 @@ private:
 	}
 
 	static constexpr eng::Palette32 kPalette {{
-		0x013, 0xfff,
+		0x013, 0xfff, 0x0f0, 0xf00, 0x00f, 0xff0, 0x0ff, 0xf0f,
 	}};
 
-	eng::Block<eng::SpriteTag> m_src {};
-	eng::Block<eng::SpriteTag> m_dst {};
 	eng::Block<eng::CopperTag> m_copper {};
 	eng::Block<eng::PlaneTag> m_bitmap {};
+	eng::Block<eng::SpriteTag> m_src {};
+	eng::Block<eng::SpriteTag> m_dst {};
 	eng::Block<eng::CopperTag> m_patch_cl {};
 	eng::Block<eng::SpriteTag> m_patch_vals {};
 	eng::Block<eng::SpriteTag> m_col_vals {};
 	eng::u16 m_col = 0;
-	bool m_checked = false;
 	bool m_last_ok = false;
 	bool m_patch_ok = false;
 	bool m_scroll_ok = false;
@@ -311,7 +286,7 @@ int main() {
 	eng::debug::reset(g_eng_run_status);
 
 	eng::amiga::MinimalBackend backend {};
-	CopperBlitterDemo game {};
+	ScrollEdgeDemo game {};
 	eng::Engine engine { backend, game };
 	engine.run_frames_polling(0xffff);
 

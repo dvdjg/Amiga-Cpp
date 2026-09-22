@@ -76,6 +76,13 @@ El Blitter es un **único recurso**: solo hay **una** operación en curso. Escri
   (`docs/reference/emulators/winuae/copper.md`). Aun así hay que **serializar**:
   - no solapar la ventana del blit de Copper con los blits de CPU (`execute_frame_plan`), y
   - no usar `wait=false` si el Copper puede lanzar un blit dentro del mismo frame.
+
+  **Observado (demo 210)**: si el blit del Copper cae **mientras corre** un blit de CPU largo
+  (el scroll de CPU lanza ≈5 100 words ≈ 140 líneas), su `BLTSIZE` **aborta** el de CPU y el
+  display de bitplanes se **rompe** (pantalla en blanco). La **ventana segura** debe evitar
+  *ese tramo*, no solo el área visible: en la 210 el blit del Copper va en el **borde inferior
+  (línea 304)**, después de que el blit de CPU haya terminado. Reproducido: sin el blit de CPU,
+  un blit de Copper en el borde superior no molesta; con el de CPU activo en la misma franja, sí.
 - Además de la copia lineal (`blitter_memcpy`) y del plan (`execute_frame_plan`), el backend
   expone **`blitter_submit(job, wait)`**: ejecuta **un** `graphics::BlitJob` por el mismo camino
   (`submit_blit_job`). El descriptor cubre copias **con módulos** (`CopyRect` con
