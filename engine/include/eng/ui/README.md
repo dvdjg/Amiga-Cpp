@@ -26,7 +26,7 @@ No depende del mini-SO (`eng::os`), pero se integra con él por el puente `os::M
 | `event.hpp` | `UiEvent`, `UiEventKind`. **Implementado** (HOST-220). |
 | `widgets.hpp` | `Panel`/`Label` (G1), `Button` (G2), `CheckBox`/`RadioButton` (G3), `Window` (G6), `Slider`. Despacho por `switch` exhaustivo y `measure`. **Implementado** (HOST-224/225/226/229/262). |
 | `keys.hpp` | Teclas lógicas de la UI (imprimibles ASCII/Latin-1 + edición/navegación). **Implementado** (HOST-227). |
-| `keymap.hpp` | Traducción **rawkey Amiga → tecla lógica** (`keys.hpp`), con Shift. **Implementado** (HOST-261). |
+| `keymap.hpp` | Traducción **rawkey Amiga → carácter** por **distribución nacional** (US/ES/FR/IT/DE/RU) + Shift. **Implementado** (HOST-261/263); teclas muertas y validación contra el ROM, pendientes. |
 | `editbox.hpp` | `EditBox` (buffer externo, caret, vista horizontal). **Implementado** (HOST-227). |
 | `slider.hpp` | `Slider` (sobre `s16*`, click/arrastre y flechas). **Implementado** (HOST-262). |
 | `context.hpp` | `UiContext`: hit-test, foco (`Tab`), modalidad, `Esc`, popups y TTL de toasts. **Implementado** (HOST-225/229). |

@@ -290,5 +290,6 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-259 | [floppy_mfm](259_floppy_mfm/README.md) | Disquete: decodificación **MFM** (`eng/os/floppy.hpp`) — `mfm_decode_long` inverso y `floppy_find_sector` sobre una pista AmigaDOS sintética (encoder = el del emulador). |
 | HOST-261 | [ui_msg_input](261_ui_msg_input/README.md) | GUI: entrada por **mensajes** (`os::Msg` → `ui_bridge` → `UiContext`) con `keymap` rawkey Amiga → tecla lógica. |
 | HOST-262 | [ui_slider](262_ui_slider/README.md) | GUI: `Slider` (click/arrastre → valor, flechas con foco, pista + pomo). |
+| HOST-263 | [ui_keymap_layouts](263_ui_keymap_layouts/README.md) | GUI: keymaps nacionales (ES/FR/IT/DE/RU) — `rawkey_to_key(raw, shift, layout)`. |
 | HOST-260 | [copper_blitter](260_copper_blitter/README.md) | Copper lanza blits (Técnica A): `CopperIntentKind::BlitterJob` (`BLTCON*`/punteros/módulos/`BLTSIZE`) y **ventana segura** (`set_blitter_window`) que lo serializa con los blits de CPU. |
 | HOST-208 | [ptr](208_ptr/README.md) | `eng/core/ptr.hpp`: punteros "inteligentes" sin heap (`Ref` observador no propietario y anulable, `NonNull`, `Opt` opcional en sitio). |

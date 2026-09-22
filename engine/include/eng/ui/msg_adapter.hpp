@@ -13,15 +13,16 @@
 
 namespace eng::ui {
 
-/// Despacha un `os::Msg` de entrada al `UiContext` (traduce rawkey→tecla lógica). `true` si el
-/// contexto lo consumió; `false` si el mensaje no es de entrada o nadie lo atendió.
-inline bool dispatch_msg(UiContext& ctx, const eng::os::Msg& m) {
+/// Despacha un `os::Msg` de entrada al `UiContext` (traduce rawkey→tecla lógica según `layout`).
+/// `true` si el contexto lo consumió; `false` si el mensaje no es de entrada o nadie lo atendió.
+inline bool dispatch_msg(UiContext& ctx, const eng::os::Msg& m,
+			 KeyboardLayout layout = KeyboardLayout::Us) {
 	UiEvent e {};
 	if (!to_ui_event(m, e)) {
 		return false;
 	}
 	if (e.kind == UiEventKind::KeyDown || e.kind == UiEventKind::KeyUp) {
-		e.key = rawkey_to_key(static_cast<eng::u8>(e.key & 0xffu), e.shift);
+		e.key = rawkey_to_key(static_cast<eng::u8>(e.key & 0xffu), e.shift, layout);
 	}
 	return ctx.dispatch(e);
 }
