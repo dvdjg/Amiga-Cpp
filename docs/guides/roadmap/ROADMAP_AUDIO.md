@@ -39,13 +39,17 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
 - **Detalle**: [`MUSIC_PLAYER.md`](../../engine/architecture/MUSIC_PLAYER.md).
 - **Verificación**: demo de pantalla de título con módulo MED incrustado; gate visual de que suena
   y que al volver a `Game` el mixer+P61 recuperan sus canales.
-- **Estado**: **infra lista; runtime abierto (reencuadrado)**. Hecho: ASM vendorizado
-  (`support/music/octamed/` + `support/music/med.asm`) que **ensambla y enlaza**, envoltura
-  `eng::audio::OctaMedPlayer` + `MusicFormat::OctaMED` (opt-in `-DENG_AUDIO_OCTAMED`), modo
-  `TitleOctaMED` y la repro **`274_octamed_probe`**. **Pendiente**: con la repro, `_startmusic`
-  **retorna** pero la demo **cuelga antes del frame 30** (y **no** en la ruta de interrupción del
-  playroutine, descartada); falta localizar el punto exacto por GDB/pasos
-  (`docs/debugging/investigaciones/octamed-startmusic-hang.md`) y la demo de título.
+- **Estado**: **parcial y operativo**. Hecho: ASM vendorizado (`support/music/octamed/` +
+  `support/music/med.asm`) que **ensambla y enlaza**, envoltura `eng::audio::OctaMedPlayer` +
+  `MusicFormat::OctaMED` (opt-in `-DENG_AUDIO_OCTAMED`), modo `TitleOctaMED`, banco de módulos
+  (`assets/amiga/audio/`, 4 de KONEY) y la demo `274_octamed_probe`. **Con `OCTAMED_READY_FRAME=0`
+  la música SUENA** y `_startmusic` retorna; **el modo que espera frames (READY en N) se cuelga** —
+  el playroutine necesita su timing por IRQ y el bucle de espera del engine lo atropella.
+  **Uso operativo**: `bash tools/audio/listen-octamed.sh <n> <s>` (sin `--warp`, deja el emulador
+  vivo). **Cerrar el modo N** queda como mejora futura; el diagnóstico está en
+  `docs/debugging/investigaciones/octamed-startmusic-hang.md` y la lección de proceso en
+  `docs/guides/methodology/LECCION-CONTEXTO-DE-LA-FUENTE.md`. La demo de título (propiamente dicha)
+  sigue pendiente.
 
 ### A2 — Integración con el mini-SO
 

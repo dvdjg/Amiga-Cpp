@@ -17,6 +17,8 @@ docs/guides/
 │   └── …
 ├── optimization/        → guías de optimización 68000/C++ y rendimiento
 └── methodology/         → metodología, runbooks de agentes, desarrollo
+    ├── LECCION-CONTEXTO-DE-LA-FUENTE.md → no obcecarse con código que falla sin la fuente
+    └── …
 ```
 
 ## Dónde poner cada cosa
