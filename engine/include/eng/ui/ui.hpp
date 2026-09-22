@@ -14,6 +14,7 @@
 #include <eng/ui/dirty.hpp>
 #include <eng/ui/editbox.hpp>
 #include <eng/ui/event.hpp>
+#include <eng/ui/hardware_cursor.hpp>
 #include <eng/ui/keymap.hpp>
 #include <eng/ui/keys.hpp>
 #include <eng/ui/layout.hpp>

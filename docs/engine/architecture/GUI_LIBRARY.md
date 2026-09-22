@@ -449,21 +449,26 @@ struct WindowBacking {
 ```cpp
 class Compositor {
 public:
-	void set_screen(eng::field::Surface* screen) noexcept;
+	void set_screen(eng::field::Surface& screen) noexcept;
+	void set_desktop(eng::u8 color) noexcept;
 
-	bool add(Window* w);
-	bool remove(Window* w);
-	void raise(Window* w);                     ///< sube Z y daña su rect
+	CompWindow* add() noexcept;                       ///< al frente; nullptr si el pool está lleno
+	void raise(CompWindow& w) noexcept;               ///< sube Z y daña su rect
+	void move_window(CompWindow& w, eng::s16 nx, eng::s16 ny) noexcept;
+	bool resize_window(CompWindow& w, eng::u16 nw, eng::u16 nh) noexcept; ///< false si no cabe
 
-	void move_window(Window* w, eng::s16 nx, eng::s16 ny);
-	bool resize_window(Window* w, eng::u16 nw, eng::u16 nh); ///< false si no cabe
+	void damage_screen(Rect r) noexcept;
 
-	void invalidate_content(Window* w, Rect local);
-	void damage_screen(Rect r);
-
-	void present(eng::graphics::FramePlan& plan); ///< 1) widgets→backing 2) backings→pantalla
+	void present() noexcept;                          ///< compone por CPU (píxel a píxel)
+	void present_blit(eng::graphics::FramePlan& plan) noexcept; ///< copia por Surface::blit (CPU/Blitter)
 };
 ```
+
+`present_blit` copia cada backing con `Surface::blit` (con `BlitterRaster` encola `CopyRect` en el
+`FramePlan`, que el llamador ejecuta con `backend.execute_frame_plan`); si el rect no es copiable por
+el Blitter (destino no alineado a palabra), cae al copiado por píxel de ese rect. Equivalencia con
+`present()` en HOST-300 y **verificado en hardware** con la demo `300_gui_compositor` (tres ventanas
+que se mueven y se recomponen por el Blitter).
 
 **Mover** (sin repaint de vecinas):
 
@@ -531,10 +536,23 @@ atrás.
 
 ### 14.7 El cursor, como sprite de hardware
 
-El puntero del ratón no debe ensuciar el framebuffer: se dibuja como **sprite de hardware** del
-engine (ya soportado en demos 053/054/087), de modo que mover el ratón no genera *damage* ni
-obliga a recomponer. Con el Blitter, un puntero software solo se justificaría en un modo sin
-sprites libres.
+El puntero del ratón no debe ensuciar el framebuffer: se dibuja como **sprite de hardware**, de modo
+que mover el ratón no genera *damage* ni obliga a recomponer. La utilidad reutilizable es
+**`eng::ui::HardwareCursor`** (`eng/ui/hardware_cursor.hpp`): un sprite 16×16 de 1 palabra por línea
+que encapsula la **estructura DMA** (POS, CTL, DAT/DATB y terminador) y la emisión de `SPRxPT` +
+`DMACON` (SPREN) a la copperlist. No posee memoria: el llamador le da un buffer de **Chip RAM** con
+`bind` (los sprites solo ven Chip RAM) y lo mueve con `set_position`. Ver HOST-301 y la demo 215.
+
+```cpp
+eng::ui::HardwareCursor cur;
+cur.bind(chip_bytes, eng::ui::HardwareCursor::kBytes); // Chip RAM del llamador
+cur.set_bitmap(dat, datb);                              // cuerpo (color 1) + contorno (color 2)
+cur.set_position(mx, my);                               // sigue al ratón (poll_mouse)
+// en la copperlist (etapa de compose): cur.emit_into(sc.scheduler());
+```
+
+Con el Blitter, un puntero software solo se justificaría en un modo sin sprites libres. La captura
+PNG del runner **no incluye sprites**, así que el cursor se valida por registros/copperlist.
 
 ## 15. Integración con el mini-SO (`eng::os`)
 

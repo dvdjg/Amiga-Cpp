@@ -20,9 +20,8 @@ Alt+H = agudo, y luego la letra; `keymap.library` las compone). Ver
 
 - La **asignación Alt+tecla** es *best-effort* (el ejemplo documentado es Alt+H = agudo);
   queda pendiente validarla contra el keymap del ROM.
-- El `EditBox` guarda **un byte por carácter** (Latin-1), así que las letras acentuadas
-  Latin-1 entran bien; el **cirílico (U+04xx)** aún no se puede teclear en un campo
-  (necesita UTF-8/ancho, pendiente).
+- El `EditBox` guarda **UTF-8** (HOST-303): `é` ocupa dos bytes (`0xC3 0xA9`) y el cirílico
+  (U+04xx) también se puede teclear en un campo.
 
 ## Salida de referencia
 

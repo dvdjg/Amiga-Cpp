@@ -1,5 +1,5 @@
 // ============================================================================
-// Test HOST-267: compositor por `Surface::blit` (ruta del Rasterizer).
+// Test HOST-300: compositor por `Surface::blit` (ruta del Rasterizer).
 // ============================================================================
 //
 // Valida `Compositor::present_blit`: copia los backings con `Surface::blit` (que en host usa el
@@ -9,7 +9,7 @@
 // (Blitter). Ver ROADMAP_GUI.md (G8) y GUI_LIBRARY.md §14.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/267_ui_compositor_blit
+//   bash tools/run-host-tests.sh tests/host/300_ui_compositor_blit
 
 #include <cstdio>
 

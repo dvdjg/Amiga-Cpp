@@ -100,7 +100,10 @@ int main() {
 
 		check(eng::ui::dispatch_msg(ctx, key_msg(0x25u, eng::os::kQualAlt)), "Alt+H consumida");
 		check(eng::ui::dispatch_msg(ctx, key_msg(0x12u, 0u)), "e consumida");
-		check(static_cast<eng::u8>(buf[0]) == 0xe9u && e.len == 1u, "EditBox tiene 'é'");
+		// El EditBox guarda UTF-8: 'é' (U+00E9) son dos bytes 0xC3 0xA9.
+		check(static_cast<eng::u8>(buf[0]) == 0xc3u && static_cast<eng::u8>(buf[1]) == 0xa9u &&
+			      e.len == 2u,
+		      "EditBox tiene 'é' (UTF-8)");
 	}
 
 	if (g_fail == 0) {

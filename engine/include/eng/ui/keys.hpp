@@ -23,9 +23,10 @@ inline constexpr eng::u16 kKeyDown = 0x0103u;
 inline constexpr eng::u16 kKeyHome = 0x0104u;
 inline constexpr eng::u16 kKeyEnd = 0x0105u;
 
-/// ¿`key` es un carácter imprimible (ASCII o Latin-1)?
+/// ¿`key` es un carácter imprimible (ASCII, Latin-1 o cirílico U+04xx)?
 [[nodiscard]] constexpr bool is_printable_key(eng::u16 key) noexcept {
-	return (key >= 0x20u && key <= 0x7eu) || (key >= 0xa0u && key <= 0xffu);
+	return (key >= 0x20u && key <= 0x7eu) || (key >= 0xa0u && key <= 0xffu) ||
+	       (key >= 0x400u && key <= 0x4ffu);
 }
 
 } // namespace eng::ui

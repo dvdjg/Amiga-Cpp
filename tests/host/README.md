@@ -294,7 +294,10 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-264 | [font_cyrillic](264_font_cyrillic/README.md) | Fuente: glifos cirílicos (U+0410–U+044F, Ё/ё) en `Font8` + UTF-8. |
 | HOST-265 | [ui_deadkeys](265_ui_deadkeys/README.md) | GUI: teclas muertas (Alt+acento compone con la letra siguiente). |
 | HOST-266 | [rect_fill_sink](266_rect_fill_sink/README.md) | Relleno de rect por hardware: `RectFillSink` + `fill_rect_hw` + elección del `BlitterRaster`. |
-| HOST-267 | [ui_compositor_blit](267_ui_compositor_blit/README.md) | Compositor por `Surface::blit` (`present_blit`): equivalencia con el copiado por píxel. |
+| HOST-300 | [ui_compositor_blit](300_ui_compositor_blit/README.md) | Compositor por `Surface::blit` (`present_blit`): equivalencia con el copiado por píxel. |
+| HOST-301 | [ui_hardware_cursor](301_ui_hardware_cursor/README.md) | Cursor por sprite de hardware (`HardwareCursor`): estructura DMA + emisión SPR0PT/SPREN. |
+| HOST-302 | [ui_keymap_specials](302_ui_keymap_specials/README.md) | Teclas comunes del keymap (0x40–0x5F) validadas contra la AHRM 3.ª. |
+| HOST-303 | [ui_editbox_utf8](303_ui_editbox_utf8/README.md) | `EditBox` UTF-8: inserción/borrado/movimiento por code point (incluye cirílico). |
 | HOST-260 | [copper_blitter](260_copper_blitter/README.md) | Copper lanza blits (Técnica A): `CopperIntentKind::BlitterJob` (`BLTCON*`/punteros/módulos/`BLTSIZE`) y **ventana segura** (`set_blitter_window`) que lo serializa con los blits de CPU. |
 | HOST-267 | [fine_scroll](267_fine_scroll/README.md) | `eng::effects::FineScroll`: scroll horizontal fino de una capa planar (1 px/frame) — `step`/`bplcon1`/columna y `BlitJob` de desplazamiento + columna entrante. |
 | HOST-208 | [ptr](208_ptr/README.md) | `eng/core/ptr.hpp`: punteros "inteligentes" sin heap (`Ref` observador no propietario y anulable, `NonNull`, `Opt` opcional en sitio). |

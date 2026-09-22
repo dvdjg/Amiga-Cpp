@@ -130,7 +130,9 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 - **Compositor por Blitter**: **entregado**. `Compositor::present_blit(plan)` copia cada backing con
   `Surface::blit` (ruta del `Rasterizer`: encola `CopyRect` en el `FramePlan`); si el destino no está
   alineado a palabra, cae al copiado por píxel de ese rect. Equivalencia con `present()` en
-  HOST-267. La ejecución del plan la hace el llamador (`backend.execute_frame_plan`).
+  HOST-300. La ejecución del plan la hace el llamador (`backend.execute_frame_plan`). **Demo
+  `300_gui_compositor`**: tres ventanas con backing que se mueven (pasos de 16 px, copias alineadas)
+  y se recomponen por el Blitter; gate visual `verify-gui-compositor.mjs`.
 - **Estado**: **G8 completo**: demo en hardware verificada, *fills* de caja por Blitter D-only,
   cursor por sprite de hardware y compositor por `Surface::blit`. Queda, fuera de G8, exponer un
   **cursor de hardware reutilizable** (`eng::ui::HardwareCursor`) y validar los keymaps contra el ROM.
@@ -151,7 +153,7 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 | HOST-262 | test | `Slider` (click/arrastre y flechas). |
 | HOST-263 | test | Keymaps nacionales (ES/FR/IT/DE/RU) y `dispatch_msg` con el layout del contexto. |
 | `215_gui_widgets` | demo | Widgets y tema en hardware (G0–G6). **Entregada y verificada** (G8). |
-| 208_gui_compositor | demo | Ventanas movibles/redimensionables con backing store (G7). |
+| `300_gui_compositor` | demo | Ventanas movibles con backing store y **copias por Blitter** (`present_blit`). **Entregada y verificada**. |
 
 ## Riesgos y decisiones abiertas
 
@@ -171,18 +173,22 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 
 ## Estado
 
-**G0–G7 entregados** (HOST-223…HOST-230): `theme`/`painter`/`text`, `widget`/`dirty`/`widgets`
+**G0–G8 entregados**. `theme`/`painter`/`text`, `widget`/`dirty`/`widgets`
 (`Panel`/`Label`/`Button`/`CheckBox`/`RadioButton`/`Slider`), `keys`/`keymap`/`editbox`/`context`
 (foco), `layout`, `window` (Window/Popup/Toast/Dialog), `backing`/`compositor` y la **entrada por
-mensajes** (`msg_adapter` + `ui_bridge`, HOST-261/262) con **keymaps nacionales** (HOST-263).
+mensajes** (`msg_adapter` + `ui_bridge`, HOST-261/262) con **keymaps nacionales** (HOST-263) y
+**teclas muertas** (HOST-265). La distribución nacional es **estado del `UiContext`** (`ctx.layout`),
+que fija la aplicación al arrancar; `dispatch_msg` la usa, sin ir fija en la llamada.
 
-**G8 (demo en hardware) entregada**: `215_gui_widgets` renderiza y verifica (gate objetivo con
-`verify-gui-widgets.mjs`). La distribución nacional es **estado del `UiContext`** (`ctx.layout`),
-que fija la aplicación al arrancar; `dispatch_msg` la usa, sin ir fija en la llamada. La superficie
-estable de la GUI se expone en `eng/api/api.hpp` mediante la fachada `eng/ui/ui.hpp`.
+**G8 entregado**: demo `215_gui_widgets` en hardware (gate objetivo con `verify-gui-widgets.mjs`),
+*fills* de caja por **Blitter D-only** (`RectFillSink`, HOST-266), **cursor por sprite de hardware**
+y **compositor por `Surface::blit`** (`present_blit`, HOST-300). La superficie estable de la GUI se
+expone en `eng/api/api.hpp` mediante la fachada `eng/ui/ui.hpp`; el **cirílico** (U+04xx) está
+cubierto por `Font8` (HOST-264).
 
-Queda pendiente de G8 la **aceleración Blitter** del raster (`fill_rect` D-only, minterm `$FF`, y
-copias del compositor) y el **cursor por sprite de hardware**, con test de equivalencia contra el
-camino de polígono. Los **keymaps** son *best-effort* para el área principal (0x00–0x3F): falta
-validarlos contra el ROM y **componer teclas muertas**; el cirílico (RU) requiere glifos fuera de
-`Font8`/`Font5x7`.
+**Extras entregados tras G8**: **`eng::ui::HardwareCursor`** reutilizable (HOST-301), **teclas comunes
+del keymap validadas** contra la AHRM 3.ª (HOST-302: Space 0x40 y cursores 0x4C/0x4D corregidos) y
+**`EditBox` UTF-8** con edición por code point (HOST-303), que permite teclear **cirílico** en campos.
+
+Pendiente: volcar la asignación de carácter de cada **distribución nacional** y los **Alt+tecla**
+de las teclas muertas desde `DEVS:Keymaps` del ROM (no disponibles en el repo; hoy *best-effort*).

@@ -65,7 +65,6 @@ constexpr eng::Palette32 kPalette {{
 
 /// Cursor de hardware: 16x16, 1 palabra por linea (SPRxDATA = color 1, SPRxDATB = color 2).
 constexpr eng::u16 kCursorH = 16u;
-constexpr eng::u16 kCursorW = 16u;
 /// Flecha de raton (16 filas; bit15 = pixel izquierdo). DAT = cuerpo (blanco),
 /// DATB = contorno (negro) en los pixeles alrededor del cuerpo.
 constexpr eng::u16 kCursorDat[kCursorH] = {
@@ -107,24 +106,21 @@ struct DemoGame {
 			4u * 1024u,  // Frame scratch.
 		});
 
-		// Cursor por sprite de hardware: estructura DMA en Chip RAM, emitida en la copperlist
-		// como etapa de `compose` (SPR0PT + DMACON con SPREN).
-		m_sprite_block = backend.memory().chip.allocate_block<eng::SpriteTag>(
-			static_cast<eng::u32>(2u + kCursorH * 2u + 2u) * 2u, 16);
-		if (!m_sprite_block.valid() || !build_cursor_sprite() || !verify_cursor()) {
+		// Cursor por sprite de hardware (`eng::ui::HardwareCursor`): estructura DMA en Chip RAM,
+		// emitida en la copperlist como etapa de `compose` (SPR0PT + DMACON con SPREN).
+		m_sprite_block = backend.memory().chip.allocate_block<eng::SpriteTag>(ui::HardwareCursor::kBytes, 16);
+		if (!m_sprite_block.valid() ||
+		    !m_cursor.bind(m_sprite_block.view.data(), ui::HardwareCursor::kBytes)) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021503u);
 			return;
 		}
-		const eng::uintptr sp = reinterpret_cast<eng::uintptr>(m_sprite_block.view.data());
-		const auto cursor_stage = [sp](scene::Scene& sc) {
-			eng::copper::Scheduler& s = sc.scheduler();
-			s.move(static_cast<eng::u16>(0x120u), static_cast<eng::u16>(sp >> 16));    // SPR0PTH
-			s.move(static_cast<eng::u16>(0x122u), static_cast<eng::u16>(sp & 0xffffu)); // SPR0PTL
-			s.move(eng::copper::Register::DMACON,
-			       static_cast<eng::u16>(eng::copper::DmaSetClear | eng::copper::DmaMaster |
-						     eng::copper::DmaCopper | eng::copper::DmaBitplane |
-						     eng::copper::DmaSprite));
-		};
+		m_cursor.set_bitmap(kCursorDat, nullptr);
+		m_cursor.set_position(m_cx, m_cy);
+		if (!verify_cursor()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00021503u);
+			return;
+		}
+		const auto cursor_stage = [this](scene::Scene& sc) { m_cursor.emit_into(sc.scheduler()); };
 
 		m_scene_ok = m_memory_ok &&
 			     scene::compose(m_scene, backend.memory(), kRes, scene::ocs_a500,
@@ -137,7 +133,7 @@ struct DemoGame {
 		}
 
 		// La copperlist debe apuntar SPR0PT a la estructura del cursor y habilitar SPREN.
-		if (!verify_cursor_copper(sp)) {
+		if (!verify_cursor_copper()) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00021510u);
 			return;
 		}
@@ -254,32 +250,6 @@ private:
 		m_ctx.set_focus(&m_button);
 	}
 
-	/// Auto-test EN HARDWARE (misma logica que los tests host de `eng::ui`): el hit-test
-	/// Construye la estructura DMA del cursor: POS, CTL, DAT/DATB por linea y terminador. El
-	/// cursor es un sprite 16x16 de 1 palabra por linea; DAT = cuerpo (color 1), DATB = contorno.
-	bool build_cursor_sprite() {
-		if (!m_sprite_block.valid()) {
-			return false;
-		}
-		eng::Words<eng::SpriteTag> s = m_sprite_block.view.as_words();
-		for (eng::u16 l = 0u; l < kCursorH; ++l) {
-			s[2u + l * 2u + 0u] = kCursorDat[l]; // SPRxDATA (color 1)
-			s[2u + l * 2u + 1u] = 0x0000u;       // SPRxDATB (color 2, sin contorno extra)
-		}
-		s[2u + kCursorH * 2u + 0u] = 0u; // terminador del canal DMA
-		s[2u + kCursorH * 2u + 1u] = 0u;
-		update_cursor_pos();
-		return true;
-	}
-
-	/// Escribe POS/CTL del cursor segun `m_cx`/`m_cy` (X par; HSTART[0] = bit 0 de CTL).
-	void update_cursor_pos() {
-		eng::Words<eng::SpriteTag> s = m_sprite_block.view.as_words();
-		const eng::u16 hx = static_cast<eng::u16>(m_cx & ~1);
-		s[0] = static_cast<eng::u16>((static_cast<eng::u16>(m_cy) << 8) | ((hx >> 1) & 0xffu));
-		s[1] = static_cast<eng::u16>((static_cast<eng::u16>(m_cy + kCursorH) << 8) | (hx & 1u));
-	}
-
 	/// Mueve el cursor con el raton (deltas de `JOY0DAT`) y reescribe POS/CTL en la estructura.
 	void update_cursor() {
 		eng::input::MouseState mouse;
@@ -292,17 +262,16 @@ private:
 		if (cy > static_cast<eng::s16>(kHeight - kCursorH)) cy = static_cast<eng::s16>(kHeight - kCursorH);
 		m_cx = cx;
 		m_cy = cy;
-		update_cursor_pos();
+		m_cursor.set_position(m_cx, m_cy);
 	}
 
-	/// Self-test de la emision del cursor: `SPR0PT` apunta a la estructura y `DMACON` (la
-	/// ULTIMA escritura) habilita SPREN. Evidencia (los registros no se capturan en PNG) de que
-	/// el canal de sprite del cursor esta activo.
-	bool verify_cursor_copper(eng::uintptr sp) const {
+	/// Self-test de la emision: `SPR0PT` apunta a la estructura y la ULTIMA escritura de `DMACON`
+	/// habilita SPREN (evidencia; los registros no se capturan en PNG).
+	bool verify_cursor_copper() const {
 		const eng::u16* w = m_scene.active_words();
 		const eng::u16 n = m_scene.words();
+		const eng::uintptr sp = reinterpret_cast<eng::uintptr>(m_sprite_block.view.data());
 		bool spr0 = false;
-		bool spren = false;
 		eng::u16 last_dmacon = 0u;
 		for (eng::u16 i = 0u; i + 1u < n; i += 2u) {
 			if (w[i] == 0x0120u && w[i + 1u] == static_cast<eng::u16>(sp >> 16)) {
@@ -312,23 +281,23 @@ private:
 				last_dmacon = w[i + 1u];
 			}
 		}
-		spren = (last_dmacon & 0x0020u) != 0u;
-		return spr0 && spren;
+		return spr0 && (last_dmacon & 0x0020u) != 0u;
 	}
 
-	/// Self-test del cursor: la estructura tiene pixeles y un terminador DMA nulo.
+	/// Self-test de la estructura del cursor: tiene pixeles y un terminador DMA nulo.
 	bool verify_cursor() {
-		if (!m_sprite_block.valid()) {
+		const eng::u16* w = m_cursor.words();
+		if (w == nullptr) {
 			return false;
 		}
-		const eng::Words<eng::SpriteTag> s = m_sprite_block.view.as_words();
 		bool any = false;
-		for (eng::u16 l = 0u; l < kCursorH; ++l) {
-			if (s[2u + l * 2u + 0u] != 0u) {
+		for (eng::u16 l = 0u; l < ui::HardwareCursor::kSize; ++l) {
+			if (w[2u + l * 2u] != 0u) {
 				any = true;
 			}
 		}
-		return any && s[2u + kCursorH * 2u + 0u] == 0u && s[2u + kCursorH * 2u + 1u] == 0u;
+		const eng::u16 t = static_cast<eng::u16>(2u + ui::HardwareCursor::kSize * 2u);
+		return any && w[t] == 0u && w[t + 1u] == 0u;
 	}
 
 	/// Self-test EN HARDWARE del relleno de rect D-only por Blitter (`blitter_fill_rect`):
@@ -421,6 +390,7 @@ private:
 	scene::Scene m_scene {};
 
 	eng::Block<eng::SpriteTag> m_sprite_block {}; ///< estructura DMA del cursor (Chip RAM)
+	ui::HardwareCursor m_cursor {};               ///< cursor por sprite de hardware
 	eng::amiga::MousePollState m_mouse_poll {};
 	eng::s16 m_cx = 160; ///< posicion del cursor (sigue al raton)
 	eng::s16 m_cy = 128;
