@@ -1,0 +1,10 @@
+# Areas de docs de hallazgos que verifica `tools/check/doc-index.mjs`.
+#
+# En cada area (recursiva), cada carpeta que contenga `.md` debe tener un `README.md` que
+# indexe todos sus `.md` hermanos, y los ficheros deben seguir la convencion de nombre
+# (kebab-case; prefijo `NNN_` solo si el doc es de una demo). Anadir un emulador o una
+# subcarpeta nueva NO requiere tocar el codigo: basta con que su README exista y los indexe.
+#
+# Una ruta por linea (relativa a la raiz del repo); `#` inicia comentario.
+docs/debugging
+docs/reference/emulators

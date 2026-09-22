@@ -29,6 +29,7 @@ reference/
 | [amc-wrobel/](amc-wrobel/README.md) | Curso Amiga Machine Code (Mark Wrobel): plan de ingesta y destino de artefactos (topic-map, gaps, crosswalk). |
 | [amiga/hardware/](amiga/hardware/README.md) | Conocimiento de bajo nivel del Amiga 500: DMA, copper, ABI 68000, loader, invariantes. |
 | [amiga/techniques/](amiga/techniques/README.md) | Fichas de técnicas de programación Amiga (módulos, dual playfield, copper chunky, audio, sprites…). |
+| [emulators/](emulators/README.md) | Hallazgos del **código fuente de los emuladores** (rarezas de comportamiento, con `fichero:línea`): `winuae/` (colisión de sprites, sprite DMA, copper, disco, IRQ de audio). |
 
 ## El AHRM
 
