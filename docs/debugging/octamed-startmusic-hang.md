@@ -25,16 +25,26 @@ La **misma demo sin `_startmusic` alcanza READY** (`state=3`) → el fallo está
 - **Timing**: `VBLANK=1,CIAB=0` (ISR de VBlank del playroutine) y `VBLANK=0,CIAB=1` (CIA-B) — ambos
   cuelgan.
 - **Sin mixer**: `OctaMedPlayer` directo (sin `AudioSystem`/mixer de SFX) — sigue.
-- **`a6`**: el playroutine usa direcciones **absolutas** `$dffxxx` (p. ej. `$dff096`), no un base en
-  `a6` (0 referencias a `(a6)`) → no es el wrapper de Photon.
+- **Orden**: arrancar `_startmusic` **antes** de `takeover_display` — sigue colgando → no es el
+  takeover el que rompe el entorno de `exec`.
+- **`a6`**: el playroutine usa direcciones **absolutas** `$dffxxx` (p. ej. `$dff096`) y su propio
+  registro de datos `A4 = DB`; no espera un base en `a6` del llamador (`_AudioInit` guarda y
+  re-setea `A6`).
 
 ## Hipótesis
 
-`_startmusic` (→ `_RelocModule` → `_InitPlayer` → `_PlayModule`) **espera algo de timing/VBlank**:
-hay un bucle que sondea `$dff007` (byte alto de `VHPOSR`) en `MED_PlayRoutine.i:2160-2162`, y la
-inicialización instala su propio ISR de VBlank/CIA. Puede chocar con el `wait_vblank` **por polling**
-del engine (que no consume la misma vía) o quedarse esperando una condición que el modo takeover no
-produce.
+`_startmusic` → `_RelocModule` → `_InitPlayer` → `_PlayModule`. El sospechoso principal está en
+**`_InitPlayer` → `_AudioInit`** (`MED_PlayRoutine.i:2520`): usa **`A4 = DB`** como base de datos y
+**`A6 = SysBase`** (`MOVEA.L 4.W,A6`) para llamar a **exec**:
+
+- `AllocSignal` / `FindTask` / `OpenDevice` / `OpenResource` (`4.W`),
+- `AddICRVector` (CIA) y **`AddIntServer`** (`JSR -$a8`).
+
+Es decir, el playroutine **necesita el sistema de interrupciones de exec** para instalar su
+VBlank/CIA. En un demo *takeover* como el nuestro, si el takeover deja `exec`/las interrupciones en
+un estado no funcional, `AddIntServer`/`OpenResource` pueden **colgarse**. Esto encaja con que el
+`side_channel_unavailable` (no un READY tardío) y con que el `a6` del llamador no sea la causa
+(`_AudioInit` guarda y re-setea `A6`; el playroutine usa `A4`/`A6` internamente).
 
 ## Siguiente paso
 
