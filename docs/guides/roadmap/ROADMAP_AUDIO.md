@@ -89,7 +89,10 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
   estable (junto con `GameAudio` para la política de juego) y un ejemplo de uso completo
   (boot → gameplay → título → pausa).
 - **Verificación**: demo que ejercita todos los modos y la política de SFX sin tocar registros.
-- **Estado**: pendiente.
+- **Estado**: **entregado**. La superficie estable es `AudioSystem` (`init`/`set_mode`/`play_sfx`/
+  `play_music`/`stop_*`) + `GameAudio` (política: banco/cooldown/prioridad/ducking). Demos:
+  **`217_audio_game_example`** (boot→título→gameplay→pausa con modos + SFX) y `216_audio_modes` +
+  `062_game_audio`. Pendiente fino: el *handover* completo mixer↔OctaMED (ver A0).
 
 ## Tests y demos previstos
 
@@ -117,7 +120,10 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
 
 ## Estado
 
-La capa de juego (`GameAudio`), el mixer y P61/Protracker **ya existen** (demos 058–062). Entregados:
-**A0** (modos y reparto de canales, HOST-269), **A2** (eventos `MusicEnd`/`AudioUnderrun`, HOST-270)
-y **A3** (codec Delta + RLE, HOST-242). **A5** es parcial (`ChunkStream`, HOST-257). Pendientes:
-**A1** (OctaMED; el spike de VASM está validado), **A4** (ZX0/aPLib) y **A6** (ejemplo de juego).
+La capa de juego (`GameAudio`), el mixer y P61/Protracker **ya existen** (demos 058–062).
+Entregados: **A0** (modos y reparto de canales, HOST-269), **A2** (eventos
+`MusicEnd`/`AudioUnderrun`, HOST-270), **A3** (codec Delta + RLE, HOST-242) y **A6** (ejemplo de
+juego, demo `217_audio_game_example`). **A1** tiene la **infra lista** (ASM vendorizado + 
+`OctaMedPlayer`) pero el **runtime `_startmusic` cuelga** (ver
+`docs/debugging/octamed-startmusic-hang.md`). **A5** es parcial (`ChunkStream`, HOST-257).
+**A4** (ZX0/aPLib) pendiente.
