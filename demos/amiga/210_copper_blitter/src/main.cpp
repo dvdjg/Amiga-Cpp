@@ -23,6 +23,7 @@
 // ============================================================================
 
 #include <eng/api/api.hpp>
+#include <eng/api/effects.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/raster_intent.hpp>
 #include <eng/platform/amiga_minimal.hpp>
@@ -51,12 +52,7 @@ constexpr eng::u16 kBufWords = 21u;              // + 1 word: guarda/columna ent
 constexpr eng::u16 kRowBytes = kBufWords * 2u;   // 42 B/fila
 constexpr eng::u16 kRows = 256u;
 constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kRowBytes) * kRows;
-constexpr eng::u16 kLastWord = kPlaneWords - 1u; // 19
-constexpr eng::u16 kInWord = kBufWords - 1u;     // 20: columna que entra
 constexpr eng::u16 kBlitLine = 0x130;            // 304: borde inferior (referencia de ventana)
-/// Palabras que lanza el scroll de CPU por frame (shift 20x256 + columna 1x256): el blit del
-/// Copper debe caer DESPUES de estos (Blitter unico).
-constexpr eng::u16 kCpuBlitWords = static_cast<eng::u16>(kPlaneWords * kRows + kRows);
 
 struct ScrollEdgeDemo {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
@@ -85,7 +81,10 @@ struct ScrollEdgeDemo {
 				plane[static_cast<eng::u32>(row) * (kRowBytes / 2u) + w] = col_value(w, row);
 			}
 		}
-		m_col = kInWord;
+		if (!m_scroll.attach({.plane = plane, .rows = kRows, .visible_words = kPlaneWords})) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00021004u);
+			return;
+		}
 
 		// `src`/`dst` para el blit del Copper; `dst` a cero.
 		eng::Words<eng::SpriteTag> s = m_src.view.as_words();
@@ -105,18 +104,24 @@ struct ScrollEdgeDemo {
 		eng::debug::mark_ready(g_eng_run_status, 0x00021000u);
 	}
 
-	void update(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
+	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
+		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		// Blit del Copper (frame anterior): verifica la copia y limpia el destino.
 		m_last_ok = copied();
 		zero_dst();
 		m_scroll_ok = scroll_step(backend);
+		// Linea de raster real al terminar los blits de CPU: suelo de la ventana del Copper.
+		m_cpu_end_line = backend.current_raster_line();
 		const eng::u16* cl = build_copper();
 		if (cl != nullptr) {
 			backend.install_copper_list(cl);
 		}
+		// Telemetria del scroll fino en `detail` (bits 16-23, convencion `cameraX`): el runner
+		// captura frame-exacto en cada valor de `fine` con `--sequence-fine-x` y mide el offset.
+		const eng::u16 fine = static_cast<eng::u16>((16u - m_scroll.bplcon1()) & 15u);
+		const eng::u32 status = (m_last_ok && m_patch_ok && m_scroll_ok) ? 0x00001fffu : 0x00001000u;
 		eng::debug::mark_ready(g_eng_run_status,
-				       (m_last_ok && m_patch_ok && m_scroll_ok) ? 0x00021fffu
-										: 0x00021000u);
+				       (static_cast<eng::u32>(fine) << 16u) | status);
 	}
 
 	void render(eng::amiga::MinimalBackend&, eng::GameContext& context) {
@@ -134,50 +139,28 @@ private:
 		return (((row + abs_col * 4u) & 63u) < 16u) ? 0xffffu : 0x0000u;
 	}
 
-	/// **Borde de scroll fino**: avanza `BPLCON1` 1 px cada frame; al cruzar 16 px, desplaza la
-	/// pantalla una columna (Blitter) y escribe la columna nueva. Verifica
-	/// `word(w,row) == col_value(m_col-20+w, row)`.
+	/// **Borde de scroll fino** (`effects::FineScroll`): avanza 1 px/frame; al cruzar 16 px, el
+	/// helper da los `BlitJob` de shift + columna nueva. Verifica que el buffer quede coherente.
 	bool scroll_step(eng::amiga::MinimalBackend& backend) {
-		++m_fine;
-		if (m_fine < 16u) {
+		if (!m_scroll.step()) {
 			return true; // solo fine scroll (BPLCON1); el buffer no cambia
 		}
-		m_fine = 0; // cruce de word: shift + columna nueva
-		eng::u16* plane = plane_words();
-		// 1) Shift: words 0..19 = words 1..20 (una columna a la izquierda).
-		eng::graphics::BlitJob shift {};
-		shift.kind = eng::graphics::BlitJobKind::CopyRect;
-		shift.source = plane + 1;
-		shift.destination = plane;
-		shift.words_per_row = kPlaneWords;
-		shift.height = kRows;
-		shift.source_modulo_bytes = 2;
-		shift.destination_modulo_bytes = 2;
-		shift.bitplane_count = 1u;
-		if (!backend.blitter_submit(shift, true)) {
-			return false;
-		}
-		// 2) Columna nueva en el word 20 (la absoluta `m_col+1`).
-		++m_col;
+		// Contenido de la columna que entra.
 		eng::Words<eng::SpriteTag> col = m_col_vals.view.as_words();
 		for (eng::u16 r = 0; r < kRows; ++r) {
-			col[r] = col_value(m_col, r);
+			col[r] = col_value(m_scroll.column(), r);
 		}
-		eng::graphics::BlitJob draw {};
-		draw.kind = eng::graphics::BlitJobKind::CopyRect;
-		draw.source = col.data();
-		draw.destination = plane + kInWord;
-		draw.words_per_row = 1u;
-		draw.height = kRows;
-		draw.source_modulo_bytes = 0;
-		draw.destination_modulo_bytes = static_cast<eng::s16>(kRowBytes - 2u);
-		draw.bitplane_count = 1u;
-		if (!backend.blitter_submit(draw, true)) {
+		if (!backend.blitter_submit(m_scroll.shift_job(), true)) {
 			return false;
 		}
-		// 3) Verificacion: word(w) = columna (m_col - 20 + w).
+		if (!backend.blitter_submit(m_scroll.column_job(col.data()), true)) {
+			return false;
+		}
+		// Verificacion: word(w) = columna (`column() - visible + w`).
+		const eng::u16* plane = plane_words();
 		for (eng::u16 w = 0; w < kBufWords; ++w) {
-			const eng::u16 abs = static_cast<eng::u16>(m_col - kInWord + w);
+			const eng::u16 abs =
+				static_cast<eng::u16>(m_scroll.column() - kPlaneWords + w);
 			for (eng::u16 row = 0; row < kRows; row += 32u) {
 				if (plane[static_cast<eng::u32>(row) * (kRowBytes / 2u) + w] !=
 				    col_value(abs, row)) {
@@ -243,12 +226,10 @@ private:
 
 	[[nodiscard]] const eng::u16* build_copper() {
 		eng::copper::SchedulerT<false> sched { m_copper };
-		sched.emit_planes_display(0x2c81, 0x2cc1, 0x0030, 0x00d0,
+		sched.emit_planes_display(0x2c81, 0x2cc1, eng::effects::FineScroll::ddfstrt(), 0x00d0,
 					  kRowBytes, 0x1200, 1u, m_bitmap.view, kPlaneBytes);
-		// Scroll fino: `BPLCON1` es un delay; `(16 - fine) & 15` da `display_start = m_fine`
-		// (patrón del driver `tile_scroll`, con DDFSTRT=$30 = fetch de 1 word extra).
-		sched.move(eng::copper::Register::BPLCON1,
-			   static_cast<eng::u16>((16u - m_fine) & 15u));
+		// Scroll fino: `BPLCON1` es un delay; `effects::FineScroll` da el valor del frame.
+		sched.move(eng::copper::Register::BPLCON1, m_scroll.bplcon1());
 		sched.move(eng::copper::Register::DMACON,
 			   static_cast<eng::u16>(eng::copper::DmaSetClear | eng::copper::DmaMaster |
 						 eng::copper::DmaCopper | eng::copper::DmaBitplane |
@@ -264,9 +245,10 @@ private:
 		job.bltdpt = m_dst.view.data();
 		job.bltsize = static_cast<eng::u16>((4u << 6u) | 64u);
 		// Ventana segura automatica: el blit del Copper debe caer DESPUES de los de CPU
-		// (el scroll lanza `kCpuBlitWords` al principio del frame; el Blitter es unico).
+		// (el Blitter es unico). `m_cpu_end_line` es la linea de raster REAL al terminar
+		// los blits de CPU del frame; el borde inferior es el suelo.
 		const eng::graphics::BlitterWindow win = eng::graphics::safe_blitter_window(
-			kCpuBlitWords, 0x2cu, kBlitLine, static_cast<eng::u16>(kBlitLine + 4u));
+			0u, m_cpu_end_line, kBlitLine, static_cast<eng::u16>(kBlitLine + 4u));
 		eng::graphics::CopperIntent it {};
 		it.kind = eng::graphics::CopperIntentKind::BlitterJob;
 		it.top = win.first;
@@ -292,8 +274,8 @@ private:
 	eng::Block<eng::CopperTag> m_patch_cl {};
 	eng::Block<eng::SpriteTag> m_patch_vals {};
 	eng::Block<eng::SpriteTag> m_col_vals {};
-	eng::u16 m_col = 0;
-	eng::u16 m_fine = 0;
+	eng::effects::FineScroll m_scroll {};
+	eng::u16 m_cpu_end_line = 0; // linea real al terminar los blits de CPU (suelo de la ventana)
 	bool m_last_ok = false;
 	bool m_patch_ok = false;
 	bool m_scroll_ok = false;

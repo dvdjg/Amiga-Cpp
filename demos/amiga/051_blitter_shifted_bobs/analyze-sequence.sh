@@ -8,7 +8,7 @@ RUN="$ROOT/tools/run/run-demo.sh"
 SEQ_ANALYZER="$ROOT/tools/analyze/analyze-frame-sequence.sh"
 PIXEL_ASSERT="$ROOT/tools/analyze/assert-pixel-contract.sh"
 PIXEL_CONTRACT="$(dirname "${BASH_SOURCE[0]}")/pixel-contract.json"
-SEQ_DIR="$ROOT/out/run/051_blitter_shifted_bobs/sequence"
+SEQ_DIR="$ROOT/out/run/051_blitter_shifted_bobs/A500_debug/sequence"
 PIXEL_OUT="$ROOT/out/analysis/051_blitter_shifted_bobs/pixel-assert"
 
 WARP=0; PA=0; REQUIRE_PA=0

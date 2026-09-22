@@ -436,6 +436,92 @@ async function captureFrameSequenceByRunStatusTarget(protocol, sequenceDir, targ
   };
 }
 
+/**
+ * Captura una secuencia de frames **consecutivos** (1 frame entre capturas) usando el
+ * breakpoint del *ready probe* (`eng_debug_ready_probe`), que las demos llaman una vez por
+ * frame desde `probe_when_ready`. Al congelar la CPU en cada impacto, el run status y la
+ * imagen quedan en el MISMO frame (sin la latencia del polling del canal lateral), lo que
+ * permite medir desplazamientos por frame (p. ej. 1 px/frame de scroll fino).
+ *
+ * Requiere: canal lateral activo y el simbolo `eng_debug_ready_probe` en el `.map`.
+ */
+async function captureFrameSequenceStep(protocol, sequenceDir, frameCount, sideChannel, probeSymbol, startFine = null) {
+  if (!sideChannel?.runtimeAddress) {
+    throw new Error('--sequence-step-frames requiere canal lateral run status activo.');
+  }
+  if (probeSymbol === null || probeSymbol === undefined) {
+    throw new Error('--sequence-step-frames requiere el simbolo eng_debug_ready_probe (hook por frame).');
+  }
+
+  fs.rmSync(sequenceDir, { recursive: true, force: true });
+  fs.mkdirSync(sequenceDir, { recursive: true });
+  const frames = [];
+  let lastCapturedFrame = -1;
+  let aligned = startFine === null || startFine === undefined;
+  const perFrameTimeoutMs = 5000;
+
+  try { await protocol.pause(); } catch (err) { /* ya estaba parada */ }
+  await protocol.setBreakpoint(probeSymbol);
+  await protocol.continue();
+
+  let captured = 0;
+  let attempts = 0;
+  const maxAttempts = frameCount * 4 + 16;
+  try {
+    while (captured < frameCount && attempts < maxAttempts) {
+      ++attempts;
+      await protocol.waitForStop(perFrameTimeoutMs);
+      const frozen = await readSideChannelRunStatusOnce(
+        sideChannel.port,
+        sideChannel.runtimeAddress,
+        sideChannel.timeoutMs ?? 1000
+      );
+      const frameNumber = Number(frozen?.frame ?? -1);
+      // Alineacion de fase opcional: esperar a que el fine scroll valga `startFine` antes de
+      // capturar (evita el cruce de word / wrap que ensucia los primeros pares).
+      if (!aligned) {
+        if (decodeCameraFineX(frozen) !== startFine) {
+          await protocol.continue();
+          continue;
+        }
+        aligned = true;
+      }
+      // Si el probe se llama mas de una vez por frame, no recapturar el mismo frame.
+      if (frameNumber === lastCapturedFrame) {
+        await protocol.continue();
+        continue;
+      }
+      const framePath = path.join(
+        sequenceDir,
+        `frame_${String(frames.length).padStart(3, '0')}_f${String(frameNumber).padStart(4, '0')}.png`
+      );
+      const capturedAt = Date.now();
+      const frame: Record<string, any> = await captureScreenshot(protocol, framePath);
+      frame.capturedAtMs = capturedAt;
+      frame.runStatus = frozen;
+      frame.frozenFrame = frameNumber;
+      frames.push(frame);
+      lastCapturedFrame = frameNumber;
+      ++captured;
+      await protocol.continue();
+    }
+  } finally {
+    try { await protocol.clearBreakpoint(probeSymbol); } catch (err) { /* best effort */ }
+    try { await protocol.continue(); } catch (err) { /* best effort */ }
+  }
+
+  if (captured < frameCount) {
+    throw new Error(`No se pudo capturar la secuencia step completa. Capturados ${captured}/${frameCount}.`);
+  }
+
+  return {
+    directory: sequenceDir,
+    frames,
+    frameCount: frames.length,
+    frameStep: true,
+  };
+}
+
 function findMapSymbol(mapPath, symbolName) {
   if (!fs.existsSync(mapPath)) {
     return null;
@@ -847,6 +933,9 @@ const sideChannelTimeoutMs = parseInt(argValue('--side-channel-timeout-ms', proc
 const sideChannelPollMs = parseInt(argValue('--side-channel-poll-ms', process.env.ENG_SIDE_CHANNEL_POLL_MS || '50'), 10);
 const sequenceFrames = Math.max(0, parseInt(argValue('--sequence-frames', '0'), 10));
 const sequenceIntervalMs = Math.max(0, parseInt(argValue('--sequence-interval-ms', '100'), 10));
+const sequenceStepFrames = Math.max(0, parseInt(argValue('--sequence-step-frames', '0'), 10));
+const sequenceStepStartFineArg = argValue('--sequence-step-start-fine', '');
+const sequenceStepStartFine = sequenceStepStartFineArg === '' ? null : parseInt(sequenceStepStartFineArg, 10);
 const injectCommandsArg = argValue('--inject-commands', '');
 const injectCommands = injectCommandsArg === ''
   ? []
@@ -1249,6 +1338,20 @@ try {
       },
       decodeCameraFineX,
       'fineX'
+    );
+  } else if (sequenceStepFrames > 0) {
+    console.log(`[run-demo] capturing ${sequenceStepFrames} frame-step sequence frames (1 frame apart)`);
+    report.sequence = await captureFrameSequenceStep(
+      protocol,
+      path.join(outputDir, 'sequence'),
+      sequenceStepFrames,
+      {
+        port: sideChannelPort,
+        runtimeAddress: report.sideChannel?.runtimeAddress,
+        timeoutMs: 1000,
+      },
+      readyProbeSymbol,
+      sequenceStepStartFine
     );
   } else if (sequenceFrames > 0) {
     console.log(`[run-demo] capturing ${sequenceFrames} sequence frames every ${sequenceIntervalMs} ms`);

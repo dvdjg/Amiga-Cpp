@@ -321,6 +321,7 @@
 #include <eng/graphics/copper/double_buffer.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/frame_plan.hpp>
+#include <eng/graphics/playfield_scroll.hpp>
 #include <eng/graphics/sprite_manager.hpp>
 #include <eng/memory/arena.hpp>
 
@@ -349,7 +350,7 @@ constexpr u16 kBitmapW64 = 384; // viewport 320+64
 constexpr u16 kBlocksPerRow32 = 22;
 constexpr u16 kBlocksPerRow64 = 24;
 constexpr u16 kBlocksPerCol = 16; // viewport_h/tile_height por defecto 256/16
-constexpr u16 kDdfStrt = 0x0030;
+constexpr u16 kDdfStrt = eng::graphics::fine_scroll_ddfstrt;
 constexpr u16 kDdfStop = 0x00D0;
 constexpr u16 kDiwStrt = 0x2981;
 constexpr u16 kDiwStop = 0x29C1;

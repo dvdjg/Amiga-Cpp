@@ -40,6 +40,7 @@
 #include <eng/graphics/copper/double_buffer.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/palette32.hpp>
+#include <eng/graphics/playfield_scroll.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/tilemap/tile_scroll.hpp>
 #include <eng/memory/arena.hpp>
@@ -383,7 +384,7 @@ struct TileDisplayState {
 	u16 bpl2mod = 0;
 	u16 diwstrt = 0x2c81;
 	u16 diwstop = 0x2cc1;
-	u16 ddfstrt = 0x0030;
+	u16 ddfstrt = fine_scroll_ddfstrt;
 	u16 ddfstop = 0x00d0;
 	u32 plane_offsets[6] {};
 };
@@ -681,17 +682,13 @@ private:
 			clamp_scroll(input.playfield[0].y, max_scroll_y(), 0u),
 			clamp_scroll(input.playfield[1].y, max_scroll_y(), 0u),
 		};
-		const u8 fine[2] = {
-			static_cast<u8>(cam_x[0] & 15u),
-			static_cast<u8>(cam_x[1] & 15u),
-		};
 		const u8 bplcon1_nibble[2] = {
-			static_cast<u8>((16u - fine[0]) & 15u),
-			static_cast<u8>((16u - fine[1]) & 15u),
+			static_cast<u8>(fine_delay(cam_x[0])),
+			static_cast<u8>(fine_delay(cam_x[1])),
 		};
 		const u16 fetch_x[2] = {
-			static_cast<u16>((cam_x[0] - 1u) & 0xfff0u),
-			static_cast<u16>((cam_x[1] - 1u) & 0xfff0u),
+			fine_scroll_coarse(cam_x[0]),
+			fine_scroll_coarse(cam_x[1]),
 		};
 		const u32 pointer_offset[2] = {
 			static_cast<u32>(static_cast<u32>(input.page[0].y) * tile_size * surface_bytes_per_row +

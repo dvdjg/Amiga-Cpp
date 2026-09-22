@@ -158,6 +158,36 @@ La demo `040_palette_cycle_effect` usa ademas `run-report.json` como evidencia:
 su analizador comprueba que `g_eng_run_status.detail` contiene la marca
 `0x04xxxxxx` y una fase de ciclo distinta de cero.
 
+### Convencion de `detail` (telemetria de juego)
+
+Ademas del codigo de estado, `detail` (u32) transporta telemetria que el runner decodifica
+sin conocer la demo. La unica parte que el runner interpreta de forma general es **`cameraX`
+en los bits 16-23** (`detail >>> 16 & 0xff`); el resto de campos son de la demo:
+
+| bits | campo | uso |
+|---|---|---|
+| 24-31 | base / marca | identifica el tipo de estado (p. ej. `0x11` en la 101, `0x04` en la 040) |
+| 16-23 | `cameraX` | posicion horizontal de camara (0-255) del ultimo `update`; **lo lee el runner** |
+| 8-15 | `cameraY` | posicion vertical (0-255), si la demo la publica |
+| 4-7 | flags / trabajos | p. ej. `tile_jobs` o `prefetch_flags` |
+| 0-3 | verificacion | bits de checks propios de la demo |
+
+Con `cameraX` el runner captura **frame-exacto** por telemetria (congela la CPU, lee el run
+status y reanuda; no depende del tiempo real):
+
+- `--sequence-camera-x a,b,c` captura un frame por cada valor de `cameraX`.
+- `--sequence-fine-x a,b,c` hace lo mismo con `cameraX & 15` (fine scroll 0..15).
+- `--sequence-step-frames N [--sequence-step-start-fine F]` captura **N frames consecutivos**
+  (1 frame entre capturas) usando el breakpoint de `eng_debug_ready_probe`, que las demos
+  llaman una vez por frame desde `probe_when_ready`: al congelar la CPU en cada impacto, el
+  run status y la imagen quedan en el MISMO frame (sin la latencia del polling de los modos
+  anteriores). Con `--sequence-step-start-fine F` se alinea la captura a ese `fine scroll`
+  (p. ej. `2`) para evitar el cruce de word (`15 -> 0`) de cada 16 frames.
+
+Las capturas se guardan en `out/run/<demo>/sequence` como `frame_NNN_cameraXNN.png` /
+`frame_NNN_fineXNN.png`. Que la demo publique su scroll fino en `cameraX` es lo que habilita
+esta via (ejemplo: `210_copper_blitter` escribe `detail = (fine << 16) | 0x1FFF`).
+
 Para consultar una instancia viva manualmente:
 
 ```powershell

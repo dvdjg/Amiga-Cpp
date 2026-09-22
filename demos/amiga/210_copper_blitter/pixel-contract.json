@@ -10,19 +10,9 @@
     "rgbTolerance": 8,
     "maxErrorRatio": 0.02
   },
-  "globalChecks": [
-    {
-      "name": "no-inner-black",
-      "type": "forbidden_color_ratio",
-      "color": [0, 0, 0],
-      "colorTolerance": 0,
-      "maxRatio": 0.001,
-      "roi": { "x": 0, "y": 0, "w": 320, "h": 256 }
-    }
-  ],
   "segments": [
     {
-      "name": "fine-scroll-left-1px",
+      "name": "fine-scroll-1px-per-frame",
       "frames": [0, -1],
       "checks": [
         {

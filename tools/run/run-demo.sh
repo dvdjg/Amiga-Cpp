@@ -4,7 +4,9 @@
 # lateral (g_eng_run_status). Sustituye al antiguo run-demo.ps1 (multiplataforma).
 #
 # Uso: tools/run/run-demo.sh <demo|test> [--wait-ms N] [--warp] [--keep-running]
-#       [--sequence-frames N] [--sequence-interval-ms N] [--mouse-from X1,Y1
+#       [--sequence-frames N] [--sequence-interval-ms N]
+#       [--sequence-step-frames N [--sequence-step-start-fine F]]
+#       [--mouse-from X1,Y1
 #       --mouse-to X2,Y2] [--screenshot ruta] [--protect target,block|set:0xVALUE,size] ...
 # --protect se puede repetir; target es un simbolo del .map (se reloca tras
 # READY por canal lateral) o una direccion hex 0x... . Usa WinUAE-DBG v2.1.

@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "viewport": {
+    "mode": "auto_non_black",
+    "threshold": 8,
+    "logicalWidth": 320,
+    "logicalHeight": 208
+  },
+  "defaults": {
+    "rgbTolerance": 8,
+    "maxErrorRatio": 0.05
+  },
+  "segments": [
+    {
+      "name": "background-parallax-1px-per-frame",
+      "frames": [0, -1],
+      "checks": [
+        {
+          "name": "shift-left-1px-per-frame",
+          "type": "shifted_region_match",
+          "roi": { "x": 32, "y": 24, "w": 256, "h": 160 },
+          "dx": -1,
+          "dy": 0,
+          "rgbTolerance": 12,
+          "maxErrorRatio": 0.05
+        }
+      ]
+    }
+  ]
+}

@@ -246,9 +246,14 @@ struct DemoGame {
 			m_ship_py = m_ship_y;
 		}
 
+		// `cameraX` en los bits 16-23 (convención del runner: `--sequence-fine-x` y
+		// `--sequence-step-start-fine` leen ese byte); el byte alto del scroll X y el
+		// scroll Y van en los bits bajos para conservar la posición completa.
+		const eng::u32 scroll_x = static_cast<eng::u32>(scene.bg().mapposx());
 		g_eng_run_status.detail = 0x11100000u |
-			((static_cast<eng::u32>(scene.bg().mapposx()) & 0xffffu) << 8) |
-			(static_cast<eng::u32>(scene.bg().mapposy()) & 0xffu);
+			((scroll_x & 0xffu) << 16) |
+			((static_cast<eng::u32>(scene.bg().mapposy()) & 0xffu) << 8) |
+			((scroll_x >> 8) & 0xffu);
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
