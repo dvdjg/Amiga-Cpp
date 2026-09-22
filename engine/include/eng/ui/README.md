@@ -24,13 +24,14 @@ No depende del mini-SO (`eng::os`), pero se integra con él por el puente `os::M
 | `widget.hpp` | `WidgetType`, `WidgetFlags` y `Widget` (árbol intrusivo, sin heap ni `virtual`). **Implementado** (HOST-224). |
 | `dirty.hpp` | `DirtyList<Max>` con fusión de regiones (rects = `eng::Box`). **Implementado** (HOST-224). |
 | `event.hpp` | `UiEvent`, `UiEventKind`. **Implementado** (HOST-220). |
-| `widgets.hpp` | `Panel`/`Label` (G1), `Button` (G2), `CheckBox`/`RadioButton` (G3). Despacho por `switch` exhaustivo y `measure`. **Implementado** (HOST-224/225/226). |
-| `context.hpp` | `UiContext`: hit-test de delante hacia atrás, foco y despacho. **Implementado** (HOST-225). |
-| `editbox.hpp` | `EditBox` (buffer externo, caret, foco). |
-| `layout.hpp` | `layout_stack_v`/`layout_stack_h` y anclaje. |
-| `window.hpp` | `Window`, `WindowKind` (`Window`/`Popup`/`Toast`/`Dialog`) y Z-order. |
-| `backing.hpp` | `WindowBacking` (`FlatPlayfield` + `Surface` en Chip RAM). |
-| `compositor.hpp` | `Compositor` (move/resize/raise/damage/present; *copies* de backings a pantalla). |
+| `widgets.hpp` | `Panel`/`Label` (G1), `Button` (G2), `CheckBox`/`RadioButton` (G3), `Window` (G6). Despacho por `switch` exhaustivo y `measure`. **Implementado** (HOST-224/225/226/229). |
+| `keys.hpp` | Teclas lógicas de la UI (imprimibles ASCII/Latin-1 + edición/navegación). **Implementado** (HOST-227). |
+| `editbox.hpp` | `EditBox` (buffer externo, caret, vista horizontal). **Implementado** (HOST-227). |
+| `context.hpp` | `UiContext`: hit-test, foco (`Tab`), modalidad, `Esc`, popups y TTL de toasts. **Implementado** (HOST-225/229). |
+| `layout.hpp` | `layout_stack_v`/`layout_stack_h` y `anchor`. **Implementado** (HOST-228). |
+| `window.hpp` | `Window`, `WindowKind` (`Window`/`Popup`/`Toast`/`Dialog`) y Z-order. **Implementado** (HOST-229). |
+| `backing.hpp` | `WindowBacking` (lienzo planar + `Surface`). **Implementado** (HOST-230). |
+| `compositor.hpp` | `Compositor` (add/raise/move/resize/damage/present; *copies* de backings a pantalla). **Implementado** (HOST-230). |
 | `ui_bridge.hpp` | Puente `eng::os::Msg` → `UiEvent`. **Implementado** (HOST-220). |
 
 Los rectángulos de UI son `eng::Box` (`eng/core/box.hpp`); no hay un `rect.hpp` propio. Reglas del

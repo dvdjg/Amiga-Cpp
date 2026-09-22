@@ -263,6 +263,10 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-224 | [ui_widgets](224_ui_widgets/README.md) | GUI G1: árbol de widgets (`eng/ui/widget.hpp`), `DirtyList<Max>` (fusión/desborde) y `Panel`/`Label` con `draw_widget` (`switch` exhaustivo) y `measure`. |
 | HOST-225 | [ui_context](225_ui_context/README.md) | GUI G2: `eng::ui::UiContext` (hit-test de delante hacia atrás, foco, despacho) y `Button` (`on_click` al soltar dentro, una vez). |
 | HOST-226 | [ui_toggle](226_ui_toggle/README.md) | GUI G3: `CheckBox` (alterna `*value` al soltar dentro) y `RadioButton` (activa uno y desactiva el grupo por `group_id`). |
+| HOST-227 | [ui_edit](227_ui_edit/README.md) | GUI G4: foco de teclado (`Tab`/`Shift+Tab`) y `EditBox` (buffer externo, insertar/borrar, caret y vista horizontal). |
+| HOST-228 | [ui_layout](228_ui_layout/README.md) | GUI G5: `layout_stack_v`/`layout_stack_h`, `anchor`, `measure` de botón y cambio de tema (recolorea). |
+| HOST-229 | [ui_windows](229_ui_windows/README.md) | GUI G6: ventanas (`Window`/`Popup`/`Toast`/`Dialog`), Z/`raise`, modalidad, `Esc`, TTL y popup que cierra al pulsar fuera. |
+| HOST-230 | [ui_compositor](230_ui_compositor/README.md) | GUI G7: compositor con `WindowBacking` (componer de atrás hacia delante, mover/redimensionar sin repintar vecinas, pool con cota). |
 | HOST-231 | [box](231_box/README.md) | `eng::Box` (rect 16 bits) + adaptadores a/desde `SurfaceRect`/`ClipRect`/`DirtyRect` (round-trip y bordes). |
 | HOST-232 | [draw_target](232_draw_target/README.md) | `field::DrawTarget` (Surface+Rasterizer+FramePlan+clip): `fill`/`line`/`frame`/`c2p` y `box()`. |
 | HOST-233 | [api_facade](233_api_facade/README.md) | Fachada pública `eng/api/api.hpp`: un solo include expone la API estable (Box, FramePlan, raster, entrada, tareas, paleta, `GameModule`). |

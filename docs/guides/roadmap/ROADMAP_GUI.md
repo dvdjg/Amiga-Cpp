@@ -66,8 +66,10 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 - **Entregable**: foco (`WfFocused`, `Tab`/`Shift+Tab`), `EditBox` (buffer externo, caret,
   inserción/borrado, `view` horizontal), `UiEventKind::Tick` para el caret.
 - **Verificación**: **HOST-227** — inserción en medio, backspace, `Left`/`Right`, límite de
-  capacidad, `ensure_caret_visible`; `Tab` cicla solo dentro del modal.
-- **Estado**: pendiente.
+  capacidad, `ensure_caret_visible`; `Tab` cicla dentro del modal (G4 sin modales aún: en todo el
+  árbol).
+- **Estado**: **entregado** (`keys.hpp` + `editbox.hpp` + foco en `context.hpp`; **HOST-227**). La
+  traducción rawkey Amiga → tecla lógica (`keys.hpp`) es del input y está **pendiente**.
 
 ### G5 — Layout y presets de tema
 
@@ -75,7 +77,8 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
   cambio de tema en caliente (dirty de todo).
 - **Verificación**: **HOST-228** — la pila coloca con `gap`/paddings; un botón mide por
   `text_width` + `btn_h`; cambiar de tema recolorea los widgets.
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`layout.hpp` + `mark_all_dirty`; **HOST-228**). Los hijos se colocan
+  en **orden de creación**.
 
 ### G6 — Ventanas: Window/Popup/Toast/Dialog
 
@@ -83,7 +86,7 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
   frames, no capta input) y `Dialog` (modal: filtra hit-test y foco).
 - **Verificación**: **HOST-229** — `raise` cambia el orden; el modal bloquea el escritorio; `Esc`
   cierra el diálogo/popup superior; el toast expira tras su TTL.
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`window.hpp` + modalidad/popups/toasts en `context.hpp`; **HOST-229**).
 
 ### G7 — Compositor con backing store
 
@@ -94,7 +97,8 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 - **Verificación**: **HOST-230** — `move_window` daña origen y destino sin marcar `content_dirty`
   ajeno; `compose_region` copia los trozos correctos de los backings (comparar contra un patrón
   de referencia); `resize` marca solo su ventana; el pool falla limpio si no cabe.
-- **Estado**: pendiente.
+- **Estado**: **entregado** (`backing.hpp` + `compositor.hpp`; **HOST-230**). El *copy* es por CPU
+  (píxel a píxel); en G8 se acelerará con Blitter (`CopyRect`).
 
 ### G8 — Aceleración Blitter y demo en hardware
 
@@ -139,10 +143,11 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 
 ## Estado
 
-**G0–G3 entregados** (`theme.hpp`/`painter.hpp`/`text.hpp` HOST-223; `widget.hpp`/`dirty.hpp`/
-`widgets.hpp` con `Panel`/`Label` HOST-224; `context.hpp` + `Button` HOST-225; `CheckBox`/
-`RadioButton` HOST-226). G4–G8 pendientes. El siguiente paso es **G4** (foco de teclado y
-`EditBox`), que sigue sin depender del compositor ni del mini-SO.
+**G0–G7 entregados** (HOST-223…HOST-230): `theme`/`painter`/`text`, `widget`/`dirty`/`widgets`
+(`Panel`/`Label`/`Button`/`CheckBox`/`RadioButton`), `keys`/`editbox`/`context` (foco), `layout`,
+`window` (Window/Popup/Toast/Dialog) y `backing`/`compositor`. Solo queda **G8**: la **demo en
+hardware** (`207_gui_widgets`) + aceleración Blitter (`fill_rect` D-only, copias del compositor) y
+el cursor por sprite. En G8 se expondrá la superficie estable en `eng/api/api.hpp`.
 
 La GUI queda **fuera** de `eng/api/api.hpp` hasta que exista su primer consumidor hardware (demo
 G8); entonces se expondrá solo la superficie estable. El `fill_rect` D-only del raster se deja
