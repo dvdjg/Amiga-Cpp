@@ -152,7 +152,7 @@ CONFIG que pidas). Verifica que corres la build de la fuente actual, no un
 
 - Hay un bug de arranque/display aún abierto (doble texto + banda azul
   intermitente) documentado en
-  `docs/debugging/DEBUG_DEMO_ARRANQUE_DOBLE_TEXTO_BANDA.md`; afecta a la demo
+  `docs/debugging/debug-demo-arranque-doble-texto-banda.md`; afecta a la demo
   060 y a la 201. Si la Oleada 1 toca la toma de display, ten en cuenta ese bug.
 - Regla del proyecto: persistir solo la mejor información; no duplicar; no
   introducir metainformación de proceso en docs de referencia (va al commit).

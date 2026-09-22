@@ -547,7 +547,7 @@ Perfiles, coherentes con los de `eng::cards` (`N20`…`N512`): en el perfil mín
 
 ## 12. Determinismo y verificación
 
-Todo el sistema es determinista: con la misma semilla y la misma secuencia de eventos, la personalidad, las fugas, las lecturas y la evolución son idénticas, en host y en Amiga. Eso permite **test host** reproducibles y **escenarios** (como `docs/debugging/NPC_TABLE_SCENARIOS.md`): un pardillo al que se le escapa el póker, un listillo que finge, un observador que aprende tras N showdowns, un irascible que entra en tilt.
+Todo el sistema es determinista: con la misma semilla y la misma secuencia de eventos, la personalidad, las fugas, las lecturas y la evolución son idénticas, en host y en Amiga. Eso permite **test host** reproducibles y **escenarios** (como `docs/debugging/npc-table-scenarios.md`): un pardillo al que se le escapa el póker, un listillo que finge, un observador que aprende tras N showdowns, un irascible que entra en tilt.
 
 La verificación sigue las reglas de `docs/testing/README.md`: test host por pieza (`tests/host/NNN`), cruce `m68k` con la sonda de codegen (sin libcalls ni 68020) y, cuando exista, demo/juego como consumidor real. El plan por fases y la distribución de tests están en [ROADMAP_NPC_PSYCHOLOGY.md](../../guides/roadmap/ROADMAP_NPC_PSYCHOLOGY.md).
 
@@ -575,7 +575,7 @@ La verificación sigue las reglas de `docs/testing/README.md`: test host por pie
 | Avatares del juego | **Implementado en `games/200_holdem`**: caras y postura que reflejan los tells (build → run → analyze OK) |
 | NPC reactivo al ritmo del humano en ajedrez/Go (P6.3) | **Implementado en `games/100_chess` y `games/101_go`**: cara que bosteza/se impacienta según la espera (`gestures_for_pace`) y expresiones desde la búsqueda (`introspect`) |
 | Señales voluntarias del humano (P6.4) | **Parcial**: `expression_from_input` (HOST-205); falta que el NPC module su estado con las señales del humano |
-| Escenarios de mesa (`docs/debugging/`) | **Implementado**: `docs/debugging/NPC_TABLE_SCENARIOS.md` |
+| Escenarios de mesa (`docs/debugging/`) | **Implementado**: `docs/debugging/npc-table-scenarios.md` |
 
 > Estado: P0 (persona/arquetipos), P1 (expresión/fuga), P2 (lectura), P3 (evolución), P4
 > (convenciones), P5 (integración con `eng::cards`, rango con tells y avatares del juego),

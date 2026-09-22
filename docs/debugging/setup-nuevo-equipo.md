@@ -191,6 +191,6 @@ toolchain m68k del proyecto es 15.1).
   relocalización/addr2line). La 1.7.9 sobra.
 - El fork NO debe fusionar a ciegas el upstream de Bartman: sus fixes
   personalizados no están en upstream y el merge rompería el flujo (ver
-  `docs/debugging/HISTORIAL-CAMBIOS.md`).
+  `docs/debugging/historial-cambios.md`).
 - `-O0` es obligatorio para depurar con variables; `-O1` optimiza y GDB las
   pierde (`context` synthetic pointer, `saved_background <optimized out>`).

@@ -3,7 +3,7 @@
 /// \file floppy.hpp
 /// **Disquete a bajo nivel** (`eng::os`): control mecánico por CIA-B, DMA crudo de Paula y
 /// **decodificación MFM** en CPU. Es la alternativa a `trackdisk.device` (ver
-/// `docs/debugging/CONSULTA-GROK-DISCO-Y-LOADER.md` §Decisión): no depende del OS y da control
+/// `docs/debugging/consulta-grok-disco-y-loader.md` §Decisión): no depende del OS y da control
 /// total (formatos no-DOS, bootblocks, copy-protection).
 ///
 /// El chipset **no decodifica MFM**: `DSKPT`/`DSKLEN` vuelcan la pista cruda a **Chip RAM** y la

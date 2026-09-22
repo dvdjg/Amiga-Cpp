@@ -85,7 +85,7 @@ Los swaps por frame (doble buffer) NO repiten esta secuencia: usan
 `install_copper_list`, que solo actualiza el puntero COP1LC. El Copper recarga
 ese puntero por si solo al comienzo de cada VBlank, asi que nunca se debe disparar
 COPJMP1 desde un swap (reiniciaria el Copper a media pantalla y produciria el
-glitch de "banda de 1 frame" documentado en `docs/debugging/DEBUG_DEMO_ARRANQUE_DOBLE_TEXTO_BANDA.md`).
+glitch de "banda de 1 frame" documentado en `docs/debugging/debug-demo-arranque-doble-texto-banda.md`).
 
 Los drivers y compositores exponen la misma division: `takeover(Backend&)` para
 la primera instalacion y `install(Backend&)` para los swaps. `install_copper_list`

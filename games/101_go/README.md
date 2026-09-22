@@ -28,7 +28,7 @@ mueve el cursor.
 En la cabecera se dibuja una **cara del NPC** (las blancas) que refleja su estado desde la
 **introspección simulada** (`eng/sim/introspection.hpp`): sonríe si su búsqueda está clara,
 entrecierra los ojos si duda y **bosteza/se impacienta si el humano tarda**
-(`gestures_for_pace`). Ver `docs/debugging/NPC_TABLE_SCENARIOS.md` y HOST-206.
+(`gestures_for_pace`). Ver `docs/debugging/npc-table-scenarios.md` y HOST-206.
 
 ## Estado
 

@@ -237,7 +237,7 @@ de sprite, en `docs/engine/architecture/VISUAL_EFFECT_SPRITE_DESIGN.md`.
 | «Escena» duplicada | `scene::VirtualScene` vs `field::XlimitedScene` | F5 |
 | Política de buffers sin implementación | `virtual_scene.hpp:168,186` | F0 |
 | Doc↔código (13 words vs reemisión) | `xlimited.hpp:1488-1491` | F0 |
-| Referencia con deriva de línea | `DEBUG_DEMO_ARRANQUE_DOBLE_TEXTO_BANDA.md:189` | F0 |
+| Referencia con deriva de línea | `debug-demo-arranque-doble-texto-banda.md:189` | F0 |
 | Cifras de fps sin contexto de medida | `docs/guides/roadmap/BITACORA_SCROLL_TILES.md` (nota de rendimiento del scroll) | **resuelto** (F0.7): tabla trazable (fecha, commit, `CONFIG_ID`, `detail`) y `measure-fps` copia la build recién compilada a `dh1` antes de medir |
 | Demo canónica **rota**: 107 (corkscrew) no alcanza READY (A/B confirma que no es de F1.3) | `demos/amiga/107_xlimited_corkscrew` | F0 |
 | Supervisión de copper por escena inexistente | — (nace en F4) | F4 |

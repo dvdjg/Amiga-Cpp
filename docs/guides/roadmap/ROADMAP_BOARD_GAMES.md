@@ -217,7 +217,7 @@ Cierre: 9×9 legal y jugable en `P20`–`P64`; 13×13 solo con ≥ 512 kB; 19×1
 | B8.2 | `games/101_go` | Go 9×9 jugable (mismo flujo) | **build → run → analyze OK** (captura); pase/superko y pulido pendientes |
 | B8.2b | `demos/amiga/123_chess_match` | Partida autónoma entre dos motores (estilos agresivo/posicional), juez narrador, relojes y libro en memoria | **build → run → analyze OK** (captura); verificado `1. e4`, comentario del juez y resalte de última jugada |
 | B8.2c | `tools/board/selfplay` | Partidas completas en host con la misma configuración que la demo, `--verify` de coherencia, `--dump-positions` y export a **PGN** | **OK**: 300 partidas Chess960 verificadas (clave, legalidad, round-trip) sin fallos; `analyze_move` reanaliza cualquier jugada; HOST-187 cubre PGN y libro |
-| B8.3 | Matriz de rendimiento | Nodos/s y fps por CPU (68000/020/030) y perfil (`P20`…`P1M`); TT/caché vivos | **En curso**: línea base y cuello identificados en `docs/debugging/BOARD_SELFPLAY_AND_PERF.md`; optimización de generación de jugadas pendiente |
+| B8.3 | Matriz de rendimiento | Nodos/s y fps por CPU (68000/020/030) y perfil (`P20`…`P1M`); TT/caché vivos | **En curso**: línea base y cuello identificados en `docs/debugging/board-selfplay-and-perf.md`; optimización de generación de jugadas pendiente |
 | B8.4 | (Opcional) 13×13 | Solo si B8.3 confirma margen en A1200 | Demo/juego y medida |
 
 Cierre: las APIs dejan de estar "NO VERIFICADAS" y el roadmap se marca completo por fase. B8.1 y

@@ -137,7 +137,7 @@ es el consumidor real que retira el estado "NO VERIFICADA".
 | P6.2 | `sim/read.hpp` | El `ReadModel` se construye igual sobre asientos humanos (simetría de lectura) | **HOST-205** (hecho) |
 | P6.3 | `games/100_chess` / `games/101_go` | NPC reactivo al ritmo del humano: bostezo si tarda, resoplido, impaciencia; introspección simulada (confianza/duda/presión/sorpresa) desde la búsqueda | **HOST-206** + compilación m68k (hecho) |
 | P6.4 | `sim/communication.hpp` | El humano emite señales voluntarias (burlarse, amenazar, calmar) y el NPC las interpreta para modular su estado | Pendiente (parcial: `expression_from_input`) |
-| P6.5 | `docs/debugging/NPC_TABLE_SCENARIOS.md` | Escenarios de mesa: pardillo, listillo, observador que aprende, irascible en tilt, humano lento | Hecho |
+| P6.5 | `docs/debugging/npc-table-scenarios.md` | Escenarios de mesa: pardillo, listillo, observador que aprende, irascible en tilt, humano lento | Hecho |
 
 Cierre: el humano es un personaje más (sus gestos se leen y se emiten a propósito) y los
 rivales de ajedrez/Go se comportan como contrincantes vivos, no como motores silenciosos.

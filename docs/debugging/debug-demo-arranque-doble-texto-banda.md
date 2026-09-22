@@ -33,7 +33,7 @@ Toolchain/extension usada por el runner: `.vscode\extensions\bartmanabyss.amiga-
 2. Lee `docs/STRUCTURE.md` (dónde va cada archivo).
 3. Lee `docs/README.md` y `docs/CONTINUATION_CONTEXT.md` (historial del engine).
 4. Lee `docs/guides/optimization/OPTIMIZACION_GPP_68000.md` (problemas del
-   backend m68k, bitácora) y `docs/debugging/DEBUG-WINUAE-V2-GUIDE.md`
+   backend m68k, bitácora) y `docs/debugging/debug-winuae-v2-guide.md`
    (herramientas MCP/WinUAE).
 5. Revisa `docs/reference/ahrm/amiga-hardware-manual-index.md` (AHRM 3.ª edición
    local, texto completo en `.cat.md`) — **úsalo ante cualquier duda de

@@ -391,7 +391,7 @@ modelo de visión instalado y, si lo hay, por cada demo hace SIEMPRE tres cosas:
    planos, offsets…
 
 Guarda `<imagen>.vision.txt`, `<origen>.ops.txt`, `<resultado>.compare.txt`, un
-`vision_report.md` por carpeta y el resumen global `VISION_SUMMARY.md`.
+`vision_report.md` por carpeta y el resumen global `VISION_summary.md`.
 
 ```bash
 node tools/amiga-tiles/run-vision-verify.mjs            # auto: ollama+visión, describe, compara y propone

@@ -320,7 +320,7 @@ Para **comprobar** que ha salido: poner un breakpoint en la instrucción que sig
 
 ## WinUAE-DBG v2.1 — monitor extensions (status / watch / protect / rewind)
 
-> **Guía "cuándo usar" para la IA**: [DEBUG-WINUAE-V2-GUIDE.md](DEBUG-WINUAE-V2-GUIDE.md)
+> **Guía "cuándo usar" para la IA**: [debug-winuae-v2-guide.md](debug-winuae-v2-guide.md)
 > (inventario de tools, síntoma→herramienta, periférico `0xB70000` y checkpoint
 > profiler, verificación, limitaciones).
 

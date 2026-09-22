@@ -73,7 +73,7 @@ constexpr eng::u32 kDemoTtEntries = 16384u;
 constexpr eng::u16 kMaxDepth = 12u;
 // Una sola busqueda por jugada con presupuesto de nodos. Llamar a `search` por
 // rebanadas (una por frame) reinicia la ID y paga la generacion de la raiz cada vez;
-// medido en el A500, eso domina el coste. Ver docs/debugging/BOARD_SELFPLAY_AND_PERF.md.
+// medido en el A500, eso domina el coste. Ver docs/debugging/board-selfplay-and-perf.md.
 constexpr eng::u64 kMoveNodes = 24u;
 
 // --- Reloj -----------------------------------------------------------------

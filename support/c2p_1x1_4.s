@@ -15,7 +15,7 @@
 
    Sin `.cfi_startproc/_endproc`: es asm hoja (no necesita unwind) y, ademas, un
    `.eh_frame` no vacio desajustaba la enumeracion de secciones del canal lateral
-   respecto al `.map` (la demo "no alcanzaba READY"; ver HISTORIAL-CAMBIOS.md). Igual
+   respecto al `.map` (la demo "no alcanzaba READY"; ver historial-cambios.md). Igual
    que `fire_loop.s`/`fire_asm.s`.
 
    VERIFICADA por la demo 061 (`demos/amiga/061_c2p_chunky_4bpl`): su gate de

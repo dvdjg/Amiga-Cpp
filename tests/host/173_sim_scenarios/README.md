@@ -16,7 +16,7 @@ un mundo vivo.
   depredación) y no se superó la capacidad.
 
 El valor está en el digesto: análisis de los ajustes y analogías con el mundo real en
-`docs/debugging/SIM_ECOSYSTEM_SCENARIOS.md`.
+`docs/debugging/sim-ecosystem-scenarios.md`.
 
 ## Salida de referencia (resumen)
 

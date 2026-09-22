@@ -14,5 +14,5 @@ y `KeyState`.
 
 ## Estado
 
-Pasa con `g++` nativo (ver `SETUP_NUEVO_EQUIPO.md` §8). El backend de lectura
+Pasa con `g++` nativo (ver `setup-nuevo-equipo.md` §8). El backend de lectura
 (potgo/CIA/teclado) se cablea en la demo de input (pendiente).

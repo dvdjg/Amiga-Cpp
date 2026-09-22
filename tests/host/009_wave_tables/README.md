@@ -12,4 +12,4 @@ freestanding).
 ## Estado
 
 Pasa con `g++` nativo. Es el bloque base del procedimiento de depuración de
-sonido (`docs/debugging/AUDIO_DEBUG.md`).
+sonido (`docs/debugging/audio-debug.md`).

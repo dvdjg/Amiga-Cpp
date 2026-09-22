@@ -143,6 +143,15 @@ if [ "$#" -eq 0 ]; then
 			exit 1
 		fi
 	fi
+	# Docs de hallazgos: indexados en su README y con nombre kebab-case (AGENTS.md §1.3).
+	DOC_INDEX="$ROOT/tools/check/doc-index.mjs"
+	if [ -f "$DOC_INDEX" ] && command -v node >/dev/null 2>&1; then
+		echo "== doc-index =="
+		if ! node "$DOC_INDEX"; then
+			echo "doc-index fallo: doc de hallazgo huerfano o con nombre fuera de la convencion." >&2
+			exit 1
+		fi
+	fi
 	# Arquitectura: cabeceras fundamentales con diagrama ASCII (estricto).
 	DIAGRAMS="$ROOT/tools/check/architecture-diagrams.mjs"
 	if [ -f "$DIAGRAMS" ] && command -v node >/dev/null 2>&1; then

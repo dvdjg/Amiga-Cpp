@@ -25,7 +25,7 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 // Telemetría por frame del coste de render (blits, words, copper): se lee por el
 // canal lateral de WinUAE-DBG (`mem <addr> <len>`) para supervisar la homogeneidad
-// de la carga. Ver docs/debugging/DEBUG-WINUAE-V2-GUIDE.md y run_status.hpp.
+// de la carga. Ver docs/debugging/debug-winuae-v2-guide.md y run_status.hpp.
 extern "C" {
 __attribute__((used)) volatile eng::debug::FrameTelemetry g_eng_frame_telemetry {};
 }

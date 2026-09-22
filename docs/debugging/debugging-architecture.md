@@ -331,7 +331,7 @@ info address main         # Ver dirección de símbolo
 ### 8.1 Breakpoints No Se Activan
 
 **Causa**: Direcciones no relocadas.
-**Solución**: Implementar relocalización diferida en WinUAE (ver RELOCATION-FIX.md).
+**Solución**: Implementar relocalización diferida en WinUAE (ver relocation-fix.md).
 
 ### 8.2 Stack Trace Muestra Desensamblado
 

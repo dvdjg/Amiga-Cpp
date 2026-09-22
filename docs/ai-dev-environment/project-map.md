@@ -40,7 +40,7 @@ Limitaciones importantes: GDB acepta un cliente, el acceso CIA no está expuesto
 - `doc/BARTMAN-VSCODE-Y-EVOLUCION.md`: atribución, compatibilidad Bartman/fork/MCP y reglas para no romper `qOffsets`, `Z0/z0` ni `qRcmd`.
 - `build.bat`: build del ejecutable `bin/winuae-gdb.exe` con Visual Studio/NASM.
 - `od-win32/winuae_msvc15/deploy-winuae-to-amiga-debug.ps1`: despliegue automático a las extensiones instaladas.
-- `doc/RELOCATION-FIX.md` y `doc/DEBUGGING-ARCHITECTURE.md`: relocalización y cadena DAP -> MI -> RSP.
+- `doc/relocation-fix.md` y `doc/debugging-architecture.md`: relocalización y cadena DAP -> MI -> RSP.
 
 ## `mcp-debug-tools`
 

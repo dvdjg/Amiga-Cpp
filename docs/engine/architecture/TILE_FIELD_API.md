@@ -6,7 +6,7 @@
 > recentrado **no puede funcionar**: al recentrar, todas las celdas físicas cambian de tile de
 > mundo y el contenido solo cuadraría si ya estuviera pintado el viewport futuro, que no cabe
 > en el margen (para `left+right == margen == size-viewport` la ventana no tiene recorrido). Ver
-> `docs/debugging/106_SESION_TILEFIELD.md` y `docs/engine/architecture/CIRCULAR_VS_XLIMITED.md`.
+> `docs/debugging/106_sesion-tilefield.md` y `docs/engine/architecture/CIRCULAR_VS_XLIMITED.md`.
 >
 > **Canónico**: **XYLimited** (`XLimitedPlayfield` + `XlimitedScene` + `ScrollEngine` +
 > `XlimitedDisplayComposer`/`XlimitedDualComposer`), bitmap de scroll acotado con anillo+staging,

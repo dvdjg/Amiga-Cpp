@@ -113,7 +113,7 @@ herramientas o efectos combinables.
    - **Nunca aceptar una desviacion que tapa un glitch como decision final**: marcarla
      como pendiente hasta explicar por que el original no lo tiene.
    - Detalle del caso estudiado y lecciones:
-     `docs/debugging/LECCIONES-PORTE-BLITTER-DEMOSCENE.md`.
+     `docs/debugging/lecciones-porte-blitter-demoscene.md`.
 
 ## Flujo por efecto
 
