@@ -1,4 +1,4 @@
-# HOST-261 — Scroll horizontal fino (`effects::FineScroll`)
+# HOST-267 — Scroll horizontal fino (`effects::FineScroll`)
 
 Valida `eng::effects::FineScroll` (`eng/api/effects.hpp`), el helper reusable de **scroll fino
 de 1 px/frame** promovido desde la demo 210 (`demos/amiga/210_copper_blitter`):
@@ -23,7 +23,7 @@ El patrón del buffer lo genera el llamador (procedural o tilemap); para conteni
 ## Ejecución
 
 ```
-CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/261_fine_scroll
+CXX=<g++ del entorno> bash tools/run-host-tests.sh tests/host/267_fine_scroll
 ```
 
 Referencias: `docs/reference/amiga/techniques/README.md` (scroll fino `BPLCON1`/`DDFSTRT`),

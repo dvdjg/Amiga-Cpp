@@ -1,5 +1,5 @@
 // ============================================================================
-// Test HOST-261: `eng::effects::FineScroll` — scroll horizontal fino (1 px/frame)
+// Test HOST-267: `eng::effects::FineScroll` — scroll horizontal fino (1 px/frame)
 // ============================================================================
 //
 // Valida en host (sin Amiga) la logica pura del helper promovido desde la demo 210:
@@ -11,7 +11,7 @@
 //   5) Geometria de los `BlitJob` de desplazamiento y de columna entrante.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/261_fine_scroll
+//   bash tools/run-host-tests.sh tests/host/267_fine_scroll
 
 #include <cstdio>
 

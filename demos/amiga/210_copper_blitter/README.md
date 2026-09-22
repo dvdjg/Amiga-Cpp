@@ -45,7 +45,7 @@ borde superior no molesta; con el de CPU en la misma franja, sí).
 frame-exacta por valor de `fine` con `--sequence-fine-x`); Ollama
 (`qwen3-vl:8b-instruct-q8_0`) confirma rayas diagonales blancas sobre azul, sin anomalías.
 
-- **Host**: `tests/host/260_copper_blitter` (ventana segura) y `tests/host/261_fine_scroll`
+- **Host**: `tests/host/260_copper_blitter` (ventana segura) y `tests/host/267_fine_scroll`
   (cadencia de 1 px/frame del helper).
 - **Emulador (1 px/frame)**: `analyze-sequence.sh` captura frames **consecutivos** con
   `--sequence-step-frames 14 --sequence-step-start-fine 2` (congelando la CPU en el *ready
