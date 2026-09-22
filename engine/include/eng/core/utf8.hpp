@@ -41,6 +41,22 @@ constexpr u32 decode(const u8*& p) {
     return 0; // 3/4 bytes o continuación suelta: fuera de LATIN-1
 }
 
+/// Codifica el code point `cp` en UTF-8 (1-2 bytes, el rango que cubre `decode`) en `out`
+/// (>= 2 bytes). Devuelve el número de bytes escritos, o 0 si `cp` no es representable
+/// (>= U+0800). Es la inversa de `decode`.
+constexpr u8 encode(u32 cp, u8* out) {
+    if (cp < 0x80u) {
+        out[0] = static_cast<u8>(cp);
+        return 1u;
+    }
+    if (cp <= 0x7ffu) {
+        out[0] = static_cast<u8>(0xC0u | (cp >> 6u));
+        out[1] = static_cast<u8>(0x80u | (cp & 0x3Fu));
+        return 2u;
+    }
+    return 0u;
+}
+
 /// NTTP estructural que captura un literal de cadena (C++20 P0732).
 ///
 /// Uso:

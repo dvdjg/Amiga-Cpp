@@ -262,6 +262,10 @@ for demo_path in "${DEMO_DIRS[@]}"; do
 			run="pending"
 			run_args=("$RUN" "$relative_demo")
 			if [ "$WARP" -eq 1 ]; then run_args+=("--warp"); fi
+			# En un barrido, el emulador de la demo anterior puede quedar colgado ocupando el
+			# puerto GDB 2345 (falso fallo "puerto ocupado"); libera SOLO los PIDs que escuchan
+			# esos puertos (los de este barrido). No usar el script en paralelo con otro emulador.
+			run_args+=("--reset-emulator")
 			# --protect se propaga por env (ENG_PROTECT_SPECS) para que llegue
 			# tambien a analyze-sequence.sh sin tocar sus parsers de args.
 			if "${run_args[@]}"; then

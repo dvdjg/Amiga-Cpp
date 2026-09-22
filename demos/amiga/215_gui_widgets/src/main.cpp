@@ -4,14 +4,20 @@
 //   arbol de widgets (Panel/Label/Button/CheckBox/RadioButton/EditBox/Slider)
 //   -> UiPainter (chrome + texto con Font8) -> Surface -> planos EHB.
 //
-// El dibujo va por `scene.surface()` (CPU): la demo pide rellenos, biseles, lineas y
-// texto y el engine enruta al layout, sin que la app vea planos ni punteros. NO se
-// instala el rasterizador Blitter: un relleno grande por Blitter es asincrono y
-// pisaria los trazos CPU del mismo frame. La parte estatica se pinta una sola vez;
-// por frame solo se repinta la zona animada (pista del slider), con repintado por
-// zona para no barrer la pantalla entera a 50 fps.
+// El dibujo va por `scene.surface()`: la demo pide rellenos, biseles, lineas y texto y el
+// engine enruta al layout, sin que la app vea planos ni punteros. Los *fills* de caja van por
+// el **Blitter D-only** (`RectFillSink` + `blitter_fill_rect`, sincrono); las lineas y el texto
+// por CPU. La parte estatica se pinta una sola vez; por frame solo se repinta la zona animada
+// (pista del slider), con repintado por zona.
+//
+// El **cursor es un sprite de hardware** (canal 0): estructura DMA en Chip RAM + `SPR0PT` en la
+// copperlist + `DMACON` SPREN; sigue al raton (`poll_mouse`) reescribiendo POS/CTL. La captura
+// PNG del runner **no incluye sprites** (verificado: la demo 206 tampoco los muestra), asi que el
+// cursor se valida por los registros/copperlist (self-test) y no por el gate de pixeles.
 #include <eng/api/api.hpp>          // fachada: escena, dibujo, paleta, GUI (eng::ui), run_status
+#include <eng/graphics/copper/scheduler.hpp>
 #include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/input_poll.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -51,9 +57,20 @@ static_assert(scene::valid_scene(kRes, scene::ocs_a500), "215: EHB 320x256 en A5
 constexpr eng::Palette32 kPalette {{
 	0x012, 0xeee, 0x001, 0xfff, 0x248, 0x46a, 0x111, 0xf80,
 	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
-	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
+	// COLOR16-19: par de sprite 0/1 (cursor de hardware). 16 = color 1 (blanco),
+	// 17 = color 2 (negro, contorno), 18/19 sin usar.
+	0xfff, 0x000, 0xf00, 0x0f0,
 	0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000,
 }};
+
+/// Cursor de hardware: 16x16, 1 palabra por linea (SPRxDATA = color 1, SPRxDATB = color 2).
+constexpr eng::u16 kCursorH = 16u;
+/// Flecha de raton (16 filas; bit15 = pixel izquierdo). DAT = cuerpo (blanco),
+/// DATB = contorno (negro) en los pixeles alrededor del cuerpo.
+constexpr eng::u16 kCursorDat[kCursorH] = {
+	0x8000u, 0xc000u, 0xe000u, 0xf000u, 0xf800u, 0xfc00u, 0xfe00u, 0xff00u,
+	0xff80u, 0xff00u, 0xf000u, 0xd800u, 0x8c00u, 0x0c00u, 0x0600u, 0x0000u,
+};
 
 /// Tema de la demo: mapea los roles del tema a los indices de la paleta.
 ui::UiTheme make_theme() {
@@ -89,13 +106,35 @@ struct DemoGame {
 			4u * 1024u,  // Frame scratch.
 		});
 
+		// Cursor por sprite de hardware (`eng::ui::HardwareCursor`): estructura DMA en Chip RAM,
+		// emitida en la copperlist como etapa de `compose` (SPR0PT + DMACON con SPREN).
+		m_sprite_block = backend.memory().chip.allocate_block<eng::SpriteTag>(ui::HardwareCursor::kBytes, 16);
+		if (!m_sprite_block.valid() ||
+		    !m_cursor.bind(m_sprite_block.view.data(), ui::HardwareCursor::kBytes)) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00021503u);
+			return;
+		}
+		m_cursor.set_bitmap(kCursorDat, nullptr);
+		m_cursor.set_position(m_cx, m_cy);
+		if (!verify_cursor()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00021503u);
+			return;
+		}
+		const auto cursor_stage = [this](scene::Scene& sc) { m_cursor.emit_into(sc.scheduler()); };
+
 		m_scene_ok = m_memory_ok &&
 			     scene::compose(m_scene, backend.memory(), kRes, scene::ocs_a500,
 					    scene::display(scene::kPal320x256, scene::kBplcon0_Ehb),
-					    scene::palette(kPalette, 0u, 32u));
+					    scene::palette(kPalette, 0u, 32u), cursor_stage);
 
 		if (!m_scene_ok) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000215u);
+			return;
+		}
+
+		// La copperlist debe apuntar SPR0PT a la estructura del cursor y habilitar SPREN.
+		if (!verify_cursor_copper()) {
+			eng::debug::mark_failed(g_eng_run_status, 0x00021510u);
 			return;
 		}
 
@@ -125,6 +164,7 @@ struct DemoGame {
 	void update(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
 		eng::debug::mark_frame(g_eng_run_status, context.frame.frame_index);
 		(void)backend; // la lista es estatica: `takeover` ya la instalo
+		update_cursor(); // el cursor de hardware sigue al raton
 	}
 
 	void render(eng::amiga::MinimalBackend& backend, eng::GameContext& context) {
@@ -210,7 +250,56 @@ private:
 		m_ctx.set_focus(&m_button);
 	}
 
-	/// Auto-test EN HARDWARE (misma logica que los tests host de `eng::ui`): el hit-test
+	/// Mueve el cursor con el raton (deltas de `JOY0DAT`) y reescribe POS/CTL en la estructura.
+	void update_cursor() {
+		eng::input::MouseState mouse;
+		eng::amiga::poll_mouse(mouse, m_mouse_poll);
+		eng::s16 cx = static_cast<eng::s16>(m_cx + mouse.dx);
+		eng::s16 cy = static_cast<eng::s16>(m_cy + mouse.dy);
+		if (cx < 0) cx = 0;
+		if (cx > static_cast<eng::s16>(kWidth - 1u)) cx = static_cast<eng::s16>(kWidth - 1u);
+		if (cy < 0) cy = 0;
+		if (cy > static_cast<eng::s16>(kHeight - kCursorH)) cy = static_cast<eng::s16>(kHeight - kCursorH);
+		m_cx = cx;
+		m_cy = cy;
+		m_cursor.set_position(m_cx, m_cy);
+	}
+
+	/// Self-test de la emision: `SPR0PT` apunta a la estructura y la ULTIMA escritura de `DMACON`
+	/// habilita SPREN (evidencia; los registros no se capturan en PNG).
+	bool verify_cursor_copper() const {
+		const eng::u16* w = m_scene.active_words();
+		const eng::u16 n = m_scene.words();
+		const eng::uintptr sp = reinterpret_cast<eng::uintptr>(m_sprite_block.view.data());
+		bool spr0 = false;
+		eng::u16 last_dmacon = 0u;
+		for (eng::u16 i = 0u; i + 1u < n; i += 2u) {
+			if (w[i] == 0x0120u && w[i + 1u] == static_cast<eng::u16>(sp >> 16)) {
+				spr0 = true;
+			}
+			if (w[i] == 0x0096u) {
+				last_dmacon = w[i + 1u];
+			}
+		}
+		return spr0 && (last_dmacon & 0x0020u) != 0u;
+	}
+
+	/// Self-test de la estructura del cursor: tiene pixeles y un terminador DMA nulo.
+	bool verify_cursor() {
+		const eng::u16* w = m_cursor.words();
+		if (w == nullptr) {
+			return false;
+		}
+		bool any = false;
+		for (eng::u16 l = 0u; l < ui::HardwareCursor::kSize; ++l) {
+			if (w[2u + l * 2u] != 0u) {
+				any = true;
+			}
+		}
+		const eng::u16 t = static_cast<eng::u16>(2u + ui::HardwareCursor::kSize * 2u);
+		return any && w[t] == 0u && w[t + 1u] == 0u;
+	}
+
 	/// Self-test EN HARDWARE del relleno de rect D-only por Blitter (`blitter_fill_rect`):
 	/// llena el rect (10,2)-(29,4) de un plano 64x16 y comprueba los bits dentro y fuera. Valida
 	/// el motor que consume el `RectFillSink` (equivalencia con el relleno CPU esperado).
@@ -299,6 +388,12 @@ private:
 	ui::UiTheme m_theme = make_theme();
 	ui::UiContext m_ctx {};
 	scene::Scene m_scene {};
+
+	eng::Block<eng::SpriteTag> m_sprite_block {}; ///< estructura DMA del cursor (Chip RAM)
+	ui::HardwareCursor m_cursor {};               ///< cursor por sprite de hardware
+	eng::amiga::MousePollState m_mouse_poll {};
+	eng::s16 m_cx = 160; ///< posicion del cursor (sigue al raton)
+	eng::s16 m_cy = 128;
 };
 
 } // namespace

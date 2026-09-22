@@ -130,7 +130,8 @@ eng::graphics::BlitJob make_shifted_bob_job(
 struct DemoGame {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
-		if (!backend.configure_memory({72u * 1024u, 8u * 1024u, 4u * 1024u})) {
+		if (!backend.configure_memory({scene::chip_bytes_for(scene::planar(320u, 256u, 6)),
+					       8u * 1024u, 4u * 1024u})) {
 			eng::debug::mark_failed(g_eng_run_status, 0x00000051u);
 			return;
 		}

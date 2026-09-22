@@ -121,9 +121,21 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
   `field::RectFillSink` (`Playfield::fill_rect_hw`, `Scene::set_rect_fill_sink`), que
   `BlitterRaster::fill_rect` prefiere al camino de polígono. Contrato en HOST-266; la ruta de
   hardware se valida con el **self-test de la demo 215** (rect relleno y comprobado por bits).
-- **Estado**: **demo entregada y verificada** (los *fills* de caja van por el Blitter D-only;
-  líneas y texto por CPU). Quedan las **copias del compositor por Blitter** (`CopyRect` en el
-  `FramePlan`) y el **cursor por sprite de hardware**.
+- **Cursor por sprite de hardware**: **entregado**. La demo 215 reserva un canal de sprite (0) con
+  una estructura DMA en Chip RAM (POS/CTL/DAT/DATB + terminador), apunta `SPR0PT` a ella y habilita
+  `DMACON` SPREN como etapa de `compose`; por frame sigue al ratón (`poll_mouse`) reescribiendo
+  POS/CTL. Self-test de la emisión (SPR0PT + SPREN) y de la estructura. **Nota**: la captura PNG del
+  runner **no incluye sprites** (la demo 206 tampoco los muestra), así que el cursor se valida por
+  registros/copperlist, no por el gate de píxeles.
+- **Compositor por Blitter**: **entregado**. `Compositor::present_blit(plan)` copia cada backing con
+  `Surface::blit` (ruta del `Rasterizer`: encola `CopyRect` en el `FramePlan`); si el destino no está
+  alineado a palabra, cae al copiado por píxel de ese rect. Equivalencia con `present()` en
+  HOST-268. La ejecución del plan la hace el llamador (`backend.execute_frame_plan`). **Demo
+  `300_gui_compositor`**: tres ventanas con backing que se mueven (pasos de 16 px, copias alineadas)
+  y se recomponen por el Blitter; gate visual `verify-gui-compositor.mjs`.
+- **Estado**: **G8 completo**: demo en hardware verificada, *fills* de caja por Blitter D-only,
+  cursor por sprite de hardware y compositor por `Surface::blit`. Queda, fuera de G8, exponer un
+  **cursor de hardware reutilizable** (`eng::ui::HardwareCursor`) y validar los keymaps contra el ROM.
 
 ## Tests y demos previstos
 
@@ -141,7 +153,7 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 | HOST-262 | test | `Slider` (click/arrastre y flechas). |
 | HOST-263 | test | Keymaps nacionales (ES/FR/IT/DE/RU) y `dispatch_msg` con el layout del contexto. |
 | `215_gui_widgets` | demo | Widgets y tema en hardware (G0–G6). **Entregada y verificada** (G8). |
-| 208_gui_compositor | demo | Ventanas movibles/redimensionables con backing store (G7). |
+| `300_gui_compositor` | demo | Ventanas movibles con backing store y **copias por Blitter** (`present_blit`). **Entregada y verificada**. |
 
 ## Riesgos y decisiones abiertas
 
@@ -161,21 +173,25 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 
 ## Estado
 
-**G0–G7 entregados** (HOST-223…HOST-230): `theme`/`painter`/`text`, `widget`/`dirty`/`widgets`
+**G0–G8 entregados**. `theme`/`painter`/`text`, `widget`/`dirty`/`widgets`
 (`Panel`/`Label`/`Button`/`CheckBox`/`RadioButton`/`Slider`), `keys`/`keymap`/`editbox`/`context`
 (foco), `layout`, `window` (Window/Popup/Toast/Dialog), `backing`/`compositor` y la **entrada por
-mensajes** (`msg_adapter` + `ui_bridge`, HOST-261/262) con **keymaps nacionales** (HOST-263).
+mensajes** (`msg_adapter` + `ui_bridge`, HOST-261/262) con **keymaps nacionales** (HOST-263) y
+**teclas muertas** (HOST-265). La distribución nacional es **estado del `UiContext`** (`ctx.layout`),
+que fija la aplicación al arrancar; `dispatch_msg` la usa, sin ir fija en la llamada.
 
-**G8 (demo en hardware) entregada**: `215_gui_widgets` renderiza y verifica (gate objetivo con
-`verify-gui-widgets.mjs`). La distribución nacional es **estado del `UiContext`** (`ctx.layout`),
-que fija la aplicación al arrancar; `dispatch_msg` la usa, sin ir fija en la llamada. La superficie
-estable de la GUI se expone en `eng/api/api.hpp` mediante la fachada `eng/ui/ui.hpp`.
+**G8 entregado**: demo `215_gui_widgets` en hardware (gate `verify-gui-widgets.mjs`) y demo
+`300_gui_compositor` (ventanas movibles con backing). La superficie estable se expone en
+`eng/api/api.hpp` vía `eng/ui/ui.hpp`.
 
-La **aceleración Blitter** del raster está hecha: el `fill_rect` D-only (minterm `$FF`) entra por
-el `RectFillSink` (HOST-266) y el compositor por `Surface::blit`
-(`Compositor::present_blit(FramePlan&)`, con **test de equivalencia** contra el camino CPU en
-HOST-268). Las copias solo van al Blitter cuando destino y origen están **alineados a palabra**
-(16 px); si no, caen al bucle de píxeles. Queda pendiente el **cursor por sprite de hardware** y
-validar el compositor en hardware (ninguna demo lo usa aún). Los **keymaps** son *best-effort* para
-el área principal (0x00–0x3F): falta validarlos contra el ROM; el cirílico (RU) requiere glifos
-fuera de `Font8`/`Font5x7` (ya soportados por `Font8`).
+**Aceleración Blitter**: el `fill_rect` D-only (minterm `$FF`) entra por el `RectFillSink` (HOST-266)
+y el compositor por `Surface::blit` (`Compositor::present_blit(FramePlan&)`, equivalencia CPU/Blitter
+en HOST-268); las copias solo van al Blitter con destino/origen **alineados a palabra** (16 px),
+si no caen al bucle de píxeles.
+
+**Extras tras G8**: **`eng::ui::HardwareCursor`** por sprite de hardware (HOST-301), **teclas comunes
+del keymap** validadas contra la AHRM 3.ª (HOST-302: Space 0x40, cursores 0x4C/0x4D corregidos),
+**cirílico** en `Font8` (HOST-264) y **`EditBox` UTF-8** (HOST-303) para teclearlo en campos.
+
+Pendiente: volcar la asignación de carácter de cada **distribución nacional** y los **Alt+tecla**
+de las teclas muertas desde `DEVS:Keymaps` del ROM (no disponibles en el repo; hoy *best-effort*).

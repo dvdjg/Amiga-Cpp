@@ -762,7 +762,13 @@ bool MinimalBackend::blitter_fill_rect(eng::u8* plane_base, u8 planes, u32 plane
 		return false;
 	}
 	const u16 rstride = static_cast<u16>(row_stride);
-	custom_base[custom_dmacon_offset] = static_cast<u16>(dma_setclr | dma_master | dma_blitter);
+	// Habilita el Blitter SIN borrar el resto del DMA (bitplane/copper/sprite): leer `DMACONR` y
+	// reescribir el estado actual + el bit del Blitter. Escribir solo `Master|Blitter` con el
+	// bit 15 (set/clear) borraria el DMA de bitplane/copper y dejaria la pantalla en blanco
+	// hasta el siguiente VBlank (visible cuando el relleno se usa durante el frame).
+	const u16 dma_cur = static_cast<u16>(custom_base[custom_dmaconr_offset] & 0x03ffu);
+	custom_base[custom_dmacon_offset] =
+		static_cast<u16>(dma_setclr | (dma_cur | dma_master | dma_blitter));
 	for (u8 p = 0u; p < planes; ++p) {
 		eng::u8* plane = plane_base + static_cast<u32>(p) * plane_stride;
 		const bool on = (color & (1u << p)) != 0u;

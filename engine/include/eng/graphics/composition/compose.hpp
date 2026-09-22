@@ -568,13 +568,14 @@ inline constexpr u16 kBplcon0_Ham6 = 0x7a00;         ///< HAM6 (6 planos, COLOR,
 [[nodiscard]] constexpr u16 bplcon0_for(SceneMode mode, u8 planes) {
 	const u16 bpu = static_cast<u16>((static_cast<u16>(planes) & 0x7u) << 12u);
 	constexpr u16 kColor = 0x0200u; ///< bit COLOR (color indexado)
-	constexpr u16 kHam = 0x0800u;   ///< bit HAM
-	constexpr u16 kEhb = 0x0040u;   ///< BPU bit 0 extra para 6 planos (EHB usa BPU=6)
+	constexpr u16 kHam = 0x0800u;   ///< bit HAM (HOMOD)
+	// EHB **no** tiene bit propio en `BPLCON0` (OCS/ECS): se activa con **6 planos** y
+	// `HOMOD = 0` (AHRM 3.ª, tabla de `BPLCON0`: «HOMOD=0 → EHB, solo si 6 bitplanes»). Por
+	// eso `Ehb` y `Standard` comparten `bpu | COLOR` (equivale a `kBplcon0_Ehb = 0x6200`).
 	switch (mode) {
 		case SceneMode::Ham:
 			return static_cast<u16>(bpu | kColor | kHam);
 		case SceneMode::Ehb:
-			return static_cast<u16>(bpu | kColor | kEhb);
 		default:
 			return static_cast<u16>(bpu | kColor);
 	}

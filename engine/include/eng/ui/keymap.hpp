@@ -11,10 +11,13 @@
 ///
 /// Aquí se ofrece un mapa **best-effort** de las distribuciones más habituales (US, ES, FR, IT,
 /// DE, RU) para las teclas **0x00–0x3F** (área principal); las especiales (0x40–0x7F) son comunes.
-/// Las **teclas muertas** (Alt + letra → acento pendiente que compone con la siguiente letra) se
-/// resuelven con `compose`/`rawkey_to_char`; la asignación Alt+tecla es **best-effort** y debe
-/// validarse contra el keymap del ROM. Los caracteres de RU son **cirílicos (U+04xx)**, cubiertos
-/// por `Font8`.
+/// Las **teclas comunes** (0x40–0x5F: Space, Backspace, Tab, Return, Esc, Delete y cursores) están
+/// **validadas contra la AHRM 3.ª** (tabla «RAW Keycodes 40-5F», ver HOST-302). Las **teclas
+/// muertas** (Alt + letra → acento pendiente que compone con la siguiente letra) se resuelven con
+/// `compose`/`rawkey_to_char`. **Pendiente**: la asignación de carácter de cada posición nacional y
+/// los Alt+tecla exactos son *best-effort* (las posiciones base son el QWERTY US posicional de la
+/// AHRM) hasta volcarlos de `DEVS:Keymaps` del ROM. Los caracteres de RU son **cirílicos (U+04xx)**,
+/// cubiertos por `Font8`.
 
 #include <eng/core/types.hpp>
 #include <eng/ui/keys.hpp>
@@ -243,7 +246,10 @@ inline constexpr eng::u16 kRuUpper[64] = {
 /// mapea. Las teclas especiales (0x40–0x7F) son comunes a todas las distribuciones.
 [[nodiscard]] constexpr eng::u16 rawkey_to_key(eng::u8 raw, bool shift,
 					      KeyboardLayout layout = KeyboardLayout::Us) noexcept {
+	// Teclas comunes 0x40-0x5F (AHRM 3.ª, tabla «RAW Keycodes 40-5F»).
 	switch (raw) {
+	case 0x40u:
+		return ' '; // Space
 	case 0x41u:
 		return kKeyBackspace;
 	case 0x42u:
@@ -258,10 +264,10 @@ inline constexpr eng::u16 kRuUpper[64] = {
 		return kKeyLeft;
 	case 0x4eu:
 		return kKeyRight;
-	case 0x4du:
-		return kKeyUp;
 	case 0x4cu:
-		return kKeyDown;
+		return kKeyUp; // AHRM: 0x4C = cursor up
+	case 0x4du:
+		return kKeyDown; // AHRM: 0x4D = cursor down
 	default:
 		break;
 	}
