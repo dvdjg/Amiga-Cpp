@@ -83,6 +83,11 @@ El Blitter es un **único recurso**: solo hay **una** operación en curso. Escri
   *ese tramo*, no solo el área visible: en la 210 el blit del Copper va en el **borde inferior
   (línea 304)**, después de que el blit de CPU haya terminado. Reproducido: sin el blit de CPU,
   un blit de Copper en el borde superior no molesta; con el de CPU activo en la misma franja, sí.
+
+  Para no cablear la línea: **`graphics::blitter_lines(words)`** estima las líneas que ocupa un
+  blit de CPU (~6 CCK/palabra) y **`graphics::safe_blitter_window(cpu_blit_words, cpu_start_line,
+  border_line, last_line)`** devuelve una ventana que empieza **después** de ese fin estimado
+  (con el borde como suelo). La demo 210 la usa: `set_blitter_window(safe_blitter_window(...))`.
 - Además de la copia lineal (`blitter_memcpy`) y del plan (`execute_frame_plan`), el backend
   expone **`blitter_submit(job, wait)`**: ejecuta **un** `graphics::BlitJob` por el mismo camino
   (`submit_blit_job`). El descriptor cubre copias **con módulos** (`CopyRect` con

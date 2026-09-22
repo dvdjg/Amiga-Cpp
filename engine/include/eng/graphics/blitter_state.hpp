@@ -27,6 +27,15 @@ inline constexpr u16 kBlitterUseD = 0x0100u;          ///< habilita el canal D
 inline constexpr u16 kBlitterMintermCopyA = 0x00f0u;  ///< `D = A` (copia desde A)
 inline constexpr u16 kBlitterMintermAOrB = 0x00fcu;   ///< `D = A | B` (con `B = D`, OR)
 
+/// **Modelo de coste del Blitter**: líneas de raster que ocupa un blit de `words` palabras.
+/// El Blitter mueve ~1 palabra cada `cck_per_word` CCK con el DMA de bitplanes activo
+/// (medido ~140 líneas para ~5 100 palabras en la demo 210; ~`cck_per_line` CCK por línea
+/// PAL). Sirve para colocar la ventana de un blit de Copper **después** de los de CPU.
+[[nodiscard]] constexpr u16 blitter_lines(u16 words, u16 cck_per_word = 6u,
+					  u16 cck_per_line = 227u) noexcept {
+	return static_cast<u16>(static_cast<u32>(words) * cck_per_word / cck_per_line);
+}
+
 /// Entrada de un lote de **BOBs OR por desplazamiento** (`D = A | D`): origen (frame del
 /// atlas), destino (plano 0 de la scanline) y desplazamiento fino X (0..15).
 struct OrBob {

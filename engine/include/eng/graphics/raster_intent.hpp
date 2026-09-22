@@ -22,6 +22,7 @@
 #include <eng/core/domains.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
+#include <eng/graphics/blitter_state.hpp>
 
 namespace eng::graphics {
 
@@ -123,6 +124,21 @@ struct BlitterWindow {
         return line >= first && line <= last;
     }
 };
+
+/// **Ventana segura automática** para un blit de Copper que debe caer **después** de los blits
+/// de CPU: su comienzo es el mayor entre `border_line` (p. ej. el borde inferior) y el fin
+/// **estimado** del trabajo de CPU (`cpu_start_line + blitter_lines(cpu_blit_words)`). Así el
+/// llamador no depende de una línea cableada: el `BLTSIZE` del Copper no puede abortar un blit
+/// de CPU en curso (el Blitter es único). Ver `blitter-memcpy.md` §Concurrencia.
+[[nodiscard]] constexpr BlitterWindow safe_blitter_window(u16 cpu_blit_words, u16 cpu_start_line,
+                                                          u16 border_line, u16 last_line) noexcept {
+    const u32 cpu_end = static_cast<u32>(cpu_start_line) + blitter_lines(cpu_blit_words);
+    u16 start = (cpu_end > border_line) ? static_cast<u16>(cpu_end) : border_line;
+    if (start > last_line) {
+        start = last_line;
+    }
+    return BlitterWindow { start, last_line };
+}
 
 /// **Rearmado horizontal de un canal de sprite** (multiplexado horizontal por línea).
 ///

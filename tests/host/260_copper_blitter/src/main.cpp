@@ -140,12 +140,43 @@ void test_null_job() {
 	CHECK(sched.report().unhandled_intents == 1u, "job nulo: no manejado");
 }
 
+/// Modelo de coste del Blitter y **ventana segura automática** (el blit del Copper debe caer
+/// después de los blits de CPU; el Blitter es único).
+void test_safe_window() {
+	CHECK(eng::graphics::blitter_lines(0u) == 0u, "blitter_lines(0) = 0");
+	CHECK(eng::graphics::blitter_lines(227u) == 6u, "blitter_lines(227) = 6");
+	CHECK(eng::graphics::blitter_lines(5100u) == 134u, "blitter_lines(5100) = 134");
+
+	// CPU acaba antes del borde -> gana el borde.
+	const eng::graphics::BlitterWindow w1 =
+		eng::graphics::safe_blitter_window(5100u, 0x2cu, 0x130u, 0x138u);
+	CHECK(w1.first == 0x130u && w1.last == 0x138u,
+	      "ventana: gana el borde si el CPU acaba antes");
+
+	// CPU acaba DESPUÉS del borde -> la ventana empieza tras el (evita abortarlo).
+	// cpu_start 250 + 4000 words (105 líneas) = 355; last 360 -> {355, 360}.
+	const eng::graphics::BlitterWindow w2 =
+		eng::graphics::safe_blitter_window(4000u, 250u, 0x130u, 360u);
+	CHECK(w2.first == 355u && w2.last == 360u,
+	      "ventana: empieza tras el blit de CPU si lo sobrepasa");
+
+	// CPU que no cabe en el frame -> se recorta a `last`.
+	const eng::graphics::BlitterWindow w3 =
+		eng::graphics::safe_blitter_window(60000u, 44u, 0x130u, 310u);
+	CHECK(w3.first == 310u && w3.last == 310u, "ventana: se recorta a last si el CPU desborda");
+
+	// Contrato negativo (documentado): una ventana que empieza ANTES del fin del CPU deja que
+	// el BLTSIZE del Copper caiga mientras corre el de CPU -> el Blitter único lo aborta.
+	CHECK(0x130u < w2.first, "ventana insegura: 304 cae antes del fin del CPU (355)");
+}
+
 } // namespace
 
 int main() {
 	test_in_window();
 	test_out_of_window();
 	test_null_job();
+	test_safe_window();
 	if (g_fail == 0u) {
 		std::printf("OK: Copper lanza blits (BlitterJob + ventana segura).\n");
 		return 0;

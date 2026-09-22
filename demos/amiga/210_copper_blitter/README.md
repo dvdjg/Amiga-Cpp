@@ -10,21 +10,25 @@ Tres usos del Blitter, verificados en el demo y en `RunStatus` (`detail = 0x21FF
 2. **Técnica B**: un `graphics::BlitJob` (`CopyRect`, 1 word de ancho, `dst_mod = 2`) parchea los
    **data words** de 8 MOVEs consecutivos sin tocar los registros; la lista se lee de vuelta y se
    comprueba.
-3. **Borde de scroll**: la pantalla (320 px, 1 plano) se desplaza una columna a la izquierda con
-   un `BlitJob` (`CopyRect` 19×256, `mods = 2`) y la **columna nueva** entra por la derecha con
-   otro `BlitJob` (1×256, `dst_mod = row_bytes − 2`); el buffer se verifica contra el patrón.
+3. **Borde de scroll fino**: la pantalla (320 px, 1 plano) es un buffer anular de 21 words/fila.
+   Cada frame avanza **`BPLCON1` 1 px** (scroll fino); al cruzar los 16 px, un `BlitJob`
+   (`CopyRect` 20×256, `mods = 2`) desplaza la pantalla una columna y otro `BlitJob` (1×256,
+   `dst_mod = row_bytes − 2`) escribe la **columna nueva** en el word 20. El buffer se verifica
+   contra el patrón procedural. `DDFSTRT = $30` fetcha la word extra que exige el fine scroll
+   (patrón del driver `graphics/drivers/tile_scroll.hpp`).
 
 Los blits sueltos se envían con **`MinimalBackend::blitter_submit(const BlitJob&, wait)`** (un
 job); `execute_frame_plan` encadena varios por el **mismo camino** (`submit_blit_job`).
 
-## Serialización Copper↔CPU (clave)
+## Serialización Copper↔CPU (automática)
 
-El Blitter es **único**. El scroll de CPU lanza blits largos (≈5 100 words ≈ 140 líneas) al
+El Blitter es **único**. El scroll de CPU lanza blits largos (`kCpuBlitWords ≈ 5 300` words) al
 principio del frame; si el blit del Copper cae **mientras corren**, su `BLTSIZE` **aborta** el de
-CPU y el display se rompe. Por eso el blit del Copper va en el **borde inferior (línea 304)**,
-con la ventana segura fuera del tramo del blit de CPU. Reproducido y aislado: con el scroll de
-CPU desactivado, un blit de Copper en el borde superior no rompe nada; con el scroll activo y el
-blit de Copper en la misma franja, sí.
+CPU y el display se rompe. Por eso la ventana no es una línea cableada: se calcula con
+**`graphics::safe_blitter_window(cpu_blit_words, cpu_start_line, border_line, last_line)`**, que
+coloca el `BLTSIZE` del Copper **después** del fin estimado del blit de CPU (`blitter_lines`), con
+el borde inferior como suelo. Reproducido y aislado en el hilo (sin el blit de CPU, un blit de
+Copper en el borde superior no molesta; con el de CPU en la misma franja, sí).
 
 ## Uso
 

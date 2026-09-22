@@ -46,12 +46,17 @@ __attribute__((used)) volatile eng::debug::RunStatus g_eng_run_status {
 
 namespace {
 
-constexpr eng::u16 kPlaneWords = 20u;            // 320 px / 16
-constexpr eng::u16 kRowBytes = kPlaneWords * 2u; // 40 B/fila
+constexpr eng::u16 kPlaneWords = 20u;            // 320 px visibles
+constexpr eng::u16 kBufWords = 21u;              // + 1 word: guarda/columna entrante del scroll fino
+constexpr eng::u16 kRowBytes = kBufWords * 2u;   // 42 B/fila
 constexpr eng::u16 kRows = 256u;
 constexpr eng::u32 kPlaneBytes = static_cast<eng::u32>(kRowBytes) * kRows;
-constexpr eng::u16 kLastWord = kPlaneWords - 1u; // 19: ultima columna (entra la nueva)
-constexpr eng::u16 kBlitLine = 0x130;            // 304: borde inferior (tras el blit de CPU)
+constexpr eng::u16 kLastWord = kPlaneWords - 1u; // 19
+constexpr eng::u16 kInWord = kBufWords - 1u;     // 20: columna que entra
+constexpr eng::u16 kBlitLine = 0x130;            // 304: borde inferior (referencia de ventana)
+/// Palabras que lanza el scroll de CPU por frame (shift 20x256 + columna 1x256): el blit del
+/// Copper debe caer DESPUES de estos (Blitter unico).
+constexpr eng::u16 kCpuBlitWords = static_cast<eng::u16>(kPlaneWords * kRows + kRows);
 
 struct ScrollEdgeDemo {
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
@@ -75,12 +80,12 @@ struct ScrollEdgeDemo {
 
 		// Patron inicial: columna w = columna absoluta w.
 		eng::u16* plane = plane_words();
-		for (eng::u16 w = 0; w < kPlaneWords; ++w) {
+		for (eng::u16 w = 0; w < kBufWords; ++w) {
 			for (eng::u16 row = 0; row < kRows; ++row) {
 				plane[static_cast<eng::u32>(row) * (kRowBytes / 2u) + w] = col_value(w, row);
 			}
 		}
-		m_col = kLastWord;
+		m_col = kInWord;
 
 		// `src`/`dst` para el blit del Copper; `dst` a cero.
 		eng::Words<eng::SpriteTag> s = m_src.view.as_words();
@@ -129,16 +134,22 @@ private:
 		return (((row + abs_col * 4u) & 63u) < 16u) ? 0xffffu : 0x0000u;
 	}
 
-	/// **Borde de scroll**: desplaza la pantalla una columna a la izquierda y escribe la
-	/// columna nueva a la derecha. Verifica que `word(w,row) == col_value(m_col-19+w, row)`.
+	/// **Borde de scroll fino**: avanza `BPLCON1` 1 px cada frame; al cruzar 16 px, desplaza la
+	/// pantalla una columna (Blitter) y escribe la columna nueva. Verifica
+	/// `word(w,row) == col_value(m_col-20+w, row)`.
 	bool scroll_step(eng::amiga::MinimalBackend& backend) {
+		++m_fine;
+		if (m_fine < 16u) {
+			return true; // solo fine scroll (BPLCON1); el buffer no cambia
+		}
+		m_fine = 0; // cruce de word: shift + columna nueva
 		eng::u16* plane = plane_words();
-		// 1) Shift: words 0..18 = words 1..19 (una columna a la izquierda).
+		// 1) Shift: words 0..19 = words 1..20 (una columna a la izquierda).
 		eng::graphics::BlitJob shift {};
 		shift.kind = eng::graphics::BlitJobKind::CopyRect;
 		shift.source = plane + 1;
 		shift.destination = plane;
-		shift.words_per_row = kLastWord;
+		shift.words_per_row = kPlaneWords;
 		shift.height = kRows;
 		shift.source_modulo_bytes = 2;
 		shift.destination_modulo_bytes = 2;
@@ -146,7 +157,7 @@ private:
 		if (!backend.blitter_submit(shift, true)) {
 			return false;
 		}
-		// 2) Columna nueva en el word 19 (la absoluta `m_col+1`).
+		// 2) Columna nueva en el word 20 (la absoluta `m_col+1`).
 		++m_col;
 		eng::Words<eng::SpriteTag> col = m_col_vals.view.as_words();
 		for (eng::u16 r = 0; r < kRows; ++r) {
@@ -155,7 +166,7 @@ private:
 		eng::graphics::BlitJob draw {};
 		draw.kind = eng::graphics::BlitJobKind::CopyRect;
 		draw.source = col.data();
-		draw.destination = plane + kLastWord;
+		draw.destination = plane + kInWord;
 		draw.words_per_row = 1u;
 		draw.height = kRows;
 		draw.source_modulo_bytes = 0;
@@ -164,9 +175,9 @@ private:
 		if (!backend.blitter_submit(draw, true)) {
 			return false;
 		}
-		// 3) Verificacion: word(w) = columna (m_col - 19 + w).
-		for (eng::u16 w = 0; w < kPlaneWords; ++w) {
-			const eng::u16 abs = static_cast<eng::u16>(m_col - kLastWord + w);
+		// 3) Verificacion: word(w) = columna (m_col - 20 + w).
+		for (eng::u16 w = 0; w < kBufWords; ++w) {
+			const eng::u16 abs = static_cast<eng::u16>(m_col - kInWord + w);
 			for (eng::u16 row = 0; row < kRows; row += 32u) {
 				if (plane[static_cast<eng::u32>(row) * (kRowBytes / 2u) + w] !=
 				    col_value(abs, row)) {
@@ -232,8 +243,12 @@ private:
 
 	[[nodiscard]] const eng::u16* build_copper() {
 		eng::copper::SchedulerT<false> sched { m_copper };
-		sched.emit_planes_display(0x2c81, 0x2cc1, 0x0038, 0x00d0,
+		sched.emit_planes_display(0x2c81, 0x2cc1, 0x0030, 0x00d0,
 					  kRowBytes, 0x1200, 1u, m_bitmap.view, kPlaneBytes);
+		// Scroll fino: `BPLCON1` es un delay; `(16 - fine) & 15` da `display_start = m_fine`
+		// (patrón del driver `tile_scroll`, con DDFSTRT=$30 = fetch de 1 word extra).
+		sched.move(eng::copper::Register::BPLCON1,
+			   static_cast<eng::u16>((16u - m_fine) & 15u));
 		sched.move(eng::copper::Register::DMACON,
 			   static_cast<eng::u16>(eng::copper::DmaSetClear | eng::copper::DmaMaster |
 						 eng::copper::DmaCopper | eng::copper::DmaBitplane |
@@ -248,11 +263,15 @@ private:
 		job.bltapt = m_src.view.data();
 		job.bltdpt = m_dst.view.data();
 		job.bltsize = static_cast<eng::u16>((4u << 6u) | 64u);
+		// Ventana segura automatica: el blit del Copper debe caer DESPUES de los de CPU
+		// (el scroll lanza `kCpuBlitWords` al principio del frame; el Blitter es unico).
+		const eng::graphics::BlitterWindow win = eng::graphics::safe_blitter_window(
+			kCpuBlitWords, 0x2cu, kBlitLine, static_cast<eng::u16>(kBlitLine + 4u));
 		eng::graphics::CopperIntent it {};
 		it.kind = eng::graphics::CopperIntentKind::BlitterJob;
-		it.top = kBlitLine;
+		it.top = win.first;
 		it.blitter_job = &job;
-		sched.set_blitter_window(eng::graphics::BlitterWindow {kBlitLine, static_cast<eng::u16>(kBlitLine + 4u)});
+		sched.set_blitter_window(win);
 		sched.emit_copper_intents(&it, 1u);
 		sched.wait_line(0xf8u);
 		sched.end();
@@ -274,6 +293,7 @@ private:
 	eng::Block<eng::SpriteTag> m_patch_vals {};
 	eng::Block<eng::SpriteTag> m_col_vals {};
 	eng::u16 m_col = 0;
+	eng::u16 m_fine = 0;
 	bool m_last_ok = false;
 	bool m_patch_ok = false;
 	bool m_scroll_ok = false;
