@@ -21,6 +21,7 @@
 /// El identificador de códec (`Codec::DeltaRle`) coincide con el campo `compression` de la
 /// cabecera de archivo AUZX (`AUDIO_STREAMING.md` §2).
 
+#include <eng/audio/zx0.hpp>
 #include <eng/core/span.hpp>
 #include <eng/core/types.hpp>
 
@@ -28,15 +29,21 @@ namespace eng::audio::pcm_codec {
 
 /// Identificador del códec (campo `compression` de la cabecera AUZX).
 enum class Codec : eng::u8 {
+	Zx0 = 0,      ///< ZX0 (Einar Saukas): PCM crudo comprimido (sin delta)
+	APLib = 1,    ///< aPLib (pendiente)
 	DeltaRle = 2, ///< Delta + RLE (ByteRun1)
 };
 
 /// **Decodifica** `src` a PCM 8-bit con signo en `dst` (código `compression`).
 /// Devuelve los bytes escritos, o `-1` si el flujo es inválido, el códec no existe o no cabe en
-/// `dst`. La integración del delta arranca con `prev = 0` (el primer byte del flujo es la primera
-/// muestra en crudo).
+/// `dst`. Para Delta+RLE la integración del delta arranca con `prev = 0` (el primer byte del flujo
+/// es la primera muestra en crudo); ZX0 decodifica el PCM directamente (HOST-271 con vectores del
+/// compresor de referencia).
 [[nodiscard]] inline eng::s32 decode(eng::Span<const eng::u8> src, eng::Span<eng::u8> dst,
 				    eng::u8 compression) noexcept {
+	if (compression == static_cast<eng::u8>(Codec::Zx0)) {
+		return zx0::decompress(src, dst);
+	}
 	if (compression != static_cast<eng::u8>(Codec::DeltaRle)) {
 		return -1;
 	}

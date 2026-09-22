@@ -299,4 +299,5 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-268 | [ui_compositor_blit](268_ui_compositor_blit/README.md) | Compositor GUI por `Surface::blit` (`Compositor::present_blit`): copia backings con el `Rasterizer` (CPU/Blitter) y cae a CPU si el rect no está alineado a palabra; equivalencia píxel a píxel con `present()`. |
 | HOST-269 | [audio_mode](269_audio_mode/README.md) | Modos de audio (`audio_mode.hpp`): reparto de los 4 canales de Paula por modo (`channel_quota`, sin solape) y `paula::period_for_hz` acotado. |
 | HOST-270 | [audio_events](270_audio_events/README.md) | Eventos de audio (`audio_events.hpp`): `AudioMsgEdges` emite `MusicEnd`/`AudioUnderrun` una vez por evento (flanco), no por buffer. |
+| HOST-271 | [zx0](271_zx0/README.md) | Descompresor ZX0 (`eng/audio/zx0.hpp`, port de `dzx0.c` v2) verificado contra un vector del compresor de referencia; dispatch `pcm_codec` (`Zx0`/`DeltaRle`/`APLib`). |
 | HOST-208 | [ptr](208_ptr/README.md) | `eng/core/ptr.hpp`: punteros "inteligentes" sin heap (`Ref` observador no propietario y anulable, `NonNull`, `Opt` opcional en sitio). |
