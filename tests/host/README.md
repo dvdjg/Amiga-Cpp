@@ -285,4 +285,5 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-258 | [hunk_loader](258_hunk_loader/README.md) | Recursos: cargador **HUNK** (`eng/res/hunk.hpp`) — segmentos en `LinearArena`, relocaciones (32/32SHORT) y símbolos; detección de formato `.englib`/HUNK en `DynLoader`. |
 | HOST-259 | [floppy_mfm](259_floppy_mfm/README.md) | Disquete: decodificación **MFM** (`eng/os/floppy.hpp`) — `mfm_decode_long` inverso y `floppy_find_sector` sobre una pista AmigaDOS sintética (encoder = el del emulador). |
 | HOST-260 | [copper_blitter](260_copper_blitter/README.md) | Copper lanza blits (Técnica A): `CopperIntentKind::BlitterJob` (`BLTCON*`/punteros/módulos/`BLTSIZE`) y **ventana segura** (`set_blitter_window`) que lo serializa con los blits de CPU. |
+| HOST-261 | [fine_scroll](261_fine_scroll/README.md) | `eng::effects::FineScroll`: scroll horizontal fino de una capa planar (1 px/frame) — `step`/`bplcon1`/columna y `BlitJob` de desplazamiento + columna entrante. |
 | HOST-208 | [ptr](208_ptr/README.md) | `eng/core/ptr.hpp`: punteros "inteligentes" sin heap (`Ref` observador no propietario y anulable, `NonNull`, `Opt` opcional en sitio). |

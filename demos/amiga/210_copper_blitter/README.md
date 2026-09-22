@@ -1,6 +1,6 @@
 # 210 — Copper lanza blits, Técnica B y borde de scroll
 
-Tres usos del Blitter, verificados en el demo y en `RunStatus` (`detail = 0x21FFF`):
+Tres usos del Blitter, verificados en el demo y en `RunStatus` (`detail = (fine << 16) | 0x1FFF`, con el valor de scroll fino `fine` en los bits 16-23):
 
 1. **Técnica A**: el **Copper programa el Blitter y escribe `BLTSIZE`** en la línea 304 (borde
    inferior) — blit **sincronizado al haz**. Un `CopperIntentKind::BlitterJob` +
@@ -10,25 +10,26 @@ Tres usos del Blitter, verificados en el demo y en `RunStatus` (`detail = 0x21FF
 2. **Técnica B**: un `graphics::BlitJob` (`CopyRect`, 1 word de ancho, `dst_mod = 2`) parchea los
    **data words** de 8 MOVEs consecutivos sin tocar los registros; la lista se lee de vuelta y se
    comprueba.
-3. **Borde de scroll fino**: la pantalla (320 px, 1 plano) es un buffer anular de 21 words/fila.
-   Cada frame avanza **`BPLCON1` 1 px** (scroll fino); al cruzar los 16 px, un `BlitJob`
-   (`CopyRect` 20×256, `mods = 2`) desplaza la pantalla una columna y otro `BlitJob` (1×256,
-   `dst_mod = row_bytes − 2`) escribe la **columna nueva** en el word 20. El buffer se verifica
-   contra el patrón procedural. `DDFSTRT = $30` fetcha la word extra que exige el fine scroll
-   (patrón del driver `graphics/drivers/tile_scroll.hpp`).
+3. **Borde de scroll fino** (`eng::effects::FineScroll`): la pantalla (320 px, 1 plano) es un
+   buffer anular de 21 words/fila. Cada frame avanza **`BPLCON1` 1 px** (scroll fino); al cruzar
+   los 16 px, un `BlitJob` (`CopyRect` 20×256, `mods = 2`) desplaza la pantalla una columna y otro
+   `BlitJob` (1×256, `dst_mod = row_bytes − 2`) escribe la **columna nueva** en el word 20. El
+   helper `effects::FineScroll` (promovido desde la demo) da `bplcon1()`, `ddfstrt() = $30` y los
+   dos `BlitJob`; el patrón procedural y la verificación del buffer son de la demo. El patrón del
+   driver con *ring wrap* real es `graphics/drivers/tile_scroll.hpp`.
 
 Los blits sueltos se envían con **`MinimalBackend::blitter_submit(const BlitJob&, wait)`** (un
 job); `execute_frame_plan` encadena varios por el **mismo camino** (`submit_blit_job`).
 
 ## Serialización Copper↔CPU (automática)
 
-El Blitter es **único**. El scroll de CPU lanza blits largos (`kCpuBlitWords ≈ 5 300` words) al
-principio del frame; si el blit del Copper cae **mientras corren**, su `BLTSIZE` **aborta** el de
-CPU y el display se rompe. Por eso la ventana no es una línea cableada: se calcula con
-**`graphics::safe_blitter_window(cpu_blit_words, cpu_start_line, border_line, last_line)`**, que
-coloca el `BLTSIZE` del Copper **después** del fin estimado del blit de CPU (`blitter_lines`), con
-el borde inferior como suelo. Reproducido y aislado en el hilo (sin el blit de CPU, un blit de
-Copper en el borde superior no molesta; con el de CPU en la misma franja, sí).
+El Blitter es **único**. El scroll de CPU lanza blits largos al principio del frame; si el blit del
+Copper cae **mientras corren**, su `BLTSIZE` **aborta** el de CPU y el display se rompe. Por eso la
+ventana no es una línea cableada: se calcula con
+**`graphics::safe_blitter_window(0, current_raster_line(), border_line, last_line)`**, que toma como
+suelo la **línea de raster real al terminar los blits de CPU** (`MinimalBackend::current_raster_line`)
+y el borde inferior. Reproducido y aislado en el hilo (sin el blit de CPU, un blit de Copper en el
+borde superior no molesta; con el de CPU en la misma franja, sí).
 
 ## Uso
 
@@ -39,8 +40,10 @@ Copper en el borde superior no molesta; con el de CPU en la misma franja, sí).
 
 ## Estado: verificado
 
-`RunStatus.detail = 0x21FFF`; Ollama (`qwen3-vl:8b-instruct-q8_0`) confirma rayas diagonales
-blancas sobre azul, sin anomalías. Host: `tests/host/260_copper_blitter`.
+`RunStatus.detail = (fine << 16) | 0x1FFF` (`fine` en bits 16-23; permite captura frame-exacta por
+valor de `fine` con `--sequence-fine-x`); Ollama (`qwen3-vl:8b-instruct-q8_0`) confirma rayas
+diagonales blancas sobre azul, sin anomalías. Host: `tests/host/260_copper_blitter` (ventana segura)
+y `tests/host/261_fine_scroll` (cadencia de 1 px/frame del helper).
 
 ## Referencias
 
