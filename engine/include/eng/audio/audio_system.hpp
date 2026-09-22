@@ -19,9 +19,11 @@
 /// `eng/audio/amiga/`) y dejar en `eng/audio/` solo las intenciones. Solo paga
 /// hacerlo cuando haya segunda plataforma o se reutilice `eng/audio` en host.
 
+#include <eng/audio/audio_events.hpp>
 #include <eng/audio/audio_mode.hpp>
 #include <eng/audio/music_player.hpp>
 #include <eng/audio/sfx_mixer.hpp>
+#include <eng/os/message.hpp>
 
 namespace eng::audio {
 
@@ -134,6 +136,31 @@ public:
 		}
 	}
 
+	/// Marca un **underrun** (el mixer o un stream se quedó sin datos). Lo consume `tick_frame`:
+	/// se postea `AudioUnderrun` **una sola vez** por evento, no por buffer (A2).
+	void notify_underrun() noexcept { m_underrun_now = true; }
+
+	/// **Tick de frame** (VBlank): avanza la música frame-driven y postea al `port` los mensajes
+	/// de audio pendientes (`MusicEnd` al terminar un módulo sin loop; `AudioUnderrun`). No se
+	/// postea nada por buffer: `AudioMsgEdges` emite solo en el flanco (A2).
+	template <class Port>
+	void tick_frame(Port& port) {
+		update_music();
+		const bool ended = (m_format == MusicFormat::P61) && m_p61.ended();
+		const AudioMsgOut out = m_edges.on_tick(ended, m_underrun_now);
+		m_underrun_now = false;
+		if (out.music_end) {
+			eng::os::Msg m {};
+			m.type = eng::os::MsgType::MusicEnd;
+			port.post(m);
+		}
+		if (out.underrun) {
+			eng::os::Msg m {};
+			m.type = eng::os::MsgType::AudioUnderrun;
+			port.post(m);
+		}
+	}
+
 	void set_music_volume(u8 volume) {
 		if (m_format == MusicFormat::P61) {
 			m_p61.set_master_volume(volume);
@@ -176,6 +203,8 @@ private:
 	MusicFormat m_format = MusicFormat::None;
 	AudioMode m_mode = AudioMode::Game;
 	AudioConfig m_cfg {};
+	AudioMsgEdges m_edges {};
+	bool m_underrun_now = false;
 };
 
 } // namespace eng::audio

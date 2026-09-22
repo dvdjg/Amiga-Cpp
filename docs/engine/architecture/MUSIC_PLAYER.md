@@ -10,7 +10,7 @@ asm del demoscene-repo como backends de la intención `eng::audio::MusicEvent`
 |---|---|---|
 | P61 | `lib/libp61/p61.asm` + `P6112-Play.i` | **Importado**: `support/music/p61.asm`; envoltura `eng::audio::P61Player` en `music_player.hpp`. Demo `059` lo enlaza. |
 | Protracker (MOD) | `lib/libpt/pt.asm` + `ptplayer.i` (95 KB) | **Importado**: `support/music/pt.asm` (+ `ptplayer.i`, `vbr.s` con `_ExcVecBase=0`). Ensambla y enlaza. **Pendiente**: envoltura + demo. |
-| OctaMED (8 canales SW) | `KONEY/octamed_playroutines_amiga` | **Pendiente**: playroutine de 8 voces SW sobre los 4 canales HW, para pantallas de título (modo `TitleOctaMED`). |
+| OctaMED (8 canales SW) | `KONEY/octamed_playroutines_amiga` (`med/MED_PlayRoutine.i` + `med_feature_control.i`) | **En curso (A1)**. *Spike validado*: VASM (MOT) ensambla `MED_PlayRoutine.i` + el módulo `INCBIN` en una sección **`ChipData.MEMF_CHIP`**, sin símbolos externos salvo `_chipzero` (un `DC.L 0` de silencio que aporta el llamador), y exporta `_startmusic`/`_endmusic`. Falta la envoltura `OctaMedPlayer` (inline asm `jsr _startmusic`/`_endmusic`; frame-driven por VBlank) y la demo de título. |
 | AHX | `lib/libahx/ahx.asm` + `AHX-Replayer000.BIN` | **Pendiente**: necesita el blob `.BIN` y la libc del demoscene-repo (`MemAlloc`/`OpenFile`/`FileRead`/`FileClose`). |
 
 ## API de los reproductores

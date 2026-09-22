@@ -100,6 +100,12 @@ public:
 		}
 	}
 
+	/// ¿El módulo terminó (sin loop)? El player pone el flag `Play` del control block a 0 al
+	/// acabar; `stop()` no lo marca (para distinguir fin natural de parada).
+	[[nodiscard]] bool ended() const {
+		return m_playing && p61_amiga::_P61_ControlBlock.Play == 0u;
+	}
+
 	/// Volumen maestro (0..64).
 	void set_master_volume(u8 volume) {
 		p61_amiga::_P61_ControlBlock.Master = static_cast<u16>(volume & 0x7fu);

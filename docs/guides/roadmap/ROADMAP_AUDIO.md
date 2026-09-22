@@ -46,9 +46,11 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
 - **Entregable**: `tick_frame()` en VBlank para los players frame-driven; mensajes opcionales
   `MsgType::MusicEnd` y `MsgType::AudioUnderrun`; regla "mixer por su IRQ, música por VBlank/CIA".
 - **Detalle**: §8 de [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md).
-- **Verificación**: **HOST-241** — un `MusicEnd` se postea al terminar un módulo sin loop y no se
-  postea por buffer; el underrun se refleja una sola vez por evento.
-- **Estado**: pendiente.
+- **Verificación**: **HOST-270** (planificado como HOST-241) — `AudioMsgEdges` emite `MusicEnd` /
+  `AudioUnderrun` **una vez por evento** (flanco), no por buffer, y se re-arma al cesar.
+- **Estado**: **entregado** (`MsgType::MusicEnd`/`AudioUnderrun` en `eng/os/message.hpp`;
+  `AudioSystem::tick_frame(port)` + `notify_underrun()` + `P61Player::ended()`; `audio_events.hpp`;
+  HOST-270). La música por CIA (Protracker) no se tickea en VBlank (la lleva su IRQ).
 
 ### A3 — Codec Delta + RLE (ByteRun1)
 
@@ -90,7 +92,7 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
 | ID | Tipo | Contenido |
 |---|---|---|
 | HOST-269 | test | Modos de audio y reparto de canales; `period_for_hz` (planificado como HOST-240). |
-| HOST-241 | test | `MusicEnd`/`AudioUnderrun` (semántica, sin mensaje por buffer). |
+| HOST-270 | test | `MusicEnd`/`AudioUnderrun` (semántica, sin mensaje por buffer; planificado como HOST-241). |
 | HOST-242 | test | Codec Delta + RLE (round-trip byte a byte). |
 | HOST-243 | test | Descompresores ZX0 / aPLib (vectores de referencia). |
 | HOST-239 | test | Streaming (doble buffer, underrun, EOF) con E/S simulada. |
@@ -111,5 +113,7 @@ Diseño en [`GAME_AUDIO.md`](../../engine/architecture/GAME_AUDIO.md),
 
 ## Estado
 
-La capa de juego (`GameAudio`), el mixer y P61/Protracker **ya existen** (demos 058–062). El codec
-**Delta + RLE** está implementado (A3). El resto de fases están **pendientes**.
+La capa de juego (`GameAudio`), el mixer y P61/Protracker **ya existen** (demos 058–062). Entregados:
+**A0** (modos y reparto de canales, HOST-269), **A2** (eventos `MusicEnd`/`AudioUnderrun`, HOST-270)
+y **A3** (codec Delta + RLE, HOST-242). **A5** es parcial (`ChunkStream`, HOST-257). Pendientes:
+**A1** (OctaMED; el spike de VASM está validado), **A4** (ZX0/aPLib) y **A6** (ejemplo de juego).
