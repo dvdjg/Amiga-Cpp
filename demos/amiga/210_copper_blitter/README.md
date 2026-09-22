@@ -50,6 +50,7 @@ y `tests/host/261_fine_scroll` (cadencia de 1 px/frame del helper).
 - `docs/reference/amiga/techniques/blitter-memcpy.md` §Concurrencia.
 - `docs/guides/roadmap/ROADMAP_BLITTER_COPPER.md` (Técnicas A y B).
 - `docs/reference/emulators/winuae/copper.md` (`CDANG`).
+- `docs/build/BUILD_AND_RUN.md` §Convención de `detail` (`cameraX`/`--sequence-fine-x`).
 - `engine/include/eng/graphics/{blit_job.hpp,raster_intent.hpp}` +
   `engine/include/eng/graphics/copper/scheduler.hpp` +
   `engine/include/eng/platform/amiga_minimal.hpp` (`blitter_submit`).

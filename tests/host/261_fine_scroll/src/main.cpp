@@ -56,9 +56,22 @@ void test_geometry() {
 	eng::effects::FineScroll s = make_scroll();
 	CHECK(s.row_bytes() == 42u, "row_bytes = (20 + 1) * 2 = 42");
 	CHECK(eng::effects::FineScroll::ddfstrt() == 0x0030u, "DDFSTRT = $30 (1 word extra)");
-	CHECK(!eng::effects::FineScroll::ring_wrap(), "el helper hace shift, no ring");
 	CHECK(s.column() == 20u, "columna inicial = visible_words = 20");
 	CHECK(s.bplcon1() == 0u, "fine=0 -> BPLCON1=0");
+}
+
+/// Convenciones de scroll compartidas (`eng/graphics/playfield_scroll.hpp`): el helper y el
+/// driver `TileScrollScene` delegan en las mismas fórmulas.
+void test_formulas() {
+	CHECK(eng::graphics::fine_scroll_ddfstrt == 0x0030u, "DDFSTRT = $30");
+	CHECK(eng::graphics::fine_delay(0u) == 0u, "delay(0) = 0");
+	CHECK(eng::graphics::fine_delay(1u) == 15u, "delay(1) = 15");
+	CHECK(eng::graphics::fine_delay(15u) == 1u, "delay(15) = 1");
+	CHECK(eng::graphics::fine_delay(16u) == 0u, "delay(16) = 0 (envuelve)");
+	CHECK(eng::graphics::fine_scroll_coarse(1u) == 0u, "coarse(1) = 0");
+	CHECK(eng::graphics::fine_scroll_coarse(16u) == 0u, "coarse(16) = 0");
+	CHECK(eng::graphics::fine_scroll_coarse(17u) == 16u, "coarse(17) = 16");
+	CHECK(eng::graphics::fine_scroll_coarse(32u) == 16u, "coarse(32) = 16");
 }
 
 /// **1 px/frame**: `step()` avanza el fine; el buffer solo cambia cada 16 px (cruce de word).
@@ -114,6 +127,7 @@ void test_jobs() {
 int main() {
 	test_attach_validation();
 	test_geometry();
+	test_formulas();
 	test_step_cadence();
 	test_bplcon1_sequence();
 	test_jobs();

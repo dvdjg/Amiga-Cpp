@@ -6,6 +6,7 @@
 /// `docs/engine/architecture/PUBLIC_GAME_API.md`.
 
 #include <eng/graphics/blit_job.hpp>
+#include <eng/graphics/playfield_scroll.hpp>
 #include <eng/graphics/composition/compose.hpp>
 #include <eng/graphics/composition/copper_chunky.hpp>
 #include <eng/graphics/effects/raster_gradient.hpp>
@@ -329,15 +330,10 @@ public:
 		return static_cast<u16>((static_cast<u32>(m_cfg.visible_words) + 1u) * 2u);
 	}
 	/// `DDFSTRT` del display con **1 word extra** a la izquierda (fine scroll).
-	[[nodiscard]] static constexpr u16 ddfstrt() noexcept { return 0x0030u; }
-	/// ¿La capa necesita **ring wrap** (buffer anular) en vez de shift? Este helper hace `shift`;
-	/// el ring real es el dominio del driver `tile_scroll` (contenido periódico/tilemap).
-	[[nodiscard]] static constexpr bool ring_wrap() noexcept { return false; }
+	[[nodiscard]] static constexpr u16 ddfstrt() noexcept { return graphics::fine_scroll_ddfstrt; }
 
 	/// Valor de `BPLCON1` del frame (`delay`, `(16 − fine) & 15`).
-	[[nodiscard]] u16 bplcon1() const noexcept {
-		return static_cast<u16>((16u - m_fine) & 15u);
-	}
+	[[nodiscard]] u16 bplcon1() const noexcept { return graphics::fine_delay(m_fine); }
 
 	/// Avanza **1 px** el scroll. `true` si toca el **shift de columna** (fine cruzó 16).
 	bool step() noexcept {
