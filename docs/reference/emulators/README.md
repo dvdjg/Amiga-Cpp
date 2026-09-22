@@ -1,17 +1,14 @@
 # Investigación sobre emuladores
 
-Resultados de leer el **código fuente de los emuladores** que usamos (no solo la
-documentación oficial) para resolver discrepancias de comportamiento. Cada emulador puede
-implementar los chips de forma distinta; aquí se documenta lo **observado**, con referencias
-al **fuente** (fichero y línea).
+Resultados de leer el **código fuente de los emuladores** que usamos (no solo la documentación oficial) para resolver discrepancias de comportamiento. Cada emulador puede implementar los chips de forma distinta; aquí se documenta lo **observado**, con referencias al **fuente** (fichero y línea).
 
-> Para qué sirve: cuando algo «no funciona» en emulador y la doc del hardware no lo explica,
-> la implementación del emulador es la referencia de facto (y a veces revela una errata de la
-> doc, como el bit `ATTACH` de `SPRxCTL`).
+> Para qué sirve: cuando algo «no funciona» en emulador y la doc del hardware no lo explica, la implementación del emulador es la referencia de facto (y a veces revela una errata de la doc, como el bit `ATTACH` de `SPRxCTL`).
 
-| Emulador | Ruta local | Fichas |
+Cada emulador tiene su **índice de fichas** (una ficha por **tema**):
+
+| Emulador | Ruta local | Índice de fichas |
 |---|---|---|
-| WinUAE-DBG | `../WinUAE-DBG/` (fuente) | [winuae/collision.md](winuae/collision.md), [winuae/sprite-dma.md](winuae/sprite-dma.md), [winuae/copper.md](winuae/copper.md), [winuae/trackdisk.md](winuae/trackdisk.md), [winuae/audio-irq.md](winuae/audio-irq.md) |
+| WinUAE-DBG | `../WinUAE-DBG/` (fuente) | [`winuae/README.md`](winuae/README.md) |
 
 ## Cómo añadir una ficha
 
@@ -19,3 +16,4 @@ al **fuente** (fichero y línea).
 - Citar **fichero y línea** del fuente del emulador.
 - Separar lo **observado** (código) de lo **inferido** (hipótesis).
 - Si el hallazgo afecta al engine, enlazar la demo/test que lo valida.
+- Indexarla en el README del emulador (lo verifica `tools/check/doc-index.mjs`).

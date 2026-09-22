@@ -20,7 +20,7 @@ const ROOT = path.resolve(__dirname, '../..');
 const GROUPS = [
 	{ readme: 'docs/debugging/system/README.md', dir: 'docs/debugging/system', recurse: false },
 	{ readme: 'docs/debugging/investigaciones/README.md', dir: 'docs/debugging/investigaciones', recurse: false },
-	{ readme: 'docs/reference/emulators/README.md', dir: 'docs/reference/emulators', recurse: true },
+	{ readme: 'docs/reference/emulators/winuae/README.md', dir: 'docs/reference/emulators/winuae', recurse: false },
 ];
 
 // kebab-case; prefijo `NNN_` permitido si el doc es de una demo concreta.
