@@ -339,7 +339,10 @@ UI (`eng::ui`).
   (leer 544 palabras desde el sync y decodificar la cabecera, repitiendo hasta el sector pedido) y
   **tampoco** encontró el 0 (los intentos capturaban el mismo sector); se revirtió. Siguiente paso:
   **alinear por el pulso de índice** (`DSKINDEX`/IRQ de índice) o leer y **recoger las cabeceras** de
-  varios sectores seguidos para ver la secuencia real.
+  varios sectores seguidos para ver la secuencia real. Referencias del formato (repo hermano
+  `amiga-bootcamp`): `10_devices/trackdisk.md` (geometría, formato de sector, `DSKLEN` doble, DMA de
+  pista completa) y `02_boot_sequence/disk_boot.md` (cadena de arranque por floppy: CIA-B + Paula +
+  decodificación por CPU).
   Ya se quitó
   la escritura `DSKLEN=0` (que en `:4887` dispara un `disk_dmafinished` prematuro con `dma_enable` a 1).
   Pendiente: un `write_log` dirigido (`DISK_DEBUG_X`, `:4276` `buffer load`) para ver qué escribe el DMA
