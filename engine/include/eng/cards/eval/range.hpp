@@ -230,8 +230,8 @@ inline void build_preflop_table(PreflopTable& table, eng::Xoroshiro64pp& rng,
 			continue;
 		}
 		const Card hole[2] {a, b};
-		const EquityResult eq = equity_vs_random(eng::Span<const Card> {hole, 2u},
-		                                         eng::Span<const Card> {}, 1u, samples_per_class, rng);
+		const EquityResult eq = equity_vs_random(hole, eng::Span<const Card> {}, 1u,
+		                                         samples_per_class, rng);
 		table.equity_permille[index] = eq.equity_permille;
 	}
 	// Orden por equity descendente (selección; una sola vez en `init`).

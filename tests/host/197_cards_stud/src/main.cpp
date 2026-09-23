@@ -57,7 +57,7 @@ void test_start() {
 	check(t.to_act != kNoSeat && t.to_act != t.bring_in_seat, "stud: habla tras el bring-in");
 
 	Action legal[12] {};
-	const u8 n = stud_legal_actions(t, eng::Span<Action> {legal, 12u});
+	const u8 n = stud_legal_actions(t, legal);
 	check(has(legal, n, ActionType::Fold), "stud: fold legal");
 	check(has(legal, n, ActionType::Call), "stud: call legal");
 	check(has(legal, n, ActionType::Raise), "stud: raise legal");
@@ -71,7 +71,7 @@ void test_full_hand() {
 	u32 guard = 0u;
 	while (!t.hand_over && guard < 300u) {
 		Action legal[12] {};
-		const u8 n = stud_legal_actions(t, eng::Span<Action> {legal, 12u});
+		const u8 n = stud_legal_actions(t, legal);
 		if (n == 0u) {
 			break;
 		}
@@ -134,7 +134,7 @@ void test_street_limits() {
 	eng::Xoroshiro64pp rng {5u, 6u};
 	start_stud(t, rng, 3u, 1000, 1, 2, 4, 8, 0u);
 	Action legal[12] {};
-	u8 n = stud_legal_actions(t, eng::Span<Action> {legal, 12u});
+	u8 n = stud_legal_actions(t, legal);
 	s32 raise_amount = -1;
 	for (u8 i = 0u; i < n; ++i) {
 		if (legal[i].type == ActionType::Raise) {

@@ -152,7 +152,7 @@ struct Table {
 	for (u8 i = 0u; i < kBoardCards; ++i) {
 		cards[2u + i] = t.board[i];
 	}
-	return evaluate_hand(eng::Span<const Card> {cards, 7u});
+	return evaluate_hand(cards);
 }
 
 // ---------------------------------------------------------------------------

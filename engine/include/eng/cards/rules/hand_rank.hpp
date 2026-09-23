@@ -312,12 +312,12 @@ namespace detail {
 	}
 	return detail::best_wild_fill(eng::Span<const Card> {plain, plain_count}, wilds,
 	                              eng::Span<Card> {work, static_cast<eng::usize>(plain_count) + wilds},
-	                              eng::Span<bool> {used, kDeckSize}, 0u);
+	                              used, 0u);
 }
 
 /// Evalúa exactamente 5 cartas (atajo para tablas y tests).
 [[nodiscard]] constexpr HandValue evaluate5(const Card (&cards)[5]) noexcept {
-	return evaluate_hand(eng::Span<const Card> {cards, 5u});
+	return evaluate_hand(cards);
 }
 
 /// Mejor mano de 5 entre `count` cartas (hasta 7) pasadas como vista.
@@ -344,8 +344,7 @@ namespace detail {
 				for (u8 b1 = static_cast<u8>(b0 + 1u); b1 < 4u; ++b1) {
 					for (u8 b2 = static_cast<u8>(b1 + 1u); b2 < 5u; ++b2) {
 						const Card five[5] {hole[h0], hole[h1], board[b0], board[b1], board[b2]};
-						const HandValue value = evaluate_hand(
-							eng::Span<const Card> {five, 5u}, wild_rank_mask);
+						const HandValue value = evaluate_hand(five, wild_rank_mask);
 						if (value > best) {
 							best = value;
 						}

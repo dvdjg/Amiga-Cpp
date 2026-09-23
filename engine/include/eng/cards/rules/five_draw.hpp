@@ -91,8 +91,7 @@ struct DrawTable {
 	if (s.card_count < kDrawCards) {
 		return kHandValueNone;
 	}
-	return t.deuces_wild ? evaluate_deuces_wild(eng::Span<const Card> {s.cards, kDrawCards})
-	                     : evaluate_hand(eng::Span<const Card> {s.cards, kDrawCards});
+	return t.deuces_wild ? evaluate_deuces_wild(s.cards) : evaluate_hand(s.cards);
 }
 
 // ---------------------------------------------------------------------------

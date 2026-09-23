@@ -194,7 +194,7 @@ private:
 	}
 
 	void refresh_legal() {
-		m_legal_count = legal_actions(m_table, eng::Span<Action> {m_legal, 12u});
+		m_legal_count = legal_actions(m_table, m_legal);
 		if (m_menu >= m_legal_count) {
 			m_menu = 0u;
 		}

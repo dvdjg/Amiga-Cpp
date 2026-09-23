@@ -147,13 +147,13 @@ void test_equity_vs_range() {
 	aces_only.add(preflop_class_index(c(Rank::Ace, Suit::Spades), c(Rank::Ace, Suit::Hearts)));
 
 	eng::Xoroshiro64pp rng_a {1u, 2u};
-	const EquityResult vs_all = equity_vs_range(eng::Span<const Card> {aces, 2u}, eng::Span<const Card> {},
+	const EquityResult vs_all = equity_vs_range(aces, eng::Span<const Card> {},
 	                                            all, 1u, 300u, rng_a);
 	eng::Xoroshiro64pp rng_b {1u, 2u};
-	const EquityResult vs_aces = equity_vs_range(eng::Span<const Card> {aces, 2u}, eng::Span<const Card> {},
+	const EquityResult vs_aces = equity_vs_range(aces, eng::Span<const Card> {},
 	                                             aces_only, 1u, 300u, rng_b);
 	eng::Xoroshiro64pp rng_c {1u, 2u};
-	const EquityResult low_vs_aces = equity_vs_range(eng::Span<const Card> {seven_two, 2u},
+	const EquityResult low_vs_aces = equity_vs_range(seven_two,
 	                                                 eng::Span<const Card> {}, aces_only, 1u, 300u, rng_c);
 
 	check(vs_all.equity_permille > vs_aces.equity_permille,

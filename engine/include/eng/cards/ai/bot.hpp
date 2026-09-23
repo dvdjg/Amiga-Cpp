@@ -323,7 +323,7 @@ inline void opponent_range_from_model(const OpponentModel& model, const Table& t
                                    eng::Ref<const PreflopTable> table = {},
                                    eng::Ref<const HandRange> opponent_range = {}) noexcept {
 	Action legal[12] {};
-	const eng::Span<Action> legal_span {legal, 12u};
+	const eng::Span<Action> legal_span = legal;
 	const u8 legal_count = legal_actions(t, legal_span);
 	if (legal_count == 0u) {
 		return Action {ActionType::Check, 0};

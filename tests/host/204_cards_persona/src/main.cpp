@@ -136,7 +136,7 @@ void test_decide_with_persona() {
 	                                     nullptr, rng_b);
 	// Las acciones son legales y el flujo no se rompe.
 	Action legal[12] {};
-	const u8 n = legal_actions(t, eng::Span<Action> {legal, 12u});
+	const u8 n = legal_actions(t, legal);
 	bool a_legal = false;
 	bool b_legal = false;
 	for (u8 i = 0u; i < n; ++i) {

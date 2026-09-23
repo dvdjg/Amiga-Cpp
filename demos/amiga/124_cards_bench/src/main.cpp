@@ -168,8 +168,7 @@ private:
 		const eng::u8 board[3] {make_card(Rank::Two, Suit::Clubs),
 		                        make_card(Rank::Seven, Suit::Hearts),
 		                        make_card(Rank::Nine, Suit::Diamonds)};
-		(void)equity_vs_random(eng::Span<const eng::u8> {hole, 2u},
-		                       eng::Span<const eng::u8> {board, 3u}, 1u, kEquityBatch, m_rng);
+		(void)equity_vs_random(hole, board, 1u, kEquityBatch, m_rng);
 	}
 
 	PreflopTable m_table {};

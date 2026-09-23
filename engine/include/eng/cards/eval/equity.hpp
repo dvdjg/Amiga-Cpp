@@ -152,7 +152,7 @@ template <class Ranker, class OpponentDealer>
 			continue;
 		}
 
-		const eng::Span<const Card> board_span {full_board, kBoardCards};
+		const eng::Span<const Card> board_span = full_board;
 		const HandValue hero = ranker(hole, board_span);
 
 		bool lost = false;
@@ -161,14 +161,14 @@ template <class Ranker, class OpponentDealer>
 			Card opp_hole[Ranker::hole_cards] {};
 			bool dealt = false;
 			for (u8 attempt = 0u; attempt < 4u && !dealt; ++attempt) {
-				dealt = deal_opponent(deck, eng::Span<Card> {opp_hole, Ranker::hole_cards});
+				dealt = deal_opponent(deck, opp_hole);
 			}
 			if (!dealt) {
 				lost = true;
 				break;
 			}
 			const HandValue value =
-			    ranker(eng::Span<const Card> {opp_hole, Ranker::hole_cards}, board_span);
+			    ranker(opp_hole, board_span);
 			if (value > hero) {
 				lost = true;
 				break;

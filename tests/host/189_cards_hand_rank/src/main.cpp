@@ -135,7 +135,7 @@ void test_best_of_seven() {
 	                     c(Rank::Queen, Suit::Hearts), c(Rank::Nine, Suit::Hearts),
 	                     c(Rank::Two, Suit::Hearts), c(Rank::Jack, Suit::Spades),
 	                     c(Rank::Ten, Suit::Clubs)};
-	check(hand_category(evaluate_hand(eng::Span<const Card> {seven, 7u})) == HandCategory::Flush,
+	check(hand_category(evaluate_hand(seven)) == HandCategory::Flush,
 	      "7 cartas: color gana a escalera");
 
 	// Mejor de 7 con full house: K K K 2 2 + cartas irrelevantes.
@@ -143,12 +143,12 @@ void test_best_of_seven() {
 	                     c(Rank::King, Suit::Diamonds), c(Rank::Two, Suit::Spades),
 	                     c(Rank::Two, Suit::Hearts), c(Rank::Seven, Suit::Diamonds),
 	                     c(Rank::Nine, Suit::Clubs)};
-	check(hand_category(evaluate_hand(eng::Span<const Card> {full7, 7u})) == HandCategory::FullHouse,
+	check(hand_category(evaluate_hand(full7)) == HandCategory::FullHouse,
 	      "7 cartas: full house");
 
 	// Menos de 5 cartas: sin valor.
 	const Card two[2] {c(Rank::Ace, Suit::Spades), c(Rank::King, Suit::Hearts)};
-	check(evaluate_hand(eng::Span<const Card> {two, 2u}) == kHandValueNone, "menos de 5 cartas: sin valor");
+	check(evaluate_hand(two) == kHandValueNone, "menos de 5 cartas: sin valor");
 }
 
 void test_kickers() {

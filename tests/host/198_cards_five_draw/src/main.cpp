@@ -45,23 +45,23 @@ void test_deuces_wild_eval() {
 	const Card quads[5] {c(Rank::Two, Suit::Hearts), c(Rank::Two, Suit::Spades),
 	                     c(Rank::Ace, Suit::Hearts), c(Rank::Ace, Suit::Diamonds),
 	                     c(Rank::Ace, Suit::Clubs)};
-	check(hand_category(evaluate_deuces_wild(eng::Span<const Card> {quads, 5u})) == HandCategory::Quads,
+	check(hand_category(evaluate_deuces_wild(quads)) == HandCategory::Quads,
 	      "deuces wild: ases + dos doses = poker de ases");
-	check(evaluate_deuces_wild(eng::Span<const Card> {quads, 5u}) >= evaluate_hand(eng::Span<const Card> {quads, 5u}),
+	check(evaluate_deuces_wild(quads) >= evaluate_hand(quads),
 	      "deuces wild: no empeora la mano");
 
 	// Un dos completa una escalera.
 	const Card straight[5] {c(Rank::Two, Suit::Spades), c(Rank::Five, Suit::Hearts),
 	                        c(Rank::Six, Suit::Diamonds), c(Rank::Seven, Suit::Clubs),
 	                        c(Rank::Eight, Suit::Spades)};
-	check(hand_category(evaluate_deuces_wild(eng::Span<const Card> {straight, 5u})) >= HandCategory::Straight,
+	check(hand_category(evaluate_deuces_wild(straight)) >= HandCategory::Straight,
 	      "deuces wild: el dos completa escalera");
 
 	// Con el rango comodin cambiado (treses wild): un tres hace de As -> poker de ases.
 	const Card threes[5] {c(Rank::Three, Suit::Spades), c(Rank::Ace, Suit::Hearts),
 	                      c(Rank::Ace, Suit::Diamonds), c(Rank::Ace, Suit::Clubs),
 	                      c(Rank::King, Suit::Spades)};
-	check(hand_category(evaluate_deuces_wild(eng::Span<const Card> {threes, 5u}, Rank::Three)) == HandCategory::Quads,
+	check(hand_category(evaluate_deuces_wild(threes, Rank::Three)) == HandCategory::Quads,
 	      "wild rank: cambiar el rango comodin");
 }
 
@@ -82,7 +82,7 @@ void test_start() {
 	check(t.pot == 4, "draw: bote = ante*4");
 
 	Action legal[12] {};
-	const u8 n = draw_legal_actions(t, eng::Span<Action> {legal, 12u});
+	const u8 n = draw_legal_actions(t, legal);
 	check(has(legal, n, ActionType::Check), "draw: check sin apuesta viva");
 	check(has(legal, n, ActionType::Raise), "draw: apuesta inicial");
 }
@@ -102,7 +102,7 @@ void test_full_hand() {
 			continue;
 		}
 		Action legal[12] {};
-		const u8 n = draw_legal_actions(t, eng::Span<Action> {legal, 12u});
+		const u8 n = draw_legal_actions(t, legal);
 		if (n == 0u) {
 			break;
 		}
@@ -144,7 +144,7 @@ void test_deuces_wild_hand() {
 			continue;
 		}
 		Action legal[12] {};
-		const u8 n = draw_legal_actions(t, eng::Span<Action> {legal, 12u});
+		const u8 n = draw_legal_actions(t, legal);
 		if (n == 0u) {
 			break;
 		}

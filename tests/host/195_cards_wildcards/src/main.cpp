@@ -55,33 +55,33 @@ void test_wild_evaluation() {
 	// Un comodin completa la escalera de color real.
 	const Card royal[5] {c(Rank::Ace, Suit::Spades), c(Rank::King, Suit::Spades),
 	                     c(Rank::Queen, Suit::Spades), c(Rank::Jack, Suit::Spades), joker_a};
-	check(hand_category(evaluate_hand(eng::Span<const Card> {royal, 5u})) == HandCategory::StraightFlush,
+	check(hand_category(evaluate_hand(royal)) == HandCategory::StraightFlush,
 	      "comodin: completa escalera de color");
 
 	// Dos comodines tambien.
 	const Card royal2[5] {c(Rank::Ace, Suit::Spades), c(Rank::King, Suit::Spades),
 	                      c(Rank::Queen, Suit::Spades), joker_a, joker_b};
-	check(hand_category(evaluate_hand(eng::Span<const Card> {royal2, 5u})) == HandCategory::StraightFlush,
+	check(hand_category(evaluate_hand(royal2)) == HandCategory::StraightFlush,
 	      "comodin: dos comodines completan escalera de color");
 
 	// Un comodin completa el poker de ases.
 	const Card quads[5] {c(Rank::Ace, Suit::Hearts), c(Rank::Ace, Suit::Diamonds),
 	                     c(Rank::Ace, Suit::Clubs), joker_a, c(Rank::Two, Suit::Clubs)};
-	check(hand_category(evaluate_hand(eng::Span<const Card> {quads, 5u})) == HandCategory::Quads,
+	check(hand_category(evaluate_hand(quads)) == HandCategory::Quads,
 	      "comodin: completa poker");
 
 	// Sin comodines el resultado no cambia.
 	const Card plain[5] {c(Rank::Ace, Suit::Spades), c(Rank::King, Suit::Spades),
 	                     c(Rank::Queen, Suit::Spades), c(Rank::Jack, Suit::Spades),
 	                     c(Rank::Ten, Suit::Spades)};
-	check(hand_category(evaluate_hand(eng::Span<const Card> {plain, 5u})) == HandCategory::StraightFlush,
+	check(hand_category(evaluate_hand(plain)) == HandCategory::StraightFlush,
 	      "comodin: sin comodin no cambia");
-	check(evaluate_hand(eng::Span<const Card> {plain, 5u}) == evaluate_plain(eng::Span<const Card> {plain, 5u}),
+	check(evaluate_hand(plain) == evaluate_plain(plain),
 	      "comodin: evaluate_hand == evaluate_plain sin comodines");
 
 	// Un comodin solo no llega a 5 cartas: sin valor.
 	const Card two[2] {c(Rank::Ace, Suit::Spades), joker_a};
-	check(evaluate_hand(eng::Span<const Card> {two, 2u}) == kHandValueNone, "comodin: menos de 5 sin valor");
+	check(evaluate_hand(two) == kHandValueNone, "comodin: menos de 5 sin valor");
 }
 
 void test_preflop_joker() {

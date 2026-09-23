@@ -38,10 +38,10 @@ void test_omaha_equity() {
 
 	eng::Xoroshiro64pp rng_a {11u, 22u};
 	const EquityResult eq_aces = equity_vs_random_omaha(
-	    eng::Span<const Card> {aces, 4u}, eng::Span<const Card> {}, 1u, 200u, rng_a);
+	    aces, eng::Span<const Card> {}, 1u, 200u, rng_a);
 	eng::Xoroshiro64pp rng_b {11u, 22u};
 	const EquityResult eq_trash = equity_vs_random_omaha(
-	    eng::Span<const Card> {trash, 4u}, eng::Span<const Card> {}, 1u, 200u, rng_b);
+	    trash, eng::Span<const Card> {}, 1u, 200u, rng_b);
 
 	check(eq_aces.equity_permille > eq_trash.equity_permille, "omaha: AAxx > basura");
 	check(eq_aces.equity_permille > 600u, "omaha: AAxx domina");
@@ -50,7 +50,7 @@ void test_omaha_equity() {
 	// Determinismo por semilla.
 	eng::Xoroshiro64pp rng_c {11u, 22u};
 	const EquityResult again = equity_vs_random_omaha(
-	    eng::Span<const Card> {aces, 4u}, eng::Span<const Card> {}, 1u, 200u, rng_c);
+	    aces, eng::Span<const Card> {}, 1u, 200u, rng_c);
 	check(eq_aces.equity_permille == again.equity_permille, "omaha: determinista");
 }
 

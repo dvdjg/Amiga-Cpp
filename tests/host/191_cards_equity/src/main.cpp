@@ -47,10 +47,10 @@ void test_equity_ordering() {
 	const Card seven_two[2] {c(Rank::Seven, Suit::Spades), c(Rank::Two, Suit::Hearts)};
 
 	eng::Xoroshiro64pp rng_a {42u, 99u};
-	const EquityResult eq_aa = equity_vs_random(eng::Span<const Card> {aa, 2u}, eng::Span<const Card> {}, 1u, 400u, rng_a);
+	const EquityResult eq_aa = equity_vs_random(aa, eng::Span<const Card> {}, 1u, 400u, rng_a);
 
 	eng::Xoroshiro64pp rng_b {42u, 99u};
-	const EquityResult eq_72 = equity_vs_random(eng::Span<const Card> {seven_two, 2u}, eng::Span<const Card> {}, 1u, 400u, rng_b);
+	const EquityResult eq_72 = equity_vs_random(seven_two, eng::Span<const Card> {}, 1u, 400u, rng_b);
 
 	check(eq_aa.equity_permille > eq_72.equity_permille, "equity: AA > 72o");
 	check(eq_aa.equity_permille > 750u, "equity: AA domina");
@@ -58,7 +58,7 @@ void test_equity_ordering() {
 
 	// Determinismo.
 	eng::Xoroshiro64pp rng_c {42u, 99u};
-	const EquityResult eq_aa2 = equity_vs_random(eng::Span<const Card> {aa, 2u}, eng::Span<const Card> {}, 1u, 400u, rng_c);
+	const EquityResult eq_aa2 = equity_vs_random(aa, eng::Span<const Card> {}, 1u, 400u, rng_c);
 	check(eq_aa.equity_permille == eq_aa2.equity_permille, "equity: determinista por semilla");
 }
 
@@ -69,8 +69,8 @@ void test_made_hand() {
 	                     c(Rank::Ten, Suit::Hearts), c(Rank::Two, Suit::Clubs),
 	                     c(Rank::Three, Suit::Diamonds)};
 	eng::Xoroshiro64pp rng {5u, 6u};
-	const EquityResult eq = equity_vs_random(eng::Span<const Card> {hole, 2u},
-	                                         eng::Span<const Card> {board, 5u}, 2u, 64u, rng);
+	const EquityResult eq = equity_vs_random(hole,
+	                                         board, 2u, 64u, rng);
 	check(eq.equity_permille == 1000u, "equity: escalera de color gana siempre");
 }
 
