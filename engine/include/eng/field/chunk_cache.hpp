@@ -17,10 +17,10 @@
 /// aún no lista: NO se marca residente y se reintentará). El detalle se diseña en
 /// `docs/engine/architecture/STREAMING_LOADER.md`.
 
-#include <eng/core/domains.hpp>
-#include <eng/core/ptr.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/domains.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/core/util/hash_map.hpp>
 

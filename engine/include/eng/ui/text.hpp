@@ -5,9 +5,9 @@
 /// (8×8, avance 8 px) y se apoya en `field::Surface` para pintar. Ver
 /// `docs/engine/architecture/GUI_LIBRARY.md` §6.
 
-#include <eng/core/box.hpp>
-#include <eng/core/types.hpp>
-#include <eng/core/utf8.hpp>
+#include <eng/core/types/box.hpp>
+#include <eng/core/types/types.hpp>
+#include <eng/core/data/utf8.hpp>
 #include <eng/graphics/font8.hpp>
 #include <eng/ui/theme.hpp>
 

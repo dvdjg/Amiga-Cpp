@@ -10,7 +10,7 @@
 /// novedad (movimiento, cambio de botones o de dirección). Así un registro que no cambia **no**
 /// genera mensaje.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/os/message.hpp>
 
 namespace eng::os {

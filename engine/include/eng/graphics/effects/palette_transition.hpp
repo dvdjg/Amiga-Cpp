@@ -17,8 +17,8 @@
 /// combinar varios (p. ej. ciclo en `1..7` + transicion en `16..31`) y el driver los
 /// escribe sin solaparse.
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/color.hpp>
 #include <eng/graphics/palette32.hpp>
 #include <eng/graphics/frame_plan.hpp>

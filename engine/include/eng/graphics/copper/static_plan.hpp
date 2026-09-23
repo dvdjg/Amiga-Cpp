@@ -14,7 +14,7 @@
 /// `Scheduler::emit_single_intent` y con la misma codificación (WAIT de línea con el par de
 /// overflow de VPOS, WAIT a posición, MOVEs de COLOR/punteros de bitplane/puntero de sprite/
 /// BPLCON2), de modo que la lista compilada es **palabra a palabra** la del camino
-/// dinámico para la misma escena (`tests/host/070_copper_plan` lo verifica).
+/// dinámico para la misma escena (`tests/host/graphics/070_copper_plan` lo verifica).
 ///
 /// Los valores que dependen de DIRECCIONES (punteros de plano o de sprite) no existen en
 /// tiempo de compilación: el compilador los emite a 0 y anota su ranura en
@@ -40,7 +40,7 @@
 ///   Las DIRECCIONES (planos/sprites) no existen en compilación: se emiten a 0 y `init()` las parchea.
 /// ```
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/raster_intent.hpp>

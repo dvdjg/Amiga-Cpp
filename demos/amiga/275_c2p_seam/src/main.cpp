@@ -20,8 +20,8 @@
 //   WINUAE_SIDE_CHANNEL_PORT=2421 bash tools/run/run-demo.sh demos/amiga/275_c2p_seam --warp
 
 #include <eng/api/api.hpp>
-#include <eng/core/ct_array.hpp>
-#include <eng/core/sinetable.hpp>
+#include <eng/core/data/ct_array.hpp>
+#include <eng/core/math/sinetable.hpp>
 #include <eng/graphics/c2p.hpp>
 #include <eng/graphics/effects/rotozoom.hpp>
 #include <eng/platform/amiga_minimal.hpp>

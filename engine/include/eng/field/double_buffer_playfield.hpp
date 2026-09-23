@@ -13,8 +13,8 @@
 /// punteros lo aporta el mapper flat (`map_flat_scroll`). Verificada por la demo
 /// `demos/amiga/122_doublebuffer_scroll`.
 
-#include <eng/core/ptr.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/field/amiga_display_mapper.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/field/scroll_engine.hpp>

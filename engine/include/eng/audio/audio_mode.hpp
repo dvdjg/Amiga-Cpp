@@ -9,7 +9,7 @@
 /// cada modo y garantiza que **no se solapan**. `paula::period_for_hz` también es puro. Las
 /// escrituras de registro (DMACON, `AUDn*`) las hace el backend Amiga, no este header.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::audio {
 

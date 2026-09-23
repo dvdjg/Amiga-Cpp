@@ -22,8 +22,8 @@
 ///
 /// Ver `docs/engine/architecture/CONTENT_AND_TILEMAP.md` §2.
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/field/chunk_cache.hpp>
 #include <eng/field/tile_source.hpp>
 

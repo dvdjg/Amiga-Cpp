@@ -20,8 +20,8 @@
 ///   pq.pop();
 ///   eng::util::PriorityQueue<int, 8, eng::util::Greater<int>> minq;  // min-heap
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/type_traits.hpp>
 #include <eng/core/util/util.hpp>
 

@@ -5,8 +5,8 @@
 /// (sin heap). Cuando se desborda, cae a repintado total. Ver
 /// `docs/engine/architecture/GUI_LIBRARY.md` §9.
 
-#include <eng/core/box.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/box.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/ui/theme.hpp> // Rect
 
 namespace eng::ui {

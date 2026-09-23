@@ -28,7 +28,7 @@
 /// Verificación: HOST-154.
 
 #include <eng/ai/perception/influence_map.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/sim/behavior.hpp>
 #include <eng/sim/genetics.hpp>
 #include <eng/sim/types.hpp>

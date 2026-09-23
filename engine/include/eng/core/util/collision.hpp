@@ -13,9 +13,9 @@
 ///   if (eng::util::aabb_overlap(box, other)) { ... }
 ///   if (eng::util::segments_intersect(a, b, c, d)) { ... }
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
-#include <eng/core/arith.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
+#include <eng/core/math/arith.hpp>
 
 namespace eng::util {
 

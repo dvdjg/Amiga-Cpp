@@ -21,7 +21,7 @@
 /// Verificación: HOST-155 (y HOST-153 para la integración con el mundo).
 
 #include <eng/ai/planning/goap.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/sim/planner.hpp>
 

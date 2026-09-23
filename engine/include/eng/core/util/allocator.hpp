@@ -21,8 +21,8 @@
 /// `Span<u8>` vacía si no cabe, y `align` debe ser potencia de dos (normalmente
 /// `alignof(T)`).
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/type_traits.hpp>
 
 namespace eng::util {

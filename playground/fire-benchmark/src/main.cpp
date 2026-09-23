@@ -18,8 +18,8 @@
 // Visualización: dibuja el fuego (usando `fire_cpp` + c2p + scale4x de la demo
 // 062) para tener una referencia visual; el interés real es el benchmark.
 
-#include <eng/core/random.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/random.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/debug/peripheral.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>

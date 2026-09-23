@@ -38,8 +38,8 @@
 ///   install(backend) = swap de COP1LC; NUNCA COPJMP1 (no se ve una lista a medio escribir)
 /// ```
 
-#include <eng/core/domains.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/domains.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/copper/template.hpp>
 #include <eng/memory/arena.hpp>

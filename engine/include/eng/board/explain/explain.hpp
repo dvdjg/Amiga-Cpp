@@ -25,7 +25,7 @@
 #include <eng/board/eval/features.hpp>
 #include <eng/board/explain/templates.hpp>
 #include <eng/board/rules/chess/board.hpp>
-#include <eng/core/span.hpp>
+#include <eng/core/types/span.hpp>
 #include <eng/core/util/static_string.hpp>
 #include <eng/core/util/string_view.hpp>
 #include <eng/core/util/text.hpp>

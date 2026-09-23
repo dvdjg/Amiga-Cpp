@@ -20,8 +20,8 @@
 /// backend.execute_frame_plan(plan);
 /// ```
 
-#include <eng/core/box.hpp>
-#include <eng/core/ptr.hpp>
+#include <eng/core/types/box.hpp>
+#include <eng/core/types/ptr.hpp>
 #include <eng/field/raster.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/graphics/frame_plan.hpp>

@@ -18,13 +18,13 @@
 ///
 /// Contrato y diseño: `docs/engine/architecture/OBJECT_SYSTEM.md`.
 ///
-/// Verificación: lógica y emisión cubiertas por el test host `tests/host/072_actor`
+/// Verificación: lógica y emisión cubiertas por el test host `tests/host/scene/072_actor`
 /// (almacén generacional, políticas, geometría, jobs de fondo/dibujo y Copper anclado).
 /// **NO VERIFICADA por demo**: todavía no hay una demo con gate visual que lo consuma.
 
-#include <eng/core/ptr.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/core/util/bitset.hpp>
 #include <eng/core/util/pool.hpp>

@@ -19,7 +19,7 @@
 ///   tile_flags.insert(3u, 0x12u);
 ///   const eng::u8* f = tile_flags.find(3u);
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/type_traits.hpp>
 
 namespace eng::util {

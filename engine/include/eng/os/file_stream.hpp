@@ -11,9 +11,9 @@
 /// test, una fake síncrona. El `ChunkStream` y la fuente se referencian con `eng::Ref` (observador
 /// no propietario y anulable, sin `*` crudo); los buffers, con `eng::Span`.
 
-#include <eng/core/ptr.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/os/stream.hpp>
 
 namespace eng::os {

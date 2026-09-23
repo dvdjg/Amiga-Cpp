@@ -14,8 +14,8 @@
 /// Ver `docs/engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md` §3.2 y
 /// `docs/reference/amiga/techniques/robocod-layered-scroll.md`.
 
-#include <eng/core/domains.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/domains.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/field/plane_view.hpp>
 #include <eng/graphics/bitmap.hpp>
 #include <eng/graphics/frame_plan.hpp>

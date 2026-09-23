@@ -24,10 +24,10 @@
 ///   Dominio : Chip (DMA: Blitter/bitplanes/audio/Copper) | Fast (solo CPU) | Any
 /// ```
 
-#include <eng/core/domains.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/typed.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/domains.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/typed.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/memory/arena.hpp>
 
 namespace eng::gfx {

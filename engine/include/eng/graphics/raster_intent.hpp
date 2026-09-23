@@ -19,9 +19,9 @@
 /// coprocesadores y los compilan a `FramePlan`. Esta separacion es la regla de oro:
 /// la logica de juego emite intenciones; el engine arbitra.
 
-#include <eng/core/domains.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/domains.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/blitter_state.hpp>
 
 namespace eng::graphics {

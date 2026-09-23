@@ -14,7 +14,7 @@
 /// - el driver/scheduler decidiran si esos cambios se escriben en Copper, CPU,
 ///   doble buffer de copperlist o incluso otro backend futuro.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/palette32.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/graphics/raster_intent.hpp>

@@ -23,7 +23,7 @@
 ///
 /// Verificación: HOST-206.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/sim/mind.hpp>
 #include <eng/sim/psyche.hpp>
 #include <eng/sim/types.hpp>

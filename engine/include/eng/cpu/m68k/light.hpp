@@ -8,7 +8,7 @@
 /// `if consteval` mantiene la función `constexpr` (el camino de compilación usa el cuerpo
 /// portable; en runtime, la secuencia nativa), igual que en `arith.hpp`.
 
-#include <eng/core/light.hpp>
+#include <eng/core/math/light.hpp>
 
 namespace eng::math {
 

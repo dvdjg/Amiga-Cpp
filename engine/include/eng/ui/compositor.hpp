@@ -10,9 +10,9 @@
 /// `backing.surface` (con `UiPainter`) cuando `needs_repaint`; `present()` solo hace las
 /// **copies** de los backings a la pantalla sobre las regiones dañadas.
 
-#include <eng/core/ptr.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/ui/backing.hpp>

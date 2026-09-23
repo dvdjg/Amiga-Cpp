@@ -18,8 +18,8 @@
 ///
 /// Verificación: HOST-124.
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/allocator.hpp>
 #include <eng/core/util/hash_map.hpp>
 #include <eng/core/util/string_view.hpp>

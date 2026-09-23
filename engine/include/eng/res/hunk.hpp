@@ -20,9 +20,9 @@
 /// base del hunk destino a la celda indicada. Referencias: `dos/doshunks.h` (NDK) y
 /// `docs/reference/amiga/techniques/` (HUNK). Ver `docs/engine/architecture/RESOURCE_SYSTEM.md` §2.
 
-#include <eng/core/byte_order.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/data/byte_order.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/res/symbol_hash.hpp>
 

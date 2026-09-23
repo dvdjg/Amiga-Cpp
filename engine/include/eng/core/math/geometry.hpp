@@ -26,9 +26,9 @@
 ///   (división explícita), funcionan `normalize`/`project`/`reject`/`reflect`/`length`;
 ///   sin él solo compilan `dot`/`cross2`/`perp`/`vlerp`/`rotate2` (suma y producto).
 
-#include <eng/core/linalg.hpp>
-#include <eng/core/numeric_traits.hpp>
-#include <eng/core/scalar_math.hpp>
+#include <eng/core/math/linalg.hpp>
+#include <eng/core/math/numeric_traits.hpp>
+#include <eng/core/math/scalar_math.hpp>
 
 namespace eng::math {
 

@@ -14,7 +14,7 @@
 /// `docs/engine/architecture/STREAMING_LOADER.md`.
 
 #include <eng/assets/uaf.hpp>
-#include <eng/core/ptr.hpp>
+#include <eng/core/types/ptr.hpp>
 #include <eng/field/streaming_map.hpp>
 #include <eng/field/tile_source.hpp>
 

@@ -16,8 +16,8 @@
 ///   eng::quick_sort(Span<eng::SortItem>{items}, [](auto& a, auto& b) { return a.key <= b.key; });
 ///   eng::sort_items(Span<s32>{arr}, [](s32 a, s32 b) { return a <= b; });
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng {
 

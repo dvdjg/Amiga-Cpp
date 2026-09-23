@@ -16,7 +16,7 @@ capacidad. El callable es un **functor miembro** (`EffectTask`): `add_effect` gu
 `FunctionRef` no propietario y una lambda temporal quedaría colgando.
 
 Documentación y fuentes del sondeo: `docs/engine/architecture/HARDWARE_INVENTORY.md`.
-Test de la parte pura: `tests/host/235_hw_info`.
+Test de la parte pura: `tests/host/platform/amiga/235_hw_info`.
 
 ## Compilar / ejecutar
 

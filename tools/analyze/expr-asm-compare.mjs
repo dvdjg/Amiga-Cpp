@@ -17,9 +17,9 @@ const CXX = `${BIN}/opt/bin/m68k-amiga-elf-g++.exe`;
 const SRC = `${ROOT}/out/tmp/expr-asm-compare.cpp`;
 const ASM = `${ROOT}/out/tmp/expr-asm-compare.s`;
 
-const probe = `#include <eng/core/minifloat.hpp>
-#include <eng/core/linalg.hpp>
-#include <eng/core/expr.hpp>
+const probe = `#include <eng/core/math/minifloat.hpp>
+#include <eng/core/math/linalg.hpp>
+#include <eng/core/math/expr.hpp>
 using namespace eng::math;
 using namespace eng::math::et;
 

@@ -7,7 +7,7 @@
 ///
 /// Ver la regla de genericidad: `docs/engine/architecture/CODING_STYLE.md` y `AGENTS.md` §1.10.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::ai {
 

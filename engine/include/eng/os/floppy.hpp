@@ -24,9 +24,9 @@
 /// `$BFD100`**: `/MTR`(7), `/SEL0`(3), `SIDE`(2), `DIR`(1), `STEP`(0); CIA-A **PRA `$BFE001`**:
 /// `/RDY`(5), `/TK0`(4). Ficha: `docs/reference/emulators/winuae/trackdisk.md`.
 
-#include <eng/core/span.hpp>
-#include <eng/core/ptr.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::os {
 

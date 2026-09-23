@@ -77,8 +77,8 @@
 /// Verificacion: HOST-107 (Hanoi, receta de un pastel, mision de un soldado y un
 /// dominio de 64 hechos).
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/core/util/bit.hpp>
 #include <eng/core/util/bitset.hpp>

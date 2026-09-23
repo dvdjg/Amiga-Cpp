@@ -21,8 +21,8 @@
 /// Verificación: HOST-155.
 
 #include <eng/ai/planning/goap.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/sim/mind.hpp>
 #include <eng/sim/personality.hpp>
 #include <eng/sim/types.hpp>

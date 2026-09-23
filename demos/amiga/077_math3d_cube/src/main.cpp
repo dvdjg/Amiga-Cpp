@@ -12,7 +12,7 @@
 // ni punteros. El trazado se hace en `render()` (durante el vblank): escribir CPU al
 // Chip RAM con el DMA de bitplanes activo roba ciclos y produce scanlines negros (ver 107).
 #include <eng/platform/amiga/gfx3d.hpp>
-#include <eng/core/mesh3d.hpp>
+#include <eng/core/data/mesh3d.hpp>
 #include <eng/api/api.hpp>          // fachada: escena, dibujo, paleta, run_status
 #include <eng/platform/amiga_minimal.hpp>
 

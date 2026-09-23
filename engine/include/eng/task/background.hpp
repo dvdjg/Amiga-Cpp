@@ -30,7 +30,7 @@
 /// No hay asignacion dinamica: pool fijo de `max_tasks`. Las tareas terminadas
 /// liberan su slot y el `generation` del handle lo invalida.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/intrusive_list.hpp>
 
 namespace eng::task {

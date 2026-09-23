@@ -27,9 +27,9 @@
 ///                                      reset() / mark·release ──────► cursor atrás (sin free por bloque)
 /// ```
 
-#include <eng/core/memory_kind.hpp>
-#include <eng/core/types.hpp>
-#include <eng/core/typed.hpp>
+#include <eng/core/types/memory_kind.hpp>
+#include <eng/core/types/types.hpp>
+#include <eng/core/types/typed.hpp>
 
 namespace eng {
 

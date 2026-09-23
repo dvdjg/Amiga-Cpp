@@ -23,7 +23,7 @@
 ///   eng::util::HashMap<eng::util::StringView, eng::u16, 64> names;
 ///   names.insert(eu::StringView("hero"), 3u);
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/bitset.hpp>
 #include <eng/core/util/hash.hpp>
 

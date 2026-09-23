@@ -8,8 +8,8 @@
 /// (cooldown + límite de instancias), que se pueden testear en host. La
 /// orquestación con el mixer Amiga (`GameAudio`) está en `game_audio.hpp`.
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/direct_map.hpp>
 
 namespace eng::audio {

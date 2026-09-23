@@ -23,8 +23,8 @@
 ///
 /// Verificación: HOST-189. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 
 #include <eng/cards/core/types.hpp>
 

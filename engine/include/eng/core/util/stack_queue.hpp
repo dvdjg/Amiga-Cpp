@@ -14,8 +14,8 @@
 ///   eng::util::Queue<int, 16> events;
 ///   eng::util::Deque<int, 16> work;   // push_front / push_back
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/ring_buffer.hpp>
 #include <eng/core/util/static_vector.hpp>
 #include <eng/core/util/util.hpp>

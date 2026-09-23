@@ -34,8 +34,8 @@
 ///
 /// Verificación: HOST-137.
 
-#include <eng/core/ptr.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/types/types.hpp>
 
 #if !defined(__m68k__)
 #include <atomic>

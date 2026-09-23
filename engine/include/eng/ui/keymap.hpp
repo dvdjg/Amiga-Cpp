@@ -19,7 +19,7 @@
 /// AHRM) hasta volcarlos de `DEVS:Keymaps` del ROM. Los caracteres de RU son **cirílicos (U+04xx)**,
 /// cubiertos por `Font8`.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/ui/keys.hpp>
 
 namespace eng::ui {

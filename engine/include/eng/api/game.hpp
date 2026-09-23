@@ -11,7 +11,7 @@
 ///     void update(auto& app);  // logica del frame
 ///     void render(auto& app);  // dibujo: app.screen()...; app.present()
 /// };
-/// eng::amiga::MinimalBackend backend {};
+/// eng::amiga::AmigaBackend backend {};
 /// MyGame game {};
 /// eng::App app {backend, game};
 /// app.run();
@@ -21,9 +21,9 @@
 /// `docs/engine/architecture/PUBLIC_GAME_API.md`; los principios, en `PUBLIC_API.md` §1.1.
 /// Es **evolutivo**: cubre lo que ya existe y se amplía cuando lleguen los demás módulos.
 
-#include <eng/core/box.hpp>
-#include <eng/core/ptr.hpp>
-#include <eng/core/span.hpp>
+#include <eng/core/types/box.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/types/span.hpp>
 #include <eng/engine.hpp>
 #include <eng/field/draw_target.hpp>
 #include <eng/graphics/composition/compose.hpp>

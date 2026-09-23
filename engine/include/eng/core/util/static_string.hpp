@@ -15,7 +15,7 @@
 ///   score.append('9');
 ///   draw(score.view());   // como StringView
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/string_view.hpp>
 
 namespace eng::util {

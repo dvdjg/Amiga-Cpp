@@ -12,7 +12,7 @@
 /// Los campos **comunes** (fuente/destino, tamaño, módulos, planos, minterm) valen para
 /// todas las operaciones; los grupos `line` y `c2p` solo se leen para sus tipos.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::graphics {
 
@@ -46,7 +46,7 @@ enum class BlitJobKind : u8 {
 	/// más blits o reprogramar A por fila. Reusa el camino `OrBlob` del backend.
 	PatternFill,
 	/// **Chunky→planar por Blitter** (13 fases): convierte `c2p.chunky` a los 4 planos
-	/// `c2p.planes` (ver `MinimalBackend::c2p_4bpp_step`). Es la vía Blitter del seam
+	/// `c2p.planes` (ver `AmigaBackend::c2p_4bpp_step`). Es la vía Blitter del seam
 	/// `Rasterizer::c2p`.
 	C2P,
 };

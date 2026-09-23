@@ -34,7 +34,7 @@
 ///   geometry_for(res) ──► DisplayGeometry (DIW/DDF derivados)
 /// ```
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::graphics::composition {
 

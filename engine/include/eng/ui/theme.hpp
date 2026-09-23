@@ -8,8 +8,8 @@
 /// El rectángulo de la UI es **`eng::Box`** (el rect único del engine); aquí se aliasa como
 /// `eng::ui::Rect` para el vocabulario de la GUI sin introducir un quinto rectángulo.
 
-#include <eng/core/box.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/box.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::ui {
 

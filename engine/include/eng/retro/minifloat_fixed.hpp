@@ -34,9 +34,9 @@
 /// se **satura** (no envuelve). Restricciones: `gnu++23`, sin STL, sin excepciones, sin
 /// asignación dinámica.
 
-#include <eng/core/linalg.hpp>
-#include <eng/core/minifloat.hpp>
-#include <eng/core/numeric_traits.hpp>
+#include <eng/core/math/linalg.hpp>
+#include <eng/core/math/minifloat.hpp>
+#include <eng/core/math/numeric_traits.hpp>
 #include <eng/retro/fixed_q.hpp>
 
 /// Fuerza el inline donde la llamada cuesta más que el cálculo (68000). Macro local,

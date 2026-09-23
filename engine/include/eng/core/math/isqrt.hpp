@@ -13,7 +13,7 @@
 ///   u32 r = eng::isqrt(100);   // 10
 ///   u32 s = eng::isqrt(32768); // 181
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng {
 

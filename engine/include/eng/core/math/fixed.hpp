@@ -43,11 +43,11 @@
 ///   extension por CPU/escalar: arith<Repr>, scalar_traits<Fixed>, scalar_div<Fixed>
 /// ```
 
-#include <eng/core/arith.hpp>
-#include <eng/core/numeric_traits.hpp>
-#include <eng/core/scalar_fwd.hpp>
+#include <eng/core/math/arith.hpp>
+#include <eng/core/math/numeric_traits.hpp>
+#include <eng/core/math/scalar_fwd.hpp>
 #include <eng/core/util/type_traits.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::math {
 

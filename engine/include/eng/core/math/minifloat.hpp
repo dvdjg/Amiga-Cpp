@@ -34,7 +34,7 @@
 ///     `divu.w` (~140 ciclos) o del `__divsf3` emulado.
 ///
 /// Es el escalar que la librería genérica de álgebra lineal
-/// (`eng/core/linalg.hpp`) puede usar como cualquier otro: `scalar_traits<MiniFloat16>`
+/// (`eng/core/math/linalg.hpp`) puede usar como cualquier otro: `scalar_traits<MiniFloat16>`
 /// está especializado ahí, así que `Mat<N, MiniFloat16>` y `Affine<...>` funcionan con
 /// el MISMO código que `float` o el fixed `Fixed<...>`. El uso previsto es **geometría
 /// 3D/2D** (transformaciones, culling, proyección) donde no hace falta precisión
@@ -42,21 +42,21 @@
 /// acumulaciones largas ni para valores por debajo de `2^−14`.
 ///
 /// Restricciones del engine respetadas: `gnu++23`, sin STL, sin excepciones, sin RTTI,
-/// sin asignación dinámica; las únicas dependencias son `eng/core/types.hpp` y la
-/// utilidad de tablas `eng/core/ct_array.hpp`.
+/// sin asignación dinámica; las únicas dependencias son `eng/core/types/types.hpp` y la
+/// utilidad de tablas `eng/core/data/ct_array.hpp`.
 ///
 /// **Estado de verificación: verificada por demo** — la demo
 /// `demos/amiga/083_fbm_noise` construye un mapa de altura con `fbm2<MiniFloat16>` en
 /// hardware (build/run/analyze OK) y ejercita la aritmética, `from_int` y las
-/// comparaciones. Ampliada por los tests host `tests/host/056_minifloat16` (aritmética
+/// comparaciones. Ampliada por los tests host `tests/host/core/056_minifloat16` (aritmética
 /// y matrices), `057` (matemáticas), `058` (puente con fixed) y `060` (ruido). Las
 /// funciones de `minifloat_math.hpp` siguen sin demo propia.
 
-#include <eng/core/arith.hpp>
-#include <eng/core/ct_array.hpp>
-#include <eng/core/numeric_traits.hpp>
-#include <eng/core/scalar_fwd.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/arith.hpp>
+#include <eng/core/data/ct_array.hpp>
+#include <eng/core/math/numeric_traits.hpp>
+#include <eng/core/math/scalar_fwd.hpp>
+#include <eng/core/types/types.hpp>
 
 /// Fuerza el inline de los operadores (en 68000 un `jsr`/`rts` cuesta más que la propia
 /// suma de mantisas). Macro local, anulada al final.

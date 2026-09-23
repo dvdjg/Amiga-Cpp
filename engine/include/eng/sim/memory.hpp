@@ -16,8 +16,8 @@
 ///
 /// Verificación: HOST-161.
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/sim/knowledge.hpp>
 #include <eng/sim/senses.hpp>
 #include <eng/sim/tracker.hpp>

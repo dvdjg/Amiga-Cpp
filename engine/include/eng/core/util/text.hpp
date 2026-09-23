@@ -19,8 +19,8 @@
 ///   eng::util::StaticString<16> s;
 ///   eng::util::to_chars_u32(s, n);
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/static_string.hpp>
 #include <eng/core/util/string_view.hpp>
 

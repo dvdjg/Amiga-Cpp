@@ -18,8 +18,8 @@
 /// La cabecera de archivo (`AUZX`, `compression`) la valida el llamador; aquí llega ya en `Config`.
 
 #include <eng/audio/pcm_codec.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/os/stream.hpp>
 
 namespace eng::audio {

@@ -26,7 +26,7 @@
 //   bash ./tools/build/build-demo.sh demos/amiga/085_copper_plan_scene --debug
 //   bash ./tools/run/run-demo.sh demos/amiga/085_copper_plan_scene
 
-#include <eng/core/sinetable.hpp>
+#include <eng/core/math/sinetable.hpp>
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/plan.hpp>
 #include <eng/graphics/effects/raster_gradient.hpp>

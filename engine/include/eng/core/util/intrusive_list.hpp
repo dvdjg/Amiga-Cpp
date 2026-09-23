@@ -18,7 +18,7 @@
 ///   queue.erase(&job);              // O(1) con el puntero al nodo
 ///   for (Job* j : queue) { ... }
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::util {
 

@@ -18,7 +18,7 @@
 ///
 /// Verificación: HOST-138.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::board {
 

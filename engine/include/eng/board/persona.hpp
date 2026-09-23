@@ -16,7 +16,7 @@
 
 #include <eng/board/core/types.hpp>
 #include <eng/board/search/search.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 #include <eng/sim/introspection.hpp>
 

@@ -41,6 +41,6 @@ No depende del mini-SO (`eng::os`), pero se integra con él por el puente `os::M
 | `ui_bridge.hpp` | Puente `eng::os::Msg` → `UiEvent`. **Implementado** (HOST-220). |
 | `msg_adapter.hpp` | `dispatch_msg`: `os::Msg` de entrada → `UiContext` (traduce con `ctx.layout` y compone con `ctx.dead`). **Implementado** (HOST-261/263/265). |
 
-Los rectángulos de UI son `eng::Box` (`eng/core/box.hpp`); no hay un `rect.hpp` propio. Reglas del
+Los rectángulos de UI son `eng::Box` (`eng/core/types/box.hpp`); no hay un `rect.hpp` propio. Reglas del
 engine: sin heap en el camino caliente, sin excepciones ni RTTI, `gnu++23`, tipos de `eng/core`,
 despacho por tipo (no `virtual` en caliente), capacidad fija y temas/métricas `constexpr`.

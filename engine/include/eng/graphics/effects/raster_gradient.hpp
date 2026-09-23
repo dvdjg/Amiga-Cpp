@@ -24,11 +24,11 @@
 /// como bandas y `phase` entero, cada banda toma una clave distinta y el degradado
 /// "rueda" (equivale al color cycling por banda).
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/core/util/color.hpp>
-#include <eng/core/arith.hpp>
+#include <eng/core/math/arith.hpp>
 #include <eng/graphics/raster_intent.hpp>
 
 namespace eng::graphics::effects {

@@ -10,8 +10,8 @@
 /// `hi16( hi16(|v|) · inv_sqrt[clamp(hi16(e1_sq), 0, 511)] )`, **sin `sqrt` en runtime**
 /// (`inv_sqrt` es la tabla `65535/sqrt(x)` en formato 0.16).
 
-#include <eng/core/arith.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/arith.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::math {
 

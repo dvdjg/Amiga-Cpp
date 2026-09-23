@@ -10,7 +10,7 @@
 /// ejemplo, construir una lista de Copper en Fast RAM y copiarla a Chip con el
 /// Blitter antes de instalarla.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng {
 

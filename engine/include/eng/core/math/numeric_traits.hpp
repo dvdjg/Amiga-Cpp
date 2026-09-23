@@ -1,5 +1,5 @@
 #pragma once
-#include <eng/core/scalar_fwd.hpp>
+#include <eng/core/math/scalar_fwd.hpp>
 
 /// \file numeric_traits.hpp
 /// **Rasgos numéricos** de un escalar, para que los algoritmos genéricos (interpolación,
@@ -21,7 +21,7 @@
 /// `min_normal`, `epsilon`, los flags (`is_fractional`, `has_division`, `has_inf`,
 /// `has_nan`) y `to_double`. El resto de la librería lo usa tal cual.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::math {
 

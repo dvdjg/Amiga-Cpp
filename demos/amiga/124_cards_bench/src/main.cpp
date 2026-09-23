@@ -19,7 +19,7 @@
 //
 // Verificacion: build -> run -> READY OK (evidencia en el README).
 
-#include <eng/core/random.hpp>
+#include <eng/core/math/random.hpp>
 #include <eng/api/api.hpp>
 #include <eng/core/util/static_string.hpp>
 #include <eng/core/util/text.hpp>

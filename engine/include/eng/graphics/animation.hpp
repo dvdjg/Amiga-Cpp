@@ -7,8 +7,8 @@
 ///
 /// Ver `docs/engine/architecture/CONTENT_AND_TILEMAP.md` §3.
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::graphics {
 

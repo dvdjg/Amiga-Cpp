@@ -1,4 +1,4 @@
-// Demo 083 - fbm noise (value noise + fbm de eng/core/noise.hpp).
+// Demo 083 - fbm noise (value noise + fbm de eng/core/math/noise.hpp).
 //
 // Muestra el ruido procedural como **mapa de altura animado** sobre un display copper
 // chunky 288x256 (36x64 bloques de 8x4): la CPU reescribe los COLOR00 de la rejilla y
@@ -9,8 +9,8 @@
 // del 68000, el fbm se evalua una vez en una rejilla GRUESA (16x16) y por frame solo se
 // muestrea bilinealmente con un offset animado: el coste por frame es un muestreo, no
 // miles de evaluaciones de ruido. La paleta codifica agua/arena/verde/roca/nieve.
-#include <eng/core/minifloat_math.hpp>
-#include <eng/core/noise.hpp>
+#include <eng/core/math/minifloat_math.hpp>
+#include <eng/core/math/noise.hpp>
 #include <eng/api/api.hpp>
 #include <eng/api/effects.hpp>
 #include <eng/platform/amiga_minimal.hpp>

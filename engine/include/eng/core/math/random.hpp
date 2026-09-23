@@ -21,8 +21,8 @@
 ///   u32 v = rng.next();      // valor 32 bits
 ///   u32 d = rng.next_mod(100); // 0..99
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/util.hpp>
 
 namespace eng {

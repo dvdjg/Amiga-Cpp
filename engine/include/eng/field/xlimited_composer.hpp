@@ -5,7 +5,7 @@
 /// `XlimitedDisplayComposer` (single) y `XlimitedDualComposer` (DPF). Definido aparte de
 /// `xlimited_base.hpp`; `xlimited.hpp` es la cabecera de familia.
 
-#include <eng/core/ptr.hpp>
+#include <eng/core/types/ptr.hpp>
 #include <eng/field/xlimited_playfield.hpp>
 
 namespace eng::field {

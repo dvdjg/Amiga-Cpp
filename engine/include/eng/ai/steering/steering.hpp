@@ -24,9 +24,9 @@
 ///
 /// Verificación: HOST-115.
 
-#include <eng/core/geometry.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/geometry.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::ai {
 

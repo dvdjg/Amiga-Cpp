@@ -12,7 +12,7 @@
 /// espejo es la superficie (duplicado del bucle) y la cámara Y envolvente.
 /// Verificada por la demo `demos/amiga/121_mirror_scroll`.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/field/amiga_display_mapper.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/field/scroll_engine.hpp>

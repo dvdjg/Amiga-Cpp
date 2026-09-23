@@ -67,7 +67,7 @@
 /// - No sustituye al álgebra escrita a mano para expresiones **muy** largas ni a elegir
 ///   menos operaciones o tablas: mide con el profiler antes de darlo por ganancia.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::math {
 

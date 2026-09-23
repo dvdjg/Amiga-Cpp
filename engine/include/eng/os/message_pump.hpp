@@ -6,7 +6,7 @@
 /// `on_frame`/`on_render` del `App`; así el VBlank y el input **siempre** se atienden antes de la
 /// lógica de frame. Ver `docs/engine/architecture/MINI_OS_MESSAGE_LOOP.md` §7.
 
-#include <eng/core/ptr.hpp>
+#include <eng/core/types/ptr.hpp>
 #include <eng/os/dispatch.hpp>
 #include <eng/os/port.hpp>
 #include <eng/os/task.hpp>

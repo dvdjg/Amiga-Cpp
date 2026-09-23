@@ -21,9 +21,9 @@
 /// Los tipos son puros (sin hardware, sin STL): host-testables. El `SpriteAllocator`
 /// (futuro) procesará las plantillas y decidirá canales/multiplexado.
 
-#include <eng/core/domains.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/domains.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/graphics/raster_intent.hpp>
 

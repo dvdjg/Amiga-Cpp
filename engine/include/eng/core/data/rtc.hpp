@@ -10,9 +10,9 @@
 /// (ver el repo hermano `amiga-bootcamp/01_hardware/common/cia_chips.md`, "Time-of-Day").
 ///
 /// Aqui solo vive la **conversion** (contador -> hora:minuto:segundo + ticks); la lectura
-/// del registro la hace el backend (`MinimalBackend::cia_tod_ticks`).
+/// del registro la hace el backend (`AmigaBackend::cia_tod_ticks`).
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::time {
 

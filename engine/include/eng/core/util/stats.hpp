@@ -19,14 +19,14 @@
 ///   aplican `nth_element`): no asignan memoria.
 /// - `ema`/`RunningMean` no dividen por el total más que una vez por muestra.
 
-#include <eng/core/sort.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/data/sort.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/ring_buffer.hpp>
 
-#include <eng/core/linalg.hpp>
-#include <eng/core/scalar_math.hpp>
-#include <eng/core/arith.hpp>
+#include <eng/core/math/linalg.hpp>
+#include <eng/core/math/scalar_math.hpp>
+#include <eng/core/math/arith.hpp>
 
 namespace eng::util {
 
@@ -105,7 +105,7 @@ template <class S>
 }
 
 /// Desviación típica (raíz de `variance`). Con `Fixed` requiere incluir
-/// `eng/core/fixed_math.hpp` (aporta `scalar_sqrt<Fixed>` vía `isqrt`).
+/// `eng/core/math/fixed_math.hpp` (aporta `scalar_sqrt<Fixed>` vía `isqrt`).
 template <class S>
 [[nodiscard]] constexpr S stddev(Span<const S> xs) {
 	return scalar_sqrt<S>::op(variance(xs));

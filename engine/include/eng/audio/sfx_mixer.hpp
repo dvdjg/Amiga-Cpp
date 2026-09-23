@@ -19,9 +19,9 @@
 /// El código ASM vive en `support/audio_mixer/` y se ensambla con VASM a ELF en
 /// `tools/build/build-demo.sh`. Es Amiga-only (usa VBR/interrupciones/DMACON).
 
-#include <eng/core/domains.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/domains.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/memory/arena.hpp>
 
 namespace eng::audio {

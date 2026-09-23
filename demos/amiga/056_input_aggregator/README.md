@@ -13,13 +13,13 @@ color de forma determinista.
 
 ## Verificación
 
-- Test host `tests/host/006_input_decode`: valida la decodificación pura de
+- Test host `tests/host/platform/amiga/006_input_decode`: valida la decodificación pura de
   `JOYxDAT` en direcciones (mismo mapeo que ACE/Sevgi/AHRM).
 - La demo en reposo (sin joystick) dibuja la cruz blanca y centrada, lo que
   confirma la lectura del estado "sin entrada".
 
 ```bash
-CXX="<g++ nativo>" tools/run-host-tests.sh tests/host/006_input_decode
+CXX="<g++ nativo>" tools/run-host-tests.sh tests/host/platform/amiga/006_input_decode
 tools/build/build-demo.sh demos/amiga/056_input_aggregator --clean
 tools/run/run-demo.sh       demos/amiga/056_input_aggregator
 ```

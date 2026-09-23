@@ -8,16 +8,16 @@
 #   RETRO32  (-DENG_SCALAR_RETRO32)     s32 / Fixed<s32,12> / Fixed<s32,0>
 #
 # Sirve para ver como cambia la precision de un mismo algoritmo de simulacion
-# sin tocar el codigo (ver engine/include/eng/core/scalar.hpp). Es la evidencia
+# sin tocar el codigo (ver engine/include/eng/core/math/scalar.hpp). Es la evidencia
 # de la fase F5 del roadmap del escalar generico.
 #
 # Uso: tools/run/run-scalar-modes.sh [tests/host/NNN_x/src/main.cpp]
-#   Sin argumentos: tests/host/136_real_scalar/src/main.cpp
+#   Sin argumentos: tests/host/core/136_real_scalar/src/main.cpp
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-SRC="${1:-$ROOT/tests/host/136_real_scalar/src/main.cpp}"
+SRC="${1:-$ROOT/tests/host/core/136_real_scalar/src/main.cpp}"
 OUT="$ROOT/out/host-tests"
 FLAGS="-std=gnu++23 -I$ROOT/engine/include -Wall -Wextra -Werror=narrowing -O2"
 CXX="${CXX:-g++}"

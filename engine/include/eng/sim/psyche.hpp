@@ -16,7 +16,7 @@
 ///
 /// Verificación: HOST-202.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/sim/expression.hpp>
 #include <eng/sim/mind.hpp>
 #include <eng/sim/persona.hpp>

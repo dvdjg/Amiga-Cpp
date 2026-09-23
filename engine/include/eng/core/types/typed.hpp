@@ -29,9 +29,9 @@
 /// virtuals, sin heap, `constexpr`. `raw()` es la frontera explícita hacia la capa
 /// unsafe (backend). Ver reglas en `CODING_STYLE.md`.
 
-#include <eng/core/memory_kind.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/memory_kind.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng {
 

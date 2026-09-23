@@ -8,7 +8,7 @@
 /// VBlank, queda registrado aquí. Ver `docs/engine/architecture/MINI_OS_MESSAGE_LOOP.md` y
 /// `docs/guides/roadmap/ROADMAP_MINI_OS.md` (M9).
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/os/port.hpp>
 
 namespace eng::os {

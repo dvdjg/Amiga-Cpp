@@ -17,7 +17,7 @@
 /// soportado). La marca de diacrítico (acentos/tilde/diéresis) se compone sobre
 /// la letra base en la generación de LATIN-1.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng {
 

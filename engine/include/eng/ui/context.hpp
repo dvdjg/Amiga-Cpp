@@ -12,8 +12,8 @@
 /// - `Esc` cierra el popup/diálogo superior; pulsar fuera cierra el popup.
 /// - los `Toast` (`WfNoInput`) no captan input y expiran por `Tick`.
 
-#include <eng/core/ptr.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/ui/event.hpp>
 #include <eng/ui/keymap.hpp>
 #include <eng/ui/keys.hpp>

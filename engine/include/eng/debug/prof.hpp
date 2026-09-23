@@ -20,7 +20,7 @@
 /// La seccion NO instrumentada (espera de VBlank, `render`, sobrecarga del bucle) se
 /// obtiene por resta: total/frame (measure-fps) menos la suma de secciones.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::debug {
 

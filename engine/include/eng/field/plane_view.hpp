@@ -13,7 +13,7 @@
 /// `docs/engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md` §3.2 y
 /// `docs/reference/amiga/techniques/robocod-layered-scroll.md`.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/bitmap.hpp>
 #include <eng/memory/arena.hpp>
 

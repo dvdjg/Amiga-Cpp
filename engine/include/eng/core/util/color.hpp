@@ -17,9 +17,9 @@
 ///   eng::util::palette_lerp(dst, a, b, paso, total);                    // transición
 ///   eng::util::palette_scale(dst, src, 15u, 16u);                      // fundido
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
-#include <eng/core/arith.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
+#include <eng/core/math/arith.hpp>
 
 namespace eng::util {
 

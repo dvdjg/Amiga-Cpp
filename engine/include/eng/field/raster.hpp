@@ -30,8 +30,8 @@
 ///   La app/escena fija la política (AccelMode::Auto + umbral); el consumidor no sabe qué hay detrás.
 /// ```
 
-#include <eng/core/box.hpp>
-#include <eng/core/ptr.hpp>
+#include <eng/core/types/box.hpp>
+#include <eng/core/types/ptr.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/graphics/c2p.hpp>
 #include <eng/graphics/frame_plan.hpp>

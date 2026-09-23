@@ -18,7 +18,7 @@
 /// Verificación: HOST-164.
 
 #include <eng/ai/perception/influence_map.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/sim/knowledge.hpp>
 #include <eng/sim/memory.hpp>
 #include <eng/sim/terrain.hpp>

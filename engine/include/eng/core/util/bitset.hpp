@@ -25,8 +25,8 @@
 /// Verificación: HOST-076 y demo `086_bob_objects` (`ActorStore`, `build -> run ->
 /// analyze` OK).
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/bit.hpp>
 
 namespace eng::util {

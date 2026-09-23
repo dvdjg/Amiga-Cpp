@@ -23,10 +23,10 @@
 ///
 /// Verificación: HOST-249.
 
-#include <eng/core/arith.hpp>
-#include <eng/core/geometry.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/arith.hpp>
+#include <eng/core/math/geometry.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/broadphase.hpp>
 #include <eng/core/util/collision.hpp>
 

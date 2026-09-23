@@ -9,7 +9,7 @@
 /// Un tag es un `struct` vacío; los alias son `Bytes`/`Words` sobre él (coste cero).
 /// La frontera a crudo es `raw()`; solo el backend/`BlitJob` la cruzan.
 
-#include <eng/core/typed.hpp>
+#include <eng/core/types/typed.hpp>
 
 namespace eng {
 

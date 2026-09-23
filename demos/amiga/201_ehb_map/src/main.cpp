@@ -2,7 +2,7 @@
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/field/xlimited_scene.hpp>
 #include <eng/field/tile_demo.hpp>
-#include <eng/core/sinetable.hpp>
+#include <eng/core/math/sinetable.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>

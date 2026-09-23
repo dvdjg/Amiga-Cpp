@@ -11,7 +11,7 @@
 /// sobre `EhbScene` para una aventura grafica o sobre `DualPlayfield` para un juego
 /// con parallax real.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng {
 
@@ -52,7 +52,7 @@ struct RenderContext {
 /// Contrato compile-time del ciclo de instalacion del display.
 ///
 /// Todo driver/compositor que produzca una copperlist debe exponer DOS metodos con
-/// responsabilidades separadas (ver `MinimalBackend::takeover_display`):
+/// responsabilidades separadas (ver `AmigaBackend::takeover_display`):
 ///
 /// - `takeover(Backend&)`: toma el control completo del display UNA sola vez, al
 ///   iniciar la demo (antes del bucle de frames). Congela el sistema que AmigaDOS

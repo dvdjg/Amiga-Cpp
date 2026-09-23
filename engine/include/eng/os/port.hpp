@@ -9,8 +9,8 @@
 /// cada índice lo escribe un solo lado. `signal` es OR-eado (barato desde la ISR); el consumidor
 /// drena la cola entera al despertar.
 
-#include <eng/core/ptr.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/os/message.hpp>
 
 namespace eng::os {

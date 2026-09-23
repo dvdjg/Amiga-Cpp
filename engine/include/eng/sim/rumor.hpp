@@ -17,7 +17,7 @@
 ///
 /// Verificación: HOST-159.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/sim/economy.hpp>
 #include <eng/sim/inventory.hpp>
 #include <eng/sim/knowledge.hpp>

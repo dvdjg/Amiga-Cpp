@@ -42,18 +42,18 @@
 /// NaN).
 ///
 /// Restricciones del engine: `gnu++23`, sin STL, sin excepciones, sin RTTI, sin
-/// asignación dinámica. Depende de `eng/core/minifloat.hpp` y de `eng/core/arith.hpp`
+/// asignación dinámica. Depende de `eng/core/math/minifloat.hpp` y de `eng/core/math/arith.hpp`
 /// (para forzar `muls.w` en el núcleo Q1.14).
 ///
 /// **Estado de verificación: verificada por demo** — `demos/amiga/084_mf_rotation`
 /// construye una rotación 3D con `sin`/`cos` de `MiniFloat16` y un self-test en hardware
 /// de `sin(π/2)`, `exp(0)` y `sqrt(4)` (build/run/analyze OK). Ampliada por el test host
-/// `tests/host/057_minifloat16_math`.
+/// `tests/host/core/057_minifloat16_math`.
 
-#include <eng/core/arith.hpp>
-#include <eng/core/minifloat.hpp>
-#include <eng/core/numeric_traits.hpp>
-#include <eng/core/scalar_fwd.hpp>
+#include <eng/core/math/arith.hpp>
+#include <eng/core/math/minifloat.hpp>
+#include <eng/core/math/numeric_traits.hpp>
+#include <eng/core/math/scalar_fwd.hpp>
 
 /// Fuerza el inline donde una llamada cuesta más que el cálculo (68000). Se anula al
 /// final del fichero para no contaminar al que incluye.

@@ -22,8 +22,8 @@
 ///
 /// Verificación: HOST-154.
 
-#include <eng/core/ptr.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/static_vector.hpp>
 #include <eng/sim/types.hpp>
 

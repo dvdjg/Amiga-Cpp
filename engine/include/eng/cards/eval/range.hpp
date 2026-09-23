@@ -21,10 +21,10 @@
 ///
 /// Verificación: HOST-193. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
 
-#include <eng/core/ptr.hpp>
-#include <eng/core/random.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/math/random.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/bitset.hpp>
 
 #include <eng/cards/core/deck.hpp>

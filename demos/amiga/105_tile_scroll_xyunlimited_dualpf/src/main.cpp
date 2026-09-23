@@ -2,7 +2,7 @@
 #include <eng/graphics/drivers/tile_scroll.hpp>
 #include <eng/graphics/field_controller.hpp>
 #include <eng/platform/amiga_minimal.hpp>
-#include <eng/core/span.hpp>
+#include <eng/core/types/span.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>

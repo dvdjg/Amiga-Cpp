@@ -10,7 +10,7 @@
 /// El formato/exponente NO vive aquí: eso es de `Fixed<Repr,Exp,Policy>`. Esto es sólo
 /// "cómo multiplicar/dividir dos `R` de la forma más ancha y exacta posible".
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::math {
 

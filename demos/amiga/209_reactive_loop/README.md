@@ -18,7 +18,7 @@ Demuestra el **bucle reactivo** del mini-SO (`eng::os`) integrado con el `Engine
 
 ## Estado: verificado
 
-Host: `tests/host/251_reactive_loop` (hook de VBlank, consumo, `vblank_count`/`blitdone_count`).
+Host: `tests/host/os/251_reactive_loop` (hook de VBlank, consumo, `vblank_count`/`blitdone_count`).
 Demo: captura con `VBlank: OK` y `BlitDone: OK`.
 
 ## Referencias

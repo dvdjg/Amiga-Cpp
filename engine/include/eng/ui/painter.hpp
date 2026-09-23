@@ -6,9 +6,9 @@
 /// operaciones con concepto de UI (marcos, biseles, paneles, texto con fondo, glifos). Ver
 /// `docs/engine/architecture/GUI_LIBRARY.md` §5.
 
-#include <eng/core/box.hpp>
-#include <eng/core/ptr.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/box.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/field/surface.hpp>
 #include <eng/ui/paint_target.hpp>
 #include <eng/ui/text.hpp>

@@ -18,9 +18,9 @@
 ///   (un `divs.w`) para el factor 1/2. Todas las entradas deben caber en ±8.
 /// - **`float`/`double`**: sin límites prácticos.
 
-#include <eng/core/interp.hpp>
-#include <eng/core/linalg.hpp>
-#include <eng/core/numeric_traits.hpp>
+#include <eng/core/math/interp.hpp>
+#include <eng/core/math/linalg.hpp>
+#include <eng/core/math/numeric_traits.hpp>
 
 namespace eng::math {
 

@@ -22,8 +22,8 @@
 /// Referencia y encaje: `docs/engine/architecture/GAME_AI_LIBRARY.md`.
 /// Verificación: HOST-110.
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/bitset.hpp>
 #include <eng/core/util/function_ref.hpp>
 #include <eng/core/util/state_machine.hpp>

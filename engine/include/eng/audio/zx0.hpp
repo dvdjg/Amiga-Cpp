@@ -16,8 +16,8 @@
 /// bits, igual que el `write_byte` del compresor. Referencia: https://github.com/einar-saukas/ZX0
 /// (MIT). Verificado con vectores del compresor de referencia (HOST-271).
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::audio::zx0 {
 

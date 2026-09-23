@@ -14,7 +14,7 @@
 // DMACONR. Ver docs/engine/architecture/GAME_AUDIO.md §2/§7 y ROADMAP_AUDIO.md (A6).
 
 #include <eng/audio/game_audio.hpp>
-#include <eng/core/span.hpp>
+#include <eng/core/types/span.hpp>
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/platform/amiga_minimal.hpp>

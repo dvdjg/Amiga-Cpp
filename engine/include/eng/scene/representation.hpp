@@ -8,7 +8,7 @@
 /// Lógica pura y determinista (host-testable). Ver
 /// `docs/engine/architecture/SCENE_AND_RESOURCES.md` §2.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::scene {
 

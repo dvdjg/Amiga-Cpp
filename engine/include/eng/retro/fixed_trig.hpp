@@ -18,9 +18,9 @@
 ///
 /// Sólo esta cabecera (retro) nombra `Fixed<s16,12>`; el núcleo no conoce el formato Q.
 
-#include <eng/core/fixed.hpp>
-#include <eng/core/scalar_math.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/fixed.hpp>
+#include <eng/core/math/scalar_math.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/retro/fixed_q.hpp>
 #include <eng/retro/sintab.hpp>
 

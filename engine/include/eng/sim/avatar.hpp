@@ -15,7 +15,7 @@
 ///
 /// Verificación: HOST-174.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/sim/biome.hpp>
 #include <eng/sim/lod.hpp>
 #include <eng/sim/needs.hpp>

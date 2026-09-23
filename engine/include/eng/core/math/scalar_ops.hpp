@@ -23,7 +23,7 @@
 ///   seguro.
 /// - **`float`/`double`**: sin límites prácticos.
 
-#include <eng/core/linalg.hpp>
+#include <eng/core/math/linalg.hpp>
 
 namespace eng::math {
 

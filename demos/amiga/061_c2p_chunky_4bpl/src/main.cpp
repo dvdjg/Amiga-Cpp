@@ -27,8 +27,8 @@
 //   bash tools/build/build-demo.sh demos/amiga/061_c2p_chunky_4bpl --clean
 //   <Node> dist/tools/run/run-demo.js demos/amiga/061_c2p_chunky_4bpl --warp
 
-#include <eng/core/ct_array.hpp>
-#include <eng/core/sinetable.hpp>
+#include <eng/core/data/ct_array.hpp>
+#include <eng/core/math/sinetable.hpp>
 #include <eng/api/api.hpp>
 #include <eng/graphics/c2p.hpp>
 #include <eng/graphics/effects/rotozoom.hpp>

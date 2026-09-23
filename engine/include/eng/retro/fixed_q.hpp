@@ -13,7 +13,7 @@
 /// Quien escribe un efecto usa estos alias; quien necesite el genérico escribe
 /// `Fixed<Repr, Exp, Policy>`.
 
-#include <eng/core/fixed.hpp>
+#include <eng/core/math/fixed.hpp>
 
 namespace eng::retro {
 

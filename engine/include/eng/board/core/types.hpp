@@ -15,8 +15,8 @@
 ///
 /// Verificación: HOST-138.
 
-#include <eng/core/scalar.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/scalar.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/static_vector.hpp>
 
 namespace eng::board {

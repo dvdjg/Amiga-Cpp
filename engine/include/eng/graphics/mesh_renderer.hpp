@@ -19,8 +19,8 @@
 /// y `project_perspective<S>` (Fixed/int/float). Un renderer genérico sobre `S` sería una fase
 /// aparte; hoy no se instancia con otro escalar (pendiente, ver `generic-headers-baseline.txt`).
 
-#include <eng/core/arith.hpp>
-#include <eng/core/mesh3d.hpp>
+#include <eng/core/math/arith.hpp>
+#include <eng/core/data/mesh3d.hpp>
 #include <eng/field/surface.hpp>
 
 namespace eng::graphics {

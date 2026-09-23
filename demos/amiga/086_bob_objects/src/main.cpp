@@ -32,7 +32,7 @@
 //   bash ./tools/run/run-demo.sh demos/amiga/086_bob_objects
 
 #include <eng/api/api.hpp>          // fachada: escena, actores, dibujo, paleta, run_status
-#include <eng/core/sinetable.hpp>
+#include <eng/core/math/sinetable.hpp>
 #include <eng/core/util/color.hpp>
 #include <eng/debug/prof.hpp>
 #include <eng/graphics/copper/plan.hpp>

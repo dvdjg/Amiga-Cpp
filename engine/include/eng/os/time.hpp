@@ -8,8 +8,8 @@
 /// El reloj E del CIA es ≈ 709379 Hz (PAL) / 715909 Hz (NTSC) → ~1,4 µs por tick. Las conversiones
 /// usan kHz enteros (`709`/`715`) para **no arrastrar `__mulsi3`/`__udivdi3`** en el 68000.
 
-#include <eng/core/ptr.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::os {
 

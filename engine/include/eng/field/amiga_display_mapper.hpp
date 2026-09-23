@@ -19,8 +19,8 @@
 /// El mínimo de `cam_x` es 1: con el fetch adelantado, `cam_x==0` haría que el
 /// puntero apuntase antes del bitmap. Ver AMIGA_8WAY_SCROLLING.md §7.
 
-#include <eng/core/fast_div.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/fast_div.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::field {
 

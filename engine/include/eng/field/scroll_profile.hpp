@@ -15,7 +15,7 @@
 /// 1 px/sub-paso con la guarda del modo de fetch; los perfiles `ScrollFastN`
 /// pre-pintan por delante y avanzan hasta N tiles por frame.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::field {
 

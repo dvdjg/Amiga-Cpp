@@ -7,7 +7,7 @@
 /// entrega `ui_bridge`/`KeyProducer`) a este contrato es responsabilidad de la capa de entrada
 /// (keymap); hoy esa traducción está pendiente.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::ui {
 

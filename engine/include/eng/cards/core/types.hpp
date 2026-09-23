@@ -18,8 +18,8 @@
 ///
 /// Verificación: HOST-188. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
 
-#include <eng/core/scalar.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/scalar.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/static_vector.hpp>
 #include <eng/core/util/string_view.hpp>
 

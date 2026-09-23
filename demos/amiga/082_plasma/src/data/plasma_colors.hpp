@@ -4,7 +4,7 @@
 /// Paleta del plasma (256 x RGB12) EXACTA del original (`effects/plasma/data/plasma-colors.c`,
 /// generado por `png2c` desde `plasma-colors.png`). Materializada en constexpr.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace plasma_data {
 

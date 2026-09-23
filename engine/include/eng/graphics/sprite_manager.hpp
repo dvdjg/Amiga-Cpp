@@ -28,8 +28,8 @@
 ///   Prioridad: BPLCON2 (PF1P/PF2P) fija sprite vs playfield; entre sprites, por canal.
 /// ```
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/sprite.hpp>
 #include <eng/memory/arena.hpp>

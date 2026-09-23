@@ -35,10 +35,10 @@
 ///   El PROGRAMA es data (Copper) que ejecuta el chip; los presets devuelven un SceneResources.
 /// ```
 
-#include <eng/core/arith.hpp>
-#include <eng/core/domains.hpp>
-#include <eng/core/ptr.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/arith.hpp>
+#include <eng/core/types/domains.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/core/util/function_ref.hpp>
 #include <eng/field/draw_target.hpp>

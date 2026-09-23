@@ -17,8 +17,8 @@
 ///   eng::u16 hits[8];
 ///   const eng::usize n = grid.query(box, {hits, 8});
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/bit.hpp>
 #include <eng/core/util/collision.hpp>
 #include <eng/core/util/intrusive_list.hpp>

@@ -15,7 +15,7 @@
 /// No son propietarios: no borran nada (`delete` no existe aquí). Para propiedad real, el
 /// engine usa arenas (`Block<T>`, `MemorySystem`).
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng {
 

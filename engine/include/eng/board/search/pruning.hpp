@@ -14,7 +14,7 @@
 ///
 /// Verificación: HOST-148.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::board {
 

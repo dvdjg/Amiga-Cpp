@@ -31,7 +31,7 @@
 ///
 /// Verificación: HOST-111.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/bitset.hpp>
 
 namespace eng::ai {

@@ -10,8 +10,8 @@
 /// píxeles de destino por píxel lógico a lo ancho; `256` = píxel cuadrado). Un destino *hi-res* de
 /// Workbench usa `512` (cada píxel lógico ocupa 2 de destino); en el engine, `256`.
 
-#include <eng/core/box.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/box.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/field/surface.hpp>
 
 namespace eng::ui {

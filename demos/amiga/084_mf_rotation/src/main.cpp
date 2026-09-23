@@ -7,7 +7,7 @@
 // trascendentes** en init (sin(pi/2), exp(0), sqrt(4)): si fallara en m68k la demo
 // iria a Failed en vez de Ready. Publica en el periferico de depuracion los ciclos
 // EMULADOS del calculo por frame (counter 0 = total, 1 = matriz).
-#include <eng/core/minifloat_math.hpp>
+#include <eng/core/math/minifloat_math.hpp>
 #include <eng/debug/peripheral.hpp>
 #include <eng/api/api.hpp>
 #include <eng/platform/amiga_minimal.hpp>

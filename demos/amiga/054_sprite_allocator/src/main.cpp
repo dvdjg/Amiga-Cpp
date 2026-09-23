@@ -26,7 +26,7 @@
 //
 // Fondo EHB estático (6 planos) con COLOR00 navy.
 
-#include <eng/core/span.hpp>
+#include <eng/core/types/span.hpp>
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/graphics/sprite_manager.hpp>

@@ -27,8 +27,8 @@
 ///   - `planes`: destino, 4 planos a `planes + p*plane_stride_bytes`.
 ///   - `bytes_per_row = width_px/8` (filas contiguas por plano, sin BPLMOD).
 
-#include <eng/core/domains.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/domains.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::graphics {
 

@@ -6,8 +6,8 @@
 /// `widgets.hpp`), de modo que un `Widget` no arrastra vtable. Ver
 /// `docs/engine/architecture/GUI_LIBRARY.md` §8.
 
-#include <eng/core/box.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/box.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/ui/theme.hpp>
 
 namespace eng::ui {

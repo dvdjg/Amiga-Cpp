@@ -39,7 +39,7 @@
 /// con desplazamiento fino). El residuo de borde que apareció al montarla —borrar `base`
 /// palabras en vez de `base + shift`— está corregido y cubierto por `072_actor`.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/frame_plan.hpp>
 
 namespace eng::graphics {

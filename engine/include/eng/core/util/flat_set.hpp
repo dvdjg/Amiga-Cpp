@@ -13,7 +13,7 @@
 ///   dirty_tiles.insert(7u);
 ///   if (dirty_tiles.contains(7u)) { ... }
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::util {
 

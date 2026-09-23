@@ -13,7 +13,7 @@
 ///   eng::util::HashSet<eng::u16, 128> visited;
 ///   visited.insert(node_id);
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/bitset.hpp>
 #include <eng/core/util/hash.hpp>
 #include <eng/core/util/hash_map.hpp>

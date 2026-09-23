@@ -18,7 +18,7 @@
 ///
 /// Fuente: AHRM 3.ª, Table 7-3 (CLXDAT) y Table 7-4 (CLXCON).
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::graphics {
 

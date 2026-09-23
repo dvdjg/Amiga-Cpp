@@ -12,7 +12,7 @@
 /// este header es Amiga-only porque depende del `AudioSystem`.
 
 #include <eng/audio/audio_system.hpp>
-#include <eng/core/ptr.hpp>
+#include <eng/core/types/ptr.hpp>
 #include <eng/audio/sfx_bank.hpp>
 
 namespace eng::audio {

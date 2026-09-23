@@ -13,7 +13,7 @@
 /// - **Métrica** (`measure`): texto `text_width × 8`; botón `text_width + 2·pad_x × btn_h`;
 ///   check/radio `lado + pad_x + ancho_etiqueta`; contenedores usan su `bounds`.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/ui/editbox.hpp>
 #include <eng/ui/event.hpp>
 #include <eng/ui/layout.hpp>

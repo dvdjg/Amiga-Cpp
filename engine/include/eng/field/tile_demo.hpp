@@ -20,9 +20,9 @@
 /// a un test en vez de dejarla como andamiaje.
 
 #include <eng/field/tile_map.hpp>
-#include <eng/core/sinetable.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/sinetable.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::field::demo {
 

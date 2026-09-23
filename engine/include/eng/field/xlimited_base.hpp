@@ -309,9 +309,9 @@
 /// \see eng::field::TileLayerMap
 /// \see eng::field::XlimitedDisplayComposer
 
-#include <eng/core/fast_div.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/fast_div.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/field/amiga_display_mapper.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/field/scroll_engine.hpp>

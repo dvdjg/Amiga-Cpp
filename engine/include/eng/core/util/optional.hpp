@@ -22,7 +22,7 @@
 ///   eng::util::Optional<eng::u8> slot = find_free_channel();
 ///   if (slot) { use(*slot); }
 
-#include <eng/core/span.hpp>
+#include <eng/core/types/span.hpp>
 #include <eng/core/util/type_traits.hpp>
 #include <eng/core/util/util.hpp>
 

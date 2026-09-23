@@ -18,7 +18,7 @@
 ///
 /// Verificación: HOST-127.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/hash_map.hpp>
 
 namespace eng::util {

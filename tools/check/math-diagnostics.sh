@@ -48,7 +48,7 @@ expect_ok() {
 	echo "[math-diag] ok: $name"
 }
 
-PRE='#include <eng/core/fixed.hpp>
+PRE='#include <eng/core/math/fixed.hpp>
 #include <eng/retro/fixed_q.hpp>
 using eng::retro::q12;
 using eng::retro::q0;'
@@ -75,7 +75,7 @@ void f() {
 }"
 
 # Mat/Vec: dimensionalidad y escalares.
-PRE2='#include <eng/core/linalg.hpp>
+PRE2='#include <eng/core/math/linalg.hpp>
 #include <eng/retro/fixed_q.hpp>
 using namespace eng::math;
 using namespace eng::retro;'
@@ -99,7 +99,7 @@ void f() {
 
 # Dominio de las matematicas de MiniFloat16: una CONSTANTE fuera de rango debe fallar
 # en compilacion con un mensaje que nombre el limite (no solo saturar en runtime).
-PRE3='#include <eng/core/minifloat_math.hpp>
+PRE3='#include <eng/core/math/minifloat_math.hpp>
 using eng::math::MiniFloat16;'
 
 expect_fail mf16_sin_const_oob "mf16_domain_sin_cos_must_be_within_2pi" "$PRE3
@@ -129,8 +129,8 @@ void f() { MiniFloat16 e = eng::math::exp(MiniFloat16(v)); (void)e; }
 void g() { (void)a; (void)b; (void)c; (void)d; }"
 
 # Ruido: coordenada constante fuera del rango de celda exacta, y octavas < 1.
-PRE4='#include <eng/core/minifloat_math.hpp>
-#include <eng/core/noise.hpp>
+PRE4='#include <eng/core/math/minifloat_math.hpp>
+#include <eng/core/math/noise.hpp>
 using eng::math::MiniFloat16;'
 
 expect_fail noise_coord_oob "noise_domain_coord_out_of_range" "$PRE4
@@ -147,7 +147,7 @@ expect_fail fix_ratio_oob "mf16_fix_domain_ratio_must_be_within_4_12" "$PRE5
 constexpr auto r = eng::retro::mul_fixed(MiniFloat16(20.0f), eng::retro::q12 {100});"
 
 # smootherstep necesita representar 15; un 4.12 (rango ±8) no puede.
-PRE6='#include <eng/core/interp.hpp>
+PRE6='#include <eng/core/math/interp.hpp>
 #include <eng/retro/fixed_q.hpp>'
 
 expect_fail smootherstep_q12_range "no cabe en el escalar" "$PRE6
@@ -156,7 +156,7 @@ constexpr auto s = eng::math::smootherstep(eng::retro::q12 {2048});"
 # El ruido normaliza con div_norm, pero necesita representar la rejilla (1024 niveles):
 # un 4.12 (rango ±8) no cabe -> fallo claro de rango.
 expect_fail noise_q12_range "no cabe en el escalar" "$PRE6
-#include <eng/core/noise.hpp>
+#include <eng/core/math/noise.hpp>
 constexpr auto n = eng::math::value_noise1(eng::retro::q12 {4096}, 1u);"
 
 # scalar_const<Fixed>::from con una constante fuera de rango no debe envolver en silencio

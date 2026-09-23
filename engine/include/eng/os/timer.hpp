@@ -9,7 +9,7 @@
 /// Es **puro**: `poll_and_post` recibe `frame_now`/`ticks_now` como parámetros (el backend aporta
 /// los valores), así que se valida en host con ticks sintéticos.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/os/message.hpp>
 #include <eng/os/port.hpp>
 #include <eng/os/time.hpp>

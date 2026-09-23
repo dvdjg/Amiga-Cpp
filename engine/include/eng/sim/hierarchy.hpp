@@ -22,7 +22,7 @@
 ///
 /// Verificación: HOST-154.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/sim/mind.hpp>
 #include <eng/sim/personality.hpp>
 #include <eng/sim/types.hpp>

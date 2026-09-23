@@ -41,9 +41,9 @@
 ///   El ALGORITMO (corkscrew/XYLimited) vive en ScrollEngine/XlimitedField, no aquí.
 /// ```
 
-#include <eng/core/sinetable.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/sinetable.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/expected.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/field/surface.hpp>

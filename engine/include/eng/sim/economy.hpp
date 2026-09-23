@@ -18,7 +18,7 @@
 /// Verificación: HOST-157.
 
 #include <eng/ai/decision/utility.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/sim/inventory.hpp>
 #include <eng/sim/society.hpp>
 #include <eng/sim/types.hpp>

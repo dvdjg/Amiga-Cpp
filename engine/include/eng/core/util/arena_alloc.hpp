@@ -15,7 +15,7 @@
 ///   eng::util::ArenaAlloc alloc {arena};
 ///   eng::util::Vector<eng::u32, eng::util::ArenaAlloc> ids {alloc};
 
-#include <eng/core/ptr.hpp>
+#include <eng/core/types/ptr.hpp>
 #include <eng/core/util/allocator.hpp>
 #include <eng/memory/arena.hpp>
 

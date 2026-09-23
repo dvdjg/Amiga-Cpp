@@ -7,7 +7,7 @@
 /// Cada función devuelve la muestra `i` de un ciclo de 64 muestras; `i` se
 /// envuelve a [0, 64). Son `constexpr` y host-testables.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::audio {
 

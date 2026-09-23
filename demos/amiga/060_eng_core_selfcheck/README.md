@@ -24,7 +24,7 @@ pantalla muestra el `OK/FAIL` de cada fase + el cartel final.
 
 ## Dependencias nuevas
 
-- `engine/include/eng/core/utf8.hpp` — decodificador UTF-8 mínimo (LATIN-1 / 1-2 bytes) para las funciones de texto.
+- `engine/include/eng/core/data/utf8.hpp` — decodificador UTF-8 mínimo (LATIN-1 / 1-2 bytes) para las funciones de texto.
 - `engine/include/eng/graphics/font8.hpp` — fuente 8x8 con LATIN-1 completo (acentos/diéresis/ñ/Ñ/símbolos).
 - `engine/include/eng/graphics/font5x7.hpp` — fuente compacta 5x7 (HUD, subida de la demo 201) con LATIN-1 en mayúsculas; alternativa a la 8x8 vía `Surface::draw_text5`.
 - API de texto: `Surface::draw_text`/`draw_text5` (contexto de dispositivo sobre `Playfield`) + `CanvasPlayfield` + `XlimitedDisplayComposer` (display de un solo campo).

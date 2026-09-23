@@ -12,7 +12,7 @@
 //   -> rasterizado de triangulos (scanline entero, sin division) -> Blitter clear.
 #include <eng/assets/uaf.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
-#include <eng/core/mesh3d.hpp>
+#include <eng/core/data/mesh3d.hpp>
 #include <eng/api/api.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 

@@ -21,7 +21,7 @@
 ///
 /// Verificación: HOST-128.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/function_ref.hpp>
 
 namespace eng::util {

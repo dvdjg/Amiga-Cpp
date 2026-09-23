@@ -10,7 +10,7 @@
 ///
 /// Ver `docs/engine/architecture/RESOURCE_SYSTEM.md`.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng {
 

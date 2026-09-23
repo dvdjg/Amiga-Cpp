@@ -4,7 +4,7 @@
 #include <eng/field/xlimited_scene.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 #include <eng/platform/input_poll.hpp>
-#include <eng/core/span.hpp>
+#include <eng/core/types/span.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>

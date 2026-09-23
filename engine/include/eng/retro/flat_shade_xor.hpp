@@ -24,7 +24,7 @@
 /// aristas internas se cancelan y quedan la silueta y las aristas de contraste), como en
 /// `lib3d::update_edge_visibility_convex`.
 ///
-/// `Backend` es la capa de plataforma (`MinimalBackend` en Amiga) que aporta las
+/// `Backend` es la capa de plataforma (`AmigaBackend` en Amiga) que aporta las
 /// primitivas de Blitter; esta cabecera no conoce registros.
 ///
 /// ```text
@@ -39,9 +39,9 @@
 ///   Exige sólido CONVEXO (contorno cerrado); frágil → gate VISUAL (freeze-diff), no cobertura
 /// ```
 
-#include <eng/core/domains.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/domains.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::retro {
 

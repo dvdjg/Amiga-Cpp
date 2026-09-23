@@ -13,8 +13,8 @@
 /// del módulo) y `P61Player`; los punteros de registro (`A0/A1/A2`) quedan en la
 /// capa interna `p61_amiga`. Los reproductores pt/ahx seguirán el mismo patrón.
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::audio {
 

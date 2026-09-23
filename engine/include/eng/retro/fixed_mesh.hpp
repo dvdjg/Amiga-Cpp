@@ -7,10 +7,10 @@
 /// El header genérico `core/mesh3d.hpp` no conoce esta representación; sólo aquí se nombra
 /// `Fixed<s16,0>`. Quien use la malla 16 bits (plataforma/demos) incluye este header.
 
-#include <eng/core/arith.hpp>
-#include <eng/core/fixed.hpp>
-#include <eng/core/mesh3d.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/arith.hpp>
+#include <eng/core/math/fixed.hpp>
+#include <eng/core/data/mesh3d.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::math3d {
 

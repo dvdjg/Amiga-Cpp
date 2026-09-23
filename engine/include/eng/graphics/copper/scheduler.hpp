@@ -37,7 +37,7 @@
 /// `Report = false` omite Timeline y contadores (hot path mas rapido). El `retarget(...)`
 /// re-apunta el emisor a otra lista **sin copiar** la Timeline.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/copper/copper.hpp>
 #include <eng/graphics/copper/timeline.hpp>
 #include <eng/graphics/mode_switch.hpp>

@@ -28,7 +28,7 @@
 ///
 /// Uso: `fire_rgb::kDualTab.v[i]` (o `fire_rgb::dual_entry(i)`).
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace fire_rgb {
 

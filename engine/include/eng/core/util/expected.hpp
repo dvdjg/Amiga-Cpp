@@ -5,7 +5,7 @@
 /// excepciones.
 ///
 /// El engine no usa excepciones: las operaciones que pueden fallar devuelven un
-/// resultado explícito. `eng::Result` (`eng/core/types.hpp`) es el enum de causas
+/// resultado explícito. `eng::Result` (`eng/core/types/types.hpp`) es el enum de causas
 /// sin valor asociado; `Expected<T, E>` es la versión que **transporta el valor**
 /// cuando la operación tuvo éxito y el error cuando no. Es el tipo que pide
 /// `PUBLIC_API.md` §5 para la frontera pública.

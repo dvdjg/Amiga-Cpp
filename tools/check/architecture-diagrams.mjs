@@ -11,12 +11,12 @@ import { dirname, join } from 'node:path';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 const FUNDAMENTAL = [
-  'engine/include/eng/core/span.hpp',
-  'engine/include/eng/core/typed.hpp',
-  'engine/include/eng/core/fixed.hpp',
-  'engine/include/eng/core/mesh3d.hpp',
-  'engine/include/eng/core/minifloat.hpp',
-  'engine/include/eng/core/polygon.hpp',
+  'engine/include/eng/core/types/span.hpp',
+  'engine/include/eng/core/types/typed.hpp',
+  'engine/include/eng/core/math/fixed.hpp',
+  'engine/include/eng/core/data/mesh3d.hpp',
+  'engine/include/eng/core/math/minifloat.hpp',
+  'engine/include/eng/core/data/polygon.hpp',
   'engine/include/eng/memory/arena.hpp',
   'engine/include/eng/graphics/mode_switch.hpp',
   'engine/include/eng/graphics/composition/compose.hpp',

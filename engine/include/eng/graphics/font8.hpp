@@ -21,7 +21,7 @@
 /// y diéresis se generan por composición (base + marca de diacrítico) y el resto
 /// de símbolos LATIN-1 son glifos explícitos.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng {
 

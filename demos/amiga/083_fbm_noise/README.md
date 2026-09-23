@@ -1,4 +1,4 @@
-# Demo 083 — ruido fbm (value noise + fbm de `eng/core/noise.hpp`)
+# Demo 083 — ruido fbm (value noise + fbm de `eng/core/math/noise.hpp`)
 
 Muestra el **ruido procedural** del engine como un **mapa de altura animado** sobre un
 display *copper chunky* de 288×256 (rejilla de 36×64 bloques de 8×4 píxeles): la CPU

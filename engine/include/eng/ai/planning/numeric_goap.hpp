@@ -28,8 +28,8 @@
 /// Verificación: HOST-185.
 
 #include <eng/ai/planning/goap.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/core/util/bit.hpp>
 #include <eng/core/util/bitset.hpp>

@@ -9,7 +9,7 @@
 /// evento ya se reportó y solo emite en el **flanco de subida**; vuelve a armarse cuando el evento
 /// cesa (p. ej. vuelve a sonar). Es **puro** y host-testable. Ver §8 de `GAME_AUDIO.md`.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::audio {
 

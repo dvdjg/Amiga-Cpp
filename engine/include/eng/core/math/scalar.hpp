@@ -27,8 +27,8 @@
 /// engine es plantilla y no los nombra. Se mantienen aquí —una sola selección por
 /// target— en vez de moverlos a `platform/`, que duplicaría las macros de selección.
 
-#include <eng/core/fixed.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/fixed.hpp>
+#include <eng/core/types/types.hpp>
 
 // Modo efectivo: 1 = retro16, 2 = retro32, 3 = native.
 #if defined(ENG_SCALAR_NATIVE)

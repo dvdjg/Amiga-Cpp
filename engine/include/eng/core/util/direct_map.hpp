@@ -18,7 +18,7 @@
 ///   defs.insert(3u, def);
 ///   const TileDef* d = defs.find(3u);
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/bitset.hpp>
 #include <eng/core/util/type_traits.hpp>
 

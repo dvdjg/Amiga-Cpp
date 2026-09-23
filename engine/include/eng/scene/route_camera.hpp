@@ -17,10 +17,10 @@
 /// para todo el engine. La tabla es la 4.12 (`SineTable<4096,64>`) y el offset de
 /// radio 64 se obtiene redondeando al entero más cercano.
 
-#include <eng/core/linalg.hpp>
-#include <eng/core/scalar.hpp>
-#include <eng/core/sinetable.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/linalg.hpp>
+#include <eng/core/math/scalar.hpp>
+#include <eng/core/math/sinetable.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::scene {
 

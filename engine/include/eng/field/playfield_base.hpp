@@ -38,12 +38,12 @@
 ///   Scene = compone N playfields + sprites + paletas + copperlist (nunca se accede por índice)
 /// ```
 
-#include <eng/core/arith.hpp>
-#include <eng/core/arith.hpp>
-#include <eng/core/polygon.hpp>
-#include <eng/core/ptr.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/arith.hpp>
+#include <eng/core/math/arith.hpp>
+#include <eng/core/data/polygon.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/bitmap.hpp>
 #include <eng/graphics/frame_plan.hpp>
 #include <eng/memory/arena.hpp>

@@ -14,8 +14,8 @@
 /// Verificación: HOST-151.
 
 #include <eng/board/storage/block_source.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/string_view.hpp>
 
 #if !defined(__m68k__)

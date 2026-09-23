@@ -5,7 +5,7 @@
 /// `os::Msg` → `UiEvent` (`ui_bridge.hpp`). Ver `docs/engine/architecture/GUI_LIBRARY.md` y
 /// `MINI_OS_MESSAGE_LOOP.md` §8.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::ui {
 

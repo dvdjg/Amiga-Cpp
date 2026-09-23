@@ -31,8 +31,8 @@
 /// Reglas del engine: sin heap, sin RTTI, sin virtuals en el hot path (sink por
 /// template), gnu++23.
 
-#include <eng/core/fast_div.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/fast_div.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/scope_guard.hpp>
 #include <eng/graphics/frame_plan.hpp>
 

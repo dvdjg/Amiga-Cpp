@@ -11,7 +11,7 @@
 /// registros, según `docs/engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md`.
 /// Verificada por la demo `demos/amiga/120_virtual_playfield`.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/field/amiga_display_mapper.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/field/scroll_engine.hpp>

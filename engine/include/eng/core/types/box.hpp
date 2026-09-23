@@ -12,7 +12,7 @@
 /// `bottom()` (`x + w - 1`, `y + h - 1`), que es como se comportan las primitivas de dibujo
 /// de `field::Surface`. Un `Box` con `w == 0` o `h == 0` está vacío.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng {
 

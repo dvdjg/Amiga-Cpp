@@ -28,7 +28,7 @@
 ///   solo las marcadas. Orientativa: el presupuesto de CPU de una línea PAL es ~227 ciclos.
 /// ```
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::copper {
 

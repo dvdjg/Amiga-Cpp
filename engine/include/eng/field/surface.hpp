@@ -36,9 +36,9 @@
 /// ```
 
 #include <eng/retro/lib2d.hpp>
-#include <eng/core/box.hpp>
-#include <eng/core/utf8.hpp>
-#include <eng/core/ptr.hpp>
+#include <eng/core/types/box.hpp>
+#include <eng/core/data/utf8.hpp>
+#include <eng/core/types/ptr.hpp>
 #include <eng/field/playfield.hpp>
 #include <eng/field/raster.hpp>
 #include <eng/graphics/font5x7.hpp>
@@ -164,7 +164,7 @@ public:
     /// glifos fuera del clip se recortan. Devuelve `false` si el contexto no es
     /// válido; una cadena vacía es válida (no pinta nada) y devuelve `true`.
     ///
-    /// El texto se decodifica UTF-8 (ver `eng/core/utf8.hpp`) y la fuente cubre
+    /// El texto se decodifica UTF-8 (ver `eng/core/data/utf8.hpp`) y la fuente cubre
     /// ASCII + LATIN-1 (acentos, diéresis, ñ/Ñ…); los puntos fuera de ese
     /// subconjunto no se pintan. La fuente se enruta por `set_pixel`, así que
     /// funciona igual sobre un playfield EHB, single o dual playfield: el mapeo

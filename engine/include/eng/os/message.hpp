@@ -12,7 +12,7 @@
 /// `MsgType` es **contiguo desde 0** para que el `switch`/la tabla de despacho sean un índice
 /// directo, y se agrupa por rango (entrada / tiempo / E-S / app) para priorizar por comparación.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::os {
 

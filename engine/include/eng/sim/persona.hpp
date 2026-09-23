@@ -15,8 +15,8 @@
 ///
 /// Verificación: HOST-199.
 
-#include <eng/core/random.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/random.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/sim/archetypes.hpp>
 #include <eng/sim/personality.hpp>
 #include <eng/sim/psyche_traits.hpp>

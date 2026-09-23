@@ -18,7 +18,7 @@
 ///
 /// Verificación: HOST-174.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/sim/types.hpp>
 
 namespace eng::sim {

@@ -14,8 +14,8 @@
 /// Verificación: HOST-146.
 
 #include <eng/board/storage/block_source.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/core/util/lru_cache.hpp>
 

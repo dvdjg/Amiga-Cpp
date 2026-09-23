@@ -9,8 +9,8 @@
 /// El buffer va como **vista** (`Span`) y el cookie discrimina al consumidor (`IoUser::tag`):
 /// caché de assets, loader de código o stream.
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/os/port.hpp>
 
 namespace eng::os {

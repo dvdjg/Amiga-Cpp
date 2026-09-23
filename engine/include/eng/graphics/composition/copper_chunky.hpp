@@ -27,7 +27,7 @@
 /// `MOVE32 COP2LC -> label` ; `label: WAIT Y(y*block_h),X(-4)` ; `cols+1` x `MOVE COLOR00` ;
 /// `SKIP Y(y*block_h+3),LASTHP` ; `MOVE COPJMP2`.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/composition/compose.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 

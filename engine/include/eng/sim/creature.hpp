@@ -17,7 +17,7 @@
 ///
 /// Verificación: HOST-152.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/static_vector.hpp>
 #include <eng/sim/behavior.hpp>
 #include <eng/sim/genetics.hpp>

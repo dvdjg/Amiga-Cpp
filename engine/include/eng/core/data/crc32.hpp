@@ -14,7 +14,7 @@
 /// Uso:
 ///   u32 c = eng::crc32(data, len);   // CRC-32 estándar de `data`
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng {
 

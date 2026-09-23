@@ -14,8 +14,8 @@
 /// Reglas del engine: sin heap, sin RTTI, gnu++23. El `double` vive SOLO en la
 /// evaluación constexpr del compilador; la tabla emitida es entera.
 
-#include <eng/core/ct_array.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/data/ct_array.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng {
 

@@ -23,7 +23,7 @@
 /// Estado: verificado por test host y consumido por `games/200_holdem`
 /// (build → run → analyze OK).
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 #include <eng/cards/core/deck.hpp>
 #include <eng/cards/core/intmath.hpp>

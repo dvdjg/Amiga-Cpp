@@ -18,7 +18,7 @@
 #include <eng/board/core/types.hpp>
 #include <eng/board/eval/chess_eval.hpp>
 #include <eng/board/rules/chess/board.hpp>
-#include <eng/core/arith.hpp>
+#include <eng/core/math/arith.hpp>
 #include <eng/core/util/array.hpp>
 
 namespace eng::board::chess {

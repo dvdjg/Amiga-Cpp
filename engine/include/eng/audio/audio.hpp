@@ -12,8 +12,8 @@
 ///
 /// Es puro (solo `eng::core`): host-testable. Sin heap, sin RTTI.
 
-#include <eng/core/domains.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/domains.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::audio {
 

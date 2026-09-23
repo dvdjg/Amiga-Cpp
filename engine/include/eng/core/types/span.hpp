@@ -35,7 +35,7 @@
 ///                                          └─ sin puntero suelto: tamano viaja con la vista
 /// ```
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng {
 

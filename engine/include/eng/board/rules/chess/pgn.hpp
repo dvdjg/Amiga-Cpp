@@ -19,7 +19,7 @@
 /// Verificación: HOST-187.
 
 #include <eng/board/rules/chess/board.hpp>
-#include <eng/core/span.hpp>
+#include <eng/core/types/span.hpp>
 #include <eng/core/util/string_view.hpp>
 
 namespace eng::board::chess {

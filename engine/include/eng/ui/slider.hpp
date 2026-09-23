@@ -5,7 +5,7 @@
 /// Se ajusta con click/arrastre (posición → valor) y, con foco, con `Left`/`Right`. Ver
 /// `docs/engine/architecture/GUI_LIBRARY.md` §11.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/ui/event.hpp>
 #include <eng/ui/keys.hpp>
 #include <eng/ui/painter.hpp>

@@ -18,7 +18,7 @@
 ///   template <class T, eng::util::enable_if_t<eng::util::is_integral_v<T>, int> = 0>
 ///   constexpr T twice(T x) { return x + x; }
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::util {
 

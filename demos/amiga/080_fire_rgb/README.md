@@ -120,7 +120,7 @@ Flags de diagnóstico del build (`EXTRA_DEFINES="..."`):
 - Plan de porte y análisis del original (hot verbatim, fases del C2P, Copper, doble buffer,
   IRQ de blit, y el análisis de rendimiento): `docs/demos/effects/FIRE_RGB_PORT_PLAN.md`.
 - `scene::compose` (HAM + repetición de líneas): test **HOST-016**; la simulación del fuego:
-  `tests/host/015_fire_sim`.
+  `tests/host/graphics/015_fire_sim`.
 - `support/fire_loop.s` (el bucle); C2P: `MinimalBackend::c2p_4bpp_step`/`c2p_4bpp_program`.
 - Benchmark aislado de la simulación (C++ vs asm): `playground/fire-benchmark`.
 - Demo del C2P **en CPU** (la otra vía, para buffers modestos): `061_c2p_chunky_4bpl`

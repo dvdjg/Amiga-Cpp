@@ -35,7 +35,7 @@
 ///     la vuelca);
 ///   - más slots de checkpoint/counters configurables por el programa.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::debug {
 

@@ -9,7 +9,7 @@
 /// Chip RAM). El cursor sigue al ratón reescribiendo POS/CTL en la estructura (Agnus la recarga
 /// desde `SPRxPT`). Ver `docs/engine/architecture/GUI_LIBRARY.md` y `ROADMAP_GUI.md` (G8).
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 
 namespace eng::ui {

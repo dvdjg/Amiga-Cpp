@@ -22,8 +22,8 @@
 ///   └───────────────┴───────────────┘   FIN : 0xffff, 0xfffe (termina la lista)
 /// ```
 
-#include <eng/core/domains.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/domains.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/memory/arena.hpp>
 
 namespace eng::copper {

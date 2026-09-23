@@ -26,8 +26,8 @@
 ///   `osc_square`/`osc_triangle` (el mínimo es `2^-E`, p. ej. 1/4096); **`osc_sine` no
 ///   compila** con fixed porque necesita `sin` (no lo ofrece).
 
-#include <eng/core/linalg.hpp>
-#include <eng/core/scalar_math.hpp>
+#include <eng/core/math/linalg.hpp>
+#include <eng/core/math/scalar_math.hpp>
 #include <eng/core/util/ring_buffer.hpp>
 
 namespace eng::util {

@@ -16,7 +16,7 @@
 ///
 /// Verificación: HOST-138 (concepto y policy de prueba) y HOST-140 (ajedrez real).
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::board {
 

@@ -19,8 +19,8 @@
 ///
 /// Verificación: HOST-153 y HOST-154.
 
-#include <eng/core/random.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/random.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/sim/genetics.hpp>
 #include <eng/sim/types.hpp>
 

@@ -7,7 +7,7 @@
 ///
 /// Verificación: HOST-191 y codegen-report (sin libgcc en 68000).
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/intmath.hpp>
 
 namespace eng::cards {

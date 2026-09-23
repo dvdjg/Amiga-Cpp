@@ -15,7 +15,7 @@
 //
 // Nota: lanzar un blit **desde el Copper** (`CopperIntentKind::BlitterJob`) en la
 // lista de display rompe el render de bitplanes del emulador (el scroll deja de
-// verse); esa via se valida en `tests/host/260_copper_blitter` (emision + ventana
+// verse); esa via se valida en `tests/host/graphics/260_copper_blitter` (emision + ventana
 // segura) y en `docs/reference/emulators/winuae/copper.md` (`CDANG`).
 //
 //   bash ./tools/build/build-demo.sh demos/amiga/210_copper_blitter --debug

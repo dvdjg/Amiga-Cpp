@@ -18,8 +18,8 @@
 ///
 /// Verificación: HOST-156.
 
-#include <eng/core/geometry.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/geometry.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/sim/behavior.hpp>
 #include <eng/sim/expression.hpp>
 #include <eng/sim/mind.hpp>

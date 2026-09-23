@@ -9,7 +9,7 @@
 /// Es **puro**: no toca memoria ni E/S; el llamador lanza las lecturas de los buffers que
 /// `request_mask()` marca y avisa con `on_chunk_ready`.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::os {
 

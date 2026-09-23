@@ -1,5 +1,5 @@
 #pragma once
-#include <eng/core/scalar_fwd.hpp>
+#include <eng/core/math/scalar_fwd.hpp>
 
 /// \file noise.hpp
 /// **Ruido procedural value-noise** 1D/2D/3D y **fbm** (suma de octavas), genérico
@@ -33,14 +33,14 @@
 ///
 /// **Estado de verificación: verificada por demo** — `demos/amiga/083_fbm_noise` usa
 /// `fbm2<MiniFloat16>` para un mapa de altura en hardware (build/run/analyze OK);
-/// `tests/host/060_noise` compara `value_noise`/`fbm` de `MiniFloat16` contra `double`;
-/// `tests/host/135_scalar_matrix` ejercita `value_noise1`/`fbm1` con `Fixed<s32,12>`.
+/// `tests/host/core/060_noise` compara `value_noise`/`fbm` de `MiniFloat16` contra `double`;
+/// `tests/host/core/135_scalar_matrix` ejercita `value_noise1`/`fbm1` con `Fixed<s32,12>`.
 
-#include <eng/core/interp.hpp>
-#include <eng/core/linalg.hpp>
-#include <eng/core/numeric_traits.hpp>
-#include <eng/core/random.hpp>
-#include <eng/core/scalar_ops.hpp>
+#include <eng/core/math/interp.hpp>
+#include <eng/core/math/linalg.hpp>
+#include <eng/core/math/numeric_traits.hpp>
+#include <eng/core/math/random.hpp>
+#include <eng/core/math/scalar_ops.hpp>
 
 namespace eng::math {
 

@@ -21,10 +21,10 @@
 ///   const eng::u16 flipped = eng::util::bswap16(col);  // endian
 ///
 /// `has_single_bit`/`bit_width` complementan `eng::is_pow2`/`eng::ilog2`
-/// (`eng/core/fast_div.hpp`), que siguen siendo la forma canónica de detectar y
+/// (`eng/core/math/fast_div.hpp`), que siguen siendo la forma canónica de detectar y
 /// medir potencias de dos en el camino caliente.
 
-#include <eng/core/fast_div.hpp>
+#include <eng/core/math/fast_div.hpp>
 #include <eng/core/util/type_traits.hpp>
 
 namespace eng::util {

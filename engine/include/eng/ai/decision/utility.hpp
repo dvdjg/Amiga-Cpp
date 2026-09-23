@@ -32,8 +32,8 @@
 ///
 /// Verificación: HOST-112.
 
-#include <eng/core/types.hpp>
-#include <eng/core/arith.hpp>
+#include <eng/core/types/types.hpp>
+#include <eng/core/math/arith.hpp>
 
 namespace eng::ai {
 

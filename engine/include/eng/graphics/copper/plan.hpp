@@ -38,9 +38,9 @@
 ///
 /// Ver `docs/engine/architecture/DISPLAY_COMPOSITION.md` §5.
 
-#include <eng/core/domains.hpp>
-#include <eng/core/ptr.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/domains.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/algorithm.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/graphics/copper/double_buffer.hpp>

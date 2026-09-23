@@ -1,5 +1,5 @@
 #include <eng/api/api.hpp>
-#include <eng/core/byte_order.hpp>
+#include <eng/core/data/byte_order.hpp>
 #include <eng/os/floppy.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 

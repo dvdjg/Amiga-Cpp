@@ -13,8 +13,8 @@
 ///   eng::util::SmallVector<Command, 8, eng::util::BumpAlloc> cmds {alloc};
 ///   cmds.push_back(cmd);            // hasta 8 sin tocar la arena
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/allocator.hpp>
 #include <eng/core/util/type_traits.hpp>
 

@@ -5,7 +5,7 @@
 ///
 /// La baraja es un array inline de hasta 54 B más un contador de cartas no
 /// repartidas. Se baraja con Fisher-Yates sobre `eng::Xoroshiro64pp` (ya existente
-/// en `eng/core/random.hpp`): el mismo PRNG y la misma semilla reproducen la misma
+/// en `eng/core/math/random.hpp`): el mismo PRNG y la misma semilla reproducen la misma
 /// secuencia en host y en Amiga, requisito de los tests y del análisis de partidas.
 ///
 /// Operaciones:
@@ -19,9 +19,9 @@
 ///
 /// Verificación: HOST-188. Estado: verificado por test host; consumido por `games/200_holdem` (build → run → analyze OK).
 
-#include <eng/core/random.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/random.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 
 #include <eng/cards/core/types.hpp>
 

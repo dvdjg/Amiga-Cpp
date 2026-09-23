@@ -34,8 +34,8 @@
 /// offset coarse por bitplane a los punteros `BPLxPT` sin cambiar la formula de los
 /// demas planos.
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/graphics/copper/double_buffer.hpp>
 #include <eng/graphics/copper/scheduler.hpp>

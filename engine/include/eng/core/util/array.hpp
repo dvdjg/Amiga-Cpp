@@ -20,8 +20,8 @@
 ///   for (eng::u16 o : offsets) { ... }
 ///   const eng::u16 first = offsets.front();
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::util {
 

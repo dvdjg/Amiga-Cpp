@@ -20,9 +20,9 @@
 #include <eng/field/tile_demo.hpp>
 #include <eng/core/util/broadphase.hpp>
 #include <eng/core/util/pathfinding.hpp>
-#include <eng/core/fixed_math.hpp>
-#include <eng/core/geometry.hpp>
-#include <eng/core/interp.hpp>
+#include <eng/core/math/fixed_math.hpp>
+#include <eng/core/math/geometry.hpp>
+#include <eng/core/math/interp.hpp>
 
 #include <proto/exec.h>
 #include <exec/execbase.h>

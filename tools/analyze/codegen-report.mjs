@@ -14,18 +14,18 @@ const CXX = `${BIN}/opt/bin/m68k-amiga-elf-g++.exe`;
 const SRC = `${ROOT}/out/tmp/codegen-probe.cpp`;
 const ASM = `${ROOT}/out/tmp/codegen-probe.s`;
 
-const probe = `#include <eng/core/fixed.hpp>
-#include <eng/core/linalg.hpp>
-#include <eng/core/light.hpp>
-#include <eng/core/interp.hpp>
-#include <eng/core/geometry.hpp>
-#include <eng/core/scalar_ops.hpp>
-#include <eng/core/spline.hpp>
-#include <eng/core/mesh3d.hpp>
+const probe = `#include <eng/core/math/fixed.hpp>
+#include <eng/core/math/linalg.hpp>
+#include <eng/core/math/light.hpp>
+#include <eng/core/math/interp.hpp>
+#include <eng/core/math/geometry.hpp>
+#include <eng/core/math/scalar_ops.hpp>
+#include <eng/core/math/spline.hpp>
+#include <eng/core/data/mesh3d.hpp>
 #include <eng/retro/fixed_mesh.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
-#include <eng/core/minifloat.hpp>
-#include <eng/core/minifloat_math.hpp>
+#include <eng/core/math/minifloat.hpp>
+#include <eng/core/math/minifloat_math.hpp>
 #include <eng/retro/fixed_q.hpp>
 #include <eng/retro/lib2d.hpp>
 #include <eng/retro/minifloat_fixed.hpp>
@@ -121,13 +121,13 @@ const probe = `#include <eng/core/fixed.hpp>
 #include <eng/core/util/task.hpp>
 #include <eng/core/util/interval.hpp>
 #include <eng/core/util/variant.hpp>
-#include <eng/core/random.hpp>
+#include <eng/core/math/random.hpp>
 #include <eng/core/util/dsp.hpp>
-#include <eng/core/fixed_math.hpp>
-#include <eng/core/geometry.hpp>
-#include <eng/core/expr.hpp>
+#include <eng/core/math/fixed_math.hpp>
+#include <eng/core/math/geometry.hpp>
+#include <eng/core/math/expr.hpp>
 #include <eng/graphics/composition/compose.hpp>
-#include <eng/core/sort.hpp>
+#include <eng/core/data/sort.hpp>
 #include <eng/graphics/mesh_renderer.hpp>
 #include <eng/platform/amiga/lib3d.hpp>
 #include <eng/platform/amiga/object3d.hpp>
@@ -213,7 +213,7 @@ extern "C" void c_transform3(s16* out, const Mat<3,q12>* m, const Vec<3,q0>* t, 
 extern "C" void c_matmul3(Mat<3,q12>* out, const Mat<3,q12>* a, const Mat<3,q12>* b){ *out = (*a)*(*b); }
 extern "C" s16 c_dotrow(const q12* row, s16 x, s16 y, s16 z) {
 	const Vec<3,q0> v {{q0{x},q0{y},q0{z}}};
-	return dot(row, v).v;
+	return dot_fixed_row<3>(row, v).v;
 }
 extern "C" void c_proj(eng::object3d::Object3D* o, s16* bbox) { eng::lib3d::transform_vertices(*o, 128, 128, bbox); }
 

@@ -17,8 +17,8 @@
 ///   Palette32Zone { line, *palette }: cambio de paleta en una línea (zona de Copper)
 /// ```
 
-#include <eng/core/domains.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/domains.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng {
 

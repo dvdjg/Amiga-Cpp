@@ -7,7 +7,7 @@
 /// de HUD, nombres de recurso, mensajes de depuración. `StringView` es un puntero
 /// más un tamaño; no copia ni posee, así que se pasa por valor y describe tanto un
 /// literal (`"PUNTOS"`) como un tramo de un buffer mayor. Encaja con el decodificador
-/// UTF-8 (`eng/core/utf8.hpp`) y con `Surface::draw_text`.
+/// UTF-8 (`eng/core/data/utf8.hpp`) y con `Surface::draw_text`.
 ///
 /// Construcción desde `const char*` calcula la longitud (recorrido hasta el NUL);
 /// desde `(puntero, tamaño)` no recorre nada. **No** hay constructor desde array C
@@ -19,8 +19,8 @@
 ///   draw("VIDAS");                       // literal
 ///   draw(eng::util::StringView(buf, 8)); // tramo
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::util {
 

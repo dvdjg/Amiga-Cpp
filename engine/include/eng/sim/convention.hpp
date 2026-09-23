@@ -18,7 +18,7 @@
 ///
 /// Verificación: HOST-203.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/sim/communication.hpp>
 #include <eng/sim/expression.hpp>
 #include <eng/sim/types.hpp>

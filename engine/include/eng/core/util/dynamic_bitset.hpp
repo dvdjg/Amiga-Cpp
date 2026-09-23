@@ -19,8 +19,8 @@
 ///
 /// Verificación: HOST-122.
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/allocator.hpp>
 #include <eng/core/util/bit.hpp>
 

@@ -18,8 +18,8 @@
 ///   eng::util::ChunkedVector<eng::u16, 16, 8, eng::util::ArenaAlloc> rows {alloc};
 ///   rows.push_back(v);           // hasta 16·8 = 128 elementos; dir. estable
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/allocator.hpp>
 #include <eng/core/util/type_traits.hpp>
 

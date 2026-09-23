@@ -10,9 +10,9 @@
 /// Compatible con los "mapas infinitos" de Tiled (`<chunk x y>`); ver
 /// `docs/engine/architecture/CONTENT_AND_TILEMAP.md` §2.
 
-#include <eng/core/fast_div.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/fast_div.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::field {
 

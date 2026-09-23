@@ -10,7 +10,7 @@
 /// función `constexpr` (el camino de compilación usa la multiplicación portable; en
 /// runtime, `muls.w`/`mulu.w`/`divs.w` nativos, sin `__mulsi3`).
 
-#include <eng/core/arith.hpp>
+#include <eng/core/math/arith.hpp>
 
 namespace eng::math {
 

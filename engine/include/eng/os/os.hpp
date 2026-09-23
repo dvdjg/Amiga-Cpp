@@ -6,7 +6,7 @@
 /// implementación (`tick`, `system_port`…) la aporta el backend. Ver
 /// `docs/engine/architecture/MINI_OS_MESSAGE_LOOP.md` y `MINI_OS_INPUT.md`.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/os/file_stream.hpp>
 #include <eng/os/port.hpp>
 #include <eng/os/task.hpp>

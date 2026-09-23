@@ -12,7 +12,7 @@
 // DMACONR cuando el DMA de audio y música está activo.
 
 #include <eng/audio/game_audio.hpp>
-#include <eng/core/span.hpp>
+#include <eng/core/types/span.hpp>
 #include <eng/api/api.hpp>
 #include <eng/graphics/copper/scheduler.hpp>
 #include <eng/platform/amiga_minimal.hpp>

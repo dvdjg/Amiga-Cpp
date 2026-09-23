@@ -22,8 +22,8 @@
 ///
 /// Verificación: HOST-191 (cards) y HOST-201 (sim), más el gate de codegen.
 
-#include <eng/core/arith.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/arith.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::util {
 

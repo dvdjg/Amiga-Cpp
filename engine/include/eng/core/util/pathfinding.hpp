@@ -23,9 +23,9 @@
 ///       const eng::usize n = eng::util::reconstruct_path<W,H>(came_from, start, goal, path);
 ///   }
 
-#include <eng/core/isqrt.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/isqrt.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/bit.hpp>
 #include <eng/core/util/priority_queue.hpp>
 

@@ -8,12 +8,12 @@
 ///   tab3[i] = fx4i(3*37) * SIN(rad*2) >> 16
 ///
 /// `fx4i(i) = i << 4` y `SIN`/`COS` son la tabla 4.12 exacta del original
-/// (`eng/core/sinetable.hpp` via `eng::retro::sin`). El `>> 16` es aritmetico (como el C original,
+/// (`eng/core/math/sinetable.hpp` via `eng::retro::sin`). El `>> 16` es aritmetico (como el C original,
 /// que asigna a `char`).
 
 #include <eng/retro/fixed_trig.hpp>
 #include <eng/retro/lib2d.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace plasma_data {
 

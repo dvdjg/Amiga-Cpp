@@ -24,7 +24,7 @@
 /// divisiones cada frame; las tallas de tile/display, conocidas en compile-time,
 /// deben entrar como constantes y no como `u16` runtime.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng {
 

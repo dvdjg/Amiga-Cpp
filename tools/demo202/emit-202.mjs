@@ -108,7 +108,7 @@ const L = [];
 L.push('// out/assets/demo202/const_202.h — generado por tools/demo202/emit-202.mjs');
 L.push('// No editar a mano. Paletas en formato Amiga 12-bit (0x0RGB).');
 L.push('#pragma once');
-L.push('#include <eng/core/types.hpp>');
+L.push('#include <eng/core/types/types.hpp>');
 L.push('');
 L.push('// --- FG (PF1, primer plano): plaquettes 7 colores + transparencia ---');
 L.push('static constexpr eng::u16 kFgPalette[8] {');
@@ -148,7 +148,7 @@ if (fs.existsSync(BG32_DIR)) {
     M.push('// out/assets/demo202/const_202_32.h — BG 32×32 (mismo atlas) · generado por tools/demo202/emit-202.mjs');
     M.push('// No editar a mano. Variante de tile 32 px del mapa real a 8 colores.');
     M.push('#pragma once');
-    M.push('#include <eng/core/types.hpp>');
+    M.push('#include <eng/core/types/types.hpp>');
     M.push('');
     M.push('// --- BG (PF2) tiles 32×32 ---');
     M.push('static constexpr eng::u16 kBg32Palette[8] {');

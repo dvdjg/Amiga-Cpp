@@ -7,8 +7,8 @@
 /// caret y desplaza la **vista horizontal** (`view`). Ver `docs/engine/architecture/GUI_LIBRARY.md`
 /// §11.
 
-#include <eng/core/types.hpp>
-#include <eng/core/utf8.hpp>
+#include <eng/core/types/types.hpp>
+#include <eng/core/data/utf8.hpp>
 #include <eng/ui/event.hpp>
 #include <eng/ui/keys.hpp>
 #include <eng/ui/painter.hpp>

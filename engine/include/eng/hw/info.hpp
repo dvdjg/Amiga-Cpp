@@ -16,7 +16,7 @@
 /// if (eng::hw::is_cd32(hw) && hw.caps.c2p_hw) { renderer.enable_akiko_c2p(true); }
 /// ```
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::hw {
 

@@ -20,8 +20,8 @@
 ///       names {alloc};
 ///   names.insert_or_assign(name, id);   // crece solo si hace falta
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/allocator.hpp>
 #include <eng/core/util/hash.hpp>
 #include <eng/core/util/type_traits.hpp>

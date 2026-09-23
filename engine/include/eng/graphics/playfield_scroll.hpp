@@ -11,7 +11,7 @@
 /// continuo en todo el rango (fine 15 -> 0 sin salto). El puntero de bitplanes apunta al
 /// coarse `(scroll_x - 1) & ~15` y el fine se programa en `BPLCON1`.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::graphics {
 

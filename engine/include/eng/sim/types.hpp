@@ -19,8 +19,8 @@
 ///
 /// Verificación: HOST-152 (modelo de criatura) y HOST-153 (mundo/LOD).
 
-#include <eng/core/arith.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/arith.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::sim {
 

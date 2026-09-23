@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 const COVERED = new Set([
-	'eng/core/types.hpp', 'eng/core/domains.hpp', 'eng/core/box.hpp',
+	'eng/core/types/types.hpp', 'eng/core/types/domains.hpp', 'eng/core/types/box.hpp',
 	'eng/debug/run_status.hpp', 'eng/engine.hpp', 'eng/field/draw_target.hpp',
 	'eng/field/raster.hpp', 'eng/field/surface.hpp', 'eng/graphics/blitter_state.hpp',
 	'eng/graphics/frame_plan.hpp', 'eng/graphics/palette32.hpp',
@@ -53,8 +53,8 @@ for (const f of files) {
 		if (inc && COVERED.has(inc[1])) {
 			problems.push(`${rel}:${i + 1}: incluye <${inc[1]}> (lo trae eng/api/api.hpp)`);
 		}
-		if (code.includes('MinimalBackend::')) {
-			problems.push(`${rel}:${i + 1}: usa un tipo del backend (MinimalBackend::); usa el tipo de dominio o el seam`);
+		if (code.includes('MinimalBackend::') || code.includes('AmigaBackend::')) {
+			problems.push(`${rel}:${i + 1}: usa un tipo del backend (MinimalBackend::/AmigaBackend::); usa el tipo de dominio o el seam`);
 		}
 	}
 }

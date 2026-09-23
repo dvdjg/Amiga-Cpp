@@ -14,7 +14,7 @@
 ///     (P0732) que captura el literal como argumento de plantilla; `Surface` lo
 ///     decodifica en compile-time y solo pinta píxeles en runtime (cero decode).
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::utf8 {
 

@@ -13,7 +13,7 @@
 
 #include <eng/board/rules/chess/board.hpp>
 #include <eng/board/rules/chess/movegen.hpp>
-#include <eng/core/span.hpp>
+#include <eng/core/types/span.hpp>
 
 namespace eng::board::chess {
 

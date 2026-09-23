@@ -16,8 +16,8 @@
 ///
 /// Es lógica pura (sin hardware, sin heap), host-testable.
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/raster_intent.hpp>
 
 namespace eng::graphics {

@@ -13,9 +13,9 @@
 ///   eng::util::Hex vecinos[6];
 ///   eng::util::hex_neighbors({2, 1}, vecinos);
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/bit.hpp>
-#include <eng/core/arith.hpp>
+#include <eng/core/math/arith.hpp>
 
 namespace eng::util {
 

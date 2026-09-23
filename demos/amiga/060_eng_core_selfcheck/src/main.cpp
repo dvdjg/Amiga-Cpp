@@ -25,13 +25,13 @@
 //   bash tools/build/build-demo.sh demos/amiga/060_eng_core_selfcheck --clean
 //   <Node de Windows> dist/tools/run/run-demo.js demos\amiga\060_eng_core_selfcheck --warp
 
-#include <eng/core/crc32.hpp>
-#include <eng/core/isqrt.hpp>
-#include <eng/core/random.hpp>
-#include <eng/core/sort.hpp>
-#include <eng/core/span.hpp>
+#include <eng/core/data/crc32.hpp>
+#include <eng/core/math/isqrt.hpp>
+#include <eng/core/math/random.hpp>
+#include <eng/core/data/sort.hpp>
+#include <eng/core/types/span.hpp>
 #include <eng/api/api.hpp>
-#include <eng/core/utf8.hpp>
+#include <eng/core/data/utf8.hpp>
 #include <eng/graphics/font8.hpp>
 #include <eng/platform/amiga_minimal.hpp>
 

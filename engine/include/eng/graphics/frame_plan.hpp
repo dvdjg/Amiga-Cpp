@@ -25,10 +25,10 @@
 ///   área tocada           ──►  dirty rects   ─┘    escrituras CPU (según el backend)
 /// ```
 
-#include <eng/core/arith.hpp>
-#include <eng/core/box.hpp>
-#include <eng/core/domains.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/arith.hpp>
+#include <eng/core/types/box.hpp>
+#include <eng/core/types/domains.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/graphics/blit_job.hpp>
 

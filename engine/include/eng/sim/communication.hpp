@@ -18,8 +18,8 @@
 ///
 /// Verificación: HOST-170.
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/sim/behavior.hpp>
 #include <eng/sim/mind.hpp>
 #include <eng/sim/senses.hpp>

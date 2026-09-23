@@ -12,7 +12,7 @@
 //     es el progreso (`progress().permille`), expuesto tambien en runStatus.detail.
 //   - La tarea se adapta al barrido del CRT: si el raster ya va tarde (vpos > 220),
 //     procesa la mitad por rebanada.
-#include <eng/core/rtc.hpp>
+#include <eng/core/data/rtc.hpp>
 #include <eng/api/api.hpp>
 #include <eng/core/util/ring_buffer.hpp>
 #include <eng/platform/amiga_minimal.hpp>

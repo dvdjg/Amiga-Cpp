@@ -7,7 +7,7 @@
 ///
 /// Los hijos deben llevar ya su tamaño (`bounds.w/h`), p. ej. desde `measure(w, theme)`.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/ui/widget.hpp>
 
 namespace eng::ui {

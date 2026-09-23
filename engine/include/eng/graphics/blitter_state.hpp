@@ -6,14 +6,14 @@
 /// precalculados de una línea EOR (`LineEor`) y el estado del C2P 4bpp por fases (`C2p4`).
 ///
 /// Viven en `eng::graphics` (dominio) y no en el backend concreto para que la lógica de
-/// demo no nombre `MinimalBackend::C2p4State`/`LineEorParams`/`OrBobEntry`. El backend
+/// demo no nombre `AmigaBackend::C2p4State`/`LineEorParams`/`OrBobEntry`. El backend
 /// Amiga los **aliasa** (`using C2p4State = eng::graphics::C2p4;`) y rellena/consume sus
 /// campos; las operaciones (`blitter_or_bobs`, `blitter_line_eor_prepare`/`draw`,
 /// `c2p_4bpp_step`) siguen siendo suyas. Los campos reflejan lo que el backend
 /// precalcula (p. ej. registros `BLTCONx`), de modo que el layout es estable y el
 /// llamador no recompone la aritmética cada frame.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::graphics {
 
@@ -46,7 +46,7 @@ struct OrBob {
 
 /// Parámetros **precalculados** de una línea EOR (ONEDOT) para el Blitter: los registros
 /// y el error inicial de Bresenham, de forma que dibujar la línea sea solo programar.
-/// Los rellena `MinimalBackend::blitter_line_eor_prepare` y los consume
+/// Los rellena `AmigaBackend::blitter_line_eor_prepare` y los consume
 /// `blitter_line_eor_draw`; el llamador puede reutilizarlos en varios planos sin
 /// recalcular.
 struct LineEor {

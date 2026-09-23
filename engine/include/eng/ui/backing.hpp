@@ -8,7 +8,7 @@
 ///
 /// No posee memoria: se enlaza con `bind(memory, bytes, w, h, depth)` (el pool la reserva).
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/field/contiguous_playfield.hpp>
 #include <eng/field/surface.hpp>
 

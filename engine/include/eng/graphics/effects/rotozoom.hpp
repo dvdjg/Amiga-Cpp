@@ -19,7 +19,7 @@
 /// del bucle solo hay **sumas** e indexado (sin multiplicar ni dividir por píxel).
 ///
 /// Es una utilidad de **efecto puro** (matemáticas y memoria, sin hardware): se valida
-/// en host (`tests/host/132_rotozoom`). El `double` vive solo en la generación
+/// en host (`tests/host/graphics/132_rotozoom`). El `double` vive solo en la generación
 /// compile-time de la tabla; el bucle emitido es entero.
 ///
 /// **Por qué el punto fijo va crudo (`s32` 16.16).** Es deliberado: tipar las
@@ -29,9 +29,9 @@
 /// campo se queda como entero de 16.16 y el layout lo comparte el ASM
 /// `support/rotozoom_loop.s`.
 
-#include <eng/core/domains.hpp>
-#include <eng/core/sinetable.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/domains.hpp>
+#include <eng/core/math/sinetable.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::graphics {
 

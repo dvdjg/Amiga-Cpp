@@ -18,10 +18,10 @@
 /// evalúa esos productos uno a uno y el 68000 los mete dos a dos en un registro. El
 /// VALOR es el mismo; sólo cambia el número de multiplicaciones.
 
-#include <eng/core/arith.hpp>
-#include <eng/core/fixed.hpp>
-#include <eng/core/linalg.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/arith.hpp>
+#include <eng/core/math/fixed.hpp>
+#include <eng/core/math/linalg.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::math {
 

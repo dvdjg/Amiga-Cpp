@@ -38,7 +38,7 @@
 /// Referencia y encaje: `docs/engine/architecture/GAME_AI_LIBRARY.md`.
 /// Verificación: HOST-113.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/function_ref.hpp>
 
 namespace eng::ai {

@@ -5,12 +5,12 @@
 /// con el generador del núcleo (`eng::SineTable`) y se materializa en `s16` —el formato
 /// del original— ocupando **8 KB**.
 ///
-/// El generador (parametrizable y genérico) vive en `eng/core/sinetable.hpp`; aquí sólo
+/// El generador (parametrizable y genérico) vive en `eng/core/math/sinetable.hpp`; aquí sólo
 /// está la tabla Q concreta, que es lo específico de la especialización retro.
 
-#include <eng/core/ct_array.hpp>
-#include <eng/core/sinetable.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/data/ct_array.hpp>
+#include <eng/core/math/sinetable.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::retro {
 

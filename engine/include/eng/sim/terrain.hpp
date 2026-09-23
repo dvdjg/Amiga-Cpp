@@ -20,7 +20,7 @@
 ///
 /// Verificación: HOST-158.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/sim/needs.hpp>
 #include <eng/sim/species.hpp>
 #include <eng/sim/types.hpp>

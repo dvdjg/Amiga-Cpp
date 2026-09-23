@@ -16,9 +16,9 @@
 /// Ver `docs/engine/architecture/ENGINE_STRUCTURE_REVIEW.md` para el estado de la
 /// consolidación de la API pública.
 
-#include <eng/core/box.hpp>
-#include <eng/core/domains.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/box.hpp>
+#include <eng/core/types/domains.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/debug/run_status.hpp>
 #include <eng/engine.hpp>
 #include <eng/field/draw_target.hpp>

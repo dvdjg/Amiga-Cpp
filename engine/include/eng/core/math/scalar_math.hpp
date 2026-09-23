@@ -1,5 +1,5 @@
 #pragma once
-#include <eng/core/scalar_fwd.hpp>
+#include <eng/core/math/scalar_fwd.hpp>
 
 /// \file scalar_math.hpp
 /// **Puntos de extensión de funciones matemáticas escalares** (`sqrt`, `sin`, `cos`,
@@ -21,9 +21,9 @@
 ///   argumentos pequeños (`|x| <= 64`). Para `MiniFloat16` sí es la versión completa del
 ///   núcleo Q1.14.
 
-#include <eng/core/isqrt.hpp>
-#include <eng/core/numeric_traits.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/isqrt.hpp>
+#include <eng/core/math/numeric_traits.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::math {
 

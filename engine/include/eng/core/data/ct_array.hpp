@@ -15,7 +15,7 @@
 /// Uso con runtime-index: `k[i]` lee la tabla materializada (sin llamar a `fn`
 /// en runtime). Reglas del engine: sin heap, sin RTTI, gnu++23.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng {
 

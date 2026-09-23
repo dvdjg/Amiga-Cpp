@@ -36,12 +36,12 @@
 // `mesh3d` es genérico sobre el escalar (Vec3t<S>/MeshViewT<S>); NO incluye el escalar concreto.
 // El alias por defecto `Coord = eng::coord` viene de `scalar.hpp` (cabecera de selección de escalar
 // por target, exenta). Ver AGENTS §1.10.
-#include <eng/core/arith.hpp>
-#include <eng/core/linalg.hpp>
-#include <eng/core/polygon.hpp>
-#include <eng/core/scalar.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/arith.hpp>
+#include <eng/core/math/linalg.hpp>
+#include <eng/core/data/polygon.hpp>
+#include <eng/core/math/scalar.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::math3d {
 

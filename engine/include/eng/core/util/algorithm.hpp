@@ -18,7 +18,7 @@
 /// mutable a const de forma implícita (se usa `as_const()`), y los algoritmos de
 /// lectura funcionan igual sobre `Span<T>` porque solo leen.
 ///
-/// El orden lo cubre `eng/core/sort.hpp` (`quick_sort`/`sort_items`); aquí no se
+/// El orden lo cubre `eng/core/data/sort.hpp` (`quick_sort`/`sort_items`); aquí no se
 /// duplica.
 ///
 /// Uso:
@@ -26,7 +26,7 @@
 ///   eng::util::for_each(actors, [](Actor& a) { a.step(); });
 ///   const eng::usize kept = eng::util::remove_if(buf, pred).size();
 
-#include <eng/core/span.hpp>
+#include <eng/core/types/span.hpp>
 #include <eng/core/util/util.hpp>
 
 namespace eng::util {

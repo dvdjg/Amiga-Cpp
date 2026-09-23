@@ -10,7 +10,7 @@
 /// es el orden Z (`raise` las sube al frente). La política (modalidad, cerrar popups, TTL) la
 /// aplica `UiContext` (`context.hpp`).
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/ui/painter.hpp>
 #include <eng/ui/theme.hpp>
 #include <eng/ui/widget.hpp>

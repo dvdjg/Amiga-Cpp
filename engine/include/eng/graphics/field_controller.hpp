@@ -13,7 +13,7 @@
 /// una herramienta de edicion no tenga que truncar indices; un asset puede usar
 /// almacenamiento u8 externo y convertirlo al formato u16 al cocinarlo.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/drivers/tile_scroll.hpp>
 #include <eng/graphics/frame_plan.hpp>
 

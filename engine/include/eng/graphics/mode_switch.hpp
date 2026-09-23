@@ -34,8 +34,8 @@
 ///   El DDF/mods van ANTES de los punteros; BPLCON4/BPLCON1 DESPUÉS (intercalarlos pierde el último plano).
 /// ```
 
-#include <eng/core/domains.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/domains.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::graphics {
 

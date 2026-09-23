@@ -11,8 +11,8 @@
 /// `TileFieldController` (sustituido por XYLimited, ver
 /// `docs/engine/architecture/XYLIMITED_ALGORITMO_GENERICO.md`).
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/field/tile_source.hpp>
 
 namespace eng::field {

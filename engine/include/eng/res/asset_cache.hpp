@@ -10,9 +10,9 @@
 /// (el de Amiga usa `MemorySystem` + `os::file_read_async`; el de host, un arena falsa). El
 /// llamador completa la carga con `on_load_done`.
 
-#include <eng/core/ptr.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::res {
 

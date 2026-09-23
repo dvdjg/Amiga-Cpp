@@ -46,6 +46,6 @@ node tools/analyze/verify-113-mode-switch.mjs out/run/113_mode_switch/A500_k_no_
 
 ## Relación
 
-- Orden canónico fijado por HOST-042 (`tests/host/042_mode_switch`).
+- Orden canónico fijado por HOST-042 (`tests/host/graphics/042_mode_switch`).
 - Variante conservadora sin cambio de geometría: `CopperIntentKind::BitplaneSplit`.
 - Modelo: `docs/engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md` §4.1.

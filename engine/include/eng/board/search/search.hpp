@@ -24,10 +24,10 @@
 
 #include <eng/board/core/game.hpp>
 #include <eng/board/core/types.hpp>
-#include <eng/core/ptr.hpp>
+#include <eng/core/types/ptr.hpp>
 #include <eng/board/search/pruning.hpp>
 #include <eng/board/search/tt.hpp>
-#include <eng/core/span.hpp>
+#include <eng/core/types/span.hpp>
 #include <eng/core/util/array.hpp>
 #include <eng/parallel/parallel.hpp>
 

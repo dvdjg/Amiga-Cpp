@@ -19,9 +19,9 @@
 /// Verificación: HOST-152 (decision), HOST-154 (afectos/jerarquía).
 
 #include <eng/ai/decision/utility.hpp>
-#include <eng/core/ptr.hpp>
-#include <eng/core/random.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/math/random.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/bit.hpp>
 #include <eng/sim/hierarchy.hpp>
 #include <eng/sim/mind.hpp>

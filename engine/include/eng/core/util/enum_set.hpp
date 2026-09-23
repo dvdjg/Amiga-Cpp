@@ -14,7 +14,7 @@
 ///   pressed.set(Key::Fire);
 ///   if (pressed.test(Key::Fire)) { ... }
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/bitset.hpp>
 #include <eng/core/util/type_traits.hpp>
 

@@ -18,8 +18,8 @@
 /// \warning La DMA de disco **solo ve Chip RAM**: `td_read_sync` con un buffer de Fast RAM
 /// produce corrupción silenciosa. Reserva el buffer en la arena `chip` del backend.
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::os {
 

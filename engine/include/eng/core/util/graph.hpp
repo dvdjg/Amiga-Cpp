@@ -19,8 +19,8 @@
 ///
 /// Verificación: HOST-126.
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/priority_queue.hpp>
 
 namespace eng::util {

@@ -18,13 +18,13 @@
 /// Endianness: el blob está en **big-endian** (nativo m68k). Los lectores `read_be16/32`
 /// funcionan igual en host (x86) que en Amiga.
 
-#include <eng/core/byte_order.hpp>
-#include <eng/core/domains.hpp>
-#include <eng/core/fast_div.hpp>
-#include <eng/core/mesh3d.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/typed.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/data/byte_order.hpp>
+#include <eng/core/types/domains.hpp>
+#include <eng/core/math/fast_div.hpp>
+#include <eng/core/data/mesh3d.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/typed.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/flat_map.hpp>
 #include <eng/core/util/static_vector.hpp>
 
@@ -418,7 +418,7 @@ private:
 ///
 /// `vertex(i)`/`face(i)` decodifican big-endian, así que funcionan igual en host
 /// (x86) que en Amiga; el llamador copia los vértices a su buffer y construye un
-/// `math3d::MeshView` (ver `eng/core/mesh3d.hpp`).
+/// `math3d::MeshView` (ver `eng/core/data/mesh3d.hpp`).
 class MeshAssetView {
 public:
 	constexpr MeshAssetView() = default;

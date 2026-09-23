@@ -35,9 +35,9 @@
 ///   `lerp`/`smoothstep`/easing polinómico y `_back` funcionan (suma y producto), `remap`/
 ///   `inv_lerp` usan `div_norm`, y los easing trigonométricos no compilan (sin `sin`).
 
-#include <eng/core/linalg.hpp>
-#include <eng/core/numeric_traits.hpp>
-#include <eng/core/scalar_math.hpp>
+#include <eng/core/math/linalg.hpp>
+#include <eng/core/math/numeric_traits.hpp>
+#include <eng/core/math/scalar_math.hpp>
 
 namespace eng::math {
 

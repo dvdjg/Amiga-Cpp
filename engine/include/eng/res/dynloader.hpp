@@ -21,9 +21,9 @@
 ///   HUNK     ver hunk.hpp (HUNK_HEADER + CODE/DATA/BSS + RELOC/SYMBOL + HUNK_END)
 /// ```
 
-#include <eng/core/byte_order.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/data/byte_order.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/memory/arena.hpp>
 #include <eng/res/hunk.hpp>
 #include <eng/res/symbol_hash.hpp>

@@ -22,8 +22,8 @@
 /// cabecera de archivo AUZX (`AUDIO_STREAMING.md` §2).
 
 #include <eng/audio/zx0.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::audio::pcm_codec {
 

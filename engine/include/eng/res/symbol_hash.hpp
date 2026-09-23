@@ -7,7 +7,7 @@
 /// (`hunk.hpp`) para indexar y buscar símbolos con la misma clave de 32 bits, sin
 /// guardar los nombres en RAM. Ver `docs/engine/architecture/RESOURCE_SYSTEM.md` §2.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::res {
 

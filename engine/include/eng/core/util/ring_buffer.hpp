@@ -17,8 +17,8 @@
 ///   if (!queue.push(ev)) { /* lleno: descartar o crecer fuera */ }
 ///   Event e = queue.pop();
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/util.hpp>
 
 namespace eng::util {

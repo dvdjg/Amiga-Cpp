@@ -19,12 +19,12 @@
 ///   const eng::u32 h = eng::util::hash_value(entity_id);
 ///   const eng::u32 s = eng::util::hash_string(name);
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/bit.hpp>
 #include <eng/core/util/string_view.hpp>
 #include <eng/core/util/type_traits.hpp>
-#include <eng/core/arith.hpp>
+#include <eng/core/math/arith.hpp>
 
 namespace eng::util {
 

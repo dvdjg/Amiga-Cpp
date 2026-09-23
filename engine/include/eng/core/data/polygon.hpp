@@ -20,8 +20,8 @@
 ///   La fila inferior queda semiaabierta (igual que el barrido de referencia).
 /// ```
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::math3d {
 

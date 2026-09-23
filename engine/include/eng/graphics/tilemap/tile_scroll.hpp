@@ -15,8 +15,8 @@
 /// La clase es deliberadamente pequena y sin heap. El juego aporta memoria externa
 /// para el mapa, normalmente desde un recurso UAF-R o desde una arena del engine.
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/enum_set.hpp>
 
 namespace eng::graphics::tilemap {

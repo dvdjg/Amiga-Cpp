@@ -55,13 +55,13 @@
 ///
 /// Incluir este header **antes** de usar las funciones; no lo arrastra `scalar_math.hpp`.
 
-#include <eng/core/ct_array.hpp>
-#include <eng/core/fixed.hpp>
-#include <eng/core/isqrt.hpp>
-#include <eng/core/linalg.hpp>
-#include <eng/core/numeric_traits.hpp>
-#include <eng/core/scalar_math.hpp>
-#include <eng/core/sinetable.hpp>
+#include <eng/core/data/ct_array.hpp>
+#include <eng/core/math/fixed.hpp>
+#include <eng/core/math/isqrt.hpp>
+#include <eng/core/math/linalg.hpp>
+#include <eng/core/math/numeric_traits.hpp>
+#include <eng/core/math/scalar_math.hpp>
+#include <eng/core/math/sinetable.hpp>
 #include <eng/core/util/type_traits.hpp>
 
 /// --- Configuración por defecto de las tablas ----------------------------------

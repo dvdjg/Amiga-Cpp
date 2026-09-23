@@ -16,8 +16,8 @@
 ///                  pattern, pattern_words, pattern_bytes, /*pattern_rows=*/2, plane_bytes);
 /// ```
 
-#include <eng/core/domains.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/domains.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/frame_plan.hpp>
 
 namespace eng::graphics {

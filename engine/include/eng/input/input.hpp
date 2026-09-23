@@ -13,7 +13,7 @@
 /// (direcciones + fire/fire2/play + botones de color), de modo que un joystick de
 /// 1 botón y un pad CD32 se reducen a la misma estructura.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::input {
 

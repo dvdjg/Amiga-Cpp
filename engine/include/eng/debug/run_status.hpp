@@ -18,7 +18,7 @@
 /// segundos tras `continue`, el problema es real y no una captura tomada demasiado
 /// pronto.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 extern "C" void eng_debug_ready_probe();
 

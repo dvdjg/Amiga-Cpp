@@ -30,7 +30,7 @@
 /// (`docs/engine/architecture/GAME_AI_LIBRARY.md`).
 /// Verificación: HOST-152 (afectos) y HOST-154 (jerarquía/genética).
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/static_vector.hpp>
 #include <eng/sim/needs.hpp>
 #include <eng/sim/personality.hpp>

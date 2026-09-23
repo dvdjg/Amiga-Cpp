@@ -11,9 +11,9 @@
 /// El recorte (Liang-Barsky y Sutherland-Hodgman) opera en píxeles enteros; los
 /// parámetros `t` de interpolación son 8.8 (`fix88`), como el original.
 
-#include <eng/core/linalg.hpp>
-#include <eng/core/types.hpp>
-#include <eng/core/arith.hpp>
+#include <eng/core/math/linalg.hpp>
+#include <eng/core/types/types.hpp>
+#include <eng/core/math/arith.hpp>
 #include <eng/retro/fixed_q.hpp>
 #include <eng/retro/fixed_trig.hpp>
 

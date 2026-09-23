@@ -4,8 +4,8 @@
 /// Almacen generacional de actores (`ActorStore`) y sus funciones de emision. Definido
 /// aparte de `actor_types.hpp`; `actor.hpp` es la cabecera de familia.
 
-#include <eng/core/ptr.hpp>
-#include <eng/core/span.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/types/span.hpp>
 #include <eng/scene/actor_types.hpp>
 
 namespace eng::scene {

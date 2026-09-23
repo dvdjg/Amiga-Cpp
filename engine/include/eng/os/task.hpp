@@ -13,8 +13,8 @@
 /// `Finished` si `poll()` devolvió `false`). Las corrutinas (`co_await idle_yield`) son opcionales
 /// (M11).
 
-#include <eng/core/ptr.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/os/port.hpp>
 
 namespace eng::os {

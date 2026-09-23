@@ -11,14 +11,14 @@ visual es mínimo, no un degradado).
 
 ## Verificación
 
-- Test host `tests/host/005_audio`: valida la lógica de asignación de canales del
+- Test host `tests/host/audio/005_audio`: valida la lógica de asignación de canales del
   `AudioMixer` (first-fit, overflow, hint).
 - `mark_ready` guarda en `detail` el valor leído de `DMACONR` tras arrancar el
   audio; el `run-report.json` debe mostrar `AUD0EN` (bit 0) y `DMAEN` (bit 9)
   activos (p. ej. `0x381` = master+copper+bitplane+AUD0).
 
 ```bash
-CXX="<g++ nativo>" tools/run-host-tests.sh tests/host/005_audio
+CXX="<g++ nativo>" tools/run-host-tests.sh tests/host/audio/005_audio
 tools/build/build-demo.sh demos/amiga/057_audio_mixer --clean
 tools/run/run-demo.sh       demos/amiga/057_audio_mixer
 ```

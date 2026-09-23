@@ -18,7 +18,7 @@
 ///
 /// Verificación: HOST-204. Estado: verificado por test host; consumido por `games/200_holdem`.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 #include <eng/cards/ai/bot.hpp>
 #include <eng/cards/core/types.hpp>

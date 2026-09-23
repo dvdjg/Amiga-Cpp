@@ -20,7 +20,7 @@
 ///
 /// Verificación: HOST-130.
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/type_traits.hpp>
 
 namespace eng::util {

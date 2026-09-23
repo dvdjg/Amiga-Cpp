@@ -21,8 +21,8 @@
 ///   eng::util::Vector<eng::u16, eng::util::BumpAlloc> ids {eng::util::BumpAlloc{{scratch, sizeof scratch}}};
 ///   if (!ids.push_back(7u)) { /* sin hueco */ }
 
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/core/util/allocator.hpp>
 #include <eng/core/util/type_traits.hpp>
 

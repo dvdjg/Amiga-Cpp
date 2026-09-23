@@ -18,9 +18,9 @@
 /// - mantiene los detalles OCS fuera de esta capa, aunque deja pistas para que el
 ///   driver Amiga sepa si debe preparar margenes, doble buffer o scroll fino.
 
-#include <eng/core/ptr.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/types/ptr.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/graphics/tilemap/tile_scroll.hpp>
 
 namespace eng::scene {
