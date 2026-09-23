@@ -84,4 +84,4 @@ if (STRICT && (oversized.length || nonInline.length)) {
 	console.error(`[header-impl] ${oversized.length + nonInline.length} hallazgo(s) fuera de baseline.`);
 	process.exit(1);
 }
-if (!QUIET) console.log(`[header-impl] OK (advisory): ${oversized.length} cabecera(s) grande(s), ${nonInline.length} función(es) no-inline.`);
+if (!QUIET) console.log(`[header-impl] OK${STRICT ? '' : ' (advisory)'}: ${oversized.length} cabecera(s) grande(s), ${nonInline.length} función(es) no-inline.`);

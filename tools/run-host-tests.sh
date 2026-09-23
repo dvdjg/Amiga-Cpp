@@ -158,11 +158,14 @@ if [ "${#ARGS[@]}" -eq 0 ] && [ -z "$CATEGORY" ]; then
 			exit 1
 		fi
 	fi
-	# Politica de cabeceras (advisory): cabeceras grandes y funciones no-inline.
+	# Politica de cabeceras: cabeceras grandes y funciones no-inline (estricto; baseline vacio).
 	HEADER_IMPL="$ROOT/tools/check/header-impl.mjs"
 	if [ -f "$HEADER_IMPL" ] && command -v node >/dev/null 2>&1; then
-		echo "== header-impl (advisory) =="
-		node "$HEADER_IMPL" || true
+		echo "== header-impl =="
+		if ! node "$HEADER_IMPL" --strict; then
+			echo "header-impl fallo: cabecera grande o funcion no-inline fuera de baseline." >&2
+			exit 1
+		fi
 	fi
 	# No-propietarios: los punteros a objeto en miembros deben ser eng::Ref/NonNull.
 	RAW_PTR="$ROOT/tools/check/raw-pointer-members.mjs"
