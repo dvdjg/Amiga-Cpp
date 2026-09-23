@@ -319,10 +319,15 @@ UI (`eng::ui`).
   `0x00ffffff` no mejora: sigue ~1/3). La demo ahora reporta `detail = (syncs << 8) | why`: en las
   corridas fallidas el buffer leído tiene solo **1-9** syncs `$4489` (un track AmigaDOS tiene ~22) ⇒
   **la DMA no está capturando el track MFM**; no es decodificación ni checksums (verificado:
-  desactivarlos no cambia el resultado). Pendiente: observar en WinUAE el DMA de disco
-  (`DSKPT`/`DSKLEN`/`DSKDAT`: qué escribe y dónde) para ver por qué el buffer no recibe el track;
-  después, leer sector a sector sincronizando por `DSKSYNC`. La regresión le pasa el ADF y timeout
-  amplio vía `demos/amiga/214_floppy_raw/run.args`.
+  desactivarlos no cambia el resultado). **Análisis del fuente del emulador** (`../WinUAE-DBG/disk.cpp`,
+  vía §1.11): `doreaddma` (`:4256`) escribe en `dskpt` solo si `dmaen(DMA_DISK)` + `bitoffset==15` +
+  `dma_enable` (lo pone `wordsync_detected` al ver el sync) + `dskdmaen==READ` + `dsklength>0`; el dato
+  sale de `drv->bigmfmbuf[drv->mfmpos]` (`getonebit`, `:4435`); y el armado por doble escritura de
+  `DSKLEN` (`:4853`) **no re-arma** si `dskdmaen==READ` y el bit 14 va a 0 (hace `return`). Ya se quitó
+  la escritura `DSKLEN=0` (que en `:4887` dispara un `disk_dmafinished` prematuro con `dma_enable` a 1).
+  Pendiente: un `write_log` dirigido (`DISK_DEBUG_X`, `:4276` `buffer load`) para ver qué escribe el DMA
+  y por qué el buffer recibe pocos syncs; después, leer sector a sector sincronizando por `DSKSYNC`. La
+  regresión le pasa el ADF y timeout amplio vía `demos/amiga/214_floppy_raw/run.args`.
 - **M8/A5 — reproducir por Paula desde RAM: RESUELTO.** La demo 272 **alcanza `READY`** con
   `detail=0x2c002c` (`irq == swaps`, **0 underruns**): el fallo eran los *underruns* por el feeder
   CPU-bound (sintetizaba+codificaba en cada frame), no la IRQ. Arreglo: pre-sintetizar/pre-codificar

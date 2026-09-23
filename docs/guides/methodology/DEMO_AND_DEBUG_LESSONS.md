@@ -109,3 +109,13 @@ volcarlo a un fichero hay que hacer que `log_output` escriba al `log_file` del g
 dispara ~34x mas rapido") era falso: asumia 50 fps cuando la demo corria mucho mas lento. El log del
 emulador mostro `SETIRQ3` ≈ `looped` (**una IRQ por bloque**); el problema real eran los *underruns*
 por el feeder CPU-bound. Leccion: medir la ventana temporal real antes de concluir una tasa.
+
+**Ante hardware que no cuadra, leer el codigo del emulador ANTES de sondear.** Es la regla de
+`AGENTS.md` §1.11 y se pago caro no aplicarla desde el principio en el floppy (214): despues de varias
+rondas de "leer el buffer y contar cosas", la lectura de `../WinUAE-DBG/disk.cpp` dio en minutos el
+mapa del DMA de disco — las condiciones exactas de `doreaddma` (`:4256`: `dmaen(DMA_DISK)` +
+`bitoffset==15` + `dma_enable` + `dskdmaen==READ` + `dsklength>0`, escribiendo en `dskpt`), el armado
+por doble escritura de `DSKLEN` (`:4853`: con `dskdmaen==READ` y bit 14 a 0 **no re-arma**, hace
+`return`) y que el dato sale de `drv->bigmfmbuf` en `drv->mfmpos` (`getonebit`, `:4435`). Leccion:
+para el **comportamiento del chipset**, el fuente del emulador es la referencia de facto; el sondeo
+con contadores es el ultimo recurso, no el primero.
