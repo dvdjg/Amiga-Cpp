@@ -47,9 +47,9 @@ eng/engine.hpp:queue
 eng/engine.hpp:queue
 eng/field/tile_source.hpp:src
 eng/field/world_layer.hpp:world
-eng/graphics/composition/compose.hpp:list
-eng/graphics/composition/compose.hpp:out
-eng/graphics/composition/compose.hpp:out
+eng/graphics/composition/stages.hpp:list
+eng/graphics/composition/stages.hpp:out
+eng/graphics/composition/stages.hpp:out
 eng/graphics/composition/limits.hpp:lores
 eng/graphics/copper/plan.hpp:intents
 eng/graphics/copper/plan.hpp:intents
