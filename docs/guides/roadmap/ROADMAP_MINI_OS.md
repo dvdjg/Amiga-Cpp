@@ -330,6 +330,16 @@ UI (`eng::ui`).
   transfiere **las 12667 palabras** al buffer y, en las corridas fallidas, `m_track[0] = 0x4489` (¡un
   sync!) y `m_track[1] = 0x552A` ⇒ **la DMA sí captura el MFM y empieza en un sync**; el fallo (2/4
   pasan) es de **alineación/fase del stream respecto a la estructura de sector**, no de "no captura".
+  **Comparación contra el MFM de la unidad** (log dirigido en el sync, `drv->bigmfmbuf[mfmpos>>4]`):
+  la unidad tiene `4489 552A A4A9 552A` y **nuestro buffer empieza `4489 552A`** ⇒ **la transferencia
+  es fiel**. Y `mfm_decode_long(552A,A4A9,552A,AAA9)` = `FF 00 08 03` ⇒ `format=0xFF`, `track=0`,
+  **`sector=8`** ⇒ **el decodificador funciona** (encuentra una cabecera válida). **Conclusión**: la
+  lectura y el decode son correctos; el problema es **qué sector captura** la DMA (arranca en un
+  sector arbitrario, p. ej. el 8) y que la lectura larga no alcanza el 0/1. Se probó `floppy_read_sector`
+  (leer 544 palabras desde el sync y decodificar la cabecera, repitiendo hasta el sector pedido) y
+  **tampoco** encontró el 0 (los intentos capturaban el mismo sector); se revirtió. Siguiente paso:
+  **alinear por el pulso de índice** (`DSKINDEX`/IRQ de índice) o leer y **recoger las cabeceras** de
+  varios sectores seguidos para ver la secuencia real.
   Ya se quitó
   la escritura `DSKLEN=0` (que en `:4887` dispara un `disk_dmafinished` prematuro con `dma_enable` a 1).
   Pendiente: un `write_log` dirigido (`DISK_DEBUG_X`, `:4276` `buffer load`) para ver qué escribe el DMA
