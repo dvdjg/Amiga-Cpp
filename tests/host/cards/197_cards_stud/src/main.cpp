@@ -6,7 +6,7 @@
 // las cinco calles hasta el showdown, resolucion por retirada y reparto de botes.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/170_cards_stud
+//   bash tools/run-host-tests.sh tests/host/cards/197_cards_stud
 
 #include <cstdio>
 

@@ -26,7 +26,7 @@ OK: Chess960 (960 disposiciones, enroque generalizado) y torneo rapido
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/154_chess_variants
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/board/181_chess_variants
 ```
 
 Herramienta de torneo: `tools/board/arena.sh [games] [depth] [variant] [seed] [max_plies] [nodes]`.

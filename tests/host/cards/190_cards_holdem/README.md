@@ -24,5 +24,5 @@ OK: eng::cards texas_holdem (reparto, calles, retirada y botes laterales)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/163_cards_holdem
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/cards/190_cards_holdem
 ```

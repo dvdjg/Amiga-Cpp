@@ -26,5 +26,5 @@ OK: GOAP numerico (enteros, decimales, saturacion, memo y sufijo)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/158_goap_numeric
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/ai/185_goap_numeric
 ```

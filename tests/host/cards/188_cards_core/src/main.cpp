@@ -7,7 +7,7 @@
 // reparto/retirada de cartas y seleccion de perfil `N20`..`N512`.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/161_cards_core
+//   bash tools/run-host-tests.sh tests/host/cards/188_cards_core
 
 #include <cstdio>
 

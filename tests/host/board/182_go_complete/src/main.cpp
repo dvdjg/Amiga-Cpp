@@ -11,7 +11,7 @@
 //   * APERTURA: `opening_move` propone puntos estrella (4-4) o komoku (3-4).
 //
 // Se ejecuta con:
-//   bash tools/run-host-tests.sh tests/host/155_go_complete
+//   bash tools/run-host-tests.sh tests/host/board/182_go_complete
 
 #include <cstdio>
 

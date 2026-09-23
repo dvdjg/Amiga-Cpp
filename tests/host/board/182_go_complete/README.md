@@ -21,5 +21,5 @@ OK: Go (pase/dos pases, superko y patrones de apertura)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/155_go_complete
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/board/182_go_complete
 ```

@@ -22,5 +22,5 @@ OK: eng::cards hand_rank (categorias, orden, mejor de 7, kickers)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/162_cards_hand_rank
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/cards/189_cards_hand_rank
 ```

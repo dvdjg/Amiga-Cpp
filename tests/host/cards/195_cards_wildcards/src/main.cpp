@@ -6,7 +6,7 @@
 // comodines en `evaluate_hand` (mejor carta posible) y la heuristica preflop.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/168_cards_wildcards
+//   bash tools/run-host-tests.sh tests/host/cards/195_cards_wildcards
 
 #include <cstdio>
 

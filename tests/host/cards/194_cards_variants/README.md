@@ -27,5 +27,5 @@ OK: eng::cards variants (Omaha 2+3, reparto, Limit fijo y tope)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/167_cards_variants
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/cards/194_cards_variants
 ```

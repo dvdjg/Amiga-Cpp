@@ -6,7 +6,7 @@
 // `run_session` juega Omaha con conservacion de fichas y determinismo.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/169_cards_omaha
+//   bash tools/run-host-tests.sh tests/host/cards/196_cards_omaha
 
 #include <cstdio>
 

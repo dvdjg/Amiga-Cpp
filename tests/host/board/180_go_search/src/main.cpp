@@ -13,7 +13,7 @@
 //     (el flag de captura viene en la jugada).
 //
 // Se ejecuta con:
-//   bash tools/run-host-tests.sh tests/host/153_go_search
+//   bash tools/run-host-tests.sh tests/host/board/180_go_search
 
 #include <cstdio>
 

@@ -22,5 +22,5 @@ OK: eng::cards five_draw (deuces wild, descarte y showdown)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/171_cards_five_draw
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/cards/198_cards_five_draw
 ```

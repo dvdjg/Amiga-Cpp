@@ -6,7 +6,7 @@
 // segunda ronda, showdown y conservacion; y `evaluate_deuces_wild`.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/171_cards_five_draw
+//   bash tools/run-host-tests.sh tests/host/cards/198_cards_five_draw
 
 #include <cstdio>
 

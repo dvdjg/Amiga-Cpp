@@ -41,7 +41,7 @@ El efecto se genera a 320×64 (20.480 px, la mitad de una pantalla completa) por
 - **Generador**: `eng/graphics/effects/rotozoom.hpp` (utilidad de engine, genérica y
   sin tamaños fijos). El bucle caliente es incremental: una vez por frame se calculan
   los pasos por píxel (`du/dv`) y por fila, y dentro del bucle solo hay sumas e
-  indexado. Ver test host `tests/host/022_rotozoom`.
+  indexado. Ver test host `tests/host/graphics/132_rotozoom`.
 - **C2P**: `support/c2p_1x1_4.s`, port a GAS del c2p de Kalms/Scout (1999). Corre en
   **asm 68000** con la ABI del original (d0/d1/d5 + a0/a1).
 - **Display**: `scene::compose` paramétrico (4 planos, `bplcon0=0x4200`, `row_repeat=4`) con

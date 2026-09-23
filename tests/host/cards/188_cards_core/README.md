@@ -22,5 +22,5 @@ OK: eng::cards core (tipos, baraja determinista, presupuesto N20-N512)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/161_cards_core
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/cards/188_cards_core
 ```

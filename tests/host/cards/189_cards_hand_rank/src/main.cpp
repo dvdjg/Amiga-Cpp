@@ -6,7 +6,7 @@
 // (escalera de as bajo, color + escalera, mejor de 7) y empates por kicker.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/162_cards_hand_rank
+//   bash tools/run-host-tests.sh tests/host/cards/189_cards_hand_rank
 
 #include <cstdio>
 

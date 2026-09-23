@@ -24,5 +24,5 @@ OK: King of the Hill y Three-check (variant_score) sin afectar al standar
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/156_chess_variants_cond
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/board/183_chess_variants_cond
 ```

@@ -11,7 +11,7 @@
 //     busqueda vaya directa a la conversion.
 //
 // Se ejecuta con:
-//   bash tools/run-host-tests.sh tests/host/157_chess_knowledge
+//   bash tools/run-host-tests.sh tests/host/board/184_chess_knowledge
 
 #include <cstdio>
 

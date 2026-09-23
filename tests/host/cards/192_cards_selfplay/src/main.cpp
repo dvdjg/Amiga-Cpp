@@ -7,7 +7,7 @@
 // juegan con el mismo flujo. Es la herramienta de ajuste de nivel desde host.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/165_cards_selfplay
+//   bash tools/run-host-tests.sh tests/host/cards/192_cards_selfplay
 
 #include <cstdio>
 

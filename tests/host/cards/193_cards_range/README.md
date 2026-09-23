@@ -28,5 +28,5 @@ OK: eng::cards range (169 clases, HandRange, equity vs rango y tabla preflop)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/166_cards_range
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/cards/193_cards_range
 ```

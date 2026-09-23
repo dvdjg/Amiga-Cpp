@@ -9,7 +9,7 @@
 //   * `eng/board/rules/chess/opening_book.hpp`-> lineas de apertura incorporadas
 //
 // Se ejecuta con:
-//   bash tools/run-host-tests.sh tests/host/160_pgn
+//   bash tools/run-host-tests.sh tests/host/board/187_pgn
 
 #include <cstdio>
 #include <cstring>

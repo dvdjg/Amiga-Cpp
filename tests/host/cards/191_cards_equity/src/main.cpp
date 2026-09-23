@@ -7,7 +7,7 @@
 // (AA > 72o, color hecho gana siempre) que no dependen del muestreo exacto.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/164_cards_equity
+//   bash tools/run-host-tests.sh tests/host/cards/191_cards_equity
 
 #include <cstdio>
 

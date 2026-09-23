@@ -16,7 +16,7 @@
 // la quiescence sin simular).
 //
 // Se ejecuta con:
-//   bash tools/run-host-tests.sh tests/host/152_go_rules
+//   bash tools/run-host-tests.sh tests/host/board/179_go_rules
 
 #include <cstdio>
 

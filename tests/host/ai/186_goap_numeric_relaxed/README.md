@@ -23,5 +23,5 @@ OK: GOAP numerico con h relajada y memo de heuristica
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/159_goap_numeric_relaxed
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/ai/186_goap_numeric_relaxed
 ```

@@ -7,7 +7,7 @@
 // valores construida con Monte Carlo.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/166_cards_range
+//   bash tools/run-host-tests.sh tests/host/cards/193_cards_range
 
 #include <cstdio>
 

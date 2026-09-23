@@ -22,5 +22,5 @@ OK: eng::cards stud (bring-in, 5 calles, showdown y retirada)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/170_cards_stud
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/cards/197_cards_stud
 ```

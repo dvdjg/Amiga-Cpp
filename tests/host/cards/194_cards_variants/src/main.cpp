@@ -7,7 +7,7 @@
 // fija y tope de subidas por calle).
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/167_cards_variants
+//   bash tools/run-host-tests.sh tests/host/cards/194_cards_variants
 
 #include <cstdio>
 

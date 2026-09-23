@@ -20,5 +20,5 @@ OK: eng::cards omaha (equity 4 cartas, sesion y comodines)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/169_cards_omaha
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/cards/196_cards_omaha
 ```

@@ -23,5 +23,5 @@ OK: eng::cards wildcards (mazo 54, sustitucion y showdown)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/168_cards_wildcards
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/cards/195_cards_wildcards
 ```

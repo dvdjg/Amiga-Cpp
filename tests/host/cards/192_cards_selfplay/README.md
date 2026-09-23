@@ -22,5 +22,5 @@ OK: eng::cards selfplay (conservacion, determinismo, N20/N512)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/165_cards_selfplay
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/cards/192_cards_selfplay
 ```

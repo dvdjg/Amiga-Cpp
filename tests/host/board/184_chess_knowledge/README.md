@@ -24,5 +24,5 @@ OK: libro de aperturas (sonda) y finales en la evaluacion
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/157_chess_knowledge
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/board/184_chess_knowledge
 ```

@@ -12,7 +12,7 @@
 // arranques de variante, para torneos rapidos y medidas (p. ej. semillas distintas).
 //
 // Se ejecuta con:
-//   bash tools/run-host-tests.sh tests/host/154_chess_variants
+//   bash tools/run-host-tests.sh tests/host/board/181_chess_variants
 
 #include <cstdio>
 

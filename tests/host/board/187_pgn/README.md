@@ -25,5 +25,5 @@ OK: PGN (texto exacto, truncado) y libro de aperturas
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/160_pgn
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/board/187_pgn
 ```

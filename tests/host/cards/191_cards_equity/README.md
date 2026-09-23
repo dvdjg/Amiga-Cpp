@@ -21,5 +21,5 @@ OK: eng::cards equity (Monte Carlo determinista, heuristica y pot odds)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/164_cards_equity
+CXX="/c/.../g++.exe" bash tools/run-host-tests.sh tests/host/cards/191_cards_equity
 ```

@@ -24,5 +24,5 @@ OK: Go (territorio, captura por busqueda y jugada legal)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/153_go_search
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/board/180_go_search
 ```

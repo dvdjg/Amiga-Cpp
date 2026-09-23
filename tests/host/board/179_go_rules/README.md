@@ -29,5 +29,5 @@ OK: Go (81 jugadas, captura, suicidio y ko simple)
 ## Ejecutar
 
 ```bash
-CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/152_go_rules
+CXX="/c/.../mingw64/bin/g++.exe" bash tools/run-host-tests.sh tests/host/board/179_go_rules
 ```

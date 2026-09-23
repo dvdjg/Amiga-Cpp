@@ -14,7 +14,7 @@
 //   * `clear_heuristic_cache` lo vacia.
 //
 // Se ejecuta con:
-//   bash tools/run-host-tests.sh tests/host/159_goap_numeric_relaxed
+//   bash tools/run-host-tests.sh tests/host/ai/186_goap_numeric_relaxed
 
 #include <cstdio>
 

@@ -7,7 +7,7 @@
 // de aportacion.
 //
 // Ejecucion:
-//   bash tools/run-host-tests.sh tests/host/163_cards_holdem
+//   bash tools/run-host-tests.sh tests/host/cards/190_cards_holdem
 
 #include <cstdio>
 

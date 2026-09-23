@@ -12,7 +12,7 @@
 // El ajedrez estandar/960 devuelve 0 (sin condicion) y no se ve afectado.
 //
 // Se ejecuta con:
-//   bash tools/run-host-tests.sh tests/host/156_chess_variants_cond
+//   bash tools/run-host-tests.sh tests/host/board/183_chess_variants_cond
 
 #include <cstdio>
 

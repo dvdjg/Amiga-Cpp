@@ -15,7 +15,7 @@
 //   * reutilizacion del sufijo (`plan_reusing`, tras ejecutar un paso).
 //
 // Se ejecuta con:
-//   bash tools/run-host-tests.sh tests/host/158_goap_numeric
+//   bash tools/run-host-tests.sh tests/host/ai/185_goap_numeric
 
 #include <cstdio>
 
