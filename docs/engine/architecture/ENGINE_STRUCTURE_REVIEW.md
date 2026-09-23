@@ -106,25 +106,23 @@ en `engine/src/<área>/`. Adoptar `.cpp` en el dominio exige antes `tools/build/
 sin ella, el código movido queda sin test host. Una cabecera gigante se arregla **partiéndola
 por tema**, no moviéndola a `.cpp`. Canónico en [`HEADER_POLICY.md`](HEADER_POLICY.md).
 
-### D10 — Cabeceras de `core/` por tema (aceptado)
+### D10 — Cabeceras de `core/` por tema (hecho)
 
-`eng/core/` se subdivide en `math/`, `types/` y `data/` (más `util/`), con **cabecera-paraguas**
-en la ruta antigua mientras se migran los consumidores (patrón de D3). Lo vigila
-`tools/check/engine-tree.mjs`. Plan y árbol en
-[`../../guides/roadmap/PLAN_ORGANIZACION_ENGINE.md`](../../guides/roadmap/PLAN_ORGANIZACION_ENGINE.md).
+`eng/core/` se subdivide en `math/`, `types/` y `data/` (más `util/`). Los consumidores del repo
+ya usan las rutas nuevas (no quedan paraguas). Lo vigila `tools/check/engine-tree.mjs`. Plan y
+árbol en [`../../guides/roadmap/PLAN_ORGANIZACION_ENGINE.md`](../../guides/roadmap/PLAN_ORGANIZACION_ENGINE.md).
 
-### D11 — Modelo de tres anillos de plataforma (aceptado)
+### D11 — Modelo de tres anillos de plataforma (hecho)
 
 La plataforma se separa en **anillo 0 (dominio agnóstico)**, **anillo 1 (vocabulario de chipset
-por familia)** y **anillo 2 (backend por objetivo)**. Todo el vocabulario Amiga se agrupa en
-`eng/platform/amiga/` (con paraguas de compatibilidad en las rutas antiguas) y el backend canónico
-pasa a `eng::amiga::AmigaBackend` (alias `AmigaBackend`). A1200 no es un backend distinto: es el
-mismo backend Amiga con otro perfil (`HardwareProfile`) y otro target (`K_AGA`). Atari ST y
-Megadrive se acoplan implementando el **contrato de backend** (`eng/platform/backend.hpp`) sin
-tocar el dominio; la frontera la vigila `tools/check/platform-boundaries.mjs`. Canónico en
-[`PLATFORM_LAYERS.md`](PLATFORM_LAYERS.md).
+por familia)** y **anillo 2 (backend por objetivo)**. Todo el vocabulario Amiga vive en
+`eng/platform/amiga/` y el backend canónico es `eng::amiga::AmigaBackend` (sin alias de
+compatibilidad: retirado). A1200 no es un backend distinto: es el mismo backend Amiga con otro
+perfil (`HardwareProfile`) y otro target (`K_AGA`). Atari ST y Megadrive se acoplan implementando
+el **contrato de backend** (`eng/platform/backend.hpp`) sin tocar el dominio; la frontera la vigila
+`tools/check/platform-boundaries.mjs`. Canónico en [`PLATFORM_LAYERS.md`](PLATFORM_LAYERS.md).
 
-### D12 — Tests por plataforma, nivel y categoría (aceptado)
+### D12 — Tests por plataforma, nivel y categoría (hecho)
 
 Los tests se organizan por **plataforma** (`host`/`amiga`/`atarist`/`megadrive`), **nivel**
 (`L0`…`L3`) y **categoría (dominio)**, con un catálogo por categoría en lugar de un catálogo
@@ -132,11 +130,21 @@ Los tests se organizan por **plataforma** (`host`/`amiga`/`atarist`/`megadrive`)
 `tools/check/test-numbering.mjs` (árbol anidado) y `tools/run-host-tests.sh --category`.
 Taxonomía en [`../../testing/TAXONOMY.md`](../../testing/TAXONOMY.md).
 
+### D13 — Cabeceras grandes: `compose.hpp` troceado; god-classes pendientes (parcial)
+
+`graphics/composition/compose.hpp` (927 líneas) se parte en `scene.hpp` (la clase `Scene`) y
+`stages.hpp` (etapas/presets y huellas `*_words`), con `compose.hpp` como **cabecera de familia**
+(patrón de D3). En cambio, `field/xlimited_playfield.hpp` y `sim/world.hpp` son **una sola clase**
+cada uno: trocearlos por tema exige un refactor de clase (base + mixins, o definiciones fuera de
+clase) con su propia verificación en hardware. Se dejan como están, señalados por
+`tools/check/header-impl.mjs` (advisory), y no se fuerzan sin plan y evidencia (ver §3).
+
 ## 3. Límites de esta revisión (excepciones deliberadas)
 
-- **`xlimited.hpp`/`actor.hpp` no se trocean**: es un refactor grande que merece su propio plan y
-  su propia verificación. La fachada (D4), los tipos de dominio (D5) y el troceo del backend (D8)
-  ya reducen el acoplamiento visible.
+- **God-classes no troceadas**: `field/xlimited_playfield.hpp` y `sim/world.hpp` son una sola
+  clase; trocearlas es un refactor grande que merece su propio plan y su propia verificación (D13).
+  La fachada (D4), los tipos de dominio (D5), el troceo del backend (D8) y el de `compose.hpp`
+  (D13) ya reducen el acoplamiento visible.
 - **`graphics::LineEor`/`C2p4` exponen campos que el backend precalcula.** Es deliberado: ocultarlos
   tras un handle opaco obligaría a cambiar las firmas del backend y las rutas calientes de 116
   (batch de líneas por plano) y 080 (C2P encadenado por IRQ de blit), con riesgo de regresión. Se
