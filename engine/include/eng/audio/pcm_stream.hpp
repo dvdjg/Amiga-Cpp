@@ -53,6 +53,11 @@ public:
 
 	[[nodiscard]] const Config& config() const noexcept { return m_cfg; }
 
+	/// **Estado de buffers** (`ChunkStream`) para que un `FileChunkFeeder` lo alimente directamente:
+	/// con `Codec::None` el feeder escribe el PCM crudo en el propio buffer (sin `provide`/decode).
+	/// Ver `AUDIO_STREAMING.md` §3 y `FileChunkFeeder` (`eng/os/file_stream.hpp`).
+	[[nodiscard]] eng::os::ChunkStream<NumBuffers>& state() noexcept { return m_state; }
+
 	/// Máscara de buffers **libres** (0 si no hay trabajo o ya es EOF).
 	[[nodiscard]] eng::u8 free_mask() const noexcept { return m_state.request_mask(); }
 	[[nodiscard]] bool needs_data() const noexcept { return m_state.needs_data(); }

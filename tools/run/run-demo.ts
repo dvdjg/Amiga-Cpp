@@ -967,6 +967,13 @@ const outputDir = configId
 const stagedDir = path.join(outputDir, 'dh1');
 fs.mkdirSync(stagedDir, { recursive: true });
 fs.copyFileSync(builtExe, path.join(stagedDir, 'a.exe'));
+// Monta el contenido compartido (`out/fs/content`, generado por `tools/fs/make-volume.mjs`) en el
+// `DH1:` de la demo, para que cualquier demo lea `DH1:data/...` (texto/imagen/audio/512 KB) sin
+// depender de que un paso previo lo copie.
+const sharedContentDir = path.join(root, 'out/fs/content');
+if (fs.existsSync(sharedContentDir)) {
+  fs.cpSync(sharedContentDir, stagedDir, { recursive: true });
+}
 const statusFilePath = path.join(stagedDir, 'eng-run-status.txt');
 if (fs.existsSync(statusFilePath)) {
   fs.unlinkSync(statusFilePath);
@@ -1153,7 +1160,12 @@ try {
         report.status = `side_channel_${side.status}`;
         fs.writeFileSync(path.join(outputDir, 'run-report.json'), JSON.stringify(report, null, 2), 'utf8');
         if (!hasArg('--allow-timeout-fallback')) {
-          throw new Error(`La demo no alcanzo READY por canal lateral en ${sideChannelTimeoutMs} ms: ${side.status}`);
+          const lastState = side.value?.state;
+          const lastDetail = side.value?.detail;
+          throw new Error(
+            `La demo no alcanzo READY por canal lateral en ${sideChannelTimeoutMs} ms: ${side.status}` +
+              ` (ultimo state=${lastState ?? '?'} detail=0x${(lastDetail ?? 0).toString(16)})`,
+          );
         }
         console.log(`[run-demo] side-channel ${side.status}; explicit fallback wait ${waitMs} ms`);
         await sleep(waitMs);
@@ -1314,27 +1326,155 @@ try {
     };
   }
 
-  // --keys: inyecta teclas Amiga por scancode crudo (WinUAE `input key <sc> <1|0>`); sirve para
-  // validar la entrada de teclado por IRQ (mini-SO `os::enable_keyboard`), que el runner no puede
-  // provocar de otro modo. Scancodes en hex, separados por comas (p. ej. --keys 0x20,0x21).
+  // --keys: inyecta teclas Amiga por **rawkey** (hex, separadas por comas; p. ej. --keys 0x45,0x44)
+  // vía el monitor `input key <rawkey>` de WinUAE-DBG. Sirve para validar la entrada de teclado por
+  // IRQ (mini-SO `os::enable_keyboard`).
+  //
+  // NO FIABLE en esta build: `input key` mapea a `256+sc`, que cae en eventos `SPC_*` (acciones, no
+  // teclas); y el mapeo `rawkey->id` del binario no coincide con el árbol de fuentes NI es estable
+  // entre ejecuciones (el MCU del teclado acepta las teclas con latencia/variación). Usa
+  // `--key-events <id>` (id crudo; calibrable con `--key-scan`). Ver
+  // `docs/reference/emulators/winuae/keyboard-injection.md`.
   const keysToInject = argValue('--keys', '')
     .split(',')
     .map((value) => value.trim())
     .filter((value) => value !== '');
   if (keysToInject.length > 0) {
+    console.log(
+      '[run-demo] aviso: `--keys` usa el monitor `input key` (mapeo `256+sc`, cae en `SPC_*`) y no ' +
+        'es fiable en esta build. Usa `--key-events <id>` (id crudo; calibrable con `--key-scan`).',
+    );
     const keyHoldMs = Math.max(10, parseInt(argValue('--key-hold-ms', '60'), 10));
-    console.log(`[run-demo] injecting ${keysToInject.length} keys`);
+    console.log(`[run-demo] injecting ${keysToInject.length} key(s)`);
     let keyCount = 0;
     for (const raw of keysToInject) {
-      const sc = parseInt(raw, 16); // scancode hex
-      if (Number.isNaN(sc)) continue;
-      await protocol.sendMonitorCommand(`input key ${sc} 1`, 5000);
+      const rk = parseInt(raw, 16); // rawkey Amiga (hex)
+      if (Number.isNaN(rk)) continue;
+      await protocol.sendMonitorCommand(`input key ${rk} 1`, 5000);
       await sleep(keyHoldMs);
-      await protocol.sendMonitorCommand(`input key ${sc} 0`, 5000);
+      await protocol.sendMonitorCommand(`input key ${rk} 0`, 5000);
       await sleep(keyHoldMs);
       keyCount++;
     }
     report.keys = { count: keyCount, scancodes: keysToInject };
+  }
+
+  // --joy: inyecta direcciones/botones de joystick (`input joy <port> <dir|button> <1|0>`); a
+  // diferencia del teclado, el monitor usa nombres de evento (`INPUTEVENT_JOY1_LEFT`...), así que es
+  // fiable. Spec: `port:dir` separado por comas, p. ej. `--joy 1:left` (joystick del puerto 2) o
+  // `--joy 1:up,1:fire`. port 0 = joystick 1, port 1 = joystick 2.
+  const joySpecs = argValue('--joy', '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value !== '');
+  if (joySpecs.length > 0) {
+    const keyHoldMs = Math.max(10, parseInt(argValue('--joy-hold-ms', '200'), 10));
+    console.log(`[run-demo] injecting ${joySpecs.length} joystick input(s)`);
+    let joyCount = 0;
+    for (const spec of joySpecs) {
+      const [portText, dir] = spec.split(':').map((v) => v.trim());
+      const port = parseInt(portText, 10);
+      if (Number.isNaN(port) || !dir) continue;
+      await protocol.sendMonitorCommand(`input joy ${port} ${dir} 1`, 5000);
+      await sleep(keyHoldMs);
+      await protocol.sendMonitorCommand(`input joy ${port} ${dir} 0`, 5000);
+      await sleep(keyHoldMs);
+      joyCount++;
+    }
+    report.joy = { count: joyCount, specs: joySpecs };
+  }
+
+  // --key-scan <from>-<to>: calibra el mapeo `event id -> rawkey` **contra el binario en marcha**
+  // (los ids de la build pueden diferir de su árbol de fuentes). En cada id inyecta el evento y lee
+  // el bitmask `g_key_mask` (128 bits) de la demo por el canal lateral; el delta respecto al id
+  // anterior da el/los rawkey(s) de ese id (sin depender del "último"). Imprime los pares.
+  // Se usa para generar la tabla que consume `--keys`.
+  const keyScanArg = argValue('--key-scan', '');
+  if (keyScanArg !== '') {
+    const mm = keyScanArg.match(/^(0x[0-9a-fA-F]+|[0-9]+)-(0x[0-9a-fA-F]+|[0-9]+)$/);
+    const sym = findMapSymbol(builtMap, 'g_key_mask');
+    const sections = report.sideChannel?.state?.sections ?? null;
+    let addr: number | null = null;
+    if (mm && sym !== null && sections) {
+      addr = resolveRuntimeSymbolAddress(sym, builtMapSections, sections);
+    }
+    if (!mm || addr === null) {
+      console.log('[run-demo] aviso: --key-scan necesita <from>-<to> y poder resolver g_key_mask');
+    } else {
+      const from = parseInt(mm[1], 0);
+      const to = parseInt(mm[2], 0);
+      const hold = Math.max(20, parseInt(argValue('--key-hold-ms', '50'), 10));
+      const hexAddr = addr.toString(16);
+      // Lee los 16 B del bitmask como 4 palabras BE; devuelve la lista de rawkeys con bit a 1.
+      const readSet = async (): Promise<Set<number> | null> => {
+        const reply = await sendSideChannelCommand(sideChannelPort, `mem ${hexAddr} 16`).catch(
+          () => '',
+        );
+        const m2 = reply.match(/"data"\s*:\s*"([0-9a-fA-F]+)"/);
+        if (!m2 || m2[1].length < 32) return null;
+        const set = new Set<number>();
+        for (let w = 0; w < 4; w++) {
+          const word = parseInt(m2[1].slice(w * 8, w * 8 + 8), 16) >>> 0;
+          for (let b = 0; b < 32; b++) {
+            if ((word >>> b) & 1) set.add(w * 32 + b);
+          }
+        }
+        return set;
+      };
+      const pairs: Array<{ id: number; raw: number }> = [];
+      // Reset del bitmask antes de cada id (via `poke`, con lock `takeover`) para no perder
+      // rawkeys cuando varios id mapean al mismo (el delta a secas los ocultaria).
+      const zeroMask = '0'.repeat(32);
+      await withSideChannelLock(sideChannelPort, 'takeover', 'run-demo', async () => {
+        for (let id = from; id <= to; ++id) {
+          await sendSideChannelCommand(sideChannelPort, `poke ${hexAddr} ${zeroMask}`).catch(
+            () => '',
+          );
+          await protocol.sendMonitorCommand(`input event ${id} 1`, 5000);
+          await sleep(hold);
+          await protocol.sendMonitorCommand(`input event ${id} 0`, 5000);
+          await sleep(hold);
+          const cur = await readSet();
+          if (cur) {
+            for (const raw of cur) pairs.push({ id, raw });
+          }
+        }
+      });
+      for (const p of pairs) {
+        console.log(
+          `[run-demo] key-scan: id ${p.id} (0x${p.id.toString(16)}) -> rawkey 0x${p.raw
+            .toString(16)
+            .padStart(2, '0')}`,
+        );
+      }
+      report.keyScan = pairs;
+      console.log(`[run-demo] key-scan: ${pairs.length} mapeo(s)`);
+    }
+  }
+
+  // --key-events: inyecta eventos de teclado por **event id de WinUAE** (`input event <id> <1|0>`).
+  // Es la vía fiable: `input key <sc>` del monitor mapea a `256+sc`, que en esta build cae en los
+  // eventos `SPC_*` (acciones del emulador), no en las teclas. El id correcto por rawkey Amiga se
+  // obtiene de `inputevents.def` (campo `AK_*` = rawkey) del repo WinUAE-DBG; ver
+  // `docs/reference/emulators/winuae/keyboard-injection.md`.
+  const keyEvents = argValue('--key-events', '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value !== '');
+  if (keyEvents.length > 0) {
+    const keyHoldMs = Math.max(10, parseInt(argValue('--key-hold-ms', '60'), 10));
+    console.log(`[run-demo] injecting ${keyEvents.length} key event(s)`);
+    let eventCount = 0;
+    for (const raw of keyEvents) {
+      const id = parseInt(raw, 0);
+      if (Number.isNaN(id)) continue;
+      await protocol.sendMonitorCommand(`input event ${id} 1`, 5000);
+      await sleep(keyHoldMs);
+      await protocol.sendMonitorCommand(`input event ${id} 0`, 5000);
+      await sleep(keyHoldMs);
+      eventCount++;
+    }
+    report.keyEvents = { count: eventCount, ids: keyEvents };
   }
 
   if (sequenceCameraX.length > 0) {

@@ -9,3 +9,4 @@ Lo **observado** en el código fuente de WinUAE (local: `../WinUAE-DBG/`) al con
 | Copper: autoridad de escritura | `CDANG` (`COPCON`) | [copper.md](copper.md) |
 | Disco a nivel de device | `DSKPT`/`DSKLEN`/`DSKBYTR` (DMA, MFM) | [trackdisk.md](trackdisk.md) |
 | IRQ de audio (`AUD0..3`, nivel 4) | `setirq`/`event_audxdat_func`, `AUDxLEN`/`AUDxLCH` | [audio-irq.md](audio-irq.md) |
+| Inyección de teclado y handshake CIA-A | `input key`/`input event` (`256+sc`, ids permutados), `keymcu_execute` | [keyboard-injection.md](keyboard-injection.md) |

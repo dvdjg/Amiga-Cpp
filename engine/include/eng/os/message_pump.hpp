@@ -9,17 +9,21 @@
 #include <eng/core/ptr.hpp>
 #include <eng/os/dispatch.hpp>
 #include <eng/os/port.hpp>
+#include <eng/os/task.hpp>
 #include <eng/os/telemetry.hpp>
 
 namespace eng::os {
 
-/// Drena `port` y entrega cada mensaje al `App` con `app.on_msg(m)`.
+/// Drena `port` y entrega cada mensaje al `App` con `app.on_msg(m)`. Devuelve cuántos entregó.
 template <class App, eng::u16 N>
-void pump_messages(App& app, MsgPort<N>& port) noexcept {
+[[nodiscard]] eng::u16 pump_messages(App& app, MsgPort<N>& port) noexcept {
+	eng::u16 n = 0u;
 	Msg m;
 	while (port.pop(m)) {
 		app.on_msg(m);
+		++n;
 	}
+	return n;
 }
 
 /// `Game` que usa el mini-SO. El `App` implementa `on_start(ctx)`, `on_msg(m)`,
@@ -36,10 +40,14 @@ struct MessagePumpGame {
 	eng::Ref<MsgPort<N>> port {}; ///< puerto del mini-SO (no propietario)
 	void (*tick)() = nullptr; ///< tick opcional del mini-SO (`os::tick`), antes de drenar
 	eng::Ref<IrqTelemetry> telemetry {}; ///< telemetría opcional (no propietaria)
+	eng::Ref<TaskSystem> tasks {}; ///< tareas de fondo opcionales (M10)
+	eng::u32 idle_slice_us = 200u; ///< presupuesto del slice de fondo por frame sin mensajes
 
 	void bind_port(MsgPort<N>& p) noexcept { port = p; }
 	/// Liga la telemetría: se muestrea el puerto cada frame (descartes + marcas de agua).
 	void bind_telemetry(IrqTelemetry& t) noexcept { telemetry = t; }
+	/// Liga el `TaskSystem` de fondo: sin mensajes, el bucle le da un slice de **idle** por frame.
+	void bind_tasks(TaskSystem& t) noexcept { tasks = t; }
 
 	/// Arranque: delega en `app.on_start(ctx)`.
 	template <class Backend, class Ctx>
@@ -55,9 +63,19 @@ struct MessagePumpGame {
 			tick();
 		}
 		if (port.valid()) {
-			pump_messages(app, *port.get());
+			const eng::u16 n = pump_messages(app, *port.get());
 			if (telemetry.valid()) {
 				telemetry->sample_port(*port);
+			}
+			if (tasks.valid()) {
+				// El frame/entrada siempre gana: si hubo mensajes (o un productor pidió
+				// `preempt`), el fondo no corre este frame y se limpia la marca; si no, se
+				// le da un slice de idle. Así el fondo solo avanza cuando no hay trabajo.
+				if (n != 0u || tasks->preempt_requested()) {
+					tasks->clear_preempt();
+				} else {
+					(void)tasks->run_idle(idle_slice_us);
+				}
 			}
 		}
 		app.on_frame(ctx.frame.frame_index);

@@ -301,6 +301,8 @@ dependen de hardware y no necesitan WinUAE.
 | HOST-304 | [os_telemetry](304_os_telemetry/README.md) | Mini-SO: telemetría de saturación (`IrqTelemetry`: overflows/missed/marcas de agua). |
 | HOST-305 | [os_tasks](305_os_tasks/README.md) | Mini-SO: tareas de fondo (`TaskSystem`: ciclo de vida, idle, preempt, prioridad). |
 | HOST-306 | [os_file_stream](306_os_file_stream/README.md) | Mini-SO: feeder fichero→`ChunkStream` (lecturas secuenciales, EOF, underrun). |
+| HOST-307 | [os_pump_tasks](307_os_pump_tasks/README.md) | Mini-SO: fondo integrado en el bucle (`MessagePumpGame` da idle solo sin mensajes; respeta/limpia `preempt`). |
+| HOST-308 | [os_cd32_pad](308_os_cd32_pad/README.md) | Mini-SO: decodificador del pad CD32 (`cd32_mask_from_shift`: stream serie → bitmask `Cd32Btn`). |
 | HOST-260 | [copper_blitter](260_copper_blitter/README.md) | Copper lanza blits (Técnica A): `CopperIntentKind::BlitterJob` (`BLTCON*`/punteros/módulos/`BLTSIZE`) y **ventana segura** (`set_blitter_window`) que lo serializa con los blits de CPU. |
 | HOST-267 | [fine_scroll](267_fine_scroll/README.md) | `eng::effects::FineScroll`: scroll horizontal fino de una capa planar (1 px/frame) — `step`/`bplcon1`/columna y `BlitJob` de desplazamiento + columna entrante. |
 | HOST-268 | [ui_compositor_blit](268_ui_compositor_blit/README.md) | Compositor GUI por `Surface::blit` (`Compositor::present_blit`): copia backings con el `Rasterizer` (CPU/Blitter) y cae a CPU si el rect no está alineado a palabra; equivalencia píxel a píxel con `present()`. |

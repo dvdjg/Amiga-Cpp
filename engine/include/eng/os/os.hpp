@@ -41,4 +41,10 @@ void request_quit();
 /// como `KeyDown`/`KeyUp` por el puerto del sistema. Lo implementa el backend Amiga.
 void enable_keyboard();
 
+/// **Habilita el pad CD32** en el puerto 2 (protocolo serie por `POTGO`/`POTINP`): a partir de aquí
+/// el puerto 2 se lee como `Gamepad` (en lugar de `Joystick`) y sus botones llegan como
+/// `MsgType::Gamepad` por el puerto del sistema. Lo implementa el backend Amiga. Ver
+/// `MINI_OS_INPUT.md` §6.
+void enable_cd32_pad();
+
 } // namespace eng::os

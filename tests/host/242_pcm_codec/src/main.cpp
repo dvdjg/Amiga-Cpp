@@ -109,6 +109,24 @@ void test_rejects() {
 	      "decode rechaza flujo truncado");
 }
 
+void test_none_codec() {
+	// PCM crudo (`Codec::None`): decode copia tal cual (mismo tamano).
+	fill_pattern(1u, 256u);
+	const s32 d = decode(Span<const u8> {g_pcm, 256u}, Span<u8> {g_out, 256u}, 3u);
+	check(d == 256, "None: copia 256 bytes");
+	bool same = true;
+	for (usize i = 0; i < 256u; ++i) {
+		if (g_out[i] != g_pcm[i]) {
+			same = false;
+			break;
+		}
+	}
+	check(same, "None: contenido identico");
+	// Tamano distinto -> rechazo (el chunk debe traer exactamente las muestras del buffer).
+	check(decode(Span<const u8> {g_pcm, 256u}, Span<u8> {g_out, 128u}, 3u) == -1,
+	      "None: rechaza tamano distinto");
+}
+
 void test_encode_overflow() {
 	fill_pattern(3u, 512u);
 	// Destino minusculo: encode debe devolver -1 en vez de escribir fuera.
@@ -122,6 +140,7 @@ int main() {
 	test_round_trips();
 	test_ratio();
 	test_rejects();
+	test_none_codec();
 	test_encode_overflow();
 
 	if (failures == 0) {

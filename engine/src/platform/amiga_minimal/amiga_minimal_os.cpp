@@ -19,18 +19,67 @@ volatile eng::u32 g_frame = 0u;
 JoyProducer g_joy {};
 MouseProducer g_mouse {};
 KeyProducer g_keys {};
+PadProducer g_pad {};
+bool g_cd32_enabled = false;
 
-/// IRQ del teclado (SP de CIA-A): lee `SDR`, reconoce con `SPMODE` y produce `KeyDown`/`KeyUp`.
+/// Lee el registro de desplazamiento del **pad CD32** del puerto 2. Devuelve 9 bits: `bit i` = nivel
+/// en el i-ésimo pulso de reloj (1 = alto). Reloj = CIA-A PRA bit 7 como **salida** (el pin de fire
+/// del puerto 2); dato = `POTINP` bit 14; `POTGO` arranca el puerto. Ref: `lowlevel.library` /
+/// foro exxos; modelo en `WinUAE-DBG/inputdevice.cpp:4000-4057` (reloj por flanco de bajada de PRA
+/// bit 7, dato en `p9dat = 0x4000`). Activo a 0.
+eng::u16 read_cd32_shift_port2() {
+	using eng::amiga::detail::ciaa_reg;
+	using eng::amiga::detail::custom_base;
+	volatile eng::u8* const pra = ciaa_reg(0x00u);
+	volatile eng::u8* const ddra = ciaa_reg(0x200u);
+	constexpr eng::u8 kClock = 0x80u; // PRA bit 7 = fire/reloj del puerto 2
+
+	*ddra = static_cast<eng::u8>(*ddra | kClock);  // reloj como salida
+	*pra = static_cast<eng::u8>(*pra & ~kClock);   // reloj a bajo
+	custom_base[0x034 / 2] = 0x6f00u;              // POTGO: arranca el puerto 2
+	for (volatile eng::u16 i = 0u; i < 64u; ++i) {} // asentar las capacidades del pot
+
+	eng::u16 bits = 0u;
+	for (eng::u8 i = 0u; i < 9u; ++i) {
+		for (volatile eng::u16 d = 0u; d < 8u; ++d) {} // >= ~1.4 us (el CIA va al E clock)
+		const eng::u16 potinp = custom_base[0x016 / 2];
+		*pra = static_cast<eng::u8>(*pra | kClock);  // reloj a alto
+		*pra = static_cast<eng::u8>(*pra & ~kClock); // reloj a bajo (pulso)
+		if ((potinp & 0x4000u) != 0u) {
+			bits = static_cast<eng::u16>(bits | (1u << i));
+		}
+	}
+	*ddra = static_cast<eng::u8>(*ddra & ~kClock); // reloj de vuelta a entrada
+	custom_base[0x034 / 2] = 0xffffu;              // POTGO a reposo
+	return bits;
+}
+
+/// ¿El stream leído parece un **pad CD32**? Firma: tras los 7 botones, bit 7 = 1 y bit 8 = 0 (un
+/// joystick normal no la produce). Ver `MINI_OS_INPUT.md` §6.
+[[nodiscard]] bool cd32_present(eng::u16 bits) noexcept {
+	return ((bits & 0x80u) != 0u) && ((bits & 0x100u) == 0u);
+}
+
+/// IRQ del teclado (SP de CIA-A): lee `SDR`, produce `KeyDown`/`KeyUp` y pulsa el handshake.
+///
+/// Handshake (AHRM 3.ª, "The Keyboard"): tras recibir un byte hay que pulsar SP **bajo y luego
+/// alto**, con el pulso bajo de >= 85 µs, para que el teclado envíe la siguiente tecla. Las **dos
+/// transiciones deben ir juntas** (un solo pulso): si se separan (p. ej. el alta en el siguiente
+/// `tick`), el MCU emulado interpreta cada transición como un handshake y **reenvía** el byte
+/// (duplicado). El pulso bajo se hace con una espera activa corta; a 7 MHz PAL ~150 iteraciones
+/// superan los 85 µs. Se ejecuta dentro de la ISR de nivel 2, que puede ser preemptada por IRQ de
+/// nivel 3/4 (audio), así que no bloquea el camino crítico.
 void os_kbd_isr() {
 	using eng::amiga::detail::ciaa_reg;
-	const eng::u8 raw = *ciaa_reg(0x0cu); // SDR ($BFEC01)
-	volatile eng::u8* const cra = ciaa_reg(0x0eu);
-	*cra = static_cast<eng::u8>(*cra | 0x40u); // SPMODE: reconocer el byte
-	*cra = static_cast<eng::u8>(*cra & 0xbfu);
 	Msg m {};
+	const eng::u8 raw = *ciaa_reg(0x0cu); // SDR ($BFEC01)
 	if (g_keys.update(raw, g_frame, m)) {
 		(void)g_port.post(m);
 	}
+	volatile eng::u8* const cra = ciaa_reg(0x0eu);
+	*cra = static_cast<eng::u8>(*cra & 0xbfu);            // SPMODE=0: SP bajo
+	for (volatile eng::u16 i = 0u; i < 150u; ++i) {}      // >= 85 µs (AHRM)
+	*cra = static_cast<eng::u8>(*cra | 0x40u);            // SPMODE=1: SP alto (fin del pulso)
 }
 
 } // namespace
@@ -69,6 +118,7 @@ void enable_keyboard() {
 		g_cia_installed = true;
 	}
 	*ciaa_reg(0x0du) = 0x88u;                     // ICR: SETCLR | SP (enmascarar el teclado)
+	*ciaa_reg(0x0eu) = static_cast<eng::u8>(*ciaa_reg(0x0eu) | 0x40u); // SPMODE=1: SP alto (listo)
 	custom_base[custom_intena_offset] = 0xc008u;  // SETCLR | INTEN | PORTS
 }
 
@@ -94,12 +144,28 @@ void tick() {
 		(void)g_port.post(m);
 	}
 
-	const eng::u8 dirs = eng::amiga::decode_joystick(joy1);
-	const eng::u8 fire = ((pra & 0x80u) == 0u) ? 1u : 0u;
-	if (g_joy.update(dirs, fire, g_frame, m)) {
-		(void)g_port.post(m);
+	if (g_cd32_enabled) {
+		// Pad CD32: el puerto 2 usa el protocolo serie (reloj/POTGO), no `decode_joystick`.
+		const eng::u16 shift = read_cd32_shift_port2();
+		if (cd32_present(shift)) {
+			const eng::u16 btn =
+			    eng::os::cd32_mask_from_shift(static_cast<eng::u8>(shift & 0x7fu));
+			if (g_pad.update(btn, g_frame, m)) {
+				(void)g_port.post(m);
+			}
+		}
+	} else {
+		const eng::u8 dirs = eng::amiga::decode_joystick(joy1);
+		const eng::u8 fire = ((pra & 0x80u) == 0u) ? 1u : 0u;
+		if (g_joy.update(dirs, fire, g_frame, m)) {
+			(void)g_port.post(m);
+		}
 	}
 }
+
+/// Activa la lectura del **pad CD32** en el puerto 2 (en lugar del joystick). Ver `MINI_OS_INPUT.md`
+/// §6 y `docs/reference/emulators/winuae/keyboard-injection.md` (no cubre el pad; pendiente).
+void enable_cd32_pad() { g_cd32_enabled = true; }
 
 eng::u32 wait(eng::u32 mask) {
 	// Host del **engine**: se coopera con `tick()` (ritmo de VBlank) hasta que alguna señal de

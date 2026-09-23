@@ -1,5 +1,7 @@
 #include <eng/api/api.hpp>
+#include <eng/audio/pcm_stream.hpp>
 #include <eng/os/file.hpp>
+#include <eng/os/file_stream.hpp>
 #include <eng/os/os.hpp>
 #include <eng/res/dynloader.hpp>
 #include <eng/platform/amiga_minimal.hpp>
@@ -37,6 +39,22 @@ namespace {
 
 constexpr eng::u32 kLibMax = 128u;
 
+// --- streaming desde disquete (M8) ---
+constexpr eng::u8 kStreamBufs = 2u;
+constexpr eng::u32 kStreamChunk = 4096u;
+
+/// Fuente del `FileChunkFeeder`: envuelve `file_read_async` (política de plantilla, sin punteros a
+/// función). El `idx` del buffer viaja como `IoUser::id` en el cookie del `FileDone`.
+struct FileSource {
+	eng::os::FileHandle h = 0u;
+	bool read_async(eng::u8 idx, eng::u32 offset, eng::u8* dst, eng::u32 bytes) noexcept {
+		const eng::os::IoUser user {static_cast<eng::u8>(0u), idx}; // tag 0 = stream
+		return eng::os::file_read_async(h, eng::Span<eng::u8> {dst, bytes}, offset,
+						eng::os::IoNotify {true, eng::os::MsgPrio::Low,
+								   user.encode()});
+	}
+};
+
 struct DemoGame {
 	eng::res::DynLoader m_dl {};
 	eng::u8 m_lib[kLibMax] {};
@@ -56,6 +74,12 @@ struct DemoGame {
 	bool m_write_ok = false;
 	eng::u32 m_readback = 0;
 	bool m_dir_ok = false;
+	// streaming (M8): lee el fichero de 512 KB por rebanadas con `FileChunkFeeder`.
+	eng::u8 m_stream_bufs[kStreamBufs * kStreamChunk] {};
+	eng::u32 m_stream_total = 0;
+	eng::u32 m_stream_bytes = 0;
+	eng::u32 m_stream_chunks = 0;
+	bool m_stream_ok = false;
 
 	void init(eng::amiga::MinimalBackend& backend, eng::GameContext&) {
 		eng::debug::mark_init_started(g_eng_run_status);
@@ -167,8 +191,65 @@ struct DemoGame {
 			}
 		}
 
+		// --- streaming: leer el fichero de 512 KB por rebanadas (M8) ---
+		{
+			const eng::os::FileHandle h =
+				eng::os::file_open("data/audio/tone_8k_512k.raw", eng::os::FileMode::Read);
+			if (h != 0u) {
+				m_stream_total = eng::os::file_size(h);
+				FileSource src {h};
+				// Composición M8: el feeder alimenta el `ChunkStream` del `PcmStream` con PCM crudo
+				// (`Codec::None`), es decir, lee del disquete y lo deja listo para reproducir.
+				eng::audio::PcmStream<kStreamBufs> stream;
+				const eng::u16 num_chunks = static_cast<eng::u16>(
+					(m_stream_total + kStreamChunk - 1u) / kStreamChunk);
+				const eng::audio::PcmStream<kStreamBufs>::Config pcfg {
+					8000u, static_cast<eng::u16>(kStreamChunk), num_chunks,
+					static_cast<eng::u8>(eng::audio::pcm_codec::Codec::None)};
+				const eng::Span<eng::u8> pbufs[kStreamBufs] = {
+					eng::Span<eng::u8> {m_stream_bufs, kStreamChunk},
+					eng::Span<eng::u8> {m_stream_bufs + kStreamChunk, kStreamChunk}};
+				stream.begin(pcfg, pbufs);
+				eng::os::FileChunkFeeder<kStreamBufs, FileSource> feeder;
+				feeder.init(stream.state(),
+					    eng::Span<eng::u8> {m_stream_bufs, sizeof(m_stream_bufs)},
+					    kStreamChunk, m_stream_total, src);
+				feeder.pump();
+				bool error = false;
+				for (eng::u32 guard = 0u; guard < 100000u && !stream.eof() && !error; ++guard) {
+					// "Reproduce" (libera buffers) para dejar sitio al siguiente chunk.
+					if (stream.state().play_ready()) {
+						(void)stream.advance();
+					}
+					// El backend resuelve la asíncrona como **diferida**: `file_pump`
+					// ejecuta una operación y postea `FileDone` al puerto del sistema.
+					(void)eng::os::file_pump();
+					eng::os::Msg m;
+					while (eng::os::system_port().pop(m)) {
+						if (m.type == eng::os::MsgType::FileDone &&
+						    m.payload.file.result > 0) {
+							const eng::os::IoUser u =
+								eng::os::IoUser::decode(m.payload.file.cookie);
+							const eng::u32 got = static_cast<eng::u32>(
+								m.payload.file.result);
+							m_stream_bytes += got;
+							++m_stream_chunks;
+							(void)feeder.on_done(u.id, got);
+						} else if (m.type == eng::os::MsgType::FileError) {
+							error = true;
+						}
+					}
+					feeder.pump();
+				}
+				eng::os::file_close(h);
+				m_stream_ok = !error && (m_stream_bytes == m_stream_total) &&
+					      (m_stream_chunks > 1u);
+			}
+		}
+
 		const eng::u32 flags = (m_text_ok ? 1u : 0u) | (m_lib_ok ? 2u : 0u) |
-				       (m_write_ok ? 4u : 0u) | (m_hunk_ok ? 8u : 0u);
+				       (m_write_ok ? 4u : 0u) | (m_hunk_ok ? 8u : 0u) |
+				       (m_stream_ok ? 16u : 0u);
 		eng::debug::mark_ready(g_eng_run_status, 0x00021100u | flags);
 	}
 
@@ -218,6 +299,16 @@ struct DemoGame {
 			q = append(q, m_dir_ok ? "si" : "ya existia");
 			*q = '\0';
 			d.text(64, 246, line, m_write_ok ? 0x0000ff80 : 0x00ff6060);
+		}
+		{
+			char* q = append(line, "stream 512 KB: ");
+			q = append(q, m_stream_ok ? "OK" : "FALLO");
+			q = append(q, "   bytes: ");
+			q = append_u32(q, m_stream_bytes);
+			q = append(q, "   chunks: ");
+			q = append_u32(q, m_stream_chunks);
+			*q = '\0';
+			d.text(64, 278, line, m_stream_ok ? 0x0000ff80 : 0x00ff6060);
 		}
 		eng::debug::probe_when_ready(g_eng_run_status, context.frame.frame_index);
 	}
