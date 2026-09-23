@@ -54,7 +54,7 @@ Conclusión: el refactor **no** consiste en volver genérico todo, sino en separ
 
 ### 3.1 Tipo general y selección
 
-Nuevo `engine/include/eng/core/scalar.hpp` (o ampliación de `types.hpp`):
+Nuevo `engine/include/eng/core/math/scalar.hpp` (o ampliación de `types.hpp`):
 
 ```
    eng::intw   → entero de palabra natural (el «int» de C):  s16 (68000) | s32 (68020) | int (host)
@@ -196,7 +196,7 @@ concretas.
 **Regla nueva (corrige §2).** Ninguna cabecera define su propio alias concreto de escalar
 (`using Coord = Fixed<s16,0>`), ni impone un ancho. El tipo se decide en **dos sitios**:
 
-1. `eng/core/scalar.hpp` — los alias **configurables** `eng::intw`/`real`/`coord` (y, si
+1. `eng/core/math/scalar.hpp` — los alias **configurables** `eng::intw`/`real`/`coord` (y, si
    hace falta, un `eng::real32` aparte). Es el único lugar que nombra el exponente de un
    modo dado.
 2. `eng/retro/`, `eng/cpu/m68k/` — el vocabulario **retro 16 bits** (`q0`/`q12`, `s16`) y

@@ -272,8 +272,8 @@ resultante sigue crudo, generado **dentro** de la capa segura.
 
 ## 8. Migración por fases
 
-1. **Fundamento**: `eng/core/typed.hpp` con `Bytes/ByteView/Words/WordView` (array/iteradores) +
-   `eng/core/domains.hpp` con los tags/alias y tipos de dirección/base (`ChipAddress`…), más un test
+1. **Fundamento**: `eng/core/types/typed.hpp` con `Bytes/ByteView/Words/WordView` (array/iteradores) +
+   `eng/core/types/domains.hpp` con los tags/alias y tipos de dirección/base (`ChipAddress`…), más un test
    host puro.
 2. **Frontera de memoria**: `BitmapBase`/`FrontBase`, `Bitmap`, `Block<Tag>`/`LinearArena`.
 3. **PlaneView + SoftDpfComposition**: primer consumidor real (los punteros `u8*` pasan a
@@ -289,8 +289,8 @@ Cada fase: build `--debug/--release`, tests host verdes, demos 107/111/112/201/2
 
 ### 8.1 Estado de implementación
 
-- **Fase 1 — hecha**: `eng/core/typed.hpp` (vistas con tag, array/iteradores, direcciones/base) y
-  `eng/core/domains.hpp` (tags/alias de dominio). Test HOST-040.
+- **Fase 1 — hecha**: `eng/core/types/typed.hpp` (vistas con tag, array/iteradores, direcciones/base) y
+  `eng/core/types/domains.hpp` (tags/alias de dominio). Test HOST-040.
 - **Fase 2 — hecha**: `Bitmap::base()`/`front()`; `PlaneView` y `SoftDpfComposition` usan
   `BitmapBase`/`FrontBase` en `bind*`/`display_base`/`write_base` (`XLimitedPlayfield` cruza a
   crudo solo en `hardware_view`). HOST-038/039 actualizados; 112 sin regresión.

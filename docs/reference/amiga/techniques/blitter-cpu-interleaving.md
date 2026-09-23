@@ -28,7 +28,7 @@ instrucciones con ambos operandos en registro (`muls.w`, `add.l`, `swap`…) no 
 
 ## 2. Estado en el engine
 
-El seam de Blitter (`MinimalBackend`, `engine/src/platform/amiga_minimal/`) ofrece **tres**
+El seam de Blitter (`MinimalBackend`, `engine/src/platform/amiga/`) ofrece **tres**
 piezas relacionadas con el solape:
 
 | Pieza | Qué hace | Dónde |
@@ -85,6 +85,6 @@ podría adelantar cómputo.
 
 - `amiga-bootcamp/17_demoscene/timing_optimization.md` (§Technique 2, §Antipatterns)
 - [copper-timing-and-budget.md](copper-timing-and-budget.md) — presupuesto, contención y lo medido
-- `engine/src/platform/amiga_minimal/amiga_minimal_internal.hpp` (`wait_blitter`, servicio)
+- `engine/src/platform/amiga/amiga_minimal_internal.hpp` (`wait_blitter`, servicio)
 - `demos/amiga/081_background_tasks/` — servicio de fondo durante la espera
 - AHRM 3.ª, capítulo del Blitter (`BLTPRI`, `DMACONR`)

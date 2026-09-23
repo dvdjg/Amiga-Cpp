@@ -127,7 +127,7 @@ Corre a `latch / 709379` s por tic. La demo 081 lo usa con `latch = 0x2000` → 
 
 - ✅ **Reloj de tiempo real**: la misma CIA-A tiene **TOD** por hardware.
   `MinimalBackend::cia_tod_ticks()` lo lee (24 bits, `TODHI→TODMID→TODLO`) y
-  `eng::time::from_tod` (`eng/core/rtc.hpp`, test host **HOST-018**) lo convierte a hora del
+  `eng::time::from_tod` (`eng/core/data/rtc.hpp`, test host **HOST-018**) lo convierte a hora del
   día; la demo 081 publica los segundos del RTC (avanzan a 1 Hz, verificado).
 
 > Lección (referencia `amiga-bootcamp/01_hardware/common/cia_chips.md`): en el **CRA**,

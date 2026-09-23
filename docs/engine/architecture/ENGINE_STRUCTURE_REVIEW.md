@@ -43,7 +43,7 @@ cambiar su comportamiento.
 
 ### D2 — `eng::Box`: un solo rectángulo de píxeles (hecho)
 
-`eng/core/box.hpp` define `Box` (16 bits, `x/y/w/h`, `contains`/`inset`/`intersect`/`merge`/
+`eng/core/types/box.hpp` define `Box` (16 bits, `x/y/w/h`, `contains`/`inset`/`intersect`/`merge`/
 `overlaps`/`translate`). Los tipos existentes **no se borran** (los usa el engine) pero se
 convierten a/desde `Box` en su capa: `surface_rect_of`/`box_of` (`SurfaceRect`), `clip_rect_of`/
 `box_of` (`ClipRect`), `dirty_rect_of`/`box_of` (`DirtyRect`). Verificado por **HOST-231**
@@ -95,6 +95,42 @@ operaciones de Blitter) y `amiga_minimal_c2p.cpp` (las 13 fases del C2P), más
 `amiga_minimal_internal.hpp` con los helpers compartidos (registros custom, espera de Blitter,
 regiones, globals de IRQ) marcados `inline`. El build globa `engine/src/**/*.cpp`, así que no hay
 que registrar las unidades. Verificado con 077/080/116 en hardware (READY).
+
+### D9 — Política de cabeceras: header-only por defecto, `.cpp` con criterio (aceptado)
+
+El engine sigue **header-only por defecto** (rendimiento m68k por inline, freestanding sin
+`libeng`, testabilidad host sin enlace). Se admite `.cpp` solo para unidades **no-plantilla,
+frías y pesadas** (búsqueda de tablero, tick de `sim`, decodificadores, E/S) y para el backend,
+en `engine/src/<área>/`. Adoptar `.cpp` en el dominio exige antes `tools/build/build-host-lib.sh`
+(compila `engine/src` sin backends a `out/host-lib/libeng.a`) enlazada por `run-host-tests.sh`;
+sin ella, el código movido queda sin test host. Una cabecera gigante se arregla **partiéndola
+por tema**, no moviéndola a `.cpp`. Canónico en [`HEADER_POLICY.md`](HEADER_POLICY.md).
+
+### D10 — Cabeceras de `core/` por tema (aceptado)
+
+`eng/core/` se subdivide en `math/`, `types/` y `data/` (más `util/`), con **cabecera-paraguas**
+en la ruta antigua mientras se migran los consumidores (patrón de D3). Lo vigila
+`tools/check/engine-tree.mjs`. Plan y árbol en
+[`../../guides/roadmap/PLAN_ORGANIZACION_ENGINE.md`](../../guides/roadmap/PLAN_ORGANIZACION_ENGINE.md).
+
+### D11 — Modelo de tres anillos de plataforma (aceptado)
+
+La plataforma se separa en **anillo 0 (dominio agnóstico)**, **anillo 1 (vocabulario de chipset
+por familia)** y **anillo 2 (backend por objetivo)**. Todo el vocabulario Amiga se agrupa en
+`eng/platform/amiga/` (con paraguas de compatibilidad en las rutas antiguas) y el backend canónico
+pasa a `eng::amiga::AmigaBackend` (alias `MinimalBackend`). A1200 no es un backend distinto: es el
+mismo backend Amiga con otro perfil (`HardwareProfile`) y otro target (`K_AGA`). Atari ST y
+Megadrive se acoplan implementando el **contrato de backend** (`eng/platform/backend.hpp`) sin
+tocar el dominio; la frontera la vigila `tools/check/platform-boundaries.mjs`. Canónico en
+[`PLATFORM_LAYERS.md`](PLATFORM_LAYERS.md).
+
+### D12 — Tests por plataforma, nivel y categoría (aceptado)
+
+Los tests se organizan por **plataforma** (`host`/`amiga`/`atarist`/`megadrive`), **nivel**
+(`L0`…`L3`) y **categoría (dominio)**, con un catálogo por categoría en lugar de un catálogo
+único. Los IDs `HOST-NNN` se conservan (agrupar no renumera). Lo validan
+`tools/check/test-numbering.mjs` (árbol anidado) y `tools/run-host-tests.sh --category`.
+Taxonomía en [`../../testing/TAXONOMY.md`](../../testing/TAXONOMY.md).
 
 ## 3. Límites de esta revisión (excepciones deliberadas)
 

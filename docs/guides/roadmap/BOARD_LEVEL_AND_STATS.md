@@ -71,7 +71,7 @@ de `tools/`). El barrido es reproducible: `selfplay <N> --variant chess960 --see
 ## 4. Estrategia de bugs
 
 1. `selfplay --verify` en cada campaña (clave incremental, legalidad, round-trip).
-2. `tests/host/140_chess_movegen` (perft) tras cualquier cambio de reglas/movegen.
+2. `tests/host/board/140_chess_movegen` (perft) tras cualquier cambio de reglas/movegen.
 3. `analyze_move` sobre jugadas sospechosas para distinguir bug de horizonte.
 4. Cada bug corregido añade una regresión host.
 

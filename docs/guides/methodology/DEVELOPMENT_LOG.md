@@ -58,12 +58,12 @@ base verificable de toolchain, ejecucion automatizada y captura visual.
 
 Engine base:
 
-- `engine/include/eng/core/types.hpp`
+- `engine/include/eng/core/types/types.hpp`
 - `engine/include/eng/engine.hpp`
 - `engine/include/eng/memory/arena.hpp`
 - `engine/include/eng/graphics/driver.hpp`
-- `engine/include/eng/platform/amiga_minimal.hpp`
-- `engine/src/platform/amiga_minimal/amiga_minimal.cpp`
+- `engine/include/eng/platform/amiga/backend.hpp`
+- `engine/src/platform/amiga/amiga_minimal.cpp`
 
 Demo inicial:
 

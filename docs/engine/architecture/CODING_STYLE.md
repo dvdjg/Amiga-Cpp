@@ -108,7 +108,7 @@ Regla: no marcar `always_inline` por costumbre; justificarlo con el perfil o el 
 El runtime Amiga es freestanding (`-nostdlib`, sin STL hosted), asi que el engine
 aporta sus propias piezas de seguridad de C++23 sin depender de `std::span`:
 
-- `eng::Span<T>` (`engine/include/eng/core/span.hpp`): vista contigua con tamaño.
+- `eng::Span<T>` (`engine/include/eng/core/types/span.hpp`): vista contigua con tamaño.
   Prohibe el fallo clasico de pasar puntero y contador por separado
   (`clear_bytes(u8*, u32)`): el tamaño viaja con la vista, `operator[]` es de coste
   cero como en `std::span`, y `at()` verifica el rango disparando `illegal`
@@ -170,7 +170,7 @@ aporta sus propias piezas de seguridad de C++23 sin depender de `std::span`:
   por defecto. Reservar `s32`/`u64` para cuando el rango lo exige (puntuaciones de
   ordenacion, nodos) y el coste es irrelevante.
 - **Buffers con dominio, escalares sin envolver**: los buffers/punteros internos usan tipos de
-  dominio (`Bytes<Tag>`/`Words<Tag>`, `eng/core/typed.hpp`; p. ej. `PlaneBytes`, `Pattern`,
+  dominio (`Bytes<Tag>`/`Words<Tag>`, `eng/core/types/typed.hpp`; p. ej. `PlaneBytes`, `Pattern`,
   `AudioSample`). **No** se envuelven escalares (ancho/alto/stride/planes): van como `u8`/`u16`/`u32`.
   Un error de dominio (p. ej. audio como origen gráfico, base ≠ front) debe **no compilar**.
   Inventario y reglas: `INTERNAL_TYPE_SYSTEM.md`.

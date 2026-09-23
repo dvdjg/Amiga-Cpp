@@ -5,7 +5,7 @@ técnicas candidatas para acelerarlo en 68000. **No describe una implementación
 qué está ya en el código y qué queda por investigar, para no reabrir el análisis desde
 cero. El tipo y su contrato están en
 [MINIFLOAT16.md](../../engine/architecture/MINIFLOAT16.md); el código en
-`engine/include/eng/core/minifloat.hpp`.
+`engine/include/eng/core/math/minifloat.hpp`.
 
 ## 1. Modelo del `+` / `-`
 
@@ -115,7 +115,7 @@ a evaluar por caso: *unroll* de los `de` pequeños más frecuentes (0–3), o la
 - **Codegen**: `tools/analyze/codegen-report.mjs` (probes `c_mf_*`) y
   `tools/analyze/expr-asm-compare.mjs` cuentan instrucciones, escrituras a pila y
   `libcalls`; sirven para confirmar que una variante no introduce `__mulsi3`/`__divsi3`.
-- **Correctitud**: `tests/host/056_minifloat16` y `058_minifloat_fixed` fijan el
+- **Correctitud**: `tests/host/core/056_minifloat16` y `058_minifloat_fixed` fijan el
   comportamiento (bordes, `∞`, redondeo); cualquier cambio debe seguir pasándolos.
 
 ## 6. Prioridad

@@ -49,7 +49,7 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
 - **Matemática y assets (import demoscene, 2026-09)**: `eng/retro/lib2d.hpp`
   (lib2d: matrices 2×2 4.12 + `clip_line`/`clip_polygon`) y `eng/platform/amiga/gfx3d.hpp`
   (lib3d: `Mat3x3`, rotaciones, `compose`, `face_visible`); modelo de malla en
-  `eng/core/mesh3d.hpp` (`MeshView` + `mesh_transform` + `mesh_painter_order` con
+  `eng/core/data/mesh3d.hpp` (`MeshView` + `mesh_transform` + `mesh_painter_order` con
   culling y shell sort) — tests HOST-010/011/013.
   Base del contenedor de assets UAF-R: `eng/assets/uaf.hpp` (`Blob` valida
   header/chunks por offset; consumidores `PaletteView`/`BitplanesView`/`SampleView`/
@@ -133,7 +133,7 @@ el estado real del engine y de las demos, para decidir por dónde seguir.
 
 - **Hecho (input, paso 6 de `ENGINE_DESIGN.md` §5)**: `eng::input::InputAggregator`
   (`PadState`, `MouseState`, `KeyState`) en `engine/include/eng/input/input.hpp`,
-  validado por HOST-004. Backend de lectura corregido en `eng/platform/input_poll.hpp`:
+  validado por HOST-004. Backend de lectura corregido en `eng/platform/amiga/input_poll.hpp`:
   direcciones por `JOY0DAT`/`JOY1DAT` (código de Gray por eje; arriba/abajo con XOR),
   fuego por `CIAAPRA` bits 6/7, y `poll_input(InputAggregator&)`. Decodificación pura
   validada por HOST-006 (mismo mapeo que los motores ACE/Sevgi y el AHRM). Demo
@@ -442,7 +442,7 @@ desarrolla en varios turnos; el orden es 1→2→3.
 
 **Idea**: convertir el importe 3D del demoscene (`flatshade-convex`, `wireframe`, `flatshade`, `stencil3d`, `texobj`, `blurred3d`, `starfox`, `anim-polygons`, `dna3d`) en un **subsistema de render poligonal/wireframe** reutilizable, no en demos sueltas. La base ya está en el repo:
 
-- **Modelo y matemática**: `eng/platform/amiga/object3d.hpp` (malla `obj2c` + `Object3D`, port 1:1 de lib3d; HOST-014) y `eng/core/mesh3d.hpp` (`MeshView`, `mesh_transform`, `mesh_painter_order`; HOST-013); `lib2d`/`math3d` (4.12, `div_wide`/`normfx`; HOST-010/011).
+- **Modelo y matemática**: `eng/platform/amiga/object3d.hpp` (malla `obj2c` + `Object3D`, port 1:1 de lib3d; HOST-014) y `eng/core/data/mesh3d.hpp` (`MeshView`, `mesh_transform`, `mesh_painter_order`; HOST-013); `lib2d`/`math3d` (4.12, `div_wide`/`normfx`; HOST-010/011).
 - **Primitivas Blitter**: `blitter_line` (OR), `blitter_line_eor` (ONEDOT+EOR, con `d_base`), `blitter_area_fill` (FILL_XOR), `blitter_fill_polygon` (máscara+cookie-cut), `fill_triangles_blitter`.
 - **Técnica canónica**: `docs/reference/amiga/techniques/blitter-line-subpixel-fill.md` §3 (receta del polígono relleno; truco `BLTDPTR`=base, `BLTSIZE` altura 0).
 - **Demos cabecera**: 077/078 (`math3d` cube/solid), 079 (`wireframe`), 116 (`flatshade-convex` fiel).

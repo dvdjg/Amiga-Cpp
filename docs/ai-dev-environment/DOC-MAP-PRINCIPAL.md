@@ -37,6 +37,9 @@ Cuando termine la lectura contextual, puede abrir solo los enlaces que necesite.
 |---|---|
 | Contexto global del proyecto | [docs/README.md](../README.md), [CONTINUATION_CONTEXT.md](../CONTINUATION_CONTEXT.md) |
 | Estructura del repo (dónde va cada cosa) | [docs/STRUCTURE.md](../STRUCTURE.md) |
+| Capas de plataforma y contrato de backend (dominio ↔ chipset ↔ backend) | [PLATFORM_LAYERS.md](../engine/architecture/PLATFORM_LAYERS.md) |
+| Política de cabeceras (header-only vs `.cpp`) | [HEADER_POLICY.md](../engine/architecture/HEADER_POLICY.md) |
+| Taxonomía de tests (plataforma/nivel/categoría) | [testing/TAXONOMY.md](../testing/TAXONOMY.md) |
 | Arquitectura del engine C++ | [docs/engine/architecture/](../engine/README.md) y sus subcarpetas |
 | Modelo objetivo playfield/scroll (contrato de refactor) | [PLAYFIELD_SCROLL_ARCHITECTURE.md](../engine/architecture/PLAYFIELD_SCROLL_ARCHITECTURE.md) + [REFACTOR_PLAYFIELD_SCROLL.md](../guides/roadmap/REFACTOR_PLAYFIELD_SCROLL.md) |
 | API pública (la app no ve hardware) | [PUBLIC_API.md](../engine/architecture/PUBLIC_API.md) + [SCENE_AND_RESOURCES.md](../engine/architecture/SCENE_AND_RESOURCES.md) (escena retenida y ocupación de recursos) |
@@ -59,6 +62,7 @@ Cuando termine la lectura contextual, puede abrir solo los enlaces que necesite.
 
 | Tipo de tarea | Documentos a consultar primero | Demos/APIs de referencia |
 |---|---|---|
+| **Organizar el engine / añadir plataforma / mover tests** | [PLAN_ORGANIZACION_ENGINE.md](../guides/roadmap/PLAN_ORGANIZACION_ENGINE.md) (plan), [PLATFORM_LAYERS.md](../engine/architecture/PLATFORM_LAYERS.md) (anillos y contrato), [HEADER_POLICY.md](../engine/architecture/HEADER_POLICY.md) (header-only vs `.cpp`), [testing/TAXONOMY.md](../testing/TAXONOMY.md) (tests), [ENGINE_STRUCTURE_REVIEW.md](../engine/architecture/ENGINE_STRUCTURE_REVIEW.md) (decisiones D9–D12) | gates `tools/check/{platform-boundaries,engine-tree,test-numbering}.mjs` |
 | **Depurar algo ya investigado / conocer rarezas y bloqueos** | [docs/debugging/README.md](../debugging/README.md) (índice de investigaciones: abiertas vs cerradas), [docs/reference/emulators/README.md](../reference/emulators/README.md) (rarezas del emulador por tema, con `fichero:línea`) | cada doc de `docs/debugging/` cita la demo/test afectado |
 | **Integrar/portar código de terceros que falla** | [LECCION-CONTEXTO-DE-LA-FUENTE.md](../guides/methodology/LECCION-CONTEXTO-DE-LA-FUENTE.md) (el contexto de la fuente primero: repo de confianza/README/ejemplo; línea base que funcione antes de tocar), `AGENTS.md` §1.7 | el ejemplo del propio repo de origen |
 | **Nuevo efecto demoscene** | §4 de este mapa, [DEMOSCENE_EFFECT_REPLICATION_POLICY.md](../demos/effects/DEMOSCENE_EFFECT_REPLICATION_POLICY.md), [demoscene-repo-coverage-index.md](../demos/effects/demoscene-repo-coverage-index.md), [demoscene-repo-import-roadmap.md](../demos/effects/demoscene-repo-import-roadmap.md), §5 para registros | `engine/` y `demos/` de la técnica base más cercana |
@@ -111,7 +115,7 @@ Cuando termine la lectura contextual, puede abrir solo los enlaces que necesite.
 | Blitter creativo | 11-game-of-life, 67-weave, 14-metaballs | AHRM cap. 6 (minterms/línea) |
 | 3D | 06-wireframe, 30-flatshade, 55-stencil3d, 56-texobj, 65-uvmap | `demoscene-repo` §lib3d |
 | Audio | 44-playahx, 45-playcinter, 46-playp61, 47-playpt | `audio-mixing.md` |
-| Texto / UI | 09-textscroll, 27-credits, 37-gui | Texto vía API: `Surface::draw_text`/`draw_text5` (`eng/field/surface.hpp`, UTF-8) + `Font8` (LATIN-1, `eng/graphics/font8.hpp`) y `Font5x7` (HUD compacto, `eng/graphics/font5x7.hpp`); decodificador mínimo `eng/core/utf8.hpp`. Regla: no reimplementar `draw_text` — usar estas utilidades. |
+| Texto / UI | 09-textscroll, 27-credits, 37-gui | Texto vía API: `Surface::draw_text`/`draw_text5` (`eng/field/surface.hpp`, UTF-8) + `Font8` (LATIN-1, `eng/graphics/font8.hpp`) y `Font5x7` (HUD compacto, `eng/graphics/font5x7.hpp`); decodificador mínimo `eng/core/data/utf8.hpp`. Regla: no reimplementar `draw_text` — usar estas utilidades. |
 
 **Demos propias del engine que ya cubren técnicas base** (leer su README para
 invariantes y comandos de validación): `000`… `052` (toolchain/copper/blitter/
@@ -187,7 +191,7 @@ orden:
 ## 8. Herramientas y rutas operativas de alto valor
 
 - **Build/run/analyze**: [BUILD_AND_RUN.md](../build/BUILD_AND_RUN.md) (comandos, runner, emulador, herramientas locales).
-- **Bucle de entrada del engine**: `engine/include/eng/engine.hpp` (`update -> wait_vblank -> render`; `render` es el punto de commit); backend Amiga: `engine/src/platform/amiga_minimal/amiga_minimal.cpp`.
+- **Bucle de entrada del engine**: `engine/include/eng/engine.hpp` (`update -> wait_vblank -> render`; `render` es el punto de commit); backend Amiga: `engine/src/platform/amiga/amiga_minimal.cpp`.
 - **Depuración interactiva**: `tools/debug/build-current-demo.sh` (compila con `-O0` el archivo en primer plano a `out/debug-current/`) + F5 con la config «Amiga 500: depurar archivo actual».
 - **Breakpoints y memoria en caliente**: `tools/debug/step-memory.mjs`.
 - **Self-test del harness** (canal lateral/READY/fps): `node tools/debug/verify-harness.mjs [--strict-fps --warp]`. Nota: el throughput del emulador (~11 fps) limita el gate fps absoluto.

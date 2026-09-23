@@ -662,7 +662,7 @@ inferiores, pero ejercita principalmente la suya):
 
 | Carpeta | Capa | Qué ejercita |
 |---------|------|--------------|
-| `tests/l0_bare_metal/` | L0 | Registros custom, bitplanes planares, copperlist a mano, DMA, Blitter. |
+| `tests/amiga/l0_bare_metal/` | L0 | Registros custom, bitplanes planares, copperlist a mano, DMA, Blitter. |
 | `tests/l1_backend/` | L1 | APIs de `MinimalBackend` (memoria, VBlank, copper, FramePlan). |
 | `tests/l2_copper_frameplan/` | L2 | `CopperScheduler`, `CopperTimeline`, `FramePlan` y presupuestos. |
 | `tests/l3_drivers/` | L3 | Drivers gráficos (`StaticEhbScene`, futuro `Standard5`, `DualPlayfield`...). |

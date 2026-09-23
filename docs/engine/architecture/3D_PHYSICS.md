@@ -29,13 +29,13 @@ que itere mucho por contacto no cabe.
 
 | Pieza | Dónde | Uso en física |
 |---|---|---|
-| `Vec<N,S>`, `Mat<N,S>`, `Affine<N,SR,SL>` | `eng/core/linalg.hpp` | posiciones, velocidades, orientación, transform |
-| `dot`, `cross2`, `length_sq`, `normalize`, `inverse_rigid` | `eng/core/geometry.hpp`, `gfx3d.hpp` | distancias, ejes, transform rígida inversa |
-| `Fixed<Repr,Exp,Policy>` (q12, q8) | `eng/core/fixed.hpp` | escalar del bucle caliente |
-| `MiniFloat16` + puente a fixed | `eng/core/minifloat.hpp`, `eng/retro/minifloat_fixed.hpp` | magnitudes de rango amplio (masa/inercia/orientación) |
+| `Vec<N,S>`, `Mat<N,S>`, `Affine<N,SR,SL>` | `eng/core/math/linalg.hpp` | posiciones, velocidades, orientación, transform |
+| `dot`, `cross2`, `length_sq`, `normalize`, `inverse_rigid` | `eng/core/math/geometry.hpp`, `gfx3d.hpp` | distancias, ejes, transform rígida inversa |
+| `Fixed<Repr,Exp,Policy>` (q12, q8) | `eng/core/math/fixed.hpp` | escalar del bucle caliente |
+| `MiniFloat16` + puente a fixed | `eng/core/math/minifloat.hpp`, `eng/retro/minifloat_fixed.hpp` | magnitudes de rango amplio (masa/inercia/orientación) |
 | `convex_overlap` (SAT 2D), `circle_overlap`, `Aabb` | `eng/core/util/collision.hpp` | base del SAT 3D y de las pruebas baratas |
-| `MeshView`/`PolyMeshView`, adaptador `obj2c` | `eng/core/mesh3d.hpp`, `object3d_poly.hpp` | geometría para el render y para masa/inercia offline |
-| `convex_spans` | `eng/core/polygon.hpp` | relleno de las caras de contacto visual |
+| `MeshView`/`PolyMeshView`, adaptador `obj2c` | `eng/core/data/mesh3d.hpp`, `object3d_poly.hpp` | geometría para el render y para masa/inercia offline |
+| `convex_spans` | `eng/core/data/polygon.hpp` | relleno de las caras de contacto visual |
 | `SpatialHash` | `eng/core/util/broadphase.hpp` | broadphase 2D a extender a 3D |
 
 No hay que inventar el álgebra ni la malla: el trabajo nuevo es **colisión 3D, resolución y

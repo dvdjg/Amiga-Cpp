@@ -93,7 +93,7 @@ devuelve el resultado y **se autolimpia al leer** (leer una vez por frame). Es
 dejar la colisión de hardware para efectos (bala-terreno).
 
 **Colisión por software que ya tiene el engine** (buscar `collide`): `core/util/collision.hpp`
-(geométrica/SAT: polígono, segmento, círculo; `tests/host/095_collision`, `125_convex_sat`),
+(geométrica/SAT: polígono, segmento, círculo; `tests/host/core/095_collision`, `125_convex_sat`),
 `field::collide_cpu` (máscara **pixel-perfect** por CPU) y `Backend::blitter_collide` (la misma
 comprobación por **Blitter**, minterm `B = A & D`; `field/raster.hpp` la documenta como
 referencia CPU). La colisión de **hardware de sprites** (`CLXCON`/`CLXDAT`) está en

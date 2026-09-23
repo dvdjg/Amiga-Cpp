@@ -103,7 +103,7 @@ siendo data (Copper)**, no código interpretado. El ET debe reservarse a la **es
 handles, no como nodos del árbol.
 
 Guardarraíl: medir *code bloat* y tiempo de compilación si se usa ET a fondo (ya pesó en
-`eng/core/expr.hpp`).
+`eng/core/math/expr.hpp`).
 
 ## 6. Guardarraíles
 

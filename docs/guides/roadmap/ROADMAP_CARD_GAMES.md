@@ -41,7 +41,7 @@ CPU vs CPU para ajustar el nivel; el juego con UI en el Amiga cierra la verifica
   cartas (evaluador, equity, reglas incluidas Stud/Draw, rangos, IA y simulación) sin
   libcalls de libgcc ni instrucciones 68020, y fija los `sizeof` reales.
 - **Primitivas reutilizadas**: `eng::Xoroshiro64pp` y `eng::shuffle`
-  (`eng/core/random.hpp`, HOST-100), `eng::Span`/`StringView`/`StaticVector`
+  (`eng/core/math/random.hpp`, HOST-100), `eng::Span`/`StringView`/`StaticVector`
   (HOST-073…079), `eng::parallel` (HOST-137) y el patrón de presupuesto de `eng::board`
   (HOST-139).
 - **Pendiente**: pulido visual del juego y UI de variantes, medida de rendimiento por

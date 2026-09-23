@@ -13,7 +13,7 @@ en C del repo hermano (`Cursor-Amiga-C`) está en [../c-engine/](../c-engine/REA
 | [3D_PHYSICS.md](3D_PHYSICS.md) | **Física 3D realista en A500**: opciones (cinemática de estados, cuerpos rígidos arcade, SAT-3D de OBB, proxy de colisión), costes medidos por kernel y opción preferida por hitos. |
 | [SCENE_COMPOSITION.md](SCENE_COMPOSITION.md) | **Composición de escenas**: modelo de tres planos (recursos / programa de Copper / comportamiento), etapas + presets + handles de parcheo, y por qué el CRTP/la familia de drivers sobran. |
 | [SCALAR_LIBRARY.md](SCALAR_LIBRARY.md) | **Estructura de la librería escalar-independiente**: capas (algoritmo genérico ↔ rasgos ↔ escalar concreto ↔ backend), `numeric_traits` y guards de límites en compilación, límites por algoritmo. |
-| [EXPRESSION_TEMPLATES.md](EXPRESSION_TEMPLATES.md) | **Expression templates lite** (`eng/core/expr.hpp`): árbol en compilación, evaluación única, `converter` para `Fixed`, fusión por componente de `Vec`/`Mat` y sus límites. |
+| [EXPRESSION_TEMPLATES.md](EXPRESSION_TEMPLATES.md) | **Expression templates lite** (`eng/core/math/expr.hpp`): árbol en compilación, evaluación única, `converter` para `Fixed`, fusión por componente de `Vec`/`Mat` y sus límites. |
 | [TEMPLATE_LIBRARY.md](TEMPLATE_LIBRARY.md) | **Librería de plantillas de utilidades** (`eng::util`): rasgos, `<bit>`, algoritmos sobre `Span` y contenedores de capacidad fija sin STL ni heap. |
 | [MINIFLOAT16.md](MINIFLOAT16.md) | Escalar de coma flotante de 16 bits `MiniFloat16` para 68000: formato 1\|5\|10, rango/precisión, rangos seguros de uso y coste. |
 | [GRAPHICS_DRIVERS.md](GRAPHICS_DRIVERS.md) | Modelo de drivers gráficos (estrategia de composición), `EhbScene` implementado y drivers planificados. |
@@ -51,6 +51,8 @@ en C del repo hermano (`Cursor-Amiga-C`) está en [../c-engine/](../c-engine/REA
 | [MINI_OS_TASKS.md](MINI_OS_TASKS.md) | **Mini-SO: tareas asíncronas de fondo** (`eng::os::TaskSystem`): ciclo de vida, scheduler de idle, `request_preempt`/`yield_if_preempt`, cola propia por tarea y tareas-corrutina (`co_await`). |
 | [GUI_LIBRARY.md](GUI_LIBRARY.md) | **Librería GUI para juegos** (`eng::ui`): primitivas de chrome sobre `Surface`, tema/branding, widgets, eventos, foco, dirty rects y ventanas con **compositor y backing store** (mover/redimensionar sin invalidar vecinas). Plan en `../../guides/roadmap/ROADMAP_GUI.md`. |
 | [ENGINE_STRUCTURE_REVIEW.md](ENGINE_STRUCTURE_REVIEW.md) | **Revisión de la estructura y decisiones aceptadas**: `DrawTarget` (objetivo de dibujo), `eng::Box` (rect único), familia de playfields, fachada `eng/api/`, tipos preparados de Blitter en `eng::graphics`; y pendientes (`BlitJob` por tipo, desambiguar `scene`). |
+| [PLATFORM_LAYERS.md](PLATFORM_LAYERS.md) | **Capas de plataforma y contrato de backend**: los tres anillos (dominio / vocabulario de chipset / backend), qué es común a todo Amiga y qué es OCS/AGA, y cómo se acopla una plataforma nueva (Atari ST, Megadrive). |
+| [HEADER_POLICY.md](HEADER_POLICY.md) | **Política de cabeceras**: header-only por defecto, cuándo usar `.cpp`, prerrequisito de `build-host-lib.sh` y partir cabeceras gigantes por tema. |
 | [GAME_AI_LIBRARY.md](GAME_AI_LIBRARY.md) | IA clásica de videojuego (`eng::ai`): planificación GOAP, decisión, navegación, steering y percepción. |
 | [SIM_ECOSYSTEM.md](SIM_ECOSYSTEM.md) | **Ecosistema vivo** (`eng::sim`): criaturas con necesidades, personalidad, mente afectiva, relaciones y sociedad; LOD abstracto/realizado, tick escalonado y decisión por utilidad. |
 | [BOARD_GAME_AI.md](BOARD_GAME_AI.md) | **Motores de tablero** (`eng::board`): ajedrez y Go 9×9 con footprint de 20 kB–1 MB, búsqueda adversaria, conocimiento en disquete y explicación NLG ES/EN. |
@@ -60,7 +62,7 @@ en C del repo hermano (`Cursor-Amiga-C`) está en [../c-engine/](../c-engine/REA
 ## Puntos de entrada del código
 
 - Bucle del engine: `engine/include/eng/engine.hpp` (`update -> wait_vblank -> render`).
-- Backend Amiga: `engine/src/platform/amiga_minimal/amiga_minimal.cpp`.
+- Backend Amiga: `engine/src/platform/amiga/amiga_minimal.cpp`.
 - Headers del engine: `engine/include/eng/` (core, memory, graphics, scene, platform, debug).
 
 ## Histórico

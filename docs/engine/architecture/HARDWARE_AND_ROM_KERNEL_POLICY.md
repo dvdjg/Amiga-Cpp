@@ -61,7 +61,7 @@ Modo final para demos/juegos exigentes.
 
 La transicion de OS-friendly a takeover del video se concretiza en un solo punto
 del backend: `MinimalBackend::takeover_display(const u16* copper_words)`
-(`engine/src/platform/amiga_minimal/amiga_minimal.cpp`). Se invoca una sola vez
+(`engine/src/platform/amiga/amiga_minimal.cpp`). Se invoca una sola vez
 desde `init()` (o desde la primera composicion del driver), antes del bucle de
 frames.
 

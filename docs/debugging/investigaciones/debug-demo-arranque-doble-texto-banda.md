@@ -237,7 +237,7 @@ if (cp == 0u && before != 0u) {
 }
 ```
 
-`eng::utf8::decode` (engine/include/eng/core/utf8.hpp:26) al leer el NUL devuelve 0 y AVANZA el puntero (`b0 < 0x80` → `++p; return b0;`). Con `before == 0` la condición del corte NO se cumple (`cp==0 && before!=0` es falso), así que el bucle sigue y rasteriza TODA la memoria posterior a la cadena como si fueran glifos, hasta toparse con el primer byte 0x80..0xC1 (inválido LATIN-1). Las cadenas de la demo viven contiguas en `.rodata`, y cada literal se dibuja TAMBIÉN en su posición correcta por su propio `draw_text` → el mismo texto aparece dos veces (una en blanco en su sitio y otra "desbordada" en la fila anterior con el color de la llamada anterior), solapadas y corridas: exactamente el "doble texto amarillo+blanco".
+`eng::utf8::decode` (engine/include/eng/core/data/utf8.hpp:26) al leer el NUL devuelve 0 y AVANZA el puntero (`b0 < 0x80` → `++p; return b0;`). Con `before == 0` la condición del corte NO se cumple (`cp==0 && before!=0` es falso), así que el bucle sigue y rasteriza TODA la memoria posterior a la cadena como si fueran glifos, hasta toparse con el primer byte 0x80..0xC1 (inválido LATIN-1). Las cadenas de la demo viven contiguas en `.rodata`, y cada literal se dibuja TAMBIÉN en su posición correcta por su propio `draw_text` → el mismo texto aparece dos veces (una en blanco en su sitio y otra "desbordada" en la fila anterior con el color de la llamada anterior), solapadas y corridas: exactamente el "doble texto amarillo+blanco".
 
 Nota: en la 060 el desbordamiento también sigue avanzando `x` más allá de 320 y el byte index `py*kBytesPerRow + px/8` desborda a filas inferiores (más basura). En la 201 el doble texto NO procede de aquí (su `draw_text` local, main.cpp:479, corta bien en `*t != '\0'`); si se ve texto extraño en 201, revisar primero B y C.
 
@@ -301,7 +301,7 @@ Nota operativa: el `poke` del canal lateral devuelve `status: queued` y aplica d
 
 ## 5. Bug C — instalación de la copperlist fuera de VBL / COPJMP1 por frame
 
-`MinimalBackend::install_copper_list` (`engine/src/platform/amiga_minimal/amiga_minimal.cpp:171-182`) hoy hace:
+`MinimalBackend::install_copper_list` (`engine/src/platform/amiga/amiga_minimal.cpp:171-182`) hoy hace:
 
 ```cpp
 *cop1lc = reinterpret_cast<u32>(copper_words);          // COP1LC
@@ -406,8 +406,8 @@ Los cuatro bugs se corrigieron en el engine y en la demo 060. Evidencia reproduc
 |---|---|---|
 | A | `engine/include/eng/field/surface.hpp` (`Surface::draw_text`) | El bucle corta ahora en `cp == 0` (NUL o byte inválido), no en `cp == 0 && before != 0`. Antes rasterizaba la `.rodata` posterior a la cadena. |
 | A | `demos/amiga/060_eng_core_selfcheck/src/main.cpp` (`draw_text` local) | Ídem: `if (cp == 0u) break;`. |
-| B + C | `engine/src/platform/amiga_minimal/amiga_minimal.cpp` (`install_copper_list`) | Toma de control del display una sola vez: `INTENA=0x7FFF`, `INTREQ=0x7FFF`, `wait_blitter()`, `DMACON=0x7FFF`, programar `COP1LC`, espera activa de VBL (línea 311→0) y arranque `DMACON=SETCLR|DMAEN|COPEN` + `COPJMP1` alineado al inicio de línea. Instalaciones posteriores (doble buffer, la 201 reinstala por frame) hacen **solo swap de puntero `COP1LC`**, sin `COPJMP1`. |
-| B + C | `engine/include/eng/platform/amiga_minimal.hpp` | Nuevo miembro `m_display_taken` para distinguir toma de control de swap. API separada en dos métodos con nombre propio: `takeover_display()` (toma de control, una sola vez en `init`) e `install_copper_list()` (swap de puntero por frame con retrocompatibilidad de toma de control en la primera llamada). |
+| B + C | `engine/src/platform/amiga/amiga_minimal.cpp` (`install_copper_list`) | Toma de control del display una sola vez: `INTENA=0x7FFF`, `INTREQ=0x7FFF`, `wait_blitter()`, `DMACON=0x7FFF`, programar `COP1LC`, espera activa de VBL (línea 311→0) y arranque `DMACON=SETCLR|DMAEN|COPEN` + `COPJMP1` alineado al inicio de línea. Instalaciones posteriores (doble buffer, la 201 reinstala por frame) hacen **solo swap de puntero `COP1LC`**, sin `COPJMP1`. |
+| B + C | `engine/include/eng/platform/amiga/backend.hpp` | Nuevo miembro `m_display_taken` para distinguir toma de control de swap. API separada en dos métodos con nombre propio: `takeover_display()` (toma de control, una sola vez en `init`) e `install_copper_list()` (swap de puntero por frame con retrocompatibilidad de toma de control en la primera llamada). |
 | D | `demos/amiga/060_eng_core_selfcheck/src/main.cpp` | `0x0aa` movido de índice 19 a índice 20, para que el pie dibujado con color 20 sea visible. |
 
 ### 11.2 Evidencia de verificación (criterios de §10)

@@ -282,12 +282,12 @@ haría que el núcleo (que también sirve a `float` o a un complejo de usuario) 
 ### 3.6 Escalares concretos registrados
 
 Además de `float` y `Fixed<Repr,Exp,Policy>`, el núcleo tiene un escalar de **coma
-flotante de 16 bits**, `eng::math::MiniFloat16` (`eng/core/minifloat.hpp`), registrado
+flotante de 16 bits**, `eng::math::MiniFloat16` (`eng/core/math/minifloat.hpp`), registrado
 con `scalar_traits` en `linalg.hpp`: `Vec`/`Mat`/`Affine` funcionan con él sin código
 propio. Su formato, rango, precisión y reglas de uso están en
 [MINIFLOAT16.md](MINIFLOAT16.md); sus funciones matemáticas (`sqrt`, `exp`, `log`,
 `log2`/`log10`, `pow`, `hypot`, trigonometría e inversas) viven en
-`eng/core/minifloat_math.hpp` y **no** son todavía parte del concepto `Scalar` que el
+`eng/core/math/minifloat_math.hpp` y **no** son todavía parte del concepto `Scalar` que el
 álgebra lineal exige (el álgebra solo necesita `+ - *` y los rasgos); se documentan en
 ese mismo fichero de referencia. El puente con el fixed retro (`fix`/`fix88`), incluida
 la transformación de coordenadas fijas con una matriz MF, está en
@@ -297,7 +297,7 @@ coordenada.
 
 ### 3.6.1 Tablas de trigonometría `Fixed`: coste y precisión
 
-Las funciones trigonométricas de `Fixed<s16,E>` (`eng/core/fixed_math.hpp`) se apoyan en tablas `static constexpr` compartidas por `(E, Size, Iter)`. El tamaño de cada tabla es un parámetro de plantilla (`fixed_sin<E,Size,Iter>`, `fixed_exp2<E,Size>`, `fixed_log2<E,Size>`, `fixed_atan2<E,Size>`) y su valor por defecto se fija por compilación con `ENG_FIXED_SIN_SIZE`, `ENG_FIXED_SIN_ITER`, `ENG_FIXED_EXP2_SIZE`, `ENG_FIXED_LOG2_SIZE` y `ENG_FIXED_ATAN_SIZE`.
+Las funciones trigonométricas de `Fixed<s16,E>` (`eng/core/math/fixed_math.hpp`) se apoyan en tablas `static constexpr` compartidas por `(E, Size, Iter)`. El tamaño de cada tabla es un parámetro de plantilla (`fixed_sin<E,Size,Iter>`, `fixed_exp2<E,Size>`, `fixed_log2<E,Size>`, `fixed_atan2<E,Size>`) y su valor por defecto se fija por compilación con `ENG_FIXED_SIN_SIZE`, `ENG_FIXED_SIN_ITER`, `ENG_FIXED_EXP2_SIZE`, `ENG_FIXED_LOG2_SIZE` y `ENG_FIXED_ATAN_SIZE`.
 
 | Tabla | Muestras (defecto) | Tipo | `.rodata` (defecto) | Error típico |
 |---|---|---|---|---|
@@ -409,7 +409,7 @@ sin temporales.
 ### 4.1 Expression templates lite
 
 Para las cadenas de operadores que no pasan por `dot`/`transform`/`Mat*Vec` está
-`eng/core/expr.hpp` (`eng::math::et`): un árbol de expresión en compilación que se evalúa
+`eng/core/math/expr.hpp` (`eng::math::et`): un árbol de expresión en compilación que se evalúa
 **una sola vez**, sin un temporal por operador, con **acumulador ancho** para `Fixed` (`a + b*c`
 promueve el término al exponente del producto y normaliza al final) y fusión **componente a
 componente** de `Vec`/`Mat`. Medido con `tools/analyze/expr-asm-compare.mjs`: gana en escalares
@@ -459,7 +459,7 @@ verificado por HOST-207 y la sonda de codegen `c_math_expr_ops`.
 - Cada fase se cierra con su test host antes de tocar la siguiente capa.
 - La migración (F3) se valida por **bit-exactitud** contra la implementación actual, no
   sólo por cobertura: cualquier diferencia de píxel es un fallo.
-- **Hardware sin `float`**: `tests/l0_bare_metal/020_math_scalars` reejecuta el vocabulario
+- **Hardware sin `float`**: `tests/amiga/l0_bare_metal/020_math_scalars` reejecuta el vocabulario
   (MF/q12/q8 + operaciones entre tipos + `mesh3d`/`light`/`isqrt`/ángulos) en el 68000, con
   el veredicto por canal lateral (`verify-math.sh`).
 - **Codegen**: `tools/analyze/codegen-report.mjs` compila una sonda por función clave

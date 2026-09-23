@@ -83,7 +83,7 @@ una entrada de la cola y copiarse en la ISR sin coste apreciable.
 ```cpp
 #pragma once
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::os {
 
@@ -172,7 +172,7 @@ solo lado**; el resto es disciplina de memoria (§12).
 ```cpp
 #pragma once
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/os/message.hpp>
 
 namespace eng::os {

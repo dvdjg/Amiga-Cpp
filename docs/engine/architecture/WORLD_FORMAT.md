@@ -154,7 +154,7 @@ Reglas:
   `dir_off`/`cells_off`/`meta_off` caigan dentro del payload (reutiliza `eng::assets::Reader`), y
   expone cabecera, descriptores de capa, `find_chunk` (búsqueda binaria), `cell`, `chunk_bytes`,
   `tile_at` (con wrap/borde) y `meta_entry`.
-- Test host `tests/host/031_world_view`: fixture de `WorldMap` con varias capas, cruce de chunk,
+- Test host `tests/host/field/031_world_view`: fixture de `WorldMap` con varias capas, cruce de chunk,
   wrap, chunk ausente, metadatos y validación de bloques.
 - **Puentes al scroll** (`engine/include/eng/field/world_layer.hpp`): `WorldLayerSource` (una capa
   del `WorldView` como `TileMap` directo) y `WorldMapChunkLoader` (Loader-RAM que sirve chunks desde

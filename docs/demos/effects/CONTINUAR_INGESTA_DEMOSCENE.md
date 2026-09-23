@@ -56,19 +56,19 @@ bartmanabyss.amiga-debug-1.8.1\bin\win32`). El runner compilado está en
 
 **Oleada 0 (infraestructura sin hardware) — hecha y validada con test host:**
 
-- `engine/include/eng/core/isqrt.hpp` — port fiel de `libmisc/fx.c` (`isqrt`
+- `engine/include/eng/core/math/isqrt.hpp` — port fiel de `libmisc/fx.c` (`isqrt`
   con tabla + nlz, sin división/floats). El algoritmo original **NO es una raíz
   exacta** (subestima; p. ej. `isqrt(9)==2`, `isqrt(32768)==181`); se conserva
   ese comportamiento. Validado por equivalencia con el C original compilado.
-- `engine/include/eng/core/sort.hpp` — `eng::quick_sort` (quicksort + inserción,
+- `engine/include/eng/core/data/sort.hpp` — `eng::quick_sort` (quicksort + inserción,
   genérico sobre `Span<T>` con comparador) y `eng::sort_items` (equivalente a
   `SortItemArray`).
-- `engine/include/eng/core/crc32.hpp` — CRC-32 IEEE de `libmisc/crc32.c`
+- `engine/include/eng/core/data/crc32.hpp` — CRC-32 IEEE de `libmisc/crc32.c`
   (con máscara de 32 bits para host x64).
-- `engine/include/eng/core/random.hpp` — xoroshiro64++ de `libc/stdlib/random.c`.
+- `engine/include/eng/core/math/random.hpp` — xoroshiro64++ de `libc/stdlib/random.c`.
   El `rol` del original (por rangos + `swap16`) equivale a `rotl32` estándar
   (verificado); se expone la forma limpia.
-- Infraestructura de **test unitario host**: `tests/host/000_eng_core_math` +
+- Infraestructura de **test unitario host**: `tests/host/core/000_eng_core_math` +
   `tools/run-host-tests.sh` (usa `g++` del entorno, sin WSL/MSVC). Los tests
   validan **equivalencia con el C original** (no propiedades inventadas).
 
@@ -134,7 +134,7 @@ exactas. Detalle y reglas en §4-quater del
 ```powershell
 # Test host (rápido, sin emulador):
 bash tools/run-host-tests.sh                        # todos
-bash tools/run-host-tests.sh tests/host/000_eng_core_math
+bash tools/run-host-tests.sh tests/host/core/000_eng_core_math
 
 # Compilar una demo (toolchain Windows; el runner usa CONFIG A500_debug por defecto):
 #  - construir el .exe en out/demos/<demo>/A500_debug/ con los .exe del toolchain

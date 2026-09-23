@@ -35,7 +35,7 @@ La comprobación rápida de cualquier patrón caliente: `m68k-amiga-elf-g++ -m68
 - `[✗]` `-mcpu=68020-60` **no existe** en este fork: `-mcpu=` solo admite `51..` `5202..`, `68000..68060`, `cpu32`, `fidoa`. No usar `-mtune=68020-60` (ese valor no es válido ni para `-mcpu` ni se recomienda).
 - `[✗]` `-O2 -Os` juntos son contradictorios: en GCC gana el ÚLTIMO. Decidir uno: `-Os` (código más compacto, y el único que fuerza `dbra` en bucles countdown, ver §4) o `-O2` (más agresivo, a veces transforma el bucle a límite de puntero en vez de `dbra`).
 - `[✓]` `-fomit-frame-pointer`: libera A6. Con `-mshort` todo cambia el ABI; solo si se controla todo el código.
-- `[✓]` El fork es freestanding: **no hay libstdc++** (`<cstdint>` no existe). Los tipos vienen de `eng/core/types.hpp`; nunca depender de la STL en código de demo.
+- `[✓]` El fork es freestanding: **no hay libstdc++** (`<cstdint>` no existe). Los tipos vienen de `eng/core/types/types.hpp`; nunca depender de la STL en código de demo.
 - `[✓]` ICE a `-O0`: este fork **crashea en el pass dwarf2** con el patrón `x >> (registro)` (shift variable, p. ej. `(w & 0xf000u) >> 12` enmascarado de forma que GCC usa `lsr.w %dN`) compilando a `-O0` (aunque sea con `-g0`). Dejar de compilar juegos a `-O0`; usar `-O2`/`-Os`, o `-Og` si se depura (verificar `-Og`).
 - `-fno-exceptions -fno-rtti`: obligatorios en el engine (ya lo exige `CODING_STYLE.md`); el runtime de excepciones es enorme y lento.
 
@@ -447,7 +447,7 @@ van a 48-50 fps, *vblank-gated*); reducirlo es **margen** para hardware real, no
 
 ### 11.3 Qué se ha hecho
 
-- **`eng/core/fast_div.hpp`**: se añaden utilidades **runtime** `is_pow2`, `ilog2`, `asr_floor`
+- **`eng/core/math/fast_div.hpp`**: se añaden utilidades **runtime** `is_pow2`, `ilog2`, `asr_floor`
   (shift aritmético = floor) — antes solo existían las `consteval` (`ct_*`), inservibles para
   geometría que llega por config. Test host **HOST-022**.
 - **`TileFieldController` (field/tile_field.hpp)**: precálculo de `m_tw/th_shift`, `m_ts_mask` en
@@ -562,7 +562,7 @@ El relleno CPU (`Playfield::fill_polygon`) trabajaba en **dos bucles anidados de
 
 Ambos se han reducido con la forma amiga del raster (el relleno es de **polígonos convexos**):
 
-- **`convex_spans`** (`eng/core/polygon.hpp`) recorre el polígono por **dos cadenas** (izquierda/derecha desde el vértice superior al inferior) y emite `(y, xl, xr)` con coste **O(altura)**. Evita reapuntar la arista por cada fila y está validado contra el barrido de referencia (HOST-013).
+- **`convex_spans`** (`eng/core/data/polygon.hpp`) recorre el polígono por **dos cadenas** (izquierda/derecha desde el vértice superior al inferior) y emite `(y, xl, xr)` con coste **O(altura)**. Evita reapuntar la arista por cada fila y está validado contra el barrido de referencia (HOST-013).
 - **`Playfield::draw_span`** escribe un tramo con **una palabra por plano** (16 píxeles) y máscara solo en los extremos parciales; en vez de 16 `write_planes` por cada 16 píxeles hace **1**. `fill_polygon`, `Surface::fill_rect` y los tramos horizontales de `Surface::draw_line` lo usan.
 
 Efecto esperado en el número de `write_planes` (trabajo, no ciclos): para un relleno de `W` píxeles de ancho y `H` de alto baja de `W·H` a `⌈W/16⌉·H` por plano (~**16×** menos RMW del bitmap cuando el ancho cubre palabras enteras).

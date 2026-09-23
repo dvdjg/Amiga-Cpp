@@ -13,7 +13,7 @@ mecanismos + topología de superficies); este roadmap lo **mejora y lo adapta al
 - **Sin heap en el camino caliente.** Pools de capacidad fija (`eng/core/util/pool.hpp`) y árboles
   intrusivos, como el resto del engine. El `std::vector`/`std::unordered_map` del documento de
   origen **no** valen en el 68000: se sustituyen por `Pool`, `SparseTileMap`, `Graph` y `Span`.
-- **Determinismo total.** Un único `eng::Xoroshiro64pp` sembrado (`eng/core/random.hpp`); **misma
+- **Determinismo total.** Un único `eng::Xoroshiro64pp` sembrado (`eng/core/math/random.hpp`); **misma
   semilla → mismo mundo** en host y en Amiga. Nada de `std::mt19937_64` (no reproducible ni
   portátil) ni de `float` en la generación que corre en Amiga.
 - **El mundo es datos, no código.** La generación **emite** el modelo que ya consumen `eng::sim`
@@ -36,8 +36,8 @@ mecanismos + topología de superficies); este roadmap lo **mejora y lo adapta al
 | Terreno semántico | `eng/sim/terrain.hpp:31` (`TerrainKind`), `:69` (`can_traverse`), `:197` (`TerrainMap<W,H>`) | superficies (agua/trepar/hueco/cobertura) para física y pathfinding |
 | Clima/exposición | `eng/sim/climate.hpp:46`, `:112` | gradientes ambientales por región |
 | Grafo macro + BFS de salas | `eng/sim/world.hpp:943` (`route_room`), `add_link` (~`:1242`) | topología del mundo |
-| Ruido procedural | `eng/core/noise.hpp:211` (`fbm2`), `:319` (`worley2`), `:352` (`ridged2`) | alturas/biomas/cavernas con **coherencia espacial** |
-| RNG determinista | `eng/core/random.hpp:40` (`Xoroshiro64pp`), `:101` (`chance`), `:119` (`shuffle`) | todo lo aleatorio |
+| Ruido procedural | `eng/core/math/noise.hpp:211` (`fbm2`), `:319` (`worley2`), `:352` (`ridged2`) | alturas/biomas/cavernas con **coherencia espacial** |
+| RNG determinista | `eng/core/math/random.hpp:40` (`Xoroshiro64pp`), `:101` (`chance`), `:119` (`shuffle`) | todo lo aleatorio |
 | Grafo genérico + A\* | `eng/core/util/graph.hpp:199` (`graph_astar`), `:162` (`graph_bfs`) | solvencia y rutas macro |
 | Rejilla BFS/A\* | `eng/core/util/pathfinding.hpp:109` (`bfs<W,H>`), `:162` (`astar<W,H>`) | caminos en la rejilla de sala |
 | Flow field / navmesh | `eng/ai/navigation/flow_field.hpp:66`, `navmesh_lite.hpp` | navegación de NPCs (ya existentes) |
@@ -165,7 +165,7 @@ la **física de actores** (gravedad/nadar/escalar). Este roadmap los cubre.
    `*`/`/` (nativos `mulu.w`/`divu.w`), nada de `float`, nada de u32 `%`/`/`, nada de `u64 *`.
    Verificar con `nm <obj> | grep -E '__mul|__div|__mod'` + el gate `generic-headers`.
 3. **`Fixed<s32,E>` no se divide en m68k** (`div_norm` usa libgcc de 64 bits); usar `Fixed<s16,E>`
-   (E ≤ 15). Ver `engine/include/eng/core/fixed.hpp`.
+   (E ≤ 15). Ver `engine/include/eng/core/math/fixed.hpp`.
 
 ## Bloqueo medido: W1-fijo (ruido en punto fijo) — requiere revisar `noise.hpp`
 
@@ -317,7 +317,7 @@ Números reservados del bloque D; `node tools/check/next-number.mjs` da el sigui
   rejilla variable. Se fija en W0 como `constexpr`.
 - **Generar en runtime o precocinar.** W12 lo decide con medida; por defecto **precocinar** en host
   (no gasta frame de juego) y dejar runtime para prototipado/semillas por partida.
-- **Punto fijo para el ruido.** `eng/core/noise.hpp` es genérico sobre escalar: usar `MiniFloat16`/
+- **Punto fijo para el ruido.** `eng/core/math/noise.hpp` es genérico sobre escalar: usar `MiniFloat16`/
   `Fixed` en Amiga y `float` en host; verificar que la **ramificación de bioma** coincide en ambos
   (misma semilla → mismo mundo).
 

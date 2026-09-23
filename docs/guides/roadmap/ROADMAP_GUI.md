@@ -21,7 +21,7 @@ montado sobre `Surface`/`Rasterizer`/`FramePlan` del engine.
 
 - **Entregable**: `eng/ui/theme.hpp` (`UiTheme` + presets `kThemeWb13`/`kThemeWb2`/`kThemeFlat`),
   `eng/ui/painter.hpp` (`UiPainter` sobre `Surface`) y `eng/ui/text.hpp` (`text_width`,
-  `draw_text_clipped`). Los rectángulos son `eng::Box` (`eng/core/box.hpp`).
+  `draw_text_clipped`). Los rectángulos son `eng::Box` (`eng/core/types/box.hpp`).
 - **Reutiliza**: `Surface::{fill_rect,draw_line,draw_text,draw_text_literal}`, `Font8`/`Font5x7`.
 - **Verificación**: **HOST-223** — `bevel_out`/`bevel_in` pintan los 4 lados con los colores del
   tema en la posición correcta; `panel` rellena + bevel; `text_width` mide; `Rect` helpers

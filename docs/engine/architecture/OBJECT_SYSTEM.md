@@ -259,7 +259,7 @@ Host (deterministas, sin hardware):
 - Traslación al anillo: posición física correcta y partición al cruzar el módulo.
 - Clip por ventana/split y bordes de guarda.
 - Save-under: rectángulos previos correctos con N = 1, 2 y 3 buffers.
-- Geometría de los `BlitJob` del BOB (ya cubierta por `tests/host/072_actor`).
+- Geometría de los `BlitJob` del BOB (ya cubierta por `tests/host/scene/072_actor`).
 
 Demo con gate visual (secuencias, no un frame suelto, y con veredicto de visión):
 

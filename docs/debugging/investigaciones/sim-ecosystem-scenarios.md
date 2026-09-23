@@ -1,7 +1,7 @@
 # Bitácora: laboratorio de escenarios del ecosistema (`eng::sim`)
 
 Registro de la puesta a punto del ecosistema mediante simulaciones largas
-(`tests/host/173_sim_scenarios`). No es documentación de referencia del engine (esa vive en
+(`tests/host/sim/173_sim_scenarios`). No es documentación de referencia del engine (esa vive en
 `docs/engine/architecture/SIM_ECOSYSTEM.md`): aquí se anotan los **experimentos, los
 problemas encontrados y los ajustes** con los que el sistema pasó de extinguirse a comportarse
 como un mundo vivo.
@@ -9,7 +9,7 @@ como un mundo vivo.
 ## Cómo se ejecuta
 
 ```bash
-bash tools/run-host-tests.sh tests/host/173_sim_scenarios
+bash tools/run-host-tests.sh tests/host/sim/173_sim_scenarios
 ```
 
 Cuatro escenarios (`abundante`, `escaso`, `depredadores`, `manada`), 4000 ticks cada uno, con

@@ -110,7 +110,7 @@ hoy con el **modelo de etapas** `scene::compose`
 parcheo. Es **paramétrico** (no hay un "320x256 HAM6" cableado): sirve igual para EHB, HAM4/6
 o cualquier planar, y con `row_repeat = 1` es un display normal. Las demos
 `080_fire_rgb` (HAM + cuadruplicado + doble buffer), `081_background_tasks` y las 3D
-`077`/`078`/`084` lo usan; `tests/host/016_ham_scene` verifica la geometría de la copperlist
+`077`/`078`/`084` lo usan; `tests/host/graphics/016_ham_scene` verifica la geometría de la copperlist
 resultante. Detalle del modelo: `SCENE_COMPOSITION.md`.
 
 El primer modelo retenido para scroll vive en

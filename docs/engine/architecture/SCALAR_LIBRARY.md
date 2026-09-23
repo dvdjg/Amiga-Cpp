@@ -102,7 +102,7 @@ escriben solo con ellos, y añadir un escalar = especializarlos.
 | `scalar_exp2/log2/exp/log/pow<S>::op` | exponencial/log (`smooth_damp`, `pow`) | ADL (`MiniFloat16`) | con `fixed_math.hpp` (tablas); sin él, no compila |
 | `scalar_const<S>::from(double)` | constante fraccionaria de compilación (p. ej. `1.70158` del `_back`) | `static_cast<S>` | cuantiza a `E` bits fraccionarios |
 
-La trigonometría/exponencial de `Fixed` es **opt-in**: vive en `eng/core/fixed_math.hpp` (no la arrastra `scalar_math.hpp`) y se incluye solo donde se usa, con el tamaño de tabla elegible en compilación.
+La trigonometría/exponencial de `Fixed` es **opt-in**: vive en `eng/core/math/fixed_math.hpp` (no la arrastra `scalar_math.hpp`) y se incluye solo donde se usa, con el tamaño de tabla elegible en compilación.
 
 `mul_norm`/`div_norm` son la bisagra: evitan que cada algoritmo tenga que saber si su
 escalar cambia de exponente al multiplicar (fixed) o no (float/MF), y permiten que
@@ -174,12 +174,12 @@ del álgebra, en [MATH_LIBRARY.md](MATH_LIBRARY.md).
 
 ## 6. Verificación
 
-- Host: `tests/host/059_scalar_math` (interp/geometry con `double`, `MiniFloat16` y
-  `q12`), `tests/host/060_noise` (`value_noise`/`fbm` y periodicidad), 057/058 para el
-  escalar de 16 bits, `tests/host/064_spline_easing` (splines y easings polinómicos/
-  trigonométricos) y `tests/host/065_scalar_ops` (`min`/`max`/`abs`/`sign`/`move_towards`/
+- Host: `tests/host/core/059_scalar_math` (interp/geometry con `double`, `MiniFloat16` y
+  `q12`), `tests/host/core/060_noise` (`value_noise`/`fbm` y periodicidad), 057/058 para el
+  escalar de 16 bits, `tests/host/core/064_spline_easing` (splines y easings polinómicos/
+  trigonométricos) y `tests/host/core/065_scalar_ops` (`min`/`max`/`abs`/`sign`/`move_towards`/
   `deadzone`, easings `_back`/`smooth_damp`, `repeat`/`pingpong` y Bézier).
-- Hardware sin `float`: `tests/l0_bare_metal/020_math_scalars` reejecuta el vocabulario con
+- Hardware sin `float`: `tests/amiga/l0_bare_metal/020_math_scalars` reejecuta el vocabulario con
   `MiniFloat16`, `q12` y `q8` (8.8) más las operaciones entre tipos, en el 68000 y con el
   veredicto por canal lateral (`verify-math.sh`).
 - Codegen 68000: `tools/analyze/codegen-report.mjs` compila sondas de las funciones nuevas
@@ -192,7 +192,7 @@ del álgebra, en [MATH_LIBRARY.md](MATH_LIBRARY.md).
   `MiniFloat16` y transforma coordenadas `q0` con `eng/retro/minifloat_fixed`
   (self-test de `sin`/`exp`/`sqrt` en hardware) — verificación por demo de
   `minifloat_math.hpp`.
-- Fixed: `eng/core/fixed_math.hpp` (`sin`/`cos`/`sqrt`/`exp2`/`log2`/`exp`/`log`/`pow`
+- Fixed: `eng/core/math/fixed_math.hpp` (`sin`/`cos`/`sqrt`/`exp2`/`log2`/`exp`/`log`/`pow`
   para `Fixed<s16,E>`, con tablas compartidas) está respaldado por HOST-104 y
   **verificado por demo** en `demos/amiga/110_ylimited_shooter` (self-test en `init`,
   sin `float`).

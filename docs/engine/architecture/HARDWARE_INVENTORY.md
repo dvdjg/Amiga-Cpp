@@ -4,7 +4,7 @@
 suponerlas o de dispersar `#ifdef` de modelo. `eng::hw::probe()` sondea Exec, los custom chips, la
 ROM y los mapas de memoria, y rellena un `HwInfo` **POD estable y consultable**; el juego solo lee.
 Vive en `engine/include/eng/hw/info.hpp` (tipos, consultas y `probe` declarado); el sondeo lo
-implementa el backend (`engine/src/platform/amiga_minimal/amiga_minimal_hw.cpp`).
+implementa el backend (`engine/src/platform/amiga/amiga_minimal_hw.cpp`).
 
 ```text
 HwProbe::probe(HwInfo&)  →  HwInfo (POD estable)
@@ -107,7 +107,7 @@ input.enable_cd32_port2(hw.port2.is_cd32_pad);
   depurador. Verificada en **A500 (OCS, 68000, Kickstart 34.2, 512 KB chip + 504 KB slow)**.
 - **HOST-234**: comprueba que `Scene::bind_hw_info` publica el tamaño, la profundidad y los colores
   de la escena en el `HwInfo`.
-- **HOST-235** (`tests/host/235_hw_info`): cubre consultas, display, nombres y heurísticas, incluidas
+- **HOST-235** (`tests/host/platform/amiga/235_hw_info`): cubre consultas, display, nombres y heurísticas, incluidas
   las ramas **AGA** y **CD32** por lógica (el runner solo emula A500).
 
 > Las ramas AGA y CD32 (incluido `caps.c2p_hw`) están validadas **por lógica** (HOST-235), no sobre

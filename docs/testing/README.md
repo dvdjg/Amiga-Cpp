@@ -11,6 +11,7 @@ OpenAI-compatible, opcional). La regresión completa las encadena por demo.
 
 | Documento | Contenido |
 |-----------|-----------|
+| [TAXONOMY.md](TAXONOMY.md) | Organización de los tests por plataforma, nivel y categoría (árbol, numeración y cómo añadir/correr). |
 | [PIXEL_FRAME_ASSERTIONS.md](PIXEL_FRAME_ASSERTIONS.md) | Contratos declarativos `pixel-contract.json` (checks por ROI) y arquitectura de asserts. |
 | [FRAMESCOPE_ROADMAP.md](FRAMESCOPE_ROADMAP.md) | Subproyecto FrameScope: análisis visual temporal determinista (métricas, grids, contact-sheet). |
 | [VISION_REVIEW_ROADMAP.md](VISION_REVIEW_ROADMAP.md) | Capa de inspección con IA visual sobre pocos frames (perfiles y proveedores). |

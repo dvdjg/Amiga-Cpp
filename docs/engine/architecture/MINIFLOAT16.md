@@ -1,6 +1,6 @@
 # `MiniFloat16`: coma flotante de 16 bits para 68000
 
-`eng::math::MiniFloat16` (`engine/include/eng/core/minifloat.hpp`) es un escalar de
+`eng::math::MiniFloat16` (`engine/include/eng/core/math/minifloat.hpp`) es un escalar de
 **16 bits** en coma flotante con **rango dinámico amplio** (no es fixed-point) y coste
 pensado para un 68000 sin FPU. Se usa donde interesa representar magnitudes de escalas
 muy distintas —geometría 3D, transformaciones, proyección, culling— sin pagar el
@@ -9,7 +9,7 @@ soft-float de `libgcc`: en un 68000 `float` se emula con `__addsf3`/`__mulsf3`/
 en un registro de datos y usa aritmética de 16 bits nativa y tablas.
 
 Es, además, un escalar de primera clase para la librería genérica de álgebra lineal:
-`scalar_traits<MiniFloat16>` está especializado en `eng/core/linalg.hpp`, así que
+`scalar_traits<MiniFloat16>` está especializado en `eng/core/math/linalg.hpp`, así que
 `Vec<N>`, `Mat<N>` y `Affine<N>` funcionan con **el mismo código** que `float` o que el
 fixed-point `Fixed<...>`.
 
@@ -107,7 +107,7 @@ investigación): [MINIFLOAT16_SUMA_RESTA.md](../../guides/optimization/MINIFLOAT
 ## 6. Uso con la librería genérica
 
 ```cpp
-#include <eng/core/linalg.hpp>
+#include <eng/core/math/linalg.hpp>
 using eng::math::MiniFloat16;
 using M3 = eng::math::Mat<3, MiniFloat16>;
 
@@ -123,7 +123,7 @@ La conversión desde `float` es **explícita** (`MiniFloat16(1.0f)`), para que u
 
 ## 7. Funciones matemáticas
 
-`engine/include/eng/core/minifloat_math.hpp` añade `sqrt`, `exp`, `exp2`/`pow2`, `log`,
+`engine/include/eng/core/math/minifloat_math.hpp` añade `sqrt`, `exp`, `exp2`/`pow2`, `log`,
 `log2`/`log10`, `pow`, `hypot`, trigonometría (`sin`, `cos`, `tan` y `sincos`) e
 inversas (`atan`, `atan2`, `asin`, `acos`) en `eng::math`, implementadas **solo con
 aritmética de 16 bits**: nada de `float` ni de
@@ -207,21 +207,21 @@ saturación correcta fuera de rango.
 ## 9. Estado y verificación
 
 `MiniFloat16` está **verificada por demo**: `demos/amiga/083_fbm_noise` usa
-`fbm2<MiniFloat16>` (`eng/core/noise.hpp`) para construir un mapa de altura en el
+`fbm2<MiniFloat16>` (`eng/core/math/noise.hpp`) para construir un mapa de altura en el
 emulador (build/run/analyze OK), ejercitando la aritmética, `from_int` y las
 comparaciones en hardware. Su corrección la amplían los tests host:
 
-- [`tests/host/056_minifloat16`](../../../tests/host/056_minifloat16/README.md):
+- [`tests/host/core/056_minifloat16`](../../../tests/host/core/056_minifloat16/README.md):
   formato, conversiones, aritmética y operaciones de matrices 2x2/3x3/4x4 (incluida la
   inversa) contra `float`.
-- [`tests/host/057_minifloat16_math`](../../../tests/host/057_minifloat16_math/README.md):
+- [`tests/host/core/057_minifloat16_math`](../../../tests/host/core/057_minifloat16_math/README.md):
   `sqrt`/`exp`/`log`/`log2`/`log10`/`pow`/`hypot`/`sin`/`cos`/`tan`/`sincos` e inversas
   contra `std::`, más identidades de composición (`sin²+cos²=1`, `exp(log x)=x`,
   `sqrt(x)²=x`, `pow(x,2)=x·x`, `sin(asin x)=x`, `atan(tan x)=x`, `hypot(x,0)=|x|`).
-- [`tests/host/058_minifloat_fixed`](../../../tests/host/058_minifloat_fixed/README.md):
+- [`tests/host/core/058_minifloat_fixed`](../../../tests/host/core/058_minifloat_fixed/README.md):
   puente con `fix`/`fix88` (conversiones, producto mixto y `transform` de coordenadas
   fijas con matriz MF) contra `float`.
-- [`tests/host/060_noise`](../../../tests/host/060_noise/README.md): `value_noise`/`fbm`
+- [`tests/host/core/060_noise`](../../../tests/host/core/060_noise/README.md): `value_noise`/`fbm`
   con `MiniFloat16` contra `double` (el mismo camino que usa la demo 083).
 
 Las funciones de `minifloat_math.hpp` (trascendentes) están **verificadas por demo**:

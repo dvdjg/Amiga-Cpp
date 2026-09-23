@@ -28,7 +28,7 @@ aparecer en:
    fixed*.hpp  minifloat*.hpp  scalar.hpp (el propio escalar)
 ```
 
-Los **puntos de extensión** del engine, todos declarados en `eng/core/scalar_fwd.hpp`:
+Los **puntos de extensión** del engine, todos declarados en `eng/core/math/scalar_fwd.hpp`:
 
 | Punto de extensión | Para qué | Ejemplo de especialización |
 |---|---|---|
@@ -123,7 +123,7 @@ silueta y no se solapan** → el sort es gasto puro. Medición (`codegen-report.
 
 ## 5. El relleno (forma amiga)
 
-- **`convex_spans`** (`eng/core/polygon.hpp`): spans `(y, xl, xr)` de un convexo por **dos
+- **`convex_spans`** (`eng/core/data/polygon.hpp`): spans `(y, xl, xr)` de un convexo por **dos
   cadenas** desde el vértice superior al inferior, **O(altura)** frente a O(lados·altura) del
   barrido por min/max. Validado contra la referencia en HOST-013.
 - **`Playfield::draw_span`**: un tramo de 16 píxeles = **una palabra por plano** (extremos con

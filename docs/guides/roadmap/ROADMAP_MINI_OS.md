@@ -64,7 +64,7 @@ UI (`eng::ui`).
 - **Entregable**: productores de teclado (CIA-A serie, IRQ), ratón (`JOY0DAT` + CIA/POTINP),
   joystick (`JOY1DAT`) y pad CD32 (`POTGO`/`POTINP`) que emiten `KeyDown`/`KeyUp`/`MouseMove`/
   `MouseButton`/`Joystick`/`Gamepad`; snapshot de nivel en `InputAggregator`. Reutiliza
-  `eng/platform/input_poll.hpp` (`decode_joy`) y `eng/input/input.hpp` (`PadState`).
+  `eng/platform/amiga/input_poll.hpp` (`decode_joy`) y `eng/input/input.hpp` (`PadState`).
 - **Detalle**: [`MINI_OS_INPUT.md`](../../engine/architecture/MINI_OS_INPUT.md).
 - **Verificación**: el decodificado puro ya está cubierto por HOST-006/HOST-007; se añade un test
   de que un cambio de registro produce **exactamente un mensaje** (y ninguno si no cambia).

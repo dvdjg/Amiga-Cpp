@@ -99,7 +99,7 @@ en la pila (Chip RAM), costaba **~25 k ciclos/frame solo en borrar memoria**. Ar
 `finish()` ignora las no tocadas). Medido en la demo 125: **32.5 → 42.6 fps** con `Scheduler`
 (y 44.5 con `ListBuilder` directo). Lección general: **no construir/limpiar objetos grandes en el
 hot path**; usar inicialización perezosa o almacenamiento del llamador. Se añadió además una
-librería de punteros no propietarios sin heap (`eng/core/ptr.hpp`: `Ref`/`NonNull`/`Opt`).
+librería de punteros no propietarios sin heap (`eng/core/types/ptr.hpp`: `Ref`/`NonNull`/`Opt`).
 Regla: los **no-propietarios a objeto** son `eng::Ref<T>`/`eng::NonNull<T>`, no `T*`
 (`Surface`, `copper::Plan` ya migrados). Ayuda: `node tools/check/raw-pointer-members.mjs`
 (aviso, lista candidatos `Tipo* m_campo`; contenedores/buffers son legítimos).
@@ -134,7 +134,7 @@ El Blitter es **único**: un blit lanzado por Copper debe **serializarse** con l
 `Scheduler::set_blitter_window` declara la **ventana segura** (rango de líneas fuera del área
 visible y de los blits de CPU, p. ej. el borde inferior) y `emit_blitter_job` solo materializa el
 trabajo dentro de ella; fuera, cuenta como no manejado. Demos/tests:
-`demos/amiga/210_copper_blitter`, `tests/host/260_copper_blitter`.
+`demos/amiga/210_copper_blitter`, `tests/host/graphics/260_copper_blitter`.
 
 ## 7. Antipatrones
 

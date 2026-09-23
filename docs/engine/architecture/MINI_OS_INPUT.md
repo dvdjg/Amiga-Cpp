@@ -7,7 +7,7 @@ La regla de arquitectura es que la app **nunca lee `$DFF00A` ni `$BFE001`**: sol
 Las fuentes son el **AHRM 3.ª** (cap. «Interface Hardware» para CIA, «Reading Digital Joystick
 Controllers» para `JOYnDAT`, «Game Port Interface to Fire Buttons» para el fuego, y el protocolo
 serie de teclado), el manual *input.device* (`docs/reference/amiga/hardware/input-device-rkm.md`)
-y la decodificación ya portada en `engine/include/eng/platform/input_poll.hpp`.
+y la decodificación ya portada en `engine/include/eng/platform/amiga/input_poll.hpp`.
 
 ## 1. Convenciones de puerto
 
@@ -60,7 +60,7 @@ El **estado de nivel** (teclas/botones mantenidos) no va por mensajes: lo mantie
 `eng::input::InputAggregator` (`engine/include/eng/input/input.hpp`), que el productor actualiza en
 el mismo punto. Así conviven los dos modelos sin duplicar: mensajes para flancos, snapshot para
 nivel. La decodificación pura de `JOYnDAT` y del fuego ya vive en
-`eng/platform/input_poll.hpp` (`decode_joy`) y se **reutiliza** aquí.
+`eng/platform/amiga/input_poll.hpp` (`decode_joy`) y se **reutiliza** aquí.
 
 ## 4. Ratón (puerto 1)
 
@@ -216,5 +216,5 @@ por `InputAggregator`, evento intra-frame por `eng::util::Event`.
 - AHRM 3.ª edición: cap. «Interface Hardware» (CIA), «Reading Digital Joystick Controllers»
   (`JOYnDAT`), «Game Port Interface to Fire Buttons» (fuego), protocolo serie de teclado.
 - `docs/reference/amiga/hardware/input-device-rkm.md` (input.device, contexto con Exec).
-- `engine/include/eng/platform/input_poll.hpp` (`decode_joy`, sondeo por frame).
+- `engine/include/eng/platform/amiga/input_poll.hpp` (`decode_joy`, sondeo por frame).
 - `engine/include/eng/input/input.hpp` (`InputAggregator`, `PadState`).

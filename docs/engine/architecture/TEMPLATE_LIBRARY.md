@@ -66,7 +66,7 @@ Puntos de reutilización explícitos:
 
 - `has_single_bit` se apoya en `eng::is_pow2` (`fast_div.hpp`); no se redefine la
   detección de potencia de dos.
-- El orden de elementos lo cubre `eng/core/sort.hpp` (`quick_sort`/`sort_items`, más `stable_sort`, `nth_element`, `partial_sort` e `is_sorted`; `radix_sort_u16` para claves de 16 bits); `algorithm.hpp` no incluye una segunda ordenación.
+- El orden de elementos lo cubre `eng/core/data/sort.hpp` (`quick_sort`/`sort_items`, más `stable_sort`, `nth_element`, `partial_sort` e `is_sorted`; `radix_sort_u16` para claves de 16 bits); `algorithm.hpp` no incluye una segunda ordenación.
 - `Array<T,N>` y `ct_array<T,N>` son distintos a propósito: el primero es un agregado
   que se inicia con llaves como un array C; el segundo genera su contenido en
   compilación desde un functor.
@@ -209,8 +209,8 @@ Los contenedores y las utilidades de bytes/enteros son agnósticos del tipo (alm
 Limitaciones (también en cada cabecera):
 
 - `stats::sum`/`mean` con `Fixed<s16>` acumulan en **32 bits** (`add.l`) y solo estrechan al final; `variance` mantiene el acumulador del escalar (un acumulador ancho necesitaría productos de 64 bits, `__muldi3`).
-- `stats::stddev` con `Fixed` requiere incluir `eng/core/fixed_math.hpp` (aporta `scalar_sqrt<Fixed>` vía `isqrt`); `dsp::osc_sine` con `Fixed` también (aporta `scalar_sin<Fixed>`).
-- **Matemáticas `Fixed`**: `eng/core/fixed_math.hpp` especializa `scalar_sin`/`scalar_cos`/`scalar_tan`/`scalar_asin`/`scalar_acos`/`scalar_atan2`/`scalar_sqrt`/`scalar_exp2`/`scalar_log2`/`scalar_exp`/`scalar_log`/`scalar_pow` para `Fixed<s16,E>` (tablas compartidas + `isqrt`), más `scalar_sincos` (`fixed_sincos`, seno y coseno en una pasada; `geometry` lo usa en `rotate2(v, ángulo)`) y `wrap_angle`/`angle_diff` (pliegue sin tabla); incluir ese header antes de usar easings `_sine`/`_expo`, `smooth_damp`, `length`/`normalize`/`project`/`reflect` o `stddev` con fixed. `sin`/`cos` requieren `E <= 14`; `atan2`/`asin`/`acos` `E <= 13` (π debe caber); `tan` satura donde `cos ≈ 0`; `exp2` satura; `log2` solo correcto dentro del rango del fixed. Tablas (seno 2 KiB, `exp2`/`log2`/`atan` 1 KiB c/u) compartidas, con **tamaño elegible por plantilla** (`fixed_sin<E,Size,Iter>`, `fixed_exp2`/`fixed_log2`/`fixed_atan2<E,Size>`) o **por compilación** (`-DENG_FIXED_SIN_SIZE`, `ENG_FIXED_EXP2_SIZE`, `ENG_FIXED_LOG2_SIZE`, `ENG_FIXED_ATAN_SIZE`, `ENG_FIXED_SIN_ITER`; medido: ~5 KiB por defecto, ~1.8 KiB con 512/64/64/64). Verificado por HOST-104 y **por demo** (`110_ylimited_shooter`, self-test en `init`).
+- `stats::stddev` con `Fixed` requiere incluir `eng/core/math/fixed_math.hpp` (aporta `scalar_sqrt<Fixed>` vía `isqrt`); `dsp::osc_sine` con `Fixed` también (aporta `scalar_sin<Fixed>`).
+- **Matemáticas `Fixed`**: `eng/core/math/fixed_math.hpp` especializa `scalar_sin`/`scalar_cos`/`scalar_tan`/`scalar_asin`/`scalar_acos`/`scalar_atan2`/`scalar_sqrt`/`scalar_exp2`/`scalar_log2`/`scalar_exp`/`scalar_log`/`scalar_pow` para `Fixed<s16,E>` (tablas compartidas + `isqrt`), más `scalar_sincos` (`fixed_sincos`, seno y coseno en una pasada; `geometry` lo usa en `rotate2(v, ángulo)`) y `wrap_angle`/`angle_diff` (pliegue sin tabla); incluir ese header antes de usar easings `_sine`/`_expo`, `smooth_damp`, `length`/`normalize`/`project`/`reflect` o `stddev` con fixed. `sin`/`cos` requieren `E <= 14`; `atan2`/`asin`/`acos` `E <= 13` (π debe caber); `tan` satura donde `cos ≈ 0`; `exp2` satura; `log2` solo correcto dentro del rango del fixed. Tablas (seno 2 KiB, `exp2`/`log2`/`atan` 1 KiB c/u) compartidas, con **tamaño elegible por plantilla** (`fixed_sin<E,Size,Iter>`, `fixed_exp2`/`fixed_log2`/`fixed_atan2<E,Size>`) o **por compilación** (`-DENG_FIXED_SIN_SIZE`, `ENG_FIXED_EXP2_SIZE`, `ENG_FIXED_LOG2_SIZE`, `ENG_FIXED_ATAN_SIZE`, `ENG_FIXED_SIN_ITER`; medido: ~5 KiB por defecto, ~1.8 KiB con 512/64/64/64). Verificado por HOST-104 y **por demo** (`110_ylimited_shooter`, self-test en `init`).
 - `MiniFloat16`: pierde incrementos por debajo de `2^-14` (tasas de ADSR/`alpha` muy pequeñas bajoflow a 0); precisión ~1e-3.
 - `Fixed`: la división (`div_norm`) **satura**; el paso mínimo es `2^-Exp` (p. ej. 1/4096 en q12).
 - Las matemáticas de escalares (interpolación, easings, geometría, ruido, `minifloat_math`) viven en `eng::math`; ver `SCALAR_LIBRARY.md` (tabla función × escalar) y `MATH_LIBRARY.md`.
@@ -220,7 +220,7 @@ Limitaciones (también en cada cabecera):
 - **Contenedores con heap implícito** (`std::string`, nodos de `std::map`/`std::list`): fuera. Sí hay `Vector`/`SmallVector`/`ChunkedVector` y mapas/sets, pero **sin `malloc`**: crecen sobre un `Allocator` (arena) y solo en `init`/carga.
 - **`std::function`**: usa heap y copia el cierre; en su lugar, `FunctionRef` cuando solo hace falta pasar un callable sin poseerlo.
 - **`variant`/`tuple`/`mdspan`** y el resto de la STL: sin consumidor real en el engine, no se portan (el tamaño de código y el tiempo de compilación son recursos).
-- **`sort`**: ya existe en `eng/core/sort.hpp`.
+- **`sort`**: ya existe en `eng/core/data/sort.hpp`.
 - **`map` de árbol (red-black)**: para esta escala pierde frente a `FlatMap` (pequeño) y `HashMap` (grande), y añade mucho código.
 - **Flags y restauraciones hechos a mano**: no inventar máscaras ni bloques de limpieza por cada `return`; usa `EnumSet<E>` para conjuntos de flags tipados y `ScopeGuard` para restaurar estado (DMA, registros, color) en cualquier salida. Ver §7.
 

@@ -1,4 +1,4 @@
-# Expression templates lite (`eng/core/expr.hpp`)
+# Expression templates lite (`eng/core/math/expr.hpp`)
 
 `eng::math::et` es una capa **pequeña** de *expression templates* para el engine: construye el
 árbol de una expresión aritmética en tiempo de compilación y lo evalúa **una sola vez**, al
@@ -172,7 +172,7 @@ contenedores se evalúa antes de darlo por ganancia.
 
 ## 7. Verificación
 
-- **HOST-207** (`tests/host/207_math_expr/`): plegado `constexpr`, `MiniFloat16`, `Fixed`
+- **HOST-207** (`tests/host/core/207_math_expr/`): plegado `constexpr`, `MiniFloat16`, `Fixed`
   (suma, producto reescalado, `a + b*c` con acumulador ancho, suma de productos, destino con
   otro exponente) y fusión de `Vec`/`Mat` (`eval_into`, `assign_to`, difusión, `Vec<Fixed>`
   con acumulador ancho).

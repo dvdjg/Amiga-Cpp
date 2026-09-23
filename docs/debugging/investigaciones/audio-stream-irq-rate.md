@@ -55,7 +55,7 @@ Conclusión: ni la técnica del *swap* ni una re-armadura explícita explican la
 
 1. **`ADKCON` (ATPER/ATVOL, bits 1..4)**: era una hipótesis del ritmo disparado (el periodo/volumen
    saldrían de los datos del canal anterior). Se limpian en `PaulaAudio::silence()`
-   (`engine/include/eng/platform/audio_paula.hpp`) y **el ritmo no cambió**.
+   (`engine/include/eng/platform/amiga/paula.hpp`) y **el ritmo no cambió**.
 2. **INTREQ de otro canal**: armar solo `AUD3` en `INTENA` (en vez de AUD0..3) no lo arregló.
 3. **`period_for_hz`**: `period_for_hz(16000) = 221` (correcto, `eng/audio/audio_mode.hpp:73`).
 4. **Releer los registros**: `AUDxLEN`/`AUDxPER` son **write-only** (la lectura devuelve `0xFFFF`);
@@ -86,7 +86,7 @@ hardware: `state=3`, `detail=0x2c002c` (`irq=44`, `swaps=44`, **0 underruns**).
 
 Verificado en código que los registros se escriben bien: `PaulaAudio::set_pointer` (LCH/LCL),
 `set_length` (`AUDxLEN`), `set_period` (`AUDxPER`), `start_channel` (`DMACON`), con stride
-`channel*8` words y orden `[LCH, LCL, LEN, PER, VOL]` (`engine/include/eng/platform/audio_paula.hpp`),
+`channel*8` words y orden `[LCH, LCL, LEN, PER, VOL]` (`engine/include/eng/platform/amiga/paula.hpp`),
 y que `AUDxLEN(nr, v)` en WinUAE guarda `cdp->len = v` sin transformar (`audio.cpp:2722-2732`).
 
 ## Observación pendiente (para retomar)

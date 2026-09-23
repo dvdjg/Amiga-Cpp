@@ -38,7 +38,7 @@ node dist/tools/assets/uaf-pack.js out/assets/uaf/demo.uafr
 node dist/tools/assets/test-uaf-pack.js
 ```
 
-El test (`test-uaf-pack.ts`) valida el round-trip del contenedor (con padding), la conversión chunky→planar y los errores (magic inválido, blob corto, geometría inválida). El runtime C++ que lee el mismo formato está validado por `tests/host/012_assets_uaf`.
+El test (`test-uaf-pack.ts`) valida el round-trip del contenedor (con padding), la conversión chunky→planar y los errores (magic inválido, blob corto, geometría inválida). El runtime C++ que lee el mismo formato está validado por `tests/host/res/012_assets_uaf`.
 
 ## Extensiones previstas
 

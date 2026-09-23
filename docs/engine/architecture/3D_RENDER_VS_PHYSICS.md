@@ -17,12 +17,12 @@ El objetivo es un A500 (68000, sin FPU, poca RAM), así que todo es entero/fixed
 
 | Pieza | Dónde | Qué aporta |
 |---|---|---|
-| Aritmética linear genérica | `eng/core/linalg.hpp` | `Vec<N,S>`, `Mat<N,S>`, `Affine<N,SR,SL>`; `transform`, `compose`, `dot`, `cross`, `inverse_rigid` |
+| Aritmética linear genérica | `eng/core/math/linalg.hpp` | `Vec<N,S>`, `Mat<N,S>`, `Affine<N,SR,SL>`; `transform`, `compose`, `dot`, `cross`, `inverse_rigid` |
 | 3D fijo retro (`math3d`) | `eng/platform/amiga/gfx3d.hpp` | `Mat3 = Mat<3,q12>`, `Affine3 = Affine<3,q12,q0>`, `P3 = Vec<3,q0>`, `load_rotate`/`load_reverse_rotate`, `scale` |
-| Malla (render) | `eng/core/mesh3d.hpp` | `MeshView` (vértices + caras triangulares), `Vec3`, `mesh_transform`, culling y orden de caras (`MeshFaceOrder<Kind>`: convexo o cóncavo) |
+| Malla (render) | `eng/core/data/mesh3d.hpp` | `MeshView` (vértices + caras triangulares), `Vec3`, `mesh_transform`, culling y orden de caras (`MeshFaceOrder<Kind>`: convexo o cóncavo) |
 | Objeto empaquetado (lib3d) | `eng/platform/amiga/object3d.hpp`, `lib3d.hpp` | `Object3D`, `objectToWorld`/`worldToObject`, transform+proyección+visibilidad de un mesh tipo `obj2c` |
-| Sombreado / relleno | `eng/core/light.hpp`, `eng/platform/amiga/polygon_fill.hpp` | Sombreado por cara; relleno de polígonos por CPU o Blitter |
-| Escalares | `eng/core/fixed.hpp`, `fixed_math.hpp` | `Fixed`, `q12` (4.12), `q24`; sin `float`, con `muls.w`/`divs.w` |
+| Sombreado / relleno | `eng/core/math/light.hpp`, `eng/platform/amiga/polygon_fill.hpp` | Sombreado por cara; relleno de polígonos por CPU o Blitter |
+| Escalares | `eng/core/math/fixed.hpp`, `fixed_math.hpp` | `Fixed`, `q12` (4.12), `q24`; sin `float`, con `muls.w`/`divs.w` |
 
 Evidencia: demos `077_math3d_cube` (alambre), `078_math3d_solid`, `079`, `116_flatshade_convex`
 y tests HOST-011/013/014/047/050/051/053/055.
@@ -70,7 +70,7 @@ internas. Para evitarlo:
   coincidente con `lib3d`. La sonda `c_math3d_poly_cull` lo fija (162 instr, 3 `muls.w`, 0
   libcalls). La demo 116, ruta B (`-DFLATSHADE_FAITHFUL=0`), rellena los parches en ese orden
   con `blitter_fill_polygon` (validado visualmente: la `pilka` sale con caras n-gon sólidas).
-- **`convex_spans`** (`eng/core/polygon.hpp`): genera los spans `(y, xl, xr)` de un polígono
+- **`convex_spans`** (`eng/core/data/polygon.hpp`): genera los spans `(y, xl, xr)` de un polígono
   convexo por **dos cadenas** (izquierda/derecha desde el vértice superior al inferior),
   O(altura) frente a O(lados·altura) del barrido por mínimo/máximo. Es el generador de spans
   que usa el relleno CPU (`Playfield::fill_polygon`), con un `emit` que escribe el span

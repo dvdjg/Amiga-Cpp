@@ -73,7 +73,7 @@ la `Surface` del destino (pantalla o backing de ventana).
 
 ## 4. Rectángulo de UI
 
-La GUI usa **`eng::Box`** (`eng/core/box.hpp`), el rectángulo único de 16 bits del engine (ver
+La GUI usa **`eng::Box`** (`eng/core/types/box.hpp`), el rectángulo único de 16 bits del engine (ver
 [ENGINE_STRUCTURE_REVIEW.md](ENGINE_STRUCTURE_REVIEW.md) D2): origen + tamaño, con `contains`
 inclusivo, `inset`, `overlaps`, `intersect`, `merge` y `translate`. Para llamar a `Surface` se
 convierte con `field::surface_rect_of(box)`; los dirty rects del engine se convierten con

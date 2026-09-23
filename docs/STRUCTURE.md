@@ -84,14 +84,21 @@ Amiga-Cpp/
 
 Áreas del engine, separadas por concepto:
 
+El engine se organiza en **tres anillos** (modelo y contrato en
+`docs/engine/architecture/PLATFORM_LAYERS.md`):
+
 ```
 engine/
 ├── include/eng/          → API del engine (header-only, sin backend)
-│   ├── core/             → algoritmos y utilidades genéricas (fast_div, fixed, linalg, sinetable, span, tipos, ct_array)
-│   ├── cpu/              → especialización por CPU (cpu/m68k/: arith, affine)
+│   ├── core/             → ANILLO 0: dominio genérico (agnóstico de máquina)
+│   │   ├── math/         →   aritmética, fixed, linalg, geometry, scalar, tablas, ruido, expr
+│   │   ├── types/        →   tipos base, vistas con tag, unidades, byte order, CRC
+│   │   ├── data/         →   ct_array, mesh3d, polygon, sort, utf8, rtc
+│   │   └── util/         →   contenedores y algoritmos sin STL
+│   ├── cpu/              → ANILLO 1: especialización por CPU (cpu/m68k/: arith, affine, light)
 │   ├── retro/            → vocabulario fixed-point retro (q12/q0/q24 en fixed_q.hpp; lib2d/angles)
 │   ├── memory/           → gestión de memoria (arena)
-│   ├── graphics/         → abstracción de gráficos
+│   ├── graphics/         → abstracción de gráficos (ANILLO 0)
 │   │   ├── copper/       →   generación/programación de copperlists
 │   │   ├── drivers/      →   drivers de escena (tile_scroll, ehb_scene, …)
 │   │   ├── effects/      →   efectos (palette_cycle, …)
@@ -104,14 +111,15 @@ engine/
 │   ├── cards/            → motores de naipes (póker): baraja, reglas, equity, IA y simulación (eng::cards)
 │   ├── parallel/         → concurrencia abstracta (eng::parallel): hilos/mutex/atomicos no-op en m68k, std en host
 │   ├── debug/            → telemetría, run_status, periférico de depuración
-│   └── platform/         → especialización por máquina
-│       ├── amiga/        →   gráficos Amiga OCS (gfx3d, lib3d, object3d, angles)
-│       └── *.hpp         →   interfaz de hardware (ABI de backend)
-└── src/
-    └── platform/         → implementaciones de backend por máquina
-        ├── amiga_minimal/   → backend Amiga OCS/ECS (amiga_minimal.cpp)
-        ├── atarist/         → (futuro)
-        └── megadrive/       → (futuro)
+│   └── platform/         → ANILLO 1: vocabulario de chipset por familia de máquina
+│       ├── backend.hpp   →   contrato de backend (lo que consume el Engine)
+│       └── amiga/        →   Amiga: backend.hpp, paula.hpp, input_poll.hpp, blob.hpp,
+│                             gfx3d.hpp, lib3d.hpp, object3d.hpp, object3d_poly.hpp, polygon_fill.hpp
+└── src/                  → ANILLO 2: implementaciones de backend
+    └── platform/
+        ├── amiga/          → backend Amiga OCS/ECS/AGA (core, blitter, c2p, file, floppy, hw, os)
+        ├── atarist/        → (futuro)
+        └── megadrive/      → (futuro)
 ```
 
 Reglas:
@@ -121,11 +129,17 @@ Reglas:
   `graphics/drivers/`.
 - **Tres capas de especialización, cada una en su carpeta:** `core/` (genérico, sirve a
   cualquier escalar), `cpu/<cpu>/` (p. ej. `m68k`: aritmética y empaquetado del 68000) y
-  `platform/<máquina>/` (p. ej. `amiga`: registros y gráficos OCS). El vocabulario retro
-  compartido (formato Q 4.12) va en `retro/`, no en `core/`. Cada capa se incluye desde la
-  siguiente; el núcleo nunca conoce a las de abajo.
-- **`src/`** contiene solo implementaciones de backend; el resto del engine es
-  header-only para minimizar acoplamiento y permitir inline en las demos.
+  `platform/<familia>/` (p. ej. `amiga`: registros, Paula, entrada, gráficos OCS). El
+  vocabulario retro compartido (formato Q 4.12) va en `retro/`, no en `core/`. Cada capa se
+  incluye desde la siguiente; el núcleo nunca conoce a las de abajo.
+- **`src/`** contiene solo implementaciones de backend y unidades de dominio frías/no
+  plantilla que lo justifiquen; el resto del engine es header-only para minimizar
+  acoplamiento y permitir inline en las demos (criterio en
+  `docs/engine/architecture/HEADER_POLICY.md`).
+- **Cabeceras gigantes → partir por tema**, no mover a `.cpp`: se conserva el inline y no
+  se rompen consumidores (cabecera-paraguas). Lo vigila `tools/check/engine-tree.mjs`.
+- **Frontera dominio ↔ plataforma**: el anillo 0 no incluye `eng/platform/<familia>` ni
+  referencias registros custom. Lo vigila `tools/check/platform-boundaries.mjs`.
 - Algoritmos nuevos: si son genéricos (no dependen de hardware) van a `core/` o
   `memory/`; si dependen del chipset, a la capa/backend correspondiente.
 
@@ -160,7 +174,7 @@ Notas:
 - La demo solo contiene **código y análisis propio**; los **assets que usa van en
   `assets/<platform>/`** (fuente) y los **generados van en `out/assets/<pipeline>/`**,
   incrustados por `incbin` o include con ruta relativa al repo.
-- `tests/l0_bare_metal/` es el nivel 0 de verificación de hardware/display; no es
+- `tests/amiga/l0_bare_metal/` es el nivel 0 de verificación de hardware/display; no es
   demo y no se promueve a `demos/`.
 
 ## 5. Assets (`assets/`)
@@ -362,3 +376,27 @@ de una tool canónica y esté documentado.
 - Cuando una IA genere archivos (assets de prueba, capturas, informes), debe usar
   la estructura canónica de este documento y los `--out` por defecto de las
   tools; nunca inventar directorios.
+
+### 12.1 Tests (`tests/`)
+
+Los tests se organizan por **plataforma**, **nivel** y **categoría** (taxonomía en
+`docs/testing/TAXONOMY.md`):
+
+```
+tests/
+├── README.md             → pirámide y taxonomía (índice de índices)
+├── host/                 → L1 unitario host (g++ nativo), agnóstico de hardware
+│   ├── README.md         → índice de categorías
+│   └── <categoría>/      → core, graphics, field, scene, platform/amiga,
+│                           ai, sim, board, cards, os, ui, audio, res, parallel
+│                           (cada una con README.md de catálogo y NNN_<nombre>/)
+├── amiga/                → on-target (WinUAE): l0_bare_metal/, l1_backend/, l2_copper_frameplan/
+└── atarist/              → (futuro)
+```
+
+Reglas:
+- El ID `HOST-NNN` es único y no reutilizable en todo `tests/host/` (no por categoría);
+  agrupar no renumera.
+- Cada categoría lleva su `README.md` de catálogo; `tests/host/README.md` indexa categorías.
+- `tools/check/test-numbering.mjs` valida el árbol anidado; `tools/run-host-tests.sh`
+  acepta `--category <cat>`.

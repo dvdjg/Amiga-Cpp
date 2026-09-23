@@ -109,7 +109,7 @@ ScrollEmitter  (dibujar):              pinta la banda entrante en la posición d
 
 `ScrollStrategy::step(plan, target, emitter, dx, dy)` decide **una** operación y se la pide al
 emitter. Así el algoritmo es portable (Mega Drive, SNES…) y testeable con un mock
-(`tests/host/023_limited_axes`).
+(`tests/host/field/023_limited_axes`).
 
 Implementado como **conceptos** en `engine/include/eng/field/scroll_engine.hpp`:
 `ScrollTarget` (geometría, sin dibujar) + `ScrollEmitter` (`add_draw` + `save_word`/`restore_saveword`)

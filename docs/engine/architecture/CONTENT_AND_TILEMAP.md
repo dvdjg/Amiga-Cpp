@@ -22,7 +22,7 @@ TileSource     ACCESOR de tiles: `tile_at(x, y)` + `empty_tile`. El scroll consu
   `docs/demos/tile-pipeline/PIPELINE_TILES_EHB.md` y `tools/amiga-tiles/README.md`.
 - Geometría (tamaño de tile, potencia de dos) entra como NTTP para evitar divisiones en el hot path.
 - Implementación: `engine/include/eng/field/tile_source.hpp` (concepto + `SparseTileMap`) y
-  `tile_map.hpp` (`TileLayerMap`). Test: `tests/host/025_tile_source`.
+  `tile_map.hpp` (`TileLayerMap`). Test: `tests/host/field/025_tile_source`.
 
 ## 2. Mundo disperso
 
@@ -55,14 +55,14 @@ WorldMap (disperso)
   `LoadResult` (`Ready`/`Empty`/`Pending`): un chunk no listo no se marca residente y se reintenta.
   El scroll consume un `TileMapView<Src>` (`tile_source.hpp`): un `TileSource` (disperso o streaming)
   más los límites/wrap del mundo, de modo que el playfield no depende del almacén. Tests:
-  `tests/host/025_tile_source`, `tests/host/026_chunk_cache`, `tests/host/029_streaming_map`,
-  `tests/host/030_tile_map_view`. Demo de hardware: `demos/amiga/111_xlimited_sidescroller`
+  `tests/host/field/025_tile_source`, `tests/host/field/026_chunk_cache`, `tests/host/field/029_streaming_map`,
+  `tests/host/field/030_tile_map_view`. Demo de hardware: `demos/amiga/111_xlimited_sidescroller`
   (`StreamingWorldMap` + `prefetch` de la banda por frame).
 - **Formato**: el mundo se empaqueta como chunk `WorldMap` sobre UAF-R (directorio de chunks
   ordenado + celdas de índice de banco, con `gid` ya resuelto en el host) con la tool
-  `tools/ehb/pack-world.mjs`, y se lee con `eng::assets::WorldView` (`tests/host/031_world_view`).
+  `tools/ehb/pack-world.mjs`, y se lee con `eng::assets::WorldView` (`tests/host/field/031_world_view`).
   Los puentes al scroll son `WorldLayerSource`/`WorldMapChunkLoader` (`world_layer.hpp`,
-  `tests/host/035_world_layer`). Ver `docs/engine/architecture/WORLD_FORMAT.md`. La procedencia de
+  `tests/host/field/035_world_layer`). Ver `docs/engine/architecture/WORLD_FORMAT.md`. La procedencia de
   los bytes (RAM, `trackdisk.device` o trackloader de hardware) es responsabilidad del `Loader`:
   `docs/engine/architecture/STREAMING_LOADER.md`.
 
@@ -102,7 +102,7 @@ ActorTemplate  Visual (Animation) + tamaño + anclaje + preferencia de represent
 - El enemigo grande con scroll propio puede declararse con preferencia `Layer` (playfield de un
   DPF, patrón Jim Power).
 - Implementación: `engine/include/eng/graphics/animation.hpp` (`Frame`/`Animation`/`SpriteSheet`).
-  Test: `tests/host/027_animation`.
+  Test: `tests/host/graphics/027_animation`.
 
 ## 4. Audio
 
