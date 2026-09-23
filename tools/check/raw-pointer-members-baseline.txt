@@ -21,10 +21,10 @@ eng/board/knowledge/cache.hpp:slot
 eng/board/search/search.hpp:moves
 eng/board/search/search.hpp:pos
 eng/board/search/search.hpp:scores
-eng/core/affine.hpp:m0
-eng/core/affine.hpp:m1
-eng/core/affine.hpp:m2
-eng/core/linalg.hpp:row
+eng/core/fixed_affine.hpp:m0
+eng/core/fixed_affine.hpp:m1
+eng/core/fixed_affine.hpp:m2
+eng/core/fixed.hpp:row
 eng/core/util/bitset.hpp:words
 eng/core/util/bitset.hpp:words
 eng/core/util/broadphase.hpp:e

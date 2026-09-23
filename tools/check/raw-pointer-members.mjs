@@ -121,7 +121,7 @@ const baseline = new Set(
 const problems = found.filter((f) => !baseline.has(f.key));
 if (problems.length) {
 	for (const p of problems.slice(0, 40)) {
-		console.error(`[raw-pointer-members] FAIL: ${p} (usa eng::Ref/NonNull o eng::Span)`);
+		console.error(`[raw-pointer-members] FAIL: ${p.key} (usa eng::Ref/NonNull o eng::Span)`);
 	}
 	console.error(
 		`[raw-pointer-members] ${problems.length} puntero(s) a objeto no propietario sin justificar.`,
