@@ -997,7 +997,7 @@ public:
 	/// Primer paso de la ruta macro hacia `to` (`no_room` si no hay ruta).
 	[[nodiscard]] constexpr RoomId route_first_step(RoomId from, RoomId to) const noexcept {
 		RoomId path[MaxRooms];
-		const eng::u8 n = route_room(from, to, eng::Span<RoomId> {path, MaxRooms});
+		const eng::u8 n = route_room(from, to, {path, MaxRooms});
 		return n >= 2u ? path[1] : no_room;
 	}
 

@@ -109,7 +109,7 @@ public:
 					    eng::Span<const typename Ai::Action> actions) noexcept {
 		eng::u16 raw[MaxSteps] {};
 		const eng::usize n = m_planner.plan(start, goal, actions,
-						    eng::Span<eng::u16> {raw, MaxSteps});
+						    {raw, MaxSteps});
 		if (!m_planner.found() && n == 0u) {
 			m_runner.abort();
 			return false;

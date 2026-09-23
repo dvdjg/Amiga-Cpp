@@ -257,8 +257,7 @@ namespace detail {
 		if (omaha) {
 			// Omaha: heurística sobre la mejor pareja de las 4 privadas; la tabla de
 			// 169 clases es de Hold'em y no aplica.
-			return omaha_preflop_strength_permille(
-				eng::Span<const Card> {t.seats[seat].hole, hole_count});
+			return omaha_preflop_strength_permille({t.seats[seat].hole, hole_count});
 		}
 		if (table.valid() && table->ready) {
 			const u16 hu = preflop_equity(*table, t.seats[seat].hole[0], t.seats[seat].hole[1]);

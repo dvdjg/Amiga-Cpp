@@ -618,7 +618,7 @@ extern "C" u16 c_sim_world_ops(u16 seed, u16 hungry) {
 	const EntityId a = g_sim_world.spawn(1u, 0u, 0u, 10, 20);
 	const EntityId b = g_sim_world.spawn(2u, 0u, 1u, 30, 40);
 	g_sim_world.link_rooms(0u, 1u);
-	if (auto* c = g_sim_world.find(a)) {
+	if (auto c = g_sim_world.find(a); c.valid()) {
 		c->set_den(1u, 30, 40);
 		c->needs.hunger = static_cast<eng::u8>(hungry % 256u);
 	}
@@ -667,8 +667,8 @@ extern "C" u16 c_sim_affect_ops(u16 seed) {
 	RelationshipList<4> rels {};
 	const EntityId target = static_cast<EntityId>(seed % 4u);
 	adjust_affect(rels, target, RelationKind::Rival, -70);
-	const Relationship* hated = most_hated(rels);
-	return static_cast<u16>(hated != nullptr ? 1u : 0u) +
+	auto hated = most_hated(rels);
+	return static_cast<u16>(hated.valid() ? 1u : 0u) +
 	       static_cast<u16>(bond_score(rels, target) + 200);
 }
 extern "C" u16 c_sim_lifecycle_ops(u16 seed) {
@@ -952,7 +952,7 @@ extern "C" u16 c_sim_input_ops(u16 seed) {
 	in.dx = static_cast<eng::s16>(seed % 5u);
 	in.interact = (seed & 1u) != 0u;
 	const bool acted = player_control(w, p, in);
-	return static_cast<u16>(acted ? 1u : 0u) + static_cast<u16>(w.find(p)->x);
+	return static_cast<u16>(acted ? 1u : 0u) + static_cast<u16>(w.find(p).get()->x);
 }
 extern "C" u16 c_sim_persona_ops(u16 seed) {
 	using namespace eng::sim;
@@ -1585,13 +1585,13 @@ extern "C" u16 c_numeric_goap(u16 seed) {
 // reparto de botes usan intmath (div por resta) y mulu16: no deben arrastrar
 // __mulsi3/__divsi3 en 68000. ---
 extern "C" eng::u32 c_cards_eval7(const eng::u8* cards) {
-	return static_cast<eng::u32>(eng::cards::evaluate_hand(cards, 7u));
+	return static_cast<eng::u32>(eng::cards::evaluate_hand({cards, 7u}));
 }
 extern "C" eng::u16 c_cards_equity(eng::u8 a, eng::u8 b, eng::u16 samples) {
 	static eng::Xoroshiro64pp rng {1u, 2u};
 	const eng::u8 hole[2] = {a, b};
 	const eng::cards::EquityResult r = eng::cards::equity_vs_random(
-	    eng::Span<const eng::u8> {hole, 2u}, eng::Span<const eng::u8> {}, 1u, samples, rng);
+	    hole, eng::Span<const eng::u8> {}, 1u, samples, rng);
 	return r.equity_permille;
 }
 extern "C" eng::u32 c_cards_holdem(eng::u8 seats) {
@@ -1599,7 +1599,7 @@ extern "C" eng::u32 c_cards_holdem(eng::u8 seats) {
 	eng::cards::Table table;
 	eng::cards::start_hand(table, rng, seats, 1000, 5, 10, 0u);
 	eng::cards::Action legal[12];
-	const eng::u8 n = eng::cards::legal_actions(table, legal, 12u);
+	const eng::u8 n = eng::cards::legal_actions(table, legal);
 	if (n > 0u) {
 		eng::cards::apply_action(table, legal[0]);
 	}
@@ -1631,7 +1631,7 @@ extern "C" eng::u16 c_cards_range(eng::u16 samples) {
 	const eng::u8 hole[2] = {eng::cards::make_card(eng::cards::Rank::Ace, eng::cards::Suit::Spades),
 	                         eng::cards::make_card(eng::cards::Rank::Ace, eng::cards::Suit::Hearts)};
 	const eng::cards::EquityResult r = eng::cards::equity_vs_range(
-	    eng::Span<const eng::u8> {hole, 2u}, eng::Span<const eng::u8> {}, range, 1u, 64u, rng);
+	    hole, eng::Span<const eng::u8> {}, range, 1u, 64u, rng);
 	return static_cast<eng::u16>(r.equity_permille + range.class_count());
 }
 extern "C" eng::u16 c_cards_bot(eng::u16 samples) {
@@ -1642,7 +1642,7 @@ extern "C" eng::u16 c_cards_bot(eng::u16 samples) {
 	eng::cards::BotParams params = eng::cards::bot_params(eng::cards::BotStyle::Balanced);
 	params.mc_samples = samples;
 	params.use_mc = samples > 0u;
-	const eng::cards::Action a = eng::cards::decide(t, t.to_act, params, &model, rng);
+	const eng::cards::Action a = eng::cards::decide(t, t.to_act, params, model, rng);
 	return static_cast<eng::u16>(a.amount) + static_cast<eng::u16>(a.type);
 }
 extern "C" eng::u32 c_cards_omaha(const eng::u8* hole, const eng::u8* board) {
@@ -1658,17 +1658,17 @@ extern "C" eng::u16 c_cards_limit() {
 	eng::cards::start_hand(t, rng, 3u, 1000, 5, 10, 0u, eng::cards::PokerVariant::TexasHoldem,
 	                      eng::cards::BettingStructure::Limit);
 	eng::cards::Action legal[12];
-	const eng::u8 n = eng::cards::legal_actions(t, legal, 12u);
+	const eng::u8 n = eng::cards::legal_actions(t, legal);
 	return static_cast<eng::u16>(n + static_cast<eng::u8>(t.raises_this_street));
 }
 extern "C" eng::u32 c_cards_wild(const eng::u8* cards) {
-	return static_cast<eng::u32>(eng::cards::evaluate_hand(cards, 7u));
+	return static_cast<eng::u32>(eng::cards::evaluate_hand({cards, 7u}));
 }
 extern "C" eng::u16 c_cards_omaha_eq(eng::u8 a, eng::u8 b, eng::u8 c, eng::u8 d, eng::u16 samples) {
 	static eng::Xoroshiro64pp rng {15u, 16u};
 	const eng::u8 hole[4] = {a, b, c, d};
 	const eng::cards::EquityResult r = eng::cards::equity_vs_random_omaha(
-	    eng::Span<const eng::u8> {hole, 4u}, eng::Span<const eng::u8> {}, 1u, samples, rng);
+	    hole, eng::Span<const eng::u8> {}, 1u, samples, rng);
 	return r.equity_permille;
 }
 extern "C" eng::u32 c_cards_stud(eng::u8 seats) {
@@ -1676,7 +1676,7 @@ extern "C" eng::u32 c_cards_stud(eng::u8 seats) {
 	eng::cards::StudTable t;
 	eng::cards::start_stud(t, rng, seats, 1000, 1, 2, 4, 8, 0u);
 	eng::cards::Action legal[12];
-	const eng::u8 n = eng::cards::stud_legal_actions(t, legal, 12u);
+	const eng::u8 n = eng::cards::stud_legal_actions(t, legal);
 	if (n > 0u) {
 		eng::cards::stud_apply_action(t, legal[n - 1u]);
 	}
@@ -1687,14 +1687,14 @@ extern "C" eng::u32 c_cards_draw(eng::u8 seats) {
 	eng::cards::DrawTable t;
 	eng::cards::start_draw(t, rng, seats, 1000, 1, 4, 8, 0u, false, true);
 	eng::cards::Action legal[12];
-	const eng::u8 n = eng::cards::draw_legal_actions(t, legal, 12u);
+	const eng::u8 n = eng::cards::draw_legal_actions(t, legal);
 	if (n > 0u) {
 		eng::cards::draw_apply_action(t, legal[n - 1u]);
 	}
 	return static_cast<eng::u32>(n) ^ static_cast<eng::u32>(t.pot);
 }
 extern "C" eng::u32 c_cards_deuces(const eng::u8* cards) {
-	return static_cast<eng::u32>(eng::cards::evaluate_deuces_wild(cards, 7u));
+	return static_cast<eng::u32>(eng::cards::evaluate_deuces_wild({cards, 7u}));
 }
 `;
 

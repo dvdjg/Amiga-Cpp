@@ -127,9 +127,9 @@ private:
 			m_runtime.color[i] = m_from[i];
 		}
 		eng::util::palette_lerp(
-			eng::Span<eng::u16> {m_runtime.color + m_range.first, m_range.count},
-			eng::Span<const eng::u16> {m_from + m_range.first, m_range.count},
-			eng::Span<const eng::u16> {m_to + m_range.first, m_range.count},
+			{m_runtime.color + m_range.first, m_range.count},
+			{m_from + m_range.first, m_range.count},
+			{m_to + m_range.first, m_range.count},
 			m_num, m_den);
 	}
 

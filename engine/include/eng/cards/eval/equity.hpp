@@ -73,7 +73,7 @@ struct HoldemRanker {
 		for (usize i = 0u; i < board.size() && n < kMaxHandCards; ++i) {
 			cards[n++] = board[i];
 		}
-		return evaluate_hand(eng::Span<const Card> {cards, n});
+		return evaluate_hand({cards, n});
 	}
 };
 

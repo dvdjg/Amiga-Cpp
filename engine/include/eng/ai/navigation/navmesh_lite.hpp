@@ -262,7 +262,7 @@ public:
 		}
 		eng::u16 seq[MaxPolys] {};
 		const eng::usize len = reconstruct_seq(
-			s, g, came_from, eng::Span<eng::u16> {seq, MaxPolys});
+			s, g, came_from, {seq, MaxPolys});
 		if (len < 2u) {
 			return 0u;
 		}
@@ -283,8 +283,8 @@ public:
 			out[0] = goal;
 			return 1u;
 		}
-		return funnel(start, goal, eng::Span<const Point> {lefts, portals},
-			      eng::Span<const Point> {rights, portals}, out);
+		return funnel(start, goal, {lefts, portals},
+                   {rights, portals}, out);
 	}
 
 private:
@@ -546,7 +546,7 @@ private:
 						     eng::Span<Point> out) const noexcept {
 		eng::u16 seq[MaxPolys] {};
 		const eng::usize len = reconstruct_seq(
-			s, g, came_from, eng::Span<eng::u16> {seq, MaxPolys});
+			s, g, came_from, {seq, MaxPolys});
 		if (len < 1u) {
 			return 0u;
 		}

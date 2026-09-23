@@ -297,10 +297,10 @@ namespace detail {
 		}
 	}
 	if (wilds == 0u) {
-		return evaluate_plain(eng::Span<const Card> {plain, plain_count});
+		return evaluate_plain({plain, plain_count});
 	}
 	if (plain_count + wilds < 5u || wilds > 3u) {
-		return evaluate_plain(eng::Span<const Card> {plain, plain_count});
+		return evaluate_plain({plain, plain_count});
 	}
 	Card work[kMaxHandCards + 3] {};
 	for (u8 i = 0u; i < plain_count; ++i) {
@@ -310,9 +310,8 @@ namespace detail {
 	for (u8 i = 0u; i < plain_count; ++i) {
 		used[plain[i]] = true;
 	}
-	return detail::best_wild_fill(eng::Span<const Card> {plain, plain_count}, wilds,
-	                              eng::Span<Card> {work, static_cast<eng::usize>(plain_count) + wilds},
-	                              used, 0u);
+	return detail::best_wild_fill({plain, plain_count}, wilds,
+	                              {work, static_cast<eng::usize>(plain_count) + wilds}, used, 0u);
 }
 
 /// Evalúa exactamente 5 cartas (atajo para tablas y tests).

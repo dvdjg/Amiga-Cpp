@@ -170,7 +170,7 @@ public:
 	/// Rellena por CPU los planos de `dest` (ver `fill_polygons_by_plane_cpu`).
 	eng::u32 fill_cpu(eng::PlaneBytes dest, eng::u16 row_bytes, eng::u32 plane_bytes,
 			  eng::u8 planes, eng::u16 width, eng::u16 height) const {
-		return fill_polygons_by_plane_cpu(eng::Span<const PlanePolygon> {m_faces.data(), m_count},
+		return fill_polygons_by_plane_cpu({m_faces.data(), m_count},
 						  dest, row_bytes, plane_bytes, planes, width, height);
 	}
 

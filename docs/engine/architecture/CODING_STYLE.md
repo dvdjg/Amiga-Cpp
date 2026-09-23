@@ -151,6 +151,20 @@ aporta sus propias piezas de seguridad de C++23 sin depender de `std::span`:
     la frontera): falla ante cualquier `Tipo*` nuevo no escalar en **miembro, parámetro, retorno o
     local**. La deuda histórica vive en `raw-pointer-members-baseline.txt` (triaje) y **se migra
     borrando entradas**; al tocar un fichero, migrar los `T*` de ese fichero a `Ref`/`Span`.
+  - **`T*` legitimo (no migrar a `Ref`/`Span`)**: hay punteros cuyo `*` **es** el mecanismo del
+    dominio, no un observador externo. El gate los señala igual, así que se distinguen a mano:
+    - **Enlace estructural intrusivo**: `parent`/`first_child`/`next` de una estructura enlazada
+      (arbol de `ui::Widget`). No es un observador anulable de un objeto ajeno: es la *forma* del
+      nodo, y a menudo se compara por identidad. Forzar `Ref` solo añadiria `.get()` sin seguridad.
+    - **Propiedad sobre memoria cruda propia**: punteros que el objeto **asigna y libera** con un
+      alocador, o que navegan un **formato binario** por offsets (`dynamic_hash_map`: `m_used`;
+      `platform/amiga`: `object3d`/`lib3d` sobre el `object3d.dat`). `Ref` no aplica (no es
+      observador) y `Span` tampoco (hay `nullptr`, se libera, o se indexa a mano).
+    - **Buffer de salida con capacidad**: arrays prestados por el llamador para que la funcion
+      escriba N elementos (`ActorId* order`, `SpriteIntent* intents`); cuando el contrato lo permite
+      ya es `Span`, y los restantes viajan con una capacidad explicita y a veces `nullptr` opcional.
+    El criterio no es «todo `T*` es malo», sino «si existe una alternativa de coste cero que
+    **exprese mejor la intencion**, usarla»; si no, el `*` documentado es lo correcto.
 - **Enteros de maquina**: para acumuladores e indices cuyo rango cabe en palabra, usar el
   entero elegido en compilacion (`eng::intw`; p. ej. `eng::board::board_int`), no `s32`
   por defecto. Reservar `s32`/`u64` para cuando el rango lo exige (puntuaciones de

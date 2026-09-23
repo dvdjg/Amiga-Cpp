@@ -49,6 +49,16 @@ namespace detail {
 	__builtin_trap();
 }
 
+/// `is_same` minimo: evita arrastrar `core/util/type_traits.hpp` a esta cabecera base.
+template <typename A, typename B>
+struct same {
+	static constexpr bool value = false;
+};
+template <typename A>
+struct same<A, A> {
+	static constexpr bool value = true;
+};
+
 } // namespace detail
 
 /// Vista no propietaria de un rango contiguo de `T`.
@@ -70,6 +80,14 @@ public:
 	template <size_type N>
 	constexpr Span(T (&array)[N]) noexcept
 		: m_data(array), m_count(N) {}
+
+	/// Conversion cualificante `Span<U> -> Span<T>` cuando `U*` convierte a `T*`
+	/// (tipicamente `Span<int> -> Span<const int>`), como `std::span`. El `requires`
+	/// evita la conversion a si misma (que seria malformada).
+	template <typename U>
+		requires requires (U* q) { static_cast<T*>(q); } && (!detail::same<U, T>::value)
+	constexpr Span(const Span<U>& other) noexcept
+		: m_data(other.data()), m_count(other.size()) {}
 
 	[[nodiscard]] constexpr pointer data() const noexcept { return m_data; }
 	[[nodiscard]] constexpr size_type size() const noexcept { return m_count; }

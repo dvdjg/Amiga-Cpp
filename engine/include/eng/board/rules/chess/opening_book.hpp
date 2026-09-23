@@ -48,7 +48,7 @@ inline constexpr OpeningLine kOpeningLines[] = {
 	generate_legal(pos, legal);
 	for (eng::usize i = 0u; i < legal.size(); ++i) {
 		char text[8];
-		const eng::usize n = to_uci(legal[i], eng::Span<char> {text, sizeof(text)});
+		const eng::usize n = to_uci(legal[i], {text, sizeof(text)});
 		if (eng::util::StringView {text, n} == uci) {
 			return legal[i];
 		}
@@ -83,7 +83,7 @@ inline constexpr OpeningLine kOpeningLines[] = {
 
 /// Nombre de apertura legible para `id` (o vista vacía si se sale del pool).
 [[nodiscard]] inline eng::util::StringView opening_name(eng::u16 id) noexcept {
-	return book_name(eng::Span<const char> {kOpeningNames, sizeof(kOpeningNames)}, id);
+	return book_name({kOpeningNames, sizeof(kOpeningNames)}, id);
 }
 
 } // namespace eng::board::chess

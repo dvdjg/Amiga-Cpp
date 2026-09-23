@@ -124,7 +124,7 @@ struct StudTable {
 	if (s.card_count < 5u) {
 		return kHandValueNone;
 	}
-	return evaluate_hand(eng::Span<const Card> {s.cards, s.card_count});
+	return evaluate_hand({s.cards, s.card_count});
 }
 
 // ---------------------------------------------------------------------------
