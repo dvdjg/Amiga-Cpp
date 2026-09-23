@@ -13,7 +13,7 @@
 ///
 /// Es una cabecera de **plataforma** (igual que `object3d.hpp`) y expone registros custom
 /// a proposito: es la frontera unsafe del backend. El puntero se obtiene con
-/// `MinimalBackend::custom_registers()`.
+/// `AmigaBackend::custom_registers()`.
 ///
 /// Uso:
 ///   eng::amiga::OrBlobBatch batch;
@@ -21,7 +21,7 @@
 ///   for (cada objeto) batch.one(src, dst, shift);
 ///   batch.end();
 
-#include <eng/core/types.hpp>
+#include <eng/core/types/types.hpp>
 
 namespace eng::amiga {
 

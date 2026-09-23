@@ -23,9 +23,9 @@
 /// `math3d::Affine3<>`, `Vec<3,eng::coord>` (`P3<>`), `math3d::load_rotate`/`scale` (con
 /// el ángulo en radianes). La crudeza vive solo en el almacenamiento, no en la aritmética.
 
-#include <eng/core/arith.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/arith.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/retro/fixed_q.hpp>
 

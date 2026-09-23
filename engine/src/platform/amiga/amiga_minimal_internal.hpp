@@ -6,7 +6,7 @@
 /// (core, blitter, C2P) vivan en unidades de traduccion separadas compartiendo los mismos
 /// helpers. **No forma parte de la API**: la incluyen solo los .cpp del backend.
 
-#include <eng/platform/amiga_minimal.hpp>
+#include <eng/platform/amiga/backend.hpp>
 
 #include "support/gcc8_c_support.h"
 #include <proto/exec.h>

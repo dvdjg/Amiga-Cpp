@@ -7,7 +7,7 @@ using namespace eng::amiga::detail;
 
 namespace eng::amiga {
 
-bool MinimalBackend::c2p_4bpp_program(C2p4State& s) {
+bool AmigaBackend::c2p_4bpp_program(C2p4State& s) {
 	if (s.chunky == nullptr) {
 		return false;
 	}
@@ -97,7 +97,7 @@ bool MinimalBackend::c2p_4bpp_program(C2p4State& s) {
 	return true;
 }
 
-bool MinimalBackend::c2p_4bpp_step(C2p4State& s) {
+bool AmigaBackend::c2p_4bpp_step(C2p4State& s) {
 	if (!c2p_4bpp_program(s)) {
 		return false;
 	}

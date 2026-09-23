@@ -28,15 +28,15 @@ void DebugOverlay::filled_rect(s16 left, s16 top, s16 right, s16 bottom, u32 rgb
 	debug_filled_rect(left, top, right, bottom, rgb);
 }
 
-MinimalBackend::~MinimalBackend() {
+AmigaBackend::~AmigaBackend() {
 	release_memory();
 }
 
-void MinimalBackend::boot() {
+void AmigaBackend::boot() {
 	set_warpmode(false);
 }
 
-bool MinimalBackend::configure_memory(const MemoryConfig& config) {
+bool AmigaBackend::configure_memory(const MemoryConfig& config) {
 	release_memory();
 
 	// NOTA: AllocMem de AmigaOS 1.3 solo garantiza alineacion a 8 bytes, no 16.
@@ -80,7 +80,7 @@ bool MinimalBackend::configure_memory(const MemoryConfig& config) {
 	return m_memory_report.ok();
 }
 
-void MinimalBackend::release_memory() {
+void AmigaBackend::release_memory() {
 	if (m_frame_alloc) {
 		FreeMem(m_frame_alloc, m_frame_alloc_size);
 		m_frame_alloc = nullptr;
@@ -103,7 +103,7 @@ void MinimalBackend::release_memory() {
 	m_memory_report = {};
 }
 
-void MinimalBackend::wait_vblank_run(void (*thunk)(void*, u16), void* user) {
+void AmigaBackend::wait_vblank_run(void (*thunk)(void*, u16), void* user) {
 	debug_start_idle();
 	// Una sola lectura de VPOSR por iteracion: la condicion y el `vpos` que recibe
 	// la tarea comparten el mismo valor (no anade accesos al bus en el bucle caliente).
@@ -119,16 +119,16 @@ void MinimalBackend::wait_vblank_run(void (*thunk)(void*, u16), void* user) {
 	debug_stop_idle();
 }
 
-void MinimalBackend::install_blitter_service(ServiceSlot& slot) {
+void AmigaBackend::install_blitter_service(ServiceSlot& slot) {
 	g_blitter_service = slot.thunk;
 	g_blitter_service_user = &slot;
 }
 
-u16 MinimalBackend::current_raster_line() const {
+u16 AmigaBackend::current_raster_line() const {
 	return static_cast<u16>((*vpos_long & 0x1ff00u) >> 8);
 }
 
-u32 MinimalBackend::cia_tod_ticks() const {
+u32 AmigaBackend::cia_tod_ticks() const {
 	// Orden de latch de la CIA: TODHI congela TODMID/TODLO (ver cia_chips.md).
 	const u32 hi = *ciaa_reg(0x0au);   // TODHI
 	const u32 mid = *ciaa_reg(0x09u);  // TODMID
@@ -179,7 +179,7 @@ void level3_sync() {
 	}
 }
 
-bool MinimalBackend::install_vblank_service(ServiceSlot& slot) {
+bool AmigaBackend::install_vblank_service(ServiceSlot& slot) {
 	if (g_vbl_task != nullptr) {
 		return false;
 	}
@@ -189,7 +189,7 @@ bool MinimalBackend::install_vblank_service(ServiceSlot& slot) {
 	return true;
 }
 
-void MinimalBackend::clear_vblank_service() {
+void AmigaBackend::clear_vblank_service() {
 	if (g_vbl_task == nullptr) {
 		return;
 	}
@@ -199,7 +199,7 @@ void MinimalBackend::clear_vblank_service() {
 	level3_sync();
 }
 
-bool MinimalBackend::install_blit_service(ServiceSlot& slot) {
+bool AmigaBackend::install_blit_service(ServiceSlot& slot) {
 	if (g_blit_task != nullptr) {
 		return false;
 	}
@@ -209,7 +209,7 @@ bool MinimalBackend::install_blit_service(ServiceSlot& slot) {
 	return true;
 }
 
-void MinimalBackend::clear_blit_service() {
+void AmigaBackend::clear_blit_service() {
 	if (g_blit_task == nullptr) {
 		return;
 	}
@@ -254,7 +254,7 @@ void level4_sync() {
 	}
 }
 
-bool MinimalBackend::install_audio_service(ServiceSlot& slot) {
+bool AmigaBackend::install_audio_service(ServiceSlot& slot) {
 	if (g_audio_task != nullptr) {
 		return false;
 	}
@@ -264,7 +264,7 @@ bool MinimalBackend::install_audio_service(ServiceSlot& slot) {
 	return true;
 }
 
-void MinimalBackend::clear_audio_service() {
+void AmigaBackend::clear_audio_service() {
 	if (g_audio_task == nullptr) {
 		return;
 	}
@@ -274,7 +274,7 @@ void MinimalBackend::clear_audio_service() {
 	level4_sync();
 }
 
-void MinimalBackend::set_blitter_priority(bool enabled) {
+void AmigaBackend::set_blitter_priority(bool enabled) {
 	// DMACON bit 10 (BLTPRI) = "blitter nasty": el Blitter no deja slots libres a la CPU.
 	// SETCLR (0x8000) activa; sin SETCLR, el bit se limpia. No toca MASTER/BLITTER.
 	custom_base[custom_dmacon_offset] = enabled ? static_cast<unsigned short>(0x8400u)
@@ -293,7 +293,7 @@ extern "C" void cia_dispatch() {
 	}
 }
 
-bool MinimalBackend::install_timer_service(u16 latch, ServiceSlot& slot) {
+bool AmigaBackend::install_timer_service(u16 latch, ServiceSlot& slot) {
 	if (g_cia_task != nullptr) {
 		return false;
 	}
@@ -323,7 +323,7 @@ bool MinimalBackend::install_timer_service(u16 latch, ServiceSlot& slot) {
 	return true;
 }
 
-void MinimalBackend::background_timer_stop() {
+void AmigaBackend::background_timer_stop() {
 	if (g_cia_task == nullptr) {
 		return;
 	}
@@ -339,22 +339,22 @@ void MinimalBackend::background_timer_stop() {
 	g_cia_task_user = nullptr;
 }
 
-void MinimalBackend::set_color(u8 index, u16 rgb444) {
+void AmigaBackend::set_color(u8 index, u16 rgb444) {
 	if (index < 32) {
 		custom_base[custom_color_offset + index] = rgb444;
 	}
 }
 
-void MinimalBackend::set_sprite_collision(graphics::SpriteCollisionConfig cfg) {
+void AmigaBackend::set_sprite_collision(graphics::SpriteCollisionConfig cfg) {
 	custom_base[custom_clxcon_offset] = graphics::encode_clxcon(cfg);
 }
 
-graphics::SpriteCollisionResult MinimalBackend::read_sprite_collision() {
+graphics::SpriteCollisionResult AmigaBackend::read_sprite_collision() {
 	// CLXDAT se autolimpia al leer: una lectura = el resultado del frame.
 	return graphics::decode_clxdat(custom_base[custom_clxdat_offset]);
 }
 
-void MinimalBackend::takeover_display(const u16* copper_words) {
+void AmigaBackend::takeover_display(const u16* copper_words) {
 	// Al arrancar, Kickstart/AmigaDOS dejan viva toda la maquina de
 	// interrupciones y DMA: exec/graphics/intuition tienen sus handlers
 	// de VBL/ports/CIAA armados, y Agnus sigue fetchando el sprite del
@@ -406,7 +406,7 @@ void MinimalBackend::takeover_display(const u16* copper_words) {
 	m_display_taken = true;
 }
 
-void MinimalBackend::install_copper_list(const u16* copper_words) {
+void AmigaBackend::install_copper_list(const u16* copper_words) {
 	// SWAP de copperlist (doble buffer; la 201 reinstala cada frame).
 	// Solo actualizamos el puntero: el Copper recarga COP1LC solo al comienzo
 	// del proximo VBlank. NUNCA COPJMP1 aqui: reiniciaria el Copper a media
@@ -423,12 +423,12 @@ void MinimalBackend::install_copper_list(const u16* copper_words) {
 	*cop1lc = reinterpret_cast<u32>(copper_words);
 }
 
-void MinimalBackend::set_bitplane_dat(u8 plane, u16 value) {
+void AmigaBackend::set_bitplane_dat(u8 plane, u16 value) {
 	if (plane < 8u) {
 		custom_base[custom_bpldat_offset + plane] = value;
 	}
 }
-void MinimalBackend::set_warpmode(bool enabled) {
+void AmigaBackend::set_warpmode(bool enabled) {
 	warpmode(enabled ? 1 : 0);
 }
 

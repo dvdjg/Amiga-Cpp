@@ -42,15 +42,15 @@
 /// **Por qué aquí no hay escalares nuevos.** El modelo (`object3d`) es layout crudo
 /// empaquetado y sus punteros se recorren por offset; la matemática que se le aplica es
 /// la ya tipada (`math3d::Affine3`, `Vec<3,Coord>`/`P3`). Por eso este fichero solo usa
-/// enteros con `mul_wide`/`div_wide` (`eng/core/arith.hpp`): no le hace falta otro tipo de
+/// enteros con `mul_wide`/`div_wide` (`eng/core/math/arith.hpp`): no le hace falta otro tipo de
 /// escalar, solo garantizar `muls.w`/`divs.w` en el camino caliente.
 
-#include <eng/core/fixed_affine.hpp>
-#include <eng/core/arith.hpp>
+#include <eng/core/math/fixed_affine.hpp>
+#include <eng/core/math/arith.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/platform/amiga/object3d.hpp>
-#include <eng/core/light.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/light.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/retro/fixed_q.hpp>
 
 namespace eng::lib3d {

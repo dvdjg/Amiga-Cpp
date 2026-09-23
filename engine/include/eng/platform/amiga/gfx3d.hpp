@@ -1,7 +1,7 @@
 #pragma once
 
 /// \file gfx3d.hpp
-/// **Gráficos 3D** sobre el álgebra genérica (`eng/core/linalg.hpp`): construcción de
+/// **Gráficos 3D** sobre el álgebra genérica (`eng/core/math/linalg.hpp`): construcción de
 /// rotaciones, escala y transformación afín, **plantillados sobre el escalar**.
 ///
 /// No hay un tipo único de matriz/vector: `Mat3<S>`, `Affine3<SR, SL>` y `P3<S>` son
@@ -13,12 +13,12 @@
 /// Convención: `out = M·v + t` con la parte lineal en RATIO (`SR`) y la traslación en
 /// LONGITUD (`SL`).
 
-#include <eng/core/fixed.hpp>
-#include <eng/core/linalg.hpp>
-#include <eng/core/mesh3d.hpp>
-#include <eng/core/scalar.hpp>
-#include <eng/core/scalar_math.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/math/fixed.hpp>
+#include <eng/core/math/linalg.hpp>
+#include <eng/core/data/mesh3d.hpp>
+#include <eng/core/math/scalar.hpp>
+#include <eng/core/math/scalar_math.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/retro/fixed_trig.hpp>
 
 namespace eng::math3d {
@@ -142,9 +142,9 @@ inline void transform(const eng::math::Mat<3, SR>& m, eng::math::Vec<3, SL>* out
 		      const eng::math::Vec<3, SL>* in, u32 n) {
 	for (u32 i = 0; i < n; ++i) {
 		const eng::math::Vec<3, SL>& p = in[i];
-		out[i] = eng::math::Vec<3, SL> {eng::math::dot(m.row(0), p),
-						eng::math::dot(m.row(1), p),
-						eng::math::dot(m.row(2), p)};
+		out[i] = eng::math::Vec<3, SL> {eng::math::dot_fixed_row<3>(m.row(0), p),
+						eng::math::dot_fixed_row<3>(m.row(1), p),
+						eng::math::dot_fixed_row<3>(m.row(2), p)};
 	}
 }
 
@@ -154,9 +154,9 @@ inline void transform(const eng::math::Affine<3, SR, SL>& a, eng::math::Vec<3, S
 		      const eng::math::Vec<3, SL>* in, u32 n) {
 	for (u32 i = 0; i < n; ++i) {
 		const eng::math::Vec<3, SL>& p = in[i];
-		out[i] = eng::math::Vec<3, SL> {eng::math::dot(a.m.row(0), p) + a.t.v[0],
-						eng::math::dot(a.m.row(1), p) + a.t.v[1],
-						eng::math::dot(a.m.row(2), p) + a.t.v[2]};
+		out[i] = eng::math::Vec<3, SL> {eng::math::dot_fixed_row<3>(a.m.row(0), p) + a.t.v[0],
+						eng::math::dot_fixed_row<3>(a.m.row(1), p) + a.t.v[1],
+						eng::math::dot_fixed_row<3>(a.m.row(2), p) + a.t.v[2]};
 	}
 }
 

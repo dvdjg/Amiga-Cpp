@@ -8,7 +8,7 @@ using namespace eng::amiga::detail;
 
 namespace eng::amiga {
 
-bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
+bool AmigaBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 	if (!plan.ok()) {
 		return false;
 	}
@@ -24,7 +24,7 @@ bool MinimalBackend::execute_frame_plan(const graphics::FramePlan& plan) {
 	return wait_blitter();
 }
 
-bool MinimalBackend::blitter_submit(const graphics::BlitJob& job, bool wait) {
+bool AmigaBackend::blitter_submit(const graphics::BlitJob& job, bool wait) {
 	m_blitter_starts = 0;
 	bool eor_open = false;
 	if (!submit_blit_job(job, eor_open)) {
@@ -35,7 +35,7 @@ bool MinimalBackend::blitter_submit(const graphics::BlitJob& job, bool wait) {
 
 /// Cuerpo comun de `execute_frame_plan` (encadena varios) y `blitter_submit` (uno).
 /// `eor_open` mantiene la racha de lineas EOR entre jobs consecutivos.
-bool MinimalBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open) {
+bool AmigaBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_open) {
 	const bool masked =
 		job.kind == graphics::BlitJobKind::MaskedBobCookieCut ||
 		job.kind == graphics::BlitJobKind::MaskedBlobNoSave;
@@ -220,7 +220,7 @@ bool MinimalBackend::submit_blit_job(const graphics::BlitJob& job, bool& eor_ope
 	return true;
 }
 
-bool MinimalBackend::fill_triangles_blitter(const FlatTriangle* tris, u32 count,
+bool AmigaBackend::fill_triangles_blitter(const FlatTriangle* tris, u32 count,
 					    eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes,
 					    eng::MaskBuffer mask) {
 	if (tris == nullptr || dst.data() == nullptr || mask.data() == nullptr || planes == 0u) {
@@ -266,7 +266,7 @@ bool MinimalBackend::fill_triangles_blitter(const FlatTriangle* tris, u32 count,
 	return wait_blitter();
 }
 
-bool MinimalBackend::blitter_fill_polygon(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes,
+bool AmigaBackend::blitter_fill_polygon(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes,
 					  const s16* xs, const s16* ys, u8 n, u8 color, eng::MaskBuffer mask) {
 	if (dst.data() == nullptr) {
 		return false;
@@ -277,7 +277,7 @@ bool MinimalBackend::blitter_fill_polygon(eng::PlaneBytes dst, u8 planes, u16 ro
 					    320, 256, xs, ys, n, color, mask);
 }
 
-bool MinimalBackend::blitter_fill_polygon_strided(eng::u8* plane_base, u8 planes, u32 plane_stride,
+bool AmigaBackend::blitter_fill_polygon_strided(eng::u8* plane_base, u8 planes, u32 plane_stride,
 						  u32 row_stride, u16 row_bytes, u16 bitmap_w, u16 bitmap_h,
 						  const s16* xs, const s16* ys, u8 n, u8 color, eng::MaskBuffer mask) {
 	if (plane_base == nullptr || mask.data() == nullptr || xs == nullptr || ys == nullptr ||
@@ -320,7 +320,7 @@ bool MinimalBackend::blitter_fill_polygon_strided(eng::u8* plane_base, u8 planes
 	return wait_blitter();
 }
 
-bool MinimalBackend::blit_fill_from_mask(eng::MaskBytes mask, eng::PlaneBytes dst, u8 planes, u16 row_bytes,
+bool AmigaBackend::blit_fill_from_mask(eng::MaskBytes mask, eng::PlaneBytes dst, u8 planes, u16 row_bytes,
 					 u32 plane_bytes, s16 x, s16 y, u16 w, u16 h, u8 color) {
 	if (mask.data() == nullptr || dst.data() == nullptr || planes == 0u || w == 0u || h == 0u) {
 		return false;
@@ -348,7 +348,7 @@ bool MinimalBackend::blit_fill_from_mask(eng::MaskBytes mask, eng::PlaneBytes ds
 	return wait_blitter();
 }
 
-bool MinimalBackend::blitter_line(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1) {
+bool AmigaBackend::blitter_line(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1) {
 	if (plane.data() == nullptr) {
 		return false;
 	}
@@ -409,7 +409,7 @@ bool MinimalBackend::blitter_line(eng::PlaneBytes plane, u16 row_bytes, s16 x0, 
 	return wait_blitter();
 }
 
-bool MinimalBackend::blitter_collide(eng::PlaneBytes a, eng::PlaneBytes b, eng::PlaneBytes scratch,
+bool AmigaBackend::blitter_collide(eng::PlaneBytes a, eng::PlaneBytes b, eng::PlaneBytes scratch,
 				     u8 planes, u16 row_bytes, u32 plane_bytes, u16 words, u16 rows) {
 	if (a.data() == nullptr || b.data() == nullptr || scratch.data() == nullptr ||
 	    planes == 0u || words == 0u || rows == 0u) {
@@ -446,7 +446,7 @@ bool MinimalBackend::blitter_collide(eng::PlaneBytes a, eng::PlaneBytes b, eng::
 	return false;
 }
 
-bool MinimalBackend::fill_polygons_by_plane(const graphics::PlanePolygon* faces, u32 n_faces,
+bool AmigaBackend::fill_polygons_by_plane(const graphics::PlanePolygon* faces, u32 n_faces,
 					    eng::PlaneBytes dest, u16 row_bytes, u32 plane_bytes,
 					    u8 planes, u16 width, u16 height) {
 	if (faces == nullptr || n_faces == 0u || dest.data() == nullptr || planes == 0u ||
@@ -486,7 +486,7 @@ bool MinimalBackend::fill_polygons_by_plane(const graphics::PlanePolygon* faces,
 	return true;
 }
 
-bool MinimalBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1,
+bool AmigaBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 x0, s16 y0, s16 x1, s16 y1,
 				      eng::u8* d_base) {
 	// Variante autónoma: begin + prepare/draw + wait final.
 	blitter_lines_eor_begin(row_bytes);
@@ -497,7 +497,7 @@ bool MinimalBackend::blitter_line_eor(eng::PlaneBytes plane, u16 row_bytes, s16 
 	return wait_blitter();
 }
 
-void MinimalBackend::blitter_lines_eor_begin(u16 row_bytes) {
+void AmigaBackend::blitter_lines_eor_begin(u16 row_bytes) {
 	// Setup común para una secuencia de líneas EOR (ONEDOT), equivalente al preludio
 	// de `DrawObject` en flatshade-convex (`bltafwm/bltalwm=-1, bltadat=0x8000,
 	// bltbdat=0xffff, bltcmod/bltdmod=WIDTH/8`). Se fija UNA vez por grupo de líneas:
@@ -514,7 +514,7 @@ void MinimalBackend::blitter_lines_eor_begin(u16 row_bytes) {
 	custom_base[custom_bltdmod_offset] = row_bytes;
 }
 
-bool MinimalBackend::blitter_line_eor_prepare(LineEorParams& out, u16 row_bytes, s16 x0, s16 y0,
+bool AmigaBackend::blitter_line_eor_prepare(LineEorParams& out, u16 row_bytes, s16 x0, s16 y0,
 					      s16 x1, s16 y1) {
 	// El original (`DrawObject` de flatshade-convex) DESCARTA las aristas
 	// horizontales: no aportan contorno util y, dibujadas, meterian píxeles
@@ -551,7 +551,7 @@ bool MinimalBackend::blitter_line_eor_prepare(LineEorParams& out, u16 row_bytes,
 	return true;
 }
 
-void MinimalBackend::blitter_line_eor_draw(const LineEorParams& p, eng::u8* plane_ptr, eng::u8* d_base) {
+void AmigaBackend::blitter_line_eor_draw(const LineEorParams& p, eng::u8* plane_ptr, eng::u8* d_base) {
 	u8* data = plane_ptr + p.row_offset;
 	wait_blitter();
 	custom_base[custom_bltcon0_offset] = p.bltcon0;
@@ -566,7 +566,7 @@ void MinimalBackend::blitter_line_eor_draw(const LineEorParams& p, eng::u8* plan
 	// Sin esperar aqui: la siguiente operacion (o el swap de copperlist) sincroniza.
 }
 
-bool MinimalBackend::blitter_area_fill(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 width, u16 height,
+bool AmigaBackend::blitter_area_fill(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 width, u16 height,
 				       bool wait) {
 	if (dst.data() == nullptr || planes == 0u || width < 16u || height == 0u) {
 		return false;
@@ -591,7 +591,7 @@ bool MinimalBackend::blitter_area_fill(eng::PlaneBytes dst, u8 planes, u16 row_b
 	return wait ? wait_blitter() : true;
 }
 
-bool MinimalBackend::blitter_clear(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w, u16 h,
+bool AmigaBackend::blitter_clear(eng::PlaneBytes dst, u8 planes, u16 row_bytes, u32 plane_bytes, u16 w, u16 h,
 				   bool wait) {
 	if (dst.data() == nullptr || planes == 0u || w < 16u || h == 0u) {
 		return false;
@@ -612,7 +612,7 @@ bool MinimalBackend::blitter_clear(eng::PlaneBytes dst, u8 planes, u16 row_bytes
 	return wait ? wait_blitter() : true;
 }
 
-bool MinimalBackend::blitter_memcpy(eng::Span<u8> dst, eng::Span<const u8> src, bool wait) {
+bool AmigaBackend::blitter_memcpy(eng::Span<u8> dst, eng::Span<const u8> src, bool wait) {
 	if (dst.data() == nullptr || src.data() == nullptr || dst.size() < src.size()) {
 		return false;
 	}
@@ -662,22 +662,22 @@ bool MinimalBackend::blitter_memcpy(eng::Span<u8> dst, eng::Span<const u8> src, 
 	return wait ? wait_blitter() : true;
 }
 
-void MinimalBackend::blitter_or_bobs_begin(u16 words, u16 height, s16 source_modulo,
+void AmigaBackend::blitter_or_bobs_begin(u16 words, u16 height, s16 source_modulo,
 					   s16 dest_modulo) {
 	// Misma implementacion que el camino `inline` de coste cero (blob.hpp): una sola
 	// fuente de verdad para la secuencia de registros.
 	m_or_bob.begin(custom_base, words, height, source_modulo, dest_modulo);
 }
 
-void MinimalBackend::blitter_or_bobs_one(const void* source, void* dest, u8 shift) {
+void AmigaBackend::blitter_or_bobs_one(const void* source, void* dest, u8 shift) {
 	m_or_bob.one(source, dest, shift);
 }
 
-bool MinimalBackend::blitter_or_bobs_end() {
+bool AmigaBackend::blitter_or_bobs_end() {
 	return m_or_bob.end();
 }
 
-bool MinimalBackend::blitter_or_bobs(const OrBobEntry* entries, u32 count, u16 words, u16 height,
+bool AmigaBackend::blitter_or_bobs(const OrBobEntry* entries, u32 count, u16 words, u16 height,
 				     s16 source_modulo, s16 dest_modulo) {
 	if (entries == nullptr || count == 0u || words == 0u || height == 0u) {
 		return false;
@@ -689,7 +689,7 @@ bool MinimalBackend::blitter_or_bobs(const OrBobEntry* entries, u32 count, u16 w
 	return blitter_or_bobs_end();
 }
 
-bool MinimalBackend::blitter_clear_rect(eng::PlaneBytes plane, u16 row_bytes, u16 wx0, s16 y0, u16 words, u16 rows,
+bool AmigaBackend::blitter_clear_rect(eng::PlaneBytes plane, u16 row_bytes, u16 wx0, s16 y0, u16 words, u16 rows,
 					bool wait) {
 	if (plane.data() == nullptr || words == 0u || rows == 0u) {
 		return false;
@@ -699,7 +699,7 @@ bool MinimalBackend::blitter_clear_rect(eng::PlaneBytes plane, u16 row_bytes, u1
 	return wait ? wait_blitter() : true;
 }
 
-bool MinimalBackend::blitter_area_fill_rect(eng::PlaneBytes plane, u16 row_bytes, u16 wx0, s16 y0, u16 words, u16 rows,
+bool AmigaBackend::blitter_area_fill_rect(eng::PlaneBytes plane, u16 row_bytes, u16 wx0, s16 y0, u16 words, u16 rows,
 					    bool wait) {
 	if (plane.data() == nullptr || words == 0u || rows == 0u || words * 2u > row_bytes) {
 		return false;
@@ -721,7 +721,7 @@ bool MinimalBackend::blitter_area_fill_rect(eng::PlaneBytes plane, u16 row_bytes
 	return wait ? wait_blitter() : true;
 }
 
-bool MinimalBackend::blitter_fill_rect(eng::u8* plane_base, u8 planes, u32 plane_stride,
+bool AmigaBackend::blitter_fill_rect(eng::u8* plane_base, u8 planes, u32 plane_stride,
 				       u32 row_stride, u16 row_bytes, u16 bitmap_w, u16 bitmap_h,
 				       s32 x, s32 y, u16 w, u16 h, u8 color, bool wait) {
 	if (plane_base == nullptr || planes == 0u || row_bytes == 0u || w == 0u || h == 0u) {
@@ -806,11 +806,11 @@ bool MinimalBackend::blitter_fill_rect(eng::u8* plane_base, u8 planes, u32 plane
 	return wait ? wait_blitter() : true;
 }
 
-bool MinimalBackend::blitter_busy() const {
+bool AmigaBackend::blitter_busy() const {
 	return (custom_base[custom_dmaconr_offset] & dmaconr_blitter_busy) != 0u;
 }
 
-bool MinimalBackend::wait_blitter() {
+bool AmigaBackend::wait_blitter() {
 	return ::wait_blitter();
 }
 

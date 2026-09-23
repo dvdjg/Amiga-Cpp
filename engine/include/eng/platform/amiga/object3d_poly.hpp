@@ -10,9 +10,9 @@
 /// Los buffers son del llamador (sin heap). Los `FaceIndex` del formato son **offsets de
 /// byte**; aquí se mapean al índice de vértice (0..N-1) del `PolyMeshView`.
 
-#include <eng/core/mesh3d.hpp>
-#include <eng/core/span.hpp>
-#include <eng/core/types.hpp>
+#include <eng/core/data/mesh3d.hpp>
+#include <eng/core/types/span.hpp>
+#include <eng/core/types/types.hpp>
 #include <eng/platform/amiga/gfx3d.hpp>
 #include <eng/platform/amiga/object3d.hpp>
 
