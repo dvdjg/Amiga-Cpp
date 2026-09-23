@@ -317,13 +317,20 @@ UI (`eng::ui`).
   mínimo (solo `disk_debug_logging`): en las corridas **fallidas** la DMA **también** arranca y
   termina (`dma_started=2`, `dma_finished=2`) ⇒ **el fallo no es la DMA ni el tope** (subir el guard a
   `0x00ffffff` no mejora: sigue ~1/3). La demo ahora reporta `detail = (syncs << 8) | why`: en las
-  corridas fallidas el buffer leído tiene solo **1-9** syncs `$4489` (un track AmigaDOS tiene ~22) ⇒
-  **la DMA no está capturando el track MFM**; no es decodificación ni checksums (verificado:
-  desactivarlos no cambia el resultado). **Análisis del fuente del emulador** (`../WinUAE-DBG/disk.cpp`,
+  corridas fallidas el buffer leído tiene solo **1-9** syncs `$4489` alineados a palabra (un track
+  AmigaDOS tiene ~22); no es checksums (desactivarlos no cambia el resultado). **Ojo: ese conteo era
+  enganoso** (la alineacion de palabra del buffer no coincide con la del sync); el dato decisivo esta
+  al final del bullet. **Análisis del fuente del emulador** (`../WinUAE-DBG/disk.cpp`,
   vía §1.11): `doreaddma` (`:4256`) escribe en `dskpt` solo si `dmaen(DMA_DISK)` + `bitoffset==15` +
   `dma_enable` (lo pone `wordsync_detected` al ver el sync) + `dskdmaen==READ` + `dsklength>0`; el dato
   sale de `drv->bigmfmbuf[drv->mfmpos]` (`getonebit`, `:4435`); y el armado por doble escritura de
   `DSKLEN` (`:4853`) **no re-arma** si `dskdmaen==READ` y el bit 14 va a 0 (hace `return`). Ya se quitó
+  la escritura `DSKLEN=0` (que en `:4887` dispara un `disk_dmafinished` prematuro con `dma_enable` a
+  1). **Verificación con `DISK_DEBUG_X`/`disk_debug_logging` (corrige el diagnóstico previo)**: la DMA
+  transfiere **las 12667 palabras** al buffer y, en las corridas fallidas, `m_track[0] = 0x4489` (¡un
+  sync!) y `m_track[1] = 0x552A` ⇒ **la DMA sí captura el MFM y empieza en un sync**; el fallo (2/4
+  pasan) es de **alineación/fase del stream respecto a la estructura de sector**, no de "no captura".
+  Ya se quitó
   la escritura `DSKLEN=0` (que en `:4887` dispara un `disk_dmafinished` prematuro con `dma_enable` a 1).
   Pendiente: un `write_log` dirigido (`DISK_DEBUG_X`, `:4276` `buffer load`) para ver qué escribe el DMA
   y por qué el buffer recibe pocos syncs; después, leer sector a sector sincronizando por `DSKSYNC`. La
