@@ -75,8 +75,18 @@ audio del mixer** avanza a ritmo **constante pero mucho menor** cuanto **más gr
 **Hipótesis abierta**: con módulos grandes, el reproductor (que corre en **CIA**, nivel 2) **se come la
 IRQ de audio del mixer** (nivel 4) o **reescribe registros de audio más a menudo**; el mixer pierde
 IRQs. Para reproducirlo: `demos/amiga/276_music_mixer` con `-DMED_MOD=2` (y `-DK_REPORT_FRAME=N`). Un
-módulo **moderado** (≤ ~100 KB) va fino; si se necesita uno grande, medir el contador
-(`SfxMixer::counter()`) y considerar cargarlo desde disco/packearlo.
+módulo **moderado** (≤ ~100 KB) va fino.
+
+**No hay límite documentado del tamaño del módulo** en el reproductor (P61/PtPlayer) ni en el mixer.
+El mixer solo documenta límites de **sus buffers internos** (`mixer_buffer_size`,
+`mixer_plugin_buffer_size` en `support/audio_mixer/mixer.i`), que son **pequeños y fijos** (fracción
+de segundo × nº de voces) y **no crecen con el módulo**: el mixer no "carga" el módulo.
+
+La vía correcta para audio grande **no** es incrustarlo entero (es lo que agrava el problema medido),
+sino **streaming desde disco con footprint pequeño**, ya diseñado en
+[`AUDIO_STREAMING.md`](AUDIO_STREAMING.md) (`PcmStream`/`ChunkStream`, chunks de 4–8 KB, roadmap A5):
+mientras Paula reproduce un buffer, el disco llena el siguiente. Para un reproductor de módulos, la
+analogía es cargar el módulo (o sus samples) por partes, no `INCBIN`ar 200+ KB en el ejecutable.
 
 ## Protocolo P61 (`testmod.p61`) y samples empaquetados
 
